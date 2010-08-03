@@ -125,7 +125,7 @@ static WERROR cmd_info(struct regshell_context *ctx, int argc, char **argv)
 	if (classname != NULL)
 		printf("Key Class: %s\n", classname);
 	last_mod = nt_time_to_unix(last_change);
-	printf("Time Last Modified: %s\n", ctime(&last_mod));
+	printf("Time Last Modified: %s", ctime(&last_mod));
 	printf("Number of subkeys: %d\n", num_subkeys);
 	printf("Number of values: %d\n", num_values);
 
@@ -140,8 +140,8 @@ static WERROR cmd_info(struct regshell_context *ctx, int argc, char **argv)
 
 	error = reg_get_sec_desc(ctx, ctx->current, &sec_desc);
 	if (!W_ERROR_IS_OK(error)) {
-		printf("Error getting security descriptor\n");
-		return error;
+		printf("Error getting security descriptor: %s\n", win_errstr(error));
+		return WERR_OK;
 	}
 	ndr_print_debug((ndr_print_fn_t)ndr_print_security_descriptor,
 			"Security", sec_desc);
@@ -195,9 +195,7 @@ static WERROR cmd_set(struct regshell_context *ctx, int argc, char **argv)
 		return WERR_INVALID_PARAM;
 	}
 
-	if (!reg_string_to_val(ctx, lp_iconv_convenience(cmdline_lp_ctx), 
-			       argv[2], argv[3], &val.data_type,
-			       &val.data)) {
+	if (!reg_string_to_val(ctx, argv[2], argv[3], &val.data_type, &val.data)) {
 		fprintf(stderr, "Unable to interpret data\n");
 		return WERR_INVALID_PARAM;
 	}
@@ -259,14 +257,14 @@ static WERROR cmd_print(struct regshell_context *ctx, int argc, char **argv)
 	}
 
 	printf("%s\n%s\n", str_regtype(value_type),
-		   reg_val_data_string(ctx, lp_iconv_convenience(cmdline_lp_ctx), value_type, value_data));
+		   reg_val_data_string(ctx, value_type, value_data));
 
 	return WERR_OK;
 }
 
 static WERROR cmd_ls(struct regshell_context *ctx, int argc, char **argv)
 {
-	int i;
+	unsigned int i;
 	WERROR error;
 	uint32_t valuetype;
 	DATA_BLOB valuedata;
@@ -282,7 +280,7 @@ static WERROR cmd_ls(struct regshell_context *ctx, int argc, char **argv)
 	}
 
 	if (!W_ERROR_EQUAL(error, WERR_NO_MORE_ITEMS)) {
-		fprintf(stderr, "Error occured while browsing thru keys: %s\n",
+		fprintf(stderr, "Error occurred while browsing through keys: %s\n",
 			win_errstr(error));
 		return error;
 	}
@@ -290,7 +288,7 @@ static WERROR cmd_ls(struct regshell_context *ctx, int argc, char **argv)
 	for (i = 0; W_ERROR_IS_OK(error = reg_key_get_value_by_index(ctx,
 		ctx->current, i, &name, &valuetype, &valuedata)); i++)
 		printf("V \"%s\" %s %s\n", name, str_regtype(valuetype),
-			   reg_val_data_string(ctx, lp_iconv_convenience(cmdline_lp_ctx), valuetype, valuedata));
+			   reg_val_data_string(ctx, valuetype, valuedata));
 
 	return WERR_OK;
 }
@@ -325,7 +323,7 @@ static WERROR cmd_rmkey(struct regshell_context *ctx,
 		return WERR_INVALID_PARAM;
 	}
 
-	error = reg_key_del(ctx->current, argv[1]);
+	error = reg_key_del(ctx, ctx->current, argv[1]);
 	if(!W_ERROR_IS_OK(error)) {
 		fprintf(stderr, "Error deleting '%s'\n", argv[1]);
 		return error;
@@ -345,7 +343,7 @@ static WERROR cmd_rmval(struct regshell_context *ctx, int argc, char **argv)
 		return WERR_INVALID_PARAM;
 	}
 
-	error = reg_del_value(ctx->current, argv[1]);
+	error = reg_del_value(ctx, ctx->current, argv[1]);
 	if(!W_ERROR_IS_OK(error)) {
 		fprintf(stderr, "Error deleting value '%s'\n", argv[1]);
 		return error;
@@ -388,7 +386,7 @@ static struct {
 static WERROR cmd_help(struct regshell_context *ctx,
 		       int argc, char **argv)
 {
-	int i;
+	unsigned int i;
 	printf("Available commands:\n");
 	for(i = 0; regshell_cmds[i].name; i++) {
 		printf("%s - %s\n", regshell_cmds[i].name,
@@ -429,7 +427,8 @@ static char **reg_complete_command(const char *text, int start, int end)
 {
 	/* Complete command */
 	char **matches;
-	int i, len, samelen=0, count=1;
+	size_t len, samelen=0;
+	unsigned int i, count=1;
 
 	matches = malloc_array_p(char *, MAX_COMPLETIONS);
 	if (!matches) return NULL;
@@ -477,9 +476,8 @@ static char **reg_complete_key(const char *text, int start, int end)
 {
 	struct registry_key *base;
 	const char *subkeyname;
-	int i, j = 1;
-	int samelen = 0;
-	int len;
+	unsigned int i, j = 1;
+	size_t len, samelen = 0;
 	char **matches;
 	const char *base_n = "";
 	TALLOC_CTX *mem_ctx;
@@ -593,7 +591,7 @@ int main(int argc, char **argv)
 		return 1;
 
 	if (ctx->current == NULL) {
-		int i;
+		unsigned int i;
 
 		for (i = 0; (reg_predefined_keys[i].handle != 0) &&
 			(ctx->current == NULL); i++) {
@@ -616,7 +614,7 @@ int main(int argc, char **argv)
 
 	if (ctx->current == NULL) {
 		fprintf(stderr, "Unable to access any of the predefined keys\n");
-		return -1;
+		return 1;
 	}
 
 	poptFreeContext(pc);
@@ -624,7 +622,11 @@ int main(int argc, char **argv)
 	while (true) {
 		char *line, *prompt;
 
-		asprintf(&prompt, "%s\\%s> ", ctx->predef?ctx->predef:"", ctx->path);
+		if (asprintf(&prompt, "%s\\%s> ", ctx->predef?ctx->predef:"",
+			     ctx->path) < 0) {
+			ret = false;
+			break;
+		}
 
 		current_key = ctx->current; 		/* No way to pass a void * pointer
 							   via readline :-( */

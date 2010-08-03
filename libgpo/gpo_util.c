@@ -19,11 +19,12 @@
 #define TALLOC_DEPRECATED 1
 #include "includes.h"
 #include "librpc/gen_ndr/ndr_misc.h"
+#include "../librpc/gen_ndr/ndr_security.h"
+#include "../libgpo/gpo.h"
 #if _SAMBA_BUILD_ == 4
 #include "system/filesys.h"
 #include "auth/auth.h"
-#include "../libgpo/gpo.h"
-#include "../lib/talloc/talloc.h"
+#include <talloc.h>
 #include "source4/libgpo/ads_convenience.h"
 #endif
 #undef strdup
@@ -321,10 +322,11 @@ void dump_gpo(ADS_STRUCT *ads,
 		}
 		dump_gp_ext(gp_ext, lvl);
 	}
+	if (gpo->security_descriptor) {
+		DEBUGADD(lvl,("security descriptor:\n"));
 
-	DEBUGADD(lvl,("security descriptor:\n"));
-
-	NDR_PRINT_DEBUG(security_descriptor, gpo->security_descriptor);
+		NDR_PRINT_DEBUG(security_descriptor, gpo->security_descriptor);
+	}
 }
 
 /****************************************************************

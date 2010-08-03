@@ -32,11 +32,7 @@ static WERROR dcesrv_wkssvc_NetWkstaGetInfo(struct dcesrv_call_state *dce_call, 
 		       struct wkssvc_NetWkstaGetInfo *r)
 {
 	struct dcesrv_context *dce_ctx = dce_call->conn->dce_ctx;
-	struct dcerpc_server_info *server_info = lp_dcerpc_server_info(mem_ctx, dce_ctx->lp_ctx);
-
-	ZERO_STRUCT(r->out);
-	r->out.info = talloc_zero(mem_ctx, union wkssvc_NetWkstaInfo);
-	W_ERROR_HAVE_NO_MEMORY(r->out.info);
+	struct dcerpc_server_info *server_info = lpcfg_dcerpc_server_info(mem_ctx, dce_ctx->lp_ctx);
 
 	/* NOTE: win2k3 ignores r->in.server_name completly so we do --metze */
 
@@ -51,8 +47,7 @@ static WERROR dcesrv_wkssvc_NetWkstaGetInfo(struct dcesrv_call_state *dce_call, 
 		info100->platform_id	= dcesrv_common_get_platform_id(mem_ctx, dce_ctx);
 		info100->server_name	= dcesrv_common_get_server_name(mem_ctx, dce_ctx, NULL);
 		W_ERROR_HAVE_NO_MEMORY(info100->server_name);
-		info100->domain_name	= talloc_reference(mem_ctx, server_info->domain_name);
-		W_ERROR_HAVE_NO_MEMORY(info100->domain_name);
+		info100->domain_name	= server_info->domain_name;
 		info100->version_major	= server_info->version_major;
 		info100->version_minor	= server_info->version_minor;
 
@@ -69,8 +64,7 @@ static WERROR dcesrv_wkssvc_NetWkstaGetInfo(struct dcesrv_call_state *dce_call, 
 		info101->platform_id	= dcesrv_common_get_platform_id(mem_ctx, dce_ctx);
 		info101->server_name	= dcesrv_common_get_server_name(mem_ctx, dce_ctx, NULL);
 		W_ERROR_HAVE_NO_MEMORY(info101->server_name);
-		info101->domain_name	= talloc_reference(mem_ctx, server_info->domain_name);
-		W_ERROR_HAVE_NO_MEMORY(info101->domain_name);
+		info101->domain_name	= server_info->domain_name;
 		info101->version_major	= server_info->version_major;
 		info101->version_minor	= server_info->version_minor;
 		info101->lan_root	= dcesrv_common_get_lan_root(mem_ctx, dce_ctx);
@@ -89,8 +83,6 @@ static WERROR dcesrv_wkssvc_NetWkstaGetInfo(struct dcesrv_call_state *dce_call, 
 	default:
 		return WERR_UNKNOWN_LEVEL;
 	}
-
-	return WERR_UNKNOWN_LEVEL;
 }
 
 
@@ -140,14 +132,8 @@ static WERROR dcesrv_wkssvc_NetrWkstaUserSetInfo(struct dcesrv_call_state *dce_c
 static WERROR dcesrv_wkssvc_NetWkstaTransportEnum(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 		       struct wkssvc_NetWkstaTransportEnum *r)
 {
-	r->out.total_entries = 0;
-	r->out.resume_handle = NULL;
-
 	switch (r->in.info->level) {
 	case 0:
-		r->out.info = talloc(mem_ctx, struct wkssvc_NetWkstaTransportInfo);
-		W_ERROR_HAVE_NO_MEMORY(r->out.info);
-		r->out.info->level = r->in.info->level;
 		r->out.info->ctr.ctr0 = talloc(mem_ctx, struct wkssvc_NetWkstaTransportCtr0);
 		W_ERROR_HAVE_NO_MEMORY(r->out.info->ctr.ctr0);
 
@@ -159,8 +145,6 @@ static WERROR dcesrv_wkssvc_NetWkstaTransportEnum(struct dcesrv_call_state *dce_
 	default:
 		return WERR_UNKNOWN_LEVEL;
 	}
-
-	return WERR_UNKNOWN_LEVEL;
 }
 
 

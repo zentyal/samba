@@ -24,6 +24,7 @@
 
 #include "replace.h"
 #include "libwbclient.h"
+#include "../winbind_client.h"
 
 /** @brief The maximum number of pwent structs to get from winbindd
  *
@@ -39,74 +40,111 @@
  *
  **/
 
+static void wbcPasswdDestructor(void *ptr)
+{
+	struct passwd *pw = (struct passwd *)ptr;
+	free(pw->pw_name);
+	free(pw->pw_passwd);
+	free(pw->pw_gecos);
+	free(pw->pw_shell);
+	free(pw->pw_dir);
+}
+
 static struct passwd *copy_passwd_entry(struct winbindd_pw *p)
 {
-	struct passwd *pwd = NULL;
-	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct passwd *pw = NULL;
 
-	pwd = talloc(NULL, struct passwd);
-	BAIL_ON_PTR_ERROR(pwd, wbc_status);
-
-	pwd->pw_name = talloc_strdup(pwd,p->pw_name);
-	BAIL_ON_PTR_ERROR(pwd->pw_name, wbc_status);
-
-	pwd->pw_passwd = talloc_strdup(pwd, p->pw_passwd);
-	BAIL_ON_PTR_ERROR(pwd->pw_passwd, wbc_status);
-
-	pwd->pw_gecos = talloc_strdup(pwd, p->pw_gecos);
-	BAIL_ON_PTR_ERROR(pwd->pw_gecos, wbc_status);
-
-	pwd->pw_shell = talloc_strdup(pwd, p->pw_shell);
-	BAIL_ON_PTR_ERROR(pwd->pw_shell, wbc_status);
-
-	pwd->pw_dir = talloc_strdup(pwd, p->pw_dir);
-	BAIL_ON_PTR_ERROR(pwd->pw_dir, wbc_status);
-
-	pwd->pw_uid = p->pw_uid;
-	pwd->pw_gid = p->pw_gid;
-
-done:
-	if (!WBC_ERROR_IS_OK(wbc_status)) {
-		talloc_free(pwd);
-		pwd = NULL;
+	pw = (struct passwd *)wbcAllocateMemory(1, sizeof(struct passwd),
+						wbcPasswdDestructor);
+	if (pw == NULL) {
+		return NULL;
 	}
+	pw->pw_name = strdup(p->pw_name);
+	if (pw->pw_name == NULL) {
+		goto fail;
+	}
+	pw->pw_passwd = strdup(p->pw_passwd);
+	if (pw->pw_passwd == NULL) {
+		goto fail;
+	}
+	pw->pw_gecos = strdup(p->pw_gecos);
+	if (pw->pw_gecos == NULL) {
+		goto fail;
+	}
+	pw->pw_shell = strdup(p->pw_shell);
+	if (pw->pw_shell == NULL) {
+		goto fail;
+	}
+	pw->pw_dir = strdup(p->pw_dir);
+	if (pw->pw_dir == NULL) {
+		goto fail;
+	}
+	pw->pw_uid = p->pw_uid;
+	pw->pw_gid = p->pw_gid;
+	return pw;
 
-	return pwd;
+fail:
+	wbcFreeMemory(pw);
+	return NULL;
 }
 
 /**
  *
  **/
 
+static void wbcGroupDestructor(void *ptr)
+{
+	struct group *gr = (struct group *)ptr;
+	int i;
+
+	free(gr->gr_name);
+	free(gr->gr_passwd);
+
+	for (i=0; gr->gr_mem[i] != NULL; i++) {
+		free(gr->gr_mem[i]);
+	}
+	free(gr->gr_mem);
+}
+
 static struct group *copy_group_entry(struct winbindd_gr *g,
 				      char *mem_buf)
 {
-	struct group *grp = NULL;
-	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct group *gr = NULL;
 	int i;
 	char *mem_p, *mem_q;
 
-	grp = talloc(NULL, struct group);
-	BAIL_ON_PTR_ERROR(grp, wbc_status);
+	gr = (struct group *)wbcAllocateMemory(
+		1, sizeof(struct group), wbcGroupDestructor);
+	if (gr == NULL) {
+		return NULL;
+	}
 
-	grp->gr_name = talloc_strdup(grp, g->gr_name);
-	BAIL_ON_PTR_ERROR(grp->gr_name, wbc_status);
+	gr->gr_name = strdup(g->gr_name);
+	if (gr->gr_name == NULL) {
+		goto fail;
+	}
+	gr->gr_passwd = strdup(g->gr_passwd);
+	if (gr->gr_passwd == NULL) {
+		goto fail;
+	}
+	gr->gr_gid = g->gr_gid;
 
-	grp->gr_passwd = talloc_strdup(grp, g->gr_passwd);
-	BAIL_ON_PTR_ERROR(grp->gr_passwd, wbc_status);
-
-	grp->gr_gid = g->gr_gid;
-
-	grp->gr_mem = talloc_array(grp, char*, g->num_gr_mem+1);
+	gr->gr_mem = (char **)calloc(g->num_gr_mem+1, sizeof(char *));
+	if (gr->gr_mem == NULL) {
+		goto fail;
+	}
 
 	mem_p = mem_q = mem_buf;
 	for (i=0; i<g->num_gr_mem && mem_p; i++) {
-		if ((mem_q = strchr(mem_p, ',')) != NULL) {
+		mem_q = strchr(mem_p, ',');
+		if (mem_q != NULL) {
 			*mem_q = '\0';
 		}
 
-		grp->gr_mem[i] = talloc_strdup(grp, mem_p);
-		BAIL_ON_PTR_ERROR(grp->gr_mem[i], wbc_status);
+		gr->gr_mem[i] = strdup(mem_p);
+		if (gr->gr_mem[i] == NULL) {
+			goto fail;
+		}
 
 		if (mem_q == NULL) {
 			i += 1;
@@ -114,17 +152,13 @@ static struct group *copy_group_entry(struct winbindd_gr *g,
 		}
 		mem_p = mem_q + 1;
 	}
-	grp->gr_mem[i] = NULL;
+	gr->gr_mem[i] = NULL;
 
-	wbc_status = WBC_ERR_SUCCESS;
+	return gr;
 
-done:
-	if (!WBC_ERROR_IS_OK(wbc_status)) {
-		talloc_free(grp);
-		grp = NULL;
-	}
-
-	return grp;
+fail:
+	wbcFreeMemory(gr);
+	return NULL;
 }
 
 /* Fill in a struct passwd* for a domain user based on username */
@@ -223,10 +257,7 @@ wbcErr wbcGetpwsid(struct wbcDomainSid *sid, struct passwd **pwd)
 	BAIL_ON_PTR_ERROR(*pwd, wbc_status);
 
  done:
-	if (sid_string) {
-		wbcFreeMemory(sid_string);
-	}
-
+	wbcFreeMemory(sid_string);
 	return wbc_status;
 }
 
@@ -261,8 +292,7 @@ wbcErr wbcGetgrnam(const char *name, struct group **grp)
 	BAIL_ON_PTR_ERROR(*grp, wbc_status);
 
  done:
-	if (response.extra_data.data)
-		free(response.extra_data.data);
+	winbindd_free_response(&response);
 
 	return wbc_status;
 }
@@ -296,8 +326,7 @@ wbcErr wbcGetgrgid(gid_t gid, struct group **grp)
 	BAIL_ON_PTR_ERROR(*grp, wbc_status);
 
  done:
-	if (response.extra_data.data)
-		free(response.extra_data.data);
+	winbindd_free_response(&response);
 
 	return wbc_status;
 }
@@ -324,9 +353,7 @@ wbcErr wbcSetpwent(void)
 
 	if (pw_cache_size > 0) {
 		pw_cache_idx = pw_cache_size = 0;
-		if (pw_response.extra_data.data) {
-			free(pw_response.extra_data.data);
-		}
+		winbindd_free_response(&pw_response);
 	}
 
 	ZERO_STRUCT(pw_response);
@@ -346,9 +373,7 @@ wbcErr wbcEndpwent(void)
 
 	if (pw_cache_size > 0) {
 		pw_cache_idx = pw_cache_size = 0;
-		if (pw_response.extra_data.data) {
-			free(pw_response.extra_data.data);
-		}
+		winbindd_free_response(&pw_response);
 	}
 
 	wbc_status = wbcRequestResponse(WINBINDD_ENDPWENT,
@@ -375,10 +400,7 @@ wbcErr wbcGetpwent(struct passwd **pwd)
 
 	pw_cache_idx = 0;
 
-	if (pw_response.extra_data.data) {
-		free(pw_response.extra_data.data);
-		ZERO_STRUCT(pw_response);
-	}
+	winbindd_free_response(&pw_response);
 
 	ZERO_STRUCT(request);
 	request.data.num_entries = MAX_GETPWENT_USERS;
@@ -426,9 +448,7 @@ wbcErr wbcSetgrent(void)
 
 	if (gr_cache_size > 0) {
 		gr_cache_idx = gr_cache_size = 0;
-		if (gr_response.extra_data.data) {
-			free(gr_response.extra_data.data);
-		}
+		winbindd_free_response(&gr_response);
 	}
 
 	ZERO_STRUCT(gr_response);
@@ -448,9 +468,7 @@ wbcErr wbcEndgrent(void)
 
 	if (gr_cache_size > 0) {
 		gr_cache_idx = gr_cache_size = 0;
-		if (gr_response.extra_data.data) {
-			free(gr_response.extra_data.data);
-		}
+		winbindd_free_response(&gr_response);
 	}
 
 	wbc_status = wbcRequestResponse(WINBINDD_ENDGRENT,
@@ -478,10 +496,7 @@ wbcErr wbcGetgrent(struct group **grp)
 
 	gr_cache_idx = 0;
 
-	if (gr_response.extra_data.data) {
-		free(gr_response.extra_data.data);
-		ZERO_STRUCT(gr_response);
-	}
+	winbindd_free_response(&gr_response);
 
 	ZERO_STRUCT(request);
 	request.data.num_entries = MAX_GETGRENT_GROUPS;
@@ -527,10 +542,8 @@ wbcErr wbcGetgrlist(struct group **grp)
 
 	gr_cache_idx = 0;
 
-	if (gr_response.extra_data.data) {
-		free(gr_response.extra_data.data);
-		ZERO_STRUCT(gr_response);
-	}
+	winbindd_free_response(&gr_response);
+	ZERO_STRUCT(gr_response);
 
 	ZERO_STRUCT(request);
 	request.data.num_entries = MAX_GETGRENT_GROUPS;
@@ -586,7 +599,8 @@ wbcErr wbcGetGroups(const char *account,
 					&response);
 	BAIL_ON_WBC_ERROR(wbc_status);
 
-	groups = talloc_array(NULL, gid_t, response.data.num_entries);
+	groups = (gid_t *)wbcAllocateMemory(
+		sizeof(gid_t), response.data.num_entries, NULL);
 	BAIL_ON_PTR_ERROR(groups, wbc_status);
 
 	for (i = 0; i < response.data.num_entries; i++) {
@@ -600,12 +614,7 @@ wbcErr wbcGetGroups(const char *account,
 	wbc_status = WBC_ERR_SUCCESS;
 
  done:
-	if (response.extra_data.data) {
-		free(response.extra_data.data);
-	}
-	if (groups) {
-		talloc_free(groups);
-	}
-
+	winbindd_free_response(&response);
+	wbcFreeMemory(groups);
 	return wbc_status;
 }

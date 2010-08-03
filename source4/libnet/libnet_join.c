@@ -133,23 +133,14 @@ static NTSTATUS libnet_JoinADSDomain(struct libnet_context *ctx, struct libnet_J
 	r_drsuapi_bind.in.bind_info = NULL;
 	r_drsuapi_bind.out.bind_handle = &drsuapi_bind_handle;
 
-	status = dcerpc_drsuapi_DsBind(drsuapi_pipe, tmp_ctx, &r_drsuapi_bind);
+	status = dcerpc_drsuapi_DsBind_r(drsuapi_pipe->binding_handle, tmp_ctx, &r_drsuapi_bind);
 	if (!NT_STATUS_IS_OK(status)) {
-		if (NT_STATUS_EQUAL(status, NT_STATUS_NET_WRITE_FAULT)) {
-			r->out.error_string
-				= talloc_asprintf(r,
-						  "dcerpc_drsuapi_DsBind failed - %s", 
-						  dcerpc_errstr(tmp_ctx, drsuapi_pipe->last_fault_code));
-			talloc_free(tmp_ctx);
-			return status;
-		} else {
-			r->out.error_string
-				= talloc_asprintf(r,
-						  "dcerpc_drsuapi_DsBind failed - %s", 
-						  nt_errstr(status));
-			talloc_free(tmp_ctx);
-			return status;
-		}
+		r->out.error_string
+			= talloc_asprintf(r,
+					  "dcerpc_drsuapi_DsBind failed - %s",
+					  nt_errstr(status));
+		talloc_free(tmp_ctx);
+		return status;
 	} else if (!W_ERROR_IS_OK(r_drsuapi_bind.out.result)) {
 		r->out.error_string
 				= talloc_asprintf(r,
@@ -184,32 +175,22 @@ static NTSTATUS libnet_JoinADSDomain(struct libnet_context *ctx, struct libnet_J
 	}
 
 	r_crack_names.out.ctr			= talloc(r, union drsuapi_DsNameCtr);
-	r_crack_names.out.level_out		= talloc(r, int32_t);
+	r_crack_names.out.level_out		= talloc(r, uint32_t);
 	if (!r_crack_names.out.ctr || !r_crack_names.out.level_out) {
 		r->out.error_string = NULL;
 		talloc_free(tmp_ctx);
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	status = dcerpc_drsuapi_DsCrackNames(drsuapi_pipe, tmp_ctx, &r_crack_names);
+	status = dcerpc_drsuapi_DsCrackNames_r(drsuapi_pipe->binding_handle, tmp_ctx, &r_crack_names);
 	if (!NT_STATUS_IS_OK(status)) {
-		if (NT_STATUS_EQUAL(status, NT_STATUS_NET_WRITE_FAULT)) {
-			r->out.error_string
-				= talloc_asprintf(r,
-						  "dcerpc_drsuapi_DsCrackNames for [%s] failed - %s", 
-						  names[0].str,
-						  dcerpc_errstr(tmp_ctx, drsuapi_pipe->last_fault_code));
-			talloc_free(tmp_ctx);
-			return status;
-		} else {
-			r->out.error_string
-				= talloc_asprintf(r,
-						  "dcerpc_drsuapi_DsCrackNames for [%s] failed - %s", 
-						  names[0].str,
-						  nt_errstr(status));
-			talloc_free(tmp_ctx);
-			return status;
-		}
+		r->out.error_string
+			= talloc_asprintf(r,
+					  "dcerpc_drsuapi_DsCrackNames for [%s] failed - %s",
+					  names[0].str,
+					  nt_errstr(status));
+		talloc_free(tmp_ctx);
+		return status;
 	} else if (!W_ERROR_IS_OK(r_crack_names.out.result)) {
 		r->out.error_string
 				= talloc_asprintf(r,
@@ -245,9 +226,9 @@ static NTSTATUS libnet_JoinADSDomain(struct libnet_context *ctx, struct libnet_J
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	remote_ldb = ldb_wrap_connect(tmp_ctx, ctx->event_ctx, ctx->lp_ctx, 
+	remote_ldb = ldb_wrap_connect(tmp_ctx, ctx->event_ctx, ctx->lp_ctx,
 				      remote_ldb_url, 
-				      NULL, ctx->cred, 0, NULL);
+				      NULL, ctx->cred, 0);
 	if (!remote_ldb) {
 		r->out.error_string = NULL;
 		talloc_free(tmp_ctx);
@@ -289,7 +270,7 @@ static NTSTATUS libnet_JoinADSDomain(struct libnet_context *ctx, struct libnet_J
 	msg->dn = res->msgs[0]->dn;
 
 	{
-		int i;
+		unsigned int i;
 		const char *service_principal_name[6];
 		const char *dns_host_name = strlower_talloc(tmp_ctx, 
 							    talloc_asprintf(tmp_ctx, 
@@ -317,7 +298,7 @@ static NTSTATUS libnet_JoinADSDomain(struct libnet_context *ctx, struct libnet_J
 				return NT_STATUS_NO_MEMORY;
 			}
 			rtn = samdb_msg_add_string(remote_ldb, tmp_ctx, msg, "servicePrincipalName", service_principal_name[i]);
-			if (rtn == -1) {
+			if (rtn != LDB_SUCCESS) {
 				r->out.error_string = NULL;
 				talloc_free(tmp_ctx);
 				return NT_STATUS_NO_MEMORY;
@@ -325,14 +306,14 @@ static NTSTATUS libnet_JoinADSDomain(struct libnet_context *ctx, struct libnet_J
 		}
 
 		rtn = samdb_msg_add_string(remote_ldb, tmp_ctx, msg, "dNSHostName", dns_host_name);
-		if (rtn == -1) {
+		if (rtn != LDB_SUCCESS) {
 			r->out.error_string = NULL;
 			talloc_free(tmp_ctx);
 			return NT_STATUS_NO_MEMORY;
 		}
 
-		rtn = samdb_replace(remote_ldb, tmp_ctx, msg);
-		if (rtn != 0) {
+		rtn = dsdb_replace(remote_ldb, msg, 0);
+		if (rtn != LDB_SUCCESS) {
 			r->out.error_string
 				= talloc_asprintf(r, 
 						  "Failed to replace entries on %s", 
@@ -342,6 +323,38 @@ static NTSTATUS libnet_JoinADSDomain(struct libnet_context *ctx, struct libnet_J
 		}
 	}
 				
+	msg = ldb_msg_new(tmp_ctx);
+	if (!msg) {
+		r->out.error_string = NULL;
+		talloc_free(tmp_ctx);
+		return NT_STATUS_NO_MEMORY;
+	}
+	msg->dn = res->msgs[0]->dn;
+
+	rtn = ldb_msg_add_fmt(msg, "msDS-SupportedEncryptionTypes",
+			      "%lu",
+			      (long unsigned int)(ENC_CRC32 | ENC_RSA_MD5 |
+						  ENC_RC4_HMAC_MD5 |
+						  ENC_HMAC_SHA1_96_AES128 |
+						  ENC_HMAC_SHA1_96_AES256));
+	if (rtn != LDB_SUCCESS) {
+		r->out.error_string = NULL;
+		talloc_free(tmp_ctx);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	rtn = dsdb_replace(remote_ldb, msg, 0);
+	/* The remote server may not support this attribute, if it
+	 * isn't a modern schema */
+	if (rtn != LDB_SUCCESS && rtn != LDB_ERR_NO_SUCH_ATTRIBUTE) {
+		r->out.error_string
+			= talloc_asprintf(r,
+					  "Failed to replace msDS-SupportedEncryptionTypes on %s",
+					  ldb_dn_get_linearized(msg->dn));
+		talloc_free(tmp_ctx);
+		return NT_STATUS_INTERNAL_DB_CORRUPTION;
+	}
+
 	/* DsCrackNames to find out the DN of the domain. */
 	r_crack_names.in.req->req1.format_offered = DRSUAPI_DS_NAME_FORMAT_NT4_ACCOUNT;
 	r_crack_names.in.req->req1.format_desired = DRSUAPI_DS_NAME_FORMAT_FQDN_1779;
@@ -352,25 +365,15 @@ static NTSTATUS libnet_JoinADSDomain(struct libnet_context *ctx, struct libnet_J
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	status = dcerpc_drsuapi_DsCrackNames(drsuapi_pipe, tmp_ctx, &r_crack_names);
+	status = dcerpc_drsuapi_DsCrackNames_r(drsuapi_pipe->binding_handle, tmp_ctx, &r_crack_names);
 	if (!NT_STATUS_IS_OK(status)) {
-		if (NT_STATUS_EQUAL(status, NT_STATUS_NET_WRITE_FAULT)) {
-			r->out.error_string
-				= talloc_asprintf(r,
-						  "dcerpc_drsuapi_DsCrackNames for [%s] failed - %s", 
-						  r->in.domain_name, 
-						  dcerpc_errstr(tmp_ctx, drsuapi_pipe->last_fault_code));
-			talloc_free(tmp_ctx);
-			return status;
-		} else {
-			r->out.error_string
-				= talloc_asprintf(r,
-						  "dcerpc_drsuapi_DsCrackNames for [%s] failed - %s", 
-						  r->in.domain_name, 
-						  nt_errstr(status));
-			talloc_free(tmp_ctx);
-			return status;
-		}
+		r->out.error_string
+			= talloc_asprintf(r,
+					  "dcerpc_drsuapi_DsCrackNames for [%s] failed - %s",
+					  r->in.domain_name,
+					  nt_errstr(status));
+		talloc_free(tmp_ctx);
+		return status;
 	} else if (!W_ERROR_IS_OK(r_crack_names.out.result)) {
 		r->out.error_string
 			= talloc_asprintf(r,
@@ -539,7 +542,10 @@ NTSTATUS libnet_JoinDomain(struct libnet_context *ctx, TALLOC_CTX *mem_ctx, stru
 	sc.out.connect_handle = &p_handle;
 
 	/* 2. do a samr_Connect to get a policy handle */
-	status = dcerpc_samr_Connect(samr_pipe, tmp_ctx, &sc);
+	status = dcerpc_samr_Connect_r(samr_pipe->binding_handle, tmp_ctx, &sc);
+	if (NT_STATUS_IS_OK(status) && !NT_STATUS_IS_OK(sc.out.result)) {
+		status = sc.out.result;
+	}
 	if (!NT_STATUS_IS_OK(status)) {
 		r->out.error_string = talloc_asprintf(mem_ctx,
 						"samr_Connect failed: %s",
@@ -553,9 +559,9 @@ NTSTATUS libnet_JoinDomain(struct libnet_context *ctx, TALLOC_CTX *mem_ctx, stru
 		if (r->in.level == LIBNET_JOINDOMAIN_AUTOMATIC) {
 			connect_with_info->out.domain_name = talloc_strdup(tmp_ctx, r->in.domain_name);
 		} else {
-			/* Bugger, we just lost our way to automaticly find the domain name */
-			connect_with_info->out.domain_name = talloc_strdup(tmp_ctx, lp_workgroup(ctx->lp_ctx));
-			connect_with_info->out.realm = talloc_strdup(tmp_ctx, lp_realm(ctx->lp_ctx));
+			/* Bugger, we just lost our way to automatically find the domain name */
+			connect_with_info->out.domain_name = talloc_strdup(tmp_ctx, lpcfg_workgroup(ctx->lp_ctx));
+			connect_with_info->out.realm = talloc_strdup(tmp_ctx, lpcfg_realm(ctx->lp_ctx));
 		}
 	}
 
@@ -569,7 +575,10 @@ NTSTATUS libnet_JoinDomain(struct libnet_context *ctx, TALLOC_CTX *mem_ctx, stru
 		l.in.domain_name = &name;
 		l.out.sid = &sid;
 		
-		status = dcerpc_samr_LookupDomain(samr_pipe, tmp_ctx, &l);
+		status = dcerpc_samr_LookupDomain_r(samr_pipe->binding_handle, tmp_ctx, &l);
+		if (NT_STATUS_IS_OK(status) && !NT_STATUS_IS_OK(l.out.result)) {
+			status = l.out.result;
+		}
 		if (!NT_STATUS_IS_OK(status)) {
 			r->out.error_string = talloc_asprintf(mem_ctx,
 							      "SAMR LookupDomain failed: %s",
@@ -588,7 +597,10 @@ NTSTATUS libnet_JoinDomain(struct libnet_context *ctx, TALLOC_CTX *mem_ctx, stru
 	od.out.domain_handle = &d_handle;
 
 	/* do a samr_OpenDomain to get a domain handle */
-	status = dcerpc_samr_OpenDomain(samr_pipe, tmp_ctx, &od);			
+	status = dcerpc_samr_OpenDomain_r(samr_pipe->binding_handle, tmp_ctx, &od);
+	if (NT_STATUS_IS_OK(status) && !NT_STATUS_IS_OK(od.out.result)) {
+		status = od.out.result;
+	}
 	if (!NT_STATUS_IS_OK(status)) {
 		r->out.error_string = talloc_asprintf(mem_ctx,
 						      "samr_OpenDomain for [%s] failed: %s",
@@ -610,7 +622,10 @@ NTSTATUS libnet_JoinDomain(struct libnet_context *ctx, TALLOC_CTX *mem_ctx, stru
 	cu.out.access_granted = &access_granted;
 
 	/* do a samr_CreateUser2 to get an account handle, or an error */
-	cu_status = dcerpc_samr_CreateUser2(samr_pipe, tmp_ctx, &cu);			
+	cu_status = dcerpc_samr_CreateUser2_r(samr_pipe->binding_handle, tmp_ctx, &cu);
+	if (NT_STATUS_IS_OK(cu_status) && !NT_STATUS_IS_OK(cu.out.result)) {
+		cu_status = cu.out.result;
+	}
 	status = cu_status;
 	if (NT_STATUS_EQUAL(status, NT_STATUS_USER_EXISTS)) {
 		/* prepare samr_LookupNames */
@@ -627,7 +642,10 @@ NTSTATUS libnet_JoinDomain(struct libnet_context *ctx, TALLOC_CTX *mem_ctx, stru
 		ln.in.names[0].string = r->in.account_name;
 		
 		/* 5. do a samr_LookupNames to get the users rid */
-		status = dcerpc_samr_LookupNames(samr_pipe, tmp_ctx, &ln);
+		status = dcerpc_samr_LookupNames_r(samr_pipe->binding_handle, tmp_ctx, &ln);
+		if (NT_STATUS_IS_OK(status) && !NT_STATUS_IS_OK(ln.out.result)) {
+			status = ln.out.result;
+		}
 		if (!NT_STATUS_IS_OK(status)) {
 			r->out.error_string = talloc_asprintf(mem_ctx,
 						"samr_LookupNames for [%s] failed: %s",
@@ -655,7 +673,10 @@ NTSTATUS libnet_JoinDomain(struct libnet_context *ctx, TALLOC_CTX *mem_ctx, stru
 		ou.out.user_handle = u_handle;
 		
 		/* 6. do a samr_OpenUser to get a user handle */
-		status = dcerpc_samr_OpenUser(samr_pipe, tmp_ctx, &ou); 
+		status = dcerpc_samr_OpenUser_r(samr_pipe->binding_handle, tmp_ctx, &ou);
+		if (NT_STATUS_IS_OK(status) && !NT_STATUS_IS_OK(ou.out.result)) {
+			status = ou.out.result;
+		}
 		if (!NT_STATUS_IS_OK(status)) {
 			r->out.error_string = talloc_asprintf(mem_ctx,
 							"samr_OpenUser for [%s] failed: %s",
@@ -669,7 +690,10 @@ NTSTATUS libnet_JoinDomain(struct libnet_context *ctx, TALLOC_CTX *mem_ctx, stru
 			struct samr_DeleteUser d;
 			d.in.user_handle = u_handle;
 			d.out.user_handle = u_handle;
-			status = dcerpc_samr_DeleteUser(samr_pipe, mem_ctx, &d);
+			status = dcerpc_samr_DeleteUser_r(samr_pipe->binding_handle, mem_ctx, &d);
+			if (NT_STATUS_IS_OK(status) && !NT_STATUS_IS_OK(d.out.result)) {
+				status = d.out.result;
+			}
 			if (!NT_STATUS_IS_OK(status)) {
 				r->out.error_string = talloc_asprintf(mem_ctx,
 								      "samr_DeleteUser (for recreate) of [%s] failed: %s",
@@ -682,7 +706,10 @@ NTSTATUS libnet_JoinDomain(struct libnet_context *ctx, TALLOC_CTX *mem_ctx, stru
 			/* We want to recreate, so delete and another samr_CreateUser2 */
 			
 			/* &cu filled in above */
-			status = dcerpc_samr_CreateUser2(samr_pipe, tmp_ctx, &cu);			
+			status = dcerpc_samr_CreateUser2_r(samr_pipe->binding_handle, tmp_ctx, &cu);
+			if (NT_STATUS_IS_OK(status) && !NT_STATUS_IS_OK(cu.out.result)) {
+				status = cu.out.result;
+			}
 			if (!NT_STATUS_IS_OK(status)) {
 				r->out.error_string = talloc_asprintf(mem_ctx,
 								      "samr_CreateUser2 (recreate) for [%s] failed: %s",
@@ -704,7 +731,10 @@ NTSTATUS libnet_JoinDomain(struct libnet_context *ctx, TALLOC_CTX *mem_ctx, stru
 	qui.in.level = 16;
 	qui.out.info = &uinfo;
 	
-	status = dcerpc_samr_QueryUserInfo(samr_pipe, tmp_ctx, &qui);
+	status = dcerpc_samr_QueryUserInfo_r(samr_pipe->binding_handle, tmp_ctx, &qui);
+	if (NT_STATUS_IS_OK(status) && !NT_STATUS_IS_OK(qui.out.result)) {
+		status = qui.out.result;
+	}
 	if (!NT_STATUS_IS_OK(status)) {
 		r->out.error_string = talloc_asprintf(mem_ctx,
 						"samr_QueryUserInfo for [%s] failed: %s",
@@ -789,14 +819,17 @@ NTSTATUS libnet_JoinDomain(struct libnet_context *ctx, TALLOC_CTX *mem_ctx, stru
 	pwp.in.user_handle = u_handle;
 	pwp.out.info = &info;
 
-	status = dcerpc_samr_GetUserPwInfo(samr_pipe, tmp_ctx, &pwp);				
+	status = dcerpc_samr_GetUserPwInfo_r(samr_pipe->binding_handle, tmp_ctx, &pwp);
+	if (NT_STATUS_IS_OK(status) && !NT_STATUS_IS_OK(pwp.out.result)) {
+		status = pwp.out.result;
+	}
 	if (NT_STATUS_IS_OK(status)) {
 		policy_min_pw_len = pwp.out.info->min_password_length;
 	}
 	
 	/* Grab a password of that minimum length */
 	
-	password_str = generate_random_str(tmp_ctx, MAX(8, policy_min_pw_len));	
+	password_str = generate_random_password(tmp_ctx, MAX(8, policy_min_pw_len), 255);
 
 	/* set full_name and reset flags */
 	ZERO_STRUCT(u_info21);
@@ -901,7 +934,7 @@ static NTSTATUS libnet_Join_primary_domain(struct libnet_context *ctx,
 	if (r->in.netbios_name != NULL) {
 		netbios_name = r->in.netbios_name;
 	} else {
-		netbios_name = talloc_strdup(tmp_mem, lp_netbios_name(ctx->lp_ctx));
+		netbios_name = talloc_strdup(tmp_mem, lpcfg_netbios_name(ctx->lp_ctx));
 		if (!netbios_name) {
 			r->out.error_string = NULL;
 			talloc_free(tmp_mem);
@@ -943,7 +976,6 @@ static NTSTATUS libnet_Join_primary_domain(struct libnet_context *ctx,
 	ZERO_STRUCTP(set_secrets);
 	set_secrets->domain_name = r2->out.domain_name;
 	set_secrets->realm = r2->out.realm;
-	set_secrets->account_name = account_name;
 	set_secrets->netbios_name = netbios_name;
 	set_secrets->secure_channel_type = r->in.join_type;
 	set_secrets->machine_password = r2->out.join_password;

@@ -31,7 +31,7 @@ static int net_sam_userset(struct net_context *c, int argc, const char **argv,
 				      enum pdb_value_state))
 {
 	struct samu *sam_acct = NULL;
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 	const char *dom, *name;
 	NTSTATUS status;
@@ -134,7 +134,7 @@ static int net_sam_set_userflag(struct net_context *c, int argc,
 				uint16 flag)
 {
 	struct samu *sam_acct = NULL;
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 	const char *dom, *name;
 	NTSTATUS status;
@@ -227,7 +227,7 @@ static int net_sam_set_pwdmustchangenow(struct net_context *c, int argc,
 					const char **argv)
 {
 	struct samu *sam_acct = NULL;
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 	const char *dom, *name;
 	NTSTATUS status;
@@ -293,7 +293,7 @@ static int net_sam_set_comment(struct net_context *c, int argc,
 			       const char **argv)
 {
 	GROUP_MAP map;
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 	const char *dom, *name;
 	NTSTATUS status;
@@ -655,7 +655,7 @@ static int net_sam_rights_list(struct net_context *c, int argc,
 	}
 
 	if (se_priv_from_name(argv[0], &mask)) {
-		DOM_SID *sids;
+		struct dom_sid *sids;
 		int i, num_sids;
 		NTSTATUS status;
 
@@ -688,7 +688,7 @@ static int net_sam_rights_list(struct net_context *c, int argc,
 static int net_sam_rights_grant(struct net_context *c, int argc,
 				const char **argv)
 {
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 	const char *dom, *name;
 	SE_PRIV mask;
@@ -727,7 +727,7 @@ static int net_sam_rights_grant(struct net_context *c, int argc,
 static int net_sam_rights_revoke(struct net_context *c, int argc,
 				const char **argv)
 {
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 	const char *dom, *name;
 	SE_PRIV mask;
@@ -894,10 +894,9 @@ static int net_sam_mapunixgroup(struct net_context *c, int argc, const char **ar
 
 static NTSTATUS unmap_unix_group(const struct group *grp, GROUP_MAP *pmap)
 {
-        NTSTATUS status;
         GROUP_MAP map;
         const char *grpname;
-        DOM_SID dom_sid;
+        struct dom_sid dom_sid;
 
         map.gid = grp->gr_gid;
         grpname = grp->gr_name;
@@ -914,9 +913,7 @@ static NTSTATUS unmap_unix_group(const struct group *grp, GROUP_MAP *pmap)
                 return NT_STATUS_UNSUCCESSFUL;
         }
 
-        status = pdb_delete_group_mapping_entry(dom_sid);
-
-        return status;
+        return pdb_delete_group_mapping_entry(dom_sid);
 }
 
 static int net_sam_unmapunixgroup(struct net_context *c, int argc, const char **argv)
@@ -989,7 +986,7 @@ static int net_sam_createdomaingroup(struct net_context *c, int argc,
 static int net_sam_deletedomaingroup(struct net_context *c, int argc,
 				     const char **argv)
 {
-	DOM_SID sid;
+	struct dom_sid sid;
 	uint32_t rid;
         enum lsa_SidType type;
         const char *dom, *name;
@@ -1070,7 +1067,7 @@ static int net_sam_createlocalgroup(struct net_context *c, int argc, const char 
 
 static int net_sam_deletelocalgroup(struct net_context *c, int argc, const char **argv)
 {
-	DOM_SID sid;
+	struct dom_sid sid;
         enum lsa_SidType type;
         const char *dom, *name;
 	NTSTATUS status;
@@ -1117,7 +1114,7 @@ static int net_sam_createbuiltingroup(struct net_context *c, int argc, const cha
 	uint32 rid;
 	enum lsa_SidType type;
 	fstring groupname;
-	DOM_SID sid;
+	struct dom_sid sid;
 
 	if (argc != 1 || c->display_usage) {
 		d_fprintf(stderr, "%s\n%s",
@@ -1169,7 +1166,7 @@ static int net_sam_createbuiltingroup(struct net_context *c, int argc, const cha
 static int net_sam_addmem(struct net_context *c, int argc, const char **argv)
 {
 	const char *groupdomain, *groupname, *memberdomain, *membername;
-	DOM_SID group, member;
+	struct dom_sid group, member;
 	enum lsa_SidType grouptype, membertype;
 	NTSTATUS status;
 
@@ -1258,7 +1255,7 @@ static int net_sam_delmem(struct net_context *c, int argc, const char **argv)
 	const char *groupdomain, *groupname;
 	const char *memberdomain = NULL;
 	const char *membername = NULL;
-	DOM_SID group, member;
+	struct dom_sid group, member;
 	enum lsa_SidType grouptype;
 	NTSTATUS status;
 
@@ -1330,8 +1327,8 @@ static int net_sam_delmem(struct net_context *c, int argc, const char **argv)
 static int net_sam_listmem(struct net_context *c, int argc, const char **argv)
 {
 	const char *groupdomain, *groupname;
-	DOM_SID group;
-	DOM_SID *members = NULL;
+	struct dom_sid group;
+	struct dom_sid *members = NULL;
 	size_t i, num_members = 0;
 	enum lsa_SidType grouptype;
 	NTSTATUS status;
@@ -1542,7 +1539,7 @@ static int net_sam_list(struct net_context *c, int argc, const char **argv)
 
 static int net_sam_show(struct net_context *c, int argc, const char **argv)
 {
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 	const char *dom, *name;
 
@@ -1580,7 +1577,7 @@ static int net_sam_provision(struct net_context *c, int argc, const char **argv)
 	char *p;
 	struct smbldap_state *ls;
 	GROUP_MAP gmap;
-	DOM_SID gsid;
+	struct dom_sid gsid;
 	gid_t domusers_gid = -1;
 	gid_t domadmins_gid = -1;
 	struct samu *samuser;
@@ -1642,7 +1639,7 @@ static int net_sam_provision(struct net_context *c, int argc, const char **argv)
 
 	d_printf(_("Checking for Domain Users group.\n"));
 
-	sid_compose(&gsid, get_global_sam_sid(), DOMAIN_GROUP_RID_USERS);
+	sid_compose(&gsid, get_global_sam_sid(), DOMAIN_RID_USERS);
 
 	if (!pdb_getgrsid(&gmap, gsid)) {
 		LDAPMod **mods = NULL;
@@ -1699,7 +1696,7 @@ domu_done:
 
 	d_printf(_("Checking for Domain Admins group.\n"));
 
-	sid_compose(&gsid, get_global_sam_sid(), DOMAIN_GROUP_RID_ADMINS);
+	sid_compose(&gsid, get_global_sam_sid(), DOMAIN_RID_ADMINS);
 
 	if (!pdb_getgrsid(&gmap, gsid)) {
 		LDAPMod **mods = NULL;
@@ -1764,7 +1761,7 @@ doma_done:
 
 	if (!pdb_getsampwnam(samuser, "Administrator")) {
 		LDAPMod **mods = NULL;
-		DOM_SID sid;
+		struct dom_sid sid;
 		char *dn;
 		char *name;
 		char *uidstr;
@@ -1806,7 +1803,7 @@ doma_done:
 			goto failed;
 		}
 
-		sid_compose(&sid, get_global_sam_sid(), DOMAIN_USER_RID_ADMIN);
+		sid_compose(&sid, get_global_sam_sid(), DOMAIN_RID_ADMINISTRATOR);
 
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_ACCOUNT);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_POSIXACCOUNT);
@@ -1846,7 +1843,7 @@ doma_done:
 
 	if (!pdb_getsampwnam(samuser, lp_guestaccount())) {
 		LDAPMod **mods = NULL;
-		DOM_SID sid;
+		struct dom_sid sid;
 		char *dn;
 		char *uidstr;
 		char *gidstr;
@@ -1883,7 +1880,7 @@ doma_done:
 			}
 		}
 
-		sid_compose(&sid, get_global_sam_sid(), DOMAIN_USER_RID_GUEST);
+		sid_compose(&sid, get_global_sam_sid(), DOMAIN_RID_GUEST);
 
 		dn = talloc_asprintf(tc, "uid=%s,%s", pwd->pw_name, lp_ldap_user_suffix ());
 		uidstr = talloc_asprintf(tc, "%u", (unsigned int)pwd->pw_uid);
@@ -1962,7 +1959,7 @@ doma_done:
 			goto failed;
 		}
 
-		sid_compose(&gsid, get_global_sam_sid(), DOMAIN_GROUP_RID_GUESTS);
+		sid_compose(&gsid, get_global_sam_sid(), DOMAIN_RID_GUESTS);
 
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_POSIXGROUP);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_GROUPMAP);

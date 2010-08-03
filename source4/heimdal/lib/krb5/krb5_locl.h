@@ -3,6 +3,8 @@
  * (Royal Institute of Technology, Stockholm, Sweden).
  * All rights reserved.
  *
+ * Portions Copyright (c) 2009 Apple Inc. All rights reserved.
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -44,6 +46,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
+
+#include <krb5-types.h>
 
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
@@ -114,6 +118,8 @@ struct sockaddr_dl;
 #include <sys/file.h>
 #endif
 
+#include <com_err.h>
+
 #define HEIMDAL_TEXTDOMAIN "heimdal_krb5"
 
 #ifdef LIBINTL
@@ -151,6 +157,7 @@ struct sockaddr_dl;
 struct send_to_kdc;
 
 /* XXX glue for pkinit */
+struct hx509_certs_data;
 struct krb5_pk_identity;
 struct krb5_pk_cert;
 struct ContentInfo;
@@ -179,6 +186,7 @@ struct _krb5_krb_auth_data;
 /* should this be public? */
 #define KEYTAB_DEFAULT "FILE:" SYSCONFDIR "/krb5.keytab"
 #define KEYTAB_DEFAULT_MODIFY "FILE:" SYSCONFDIR "/krb5.keytab"
+
 
 #define MODULI_FILE SYSCONFDIR "/krb5.moduli"
 
@@ -216,6 +224,7 @@ struct _krb5_get_init_creds_opt_private {
     int flags;
 #define KRB5_INIT_CREDS_CANONICALIZE		1
 #define KRB5_INIT_CREDS_NO_C_CANON_CHECK	2
+#define KRB5_INIT_CREDS_NO_C_NO_EKU_CHECK	4
     struct {
         krb5_gic_process_last_req func;
         void *ctx;
@@ -234,7 +243,8 @@ typedef struct krb5_context_data {
     krb5_config_section *cf;
     struct et_list *et_list;
     struct krb5_log_facility *warn_dest;
-    krb5_cc_ops *cc_ops;
+    struct krb5_log_facility *debug_dest;
+    const krb5_cc_ops **cc_ops;
     int num_cc_ops;
     const char *http_proxy;
     const char *time_fmt;
@@ -263,17 +273,27 @@ typedef struct krb5_context_data {
 #define KRB5_CTX_F_DNS_CANONICALIZE_HOSTNAME	1
 #define KRB5_CTX_F_CHECK_PAC			2
 #define KRB5_CTX_F_HOMEDIR_ACCESS		4
+#define KRB5_CTX_F_SOCKETS_INITIALIZED          8
     struct send_to_kdc *send_to_kdc;
+#ifdef PKINIT
+    hx509_context hx509ctx;
+#endif
 } krb5_context_data;
 
+#ifndef KRB5_USE_PATH_TOKENS
 #define KRB5_DEFAULT_CCNAME_FILE "FILE:/tmp/krb5cc_%{uid}"
+#else
+#define KRB5_DEFAULT_CCNAME_FILE "FILE:%{TEMP}/krb5cc_%{uid}"
+#endif
 #define KRB5_DEFAULT_CCNAME_API "API:"
-#define KRB5_DEFAULT_CCNAME_KCM "KCM:%{uid}"
+#define KRB5_DEFAULT_CCNAME_KCM_KCM "KCM:%{uid}"
+#define KRB5_DEFAULT_CCNAME_KCM_API "API:%{uid}"
 
 #define EXTRACT_TICKET_ALLOW_CNAME_MISMATCH		1
 #define EXTRACT_TICKET_ALLOW_SERVER_MISMATCH		2
 #define EXTRACT_TICKET_MATCH_REALM			4
 #define EXTRACT_TICKET_AS_REQ				8
+#define EXTRACT_TICKET_TIMESYNC				16
 
 /*
  * Configurable options
@@ -291,16 +311,21 @@ typedef struct krb5_context_data {
 #define KRB5_ADDRESSLESS_DEFAULT TRUE
 #endif
 
+#ifndef KRB5_FORWARDABLE_DEFAULT
+#define KRB5_FORWARDABLE_DEFAULT TRUE
+#endif
+
 #ifdef PKINIT
 
 struct krb5_pk_identity {
-    hx509_context hx509ctx;
     hx509_verify_ctx verify_ctx;
     hx509_certs certs;
     hx509_cert cert;
     hx509_certs anchors;
     hx509_certs certpool;
     hx509_revoke_ctx revokectx;
+    int flags;
+#define PKINIT_BTMM 1
 };
 
 enum krb5_pk_type {

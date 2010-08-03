@@ -1,22 +1,23 @@
 /* 
    samba -- Unix SMB/CIFS implementation.
    Copyright (C) 2001, 2002 by Martin Pool
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
+#include "librpc/gen_ndr/messaging.h"
 
 /**
  * @file tallocmsg.c
@@ -51,6 +52,23 @@ static void msg_pool_usage_helper(const void *ptr, int depth, int max_depth, int
 		return;
 	}
 
+	if (strcmp(name, "char") == 0) {
+		/*
+		 * Print out the first 50 bytes of the string
+		 */
+		sprintf_append(state->mem_ctx, &state->s, &state->len,
+			       &state->buflen,
+			       "%*s%-30s contains %6lu bytes in %3lu blocks "
+			       "(ref %d): %*s\n", depth*4, "",
+			       name,
+			       (unsigned long)talloc_total_size(ptr),
+			       (unsigned long)talloc_total_blocks(ptr),
+			       talloc_reference_count(ptr),
+			       MIN(50, talloc_get_size(ptr)),
+			       (char *)ptr);
+		return;
+	}
+
 	sprintf_append(state->mem_ctx, &state->s, &state->len, &state->buflen,
 		       "%*s%-30s contains %6lu bytes in %3lu blocks (ref %d)\n", 
 		       depth*4, "",
@@ -73,7 +91,7 @@ static void msg_pool_usage(struct messaging_context *msg_ctx,
 	struct msg_pool_usage_state state;
 
 	SMB_ASSERT(msg_type == MSG_REQ_POOL_USAGE);
-	
+
 	DEBUG(2,("Got POOL_USAGE\n"));
 
 	state.mem_ctx = talloc_init("msg_pool_usage");
@@ -90,7 +108,7 @@ static void msg_pool_usage(struct messaging_context *msg_ctx,
 		talloc_destroy(state.mem_ctx);
 		return;
 	}
-	
+
 	messaging_send_buf(msg_ctx, src, MSG_POOL_USAGE,
 			   (uint8 *)state.s, strlen(state.s)+1);
 

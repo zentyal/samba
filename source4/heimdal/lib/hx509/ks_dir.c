@@ -93,8 +93,6 @@ dir_free(hx509_certs certs, void *data)
     return 0;
 }
 
-
-
 static int
 dir_iter_start(hx509_context context,
 	       hx509_certs certs, void *data, void **cursor)
@@ -115,7 +113,7 @@ dir_iter_start(hx509_context context,
 	free(d);
 	return errno;
     }
-    rk_cloexec(dirfd(d->dir));
+    rk_cloexec_dir(d->dir);
     d->certs = NULL;
     d->iter = NULL;
 

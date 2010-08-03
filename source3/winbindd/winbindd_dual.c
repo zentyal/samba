@@ -30,6 +30,7 @@
 #include "includes.h"
 #include "winbindd.h"
 #include "../../nsswitch/libwbclient/wbc_async.h"
+#include "librpc/gen_ndr/messaging.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
@@ -367,95 +368,6 @@ int wb_domain_request_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx,
 	return 0;
 }
 
-struct domain_request_state {
-	struct winbindd_domain *domain;
-	struct winbindd_request *request;
-	struct winbindd_response *response;
-	void (*continuation)(void *private_data_data, bool success);
-	void *private_data_data;
-};
-
-static void async_domain_request_done(struct tevent_req *req);
-
-void async_domain_request(TALLOC_CTX *mem_ctx,
-			  struct winbindd_domain *domain,
-			  struct winbindd_request *request,
-			  struct winbindd_response *response,
-			  void (*continuation)(void *private_data_data, bool success),
-			  void *private_data_data)
-{
-	struct tevent_req *subreq;
-	struct domain_request_state *state;
-
-	state = TALLOC_P(mem_ctx, struct domain_request_state);
-	if (state == NULL) {
-		DEBUG(0, ("talloc failed\n"));
-		continuation(private_data_data, False);
-		return;
-	}
-
-	state->domain = domain;
-	state->request = request;
-	state->response = response;
-	state->continuation = continuation;
-	state->private_data_data = private_data_data;
-
-	subreq = wb_domain_request_send(state, winbind_event_context(),
-					domain, request);
-	if (subreq == NULL) {
-		DEBUG(5, ("wb_domain_request_send failed\n"));
-		continuation(private_data_data, false);
-		return;
-	}
-	tevent_req_set_callback(subreq, async_domain_request_done, state);
-}
-
-static void async_domain_request_done(struct tevent_req *req)
-{
-	struct domain_request_state *state = tevent_req_callback_data(
-		req, struct domain_request_state);
-	struct winbindd_response *response;
-	int ret, err;
-
-	ret = wb_domain_request_recv(req, state, &response, &err);
-	TALLOC_FREE(req);
-	if (ret == -1) {
-		DEBUG(5, ("wb_domain_request returned %s\n", strerror(err)));
-		state->continuation(state->private_data_data, false);
-		return;
-	}
-	*(state->response) = *response;
-	state->continuation(state->private_data_data, true);
-}
-
-static void recvfrom_child(void *private_data_data, bool success)
-{
-	struct winbindd_cli_state *state =
-		talloc_get_type_abort(private_data_data, struct winbindd_cli_state);
-	enum winbindd_result result = state->response->result;
-
-	/* This is an optimization: The child has written directly to the
-	 * response buffer. The request itself is still in pending state,
-	 * state that in the result code. */
-
-	state->response->result = WINBINDD_PENDING;
-
-	if ((!success) || (result != WINBINDD_OK)) {
-		request_error(state);
-		return;
-	}
-
-	request_ok(state);
-}
-
-void sendto_domain(struct winbindd_cli_state *state,
-		   struct winbindd_domain *domain)
-{
-	async_domain_request(state->mem_ctx, domain,
-			     state->request, state->response,
-			     recvfrom_child, state);
-}
-
 static void child_process_request(struct winbindd_child *child,
 				  struct winbindd_cli_state *state)
 {
@@ -493,10 +405,31 @@ void setup_child(struct winbindd_domain *domain, struct winbindd_child *child,
 		 const char *logname)
 {
 	if (logprefix && logname) {
+		char *logbase = NULL;
+
+		if (*lp_logfile()) {
+			char *end = NULL;
+
+			if (asprintf(&logbase, "%s", lp_logfile()) < 0) {
+				smb_panic("Internal error: asprintf failed");
+			}
+
+			if ((end = strrchr_m(logbase, '/'))) {
+				*end = '\0';
+			}
+		} else {
+			if (asprintf(&logbase, "%s", get_dyn_LOGFILEBASE()) < 0) {
+				smb_panic("Internal error: asprintf failed");
+			}
+		}
+
 		if (asprintf(&child->logfilename, "%s/%s-%s",
-			     get_dyn_LOGFILEBASE(), logprefix, logname) < 0) {
+			     logbase, logprefix, logname) < 0) {
+			SAFE_FREE(logbase);
 			smb_panic("Internal error: asprintf failed");
 		}
+
+		SAFE_FREE(logbase);
 	} else {
 		smb_panic("Internal error: logprefix == NULL && "
 			  "logname == NULL");
@@ -510,13 +443,13 @@ void setup_child(struct winbindd_domain *domain, struct winbindd_child *child,
 	SMB_ASSERT(child->rpccli != NULL);
 }
 
-struct winbindd_child *children = NULL;
+static struct winbindd_child *winbindd_children = NULL;
 
 void winbind_child_died(pid_t pid)
 {
 	struct winbindd_child *child;
 
-	for (child = children; child != NULL; child = child->next) {
+	for (child = winbindd_children; child != NULL; child = child->next) {
 		if (child->pid == pid) {
 			break;
 		}
@@ -529,7 +462,7 @@ void winbind_child_died(pid_t pid)
 
 	/* This will be re-added in fork_domain_child() */
 
-	DLIST_REMOVE(children, child);
+	DLIST_REMOVE(winbindd_children, child);
 
 	close(child->sock);
 	child->sock = -1;
@@ -564,7 +497,7 @@ void winbind_msg_debug(struct messaging_context *msg_ctx,
 
 	debug_message(msg_ctx, private_data, MSG_DEBUG, server_id, data);
 
-	for (child = children; child != NULL; child = child->next) {
+	for (child = winbindd_children; child != NULL; child = child->next) {
 
 		DEBUG(10,("winbind_msg_debug: sending message to pid %u.\n",
 			(unsigned int)child->pid));
@@ -609,8 +542,8 @@ void winbind_msg_offline(struct messaging_context *msg_ctx,
 		set_domain_offline(domain);
 	}
 
-	for (child = children; child != NULL; child = child->next) {
-		/* Don't send message to internal childs.  We've already
+	for (child = winbindd_children; child != NULL; child = child->next) {
+		/* Don't send message to internal children.  We've already
 		   done so above. */
 		if (!child->domain || winbindd_internal_child(child)) {
 			continue;
@@ -684,7 +617,7 @@ void winbind_msg_online(struct messaging_context *msg_ctx,
 		}
 	}
 
-	for (child = children; child != NULL; child = child->next) {
+	for (child = winbindd_children; child != NULL; child = child->next) {
 		/* Don't send message to internal childs. */
 		if (!child->domain || winbindd_internal_child(child)) {
 			continue;
@@ -782,7 +715,7 @@ void winbind_msg_dump_event_list(struct messaging_context *msg_ctx,
 
 	dump_event_list(winbind_event_context());
 
-	for (child = children; child != NULL; child = child->next) {
+	for (child = winbindd_children; child != NULL; child = child->next) {
 
 		DEBUG(10,("winbind_msg_dump_event_list: sending message to pid %u\n",
 			(unsigned int)child->pid));
@@ -1194,10 +1127,14 @@ bool winbindd_reinit_after_fork(const char *logfilename)
 {
 	struct winbindd_domain *domain;
 	struct winbindd_child *cl;
+	NTSTATUS status;
 
-	if (!NT_STATUS_IS_OK(reinit_after_fork(winbind_messaging_context(),
-					       winbind_event_context(),
-					       true))) {
+	status = reinit_after_fork(
+		winbind_messaging_context(),
+		winbind_event_context(),
+		messaging_server_id(winbind_messaging_context()),
+		true);
+	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("reinit_after_fork() failed\n"));
 		return false;
 	}
@@ -1252,7 +1189,7 @@ bool winbindd_reinit_after_fork(const char *logfilename)
 	ccache_remove_all_after_fork();
 
 	/* Destroy all possible events in child list. */
-	for (cl = children; cl != NULL; cl = cl->next) {
+	for (cl = winbindd_children; cl != NULL; cl = cl->next) {
 		TALLOC_FREE(cl->lockout_policy_event);
 		TALLOC_FREE(cl->machine_password_change_event);
 
@@ -1308,7 +1245,6 @@ static bool fork_domain_child(struct winbindd_child *child)
 	} else {
 		DEBUG(10, ("fork_domain_child called without domain.\n"));
 	}
-	child_domain = child->domain;
 
 	if (socketpair(AF_UNIX, SOCK_STREAM, 0, fdpair) != 0) {
 		DEBUG(0, ("Could not open child pipe: %s\n",
@@ -1332,12 +1268,13 @@ static bool fork_domain_child(struct winbindd_child *child)
 		/* Parent */
 		close(fdpair[0]);
 		child->next = child->prev = NULL;
-		DLIST_ADD(children, child);
+		DLIST_ADD(winbindd_children, child);
 		child->sock = fdpair[1];
 		return True;
 	}
 
 	/* Child */
+	child_domain = child->domain;
 
 	DEBUG(10, ("Child process %d\n", (int)sys_getpid()));
 
@@ -1465,9 +1402,9 @@ static bool fork_domain_child(struct winbindd_child *child)
 
 		/*
 		 * Initialize this high as event_add_to_select_args()
-		 * uses a timeval_min() on this and next_event. Fix
-		 * from Roel van Meer <rolek@alt001.com>.
-		 */
+ 		 * uses a timeval_min() on this and next_event. Fix
+ 		 * from Roel van Meer <rolek@alt001.com>.
+ 		 */
 		t.tv_sec = 999999;
 		t.tv_usec = 0;
 

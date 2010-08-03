@@ -37,7 +37,7 @@
 /* returns NULL if not found */
 struct ldb_control *ldb_request_get_control(struct ldb_request *req, const char *oid)
 {
-	int i;
+	unsigned int i;
 
 	if (req->controls != NULL) {
 		for (i = 0; req->controls[i]; i++) {
@@ -56,7 +56,7 @@ struct ldb_control *ldb_request_get_control(struct ldb_request *req, const char 
 /* returns NULL if not found */
 struct ldb_control *ldb_reply_get_control(struct ldb_reply *rep, const char *oid)
 {
-	int i;
+	unsigned int i;
 
 	if (rep->controls != NULL) {
 		for (i = 0; rep->controls[i]; i++) {
@@ -77,7 +77,7 @@ the "exclude" control */
 int save_controls(struct ldb_control *exclude, struct ldb_request *req, struct ldb_control ***saver)
 {
 	struct ldb_control **lcs;
-	int i, j;
+	unsigned int i, j;
 
 	*saver = req->controls;
 	for (i = 0; req->controls[i]; i++);
@@ -102,11 +102,52 @@ int save_controls(struct ldb_control *exclude, struct ldb_request *req, struct l
 	return 1;
 }
 
+/* Returns a list of controls, except the one specified.  Included
+ * controls become a child of returned list if they were children of
+ * controls_in */
+struct ldb_control **controls_except_specified(struct ldb_control **controls_in, 
+					       TALLOC_CTX *mem_ctx, 
+					       struct ldb_control *exclude)
+{
+	struct ldb_control **lcs = NULL;
+	unsigned int i, j;
+
+	for (i = 0; controls_in && controls_in[i]; i++);
+
+	if (i == 0) {
+		return NULL;
+	}
+
+	for (i = 0, j = 0; controls_in && controls_in[i]; i++) {
+		if (exclude == controls_in[i]) continue;
+
+		if (!lcs) {
+			/* Allocate here so if we remove the only
+			 * control, or there were no controls, we
+			 * don't allocate at all, and just return
+			 * NULL */
+			lcs = talloc_array(mem_ctx, struct ldb_control *, i);
+			if (!lcs) {
+				return NULL;
+			}
+		}
+
+		lcs[j] = controls_in[i];
+		talloc_reparent(controls_in, lcs, lcs[j]);
+		j++;
+	}
+	if (lcs) {
+		lcs[j] = NULL;
+	}
+
+	return lcs;
+}
+
 /* check if there's any control marked as critical in the list */
 /* return True if any, False if none */
 int check_critical_controls(struct ldb_control **controls)
 {
-	int i;
+	unsigned int i;
 
 	if (controls == NULL) {
 		return 0;
@@ -123,23 +164,61 @@ int check_critical_controls(struct ldb_control **controls)
 
 int ldb_request_add_control(struct ldb_request *req, const char *oid, bool critical, void *data)
 {
+	unsigned int i, n;
+	struct ldb_control **ctrls;
+	struct ldb_control *ctrl;
+
+	for (n=0; req->controls && req->controls[n];n++) { 
+		/* having two controls of the same OID makes no sense */
+		if (strcmp(oid, req->controls[n]->oid) == 0) {
+			return LDB_ERR_ATTRIBUTE_OR_VALUE_EXISTS;
+		}
+	}
+
+	ctrls = talloc_array(req,
+			       struct ldb_control *,
+			       n + 2);
+	if (!ctrls) return LDB_ERR_OPERATIONS_ERROR;
+
+	for (i=0; i<n; i++) {
+		ctrls[i] = req->controls[i];
+	}
+
+	req->controls = ctrls;
+	ctrls[n] = NULL;
+	ctrls[n+1] = NULL;
+
+	ctrl = talloc(ctrls, struct ldb_control);
+	if (!ctrl) return LDB_ERR_OPERATIONS_ERROR;
+
+	ctrl->oid	= talloc_strdup(ctrl, oid);
+	if (!ctrl->oid) return LDB_ERR_OPERATIONS_ERROR;
+	ctrl->critical	= critical;
+	ctrl->data	= data;
+
+	ctrls[n] = ctrl;
+	return LDB_SUCCESS;
+}
+
+int ldb_reply_add_control(struct ldb_reply *ares, const char *oid, bool critical, void *data)
+{
 	unsigned n;
 	struct ldb_control **ctrls;
 	struct ldb_control *ctrl;
 
-	for (n=0; req->controls && req->controls[n];) { 
+	for (n=0; ares->controls && ares->controls[n];) { 
 		/* having two controls of the same OID makes no sense */
-		if (strcmp(oid, req->controls[n]->oid) == 0) {
+		if (strcmp(oid, ares->controls[n]->oid) == 0) {
 			return LDB_ERR_ATTRIBUTE_OR_VALUE_EXISTS;
 		}
 		n++; 
 	}
 
-	ctrls = talloc_realloc(req, req->controls,
+	ctrls = talloc_realloc(ares, ares->controls,
 			       struct ldb_control *,
 			       n + 2);
 	if (!ctrls) return LDB_ERR_OPERATIONS_ERROR;
-	req->controls = ctrls;
+	ares->controls = ctrls;
 	ctrls[n] = NULL;
 	ctrls[n+1] = NULL;
 
@@ -159,7 +238,7 @@ int ldb_request_add_control(struct ldb_request *req, const char *oid, bool criti
 
 struct ldb_control **ldb_parse_control_strings(struct ldb_context *ldb, void *mem_ctx, const char **control_strings)
 {
-	int i;
+	unsigned int i;
 	struct ldb_control **ctrl;
 
 	char *error_string = NULL;
@@ -407,6 +486,87 @@ struct ldb_control **ldb_parse_control_strings(struct ldb_context *ldb, void *me
 			continue;
 		}
 
+		if (strncmp(control_strings[i], "bypassoperational:", 18) == 0) {
+			const char *p;
+			int crit, ret;
+
+			p = &(control_strings[i][18]);
+			ret = sscanf(p, "%d", &crit);
+			if ((ret != 1) || (crit < 0) || (crit > 1)) {
+				error_string = talloc_asprintf(mem_ctx, "invalid bypassopreational control syntax\n");
+				error_string = talloc_asprintf_append(error_string, " syntax: crit(b)\n");
+				error_string = talloc_asprintf_append(error_string, "   note: b = boolean");
+				ldb_set_errstring(ldb, error_string);
+				talloc_free(error_string);
+				return NULL;
+			}
+
+			ctrl[i] = talloc(ctrl, struct ldb_control);
+			if (!ctrl[i]) {
+				ldb_oom(ldb);
+				return NULL;
+			}
+			ctrl[i]->oid = LDB_CONTROL_BYPASSOPERATIONAL_OID;
+			ctrl[i]->critical = crit;
+			ctrl[i]->data = NULL;
+
+			continue;
+		}
+
+		if (strncmp(control_strings[i], "relax:", 6) == 0) {
+			const char *p;
+			int crit, ret;
+
+			p = &(control_strings[i][6]);
+			ret = sscanf(p, "%d", &crit);
+			if ((ret != 1) || (crit < 0) || (crit > 1)) {
+				error_string = talloc_asprintf(mem_ctx, "invalid relax control syntax\n");
+				error_string = talloc_asprintf_append(error_string, " syntax: crit(b)\n");
+				error_string = talloc_asprintf_append(error_string, "   note: b = boolean");
+				ldb_set_errstring(ldb, error_string);
+				talloc_free(error_string);
+				return NULL;
+			}
+
+			ctrl[i] = talloc(ctrl, struct ldb_control);
+			if (!ctrl[i]) {
+				ldb_oom(ldb);
+				return NULL;
+			}
+			ctrl[i]->oid = LDB_CONTROL_RELAX_OID;
+			ctrl[i]->critical = crit;
+			ctrl[i]->data = NULL;
+
+			continue;
+		}
+
+		if (strncmp(control_strings[i], "recalculate_sd:", 15) == 0) {
+			const char *p;
+			int crit, ret;
+
+			p = &(control_strings[i][15]);
+			ret = sscanf(p, "%d", &crit);
+			if ((ret != 1) || (crit < 0) || (crit > 1)) {
+				error_string = talloc_asprintf(mem_ctx, "invalid recalculate_sd control syntax\n");
+				error_string = talloc_asprintf_append(error_string, " syntax: crit(b)\n");
+				error_string = talloc_asprintf_append(error_string, "   note: b = boolean");
+				ldb_set_errstring(ldb, error_string);
+				talloc_free(error_string);
+				return NULL;
+			}
+
+			ctrl[i] = talloc(ctrl, struct ldb_control);
+			if (!ctrl[i]) {
+				ldb_oom(ldb);
+				return NULL;
+			}
+			ctrl[i]->oid = LDB_CONTROL_RECALCULATE_SD_OID;
+			ctrl[i]->critical = crit;
+			ctrl[i]->data = NULL;
+
+			continue;
+		}
+
 		if (strncmp(control_strings[i], "domain_scope:", 13) == 0) {
 			const char *p;
 			int crit, ret;
@@ -534,6 +694,33 @@ struct ldb_control **ldb_parse_control_strings(struct ldb_context *ldb, void *me
 			continue;
 		}
 
+		if (strncmp(control_strings[i], "tree_delete:", 12) == 0) {
+			const char *p;
+			int crit, ret;
+
+			p = &(control_strings[i][12]);
+			ret = sscanf(p, "%d", &crit);
+			if ((ret != 1) || (crit < 0) || (crit > 1)) {
+				error_string = talloc_asprintf(mem_ctx, "invalid tree_delete control syntax\n");
+				error_string = talloc_asprintf_append(error_string, " syntax: crit(b)\n");
+				error_string = talloc_asprintf_append(error_string, "   note: b = boolean");
+				ldb_set_errstring(ldb, error_string);
+				talloc_free(error_string);
+				return NULL;
+			}
+
+			ctrl[i] = talloc(ctrl, struct ldb_control);
+			if (!ctrl[i]) {
+				ldb_oom(ldb);
+				return NULL;
+			}
+			ctrl[i]->oid = LDB_CONTROL_TREE_DELETE_OID;
+			ctrl[i]->critical = crit;
+			ctrl[i]->data = NULL;
+
+			continue;
+		}
+
 		if (strncmp(control_strings[i], "show_deleted:", 13) == 0) {
 			const char *p;
 			int crit, ret;
@@ -636,6 +823,67 @@ struct ldb_control **ldb_parse_control_strings(struct ldb_context *ldb, void *me
 				return NULL;
 			}
 			ctrl[i]->oid = LDB_CONTROL_PERMISSIVE_MODIFY_OID;
+			ctrl[i]->critical = crit;
+			ctrl[i]->data = NULL;
+
+			continue;
+		}
+
+		if (strncmp(control_strings[i], "reveal_internals:", 17) == 0) {
+			const char *p;
+			int crit, ret;
+
+			p = &(control_strings[i][17]);
+			ret = sscanf(p, "%d", &crit);
+			if ((ret != 1) || (crit < 0) || (crit > 1)) {
+				error_string = talloc_asprintf(mem_ctx, "invalid reveal_internals control syntax\n");
+				error_string = talloc_asprintf_append(error_string, " syntax: crit(b)\n");
+				error_string = talloc_asprintf_append(error_string, "   note: b = boolean");
+				ldb_set_errstring(ldb, error_string);
+				talloc_free(error_string);
+				return NULL;
+			}
+
+			ctrl[i] = talloc(ctrl, struct ldb_control);
+			if (!ctrl[i]) {
+				ldb_oom(ldb);
+				return NULL;
+			}
+			ctrl[i]->oid = LDB_CONTROL_REVEAL_INTERNALS;
+			ctrl[i]->critical = crit;
+			ctrl[i]->data = NULL;
+
+			continue;
+		}
+
+		if (strncmp(control_strings[i], "local_oid:", 10) == 0) {
+			const char *p;
+			int crit = 0, ret = 0;
+			char oid[256];
+
+			oid[0] = '\0';
+			p = &(control_strings[i][10]);
+			ret = sscanf(p, "%64[^:]:%d", oid, &crit);
+
+			if ((ret != 2) || strlen(oid) == 0 || (crit < 0) || (crit > 1)) {
+				error_string = talloc_asprintf(mem_ctx, "invalid local_oid control syntax\n");
+				error_string = talloc_asprintf_append(error_string, " syntax: oid(s):crit(b)\n");
+				error_string = talloc_asprintf_append(error_string, "   note: b = boolean, s = string");
+				ldb_set_errstring(ldb, error_string);
+				talloc_free(error_string);
+				return NULL;
+			}
+
+			ctrl[i] = talloc(ctrl, struct ldb_control);
+			if (!ctrl[i]) {
+				ldb_oom(ldb);
+				return NULL;
+			}
+			ctrl[i]->oid = talloc_strdup(ctrl[i], oid);
+			if (!ctrl[i]->oid) {
+				ldb_oom(ldb);
+				return NULL;
+			}
 			ctrl[i]->critical = crit;
 			ctrl[i]->data = NULL;
 

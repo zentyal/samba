@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # This script generates a list of testsuites that should be run as part of 
 # the Samba 3 test suite.
 
@@ -41,7 +41,8 @@ plantest() {
 normalize_testname() {
 	name=$1
 	shift 1
-	echo $name | tr "A-Z-" "a-z."
+	n=`echo $name | tr "A-Z-" "a-z."`
+	echo "$n $@"
 }
 
 TEST_FUNCTIONS_SH="INCLUDED"
@@ -91,21 +92,35 @@ export PASSWORD
 	shift $#
 	testitprefix="smbtorture_s3.plain."
 	testitenv="dc"
-	. $SCRIPTDIR/test_smbtorture_s3.sh //\$SERVER_IP/tmp \$USERNAME \$PASSWORD "" ""
+	. $SCRIPTDIR/test_smbtorture_s3.sh //\$SERVER_IP/tmp \$USERNAME \$PASSWORD "" "" "-l \$LOCAL_PATH"
 )
 
 (
 	shift $#
 	testitprefix="smbtorture_s3.crypt."
 	testitenv="dc"
-	. $SCRIPTDIR/test_smbtorture_s3.sh //\$SERVER_IP/tmp \$USERNAME \$PASSWORD "" "-e"
+	. $SCRIPTDIR/test_smbtorture_s3.sh //\$SERVER_IP/tmp \$USERNAME \$PASSWORD "" "-e" "-l \$LOCAL_PATH"
 )
 
 (
 	shift $#
 	testitprefix="wbinfo_s3."
 	testitenv="dc:local"
-	. $SCRIPTDIR/test_wbinfo_s3.sh \$WORKGROUP \$SERVER \$USERNAME \$PASSWORD
+	. $SCRIPTDIR/test_wbinfo_s3.sh \$DOMAIN \$SERVER \$USERNAME \$PASSWORD
+)
+
+(
+	shift $#
+	testitprefix="wbinfo_s3."
+	testitenv="dc:local"
+	. $SCRIPTDIR/test_wbinfo_s3.sh \$DOMAIN \$SERVER \$DOMAIN\\\\\$USERNAME \$PASSWORD
+)
+
+(
+	shift $#
+	testitprefix="wbinfo_s3."
+	testitenv="member:local"
+	. $SCRIPTDIR/test_wbinfo_s3.sh \$DOMAIN \$SERVER \$DOMAIN\\\\\$USERNAME \$PASSWORD
 )
 
 (
@@ -116,16 +131,16 @@ export PASSWORD
 )
 
 # plain
-plantest "blackbox.smbclient_s3.plain" dc BINDIR="$BINDIR" script/tests/test_smbclient_s3.sh \$SERVER \$SERVER_IP \$USERNAME \$PASSWORD
-plantest "blackbox.smbclient_s3.plain member creds" member BINDIR="$BINDIR" script/tests/test_smbclient_s3.sh \$SERVER \$SERVER_IP \$SERVER\\\\\$USERNAME \$PASSWORD
-plantest "blackbox.smbclient_s3.plain domain creds" member BINDIR="$BINDIR" script/tests/test_smbclient_s3.sh \$SERVER \$SERVER_IP \$DOMAIN\\\\\$DC_USERNAME \$DC_PASSWORD
+plantest "blackbox.smbclient_s3.plain" dc BINDIR="$BINDIR" script/tests/test_smbclient_s3.sh \$SERVER \$SERVER_IP \$USERNAME \$PASSWORD \$USERID \$LOCAL_PATH
+plantest "blackbox.smbclient_s3.plain member creds" member BINDIR="$BINDIR" script/tests/test_smbclient_s3.sh \$SERVER \$SERVER_IP \$SERVER\\\\\$USERNAME \$PASSWORD \$USERID \$LOCAL_PATH
+#plantest "blackbox.smbclient_s3.plain domain creds" member BINDIR="$BINDIR" script/tests/test_smbclient_s3.sh \$SERVER \$SERVER_IP \$DOMAIN\\\\\$DC_USERNAME \$DC_PASSWORD \$USERID \$LOCAL_PATH
 
 # sign, only the member server allows signing
-plantest "blackbox.smbclient_s3.sign member creds" member BINDIR="$BINDIR" script/tests/test_smbclient_s3.sh \$SERVER \$SERVER_IP \$SERVER\\\\\$USERNAME \$PASSWORD "--signing=required"
-plantest "blackbox.smbclient_s3.sign domain creds" member BINDIR="$BINDIR" script/tests/test_smbclient_s3.sh \$SERVER \$SERVER_IP \$DOMAIN\\\\\$DC_USERNAME \$DC_PASSWORD "--signing=required"
+plantest "blackbox.smbclient_s3.sign member creds" member BINDIR="$BINDIR" script/tests/test_smbclient_s3.sh \$SERVER \$SERVER_IP \$SERVER\\\\\$USERNAME \$PASSWORD \$USERID \$LOCAL_PATH "--signing=required"
+#plantest "blackbox.smbclient_s3.sign domain creds" member BINDIR="$BINDIR" script/tests/test_smbclient_s3.sh \$SERVER \$SERVER_IP \$DOMAIN\\\\\$DC_USERNAME \$DC_PASSWORD \$USERID \$LOCAL_PATH "--signing=required"
 
 # encrypted
-plantest "blackbox.smbclient_s3.crypt" dc BINDIR="$BINDIR" script/tests/test_smbclient_s3.sh \$SERVER \$SERVER_IP \$USERNAME \$PASSWORD "-e"
+plantest "blackbox.smbclient_s3.crypt" dc BINDIR="$BINDIR" script/tests/test_smbclient_s3.sh \$SERVER \$SERVER_IP \$USERNAME \$PASSWORD \$USERID \$LOCAL_PATH "-e"
 
 # these don't work yet
 #plantest "blackbox.smbclient_s3.crypt member creds" member BINDIR="$BINDIR" script/tests/test_smbclient_s3.sh \$SERVER \$SERVER_IP \$SERVER\\\\\$USERNAME \$PASSWORD "-e"
@@ -136,7 +151,7 @@ plantest "blackbox.net_s3" dc:local BINDIR="$BINDIR" SCRIPTDIR="$SCRIPTDIR" SERV
 (
 	shift $#
 	testitprefix="posix_s3."
-	testitenv="dc:local"
+	testitenv="dc"
 
 	SMBTORTURE4BINARY=$SMBTORTURE4
 	TORTURE4_OPTIONS=""
@@ -144,6 +159,8 @@ plantest "blackbox.net_s3" dc:local BINDIR="$BINDIR" SCRIPTDIR="$SCRIPTDIR" SERV
 	TORTURE4_OPTIONS="$TORTURE4_OPTIONS --maximum-runtime=$SELFTEST_MAXTIME"
 	TORTURE4_OPTIONS="$TORTURE4_OPTIONS --target=$SELFTEST_TARGET"
 	TORTURE4_OPTIONS="$TORTURE4_OPTIONS --basedir=$SELFTEST_PREFIX"
+	TORTURE4_OPTIONS="$TORTURE4_OPTIONS --option=\"torture:winbindd_netbios_name=\$SERVER\""
+	TORTURE4_OPTIONS="$TORTURE4_OPTIONS --option=\"torture:winbindd_netbios_domain=\$DOMAIN\""
 	if [ -n "$SELFTEST_VERBOSE" ]; then
 		TORTURE4_OPTIONS="$TORTURE4_OPTIONS --option=torture:progress=no"
 	fi

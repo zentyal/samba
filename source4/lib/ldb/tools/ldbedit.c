@@ -1,4 +1,4 @@
-/* 
+/*
    ldb database library
 
    Copyright (C) Andrew Tridgell  2004
@@ -6,7 +6,7 @@
      ** NOTE! The following LGPL license applies to the ldb
      ** library. This does NOT imply that all of Samba is released
      ** under the LGPL
-   
+
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
    License as published by the Free Software Foundation; either
@@ -30,17 +30,25 @@
  *
  *  Author: Andrew Tridgell
  */
+
+#ifdef _SAMBA_BUILD_
+#include "includes.h"
+#include <system/filesys.h>
+#else
 #include "ldb_includes.h"
+#endif
+
 #include "ldb.h"
 #include "tools/cmdline.h"
+#include "tools/ldbutil.h"
 
 static struct ldb_cmdline *options;
 
 /*
-  debug routine 
+  debug routine
 */
-static void ldif_write_msg(struct ldb_context *ldb, 
-			   FILE *f, 
+static void ldif_write_msg(struct ldb_context *ldb,
+			   FILE *f,
 			   enum ldb_changetype changetype,
 			   struct ldb_message *msg)
 {
@@ -54,33 +62,38 @@ static void ldif_write_msg(struct ldb_context *ldb,
   modify a database record so msg1 becomes msg2
   returns the number of modified elements
 */
-static int modify_record(struct ldb_context *ldb, 
+static int modify_record(struct ldb_context *ldb,
 			 struct ldb_message *msg1,
-			 struct ldb_message *msg2)
+			 struct ldb_message *msg2,
+			 struct ldb_control **req_ctrls)
 {
+	int ret;
 	struct ldb_message *mod;
 
-	mod = ldb_msg_diff(ldb, msg1, msg2);
-	if (mod == NULL) {
+	if (ldb_msg_difference(ldb, ldb, msg1, msg2, &mod) != LDB_SUCCESS) {
 		fprintf(stderr, "Failed to calculate message differences\n");
 		return -1;
 	}
 
-	if (mod->num_elements == 0) {
-		return 0;
+	ret = mod->num_elements;
+	if (ret == 0) {
+		goto done;
 	}
 
 	if (options->verbose > 0) {
 		ldif_write_msg(ldb, stdout, LDB_CHANGETYPE_MODIFY, mod);
 	}
 
-	if (ldb_modify(ldb, mod) != 0) {
-		fprintf(stderr, "failed to modify %s - %s\n", 
+	if (ldb_modify_ctrl(ldb, mod, req_ctrls) != 0) {
+		fprintf(stderr, "failed to modify %s - %s\n",
 			ldb_dn_get_linearized(msg1->dn), ldb_errstring(ldb));
-		return -1;
+		ret = -1;
+		goto done;
 	}
 
-	return mod->num_elements;
+done:
+	talloc_free(mod);
+	return ret;
 }
 
 /*
@@ -88,10 +101,10 @@ static int modify_record(struct ldb_context *ldb,
 */
 static struct ldb_message *msg_find(struct ldb_context *ldb,
 				    struct ldb_message **msgs,
-				    int count,
+				    unsigned int count,
 				    struct ldb_dn *dn)
 {
-	int i;
+	unsigned int i;
 	for (i=0;i<count;i++) {
 		if (ldb_dn_compare(dn, msgs[i]->dn) == 0) {
 			return msgs[i];
@@ -104,13 +117,18 @@ static struct ldb_message *msg_find(struct ldb_context *ldb,
   merge the changes in msgs2 into the messages from msgs1
 */
 static int merge_edits(struct ldb_context *ldb,
-		       struct ldb_message **msgs1, int count1,
-		       struct ldb_message **msgs2, int count2)
+		       struct ldb_message **msgs1, unsigned int count1,
+		       struct ldb_message **msgs2, unsigned int count2)
 {
-	int i;
+	unsigned int i;
 	struct ldb_message *msg;
 	int ret = 0;
 	int adds=0, modifies=0, deletes=0;
+	struct ldb_control **req_ctrls = ldb_parse_control_strings(ldb, ldb, (const char **)options->controls);
+	if (options->controls != NULL && req_ctrls == NULL) {
+		fprintf(stderr, "parsing controls failed: %s\n", ldb_errstring(ldb));
+		return -1;
+	}
 
 	if (ldb_transaction_start(ldb) != 0) {
 		fprintf(stderr, "Failed to start transaction: %s\n", ldb_errstring(ldb));
@@ -124,7 +142,7 @@ static int merge_edits(struct ldb_context *ldb,
 			if (options->verbose > 0) {
 				ldif_write_msg(ldb, stdout, LDB_CHANGETYPE_ADD, msgs2[i]);
 			}
-			if (ldb_add(ldb, msgs2[i]) != 0) {
+			if (ldb_add_ctrl(ldb, msgs2[i], req_ctrls) != 0) {
 				fprintf(stderr, "failed to add %s - %s\n",
 					ldb_dn_get_linearized(msgs2[i]->dn),
 					ldb_errstring(ldb));
@@ -133,7 +151,7 @@ static int merge_edits(struct ldb_context *ldb,
 			}
 			adds++;
 		} else {
-			if (modify_record(ldb, msg, msgs2[i]) > 0) {
+			if (modify_record(ldb, msg, msgs2[i], req_ctrls) > 0) {
 				modifies++;
 			}
 		}
@@ -146,7 +164,7 @@ static int merge_edits(struct ldb_context *ldb,
 			if (options->verbose > 0) {
 				ldif_write_msg(ldb, stdout, LDB_CHANGETYPE_DELETE, msgs1[i]);
 			}
-			if (ldb_delete(ldb, msgs1[i]->dn) != 0) {
+			if (ldb_delete_ctrl(ldb, msgs1[i]->dn, req_ctrls) != 0) {
 				fprintf(stderr, "failed to delete %s - %s\n",
 					ldb_dn_get_linearized(msgs1[i]->dn),
 					ldb_errstring(ldb));
@@ -170,10 +188,10 @@ static int merge_edits(struct ldb_context *ldb,
 /*
   save a set of messages as ldif to a file
 */
-static int save_ldif(struct ldb_context *ldb, 
-		     FILE *f, struct ldb_message **msgs, int count)
+static int save_ldif(struct ldb_context *ldb,
+		     FILE *f, struct ldb_message **msgs, unsigned int count)
 {
-	int i;
+	unsigned int i;
 
 	fprintf(f, "# editing %d records\n", count);
 
@@ -194,8 +212,8 @@ static int save_ldif(struct ldb_context *ldb,
 /*
   edit the ldb search results in msgs using the user selected editor
 */
-static int do_edit(struct ldb_context *ldb, struct ldb_message **msgs1, int count1,
-		   const char *editor)
+static int do_edit(struct ldb_context *ldb, struct ldb_message **msgs1,
+		   unsigned int count1, const char *editor)
 {
 	int fd, ret;
 	FILE *f;
@@ -203,7 +221,7 @@ static int do_edit(struct ldb_context *ldb, struct ldb_message **msgs1, int coun
 	char *cmd;
 	struct ldb_ldif *ldif;
 	struct ldb_message **msgs2 = NULL;
-	int count2 = 0;
+	unsigned int count2 = 0;
 
 	/* write out the original set of messages to a temporary
 	   file */
@@ -284,13 +302,14 @@ int main(int argc, const char **argv)
 	int ret;
 	const char *expression = "(|(objectClass=*)(distinguishedName=*))";
 	const char * const * attrs = NULL;
+	TALLOC_CTX *mem_ctx = talloc_new(NULL);
 
-	ldb = ldb_init(NULL, NULL);
+	ldb = ldb_init(mem_ctx, NULL);
 
 	options = ldb_cmdline_process(ldb, argc, argv, usage);
 
 	/* the check for '=' is for compatibility with ldapsearch */
-	if (options->argc > 0 && 
+	if (options->argc > 0 &&
 	    strchr(options->argv[0], '=')) {
 		expression = options->argv[0];
 		options->argv++;
@@ -330,6 +349,7 @@ int main(int argc, const char **argv)
 		}
 	}
 
-	talloc_free(ldb);
+	talloc_free(mem_ctx);
+
 	return 0;
 }

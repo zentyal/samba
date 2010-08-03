@@ -34,7 +34,7 @@ static SIG_ATOMIC_T gotalarm;
  Signal function to tell us we timed out.
 ****************************************************************/
 
-static void gotalarm_sig(void)
+static void gotalarm_sig(int signum)
 {
 	gotalarm = 1;
 }
@@ -50,7 +50,7 @@ static int tdb_chainlock_with_timeout_internal( TDB_CONTEXT *tdb, TDB_DATA key, 
 	gotalarm = 0;
 
 	if (timeout) {
-		CatchSignal(SIGALRM, SIGNAL_CAST gotalarm_sig);
+		CatchSignal(SIGALRM, gotalarm_sig);
 		tdb_setalarm_sigptr(tdb, &gotalarm);
 		alarm(timeout);
 	}
@@ -63,7 +63,7 @@ static int tdb_chainlock_with_timeout_internal( TDB_CONTEXT *tdb, TDB_DATA key, 
 	if (timeout) {
 		alarm(0);
 		tdb_setalarm_sigptr(tdb, NULL);
-		CatchSignal(SIGALRM, SIGNAL_CAST SIG_IGN);
+		CatchSignal(SIGALRM, SIG_IGN);
 		if (gotalarm && (ret == -1)) {
 			DEBUG(0,("tdb_chainlock_with_timeout_internal: alarm (%u) timed out for key %s in tdb %s\n",
 				timeout, key.dptr, tdb_name(tdb)));
@@ -523,15 +523,72 @@ static void tdb_wrap_log(TDB_CONTEXT *tdb, enum tdb_debug_level level,
 	}
 }
 
-static struct tdb_wrap *tdb_list;
+struct tdb_wrap_private {
+	struct tdb_context *tdb;
+	const char *name;
+	struct tdb_wrap_private *next, *prev;
+};
+
+static struct tdb_wrap_private *tdb_list;
 
 /* destroy the last connection to a tdb */
-static int tdb_wrap_destructor(struct tdb_wrap *w)
+static int tdb_wrap_private_destructor(struct tdb_wrap_private *w)
 {
 	tdb_close(w->tdb);
 	DLIST_REMOVE(tdb_list, w);
 	return 0;
 }				 
+
+static struct tdb_wrap_private *tdb_wrap_private_open(TALLOC_CTX *mem_ctx,
+						      const char *name,
+						      int hash_size,
+						      int tdb_flags,
+						      int open_flags,
+						      mode_t mode)
+{
+	struct tdb_wrap_private *result;
+	struct tdb_logging_context log_ctx;
+
+	result = talloc(mem_ctx, struct tdb_wrap_private);
+	if (result == NULL) {
+		return NULL;
+	}
+	result->name = talloc_strdup(result, name);
+	if (result->name == NULL) {
+		goto fail;
+	}
+
+	log_ctx.log_fn = tdb_wrap_log;
+
+	if (!lp_use_mmap()) {
+		tdb_flags |= TDB_NOMMAP;
+	}
+
+	if ((hash_size == 0) && (name != NULL)) {
+		const char *base;
+		base = strrchr_m(name, '/');
+
+		if (base != NULL) {
+			base += 1;
+		} else {
+			base = name;
+		}
+		hash_size = lp_parm_int(-1, "tdb_hashsize", base, 0);
+	}
+
+	result->tdb = tdb_open_ex(name, hash_size, tdb_flags,
+				  open_flags, mode, &log_ctx, NULL);
+	if (result->tdb == NULL) {
+		goto fail;
+	}
+	talloc_set_destructor(result, tdb_wrap_private_destructor);
+	DLIST_ADD(tdb_list, result);
+	return result;
+
+fail:
+	TALLOC_FREE(result);
+	return NULL;
+}
 
 /*
   wrapped connection to a tdb database
@@ -541,94 +598,100 @@ struct tdb_wrap *tdb_wrap_open(TALLOC_CTX *mem_ctx,
 			       const char *name, int hash_size, int tdb_flags,
 			       int open_flags, mode_t mode)
 {
-	struct tdb_wrap *w;
-	struct tdb_logging_context log_ctx;
-	log_ctx.log_fn = tdb_wrap_log;
+	struct tdb_wrap *result;
+	struct tdb_wrap_private *w;
 
-	if (!lp_use_mmap())
-		tdb_flags |= TDB_NOMMAP;
+	result = talloc(mem_ctx, struct tdb_wrap);
+	if (result == NULL) {
+		return NULL;
+	}
 
 	for (w=tdb_list;w;w=w->next) {
 		if (strcmp(name, w->name) == 0) {
-			/*
-			 * Yes, talloc_reference is exactly what we want
-			 * here. Otherwise we would have to implement our own
-			 * reference counting.
-			 */
-			return talloc_reference(mem_ctx, w);
+			break;
 		}
 	}
 
-	w = talloc(mem_ctx, struct tdb_wrap);
 	if (w == NULL) {
-		return NULL;
-	}
-
-	if (!(w->name = talloc_strdup(w, name))) {
-		talloc_free(w);
-		return NULL;
-	}
-
-	if ((hash_size == 0) && (name != NULL)) {
-		const char *base = strrchr_m(name, '/');
-		if (base != NULL) {
-			base += 1;
+		w = tdb_wrap_private_open(result, name, hash_size, tdb_flags,
+					  open_flags, mode);
+	} else {
+		/*
+		 * Correctly use talloc_reference: The tdb will be
+		 * closed when "w" is being freed. The caller never
+		 * sees "w", so an incorrect use of talloc_free(w)
+		 * instead of calling talloc_unlink is not possible.
+		 * To avoid having to refcount ourselves, "w" will
+		 * have multiple parents that hang off all the
+		 * tdb_wrap's being returned from here. Those parents
+		 * can be freed without problem.
+		 */
+		if (talloc_reference(result, w) == NULL) {
+			goto fail;
 		}
-		else {
-			base = name;
-		}
-		hash_size = lp_parm_int(-1, "tdb_hashsize", base, 0);
 	}
-
-	w->tdb = tdb_open_ex(name, hash_size, tdb_flags, 
-			     open_flags, mode, &log_ctx, NULL);
-	if (w->tdb == NULL) {
-		talloc_free(w);
-		return NULL;
+	if (w == NULL) {
+		goto fail;
 	}
-
-	talloc_set_destructor(w, tdb_wrap_destructor);
-
-	DLIST_ADD(tdb_list, w);
-
-	return w;
+	result->tdb = w->tdb;
+	return result;
+fail:
+	TALLOC_FREE(result);
+	return NULL;
 }
 
 NTSTATUS map_nt_error_from_tdb(enum TDB_ERROR err)
 {
-	struct { enum TDB_ERROR err; NTSTATUS status; }	map[] =
-		{ { TDB_SUCCESS,	NT_STATUS_OK },
-		  { TDB_ERR_CORRUPT,	NT_STATUS_INTERNAL_DB_CORRUPTION },
-		  { TDB_ERR_IO,		NT_STATUS_UNEXPECTED_IO_ERROR },
-		  { TDB_ERR_OOM,	NT_STATUS_NO_MEMORY },
-		  { TDB_ERR_EXISTS,	NT_STATUS_OBJECT_NAME_COLLISION },
+	NTSTATUS result = NT_STATUS_INTERNAL_ERROR;
 
-		  /*
-		   * TDB_ERR_LOCK is very broad, we could for example
-		   * distinguish between fcntl locks and invalid lock
-		   * sequences. So NT_STATUS_FILE_LOCK_CONFLICT is a
-		   * compromise.
-		   */
-		  { TDB_ERR_LOCK,	NT_STATUS_FILE_LOCK_CONFLICT },
-		  /*
-		   * The next two ones in the enum are not actually used
-		   */
-		  { TDB_ERR_NOLOCK,	NT_STATUS_FILE_LOCK_CONFLICT },
-		  { TDB_ERR_LOCK_TIMEOUT, NT_STATUS_FILE_LOCK_CONFLICT },
-		  { TDB_ERR_NOEXIST,	NT_STATUS_NOT_FOUND },
-		  { TDB_ERR_EINVAL,	NT_STATUS_INVALID_PARAMETER },
-		  { TDB_ERR_RDONLY,	NT_STATUS_ACCESS_DENIED }
-		};
+	switch (err) {
+	case TDB_SUCCESS:
+		result = NT_STATUS_OK;
+		break;
+	case TDB_ERR_CORRUPT:
+		result = NT_STATUS_INTERNAL_DB_CORRUPTION;
+		break;
+	case TDB_ERR_IO:
+		result = NT_STATUS_UNEXPECTED_IO_ERROR;
+		break;
+	case TDB_ERR_OOM:
+		result = NT_STATUS_NO_MEMORY;
+		break;
+	case TDB_ERR_EXISTS:
+		result = NT_STATUS_OBJECT_NAME_COLLISION;
+		break;
 
-	int i;
+	case TDB_ERR_LOCK:
+		/*
+		 * TDB_ERR_LOCK is very broad, we could for example
+		 * distinguish between fcntl locks and invalid lock
+		 * sequences. So NT_STATUS_FILE_LOCK_CONFLICT is a
+		 * compromise.
+		 */
+		result = NT_STATUS_FILE_LOCK_CONFLICT;
+		break;
 
-	for (i=0; i < sizeof(map) / sizeof(map[0]); i++) {
-		if (err == map[i].err) {
-			return map[i].status;
-		}
-	}
-
-	return NT_STATUS_INTERNAL_ERROR;
+	case TDB_ERR_NOLOCK:
+	case TDB_ERR_LOCK_TIMEOUT:
+		/*
+		 * These two ones in the enum are not actually used
+		 */
+		result = NT_STATUS_FILE_LOCK_CONFLICT;
+		break;
+	case TDB_ERR_NOEXIST:
+		result = NT_STATUS_NOT_FOUND;
+		break;
+	case TDB_ERR_EINVAL:
+		result = NT_STATUS_INVALID_PARAMETER;
+		break;
+	case TDB_ERR_RDONLY:
+		result = NT_STATUS_ACCESS_DENIED;
+		break;
+	case TDB_ERR_NESTING:
+		result = NT_STATUS_INTERNAL_ERROR;
+		break;
+	};
+	return result;
 }
 
 int tdb_data_cmp(TDB_DATA t1, TDB_DATA t2)

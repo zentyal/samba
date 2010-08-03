@@ -20,7 +20,6 @@
 #include "includes.h"
 #include "ldap_server/ldap_server.h"
 #include "../lib/util/dlinklist.h"
-#include "libcli/ldap/ldap.h"
 #include "lib/tls/tls.h"
 #include "smbd/service_stream.h"
 
@@ -104,7 +103,7 @@ NTSTATUS ldapsrv_ExtendedRequest(struct ldapsrv_call *call)
 	int result = LDAP_PROTOCOL_ERROR;
 	const char *error_str = NULL;
 	NTSTATUS status = NT_STATUS_OK;
-	uint32_t i;
+	unsigned int i;
 
 	DEBUG(10, ("Extended\n"));
 

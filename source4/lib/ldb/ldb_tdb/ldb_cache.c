@@ -60,7 +60,7 @@ static void ltdb_attributes_unload(struct ldb_module *module)
 	void *data = ldb_module_get_private(module);
 	struct ltdb_private *ltdb = talloc_get_type(data, struct ltdb_private);
 	struct ldb_message *msg;
-	int i;
+	unsigned int i;
 
 	ldb = ldb_module_get_ctx(module);
 
@@ -83,10 +83,10 @@ static void ltdb_attributes_unload(struct ldb_module *module)
 */
 static int ltdb_attributes_flags(struct ldb_message_element *el, unsigned *v)
 {
-	int i;
+	unsigned int i;
 	unsigned value = 0;
 	for (i=0;i<el->num_values;i++) {
-		int j;
+		unsigned int j;
 		for (j=0;ltdb_valid_attr_flags[j].name;j++) {
 			if (strcmp(ltdb_valid_attr_flags[j].name, 
 				   (char *)el->values[i].data) == 0) {
@@ -112,7 +112,8 @@ static int ltdb_attributes_load(struct ldb_module *module)
 	struct ltdb_private *ltdb = talloc_get_type(data, struct ltdb_private);
 	struct ldb_message *msg = ltdb->cache->attributes;
 	struct ldb_dn *dn;
-	int i, r;
+	unsigned int i;
+	int r;
 
 	ldb = ldb_module_get_ctx(module);
 
@@ -357,6 +358,8 @@ int ltdb_cache_load(struct ldb_module *module)
 	    ltdb->cache->attributes == NULL) {
 		goto failed;
 	}
+	ltdb->cache->one_level_indexes = false;
+	ltdb->cache->attribute_indexes = false;
 	    
 	indexlist_dn = ldb_dn_new(module, ldb, LTDB_INDEXLIST);
 	if (indexlist_dn == NULL) goto failed;
@@ -364,6 +367,13 @@ int ltdb_cache_load(struct ldb_module *module)
 	r = ltdb_search_dn1(module, indexlist_dn, ltdb->cache->indexlist);
 	if (r != LDB_SUCCESS && r != LDB_ERR_NO_SUCH_OBJECT) {
 		goto failed;
+	}
+
+	if (ldb_msg_find_element(ltdb->cache->indexlist, LTDB_IDXONE) != NULL) {
+		ltdb->cache->one_level_indexes = true;
+	}
+	if (ldb_msg_find_element(ltdb->cache->indexlist, LTDB_IDXATTR) != NULL) {
+		ltdb->cache->attribute_indexes = true;
 	}
 
 	if (ltdb_attributes_load(module) == -1) {
@@ -454,7 +464,7 @@ int ltdb_increase_sequence_number(struct ldb_module *module)
 	val_time.data = (uint8_t *)s;
 	val_time.length = strlen(s);
 
-	ret = ltdb_modify_internal(module, msg);
+	ret = ltdb_modify_internal(module, msg, NULL);
 
 	talloc_free(msg);
 
@@ -471,7 +481,7 @@ int ltdb_increase_sequence_number(struct ldb_module *module)
 
 int ltdb_check_at_attributes_values(const struct ldb_val *value)
 {
-	int i;
+	unsigned int i;
 
 	for (i = 0; ltdb_valid_attr_flags[i].name != NULL; i++) {
 		if ((strcmp(ltdb_valid_attr_flags[i].name, (char *)value->data) == 0)) {

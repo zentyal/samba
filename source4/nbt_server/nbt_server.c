@@ -39,7 +39,7 @@ static void nbtd_task_init(struct task_server *task)
 	NTSTATUS status;
 	struct interface *ifaces;
 
-	load_interfaces(task, lp_interfaces(task->lp_ctx), &ifaces);
+	load_interfaces(task, lpcfg_interfaces(task->lp_ctx), &ifaces);
 
 	if (iface_count(ifaces) == 0) {
 		task_server_terminate(task, "nbtd: no network interfaces configured", false);
@@ -66,7 +66,7 @@ static void nbtd_task_init(struct task_server *task)
 		return;
 	}
 
-	nbtsrv->sam_ctx = samdb_connect(nbtsrv, task->event_ctx, task->lp_ctx, system_session(nbtsrv, task->lp_ctx));
+	nbtsrv->sam_ctx = samdb_connect(nbtsrv, task->event_ctx, task->lp_ctx, system_session(task->lp_ctx));
 	if (nbtsrv->sam_ctx == NULL) {
 		task_server_terminate(task, "nbtd failed to open samdb", true);
 		return;

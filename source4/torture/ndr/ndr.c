@@ -21,7 +21,6 @@
 #include "includes.h"
 #include "torture/ndr/ndr.h"
 #include "torture/ndr/proto.h"
-#include "torture/torture.h"
 #include "../lib/util/dlinklist.h"
 #include "param/param.h"
 
@@ -39,7 +38,7 @@ static bool wrap_ndr_pull_test(struct torture_context *tctx,
 	bool (*check_fn) (struct torture_context *ctx, void *data) = test->fn;
 	const struct ndr_pull_test_data *data = (const struct ndr_pull_test_data *)test->data;
 	void *ds = talloc_zero_size(tctx, data->struct_size);
-	struct ndr_pull *ndr = ndr_pull_init_blob(&(data->data), tctx, lp_iconv_convenience(tctx->lp_ctx));
+	struct ndr_pull *ndr = ndr_pull_init_blob(&(data->data), tctx);
 
 	ndr->flags |= LIBNDR_FLAG_REF_ALLOC;
 
@@ -98,7 +97,7 @@ static bool test_check_string_terminator(struct torture_context *tctx)
 	/* Simple test */
 	blob = strhex_to_data_blob(tctx, "0000");
 	
-	ndr = ndr_pull_init_blob(&blob, mem_ctx, lp_iconv_convenience(tctx->lp_ctx));
+	ndr = ndr_pull_init_blob(&blob, mem_ctx);
 
 	torture_assert_ndr_success(tctx, ndr_check_string_terminator(ndr, 1, 2),
 				   "simple check_string_terminator test failed");
@@ -116,7 +115,7 @@ static bool test_check_string_terminator(struct torture_context *tctx)
 	talloc_free(ndr);
 
 	blob = strhex_to_data_blob(tctx, "11220000");
-	ndr = ndr_pull_init_blob(&blob, mem_ctx, lp_iconv_convenience(tctx->lp_ctx));
+	ndr = ndr_pull_init_blob(&blob, mem_ctx);
 
 	torture_assert_ndr_success(tctx,
 		ndr_check_string_terminator(ndr, 4, 1),
@@ -234,12 +233,21 @@ static bool test_compare_uuid(struct torture_context *tctx)
 							 "GUID diff invalid");
 
 	g1.time_low = 10;
-	torture_assert_int_equal(tctx, 10, GUID_compare(&g1, &g2), 
+	torture_assert_int_equal(tctx, 1, GUID_compare(&g1, &g2),
 							 "GUID diff invalid");
 
 	g1.time_low = 0;
 	g1.clock_seq[1] = 20;
-	torture_assert_int_equal(tctx, 20, GUID_compare(&g1, &g2), 
+	torture_assert_int_equal(tctx, 1, GUID_compare(&g1, &g2),
+							 "GUID diff invalid");
+
+	g1.time_low = ~0;
+	torture_assert_int_equal(tctx, 1, GUID_compare(&g1, &g2),
+							 "GUID diff invalid");
+
+	g1.time_low = 0;
+	g2.time_low = ~0;
+	torture_assert_int_equal(tctx, -1, GUID_compare(&g1, &g2),
 							 "GUID diff invalid");
 	return true;
 }
@@ -253,10 +261,12 @@ struct torture_suite *torture_local_ndr(TALLOC_CTX *mem_ctx)
 	torture_suite_add_suite(suite, ndr_lsa_suite(suite));
 	torture_suite_add_suite(suite, ndr_epmap_suite(suite));
 	torture_suite_add_suite(suite, ndr_dfs_suite(suite));
+	torture_suite_add_suite(suite, ndr_dfsblob_suite(suite));
 	torture_suite_add_suite(suite, ndr_netlogon_suite(suite));
 	torture_suite_add_suite(suite, ndr_drsuapi_suite(suite));
 	torture_suite_add_suite(suite, ndr_spoolss_suite(suite));
 	torture_suite_add_suite(suite, ndr_samr_suite(suite));
+	torture_suite_add_suite(suite, ndr_drsblobs_suite(suite));
 
 	torture_suite_add_simple_test(suite, "string terminator", 
 								   test_check_string_terminator);

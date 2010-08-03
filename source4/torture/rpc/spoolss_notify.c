@@ -1,19 +1,20 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
    test suite for spoolss rpc notify operations
 
    Copyright (C) Jelmer Vernooij 2007
-   
+   Copyright (C) Guenther Deschner 2010
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
@@ -21,21 +22,20 @@
 
 #include "includes.h"
 #include "system/filesys.h"
-#include "torture/torture.h"
-#include "torture/rpc/rpc.h"
 #include "librpc/gen_ndr/ndr_spoolss_c.h"
+#include "librpc/gen_ndr/ndr_spoolss.h"
+#include "torture/rpc/torture_rpc.h"
 #include "rpc_server/dcerpc_server.h"
 #include "rpc_server/service_rpc.h"
-#include "lib/events/events.h"
 #include "smbd/process_model.h"
 #include "smb_server/smb_server.h"
-#include "librpc/rpc/dcerpc_proto.h"
 #include "lib/socket/netif.h"
-#include "../lib/util/dlinklist.h"
 #include "ntvfs/ntvfs.h"
 #include "param/param.h"
 
-static NTSTATUS spoolss__op_bind(struct dcesrv_call_state *dce_call, const struct dcesrv_interface *iface)
+static NTSTATUS spoolss__op_bind(struct dcesrv_call_state *dce_call,
+				 const struct dcesrv_interface *iface,
+				 uint32_t if_version)
 {
 	return NT_STATUS_OK;
 }
@@ -72,7 +72,7 @@ static NTSTATUS spoolss__op_ndr_pull(struct dcesrv_call_state *dce_call, TALLOC_
 	return NT_STATUS_OK;
 }
 
-/* Note that received_packets are allocated in talloc_autofree_context(), 
+/* Note that received_packets are allocated in talloc_autofree_context(),
  * because no other context appears to stay around long enough. */
 static struct received_packet {
 	uint16_t opnum;
@@ -80,6 +80,56 @@ static struct received_packet {
 	struct received_packet *prev, *next;
 } *received_packets = NULL;
 
+static WERROR _spoolss_ReplyOpenPrinter(struct dcesrv_call_state *dce_call,
+					TALLOC_CTX *mem_ctx,
+					struct spoolss_ReplyOpenPrinter *r)
+{
+	DEBUG(1,("_spoolss_ReplyOpenPrinter\n"));
+
+	NDR_PRINT_IN_DEBUG(spoolss_ReplyOpenPrinter, r);
+
+	r->out.handle = talloc(r, struct policy_handle);
+	r->out.handle->handle_type = 42;
+	r->out.handle->uuid = GUID_random();
+	r->out.result = WERR_OK;
+
+	NDR_PRINT_OUT_DEBUG(spoolss_ReplyOpenPrinter, r);
+
+	return WERR_OK;
+}
+
+static WERROR _spoolss_ReplyClosePrinter(struct dcesrv_call_state *dce_call,
+					 TALLOC_CTX *mem_ctx,
+					 struct spoolss_ReplyClosePrinter *r)
+{
+	DEBUG(1,("_spoolss_ReplyClosePrinter\n"));
+
+	NDR_PRINT_IN_DEBUG(spoolss_ReplyClosePrinter, r);
+
+	ZERO_STRUCTP(r->out.handle);
+	r->out.result = WERR_OK;
+
+	NDR_PRINT_OUT_DEBUG(spoolss_ReplyClosePrinter, r);
+
+	return WERR_OK;
+}
+
+static WERROR _spoolss_RouterReplyPrinterEx(struct dcesrv_call_state *dce_call,
+					    TALLOC_CTX *mem_ctx,
+					    struct spoolss_RouterReplyPrinterEx *r)
+{
+	DEBUG(1,("_spoolss_RouterReplyPrinterEx\n"));
+
+	NDR_PRINT_IN_DEBUG(spoolss_RouterReplyPrinterEx, r);
+
+	r->out.reply_result = talloc(r, uint32_t);
+	*r->out.reply_result = 0;
+	r->out.result = WERR_OK;
+
+	NDR_PRINT_OUT_DEBUG(spoolss_RouterReplyPrinterEx, r);
+
+	return WERR_OK;
+}
 
 static NTSTATUS spoolss__op_dispatch(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx, void *r)
 {
@@ -95,7 +145,17 @@ static NTSTATUS spoolss__op_dispatch(struct dcesrv_call_state *dce_call, TALLOC_
 	switch (opnum) {
 	case 58: {
 		struct spoolss_ReplyOpenPrinter *r2 = (struct spoolss_ReplyOpenPrinter *)r;
-		r2->out.result = WERR_OK;
+		r2->out.result = _spoolss_ReplyOpenPrinter(dce_call, mem_ctx, r2);
+		break;
+	}
+	case 60: {
+		struct spoolss_ReplyClosePrinter *r2 = (struct spoolss_ReplyClosePrinter *)r;
+		r2->out.result = _spoolss_ReplyClosePrinter(dce_call, mem_ctx, r2);
+		break;
+	}
+	case 66: {
+		struct spoolss_RouterReplyPrinterEx *r2 = (struct spoolss_RouterReplyPrinterEx *)r;
+		r2->out.result = _spoolss_RouterReplyPrinterEx(dce_call, mem_ctx, r2);
 		break;
 	}
 
@@ -163,7 +223,7 @@ static bool spoolss__op_interface_by_name(struct dcesrv_interface *iface, const 
 		return true;
 	}
 
-	return false;	
+	return false;
 }
 
 static NTSTATUS spoolss__op_init_server(struct dcesrv_context *dce_ctx, const struct dcesrv_endpoint_server *ep_server)
@@ -184,44 +244,202 @@ static NTSTATUS spoolss__op_init_server(struct dcesrv_context *dce_ctx, const st
 	return NT_STATUS_OK;
 }
 
-static bool test_RFFPCNEx(struct torture_context *tctx, 
-			  struct dcerpc_pipe *p)
+static bool test_OpenPrinter(struct torture_context *tctx,
+			     struct dcerpc_pipe *p,
+			     struct policy_handle *handle,
+			     const char *name)
 {
-	struct spoolss_OpenPrinter q;
+	struct spoolss_OpenPrinter r;
+	const char *printername;
+	struct dcerpc_binding_handle *b = p->binding_handle;
+
+	ZERO_STRUCT(r);
+
+	if (name) {
+		printername	= talloc_asprintf(tctx, "\\\\%s\\%s", dcerpc_server_name(p), name);
+	} else {
+		printername	= talloc_asprintf(tctx, "\\\\%s", dcerpc_server_name(p));
+	}
+
+	r.in.printername	= printername;
+	r.in.datatype		= NULL;
+	r.in.devmode_ctr.devmode= NULL;
+	r.in.access_mask	= SEC_FLAG_MAXIMUM_ALLOWED;
+	r.out.handle		= handle;
+
+	torture_comment(tctx, "Testing OpenPrinter(%s)\n", r.in.printername);
+
+	torture_assert_ntstatus_ok(tctx, dcerpc_spoolss_OpenPrinter_r(b, tctx, &r),
+		"OpenPrinter failed");
+	torture_assert_werr_ok(tctx, r.out.result,
+		"OpenPrinter failed");
+
+	return true;
+}
+
+static struct spoolss_NotifyOption *setup_printserver_NotifyOption(struct torture_context *tctx)
+{
+	struct spoolss_NotifyOption *o;
+
+	o = talloc_zero(tctx, struct spoolss_NotifyOption);
+
+	o->version = 2;
+	o->flags = PRINTER_NOTIFY_OPTIONS_REFRESH;
+
+	o->count = 2;
+	o->types = talloc_zero_array(o, struct spoolss_NotifyOptionType, o->count);
+
+	o->types[0].type = PRINTER_NOTIFY_TYPE;
+	o->types[0].count = 1;
+	o->types[0].fields = talloc_array(o->types, union spoolss_Field, o->types[0].count);
+	o->types[0].fields[0].field = PRINTER_NOTIFY_FIELD_SERVER_NAME;
+
+	o->types[1].type = JOB_NOTIFY_TYPE;
+	o->types[1].count = 1;
+	o->types[1].fields = talloc_array(o->types, union spoolss_Field, o->types[1].count);
+	o->types[1].fields[0].field = JOB_NOTIFY_FIELD_MACHINE_NAME;
+
+	return o;
+}
+
+static struct spoolss_NotifyOption *setup_printer_NotifyOption(struct torture_context *tctx)
+{
+	struct spoolss_NotifyOption *o;
+
+	o = talloc_zero(tctx, struct spoolss_NotifyOption);
+
+	o->version = 2;
+	o->flags = PRINTER_NOTIFY_OPTIONS_REFRESH;
+
+	o->count = 1;
+	o->types = talloc_zero_array(o, struct spoolss_NotifyOptionType, o->count);
+
+	o->types[0].type = PRINTER_NOTIFY_TYPE;
+	o->types[0].count = 1;
+	o->types[0].fields = talloc_array(o->types, union spoolss_Field, o->types[0].count);
+	o->types[0].fields[0].field = PRINTER_NOTIFY_FIELD_COMMENT;
+
+	return o;
+}
+
+
+static bool test_RemoteFindFirstPrinterChangeNotifyEx(struct torture_context *tctx,
+						      struct dcerpc_binding_handle *b,
+						      struct policy_handle *handle,
+						      const char *address,
+						      struct spoolss_NotifyOption *option)
+{
 	struct spoolss_RemoteFindFirstPrinterChangeNotifyEx r;
+	const char *local_machine = talloc_asprintf(tctx, "\\\\%s", address);
+
+	torture_comment(tctx, "Testing RemoteFindFirstPrinterChangeNotifyEx(%s)\n", local_machine);
+
+	r.in.flags = 0;
+	r.in.local_machine = local_machine;
+	r.in.options = 0;
+	r.in.printer_local = 0;
+	r.in.notify_options = option;
+	r.in.handle = handle;
+
+	torture_assert_ntstatus_ok(tctx, dcerpc_spoolss_RemoteFindFirstPrinterChangeNotifyEx_r(b, tctx, &r),
+		"RemoteFindFirstPrinterChangeNotifyEx failed");
+	torture_assert_werr_ok(tctx, r.out.result,
+		"error return code for RemoteFindFirstPrinterChangeNotifyEx");
+
+	return true;
+}
+
+static bool test_RouterRefreshPrinterChangeNotify(struct torture_context *tctx,
+						  struct dcerpc_binding_handle *b,
+						  struct policy_handle *handle,
+						  struct spoolss_NotifyOption *options)
+{
+	struct spoolss_RouterRefreshPrinterChangeNotify r;
+	struct spoolss_NotifyInfo *info;
+
+	torture_comment(tctx, "Testing RouterRefreshPrinterChangeNotify\n");
+
+	r.in.handle = handle;
+	r.in.change_low = 0;
+	r.in.options = options;
+	r.out.info = &info;
+
+	torture_assert_ntstatus_ok(tctx, dcerpc_spoolss_RouterRefreshPrinterChangeNotify_r(b, tctx, &r),
+		"RouterRefreshPrinterChangeNotify failed");
+	torture_assert_werr_ok(tctx, r.out.result,
+		"error return code for RouterRefreshPrinterChangeNotify");
+
+	return true;
+}
+
+static bool test_SetPrinter(struct torture_context *tctx,
+			    struct dcerpc_pipe *p,
+			    struct policy_handle *handle)
+{
+	union spoolss_PrinterInfo info;
+	struct spoolss_SetPrinter r;
+	struct spoolss_SetPrinterInfo2 info2;
+	struct spoolss_SetPrinterInfoCtr info_ctr;
+	struct spoolss_DevmodeContainer devmode_ctr;
+	struct sec_desc_buf secdesc_ctr;
+	struct dcerpc_binding_handle *b = p->binding_handle;
+
+	torture_assert(tctx, test_GetPrinter_level(tctx, b, handle, 2, &info), "");
+
+	ZERO_STRUCT(devmode_ctr);
+	ZERO_STRUCT(secdesc_ctr);
+
+	info2.servername	= info.info2.servername;
+	info2.printername	= info.info2.printername;
+	info2.sharename		= info.info2.sharename;
+	info2.portname		= info.info2.portname;
+	info2.drivername	= info.info2.drivername;
+	info2.comment		= talloc_asprintf(tctx, "torture_comment %d\n", (int)time(NULL));
+	info2.location		= info.info2.location;
+	info2.devmode_ptr	= 0;
+	info2.sepfile		= info.info2.sepfile;
+	info2.printprocessor	= info.info2.printprocessor;
+	info2.datatype		= info.info2.datatype;
+	info2.parameters	= info.info2.parameters;
+	info2.secdesc_ptr	= 0;
+	info2.attributes	= info.info2.attributes;
+	info2.priority		= info.info2.priority;
+	info2.defaultpriority	= info.info2.defaultpriority;
+	info2.starttime		= info.info2.starttime;
+	info2.untiltime		= info.info2.untiltime;
+	info2.status		= info.info2.status;
+	info2.cjobs		= info.info2.cjobs;
+	info2.averageppm	= info.info2.averageppm;
+
+	info_ctr.level = 2;
+	info_ctr.info.info2 = &info2;
+
+	r.in.handle = handle;
+	r.in.info_ctr = &info_ctr;
+	r.in.devmode_ctr = &devmode_ctr;
+	r.in.secdesc_ctr = &secdesc_ctr;
+	r.in.command = 0;
+
+	torture_assert_ntstatus_ok(tctx, dcerpc_spoolss_SetPrinter_r(b, tctx, &r), "SetPrinter failed");
+	torture_assert_werr_ok(tctx, r.out.result, "SetPrinter failed");
+
+	return true;
+}
+
+static bool test_start_dcerpc_server(struct torture_context *tctx,
+				     struct tevent_context *event_ctx,
+				     struct dcesrv_context **dce_ctx_p,
+				     const char **address_p)
+{
 	struct dcesrv_endpoint_server ep_server;
 	NTSTATUS status;
 	struct dcesrv_context *dce_ctx;
 	const char *endpoints[] = { "spoolss", NULL };
 	struct dcesrv_endpoint *e;
-	struct spoolss_NotifyOption t1;
-	struct spoolss_ClosePrinter cp;
-
-	struct policy_handle handle;
 	const char *address;
 	struct interface *ifaces;
 
-	received_packets = NULL;
-
 	ntvfs_init(tctx->lp_ctx);
-
-	ZERO_STRUCT(q);
-
-	q.in.printername	= talloc_asprintf(tctx, "\\\\%s", dcerpc_server_name(p));
-	q.in.datatype		= NULL;
-	q.in.devmode_ctr.devmode= NULL;
-	q.in.access_mask	= SEC_FLAG_MAXIMUM_ALLOWED;
-	q.out.handle		= &handle;
-
-	torture_comment(tctx, "Testing OpenPrinter(%s)\n", q.in.printername);
-
-	status = dcerpc_spoolss_OpenPrinter(p, tctx, &q);
-
-	torture_assert_ntstatus_ok(tctx, status, "OpenPrinter failed");
-
-	torture_assert_werr_ok(tctx, q.out.result, "OpenPrinter failed");
-
-	/* Start DCE/RPC server */
 
 	/* fill in our name */
 	ep_server.name = "spoolss";
@@ -235,27 +453,19 @@ static bool test_RFFPCNEx(struct torture_context *tctx,
 	torture_assert_ntstatus_ok(tctx, dcerpc_register_ep_server(&ep_server),
 				  "unable to register spoolss server");
 
-	lp_set_cmdline(tctx->lp_ctx, "dcerpc endpoint servers", "spoolss");
+	lpcfg_set_cmdline(tctx->lp_ctx, "dcerpc endpoint servers", "spoolss");
 
-	load_interfaces(tctx, lp_interfaces(tctx->lp_ctx), &ifaces);
+	load_interfaces(tctx, lpcfg_interfaces(tctx->lp_ctx), &ifaces);
 	address = iface_n_ip(ifaces, 0);
+
 	torture_comment(tctx, "Listening for callbacks on %s\n", address);
-	status = smbsrv_add_socket(p->conn->event_ctx, tctx->lp_ctx, &single_ops, address);
+
+	status = smbsrv_add_socket(event_ctx, tctx->lp_ctx, &single_ops, address);
 	torture_assert_ntstatus_ok(tctx, status, "starting smb server");
 
 	status = dcesrv_init_context(tctx, tctx->lp_ctx, endpoints, &dce_ctx);
-	torture_assert_ntstatus_ok(tctx, status, 
+	torture_assert_ntstatus_ok(tctx, status,
 				   "unable to initialize DCE/RPC server");
-
-	/* Make sure the directory for NCALRPC exists */
-	if (!directory_exist(lp_ncalrpc_dir(tctx->lp_ctx))) {
-		int ret;
-		ret = mkdir(lp_ncalrpc_dir(tctx->lp_ctx), 0755);
-		torture_assert(tctx, (ret == 0), talloc_asprintf(tctx,
-			       "failed to mkdir(%s) ret[%d] errno[%d - %s]",
-			       lp_ncalrpc_dir(tctx->lp_ctx), ret,
-			       errno, strerror(errno)));
-	}
 
 	for (e=dce_ctx->endpoint_list;e;e=e->next) {
 		status = dcesrv_add_ep(dce_ctx, tctx->lp_ctx,
@@ -264,45 +474,65 @@ static bool test_RFFPCNEx(struct torture_context *tctx,
 				"unable listen on dcerpc endpoint server");
 	}
 
-	r.in.flags = 0;
-	r.in.local_machine = talloc_asprintf(tctx, "\\\\%s", address);
-	r.in.options = 0;
-	r.in.printer_local = 123;
-	t1.version = 2;
-	t1.flags = 0;
-	t1.count = 2;
-	t1.types = talloc_zero_array(tctx, struct spoolss_NotifyOptionType, 2);
-	t1.types[0].type = PRINTER_NOTIFY_TYPE;
-	t1.types[0].count = 1;
-	t1.types[0].fields = talloc_array(t1.types, union spoolss_Field, 1);
-	t1.types[0].fields[0].field = PRINTER_NOTIFY_FIELD_SERVER_NAME;
+	*dce_ctx_p = dce_ctx;
+	*address_p = address;
 
-	t1.types[1].type = JOB_NOTIFY_TYPE;
-	t1.types[1].count = 1;
-	t1.types[1].fields = talloc_array(t1.types, union spoolss_Field, 1);
-	t1.types[1].fields[0].field = PRINTER_NOTIFY_FIELD_PRINTER_NAME;
+	return true;
+}
 
-	r.in.notify_options = &t1;
-	r.in.handle = &handle;
+static struct received_packet *last_packet(struct received_packet *p)
+{
+	struct received_packet *tmp;
+	for (tmp = p; tmp->next; tmp = tmp->next) ;;
+	return tmp;
+}
 
-	status = dcerpc_spoolss_RemoteFindFirstPrinterChangeNotifyEx(p, tctx, &r);
+static bool test_RFFPCNEx(struct torture_context *tctx,
+			  struct dcerpc_pipe *p)
+{
+	struct dcesrv_context *dce_ctx;
+	struct policy_handle handle;
+	const char *address;
+	struct received_packet *tmp;
+	struct spoolss_NotifyOption *server_option = setup_printserver_NotifyOption(tctx);
+#if 0
+	struct spoolss_NotifyOption *printer_option = setup_printer_NotifyOption(tctx);
+#endif
+	struct dcerpc_binding_handle *b = p->binding_handle;
 
-	torture_assert_ntstatus_ok(tctx, status, "FFPCNEx failed");
-	
-	torture_assert_werr_ok(tctx, r.out.result, "error return code for FFPCNEx");
+	received_packets = NULL;
 
-	cp.in.handle = &handle;
-	cp.out.handle = &handle;
+	/* Start DCE/RPC server */
+	torture_assert(tctx, test_start_dcerpc_server(tctx, p->conn->event_ctx, &dce_ctx, &address), "");
 
-	torture_comment(tctx, "Testing ClosePrinter\n");
-
-	status = dcerpc_spoolss_ClosePrinter(p, tctx, &cp);
-	torture_assert_ntstatus_ok(tctx, status, "ClosePrinter failed");
-
-	/* We should've had an incoming packet 58 (ReplyOpenPrinter) */
-	torture_assert(tctx, received_packets != NULL, "no packets received");
-	torture_assert_int_equal(tctx, received_packets->opnum, 58, "invalid opnum");
-
+	torture_assert(tctx, test_OpenPrinter(tctx, p, &handle, NULL), "");
+	torture_assert(tctx, test_RemoteFindFirstPrinterChangeNotifyEx(tctx, b, &handle, address, server_option), "");
+	torture_assert(tctx, received_packets, "no packets received");
+	torture_assert_int_equal(tctx, received_packets->opnum, NDR_SPOOLSS_REPLYOPENPRINTER,
+		"no ReplyOpenPrinter packet after RemoteFindFirstPrinterChangeNotifyEx");
+	torture_assert(tctx, test_RouterRefreshPrinterChangeNotify(tctx, b, &handle, NULL), "");
+	torture_assert(tctx, test_RouterRefreshPrinterChangeNotify(tctx, b, &handle, server_option), "");
+	torture_assert(tctx, test_ClosePrinter(tctx, b, &handle), "");
+	tmp = last_packet(received_packets);
+	torture_assert_int_equal(tctx, tmp->opnum, NDR_SPOOLSS_REPLYCLOSEPRINTER,
+		"no ReplyClosePrinter packet after ClosePrinter");
+#if 0
+	torture_assert(tctx, test_OpenPrinter(tctx, p, &handle, "Epson AL-2600"), "");
+	torture_assert(tctx, test_RemoteFindFirstPrinterChangeNotifyEx(tctx, p, &handle, address, printer_option), "");
+	tmp = last_packet(received_packets);
+	torture_assert_int_equal(tctx, tmp->opnum, NDR_SPOOLSS_REPLYOPENPRINTER,
+		"no ReplyOpenPrinter packet after RemoteFindFirstPrinterChangeNotifyEx");
+	torture_assert(tctx, test_RouterRefreshPrinterChangeNotify(tctx, p, &handle, NULL), "");
+	torture_assert(tctx, test_RouterRefreshPrinterChangeNotify(tctx, p, &handle, printer_option), "");
+	torture_assert(tctx, test_SetPrinter(tctx, p, &handle), "");
+	tmp = last_packet(received_packets);
+	torture_assert_int_equal(tctx, tmp->opnum, NDR_SPOOLSS_ROUTERREPLYPRINTEREX,
+		"no RouterReplyPrinterEx packet after ClosePrinter");
+	torture_assert(tctx, test_ClosePrinter(tctx, p, &handle), "");
+	tmp = last_packet(received_packets);
+	torture_assert_int_equal(tctx, tmp->opnum, NDR_SPOOLSS_REPLYCLOSEPRINTER,
+		"no ReplyClosePrinter packet after ClosePrinter");
+#endif
 	/* Shut down DCE/RPC server */
 	talloc_free(dce_ctx);
 
@@ -318,6 +548,11 @@ static bool test_ReplyOpenPrinter(struct torture_context *tctx,
 	struct spoolss_ReplyOpenPrinter r;
 	struct spoolss_ReplyClosePrinter s;
 	struct policy_handle h;
+	struct dcerpc_binding_handle *b = p->binding_handle;
+
+	if (torture_setting_bool(tctx, "samba3", false)) {
+		torture_skip(tctx, "skipping ReplyOpenPrinter server implementation test against s3\n");
+	}
 
 	r.in.server_name = "earth";
 	r.in.printer_local = 2;
@@ -327,7 +562,7 @@ static bool test_ReplyOpenPrinter(struct torture_context *tctx,
 	r.out.handle = &h;
 
 	torture_assert_ntstatus_ok(tctx,
-			dcerpc_spoolss_ReplyOpenPrinter(p, tctx, &r),
+			dcerpc_spoolss_ReplyOpenPrinter_r(b, tctx, &r),
 			"spoolss_ReplyOpenPrinter call failed");
 
 	torture_assert_werr_ok(tctx, r.out.result, "error return code");
@@ -336,7 +571,7 @@ static bool test_ReplyOpenPrinter(struct torture_context *tctx,
 	s.out.handle = &h;
 
 	torture_assert_ntstatus_ok(tctx,
-			dcerpc_spoolss_ReplyClosePrinter(p, tctx, &s),
+			dcerpc_spoolss_ReplyClosePrinter_r(b, tctx, &s),
 			"spoolss_ReplyClosePrinter call failed");
 
 	torture_assert_werr_ok(tctx, r.out.result, "error return code");
@@ -347,12 +582,12 @@ static bool test_ReplyOpenPrinter(struct torture_context *tctx,
 struct torture_suite *torture_rpc_spoolss_notify(TALLOC_CTX *mem_ctx)
 {
 	struct torture_suite *suite = torture_suite_create(mem_ctx, "SPOOLSS-NOTIFY");
-	
-	struct torture_rpc_tcase *tcase = torture_suite_add_rpc_iface_tcase(suite, 
+
+	struct torture_rpc_tcase *tcase = torture_suite_add_rpc_iface_tcase(suite,
 							"notify", &ndr_table_spoolss);
 
 	torture_rpc_tcase_add_test(tcase, "testRFFPCNEx", test_RFFPCNEx);
 	torture_rpc_tcase_add_test(tcase, "testReplyOpenPrinter", test_ReplyOpenPrinter);
-	
+
 	return suite;
 }

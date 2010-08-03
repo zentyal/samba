@@ -33,8 +33,6 @@
 
 #include "kdc_locl.h"
 
-RCSID("$Id$");
-
 static krb5plugin_windc_ftable *windcft;
 static void *windcctx;
 
@@ -55,14 +53,14 @@ krb5_kdc_windc_init(krb5_context context)
     for (e = list; e != NULL; e = _krb5_plugin_get_next(e)) {
 
 	windcft = _krb5_plugin_get_symbol(e);
-	if (windcft->minor_version < KRB5_WINDC_PLUGING_MINOR)
+	if (windcft->minor_version < KRB5_WINDC_PLUGIN_MINOR)
 	    continue;
 	
 	(*windcft->init)(context, &windcctx);
 	break;
     }
+    _krb5_plugin_free(list);
     if (e == NULL) {
-	_krb5_plugin_free(list);
 	krb5_set_error_message(context, ENOENT, "Did not find any WINDC plugin");
 	windcft = NULL;
 	return ENOENT;

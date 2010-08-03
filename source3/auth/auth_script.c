@@ -4,17 +4,17 @@
    Call out to a shell script for an authentication check.
 
    Copyright (C) Jeremy Allison 2005.
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -40,8 +40,8 @@
 static NTSTATUS script_check_user_credentials(const struct auth_context *auth_context,
 					void *my_private_data, 
 					TALLOC_CTX *mem_ctx,
-					const auth_usersupplied_info *user_info, 
-					auth_serversupplied_info **server_info)
+					const struct auth_usersupplied_info *user_info,
+					struct auth_serversupplied_info **server_info)
 {
 	const char *script = lp_parm_const_string( GLOBAL_SECTION_SNUM, "auth_script", "script", NULL);
 	char *secret_str;
@@ -62,8 +62,8 @@ static NTSTATUS script_check_user_credentials(const struct auth_context *auth_co
 		return NT_STATUS_INVALID_PARAMETER;
 	}		
 
-	secret_str_len = strlen(user_info->domain) + 1 +
-			strlen(user_info->smb_name) + 1 +
+	secret_str_len = strlen(user_info->mapped.domain_name) + 1 +
+			strlen(user_info->client.account_name) + 1 +
 			16 + 1 + /* 8 bytes of challenge going to 16 */
 			48 + 1 + /* 24 bytes of challenge going to 48 */
 			48 + 1;
@@ -73,9 +73,9 @@ static NTSTATUS script_check_user_credentials(const struct auth_context *auth_co
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	safe_strcpy( secret_str, user_info->domain, secret_str_len - 1);
+	safe_strcpy( secret_str, user_info->mapped.domain_name, secret_str_len - 1);
 	safe_strcat( secret_str, "\n", secret_str_len - 1);
-	safe_strcat( secret_str, user_info->smb_name, secret_str_len - 1);
+	safe_strcat( secret_str, user_info->client.account_name, secret_str_len - 1);
 	safe_strcat( secret_str, "\n", secret_str_len - 1);
 
 	for (i = 0; i < 8; i++) {
@@ -109,7 +109,7 @@ static NTSTATUS script_check_user_credentials(const struct auth_context *auth_co
 
 	if (ret) {
 		DEBUG(1,("script_check_user_credentials: failed to authenticate %s\\%s\n",
-			user_info->domain, user_info->smb_name ));
+			user_info->mapped.domain_name, user_info->client.account_name ));
 		/* auth failed. */
 		return NT_STATUS_NO_SUCH_USER;
 	}
@@ -121,12 +121,14 @@ static NTSTATUS script_check_user_credentials(const struct auth_context *auth_co
 /* module initialisation */
 static NTSTATUS auth_init_script(struct auth_context *auth_context, const char *param, auth_methods **auth_method) 
 {
-	if (!make_auth_methods(auth_context, auth_method)) {
+	struct auth_methods *result;
+
+	result = TALLOC_ZERO_P(auth_context, struct auth_methods);
+	if (result == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
-
-	(*auth_method)->name = "script";
-	(*auth_method)->auth = script_check_user_credentials;
+	result->name = "script";
+	result->auth = script_check_user_credentials;
 
 	if (param && *param) {
 		/* we load the 'fallback' module - if script isn't here, call this
@@ -135,8 +137,10 @@ static NTSTATUS auth_init_script(struct auth_context *auth_context, const char *
 		if (!load_auth_module(auth_context, param, &priv)) {
 			return NT_STATUS_UNSUCCESSFUL;
 		}
-		(*auth_method)->private_data = (void *)priv;
+		result->private_data = (void *)priv;
 	}
+
+        *auth_method = result;
 	return NT_STATUS_OK;
 }
 

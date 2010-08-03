@@ -76,7 +76,7 @@ static struct auth_init_function_entry *auth_find_backend_entry(const char *name
  Returns a const char of length 8 bytes.
 ****************************************************************************/
 
-static void get_ntlm_challenge(struct auth_context *auth_context,
+static NTSTATUS get_ntlm_challenge(struct auth_context *auth_context,
 			       uint8_t chal[8])
 {
 	DATA_BLOB challenge = data_blob_null;
@@ -87,7 +87,7 @@ static void get_ntlm_challenge(struct auth_context *auth_context,
 		DEBUG(5, ("get_ntlm_challenge (auth subsystem): returning previous challenge by module %s (normal)\n", 
 			  auth_context->challenge_set_by));
 		memcpy(chal, auth_context->challenge.data, 8);
-		return;
+		return NT_STATUS_OK;
 	}
 
 	auth_context->challenge_may_be_modified = False;
@@ -106,7 +106,7 @@ static void get_ntlm_challenge(struct auth_context *auth_context,
 		}
 
 		challenge = auth_method->get_chal(auth_context, &auth_method->private_data,
-					auth_context->mem_ctx);
+						  auth_context);
 		if (!challenge.length) {
 			DEBUG(3, ("auth_get_challenge: getting challenge from authentication method %s FAILED.\n", 
 				  auth_method->name));
@@ -122,7 +122,7 @@ static void get_ntlm_challenge(struct auth_context *auth_context,
 		uchar tmp[8];
 
 		generate_random_buffer(tmp, sizeof(tmp));
-		auth_context->challenge = data_blob_talloc(auth_context->mem_ctx, 
+		auth_context->challenge = data_blob_talloc(auth_context,
 							   tmp, sizeof(tmp));
 
 		challenge_set_by = "random";
@@ -138,6 +138,7 @@ static void get_ntlm_challenge(struct auth_context *auth_context,
 	auth_context->challenge_set_by=challenge_set_by;
 
 	memcpy(chal, auth_context->challenge.data, 8);
+	return NT_STATUS_OK;
 }
 
 
@@ -213,10 +214,10 @@ static NTSTATUS check_ntlm_password(const struct auth_context *auth_context,
 		return NT_STATUS_LOGON_FAILURE;
 
 	DEBUG(3, ("check_ntlm_password:  Checking password for unmapped user [%s]\\[%s]@[%s] with the new password interface\n", 
-		  user_info->client_domain, user_info->smb_name, user_info->wksta_name));
+		  user_info->client.domain_name, user_info->client.account_name, user_info->workstation_name));
 
 	DEBUG(3, ("check_ntlm_password:  mapped user is: [%s]\\[%s]@[%s]\n", 
-		  user_info->domain, user_info->internal_username, user_info->wksta_name));
+		  user_info->mapped.domain_name, user_info->mapped.account_name, user_info->workstation_name));
 
 	if (auth_context->challenge.length != 8) {
 		DEBUG(0, ("check_ntlm_password:  Invalid challenge stored for this auth context - cannot continue\n"));
@@ -240,14 +241,14 @@ static NTSTATUS check_ntlm_password(const struct auth_context *auth_context,
 #endif
 
 	/* This needs to be sorted:  If it doesn't match, what should we do? */
-  	if (!check_domain_match(user_info->smb_name, user_info->domain))
+	if (!check_domain_match(user_info->client.account_name, user_info->mapped.domain_name))
 		return NT_STATUS_LOGON_FAILURE;
 
 	for (auth_method = auth_context->auth_method_list;auth_method; auth_method = auth_method->next) {
 		NTSTATUS result;
 
-		mem_ctx = talloc_init("%s authentication for user %s\\%s", auth_method->name, 
-					    user_info->domain, user_info->smb_name);
+		mem_ctx = talloc_init("%s authentication for user %s\\%s", auth_method->name,
+					    user_info->mapped.domain_name, user_info->client.account_name);
 
 		result = auth_method->auth(auth_context, auth_method->private_data, mem_ctx, user_info, server_info);
 
@@ -262,10 +263,10 @@ static NTSTATUS check_ntlm_password(const struct auth_context *auth_context,
 
 		if (NT_STATUS_IS_OK(nt_status)) {
 			DEBUG(3, ("check_ntlm_password: %s authentication for user [%s] succeeded\n", 
-				  auth_method->name, user_info->smb_name));
+				  auth_method->name, user_info->client.account_name));
 		} else {
 			DEBUG(5, ("check_ntlm_password: %s authentication for user [%s] FAILED with error %s\n", 
-				  auth_method->name, user_info->smb_name, nt_errstr(nt_status)));
+				  auth_method->name, user_info->client.account_name, nt_errstr(nt_status)));
 		}
 
 		talloc_destroy(mem_ctx);
@@ -297,10 +298,10 @@ static NTSTATUS check_ntlm_password(const struct auth_context *auth_context,
 
 		if (NT_STATUS_IS_OK(nt_status)) {
 			DEBUG((*server_info)->guest ? 5 : 2, 
-			      ("check_ntlm_password:  %sauthentication for user [%s] -> [%s] -> [%s] succeeded\n", 
-			       (*server_info)->guest ? "guest " : "", 
-			       user_info->smb_name, 
-			       user_info->internal_username, 
+			      ("check_ntlm_password:  %sauthentication for user [%s] -> [%s] -> [%s] succeeded\n",
+			       (*server_info)->guest ? "guest " : "",
+			       user_info->client.account_name,
+			       user_info->mapped.account_name,
 			       unix_username));
 		}
 
@@ -309,10 +310,10 @@ static NTSTATUS check_ntlm_password(const struct auth_context *auth_context,
 
 	/* failed authentication; check for guest lapping */
 
-	DEBUG(2, ("check_ntlm_password:  Authentication for user [%s] -> [%s] FAILED with error %s\n", 
-		  user_info->smb_name, user_info->internal_username, 
+	DEBUG(2, ("check_ntlm_password:  Authentication for user [%s] -> [%s] FAILED with error %s\n",
+		  user_info->client.account_name, user_info->mapped.account_name,
 		  nt_errstr(nt_status)));
-	ZERO_STRUCTP(server_info); 
+	ZERO_STRUCTP(server_info);
 
 	return nt_status;
 }
@@ -321,44 +322,40 @@ static NTSTATUS check_ntlm_password(const struct auth_context *auth_context,
  Clear out a auth_context, and destroy the attached TALLOC_CTX
 ***************************************************************************/
 
-static void free_auth_context(struct auth_context **auth_context)
+static int auth_context_destructor(void *ptr)
 {
-	auth_methods *auth_method;
+	struct auth_context *ctx = talloc_get_type(ptr, struct auth_context);
+	struct auth_methods *am;
 
-	if (*auth_context) {
-		/* Free private data of context's authentication methods */
-		for (auth_method = (*auth_context)->auth_method_list; auth_method; auth_method = auth_method->next) {
-			TALLOC_FREE(auth_method->private_data);
-		}
 
-		talloc_destroy((*auth_context)->mem_ctx);
-		*auth_context = NULL;
+	/* Free private data of context's authentication methods */
+	for (am = ctx->auth_method_list; am; am = am->next) {
+		TALLOC_FREE(am->private_data);
 	}
+
+	return 0;
 }
 
 /***************************************************************************
  Make a auth_info struct
 ***************************************************************************/
 
-static NTSTATUS make_auth_context(struct auth_context **auth_context) 
+static NTSTATUS make_auth_context(struct auth_context **auth_context)
 {
-	TALLOC_CTX *mem_ctx;
+	struct auth_context *ctx;
 
-	mem_ctx = talloc_init("authentication context");
-
-	*auth_context = TALLOC_P(mem_ctx, struct auth_context);
-	if (!*auth_context) {
+	ctx = talloc_zero(talloc_autofree_context(), struct auth_context);
+	if (!ctx) {
 		DEBUG(0,("make_auth_context: talloc failed!\n"));
-		talloc_destroy(mem_ctx);
 		return NT_STATUS_NO_MEMORY;
 	}
-	ZERO_STRUCTP(*auth_context);
 
-	(*auth_context)->mem_ctx = mem_ctx;
-	(*auth_context)->check_ntlm_password = check_ntlm_password;
-	(*auth_context)->get_ntlm_challenge = get_ntlm_challenge;
-	(*auth_context)->free = free_auth_context;
+	ctx->check_ntlm_password = check_ntlm_password;
+	ctx->get_ntlm_challenge = get_ntlm_challenge;
 
+	talloc_set_destructor((TALLOC_CTX *)ctx, auth_context_destructor);
+
+	*auth_context = ctx;
 	return NT_STATUS_OK;
 }
 
@@ -538,7 +535,7 @@ NTSTATUS make_auth_context_fixed(struct auth_context **auth_context, uchar chal[
 		return nt_status;
 	}
 
-	(*auth_context)->challenge = data_blob_talloc((*auth_context)->mem_ctx, chal, 8);
+	(*auth_context)->challenge = data_blob_talloc(*auth_context, chal, 8);
 	(*auth_context)->challenge_set_by = "fixed";
 	return nt_status;
 }

@@ -23,6 +23,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "includes.h"
+#include "../librpc/gen_ndr/rap.h"
 #include "utils/net.h"
 
 /* The following messages were for error checking that is not properly
@@ -226,7 +227,7 @@ static int rap_share_add(struct net_context *c, int argc, const char **argv)
 	struct cli_state *cli;
 	int ret;
 
-	RAP_SHARE_INFO_2 sinfo;
+	struct rap_share_info_2 sinfo;
 	char *p;
 	char *sharename;
 
@@ -245,10 +246,10 @@ static int rap_share_add(struct net_context *c, int argc, const char **argv)
 		return net_rap_share_usage(c, argc, argv);
 	}
 	*p = 0;
-	strlcpy(sinfo.share_name, sharename, sizeof(sinfo.share_name));
+	strlcpy((char *)sinfo.share_name, sharename, sizeof(sinfo.share_name));
 	sinfo.reserved1 = '\0';
 	sinfo.share_type = 0;
-	sinfo.comment = smb_xstrdup(c->opt_comment);
+	sinfo.comment = c->opt_comment ? smb_xstrdup(c->opt_comment) : "";
 	sinfo.perms = 0;
 	sinfo.maximum_users = c->opt_maxusers;
 	sinfo.active_users = 0;
@@ -812,7 +813,7 @@ static int rap_user_add(struct net_context *c, int argc, const char **argv)
 {
 	struct cli_state *cli;
 	int ret;
-	RAP_USER_INFO_1 userinfo;
+	struct rap_user_info_1 userinfo;
 
 	if (argc == 0 || c->display_usage) {
                 return net_rap_user_usage(c, argc, argv);
@@ -821,7 +822,7 @@ static int rap_user_add(struct net_context *c, int argc, const char **argv)
 	if (!NT_STATUS_IS_OK(net_make_ipc_connection(c, 0, &cli)))
                 return -1;
 
-	safe_strcpy(userinfo.user_name, argv[0], sizeof(userinfo.user_name)-1);
+	safe_strcpy((char *)userinfo.user_name, argv[0], sizeof(userinfo.user_name)-1);
 	if (c->opt_flags == -1)
                 c->opt_flags = 0x21;
 
@@ -956,7 +957,7 @@ static int rap_group_add(struct net_context *c, int argc, const char **argv)
 {
 	struct cli_state *cli;
 	int ret;
-	RAP_GROUP_INFO_1 grinfo;
+	struct rap_group_info_1 grinfo;
 
 	if (argc == 0 || c->display_usage) {
                 return net_rap_group_usage(c, argc, argv);
@@ -966,7 +967,7 @@ static int rap_group_add(struct net_context *c, int argc, const char **argv)
                 return -1;
 
 	/* BB check for length 21 or smaller explicitly ? BB */
-	safe_strcpy(grinfo.group_name, argv[0], sizeof(grinfo.group_name)-1);
+	safe_strcpy((char *)grinfo.group_name, argv[0], sizeof(grinfo.group_name)-1);
 	grinfo.reserved1 = '\0';
 	grinfo.comment = smb_xstrdup(c->opt_comment ? c->opt_comment : "");
 

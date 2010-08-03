@@ -23,7 +23,8 @@
 #include "auth/auth.h"
 #include "auth/ntlm/auth_proto.h"
 #include "system/passwd.h" /* needed by some systems for struct passwd */
-#include "lib/socket/socket.h" 
+#include "lib/socket/socket.h"
+#include "lib/tsocket/tsocket.h"
 #include "auth/ntlm/pam_errors.h"
 #include "param/param.h"
 
@@ -429,7 +430,7 @@ static NTSTATUS smb_pam_setcred(pam_handle_t *pamh, const char * user)
 	return pam_to_nt_status(pam_error);
 }
 
-static NTSTATUS check_unix_password(TALLOC_CTX *ctx, struct loadparm_context *lp_ctx, 
+static NTSTATUS check_unix_password(TALLOC_CTX *ctx, struct loadparm_context *lp_ctx,
 				    const struct auth_usersupplied_info *user_info, struct passwd **pws)
 {
 	struct smb_pam_user_info *info;
@@ -458,12 +459,13 @@ static NTSTATUS check_unix_password(TALLOC_CTX *ctx, struct loadparm_context *lp
 	 * if true set up a crack name routine.
 	 */
 
-	nt_status = smb_pam_start(&pamh, user_info->mapped.account_name, user_info->remote_host ? user_info->remote_host->addr : NULL, pamconv);
+	nt_status = smb_pam_start(&pamh, user_info->mapped.account_name,
+			user_info->remote_host ? tsocket_address_inet_addr_string(user_info->remote_host, ctx) : NULL, pamconv);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		return nt_status;
 	}
 
-	nt_status = smb_pam_auth(pamh, lp_null_passwords(lp_ctx), user_info->mapped.account_name);
+	nt_status = smb_pam_auth(pamh, lpcfg_null_passwords(lp_ctx), user_info->mapped.account_name);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		smb_pam_end(pamh);
 		return nt_status;
@@ -603,7 +605,7 @@ static NTSTATUS check_unix_password(TALLOC_CTX *ctx, struct loadparm_context *lp
 	char *crypted;
 	struct passwd *pws;
 	NTSTATUS nt_status;
-	int level = lp_passwordlevel(lp_ctx);
+	int level = lpcfg_passwordlevel(lp_ctx);
 
 	*ret_passwd = NULL;
 
@@ -706,7 +708,7 @@ static NTSTATUS check_unix_password(TALLOC_CTX *ctx, struct loadparm_context *lp
 #endif
 
 	if (crypted[0] == '\0') {
-		if (!lp_null_passwords(lp_ctx)) {
+		if (!lpcfg_null_passwords(lp_ctx)) {
 			DEBUG(2, ("Disallowing %s with null password\n", username));
 			return NT_STATUS_LOGON_FAILURE;
 		}
@@ -812,7 +814,7 @@ static NTSTATUS authunix_check_password(struct auth_method_context *ctx,
 		return nt_status;
 	}
 
-	nt_status = authunix_make_server_info(mem_ctx, lp_netbios_name(ctx->auth_ctx->lp_ctx),
+	nt_status = authunix_make_server_info(mem_ctx, lpcfg_netbios_name(ctx->auth_ctx->lp_ctx),
 					      user_info, pwd, server_info);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		talloc_free(check_ctx);

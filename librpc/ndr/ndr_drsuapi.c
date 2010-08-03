@@ -66,118 +66,24 @@ void ndr_print_drsuapi_DsReplicaObjectListItemEx(struct ndr_print *ndr, const ch
 	}
 }
 
-#define _OID_PUSH_CHECK(call) do { \
-	bool _status; \
-	_status = call; \
-	if (_status != true) { \
-		return ndr_push_error(ndr, NDR_ERR_SUBCONTEXT, "OID Conversion Error: %s\n", __location__); \
-	} \
-} while (0)
-
-#define _OID_PULL_CHECK(call) do { \
-	bool _status; \
-	_status = call; \
-	if (_status != true) { \
-		return ndr_pull_error(ndr, NDR_ERR_SUBCONTEXT, "OID Conversion Error: %s\n", __location__); \
-	} \
-} while (0)
-
-enum ndr_err_code ndr_push_drsuapi_DsReplicaOID(struct ndr_push *ndr, int ndr_flags, const struct drsuapi_DsReplicaOID *r)
+_PUBLIC_ void ndr_print_drsuapi_DsReplicaOID(struct ndr_print *ndr, const char *name, const struct drsuapi_DsReplicaOID *r)
 {
-	if (ndr_flags & NDR_SCALARS) {
-		NDR_CHECK(ndr_push_align(ndr, 4));
-		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, ndr_size_drsuapi_DsReplicaOID_oid(r->oid, 0)));
-		NDR_CHECK(ndr_push_unique_ptr(ndr, r->oid));
+	ndr_print_struct(ndr, name, "drsuapi_DsReplicaOID");
+	ndr->depth++;
+	ndr_print_uint32(ndr, "length", r->length);
+	ndr->print(ndr, "%-25s: length=%u", "oid", r->length);
+	if (r->binary_oid) {
+		char *partial_oid = NULL;
+		DATA_BLOB oid_blob = data_blob_const(r->binary_oid, r->length);
+		char *hex_str = data_blob_hex_string_upper(ndr, &oid_blob);
+		ber_read_partial_OID_String(ndr, oid_blob, (const char **)&partial_oid);
+		ndr->depth++;
+		ndr->print(ndr, "%-25s: 0x%s (%s)", "binary_oid", hex_str, partial_oid);
+		ndr->depth--;
+		talloc_free(hex_str);
+		talloc_free(partial_oid);
 	}
-	if (ndr_flags & NDR_BUFFERS) {
-		if (r->oid) {
-			DATA_BLOB blob;
-
-			if (strncasecmp("ff", r->oid, 2) == 0) {
-				blob = strhex_to_data_blob(ndr, r->oid);
-				if (!blob.data) {
-					return ndr_push_error(ndr, NDR_ERR_SUBCONTEXT,
-							      "HEX String Conversion Error: %s\n",
-							      __location__);
-				}
-			} else {
-				_OID_PUSH_CHECK(ber_write_OID_String(&blob, r->oid));
-				talloc_steal(ndr, blob.data);
-			}
-
-			NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, blob.length));
-			NDR_CHECK(ndr_push_array_uint8(ndr, NDR_SCALARS, blob.data, blob.length));
-		}
-	}
-	return NDR_ERR_SUCCESS;
-}
-
-enum ndr_err_code ndr_pull_drsuapi_DsReplicaOID(struct ndr_pull *ndr, int ndr_flags, struct drsuapi_DsReplicaOID *r)
-{
-	uint32_t _ptr_oid;
-	TALLOC_CTX *_mem_save_oid_0;
-	if (ndr_flags & NDR_SCALARS) {
-		NDR_CHECK(ndr_pull_align(ndr, 4));
-		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->__ndr_size));
-		if (r->__ndr_size < 0 || r->__ndr_size > 10000) {
-			return ndr_pull_error(ndr, NDR_ERR_RANGE, "value out of range");
-		}
-		NDR_CHECK(ndr_pull_generic_ptr(ndr, &_ptr_oid));
-		if (_ptr_oid) {
-			NDR_PULL_ALLOC(ndr, r->oid);
-		} else {
-			r->oid = NULL;
-		}
-	}
-	if (ndr_flags & NDR_BUFFERS) {
-		if (r->oid) {
-			DATA_BLOB _oid_array;
-			const char *_oid;
-
-			_mem_save_oid_0 = NDR_PULL_GET_MEM_CTX(ndr);
-			NDR_PULL_SET_MEM_CTX(ndr, ndr, 0);
-			NDR_CHECK(ndr_pull_array_size(ndr, &r->oid));
-			_oid_array.length = ndr_get_array_size(ndr, &r->oid);
-			NDR_PULL_ALLOC_N(ndr, _oid_array.data, _oid_array.length);
-			NDR_CHECK(ndr_pull_array_uint8(ndr, NDR_SCALARS, _oid_array.data, _oid_array.length));
-			NDR_PULL_SET_MEM_CTX(ndr, _mem_save_oid_0, 0);
-
-			if (_oid_array.length && _oid_array.data[0] == 0xFF) {
-				_oid = data_blob_hex_string(ndr, &_oid_array);
-				NDR_ERR_HAVE_NO_MEMORY(_oid);
-			} else {
-				_OID_PULL_CHECK(ber_read_OID_String(ndr, _oid_array, &_oid));
-			}
-			data_blob_free(&_oid_array);
-			talloc_steal(r->oid, _oid);
-			r->oid = _oid;
-		}
-		if (r->oid) {
-			NDR_CHECK(ndr_check_array_size(ndr, (void*)&r->oid, r->__ndr_size));
-		}
-	}
-	return NDR_ERR_SUCCESS;
-}
-
-size_t ndr_size_drsuapi_DsReplicaOID_oid(const char *oid, int flags)
-{
-	DATA_BLOB _blob;
-	size_t ret = 0;
-
-	if (!oid) return 0;
-
-	if (strncasecmp("ff", oid, 2) == 0) {
-		_blob = strhex_to_data_blob(NULL, oid);
-		if (_blob.data) {
-			ret = _blob.length;
-		}
-	} else {
-		if (ber_write_OID_String(&_blob, oid)) {
-			ret = _blob.length;
-		}
-	}
-	data_blob_free(&_blob);
-	return ret;
+	ndr->depth--;
 }
 
 enum ndr_err_code ndr_push_drsuapi_DsGetNCChangesMSZIPCtr1(struct ndr_push *ndr, int ndr_flags, const struct drsuapi_DsGetNCChangesMSZIPCtr1 *r)
@@ -352,8 +258,42 @@ enum ndr_err_code ndr_push_drsuapi_DsGetNCChangesXPRESSCtr6(struct ndr_push *ndr
 	return NDR_ERR_SUCCESS;
 }
 
-_PUBLIC_ size_t ndr_size_drsuapi_DsReplicaObjectIdentifier3Binary_without_Binary(const struct drsuapi_DsReplicaObjectIdentifier3Binary *r, struct smb_iconv_convenience *ic, int flags)
+_PUBLIC_ size_t ndr_size_drsuapi_DsReplicaObjectIdentifier3Binary_without_Binary(const struct drsuapi_DsReplicaObjectIdentifier3Binary *r, int flags)
 {
-	return ndr_size_struct((const struct drsuapi_DsReplicaObjectIdentifier3 *)r, flags, (ndr_push_flags_fn_t)ndr_push_drsuapi_DsReplicaObjectIdentifier3, ic);
+	return ndr_size_struct((const struct drsuapi_DsReplicaObjectIdentifier3 *)r, flags, (ndr_push_flags_fn_t)ndr_push_drsuapi_DsReplicaObjectIdentifier3);
 }
 
+_PUBLIC_ void ndr_print_drsuapi_SecBufferType(struct ndr_print *ndr, const char *name, enum drsuapi_SecBufferType r)
+{
+	const char *val = NULL;
+
+	switch (r & 0x00000007) {
+		case DRSUAPI_SECBUFFER_EMPTY: val = "DRSUAPI_SECBUFFER_EMPTY"; break;
+		case DRSUAPI_SECBUFFER_DATA: val = "DRSUAPI_SECBUFFER_DATA"; break;
+		case DRSUAPI_SECBUFFER_TOKEN: val = "DRSUAPI_SECBUFFER_TOKEN"; break;
+		case DRSUAPI_SECBUFFER_PKG_PARAMS: val = "DRSUAPI_SECBUFFER_PKG_PARAMS"; break;
+		case DRSUAPI_SECBUFFER_MISSING: val = "DRSUAPI_SECBUFFER_MISSING"; break;
+		case DRSUAPI_SECBUFFER_EXTRA: val = "DRSUAPI_SECBUFFER_EXTRA"; break;
+		case DRSUAPI_SECBUFFER_STREAM_TRAILER: val = "DRSUAPI_SECBUFFER_STREAM_TRAILER"; break;
+		case DRSUAPI_SECBUFFER_STREAM_HEADER: val = "DRSUAPI_SECBUFFER_STREAM_HEADER"; break;
+	}
+
+	if (r & DRSUAPI_SECBUFFER_READONLY) {
+		char *v = talloc_asprintf(ndr, "DRSUAPI_SECBUFFER_READONLY | %s", val);
+		ndr_print_enum(ndr, name, "ENUM", v, r);
+	} else {
+		ndr_print_enum(ndr, name, "ENUM", val, r);
+	}
+}
+
+_PUBLIC_ void ndr_print_drsuapi_DsAddEntry_AttrErrListItem_V1(struct ndr_print *ndr, const char *name, const struct drsuapi_DsAddEntry_AttrErrListItem_V1 *r)
+{
+	ndr_print_struct(ndr, name, "drsuapi_DsAddEntry_AttrErrListItem_V1");
+	ndr->depth++;
+	ndr_print_ptr(ndr, "next", r->next);
+	ndr_print_drsuapi_DsAddEntry_AttrErr_V1(ndr, "err_data", &r->err_data);
+	ndr->depth--;
+	if (r->next) {
+		ndr_print_drsuapi_DsAddEntry_AttrErrListItem_V1(ndr, "next", r->next);
+	}
+}

@@ -23,14 +23,20 @@
 #include <tevent.h>
 #include "smbd/service.h"
 #include "param/param.h"
+#include "auth/auth.h"
 #include "auth/session.h"
 #include "auth/auth_sam_reply.h"
-#include "lib/stream/packet.h"
+#include "lib/socket/socket.h"
+#include "lib/tsocket/tsocket.h"
+#include "libcli/util/tstream.h"
 #include "librpc/gen_ndr/ndr_named_pipe_auth.h"
 #include "system/passwd.h"
+#include "system/network.h"
 #include "libcli/raw/smb.h"
 #include "auth/credentials/credentials.h"
 #include "auth/credentials/credentials_krb5.h"
+#include "libcli/security/dom_sid.h"
+#include "libcli/named_pipe_auth/npa_tstream.h"
 
 struct named_pipe_socket {
 	const char *pipe_name;
@@ -39,313 +45,226 @@ struct named_pipe_socket {
 	void *private_data;
 };
 
-struct named_pipe_connection {
-	struct stream_connection *connection;
-	struct packet_context *packet;
-	const struct named_pipe_socket *pipe_sock;
-	NTSTATUS status;
-};
+static void named_pipe_accept_done(struct tevent_req *subreq);
 
-static void named_pipe_handover_connection(void *private_data)
+static void named_pipe_accept(struct stream_connection *conn)
 {
-	struct named_pipe_connection *pipe_conn = talloc_get_type(
-		private_data, struct named_pipe_connection);
-	struct stream_connection *conn = pipe_conn->connection;
+	struct tstream_context *plain_tstream;
+	int fd;
+	struct tevent_req *subreq;
+	int ret;
 
-	TEVENT_FD_NOT_WRITEABLE(conn->event.fde);
+	/* Let tstream take over fd operations */
 
-	packet_set_socket(pipe_conn->packet, NULL);
-	packet_set_event_context(pipe_conn->packet, NULL);
-	packet_set_fde(pipe_conn->packet, NULL);
-	TALLOC_FREE(pipe_conn->packet);
+	fd = socket_get_fd(conn->socket);
+	socket_set_flags(conn->socket, SOCKET_FLAG_NOCLOSE);
+	TALLOC_FREE(conn->event.fde);
+	TALLOC_FREE(conn->socket);
 
-	if (!NT_STATUS_IS_OK(pipe_conn->status)) {
-		stream_terminate_connection(conn, nt_errstr(pipe_conn->status));
+	ret = tstream_bsd_existing_socket(conn, fd, &plain_tstream);
+	if (ret != 0) {
+		stream_terminate_connection(conn,
+				"named_pipe_accept: out of memory");
 		return;
 	}
 
-	/*
-	 * remove the named_pipe layer together with its packet layer
-	 */
-	conn->ops		= pipe_conn->pipe_sock->ops;
-	conn->private_data	= pipe_conn->pipe_sock->private_data;
-	talloc_unlink(conn, pipe_conn);
+	subreq = tstream_npa_accept_existing_send(conn, conn->event.ctx,
+						  plain_tstream,
+						  FILE_TYPE_MESSAGE_MODE_PIPE,
+						  0xff | 0x0400 | 0x0100,
+						  4096);
+	if (subreq == NULL) {
+		stream_terminate_connection(conn,
+			"named_pipe_accept: "
+			"no memory for tstream_npa_accept_existing_send");
+		return;
+	}
+	tevent_req_set_callback(subreq, named_pipe_accept_done, conn);
+}
 
-	/* we're now ready to start receiving events on this stream */
-	TEVENT_FD_READABLE(conn->event.fde);
+static void named_pipe_accept_done(struct tevent_req *subreq)
+{
+	struct stream_connection *conn = tevent_req_callback_data(subreq,
+						struct stream_connection);
+	struct named_pipe_socket *pipe_sock =
+				talloc_get_type(conn->private_data,
+						struct named_pipe_socket);
+	struct tsocket_address *client;
+	char *client_name;
+	struct tsocket_address *server;
+	char *server_name;
+	struct netr_SamInfo3 *info3;
+	DATA_BLOB session_key;
+	DATA_BLOB delegated_creds;
+
+	union netr_Validation val;
+	struct auth_serversupplied_info *server_info;
+	struct auth_context *auth_context;
+	uint32_t session_flags = 0;
+	struct dom_sid *anonymous_sid;
+	const char *reason = NULL;
+	TALLOC_CTX *tmp_ctx;
+	NTSTATUS status;
+	int error;
+	int ret;
+
+	tmp_ctx = talloc_new(conn);
+	if (!tmp_ctx) {
+		reason = "Out of memory!\n";
+		goto out;
+	}
+
+	ret = tstream_npa_accept_existing_recv(subreq, &error, tmp_ctx,
+						&conn->tstream,
+						&client,
+						&client_name,
+						&server,
+						&server_name,
+						&info3,
+						&session_key,
+						&delegated_creds);
+	TALLOC_FREE(subreq);
+	if (ret != 0) {
+		reason = talloc_asprintf(conn,
+					 "tstream_npa_accept_existing_recv()"
+					 " failed: %s", strerror(error));
+		goto out;
+	}
+
+	DEBUG(10, ("Accepted npa connection from %s. "
+		   "Client: %s (%s). Server: %s (%s)\n",
+		   tsocket_address_string(conn->remote_address, tmp_ctx),
+		   client_name, tsocket_address_string(client, tmp_ctx),
+		   server_name, tsocket_address_string(server, tmp_ctx)));
+
+	if (info3) {
+		val.sam3 = info3;
+
+		status = make_server_info_netlogon_validation(conn,
+					val.sam3->base.account_name.string,
+					3, &val, &server_info);
+		if (!NT_STATUS_IS_OK(status)) {
+			reason = talloc_asprintf(conn,
+					"make_server_info_netlogon_validation "
+					"returned: %s", nt_errstr(status));
+			goto out;
+		}
+
+		status = auth_context_create(conn, conn->event.ctx,
+					     conn->msg_ctx, conn->lp_ctx,
+					     &auth_context);
+		if (!NT_STATUS_IS_OK(status)) {
+			reason = talloc_asprintf(conn,
+					"auth_context_create returned: %s",
+					nt_errstr(status));
+			goto out;
+		}
+
+		anonymous_sid = dom_sid_parse_talloc(auth_context,
+						     SID_NT_ANONYMOUS);
+		if (anonymous_sid == NULL) {
+			talloc_free(auth_context);
+			reason = "Failed to parse Anonymous SID ";
+			goto out;
+		}
+
+		session_flags = AUTH_SESSION_INFO_DEFAULT_GROUPS;
+		if (!dom_sid_equal(anonymous_sid, server_info->account_sid)) {
+			session_flags |= AUTH_SESSION_INFO_AUTHENTICATED;
+		}
+
+
+		/* setup the session_info on the connection */
+		status = auth_context->generate_session_info(conn,
+							     auth_context,
+							     server_info,
+							     session_flags,
+							     &conn->session_info);
+		talloc_free(auth_context);
+		if (!NT_STATUS_IS_OK(status)) {
+			reason = talloc_asprintf(conn,
+					"auth_generate_session_info "
+					"returned: %s", nt_errstr(status));
+			goto out;
+		}
+	}
+
+	if (session_key.length) {
+		conn->session_info->session_key = session_key;
+		talloc_steal(conn->session_info, session_key.data);
+	}
+
+	if (delegated_creds.length) {
+		struct cli_credentials *creds;
+		OM_uint32 minor_status;
+		gss_buffer_desc cred_token;
+		gss_cred_id_t cred_handle;
+		const char *error_string;
+
+		DEBUG(10, ("Delegated credentials supplied by client\n"));
+
+		cred_token.value = delegated_creds.data;
+		cred_token.length = delegated_creds.length;
+
+		ret = gss_import_cred(&minor_status,
+				      &cred_token,
+				      &cred_handle);
+		if (ret != GSS_S_COMPLETE) {
+			reason = "Internal error in gss_import_cred()";
+			goto out;
+		}
+
+		creds = cli_credentials_init(conn->session_info);
+		if (!creds) {
+			reason = "Out of memory in cli_credentials_init()";
+			goto out;
+		}
+		conn->session_info->credentials = creds;
+
+		cli_credentials_set_conf(creds, conn->lp_ctx);
+		/* Just so we don't segfault trying to get at a username */
+		cli_credentials_set_anonymous(creds);
+
+		ret = cli_credentials_set_client_gss_creds(creds,
+							   conn->event.ctx,
+							   conn->lp_ctx,
+							   cred_handle,
+							   CRED_SPECIFIED,
+							   &error_string);
+		if (ret) {
+			reason = talloc_asprintf(conn,
+						 "Failed to set pipe forwarded"
+						 "creds: %s\n", error_string);
+			goto out;
+		}
+
+		/* This credential handle isn't useful for password
+		 * authentication, so ensure nobody tries to do that */
+		cli_credentials_set_kerberos_state(creds,
+						   CRED_MUST_USE_KERBEROS);
+
+	}
 
 	/*
 	 * hand over to the real pipe implementation,
 	 * now that we have setup the transport session_info
 	 */
+	conn->ops = pipe_sock->ops;
+	conn->private_data = pipe_sock->private_data;
 	conn->ops->accept_connection(conn);
 
-	DEBUG(10,("named_pipe_handover_connection[%s]: succeeded\n",
-	      conn->ops->name));
-}
+	DEBUG(10, ("named pipe connection [%s] established\n",
+		   conn->ops->name));
 
-static NTSTATUS named_pipe_recv_auth_request(void *private_data,
-					     DATA_BLOB req_blob)
-{
-	struct named_pipe_connection *pipe_conn = talloc_get_type(
-		private_data, struct named_pipe_connection);
-	struct stream_connection *conn = pipe_conn->connection;
-	enum ndr_err_code ndr_err;
-	struct named_pipe_auth_req req;
-	union netr_Validation val;
-	struct auth_serversupplied_info *server_info;
-	struct named_pipe_auth_rep rep;
-	DATA_BLOB rep_blob;
-	NTSTATUS status;
+	talloc_free(tmp_ctx);
+	return;
 
-	/*
-	 * make sure nothing happens on the socket untill the
-	 * real implemenation takes over
-	 */
-	packet_recv_disable(pipe_conn->packet);
-
-	/*
-	 * TODO: check it's a root (uid == 0) pipe
-	 */
-
-	ZERO_STRUCT(rep);
-	rep.level = 0;
-	rep.status = NT_STATUS_INTERNAL_ERROR;
-
-	DEBUG(10,("named_pipe_auth: req_blob.length[%u]\n",
-		  (unsigned int)req_blob.length));
-	dump_data(11, req_blob.data, req_blob.length);
-
-	/* parse the passed credentials */
-	ndr_err = ndr_pull_struct_blob_all(
-			&req_blob,
-			pipe_conn,
-			lp_iconv_convenience(conn->lp_ctx),
-			&req,
-			(ndr_pull_flags_fn_t)ndr_pull_named_pipe_auth_req);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		rep.status = ndr_map_error2ntstatus(ndr_err);
-		DEBUG(2, ("Could not unmarshall named_pipe_auth_req: %s\n",
-			  nt_errstr(rep.status)));
-		goto reply;
+out:
+	talloc_free(tmp_ctx);
+	if (!reason) {
+		reason = "Internal error";
 	}
-
-	if (DEBUGLVL(10)) {
-		NDR_PRINT_DEBUG(named_pipe_auth_req, &req);
-	}
-
-	if (strcmp(NAMED_PIPE_AUTH_MAGIC, req.magic) != 0) {
-		DEBUG(2, ("named_pipe_auth_req: invalid magic '%s' != %s\n",
-			  req.magic, NAMED_PIPE_AUTH_MAGIC));
-		rep.status = NT_STATUS_INVALID_PARAMETER;
-		goto reply;
-	}
-
-	switch (req.level) {
-	case 0:
-		/*
-		 * anon connection, we don't create a session info
-		 * and leave it NULL
-		 */
-		rep.level = 0;
-		rep.status = NT_STATUS_OK;
-		break;
-	case 1:
-		val.sam3 = &req.info.info1;
-
-		rep.level = 1;
-		rep.status = make_server_info_netlogon_validation(pipe_conn,
-								  "TODO",
-								  3, &val,
-								  &server_info);
-		if (!NT_STATUS_IS_OK(rep.status)) {
-			DEBUG(2, ("make_server_info_netlogon_validation returned "
-				  "%s\n", nt_errstr(rep.status)));
-			goto reply;
-		}
-
-		/* setup the session_info on the connection */
-		rep.status = auth_generate_session_info(conn,
-							conn->event.ctx,
-							conn->lp_ctx,
-							server_info,
-							&conn->session_info);
-		if (!NT_STATUS_IS_OK(rep.status)) {
-			DEBUG(2, ("auth_generate_session_info failed: %s\n",
-				  nt_errstr(rep.status)));
-			goto reply;
-		}
-
-		break;
-	case 2:
-		rep.level = 2;
-		rep.info.info2.file_type = FILE_TYPE_MESSAGE_MODE_PIPE;
-		rep.info.info2.device_state = 0xff | 0x0400 | 0x0100;
-		rep.info.info2.allocation_size = 4096;
-
-		if (!req.info.info2.sam_info3) {
-			/*
-			 * anon connection, we don't create a session info
-			 * and leave it NULL
-			 */
-			rep.status = NT_STATUS_OK;
-			break;
-		}
-
-		val.sam3 = req.info.info2.sam_info3;
-
-		rep.status = make_server_info_netlogon_validation(pipe_conn,
-						val.sam3->base.account_name.string,
-						3, &val, &server_info);
-		if (!NT_STATUS_IS_OK(rep.status)) {
-			DEBUG(2, ("make_server_info_netlogon_validation returned "
-				  "%s\n", nt_errstr(rep.status)));
-			goto reply;
-		}
-
-		/* setup the session_info on the connection */
-		rep.status = auth_generate_session_info(conn,
-							conn->event.ctx,
-							conn->lp_ctx,
-							server_info,
-							&conn->session_info);
-		if (!NT_STATUS_IS_OK(rep.status)) {
-			DEBUG(2, ("auth_generate_session_info failed: %s\n",
-				  nt_errstr(rep.status)));
-			goto reply;
-		}
-
-		conn->session_info->session_key = data_blob_const(req.info.info2.session_key,
-							req.info.info2.session_key_length);
-		talloc_steal(conn->session_info, req.info.info2.session_key);
-
-		break;
-	case 3:
-		rep.level = 3;
-		rep.info.info3.file_type = FILE_TYPE_MESSAGE_MODE_PIPE;
-		rep.info.info3.device_state = 0xff | 0x0400 | 0x0100;
-		rep.info.info3.allocation_size = 4096;
-
-		if (!req.info.info3.sam_info3) {
-			/*
-			 * anon connection, we don't create a session info
-			 * and leave it NULL
-			 */
-			rep.status = NT_STATUS_OK;
-			break;
-		}
-
-		val.sam3 = req.info.info3.sam_info3;
-
-		rep.status = make_server_info_netlogon_validation(pipe_conn,
-						val.sam3->base.account_name.string,
-						3, &val, &server_info);
-		if (!NT_STATUS_IS_OK(rep.status)) {
-			DEBUG(2, ("make_server_info_netlogon_validation returned "
-				  "%s\n", nt_errstr(rep.status)));
-			goto reply;
-		}
-
-		/* setup the session_info on the connection */
-		rep.status = auth_generate_session_info(conn,
-							conn->event.ctx,
-							conn->lp_ctx,
-							server_info,
-							&conn->session_info);
-		if (!NT_STATUS_IS_OK(rep.status)) {
-			DEBUG(2, ("auth_generate_session_info failed: %s\n",
-				  nt_errstr(rep.status)));
-			goto reply;
-		}
-
-		if (req.info.info3.gssapi_delegated_creds_length) {
-			OM_uint32 minor_status;
-			gss_buffer_desc cred_token;
-			gss_cred_id_t cred_handle;
-			int ret;
-
-			DEBUG(10, ("named_pipe_auth: delegated credentials supplied by client\n"));
-
-			cred_token.value = req.info.info3.gssapi_delegated_creds;
-			cred_token.length = req.info.info3.gssapi_delegated_creds_length;
-
-			ret = gss_import_cred(&minor_status,
-					       &cred_token,
-					       &cred_handle);
-			if (ret != GSS_S_COMPLETE) {
-				rep.status = NT_STATUS_INTERNAL_ERROR;
-				goto reply;
-			}
-
-			conn->session_info->credentials = cli_credentials_init(conn->session_info);
-			if (!conn->session_info->credentials) {
-				rep.status = NT_STATUS_NO_MEMORY;
-				goto reply;
-			}
-
-			cli_credentials_set_conf(conn->session_info->credentials,
-						 conn->lp_ctx);
-			/* Just so we don't segfault trying to get at a username */
-			cli_credentials_set_anonymous(conn->session_info->credentials);
-
-			ret = cli_credentials_set_client_gss_creds(conn->session_info->credentials,
-								   conn->event.ctx,
-								   conn->lp_ctx,
-								   cred_handle,
-								   CRED_SPECIFIED);
-			if (ret) {
-				rep.status = NT_STATUS_INTERNAL_ERROR;
-				goto reply;
-			}
-
-			/* This credential handle isn't useful for password authentication, so ensure nobody tries to do that */
-			cli_credentials_set_kerberos_state(conn->session_info->credentials,
-							   CRED_MUST_USE_KERBEROS);
-		}
-
-		conn->session_info->session_key = data_blob_const(req.info.info3.session_key,
-							req.info.info3.session_key_length);
-		talloc_steal(conn->session_info, req.info.info3.session_key);
-
-		break;
-	default:
-		DEBUG(2, ("named_pipe_auth_req: unknown level %u\n",
-			  req.level));
-		rep.level = 0;
-		rep.status = NT_STATUS_INVALID_LEVEL;
-		goto reply;
-	}
-
-reply:
-	/* create the output */
-	ndr_err = ndr_push_struct_blob(&rep_blob, pipe_conn,
-			lp_iconv_convenience(conn->lp_ctx),
-			&rep,
-			(ndr_push_flags_fn_t)ndr_push_named_pipe_auth_rep);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		status = ndr_map_error2ntstatus(ndr_err);
-		DEBUG(2, ("Could not marshall named_pipe_auth_rep: %s\n",
-			  nt_errstr(status)));
-		return status;
-	}
-
-	DEBUG(10,("named_pipe_auth reply[%u]\n", (unsigned)rep_blob.length));
-	dump_data(11, rep_blob.data, rep_blob.length);
-	if (DEBUGLVL(10)) {
-		NDR_PRINT_DEBUG(named_pipe_auth_rep, &rep);
-	}
-
-	pipe_conn->status = rep.status;
-	status = packet_send_callback(pipe_conn->packet, rep_blob,
-				      named_pipe_handover_connection,
-				      pipe_conn);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("packet_send_callback returned %s\n",
-			  nt_errstr(status)));
-		return status;
-	}
-
-	return NT_STATUS_OK;
+	stream_terminate_connection(conn, reason);
 }
 
 /*
@@ -353,12 +272,7 @@ reply:
 */
 static void named_pipe_recv(struct stream_connection *conn, uint16_t flags)
 {
-	struct named_pipe_connection *pipe_conn = talloc_get_type(
-		conn->private_data, struct named_pipe_connection);
-
-	DEBUG(10,("named_pipe_recv\n"));
-
-	packet_recv(pipe_conn->packet);
+	stream_terminate_connection(conn, "named_pipe_recv: called");
 }
 
 /*
@@ -366,77 +280,7 @@ static void named_pipe_recv(struct stream_connection *conn, uint16_t flags)
 */
 static void named_pipe_send(struct stream_connection *conn, uint16_t flags)
 {
-	struct named_pipe_connection *pipe_conn = talloc_get_type(
-		conn->private_data, struct named_pipe_connection);
-
-	packet_queue_run(pipe_conn->packet);
-}
-
-/*
-  handle socket recv errors
-*/
-static void named_pipe_recv_error(void *private_data, NTSTATUS status)
-{
-	struct named_pipe_connection *pipe_conn = talloc_get_type(
-		private_data, struct named_pipe_connection);
-
-	stream_terminate_connection(pipe_conn->connection, nt_errstr(status));
-}
-
-static NTSTATUS named_pipe_full_request(void *private_data, DATA_BLOB blob, size_t *size)
-{
-	if (blob.length < 8) {
-		return STATUS_MORE_ENTRIES;
-	}
-
-	if (memcmp(NAMED_PIPE_AUTH_MAGIC, &blob.data[4], 4) != 0) {
-		DEBUG(0,("named_pipe_full_request: wrong protocol\n"));
-		*size = blob.length;
-		/* the error will be handled in named_pipe_recv_auth_request */
-		return NT_STATUS_OK;
-	}
-
-	*size = 4 + RIVAL(blob.data, 0);
-	if (*size > blob.length) {
-		return STATUS_MORE_ENTRIES;
-	}
-
-	return NT_STATUS_OK;
-}
-
-static void named_pipe_accept(struct stream_connection *conn)
-{
-	struct named_pipe_socket *pipe_sock = talloc_get_type(
-		conn->private_data, struct named_pipe_socket);
-	struct named_pipe_connection *pipe_conn;
-
-	DEBUG(5,("named_pipe_accept\n"));
-
-	pipe_conn = talloc_zero(conn, struct named_pipe_connection);
-	if (!pipe_conn) {
-		stream_terminate_connection(conn, "out of memory");
-		return;
-	}
-
-	pipe_conn->packet = packet_init(pipe_conn);
-	if (!pipe_conn->packet) {
-		stream_terminate_connection(conn, "out of memory");
-		return;
-	}
-	packet_set_private(pipe_conn->packet, pipe_conn);
-	packet_set_socket(pipe_conn->packet, conn->socket);
-	packet_set_callback(pipe_conn->packet, named_pipe_recv_auth_request);
-	packet_set_full_request(pipe_conn->packet, named_pipe_full_request);
-	packet_set_error_handler(pipe_conn->packet, named_pipe_recv_error);
-	packet_set_event_context(pipe_conn->packet, conn->event.ctx);
-	packet_set_fde(pipe_conn->packet, conn->event.fde);
-	packet_set_serialise(pipe_conn->packet);
-	packet_set_initial_read(pipe_conn->packet, 8);
-
-	pipe_conn->pipe_sock = pipe_sock;
-
-	pipe_conn->connection = conn;
-	conn->private_data = pipe_conn;
+	stream_terminate_connection(conn, "named_pipe_send: called");
 }
 
 static const struct stream_server_ops named_pipe_stream_ops = {
@@ -446,12 +290,12 @@ static const struct stream_server_ops named_pipe_stream_ops = {
 	.send_handler		= named_pipe_send,
 };
 
-NTSTATUS stream_setup_named_pipe(struct tevent_context *event_context,
-				 struct loadparm_context *lp_ctx,
-				 const struct model_ops *model_ops,
-				 const struct stream_server_ops *stream_ops,
-				 const char *pipe_name,
-				 void *private_data)
+NTSTATUS tstream_setup_named_pipe(struct tevent_context *event_context,
+				  struct loadparm_context *lp_ctx,
+				  const struct model_ops *model_ops,
+				  const struct stream_server_ops *stream_ops,
+				  const char *pipe_name,
+				  void *private_data)
 {
 	char *dirname;
 	struct named_pipe_socket *pipe_sock;
@@ -468,7 +312,7 @@ NTSTATUS stream_setup_named_pipe(struct tevent_context *event_context,
 		goto fail;
 	}
 
-	dirname = talloc_asprintf(pipe_sock, "%s/np", lp_ncalrpc_dir(lp_ctx));
+	dirname = talloc_asprintf(pipe_sock, "%s/np", lpcfg_ncalrpc_dir(lp_ctx));
 	if (dirname == NULL) {
 		goto fail;
 	}
@@ -492,8 +336,8 @@ NTSTATUS stream_setup_named_pipe(struct tevent_context *event_context,
 
 	talloc_free(dirname);
 
-	pipe_sock->ops		= stream_ops;
-	pipe_sock->private_data	= talloc_reference(pipe_sock, private_data);
+	pipe_sock->ops = stream_ops;
+	pipe_sock->private_data	= private_data;
 
 	status = stream_setup_socket(event_context,
 				     lp_ctx,

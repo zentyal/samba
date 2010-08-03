@@ -8,7 +8,7 @@ dcerpcsrcdir = $(librpcsrcdir)/rpc
 PUBLIC_DEPENDENCIES = LIBSAMBA-ERRORS LIBTALLOC LIBSAMBA-UTIL CHARSET \
 					  LIBSAMBA-HOSTCONFIG
 
-LIBNDR_OBJ_FILES = $(addprefix $(ndrsrcdir)/, ndr_string.o) ../librpc/ndr/ndr_basic.o ../librpc/ndr/uuid.o ../librpc/ndr/ndr.o ../librpc/gen_ndr/ndr_misc.o ../librpc/ndr/ndr_misc.o
+LIBNDR_OBJ_FILES = ../librpc/ndr/ndr_string.o ../librpc/ndr/ndr_basic.o ../librpc/ndr/uuid.o ../librpc/ndr/ndr.o ../librpc/gen_ndr/ndr_misc.o ../librpc/ndr/ndr_misc.o
 
 PC_FILES += ../librpc/ndr.pc
 LIBNDR_VERSION = 0.0.1
@@ -133,6 +133,11 @@ NDR_DRSUAPI_OBJ_FILES = ../librpc/gen_ndr/ndr_drsuapi.o ../librpc/ndr/ndr_drsuap
 PUBLIC_DEPENDENCIES = LIBNDR NDR_DRSUAPI
 
 NDR_DRSBLOBS_OBJ_FILES = ../librpc/gen_ndr/ndr_drsblobs.o ../librpc/ndr/ndr_drsblobs.o
+
+[SUBSYSTEM::NDR_DFSBLOBS]
+PUBLIC_DEPENDENCIES = LIBNDR
+
+NDR_DFSBLOBS_OBJ_FILES = ../librpc/gen_ndr/ndr_dfsblobs.o
 
 [SUBSYSTEM::NDR_SASL_HELPERS]
 PUBLIC_DEPENDENCIES = LIBNDR
@@ -296,6 +301,11 @@ PUBLIC_DEPENDENCIES = LIBNDR NDR_STANDARD
 
 NDR_NTLMSSP_OBJ_FILES = ../librpc/gen_ndr/ndr_ntlmssp.o ../librpc/ndr/ndr_ntlmssp.o
 
+[SUBSYSTEM::NDR_NTPRINTING]
+PUBLIC_DEPENDENCIES = LIBNDR NDR_STANDARD
+
+NDR_NTPRINTING_OBJ_FILES = ../librpc/gen_ndr/ndr_ntprinting.o ../librpc/ndr/ndr_ntprinting.o
+
 $(librpcsrcdir)/idl-deps:
 	$(PERL) $(librpcsrcdir)/idl-deps.pl $(wildcard $(librpcsrcdir)/idl/*.idl ../librpc/idl/*.idl) >$@
 
@@ -352,9 +362,14 @@ PUBLIC_DEPENDENCIES = \
 	NDR_FRSRPC NDR_FRSAPI NDR_FRSTRANS \
 	NDR_NFS4ACL NDR_NTP_SIGND \
 	NDR_DCOM NDR_WMI NDR_NAMED_PIPE_AUTH \
-	NDR_NTLMSSP
+	NDR_NTLMSSP NDR_NTPRINTING NDR_DFSBLOBS
 
 NDR_TABLE_OBJ_FILES = ../librpc/ndr/ndr_table.o $(gen_ndrsrcdir)/tables.o
+
+[SUBSYSTEM::RPC_NDR_XATTR]
+PUBLIC_DEPENDENCIES = NDR_XATTR dcerpc
+
+RPC_NDR_XATTR_OBJ_FILES = ../librpc/gen_ndr/ndr_xattr_c.o
 
 [SUBSYSTEM::RPC_NDR_ROT]
 PUBLIC_DEPENDENCIES = NDR_ROT dcerpc
@@ -400,6 +415,11 @@ RPC_NDR_FRSAPI_OBJ_FILES = ../librpc/gen_ndr/ndr_frsapi_c.o
 PUBLIC_DEPENDENCIES = dcerpc NDR_DRSUAPI
 
 RPC_NDR_DRSUAPI_OBJ_FILES = ../librpc/gen_ndr/ndr_drsuapi_c.o
+
+[SUBSYSTEM::RPC_NDR_DRSBLOBS]
+PUBLIC_DEPENDENCIES = dcerpc NDR_DRSBLOBS
+
+RPC_NDR_DRSBLOBS_OBJ_FILES = ../librpc/gen_ndr/ndr_drsblobs_c.o
 
 [SUBSYSTEM::RPC_NDR_POLICYAGENT]
 PUBLIC_DEPENDENCIES = dcerpc NDR_POLICYAGENT
@@ -471,7 +491,7 @@ PUBLIC_DEPENDENCIES = dcerpc NDR_STANDARD
 RPC_NDR_EVENTLOG_OBJ_FILES = ../librpc/gen_ndr/ndr_eventlog_c.o
 
 [SUBSYSTEM::RPC_NDR_EPMAPPER]
-PUBLIC_DEPENDENCIES = NDR_EPMAPPER 
+PUBLIC_DEPENDENCIES = LIBTEVENT NDR_EPMAPPER
 
 RPC_NDR_EPMAPPER_OBJ_FILES = ../librpc/gen_ndr/ndr_epmapper_c.o
 
@@ -506,7 +526,7 @@ PUBLIC_DEPENDENCIES = dcerpc NDR_STANDARD
 RPC_NDR_INITSHUTDOWN_OBJ_FILES = ../librpc/gen_ndr/ndr_initshutdown_c.o
 
 [SUBSYSTEM::RPC_NDR_MGMT]
-PRIVATE_DEPENDENCIES = NDR_MGMT
+PRIVATE_DEPENDENCIES = LIBTEVENT NDR_MGMT
 
 RPC_NDR_MGMT_OBJ_FILES = ../librpc/gen_ndr/ndr_mgmt_c.o
 
@@ -546,7 +566,7 @@ PUBLIC_DEPENDENCIES = dcerpc NDR_STANDARD
 RPC_NDR_NTSVCS_OBJ_FILES = ../librpc/gen_ndr/ndr_ntsvcs_c.o
 
 [SUBSYSTEM::RPC_NDR_NETLOGON]
-PUBLIC_DEPENDENCIES = NDR_STANDARD
+PUBLIC_DEPENDENCIES = LIBTEVENT NDR_STANDARD
 
 RPC_NDR_NETLOGON_OBJ_FILES = ../librpc/gen_ndr/ndr_netlogon_c.o
 
@@ -559,6 +579,11 @@ RPC_NDR_TRKWKS_OBJ_FILES = ../librpc/gen_ndr/ndr_trkwks_c.o
 PUBLIC_DEPENDENCIES = dcerpc NDR_KEYSVC
 
 RPC_NDR_KEYSVC_OBJ_FILES = ../librpc/gen_ndr/ndr_keysvc_c.o
+
+[SUBSYSTEM::NDR_RAP]
+PUBLIC_DEPENDENCIES = LIBNDR
+
+NDR_RAP_OBJ_FILES = ../librpc/gen_ndr/ndr_rap.o ../librpc/ndr/ndr_rap.o
 
 [SUBSYSTEM::NDR_DCERPC]
 PUBLIC_DEPENDENCIES = LIBNDR
@@ -576,8 +601,8 @@ PRIVATE_DEPENDENCIES = \
 		NDR_SCHANNEL RPC_NDR_NETLOGON \
 		RPC_NDR_MGMT \
 		gensec LIBCLI_AUTH LIBCLI_RAW \
-		LP_RESOLVE
-PUBLIC_DEPENDENCIES = CREDENTIALS 
+		LP_RESOLVE UTIL_TEVENT
+PUBLIC_DEPENDENCIES = CREDENTIALS LIBTEVENT LIBTALLOC
 # End SUBSYSTEM dcerpc
 ################################################
 
@@ -702,11 +727,23 @@ PRIVATE_DEPENDENCIES = RPC_NDR_DRSUAPI PYTALLOC pyparam_util pycredentials pytho
 
 python_drsuapi_OBJ_FILES = ../librpc/gen_ndr/py_drsuapi.o
 
+[PYTHON::python_drsblobs]
+LIBRARY_REALNAME = samba/dcerpc/drsblobs.$(SHLIBEXT)
+PRIVATE_DEPENDENCIES = RPC_NDR_DRSBLOBS PYTALLOC pyparam_util pycredentials python_dcerpc
+
+python_drsblobs_OBJ_FILES = ../librpc/gen_ndr/py_drsblobs.o
+
 [PYTHON::python_dcerpc_security]
 LIBRARY_REALNAME = samba/dcerpc/security.$(SHLIBEXT)
 PRIVATE_DEPENDENCIES = PYTALLOC python_dcerpc_misc python_dcerpc NDR_SECURITY
 
 python_dcerpc_security_OBJ_FILES = ../librpc/gen_ndr/py_security.o
+
+[PYTHON::python_dcerpc_xattr]
+LIBRARY_REALNAME = samba/dcerpc/xattr.$(SHLIBEXT)
+PRIVATE_DEPENDENCIES = PYTALLOC python_dcerpc_misc python_dcerpc python_dcerpc_security NDR_XATTR RPC_NDR_XATTR
+
+python_dcerpc_xattr_OBJ_FILES = ../librpc/gen_ndr/py_xattr.o
 
 $(IDL_HEADER_FILES) $(IDL_NDR_PARSE_H_FILES) $(IDL_NDR_PARSE_C_FILES) \
 	$(IDL_NDR_CLIENT_C_FILES) $(IDL_NDR_CLIENT_H_FILES) \

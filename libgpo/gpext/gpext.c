@@ -18,9 +18,14 @@
  */
 
 #include "includes.h"
+#include "../libgpo/gpo.h"
 #include "../libgpo/gpext/gpext.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "lib/util/dlinklist.h"
+#if _SAMBA_BUILD_ == 3
+#include "libgpo/gpo_proto.h"
+#include "registry.h"
+#endif
 
 static struct gp_extension *extensions = NULL;
 
@@ -276,13 +281,16 @@ static NTSTATUS gp_ext_info_add_reg(TALLOC_CTX *mem_ctx,
 	switch (type) {
 		case REG_SZ:
 		case REG_EXPAND_SZ:
-			data->v.sz.str = talloc_strdup(mem_ctx, data_s);
-			NT_STATUS_HAVE_NO_MEMORY(data->v.sz.str);
-			data->v.sz.len = strlen(data_s);
+			if (!push_reg_sz(mem_ctx, &data->data, data_s)) {
+				return NT_STATUS_NO_MEMORY;
+			}
 			break;
-		case REG_DWORD:
-			data->v.dword = atoi(data_s);
+		case REG_DWORD: {
+			uint32_t v = atoi(data_s);
+			data->data = data_blob_talloc(mem_ctx, NULL, 4);
+			SIVAL(data->data.data, 0, v);
 			break;
+		}
 		default:
 			return NT_STATUS_NOT_SUPPORTED;
 	}

@@ -47,7 +47,12 @@ static void add_krb5_ticket_gain_handler_event(struct WINBINDD_CCACHE_ENTRY *,
 /* The Krb5 ticket refresh handler should be scheduled
    at one-half of the period from now till the tkt
    expiration */
-#define KRB5_EVENT_REFRESH_TIME(x) ((x) - (((x) - time(NULL))/2))
+
+static time_t krb5_event_refresh_time(time_t end_time)
+{
+	time_t rest = end_time - time(NULL);
+	return end_time - rest/2;
+}
 
 /****************************************************************
  Find an entry by name.
@@ -183,7 +188,7 @@ rekinit:
 			/* The tkt should be refreshed at one-half the period
 			   from now to the expiration time */
 			expire_time = entry->refresh_time;
-			new_start = KRB5_EVENT_REFRESH_TIME(entry->refresh_time);
+			new_start = krb5_event_refresh_time(entry->refresh_time);
 #endif
 			goto done;
 		} else {
@@ -207,7 +212,7 @@ rekinit:
 	new_start = time(NULL) + 30;
 #else
 	expire_time = new_start;
-	new_start = KRB5_EVENT_REFRESH_TIME(new_start);
+	new_start = krb5_event_refresh_time(new_start);
 #endif
 
 	gain_root_privilege();
@@ -269,7 +274,7 @@ done:
 	 * but try to regain ticket if it is possible */
 	if (entry->renew_until && expire_time
 	     && (entry->renew_until <= expire_time)) {
-		/* try to regain ticket 10 seconds beforre expiration */
+		/* try to regain ticket 10 seconds before expiration */
 		expire_time -= 10;
 		add_krb5_ticket_gain_handler_event(entry,
 					timeval_set(expire_time, 0));
@@ -359,7 +364,7 @@ static void krb5_ticket_gain_handler(struct event_context *event_ctx,
 
   retry_later:
  
-#if defined(DEBUG_KRB5_TKT_REGAIN)
+#if defined(DEBUG_KRB5_TKT_RENEWAL)
  	t = timeval_set(time(NULL) + 30, 0);
 #else
 	t = timeval_current_ofs(MAX(30, lp_winbind_cache_time()), 0);
@@ -373,7 +378,7 @@ static void krb5_ticket_gain_handler(struct event_context *event_ctx,
 #if defined(DEBUG_KRB5_TKT_RENEWAL)
 	t = timeval_set(time(NULL) + 30, 0);
 #else
-	t = timeval_set(KRB5_EVENT_REFRESH_TIME(entry->refresh_time), 0);
+	t = timeval_set(krb5_event_refresh_time(entry->refresh_time), 0);
 #endif
 
 	if (entry->refresh_time == 0) {
@@ -523,11 +528,10 @@ NTSTATUS add_ccache_to_list(const char *princ_name,
 				   "user krb5 ccache %s with %s\n", ccname,
 				   error_message(ret)));
 			return krb5_to_nt_status(ret);
-		} else {
-			DEBUG(10, ("add_ccache_to_list: successfully destroyed "
-				   "krb5 ccache %s for user %s\n", ccname,
-				   username));
 		}
+		DEBUG(10, ("add_ccache_to_list: successfully destroyed "
+			   "krb5 ccache %s for user %s\n", ccname,
+			   username));
 	}
 #endif
 
@@ -545,11 +549,11 @@ NTSTATUS add_ccache_to_list(const char *princ_name,
 		/* FIXME: in this case we still might want to have a krb5 cred
 		 * event handler created - gd
 		 * Add ticket refresh handler here */
-		
+
 		if (!lp_winbind_refresh_tickets() || renew_until <= 0) {
 			return NT_STATUS_OK;
 		}
-		
+
 		if (!entry->event) {
 			if (postponed_request) {
 				t = timeval_current_ofs(MAX(30, lp_winbind_cache_time()), 0);
@@ -559,7 +563,8 @@ NTSTATUS add_ccache_to_list(const char *princ_name,
 #if defined(DEBUG_KRB5_TKT_RENEWAL)
 				t = timeval_set(time(NULL)+30, 0);
 #else
-				t = timeval_set(KRB5_EVENT_REFRESH_TIME(ticket_end), 0);
+				t = timeval_set(krb5_event_refresh_time(ticket_end),
+						0);
 #endif
 				if (!entry->refresh_time) {
 					entry->refresh_time = t.tv_sec;
@@ -586,7 +591,7 @@ NTSTATUS add_ccache_to_list(const char *princ_name,
 
 			DEBUG(10,("add_ccache_to_list: added krb5_ticket handler\n"));
 		}
-		 
+
 		return NT_STATUS_OK;
 	}
 
@@ -643,7 +648,7 @@ NTSTATUS add_ccache_to_list(const char *princ_name,
 #if defined(DEBUG_KRB5_TKT_RENEWAL)
 		t = timeval_set(time(NULL)+30, 0);
 #else
-		t = timeval_set(KRB5_EVENT_REFRESH_TIME(ticket_end), 0);
+		t = timeval_set(krb5_event_refresh_time(ticket_end), 0);
 #endif
 		if (entry->refresh_time == 0) {
 			entry->refresh_time = t.tv_sec;
@@ -686,7 +691,7 @@ NTSTATUS remove_ccache(const char *username)
 {
 	struct WINBINDD_CCACHE_ENTRY *entry = get_ccache_by_username(username);
 	NTSTATUS status = NT_STATUS_OK;
-	#ifdef HAVE_KRB5
+#ifdef HAVE_KRB5
 	krb5_error_code ret;
 #endif
 

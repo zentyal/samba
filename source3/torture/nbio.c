@@ -20,6 +20,7 @@
 */
 
 #include "includes.h"
+#include "torture/proto.h"
 
 #define MAX_FILES 1000
 
@@ -27,6 +28,7 @@ static char buf[70000];
 extern int line_count;
 extern int nbio_id;
 static int nprocs;
+static struct timeval nb_start;
 
 static struct {
 	int fd;
@@ -60,7 +62,9 @@ void nb_alarm(int ignore)
 		if (!children[i].done) num_clients++;
 	}
 
-	printf("%4d  %8d  %.2f MB/sec\r", num_clients, lines/nprocs, 1.0e-6 * nbio_total() / end_timer());
+	printf("%4d  %8d  %.2f MB/sec\r",
+	       num_clients, lines/nprocs,
+	       1.0e-6 * nbio_total() / timeval_elapsed(&nb_start));
 
 	signal(SIGALRM, nb_alarm);
 	alarm(1);	
@@ -121,7 +125,7 @@ void nb_setup(struct cli_state *cli)
 {
 	signal(SIGSEGV, sigsegv);
 	c = cli;
-	start_timer();
+	nb_start = timeval_current();
 	children[nbio_id].done = 0;
 }
 
@@ -241,7 +245,7 @@ void nb_rename(const char *oldname, const char *newname)
 
 void nb_qpathinfo(const char *fname)
 {
-	cli_qpathinfo(c, fname, NULL, NULL, NULL, NULL, NULL);
+	cli_qpathinfo1(c, fname, NULL, NULL, NULL, NULL, NULL);
 }
 
 void nb_qfileinfo(int fnum)
@@ -258,7 +262,8 @@ void nb_qfsinfo(int level)
 	cli_dskattr(c, &bsize, &total, &avail);
 }
 
-static void find_fn(const char *mnt, file_info *finfo, const char *name, void *state)
+static void find_fn(const char *mnt, struct file_info *finfo, const char *name,
+		    void *state)
 {
 	/* noop */
 }
@@ -277,7 +282,8 @@ void nb_flush(int fnum)
 
 static int total_deleted;
 
-static void delete_fn(const char *mnt, file_info *finfo, const char *name, void *state)
+static void delete_fn(const char *mnt, struct file_info *finfo,
+		      const char *name, void *state)
 {
 	char *s, *n;
 	if (finfo->name[0] == '.') return;

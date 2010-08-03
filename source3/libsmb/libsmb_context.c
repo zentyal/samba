@@ -578,7 +578,7 @@ smbc_init_context(SMBCCTX *context)
                 /*
                  * FIXME: Is this the best way to get the user info?
                  */
-		char *user = getenv("USER");
+        	char *user = getenv("USER");
                 /* walk around as "guest" if no username can be found */
                 if (!user) {
                         user = SMB_STRDUP("guest");
@@ -594,7 +594,7 @@ smbc_init_context(SMBCCTX *context)
                 smbc_setUser(context, user);
 		SAFE_FREE(user);
 
-		if (!smbc_getUser(context)) {
+        	if (!smbc_getUser(context)) {
                         errno = ENOMEM;
                         return NULL;
                 }

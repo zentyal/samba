@@ -65,9 +65,10 @@ const char *wbcErrorString(wbcErr error);
  *	 Added wbcGetSidAliases()
  *  0.4: Added wbcSidTypeString()
  *  0.5: Added wbcChangeTrustCredentials()
+ *  0.6: Made struct wbcInterfaceDetails char* members non-const
  **/
 #define WBCLIENT_MAJOR_VERSION 0
-#define WBCLIENT_MINOR_VERSION 5
+#define WBCLIENT_MINOR_VERSION 6
 #define WBCLIENT_VENDOR_VERSION "Samba libwbclient"
 struct wbcLibraryDetails {
 	uint16_t major_version;
@@ -81,11 +82,11 @@ struct wbcLibraryDetails {
  **/
 struct wbcInterfaceDetails {
 	uint32_t interface_version;
-	const char *winbind_version;
+	char *winbind_version;
 	char winbind_separator;
-	const char *netbios_name;
-	const char *netbios_domain;
-	const char *dns_domain;
+	char *netbios_name;
+	char *netbios_domain;
+	char *dns_domain;
 };
 
 /*
@@ -429,11 +430,22 @@ struct wbcUserPasswordPolicyInfo {
  **/
 
 enum wbcPasswordChangeRejectReason {
-	WBC_PWD_CHANGE_REJECT_OTHER=0,
-	WBC_PWD_CHANGE_REJECT_TOO_SHORT=1,
-	WBC_PWD_CHANGE_REJECT_IN_HISTORY=2,
-	WBC_PWD_CHANGE_REJECT_COMPLEXITY=5
+	WBC_PWD_CHANGE_NO_ERROR=0,
+	WBC_PWD_CHANGE_PASSWORD_TOO_SHORT=1,
+	WBC_PWD_CHANGE_PWD_IN_HISTORY=2,
+	WBC_PWD_CHANGE_USERNAME_IN_PASSWORD=3,
+	WBC_PWD_CHANGE_FULLNAME_IN_PASSWORD=4,
+	WBC_PWD_CHANGE_NOT_COMPLEX=5,
+	WBC_PWD_CHANGE_MACHINE_NOT_DEFAULT=6,
+	WBC_PWD_CHANGE_FAILED_BY_FILTER=7,
+	WBC_PWD_CHANGE_PASSWORD_TOO_LONG=8
 };
+
+/* Note: this defines exist for compatibility reasons with existing code */
+#define WBC_PWD_CHANGE_REJECT_OTHER      WBC_PWD_CHANGE_NO_ERROR
+#define WBC_PWD_CHANGE_REJECT_TOO_SHORT  WBC_PWD_CHANGE_PASSWORD_TOO_SHORT
+#define WBC_PWD_CHANGE_REJECT_IN_HISTORY WBC_PWD_CHANGE_PWD_IN_HISTORY
+#define WBC_PWD_CHANGE_REJECT_COMPLEXITY WBC_PWD_CHANGE_NOT_COMPLEX
 
 /**
  * @brief Logoff User Parameters
@@ -970,13 +982,14 @@ wbcErr wbcGetGroups(const char *account,
 /**
  * @brief Lookup the current status of a trusted domain
  *
- * @param domain      Domain to query
- * @param *info       Pointer to returned domain_info struct
+ * @param domain        The domain to query
+ *
+ * @param dinfo          A pointer to store the returned domain_info struct.
  *
  * @return #wbcErr
  **/
 wbcErr wbcDomainInfo(const char *domain,
-		     struct wbcDomainInfo **info);
+		     struct wbcDomainInfo **dinfo);
 
 /**
  * @brief Enumerate the domain trusts known by Winbind

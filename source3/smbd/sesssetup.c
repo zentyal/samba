@@ -25,6 +25,9 @@
 #include "includes.h"
 #include "smbd/globals.h"
 #include "../libcli/auth/spnego.h"
+#include "../libcli/auth/ntlmssp.h"
+#include "ntlmssp_wrap.h"
+#include "librpc/gen_ndr/messaging.h"
 
 /* For split krb5 SPNEGO blobs. */
 struct pending_auth_data {
@@ -39,10 +42,13 @@ struct pending_auth_data {
   on a logon error possibly map the error to success if "map to guest"
   is set approriately
 */
-static NTSTATUS do_map_to_guest(NTSTATUS status,
-				auth_serversupplied_info **server_info,
-				const char *user, const char *domain)
+NTSTATUS do_map_to_guest(NTSTATUS status,
+			struct auth_serversupplied_info **server_info,
+			const char *user, const char *domain)
 {
+	user = user ? user : "";
+	domain = domain ? domain : "";
+
 	if (NT_STATUS_EQUAL(status, NT_STATUS_NO_SUCH_USER)) {
 		if ((lp_map_to_guest() == MAP_TO_GUEST_ON_BAD_USER) ||
 		    (lp_map_to_guest() == MAP_TO_GUEST_ON_BAD_PASSWORD)) {
@@ -127,10 +133,10 @@ static void reply_sesssetup_blob(struct smb_request *req,
  Do a 'guest' logon, getting back the
 ****************************************************************************/
 
-static NTSTATUS check_guest_password(auth_serversupplied_info **server_info)
+static NTSTATUS check_guest_password(struct auth_serversupplied_info **server_info)
 {
 	struct auth_context *auth_context;
-	auth_usersupplied_info *user_info = NULL;
+	struct auth_usersupplied_info *user_info = NULL;
 
 	NTSTATUS nt_status;
 	unsigned char chal[8];
@@ -145,14 +151,14 @@ static NTSTATUS check_guest_password(auth_serversupplied_info **server_info)
 	}
 
 	if (!make_user_info_guest(&user_info)) {
-		(auth_context->free)(&auth_context);
+		TALLOC_FREE(auth_context);
 		return NT_STATUS_NO_MEMORY;
 	}
 
 	nt_status = auth_context->check_ntlm_password(auth_context,
 						user_info,
 						server_info);
-	(auth_context->free)(&auth_context);
+	TALLOC_FREE(auth_context);
 	free_user_info(&user_info);
 	return nt_status;
 }
@@ -241,9 +247,8 @@ static void reply_spnego_kerberos(struct smb_request *req,
 	fstring user;
 	int sess_vuid = req->vuid;
 	NTSTATUS ret = NT_STATUS_OK;
-	struct PAC_DATA *pac_data = NULL;
 	DATA_BLOB ap_rep, ap_rep_wrapped, response;
-	auth_serversupplied_info *server_info = NULL;
+	struct auth_serversupplied_info *server_info = NULL;
 	DATA_BLOB session_key = data_blob_null;
 	uint8 tok_id[2];
 	DATA_BLOB nullblob = data_blob_null;
@@ -251,7 +256,7 @@ static void reply_spnego_kerberos(struct smb_request *req,
 	bool map_domainuser_to_guest = False;
 	bool username_was_mapped;
 	struct PAC_LOGON_INFO *logon_info = NULL;
-	struct smbd_server_connection *sconn = smbd_server_conn;
+	struct smbd_server_connection *sconn = req->sconn;
 
 	ZERO_STRUCT(ticket);
 	ZERO_STRUCT(ap_rep);
@@ -267,14 +272,14 @@ static void reply_spnego_kerberos(struct smb_request *req,
 		return;
 	}
 
-	if (!spnego_parse_krb5_wrap(*secblob, &ticket, tok_id)) {
+	if (!spnego_parse_krb5_wrap(mem_ctx, *secblob, &ticket, tok_id)) {
 		talloc_destroy(mem_ctx);
 		reply_nterror(req, nt_status_squash(NT_STATUS_LOGON_FAILURE));
 		return;
 	}
 
 	ret = ads_verify_ticket(mem_ctx, lp_realm(), 0, &ticket,
-				&client, &pac_data, &ap_rep,
+				&client, &logon_info, &ap_rep,
 				&session_key, True);
 
 	data_blob_free(&ticket);
@@ -351,11 +356,8 @@ static void reply_spnego_kerberos(struct smb_request *req,
 
 	/* save the PAC data if we have it */
 
-	if (pac_data) {
-		logon_info = get_logon_info_from_pac(pac_data);
-		if (logon_info) {
-			netsamlogon_cache_store( client, &logon_info->info3 );
-		}
+	if (logon_info) {
+		netsamlogon_cache_store( client, &logon_info->info3 );
 	}
 
 	if (!strequal(p+1, lp_realm())) {
@@ -415,7 +417,7 @@ static void reply_spnego_kerberos(struct smb_request *req,
 
 	/* lookup the passwd struct, create a new user if necessary */
 
-	username_was_mapped = map_username(sconn, user);
+	username_was_mapped = map_username(user);
 
 	pw = smb_getpwnam( mem_ctx, user, real_username, True );
 
@@ -506,6 +508,7 @@ static void reply_spnego_kerberos(struct smb_request *req,
 			DEBUG(10, ("found user %s in passdb, calling "
 				   "make_server_info_sam\n", real_username));
 			ret = make_server_info_sam(&server_info, sampass);
+			TALLOC_FREE(sampass);
 		} else {
 			/*
 			 * User not in passdb, make it up artificially
@@ -531,9 +534,9 @@ static void reply_spnego_kerberos(struct smb_request *req,
 		 * we end up with the local netbios name in substitutions for
 		 * %D. */
 
-		if (server_info->sam_account != NULL) {
-			pdb_set_domain(server_info->sam_account,
-					domain, PDB_SET);
+		if (server_info->info3 != NULL) {
+			server_info->info3->base.domain.string =
+				talloc_strdup(server_info->info3, domain);
 		}
 	}
 
@@ -562,6 +565,8 @@ static void reply_spnego_kerberos(struct smb_request *req,
 
 	data_blob_free(&server_info->user_session_key);
 	server_info->user_session_key = session_key;
+	talloc_steal(server_info, session_key.data);
+
 	session_key = data_blob_null;
 
 	/* register_existing_vuid keeps the server info */
@@ -598,12 +603,12 @@ static void reply_spnego_kerberos(struct smb_request *req,
 
         /* wrap that up in a nice GSS-API wrapping */
 	if (NT_STATUS_IS_OK(ret)) {
-		ap_rep_wrapped = spnego_gen_krb5_wrap(ap_rep,
+		ap_rep_wrapped = spnego_gen_krb5_wrap(talloc_tos(), ap_rep,
 				TOK_ID_KRB_AP_REP);
 	} else {
 		ap_rep_wrapped = data_blob_null;
 	}
-	response = spnego_gen_auth_response(&ap_rep_wrapped, ret,
+	response = spnego_gen_auth_response(talloc_tos(), &ap_rep_wrapped, ret,
 			mechOID);
 	reply_sesssetup_blob(req, response, ret);
 
@@ -625,22 +630,28 @@ static void reply_spnego_kerberos(struct smb_request *req,
 
 static void reply_spnego_ntlmssp(struct smb_request *req,
 				 uint16 vuid,
-				 AUTH_NTLMSSP_STATE **auth_ntlmssp_state,
+				 struct auth_ntlmssp_state **auth_ntlmssp_state,
 				 DATA_BLOB *ntlmssp_blob, NTSTATUS nt_status,
 				 const char *OID,
 				 bool wrap)
 {
+	bool do_invalidate = true;
 	DATA_BLOB response;
 	struct auth_serversupplied_info *server_info = NULL;
-	struct smbd_server_connection *sconn = smbd_server_conn;
+	struct smbd_server_connection *sconn = req->sconn;
 
 	if (NT_STATUS_IS_OK(nt_status)) {
-		server_info = (*auth_ntlmssp_state)->server_info;
+		nt_status = auth_ntlmssp_steal_server_info(talloc_tos(),
+					(*auth_ntlmssp_state), &server_info);
 	} else {
+		/* Note that this server_info won't have a session
+		 * key.  But for map to guest, that's exactly the right
+		 * thing - we can't reasonably guess the key the
+		 * client wants, as the password was wrong */
 		nt_status = do_map_to_guest(nt_status,
-			    &server_info,
-			    (*auth_ntlmssp_state)->ntlmssp_state->user,
-			    (*auth_ntlmssp_state)->ntlmssp_state->domain);
+					    &server_info,
+					    auth_ntlmssp_get_username(*auth_ntlmssp_state),
+					    auth_ntlmssp_get_domain(*auth_ntlmssp_state));
 	}
 
 	reply_outbuf(req, 4, 0);
@@ -655,23 +666,19 @@ static void reply_spnego_ntlmssp(struct smb_request *req,
 			goto out;
 		}
 
-		data_blob_free(&server_info->user_session_key);
-		server_info->user_session_key =
-			data_blob_talloc(
-			server_info,
-			(*auth_ntlmssp_state)->ntlmssp_state->session_key.data,
-			(*auth_ntlmssp_state)->ntlmssp_state->session_key.length);
-
 		/* register_existing_vuid keeps the server info */
 		if (register_existing_vuid(sconn, vuid,
-				server_info, nullblob,
-				(*auth_ntlmssp_state)->ntlmssp_state->user) !=
-					vuid) {
+					   server_info, nullblob,
+					   auth_ntlmssp_get_username(*auth_ntlmssp_state)) !=
+					   vuid) {
+			/* The problem is, *auth_ntlmssp_state points
+			 * into the vuser this will have
+			 * talloc_free()'ed in
+			 * register_existing_vuid() */
+			do_invalidate = false;
 			nt_status = NT_STATUS_LOGON_FAILURE;
 			goto out;
 		}
-
-		(*auth_ntlmssp_state)->server_info = NULL;
 
 		/* current_user_info is changed on new vuid */
 		reload_services( True );
@@ -686,7 +693,8 @@ static void reply_spnego_ntlmssp(struct smb_request *req,
   out:
 
 	if (wrap) {
-		response = spnego_gen_auth_response(ntlmssp_blob,
+		response = spnego_gen_auth_response(talloc_tos(),
+				ntlmssp_blob,
 				nt_status, OID);
 	} else {
 		response = *ntlmssp_blob;
@@ -702,10 +710,12 @@ static void reply_spnego_ntlmssp(struct smb_request *req,
 
 	if (!NT_STATUS_EQUAL(nt_status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
 		/* NB. This is *NOT* an error case. JRA */
-		auth_ntlmssp_end(auth_ntlmssp_state);
-		if (!NT_STATUS_IS_OK(nt_status)) {
-			/* Kill the intermediate vuid */
-			invalidate_vuid(sconn, vuid);
+		if (do_invalidate) {
+			TALLOC_FREE(*auth_ntlmssp_state);
+			if (!NT_STATUS_IS_OK(nt_status)) {
+				/* Kill the intermediate vuid */
+				invalidate_vuid(sconn, vuid);
+			}
 		}
 	}
 }
@@ -714,7 +724,8 @@ static void reply_spnego_ntlmssp(struct smb_request *req,
  Is this a krb5 mechanism ?
 ****************************************************************************/
 
-NTSTATUS parse_spnego_mechanisms(DATA_BLOB blob_in,
+NTSTATUS parse_spnego_mechanisms(TALLOC_CTX *ctx,
+		DATA_BLOB blob_in,
 		DATA_BLOB *pblob_out,
 		char **kerb_mechOID)
 {
@@ -725,7 +736,7 @@ NTSTATUS parse_spnego_mechanisms(DATA_BLOB blob_in,
 	*kerb_mechOID = NULL;
 
 	/* parse out the OIDs and the first sec blob */
-	if (!parse_negTokenTarg(blob_in, OIDs, pblob_out)) {
+	if (!spnego_parse_negTokenInit(ctx, blob_in, OIDs, NULL, pblob_out)) {
 		return NT_STATUS_LOGON_FAILURE;
 	}
 
@@ -742,7 +753,7 @@ NTSTATUS parse_spnego_mechanisms(DATA_BLOB blob_in,
 #ifdef HAVE_KRB5
 	if (strcmp(OID_KERBEROS5, OIDs[0]) == 0 ||
 	    strcmp(OID_KERBEROS5_OLD, OIDs[0]) == 0) {
-		*kerb_mechOID = SMB_STRDUP(OIDs[0]);
+		*kerb_mechOID = talloc_strdup(ctx, OIDs[0]);
 		if (*kerb_mechOID == NULL) {
 			ret = NT_STATUS_NO_MEMORY;
 		}
@@ -771,7 +782,7 @@ static void reply_spnego_downgrade_to_ntlmssp(struct smb_request *req,
 	DEBUG(3,("reply_spnego_downgrade_to_ntlmssp: Got krb5 ticket in SPNEGO "
 		"but set to downgrade to NTLMSSP\n"));
 
-	response = spnego_gen_auth_response(NULL,
+	response = spnego_gen_auth_response(talloc_tos(), NULL,
 			NT_STATUS_MORE_PROCESSING_REQUIRED,
 			OID_NTLMSSP);
 	reply_sesssetup_blob(req, response, NT_STATUS_MORE_PROCESSING_REQUIRED);
@@ -785,15 +796,16 @@ static void reply_spnego_downgrade_to_ntlmssp(struct smb_request *req,
 static void reply_spnego_negotiate(struct smb_request *req,
 				   uint16 vuid,
 				   DATA_BLOB blob1,
-				   AUTH_NTLMSSP_STATE **auth_ntlmssp_state)
+				   struct auth_ntlmssp_state **auth_ntlmssp_state)
 {
 	DATA_BLOB secblob;
 	DATA_BLOB chal;
 	char *kerb_mech = NULL;
 	NTSTATUS status;
-	struct smbd_server_connection *sconn = smbd_server_conn;
+	struct smbd_server_connection *sconn = req->sconn;
 
-	status = parse_spnego_mechanisms(blob1, &secblob, &kerb_mech);
+	status = parse_spnego_mechanisms(talloc_tos(),
+			blob1, &secblob, &kerb_mech);
 	if (!NT_STATUS_IS_OK(status)) {
 		/* Kill the intermediate vuid */
 		invalidate_vuid(sconn, vuid);
@@ -815,13 +827,13 @@ static void reply_spnego_negotiate(struct smb_request *req,
 			/* Kill the intermediate vuid */
 			invalidate_vuid(sconn, vuid);
 		}
-		SAFE_FREE(kerb_mech);
+		TALLOC_FREE(kerb_mech);
 		return;
 	}
 #endif
 
 	if (*auth_ntlmssp_state) {
-		auth_ntlmssp_end(auth_ntlmssp_state);
+		TALLOC_FREE(*auth_ntlmssp_state);
 	}
 
 	if (kerb_mech) {
@@ -829,7 +841,7 @@ static void reply_spnego_negotiate(struct smb_request *req,
 		/* The mechtoken is a krb5 ticket, but
 		 * we need to fall back to NTLM. */
 		reply_spnego_downgrade_to_ntlmssp(req, vuid);
-		SAFE_FREE(kerb_mech);
+		TALLOC_FREE(kerb_mech);
 		return;
 	}
 
@@ -862,15 +874,15 @@ static void reply_spnego_negotiate(struct smb_request *req,
 static void reply_spnego_auth(struct smb_request *req,
 			      uint16 vuid,
 			      DATA_BLOB blob1,
-			      AUTH_NTLMSSP_STATE **auth_ntlmssp_state)
+			      struct auth_ntlmssp_state **auth_ntlmssp_state)
 {
 	DATA_BLOB auth = data_blob_null;
 	DATA_BLOB auth_reply = data_blob_null;
 	DATA_BLOB secblob = data_blob_null;
 	NTSTATUS status = NT_STATUS_LOGON_FAILURE;
-	struct smbd_server_connection *sconn = smbd_server_conn;
+	struct smbd_server_connection *sconn = req->sconn;
 
-	if (!spnego_parse_auth(blob1, &auth)) {
+	if (!spnego_parse_auth(talloc_tos(), blob1, &auth)) {
 #if 0
 		file_save("auth.dat", blob1.data, blob1.length);
 #endif
@@ -886,7 +898,8 @@ static void reply_spnego_auth(struct smb_request *req,
 		/* Might be a second negTokenTarg packet */
 		char *kerb_mech = NULL;
 
-		status = parse_spnego_mechanisms(auth, &secblob, &kerb_mech);
+		status = parse_spnego_mechanisms(talloc_tos(),
+				auth, &secblob, &kerb_mech);
 
 		if (!NT_STATUS_IS_OK(status)) {
 			/* Kill the intermediate vuid */
@@ -909,7 +922,7 @@ static void reply_spnego_auth(struct smb_request *req,
 				/* Kill the intermediate vuid */
 				invalidate_vuid(sconn, vuid);
 			}
-			SAFE_FREE(kerb_mech);
+			TALLOC_FREE(kerb_mech);
 			return;
 		}
 #endif
@@ -925,7 +938,7 @@ static void reply_spnego_auth(struct smb_request *req,
 				"not enabled\n"));
 			reply_nterror(req, nt_status_squash(
 					NT_STATUS_LOGON_FAILURE));
-			SAFE_FREE(kerb_mech);
+			TALLOC_FREE(kerb_mech);
 		}
 	}
 
@@ -1184,7 +1197,7 @@ static void reply_sesssetup_and_X_spnego(struct smb_request *req)
 	user_struct *vuser = NULL;
 	NTSTATUS status = NT_STATUS_OK;
 	uint16 smbpid = req->smbpid;
-	struct smbd_server_connection *sconn = smbd_server_conn;
+	struct smbd_server_connection *sconn = req->sconn;
 
 	DEBUG(3,("Doing spnego session setup\n"));
 
@@ -1355,12 +1368,16 @@ static void reply_sesssetup_and_X_spnego(struct smb_request *req)
  a new session setup with VC==0 is ignored.
 ****************************************************************************/
 
-static int shutdown_other_smbds(struct db_record *rec,
-				const struct connections_key *key,
+struct shutdown_state {
+	const char *ip;
+	struct messaging_context *msg_ctx;
+};
+
+static int shutdown_other_smbds(const struct connections_key *key,
 				const struct connections_data *crec,
 				void *private_data)
 {
-	const char *ip = (const char *)private_data;
+	struct shutdown_state *state = (struct shutdown_state *)private_data;
 
 	if (!process_exists(crec->pid)) {
 		return 0;
@@ -1370,22 +1387,21 @@ static int shutdown_other_smbds(struct db_record *rec,
 		return 0;
 	}
 
-	if (strcmp(ip, crec->addr) != 0) {
+	if (strcmp(state->ip, crec->addr) != 0) {
 		return 0;
 	}
 
 	DEBUG(0,("shutdown_other_smbds: shutting down pid %u "
-		 "(IP %s)\n", (unsigned int)procid_to_pid(&crec->pid), ip));
+		 "(IP %s)\n", (unsigned int)procid_to_pid(&crec->pid),
+		 state->ip));
 
-	messaging_send(smbd_messaging_context(), crec->pid, MSG_SHUTDOWN,
+	messaging_send(state->msg_ctx, crec->pid, MSG_SHUTDOWN,
 		       &data_blob_null);
 	return 0;
 }
 
-static void setup_new_vc_session(void)
+static void setup_new_vc_session(struct messaging_context *msg_ctx)
 {
-	char addr[INET6_ADDRSTRLEN];
-
 	DEBUG(2,("setup_new_vc_session: New VC == 0, if NT4.x "
 		"compatible we would close all old resources.\n"));
 #if 0
@@ -1393,9 +1409,12 @@ static void setup_new_vc_session(void)
 	invalidate_all_vuids();
 #endif
 	if (lp_reset_on_zero_vc()) {
-		connections_forall(shutdown_other_smbds,
-			CONST_DISCARD(void *,
-			client_addr(get_client_fd(),addr,sizeof(addr))));
+		char addr[INET6_ADDRSTRLEN];
+		struct shutdown_state state;
+
+		state.ip = client_addr(get_client_fd(),addr,sizeof(addr));
+		state.msg_ctx = msg_ctx;
+		connections_forall_read(shutdown_other_smbds, &state);
 	}
 }
 
@@ -1412,17 +1431,17 @@ void reply_sesssetup_and_X(struct smb_request *req)
 	DATA_BLOB plaintext_password;
 	char *tmp;
 	const char *user;
-	fstring sub_user; /* Sainitised username for substituion */
+	fstring sub_user; /* Sanitised username for substituion */
 	const char *domain;
 	const char *native_os;
 	const char *native_lanman;
 	const char *primary_domain;
-	auth_usersupplied_info *user_info = NULL;
-	auth_serversupplied_info *server_info = NULL;
+	struct auth_usersupplied_info *user_info = NULL;
+	struct auth_serversupplied_info *server_info = NULL;
 	uint16 smb_flag2 = req->flags2;
 
 	NTSTATUS nt_status;
-	struct smbd_server_connection *sconn = smbd_server_conn;
+	struct smbd_server_connection *sconn = req->sconn;
 
 	bool doencrypt = sconn->smb1.negprot.encrypted_passwords;
 
@@ -1450,7 +1469,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 		}
 
 		if (SVAL(req->vwv+4, 0) == 0) {
-			setup_new_vc_session();
+			setup_new_vc_session(req->sconn->msg_ctx);
 		}
 
 		reply_sesssetup_and_X_spnego(req);
@@ -1647,7 +1666,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 	}
 
 	if (SVAL(req->vwv+4, 0) == 0) {
-		setup_new_vc_session();
+		setup_new_vc_session(req->sconn->msg_ctx);
 	}
 
 	DEBUG(3,("sesssetupX:name=[%s]\\[%s]@[%s]\n",
@@ -1683,7 +1702,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 		data_blob_free(&nt_resp);
 		data_blob_clear_free(&plaintext_password);
 
-		map_username(sconn, sub_user);
+		map_username(sub_user);
 		add_session_user(sconn, sub_user);
 		add_session_workgroup(sconn, domain);
 		/* Then force it to null for the benfit of the code below */
@@ -1738,8 +1757,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 						user_info,
 						&server_info);
 
-				(plaintext_auth_context->free)(
-						&plaintext_auth_context);
+				TALLOC_FREE(plaintext_auth_context);
 			}
 		}
 	}

@@ -31,15 +31,14 @@
 #include "libcli/auth/libcli_auth.h"
 #include "param/param.h"
 
-static WERROR dsdb_convert_object_ex(struct ldb_context *ldb,
-				     const struct dsdb_schema *schema,
-				     const struct drsuapi_DsReplicaObjectListItemEx *in,
-				     const DATA_BLOB *gensec_skey,
-				     TALLOC_CTX *mem_ctx,
-				     struct dsdb_extended_replicated_object *out)
+WERROR dsdb_convert_object_ex(struct ldb_context *ldb,
+			      const struct dsdb_schema *schema,
+			      const struct drsuapi_DsReplicaObjectListItemEx *in,
+			      const DATA_BLOB *gensec_skey,
+			      TALLOC_CTX *mem_ctx,
+			      struct dsdb_extended_replicated_object *out)
 {
 	NTSTATUS nt_status;
-	enum ndr_err_code ndr_err;
 	WERROR status;
 	uint32_t i;
 	struct ldb_message *msg;
@@ -116,7 +115,7 @@ static WERROR dsdb_convert_object_ex(struct ldb_context *ldb,
 		struct drsuapi_DsReplicaMetaData *d;
 		struct replPropertyMetaData1 *m;
 		struct ldb_message_element *e;
-		int j;
+		uint32_t j;
 
 		a = &in->object.attribute_ctr.attributes[i];
 		d = &in->meta_data_ctr->meta_data[i];
@@ -185,12 +184,8 @@ static WERROR dsdb_convert_object_ex(struct ldb_context *ldb,
 	whenChanged_s = ldb_timestring(msg, whenChanged_t);
 	W_ERROR_HAVE_NO_MEMORY(whenChanged_s);
 
-	ndr_err = ndr_push_struct_blob(&guid_value, msg, 
-				       lp_iconv_convenience(ldb_get_opaque(ldb, "loadparm")),
-				       &in->object.identifier->guid,
-					 (ndr_push_flags_fn_t)ndr_push_GUID);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		nt_status = ndr_map_error2ntstatus(ndr_err);
+	nt_status = GUID_to_ndr_blob(&in->object.identifier->guid, msg, &guid_value);
+	if (!NT_STATUS_IS_OK(nt_status)) {
 		return ntstatus_to_werror(nt_status);
 	}
 
@@ -201,40 +196,41 @@ static WERROR dsdb_convert_object_ex(struct ldb_context *ldb,
 	return WERR_OK;
 }
 
-WERROR dsdb_extended_replicated_objects_commit(struct ldb_context *ldb,
-					       const char *partition_dn,
-					       const struct drsuapi_DsReplicaOIDMapping_Ctr *mapping_ctr,
-					       uint32_t object_count,
-					       const struct drsuapi_DsReplicaObjectListItemEx *first_object,
-					       uint32_t linked_attributes_count,
-					       const struct drsuapi_DsReplicaLinkedAttribute *linked_attributes,
-					       const struct repsFromTo1 *source_dsa,
-					       const struct drsuapi_DsReplicaCursor2CtrEx *uptodateness_vector,
-					       const DATA_BLOB *gensec_skey,
-					       TALLOC_CTX *mem_ctx,
-					       struct dsdb_extended_replicated_objects **_out,
-					       uint64_t *notify_uSN)
+WERROR dsdb_extended_replicated_objects_convert(struct ldb_context *ldb,
+						const char *partition_dn,
+						const struct drsuapi_DsReplicaOIDMapping_Ctr *mapping_ctr,
+						uint32_t object_count,
+						const struct drsuapi_DsReplicaObjectListItemEx *first_object,
+						uint32_t linked_attributes_count,
+						const struct drsuapi_DsReplicaLinkedAttribute *linked_attributes,
+						const struct repsFromTo1 *source_dsa,
+						const struct drsuapi_DsReplicaCursor2CtrEx *uptodateness_vector,
+						const DATA_BLOB *gensec_skey,
+						TALLOC_CTX *mem_ctx,
+						struct dsdb_extended_replicated_objects **objects)
 {
 	WERROR status;
 	const struct dsdb_schema *schema;
 	struct dsdb_extended_replicated_objects *out;
-	struct ldb_result *ext_res;
 	const struct drsuapi_DsReplicaObjectListItemEx *cur;
 	uint32_t i;
-	int ret;
-	uint64_t seq_num1, seq_num2;
-
-	schema = dsdb_get_schema(ldb);
-	if (!schema) {
-		return WERR_DS_SCHEMA_NOT_LOADED;
-	}
-
-	status = dsdb_verify_oid_mappings_drsuapi(schema, mapping_ctr);
-	W_ERROR_NOT_OK_RETURN(status);
 
 	out = talloc_zero(mem_ctx, struct dsdb_extended_replicated_objects);
 	W_ERROR_HAVE_NO_MEMORY(out);
 	out->version		= DSDB_EXTENDED_REPLICATED_OBJECTS_VERSION;
+
+	/* Get the schema, and ensure it's kept valid for as long as 'out' which may contain pointers to it */
+	schema = dsdb_get_schema(ldb, out);
+	if (!schema) {
+		talloc_free(out);
+		return WERR_DS_SCHEMA_NOT_LOADED;
+	}
+
+	status = dsdb_schema_pfm_contains_drsuapi_pfm(schema->prefixmap, mapping_ctr);
+	if (!W_ERROR_IS_OK(status)) {
+		talloc_free(out);
+		return status;
+	}
 
 	out->partition_dn	= ldb_dn_new(out, ldb, partition_dn);
 	W_ERROR_HAVE_NO_MEMORY(out->partition_dn);
@@ -255,6 +251,7 @@ WERROR dsdb_extended_replicated_objects_commit(struct ldb_context *ldb,
 
 	for (i=0, cur = first_object; cur; cur = cur->next_object, i++) {
 		if (i == out->num_objects) {
+			talloc_free(out);
 			return WERR_FOOBAR;
 		}
 
@@ -262,13 +259,27 @@ WERROR dsdb_extended_replicated_objects_commit(struct ldb_context *ldb,
 						cur, gensec_skey,
 						out->objects, &out->objects[i]);
 		if (!W_ERROR_IS_OK(status)) {
+			talloc_free(out);
 			DEBUG(0,("Failed to convert object %s\n", cur->object.identifier->dn));
 			return status;
 		}
 	}
 	if (i != out->num_objects) {
+		talloc_free(out);
 		return WERR_FOOBAR;
 	}
+
+	*objects = out;
+	return WERR_OK;
+}
+
+WERROR dsdb_extended_replicated_objects_commit(struct ldb_context *ldb,
+					       struct dsdb_extended_replicated_objects *objects,
+					       uint64_t *notify_uSN)
+{
+	struct ldb_result *ext_res;
+	int ret;
+	uint64_t seq_num1, seq_num2;
 
 	/* TODO: handle linked attributes */
 
@@ -278,23 +289,20 @@ WERROR dsdb_extended_replicated_objects_commit(struct ldb_context *ldb,
 	ret = ldb_transaction_start(ldb);
 	if (ret != LDB_SUCCESS) {
 		DEBUG(0,(__location__ " Failed to start transaction\n"));
-		talloc_free(out);
 		return WERR_FOOBAR;
 	}
 
-	ret = dsdb_load_partition_usn(ldb, out->partition_dn, &seq_num1);
+	ret = dsdb_load_partition_usn(ldb, objects->partition_dn, &seq_num1, NULL);
 	if (ret != LDB_SUCCESS) {
 		DEBUG(0,(__location__ " Failed to load partition uSN\n"));
-		talloc_free(out);
 		ldb_transaction_cancel(ldb);
 		return WERR_FOOBAR;		
 	}
 
-	ret = ldb_extended(ldb, DSDB_EXTENDED_REPLICATED_OBJECTS_OID, out, &ext_res);
+	ret = ldb_extended(ldb, DSDB_EXTENDED_REPLICATED_OBJECTS_OID, objects, &ext_res);
 	if (ret != LDB_SUCCESS) {
 		DEBUG(0,("Failed to apply records: %s: %s\n",
 			 ldb_errstring(ldb), ldb_strerror(ret)));
-		talloc_free(out);
 		ldb_transaction_cancel(ldb);
 		return WERR_FOOBAR;
 	}
@@ -302,15 +310,14 @@ WERROR dsdb_extended_replicated_objects_commit(struct ldb_context *ldb,
 
 	ret = ldb_transaction_prepare_commit(ldb);
 	if (ret != LDB_SUCCESS) {
-		DEBUG(0,(__location__ " Failed to prepare commit of transaction\n"));
-		talloc_free(out);
+		DEBUG(0,(__location__ " Failed to prepare commit of transaction: %s\n",
+			 ldb_errstring(ldb)));
 		return WERR_FOOBAR;
 	}
 
-	ret = dsdb_load_partition_usn(ldb, out->partition_dn, &seq_num2);
+	ret = dsdb_load_partition_usn(ldb, objects->partition_dn, &seq_num2, NULL);
 	if (ret != LDB_SUCCESS) {
 		DEBUG(0,(__location__ " Failed to load partition uSN\n"));
-		talloc_free(out);
 		ldb_transaction_cancel(ldb);
 		return WERR_FOOBAR;		
 	}
@@ -325,22 +332,14 @@ WERROR dsdb_extended_replicated_objects_commit(struct ldb_context *ldb,
 	ret = ldb_transaction_commit(ldb);
 	if (ret != LDB_SUCCESS) {
 		DEBUG(0,(__location__ " Failed to commit transaction\n"));
-		talloc_free(out);
 		return WERR_FOOBAR;
 	}
 
 
 	DEBUG(2,("Replicated %u objects (%u linked attributes) for %s\n",
-		 out->num_objects, out->linked_attributes_count,
-		 ldb_dn_get_linearized(out->partition_dn)));
+		 objects->num_objects, objects->linked_attributes_count,
+		 ldb_dn_get_linearized(objects->partition_dn)));
 		 
-
-	if (_out) {
-		*_out = out;
-	} else {
-		talloc_free(out);
-	}
-
 	return WERR_OK;
 }
 
@@ -351,7 +350,7 @@ static WERROR dsdb_convert_object(struct ldb_context *ldb,
 				  struct ldb_message **_msg)
 {
 	WERROR status;
-	uint32_t i;
+	unsigned int i;
 	struct ldb_message *msg;
 
 	if (!in->object.identifier) {
@@ -411,11 +410,6 @@ WERROR dsdb_origin_objects_commit(struct ldb_context *ldb,
 	struct ldb_result *res;
 	int ret;
 
-	schema = dsdb_get_schema(ldb);
-	if (!schema) {
-		return WERR_DS_SCHEMA_NOT_LOADED;
-	}
-
 	for (cur = first_object; cur; cur = cur->next_object) {
 		num_objects++;
 	}
@@ -424,35 +418,83 @@ WERROR dsdb_origin_objects_commit(struct ldb_context *ldb,
 		return WERR_OK;
 	}
 
+	ret = ldb_transaction_start(ldb);
+	if (ret != LDB_SUCCESS) {
+		return WERR_DS_INTERNAL_FAILURE;
+	}
+
 	objects	= talloc_array(mem_ctx, struct ldb_message *,
 			       num_objects);
-	W_ERROR_HAVE_NO_MEMORY(objects);
+	if (objects == NULL) {
+		status = WERR_NOMEM;
+		goto cancel;
+	}
+
+	schema = dsdb_get_schema(ldb, objects);
+	if (!schema) {
+		return WERR_DS_SCHEMA_NOT_LOADED;
+	}
 
 	for (i=0, cur = first_object; cur; cur = cur->next_object, i++) {
 		status = dsdb_convert_object(ldb, schema,
 					     cur, objects, &objects[i]);
-		W_ERROR_NOT_OK_RETURN(status);
+		if (!W_ERROR_IS_OK(status)) {
+			goto cancel;
+		}
 	}
 
 	ids = talloc_array(mem_ctx,
 			   struct drsuapi_DsReplicaObjectIdentifier2,
 			   num_objects);
-	W_ERROR_HAVE_NO_MEMORY(objects);
+	if (ids == NULL) {
+		status = WERR_NOMEM;
+		goto cancel;
+	}
 
 	for (i=0; i < num_objects; i++) {
 		struct dom_sid *sid = NULL;
+		struct ldb_request *add_req;
 
 		DEBUG(6,(__location__ ": adding %s\n", 
 			 ldb_dn_get_linearized(objects[i]->dn)));
-		
-		ret = ldb_add(ldb, objects[i]);
-		if (ret != 0) {
+
+		ret = ldb_build_add_req(&add_req,
+					ldb,
+					objects,
+					objects[i],
+					NULL,
+					NULL,
+					ldb_op_default_callback,
+					NULL);
+		if (ret != LDB_SUCCESS) {
+			status = WERR_DS_INTERNAL_FAILURE;
 			goto cancel;
 		}
+
+		ret = ldb_request_add_control(add_req, LDB_CONTROL_RELAX_OID, true, NULL);
+		if (ret != LDB_SUCCESS) {
+			status = WERR_DS_INTERNAL_FAILURE;
+			goto cancel;
+		}
+		
+		ret = ldb_request(ldb, add_req);
+		if (ret == LDB_SUCCESS) {
+			ret = ldb_wait(add_req->handle, LDB_WAIT_ALL);
+		}
+		if (ret != LDB_SUCCESS) {
+			DEBUG(0,(__location__ ": Failed add of %s - %s\n",
+				 ldb_dn_get_linearized(objects[i]->dn), ldb_errstring(ldb)));
+			status = WERR_DS_INTERNAL_FAILURE;
+			goto cancel;
+		}
+
+		talloc_free(add_req);
+
 		ret = ldb_search(ldb, objects, &res, objects[i]->dn,
 				 LDB_SCOPE_BASE, attrs,
 				 "(objectClass=*)");
-		if (ret != 0) {
+		if (ret != LDB_SUCCESS) {
+			status = WERR_DS_INTERNAL_FAILURE;
 			goto cancel;
 		}
 		ids[i].guid = samdb_result_guid(res->msgs[0], "objectGUID");
@@ -464,13 +506,19 @@ WERROR dsdb_origin_objects_commit(struct ldb_context *ldb,
 		}
 	}
 
+	ret = ldb_transaction_commit(ldb);
+	if (ret != LDB_SUCCESS) {
+		return WERR_DS_INTERNAL_FAILURE;
+	}
+
 	talloc_free(objects);
 
 	*_num = num_objects;
 	*_ids = ids;
 	return WERR_OK;
+
 cancel:
 	talloc_free(objects);
 	ldb_transaction_cancel(ldb);
-	return WERR_FOOBAR;
+	return status;
 }

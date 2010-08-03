@@ -23,6 +23,7 @@
 
 #include "includes.h"
 #include "smb_krb5.h"
+#include "../librpc/gen_ndr/ndr_misc.h"
 
 #ifdef HAVE_KRB5
 
@@ -90,9 +91,8 @@ kerb_prompter(krb5_context ctx, void *data,
 
 	data_blob_free(&edata);
 
-	ndr_err = ndr_pull_struct_blob_all(&unwrapped_edata, mem_ctx, NULL,
-			&parsed_edata,
-			(ndr_pull_flags_fn_t)ndr_pull_KRB5_EDATA_NTSTATUS);
+	ndr_err = ndr_pull_struct_blob_all(&unwrapped_edata, mem_ctx, 
+		&parsed_edata, (ndr_pull_flags_fn_t)ndr_pull_KRB5_EDATA_NTSTATUS);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		data_blob_free(&unwrapped_edata);
 		TALLOC_FREE(mem_ctx);

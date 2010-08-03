@@ -22,6 +22,7 @@
 #include "includes.h"
 #include "system/network.h"
 #include "librpc/ndr/libndr.h"
+#include "lib/util/util_net.h"
 
 #define NDR_SVAL(ndr, ofs) (NDR_BE(ndr)?RSVAL(ndr->data,ofs):SVAL(ndr->data,ofs))
 #define NDR_IVAL(ndr, ofs) (NDR_BE(ndr)?RIVAL(ndr->data,ofs):IVAL(ndr->data,ofs))
@@ -172,6 +173,19 @@ _PUBLIC_ enum ndr_err_code ndr_pull_double(struct ndr_pull *ndr, int ndr_flags, 
 	NDR_PULL_NEED_BYTES(ndr, 8);
 	memcpy(v, ndr->data+ndr->offset, 8);
 	ndr->offset += 8;
+	return NDR_ERR_SUCCESS;
+}
+
+/*
+  parse a pointer referent identifier stored in 2 bytes
+*/
+_PUBLIC_ enum ndr_err_code ndr_pull_relative_ptr_short(struct ndr_pull *ndr, uint16_t *v)
+{
+	NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, v));
+	if (*v != 0) {
+		ndr->ptr_count++;
+	}
+	*(v) -= ndr->relative_rap_convert;
 	return NDR_ERR_SUCCESS;
 }
 
@@ -886,6 +900,16 @@ _PUBLIC_ void ndr_print_int32(struct ndr_print *ndr, const char *name, int32_t v
 }
 
 _PUBLIC_ void ndr_print_uint32(struct ndr_print *ndr, const char *name, uint32_t v)
+{
+	ndr->print(ndr, "%-25s: 0x%08x (%u)", name, v, v);
+}
+
+_PUBLIC_ void ndr_print_int3264(struct ndr_print *ndr, const char *name, int32_t v)
+{
+	ndr->print(ndr, "%-25s: %d", name, v);
+}
+
+_PUBLIC_ void ndr_print_uint3264(struct ndr_print *ndr, const char *name, uint32_t v)
 {
 	ndr->print(ndr, "%-25s: 0x%08x (%u)", name, v, v);
 }

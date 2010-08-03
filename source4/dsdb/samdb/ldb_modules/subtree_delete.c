@@ -2,8 +2,10 @@
    ldb database library
 
    Copyright (C) Andrew Bartlett <abartlet@samba.org> 2006-2007
+   Copyright (C) Andrew Tridgell <tridge@samba.org> 2009
    Copyright (C) Stefan Metzmacher <metze@samba.org> 2007
    Copyright (C) Simo Sorce <idra@samba.org> 2008
+   Copyright (C) Matthias Dieter Wallnöfer 2010
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,146 +24,91 @@
 /*
  *  Name: ldb
  *
- *  Component: ldb subtree delete (prevention) module
+ *  Component: ldb subtree delete module
  *
- *  Description: Prevent deletion of a subtree in LDB
+ *  Description: Delete of a subtree in LDB
  *
  *  Author: Andrew Bartlett
  */
 
-#include "ldb_module.h"
+#include "includes.h"
+#include <ldb.h>
+#include <ldb_module.h>
+#include "dsdb/samdb/ldb_modules/util.h"
 
-struct subtree_delete_context {
-	struct ldb_module *module;
-	struct ldb_request *req;
-
-	int num_children;
-};
-
-static struct subtree_delete_context *subdel_ctx_init(struct ldb_module *module,
-						      struct ldb_request *req)
-{
-	struct ldb_context *ldb;
-	struct subtree_delete_context *ac;
-
-	ldb = ldb_module_get_ctx(module);
-
-	ac = talloc_zero(req, struct subtree_delete_context);
-	if (ac == NULL) {
-		ldb_oom(ldb);
-		return NULL;
-	}
-
-	ac->module = module;
-	ac->req = req;
-
-	return ac;
-}
-
-static int subtree_delete_search_callback(struct ldb_request *req,
-					  struct ldb_reply *ares)
-{
-	struct ldb_context *ldb;
-	struct subtree_delete_context *ac;
-	int ret;
-
-	ac = talloc_get_type(req->context, struct subtree_delete_context);
-	ldb = ldb_module_get_ctx(ac->module);
-
-	if (!ares) {
-		ret = LDB_ERR_OPERATIONS_ERROR;
-		goto done;
-	}
-	if (ares->error != LDB_SUCCESS) {
-		return ldb_module_done(ac->req, ares->controls,
-					ares->response, ares->error);
-	}
-
-	switch (ares->type) {
-	case LDB_REPLY_ENTRY:
-		/* count entry */
-		++(ac->num_children);
-
-		talloc_free(ares);
-		ret = LDB_SUCCESS;
-		break;
-
-	case LDB_REPLY_REFERRAL:
-		/* ignore */
-		talloc_free(ares);
-		ret = LDB_SUCCESS;
-		break;
-
-	case LDB_REPLY_DONE:
-		talloc_free(ares);
-
-		if (ac->num_children > 0) {
-			ldb_asprintf_errstring(ldb,
-				"Cannot delete %s, not a leaf node "
-				"(has %d children)\n",
-				ldb_dn_get_linearized(ac->req->op.del.dn),
-				ac->num_children);
-			return ldb_module_done(ac->req, NULL, NULL,
-					       LDB_ERR_NOT_ALLOWED_ON_NON_LEAF);
-		}
-
-		/* ok no children, let the original request through */
-		ret = ldb_next_request(ac->module, ac->req);
-		break;
-	}
-
-done:
-	if (ret != LDB_SUCCESS) {
-		return ldb_module_done(ac->req, NULL, NULL, ret);
-	}
-
-	return LDB_SUCCESS;
-}
 
 static int subtree_delete(struct ldb_module *module, struct ldb_request *req)
 {
-	struct ldb_context *ldb;
-	static const char * const attrs[2] = { "distinguishedName", NULL };
-	struct ldb_request *search_req;
-	struct subtree_delete_context *ac;
+	static const char * const attrs[] = { NULL };
+	struct ldb_result *res = NULL;
+	uint32_t flags;
+	unsigned int i;
 	int ret;
 
-	if (ldb_dn_is_special(req->op.rename.olddn)) {
+	if (ldb_dn_is_special(req->op.del.dn)) {
 		/* do not manipulate our control entries */
 		return ldb_next_request(module, req);
 	}
 
-	ldb = ldb_module_get_ctx(module);
-
-	/* This gets complex:  We need to:
-	   - Do a search for all entires under this entry 
-	   - Wait for these results to appear
-	   - In the callback for each result, count the children (if any)
-	   - return an error if there are any
-	*/
-
-	ac = subdel_ctx_init(module, req);
-	if (!ac) {
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
-
-	/* we do not really need to find all descendents,
-	 * if there is even one single direct child, that's
-	 * enough to bail out */
-	ret = ldb_build_search_req(&search_req, ldb, ac,
-				   req->op.del.dn, LDB_SCOPE_ONELEVEL,
-				   "(objectClass=*)", attrs,
-				   req->controls,
-				   ac, subtree_delete_search_callback,
-				   req);
+	/* see if we have any children */
+	ret = dsdb_module_search(module, req, &res, req->op.del.dn,
+				 LDB_SCOPE_ONELEVEL, attrs,
+				 DSDB_FLAG_NEXT_MODULE |
+				 DSDB_SEARCH_SHOW_DELETED,
+				 "(objectClass=*)");
 	if (ret != LDB_SUCCESS) {
+		talloc_free(res);
 		return ret;
 	}
+	if (res->count > 0) {
+		if (ldb_request_get_control(req, LDB_CONTROL_TREE_DELETE_OID) == NULL) {
+			ldb_asprintf_errstring(ldb_module_get_ctx(module),
+					       "Cannot delete %s, not a leaf node "
+					       "(has %d children)\n",
+					       ldb_dn_get_linearized(req->op.del.dn),
+					       res->count);
+			talloc_free(res);
+			return LDB_ERR_NOT_ALLOWED_ON_NON_LEAF;
+		}
 
-	return ldb_next_request(module, search_req);
+		/* we need to start from the top since other LDB modules could
+		 * enforce constraints (eg "objectclass" and "samldb" do so). */
+		flags = DSDB_FLAG_TOP_MODULE | DSDB_TREE_DELETE;
+		if (ldb_request_get_control(req, LDB_CONTROL_RELAX_OID) != NULL) {
+			flags |= DSDB_MODIFY_RELAX;
+		}
+
+		for (i = 0; i < res->count; i++) {
+			ret = dsdb_module_del(module, res->msgs[i]->dn, flags);
+			if (ret != LDB_SUCCESS) {
+				return ret;
+			}
+		}
+	}
+	talloc_free(res);
+
+	return ldb_next_request(module, req);
 }
 
-const struct ldb_module_ops ldb_subtree_delete_module_ops = {
+static int subtree_delete_init(struct ldb_module *module)
+{
+	struct ldb_context *ldb;
+	int ret;
+
+	ldb = ldb_module_get_ctx(module);
+
+	ret = ldb_mod_register_control(module, LDB_CONTROL_TREE_DELETE_OID);
+	if (ret != LDB_SUCCESS) {
+		ldb_debug(ldb, LDB_DEBUG_ERROR,
+			"subtree_delete: Unable to register control with rootdse!\n");
+		return ldb_operr(ldb);
+	}
+
+	return ldb_next_init(module);
+}
+
+_PUBLIC_ const struct ldb_module_ops ldb_subtree_delete_module_ops = {
 	.name		   = "subtree_delete",
-	.del               = subtree_delete,
+	.init_context      = subtree_delete_init,
+	.del               = subtree_delete
 };

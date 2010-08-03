@@ -21,12 +21,10 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "librpc/ndr/libndr.h"
 #include "librpc/ndr/ndr_table.h"
-#include "torture/rpc/rpc.h"
+#include "torture/rpc/torture_rpc.h"
 #include "param/param.h"
-#include "librpc/rpc/dcerpc_proto.h"
 
 
 	
@@ -40,7 +38,7 @@ bool count_calls(struct torture_context *tctx,
 	int i;
 	NTSTATUS status = torture_rpc_connection(tctx, &p, iface);
 	if (NT_STATUS_EQUAL(NT_STATUS_OBJECT_NAME_NOT_FOUND, status)
-	    || NT_STATUS_EQUAL(NT_STATUS_NET_WRITE_FAULT, status)
+	    || NT_STATUS_IS_RPC(status)
 	    || NT_STATUS_EQUAL(NT_STATUS_PORT_UNREACHABLE, status)
 	    || NT_STATUS_EQUAL(NT_STATUS_ACCESS_DENIED, status)) {
 		if (all) {
@@ -61,13 +59,7 @@ bool count_calls(struct torture_context *tctx,
 
 	for (i=0;i<500;i++) {
 		status = dcerpc_request(p, NULL, i, p, &stub_in, &stub_out);
-		if (NT_STATUS_EQUAL(status, NT_STATUS_NET_WRITE_FAULT) &&
-		    p->last_fault_code == DCERPC_FAULT_OP_RNG_ERROR) {
-			i--;
-			break;
-		}
-		if (NT_STATUS_EQUAL(status, NT_STATUS_NET_WRITE_FAULT) &&
-		    p->last_fault_code == DCERPC_FAULT_OP_RNG_ERROR) {
+		if (NT_STATUS_EQUAL(status, NT_STATUS_RPC_PROCNUM_OUT_OF_RANGE)) {
 			i--;
 			break;
 		}
@@ -109,7 +101,7 @@ bool torture_rpc_countcalls(struct torture_context *torture)
 	const char *iface_name;
 	bool ret = true;
 	const struct ndr_interface_list *l;
-	iface_name = lp_parm_string(torture->lp_ctx, NULL, "countcalls", "interface");
+	iface_name = lpcfg_parm_string(torture->lp_ctx, NULL, "countcalls", "interface");
 	if (iface_name != NULL) {
 		iface = ndr_table_by_name(iface_name);
 		if (!iface) {

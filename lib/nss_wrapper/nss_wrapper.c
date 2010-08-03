@@ -34,6 +34,10 @@
 
 #ifdef _SAMBA_BUILD_
 
+/* defining this gives us the posix getpwnam_r() calls on solaris
+   Thanks to heimdal for this */
+#define _POSIX_PTHREAD_SEMANTICS
+
 #define NSS_WRAPPER_NOT_REPLACE
 #include "../replace/replace.h"
 #include "system/passwd.h"
@@ -207,7 +211,7 @@ struct nwrap_ops {
 	void		(*nw_endgrent)(struct nwrap_backend *b);
 };
 
-/* protoypes for files backend */
+/* prototypes for files backend */
 
 
 static struct passwd *nwrap_files_getpwnam(struct nwrap_backend *b,
@@ -245,7 +249,7 @@ static int nwrap_files_getgrent_r(struct nwrap_backend *b,
 				  size_t buflen, struct group **grdstp);
 static void nwrap_files_endgrent(struct nwrap_backend *b);
 
-/* protoypes for module backend */
+/* prototypes for module backend */
 
 static struct passwd *nwrap_module_getpwent(struct nwrap_backend *b);
 static int nwrap_module_getpwent_r(struct nwrap_backend *b,
@@ -2168,7 +2172,7 @@ _PUBLIC_ int nwrap_getgrouplist(const char *user, gid_t group, gid_t *groups, in
 	struct group *grp;
 	gid_t *groups_tmp;
 	int count = 1;
-	const char *name_of_group = NULL;
+	const char *name_of_group = "";
 
 	if (!nwrap_enabled()) {
 		return real_getgrouplist(user, group, groups, ngroups);

@@ -639,6 +639,66 @@ appliesTo: bf967a8f-0de6-11d0-a285-00aa003049e2
 localizationDisplayId: 28
 validAccesses: 256
 
+dn: CN=DS-Replication-Get-Changes-In-Filtered-Set,CN=Extended-Rights,${CONFIGDN}
+objectClass: top
+objectClass: controlAccessRight
+displayName: Replicating Directory Changes In Filtered Set
+rightsGuid: 89e95b76-444d-4c62-991a-0facbeda640c
+appliesTo: bf967a8f-0de6-11d0-a285-00aa003049e2
+appliesTo: bf967a87-0de6-11d0-a285-00aa003049e2
+appliesTo: 19195a5b-6da0-11d0-afd3-00c04fd930c9
+localizationDisplayId: 77
+validAccesses: 256
+
+dn: CN=MS-TS-GatewayAccess,CN=Extended-Rights,${CONFIGDN}
+objectClass: top
+objectClass: controlAccessRight
+displayName: MS-TS-GatewayAccess
+rightsGuid: ffa6f046-ca4b-4feb-b40d-04dfee722543
+appliesTo: bf967a86-0de6-11d0-a285-00aa003049e2
+localizationDisplayId: 74
+validAccesses: 48
+
+dn: CN=Private-Information,CN=Extended-Rights,${CONFIGDN}
+objectClass: top
+objectClass: controlAccessRight
+displayName: Private Information
+rightsGuid: 91e647de-d96f-4b70-9557-d63ff4f3ccd8
+appliesTo: bf967aba-0de6-11d0-a285-00aa003049e2
+appliesTo: 4828cc14-1437-45bc-9b07-ad6f015e5f28
+localizationDisplayId: 72
+validAccesses: 48
+
+dn: CN=Read-Only-Replication-Secret-Synchronization,CN=Extended-Rights,${CONFIGDN}
+objectClass: top
+objectClass: controlAccessRight
+displayName: Read Only Replication Secret Synchronization
+rightsGuid: 1131f6ae-9c07-11d1-f79f-00c04fc2dcd2
+appliesTo: bf967a8f-0de6-11d0-a285-00aa003049e2
+appliesTo: bf967a87-0de6-11d0-a285-00aa003049e2
+appliesTo: 19195a5b-6da0-11d0-afd3-00c04fd930c9
+localizationDisplayId: 73
+validAccesses: 256
+
+dn: CN=Reload-SSL-Certificate,CN=Extended-Rights,${CONFIGDN}
+objectClass: top
+objectClass: controlAccessRight
+displayName: Reload SSL/TLS Certificate
+rightsGuid: 1a60ea8d-58a6-4b20-bcdc-fb71eb8a9ff8
+appliesTo: f0f8ffab-1191-11d0-a060-00aa006c33ed
+localizationDisplayId: 76
+validAccesses: 256
+
+dn: CN=Terminal-Server-License-Server,CN=Extended-Rights,${CONFIGDN}
+objectClass: top
+objectClass: controlAccessRight
+displayName: Terminal Server License Server
+rightsGuid: 5805bc62-bdc9-4428-a5e2-856a0f4c185e
+appliesTo: bf967aba-0de6-11d0-a285-00aa003049e2
+appliesTo: 4828cc14-1437-45bc-9b07-ad6f015e5f28
+localizationDisplayId: 75
+validAccesses: 48
+
 # End extended rights
 
 # Forest updates
@@ -646,6 +706,16 @@ validAccesses: 256
 dn: CN=ForestUpdates,${CONFIGDN}
 objectClass: top
 objectClass: container
+
+dn: CN=ActiveDirectoryRodcUpdate,CN=ForestUpdates,${CONFIGDN}
+objectClass: top
+objectClass: container
+revision: 5
+
+dn: CN=ActiveDirectoryUpdate,CN=ForestUpdates,${CONFIGDN}
+objectClass: top
+objectClass: container
+revision: 5
 
 dn: CN=Operations,CN=ForestUpdates,${CONFIGDN}
 objectClass: top
@@ -670,6 +740,7 @@ objectClass: container
 dn: CN=94fdebc6-8eeb-4640-80de-ec52b9ca17fa,CN=Operations,CN=ForestUpdates,${CONFIGDN}
 objectClass: top
 objectClass: container
+objectVersion: 3
 
 dn: CN=1a3f6b15-55f2-4752-ba27-3d38a8232c4d,CN=Operations,CN=ForestUpdates,${CONFIGDN}
 objectClass: top
@@ -799,10 +870,130 @@ dn: CN=7dd09ca6-f0d6-43bf-b7f8-ef348f435617,CN=Operations,CN=ForestUpdates,${CON
 objectClass: top
 objectClass: container
 
+dn: CN=002fb291-0d00-4b0c-8c00-fe7f50ce6f8d,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=07e57d28-ad40-44fc-8334-8a0dc119b3f4,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=0fc5a978-0059-4b0a-9dc2-9896e8e389a1,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=10338d31-2423-4dff-b4b5-ef025144b01f,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=2a858903-5696-4364-b4e5-4cac027ca7a6,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=2b9e0609-6d75-498a-9727-c9fcc93f0e42,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=3b3adbdb-4485-4559-aed8-9811c4bf90e4,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=429a6334-1a00-4515-bf48-676deb55954a,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=4c022fd1-adab-4d84-a7f1-9580f03da856,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=4c0672a2-437c-4944-b953-5db8f111d665,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=4d753a29-26ac-4d1a-bc80-311f947e4f0a,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=56040c71-fe93-4037-8fe9-1a4d1a283009,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=560cf82d-9572-48a3-9024-6f2b56f1f866,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=613bd063-e8e9-4a62-8f4c-cda566f7eb6f,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=6eb8eaf9-3403-4ba5-8b4b-ce349a4680ad,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=6fd48655-1698-497a-ac8d-8267ce01c80b,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=782370ce-3d38-438d-8b0c-464220a3039d,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=8f86b825-c322-4101-adc4-579f12d445db,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=96541a16-910a-4b66-acde-720a0dff03c7,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=9fea28ff-387f-4d57-866d-3893c50f373f,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=a96e2ed5-7a7c-4d5c-9d5d-965eca0051da,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=abd97102-88dd-4013-a009-0e2c2f967ff6,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=bd3413c0-9559-469b-9f3d-51d7faabd81a,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=c03b1f37-c240-4910-93c8-1544a452b4b5,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=caa2bfad-0cca-483b-8d00-347f943292a8,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=d668ad1f-cedd-4565-ab02-9385926ce4f5,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=dcb3c95d-deb7-4c51-ad13-43a7d5d06fc7,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=ea08c04c-f474-4212-b19e-5e754f9210d4,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=ef010a1e-bd88-48c8-a7af-2affd250d77d,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
+dn: CN=f814097b-3e3d-49ba-8a3a-092c25085f06,CN=Operations,CN=ForestUpdates,CN=Configuration,${DOMAINDN}
+objectClass: top
+objectClass: container
+
 dn: CN=Windows2003Update,CN=ForestUpdates,${CONFIGDN}
 objectClass: top
 objectClass: container
-revision: 9
+revision: 10
 
 # End forest updates
 
@@ -815,6 +1006,7 @@ dn: CN=NTDS Quotas,${CONFIGDN}
 objectClass: top
 objectClass: msDS-QuotaContainer
 description: Quota specifications container
+isCriticalSystemObject: TRUE
 msDS-TombstoneQuotaFactor: 100
 systemFlags: -2147483648
 
@@ -824,7 +1016,7 @@ dn: CN=Partitions,${CONFIGDN}
 objectClass: top
 objectClass: crossRefContainer
 systemFlags: -2147483648
-msDS-Behavior-Version: ${FOREST_FUNCTIONALALITY}
+msDS-Behavior-Version: ${FOREST_FUNCTIONALITY}
 showInAdvancedViewOnly: TRUE
 
 # Partitions for DNS are missing since we don't support AD DNS
@@ -847,6 +1039,7 @@ dn: CN=${DOMAIN},CN=Partitions,${CONFIGDN}
 objectClass: top
 objectClass: crossRef
 dnsRoot: ${DNSDOMAIN}
+msDS-Behavior-Version: ${DOMAIN_FUNCTIONALITY}
 nCName: ${DOMAINDN}
 nETBIOSName: ${DOMAIN}
 nTMixedDomain: 0
@@ -960,6 +1153,18 @@ msDS-Other-Settings: DynamicObjectDefaultTTL=86400
 sPNMappings: host=alerter,appmgmt,cisvc,clipsrv,browser,dhcp,dnscache,replicator,eventlog,eventsystem,policyagent,oakley,dmserver,dns,mcsvc,fax,msiserver,ias,messenger,netlogon,netman,netdde,netddedsm,nmagent,plugplay,protectedstorage,rasman,rpclocator,rpc,rpcss,remoteaccess,rsvp,samss,scardsvr,scesrv,seclogon,scm,dcom,cifs,spooler,snmp,schedule,tapisrv,trksvr,trkwks,ups,time,wins,www,http,w3svc,iisadmin,msdtc
 tombstoneLifetime: 180
 
+dn: CN=Optional Features,CN=Directory Service,CN=Windows NT,CN=Services,${CONFIGDN}
+objectClass: top
+objectClass: container
+
+dn: CN=Recycle Bin Feature,CN=Optional Features,CN=Directory Service,CN=Windows NT,CN=Services,${CONFIGDN}
+objectClass: top
+objectClass: msDS-OptionalFeature
+msDS-OptionalFeatureGUID: 766ddcd8-acd0-445e-f3b9-a7f9b6744f2a
+msDS-OptionalFeatureFlags: 1
+msDS-RequiredForestBehaviorVersion: 4
+systemFlags: -1946157056
+
 dn: CN=Query-Policies,CN=Directory Service,CN=Windows NT,CN=Services,${CONFIGDN}
 objectClass: top
 objectClass: container
@@ -995,11 +1200,6 @@ objectClass: top
 objectClass: site
 systemFlags: 1107296256
 
-dn: CN=Licensing Site Settings,CN=${DEFAULTSITE},CN=Sites,${CONFIGDN}
-objectClass: top
-objectClass: applicationSiteSettings
-objectClass: licensingSiteSettings
-
 dn: CN=Inter-Site Transports,CN=Sites,${CONFIGDN}
 objectClass: top
 objectClass: interSiteTransportContainer
@@ -1017,6 +1217,7 @@ objectClass: top
 objectClass: siteLink
 cost: 100
 replInterval: 180
+showInAdvancedViewOnly: TRUE
 siteList: CN=${DEFAULTSITE},CN=Sites,${CONFIGDN}
 systemFlags: 1073741824
 
@@ -1031,6 +1232,7 @@ dn: CN=NTDS Site Settings,CN=${DEFAULTSITE},CN=Sites,${CONFIGDN}
 objectClass: top
 objectClass: applicationSiteSettings
 objectClass: nTDSSiteSettings
+schedule:: vAAAAAAAAAABAAAAAAAAABQAAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=
 
 dn: CN=Servers,CN=${DEFAULTSITE},CN=Sites,${CONFIGDN}
 objectClass: top
@@ -1040,4 +1242,4 @@ systemFlags: 33554432
 dn: CN=Subnets,CN=Sites,${CONFIGDN}
 objectClass: top
 objectClass: subnetContainer
-systemFlags: -1073741824
+systemFlags: -2147483648

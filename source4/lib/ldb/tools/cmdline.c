@@ -21,19 +21,24 @@
    License along with this library; if not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "ldb_includes.h"
-#include "ldb.h"
-#include "tools/cmdline.h"
-
 #if (_SAMBA_BUILD_ >= 4)
 #include "includes.h"
+#include <ldb.h>
 #include "lib/cmdline/popt_common.h"
 #include "lib/ldb-samba/ldif_handlers.h"
 #include "auth/gensec/gensec.h"
 #include "auth/auth.h"
 #include "ldb_wrap.h"
 #include "param/param.h"
+#include "librpc/gen_ndr/drsblobs.h"
+#include "dsdb/schema/schema.h"
+#include "dsdb/common/proto.h"
+#else
+#include "ldb_includes.h"
+#include "ldb.h"
 #endif
+
+#include "tools/cmdline.h"
 
 static struct ldb_cmdline options; /* needs to be static for older compilers */
 
@@ -53,11 +58,16 @@ static struct poptOption popt_options[] = {
 	{ "all", 'a',    POPT_ARG_NONE, &options.all_records, 0, "(|(objectClass=*)(distinguishedName=*))", NULL },
 	{ "nosync", 0,   POPT_ARG_NONE, &options.nosync, 0, "non-synchronous transactions", NULL },
 	{ "sorted", 'S', POPT_ARG_NONE, &options.sorted, 0, "sort attributes", NULL },
-	{ "input", 'I', POPT_ARG_STRING, &options.input, 0, "Input File", "Input" },
-	{ "output", 'O', POPT_ARG_STRING, &options.output, 0, "Output File", "Output" },
 	{ NULL,    'o', POPT_ARG_STRING, NULL, 'o', "ldb_connect option", "OPTION" },
 	{ "controls", 0, POPT_ARG_STRING, NULL, 'c', "controls", NULL },
 	{ "show-binary", 0, POPT_ARG_NONE, &options.show_binary, 0, "display binary LDIF", NULL },
+	{ "paged", 0, POPT_ARG_NONE, NULL, 'P', "use a paged search", NULL },
+	{ "show-deleted", 0, POPT_ARG_NONE, NULL, 'D', "show deleted objects", NULL },
+	{ "show-recycled", 0, POPT_ARG_NONE, NULL, 'R', "show recycled objects", NULL },
+	{ "show-deactivated-link", 0, POPT_ARG_NONE, NULL, 'd', "show deactivated links", NULL },
+	{ "reveal", 0, POPT_ARG_NONE, NULL, 'r', "reveal ldb internals", NULL },
+	{ "cross-ncs", 0, POPT_ARG_NONE, NULL, 'N', "search across NC boundaries", NULL },
+	{ "extended-dn", 0, POPT_ARG_NONE, NULL, 'E', "show extended DNs", NULL },
 #if (_SAMBA_BUILD_ >= 4)
 	POPT_COMMON_SAMBA
 	POPT_COMMON_CREDENTIALS
@@ -73,6 +83,25 @@ void ldb_cmdline_help(const char *cmdname, FILE *f)
 	pc = poptGetContext(cmdname, 0, NULL, popt_options, 
 			    POPT_CONTEXT_KEEP_FIRST);
 	poptPrintHelp(pc, f, 0);
+}
+
+/*
+  add a control to the options structure
+ */
+static bool add_control(TALLOC_CTX *mem_ctx, const char *control)
+{
+	int i;
+
+	/* count how many controls we already have */
+	for (i=0; options.controls && options.controls[i]; i++) ;
+
+	options.controls = talloc_realloc(mem_ctx, options.controls, const char *, i + 2);
+	if (options.controls == NULL) {
+		return false;
+	}
+	options.controls[i] = control;
+	options.controls[i+1] = NULL;
+	return true;
 }
 
 /**
@@ -98,6 +127,9 @@ struct ldb_cmdline *ldb_cmdline_process(struct ldb_context *ldb,
 	}
 
 #endif
+
+	/* make the ldb utilities line buffered */
+	setlinebuf(stdout);
 
 	ret = talloc_zero(ldb, struct ldb_cmdline);
 	if (ret == NULL) {
@@ -159,32 +191,69 @@ struct ldb_cmdline *ldb_cmdline_process(struct ldb_context *ldb,
 
 		case 'c': {
 			const char *cs = poptGetOptArg(pc);
-			const char *p, *q;
-			int cc;
+			const char *p;
 
-			for (p = cs, cc = 1; (q = strchr(p, ',')); cc++, p = q + 1) ;
-
-			options.controls = talloc_array(ret, char *, cc + 1);
-			if (options.controls == NULL) {
-				fprintf(stderr, "Out of memory!\n");
-				goto failed;
-			}
-			for (p = cs, cc = 0; p != NULL; cc++) {
-				const char *t;
+			for (p = cs; p != NULL; ) {
+				const char *t, *c;
 
 				t = strchr(p, ',');
 				if (t == NULL) {
-					options.controls[cc] = talloc_strdup(options.controls, p);
+					c = talloc_strdup(options.controls, p);
 					p = NULL;
 				} else {
-					options.controls[cc] = talloc_strndup(options.controls, p, t-p);
+					c = talloc_strndup(options.controls, p, t-p);
 			        	p = t + 1;
 				}
+				if (c == NULL || !add_control(ret, c)) {
+					fprintf(stderr, __location__ ": out of memory\n");
+					goto failed;
+				}
 			}
-			options.controls[cc] = NULL;
 
 			break;	  
 		}
+		case 'P':
+			if (!add_control(ret, "paged_results:1:1024")) {
+				fprintf(stderr, __location__ ": out of memory\n");
+				goto failed;
+			}
+			break;
+		case 'D':
+			if (!add_control(ret, "show_deleted:1")) {
+				fprintf(stderr, __location__ ": out of memory\n");
+				goto failed;
+			}
+			break;
+		case 'R':
+			if (!add_control(ret, "show_recycled:0")) {
+				fprintf(stderr, __location__ ": out of memory\n");
+				goto failed;
+			}
+			break;
+		case 'd':
+			if (!add_control(ret, "show_deactivated_link:0")) {
+				fprintf(stderr, __location__ ": out of memory\n");
+				goto failed;
+			}
+			break;
+		case 'r':
+			if (!add_control(ret, "reveal_internals:0")) {
+				fprintf(stderr, __location__ ": out of memory\n");
+				goto failed;
+			}
+			break;
+		case 'N':
+			if (!add_control(ret, "search_options:1:2")) {
+				fprintf(stderr, __location__ ": out of memory\n");
+				goto failed;
+			}
+			break;
+		case 'E':
+			if (!add_control(ret, "extended_dn:1:1")) {
+				fprintf(stderr, __location__ ": out of memory\n");
+				goto failed;
+			}
+			break;
 		default:
 			fprintf(stderr, "Invalid option %s: %s\n", 
 				poptBadOption(pc, 0), poptStrerror(opt));
@@ -229,7 +298,7 @@ struct ldb_cmdline *ldb_cmdline_process(struct ldb_context *ldb,
 	/* Must be after we have processed command line options */
 	gensec_init(cmdline_lp_ctx); 
 	
-	if (ldb_set_opaque(ldb, "sessionInfo", system_session(ldb, cmdline_lp_ctx))) {
+	if (ldb_set_opaque(ldb, "sessionInfo", system_session(cmdline_lp_ctx))) {
 		goto failed;
 	}
 	if (ldb_set_opaque(ldb, "credentials", cmdline_credentials)) {
@@ -255,6 +324,11 @@ struct ldb_cmdline *ldb_cmdline_process(struct ldb_context *ldb,
 		goto failed;
 	}
 
+#if (_SAMBA_BUILD_ >= 4)
+	/* get the domain SID into the cache for SDDL processing */
+	samdb_domain_sid(ldb);
+#endif
+
 	return ret;
 
 failed:
@@ -273,8 +347,8 @@ failed:
  */
 int handle_controls_reply(struct ldb_control **reply, struct ldb_control **request)
 {
-	int i, j;
-       	int ret = 0;
+	unsigned int i, j;
+	int ret = 0;
 
 	if (reply == NULL || request == NULL) return -1;
 	

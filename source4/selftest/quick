@@ -11,18 +11,15 @@ base.open
 base.chkpath
 raw.qfsinfo
 raw.qfileinfo
-raw.sfileinfo
 raw.mkdir
 raw.seek
 raw.open
 raw.write
-raw.unlink
 raw.read
 raw.close
 raw.ioctl
 raw.rename
 raw.eas
-raw.streams
 base.open 
 rpc.altercontext
 rpc.join
@@ -36,3 +33,4 @@ rpc.join
 rpc.handles
 rpc.echo
 smb.signing
+drs.unit

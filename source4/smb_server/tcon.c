@@ -22,23 +22,8 @@
 #include "includes.h"
 #include "smb_server/smb_server.h"
 #include "smbd/service_stream.h"
+#include "lib/tsocket/tsocket.h"
 #include "ntvfs/ntvfs.h"
-
-struct socket_address *smbsrv_get_my_addr(void *p, TALLOC_CTX *mem_ctx)
-{
-	struct smbsrv_connection *smb_conn = talloc_get_type(p,
-					     struct smbsrv_connection);
-
-	return socket_get_my_addr(smb_conn->connection->socket, mem_ctx);
-}
-
-struct socket_address *smbsrv_get_peer_addr(void *p, TALLOC_CTX *mem_ctx)
-{
-	struct smbsrv_connection *smb_conn = talloc_get_type(p,
-					     struct smbsrv_connection);
-
-	return socket_get_peer_addr(smb_conn->connection->socket, mem_ctx);
-}
 
 /****************************************************************************
 init the tcon structures
@@ -112,11 +97,12 @@ struct smbsrv_tcon *smbsrv_smb2_tcon_find(struct smbsrv_session *smb_sess,
 static int smbsrv_tcon_destructor(struct smbsrv_tcon *tcon)
 {
 	struct smbsrv_tcons_context *tcons_ctx;
-	struct socket_address *client_addr;
+	struct tsocket_address *client_addr;
 
-	client_addr = socket_get_peer_addr(tcon->smb_conn->connection->socket, tcon);
+	client_addr = tcon->smb_conn->connection->remote_address;
+
 	DEBUG(3,("%s closed connection to service %s\n",
-		 client_addr ? client_addr->addr : "(unknown)",
+		 tsocket_address_string(client_addr, tcon),
 		 tcon->share_name));
 
 	/* tell the ntvfs backend that we are disconnecting */

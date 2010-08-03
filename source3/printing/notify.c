@@ -21,6 +21,7 @@
 
 #include "includes.h"
 #include "printing.h"
+#include "librpc/gen_ndr/messaging.h"
 
 static TALLOC_CTX *send_ctx;
 
@@ -231,7 +232,7 @@ static void print_notify_event_send_messages(struct tevent_context *event_ctx,
 	TALLOC_FREE(notify_event);
 
 	change_to_root_user();
-	print_notify_send_messages(smbd_messaging_context(), 0);
+	print_notify_send_messages(server_messaging_context(), 0);
 }
 
 /**********************************************************************
@@ -325,9 +326,9 @@ to notify_queue_head\n", msg->type, msg->field, msg->printer));
 	DLIST_ADD_END(notify_queue_head, pnqueue, struct notify_queue *);
 	num_messages++;
 
-	if ((notify_event == NULL) && (smbd_event_context() != NULL)) {
+	if ((notify_event == NULL) && (server_event_context() != NULL)) {
 		/* Add an event for 1 second's time to send this queue. */
-		notify_event = tevent_add_timer(smbd_event_context(), NULL,
+		notify_event = tevent_add_timer(server_event_context(), NULL,
 					timeval_current_ofs(1,0),
 					print_notify_event_send_messages, NULL);
 	}
@@ -406,7 +407,7 @@ void notify_printer_status_byname(const char *sharename, uint32 status)
 
 void notify_printer_status(int snum, uint32 status)
 {
-	const char *sharename = SERVICE(snum); 
+	const char *sharename = lp_servicename(snum);
 
 	if (sharename)
 		notify_printer_status_byname(sharename, status);
@@ -469,54 +470,54 @@ void notify_job_submitted(const char *sharename, uint32 jobid,
 		jobid, sizeof(submitted), (char *)&submitted);
 }
 
-void notify_printer_driver(int snum, char *driver_name)
+void notify_printer_driver(int snum, const char *driver_name)
 {
-	const char *sharename = SERVICE(snum);
+	const char *sharename = lp_servicename(snum);
 
 	send_notify_field_buffer(
 		sharename, PRINTER_NOTIFY_TYPE, PRINTER_NOTIFY_FIELD_DRIVER_NAME,
 		snum, strlen(driver_name) + 1, driver_name);
 }
 
-void notify_printer_comment(int snum, char *comment)
+void notify_printer_comment(int snum, const char *comment)
 {
-	const char *sharename = SERVICE(snum);
+	const char *sharename = lp_servicename(snum);
 
 	send_notify_field_buffer(
 		sharename, PRINTER_NOTIFY_TYPE, PRINTER_NOTIFY_FIELD_COMMENT,
 		snum, strlen(comment) + 1, comment);
 }
 
-void notify_printer_sharename(int snum, char *share_name)
+void notify_printer_sharename(int snum, const char *share_name)
 {
-	const char *sharename = SERVICE(snum);
+	const char *sharename = lp_servicename(snum);
 
 	send_notify_field_buffer(
 		sharename, PRINTER_NOTIFY_TYPE, PRINTER_NOTIFY_FIELD_SHARE_NAME,
 		snum, strlen(share_name) + 1, share_name);
 }
 
-void notify_printer_printername(int snum, char *printername)
+void notify_printer_printername(int snum, const char *printername)
 {
-	const char *sharename = SERVICE(snum);
+	const char *sharename = lp_servicename(snum);
 
 	send_notify_field_buffer(
 		sharename, PRINTER_NOTIFY_TYPE, PRINTER_NOTIFY_FIELD_PRINTER_NAME,
 		snum, strlen(printername) + 1, printername);
 }
 
-void notify_printer_port(int snum, char *port_name)
+void notify_printer_port(int snum, const char *port_name)
 {
-	const char *sharename = SERVICE(snum);
+	const char *sharename = lp_servicename(snum);
 
 	send_notify_field_buffer(
 		sharename, PRINTER_NOTIFY_TYPE, PRINTER_NOTIFY_FIELD_PORT_NAME,
 		snum, strlen(port_name) + 1, port_name);
 }
 
-void notify_printer_location(int snum, char *location)
+void notify_printer_location(int snum, const char *location)
 {
-	const char *sharename = SERVICE(snum);
+	const char *sharename = lp_servicename(snum);
 
 	send_notify_field_buffer(
 		sharename, PRINTER_NOTIFY_TYPE, PRINTER_NOTIFY_FIELD_LOCATION,

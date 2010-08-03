@@ -58,7 +58,7 @@ static int rr_search_callback(struct ldb_request *req, struct ldb_reply *ares)
 {
 	struct ldb_context *ldb;
 	struct rr_context *ac;
-	int i, j;
+	unsigned int i, j;
 
 	ac = talloc_get_type(req->context, struct rr_context);
 	ldb = ldb_module_get_ctx(ac->module);
@@ -174,7 +174,7 @@ static int rr_search_callback(struct ldb_request *req, struct ldb_reply *ares)
 static int rr_search(struct ldb_module *module, struct ldb_request *req)
 {
 	struct ldb_context *ldb;
-	int i;
+	unsigned int i;
 	unsigned int start, end;
 	const char **new_attrs = NULL;
 	bool found_rr = false;
@@ -216,15 +216,14 @@ static int rr_search(struct ldb_module *module, struct ldb_request *req)
 					      (size_t)(p - new_attrs[i]));
 
 		if (!new_attrs[i]) {
-			ldb_oom(ldb);
-			return LDB_ERR_OPERATIONS_ERROR;
+			return ldb_oom(ldb);
 		}
 	}
 
 	if (found_rr) {
 		ac = rr_init_context(module, req);
 		if (!ac) {
-			return LDB_ERR_OPERATIONS_ERROR;
+			return ldb_operr(ldb);
 		}
 
 		ret = ldb_build_search_req_ex(&down_req, ldb, ac,
@@ -246,7 +245,7 @@ static int rr_search(struct ldb_module *module, struct ldb_request *req)
 	return ldb_next_request(module, req);
 }
 
-const struct ldb_module_ops ldb_ranged_results_module_ops = {
+_PUBLIC_ const struct ldb_module_ops ldb_ranged_results_module_ops = {
 	.name		   = "ranged_results",
 	.search            = rr_search,
 };

@@ -121,7 +121,8 @@ bool init_dptrs(struct smbd_server_connection *sconn)
 		return true;
 	}
 
-	sconn->smb1.searches.dptr_bmap = bitmap_allocate(MAX_DIRECTORY_HANDLES);
+	sconn->smb1.searches.dptr_bmap = bitmap_talloc(
+		sconn, MAX_DIRECTORY_HANDLES);
 
 	if (sconn->smb1.searches.dptr_bmap == NULL) {
 		return false;
@@ -153,8 +154,7 @@ static void dptr_idleoldest(struct smbd_server_connection *sconn)
 	/*
 	 * Go to the end of the list.
 	 */
-	for(dptr = sconn->smb1.searches.dirptrs; dptr && dptr->next; dptr = dptr->next)
-		;
+	dptr = DLIST_TAIL(sconn->smb1.searches.dirptrs);
 
 	if(!dptr) {
 		DEBUG(0,("No dptrs available to idle ?\n"));
@@ -165,7 +165,7 @@ static void dptr_idleoldest(struct smbd_server_connection *sconn)
 	 * Idle the oldest pointer.
 	 */
 
-	for(; dptr; dptr = dptr->prev) {
+	for(; dptr; dptr = DLIST_PREV(dptr)) {
 		if (dptr->dir_hnd) {
 			dptr_idle(dptr);
 			return;
@@ -260,7 +260,7 @@ static void dptr_close_internal(struct dptr_struct *dptr)
 	 * biased by one with respect to the bitmap.
 	 */
 
-	if(bitmap_query(sconn->smb1.searches.dptr_bmap, dptr->dnum - 1) != true) {
+	if (!bitmap_query(sconn->smb1.searches.dptr_bmap, dptr->dnum - 1)) {
 		DEBUG(0,("dptr_close_internal : Error - closing dnum = %d and bitmap not set !\n",
 			dptr->dnum ));
 	}
@@ -394,7 +394,7 @@ static void dptr_close_oldest(struct smbd_server_connection *sconn,
 	 * one of the new dnum handles.
 	 */
 
-	for(; dptr; dptr = dptr->prev) {
+	for(; dptr; dptr = DLIST_PREV(dptr)) {
 		if ((old && (dptr->dnum < 256) && !dptr->expect_close) ||
 			(!old && (dptr->dnum > 255))) {
 				dptr_close_internal(dptr);
@@ -1126,11 +1126,12 @@ static bool user_can_read_file(connection_struct *conn,
 			       struct smb_filename *smb_fname)
 {
 	/*
-	 * If user is a member of the Admin group
-	 * we never hide files from them.
+	 * Never hide files from the root user.
+	 * We use (uid_t)0 here not sec_initial_uid()
+	 * as make test uses a single user context.
 	 */
 
-	if (conn->admin_user) {
+	if (get_current_uid(conn) == (uid_t)0) {
 		return True;
 	}
 
@@ -1148,11 +1149,12 @@ static bool user_can_write_file(connection_struct *conn,
 				const struct smb_filename *smb_fname)
 {
 	/*
-	 * If user is a member of the Admin group
-	 * we never hide files from them.
+	 * Never hide files from the root user.
+	 * We use (uid_t)0 here not sec_initial_uid()
+	 * as make test uses a single user context.
 	 */
 
-	if (conn->admin_user) {
+	if (get_current_uid(conn) == (uid_t)0) {
 		return True;
 	}
 
@@ -1175,12 +1177,14 @@ static bool file_is_special(connection_struct *conn,
 			    const struct smb_filename *smb_fname)
 {
 	/*
-	 * If user is a member of the Admin group
-	 * we never hide files from them.
+	 * Never hide files from the root user.
+	 * We use (uid_t)0 here not sec_initial_uid()
+	 * as make test uses a single user context.
 	 */
 
-	if (conn->admin_user)
+	if (get_current_uid(conn) == (uid_t)0) {
 		return False;
+	}
 
 	SMB_ASSERT(VALID_STAT(smb_fname->st));
 
@@ -1222,14 +1226,6 @@ bool is_visible_file(connection_struct *conn, const char *dir_path,
 		entry = talloc_asprintf(talloc_tos(), "%s/%s", dir_path, name);
 		if (!entry) {
 			ret = false;
-			goto out;
-		}
-
-		/* If it's a dfs symlink, ignore _hide xxxx_ options */
-		if (lp_host_msdfs() &&
-				lp_msdfs_root(SNUM(conn)) &&
-				is_msdfs_link(conn, entry, NULL)) {
-			ret = true;
 			goto out;
 		}
 

@@ -21,26 +21,6 @@
 #include "includes.h"
 #include <tevent_internal.h>
 
-void event_fd_set_writeable(struct tevent_fd *fde)
-{
-	TEVENT_FD_WRITEABLE(fde);
-}
-
-void event_fd_set_not_writeable(struct tevent_fd *fde)
-{
-	TEVENT_FD_NOT_WRITEABLE(fde);
-}
-
-void event_fd_set_readable(struct tevent_fd *fde)
-{
-	TEVENT_FD_READABLE(fde);
-}
-
-void event_fd_set_not_readable(struct tevent_fd *fde)
-{
-	TEVENT_FD_NOT_READABLE(fde);
-}
-
 /*
  * Return if there's something in the queue
  */
@@ -210,12 +190,6 @@ static int s3_event_loop_once(struct tevent_context *ev, const char *location)
 
 	run_events(ev, ret, &r_fds, &w_fds);
 	return 0;
-}
-
-void event_context_reinit(struct tevent_context *ev)
-{
-	tevent_common_context_destructor(ev);
-	return;
 }
 
 static int s3_event_context_init(struct tevent_context *ev)

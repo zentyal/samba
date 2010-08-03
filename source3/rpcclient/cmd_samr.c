@@ -26,8 +26,10 @@
 #include "rpcclient.h"
 #include "../libcli/auth/libcli_auth.h"
 #include "../librpc/gen_ndr/cli_samr.h"
+#include "rpc_client/cli_samr.h"
+#include "rpc_client/init_samr.h"
 
-extern DOM_SID domain_sid;
+extern struct dom_sid domain_sid;
 
 /****************************************************************************
  display samr_user_info_7 structure
@@ -628,7 +630,7 @@ static NTSTATUS cmd_samr_query_useraliases(struct rpc_pipe_client *cli,
 {
 	struct policy_handle 		connect_pol, domain_pol;
 	NTSTATUS		result = NT_STATUS_UNSUCCESSFUL;
-	DOM_SID                *sids;
+	struct dom_sid                *sids;
 	size_t                     num_sids;
 	uint32			access_mask = MAXIMUM_ALLOWED_ACCESS;
 	int 			i;
@@ -644,7 +646,7 @@ static NTSTATUS cmd_samr_query_useraliases(struct rpc_pipe_client *cli,
 	num_sids = 0;
 
 	for (i=2; i<argc; i++) {
-		DOM_SID tmp_sid;
+		struct dom_sid tmp_sid;
 		if (!string_to_sid(&tmp_sid, argv[i])) {
 			printf("%s is not a legal SID\n", argv[i]);
 			return NT_STATUS_INVALID_PARAMETER;
@@ -2158,10 +2160,10 @@ static NTSTATUS cmd_samr_query_sec_obj(struct rpc_pipe_client *cli,
 {
 	struct policy_handle connect_pol, domain_pol, user_pol, *pol;
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
-	uint32 sec_info = DACL_SECURITY_INFORMATION;
+	uint32 sec_info = SECINFO_DACL;
 	uint32 user_rid = 0;
 	TALLOC_CTX *ctx = NULL;
-	SEC_DESC_BUF *sec_desc_buf=NULL;
+	struct sec_desc_buf *sec_desc_buf=NULL;
 	bool domain = False;
 
 	ctx=talloc_init("cmd_samr_query_sec_obj");
@@ -2337,7 +2339,7 @@ static NTSTATUS cmd_samr_lookup_domain(struct rpc_pipe_client *cli,
 	uint32 access_mask = MAXIMUM_ALLOWED_ACCESS;
 	fstring sid_string;
 	struct lsa_String domain_name;
-	DOM_SID *sid = NULL;
+	struct dom_sid *sid = NULL;
 
 	if (argc != 2) {
 		printf("Usage: %s domain_name\n", argv[0]);
@@ -2539,7 +2541,7 @@ static NTSTATUS cmd_samr_chgpasswd3(struct rpc_pipe_client *cli,
 	const char *user, *oldpass, *newpass;
 	uint32 access_mask = MAXIMUM_ALLOWED_ACCESS;
 	struct samr_DomInfo1 *info = NULL;
-	struct samr_ChangeReject *reject = NULL;
+	struct userPwdChangeFailureInformation *reject = NULL;
 
 	if (argc < 3) {
 		printf("Usage: %s username oldpass newpass\n", argv[0]);
@@ -2582,22 +2584,19 @@ static NTSTATUS cmd_samr_chgpasswd3(struct rpc_pipe_client *cli,
 
 		display_sam_dom_info_1(info);
 
-		switch (reject->reason) {
-			case SAMR_REJECT_TOO_SHORT:
-				d_printf("SAMR_REJECT_TOO_SHORT\n");
+		switch (reject->extendedFailureReason) {
+			case SAM_PWD_CHANGE_PASSWORD_TOO_SHORT:
+				d_printf("SAM_PWD_CHANGE_PASSWORD_TOO_SHORT\n");
 				break;
-			case SAMR_REJECT_IN_HISTORY:
-				d_printf("SAMR_REJECT_IN_HISTORY\n");
+			case SAM_PWD_CHANGE_PWD_IN_HISTORY:
+				d_printf("SAM_PWD_CHANGE_PWD_IN_HISTORY\n");
 				break;
-			case SAMR_REJECT_COMPLEXITY:
-				d_printf("SAMR_REJECT_COMPLEXITY\n");
-				break;
-			case SAMR_REJECT_OTHER:
-				d_printf("SAMR_REJECT_OTHER\n");
+			case SAM_PWD_CHANGE_NOT_COMPLEX:
+				d_printf("SAM_PWD_CHANGE_NOT_COMPLEX\n");
 				break;
 			default:
 				d_printf("unknown reject reason: %d\n",
-					reject->reason);
+					reject->extendedFailureReason);
 				break;
 		}
 	}

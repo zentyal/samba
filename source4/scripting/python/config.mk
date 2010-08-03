@@ -15,21 +15,32 @@ PRIVATE_DEPENDENCIES = LIBNDR
 
 python_uuid_OBJ_FILES = $(pyscriptsrcdir)/uuidmodule.o
 
-[PYTHON::python_glue]
-LIBRARY_REALNAME = samba/glue.$(SHLIBEXT)
+[PYTHON::python__glue]
+LIBRARY_REALNAME = samba/_glue.$(SHLIBEXT)
 PRIVATE_DEPENDENCIES = LIBNDR LIBLDB SAMDB CREDENTIALS pyldb python_dcerpc_misc python_dcerpc_security pyauth pyldb_util pyparam_util
 
-python_glue_OBJ_FILES = $(pyscriptsrcdir)/pyglue.o
+python__glue_OBJ_FILES = $(pyscriptsrcdir)/pyglue.o
 
-$(python_glue_OBJ_FILES): CFLAGS+=-I$(ldbsrcdir)
+$(python__glue_OBJ_FILES): CFLAGS+=-I$(ldbsrcdir)
 
-_PY_FILES = $(shell find $(pyscriptsrcdir)/samba ../lib/subunit/python -name "*.py")
+_PY_FILES = $(shell find $(pyscriptsrcdir)/samba -type f -name "*.py")
 
-$(eval $(foreach pyfile, $(_PY_FILES),$(call python_py_module_template,$(patsubst $(pyscriptsrcdir)/%,%,$(subst ../lib/subunit/python,,$(pyfile))),$(pyfile))))
+$(eval $(foreach pyfile, $(_PY_FILES),$(call python_py_module_template,$(patsubst $(pyscriptsrcdir)/%,%,$(pyfile)),$(pyfile))))
 
-EPYDOC_OPTIONS = --no-private --url http://www.samba.org/ --no-sourcecode
-
-epydoc:: pythonmods
-	PYTHONPATH=$(pythonbuilddir):../lib/subunit/python epydoc $(EPYDOC_OPTIONS) samba tdb ldb subunit
+PYDOCTOR = pydoctor
+PYDOCTOR_OPTIONS = --project-name Samba --project-url http://www.samba.org/ \
+	--make-html
+pydoctor:: pythonmods
+	LD_LIBRARY_PATH=bin/shared PYTHONPATH=$(pythonbuilddir) pydoctor --project-name=Samba --project-url=http://www.samba.org/ --make-html --docformat=restructuredtext $(addprefix --add-package $(pythonbuilddir)/, samba)
 
 install:: installpython
+
+PYFLAKES = pyflakes
+
+pyflakes::
+	$(PYFLAKES) $(pyscriptsrcdir)/samba
+
+PYLINT = pylint
+
+pylint:: pythonmods
+	PYTHONPATH=$(pyscriptsrcdir) $(PYLINT) -f parseable samba

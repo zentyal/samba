@@ -243,13 +243,13 @@ static bool querymultiplevalues_in_check(struct torture_context *tctx,
 					 struct winreg_QueryMultipleValues *r)
 {
 	torture_assert_int_equal(tctx, r->in.num_values, 1, "num values");
-	torture_assert_str_equal(tctx, r->in.values[0].name->name, "HOMEPATH", 
-							 "name");
-
-	torture_assert_int_equal(tctx, r->in.values[0].type, 0, "type");
-	torture_assert_int_equal(tctx, r->in.values[0].offset, 0, "offset");
-	torture_assert_int_equal(tctx, r->in.values[0].length, 0, "length");
-	torture_assert_int_equal(tctx, *r->in.buffer_size, 76, "buffer size");
+	torture_assert_str_equal(tctx, r->in.values_in[0].ve_valuename->name, "HOMEPATH", "name");
+	torture_assert_int_equal(tctx, r->in.values_in[0].ve_valuename->length, 18, "name len");
+	torture_assert_int_equal(tctx, r->in.values_in[0].ve_valuename->size, 18, "name size");
+	torture_assert_int_equal(tctx, r->in.values_in[0].ve_valuelen, 0, "length");
+	torture_assert(tctx, (r->in.values_in[0].ve_valueptr == NULL), "ve_valueptr");
+	torture_assert_int_equal(tctx, r->in.values_in[0].ve_type, 0, "type");
+	torture_assert_int_equal(tctx, *r->in.buffer_size, 32, "buffer size");
 
 	return true;
 }
@@ -274,17 +274,54 @@ static const uint8_t querymultiplevalues_out_data[] = {
 static bool querymultiplevalues_out_check(struct torture_context *tctx, 
 					  struct winreg_QueryMultipleValues *r)
 {
-	torture_assert_str_equal(tctx, r->out.values[0].name->name, "HOMEPATH", 
-							 "name");
-
-	torture_assert_int_equal(tctx, r->out.values[0].type, 0, "type");
-	torture_assert_int_equal(tctx, r->out.values[0].offset, 0, "offset");
-	torture_assert_int_equal(tctx, r->out.values[0].length, 0, "length");
+	torture_assert_str_equal(tctx, r->out.values_out[0].ve_valuename->name, "HOMEPATH", "name");
+	torture_assert_int_equal(tctx, r->out.values_out[0].ve_type, 0, "type");
+	torture_assert_int_equal(tctx, r->out.values_out[0].ve_valuelen, 0, "length");
 	/* FIXME: r->out.buffer */
 	torture_assert_int_equal(tctx, *r->out.buffer_size, 76, "buffer size");
-	torture_assert_werr_equal(tctx, r->out.result, WERR_MORE_DATA, 
-								  "return code");
+	torture_assert_werr_equal(tctx, r->out.result, WERR_MORE_DATA, "return code");
 
+	return true;
+}
+
+const uint8_t querymultiplevalues2_in_data[] = {
+	0x00, 0x00, 0x00, 0x00, 0x98, 0xe4, 0xdf, 0x3c, 0x70, 0xde, 0x69, 0x4a,
+	0x90, 0xb4, 0x85, 0x36, 0x33, 0x79, 0x89, 0x32, 0x01, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x0a, 0x00, 0x0a, 0x00, 0x04, 0x00, 0x02, 0x00, 0x05, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x54, 0x00, 0x45, 0x00,
+	0x4d, 0x00, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+static bool querymultiplevalues2_in_check(struct torture_context *tctx,
+					  struct winreg_QueryMultipleValues2 *r)
+{
+	torture_assert_int_equal(tctx, r->in.num_values, 1, "num values");
+	torture_assert_str_equal(tctx, r->in.values_in[0].ve_valuename->name, "TEMP", "name");
+	torture_assert_int_equal(tctx, r->in.values_in[0].ve_valuename->length, 10, "name len");
+	torture_assert_int_equal(tctx, r->in.values_in[0].ve_valuename->size, 10, "name size");
+	torture_assert_int_equal(tctx, r->in.values_in[0].ve_valuelen, 0, "length");
+	torture_assert(tctx, (r->in.values_in[0].ve_valueptr == NULL), "ve_valueptr");
+	torture_assert_int_equal(tctx, r->in.values_in[0].ve_type, 0, "type");
+	torture_assert_int_equal(tctx, *r->in.offered, 0, "buffer size");
+
+	return true;
+}
+
+const uint8_t querymultiplevalues2_out_data[] = {
+	0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x0a, 0x00, 0x04, 0x00, 0x02, 0x00,
+	0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00,
+	0x54, 0x00, 0x45, 0x00, 0x4d, 0x00, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x42, 0x00, 0x00, 0x00, 0xea, 0x00, 0x00, 0x00
+};
+
+static bool querymultiplevalues2_out_check(struct torture_context *tctx,
+					   struct winreg_QueryMultipleValues2 *r)
+{
 	return true;
 }
 
@@ -323,7 +360,7 @@ static const uint8_t openkey_in_data[] = {
 
 static bool openkey_in_check(struct torture_context *tctx, struct winreg_OpenKey *r)
 {
-	torture_assert_int_equal(tctx, r->in.unknown, 0, "unknown");
+	torture_assert_int_equal(tctx, r->in.options, 0, "unknown");
 	torture_assert_int_equal(tctx, r->in.access_mask, 0x02000000, "access mask");
 	torture_assert_str_equal(tctx, r->in.keyname.name, "spottyfoot", "keyname");
 	/* FIXME: parent handle */
@@ -543,8 +580,15 @@ struct torture_suite *ndr_winreg_suite(TALLOC_CTX *ctx)
 	torture_suite_add_ndr_pull_fn_test(suite, winreg_QueryValue, queryvalue_in_data, NDR_IN, queryvalue_in_check );
 	torture_suite_add_ndr_pull_fn_test(suite, winreg_QueryValue, queryvalue_out_data, NDR_OUT, queryvalue_out_check );
 
-	/*torture_suite_add_ndr_pull_fn_test(suite, winreg_QueryMultipleValues, querymultiplevalues_in_data, NDR_IN, querymultiplevalues_in_check );
-	torture_suite_add_ndr_pull_fn_test(suite, winreg_QueryMultipleValues, querymultiplevalues_out_data, NDR_OUT, querymultiplevalues_out_check );*/
+	torture_suite_add_ndr_pull_fn_test(suite, winreg_QueryMultipleValues, querymultiplevalues_in_data, NDR_IN, querymultiplevalues_in_check );
+	/* we cannot do this as long we don't have the ability to bring in
+	 * r->in.num_values */
+/*	torture_suite_add_ndr_pull_fn_test(suite, winreg_QueryMultipleValues, querymultiplevalues_out_data, NDR_OUT, querymultiplevalues_out_check ); */
+
+	torture_suite_add_ndr_pull_fn_test(suite, winreg_QueryMultipleValues2, querymultiplevalues2_in_data, NDR_IN, querymultiplevalues2_in_check );
+	/* we cannot do this as long we don't have the ability to bring in
+	 * r->in.num_values */
+/*	torture_suite_add_ndr_pull_fn_test(suite, winreg_QueryMultipleValues2, querymultiplevalues2_out_data, NDR_OUT, querymultiplevalues2_out_check ); */
 
 	torture_suite_add_ndr_pull_fn_test(suite, winreg_FlushKey, flushkey_in_data, NDR_IN, flushkey_in_check );
 	torture_suite_add_ndr_pull_fn_test(suite, winreg_FlushKey, flushkey_out_data, NDR_OUT, flushkey_out_check );

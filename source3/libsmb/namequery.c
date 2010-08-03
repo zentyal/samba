@@ -19,6 +19,9 @@
 */
 
 #include "includes.h"
+#include "libads/sitename_cache.h"
+#include "libads/dns.h"
+#include "../libcli/netlogon.h"
 
 /* nmbd.c sets this to True. */
 bool global_in_nmbd = False;
@@ -433,16 +436,16 @@ bool name_status_find(const char *q_name,
   comparison function used by sort_addr_list
 */
 
-static int addr_compare(const struct sockaddr *ss1,
-		const struct sockaddr *ss2)
+static int addr_compare(const struct sockaddr_storage *ss1,
+			const struct sockaddr_storage *ss2)
 {
 	int max_bits1=0, max_bits2=0;
 	int num_interfaces = iface_count();
 	int i;
 
 	/* Sort IPv4 addresses first. */
-	if (ss1->sa_family != ss2->sa_family) {
-		if (ss2->sa_family == AF_INET) {
+	if (ss1->ss_family != ss2->ss_family) {
+		if (ss2->ss_family == AF_INET) {
 			return 1;
 		} else {
 			return -1;
@@ -460,7 +463,7 @@ static int addr_compare(const struct sockaddr *ss1,
 		size_t len = 0;
 		int bits1, bits2;
 
-		if (pss->ss_family != ss1->sa_family) {
+		if (pss->ss_family != ss1->ss_family) {
 			/* Ignore interfaces of the wrong type. */
 			continue;
 		}
@@ -494,15 +497,15 @@ static int addr_compare(const struct sockaddr *ss1,
 	}
 
 	/* Bias towards directly reachable IPs */
-	if (iface_local(ss1)) {
-		if (ss1->sa_family == AF_INET) {
+	if (iface_local((struct sockaddr *)ss1)) {
+		if (ss1->ss_family == AF_INET) {
 			max_bits1 += 32;
 		} else {
 			max_bits1 += 128;
 		}
 	}
-	if (iface_local(ss2)) {
-		if (ss2->sa_family == AF_INET) {
+	if (iface_local((struct sockaddr *)ss2)) {
+		if (ss2->ss_family == AF_INET) {
 			max_bits2 += 32;
 		} else {
 			max_bits2 += 128;
@@ -519,7 +522,7 @@ int ip_service_compare(struct ip_service *ss1, struct ip_service *ss2)
 {
 	int result;
 
-	if ((result = addr_compare((struct sockaddr *)&ss1->ss, (struct sockaddr *)&ss2->ss)) != 0) {
+	if ((result = addr_compare(&ss1->ss, &ss2->ss)) != 0) {
 		return result;
 	}
 
@@ -546,8 +549,7 @@ static void sort_addr_list(struct sockaddr_storage *sslist, int count)
 		return;
 	}
 
-	qsort(sslist, count, sizeof(struct sockaddr_storage),
-			QSORT_CAST addr_compare);
+	TYPESAFE_QSORT(sslist, count, addr_compare);
 }
 
 static void sort_service_list(struct ip_service *servlist, int count)
@@ -556,8 +558,7 @@ static void sort_service_list(struct ip_service *servlist, int count)
 		return;
 	}
 
-	qsort(servlist, count, sizeof(struct ip_service),
-			QSORT_CAST ip_service_compare);
+	TYPESAFE_QSORT(servlist, count, ip_service_compare);
 }
 
 /**********************************************************************
@@ -1103,11 +1104,7 @@ static NTSTATUS resolve_lmhosts(const char *name, int name_type,
 	/*
 	 * "lmhosts" means parse the local lmhosts file.
 	 */
-
-	XFILE *fp;
-	char *lmhost_name = NULL;
-	int name_type2;
-	struct sockaddr_storage return_ss;
+	struct sockaddr_storage *ss_list;
 	NTSTATUS status = NT_STATUS_DOMAIN_CONTROLLER_NOT_FOUND;
 	TALLOC_CTX *ctx = NULL;
 
@@ -1118,54 +1115,28 @@ static NTSTATUS resolve_lmhosts(const char *name, int name_type,
 		"Attempting lmhosts lookup for name %s<0x%x>\n",
 		name, name_type));
 
-	fp = startlmhosts(get_dyn_LMHOSTSFILE());
-
-	if ( fp == NULL )
-		return NT_STATUS_NO_SUCH_FILE;
-
 	ctx = talloc_init("resolve_lmhosts");
 	if (!ctx) {
-		endlmhosts(fp);
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	while (getlmhostsent(ctx, fp, &lmhost_name, &name_type2, &return_ss)) {
-
-		if (!strequal(name, lmhost_name)) {
-			TALLOC_FREE(lmhost_name);
-			continue;
-		}
-
-		if ((name_type2 != -1) && (name_type != name_type2)) {
-			TALLOC_FREE(lmhost_name);
-			continue;
-		}
-
-		*return_iplist = SMB_REALLOC_ARRAY((*return_iplist),
-					struct ip_service,
-					(*return_count)+1);
-
-		if ((*return_iplist) == NULL) {
-			TALLOC_FREE(ctx);
-			endlmhosts(fp);
-			DEBUG(3,("resolve_lmhosts: malloc fail !\n"));
+	status = resolve_lmhosts_file_as_sockaddr(get_dyn_LMHOSTSFILE(), 
+						  name, name_type, 
+						  ctx, 
+						  &ss_list, 
+						  return_count);
+	if (NT_STATUS_IS_OK(status)) {
+		if (convert_ss2service(return_iplist, 
+				       ss_list,
+				       *return_count)) {
+			talloc_free(ctx);
+			return NT_STATUS_OK;
+		} else {
+			talloc_free(ctx);
 			return NT_STATUS_NO_MEMORY;
 		}
-
-		(*return_iplist)[*return_count].ss = return_ss;
-		(*return_iplist)[*return_count].port = PORT_NONE;
-		*return_count += 1;
-
-		/* we found something */
-		status = NT_STATUS_OK;
-
-		/* Multiple names only for DC lookup */
-		if (name_type != 0x1c)
-			break;
 	}
-
-	TALLOC_FREE(ctx);
-	endlmhosts(fp);
+	talloc_free(ctx);
 	return status;
 }
 

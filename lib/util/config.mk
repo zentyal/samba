@@ -49,6 +49,8 @@ PUBLIC_HEADERS += $(addprefix $(libutilsrcdir)/, util.h \
 				 time.h \
 				 util_ldb.h \
 				 talloc_stack.h \
+				 tevent_ntstatus.h \
+				 tevent_unix.h	\
 				 xfile.h)
 
 [SUBSYSTEM::ASN1_UTIL]
@@ -88,3 +90,8 @@ UTIL_TEVENT_OBJ_FILES = $(addprefix $(libutilsrcdir)/, \
 PUBLIC_DEPENDENCIES = LIBLDB
 
 UTIL_LDB_OBJ_FILES = $(libutilsrcdir)/util_ldb.o
+
+[SUBSYSTEM::UTIL_RUNCMD]
+PUBLIC_DEPENDENCIES = LIBTEVENT
+
+UTIL_RUNCMD_OBJ_FILES = $(libutilsrcdir)/util_runcmd.o

@@ -23,9 +23,12 @@
  * Thanks Nigel!
  ***********************************************************/
 
+#include "registry/reg_parse_prs.h"
 
 #ifndef _REGFIO_H
 #define _REGFIO_H
+
+struct regsubkey_ctr;
 
 /* Macros */
  
@@ -127,7 +130,7 @@ typedef struct _regf_sk_rec {
 	uint32 next_sk_off;
 	uint32 ref_count;
 	uint32 size;
-	SEC_DESC *sec_desc;
+	struct security_descriptor *sec_desc;
 } REGF_SK_REC;
 
 /* Key Name */ 
@@ -215,7 +218,7 @@ REGF_NK_REC*  regfio_rootkey( REGF_FILE *file );
 REGF_NK_REC*  regfio_fetch_subkey( REGF_FILE *file, REGF_NK_REC *nk );
 REGF_NK_REC*  regfio_write_key ( REGF_FILE *file, const char *name,
                                  struct regval_ctr *values, struct regsubkey_ctr *subkeys,
-                                 SEC_DESC *sec_desc, REGF_NK_REC *parent );
+                                 struct security_descriptor *sec_desc, REGF_NK_REC *parent );
 
 
 #endif	/* _REGFIO_H */

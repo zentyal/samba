@@ -2,6 +2,7 @@
  * Simulate the Posix AIO using mmap/fork
  *
  * Copyright (C) Volker Lendecke 2008
+ * Copyright (C) Jeremy Allison 2010
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -343,8 +344,11 @@ static void aio_child_loop(int sockfd, struct mmap_area *map)
 			ret_struct.size = sys_pread(
 				fd, (void *)map->ptr, cmd_struct.n,
 				cmd_struct.offset);
+#if 0
+/* This breaks "make test" when run with aio_fork module. */
 #ifdef ENABLE_BUILD_FARM_HACKS
 			ret_struct.size = MAX(1, ret_struct.size * 0.9);
+#endif
 #endif
 		}
 		else {
@@ -382,8 +386,8 @@ static void handle_aio_completion(struct event_context *event_ctx,
 				  struct fd_event *event, uint16 flags,
 				  void *p)
 {
+	struct aio_extra *aio_ex = NULL;
 	struct aio_child *child = (struct aio_child *)p;
-	uint16 mid;
 
 	DEBUG(10, ("handle_aio_completion called with flags=%d\n", flags));
 
@@ -411,11 +415,8 @@ static void handle_aio_completion(struct event_context *event_ctx,
 		       child->retval.size);
 	}
 
-	mid = child->aiocb->aio_sigevent.sigev_value.sival_int;
-
-	DEBUG(10, ("mid %d finished\n", (int)mid));
-
-	smbd_aio_complete_mid(mid);
+	aio_ex = (struct aio_extra *)child->aiocb->aio_sigevent.sigev_value.sival_ptr;
+	smbd_aio_complete_aio_ex(aio_ex);
 }
 
 static int aio_child_destructor(struct aio_child *child)
@@ -479,7 +480,7 @@ static NTSTATUS create_aio_child(struct aio_child_list *children,
 	if (result->pid == 0) {
 		close(fdpair[0]);
 		result->sockfd = fdpair[1];
-		file_walk_table(close_fsp_fd, NULL);
+		files_forall(close_fsp_fd, NULL);
 		aio_child_loop(result->sockfd, result->map);
 	}
 
@@ -726,12 +727,133 @@ static int aio_fork_error_fn(struct vfs_handle_struct *handle,
 	return child->retval.ret_errno;
 }
 
+static void aio_fork_suspend_timed_out(struct tevent_context *event_ctx,
+					struct tevent_timer *te,
+					struct timeval now,
+					void *private_data)
+{
+	bool *timed_out = (bool *)private_data;
+	/* Remove this timed event handler. */
+	TALLOC_FREE(te);
+	*timed_out = true;
+}
+
+static int aio_fork_suspend(struct vfs_handle_struct *handle,
+			struct files_struct *fsp,
+			const SMB_STRUCT_AIOCB * const aiocb_array[],
+			int n,
+			const struct timespec *timeout)
+{
+	struct aio_child_list *children = NULL;
+	TALLOC_CTX *frame = talloc_stackframe();
+	struct event_context *ev = NULL;
+	int i;
+	int ret = -1;
+	bool timed_out = false;
+
+	children = init_aio_children(handle);
+	if (children == NULL) {
+		errno = EINVAL;
+		goto out;
+	}
+
+	/* This is a blocking call, and has to use a sub-event loop. */
+	ev = event_context_init(frame);
+	if (ev == NULL) {
+		errno = ENOMEM;
+		goto out;
+	}
+
+	if (timeout) {
+		struct timeval tv = convert_timespec_to_timeval(*timeout);
+		struct tevent_timer *te = tevent_add_timer(ev,
+						frame,
+						timeval_current_ofs(tv.tv_sec,
+								    tv.tv_usec),
+						aio_fork_suspend_timed_out,
+						&timed_out);
+		if (!te) {
+			errno = ENOMEM;
+			goto out;
+		}
+	}
+
+	for (i = 0; i < n; i++) {
+		struct aio_child *child = NULL;
+		const SMB_STRUCT_AIOCB *aiocb = aiocb_array[i];
+
+		if (!aiocb) {
+			continue;
+		}
+
+		/*
+		 * We're going to cheat here. We know that smbd/aio.c
+		 * only calls this when it's waiting for every single
+		 * outstanding call to finish on a close, so just wait
+		 * individually for each IO to complete. We don't care
+		 * what order they finish - only that they all do. JRA.
+		 */
+
+		for (child = children->children; child != NULL; child = child->next) {
+			if (child->aiocb == NULL) {
+				continue;
+			}
+			if (child->aiocb->aio_fildes != fsp->fh->fd) {
+				continue;
+			}
+			if (child->aiocb != aiocb) {
+				continue;
+			}
+
+			if (child->aiocb->aio_sigevent.sigev_value.sival_ptr == NULL) {
+				continue;
+			}
+
+			/* We're never using this event on the
+			 * main event context again... */
+			TALLOC_FREE(child->sock_event);
+
+			child->sock_event = event_add_fd(ev,
+						child,
+						child->sockfd,
+						EVENT_FD_READ,
+						handle_aio_completion,
+						child);
+
+			while (1) {
+				if (tevent_loop_once(ev) == -1) {
+					goto out;
+				}
+
+				if (timed_out) {
+					errno = EAGAIN;
+					goto out;
+				}
+
+				/* We set child->aiocb to NULL in our hooked
+				 * AIO_RETURN(). */
+				if (child->aiocb == NULL) {
+					break;
+				}
+			}
+		}
+	}
+
+	ret = 0;
+
+  out:
+
+	TALLOC_FREE(frame);
+	return ret;
+}
+
 static struct vfs_fn_pointers vfs_aio_fork_fns = {
 	.aio_read = aio_fork_read,
 	.aio_write = aio_fork_write,
 	.aio_return_fn = aio_fork_return_fn,
 	.aio_cancel = aio_fork_cancel,
 	.aio_error_fn = aio_fork_error_fn,
+	.aio_suspend = aio_fork_suspend,
 };
 
 NTSTATUS vfs_aio_fork_init(void);

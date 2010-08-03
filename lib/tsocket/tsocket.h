@@ -101,6 +101,7 @@ struct iovec;
  *
  * @return              The address as a string representation, NULL on error.
  *
+ * @see tsocket_address_is_inet()
  * @see tsocket_address_inet_addr_string()
  * @see tsocket_address_inet_port()
  */
@@ -486,6 +487,20 @@ int tstream_disconnect_recv(struct tevent_req *req,
  * @{
  */
 
+/**
+ * @brief Find out if the tsocket_address represents an ipv4 or ipv6 endpoint.
+ *
+ * @param[in]  addr     The tsocket_address pointer
+ *
+ * @param[in]  fam      The family can be can be "ipv4", "ipv6" or "ip". With
+ *                      "ip" is autodetects "ipv4" or "ipv6" based on the
+ *                      addr.
+ *
+ * @return              true if addr represents an address of the given family,
+ *                      otherwise false.
+ */
+bool tsocket_address_is_inet(const struct tsocket_address *addr, const char *fam);
+
 #if DOXYGEN
 /**
  * @brief Create a tsocket_address for ipv4 and ipv6 endpoint addresses.
@@ -533,6 +548,8 @@ int _tsocket_address_inet_from_strings(TALLOC_CTX *mem_ctx,
  *
  * @return              A newly allocated string of the address, NULL on error
  *                      with errno set.
+ *
+ * @see tsocket_address_is_inet()
  */
 char *tsocket_address_inet_addr_string(const struct tsocket_address *addr,
 				       TALLOC_CTX *mem_ctx);
@@ -558,6 +575,16 @@ uint16_t tsocket_address_inet_port(const struct tsocket_address *addr);
 int tsocket_address_inet_set_port(struct tsocket_address *addr,
 				  uint16_t port);
 
+/**
+ * @brief Find out if the tsocket_address represents an unix domain endpoint.
+ *
+ * @param[in]  addr     The tsocket_address pointer
+ *
+ * @return              true if addr represents an unix domain endpoint,
+ *                      otherwise false.
+ */
+bool tsocket_address_is_unix(const struct tsocket_address *addr);
+
 #ifdef DOXYGEN
 /**
  * @brief Create a tsocket_address for a unix domain endpoint addresses.
@@ -569,6 +596,8 @@ int tsocket_address_inet_set_port(struct tsocket_address *addr,
  * @param[in]  _addr    The tsocket_address pointer to store the information.
  *
  * @return              0 on success, -1 on error with errno set.
+ *
+ * @see tsocket_address_is_unix()
  */
 int tsocket_address_unix_from_path(TALLOC_CTX *mem_ctx,
 				   const char *path,
@@ -873,16 +902,26 @@ ssize_t tsocket_address_bsd_sockaddr(const struct tsocket_address *addr,
  * for anything else. The file descriptor will be closed when the stream gets
  * freed. If you still want to use the fd you have have to create a duplicate.
  *
- * @param[in]  mem_ctx      The talloc memory context to use.
+ * @param[in]  mem_ctx  The talloc memory context to use.
  *
- * @param[in]  fd           The non blocking fd to use!
+ * @param[in]  fd       The non blocking fd to use!
  *
- * @param[in]  stream       The filed tstream_context you allocated before.
+ * @param[out] stream   A pointer to store an allocated tstream_context.
  *
- * @return              0 on success, -1 on error with errno set.
+ * @return              0 on success, -1 on error.
  *
- * @warning You should read the tsocket_bsd.c code and unterstand it in order
- * use this function.
+ * Example:
+ * @code
+ *   fd2 = dup(fd);
+ *   rc = tstream_bsd_existing_socket(mem_ctx, fd2, &tstream);
+ *   if (rc < 0) {
+ *     stream_terminate_connection(conn, "named_pipe_accept: out of memory");
+ *     return;
+ *   }
+ * @endcode
+ *
+ * @warning This is an internal function. You should read the code to fully
+ *          understand it if you plan to use it.
  */
 int tstream_bsd_existing_socket(TALLOC_CTX *mem_ctx,
 				int fd,

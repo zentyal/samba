@@ -28,6 +28,7 @@
 #include "librpc/gen_ndr/ndr_drsblobs.h"
 #include "librpc/gen_ndr/ndr_lsa.h"
 #include "../lib/crypto/crypto.h"
+#include "lib/util/tsort.h"
 
 /*
   this type allows us to distinguish handle types
@@ -80,7 +81,7 @@ static NTSTATUS dcesrv_build_lsa_sd(TALLOC_CTX *mem_ctx,
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 
 	status = dom_sid_split_rid(tmp_ctx, sid, &domain_sid, &rid);
-	NT_STATUS_NOT_OK_RETURN(status);
+	NT_STATUS_NOT_OK_RETURN_AND_FREE(status, tmp_ctx);
 
 	domain_admins_sid = dom_sid_add_rid(tmp_ctx, domain_sid, DOMAIN_RID_ADMINS);
 	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(domain_admins_sid, tmp_ctx);
@@ -179,37 +180,37 @@ static NTSTATUS dcesrv_lsa_DeleteObject(struct dcesrv_call_state *dce_call, TALL
 		struct lsa_secret_state *secret_state = h->data;
 
 		/* Ensure user is permitted to delete this... */
-		switch (security_session_user_level(dce_call->conn->auth_state.session_info))
+		switch (security_session_user_level(dce_call->conn->auth_state.session_info, NULL))
 		{
 		case SECURITY_SYSTEM:
 		case SECURITY_ADMINISTRATOR:
 			break;
 		default:
-			/* Users and annonymous are not allowed delete things */
+			/* Users and anonymous are not allowed to delete things */
 			return NT_STATUS_ACCESS_DENIED;
 		}
 
 		ret = ldb_delete(secret_state->sam_ldb, 
 				 secret_state->secret_dn);
-		talloc_free(h);
-		if (ret != 0) {
+		if (ret != LDB_SUCCESS) {
 			return NT_STATUS_INVALID_HANDLE;
 		}
 
 		ZERO_STRUCTP(r->out.handle);
 
 		return NT_STATUS_OK;
+
 	} else if (h->wire_handle.handle_type == LSA_HANDLE_TRUSTED_DOMAIN) {
 		struct lsa_trusted_domain_state *trusted_domain_state = 
 			talloc_get_type(h->data, struct lsa_trusted_domain_state);
 		ret = ldb_transaction_start(trusted_domain_state->policy->sam_ldb);
-		if (ret != 0) {
+		if (ret != LDB_SUCCESS) {
 			return NT_STATUS_INTERNAL_DB_CORRUPTION;
 		}
 
 		ret = ldb_delete(trusted_domain_state->policy->sam_ldb, 
 				 trusted_domain_state->trusted_domain_dn);
-		if (ret != 0) {
+		if (ret != LDB_SUCCESS) {
 			ldb_transaction_cancel(trusted_domain_state->policy->sam_ldb);
 			return NT_STATUS_INVALID_HANDLE;
 		}
@@ -217,20 +218,21 @@ static NTSTATUS dcesrv_lsa_DeleteObject(struct dcesrv_call_state *dce_call, TALL
 		if (trusted_domain_state->trusted_domain_user_dn) {
 			ret = ldb_delete(trusted_domain_state->policy->sam_ldb, 
 					 trusted_domain_state->trusted_domain_user_dn);
-			if (ret != 0) {
+			if (ret != LDB_SUCCESS) {
 				ldb_transaction_cancel(trusted_domain_state->policy->sam_ldb);
 				return NT_STATUS_INVALID_HANDLE;
 			}
 		}
 
 		ret = ldb_transaction_commit(trusted_domain_state->policy->sam_ldb);
-		if (ret != 0) {
+		if (ret != LDB_SUCCESS) {
 			return NT_STATUS_INTERNAL_DB_CORRUPTION;
 		}
-		talloc_free(h);
+
 		ZERO_STRUCTP(r->out.handle);
 
 		return NT_STATUS_OK;
+
 	} else if (h->wire_handle.handle_type == LSA_HANDLE_ACCOUNT) {
 		struct lsa_RightSet *rights;
 		struct lsa_account_state *astate;
@@ -271,6 +273,8 @@ static NTSTATUS dcesrv_lsa_DeleteObject(struct dcesrv_call_state *dce_call, TALL
 		}
 
 		ZERO_STRUCTP(r->out.handle);
+
+		return NT_STATUS_OK;
 	} 
 	
 	return NT_STATUS_INVALID_HANDLE;
@@ -285,7 +289,7 @@ static NTSTATUS dcesrv_lsa_EnumPrivs(struct dcesrv_call_state *dce_call, TALLOC_
 {
 	struct dcesrv_handle *h;
 	struct lsa_policy_state *state;
-	int i;
+	uint32_t i;
 	const char *privname;
 
 	DCESRV_PULL_HANDLE(h, r->in.handle, LSA_HANDLE_POLICY);
@@ -406,7 +410,7 @@ static WERROR dcesrv_dssetup_DsRoleGetPrimaryDomainInformation(struct dcesrv_cal
 
 		ZERO_STRUCT(domain_guid);
 
-		switch (lp_server_role(dce_call->conn->dce_ctx->lp_ctx)) {
+		switch (lpcfg_server_role(dce_call->conn->dce_ctx->lp_ctx)) {
 		case ROLE_STANDALONE:
 			role		= DS_ROLE_STANDALONE_SERVER;
 			break;
@@ -422,13 +426,13 @@ static WERROR dcesrv_dssetup_DsRoleGetPrimaryDomainInformation(struct dcesrv_cal
 			break;
 		}
 
-		switch (lp_server_role(dce_call->conn->dce_ctx->lp_ctx)) {
+		switch (lpcfg_server_role(dce_call->conn->dce_ctx->lp_ctx)) {
 		case ROLE_STANDALONE:
-			domain		= talloc_strdup(mem_ctx, lp_workgroup(dce_call->conn->dce_ctx->lp_ctx));
+			domain		= talloc_strdup(mem_ctx, lpcfg_workgroup(dce_call->conn->dce_ctx->lp_ctx));
 			W_ERROR_HAVE_NO_MEMORY(domain);
 			break;
 		case ROLE_DOMAIN_MEMBER:
-			domain		= talloc_strdup(mem_ctx, lp_workgroup(dce_call->conn->dce_ctx->lp_ctx));
+			domain		= talloc_strdup(mem_ctx, lpcfg_workgroup(dce_call->conn->dce_ctx->lp_ctx));
 			W_ERROR_HAVE_NO_MEMORY(domain);
 			/* TODO: what is with dns_domain and forest and guid? */
 			break;
@@ -476,8 +480,6 @@ static WERROR dcesrv_dssetup_DsRoleGetPrimaryDomainInformation(struct dcesrv_cal
 	default:
 		return WERR_INVALID_PARAM;
 	}
-
-	return WERR_INVALID_PARAM;
 }
 
 /*
@@ -549,7 +551,6 @@ static NTSTATUS dcesrv_lsa_QueryInfoPolicy2(struct dcesrv_call_state *dce_call, 
 		return dcesrv_lsa_info_AccountDomain(state, mem_ctx, &info->account_domain);
 	case LSA_POLICY_INFO_L_ACCOUNT_DOMAIN:
 		return dcesrv_lsa_info_AccountDomain(state, mem_ctx, &info->l_account_domain);
-
 
 	case LSA_POLICY_INFO_ROLE:
 		info->role.role = LSA_ROLE_PRIMARY;
@@ -682,10 +683,10 @@ static NTSTATUS dcesrv_lsa_EnumAccounts(struct dcesrv_call_state *dce_call, TALL
 {
 	struct dcesrv_handle *h;
 	struct lsa_policy_state *state;
-	int ret, i;
+	int ret;
 	struct ldb_message **res;
 	const char * const attrs[] = { "objectSid", NULL};
-	uint32_t count;
+	uint32_t count, i;
 
 	DCESRV_PULL_HANDLE(h, r->in.handle, LSA_HANDLE_POLICY);
 
@@ -694,10 +695,10 @@ static NTSTATUS dcesrv_lsa_EnumAccounts(struct dcesrv_call_state *dce_call, TALL
 	/* NOTE: This call must only return accounts that have at least
 	   one privilege set 
 	*/
-	ret = gendb_search(state->sam_ldb, mem_ctx, NULL, &res, attrs, 
+	ret = gendb_search(state->pdb, mem_ctx, NULL, &res, attrs, 
 			   "(&(objectSid=*)(privilege=*))");
 	if (ret < 0) {
-		return NT_STATUS_NO_SUCH_USER;
+		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
 
 	if (*r->in.resume_handle >= ret) {
@@ -733,6 +734,166 @@ static NTSTATUS dcesrv_lsa_EnumAccounts(struct dcesrv_call_state *dce_call, TALL
 	
 }
 
+/* This decrypts and returns Trusted Domain Auth Information Internal data */
+static NTSTATUS get_trustdom_auth_blob(struct dcesrv_call_state *dce_call,
+				       TALLOC_CTX *mem_ctx, DATA_BLOB *auth_blob,
+				       struct trustDomainPasswords *auth_struct)
+{
+	DATA_BLOB session_key = data_blob(NULL, 0);
+	enum ndr_err_code ndr_err;
+	NTSTATUS nt_status;
+
+	nt_status = dcesrv_fetch_session_key(dce_call->conn, &session_key);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		return nt_status;
+	}
+
+	arcfour_crypt_blob(auth_blob->data, auth_blob->length, &session_key);
+	ndr_err = ndr_pull_struct_blob(auth_blob, mem_ctx,
+				       auth_struct,
+				       (ndr_pull_flags_fn_t)ndr_pull_trustDomainPasswords);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS get_trustauth_inout_blob(struct dcesrv_call_state *dce_call,
+					 TALLOC_CTX *mem_ctx,
+					 struct trustCurrentPasswords *iopw,
+					 DATA_BLOB *trustauth_blob)
+{
+	uint32_t i;
+	struct trustAuthInOutBlob ioblob;
+	enum ndr_err_code ndr_err;
+
+	ioblob.count = iopw->count;
+	ioblob.current = talloc(mem_ctx,
+				struct AuthenticationInformationArray);
+	if (!ioblob.current) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	ioblob.current->array = *iopw->current;
+	if (!ioblob.current->array) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	ioblob.previous = talloc(mem_ctx,
+				 struct AuthenticationInformationArray);
+	if (!ioblob.previous) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	ioblob.previous->array = talloc_array(mem_ctx,
+					struct AuthenticationInformation,
+					ioblob.count);
+	if (!ioblob.previous->array) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	for (i = 0; i < ioblob.count; i++) {
+		ioblob.previous->array[i].LastUpdateTime = 0;
+		ioblob.previous->array[i].AuthType = 0;
+	}
+	ndr_err = ndr_push_struct_blob(trustauth_blob, mem_ctx,
+				       &ioblob,
+				       (ndr_push_flags_fn_t)ndr_push_trustAuthInOutBlob);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS add_trust_user(TALLOC_CTX *mem_ctx,
+			       struct ldb_context *sam_ldb,
+			       struct ldb_dn *base_dn,
+			       const char *netbios_name,
+			       struct trustCurrentPasswords *in,
+			       struct ldb_dn **user_dn)
+{
+	struct ldb_message *msg;
+	struct ldb_dn *dn;
+	uint32_t i;
+	int ret;
+
+	dn = ldb_dn_copy(mem_ctx, base_dn);
+	if (!dn) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	if (!ldb_dn_add_child_fmt(dn, "cn=%s$,cn=users", netbios_name)) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	msg = ldb_msg_new(mem_ctx);
+	if (!msg) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	msg->dn = dn;
+
+	ret = ldb_msg_add_string(msg, "objectClass", "user");
+	if (ret != LDB_SUCCESS) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	ret = ldb_msg_add_fmt(msg, "samAccountName", "%s$", netbios_name);
+	if (ret != LDB_SUCCESS) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	ret = ldb_msg_add_fmt(msg, "userAccountControl", "%u",
+			      UF_INTERDOMAIN_TRUST_ACCOUNT);
+	if (ret != LDB_SUCCESS) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	for (i = 0; i < in->count; i++) {
+		const char *attribute;
+		struct ldb_val v;
+		switch (in->current[i]->AuthType) {
+		case TRUST_AUTH_TYPE_NT4OWF:
+			attribute = "unicodePwd";
+			v.data = (uint8_t *)&in->current[i]->AuthInfo.nt4owf.password;
+			v.length = 16;
+			break;
+		case TRUST_AUTH_TYPE_CLEAR:
+			attribute = "clearTextPassword";
+			v.data = in->current[i]->AuthInfo.clear.password;
+			v.length = in->current[i]->AuthInfo.clear.size;
+			break;
+		default:
+			continue;
+		}
+
+		ret = ldb_msg_add_value(msg, attribute, &v, NULL);
+		if (ret != LDB_SUCCESS) {
+			return NT_STATUS_NO_MEMORY;
+		}
+	}
+
+	/* create the trusted_domain user account */
+	ret = ldb_add(sam_ldb, msg);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(0,("Failed to create user record %s: %s\n",
+			 ldb_dn_get_linearized(msg->dn),
+			 ldb_errstring(sam_ldb)));
+
+		switch (ret) {
+		case LDB_ERR_ENTRY_ALREADY_EXISTS:
+			return NT_STATUS_DOMAIN_EXISTS;
+		case LDB_ERR_INSUFFICIENT_ACCESS_RIGHTS:
+			return NT_STATUS_ACCESS_DENIED;
+		default:
+			return NT_STATUS_INTERNAL_DB_CORRUPTION;
+		}
+	}
+
+	if (user_dn) {
+		*user_dn = dn;
+	}
+	return NT_STATUS_OK;
+}
 
 /*
   lsa_CreateTrustedDomainEx2
@@ -746,37 +907,32 @@ static NTSTATUS dcesrv_lsa_CreateTrustedDomain_base(struct dcesrv_call_state *dc
 	struct lsa_policy_state *policy_state;
 	struct lsa_trusted_domain_state *trusted_domain_state;
 	struct dcesrv_handle *handle;
-	struct ldb_message **msgs, *msg, *msg_user;
+	struct ldb_message **msgs, *msg;
 	const char *attrs[] = {
 		NULL
 	};
 	const char *netbios_name;
 	const char *dns_name;
 	const char *name;
-	DATA_BLOB session_key = data_blob(NULL, 0);
 	DATA_BLOB trustAuthIncoming, trustAuthOutgoing, auth_blob;
 	struct trustDomainPasswords auth_struct;
 	int ret;
 	NTSTATUS nt_status;
-	enum ndr_err_code ndr_err;
-	
+	struct ldb_context *sam_ldb;
+
 	DCESRV_PULL_HANDLE(policy_handle, r->in.policy_handle, LSA_HANDLE_POLICY);
 	ZERO_STRUCTP(r->out.trustdom_handle);
-	
-	policy_state = policy_handle->data;
 
-	nt_status = dcesrv_fetch_session_key(dce_call->conn, &session_key);
-	if (!NT_STATUS_IS_OK(nt_status)) {
-		return nt_status;
-	}
+	policy_state = policy_handle->data;
+	sam_ldb = policy_state->sam_ldb;
 
 	netbios_name = r->in.info->netbios_name.string;
 	if (!netbios_name) {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
-	
+
 	dns_name = r->in.info->domain_name.string;
-	
+
 	trusted_domain_state = talloc_zero(mem_ctx, struct lsa_trusted_domain_state);
 	if (!trusted_domain_state) {
 		return NT_STATUS_NO_MEMORY;
@@ -784,14 +940,14 @@ static NTSTATUS dcesrv_lsa_CreateTrustedDomain_base(struct dcesrv_call_state *dc
 	trusted_domain_state->policy = policy_state;
 
 	if (strcasecmp(netbios_name, "BUILTIN") == 0
-	    || (dns_name && strcasecmp(dns_name, "BUILTIN") == 0) 
+	    || (dns_name && strcasecmp(dns_name, "BUILTIN") == 0)
 	    || (dom_sid_in_domain(policy_state->builtin_sid, r->in.info->sid))) {
-		return NT_STATUS_INVALID_PARAMETER;;
+		return NT_STATUS_INVALID_PARAMETER;
 	}
 
 	if (strcasecmp(netbios_name, policy_state->domain_name) == 0
 	    || strcasecmp(netbios_name, policy_state->domain_dns) == 0
-	    || (dns_name && strcasecmp(dns_name, policy_state->domain_dns) == 0) 
+	    || (dns_name && strcasecmp(dns_name, policy_state->domain_dns) == 0)
 	    || (dns_name && strcasecmp(dns_name, policy_state->domain_name) == 0)
 	    || (dom_sid_equal(policy_state->domain_sid, r->in.info->sid))) {
 		return NT_STATUS_CURRENT_DOMAIN_NOT_ALLOWED;
@@ -803,15 +959,13 @@ static NTSTATUS dcesrv_lsa_CreateTrustedDomain_base(struct dcesrv_call_state *dc
 		auth_struct.outgoing.count = 0;
 		auth_struct.incoming.count = 0;
 	} else {
-		auth_blob = data_blob_const(r->in.auth_info->auth_blob.data, r->in.auth_info->auth_blob.size);
-		arcfour_crypt_blob(auth_blob.data, auth_blob.length, &session_key);
-		ndr_err = ndr_pull_struct_blob(&auth_blob, mem_ctx, 
-					       lp_iconv_convenience(dce_call->conn->dce_ctx->lp_ctx),
-					       &auth_struct,
-					       (ndr_pull_flags_fn_t)ndr_pull_trustDomainPasswords);
-		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-			return NT_STATUS_INVALID_PARAMETER;
-		}				
+		auth_blob = data_blob_const(r->in.auth_info->auth_blob.data,
+					    r->in.auth_info->auth_blob.size);
+		nt_status = get_trustdom_auth_blob(dce_call, mem_ctx,
+						   &auth_blob, &auth_struct);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			return nt_status;
+		}
 
 		if (op == NDR_LSA_CREATETRUSTEDDOMAINEX) {
 			if (auth_struct.incoming.count > 1) {
@@ -821,84 +975,28 @@ static NTSTATUS dcesrv_lsa_CreateTrustedDomain_base(struct dcesrv_call_state *dc
 	}
 
 	if (auth_struct.incoming.count) {
-		int i;
-		struct trustAuthInOutBlob incoming;
-		
-		incoming.count = auth_struct.incoming.count;
-		incoming.current = talloc(mem_ctx, struct AuthenticationInformationArray);
-		if (!incoming.current) {
-			return NT_STATUS_NO_MEMORY;
-		}
-		
-		incoming.current->array = *auth_struct.incoming.current;
-		if (!incoming.current->array) {
-			return NT_STATUS_NO_MEMORY;
-		}
-
-		incoming.previous = talloc(mem_ctx, struct AuthenticationInformationArray);
-		if (!incoming.previous) {
-			return NT_STATUS_NO_MEMORY;
-		}
-		incoming.previous->array = talloc_array(mem_ctx, struct AuthenticationInformation, incoming.count);
-		if (!incoming.previous->array) {
-			return NT_STATUS_NO_MEMORY;
-		}
-
-		for (i = 0; i < incoming.count; i++) {
-			incoming.previous->array[i].LastUpdateTime = 0;
-			incoming.previous->array[i].AuthType = 0;
-		}
-		ndr_err = ndr_push_struct_blob(&trustAuthIncoming, mem_ctx, 
-					       lp_iconv_convenience(dce_call->conn->dce_ctx->lp_ctx),
-					       &incoming,
-					       (ndr_push_flags_fn_t)ndr_push_trustAuthInOutBlob);
-		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-			return NT_STATUS_INVALID_PARAMETER;
+		nt_status = get_trustauth_inout_blob(dce_call, mem_ctx,
+						     &auth_struct.incoming,
+						     &trustAuthIncoming);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			return nt_status;
 		}
 	} else {
 		trustAuthIncoming = data_blob(NULL, 0);
 	}
-	
+
 	if (auth_struct.outgoing.count) {
-		int i;
-		struct trustAuthInOutBlob outgoing;
-		
-		outgoing.count = auth_struct.outgoing.count;
-		outgoing.current = talloc(mem_ctx, struct AuthenticationInformationArray);
-		if (!outgoing.current) {
-			return NT_STATUS_NO_MEMORY;
-		}
-		
-		outgoing.current->array = *auth_struct.outgoing.current;
-		if (!outgoing.current->array) {
-			return NT_STATUS_NO_MEMORY;
-		}
-
-		outgoing.previous = talloc(mem_ctx, struct AuthenticationInformationArray);
-		if (!outgoing.previous) {
-			return NT_STATUS_NO_MEMORY;
-		}
-		outgoing.previous->array = talloc_array(mem_ctx, struct AuthenticationInformation, outgoing.count);
-		if (!outgoing.previous->array) {
-			return NT_STATUS_NO_MEMORY;
-		}
-
-		for (i = 0; i < outgoing.count; i++) {
-			outgoing.previous->array[i].LastUpdateTime = 0;
-			outgoing.previous->array[i].AuthType = 0;
-		}
-		ndr_err = ndr_push_struct_blob(&trustAuthOutgoing, mem_ctx, 
-					       lp_iconv_convenience(dce_call->conn->dce_ctx->lp_ctx),
-					       &outgoing,
-					       (ndr_push_flags_fn_t)ndr_push_trustAuthInOutBlob);
-		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-			return NT_STATUS_INVALID_PARAMETER;
+		nt_status = get_trustauth_inout_blob(dce_call, mem_ctx,
+						     &auth_struct.outgoing,
+						     &trustAuthOutgoing);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			return nt_status;
 		}
 	} else {
 		trustAuthOutgoing = data_blob(NULL, 0);
 	}
 
-	ret = ldb_transaction_start(policy_state->sam_ldb);
+	ret = ldb_transaction_start(sam_ldb);
 	if (ret != LDB_SUCCESS) {
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
@@ -907,32 +1005,32 @@ static NTSTATUS dcesrv_lsa_CreateTrustedDomain_base(struct dcesrv_call_state *dc
 		char *dns_encoded = ldb_binary_encode_string(mem_ctx, netbios_name);
 		char *netbios_encoded = ldb_binary_encode_string(mem_ctx, netbios_name);
 		/* search for the trusted_domain record */
-		ret = gendb_search(policy_state->sam_ldb,
+		ret = gendb_search(sam_ldb,
 				   mem_ctx, policy_state->system_dn, &msgs, attrs,
-				   "(&(|(flatname=%s)(cn=%s)(trustPartner=%s)(flatname=%s)(cn=%s)(trustPartner=%s))(objectclass=trustedDomain))", 
+				   "(&(|(flatname=%s)(cn=%s)(trustPartner=%s)(flatname=%s)(cn=%s)(trustPartner=%s))(objectclass=trustedDomain))",
 				   dns_encoded, dns_encoded, dns_encoded, netbios_encoded, netbios_encoded, netbios_encoded);
 		if (ret > 0) {
-			ldb_transaction_cancel(policy_state->sam_ldb);
+			ldb_transaction_cancel(sam_ldb);
 			return NT_STATUS_OBJECT_NAME_COLLISION;
 		}
 	} else {
 		char *netbios_encoded = ldb_binary_encode_string(mem_ctx, netbios_name);
 		/* search for the trusted_domain record */
-		ret = gendb_search(policy_state->sam_ldb,
+		ret = gendb_search(sam_ldb,
 				   mem_ctx, policy_state->system_dn, &msgs, attrs,
-				   "(&(|(flatname=%s)(cn=%s)(trustPartner=%s))(objectclass=trustedDomain))", 
+				   "(&(|(flatname=%s)(cn=%s)(trustPartner=%s))(objectclass=trustedDomain))",
 				   netbios_encoded, netbios_encoded, netbios_encoded);
 		if (ret > 0) {
-			ldb_transaction_cancel(policy_state->sam_ldb);
+			ldb_transaction_cancel(sam_ldb);
 			return NT_STATUS_OBJECT_NAME_COLLISION;
 		}
 	}
-	
+
 	if (ret < 0 ) {
-		ldb_transaction_cancel(policy_state->sam_ldb);
+		ldb_transaction_cancel(sam_ldb);
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
-	
+
 	name = dns_name ? dns_name : netbios_name;
 
 	msg = ldb_msg_new(mem_ctx);
@@ -942,45 +1040,43 @@ static NTSTATUS dcesrv_lsa_CreateTrustedDomain_base(struct dcesrv_call_state *dc
 
 	msg->dn = ldb_dn_copy(mem_ctx, policy_state->system_dn);
 	if ( ! ldb_dn_add_child_fmt(msg->dn, "cn=%s", name)) {
-			ldb_transaction_cancel(policy_state->sam_ldb);
+			ldb_transaction_cancel(sam_ldb);
 		return NT_STATUS_NO_MEMORY;
 	}
-	
-	samdb_msg_add_string(trusted_domain_state->policy->sam_ldb, mem_ctx, msg, "flatname", netbios_name);
+
+	samdb_msg_add_string(sam_ldb, mem_ctx, msg, "flatname", netbios_name);
 
 	if (r->in.info->sid) {
-		const char *sid_string = dom_sid_string(mem_ctx, r->in.info->sid);
-		if (!sid_string) {
-			ldb_transaction_cancel(policy_state->sam_ldb);
-			return NT_STATUS_NO_MEMORY;
+		ret = samdb_msg_add_dom_sid(sam_ldb, mem_ctx, msg, "securityIdentifier", r->in.info->sid);
+		if (ret != LDB_SUCCESS) {
+			ldb_transaction_cancel(sam_ldb);
+			return NT_STATUS_INVALID_PARAMETER;
 		}
-			
-		samdb_msg_add_string(trusted_domain_state->policy->sam_ldb, mem_ctx, msg, "securityIdentifier", sid_string);
 	}
 
-	samdb_msg_add_string(trusted_domain_state->policy->sam_ldb, mem_ctx, msg, "objectClass", "trustedDomain");
+	samdb_msg_add_string(sam_ldb, mem_ctx, msg, "objectClass", "trustedDomain");
 
-	samdb_msg_add_int(trusted_domain_state->policy->sam_ldb, mem_ctx, msg, "trustType", r->in.info->trust_type);
+	samdb_msg_add_int(sam_ldb, mem_ctx, msg, "trustType", r->in.info->trust_type);
 
-	samdb_msg_add_int(trusted_domain_state->policy->sam_ldb, mem_ctx, msg, "trustAttributes", r->in.info->trust_attributes);
+	samdb_msg_add_int(sam_ldb, mem_ctx, msg, "trustAttributes", r->in.info->trust_attributes);
 
-	samdb_msg_add_int(trusted_domain_state->policy->sam_ldb, mem_ctx, msg, "trustDirection", r->in.info->trust_direction);
-	
+	samdb_msg_add_int(sam_ldb, mem_ctx, msg, "trustDirection", r->in.info->trust_direction);
+
 	if (dns_name) {
-		samdb_msg_add_string(trusted_domain_state->policy->sam_ldb, mem_ctx, msg, "trustPartner", dns_name);
+		samdb_msg_add_string(sam_ldb, mem_ctx, msg, "trustPartner", dns_name);
 	}
 
 	if (trustAuthIncoming.data) {
 		ret = ldb_msg_add_value(msg, "trustAuthIncoming", &trustAuthIncoming, NULL);
 		if (ret != LDB_SUCCESS) {
-			ldb_transaction_cancel(policy_state->sam_ldb);
+			ldb_transaction_cancel(sam_ldb);
 			return NT_STATUS_NO_MEMORY;
 		}
 	}
 	if (trustAuthOutgoing.data) {
 		ret = ldb_msg_add_value(msg, "trustAuthOutgoing", &trustAuthOutgoing, NULL);
 		if (ret != LDB_SUCCESS) {
-			ldb_transaction_cancel(policy_state->sam_ldb);
+			ldb_transaction_cancel(sam_ldb);
 			return NT_STATUS_NO_MEMORY;
 		}
 	}
@@ -988,109 +1084,49 @@ static NTSTATUS dcesrv_lsa_CreateTrustedDomain_base(struct dcesrv_call_state *dc
 	trusted_domain_state->trusted_domain_dn = talloc_reference(trusted_domain_state, msg->dn);
 
 	/* create the trusted_domain */
-	ret = ldb_add(trusted_domain_state->policy->sam_ldb, msg);
+	ret = ldb_add(sam_ldb, msg);
 	switch (ret) {
 	case  LDB_SUCCESS:
 		break;
 	case  LDB_ERR_ENTRY_ALREADY_EXISTS:
-		ldb_transaction_cancel(trusted_domain_state->policy->sam_ldb);
+		ldb_transaction_cancel(sam_ldb);
 		DEBUG(0,("Failed to create trusted domain record %s: %s\n",
 			 ldb_dn_get_linearized(msg->dn),
-			 ldb_errstring(trusted_domain_state->policy->sam_ldb)));
+			 ldb_errstring(sam_ldb)));
 		return NT_STATUS_DOMAIN_EXISTS;
 	case  LDB_ERR_INSUFFICIENT_ACCESS_RIGHTS:
-		ldb_transaction_cancel(trusted_domain_state->policy->sam_ldb);
+		ldb_transaction_cancel(sam_ldb);
 		DEBUG(0,("Failed to create trusted domain record %s: %s\n",
 			 ldb_dn_get_linearized(msg->dn),
-			 ldb_errstring(trusted_domain_state->policy->sam_ldb)));
+			 ldb_errstring(sam_ldb)));
 		return NT_STATUS_ACCESS_DENIED;
 	default:
-		ldb_transaction_cancel(trusted_domain_state->policy->sam_ldb);
+		ldb_transaction_cancel(sam_ldb);
 		DEBUG(0,("Failed to create user record %s: %s\n",
 			 ldb_dn_get_linearized(msg->dn),
-			 ldb_errstring(trusted_domain_state->policy->sam_ldb)));
+			 ldb_errstring(sam_ldb)));
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
 
 	if (r->in.info->trust_direction & LSA_TRUST_DIRECTION_INBOUND) {
-		msg_user = ldb_msg_new(mem_ctx);
-		if (msg_user == NULL) {
-			ldb_transaction_cancel(trusted_domain_state->policy->sam_ldb);
-			return NT_STATUS_NO_MEMORY;
-		}
-
+		struct ldb_dn *user_dn;
 		/* Inbound trusts must also create a cn=users object to match */
-
-		trusted_domain_state->trusted_domain_user_dn = msg_user->dn
-			= ldb_dn_copy(trusted_domain_state, policy_state->domain_dn);
-		if ( ! ldb_dn_add_child_fmt(msg_user->dn, "cn=users")) {
-			ldb_transaction_cancel(policy_state->sam_ldb);
-			return NT_STATUS_NO_MEMORY;
-		}
-	
-		if ( ! ldb_dn_add_child_fmt(msg_user->dn, "cn=%s", netbios_name)) {
-			ldb_transaction_cancel(policy_state->sam_ldb);
-			return NT_STATUS_NO_MEMORY;
+		nt_status = add_trust_user(mem_ctx, sam_ldb,
+					   policy_state->domain_dn,
+					   netbios_name,
+					   &auth_struct.incoming,
+					   &user_dn);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			ldb_transaction_cancel(sam_ldb);
+			return nt_status;
 		}
 
-		ldb_msg_add_string(msg_user, "objectClass", "user");
-
-		ldb_msg_add_steal_string(msg_user, "samAccountName", 
-					 talloc_asprintf(mem_ctx, "%s$", netbios_name));
-
-		if (samdb_msg_add_uint(trusted_domain_state->policy->sam_ldb, mem_ctx, msg_user, 
-				       "userAccountControl", 
-				       UF_INTERDOMAIN_TRUST_ACCOUNT) != 0) { 
-			ldb_transaction_cancel(policy_state->sam_ldb);
-			return NT_STATUS_NO_MEMORY; 
-		}
-
-		if (auth_struct.incoming.count) {
-			int i;
-			for (i=0; i < auth_struct.incoming.count; i++ ) {
-				if (auth_struct.incoming.current[i]->AuthType == TRUST_AUTH_TYPE_NT4OWF) {
-					samdb_msg_add_hash(trusted_domain_state->policy->sam_ldb, 
-							   mem_ctx, msg_user, "unicodePwd", 
-							   &auth_struct.incoming.current[i]->AuthInfo.nt4owf.password);
-				} else if (auth_struct.incoming.current[i]->AuthType == TRUST_AUTH_TYPE_CLEAR) {
-					DATA_BLOB new_password = data_blob_const(auth_struct.incoming.current[i]->AuthInfo.clear.password,
-										 auth_struct.incoming.current[i]->AuthInfo.clear.size);
-					ret = ldb_msg_add_value(msg_user, "clearTextPassword", &new_password, NULL);
-					if (ret != LDB_SUCCESS) {
-						ldb_transaction_cancel(policy_state->sam_ldb);
-						return NT_STATUS_NO_MEMORY;
-					}
-				} 
-			}
-		}
-
-		/* create the cn=users trusted_domain account */
-		ret = ldb_add(trusted_domain_state->policy->sam_ldb, msg_user);
-		switch (ret) {
-		case  LDB_SUCCESS:
-			break;
-		case  LDB_ERR_ENTRY_ALREADY_EXISTS:
-			ldb_transaction_cancel(trusted_domain_state->policy->sam_ldb);
-			DEBUG(0,("Failed to create trusted domain record %s: %s\n",
-				 ldb_dn_get_linearized(msg_user->dn),
-				 ldb_errstring(trusted_domain_state->policy->sam_ldb)));
-			return NT_STATUS_DOMAIN_EXISTS;
-		case  LDB_ERR_INSUFFICIENT_ACCESS_RIGHTS:
-			ldb_transaction_cancel(trusted_domain_state->policy->sam_ldb);
-			DEBUG(0,("Failed to create trusted domain record %s: %s\n",
-				 ldb_dn_get_linearized(msg_user->dn),
-				 ldb_errstring(trusted_domain_state->policy->sam_ldb)));
-			return NT_STATUS_ACCESS_DENIED;
-		default:
-			ldb_transaction_cancel(trusted_domain_state->policy->sam_ldb);
-			DEBUG(0,("Failed to create user record %s: %s\n",
-				 ldb_dn_get_linearized(msg_user->dn),
-				 ldb_errstring(trusted_domain_state->policy->sam_ldb)));
-			return NT_STATUS_INTERNAL_DB_CORRUPTION;
-		}
+		/* save the trust user dn */
+		trusted_domain_state->trusted_domain_user_dn
+			= talloc_steal(trusted_domain_state, user_dn);
 	}
 
-	ret = ldb_transaction_commit(policy_state->sam_ldb);
+	ret = ldb_transaction_commit(sam_ldb);
 	if (ret != LDB_SUCCESS) {
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
@@ -1099,14 +1135,14 @@ static NTSTATUS dcesrv_lsa_CreateTrustedDomain_base(struct dcesrv_call_state *dc
 	if (!handle) {
 		return NT_STATUS_NO_MEMORY;
 	}
-	
+
 	handle->data = talloc_steal(handle, trusted_domain_state);
-	
+
 	trusted_domain_state->access_mask = r->in.access_mask;
 	trusted_domain_state->policy = talloc_reference(trusted_domain_state, policy_state);
-	
+
 	*r->out.trustdom_handle = handle->wire_handle;
-	
+
 	return NT_STATUS_OK;
 }
 
@@ -1253,7 +1289,7 @@ static NTSTATUS dcesrv_lsa_OpenTrustedDomainByName(struct dcesrv_call_state *dce
 					    struct lsa_OpenTrustedDomainByName *r)
 {
 	struct dcesrv_handle *policy_handle;
-	
+
 	struct lsa_policy_state *policy_state;
 	struct lsa_trusted_domain_state *trusted_domain_state;
 	struct dcesrv_handle *handle;
@@ -1261,7 +1297,7 @@ static NTSTATUS dcesrv_lsa_OpenTrustedDomainByName(struct dcesrv_call_state *dce
 	const char *attrs[] = {
 		NULL
 	};
-
+	char *td_name;
 	int ret;
 
 	DCESRV_PULL_HANDLE(policy_handle, r->in.handle, LSA_HANDLE_POLICY);
@@ -1271,7 +1307,7 @@ static NTSTATUS dcesrv_lsa_OpenTrustedDomainByName(struct dcesrv_call_state *dce
 	if (!r->in.name.string) {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
-	
+
 	trusted_domain_state = talloc_zero(mem_ctx, struct lsa_trusted_domain_state);
 	if (!trusted_domain_state) {
 		return NT_STATUS_NO_MEMORY;
@@ -1279,34 +1315,38 @@ static NTSTATUS dcesrv_lsa_OpenTrustedDomainByName(struct dcesrv_call_state *dce
 	trusted_domain_state->policy = policy_state;
 
 	/* search for the trusted_domain record */
+	td_name = ldb_binary_encode_string(mem_ctx, r->in.name.string);
 	ret = gendb_search(trusted_domain_state->policy->sam_ldb,
 			   mem_ctx, policy_state->system_dn, &msgs, attrs,
-			   "(&(flatname=%s)(objectclass=trustedDomain))", 
-			   ldb_binary_encode_string(mem_ctx, r->in.name.string));
+			   "(&(|(flatname=%s)(cn=%s)(trustPartner=%s))"
+			     "(objectclass=trustedDomain))",
+			   td_name, td_name, td_name);
 	if (ret == 0) {
 		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
 	}
-	
+
 	if (ret != 1) {
 		DEBUG(0,("Found %d records matching DN %s\n", ret,
 			 ldb_dn_get_linearized(policy_state->system_dn)));
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
 
+        /* TODO: perform access checks */
+
 	trusted_domain_state->trusted_domain_dn = talloc_reference(trusted_domain_state, msgs[0]->dn);
-	
+
 	handle = dcesrv_handle_new(dce_call->context, LSA_HANDLE_TRUSTED_DOMAIN);
 	if (!handle) {
 		return NT_STATUS_NO_MEMORY;
 	}
-	
+
 	handle->data = talloc_steal(handle, trusted_domain_state);
-	
+
 	trusted_domain_state->access_mask = r->in.access_mask;
 	trusted_domain_state->policy = talloc_reference(trusted_domain_state, policy_state);
-	
+
 	*r->out.trustdom_handle = handle->wire_handle;
-	
+
 	return NT_STATUS_OK;
 }
 
@@ -1323,14 +1363,578 @@ static NTSTATUS dcesrv_lsa_SetTrustedDomainInfo(struct dcesrv_call_state *dce_ca
 
 
 
-/* 
+/* parameters 4 to 6 are optional if the dn is a dn of a TDO object,
+ * otherwise at least one must be provided */
+static NTSTATUS get_tdo(struct ldb_context *sam, TALLOC_CTX *mem_ctx,
+			struct ldb_dn *basedn, const char *dns_domain,
+			const char *netbios, struct dom_sid2 *sid,
+			struct ldb_message ***msgs)
+{
+	const char *attrs[] = { "flatname", "trustPartner",
+				"securityIdentifier", "trustDirection",
+				"trustType", "trustAttributes",
+				"trustPosixOffset",
+				"msDs-supportedEncryptionTypes", NULL };
+	char *dns = NULL;
+	char *nbn = NULL;
+	char *sidstr = NULL;
+	char *filter;
+	int ret;
+
+
+	if (dns_domain || netbios || sid) {
+		filter = talloc_strdup(mem_ctx,
+				   "(&(objectclass=trustedDomain)(|");
+	} else {
+		filter = talloc_strdup(mem_ctx,
+				       "(objectclass=trustedDomain)");
+	}
+	if (!filter) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	if (dns_domain) {
+		dns = ldb_binary_encode_string(mem_ctx, dns_domain);
+		if (!dns) {
+			return NT_STATUS_NO_MEMORY;
+		}
+		filter = talloc_asprintf_append(filter,
+						"(trustPartner=%s)", dns);
+		if (!filter) {
+			return NT_STATUS_NO_MEMORY;
+		}
+	}
+	if (netbios) {
+		nbn = ldb_binary_encode_string(mem_ctx, netbios);
+		if (!nbn) {
+			return NT_STATUS_NO_MEMORY;
+		}
+		filter = talloc_asprintf_append(filter,
+						"(flatname=%s)", nbn);
+		if (!filter) {
+			return NT_STATUS_NO_MEMORY;
+		}
+	}
+	if (sid) {
+		sidstr = dom_sid_string(mem_ctx, sid);
+		if (!sidstr) {
+			return NT_STATUS_INVALID_PARAMETER;
+		}
+		filter = talloc_asprintf_append(filter,
+						"(securityIdentifier=%s)",
+						sidstr);
+		if (!filter) {
+			return NT_STATUS_NO_MEMORY;
+		}
+	}
+	if (dns_domain || netbios || sid) {
+		filter = talloc_asprintf_append(filter, "))");
+		if (!filter) {
+			return NT_STATUS_NO_MEMORY;
+		}
+	}
+
+	ret = gendb_search(sam, mem_ctx, basedn, msgs, attrs, "%s", filter);
+	if (ret == 0) {
+		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
+	}
+
+	if (ret != 1) {
+		return NT_STATUS_OBJECT_NAME_COLLISION;
+	}
+
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS update_uint32_t_value(TALLOC_CTX *mem_ctx,
+				      struct ldb_message *orig,
+				      struct ldb_message *dest,
+				      const char *attribute,
+				      uint32_t value,
+				      uint32_t *orig_value)
+{
+	const struct ldb_val *orig_val;
+	uint32_t orig_uint = 0;
+	char *str_val;
+	int flags = 0;
+	int ret;
+
+	orig_val = ldb_msg_find_ldb_val(orig, attribute);
+	if (!orig_val || !orig_val->data) {
+		/* add new attribute */
+		flags = LDB_FLAG_MOD_ADD;
+
+	} else {
+		errno = 0;
+		orig_uint = strtoul((const char *)orig_val->data, NULL, 0);
+		if (errno != 0 || orig_uint != value) {
+			/* replace also if can't get value */
+			flags = LDB_FLAG_MOD_REPLACE;
+		}
+	}
+
+	if (flags == 0) {
+		/* stored value is identical, nothing to change */
+		goto done;
+	}
+
+	ret = ldb_msg_add_empty(dest, attribute, flags, NULL);
+	if (ret != LDB_SUCCESS) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	str_val = talloc_asprintf(mem_ctx, "%u", value);
+	if (!str_val) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	ret = ldb_msg_add_steal_string(dest, attribute, str_val);
+	if (ret != LDB_SUCCESS) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+done:
+	if (orig_value) {
+		*orig_value = orig_uint;
+	}
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS update_trust_user(TALLOC_CTX *mem_ctx,
+				  struct ldb_context *sam_ldb,
+				  struct ldb_dn *base_dn,
+				  bool delete_user,
+				  const char *netbios_name,
+				  struct trustCurrentPasswords *in)
+{
+	const char *attrs[] = { "userAccountControl", NULL };
+	struct ldb_message **msgs;
+	struct ldb_message *msg;
+	uint32_t uac;
+	uint32_t i;
+	int ret;
+
+	ret = gendb_search(sam_ldb, mem_ctx,
+			   base_dn, &msgs, attrs,
+			   "samAccountName=%s$", netbios_name);
+	if (ret > 1) {
+		return NT_STATUS_INTERNAL_DB_CORRUPTION;
+	}
+
+	if (ret == 0) {
+		if (delete_user) {
+			return NT_STATUS_OK;
+		}
+
+		/* ok no existing user, add it from scratch */
+		return add_trust_user(mem_ctx, sam_ldb, base_dn,
+				      netbios_name, in, NULL);
+	}
+
+	/* check user is what we are looking for */
+	uac = ldb_msg_find_attr_as_uint(msgs[0],
+					"userAccountControl", 0);
+	if (!(uac & UF_INTERDOMAIN_TRUST_ACCOUNT)) {
+		return NT_STATUS_OBJECT_NAME_COLLISION;
+	}
+
+	if (delete_user) {
+		ret = ldb_delete(sam_ldb, msgs[0]->dn);
+		switch (ret) {
+		case LDB_SUCCESS:
+			return NT_STATUS_OK;
+		case LDB_ERR_INSUFFICIENT_ACCESS_RIGHTS:
+			return NT_STATUS_ACCESS_DENIED;
+		default:
+			return NT_STATUS_INTERNAL_DB_CORRUPTION;
+		}
+	}
+
+	/* entry exists, just modify secret if any */
+	if (in->count == 0) {
+		return NT_STATUS_OK;
+	}
+
+	msg = ldb_msg_new(mem_ctx);
+	if (!msg) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	msg->dn = msgs[0]->dn;
+
+	for (i = 0; i < in->count; i++) {
+		const char *attribute;
+		struct ldb_val v;
+		switch (in->current[i]->AuthType) {
+		case TRUST_AUTH_TYPE_NT4OWF:
+			attribute = "unicodePwd";
+			v.data = (uint8_t *)&in->current[i]->AuthInfo.nt4owf.password;
+			v.length = 16;
+			break;
+		case TRUST_AUTH_TYPE_CLEAR:
+			attribute = "clearTextPassword";
+			v.data = in->current[i]->AuthInfo.clear.password;
+			v.length = in->current[i]->AuthInfo.clear.size;
+			break;
+		default:
+			continue;
+		}
+
+		ret = ldb_msg_add_empty(msg, attribute,
+					LDB_FLAG_MOD_REPLACE, NULL);
+		if (ret != LDB_SUCCESS) {
+			return NT_STATUS_NO_MEMORY;
+		}
+
+		ret = ldb_msg_add_value(msg, attribute, &v, NULL);
+		if (ret != LDB_SUCCESS) {
+			return NT_STATUS_NO_MEMORY;
+		}
+	}
+
+	/* create the trusted_domain user account */
+	ret = ldb_modify(sam_ldb, msg);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(0,("Failed to create user record %s: %s\n",
+			 ldb_dn_get_linearized(msg->dn),
+			 ldb_errstring(sam_ldb)));
+
+		switch (ret) {
+		case LDB_ERR_ENTRY_ALREADY_EXISTS:
+			return NT_STATUS_DOMAIN_EXISTS;
+		case LDB_ERR_INSUFFICIENT_ACCESS_RIGHTS:
+			return NT_STATUS_ACCESS_DENIED;
+		default:
+			return NT_STATUS_INTERNAL_DB_CORRUPTION;
+		}
+	}
+
+	return NT_STATUS_OK;
+}
+
+
+static NTSTATUS setInfoTrustedDomain_base(struct dcesrv_call_state *dce_call,
+					  struct dcesrv_handle *p_handle,
+					  TALLOC_CTX *mem_ctx,
+					  struct ldb_message *dom_msg,
+					  enum lsa_TrustDomInfoEnum level,
+					  union lsa_TrustedDomainInfo *info)
+{
+	struct lsa_policy_state *p_state = p_handle->data;
+	uint32_t *posix_offset = NULL;
+	struct lsa_TrustDomainInfoInfoEx *info_ex = NULL;
+	struct lsa_TrustDomainInfoAuthInfo *auth_info = NULL;
+	struct lsa_TrustDomainInfoAuthInfoInternal *auth_info_int = NULL;
+	uint32_t *enc_types = NULL;
+	DATA_BLOB trustAuthIncoming, trustAuthOutgoing, auth_blob;
+	struct trustDomainPasswords auth_struct;
+	NTSTATUS nt_status;
+	struct ldb_message **msgs;
+	struct ldb_message *msg;
+	bool add_outgoing = false;
+	bool add_incoming = false;
+	bool del_outgoing = false;
+	bool del_incoming = false;
+	bool in_transaction = false;
+	int ret;
+	bool am_rodc;
+
+	switch (level) {
+	case LSA_TRUSTED_DOMAIN_INFO_POSIX_OFFSET:
+		posix_offset = &info->posix_offset.posix_offset;
+		break;
+	case LSA_TRUSTED_DOMAIN_INFO_INFO_EX:
+		info_ex = &info->info_ex;
+		break;
+	case LSA_TRUSTED_DOMAIN_INFO_AUTH_INFO:
+		auth_info = &info->auth_info;
+		break;
+	case LSA_TRUSTED_DOMAIN_INFO_FULL_INFO:
+		posix_offset = &info->full_info.posix_offset.posix_offset;
+		info_ex = &info->full_info.info_ex;
+		auth_info = &info->full_info.auth_info;
+		break;
+	case LSA_TRUSTED_DOMAIN_INFO_AUTH_INFO_INTERNAL:
+		auth_info_int = &info->auth_info_internal;
+		break;
+	case LSA_TRUSTED_DOMAIN_INFO_FULL_INFO_INTERNAL:
+		posix_offset = &info->full_info_internal.posix_offset.posix_offset;
+		info_ex = &info->full_info_internal.info_ex;
+		auth_info_int = &info->full_info_internal.auth_info;
+		break;
+	case LSA_TRUSTED_DOMAIN_SUPPORTED_ENCRYPTION_TYPES:
+		enc_types = &info->enc_types.enc_types;
+		break;
+	default:
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	if (auth_info) {
+		/* FIXME: not handled yet */
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	/* decode auth_info_int if set */
+	if (auth_info_int) {
+
+		/* now decrypt blob */
+		auth_blob = data_blob_const(auth_info_int->auth_blob.data,
+					    auth_info_int->auth_blob.size);
+
+		nt_status = get_trustdom_auth_blob(dce_call, mem_ctx,
+						   &auth_blob, &auth_struct);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			return nt_status;
+		}
+	}
+
+	if (info_ex) {
+		/* verify data matches */
+		if (info_ex->trust_attributes &
+		    LSA_TRUST_ATTRIBUTE_FOREST_TRANSITIVE) {
+			/* TODO: check what behavior level we have */
+		       if (strcasecmp_m(p_state->domain_dns,
+					p_state->forest_dns) != 0) {
+				return NT_STATUS_INVALID_DOMAIN_STATE;
+			}
+		}
+
+		ret = samdb_rodc(p_state->sam_ldb, &am_rodc);
+		if (ret == LDB_SUCCESS && am_rodc) {
+			return NT_STATUS_NO_SUCH_DOMAIN;
+		}
+
+		/* verify only one object matches the dns/netbios/sid
+		 * triplet and that this is the one we already have */
+		nt_status = get_tdo(p_state->sam_ldb, mem_ctx,
+				    p_state->system_dn,
+				    info_ex->domain_name.string,
+				    info_ex->netbios_name.string,
+				    info_ex->sid, &msgs);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			return nt_status;
+		}
+		if (ldb_dn_compare(dom_msg->dn, msgs[0]->dn) != 0) {
+			return NT_STATUS_OBJECT_NAME_COLLISION;
+		}
+		talloc_free(msgs);
+	}
+
+	/* TODO: should we fetch previous values from the existing entry
+	 * and append them ? */
+	if (auth_struct.incoming.count) {
+		nt_status = get_trustauth_inout_blob(dce_call, mem_ctx,
+						     &auth_struct.incoming,
+						     &trustAuthIncoming);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			return nt_status;
+		}
+	} else {
+		trustAuthIncoming = data_blob(NULL, 0);
+	}
+
+	if (auth_struct.outgoing.count) {
+		nt_status = get_trustauth_inout_blob(dce_call, mem_ctx,
+						     &auth_struct.outgoing,
+						     &trustAuthOutgoing);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			return nt_status;
+		}
+	} else {
+		trustAuthOutgoing = data_blob(NULL, 0);
+	}
+
+	msg = ldb_msg_new(mem_ctx);
+	if (msg == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	msg->dn = dom_msg->dn;
+
+	if (posix_offset) {
+		nt_status = update_uint32_t_value(mem_ctx, dom_msg, msg,
+						  "trustPosixOffset",
+						  *posix_offset, NULL);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			return nt_status;
+		}
+	}
+
+	if (info_ex) {
+		uint32_t origattrs;
+		uint32_t origdir;
+		uint32_t tmp;
+		int origtype;
+
+		nt_status = update_uint32_t_value(mem_ctx, dom_msg, msg,
+						  "trustDirection",
+						  info_ex->trust_direction,
+						  &origdir);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			return nt_status;
+		}
+
+		tmp = info_ex->trust_direction ^ origdir;
+		if (tmp & LSA_TRUST_DIRECTION_INBOUND) {
+			if (origdir & LSA_TRUST_DIRECTION_INBOUND) {
+				del_incoming = true;
+			} else {
+				add_incoming = true;
+			}
+		}
+		if (tmp & LSA_TRUST_DIRECTION_OUTBOUND) {
+			if (origdir & LSA_TRUST_DIRECTION_OUTBOUND) {
+				del_outgoing = true;
+			} else {
+				add_outgoing = true;
+			}
+		}
+
+		origtype = ldb_msg_find_attr_as_int(dom_msg, "trustType", -1);
+		if (origtype == -1 || origtype != info_ex->trust_type) {
+			DEBUG(1, ("Attempted to change trust type! "
+				  "Operation not handled\n"));
+			return NT_STATUS_INVALID_PARAMETER;
+		}
+
+		nt_status = update_uint32_t_value(mem_ctx, dom_msg, msg,
+						  "trustAttributes",
+						  info_ex->trust_attributes,
+						  &origattrs);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			return nt_status;
+		}
+		/* TODO: check forestFunctionality from ldb opaque */
+		/* TODO: check what is set makes sense */
+		/* for now refuse changes */
+		if (origattrs == -1 ||
+		    origattrs != info_ex->trust_attributes) {
+			DEBUG(1, ("Attempted to change trust attributes! "
+				  "Operation not handled\n"));
+			return NT_STATUS_INVALID_PARAMETER;
+		}
+	}
+
+	if (enc_types) {
+		nt_status = update_uint32_t_value(mem_ctx, dom_msg, msg,
+						  "msDS-SupportedEncryptionTypes",
+						  *enc_types, NULL);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			return nt_status;
+		}
+	}
+
+	if (add_incoming && trustAuthIncoming.data) {
+		ret = ldb_msg_add_empty(msg, "trustAuthIncoming",
+					LDB_FLAG_MOD_REPLACE, NULL);
+		if (ret != LDB_SUCCESS) {
+			return NT_STATUS_NO_MEMORY;
+		}
+		ret = ldb_msg_add_value(msg, "trustAuthIncoming",
+					&trustAuthIncoming, NULL);
+		if (ret != LDB_SUCCESS) {
+			return NT_STATUS_NO_MEMORY;
+		}
+	}
+	if (add_outgoing && trustAuthOutgoing.data) {
+		ret = ldb_msg_add_empty(msg, "trustAuthIncoming",
+					LDB_FLAG_MOD_REPLACE, NULL);
+		if (ret != LDB_SUCCESS) {
+			return NT_STATUS_NO_MEMORY;
+		}
+		ret = ldb_msg_add_value(msg, "trustAuthOutgoing",
+					&trustAuthOutgoing, NULL);
+		if (ret != LDB_SUCCESS) {
+			return NT_STATUS_NO_MEMORY;
+		}
+	}
+
+	/* start transaction */
+	ret = ldb_transaction_start(p_state->sam_ldb);
+	if (ret != LDB_SUCCESS) {
+		return NT_STATUS_INTERNAL_DB_CORRUPTION;
+	}
+	in_transaction = true;
+
+	ret = ldb_modify(p_state->sam_ldb, msg);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(1,("Failed to modify trusted domain record %s: %s\n",
+			 ldb_dn_get_linearized(msg->dn),
+			 ldb_errstring(p_state->sam_ldb)));
+		if (ret == LDB_ERR_INSUFFICIENT_ACCESS_RIGHTS) {
+			nt_status = NT_STATUS_ACCESS_DENIED;
+		} else {
+			nt_status = NT_STATUS_INTERNAL_DB_CORRUPTION;
+		}
+		goto done;
+	}
+
+	if (add_incoming || del_incoming) {
+		const char *netbios_name;
+
+		netbios_name = ldb_msg_find_attr_as_string(dom_msg,
+							   "flatname", NULL);
+		if (!netbios_name) {
+			nt_status = NT_STATUS_INVALID_DOMAIN_STATE;
+			goto done;
+		}
+
+		nt_status = update_trust_user(mem_ctx,
+					      p_state->sam_ldb,
+					      p_state->domain_dn,
+					      del_incoming,
+					      netbios_name,
+					      &auth_struct.incoming);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			goto done;
+		}
+	}
+
+	/* ok, all fine, commit transaction and return */
+	ret = ldb_transaction_commit(p_state->sam_ldb);
+	if (ret != LDB_SUCCESS) {
+		return NT_STATUS_INTERNAL_DB_CORRUPTION;
+	}
+	in_transaction = false;
+
+	nt_status = NT_STATUS_OK;
+
+done:
+	if (in_transaction) {
+		ldb_transaction_cancel(p_state->sam_ldb);
+	}
+	return nt_status;
+}
+
+/*
   lsa_SetInfomrationTrustedDomain
 */
-static NTSTATUS dcesrv_lsa_SetInformationTrustedDomain(struct dcesrv_call_state *dce_call, 
-						TALLOC_CTX *mem_ctx,
-						struct lsa_SetInformationTrustedDomain *r)
+static NTSTATUS dcesrv_lsa_SetInformationTrustedDomain(
+				struct dcesrv_call_state *dce_call,
+				TALLOC_CTX *mem_ctx,
+				struct lsa_SetInformationTrustedDomain *r)
 {
-	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
+	struct dcesrv_handle *h;
+	struct lsa_trusted_domain_state *td_state;
+	struct ldb_message **msgs;
+	NTSTATUS nt_status;
+
+	DCESRV_PULL_HANDLE(h, r->in.trustdom_handle,
+			   LSA_HANDLE_TRUSTED_DOMAIN);
+
+	td_state = talloc_get_type(h->data, struct lsa_trusted_domain_state);
+
+	/* get the trusted domain object */
+	nt_status = get_tdo(td_state->policy->sam_ldb, mem_ctx,
+			    td_state->trusted_domain_dn,
+			    NULL, NULL, NULL, &msgs);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		if (NT_STATUS_EQUAL(nt_status,
+				    NT_STATUS_OBJECT_NAME_NOT_FOUND)) {
+			return nt_status;
+		}
+		return NT_STATUS_INTERNAL_DB_CORRUPTION;
+	}
+
+	return setInfoTrustedDomain_base(dce_call, h, mem_ctx,
+					 msgs[0], r->in.level, r->in.info);
 }
 
 
@@ -1526,7 +2130,30 @@ static NTSTATUS dcesrv_lsa_SetTrustedDomainInfoByName(struct dcesrv_call_state *
 					       TALLOC_CTX *mem_ctx,
 					       struct lsa_SetTrustedDomainInfoByName *r)
 {
-	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
+	struct dcesrv_handle *policy_handle;
+	struct lsa_policy_state *policy_state;
+	struct ldb_message **msgs;
+	NTSTATUS nt_status;
+
+	DCESRV_PULL_HANDLE(policy_handle, r->in.handle, LSA_HANDLE_POLICY);
+	policy_state = policy_handle->data;
+
+	/* get the trusted domain object */
+	nt_status = get_tdo(policy_state->sam_ldb, mem_ctx,
+			    policy_state->domain_dn,
+			    r->in.trusted_domain->string,
+			    r->in.trusted_domain->string,
+			    NULL, &msgs);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		if (NT_STATUS_EQUAL(nt_status,
+				    NT_STATUS_OBJECT_NAME_NOT_FOUND)) {
+			return nt_status;
+		}
+		return NT_STATUS_INTERNAL_DB_CORRUPTION;
+	}
+
+	return setInfoTrustedDomain_base(dce_call, policy_handle, mem_ctx,
+					 msgs[0], r->in.level, r->in.info);
 }
 
 /* 
@@ -1622,7 +2249,7 @@ static NTSTATUS dcesrv_lsa_EnumTrustDom(struct dcesrv_call_state *dce_call, TALL
 	   resumed based on resume_key */
 	count = gendb_search(policy_state->sam_ldb, mem_ctx, policy_state->system_dn, &domains, attrs, 
 			     "objectclass=trustedDomain");
-	if (count == -1) {
+	if (count < 0) {
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
 
@@ -1637,8 +2264,7 @@ static NTSTATUS dcesrv_lsa_EnumTrustDom(struct dcesrv_call_state *dce_call, TALL
 	}
 
 	/* sort the results by name */
-	qsort(entries, count, sizeof(*entries), 
-	      (comparison_fn_t)compare_DomainInfo);
+	TYPESAFE_QSORT(entries, count, compare_DomainInfo);
 
 	if (*r->in.resume_handle >= count) {
 		*r->out.resume_handle = -1;
@@ -1716,7 +2342,7 @@ static NTSTATUS dcesrv_lsa_EnumTrustedDomainsEx(struct dcesrv_call_state *dce_ca
 	   resumed based on resume_key */
 	count = gendb_search(policy_state->sam_ldb, mem_ctx, policy_state->system_dn, &domains, attrs, 
 			     "objectclass=trustedDomain");
-	if (count == -1) {
+	if (count < 0) {
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
 
@@ -1733,8 +2359,7 @@ static NTSTATUS dcesrv_lsa_EnumTrustedDomainsEx(struct dcesrv_call_state *dce_ca
 	}
 
 	/* sort the results by name */
-	qsort(entries, count, sizeof(*entries), 
-	      (comparison_fn_t)compare_TrustDomainInfoInfoEx);
+	TYPESAFE_QSORT(entries, count, compare_TrustDomainInfoInfoEx);
 
 	if (*r->in.resume_handle >= count) {
 		*r->out.resume_handle = -1;
@@ -1813,7 +2438,8 @@ static NTSTATUS dcesrv_lsa_EnumPrivsAccount(struct dcesrv_call_state *dce_call,
 {
 	struct dcesrv_handle *h;
 	struct lsa_account_state *astate;
-	int ret, i;
+	int ret;
+	unsigned int i;
 	struct ldb_message **res;
 	const char * const attrs[] = { "privilege", NULL};
 	struct ldb_message_element *el;
@@ -1839,8 +2465,11 @@ static NTSTATUS dcesrv_lsa_EnumPrivsAccount(struct dcesrv_call_state *dce_call,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	ret = gendb_search(astate->policy->sam_ldb, mem_ctx, NULL, &res, attrs, 
+	ret = gendb_search(astate->policy->pdb, mem_ctx, NULL, &res, attrs, 
 			   "objectSid=%s", sidstr);
+	if (ret < 0) {
+		return NT_STATUS_INTERNAL_DB_CORRUPTION;
+	}
 	if (ret != 1) {
 		return NT_STATUS_OK;
 	}
@@ -1880,7 +2509,8 @@ static NTSTATUS dcesrv_lsa_EnumAccountRights(struct dcesrv_call_state *dce_call,
 {
 	struct dcesrv_handle *h;
 	struct lsa_policy_state *state;
-	int ret, i;
+	int ret;
+	unsigned int i;
 	struct ldb_message **res;
 	const char * const attrs[] = { "privilege", NULL};
 	const char *sidstr;
@@ -1895,18 +2525,15 @@ static NTSTATUS dcesrv_lsa_EnumAccountRights(struct dcesrv_call_state *dce_call,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	ret = gendb_search(state->sam_ldb, mem_ctx, NULL, &res, attrs, 
+	ret = gendb_search(state->pdb, mem_ctx, NULL, &res, attrs, 
 			   "(&(objectSid=%s)(privilege=*))", sidstr);
 	if (ret == 0) {
 		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
 	}
-	if (ret > 1) {
-		return NT_STATUS_INTERNAL_DB_CORRUPTION;
-	}
-	if (ret == -1) {
+	if (ret != 1) {
 		DEBUG(3, ("searching for account rights for SID: %s failed: %s", 
 			  dom_sid_string(mem_ctx, r->in.sid),
-			  ldb_errstring(state->sam_ldb)));
+			  ldb_errstring(state->pdb)));
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
 
@@ -1941,15 +2568,18 @@ static NTSTATUS dcesrv_lsa_AddRemoveAccountRights(struct dcesrv_call_state *dce_
 					   struct dom_sid *sid,
 					   const struct lsa_RightSet *rights)
 {
-	const char *sidstr;
+	const char *sidstr, *sidndrstr;
 	struct ldb_message *msg;
 	struct ldb_message_element *el;
-	int i, ret;
+	int ret;
+	uint32_t i;
 	struct lsa_EnumAccountRights r2;
+	char *dnstr;
 
-	sidstr = ldap_encode_ndr_dom_sid(mem_ctx, sid);
-	if (sidstr == NULL) {
-		return NT_STATUS_NO_MEMORY;
+	if (security_session_user_level(dce_call->conn->auth_state.session_info, NULL) <
+	    SECURITY_ADMINISTRATOR) {
+		DEBUG(0,("lsa_AddRemoveAccount refused for supplied security token\n"));
+		return NT_STATUS_ACCESS_DENIED;
 	}
 
 	msg = ldb_msg_new(mem_ctx);
@@ -1957,24 +2587,17 @@ static NTSTATUS dcesrv_lsa_AddRemoveAccountRights(struct dcesrv_call_state *dce_
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	msg->dn = samdb_search_dn(state->sam_ldb, mem_ctx, 
-				  NULL, "objectSid=%s", sidstr);
-	if (msg->dn == NULL) {
-		NTSTATUS status;
-		if (ldb_flag == LDB_FLAG_MOD_DELETE) {
-			return NT_STATUS_OBJECT_NAME_NOT_FOUND;
-		}
-		status = samdb_create_foreign_security_principal(state->sam_ldb, mem_ctx, 
-								 sid, &msg->dn);
-		if (!NT_STATUS_IS_OK(status)) {
-			return status;
-		}
-		return NT_STATUS_NO_SUCH_USER;
-	}
+	sidndrstr = ldap_encode_ndr_dom_sid(msg, sid);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(sidndrstr, msg);
 
-	if (ldb_msg_add_empty(msg, "privilege", ldb_flag, NULL)) {
-		return NT_STATUS_NO_MEMORY;
-	}
+	sidstr = dom_sid_string(msg, sid);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(sidstr, msg);
+
+	dnstr = talloc_asprintf(msg, "sid=%s", sidstr);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(dnstr, msg);
+
+	msg->dn = ldb_dn_new(msg, state->pdb, dnstr);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(msg->dn, msg);
 
 	if (ldb_flag == LDB_FLAG_MOD_ADD) {
 		NTSTATUS status;
@@ -1991,11 +2614,12 @@ static NTSTATUS dcesrv_lsa_AddRemoveAccountRights(struct dcesrv_call_state *dce_
 
 	for (i=0;i<rights->count;i++) {
 		if (sec_privilege_id(rights->names[i].string) == -1) {
+			talloc_free(msg);
 			return NT_STATUS_NO_SUCH_PRIVILEGE;
 		}
 
 		if (ldb_flag == LDB_FLAG_MOD_ADD) {
-			int j;
+			uint32_t j;
 			for (j=0;j<r2.out.rights->count;j++) {
 				if (strcasecmp_m(r2.out.rights->names[j].string, 
 					       rights->names[i].string) == 0) {
@@ -2007,26 +2631,41 @@ static NTSTATUS dcesrv_lsa_AddRemoveAccountRights(struct dcesrv_call_state *dce_
 
 		ret = ldb_msg_add_string(msg, "privilege", rights->names[i].string);
 		if (ret != LDB_SUCCESS) {
+			talloc_free(msg);
 			return NT_STATUS_NO_MEMORY;
 		}
 	}
 
 	el = ldb_msg_find_element(msg, "privilege");
 	if (!el) {
+		talloc_free(msg);
 		return NT_STATUS_OK;
 	}
 
-	ret = ldb_modify(state->sam_ldb, msg);
-	if (ret != 0) {
+	el->flags = ldb_flag;
+
+	ret = ldb_modify(state->pdb, msg);
+	if (ret == LDB_ERR_NO_SUCH_OBJECT) {
+		if (samdb_msg_add_dom_sid(state->pdb, msg, msg, "objectSid", sid) != LDB_SUCCESS) {
+			talloc_free(msg);
+			return NT_STATUS_NO_MEMORY;
+		}
+		samdb_msg_add_string(state->pdb, msg, msg, "comment", "added via LSA");
+		ret = ldb_add(state->pdb, msg);		
+	}
+	if (ret != LDB_SUCCESS) {
 		if (ldb_flag == LDB_FLAG_MOD_DELETE && ret == LDB_ERR_NO_SUCH_ATTRIBUTE) {
-			return NT_STATUS_OBJECT_NAME_NOT_FOUND;
+			talloc_free(msg);
+			return NT_STATUS_OK;
 		}
 		DEBUG(3, ("Could not %s attributes from %s: %s", 
 			  ldb_flag == LDB_FLAG_MOD_DELETE ? "delete" : "add",
-			  ldb_dn_get_linearized(msg->dn), ldb_errstring(state->sam_ldb)));
+			  ldb_dn_get_linearized(msg->dn), ldb_errstring(state->pdb)));
+		talloc_free(msg);
 		return NT_STATUS_UNEXPECTED_IO_ERROR;
 	}
 
+	talloc_free(msg);
 	return NT_STATUS_OK;
 }
 
@@ -2039,7 +2678,7 @@ static NTSTATUS dcesrv_lsa_AddPrivilegesToAccount(struct dcesrv_call_state *dce_
 	struct lsa_RightSet rights;
 	struct dcesrv_handle *h;
 	struct lsa_account_state *astate;
-	int i;
+	uint32_t i;
 
 	DCESRV_PULL_HANDLE(h, r->in.handle, LSA_HANDLE_ACCOUNT);
 
@@ -2076,7 +2715,7 @@ static NTSTATUS dcesrv_lsa_RemovePrivilegesFromAccount(struct dcesrv_call_state 
 	struct lsa_RightSet *rights;
 	struct dcesrv_handle *h;
 	struct lsa_account_state *astate;
-	int i;
+	uint32_t i;
 
 	DCESRV_PULL_HANDLE(h, r->in.handle, LSA_HANDLE_ACCOUNT);
 
@@ -2155,7 +2794,7 @@ static NTSTATUS dcesrv_lsa_SetQuotasForAccount(struct dcesrv_call_state *dce_cal
 static NTSTATUS dcesrv_lsa_GetSystemAccessAccount(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 		       struct lsa_GetSystemAccessAccount *r)
 {
-	int i;
+	uint32_t i;
 	NTSTATUS status;
 	struct lsa_EnumPrivsAccount enumPrivs;
 	struct lsa_PrivilegeSet *privs;
@@ -2230,7 +2869,7 @@ static NTSTATUS dcesrv_lsa_CreateSecret(struct dcesrv_call_state *dce_call, TALL
 	DCESRV_PULL_HANDLE(policy_handle, r->in.handle, LSA_HANDLE_POLICY);
 	ZERO_STRUCTP(r->out.sec_handle);
 	
-	switch (security_session_user_level(dce_call->conn->auth_state.session_info))
+	switch (security_session_user_level(dce_call->conn->auth_state.session_info, NULL))
 	{
 	case SECURITY_SYSTEM:
 	case SECURITY_ADMINISTRATOR:
@@ -2262,7 +2901,7 @@ static NTSTATUS dcesrv_lsa_CreateSecret(struct dcesrv_call_state *dce_call, TALL
 		name = &r->in.name.string[2];
 			/* We need to connect to the database as system, as this is one of the rare RPC calls that must read the secrets (and this is denied otherwise) */
 		secret_state->sam_ldb = talloc_reference(secret_state, 
-							 samdb_connect(mem_ctx, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx, system_session(secret_state, dce_call->conn->dce_ctx->lp_ctx))); 
+							 samdb_connect(mem_ctx, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx, system_session(dce_call->conn->dce_ctx->lp_ctx)));
 		secret_state->global = true;
 
 		if (strlen(name) < 1) {
@@ -2279,7 +2918,7 @@ static NTSTATUS dcesrv_lsa_CreateSecret(struct dcesrv_call_state *dce_call, TALL
 			return NT_STATUS_OBJECT_NAME_COLLISION;
 		}
 		
-		if (ret == -1) {
+		if (ret < 0) {
 			DEBUG(0,("Failure searching for CN=%s: %s\n", 
 				 name2, ldb_errstring(secret_state->sam_ldb)));
 			return NT_STATUS_INTERNAL_DB_CORRUPTION;
@@ -2312,7 +2951,7 @@ static NTSTATUS dcesrv_lsa_CreateSecret(struct dcesrv_call_state *dce_call, TALL
 			return NT_STATUS_OBJECT_NAME_COLLISION;
 		}
 		
-		if (ret == -1) {
+		if (ret < 0) {
 			DEBUG(0,("Failure searching for CN=%s: %s\n", 
 				 name, ldb_errstring(secret_state->sam_ldb)));
 			return NT_STATUS_INTERNAL_DB_CORRUPTION;
@@ -2328,7 +2967,7 @@ static NTSTATUS dcesrv_lsa_CreateSecret(struct dcesrv_call_state *dce_call, TALL
 
 	/* create the secret */
 	ret = ldb_add(secret_state->sam_ldb, msg);
-	if (ret != 0) {
+	if (ret != LDB_SUCCESS) {
 		DEBUG(0,("Failed to create secret record %s: %s\n",
 			 ldb_dn_get_linearized(msg->dn), 
 			 ldb_errstring(secret_state->sam_ldb)));
@@ -2379,7 +3018,7 @@ static NTSTATUS dcesrv_lsa_OpenSecret(struct dcesrv_call_state *dce_call, TALLOC
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 	
-	switch (security_session_user_level(dce_call->conn->auth_state.session_info))
+	switch (security_session_user_level(dce_call->conn->auth_state.session_info, NULL))
 	{
 	case SECURITY_SYSTEM:
 	case SECURITY_ADMINISTRATOR:
@@ -2399,7 +3038,7 @@ static NTSTATUS dcesrv_lsa_OpenSecret(struct dcesrv_call_state *dce_call, TALLOC
 		name = &r->in.name.string[2];
 		/* We need to connect to the database as system, as this is one of the rare RPC calls that must read the secrets (and this is denied otherwise) */
 		secret_state->sam_ldb = talloc_reference(secret_state, 
-							 samdb_connect(mem_ctx, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx, system_session(secret_state, dce_call->conn->dce_ctx->lp_ctx))); 
+							 samdb_connect(mem_ctx, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx, system_session(dce_call->conn->dce_ctx->lp_ctx)));
 		secret_state->global = true;
 
 		if (strlen(name) < 1) {
@@ -2518,13 +3157,13 @@ static NTSTATUS dcesrv_lsa_SetSecret(struct dcesrv_call_state *dce_call, TALLOC_
 		
 		/* set value */
 		if (samdb_msg_add_value(secret_state->sam_ldb, 
-					mem_ctx, msg, "priorValue", &val) != 0) {
+					mem_ctx, msg, "priorValue", &val) != LDB_SUCCESS) {
 			return NT_STATUS_NO_MEMORY; 
 		}
 		
 		/* set old value mtime */
 		if (samdb_msg_add_uint64(secret_state->sam_ldb, 
-					 mem_ctx, msg, "priorSetTime", nt_now) != 0) { 
+					 mem_ctx, msg, "priorSetTime", nt_now) != LDB_SUCCESS) {
 			return NT_STATUS_NO_MEMORY; 
 		}
 
@@ -2574,12 +3213,12 @@ static NTSTATUS dcesrv_lsa_SetSecret(struct dcesrv_call_state *dce_call, TALLOC_
 		/* set old value mtime */
 		if (ldb_msg_find_ldb_val(res[0], "lastSetTime")) {
 			if (samdb_msg_add_uint64(secret_state->sam_ldb, 
-						 mem_ctx, msg, "priorSetTime", last_set_time) != 0) { 
+						 mem_ctx, msg, "priorSetTime", last_set_time) != LDB_SUCCESS) {
 				return NT_STATUS_NO_MEMORY; 
 			}
 		} else {
 			if (samdb_msg_add_uint64(secret_state->sam_ldb, 
-						 mem_ctx, msg, "priorSetTime", nt_now) != 0) { 
+						 mem_ctx, msg, "priorSetTime", nt_now) != LDB_SUCCESS) {
 				return NT_STATUS_NO_MEMORY; 
 			}
 		}
@@ -2600,31 +3239,31 @@ static NTSTATUS dcesrv_lsa_SetSecret(struct dcesrv_call_state *dce_call, TALLOC_
 		
 		/* set value */
 		if (samdb_msg_add_value(secret_state->sam_ldb, 
-					mem_ctx, msg, "currentValue", &val) != 0) {
+					mem_ctx, msg, "currentValue", &val) != LDB_SUCCESS) {
 			return NT_STATUS_NO_MEMORY; 
 		}
 		
 		/* set new value mtime */
 		if (samdb_msg_add_uint64(secret_state->sam_ldb, 
-					 mem_ctx, msg, "lastSetTime", nt_now) != 0) { 
+					 mem_ctx, msg, "lastSetTime", nt_now) != LDB_SUCCESS) {
 			return NT_STATUS_NO_MEMORY; 
 		}
 		
 	} else {
 		/* NULL out the NEW value */
 		if (samdb_msg_add_uint64(secret_state->sam_ldb, 
-					 mem_ctx, msg, "lastSetTime", nt_now) != 0) { 
+					 mem_ctx, msg, "lastSetTime", nt_now) != LDB_SUCCESS) {
 			return NT_STATUS_NO_MEMORY; 
 		}
 		if (samdb_msg_add_delete(secret_state->sam_ldb, 
-					 mem_ctx, msg, "currentValue")) {
+					 mem_ctx, msg, "currentValue") != LDB_SUCCESS) {
 			return NT_STATUS_NO_MEMORY;
 		}
 	}
 
 	/* modify the samdb record */
-	ret = samdb_replace(secret_state->sam_ldb, mem_ctx, msg);
-	if (ret != 0) {
+	ret = dsdb_replace(secret_state->sam_ldb, msg, 0);
+	if (ret != LDB_SUCCESS) {
 		/* we really need samdb.c to return NTSTATUS */
 		return NT_STATUS_UNSUCCESSFUL;
 	}
@@ -2659,7 +3298,7 @@ static NTSTATUS dcesrv_lsa_QuerySecret(struct dcesrv_call_state *dce_call, TALLO
 	DCESRV_PULL_HANDLE(h, r->in.sec_handle, LSA_HANDLE_SECRET);
 
 	/* Ensure user is permitted to read this... */
-	switch (security_session_user_level(dce_call->conn->auth_state.session_info))
+	switch (security_session_user_level(dce_call->conn->auth_state.session_info, NULL))
 	{
 	case SECURITY_SYSTEM:
 	case SECURITY_ADMINISTRATOR:
@@ -2889,9 +3528,9 @@ static NTSTATUS dcesrv_lsa_EnumAccountsWithUserRight(struct dcesrv_call_state *d
 		return NT_STATUS_NO_SUCH_PRIVILEGE;
 	}
 
-	ret = gendb_search(state->sam_ldb, mem_ctx, NULL, &res, attrs, 
+	ret = gendb_search(state->pdb, mem_ctx, NULL, &res, attrs, 
 			   "privilege=%s", privname);
-	if (ret == -1) {
+	if (ret < 0) {
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
 	if (ret == 0) {
@@ -3232,16 +3871,557 @@ static NTSTATUS dcesrv_lsa_lsaRQueryForestTrustInformation(struct dcesrv_call_st
 	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
 
+#define DNS_CMP_MATCH 0
+#define DNS_CMP_FIRST_IS_CHILD 1
+#define DNS_CMP_SECOND_IS_CHILD 2
+#define DNS_CMP_NO_MATCH 3
 
-/* 
-  lsa_LSARSETFORESTTRUSTINFORMATION 
-*/
-static NTSTATUS dcesrv_lsa_LSARSETFORESTTRUSTINFORMATION(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
-		       struct lsa_LSARSETFORESTTRUSTINFORMATION *r)
+/* this function assumes names are well formed DNS names.
+ * it doesn't validate them */
+static int dns_cmp(const char *s1, size_t l1,
+		   const char *s2, size_t l2)
 {
-	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
+	const char *p1, *p2;
+	size_t t1, t2;
+	int cret;
+
+	if (l1 == l2) {
+		if (strcasecmp_m(s1, s2) == 0) {
+			return DNS_CMP_MATCH;
+		}
+		return DNS_CMP_NO_MATCH;
+	}
+
+	if (l1 > l2) {
+		p1 = s1;
+		p2 = s2;
+		t1 = l1;
+		t2 = l2;
+		cret = DNS_CMP_FIRST_IS_CHILD;
+	} else {
+		p1 = s2;
+		p2 = s1;
+		t1 = l2;
+		t2 = l1;
+		cret = DNS_CMP_SECOND_IS_CHILD;
+	}
+
+	if (p1[t1 - t2 - 1] != '.') {
+		return DNS_CMP_NO_MATCH;
+	}
+
+	if (strcasecmp_m(&p1[t1 - t2], p2) == 0) {
+		return cret;
+	}
+
+	return DNS_CMP_NO_MATCH;
 }
 
+/* decode all TDOs forest trust info blobs */
+static NTSTATUS get_ft_info(TALLOC_CTX *mem_ctx,
+			    struct ldb_message *msg,
+			    struct ForestTrustInfo *info)
+{
+	const struct ldb_val *ft_blob;
+	enum ndr_err_code ndr_err;
+
+	ft_blob = ldb_msg_find_ldb_val(msg, "msDS-TrustForestTrustInfo");
+	if (!ft_blob || !ft_blob->data) {
+		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
+	}
+	/* ldb_val is equivalent to DATA_BLOB */
+	ndr_err = ndr_pull_struct_blob_all(ft_blob, mem_ctx, info,
+					   (ndr_pull_flags_fn_t)ndr_pull_ForestTrustInfo);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		return NT_STATUS_INVALID_DOMAIN_STATE;
+	}
+
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS own_ft_info(struct lsa_policy_state *ps,
+			    struct ForestTrustInfo *fti)
+{
+	struct ForestTrustDataDomainInfo *info;
+	struct ForestTrustInfoRecord *rec;
+
+	fti->version = 1;
+	fti->count = 2;
+	fti->records = talloc_array(fti,
+				    struct ForestTrustInfoRecordArmor, 2);
+	if (!fti->records) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+        /* TLN info */
+	rec = &fti->records[0].record;
+
+	rec->flags = 0;
+	rec->timestamp = 0;
+	rec->type = LSA_FOREST_TRUST_TOP_LEVEL_NAME;
+
+	rec->data.name.string = talloc_strdup(fti, ps->forest_dns);
+	if (!rec->data.name.string) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	rec->data.name.size = strlen(rec->data.name.string);
+
+        /* DOMAIN info */
+	rec = &fti->records[1].record;
+
+	rec->flags = 0;
+	rec->timestamp = 0;
+	rec->type = LSA_FOREST_TRUST_DOMAIN_INFO;
+
+        info = &rec->data.info;
+
+	info->sid = *ps->domain_sid;
+	info->dns_name.string = talloc_strdup(fti, ps->domain_dns);
+	if (!info->dns_name.string) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	info->dns_name.size = strlen(info->dns_name.string);
+	info->netbios_name.string = talloc_strdup(fti, ps->domain_name);
+	if (!info->netbios_name.string) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	info->netbios_name.size = strlen(info->netbios_name.string);
+
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS make_ft_info(TALLOC_CTX *mem_ctx,
+			     struct lsa_ForestTrustInformation *lfti,
+			     struct ForestTrustInfo *fti)
+{
+	struct lsa_ForestTrustRecord *lrec;
+	struct ForestTrustInfoRecord *rec;
+	struct lsa_StringLarge *tln;
+	struct lsa_ForestTrustDomainInfo *info;
+	uint32_t i;
+
+	fti->version = 1;
+	fti->count = lfti->count;
+	fti->records = talloc_array(mem_ctx,
+				    struct ForestTrustInfoRecordArmor,
+				    fti->count);
+	if (!fti->records) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	for (i = 0; i < fti->count; i++) {
+		lrec = lfti->entries[i];
+		rec = &fti->records[i].record;
+
+		rec->flags = lrec->flags;
+		rec->timestamp = lrec->time;
+		rec->type = lrec->type;
+
+		switch (lrec->type) {
+		case LSA_FOREST_TRUST_TOP_LEVEL_NAME:
+		case LSA_FOREST_TRUST_TOP_LEVEL_NAME_EX:
+			tln = &lrec->forest_trust_data.top_level_name;
+			rec->data.name.string =
+				talloc_strdup(mem_ctx, tln->string);
+			if (!rec->data.name.string) {
+				return NT_STATUS_NO_MEMORY;
+			}
+			rec->data.name.size = strlen(rec->data.name.string);
+			break;
+		case LSA_FOREST_TRUST_DOMAIN_INFO:
+			info = &lrec->forest_trust_data.domain_info;
+			rec->data.info.sid = *info->domain_sid;
+			rec->data.info.dns_name.string =
+				talloc_strdup(mem_ctx,
+					    info->dns_domain_name.string);
+			if (!rec->data.info.dns_name.string) {
+				return NT_STATUS_NO_MEMORY;
+			}
+			rec->data.info.dns_name.size =
+				strlen(rec->data.info.dns_name.string);
+			rec->data.info.netbios_name.string =
+				talloc_strdup(mem_ctx,
+					    info->netbios_domain_name.string);
+			if (!rec->data.info.netbios_name.string) {
+				return NT_STATUS_NO_MEMORY;
+			}
+			rec->data.info.netbios_name.size =
+				strlen(rec->data.info.netbios_name.string);
+			break;
+		default:
+			return NT_STATUS_INVALID_DOMAIN_STATE;
+		}
+	}
+
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS add_collision(struct lsa_ForestTrustCollisionInfo *c_info,
+			      uint32_t index, uint32_t collision_type,
+			      uint32_t conflict_type, const char *tdo_name);
+
+static NTSTATUS check_ft_info(TALLOC_CTX *mem_ctx,
+			      const char *tdo_name,
+			      struct ForestTrustInfo *tdo_fti,
+			      struct ForestTrustInfo *new_fti,
+			      struct lsa_ForestTrustCollisionInfo *c_info)
+{
+	struct ForestTrustInfoRecord *nrec;
+	struct ForestTrustInfoRecord *trec;
+	const char *dns_name;
+	const char *nb_name;
+	struct dom_sid *sid;
+	const char *tname;
+	size_t dns_len;
+	size_t nb_len;
+	size_t tlen;
+	NTSTATUS nt_status;
+	uint32_t new_fti_idx;
+	uint32_t i;
+	/* use always TDO type, until we understand when Xref can be used */
+	uint32_t collision_type = LSA_FOREST_TRUST_COLLISION_TDO;
+	bool tln_conflict;
+	bool sid_conflict;
+	bool nb_conflict;
+	bool exclusion;
+	bool ex_rule;
+	int ret;
+
+	for (new_fti_idx = 0; new_fti_idx < new_fti->count; new_fti_idx++) {
+
+		nrec = &new_fti->records[new_fti_idx].record;
+		dns_name = NULL;
+		tln_conflict = false;
+		sid_conflict = false;
+		nb_conflict = false;
+		exclusion = false;
+
+		switch (nrec->type) {
+		case LSA_FOREST_TRUST_TOP_LEVEL_NAME_EX:
+			/* exclusions do not conflict by definition */
+			break;
+
+		case FOREST_TRUST_TOP_LEVEL_NAME:
+			dns_name = nrec->data.name.string;
+			dns_len = nrec->data.name.size;
+			break;
+
+		case LSA_FOREST_TRUST_DOMAIN_INFO:
+			dns_name = nrec->data.info.dns_name.string;
+			dns_len = nrec->data.info.dns_name.size;
+			nb_name = nrec->data.info.netbios_name.string;
+			nb_len = nrec->data.info.netbios_name.size;
+			sid = &nrec->data.info.sid;
+			break;
+		}
+
+		if (!dns_name) continue;
+
+		/* check if this is already taken and not excluded */
+		for (i = 0; i < tdo_fti->count; i++) {
+			trec = &tdo_fti->records[i].record;
+
+			switch (trec->type) {
+			case FOREST_TRUST_TOP_LEVEL_NAME:
+				ex_rule = false;
+				tname = trec->data.name.string;
+				tlen = trec->data.name.size;
+				break;
+			case FOREST_TRUST_TOP_LEVEL_NAME_EX:
+				ex_rule = true;
+				tname = trec->data.name.string;
+				tlen = trec->data.name.size;
+				break;
+			case FOREST_TRUST_DOMAIN_INFO:
+				ex_rule = false;
+				tname = trec->data.info.dns_name.string;
+				tlen = trec->data.info.dns_name.size;
+			}
+			ret = dns_cmp(dns_name, dns_len, tname, tlen);
+			switch (ret) {
+			case DNS_CMP_MATCH:
+				/* if it matches exclusion,
+				 * it doesn't conflict */
+				if (ex_rule) {
+					exclusion = true;
+					break;
+				}
+				/* fall through */
+			case DNS_CMP_FIRST_IS_CHILD:
+			case DNS_CMP_SECOND_IS_CHILD:
+				tln_conflict = true;
+				/* fall through */
+			default:
+				break;
+			}
+
+			/* explicit exclusion, no dns name conflict here */
+			if (exclusion) {
+				tln_conflict = false;
+			}
+
+			if (trec->type != FOREST_TRUST_DOMAIN_INFO) {
+				continue;
+			}
+
+			/* also test for domain info */
+			if (!(trec->flags & LSA_SID_DISABLED_ADMIN) &&
+			    dom_sid_compare(&trec->data.info.sid, sid) == 0) {
+				sid_conflict = true;
+			}
+			if (!(trec->flags & LSA_NB_DISABLED_ADMIN) &&
+			    strcasecmp_m(trec->data.info.netbios_name.string,
+					 nb_name) == 0) {
+				nb_conflict = true;
+			}
+		}
+
+		if (tln_conflict) {
+			nt_status = add_collision(c_info, new_fti_idx,
+						  collision_type,
+						  LSA_TLN_DISABLED_CONFLICT,
+						  tdo_name);
+		}
+		if (sid_conflict) {
+			nt_status = add_collision(c_info, new_fti_idx,
+						  collision_type,
+						  LSA_SID_DISABLED_CONFLICT,
+						  tdo_name);
+		}
+		if (nb_conflict) {
+			nt_status = add_collision(c_info, new_fti_idx,
+						  collision_type,
+						  LSA_NB_DISABLED_CONFLICT,
+						  tdo_name);
+		}
+	}
+
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS add_collision(struct lsa_ForestTrustCollisionInfo *c_info,
+			      uint32_t idx, uint32_t collision_type,
+			      uint32_t conflict_type, const char *tdo_name)
+{
+	struct lsa_ForestTrustCollisionRecord **es;
+	uint32_t i = c_info->count;
+
+	es = talloc_realloc(c_info, c_info->entries,
+			    struct lsa_ForestTrustCollisionRecord *, i + 1);
+	if (!es) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	c_info->entries = es;
+	c_info->count = i + 1;
+
+	es[i] = talloc(es, struct lsa_ForestTrustCollisionRecord);
+	if (!es[i]) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	es[i]->index = idx;
+	es[i]->type = collision_type;
+	es[i]->flags.flags = conflict_type;
+	es[i]->name.string = talloc_strdup(es[i], tdo_name);
+	if (!es[i]->name.string) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	es[i]->name.size = strlen(es[i]->name.string);
+
+	return NT_STATUS_OK;
+}
+
+/*
+  lsa_lsaRSetForestTrustInformation
+*/
+static NTSTATUS dcesrv_lsa_lsaRSetForestTrustInformation(struct dcesrv_call_state *dce_call,
+							 TALLOC_CTX *mem_ctx,
+							 struct lsa_lsaRSetForestTrustInformation *r)
+{
+	struct dcesrv_handle *h;
+	struct lsa_policy_state *p_state;
+	const char *trust_attrs[] = { "trustPartner", "trustAttributes",
+				      "msDS-TrustForestTrustInfo", NULL };
+	struct ldb_message **dom_res = NULL;
+	struct ldb_dn *tdo_dn;
+	struct ldb_message *msg;
+	int num_res, i;
+	const char *td_name;
+	uint32_t trust_attributes;
+	struct lsa_ForestTrustCollisionInfo *c_info;
+	struct ForestTrustInfo *nfti;
+	struct ForestTrustInfo *fti;
+	DATA_BLOB ft_blob;
+	enum ndr_err_code ndr_err;
+	NTSTATUS nt_status;
+	bool am_rodc;
+	int ret;
+
+	DCESRV_PULL_HANDLE(h, r->in.handle, LSA_HANDLE_POLICY);
+
+	p_state = h->data;
+
+	if (strcmp(p_state->domain_dns, p_state->forest_dns)) {
+		return NT_STATUS_INVALID_DOMAIN_STATE;
+	}
+
+	/* abort if we are not a PDC */
+	if (!samdb_is_pdc(p_state->sam_ldb)) {
+		return NT_STATUS_INVALID_DOMAIN_ROLE;
+	}
+
+	ret = samdb_rodc(p_state->sam_ldb, &am_rodc);
+	if (ret == LDB_SUCCESS && am_rodc) {
+		return NT_STATUS_NO_SUCH_DOMAIN;
+	}
+
+	/* check caller has TRUSTED_SET_AUTH */
+
+	/* fetch all trusted domain objects */
+	num_res = gendb_search(p_state->sam_ldb, mem_ctx,
+			       p_state->system_dn,
+			       &dom_res, trust_attrs,
+			       "(objectclass=trustedDomain)");
+	if (num_res == 0) {
+		return NT_STATUS_NO_SUCH_DOMAIN;
+	}
+
+	for (i = 0; i < num_res; i++) {
+		td_name = ldb_msg_find_attr_as_string(dom_res[i],
+						      "trustPartner", NULL);
+		if (!td_name) {
+			return NT_STATUS_INVALID_DOMAIN_STATE;
+		}
+		if (strcasecmp_m(td_name,
+				 r->in.trusted_domain_name->string) == 0) {
+			break;
+		}
+	}
+	if (i >= num_res) {
+		return NT_STATUS_NO_SUCH_DOMAIN;
+	}
+
+	tdo_dn = dom_res[i]->dn;
+
+	trust_attributes = samdb_result_uint(dom_res[i],
+					     "trustAttributes", 0);
+	if (!(trust_attributes & NETR_TRUST_ATTRIBUTE_FOREST_TRANSITIVE)) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	if (r->in.highest_record_type >= LSA_FOREST_TRUST_RECORD_TYPE_LAST) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	nfti = talloc(mem_ctx, struct ForestTrustInfo);
+	if (!nfti) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	nt_status = make_ft_info(nfti, r->in.forest_trust_info, nfti);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		return nt_status;
+	}
+
+	c_info = talloc_zero(r->out.collision_info,
+			     struct lsa_ForestTrustCollisionInfo);
+	if (!c_info) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+        /* first check own info, then other domains */
+	fti = talloc(mem_ctx, struct ForestTrustInfo);
+	if (!fti) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+        nt_status = own_ft_info(p_state, fti);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		return nt_status;
+	}
+
+	nt_status = check_ft_info(c_info, p_state->domain_dns,
+                                  fti, nfti, c_info);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		return nt_status;
+	}
+
+	for (i = 0; i < num_res; i++) {
+		fti = talloc(mem_ctx, struct ForestTrustInfo);
+		if (!fti) {
+			return NT_STATUS_NO_MEMORY;
+		}
+
+		nt_status = get_ft_info(mem_ctx, dom_res[i], fti);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			if (NT_STATUS_EQUAL(nt_status,
+			    NT_STATUS_OBJECT_NAME_NOT_FOUND)) {
+				continue;
+			}
+			return nt_status;
+		}
+
+		td_name = ldb_msg_find_attr_as_string(dom_res[i],
+						      "trustPartner", NULL);
+		if (!td_name) {
+			return NT_STATUS_INVALID_DOMAIN_STATE;
+		}
+
+		nt_status = check_ft_info(c_info, td_name, fti, nfti, c_info);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			return nt_status;
+		}
+	}
+
+	*r->out.collision_info = c_info;
+
+	if (r->in.check_only != 0) {
+		return NT_STATUS_OK;
+	}
+
+	/* not just a check, write info back */
+
+	ndr_err = ndr_push_struct_blob(&ft_blob, mem_ctx, nfti,
+				       (ndr_push_flags_fn_t)ndr_push_ForestTrustInfo);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	msg = ldb_msg_new(mem_ctx);
+	if (msg == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	msg->dn = ldb_dn_copy(mem_ctx, tdo_dn);
+	if (!msg->dn) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	ret = ldb_msg_add_empty(msg, "msDS-TrustForestTrustInfo",
+				LDB_FLAG_MOD_REPLACE, NULL);
+	if (ret != LDB_SUCCESS) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	ret = ldb_msg_add_value(msg, "msDS-TrustForestTrustInfo",
+				&ft_blob, NULL);
+	if (ret != LDB_SUCCESS) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	ret = ldb_modify(p_state->sam_ldb, msg);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(0, ("Failed to store Forest Trust Info: %s\n",
+			  ldb_errstring(p_state->sam_ldb)));
+
+		switch (ret) {
+		case LDB_ERR_INSUFFICIENT_ACCESS_RIGHTS:
+			return NT_STATUS_ACCESS_DENIED;
+		default:
+			return NT_STATUS_INTERNAL_DB_CORRUPTION;
+		}
+	}
+
+	return NT_STATUS_OK;
+}
 
 /* 
   lsa_CREDRRENAME 

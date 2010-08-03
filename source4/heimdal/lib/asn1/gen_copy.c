@@ -184,6 +184,9 @@ copy_type (const char *from, const char *to, const Type *t, int preserve)
     case TGeneralString:
 	copy_primitive ("general_string", from, to);
 	break;
+    case TTeletexString:
+	copy_primitive ("general_string", from, to);
+	break;
     case TUTCTime:
 	fprintf(codefile, "*(%s) = *(%s);\n", to, from);
 	break;
@@ -224,10 +227,6 @@ generate_type_copy (const Symbol *s)
   int preserve = preserve_type(s->name) ? TRUE : FALSE;
 
   used_fail = 0;
-
-  fprintf (headerfile,
-	   "int    copy_%s  (const %s *, %s *);\n",
-	   s->gen_name, s->gen_name, s->gen_name);
 
   fprintf (codefile, "int\n"
 	   "copy_%s(const %s *from, %s *to)\n"

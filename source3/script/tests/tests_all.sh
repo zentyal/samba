@@ -7,26 +7,26 @@ local_s3() {
 smbtorture_s3() {
 	echo "RUNNING TESTS smbtorture_s3"
 	$SCRIPTDIR/test_smbtorture_s3.sh \
-		//$SERVER_IP/tmp $USERNAME $PASSWORD "" \
+		//$SERVER_IP/tmp $USERNAME $PASSWORD "" "-l $PREFIX_ABS/tmp" \
 	|| failed=`expr $failed + $?`
 }
 
 smbtorture_s3_encrypted() {
 	echo "RUNNING TESTS smbtorture_s3_encrypted"
 	$SCRIPTDIR/test_smbtorture_s3.sh \
-		//$SERVER_IP/tmp $USERNAME $PASSWORD "" "-e" \
+		//$SERVER_IP/tmp $USERNAME $PASSWORD "" "-e" "-l $PREFIX_ABS/tmp" \
 	|| failed=`expr $failed + $?`
 }
 
 smbclient_s3() {
 	echo "RUNNING TESTS smbclient_s3"
-	$SCRIPTDIR/test_smbclient_s3.sh $SERVER $SERVER_IP $USERNAME $PASSWORD \
+	$SCRIPTDIR/test_smbclient_s3.sh $SERVER $SERVER_IP $USERNAME $PASSWORD $USERID "$PREFIX_ABS"/tmp \
 	|| failed=`expr $failed + $?`
 }
 
 smbclient_s3_encrypted() {
 	echo "RUNNING TESTS smbclient_s3_encrypted"
-	$SCRIPTDIR/test_smbclient_s3.sh $SERVER $SERVER_IP $USERNAME $PASSWORD "-e" \
+	$SCRIPTDIR/test_smbclient_s3.sh $SERVER $SERVER_IP $USERNAME $PASSWORD $USERID "$PREFIX_ABS"/tmp "-e" \
 	|| failed=`expr $failed + $?`
 }
 

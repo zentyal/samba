@@ -28,7 +28,9 @@
  *  Author: Andrew Bartlett
  */
 
-#include "ldb_module.h"
+#include "includes.h"
+#include <ldb.h>
+#include <ldb_module.h>
 
 struct subren_msg_store {
 	struct subren_msg_store *next;
@@ -81,6 +83,10 @@ static int subtree_rename_callback(struct ldb_request *req,
 					LDB_ERR_OPERATIONS_ERROR);
 	}
 
+	if (ares->type == LDB_REPLY_REFERRAL) {
+		return ldb_module_send_referral(ac->req, ares->referral);
+	}
+
 	if (ares->error != LDB_SUCCESS) {
 		return ldb_module_done(ac->req, ares->controls,
 					ares->response, ares->error);
@@ -116,7 +122,7 @@ static int subtree_rename_next_request(struct subtree_rename_context *ac)
 	ldb = ldb_module_get_ctx(ac->module);
 
 	if (ac->current == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb);
 	}
 
 	ret = ldb_build_rename_req(&req, ldb, ac->current,
@@ -217,6 +223,7 @@ static int subtree_rename(struct ldb_module *module, struct ldb_request *req)
 	struct ldb_request *search_req;
 	struct subtree_rename_context *ac;
 	int ret;
+
 	if (ldb_dn_is_special(req->op.rename.olddn)) { /* do not manipulate our control entries */
 		return ldb_next_request(module, req);
 	}
@@ -227,20 +234,20 @@ static int subtree_rename(struct ldb_module *module, struct ldb_request *req)
 	   - Do a search for all entires under this entry 
 	   - Wait for these results to appear
 	   - In the callback for each result, issue a modify request
-	    - That will include this rename, we hope
+	   - That will include this rename, we hope
 	   - Wait for each modify result
-	   - Regain our sainity 
+	   - Regain our sanity
 	*/
 
 	ac = subren_ctx_init(module, req);
 	if (!ac) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb);
 	}
 
 	/* add this entry as the first to do */
 	ac->current = talloc_zero(ac, struct subren_msg_store);
 	if (ac->current == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_oom(ldb);
 	}
 	ac->current->olddn = req->op.rename.olddn;
 	ac->current->newdn = req->op.rename.newdn;
@@ -262,7 +269,7 @@ static int subtree_rename(struct ldb_module *module, struct ldb_request *req)
 	return ldb_next_request(module, search_req);
 }
 
-const struct ldb_module_ops ldb_subtree_rename_module_ops = {
+_PUBLIC_ const struct ldb_module_ops ldb_subtree_rename_module_ops = {
 	.name		   = "subtree_rename",
-	.rename            = subtree_rename,
+	.rename            = subtree_rename
 };

@@ -22,9 +22,8 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "librpc/gen_ndr/ndr_drsuapi_c.h"
-#include "torture/rpc/rpc.h"
+#include "torture/rpc/torture_rpc.h"
 #include "param/param.h"
 
 #define TEST_MACHINE_NAME "torturetest"
@@ -35,17 +34,55 @@ bool test_DsBind(struct dcerpc_pipe *p,
 {
 	NTSTATUS status;
 	struct drsuapi_DsBind r;
+	struct drsuapi_DsBindInfo28 *bind_info28;
+	struct drsuapi_DsBindInfoCtr bind_info_ctr;
+
+	ZERO_STRUCT(bind_info_ctr);
+	bind_info_ctr.length = 28;
+
+	bind_info28 = &bind_info_ctr.info.info28;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_BASE;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_ASYNC_REPLICATION;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_REMOVEAPI;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_MOVEREQ_V2;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_GETCHG_COMPRESS;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_DCINFO_V1;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_RESTORE_USN_OPTIMIZATION;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_KCC_EXECUTE;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_ADDENTRY_V2;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_LINKED_VALUE_REPLICATION;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_DCINFO_V2;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_INSTANCE_TYPE_NOT_REQ_ON_MOD;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_CRYPTO_BIND;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_GET_REPL_INFO;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_STRONG_ENCRYPTION;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_DCINFO_V01;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_TRANSITIVE_MEMBERSHIP;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_ADD_SID_HISTORY;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_POST_BETA3;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_GET_MEMBERSHIPS2;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_GETCHGREQ_V6;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_NONDOMAIN_NCS;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_GETCHGREQ_V8;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_GETCHGREPLY_V5;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_GETCHGREPLY_V6;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_ADDENTRYREPLY_V3;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_GETCHGREPLY_V7;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_VERIFY_OBJECT;
 
 	GUID_from_string(DRSUAPI_DS_BIND_GUID, &priv->bind_guid);
 
 	r.in.bind_guid = &priv->bind_guid;
-	r.in.bind_info = NULL;
+	r.in.bind_info = &bind_info_ctr;
 	r.out.bind_handle = &priv->bind_handle;
 
-	torture_comment(tctx, "testing DsBind\n");
+	torture_comment(tctx, "Testing DsBind\n");
 
-	status = dcerpc_drsuapi_DsBind(p, tctx, &r);
+	status = dcerpc_drsuapi_DsBind_r(p->binding_handle, tctx, &r);
 	torture_drsuapi_assert_call(tctx, p, status, &r, "dcerpc_drsuapi_DsBind");
+
+	/* cache server supported extensions, i.e. bind_info */
+	priv->srv_bind_info = r.out.bind_info->info.info28;
 
 	return true;
 }
@@ -54,7 +91,7 @@ static bool test_DsGetDomainControllerInfo(struct torture_context *tctx,
 					   struct DsPrivate *priv)
 {
 	NTSTATUS status;
-	struct dcerpc_pipe *p = priv->pipe;
+	struct dcerpc_pipe *p = priv->drs_pipe;
 	struct drsuapi_DsGetDomainControllerInfo r;
 	union drsuapi_DsGetDCInfoCtr ctr;
 	int32_t level_out = 0;
@@ -100,10 +137,10 @@ static bool test_DsGetDomainControllerInfo(struct torture_context *tctx,
 			r.out.level_out = &level_out;
 			
 			torture_comment(tctx,
-				   "testing DsGetDomainControllerInfo level %d on domainname '%s'\n",
+				   "Testing DsGetDomainControllerInfo level %d on domainname '%s'\n",
 			       r.in.req->req1.level, r.in.req->req1.domain_name);
 		
-			status = dcerpc_drsuapi_DsGetDomainControllerInfo(p, tctx, &r);
+			status = dcerpc_drsuapi_DsGetDomainControllerInfo_r(p->binding_handle, tctx, &r);
 			torture_assert_ntstatus_ok(tctx, status,
 				   "dcerpc_drsuapi_DsGetDomainControllerInfo with dns domain failed");
 			torture_assert_werr_equal(tctx,
@@ -154,10 +191,10 @@ static bool test_DsGetDomainControllerInfo(struct torture_context *tctx,
 	r.in.req->req1.domain_name = "__UNKNOWN_DOMAIN__"; /* This is clearly ignored for this level */
 	r.in.req->req1.level = -1;
 	
-	torture_comment(tctx, "testing DsGetDomainControllerInfo level %d on domainname '%s'\n",
+	torture_comment(tctx, "Testing DsGetDomainControllerInfo level %d on domainname '%s'\n",
 			r.in.req->req1.level, r.in.req->req1.domain_name);
 	
-	status = dcerpc_drsuapi_DsGetDomainControllerInfo(p, tctx, &r);
+	status = dcerpc_drsuapi_DsGetDomainControllerInfo_r(p->binding_handle, tctx, &r);
 
 	torture_assert_ntstatus_ok(tctx, status,
 				   "dcerpc_drsuapi_DsGetDomainControllerInfo with dns domain failed");
@@ -188,18 +225,18 @@ static bool test_DsWriteAccountSpn(struct torture_context *tctx,
 				   struct DsPrivate *priv)
 {
 	NTSTATUS status;
-	struct dcerpc_pipe *p = priv->pipe;
+	struct dcerpc_pipe *p = priv->drs_pipe;
 	struct drsuapi_DsWriteAccountSpn r;
 	union drsuapi_DsWriteAccountSpnRequest req;
 	struct drsuapi_DsNameString names[2];
 	union drsuapi_DsWriteAccountSpnResult res;
-	int32_t level_out;
+	uint32_t level_out;
 
 	r.in.bind_handle		= &priv->bind_handle;
 	r.in.level			= 1;
 	r.in.req			= &req;
 
-	torture_comment(tctx, "testing DsWriteAccountSpn\n");
+	torture_comment(tctx, "Testing DsWriteAccountSpn\n");
 
 	r.in.req->req1.operation	= DRSUAPI_DS_SPN_OPERATION_ADD;
 	r.in.req->req1.unknown1	= 0;
@@ -212,13 +249,13 @@ static bool test_DsWriteAccountSpn(struct torture_context *tctx,
 	r.out.res			= &res;
 	r.out.level_out			= &level_out;
 
-	status = dcerpc_drsuapi_DsWriteAccountSpn(p, tctx, &r);
+	status = dcerpc_drsuapi_DsWriteAccountSpn_r(p->binding_handle, tctx, &r);
 	torture_drsuapi_assert_call(tctx, p, status, &r, "dcerpc_drsuapi_DsWriteAccountSpn");
 
 	r.in.req->req1.operation	= DRSUAPI_DS_SPN_OPERATION_DELETE;
 	r.in.req->req1.unknown1		= 0;
 
-	status = dcerpc_drsuapi_DsWriteAccountSpn(p, tctx, &r);
+	status = dcerpc_drsuapi_DsWriteAccountSpn_r(p->binding_handle, tctx, &r);
 	torture_drsuapi_assert_call(tctx, p, status, &r, "dcerpc_drsuapi_DsWriteAccountSpn");
 
 	return true;
@@ -228,7 +265,7 @@ static bool test_DsReplicaGetInfo(struct torture_context *tctx,
 				  struct DsPrivate *priv)
 {
 	NTSTATUS status;
-	struct dcerpc_pipe *p = priv->pipe;
+	struct dcerpc_pipe *p = priv->drs_pipe;
 	struct drsuapi_DsReplicaGetInfo r;
 	union drsuapi_DsReplicaGetInfoRequest req;
 	union drsuapi_DsReplicaInfo info;
@@ -285,19 +322,19 @@ static bool test_DsReplicaGetInfo(struct torture_context *tctx,
 			NULL
 		},{
 			DRSUAPI_DS_REPLICA_GET_INFO2,
-			DRSUAPI_DS_REPLICA_INFO_NEIGHBORS02,
+			DRSUAPI_DS_REPLICA_INFO_REPSTO,
 			NULL
 		},{
 			DRSUAPI_DS_REPLICA_GET_INFO2,
-			DRSUAPI_DS_REPLICA_INFO_CONNECTIONS04,
+			DRSUAPI_DS_REPLICA_INFO_CLIENT_CONTEXTS,
 			"__IGNORED__"
 		},{
 			DRSUAPI_DS_REPLICA_GET_INFO2,
-			DRSUAPI_DS_REPLICA_INFO_CURSORS05,
+			DRSUAPI_DS_REPLICA_INFO_UPTODATE_VECTOR_V1,
 			NULL
 		},{
 			DRSUAPI_DS_REPLICA_GET_INFO2,
-			DRSUAPI_DS_REPLICA_INFO_06,
+			DRSUAPI_DS_REPLICA_INFO_SERVER_OUTGOING_CALLS,
 			NULL
 		}
 	};
@@ -313,7 +350,7 @@ static bool test_DsReplicaGetInfo(struct torture_context *tctx,
 	for (i=0; i < ARRAY_SIZE(array); i++) {
 		const char *object_dn;
 
-		torture_comment(tctx, "testing DsReplicaGetInfo level %d infotype %d\n",
+		torture_comment(tctx, "Testing DsReplicaGetInfo level %d infotype %d\n",
 				array[i].level, array[i].infotype);
 
 		object_dn = (array[i].obj_dn ? array[i].obj_dn : priv->domain_obj_dn);
@@ -323,25 +360,25 @@ static bool test_DsReplicaGetInfo(struct torture_context *tctx,
 		case DRSUAPI_DS_REPLICA_GET_INFO:
 			r.in.req->req1.info_type	= array[i].infotype;
 			r.in.req->req1.object_dn	= object_dn;
-			ZERO_STRUCT(r.in.req->req1.guid1);
+			ZERO_STRUCT(r.in.req->req1.source_dsa_guid);
 			break;
 		case DRSUAPI_DS_REPLICA_GET_INFO2:
 			r.in.req->req2.info_type	= array[i].infotype;
 			r.in.req->req2.object_dn	= object_dn;
-			ZERO_STRUCT(r.in.req->req2.guid1);
-			r.in.req->req2.unknown1	= 0;
-			r.in.req->req2.string1	= NULL;
-			r.in.req->req2.string2	= NULL;
-			r.in.req->req2.unknown2	= 0;
+			ZERO_STRUCT(r.in.req->req2.source_dsa_guid);
+			r.in.req->req2.flags		= 0;
+			r.in.req->req2.attribute_name	= NULL;
+			r.in.req->req2.value_dn_str	= NULL;
+			r.in.req->req2.enumeration_context = 0;
 			break;
 		}
 
 		r.out.info		= &info;
 		r.out.info_type		= &info_type;
 
-		status = dcerpc_drsuapi_DsReplicaGetInfo(p, tctx, &r);
+		status = dcerpc_drsuapi_DsReplicaGetInfo_r(p->binding_handle, tctx, &r);
 		torture_drsuapi_assert_call(tctx, p, status, &r, "dcerpc_drsuapi_DsReplicaGetInfo");
-		if (!NT_STATUS_IS_OK(status) && p->last_fault_code == DCERPC_FAULT_INVALID_TAG) {
+		if (NT_STATUS_EQUAL(status, NT_STATUS_RPC_ENUM_VALUE_OUT_OF_RANGE)) {
 			torture_comment(tctx,
 					"DsReplicaGetInfo level %d and/or infotype %d not supported by server\n",
 					array[i].level, array[i].infotype);
@@ -357,9 +394,10 @@ static bool test_DsReplicaSync(struct torture_context *tctx,
 				struct DsPrivate *priv)
 {
 	NTSTATUS status;
-	struct dcerpc_pipe *p = priv->pipe;
+	struct dcerpc_pipe *p = priv->drs_pipe;
 	int i;
 	struct drsuapi_DsReplicaSync r;
+	union drsuapi_DsReplicaSyncRequest sync_req;
 	struct drsuapi_DsReplicaObjectIdentifier nc;
 	struct GUID null_guid;
 	struct dom_sid null_sid;
@@ -387,7 +425,7 @@ static bool test_DsReplicaSync(struct torture_context *tctx,
 	r.in.bind_handle	= &priv->bind_handle;
 
 	for (i=0; i < ARRAY_SIZE(array); i++) {
-		torture_comment(tctx, "testing DsReplicaSync level %d\n",
+		torture_comment(tctx, "Testing DsReplicaSync level %d\n",
 				array[i].level);
 
 		r.in.level = array[i].level;
@@ -397,14 +435,16 @@ static bool test_DsReplicaSync(struct torture_context *tctx,
 			nc.sid					= null_sid;
 			nc.dn					= priv->domain_obj_dn?priv->domain_obj_dn:"";
 
-			r.in.req.req1.naming_context		= &nc;
-			r.in.req.req1.source_dsa_guid		= priv->dcinfo.ntds_guid;
-			r.in.req.req1.other_info		= NULL;
-			r.in.req.req1.options			= 16;
+			sync_req.req1.naming_context		= &nc;
+			sync_req.req1.source_dsa_guid		= priv->dcinfo.ntds_guid;
+			sync_req.req1.source_dsa_dns		= NULL;
+			sync_req.req1.options			= 16;
+
+			r.in.req 				= &sync_req;
 			break;
 		}
 
-		status = dcerpc_drsuapi_DsReplicaSync(p, tctx, &r);
+		status = dcerpc_drsuapi_DsReplicaSync_r(p->binding_handle, tctx, &r);
 		torture_drsuapi_assert_call(tctx, p, status, &r, "dcerpc_drsuapi_DsReplicaSync");
 	}
 
@@ -415,52 +455,65 @@ static bool test_DsReplicaUpdateRefs(struct torture_context *tctx,
 				     struct DsPrivate *priv)
 {
 	NTSTATUS status;
-	struct dcerpc_pipe *p = priv->pipe;
-	int i;
+	struct dcerpc_pipe *p = priv->drs_pipe;
 	struct drsuapi_DsReplicaUpdateRefs r;
 	struct drsuapi_DsReplicaObjectIdentifier nc;
 	struct GUID null_guid;
+	struct GUID dest_dsa_guid;
+	const char *dest_dsa_guid_str;
 	struct dom_sid null_sid;
-	struct {
-		int32_t level;
-	} array[] = {
-		{	
-			1
-		}
-	};
-
-	if (torture_setting_bool(tctx, "samba4", false)) {
-		torture_comment(tctx, "skipping DsReplicaUpdateRefs test against Samba4\n");
-		return true;
-	}
 
 	ZERO_STRUCT(null_guid);
 	ZERO_STRUCT(null_sid);
+	dest_dsa_guid = GUID_random();
+	dest_dsa_guid_str = GUID_string(tctx, &dest_dsa_guid);
 
-	r.in.bind_handle	= &priv->bind_handle;
+	r.in.bind_handle = &priv->bind_handle;
+	r.in.level	 = 1; /* Only version 1 is defined presently */
 
-	for (i=0; i < ARRAY_SIZE(array); i++) {
-		torture_comment(tctx, "testing DsReplicaUpdateRefs level %d\n",
-				array[i].level);
+	/* setup NC */
+	nc.guid		= priv->domain_obj_dn ? null_guid : priv->domain_guid;
+	nc.sid		= null_sid;
+	nc.dn		= priv->domain_obj_dn ? priv->domain_obj_dn : "";
 
-		r.in.level = array[i].level;
-		switch(r.in.level) {
-		case 1:
-			nc.guid				= null_guid;
-			nc.sid				= null_sid;
-			nc.dn				= priv->domain_obj_dn ? priv->domain_obj_dn : "";
+	/* default setup for request */
+	r.in.req.req1.naming_context	= &nc;
+	r.in.req.req1.dest_dsa_dns_name	= talloc_asprintf(tctx, "%s._msdn.%s",
+								dest_dsa_guid_str,
+								priv->domain_dns_name);
+	r.in.req.req1.dest_dsa_guid	= dest_dsa_guid;
 
-			r.in.req.req1.naming_context	= &nc;
-			r.in.req.req1.dest_dsa_dns_name	= talloc_asprintf(tctx, "__some_dest_dsa_guid_string._msdn.%s",
-										priv->domain_dns_name);
-			r.in.req.req1.dest_dsa_guid	= null_guid;
-			r.in.req.req1.options		= 0;
-			break;
-		}
+	/* 1. deleting replica dest should fail */
+	torture_comment(tctx, "delete: %s\n", r.in.req.req1.dest_dsa_dns_name);
+	r.in.req.req1.options		= DRSUAPI_DRS_DEL_REF;
+	status = dcerpc_drsuapi_DsReplicaUpdateRefs_r(p->binding_handle, tctx, &r);
+	torture_drsuapi_assert_call_werr(tctx, p,
+					 status, WERR_DS_DRA_REF_NOT_FOUND, &r,
+					 "dcerpc_drsuapi_DsReplicaUpdateRefs");
 
-		status = dcerpc_drsuapi_DsReplicaUpdateRefs(p, tctx, &r);
-		torture_drsuapi_assert_call(tctx, p, status, &r, "dcerpc_drsuapi_DsReplicaUpdateRefs");
-	}
+	/* 2. hopefully adding random replica dest should succeed */
+	torture_comment(tctx, "add   : %s\n", r.in.req.req1.dest_dsa_dns_name);
+	r.in.req.req1.options		= DRSUAPI_DRS_ADD_REF;
+	status = dcerpc_drsuapi_DsReplicaUpdateRefs_r(p->binding_handle, tctx, &r);
+	torture_drsuapi_assert_call_werr(tctx, p,
+					 status, WERR_OK, &r,
+					 "dcerpc_drsuapi_DsReplicaUpdateRefs");
+
+	/* 3. try adding same replica dest - should fail */
+	torture_comment(tctx, "add   : %s\n", r.in.req.req1.dest_dsa_dns_name);
+	r.in.req.req1.options		= DRSUAPI_DRS_ADD_REF;
+	status = dcerpc_drsuapi_DsReplicaUpdateRefs_r(p->binding_handle, tctx, &r);
+	torture_drsuapi_assert_call_werr(tctx, p,
+					 status, WERR_DS_DRA_REF_ALREADY_EXISTS, &r,
+					 "dcerpc_drsuapi_DsReplicaUpdateRefs");
+
+	/* 4. delete random replicate added at step 2. */
+	torture_comment(tctx, "delete: %s\n", r.in.req.req1.dest_dsa_dns_name);
+	r.in.req.req1.options		= DRSUAPI_DRS_DEL_REF;
+	status = dcerpc_drsuapi_DsReplicaUpdateRefs_r(p->binding_handle, tctx, &r);
+	torture_drsuapi_assert_call_werr(tctx, p,
+					 status, WERR_OK, &r,
+					 "dcerpc_drsuapi_DsReplicaUpdateRefs");
 
 	return true;
 }
@@ -469,7 +522,7 @@ static bool test_DsGetNCChanges(struct torture_context *tctx,
 				struct DsPrivate *priv)
 {
 	NTSTATUS status;
-	struct dcerpc_pipe *p = priv->pipe;
+	struct dcerpc_pipe *p = priv->drs_pipe;
 	int i;
 	struct drsuapi_DsGetNCChanges r;
 	union drsuapi_DsGetNCChangesRequest req;
@@ -477,9 +530,9 @@ static bool test_DsGetNCChanges(struct torture_context *tctx,
 	struct drsuapi_DsReplicaObjectIdentifier nc;
 	struct GUID null_guid;
 	struct dom_sid null_sid;
-	int32_t level_out;
+	uint32_t level_out;
 	struct {
-		int32_t level;
+		uint32_t level;
 	} array[] = {
 		{	
 			5
@@ -499,7 +552,7 @@ static bool test_DsGetNCChanges(struct torture_context *tctx,
 
 	for (i=0; i < ARRAY_SIZE(array); i++) {
 		torture_comment(tctx,
-				"testing DsGetNCChanges level %d\n",
+				"Testing DsGetNCChanges level %d\n",
 				array[i].level);
 
 		r.in.bind_handle	= &priv->bind_handle;
@@ -522,8 +575,8 @@ static bool test_DsGetNCChanges(struct torture_context *tctx,
 			r.in.req->req5.highwatermark.highest_usn	= 0;
 			r.in.req->req5.uptodateness_vector		= NULL;
 			r.in.req->req5.replica_flags			= 0;
-			if (lp_parm_bool(tctx->lp_ctx, NULL, "drsuapi", "compression", false)) {
-				r.in.req->req5.replica_flags		|= DRSUAPI_DS_REPLICA_NEIGHBOUR_COMPRESS_CHANGES;
+			if (lpcfg_parm_bool(tctx->lp_ctx, NULL, "drsuapi", "compression", false)) {
+				r.in.req->req5.replica_flags		|= DRSUAPI_DRS_USE_COMPRESSION;
 			}
 			r.in.req->req5.max_object_count			= 0;
 			r.in.req->req5.max_ndr_size			= 0;
@@ -545,16 +598,16 @@ static bool test_DsGetNCChanges(struct torture_context *tctx,
 			r.in.req->req8.highwatermark.highest_usn	= 0;
 			r.in.req->req8.uptodateness_vector		= NULL;
 			r.in.req->req8.replica_flags			= 0;
-			if (lp_parm_bool(tctx->lp_ctx, NULL, "drsuapi", "compression", false)) {
-				r.in.req->req8.replica_flags		|= DRSUAPI_DS_REPLICA_NEIGHBOUR_COMPRESS_CHANGES;
+			if (lpcfg_parm_bool(tctx->lp_ctx, NULL, "drsuapi", "compression", false)) {
+				r.in.req->req8.replica_flags		|= DRSUAPI_DRS_USE_COMPRESSION;
 			}
-			if (lp_parm_bool(tctx->lp_ctx, NULL, "drsuapi", "neighbour_writeable", true)) {
-				r.in.req->req8.replica_flags		|= DRSUAPI_DS_REPLICA_NEIGHBOUR_WRITEABLE;
+			if (lpcfg_parm_bool(tctx->lp_ctx, NULL, "drsuapi", "neighbour_writeable", true)) {
+				r.in.req->req8.replica_flags		|= DRSUAPI_DRS_WRIT_REP;
 			}
-			r.in.req->req8.replica_flags			|= DRSUAPI_DS_REPLICA_NEIGHBOUR_SYNC_ON_STARTUP
-									| DRSUAPI_DS_REPLICA_NEIGHBOUR_DO_SCHEDULED_SYNCS
-									| DRSUAPI_DS_REPLICA_NEIGHBOUR_RETURN_OBJECT_PARENTS
-									| DRSUAPI_DS_REPLICA_NEIGHBOUR_NEVER_SYNCED
+			r.in.req->req8.replica_flags			|= DRSUAPI_DRS_INIT_SYNC
+									| DRSUAPI_DRS_PER_SYNC
+									| DRSUAPI_DRS_GET_ANC
+									| DRSUAPI_DRS_NEVER_SYNCED
 									;
 			r.in.req->req8.max_object_count			= 402;
 			r.in.req->req8.max_ndr_size			= 402116;
@@ -568,7 +621,7 @@ static bool test_DsGetNCChanges(struct torture_context *tctx,
 			break;
 		}
 
-		status = dcerpc_drsuapi_DsGetNCChanges(p, tctx, &r);
+		status = dcerpc_drsuapi_DsGetNCChanges_r(p->binding_handle, tctx, &r);
 		torture_drsuapi_assert_call(tctx, p, status, &r, "dcerpc_drsuapi_DsGetNCChanges");
 	}
 
@@ -579,7 +632,7 @@ bool test_QuerySitesByCost(struct torture_context *tctx,
 			   struct DsPrivate *priv)
 {
 	NTSTATUS status;
-	struct dcerpc_pipe *p = priv->pipe;
+	struct dcerpc_pipe *p = priv->drs_pipe;
 	struct drsuapi_QuerySitesByCost r;
 	union drsuapi_QuerySitesByCostRequest req;
 
@@ -598,7 +651,7 @@ bool test_QuerySitesByCost(struct torture_context *tctx,
 	r.in.level = 1;
 	r.in.req = &req;
 
-	status = dcerpc_drsuapi_QuerySitesByCost(p, tctx, &r);
+	status = dcerpc_drsuapi_QuerySitesByCost_r(p->binding_handle, tctx, &r);
 	torture_drsuapi_assert_call(tctx, p, status, &r, "dcerpc_drsuapi_QuerySitesByCost");
 
 	if (W_ERROR_IS_OK(r.out.result)) {
@@ -632,9 +685,9 @@ bool test_DsUnbind(struct dcerpc_pipe *p,
 	r.in.bind_handle = &priv->bind_handle;
 	r.out.bind_handle = &priv->bind_handle;
 
-	torture_comment(tctx, "testing DsUnbind\n");
+	torture_comment(tctx, "Testing DsUnbind\n");
 
-	status = dcerpc_drsuapi_DsUnbind(p, tctx, &r);
+	status = dcerpc_drsuapi_DsUnbind_r(p->binding_handle, tctx, &r);
 	torture_drsuapi_assert_call(tctx, p, status, &r, "dcerpc_drsuapi_DsUnbind");
 
 	return true;
@@ -659,6 +712,7 @@ bool torture_rpc_drsuapi_get_dcinfo(struct torture_context *torture,
 
 	for (j=0; j < ARRAY_SIZE(names); j++) {
 		union drsuapi_DsGetDCInfoRequest req;
+		struct dcerpc_binding_handle *b = priv->drs_pipe->binding_handle;
 		r.in.bind_handle = &priv->bind_handle;
 		r.in.level = 1;
 		r.in.req = &req;
@@ -669,7 +723,7 @@ bool torture_rpc_drsuapi_get_dcinfo(struct torture_context *torture,
 		r.out.ctr = &ctr;
 		r.out.level_out = &level_out;
 
-		status = dcerpc_drsuapi_DsGetDomainControllerInfo(priv->pipe, torture, &r);
+		status = dcerpc_drsuapi_DsGetDomainControllerInfo_r(b, torture, &r);
 		if (!NT_STATUS_IS_OK(status)) {
 			continue;
 		}
@@ -703,7 +757,7 @@ bool torture_drsuapi_tcase_setup_common(struct torture_context *tctx, struct DsP
 
 	torture_comment(tctx, "Create DRSUAPI pipe\n");
 	status = torture_rpc_connection(tctx,
-					&priv->pipe,
+					&priv->drs_pipe,
 					&ndr_table_drsuapi);
 	torture_assert(tctx, NT_STATUS_IS_OK(status), "Unable to connect to DRSUAPI pipe");
 
@@ -712,7 +766,7 @@ bool torture_drsuapi_tcase_setup_common(struct torture_context *tctx, struct DsP
 					 &machine_credentials);
 	torture_assert(tctx, priv->join, "Failed to join as BDC");
 
-	if (!test_DsBind(priv->pipe, tctx, priv)) {
+	if (!test_DsBind(priv->drs_pipe, tctx, priv)) {
 		/* clean up */
 		torture_drsuapi_tcase_teardown_common(tctx, priv);
 		torture_fail(tctx, "Failed execute test_DsBind()");

@@ -31,10 +31,14 @@
 #include "librpc/gen_ndr/dcerpc.h"
 #include "../librpc/ndr/libndr.h"
 
+struct tevent_context;
+struct tevent_req;
+struct dcerpc_binding_handle;
+
 enum dcerpc_transport_t {
 	NCA_UNKNOWN, NCACN_NP, NCACN_IP_TCP, NCACN_IP_UDP, NCACN_VNS_IPC, 
 	NCACN_VNS_SPP, NCACN_AT_DSP, NCADG_AT_DDP, NCALRPC, NCACN_UNIX_STREAM, 
-	NCADG_UNIX_DGRAM, NCACN_HTTP, NCADG_IPX, NCACN_SPX };
+	NCADG_UNIX_DGRAM, NCACN_HTTP, NCADG_IPX, NCACN_SPX, NCACN_INTERNAL };
 
 /*
   this defines a generic security context for signed/sealed dcerpc pipes.
@@ -60,7 +64,6 @@ struct dcerpc_connection {
 	struct dcerpc_security security_state;
 	const char *binding_string;
 	struct tevent_context *event_ctx;
-	struct smb_iconv_convenience *iconv_convenience;
 
 	/** Directory in which to save ndrdump-parseable files */
 	const char *packet_log_dir;
@@ -112,6 +115,8 @@ struct dcerpc_pipe {
 
 	struct dcerpc_connection *conn;
 	struct dcerpc_binding *binding;
+
+	struct dcerpc_binding_handle *binding_handle;
 
 	/** the last fault code from a DCERPC fault */
 	uint32_t last_fault_code;
@@ -265,8 +270,7 @@ struct rpc_request *dcerpc_ndr_request_send(struct dcerpc_pipe *p,
 						TALLOC_CTX *mem_ctx, 
 						void *r);
 const char *dcerpc_server_name(struct dcerpc_pipe *p);
-struct dcerpc_pipe *dcerpc_pipe_init(TALLOC_CTX *mem_ctx, struct tevent_context *ev,
-				     struct smb_iconv_convenience *ic);
+struct dcerpc_pipe *dcerpc_pipe_init(TALLOC_CTX *mem_ctx, struct tevent_context *ev);
 NTSTATUS dcerpc_pipe_open_smb(struct dcerpc_pipe *p,
 			      struct smbcli_tree *tree,
 			      const char *pipe_name);
@@ -297,6 +301,7 @@ NTSTATUS dcerpc_pipe_connect_b(TALLOC_CTX *parent_ctx,
 			       struct tevent_context *ev,
 			       struct loadparm_context *lp_ctx);
 const char *dcerpc_errstr(TALLOC_CTX *mem_ctx, uint32_t fault_code);
+NTSTATUS dcerpc_fault_to_nt_status(uint32_t fault_code);
 
 NTSTATUS dcerpc_pipe_auth(TALLOC_CTX *mem_ctx,
 			  struct dcerpc_pipe **p, 
@@ -386,10 +391,13 @@ NTSTATUS dcerpc_request(struct dcerpc_pipe *p,
 			DATA_BLOB *stub_data_in,
 			DATA_BLOB *stub_data_out);
 
-typedef NTSTATUS (*dcerpc_call_fn) (struct dcerpc_pipe *, TALLOC_CTX *, void *);
-
 enum dcerpc_transport_t dcerpc_transport_by_endpoint_protocol(int prot);
 
 const char *dcerpc_floor_get_rhs_data(TALLOC_CTX *mem_ctx, struct epm_floor *epm_floor);
+
+/* TODO: this needs to be completely private */
+struct dcerpc_binding_handle {
+	void *private_data;
+};
 
 #endif /* __DCERPC_H__ */

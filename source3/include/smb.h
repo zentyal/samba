@@ -144,27 +144,6 @@ typedef union unid_t {
 	gid_t gid;
 } unid_t;
 
-/*
- * SMB UCS2 (16-bit unicode) internal type.
- * smb_ucs2_t is *always* in little endian format.
- */
-
-#ifdef WORDS_BIGENDIAN
-#define UCS2_SHIFT 8
-#else
-#define UCS2_SHIFT 0
-#endif
-
-/* turn a 7 bit character into a ucs2 character */
-#define UCS2_CHAR(c) ((c) << UCS2_SHIFT)
-
-/* return an ascii version of a ucs2 character */
-#define UCS2_TO_CHAR(c) (((c) >> UCS2_SHIFT) & 0xff)
-
-/* Copy into a smb_ucs2_t from a possibly unaligned buffer. Return the copied smb_ucs2_t */
-#define COPY_UCS2_CHAR(dest,src) (((unsigned char *)(dest))[0] = ((unsigned char *)(src))[0],\
-				((unsigned char *)(dest))[1] = ((unsigned char *)(src))[1], (dest))
-
 /* pipe string names */
 #define PIPE_LANMAN   "\\PIPE\\LANMAN"
 
@@ -197,67 +176,15 @@ typedef union unid_t {
 					|LOOKUP_NAME_WKN\
 					|LOOKUP_NAME_DOMAIN)
 
-/**
- * @brief Security Identifier
- *
- * @sa http://msdn.microsoft.com/library/default.asp?url=/library/en-us/security/accctrl_38yn.asp
- **/
-typedef struct dom_sid DOM_SID;
-
-enum id_mapping {
-	ID_UNKNOWN = 0,
-	ID_MAPPED,
-	ID_UNMAPPED,
-	ID_EXPIRED
-};
-
-enum id_type {
-	ID_TYPE_NOT_SPECIFIED = 0,
-	ID_TYPE_UID,
-	ID_TYPE_GID
-};
-
-struct unixid {
-	uint32_t id;
-	enum id_type type;
-};
-
-struct id_map {
-	DOM_SID *sid;
-	struct unixid xid;
-	enum id_mapping status;
-};
-
-#include "librpc/gen_ndr/misc.h"
-#include "librpc/gen_ndr/security.h"
-#include "librpc/ndr/libndr.h"
-#include "librpc/gen_ndr/lsa.h"
-#include "librpc/gen_ndr/dfs.h"
-#include "librpc/gen_ndr/winreg.h"
-#include "librpc/gen_ndr/initshutdown.h"
-#include "librpc/gen_ndr/eventlog.h"
-#include "librpc/gen_ndr/srvsvc.h"
-#include "librpc/gen_ndr/wkssvc.h"
-#include "librpc/gen_ndr/echo.h"
-#include "librpc/gen_ndr/svcctl.h"
-#include "librpc/gen_ndr/netlogon.h"
-#include "librpc/gen_ndr/samr.h"
-#include "librpc/gen_ndr/dssetup.h"
+#include "librpc/gen_ndr/idmap.h"
 #include "librpc/gen_ndr/epmapper.h"
-#include "librpc/gen_ndr/libnet_join.h"
 #include "librpc/gen_ndr/krb5pac.h"
-#include "librpc/gen_ndr/ntsvcs.h"
-#include "librpc/gen_ndr/nbt.h"
-#include "librpc/gen_ndr/drsuapi.h"
-#include "librpc/gen_ndr/drsblobs.h"
-#include "librpc/gen_ndr/spoolss.h"
 #include "librpc/gen_ndr/dcerpc.h"
-#include "librpc/gen_ndr/ndr_dcerpc.h"
-#include "librpc/gen_ndr/ntlmssp.h"
+#include "librpc/gen_ndr/spoolss.h"
 
 struct lsa_dom_info {
 	bool valid;
-	DOM_SID sid;
+	struct dom_sid sid;
 	const char *name;
 	int num_idxs;
 	int *idxs;
@@ -271,30 +198,30 @@ struct lsa_name_info {
 };
 
 /* Some well-known SIDs */
-extern const DOM_SID global_sid_World_Domain;
-extern const DOM_SID global_sid_World;
-extern const DOM_SID global_sid_Creator_Owner_Domain;
-extern const DOM_SID global_sid_NT_Authority;
-extern const DOM_SID global_sid_System;
-extern const DOM_SID global_sid_NULL;
-extern const DOM_SID global_sid_Authenticated_Users;
-extern const DOM_SID global_sid_Network;
-extern const DOM_SID global_sid_Creator_Owner;
-extern const DOM_SID global_sid_Creator_Group;
-extern const DOM_SID global_sid_Anonymous;
-extern const DOM_SID global_sid_Builtin;
-extern const DOM_SID global_sid_Builtin_Administrators;
-extern const DOM_SID global_sid_Builtin_Users;
-extern const DOM_SID global_sid_Builtin_Guests;
-extern const DOM_SID global_sid_Builtin_Power_Users;
-extern const DOM_SID global_sid_Builtin_Account_Operators;
-extern const DOM_SID global_sid_Builtin_Server_Operators;
-extern const DOM_SID global_sid_Builtin_Print_Operators;
-extern const DOM_SID global_sid_Builtin_Backup_Operators;
-extern const DOM_SID global_sid_Builtin_Replicator;
-extern const DOM_SID global_sid_Builtin_PreWin2kAccess;
-extern const DOM_SID global_sid_Unix_Users;
-extern const DOM_SID global_sid_Unix_Groups;
+extern const struct dom_sid global_sid_World_Domain;
+extern const struct dom_sid global_sid_World;
+extern const struct dom_sid global_sid_Creator_Owner_Domain;
+extern const struct dom_sid global_sid_NT_Authority;
+extern const struct dom_sid global_sid_System;
+extern const struct dom_sid global_sid_NULL;
+extern const struct dom_sid global_sid_Authenticated_Users;
+extern const struct dom_sid global_sid_Network;
+extern const struct dom_sid global_sid_Creator_Owner;
+extern const struct dom_sid global_sid_Creator_Group;
+extern const struct dom_sid global_sid_Anonymous;
+extern const struct dom_sid global_sid_Builtin;
+extern const struct dom_sid global_sid_Builtin_Administrators;
+extern const struct dom_sid global_sid_Builtin_Users;
+extern const struct dom_sid global_sid_Builtin_Guests;
+extern const struct dom_sid global_sid_Builtin_Power_Users;
+extern const struct dom_sid global_sid_Builtin_Account_Operators;
+extern const struct dom_sid global_sid_Builtin_Server_Operators;
+extern const struct dom_sid global_sid_Builtin_Print_Operators;
+extern const struct dom_sid global_sid_Builtin_Backup_Operators;
+extern const struct dom_sid global_sid_Builtin_Replicator;
+extern const struct dom_sid global_sid_Builtin_PreWin2kAccess;
+extern const struct dom_sid global_sid_Unix_Users;
+extern const struct dom_sid global_sid_Unix_Groups;
 
 /*
  * The complete list of SIDS belonging to this user.
@@ -311,7 +238,7 @@ extern const DOM_SID global_sid_Unix_Groups;
 
 typedef struct nt_user_token {
 	size_t num_sids;
-	DOM_SID *user_sids;
+	struct dom_sid *user_sids;
 	SE_PRIV privileges;
 } NT_USER_TOKEN;
 
@@ -344,7 +271,8 @@ struct fd_handle {
 	SMB_OFF_T pos;
 	uint32 private_options;	/* NT Create options, but we only look at
 				 * NTCREATEX_OPTIONS_PRIVATE_DENY_DOS and
-				 * NTCREATEX_OPTIONS_PRIVATE_DENY_FCB (Except
+				 * NTCREATEX_OPTIONS_PRIVATE_DENY_FCB and
+				 * NTCREATEX_OPTIONS_PRIVATE_DELETE_ON_CLOSE
 				 * for print files *only*, where
 				 * DELETE_ON_CLOSE is not stored in the share
 				 * mode database.
@@ -356,7 +284,6 @@ struct idle_event;
 struct share_mode_entry;
 struct uuid;
 struct named_mutex;
-struct pcap_cache;
 struct wb_context;
 struct rpc_cli_smbd_conn;
 struct fncall_context;
@@ -410,13 +337,21 @@ struct notify_change_buf {
 	struct notify_change_request *requests;
 };
 
+struct print_file_data {
+	char *svcname;
+	char *docname;
+	char *filename;
+	struct policy_handle handle;
+	uint32_t jobid;
+	uint16 rap_jobid;
+};
+
 typedef struct files_struct {
 	struct files_struct *next, *prev;
 	int fnum;
 	struct connection_struct *conn;
 	struct fd_handle *fh;
 	unsigned int num_smb_operations;
-	uint16 rap_print_jobid;
 	struct file_id file_id;
 	uint64_t initial_allocation_size; /* Faked up initial allocation on disk. */
 	mode_t mode;
@@ -445,7 +380,6 @@ typedef struct files_struct {
 	bool can_lock;
 	bool can_read;
 	bool can_write;
-	bool print_file;
 	bool modified;
 	bool is_directory;
 	bool aio_write_behind;
@@ -471,6 +405,10 @@ typedef struct files_struct {
 	struct byte_range_lock *brlock_rec;
 
 	struct dptr_struct *dptr;
+
+	/* if not NULL, means this is a print file */
+	struct print_file_data *print_file;
+
 } files_struct;
 
 #include "ntquotas.h"
@@ -480,7 +418,6 @@ struct vuid_cache_entry {
 	struct auth_serversupplied_info *server_info;
 	uint16_t vuid;
 	bool read_only;
-	bool admin_user;
 };
 
 struct vuid_cache {
@@ -496,7 +433,7 @@ typedef struct {
 struct trans_state {
 	struct trans_state *next, *prev;
 	uint16 vuid;
-	uint16 mid;
+	uint64_t mid;
 
 	uint32 max_param_return;
 	uint32 max_data_return;
@@ -566,7 +503,6 @@ typedef struct connection_struct {
 	bool printer;
 	bool ipc;
 	bool read_only; /* Attributes for the current user of the share. */
-	bool admin_user; /* Attributes for the current user of the share. */
 	/* Does this filesystem honor
 	   sub second timestamps on files
 	   and directories when setting time ? */
@@ -618,6 +554,9 @@ typedef struct connection_struct {
 	struct dfree_cached_info *dfree_info;
 	struct trans_state *pending_trans;
 	struct notify_context *notify_ctx;
+
+	struct rpc_pipe_client *spoolss_pipe;
+
 } connection_struct;
 
 struct current_user {
@@ -627,12 +566,13 @@ struct current_user {
 	NT_USER_TOKEN *nt_user_token;
 };
 
+struct smbd_smb2_request;
 
 struct smb_request {
 	uint8_t cmd;
 	uint16 flags2;
 	uint16 smbpid;
-	uint16 mid;
+	uint64_t mid; /* For compatibility with SMB2. */
 	uint32_t seqnum;
 	uint16 vuid;
 	uint16 tid;
@@ -656,6 +596,7 @@ struct smb_request {
 	size_t unread_bytes;
 	bool encrypted;
 	connection_struct *conn;
+	struct smbd_server_connection *sconn;
 	struct smb_perfcount_data pcd;
 
 	/*
@@ -674,6 +615,11 @@ struct smb_request {
 	void *async_priv;
 
 	bool done;
+
+	/*
+	 * Back pointer to smb2 request.
+	 */
+	struct smbd_smb2_request *smb2req;
 };
 
 /* Defines for the sent_oplock_break field above. */
@@ -689,8 +635,23 @@ typedef struct {
 
 /* Extra fields above "LPQ_PRINTING" are used to map extra NT status codes. */
 
-enum {LPQ_QUEUED=0,LPQ_PAUSED,LPQ_SPOOLING,LPQ_PRINTING,LPQ_ERROR,LPQ_DELETING,
-      LPQ_OFFLINE,LPQ_PAPEROUT,LPQ_PRINTED,LPQ_DELETED,LPQ_BLOCKED,LPQ_USER_INTERVENTION};
+enum {
+	LPQ_QUEUED = 0,
+	LPQ_PAUSED,
+	LPQ_SPOOLING,
+	LPQ_PRINTING,
+	LPQ_ERROR,
+	LPQ_DELETING,
+	LPQ_OFFLINE,
+	LPQ_PAPEROUT,
+	LPQ_PRINTED,
+	LPQ_DELETED,
+	LPQ_BLOCKED,
+	LPQ_USER_INTERVENTION,
+
+	/* smbd is dooing the file spooling before passing control to spoolss */
+	PJOB_SMBD_SPOOLING
+};
 
 typedef struct _print_queue_struct {
 	int job;		/* normally the UNIX jobid -- see note in 
@@ -749,7 +710,7 @@ struct pending_message_list {
 /* struct returned by get_share_modes */
 struct share_mode_entry {
 	struct server_id pid;
-	uint16 op_mid;
+	uint64_t op_mid;	/* For compatibility with SMB2 opens. */
 	uint16 op_type;
 	uint32 access_mask;		/* NTCreateX access bits (FILE_READ_DATA etc.) */
 	uint32 share_access;		/* NTCreateX share constants (FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE). */
@@ -768,26 +729,43 @@ struct share_mode_entry {
 
 Offset  Data			length.
 0	struct server_id pid	4
-4	uint16 op_mid		2
-6	uint16 op_type		2
-8	uint32 access_mask	4
-12	uint32 share_access	4
-16	uint32 private_options	4
-20	uint32 time sec		4
-24	uint32 time usec	4
-28	uint64 dev		8 bytes
-36	uint64 inode		8 bytes
-44	uint64 extid		8 bytes
-52	unsigned long file_id	4 bytes
-56	uint32 uid		4 bytes
-60	uint16 flags		2 bytes
-62
+4	uint16 op_mid		8
+12	uint16 op_type		2
+14	uint32 access_mask	4
+18	uint32 share_access	4
+22	uint32 private_options	4
+26	uint32 time sec		4
+30	uint32 time usec	4
+34	uint64 dev		8 bytes
+42	uint64 inode		8 bytes
+50	uint64 extid		8 bytes
+58	unsigned long file_id	4 bytes
+62	uint32 uid		4 bytes
+66	uint16 flags		2 bytes
+68
 
 */
+
+#define OP_BREAK_MSG_PID_OFFSET 0
+#define OP_BREAK_MSG_MID_OFFSET 4
+#define OP_BREAK_MSG_OP_TYPE_OFFSET 12
+#define OP_BREAK_MSG_ACCESS_MASK_OFFSET 14
+#define OP_BREAK_MSG_SHARE_ACCESS_OFFSET 18
+#define OP_BREAK_MSG_PRIV_OFFSET 22
+#define OP_BREAK_MSG_TIME_SEC_OFFSET 26
+#define OP_BREAK_MSG_TIME_USEC_OFFSET 30
+#define OP_BREAK_MSG_DEV_OFFSET 34
+#define OP_BREAK_MSG_INO_OFFSET 42
+#define OP_BREAK_MSG_EXTID_OFFSET 50
+#define OP_BREAK_MSG_FILE_ID_OFFSET 58
+#define OP_BREAK_MSG_UID_OFFSET 62
+#define OP_BREAK_MSG_FLAGS_OFFSET 66
+
 #ifdef CLUSTER_SUPPORT
-#define MSG_SMB_SHARE_MODE_ENTRY_SIZE 66
+#define OP_BREAK_MSG_VNN_OFFSET 68
+#define MSG_SMB_SHARE_MODE_ENTRY_SIZE 72
 #else
-#define MSG_SMB_SHARE_MODE_ENTRY_SIZE 62
+#define MSG_SMB_SHARE_MODE_ENTRY_SIZE 68
 #endif
 
 struct share_mode_lock {
@@ -883,7 +861,12 @@ struct connections_data {
 	char addr[24];
 	char machine[FSTRING_LEN];
 	time_t start;
-	uint32 bcast_msg_flags;
+
+	/*
+	 * This field used to hold the msg_flags. For compatibility reasons,
+	 * keep the data structure in the tdb file the same.
+	 */
+	uint32 unused_compatitibility_field;
 };
 
 
@@ -1257,7 +1240,7 @@ struct bitmap {
 			   SYNCHRONIZE_ACCESS)
 
 /* This maps to 0x120116 */
-#define FILE_GENERIC_WRITE (STD_RIGHT_READ_CONTROL_ACCESS|\
+#define FILE_GENERIC_WRITE (SEC_STD_READ_CONTROL|\
 			    FILE_WRITE_DATA|\
 			    FILE_WRITE_ATTRIBUTES|\
 			    FILE_WRITE_EA|\
@@ -1375,13 +1358,17 @@ struct bitmap {
 
 /*
  * Private create options used by the ntcreatex processing code. From Samba4.
- * We reuse some ignored flags for private use.
+ * We reuse some ignored flags for private use. Passed in the private_flags
+ * argument.
  */
-#define NTCREATEX_OPTIONS_PRIVATE_DENY_DOS     0x00010000
-#define NTCREATEX_OPTIONS_PRIVATE_DENY_FCB     0x00020000
+#define NTCREATEX_OPTIONS_PRIVATE_DENY_DOS     0x0001
+#define NTCREATEX_OPTIONS_PRIVATE_DENY_FCB     0x0002
 
 /* Private options for streams support */
-#define NTCREATEX_OPTIONS_PRIVATE_STREAM_DELETE 0x00040000
+#define NTCREATEX_OPTIONS_PRIVATE_STREAM_DELETE 0x0004
+
+/* Private options for printer support */
+#define NTCREATEX_OPTIONS_PRIVATE_DELETE_ON_CLOSE 0x0008
 
 /* Responses when opening a file. */
 #define FILE_WAS_SUPERSEDED 0
@@ -1470,10 +1457,6 @@ extern int dcelogin_atmost_once;
 
 #ifdef NOSTRDUP
 char *strdup(char *s);
-#endif
-
-#ifndef SIGNAL_CAST
-#define SIGNAL_CAST (RETSIGTYPE (*)(int))
 #endif
 
 #ifndef SELECT_CAST
@@ -1592,6 +1575,18 @@ enum ldap_ssl_types {LDAP_SSL_OFF, LDAP_SSL_START_TLS};
 
 /* LDAP PASSWD SYNC methods */
 enum ldap_passwd_sync_types {LDAP_PASSWD_SYNC_ON, LDAP_PASSWD_SYNC_OFF, LDAP_PASSWD_SYNC_ONLY};
+
+/*
+ * This should be under the HAVE_KRB5 flag but since they're used
+ * in lp_kerberos_method(), they ned to be always available
+ * If you add any entries to KERBEROS_VERIFY defines, please modify USE.*KEYTAB macros
+ * so they remain accurate.
+ */
+
+#define KERBEROS_VERIFY_SECRETS 0
+#define KERBEROS_VERIFY_SYSTEM_KEYTAB 1
+#define KERBEROS_VERIFY_DEDICATED_KEYTAB 2
+#define KERBEROS_VERIFY_SECRETS_AND_KEYTAB 3
 
 /* Remote architectures we know about. */
 enum remote_arch_types {RA_UNKNOWN, RA_WFWG, RA_OS2, RA_WIN95, RA_WINNT,
@@ -1925,7 +1920,9 @@ enum usershare_err {
 		USERSHARE_PATH_IS_DENIED,
 		USERSHARE_PATH_NOT_ALLOWED,
 		USERSHARE_PATH_NOT_DIRECTORY,
-		USERSHARE_POSIX_ERR
+		USERSHARE_POSIX_ERR,
+		USERSHARE_MALFORMED_SHARENAME_DEF,
+		USERSHARE_BAD_SHARENAME
 };
 
 /* Different reasons for closing a file. */
@@ -1973,5 +1970,17 @@ struct child_pid {
 	struct child_pid *prev, *next;
 	pid_t pid;
 };
+
+/* Used to keep track of deferred opens. */
+struct deferred_open_record;
+
+/* Client-side offline caching policy types */
+#define CSC_POLICY_MANUAL 0
+#define CSC_POLICY_DOCUMENTS 1
+#define CSC_POLICY_PROGRAMS 2
+#define CSC_POLICY_DISABLE 3
+
+/* Used inside aio code. */
+struct aio_extra;
 
 #endif /* _SMB_H */

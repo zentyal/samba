@@ -23,8 +23,9 @@
 #include "lib/netapi/netapi.h"
 #include "lib/netapi/netapi_private.h"
 #include "lib/netapi/libnetapi.h"
-#include "libnet/libnet.h"
 #include "../librpc/gen_ndr/cli_srvsvc.h"
+#include "lib/smbconf/smbconf.h"
+#include "lib/smbconf/smbconf_reg.h"
 
 /****************************************************************
 ****************************************************************/

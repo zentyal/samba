@@ -27,6 +27,7 @@
 #include "librpc/gen_ndr/ndr_nbt.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "system/locale.h"
+#include "lib/util/util_net.h"
 
 /* don't allow an unlimited number of name components */
 #define MAX_COMPONENTS 10
@@ -48,7 +49,7 @@ static enum ndr_err_code ndr_pull_component(struct ndr_pull *ndr,
 					    uint32_t *max_offset)
 {
 	uint8_t len;
-	uint_t loops = 0;
+	unsigned int loops = 0;
 	while (loops < 5) {
 		if (*offset >= ndr->data_size) {
 			return ndr_pull_error(ndr, NDR_ERR_STRING,
@@ -173,9 +174,9 @@ _PUBLIC_ enum ndr_err_code ndr_push_nbt_string(struct ndr_push *ndr, int ndr_fla
 		complen = strcspn(s, ".");
 
 		/* we need to make sure the length fits into 6 bytes */
-		if (complen >= 0x3F) {
+		if (complen > 0x3F) {
 			return ndr_push_error(ndr, NDR_ERR_STRING,
-					      "component length %u[%08X] > 0x00003F",
+					      "component length %u[%08X] > 0x0000003F",
 					      (unsigned)complen, (unsigned)complen);
 		}
 
@@ -380,11 +381,11 @@ _PUBLIC_ NTSTATUS nbt_name_dup(TALLOC_CTX *mem_ctx, struct nbt_name *name, struc
 /**
   push a nbt name into a blob
 */
-_PUBLIC_ NTSTATUS nbt_name_to_blob(TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience, DATA_BLOB *blob, struct nbt_name *name)
+_PUBLIC_ NTSTATUS nbt_name_to_blob(TALLOC_CTX *mem_ctx, DATA_BLOB *blob, struct nbt_name *name)
 {
 	enum ndr_err_code ndr_err;
 
-	ndr_err = ndr_push_struct_blob(blob, mem_ctx, iconv_convenience, name, (ndr_push_flags_fn_t)ndr_push_nbt_name);
+	ndr_err = ndr_push_struct_blob(blob, mem_ctx, name, (ndr_push_flags_fn_t)ndr_push_nbt_name);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		return ndr_map_error2ntstatus(ndr_err);
 	}
@@ -399,7 +400,7 @@ _PUBLIC_ NTSTATUS nbt_name_from_blob(TALLOC_CTX *mem_ctx, const DATA_BLOB *blob,
 {
 	enum ndr_err_code ndr_err;
 
-	ndr_err = ndr_pull_struct_blob(blob, mem_ctx, NULL, name,
+	ndr_err = ndr_pull_struct_blob(blob, mem_ctx, name,
 				       (ndr_pull_flags_fn_t)ndr_pull_nbt_name);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		return ndr_map_error2ntstatus(ndr_err);
@@ -517,6 +518,19 @@ _PUBLIC_ enum ndr_err_code ndr_pull_wrepl_nbt_name(struct ndr_pull *ndr, int ndr
 	NDR_PULL_ALLOC_N(ndr, namebuf, namebuf_len);
 	NDR_CHECK(ndr_pull_array_uint8(ndr, NDR_SCALARS, namebuf, namebuf_len));
 
+	if ((namebuf_len % 4) == 0) {
+		/*
+		 * [MS-WINSRA] — v20091104 was wrong
+		 * regarding section "2.2.10.1 Name Record"
+		 *
+		 * If the name buffer is already 4 byte aligned
+		 * Windows (at least 2003 SP1 and 2008) add 4 extra
+		 * bytes. This can happen when the name has a scope.
+		 */
+		uint32_t pad;
+		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &pad));
+	}
+
 	NDR_PULL_ALLOC(ndr, r);
 
 	/* oh wow, what a nasty bug in windows ... */
@@ -545,8 +559,8 @@ _PUBLIC_ enum ndr_err_code ndr_pull_wrepl_nbt_name(struct ndr_pull *ndr, int ndr
 	r->name = talloc_strdup(r, (char *)namebuf);
 	if (!r->name) return ndr_pull_error(ndr, NDR_ERR_ALLOC, "out of memory");
 
-	if (namebuf_len > 18) {
-		r->scope = talloc_strndup(r, (char *)(namebuf+17), namebuf_len-17);
+	if (namebuf_len > 17) {
+		r->scope = talloc_strndup(r, (char *)(namebuf+16), namebuf_len-17);
 		if (!r->scope) return ndr_pull_error(ndr, NDR_ERR_ALLOC, "out of memory");
 	} else {
 		r->scope = NULL;
@@ -614,6 +628,18 @@ _PUBLIC_ enum ndr_err_code ndr_push_wrepl_nbt_name(struct ndr_push *ndr, int ndr
 	NDR_CHECK(ndr_push_align(ndr, 4));
 	NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, namebuf_len));
 	NDR_CHECK(ndr_push_array_uint8(ndr, NDR_SCALARS, namebuf, namebuf_len));
+
+	if ((namebuf_len % 4) == 0) {
+		/*
+		 * [MS-WINSRA] — v20091104 was wrong
+		 * regarding section "2.2.10.1 Name Record"
+		 *
+		 * If the name buffer is already 4 byte aligned
+		 * Windows (at least 2003 SP1 and 2008) add 4 extra
+		 * bytes. This can happen when the name has a scope.
+		 */
+		NDR_CHECK(ndr_push_zero(ndr, 4));
+	}
 
 	talloc_free(namebuf);
 	return NDR_ERR_SUCCESS;

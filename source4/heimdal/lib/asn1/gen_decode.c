@@ -56,32 +56,6 @@ decode_primitive (const char *typename, const char *name, const char *forwstr)
 #endif
 }
 
-static int
-is_primitive_type(int type)
-{
-    switch(type) {
-    case TInteger:
-    case TBoolean:
-    case TOctetString:
-    case TBitString:
-    case TEnumerated:
-    case TGeneralizedTime:
-    case TGeneralString:
-    case TOID:
-    case TUTCTime:
-    case TUTF8String:
-    case TPrintableString:
-    case TIA5String:
-    case TBMPString:
-    case TUniversalString:
-    case TVisibleString:
-    case TNull:
-	return 1;
-    default:
-	return 0;
-    }
-}
-
 static void
 find_tag (const Type *t,
 	  Der_class *cl, Der_type *ty, unsigned *tag)
@@ -108,6 +82,11 @@ find_tag (const Type *t,
 	*cl  = ASN1_C_UNIV;
 	*ty  = PRIM;
 	*tag = UT_GeneralString;
+	break;
+    case TTeletexString:
+	*cl  = ASN1_C_UNIV;
+	*ty  = PRIM;
+	*tag = UT_TeletexString;
 	break;
     case TGeneralizedTime:
 	*cl  = ASN1_C_UNIV;
@@ -489,6 +468,9 @@ decode_type (const char *name, const Type *t, int optional,
     case TGeneralString:
 	decode_primitive ("general_string", name, forwstr);
 	break;
+    case TTeletexString:
+	decode_primitive ("general_string", name, forwstr);
+	break;
     case TTag:{
     	char *tname, *typestring;
 	char *ide = NULL;
@@ -685,11 +667,6 @@ generate_type_decode (const Symbol *s)
 {
     int preserve = preserve_type(s->name) ? TRUE : FALSE;
 
-    fprintf (headerfile,
-	     "int    "
-	     "decode_%s(const unsigned char *, size_t, %s *, size_t *);\n",
-	     s->gen_name, s->gen_name);
-
     fprintf (codefile, "int\n"
 	     "decode_%s(const unsigned char *p,"
 	     " size_t len, %s *data, size_t *size)\n"
@@ -703,6 +680,7 @@ generate_type_decode (const Symbol *s)
     case TOID:
     case TGeneralizedTime:
     case TGeneralString:
+    case TTeletexString:
     case TUTF8String:
     case TPrintableString:
     case TIA5String:

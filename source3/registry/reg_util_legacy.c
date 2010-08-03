@@ -20,6 +20,8 @@
 /* Implementation of registry frontend view functions. */
 
 #include "includes.h"
+#include "registry.h"
+#include "reg_util_legacy.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
@@ -36,13 +38,14 @@ WERROR regkey_open_internal(TALLOC_CTX *ctx,
 {
 	struct registry_key *key;
 	WERROR err;
+	TALLOC_CTX *tmp_ctx = talloc_stackframe();
 
-	err = reg_open_path(NULL, path, access_desired, token, &key);
+	err = reg_open_path(tmp_ctx, path, access_desired, token, &key);
 	if (!W_ERROR_IS_OK(err)) {
 		return err;
 	}
 
 	*regkey = talloc_move(ctx, &key->key);
-	TALLOC_FREE(key);
+	TALLOC_FREE(tmp_ctx);
 	return WERR_OK;
 }

@@ -21,13 +21,18 @@
 */
 
 #include "includes.h"
-#include "auth/auth.h"
+#include "system/network.h"
 #include "lib/events/events.h"
+#include "lib/socket/socket.h"
+#include "lib/tsocket/tsocket.h"
+#include "../lib/util/tevent_ntstatus.h"
 #include "librpc/rpc/dcerpc.h"
 #include "auth/credentials/credentials.h"
 #include "auth/gensec/gensec.h"
-#include "auth/gensec/gensec_proto.h"
+#include "auth/auth.h"
+#include "auth/system_session_proto.h"
 #include "param/param.h"
+#include "lib/util/tsort.h"
 
 /* the list of currently registered GENSEC backends */
 static struct gensec_security_ops **generic_security_ops;
@@ -42,7 +47,7 @@ _PUBLIC_ struct gensec_security_ops **gensec_security_all(void)
 
 bool gensec_security_ops_enabled(struct gensec_security_ops *ops, struct gensec_security *security)
 {
-	return lp_parm_bool(security->settings->lp_ctx, NULL, "gensec", ops->name, ops->enabled);
+	return lpcfg_parm_bool(security->settings->lp_ctx, NULL, "gensec", ops->name, ops->enabled);
 }
 
 /* Sometimes we want to force only kerberos, sometimes we want to
@@ -520,11 +525,11 @@ static NTSTATUS gensec_start(TALLOC_CTX *mem_ctx,
 	NT_STATUS_HAVE_NO_MEMORY(*gensec_security);
 
 	(*gensec_security)->ops = NULL;
+	(*gensec_security)->local_addr = NULL;
+	(*gensec_security)->remote_addr = NULL;
 	(*gensec_security)->private_data = NULL;
 
 	ZERO_STRUCT((*gensec_security)->target);
-	ZERO_STRUCT((*gensec_security)->peer_addr);
-	ZERO_STRUCT((*gensec_security)->my_addr);
 
 	(*gensec_security)->subcontext = false;
 	(*gensec_security)->want_features = 0;
@@ -592,6 +597,8 @@ _PUBLIC_ NTSTATUS gensec_client_start(TALLOC_CTX *mem_ctx,
 
 	return status;
 }
+
+
 
 /**
   Start the GENSEC system, in server mode, returning a context pointer.
@@ -981,71 +988,105 @@ _PUBLIC_ NTSTATUS gensec_update(struct gensec_security *gensec_security, TALLOC_
 	return gensec_security->ops->update(gensec_security, out_mem_ctx, in, out);
 }
 
-static void gensec_update_async_timed_handler(struct tevent_context *ev, struct tevent_timer *te,
-					      struct timeval t, void *ptr)
-{
-	struct gensec_update_request *req = talloc_get_type(ptr, struct gensec_update_request);
-	req->status = req->gensec_security->ops->update(req->gensec_security, req, req->in, &req->out);
-	req->callback.fn(req, req->callback.private_data);
-}
+struct gensec_update_state {
+	struct tevent_immediate *im;
+	struct gensec_security *gensec_security;
+	DATA_BLOB in;
+	DATA_BLOB out;
+};
 
+static void gensec_update_async_trigger(struct tevent_context *ctx,
+					struct tevent_immediate *im,
+					void *private_data);
 /**
  * Next state function for the GENSEC state machine async version
- * 
+ *
+ * @param mem_ctx The memory context for the request
+ * @param ev The event context for the request
  * @param gensec_security GENSEC State
  * @param in The request, as a DATA_BLOB
- * @param callback The function that will be called when the operation is
- *                 finished, it should return gensec_update_recv() to get output
- * @param private_data A private pointer that will be passed to the callback function
+ *
+ * @return The request handle or NULL on no memory failure
  */
 
-_PUBLIC_ void gensec_update_send(struct gensec_security *gensec_security, const DATA_BLOB in,
-				 void (*callback)(struct gensec_update_request *req, void *private_data),
-				 void *private_data)
+_PUBLIC_ struct tevent_req *gensec_update_send(TALLOC_CTX *mem_ctx,
+					       struct tevent_context *ev,
+					       struct gensec_security *gensec_security,
+					       const DATA_BLOB in)
 {
-	struct gensec_update_request *req = NULL;
-	struct tevent_timer *te = NULL;
+	struct tevent_req *req;
+	struct gensec_update_state *state = NULL;
 
-	req = talloc(gensec_security, struct gensec_update_request);
-	if (!req) goto failed;
-	req->gensec_security		= gensec_security;
-	req->in				= in;
-	req->out			= data_blob(NULL, 0);
-	req->callback.fn		= callback;
-	req->callback.private_data	= private_data;
+	req = tevent_req_create(mem_ctx, &state,
+				struct gensec_update_state);
+	if (req == NULL) {
+		return NULL;
+	}
 
-	te = event_add_timed(gensec_security->event_ctx, req,
-			     timeval_zero(),
-			     gensec_update_async_timed_handler, req);
-	if (!te) goto failed;
+	state->gensec_security		= gensec_security;
+	state->in			= in;
+	state->out			= data_blob(NULL, 0);
+	state->im			= tevent_create_immediate(state);
+	if (tevent_req_nomem(state->im, req)) {
+		return tevent_req_post(req, ev);
+	}
 
-	return;
+	tevent_schedule_immediate(state->im, ev,
+				  gensec_update_async_trigger,
+				  req);
 
-failed:
-	talloc_free(req);
-	callback(NULL, private_data);
+	return req;
+}
+
+static void gensec_update_async_trigger(struct tevent_context *ctx,
+					struct tevent_immediate *im,
+					void *private_data)
+{
+	struct tevent_req *req =
+		talloc_get_type_abort(private_data, struct tevent_req);
+	struct gensec_update_state *state =
+		tevent_req_data(req, struct gensec_update_state);
+	NTSTATUS status;
+
+	status = gensec_update(state->gensec_security, state,
+			       state->in, &state->out);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+
+	tevent_req_done(req);
 }
 
 /**
  * Next state function for the GENSEC state machine
  * 
- * @param req GENSEC update request state
+ * @param req request state
  * @param out_mem_ctx The TALLOC_CTX for *out to be allocated on
  * @param out The reply, as an talloc()ed DATA_BLOB, on *out_mem_ctx
  * @return Error, MORE_PROCESSING_REQUIRED if a reply is sent, 
  *                or NT_STATUS_OK if the user is authenticated. 
  */
-_PUBLIC_ NTSTATUS gensec_update_recv(struct gensec_update_request *req, TALLOC_CTX *out_mem_ctx, DATA_BLOB *out)
+_PUBLIC_ NTSTATUS gensec_update_recv(struct tevent_req *req,
+				     TALLOC_CTX *out_mem_ctx,
+				     DATA_BLOB *out)
 {
+	struct gensec_update_state *state =
+		tevent_req_data(req, struct gensec_update_state);
 	NTSTATUS status;
 
-	NT_STATUS_HAVE_NO_MEMORY(req);
+	if (tevent_req_is_nterror(req, &status)) {
+		if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
+			tevent_req_received(req);
+			return status;
+		}
+	} else {
+		status = NT_STATUS_OK;
+	}
 
-	*out = req->out;
+	*out = state->out;
 	talloc_steal(out_mem_ctx, out->data);
-	status = req->status;
 
-	talloc_free(req);
+	tevent_req_received(req);
 	return status;
 }
 
@@ -1161,56 +1202,99 @@ _PUBLIC_ const char *gensec_get_target_hostname(struct gensec_security *gensec_s
 	return NULL;
 }
 
-/** 
- * Set (and talloc_reference) local and peer socket addresses onto a socket context on the GENSEC context 
+/**
+ * Set (and talloc_reference) local and peer socket addresses onto a socket
+ * context on the GENSEC context.
  *
  * This is so that kerberos can include these addresses in
  * cryptographic tokens, to avoid certain attacks.
  */
 
-_PUBLIC_ NTSTATUS gensec_set_my_addr(struct gensec_security *gensec_security, struct socket_address *my_addr) 
+/**
+ * @brief Set the local gensec address.
+ *
+ * @param  gensec_security   The gensec security context to use.
+ *
+ * @param  remote       The local address to set.
+ *
+ * @return              On success NT_STATUS_OK is returned or an NT_STATUS
+ *                      error.
+ */
+_PUBLIC_ NTSTATUS gensec_set_local_address(struct gensec_security *gensec_security,
+		const struct tsocket_address *local)
 {
-	gensec_security->my_addr = my_addr;
-	if (my_addr && !talloc_reference(gensec_security, my_addr)) {
+	TALLOC_FREE(gensec_security->local_addr);
+
+	if (local == NULL) {
+		return NT_STATUS_OK;
+	}
+
+	gensec_security->local_addr = tsocket_address_copy(local, gensec_security);
+	if (gensec_security->local_addr == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
+
 	return NT_STATUS_OK;
 }
 
-_PUBLIC_ NTSTATUS gensec_set_peer_addr(struct gensec_security *gensec_security, struct socket_address *peer_addr) 
+/**
+ * @brief Set the remote gensec address.
+ *
+ * @param  gensec_security   The gensec security context to use.
+ *
+ * @param  remote       The remote address to set.
+ *
+ * @return              On success NT_STATUS_OK is returned or an NT_STATUS
+ *                      error.
+ */
+_PUBLIC_ NTSTATUS gensec_set_remote_address(struct gensec_security *gensec_security,
+		const struct tsocket_address *remote)
 {
-	gensec_security->peer_addr = peer_addr;
-	if (peer_addr && !talloc_reference(gensec_security, peer_addr)) {
+	TALLOC_FREE(gensec_security->remote_addr);
+
+	if (remote == NULL) {
+		return NT_STATUS_OK;
+	}
+
+	gensec_security->remote_addr = tsocket_address_copy(remote, gensec_security);
+	if (gensec_security->remote_addr == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
+
 	return NT_STATUS_OK;
 }
 
-struct socket_address *gensec_get_my_addr(struct gensec_security *gensec_security) 
+/**
+ * @brief Get the local address from a gensec security context.
+ *
+ * @param  gensec_security   The security context to get the address from.
+ *
+ * @return              The address as tsocket_address which could be NULL if
+ *                      no address is set.
+ */
+_PUBLIC_ const struct tsocket_address *gensec_get_local_address(struct gensec_security *gensec_security)
 {
-	if (gensec_security->my_addr) {
-		return gensec_security->my_addr;
+	if (gensec_security == NULL) {
+		return NULL;
 	}
-
-	/* We could add a 'set sockaddr' call, and do a lookup.  This
-	 * would avoid needing to do system calls if nothing asks. */
-	return NULL;
+	return gensec_security->local_addr;
 }
 
-_PUBLIC_ struct socket_address *gensec_get_peer_addr(struct gensec_security *gensec_security) 
+/**
+ * @brief Get the remote address from a gensec security context.
+ *
+ * @param  gensec_security   The security context to get the address from.
+ *
+ * @return              The address as tsocket_address which could be NULL if
+ *                      no address is set.
+ */
+_PUBLIC_ const struct tsocket_address *gensec_get_remote_address(struct gensec_security *gensec_security)
 {
-	if (gensec_security->peer_addr) {
-		return gensec_security->peer_addr;
+	if (gensec_security == NULL) {
+		return NULL;
 	}
-
-	/* We could add a 'set sockaddr' call, and do a lookup.  This
-	 * would avoid needing to do system calls if nothing asks.
-	 * However, this is not appropriate for the peer addres on
-	 * datagram sockets */
-	return NULL;
+	return gensec_security->remote_addr;
 }
-
-
 
 /** 
  * Set the target principal (assuming it it known, say from the SPNEGO reply)
@@ -1218,7 +1302,7 @@ _PUBLIC_ struct socket_address *gensec_get_peer_addr(struct gensec_security *gen
  *
  */
 
-NTSTATUS gensec_set_target_principal(struct gensec_security *gensec_security, const char *principal) 
+_PUBLIC_ NTSTATUS gensec_set_target_principal(struct gensec_security *gensec_security, const char *principal)
 {
 	gensec_security->target.principal = talloc_strdup(gensec_security, principal);
 	if (!gensec_security->target.principal) {
@@ -1234,6 +1318,28 @@ const char *gensec_get_target_principal(struct gensec_security *gensec_security)
 	}
 
 	return NULL;
+}
+
+NTSTATUS gensec_generate_session_info(TALLOC_CTX *mem_ctx,
+				      struct gensec_security *gensec_security,
+				      struct auth_serversupplied_info *server_info,
+				      struct auth_session_info **session_info)
+{
+	NTSTATUS nt_status;
+	if (gensec_security->auth_context) {
+		uint32_t flags = AUTH_SESSION_INFO_DEFAULT_GROUPS;
+		if (server_info->authenticated) {
+			flags |= AUTH_SESSION_INFO_AUTHENTICATED;
+		}
+		nt_status = gensec_security->auth_context->generate_session_info(mem_ctx, gensec_security->auth_context,
+										 server_info,
+										 flags,
+										 session_info);
+	} else {
+		nt_status = auth_generate_simple_session_info(mem_ctx,
+							      server_info, session_info);
+	}
+	return nt_status;
 }
 
 /*
@@ -1291,12 +1397,12 @@ static int sort_gensec(struct gensec_security_ops **gs1, struct gensec_security_
 
 int gensec_setting_int(struct gensec_settings *settings, const char *mechanism, const char *name, int default_value)
 {
-	return lp_parm_int(settings->lp_ctx, NULL, mechanism, name, default_value);
+	return lpcfg_parm_int(settings->lp_ctx, NULL, mechanism, name, default_value);
 }
 
 bool gensec_setting_bool(struct gensec_settings *settings, const char *mechanism, const char *name, bool default_value)
 {
-	return lp_parm_bool(settings->lp_ctx, NULL, mechanism, name, default_value);
+	return lpcfg_parm_bool(settings->lp_ctx, NULL, mechanism, name, default_value);
 }
 
 /*
@@ -1325,7 +1431,7 @@ _PUBLIC_ NTSTATUS gensec_init(struct loadparm_context *lp_ctx)
 
 	talloc_free(shared_init);
 
-	qsort(generic_security_ops, gensec_num_backends, sizeof(*generic_security_ops), QSORT_CAST sort_gensec);
+	TYPESAFE_QSORT(generic_security_ops, gensec_num_backends, sort_gensec);
 	
 	return NT_STATUS_OK;
 }

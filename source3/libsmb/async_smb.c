@@ -201,6 +201,7 @@ struct cli_smb_state {
 	uint8_t *inbuf;
 	uint32_t seqnum;
 	int chain_num;
+	int chain_length;
 	struct tevent_req **chained_requests;
 };
 
@@ -423,9 +424,11 @@ struct tevent_req *cli_smb_req_create(TALLOC_CTX *mem_ctx,
 	}
 	state->iov_count = iov_count + 3;
 
-	endtime = timeval_current_ofs(0, cli->timeout * 1000);
-	if (!tevent_req_set_endtime(result, ev, endtime)) {
-		tevent_req_nomem(NULL, result);
+	if (cli->timeout) {
+		endtime = timeval_current_ofs(0, cli->timeout * 1000);
+		if (!tevent_req_set_endtime(result, ev, endtime)) {
+			tevent_req_nomem(NULL, result);
+		}
 	}
 	return result;
 }
@@ -609,7 +612,6 @@ static void cli_smb_received(struct tevent_req *subreq)
 		subreq, struct cli_state);
 	struct tevent_req *req;
 	struct cli_smb_state *state;
-	struct tevent_context *ev;
 	NTSTATUS status;
 	uint8_t *inbuf;
 	ssize_t received;
@@ -698,7 +700,6 @@ static void cli_smb_received(struct tevent_req *subreq)
 
 	req = cli->pending[i];
 	state = tevent_req_data(req, struct cli_smb_state);
-	ev = state->ev;
 
 	if (!oplock_break /* oplock breaks are not signed */
 	    && !cli_check_sign_mac(cli, (char *)inbuf, state->seqnum+1)) {
@@ -712,6 +713,8 @@ static void cli_smb_received(struct tevent_req *subreq)
 		state->inbuf = talloc_move(state, &inbuf);
 		talloc_set_destructor(req, NULL);
 		cli_smb_req_destructor(req);
+		state->chain_num = 0;
+		state->chain_length = 1;
 		tevent_req_done(req);
 	} else {
 		struct tevent_req **chain = talloc_move(
@@ -723,6 +726,7 @@ static void cli_smb_received(struct tevent_req *subreq)
 						cli_smb_state);
 			state->inbuf = inbuf;
 			state->chain_num = i;
+			state->chain_length = num_chained;
 			tevent_req_done(chain[i]);
 		}
 		TALLOC_FREE(inbuf);
@@ -757,8 +761,9 @@ static void cli_smb_received(struct tevent_req *subreq)
 	}
 }
 
-NTSTATUS cli_smb_recv(struct tevent_req *req, uint8_t min_wct,
-		      uint8_t *pwct, uint16_t **pvwv,
+NTSTATUS cli_smb_recv(struct tevent_req *req,
+		      TALLOC_CTX *mem_ctx, uint8_t **pinbuf,
+		      uint8_t min_wct, uint8_t *pwct, uint16_t **pvwv,
 		      uint32_t *pnum_bytes, uint8_t **pbytes)
 {
 	struct cli_smb_state *state = tevent_req_data(
@@ -816,15 +821,29 @@ NTSTATUS cli_smb_recv(struct tevent_req *req, uint8_t min_wct,
 
 	status = cli_pull_error((char *)state->inbuf);
 
-	if (!have_andx_command((char *)state->inbuf, wct_ofs)
-	    && NT_STATUS_IS_ERR(status)) {
-		/*
-		 * The last command takes the error code. All further commands
-		 * down the requested chain will get a
-		 * NT_STATUS_REQUEST_ABORTED.
-		 */
-		return status;
+	if (!have_andx_command((char *)state->inbuf, wct_ofs)) {
+
+		if ((cmd == SMBsesssetupX)
+		    && NT_STATUS_EQUAL(
+			    status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
+			/*
+			 * NT_STATUS_MORE_PROCESSING_REQUIRED is a
+			 * valid return code for session setup
+			 */
+			goto no_err;
+		}
+
+		if (NT_STATUS_IS_ERR(status)) {
+			/*
+			 * The last command takes the error code. All
+			 * further commands down the requested chain
+			 * will get a NT_STATUS_REQUEST_ABORTED.
+			 */
+			return status;
+		}
 	}
+
+no_err:
 
 	wct = CVAL(state->inbuf, wct_ofs);
 	bytes_offset = wct_ofs + 1 + wct * sizeof(uint16_t);
@@ -856,8 +875,15 @@ NTSTATUS cli_smb_recv(struct tevent_req *req, uint8_t min_wct,
 	if (pbytes != NULL) {
 		*pbytes = (uint8_t *)state->inbuf + bytes_offset + 2;
 	}
+	if ((mem_ctx != NULL) && (pinbuf != NULL)) {
+		if (state->chain_num == state->chain_length-1) {
+			*pinbuf = talloc_move(mem_ctx, &state->inbuf);
+		} else {
+			*pinbuf = state->inbuf;
+		}
+	}
 
-	return NT_STATUS_OK;
+	return status;
 }
 
 size_t cli_smb_wct_ofs(struct tevent_req **reqs, int num_reqs)
@@ -1041,11 +1067,13 @@ static void cli_smb_oplock_break_waiter_done(struct tevent_req *subreq)
 	uint16_t *vwv;
 	uint32_t num_bytes;
 	uint8_t *bytes;
+	uint8_t *inbuf;
 	NTSTATUS status;
 
-	status = cli_smb_recv(subreq, 8, &wct, &vwv, &num_bytes, &bytes);
+	status = cli_smb_recv(subreq, state, &inbuf, 8, &wct, &vwv,
+			      &num_bytes, &bytes);
+	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
-		TALLOC_FREE(subreq);
 		tevent_req_nterror(req, status);
 		return;
 	}

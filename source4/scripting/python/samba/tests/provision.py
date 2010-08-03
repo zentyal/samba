@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 # Unix SMB/CIFS implementation.
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2007-2008
@@ -20,23 +20,34 @@
 import os
 from samba.provision import setup_secretsdb, findnss
 import samba.tests
-from ldb import Dn
-from samba import param
-import unittest
-
-lp = samba.tests.cmdline_loadparm
+from samba.tests import env_loadparm, TestCase
 
 setup_dir = "setup"
 def setup_path(file):
     return os.path.join(setup_dir, file)
 
 
+def create_dummy_secretsdb(path, lp=None):
+    """Create a dummy secrets database for use in tests.
+
+    :param path: Path to store the secrets db
+    :param lp: Optional loadparm context. A simple one will
+        be generated if not specified.
+    """
+    if lp is None:
+        lp = env_loadparm()
+    secrets_ldb = setup_secretsdb(path, setup_path, None, None, lp=lp)
+    secrets_ldb.transaction_commit()
+    return secrets_ldb
+
+
 class ProvisionTestCase(samba.tests.TestCaseInTempDir):
     """Some simple tests for individual functions in the provisioning code.
     """
+
     def test_setup_secretsdb(self):
         path = os.path.join(self.tempdir, "secrets.ldb")
-        ldb = setup_secretsdb(path, setup_path, None, None, lp=lp)
+        ldb = setup_secretsdb(path, setup_path, None, None, lp=env_loadparm())
         try:
             self.assertEquals("LSA Secrets",
                  ldb.searchone(basedn="CN=LSA Secrets", attribute="CN"))
@@ -45,8 +56,9 @@ class ProvisionTestCase(samba.tests.TestCaseInTempDir):
             os.unlink(path)
             
 
-class FindNssTests(unittest.TestCase):
+class FindNssTests(TestCase):
     """Test findnss() function."""
+
     def test_nothing(self):
         def x(y):
             raise KeyError
@@ -64,6 +76,7 @@ class FindNssTests(unittest.TestCase):
 
 
 class Disabled(object):
+
     def test_setup_templatesdb(self):
         raise NotImplementedError(self.test_setup_templatesdb)
 
@@ -93,8 +106,5 @@ class Disabled(object):
 
     def test_vampire(self):
         raise NotImplementedError(self.test_vampire)
-
-    def test_erase_partitions(self):
-        raise NotImplementedError(self.test_erase_partitions)
 
 

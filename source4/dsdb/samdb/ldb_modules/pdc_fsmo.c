@@ -27,6 +27,7 @@
 #include "librpc/gen_ndr/ndr_drsuapi.h"
 #include "librpc/gen_ndr/ndr_drsblobs.h"
 #include "../lib/util/dlinklist.h"
+#include "dsdb/samdb/ldb_modules/util.h"
 
 static int pdc_fsmo_init(struct ldb_module *module)
 {
@@ -45,11 +46,10 @@ static int pdc_fsmo_init(struct ldb_module *module)
 
 	mem_ctx = talloc_new(module);
 	if (!mem_ctx) {
-		ldb_oom(ldb);
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_oom(ldb);
 	}
 
-	pdc_dn = samdb_base_dn(ldb);
+	pdc_dn = ldb_get_default_basedn(ldb);
 	if (!pdc_dn) {
 		ldb_debug(ldb, LDB_DEBUG_WARNING,
 			  "pdc_fsmo_init: no domain dn present: (skip loading of domain details)\n");
@@ -59,14 +59,14 @@ static int pdc_fsmo_init(struct ldb_module *module)
 
 	pdc_fsmo = talloc_zero(mem_ctx, struct dsdb_pdc_fsmo);
 	if (!pdc_fsmo) {
-		ldb_oom(ldb);
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_oom(ldb);
 	}
 	ldb_module_set_private(module, pdc_fsmo);
 
-	ret = ldb_search(ldb, mem_ctx, &pdc_res,
-			 pdc_dn, LDB_SCOPE_BASE,
-			 pdc_attrs, NULL);
+	ret = dsdb_module_search_dn(module, mem_ctx, &pdc_res,
+				    pdc_dn, 
+				    pdc_attrs,
+				    DSDB_FLAG_NEXT_MODULE);
 	if (ret == LDB_ERR_NO_SUCH_OBJECT) {
 		ldb_debug(ldb, LDB_DEBUG_WARNING,
 			  "pdc_fsmo_init: no domain object present: (skip loading of domain details)\n");
@@ -74,23 +74,10 @@ static int pdc_fsmo_init(struct ldb_module *module)
 		return ldb_next_init(module);
 	} else if (ret != LDB_SUCCESS) {
 		ldb_debug_set(ldb, LDB_DEBUG_FATAL,
-			      "pdc_fsmo_init: failed to search the domain object: %d:%s",
-			      ret, ldb_strerror(ret));
+			      "pdc_fsmo_init: failed to search the domain object: %d:%s: %s",
+			      ret, ldb_strerror(ret), ldb_errstring(ldb));
 		talloc_free(mem_ctx);
 		return ret;
-	}
-	if (pdc_res->count == 0) {
-		ldb_debug(ldb, LDB_DEBUG_WARNING,
-			  "pdc_fsmo_init: no domain object present: (skip loading of domain details)\n");
-		talloc_free(mem_ctx);
-		return ldb_next_init(module);
-	} else if (pdc_res->count > 1) {
-		ldb_debug_set(ldb, LDB_DEBUG_FATAL,
-			      "pdc_fsmo_init: [%u] domain objects found on a base search",
-			      pdc_res->count);
-		DEBUG(0,(__location__ ": %s\n", ldb_errstring(ldb)));
-		talloc_free(mem_ctx);
-		return LDB_ERR_CONSTRAINT_VIOLATION;
 	}
 
 	pdc_fsmo->master_dn = ldb_msg_find_attr_as_dn(ldb, mem_ctx, pdc_res->msgs[0], "fSMORoleOwner");
@@ -101,8 +88,7 @@ static int pdc_fsmo_init(struct ldb_module *module)
 	}
 
 	if (ldb_set_opaque(ldb, "dsdb_pdc_fsmo", pdc_fsmo) != LDB_SUCCESS) {
-		ldb_oom(ldb);
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_oom(ldb);
 	}
 
 	talloc_steal(module, pdc_fsmo);

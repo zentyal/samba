@@ -145,7 +145,7 @@ static struct ldb_message *ltdb_pull_attrs(struct ldb_module *module,
 					   const char * const *attrs)
 {
 	struct ldb_message *ret;
-	int i;
+	unsigned int i;
 
 	ret = talloc(mem_ctx, struct ldb_message);
 	if (!ret) {
@@ -325,7 +325,8 @@ int ltdb_add_attr_results(struct ldb_module *module,
  */
 int ltdb_filter_attrs(struct ldb_message *msg, const char * const *attrs)
 {
-	int i, keep_all = 0;
+	unsigned int i;
+	int keep_all = 0;
 
 	if (attrs) {
 		/* check for special attrs */
@@ -353,9 +354,10 @@ int ltdb_filter_attrs(struct ldb_message *msg, const char * const *attrs)
 	}
 
 	for (i = 0; i < msg->num_elements; i++) {
-		int j, found;
+		unsigned int j;
+		int found = 0;
 		
-		for (j = 0, found = 0; attrs[j]; j++) {
+		for (j = 0; attrs[j]; j++) {
 			if (ldb_attr_cmp(msg->elements[i].name, attrs[j]) == 0) {
 				found = 1;
 				break;
@@ -567,6 +569,7 @@ int ltdb_search(struct ltdb_context *ctx)
 				 * full search or we may return
 				 * duplicate entries
 				 */
+				ltdb_unlock_read(module);
 				return LDB_ERR_OPERATIONS_ERROR;
 			}
 			ret = ltdb_search_full(ctx);

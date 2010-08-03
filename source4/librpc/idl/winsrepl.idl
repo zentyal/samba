@@ -11,7 +11,10 @@
 
 import "nbt.idl";
 
-interface wrepl
+[
+	uuid("915f5653-bac1-431c-97ee-9ffb34526921"),
+	helpstring("WINS Replication PDUs")
+] interface wrepl
 {
 	const int WINS_REPLICATION_PORT = 42;
 
@@ -164,7 +167,7 @@ interface wrepl
 	} wrepl_packet;
 
 	typedef [flag(NDR_BIG_ENDIAN|NDR_PAHEX),public] struct {
-		[value(ndr_size_wrepl_packet(&packet, ndr->iconv_convenience, ndr->flags))] uint32 size;
+		[value(ndr_size_wrepl_packet(&packet, ndr->flags))] uint32 size;
 		wrepl_packet    packet;
 	} wrepl_wrap;
 

@@ -27,9 +27,7 @@
 #include "../lib/util/dlinklist.h"
 #include "rpc_server/dcerpc_server.h"
 #include "rpc_server/dcerpc_server_proto.h"
-#include "smbd/service.h"
 #include "system/filesys.h"
-#include "lib/socket/socket.h"
 #include "lib/messaging/irpc.h"
 #include "system/network.h"
 #include "lib/socket/netif.h"
@@ -92,7 +90,7 @@ static void dcesrv_sock_report_output_data(struct dcesrv_connection *dce_conn)
 			substate->call = call;
 		}
 
-		substate->iov.iov_base = rep->blob.data;
+		substate->iov.iov_base = (void *) rep->blob.data;
 		substate->iov.iov_len = rep->blob.length;
 
 		subreq = tstream_writev_queue_send(substate,
@@ -135,28 +133,11 @@ static void dcesrv_sock_reply_done(struct tevent_req *subreq)
 	}
 }
 
-static struct socket_address *dcesrv_sock_get_my_addr(struct dcesrv_connection *dcesrv_conn, TALLOC_CTX *mem_ctx)
-{
-	struct stream_connection *srv_conn;
-	srv_conn = talloc_get_type(dcesrv_conn->transport.private_data,
-				   struct stream_connection);
-
-	return socket_get_my_addr(srv_conn->socket, mem_ctx);
-}
-
-static struct socket_address *dcesrv_sock_get_peer_addr(struct dcesrv_connection *dcesrv_conn, TALLOC_CTX *mem_ctx)
-{
-	struct stream_connection *srv_conn;
-	srv_conn = talloc_get_type(dcesrv_conn->transport.private_data,
-				   struct stream_connection);
-
-	return socket_get_peer_addr(srv_conn->socket, mem_ctx);
-}
-
 struct dcerpc_read_ncacn_packet_state {
+#if 0
 	struct {
-		struct smb_iconv_convenience *smb_iconv_c;
 	} caller;
+#endif
 	DATA_BLOB buffer;
 	struct ncacn_packet *pkt;
 };
@@ -170,8 +151,7 @@ static void dcerpc_read_ncacn_packet_done(struct tevent_req *subreq);
 
 static struct tevent_req *dcerpc_read_ncacn_packet_send(TALLOC_CTX *mem_ctx,
 						 struct tevent_context *ev,
-						 struct tstream_context *stream,
-						 struct smb_iconv_convenience *ic)
+						 struct tstream_context *stream)
 {
 	struct tevent_req *req;
 	struct dcerpc_read_ncacn_packet_state *state;
@@ -183,7 +163,6 @@ static struct tevent_req *dcerpc_read_ncacn_packet_send(TALLOC_CTX *mem_ctx,
 		return NULL;
 	}
 
-	state->caller.smb_iconv_c = ic;
 	state->buffer = data_blob_const(NULL, 0);
 	state->pkt = talloc(state, struct ncacn_packet);
 	if (tevent_req_nomem(state->pkt, req)) {
@@ -252,7 +231,7 @@ static int dcerpc_read_ncacn_packet_next_vector(struct tstream_context *stream,
 		return -1;
 	}
 
-	vector[0].iov_base = state->buffer.data + ofs;
+	vector[0].iov_base = (void *) (state->buffer.data + ofs);
 	vector[0].iov_len = state->buffer.length - ofs;
 
 	*_vector = vector;
@@ -280,9 +259,7 @@ static void dcerpc_read_ncacn_packet_done(struct tevent_req *subreq)
 		return;
 	}
 
-	ndr = ndr_pull_init_blob(&state->buffer,
-				 state->pkt,
-				 state->caller.smb_iconv_c);
+	ndr = ndr_pull_init_blob(&state->buffer, state->pkt);
 	if (tevent_req_nomem(ndr, req)) {
 		return;
 	}
@@ -344,7 +321,6 @@ static void dcesrv_sock_accept(struct stream_connection *srv_conn)
 
 	if (!srv_conn->session_info) {
 		status = auth_anonymous_session_info(srv_conn,
-						     srv_conn->event.ctx,
 						     lp_ctx,
 						     &srv_conn->session_info);
 		if (!NT_STATUS_IS_OK(status)) {
@@ -373,8 +349,6 @@ static void dcesrv_sock_accept(struct stream_connection *srv_conn)
 
 	dcesrv_conn->transport.private_data		= srv_conn;
 	dcesrv_conn->transport.report_output_data	= dcesrv_sock_report_output_data;
-	dcesrv_conn->transport.get_my_addr		= dcesrv_sock_get_my_addr;
-	dcesrv_conn->transport.get_peer_addr		= dcesrv_sock_get_peer_addr;
 
 	TALLOC_FREE(srv_conn->event.fde);
 
@@ -389,22 +363,24 @@ static void dcesrv_sock_accept(struct stream_connection *srv_conn)
 
 	if (dcesrv_sock->endpoint->ep_description->transport == NCACN_NP) {
 		dcesrv_conn->auth_state.session_key = dcesrv_inherited_session_key;
-		ret = tstream_npa_existing_socket(dcesrv_conn,
-						  socket_get_fd(srv_conn->socket),
-						  FILE_TYPE_MESSAGE_MODE_PIPE,
-						  &dcesrv_conn->stream);
+		dcesrv_conn->stream = talloc_move(dcesrv_conn,
+						  &srv_conn->tstream);
 	} else {
 		ret = tstream_bsd_existing_socket(dcesrv_conn,
 						  socket_get_fd(srv_conn->socket),
 						  &dcesrv_conn->stream);
+		if (ret == -1) {
+			status = map_nt_error_from_unix(errno);
+			DEBUG(0, ("dcesrv_sock_accept: "
+				  "failed to setup tstream: %s\n",
+				  nt_errstr(status)));
+			stream_terminate_connection(srv_conn, nt_errstr(status));
+			return;
+		}
 	}
-	if (ret == -1) {
-		status = map_nt_error_from_unix(errno);
-		DEBUG(0,("dcesrv_sock_accept: failed to setup tstream: %s\n",
-			nt_errstr(status)));
-		stream_terminate_connection(srv_conn, nt_errstr(status));
-		return;
-	}
+
+	dcesrv_conn->local_address = srv_conn->local_address;
+	dcesrv_conn->remote_address = srv_conn->remote_address;
 
 	srv_conn->private_data = dcesrv_conn;
 
@@ -412,8 +388,7 @@ static void dcesrv_sock_accept(struct stream_connection *srv_conn)
 
 	subreq = dcerpc_read_ncacn_packet_send(dcesrv_conn,
 					       dcesrv_conn->event_ctx,
-					       dcesrv_conn->stream,
-					       lp_iconv_convenience(lp_ctx));
+					       dcesrv_conn->stream);
 	if (!subreq) {
 		status = NT_STATUS_NO_MEMORY;
 		DEBUG(0,("dcesrv_sock_accept: dcerpc_read_fragment_buffer_send(%s)\n",
@@ -433,7 +408,6 @@ static void dcesrv_read_fragment_done(struct tevent_req *subreq)
 	struct ncacn_packet *pkt;
 	DATA_BLOB buffer;
 	NTSTATUS status;
-	struct loadparm_context *lp_ctx = dce_conn->dce_ctx->lp_ctx;
 
 	status = dcerpc_read_ncacn_packet_recv(subreq, dce_conn,
 					       &pkt, &buffer);
@@ -451,8 +425,7 @@ static void dcesrv_read_fragment_done(struct tevent_req *subreq)
 
 	subreq = dcerpc_read_ncacn_packet_send(dce_conn,
 					       dce_conn->event_ctx,
-					       dce_conn->stream,
-					       lp_iconv_convenience(lp_ctx));
+					       dce_conn->stream);
 	if (!subreq) {
 		status = NT_STATUS_NO_MEMORY;
 		dcesrv_terminate_connection(dce_conn, nt_errstr(status));
@@ -504,7 +477,7 @@ static NTSTATUS dcesrv_add_ep_unix(struct dcesrv_context *dce_ctx,
 	status = stream_setup_socket(event_ctx, lp_ctx,
 				     model_ops, &dcesrv_stream_ops, 
 				     "unix", e->ep_description->endpoint, &port, 
-				     lp_socket_options(lp_ctx), 
+				     lpcfg_socket_options(lp_ctx),
 				     dcesrv_sock);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("service_setup_stream_socket(path=%s) failed - %s\n",
@@ -531,7 +504,7 @@ static NTSTATUS dcesrv_add_ep_ncalrpc(struct dcesrv_context *dce_ctx,
 		e->ep_description->endpoint = talloc_strdup(dce_ctx, "DEFAULT");
 	}
 
-	full_path = talloc_asprintf(dce_ctx, "%s/%s", lp_ncalrpc_dir(lp_ctx), 
+	full_path = talloc_asprintf(dce_ctx, "%s/%s", lpcfg_ncalrpc_dir(lp_ctx),
 				    e->ep_description->endpoint);
 
 	dcesrv_sock = talloc(event_ctx, struct dcesrv_socket_context);
@@ -544,7 +517,7 @@ static NTSTATUS dcesrv_add_ep_ncalrpc(struct dcesrv_context *dce_ctx,
 	status = stream_setup_socket(event_ctx, lp_ctx,
 				     model_ops, &dcesrv_stream_ops, 
 				     "unix", full_path, &port, 
-				     lp_socket_options(lp_ctx), 
+				     lpcfg_socket_options(lp_ctx),
 				     dcesrv_sock);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("service_setup_stream_socket(identifier=%s,path=%s) failed - %s\n",
@@ -573,9 +546,10 @@ static NTSTATUS dcesrv_add_ep_np(struct dcesrv_context *dce_ctx,
 	dcesrv_sock->endpoint		= e;
 	dcesrv_sock->dcesrv_ctx		= talloc_reference(dcesrv_sock, dce_ctx);
 
-	status = stream_setup_named_pipe(event_ctx, lp_ctx,
-					 model_ops, &dcesrv_stream_ops,
-					 e->ep_description->endpoint, dcesrv_sock);
+	status = tstream_setup_named_pipe(event_ctx, lp_ctx,
+					  model_ops, &dcesrv_stream_ops,
+					  e->ep_description->endpoint,
+					  dcesrv_sock);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("stream_setup_named_pipe(pipe=%s) failed - %s\n",
 			 e->ep_description->endpoint, nt_errstr(status)));
@@ -610,7 +584,7 @@ static NTSTATUS add_socket_rpc_tcp_iface(struct dcesrv_context *dce_ctx, struct 
 	status = stream_setup_socket(event_ctx, dce_ctx->lp_ctx,
 				     model_ops, &dcesrv_stream_ops, 
 				     "ipv4", address, &port, 
-				     lp_socket_options(dce_ctx->lp_ctx), 
+				     lpcfg_socket_options(dce_ctx->lp_ctx),
 				     dcesrv_sock);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("service_setup_stream_socket(address=%s,port=%u) failed - %s\n", 
@@ -632,12 +606,12 @@ static NTSTATUS dcesrv_add_ep_tcp(struct dcesrv_context *dce_ctx,
 	NTSTATUS status;
 
 	/* Add TCP/IP sockets */
-	if (lp_interfaces(lp_ctx) && lp_bind_interfaces_only(lp_ctx)) {
+	if (lpcfg_interfaces(lp_ctx) && lpcfg_bind_interfaces_only(lp_ctx)) {
 		int num_interfaces;
 		int i;
 		struct interface *ifaces;
 
-		load_interfaces(dce_ctx, lp_interfaces(lp_ctx), &ifaces);
+		load_interfaces(dce_ctx, lpcfg_interfaces(lp_ctx), &ifaces);
 
 		num_interfaces = iface_count(ifaces);
 		for(i = 0; i < num_interfaces; i++) {
@@ -647,7 +621,7 @@ static NTSTATUS dcesrv_add_ep_tcp(struct dcesrv_context *dce_ctx,
 		}
 	} else {
 		status = add_socket_rpc_tcp_iface(dce_ctx, e, event_ctx, model_ops, 
-						  lp_socket_address(lp_ctx));
+						  lpcfg_socket_address(lp_ctx));
 		NT_STATUS_NOT_OK_RETURN(status);
 	}
 
@@ -699,13 +673,13 @@ static void dcesrv_task_init(struct task_server *task)
 
 	status = dcesrv_init_context(task->event_ctx,
 				     task->lp_ctx,
-				     lp_dcerpc_endpoint_servers(task->lp_ctx),
+				     lpcfg_dcerpc_endpoint_servers(task->lp_ctx),
 				     &dce_ctx);
 	if (!NT_STATUS_IS_OK(status)) goto failed;
 
 	/* Make sure the directory for NCALRPC exists */
-	if (!directory_exist(lp_ncalrpc_dir(task->lp_ctx))) {
-		mkdir(lp_ncalrpc_dir(task->lp_ctx), 0755);
+	if (!directory_exist(lpcfg_ncalrpc_dir(task->lp_ctx))) {
+		mkdir(lpcfg_ncalrpc_dir(task->lp_ctx), 0755);
 	}
 
 	for (e=dce_ctx->endpoint_list;e;e=e->next) {

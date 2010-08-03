@@ -27,7 +27,6 @@
 #include "auth/credentials/credentials.h"
 #include "libcli/auth/libcli_auth.h"
 #include "librpc/gen_ndr/ndr_netlogon.h"
-#include "librpc/gen_ndr/ndr_netlogon_c.h"
 #include "librpc/gen_ndr/winbind.h"
 #include "param/param.h"
 
@@ -143,8 +142,7 @@ static void pam_auth_crap_recv_logon(struct composite_context *ctx)
 	if (!composite_is_ok(state->ctx)) return;
 
 	ndr_err = ndr_push_struct_blob(
-		&tmp_blob, state, lp_iconv_convenience(state->lp_ctx), 
-		state->req->out.validation.sam3,
+		&tmp_blob, state, state->req->out.validation.sam3,
 		(ndr_push_flags_fn_t)ndr_push_netr_SamInfo3);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		state->ctx->status = ndr_map_error2ntstatus(ndr_err);
@@ -179,7 +177,7 @@ static void pam_auth_crap_recv_logon(struct composite_context *ctx)
 
 	state->unix_username = talloc_asprintf(state, "%s%s%s", 
 					       state->domain_name,
-					       lp_winbind_separator(state->lp_ctx),
+					       lpcfg_winbind_separator(state->lp_ctx),
 					       state->user_name);
 	if (composite_nomem(state->unix_username, state->ctx)) return;
 
@@ -221,11 +219,11 @@ struct composite_context *wb_cmd_pam_auth_send(TALLOC_CTX *mem_ctx,
 	const char *user, *domain;
 	DATA_BLOB chal, nt_resp, lm_resp, names_blob;
 	int flags = CLI_CRED_NTLM_AUTH;
-	if (lp_client_lanman_auth(service->task->lp_ctx)) {
+	if (lpcfg_client_lanman_auth(service->task->lp_ctx)) {
 		flags |= CLI_CRED_LANMAN_AUTH;
 	}
 
-	if (lp_client_ntlmv2_auth(service->task->lp_ctx)) {
+	if (lpcfg_client_ntlmv2_auth(service->task->lp_ctx)) {
 		flags |= CLI_CRED_NTLMv2_AUTH;
 	}
 
@@ -260,11 +258,31 @@ struct composite_context *wb_cmd_pam_auth_send(TALLOC_CTX *mem_ctx,
 					 chal, nt_resp, lm_resp);
 }
 
-NTSTATUS wb_cmd_pam_auth_recv(struct composite_context *c)
+NTSTATUS wb_cmd_pam_auth_recv(struct composite_context *c,
+			      TALLOC_CTX *mem_ctx,
+			      DATA_BLOB *info3,
+			      struct netr_UserSessionKey *user_session_key,
+			      struct netr_LMSessionKey *lm_key,
+			      char **unix_username)
 {
-       struct pam_auth_crap_state *state =
-               talloc_get_type(c->private_data, struct pam_auth_crap_state);
-       NTSTATUS status = composite_wait(c);
-       talloc_free(state);
-       return status;
+	struct pam_auth_crap_state *state =
+		talloc_get_type(c->private_data, struct pam_auth_crap_state);
+	NTSTATUS status = composite_wait(c);
+	if (NT_STATUS_IS_OK(status)) {
+		if (info3) {
+			info3->length = state->info3.length;
+			info3->data = talloc_steal(mem_ctx, state->info3.data);
+		}
+		if (user_session_key) {
+			*user_session_key = state->user_session_key;
+		}
+		if (lm_key) {
+			*lm_key = state->lm_key;
+		}
+		if (unix_username) {
+			*unix_username = talloc_steal(mem_ctx, state->unix_username);
+		}
+	}
+	talloc_free(state);
+	return status;
 }

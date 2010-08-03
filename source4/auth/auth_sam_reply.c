@@ -23,7 +23,6 @@
 #include "includes.h"
 #include "auth/auth.h"
 #include "libcli/security/security.h"
-#include "librpc/gen_ndr/ndr_netlogon.h"
 #include "auth/auth_sam_reply.h"
 
 NTSTATUS auth_convert_server_info_sambaseinfo(TALLOC_CTX *mem_ctx, 
@@ -60,7 +59,7 @@ NTSTATUS auth_convert_server_info_sambaseinfo(TALLOC_CTX *mem_ctx,
 	sam->groups.rids = NULL;
 
 	if (server_info->n_domain_groups > 0) {
-		int i;
+		size_t i;
 		sam->groups.rids = talloc_array(sam, struct samr_RidWithAttribute,
 						server_info->n_domain_groups);
 
@@ -105,6 +104,8 @@ NTSTATUS auth_convert_server_info_sambaseinfo(TALLOC_CTX *mem_ctx,
 	return NT_STATUS_OK;
 }	
 
+/* Note that the validity of the _sam3 structure is only as long as
+ * the server_info it was generated from */
 NTSTATUS auth_convert_server_info_saminfo3(TALLOC_CTX *mem_ctx, 
 					   struct auth_serversupplied_info *server_info, 
 					   struct netr_SamInfo3 **_sam3)
@@ -112,7 +113,7 @@ NTSTATUS auth_convert_server_info_saminfo3(TALLOC_CTX *mem_ctx,
 	struct netr_SamBaseInfo *sam;
 	struct netr_SamInfo3 *sam3 = talloc_zero(mem_ctx, struct netr_SamInfo3);
 	NTSTATUS status;
-	int i;
+	size_t i;
 	NT_STATUS_HAVE_NO_MEMORY(sam3);
 
 	status = auth_convert_server_info_sambaseinfo(mem_ctx, server_info, &sam);
@@ -158,7 +159,7 @@ NTSTATUS make_server_info_netlogon_validation(TALLOC_CTX *mem_ctx,
 {
 	struct auth_serversupplied_info *server_info;
 	struct netr_SamBaseInfo *base = NULL;
-	int i;
+	uint32_t i;
 
 	switch (validation_level) {
 	case 2:

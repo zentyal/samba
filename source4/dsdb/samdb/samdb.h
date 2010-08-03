@@ -38,6 +38,7 @@ struct tevent_context;
 #include "dsdb/schema/schema.h"
 #include "dsdb/samdb/samdb_proto.h"
 #include "dsdb/common/proto.h"
+#include "dsdb/common/dsdb_dn.h"
 #include "../libds/common/flags.h"
 
 #define DSDB_CONTROL_CURRENT_PARTITION_OID "1.3.6.1.4.1.7165.4.3.2"
@@ -59,6 +60,43 @@ struct dsdb_control_current_partition {
 /* DSDB_CONTROL_DN_STORAGE_FORMAT_OID has NULL data and behaves very
  * much like LDB_CONTROL_EXTENDED_DN_OID when the DB stores an
  * extended DN, and otherwise returns normal DNs */
+
+#define DSDB_CONTROL_PASSWORD_CHANGE_STATUS_OID "1.3.6.1.4.1.7165.4.3.8"
+
+struct dsdb_control_password_change_status {
+	struct {
+		uint32_t pwdProperties;
+		uint32_t pwdHistoryLength;
+		int64_t maxPwdAge;
+		int64_t minPwdAge;
+		uint32_t minPwdLength;
+		bool store_cleartext;
+		const char *netbios_domain;
+		const char *dns_domain;
+		const char *realm;
+	} domain_data;
+	enum samPwdChangeReason reject_reason;
+};
+
+#define DSDB_CONTROL_PASSWORD_HASH_VALUES_OID "1.3.6.1.4.1.7165.4.3.9"
+
+#define DSDB_CONTROL_PASSWORD_CHANGE_OLD_PW_CHECKED_OID "1.3.6.1.4.1.7165.4.3.10"
+
+/**
+   DSDB_CONTROL_APPLY_LINKS is internal to Samba4 - a token passed between repl_meta_data and linked_attributes modules
+*/
+#define DSDB_CONTROL_APPLY_LINKS "1.3.6.1.4.1.7165.4.3.11"
+
+/*
+ * this should only be used for importing users from Samba3
+ */
+#define DSDB_CONTROL_BYPASS_PASSWORD_HASH_OID "1.3.6.1.4.1.7165.4.3.12"
+
+/**
+  OID used to allow the replacement of replPropertyMetaData.
+  It is used when the current replmetadata needs to be edited.
+*/
+#define DSDB_CONTROL_CHANGEREPLMETADATA_OID "1.3.6.1.4.1.7165.4.3.14"
 
 #define DSDB_EXTENDED_REPLICATED_OBJECTS_OID "1.3.6.1.4.1.7165.4.4.1"
 struct dsdb_extended_replicated_object {
@@ -98,6 +136,11 @@ struct dsdb_pdc_fsmo {
 	struct ldb_dn *master_dn;
 };
 
+#define DSDB_EXTENDED_CREATE_PARTITION_OID "1.3.6.1.4.1.7165.4.4.4"
+struct dsdb_create_partition_exop {
+	struct ldb_dn *new_dn;
+};
+
 /*
  * the schema_dn is passed as struct ldb_dn in
  * req->op.extended.data
@@ -124,6 +167,24 @@ struct dsdb_openldap_dereference_result {
 
 struct dsdb_openldap_dereference_result_control {
 	struct dsdb_openldap_dereference_result **attributes;
+};
+
+#define DSDB_PARTITION_DN "@PARTITION"
+#define DSDB_PARTITION_ATTR "partition"
+
+#define DSDB_EXTENDED_DN_STORE_FORMAT_OPAQUE_NAME "dsdb_extended_dn_store_format"
+struct dsdb_extended_dn_store_format {
+	bool store_extended_dn_in_ldb;
+};
+
+#define DSDB_OPAQUE_PARTITION_MODULE_MSG_OPAQUE_NAME "DSDB_OPAQUE_PARTITION_MODULE_MSG"
+
+/* this takes a struct dsdb_fsmo_extended_op */
+#define DSDB_EXTENDED_ALLOCATE_RID_POOL "1.3.6.1.4.1.7165.4.4.5"
+
+struct dsdb_fsmo_extended_op {
+	uint64_t fsmo_info;
+	struct GUID destination_dsa_guid;
 };
 
 #endif /* __SAMDB_H__ */

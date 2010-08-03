@@ -252,7 +252,7 @@ sub check_or_start($$$$$) {
 			@preargs = split(/ /, $ENV{NMBD_VALGRIND});
 		}
 
-		exec(@preargs, $self->binpath("nmbd"), "-F", "-S", "--no-process-group", "-s", $env_vars->{SERVERCONFFILE}, @optargs) or die("Unable to start nmbd: $!");
+		exec(@preargs, $self->binpath("nmbd"), "-F", "--no-process-group", "-s", $env_vars->{SERVERCONFFILE}, @optargs) or die("Unable to start nmbd: $!");
 	}
 	write_pid($env_vars, "nmbd", $pid);
 	print "DONE\n";
@@ -294,7 +294,7 @@ sub check_or_start($$$$$) {
 			@preargs = split(/ /, $ENV{WINBINDD_VALGRIND});
 		}
 
-		exec(@preargs, $self->binpath("winbindd"), "-F", "-S", "--no-process-group", "-s", $env_vars->{SERVERCONFFILE}, @optargs) or die("Unable to start winbindd: $!");
+		exec(@preargs, $self->binpath("winbindd"), "-F", "--no-process-group", "-s", $env_vars->{SERVERCONFFILE}, @optargs) or die("Unable to start winbindd: $!");
 	}
 	write_pid($env_vars, "winbindd", $pid);
 	print "DONE\n";
@@ -333,45 +333,12 @@ sub check_or_start($$$$$) {
 		if(defined($ENV{SMBD_VALGRIND})) {
 			@preargs = split(/ /,$ENV{SMBD_VALGRIND});
 		}
-		exec(@preargs, $self->binpath("smbd"), "-F", "-S", "--no-process-group", "-s", $env_vars->{SERVERCONFFILE}, @optargs) or die("Unable to start smbd: $!");
+		exec(@preargs, $self->binpath("smbd"), "-F", "--no-process-group", "-s", $env_vars->{SERVERCONFFILE}, @optargs) or die("Unable to start smbd: $!");
 	}
 	write_pid($env_vars, "smbd", $pid);
 	print "DONE\n";
 
 	return 0;
-}
-
-sub create_clientconf($$$)
-{
-	my ($self, $prefix, $domain) = @_;
-
-	my $lockdir = "$prefix/locks";
-	my $logdir = "$prefix/logs";
-	my $piddir = "$prefix/pid";
-	my $privatedir = "$prefix/private";
-	my $conffile = "$prefix/smb.conf";
-
-	my $torture_interfaces='127.0.0.6/8,127.0.0.7/8,127.0.0.8/8,127.0.0.9/8,127.0.0.10/8,127.0.0.11/8';
-	open(CONF, ">$conffile");
-	print CONF "
-[global]
-	workgroup = $domain
-
-	private dir = $privatedir
-	pid directory = $piddir
-	lock directory = $lockdir
-	log file = $logdir/log.\%m
-	log level = 0
-
-	name resolve order = bcast
-
-	netbios name = TORTURE_6
-	interfaces = $torture_interfaces
-	panic action = $RealBin/gdb_backtrace \%d %\$(MAKE_TEST_BINARY)
-
-	passdb backend = tdbsam
-	";
-	close(CONF);
 }
 
 sub provision($$$$$$)
@@ -412,8 +379,26 @@ sub provision($$$$$$)
 	my $lockdir="$prefix_abs/lockdir";
 	push(@dirs,$lockdir);
 
+	my $eventlogdir="$prefix_abs/lockdir/eventlog";
+	push(@dirs,$eventlogdir);
+
 	my $logdir="$prefix_abs/logs";
 	push(@dirs,$logdir);
+
+	my $driver32dir="$shrdir/W32X86";
+	push(@dirs,$driver32dir);
+
+	my $driver64dir="$shrdir/x64";
+	push(@dirs,$driver64dir);
+
+	my $ro_shrdir="$shrdir/root-tmp";
+	push(@dirs,$ro_shrdir);
+
+	my $msdfs_shrdir="$shrdir/msdfsshare";
+	push(@dirs,$msdfs_shrdir);
+
+	my $msdfs_deeppath="$msdfs_shrdir/deeppath";
+	push(@dirs,$msdfs_deeppath);
 
 	# this gets autocreated by winbindd
 	my $wbsockdir="$prefix_abs/winbindd";
@@ -430,11 +415,63 @@ sub provision($$$$$$)
 	system("rm -rf $prefix_abs/*");
 	mkdir($_, 0777) foreach(@dirs);
 
+	##
+	## create ro and msdfs share layout
+	##
+
+	chmod 0755, $ro_shrdir;
+	my $unreadable_file = "$ro_shrdir/unreadable_file";
+	open(UNREADABLE_FILE, ">$unreadable_file") or die("Unable to open $unreadable_file");
+	close(UNREADABLE_FILE);
+	chmod 0600, $unreadable_file;
+
+	my $msdfs_target = "$ro_shrdir/msdfs-target";
+	open(MSDFS_TARGET, ">$msdfs_target") or die("Unable to open $msdfs_target");
+	close(MSDFS_TARGET);
+	chmod 0666, $msdfs_target;
+	symlink "msdfs:$server_ip\\ro-tmp", "$msdfs_shrdir/msdfs-src1";
+	symlink "msdfs:$server_ip\\ro-tmp", "$msdfs_shrdir/deeppath/msdfs-src2";
+
 	my $conffile="$libdir/server.conf";
 
 	my $nss_wrapper_pl = "$ENV{PERL} $RealBin/../lib/nss_wrapper/nss_wrapper.pl";
 	my $nss_wrapper_passwd = "$privatedir/passwd";
 	my $nss_wrapper_group = "$privatedir/group";
+
+	my $mod_printer_pl = "$ENV{PERL} $RealBin/../source3/script/tests/printing/modprinter.pl";
+
+	my @eventlog_list = ("dns server", "application");
+
+	##
+	## calculate uids and gids
+	##
+
+	my ($max_uid, $max_gid);
+	my ($uid_nobody, $uid_root);
+	my ($gid_nobody, $gid_nogroup, $gid_root);
+
+	if ($unix_uid < 0xffff - 2) {
+		$max_uid = 0xffff;
+	} else {
+		$max_uid = $unix_uid;
+	}
+
+	$uid_root = $max_uid - 1;
+	$uid_nobody = $max_uid - 2;
+
+	if ($unix_gids[0] < 0xffff - 3) {
+		$max_gid = 0xffff;
+	} else {
+		$max_gid = $unix_gids[0];
+	}
+
+	$gid_nobody = $max_gid - 1;
+	$gid_nogroup = $max_gid - 2;
+	$gid_root = $max_gid - 3;
+
+	##
+	## create conffile
+	##
 
 	open(CONF, ">$conffile") or die("Unable to open $conffile");
 	print CONF "
@@ -461,13 +498,18 @@ sub provision($$$$$$)
 
 	time server = yes
 
-	add user script =		$nss_wrapper_pl --passwd_path $nss_wrapper_passwd --type passwd --action add --name %u
+	add user script =		$nss_wrapper_pl --passwd_path $nss_wrapper_passwd --type passwd --action add --name %u --gid $gid_nogroup
 	add group script =		$nss_wrapper_pl --group_path  $nss_wrapper_group  --type group  --action add --name %g
-	add machine script =		$nss_wrapper_pl --passwd_path $nss_wrapper_passwd --type passwd --action add --name %u
+	add machine script =		$nss_wrapper_pl --passwd_path $nss_wrapper_passwd --type passwd --action add --name %u --gid $gid_nogroup
 	add user to group script =	$nss_wrapper_pl --passwd_path $nss_wrapper_passwd --type member --action add --member %u --name %g --group_path $nss_wrapper_group
 	delete user script =		$nss_wrapper_pl --passwd_path $nss_wrapper_passwd --type passwd --action delete --name %u
 	delete group script =		$nss_wrapper_pl --group_path  $nss_wrapper_group  --type group  --action delete --name %g
 	delete user from group script = $nss_wrapper_pl --passwd_path $nss_wrapper_passwd --type member --action delete --member %u --name %g --group_path $nss_wrapper_group
+
+	addprinter command =		$mod_printer_pl -a -s $conffile --
+	deleteprinter command =		$mod_printer_pl -d -s $conffile --
+
+	eventlog list = application \"dns server\"
 
 	kernel oplocks = no
 	kernel change notify = no
@@ -479,16 +521,30 @@ sub provision($$$$$$)
 	winbindd:socket dir = $wbsockdir
 	idmap uid = 100000-200000
 	idmap gid = 100000-200000
+	winbind enum users = yes
+	winbind enum groups = yes
 
 #	min receivefile size = 4000
 
 	read only = no
 	smbd:sharedelay = 100000
-	smbd:writetimeupdatedelay = 500000
-	map hidden = yes
-	map system = yes
+#	smbd:writetimeupdatedelay = 500000
+	map hidden = no
+	map system = no
+	map readonly = no
+	store dos attributes = yes
 	create mask = 755
 	vfs objects = $bindir_abs/xattr_tdb.so $bindir_abs/streams_depot.so
+
+	printing = vlp
+	print command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb print %p %s
+	lpq command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb lpq %p
+	lp rm command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb lprm %p %j
+	lp pause command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb lppause %p %j
+	lp resume command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb lpresume %p %j
+	queue pause command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb queuepause %p
+	queue resume command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb queueresume %p
+	lpq cache time = 0
 
 	# Begin extra options
 	$extra_options
@@ -504,23 +560,25 @@ sub provision($$$$$$)
 	print CONF "
 [tmp]
 	path = $shrdir
+[ro-tmp]
+	path = $ro_shrdir
+	guest ok = yes
+[msdfs-share]
+	path = $msdfs_shrdir
+	msdfs root = yes
+	guest ok = yes
 [hideunread]
 	copy = tmp
 	hide unreadable = yes
+[tmpcase]
+	copy = tmp
+	case sensitive = yes
 [hideunwrite]
 	copy = tmp
 	hide unwriteable files = yes
 [print1]
 	copy = tmp
 	printable = yes
-	printing = vlp
-	print command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb print %p %s
-	lpq command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb lpq %p
-	lp rm command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb lprm %p %j
-	lp pause command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb lppause %p %j
-	lp resume command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb lpresume %p %j
-	queue pause command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb queuepause %p
-	queue resume command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb queueresume %p
 
 [print2]
 	copy = print1
@@ -528,6 +586,8 @@ sub provision($$$$$$)
 	copy = print1
 [print4]
 	copy = print1
+[print\$]
+	copy = tmp
 	";
 	close(CONF);
 
@@ -536,19 +596,30 @@ sub provision($$$$$$)
 	##
 
 	open(PASSWD, ">$nss_wrapper_passwd") or die("Unable to open $nss_wrapper_passwd");
-	print PASSWD "nobody:x:65534:65533:nobody gecos:$prefix_abs:/bin/false
-root:x:65533:65532:root gecos:$prefix_abs:/bin/false
+	print PASSWD "nobody:x:$uid_nobody:$gid_nobody:nobody gecos:$prefix_abs:/bin/false
 $unix_name:x:$unix_uid:$unix_gids[0]:$unix_name gecos:$prefix_abs:/bin/false
 ";
+	if ($unix_uid != 0) {
+		print PASSWD "root:x:$uid_root:$gid_root:root gecos:$prefix_abs:/bin/false";
+	}
 	close(PASSWD);
 
 	open(GROUP, ">$nss_wrapper_group") or die("Unable to open $nss_wrapper_group");
-	print GROUP "nobody:x:65533:
-nogroup:x:65534:nobody
-root:x:65532:
+	print GROUP "nobody:x:$gid_nobody:
+nogroup:x:$gid_nogroup:nobody
 $unix_name-group:x:$unix_gids[0]:
 ";
+	if ($unix_gids[0] != 0) {
+		print GROUP "root:x:$gid_root:";
+	}
+
 	close(GROUP);
+
+	foreach my $evlog (@eventlog_list) {
+		my $evlogtdb = "$eventlogdir/$evlog.tdb";
+		open(EVENTLOG, ">$evlogtdb") or die("Unable to open $evlogtdb");
+		close(EVENTLOG);
+	}
 
 	$ENV{NSS_WRAPPER_PASSWD} = $nss_wrapper_passwd;
 	$ENV{NSS_WRAPPER_GROUP} = $nss_wrapper_group;
@@ -573,6 +644,7 @@ $unix_name-group:x:$unix_gids[0]:
 	$ret{CONFIGURATION} ="-s $conffile";
 	$ret{SERVER} = $server;
 	$ret{USERNAME} = $unix_name;
+	$ret{USERID} = $unix_uid;
 	$ret{DOMAIN} = $domain;
 	$ret{NETBIOSNAME} = $server;
 	$ret{PASSWORD} = $password;
@@ -583,6 +655,7 @@ $unix_name-group:x:$unix_gids[0]:
 	$ret{NSS_WRAPPER_PASSWD} = $nss_wrapper_passwd;
 	$ret{NSS_WRAPPER_GROUP} = $nss_wrapper_group;
 	$ret{NSS_WRAPPER_WINBIND_SO_PATH} = $ENV{NSS_WRAPPER_WINBIND_SO_PATH};
+	$ret{LOCAL_PATH} = "$shrdir";
 
 	return \%ret;
 }

@@ -20,7 +20,6 @@
 #include "includes.h"
 #include "torture/smbtorture.h"
 #include "torture/local/proto.h"
-#include "torture/ndr/ndr.h"
 #include "torture/ndr/proto.h"
 #include "torture/auth/proto.h"
 #include "../lib/crypto/test_proto.h"
@@ -39,7 +38,9 @@
 	torture_local_util_str, 
 	torture_local_util_time, 
 	torture_local_util_data_blob, 
+	torture_local_util_asn1,
 	torture_local_idtree, 
+	torture_local_dlinklist,
 	torture_local_genrand, 
 	torture_local_iconv,
 	torture_local_socket, 
@@ -59,6 +60,8 @@
 	torture_local_dbspeed, 
 	torture_local_credentials,
 	torture_ldb,
+	torture_dsdb_dn,
+	torture_dsdb_syntax,
 	torture_registry,
 	NULL
 };

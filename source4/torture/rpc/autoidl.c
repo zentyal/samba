@@ -20,20 +20,17 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "librpc/gen_ndr/ndr_drsuapi_c.h"
-#include "librpc/gen_ndr/ndr_misc.h"
 #include "librpc/ndr/ndr_table.h"
-#include "torture/rpc/rpc.h"
-#include "librpc/rpc/dcerpc_proto.h"
+#include "torture/rpc/torture_rpc.h"
 
 
 #if 1
 /*
   get a DRSUAPI policy handle
 */
-static bool get_policy_handle(struct dcerpc_pipe *p,
-			      TALLOC_CTX *mem_ctx, 
+static bool get_policy_handle(struct dcerpc_binding_handle *b,
+			      TALLOC_CTX *mem_ctx,
 			      struct policy_handle *handle)
 {
 	NTSTATUS status;
@@ -42,7 +39,7 @@ static bool get_policy_handle(struct dcerpc_pipe *p,
 	ZERO_STRUCT(r);
 	r.out.bind_handle = handle;
 
-	status = dcerpc_drsuapi_DsBind(p, mem_ctx, &r);
+	status = dcerpc_drsuapi_DsBind_r(b, mem_ctx, &r);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("drsuapi_DsBind failed - %s\n", nt_errstr(status));
 		return false;
@@ -54,7 +51,8 @@ static bool get_policy_handle(struct dcerpc_pipe *p,
 /*
   get a SAMR handle
 */
-static bool get_policy_handle(struct dcerpc_pipe *p, TALLOC_CTX *mem_ctx, 
+static bool get_policy_handle(struct dcerpc_binding_handle *b,
+			      TALLOC_CTX *mem_ctx,
 			      struct policy_handle *handle)
 {
 	NTSTATUS status;
@@ -64,7 +62,7 @@ static bool get_policy_handle(struct dcerpc_pipe *p, TALLOC_CTX *mem_ctx,
 	r.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	r.out.connect_handle = handle;
 
-	status = dcerpc_samr_Connect(p, mem_ctx, &r);
+	status = dcerpc_samr_Connect_r(b, mem_ctx, &r);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("samr_Connect failed - %s\n", nt_errstr(status));
 		return false;
@@ -83,7 +81,7 @@ static void fill_blob_handle(DATA_BLOB *blob, TALLOC_CTX *mem_ctx,
 		return;
 	}
 
-	ndr_push_struct_blob(&b2, mem_ctx, NULL, handle, (ndr_push_flags_fn_t)ndr_push_policy_handle);
+	ndr_push_struct_blob(&b2, mem_ctx, handle, (ndr_push_flags_fn_t)ndr_push_policy_handle);
 
 	memcpy(blob->data, b2.data, 20);
 }
@@ -133,7 +131,7 @@ static void try_expand(struct torture_context *tctx, const struct ndr_interface_
 
 		status = dcerpc_request(p, NULL, opnum, tctx, &stub_in, &stub_out);
 
-		if (!NT_STATUS_EQUAL(status, NT_STATUS_NET_WRITE_FAULT)) {
+		if (NT_STATUS_IS_OK(status)) {
 			print_depth(depth);
 			printf("expand by %d gives %s\n", n, nt_errstr(status));
 			if (n >= 4) {
@@ -144,10 +142,10 @@ static void try_expand(struct torture_context *tctx, const struct ndr_interface_
 		} else {
 #if 0
 			print_depth(depth);
-			printf("expand by %d gives fault %s\n", n, dcerpc_errstr(tctx, p->last_fault_code));
+			printf("expand by %d gives fault %s\n", n, nt_errstr(status));
 #endif
 		}
-		if (p->last_fault_code == 5) {
+		if (NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED)) {
 			reopen(tctx, &p, iface);
 		}
 	}
@@ -174,11 +172,11 @@ static void test_ptr_scan(struct torture_context *tctx, const struct ndr_interfa
 		SIVAL(stub_in.data, ofs, 1);
 		status = dcerpc_request(p, NULL, opnum, tctx, &stub_in, &stub_out);
 
-		if (NT_STATUS_EQUAL(status, NT_STATUS_NET_WRITE_FAULT)) {
+		if (!NT_STATUS_IS_OK(status)) {
 			print_depth(depth);
 			printf("possible ptr at ofs %d - fault %s\n", 
-			       ofs-min_ofs, dcerpc_errstr(tctx, p->last_fault_code));
-			if (p->last_fault_code == 5) {
+			       ofs-min_ofs, nt_errstr(status));
+			if (NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED)) {
 				reopen(tctx, &p, iface);
 			}
 			if (depth == 0) {
@@ -206,7 +204,7 @@ static void test_scan_call(struct torture_context *tctx, const struct ndr_interf
 
 	reopen(tctx, &p, iface);
 
-	get_policy_handle(p, tctx, &handle);
+	get_policy_handle(p->binding_handle, tctx, &handle);
 
 	/* work out the minimum amount of input data */
 	for (i=0;i<2000;i++) {
@@ -238,9 +236,9 @@ static void test_scan_call(struct torture_context *tctx, const struct ndr_interf
 			return;
 		}
 
-		if (NT_STATUS_EQUAL(status, NT_STATUS_NET_WRITE_FAULT)) {
-			printf("opnum %d  size %d fault %s\n", opnum, i, dcerpc_errstr(tctx, p->last_fault_code));
-			if (p->last_fault_code == 5) {
+		if (!NT_STATUS_IS_OK(status)) {
+			printf("opnum %d  size %d fault %s\n", opnum, i, nt_errstr(status));
+			if (NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED)) {
 				reopen(tctx, &p, iface);
 			}
 			continue;

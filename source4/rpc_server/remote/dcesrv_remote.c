@@ -3,7 +3,9 @@
    remote dcerpc operations
 
    Copyright (C) Stefan (metze) Metzmacher 2004
-   
+   Copyright (C) Julien Kerihuel 2008-2009
+   Copyright (C) Andrew Bartlett <abartlet@samba.org> 2010
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
@@ -35,17 +37,20 @@ static NTSTATUS remote_op_reply(struct dcesrv_call_state *dce_call, TALLOC_CTX *
 	return NT_STATUS_OK;
 }
 
-static NTSTATUS remote_op_bind(struct dcesrv_call_state *dce_call, const struct dcesrv_interface *iface)
+static NTSTATUS remote_op_bind(struct dcesrv_call_state *dce_call, const struct dcesrv_interface *iface, uint32_t if_version)
 {
         NTSTATUS status;
 	const struct ndr_interface_table *table;
 	struct dcesrv_remote_private *priv;
-	const char *binding = lp_parm_string(dce_call->conn->dce_ctx->lp_ctx, NULL, "dcerpc_remote", "binding");
+	const char *binding = lpcfg_parm_string(dce_call->conn->dce_ctx->lp_ctx, NULL, "dcerpc_remote", "binding");
 	const char *user, *pass, *domain;
 	struct cli_credentials *credentials;
+	bool must_free_credentials = true;
 	bool machine_account;
+	struct dcerpc_binding		*b;
+	struct composite_context	*pipe_conn_req;
 
-	machine_account = lp_parm_bool(dce_call->conn->dce_ctx->lp_ctx, NULL, "dcerpc_remote", "use_machine_account", false);
+	machine_account = lpcfg_parm_bool(dce_call->conn->dce_ctx->lp_ctx, NULL, "dcerpc_remote", "use_machine_account", false);
 
 	priv = talloc(dce_call->conn, struct dcesrv_remote_private);
 	if (!priv) {
@@ -60,9 +65,9 @@ static NTSTATUS remote_op_bind(struct dcesrv_call_state *dce_call, const struct 
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	user = lp_parm_string(dce_call->conn->dce_ctx->lp_ctx, NULL, "dcerpc_remote", "user");
-	pass = lp_parm_string(dce_call->conn->dce_ctx->lp_ctx, NULL, "dcerpc_remote", "password");
-	domain = lp_parm_string(dce_call->conn->dce_ctx->lp_ctx, NULL, "dceprc_remote", "domain");
+	user = lpcfg_parm_string(dce_call->conn->dce_ctx->lp_ctx, NULL, "dcerpc_remote", "user");
+	pass = lpcfg_parm_string(dce_call->conn->dce_ctx->lp_ctx, NULL, "dcerpc_remote", "password");
+	domain = lpcfg_parm_string(dce_call->conn->dce_ctx->lp_ctx, NULL, "dceprc_remote", "domain");
 
 	table = ndr_table_by_uuid(&iface->syntax_id.uuid); /* FIXME: What about if_version ? */
 	if (!table) {
@@ -96,17 +101,44 @@ static NTSTATUS remote_op_bind(struct dcesrv_call_state *dce_call, const struct 
 	} else if (dce_call->conn->auth_state.session_info->credentials) {
 		DEBUG(5, ("dcerpc_remote: RPC Proxy: Using delegated credentials\n"));
 		credentials = dce_call->conn->auth_state.session_info->credentials;
+		must_free_credentials = false;
 	} else {
 		DEBUG(1,("dcerpc_remote: RPC Proxy: You must supply binding, user and password or have delegated credentials\n"));
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	status = dcerpc_pipe_connect(priv,
-				     &(priv->c_pipe), binding, table,
-				     credentials, dce_call->event_ctx,
-				     dce_call->conn->dce_ctx->lp_ctx);
+	/* parse binding string to the structure */
+	status = dcerpc_parse_binding(dce_call->context, binding, &b);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("Failed to parse dcerpc binding '%s'\n", binding));
+		return status;
+	}
+	
+	DEBUG(3, ("Using binding %s\n", dcerpc_binding_string(dce_call->context, b)));
+	
+	/* If we already have a remote association group ID, then use that */
+	if (dce_call->context->assoc_group->proxied_id != 0) {
+		b->assoc_group_id = dce_call->context->assoc_group->proxied_id;
+	}
 
-	talloc_free(credentials);
+	b->object.if_version = if_version;
+
+	pipe_conn_req = dcerpc_pipe_connect_b_send(dce_call->context, b, table,
+						   credentials, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx);
+	status = dcerpc_pipe_connect_b_recv(pipe_conn_req, dce_call->context, &(priv->c_pipe));
+	
+	if (must_free_credentials) {
+		talloc_free(credentials);
+	}
+
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	if (dce_call->context->assoc_group->proxied_id == 0) {
+		dce_call->context->assoc_group->proxied_id = priv->c_pipe->assoc_group_id;
+	}
+
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -154,6 +186,8 @@ static NTSTATUS remote_op_ndr_pull(struct dcesrv_call_state *dce_call, TALLOC_CT
 	return NT_STATUS_OK;
 }
 
+static void remote_op_dispatch_done(struct rpc_request *rreq);
+
 static NTSTATUS remote_op_dispatch(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx, void *r)
 {
 	struct dcesrv_remote_private *priv = dce_call->context->private_data;
@@ -161,6 +195,7 @@ static NTSTATUS remote_op_dispatch(struct dcesrv_call_state *dce_call, TALLOC_CT
 	const struct ndr_interface_table *table = dce_call->context->iface->private_data;
 	const struct ndr_interface_call *call;
 	const char *name;
+	struct rpc_request *rreq;
 
 	name = table->calls[opnum].name;
 	call = &table->calls[opnum];
@@ -172,20 +207,53 @@ static NTSTATUS remote_op_dispatch(struct dcesrv_call_state *dce_call, TALLOC_CT
 	priv->c_pipe->conn->flags |= DCERPC_NDR_REF_ALLOC;
 
 	/* we didn't use the return code of this function as we only check the last_fault_code */
-	dcerpc_ndr_request(priv->c_pipe, NULL, table, opnum, mem_ctx,r);
+	rreq = dcerpc_ndr_request_send(priv->c_pipe, NULL, table, opnum, true, mem_ctx, r);
+	if (rreq == NULL) {
+		DEBUG(0,("dcesrv_remote: call[%s] dcerpc_ndr_request_send() failed!\n", name));
+		return NT_STATUS_NO_MEMORY;
+	}
+	rreq->async.callback = remote_op_dispatch_done;
+	rreq->async.private_data = dce_call;
+
+	dce_call->state_flags |= DCESRV_CALL_STATE_FLAG_ASYNC;
+	return NT_STATUS_OK;
+}
+
+static void remote_op_dispatch_done(struct rpc_request *rreq)
+{
+	struct dcesrv_call_state *dce_call = talloc_get_type_abort(rreq->async.private_data,
+					     struct dcesrv_call_state);
+	struct dcesrv_remote_private *priv = dce_call->context->private_data;
+	uint16_t opnum = dce_call->pkt.u.request.opnum;
+	const struct ndr_interface_table *table = dce_call->context->iface->private_data;
+	const struct ndr_interface_call *call;
+	const char *name;
+	NTSTATUS status;
+
+	name = table->calls[opnum].name;
+	call = &table->calls[opnum];
+
+	/* we didn't use the return code of this function as we only check the last_fault_code */
+	status = dcerpc_ndr_request_recv(rreq);
 
 	dce_call->fault_code = priv->c_pipe->last_fault_code;
 	if (dce_call->fault_code != 0) {
-		DEBUG(0,("dcesrv_remote: call[%s] failed with: %s!\n",name, dcerpc_errstr(mem_ctx, dce_call->fault_code)));
-		return NT_STATUS_NET_WRITE_FAULT;
+		DEBUG(0,("dcesrv_remote: call[%s] failed with: %s!\n",
+			name, dcerpc_errstr(dce_call, dce_call->fault_code)));
+		goto reply;
 	}
 
-	if ((dce_call->fault_code == 0) && 
+	if (NT_STATUS_IS_OK(status) &&
 	    (priv->c_pipe->conn->flags & DCERPC_DEBUG_PRINT_OUT)) {
-		ndr_print_function_debug(call->ndr_print, name, NDR_OUT, r);		
+		ndr_print_function_debug(call->ndr_print, name, NDR_OUT, dce_call->r);
 	}
 
-	return NT_STATUS_OK;
+reply:
+	status = dcesrv_reply(dce_call);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0,("dcesrv_remote: call[%s]: dcesrv_reply() failed - %s\n",
+			name, nt_errstr(status)));
+	}
 }
 
 static NTSTATUS remote_op_ndr_push(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx, struct ndr_push *push, const void *r)
@@ -206,7 +274,7 @@ static NTSTATUS remote_op_ndr_push(struct dcesrv_call_state *dce_call, TALLOC_CT
 
 static NTSTATUS remote_register_one_iface(struct dcesrv_context *dce_ctx, const struct dcesrv_interface *iface)
 {
-	int i;
+	unsigned int i;
 	const struct ndr_interface_table *table = iface->private_data;
 
 	for (i=0;i<table->endpoints->count;i++) {
@@ -225,8 +293,8 @@ static NTSTATUS remote_register_one_iface(struct dcesrv_context *dce_ctx, const 
 
 static NTSTATUS remote_op_init_server(struct dcesrv_context *dce_ctx, const struct dcesrv_endpoint_server *ep_server)
 {
-	int i;
-	const char **ifaces = (const char **)str_list_make(dce_ctx, lp_parm_string(dce_ctx->lp_ctx, NULL, "dcerpc_remote", "interfaces"),NULL);
+	unsigned int i;
+	const char **ifaces = (const char **)str_list_make(dce_ctx, lpcfg_parm_string(dce_ctx->lp_ctx, NULL, "dcerpc_remote", "interfaces"),NULL);
 
 	if (!ifaces) {
 		DEBUG(3,("remote_op_init_server: no interfaces configured\n"));

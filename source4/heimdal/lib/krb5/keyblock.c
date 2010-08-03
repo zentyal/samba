@@ -41,7 +41,7 @@
  * @ingroup krb5_crypto
  */
 
-void KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION void KRB5_LIB_CALL
 krb5_keyblock_zero(krb5_keyblock *keyblock)
 {
     keyblock->keytype = 0;
@@ -57,7 +57,7 @@ krb5_keyblock_zero(krb5_keyblock *keyblock)
  * @ingroup krb5_crypto
  */
 
-void KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION void KRB5_LIB_CALL
 krb5_free_keyblock_contents(krb5_context context,
 			    krb5_keyblock *keyblock)
 {
@@ -79,7 +79,7 @@ krb5_free_keyblock_contents(krb5_context context,
  * @ingroup krb5_crypto
  */
 
-void KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION void KRB5_LIB_CALL
 krb5_free_keyblock(krb5_context context,
 		   krb5_keyblock *keyblock)
 {
@@ -97,12 +97,12 @@ krb5_free_keyblock(krb5_context context,
  * @param inblock the key to copy
  * @param to the output key.
  *
- * @param 0 on success or a Kerberos 5 error code
+ * @return 0 on success or a Kerberos 5 error code
  *
  * @ingroup krb5_crypto
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_copy_keyblock_contents (krb5_context context,
 			     const krb5_keyblock *inblock,
 			     krb5_keyblock *to)
@@ -118,13 +118,13 @@ krb5_copy_keyblock_contents (krb5_context context,
  * @param inblock the key to copy
  * @param to the output key.
  *
- * @param 0 on success or a Kerberos 5 error code
+ * @return 0 on success or a Kerberos 5 error code
  *
  * @ingroup krb5_crypto
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_copy_keyblock (krb5_context context,
 		    const krb5_keyblock *inblock,
 		    krb5_keyblock **to)
@@ -165,10 +165,12 @@ krb5_keyblock_get_enctype(const krb5_keyblock *block)
  * Fill in `key' with key data of type `enctype' from `data' of length
  * `size'. Key should be freed using krb5_free_keyblock_contents().
  *
+ * @return 0 on success or a Kerberos 5 error code
+ *
  * @ingroup krb5_crypto
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_keyblock_init(krb5_context context,
 		   krb5_enctype type,
 		   const void *data,

@@ -37,7 +37,6 @@
 #include "lib/messaging/irpc.h"
 #include "lib/ldb/include/ldb.h"
 #include "lib/ldb/include/ldb_errors.h"
-#include "libcli/ldap/ldap.h"
 #include "libcli/ldap/ldap_proto.h"
 #include "system/network.h"
 #include "lib/socket/netif.h"
@@ -237,7 +236,8 @@ static int ldapsrv_load_limits(struct ldapsrv_connection *conn)
 	struct ldb_dn *basedn;
 	struct ldb_dn *conf_dn;
 	struct ldb_dn *policy_dn;
-	int i,ret;
+	unsigned int i;
+	int ret;
 
 	/* set defaults limits in case of failure */
 	conn->limits.initial_timeout = 120;
@@ -441,7 +441,7 @@ static void ldapsrv_accept_nonpriv(struct stream_connection *c)
 	NTSTATUS status;
 
 	status = auth_anonymous_session_info(
-		c, c->event.ctx, ldapsrv_service->task->lp_ctx, &session_info);
+		c, ldapsrv_service->task->lp_ctx, &session_info);
 	if (!NT_STATUS_IS_OK(status)) {
 		stream_terminate_connection(c, "failed to setup anonymous "
 					    "session info");
@@ -468,11 +468,9 @@ static void ldapsrv_accept_priv(struct stream_connection *c)
 	struct ldapsrv_service *ldapsrv_service = talloc_get_type_abort(
 		c->private_data, struct ldapsrv_service);
 	struct auth_session_info *session_info;
-	NTSTATUS status;
 
-	status = auth_system_session_info(
-		c, ldapsrv_service->task->lp_ctx, &session_info);
-	if (!NT_STATUS_IS_OK(status)) {
+	session_info = system_session(ldapsrv_service->task->lp_ctx);
+	if (!session_info) {
 		stream_terminate_connection(c, "failed to setup system "
 					    "session info");
 		return;
@@ -492,7 +490,7 @@ static const struct stream_server_ops ldap_stream_priv_ops = {
   add a socket address to the list of events, one event per port
 */
 static NTSTATUS add_socket(struct tevent_context *event_context,
-			   struct loadparm_context *lp_ctx, 
+			   struct loadparm_context *lp_ctx,
 			   const struct model_ops *model_ops,
 			   const char *address, struct ldapsrv_service *ldap_service)
 {
@@ -503,31 +501,33 @@ static NTSTATUS add_socket(struct tevent_context *event_context,
 	status = stream_setup_socket(event_context, lp_ctx,
 				     model_ops, &ldap_stream_nonpriv_ops,
 				     "ipv4", address, &port, 
-				     lp_socket_options(lp_ctx), 
+				     lpcfg_socket_options(lp_ctx),
 				     ldap_service);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("ldapsrv failed to bind to %s:%u - %s\n",
 			 address, port, nt_errstr(status)));
+		return status;
 	}
 
 	if (tls_support(ldap_service->tls_params)) {
 		/* add ldaps server */
 		port = 636;
-		status = stream_setup_socket(event_context, lp_ctx, 
+		status = stream_setup_socket(event_context, lp_ctx,
 					     model_ops,
 					     &ldap_stream_nonpriv_ops,
 					     "ipv4", address, &port, 
-					     lp_socket_options(lp_ctx), 
+					     lpcfg_socket_options(lp_ctx),
 					     ldap_service);
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(0,("ldapsrv failed to bind to %s:%u - %s\n",
 				 address, port, nt_errstr(status)));
+			return status;
 		}
 	}
 
 	/* Load LDAP database, but only to read our settings */
 	ldb = samdb_connect(ldap_service, ldap_service->task->event_ctx, 
-			    lp_ctx, system_session(ldap_service, lp_ctx));
+			    lp_ctx, system_session(lp_ctx));
 	if (!ldb) {
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
@@ -538,19 +538,20 @@ static NTSTATUS add_socket(struct tevent_context *event_context,
 					     model_ops,
 					     &ldap_stream_nonpriv_ops,
 					     "ipv4", address, &port, 
-				     	     lp_socket_options(lp_ctx), 
+					     lpcfg_socket_options(lp_ctx),
 					     ldap_service);
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(0,("ldapsrv failed to bind to %s:%u - %s\n",
 				 address, port, nt_errstr(status)));
+			return status;
 		}
 	}
 
 	/* And once we are bound, free the tempoary ldb, it will
 	 * connect again on each incoming LDAP connection */
-	talloc_free(ldb);
+	talloc_unlink(ldap_service, ldb);
 
-	return status;
+	return NT_STATUS_OK;
 }
 
 /*
@@ -566,7 +567,7 @@ static void ldapsrv_task_init(struct task_server *task)
 	NTSTATUS status;
 	const struct model_ops *model_ops;
 
-	switch (lp_server_role(task->lp_ctx)) {
+	switch (lpcfg_server_role(task->lp_ctx)) {
 	case ROLE_STANDALONE:
 		task_server_terminate(task, "ldap_server: no LDAP server required in standalone configuration", 
 				      false);
@@ -594,12 +595,12 @@ static void ldapsrv_task_init(struct task_server *task)
 	ldap_service->tls_params = tls_initialise(ldap_service, task->lp_ctx);
 	if (ldap_service->tls_params == NULL) goto failed;
 
-	if (lp_interfaces(task->lp_ctx) && lp_bind_interfaces_only(task->lp_ctx)) {
+	if (lpcfg_interfaces(task->lp_ctx) && lpcfg_bind_interfaces_only(task->lp_ctx)) {
 		struct interface *ifaces;
 		int num_interfaces;
 		int i;
 
-		load_interfaces(task, lp_interfaces(task->lp_ctx), &ifaces);
+		load_interfaces(task, lpcfg_interfaces(task->lp_ctx), &ifaces);
 		num_interfaces = iface_count(ifaces);
 
 		/* We have been given an interfaces line, and been 
@@ -612,8 +613,8 @@ static void ldapsrv_task_init(struct task_server *task)
 			if (!NT_STATUS_IS_OK(status)) goto failed;
 		}
 	} else {
-		status = add_socket(task->event_ctx, task->lp_ctx, model_ops, 
-				    lp_socket_address(task->lp_ctx), ldap_service);
+		status = add_socket(task->event_ctx, task->lp_ctx, model_ops,
+				    lpcfg_socket_address(task->lp_ctx), ldap_service);
 		if (!NT_STATUS_IS_OK(status)) goto failed;
 	}
 
@@ -625,7 +626,7 @@ static void ldapsrv_task_init(struct task_server *task)
 	status = stream_setup_socket(task->event_ctx, task->lp_ctx,
 				     model_ops, &ldap_stream_nonpriv_ops,
 				     "unix", ldapi_path, NULL, 
-				     lp_socket_options(task->lp_ctx), 
+				     lpcfg_socket_options(task->lp_ctx),
 				     ldap_service);
 	talloc_free(ldapi_path);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -656,7 +657,7 @@ static void ldapsrv_task_init(struct task_server *task)
 	status = stream_setup_socket(task->event_ctx, task->lp_ctx,
 				     model_ops, &ldap_stream_priv_ops,
 				     "unix", ldapi_path, NULL,
-				     lp_socket_options(task->lp_ctx),
+				     lpcfg_socket_options(task->lp_ctx),
 				     ldap_service);
 	talloc_free(ldapi_path);
 	if (!NT_STATUS_IS_OK(status)) {

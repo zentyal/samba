@@ -33,7 +33,7 @@ bool smb_raw_setfileinfo_passthru(TALLOC_CTX *mem_ctx,
 				  union smb_setfileinfo *parms, 
 				  DATA_BLOB *blob)
 {	
-	uint_t len;
+	unsigned int len;
 
 #define NEED_BLOB(n) do { \
 	  *blob = data_blob_talloc(mem_ctx, NULL, n); \
@@ -99,8 +99,7 @@ bool smb_raw_setfileinfo_passthru(TALLOC_CTX *mem_ctx,
 	case RAW_FILEINFO_SEC_DESC: {
 		enum ndr_err_code ndr_err;
 
-		ndr_err = ndr_push_struct_blob(blob, mem_ctx, NULL,
-					       parms->set_secdesc.in.sd,
+		ndr_err = ndr_push_struct_blob(blob, mem_ctx, parms->set_secdesc.in.sd,
 					       (ndr_push_flags_fn_t)ndr_push_security_descriptor);
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			return false;

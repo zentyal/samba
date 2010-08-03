@@ -28,8 +28,6 @@
 #include "libcli/libcli.h"
 #include "lib/events/events.h"
 #include "libcli/resolve/resolve.h"
-#include "auth/credentials/credentials.h"
-#include "librpc/gen_ndr/ndr_nbt.h"
 #include "torture/smbtorture.h"
 #include "torture/util.h"
 #include "libcli/smb_composite/smb_composite.h"
@@ -70,7 +68,7 @@ static bool rw_torture(struct torture_context *tctx, struct smbcli_state *c)
 	generate_random_buffer(buf, sizeof(buf));
 
 	for (i=0;i<torture_numops;i++) {
-		uint_t n = (uint_t)random()%10;
+		unsigned int n = (unsigned int)random()%10;
 		if (i % 10 == 0) {
 			if (torture_setting_bool(tctx, "progress", true)) {
 				torture_comment(tctx, "%d\r", i);
@@ -233,6 +231,69 @@ bool torture_holdcon(struct torture_context *tctx)
 }
 
 /*
+  open a file N times on the server and just hold them open
+  used for testing performance when there are N file handles
+  alopenn
+ */
+bool torture_holdopen(struct torture_context *tctx,
+		      struct smbcli_state *cli)
+{
+	int i, fnum;
+	const char *fname = "\\holdopen.dat";
+	NTSTATUS status;
+
+	smbcli_unlink(cli->tree, fname);
+
+	fnum = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT|O_EXCL, DENY_NONE);
+	if (fnum == -1) {
+		torture_comment(tctx, "open of %s failed (%s)\n", fname, smbcli_errstr(cli->tree));
+		return false;
+	}
+
+	smbcli_close(cli->tree, fnum);
+
+	for (i=0;i<torture_numops;i++) {
+		union smb_open op;
+
+		op.generic.level = RAW_OPEN_NTCREATEX;
+		op.ntcreatex.in.root_fid.fnum = 0;
+		op.ntcreatex.in.flags = 0;
+		op.ntcreatex.in.access_mask = SEC_FILE_WRITE_DATA;
+		op.ntcreatex.in.create_options = 0;
+		op.ntcreatex.in.file_attr = FILE_ATTRIBUTE_NORMAL;
+		op.ntcreatex.in.share_access = NTCREATEX_SHARE_ACCESS_MASK;
+		op.ntcreatex.in.alloc_size = 0;
+		op.ntcreatex.in.open_disposition = NTCREATEX_DISP_OPEN;
+		op.ntcreatex.in.impersonation = NTCREATEX_IMPERSONATION_ANONYMOUS;
+		op.ntcreatex.in.security_flags = 0;
+		op.ntcreatex.in.fname = fname;
+		status = smb_raw_open(cli->tree, tctx, &op);
+		if (!NT_STATUS_IS_OK(status)) {
+			torture_warning(tctx, "open %d failed\n", i);
+			continue;
+		}
+
+		if (torture_setting_bool(tctx, "progress", true)) {
+			torture_comment(tctx, "opened %d file\r", i);
+			fflush(stdout);
+		}
+	}
+
+	torture_comment(tctx, "\nStarting pings\n");
+
+	while (1) {
+		struct smb_echo ec;
+
+		status = smb_raw_echo(cli->transport, &ec);
+		torture_comment(tctx, ".");
+		fflush(stdout);
+		sleep(15);
+	}
+
+	return true;
+}
+
+/*
 test how many open files this server supports on the one socket
 */
 bool run_maxfidtest(struct torture_context *tctx, struct smbcli_state *cli, int dummy)
@@ -368,7 +429,7 @@ bool torture_ioctl_test(struct torture_context *tctx,
 	torture_comment(tctx, "ioctl job info: %s\n", smbcli_errstr(cli->tree));
 
 	for (device=0;device<0x100;device++) {
-		torture_comment(tctx, "testing device=0x%x\n", device);
+		torture_comment(tctx, "Testing device=0x%x\n", device);
 		for (function=0;function<0x100;function++) {
 			parms.ioctl.in.request = (device << 16) | function;
 			status = smb_raw_ioctl(cli->tree, mem_ctx, &parms);
@@ -424,11 +485,11 @@ struct benchrw_state {
 		unsigned int blocksize;
 		unsigned int writeratio;
 		int num_parallel_requests;
-	} *lp_params;
+	} *lpcfg_params;
 };
 
 /* 
- 	init params using lp_parm_xxx 
+	init params using lpcfg_parm_xxx
  	return number of unclist entries
 */
 static int init_benchrw_params(struct torture_context *tctx,
@@ -443,7 +504,7 @@ static int init_benchrw_params(struct torture_context *tctx,
 	lpar->writeratio = torture_setting_int(tctx, "writeratio",5);
 	lpar->num_parallel_requests = torture_setting_int(
 		tctx, "parallel_requests", 5);
-	lpar->workgroup = lp_workgroup(tctx->lp_ctx);
+	lpar->workgroup = lpcfg_workgroup(tctx->lp_ctx);
 	
 	p = torture_setting_string(tctx, "unclist", NULL);
 	if (p) {
@@ -558,7 +619,7 @@ static NTSTATUS benchrw_readwrite(struct torture_context *tctx,
 	union smb_write	wr;
 	
 	/* randomize between writes and reads*/
-	if (random() % state->lp_params->writeratio == 0) {
+	if (random() % state->lpcfg_params->writeratio == 0) {
 		torture_comment(tctx, "Callback WRITE file:%d (%d/%d)\n",
 				state->nr,state->completed,torture_numops);
 		wr.generic.level = RAW_WRITE_WRITEX  ;
@@ -566,7 +627,7 @@ static NTSTATUS benchrw_readwrite(struct torture_context *tctx,
 		wr.writex.in.offset     = 0;
 		wr.writex.in.wmode	= 0		;
 		wr.writex.in.remaining  = 0;
-		wr.writex.in.count      = state->lp_params->blocksize;
+		wr.writex.in.count      = state->lpcfg_params->blocksize;
 		wr.writex.in.data       = state->buffer;
 		state->readcnt=0;
 		req = smb_raw_write_send(state->cli,&wr);
@@ -575,16 +636,16 @@ static NTSTATUS benchrw_readwrite(struct torture_context *tctx,
 		torture_comment(tctx,
 				"Callback READ file:%d (%d/%d) Offset:%d\n",
 				state->nr,state->completed,torture_numops,
-				(state->readcnt*state->lp_params->blocksize));
+				(state->readcnt*state->lpcfg_params->blocksize));
 		rd.generic.level = RAW_READ_READX;
 		rd.readx.in.file.fnum	= state->fnum 	;
-		rd.readx.in.offset	= state->readcnt*state->lp_params->blocksize; 
-		rd.readx.in.mincnt	= state->lp_params->blocksize;
+		rd.readx.in.offset	= state->readcnt*state->lpcfg_params->blocksize;
+		rd.readx.in.mincnt	= state->lpcfg_params->blocksize;
 		rd.readx.in.maxcnt	= rd.readx.in.mincnt;
 		rd.readx.in.remaining	= 0	;
 		rd.readx.out.data	= state->buffer;
 		rd.readx.in.read_for_execute = false;
-		if(state->readcnt < state->lp_params->writeblocks){
+		if(state->readcnt < state->lpcfg_params->writeblocks){
 			state->readcnt++;	
 		}else{
 			/*start reading from beginn of file*/
@@ -622,21 +683,21 @@ static NTSTATUS benchrw_open(struct torture_context *tctx,
 	}
 		
 	torture_comment(tctx, "Write initial test file:%d (%d/%d)\n",state->nr,
-		(state->writecnt+1)*state->lp_params->blocksize,
-		(state->lp_params->writeblocks*state->lp_params->blocksize));
+		(state->writecnt+1)*state->lpcfg_params->blocksize,
+		(state->lpcfg_params->writeblocks*state->lpcfg_params->blocksize));
 	wr.generic.level = RAW_WRITE_WRITEX  ;
 	wr.writex.in.file.fnum  = state->fnum ;
 	wr.writex.in.offset     = state->writecnt * 
-					state->lp_params->blocksize;
+					state->lpcfg_params->blocksize;
 	wr.writex.in.wmode	= 0		;
-	wr.writex.in.remaining  = (state->lp_params->writeblocks *
-						state->lp_params->blocksize)-
+	wr.writex.in.remaining  = (state->lpcfg_params->writeblocks *
+						state->lpcfg_params->blocksize)-
 						((state->writecnt+1)*state->
-						lp_params->blocksize);
-	wr.writex.in.count      = state->lp_params->blocksize;
+						lpcfg_params->blocksize);
+	wr.writex.in.count      = state->lpcfg_params->blocksize;
 	wr.writex.in.data       = state->buffer;
 	state->writecnt++;
-	if(state->writecnt == state->lp_params->writeblocks){
+	if(state->writecnt == state->lpcfg_params->writeblocks){
 		state->mode=READ_WRITE_DATA;
 	}
 	req = smb_raw_write_send(state->cli,&wr);
@@ -677,9 +738,9 @@ static NTSTATUS benchrw_mkdir(struct torture_context *tctx,
 	open_parms->openx.in.timeout = 0;
 	open_parms->openx.in.fname = state->fname;
 		
-	writedata = talloc_size(tctx,state->lp_params->blocksize);
+	writedata = talloc_size(tctx,state->lpcfg_params->blocksize);
 	NT_STATUS_HAVE_NO_MEMORY(writedata);
-	generate_random_buffer(writedata,state->lp_params->blocksize);
+	generate_random_buffer(writedata,state->lpcfg_params->blocksize);
 	state->buffer=writedata;
 	state->writecnt=1;
 	state->readcnt=0;
@@ -734,7 +795,7 @@ static void benchrw_callback(struct smbcli_request *req)
 		break;
 	case READ_WRITE_DATA:
 		while (state->num_parallel_requests
-		       < state->lp_params->num_parallel_requests) {
+		       < state->lpcfg_params->num_parallel_requests) {
 			NTSTATUS status;
 			status = benchrw_readwrite(tctx,state);
 			if (!NT_STATUS_IS_OK(status)){
@@ -777,7 +838,7 @@ static void async_open_callback(struct composite_context *con)
 {
 	struct benchrw_state *state = con->async.private_data;
 	struct torture_context *tctx = state->tctx;
-	int retry = state->lp_params->retry;
+	int retry = state->lpcfg_params->retry;
 	 	
 	if (NT_STATUS_IS_OK(con->status)) {
 		state->cli=((struct smb_composite_connect*)
@@ -816,20 +877,19 @@ static struct composite_context *torture_connect_async(
 	torture_comment(tctx, "Open Connection to %s/%s\n",host,share);
 	smb->in.dest_host=talloc_strdup(mem_ctx,host);
 	smb->in.service=talloc_strdup(mem_ctx,share);
-	smb->in.dest_ports=lp_smb_ports(tctx->lp_ctx);
-	smb->in.socket_options = lp_socket_options(tctx->lp_ctx);
+	smb->in.dest_ports=lpcfg_smb_ports(tctx->lp_ctx);
+	smb->in.socket_options = lpcfg_socket_options(tctx->lp_ctx);
 	smb->in.called_name = strupper_talloc(mem_ctx, host);
 	smb->in.service_type=NULL;
 	smb->in.credentials=cmdline_credentials;
 	smb->in.fallback_to_anonymous=false;
-	smb->in.iconv_convenience = lp_iconv_convenience(tctx->lp_ctx);
-	smb->in.gensec_settings = lp_gensec_settings(mem_ctx, tctx->lp_ctx);
+	smb->in.gensec_settings = lpcfg_gensec_settings(mem_ctx, tctx->lp_ctx);
 	smb->in.workgroup=workgroup;
-	lp_smbcli_options(tctx->lp_ctx, &smb->in.options);
-	lp_smbcli_session_options(tctx->lp_ctx, &smb->in.session_options);
+	lpcfg_smbcli_options(tctx->lp_ctx, &smb->in.options);
+	lpcfg_smbcli_session_options(tctx->lp_ctx, &smb->in.session_options);
 	
 	return smb_composite_connect_send(smb,mem_ctx,
-					  lp_resolve_context(tctx->lp_ctx),ev);
+					  lpcfg_resolve_context(tctx->lp_ctx),ev);
 }
 
 bool run_benchrw(struct torture_context *tctx)
@@ -855,7 +915,7 @@ bool run_benchrw(struct torture_context *tctx)
 	ev = tctx->ev;
 	state = talloc_array(tctx, struct benchrw_state *, torture_nprocs);
 
-	/* init params using lp_parm_xxx */
+	/* init params using lpcfg_parm_xxx */
 	num_unc_names = init_benchrw_params(tctx,&lpparams);
 	
 	/* init private data structs*/
@@ -864,7 +924,7 @@ bool run_benchrw(struct torture_context *tctx)
 		state[i]->tctx = tctx;
 		state[i]->completed=0;
 		state[i]->num_parallel_requests=0;
-		state[i]->lp_params=&lpparams;
+		state[i]->lpcfg_params=&lpparams;
 		state[i]->nr=i;
 		state[i]->dname=talloc_asprintf(tctx,"benchrw%d",i);
 		state[i]->fname=talloc_asprintf(tctx,"%s%s",

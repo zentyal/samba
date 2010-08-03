@@ -1,0 +1,8 @@
+#!/usr/bin/env python
+
+
+bld.SAMBA_SUBSYSTEM('UID_WRAPPER',
+	source='uid_wrapper.c',
+	deps='talloc'
+	)
+

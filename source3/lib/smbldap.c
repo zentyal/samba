@@ -744,7 +744,7 @@ int smb_ldap_start_tls(LDAP *ldap_struct, int version)
  setup a connection to the LDAP server based on a uri
 *******************************************************************/
 
-int smb_ldap_setup_conn(LDAP **ldap_struct, const char *uri)
+static int smb_ldap_setup_conn(LDAP **ldap_struct, const char *uri)
 {
 	int rc;
 
@@ -848,7 +848,7 @@ int smb_ldap_setup_conn(LDAP **ldap_struct, const char *uri)
  version 
  *******************************************************************/
 
-int smb_ldap_upgrade_conn(LDAP *ldap_struct, int *new_version) 
+static int smb_ldap_upgrade_conn(LDAP *ldap_struct, int *new_version)
 {
 	int version;
 	int rc;
@@ -1399,7 +1399,7 @@ static int smbldap_search_ext(struct smbldap_state *ldap_state,
 	 * just a bit more kind to the server. VL. */
 
 	got_alarm = 0;
-	CatchSignal(SIGALRM, SIGNAL_CAST gotalarm_sig);
+	CatchSignal(SIGALRM, gotalarm_sig);
 	alarm(lp_ldap_timeout());
 	/* End setup timeout. */
 
@@ -1434,7 +1434,7 @@ static int smbldap_search_ext(struct smbldap_state *ldap_state,
 	TALLOC_FREE(utf8_filter);
 
 	/* Teardown timeout. */
-	CatchSignal(SIGALRM, SIGNAL_CAST SIG_IGN);
+	CatchSignal(SIGALRM, SIG_IGN);
 	alarm(0);
 
 	if (got_alarm != 0)

@@ -19,13 +19,12 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "librpc/gen_ndr/ndr_atsvc_c.h"
-#include "torture/rpc/rpc.h"
+#include "torture/rpc/torture_rpc.h"
 
 static bool test_JobGetInfo(struct dcerpc_pipe *p, struct torture_context *tctx, uint32_t job_id)
 {
-	NTSTATUS status;
+	struct dcerpc_binding_handle *b = p->binding_handle;
 	struct atsvc_JobGetInfo r;
 	struct atsvc_JobInfo *info = talloc(tctx, struct atsvc_JobInfo);
 	if (!info) {
@@ -36,9 +35,9 @@ static bool test_JobGetInfo(struct dcerpc_pipe *p, struct torture_context *tctx,
 	r.in.job_id = job_id;
 	r.out.job_info = &info;
 
-	status = dcerpc_atsvc_JobGetInfo(p, tctx, &r);
-
-	torture_assert_ntstatus_ok(tctx, status, "JobGetInfo failed");
+	torture_assert_ntstatus_ok(tctx, dcerpc_atsvc_JobGetInfo_r(b, tctx, &r),
+		"JobGetInfo failed");
+	torture_assert_ntstatus_ok(tctx, r.out.result, "JobGetInfo failed");
 
 	return true;
 }
@@ -46,23 +45,23 @@ static bool test_JobGetInfo(struct dcerpc_pipe *p, struct torture_context *tctx,
 static bool test_JobDel(struct dcerpc_pipe *p, struct torture_context *tctx, uint32_t min_job_id,
 			uint32_t max_job_id)
 {
-	NTSTATUS status;
+	struct dcerpc_binding_handle *b = p->binding_handle;
 	struct atsvc_JobDel r;
 
 	r.in.servername = dcerpc_server_name(p);
 	r.in.min_job_id = min_job_id;
 	r.in.max_job_id = max_job_id;
 
-	status = dcerpc_atsvc_JobDel(p, tctx, &r);
-
-	torture_assert_ntstatus_ok(tctx, status, "JobDel failed");
+	torture_assert_ntstatus_ok(tctx, dcerpc_atsvc_JobDel_r(b, tctx, &r),
+		"JobDel failed");
+	torture_assert_ntstatus_ok(tctx, r.out.result, "JobDel failed");
 
 	return true;
 }
 
 static bool test_JobEnum(struct torture_context *tctx, struct dcerpc_pipe *p)
 {
-	NTSTATUS status;
+	struct dcerpc_binding_handle *b = p->binding_handle;
 	struct atsvc_JobEnum r;
 	struct atsvc_enum_ctr ctr;
 	uint32_t resume_handle = 0, i, total_entries = 0;
@@ -77,9 +76,9 @@ static bool test_JobEnum(struct torture_context *tctx, struct dcerpc_pipe *p)
 	r.in.resume_handle = r.out.resume_handle = &resume_handle;
 	r.out.total_entries = &total_entries;
 
-	status = dcerpc_atsvc_JobEnum(p, tctx, &r);
-
-	torture_assert_ntstatus_ok(tctx, status, "JobEnum failed");
+	torture_assert_ntstatus_ok(tctx, dcerpc_atsvc_JobEnum_r(b, tctx, &r),
+		"JobEnum failed");
+	torture_assert_ntstatus_ok(tctx, r.out.result, "JobEnum failed");
 
 	for (i = 0; i < r.out.ctr->entries_read; i++) {
 		if (!test_JobGetInfo(p, tctx, r.out.ctr->first_entry[i].job_id)) {
@@ -92,7 +91,7 @@ static bool test_JobEnum(struct torture_context *tctx, struct dcerpc_pipe *p)
 
 static bool test_JobAdd(struct torture_context *tctx, struct dcerpc_pipe *p)
 {
-	NTSTATUS status;
+	struct dcerpc_binding_handle *b = p->binding_handle;
 	struct atsvc_JobAdd r;
 	struct atsvc_JobInfo info;
 
@@ -104,9 +103,9 @@ static bool test_JobAdd(struct torture_context *tctx, struct dcerpc_pipe *p)
 	info.command = "foo.exe";
 	r.in.job_info = &info;
 
-	status = dcerpc_atsvc_JobAdd(p, tctx, &r);
-
-	torture_assert_ntstatus_ok(tctx, status, "JobAdd failed");
+	torture_assert_ntstatus_ok(tctx, dcerpc_atsvc_JobAdd_r(b, tctx, &r),
+		"JobAdd failed");
+	torture_assert_ntstatus_ok(tctx, r.out.result, "JobAdd failed");
 
 	/* Run EnumJobs again in case there were no jobs to begin with */
 

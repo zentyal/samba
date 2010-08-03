@@ -20,6 +20,7 @@
 */
 
 #include "includes.h"
+#include "printing.h"
 #include "smbd/globals.h"
 
 static bool setup_write_cache(files_struct *, SMB_OFF_T);
@@ -291,16 +292,15 @@ ssize_t write_file(struct smb_request *req,
 	int write_path = -1;
 
 	if (fsp->print_file) {
-		uint32 jobid;
+		uint32_t t;
+		int ret;
 
-		if (!rap_to_pjobid(fsp->rap_print_jobid, NULL, &jobid)) {
-			DEBUG(3,("write_file: Unable to map RAP jobid %u to jobid.\n",
-						(unsigned int)fsp->rap_print_jobid ));
-			errno = EBADF;
+		ret = print_spool_write(fsp, data, n, pos, &t);
+		if (ret) {
+			errno = ret;
 			return -1;
 		}
-
-		return print_job_write(SNUM(fsp->conn), jobid, data, pos, n);
+		return t;
 	}
 
 	if (!fsp->can_write) {
@@ -649,10 +649,31 @@ nonop=%u allocated=%u active=%u direct=%u perfect=%u readhits=%u\n",
                         */
 
 			flush_write_cache(fsp, WRITE_FLUSH);
-			wcp->offset = wcp->file_size;
-			wcp->data_size = pos - wcp->file_size + 1;
-			memset(wcp->data, '\0', wcp->data_size);
-			memcpy(wcp->data + wcp->data_size-1, data, 1);
+
+			if (data[0] == '\0') {
+				/*
+				 * This is a 1-byte write of a 0
+				 * beyond the EOF, the typical
+				 * file-extending (and allocating, but
+				 * we're using the write cache here)
+				 * write done by Windows. We just have
+				 * to ftruncate the file and rely on
+				 * posix semantics to return zeros for
+				 * non-written file data that is
+				 * within the file length.
+				 *
+				 * We have to cheat the offset to make
+				 * wcp_file_size_change do the right
+				 * thing with the ftruncate call.
+				 */
+				wcp->offset = pos + 1;
+				wcp->data_size = 0;
+			} else {
+				wcp->offset = wcp->file_size;
+				wcp->data_size = pos - wcp->file_size + 1;
+				memset(wcp->data, '\0', wcp->data_size);
+				memcpy(wcp->data + wcp->data_size-1, data, 1);
+			}
 
 			/*
 			 * Update the file size if changed.
@@ -792,6 +813,51 @@ n = %u, wcp->offset=%.0f, wcp->data_size=%u\n",
 			DO_PROFILE_INC(writecache_init_writes);
 		}
 #endif
+
+		if ((wcp->data_size == 0)
+		    && (pos > wcp->file_size)
+		    && (n == 1)
+		    && (data[0] == '\0')) {
+			/*
+			 * This is a 1-byte write of a 0 beyond the
+			 * EOF, the typical file-extending (and
+			 * allocating, but we're using the write cache
+			 * here) write done by Windows. We just have
+			 * to ftruncate the file and rely on posix
+			 * semantics to return zeros for non-written
+			 * file data that is within the file length.
+			 *
+			 * We have to cheat the offset to make
+			 * wcp_file_size_change do the right thing
+			 * with the ftruncate call.
+			 */
+			wcp->offset = pos+1;
+			wcp->data_size = 0;
+			if (wcp_file_size_change(fsp) == -1) {
+				return -1;
+			}
+			return 1;
+		}
+
+		if ((wcp->data_size == 0)
+		    && (pos > wcp->file_size)
+		    && (pos + n <= wcp->file_size + wcp->alloc_size)) {
+			/*
+			 * This is a write completely beyond the
+			 * current EOF, but within reach of the write
+			 * cache. We expect fill-up writes pretty
+			 * soon, so it does not make sense to start
+			 * the write cache at the current
+			 * offset. These fill-up writes would trigger
+			 * separate pwrites or even unnecessary cache
+			 * flushes because they overlap if this is a
+			 * one-byte allocating write.
+			 */
+			wcp->offset = wcp->file_size;
+			wcp->data_size = pos - wcp->file_size;
+			memset(wcp->data, 0, wcp->data_size);
+		}
+
 		memcpy(wcp->data+wcp->data_size, data, n);
 		if (wcp->data_size == 0) {
 			wcp->offset = pos;

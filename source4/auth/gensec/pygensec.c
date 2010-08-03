@@ -16,17 +16,14 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "includes.h"
 #include <Python.h>
-#include "param/param.h"
+#include "includes.h"
+#include "param/pyparam.h"
 #include "auth/gensec/gensec.h"
 #include "libcli/util/pyerrors.h"
-#include "pytalloc.h"
+#include "scripting/python/modules.h"
+#include "lib/talloc/pytalloc.h"
 #include <tevent.h>
-
-#ifndef Py_RETURN_NONE
-#define Py_RETURN_NONE return Py_INCREF(Py_None), Py_None
-#endif
 
 static PyObject *py_get_name_by_authtype(PyObject *self, PyObject *args)
 {
@@ -46,9 +43,34 @@ static PyObject *py_get_name_by_authtype(PyObject *self, PyObject *args)
 	return PyString_FromString(name);
 }
 
-static struct gensec_settings *settings_from_object(PyObject *object)
+static struct gensec_settings *settings_from_object(TALLOC_CTX *mem_ctx, PyObject *object)
 {
-	return NULL; /* FIXME */
+	struct gensec_settings *s;
+	PyObject *py_hostname, *py_lp_ctx;
+
+	if (!PyDict_Check(object)) {
+		PyErr_SetString(PyExc_ValueError, "settings should be a dictionary");
+		return NULL;
+	}
+
+	s = talloc_zero(mem_ctx, struct gensec_settings);
+	if (!s) return NULL;
+
+	py_hostname = PyDict_GetItemString(object, "target_hostname");
+	if (!py_hostname) {
+		PyErr_SetString(PyExc_ValueError, "settings.target_hostname not found");
+		return NULL;
+	}
+
+	py_lp_ctx = PyDict_GetItemString(object, "lp_ctx");
+	if (!py_lp_ctx) {
+		PyErr_SetString(PyExc_ValueError, "settings.lp_ctx not found");
+		return NULL;
+	}
+	
+	s->target_hostname = PyString_AsString(py_hostname);
+	s->lp_ctx = lpcfg_from_py_object(s, py_lp_ctx);
+	return s;
 }
 
 static PyObject *py_gensec_start_client(PyTypeObject *type, PyObject *args, PyObject *kwargs)
@@ -60,13 +82,9 @@ static PyObject *py_gensec_start_client(PyTypeObject *type, PyObject *args, PyOb
 	PyObject *py_settings;
 	struct tevent_context *ev;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kwnames, &py_settings))
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", discard_const_p(char *, kwnames), &py_settings))
 		return NULL;
 
-	settings = settings_from_object(py_settings);
-	if (settings == NULL)
-		return NULL;
-	
 	self = (py_talloc_Object*)type->tp_alloc(type, 0);
 	if (self == NULL) {
 		PyErr_NoMemory();
@@ -77,12 +95,27 @@ static PyObject *py_gensec_start_client(PyTypeObject *type, PyObject *args, PyOb
 		PyErr_NoMemory();
 		return NULL;
 	}
+
+	settings = settings_from_object(self->talloc_ctx, py_settings);
+	if (settings == NULL) {
+		PyObject_DEL(self);
+		return NULL;
+	}
+	
 	ev = tevent_context_init(self->talloc_ctx);
 	if (ev == NULL) {
 		PyErr_NoMemory();
 		PyObject_Del(self);
 		return NULL;
 	}
+
+	status = gensec_init(settings->lp_ctx);
+	if (!NT_STATUS_IS_OK(status)) {
+		PyErr_SetNTSTATUS(status);
+		PyObject_DEL(self);
+		return NULL;
+	}
+
 	status = gensec_client_start(self->talloc_ctx, 
 		(struct gensec_security **)&self->ptr, ev, settings);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -98,6 +131,10 @@ static PyObject *py_gensec_session_info(PyObject *self)
 	NTSTATUS status;
 	struct gensec_security *security = (struct gensec_security *)py_talloc_get_ptr(self);
 	struct auth_session_info *info;
+	if (security->ops == NULL) {
+		PyErr_SetString(PyExc_ValueError, "gensec not fully initialised - ask Andrew");
+		return NULL;
+	}
 	status = gensec_session_info(security, &info);
 	if (NT_STATUS_IS_ERR(status)) {
 		PyErr_SetNTSTATUS(status);
@@ -138,6 +175,15 @@ void initgensec(void)
 	m = Py_InitModule3("gensec", NULL, "Generic Security Interface.");
 	if (m == NULL)
 		return;
+
+	PyModule_AddObject(m, "FEATURE_SESSION_KEY",     PyInt_FromLong(GENSEC_FEATURE_SESSION_KEY));
+	PyModule_AddObject(m, "FEATURE_SIGN",            PyInt_FromLong(GENSEC_FEATURE_SIGN));
+	PyModule_AddObject(m, "FEATURE_SEAL",            PyInt_FromLong(GENSEC_FEATURE_SEAL));
+	PyModule_AddObject(m, "FEATURE_DCE_STYLE",       PyInt_FromLong(GENSEC_FEATURE_DCE_STYLE));
+	PyModule_AddObject(m, "FEATURE_ASYNC_REPLIES",   PyInt_FromLong(GENSEC_FEATURE_ASYNC_REPLIES));
+	PyModule_AddObject(m, "FEATURE_DATAGRAM_MODE",   PyInt_FromLong(GENSEC_FEATURE_DATAGRAM_MODE));
+	PyModule_AddObject(m, "FEATURE_SIGN_PKT_HEADER", PyInt_FromLong(GENSEC_FEATURE_SIGN_PKT_HEADER));
+	PyModule_AddObject(m, "FEATURE_NEW_SPNEGO",      PyInt_FromLong(GENSEC_FEATURE_NEW_SPNEGO));
 
 	Py_INCREF(&Py_Security);
 	PyModule_AddObject(m, "Security", (PyObject *)&Py_Security);

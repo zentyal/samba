@@ -106,6 +106,7 @@ static bool zfs_process_smbacl(files_struct *fsp, SMB4ACL_T *smbacl)
 	ace_t *acebuf;
 	SMB4ACE_T *smbace;
 	TALLOC_CTX	*mem_ctx;
+	bool have_special_id = false;
 
 	/* allocate the field of ZFS aces */
 	mem_ctx = talloc_tos();
@@ -140,8 +141,17 @@ static bool zfs_process_smbacl(files_struct *fsp, SMB4ACL_T *smbacl)
 					aceprop->who.special_id));
 				continue; /* don't add it !!! */
 			}
+			have_special_id = true;
 		}
 	}
+
+	if (!have_special_id
+	    && lp_parm_bool(fsp->conn->params->service, "zfsacl",
+			    "denymissingspecial", false)) {
+		errno = EACCES;
+		return false;
+	}
+
 	SMB_ASSERT(i == naces);
 
 	/* store acl */
@@ -208,7 +218,7 @@ static NTSTATUS zfsacl_get_nt_acl(struct vfs_handle_struct *handle,
 static NTSTATUS zfsacl_fset_nt_acl(vfs_handle_struct *handle,
 			 files_struct *fsp,
 			 uint32 security_info_sent,
-			 const SEC_DESC *psd)
+			 const struct security_descriptor *psd)
 {
 	return zfs_set_nt_acl(handle, fsp, security_info_sent, psd);
 }

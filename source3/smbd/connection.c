@@ -18,6 +18,7 @@
 */
 
 #include "includes.h"
+#include "smbd/globals.h"
 
 /****************************************************************************
  Delete a connection record.
@@ -30,7 +31,8 @@ bool yield_connection(connection_struct *conn, const char *name)
 
 	DEBUG(3,("Yielding connection to %s\n",name));
 
-	if (!(rec = connections_fetch_entry(NULL, conn, name))) {
+	rec = connections_fetch_entry(talloc_tos(), conn, name);
+	if (rec == NULL) {
 		DEBUG(0, ("connections_fetch_entry failed\n"));
 		return False;
 	}
@@ -47,7 +49,6 @@ bool yield_connection(connection_struct *conn, const char *name)
 }
 
 struct count_stat {
-	pid_t mypid;
 	int curr_connections;
 	const char *name;
 	bool Clear;
@@ -98,7 +99,6 @@ int count_current_connections( const char *sharename, bool clear  )
 {
 	struct count_stat cs;
 
-	cs.mypid = sys_getpid();
 	cs.curr_connections = 0;
 	cs.name = sharename;
 	cs.Clear = clear;
@@ -118,20 +118,10 @@ int count_current_connections( const char *sharename, bool clear  )
 }
 
 /****************************************************************************
- Count the number of connections open across all shares.
-****************************************************************************/
-
-int count_all_current_connections(void)
-{
-        return count_current_connections(NULL, True /* clear stale entries */);
-}
-
-/****************************************************************************
  Claim an entry in the connections database.
 ****************************************************************************/
 
-bool claim_connection(connection_struct *conn, const char *name,
-		      uint32 msg_flags)
+bool claim_connection(connection_struct *conn, const char *name)
 {
 	struct db_record *rec;
 	struct connections_data crec;
@@ -149,16 +139,13 @@ bool claim_connection(connection_struct *conn, const char *name,
 	/* fill in the crec */
 	ZERO_STRUCT(crec);
 	crec.magic = 0x280267;
-	crec.pid = procid_self();
-	crec.cnum = conn?conn->cnum:-1;
-	if (conn) {
-		crec.uid = conn->server_info->utok.uid;
-		crec.gid = conn->server_info->utok.gid;
-		strlcpy(crec.servicename, lp_servicename(SNUM(conn)),
-			sizeof(crec.servicename));
-	}
+	crec.pid = sconn_server_id(conn->sconn);
+	crec.cnum = conn->cnum;
+	crec.uid = conn->server_info->utok.uid;
+	crec.gid = conn->server_info->utok.gid;
+	strlcpy(crec.servicename, lp_servicename(SNUM(conn)),
+		sizeof(crec.servicename));
 	crec.start = time(NULL);
-	crec.bcast_msg_flags = msg_flags;
 
 	strlcpy(crec.machine,get_remote_machine_name(),sizeof(crec.machine));
 	strlcpy(crec.addr,conn?conn->client_address:
@@ -177,50 +164,6 @@ bool claim_connection(connection_struct *conn, const char *name,
 			 nt_errstr(status)));
 		return False;
 	}
-
-	return True;
-}
-
-bool register_message_flags(bool doreg, uint32 msg_flags)
-{
-	struct db_record *rec;
-	struct connections_data *pcrec;
-	NTSTATUS status;
-
-	DEBUG(10,("register_message_flags: %s flags 0x%x\n",
-		doreg ? "adding" : "removing",
-		(unsigned int)msg_flags ));
-
-	if (!(rec = connections_fetch_entry(NULL, NULL, ""))) {
-		DEBUG(0, ("connections_fetch_entry failed\n"));
-		return False;
-	}
-
-	if (rec->value.dsize != sizeof(struct connections_data)) {
-		DEBUG(0,("register_message_flags: Got wrong record size\n"));
-		TALLOC_FREE(rec);
-		return False;
-	}
-
-	pcrec = (struct connections_data *)rec->value.dptr;
-	if (doreg)
-		pcrec->bcast_msg_flags |= msg_flags;
-	else
-		pcrec->bcast_msg_flags &= ~msg_flags;
-
-	status = rec->store(rec, rec->value, TDB_REPLACE);
-
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0,("register_message_flags: tdb_store failed: %s.\n",
-			 nt_errstr(status)));
-		TALLOC_FREE(rec);
-		return False;
-	}
-
-	DEBUG(10,("register_message_flags: new flags 0x%x\n",
-		(unsigned int)pcrec->bcast_msg_flags ));
-
-	TALLOC_FREE(rec);
 
 	return True;
 }

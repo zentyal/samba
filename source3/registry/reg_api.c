@@ -63,7 +63,14 @@
  */
 
 #include "includes.h"
+#include "registry.h"
+#include "reg_cachehook.h"
 #include "regfio.h"
+#include "reg_util_internal.h"
+#include "reg_backend_db.h"
+#include "reg_dispatcher.h"
+#include "reg_objects.h"
+#include "../librpc/gen_ndr/ndr_security.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
@@ -75,15 +82,17 @@
 
 static WERROR fill_value_cache(struct registry_key *key)
 {
+	WERROR werr;
+
 	if (key->values != NULL) {
 		if (!reg_values_need_update(key->key, key->values)) {
 			return WERR_OK;
 		}
 	}
 
-	if (!(key->values = TALLOC_ZERO_P(key, struct regval_ctr))) {
-		return WERR_NOMEM;
-	}
+	werr = regval_ctr_init(key, &(key->values));
+	W_ERROR_NOT_OK_RETURN(werr);
+
 	if (fetch_reg_values(key->key, key->values) == -1) {
 		TALLOC_FREE(key->values);
 		return WERR_BADFILE;
@@ -148,9 +157,9 @@ static WERROR regkey_open_onelevel(TALLOC_CTX *mem_ctx,
 
 	key = regkey->key;
 	talloc_set_destructor(key, regkey_destructor);
-		
+
 	/* initialization */
-	
+
 	key->type = REG_KEY_GENERIC;
 
 	if (name[0] == '\0') {
@@ -182,7 +191,7 @@ static WERROR regkey_open_onelevel(TALLOC_CTX *mem_ctx,
 
 	if( StrnCaseCmp(key->name, KEY_HKPD, strlen(KEY_HKPD)) == 0 )
 		key->type = REG_KEY_HKPD;
-	
+
 	/* Look up the table of registry I/O operations */
 
 	if ( !(key->ops = reghook_cache_find( key->name )) ) {
@@ -215,7 +224,7 @@ static WERROR regkey_open_onelevel(TALLOC_CTX *mem_ctx,
 
 	*pregkey = regkey;
 	result = WERR_OK;
-	
+
 done:
 	if ( !W_ERROR_IS_OK(result) ) {
 		TALLOC_FREE(regkey);
@@ -331,6 +340,7 @@ WERROR reg_enumvalue(TALLOC_CTX *mem_ctx, struct registry_key *key,
 		     uint32 idx, char **pname, struct registry_value **pval)
 {
 	struct registry_value *val;
+	struct regval_blob *blob;
 	WERROR err;
 
 	if (!(key->key->access_granted & KEY_QUERY_VALUE)) {
@@ -341,23 +351,24 @@ WERROR reg_enumvalue(TALLOC_CTX *mem_ctx, struct registry_key *key,
 		return err;
 	}
 
-	if (idx >= key->values->num_values) {
+	if (idx >= regval_ctr_numvals(key->values)) {
 		return WERR_NO_MORE_ITEMS;
 	}
 
-	err = registry_pull_value(mem_ctx, &val,
-				  key->values->values[idx]->type,
-				  key->values->values[idx]->data_p,
-				  key->values->values[idx]->size,
-				  key->values->values[idx]->size);
-	if (!W_ERROR_IS_OK(err)) {
-		return err;
+	blob = regval_ctr_specific_value(key->values, idx);
+
+	val = talloc_zero(mem_ctx, struct registry_value);
+	if (val == NULL) {
+		return WERR_NOMEM;
 	}
+
+	val->type = regval_type(blob);
+	val->data = data_blob_talloc(mem_ctx, regval_data_p(blob), regval_size(blob));
 
 	if (pname
 	    && !(*pname = talloc_strdup(
-			 mem_ctx, key->values->values[idx]->valuename))) {
-		SAFE_FREE(val);
+			 mem_ctx, regval_name(blob)))) {
+		TALLOC_FREE(val);
 		return WERR_NOMEM;
 	}
 
@@ -379,13 +390,65 @@ WERROR reg_queryvalue(TALLOC_CTX *mem_ctx, struct registry_key *key,
 		return err;
 	}
 
-	for (i=0; i<key->values->num_values; i++) {
-		if (strequal(key->values->values[i]->valuename, name)) {
+	for (i=0; i < regval_ctr_numvals(key->values); i++) {
+		struct regval_blob *blob;
+		blob = regval_ctr_specific_value(key->values, i);
+		if (strequal(regval_name(blob), name)) {
 			return reg_enumvalue(mem_ctx, key, i, NULL, pval);
 		}
 	}
 
 	return WERR_BADFILE;
+}
+
+WERROR reg_querymultiplevalues(TALLOC_CTX *mem_ctx,
+			       struct registry_key *key,
+			       uint32_t num_names,
+			       const char **names,
+			       uint32_t *pnum_vals,
+			       struct registry_value **pvals)
+{
+	WERROR err;
+	uint32_t i, n, found = 0;
+	struct registry_value *vals;
+
+	if (num_names == 0) {
+		return WERR_OK;
+	}
+
+	if (!(key->key->access_granted & KEY_QUERY_VALUE)) {
+		return WERR_ACCESS_DENIED;
+	}
+
+	if (!(W_ERROR_IS_OK(err = fill_value_cache(key)))) {
+		return err;
+	}
+
+	vals = talloc_zero_array(mem_ctx, struct registry_value, num_names);
+	if (vals == NULL) {
+		return WERR_NOMEM;
+	}
+
+	for (n=0; n < num_names; n++) {
+		for (i=0; i < regval_ctr_numvals(key->values); i++) {
+			struct regval_blob *blob;
+			blob = regval_ctr_specific_value(key->values, i);
+			if (strequal(regval_name(blob), names[n])) {
+				struct registry_value *v;
+				err = reg_enumvalue(mem_ctx, key, i, NULL, &v);
+				if (!W_ERROR_IS_OK(err)) {
+					return err;
+				}
+				vals[n] = *v;
+				found++;
+			}
+		}
+	}
+
+	*pvals = vals;
+	*pnum_vals = found;
+
+	return WERR_OK;
 }
 
 WERROR reg_queryinfokey(struct registry_key *key, uint32_t *num_subkeys,
@@ -421,13 +484,14 @@ WERROR reg_queryinfokey(struct registry_key *key, uint32_t *num_subkeys,
 
 	max_len = 0;
 	max_size = 0;
-	for (i=0; i<key->values->num_values; i++) {
-		max_len = MAX(max_len,
-			      strlen(key->values->values[i]->valuename));
-		max_size = MAX(max_size, key->values->values[i]->size);
+	for (i=0; i < regval_ctr_numvals(key->values); i++) {
+		struct regval_blob *blob;
+		blob = regval_ctr_specific_value(key->values, i);
+		max_len = MAX(max_len, strlen(regval_name(blob)));
+		max_size = MAX(max_size, regval_size(blob));
 	}
 
-	*num_values = key->values->num_values;
+	*num_values = regval_ctr_numvals(key->values);
 	*max_valnamelen = max_len;
 	*max_valbufsize = max_size;
 
@@ -441,7 +505,7 @@ WERROR reg_queryinfokey(struct registry_key *key, uint32_t *num_subkeys,
 		return err;
 	}
 
-	*secdescsize = ndr_size_security_descriptor(secdesc, NULL, 0);
+	*secdescsize = ndr_size_security_descriptor(secdesc, 0);
 	TALLOC_FREE(mem_ctx);
 
 	*last_changed_time = 0;
@@ -459,16 +523,6 @@ WERROR reg_createkey(TALLOC_CTX *ctx, struct registry_key *parent,
 	TALLOC_CTX *mem_ctx;
 	char *path, *end;
 	WERROR err;
-
-	/*
-	 * We must refuse to handle subkey-paths containing
-	 * a '/' character because at a lower level, after
-	 * normalization, '/' is treated as a key separator
-	 * just like '\\'.
-	 */
-	if (strchr(subkeypath, '/') != NULL) {
-		return WERR_INVALID_PARAM;
-	}
 
 	if (!(mem_ctx = talloc_new(ctx))) return WERR_NOMEM;
 
@@ -606,7 +660,6 @@ WERROR reg_setvalue(struct registry_key *key, const char *name,
 		    const struct registry_value *val)
 {
 	WERROR err;
-	DATA_BLOB value_data;
 	int res;
 
 	if (!(key->key->access_granted & KEY_SET_VALUE)) {
@@ -617,14 +670,8 @@ WERROR reg_setvalue(struct registry_key *key, const char *name,
 		return err;
 	}
 
-	err = registry_push_value(key, val, &value_data);
-	if (!W_ERROR_IS_OK(err)) {
-		return err;
-	}
-
 	res = regval_ctr_addvalue(key->values, name, val->type,
-				  (char *)value_data.data, value_data.length);
-	TALLOC_FREE(value_data.data);
+				  val->data.data, val->data.length);
 
 	if (res == 0) {
 		TALLOC_FREE(key->values);
@@ -641,15 +688,15 @@ WERROR reg_setvalue(struct registry_key *key, const char *name,
 
 static WERROR reg_value_exists(struct registry_key *key, const char *name)
 {
-	int i;
+	struct regval_blob *blob;
 
-	for (i=0; i<key->values->num_values; i++) {
-		if (strequal(key->values->values[i]->valuename, name)) {
-			return WERR_OK;
-		}
+	blob = regval_ctr_getvalue(key->values, name);
+
+	if (blob == NULL) {
+		return WERR_BADFILE;
+	} else {
+		return WERR_OK;
 	}
-
-	return WERR_BADFILE;
 }
 
 WERROR reg_deletevalue(struct registry_key *key, const char *name)
@@ -737,17 +784,15 @@ static WERROR reg_load_tree(REGF_FILE *regfile, const char *topkeypath,
 	result = regsubkey_ctr_init(regfile->mem_ctx, &subkeys);
 	W_ERROR_NOT_OK_RETURN(result);
 
-	values = TALLOC_ZERO_P(subkeys, struct regval_ctr);
-	if (values == NULL) {
-		return WERR_NOMEM;
-	}
+	result = regval_ctr_init(subkeys, &values);
+	W_ERROR_NOT_OK_RETURN(result);
 
 	/* copy values into the struct regval_ctr */
 
 	for (i=0; i<key->num_values; i++) {
 		regval_ctr_addvalue(values, key->values[i].valuename,
 				    key->values[i].type,
-				    (char*)key->values[i].data,
+				    key->values[i].data,
 				    (key->values[i].data_size & ~VK_DATA_IN_OFFSET));
 	}
 
@@ -854,7 +899,7 @@ static WERROR reg_write_tree(REGF_FILE *regfile, const char *keypath,
 	char *subkeyname;
 	struct registry_key_handle registry_key;
 	WERROR result = WERR_OK;
-	SEC_DESC *sec_desc = NULL;
+	struct security_descriptor *sec_desc = NULL;
 
 	if (!regfile) {
 		return WERR_GENERAL_FAILURE;
@@ -897,10 +942,8 @@ static WERROR reg_write_tree(REGF_FILE *regfile, const char *keypath,
 	result = regsubkey_ctr_init(regfile->mem_ctx, &subkeys);
 	W_ERROR_NOT_OK_RETURN(result);
 
-	values = TALLOC_ZERO_P(subkeys, struct regval_ctr);
-	if (values == NULL) {
-		return WERR_NOMEM;
-	}
+	result = regval_ctr_init(subkeys, &values); 
+	W_ERROR_NOT_OK_RETURN(result);
 
 	fetch_reg_keys(&registry_key, subkeys);
 	fetch_reg_values(&registry_key, values);
@@ -993,8 +1036,10 @@ WERROR reg_deleteallvalues(struct registry_key *key)
 		return err;
 	}
 
-	for (i=0; i<key->values->num_values; i++) {
-		regval_ctr_delvalue(key->values, key->values->values[i]->valuename);
+	for (i=0; i < regval_ctr_numvals(key->values); i++) {
+		struct regval_blob *blob;
+		blob = regval_ctr_specific_value(key->values, i);
+		regval_ctr_delvalue(key->values, regval_name(blob));
 	}
 
 	if (!store_reg_values(key->key, key->values)) {

@@ -409,7 +409,7 @@ int rep_chroot(const char *dname)
 int rep_mkstemp(char *template)
 {
 	/* have a reasonable go at emulating it. Hope that
-	   the system mktemp() isn't completly hopeless */
+	   the system mktemp() isn't completely hopeless */
 	char *p = mktemp(template);
 	if (!p)
 		return -1;
@@ -679,5 +679,84 @@ char *rep_realpath(const char *path, char *resolved_path)
 	/* As realpath is not a system call we can't return ENOSYS. */
 	errno = EINVAL;
 	return NULL;
+}
+#endif
+
+
+#ifndef HAVE_MEMMEM
+void *rep_memmem(const void *haystack, size_t haystacklen,
+		 const void *needle, size_t needlelen)
+{
+	if (needlelen == 0) {
+		return discard_const(haystack);
+	}
+	while (haystacklen >= needlelen) {
+		char *p = (char *)memchr(haystack, *(const char *)needle,
+					 haystacklen-(needlelen-1));
+		if (!p) return NULL;
+		if (memcmp(p, needle, needlelen) == 0) {
+			return p;
+		}
+		haystack = p+1;
+		haystacklen -= (p - (const char *)haystack) + 1;
+	}
+	return NULL;
+}
+#endif
+
+#ifndef HAVE_VDPRINTF
+int rep_vdprintf(int fd, const char *format, va_list ap)
+{
+	char *s = NULL;
+	int ret;
+
+	vasprintf(&s, format, ap);
+	if (s == NULL) {
+		errno = ENOMEM;
+		return -1;
+	}
+	ret = write(fd, s, strlen(s));
+	free(s);
+	return ret;
+}
+#endif
+
+#ifndef HAVE_DPRINTF
+int rep_dprintf(int fd, const char *format, ...)
+{
+	int ret;
+	va_list ap;
+
+	va_start(ap, format);
+	ret = vdprintf(fd, format, ap);
+	va_end(ap);
+
+	return ret;
+}
+#endif
+
+#ifndef HAVE_GET_CURRENT_DIR_NAME
+char *rep_get_current_dir_name(void)
+{
+	char buf[PATH_MAX+1];
+	char *p;
+	p = getcwd(buf, sizeof(buf));
+	if (p == NULL) {
+		return NULL;
+	}
+	return strdup(p);
+}
+#endif
+
+#if !defined(HAVE_STRERROR_R) || !defined(STRERROR_R_PROTO_COMPATIBLE)
+int rep_strerror_r(int errnum, char *buf, size_t buflen)
+{
+	char *s = strerror(errnum);
+	if (strlen(s)+1 > buflen) {
+		errno = ERANGE;
+		return -1;
+	}
+	strncpy(buf, s, buflen);
+	return 0;
 }
 #endif

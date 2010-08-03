@@ -81,6 +81,7 @@ static int add_modified(struct ldb_module *module, struct ldb_dn *dn, bool do_de
 	struct update_kt_private *data = talloc_get_type(ldb_module_get_private(module), struct update_kt_private);
 	struct dn_list *item;
 	char *filter;
+	char *errstring;
 	struct ldb_result *res;
 	const char *attrs[] = { NULL };
 	int ret;
@@ -89,8 +90,7 @@ static int add_modified(struct ldb_module *module, struct ldb_dn *dn, bool do_de
 	filter = talloc_asprintf(data, "(&(dn=%s)(&(objectClass=kerberosSecret)(privateKeytab=*)))",
 				 ldb_dn_get_linearized(dn));
 	if (!filter) {
-		ldb_oom(ldb);
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_oom(ldb);
 	}
 
 	ret = ldb_search(ldb, data, &res,
@@ -111,20 +111,18 @@ static int add_modified(struct ldb_module *module, struct ldb_dn *dn, bool do_de
 	item = talloc(data->changed_dns? (void *)data->changed_dns: (void *)data, struct dn_list);
 	if (!item) {
 		talloc_free(filter);
-		ldb_oom(ldb);
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_oom(ldb);
 	}
 
 	item->creds = cli_credentials_init(item);
 	if (!item->creds) {
 		DEBUG(1, ("cli_credentials_init failed!"));
 		talloc_free(filter);
-		ldb_oom(ldb);
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_oom(ldb);
 	}
 
 	cli_credentials_set_conf(item->creds, ldb_get_opaque(ldb, "loadparm"));
-	status = cli_credentials_set_secrets(item->creds, ldb_get_event_context(ldb), ldb_get_opaque(ldb, "loadparm"), ldb, NULL, filter);
+	status = cli_credentials_set_secrets(item->creds, ldb_get_event_context(ldb), ldb_get_opaque(ldb, "loadparm"), ldb, NULL, filter, &errstring);
 	talloc_free(filter);
 	if (NT_STATUS_IS_OK(status)) {
 		if (do_delete) {
@@ -286,7 +284,7 @@ static int update_kt_add(struct ldb_module *module, struct ldb_request *req)
 
 	ac = update_kt_ctx_init(module, req);
 	if (ac == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb);
 	}
 
 	ac->dn = req->op.add.message->dn;
@@ -315,7 +313,7 @@ static int update_kt_modify(struct ldb_module *module, struct ldb_request *req)
 
 	ac = update_kt_ctx_init(module, req);
 	if (ac == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb);
 	}
 
 	ac->dn = req->op.mod.message->dn;
@@ -339,7 +337,7 @@ static int update_kt_delete(struct ldb_module *module, struct ldb_request *req)
 
 	ac = update_kt_ctx_init(module, req);
 	if (ac == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb_module_get_ctx(module));
 	}
 
 	ac->dn = req->op.del.dn;
@@ -360,7 +358,7 @@ static int update_kt_rename(struct ldb_module *module, struct ldb_request *req)
 
 	ac = update_kt_ctx_init(module, req);
 	if (ac == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb);
 	}
 
 	ac->dn = req->op.rename.newdn;
@@ -424,8 +422,7 @@ static int update_kt_init(struct ldb_module *module)
 
 	data = talloc(module, struct update_kt_private);
 	if (data == NULL) {
-		ldb_oom(ldb);
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_oom(ldb);
 	}
 
 	data->changed_dns = NULL;

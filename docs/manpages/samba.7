@@ -1,161 +1,13 @@
+'\" t
 .\"     Title: samba
 .\"    Author: [see the "AUTHOR" section]
-.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 06/18/2010
+.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
+.\"      Date: 07/28/2010
 .\"    Manual: Miscellanea
-.\"    Source: Samba 3.5
+.\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "SAMBA" "7" "06/18/2010" "Samba 3\&.5" "Miscellanea"
-.\" -----------------------------------------------------------------
-.\" * (re)Define some macros
-.\" -----------------------------------------------------------------
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" toupper - uppercase a string (locale-aware)
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de toupper
-.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
-\\$*
-.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SH-xref - format a cross-reference to an SH section
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de SH-xref
-.ie n \{\
-.\}
-.toupper \\$*
-.el \{\
-\\$*
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SH - level-one heading that works better for non-TTY output
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de1 SH
-.\" put an extra blank line of space above the head in non-TTY output
-.if t \{\
-.sp 1
-.\}
-.sp \\n[PD]u
-.nr an-level 1
-.set-an-margin
-.nr an-prevailing-indent \\n[IN]
-.fi
-.in \\n[an-margin]u
-.ti 0
-.HTML-TAG ".NH \\n[an-level]"
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-\." make the size of the head bigger
-.ps +3
-.ft B
-.ne (2v + 1u)
-.ie n \{\
-.\" if n (TTY output), use uppercase
-.toupper \\$*
-.\}
-.el \{\
-.nr an-break-flag 0
-.\" if not n (not TTY), use normal case (not uppercase)
-\\$1
-.in \\n[an-margin]u
-.ti 0
-.\" if not n (not TTY), put a border/line under subheading
-.sp -.6
-\l'\n(.lu'
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SS - level-two heading that works better for non-TTY output
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de1 SS
-.sp \\n[PD]u
-.nr an-level 1
-.set-an-margin
-.nr an-prevailing-indent \\n[IN]
-.fi
-.in \\n[IN]u
-.ti \\n[SN]u
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.ps \\n[PS-SS]u
-\." make the size of the head bigger
-.ps +2
-.ft B
-.ne (2v + 1u)
-.if \\n[.$] \&\\$*
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" BB/BE - put background/screen (filled box) around block of text
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de BB
-.if t \{\
-.sp -.5
-.br
-.in +2n
-.ll -2n
-.gcolor red
-.di BX
-.\}
-..
-.de EB
-.if t \{\
-.if "\\$2"adjust-for-leading-newline" \{\
-.sp -1
-.\}
-.br
-.di
-.in
-.ll
-.gcolor
-.nr BW \\n(.lu-\\n(.i
-.nr BH \\n(dn+.5v
-.ne \\n(BHu+.5v
-.ie "\\$2"adjust-for-leading-newline" \{\
-\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
-.\}
-.el \{\
-\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
-.\}
-.in 0
-.sp -.5v
-.nf
-.BX
-.in
-.sp .5v
-.fi
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" BM/EM - put colored marker in margin next to block of text
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de BM
-.if t \{\
-.br
-.ll -2n
-.gcolor red
-.di BX
-.\}
-..
-.de EM
-.if t \{\
-.br
-.di
-.ll
-.gcolor
-.nr BH \\n(dn
-.ne \\n(BHu
-\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
-.in 0
-.nf
-.BX
-.in
-.fi
-.\}
-..
+.TH "SAMBA" "7" "07/28/2010" "Samba 3\&.6" "Miscellanea"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -166,13 +18,11 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.SH "Name"
+.SH "NAME"
 samba \- A Windows SMB/CIFS fileserver for UNIX
-.SH "Synopsis"
-.fam C
+.SH "SYNOPSIS"
 .HP \w'\ 'u
-\FCsamba\F[]
-.fam
+samba
 .SH "DESCRIPTION"
 .PP
 The Samba software suite is a collection of programs that implements the Server Message Block (commonly abbreviated as SMB) protocol for UNIX systems\&. This protocol is sometimes also referred to as the Common Internet File System (CIFS)\&. For a more thorough description, see
@@ -181,7 +31,7 @@ http://www\&.ubiqx\&.org/cifs/\&. Samba also implements the NetBIOS protocol in 
 \fBsmbd\fR(8)
 .RS 4
 The
-\FCsmbd\F[]
+smbd
 daemon provides the file and print services to SMB clients, such as Windows 95/98, Windows NT, Windows for Workgroups or LanManager\&. The configuration file for this daemon is described in
 \fBsmb.conf\fR(5)
 .RE
@@ -189,7 +39,7 @@ daemon provides the file and print services to SMB clients, such as Windows 95/9
 \fBnmbd\fR(8)
 .RS 4
 The
-\FCnmbd\F[]
+nmbd
 daemon provides NetBIOS nameservice and browsing support\&. The configuration file for this daemon is described in
 \fBsmb.conf\fR(5)
 .RE
@@ -197,14 +47,14 @@ daemon provides NetBIOS nameservice and browsing support\&. The configuration fi
 \fBsmbclient\fR(1)
 .RS 4
 The
-\FCsmbclient\F[]
+smbclient
 program implements a simple ftp\-like client\&. This is useful for accessing SMB shares on other compatible servers (such as Windows NT), and can also be used to allow a UNIX box to print to a printer attached to any SMB server (such as a PC running Windows NT)\&.
 .RE
 .PP
 \fBtestparm\fR(1)
 .RS 4
 The
-\FCtestparm\F[]
+testparm
 utility is a simple syntax checker for Samba\'s
 \fBsmb.conf\fR(5)
 configuration file\&.
@@ -213,155 +63,155 @@ configuration file\&.
 \fBtestprns\fR(1)
 .RS 4
 The
-\FCtestprns\F[]
+testprns
 utility supports testing printer names defined in your
-\FCprintcap\F[]
+printcap
 file used by Samba\&.
 .RE
 .PP
 \fBsmbstatus\fR(1)
 .RS 4
 The
-\FCsmbstatus\F[]
+smbstatus
 tool provides access to information about the current connections to
-\FCsmbd\F[]\&.
+smbd\&.
 .RE
 .PP
 \fBnmblookup\fR(1)
 .RS 4
 The
-\FCnmblookup\F[]
+nmblookup
 tools allows NetBIOS name queries to be made from a UNIX host\&.
 .RE
 .PP
 \fBsmbpasswd\fR(8)
 .RS 4
 The
-\FCsmbpasswd\F[]
+smbpasswd
 command is a tool for changing LanMan and Windows NT password hashes on Samba and Windows NT servers\&.
 .RE
 .PP
 \fBsmbcacls\fR(1)
 .RS 4
 The
-\FCsmbcacls\F[]
+smbcacls
 command is a tool to set ACL\'s on remote CIFS servers\&.
 .RE
 .PP
 \fBsmbsh\fR(1)
 .RS 4
 The
-\FCsmbsh\F[]
+smbsh
 command is a program that allows you to run a unix shell with with an overloaded VFS\&.
 .RE
 .PP
 \fBsmbtree\fR(1)
 .RS 4
 The
-\FCsmbtree\F[]
+smbtree
 command is a text\-based network neighborhood tool\&.
 .RE
 .PP
 \fBsmbtar\fR(1)
 .RS 4
 The
-\FCsmbtar\F[]
+smbtar
 can make backups of data on CIFS/SMB servers\&.
 .RE
 .PP
 \fBsmbspool\fR(8)
 .RS 4
-\FCsmbspool\F[]
+smbspool
 is a helper utility for printing on printers connected to CIFS servers\&.
 .RE
 .PP
 \fBsmbcontrol\fR(1)
 .RS 4
-\FCsmbcontrol\F[]
+smbcontrol
 is a utility that can change the behaviour of running samba daemons\&.
 .RE
 .PP
 \fBrpcclient\fR(1)
 .RS 4
-\FCrpcclient\F[]
+rpcclient
 is a utility that can be used to execute RPC commands on remote CIFS servers\&.
 .RE
 .PP
 \fBpdbedit\fR(8)
 .RS 4
 The
-\FCpdbedit\F[]
+pdbedit
 command can be used to maintain the local user database on a samba server\&.
 .RE
 .PP
 \fBfindsmb\fR(1)
 .RS 4
 The
-\FCfindsmb\F[]
+findsmb
 command can be used to find SMB servers on the local network\&.
 .RE
 .PP
 \fBnet\fR(8)
 .RS 4
 The
-\FCnet\F[]
+net
 command is supposed to work similar to the DOS/Windows NET\&.EXE command\&.
 .RE
 .PP
 \fBswat\fR(8)
 .RS 4
-\FCswat\F[]
+swat
 is a web\-based interface to configuring
-\FCsmb\&.conf\F[]\&.
+smb\&.conf\&.
 .RE
 .PP
 \fBwinbindd\fR(8)
 .RS 4
-\FCwinbindd\F[]
+winbindd
 is a daemon that is used for integrating authentication and the user database into unix\&.
 .RE
 .PP
 \fBwbinfo\fR(1)
 .RS 4
-\FCwbinfo\F[]
+wbinfo
 is a utility that retrieves and stores information related to winbind\&.
 .RE
 .PP
 \fBprofiles\fR(1)
 .RS 4
-\FCprofiles\F[]
+profiles
 is a command\-line utility that can be used to replace all occurences of a certain SID with another SID\&.
 .RE
 .PP
 \fBlog2pcap\fR(1)
 .RS 4
-\FClog2pcap\F[]
+log2pcap
 is a utility for generating pcap trace files from Samba log files\&.
 .RE
 .PP
 \fBvfstest\fR(1)
 .RS 4
-\FCvfstest\F[]
+vfstest
 is a utility that can be used to test vfs modules\&.
 .RE
 .PP
 \fBntlm_auth\fR(1)
 .RS 4
-\FCntlm_auth\F[]
+ntlm_auth
 is a helper\-utility for external programs wanting to do NTLM\-authentication\&.
 .RE
 .PP
 \fBsmbmount\fR(8), \fBsmbumount\fR(8), \fBsmbmnt\fR(8)
 .RS 4
-\FCsmbmount\F[],\FCsmbumount\F[]
+smbmount,smbumount
 and
-\FCsmbmnt\F[]
+smbmnt
 are commands that can be used to mount CIFS/SMB shares on Linux\&.
 .RE
 .PP
 \fBsmbcquotas\fR(1)
 .RS 4
-\FCsmbcquotas\F[]
+smbcquotas
 is a tool that can set remote QUOTA\'s on server with NTFS 5\&.
 .RE
 .SH "COMPONENTS"
@@ -396,12 +246,12 @@ http://lists\&.samba\&.org\&.
 If you have patches to submit, visit
 http://devel\&.samba\&.org/
 for information on how to do it properly\&. We prefer patches in
-\FCdiff \-u\F[]
+diff \-u
 format\&.
 .SH "CONTRIBUTORS"
 .PP
 Contributors to the project are now too numerous to mention here but all deserve the thanks of all Samba users\&. To see a full list, look at the
-\FCchange\-log\F[]
+change\-log
 in the source package for the pre\-CVS changes and at
 http://cvs\&.samba\&.org/
 for the contributors to Samba post\-CVS\&. CVS is the Open Source source code control system used by the Samba Team to develop Samba\&. The project would have been unmanageable without it\&.

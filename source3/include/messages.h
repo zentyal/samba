@@ -72,6 +72,7 @@ struct server_id {
 #ifdef CLUSTER_SUPPORT
 	uint32 vnn;
 #endif
+	uint64_t unique_id;
 };
 
 #ifdef CLUSTER_SUPPORT
@@ -110,10 +111,12 @@ NTSTATUS messaging_tdb_init(struct messaging_context *msg_ctx,
 			    TALLOC_CTX *mem_ctx,
 			    struct messaging_backend **presult);
 
+bool messaging_tdb_parent_init(void);
+
 NTSTATUS messaging_ctdbd_init(struct messaging_context *msg_ctx,
 			      TALLOC_CTX *mem_ctx,
 			      struct messaging_backend **presult);
-struct ctdbd_connection *messaging_ctdbd_connection(void);
+struct ctdbd_connection *messaging_ctdbd_connection(struct server_id id);
 
 bool message_send_all(struct messaging_context *msg_ctx,
 		      int msg_type,
@@ -124,10 +127,13 @@ struct messaging_context *messaging_init(TALLOC_CTX *mem_ctx,
 					 struct server_id server_id, 
 					 struct event_context *ev);
 
+struct server_id messaging_server_id(const struct messaging_context *msg_ctx);
+
 /*
  * re-init after a fork
  */
-NTSTATUS messaging_reinit(struct messaging_context *msg_ctx);
+NTSTATUS messaging_reinit(struct messaging_context *msg_ctx,
+			  struct server_id id);
 
 NTSTATUS messaging_register(struct messaging_context *msg_ctx,
 			    void *private_data,

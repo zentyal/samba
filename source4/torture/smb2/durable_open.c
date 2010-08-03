@@ -20,7 +20,6 @@
 */
 
 #include "includes.h"
-#include "librpc/gen_ndr/security.h"
 #include "libcli/smb2/smb2.h"
 #include "libcli/smb2/smb2_calls.h"
 #include "torture/torture.h"
@@ -434,7 +433,7 @@ bool test_durable_open_lock(struct torture_context *tctx,
 	ZERO_STRUCT(el);
 	lck.in.locks		= el;
 	lck.in.lock_count	= 0x0001;
-	lck.in.reserved		= 0x00000000;
+	lck.in.lock_sequence	= 0x00000000;
 	lck.in.file.handle	= h;
 	el[0].offset		= 0;
 	el[0].length		= 1;

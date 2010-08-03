@@ -320,7 +320,7 @@ static struct cli_state *cli_cm_connect(TALLOC_CTX *ctx,
 		DLIST_ADD_END(referring_cli, cli, struct cli_state *);
 	}
 
-	if (referring_cli && referring_cli->posix_capabilities) {
+	if (referring_cli && referring_cli->requested_posix_capabilities) {
 		uint16 major, minor;
 		uint32 caplow, caphigh;
 		NTSTATUS status;
@@ -351,7 +351,7 @@ static struct cli_state *cli_cm_find(struct cli_state *cli,
 	}
 
 	/* Search to the start of the list. */
-	for (p = cli; p; p = p->prev) {
+	for (p = cli; p; p = DLIST_PREV(p)) {
 		if (strequal(server, p->desthost) &&
 				strequal(share,p->share)) {
 			return p;
@@ -564,7 +564,7 @@ static char *cli_dfs_make_full_path(TALLOC_CTX *ctx,
 		dir++;
 	}
 
-	if (cli->posix_capabilities & CIFS_UNIX_POSIX_PATHNAMES_CAP) {
+	if (cli->requested_posix_capabilities & CIFS_UNIX_POSIX_PATHNAMES_CAP) {
 		path_sep = '/';
 	}
 	return talloc_asprintf(ctx, "%c%s%c%s%c%s",
@@ -603,7 +603,7 @@ static bool cli_dfs_check_error( struct cli_state *cli, NTSTATUS status )
 bool cli_dfs_get_referral(TALLOC_CTX *ctx,
 			struct cli_state *cli,
 			const char *path,
-			CLIENT_DFS_REFERRAL**refs,
+			struct client_dfs_referral **refs,
 			size_t *num_refs,
 			size_t *consumed)
 {
@@ -619,7 +619,7 @@ bool cli_dfs_get_referral(TALLOC_CTX *ctx,
 	char *consumed_path = NULL;
 	uint16_t consumed_ucs;
 	uint16 num_referrals;
-	CLIENT_DFS_REFERRAL *referrals = NULL;
+	struct client_dfs_referral *referrals = NULL;
 	bool ret = false;
 
 	*num_refs = 0;
@@ -688,8 +688,8 @@ bool cli_dfs_get_referral(TALLOC_CTX *ctx,
 		int i;
 		uint16 node_offset;
 
-		referrals = TALLOC_ARRAY(ctx, CLIENT_DFS_REFERRAL,
-				num_referrals);
+		referrals = talloc_array(ctx, struct client_dfs_referral,
+					 num_referrals);
 
 		if (!referrals) {
 			goto out;
@@ -756,7 +756,7 @@ bool cli_resolve_path(TALLOC_CTX *ctx,
 			struct cli_state **targetcli,
 			char **pp_targetpath)
 {
-	CLIENT_DFS_REFERRAL *refs = NULL;
+	struct client_dfs_referral *refs = NULL;
 	size_t num_refs = 0;
 	size_t consumed = 0;
 	struct cli_state *cli_ipc = NULL;
@@ -772,6 +772,7 @@ bool cli_resolve_path(TALLOC_CTX *ctx,
 	char *ppath = NULL;
 	SMB_STRUCT_STAT sbuf;
 	uint32 attributes;
+	NTSTATUS status;
 
 	if ( !rootcli || !path || !targetcli ) {
 		return false;
@@ -802,7 +803,8 @@ bool cli_resolve_path(TALLOC_CTX *ctx,
 		return false;
 	}
 
-	if (cli_qpathinfo_basic( rootcli, dfs_path, &sbuf, &attributes)) {
+	status = cli_qpathinfo_basic( rootcli, dfs_path, &sbuf, &attributes);
+	if (NT_STATUS_IS_OK(status)) {
 		/* This is an ordinary path, just return it. */
 		*targetcli = rootcli;
 		*pp_targetpath = talloc_strdup(ctx, path);
@@ -987,13 +989,14 @@ bool cli_check_msdfs_proxy(TALLOC_CTX *ctx,
 				const char *password,
 				const char *domain)
 {
-	CLIENT_DFS_REFERRAL *refs = NULL;
+	struct client_dfs_referral *refs = NULL;
 	size_t num_refs = 0;
 	size_t consumed = 0;
 	char *fullpath = NULL;
 	bool res;
 	uint16 cnum;
 	char *newextrapath = NULL;
+	NTSTATUS status;
 
 	if (!cli || !sharename) {
 		return false;
@@ -1021,7 +1024,7 @@ bool cli_check_msdfs_proxy(TALLOC_CTX *ctx,
 	}
 
 	if (force_encrypt) {
-		NTSTATUS status = cli_cm_force_encryption(cli,
+		status = cli_cm_force_encryption(cli,
 					username,
 					password,
 					lp_workgroup(),
@@ -1033,7 +1036,8 @@ bool cli_check_msdfs_proxy(TALLOC_CTX *ctx,
 
 	res = cli_dfs_get_referral(ctx, cli, fullpath, &refs, &num_refs, &consumed);
 
-	if (!cli_tdis(cli)) {
+	status = cli_tdis(cli);
+	if (!NT_STATUS_IS_OK(status)) {
 		return false;
 	}
 

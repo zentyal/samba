@@ -90,13 +90,21 @@ $(eval $(call proto_header_template,$(torturesrcdir)/raw/proto.h,$(TORTURE_RAW_O
 mkinclude smb2/config.mk
 mkinclude winbind/config.mk
 mkinclude libnetapi/config.mk
+mkinclude libsmbclient/config.mk
 
 [SUBSYSTEM::TORTURE_NDR]
 PRIVATE_DEPENDENCIES = torture SERVICE_SMB
 
-TORTURE_NDR_OBJ_FILES = $(addprefix $(torturesrcdir)/ndr/, ndr.o winreg.o atsvc.o lsa.o epmap.o dfs.o netlogon.o drsuapi.o spoolss.o samr.o)
+TORTURE_NDR_OBJ_FILES = $(addprefix $(torturesrcdir)/ndr/, ndr.o winreg.o atsvc.o lsa.o epmap.o dfs.o netlogon.o drsuapi.o spoolss.o samr.o dfsblob.o drsblobs.o)
 
 $(eval $(call proto_header_template,$(torturesrcdir)/ndr/proto.h,$(TORTURE_NDR_OBJ_FILES:.o=.c)))
+
+[SUBSYSTEM::TORTURE_DFS]
+PRIVATE_DEPENDENCIES = torture LIBCLI_SMB NDR_DFSBLOBS TORTURE_UTIL
+
+TORTURE_DFS_OBJ_FILES = $(addprefix $(torturesrcdir)/dfs/, common.o domaindfs.o)
+
+$(eval $(call proto_header_template,$(torturesrcdir)/dfs/proto.h,$(TORTURE_DFS_OBJ_FILES:.o=.c)))
 
 [MODULE::torture_rpc]
 OUTPUT_TYPE = MERGED_OBJ
@@ -111,19 +119,23 @@ PRIVATE_DEPENDENCIES = \
 		RPC_NDR_LSA RPC_NDR_EPMAPPER RPC_NDR_DFS RPC_NDR_FRSAPI RPC_NDR_SPOOLSS \
 		RPC_NDR_SRVSVC RPC_NDR_WKSSVC RPC_NDR_ROT RPC_NDR_DSSETUP \
 		RPC_NDR_REMACT RPC_NDR_OXIDRESOLVER RPC_NDR_NTSVCS WB_HELPER LIBSAMBA-NET \
-		LIBCLI_AUTH POPT_CREDENTIALS TORTURE_LDAP TORTURE_UTIL TORTURE_RAP \
+		LIBCLI_AUTH POPT_CREDENTIALS TORTURE_LDAP TORTURE_UTIL TORTURE_RAP TORTURE_DFS \
 		dcerpc_server service process_model ntvfs SERVICE_SMB RPC_NDR_BROWSER LIBCLI_DRSUAPI TORTURE_LDB_MODULE
 
 torture_rpc_OBJ_FILES = $(addprefix $(torturesrcdir)/rpc/, \
 		join.o lsa.o lsa_lookup.o session_key.o echo.o dfs.o drsuapi.o \
-		drsuapi_cracknames.o dssync.o spoolss.o spoolss_notify.o spoolss_win.o \
+		drsuapi_cracknames.o dssync.o dsgetinfo.o spoolss.o spoolss_notify.o spoolss_win.o spoolss_access.o \
 		unixinfo.o samr.o samr_accessmask.o wkssvc.o srvsvc.o svcctl.o atsvc.o \
 		eventlog.o epmapper.o winreg.o initshutdown.o oxidresolve.o remact.o mgmt.o \
 		scanner.o autoidl.o countcalls.o testjoin.o schannel.o netlogon.o remote_pac.o samlogon.o \
-		samsync.o bind.o dssetup.o alter_context.o bench.o samba3rpc.o rpc.o async_bind.o \
-		handles.o frsapi.o object_uuid.o ntsvcs.o browser.o)
+		samsync.o multi_bind.o dssetup.o alter_context.o bench.o samba3rpc.o rpc.o async_bind.o \
+		handles.o frsapi.o object_uuid.o ntsvcs.o browser.o bind.o)
 
 $(eval $(call proto_header_template,$(torturesrcdir)/rpc/proto.h,$(torture_rpc_OBJ_FILES:.o=.c)))
+
+#################################
+# RPC/Local DRSUAPI tests
+mkinclude drs/config.mk
 
 #################################
 # Start SUBSYSTEM TORTURE_RAP
@@ -131,11 +143,11 @@ $(eval $(call proto_header_template,$(torturesrcdir)/rpc/proto.h,$(torture_rpc_O
 OUTPUT_TYPE = MERGED_OBJ
 SUBSYSTEM = smbtorture
 INIT_FUNCTION = torture_rap_init
-PRIVATE_DEPENDENCIES = TORTURE_UTIL LIBCLI_SMB
+PRIVATE_DEPENDENCIES = TORTURE_UTIL LIBCLI_SMB NDR_RAP
 # End SUBSYSTEM TORTURE_RAP
 #################################
 
-TORTURE_RAP_OBJ_FILES = $(torturesrcdir)/rap/rap.o
+TORTURE_RAP_OBJ_FILES = $(torturesrcdir)/rap/rap.o $(torturesrcdir)/rap/rpc.o $(torturesrcdir)/rap/printing.o $(torturesrcdir)/rap/sam.o
 
 $(eval $(call proto_header_template,$(torturesrcdir)/rap/proto.h,$(TORTURE_RAP_OBJ_FILES:.o=.c)))
 
@@ -195,7 +207,8 @@ PRIVATE_DEPENDENCIES = \
 # End SUBSYSTEM TORTURE_LDAP
 #################################
 
-TORTURE_LDAP_OBJ_FILES = $(addprefix $(torturesrcdir)/ldap/, common.o basic.o schema.o uptodatevector.o cldap.o cldapbench.o ldap_sort.o)
+TORTURE_LDAP_OBJ_FILES = $(addprefix $(torturesrcdir)/ldap/, common.o basic.o schema.o uptodatevector.o \
+	cldap.o cldapbench.o ldap_sort.o nested_search.o)
 
 $(eval $(call proto_header_template,$(torturesrcdir)/ldap/proto.h,$(TORTURE_LDAP_OBJ_FILES:.o=.c)))
 
@@ -267,7 +280,10 @@ PRIVATE_DEPENDENCIES = \
 # End BINARY smbtorture
 #################################
 
-smbtorture_OBJ_FILES = $(torturesrcdir)/smbtorture.o $(torturesrcdir)/torture.o 
+smbtorture_OBJ_FILES = \
+		$(torturesrcdir)/smbtorture.o \
+		$(torturesrcdir)/torture.o  \
+		$(torturesrcdir)/shell.o
 
 PUBLIC_HEADERS += $(torturesrcdir)/smbtorture.h
 MANPAGES += $(torturesrcdir)/man/smbtorture.1

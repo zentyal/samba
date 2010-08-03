@@ -59,7 +59,7 @@ static int component_compare(struct pvfs_state *pvfs, const char *comp, const ch
 */
 static NTSTATUS pvfs_case_search(struct pvfs_state *pvfs,
 				 struct pvfs_filename *name,
-				 uint_t flags)
+				 unsigned int flags)
 {
 	/* break into a series of components */
 	int num_components;
@@ -186,8 +186,7 @@ static NTSTATUS pvfs_case_search(struct pvfs_state *pvfs,
 /*
   parse a alternate data stream name
 */
-static NTSTATUS parse_stream_name(struct smb_iconv_convenience *ic,
-				  struct pvfs_filename *name,
+static NTSTATUS parse_stream_name(struct pvfs_filename *name,
 				  const char *s)
 {
 	char *p, *stream_name;
@@ -203,7 +202,7 @@ static NTSTATUS parse_stream_name(struct smb_iconv_convenience *ic,
 
 	while (*p) {
 		size_t c_size;
-		codepoint_t c = next_codepoint_convenience(ic, p, &c_size);
+		codepoint_t c = next_codepoint(p, &c_size);
 
 		switch (c) {
 		case '/':
@@ -256,13 +255,22 @@ static NTSTATUS parse_stream_name(struct smb_iconv_convenience *ic,
   errors are returned if the filename is illegal given the flags
 */
 static NTSTATUS pvfs_unix_path(struct pvfs_state *pvfs, const char *cifs_name,
-			       uint_t flags, struct pvfs_filename *name)
+			       unsigned int flags, struct pvfs_filename *name)
 {
 	char *ret, *p, *p_start;
-	struct smb_iconv_convenience *ic = NULL;
 	NTSTATUS status;
 
 	name->original_name = talloc_strdup(name, cifs_name);
+
+	/* remove any :$DATA */
+	p = strrchr(name->original_name, ':');
+	if (p && strcasecmp_m(p, ":$DATA") == 0) {
+		if (p > name->original_name && p[-1] == ':') {
+			p--;
+		}
+		*p = 0;
+	}
+
 	name->stream_name = NULL;
 	name->stream_id = 0;
 	name->has_wildcard = false;
@@ -290,10 +298,9 @@ static NTSTATUS pvfs_unix_path(struct pvfs_state *pvfs, const char *cifs_name,
 	   for legal characters */
 	p_start = p;
 
-	ic = lp_iconv_convenience(pvfs->ntvfs->ctx->lp_ctx);
 	while (*p) {
 		size_t c_size;
-		codepoint_t c = next_codepoint_convenience(ic, p, &c_size);
+		codepoint_t c = next_codepoint(p, &c_size);
 
 		if (c <= 0x1F) {
 			return NT_STATUS_OBJECT_NAME_INVALID;
@@ -326,7 +333,7 @@ static NTSTATUS pvfs_unix_path(struct pvfs_state *pvfs, const char *cifs_name,
 			if (name->has_wildcard) {
 				return NT_STATUS_OBJECT_NAME_INVALID;
 			}
-			status = parse_stream_name(ic, name, p);
+			status = parse_stream_name(name, p);
 			if (!NT_STATUS_IS_OK(status)) {
 				return status;
 			}
@@ -378,8 +385,7 @@ static NTSTATUS pvfs_unix_path(struct pvfs_state *pvfs, const char *cifs_name,
   return NULL if it can't be reduced
 */
 static NTSTATUS pvfs_reduce_name(TALLOC_CTX *mem_ctx, 
-				 struct smb_iconv_convenience *iconv_convenience, 
-				 const char **fname, uint_t flags)
+				 const char **fname, unsigned int flags)
 {
 	codepoint_t c;
 	size_t c_size, len;
@@ -391,7 +397,7 @@ static NTSTATUS pvfs_reduce_name(TALLOC_CTX *mem_ctx,
 	if (s == NULL) return NT_STATUS_NO_MEMORY;
 
 	for (num_components=1, p=s; *p; p += c_size) {
-		c = next_codepoint_convenience(iconv_convenience, p, &c_size);
+		c = next_codepoint(p, &c_size);
 		if (c == '\\') num_components++;
 	}
 
@@ -403,7 +409,7 @@ static NTSTATUS pvfs_reduce_name(TALLOC_CTX *mem_ctx,
 
 	components[0] = s;
 	for (i=0, p=s; *p; p += c_size) {
-		c = next_codepoint_convenience(iconv_convenience, p, &c_size);
+		c = next_codepoint(p, &c_size);
 		if (c == '\\') {
 			*p = 0;
 			components[++i] = p+1;
@@ -498,13 +504,14 @@ static NTSTATUS pvfs_reduce_name(TALLOC_CTX *mem_ctx,
 
      TODO: ../ collapsing, and outside share checking
 */
-NTSTATUS pvfs_resolve_name(struct pvfs_state *pvfs, TALLOC_CTX *mem_ctx,
+NTSTATUS pvfs_resolve_name(struct pvfs_state *pvfs, 
+			   struct ntvfs_request *req,
 			   const char *cifs_name,
-			   uint_t flags, struct pvfs_filename **name)
+			   unsigned int flags, struct pvfs_filename **name)
 {
 	NTSTATUS status;
 
-	*name = talloc(mem_ctx, struct pvfs_filename);
+	*name = talloc(req, struct pvfs_filename);
 	if (*name == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -516,13 +523,19 @@ NTSTATUS pvfs_resolve_name(struct pvfs_state *pvfs, TALLOC_CTX *mem_ctx,
 		flags &= ~PVFS_RESOLVE_STREAMS;
 	}
 
+	/* SMB2 doesn't allow a leading slash */
+	if (req->ctx->protocol == PROTOCOL_SMB2 &&
+	    *cifs_name == '\\') {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
 	/* do the basic conversion to a unix formatted path,
 	   also checking for allowable characters */
 	status = pvfs_unix_path(pvfs, cifs_name, flags, *name);
 
 	if (NT_STATUS_EQUAL(status, NT_STATUS_OBJECT_PATH_SYNTAX_BAD)) {
 		/* it might contain .. components which need to be reduced */
-		status = pvfs_reduce_name(*name, lp_iconv_convenience(pvfs->ntvfs->ctx->lp_ctx), &cifs_name, flags);
+		status = pvfs_reduce_name(*name, &cifs_name, flags);
 		if (!NT_STATUS_IS_OK(status)) {
 			return status;
 		}
@@ -593,7 +606,7 @@ NTSTATUS pvfs_resolve_name(struct pvfs_state *pvfs, TALLOC_CTX *mem_ctx,
 */
 NTSTATUS pvfs_resolve_partial(struct pvfs_state *pvfs, TALLOC_CTX *mem_ctx,
 			      const char *unix_dir, const char *fname,
-			      uint_t flags, struct pvfs_filename **name)
+			      unsigned int flags, struct pvfs_filename **name)
 {
 	NTSTATUS status;
 
@@ -630,7 +643,7 @@ NTSTATUS pvfs_resolve_partial(struct pvfs_state *pvfs, TALLOC_CTX *mem_ctx,
   to update the pvfs_filename stat information, and by pvfs_open()
 */
 NTSTATUS pvfs_resolve_name_fd(struct pvfs_state *pvfs, int fd,
-			      struct pvfs_filename *name, uint_t flags)
+			      struct pvfs_filename *name, unsigned int flags)
 {
 	dev_t device = (dev_t)0;
 	ino_t inode = 0;
@@ -679,7 +692,7 @@ NTSTATUS pvfs_resolve_name_handle(struct pvfs_state *pvfs,
 
 	if (h->have_opendb_entry) {
 		struct odb_lock *lck;
-		const char *name = NULL;
+		char *name = NULL;
 
 		lck = odb_lock(h, h->pvfs->odb_context, &h->odb_locking_key);
 		if (lck == NULL) {
@@ -690,7 +703,7 @@ NTSTATUS pvfs_resolve_name_handle(struct pvfs_state *pvfs,
 			return NT_STATUS_INTERNAL_DB_CORRUPTION;
 		}
 
-		status = odb_get_path(lck, &name);
+		status = odb_get_path(lck, (const char **) &name);
 		if (NT_STATUS_IS_OK(status)) {
 			/*
 			 * This relies an the fact that
@@ -702,7 +715,7 @@ NTSTATUS pvfs_resolve_name_handle(struct pvfs_state *pvfs,
 			if (strcmp(h->name->full_name, name) != 0) {
 				const char *orig_dir;
 				const char *new_file;
-				const char *new_orig;
+				char *new_orig;
 				char *delim;
 
 				delim = strrchr(name, '/');

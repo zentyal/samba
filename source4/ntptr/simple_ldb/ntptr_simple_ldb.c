@@ -44,8 +44,8 @@
  */
 static struct ldb_context *sptr_db_connect(TALLOC_CTX *mem_ctx, struct tevent_context *ev_ctx, struct loadparm_context *lp_ctx)
 {
-	return ldb_wrap_connect(mem_ctx, ev_ctx, lp_ctx, lp_spoolss_url(lp_ctx), system_session(mem_ctx, lp_ctx), 
-				NULL, 0, NULL);
+	return ldb_wrap_connect(mem_ctx, ev_ctx, lp_ctx, lpcfg_spoolss_url(lp_ctx), system_session(lp_ctx),
+				NULL, 0);
 }
 
 static int sptr_db_search(struct ldb_context *ldb,
@@ -129,7 +129,7 @@ static WERROR sptr_PrintServerData(struct ntptr_GenericHandle *server,
 				   union spoolss_PrinterData *r,
 				   enum winreg_Type *type)
 {
-	struct dcerpc_server_info *server_info = lp_dcerpc_server_info(mem_ctx, server->ntptr->lp_ctx);
+	struct dcerpc_server_info *server_info = lpcfg_dcerpc_server_info(mem_ctx, server->ntptr->lp_ctx);
 	if (strcmp("W3SvcInstalled", value_name) == 0) {
 		*type		= REG_DWORD;
 		r->value	= 0;
@@ -160,13 +160,11 @@ static WERROR sptr_PrintServerData(struct ntptr_GenericHandle *server,
 		return WERR_OK;
 	} else if (strcmp("DefaultSpoolDirectory", value_name) == 0) {
 		*type		= REG_SZ;
-		r->string	= talloc_strdup(mem_ctx, "C:\\PRINTERS");
-		W_ERROR_HAVE_NO_MEMORY(r->string);
+		r->string	= "C:\\PRINTERS";
 		return  WERR_OK;
 	} else if (strcmp("Architecture", value_name) == 0) {
 		*type		= REG_SZ;
-		r->string	= talloc_strdup(mem_ctx, SPOOLSS_ARCHITECTURE_NT_X86);
-		W_ERROR_HAVE_NO_MEMORY(r->string);
+		r->string	= SPOOLSS_ARCHITECTURE_NT_X86;
 		return  WERR_OK;
 	} else if (strcmp("DsPresent", value_name) == 0) {
 		*type		= REG_DWORD;
@@ -182,7 +180,7 @@ static WERROR sptr_PrintServerData(struct ntptr_GenericHandle *server,
 		os.build		= server_info->version_build;
 		os.extra_string		= "";
 
-		ndr_err = ndr_push_struct_blob(&blob, mem_ctx, lp_iconv_convenience(server->ntptr->lp_ctx), &os, (ndr_push_flags_fn_t)ndr_push_spoolss_OSVersion);
+		ndr_err = ndr_push_struct_blob(&blob, mem_ctx, &os, (ndr_push_flags_fn_t)ndr_push_spoolss_OSVersion);
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			return WERR_GENERAL_FAILURE;
 		}
@@ -205,7 +203,7 @@ static WERROR sptr_PrintServerData(struct ntptr_GenericHandle *server,
 		os_ex.product_type	= 0;
 		os_ex.reserved		= 0;
 
-		ndr_err = ndr_push_struct_blob(&blob, mem_ctx, lp_iconv_convenience(server->ntptr->lp_ctx), &os_ex, (ndr_push_flags_fn_t)ndr_push_spoolss_OSVersionEx);
+		ndr_err = ndr_push_struct_blob(&blob, mem_ctx, &os_ex, (ndr_push_flags_fn_t)ndr_push_spoolss_OSVersionEx);
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			return WERR_GENERAL_FAILURE;
 		}
@@ -214,12 +212,14 @@ static WERROR sptr_PrintServerData(struct ntptr_GenericHandle *server,
 		r->binary	= blob;
 		return WERR_OK;
 	} else if (strcmp("DNSMachineName", value_name) == 0) {
-		if (!lp_realm(server->ntptr->lp_ctx)) return WERR_INVALID_PARAM;
+		const char *dnsdomain = lpcfg_dnsdomain(server->ntptr->lp_ctx);
+
+		if (dnsdomain == NULL) return WERR_INVALID_PARAM;
 
 		*type		= REG_SZ;
 		r->string	= talloc_asprintf(mem_ctx, "%s.%s",
-						   lp_netbios_name(server->ntptr->lp_ctx),
-						   lp_realm(server->ntptr->lp_ctx));
+							  lpcfg_netbios_name(server->ntptr->lp_ctx),
+							  dnsdomain);
 		W_ERROR_HAVE_NO_MEMORY(r->string);
 		return WERR_OK;
 	}
@@ -240,7 +240,7 @@ static WERROR sptr_GetPrintServerData(struct ntptr_GenericHandle *server, TALLOC
 		return result;
 	}
 
-	ndr_err = ndr_push_union_blob(&blob, mem_ctx, lp_iconv_convenience(server->ntptr->lp_ctx),
+	ndr_err = ndr_push_union_blob(&blob, mem_ctx, 
 				      &data, *r->out.type, (ndr_push_flags_fn_t)ndr_push_spoolss_PrinterData);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		return WERR_GENERAL_FAILURE;
@@ -421,7 +421,7 @@ static WERROR sptr_SetPrintServerForm(struct ntptr_GenericHandle *server, TALLOC
 		return WERR_UNKNOWN_LEVEL;
 	}
 
-	ret = samdb_replace(sptr_db, mem_ctx, msg);
+	ret = dsdb_replace(sptr_db, msg, 0);
 	if (ret != 0) {
 		return WERR_FOOBAR;
 	}

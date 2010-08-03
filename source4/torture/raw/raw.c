@@ -41,13 +41,10 @@ NTSTATUS torture_raw_init(void)
 	torture_suite_add_1smb_test(suite, "QFSINFO", torture_raw_qfsinfo);
 	torture_suite_add_1smb_test(suite, "QFILEINFO", torture_raw_qfileinfo);
 	torture_suite_add_1smb_test(suite, "QFILEINFO-IPC", torture_raw_qfileinfo_pipe);
-	torture_suite_add_1smb_test(suite, "SFILEINFO", torture_raw_sfileinfo);
-	torture_suite_add_1smb_test(suite, "SFILEINFO-BUG", torture_raw_sfileinfo_bug);
-	torture_suite_add_1smb_test(suite, "SFILEINFO-RENAME",
-				      torture_raw_sfileinfo_rename);
+	torture_suite_add_suite(suite, torture_raw_sfileinfo(suite));
 	torture_suite_add_suite(suite, torture_raw_search(suite));
 	torture_suite_add_1smb_test(suite, "CLOSE", torture_raw_close);
-	torture_suite_add_1smb_test(suite, "OPEN", torture_raw_open);
+	torture_suite_add_suite(suite, torture_raw_open(suite));
 	torture_suite_add_1smb_test(suite, "MKDIR", torture_raw_mkdir);
 	torture_suite_add_suite(suite, torture_raw_oplock(suite));
 	torture_suite_add_1smb_test(suite, "HOLD-OPLOCK", torture_hold_oplock);
@@ -63,8 +60,8 @@ NTSTATUS torture_raw_init(void)
 	torture_suite_add_suite(suite, torture_raw_rename(suite));
 	torture_suite_add_1smb_test(suite, "SEEK", torture_raw_seek);
 	torture_suite_add_1smb_test(suite, "EAS", torture_raw_eas);
-	torture_suite_add_1smb_test(suite, "STREAMS", torture_raw_streams);
-	torture_suite_add_1smb_test(suite, "ACLS", torture_raw_acls);
+	torture_suite_add_suite(suite, torture_raw_streams(suite));
+	torture_suite_add_suite(suite, torture_raw_acls(suite));
 	torture_suite_add_1smb_test(suite, "COMPOSITE", torture_raw_composite);
 	torture_suite_add_simple_test(suite, "SAMBA3HIDE", torture_samba3_hide);
 	torture_suite_add_simple_test(suite, "SAMBA3CLOSEERR", torture_samba3_closeerr);

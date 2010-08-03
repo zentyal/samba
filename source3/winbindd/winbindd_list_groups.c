@@ -124,7 +124,7 @@ static void winbindd_list_groups_done(struct tevent_req *subreq)
 	if (i < state->num_domains) {
 		struct winbindd_list_groups_domstate *d = &state->domains[i];
 
-		DEBUG(10, ("Domain %s returned %d users\n", d->domain->name,
+		DEBUG(10, ("Domain %s returned %d groups\n", d->domain->name,
 			   d->groups.num_principals));
 
 		d->subreq = NULL;
@@ -153,7 +153,7 @@ NTSTATUS winbindd_list_groups_recv(struct tevent_req *req,
 	NTSTATUS status;
 	char *result;
 	int i;
-	uint32_t j;
+	uint32_t j, num_entries = 0;
 	size_t len;
 
 	if (tevent_req_is_nterror(req, &status)) {
@@ -161,6 +161,7 @@ NTSTATUS winbindd_list_groups_recv(struct tevent_req *req,
 	}
 
 	len = 0;
+	response->data.num_entries = 0;
 	for (i=0; i<state->num_domains; i++) {
 		struct winbindd_list_groups_domstate *d = &state->domains[i];
 
@@ -171,6 +172,7 @@ NTSTATUS winbindd_list_groups_recv(struct tevent_req *req,
 					     True);
 			len += strlen(name)+1;
 		}
+		response->data.num_entries += d->groups.num_principals;
 	}
 
 	result = talloc_array(response, char, len+1);
@@ -193,10 +195,12 @@ NTSTATUS winbindd_list_groups_recv(struct tevent_req *req,
 			len += this_len;
 			result[len] = ',';
 			len += 1;
+			num_entries++;
 		}
 	}
 	result[len-1] = '\0';
 
+	response->data.num_entries = num_entries;
 	response->extra_data.data = result;
 	response->length += len;
 

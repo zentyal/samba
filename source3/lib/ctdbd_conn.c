@@ -135,7 +135,7 @@ static NTSTATUS ctdbd_connect(TALLOC_CTX *mem_ctx,
 	addr.sun_family = AF_UNIX;
 	strncpy(addr.sun_path, sockname, sizeof(addr.sun_path));
 
-	if (sys_connect(fd, (struct sockaddr *)&addr) == -1) {
+	if (sys_connect(fd, (struct sockaddr *)(void *)&addr) == -1) {
 		DEBUG(1, ("connect(%s) failed: %s\n", sockname,
 			  strerror(errno)));
 		close(fd);
@@ -257,7 +257,7 @@ static struct messaging_rec *ctdb_pull_messaging_rec(TALLOC_CTX *mem_ctx,
 	blob = data_blob_const(msg->data, msg->datalen);
 
 	ndr_err = ndr_pull_struct_blob(
-		&blob, result, NULL, result,
+		&blob, result, result,
 		(ndr_pull_flags_fn_t)ndr_pull_messaging_rec);
 
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -368,9 +368,11 @@ static NTSTATUS ctdb_read_req(struct ctdbd_connection *conn, uint32 reqid,
 				  (msg->srvid == CTDB_SRVID_RECONFIGURE)
 				  ? "cluster reconfigure" : "SAMBA_NOTIFY"));
 
-			messaging_send(conn->msg_ctx, procid_self(),
+			messaging_send(conn->msg_ctx,
+				       messaging_server_id(conn->msg_ctx),
 				       MSG_SMB_BRL_VALIDATE, &data_blob_null);
-			messaging_send(conn->msg_ctx, procid_self(),
+			messaging_send(conn->msg_ctx,
+				       messaging_server_id(conn->msg_ctx),
 				       MSG_DBWRAP_G_LOCK_RETRY,
 				       &data_blob_null);
 			TALLOC_FREE(hdr);
@@ -564,10 +566,12 @@ static NTSTATUS ctdb_handle_message(uint8_t *buf, size_t length,
 		 * family has passed away (SAMBA_NOTIFY), we need to
 		 * clean the brl database
 		 */
-		messaging_send(conn->msg_ctx, procid_self(),
+		messaging_send(conn->msg_ctx,
+			       messaging_server_id(conn->msg_ctx),
 			       MSG_SMB_BRL_VALIDATE, &data_blob_null);
 
-		messaging_send(conn->msg_ctx, procid_self(),
+		messaging_send(conn->msg_ctx,
+			       messaging_server_id(conn->msg_ctx),
 			       MSG_DBWRAP_G_LOCK_RETRY,
 			       &data_blob_null);
 
@@ -670,7 +674,7 @@ NTSTATUS ctdbd_messaging_send(struct ctdbd_connection *conn,
 	}
 
 	ndr_err = ndr_push_struct_blob(
-		&blob, mem_ctx, NULL, msg,
+		&blob, mem_ctx, msg,
 		(ndr_push_flags_fn_t)ndr_push_messaging_rec);
 
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -1274,15 +1278,15 @@ NTSTATUS ctdbd_register_ips(struct ctdbd_connection *conn,
 
 	switch (client.ss_family) {
 	case AF_INET:
-		p4.dest = *(struct sockaddr_in *)&server;
-		p4.src = *(struct sockaddr_in *)&client;
+		p4.dest = *(struct sockaddr_in *)(void *)&server;
+		p4.src = *(struct sockaddr_in *)(void *)&client;
 		data.dptr = (uint8_t *)&p4;
 		data.dsize = sizeof(p4);
 		break;
 #ifdef HAVE_STRUCT_CTDB_CONTROL_TCP_ADDR
 	case AF_INET6:
-		p.dest.ip6 = *(struct sockaddr_in6 *)&server;
-		p.src.ip6 = *(struct sockaddr_in6 *)&client;
+		p.dest.ip6 = *(struct sockaddr_in6 *)(void *)&server;
+		p.src.ip6 = *(struct sockaddr_in6 *)(void *)&client;
 		data.dptr = (uint8_t *)&p;
 		data.dsize = sizeof(p);
 		break;

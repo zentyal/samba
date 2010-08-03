@@ -28,45 +28,11 @@
  * in the NTDOM branch - it didn't belong there.
  */
 
-#define prs_init_empty( _ps_, _ctx_, _io_ ) (void) prs_init((_ps_), 0, (_ctx_), (_io_))
-
-typedef struct _prs_struct {
-	bool io; /* parsing in or out of data stream */
-	/* 
-	 * If the (incoming) data is big-endian. On output we are
-	 * always little-endian.
-	 */ 
-	bool bigendian_data;
-	uint8 align; /* data alignment */
-	bool is_dynamic; /* Do we own this memory or not ? */
-	uint32 data_offset; /* Current working offset into data. */
-	uint32 buffer_size; /* Current allocated size of the buffer. */
-	uint32 grow_size; /* size requested via prs_grow() calls */
-	char *data_p; /* The buffer itself. */
-	TALLOC_CTX *mem_ctx; /* When unmarshalling, use this.... */
-	const char *sess_key; /* If we have to do encrypt/decrypt on the fly. */
-} prs_struct;
-
-/*
- * Defines for io member of prs_struct.
- */
-
-#define MARSHALL 0
-#define UNMARSHALL 1
-
-#define MARSHALLING(ps) (!(ps)->io)
-#define UNMARSHALLING(ps) ((ps)->io)
-
-#define RPC_BIG_ENDIAN 		1
-#define RPC_LITTLE_ENDIAN	0
-
-#define RPC_PARSE_ALIGN 4
-
 typedef struct _output_data {
 	/*
 	 * Raw RPC output data. This does not include RPC headers or footers.
 	 */
-	prs_struct rdata;
+	DATA_BLOB rdata;
 
 	/* The amount of data sent from the current rdata struct. */
 	uint32 data_sent_length;
@@ -75,7 +41,7 @@ typedef struct _output_data {
 	 * The current fragment being returned. This inclues
 	 * headers, data and authentication footer.
 	 */
-	prs_struct frag;
+	DATA_BLOB frag;
 
 	/* The amount of data sent from the current PDU. */
 	uint32 current_pdu_sent;
@@ -87,8 +53,10 @@ typedef struct _input_data {
 	 * is collected via multiple writes until a complete
 	 * pdu is seen, then the data is copied into the in_data
 	 * structure. The maximum size of this is 0x1630 (RPC_MAX_PDU_FRAG_LEN).
+	 * If length is zero, then we are at the start of a new
+	 * pdu.
 	 */
-	uint8_t *current_in_pdu;
+	DATA_BLOB pdu;
 
 	/*
 	 * The amount of data needed to complete the in_pdu.
@@ -98,18 +66,12 @@ typedef struct _input_data {
 	uint32 pdu_needed_len;
 
 	/*
-	 * The amount of data received so far in the in_pdu.
-	 * If this is zero, then we are at the start of a new
-	 * pdu.
-	 */
-	uint32 pdu_received_len;
-
-	/*
 	 * This is the collection of input data with all
 	 * the rpc headers and auth footers removed.
 	 * The maximum length of this (1Mb) is strictly enforced.
 	 */
-	prs_struct data;
+	DATA_BLOB data;
+
 } input_data;
 
 struct handle_list;
@@ -140,22 +102,23 @@ struct kerberos_auth_struct {
 	DATA_BLOB session_key;
 };
 
-/* auth state for schannel. */
-struct schannel_auth_struct {
-	unsigned char sess_key[16];
-	uint32 seq_num;
-};
-
 /* auth state for all bind types. */
 
 struct pipe_auth_data {
 	enum pipe_auth_type auth_type; /* switch for union below. */
 	enum dcerpc_AuthLevel auth_level;
+
 	union {
 		struct schannel_state *schannel_auth;
-		AUTH_NTLMSSP_STATE *auth_ntlmssp_state;
-/*		struct kerberos_auth_struct *kerberos_auth; TO BE ADDED... */
+		struct auth_ntlmssp_state *auth_ntlmssp_state;
+		struct kerberos_auth_struct *kerberos_auth; /* Client only for now */
 	} a_u;
+
+	/* Only the client code uses these 3 for now */
+	char *domain;
+	char *user_name;
+	DATA_BLOB user_session_key;
+
 	void (*auth_data_free_func)(struct pipe_auth_data *);
 };
 
@@ -164,7 +127,7 @@ struct pipe_auth_data {
  * NamedPipes.
  */
 
-typedef struct pipes_struct {
+struct pipes_struct {
 	struct pipes_struct *next, *prev;
 
 	char client_address[INET6_ADDRSTRLEN];
@@ -177,9 +140,6 @@ typedef struct pipes_struct {
 	   with the open rpc contexts */
 
 	PIPE_RPC_FNS *contexts;
-
-	RPC_HDR hdr; /* Incoming RPC header. */
-	RPC_HDR_REQ hdr_req; /* Incoming request header. */
 
 	struct pipe_auth_data auth;
 
@@ -232,15 +192,21 @@ typedef struct pipes_struct {
 	/* handle database to use on this pipe. */
 	struct handle_list *pipe_handles;
 
+	/* call id retrieved from the pdu header */
+	uint32_t call_id;
+
+	/* operation number retrieved from the rpc header */
+	uint16_t opnum;
+
 	/* private data for the interface implementation */
 	void *private_data;
 
-} pipes_struct;
+};
 
 struct api_struct {  
 	const char *name;
 	uint8 opnum;
-	bool (*fn) (pipes_struct *);
+	bool (*fn) (struct pipes_struct *);
 };
 
 #endif /* _NT_DOMAIN_H */

@@ -18,6 +18,7 @@
 */
 
 #include "includes.h"
+#include "torture/proto.h"
 
 #define VERBOSE 0
 #define OP_MIN 0

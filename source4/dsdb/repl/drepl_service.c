@@ -35,12 +35,9 @@
 
 static WERROR dreplsrv_init_creds(struct dreplsrv_service *service)
 {
-	NTSTATUS status;
-
-	status = auth_system_session_info(service, service->task->lp_ctx, 
-					  &service->system_session_info);
-	if (!NT_STATUS_IS_OK(status)) {
-		return ntstatus_to_werror(status);
+	service->system_session_info = system_session(service->task->lp_ctx);
+	if (service->system_session_info == NULL) {
+		return WERR_NOMEM;
 	}
 
 	return WERR_OK;
@@ -83,7 +80,7 @@ static WERROR dreplsrv_connect_samdb(struct dreplsrv_service *service, struct lo
 	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_TRANSITIVE_MEMBERSHIP;
 	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_ADD_SID_HISTORY;
 	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_POST_BETA3;
-	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_00100000;
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_GETCHGREQ_V5;
 	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_GET_MEMBERSHIPS2;
 	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_GETCHGREQ_V6;
 	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_NONDOMAIN_NCS;
@@ -113,16 +110,19 @@ static NTSTATUS drepl_replica_sync(struct irpc_message *msg,
 {
 	struct dreplsrv_service *service = talloc_get_type(msg->private_data,
 							   struct dreplsrv_service);
-	struct GUID *guid = &r->in.req.req1.naming_context->guid;
+	struct drsuapi_DsReplicaObjectIdentifier *nc = r->in.req->req1.naming_context;
 
-	r->out.result = dreplsrv_schedule_partition_pull_by_guid(service, msg, guid);
+	r->out.result = dreplsrv_schedule_partition_pull_by_nc(service, msg, nc);
 	if (W_ERROR_IS_OK(r->out.result)) {
-		DEBUG(3,("drepl_replica_sync: forcing sync of partition %s\n",
-			 GUID_string(msg, guid)));
+		DEBUG(3,("drepl_replica_sync: forcing sync of partition (%s, %s)\n",
+			 GUID_string(msg, &nc->guid),
+			 nc->dn));
 		dreplsrv_run_pending_ops(service);
 	} else {
-		DEBUG(3,("drepl_replica_sync: failed setup of sync of partition %s - %s\n",
-			 GUID_string(msg, guid), win_errstr(r->out.result)));
+		DEBUG(3,("drepl_replica_sync: failed setup of sync of partition (%s, %s) - %s\n",
+			 GUID_string(msg, &nc->guid),
+			 nc->dn,
+			 win_errstr(r->out.result)));
 	}
 	return NT_STATUS_OK;
 }
@@ -135,8 +135,10 @@ static void dreplsrv_task_init(struct task_server *task)
 	WERROR status;
 	struct dreplsrv_service *service;
 	uint32_t periodic_startup_interval;
+	bool am_rodc;
+	int ret;
 
-	switch (lp_server_role(task->lp_ctx)) {
+	switch (lpcfg_server_role(task->lp_ctx)) {
 	case ROLE_STANDALONE:
 		task_server_terminate(task, "dreplsrv: no DSDB replication required in standalone configuration", 
 				      false);
@@ -185,8 +187,8 @@ static void dreplsrv_task_init(struct task_server *task)
 		return;
 	}
 
-	periodic_startup_interval	= lp_parm_int(task->lp_ctx, NULL, "dreplsrv", "periodic_startup_interval", 15); /* in seconds */
-	service->periodic.interval	= lp_parm_int(task->lp_ctx, NULL, "dreplsrv", "periodic_interval", 300); /* in seconds */
+	periodic_startup_interval	= lpcfg_parm_int(task->lp_ctx, NULL, "dreplsrv", "periodic_startup_interval", 15); /* in seconds */
+	service->periodic.interval	= lpcfg_parm_int(task->lp_ctx, NULL, "dreplsrv", "periodic_interval", 300); /* in seconds */
 
 	status = dreplsrv_periodic_schedule(service, periodic_startup_interval);
 	if (!W_ERROR_IS_OK(status)) {
@@ -196,19 +198,24 @@ static void dreplsrv_task_init(struct task_server *task)
 		return;
 	}
 
-	service->notify.interval = lp_parm_int(task->lp_ctx, NULL, "dreplsrv", 
-					       "notify_interval", 5); /* in seconds */
-	status = dreplsrv_notify_schedule(service, service->notify.interval);
-	if (!W_ERROR_IS_OK(status)) {
-		task_server_terminate(task, talloc_asprintf(task,
-				      "dreplsrv: Failed to setup notify schedule: %s\n",
-							    win_errstr(status)), true);
-		return;
+	/* if we are a RODC then we do not send DSReplicaSync*/
+	ret = samdb_rodc(service->samdb, &am_rodc);
+	if (ret == LDB_SUCCESS && !am_rodc) {
+		service->notify.interval = lpcfg_parm_int(task->lp_ctx, NULL, "dreplsrv",
+							   "notify_interval", 5); /* in seconds */
+		status = dreplsrv_notify_schedule(service, service->notify.interval);
+		if (!W_ERROR_IS_OK(status)) {
+			task_server_terminate(task, talloc_asprintf(task,
+						  "dreplsrv: Failed to setup notify schedule: %s\n",
+									win_errstr(status)), true);
+			return;
+		}
 	}
 
 	irpc_add_name(task->msg_ctx, "dreplsrv");
 
 	IRPC_REGISTER(task->msg_ctx, drsuapi, DRSUAPI_DSREPLICASYNC, drepl_replica_sync, service);
+	messaging_register(task->msg_ctx, service, MSG_DREPL_ALLOCATE_RID, dreplsrv_allocate_rid);
 }
 
 /*

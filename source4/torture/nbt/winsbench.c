@@ -225,7 +225,7 @@ static void generate_request(struct nbt_name_socket *nbtsock, struct wins_state 
 */
 static bool bench_wins(struct torture_context *tctx)
 {
-	struct nbt_name_socket *nbtsock = nbt_name_socket_init(tctx, tctx->ev, lp_iconv_convenience(tctx->lp_ctx));
+	struct nbt_name_socket *nbtsock = nbt_name_socket_init(tctx, tctx->ev);
 	int num_sent=0;
 	struct timeval tv = timeval_current();
 	bool ret = true;
@@ -245,8 +245,8 @@ static bool bench_wins(struct torture_context *tctx)
 	state->num_names = torture_entries;
 	state->registered = talloc_zero_array(state, bool, state->num_names);
 	state->wins_server = address;
-	state->wins_port = lp_nbt_port(tctx->lp_ctx);
-	load_interfaces(tctx, lp_interfaces(tctx->lp_ctx), &ifaces);
+	state->wins_port = lpcfg_nbt_port(tctx->lp_ctx);
+	load_interfaces(tctx, lpcfg_interfaces(tctx->lp_ctx), &ifaces);
 	state->my_ip = talloc_strdup(tctx, iface_best_ip(ifaces, address));
 	state->ttl = timelimit;
 

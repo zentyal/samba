@@ -45,7 +45,7 @@
  * @ingroup krb5
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_free_cred_contents (krb5_context context, krb5_creds *c)
 {
     krb5_free_principal (context, c->client);
@@ -74,7 +74,7 @@ krb5_free_cred_contents (krb5_context context, krb5_creds *c)
  * @ingroup krb5
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_copy_creds_contents (krb5_context context,
 			  const krb5_creds *incred,
 			  krb5_creds *c)
@@ -131,7 +131,7 @@ fail:
  * @ingroup krb5
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_copy_creds (krb5_context context,
 		 const krb5_creds *incred,
 		 krb5_creds **outcred)
@@ -161,7 +161,7 @@ krb5_copy_creds (krb5_context context,
  * @ingroup krb5
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_free_creds (krb5_context context, krb5_creds *c)
 {
     krb5_free_cred_contents (context, c);
@@ -183,6 +183,18 @@ krb5_times_equal(const krb5_times *a, const krb5_times *b)
  * Return TRUE if `mcreds' and `creds' are equal (`whichfields'
  * determines what equal means).
  *
+ *
+ * The following flags, set in whichfields affects the comparison:
+ * - KRB5_TC_MATCH_SRV_NAMEONLY Consider all realms equal when comparing the service principal.
+ * - KRB5_TC_MATCH_KEYTYPE Compare enctypes.
+ * - KRB5_TC_MATCH_FLAGS_EXACT Make sure that the ticket flags are identical.
+ * - KRB5_TC_MATCH_FLAGS Make sure that all ticket flags set in mcreds are also present in creds .
+ * - KRB5_TC_MATCH_TIMES_EXACT Compares the ticket times exactly.
+ * - KRB5_TC_MATCH_TIMES Compares only the expiration times of the creds.
+ * - KRB5_TC_MATCH_AUTHDATA Compares the authdata fields.
+ * - KRB5_TC_MATCH_2ND_TKT Compares the second tickets (used by user-to-user authentication).
+ * - KRB5_TC_MATCH_IS_SKEY Compares the existance of the second ticket.
+ *
  * @param context Kerberos 5 context.
  * @param whichfields which fields to compare.
  * @param mcreds cred to compare with.
@@ -193,7 +205,7 @@ krb5_times_equal(const krb5_times *a, const krb5_times *b)
  * @ingroup krb5
  */
 
-krb5_boolean KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_boolean KRB5_LIB_CALL
 krb5_compare_creds(krb5_context context, krb5_flags whichfields,
 		   const krb5_creds * mcreds, const krb5_creds * creds)
 {

@@ -26,19 +26,18 @@
 #include "includes.h"
 #include "system/kerberos.h"
 #include "auth/kerberos/kerberos.h"
-#include "librpc/gen_ndr/krb5pac.h"
 #include "auth/auth.h"
-#include "lib/ldb/include/ldb.h"
-#include "auth/auth_sam.h"
 #include "lib/socket/socket.h"
+#include "lib/tsocket/tsocket.h"
 #include "librpc/rpc/dcerpc.h"
 #include "auth/credentials/credentials.h"
 #include "auth/credentials/credentials_krb5.h"
+#include "auth/kerberos/kerberos_credentials.h"
 #include "auth/gensec/gensec.h"
 #include "auth/gensec/gensec_proto.h"
 #include "param/param.h"
-#include "auth/session_proto.h"
 #include "auth/auth_sam_reply.h"
+#include "lib/util/util_net.h"
 
 enum GENSEC_KRB5_STATE {
 	GENSEC_KRB5_SERVER_START,
@@ -94,7 +93,7 @@ static NTSTATUS gensec_krb5_start(struct gensec_security *gensec_security, bool 
 	krb5_error_code ret;
 	struct gensec_krb5_state *gensec_krb5_state;
 	struct cli_credentials *creds;
-	const struct socket_address *my_addr, *peer_addr;
+	const struct tsocket_address *tlocal_addr, *tremote_addr;
 	krb5_address my_krb5_addr, peer_krb5_addr;
 	
 	creds = gensec_get_credentials(gensec_security);
@@ -146,10 +145,19 @@ static NTSTATUS gensec_krb5_start(struct gensec_security *gensec_security, bool 
 		return NT_STATUS_INTERNAL_ERROR;
 	}
 
-	my_addr = gensec_get_my_addr(gensec_security);
-	if (my_addr && my_addr->sockaddr) {
-		ret = krb5_sockaddr2address(gensec_krb5_state->smb_krb5_context->krb5_context, 
-					    my_addr->sockaddr, &my_krb5_addr);
+	tlocal_addr = gensec_get_local_address(gensec_security);
+	if (tlocal_addr) {
+		ssize_t socklen;
+		struct sockaddr_storage ss;
+
+		socklen = tsocket_address_bsd_sockaddr(tlocal_addr,
+				(struct sockaddr *) &ss,
+				sizeof(struct sockaddr_storage));
+		if (socklen < 0) {
+			return NT_STATUS_INTERNAL_ERROR;
+		}
+		ret = krb5_sockaddr2address(gensec_krb5_state->smb_krb5_context->krb5_context,
+				(const struct sockaddr *) &ss, &my_krb5_addr);
 		if (ret) {
 			DEBUG(1,("gensec_krb5_start: krb5_sockaddr2address (local) failed (%s)\n", 
 				 smb_get_krb5_error_message(gensec_krb5_state->smb_krb5_context->krb5_context, 
@@ -159,10 +167,19 @@ static NTSTATUS gensec_krb5_start(struct gensec_security *gensec_security, bool 
 		}
 	}
 
-	peer_addr = gensec_get_peer_addr(gensec_security);
-	if (peer_addr && peer_addr->sockaddr) {
-		ret = krb5_sockaddr2address(gensec_krb5_state->smb_krb5_context->krb5_context, 
-					    peer_addr->sockaddr, &peer_krb5_addr);
+	tremote_addr = gensec_get_remote_address(gensec_security);
+	if (tremote_addr) {
+		ssize_t socklen;
+		struct sockaddr_storage ss;
+
+		socklen = tsocket_address_bsd_sockaddr(tremote_addr,
+				(struct sockaddr *) &ss,
+				sizeof(struct sockaddr_storage));
+		if (socklen < 0) {
+			return NT_STATUS_INTERNAL_ERROR;
+		}
+		ret = krb5_sockaddr2address(gensec_krb5_state->smb_krb5_context->krb5_context,
+				(const struct sockaddr *) &ss, &peer_krb5_addr);
 		if (ret) {
 			DEBUG(1,("gensec_krb5_start: krb5_sockaddr2address (local) failed (%s)\n", 
 				 smb_get_krb5_error_message(gensec_krb5_state->smb_krb5_context->krb5_context, 
@@ -174,8 +191,8 @@ static NTSTATUS gensec_krb5_start(struct gensec_security *gensec_security, bool 
 
 	ret = krb5_auth_con_setaddrs(gensec_krb5_state->smb_krb5_context->krb5_context, 
 				     gensec_krb5_state->auth_context,
-				     my_addr ? &my_krb5_addr : NULL, 
-				     peer_addr ? &peer_krb5_addr : NULL);
+				     tlocal_addr ? &my_krb5_addr : NULL,
+				     tremote_addr ? &peer_krb5_addr : NULL);
 	if (ret) {
 		DEBUG(1,("gensec_krb5_start: krb5_auth_con_setaddrs failed (%s)\n", 
 			 smb_get_krb5_error_message(gensec_krb5_state->smb_krb5_context->krb5_context, 
@@ -220,7 +237,7 @@ static NTSTATUS gensec_krb5_common_client_start(struct gensec_security *gensec_s
 	NTSTATUS nt_status;
 	struct ccache_container *ccache_container;
 	const char *hostname;
-
+	const char *error_string;
 	const char *principal;
 	krb5_data in_data;
 
@@ -263,22 +280,26 @@ static NTSTATUS gensec_krb5_common_client_start(struct gensec_security *gensec_s
 
 	ret = cli_credentials_get_ccache(gensec_get_credentials(gensec_security), 
 				         gensec_security->event_ctx, 
-					 gensec_security->settings->lp_ctx, &ccache_container);
+					 gensec_security->settings->lp_ctx, &ccache_container, &error_string);
 	switch (ret) {
 	case 0:
 		break;
 	case KRB5KDC_ERR_PREAUTH_FAILED:
 		return NT_STATUS_LOGON_FAILURE;
 	case KRB5_KDC_UNREACH:
-		DEBUG(3, ("Cannot reach a KDC we require to contact %s\n", principal));
+		DEBUG(3, ("Cannot reach a KDC we require to contact %s: %s\n", principal, error_string));
+		return NT_STATUS_INVALID_PARAMETER; /* Make SPNEGO ignore us, we can't go any further here */
+	case KRB5_CC_NOTFOUND:
+	case KRB5_CC_END:
+		DEBUG(3, ("Error preparing credentials we require to contact %s : %s\n", principal, error_string));
 		return NT_STATUS_INVALID_PARAMETER; /* Make SPNEGO ignore us, we can't go any further here */
 	default:
-		DEBUG(1, ("gensec_krb5_start: Aquiring initiator credentials failed: %s\n", error_message(ret)));
+		DEBUG(1, ("gensec_krb5_start: Aquiring initiator credentials failed: %s\n", error_string));
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 	in_data.length = 0;
 	
-	if (principal && lp_client_use_spnego_principal(gensec_security->settings->lp_ctx)) {
+	if (principal) {
 		krb5_principal target_principal;
 		ret = krb5_parse_name(gensec_krb5_state->smb_krb5_context->krb5_context, principal,
 				      &target_principal);
@@ -458,6 +479,8 @@ static NTSTATUS gensec_krb5_update(struct gensec_security *gensec_security,
 		uint8_t tok_id[2];
 		struct keytab_container *keytab;
 		krb5_principal server_in_keytab;
+		const char *error_string;
+		enum credentials_obtained obtained;
 
 		if (!in.data) {
 			return NT_STATUS_INVALID_PARAMETER;
@@ -474,9 +497,10 @@ static NTSTATUS gensec_krb5_update(struct gensec_security *gensec_security,
 		/* This ensures we lookup the correct entry in that keytab */
 		ret = principal_from_credentials(out_mem_ctx, gensec_get_credentials(gensec_security), 
 						 gensec_krb5_state->smb_krb5_context, 
-						 &server_in_keytab);
+						 &server_in_keytab, &obtained, &error_string);
 
 		if (ret) {
+			DEBUG(2,("Failed to make credentials from principal: %s\n", error_string));
 			return NT_STATUS_CANT_ACCESS_DOMAIN_INFO;
 		}
 
@@ -629,7 +653,7 @@ static NTSTATUS gensec_krb5_session_info(struct gensec_security *gensec_security
 			nt_status = gensec_security->auth_context->get_server_info_principal(mem_ctx, 
 											     gensec_security->auth_context, 
 											     principal_string,
-											     &server_info);
+											     NULL, &server_info);
 			if (!NT_STATUS_IS_OK(nt_status)) {
 				talloc_free(mem_ctx);
 				return nt_status;
@@ -661,7 +685,6 @@ static NTSTATUS gensec_krb5_session_info(struct gensec_security *gensec_security
 
 		/* decode and verify the pac */
 		nt_status = kerberos_pac_logon_info(gensec_krb5_state, 
-						    gensec_security->settings->iconv_convenience,
 						    &logon_info, pac,
 						    gensec_krb5_state->smb_krb5_context->krb5_context,
 						    NULL, gensec_krb5_state->keyblock,
@@ -686,7 +709,7 @@ static NTSTATUS gensec_krb5_session_info(struct gensec_security *gensec_security
 	}
 
 	/* references the server_info into the session_info */
-	nt_status = auth_generate_session_info(mem_ctx, gensec_security->event_ctx, gensec_security->settings->lp_ctx, server_info, &session_info);
+	nt_status = gensec_generate_session_info(mem_ctx, gensec_security, server_info, &session_info);
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		talloc_free(mem_ctx);

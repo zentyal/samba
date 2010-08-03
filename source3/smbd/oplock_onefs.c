@@ -49,7 +49,7 @@ struct onefs_callback_record {
 	enum onefs_callback_state state;
 	union {
 		files_struct *fsp;	/* ONEFS_OPEN_FILE */
-		uint16_t mid;		/* ONEFS_WAITING_FOR_OPLOCK */
+		uint64_t mid;		/* ONEFS_WAITING_FOR_OPLOCK */
 	} data;
 };
 
@@ -78,8 +78,8 @@ const char *onefs_cb_record_str_dbg(const struct onefs_callback_record *r)
 					 fsp_str_dbg(r->data.fsp));
 	case ONEFS_WAITING_FOR_OPLOCK:
 		result = talloc_asprintf(talloc_tos(), "cb record %llu for "
-					 "pending mid %d", r->id,
-					 (int)r->data.mid);
+					 "pending mid %llu", r->id,
+					 (unsigned long long)r->data.mid);
 		break;
 	default:
 		result = talloc_asprintf(talloc_tos(), "cb record %llu unknown "
@@ -196,7 +196,7 @@ void destroy_onefs_callback_record(uint64_t id)
  *   2. OPEN_FILE: Once ifs_createfile completes, the callback record is
  *   transitioned to this state via onefs_set_oplock_callback.
  */
-uint64_t onefs_oplock_wait_record(uint16_t mid)
+uint64_t onefs_oplock_wait_record(uint64_t mid)
 {
 	struct onefs_callback_record *result;
 	static uint64_t id_generator = 0;
@@ -250,7 +250,7 @@ void onefs_set_oplock_callback(uint64_t id, files_struct *fsp)
 	 */
 	if (open_was_deferred(cb->data.mid)) {
 		if (asprintf(&msg, "Trying to upgrade callback for deferred "
-			     "open mid=%d\n", cb->data.mid) != -1) {
+			     "open mid=%llu\n", (unsigned long long)cb->data.mid) != -1) {
 			smb_panic(msg);
 		}
 		smb_panic("Trying to upgrade callback for deferred open "
@@ -380,7 +380,6 @@ static void oplock_revoked_handler(uint64_t id)
 	DEBUG(0,("Level 1 oplock break failed for file %s. Forcefully "
 		 "revoking oplock\n", fsp_str_dbg(fsp)));
 
-	global_client_failed_oplock_break = True;
 	remove_oplock(fsp);
 
 	/*
@@ -407,7 +406,8 @@ static void semlock_available_handler(uint64_t id)
 		return;
 	}
 
-	DEBUG(10, ("Got semlock available for mid %d\n", cb->data.mid));
+	DEBUG(10, ("Got semlock available for mid %llu\n",
+		(unsigned long long)cb->data.mid));
 
 	/* Paranoia check */
 	if (!(open_was_deferred(cb->data.mid))) {
@@ -440,7 +440,6 @@ static void semlock_available_handler(uint64_t id)
 static void semlock_async_failure_handler(uint64_t id)
 {
 	struct onefs_callback_record *cb;
-	struct pending_message_list *pml;
 	struct deferred_open_record *state;
 
 	DEBUG(1, ("semlock_async_failure_handler called: %llu\n", id));
@@ -451,7 +450,8 @@ static void semlock_async_failure_handler(uint64_t id)
 		return;
 	}
 
-	DEBUG(1, ("Got semlock_async_failure message for mid %d\n", cb->data.mid));
+	DEBUG(1, ("Got semlock_async_failure message for mid %llu\n",
+		(unsigned long long)cb->data.mid));
 
 	/* Paranoia check */
 	if (!(open_was_deferred(cb->data.mid))) {
@@ -465,13 +465,12 @@ static void semlock_async_failure_handler(uint64_t id)
 	}
 
 	/* Find the actual deferred open record. */
-	if (!(pml = get_open_deferred_message(cb->data.mid))) {
+	if (!get_open_deferred_message_state(cb->data.mid, NULL, &state)) {
 		DEBUG(0, ("Could not find deferred request for "
 			  "mid %d\n", cb->data.mid));
 		destroy_onefs_callback_record(id);
 		return;
 	}
-	state = (struct deferred_open_record *)pml->private_data.data;
 
 	/* Update to failed so the client can be notified on retried open. */
 	state->failed = true;

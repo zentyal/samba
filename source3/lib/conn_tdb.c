@@ -22,26 +22,21 @@
 static struct db_context *connections_db_ctx(bool rw)
 {
 	static struct db_context *db_ctx;
+	int open_flags;
 
 	if (db_ctx != NULL) {
 		return db_ctx;
 	}
 
-	if (rw) {
-		db_ctx = db_open(NULL, lock_path("connections.tdb"), 0,
-				 TDB_CLEAR_IF_FIRST|TDB_DEFAULT, 
-				 O_RDWR | O_CREAT, 0644);
-	}
-	else {
-		db_ctx = db_open(NULL, lock_path("connections.tdb"), 0,
-				 TDB_CLEAR_IF_FIRST|TDB_DEFAULT, O_RDONLY, 0);
-	}
+	open_flags = rw ? (O_RDWR|O_CREAT) : O_RDONLY;
 
+	db_ctx = db_open(NULL, lock_path("connections.tdb"), 0,
+			 TDB_CLEAR_IF_FIRST|TDB_DEFAULT, open_flags, 0644);
 	return db_ctx;
 }
 
-struct db_record *connections_fetch_record(TALLOC_CTX *mem_ctx,
-					   TDB_DATA key)
+static struct db_record *connections_fetch_record(TALLOC_CTX *mem_ctx,
+						  TDB_DATA key)
 {
 	struct db_context *ctx = connections_db_ctx(True);
 
@@ -112,12 +107,60 @@ int connections_forall(int (*fn)(struct db_record *rec,
 				 void *private_data),
 		       void *private_data)
 {
+	struct db_context *ctx;
 	struct conn_traverse_state state;
+
+	ctx = connections_db_ctx(true);
+	if (ctx == NULL) {
+		return -1;
+	}
 
 	state.fn = fn;
 	state.private_data = private_data;
 
-	return connections_traverse(conn_traverse_fn, (void *)&state);
+	return ctx->traverse(ctx, conn_traverse_fn, (void *)&state);
+}
+
+struct conn_traverse_read_state {
+	int (*fn)(const struct connections_key *key,
+		  const struct connections_data *data,
+		  void *private_data);
+	void *private_data;
+};
+
+static int connections_forall_read_fn(struct db_record *rec,
+				      void *private_data)
+{
+	struct conn_traverse_read_state *state =
+		(struct conn_traverse_read_state *)private_data;
+
+	if ((rec->key.dsize != sizeof(struct connections_key))
+	    || (rec->value.dsize != sizeof(struct connections_data))) {
+		return 0;
+	}
+	return state->fn((const struct connections_key *)rec->key.dptr,
+			 (const struct connections_data *)rec->value.dptr,
+			 state->private_data);
+}
+
+int connections_forall_read(int (*fn)(const struct connections_key *key,
+				      const struct connections_data *data,
+				      void *private_data),
+			    void *private_data)
+{
+	struct db_context *ctx;
+	struct conn_traverse_read_state state;
+
+	ctx = connections_db_ctx(false);
+	if (ctx == NULL) {
+		return -1;
+	}
+
+	state.fn = fn;
+	state.private_data = private_data;
+
+	return ctx->traverse_read(ctx, connections_forall_read_fn,
+				  (void *)&state);
 }
 
 bool connections_init(bool rw)

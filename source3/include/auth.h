@@ -19,7 +19,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-typedef struct auth_usersupplied_info {
+struct auth_usersupplied_info {
  	DATA_BLOB lm_resp;
 	DATA_BLOB nt_resp;
  	DATA_BLOB lm_interactive_pwd;
@@ -27,25 +27,28 @@ typedef struct auth_usersupplied_info {
  	DATA_BLOB plaintext_password;
 
 	bool encrypted;
+	struct {
+		char *account_name;   /* username before/after mapping */
+		char *domain_name;    /* username before/after mapping */
+	} client, mapped;
 
 	bool was_mapped;	      /* Did the username map actually match? */
-	char *client_domain;          /* domain name string */
-	char *domain;                 /* domain name after mapping */
 	char *internal_username;      /* username after mapping */
-	char *smb_name;               /* username before mapping */
-	char *wksta_name;             /* workstation name (netbios calling
+	const char *workstation_name; /* workstation name (netbios calling
 				       * name) unicode string */
 
 	uint32 logon_parameters;
 
-} auth_usersupplied_info;
+};
 
-typedef struct auth_serversupplied_info {
+struct extra_auth_info {
+	struct dom_sid user_sid;
+	struct dom_sid pgid_sid;
+};
+
+struct auth_serversupplied_info {
 	bool guest;
-
-	DOM_SID *sids; 	/* These SIDs are preliminary between
-			   check_ntlm_password and the token creation. */
-	size_t num_sids;
+	bool system;
 
 	struct unix_user_token utok;
 
@@ -53,12 +56,27 @@ typedef struct auth_serversupplied_info {
 
 	NT_USER_TOKEN *ptok;
 
+	/* This is the final session key, as used by SMB signing, and
+	 * (truncated to 16 bytes) encryption on the SAMR and LSA pipes
+	 * when over ncacn_np.
+	 * It is calculated by NTLMSSP from the session key in the info3,
+	 * and is  set from the Kerberos session key using
+	 * krb5_auth_con_getremotesubkey().
+	 *
+	 * Bootom line, it is not the same as the session keys in info3.
+	 */
+
 	DATA_BLOB user_session_key;
 	DATA_BLOB lm_session_key;
 
-        char *login_server; /* which server authorized the login? */
+	struct netr_SamInfo3 *info3;
 
-	struct samu *sam_account;
+	/* this structure is filled *only* in pathological cases where the user
+	 * sid or the primary group sid are not sids of the domain. Normally
+	 * this happens only for unix accounts that have unix domain sids.
+	 * This is checked only when info3.rid and/or info3.primary_gid are set
+	 * to the special invalid value of 0xFFFFFFFF */
+	struct extra_auth_info extra;
 
 	void *pam_handle;
 
@@ -77,7 +95,7 @@ typedef struct auth_serversupplied_info {
 	 * smb request. See set_current_user_info.
 	 */
 	char *sanitized_username;
-} auth_serversupplied_info;
+};
 
 struct auth_context {
 	DATA_BLOB challenge; 
@@ -91,14 +109,12 @@ struct auth_context {
 	/* What order are the various methods in?   Try to stop it changing under us */ 
 	struct auth_methods *auth_method_list;	
 
-	TALLOC_CTX *mem_ctx;
-	void (*get_ntlm_challenge)(struct auth_context *auth_context,
-				   uint8_t chal[8]);
+	NTSTATUS (*get_ntlm_challenge)(struct auth_context *auth_context,
+				       uint8_t chal[8]);
 	NTSTATUS (*check_ntlm_password)(const struct auth_context *auth_context,
 					const struct auth_usersupplied_info *user_info, 
 					struct auth_serversupplied_info **server_info);
 	NTSTATUS (*nt_status_squash)(NTSTATUS nt_status);
-	void (*free)(struct auth_context **auth_context);
 };
 
 typedef struct auth_methods
@@ -110,7 +126,7 @@ typedef struct auth_methods
 			 void *my_private_data, 
 			 TALLOC_CTX *mem_ctx,
 			 const struct auth_usersupplied_info *user_info, 
-			 auth_serversupplied_info **server_info);
+			 struct auth_serversupplied_info **server_info);
 
 	/* If you are using this interface, then you are probably
 	 * getting something wrong.  This interface is only for
@@ -136,12 +152,7 @@ struct auth_init_function_entry {
 	struct auth_init_function_entry *prev, *next;
 };
 
-typedef struct auth_ntlmssp_state {
-	TALLOC_CTX *mem_ctx;
-	struct auth_context *auth_context;
-	struct auth_serversupplied_info *server_info;
-	struct ntlmssp_state *ntlmssp_state;
-} AUTH_NTLMSSP_STATE;
+struct auth_ntlmssp_state;
 
 /* Changed from 1 -> 2 to add the logon_parameters field. */
 #define AUTH_INTERFACE_VERSION 2

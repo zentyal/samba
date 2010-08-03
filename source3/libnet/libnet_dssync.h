@@ -18,6 +18,9 @@
  *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "../librpc/gen_ndr/drsuapi.h"
+#include "../librpc/gen_ndr/drsblobs.h"
+
 struct dssync_context;
 
 struct dssync_ops {
@@ -55,3 +58,10 @@ struct dssync_context {
 };
 
 extern const struct dssync_ops libnet_dssync_keytab_ops;
+
+/* The following definitions come from libnet/libnet_dssync.c  */
+
+NTSTATUS libnet_dssync_init_context(TALLOC_CTX *mem_ctx,
+				    struct dssync_context **ctx_p);
+NTSTATUS libnet_dssync(TALLOC_CTX *mem_ctx,
+		       struct dssync_context *ctx);

@@ -17,14 +17,18 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef _LIBCLI_SECURITY_SECURITY_H_
+#define _LIBCLI_SECURITY_SECURITY_H_
+
 #include "librpc/gen_ndr/security.h"
 
 enum security_user_level {
-	SECURITY_ANONYMOUS,
-	SECURITY_USER,
-	SECURITY_DOMAIN_CONTROLLER,
-	SECURITY_ADMINISTRATOR,
-	SECURITY_SYSTEM
+	SECURITY_ANONYMOUS            = 0,
+	SECURITY_USER                 = 10,
+	SECURITY_RO_DOMAIN_CONTROLLER = 20,
+	SECURITY_DOMAIN_CONTROLLER    = 30,
+	SECURITY_ADMINISTRATOR        = 40,
+	SECURITY_SYSTEM               = 50
 };
 
 struct auth_session_info;
@@ -32,10 +36,8 @@ struct auth_session_info;
 struct object_tree {
 	uint32_t remaining_access;
 	struct GUID guid;
-	/* linked list of children */
-	struct object_tree * children;
-	struct object_tree * prev;
-	struct object_tree * next;
+	int num_of_children;
+	struct object_tree *children;
 };
 
 /* Moved the dom_sid functions to the top level dir with manual proto header */
@@ -44,3 +46,6 @@ struct object_tree {
 #include "libcli/security/secacl.h"
 #include "libcli/security/proto.h"
 #include "libcli/security/security_descriptor.h"
+#include "libcli/security/sddl.h"
+
+#endif

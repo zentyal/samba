@@ -36,7 +36,7 @@
 static struct ldb_message_element *ldb_msg_el_map_local(struct ldb_module *module, void *mem_ctx, const struct ldb_map_attribute *map, const struct ldb_message_element *old)
 {
 	struct ldb_message_element *el;
-	int i;
+	unsigned int i;
 
 	el = talloc_zero(mem_ctx, struct ldb_message_element);
 	if (el == NULL) {
@@ -79,10 +79,10 @@ static int ldb_msg_el_partition(struct ldb_module *module, struct ldb_message *l
 	}
 
 	switch (map->type) {
-	case MAP_IGNORE:
+	case LDB_MAP_IGNORE:
 		goto local;
 
-	case MAP_CONVERT:
+	case LDB_MAP_CONVERT:
 		if (map->u.convert.convert_local == NULL) {
 			ldb_debug(ldb, LDB_DEBUG_WARNING, "ldb_map: "
 				  "Not mapping attribute '%s': "
@@ -91,12 +91,12 @@ static int ldb_msg_el_partition(struct ldb_module *module, struct ldb_message *l
 			goto local;
 		}
 		/* fall through */
-	case MAP_KEEP:
-	case MAP_RENAME:
+	case LDB_MAP_KEEP:
+	case LDB_MAP_RENAME:
 		el = ldb_msg_el_map_local(module, remote, map, old);
 		break;
 
-	case MAP_GENERATE:
+	case LDB_MAP_GENERATE:
 		if (map->u.generate.generate_remote == NULL) {
 			ldb_debug(ldb, LDB_DEBUG_WARNING, "ldb_map: "
 				  "Not mapping attribute '%s': "
@@ -141,7 +141,7 @@ static bool ldb_msg_check_remote(struct ldb_module *module, const struct ldb_mes
 {
 	const struct ldb_map_context *data = map_get_context(module);
 	bool ret;
-	int i;
+	unsigned int i;
 
 	for (i = 0; i < msg->num_elements; i++) {
 		ret = map_attr_check_remote(data, msg->elements[i].name);
@@ -159,7 +159,8 @@ static int ldb_msg_partition(struct ldb_module *module, struct ldb_message *loca
 {
 	/* const char * const names[]; */
 	struct ldb_context *ldb;
-	int i, ret;
+	unsigned int i;
+	int ret;
 
 	ldb = ldb_module_get_ctx(module);
 
@@ -362,7 +363,6 @@ int map_add(struct ldb_module *module, struct ldb_request *req)
 	struct ldb_context *ldb;
 	struct map_context *ac;
 	struct ldb_message *remote_msg;
-	const char *dn;
 	int ret;
 
 	ldb = ldb_module_get_ctx(module);
@@ -426,8 +426,9 @@ int map_add(struct ldb_module *module, struct ldb_request *req)
 
 	/* Store remote DN in 'IS_MAPPED' */
 	/* TODO: use GUIDs here instead */
-	dn = ldb_dn_alloc_linearized(ac->local_msg, remote_msg->dn);
-	if (ldb_msg_add_string(ac->local_msg, IS_MAPPED, dn) != 0) {
+	ret = ldb_msg_add_linearized_dn(ac->local_msg, IS_MAPPED,
+					remote_msg->dn);
+	if (ret != LDB_SUCCESS) {
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
@@ -545,7 +546,6 @@ static int map_modify_do_local(struct map_context *ac)
 {
 	struct ldb_request *local_req;
 	struct ldb_context *ldb;
-	char *dn;
 	int ret;
 
 	ldb = ldb_module_get_ctx(ac->module);
@@ -558,9 +558,9 @@ static int map_modify_do_local(struct map_context *ac)
 					LDB_FLAG_MOD_ADD, NULL) != 0) {
 			return LDB_ERR_OPERATIONS_ERROR;
 		}
-		dn = ldb_dn_alloc_linearized(ac->local_msg,
-					ac->remote_req->op.mod.message->dn);
-		if (ldb_msg_add_string(ac->local_msg, IS_MAPPED, dn) != 0) {
+		ret = ldb_msg_add_linearized_dn(ac->local_msg, IS_MAPPED,
+						ac->remote_req->op.mod.message->dn);
+		if (ret != 0) {
 			return LDB_ERR_OPERATIONS_ERROR;
 		}
 

@@ -25,11 +25,22 @@
 #include "system/network.h"
 #include "system/filesys.h"
 #include "system/locale.h"
+#include "system/shmem.h"
+
 #undef malloc
 #undef strcasecmp
 #undef strncasecmp
 #undef strdup
 #undef realloc
+
+#if defined(UID_WRAPPER)
+#if !defined(UID_WRAPPER_REPLACE) && !defined(UID_WRAPPER_NOT_REPLACE)
+#define UID_WRAPPER_REPLACE
+#include "../uid_wrapper/uid_wrapper.h"
+#endif
+#else
+#define uwrap_enabled() 0
+#endif
 
 /**
  * @file
@@ -342,7 +353,7 @@ _PUBLIC_ void dump_data(int level, const uint8_t *buf, int len)
  * Write dump of binary data to the log file.
  *
  * The data is only written if the log level is at least level.
- * 16 zero bytes in a row are ommited
+ * 16 zero bytes in a row are omitted
  */
 _PUBLIC_ void dump_data_skip_zeros(int level, const uint8_t *buf, int len)
 {
@@ -579,18 +590,18 @@ _PUBLIC_ _PURE_ size_t count_chars(const char *s, char c)
 **/
 _PUBLIC_ size_t strhex_to_str(char *p, size_t p_len, const char *strhex, size_t strhex_len)
 {
-	size_t i;
+	size_t i = 0;
 	size_t num_chars = 0;
 	uint8_t   lonybble, hinybble;
 	const char     *hexchars = "0123456789ABCDEF";
 	char           *p1 = NULL, *p2 = NULL;
 
-	for (i = 0; i < strhex_len && strhex[i] != 0; i++) {
-		if (strncasecmp(hexchars, "0x", 2) == 0) {
-			i++; /* skip two chars */
-			continue;
-		}
+	/* skip leading 0x prefix */
+	if (strncasecmp(strhex, "0x", 2) == 0) {
+		i += 2; /* skip two chars */
+	}
 
+	for (; i < strhex_len && strhex[i] != 0; i++) {
 		if (!(p1 = strchr(hexchars, toupper((unsigned char)strhex[i]))))
 			break;
 
@@ -764,8 +775,8 @@ static bool next_token_internal_talloc(TALLOC_CTX *ctx,
                                 const char *sep,
                                 bool ltrim)
 {
-	char *s;
-	char *saved_s;
+	const char *s;
+	const char *saved_s;
 	char *pbuf;
 	bool quoted;
 	size_t len=1;
@@ -775,7 +786,7 @@ static bool next_token_internal_talloc(TALLOC_CTX *ctx,
 		return(false);
 	}
 
-	s = (char *)*ptr;
+	s = *ptr;
 
 	/* default to simple separators */
 	if (!sep) {
@@ -853,4 +864,30 @@ bool next_token_no_ltrim_talloc(TALLOC_CTX *ctx,
 	return next_token_internal_talloc(ctx, ptr, pp_buff, sep, false);
 }
 
+/* Map a shared memory buffer of at least nelem counters. */
+void *allocate_anonymous_shared(size_t bufsz)
+{
+	void *buf;
+	size_t pagesz = getpagesize();
+
+	if (bufsz % pagesz) {
+		bufsz = (bufsz + pagesz) % pagesz; /* round up to pagesz */
+	}
+
+#ifdef MAP_ANON
+	/* BSD */
+	buf = mmap(NULL, bufsz, PROT_READ|PROT_WRITE, MAP_ANON|MAP_SHARED,
+			-1 /* fd */, 0 /* offset */);
+#else
+	buf = mmap(NULL, bufsz, PROT_READ|PROT_WRITE, MAP_FILE|MAP_SHARED,
+			open("/dev/zero", O_RDWR), 0 /* offset */);
+#endif
+
+	if (buf == MAP_FAILED) {
+		return NULL;
+	}
+
+	return buf;
+
+}
 

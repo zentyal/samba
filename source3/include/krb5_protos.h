@@ -46,7 +46,10 @@ krb5_error_code smb_krb5_locate_kdc(krb5_context ctx, const krb5_data *realm, st
 krb5_error_code krb5_locate_kdc(krb5_context ctx, const krb5_data *realm, struct sockaddr **addr_pp, int *naddrs, int get_masters);
 #endif
 krb5_error_code get_kerberos_allowed_etypes(krb5_context context, krb5_enctype **enctypes);
-bool get_krb5_smb_session_key(krb5_context context, krb5_auth_context auth_context, DATA_BLOB *session_key, bool remote);
+bool get_krb5_smb_session_key(TALLOC_CTX *mem_ctx,
+			      krb5_context context,
+			      krb5_auth_context auth_context,
+			      DATA_BLOB *session_key, bool remote);
 krb5_error_code smb_krb5_kt_free_entry(krb5_context context, krb5_keytab_entry *kt_entry);
 krb5_principal kerberos_fetch_salt_princ_for_host_princ(krb5_context context, krb5_principal host_princ, int enctype);
 void kerberos_set_creds_enctype(krb5_creds *pcreds, int enctype);
@@ -88,11 +91,6 @@ krb5_error_code smb_krb5_parse_name_norealm(krb5_context context,
 bool smb_krb5_principal_compare_any_realm(krb5_context context,
 					  krb5_const_principal princ1,
 					  krb5_const_principal princ2);
-int cli_krb5_get_ticket(const char *principal, time_t time_offset,
-			DATA_BLOB *ticket, DATA_BLOB *session_key_krb5,
-			uint32 extra_ap_opts, const char *ccname,
-			time_t *tgs_expire,
-			const char *impersonate_princ_s);
 krb5_error_code smb_krb5_renew_ticket(const char *ccache_string, const char *client_string, const char *service_string, time_t *expire_time);
 krb5_error_code kpasswd_err_to_krb5_err(krb5_error_code res_code);
 krb5_error_code smb_krb5_gen_netbios_krb5_address(smb_krb5_addresses **kerb_addr);
@@ -145,4 +143,11 @@ krb5_error_code smb_krb5_get_creds(const char *server_s,
 char *smb_krb5_principal_get_realm(krb5_context context,
 				   krb5_principal principal);
 #endif /* HAVE_KRB5 */
+
+int cli_krb5_get_ticket(TALLOC_CTX *mem_ctx,
+			const char *principal, time_t time_offset,
+			DATA_BLOB *ticket, DATA_BLOB *session_key_krb5,
+			uint32_t extra_ap_opts, const char *ccname,
+			time_t *tgs_expire,
+			const char *impersonate_princ_s);
 

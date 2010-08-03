@@ -251,7 +251,7 @@ interface netlogon
 		netr_SamBaseInfo base;
 		uint32 sidcount;
 		[size_is(sidcount)] netr_SidAttr *sids;
-		lsa_String forest;
+		lsa_String dns_domainname;
 		lsa_String principle;
 		uint32 unknown4[20];
 	} netr_SamInfo6;
@@ -1049,8 +1049,15 @@ interface netlogon
 		[in]     [string,charset(UTF16)] uint16 *computername,
 		[in]     netr_Authenticator *credential,
 		[in,out,ref] netr_Authenticator *return_authenticator,
-		[in]     [subcontext(4),subcontext_size(change_log_entry_size)] netr_ChangeLogEntry change_log_entry,
-		[in]     [value(ndr_size_netr_ChangeLogEntry(&change_log_entry, ndr->iconv_convenience, ndr->flags))] uint32 change_log_entry_size,
+		/*
+		 * we cannot use subcontext_size() here, as
+		 * change_log_entry_size is encoded after the subcontext
+		 */
+		[in]     [subcontext(4)/*,subcontext_size(change_log_entry_size)*/]
+			netr_ChangeLogEntry change_log_entry,
+		[in]     [value(ndr_size_netr_ChangeLogEntry(&change_log_entry,
+				ndr->flags))]
+			uint32 change_log_entry_size,
 		[out,ref]    netr_DELTA_ENUM_ARRAY **delta_enum_array
 		);
 
@@ -1073,7 +1080,7 @@ interface netlogon
 		[size_is(length)] uint8 *data;
 	} netr_Blob;
 
-	WERROR netr_NetrEnumerateTrustedDomains(
+	NTSTATUS netr_NetrEnumerateTrustedDomains(
 		[in,unique] [string,charset(UTF16)] uint16 *server_name,
 		[out,ref] netr_Blob *trusted_domains_blob
 		);
@@ -1142,9 +1149,9 @@ interface netlogon
 		DS_SERVER_NDNC			 = NBT_SERVER_NDNC,
 		DS_SERVER_SELECT_SECRET_DOMAIN_6 = NBT_SERVER_SELECT_SECRET_DOMAIN_6,
 		DS_SERVER_FULL_SECRET_DOMAIN_6	 = NBT_SERVER_FULL_SECRET_DOMAIN_6,
-		DS_DNS_CONTROLLER		 = 0x20000000,
-		DS_DNS_DOMAIN			 = 0x40000000,
-		DS_DNS_FOREST			 = 0x80000000
+		DS_DNS_CONTROLLER		 = NBT_SERVER_HAS_DNS_NAME,
+		DS_DNS_DOMAIN			 = NBT_SERVER_IS_DEFAULT_NC,
+		DS_DNS_FOREST_ROOT		 = NBT_SERVER_FOREST_ROOT
 	} netr_DsR_DcFlags;
 
 	typedef [public] struct {
@@ -1620,9 +1627,9 @@ interface netlogon
 
 	/****************/
 	/* Function 0x2c */
-	WERROR netr_GetForestTrustInformation(
+	NTSTATUS netr_GetForestTrustInformation(
 		[in,unique] [string,charset(UTF16)] uint16 *server_name,
-		[in,ref] [string,charset(UTF16)] uint16 *trusted_domain_name,
+		[in,ref] [string,charset(UTF16)] uint16 *computer_name,
 		[in,ref] netr_Authenticator *credential,
 		[out,ref] netr_Authenticator *return_authenticator,
 		[in] uint32 flags,

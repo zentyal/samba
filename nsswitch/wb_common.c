@@ -41,7 +41,8 @@ void winbindd_free_response(struct winbindd_response *response)
 
 /* Initialise a request structure */
 
-void winbindd_init_request(struct winbindd_request *request, int request_type)
+static void winbindd_init_request(struct winbindd_request *request,
+				  int request_type)
 {
 	request->length = sizeof(struct winbindd_request);
 
@@ -61,7 +62,10 @@ static void init_response(struct winbindd_response *response)
 
 /* Close established socket */
 
-void winbind_close_sock(void)
+#if HAVE_FUNCTION_ATTRIBUTE_DESTRUCTOR
+__attribute__((destructor))
+#endif
+static void winbind_close_sock(void)
 {
 	if (winbindd_fd != -1) {
 		close(winbindd_fd);
@@ -363,7 +367,8 @@ static int winbind_open_pipe_sock(int recursing, int need_priv)
 
 /* Write data to winbindd socket */
 
-int winbind_write_sock(void *buffer, int count, int recursing, int need_priv)
+static int winbind_write_sock(void *buffer, int count, int recursing,
+			      int need_priv)
 {
 	int result, nwritten;
 
@@ -430,7 +435,7 @@ int winbind_write_sock(void *buffer, int count, int recursing, int need_priv)
 
 /* Read data from winbindd socket */
 
-int winbind_read_sock(void *buffer, int count)
+static int winbind_read_sock(void *buffer, int count)
 {
 	int nread = 0;
 	int total_time = 0, selret;
@@ -496,7 +501,7 @@ int winbind_read_sock(void *buffer, int count)
 
 /* Read reply */
 
-int winbindd_read_reply(struct winbindd_response *response)
+static int winbindd_read_reply(struct winbindd_response *response)
 {
 	int result1, result2 = 0;
 
@@ -664,27 +669,4 @@ NSS_STATUS winbindd_priv_request_response(int req_type,
 	}
 
 	return status;
-}
-
-/*************************************************************************
- ************************************************************************/
-
-const char *nss_err_str(NSS_STATUS ret)
-{
-	switch (ret) {
-		case NSS_STATUS_TRYAGAIN:
-			return "NSS_STATUS_TRYAGAIN";
-		case NSS_STATUS_SUCCESS:
-			return "NSS_STATUS_SUCCESS";
-		case NSS_STATUS_NOTFOUND:
-			return "NSS_STATUS_NOTFOUND";
-		case NSS_STATUS_UNAVAIL:
-			return "NSS_STATUS_UNAVAIL";
-#ifdef NSS_STATUS_RETURN
-		case NSS_STATUS_RETURN:
-			return "NSS_STATUS_RETURN";
-#endif
-		default:
-			return "UNKNOWN RETURN CODE!!!!!!!";
-	}
 }

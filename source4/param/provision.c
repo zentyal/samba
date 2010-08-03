@@ -18,9 +18,9 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <Python.h>
 #include "includes.h"
 #include "auth/auth.h"
-#include "lib/ldb_wrap.h"
 #include "ldb/include/ldb.h"
 #include "ldb_errors.h"
 #include "libcli/raw/libcliraw.h"
@@ -29,12 +29,12 @@
 #include "param/param.h"
 #include "param/provision.h"
 #include "param/secrets.h"
-#include <Python.h>
 #include "lib/talloc/pytalloc.h"
 #include "librpc/rpc/pyrpc.h"
 #include "scripting/python/modules.h"
 #include "lib/ldb/pyldb.h"
 #include "param/pyparam.h"
+#include "dynconfig/dynconfig.h"
 
 static PyObject *provision_module(void)
 {
@@ -42,6 +42,42 @@ static PyObject *provision_module(void)
 	if (name == NULL)
 		return NULL;
 	return PyImport_Import(name);
+}
+
+static PyObject *schema_module(void)
+{
+	PyObject *name = PyString_FromString("samba.schema");
+	if (name == NULL)
+		return NULL;
+	return PyImport_Import(name);
+}
+
+static PyObject *ldb_module(void)
+{
+	PyObject *name = PyString_FromString("ldb");
+	if (name == NULL)
+		return NULL;
+	return PyImport_Import(name);
+}
+
+static PyObject *PyLdb_FromLdbContext(struct ldb_context *ldb_ctx)
+{
+	PyLdbObject *ret;
+	PyObject *ldb_mod = ldb_module();
+	PyTypeObject *ldb_ctx_type;
+	if (ldb_mod == NULL)
+		return NULL;
+
+	ldb_ctx_type = (PyTypeObject *)PyObject_GetAttrString(ldb_mod, "Ldb");
+
+	ret = (PyLdbObject *)ldb_ctx_type->tp_alloc(ldb_ctx_type, 0);
+	if (ret == NULL) {
+		PyErr_NoMemory();
+		return NULL;
+	}
+	ret->mem_ctx = talloc_new(NULL);
+	ret->ldb_ctx = talloc_reference(ret->mem_ctx, ldb_ctx);
+	return (PyObject *)ret;
 }
 
 NTSTATUS provision_bare(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx,
@@ -53,7 +89,6 @@ NTSTATUS provision_bare(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx,
 	
 	DEBUG(0,("Provision for Become-DC test using python\n"));
 
-	py_load_samba_modules();
 	Py_Initialize();
 	py_update_path("bin"); /* FIXME: Can't assume this is always the case */
 
@@ -87,11 +122,11 @@ NTSTATUS provision_bare(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx,
 		settings->ntds_dn_str,
 		settings->invocation_id == NULL?"None":GUID_string(mem_ctx, settings->invocation_id)));
 
-	DEBUG(0,("Pathes under targetdir[%s]\n",
+	DEBUG(0,("Paths under targetdir[%s]\n",
 		 settings->targetdir));
 	parameters = PyDict_New();
 
-	configfile = lp_configfile(lp_ctx);
+	configfile = lpcfg_configfile(lp_ctx);
 	if (configfile != NULL) {
 		PyDict_SetItemString(parameters, "smbconf", 
 				     PyString_FromString(configfile));
@@ -102,8 +137,13 @@ NTSTATUS provision_bare(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx,
 	if (settings->targetdir != NULL)
 		PyDict_SetItemString(parameters, "targetdir", 
 							 PyString_FromString(settings->targetdir));
-	PyDict_SetItemString(parameters, "setup_dir", 
-			     PyString_FromString("setup"));
+	if (file_exist("setup/provision.smb.conf.dc")) {
+		PyDict_SetItemString(parameters, "setup_dir",
+				     PyString_FromString("setup"));
+	} else {
+		PyDict_SetItemString(parameters, "setup_dir",
+				     PyString_FromString(dyn_SETUPDIR));
+	}
 	PyDict_SetItemString(parameters, "hostname", 
 						 PyString_FromString(settings->netbios_name));
 	PyDict_SetItemString(parameters, "domain", 
@@ -153,13 +193,11 @@ NTSTATUS provision_bare(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx,
 	result->domaindn = talloc_strdup(mem_ctx, PyString_AsString(PyObject_GetAttrString(py_result, "domaindn")));
 
 	/* FIXME paths */
-	result->lp_ctx = lp_from_py_object(PyObject_GetAttrString(py_result, "lp"));
+	result->lp_ctx = lpcfg_from_py_object(result, PyObject_GetAttrString(py_result, "lp"));
 	result->samdb = PyLdb_AsLdbContext(PyObject_GetAttrString(py_result, "samdb"));
 
 	return NT_STATUS_OK;
 }
-
-extern void initldb(void);
 
 static PyObject *py_dom_sid_FromSid(struct dom_sid *sid)
 {
@@ -209,10 +247,8 @@ NTSTATUS provision_store_self_join(TALLOC_CTX *mem_ctx, struct loadparm_context 
 		return NT_STATUS_CANT_ACCESS_DOMAIN_INFO;
 	}
 
-	py_load_samba_modules();
 	Py_Initialize();
 	py_update_path("bin"); /* FIXME: Can't assume this is always the case */
-	initldb();
 	provision_mod = provision_module();
 
 	if (provision_mod == NULL) {
@@ -247,10 +283,10 @@ NTSTATUS provision_store_self_join(TALLOC_CTX *mem_ctx, struct loadparm_context 
 			     PyLdb_FromLdbContext(ldb));
 	PyDict_SetItemString(parameters, "domain", 
 			     PyString_FromString(settings->domain_name));
-	PyDict_SetItemString(parameters, "domain", 
-			     PyString_FromString(settings->domain_name));
-	PyDict_SetItemString(parameters, "realm", 
-			     PyString_FromString(settings->realm));
+	if (settings->realm != NULL) {
+		PyDict_SetItemString(parameters, "realm",
+				     PyString_FromString(settings->realm));
+	}
 	PyDict_SetItemString(parameters, "machinepass", 
 			     PyString_FromString(settings->machine_password));
 	PyDict_SetItemString(parameters, "netbiosname", 
@@ -299,4 +335,62 @@ failure:
 	PyErr_Print();
 	PyErr_Clear();
 	return NT_STATUS_UNSUCCESSFUL;
+}
+
+
+struct ldb_context *provision_get_schema(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx,
+					 DATA_BLOB *override_prefixmap)
+{
+	const char *setupdir;
+	PyObject *schema_mod, *schema_dict, *schema_fn, *py_result, *parameters;
+	
+	DEBUG(0,("Schema for DRS tests using python\n"));
+
+	Py_Initialize();
+	py_update_path("bin"); /* FIXME: Can't assume this is always the case */
+
+	schema_mod = schema_module();
+
+	if (schema_mod == NULL) {
+		PyErr_Print();
+		DEBUG(0, ("Unable to import schema Python module.\n"));
+	      	return NULL;
+	}
+
+	schema_dict = PyModule_GetDict(schema_mod);
+
+	if (schema_dict == NULL) {
+		DEBUG(0, ("Unable to get dictionary for schema module\n"));
+		return NULL;
+	}
+
+	schema_fn = PyDict_GetItemString(schema_dict, "ldb_with_schema");
+	if (schema_fn == NULL) {
+		PyErr_Print();
+		DEBUG(0, ("Unable to get schema_get_ldb function\n"));
+		return NULL;
+	}
+	
+	parameters = PyDict_New();
+
+	setupdir = lpcfg_setupdir(lp_ctx);
+	PyDict_SetItemString(parameters, "setup_dir", 
+			     PyString_FromString(setupdir));
+	if (override_prefixmap) {
+		PyDict_SetItemString(parameters, "override_prefixmap",
+				     PyString_FromStringAndSize((const char *)override_prefixmap->data,
+								override_prefixmap->length));
+	}
+
+	py_result = PyEval_CallObjectWithKeywords(schema_fn, NULL, parameters);
+
+	Py_DECREF(parameters);
+
+	if (py_result == NULL) {
+		PyErr_Print();
+		PyErr_Clear();
+		return NULL;
+	}
+
+	return PyLdb_AsLdbContext(PyObject_GetAttrString(py_result, "ldb"));
 }

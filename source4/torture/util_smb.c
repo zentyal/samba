@@ -30,9 +30,10 @@
 #include "system/time.h"
 #include "torture/torture.h"
 #include "../lib/util/dlinklist.h"
-#include "auth/credentials/credentials.h"
 #include "libcli/resolve/resolve.h"
 #include "param/param.h"
+#include "libcli/security/security.h"
+#include "libcli/util/clilsa.h"
 
 
 /**
@@ -61,12 +62,12 @@ NTSTATUS create_directory_handle(struct smbcli_tree *tree, const char *dname, in
 	mem_ctx = talloc_named_const(tree, 0, "create_directory_handle");
 
 	io.generic.level = RAW_OPEN_NTCREATEX;
-	io.ntcreatex.in.root_fid = 0;
+	io.ntcreatex.in.root_fid.fnum = 0;
 	io.ntcreatex.in.flags = 0;
 	io.ntcreatex.in.access_mask = SEC_RIGHTS_FILE_ALL;
 	io.ntcreatex.in.create_options = NTCREATEX_OPTIONS_DIRECTORY;
 	io.ntcreatex.in.file_attr = FILE_ATTRIBUTE_NORMAL;
-	io.ntcreatex.in.share_access = NTCREATEX_SHARE_ACCESS_READ | NTCREATEX_SHARE_ACCESS_WRITE;
+	io.ntcreatex.in.share_access = NTCREATEX_SHARE_ACCESS_READ | NTCREATEX_SHARE_ACCESS_WRITE | NTCREATEX_SHARE_ACCESS_DELETE;
 	io.ntcreatex.in.alloc_size = 0;
 	io.ntcreatex.in.open_disposition = NTCREATEX_DISP_OPEN_IF;
 	io.ntcreatex.in.impersonation = NTCREATEX_IMPERSONATION_ANONYMOUS;
@@ -128,14 +129,17 @@ _PUBLIC_ int create_complex_file(struct smbcli_state *cli, TALLOC_CTX *mem_ctx, 
 		}
 	}
 
-	/* make sure all the timestamps aren't the same, and are also 
-	   in different DST zones*/
-	setfile.generic.level = RAW_SFILEINFO_SETATTRE;
+	/* make sure all the timestamps aren't the same */
+	ZERO_STRUCT(setfile);
+	setfile.generic.level = RAW_SFILEINFO_BASIC_INFO;
 	setfile.generic.in.file.fnum = fnum;
 
-	setfile.setattre.in.create_time = t + 9*30*24*60*60;
-	setfile.setattre.in.access_time = t + 6*30*24*60*60;
-	setfile.setattre.in.write_time  = t + 3*30*24*60*60;
+	unix_to_nt_time(&setfile.basic_info.in.create_time,
+	    t + 9*30*24*60*60);
+	unix_to_nt_time(&setfile.basic_info.in.access_time,
+	    t + 6*30*24*60*60);
+	unix_to_nt_time(&setfile.basic_info.in.write_time,
+	    t + 3*30*24*60*60);
 
 	status = smb_raw_setfileinfo(cli->tree, &setfile);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -143,7 +147,7 @@ _PUBLIC_ int create_complex_file(struct smbcli_state *cli, TALLOC_CTX *mem_ctx, 
 	}
 
 	/* make sure all the timestamps aren't the same */
-	fileinfo.generic.level = RAW_FILEINFO_GETATTRE;
+	fileinfo.generic.level = RAW_FILEINFO_BASIC_INFO;
 	fileinfo.generic.in.file.fnum = fnum;
 
 	status = smb_raw_fileinfo(cli->tree, mem_ctx, &fileinfo);
@@ -151,13 +155,13 @@ _PUBLIC_ int create_complex_file(struct smbcli_state *cli, TALLOC_CTX *mem_ctx, 
 		printf("Failed to query file times - %s\n", nt_errstr(status));
 	}
 
-	if (setfile.setattre.in.create_time != fileinfo.getattre.out.create_time) {
+	if (setfile.basic_info.in.create_time != fileinfo.basic_info.out.create_time) {
 		printf("create_time not setup correctly\n");
 	}
-	if (setfile.setattre.in.access_time != fileinfo.getattre.out.access_time) {
+	if (setfile.basic_info.in.access_time != fileinfo.basic_info.out.access_time) {
 		printf("access_time not setup correctly\n");
 	}
-	if (setfile.setattre.in.write_time != fileinfo.getattre.out.write_time) {
+	if (setfile.basic_info.in.write_time != fileinfo.basic_info.out.write_time) {
 		printf("write_time not setup correctly\n");
 	}
 
@@ -205,14 +209,17 @@ int create_complex_dir(struct smbcli_state *cli, TALLOC_CTX *mem_ctx, const char
 		}
 	}
 
-	/* make sure all the timestamps aren't the same, and are also 
-	   in different DST zones*/
-	setfile.generic.level = RAW_SFILEINFO_SETATTRE;
+	/* make sure all the timestamps aren't the same */
+	ZERO_STRUCT(setfile);
+	setfile.generic.level = RAW_SFILEINFO_BASIC_INFO;
 	setfile.generic.in.file.fnum = fnum;
 
-	setfile.setattre.in.create_time = t + 9*30*24*60*60;
-	setfile.setattre.in.access_time = t + 6*30*24*60*60;
-	setfile.setattre.in.write_time  = t + 3*30*24*60*60;
+	unix_to_nt_time(&setfile.basic_info.in.create_time,
+	    t + 9*30*24*60*60);
+	unix_to_nt_time(&setfile.basic_info.in.access_time,
+	    t + 6*30*24*60*60);
+	unix_to_nt_time(&setfile.basic_info.in.write_time,
+	    t + 3*30*24*60*60);
 
 	status = smb_raw_setfileinfo(cli->tree, &setfile);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -220,7 +227,7 @@ int create_complex_dir(struct smbcli_state *cli, TALLOC_CTX *mem_ctx, const char
 	}
 
 	/* make sure all the timestamps aren't the same */
-	fileinfo.generic.level = RAW_FILEINFO_GETATTRE;
+	fileinfo.generic.level = RAW_FILEINFO_BASIC_INFO;
 	fileinfo.generic.in.file.fnum = fnum;
 
 	status = smb_raw_fileinfo(cli->tree, mem_ctx, &fileinfo);
@@ -228,13 +235,13 @@ int create_complex_dir(struct smbcli_state *cli, TALLOC_CTX *mem_ctx, const char
 		printf("Failed to query file times - %s\n", nt_errstr(status));
 	}
 
-	if (setfile.setattre.in.create_time != fileinfo.getattre.out.create_time) {
+	if (setfile.basic_info.in.create_time != fileinfo.basic_info.out.create_time) {
 		printf("create_time not setup correctly\n");
 	}
-	if (setfile.setattre.in.access_time != fileinfo.getattre.out.access_time) {
+	if (setfile.basic_info.in.access_time != fileinfo.basic_info.out.access_time) {
 		printf("access_time not setup correctly\n");
 	}
-	if (setfile.setattre.in.write_time != fileinfo.getattre.out.write_time) {
+	if (setfile.basic_info.in.write_time != fileinfo.basic_info.out.write_time) {
 		printf("write_time not setup correctly\n");
 	}
 
@@ -495,21 +502,20 @@ _PUBLIC_ bool torture_open_connection_share(TALLOC_CTX *mem_ctx,
 	struct smbcli_options options;
 	struct smbcli_session_options session_options;
 
-	lp_smbcli_options(tctx->lp_ctx, &options);
-	lp_smbcli_session_options(tctx->lp_ctx, &session_options);
+	lpcfg_smbcli_options(tctx->lp_ctx, &options);
+	lpcfg_smbcli_session_options(tctx->lp_ctx, &session_options);
 
 	options.use_oplocks = torture_setting_bool(tctx, "use_oplocks", true);
 	options.use_level2_oplocks = torture_setting_bool(tctx, "use_level2_oplocks", true);
 
 	status = smbcli_full_connection(mem_ctx, c, hostname, 
-					lp_smb_ports(tctx->lp_ctx),
+					lpcfg_smb_ports(tctx->lp_ctx),
 					sharename, NULL,
-					lp_socket_options(tctx->lp_ctx),
+					lpcfg_socket_options(tctx->lp_ctx),
 					cmdline_credentials, 
-					lp_resolve_context(tctx->lp_ctx),
+					lpcfg_resolve_context(tctx->lp_ctx),
 					ev, &options, &session_options,
-					lp_iconv_convenience(tctx->lp_ctx),
-					lp_gensec_settings(tctx, tctx->lp_ctx));
+					lpcfg_gensec_settings(tctx, tctx->lp_ctx));
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("Failed to open connection - %s\n", nt_errstr(status));
 		return false;
@@ -541,8 +547,11 @@ _PUBLIC_ bool torture_get_conn_index(int conn_index,
 		return false;
 	}
 
-	if (!smbcli_parse_unc(unc_list[conn_index % num_unc_names],
-			      mem_ctx, host, share)) {
+	p = unc_list[conn_index % num_unc_names];
+	if (p[0] != '/' && p[0] != '\\') {
+		/* allow UNC lists of hosts */
+		(*host) = talloc_strdup(mem_ctx, p);
+	} else if (!smbcli_parse_unc(p, mem_ctx, host, share)) {
 		DEBUG(0, ("Failed to parse UNC name %s\n",
 			  unc_list[conn_index % num_unc_names]));
 		return false;
@@ -678,7 +687,7 @@ double torture_create_procs(struct torture_context *tctx,
 				printf("asprintf failed\n");
 				return -1;
 			}
-			lp_set_cmdline(tctx->lp_ctx, "netbios name", myname);
+			lpcfg_set_cmdline(tctx->lp_ctx, "netbios name", myname);
 			free(myname);
 
 
@@ -926,4 +935,38 @@ NTSTATUS torture_second_tcon(TALLOC_CTX *mem_ctx,
 	*res = talloc_steal(mem_ctx, result);
 	talloc_free(tmp_ctx);
 	return NT_STATUS_OK;
+}
+
+/* 
+   a wrapper around smblsa_sid_check_privilege, that tries to take
+   account of the fact that the lsa privileges calls don't expand
+   group memberships, using an explicit check for administrator. There
+   must be a better way ...
+ */
+NTSTATUS torture_check_privilege(struct smbcli_state *cli, 
+				 const char *sid_str,
+				 const char *privilege)
+{
+	struct dom_sid *sid;
+	TALLOC_CTX *tmp_ctx = talloc_new(cli);
+	uint32_t rid;
+	NTSTATUS status;
+
+	sid = dom_sid_parse_talloc(tmp_ctx, sid_str);
+	if (sid == NULL) {
+		talloc_free(tmp_ctx);
+		return NT_STATUS_INVALID_SID;
+	}
+
+	status = dom_sid_split_rid(tmp_ctx, sid, NULL, &rid);
+	NT_STATUS_NOT_OK_RETURN_AND_FREE(status, tmp_ctx);
+
+	if (rid == DOMAIN_RID_ADMINISTRATOR) {
+		/* assume the administrator has them all */
+		return NT_STATUS_OK;
+	}
+
+	talloc_free(tmp_ctx);
+
+	return smblsa_sid_check_privilege(cli, sid_str, privilege);
 }

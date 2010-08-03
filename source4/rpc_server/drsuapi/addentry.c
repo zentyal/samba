@@ -22,17 +22,12 @@
 
 #include "includes.h"
 #include "rpc_server/dcerpc_server.h"
-#include "rpc_server/common/common.h"
 #include "dsdb/samdb/samdb.h"
-#include "lib/ldb/include/ldb_errors.h"
+#include "dsdb/common/util.h"
 #include "param/param.h"
-#include "librpc/gen_ndr/ndr_drsblobs.h"
-#include "auth/auth.h"
 #include "rpc_server/drsuapi/dcesrv_drsuapi.h"
-#include "libcli/security/security.h"
-#include "librpc/gen_ndr/ndr_drsblobs.h"
 #include "librpc/gen_ndr/ndr_drsuapi.h"
-
+#include "libcli/security/security.h"
 
 /*
   add special SPNs needed for DRS replication to machine accounts when
@@ -49,13 +44,15 @@ static WERROR drsuapi_add_SPNs(struct drsuapi_bind_state *b_state,
 	for (obj = first_object; obj; obj=obj->next_object) {
 		const char *dn_string = obj->object.identifier->dn;
 		struct ldb_dn *dn = ldb_dn_new(mem_ctx, b_state->sam_ctx, dn_string);
-		struct ldb_result *res;
+		struct ldb_result *res, *res2;
 		struct ldb_dn *ref_dn;
 		struct GUID ntds_guid;
 		struct ldb_message *msg;
 		struct ldb_message_element *el;
 		const char *ntds_guid_str;
 		const char *dom_string;
+		const char *attrs2[] = { "dNSHostName", "cn", NULL };
+		const char *dNSHostName, *cn;
 
 		DEBUG(6,(__location__ ": Adding SPNs for %s\n", 
 			 ldb_dn_get_linearized(dn)));
@@ -82,7 +79,19 @@ static WERROR drsuapi_add_SPNs(struct drsuapi_bind_state *b_state,
 
 		ntds_guid_str = GUID_string(res, &ntds_guid);
 
-		dom_string = lp_realm(dce_call->conn->dce_ctx->lp_ctx);
+		dom_string = lpcfg_dnsdomain(dce_call->conn->dce_ctx->lp_ctx);
+
+		/* get the dNSHostName and cn */
+		ret = ldb_search(b_state->sam_ctx, mem_ctx, &res2,
+				 ref_dn, LDB_SCOPE_BASE, attrs2, NULL);
+		if (ret != LDB_SUCCESS) {
+			DEBUG(0,(__location__ ": Failed to find ref_dn '%s'\n",
+				 ldb_dn_get_linearized(ref_dn)));
+			return WERR_DS_DRA_INTERNAL_ERROR;
+		}
+
+		dNSHostName = ldb_msg_find_attr_as_string(res2->msgs[0], "dNSHostName", NULL);
+		cn = ldb_msg_find_attr_as_string(res2->msgs[0], "cn", NULL);
 
 		/*
 		 * construct a modify request to add the new SPNs to
@@ -100,22 +109,27 @@ static WERROR drsuapi_add_SPNs(struct drsuapi_bind_state *b_state,
 			return WERR_NOMEM;
 		}
 
-		el->num_values = 2;
-		el->values = talloc_array(msg->elements, struct ldb_val, 2);
-		if (el->values == NULL) {
+
+		ldb_msg_add_steal_string(msg, "servicePrincipalName",
+					 talloc_asprintf(el->values,
+							 "E3514235-4B06-11D1-AB04-00C04FC2DCD2/%s/%s",
+							 ntds_guid_str, dom_string));
+		ldb_msg_add_steal_string(msg, "servicePrincipalName",
+					 talloc_asprintf(el->values, "ldap/%s._msdcs.%s",
+							 ntds_guid_str, dom_string));
+		if (cn) {
+			ldb_msg_add_steal_string(msg, "servicePrincipalName",
+						 talloc_asprintf(el->values, "ldap/%s", cn));
+		}
+		if (dNSHostName) {
+			ldb_msg_add_steal_string(msg, "servicePrincipalName",
+						 talloc_asprintf(el->values, "ldap/%s", dNSHostName));
+		}
+		if (el->num_values < 2) {
 			return WERR_NOMEM;
 		}
-		/* the magic constant is the GUID of the DRSUAPI RPC
-		   interface */
-		el->values[0].data = (uint8_t *)talloc_asprintf(el->values, 
-								"E3514235-4B06-11D1-AB04-00C04FC2DCD2/%s/%s", 
-								ntds_guid_str, dom_string);
-		el->values[0].length = strlen((char *)el->values[0].data);
-		el->values[1].data = (uint8_t *)talloc_asprintf(el->values, "ldap/%s._msdcs.%s", 
-								ntds_guid_str, dom_string);
-		el->values[1].length = strlen((char *)el->values[1].data);
 
-		ret = ldb_modify(b_state->sam_ctx, msg);
+		ret = dsdb_modify(b_state->sam_ctx, msg, DSDB_MODIFY_PERMISSIVE);
 		if (ret != LDB_SUCCESS) {
 			DEBUG(0,(__location__ ": Failed to add SPNs - %s\n",
 				 ldb_errstring(b_state->sam_ctx)));
@@ -151,13 +165,13 @@ WERROR dcesrv_drsuapi_DsAddEntry(struct dcesrv_call_state *dce_call, TALLOC_CTX 
 
 	ZERO_STRUCTP(r->out.ctr);
 	*r->out.level_out = 3;
-	r->out.ctr->ctr3.level = 1;
-	r->out.ctr->ctr3.error = talloc_zero(mem_ctx, union drsuapi_DsAddEntryError);
+	r->out.ctr->ctr3.err_ver = 1;
+	r->out.ctr->ctr3.err_data = talloc_zero(mem_ctx, union drsuapi_DsAddEntry_ErrData);
 
 	DCESRV_PULL_HANDLE_WERR(h, r->in.bind_handle, DRSUAPI_BIND_HANDLE);
 	b_state = h->data;
 
-	status = drs_security_level_check(dce_call, "DsAddEntry");
+	status = drs_security_level_check(dce_call, "DsAddEntry", SECURITY_DOMAIN_CONTROLLER);
 	if (!W_ERROR_IS_OK(status)) {
 		return status;
 	}
@@ -178,8 +192,9 @@ WERROR dcesrv_drsuapi_DsAddEntry(struct dcesrv_call_state *dce_call, TALLOC_CTX 
 						    &num,
 						    &ids);
 		if (!W_ERROR_IS_OK(status)) {
-			r->out.ctr->ctr3.error->info1.status = status;
+			r->out.ctr->ctr3.err_data->v1.status = status;
 			ldb_transaction_cancel(b_state->sam_ctx);
+			DEBUG(0,(__location__ ": DsAddEntry failed - %s\n", win_errstr(status)));
 			return status;
 		}
 
@@ -196,13 +211,16 @@ WERROR dcesrv_drsuapi_DsAddEntry(struct dcesrv_call_state *dce_call, TALLOC_CTX 
 	 */
 	status = drsuapi_add_SPNs(b_state, dce_call, mem_ctx, first_object);
 	if (!W_ERROR_IS_OK(status)) {
-		r->out.ctr->ctr3.error->info1.status = status;
+		r->out.ctr->ctr3.err_data->v1.status = status;
 		ldb_transaction_cancel(b_state->sam_ctx);
+		DEBUG(0,(__location__ ": DsAddEntry add SPNs failed - %s\n", win_errstr(status)));
 		return status;
 	}
 
 	ret = ldb_transaction_commit(b_state->sam_ctx);
 	if (ret != LDB_SUCCESS) {
+		DEBUG(0,(__location__ ": DsAddEntry commit failed: %s\n",
+			 ldb_errstring(b_state->sam_ctx)));
 		return WERR_DS_DRA_INTERNAL_ERROR;
 	}
 

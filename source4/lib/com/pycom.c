@@ -17,15 +17,11 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "includes.h"
 #include <Python.h>
+#include "includes.h"
 #include "lib/com/com.h"
 #include "librpc/ndr/libndr.h"
 #include "libcli/util/pyerrors.h"
-
-#ifndef Py_RETURN_NONE
-#define Py_RETURN_NONE return Py_INCREF(Py_None), Py_None
-#endif
 
 static struct com_context *py_com_ctx = NULL; /* FIXME: evil global */
 

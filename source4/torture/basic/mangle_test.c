@@ -18,7 +18,6 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "system/filesys.h"
 #include "system/dir.h"
 #include "../tdb/include/tdb.h"
@@ -30,7 +29,7 @@ static TDB_CONTEXT *tdb;
 
 #define NAME_LENGTH 20
 
-static uint_t total, collisions, failures;
+static unsigned int total, collisions, failures;
 
 static bool test_one(struct torture_context *tctx ,struct smbcli_state *cli, 
 		     const char *name)
@@ -115,8 +114,8 @@ static bool test_one(struct torture_context *tctx ,struct smbcli_state *cli,
 static char *gen_name(TALLOC_CTX *mem_ctx)
 {
 	const char *chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz._-$~...";
-	uint_t max_idx = strlen(chars);
-	uint_t len;
+	unsigned int max_idx = strlen(chars);
+	unsigned int len;
 	int i;
 	char *p;
 	char *name;

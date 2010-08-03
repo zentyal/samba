@@ -21,6 +21,11 @@
 */
 
 #include "includes.h"
+#include "libads/sitename_cache.h"
+#include "../librpc/gen_ndr/ndr_netlogon.h"
+#include "libads/cldap.h"
+#include "libads/dns.h"
+#include "libsmb/clidgram.h"
 
 #define DSGETDCNAME_FMT	"DSGETDCNAME/DOMAIN/%s"
 /* 15 minutes */
@@ -189,19 +194,19 @@ static NTSTATUS store_cldap_reply(TALLOC_CTX *mem_ctx,
 	r->sockaddr.sockaddr_family = 2; /* AF_INET */
 	r->sockaddr.pdc_ip = talloc_strdup(mem_ctx, addr);
 
-	ndr_err = ndr_push_struct_blob(&blob, mem_ctx, NULL, r,
+	ndr_err = ndr_push_struct_blob(&blob, mem_ctx, r,
 		       (ndr_push_flags_fn_t)ndr_push_NETLOGON_SAM_LOGON_RESPONSE_EX);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		return ndr_map_error2ntstatus(ndr_err);
 	}
 
-	if (r->domain) {
-		status = dsgetdcname_cache_store(mem_ctx, r->domain, &blob);
+	if (r->domain_name) {
+		status = dsgetdcname_cache_store(mem_ctx, r->domain_name, &blob);
 		if (!NT_STATUS_IS_OK(status)) {
 			goto done;
 		}
 		if (r->client_site) {
-			sitename_store(r->domain, r->client_site);
+			sitename_store(r->domain_name, r->client_site);
 		}
 	}
 	if (r->dns_domain) {
@@ -340,7 +345,7 @@ static NTSTATUS dsgetdcname_cache_fetch(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	ndr_err = ndr_pull_struct_blob(&blob, mem_ctx, NULL, &r,
+	ndr_err = ndr_pull_struct_blob(&blob, mem_ctx, &r,
 		      (ndr_pull_flags_fn_t)ndr_pull_NETLOGON_SAM_LOGON_RESPONSE_EX);
 
 	data_blob_free(&blob);
@@ -496,6 +501,7 @@ static NTSTATUS discover_dc_netbios(TALLOC_CTX *mem_ctx,
 
 	dclist = TALLOC_ZERO_ARRAY(mem_ctx, struct ip_service_name, count);
 	if (!dclist) {
+		SAFE_FREE(iplist);
 		return NT_STATUS_NO_MEMORY;
 	}
 
@@ -511,6 +517,7 @@ static NTSTATUS discover_dc_netbios(TALLOC_CTX *mem_ctx,
 		r->port = iplist[i].port;
 		r->hostname = talloc_strdup(mem_ctx, addr);
 		if (!r->hostname) {
+			SAFE_FREE(iplist);
 			return NT_STATUS_NO_MEMORY;
 		}
 
@@ -518,6 +525,7 @@ static NTSTATUS discover_dc_netbios(TALLOC_CTX *mem_ctx,
 
 	*returned_dclist = dclist;
 	*returned_count = count;
+	SAFE_FREE(iplist);
 
 	return NT_STATUS_OK;
 }
@@ -686,7 +694,7 @@ static NTSTATUS make_domain_controller_info(TALLOC_CTX *mem_ctx,
 	if (forest_name && *forest_name) {
 		info->forest_name = talloc_strdup(mem_ctx, forest_name);
 		NT_STATUS_HAVE_NO_MEMORY(info->forest_name);
-		flags |= DS_DNS_FOREST;
+		flags |= DS_DNS_FOREST_ROOT;
 	}
 
 	info->dc_flags = flags;
@@ -782,7 +790,7 @@ static NTSTATUS make_dc_info_from_cldap_reply(TALLOC_CTX *mem_ctx,
 
 	map_dc_and_domain_names(flags,
 				r->pdc_name,
-				r->domain,
+				r->domain_name,
 				r->pdc_dns_name,
 				r->dns_domain,
 				&dc_flags,
@@ -909,7 +917,7 @@ static struct messaging_context *msg_context(TALLOC_CTX *mem_ctx)
 {
 	static struct messaging_context *ctx;
 
-	if (!ctx && !(ctx = messaging_init(mem_ctx, server_id_self(),
+	if (!ctx && !(ctx = messaging_init(mem_ctx, procid_self(),
 					   ev_context()))) {
 		smb_panic("Could not init messaging context");
 	}
@@ -998,9 +1006,9 @@ static NTSTATUS process_dc_netbios(TALLOC_CTX *mem_ctx,
 			nt_version = NETLOGON_NT_VERSION_1;
 
 			logon1.nt_version = nt_version;
-			logon1.server = tmp_dc_name;
-			logon1.domain = talloc_strdup_upper(mem_ctx, domain_name);
-			NT_STATUS_HAVE_NO_MEMORY(logon1.domain);
+			logon1.pdc_name = tmp_dc_name;
+			logon1.domain_name = talloc_strdup_upper(mem_ctx, domain_name);
+			NT_STATUS_HAVE_NO_MEMORY(logon1.domain_name);
 
 			r->data.nt4 = logon1;
 			r->ntver = nt_version;

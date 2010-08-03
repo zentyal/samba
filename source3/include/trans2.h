@@ -294,6 +294,7 @@ Byte offset   Type     name                description
 #define SMB_FILE_ACCESS_INFORMATION			1008
 #define SMB_FILE_NAME_INFORMATION			1009
 #define SMB_FILE_RENAME_INFORMATION			1010
+#define SMB2_FILE_RENAME_INFORMATION_INTERNAL		0xFF0A	/* Internal mapped version. */
 #define SMB_FILE_LINK_INFORMATION			1011
 #define SMB_FILE_NAMES_INFORMATION			1012
 #define SMB_FILE_DISPOSITION_INFORMATION		1013
@@ -332,6 +333,20 @@ Byte offset   Type     name                description
 #define SMB_FS_QUOTA_INFORMATION			1006
 #define SMB_FS_FULL_SIZE_INFORMATION			1007
 #define SMB_FS_OBJECTID_INFORMATION			1008
+
+/* SMB_FS_DEVICE_INFORMATION device types. */
+#define FILE_DEVICE_CD_ROM		0x2
+#define FILE_DEVICE_DISK		0x7
+
+/* SMB_FS_DEVICE_INFORMATION characteristics. */
+#define FILE_REMOVABLE_MEDIA		0x001
+#define FILE_READ_ONLY_DEVICE		0x002
+#define FILE_FLOPPY_DISKETTE		0x004
+#define FILE_WRITE_ONCE_MEDIA		0x008
+#define FILE_REMOTE_DEVICE		0x010
+#define FILE_DEVICE_IS_MOUNTED		0x020
+#define FILE_VIRTUAL_VOLUME		0x040
+#define FILE_DEVICE_SECURE_OPEN		0x100
 
 /* flags on trans2 findfirst/findnext that control search */
 #define FLAG_TRANS2_FIND_CLOSE          0x1
@@ -650,7 +665,7 @@ enum smb_whoami_flags {
 	4 bytes -		pad / reserved (must be zero)
 
 	8 bytes unsigned[] -	list of GIDs (may be empty)
-	DOM_SID[] -		list of SIDs (may be empty)
+	struct dom_sid[] -		list of SIDs (may be empty)
 */
 
 /*

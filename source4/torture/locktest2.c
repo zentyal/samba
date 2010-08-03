@@ -55,7 +55,7 @@ static bool use_oplocks;
 struct record {
 	char r1, r2;
 	char conn, f, fstype;
-	uint_t start, len;
+	unsigned int start, len;
 	char needed;
 };
 
@@ -95,7 +95,7 @@ static bool try_close(struct smbcli_state *c, int fstype, int fd)
 }
 
 static bool try_lock(struct smbcli_state *c, int fstype, 
-		     int fd, uint_t start, uint_t len,
+		     int fd, unsigned int start, unsigned int len,
 		     enum brl_type op)
 {
 	struct flock lock;
@@ -117,7 +117,7 @@ static bool try_lock(struct smbcli_state *c, int fstype,
 }
 
 static bool try_unlock(struct smbcli_state *c, int fstype, 
-		       int fd, uint_t start, uint_t len)
+		       int fd, unsigned int start, unsigned int len)
 {
 	struct flock lock;
 
@@ -173,7 +173,7 @@ static struct smbcli_state *connect_one(TALLOC_CTX *mem_ctx,
 
 	nt_status = smbcli_full_connection(NULL, 
 			   &c, myname, server_n, ports, share, NULL,
-			   username, lp_workgroup(), password, ev,
+			   username, lpcfg_workgroup(), password, ev,
 			   options, session_options, gensec_settings);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0, ("smbcli_full_connection failed with error %s\n", nt_errstr(nt_status)));
@@ -228,13 +228,13 @@ static bool test_one(struct smbcli_state *cli[NSERVERS][NCONNECTIONS],
 		     int fnum[NSERVERS][NUMFSTYPES][NCONNECTIONS][NFILES],
 		     struct record *rec)
 {
-	uint_t conn = rec->conn;
-	uint_t f = rec->f;
-	uint_t fstype = rec->fstype;
-	uint_t start = rec->start;
-	uint_t len = rec->len;
-	uint_t r1 = rec->r1;
-	uint_t r2 = rec->r2;
+	unsigned int conn = rec->conn;
+	unsigned int f = rec->f;
+	unsigned int fstype = rec->fstype;
+	unsigned int start = rec->start;
+	unsigned int len = rec->len;
+	unsigned int r1 = rec->r1;
+	unsigned int r2 = rec->r2;
 	enum brl_type op;
 	int server;
 	bool ret[NSERVERS];
@@ -340,7 +340,7 @@ static int retest(struct smbcli_state *cli[NSERVERS][NCONNECTIONS],
 		  int n)
 {
 	int i;
-	printf("testing %u ...\n", n);
+	printf("Testing %u ...\n", n);
 	for (i=0; i<n; i++) {
 		if (i && i % 100 == 0) {
 			printf("%u\n", i);
@@ -384,7 +384,7 @@ static void test_locks(TALLOC_CTX *mem_ctx, char *share1, char *share2,
 		recorded[n].conn = random() % NCONNECTIONS;
 		recorded[n].fstype = random() % NUMFSTYPES;
 		recorded[n].f = random() % NFILES;
-		recorded[n].start = LOCKBASE + ((uint_t)random() % (LOCKRANGE-1));
+		recorded[n].start = LOCKBASE + ((unsigned int)random() % (LOCKRANGE-1));
 		recorded[n].len = 1 + 
 			random() % (LOCKRANGE-(recorded[n].start-LOCKBASE));
 		recorded[n].start *= RANGE_MULTIPLE;
@@ -513,7 +513,7 @@ static void usage(void)
 	argv += 4;
 
 	lp_ctx = loadparm_init(mem_ctx);
-	lp_load(lp_ctx, dyn_CONFIGFILE);
+	lpcfg_load(lp_ctx, dyn_CONFIGFILE);
 
 	if (getenv("USER")) {
 		username = talloc_strdup(mem_ctx, getenv("USER"));
@@ -568,11 +568,11 @@ static void usage(void)
 	ev = s4_event_context_init(mem_ctx);
 
 	locking_init(1);
-	lp_smbcli_options(lp_ctx, &options);
-	lp_smbcli_session_options(lp_ctx, &session_options);
+	lpcfg_smbcli_options(lp_ctx, &options);
+	lpcfg_smbcli_session_options(lp_ctx, &session_options);
 	test_locks(mem_ctx, share1, share2, nfspath1, nfspath2, 
-			   lp_smb_ports(lp_ctx),
-			   &options, &session_options, lp_gensec_settings(lp_ctx), ev);
+			   lpcfg_smb_ports(lp_ctx),
+			   &options, &session_options, lpcfg_gensec_settings(lp_ctx), ev);
 
 	return(0);
 }

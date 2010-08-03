@@ -71,9 +71,8 @@ static bool token_contains_name(TALLOC_CTX *mem_ctx,
 				const char *name)
 {
 	const char *prefix;
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
-	struct smbd_server_connection *sconn = smbd_server_conn;
 
 	if (username != NULL) {
 		name = talloc_sub_basic(mem_ctx, username, domain, name);
@@ -131,7 +130,7 @@ static bool token_contains_name(TALLOC_CTX *mem_ctx,
 		}
 		if (*prefix == '&') {
 			if (username) {
-				if (user_in_netgroup(sconn, username, name)) {
+				if (user_in_netgroup(username, name)) {
 					return True;
 				}
 			}

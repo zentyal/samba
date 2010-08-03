@@ -19,21 +19,18 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "includes.h"
 #include <Python.h>
+#include "includes.h"
 #include "scripting/python/modules.h"
 #include "libcli/util/pyerrors.h"
 #include "librpc/rpc/pyrpc.h"
+#include "librpc/ndr/libndr.h"
 #include "lib/messaging/irpc.h"
 #include "lib/messaging/messaging.h"
 #include "lib/events/events.h"
 #include "cluster/cluster.h"
 #include "param/param.h"
 #include "param/pyparam.h"
-
-#ifndef Py_RETURN_NONE
-#define Py_RETURN_NONE return Py_INCREF(Py_None), Py_None
-#endif
 
 PyAPI_DATA(PyTypeObject) messaging_Type;
 PyAPI_DATA(PyTypeObject) irpc_ClientConnectionType;
@@ -87,7 +84,7 @@ PyObject *py_messaging_connect(PyTypeObject *self, PyObject *args, PyObject *kwa
 	ev = s4_event_context_init(ret->mem_ctx);
 
 	if (messaging_path == NULL) {
-		messaging_path = lp_messaging_path(ret->mem_ctx, 
+		messaging_path = lpcfg_messaging_path(ret->mem_ctx,
 								   py_default_loadparm_context(ret->mem_ctx));
 	} else {
 		messaging_path = talloc_strdup(ret->mem_ctx, messaging_path);
@@ -102,12 +99,10 @@ PyObject *py_messaging_connect(PyTypeObject *self, PyObject *args, PyObject *kwa
 		ret->msg_ctx = messaging_init(ret->mem_ctx, 
 					    messaging_path,
 					    server_id,
-				        py_iconv_convenience(ret->mem_ctx),
 					    ev);
 	} else {
 		ret->msg_ctx = messaging_client_init(ret->mem_ctx, 
 					    messaging_path,
-				        py_iconv_convenience(ret->mem_ctx),
 					    ev);
 	}
 
@@ -138,8 +133,9 @@ static PyObject *py_messaging_send(PyObject *self, PyObject *args, PyObject *kwa
 	const char *kwnames[] = { "target", "msg_type", "data", NULL };
 	int length;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "Ois#|:send", 
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "Ois#:send", 
 		discard_const_p(char *, kwnames), &target, &msg_type, &data.data, &length)) {
+
 		return NULL;
 	}
 
@@ -176,7 +172,7 @@ static PyObject *py_messaging_register(PyObject *self, PyObject *args, PyObject 
 	NTSTATUS status;
 	const char *kwnames[] = { "callback", "msg_type", NULL };
 	
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|i:send", 
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|i:register", 
 		discard_const_p(char *, kwnames), &callback, &msg_type)) {
 		return NULL;
 	}
@@ -207,7 +203,7 @@ static PyObject *py_messaging_deregister(PyObject *self, PyObject *args, PyObjec
 	PyObject *callback;
 	const char *kwnames[] = { "callback", "msg_type", NULL };
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|i:send", 
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|i:deregister",
 		discard_const_p(char *, kwnames), &callback, &msg_type)) {
 		return NULL;
 	}
@@ -226,7 +222,7 @@ static PyObject *py_messaging_add_name(PyObject *self, PyObject *args, PyObject 
 	char *name;
 	const char *kwnames[] = { "name", NULL };
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|:send", 
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|:add_name", 
 		discard_const_p(char *, kwnames), &name)) {
 		return NULL;
 	}
@@ -247,7 +243,7 @@ static PyObject *py_messaging_remove_name(PyObject *self, PyObject *args, PyObje
 	char *name;
 	const char *kwnames[] = { "name", NULL };
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|:send", 
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|:remove_name",
 		discard_const_p(char *, kwnames), &name)) {
 		return NULL;
 	}
@@ -305,10 +301,10 @@ PyTypeObject messaging_Type = {
 */
 typedef struct {
 	PyObject_HEAD
+	TALLOC_CTX *mem_ctx;
 	const char *server_name;
 	struct server_id *dest_ids;
 	struct messaging_context *msg_ctx;
-	TALLOC_CTX *mem_ctx;
 } irpc_ClientConnectionObject;
 
 /*
@@ -342,7 +338,7 @@ PyObject *py_irpc_connect(PyTypeObject *self, PyObject *args, PyObject *kwargs)
 	ev = s4_event_context_init(ret->mem_ctx);
 
 	if (messaging_path == NULL) {
-		messaging_path = lp_messaging_path(ret->mem_ctx, 
+		messaging_path = lpcfg_messaging_path(ret->mem_ctx,
 								   py_default_loadparm_context(ret->mem_ctx));
 	} else {
 		messaging_path = talloc_strdup(ret->mem_ctx, messaging_path);
@@ -357,12 +353,10 @@ PyObject *py_irpc_connect(PyTypeObject *self, PyObject *args, PyObject *kwargs)
 		ret->msg_ctx = messaging_init(ret->mem_ctx, 
 					    messaging_path,
 					    server_id,
-				        py_iconv_convenience(ret->mem_ctx),
 					    ev);
 	} else {
 		ret->msg_ctx = messaging_client_init(ret->mem_ctx, 
 					    messaging_path,
-				        py_iconv_convenience(ret->mem_ctx),
 					    ev);
 	}
 
@@ -384,10 +378,10 @@ PyObject *py_irpc_connect(PyTypeObject *self, PyObject *args, PyObject *kwargs)
 
 typedef struct {
 	PyObject_HEAD
+	TALLOC_CTX *mem_ctx;
 	struct irpc_request **reqs;
 	int count;
 	int current;
-	TALLOC_CTX *mem_ctx;
 	py_data_unpack_fn unpack_fn;
 } irpc_ResultObject;
 

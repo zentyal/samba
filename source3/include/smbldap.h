@@ -184,7 +184,7 @@ struct ldapsam_privates {
 	int index;
 
 	const char *domain_name;
-	DOM_SID domain_sid;
+	struct dom_sid domain_sid;
 
 	/* configuration items */
 	int schema_ver;
@@ -235,6 +235,7 @@ char *smbldap_talloc_dn(TALLOC_CTX *mem_ctx, LDAP *ld,
 
 #else
 #define LDAP void
+#define LDAPMessage void
 #define LDAPMod void
 #define LDAP_CONST const
 #define LDAPControl void

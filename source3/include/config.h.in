@@ -66,12 +66,6 @@
 /* Define to turn on dmalloc debugging */
 #undef ENABLE_DMALLOC
 
-/* Whether we have gnutls support (SSL) */
-#undef ENABLE_GNUTLS
-
-/* Whether we have libnetapi on the host system */
-#undef ENABLE_LIBNETAPI
-
 /* Whether to use fully FHS-compatible paths */
 #undef FHS_COMPATIBLE
 
@@ -162,9 +156,6 @@
 /* Define to 1 if you have the <arpa/inet.h> header file. */
 #undef HAVE_ARPA_INET_H
 
-/* Define to 1 if you have the <arpa/nameser.h> header file. */
-#undef HAVE_ARPA_NAMESER_H
-
 /* check for <asm/types.h> */
 #undef HAVE_ASM_TYPES_H
 
@@ -213,9 +204,6 @@
 /* Define to 1 if you have the <avahi-common/watch.h> header file. */
 #undef HAVE_AVAHI_COMMON_WATCH_H
 
-/* Define to 1 if you have the `backtrace' function. */
-#undef HAVE_BACKTRACE
-
 /* Define to 1 if you have the `backtrace_symbols' function. */
 #undef HAVE_BACKTRACE_SYMBOLS
 
@@ -236,12 +224,6 @@
 
 /* Define to 1 if the system has the type `blkcnt_t'. */
 #undef HAVE_BLKCNT_T
-
-/* Define to 1 if you have the <blkid/blkid.h> header file. */
-#undef HAVE_BLKID_BLKID_H
-
-/* Define to 1 if you have the `blkid_get_cache' function. */
-#undef HAVE_BLKID_GET_CACHE
 
 /* Define to 1 if the system has the type `blksize_t'. */
 #undef HAVE_BLKSIZE_T
@@ -264,12 +246,6 @@
 /* Whether the readlink syscall is broken */
 #undef HAVE_BROKEN_READLINK
 
-/* Define to 1 if you have the `bswap16' function. */
-#undef HAVE_BSWAP16
-
-/* Define to 1 if you have the `bswap32' function. */
-#undef HAVE_BSWAP32
-
 /* Define to 1 if you have the `bzero' function. */
 #undef HAVE_BZERO
 
@@ -281,9 +257,6 @@
 
 /* Define to 1 if you have the <CFStringEncodingConverter.h> header file. */
 #undef HAVE_CFSTRINGENCODINGCONVERTER_H
-
-/* Define to 1 if you have the `cgetent' function. */
-#undef HAVE_CGETENT
 
 /* Whether the krb5_checksum struct has a checksum property */
 #undef HAVE_CHECKSUM_IN_KRB5_CHECKSUM
@@ -318,9 +291,6 @@
 /* Define to 1 if you have the `closedir64' function. */
 #undef HAVE_CLOSEDIR64
 
-/* Define to 1 if you have the `closefrom' function. */
-#undef HAVE_CLOSEFROM
-
 /* Whether or not we have comparison_fn_t */
 #undef HAVE_COMPARISON_FN_T
 
@@ -329,9 +299,6 @@
 
 /* Whether the compiler will optimize out function calls */
 #undef HAVE_COMPILER_WILL_OPTIMIZE_OUT_FNS
-
-/* Whether com_err is available */
-#undef HAVE_COM_ERR
 
 /* Define to 1 if you have the <com_err.h> header file. */
 #undef HAVE_COM_ERR_H
@@ -349,7 +316,7 @@
 /* Define to 1 if you have the `creat64' function. */
 #undef HAVE_CREAT64
 
-/* Define to 1 if you have the `crypt' function. */
+/* Whether the system has the crypt() function */
 #undef HAVE_CRYPT
 
 /* Define to 1 if you have the `crypt16' function. */
@@ -379,19 +346,12 @@
 /* Define to 1 if you have the <cups/language.h> header file. */
 #undef HAVE_CUPS_LANGUAGE_H
 
-/* Define to 1 if you have the <curses.h> header file. */
-#undef HAVE_CURSES_H
-
 /* Whether to use the Darwin-specific initgroups system call */
 #undef HAVE_DARWIN_INITGROUPS
 
 /* Define to 1 if you have the declaration of `asprintf', and to 0 if you
    don't. */
 #undef HAVE_DECL_ASPRINTF
-
-/* Define to 1 if you have the declaration of `h_errno', and to 0 if you
-   don't. */
-#undef HAVE_DECL_H_ERRNO
 
 /* Define to 1 if you have the declaration of
    `krb5_auth_con_set_req_cksumtype', and to 0 if you don't. */
@@ -416,10 +376,6 @@
 /* Define to 1 if you have the declaration of `vsnprintf', and to 0 if you
    don't. */
 #undef HAVE_DECL_VSNPRINTF
-
-/* Define to 1 if you have the declaration of `_res', and to 0 if you don't.
-   */
-#undef HAVE_DECL__RES
 
 /* Define to 1 if you have the `delproplist' function. */
 #undef HAVE_DELPROPLIST
@@ -485,17 +441,11 @@
 /* Define to 1 if you have the `DNSServiceRegister' function. */
 #undef HAVE_DNSSERVICEREGISTER
 
-/* Define to 1 if you have the <dns.h> header file. */
-#undef HAVE_DNS_H
-
 /* Define to 1 if you have the <dns_sd.h> header file. */
 #undef HAVE_DNS_SD_H
 
-/* Define to 1 if you have the `dns_search' function. */
-#undef HAVE_DNS_SEARCH
-
-/* Define to 1 if you have the `dn_expand' function. */
-#undef HAVE_DN_EXPAND
+/* Define to 1 if you have the `dprintf' function. */
+#undef HAVE_DPRINTF
 
 /* struct dqblk .dqb_fsoftlimit */
 #undef HAVE_DQB_FSOFTLIMIT
@@ -512,6 +462,9 @@
 /* Define to 1 if you have the `endnetgrent' function. */
 #undef HAVE_ENDNETGRENT
 
+/* If endnetgrent prototype is defined */
+#undef HAVE_ENDNETGRENT_PROTOTYPE
+
 /* Whether environ() is available */
 #undef HAVE_ENVIRON_DECL
 
@@ -521,20 +474,8 @@
 /* Define to 1 if you have the `epoll_create' function. */
 #undef HAVE_EPOLL_CREATE
 
-/* Define to 1 if you have the `err' function. */
-#undef HAVE_ERR
-
 /* Whether errno() is available */
 #undef HAVE_ERRNO_DECL
-
-/* Define to 1 if you have the <errno.h> header file. */
-#undef HAVE_ERRNO_H
-
-/* Define to 1 if you have the `errx' function. */
-#undef HAVE_ERRX
-
-/* Define to 1 if you have the <err.h> header file. */
-#undef HAVE_ERR_H
 
 /* Whether the EncryptedData struct has a etype property */
 #undef HAVE_ETYPE_IN_ENCRYPTEDDATA
@@ -587,7 +528,10 @@
 /* Whether the krb5_error struct has a e_data pointer */
 #undef HAVE_E_DATA_POINTER_IN_KRB5_ERROR
 
-/* Define to 1 if you have the `FAMOpen2' function. */
+/* Define to 1 if there is support for FAMNoExists */
+#undef HAVE_FAMNOEXISTS
+
+/* Define to 1 if there is support for FAMOpen2 */
 #undef HAVE_FAMOPEN2
 
 /* Define to 1 if you have the <fam.h> header file. */
@@ -638,9 +582,6 @@
 /* Define to 1 if you have the <float.h> header file. */
 #undef HAVE_FLOAT_H
 
-/* Define to 1 if you have the `flock' function. */
-#undef HAVE_FLOCK
-
 /* Define to 1 if you have the <fnmatch.h> header file. */
 #undef HAVE_FNMATCH_H
 
@@ -649,9 +590,6 @@
 
 /* Whether the system has freeaddrinfo */
 #undef HAVE_FREEADDRINFO
-
-/* Define to 1 if you have the `freehostent' function. */
-#undef HAVE_FREEHOSTENT
 
 /* Whether the system has freeifaddrs */
 #undef HAVE_FREEIFADDRS
@@ -707,20 +645,20 @@
 /* Truncate extend */
 #undef HAVE_FTRUNCATE_EXTEND
 
+/* whether we can compile with __attribute__((destructor)) */
+#undef HAVE_FUNCTION_ATTRIBUTE_DESTRUCTOR
+
 /* Whether there is a __FUNCTION__ macro */
 #undef HAVE_FUNCTION_MACRO
 
-/* Whether F_SETLEASE() is available */
-#undef HAVE_F_SETLEASE_DECL
+/* Define to 1 if you have the `futimens' function. */
+#undef HAVE_FUTIMENS
+
+/* Define to 1 if you have the `futimes' function. */
+#undef HAVE_FUTIMES
 
 /* Whether the system has gai_strerror */
 #undef HAVE_GAI_STRERROR
-
-/* Define to 1 if you have the <gcrypt.h> header file. */
-#undef HAVE_GCRYPT_H
-
-/* Define to 1 if you have the `gcry_control' function. */
-#undef HAVE_GCRY_CONTROL
 
 /* Whether the system has getaddrinfo */
 #undef HAVE_GETADDRINFO
@@ -767,26 +705,20 @@
 /* Whether the system has gethostbyname() */
 #undef HAVE_GETHOSTBYNAME
 
-/* Define to 1 if you have the `gethostname' function. */
-#undef HAVE_GETHOSTNAME
-
 /* Whether the system has getifaddrs */
 #undef HAVE_GETIFADDRS
-
-/* Define to 1 if you have the `getipnodebyaddr' function. */
-#undef HAVE_GETIPNODEBYADDR
-
-/* Define to 1 if you have the `getipnodebyname' function. */
-#undef HAVE_GETIPNODEBYNAME
 
 /* Define to 1 if you have the `getmntent' function. */
 #undef HAVE_GETMNTENT
 
-/* Define to 1 if you have the `getnameinfo' function. */
+/* Whether the system has getnameinfo */
 #undef HAVE_GETNAMEINFO
 
 /* Define to 1 if you have the `getnetgrent' function. */
 #undef HAVE_GETNETGRENT
+
+/* If getnetgrent prototype is defined */
+#undef HAVE_GETNETGRENT_PROTOTYPE
 
 /* Define to 1 if you have the <getopt.h> header file. */
 #undef HAVE_GETOPT_H
@@ -796,9 +728,6 @@
 
 /* Define to 1 if you have the `getpgrp' function. */
 #undef HAVE_GETPGRP
-
-/* Define to 1 if you have the `getprogname' function. */
-#undef HAVE_GETPROGNAME
 
 /* Define to 1 if you have the `getproplist' function. */
 #undef HAVE_GETPROPLIST
@@ -842,38 +771,20 @@
 /* Define to 1 if you have the `getxattr' function. */
 #undef HAVE_GETXATTR
 
+/* Define to 1 if you have the `get_current_dir_name' function. */
+#undef HAVE_GET_CURRENT_DIR_NAME
+
 /* Define to 1 if you have the `get_proplist_entry' function. */
 #undef HAVE_GET_PROPLIST_ENTRY
 
 /* What header to include for iconv() function: giconv.h */
 #undef HAVE_GICONV
 
-/* Whether giconv.h is present */
-#undef HAVE_GICONV_H
-
 /* Define to 1 if you have the `glob' function. */
 #undef HAVE_GLOB
 
 /* Define to 1 if you have the <glob.h> header file. */
 #undef HAVE_GLOB_H
-
-/* Define to 1 if the system has the type `gnutls_datum'. */
-#undef HAVE_GNUTLS_DATUM
-
-/* Define to 1 if the system has the type `gnutls_datum_t'. */
-#undef HAVE_GNUTLS_DATUM_T
-
-/* Define to 1 if you have the `gnutls_global_init' function. */
-#undef HAVE_GNUTLS_GLOBAL_INIT
-
-/* Define to 1 if you have the <gnutls/gnutls.h> header file. */
-#undef HAVE_GNUTLS_GNUTLS_H
-
-/* gnutls subject_key */
-#undef HAVE_GNUTLS_X509_CRT_SET_SUBJECT_KEY_ID
-
-/* gnutls set_version */
-#undef HAVE_GNUTLS_X509_CRT_SET_VERSION
 
 /* Whether GPFS GPL headers are available */
 #undef HAVE_GPFS
@@ -917,14 +828,8 @@
 /* Define to 1 if you have the `httpConnectEncrypt' function. */
 #undef HAVE_HTTPCONNECTENCRYPT
 
-/* Define if you have the `h_errno' variable. */
-#undef HAVE_H_ERRNO
-
 /* What header to include for iconv() function: iconv.h */
 #undef HAVE_ICONV
-
-/* Whether iconv.h is present */
-#undef HAVE_ICONV_H
 
 /* Whether iface AIX is available */
 #undef HAVE_IFACE_AIX
@@ -998,12 +903,6 @@
 /* Whether IRIX ACLs are available */
 #undef HAVE_IRIX_ACLS
 
-/* Whether IRIX specific capabilities are available */
-#undef HAVE_IRIX_SPECIFIC_CAPABILITIES
-
-/* Define to 1 if you have the `iruserok' function. */
-#undef HAVE_IRUSEROK
-
 /* Define to 1 if you have the `isatty' function. */
 #undef HAVE_ISATTY
 
@@ -1019,10 +918,7 @@
 /* Whether the kernel supports share modes */
 #undef HAVE_KERNEL_SHARE_MODES
 
-/* Define to 1 if you have the <keyutils.h> header file. */
-#undef HAVE_KEYUTILS_H
-
-/* Whether kerberos is available */
+/* Whether to have KRB5 support */
 #undef HAVE_KRB5
 
 /* Whether the type krb5_addresses type exists */
@@ -1277,9 +1173,6 @@
 /* Define to 1 if you have the `ldap_set_rebind_proc' function. */
 #undef HAVE_LDAP_SET_REBIND_PROC
 
-/* Whether ldb_sqlite3 is available */
-#undef HAVE_LDB_SQLITE3
-
 /* Define to 1 if you have the `lgetea' function. */
 #undef HAVE_LGETEA
 
@@ -1289,14 +1182,8 @@
 /* Define to 1 if you have the `asn1' library (-lasn1). */
 #undef HAVE_LIBASN1
 
-/* Whether we have blkid support (e2fsprogs) */
-#undef HAVE_LIBBLKID
-
 /* Define to 1 if you have the `com_err' library (-lcom_err). */
 #undef HAVE_LIBCOM_ERR
-
-/* Define to 1 if you have the `crypt' library (-lcrypt). */
-#undef HAVE_LIBCRYPT
 
 /* Define to 1 if you have the `crypto' library (-lcrypto). */
 #undef HAVE_LIBCRYPTO
@@ -1316,12 +1203,6 @@
 /* Define to 1 if you have the `fam' library (-lfam). */
 #undef HAVE_LIBFAM
 
-/* Define to 1 if you have the `gcrypt' library (-lgcrypt). */
-#undef HAVE_LIBGCRYPT
-
-/* Define to 1 if you have the `gnutls' library (-lgnutls). */
-#undef HAVE_LIBGNUTLS
-
 /* Define to 1 if you have the `gssapi' library (-lgssapi). */
 #undef HAVE_LIBGSSAPI
 
@@ -1330,9 +1211,6 @@
 
 /* Define to 1 if you have the `inet' library (-linet). */
 #undef HAVE_LIBINET
-
-/* Define to 1 if you have the `intl' library (-lintl). */
-#undef HAVE_LIBINTL
 
 /* Define to 1 if you have the <libintl.h> header file. */
 #undef HAVE_LIBINTL_H
@@ -1352,12 +1230,6 @@
 /* Define to 1 if you have the `ldap' library (-lldap). */
 #undef HAVE_LIBLDAP
 
-/* Define to 1 if you have the `netapi' library (-lnetapi). */
-#undef HAVE_LIBNETAPI
-
-/* Define to 1 if you have the `libnetapi_init' function. */
-#undef HAVE_LIBNETAPI_INIT
-
 /* Define to 1 if you have the `nscd' library (-lnscd). */
 #undef HAVE_LIBNSCD
 
@@ -1367,7 +1239,7 @@
 /* Define to 1 if you have the `nsl_s' library (-lnsl_s). */
 #undef HAVE_LIBNSL_S
 
-/* Define to 1 if you have the `pam' library (-lpam). */
+/* Whether libpam is available */
 #undef HAVE_LIBPAM
 
 /* Whether the system has readline */
@@ -1382,20 +1254,11 @@
 /* Define to 1 if you have the `rt' library (-lrt). */
 #undef HAVE_LIBRT
 
-/* Define to 1 if you have the `sasl2' library (-lsasl2). */
-#undef HAVE_LIBSASL2
-
 /* Define to 1 if you have the `sendfile' library (-lsendfile). */
 #undef HAVE_LIBSENDFILE
 
-/* Define to 1 if you have the `setproctitle' library (-lsetproctitle). */
-#undef HAVE_LIBSETPROCTITLE
-
 /* Define to 1 if you have the `socket' library (-lsocket). */
 #undef HAVE_LIBSOCKET
-
-/* Define to 1 if you have the `sqlite3' library (-lsqlite3). */
-#undef HAVE_LIBSQLITE3
 
 /* Whether libunwind is available */
 #undef HAVE_LIBUNWIND
@@ -1408,12 +1271,6 @@
 
 /* Define to 1 if you have the <libunwind-ptrace.h> header file. */
 #undef HAVE_LIBUNWIND_PTRACE_H
-
-/* Define to 1 if you have the `util' library (-lutil). */
-#undef HAVE_LIBUTIL
-
-/* Define to 1 if you have the <libutil.h> header file. */
-#undef HAVE_LIBUTIL_H
 
 /* Define to 1 if you have the `z' library (-lz). */
 #undef HAVE_LIBZ
@@ -1490,6 +1347,9 @@
 /* Define to 1 if you have the `lstat64' function. */
 #undef HAVE_LSTAT64
 
+/* Define to 1 if you have the `lutimes' function. */
+#undef HAVE_LUTIMES
+
 /* Whether the krb5_address struct has a magic property */
 #undef HAVE_MAGIC_IN_KRB5_ADDRESS
 
@@ -1501,6 +1361,9 @@
 
 /* Define to 1 if you have the `memcpy' function. */
 #undef HAVE_MEMCPY
+
+/* Define to 1 if you have the `memmem' function. */
+#undef HAVE_MEMMEM
 
 /* Define to 1 if you have the `memmove' function. */
 #undef HAVE_MEMMOVE
@@ -1553,26 +1416,17 @@
 /* Define to 1 if you have the `nanosleep' function. */
 #undef HAVE_NANOSLEEP
 
-/* Whether external iconv is available */
+/* Whether to use native iconv */
 #undef HAVE_NATIVE_ICONV
 
 /* Define to 1 if you have the <ndir.h> header file, and it defines `DIR'. */
 #undef HAVE_NDIR_H
-
-/* Define to 1 if you have the <netapi.h> header file. */
-#undef HAVE_NETAPI_H
 
 /* Define to 1 if you have the <netdb.h> header file. */
 #undef HAVE_NETDB_H
 
 /* Define to 1 if you have the <netgroup.h> header file. */
 #undef HAVE_NETGROUP_H
-
-/* Define to 1 if you have the <netinet6/in6.h> header file. */
-#undef HAVE_NETINET6_IN6_H
-
-/* Define to 1 if you have the <netinet/in6.h> header file. */
-#undef HAVE_NETINET_IN6_H
 
 /* Define to 1 if you have the <netinet/in.h> header file. */
 #undef HAVE_NETINET_IN_H
@@ -1588,18 +1442,6 @@
 
 /* Define to 1 if you have the <netinet/tcp.h> header file. */
 #undef HAVE_NETINET_TCP_H
-
-/* Define to 1 if you have the `NetUserGetGroups' function. */
-#undef HAVE_NETUSERGETGROUPS
-
-/* Define to 1 if you have the `NetUserGetInfo' function. */
-#undef HAVE_NETUSERGETINFO
-
-/* Define to 1 if you have the `NetUserModalsGet' function. */
-#undef HAVE_NETUSERMODALSGET
-
-/* Define to 1 if you have the `NetUserSetInfo' function. */
-#undef HAVE_NETUSERSETINFO
 
 /* usability of net/if.h */
 #undef HAVE_NET_IF_H
@@ -1646,9 +1488,6 @@
 /* Define to 1 if you have the `opendir64' function. */
 #undef HAVE_OPENDIR64
 
-/* Define to 1 if you have the `openpty' function. */
-#undef HAVE_OPENPTY
-
 /* Whether the open(2) accepts O_DIRECT */
 #undef HAVE_OPEN_O_DIRECT
 
@@ -1666,9 +1505,6 @@
 
 /* Define to 1 if PAM_RADIO_TYPE is available */
 #undef HAVE_PAM_RADIO_TYPE
-
-/* Define to 1 if you have the `pam_start' function. */
-#undef HAVE_PAM_START
 
 /* Define to 1 if you have the `pam_vsyslog' function. */
 #undef HAVE_PAM_VSYSLOG
@@ -1693,9 +1529,6 @@
 
 /* Define to 1 if you have the `poll' function. */
 #undef HAVE_POLL
-
-/* Define to 1 if you have the <popt.h> header file. */
-#undef HAVE_POPT_H
 
 /* Whether POSIX ACLs are available */
 #undef HAVE_POSIX_ACLS
@@ -1739,12 +1572,6 @@
 /* Define to 1 if the system has the type `ptrdiff_t'. */
 #undef HAVE_PTRDIFF_T
 
-/* Define to 1 if you have the <pty.h> header file. */
-#undef HAVE_PTY_H
-
-/* Define to 1 if you have the `putenv' function. */
-#undef HAVE_PUTENV
-
 /* Whether putprpwnam is available */
 #undef HAVE_PUTPRPWNAM
 
@@ -1787,9 +1614,6 @@
 /* Define to 1 if you have the `random' function. */
 #undef HAVE_RANDOM
 
-/* Define to 1 if you have the `rcmd' function. */
-#undef HAVE_RCMD
-
 /* Define to 1 if you have the `rdchk' function. */
 #undef HAVE_RDCHK
 
@@ -1811,9 +1635,6 @@
 /* Define to 1 if you have the `readlink' function. */
 #undef HAVE_READLINK
 
-/* Define to 1 if you have the `readv' function. */
-#undef HAVE_READV
-
 /* Define to 1 if you have the `realpath' function. */
 #undef HAVE_REALPATH
 
@@ -1825,18 +1646,6 @@
 
 /* Define to 1 if you have the `rename' function. */
 #undef HAVE_RENAME
-
-/* Define to 1 if you have the <resolv.h> header file. */
-#undef HAVE_RESOLV_H
-
-/* Define to 1 if you have the `res_ndestroy' function. */
-#undef HAVE_RES_NDESTROY
-
-/* Define to 1 if you have the `res_nsearch' function. */
-#undef HAVE_RES_NSEARCH
-
-/* Define to 1 if you have the `res_search' function. */
-#undef HAVE_RES_SEARCH
 
 /* Define to 1 if you have the `rewinddir64' function. */
 #undef HAVE_REWINDDIR64
@@ -1862,17 +1671,8 @@
 /* Define to 1 if you have the <rpc/rpc.h> header file. */
 #undef HAVE_RPC_RPC_H
 
-/* Define to 1 if you have the `sasl_client_init' function. */
-#undef HAVE_SASL_CLIENT_INIT
-
-/* Define to 1 if you have the <sasl/sasl.h> header file. */
-#undef HAVE_SASL_SASL_H
-
 /* Define to 1 if the system has the type `sa_family_t'. */
 #undef HAVE_SA_FAMILY_T
-
-/* Whether SA_SIGINFO() is available */
-#undef HAVE_SA_SIGINFO_DECL
 
 /* Whether mkstemp is secure */
 #undef HAVE_SECURE_MKSTEMP
@@ -1907,9 +1707,6 @@
 /* Whether sendfilev64() is available */
 #undef HAVE_SENDFILEV64
 
-/* Define to 1 if you have the `sendmsg' function. */
-#undef HAVE_SENDMSG
-
 /* Define to 1 if you have the `setbuffer' function. */
 #undef HAVE_SETBUFFER
 
@@ -1934,9 +1731,6 @@
 /* Define to 1 if you have the `setgroups' function. */
 #undef HAVE_SETGROUPS
 
-/* Define to 1 if you have the `setitimer' function. */
-#undef HAVE_SETITIMER
-
 /* Define to 1 if you have the <setjmp.h> header file. */
 #undef HAVE_SETJMP_H
 
@@ -1955,20 +1749,14 @@
 /* Define to 1 if you have the `setnetgrent' function. */
 #undef HAVE_SETNETGRENT
 
+/* If setnetgrent prototype is defined */
+#undef HAVE_SETNETGRENT_PROTOTYPE
+
 /* Define to 1 if you have the `setpgid' function. */
 #undef HAVE_SETPGID
 
 /* Define to 1 if you have the `setpriv' function. */
 #undef HAVE_SETPRIV
-
-/* Whether setproctitle() is available */
-#undef HAVE_SETPROCTITLE
-
-/* Define to 1 if you have the <setproctitle.h> header file. */
-#undef HAVE_SETPROCTITLE_H
-
-/* Define to 1 if you have the `setprogname' function. */
-#undef HAVE_SETPROGNAME
 
 /* Define to 1 if you have the `setproplist' function. */
 #undef HAVE_SETPROPLIST
@@ -2024,9 +1812,6 @@
 /* Define to 1 if you have the `sigblock' function. */
 #undef HAVE_SIGBLOCK
 
-/* Define to 1 if you have the <signal.h> header file. */
-#undef HAVE_SIGNAL_H
-
 /* Define to 1 if you have the `sigprocmask' function. */
 #undef HAVE_SIGPROCMASK
 
@@ -2045,9 +1830,6 @@
 /* Whether struct sockaddr has a sa_len member */
 #undef HAVE_SOCKADDR_SA_LEN
 
-/* Define to 1 if you have the `socket' function. */
-#undef HAVE_SOCKET
-
 /* Define to 1 if you have the `socketpair' function. */
 #undef HAVE_SOCKETPAIR
 
@@ -2062,15 +1844,6 @@
 
 /* Whether splice() is available */
 #undef HAVE_SPLICE_DECL
-
-/* Whether sqlite3 is available */
-#undef HAVE_SQLITE3
-
-/* Define to 1 if you have the <sqlite3.h> header file. */
-#undef HAVE_SQLITE3_H
-
-/* Define to 1 if you have the `sqlite3_open' function. */
-#undef HAVE_SQLITE3_OPEN
 
 /* Define to 1 if you have the `srand' function. */
 #undef HAVE_SRAND
@@ -2108,9 +1881,6 @@
 /* Whether the stat struct has a st_flags member */
 #undef HAVE_STAT_ST_FLAGS
 
-/* Whether stat has tv_nsec nanosecond fields */
-#undef HAVE_STAT_TV_NSEC
-
 /* Define to 1 if you have the <stdarg.h> header file. */
 #undef HAVE_STDARG_H
 
@@ -2141,6 +1911,9 @@
 /* Define to 1 if you have the `strerror' function. */
 #undef HAVE_STRERROR
 
+/* Define to 1 if you have the `strerror_r' function. */
+#undef HAVE_STRERROR_R
+
 /* Define to 1 if you have the `strftime' function. */
 #undef HAVE_STRFTIME
 
@@ -2156,12 +1929,6 @@
 /* Define to 1 if you have the `strlcpy' function. */
 #undef HAVE_STRLCPY
 
-/* Define to 1 if you have the `strlwr' function. */
-#undef HAVE_STRLWR
-
-/* Define to 1 if you have the `strncasecmp' function. */
-#undef HAVE_STRNCASECMP
-
 /* Define to 1 if you have the `strndup' function. */
 #undef HAVE_STRNDUP
 
@@ -2173,15 +1940,6 @@
 
 /* Define to 1 if you have the `strpbrk' function. */
 #undef HAVE_STRPBRK
-
-/* Define to 1 if you have the `strptime' function. */
-#undef HAVE_STRPTIME
-
-/* Define to 1 if you have the `strsep' function. */
-#undef HAVE_STRSEP
-
-/* Define to 1 if you have the `strsep_copy' function. */
-#undef HAVE_STRSEP_COPY
 
 /* Define to 1 if you have the `strsignal' function. */
 #undef HAVE_STRSIGNAL
@@ -2282,18 +2040,12 @@
 /* Whether we have struct timespec */
 #undef HAVE_STRUCT_TIMESPEC
 
-/* define if struct winsize is declared in sys/termios.h */
-#undef HAVE_STRUCT_WINSIZE
-
 /* Define to 1 if you have the `strupr' function. */
 #undef HAVE_STRUPR
 
 /* Define to 1 if your `struct stat' has `st_rdev'. Deprecated, use
    `HAVE_STRUCT_STAT_ST_RDEV' instead. */
 #undef HAVE_ST_RDEV
-
-/* Define to 1 if you have the `swab' function. */
-#undef HAVE_SWAB
 
 /* Define to 1 if you have the `symlink' function. */
 #undef HAVE_SYMLINK
@@ -2318,9 +2070,6 @@
 
 /* Define to 1 if you have the <sys/attributes.h> header file. */
 #undef HAVE_SYS_ATTRIBUTES_H
-
-/* Define to 1 if you have the <sys/bswap.h> header file. */
-#undef HAVE_SYS_BSWAP_H
 
 /* Whether sys/capability.h is present */
 #undef HAVE_SYS_CAPABILITY_H
@@ -2383,6 +2132,9 @@
 /* Define to 1 if you have the <sys/jfsdmapi.h> header file. */
 #undef HAVE_SYS_JFSDMAPI_H
 
+/* Whether Linux kernel uses core_pattern for core files */
+#undef HAVE_SYS_KERNEL_PROC_CORE_PATTERN
+
 /* Define to 1 if you have the <sys/mman.h> header file. */
 #undef HAVE_SYS_MMAN_H
 
@@ -2444,9 +2196,6 @@
 /* Define to 1 if you have the <sys/stat.h> header file. */
 #undef HAVE_SYS_STAT_H
 
-/* Define to 1 if you have the <sys/stropts.h> header file. */
-#undef HAVE_SYS_STROPTS_H
-
 /* Define to 1 if you have the <sys/syscall.h> header file. */
 #undef HAVE_SYS_SYSCALL_H
 
@@ -2461,12 +2210,6 @@
 
 /* Define to 1 if you have the <sys/termio.h> header file. */
 #undef HAVE_SYS_TERMIO_H
-
-/* Define to 1 if you have the <sys/timeb.h> header file. */
-#undef HAVE_SYS_TIMEB_H
-
-/* Define to 1 if you have the <sys/times.h> header file. */
-#undef HAVE_SYS_TIMES_H
 
 /* Define to 1 if you have the <sys/time.h> header file. */
 #undef HAVE_SYS_TIME_H
@@ -2483,9 +2226,6 @@
 /* Define to 1 if you have the <sys/un.h> header file. */
 #undef HAVE_SYS_UN_H
 
-/* Define to 1 if you have the <sys/utsname.h> header file. */
-#undef HAVE_SYS_UTSNAME_H
-
 /* Define to 1 if you have the <sys/vfs.h> header file. */
 #undef HAVE_SYS_VFS_H
 
@@ -2495,20 +2235,17 @@
 /* Define to 1 if you have the <sys/xattr.h> header file. */
 #undef HAVE_SYS_XATTR_H
 
+/* Whether we have TDB_ERR_NESTING */
+#undef HAVE_TDB_ERR_NESTING
+
 /* Define to 1 if you have the `telldir64' function. */
 #undef HAVE_TELLDIR64
-
-/* Define to 1 if you have the <termcap.h> header file. */
-#undef HAVE_TERMCAP_H
 
 /* Define to 1 if you have the <termios.h> header file. */
 #undef HAVE_TERMIOS_H
 
 /* Define to 1 if you have the <termio.h> header file. */
 #undef HAVE_TERMIO_H
-
-/* Define to 1 if you have the <term.h> header file. */
-#undef HAVE_TERM_H
 
 /* Define to 1 if you have the `textdomain' function. */
 #undef HAVE_TEXTDOMAIN
@@ -2519,9 +2256,6 @@
 /* Define to 1 if you have the `timegm' function. */
 #undef HAVE_TIMEGM
 
-/* Define to 1 if you have the <timezone.h> header file. */
-#undef HAVE_TIMEZONE_H
-
 /* Define to 1 if you have the <time.h> header file. */
 #undef HAVE_TIME_H
 
@@ -2531,9 +2265,6 @@
 /* Whether crypt needs truncated salt */
 #undef HAVE_TRUNCATED_SALT
 
-/* Define to 1 if you have the <ttyname.h> header file. */
-#undef HAVE_TTYNAME_H
-
 /* Whether uint16 typedef is included by rpc/rpc.h */
 #undef HAVE_UINT16_FROM_RPC_RPC_H
 
@@ -2542,12 +2273,6 @@
 
 /* Define to 1 if the system has the type `uintptr_t'. */
 #undef HAVE_UINTPTR_T
-
-/* Define to 1 if you have the `umask' function. */
-#undef HAVE_UMASK
-
-/* Define to 1 if you have the `uname' function. */
-#undef HAVE_UNAME
 
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
@@ -2575,9 +2300,6 @@
 
 /* Define to 1 if you have the `usleep' function. */
 #undef HAVE_USLEEP
-
-/* Define to 1 if you have the <util.h> header file. */
-#undef HAVE_UTIL_H
 
 /* Whether struct utimbuf is available */
 #undef HAVE_UTIMBUF
@@ -2660,6 +2382,9 @@
 /* Whether va_copy() is available */
 #undef HAVE_VA_COPY
 
+/* Define to 1 if you have the `vdprintf' function. */
+#undef HAVE_VDPRINTF
+
 /* Whether the C compiler understands volatile */
 #undef HAVE_VOLATILE
 
@@ -2675,12 +2400,6 @@
 /* Define to 1 if you have the `waitpid' function. */
 #undef HAVE_WAITPID
 
-/* Define to 1 if you have the `warn' function. */
-#undef HAVE_WARN
-
-/* Define to 1 if you have the `warnx' function. */
-#undef HAVE_WARNX
-
 /* Define to 1 if you have the <windows.h> header file. */
 #undef HAVE_WINDOWS_H
 
@@ -2690,20 +2409,8 @@
 /* Whether the WRFILE:-keytab is supported */
 #undef HAVE_WRFILE_KEYTAB
 
-/* Define to 1 if you have the `writev' function. */
-#undef HAVE_WRITEV
-
 /* Define to 1 if you have the <ws2tcpip.h> header file. */
 #undef HAVE_WS2TCPIP_H
-
-/* define if struct winsize has ws_xpixel */
-#undef HAVE_WS_XPIXEL
-
-/* define if struct winsize has ws_ypixel */
-#undef HAVE_WS_YPIXEL
-
-/* Whether we have xattr support */
-#undef HAVE_XATTR_SUPPORT
 
 /* Define to 1 if you have the <xfs/dmapi.h> header file. */
 #undef HAVE_XFS_DMAPI_H
@@ -2809,9 +2516,6 @@
 
 /* Define to 1 if you have the `_readdir64' function. */
 #undef HAVE__READDIR64
-
-/* Define if you have the `_res' variable. */
-#undef HAVE__RES
 
 /* Define to 1 if you have the `_seekdir' function. */
 #undef HAVE__SEEKDIR
@@ -2987,9 +2691,6 @@
 /* Number of arguments to ldap_set_rebind_proc */
 #undef LDAP_SET_REBIND_PROC_ARGS
 
-/* ldb Modules directory */
-#undef LDB_MODULESDIR
-
 /* LIBREPLACE_NETWORK_CHECKS were used */
 #undef LIBREPLACE_NETWORK_CHECKS
 
@@ -3070,9 +2771,6 @@
 
 /* Define as the return type of signal handlers (`int' or `void'). */
 #undef RETSIGTYPE
-
-/* Whether we use in internal heimdal build */
-#undef SAMBA4_INTERNAL_HEIMDAL
 
 /* Whether the host os is sco unix */
 #undef SCO
@@ -3238,9 +2936,6 @@
 #endif
 
 
-/* Define if signal handlers return void. */
-#undef VOID_RETSIGTYPE
-
 /* Whether to include Active Directory support */
 #undef WITH_ADS
 
@@ -3255,15 +2950,6 @@
 
 /* Whether to enable avahi support */
 #undef WITH_AVAHI_SUPPORT
-
-/* Whether to build mount.cifs */
-#undef WITH_CIFSMOUNT
-
-/* Whether to build umount.cifs */
-#undef WITH_CIFSUMOUNT
-
-/* whether to build cifs.upcall */
-#undef WITH_CIFSUPCALL
 
 /* Whether to include DFS support */
 #undef WITH_DFS
@@ -3320,14 +3006,7 @@
 #endif
 
 /* xattr functions have additional options */
-#undef XATTR_ADDITIONAL_OPTIONS
-
-/* xattr functions have additional options */
 #undef XATTR_ADD_OPT
-
-/* Define to 1 if `lex' declares `yytext' as a `char *' by default, not a
-   `char[]'. */
-#undef YYTEXT_POINTER
 
 /* File offset bits */
 #undef _FILE_OFFSET_BITS
@@ -3629,12 +3308,6 @@
 /* Static init functions */
 #undef static_init_vfs
 
-/* Define to `uint8_t' if <sys/types.h> does not define. */
-#undef u_char
-
-/* Define to `uint32_t' if <sys/types.h> does not define. */
-#undef u_int32_t
-
 /* Define to `int' if <sys/types.h> doesn't define. */
 #undef uid_t
 
@@ -3649,9 +3322,6 @@
 
 /* Define to `unsigned char' if <sys/types.h> does not define. */
 #undef uint8_t
-
-/* Define to `unsigned int' if <sys/types.h> does not define. */
-#undef uint_t
 
 /* Whether to build vfs_acl_tdb as shared module */
 #undef vfs_acl_tdb_init
@@ -3686,6 +3356,9 @@
 /* Whether to build vfs_commit as shared module */
 #undef vfs_commit_init
 
+/* Whether to build vfs_crossrename as shared module */
+#undef vfs_crossrename_init
+
 /* Whether to build vfs_default as shared module */
 #undef vfs_default_init
 
@@ -3718,6 +3391,9 @@
 
 /* Whether to build vfs_irixacl as shared module */
 #undef vfs_irixacl_init
+
+/* Whether to build vfs_linux_xfs_sgid as shared module */
+#undef vfs_linux_xfs_sgid_init
 
 /* Whether to build vfs_netatalk as shared module */
 #undef vfs_netatalk_init

@@ -98,20 +98,19 @@ static bool check_user_ok(connection_struct *conn,
 				free_conn_server_info_if_unused(conn);
 				conn->server_info = ent->server_info;
 				conn->read_only = ent->read_only;
-				conn->admin_user = ent->admin_user;
 				return(True);
 			}
 		}
 	}
 
 	if (!user_ok_token(server_info->unix_name,
-			   pdb_get_domain(server_info->sam_account),
+			   server_info->info3->base.domain.string,
 			   server_info->ptok, snum))
 		return(False);
 
 	readonly_share = is_share_read_only_for_token(
 		server_info->unix_name,
-		pdb_get_domain(server_info->sam_account),
+		server_info->info3->base.domain.string,
 		server_info->ptok,
 		conn);
 
@@ -133,7 +132,7 @@ static bool check_user_ok(connection_struct *conn,
 
 	admin_user = token_contains_name_in_list(
 		server_info->unix_name,
-		pdb_get_domain(server_info->sam_account),
+		server_info->info3->base.domain.string,
 		NULL, server_info->ptok, lp_admin_users(snum));
 
 	if (valid_vuid) {
@@ -160,13 +159,18 @@ static bool check_user_ok(connection_struct *conn,
 
 		ent->vuid = vuid;
 		ent->read_only = readonly_share;
-		ent->admin_user = admin_user;
 		free_conn_server_info_if_unused(conn);
 		conn->server_info = ent->server_info;
 	}
 
 	conn->read_only = readonly_share;
-	conn->admin_user = admin_user;
+	if (admin_user) {
+		DEBUG(2,("check_user_ok: user %s is an admin user. "
+			"Setting uid as %d\n",
+			conn->server_info->unix_name,
+			sec_initial_uid() ));
+		conn->server_info->utok.uid = sec_initial_uid();
+	}
 
 	return(True);
 }
@@ -211,7 +215,6 @@ void conn_clear_vuid_cache(connection_struct *conn, uint16_t vuid)
 				TALLOC_FREE(ent->server_info);
 			}
 			ent->read_only = False;
-			ent->admin_user = False;
 		}
 	}
 }
@@ -224,8 +227,7 @@ void conn_clear_vuid_cache(connection_struct *conn, uint16_t vuid)
 bool change_to_user(connection_struct *conn, uint16 vuid)
 {
 	const struct auth_serversupplied_info *server_info = NULL;
-	struct smbd_server_connection *sconn = smbd_server_conn;
-	user_struct *vuser = get_valid_user_struct(sconn, vuid);
+	user_struct *vuser = get_valid_user_struct(conn->sconn, vuid);
 	int snum;
 	gid_t gid;
 	uid_t uid;
@@ -278,26 +280,22 @@ bool change_to_user(connection_struct *conn, uint16 vuid)
 		return false;
 	}
 
+	/* security = share sets force_user. */
+	if (!conn->force_user && !vuser) {
+		DEBUG(2,("change_to_user: Invalid vuid used %d in accessing "
+			"share %s.\n",vuid, lp_servicename(snum) ));
+		return False;
+	}
+
 	/*
 	 * conn->server_info is now correctly set up with a copy we can mess
 	 * with for force_group etc.
 	 */
 
-	if (conn->force_user) /* security = share sets this too */ {
-		uid = conn->server_info->utok.uid;
-		gid = conn->server_info->utok.gid;
-	        group_list = conn->server_info->utok.groups;
-		num_groups = conn->server_info->utok.ngroups;
-	} else if (vuser) {
-		uid = conn->admin_user ? 0 : vuser->server_info->utok.uid;
-		gid = conn->server_info->utok.gid;
-		num_groups = conn->server_info->utok.ngroups;
-		group_list  = conn->server_info->utok.groups;
-	} else {
-		DEBUG(2,("change_to_user: Invalid vuid used %d in accessing "
-			 "share %s.\n",vuid, lp_servicename(snum) ));
-		return False;
-	}
+	uid = conn->server_info->utok.uid;
+	gid = conn->server_info->utok.gid;
+	num_groups = conn->server_info->utok.ngroups;
+	group_list  = conn->server_info->utok.groups;
 
 	/*
 	 * See if we should force group for this service.
@@ -342,7 +340,7 @@ bool change_to_user(connection_struct *conn, uint16 vuid)
 	   set_sec_ctx() */
 
 	current_user.ut.ngroups = num_groups;
-	current_user.ut.groups  = group_list;	
+	current_user.ut.groups  = group_list;
 
 	set_sec_ctx(uid, gid, current_user.ut.ngroups, current_user.ut.groups,
 		    conn->server_info->ptok);
@@ -380,7 +378,7 @@ bool change_to_root_user(void)
  user. Doesn't modify current_user.
 ****************************************************************************/
 
-bool become_authenticated_pipe_user(pipes_struct *p)
+bool become_authenticated_pipe_user(struct pipes_struct *p)
 {
 	if (!push_sec_ctx())
 		return False;
@@ -504,4 +502,47 @@ bool unbecome_user(void)
 	pop_sec_ctx();
 	pop_conn_ctx();
 	return True;
+}
+
+/****************************************************************************
+ Return the current user we are running effectively as on this connection.
+ I'd like to make this return conn->server_info->utok.uid, but become_root()
+ doesn't alter this value.
+****************************************************************************/
+
+uid_t get_current_uid(connection_struct *conn)
+{
+	return current_user.ut.uid;
+}
+
+/****************************************************************************
+ Return the current group we are running effectively as on this connection.
+ I'd like to make this return conn->server_info->utok.gid, but become_root()
+ doesn't alter this value.
+****************************************************************************/
+
+gid_t get_current_gid(connection_struct *conn)
+{
+	return current_user.ut.gid;
+}
+
+/****************************************************************************
+ Return the UNIX token we are running effectively as on this connection.
+ I'd like to make this return &conn->server_info->utok, but become_root()
+ doesn't alter this value.
+****************************************************************************/
+
+const UNIX_USER_TOKEN *get_current_utok(connection_struct *conn)
+{
+	return &current_user.ut;
+}
+
+const NT_USER_TOKEN *get_current_nttok(connection_struct *conn)
+{
+	return current_user.nt_user_token;
+}
+
+uint16_t get_current_vuid(connection_struct *conn)
+{
+	return current_user.vuid;
 }

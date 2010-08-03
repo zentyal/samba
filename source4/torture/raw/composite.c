@@ -65,7 +65,7 @@ static bool test_loadfile(struct smbcli_state *cli, struct torture_context *tctx
 	io1.in.data  = data;
 	io1.in.size  = len;
 
-	printf("testing savefile\n");
+	printf("Testing savefile\n");
 
 	status = smb_composite_savefile(cli->tree, &io1);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -75,7 +75,7 @@ static bool test_loadfile(struct smbcli_state *cli, struct torture_context *tctx
 
 	io2.in.fname = fname;
 
-	printf("testing parallel loadfile with %d ops\n", num_ops);
+	printf("Testing parallel loadfile with %d ops\n", num_ops);
 
 	c = talloc_array(tctx, struct composite_context *, num_ops);
 
@@ -145,7 +145,7 @@ static bool test_fetchfile(struct smbcli_state *cli, struct torture_context *tct
 	io1.in.data  = data;
 	io1.in.size  = len;
 
-	printf("testing savefile\n");
+	printf("Testing savefile\n");
 
 	status = smb_composite_savefile(cli->tree, &io1);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -154,21 +154,20 @@ static bool test_fetchfile(struct smbcli_state *cli, struct torture_context *tct
 	}
 
 	io2.in.dest_host = torture_setting_string(tctx, "host", NULL);
-	io2.in.ports = lp_smb_ports(tctx->lp_ctx);
+	io2.in.ports = lpcfg_smb_ports(tctx->lp_ctx);
 	io2.in.called_name = torture_setting_string(tctx, "host", NULL);
 	io2.in.service = torture_setting_string(tctx, "share", NULL);
 	io2.in.service_type = "A:";
 
 	io2.in.credentials = cmdline_credentials;
-	io2.in.workgroup  = lp_workgroup(tctx->lp_ctx);
+	io2.in.workgroup  = lpcfg_workgroup(tctx->lp_ctx);
 	io2.in.filename = fname;
-	io2.in.resolve_ctx = lp_resolve_context(tctx->lp_ctx);
-	io2.in.iconv_convenience = lp_iconv_convenience(tctx->lp_ctx);
-	io2.in.gensec_settings = lp_gensec_settings(tctx, tctx->lp_ctx);
-	lp_smbcli_options(tctx->lp_ctx, &io2.in.options);
-	lp_smbcli_session_options(tctx->lp_ctx, &io2.in.session_options);
+	io2.in.resolve_ctx = lpcfg_resolve_context(tctx->lp_ctx);
+	io2.in.gensec_settings = lpcfg_gensec_settings(tctx, tctx->lp_ctx);
+	lpcfg_smbcli_options(tctx->lp_ctx, &io2.in.options);
+	lpcfg_smbcli_session_options(tctx->lp_ctx, &io2.in.session_options);
 
-	printf("testing parallel fetchfile with %d ops\n", torture_numops);
+	printf("Testing parallel fetchfile with %d ops\n", torture_numops);
 
 	event_ctx = cli->transport->socket->event.ctx;
 	c = talloc_array(tctx, struct composite_context *, torture_numops);
@@ -284,7 +283,7 @@ static bool test_appendacl(struct smbcli_state *cli, struct torture_context *tct
 
 	/* set parameters for appendacl async call */
 
-	printf("testing parallel appendacl with %d ops\n", num_ops);
+	printf("Testing parallel appendacl with %d ops\n", num_ops);
 
 	c = talloc_array(tctx, struct composite_context *, num_ops);
 	io = talloc_array(tctx, struct  smb_composite_appendacl *, num_ops);
@@ -347,24 +346,24 @@ static bool test_fsinfo(struct smbcli_state *cli, struct torture_context *tctx)
 	bool ret = true;
 
 	io1.in.dest_host = torture_setting_string(tctx, "host", NULL);
-	io1.in.dest_ports = lp_smb_ports(tctx->lp_ctx);
-	io1.in.socket_options = lp_socket_options(tctx->lp_ctx);
+	io1.in.dest_ports = lpcfg_smb_ports(tctx->lp_ctx);
+	io1.in.socket_options = lpcfg_socket_options(tctx->lp_ctx);
 	io1.in.called_name = torture_setting_string(tctx, "host", NULL);
 	io1.in.service = torture_setting_string(tctx, "share", NULL);
 	io1.in.service_type = "A:";
 	io1.in.credentials = cmdline_credentials;
-	io1.in.workgroup = lp_workgroup(tctx->lp_ctx);
+	io1.in.workgroup = lpcfg_workgroup(tctx->lp_ctx);
 	io1.in.level = RAW_QFS_OBJECTID_INFORMATION;
-	io1.in.iconv_convenience = lp_iconv_convenience(tctx->lp_ctx);
-	io1.in.gensec_settings = lp_gensec_settings(tctx, tctx->lp_ctx);
+	io1.in.gensec_settings = lpcfg_gensec_settings(tctx, tctx->lp_ctx);
 
-	printf("testing parallel queryfsinfo [Object ID] with %d ops\n", torture_numops);
+	printf("Testing parallel queryfsinfo [Object ID] with %d ops\n",
+		   torture_numops);
 
 	event_ctx = tctx->ev;
 	c = talloc_array(tctx, struct composite_context *, torture_numops);
 
 	for (i=0; i<torture_numops; i++) {
-		c[i] = smb_composite_fsinfo_send(cli->tree, &io1, lp_resolve_context(tctx->lp_ctx));
+		c[i] = smb_composite_fsinfo_send(cli->tree, &io1, lpcfg_resolve_context(tctx->lp_ctx));
 		c[i]->async.fn = loadfile_complete;
 		c[i]->async.private_data = count;
 	}

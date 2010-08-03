@@ -22,7 +22,11 @@
 #include "utils/net.h"
 #include "../libcli/auth/libcli_auth.h"
 #include "../librpc/gen_ndr/cli_lsa.h"
+#include "rpc_client/cli_lsarpc.h"
 #include "../librpc/gen_ndr/cli_samr.h"
+#include "rpc_client/init_samr.h"
+#include "../librpc/gen_ndr/ndr_netlogon.h"
+#include "rpc_client/cli_netlogon.h"
 
 /* Macro for checking RPC error codes to make things more readable */
 
@@ -146,7 +150,7 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 	/* rpc variables */
 
 	struct policy_handle lsa_pol, sam_pol, domain_pol, user_pol;
-	DOM_SID *domain_sid;
+	struct dom_sid *domain_sid;
 	uint32 user_rid;
 
 	/* Password stuff */

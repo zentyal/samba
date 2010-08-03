@@ -25,6 +25,7 @@
  **/
 
 extern const char *dyn_BINDIR;
+extern const char *dyn_SBINDIR;
 extern const char *dyn_CONFIGFILE;
 extern const char *dyn_NCALRPCDIR;
 extern const char *dyn_LOGFILEBASE;
@@ -40,3 +41,4 @@ extern const char *dyn_SETUPDIR;
 extern const char *dyn_WINBINDD_SOCKET_DIR;
 extern const char *dyn_WINBINDD_PRIVILEGED_SOCKET_DIR;
 extern const char *dyn_NTP_SIGND_SOCKET_DIR;
+extern const char *dyn_PYTHONDIR;

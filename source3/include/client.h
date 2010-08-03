@@ -22,6 +22,8 @@
 #ifndef _CLIENT_H
 #define _CLIENT_H
 
+#include "../librpc/ndr/libndr.h"
+
 /* the client asks for a smaller buffer to save ram and also to get more
    overlap on the wire. This size gives us a nice read/write size, which
    will be a multiple of the page size on almost any system */
@@ -44,21 +46,6 @@ struct print_job_info {
 	fstring user;
 	fstring name;
 	time_t t;
-};
-
-struct cli_pipe_auth_data {
-	enum pipe_auth_type auth_type; /* switch for the union below. Defined in ntdomain.h */
-	enum dcerpc_AuthLevel auth_level; /* defined in ntdomain.h */
-
-	char *domain;
-	char *user_name;
-	DATA_BLOB user_session_key;
-
-	union {
-		struct schannel_state *schannel_auth;
-		NTLMSSP_STATE *ntlmssp_state;
-		struct kerberos_auth_struct *kerberos_auth;
-	} a_u;
 };
 
 /**
@@ -147,13 +134,13 @@ struct rpc_pipe_client {
 	uint16 max_xmit_frag;
 	uint16 max_recv_frag;
 
-	struct cli_pipe_auth_data *auth;
+	struct pipe_auth_data *auth;
 
 	/* The following is only non-null on a netlogon client pipe. */
 	struct netlogon_creds_CredentialState *dc;
 
 	/* Used by internal rpc_pipe_client */
-	pipes_struct *pipes_struct;
+	struct pipes_struct *pipes_struct;
 };
 
 /* Transport encryption state. */
@@ -176,7 +163,7 @@ struct smb_trans_enc_state {
         uint16 enc_ctx_num;
         bool enc_on;
         union {
-                NTLMSSP_STATE *ntlmssp_state;
+                struct ntlmssp_state *ntlmssp_state;
 #if defined(HAVE_GSSAPI) && defined(HAVE_KRB5)
                 struct smb_tran_enc_state_gss *gss_state;
 #endif
@@ -248,7 +235,10 @@ struct cli_state {
 	int win95;
 	bool is_samba;
 	uint32 capabilities;
-	uint32 posix_capabilities;
+	/* What the server offered. */
+	uint32_t server_posix_capabilities;
+	/* What the client requested. */
+	uint32_t requested_posix_capabilities;
 	bool dfsroot;
 
 #if 0
@@ -289,7 +279,7 @@ struct cli_state {
 	struct tevent_req **pending;
 };
 
-typedef struct file_info {
+struct file_info {
 	struct cli_state *cli;
 	uint64_t size;
 	uint16 mode;
@@ -301,7 +291,7 @@ typedef struct file_info {
 	struct timespec ctime_ts;
 	char *name;
 	char short_name[13*3]; /* the *3 is to cope with multi-byte */
-} file_info;
+};
 
 #define CLI_FULL_CONNECTION_DONT_SPNEGO 0x0001
 #define CLI_FULL_CONNECTION_USE_KERBEROS 0x0002

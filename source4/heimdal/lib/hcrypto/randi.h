@@ -42,7 +42,9 @@ extern const RAND_METHOD hc_rand_fortuna_method;
 extern const RAND_METHOD hc_rand_unix_method;
 extern const RAND_METHOD hc_rand_egd_method;
 extern const RAND_METHOD hc_rand_timer_method;
+extern const RAND_METHOD hc_rand_w32crypto_method;
 
 const RAND_METHOD * RAND_timer_method(void);
+int _hc_unix_device_fd(int, char **);
 
 #endif /* _HEIM_RANDI_H */

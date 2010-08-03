@@ -16,6 +16,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <Python.h>
 #include "includes.h"
 #include "param/param.h"
 #include "pyauth.h"
@@ -45,11 +46,11 @@ static PyObject *py_system_session(PyObject *module, PyObject *args)
 	if (!PyArg_ParseTuple(args, "|O", &py_lp_ctx))
 		return NULL;
 
-	lp_ctx = lp_from_py_object(py_lp_ctx);
+	lp_ctx = lpcfg_from_py_object(NULL, py_lp_ctx); /* FIXME: Leaks memory */
 	if (lp_ctx == NULL)
 		return NULL;
 
-	session = system_session(NULL, lp_ctx);
+	session = system_session(lp_ctx);
 
 	return PyAuthSession_FromSession(session);
 }
@@ -60,10 +61,11 @@ static PyObject *py_system_session_anon(PyObject *module, PyObject *args)
 	PyObject *py_lp_ctx = Py_None;
 	struct loadparm_context *lp_ctx;
 	struct auth_session_info *session;
+
 	if (!PyArg_ParseTuple(args, "|O", &py_lp_ctx))
 		return NULL;
 
-	lp_ctx = lp_from_py_object(py_lp_ctx);
+	lp_ctx = lpcfg_from_py_object(NULL, py_lp_ctx); /* FIXME: leaks memory */
 	if (lp_ctx == NULL)
 		return NULL;
 
@@ -82,7 +84,7 @@ static PyObject *py_admin_session(PyObject *module, PyObject *args)
 	if (!PyArg_ParseTuple(args, "OO", &py_lp_ctx, &py_sid))
 		return NULL;
 
-	lp_ctx = lp_from_py_object(py_lp_ctx);
+	lp_ctx = lpcfg_from_py_object(NULL, py_lp_ctx); /* FIXME: leaky */
 	if (lp_ctx == NULL)
 		return NULL;
 
@@ -106,7 +108,8 @@ void initauth(void)
 	if (PyType_Ready(&PyAuthSession) < 0)
 		return;
 
-	m = Py_InitModule3("auth", py_auth_methods, "Authentication and authorization support.");
+	m = Py_InitModule3("auth", py_auth_methods,
+					   "Authentication and authorization support.");
 	if (m == NULL)
 		return;
 

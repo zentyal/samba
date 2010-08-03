@@ -2,17 +2,17 @@
    Unix SMB/CIFS implementation.
    Samba internal messaging functions
    Copyright (C) 2007 by Volker Lendecke
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -21,7 +21,7 @@
   @defgroup messages Internal messaging framework
   @{
   @file messages.c
-  
+
   @brief  Module for internal messaging between Samba daemons. 
 
    The idea is that if a part of Samba wants to do communication with
@@ -133,6 +133,28 @@ NTSTATUS messaging_tdb_init(struct messaging_context *msg_ctx,
 	return NT_STATUS_OK;
 }
 
+bool messaging_tdb_parent_init(void)
+{
+	struct tdb_wrap *db;
+
+	/*
+	 * Open the tdb in the parent process (smbd) so that our
+	 * CLEAR_IF_FIRST optimization in tdb_reopen_all can properly
+	 * work.
+	 */
+
+	db = tdb_wrap_open(talloc_autofree_context(),
+			   lock_path("messages.tdb"), 0,
+			   TDB_CLEAR_IF_FIRST|TDB_DEFAULT|TDB_VOLATILE,
+			   O_RDWR|O_CREAT,0600);
+	if (db == NULL) {
+		DEBUG(1, ("could not open messaging.tdb: %s\n",
+			  strerror(errno)));
+		return false;
+	}
+	return true;
+}
+
 /*******************************************************************
  Form a static tdb key from a pid.
 ******************************************************************/
@@ -145,7 +167,7 @@ static TDB_DATA message_key_pid(TALLOC_CTX *mem_ctx, struct server_id pid)
 	key = talloc_asprintf(talloc_tos(), "PID/%s", procid_str_static(&pid));
 
 	SMB_ASSERT(key != NULL);
-	
+
 	kbuf.dptr = (uint8 *)key;
 	kbuf.dsize = strlen(key)+1;
 	return kbuf;
@@ -179,7 +201,7 @@ static NTSTATUS messaging_tdb_fetch(TDB_CONTEXT *msg_tdb,
 	blob = data_blob_const(data.dptr, data.dsize);
 
 	ndr_err = ndr_pull_struct_blob(
-		&blob, result, NULL, result,
+		&blob, result, result,
 		(ndr_pull_flags_fn_t)ndr_pull_messaging_array);
 
 	SAFE_FREE(data.dptr);
@@ -221,8 +243,7 @@ static NTSTATUS messaging_tdb_store(TDB_CONTEXT *msg_tdb,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	ndr_err = ndr_push_struct_blob(
-		&blob, mem_ctx, NULL, array,
+	ndr_err = ndr_push_struct_blob(&blob, mem_ctx, array,
 		(ndr_push_flags_fn_t)ndr_push_messaging_array);
 
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -360,7 +381,7 @@ static NTSTATUS messaging_tdb_send(struct messaging_context *msg_ctx,
 	rec[msg_array->num_messages].msg_version = MESSAGE_VERSION;
 	rec[msg_array->num_messages].msg_type = msg_type & MSG_TYPE_MASK;
 	rec[msg_array->num_messages].dest = pid;
-	rec[msg_array->num_messages].src = procid_self();
+	rec[msg_array->num_messages].src = msg_ctx->id;
 	rec[msg_array->num_messages].buf = *data;
 
 	msg_array->messages = rec;
@@ -371,7 +392,7 @@ static NTSTATUS messaging_tdb_send(struct messaging_context *msg_ctx,
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
-	
+
 	status = message_notify(pid);
 
 	if (NT_STATUS_EQUAL(status, NT_STATUS_INVALID_HANDLE)) {
@@ -387,15 +408,16 @@ static NTSTATUS messaging_tdb_send(struct messaging_context *msg_ctx,
 }
 
 /****************************************************************************
- Retrieve all messages for the current process.
+ Retrieve all messages for a process.
 ****************************************************************************/
 
 static NTSTATUS retrieve_all_messages(TDB_CONTEXT *msg_tdb,
+				      struct server_id id,
 				      TALLOC_CTX *mem_ctx,
 				      struct messaging_array **presult)
 {
 	struct messaging_array *result;
-	TDB_DATA key = message_key_pid(mem_ctx, procid_self());
+	TDB_DATA key = message_key_pid(mem_ctx, id);
 	NTSTATUS status;
 
 	if (tdb_chainlock(msg_tdb, key) == -1) {
@@ -443,7 +465,7 @@ static void message_dispatch(struct messaging_context *msg_ctx)
 	DEBUG(10, ("message_dispatch: received_messages = %d\n",
 		   ctx->received_messages));
 
-	status = retrieve_all_messages(tdb->tdb, NULL, &msg_array);
+	status = retrieve_all_messages(tdb->tdb, msg_ctx->id, NULL, &msg_array);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("message_dispatch: failed to retrieve messages: %s\n",
 			   nt_errstr(status)));

@@ -27,7 +27,7 @@
 #include "includes.h"
 #include "../lib/util/dlinklist.h"
 #include "ntvfs/ntvfs.h"
-#include "libcli/rap/rap.h"
+#include "../librpc/gen_ndr/rap.h"
 #include "ntvfs/ipc/proto.h"
 #include "libcli/raw/ioctl.h"
 #include "param/param.h"
@@ -244,22 +244,19 @@ static NTSTATUS ipc_open(struct ntvfs_module_context *ntvfs,
 	struct pipe_state *p;
 	struct ipc_private *ipriv = talloc_get_type_abort(ntvfs->private_data,
 				    struct ipc_private);
-	struct smb_iconv_convenience *smb_ic
-		= lp_iconv_convenience(ipriv->ntvfs->ctx->lp_ctx);
 	struct ntvfs_handle *h;
 	struct ipc_open_state *state;
 	struct tevent_req *subreq;
 	const char *fname;
 	const char *directory;
-	struct socket_address *client_sa;
-	struct tsocket_address *client_addr;
-	struct socket_address *server_sa;
-	struct tsocket_address *server_addr;
+	const struct tsocket_address *client_addr;
+	const struct tsocket_address *server_addr;
 	int ret;
 	DATA_BLOB delegated_creds = data_blob_null;
 
 	switch (oi->generic.level) {
 	case RAW_OPEN_NTCREATEX:
+	case RAW_OPEN_NTTRANS_CREATE:
 		fname = oi->ntcreatex.in.fname;
 		break;
 	case RAW_OPEN_OPENX:
@@ -269,12 +266,11 @@ static NTSTATUS ipc_open(struct ntvfs_module_context *ntvfs,
 		fname = oi->smb2.in.fname;
 		break;
 	default:
-		status = NT_STATUS_NOT_SUPPORTED;
-		break;
+		return NT_STATUS_NOT_SUPPORTED;
 	}
 
 	directory = talloc_asprintf(req, "%s/np",
-				    lp_ncalrpc_dir(ipriv->ntvfs->ctx->lp_ctx));
+				    lpcfg_ncalrpc_dir(ipriv->ntvfs->ctx->lp_ctx));
 	NT_STATUS_HAVE_NO_MEMORY(directory);
 
 	state = talloc(req, struct ipc_open_state);
@@ -316,44 +312,20 @@ static NTSTATUS ipc_open(struct ntvfs_module_context *ntvfs,
 						   &state->info3);
 	NT_STATUS_NOT_OK_RETURN(status);
 
-	client_sa = ntvfs_get_peer_addr(ntvfs, state);
-	if (!client_sa) {
-		return NT_STATUS_INTERNAL_ERROR;
-	}
-
-	server_sa = ntvfs_get_my_addr(ntvfs, state);
-	if (!server_sa) {
-		return NT_STATUS_INTERNAL_ERROR;
-	}
-
-	ret = tsocket_address_inet_from_strings(state, "ip",
-						client_sa->addr,
-						client_sa->port,
-						&client_addr);
-	if (ret == -1) {
-		status = map_nt_error_from_unix(errno);
-		return status;
-	}
-
-	ret = tsocket_address_inet_from_strings(state, "ip",
-						server_sa->addr,
-						server_sa->port,
-						&server_addr);
-	if (ret == -1) {
-		status = map_nt_error_from_unix(errno);
-		return status;
-	}
+	client_addr = ntvfs_get_local_address(ipriv->ntvfs);
+	server_addr = ntvfs_get_remote_address(ipriv->ntvfs);
 
 	if (req->session_info->credentials) {
 		struct gssapi_creds_container *gcc;
 		OM_uint32 gret;
 		OM_uint32 minor_status;
 		gss_buffer_desc cred_token;
+		const char *error_string;
 
 		ret = cli_credentials_get_client_gss_creds(req->session_info->credentials,
 							   ipriv->ntvfs->ctx->event_ctx,
 							   ipriv->ntvfs->ctx->lp_ctx,
-							   &gcc);
+							   &gcc, &error_string);
 		if (ret) {
 			goto skip;
 		}
@@ -378,7 +350,6 @@ skip:
 
 	subreq = tstream_npa_connect_send(p,
 					  ipriv->ntvfs->ctx->event_ctx,
-					  smb_ic,
 					  directory,
 					  fname,
 					  client_addr,
@@ -530,7 +501,6 @@ static void ipc_readv_next_vector_init(struct ipc_readv_next_vector_state *s,
 
 	s->buf = buf;
 	s->len = MIN(len, UINT16_MAX);
-	//DEBUG(0,("readv_next_vector_init[%u 0x%04X]\n", s->len, s->len));
 }
 
 static int ipc_readv_next_vector(struct tstream_context *stream,
@@ -548,8 +518,6 @@ static int ipc_readv_next_vector(struct tstream_context *stream,
 	if (state->ofs == state->len) {
 		*_vector = NULL;
 		*count = 0;
-//		DEBUG(0,("readv_next_vector done ofs[%u 0x%04X]\n",
-//			state->ofs, state->ofs));
 		return 0;
 	}
 
@@ -562,8 +530,6 @@ static int ipc_readv_next_vector(struct tstream_context *stream,
 		/* return a short read */
 		*_vector = NULL;
 		*count = 0;
-//		DEBUG(0,("readv_next_vector short read ofs[%u 0x%04X]\n",
-//			state->ofs, state->ofs));
 		return 0;
 	}
 
@@ -587,7 +553,7 @@ static int ipc_readv_next_vector(struct tstream_context *stream,
 		return -1;
 	}
 
-	vector[0].iov_base = state->buf + state->ofs;
+	vector[0].iov_base = (char *) (state->buf + state->ofs);
 	vector[0].iov_len = wanted;
 
 	state->ofs += wanted;
@@ -927,8 +893,6 @@ static NTSTATUS ipc_qfileinfo(struct ntvfs_module_context *ntvfs,
 	default:
 		return ntvfs_map_qfileinfo(ntvfs, req, info);
 	}
-	
-	return NT_STATUS_ACCESS_DENIED;
 }
 
 
@@ -1040,7 +1004,7 @@ static NTSTATUS ipc_dcerpc_cmd(struct ntvfs_module_context *ntvfs,
 	state->p = p;
 	state->req = req;
 	state->trans = trans;
-	state->writev_iov.iov_base = trans->in.data.data;
+	state->writev_iov.iov_base = (char *) trans->in.data.data;
 	state->writev_iov.iov_len = trans->in.data.length;
 
 	ipc_readv_next_vector_init(&state->next_vector,
@@ -1249,7 +1213,7 @@ static NTSTATUS ipc_ioctl_smb2(struct ntvfs_module_context *ntvfs,
 	state->p = p;
 	state->req = req;
 	state->io = io;
-	state->writev_iov.iov_base = io->smb2.in.out.data;
+	state->writev_iov.iov_base = (char *) io->smb2.in.out.data;
 	state->writev_iov.iov_len = io->smb2.in.out.length;
 
 	ipc_readv_next_vector_init(&state->next_vector,
@@ -1351,8 +1315,6 @@ static NTSTATUS ipc_ioctl(struct ntvfs_module_context *ntvfs,
 	default:
 		return NT_STATUS_ACCESS_DENIED;
 	}
-
-	return NT_STATUS_ACCESS_DENIED;
 }
 
 

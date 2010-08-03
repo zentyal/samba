@@ -3,6 +3,7 @@
    Core SMB2 server
 
    Copyright (C) Stefan Metzmacher 2009
+   Copyright (C) Jeremy Allison 2010
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,6 +22,14 @@
 #include "includes.h"
 #include "smbd/globals.h"
 #include "../libcli/smb/smb_common.h"
+
+struct smbd_smb2_notify_state {
+	struct smbd_smb2_request *smb2req;
+	struct smb_request *smbreq;
+	struct tevent_immediate *im;
+	NTSTATUS status;
+	DATA_BLOB out_output_buffer;
+};
 
 static struct tevent_req *smbd_smb2_notify_send(TALLOC_CTX *mem_ctx,
 						struct tevent_context *ev,
@@ -70,13 +79,13 @@ NTSTATUS smbd_smb2_request_process_notify(struct smbd_smb2_request *req)
 	 * 0x00010000 is what Windows 7 uses,
 	 * Windows 2008 uses 0x00080000
 	 */
-	if (in_output_buffer_length > 0x00010000) {
+	if (in_output_buffer_length > lp_smb2_max_trans()) {
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
 	}
 
 	if (req->compat_chain_fsp) {
 		/* skip check */
-	} else if (in_file_id_persistent != 0) {
+	} else if (in_file_id_persistent != in_file_id_volatile) {
 		return smbd_smb2_request_error(req, NT_STATUS_FILE_CLOSED);
 	}
 
@@ -107,6 +116,24 @@ static void smbd_smb2_request_notify_done(struct tevent_req *subreq)
 	DATA_BLOB out_output_buffer = data_blob_null;
 	NTSTATUS status;
 	NTSTATUS error; /* transport error */
+
+	if (req->cancelled) {
+		struct smbd_smb2_notify_state *state = tevent_req_data(subreq,
+					       struct smbd_smb2_notify_state);
+		const uint8_t *inhdr = (const uint8_t *)req->in.vector[i].iov_base;
+		uint64_t mid = BVAL(inhdr, SMB2_HDR_MESSAGE_ID);
+
+		DEBUG(10,("smbd_smb2_request_notify_done: cancelled mid %llu\n",
+			(unsigned long long)mid ));
+		error = smbd_smb2_request_error(req, NT_STATUS_CANCELLED);
+		if (!NT_STATUS_IS_OK(error)) {
+			smbd_server_connection_terminate(req->sconn,
+				nt_errstr(error));
+			return;
+		}
+		TALLOC_FREE(state->im);
+		return;
+	}
 
 	status = smbd_smb2_notify_recv(subreq,
 				       req,
@@ -152,14 +179,6 @@ static void smbd_smb2_request_notify_done(struct tevent_req *subreq)
 		return;
 	}
 }
-
-struct smbd_smb2_notify_state {
-	struct smbd_smb2_request *smb2req;
-	struct smb_request *smbreq;
-	struct tevent_immediate *im;
-	NTSTATUS status;
-	DATA_BLOB out_output_buffer;
-};
 
 static void smbd_smb2_notify_reply(struct smb_request *smbreq,
 				   NTSTATUS error_code,
@@ -264,7 +283,7 @@ static struct tevent_req *smbd_smb2_notify_send(TALLOC_CTX *mem_ctx,
 		 * here.
 		 */
 
-		change_notify_reply(fsp->conn, smbreq,
+		change_notify_reply(smbreq,
 				    NT_STATUS_OK,
 				    in_output_buffer_length,
 				    fsp->notify,
@@ -361,9 +380,10 @@ static bool smbd_smb2_notify_cancel(struct tevent_req *req)
 	struct smbd_smb2_notify_state *state = tevent_req_data(req,
 					       struct smbd_smb2_notify_state);
 
-	smbd_notify_cancel_by_smbreq(state->smb2req->sconn,
-				     state->smbreq);
+	smbd_notify_cancel_by_smbreq(state->smbreq);
 
+	state->smb2req->cancelled = true;
+	tevent_req_done(req);
 	return true;
 }
 

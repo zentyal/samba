@@ -19,9 +19,7 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "libcli/raw/libcliraw.h"
-#include "libcli/raw/raw_proto.h"
 #include "system/time.h"
 #include "system/filesys.h"
 #include "libcli/libcli.h"
@@ -68,7 +66,7 @@
 /*
   setup a random buffer based on a seed
 */
-static void setup_buffer(uint8_t *buf, uint_t seed, int len)
+static void setup_buffer(uint8_t *buf, unsigned int seed, int len)
 {
 	int i;
 	srandom(seed);
@@ -78,7 +76,7 @@ static void setup_buffer(uint8_t *buf, uint_t seed, int len)
 /*
   check a random buffer based on a seed
 */
-static bool check_buffer(uint8_t *buf, uint_t seed, int len, const char *location)
+static bool check_buffer(uint8_t *buf, unsigned int seed, int len, const char *location)
 {
 	int i;
 	srandom(seed);
@@ -106,7 +104,7 @@ static bool test_write(struct torture_context *tctx,
 	uint8_t *buf;
 	const int maxsize = 90000;
 	const char *fname = BASEDIR "\\test.txt";
-	uint_t seed = time(NULL);
+	unsigned int seed = time(NULL);
 	union smb_fileinfo finfo;
 
 	buf = talloc_zero_array(tctx, uint8_t, maxsize);
@@ -234,7 +232,7 @@ static bool test_writex(struct torture_context *tctx,
 	uint8_t *buf;
 	const int maxsize = 90000;
 	const char *fname = BASEDIR "\\test.txt";
-	uint_t seed = time(NULL);
+	unsigned int seed = time(NULL);
 	union smb_fileinfo finfo;
 	int max_bits=63;
 
@@ -244,6 +242,11 @@ static bool test_writex(struct torture_context *tctx,
 	}
 
 	buf = talloc_zero_array(tctx, uint8_t, maxsize);
+
+	if (!cli->transport->negotiate.lockread_supported) {
+		printf("Server does not support writeunlock - skipping\n");
+		return true;
+	}
 
 	if (!torture_setup_dir(cli, BASEDIR)) {
 		return false;
@@ -422,10 +425,15 @@ static bool test_writeunlock(struct torture_context *tctx,
 	uint8_t *buf;
 	const int maxsize = 90000;
 	const char *fname = BASEDIR "\\test.txt";
-	uint_t seed = time(NULL);
+	unsigned int seed = time(NULL);
 	union smb_fileinfo finfo;
 
 	buf = talloc_zero_array(tctx, uint8_t, maxsize);
+
+	if (!cli->transport->negotiate.lockread_supported) {
+		printf("Server does not support writeunlock - skipping\n");
+		return true;
+	}
 
 	if (!torture_setup_dir(cli, BASEDIR)) {
 		return false;
@@ -565,10 +573,15 @@ static bool test_writeclose(struct torture_context *tctx,
 	uint8_t *buf;
 	const int maxsize = 90000;
 	const char *fname = BASEDIR "\\test.txt";
-	uint_t seed = time(NULL);
+	unsigned int seed = time(NULL);
 	union smb_fileinfo finfo;
 
 	buf = talloc_zero_array(tctx, uint8_t, maxsize);
+
+	if (!torture_setting_bool(tctx, "writeclose_support", true)) {
+		printf("Server does not support writeclose - skipping\n");
+		return true;
+	}
 
 	if (!torture_setup_dir(cli, BASEDIR)) {
 		return false;

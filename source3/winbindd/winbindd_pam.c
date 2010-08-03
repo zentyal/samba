@@ -26,7 +26,12 @@
 #include "winbindd.h"
 #include "../libcli/auth/libcli_auth.h"
 #include "../librpc/gen_ndr/cli_samr.h"
+#include "rpc_client/cli_samr.h"
+#include "../librpc/gen_ndr/ndr_netlogon.h"
+#include "rpc_client/cli_netlogon.h"
 #include "smb_krb5.h"
+#include "../lib/crypto/arcfour.h"
+#include "../libcli/security/dom_sid.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
@@ -121,7 +126,7 @@ static NTSTATUS append_info3_as_ndr(TALLOC_CTX *mem_ctx,
 	DATA_BLOB blob;
 	enum ndr_err_code ndr_err;
 
-	ndr_err = ndr_push_struct_blob(&blob, mem_ctx, NULL, info3,
+	ndr_err = ndr_push_struct_blob(&blob, mem_ctx, info3,
 				       (ndr_push_flags_fn_t)ndr_push_netr_SamInfo3);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		DEBUG(0,("append_info3_as_ndr: failed to append\n"));
@@ -192,11 +197,11 @@ static NTSTATUS append_afs_token(TALLOC_CTX *mem_ctx,
 				    "%U", name_user);
 
 	{
-		DOM_SID user_sid;
+		struct dom_sid user_sid;
 		fstring sidstr;
 
-		sid_copy(&user_sid, info3->base.domain_sid);
-		sid_append_rid(&user_sid, info3->base.rid);
+		sid_compose(&user_sid, info3->base.domain_sid,
+			    info3->base.rid);
 		sid_to_fstring(sidstr, &user_sid);
 		afsname = talloc_string_sub(mem_ctx, afsname,
 					    "%s", sidstr);
@@ -234,8 +239,8 @@ static NTSTATUS append_afs_token(TALLOC_CTX *mem_ctx,
 	return NT_STATUS_OK;
 }
 
-NTSTATUS check_info3_in_group(struct netr_SamInfo3 *info3,
-			      const char *group_sid)
+static NTSTATUS check_info3_in_group(struct netr_SamInfo3 *info3,
+				     const char *group_sid)
 /**
  * Check whether a user belongs to a group or list of groups.
  *
@@ -248,11 +253,11 @@ NTSTATUS check_info3_in_group(struct netr_SamInfo3 *info3,
  *    or other NT_STATUS_IS_ERR(status) for other kinds of failure.
  */
 {
-	DOM_SID *require_membership_of_sid;
+	struct dom_sid *require_membership_of_sid;
 	size_t num_require_membership_of_sid;
 	char *req_sid;
 	const char *p;
-	DOM_SID sid;
+	struct dom_sid sid;
 	size_t i;
 	struct nt_user_token *token;
 	TALLOC_CTX *frame = talloc_stackframe();
@@ -348,11 +353,8 @@ struct winbindd_domain *find_auth_domain(uint8_t flags,
 		return domain;
 	}
 
-	if (is_myname(domain_name)) {
-		DEBUG(3, ("Authentication for domain %s (local domain "
-			  "to this server) not supported at this "
-			  "stage\n", domain_name));
-		return NULL;
+	if (strequal(domain_name, get_global_sam_name())) {
+		return find_domain_from_name_noinit(domain_name);
 	}
 
 	/* we can auth against trusted domains */
@@ -525,17 +527,22 @@ static void setup_return_cc_name(struct winbindd_cli_state *state, const char *c
 
 #endif
 
-static uid_t get_uid_from_state(struct winbindd_cli_state *state)
+uid_t get_uid_from_request(struct winbindd_request *request)
 {
 	uid_t uid;
 
-	uid = state->request->data.auth.uid;
+	uid = request->data.auth.uid;
 
 	if (uid < 0) {
 		DEBUG(1,("invalid uid: '%u'\n", (unsigned int)uid));
 		return -1;
 	}
 	return uid;
+}
+
+static uid_t get_uid_from_state(struct winbindd_cli_state *state)
+{
+	return get_uid_from_request(state->request);
 }
 
 /**********************************************************************
@@ -561,8 +568,7 @@ static NTSTATUS winbindd_raw_kerberos_login(struct winbindd_domain *domain,
 	ADS_STRUCT *ads;
 	time_t time_offset = 0;
 	bool internal_ccache = true;
-
-	ZERO_STRUCTP(info3);
+	struct PAC_LOGON_INFO *logon_info = NULL;
 
 	*info3 = NULL;
 
@@ -620,18 +626,18 @@ static NTSTATUS winbindd_raw_kerberos_login(struct winbindd_domain *domain,
 		DEBUG(10,("winbindd_raw_kerberos_login: uid is %d\n", uid));
 	}
 
-	result = kerberos_return_info3_from_pac(state->mem_ctx,
-						principal_s,
-						state->request->data.auth.pass,
-						time_offset,
-						&ticket_lifetime,
-						&renewal_until,
-						cc,
-						true,
-						true,
-						WINBINDD_PAM_AUTH_KRB5_RENEW_TIME,
-						NULL,
-						info3);
+	result = kerberos_return_pac(state->mem_ctx,
+				     principal_s,
+				     state->request->data.auth.pass,
+				     time_offset,
+				     &ticket_lifetime,
+				     &renewal_until,
+				     cc,
+				     true,
+				     true,
+				     WINBINDD_PAM_AUTH_KRB5_RENEW_TIME,
+				     NULL,
+				     &logon_info);
 	if (!internal_ccache) {
 		gain_root_privilege();
 	}
@@ -641,6 +647,8 @@ static NTSTATUS winbindd_raw_kerberos_login(struct winbindd_domain *domain,
 	if (!NT_STATUS_IS_OK(result)) {
 		goto failed;
 	}
+
+	*info3 = &logon_info->info3;
 
 	DEBUG(10,("winbindd_raw_kerberos_login: winbindd validated ticket of %s\n",
 		principal_s));
@@ -733,10 +741,10 @@ bool check_request_flags(uint32_t flags)
 /****************************************************************
 ****************************************************************/
 
-NTSTATUS append_auth_data(struct winbindd_cli_state *state,
-			  struct netr_SamInfo3 *info3,
-			  const char *name_domain,
-			  const char *name_user)
+static NTSTATUS append_auth_data(struct winbindd_cli_state *state,
+				 struct netr_SamInfo3 *info3,
+				 const char *name_domain,
+				 const char *name_user)
 {
 	NTSTATUS result;
 	uint32_t flags = state->request->flags;
@@ -755,10 +763,11 @@ NTSTATUS append_auth_data(struct winbindd_cli_state *state,
 		       /* 8 */);
 	}
 
-	if (flags & WBFLAG_PAM_INFO3_TEXT) {
-		result = append_info3_as_txt(state->mem_ctx, state, info3);
+	if (flags & WBFLAG_PAM_UNIX_NAME) {
+		result = append_unix_username(state->mem_ctx, state, info3,
+					      name_domain, name_user);
 		if (!NT_STATUS_IS_OK(result)) {
-			DEBUG(10,("Failed to append INFO3 (TXT): %s\n",
+			DEBUG(10,("Failed to append Unix Username: %s\n",
 				nt_errstr(result)));
 			return result;
 		}
@@ -775,11 +784,10 @@ NTSTATUS append_auth_data(struct winbindd_cli_state *state,
 		}
 	}
 
-	if (flags & WBFLAG_PAM_UNIX_NAME) {
-		result = append_unix_username(state->mem_ctx, state, info3,
-					      name_domain, name_user);
+	if (flags & WBFLAG_PAM_INFO3_TEXT) {
+		result = append_info3_as_txt(state->mem_ctx, state, info3);
 		if (!NT_STATUS_IS_OK(result)) {
-			DEBUG(10,("Failed to append Unix Username: %s\n",
+			DEBUG(10,("Failed to append INFO3 (TXT): %s\n",
 				nt_errstr(result)));
 			return result;
 		}
@@ -798,70 +806,6 @@ NTSTATUS append_auth_data(struct winbindd_cli_state *state,
 	return NT_STATUS_OK;
 }
 
-void winbindd_pam_auth(struct winbindd_cli_state *state)
-{
-	struct winbindd_domain *domain;
-	fstring name_domain, name_user, mapped_user;
-	char *mapped = NULL;
-	NTSTATUS result;
-	NTSTATUS name_map_status = NT_STATUS_UNSUCCESSFUL;
-
-	/* Ensure null termination */
-	state->request->data.auth.user
-		[sizeof(state->request->data.auth.user)-1]='\0';
-
-	/* Ensure null termination */
-	state->request->data.auth.pass
-		[sizeof(state->request->data.auth.pass)-1]='\0';
-
-	DEBUG(3, ("[%5lu]: pam auth %s\n", (unsigned long)state->pid,
-		  state->request->data.auth.user));
-
-	if (!check_request_flags(state->request->flags)) {
-		result = NT_STATUS_INVALID_PARAMETER_MIX;
-		goto done;
-	}
-
-	/* Parse domain and username */
-
-	name_map_status = normalize_name_unmap(state->mem_ctx,
-					       state->request->data.auth.user,
-					       &mapped);
-
-	/* If the name normalization didnt' actually do anything,
-	   just use the original name */
-
-	if (NT_STATUS_IS_OK(name_map_status)
-	    ||NT_STATUS_EQUAL(name_map_status, NT_STATUS_FILE_RENAMED)) {
-		fstrcpy(mapped_user, mapped);
-	} else {
-		fstrcpy(mapped_user, state->request->data.auth.user);
-	}
-
-	if (!canonicalize_username(mapped_user, name_domain, name_user)) {
-		result = NT_STATUS_NO_SUCH_USER;
-		goto done;
-	}
-
-	domain = find_auth_domain(state->request->flags, name_domain);
-
-	if (domain == NULL) {
-		result = NT_STATUS_NO_SUCH_USER;
-		goto done;
-	}
-
-	sendto_domain(state, domain);
-	return;
- done:
-	set_auth_errors(state->response, result);
-	DEBUG(5, ("Plain text authentication for %s returned %s "
-		  "(PAM: %d)\n",
-		  state->request->data.auth.user,
-		  state->response->data.auth.nt_status_string,
-		  state->response->data.auth.pam_error));
-	request_error(state);
-}
-
 static NTSTATUS winbindd_dual_pam_auth_cached(struct winbindd_domain *domain,
 					      struct winbindd_cli_state *state,
 					      struct netr_SamInfo3 **info3)
@@ -869,7 +813,7 @@ static NTSTATUS winbindd_dual_pam_auth_cached(struct winbindd_domain *domain,
 	NTSTATUS result = NT_STATUS_LOGON_FAILURE;
 	uint16 max_allowed_bad_attempts;
 	fstring name_domain, name_user;
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 	uchar new_nt_pass[NT_HASH_LEN];
 	const uint8 *cached_nt_pass;
@@ -1099,7 +1043,7 @@ static NTSTATUS winbindd_dual_pam_auth_cached(struct winbindd_domain *domain,
 			DEBUG(10,("winbindd_dual_pam_auth_cached: failed to get password properties.\n"));
 		}
 
-		if ((my_info3->base.rid != DOMAIN_USER_RID_ADMIN) ||
+		if ((my_info3->base.rid != DOMAIN_RID_ADMINISTRATOR) ||
 		    (password_properties & DOMAIN_PASSWORD_LOCKOUT_ADMINS)) {
 			my_info3->base.acct_flags |= ACB_AUTOLOCK;
 		}
@@ -1179,6 +1123,53 @@ done:
 	return result;
 }
 
+static NTSTATUS winbindd_dual_auth_passdb(TALLOC_CTX *mem_ctx,
+					  const char *domain, const char *user,
+					  const DATA_BLOB *challenge,
+					  const DATA_BLOB *lm_resp,
+					  const DATA_BLOB *nt_resp,
+					  struct netr_SamInfo3 **pinfo3)
+{
+	struct auth_usersupplied_info *user_info = NULL;
+	struct auth_serversupplied_info *server_info = NULL;
+	struct netr_SamInfo3 *info3;
+	NTSTATUS status;
+
+	status = make_user_info(&user_info, user, user, domain, domain,
+				global_myname(), lm_resp, nt_resp, NULL, NULL,
+				NULL, True);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(10, ("make_user_info failed: %s\n", nt_errstr(status)));
+		return status;
+	}
+
+	status = check_sam_security(challenge, talloc_tos(), user_info,
+				    &server_info);
+	free_user_info(&user_info);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(10, ("check_ntlm_password failed: %s\n",
+			   nt_errstr(status)));
+		return status;
+	}
+
+	info3 = TALLOC_ZERO_P(mem_ctx, struct netr_SamInfo3);
+	if (info3 == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	status = serverinfo_to_SamInfo3(server_info, NULL, 0, info3);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(10, ("serverinfo_to_SamInfo3 failed: %s\n",
+			   nt_errstr(status)));
+		return status;
+	}
+
+	DEBUG(10, ("Authenticated user %s\\%s successfully\n", domain, user));
+	*pinfo3 = info3;
+	return NT_STATUS_OK;
+}
+
 typedef	NTSTATUS (*netlogon_fn_t)(struct rpc_pipe_client *cli,
 				  TALLOC_CTX *mem_ctx,
 				  uint32 logon_parameters,
@@ -1203,7 +1194,6 @@ static NTSTATUS winbindd_dual_pam_auth_samlogon(struct winbindd_domain *domain,
 	int attempts = 0;
 	unsigned char local_lm_response[24];
 	unsigned char local_nt_response[24];
-	struct winbindd_domain *contact_domain;
 	fstring name_domain, name_user;
 	bool retry;
 	NTSTATUS result;
@@ -1219,8 +1209,8 @@ static NTSTATUS winbindd_dual_pam_auth_samlogon(struct winbindd_domain *domain,
 
 	/* do password magic */
 
+	generate_random_buffer(chal, sizeof(chal));
 
-	generate_random_buffer(chal, 8);
 	if (lp_client_ntlmv2_auth()) {
 		DATA_BLOB server_chal;
 		DATA_BLOB names_blob;
@@ -1274,24 +1264,13 @@ static NTSTATUS winbindd_dual_pam_auth_samlogon(struct winbindd_domain *domain,
 					   sizeof(local_nt_response));
 	}
 
-	/* what domain should we contact? */
+	if (strequal(name_domain, get_global_sam_name())) {
+		DATA_BLOB chal_blob = data_blob_const(chal, sizeof(chal));
 
-	if ( IS_DC ) {
-		if (!(contact_domain = find_domain_from_name(name_domain))) {
-			DEBUG(3, ("Authentication for domain for [%s] -> [%s]\\[%s] failed as %s is not a trusted domain\n",
-				  state->request->data.auth.user, name_domain, name_user, name_domain));
-			result = NT_STATUS_NO_SUCH_USER;
-			goto done;
-		}
-
-	} else {
-		if (is_myname(name_domain)) {
-			DEBUG(3, ("Authentication for domain %s (local domain to this server) not supported at this stage\n", name_domain));
-			result =  NT_STATUS_NO_SUCH_USER;
-			goto done;
-		}
-
-		contact_domain = find_our_domain();
+		result = winbindd_dual_auth_passdb(
+			state->mem_ctx, name_domain, name_user,
+			&chal_blob, &lm_resp, &nt_resp, info3);
+		goto done;
 	}
 
 	/* check authentication loop */
@@ -1302,7 +1281,7 @@ static NTSTATUS winbindd_dual_pam_auth_samlogon(struct winbindd_domain *domain,
 		ZERO_STRUCTP(my_info3);
 		retry = false;
 
-		result = cm_connect_netlogon(contact_domain, &netlogon_pipe);
+		result = cm_connect_netlogon(domain, &netlogon_pipe);
 
 		if (!NT_STATUS_IS_OK(result)) {
 			DEBUG(3, ("could not open handle to NETLOGON pipe\n"));
@@ -1330,14 +1309,14 @@ static NTSTATUS winbindd_dual_pam_auth_samlogon(struct winbindd_domain *domain,
 		 *  -- abartlet 21 April 2008
 		 */
 
-		logon_fn = contact_domain->can_do_samlogon_ex
+		logon_fn = domain->can_do_samlogon_ex
 			? rpccli_netlogon_sam_network_logon_ex
 			: rpccli_netlogon_sam_network_logon;
 
 		result = logon_fn(netlogon_pipe,
 				  state->mem_ctx,
 				  0,
-				  contact_domain->dcname, /* server name */
+				  domain->dcname,	  /* server name */
 				  name_user,              /* user name */
 				  name_domain,            /* target domain */
 				  global_myname(),        /* workstation */
@@ -1348,10 +1327,10 @@ static NTSTATUS winbindd_dual_pam_auth_samlogon(struct winbindd_domain *domain,
 		attempts += 1;
 
 		if ((NT_STATUS_V(result) == DCERPC_FAULT_OP_RNG_ERROR)
-		    && contact_domain->can_do_samlogon_ex) {
+		    && domain->can_do_samlogon_ex) {
 			DEBUG(3, ("Got a DC that can not do NetSamLogonEx, "
 				  "retrying with NetSamLogon\n"));
-			contact_domain->can_do_samlogon_ex = false;
+			domain->can_do_samlogon_ex = false;
 			retry = true;
 			continue;
 		}
@@ -1376,7 +1355,7 @@ static NTSTATUS winbindd_dual_pam_auth_samlogon(struct winbindd_domain *domain,
 				"password was changed and we didn't know it. "
 				 "Killing connections to domain %s\n",
 				name_domain));
-			invalidate_cm_connection(&contact_domain->conn);
+			invalidate_cm_connection(&domain->conn);
 			retry = true;
 		}
 
@@ -1395,7 +1374,7 @@ static NTSTATUS winbindd_dual_pam_auth_samlogon(struct winbindd_domain *domain,
 		NTSTATUS status_tmp;
 		uint32 acct_flags;
 
-		status_tmp = cm_connect_sam(contact_domain, state->mem_ctx,
+		status_tmp = cm_connect_sam(domain, state->mem_ctx,
 					    &samr_pipe, &samr_domain_handle);
 
 		if (!NT_STATUS_IS_OK(status_tmp)) {
@@ -1549,7 +1528,7 @@ enum winbindd_result winbindd_dual_pam_auth(struct winbindd_domain *domain,
 		    NT_STATUS_EQUAL(result, NT_STATUS_PASSWORD_EXPIRED) ||
 		    NT_STATUS_EQUAL(result, NT_STATUS_PASSWORD_MUST_CHANGE) ||
 		    NT_STATUS_EQUAL(result, NT_STATUS_WRONG_PASSWORD)) {
-			goto process_result;
+			goto done;
 		}
 
 		if (state->request->flags & WBFLAG_PAM_FALLBACK_AFTER_KRB5) {
@@ -1612,7 +1591,7 @@ process_result:
 
 	if (NT_STATUS_IS_OK(result)) {
 
-		DOM_SID user_sid;
+		struct dom_sid user_sid;
 
 		/* In all codepaths where result == NT_STATUS_OK info3 must have
 		   been initialized. */
@@ -1655,30 +1634,12 @@ process_result:
 
 		if ((state->request->flags & WBFLAG_PAM_CACHED_LOGIN)) {
 
-			/* Store in-memory creds for single-signon using ntlm_auth. */
-			result = winbindd_add_memory_creds(state->request->data.auth.user,
-							get_uid_from_state(state),
-							state->request->data.auth.pass);
-
-			if (!NT_STATUS_IS_OK(result)) {
-				DEBUG(10,("Failed to store memory creds: %s\n", nt_errstr(result)));
-				goto done;
-			}
-
 			if (lp_winbind_offline_logon()) {
 				result = winbindd_store_creds(domain,
 						      state->mem_ctx,
 						      state->request->data.auth.user,
 						      state->request->data.auth.pass,
 						      info3, NULL);
-				if (!NT_STATUS_IS_OK(result)) {
-
-					/* Release refcount. */
-					winbindd_delete_memory_creds(state->request->data.auth.user);
-
-					DEBUG(10,("Failed to store creds: %s\n", nt_errstr(result)));
-					goto done;
-				}
 			}
 		}
 
@@ -1726,77 +1687,6 @@ done:
 	return NT_STATUS_IS_OK(result) ? WINBINDD_OK : WINBINDD_ERROR;
 }
 
-
-/**********************************************************************
- Challenge Response Authentication Protocol
-**********************************************************************/
-
-void winbindd_pam_auth_crap(struct winbindd_cli_state *state)
-{
-	struct winbindd_domain *domain = NULL;
-	const char *domain_name = NULL;
-	NTSTATUS result;
-
-	if (!check_request_flags(state->request->flags)) {
-		result = NT_STATUS_INVALID_PARAMETER_MIX;
-		goto done;
-	}
-
-	if (!state->privileged) {
-		DEBUG(2, ("winbindd_pam_auth_crap: non-privileged access "
-			  "denied.  !\n"));
-		DEBUGADD(2, ("winbindd_pam_auth_crap: Ensure permissions "
-			     "on %s are set correctly.\n",
-			     get_winbind_priv_pipe_dir()));
-		/* send a better message than ACCESS_DENIED */
-		fstr_sprintf(state->response->data.auth.error_string,
-			     "winbind client not authorized to use "
-			     "winbindd_pam_auth_crap. Ensure permissions on "
-			     "%s are set correctly.",
-			     get_winbind_priv_pipe_dir());
-		result = NT_STATUS_ACCESS_DENIED;
-		goto done;
-	}
-
-	/* Ensure null termination */
-	state->request->data.auth_crap.user
-		[sizeof(state->request->data.auth_crap.user)-1]=0;
-	state->request->data.auth_crap.domain
-		[sizeof(state->request->data.auth_crap.domain)-1]=0;
-
-	DEBUG(3, ("[%5lu]: pam auth crap domain: [%s] user: %s\n",
-		  (unsigned long)state->pid,
-		  state->request->data.auth_crap.domain,
-		  state->request->data.auth_crap.user));
-
-	if (*state->request->data.auth_crap.domain != '\0') {
-		domain_name = state->request->data.auth_crap.domain;
-	} else if (lp_winbind_use_default_domain()) {
-		domain_name = lp_workgroup();
-	}
-
-	if (domain_name != NULL)
-		domain = find_auth_domain(state->request->flags, domain_name);
-
-	if (domain != NULL) {
-		sendto_domain(state, domain);
-		return;
-	}
-
-	result = NT_STATUS_NO_SUCH_USER;
-
- done:
-	set_auth_errors(state->response, result);
-	DEBUG(5, ("CRAP authentication for %s\\%s returned %s (PAM: %d)\n",
-		  state->request->data.auth_crap.domain,
-		  state->request->data.auth_crap.user,
-		  state->response->data.auth.nt_status_string,
-		  state->response->data.auth.pam_error));
-	request_error(state);
-	return;
-}
-
-
 enum winbindd_result winbindd_dual_pam_auth_crap(struct winbindd_domain *domain,
 						 struct winbindd_cli_state *state)
 {
@@ -1806,7 +1696,6 @@ enum winbindd_result winbindd_dual_pam_auth_crap(struct winbindd_domain *domain,
 	const char *name_user = NULL;
 	const char *name_domain = NULL;
 	const char *workstation;
-	struct winbindd_domain *contact_domain;
 	int attempts = 0;
 	bool retry;
 
@@ -1871,22 +1760,15 @@ enum winbindd_result winbindd_dual_pam_auth_crap(struct winbindd_domain *domain,
 					   state->request->data.auth_crap.nt_resp_len);
 	}
 
-	/* what domain should we contact? */
+	if (strequal(name_domain, get_global_sam_name())) {
+		DATA_BLOB chal_blob = data_blob_const(
+			state->request->data.auth_crap.chal,
+			sizeof(state->request->data.auth_crap.chal));
 
-	if ( IS_DC ) {
-		if (!(contact_domain = find_domain_from_name(name_domain))) {
-			DEBUG(3, ("Authentication for domain for [%s] -> [%s]\\[%s] failed as %s is not a trusted domain\n",
-				  state->request->data.auth_crap.user, name_domain, name_user, name_domain));
-			result = NT_STATUS_NO_SUCH_USER;
-			goto done;
-		}
-	} else {
-		if (is_myname(name_domain)) {
-			DEBUG(3, ("Authentication for domain %s (local domain to this server) not supported at this stage\n", name_domain));
-			result =  NT_STATUS_NO_SUCH_USER;
-			goto done;
-		}
-		contact_domain = find_our_domain();
+		result = winbindd_dual_auth_passdb(
+			state->mem_ctx, name_domain, name_user,
+			&chal_blob, &lm_resp, &nt_resp, &info3);
+		goto process_result;
 	}
 
 	do {
@@ -1895,7 +1777,7 @@ enum winbindd_result winbindd_dual_pam_auth_crap(struct winbindd_domain *domain,
 		retry = false;
 
 		netlogon_pipe = NULL;
-		result = cm_connect_netlogon(contact_domain, &netlogon_pipe);
+		result = cm_connect_netlogon(domain, &netlogon_pipe);
 
 		if (!NT_STATUS_IS_OK(result)) {
 			DEBUG(3, ("could not open handle to NETLOGON pipe (error: %s)\n",
@@ -1903,14 +1785,14 @@ enum winbindd_result winbindd_dual_pam_auth_crap(struct winbindd_domain *domain,
 			goto done;
 		}
 
-		logon_fn = contact_domain->can_do_samlogon_ex
+		logon_fn = domain->can_do_samlogon_ex
 			? rpccli_netlogon_sam_network_logon_ex
 			: rpccli_netlogon_sam_network_logon;
 
 		result = logon_fn(netlogon_pipe,
 				  state->mem_ctx,
 				  state->request->data.auth_crap.logon_parameters,
-				  contact_domain->dcname,
+				  domain->dcname,
 				  name_user,
 				  name_domain,
 				  /* Bug #3248 - found by Stefan Burkei. */
@@ -1921,10 +1803,10 @@ enum winbindd_result winbindd_dual_pam_auth_crap(struct winbindd_domain *domain,
 				  &info3);
 
 		if ((NT_STATUS_V(result) == DCERPC_FAULT_OP_RNG_ERROR)
-		    && contact_domain->can_do_samlogon_ex) {
+		    && domain->can_do_samlogon_ex) {
 			DEBUG(3, ("Got a DC that can not do NetSamLogonEx, "
 				  "retrying with NetSamLogon\n"));
-			contact_domain->can_do_samlogon_ex = false;
+			domain->can_do_samlogon_ex = false;
 			retry = true;
 			continue;
 		}
@@ -1950,11 +1832,13 @@ enum winbindd_result winbindd_dual_pam_auth_crap(struct winbindd_domain *domain,
 				"password was changed and we didn't know it. "
 				 "Killing connections to domain %s\n",
 				name_domain));
-			invalidate_cm_connection(&contact_domain->conn);
+			invalidate_cm_connection(&domain->conn);
 			retry = true;
 		}
 
 	} while ( (attempts < 2) && retry );
+
+process_result:
 
 	if (NT_STATUS_IS_OK(result)) {
 
@@ -2005,71 +1889,20 @@ done:
 	return NT_STATUS_IS_OK(result) ? WINBINDD_OK : WINBINDD_ERROR;
 }
 
-/* Change a user password */
-
-void winbindd_pam_chauthtok(struct winbindd_cli_state *state)
-{
-	fstring domain, user;
-	char *mapped_user;
-	struct winbindd_domain *contact_domain;
-	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
-
-	DEBUG(3, ("[%5lu]: pam chauthtok %s\n", (unsigned long)state->pid,
-		state->request->data.chauthtok.user));
-
-	/* Setup crap */
-
-	nt_status = normalize_name_unmap(state->mem_ctx,
-					 state->request->data.chauthtok.user,
-					 &mapped_user);
-
-	/* Update the chauthtok name if we did any mapping */
-
-	if (NT_STATUS_IS_OK(nt_status) ||
-	    NT_STATUS_EQUAL(nt_status, NT_STATUS_FILE_RENAMED))
-	{
-		fstrcpy(state->request->data.chauthtok.user, mapped_user);
-	}
-
-	/* Must pass in state->...chauthtok.user because
-	   canonicalize_username() assumes an fstring().  Since
-	   we have already copied it (if necessary), this is ok. */
-
-	if (!canonicalize_username(state->request->data.chauthtok.user, domain, user)) {
-		set_auth_errors(state->response, NT_STATUS_NO_SUCH_USER);
-		DEBUG(5, ("winbindd_pam_chauthtok: canonicalize_username %s failed with %s"
-			  "(PAM: %d)\n",
-			  state->request->data.auth.user,
-			  state->response->data.auth.nt_status_string,
-			  state->response->data.auth.pam_error));
-		request_error(state);
-		return;
-	}
-
-	contact_domain = find_domain_from_name(domain);
-	if (!contact_domain) {
-		set_auth_errors(state->response, NT_STATUS_NO_SUCH_USER);
-		DEBUG(3, ("Cannot change password for [%s] -> [%s]\\[%s] as %s is not a trusted domain\n",
-			  state->request->data.chauthtok.user, domain, user, domain));
-		request_error(state);
-		return;
-	}
-
-	sendto_domain(state, contact_domain);
-}
-
 enum winbindd_result winbindd_dual_pam_chauthtok(struct winbindd_domain *contact_domain,
 						 struct winbindd_cli_state *state)
 {
 	char *oldpass;
 	char *newpass = NULL;
 	struct policy_handle dom_pol;
-	struct rpc_pipe_client *cli;
+	struct rpc_pipe_client *cli = NULL;
 	bool got_info = false;
 	struct samr_DomInfo1 *info = NULL;
-	struct samr_ChangeReject *reject = NULL;
+	struct userPwdChangeFailureInformation *reject = NULL;
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 	fstring domain, user;
+
+	ZERO_STRUCT(dom_pol);
 
 	DEBUG(3, ("[%5lu]: dual pam chauthtok %s\n", (unsigned long)state->pid,
 		  state->request->data.auth.user));
@@ -2109,7 +1942,7 @@ enum winbindd_result winbindd_dual_pam_chauthtok(struct winbindd_domain *contact
 		fill_in_password_policy(state->response, info);
 
 		state->response->data.auth.reject_reason =
-			reject->reason;
+			reject->extendedFailureReason;
 
 		got_info = true;
 	}
@@ -2141,26 +1974,6 @@ enum winbindd_result winbindd_dual_pam_chauthtok(struct winbindd_domain *contact
 done:
 
 	if (NT_STATUS_IS_OK(result) && (state->request->flags & WBFLAG_PAM_CACHED_LOGIN)) {
-
-		/* Update the single sign-on memory creds. */
-		result = winbindd_replace_memory_creds(state->request->data.chauthtok.user,
-							newpass);
-
-		/* When we login from gdm or xdm and password expires,
-		 * we change password, but there are no memory crendentials
-		 * So, winbindd_replace_memory_creds() returns
-		 * NT_STATUS_OBJECT_NAME_NOT_FOUND. This is not a failure.
-		 * --- BoYang
-		 * */
-		if (NT_STATUS_EQUAL(result, NT_STATUS_OBJECT_NAME_NOT_FOUND)) {
-			result = NT_STATUS_OK;
-		}
-
-		if (!NT_STATUS_IS_OK(result)) {
-			DEBUG(10,("Failed to replace memory creds: %s\n", nt_errstr(result)));
-			goto process_result;
-		}
-
 		if (lp_winbind_offline_logon()) {
 			result = winbindd_update_creds_by_name(contact_domain,
 							 state->mem_ctx, user,
@@ -2201,6 +2014,16 @@ done:
 
 process_result:
 
+	if (strequal(contact_domain->name, get_global_sam_name())) {
+		/* FIXME: internal rpc pipe does not cache handles yet */
+		if (cli) {
+			if (is_valid_policy_hnd(&dom_pol)) {
+				rpccli_samr_Close(cli, state->mem_ctx, &dom_pol);
+			}
+			TALLOC_FREE(cli);
+		}
+	}
+
 	set_auth_errors(state->response, result);
 
 	DEBUG(NT_STATUS_IS_OK(result) ? 5 : 2,
@@ -2211,72 +2034,6 @@ process_result:
 	       state->response->data.auth.pam_error));
 
 	return NT_STATUS_IS_OK(result) ? WINBINDD_OK : WINBINDD_ERROR;
-}
-
-void winbindd_pam_logoff(struct winbindd_cli_state *state)
-{
-	struct winbindd_domain *domain;
-	fstring name_domain, user;
-	uid_t caller_uid = (uid_t)-1;
-	uid_t request_uid = state->request->data.logoff.uid;
-
-	DEBUG(3, ("[%5lu]: pam logoff %s\n", (unsigned long)state->pid,
-		state->request->data.logoff.user));
-
-	/* Ensure null termination */
-	state->request->data.logoff.user
-		[sizeof(state->request->data.logoff.user)-1]='\0';
-
-	state->request->data.logoff.krb5ccname
-		[sizeof(state->request->data.logoff.krb5ccname)-1]='\0';
-
-	if (request_uid == (gid_t)-1) {
-		goto failed;
-	}
-
-	if (!canonicalize_username(state->request->data.logoff.user, name_domain, user)) {
-		goto failed;
-	}
-
-	if ((domain = find_auth_domain(state->request->flags,
-				       name_domain)) == NULL) {
-		goto failed;
-	}
-
-	if ((sys_getpeereid(state->sock, &caller_uid)) != 0) {
-		DEBUG(1,("winbindd_pam_logoff: failed to check peerid: %s\n",
-			strerror(errno)));
-		goto failed;
-	}
-
-	switch (caller_uid) {
-		case -1:
-			goto failed;
-		case 0:
-			/* root must be able to logoff any user - gd */
-			state->request->data.logoff.uid = request_uid;
-			break;
-		default:
-			if (caller_uid != request_uid) {
-				DEBUG(1,("winbindd_pam_logoff: caller requested invalid uid\n"));
-				goto failed;
-			}
-			state->request->data.logoff.uid = caller_uid;
-			break;
-	}
-
-	sendto_domain(state, domain);
-	return;
-
- failed:
-	set_auth_errors(state->response, NT_STATUS_NO_SUCH_USER);
-	DEBUG(5, ("Pam Logoff for %s returned %s "
-		  "(PAM: %d)\n",
-		  state->request->data.logoff.user,
-		  state->response->data.auth.nt_status_string,
-		  state->response->data.auth.pam_error));
-	request_error(state);
-	return;
 }
 
 enum winbindd_result winbindd_dual_pam_logoff(struct winbindd_domain *domain,
@@ -2333,7 +2090,6 @@ enum winbindd_result winbindd_dual_pam_logoff(struct winbindd_domain *domain,
 
 process_result:
 
-	winbindd_delete_memory_creds(state->request->data.logoff.user);
 
 	set_auth_errors(state->response, result);
 
@@ -2341,48 +2097,6 @@ process_result:
 }
 
 /* Change user password with auth crap*/
-
-void winbindd_pam_chng_pswd_auth_crap(struct winbindd_cli_state *state)
-{
-	struct winbindd_domain *domain = NULL;
-	const char *domain_name = NULL;
-
-	/* Ensure null termination */
-	state->request->data.chng_pswd_auth_crap.user[
-		sizeof(state->request->data.chng_pswd_auth_crap.user)-1]=0;
-	state->request->data.chng_pswd_auth_crap.domain[
-		sizeof(state->request->data.chng_pswd_auth_crap.domain)-1]=0;
-
-	DEBUG(3, ("[%5lu]: pam change pswd auth crap domain: %s user: %s\n",
-		  (unsigned long)state->pid,
-		  state->request->data.chng_pswd_auth_crap.domain,
-		  state->request->data.chng_pswd_auth_crap.user));
-
-	if (*state->request->data.chng_pswd_auth_crap.domain != '\0') {
-		domain_name = state->request->data.chng_pswd_auth_crap.domain;
-	} else if (lp_winbind_use_default_domain()) {
-		domain_name = lp_workgroup();
-	}
-
-	if (domain_name != NULL)
-		domain = find_domain_from_name(domain_name);
-
-	if (domain != NULL) {
-		DEBUG(7, ("[%5lu]: pam auth crap changing pswd in domain: "
-			  "%s\n", (unsigned long)state->pid,domain->name));
-		sendto_domain(state, domain);
-		return;
-	}
-
-	set_auth_errors(state->response, NT_STATUS_NO_SUCH_USER);
-	DEBUG(5, ("CRAP change password  for %s\\%s returned %s (PAM: %d)\n",
-		  state->request->data.chng_pswd_auth_crap.domain,
-		  state->request->data.chng_pswd_auth_crap.user,
-		  state->response->data.auth.nt_status_string,
-		  state->response->data.auth.pam_error));
-	request_error(state);
-	return;
-}
 
 enum winbindd_result winbindd_dual_pam_chng_pswd_auth_crap(struct winbindd_domain *domainSt, struct winbindd_cli_state *state)
 {
@@ -2394,7 +2108,9 @@ enum winbindd_result winbindd_dual_pam_chng_pswd_auth_crap(struct winbindd_domai
 	fstring  domain,user;
 	struct policy_handle dom_pol;
 	struct winbindd_domain *contact_domain = domainSt;
-	struct rpc_pipe_client *cli;
+	struct rpc_pipe_client *cli = NULL;
+
+	ZERO_STRUCT(dom_pol);
 
 	/* Ensure null termination */
 	state->request->data.chng_pswd_auth_crap.user[
@@ -2443,24 +2159,20 @@ enum winbindd_result winbindd_dual_pam_chng_pswd_auth_crap(struct winbindd_domai
 		  (unsigned long)state->pid, domain, user));
 
 	/* Change password */
-	new_nt_password = data_blob_talloc(
-		state->mem_ctx,
+	new_nt_password = data_blob_const(
 		state->request->data.chng_pswd_auth_crap.new_nt_pswd,
 		state->request->data.chng_pswd_auth_crap.new_nt_pswd_len);
 
-	old_nt_hash_enc = data_blob_talloc(
-		state->mem_ctx,
+	old_nt_hash_enc = data_blob_const(
 		state->request->data.chng_pswd_auth_crap.old_nt_hash_enc,
 		state->request->data.chng_pswd_auth_crap.old_nt_hash_enc_len);
 
 	if(state->request->data.chng_pswd_auth_crap.new_lm_pswd_len > 0)	{
-		new_lm_password = data_blob_talloc(
-			state->mem_ctx,
+		new_lm_password = data_blob_const(
 			state->request->data.chng_pswd_auth_crap.new_lm_pswd,
 			state->request->data.chng_pswd_auth_crap.new_lm_pswd_len);
 
-		old_lm_hash_enc = data_blob_talloc(
-			state->mem_ctx,
+		old_lm_hash_enc = data_blob_const(
 			state->request->data.chng_pswd_auth_crap.old_lm_hash_enc,
 			state->request->data.chng_pswd_auth_crap.old_lm_hash_enc_len);
 	} else {
@@ -2481,6 +2193,16 @@ enum winbindd_result winbindd_dual_pam_chng_pswd_auth_crap(struct winbindd_domai
 		new_lm_password, old_lm_hash_enc);
 
  done:
+
+	if (strequal(contact_domain->name, get_global_sam_name())) {
+		/* FIXME: internal rpc pipe does not cache handles yet */
+		if (cli) {
+			if (is_valid_policy_hnd(&dom_pol)) {
+				rpccli_samr_Close(cli, state->mem_ctx, &dom_pol);
+			}
+			TALLOC_FREE(cli);
+		}
+	}
 
 	set_auth_errors(state->response, result);
 

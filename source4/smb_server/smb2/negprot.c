@@ -119,7 +119,7 @@ static NTSTATUS smb2srv_negprot_backend(struct smb2srv_request *req, struct smb2
 	boot_time = timeval_current(); /* TODO: fix me */
 
 	ZERO_STRUCT(io->out);
-	switch (lp_server_signing(req->smb_conn->lp_ctx)) {
+	switch (lpcfg_server_signing(req->smb_conn->lp_ctx)) {
 	case SMB_SIGNING_OFF:
 		io->out.security_mode = 0;
 		break;
@@ -135,11 +135,11 @@ static NTSTATUS smb2srv_negprot_backend(struct smb2srv_request *req, struct smb2
 	}
 	io->out.dialect_revision   = dialect;
 	io->out.capabilities       = 0;
-	io->out.max_transact_size  = lp_parm_ulong(req->smb_conn->lp_ctx, NULL, 
+	io->out.max_transact_size  = lpcfg_parm_ulong(req->smb_conn->lp_ctx, NULL,
 						   "smb2", "max transaction size", 0x10000);
-	io->out.max_read_size      = lp_parm_ulong(req->smb_conn->lp_ctx, NULL, 
+	io->out.max_read_size      = lpcfg_parm_ulong(req->smb_conn->lp_ctx, NULL,
 						   "smb2", "max read size", 0x10000);
-	io->out.max_write_size     = lp_parm_ulong(req->smb_conn->lp_ctx, NULL, 
+	io->out.max_write_size     = lpcfg_parm_ulong(req->smb_conn->lp_ctx, NULL,
 						   "smb2", "max write size", 0x10000);
 	io->out.system_time	   = timeval_to_nttime(&current_time);
 	io->out.server_start_time  = timeval_to_nttime(&boot_time);
@@ -153,7 +153,6 @@ static NTSTATUS smb2srv_negprot_backend(struct smb2srv_request *req, struct smb2
 static void smb2srv_negprot_send(struct smb2srv_request *req, struct smb2_negprot *io)
 {
 	NTSTATUS status;
-	enum ndr_err_code ndr_err;
 
 	if (NT_STATUS_IS_ERR(req->status)) {
 		smb2srv_send_error(req, req->status); /* TODO: is this correct? */
@@ -170,8 +169,8 @@ static void smb2srv_negprot_send(struct smb2srv_request *req, struct smb2_negpro
 	SSVAL(req->out.body, 0x02, io->out.security_mode);
 	SIVAL(req->out.body, 0x04, io->out.dialect_revision);
 	SIVAL(req->out.body, 0x06, io->out.reserved);
-	ndr_err = smbcli_push_guid(req->out.body, 0x08, &io->out.server_guid);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+	status = smbcli_push_guid(req->out.body, 0x08, &io->out.server_guid);
+	if (!NT_STATUS_IS_OK(status)) {
 		smbsrv_terminate_connection(req->smb_conn, nt_errstr(status));
 		talloc_free(req);
 		return;
@@ -197,7 +196,6 @@ void smb2srv_negprot_recv(struct smb2srv_request *req)
 {
 	struct smb2_negprot *io;
 	int i;
-	enum ndr_err_code ndr_err;
 
 	if (req->in.body_size < 0x26) {
 		smbsrv_terminate_connection(req->smb_conn, "Bad body size in SMB2 negprot");
@@ -215,8 +213,8 @@ void smb2srv_negprot_recv(struct smb2srv_request *req)
 	io->in.security_mode = SVAL(req->in.body, 0x04);
 	io->in.reserved      = SVAL(req->in.body, 0x06);
 	io->in.capabilities  = IVAL(req->in.body, 0x08);
-	ndr_err = smbcli_pull_guid(req->in.body, 0xC, &io->in.client_guid);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+	req->status = smbcli_pull_guid(req->in.body, 0xC, &io->in.client_guid);
+	if (!NT_STATUS_IS_OK(req->status)) {
 		smbsrv_terminate_connection(req->smb_conn, "Bad GUID in SMB2 negprot");
 		talloc_free(req);
 		return;

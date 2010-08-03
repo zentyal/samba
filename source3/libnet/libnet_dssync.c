@@ -21,7 +21,7 @@
 
 
 #include "includes.h"
-#include "libnet/libnet.h"
+#include "libnet/libnet_dssync.h"
 #include "../libcli/drsuapi/drsuapi.h"
 #include "../librpc/gen_ndr/cli_drsuapi.h"
 
@@ -218,9 +218,9 @@ static NTSTATUS libnet_dssync_lookup_nc(TALLOC_CTX *mem_ctx,
 {
 	NTSTATUS status;
 	WERROR werr;
-	int32_t level = 1;
+	uint32_t level = 1;
 	union drsuapi_DsNameRequest req;
-	int32_t level_out;
+	uint32_t level_out;
 	struct drsuapi_DsNameString names[1];
 	union drsuapi_DsNameCtr ctr;
 
@@ -300,23 +300,23 @@ static NTSTATUS libnet_dssync_build_request(TALLOC_CTX *mem_ctx,
 					    struct dssync_context *ctx,
 					    const char *dn,
 					    struct replUpToDateVectorBlob *utdv,
-					    int32_t *plevel,
+					    uint32_t *plevel,
 					    union drsuapi_DsGetNCChangesRequest *preq)
 {
 	NTSTATUS status;
 	uint32_t count;
-	int32_t level;
+	uint32_t level;
 	union drsuapi_DsGetNCChangesRequest req;
 	struct dom_sid null_sid;
 	enum drsuapi_DsExtendedOperation extended_op;
 	struct drsuapi_DsReplicaObjectIdentifier *nc = NULL;
 	struct drsuapi_DsReplicaCursorCtrEx *cursors = NULL;
 
-	uint32_t replica_flags	= DRSUAPI_DS_REPLICA_NEIGHBOUR_WRITEABLE |
-				  DRSUAPI_DS_REPLICA_NEIGHBOUR_SYNC_ON_STARTUP |
-				  DRSUAPI_DS_REPLICA_NEIGHBOUR_DO_SCHEDULED_SYNCS |
-				  DRSUAPI_DS_REPLICA_NEIGHBOUR_RETURN_OBJECT_PARENTS |
-				  DRSUAPI_DS_REPLICA_NEIGHBOUR_NEVER_SYNCED;
+	uint32_t replica_flags	= DRSUAPI_DRS_WRIT_REP |
+				  DRSUAPI_DRS_INIT_SYNC |
+				  DRSUAPI_DRS_PER_SYNC |
+				  DRSUAPI_DRS_GET_ANC |
+				  DRSUAPI_DRS_NEVER_SYNCED;
 
 	ZERO_STRUCT(null_sid);
 	ZERO_STRUCT(req);
@@ -415,7 +415,7 @@ fail:
 
 static NTSTATUS libnet_dssync_getncchanges(TALLOC_CTX *mem_ctx,
 					   struct dssync_context *ctx,
-					   int32_t level,
+					   uint32_t level,
 					   union drsuapi_DsGetNCChangesRequest *req,
 					   struct replUpToDateVectorBlob **pnew_utdv)
 {
@@ -425,8 +425,8 @@ static NTSTATUS libnet_dssync_getncchanges(TALLOC_CTX *mem_ctx,
 	struct drsuapi_DsGetNCChangesCtr1 *ctr1 = NULL;
 	struct drsuapi_DsGetNCChangesCtr6 *ctr6 = NULL;
 	struct replUpToDateVectorBlob *new_utdv = NULL;
-	int32_t level_out = 0;
-	int32_t out_level = 0;
+	uint32_t level_out = 0;
+	uint32_t out_level = 0;
 	int y;
 	bool last_query;
 
@@ -576,7 +576,7 @@ static NTSTATUS libnet_dssync_process(TALLOC_CTX *mem_ctx,
 {
 	NTSTATUS status;
 
-	int32_t level = 0;
+	uint32_t level = 0;
 	union drsuapi_DsGetNCChangesRequest req;
 	struct replUpToDateVectorBlob *old_utdv = NULL;
 	struct replUpToDateVectorBlob *pnew_utdv = NULL;

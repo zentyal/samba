@@ -41,28 +41,30 @@ enum wreplsrv_out_connect_stage {
 struct wreplsrv_out_connect_state {
 	enum wreplsrv_out_connect_stage stage;
 	struct composite_context *c;
-	struct wrepl_request *req;
-	struct composite_context *c_req;
 	struct wrepl_associate assoc_io;
 	enum winsrepl_partner_type type;
 	struct wreplsrv_out_connection *wreplconn;
+	struct tevent_req *subreq;
 };
 
-static void wreplsrv_out_connect_handler_creq(struct composite_context *c_req);
-static void wreplsrv_out_connect_handler_req(struct wrepl_request *req);
+static void wreplsrv_out_connect_handler_treq(struct tevent_req *subreq);
 
 static NTSTATUS wreplsrv_out_connect_wait_socket(struct wreplsrv_out_connect_state *state)
 {
 	NTSTATUS status;
 
-	status = wrepl_connect_recv(state->c_req);
+	status = wrepl_connect_recv(state->subreq);
+	TALLOC_FREE(state->subreq);
 	NT_STATUS_NOT_OK_RETURN(status);
 
-	state->req = wrepl_associate_send(state->wreplconn->sock, &state->assoc_io);
-	NT_STATUS_HAVE_NO_MEMORY(state->req);
+	state->subreq = wrepl_associate_send(state,
+					     state->wreplconn->service->task->event_ctx,
+					     state->wreplconn->sock, &state->assoc_io);
+	NT_STATUS_HAVE_NO_MEMORY(state->subreq);
 
-	state->req->async.fn		= wreplsrv_out_connect_handler_req;
-	state->req->async.private_data	= state;
+	tevent_req_set_callback(state->subreq,
+				wreplsrv_out_connect_handler_treq,
+				state);
 
 	state->stage = WREPLSRV_OUT_CONNECT_STAGE_WAIT_ASSOC_CTX;
 
@@ -73,7 +75,8 @@ static NTSTATUS wreplsrv_out_connect_wait_assoc_ctx(struct wreplsrv_out_connect_
 {
 	NTSTATUS status;
 
-	status = wrepl_associate_recv(state->req, &state->assoc_io);
+	status = wrepl_associate_recv(state->subreq, &state->assoc_io);
+	TALLOC_FREE(state->subreq);
 	NT_STATUS_NOT_OK_RETURN(status);
 
 	state->wreplconn->assoc_ctx.peer_ctx = state->assoc_io.out.assoc_ctx;
@@ -121,17 +124,9 @@ static void wreplsrv_out_connect_handler(struct wreplsrv_out_connect_state *stat
 	}
 }
 
-static void wreplsrv_out_connect_handler_creq(struct composite_context *creq)
+static void wreplsrv_out_connect_handler_treq(struct tevent_req *subreq)
 {
-	struct wreplsrv_out_connect_state *state = talloc_get_type(creq->async.private_data,
-						   struct wreplsrv_out_connect_state);
-	wreplsrv_out_connect_handler(state);
-	return;
-}
-
-static void wreplsrv_out_connect_handler_req(struct wrepl_request *req)
-{
-	struct wreplsrv_out_connect_state *state = talloc_get_type(req->async.private_data,
+	struct wreplsrv_out_connect_state *state = tevent_req_callback_data(subreq,
 						   struct wreplsrv_out_connect_state);
 	wreplsrv_out_connect_handler(state);
 	return;
@@ -171,7 +166,7 @@ static struct composite_context *wreplsrv_out_connect_send(struct wreplsrv_partn
 
 	/* we have a connection already, so use it */
 	if (wreplconn) {
-		if (!wreplconn->sock->dead) {
+		if (wrepl_socket_is_connected(wreplconn->sock)) {
 			state->stage	= WREPLSRV_OUT_CONNECT_STAGE_DONE;
 			state->wreplconn= wreplconn;
 			composite_done(c);
@@ -192,18 +187,21 @@ static struct composite_context *wreplsrv_out_connect_send(struct wreplsrv_partn
 
 	wreplconn->service	= service;
 	wreplconn->partner	= partner;
-	wreplconn->sock		= wrepl_socket_init(wreplconn, service->task->event_ctx, lp_iconv_convenience(service->task->lp_ctx));
+	wreplconn->sock		= wrepl_socket_init(wreplconn, service->task->event_ctx);
 	if (!wreplconn->sock) goto failed;
 
 	state->stage	= WREPLSRV_OUT_CONNECT_STAGE_WAIT_SOCKET;
 	state->wreplconn= wreplconn;
-	state->c_req	= wrepl_connect_send(wreplconn->sock,
+	state->subreq	= wrepl_connect_send(state,
+					     service->task->event_ctx,
+					     wreplconn->sock,
 					     partner->our_address?partner->our_address:wrepl_best_ip(service->task->lp_ctx, partner->address),
 					     partner->address);
-	if (!state->c_req) goto failed;
+	if (!state->subreq) goto failed;
 
-	state->c_req->async.fn			= wreplsrv_out_connect_handler_creq;
-	state->c_req->async.private_data	= state;
+	tevent_req_set_callback(state->subreq,
+				wreplsrv_out_connect_handler_treq,
+				state);
 
 	return c;
 failed:
@@ -255,14 +253,14 @@ enum wreplsrv_pull_table_stage {
 struct wreplsrv_pull_table_state {
 	enum wreplsrv_pull_table_stage stage;
 	struct composite_context *c;
-	struct wrepl_request *req;
 	struct wrepl_pull_table table_io;
 	struct wreplsrv_pull_table_io *io;
 	struct composite_context *creq;
 	struct wreplsrv_out_connection *wreplconn;
+	struct tevent_req *subreq;
 };
 
-static void wreplsrv_pull_table_handler_req(struct wrepl_request *req);
+static void wreplsrv_pull_table_handler_treq(struct tevent_req *subreq);
 
 static NTSTATUS wreplsrv_pull_table_wait_connection(struct wreplsrv_pull_table_state *state)
 {
@@ -272,11 +270,14 @@ static NTSTATUS wreplsrv_pull_table_wait_connection(struct wreplsrv_pull_table_s
 	NT_STATUS_NOT_OK_RETURN(status);
 
 	state->table_io.in.assoc_ctx = state->wreplconn->assoc_ctx.peer_ctx;
-	state->req = wrepl_pull_table_send(state->wreplconn->sock, &state->table_io);
-	NT_STATUS_HAVE_NO_MEMORY(state->req);
+	state->subreq = wrepl_pull_table_send(state,
+					      state->wreplconn->service->task->event_ctx,
+					      state->wreplconn->sock, &state->table_io);
+	NT_STATUS_HAVE_NO_MEMORY(state->subreq);
 
-	state->req->async.fn		= wreplsrv_pull_table_handler_req;
-	state->req->async.private_data	= state;
+	tevent_req_set_callback(state->subreq,
+				wreplsrv_pull_table_handler_treq,
+				state);
 
 	state->stage = WREPLSRV_PULL_TABLE_STAGE_WAIT_TABLE_REPLY;
 
@@ -287,7 +288,8 @@ static NTSTATUS wreplsrv_pull_table_wait_table_reply(struct wreplsrv_pull_table_
 {
 	NTSTATUS status;
 
-	status = wrepl_pull_table_recv(state->req, state, &state->table_io);
+	status = wrepl_pull_table_recv(state->subreq, state, &state->table_io);
+	TALLOC_FREE(state->subreq);
 	NT_STATUS_NOT_OK_RETURN(status);
 
 	state->stage = WREPLSRV_PULL_TABLE_STAGE_DONE;
@@ -328,9 +330,9 @@ static void wreplsrv_pull_table_handler_creq(struct composite_context *creq)
 	return;
 }
 
-static void wreplsrv_pull_table_handler_req(struct wrepl_request *req)
+static void wreplsrv_pull_table_handler_treq(struct tevent_req *subreq)
 {
-	struct wreplsrv_pull_table_state *state = talloc_get_type(req->async.private_data,
+	struct wreplsrv_pull_table_state *state = tevent_req_callback_data(subreq,
 						  struct wreplsrv_pull_table_state);
 	wreplsrv_pull_table_handler(state);
 	return;
@@ -414,14 +416,14 @@ enum wreplsrv_pull_names_stage {
 struct wreplsrv_pull_names_state {
 	enum wreplsrv_pull_names_stage stage;
 	struct composite_context *c;
-	struct wrepl_request *req;
 	struct wrepl_pull_names pull_io;
 	struct wreplsrv_pull_names_io *io;
 	struct composite_context *creq;
 	struct wreplsrv_out_connection *wreplconn;
+	struct tevent_req *subreq;
 };
 
-static void wreplsrv_pull_names_handler_req(struct wrepl_request *req);
+static void wreplsrv_pull_names_handler_treq(struct tevent_req *subreq);
 
 static NTSTATUS wreplsrv_pull_names_wait_connection(struct wreplsrv_pull_names_state *state)
 {
@@ -432,11 +434,15 @@ static NTSTATUS wreplsrv_pull_names_wait_connection(struct wreplsrv_pull_names_s
 
 	state->pull_io.in.assoc_ctx	= state->wreplconn->assoc_ctx.peer_ctx;
 	state->pull_io.in.partner	= state->io->in.owner;
-	state->req = wrepl_pull_names_send(state->wreplconn->sock, &state->pull_io);
-	NT_STATUS_HAVE_NO_MEMORY(state->req);
+	state->subreq = wrepl_pull_names_send(state,
+					      state->wreplconn->service->task->event_ctx,
+					      state->wreplconn->sock,
+					      &state->pull_io);
+	NT_STATUS_HAVE_NO_MEMORY(state->subreq);
 
-	state->req->async.fn		= wreplsrv_pull_names_handler_req;
-	state->req->async.private_data	= state;
+	tevent_req_set_callback(state->subreq,
+				wreplsrv_pull_names_handler_treq,
+				state);
 
 	state->stage = WREPLSRV_PULL_NAMES_STAGE_WAIT_SEND_REPLY;
 
@@ -447,7 +453,8 @@ static NTSTATUS wreplsrv_pull_names_wait_send_reply(struct wreplsrv_pull_names_s
 {
 	NTSTATUS status;
 
-	status = wrepl_pull_names_recv(state->req, state, &state->pull_io);
+	status = wrepl_pull_names_recv(state->subreq, state, &state->pull_io);
+	TALLOC_FREE(state->subreq);
 	NT_STATUS_NOT_OK_RETURN(status);
 
 	state->stage = WREPLSRV_PULL_NAMES_STAGE_DONE;
@@ -488,9 +495,9 @@ static void wreplsrv_pull_names_handler_creq(struct composite_context *creq)
 	return;
 }
 
-static void wreplsrv_pull_names_handler_req(struct wrepl_request *req)
+static void wreplsrv_pull_names_handler_treq(struct tevent_req *subreq)
 {
-	struct wreplsrv_pull_names_state *state = talloc_get_type(req->async.private_data,
+	struct wreplsrv_pull_names_state *state = tevent_req_callback_data(subreq,
 						  struct wreplsrv_pull_names_state);
 	wreplsrv_pull_names_handler(state);
 	return;
@@ -565,11 +572,11 @@ struct wreplsrv_pull_cycle_state {
 	struct wreplsrv_pull_names_io names_io;
 	struct composite_context *creq;
 	struct wrepl_associate_stop assoc_stop_io;
-	struct wrepl_request *req;
+	struct tevent_req *subreq;
 };
 
 static void wreplsrv_pull_cycle_handler_creq(struct composite_context *creq);
-static void wreplsrv_pull_cycle_handler_req(struct wrepl_request *req);
+static void wreplsrv_pull_cycle_handler_treq(struct tevent_req *subreq);
 
 static NTSTATUS wreplsrv_pull_cycle_next_owner_do_work(struct wreplsrv_pull_cycle_state *state)
 {
@@ -647,11 +654,15 @@ static NTSTATUS wreplsrv_pull_cycle_next_owner_wrapper(struct wreplsrv_pull_cycl
 	if (state->stage == WREPLSRV_PULL_CYCLE_STAGE_DONE && state->io->in.wreplconn) {
 		state->assoc_stop_io.in.assoc_ctx	= state->io->in.wreplconn->assoc_ctx.peer_ctx;
 		state->assoc_stop_io.in.reason		= 0;
-		state->req = wrepl_associate_stop_send(state->io->in.wreplconn->sock, &state->assoc_stop_io);
-		NT_STATUS_HAVE_NO_MEMORY(state->req);
+		state->subreq = wrepl_associate_stop_send(state,
+							  state->io->in.wreplconn->service->task->event_ctx,
+							  state->io->in.wreplconn->sock,
+							  &state->assoc_stop_io);
+		NT_STATUS_HAVE_NO_MEMORY(state->subreq);
 
-		state->req->async.fn		= wreplsrv_pull_cycle_handler_req;
-		state->req->async.private_data	= state;
+		tevent_req_set_callback(state->subreq,
+					wreplsrv_pull_cycle_handler_treq,
+					state);
 
 		state->stage = WREPLSRV_PULL_CYCLE_STAGE_WAIT_STOP_ASSOC;
 	}
@@ -724,7 +735,8 @@ static NTSTATUS wreplsrv_pull_cycle_wait_stop_assoc(struct wreplsrv_pull_cycle_s
 {
 	NTSTATUS status;
 
-	status = wrepl_associate_stop_recv(state->req, &state->assoc_stop_io);
+	status = wrepl_associate_stop_recv(state->subreq, &state->assoc_stop_io);
+	TALLOC_FREE(state->subreq);
 	NT_STATUS_NOT_OK_RETURN(status);
 
 	state->stage = WREPLSRV_PULL_CYCLE_STAGE_DONE;
@@ -771,9 +783,9 @@ static void wreplsrv_pull_cycle_handler_creq(struct composite_context *creq)
 	return;
 }
 
-static void wreplsrv_pull_cycle_handler_req(struct wrepl_request *req)
+static void wreplsrv_pull_cycle_handler_treq(struct tevent_req *subreq)
 {
-	struct wreplsrv_pull_cycle_state *state = talloc_get_type(req->async.private_data,
+	struct wreplsrv_pull_cycle_state *state = tevent_req_callback_data(subreq,
 						  struct wreplsrv_pull_cycle_state);
 	wreplsrv_pull_cycle_handler(state);
 	return;
@@ -825,6 +837,7 @@ NTSTATUS wreplsrv_pull_cycle_recv(struct composite_context *c)
 
 enum wreplsrv_push_notify_stage {
 	WREPLSRV_PUSH_NOTIFY_STAGE_WAIT_CONNECT,
+	WREPLSRV_PUSH_NOTIFY_STAGE_WAIT_UPDATE,
 	WREPLSRV_PUSH_NOTIFY_STAGE_WAIT_INFORM,
 	WREPLSRV_PUSH_NOTIFY_STAGE_DONE
 };
@@ -836,15 +849,15 @@ struct wreplsrv_push_notify_state {
 	enum wrepl_replication_cmd command;
 	bool full_table;
 	struct wrepl_send_ctrl ctrl;
-	struct wrepl_request *req;
 	struct wrepl_packet req_packet;
 	struct wrepl_packet *rep_packet;
 	struct composite_context *creq;
 	struct wreplsrv_out_connection *wreplconn;
+	struct tevent_req *subreq;
 };
 
 static void wreplsrv_push_notify_handler_creq(struct composite_context *creq);
-static void wreplsrv_push_notify_handler_req(struct wrepl_request *req);
+static void wreplsrv_push_notify_handler_treq(struct tevent_req *subreq);
 
 static NTSTATUS wreplsrv_push_notify_update(struct wreplsrv_push_notify_state *state)
 {
@@ -852,11 +865,7 @@ static NTSTATUS wreplsrv_push_notify_update(struct wreplsrv_push_notify_state *s
 	struct wrepl_packet *req = &state->req_packet;
 	struct wrepl_replication *repl_out = &state->req_packet.message.replication;
 	struct wrepl_table *table_out = &state->req_packet.message.replication.info.table;
-	struct wreplsrv_in_connection *wrepl_in;
 	NTSTATUS status;
-	struct socket_context *sock;
-	struct packet_context *packet;
-	uint16_t fde_flags;
 
 	/* prepare the outgoing request */
 	req->opcode	= WREPL_OPCODE_BITS;
@@ -870,64 +879,16 @@ static NTSTATUS wreplsrv_push_notify_update(struct wreplsrv_push_notify_state *s
 	NT_STATUS_NOT_OK_RETURN(status);
 
 	/* queue the request */
-	state->req = wrepl_request_send(state->wreplconn->sock, req, NULL);
-	NT_STATUS_HAVE_NO_MEMORY(state->req);
+	state->subreq = wrepl_request_send(state,
+					   state->wreplconn->service->task->event_ctx,
+					   state->wreplconn->sock, req, NULL);
+	NT_STATUS_HAVE_NO_MEMORY(state->subreq);
 
-	/*
-	 * now we need to convert the wrepl_socket (client connection)
-	 * into a wreplsrv_in_connection (server connection), because
-	 * we'll act as a server on this connection after the WREPL_REPL_UPDATE*
-	 * message is received by the peer.
-	 */
+	tevent_req_set_callback(state->subreq,
+				wreplsrv_push_notify_handler_treq,
+				state);
 
-	/* steal the socket_context */
-	sock = state->wreplconn->sock->sock;
-	state->wreplconn->sock->sock = NULL;
-	talloc_steal(state, sock);
-
-	/* 
-	 * steal the packet_context
-	 * note the request DATA_BLOB we just send on the
-	 * wrepl_socket (client connection) is still unter the 
-	 * packet context and will be send to the wire
-	 */
-	packet = state->wreplconn->sock->packet;
-	state->wreplconn->sock->packet = NULL;
-	talloc_steal(state, packet);
-
-	/*
-	 * get the fde_flags of the old fde event,
-	 * so that we can later set the same flags to the new one
-	 */
-	fde_flags = event_get_fd_flags(state->wreplconn->sock->event.fde);
-
-	/*
-	 * free the wrepl_socket (client connection)
-	 */
-	talloc_free(state->wreplconn->sock);
-	state->wreplconn->sock = NULL;
-
-	/*
-	 * now create a wreplsrv_in_connection,
-	 * on which we act as server
-	 *
-	 * NOTE: sock and packet will be stolen by
-	 *       wreplsrv_in_connection_merge()
-	 */
-	status = wreplsrv_in_connection_merge(state->io->in.partner,
-					      sock, packet, &wrepl_in);
-	NT_STATUS_NOT_OK_RETURN(status);
-
-	event_set_fd_flags(wrepl_in->conn->event.fde, fde_flags);
-
-	wrepl_in->assoc_ctx.peer_ctx	= state->wreplconn->assoc_ctx.peer_ctx;
-	wrepl_in->assoc_ctx.our_ctx	= 0;
-
-	/* now we can free the wreplsrv_out_connection */
-	talloc_free(state->wreplconn);
-	state->wreplconn = NULL;
-
-	state->stage = WREPLSRV_PUSH_NOTIFY_STAGE_DONE;
+	state->stage = WREPLSRV_PUSH_NOTIFY_STAGE_WAIT_UPDATE;
 
 	return NT_STATUS_OK;
 }
@@ -953,11 +914,14 @@ static NTSTATUS wreplsrv_push_notify_inform(struct wreplsrv_push_notify_state *s
 	/* we won't get a reply to a inform message */
 	state->ctrl.send_only		= true;
 
-	state->req = wrepl_request_send(state->wreplconn->sock, req, &state->ctrl);
-	NT_STATUS_HAVE_NO_MEMORY(state->req);
+	state->subreq = wrepl_request_send(state,
+					   state->wreplconn->service->task->event_ctx,
+					   state->wreplconn->sock, req, &state->ctrl);
+	NT_STATUS_HAVE_NO_MEMORY(state->subreq);
 
-	state->req->async.fn		= wreplsrv_push_notify_handler_req;
-	state->req->async.private_data	= state;
+	tevent_req_set_callback(state->subreq,
+				wreplsrv_push_notify_handler_treq,
+				state);
 
 	state->stage = WREPLSRV_PUSH_NOTIFY_STAGE_WAIT_INFORM;
 
@@ -1007,11 +971,52 @@ static NTSTATUS wreplsrv_push_notify_wait_connect(struct wreplsrv_push_notify_st
 	return NT_STATUS_INTERNAL_ERROR;
 }
 
+static NTSTATUS wreplsrv_push_notify_wait_update(struct wreplsrv_push_notify_state *state)
+{
+	struct wreplsrv_in_connection *wrepl_in;
+	struct tstream_context *stream;
+	NTSTATUS status;
+
+	status = wrepl_request_recv(state->subreq, state, NULL);
+	TALLOC_FREE(state->subreq);
+	NT_STATUS_NOT_OK_RETURN(status);
+
+	/*
+	 * now we need to convert the wrepl_socket (client connection)
+	 * into a wreplsrv_in_connection (server connection), because
+	 * we'll act as a server on this connection after the WREPL_REPL_UPDATE*
+	 * message is received by the peer.
+	 */
+
+	status = wrepl_socket_split_stream(state->wreplconn->sock, state, &stream);
+	NT_STATUS_NOT_OK_RETURN(status);
+
+	/*
+	 * now create a wreplsrv_in_connection,
+	 * on which we act as server
+	 *
+	 * NOTE: stream will be stolen by
+	 *       wreplsrv_in_connection_merge()
+	 */
+	status = wreplsrv_in_connection_merge(state->io->in.partner,
+					      state->wreplconn->assoc_ctx.peer_ctx,
+					      &stream,
+					      &wrepl_in);
+	NT_STATUS_NOT_OK_RETURN(status);
+
+	/* now we can free the wreplsrv_out_connection */
+	TALLOC_FREE(state->wreplconn);
+
+	state->stage = WREPLSRV_PUSH_NOTIFY_STAGE_DONE;
+	return NT_STATUS_OK;
+}
+
 static NTSTATUS wreplsrv_push_notify_wait_inform(struct wreplsrv_push_notify_state *state)
 {
 	NTSTATUS status;
 
-	status =  wrepl_request_recv(state->req, state, NULL);
+	status = wrepl_request_recv(state->subreq, state, NULL);
+	TALLOC_FREE(state->subreq);
 	NT_STATUS_NOT_OK_RETURN(status);
 
 	state->stage = WREPLSRV_PUSH_NOTIFY_STAGE_DONE;
@@ -1025,6 +1030,9 @@ static void wreplsrv_push_notify_handler(struct wreplsrv_push_notify_state *stat
 	switch (state->stage) {
 	case WREPLSRV_PUSH_NOTIFY_STAGE_WAIT_CONNECT:
 		c->status = wreplsrv_push_notify_wait_connect(state);
+		break;
+	case WREPLSRV_PUSH_NOTIFY_STAGE_WAIT_UPDATE:
+		c->status = wreplsrv_push_notify_wait_update(state);
 		break;
 	case WREPLSRV_PUSH_NOTIFY_STAGE_WAIT_INFORM:
 		c->status = wreplsrv_push_notify_wait_inform(state);
@@ -1054,9 +1062,9 @@ static void wreplsrv_push_notify_handler_creq(struct composite_context *creq)
 	return;
 }
 
-static void wreplsrv_push_notify_handler_req(struct wrepl_request *req)
+static void wreplsrv_push_notify_handler_treq(struct tevent_req *subreq)
 {
-	struct wreplsrv_push_notify_state *state = talloc_get_type(req->async.private_data,
+	struct wreplsrv_push_notify_state *state = tevent_req_callback_data(subreq,
 						   struct wreplsrv_push_notify_state);
 	wreplsrv_push_notify_handler(state);
 	return;

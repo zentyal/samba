@@ -18,15 +18,32 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "system/filesys.h"
 #include "libcli/raw/libcliraw.h"
 #include "libcli/raw/raw_proto.h"
 #include "libcli/libcli.h"
 #include "torture/util.h"
+#include "lib/util/tsort.h"
 
 
 #define BASEDIR "\\testsearch"
+
+#define CHECK_STATUS_LEVEL(__tctx, __status, __level, __supp)		\
+	do {								\
+		if (NT_STATUS_EQUAL(__status,				\
+			NT_STATUS_NOT_SUPPORTED) ||			\
+		    NT_STATUS_EQUAL(__status,				\
+			NT_STATUS_NOT_IMPLEMENTED)) {			\
+			torture_warning(__tctx, "(%s) Info "		\
+			    "level "#__level" is %s",			\
+			    __location__, nt_errstr(__status));		\
+			__supp = false;					\
+		} else {						\
+			torture_assert_ntstatus_ok_goto(__tctx,		\
+			    __status, ret, done, #__level" failed");	\
+			__supp = true;					\
+		}							\
+	} while (0)
 
 /*
   callback function for single_search
@@ -242,6 +259,8 @@ static bool test_one_file(struct torture_context *tctx,
 	NTSTATUS status;
 	int i;
 	union smb_fileinfo all_info, alt_info, name_info, internal_info;
+	bool all_info_supported, alt_info_supported, name_info_supported,
+	    internal_info_supported;
 	union smb_search_data *s;
 
 	fnum = create_complex_file(cli, tctx, fname);
@@ -256,7 +275,7 @@ static bool test_one_file(struct torture_context *tctx,
 		NTSTATUS expected_status;
 		uint32_t cap = cli->transport->negotiate.capabilities;
 
-		torture_comment(tctx, "testing %s\n", levels[i].name);
+		torture_comment(tctx, "Testing %s\n", levels[i].name);
 
 		levels[i].status = torture_single_search(cli, tctx, fname, 
 							 levels[i].level,
@@ -265,7 +284,8 @@ static bool test_one_file(struct torture_context *tctx,
 							 &levels[i].data);
 
 		/* see if this server claims to support this level */
-		if ((cap & levels[i].capability_mask) != levels[i].capability_mask) {
+		if (((cap & levels[i].capability_mask) != levels[i].capability_mask)
+		    || NT_STATUS_EQUAL(levels[i].status, NT_STATUS_NOT_SUPPORTED)) {
 			printf("search level %s(%d) not supported by server\n",
 			       levels[i].name, (int)levels[i].level);
 			continue;
@@ -304,22 +324,26 @@ static bool test_one_file(struct torture_context *tctx,
 	all_info.generic.level = RAW_FILEINFO_ALL_INFO;
 	all_info.generic.in.file.path = fname;
 	status = smb_raw_pathinfo(cli->tree, tctx, &all_info);
-	torture_assert_ntstatus_ok(tctx, status, "RAW_FILEINFO_ALL_INFO failed");
+	CHECK_STATUS_LEVEL(tctx, status, "RAW_FILEINFO_ALL_INFO",
+	    all_info_supported);
 
 	alt_info.generic.level = RAW_FILEINFO_ALT_NAME_INFO;
 	alt_info.generic.in.file.path = fname;
 	status = smb_raw_pathinfo(cli->tree, tctx, &alt_info);
-	torture_assert_ntstatus_ok(tctx, status, "RAW_FILEINFO_ALT_NAME_INFO failed");
+	CHECK_STATUS_LEVEL(tctx, status, "RAW_FILEINFO_ALT_NAME_INFO",
+	    alt_info_supported);
 
 	internal_info.generic.level = RAW_FILEINFO_INTERNAL_INFORMATION;
 	internal_info.generic.in.file.path = fname;
 	status = smb_raw_pathinfo(cli->tree, tctx, &internal_info);
-	torture_assert_ntstatus_ok(tctx, status, "RAW_FILEINFO_INTERNAL_INFORMATION failed");
+	CHECK_STATUS_LEVEL(tctx, status, "RAW_FILEINFO_INTERNAL_INFORMATION",
+	    internal_info_supported);
 
 	name_info.generic.level = RAW_FILEINFO_NAME_INFO;
 	name_info.generic.in.file.path = fname;
 	status = smb_raw_pathinfo(cli->tree, tctx, &name_info);
-	torture_assert_ntstatus_ok(tctx, status, "RAW_FILEINFO_NAME_INFO failed");
+	CHECK_STATUS_LEVEL(tctx, status, "RAW_FILEINFO_NAME_INFO",
+	    name_info_supported);
 
 #define CHECK_VAL(name, sname1, field1, v, sname2, field2) do { \
 	s = find(name); \
@@ -477,21 +501,34 @@ static bool test_one_file(struct torture_context *tctx,
 	CHECK_VAL("ID_FULL_DIRECTORY_INFO", id_full_directory_info,           ea_size, all_info, all_info, ea_size);
 	CHECK_VAL("ID_BOTH_DIRECTORY_INFO", id_both_directory_info,           ea_size, all_info, all_info, ea_size);
 
-	CHECK_STR("SEARCH", search, name, alt_info, alt_name_info, fname);
-	CHECK_WSTR("BOTH_DIRECTORY_INFO", both_directory_info, short_name, alt_info, alt_name_info, fname, STR_UNICODE);
+	if (alt_info_supported) {
+		CHECK_STR("SEARCH", search, name, alt_info, alt_name_info,
+		    fname);
+		CHECK_WSTR("BOTH_DIRECTORY_INFO", both_directory_info,
+		    short_name, alt_info, alt_name_info, fname, STR_UNICODE);
+	}
 
 	CHECK_NAME("STANDARD",            standard,            name, fname+1, 0);
 	CHECK_NAME("EA_SIZE",             ea_size,             name, fname+1, 0);
 	CHECK_NAME("DIRECTORY_INFO",      directory_info,      name, fname+1, STR_TERMINATE_ASCII);
 	CHECK_NAME("FULL_DIRECTORY_INFO", full_directory_info, name, fname+1, STR_TERMINATE_ASCII);
-	CHECK_NAME("NAME_INFO",           name_info,           name, fname+1, STR_TERMINATE_ASCII);
+
+	if (name_info_supported) {
+		CHECK_NAME("NAME_INFO", name_info, name, fname+1,
+		    STR_TERMINATE_ASCII);
+	}
+
 	CHECK_NAME("BOTH_DIRECTORY_INFO", both_directory_info, name, fname+1, STR_TERMINATE_ASCII);
 	CHECK_NAME("ID_FULL_DIRECTORY_INFO", id_full_directory_info,           name, fname+1, STR_TERMINATE_ASCII);
 	CHECK_NAME("ID_BOTH_DIRECTORY_INFO", id_both_directory_info,           name, fname+1, STR_TERMINATE_ASCII);
 	CHECK_UNIX_NAME("UNIX_INFO",           unix_info,           name, fname+1, STR_TERMINATE_ASCII);
 
-	CHECK_VAL("ID_FULL_DIRECTORY_INFO", id_full_directory_info, file_id, internal_info, internal_information, file_id);
-	CHECK_VAL("ID_BOTH_DIRECTORY_INFO", id_both_directory_info, file_id, internal_info, internal_information, file_id);
+	if (internal_info_supported) {
+		CHECK_VAL("ID_FULL_DIRECTORY_INFO", id_full_directory_info,
+		    file_id, internal_info, internal_information, file_id);
+		CHECK_VAL("ID_BOTH_DIRECTORY_INFO", id_both_directory_info,
+		    file_id, internal_info, internal_information, file_id);
+	}
 
 done:
 	smb_raw_exit(cli->session);
@@ -712,7 +749,7 @@ static bool test_many_files(struct torture_context *tctx,
 
 		if ((search_types[t].cont_type == CONT_RESUME_KEY) &&
 		    (search_types[t].data_level != RAW_SEARCH_DATA_SEARCH) &&
-		    torture_setting_bool(tctx, "samba3", false)) {
+		    !torture_setting_bool(tctx, "resume_key_support", true)) {
 			torture_comment(tctx,
 					"SKIP: Continue %s via %s\n",
 					search_types[t].name, search_types[t].cont_name);
@@ -728,14 +765,18 @@ static bool test_many_files(struct torture_context *tctx,
 					 search_types[t].data_level,
 					 search_types[t].cont_type,
 					 &result);
-	
+		if (NT_STATUS_EQUAL(status, NT_STATUS_NOT_SUPPORTED)) {
+			torture_warning(tctx, "search level %s not supported "
+					"by server",
+					search_types[t].name);
+			continue;
+		}
 		torture_assert_ntstatus_ok(tctx, status, "search failed");
 		CHECK_VALUE(result.count, num_files);
 
 		compare_data_level = search_types[t].data_level;
 
-		qsort(result.list, result.count, sizeof(result.list[0]), 
-		      QSORT_CAST  search_compare);
+		TYPESAFE_QSORT(result.list, result.count, search_compare);
 
 		for (i=0;i<result.count;i++) {
 			const char *s;
@@ -991,6 +1032,11 @@ static bool test_many_dirs(struct torture_context *tctx,
 	NTSTATUS status;
 	union smb_search_data *file, *file2, *file3;
 
+	if (!torture_setting_bool(tctx, "raw_search_search", true)) {
+		torture_comment(tctx, "Skipping these tests as the server "
+			"doesn't support old style search calls\n");
+		return true;
+	}
 	if (!torture_setup_dir(cli, BASEDIR)) {
 		return false;
 	}
@@ -1123,7 +1169,8 @@ static bool test_many_dirs(struct torture_context *tctx,
 			goto done;
 		}
 
-		if (strcmp(file3[i].search.name, file2[i].search.name) != 0) {
+		if (torture_setting_bool(tctx, "rewind_support", true) &&
+		    strcmp(file3[i].search.name, file2[i].search.name) != 0) {
 			printf("(%s) server did not rewind - got '%s' expected '%s'\n", 
 			       __location__, file3[i].search.name, file2[i].search.name);
 			ret = false;
@@ -1158,6 +1205,13 @@ static bool test_os2_delete(struct torture_context *tctx,
 	union smb_search_first io;
 	union smb_search_next io2;
 	struct multiple_result result;
+
+	if (!torture_setting_bool(tctx, "search_ea_size", true)){
+		torture_comment(tctx,
+				"Server does not support RAW_SEARCH_EA_SIZE "
+				"level. Skipping this test\n");
+		return true;
+	}
 
 	if (!torture_setup_dir(cli, BASEDIR)) {
 		return false;
@@ -1274,6 +1328,12 @@ static bool test_ea_list(struct torture_context *tctx,
 
 	printf("Testing RAW_SEARCH_EA_LIST level\n");
 
+	if (!torture_setting_bool(tctx, "search_ea_support", true) ||
+	    !torture_setting_bool(tctx, "ea_support", true)) {
+		printf("..skipped per target configuration.\n");
+		return true;
+	}
+
 	fnum = smbcli_open(cli->tree, BASEDIR "\\file1.txt", O_CREAT|O_RDWR, DENY_NONE);
 	smbcli_close(cli->tree, fnum);
 
@@ -1339,8 +1399,7 @@ static bool test_ea_list(struct torture_context *tctx,
 
 	/* we have to sort the result as different servers can return directories
 	   in different orders */
-	qsort(result.list, result.count, sizeof(result.list[0]), 
-	      (comparison_fn_t)ealist_cmp);
+	TYPESAFE_QSORT(result.list, result.count, ealist_cmp);
 
 	CHECK_VALUE(result.count, 3);
 	CHECK_VALUE(result.list[0].ea_list.eas.num_eas, 2);
@@ -1370,7 +1429,81 @@ static bool test_ea_list(struct torture_context *tctx,
 	return ret;
 }
 
+/*
+ Test the behavior of max count parameter in TRANS2_FIND_FIRST2 and
+ TRANS2_FIND_NEXT2 queries
+*/
+static bool test_max_count(struct torture_context *tctx,
+			   struct smbcli_state *cli)
+{
+	const int num_files = 2;
+	int i, fnum;
+	char *fname;
+	bool ret = true;
+	NTSTATUS status;
+	struct multiple_result result;
+	union smb_search_first io;
+	union smb_search_next io2;
 
+	if (!torture_setup_dir(cli, BASEDIR)) {
+		return false;
+	}
+
+	torture_comment(tctx, "Creating %d files\n", num_files);
+
+	for (i=num_files-1;i>=0;i--) {
+		fname = talloc_asprintf(cli, BASEDIR "\\t%03d-%d.txt", i, i);
+		fnum = smbcli_open(cli->tree, fname, O_CREAT|O_RDWR, DENY_NONE);
+		if (fnum == -1) {
+			torture_comment(tctx,
+				"Failed to create %s - %s\n",
+				fname, smbcli_errstr(cli->tree));
+			ret = false;
+			goto done;
+		}
+		talloc_free(fname);
+		smbcli_close(cli->tree, fnum);
+	}
+
+	torture_comment(tctx, "Set max_count parameter to 0. "
+			"This should return 1 entry\n");
+	ZERO_STRUCT(result);
+	result.tctx = talloc_new(tctx);
+
+	io.t2ffirst.level = RAW_SEARCH_TRANS2;
+	io.t2ffirst.data_level = RAW_SEARCH_DATA_BOTH_DIRECTORY_INFO;
+	io.t2ffirst.in.search_attrib = 0;
+	io.t2ffirst.in.max_count = 0;
+	io.t2ffirst.in.flags = 0;
+	io.t2ffirst.in.storage_type = 0;
+	io.t2ffirst.in.pattern = BASEDIR "\\*.*";
+
+	status = smb_raw_search_first(cli->tree, tctx,
+				      &io, &result, multiple_search_callback);
+	CHECK_STATUS(status, NT_STATUS_OK);
+	CHECK_VALUE(result.count, 1);
+
+	torture_comment(tctx, "Set max_count to 1. This should also "
+			"return 1 entry\n");
+	io2.t2fnext.level = RAW_SEARCH_TRANS2;
+	io2.t2fnext.data_level = RAW_SEARCH_DATA_BOTH_DIRECTORY_INFO;
+	io2.t2fnext.in.handle = io.t2ffirst.out.handle;
+	io2.t2fnext.in.max_count = 1;
+	io2.t2fnext.in.resume_key = 0;
+	io2.t2fnext.in.flags = 0;
+	io2.t2fnext.in.last_name =
+		result.list[result.count-1].both_directory_info.name.s;
+
+	status = smb_raw_search_next(cli->tree, tctx,
+				     &io2, &result, multiple_search_callback);
+	CHECK_STATUS(status, NT_STATUS_OK);
+	CHECK_VALUE(result.count, 2);
+done:
+	smb_raw_exit(cli->session);
+	smbcli_deltree(cli->tree, BASEDIR);
+
+	return ret;
+}
 
 /* 
    basic testing of all RAW_SEARCH_* calls using a single file
@@ -1386,6 +1519,7 @@ struct torture_suite *torture_raw_search(TALLOC_CTX *mem_ctx)
 	torture_suite_add_1smb_test(suite, "many dirs", test_many_dirs);
 	torture_suite_add_1smb_test(suite, "os2 delete", test_os2_delete);
 	torture_suite_add_1smb_test(suite, "ea list", test_ea_list);
+	torture_suite_add_1smb_test(suite, "max count", test_max_count);
 
 	return suite;
 }

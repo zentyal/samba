@@ -1,10 +1,12 @@
 [globals]
-	netbios name	= ${HOSTNAME}
+	netbios name	= ${NETBIOS_NAME}
 	workgroup	= ${DOMAIN}
 	realm		= ${REALM}
 	server role     = ${SERVERROLE}
+	${SIDGENERATOR_LINE}
 	${PRIVATEDIR_LINE}
 	${LOCKDIR_LINE}
+	${POSIXEADB_LINE}
 
 [netlogon]
 	path = ${NETLOGONPATH}

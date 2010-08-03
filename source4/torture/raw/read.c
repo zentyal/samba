@@ -18,9 +18,7 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "libcli/raw/libcliraw.h"
-#include "libcli/raw/raw_proto.h"
 #include "system/time.h"
 #include "system/filesys.h"
 #include "libcli/libcli.h"
@@ -54,7 +52,7 @@
 /*
   setup a random buffer based on a seed
 */
-static void setup_buffer(uint8_t *buf, uint_t seed, int len)
+static void setup_buffer(uint8_t *buf, unsigned int seed, int len)
 {
 	int i;
 	srandom(seed);
@@ -64,7 +62,7 @@ static void setup_buffer(uint8_t *buf, uint_t seed, int len)
 /*
   check a random buffer based on a seed
 */
-static bool check_buffer(uint8_t *buf, uint_t seed, int len, int line)
+static bool check_buffer(uint8_t *buf, unsigned int seed, int len, int line)
 {
 	int i;
 	srandom(seed);
@@ -92,9 +90,14 @@ static bool test_read(struct torture_context *tctx, struct smbcli_state *cli)
 	const int maxsize = 90000;
 	const char *fname = BASEDIR "\\test.txt";
 	const char *test_data = "TEST DATA";
-	uint_t seed = time(NULL);
+	unsigned int seed = time(NULL);
 
 	buf = talloc_zero_array(tctx, uint8_t, maxsize);
+
+	if (!torture_setting_bool(tctx, "read_support", true)) {
+		printf("server refuses to support READ\n");
+		return true;
+	}
 
 	if (!torture_setup_dir(cli, BASEDIR)) {
 		return false;
@@ -102,7 +105,7 @@ static bool test_read(struct torture_context *tctx, struct smbcli_state *cli)
 
 	printf("Testing RAW_READ_READ\n");
 	io.generic.level = RAW_READ_READ;
-	
+
 	fnum = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
 	if (fnum == -1) {
 		printf("Failed to create %s - %s\n", fname, smbcli_errstr(cli->tree));
@@ -219,7 +222,12 @@ static bool test_lockread(struct torture_context *tctx,
 	const int maxsize = 90000;
 	const char *fname = BASEDIR "\\test.txt";
 	const char *test_data = "TEST DATA";
-	uint_t seed = time(NULL);
+	unsigned int seed = time(NULL);
+
+	if (!cli->transport->negotiate.lockread_supported) {
+		printf("Server does not support lockread - skipping\n");
+		return true;
+	}
 
 	buf = talloc_zero_array(tctx, uint8_t, maxsize);
 
@@ -364,7 +372,7 @@ static bool test_readx(struct torture_context *tctx, struct smbcli_state *cli)
 	const int maxsize = 90000;
 	const char *fname = BASEDIR "\\test.txt";
 	const char *test_data = "TEST DATA";
-	uint_t seed = time(NULL);
+	unsigned int seed = time(NULL);
 
 	buf = talloc_zero_array(tctx, uint8_t, maxsize);
 
@@ -480,7 +488,29 @@ static bool test_readx(struct torture_context *tctx, struct smbcli_state *cli)
 	smbcli_write(cli->tree, fnum, 0, buf, 0, maxsize);
 	memset(buf, 0, maxsize);
 
-	printf("Trying large read\n");
+	printf("Trying page sized read\n");
+	io.readx.in.offset = 0;
+	io.readx.in.mincnt = 0x1000;
+	io.readx.in.maxcnt = 0x1000;
+	status = smb_raw_read(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+	CHECK_VALUE(io.readx.out.remaining, 0xFFFF);
+	CHECK_VALUE(io.readx.out.compaction_mode, 0);
+	CHECK_VALUE(io.readx.out.nread, io.readx.in.maxcnt);
+	CHECK_BUFFER(buf, seed, io.readx.out.nread);
+
+	printf("Trying page + 1 sized read (check alignment)\n");
+	io.readx.in.offset = 0;
+	io.readx.in.mincnt = 0x1001;
+	io.readx.in.maxcnt = 0x1001;
+	status = smb_raw_read(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+	CHECK_VALUE(io.readx.out.remaining, 0xFFFF);
+	CHECK_VALUE(io.readx.out.compaction_mode, 0);
+	CHECK_VALUE(io.readx.out.nread, io.readx.in.maxcnt);
+	CHECK_BUFFER(buf, seed, io.readx.out.nread);
+
+	printf("Trying large read (UINT16_MAX)\n");
 	io.readx.in.offset = 0;
 	io.readx.in.mincnt = 0xFFFF;
 	io.readx.in.maxcnt = 0xFFFF;
@@ -625,7 +655,7 @@ static bool test_readbraw(struct torture_context *tctx,
 	const int maxsize = 90000;
 	const char *fname = BASEDIR "\\test.txt";
 	const char *test_data = "TEST DATA";
-	uint_t seed = time(NULL);
+	unsigned int seed = time(NULL);
 
 	if (!cli->transport->negotiate.readbraw_supported) {
 		printf("Server does not support readbraw - skipping\n");
@@ -815,7 +845,7 @@ static bool test_read_for_execute(struct torture_context *tctx,
 	printf("Testing RAW_READ_READX with read_for_execute\n");
 
 	op.generic.level = RAW_OPEN_NTCREATEX;
-	op.ntcreatex.in.root_fid = 0;
+	op.ntcreatex.in.root_fid.fnum = 0;
 	op.ntcreatex.in.flags = 0;
 	op.ntcreatex.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	op.ntcreatex.in.create_options = 0;
@@ -846,7 +876,7 @@ static bool test_read_for_execute(struct torture_context *tctx,
 
 	printf("open file with SEC_FILE_EXECUTE\n");
 	op.generic.level = RAW_OPEN_NTCREATEX;
-	op.ntcreatex.in.root_fid = 0;
+	op.ntcreatex.in.root_fid.fnum = 0;
 	op.ntcreatex.in.flags = 0;
 	op.ntcreatex.in.access_mask = SEC_FILE_EXECUTE;
 	op.ntcreatex.in.create_options = 0;
@@ -893,7 +923,7 @@ static bool test_read_for_execute(struct torture_context *tctx,
 
 	printf("open file with SEC_FILE_READ_DATA\n");
 	op.generic.level = RAW_OPEN_NTCREATEX;
-	op.ntcreatex.in.root_fid = 0;
+	op.ntcreatex.in.root_fid.fnum = 0;
 	op.ntcreatex.in.flags = 0;
 	op.ntcreatex.in.access_mask = SEC_FILE_READ_DATA;
 	op.ntcreatex.in.create_options = 0;

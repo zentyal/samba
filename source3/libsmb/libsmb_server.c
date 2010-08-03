@@ -26,7 +26,8 @@
 #include "includes.h"
 #include "libsmbclient.h"
 #include "libsmb_internal.h"
-
+#include "../librpc/gen_ndr/ndr_lsa.h"
+#include "rpc_client/cli_lsarpc.h"
 
 /* 
  * Check a server for being alive and well.
@@ -330,7 +331,7 @@ SMBC_server_internal(TALLOC_CTX *ctx,
                         if (is_ipc) {
                                 DEBUG(4,
                                       ("IPC$ so ignore case sensitivity\n"));
-                        } else if (!cli_get_fs_attr_info(c, &fs_attrs)) {
+                        } else if (!NT_STATUS_IS_OK(cli_get_fs_attr_info(c, &fs_attrs))) {
                                 DEBUG(4, ("Could not retrieve "
                                           "case sensitivity flag: %s.\n",
                                           cli_errstr(c)));
@@ -567,7 +568,7 @@ again:
         /* Determine if this share supports case sensitivity */
 	if (is_ipc) {
                 DEBUG(4, ("IPC$ so ignore case sensitivity\n"));
-        } else if (!cli_get_fs_attr_info(c, &fs_attrs)) {
+        } else if (!NT_STATUS_IS_OK(cli_get_fs_attr_info(c, &fs_attrs))) {
                 DEBUG(4, ("Could not retrieve case sensitivity flag: %s.\n",
                           cli_errstr(c)));
 

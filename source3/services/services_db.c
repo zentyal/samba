@@ -21,6 +21,11 @@
  */
 
 #include "includes.h"
+#include "services/services.h"
+#include "registry.h"
+#include "registry/reg_util_legacy.h"
+#include "registry/reg_dispatcher.h"
+#include "registry/reg_objects.h"
 
 struct rcinit_file_information {
 	char *description;
@@ -86,12 +91,12 @@ struct service_display_info common_unix_svcs[] = {
 /********************************************************************
 ********************************************************************/
 
-static SEC_DESC* construct_service_sd( TALLOC_CTX *ctx )
+static struct security_descriptor* construct_service_sd( TALLOC_CTX *ctx )
 {
-	SEC_ACE ace[4];
+	struct security_ace ace[4];
 	size_t i = 0;
-	SEC_DESC *sd = NULL;
-	SEC_ACL *theacl = NULL;
+	struct security_descriptor *sd = NULL;
+	struct security_acl *theacl = NULL;
 	size_t sd_size;
 
 	/* basic access for Everyone */
@@ -258,13 +263,13 @@ static void fill_service_values(const char *name, struct regval_ctr *values)
 	   I'm just storing them here for cosmetic purposes */
 
 	dword = SVCCTL_AUTO_START;
-	regval_ctr_addvalue( values, "Start", REG_DWORD, (char*)&dword, sizeof(uint32));
+	regval_ctr_addvalue( values, "Start", REG_DWORD, (uint8 *)&dword, sizeof(uint32));
 
 	dword = SERVICE_TYPE_WIN32_OWN_PROCESS;
-	regval_ctr_addvalue( values, "Type", REG_DWORD, (char*)&dword, sizeof(uint32));
+	regval_ctr_addvalue( values, "Type", REG_DWORD, (uint8 *)&dword, sizeof(uint32));
 
 	dword = SVCCTL_SVC_ERROR_NORMAL;
-	regval_ctr_addvalue( values, "ErrorControl", REG_DWORD, (char*)&dword, sizeof(uint32));
+	regval_ctr_addvalue( values, "ErrorControl", REG_DWORD, (uint8 *)&dword, sizeof(uint32));
 
 	/* everything runs as LocalSystem */
 
@@ -333,7 +338,7 @@ static void add_new_svc_name(struct registry_key_handle *key_parent,
 	char *path = NULL;
 	struct regval_ctr *values = NULL;
 	struct regsubkey_ctr *svc_subkeys = NULL;
-	SEC_DESC *sd = NULL;
+	struct security_descriptor *sd = NULL;
 	DATA_BLOB sd_blob;
 	NTSTATUS status;
 
@@ -372,7 +377,8 @@ static void add_new_svc_name(struct registry_key_handle *key_parent,
 
 	/* now for the service values */
 
-	if ( !(values = TALLOC_ZERO_P( key_service, struct regval_ctr )) ) {
+	wresult = regval_ctr_init(key_service, &values);
+	if (!W_ERROR_IS_OK(wresult)) {
 		DEBUG(0,("add_new_svc_name: talloc() failed!\n"));
 		TALLOC_FREE( key_service );
 		return;
@@ -401,7 +407,8 @@ static void add_new_svc_name(struct registry_key_handle *key_parent,
 	}
 	SAFE_FREE(path);
 
-	if ( !(values = TALLOC_ZERO_P( key_secdesc, struct regval_ctr )) ) {
+	wresult = regval_ctr_init(key_secdesc, &values);
+	if (!W_ERROR_IS_OK(wresult)) {
 		DEBUG(0,("add_new_svc_name: talloc() failed!\n"));
 		TALLOC_FREE( key_secdesc );
 		return;
@@ -423,7 +430,7 @@ static void add_new_svc_name(struct registry_key_handle *key_parent,
 	}
 
 	regval_ctr_addvalue(values, "Security", REG_BINARY,
-			    (const char *)sd_blob.data, sd_blob.length);
+			    sd_blob.data, sd_blob.length);
 	store_reg_values( key_secdesc, values );
 
 	TALLOC_FREE( key_secdesc );
@@ -495,12 +502,12 @@ void svcctl_init_keys( void )
  in case of any failure.
 ********************************************************************/
 
-SEC_DESC *svcctl_get_secdesc( TALLOC_CTX *ctx, const char *name, NT_USER_TOKEN *token )
+struct security_descriptor *svcctl_get_secdesc( TALLOC_CTX *ctx, const char *name, NT_USER_TOKEN *token )
 {
 	struct registry_key_handle *key = NULL;
 	struct regval_ctr *values = NULL;
 	struct regval_blob *val = NULL;
-	SEC_DESC *ret_sd = NULL;
+	struct security_descriptor *ret_sd = NULL;
 	char *path= NULL;
 	WERROR wresult;
 	NTSTATUS status;
@@ -518,7 +525,8 @@ SEC_DESC *svcctl_get_secdesc( TALLOC_CTX *ctx, const char *name, NT_USER_TOKEN *
 		goto done;
 	}
 
-	if ( !(values = TALLOC_ZERO_P( key, struct regval_ctr )) ) {
+	wresult = regval_ctr_init(key, &values);
+	if (!W_ERROR_IS_OK(wresult)) {
 		DEBUG(0,("svcctl_get_secdesc: talloc() failed!\n"));
 		goto done;
 	}
@@ -556,7 +564,7 @@ done:
  Wrapper to make storing a Service sd easier
 ********************************************************************/
 
-bool svcctl_set_secdesc( TALLOC_CTX *ctx, const char *name, SEC_DESC *sec_desc, NT_USER_TOKEN *token )
+bool svcctl_set_secdesc( TALLOC_CTX *ctx, const char *name, struct security_descriptor *sec_desc, NT_USER_TOKEN *token )
 {
 	struct registry_key_handle *key = NULL;
 	WERROR wresult;
@@ -581,7 +589,8 @@ bool svcctl_set_secdesc( TALLOC_CTX *ctx, const char *name, SEC_DESC *sec_desc, 
 	}
 	SAFE_FREE(path);
 
-	if ( !(values = TALLOC_ZERO_P( key, struct regval_ctr )) ) {
+	wresult = regval_ctr_init(key, &values);
+	if (!W_ERROR_IS_OK(wresult)) {
 		DEBUG(0,("svcctl_set_secdesc: talloc() failed!\n"));
 		TALLOC_FREE( key );
 		return False;
@@ -596,7 +605,7 @@ bool svcctl_set_secdesc( TALLOC_CTX *ctx, const char *name, SEC_DESC *sec_desc, 
 		return False;
 	}
 
-	regval_ctr_addvalue( values, "Security", REG_BINARY, (const char *)blob.data, blob.length);
+	regval_ctr_addvalue( values, "Security", REG_BINARY, blob.data, blob.length);
 	ret = store_reg_values( key, values );
 
 	/* cleanup */
@@ -634,7 +643,8 @@ const char *svcctl_lookup_dispname(TALLOC_CTX *ctx, const char *name, NT_USER_TO
 	}
 	SAFE_FREE(path);
 
-	if ( !(values = TALLOC_ZERO_P( key, struct regval_ctr )) ) {
+	wresult = regval_ctr_init(key, &values);
+	if (!W_ERROR_IS_OK(wresult)) {
 		DEBUG(0,("svcctl_lookup_dispname: talloc() failed!\n"));
 		TALLOC_FREE( key );
 		goto fail;
@@ -686,7 +696,8 @@ const char *svcctl_lookup_description(TALLOC_CTX *ctx, const char *name, NT_USER
 	}
 	SAFE_FREE(path);
 
-	if ( !(values = TALLOC_ZERO_P( key, struct regval_ctr )) ) {
+	wresult = regval_ctr_init(key, &values);
+	if (!W_ERROR_IS_OK(wresult)) {
 		DEBUG(0,("svcctl_lookup_description: talloc() failed!\n"));
 		TALLOC_FREE( key );
 		return NULL;
@@ -733,7 +744,8 @@ struct regval_ctr *svcctl_fetch_regvalues(const char *name, NT_USER_TOKEN *token
 	}
 	SAFE_FREE(path);
 
-	if ( !(values = TALLOC_ZERO_P( NULL, struct regval_ctr )) ) {
+	wresult = regval_ctr_init(NULL, &values);
+	if (!W_ERROR_IS_OK(wresult)) {
 		DEBUG(0,("svcctl_fetch_regvalues: talloc() failed!\n"));
 		TALLOC_FREE( key );
 		return NULL;

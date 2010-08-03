@@ -126,6 +126,7 @@ sub FromUnionToPythonFunction($$$$)
 			$self->ConvertObjectToPython($mem_ctx, {}, $e, "$name->$e->{NAME}", "ret", "return NULL;");
 		} else {
 			$self->pidl("ret = Py_None;");
+			$self->pidl("Py_INCREF(ret);");
 		}
 
 		$self->pidl("return ret;");
@@ -253,7 +254,7 @@ sub PythonStruct($$$$$$)
 		$self->pidl("$cname *object = ($cname *)py_talloc_get_ptr(py_obj);");
 		$self->pidl("DATA_BLOB blob;");
 		$self->pidl("enum ndr_err_code err;");
-		$self->pidl("err = ndr_push_struct_blob(&blob, py_talloc_get_mem_ctx(py_obj), NULL, object, (ndr_push_flags_fn_t)ndr_push_$name);");
+		$self->pidl("err = ndr_push_struct_blob(&blob, py_talloc_get_mem_ctx(py_obj), object, (ndr_push_flags_fn_t)ndr_push_$name);");
 		$self->pidl("if (err != NDR_ERR_SUCCESS) {");
 		$self->indent;
 		$self->pidl("PyErr_SetNdrError(err);");
@@ -275,24 +276,7 @@ sub PythonStruct($$$$$$)
 		$self->pidl("if (!PyArg_ParseTuple(args, \"s#:__ndr_unpack__\", &blob.data, &blob.length))");
 		$self->pidl("\treturn NULL;");
 		$self->pidl("");
-
-		# This disgusting hack works around the fact that ndr_pull_struct_blob_all will always fail on structures with relative pointers.  
-                # So, map ndr_unpack to ndr_pull_struct_blob_all only if we don't have any relative pointers in this
-		my $got_relative = 0;
-		if ($#{$d->{ELEMENTS}} > -1) {
-		        foreach my $e (@{$d->{ELEMENTS}}) {
-			        my $l = $e->{LEVELS}[0];
-				if ($l->{TYPE} eq "POINTER" and ($l->{POINTER_TYPE} eq "relative")) {
-				        $got_relative = 1;
-					last;
-				}
-			}
-		}
-		if ($got_relative == 0) {
-		        $self->pidl("err = ndr_pull_struct_blob_all(&blob, py_talloc_get_mem_ctx(py_obj), NULL, object, (ndr_pull_flags_fn_t)ndr_pull_$name);");
-		} else {
-		        $self->pidl("err = ndr_pull_struct_blob(&blob, py_talloc_get_mem_ctx(py_obj), NULL, object, (ndr_pull_flags_fn_t)ndr_pull_$name);");
-		}
+		$self->pidl("err = ndr_pull_struct_blob_all(&blob, py_talloc_get_mem_ctx(py_obj), object, (ndr_pull_flags_fn_t)ndr_pull_$name);");
 		$self->pidl("if (err != NDR_ERR_SUCCESS) {");
 		$self->indent;
 		$self->pidl("PyErr_SetNdrError(err);");
@@ -388,7 +372,7 @@ sub PythonFunctionUnpackOut($$$)
 	$self->pidl("static PyObject *$outfnname(struct $fn->{NAME} *r)");
 	$self->pidl("{");
 	$self->indent;
-	$self->pidl("PyObject *result = Py_None;");
+	$self->pidl("PyObject *result;");
 	foreach my $e (@{$fn->{ELEMENTS}}) {
 		next unless (grep(/out/,@{$e->{DIRECTION}}));
 		next if (($metadata_args->{in}->{$e->{NAME}} and grep(/in/, @{$e->{DIRECTION}})) or 
@@ -407,6 +391,8 @@ sub PythonFunctionUnpackOut($$$)
 		$self->pidl("result = PyTuple_New($result_size);");
 		$signature .= "(";
 	} elsif ($result_size == 0) {
+		$self->pidl("result = Py_None;");
+		$self->pidl("Py_INCREF(result);");
 		$signature .= "None";
 	}
 
@@ -665,6 +651,7 @@ sub Interface($$$)
 		foreach my $d (@{$interface->{FUNCTIONS}}) {
 			next if not defined($d->{OPNUM});
 			next if has_property($d, "nopython");
+			next if has_property($d, "todo");
 
 			my $prettyname = $d->{NAME};
 
@@ -673,14 +660,14 @@ sub Interface($$$)
 
 			my ($infn, $outfn, $fndocstring) = $self->PythonFunction($d, $interface->{NAME}, $prettyname);
 
-			push (@fns, [$infn, $outfn, "dcerpc_$d->{NAME}", $prettyname, $fndocstring, $d->{OPNUM}]);
+			push (@fns, [$infn, $outfn, "dcerpc_$d->{NAME}_r", $prettyname, $fndocstring, $d->{OPNUM}]);
 		}
 
 		$self->pidl("const struct PyNdrRpcMethodDef py_ndr_$interface->{NAME}\_methods[] = {");
 		$self->indent;
 		foreach my $d (@fns) {
 			my ($infn, $outfn, $callfn, $prettyname, $docstring, $opnum) = @$d;
-			$self->pidl("{ \"$prettyname\", $docstring, (dcerpc_call_fn)$callfn, (py_data_pack_fn)$infn, (py_data_unpack_fn)$outfn, $opnum, &ndr_table_$interface->{NAME} },");
+			$self->pidl("{ \"$prettyname\", $docstring, (py_dcerpc_call_fn)$callfn, (py_data_pack_fn)$infn, (py_data_unpack_fn)$outfn, $opnum, &ndr_table_$interface->{NAME} },");
 		}
 		$self->pidl("{ NULL }");
 		$self->deindent;
@@ -743,7 +730,7 @@ sub register_module_typeobject($$$)
 {
 	my ($self, $name, $py_name) = @_;
 
-	$self->register_module_object($name, "(PyObject *)$py_name");
+	$self->register_module_object($name, "(PyObject *)(void *)$py_name");
 
 	$self->check_ready_type($py_name);
 
@@ -833,12 +820,39 @@ sub ConvertObjectFromPythonData($$$$$$;$)
 		$actual_ctype = $actual_ctype->{DATA};
 	}
 
-	if ($actual_ctype->{TYPE} eq "ENUM" or $actual_ctype->{TYPE} eq "BITMAP" or 
-		$actual_ctype->{TYPE} eq "SCALAR" and (
-		expandAlias($actual_ctype->{NAME}) =~ /^(u?int[0-9]*|hyper|NTTIME|time_t|NTTIME_hyper|NTTIME_1sec|dlong|udlong|udlongr)$/)) {
+	if ($actual_ctype->{TYPE} eq "ENUM" or $actual_ctype->{TYPE} eq "BITMAP") {
 		$self->pidl("PY_CHECK_TYPE(&PyInt_Type, $cvar, $fail);");
 		$self->pidl("$target = PyInt_AsLong($cvar);");
 		return;
+	}
+	if ($actual_ctype->{TYPE} eq "SCALAR" ) {
+		if (expandAlias($actual_ctype->{NAME}) =~ /^(u?int64|hyper|dlong|udlong|udlongr|NTTIME_hyper|NTTIME|NTTIME_1sec)$/) {
+			$self->pidl("if (PyObject_TypeCheck($cvar, &PyLong_Type)) {");
+			$self->indent;
+			$self->pidl("$target = PyLong_AsLongLong($cvar);");
+			$self->deindent;
+			$self->pidl("} else {");
+			$self->indent;
+			$self->pidl("if (PyObject_TypeCheck($cvar, &PyInt_Type)) {");
+			$self->indent;
+			$self->pidl("$target = PyInt_AsLong($cvar);");
+			$self->deindent;
+			$self->pidl("} else {");
+			$self->indent;
+			$self->pidl("PyErr_Format(PyExc_TypeError, \"Expected type %s or %s\",\\");
+			$self->pidl("  PyInt_Type.tp_name, PyLong_Type.tp_name);");
+			$self->pidl($fail);
+			$self->deindent;
+			$self->pidl("}");
+			$self->deindent;
+			$self->pidl("}");
+			return;
+		}
+		if (expandAlias($actual_ctype->{NAME}) =~ /^(char|u?int[0-9]*|time_t)$/) {
+			$self->pidl("PY_CHECK_TYPE(&PyInt_Type, $cvar, $fail);");
+			$self->pidl("$target = PyInt_AsLong($cvar);");
+			return;
+		}
 	}
 
 	if ($actual_ctype->{TYPE} eq "STRUCT" or $actual_ctype->{TYPE} eq "INTERFACE") {
@@ -849,7 +863,7 @@ sub ConvertObjectFromPythonData($$$$$$;$)
 			return;
 		}
 		$self->pidl("PY_CHECK_TYPE($ctype_name, $cvar, $fail);");
-		$self->assign($target, "py_talloc_get_ptr($cvar)");
+		$self->assign($target, "(".mapTypeName($ctype)." *)py_talloc_get_ptr($cvar)");
 		return;
 	}
 
@@ -977,7 +991,11 @@ sub ConvertScalarToPython($$$)
 
 	$ctypename = expandAlias($ctypename);
 
-	if ($ctypename =~ /^(char|u?int[0-9]*|hyper|dlong|udlong|udlongr|time_t|NTTIME_hyper|NTTIME|NTTIME_1sec)$/) {
+	if ($ctypename =~ /^(u?int64|hyper|dlong|udlong|udlongr|NTTIME_hyper|NTTIME|NTTIME_1sec)$/) {
+		return "PyLong_FromLongLong($cvar)";
+	}
+
+	if ($ctypename =~ /^(char|u?int[0-9]*|time_t)$/) {
 		return "PyInt_FromLong($cvar)";
 	}
 
@@ -1064,6 +1082,7 @@ sub ConvertObjectToPythonLevel($$$$$$)
 			$self->pidl("if ($var_name == NULL) {");
 			$self->indent;
 			$self->pidl("$py_var = Py_None;");
+			$self->pidl("Py_INCREF($py_var);");
 			$self->deindent;
 			$self->pidl("} else {");
 			$self->indent;
@@ -1141,17 +1160,12 @@ sub Parse($$$$$)
 
     $self->pidl_hdr("
 /* Python wrapper functions auto-generated by pidl */
-#include \"includes.h\"
 #include <Python.h>
-#include \"librpc/rpc/dcerpc.h\"
+#include \"includes.h\"
 #include \"lib/talloc/pytalloc.h\"
 #include \"librpc/rpc/pyrpc.h\"
 #include \"$hdr\"
 #include \"$ndr_hdr\"
-
-#ifndef Py_RETURN_NONE
-#define Py_RETURN_NONE return Py_INCREF(Py_None), Py_None
-#endif
 
 ");
 

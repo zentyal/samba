@@ -24,6 +24,7 @@
 
 #include "includes.h"
 #include "../librpc/gen_ndr/cli_lsa.h"
+#include "rpc_client/cli_lsarpc.h"
 
 /** @defgroup lsa LSA - Local Security Architecture
  *  @ingroup rpc_client
@@ -112,7 +113,7 @@ static NTSTATUS rpccli_lsa_lookup_sids_noalloc(struct rpc_pipe_client *cli,
 					       TALLOC_CTX *mem_ctx,
 					       struct policy_handle *pol,
 					       int num_sids,
-					       const DOM_SID *sids,
+					       const struct dom_sid *sids,
 					       char **domains,
 					       char **names,
 					       enum lsa_SidType *types,
@@ -224,7 +225,7 @@ static NTSTATUS rpccli_lsa_lookup_sids_noalloc(struct rpc_pipe_client *cli,
 			name = lsa_names.names[i].name.string;
 
 			if (name) {
-				(names)[i] = talloc_strdup(mem_ctx, name);
+				(names)[i] = talloc_strdup(names, name);
 				if ((names)[i] == NULL) {
 					DEBUG(0, ("cli_lsa_lookup_sids_noalloc(): out of memory\n"));
 					result = NT_STATUS_UNSUCCESSFUL;
@@ -233,8 +234,8 @@ static NTSTATUS rpccli_lsa_lookup_sids_noalloc(struct rpc_pipe_client *cli,
 			} else {
 				(names)[i] = NULL;
 			}
-			domains[i] = talloc_strdup(
-				mem_ctx, dom_name ? dom_name : "");
+			domains[i] = talloc_strdup(domains,
+						   dom_name ? dom_name : "");
 			(types)[i] = lsa_names.names[i].sid_type;
 			if (((domains)[i] == NULL)) {
 				DEBUG(0, ("cli_lsa_lookup_sids_noalloc(): out of memory\n"));
@@ -270,7 +271,7 @@ static NTSTATUS rpccli_lsa_lookup_sids_generic(struct rpc_pipe_client *cli,
 					       TALLOC_CTX *mem_ctx,
 					       struct policy_handle *pol,
 					       int num_sids,
-					       const DOM_SID *sids,
+					       const struct dom_sid *sids,
 					       char ***pdomains,
 					       char ***pnames,
 					       enum lsa_SidType **ptypes,
@@ -279,7 +280,7 @@ static NTSTATUS rpccli_lsa_lookup_sids_generic(struct rpc_pipe_client *cli,
 	NTSTATUS result = NT_STATUS_OK;
 	int sids_left = 0;
 	int sids_processed = 0;
-	const DOM_SID *hunk_sids = sids;
+	const struct dom_sid *hunk_sids = sids;
 	char **hunk_domains;
 	char **hunk_names;
 	enum lsa_SidType *hunk_types;
@@ -379,7 +380,7 @@ NTSTATUS rpccli_lsa_lookup_sids(struct rpc_pipe_client *cli,
 				TALLOC_CTX *mem_ctx,
 				struct policy_handle *pol,
 				int num_sids,
-				const DOM_SID *sids,
+				const struct dom_sid *sids,
 				char ***pdomains,
 				char ***pnames,
 				enum lsa_SidType **ptypes)
@@ -392,7 +393,7 @@ NTSTATUS rpccli_lsa_lookup_sids3(struct rpc_pipe_client *cli,
 				 TALLOC_CTX *mem_ctx,
 				 struct policy_handle *pol,
 				 int num_sids,
-				 const DOM_SID *sids,
+				 const struct dom_sid *sids,
 				 char ***pdomains,
 				 char ***pnames,
 				 enum lsa_SidType **ptypes)
@@ -409,7 +410,7 @@ static NTSTATUS rpccli_lsa_lookup_names_generic(struct rpc_pipe_client *cli,
 						const char **names,
 						const char ***dom_names,
 						int level,
-						DOM_SID **sids,
+						struct dom_sid **sids,
 						enum lsa_SidType **types,
 						bool use_lookupnames4)
 {
@@ -470,7 +471,7 @@ static NTSTATUS rpccli_lsa_lookup_names_generic(struct rpc_pipe_client *cli,
 	}
 
 	if (num_names) {
-		if (!((*sids = TALLOC_ARRAY(mem_ctx, DOM_SID, num_names)))) {
+		if (!((*sids = TALLOC_ARRAY(mem_ctx, struct dom_sid, num_names)))) {
 			DEBUG(0, ("cli_lsa_lookup_sids(): out of memory\n"));
 			result = NT_STATUS_NO_MEMORY;
 			goto done;
@@ -500,7 +501,7 @@ static NTSTATUS rpccli_lsa_lookup_names_generic(struct rpc_pipe_client *cli,
 
 	for (i = 0; i < num_names; i++) {
 		uint32_t dom_idx;
-		DOM_SID *sid = &(*sids)[i];
+		struct dom_sid *sid = &(*sids)[i];
 
 		if (use_lookupnames4) {
 			dom_idx		= sid_array3.sids[i].sid_index;
@@ -547,7 +548,7 @@ NTSTATUS rpccli_lsa_lookup_names(struct rpc_pipe_client *cli,
 				 const char **names,
 				 const char ***dom_names,
 				 int level,
-				 DOM_SID **sids,
+				 struct dom_sid **sids,
 				 enum lsa_SidType **types)
 {
 	return rpccli_lsa_lookup_names_generic(cli, mem_ctx, pol, num_names,
@@ -561,7 +562,7 @@ NTSTATUS rpccli_lsa_lookup_names4(struct rpc_pipe_client *cli,
 				  const char **names,
 				  const char ***dom_names,
 				  int level,
-				  DOM_SID **sids,
+				  struct dom_sid **sids,
 				  enum lsa_SidType **types)
 {
 	return rpccli_lsa_lookup_names_generic(cli, mem_ctx, pol, num_names,

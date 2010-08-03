@@ -20,11 +20,10 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "librpc/gen_ndr/ndr_lsa_c.h"
 
 #include "libcli/auth/libcli_auth.h"
-#include "torture/rpc/rpc.h"
+#include "torture/rpc/torture_rpc.h"
 #include "lib/cmdline/popt_common.h"
 #include "param/param.h"
 
@@ -52,8 +51,9 @@ static bool test_CreateSecret_basic(struct dcerpc_pipe *p,
 	const char *secret1 = "abcdef12345699qwerty";
 	char *secret2;
 	char *secname;
+	struct dcerpc_binding_handle *b = p->binding_handle;
 
-	secname = talloc_asprintf(tctx, "torturesecret-%u", (uint_t)random());
+	secname = talloc_asprintf(tctx, "torturesecret-%u", (unsigned int)random());
 
 	torture_comment(tctx, "Testing CreateSecret of %s\n", secname);
 		
@@ -63,8 +63,9 @@ static bool test_CreateSecret_basic(struct dcerpc_pipe *p,
 	r.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	r.out.sec_handle = &sec_handle;
 	
-	status = dcerpc_lsa_CreateSecret(p, tctx, &r);
-	torture_assert_ntstatus_ok(tctx, status, "CreateSecret failed");
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_CreateSecret_r(b, tctx, &r),
+		"CreateSecret failed");
+	torture_assert_ntstatus_ok(tctx, r.out.result, "CreateSecret failed");
 	
 	status = dcerpc_fetch_session_key(p, &session_key);
 	torture_assert_ntstatus_ok(tctx, status, "dcerpc_fetch_session_key failed");
@@ -80,8 +81,9 @@ static bool test_CreateSecret_basic(struct dcerpc_pipe *p,
 	
 	torture_comment(tctx, "Testing SetSecret\n");
 	
-	status = dcerpc_lsa_SetSecret(p, tctx, &r3);
-	torture_assert_ntstatus_ok(tctx, status, "SetSecret failed");
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_SetSecret_r(b, tctx, &r3),
+		"SetSecret failed");
+	torture_assert_ntstatus_ok(tctx, r3.out.result, "SetSecret failed");
 		
 	r3.in.sec_handle = &sec_handle;
 	r3.in.new_val = &buf1;
@@ -95,8 +97,9 @@ static bool test_CreateSecret_basic(struct dcerpc_pipe *p,
 	
 	torture_comment(tctx, "Testing SetSecret with broken key\n");
 	
-	status = dcerpc_lsa_SetSecret(p, tctx, &r3);
-	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_UNKNOWN_REVISION, 
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_SetSecret_r(b, tctx, &r3),
+		"SetSecret failed");
+	torture_assert_ntstatus_equal(tctx, r3.out.result, NT_STATUS_UNKNOWN_REVISION,
 		"SetSecret should have failed UNKNOWN_REVISION");
 	
 	data_blob_free(&enc_key);
@@ -114,8 +117,9 @@ static bool test_CreateSecret_basic(struct dcerpc_pipe *p,
 	bufp1.buf = NULL;
 	
 	torture_comment(tctx, "Testing QuerySecret\n");
-	status = dcerpc_lsa_QuerySecret(p, tctx, &r4);
-	torture_assert_ntstatus_ok(tctx, status, "QuerySecret failed");
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_QuerySecret_r(b, tctx, &r4),
+		"QuerySecret failed");
+	torture_assert_ntstatus_ok(tctx, r4.out.result, "QuerySecret failed");
 	if (r4.out.new_val == NULL || r4.out.new_val->buf == NULL)
 		torture_fail(tctx, "No secret buffer returned");
 	blob1.data = r4.out.new_val->buf->data;
@@ -129,8 +133,9 @@ static bool test_CreateSecret_basic(struct dcerpc_pipe *p,
 
 	d.in.handle = &sec_handle;
 	d.out.handle = &sec_handle;
-	status = dcerpc_lsa_DeleteObject(p, tctx, &d);
-	torture_assert_ntstatus_ok(tctx, status, "delete should have returned OKINVALID_HANDLE");
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_DeleteObject_r(b, tctx, &d),
+		"DeleteObject failed");
+	torture_assert_ntstatus_ok(tctx, d.out.result, "delete should have returned OKINVALID_HANDLE");
 	return true;
 }
 
@@ -149,21 +154,16 @@ static bool test_secrets(struct torture_context *torture, const void *_data)
 	const struct secret_settings *settings = 
 		(const struct secret_settings *)_data;
 	NTSTATUS status;
+	struct dcerpc_binding_handle *b;
 
-	lp_set_cmdline(torture->lp_ctx, "ntlmssp client:keyexchange", settings->keyexchange?"True":"False");
-	lp_set_cmdline(torture->lp_ctx, "ntlmssp_client:ntlm2", settings->ntlm2?"True":"False");
-	lp_set_cmdline(torture->lp_ctx, "ntlmssp_client:lm_key", settings->lm_key?"True":"False");
+	lpcfg_set_cmdline(torture->lp_ctx, "ntlmssp client:keyexchange", settings->keyexchange?"True":"False");
+	lpcfg_set_cmdline(torture->lp_ctx, "ntlmssp_client:ntlm2", settings->ntlm2?"True":"False");
+	lpcfg_set_cmdline(torture->lp_ctx, "ntlmssp_client:lm_key", settings->lm_key?"True":"False");
 
 	torture_assert_ntstatus_ok(torture, torture_rpc_binding(torture, &binding), 
 				   "Getting bindoptions");
 
 	binding->flags |= settings->bindoptions;
-
-	if (binding->flags & DCERPC_PUSH_BIGENDIAN) {
-		if (torture_setting_bool(torture, "samba3", false)) {
-			torture_skip(torture, "skipping bigendian test against samba3\n");
-		}
-	}
 
 	status = dcerpc_pipe_connect_b(torture, &p, binding,
 				       &ndr_table_lsarpc,
@@ -172,8 +172,9 @@ static bool test_secrets(struct torture_context *torture, const void *_data)
 				       torture->lp_ctx);
 
 	torture_assert_ntstatus_ok(torture, status, "connect");
+	b = p->binding_handle;
 
-	if (!test_lsa_OpenPolicy2(p, torture, &handle)) {
+	if (!test_lsa_OpenPolicy2(b, torture, &handle)) {
 		talloc_free(p);
 		return false;
 	}

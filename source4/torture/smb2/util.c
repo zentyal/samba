@@ -20,18 +20,16 @@
 */
 
 #include "includes.h"
+#include "libcli/security/security_descriptor.h"
 #include "libcli/smb2/smb2.h"
 #include "libcli/smb2/smb2_calls.h"
-#include "libcli/smb_composite/smb_composite.h"
 #include "lib/cmdline/popt_common.h"
-#include "lib/events/events.h"
 #include "system/time.h"
 #include "librpc/gen_ndr/ndr_security.h"
 #include "param/param.h"
 #include "libcli/resolve/resolve.h"
 
 #include "torture/torture.h"
-#include "torture/smb2/proto.h"
 
 
 /*
@@ -272,16 +270,16 @@ bool torture_smb2_connection(struct torture_context *tctx, struct smb2_tree **tr
 	struct cli_credentials *credentials = cmdline_credentials;
 	struct smbcli_options options;
 
-	lp_smbcli_options(tctx->lp_ctx, &options);
+	lpcfg_smbcli_options(tctx->lp_ctx, &options);
 
 	status = smb2_connect(tctx, host, 
-						  lp_smb_ports(tctx->lp_ctx),
+						  lpcfg_smb_ports(tctx->lp_ctx),
 						  share, 
-			      lp_resolve_context(tctx->lp_ctx),
+			      lpcfg_resolve_context(tctx->lp_ctx),
 			      credentials, tree, 
 			      tctx->ev, &options,
-				  lp_socket_options(tctx->lp_ctx),
-				  lp_gensec_settings(tctx, tctx->lp_ctx)
+				  lpcfg_socket_options(tctx->lp_ctx),
+				  lpcfg_gensec_settings(tctx, tctx->lp_ctx)
 				  );
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("Failed to connect to SMB2 share \\\\%s\\%s - %s\n",
@@ -357,7 +355,7 @@ NTSTATUS torture_smb2_testdir(struct smb2_tree *tree, const char *fname,
 
 
 /*
-  create a complex file using the old SMB protocol, to make it easier to 
+  create a complex file using SMB2, to make it easier to
   find fields in SMB2 getinfo levels
 */
 NTSTATUS torture_setup_complex_file(struct smb2_tree *tree, const char *fname)
@@ -370,7 +368,7 @@ NTSTATUS torture_setup_complex_file(struct smb2_tree *tree, const char *fname)
 
 
 /*
-  create a complex dir using the old SMB protocol, to make it easier to 
+  create a complex dir using SMB2, to make it easier to
   find fields in SMB2 getinfo levels
 */
 NTSTATUS torture_setup_complex_dir(struct smb2_tree *tree, const char *fname)
@@ -406,3 +404,102 @@ NTSTATUS smb2_util_roothandle(struct smb2_tree *tree, struct smb2_handle *handle
 
 	return NT_STATUS_OK;
 }
+
+/* Comparable to torture_setup_dir, but for SMB2. */
+bool smb2_util_setup_dir(struct torture_context *tctx, struct smb2_tree *tree,
+    const char *dname)
+{
+	NTSTATUS status;
+
+	/* XXX: smb_raw_exit equivalent?
+	smb_raw_exit(cli->session); */
+	if (smb2_deltree(tree, dname) == -1) {
+		torture_result(tctx, TORTURE_ERROR, "Unable to deltree when setting up %s.\n", dname);
+		return false;
+	}
+
+	status = smb2_util_mkdir(tree, dname);
+	if (NT_STATUS_IS_ERR(status)) {
+		torture_result(tctx, TORTURE_ERROR, "Unable to mkdir when setting up %s - %s\n", dname,
+		    nt_errstr(status));
+		return false;
+	}
+
+	return true;
+}
+
+#define CHECK_STATUS(status, correct) do { \
+	if (!NT_STATUS_EQUAL(status, correct)) { \
+		torture_result(tctx, TORTURE_FAIL, "(%s) Incorrect status %s - should be %s\n", \
+		       __location__, nt_errstr(status), nt_errstr(correct)); \
+		ret = false; \
+		goto done; \
+	}} while (0)
+
+/*
+ * Helper function to verify a security descriptor, by querying
+ * and comparing against the passed in sd.
+ */
+bool smb2_util_verify_sd(TALLOC_CTX *tctx, struct smb2_tree *tree,
+    struct smb2_handle handle, struct security_descriptor *sd)
+{
+	NTSTATUS status;
+	bool ret = true;
+	union smb_fileinfo q = {};
+
+	q.query_secdesc.level = RAW_FILEINFO_SEC_DESC;
+	q.query_secdesc.in.file.handle = handle;
+	q.query_secdesc.in.secinfo_flags =
+	    SECINFO_OWNER |
+	    SECINFO_GROUP |
+	    SECINFO_DACL;
+	status = smb2_getinfo_file(tree, tctx, &q);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	if (!security_acl_equal(
+	    q.query_secdesc.out.sd->dacl, sd->dacl)) {
+		torture_warning(tctx, "%s: security descriptors don't match!\n",
+		    __location__);
+		torture_warning(tctx, "got:\n");
+		NDR_PRINT_DEBUG(security_descriptor,
+		    q.query_secdesc.out.sd);
+		torture_warning(tctx, "expected:\n");
+		NDR_PRINT_DEBUG(security_descriptor, sd);
+		ret = false;
+	}
+
+ done:
+	return ret;
+}
+
+/*
+ * Helper function to verify attributes, by querying
+ * and comparing against the passed in attrib.
+ */
+bool smb2_util_verify_attrib(TALLOC_CTX *tctx, struct smb2_tree *tree,
+    struct smb2_handle handle, uint32_t attrib)
+{
+	NTSTATUS status;
+	bool ret = true;
+	union smb_fileinfo q = {};
+
+	q.standard.level = RAW_FILEINFO_SMB2_ALL_INFORMATION;
+	q.standard.in.file.handle = handle;
+	status = smb2_getinfo_file(tree, tctx, &q);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	q.all_info2.out.attrib &= ~FILE_ATTRIBUTE_ARCHIVE;
+
+	if (q.all_info2.out.attrib != attrib) {
+		torture_warning(tctx, "%s: attributes don't match! "
+		    "got %x, expected %x\n", __location__,
+		    (uint32_t)q.standard.out.attrib,
+		    (uint32_t)attrib);
+		ret = false;
+	}
+
+ done:
+	return ret;
+}
+
+

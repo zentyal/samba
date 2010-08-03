@@ -40,6 +40,7 @@
 #include <gssapi/gssapi_krb5.h>
 #include <gssapi/gssapi_spnego.h>
 #include "auth/gensec/gensec_gssapi.h"
+#include "lib/util/util_net.h"
 
 static size_t gensec_gssapi_max_input_size(struct gensec_security *gensec_security);
 static size_t gensec_gssapi_max_wrapped_size(struct gensec_security *gensec_security);
@@ -147,30 +148,25 @@ static NTSTATUS gensec_gssapi_start(struct gensec_security *gensec_security)
 	struct gensec_gssapi_state *gensec_gssapi_state;
 	krb5_error_code ret;
 	struct gsskrb5_send_to_kdc send_to_kdc;
+	const char *realm;
 
 	gensec_gssapi_state = talloc(gensec_security, struct gensec_gssapi_state);
 	if (!gensec_gssapi_state) {
 		return NT_STATUS_NO_MEMORY;
 	}
-	
-	gensec_gssapi_state->gss_exchange_count = 0;
-	gensec_gssapi_state->max_wrap_buf_size
-		= gensec_setting_int(gensec_security->settings, "gensec_gssapi", "max wrap buf size", 65536);
-		
-	gensec_gssapi_state->sasl = false;
-	gensec_gssapi_state->sasl_state = STAGE_GSS_NEG;
 
 	gensec_security->private_data = gensec_gssapi_state;
 
 	gensec_gssapi_state->gssapi_context = GSS_C_NO_CONTEXT;
-	gensec_gssapi_state->server_name = GSS_C_NO_NAME;
-	gensec_gssapi_state->client_name = GSS_C_NO_NAME;
-	gensec_gssapi_state->lucid = NULL;
 
 	/* TODO: Fill in channel bindings */
 	gensec_gssapi_state->input_chan_bindings = GSS_C_NO_CHANNEL_BINDINGS;
+
+	gensec_gssapi_state->server_name = GSS_C_NO_NAME;
+	gensec_gssapi_state->client_name = GSS_C_NO_NAME;
 	
 	gensec_gssapi_state->want_flags = 0;
+
 	if (gensec_setting_bool(gensec_security->settings, "gensec_gssapi", "delegation_by_kdc_policy", true)) {
 		gensec_gssapi_state->want_flags |= GSS_C_DELEG_POLICY_FLAG;
 	}
@@ -187,16 +183,6 @@ static NTSTATUS gensec_gssapi_start(struct gensec_security *gensec_security)
 		gensec_gssapi_state->want_flags |= GSS_C_SEQUENCE_FLAG;
 	}
 
-	gensec_gssapi_state->got_flags = 0;
-
-	gensec_gssapi_state->session_key = data_blob(NULL, 0);
-	gensec_gssapi_state->pac = data_blob(NULL, 0);
-
-	gensec_gssapi_state->delegated_cred_handle = GSS_C_NO_CREDENTIAL;
-	gensec_gssapi_state->sig_size = 0;
-
-	talloc_set_destructor(gensec_gssapi_state, gensec_gssapi_destructor);
-
 	if (gensec_security->want_features & GENSEC_FEATURE_SIGN) {
 		gensec_gssapi_state->want_flags |= GSS_C_INTEG_FLAG;
 	}
@@ -206,6 +192,8 @@ static NTSTATUS gensec_gssapi_start(struct gensec_security *gensec_security)
 	if (gensec_security->want_features & GENSEC_FEATURE_DCE_STYLE) {
 		gensec_gssapi_state->want_flags |= GSS_C_DCE_STYLE;
 	}
+
+	gensec_gssapi_state->got_flags = 0;
 
 	switch (gensec_security->ops->auth_type) {
 	case DCERPC_AUTH_TYPE_SPNEGO:
@@ -217,6 +205,38 @@ static NTSTATUS gensec_gssapi_start(struct gensec_security *gensec_security)
 		break;
 	}
 
+	gensec_gssapi_state->session_key = data_blob(NULL, 0);
+	gensec_gssapi_state->pac = data_blob(NULL, 0);
+
+	ret = smb_krb5_init_context(gensec_gssapi_state,
+				    gensec_security->event_ctx,
+				    gensec_security->settings->lp_ctx,
+				    &gensec_gssapi_state->smb_krb5_context);
+	if (ret) {
+		DEBUG(1,("gensec_krb5_start: krb5_init_context failed (%s)\n",
+			 error_message(ret)));
+		talloc_free(gensec_gssapi_state);
+		return NT_STATUS_INTERNAL_ERROR;
+	}
+
+	gensec_gssapi_state->client_cred = NULL;
+	gensec_gssapi_state->server_cred = NULL;
+
+	gensec_gssapi_state->lucid = NULL;
+
+	gensec_gssapi_state->delegated_cred_handle = GSS_C_NO_CREDENTIAL;
+
+	gensec_gssapi_state->sasl = false;
+	gensec_gssapi_state->sasl_state = STAGE_GSS_NEG;
+	gensec_gssapi_state->sasl_protection = 0;
+
+	gensec_gssapi_state->max_wrap_buf_size
+		= gensec_setting_int(gensec_security->settings, "gensec_gssapi", "max wrap buf size", 65536);
+	gensec_gssapi_state->gss_exchange_count = 0;
+	gensec_gssapi_state->sig_size = 0;
+
+	talloc_set_destructor(gensec_gssapi_state, gensec_gssapi_destructor);
+
 	send_to_kdc.func = smb_krb5_send_and_recv_func;
 	send_to_kdc.ptr = gensec_security->event_ctx;
 
@@ -226,15 +246,10 @@ static NTSTATUS gensec_gssapi_start(struct gensec_security *gensec_security)
 		talloc_free(gensec_gssapi_state);
 		return NT_STATUS_INTERNAL_ERROR;
 	}
-	if (lp_realm(gensec_security->settings->lp_ctx) && *lp_realm(gensec_security->settings->lp_ctx)) {
-		char *upper_realm = strupper_talloc(gensec_gssapi_state, lp_realm(gensec_security->settings->lp_ctx));
-		if (!upper_realm) {
-			DEBUG(1,("gensec_krb5_start: could not uppercase realm: %s\n", lp_realm(gensec_security->settings->lp_ctx)));
-			talloc_free(gensec_gssapi_state);
-			return NT_STATUS_NO_MEMORY;
-		}
-		ret = gsskrb5_set_default_realm(upper_realm);
-		talloc_free(upper_realm);
+
+	realm = lpcfg_realm(gensec_security->settings->lp_ctx);
+	if (realm != NULL) {
+		ret = gsskrb5_set_default_realm(realm);
 		if (ret) {
 			DEBUG(1,("gensec_krb5_start: gsskrb5_set_default_realm failed\n"));
 			talloc_free(gensec_gssapi_state);
@@ -250,16 +265,6 @@ static NTSTATUS gensec_gssapi_start(struct gensec_security *gensec_security)
 		return NT_STATUS_INTERNAL_ERROR;
 	}
 
-	ret = smb_krb5_init_context(gensec_gssapi_state, 
-				    gensec_security->event_ctx,
-				    gensec_security->settings->lp_ctx,
-				    &gensec_gssapi_state->smb_krb5_context);
-	if (ret) {
-		DEBUG(1,("gensec_krb5_start: krb5_init_context failed (%s)\n",
-			 error_message(ret)));
-		talloc_free(gensec_gssapi_state);
-		return NT_STATUS_INTERNAL_ERROR;
-	}
 	return NT_STATUS_OK;
 }
 
@@ -324,6 +329,7 @@ static NTSTATUS gensec_gssapi_client_start(struct gensec_security *gensec_securi
 	const char *hostname = gensec_get_target_hostname(gensec_security);
 	const char *principal;
 	struct gssapi_creds_container *gcc;
+	const char *error_string;
 
 	if (!hostname) {
 		DEBUG(1, ("Could not determine hostname for target computer, cannot use kerberos\n"));
@@ -346,14 +352,14 @@ static NTSTATUS gensec_gssapi_client_start(struct gensec_security *gensec_securi
 	gensec_gssapi_state = talloc_get_type(gensec_security->private_data, struct gensec_gssapi_state);
 
 	principal = gensec_get_target_principal(gensec_security);
-	if (principal && lp_client_use_spnego_principal(gensec_security->settings->lp_ctx)) {
+	if (principal && lpcfg_client_use_spnego_principal(gensec_security->settings->lp_ctx)) {
 		name_type = GSS_C_NULL_OID;
 	} else {
-		principal = talloc_asprintf(gensec_gssapi_state, "%s@%s", 
+		principal = talloc_asprintf(gensec_gssapi_state, "%s/%s@%s",
 					    gensec_get_target_service(gensec_security), 
-					    hostname);
+					    hostname, lpcfg_realm(gensec_security->settings->lp_ctx));
 
-		name_type = GSS_C_NT_HOSTBASED_SERVICE;
+		name_type = GSS_C_NT_USER_NAME;
 	}		
 	name_token.value  = discard_const_p(uint8_t, principal);
 	name_token.length = strlen(principal);
@@ -372,17 +378,21 @@ static NTSTATUS gensec_gssapi_client_start(struct gensec_security *gensec_securi
 
 	ret = cli_credentials_get_client_gss_creds(creds, 
 						   gensec_security->event_ctx, 
-						   gensec_security->settings->lp_ctx, &gcc);
+						   gensec_security->settings->lp_ctx, &gcc, &error_string);
 	switch (ret) {
 	case 0:
 		break;
 	case KRB5KDC_ERR_PREAUTH_FAILED:
 		return NT_STATUS_LOGON_FAILURE;
 	case KRB5_KDC_UNREACH:
-		DEBUG(3, ("Cannot reach a KDC we require to contact %s\n", principal));
+		DEBUG(3, ("Cannot reach a KDC we require to contact %s : %s\n", principal, error_string));
+		return NT_STATUS_INVALID_PARAMETER; /* Make SPNEGO ignore us, we can't go any further here */
+	case KRB5_CC_NOTFOUND:
+	case KRB5_CC_END:
+		DEBUG(3, ("Error preparing credentials we require to contact %s : %s\n", principal, error_string));
 		return NT_STATUS_INVALID_PARAMETER; /* Make SPNEGO ignore us, we can't go any further here */
 	default:
-		DEBUG(1, ("Aquiring initiator credentials failed\n"));
+		DEBUG(1, ("Aquiring initiator credentials failed: %s\n", error_string));
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
@@ -1266,7 +1276,6 @@ static NTSTATUS gensec_gssapi_session_info(struct gensec_security *gensec_securi
 	 */
 	if (pac_blob.length) {
 		nt_status = kerberos_pac_blob_to_server_info(mem_ctx, 
-							     gensec_security->settings->iconv_convenience,
 							     pac_blob, 
 							     gensec_gssapi_state->smb_krb5_context->krb5_context,
 							     &server_info);
@@ -1307,6 +1316,7 @@ static NTSTATUS gensec_gssapi_session_info(struct gensec_security *gensec_securi
 			nt_status = gensec_security->auth_context->get_server_info_principal(mem_ctx, 
 											     gensec_security->auth_context, 
 											     principal_string,
+											     NULL,
 											     &server_info);
 			
 			if (!NT_STATUS_IS_OK(nt_status)) {
@@ -1322,8 +1332,8 @@ static NTSTATUS gensec_gssapi_session_info(struct gensec_security *gensec_securi
 	}
 
 	/* references the server_info into the session_info */
-	nt_status = auth_generate_session_info(mem_ctx, gensec_security->event_ctx, 
-					       gensec_security->settings->lp_ctx, server_info, &session_info);
+	nt_status = gensec_generate_session_info(mem_ctx, gensec_security,
+						 server_info, &session_info);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		talloc_free(mem_ctx);
 		return nt_status;
@@ -1339,6 +1349,8 @@ static NTSTATUS gensec_gssapi_session_info(struct gensec_security *gensec_securi
 		DEBUG(10, ("gensec_gssapi: NO delegated credentials supplied by client\n"));
 	} else {
 		krb5_error_code ret;
+		const char *error_string;
+
 		DEBUG(10, ("gensec_gssapi: delegated credentials supplied by client\n"));
 		session_info->credentials = cli_credentials_init(session_info);
 		if (!session_info->credentials) {
@@ -1352,11 +1364,12 @@ static NTSTATUS gensec_gssapi_session_info(struct gensec_security *gensec_securi
 		
 		ret = cli_credentials_set_client_gss_creds(session_info->credentials, 
 							   gensec_security->event_ctx,
-							   gensec_security->settings->lp_ctx, 
+							   gensec_security->settings->lp_ctx,
 							   gensec_gssapi_state->delegated_cred_handle,
-							   CRED_SPECIFIED);
+							   CRED_SPECIFIED, &error_string);
 		if (ret) {
 			talloc_free(mem_ctx);
+			DEBUG(2,("Failed to get gss creds: %s\n", error_string));
 			return NT_STATUS_NO_MEMORY;
 		}
 		

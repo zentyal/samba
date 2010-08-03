@@ -60,7 +60,7 @@ static int convert_fn(struct db_record *rec, void *private_data)
 	struct winbindd_domain *domain;
 	char *p;
 	NTSTATUS status;
-	DOM_SID sid;
+	struct dom_sid sid;
 	uint32 rid;
 	fstring keystr;
 	fstring dom_name;
@@ -97,8 +97,7 @@ static int convert_fn(struct db_record *rec, void *private_data)
 
 	rid = atoi(p);
 
-	sid_copy(&sid, &domain->sid);
-	sid_append_rid(&sid, rid);
+	sid_compose(&sid, &domain->sid, rid);
 
 	sid_to_fstring(keystr, &sid);
 	key2 = string_term_tdb_data(keystr);
@@ -793,6 +792,7 @@ static NTSTATUS idmap_tdb_sid_to_id(struct idmap_tdb_context *ctx, struct id_map
 	} else { /* Unknown record type ! */
 		DEBUG(2, ("Found INVALID record %s -> %s\n", keystr, (const char *)data.dptr));
 		ret = NT_STATUS_INTERNAL_DB_ERROR;
+		goto done;
 	}
 
 	/* apply filters before returning result */
@@ -1146,7 +1146,7 @@ static int idmap_tdb_dump_one_entry(struct db_record *rec, void *pdata)
 			return -1;
 		}
        		*data->maps = maps;
-		maps[num_maps].sid = talloc(maps, DOM_SID);
+		maps[num_maps].sid = talloc(maps, struct dom_sid);
 		if ( ! maps[num_maps].sid) {
 			DEBUG(0, ("Out of memory!\n"));
 			data->ret = NT_STATUS_NO_MEMORY;

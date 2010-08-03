@@ -24,7 +24,6 @@
 #include "system/kerberos.h"
 #include "auth/auth.h"
 #include "auth/kerberos/kerberos.h"
-#include "librpc/gen_ndr/ndr_krb5pac.h"
 #include "samba3/samba3.h"
 #include "libcli/security/security.h"
 #include "torture/torture.h"
@@ -91,7 +90,7 @@ static bool torture_pac_self_check(struct torture_context *tctx)
 	}
 
 	/* We need an input, and this one requires no underlying database */
-	nt_status = auth_anonymous_server_info(mem_ctx, lp_netbios_name(tctx->lp_ctx), &server_info);
+	nt_status = auth_anonymous_server_info(mem_ctx, lpcfg_netbios_name(tctx->lp_ctx), &server_info);
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		krb5_free_keyblock_contents(smb_krb5_context->krb5_context, 
@@ -115,7 +114,6 @@ static bool torture_pac_self_check(struct torture_context *tctx)
 
 	/* OK, go ahead and make a PAC */
 	ret = kerberos_create_pac(mem_ctx, 
-				  lp_iconv_convenience(tctx->lp_ctx),
 				  server_info, 
 				  smb_krb5_context->krb5_context,  
 				  &krbtgt_keyblock,
@@ -142,7 +140,6 @@ static bool torture_pac_self_check(struct torture_context *tctx)
 
 	/* Now check that we can read it back (using full decode and validate) */
 	nt_status = kerberos_decode_pac(mem_ctx, 
-					lp_iconv_convenience(tctx->lp_ctx),
 					&pac_data,
 					tmp_blob,
 					smb_krb5_context->krb5_context,
@@ -166,7 +163,6 @@ static bool torture_pac_self_check(struct torture_context *tctx)
 
 	/* Now check we can read it back (using Heimdal's pac parsing) */
 	nt_status = kerberos_pac_blob_to_server_info(mem_ctx, 
-						     lp_iconv_convenience(tctx->lp_ctx),
 						     tmp_blob, 
 						     smb_krb5_context->krb5_context,
 						     &server_info_out);
@@ -190,7 +186,6 @@ static bool torture_pac_self_check(struct torture_context *tctx)
 
 	/* Now check that we can read it back (yet again) */
 	nt_status = kerberos_pac_logon_info(mem_ctx, 
-					    lp_iconv_convenience(tctx->lp_ctx),
 					    &logon_info,
 					    tmp_blob,
 					    smb_krb5_context->krb5_context,
@@ -410,7 +405,6 @@ static bool torture_pac_saved_check(struct torture_context *tctx)
 
 	/* Decode and verify the signaure on the PAC */
 	nt_status = kerberos_decode_pac(mem_ctx, 
-					lp_iconv_convenience(tctx->lp_ctx),
 					&pac_data,
 					tmp_blob,
 					smb_krb5_context->krb5_context,
@@ -431,7 +425,6 @@ static bool torture_pac_saved_check(struct torture_context *tctx)
 
 	/* Now check we can read it back (using Heimdal's pac parsing) */
 	nt_status = kerberos_pac_blob_to_server_info(mem_ctx, 
-						     lp_iconv_convenience(tctx->lp_ctx),
 						     tmp_blob, 
 						     smb_krb5_context->krb5_context,
 						     &server_info_out);
@@ -469,7 +462,6 @@ static bool torture_pac_saved_check(struct torture_context *tctx)
 
 	/* Parse the PAC again, for the logon info this time (using Samba4's parsing) */
 	nt_status = kerberos_pac_logon_info(mem_ctx, 
-					    lp_iconv_convenience(tctx->lp_ctx),
 					    &logon_info,
 					    tmp_blob,
 					    smb_krb5_context->krb5_context,
@@ -534,7 +526,6 @@ static bool torture_pac_saved_check(struct torture_context *tctx)
 	}
 
 	ret = kerberos_encode_pac(mem_ctx, 
-				  lp_iconv_convenience(tctx->lp_ctx),
 				  pac_data,
 				  smb_krb5_context->krb5_context,
 				  krbtgt_keyblock_p,
@@ -586,7 +577,6 @@ static bool torture_pac_saved_check(struct torture_context *tctx)
 	}
 
 	ret = kerberos_create_pac(mem_ctx, 
-				  lp_iconv_convenience(tctx->lp_ctx),
 				  server_info_out,
 				  smb_krb5_context->krb5_context,
 				  krbtgt_keyblock_p,
@@ -612,7 +602,7 @@ static bool torture_pac_saved_check(struct torture_context *tctx)
 	 */
 	if (tmp_blob.length != validate_blob.length) {
 		ndr_err = ndr_pull_struct_blob(&validate_blob, mem_ctx, 
-					       lp_iconv_convenience(tctx->lp_ctx), &pac_data2,
+					       &pac_data2,
 					       (ndr_pull_flags_fn_t)ndr_pull_PAC_DATA);
 		nt_status = ndr_map_error2ntstatus(ndr_err);
 		torture_assert_ntstatus_ok(tctx, nt_status, "can't parse the PAC");
@@ -634,7 +624,7 @@ static bool torture_pac_saved_check(struct torture_context *tctx)
 
 	if (memcmp(tmp_blob.data, validate_blob.data, tmp_blob.length) != 0) {
 		ndr_err = ndr_pull_struct_blob(&validate_blob, mem_ctx, 
-					       lp_iconv_convenience(tctx->lp_ctx), &pac_data2,
+					       &pac_data2,
 					       (ndr_pull_flags_fn_t)ndr_pull_PAC_DATA);
 		nt_status = ndr_map_error2ntstatus(ndr_err);
 		torture_assert_ntstatus_ok(tctx, nt_status, "can't parse the PAC");
@@ -660,7 +650,6 @@ static bool torture_pac_saved_check(struct torture_context *tctx)
 
 	/* Break the auth time, to ensure we check this vital detail (not setting this caused all the pain in the first place... */
 	nt_status = kerberos_decode_pac(mem_ctx, 
-					lp_iconv_convenience(tctx->lp_ctx),
 					&pac_data,
 					tmp_blob,
 					smb_krb5_context->krb5_context,
@@ -698,7 +687,6 @@ static bool torture_pac_saved_check(struct torture_context *tctx)
 	}
 
 	nt_status = kerberos_decode_pac(mem_ctx, 
-					lp_iconv_convenience(tctx->lp_ctx),
 					&pac_data,
 					tmp_blob,
 					smb_krb5_context->krb5_context,
@@ -718,7 +706,6 @@ static bool torture_pac_saved_check(struct torture_context *tctx)
 	tmp_blob.data[tmp_blob.length - 2]++;
 
 	nt_status = kerberos_decode_pac(mem_ctx, 
-					lp_iconv_convenience(tctx->lp_ctx),
 					&pac_data,
 					tmp_blob,
 					smb_krb5_context->krb5_context,

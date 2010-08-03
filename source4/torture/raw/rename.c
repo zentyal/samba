@@ -18,8 +18,6 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
-#include "libcli/raw/libcliraw.h"
 #include "libcli/libcli.h"
 #include "torture/util.h"
 
@@ -67,7 +65,7 @@ static bool test_mv(struct torture_context *tctx,
 	torture_comment(tctx, "Trying simple rename\n");
 
 	op.generic.level = RAW_OPEN_NTCREATEX;
-	op.ntcreatex.in.root_fid = 0;
+	op.ntcreatex.in.root_fid.fnum = 0;
 	op.ntcreatex.in.flags = 0;
 	op.ntcreatex.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	op.ntcreatex.in.create_options = 0;
@@ -208,7 +206,7 @@ static bool test_osxrename(struct torture_context *tctx,
 		return false;
 	}
 	op.generic.level = RAW_OPEN_NTCREATEX;
-	op.ntcreatex.in.root_fid = 0;
+	op.ntcreatex.in.root_fid.fnum = 0;
 	op.ntcreatex.in.flags = 0;
 	op.ntcreatex.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	op.ntcreatex.in.create_options = 0;
@@ -307,7 +305,7 @@ static bool test_ntrename(struct torture_context *tctx,
 	status = smb_raw_rename(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_SHARING_VIOLATION);
 	
-	smb_raw_exit(cli->session);
+	smbcli_close(cli->tree, fnum);
 	status = smb_raw_rename(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_OK);
 
@@ -428,15 +426,27 @@ static bool test_ntrename(struct torture_context *tctx,
 	io.ntrename.in.attrib = 0;
 	io.ntrename.in.flags = 0;
 	status = smb_raw_rename(cli->tree, &io);
-	CHECK_STATUS(status, NT_STATUS_ACCESS_DENIED);
+	if (TARGET_IS_WIN7(tctx)) {
+		CHECK_STATUS(status, NT_STATUS_INVALID_PARAMETER);
+	} else {
+		CHECK_STATUS(status, NT_STATUS_ACCESS_DENIED);
+	}
 
 	io.ntrename.in.flags = 300;
 	status = smb_raw_rename(cli->tree, &io);
-	CHECK_STATUS(status, NT_STATUS_ACCESS_DENIED);
+	if (TARGET_IS_WIN7(tctx)) {
+		CHECK_STATUS(status, NT_STATUS_INVALID_PARAMETER);
+	} else {
+		CHECK_STATUS(status, NT_STATUS_ACCESS_DENIED);
+	}
 
 	io.ntrename.in.flags = 0x106;
 	status = smb_raw_rename(cli->tree, &io);
-	CHECK_STATUS(status, NT_STATUS_ACCESS_DENIED);
+	if (TARGET_IS_WIN7(tctx)) {
+		CHECK_STATUS(status, NT_STATUS_INVALID_PARAMETER);
+	} else {
+		CHECK_STATUS(status, NT_STATUS_ACCESS_DENIED);
+	}
 
 	torture_comment(tctx, "Checking unknown field\n");
 	io.ntrename.in.old_name = fname1;
@@ -507,8 +517,18 @@ static bool test_ntrename(struct torture_context *tctx,
 		io.ntrename.in.attrib = 0;
 		io.ntrename.in.cluster_size = 0;
 		status = smb_raw_rename(cli->tree, &io);
-		if (!NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED)) {
-			torture_warning(tctx, "flags=0x%x status=%s\n", i, nt_errstr(status));
+		if (TARGET_IS_WIN7(tctx)){
+			if (!NT_STATUS_EQUAL(status,
+					     NT_STATUS_INVALID_PARAMETER)) {
+				torture_warning(tctx, "flags=0x%x status=%s\n",
+						i, nt_errstr(status));
+			}
+		} else {
+			if (!NT_STATUS_EQUAL(status,
+					     NT_STATUS_ACCESS_DENIED)) {
+				torture_warning(tctx, "flags=0x%x status=%s\n",
+						i, nt_errstr(status));
+			}
 		}
 	}
 	
@@ -577,7 +597,7 @@ static bool test_dir_rename(struct torture_context *tctx, struct smbcli_state *c
 
         io.generic.level = RAW_OPEN_NTCREATEX;
         io.ntcreatex.in.flags = NTCREATEX_FLAGS_EXTENDED;
-        io.ntcreatex.in.root_fid = 0;
+        io.ntcreatex.in.root_fid.fnum = 0;
         io.ntcreatex.in.alloc_size = 0;
         io.ntcreatex.in.access_mask = SEC_RIGHTS_FILE_ALL;
         io.ntcreatex.in.file_attr = FILE_ATTRIBUTE_NORMAL;

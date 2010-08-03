@@ -19,6 +19,10 @@
 #include "includes.h"
 #include "utils/net.h"
 #include "../librpc/gen_ndr/cli_spoolss.h"
+#include "rpc_client/cli_spoolss.h"
+#include "rpc_client/init_spoolss.h"
+#include "registry.h"
+#include "registry/reg_objects.h"
 
 /* support itanium as well */
 static const struct print_architecture_table_node archi_table[]= {
@@ -71,44 +75,44 @@ static void display_print_driver3(struct spoolss_DriverInfo3 *r)
 	printf(_("\tDefaultdatatype: [%s]\n\n"), r->default_datatype);
 }
 
-static void display_reg_value(const char *subkey, struct regval_blob value)
+static void display_reg_value(const char *subkey, struct regval_blob *value)
 {
 	const char *text;
 	DATA_BLOB blob;
 
-	switch(value.type) {
+	switch(regval_type(value)) {
 	case REG_DWORD:
 		d_printf(_("\t[%s:%s]: REG_DWORD: 0x%08x\n"), subkey,
-			value.valuename, *((uint32_t *) value.data_p));
+			regval_name(value), *((uint32_t *) regval_data_p(value)));
 		break;
 
 	case REG_SZ:
-		blob = data_blob_const(value.data_p, value.size);
+		blob = data_blob_const(regval_data_p(value), regval_size(value));
 		pull_reg_sz(talloc_tos(), &blob, &text);
 		if (!text) {
 			break;
 		}
-		d_printf(_("\t[%s:%s]: REG_SZ: %s\n"), subkey, value.valuename,
+		d_printf(_("\t[%s:%s]: REG_SZ: %s\n"), subkey, regval_name(value),
 			 text);
 		break;
 
 	case REG_BINARY:
 		d_printf(_("\t[%s:%s]: REG_BINARY: unknown length value not "
 			   "displayed\n"),
-			 subkey, value.valuename);
+			 subkey, regval_name(value));
 		break;
 
 	case REG_MULTI_SZ: {
 		uint32_t i;
 		const char **values;
-		blob = data_blob_const(value.data_p, value.size);
+		blob = data_blob_const(regval_data_p(value), regval_size(value));
 
 		if (!pull_reg_multi_sz(NULL, &blob, &values)) {
 			d_printf("pull_reg_multi_sz failed\n");
 			break;
 		}
 
-		printf("%s: REG_MULTI_SZ: \n", value.valuename);
+		printf("%s: REG_MULTI_SZ: \n", regval_name(value));
 		for (i=0; values[i] != NULL; i++) {
 			d_printf("%s\n", values[i]);
 		}
@@ -117,8 +121,8 @@ static void display_reg_value(const char *subkey, struct regval_blob value)
 	}
 
 	default:
-		d_printf(_("\t%s: unknown type %d\n"), value.valuename,
-			 value.type);
+		d_printf(_("\t%s: unknown type %d\n"), regval_name(value),
+			 regval_type(value));
 	}
 
 }
@@ -152,7 +156,7 @@ NTSTATUS net_copy_fileattr(struct net_context *c,
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
 	uint16_t fnum_src = 0;
 	uint16_t fnum_dst = 0;
-	SEC_DESC *sd = NULL;
+	struct security_descriptor *sd = NULL;
 	uint16_t attr;
 	time_t f_atime, f_ctime, f_mtime;
 
@@ -486,12 +490,11 @@ static NTSTATUS net_copy_driverfile(struct net_context *c,
 				    struct cli_state *cli_share_dst,
 				    const char *file, const char *short_archi) {
 
-	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
 	const char *p;
 	char *src_name;
 	char *dst_name;
-	char *version;
-	char *filename;
+	char *version = NULL;
+	char *filename = NULL;
 	char *tok;
 
 	if (!file) {
@@ -508,29 +511,27 @@ static NTSTATUS net_copy_driverfile(struct net_context *c,
 		}
 	}
 
-	/* build source file name */
-	if (asprintf(&src_name, "\\%s\\%s\\%s", short_archi, version, filename) < 0 )
-		return NT_STATUS_NO_MEMORY;
+	if (version == NULL || filename == NULL) {
+		return NT_STATUS_UNSUCCESSFUL;
+	}
 
+	/* build source file name */
+	src_name = talloc_asprintf(mem_ctx, "\\%s\\%s\\%s",
+				   short_archi, version, filename);
+	if (src_name == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	/* create destination file name */
-	if (asprintf(&dst_name, "\\%s\\%s", short_archi, filename) < 0 )
-                return NT_STATUS_NO_MEMORY;
+	dst_name = talloc_asprintf(mem_ctx, "\\%s\\%s", short_archi, filename);
+	if (dst_name == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
 
 
 	/* finally copy the file */
-	nt_status = net_copy_file(c, mem_ctx, cli_share_src, cli_share_dst,
-				  src_name, dst_name, false, false, false, true);
-	if (!NT_STATUS_IS_OK(nt_status))
-		goto out;
-
-	nt_status = NT_STATUS_OK;
-
-out:
-	SAFE_FREE(src_name);
-	SAFE_FREE(dst_name);
-
-	return nt_status;
+	return net_copy_file(c, mem_ctx, cli_share_src, cli_share_dst,
+			     src_name, dst_name, false, false, false, true);
 }
 
 /**
@@ -754,6 +755,7 @@ static bool net_spoolss_setprinter(struct rpc_pipe_client *pipe_hnd,
 	WERROR result;
 	NTSTATUS status;
 	struct spoolss_SetPrinterInfoCtr info_ctr;
+	struct spoolss_SetPrinterInfo2 info2;
 	struct spoolss_DevmodeContainer devmode_ctr;
 	struct sec_desc_buf secdesc_ctr;
 
@@ -773,8 +775,8 @@ static bool net_spoolss_setprinter(struct rpc_pipe_client *pipe_hnd,
 			(void *)&info->info1;
 		break;
 	case 2:
-		info_ctr.info.info2 = (struct spoolss_SetPrinterInfo2 *)
-			(void *)&info->info2;
+		spoolss_printerinfo2_to_setprinterinfo2(&info->info2, &info2);
+		info_ctr.info.info2 = &info2;
 		break;
 	case 3:
 		info_ctr.info.info3 = (struct spoolss_SetPrinterInfo3 *)
@@ -916,10 +918,10 @@ static bool net_spoolss_setprinterdataex(struct rpc_pipe_client *pipe_hnd,
 	status = rpccli_spoolss_SetPrinterDataEx(pipe_hnd, mem_ctx,
 						 hnd,
 						 keyname,
-						 value->valuename,
-						 value->type,
-						 value->data_p,
-						 value->size,
+						 regval_name(value),
+						 regval_type(value),
+						 regval_data_p(value),
+						 regval_size(value),
 						 &result);
 
 	if (!W_ERROR_IS_OK(result)) {
@@ -1124,7 +1126,7 @@ out:
  **/
 
 NTSTATUS rpc_printer_list_internals(struct net_context *c,
-					const DOM_SID *domain_sid,
+					const struct dom_sid *domain_sid,
 					const char *domain_name,
 					struct cli_state *cli,
 					struct rpc_pipe_client *pipe_hnd,
@@ -1176,7 +1178,7 @@ NTSTATUS rpc_printer_list_internals(struct net_context *c,
  **/
 
 NTSTATUS rpc_printer_driver_list_internals(struct net_context *c,
-						const DOM_SID *domain_sid,
+						const struct dom_sid *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -1334,7 +1336,7 @@ done:
 }
 
 NTSTATUS rpc_printer_publish_publish_internals(struct net_context *c,
-						const DOM_SID *domain_sid,
+						const struct dom_sid *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -1346,7 +1348,7 @@ NTSTATUS rpc_printer_publish_publish_internals(struct net_context *c,
 }
 
 NTSTATUS rpc_printer_publish_unpublish_internals(struct net_context *c,
-						const DOM_SID *domain_sid,
+						const struct dom_sid *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -1358,7 +1360,7 @@ NTSTATUS rpc_printer_publish_unpublish_internals(struct net_context *c,
 }
 
 NTSTATUS rpc_printer_publish_update_internals(struct net_context *c,
-						const DOM_SID *domain_sid,
+						const struct dom_sid *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -1387,7 +1389,7 @@ NTSTATUS rpc_printer_publish_update_internals(struct net_context *c,
  **/
 
 NTSTATUS rpc_printer_publish_list_internals(struct net_context *c,
-						const DOM_SID *domain_sid,
+						const struct dom_sid *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -1479,7 +1481,7 @@ done:
  **/
 
 NTSTATUS rpc_printer_migrate_security_internals(struct net_context *c,
-						const DOM_SID *domain_sid,
+						const struct dom_sid *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -1627,7 +1629,7 @@ done:
  **/
 
 NTSTATUS rpc_printer_migrate_forms_internals(struct net_context *c,
-						const DOM_SID *domain_sid,
+						const struct dom_sid *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -1790,7 +1792,7 @@ done:
  **/
 
 NTSTATUS rpc_printer_migrate_drivers_internals(struct net_context *c,
-						const DOM_SID *domain_sid,
+						const struct dom_sid *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -2001,7 +2003,7 @@ done:
  **/
 
 NTSTATUS rpc_printer_migrate_printers_internals(struct net_context *c,
-						const DOM_SID *domain_sid,
+						const struct dom_sid *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -2043,6 +2045,8 @@ NTSTATUS rpc_printer_migrate_printers_internals(struct net_context *c,
 
 	/* do something for all printers */
 	for (i = 0; i < num_printers; i++) {
+
+		struct spoolss_SetPrinterInfo2 info2;
 
 		/* do some initialization */
 		printername = info_enum[i].info2.printername;
@@ -2095,8 +2099,8 @@ NTSTATUS rpc_printer_migrate_printers_internals(struct net_context *c,
 		d_printf(_("creating printer: %s\n"), printername);
 
 		info_ctr.level = level;
-		info_ctr.info.info2 = (struct spoolss_SetPrinterInfo2 *)
-			(void *)&info_src.info2;
+		spoolss_printerinfo2_to_setprinterinfo2(&info_src.info2, &info2);
+		info_ctr.info.info2 = &info2;
 
 		result = rpccli_spoolss_addprinterex(pipe_hnd_dst,
 						     mem_ctx,
@@ -2158,7 +2162,7 @@ done:
  **/
 
 NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
-						const DOM_SID *domain_sid,
+						const struct dom_sid *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -2350,15 +2354,22 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 			/* loop for all reg_keys */
 			if (NT_STATUS_IS_OK(nt_status) && W_ERROR_IS_OK(result)) {
 
-				struct regval_blob v;
-
 				/* display_value */
 				if (c->opt_verbose) {
-					fstrcpy(v.valuename, value_name);
-					v.type = type;
-					v.size = data_offered;
-					v.data_p = buffer;
+					struct regval_blob *v;
+
+					v = regval_compose(talloc_tos(),
+							   value_name,
+							   type,
+							   buffer,
+							   data_offered);
+					if (v == NULL) {
+						nt_status = NT_STATUS_NO_MEMORY;
+						goto done;
+					}
+
 					display_reg_value(SPOOL_PRINTERDATA_KEY, v);
+					talloc_free(v);
 				}
 
 				/* set_value */
@@ -2368,7 +2379,7 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 					goto done;
 
 				DEBUGADD(1,("\tSetPrinterData of [%s] succeeded\n",
-					v.valuename));
+					    value_name));
 			}
 		}
 
@@ -2407,8 +2418,10 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 
 			for (j=0; j < count; j++) {
 
-				struct regval_blob value;
+				struct regval_blob *value;
 				DATA_BLOB blob;
+
+				ZERO_STRUCT(blob);
 
 				/* although samba replies with sane data in most cases we
 				   should try to avoid writing wrong registry data */
@@ -2423,7 +2436,6 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 
 						/* although windows uses a multi-sz, we use a sz */
 						push_reg_sz(mem_ctx, &blob, SAMBA_PRINTER_PORT_NAME);
-						fstrcpy(value.valuename, SPOOL_REG_PORTNAME);
 					}
 
 					if (strequal(info[j].value_name, SPOOL_REG_UNCNAME)) {
@@ -2433,7 +2445,6 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 							goto done;
 						}
 						push_reg_sz(mem_ctx, &blob, unc_name);
-						fstrcpy(value.valuename, SPOOL_REG_UNCNAME);
 					}
 
 					if (strequal(info[j].value_name, SPOOL_REG_URL)) {
@@ -2446,7 +2457,7 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 							nt_status = NT_STATUS_NO_MEMORY;
 							goto done;
 						}
-						push_reg_sz(mem_ctx, &blob, url);
+						push_reg_sz(mem_ctx, NULL, &blob, url);
 						fstrcpy(value.valuename, SPOOL_REG_URL);
 #endif
 					}
@@ -2454,21 +2465,21 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 					if (strequal(info[j].value_name, SPOOL_REG_SERVERNAME)) {
 
 						push_reg_sz(mem_ctx, &blob, longname);
-						fstrcpy(value.valuename, SPOOL_REG_SERVERNAME);
 					}
 
 					if (strequal(info[j].value_name, SPOOL_REG_SHORTSERVERNAME)) {
 
 						push_reg_sz(mem_ctx, &blob, global_myname());
-						fstrcpy(value.valuename, SPOOL_REG_SHORTSERVERNAME);
 					}
 
-					value.type = REG_SZ;
-					value.size = blob.length;
-					if (value.size) {
-						value.data_p = blob.data;
-					} else {
-						value.data_p = NULL;
+					value = regval_compose(talloc_tos(),
+							       info[j].value_name,
+							       REG_SZ,
+							       blob.length == 0 ? NULL : blob.data,
+							       blob.length);
+					if (value == NULL) {
+						nt_status = NT_STATUS_NO_MEMORY;
+						goto done;
 					}
 
 					if (c->opt_verbose)
@@ -2476,17 +2487,26 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 
 					/* here we have to set all subkeys on the dst server */
 					if (!net_spoolss_setprinterdataex(pipe_hnd_dst, mem_ctx, &hnd_dst,
-							subkey, &value))
+							subkey, value))
+					{
+						talloc_free(value);
 						goto done;
+					}
 
+					talloc_free(value);
 				} else {
 
-					struct regval_blob v;
+					struct regval_blob *v;
 
-					fstrcpy(v.valuename, info[j].value_name);
-					v.type = info[j].type;
-					v.data_p = info[j].data->data;
-					v.size = info[j].data->length;
+					v = regval_compose(talloc_tos(),
+							   info[j].value_name,
+							   info[j].type,
+							   info[j].data->data,
+							   info[j].data->length);
+					if (v == NULL) {
+						nt_status = NT_STATUS_NO_MEMORY;
+						goto done;
+					}
 
 					if (c->opt_verbose) {
 						display_reg_value(subkey, v);
@@ -2494,10 +2514,11 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 
 					/* here we have to set all subkeys on the dst server */
 					if (!net_spoolss_setprinterdataex(pipe_hnd_dst, mem_ctx, &hnd_dst,
-							subkey, &v)) {
+							subkey, v)) {
 						goto done;
 					}
 
+					talloc_free(v);
 				}
 
 				DEBUGADD(1,("\tSetPrinterDataEx of key [%s\\%s] succeeded\n",

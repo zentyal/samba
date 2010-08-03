@@ -30,11 +30,11 @@
 
 #define MAXSIZE 2048
 
-extern const DOM_SID global_sid_World;
-extern const DOM_SID global_sid_Builtin_Administrators;
-extern const DOM_SID global_sid_Builtin_Backup_Operators;
-extern const DOM_SID global_sid_Authenticated_Users;
-extern const DOM_SID global_sid_NULL;
+extern const struct dom_sid global_sid_World;
+extern const struct dom_sid global_sid_Builtin_Administrators;
+extern const struct dom_sid global_sid_Builtin_Backup_Operators;
+extern const struct dom_sid global_sid_Authenticated_Users;
+extern const struct dom_sid global_sid_NULL;
 
 static char space_replacement = '%';
 
@@ -46,7 +46,7 @@ extern int afs_syscall(int, char *, int, char *, int);
 struct afs_ace {
 	bool positive;
 	char *name;
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 	uint32 rights;
 	struct afs_ace *next;
@@ -108,7 +108,7 @@ static struct afs_ace *new_afs_ace(TALLOC_CTX *mem_ctx,
 				   bool positive,
 				   const char *name, uint32 rights)
 {
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 	struct afs_ace *result;
 
@@ -514,7 +514,7 @@ static struct static_dir_ace_mapping {
 
 	/* FULL inherit only -- counterpart to previous one */
 	{ 0, SEC_ACE_FLAG_OBJECT_INHERIT|SEC_ACE_FLAG_CONTAINER_INHERIT|SEC_ACE_FLAG_INHERIT_ONLY,
-	  PERMS_FULL | GENERIC_RIGHT_WRITE_ACCESS, 127 /* rlidwka */ },
+	  PERMS_FULL | SEC_GENERIC_WRITE, 127 /* rlidwka */ },
 
 	/* CHANGE without inheritance -- in all cases here we also get
 	   the corresponding INHERIT_ONLY ACE in the same ACL */
@@ -522,13 +522,13 @@ static struct static_dir_ace_mapping {
 
 	/* CHANGE inherit only -- counterpart to previous one */
 	{ 0, SEC_ACE_FLAG_OBJECT_INHERIT|SEC_ACE_FLAG_CONTAINER_INHERIT|SEC_ACE_FLAG_INHERIT_ONLY,
-	  PERMS_CHANGE | GENERIC_RIGHT_WRITE_ACCESS, 63 /* rlidwk */ },
+	  PERMS_CHANGE | SEC_GENERIC_WRITE, 63 /* rlidwk */ },
 
 	/* End marker, hopefully there's no afs right 9999 :-) */
 	{ 0, 0, 0, 9999 }
 };
 
-static uint32 nt_to_afs_dir_rights(const char *filename, const SEC_ACE *ace)
+static uint32 nt_to_afs_dir_rights(const char *filename, const struct security_ace *ace)
 {
 	uint32 result = 0;
 	uint32 rights = ace->access_mask;
@@ -569,7 +569,7 @@ static uint32 nt_to_afs_dir_rights(const char *filename, const SEC_ACE *ace)
 	return result;
 }
 
-static uint32 nt_to_afs_file_rights(const char *filename, const SEC_ACE *ace)
+static uint32 nt_to_afs_file_rights(const char *filename, const struct security_ace *ace)
 {
 	uint32 result = 0;
 	uint32 rights = ace->access_mask;
@@ -590,9 +590,9 @@ static size_t afs_to_nt_acl_common(struct afs_acl *afs_acl,
 				   uint32 security_info,
 				   struct security_descriptor **ppdesc)
 {
-	SEC_ACE *nt_ace_list;
-	DOM_SID owner_sid, group_sid;
-	SEC_ACL *psa = NULL;
+	struct security_ace *nt_ace_list;
+	struct dom_sid owner_sid, group_sid;
+	struct security_acl *psa = NULL;
 	int good_aces;
 	size_t sd_size;
 	TALLOC_CTX *mem_ctx = talloc_tos();
@@ -603,7 +603,7 @@ static size_t afs_to_nt_acl_common(struct afs_acl *afs_acl,
 	gid_to_sid(&group_sid, psbuf->st_ex_gid);
 
 	if (afs_acl->num_aces) {
-		nt_ace_list = TALLOC_ARRAY(mem_ctx, SEC_ACE, afs_acl->num_aces);
+		nt_ace_list = TALLOC_ARRAY(mem_ctx, struct security_ace, afs_acl->num_aces);
 
 		if (nt_ace_list == NULL)
 			return 0;
@@ -642,11 +642,11 @@ static size_t afs_to_nt_acl_common(struct afs_acl *afs_acl,
 	if (psa == NULL)
 		return 0;
 
-	*ppdesc = make_sec_desc(mem_ctx, SEC_DESC_REVISION,
+	*ppdesc = make_sec_desc(mem_ctx, SD_REVISION,
 				SEC_DESC_SELF_RELATIVE,
-				(security_info & OWNER_SECURITY_INFORMATION)
+				(security_info & SECINFO_OWNER)
 				? &owner_sid : NULL,
-				(security_info & GROUP_SECURITY_INFORMATION)
+				(security_info & SECINFO_GROUP)
 				? &group_sid : NULL,
 				NULL, psa, &sd_size);
 
@@ -695,9 +695,9 @@ static size_t afs_fto_nt_acl(struct afs_acl *afs_acl,
 	return afs_to_nt_acl_common(afs_acl, &sbuf, security_info, ppdesc);
 }
 
-static bool mappable_sid(const DOM_SID *sid)
+static bool mappable_sid(const struct dom_sid *sid)
 {
-	DOM_SID domain_sid;
+	struct dom_sid domain_sid;
 	
 	if (sid_compare(sid, &global_sid_Builtin_Administrators) == 0)
 		return True;
@@ -723,15 +723,15 @@ static bool nt_to_afs_acl(const char *filename,
 			  uint32 security_info_sent,
 			  const struct security_descriptor *psd,
 			  uint32 (*nt_to_afs_rights)(const char *filename,
-						     const SEC_ACE *ace),
+						     const struct security_ace *ace),
 			  struct afs_acl *afs_acl)
 {
-	const SEC_ACL *dacl;
+	const struct security_acl *dacl;
 	int i;
 
 	/* Currently we *only* look at the dacl */
 
-	if (((security_info_sent & DACL_SECURITY_INFORMATION) == 0) ||
+	if (((security_info_sent & SECINFO_DACL) == 0) ||
 	    (psd->dacl == NULL))
 		return True;
 
@@ -741,7 +741,7 @@ static bool nt_to_afs_acl(const char *filename,
 	dacl = psd->dacl;
 
 	for (i = 0; i < dacl->num_aces; i++) {
-		const SEC_ACE *ace = &(dacl->aces[i]);
+		const struct security_ace *ace = &(dacl->aces[i]);
 		const char *dom_name, *name;
 		enum lsa_SidType name_type;
 		char *p;
@@ -1056,7 +1056,7 @@ static NTSTATUS afsacl_get_nt_acl(struct vfs_handle_struct *handle,
 NTSTATUS afsacl_fset_nt_acl(vfs_handle_struct *handle,
 			 files_struct *fsp,
 			 uint32 security_info_sent,
-			 const SEC_DESC *psd)
+			 const struct security_descriptor *psd)
 {
 	return afs_set_nt_acl(handle, fsp, security_info_sent, psd);
 }

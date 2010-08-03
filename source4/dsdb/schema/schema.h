@@ -22,6 +22,8 @@
 #ifndef _DSDB_SCHEMA_H
 #define _DSDB_SCHEMA_H
 
+#include "prefixmap.h"
+
 struct dsdb_attribute;
 struct dsdb_class;
 struct dsdb_schema;
@@ -49,6 +51,10 @@ struct dsdb_syntax {
 				 const struct ldb_message_element *in,
 				 TALLOC_CTX *mem_ctx,
 				 struct drsuapi_DsReplicaAttribute *out);
+	WERROR (*validate_ldb)(struct ldb_context *ldb,
+			       const struct dsdb_schema *schema,
+			       const struct dsdb_attribute *attr,
+			       const struct ldb_message_element *in);
 };
 
 struct dsdb_attribute {
@@ -60,8 +66,10 @@ struct dsdb_attribute {
 	uint32_t attributeID_id;
 	struct GUID schemaIDGUID;
 	uint32_t mAPIID;
+	uint32_t msDS_IntId;
 
 	struct GUID attributeSecurityGUID;
+	struct GUID objectGUID;
 
 	uint32_t searchFlags;
 	uint32_t systemFlags;
@@ -102,6 +110,7 @@ struct dsdb_class {
 	const char *governsID_oid;
 	uint32_t governsID_id;
 	struct GUID schemaIDGUID;
+	struct GUID objectGUID;
 
 	uint32_t objectClassCategory;
 	const char *rDNAttID;
@@ -119,6 +128,7 @@ struct dsdb_class {
 	const char **mustContain;
 	const char **mayContain;
 	const char **possibleInferiors;
+	const char **systemPossibleInferiors;
 
 	const char *defaultSecurityDescriptor;
 
@@ -133,10 +143,10 @@ struct dsdb_class {
 	bool isDefunct;
 	bool systemOnly;
 
-	char **supclasses;
-	char **subclasses;
-	char **subclasses_direct;
-	char **posssuperiors;
+	const char **supclasses;
+	const char **subclasses;
+	const char **subclasses_direct;
+	const char **posssuperiors;
 	uint32_t subClassOf_id;
 	uint32_t *systemAuxiliaryClass_ids;
 	uint32_t *auxiliaryClass_ids;
@@ -155,15 +165,19 @@ struct dsdb_class {
 	uint32_t subClass_order;
 };
 
-struct dsdb_schema_oid_prefix {
-	uint32_t id;
-	const char *oid;
-	size_t oid_len;
+/**
+ * data stored in schemaInfo attribute
+ */
+struct dsdb_schema_info {
+	uint32_t 	revision;
+	struct GUID	invocation_id;
 };
 
+
 struct dsdb_schema {
-	uint32_t num_prefixes;
-	struct dsdb_schema_oid_prefix *prefixes;
+	struct ldb_dn *base_dn;
+
+	struct dsdb_schema_prefixmap *prefixmap;
 
 	/* 
 	 * the last element of the prefix mapping table isn't a oid,
@@ -174,6 +188,9 @@ struct dsdb_schema {
 	 * Schema-Partition head object.
 	 */
 	const char *schema_info;
+
+	/* We can also tell the schema version from the USN on the partition */
+	uint64_t loaded_usn;
 
 	struct dsdb_attribute *attributes;
 	struct dsdb_class *classes;
@@ -192,13 +209,23 @@ struct dsdb_schema {
 	struct dsdb_attribute **attributes_by_attributeID_id;
 	struct dsdb_attribute **attributes_by_attributeID_oid;
 	struct dsdb_attribute **attributes_by_linkID;
+	uint32_t num_int_id_attr;
+	struct dsdb_attribute **attributes_by_msDS_IntId;
 
 	struct {
 		bool we_are_master;
 		struct ldb_dn *master_dn;
 	} fsmo;
 
-	struct smb_iconv_convenience *iconv_convenience;
+	/* Was this schema loaded from ldb (if so, then we will reload it when we detect a change in ldb) */
+	struct ldb_module *loaded_from_module;
+	struct dsdb_schema *(*refresh_fn)(struct ldb_module *module, struct dsdb_schema *schema, bool is_global_schema);
+	bool refresh_in_progress;
+	/* an 'opaque' sequence number that the reload function may also wish to use */
+	uint64_t reload_seq_number;
+
+	/* Should the syntax handlers in this case handle all incoming OIDs automatically, assigning them as an OID if no text name is known? */
+	bool relax_OID_conversions;
 };
 
 enum dsdb_attr_list_query {

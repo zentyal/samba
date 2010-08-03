@@ -209,9 +209,8 @@ struct ntvfs_context {
 	} oplock;
 
 	struct {
-		void *private_data;
-		struct socket_address *(*get_my_addr)(void *private_data, TALLOC_CTX *mem_ctx);
-		struct socket_address *(*get_peer_addr)(void *private_data, TALLOC_CTX *mem_ctx);
+		const struct tsocket_address *local_address;
+		const struct tsocket_address *remote_address;
 	} client;
 
 	struct {
@@ -333,7 +332,7 @@ struct ntvfs_critical_sizes {
 
 struct messaging_context;
 #include "librpc/gen_ndr/security.h"
-#include "librpc/gen_ndr/notify.h"
+#include "librpc/gen_ndr/s4_notify.h"
 #include "ntvfs/ntvfs_proto.h"
 
 #endif /* _NTVFS_H_ */

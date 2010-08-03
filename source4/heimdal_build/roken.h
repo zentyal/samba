@@ -4,8 +4,13 @@
 #ifndef _ROKEN_H_
 #define _ROKEN_H_
 
+/* Support 'weak' keys for now, it can't be worse than NTLM and we don't want to hard-code the behaviour at this point */
+#define HEIM_WEAK_CRYPTO 1
+
 /* path to sysconf - should we force this to samba LIBDIR ? */
 #define SYSCONFDIR "/etc"
+
+#define rk_PATH_DELIM '/'
 
 /* HDB module dir - set to Samba LIBDIR/hdb ? */
 #define HDBDIR "/usr/heimdal/lib"
@@ -24,7 +29,7 @@
 #define VERSION "Samba"
 
 #define ROKEN_LIB_FUNCTION
-
+#define ROKEN_LIB_CALL
 #define GETHOSTBYADDR_PROTO_COMPATIBLE
 #define GETSERVBYNAME_PROTO_COMPATIBLE
 #define OPENLOG_PROTO_COMPATIBLE
@@ -102,6 +107,44 @@
 #define HAVE_INET_ATON
 #endif
 
+#ifndef HAVE_INET_NTOP
+#define HAVE_INET_NTOP
+#endif
+
+#ifndef HAVE_INET_PTON
+#define HAVE_INET_PTON
+#endif
+
+#ifndef HAVE_GETTIMEOFDAY
+#define HAVE_GETTIMEOFDAY
+#endif
+
+#ifndef HAVE_SETEGID
+#define HAVE_SETEGID
+#endif
+
+#ifndef HAVE_SETEUID
+#define HAVE_SETEUID
+#endif
+
+/* force the use of the libreplace strerror_r */
+#ifndef HAVE_STRERROR_R
+#define HAVE_STRERROR_R
+#endif
+#ifndef STRERROR_R_PROTO_COMPATIBLE
+#define STRERROR_R_PROTO_COMPATIBLE
+#endif
+
+#ifndef HAVE_DIRFD
+#ifdef HAVE_DIR_DD_FD
+#define dirfd(x) ((x)->dd_fd)
+#else
+#define dirfd(d) (-1)
+#endif
+#define HAVE_DIRFD 1
+#endif
+
+
 /* we lie about having pidfile() so that NetBSD5 can compile. Nothing
    in the parts of heimdal we use actually uses pidfile(), and we
    don't use it in Samba, so this works, although its ugly */
@@ -126,5 +169,10 @@
 
 extern const char *heimdal_version;
 extern const char *heimdal_long_version;
+
+/* we do not want any __APPLE__ magic */
+#ifdef __APPLE__
+#undef __APPLE__
+#endif
 
 #endif

@@ -33,19 +33,34 @@
 
 #include "ldb.h"
 #include "tools/cmdline.h"
+#include "ldbutil.h"
+#include "replace.h"
 
-static int ldb_delete_recursive(struct ldb_context *ldb, struct ldb_dn *dn)
+static int dn_cmp(struct ldb_message **msg1, struct ldb_message **msg2)
 {
-	int ret, i, total=0;
+	return ldb_dn_compare((*msg1)->dn, (*msg2)->dn);
+}
+
+static int ldb_delete_recursive(struct ldb_context *ldb, struct ldb_dn *dn,struct ldb_control **req_ctrls)
+{
+	int ret;
+	unsigned int i, total=0;
 	const char *attrs[] = { NULL };
 	struct ldb_result *res;
 	
 	ret = ldb_search(ldb, ldb, &res, dn, LDB_SCOPE_SUBTREE, attrs, "distinguishedName=*");
 	if (ret != LDB_SUCCESS) return -1;
 
+	/* sort the DNs, deepest first */
+	TYPESAFE_QSORT(res->msgs, res->count, dn_cmp);
+
 	for (i = 0; i < res->count; i++) {
-		if (ldb_delete(ldb, res->msgs[i]->dn) == 0) {
+		if (ldb_delete_ctrl(ldb, res->msgs[i]->dn,req_ctrls) == 0) {
 			total++;
+		} else {
+			printf("Failed to delete '%s' - %s\n",
+			       ldb_dn_get_linearized(res->msgs[i]->dn),
+			       ldb_errstring(ldb));
 		}
 	}
 
@@ -68,17 +83,25 @@ static void usage(void)
 
 int main(int argc, const char **argv)
 {
+	struct ldb_control **req_ctrls;
+	struct ldb_cmdline *options;
 	struct ldb_context *ldb;
 	int ret = 0, i;
-	struct ldb_cmdline *options;
+	TALLOC_CTX *mem_ctx = talloc_new(NULL);
 
-	ldb = ldb_init(NULL, NULL);
+	ldb = ldb_init(mem_ctx, NULL);
 
 	options = ldb_cmdline_process(ldb, argc, argv, usage);
 
 	if (options->argc < 1) {
 		usage();
 		exit(1);
+	}
+
+	req_ctrls = ldb_parse_control_strings(ldb, ldb, (const char **)options->controls);
+	if (options->controls != NULL &&  req_ctrls== NULL) {
+		printf("parsing controls failed: %s\n", ldb_errstring(ldb));
+		return -1;
 	}
 
 	for (i=0;i<options->argc;i++) {
@@ -90,21 +113,22 @@ int main(int argc, const char **argv)
 			exit(1);
 		}
 		if (options->recursive) {
-			ret = ldb_delete_recursive(ldb, dn);
+			ret = ldb_delete_recursive(ldb, dn,req_ctrls);
 		} else {
-			ret = ldb_delete(ldb, dn);
+			ret = ldb_delete_ctrl(ldb, dn,req_ctrls);
 			if (ret == 0) {
 				printf("Deleted 1 record\n");
 			}
 		}
 		if (ret != 0) {
-			printf("delete of '%s' failed - %s\n",
-				ldb_dn_get_linearized(dn),
-				ldb_errstring(ldb));
+			printf("delete of '%s' failed - (%s) %s\n",
+			       ldb_dn_get_linearized(dn),
+			       ldb_strerror(ret),
+			       ldb_errstring(ldb));
 		}
 	}
 
-	talloc_free(ldb);
+	talloc_free(mem_ctx);
 
 	return ret;
 }

@@ -34,8 +34,9 @@
 #include "librpc/gen_ndr/ndr_drsblobs.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "system/time.h"
-#include "lib/ldb_wrap.h"
+#include "ldb_wrap.h"
 #include "auth/auth.h"
+#include "auth/credentials/credentials.h"
 #include "param/param.h"
 #include "param/provision.h"
 #include "libcli/security/dom_sid.h"
@@ -53,11 +54,24 @@ List of tasks vampire.py must perform:
 - Write out the secrets database, using the code from libnet_Join
 
 */
-struct vampire_state {
+struct libnet_vampire_cb_state {
 	const char *netbios_name;
-	struct libnet_JoinDomain *join;
+	const char *domain_name;
+	const char *realm;
 	struct cli_credentials *machine_account;
+
+	/* Schema loaded from local LDIF files */
+	struct dsdb_schema *provision_schema;
+
+        /* 1st pass, with some OIDs/attribute names/class names not
+	 * converted, because we may not know them yet */
 	struct dsdb_schema *self_made_schema;
+
+	/* 2nd pass, with full ID->OID->name table */
+	struct dsdb_schema *self_corrected_schema;
+
+	/* prefixMap in LDB format, from the remote DRS server */
+	DATA_BLOB prefixmap_blob;
 	const struct dsdb_schema *schema;
 
 	struct ldb_context *ldb;
@@ -76,10 +90,42 @@ struct vampire_state {
 	char *last_partition;
 };
 
-static NTSTATUS vampire_prepare_db(void *private_data,
-					      const struct libnet_BecomeDC_PrepareDB *p)
+/* Caller is expected to keep supplied pointers around for the lifetime of the structure */
+void *libnet_vampire_cb_state_init(TALLOC_CTX *mem_ctx,
+				   struct loadparm_context *lp_ctx, struct tevent_context *event_ctx,
+				   const char *netbios_name, const char *domain_name, const char *realm,
+				   const char *targetdir)
 {
-	struct vampire_state *s = talloc_get_type(private_data, struct vampire_state);
+	struct libnet_vampire_cb_state *s = talloc_zero(mem_ctx, struct libnet_vampire_cb_state);
+	if (!s) {
+		return NULL;
+	}
+
+	s->lp_ctx = lp_ctx;
+	s->event_ctx = event_ctx;
+	s->netbios_name = netbios_name;
+	s->domain_name = domain_name;
+	s->realm = realm;
+	s->targetdir = targetdir;
+	return s;
+}
+
+struct ldb_context *libnet_vampire_cb_ldb(struct libnet_vampire_cb_state *state)
+{
+	state = talloc_get_type_abort(state, struct libnet_vampire_cb_state);
+	return state->ldb;
+}
+
+struct loadparm_context *libnet_vampire_cb_lp_ctx(struct libnet_vampire_cb_state *state)
+{
+	state = talloc_get_type_abort(state, struct libnet_vampire_cb_state);
+	return state->lp_ctx;
+}
+
+NTSTATUS libnet_vampire_cb_prepare_db(void *private_data,
+				      const struct libnet_BecomeDC_PrepareDB *p)
+{
+	struct libnet_vampire_cb_state *s = talloc_get_type(private_data, struct libnet_vampire_cb_state);
 	struct provision_settings settings;
 	struct provision_result result;
 	NTSTATUS status;
@@ -91,10 +137,10 @@ static NTSTATUS vampire_prepare_db(void *private_data,
 	settings.config_dn_str = p->forest->config_dn_str;
 	settings.schema_dn_str = p->forest->schema_dn_str;
 	settings.netbios_name = p->dest_dsa->netbios_name;
-	settings.realm = s->join->out.realm;
-	settings.domain = s->join->out.domain_name;
+	settings.realm = s->realm;
+	settings.domain = s->domain_name;
 	settings.server_dn_str = p->dest_dsa->server_dn_str;
-	settings.machine_password = generate_random_str(s, 16);
+	settings.machine_password = generate_random_password(s, 16, 255);
 	settings.targetdir = s->targetdir;
 
 	status = provision_bare(s, s->lp_ctx, &settings, &result);
@@ -103,8 +149,9 @@ static NTSTATUS vampire_prepare_db(void *private_data,
 		return status;
 	}
 
-	s->ldb = result.samdb;
-	s->lp_ctx = result.lp_ctx;
+	s->ldb = talloc_steal(s, result.samdb);
+	s->lp_ctx = talloc_steal(s, result.lp_ctx);
+	s->provision_schema = dsdb_get_schema(s->ldb, s);
 
 	/* wrap the entire vapire operation in a transaction.  This
 	   isn't just cosmetic - we use this to ensure that linked
@@ -124,10 +171,10 @@ static NTSTATUS vampire_prepare_db(void *private_data,
 
 }
 
-static NTSTATUS vampire_check_options(void *private_data,
-					     const struct libnet_BecomeDC_CheckOptions *o)
+NTSTATUS libnet_vampire_cb_check_options(void *private_data,
+					 const struct libnet_BecomeDC_CheckOptions *o)
 {
-	struct vampire_state *s = talloc_get_type(private_data, struct vampire_state);
+	struct libnet_vampire_cb_state *s = talloc_get_type(private_data, struct libnet_vampire_cb_state);
 
 	DEBUG(0,("Become DC [%s] of Domain[%s]/[%s]\n",
 		s->netbios_name,
@@ -148,24 +195,23 @@ static NTSTATUS vampire_check_options(void *private_data,
 	return NT_STATUS_OK;
 }
 
-static NTSTATUS vampire_apply_schema(struct vampire_state *s,
-				  const struct libnet_BecomeDC_StoreChunk *c)
+static NTSTATUS libnet_vampire_cb_apply_schema(struct libnet_vampire_cb_state *s,
+					       const struct libnet_BecomeDC_StoreChunk *c)
 {
 	WERROR status;
 	const struct drsuapi_DsReplicaOIDMapping_Ctr *mapping_ctr;
 	uint32_t object_count;
 	struct drsuapi_DsReplicaObjectListItemEx *first_object;
-	struct drsuapi_DsReplicaObjectListItemEx *cur;
+	const struct drsuapi_DsReplicaObjectListItemEx *cur;
 	uint32_t linked_attributes_count;
 	struct drsuapi_DsReplicaLinkedAttribute *linked_attributes;
 	const struct drsuapi_DsReplicaCursor2CtrEx *uptodateness_vector;
-	struct dsdb_extended_replicated_objects *objs;
+	struct dsdb_extended_replicated_objects *schema_objs;
 	struct repsFromTo1 *s_dsa;
 	char *tmp_dns_name;
+	struct ldb_context *schema_ldb;
 	struct ldb_message *msg;
-	struct ldb_val prefixMap_val;
 	struct ldb_message_element *prefixMap_el;
-	struct ldb_val schemaInfo_val;
 	uint32_t i;
 	int ret;
 	bool ok;
@@ -205,9 +251,9 @@ static NTSTATUS vampire_apply_schema(struct vampire_state *s,
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	s_dsa->replica_flags		= DRSUAPI_DS_REPLICA_NEIGHBOUR_WRITEABLE
-					| DRSUAPI_DS_REPLICA_NEIGHBOUR_SYNC_ON_STARTUP
-					| DRSUAPI_DS_REPLICA_NEIGHBOUR_DO_SCHEDULED_SYNCS;
+	s_dsa->replica_flags		= DRSUAPI_DRS_WRIT_REP
+					| DRSUAPI_DRS_INIT_SYNC
+					| DRSUAPI_DRS_PER_SYNC;
 	memset(s_dsa->schedule, 0x11, sizeof(s_dsa->schedule));
 
 	tmp_dns_name	= GUID_string(s_dsa->other_info, &s_dsa->source_dsa_obj_guid);
@@ -216,135 +262,165 @@ static NTSTATUS vampire_apply_schema(struct vampire_state *s,
 	NT_STATUS_HAVE_NO_MEMORY(tmp_dns_name);
 	s_dsa->other_info->dns_name = tmp_dns_name;
 
-	for (cur = first_object; cur; cur = cur->next_object) {
-		bool is_attr = false;
-		bool is_class = false;
-
-		for (i=0; i < cur->object.attribute_ctr.num_attributes; i++) {
-			struct drsuapi_DsReplicaAttribute *a;
-			uint32_t j;
-			const char *oid = NULL;
-
-			a = &cur->object.attribute_ctr.attributes[i];
-			status = dsdb_map_int2oid(s->self_made_schema, a->attid, s, &oid);
-			if (!W_ERROR_IS_OK(status)) {
-				return werror_to_ntstatus(status);
-			}
-
-			switch (a->attid) {
-			case DRSUAPI_ATTRIBUTE_objectClass:
-				for (j=0; j < a->value_ctr.num_values; j++) {
-					uint32_t val = 0xFFFFFFFF;
-
-					if (a->value_ctr.values[j].blob
-					    && a->value_ctr.values[j].blob->length == 4) {
-						val = IVAL(a->value_ctr.values[j].blob->data,0);
-					}
-
-					if (val == DRSUAPI_OBJECTCLASS_attributeSchema) {
-						is_attr = true;
-					}
-					if (val == DRSUAPI_OBJECTCLASS_classSchema) {
-						is_class = true;
-					}
-				}
-
-				break;
-			default:
-				break;
-			}
+	schema_ldb = provision_get_schema(s, s->lp_ctx, &s->prefixmap_blob);
+	if (!schema_ldb) {
+		DEBUG(0,("Failed to re-load from local provision using remote prefixMap.  Will continue with local prefixMap\n"));
+		s->provision_schema = dsdb_get_schema(s->ldb, s);
+	} else {
+		s->provision_schema = dsdb_get_schema(schema_ldb, s);
+		ret = dsdb_reference_schema(s->ldb, s->provision_schema, false);
+		if (ret != LDB_SUCCESS) {
+			DEBUG(0,("Failed to attach schema from local provision using remote prefixMap."));
+			return NT_STATUS_UNSUCCESSFUL;
 		}
-
-		if (is_attr) {
-			struct dsdb_attribute *sa;
-
-			sa = talloc_zero(s->self_made_schema, struct dsdb_attribute);
-			NT_STATUS_HAVE_NO_MEMORY(sa);
-
-			status = dsdb_attribute_from_drsuapi(s->ldb, s->self_made_schema, &cur->object, s, sa);
-			if (!W_ERROR_IS_OK(status)) {
-				return werror_to_ntstatus(status);
-			}
-
-			DLIST_ADD_END(s->self_made_schema->attributes, sa, struct dsdb_attribute *);
-		}
-
-		if (is_class) {
-			struct dsdb_class *sc;
-
-			sc = talloc_zero(s->self_made_schema, struct dsdb_class);
-			NT_STATUS_HAVE_NO_MEMORY(sc);
-
-			status = dsdb_class_from_drsuapi(s->self_made_schema, &cur->object, s, sc);
-			if (!W_ERROR_IS_OK(status)) {
-				return werror_to_ntstatus(status);
-			}
-
-			DLIST_ADD_END(s->self_made_schema->classes, sc, struct dsdb_class *);
-		}
+		talloc_free(schema_ldb);
 	}
 
-	/* attach the schema to the ldb */
+	s->provision_schema->relax_OID_conversions = true;
+
+	/* Now convert the schema elements, using the schema we loaded locally */
+	for (i=0, cur = first_object; cur; cur = cur->next_object, i++) {
+		struct dsdb_extended_replicated_object object;
+		TALLOC_CTX *tmp_ctx = talloc_new(s);
+		NT_STATUS_HAVE_NO_MEMORY(tmp_ctx);
+
+		/* Convert the objects into LDB messages using the
+		 * provision schema, and either the provision or DRS
+		 * prefix map - it should not matter, as these are
+		 * just schema objects, so the critical parts.  At
+		 * most we would mix up the mayContain etc for new
+		 * schema classes */
+		status = dsdb_convert_object_ex(s->ldb, s->provision_schema,
+						cur, c->gensec_skey,
+						tmp_ctx, &object);
+		if (!W_ERROR_IS_OK(status)) {
+			DEBUG(1,("Warning: Failed to convert schema object %s into ldb msg\n", cur->object.identifier->dn));
+		} else {
+			/* Convert the schema from ldb_message format
+			 * (OIDs as OID strings) into schema, using
+			 * the remote prefixMap */
+			status = dsdb_schema_set_el_from_ldb_msg(s->ldb, s->self_made_schema, object.msg);
+			if (!W_ERROR_IS_OK(status)) {
+				DEBUG(1,("Warning: failed to convert object %s into a schema element: %s\n",
+					 ldb_dn_get_linearized(object.msg->dn),
+					 win_errstr(status)));
+			}
+		}
+		talloc_free(tmp_ctx);
+	}
+
+	/* attach the schema we just brought over DRS to the ldb, so we can use it in dsdb_convert_object_ex below */
 	ret = dsdb_set_schema(s->ldb, s->self_made_schema);
 	if (ret != LDB_SUCCESS) {
+		DEBUG(0,("Failed to attach 1st pass schema from DRS.\n"));
 		return NT_STATUS_FOOBAR;
 	}
-	/* we don't want to access the self made schema anymore */
-	s->self_made_schema = NULL;
-	s->schema = dsdb_get_schema(s->ldb);
 
-	status = dsdb_extended_replicated_objects_commit(s->ldb,
-							 c->partition->nc.dn,
-							 mapping_ctr,
-							 object_count,
-							 first_object,
-							 linked_attributes_count,
-							 linked_attributes,
-							 s_dsa,
-							 uptodateness_vector,
-							 c->gensec_skey,
-							 s, &objs, &seq_num);
+	/* Now convert the schema elements again, using the schema we loaded over DRS */
+	for (i=0, cur = first_object; cur; cur = cur->next_object, i++) {
+		struct dsdb_extended_replicated_object object;
+		TALLOC_CTX *tmp_ctx = talloc_new(s);
+		NT_STATUS_HAVE_NO_MEMORY(tmp_ctx);
+
+		/* Convert the objects into LDB messages using the
+		 * self_made_schema, and the DRS prefix map.  We now
+		 * know the full schema int->OID->name mapping, so we
+		 * can get it right this time */
+		status = dsdb_convert_object_ex(s->ldb, s->self_made_schema,
+						cur, c->gensec_skey,
+						tmp_ctx, &object);
+		if (!W_ERROR_IS_OK(status)) {
+			DEBUG(0,("ERROR: Failed to convert schema object %s into ldb msg\n", cur->object.identifier->dn));
+		} else {
+			/* Convert the schema from ldb_message format
+			 * (OIDs as OID strings) into schema, using
+			 * the remote prefixMap, now that we know
+			 * names for all the schema elements (from the
+			 * first conversion) */
+			status = dsdb_schema_set_el_from_ldb_msg(s->ldb, s->self_corrected_schema, object.msg);
+			if (!W_ERROR_IS_OK(status)) {
+				DEBUG(0,("ERROR: failed to convert object %s into a schema element: %s\n",
+					 ldb_dn_get_linearized(object.msg->dn),
+					 win_errstr(status)));
+			}
+		}
+		talloc_free(tmp_ctx);
+	}
+
+	/* We don't want to use the s->self_made_schema any more */
+	s->self_made_schema = NULL;
+
+	/* attach the schema we just brought over DRS to the ldb */
+	ret = dsdb_set_schema(s->ldb, s->self_corrected_schema);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(0,("Failed to attach 2nd pass (corrected) schema from DRS.\n"));
+		return NT_STATUS_FOOBAR;
+	}
+
+	/* we don't want to access the self made schema anymore */
+	s->schema = s->self_corrected_schema;
+	s->self_corrected_schema = NULL;
+
+	/* Now convert the schema elements again, using the schema we finalised, ready to actually import */
+	status = dsdb_extended_replicated_objects_convert(s->ldb,
+							  c->partition->nc.dn,
+							  mapping_ctr,
+							  object_count,
+							  first_object,
+							  linked_attributes_count,
+							  linked_attributes,
+							  s_dsa,
+							  uptodateness_vector,
+							  c->gensec_skey,
+							  s, &schema_objs);
+	if (!W_ERROR_IS_OK(status)) {
+		DEBUG(0,("Failed to convert objects when trying to import over DRS (2nd pass, to store remote schema): %s\n", win_errstr(status)));
+		return werror_to_ntstatus(status);
+	}
+
+	if (lpcfg_parm_bool(s->lp_ctx, NULL, "become dc", "dump objects", false)) {
+		for (i=0; i < schema_objs->num_objects; i++) {
+			struct ldb_ldif ldif;
+			fprintf(stdout, "#\n");
+			ldif.changetype = LDB_CHANGETYPE_NONE;
+			ldif.msg = schema_objs->objects[i].msg;
+			ldb_ldif_write_file(s->ldb, stdout, &ldif);
+			NDR_PRINT_DEBUG(replPropertyMetaDataBlob, schema_objs->objects[i].meta_data);
+		}
+	}
+
+	status = dsdb_extended_replicated_objects_commit(s->ldb, schema_objs, &seq_num);
 	if (!W_ERROR_IS_OK(status)) {
 		DEBUG(0,("Failed to commit objects: %s\n", win_errstr(status)));
 		return werror_to_ntstatus(status);
 	}
 
-	if (lp_parm_bool(s->lp_ctx, NULL, "become dc", "dump objects", false)) {
-		for (i=0; i < objs->num_objects; i++) {
-			struct ldb_ldif ldif;
-			fprintf(stdout, "#\n");
-			ldif.changetype = LDB_CHANGETYPE_NONE;
-			ldif.msg = objs->objects[i].msg;
-			ldb_ldif_write_file(s->ldb, stdout, &ldif);
-			NDR_PRINT_DEBUG(replPropertyMetaDataBlob, objs->objects[i].meta_data);
-		}
-	}
-
-	msg = ldb_msg_new(objs);
+	msg = ldb_msg_new(schema_objs);
 	NT_STATUS_HAVE_NO_MEMORY(msg);
-	msg->dn = objs->partition_dn;
+	msg->dn = schema_objs->partition_dn;
 
-	status = dsdb_get_oid_mappings_ldb(s->schema, msg, &prefixMap_val, &schemaInfo_val);
-	if (!W_ERROR_IS_OK(status)) {
-		DEBUG(0,("Failed dsdb_get_oid_mappings_ldb(%s)\n", win_errstr(status)));
-		return werror_to_ntstatus(status);
-	}
-
-	/* we only add prefixMap here, because schemaInfo is a replicated attribute and already applied */
-	ret = ldb_msg_add_value(msg, "prefixMap", &prefixMap_val, &prefixMap_el);
+	/* We must ensure a prefixMap has been written.  Unlike other
+	 * attributes (including schemaInfo), it is not replicated in
+	 * the normal replication stream.  We can use the one from
+	 * s->prefixmap_blob because we operate with one, unchanging
+	 * prefixMap for this entire operation.  */
+	ret = ldb_msg_add_value(msg, "prefixMap", &s->prefixmap_blob, &prefixMap_el);
 	if (ret != LDB_SUCCESS) {
 		return NT_STATUS_FOOBAR;
 	}
-	prefixMap_el->flags = LDB_FLAG_MOD_REPLACE;
+	/* We want to know if a prefixMap was written already, as it
+	 * would mean that the above comment was not true, and we have
+	 * somehow updated the prefixMap during this transaction */
+	prefixMap_el->flags = LDB_FLAG_MOD_ADD;
 
 	ret = ldb_modify(s->ldb, msg);
 	if (ret != LDB_SUCCESS) {
-		DEBUG(0,("Failed to add prefixMap and schemaInfo %s\n", ldb_strerror(ret)));
+		DEBUG(0,("Failed to add prefixMap: %s\n", ldb_errstring(s->ldb)));
 		return NT_STATUS_FOOBAR;
 	}
 
 	talloc_free(s_dsa);
-	talloc_free(objs);
+	talloc_free(schema_objs);
 
 	/* We must set these up to ensure the replMetaData is written
 	 * correctly, before our NTDS Settings entry is replicated */
@@ -359,7 +435,7 @@ static NTSTATUS vampire_apply_schema(struct vampire_state *s,
 		return NT_STATUS_FOOBAR;
 	}
 
-	s->schema = dsdb_get_schema(s->ldb);
+	s->schema = dsdb_get_schema(s->ldb, s);
 	if (!s->schema) {
 		DEBUG(0,("Failed to get loaded dsdb_schema\n"));
 		return NT_STATUS_FOOBAR;
@@ -368,10 +444,10 @@ static NTSTATUS vampire_apply_schema(struct vampire_state *s,
 	return NT_STATUS_OK;
 }
 
-static NTSTATUS vampire_schema_chunk(void *private_data,
-					    const struct libnet_BecomeDC_StoreChunk *c)
+NTSTATUS libnet_vampire_cb_schema_chunk(void *private_data,
+					const struct libnet_BecomeDC_StoreChunk *c)
 {
-	struct vampire_state *s = talloc_get_type(private_data, struct vampire_state);
+	struct libnet_vampire_cb_state *s = talloc_get_type(private_data, struct libnet_vampire_cb_state);
 	WERROR status;
 	const struct drsuapi_DsReplicaOIDMapping_Ctr *mapping_ctr;
 	uint32_t nc_object_count;
@@ -414,19 +490,45 @@ static NTSTATUS vampire_schema_chunk(void *private_data,
 		c->partition->nc.dn, object_count, linked_attributes_count));
 	}
 
-	if (!s->schema) {
-		s->self_made_schema = dsdb_new_schema(s, lp_iconv_convenience(s->lp_ctx));
+	if (!s->self_made_schema) {
+		WERROR werr;
+		struct drsuapi_DsReplicaOIDMapping_Ctr mapping_ctr_without_schema_info;
+		/* Put the DRS prefixmap aside for the schema we are
+		 * about to load in the provision, and into the one we
+		 * are making with the help of DRS */
 
+		mapping_ctr_without_schema_info = *mapping_ctr;
+
+		/* This strips off the 0xFF schema info from the end,
+		 * because we don't want it in the blob */
+		if (mapping_ctr_without_schema_info.num_mappings > 0) {
+			mapping_ctr_without_schema_info.num_mappings--;
+		}
+		werr = dsdb_get_drsuapi_prefixmap_as_blob(&mapping_ctr_without_schema_info, s, &s->prefixmap_blob);
+		if (!W_ERROR_IS_OK(werr)) {
+			return werror_to_ntstatus(werr);
+		}
+
+		/* Set up two manually-constructed schema - the local
+		 * schema from the provision will be used to build
+		 * one, which will then in turn be used to build the
+		 * other. */
+		s->self_made_schema = dsdb_new_schema(s);
 		NT_STATUS_HAVE_NO_MEMORY(s->self_made_schema);
+		s->self_corrected_schema = dsdb_new_schema(s);
+		NT_STATUS_HAVE_NO_MEMORY(s->self_corrected_schema);
 
-		status = dsdb_load_oid_mappings_drsuapi(s->self_made_schema, mapping_ctr);
+		status = dsdb_load_prefixmap_from_drsuapi(s->self_made_schema, mapping_ctr);
 		if (!W_ERROR_IS_OK(status)) {
 			return werror_to_ntstatus(status);
 		}
 
-		s->schema = s->self_made_schema;
+		status = dsdb_load_prefixmap_from_drsuapi(s->self_corrected_schema, mapping_ctr);
+		if (!W_ERROR_IS_OK(status)) {
+			return werror_to_ntstatus(status);
+		}
 	} else {
-		status = dsdb_verify_oid_mappings_drsuapi(s->schema, mapping_ctr);
+		status = dsdb_schema_pfm_contains_drsuapi_pfm(s->self_made_schema->prefixmap, mapping_ctr);
 		if (!W_ERROR_IS_OK(status)) {
 			return werror_to_ntstatus(status);
 		}
@@ -444,16 +546,16 @@ static NTSTATUS vampire_schema_chunk(void *private_data,
 	s->schema_part.last_object = cur;
 
 	if (!c->partition->more_data) {
-		return vampire_apply_schema(s, c);
+		return libnet_vampire_cb_apply_schema(s, c);
 	}
 
 	return NT_STATUS_OK;
 }
 
-static NTSTATUS vampire_store_chunk(void *private_data,
-					   const struct libnet_BecomeDC_StoreChunk *c)
+NTSTATUS libnet_vampire_cb_store_chunk(void *private_data,
+			     const struct libnet_BecomeDC_StoreChunk *c)
 {
-	struct vampire_state *s = talloc_get_type(private_data, struct vampire_state);
+	struct libnet_vampire_cb_state *s = talloc_get_type(private_data, struct libnet_vampire_cb_state);
 	WERROR status;
 	const struct drsuapi_DsReplicaOIDMapping_Ctr *mapping_ctr;
 	uint32_t nc_object_count;
@@ -505,9 +607,9 @@ static NTSTATUS vampire_store_chunk(void *private_data,
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	s_dsa->replica_flags		= DRSUAPI_DS_REPLICA_NEIGHBOUR_WRITEABLE
-					| DRSUAPI_DS_REPLICA_NEIGHBOUR_SYNC_ON_STARTUP
-					| DRSUAPI_DS_REPLICA_NEIGHBOUR_DO_SCHEDULED_SYNCS;
+	s_dsa->replica_flags		= DRSUAPI_DRS_WRIT_REP
+					| DRSUAPI_DRS_INIT_SYNC
+					| DRSUAPI_DRS_PER_SYNC;
 	memset(s_dsa->schedule, 0x11, sizeof(s_dsa->schedule));
 
 	tmp_dns_name	= GUID_string(s_dsa->other_info, &s_dsa->source_dsa_obj_guid);
@@ -534,23 +636,23 @@ static NTSTATUS vampire_store_chunk(void *private_data,
 	}
 
 
-	status = dsdb_extended_replicated_objects_commit(s->ldb,
-							 c->partition->nc.dn,
-							 mapping_ctr,
-							 object_count,
-							 first_object,
-							 linked_attributes_count,
-							 linked_attributes,
-							 s_dsa,
-							 uptodateness_vector,
-							 c->gensec_skey,
-							 s, &objs, &seq_num);
+	status = dsdb_extended_replicated_objects_convert(s->ldb,
+							  c->partition->nc.dn,
+							  mapping_ctr,
+							  object_count,
+							  first_object,
+							  linked_attributes_count,
+							  linked_attributes,
+							  s_dsa,
+							  uptodateness_vector,
+							  c->gensec_skey,
+							  s, &objs);
 	if (!W_ERROR_IS_OK(status)) {
-		DEBUG(0,("Failed to commit objects: %s\n", win_errstr(status)));
+		DEBUG(0,("Failed to convert objects: %s\n", win_errstr(status)));
 		return werror_to_ntstatus(status);
 	}
 
-	if (lp_parm_bool(s->lp_ctx, NULL, "become dc", "dump objects", false)) {
+	if (lpcfg_parm_bool(s->lp_ctx, NULL, "become dc", "dump objects", false)) {
 		for (i=0; i < objs->num_objects; i++) {
 			struct ldb_ldif ldif;
 			fprintf(stdout, "#\n");
@@ -560,6 +662,13 @@ static NTSTATUS vampire_store_chunk(void *private_data,
 			NDR_PRINT_DEBUG(replPropertyMetaDataBlob, objs->objects[i].meta_data);
 		}
 	}
+	status = dsdb_extended_replicated_objects_commit(s->ldb,
+							 objs, &seq_num);
+	if (!W_ERROR_IS_OK(status)) {
+		DEBUG(0,("Failed to commit objects: %s\n", win_errstr(status)));
+		return werror_to_ntstatus(status);
+	}
+
 	talloc_free(s_dsa);
 	talloc_free(objs);
 
@@ -580,7 +689,7 @@ static NTSTATUS vampire_store_chunk(void *private_data,
 			return NT_STATUS_FOOBAR;
 		}
 
-		if (lp_parm_bool(s->lp_ctx, NULL, "become dc", "dump objects", false)) {
+		if (lpcfg_parm_bool(s->lp_ctx, NULL, "become dc", "dump objects", false)) {
 			DEBUG(0,("# %s\n", sa->lDAPDisplayName));
 			NDR_PRINT_DEBUG(drsuapi_DsReplicaLinkedAttribute, &linked_attributes[i]);
 			dump_data(0,
@@ -598,7 +707,7 @@ NTSTATUS libnet_Vampire(struct libnet_context *ctx, TALLOC_CTX *mem_ctx,
 	struct libnet_JoinDomain *join;
 	struct provision_store_self_join_settings *set_secrets;
 	struct libnet_BecomeDC b;
-	struct vampire_state *s;
+	struct libnet_vampire_cb_state *s;
 	struct ldb_message *msg;
 	const char *error_string;
 	int ldb_ret;
@@ -610,15 +719,7 @@ NTSTATUS libnet_Vampire(struct libnet_context *ctx, TALLOC_CTX *mem_ctx,
 	
 	r->out.error_string = NULL;
 
-	s = talloc_zero(mem_ctx, struct vampire_state);
-	if (!s) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	s->lp_ctx = ctx->lp_ctx;
-	s->event_ctx = ctx->event_ctx;
-
-	join = talloc_zero(s, struct libnet_JoinDomain);
+	join = talloc_zero(mem_ctx, struct libnet_JoinDomain);
 	if (!join) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -626,21 +727,26 @@ NTSTATUS libnet_Vampire(struct libnet_context *ctx, TALLOC_CTX *mem_ctx,
 	if (r->in.netbios_name != NULL) {
 		netbios_name = r->in.netbios_name;
 	} else {
-		netbios_name = talloc_reference(join, lp_netbios_name(ctx->lp_ctx));
+		netbios_name = talloc_reference(join, lpcfg_netbios_name(ctx->lp_ctx));
 		if (!netbios_name) {
+			talloc_free(join);
 			r->out.error_string = NULL;
-			talloc_free(s);
 			return NT_STATUS_NO_MEMORY;
 		}
 	}
 
 	account_name = talloc_asprintf(join, "%s$", netbios_name);
 	if (!account_name) {
+		talloc_free(join);
 		r->out.error_string = NULL;
-		talloc_free(s);
 		return NT_STATUS_NO_MEMORY;
 	}
 	
+	/* Re-use the domain we are joining as the domain for the user
+	 * to be authenticated with, unless they specified
+	 * otherwise */
+	cli_credentials_set_domain(ctx->cred, r->in.domain_name, CRED_GUESS_ENV);
+
 	join->in.domain_name	= r->in.domain_name;
 	join->in.account_name	= account_name;
 	join->in.netbios_name	= netbios_name;
@@ -650,15 +756,33 @@ NTSTATUS libnet_Vampire(struct libnet_context *ctx, TALLOC_CTX *mem_ctx,
 	status = libnet_JoinDomain(ctx, join, join);
 	if (!NT_STATUS_IS_OK(status)) {
 		r->out.error_string = talloc_steal(mem_ctx, join->out.error_string);
-		talloc_free(s);
+		talloc_free(join);
 		return status;
 	}
 	
-	s->join = join;
-
-	s->targetdir = r->in.targetdir;
+	s = libnet_vampire_cb_state_init(mem_ctx, ctx->lp_ctx, ctx->event_ctx,
+					 netbios_name, join->out.domain_name, join->out.realm,
+					 r->in.targetdir);
+	if (!s) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	talloc_steal(s, join);
 
 	ZERO_STRUCT(b);
+
+	/* Be more robust:
+	 * We now know the domain and realm for sure - if they didn't
+	 * put one on the command line, use this for the rest of the
+	 * join */
+	cli_credentials_set_realm(ctx->cred, join->out.realm, CRED_GUESS_ENV);
+	cli_credentials_set_domain(ctx->cred, join->out.domain_name, CRED_GUESS_ENV);
+
+	/* Now set these values into the smb.conf - we probably had
+	 * empty or useless defaults here from whatever smb.conf we
+	 * started with */
+	lpcfg_set_cmdline(s->lp_ctx, "realm", join->out.realm);
+	lpcfg_set_cmdline(s->lp_ctx, "workgroup", join->out.domain_name);
+
 	b.in.domain_dns_name		= join->out.realm;
 	b.in.domain_netbios_name	= join->out.domain_name;
 	b.in.domain_sid			= join->out.domain_sid;
@@ -666,11 +790,13 @@ NTSTATUS libnet_Vampire(struct libnet_context *ctx, TALLOC_CTX *mem_ctx,
 	b.in.dest_dsa_netbios_name	= netbios_name;
 
 	b.in.callbacks.private_data	= s;
-	b.in.callbacks.check_options	= vampire_check_options;
-	b.in.callbacks.prepare_db       = vampire_prepare_db;
-	b.in.callbacks.schema_chunk	= vampire_schema_chunk;
-	b.in.callbacks.config_chunk	= vampire_store_chunk;
-	b.in.callbacks.domain_chunk	= vampire_store_chunk;
+	b.in.callbacks.check_options	= libnet_vampire_cb_check_options;
+	b.in.callbacks.prepare_db       = libnet_vampire_cb_prepare_db;
+	b.in.callbacks.schema_chunk	= libnet_vampire_cb_schema_chunk;
+	b.in.callbacks.config_chunk	= libnet_vampire_cb_store_chunk;
+	b.in.callbacks.domain_chunk	= libnet_vampire_cb_store_chunk;
+
+	b.in.rodc_join = lpcfg_parm_bool(s->lp_ctx, NULL, "repl", "RODC", false);
 
 	status = libnet_BecomeDC(ctx, s, &b);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -706,7 +832,7 @@ NTSTATUS libnet_Vampire(struct libnet_context *ctx, TALLOC_CTX *mem_ctx,
 	printf("mark ROOTDSE with isSynchronized=TRUE\n");
 	ldb_ret = ldb_modify(s->ldb, msg);
 	if (ldb_ret != LDB_SUCCESS) {
-		printf("ldb_modify() failed: %d\n", ldb_ret);
+		printf("ldb_modify() failed: %d : %s\n", ldb_ret, ldb_errstring(s->ldb));
 		talloc_free(s);
 		return NT_STATUS_INTERNAL_DB_ERROR;
 	}
@@ -716,7 +842,7 @@ NTSTATUS libnet_Vampire(struct libnet_context *ctx, TALLOC_CTX *mem_ctx,
 	   triggers the writing of the linked attribute backlinks.
 	*/
 	if (ldb_transaction_prepare_commit(s->ldb) != LDB_SUCCESS) {
-		printf("Failed to prepare_commit vampire transaction\n");
+		printf("Failed to prepare_commit vampire transaction: %s\n", ldb_errstring(s->ldb));
 		return NT_STATUS_INTERNAL_DB_ERROR;
 	}
 
@@ -730,22 +856,21 @@ NTSTATUS libnet_Vampire(struct libnet_context *ctx, TALLOC_CTX *mem_ctx,
 	ZERO_STRUCTP(set_secrets);
 	set_secrets->domain_name = join->out.domain_name;
 	set_secrets->realm = join->out.realm;
-	set_secrets->account_name = account_name;
 	set_secrets->netbios_name = netbios_name;
 	set_secrets->secure_channel_type = SEC_CHAN_BDC;
 	set_secrets->machine_password = join->out.join_password;
 	set_secrets->key_version_number = join->out.kvno;
 	set_secrets->domain_sid = join->out.domain_sid;
 	
-	status = provision_store_self_join(ctx, ctx->lp_ctx, ctx->event_ctx, set_secrets, &error_string);
+	status = provision_store_self_join(ctx, s->lp_ctx, ctx->event_ctx, set_secrets, &error_string);
 	if (!NT_STATUS_IS_OK(status)) {
 		r->out.error_string = talloc_steal(mem_ctx, error_string);
 		talloc_free(s);
 		return status;
 	}
 
-	r->out.domain_name = talloc_steal(r, join->out.domain_name);
-	r->out.domain_sid = dom_sid_dup(r, join->out.domain_sid);
+	r->out.domain_name = talloc_steal(mem_ctx, join->out.domain_name);
+	r->out.domain_sid = dom_sid_dup(mem_ctx, join->out.domain_sid);
 	
 	/* commit the transaction now we know the secrets were written
 	 * out properly

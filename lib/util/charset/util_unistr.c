@@ -26,7 +26,8 @@ struct smb_iconv_convenience *global_iconv_convenience = NULL;
 static inline struct smb_iconv_convenience *get_iconv_convenience(void)
 {
 	if (global_iconv_convenience == NULL)
-		global_iconv_convenience = smb_iconv_convenience_init(talloc_autofree_context(), "ASCII", "UTF-8", true);
+		global_iconv_convenience = smb_iconv_convenience_reinit(talloc_autofree_context(),
+									"ASCII", "UTF-8", true, NULL);
 	return global_iconv_convenience;
 }
 
@@ -429,6 +430,10 @@ _PUBLIC_ char *strlower_talloc(TALLOC_CTX *ctx, const char *src)
 	size_t size=0;
 	char *dest;
 	struct smb_iconv_convenience *iconv_convenience = get_iconv_convenience();
+
+	if(src == NULL) {
+		return NULL;
+	}
 
 	/* this takes advantage of the fact that upper/lower can't
 	   change the length of a character by more than 1 byte */

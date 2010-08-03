@@ -35,10 +35,12 @@ SMB hash
 return True if the password is correct, False otherwise
 ****************************************************************************/
 
-NTSTATUS check_plaintext_password(const char *smb_name, DATA_BLOB plaintext_password, auth_serversupplied_info **server_info)
+NTSTATUS check_plaintext_password(const char *smb_name,
+				  DATA_BLOB plaintext_password,
+				  struct auth_serversupplied_info **server_info)
 {
 	struct auth_context *plaintext_auth_context = NULL;
-	auth_usersupplied_info *user_info = NULL;
+	struct auth_usersupplied_info *user_info = NULL;
 	uint8_t chal[8];
 	NTSTATUS nt_status;
 	if (!NT_STATUS_IS_OK(nt_status = make_auth_context_subsystem(&plaintext_auth_context))) {
@@ -57,7 +59,7 @@ NTSTATUS check_plaintext_password(const char *smb_name, DATA_BLOB plaintext_pass
 	nt_status = plaintext_auth_context->check_ntlm_password(plaintext_auth_context, 
 								user_info, server_info); 
 
-	(plaintext_auth_context->free)(&plaintext_auth_context);
+	TALLOC_FREE(plaintext_auth_context);
 	free_user_info(&user_info);
 	return nt_status;
 }
@@ -72,9 +74,9 @@ static NTSTATUS pass_check_smb(struct auth_context *actx,
 
 {
 	NTSTATUS nt_status;
-	auth_serversupplied_info *server_info = NULL;
+	struct auth_serversupplied_info *server_info = NULL;
 	if (encrypted) {
-		auth_usersupplied_info *user_info = NULL;
+		struct auth_usersupplied_info *user_info = NULL;
 		if (actx == NULL) {
 			return NT_STATUS_INTERNAL_ERROR;
 		}

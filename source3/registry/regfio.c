@@ -18,7 +18,10 @@
  */
 
 #include "includes.h"
+#include "reg_parse_prs.h"
 #include "regfio.h"
+#include "reg_objects.h"
+#include "../librpc/gen_ndr/ndr_security.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
@@ -29,6 +32,44 @@
  *
  ******************************************************************/
 
+#if defined(PARANOID_MALLOC_CHECKER)
+#define PRS_ALLOC_MEM(ps, type, count) (type *)prs_alloc_mem_((ps),sizeof(type),(count))
+#else
+#define PRS_ALLOC_MEM(ps, type, count) (type *)prs_alloc_mem((ps),sizeof(type),(count))
+#endif
+
+/*******************************************************************
+ Reads or writes an NTTIME structure.
+********************************************************************/
+
+static bool smb_io_time(const char *desc, NTTIME *nttime, prs_struct *ps, int depth)
+{
+	uint32 low, high;
+	if (nttime == NULL)
+		return False;
+
+	prs_debug(ps, depth, desc, "smb_io_time");
+	depth++;
+
+	if(!prs_align(ps))
+		return False;
+
+	if (MARSHALLING(ps)) {
+		low = *nttime & 0xFFFFFFFF;
+		high = *nttime >> 32;
+	}
+
+	if(!prs_uint32("low ", ps, depth, &low)) /* low part */
+		return False;
+	if(!prs_uint32("high", ps, depth, &high)) /* high part */
+		return False;
+
+	if (UNMARSHALLING(ps)) {
+		*nttime = (((uint64_t)high << 32) + low);
+	}
+
+	return True;
+}
 
 /*******************************************************************
 *******************************************************************/
@@ -953,7 +994,7 @@ static REGF_SK_REC* find_sk_record_by_offset( REGF_FILE *file, uint32 offset )
 /*******************************************************************
 *******************************************************************/
 
-static REGF_SK_REC* find_sk_record_by_sec_desc( REGF_FILE *file, SEC_DESC *sd )
+static REGF_SK_REC* find_sk_record_by_sec_desc( REGF_FILE *file, struct security_descriptor *sd )
 {
 	REGF_SK_REC *p;
 
@@ -1567,7 +1608,7 @@ done:
 /*******************************************************************
 *******************************************************************/
 
-static uint32 sk_record_data_size( SEC_DESC * sd )
+static uint32 sk_record_data_size( struct security_descriptor * sd )
 {
 	uint32 size, size_mod8;
 
@@ -1575,7 +1616,7 @@ static uint32 sk_record_data_size( SEC_DESC * sd )
 
 	/* the record size is sizeof(hdr) + name + static members + data_size_field */
 
-	size = sizeof(uint32)*5 + ndr_size_security_descriptor(sd, NULL, 0) + sizeof(uint32);
+	size = sizeof(uint32)*5 + ndr_size_security_descriptor(sd, 0) + sizeof(uint32);
 
 	/* multiple of 8 */
 	size_mod8 = size & 0xfffffff8;
@@ -1717,7 +1758,7 @@ static int hashrec_cmp( REGF_HASH_REC *h1, REGF_HASH_REC *h2 )
 
  REGF_NK_REC* regfio_write_key( REGF_FILE *file, const char *name,
                                struct regval_ctr *values, struct regsubkey_ctr *subkeys,
-                               SEC_DESC *sec_desc, REGF_NK_REC *parent )
+                               struct security_descriptor *sec_desc, REGF_NK_REC *parent )
 {
 	REGF_NK_REC *nk;
 	REGF_HBIN *vlist_hbin = NULL;
@@ -1767,8 +1808,7 @@ static int hashrec_cmp( REGF_HASH_REC *h1, REGF_HASH_REC *h2 )
 		parent->subkey_index++;
 
 		/* sort the list by keyname */
-
-		qsort( parent->subkeys.hashes, parent->subkey_index, sizeof(REGF_HASH_REC), QSORT_CAST hashrec_cmp );
+		TYPESAFE_QSORT(parent->subkeys.hashes, parent->subkey_index, hashrec_cmp);
 
 		if ( !hbin_prs_lf_records( "lf_rec", parent->subkeys.hbin, 0, parent ) )
 			return False;
@@ -1806,7 +1846,7 @@ static int hashrec_cmp( REGF_HASH_REC *h1, REGF_HASH_REC *h2 )
 			nk->sec_desc->ref_count = 0;
 			
 			/* size value must be self-inclusive */
-			nk->sec_desc->size      = ndr_size_security_descriptor(sec_desc, NULL, 0)
+			nk->sec_desc->size      = ndr_size_security_descriptor(sec_desc, 0)
 				+ sizeof(uint32);
 
 			DLIST_ADD_END( file->sec_desc_list, nk->sec_desc, REGF_SK_REC *);
@@ -1815,8 +1855,8 @@ static int hashrec_cmp( REGF_HASH_REC *h1, REGF_HASH_REC *h2 )
 			   if this is the first record, then just set the next and prev
 			   offsets to ourself. */
 
-			if ( nk->sec_desc->prev ) {
-				REGF_SK_REC *prev = nk->sec_desc->prev;
+			if ( DLIST_PREV(nk->sec_desc) ) {
+				REGF_SK_REC *prev = DLIST_PREV(nk->sec_desc);
 
 				nk->sec_desc->prev_sk_off = prev->hbin_off + prev->hbin->first_hbin_off - HBIN_HDR_SIZE;
 				prev->next_sk_off = nk->sec_desc->sk_off;

@@ -22,16 +22,17 @@ $(eval $(call proto_header_template,$(dsdbsrcdir)/samdb/samdb_proto.h,$(SAMDB_OB
 # PUBLIC_HEADERS += dsdb/samdb/samdb.h
 
 [SUBSYSTEM::SAMDB_COMMON]
-PRIVATE_DEPENDENCIES = LIBLDB
+PRIVATE_DEPENDENCIES = LIBLDB NDR_DRSBLOBS LIBCLI_LDAP_NDR UTIL_LDB LIBCLI_AUTH
 
 SAMDB_COMMON_OBJ_FILES = $(addprefix $(dsdbsrcdir)/common/, \
-		sidmap.o \
-		util.o) \
+		util.o \
+		dsdb_dn.o \
+		dsdb_access.o) \
 		../libds/common/flag_mapping.o
 $(eval $(call proto_header_template,$(dsdbsrcdir)/common/proto.h,$(SAMDB_COMMON_OBJ_FILES:.o=.c)))
 
 [SUBSYSTEM::SAMDB_SCHEMA]
-PRIVATE_DEPENDENCIES = SAMDB_COMMON NDR_DRSUAPI NDR_DRSBLOBS
+PRIVATE_DEPENDENCIES = SAMDB_COMMON NDR_DRSUAPI NDR_DRSBLOBS LDBSAMBA
 
 SAMDB_SCHEMA_OBJ_FILES = $(addprefix $(dsdbsrcdir)/schema/, \
 		schema_init.o \
@@ -40,7 +41,10 @@ SAMDB_SCHEMA_OBJ_FILES = $(addprefix $(dsdbsrcdir)/schema/, \
 		schema_syntax.o \
 		schema_description.o \
 		schema_convert_to_ol.o \
-		schema_inferiors.o)
+		schema_inferiors.o \
+		schema_prefixmap.o \
+		schema_info_attr.o \
+		schema_filtered.o)
 
 $(eval $(call proto_header_template,$(dsdbsrcdir)/schema/proto.h,$(SAMDB_SCHEMA_OBJ_FILES:.o=.c)))
 # PUBLIC_HEADERS += dsdb/schema/schema.h
@@ -63,7 +67,8 @@ DREPL_SRV_OBJ_FILES = $(addprefix $(dsdbsrcdir)/repl/, \
 		drepl_partitions.o \
 		drepl_out_pull.o \
 		drepl_out_helpers.o \
-		drepl_notify.o)
+		drepl_notify.o \
+		drepl_ridalloc.o)
 
 $(eval $(call proto_header_template,$(dsdbsrcdir)/repl/drepl_service_proto.h,$(DREPL_SRV_OBJ_FILES:.o=.c)))
 
@@ -81,6 +86,31 @@ PRIVATE_DEPENDENCIES = \
 
 KCC_SRV_OBJ_FILES = $(addprefix $(dsdbsrcdir)/kcc/, \
 		kcc_service.o \
-		kcc_periodic.o)
+		kcc_connection.o \
+		kcc_topology.o \
+		kcc_deleted.o \
+		kcc_periodic.o \
+		kcc_drs_replica_info.o)
 
 $(eval $(call proto_header_template,$(dsdbsrcdir)/kcc/kcc_service_proto.h,$(KCC_SRV_OBJ_FILES:.o=.c)))
+
+#######################
+# Start SUBSYSTEM DNS_UPDATE_SRV
+[MODULE::DNS_UPDATE_SRV]
+INIT_FUNCTION = server_service_dnsupdate_init
+SUBSYSTEM = service
+PRIVATE_DEPENDENCIES = \
+		SAMDB \
+		process_model \
+		UTIL_RUNCMD
+# End SUBSYSTEM DNS_UPDATE_SRV
+#######################
+
+DNS_UPDATE_SRV_OBJ_FILES = $(addprefix $(dsdbsrcdir)/dns/, \
+		dns_update.o)
+
+[PYTHON::python_dsdb]
+LIBRARY_REALNAME = samba/dsdb.$(SHLIBEXT)
+PRIVATE_DEPENDENCIES = SAMDB pyldb
+
+python_dsdb_OBJ_FILES = $(dsdbsrcdir)/pydsdb.o

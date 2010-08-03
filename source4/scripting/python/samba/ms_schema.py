@@ -7,6 +7,7 @@
 
 import re
 import base64
+import uuid
 
 bitFields = {}
 
@@ -33,19 +34,19 @@ bitFields["searchflags"] = {
 
 # ADTS: 2.2.10
 bitFields["systemflags"] = {
-    'FLAG_ATTR_NOT_REPLICATED': 31, 'FLAG_CR_NTDS_NC': 31, 	# NR
-    'FLAG_ATTR_REQ_PARTIAL_SET_MEMBER': 30, 'FLAG_CR_NTDS_DOMAIN': 30, 	# PS
-    'FLAG_ATTR_IS_CONSTRUCTED': 29, 'FLAG_CR_NTDS_NOT_GC_REPLICATED': 29, 	# CS
-    'FLAG_ATTR_IS_OPERATIONAL': 28, 	# OP
-    'FLAG_SCHEMA_BASE_OBJECT': 27, 	# BS
-    'FLAG_ATTR_IS_RDN': 26, 	# RD
-    'FLAG_DISALLOW_MOVE_ON_DELETE': 6, 	# DE
-    'FLAG_DOMAIN_DISALLOW_MOVE': 5, 	# DM
-    'FLAG_DOMAIN_DISALLOW_RENAME': 4, 	# DR
-    'FLAG_CONFIG_ALLOW_LIMITED_MOVE': 3, 	# AL
-    'FLAG_CONFIG_ALLOW_MOVE': 2, 	# AM
-    'FLAG_CONFIG_ALLOW_RENAME': 1, 	# AR
-    'FLAG_DISALLOW_DELETE': 0 	# DD
+    'FLAG_ATTR_NOT_REPLICATED': 31, 'FLAG_CR_NTDS_NC': 31,     # NR
+    'FLAG_ATTR_REQ_PARTIAL_SET_MEMBER': 30, 'FLAG_CR_NTDS_DOMAIN': 30,     # PS
+    'FLAG_ATTR_IS_CONSTRUCTED': 29, 'FLAG_CR_NTDS_NOT_GC_REPLICATED': 29,     # CS
+    'FLAG_ATTR_IS_OPERATIONAL': 28,     # OP
+    'FLAG_SCHEMA_BASE_OBJECT': 27,     # BS
+    'FLAG_ATTR_IS_RDN': 26,     # RD
+    'FLAG_DISALLOW_MOVE_ON_DELETE': 6,     # DE
+    'FLAG_DOMAIN_DISALLOW_MOVE': 5,     # DM
+    'FLAG_DOMAIN_DISALLOW_RENAME': 4,     # DR
+    'FLAG_CONFIG_ALLOW_LIMITED_MOVE': 3,     # AL
+    'FLAG_CONFIG_ALLOW_MOVE': 2,     # AM
+    'FLAG_CONFIG_ALLOW_RENAME': 1,     # AR
+    'FLAG_DISALLOW_DELETE': 0     # DD
     }
 
 # ADTS: 2.2.11
@@ -227,6 +228,9 @@ def __transform_entry(entry, objectClass):
     entry.insert(0, ["dn", "CN=%s,${SCHEMADN}" % cn])
     entry.insert(1, ["objectClass", ["top", objectClass]])
     entry.insert(2, ["cn", cn])
+    entry.insert(2, ["objectGUID", str(uuid.uuid4())])
+    entry.insert(2, ["adminDescription", cn])
+    entry.insert(2, ["adminDisplayName", cn])
     
     for l in entry:
         key = l[0].lower()

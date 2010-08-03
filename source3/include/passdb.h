@@ -28,8 +28,6 @@
  * NT RIDS.
  **********************************************************************/
 
-#define BASE_RID (0x000003E8L)
-
 /* Take the bottom bit. */
 #define RID_TYPE_MASK 		1
 #define RID_MULTIPLIER 		2
@@ -104,12 +102,12 @@ enum pdb_value_state {
 #define IS_SAM_DEFAULT(x, flag)	(pdb_get_init_flags(x, flag) == PDB_DEFAULT)
 
 /* cache for bad password lockout data, to be used on replicated SAMs */
-typedef struct logon_cache_struct {
+struct login_cache {
 	time_t entry_timestamp;
-	uint32 acct_ctrl;
-	uint16 bad_password_count;
+	uint32_t acct_ctrl;
+	uint16_t bad_password_count;
 	time_t bad_password_time;
-} LOGIN_CACHE;
+};
 
 #define SAMU_BUFFER_V0		0
 #define SAMU_BUFFER_V1		1
@@ -147,26 +145,26 @@ struct samu {
 	const char *comment;
 	const char *munged_dial;  /* munged path name and dial-back tel number */
 
-	DOM_SID user_sid;  
-	DOM_SID *group_sid;
+	struct dom_sid user_sid;
+	struct dom_sid *group_sid;
 
 	DATA_BLOB lm_pw; /* .data is Null if no password */
 	DATA_BLOB nt_pw; /* .data is Null if no password */
 	DATA_BLOB nt_pw_his; /* nt hashed password history .data is Null if not available */
 	char* plaintext_pw; /* is Null if not available */
 
-	uint32 acct_ctrl; /* account info (ACB_xxxx bit-mask) */
-	uint32 fields_present; /* 0x00ff ffff */
+	uint32_t acct_ctrl; /* account info (ACB_xxxx bit-mask) */
+	uint32_t fields_present; /* 0x00ff ffff */
 
-	uint16 logon_divs; /* 168 - number of hours in a week */
-	uint32 hours_len; /* normally 21 bytes */
-	uint8 hours[MAX_HOURS_LEN];
+	uint16_t logon_divs; /* 168 - number of hours in a week */
+	uint32_t hours_len; /* normally 21 bytes */
+	uint8_t hours[MAX_HOURS_LEN];
 
 	/* Was unknown_5. */
-	uint16 bad_password_count;
-	uint16 logon_count;
+	uint16_t bad_password_count;
+	uint16_t logon_count;
 
-	uint32 unknown_6; /* 0x0000 04ec */
+	uint32_t unknown_6; /* 0x0000 04ec */
 
 	/* a tag for who added the private methods */
 
@@ -182,13 +180,13 @@ struct samu {
 struct acct_info {
 	fstring acct_name; /* account name */
 	fstring acct_desc; /* account name */
-	uint32 rid; /* domain-relative RID */
+	uint32_t rid; /* domain-relative RID */
 };
 
 struct samr_displayentry {
-	uint32 idx;
-	uint32 rid;
-	uint32 acct_flags;
+	uint32_t idx;
+	uint32_t rid;
+	uint32_t acct_flags;
 	const char *account_name;
 	const char *fullname;
 	const char *description;
@@ -203,7 +201,7 @@ enum pdb_search_type {
 struct pdb_search {
 	enum pdb_search_type type;
 	struct samr_displayentry *cache;
-	uint32 num_entries;
+	uint32_t num_entries;
 	ssize_t cache_size;
 	bool search_ended;
 	void *private_data;
@@ -251,7 +249,7 @@ enum pdb_policy_type {
  * samr_lookup_rids twice. It was done in the srv_samr_nt.c code as well as in
  * the pdb module. Remove the latter, this might happen more often. VL.
  * changed to version 14 to move lookup_rids and lookup_names to return
- * enum lsa_SidType rather than uint32.
+ * enum lsa_SidType rather than uint32_t.
  * Changed to 16 for access to the trusted domain passwords (obnox).
  * Changed to 17, the sampwent interface is gone.
  * Changed to 18, pdb_rid_algorithm -> pdb_capabilities
@@ -269,11 +267,11 @@ struct pdb_methods
 
 	NTSTATUS (*getsampwnam)(struct pdb_methods *, struct samu *sam_acct, const char *username);
 
-	NTSTATUS (*getsampwsid)(struct pdb_methods *, struct samu *sam_acct, const DOM_SID *sid);
+	NTSTATUS (*getsampwsid)(struct pdb_methods *, struct samu *sam_acct, const struct dom_sid *sid);
 
 	NTSTATUS (*create_user)(struct pdb_methods *, TALLOC_CTX *tmp_ctx,
-				const char *name, uint32 acct_flags,
-				uint32 *rid);
+				const char *name, uint32_t acct_flags,
+				uint32_t *rid);
 
 	NTSTATUS (*delete_user)(struct pdb_methods *, TALLOC_CTX *tmp_ctx,
 				struct samu *sam_acct);
@@ -288,7 +286,7 @@ struct pdb_methods
 
 	NTSTATUS (*update_login_attempts)(struct pdb_methods *methods, struct samu *sam_acct, bool success);
 
-	NTSTATUS (*getgrsid)(struct pdb_methods *methods, GROUP_MAP *map, DOM_SID sid);
+	NTSTATUS (*getgrsid)(struct pdb_methods *methods, GROUP_MAP *map, struct dom_sid sid);
 
 	NTSTATUS (*getgrgid)(struct pdb_methods *methods, GROUP_MAP *map, gid_t gid);
 
@@ -296,10 +294,10 @@ struct pdb_methods
 
 	NTSTATUS (*create_dom_group)(struct pdb_methods *methods,
 				     TALLOC_CTX *mem_ctx, const char *name,
-				     uint32 *rid);
+				     uint32_t *rid);
 
 	NTSTATUS (*delete_dom_group)(struct pdb_methods *methods,
-				     TALLOC_CTX *mem_ctx, uint32 rid);
+				     TALLOC_CTX *mem_ctx, uint32_t rid);
 
 	NTSTATUS (*add_group_mapping_entry)(struct pdb_methods *methods,
 					    GROUP_MAP *map);
@@ -308,23 +306,23 @@ struct pdb_methods
 					       GROUP_MAP *map);
 
 	NTSTATUS (*delete_group_mapping_entry)(struct pdb_methods *methods,
-					       DOM_SID sid);
+					       struct dom_sid sid);
 
 	NTSTATUS (*enum_group_mapping)(struct pdb_methods *methods,
-				       const DOM_SID *sid, enum lsa_SidType sid_name_use,
+				       const struct dom_sid *sid, enum lsa_SidType sid_name_use,
 				       GROUP_MAP **pp_rmap, size_t *p_num_entries,
 				       bool unix_only);
 
 	NTSTATUS (*enum_group_members)(struct pdb_methods *methods,
 				       TALLOC_CTX *mem_ctx,
-				       const DOM_SID *group,
-				       uint32 **pp_member_rids,
+				       const struct dom_sid *group,
+				       uint32_t **pp_member_rids,
 				       size_t *p_num_members);
 
 	NTSTATUS (*enum_group_memberships)(struct pdb_methods *methods,
 					   TALLOC_CTX *mem_ctx,
 					   struct samu *user,
-					   DOM_SID **pp_sids, gid_t **pp_gids,
+					   struct dom_sid **pp_sids, gid_t **pp_gids,
 					   size_t *p_num_groups);
 
 	NTSTATUS (*set_unix_primary_group)(struct pdb_methods *methods,
@@ -333,53 +331,53 @@ struct pdb_methods
 
 	NTSTATUS (*add_groupmem)(struct pdb_methods *methods,
 				 TALLOC_CTX *mem_ctx,
-				 uint32 group_rid, uint32 member_rid);
+				 uint32_t group_rid, uint32_t member_rid);
 
 	NTSTATUS (*del_groupmem)(struct pdb_methods *methods,
 				 TALLOC_CTX *mem_ctx,
-				 uint32 group_rid, uint32 member_rid);
+				 uint32_t group_rid, uint32_t member_rid);
 
 	NTSTATUS (*create_alias)(struct pdb_methods *methods,
-				 const char *name, uint32 *rid);
+				 const char *name, uint32_t *rid);
 
 	NTSTATUS (*delete_alias)(struct pdb_methods *methods,
-				 const DOM_SID *sid);
+				 const struct dom_sid *sid);
 
 	NTSTATUS (*get_aliasinfo)(struct pdb_methods *methods,
-				  const DOM_SID *sid,
+				  const struct dom_sid *sid,
 				  struct acct_info *info);
 
 	NTSTATUS (*set_aliasinfo)(struct pdb_methods *methods,
-				  const DOM_SID *sid,
+				  const struct dom_sid *sid,
 				  struct acct_info *info);
 
 	NTSTATUS (*add_aliasmem)(struct pdb_methods *methods,
-				 const DOM_SID *alias, const DOM_SID *member);
+				 const struct dom_sid *alias, const struct dom_sid *member);
 	NTSTATUS (*del_aliasmem)(struct pdb_methods *methods,
-				 const DOM_SID *alias, const DOM_SID *member);
+				 const struct dom_sid *alias, const struct dom_sid *member);
 	NTSTATUS (*enum_aliasmem)(struct pdb_methods *methods,
-				  const DOM_SID *alias, TALLOC_CTX *mem_ctx,
-				  DOM_SID **members, size_t *p_num_members);
+				  const struct dom_sid *alias, TALLOC_CTX *mem_ctx,
+				  struct dom_sid **members, size_t *p_num_members);
 	NTSTATUS (*enum_alias_memberships)(struct pdb_methods *methods,
 					   TALLOC_CTX *mem_ctx,
-					   const DOM_SID *domain_sid,
-					   const DOM_SID *members,
+					   const struct dom_sid *domain_sid,
+					   const struct dom_sid *members,
 					   size_t num_members,
-					   uint32 **pp_alias_rids,
+					   uint32_t **pp_alias_rids,
 					   size_t *p_num_alias_rids);
 
 	NTSTATUS (*lookup_rids)(struct pdb_methods *methods,
-				const DOM_SID *domain_sid,
+				const struct dom_sid *domain_sid,
 				int num_rids,
-				uint32 *rids,
+				uint32_t *rids,
 				const char **pp_names,
 				enum lsa_SidType *attrs);
 
 	NTSTATUS (*lookup_names)(struct pdb_methods *methods,
-				 const DOM_SID *domain_sid,
+				 const struct dom_sid *domain_sid,
 				 int num_names,
 				 const char **pp_names,
-				 uint32 *rids,
+				 uint32_t *rids,
 				 enum lsa_SidType *attrs);
 
 	NTSTATUS (*get_account_policy)(struct pdb_methods *methods,
@@ -394,34 +392,34 @@ struct pdb_methods
 
 	bool (*search_users)(struct pdb_methods *methods,
 			     struct pdb_search *search,
-			     uint32 acct_flags);
+			     uint32_t acct_flags);
 	bool (*search_groups)(struct pdb_methods *methods,
 			      struct pdb_search *search);
 	bool (*search_aliases)(struct pdb_methods *methods,
 			       struct pdb_search *search,
-			       const DOM_SID *sid);
+			       const struct dom_sid *sid);
 
 	bool (*uid_to_sid)(struct pdb_methods *methods, uid_t uid,
-			   DOM_SID *sid);
+			   struct dom_sid *sid);
 	bool (*gid_to_sid)(struct pdb_methods *methods, gid_t gid,
-			   DOM_SID *sid);
-	bool (*sid_to_id)(struct pdb_methods *methods, const DOM_SID *sid,
+			   struct dom_sid *sid);
+	bool (*sid_to_id)(struct pdb_methods *methods, const struct dom_sid *sid,
 			  union unid_t *id, enum lsa_SidType *type);
 
 	uint32_t (*capabilities)(struct pdb_methods *methods);
-	bool (*new_rid)(struct pdb_methods *methods, uint32 *rid);
+	bool (*new_rid)(struct pdb_methods *methods, uint32_t *rid);
 
 
 	bool (*get_trusteddom_pw)(struct pdb_methods *methods,
 				  const char *domain, char** pwd, 
-				  DOM_SID *sid, time_t *pass_last_set_time);
+				  struct dom_sid *sid, time_t *pass_last_set_time);
 	bool (*set_trusteddom_pw)(struct pdb_methods *methods, 
 				  const char* domain, const char* pwd,
-	        	  	  const DOM_SID *sid);
+				  const struct dom_sid *sid);
 	bool (*del_trusteddom_pw)(struct pdb_methods *methods, 
 				  const char *domain);
 	NTSTATUS (*enum_trusteddoms)(struct pdb_methods *methods,
-				     TALLOC_CTX *mem_ctx, uint32 *num_domains,
+				     TALLOC_CTX *mem_ctx, uint32_t *num_domains,
 				     struct trustdom_info ***domains);
 
 	void *private_data;  /* Private data of some kind */

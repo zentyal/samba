@@ -47,8 +47,8 @@
 static NTSTATUS check_wbc_security(const struct auth_context *auth_context,
 				       void *my_private_data,
 				       TALLOC_CTX *mem_ctx,
-				       const auth_usersupplied_info *user_info,
-				       auth_serversupplied_info **server_info)
+				       const struct auth_usersupplied_info *user_info,
+				       struct auth_serversupplied_info **server_info)
 {
 	NTSTATUS nt_status;
 	wbcErr wbc_status;
@@ -61,9 +61,11 @@ static NTSTATUS check_wbc_security(const struct auth_context *auth_context,
 	}
 	/* Send off request */
 
-	params.account_name	= user_info->smb_name;
-	params.domain_name	= user_info->domain;
-	params.workstation_name	= user_info->wksta_name;
+	DEBUG(10, ("Check auth for: [%s]", user_info->mapped.account_name));
+
+	params.account_name	= user_info->client.account_name;
+	params.domain_name	= user_info->mapped.domain_name;
+	params.workstation_name	= user_info->workstation_name;
 
 	params.flags		= 0;
 	params.parameter_control= user_info->logon_parameters;
@@ -71,13 +73,13 @@ static NTSTATUS check_wbc_security(const struct auth_context *auth_context,
 	/* Handle plaintext */
 	if (!user_info->encrypted) {
 		DEBUG(3,("Checking plaintext password for %s.\n",
-			 user_info->internal_username));
+			 user_info->mapped.account_name));
 		params.level = WBC_AUTH_USER_LEVEL_PLAIN;
 
 		params.password.plaintext = (char *)user_info->plaintext_password.data;
 	} else {
 		DEBUG(3,("Checking encrypted password for %s.\n",
-			 user_info->internal_username));
+			 user_info->mapped.account_name));
 		params.level = WBC_AUTH_USER_LEVEL_RESPONSE;
 
 		memcpy(params.password.response.challenge,
@@ -118,8 +120,8 @@ static NTSTATUS check_wbc_security(const struct auth_context *auth_context,
 	DEBUG(10,("wbcAuthenticateUserEx succeeded\n"));
 
 	nt_status = make_server_info_wbcAuthUserInfo(mem_ctx,
-						     user_info->smb_name,
-						     user_info->domain,
+						     user_info->client.account_name,
+						     user_info->mapped.domain_name,
 						     info, server_info);
 	wbcFreeMemory(info);
 	if (!NT_STATUS_IS_OK(nt_status)) {
@@ -134,13 +136,16 @@ static NTSTATUS check_wbc_security(const struct auth_context *auth_context,
 /* module initialisation */
 static NTSTATUS auth_init_wbc(struct auth_context *auth_context, const char *param, auth_methods **auth_method)
 {
-	if (!make_auth_methods(auth_context, auth_method)) {
+	struct auth_methods *result;
+
+	result = TALLOC_ZERO_P(auth_context, struct auth_methods);
+	if (result == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
+	result->name = "wbc";
+	result->auth = check_wbc_security;
 
-	(*auth_method)->name = "wbc";
-	(*auth_method)->auth = check_wbc_security;
-
+	*auth_method = result;
 	return NT_STATUS_OK;
 }
 

@@ -19,10 +19,9 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "librpc/gen_ndr/ndr_remact_c.h"
 #include "librpc/gen_ndr/ndr_epmapper_c.h"
-#include "torture/rpc/rpc.h"
+#include "torture/rpc/torture_rpc.h"
 
 #define CLSID_IMAGEDOC "02B01C80-E03D-101A-B294-00DD010F2BF9"
 #define DCERPC_IUNKNOWN_UUID "00000000-0000-0000-c000-000000000046"
@@ -35,6 +34,7 @@ static bool test_RemoteActivation(struct torture_context *tctx,
 	NTSTATUS status;
 	struct GUID iids[1];
 	uint16_t protseq[3] = { EPM_PROTOCOL_TCP, EPM_PROTOCOL_NCALRPC, EPM_PROTOCOL_UUID };
+	struct dcerpc_binding_handle *b = p->binding_handle;
 
 	ZERO_STRUCT(r.in);
 	r.in.this_object.version.MajorVersion = 5;
@@ -48,7 +48,7 @@ static bool test_RemoteActivation(struct torture_context *tctx,
 	GUID_from_string(DCERPC_IUNKNOWN_UUID, &iids[0]);
 	r.in.pIIDs = iids;
 
-	status = dcerpc_RemoteActivation(p, tctx, &r);
+	status = dcerpc_RemoteActivation_r(b, tctx, &r);
 	torture_assert_ntstatus_ok(tctx, status, "RemoteActivation");
 
 	torture_assert_werr_ok(tctx, r.out.result, "RemoteActivation");
@@ -61,7 +61,7 @@ static bool test_RemoteActivation(struct torture_context *tctx,
 	r.in.Interfaces = 1;
 	r.in.Mode = MODE_GET_CLASS_OBJECT;
 
-	status = dcerpc_RemoteActivation(p, tctx, &r);
+	status = dcerpc_RemoteActivation_r(b, tctx, &r);
 	torture_assert_ntstatus_ok(tctx, status, 
 							   "RemoteActivation(GetClassObject)");
 

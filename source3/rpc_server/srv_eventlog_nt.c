@@ -22,6 +22,8 @@
 
 #include "includes.h"
 #include "../librpc/gen_ndr/srv_eventlog.h"
+#include "lib/eventlog/eventlog.h"
+#include "registry.h"
 
 #undef  DBGC_CLASS
 #define DBGC_CLASS DBGC_RPC_SRV
@@ -50,7 +52,7 @@ static int eventlog_info_destructor(EVENTLOG_INFO *elog)
 /********************************************************************
  ********************************************************************/
 
-static EVENTLOG_INFO *find_eventlog_info_by_hnd( pipes_struct * p,
+static EVENTLOG_INFO *find_eventlog_info_by_hnd( struct pipes_struct * p,
 						struct policy_handle * handle )
 {
 	EVENTLOG_INFO *info;
@@ -70,7 +72,8 @@ static EVENTLOG_INFO *find_eventlog_info_by_hnd( pipes_struct * p,
 static bool elog_check_access( EVENTLOG_INFO *info, NT_USER_TOKEN *token )
 {
 	char *tdbname = elog_tdbname(talloc_tos(), info->logname );
-	SEC_DESC *sec_desc;
+	struct security_descriptor *sec_desc;
+	struct security_ace *ace;
 	NTSTATUS status;
 
 	if ( !tdbname )
@@ -87,11 +90,28 @@ static bool elog_check_access( EVENTLOG_INFO *info, NT_USER_TOKEN *token )
 		return False;
 	}
 
+	ace = talloc_zero(sec_desc, struct security_ace);
+	if (ace == NULL) {
+		TALLOC_FREE(sec_desc);
+		return false;
+	}
+
+	ace->type		= SEC_ACE_TYPE_ACCESS_ALLOWED;
+	ace->flags		= 0;
+	ace->access_mask	= REG_KEY_ALL;
+	ace->trustee		= global_sid_System;
+
+	status = security_descriptor_dacl_add(sec_desc, ace);
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(sec_desc);
+		return false;
+	}
+
 	/* root free pass */
 
 	if ( geteuid() == sec_initial_uid() ) {
-		DEBUG(5,("elog_check_access: using root's token\n"));
-		token = get_root_nt_token();
+		DEBUG(5,("elog_check_access: running as root, using system token\n"));
+		token = get_system_token();
 	}
 
 	/* run the check, try for the max allowed */
@@ -99,8 +119,7 @@ static bool elog_check_access( EVENTLOG_INFO *info, NT_USER_TOKEN *token )
 	status = se_access_check( sec_desc, token, MAXIMUM_ALLOWED_ACCESS,
 		&info->access_granted);
 
-	if ( sec_desc )
-		TALLOC_FREE( sec_desc );
+	TALLOC_FREE(sec_desc);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(8,("elog_check_access: se_access_check() return %s\n",
@@ -110,7 +129,7 @@ static bool elog_check_access( EVENTLOG_INFO *info, NT_USER_TOKEN *token )
 
 	/* we have to have READ permission for a successful open */
 
-	return ( info->access_granted & SA_RIGHT_FILE_READ_DATA );
+	return ( info->access_granted & SEC_FILE_READ_DATA );
 }
 
 /********************************************************************
@@ -175,7 +194,7 @@ static bool get_oldest_entry_hook( EVENTLOG_INFO * info )
 /********************************************************************
  ********************************************************************/
 
-static NTSTATUS elog_open( pipes_struct * p, const char *logname, struct policy_handle *hnd )
+static NTSTATUS elog_open( struct pipes_struct * p, const char *logname, struct policy_handle *hnd )
 {
 	EVENTLOG_INFO *elog;
 
@@ -255,7 +274,7 @@ static NTSTATUS elog_open( pipes_struct * p, const char *logname, struct policy_
 /********************************************************************
  ********************************************************************/
 
-static NTSTATUS elog_close( pipes_struct *p, struct policy_handle *hnd )
+static NTSTATUS elog_close( struct pipes_struct *p, struct policy_handle *hnd )
 {
         if ( !( close_policy_hnd( p, hnd ) ) ) {
                 return NT_STATUS_INVALID_HANDLE;
@@ -285,8 +304,8 @@ static int elog_size( EVENTLOG_INFO *info )
 static bool sync_eventlog_params( EVENTLOG_INFO *info )
 {
 	char *path = NULL;
-	uint32 uiMaxSize;
-	uint32 uiRetention;
+	uint32_t uiMaxSize = 0;
+	uint32_t uiRetention = 0;
 	struct registry_key *key;
 	struct registry_value *value;
 	WERROR wresult;
@@ -310,12 +329,12 @@ static bool sync_eventlog_params( EVENTLOG_INFO *info )
 	   to use the same fetch/store api that we use in
 	   srv_reg_nt.c */
 
-	path = talloc_asprintf(ctx, "%s/%s", KEY_EVENTLOG, elogname );
+	path = talloc_asprintf(ctx, "%s\\%s", KEY_EVENTLOG, elogname);
 	if (!path) {
 		goto done;
 	}
 
-	wresult = reg_open_path(ctx, path, REG_KEY_READ, get_root_nt_token(),
+	wresult = reg_open_path(ctx, path, REG_KEY_READ, get_system_token(),
 				&key);
 
 	if ( !W_ERROR_IS_OK( wresult ) ) {
@@ -331,7 +350,10 @@ static bool sync_eventlog_params( EVENTLOG_INFO *info )
 			  win_errstr(wresult)));
 		goto done;
 	}
-	uiRetention = value->v.dword;
+
+	if (value->data.length >= 4) {
+		uiRetention = IVAL(value->data.data, 0);
+	}
 
 	wresult = reg_queryvalue(key, key, "MaxSize", &value);
 	if (!W_ERROR_IS_OK(wresult)) {
@@ -339,7 +361,9 @@ static bool sync_eventlog_params( EVENTLOG_INFO *info )
 			  win_errstr(wresult)));
 		goto done;
 	}
-	uiMaxSize = value->v.dword;
+	if (value->data.length >= 4) {
+		uiMaxSize = IVAL(value->data.data, 0);
+	}
 
 	tdb_store_int32( ELOG_TDB_CTX(info->etdb), EVT_MAXSIZE, uiMaxSize );
 	tdb_store_int32( ELOG_TDB_CTX(info->etdb), EVT_RETENTION, uiRetention );
@@ -355,7 +379,7 @@ done:
  _eventlog_OpenEventLogW
  ********************************************************************/
 
-NTSTATUS _eventlog_OpenEventLogW(pipes_struct *p,
+NTSTATUS _eventlog_OpenEventLogW(struct pipes_struct *p,
 				 struct eventlog_OpenEventLogW *r)
 {
 	EVENTLOG_INFO *info;
@@ -379,7 +403,10 @@ NTSTATUS _eventlog_OpenEventLogW(pipes_struct *p,
 
 	DEBUG(10,("_eventlog_OpenEventLogW: Size [%d]\n", elog_size( info )));
 
-	sync_eventlog_params( info );
+	if (!sync_eventlog_params(info)) {
+		elog_close(p, r->out.handle);
+		return NT_STATUS_EVENTLOG_FILE_CORRUPT;
+	}
 	prune_eventlog( ELOG_TDB_CTX(info->etdb) );
 
 	return NT_STATUS_OK;
@@ -403,7 +430,7 @@ NTSTATUS _eventlog_OpenEventLogW(pipes_struct *p,
    I'm not sure where the \?? is coming from, or why the ${CWD} of the client process
    would be added in given that the backup file gets written on the server side. */
 
-NTSTATUS _eventlog_ClearEventLogW(pipes_struct *p,
+NTSTATUS _eventlog_ClearEventLogW(struct pipes_struct *p,
 				  struct eventlog_ClearEventLogW *r)
 {
 	EVENTLOG_INFO *info = find_eventlog_info_by_hnd( p, r->in.handle );
@@ -420,7 +447,7 @@ NTSTATUS _eventlog_ClearEventLogW(pipes_struct *p,
 
 	/* check for WRITE access to the file */
 
-	if ( !(info->access_granted&SA_RIGHT_FILE_WRITE_DATA) )
+	if ( !(info->access_granted & SEC_FILE_WRITE_DATA) )
 		return NT_STATUS_ACCESS_DENIED;
 
 	/* Force a close and reopen */
@@ -440,7 +467,7 @@ NTSTATUS _eventlog_ClearEventLogW(pipes_struct *p,
  _eventlog_CloseEventLog
  ********************************************************************/
 
-NTSTATUS _eventlog_CloseEventLog(pipes_struct * p,
+NTSTATUS _eventlog_CloseEventLog(struct pipes_struct * p,
 				 struct eventlog_CloseEventLog *r)
 {
 	NTSTATUS status;
@@ -459,7 +486,7 @@ NTSTATUS _eventlog_CloseEventLog(pipes_struct * p,
  _eventlog_ReadEventLogW
  ********************************************************************/
 
-NTSTATUS _eventlog_ReadEventLogW(pipes_struct *p,
+NTSTATUS _eventlog_ReadEventLogW(struct pipes_struct *p,
 				 struct eventlog_ReadEventLogW *r)
 {
 	EVENTLOG_INFO *info = find_eventlog_info_by_hnd( p, r->in.handle );
@@ -524,7 +551,7 @@ NTSTATUS _eventlog_ReadEventLogW(pipes_struct *p,
 			break;
 		}
 
-		ndr_err = ndr_push_struct_blob(&blob, p->mem_ctx, NULL, e,
+		ndr_err = ndr_push_struct_blob(&blob, p->mem_ctx, e,
 			      (ndr_push_flags_fn_t)ndr_push_EVENTLOGRECORD);
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			return ndr_map_error2ntstatus(ndr_err);
@@ -573,7 +600,7 @@ NTSTATUS _eventlog_ReadEventLogW(pipes_struct *p,
  _eventlog_GetOldestRecord
  ********************************************************************/
 
-NTSTATUS _eventlog_GetOldestRecord(pipes_struct *p,
+NTSTATUS _eventlog_GetOldestRecord(struct pipes_struct *p,
 				   struct eventlog_GetOldestRecord *r)
 {
 	EVENTLOG_INFO *info = find_eventlog_info_by_hnd( p, r->in.handle );
@@ -594,7 +621,7 @@ NTSTATUS _eventlog_GetOldestRecord(pipes_struct *p,
 _eventlog_GetNumRecords
  ********************************************************************/
 
-NTSTATUS _eventlog_GetNumRecords(pipes_struct *p,
+NTSTATUS _eventlog_GetNumRecords(struct pipes_struct *p,
 				 struct eventlog_GetNumRecords *r)
 {
 	EVENTLOG_INFO *info = find_eventlog_info_by_hnd( p, r->in.handle );
@@ -611,7 +638,7 @@ NTSTATUS _eventlog_GetNumRecords(pipes_struct *p,
 	return NT_STATUS_OK;
 }
 
-NTSTATUS _eventlog_BackupEventLogW(pipes_struct *p, struct eventlog_BackupEventLogW *r)
+NTSTATUS _eventlog_BackupEventLogW(struct pipes_struct *p, struct eventlog_BackupEventLogW *r)
 {
 	p->rng_fault_state = True;
 	return NT_STATUS_NOT_IMPLEMENTED;
@@ -621,7 +648,7 @@ NTSTATUS _eventlog_BackupEventLogW(pipes_struct *p, struct eventlog_BackupEventL
 _eventlog_GetLogInformation
  ********************************************************************/
 
-NTSTATUS _eventlog_GetLogInformation(pipes_struct *p,
+NTSTATUS _eventlog_GetLogInformation(struct pipes_struct *p,
 				     struct eventlog_GetLogInformation *r)
 {
 	EVENTLOG_INFO *info = find_eventlog_info_by_hnd(p, r->in.handle);
@@ -646,7 +673,7 @@ NTSTATUS _eventlog_GetLogInformation(pipes_struct *p,
 	/* FIXME: this should be retrieved from the handle */
 	f.full = false;
 
-	ndr_err = ndr_push_struct_blob(&blob, p->mem_ctx, NULL, &f,
+	ndr_err = ndr_push_struct_blob(&blob, p->mem_ctx, &f,
 		      (ndr_push_flags_fn_t)ndr_push_EVENTLOG_FULL_INFORMATION);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		return ndr_map_error2ntstatus(ndr_err);
@@ -665,7 +692,7 @@ NTSTATUS _eventlog_GetLogInformation(pipes_struct *p,
 _eventlog_FlushEventLog
  ********************************************************************/
 
-NTSTATUS _eventlog_FlushEventLog(pipes_struct *p,
+NTSTATUS _eventlog_FlushEventLog(struct pipes_struct *p,
 				 struct eventlog_FlushEventLog *r)
 {
 	EVENTLOG_INFO *info = find_eventlog_info_by_hnd(p, r->in.handle);
@@ -723,7 +750,7 @@ static NTSTATUS evlog_report_to_record(TALLOC_CTX *mem_ctx,
 _eventlog_ReportEventW
  ********************************************************************/
 
-NTSTATUS _eventlog_ReportEventW(pipes_struct *p,
+NTSTATUS _eventlog_ReportEventW(struct pipes_struct *p,
 				struct eventlog_ReportEventW *r)
 {
 	NTSTATUS status;
@@ -753,91 +780,106 @@ NTSTATUS _eventlog_ReportEventW(pipes_struct *p,
 /********************************************************************
  ********************************************************************/
 
-NTSTATUS _eventlog_DeregisterEventSource(pipes_struct *p, struct eventlog_DeregisterEventSource *r)
+NTSTATUS _eventlog_DeregisterEventSource(struct pipes_struct *p,
+					 struct eventlog_DeregisterEventSource *r)
 {
 	p->rng_fault_state = True;
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
-NTSTATUS _eventlog_ChangeNotify(pipes_struct *p, struct eventlog_ChangeNotify *r)
+NTSTATUS _eventlog_ChangeNotify(struct pipes_struct *p,
+				struct eventlog_ChangeNotify *r)
 {
 	p->rng_fault_state = True;
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
-NTSTATUS _eventlog_RegisterEventSourceW(pipes_struct *p, struct eventlog_RegisterEventSourceW *r)
+NTSTATUS _eventlog_RegisterEventSourceW(struct pipes_struct *p,
+					struct eventlog_RegisterEventSourceW *r)
 {
 	p->rng_fault_state = True;
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
-NTSTATUS _eventlog_OpenBackupEventLogW(pipes_struct *p, struct eventlog_OpenBackupEventLogW *r)
+NTSTATUS _eventlog_OpenBackupEventLogW(struct pipes_struct *p,
+				       struct eventlog_OpenBackupEventLogW *r)
 {
 	p->rng_fault_state = True;
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
-NTSTATUS _eventlog_ClearEventLogA(pipes_struct *p, struct eventlog_ClearEventLogA *r)
+NTSTATUS _eventlog_ClearEventLogA(struct pipes_struct *p,
+				  struct eventlog_ClearEventLogA *r)
 {
 	p->rng_fault_state = True;
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
-NTSTATUS _eventlog_BackupEventLogA(pipes_struct *p, struct eventlog_BackupEventLogA *r)
+NTSTATUS _eventlog_BackupEventLogA(struct pipes_struct *p,
+				   struct eventlog_BackupEventLogA *r)
 {
 	p->rng_fault_state = True;
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
-NTSTATUS _eventlog_OpenEventLogA(pipes_struct *p, struct eventlog_OpenEventLogA *r)
+NTSTATUS _eventlog_OpenEventLogA(struct pipes_struct *p,
+				 struct eventlog_OpenEventLogA *r)
 {
 	p->rng_fault_state = True;
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
-NTSTATUS _eventlog_RegisterEventSourceA(pipes_struct *p, struct eventlog_RegisterEventSourceA *r)
+NTSTATUS _eventlog_RegisterEventSourceA(struct pipes_struct *p,
+					struct eventlog_RegisterEventSourceA *r)
 {
 	p->rng_fault_state = True;
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
-NTSTATUS _eventlog_OpenBackupEventLogA(pipes_struct *p, struct eventlog_OpenBackupEventLogA *r)
+NTSTATUS _eventlog_OpenBackupEventLogA(struct pipes_struct *p,
+				       struct eventlog_OpenBackupEventLogA *r)
 {
 	p->rng_fault_state = True;
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
-NTSTATUS _eventlog_ReadEventLogA(pipes_struct *p, struct eventlog_ReadEventLogA *r)
+NTSTATUS _eventlog_ReadEventLogA(struct pipes_struct *p,
+				 struct eventlog_ReadEventLogA *r)
 {
 	p->rng_fault_state = True;
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
-NTSTATUS _eventlog_ReportEventA(pipes_struct *p, struct eventlog_ReportEventA *r)
+NTSTATUS _eventlog_ReportEventA(struct pipes_struct *p,
+				struct eventlog_ReportEventA *r)
 {
 	p->rng_fault_state = True;
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
-NTSTATUS _eventlog_RegisterClusterSvc(pipes_struct *p, struct eventlog_RegisterClusterSvc *r)
+NTSTATUS _eventlog_RegisterClusterSvc(struct pipes_struct *p,
+				      struct eventlog_RegisterClusterSvc *r)
 {
 	p->rng_fault_state = True;
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
-NTSTATUS _eventlog_DeregisterClusterSvc(pipes_struct *p, struct eventlog_DeregisterClusterSvc *r)
+NTSTATUS _eventlog_DeregisterClusterSvc(struct pipes_struct *p,
+					struct eventlog_DeregisterClusterSvc *r)
 {
 	p->rng_fault_state = True;
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
-NTSTATUS _eventlog_WriteClusterEvents(pipes_struct *p, struct eventlog_WriteClusterEvents *r)
+NTSTATUS _eventlog_WriteClusterEvents(struct pipes_struct *p,
+				      struct eventlog_WriteClusterEvents *r)
 {
 	p->rng_fault_state = True;
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
-NTSTATUS _eventlog_ReportEventAndSourceW(pipes_struct *p, struct eventlog_ReportEventAndSourceW *r)
+NTSTATUS _eventlog_ReportEventAndSourceW(struct pipes_struct *p,
+					 struct eventlog_ReportEventAndSourceW *r)
 {
 	p->rng_fault_state = True;
 	return NT_STATUS_NOT_IMPLEMENTED;

@@ -103,7 +103,7 @@ struct smb2_transport {
 	struct {
 		void (*func)(struct smb2_transport *, void *);
 		void *private_data;
-		uint_t period;
+		unsigned int period;
 	} idle;
 
 	struct {
@@ -145,6 +145,7 @@ struct smb2_session {
 	struct smb2_transport *transport;
 	struct gensec_security *gensec;
 	uint64_t uid;
+	uint32_t pid;
 	DATA_BLOB session_key;
 	bool signing_active;
 };

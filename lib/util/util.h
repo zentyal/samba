@@ -178,6 +178,11 @@ _PUBLIC_ uint32_t generate_random(void);
 _PUBLIC_ bool check_password_quality(const char *s);
 
 /**
+ * Generate a random text password.
+ */
+_PUBLIC_ char *generate_random_password(TALLOC_CTX *mem_ctx, size_t min, size_t max);
+
+/**
  Use the random number generator to generate a random string.
 **/
 _PUBLIC_ char *generate_random_str_list(TALLOC_CTX *mem_ctx, size_t len, const char *list);
@@ -450,7 +455,7 @@ _PUBLIC_ char **str_list_make(TALLOC_CTX *mem_ctx, const char *string,
 
 /**
  * build a null terminated list of strings from an argv-like input string 
- * Entries are seperated by spaces and can be enclosed by quotes. 
+ * Entries are separated by spaces and can be enclosed by quotes.
  * Does NOT support escaping
  */
 _PUBLIC_ char **str_list_make_shell(TALLOC_CTX *mem_ctx, const char *string, const char *sep);
@@ -458,10 +463,10 @@ _PUBLIC_ char **str_list_make_shell(TALLOC_CTX *mem_ctx, const char *string, con
 /**
  * join a list back to one string 
  */
-_PUBLIC_ char *str_list_join(TALLOC_CTX *mem_ctx, const char **list, char seperator);
+_PUBLIC_ char *str_list_join(TALLOC_CTX *mem_ctx, const char **list, char separator);
 
 /** join a list back to one (shell-like) string; entries 
- * seperated by spaces, using quotes where necessary */
+ * separated by spaces, using quotes where necessary */
 _PUBLIC_ char *str_list_join_shell(TALLOC_CTX *mem_ctx, const char **list, char sep);
 
 /**
@@ -477,7 +482,7 @@ _PUBLIC_ char **str_list_copy(TALLOC_CTX *mem_ctx, const char **list);
 /**
    Return true if all the elements of the list match exactly.
  */
-_PUBLIC_ bool str_list_equal(const char **list1, const char **list2);
+_PUBLIC_ bool str_list_equal(const char * const *list1, const char * const *list2);
 
 /**
   add an entry to a string list
@@ -534,6 +539,11 @@ _PUBLIC_ const char **str_list_add_const(const char **list, const char *s);
 */
 _PUBLIC_ const char **str_list_copy_const(TALLOC_CTX *mem_ctx,
 					  const char **list);
+
+/**
+ * Needed for making an "unconst" list "const"
+ */
+_PUBLIC_ const char **const_str_list(char **list);
 
 
 /* The following definitions come from lib/util/util_file.c  */
@@ -596,6 +606,11 @@ _PUBLIC_ int vfdprintf(int fd, const char *format, va_list ap) PRINTF_ATTRIBUTE(
 _PUBLIC_ int fdprintf(int fd, const char *format, ...) PRINTF_ATTRIBUTE(2,3);
 _PUBLIC_ bool large_file_support(const char *path);
 
+/*
+  compare two files, return true if the two files have the same content
+ */
+bool file_compare(const char *path1, const char *path2);
+
 /* The following definitions come from lib/util/util.c  */
 
 
@@ -648,33 +663,6 @@ _PUBLIC_ void msleep(unsigned int t);
 _PUBLIC_ char* get_myname(TALLOC_CTX *mem_ctx);
 
 /**
- Return true if a string could be a pure IP address.
-**/
-_PUBLIC_ bool is_ipaddress(const char *str);
-
-/**
- Interpret an internet address or name into an IP address in 4 byte form.
-**/
-_PUBLIC_ uint32_t interpret_addr(const char *str);
-
-/**
- A convenient addition to interpret_addr().
-**/
-_PUBLIC_ struct in_addr interpret_addr2(const char *str);
-
-/**
- Check if an IP is the 0.0.0.0.
-**/
-_PUBLIC_ bool is_zero_ip_v4(struct in_addr ip);
-
-/**
- Are two IPs on the same subnet?
-**/
-_PUBLIC_ bool same_net_v4(struct in_addr ip1,struct in_addr ip2,struct in_addr mask);
-
-_PUBLIC_ bool is_ipaddress_v4(const char *str);
-
-/**
  Check if a process exists. Does this work on all unixes?
 **/
 _PUBLIC_ bool process_exists_by_pid(pid_t pid);
@@ -696,7 +684,7 @@ _PUBLIC_ void dump_data(int level, const uint8_t *buf,int len);
  * Write dump of binary data to the log file.
  *
  * The data is only written if the log level is at least level.
- * 16 zero bytes in a row are ommited
+ * 16 zero bytes in a row are omitted
  */
 _PUBLIC_ void dump_data_skip_zeros(int level, const uint8_t *buf, int len);
 
@@ -839,7 +827,7 @@ _PUBLIC_ void close_low_fds(bool stderr_too);
 /**
  Become a daemon, discarding the controlling terminal.
 **/
-_PUBLIC_ void become_daemon(bool do_fork, bool no_process_group);
+_PUBLIC_ void become_daemon(bool do_fork, bool no_process_group, bool log_stdout);
 
 /**
  * Load a ini-style file.
@@ -865,5 +853,28 @@ bool add_uid_to_array_unique(TALLOC_CTX *mem_ctx, uid_t uid,
 bool add_gid_to_array_unique(TALLOC_CTX *mem_ctx, gid_t gid,
 			     gid_t **gids, size_t *num_gids);
 
+/**
+ * Allocate anonymous shared memory of the given size
+ */
+void *allocate_anonymous_shared(size_t bufsz);
+
+/*
+  run a command as a child process, with a timeout.
+
+  any stdout/stderr from the child will appear in the Samba logs with
+  the specified log levels
+
+  If callback is set then the callback is called on completion
+  with the return code from the command
+ */
+struct tevent_context;
+struct tevent_req;
+struct tevent_req *samba_runcmd_send(TALLOC_CTX *mem_ctx,
+				     struct tevent_context *ev,
+				     struct timeval endtime,
+				     int stdout_log_level,
+				     int stderr_log_level,
+				     const char * const *argv0, ...);
+int samba_runcmd_recv(struct tevent_req *req, int *perrno);
 
 #endif /* _SAMBA_UTIL_H_ */

@@ -27,8 +27,6 @@ sub parse_results($$$)
 {
 	my ($msg_ops, $statistics, $fh) = @_;
 	my $expected_fail = 0;
-	my $unexpected_fail = 0;
-	my $unexpected_err = 0;
 	my $open_tests = [];
 
 	while(<$fh>) {
@@ -38,7 +36,7 @@ sub parse_results($$$)
 			push (@$open_tests, $1);
 		} elsif (/^time: (\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)\n/) {
 			$msg_ops->report_time(mktime($6, $5, $4, $3, $2-1, $1-1900));
-		} elsif (/^(success|successful|failure|fail|skip|knownfail|error|xfail|skip-testsuite|testsuite-failure|testsuite-xfail|testsuite-success|testsuite-error): (.*?)( \[)?([ \t]*)\n/) {
+		} elsif (/^(success|successful|failure|fail|skip|knownfail|error|xfail|skip-testsuite|testsuite-failure|testsuite-xfail|testsuite-success|testsuite-error): (.*?)( \[)?([ \t]*)( multipart)?\n/) {
 			$msg_ops->control_msg($_);
 			my $result = $1;
 			my $testname = $2;
@@ -72,7 +70,6 @@ sub parse_results($$$)
 				pop(@$open_tests); #FIXME: Check that popped value == $testname
 				$statistics->{TESTS_UNEXPECTED_FAIL}++;
 				$msg_ops->end_test($testname, "failure", 1, $reason);
-				$unexpected_fail++;
 			} elsif ($result eq "skip") {
 				$statistics->{TESTS_SKIP}++;
 				# Allow tests to be skipped without prior announcement of test
@@ -85,7 +82,6 @@ sub parse_results($$$)
 				$statistics->{TESTS_ERROR}++;
 				pop(@$open_tests); #FIXME: Check that popped value == $testname
 				$msg_ops->end_test($testname, "error", 1, $reason);
-				$unexpected_err++;
 			} elsif ($result eq "skip-testsuite") {
 				$msg_ops->skip_testsuite($testname);
 			} elsif ($result eq "testsuite-success") {
@@ -99,8 +95,6 @@ sub parse_results($$$)
 			} 
 		} elsif (/^testsuite: (.*)\n/) {
 			$msg_ops->start_testsuite($1);
-		} elsif (/^testsuite-count: (\d+)\n/) {
-			$msg_ops->testsuite_count($1);
 		} else {
 			$msg_ops->output_msg($_);
 		}
@@ -110,11 +104,18 @@ sub parse_results($$$)
 		$msg_ops->end_test(pop(@$open_tests), "error", 1,
 				   "was started but never finished!");
 		$statistics->{TESTS_ERROR}++;
-		$unexpected_err++;
 	}
 
-	return 1 if $unexpected_err > 0;
-	return 1 if $unexpected_fail > 0;
+	# if the Filter module is in use, it will have the right counts
+	if (defined($msg_ops->{total_error})) {
+		$statistics->{TESTS_ERROR} = $msg_ops->{total_error};
+		$statistics->{TESTS_UNEXPECTED_FAIL} = $msg_ops->{total_fail};
+		$statistics->{TESTS_EXPECTED_FAIL} = $msg_ops->{total_xfail};
+	}
+
+	return 1 if $statistics->{TESTS_ERROR} > 0;
+	return 1 if $statistics->{TESTS_UNEXPECTED_FAIL} > 0;
+
 	return 0;
 }
 
@@ -173,6 +174,27 @@ sub report_time($)
 	printf "time: %04d-%02d-%02d %02d:%02d:%02d\n", $year+1900, $mon+1, $mday, $hour, $min, $sec;
 }
 
+sub progress_pop()
+{
+	print "progress: pop\n";
+}
+
+sub progress_push()
+{
+	print "progress: push\n";
+}
+
+sub progress($;$)
+{
+	my ($count, $whence) = @_;
+
+	unless(defined($whence)) {
+		$whence = "";
+	}
+
+	print "progress: $whence$count\n";
+}
+
 # The following are Samba extensions:
 
 sub start_testsuite($)
@@ -203,12 +225,6 @@ sub end_testsuite($$;$)
 	} else {
 		print "testsuite-$result: $name\n";
 	}
-}
-
-sub testsuite_count($)
-{
-	my ($count) = @_;
-	print "testsuite-count: $count\n";
 }
 
 1;

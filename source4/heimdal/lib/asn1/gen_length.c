@@ -43,6 +43,7 @@ length_primitive (const char *typename,
     fprintf (codefile, "%s += der_length_%s(%s);\n", variable, typename, name);
 }
 
+/* XXX same as der_length_tag */
 static size_t
 length_tag(unsigned int tag)
 {
@@ -219,6 +220,9 @@ length_type (const char *name, const Type *t,
     case TGeneralString:
 	length_primitive ("general_string", name, variable);
 	break;
+    case TTeletexString:
+	length_primitive ("general_string", name, variable);
+	break;
     case TUTCTime:
 	length_primitive ("utctime", name, variable);
 	break;
@@ -266,10 +270,6 @@ length_type (const char *name, const Type *t,
 void
 generate_type_length (const Symbol *s)
 {
-    fprintf (headerfile,
-	     "size_t length_%s(const %s *);\n",
-	     s->gen_name, s->gen_name);
-
     fprintf (codefile,
 	     "size_t\n"
 	     "length_%s(const %s *data)\n"

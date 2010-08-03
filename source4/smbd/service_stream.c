@@ -26,6 +26,7 @@
 #include "lib/messaging/irpc.h"
 #include "cluster/cluster.h"
 #include "param/param.h"
+#include "../lib/tsocket/tsocket.h"
 
 /* the range of ports to try for dcerpc over tcp endpoints */
 #define SERVER_TCP_LOW_PORT  1024
@@ -97,7 +98,7 @@ static void stream_io_handler(struct stream_connection *conn, uint16_t flags)
 	}
 }
 
-static void stream_io_handler_fde(struct tevent_context *ev, struct tevent_fd *fde, 
+void stream_io_handler_fde(struct tevent_context *ev, struct tevent_fd *fde,
 				  uint16_t flags, void *private_data)
 {
 	struct stream_connection *conn = talloc_get_type(private_data,
@@ -120,7 +121,6 @@ void stream_io_handler_callback(void *private_data, uint16_t flags)
 NTSTATUS stream_new_connection_merge(struct tevent_context *ev,
 				     struct loadparm_context *lp_ctx,
 				     const struct model_ops *model_ops,
-				     struct socket_context *sock,
 				     const struct stream_server_ops *stream_ops,
 				     struct messaging_context *msg_ctx,
 				     void *private_data,
@@ -131,23 +131,15 @@ NTSTATUS stream_new_connection_merge(struct tevent_context *ev,
 	srv_conn = talloc_zero(ev, struct stream_connection);
 	NT_STATUS_HAVE_NO_MEMORY(srv_conn);
 
-	talloc_steal(srv_conn, sock);
-
 	srv_conn->private_data  = private_data;
 	srv_conn->model_ops     = model_ops;
-	srv_conn->socket	= sock;
+	srv_conn->socket	= NULL;
 	srv_conn->server_id	= cluster_id(0, 0);
 	srv_conn->ops           = stream_ops;
 	srv_conn->msg_ctx	= msg_ctx;
 	srv_conn->event.ctx	= ev;
 	srv_conn->lp_ctx	= lp_ctx;
-	srv_conn->event.fde	= tevent_add_fd(ev, srv_conn, socket_get_fd(sock),
-						TEVENT_FD_READ,
-						stream_io_handler_fde, srv_conn);
-	if (!srv_conn->event.fde) {
-		talloc_free(srv_conn);
-		return NT_STATUS_NO_MEMORY;
-	}
+	srv_conn->event.fde	= NULL;
 
 	*_srv_conn = srv_conn;
 	return NT_STATUS_OK;
@@ -164,7 +156,6 @@ static void stream_new_connection(struct tevent_context *ev,
 {
 	struct stream_socket *stream_socket = talloc_get_type(private_data, struct stream_socket);
 	struct stream_connection *srv_conn;
-	struct socket_address *c, *s;
 
 	srv_conn = talloc_zero(ev, struct stream_connection);
 	if (!srv_conn) {
@@ -182,7 +173,7 @@ static void stream_new_connection(struct tevent_context *ev,
 	srv_conn->event.ctx	= ev;
 	srv_conn->lp_ctx	= lp_ctx;
 
-	if (!socket_check_access(sock, "smbd", lp_hostsallow(NULL, lp_default_service(lp_ctx)), lp_hostsdeny(NULL, lp_default_service(lp_ctx)))) {
+	if (!socket_check_access(sock, "smbd", lpcfg_hostsallow(NULL, lpcfg_default_service(lp_ctx)), lpcfg_hostsdeny(NULL, lpcfg_default_service(lp_ctx)))) {
 		stream_terminate_connection(srv_conn, "denied by access rules");
 		return;
 	}
@@ -196,29 +187,41 @@ static void stream_new_connection(struct tevent_context *ev,
 
 	/* setup to receive internal messages on this connection */
 	srv_conn->msg_ctx = messaging_init(srv_conn, 
-					   lp_messaging_path(srv_conn, lp_ctx),
-					   srv_conn->server_id, 
-				           lp_iconv_convenience(lp_ctx),
-					   ev);
+					   lpcfg_messaging_path(srv_conn, lp_ctx),
+					   srv_conn->server_id, ev);
 	if (!srv_conn->msg_ctx) {
 		stream_terminate_connection(srv_conn, "messaging_init() failed");
 		return;
 	}
 
-	c = socket_get_peer_addr(sock, ev);
-	s = socket_get_my_addr(sock, ev);
-	if (s && c) {
+	srv_conn->remote_address = socket_get_remote_addr(srv_conn->socket, srv_conn);
+	if (!srv_conn->remote_address) {
+		stream_terminate_connection(srv_conn, "socket_get_remote_addr() failed");
+		return;
+	}
+
+	srv_conn->local_address = socket_get_local_addr(srv_conn->socket, srv_conn);
+	if (!srv_conn->local_address) {
+		stream_terminate_connection(srv_conn, "socket_get_local_addr() failed");
+		return;
+	}
+
+	{
+		TALLOC_CTX *tmp_ctx;
 		const char *title;
-		title = talloc_asprintf(s, "conn[%s] c[%s:%u] s[%s:%u] server_id[%s]",
+
+		tmp_ctx = talloc_new(srv_conn);
+
+		title = talloc_asprintf(tmp_ctx, "conn[%s] c[%s] s[%s] server_id[%s]",
 					stream_socket->ops->name, 
-					c->addr, c->port, s->addr, s->port,
-					cluster_id_string(s, server_id));
+					tsocket_address_string(srv_conn->remote_address, tmp_ctx),
+					tsocket_address_string(srv_conn->local_address, tmp_ctx),
+					cluster_id_string(tmp_ctx, server_id));
 		if (title) {
 			stream_connection_set_title(srv_conn, title);
 		}
+		talloc_free(tmp_ctx);
 	}
-	talloc_free(c);
-	talloc_free(s);
 
 	/* we're now ready to start receiving events on this stream */
 	TEVENT_FD_READABLE(srv_conn->event.fde);
@@ -239,7 +242,7 @@ static void stream_accept_handler(struct tevent_context *ev, struct tevent_fd *f
 	/* ask the process model to create us a process for this new
 	   connection.  When done, it calls stream_new_connection()
 	   with the newly created socket */
-	stream_socket->model_ops->accept_connection(ev, stream_socket->lp_ctx, 
+	stream_socket->model_ops->accept_connection(ev, stream_socket->lp_ctx,
 						    stream_socket->sock, 
 						    stream_new_connection, stream_socket);
 }

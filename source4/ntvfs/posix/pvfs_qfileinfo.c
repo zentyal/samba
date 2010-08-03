@@ -45,6 +45,11 @@ static uint32_t pvfs_fileinfo_access(union smb_fileinfo *info)
 		needed = 0;
 		break;
 
+	case RAW_FILEINFO_STREAM_INFO:
+	case RAW_FILEINFO_STREAM_INFORMATION:
+		needed = 0;
+		break;
+
 	case RAW_FILEINFO_SEC_DESC:
 		needed = 0;
 		if (info->query_secdesc.in.secinfo_flags & (SECINFO_OWNER|SECINFO_GROUP)) {
@@ -71,7 +76,7 @@ static uint32_t pvfs_fileinfo_access(union smb_fileinfo *info)
 */
 NTSTATUS pvfs_query_ea_list(struct pvfs_state *pvfs, TALLOC_CTX *mem_ctx, 
 			    struct pvfs_filename *name, int fd, 
-			    uint_t num_names,
+			    unsigned int num_names,
 			    struct ea_name *names,
 			    struct smb_ea_list *eas)
 {
@@ -318,6 +323,7 @@ static NTSTATUS pvfs_map_fileinfo(struct pvfs_state *pvfs,
 		info->all_info2.out.access_mask    = 0; /* only set by qfileinfo */
 		info->all_info2.out.position       = 0; /* only set by qfileinfo */
 		info->all_info2.out.mode           = 0; /* only set by qfileinfo */
+		info->all_info2.out.alignment_requirement = 0;
 		/* windows wants the full path on disk for this
 		   result, but I really don't want to expose that on
 		   the wire, so I'll give the path with a share

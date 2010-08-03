@@ -52,14 +52,11 @@ static bool test_generate_diff(struct torture_context *tctx, void *tcase_data)
 static bool test_diff_load(struct torture_context *tctx, void *tcase_data)
 {
 	struct diff_tcase_data *td = tcase_data;
-	struct smb_iconv_convenience *ic;
 	struct reg_diff_callbacks *callbacks;
 	void *data;
 	WERROR error;
 
-	ic = lp_iconv_convenience(tctx->lp_ctx);
-
-	error = reg_diff_load(td->filename, iconv_convenience, callbacks, data);
+	error = reg_diff_load(td->filename, callbacks, data);
 	torture_assert_werr_ok(tctx, error, "reg_diff_load");
 
 	return true;
@@ -71,7 +68,7 @@ static bool test_diff_apply(struct torture_context *tctx, void *tcase_data)
 	struct registry_key *key;
 	WERROR error;
 
-	error = reg_diff_apply(td->r1_ctx, lp_iconv_convenience(tctx->lp_ctx), td->filename);
+	error = reg_diff_apply(td->r1_ctx, td->filename);
 	torture_assert_werr_ok(tctx, error, "reg_diff_apply");
 
 	error = td->r1_ctx->ops->get_predefined_key(td->r1_ctx, HKEY_LOCAL_MACHINE, &key);
@@ -227,10 +224,11 @@ static bool diff_setup_tcase(struct torture_context *tctx, void **data)
 	error = r2_ctx->ops->create_key(r2_ctx, newkey, "Explorer", NULL, NULL, &newkey);
 	torture_assert_werr_ok(tctx, error, "Creating HKLM\\..\\Policies\\Explorer failed");
 
-
-	blob.data = (void *)talloc(r2_ctx, uint32_t);
-	SIVAL(blob.data, 0, 0x03ffffff);
-	blob.length = sizeof(uint32_t);
+	blob.data = talloc_array(r2_ctx, uint8_t, 4);
+	/* set "0x03FFFFFF" in little endian format */
+	blob.data[0] = 0xFF; blob.data[1] = 0xFF;
+	blob.data[2] = 0xFF; blob.data[3] = 0x03;
+	blob.length = 4;
 
 	r1_ctx->ops->set_value(newkey, "NoDrives", REG_DWORD, blob);
 
@@ -246,16 +244,14 @@ static bool diff_setup_tcase(struct torture_context *tctx, void **data)
 static bool diff_setup_preg_tcase (struct torture_context *tctx, void **data)
 {
 	struct diff_tcase_data *td;
-	struct smb_iconv_convenience *ic;
 	WERROR error;
 
 	diff_setup_tcase(tctx, data);
 	td = *data;
 
-	ic = lp_iconv_convenience(tctx->lp_ctx);
-
 	td->filename = talloc_asprintf(tctx, "%s/test.pol", td->tempdir);
-	error = reg_preg_diff_save(tctx, td->filename, ic, &td->callbacks, &td->callback_data);
+	error = reg_preg_diff_save(tctx, td->filename,  &td->callbacks,
+							   &td->callback_data);
 	torture_assert_werr_ok(tctx, error, "reg_preg_diff_save");
 
 	return true;
@@ -264,16 +260,14 @@ static bool diff_setup_preg_tcase (struct torture_context *tctx, void **data)
 static bool diff_setup_dotreg_tcase (struct torture_context *tctx, void **data)
 {
 	struct diff_tcase_data *td;
-	struct smb_iconv_convenience *ic;
 	WERROR error;
 
 	diff_setup_tcase(tctx, data);
 	td = *data;
 
-	ic = lp_iconv_convenience(tctx->lp_ctx);
-	
 	td->filename = talloc_asprintf(tctx, "%s/test.reg", td->tempdir);
-	error = reg_dotreg_diff_save(tctx, td->filename, ic, &td->callbacks, &td->callback_data);
+	error = reg_dotreg_diff_save(tctx, td->filename, &td->callbacks,
+								 &td->callback_data);
 	torture_assert_werr_ok(tctx, error, "reg_dotreg_diff_save");
 
 	return true;

@@ -283,6 +283,7 @@ hx509_cert_init_data(hx509_context context,
 	return ret;
     }
     if (size != len) {
+	free_Certificate(&t);
 	hx509_set_error_string(context, 0, HX509_EXTRA_DATA_AFTER_STRUCTURE,
 			       "Extra data after certificate");
 	return HX509_EXTRA_DATA_AFTER_STRUCTURE;
@@ -445,7 +446,7 @@ hx509_verify_attach_anchors(hx509_verify_ctx ctx, hx509_certs set)
 {
     if (ctx->trust_anchors)
 	hx509_certs_free(&ctx->trust_anchors);
-    ctx->trust_anchors = _hx509_certs_ref(set);
+    ctx->trust_anchors = hx509_certs_ref(set);
 }
 
 /**
@@ -1022,9 +1023,12 @@ certificate_is_self_signed(hx509_context context,
     ret = _hx509_name_cmp(&cert->tbsCertificate.subject,
 			  &cert->tbsCertificate.issuer, &diff);
     *self_signed = (diff == 0);
-    if (ret)
+    if (ret) {
 	hx509_set_error_string(context, 0, ret,
 			       "Failed to check if self signed");
+    } else
+	ret = _hx509_self_signed_valid(context, &cert->signatureAlgorithm);
+
     return ret;
 }
 
@@ -1926,9 +1930,9 @@ hx509_verify_path(hx509_context context,
      *
      */
     if (ctx->trust_anchors)
-	anchors = _hx509_certs_ref(ctx->trust_anchors);
+	anchors = hx509_certs_ref(ctx->trust_anchors);
     else if (context->default_trust_anchors && ALLOW_DEF_TA(ctx))
-	anchors = _hx509_certs_ref(context->default_trust_anchors);
+	anchors = hx509_certs_ref(context->default_trust_anchors);
     else {
 	ret = hx509_certs_init(context, "MEMORY:no-TA", 0, NULL, &anchors);
 	if (ret)
@@ -2243,7 +2247,8 @@ hx509_verify_path(hx509_context context,
      */
 
     for (i = path.len - 1; i >= 0; i--) {
-	Certificate *signer, *c;
+	hx509_cert signer;
+	Certificate *c;
 
 	c = _hx509_get_cert(path.val[i]);
 
@@ -2251,9 +2256,9 @@ hx509_verify_path(hx509_context context,
 	if (i + 1 == path.len) {
 	    int selfsigned;
 
-	    signer = path.val[i]->data;
+	    signer = path.val[i];
 
-	    ret = certificate_is_self_signed(context, signer, &selfsigned);
+	    ret = certificate_is_self_signed(context, signer->data, &selfsigned);
 	    if (ret)
 		goto out;
 
@@ -2262,7 +2267,7 @@ hx509_verify_path(hx509_context context,
 		continue;
 	} else {
 	    /* take next certificate in chain */
-	    signer = path.val[i + 1]->data;
+	    signer = path.val[i + 1];
 	}
 
 	/* verify signatureValue */
@@ -2326,8 +2331,30 @@ hx509_verify_signature(hx509_context context,
 		       const heim_octet_string *data,
 		       const heim_octet_string *sig)
 {
-    return _hx509_verify_signature(context, signer->data, alg, data, sig);
+    return _hx509_verify_signature(context, signer, alg, data, sig);
 }
+
+int
+_hx509_verify_signature_bitstring(hx509_context context,
+				  const hx509_cert signer,
+				  const AlgorithmIdentifier *alg,
+				  const heim_octet_string *data,
+				  const heim_bit_string *sig)
+{
+    heim_octet_string os;
+
+    if (sig->length & 7) {
+	hx509_set_error_string(context, 0, HX509_CRYPTO_SIG_INVALID_FORMAT,
+			       "signature not multiple of 8 bits");
+	return HX509_CRYPTO_SIG_INVALID_FORMAT;
+    }
+
+    os.data = sig->data;
+    os.length = sig->length / 8;
+
+    return _hx509_verify_signature(context, signer, alg, data, &os);
+}
+
 
 
 /**
@@ -3227,7 +3254,7 @@ _hx509_cert_get_eku(hx509_context context,
  * @param context A hx509 context.
  * @param c the certificate to encode.
  * @param os the encode certificate, set to NULL, 0 on case of
- * error. Free the returned structure with hx509_xfree().
+ * error. Free the os->data with hx509_xfree().
  *
  * @return An hx509 error code, see hx509_get_error_string().
  *
@@ -3383,7 +3410,6 @@ _hx509_cert_to_env(hx509_context context, hx509_cert cert, hx509_env *env)
 	Certificate *c = _hx509_get_cert(cert);
         heim_octet_string os, sig;
 	hx509_env envhash = NULL;
-	char *buf;
 
 	os.data = c->tbsCertificate.subjectPublicKeyInfo.subjectPublicKey.data;
 	os.length =
@@ -3428,4 +3454,67 @@ _hx509_cert_to_env(hx509_context context, hx509_cert cert, hx509_env *env)
 out:
     hx509_env_free(&envcert);
     return ret;
+}
+
+/**
+ * Print a simple representation of a certificate
+ *
+ * @param context A hx509 context, can be NULL
+ * @param cert certificate to print
+ * @param out the stdio output stream, if NULL, stdout is used
+ *
+ * @return An hx509 error code
+ *
+ * @ingroup hx509_cert
+ */
+
+int
+hx509_print_cert(hx509_context context, hx509_cert cert, FILE *out)
+{
+    hx509_name name;
+    char *str;
+    int ret;
+
+    if (out == NULL)
+	out = stderr;
+
+    ret = hx509_cert_get_issuer(cert, &name);
+    if (ret)
+	return ret;
+    hx509_name_to_string(name, &str);
+    hx509_name_free(&name);
+    fprintf(out, "    issuer:  \"%s\"\n", str);
+    free(str);
+
+    ret = hx509_cert_get_subject(cert, &name);
+    if (ret)
+	return ret;
+    hx509_name_to_string(name, &str);
+    hx509_name_free(&name);
+    fprintf(out, "    subject: \"%s\"\n", str);
+    free(str);
+
+    {
+	heim_integer serialNumber;
+
+	ret = hx509_cert_get_serialnumber(cert, &serialNumber);
+	if (ret)
+	    return ret;
+	ret = der_print_hex_heim_integer(&serialNumber, &str);
+	if (ret)
+	    return ret;
+	der_free_heim_integer(&serialNumber);
+	fprintf(out, "    serial: %s\n", str);
+	free(str);
+    }
+
+    printf("    keyusage: ");
+    ret = hx509_cert_keyusage_print(context, cert, &str);
+    if (ret == 0) {
+	fprintf(out, "%s\n", str);
+	free(str);
+    } else
+	fprintf(out, "no");
+
+    return 0;
 }

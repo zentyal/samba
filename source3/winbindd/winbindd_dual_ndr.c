@@ -73,7 +73,7 @@ static struct tevent_req *wb_ndr_dispatch_send(TALLOC_CTX *mem_ctx,
 	state->transport = transport;
 	state->opnum = opnum;
 
-	push = ndr_push_init_ctx(state, NULL);
+	push = ndr_push_init_ctx(state);
 	if (tevent_req_nomem(push, req)) {
 		return tevent_req_post(req, ev);
 	}
@@ -148,7 +148,7 @@ static NTSTATUS wb_ndr_dispatch_recv(struct tevent_req *req,
 		return status;
 	}
 
-	pull = ndr_pull_init_blob(&state->resp_blob, mem_ctx, NULL);
+	pull = ndr_pull_init_blob(&state->resp_blob, mem_ctx);
 	if (pull == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -247,7 +247,7 @@ struct rpc_pipe_client *wbint_rpccli_create(TALLOC_CTX *mem_ctx,
 enum winbindd_result winbindd_dual_ndrcmd(struct winbindd_domain *domain,
 					  struct winbindd_cli_state *state)
 {
-	pipes_struct p;
+	struct pipes_struct p;
 	struct api_struct *fns;
 	int num_fns;
 	bool ret;
@@ -264,33 +264,24 @@ enum winbindd_result winbindd_dual_ndrcmd(struct winbindd_domain *domain,
 
 	ZERO_STRUCT(p);
 	p.mem_ctx = talloc_stackframe();
-	p.in_data.data.buffer_size = state->request->extra_len;
-	p.in_data.data.data_p = state->request->extra_data.data;
-	prs_init(&p.out_data.rdata, 0, state->mem_ctx, false);
+	p.in_data.data = data_blob_const(state->request->extra_data.data,
+					 state->request->extra_len);
 
 	ret = fns[state->request->data.ndrcmd].fn(&p);
-	TALLOC_FREE(p.mem_ctx);
 	if (!ret) {
+		TALLOC_FREE(p.mem_ctx);
 		return WINBINDD_ERROR;
 	}
 
 	state->response->extra_data.data =
-		talloc_memdup(state->mem_ctx, p.out_data.rdata.data_p,
-			      p.out_data.rdata.data_offset);
-	state->response->length += p.out_data.rdata.data_offset;
-	prs_mem_free(&p.out_data.rdata);
+		talloc_move(state->mem_ctx, &p.out_data.rdata.data);
+	state->response->length += p.out_data.rdata.length;
+	p.out_data.rdata.length = 0;
+
+	TALLOC_FREE(p.mem_ctx);
+
 	if (state->response->extra_data.data == NULL) {
 		return WINBINDD_ERROR;
 	}
 	return WINBINDD_OK;
-}
-
-/*
- * Just a dummy to make srv_wbint.c happy
- */
-NTSTATUS rpc_srv_register(int version, const char *clnt, const char *srv,
-			  const struct ndr_interface_table *iface,
-			  const struct api_struct *cmds, int size)
-{
-	return NT_STATUS_OK;
 }

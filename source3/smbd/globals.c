@@ -27,18 +27,6 @@ int aio_pending_size = 0;
 int outstanding_aio_calls = 0;
 #endif
 
-/* dlink list we store pending lock records on. */
-struct blocking_lock_record *blocking_lock_queue = NULL;
-
-/* dlink list we move cancelled lock records onto. */
-struct blocking_lock_record *blocking_lock_cancelled_queue = NULL;
-
-/* The event that makes us process our blocking lock queue */
-struct timed_event *brl_timeout = NULL;
-
-bool blocking_lock_unlock_state = false;
-bool blocking_lock_cancel_state = false;
-
 #ifdef USE_DMAPI
 struct smbd_dmapi_context *dmapi_ctx = NULL;
 #endif
@@ -79,9 +67,6 @@ unsigned char char_flags[256];
 unsigned mangle_prefix = 0;
 unsigned char base_reverse[256];
 
-char *last_from = NULL;
-char *last_to = NULL;
-
 struct msg_state *smbd_msg_state = NULL;
 
 bool logged_ioctl_message = false;
@@ -110,8 +95,6 @@ bool become_gid_done = false;
 connection_struct *last_conn = NULL;
 uint16_t last_flags = 0;
 
-struct db_context *session_db_ctx_ptr = NULL;
-
 uint32_t global_client_caps = 0;
 
 uint16_t fnf_handle = 257;
@@ -127,19 +110,40 @@ char *LastDir = NULL;
 /* Current number of oplocks we have outstanding. */
 int32_t exclusive_oplocks_open = 0;
 int32_t level_II_oplocks_open = 0;
-bool global_client_failed_oplock_break = false;
 struct kernel_oplocks *koplocks = NULL;
 
 int am_parent = 1;
 int server_fd = -1;
-struct event_context *smbd_event_ctx = NULL;
-struct messaging_context *smbd_msg_ctx = NULL;
 struct memcache *smbd_memcache_ctx = NULL;
 bool exit_firsttime = true;
 struct child_pid *children = 0;
 int num_children = 0;
 
 struct smbd_server_connection *smbd_server_conn = NULL;
+
+struct messaging_context *smbd_messaging_context(void)
+{
+	return server_messaging_context();
+}
+
+struct memcache *smbd_memcache(void)
+{
+	if (!smbd_memcache_ctx) {
+		/*
+		 * Note we MUST use the NULL context here, not the
+		 * autofree context, to avoid side effects in forked
+		 * children exiting.
+		 */
+		smbd_memcache_ctx = memcache_init(NULL,
+						  lp_max_stat_cache_size()*1024);
+	}
+	if (!smbd_memcache_ctx) {
+		smb_panic("Could not init smbd memcache");
+	}
+
+	return smbd_memcache_ctx;
+}
+
 
 void smbd_init_globals(void)
 {
@@ -154,4 +158,7 @@ void smbd_init_globals(void)
 	if (!smbd_server_conn) {
 		exit_server("failed to create smbd_server_connection");
 	}
+
+	smbd_server_conn->smb1.echo_handler.trusted_fd = -1;
+	smbd_server_conn->smb1.echo_handler.socket_lock_fd = -1;
 }

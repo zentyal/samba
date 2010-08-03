@@ -20,7 +20,6 @@ PRIVATE_DEPENDENCIES = \
 
 WINBIND_OBJ_FILES = $(addprefix $(winbindsrcdir)/, \
 		wb_server.o \
-		wb_setup_domains.o \
 		wb_irpc.o \
 		wb_samba3_protocol.o \
 		wb_samba3_cmd.o \
@@ -51,6 +50,9 @@ WINBIND_OBJ_FILES = $(addprefix $(winbindsrcdir)/, \
 		wb_cmd_list_users.o \
 		wb_cmd_setpwent.o \
 		wb_cmd_getpwent.o \
+		wb_cmd_getgrent.o \
+		wb_cmd_setgrent.o \
+		wb_cmd_getgroups.o \
 		wb_pam_auth.o \
 		wb_sam_logon.o)
 

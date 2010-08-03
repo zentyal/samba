@@ -18,6 +18,10 @@
  */
 
 #include "includes.h"
+#include "../libgpo/gpo.h"
+#include "libgpo/gpo_proto.h"
+#include "registry.h"
+#include "registry/reg_backend_db.h"
 
 
 /****************************************************************
@@ -161,15 +165,11 @@ WERROR gp_store_reg_val_sz(TALLOC_CTX *mem_ctx,
 			   const char *val)
 {
 	struct registry_value reg_val;
-	ZERO_STRUCT(reg_val);
-
-	/* FIXME: hack */
-	val = val ? val : " ";
 
 	reg_val.type = REG_SZ;
-	reg_val.v.sz.len = strlen(val);
-	reg_val.v.sz.str = talloc_strdup(mem_ctx, val);
-	W_ERROR_HAVE_NO_MEMORY(reg_val.v.sz.str);
+	if (!push_reg_sz(mem_ctx, &reg_val.data, val)) {
+		return WERR_NOMEM;
+	}
 
 	return reg_setvalue(key, val_name, &reg_val);
 }
@@ -183,10 +183,10 @@ static WERROR gp_store_reg_val_dword(TALLOC_CTX *mem_ctx,
 				     uint32_t val)
 {
 	struct registry_value reg_val;
-	ZERO_STRUCT(reg_val);
 
 	reg_val.type = REG_DWORD;
-	reg_val.v.dword = val;
+	reg_val.data = data_blob_talloc(mem_ctx, NULL, 4);
+	SIVAL(reg_val.data.data, 0, val);
 
 	return reg_setvalue(key, val_name, &reg_val);
 }
@@ -209,8 +209,9 @@ WERROR gp_read_reg_val_sz(TALLOC_CTX *mem_ctx,
 		return WERR_INVALID_DATATYPE;
 	}
 
-	*val = talloc_strdup(mem_ctx, reg_val->v.sz.str);
-	W_ERROR_HAVE_NO_MEMORY(*val);
+	if (!pull_reg_sz(mem_ctx, &reg_val->data, val)) {
+		return WERR_NOMEM;
+	}
 
 	return WERR_OK;
 }
@@ -233,7 +234,10 @@ static WERROR gp_read_reg_val_dword(TALLOC_CTX *mem_ctx,
 		return WERR_INVALID_DATATYPE;
 	}
 
-	*val = reg_val->v.dword;
+	if (reg_val->data.length < 4) {
+		return WERR_INSUFFICIENT_BUFFER;
+	}
+	*val = IVAL(reg_val->data.data, 0);
 
 	return WERR_OK;
 }
@@ -294,7 +298,7 @@ static WERROR gp_store_reg_gpovals(TALLOC_CTX *mem_ctx,
 ****************************************************************/
 
 static const char *gp_reg_groupmembership_path(TALLOC_CTX *mem_ctx,
-					       const DOM_SID *sid,
+					       const struct dom_sid *sid,
 					       uint32_t flags)
 {
 	if (flags & GPO_LIST_FLAG_MACHINE) {
@@ -372,7 +376,7 @@ static WERROR gp_reg_store_groupmembership(TALLOC_CTX *mem_ctx,
 /* not used yet */
 static WERROR gp_reg_read_groupmembership(TALLOC_CTX *mem_ctx,
 					  struct gp_registry_context *reg_ctx,
-					  const DOM_SID *object_sid,
+					  const struct dom_sid *object_sid,
 					  struct nt_user_token **token,
 					  uint32_t flags)
 {
@@ -423,7 +427,7 @@ static WERROR gp_reg_read_groupmembership(TALLOC_CTX *mem_ctx,
 ****************************************************************/
 
 static const char *gp_req_state_path(TALLOC_CTX *mem_ctx,
-				     const DOM_SID *sid,
+				     const struct dom_sid *sid,
 				     uint32_t flags)
 {
 	if (flags & GPO_LIST_FLAG_MACHINE) {
@@ -609,7 +613,7 @@ static WERROR gp_read_reg_gpo(TALLOC_CTX *mem_ctx,
 
 WERROR gp_reg_state_read(TALLOC_CTX *mem_ctx,
 			 uint32_t flags,
-			 const DOM_SID *sid,
+			 const struct dom_sid *sid,
 			 struct GROUP_POLICY_OBJECT **gpo_list)
 {
 	struct gp_registry_context *reg_ctx = NULL;
@@ -684,14 +688,14 @@ WERROR gp_reg_state_read(TALLOC_CTX *mem_ctx,
 ****************************************************************/
 
 static WERROR gp_reg_generate_sd(TALLOC_CTX *mem_ctx,
-				 const DOM_SID *sid,
+				 const struct dom_sid *sid,
 				 struct security_descriptor **sd,
 				 size_t *sd_size)
 {
-	SEC_ACE ace[6];
+	struct security_ace ace[6];
 	uint32_t mask;
 
-	SEC_ACL *theacl = NULL;
+	struct security_acl *theacl = NULL;
 
 	uint8_t inherit_flags;
 
@@ -738,7 +742,7 @@ static WERROR gp_reg_generate_sd(TALLOC_CTX *mem_ctx,
 	theacl = make_sec_acl(mem_ctx, NT4_ACL_REVISION, 6, ace);
 	W_ERROR_HAVE_NO_MEMORY(theacl);
 
-	*sd = make_sec_desc(mem_ctx, SEC_DESC_REVISION,
+	*sd = make_sec_desc(mem_ctx, SD_REVISION,
 			    SEC_DESC_SELF_RELATIVE |
 			    SEC_DESC_DACL_AUTO_INHERITED | /* really ? */
 			    SEC_DESC_DACL_AUTO_INHERIT_REQ, /* really ? */
@@ -755,11 +759,11 @@ static WERROR gp_reg_generate_sd(TALLOC_CTX *mem_ctx,
 WERROR gp_secure_key(TALLOC_CTX *mem_ctx,
 		     uint32_t flags,
 		     struct registry_key *key,
-		     const DOM_SID *sid)
+		     const struct dom_sid *sid)
 {
 	struct security_descriptor *sd = NULL;
 	size_t sd_size = 0;
-	const DOM_SID *sd_sid = NULL;
+	const struct dom_sid *sd_sid = NULL;
 	WERROR werr;
 
 	if (!(flags & GPO_LIST_FLAG_MACHINE)) {
@@ -787,40 +791,62 @@ void dump_reg_val(int lvl, const char *direction,
 		return;
 	}
 
-	type_str = reg_type_lookup(val->type);
+	type_str = str_regtype(val->type);
 
 	DEBUG(lvl,("\tdump_reg_val:\t%s '%s'\n\t\t\t'%s' %s: ",
 		direction, key, subkey, type_str));
 
 	switch (val->type) {
-		case REG_DWORD:
+		case REG_DWORD: {
+			uint32_t v;
+			if (val->data.length < 4) {
+				break;
+			}
+			v = IVAL(val->data.data, 0);
 			DEBUG(lvl,("%d (0x%08x)\n",
-				(int)val->v.dword, val->v.dword));
+				(int)v, v));
 			break;
-		case REG_QWORD:
+		}
+		case REG_QWORD: {
+			uint64_t v;
+			if (val->data.length < 8) {
+				break;
+			}
+			v = BVAL(val->data.data, 0);
 			DEBUG(lvl,("%d (0x%016llx)\n",
-				(int)val->v.qword,
-				(unsigned long long)val->v.qword));
+				(int)v,
+				(unsigned long long)v));
 			break;
-		case REG_SZ:
+		}
+		case REG_SZ: {
+			const char *s;
+			if (!pull_reg_sz(talloc_tos(), &val->data, &s)) {
+				break;
+			}
 			DEBUG(lvl,("%s (length: %d)\n",
-				   val->v.sz.str,
-				   (int)val->v.sz.len));
+				   s, (int)strlen_m(s)));
 			break;
-		case REG_MULTI_SZ:
-			DEBUG(lvl,("(num_strings: %d)\n",
-				   val->v.multi_sz.num_strings));
-			for (i=0; i < val->v.multi_sz.num_strings; i++) {
-				DEBUGADD(lvl,("\t%s\n",
-					val->v.multi_sz.strings[i]));
+		}
+		case REG_MULTI_SZ: {
+			const char **a;
+			if (!pull_reg_multi_sz(talloc_tos(), &val->data, &a)) {
+				break;
+			}
+			for (i=0; a[i] != NULL; i++) {
+				;;
+			}
+			DEBUG(lvl,("(num_strings: %d)\n", i));
+			for (i=0; a[i] != NULL; i++) {
+				DEBUGADD(lvl,("\t%s\n", a[i]));
 			}
 			break;
+		}
 		case REG_NONE:
 			DEBUG(lvl,("\n"));
 			break;
 		case REG_BINARY:
-			dump_data(lvl, val->v.binary.data,
-				  val->v.binary.length);
+			dump_data(lvl, val->data.data,
+				  val->data.length);
 			break;
 		default:
 			DEBUG(lvl,("unsupported type: %d\n", val->type));
@@ -933,7 +959,7 @@ WERROR reg_apply_registry_entry(TALLOC_CTX *mem_ctx,
 	if (flags & GPO_INFO_FLAG_VERBOSE) {
 		printf("about to store key:    [%s]\n", entry->key);
 		printf("               value:  [%s]\n", entry->value);
-		printf("               data:   [%s]\n", reg_type_lookup(entry->data->type));
+		printf("               data:   [%s]\n", str_regtype(entry->data->type));
 		printf("               action: [%s]\n", gp_reg_action_str(entry->action));
 	}
 

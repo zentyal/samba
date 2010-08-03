@@ -43,8 +43,14 @@ NTSTATUS dcesrv_lsa_get_policy_state(struct dcesrv_call_state *dce_call, TALLOC_
 	}
 
 	/* make sure the sam database is accessible */
-	state->sam_ldb = samdb_connect(state, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx, dce_call->conn->auth_state.session_info); 
+	state->sam_ldb = samdb_connect(state, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx, dce_call->conn->auth_state.session_info);
 	if (state->sam_ldb == NULL) {
+		return NT_STATUS_INVALID_SYSTEM_SERVICE;
+	}
+
+	/* and the privilege database */
+	state->pdb = privilege_connect(state, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx);
+	if (state->pdb == NULL) {
 		return NT_STATUS_INVALID_SYSTEM_SERVICE;
 	}
 
@@ -57,7 +63,7 @@ NTSTATUS dcesrv_lsa_get_policy_state(struct dcesrv_call_state *dce_call, TALLOC_
 
 	/* work out the forest root_dn - useful for so many calls its worth
 	   fetching here */
-	state->forest_dn = samdb_root_dn(state->sam_ldb);
+	state->forest_dn = ldb_get_root_basedn(state->sam_ldb);
 	if (!state->forest_dn) {
 		return NT_STATUS_NO_MEMORY;		
 	}
@@ -82,7 +88,7 @@ NTSTATUS dcesrv_lsa_get_policy_state(struct dcesrv_call_state *dce_call, TALLOC_
 	
 	talloc_free(dom_res);
 
-	state->domain_name = lp_sam_name(dce_call->conn->dce_ctx->lp_ctx);
+	state->domain_name = lpcfg_sam_name(dce_call->conn->dce_ctx->lp_ctx);
 
 	state->domain_dns = ldb_dn_canonical_string(state, state->domain_dn);
 	if (!state->domain_dns) {

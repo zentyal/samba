@@ -11,6 +11,7 @@ use Getopt::Long;
 my $opt_help = 0;
 my $opt_remove = 0;
 my $opt_skip_system = 0;
+my $opt_waf = 0;
 
 #####################################################################
 # write a string into a file
@@ -43,7 +44,11 @@ sub test_compile($)
 {
 	my $fname = shift;
 	my $obj;
-	if ($fname =~ s/(.*)\.c$/$1.o/) {
+	if ($opt_waf) {
+		my $ret = `../buildtools/bin/waf $fname 2>&1`;
+		return $ret
+	}
+	if ($fname =~ s/(.*)\..*$/$1.o/) {
 		$obj = "$1.o";
 	} else {
 		return "NOT A C FILE";
@@ -67,7 +72,10 @@ sub test_include($$$$)
 
 	$lines->[$i] = "";
 
-	`/bin/mv -f $fname $fname.misaved` && die "failed to rename $fname";
+	my $mname = $fname . ".misaved";
+
+	unlink($mname);
+	rename($fname, $mname) || die "failed to rename $fname";
 	save_lines($fname, $lines);
 	
 	my $out = test_compile($fname);
@@ -79,6 +87,7 @@ sub test_include($$$$)
 				print "$fname: not removing system include $line\n";
 			} else {
 				print "$fname: removing $line\n";
+				unlink($mname);
 				return;
 			}
 		} else {
@@ -87,7 +96,7 @@ sub test_include($$$$)
 	}
 
 	$lines->[$i] = $line;
-	`/bin/mv -f $fname.misaved $fname` && die "failed to restore $fname";
+	rename($mname, $fname) || die "failed to restore $fname";
 }
 
 sub process_file($)
@@ -138,6 +147,7 @@ sub ShowHelp()
                  --help         show help
                  --remove       remove includes, don't just list them
                  --skip-system  don't remove system/ includes
+                 --waf          use waf target conventions
 ";
 }
 
@@ -147,6 +157,7 @@ GetOptions (
 	    'h|help|?' => \$opt_help,
 	    'remove' => \$opt_remove,
 	    'skip-system' => \$opt_skip_system,
+	    'waf' => \$opt_waf,
 	    );
 
 if ($opt_help) {

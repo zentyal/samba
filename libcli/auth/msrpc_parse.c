@@ -174,7 +174,10 @@ bool msrpc_gen(TALLOC_CTX *mem_ctx,
 			break;
 		case 'b':
 			n = pointers[i].length;
-			memcpy(blob->data + head_ofs, pointers[i].data, n);
+			if (pointers[i].data && n) {
+				/* don't follow null pointers... */
+				memcpy(blob->data + head_ofs, pointers[i].data, n);
+			}
 			head_ofs += n;
 			break;
 		case 'C':
@@ -333,7 +336,7 @@ bool msrpc_parse(TALLOC_CTX *mem_ctx,
 			break;
 		case 'b':
 			b = (DATA_BLOB *)va_arg(ap, void *);
-			len1 = va_arg(ap, uint_t);
+			len1 = va_arg(ap, unsigned int);
 			/* make sure its in the right format - be strict */
 			NEED_DATA(len1);
 			if (blob->data + head_ofs < (uint8_t *)head_ofs ||

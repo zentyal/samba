@@ -25,6 +25,13 @@
 #include "librpc/gen_ndr/ndr_krb5pac.h"
 #include "../librpc/gen_ndr/cli_spoolss.h"
 #include "nsswitch/libwbclient/wbclient.h"
+#include "libads/cldap.h"
+#include "libads/dns.h"
+#include "../libds/common/flags.h"
+#include "ads.h"
+#include "librpc/gen_ndr/libnet_join.h"
+#include "libnet/libnet_join.h"
+#include "smb_krb5.h"
 
 #ifdef HAVE_ADS
 
@@ -103,7 +110,7 @@ static int net_ads_cldap_netlogon(struct net_context *c, ADS_STRUCT *ads)
 	printf(_("Domain:\t\t\t%s\n"), reply.dns_domain);
 	printf(_("Domain Controller:\t%s\n"), reply.pdc_dns_name);
 
-	printf(_("Pre-Win2k Domain:\t%s\n"), reply.domain);
+	printf(_("Pre-Win2k Domain:\t%s\n"), reply.domain_name);
 	printf(_("Pre-Win2k Hostname:\t%s\n"), reply.pdc_name);
 
 	if (*reply.user_name) printf(_("User name:\t%s\n"), reply.user_name);
@@ -401,7 +408,7 @@ static int net_ads_workgroup(struct net_context *c, int argc, const char **argv)
 		return -1;
 	}
 
-	d_printf(_("Workgroup: %s\n"), reply.domain);
+	d_printf(_("Workgroup: %s\n"), reply.domain_name);
 
 	ads_destroy(&ads);
 
@@ -475,7 +482,7 @@ static int ads_user_add(struct net_context *c, int argc, const char **argv)
 	if (c->opt_container) {
 		ou_str = SMB_STRDUP(c->opt_container);
 	} else {
-		ou_str = ads_default_ou_string(ads, WELL_KNOWN_GUID_USERS);
+		ou_str = ads_default_ou_string(ads, DS_GUID_USERS_CONTAINER);
 	}
 
 	status = ads_add_user_acct(ads, argv[0], ou_str, c->opt_comment);
@@ -539,9 +546,9 @@ static int ads_user_info(struct net_context *c, int argc, const char **argv)
 	char **grouplist;
 	char *primary_group;
 	char *escaped_user;
-	DOM_SID primary_group_sid;
+	struct dom_sid primary_group_sid;
 	uint32_t group_rid;
-	enum SID_NAME_USE type;
+	enum wbcSidType type;
 
 	if (argc < 1 || c->display_usage) {
 		return net_ads_user_usage(c, argc, argv);
@@ -596,7 +603,7 @@ static int ads_user_info(struct net_context *c, int argc, const char **argv)
 	wbc_status = wbcLookupSid((struct wbcDomainSid *)&primary_group_sid,
 				  NULL, /* don't look up domain */
 				  &primary_group,
-				  (enum wbcSidType *) &type);
+				  &type);
 	if (!WBC_ERROR_IS_OK(wbc_status)) {
 		d_fprintf(stderr, "wbcLookupSid: %s\n",
 			  wbcErrorString(wbc_status));
@@ -769,7 +776,7 @@ static int ads_group_add(struct net_context *c, int argc, const char **argv)
 	if (c->opt_container) {
 		ou_str = SMB_STRDUP(c->opt_container);
 	} else {
-		ou_str = ads_default_ou_string(ads, WELL_KNOWN_GUID_USERS);
+		ou_str = ads_default_ou_string(ads, DS_GUID_USERS_CONTAINER);
 	}
 
 	status = ads_add_group_acct(ads, argv[0], ou_str, c->opt_comment);
@@ -2181,7 +2188,7 @@ static int net_ads_sid(struct net_context *c, int argc, const char **argv)
 	const char *sid_string;
 	const char **attrs;
 	LDAPMessage *res = NULL;
-	DOM_SID sid;
+	struct dom_sid sid;
 
 	if (argc < 1 || c->display_usage) {
 		return net_ads_sid_usage(c, argc, argv);
@@ -2379,7 +2386,6 @@ static int net_ads_kerberos_renew(struct net_context *c, int argc, const char **
 
 static int net_ads_kerberos_pac(struct net_context *c, int argc, const char **argv)
 {
-	struct PAC_DATA *pac = NULL;
 	struct PAC_LOGON_INFO *info = NULL;
 	TALLOC_CTX *mem_ctx = NULL;
 	NTSTATUS status;
@@ -2409,7 +2415,7 @@ static int net_ads_kerberos_pac(struct net_context *c, int argc, const char **ar
 	status = kerberos_return_pac(mem_ctx,
 				     c->opt_user_name,
 				     c->opt_password,
-			     	     0,
+				     0,
 				     NULL,
 				     NULL,
 				     NULL,
@@ -2417,14 +2423,13 @@ static int net_ads_kerberos_pac(struct net_context *c, int argc, const char **ar
 				     true,
 				     2592000, /* one month */
 				     impersonate_princ_s,
-				     &pac);
+				     &info);
 	if (!NT_STATUS_IS_OK(status)) {
 		d_printf(_("failed to query kerberos PAC: %s\n"),
 			nt_errstr(status));
 		goto out;
 	}
 
-	info = get_logon_info_from_pac(pac);
 	if (info) {
 		const char *s;
 		s = NDR_PRINT_STRUCT_STRING(mem_ctx, PAC_LOGON_INFO, info);
@@ -2706,6 +2711,11 @@ int net_ads_user(struct net_context *c, int argc, const char **argv)
 }
 
 int net_ads_group(struct net_context *c, int argc, const char **argv)
+{
+	return net_ads_noads();
+}
+
+int net_ads_gpo(struct net_context *c, int argc, const char **argv)
 {
 	return net_ads_noads();
 }

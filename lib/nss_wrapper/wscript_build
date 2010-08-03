@@ -1,0 +1,8 @@
+#!/usr/bin/env python
+
+
+bld.SAMBA_SUBSYSTEM('NSS_WRAPPER',
+                    source='nss_wrapper.c',
+                    deps='replace'
+                    )
+

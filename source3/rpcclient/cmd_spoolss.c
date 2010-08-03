@@ -25,6 +25,10 @@
 #include "includes.h"
 #include "rpcclient.h"
 #include "../librpc/gen_ndr/cli_spoolss.h"
+#include "rpc_client/cli_spoolss.h"
+#include "rpc_client/init_spoolss.h"
+#include "registry.h"
+#include "registry/reg_objects.h"
 
 #define RPCCLIENT_PRINTERNAME(_printername, _cli, _arg) \
 { \
@@ -101,20 +105,22 @@ static WERROR cmd_spoolss_open_printer_ex(struct rpc_pipe_client *cli,
 {
 	WERROR 	        werror;
 	struct policy_handle	hnd;
+	uint32_t access_mask = PRINTER_ALL_ACCESS;
 
-	if (argc != 2) {
-		printf("Usage: %s <printername>\n", argv[0]);
+	if (argc < 2) {
+		printf("Usage: %s <printername> [access_mask]\n", argv[0]);
 		return WERR_OK;
 	}
 
-	if (!cli)
-            return WERR_GENERAL_FAILURE;
+	if (argc >= 3) {
+		sscanf(argv[2], "%x", &access_mask);
+	}
 
 	/* Open the printer handle */
 
 	werror = rpccli_spoolss_openprinter_ex(cli, mem_ctx,
 					       argv[1],
-					       PRINTER_ALL_ACCESS,
+					       access_mask,
 					       &hnd);
 	if (W_ERROR_IS_OK(werror)) {
 		printf("Printer %s opened successfully\n", argv[1]);
@@ -462,6 +468,7 @@ static WERROR cmd_spoolss_setprinter(struct rpc_pipe_client *cli,
 	uint32_t 	info_level = 2;
 	union spoolss_PrinterInfo info;
 	struct spoolss_SetPrinterInfoCtr info_ctr;
+	struct spoolss_SetPrinterInfo2 info2;
 	const char	*printername, *comment = NULL;
 	struct spoolss_DevmodeContainer devmode_ctr;
 	struct sec_desc_buf secdesc_ctr;
@@ -501,12 +508,11 @@ static WERROR cmd_spoolss_setprinter(struct rpc_pipe_client *cli,
 
 
 	/* Modify the comment. */
-	info.info2.comment = comment;
-	info.info2.secdesc = NULL;
-	info.info2.devmode = NULL;
+	spoolss_printerinfo2_to_setprinterinfo2(&info.info2, &info2);
+	info2.comment = comment;
 
 	info_ctr.level = 2;
-	info_ctr.info.info2 = (struct spoolss_SetPrinterInfo2 *)&info.info2;
+	info_ctr.info.info2 = &info2;
 
 	status = rpccli_spoolss_SetPrinter(cli, mem_ctx,
 					   &pol,
@@ -540,6 +546,7 @@ static WERROR cmd_spoolss_setprintername(struct rpc_pipe_client *cli,
 	const char 	*printername,
 			*new_printername = NULL;
 	struct spoolss_SetPrinterInfoCtr info_ctr;
+	struct spoolss_SetPrinterInfo2 info2;
 	struct spoolss_DevmodeContainer devmode_ctr;
 	struct sec_desc_buf secdesc_ctr;
 
@@ -577,12 +584,11 @@ static WERROR cmd_spoolss_setprintername(struct rpc_pipe_client *cli,
                 goto done;
 
 	/* Modify the printername. */
-	info.info2.printername = new_printername;
-	info.info2.devmode = NULL;
-	info.info2.secdesc = NULL;
+	spoolss_printerinfo2_to_setprinterinfo2(&info.info2, &info2);
+	info2.printername = new_printername;
 
-	info_ctr.level = info_level;
-	info_ctr.info.info2 = (struct spoolss_SetPrinterInfo2 *)&info.info2;
+	info_ctr.level = 2;
+	info_ctr.info.info2 = &info2;
 
 	status = rpccli_spoolss_SetPrinter(cli, mem_ctx,
 					   &pol,
@@ -688,25 +694,25 @@ static WERROR cmd_spoolss_getprinter(struct rpc_pipe_client *cli,
 /****************************************************************************
 ****************************************************************************/
 
-static void display_reg_value(struct regval_blob value)
+static void display_reg_value(struct regval_blob *value)
 {
 	const char *text = NULL;
 	DATA_BLOB blob;
 
-	switch(value.type) {
+	switch(regval_type(value)) {
 	case REG_DWORD:
-		printf("%s: REG_DWORD: 0x%08x\n", value.valuename,
-		       *((uint32_t *) value.data_p));
+		printf("%s: REG_DWORD: 0x%08x\n", regval_name(value),
+		       *((uint32_t *) regval_data_p(value)));
 		break;
 	case REG_SZ:
-		blob = data_blob_const(value.data_p, value.size);
+		blob = data_blob_const(regval_data_p(value), regval_size(value));
 		pull_reg_sz(talloc_tos(), &blob, &text);
-		printf("%s: REG_SZ: %s\n", value.valuename, text ? text : "");
+		printf("%s: REG_SZ: %s\n", regval_name(value), text ? text : "");
 		break;
 	case REG_BINARY: {
-		char *hex = hex_encode_talloc(NULL, value.data_p, value.size);
+		char *hex = hex_encode_talloc(NULL, regval_data_p(value), regval_size(value));
 		size_t i, len;
-		printf("%s: REG_BINARY:", value.valuename);
+		printf("%s: REG_BINARY:", regval_name(value));
 		len = strlen(hex);
 		for (i=0; i<len; i++) {
 			if (hex[i] == '\0') {
@@ -724,14 +730,14 @@ static void display_reg_value(struct regval_blob value)
 	case REG_MULTI_SZ: {
 		uint32_t i;
 		const char **values;
-		blob = data_blob_const(value.data_p, value.size);
+		blob = data_blob_const(regval_data_p(value), regval_size(value));
 
 		if (!pull_reg_multi_sz(NULL, &blob, &values)) {
 			d_printf("pull_reg_multi_sz failed\n");
 			break;
 		}
 
-		printf("%s: REG_MULTI_SZ: \n", value.valuename);
+		printf("%s: REG_MULTI_SZ: \n", regval_name(value));
 		for (i=0; values[i] != NULL; i++) {
 			d_printf("%s\n", values[i]);
 		}
@@ -739,7 +745,7 @@ static void display_reg_value(struct regval_blob value)
 		break;
 	}
 	default:
-		printf("%s: unknown type %d\n", value.valuename, value.type);
+		printf("%s: unknown type %d\n", regval_name(value), regval_type(value));
 	}
 
 }
@@ -1776,27 +1782,8 @@ static WERROR cmd_spoolss_setdriver(struct rpc_pipe_client *cli,
 
 	/* Set the printer driver */
 
-	info2.servername	= info.info2.servername;
-	info2.printername	= info.info2.printername;
-	info2.sharename		= info.info2.sharename;
-	info2.portname		= info.info2.portname;
-	info2.drivername	= argv[2];
-	info2.comment		= info.info2.comment;
-	info2.location		= info.info2.location;
-	info2.devmode_ptr	= 0;
-	info2.sepfile		= info.info2.sepfile;
-	info2.printprocessor	= info.info2.printprocessor;
-	info2.datatype		= info.info2.datatype;
-	info2.parameters	= info.info2.parameters;
-	info2.secdesc_ptr	= 0;
-	info2.attributes	= info.info2.attributes;
-	info2.priority		= info.info2.priority;
-	info2.defaultpriority	= info.info2.defaultpriority;
-	info2.starttime		= info.info2.starttime;
-	info2.untiltime		= info.info2.untiltime;
-	info2.status		= info.info2.status;
-	info2.cjobs		= info.info2.cjobs;
-	info2.averageppm	= info.info2.averageppm;
+	spoolss_printerinfo2_to_setprinterinfo2(&info.info2, &info2);
+	info2.drivername = argv[2];
 
 	info_ctr.level = 2;
 	info_ctr.info.info2 = &info2;
@@ -2414,8 +2401,7 @@ static WERROR cmd_spoolss_setprinterdata(struct rpc_pipe_client *cli,
 		printf ("Usage: %s <printer> <string|binary|dword|multistring>"
 			" <value> <data>\n",
 			argv[0]);
-		result = WERR_INVALID_PARAM;
-		goto done;
+		return WERR_OK;
 	}
 
 	RPCCLIENT_PRINTERNAME(printername, cli, argv[1]);
@@ -2738,6 +2724,33 @@ done:
 /****************************************************************************
 ****************************************************************************/
 
+static struct {
+	const char *name;
+	enum spoolss_JobControl val;
+} cmdvals[] = {
+	{"PAUSE", SPOOLSS_JOB_CONTROL_PAUSE},
+	{"RESUME", SPOOLSS_JOB_CONTROL_RESUME},
+	{"CANCEL", SPOOLSS_JOB_CONTROL_CANCEL},
+	{"RESTART", SPOOLSS_JOB_CONTROL_RESTART},
+	{"DELETE", SPOOLSS_JOB_CONTROL_DELETE},
+	{"SEND_TO_PRINTER", SPOOLSS_JOB_CONTROL_SEND_TO_PRINTER},
+	{"EJECTED", SPOOLSS_JOB_CONTROL_LAST_PAGE_EJECTED},
+	{"RETAIN", SPOOLSS_JOB_CONTROL_RETAIN},
+	{"RELEASE", SPOOLSS_JOB_CONTROL_RELEASE}
+};
+
+static enum spoolss_JobControl parse_setjob_command(const char *cmd)
+{
+	int i;
+
+	for (i = 0; i < sizeof(cmdvals)/sizeof(cmdvals[0]); i++) {
+		if (strequal(cmdvals[i].name, cmd)) {
+			return cmdvals[i].val;
+		}
+	}
+	return (enum spoolss_JobControl)atoi(cmd);
+}
+
 static WERROR cmd_spoolss_set_job(struct rpc_pipe_client *cli,
 				  TALLOC_CTX *mem_ctx, int argc,
 				  const char **argv)
@@ -2751,11 +2764,13 @@ static WERROR cmd_spoolss_set_job(struct rpc_pipe_client *cli,
 
 	if (argc != 4) {
 		printf("Usage: %s printername job_id command\n", argv[0]);
+		printf("command = [PAUSE|RESUME|CANCEL|RESTART|DELETE|"
+			"SEND_TO_PRINTER|EJECTED|RETAIN|RELEASE]\n");
 		return WERR_OK;
 	}
 
 	job_id = atoi(argv[2]);
-	command = atoi(argv[3]);
+	command = parse_setjob_command(argv[3]);
 
 	/* Open printer handle */
 
@@ -2860,12 +2875,20 @@ static WERROR cmd_spoolss_enum_data(struct rpc_pipe_client *cli,
 							&data_needed,
 							&result);
 		if (NT_STATUS_IS_OK(status) && W_ERROR_IS_OK(result)) {
-			struct regval_blob v;
-			fstrcpy(v.valuename, value_name);
-			v.type = type;
-			v.size = data_offered;
-			v.data_p = data;
+			struct regval_blob *v;
+
+			v = regval_compose(talloc_tos(),
+					   value_name,
+					   type,
+					   data,
+					   data_offered);
+			if (v == NULL) {
+				result = WERR_NOMEM;
+				goto done;
+			}
+
 			display_reg_value(v);
+			talloc_free(v);
 		}
 	}
 
@@ -3146,7 +3169,7 @@ static bool compare_printer_secdesc( struct rpc_pipe_client *cli1, struct policy
 	union spoolss_PrinterInfo info1, info2;
 	WERROR werror;
 	TALLOC_CTX *mem_ctx = talloc_init("compare_printer_secdesc");
-	SEC_DESC *sd1, *sd2;
+	struct security_descriptor *sd1, *sd2;
 	bool result = true;
 
 

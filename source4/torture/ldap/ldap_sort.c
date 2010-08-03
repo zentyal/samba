@@ -30,9 +30,9 @@
 #include "torture/smbtorture.h"
 #include "torture/local/proto.h"
 #include <ctype.h>
+
 bool torture_ldap_sort(struct torture_context *torture)
 {
-
 	struct ldb_context *ldb;
 
 	bool ret = false;
@@ -46,13 +46,13 @@ bool torture_ldap_sort(struct torture_context *torture)
 	struct ldb_server_sort_control **control;
 	struct ldb_request *req;
 	struct ldb_result *ctx;
-	struct ldb_val* prev = NULL;
+	struct ldb_val *prev = NULL;
 	const char *prev_txt = NULL;
 	int prev_len = 0;
-	struct ldb_val* cur = NULL;
+	struct ldb_val *cur = NULL;
 	const char *cur_txt = NULL;
 	int cur_len = 0;
-	struct ldb_dn* dn;
+	struct ldb_dn *dn;
 		 
 		 
 	/* TALLOC_CTX* ctx;*/
@@ -62,7 +62,7 @@ bool torture_ldap_sort(struct torture_context *torture)
 	ldb = ldb_wrap_connect(torture, torture->ev, torture->lp_ctx, url,
 						 NULL,
 						 cmdline_credentials,
-						 0, NULL);
+						 0);
 	torture_assert(torture, ldb, "Failed to make LDB connection to target");
 
 	ctx = talloc_zero(ldb, struct ldb_result);
@@ -74,7 +74,7 @@ bool torture_ldap_sort(struct torture_context *torture)
 	control[0]->reverse = 0;
 	control[1] = NULL;
 
-	dn = ldb_get_root_basedn(ldb);
+	dn = ldb_get_default_basedn(ldb);
 	ldb_dn_add_child_fmt(dn, "cn=users");
 	ret = ldb_build_search_req(&req, ldb, ctx,
 				   dn,
@@ -103,10 +103,10 @@ bool torture_ldap_sort(struct torture_context *torture)
 			if (prev != NULL)
 			{
 				/* Do only the ascii case right now ... */
-				cur_txt=cur->data;
-				cur_len=cur->length;
-				prev_txt=prev->data;
-				prev_len=prev->length;
+				cur_txt = (const char *) cur->data;
+				cur_len = cur->length;
+				prev_txt = (const char *) prev->data;
+				prev_len = prev->length;
 				/* Remove leading whitespace as the sort function do so ... */
 				while ( cur_txt[0] == cur_txt[1] ) { cur_txt++; cur_len--;}
 				while ( prev_txt[0] == prev_txt[1] ) { prev_txt++; prev_len--;}

@@ -396,7 +396,7 @@ static char *audit_prefix(TALLOC_CTX *ctx, connection_struct *conn)
 			conn->connectpath,
 			conn->server_info->utok.gid,
 			conn->server_info->sanitized_username,
-			pdb_get_domain(conn->server_info->sam_account),
+			conn->server_info->info3->base.domain.string,
 			prefix);
 	TALLOC_FREE(prefix);
 	return result;
@@ -431,32 +431,41 @@ static bool log_failure(vfs_handle_struct *handle, vfs_op_type op)
 	return bitmap_query(pd->failure_ops, op);
 }
 
-static void init_bitmap(struct bitmap **bm, const char **ops)
+static struct bitmap *init_bitmap(TALLOC_CTX *mem_ctx, const char **ops)
 {
-	bool log_all = False;
+	struct bitmap *bm;
 
-	if (*bm != NULL)
-		return;
-
-	*bm = bitmap_allocate(SMB_VFS_OP_LAST);
-
-	if (*bm == NULL) {
-		DEBUG(0, ("Could not alloc bitmap -- "
-			  "defaulting to logging everything\n"));
-		return;
+	if (ops == NULL) {
+		return NULL;
 	}
 
-	while (*ops != NULL) {
+	bm = bitmap_talloc(mem_ctx, SMB_VFS_OP_LAST);
+	if (bm == NULL) {
+		DEBUG(0, ("Could not alloc bitmap -- "
+			  "defaulting to logging everything\n"));
+		return NULL;
+	}
+
+	for (; *ops != NULL; ops += 1) {
 		int i;
-		bool found = False;
+		bool neg = false;
+		const char *op;
 
 		if (strequal(*ops, "all")) {
-			log_all = True;
-			break;
+			for (i=0; i<SMB_VFS_OP_LAST; i++) {
+				bitmap_set(bm, i);
+			}
+			continue;
 		}
 
 		if (strequal(*ops, "none")) {
 			break;
+		}
+
+		op = ops[0];
+		if (op[0] == '!') {
+			neg = true;
+			op += 1;
 		}
 
 		for (i=0; i<SMB_VFS_OP_LAST; i++) {
@@ -464,26 +473,23 @@ static void init_bitmap(struct bitmap **bm, const char **ops)
 				smb_panic("vfs_full_audit.c: name table not "
 					  "in sync with vfs.h\n");
 			}
-
-			if (strequal(*ops, vfs_op_names[i].name)) {
-				bitmap_set(*bm, i);
-				found = True;
+			if (strequal(op, vfs_op_names[i].name)) {
+				if (neg) {
+					bitmap_clear(bm, i);
+				} else {
+					bitmap_set(bm, i);
+				}
+				break;
 			}
 		}
-		if (!found) {
+		if (i == SMB_VFS_OP_LAST) {
 			DEBUG(0, ("Could not find opname %s, logging all\n",
 				  *ops));
-			log_all = True;
-			break;
+			TALLOC_FREE(bm);
+			return NULL;
 		}
-		ops += 1;
 	}
-
-	if (log_all) {
-		/* The query functions default to True */
-		bitmap_free(*bm);
-		*bm = NULL;
-	}
+	return bm;
 }
 
 static const char *audit_opname(vfs_op_type op)
@@ -579,22 +585,6 @@ static const char *fsp_str_do_log(const struct files_struct *fsp)
 	return smb_fname_str_do_log(fsp->fsp_name);
 }
 
-/* Free function for the private data. */
-
-static void free_private_data(void **p_data)
-{
-	struct vfs_full_audit_private_data *pd = *(struct vfs_full_audit_private_data **)p_data;
-
-	if (pd->success_ops) {
-		bitmap_free(pd->success_ops);
-	}
-	if (pd->failure_ops) {
-		bitmap_free(pd->failure_ops);
-	}
-	SAFE_FREE(pd);
-	*p_data = NULL;
-}
-
 /* Implementation of vfs_ops.  Pass everything on to the default
    operation but log event first. */
 
@@ -603,34 +593,31 @@ static int smb_full_audit_connect(vfs_handle_struct *handle,
 {
 	int result;
 	struct vfs_full_audit_private_data *pd = NULL;
-	const char *none[] = { NULL };
-	const char *all [] = { "all" };
 
 	result = SMB_VFS_NEXT_CONNECT(handle, svc, user);
 	if (result < 0) {
 		return result;
 	}
 
-	pd = SMB_MALLOC_P(struct vfs_full_audit_private_data);
+	pd = TALLOC_ZERO_P(handle, struct vfs_full_audit_private_data);
 	if (!pd) {
 		SMB_VFS_NEXT_DISCONNECT(handle);
 		return -1;
 	}
-	ZERO_STRUCTP(pd);
 
 #ifndef WITH_SYSLOG
 	openlog("smbd_audit", 0, audit_syslog_facility(handle));
 #endif
 
-	init_bitmap(&pd->success_ops,
-		    lp_parm_string_list(SNUM(handle->conn), "full_audit", "success",
-					none));
-	init_bitmap(&pd->failure_ops,
-		    lp_parm_string_list(SNUM(handle->conn), "full_audit", "failure",
-					all));
+	pd->success_ops = init_bitmap(
+		pd, lp_parm_string_list(SNUM(handle->conn), "full_audit",
+					"success", NULL));
+	pd->failure_ops = init_bitmap(
+		pd, lp_parm_string_list(SNUM(handle->conn), "full_audit",
+					"failure", NULL));
 
 	/* Store the private data. */
-	SMB_VFS_HANDLE_SET_DATA(handle, pd, free_private_data,
+	SMB_VFS_HANDLE_SET_DATA(handle, pd, NULL,
 				struct vfs_full_audit_private_data, return -1);
 
 	do_log(SMB_VFS_OP_CONNECT, True, handle,
@@ -861,6 +848,7 @@ static NTSTATUS smb_full_audit_create_file(vfs_handle_struct *handle,
 				      uint32_t file_attributes,
 				      uint32_t oplock_request,
 				      uint64_t allocation_size,
+				      uint32_t private_flags,
 				      struct security_descriptor *sd,
 				      struct ea_list *ea_list,
 				      files_struct **result_fsp,
@@ -904,6 +892,7 @@ static NTSTATUS smb_full_audit_create_file(vfs_handle_struct *handle,
 		file_attributes,			/* file_attributes */
 		oplock_request,				/* oplock_request */
 		allocation_size,			/* allocation_size */
+		private_flags,
 		sd,					/* sd */
 		ea_list,				/* ea_list */
 		result_fsp,				/* result */
@@ -1098,7 +1087,8 @@ static uint64_t smb_full_audit_get_alloc_size(vfs_handle_struct *handle,
 
 	result = SMB_VFS_NEXT_GET_ALLOC_SIZE(handle, fsp, sbuf);
 
-	do_log(SMB_VFS_OP_GET_ALLOC_SIZE, (result >= 0), handle, "%d", result);
+	do_log(SMB_VFS_OP_GET_ALLOC_SIZE, (result != (uint64_t)-1), handle,
+			"%llu", result);
 
 	return result;
 }
@@ -1535,7 +1525,7 @@ static NTSTATUS smb_full_audit_translate_name(struct vfs_handle_struct *handle,
 
 static NTSTATUS smb_full_audit_fget_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 				uint32 security_info,
-				SEC_DESC **ppdesc)
+				struct security_descriptor **ppdesc)
 {
 	NTSTATUS result;
 
@@ -1550,7 +1540,7 @@ static NTSTATUS smb_full_audit_fget_nt_acl(vfs_handle_struct *handle, files_stru
 static NTSTATUS smb_full_audit_get_nt_acl(vfs_handle_struct *handle,
 					  const char *name,
 					  uint32 security_info,
-					  SEC_DESC **ppdesc)
+					  struct security_descriptor **ppdesc)
 {
 	NTSTATUS result;
 
@@ -1564,7 +1554,7 @@ static NTSTATUS smb_full_audit_get_nt_acl(vfs_handle_struct *handle,
 
 static NTSTATUS smb_full_audit_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 			      uint32 security_info_sent,
-			      const SEC_DESC *psd)
+			      const struct security_descriptor *psd)
 {
 	NTSTATUS result;
 

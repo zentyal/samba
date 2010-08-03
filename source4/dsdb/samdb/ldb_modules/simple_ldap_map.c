@@ -33,6 +33,7 @@
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "librpc/ndr/libndr.h"
 #include "dsdb/samdb/samdb.h"
+#include "../../../lib/ldb/include/ldb_handlers.h"
 
 struct entryuuid_private {
 	struct ldb_context *ldb;
@@ -43,16 +44,14 @@ static struct ldb_val encode_guid(struct ldb_module *module, TALLOC_CTX *ctx, co
 {
 	struct GUID guid;
 	NTSTATUS status = GUID_from_data_blob(val, &guid);
-	enum ndr_err_code ndr_err;
 	struct ldb_val out = data_blob(NULL, 0);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return out;
 	}
-	ndr_err = ndr_push_struct_blob(&out, ctx, NULL, &guid,
-				       (ndr_push_flags_fn_t)ndr_push_GUID);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		return out;
+	status = GUID_to_ndr_blob(&guid, ctx, &out);
+	if (!NT_STATUS_IS_OK(status)) {
+		return data_blob(NULL, 0);
 	}
 
 	return out;
@@ -73,16 +72,14 @@ static struct ldb_val encode_ns_guid(struct ldb_module *module, TALLOC_CTX *ctx,
 {
 	struct GUID guid;
 	NTSTATUS status = NS_GUID_from_string((char *)val->data, &guid);
-	enum ndr_err_code ndr_err;
 	struct ldb_val out = data_blob(NULL, 0);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return out;
 	}
-	ndr_err = ndr_push_struct_blob(&out, ctx, NULL, &guid,
-				       (ndr_push_flags_fn_t)ndr_push_GUID);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		return out;
+	status = GUID_to_ndr_blob(&guid, ctx, &out);
+	if (!NT_STATUS_IS_OK(status)) {
+		return data_blob(NULL, 0);
 	}
 
 	return out;
@@ -119,6 +116,25 @@ static struct ldb_val sid_always_binary(struct ldb_module *module, TALLOC_CTX *c
 		return data_blob(NULL, 0);
 	}
 
+	return out;
+}
+
+/* Ensure we always convert sids into string, so the backend doesn't have to know about both forms */
+static struct ldb_val sid_always_string(struct ldb_module *module, TALLOC_CTX *ctx, const struct ldb_val *val)
+{
+	struct ldb_context *ldb = ldb_module_get_ctx(module);
+	struct ldb_val out = data_blob(NULL, 0);
+
+	if (ldif_comparision_objectSid_isString(val)) {
+		if (ldb_handler_copy(ldb, ctx, val, &out) != LDB_SUCCESS) {
+			return data_blob(NULL, 0);
+		}
+
+	} else {
+		if (ldif_write_objectSid(ldb, ctx, val, &out) != LDB_SUCCESS) {
+			return data_blob(NULL, 0);
+		}
+	}
 	return out;
 }
 
@@ -165,7 +181,7 @@ static struct ldb_val usn_to_entryCSN(struct ldb_module *module, TALLOC_CTX *ctx
 
 static unsigned long long entryCSN_to_usn_int(TALLOC_CTX *ctx, const struct ldb_val *val) 
 {
-	char *entryCSN = talloc_strdup(ctx, (const char *)val->data);
+	char *entryCSN = talloc_strndup(ctx, (const char *)val->data, val->length);
 	char *mod_per_sec;
 	time_t t;
 	unsigned long long usn;
@@ -216,10 +232,10 @@ static struct ldb_val usn_to_timestamp(struct ldb_module *module, TALLOC_CTX *ct
 static struct ldb_val timestamp_to_usn(struct ldb_module *module, TALLOC_CTX *ctx, const struct ldb_val *val)
 {
 	struct ldb_val out;
-	time_t t;
+	time_t t=0;
 	unsigned long long usn;
 
-	t = ldb_string_to_time((const char *)val->data);
+	ldb_val_to_time(val, &t);
 	
 	usn = ((unsigned long long)t <<24);
 
@@ -233,7 +249,7 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 	/* objectGUID */
 	{
 		.local_name = "objectGUID",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				.remote_name = "entryUUID", 
@@ -245,7 +261,7 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 	/* invocationId */
 	{
 		.local_name = "invocationId",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				.remote_name = "invocationId", 
@@ -257,7 +273,7 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 	/* objectSid */
 	{
 		.local_name = "objectSid",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				.remote_name = "objectSid", 
@@ -266,18 +282,30 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 			},
 		},
 	},
+	/* securityIdentifier */
+	{
+		.local_name = "securityIdentifier",
+		.type = LDB_MAP_CONVERT,
+		.u = {
+			.convert = {
+				.remote_name = "securityIdentifier",
+				.convert_local = sid_always_binary,
+				.convert_remote = val_copy,
+			},
+		},
+	},
 	{
 		.local_name = "name",
-		.type = MAP_RENAME,
+		.type = LDB_MAP_RENAME,
 		.u = {
 			.rename = {
-				 .remote_name = "samba4RDN"
+				 .remote_name = "rdnValue"
 			 }
 		}
 	},
 	{
 		.local_name = "whenCreated",
-		.type = MAP_RENAME,
+		.type = LDB_MAP_RENAME,
 		.u = {
 			.rename = {
 				 .remote_name = "createTimestamp"
@@ -286,7 +314,7 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 	},
 	{
 		.local_name = "whenChanged",
-		.type = MAP_RENAME,
+		.type = LDB_MAP_RENAME,
 		.u = {
 			.rename = {
 				 .remote_name = "modifyTimestamp"
@@ -295,7 +323,7 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 	},
 	{
 		.local_name = "objectClasses",
-		.type = MAP_RENAME,
+		.type = LDB_MAP_RENAME,
 		.u = {
 			.rename = {
 				 .remote_name = "samba4ObjectClasses"
@@ -304,7 +332,7 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 	},
 	{
 		.local_name = "dITContentRules",
-		.type = MAP_RENAME,
+		.type = LDB_MAP_RENAME,
 		.u = {
 			.rename = {
 				 .remote_name = "samba4DITContentRules"
@@ -313,7 +341,7 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 	},
 	{
 		.local_name = "attributeTypes",
-		.type = MAP_RENAME,
+		.type = LDB_MAP_RENAME,
 		.u = {
 			.rename = {
 				 .remote_name = "samba4AttributeTypes"
@@ -322,7 +350,7 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 	},
 	{
 		.local_name = "objectCategory",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				.remote_name = "objectCategory", 
@@ -333,7 +361,7 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 	},
 	{
 		.local_name = "distinguishedName",
-		.type = MAP_RENAME,
+		.type = LDB_MAP_RENAME,
 		.u = {
 			.rename = {
 				 .remote_name = "entryDN"
@@ -342,7 +370,7 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 	},
 	{
 		.local_name = "primaryGroupID",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				 .remote_name = "primaryGroupID",
@@ -353,7 +381,7 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 	},
 	{
 		.local_name = "groupType",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				 .remote_name = "groupType",
@@ -364,7 +392,7 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 	},
 	{
 		.local_name = "userAccountControl",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				 .remote_name = "userAccountControl",
@@ -375,7 +403,7 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 	},
 	{
 		.local_name = "sAMAccountType",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				 .remote_name = "sAMAccountType",
@@ -386,7 +414,7 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 	},
 	{
 		.local_name = "systemFlags",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				 .remote_name = "systemFlags",
@@ -397,7 +425,7 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 	},
 	{
 		.local_name = "usnChanged",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				 .remote_name = "entryCSN",
@@ -408,7 +436,7 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 	},
 	{
 		.local_name = "usnCreated",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				 .remote_name = "createTimestamp",
@@ -419,7 +447,7 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 	},
 	{
 		.local_name = "*",
-		.type = MAP_KEEP,
+		.type = LDB_MAP_KEEP,
 	},
 	{
 		.local_name = NULL,
@@ -455,7 +483,7 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 	/* objectGUID */
 	{
 		.local_name = "objectGUID",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				.remote_name = "nsuniqueid", 
@@ -467,18 +495,30 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 	/* objectSid */	
 	{
 		.local_name = "objectSid",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
-				.remote_name = "objectSid", 
-				.convert_local = sid_always_binary,
-				.convert_remote = val_copy,
+				.remote_name = "sambaSID", 
+				.convert_local = sid_always_string,
+				.convert_remote = sid_always_binary,
 			}
 		}
 	},
+	/* securityIdentifier */
+	{
+		.local_name = "securityIdentifier",
+		.type = LDB_MAP_CONVERT,
+		.u = {
+			.convert = {
+				.remote_name = "securityIdentifier",
+				.convert_local = sid_always_binary,
+				.convert_remote = val_copy,
+			},
+		},
+	},
 	{
 		.local_name = "whenCreated",
-		.type = MAP_RENAME,
+		.type = LDB_MAP_RENAME,
 		.u = {
 			.rename = {
 				 .remote_name = "createTimestamp"
@@ -487,7 +527,7 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 	},
 	{
 		.local_name = "whenChanged",
-		.type = MAP_RENAME,
+		.type = LDB_MAP_RENAME,
 		.u = {
 			.rename = {
 				 .remote_name = "modifyTimestamp"
@@ -496,7 +536,7 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 	},
 	{
 		.local_name = "objectCategory",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				.remote_name = "objectCategory", 
@@ -507,7 +547,7 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 	},
 	{
 		.local_name = "distinguishedName",
-		.type = MAP_RENAME,
+		.type = LDB_MAP_RENAME,
 		.u = {
 			.rename = {
 				 .remote_name = "entryDN"
@@ -516,7 +556,7 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 	},
 	{
 		.local_name = "primaryGroupID",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				 .remote_name = "primaryGroupID",
@@ -527,10 +567,10 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 	},
 	{
 		.local_name = "groupType",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
-				 .remote_name = "groupType",
+				 .remote_name = "sambaGroupType",
 				 .convert_local = normalise_to_signed32,
 				 .convert_remote = val_copy,
 			 }
@@ -538,7 +578,7 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 	},
 	{
 		.local_name = "userAccountControl",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				 .remote_name = "userAccountControl",
@@ -549,7 +589,7 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 	},
 	{
 		.local_name = "sAMAccountType",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				 .remote_name = "sAMAccountType",
@@ -560,7 +600,7 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 	},
 	{
 		.local_name = "systemFlags",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				 .remote_name = "systemFlags",
@@ -571,7 +611,7 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 	},
 	{
 		.local_name = "usnChanged",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				 .remote_name = "modifyTimestamp",
@@ -582,7 +622,7 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 	},
 	{
 		.local_name = "usnCreated",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				 .remote_name = "createTimestamp",
@@ -592,11 +632,127 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 		}
 	},
 	{
+		.local_name = "pwdLastSet",
+		.type = LDB_MAP_RENAME,
+		.u = {
+			.rename = {
+				 .remote_name = "sambaPwdLastSet"
+			 }
+		}
+	},
+	{
+		.local_name = "lastLogon",
+		.type = LDB_MAP_RENAME,
+		.u = {
+			.rename = {
+				 .remote_name = "sambaLogonTime"
+			 }
+		}
+	},
+	{
+		.local_name = "lastLogoff",
+		.type = LDB_MAP_RENAME,
+		.u = {
+			.rename = {
+				 .remote_name = "sambaLogoffTime"
+			 }
+		}
+	},
+	{
+		.local_name = "badPwdCount",
+		.type = LDB_MAP_RENAME,
+		.u = {
+			.rename = {
+				 .remote_name = "sambaBadPasswordCount"
+			 }
+		}
+	},
+	{
+		.local_name = "logonHours",
+		.type = LDB_MAP_RENAME,
+		.u = {
+			.rename = {
+				 .remote_name = "sambaLogonHours"
+			 }
+		}
+	},
+	{
+		.local_name = "homeDrive",
+		.type = LDB_MAP_RENAME,
+		.u = {
+			.rename = {
+				 .remote_name = "sambaHomeDrive"
+			 }
+		}
+	},
+	{
+		.local_name = "scriptPath",
+		.type = LDB_MAP_RENAME,
+		.u = {
+			.rename = {
+				 .remote_name = "sambaLogonScript"
+			 }
+		}
+	},
+	{
+		.local_name = "profilePath",
+		.type = LDB_MAP_RENAME,
+		.u = {
+			.rename = {
+				 .remote_name = "sambaProfilePath"
+			 }
+		}
+	},
+	{
+		.local_name = "userWorkstations",
+		.type = LDB_MAP_RENAME,
+		.u = {
+			.rename = {
+				 .remote_name = "sambaUserWorkstations"
+			 }
+		}
+	},
+	{
+		.local_name = "homeDirectory",
+		.type = LDB_MAP_RENAME,
+		.u = {
+			.rename = {
+				 .remote_name = "sambaHomePath"
+			 }
+		}
+	},
+	{
+		.local_name = "nextRid",
+		.type = LDB_MAP_RENAME,
+		.u = {
+			.rename = {
+				 .remote_name = "sambaNextRid"
+			 }
+		}
+	},
+	{
+		.local_name = "privilegeDisplayName",
+		.type = LDB_MAP_RENAME,
+		.u = {
+			.rename = {
+				 .remote_name = "sambaPrivName"
+			 }
+		}
+	},
+	{
 		.local_name = "*",
-		.type = MAP_KEEP,
+		.type = LDB_MAP_KEEP,
 	},
 	{
 		.local_name = NULL,
+	}
+};
+
+/* This objectClass conflicts with builtin classes on FDS */
+const struct ldb_map_objectclass nsuniqueid_objectclasses[] =
+{
+	{
+		.local_name = NULL
 	}
 };
 
@@ -626,7 +782,7 @@ static int entryuuid_init(struct ldb_module *module)
 static int nsuniqueid_init(struct ldb_module *module)
 {
         int ret;
-	ret = ldb_map_init(module, nsuniqueid_attributes, NULL, nsuniqueid_wildcard_attributes, "extensibleObject", NULL);
+	ret = ldb_map_init(module, nsuniqueid_attributes, nsuniqueid_objectclasses, nsuniqueid_wildcard_attributes, "extensibleObject", NULL);
         if (ret != LDB_SUCCESS)
                 return ret;
 
@@ -722,12 +878,12 @@ static int entryuuid_sequence_number(struct ldb_module *module, struct ldb_reque
 
 	ext = talloc_zero(req, struct ldb_extended);
 	if (!ext) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_oom(ldb);
 	}
 	seqr = talloc_zero(req, struct ldb_seqnum_result);
 	if (seqr == NULL) {
 		talloc_free(ext);
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_oom(ldb);
 	}
 	ext->oid = LDB_EXTENDED_SEQUENCE_NUMBER;
 	ext->data = seqr;

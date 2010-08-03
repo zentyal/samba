@@ -383,6 +383,10 @@ encode_type (const char *name, const Type *t, const char *tmpstr)
 	encode_primitive ("general_string", name);
 	constructed = 0;
 	break;
+    case TTeletexString:
+	encode_primitive ("general_string", name);
+	constructed = 0;
+	break;
     case TTag: {
     	char *tname;
 	int c;
@@ -504,11 +508,6 @@ encode_type (const char *name, const Type *t, const char *tmpstr)
 void
 generate_type_encode (const Symbol *s)
 {
-    fprintf (headerfile,
-	     "int    "
-	     "encode_%s(unsigned char *, size_t, const %s *, size_t *);\n",
-	     s->gen_name, s->gen_name);
-
     fprintf (codefile, "int\n"
 	     "encode_%s(unsigned char *p, size_t len,"
 	     " const %s *data, size_t *size)\n"
@@ -521,6 +520,7 @@ generate_type_encode (const Symbol *s)
     case TOctetString:
     case TGeneralizedTime:
     case TGeneralString:
+    case TTeletexString:
     case TUTCTime:
     case TUTF8String:
     case TPrintableString:

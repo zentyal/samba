@@ -36,18 +36,8 @@
 #include "krb5_locl.h"
 #include <pkinit_asn1.h>
 
-#define WEAK_ENCTYPES 1
-
 #ifndef HEIMDAL_SMALLER
 #define DES3_OLD_ENCTYPE 1
-#endif
-
-
-#ifdef HAVE_OPENSSL /* XXX forward decl for hcrypto glue */
-const EVP_CIPHER * _krb5_EVP_hcrypto_aes_128_cts(void);
-const EVP_CIPHER * _krb5_EVP_hcrypto_aes_256_cts(void);
-#define EVP_hcrypto_aes_128_cts _krb5_EVP_hcrypto_aes_128_cts
-#define EVP_hcrypto_aes_256_cts _krb5_EVP_hcrypto_aes_256_cts
 #endif
 
 struct key_data {
@@ -77,6 +67,7 @@ struct krb5_crypto_data {
 #define F_PSEUDO	16	/* not a real protocol type */
 #define F_SPECIAL	32	/* backwards */
 #define F_DISABLED	64	/* enctype/checksum disabled */
+#define F_WEAK	       128	/* enctype is considered weak */
 
 struct salt_type {
     krb5_salttype type;
@@ -180,7 +171,7 @@ struct evp_schedule {
 
 static HEIMDAL_MUTEX crypto_mutex = HEIMDAL_MUTEX_INITIALIZER;
 
-#ifdef WEAK_ENCTYPES
+#ifdef HEIM_WEAK_CRYPTO
 static void
 krb5_DES_random_key(krb5_context context,
 		    krb5_keyblock *key)
@@ -555,15 +546,6 @@ DES3_random_to_key(krb5_context context,
  * ARCFOUR
  */
 
-static void
-ARCFOUR_schedule(krb5_context context,
-		 struct key_type *kt,
-		 struct key_data *kd)
-{
-    RC4_set_key (kd->schedule->data,
-		 kd->key->keyvalue.length, kd->key->keyvalue.data);
-}
-
 static krb5_error_code
 ARCFOUR_string_to_key(krb5_context context,
 		      krb5_enctype enctype,
@@ -722,7 +704,7 @@ evp_cleanup(krb5_context context, struct key_data *kd)
  *
  */
 
-#ifdef WEAK_ENCTYPES
+#ifdef HEIM_WEAK_CRYPTO
 static struct salt_type des_salt[] = {
     {
 	KRB5_PW_SALT,
@@ -793,7 +775,7 @@ static struct key_type keytype_null = {
     NULL
 };
 
-#ifdef WEAK_ENCTYPES
+#ifdef HEIM_WEAK_CRYPTO
 static struct key_type keytype_des_old = {
     KEYTYPE_DES,
     "des-old",
@@ -819,7 +801,7 @@ static struct key_type keytype_des = {
     evp_cleanup,
     EVP_des_cbc
 };
-#endif /* WEAK_ENCTYPES */
+#endif /* HEIM_WEAK_CRYPTO */
 
 #ifdef DES3_OLD_ENCTYPE
 static struct key_type keytype_des3 = {
@@ -862,7 +844,7 @@ static struct key_type keytype_aes128 = {
     AES_salt,
     NULL,
     evp_cleanup,
-    EVP_hcrypto_aes_128_cts
+    EVP_aes_128_cbc
 };
 
 static struct key_type keytype_aes256 = {
@@ -876,7 +858,7 @@ static struct key_type keytype_aes256 = {
     AES_salt,
     NULL,
     evp_cleanup,
-    EVP_hcrypto_aes_256_cts
+    EVP_aes_256_cbc
 };
 
 static struct key_type keytype_arcfour = {
@@ -884,13 +866,16 @@ static struct key_type keytype_arcfour = {
     "arcfour",
     128,
     16,
-    sizeof(RC4_KEY),
+    sizeof(struct evp_schedule),
     NULL,
-    ARCFOUR_schedule,
-    arcfour_salt
+    evp_schedule,
+    arcfour_salt,
+    NULL,
+    evp_cleanup,
+    EVP_rc4
 };
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_salttype_to_string (krb5_context context,
 			 krb5_enctype etype,
 			 krb5_salttype stype,
@@ -922,7 +907,7 @@ krb5_salttype_to_string (krb5_context context,
     return HEIM_ERR_SALTTYPE_NOSUPP;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_string_to_salttype (krb5_context context,
 			 krb5_enctype etype,
 			 const char *string,
@@ -949,7 +934,7 @@ krb5_string_to_salttype (krb5_context context,
     return HEIM_ERR_SALTTYPE_NOSUPP;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_get_pw_salt(krb5_context context,
 		 krb5_const_principal principal,
 		 krb5_salt *salt)
@@ -978,7 +963,7 @@ krb5_get_pw_salt(krb5_context context,
     return 0;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_free_salt(krb5_context context,
 	       krb5_salt salt)
 {
@@ -986,7 +971,7 @@ krb5_free_salt(krb5_context context,
     return 0;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_string_to_key_data (krb5_context context,
 			 krb5_enctype enctype,
 			 krb5_data password,
@@ -1004,7 +989,7 @@ krb5_string_to_key_data (krb5_context context,
     return ret;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_string_to_key (krb5_context context,
 		    krb5_enctype enctype,
 		    const char *password,
@@ -1017,7 +1002,7 @@ krb5_string_to_key (krb5_context context,
     return krb5_string_to_key_data(context, enctype, pw, principal, key);
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_string_to_key_data_salt (krb5_context context,
 			      krb5_enctype enctype,
 			      krb5_data password,
@@ -1036,7 +1021,7 @@ krb5_string_to_key_data_salt (krb5_context context,
  * `opaque'), returning the resulting key in `key'
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_string_to_key_data_salt_opaque (krb5_context context,
 				     krb5_enctype enctype,
 				     krb5_data password,
@@ -1068,7 +1053,7 @@ krb5_string_to_key_data_salt_opaque (krb5_context context,
  * in `key'
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_string_to_key_salt (krb5_context context,
 			 krb5_enctype enctype,
 			 const char *password,
@@ -1081,7 +1066,7 @@ krb5_string_to_key_salt (krb5_context context,
     return krb5_string_to_key_data_salt(context, enctype, pw, salt, key);
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_string_to_key_salt_opaque (krb5_context context,
 				krb5_enctype enctype,
 				const char *password,
@@ -1096,7 +1081,7 @@ krb5_string_to_key_salt_opaque (krb5_context context,
 					       pw, salt, opaque, key);
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_enctype_keysize(krb5_context context,
 		     krb5_enctype type,
 		     size_t *keysize)
@@ -1112,7 +1097,7 @@ krb5_enctype_keysize(krb5_context context,
     return 0;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_enctype_keybits(krb5_context context,
 		     krb5_enctype type,
 		     size_t *keybits)
@@ -1128,7 +1113,7 @@ krb5_enctype_keybits(krb5_context context,
     return 0;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_generate_random_keyblock(krb5_context context,
 			      krb5_enctype type,
 			      krb5_keyblock *key)
@@ -1204,37 +1189,7 @@ NONE_checksum(krb5_context context,
     return 0;
 }
 
-static krb5_error_code
-CRC32_checksum(krb5_context context,
-	       struct key_data *key,
-	       const void *data,
-	       size_t len,
-	       unsigned usage,
-	       Checksum *C)
-{
-    uint32_t crc;
-    unsigned char *r = C->checksum.data;
-    _krb5_crc_init_table ();
-    crc = _krb5_crc_update (data, len, 0);
-    r[0] = crc & 0xff;
-    r[1] = (crc >> 8)  & 0xff;
-    r[2] = (crc >> 16) & 0xff;
-    r[3] = (crc >> 24) & 0xff;
-    return 0;
-}
-
-static krb5_error_code
-RSA_MD4_checksum(krb5_context context,
-		 struct key_data *key,
-		 const void *data,
-		 size_t len,
-		 unsigned usage,
-		 Checksum *C)
-{
-    if (EVP_Digest(data, len, C->checksum.data, NULL, EVP_md4(), NULL) != 1)
-	krb5_abortx(context, "md4 checksum failed");
-    return 0;
-}
+#if defined(DES3_OLD_ENCTYPE) || defined(HEIM_WEAK_CRYPTO)
 
 static krb5_error_code
 des_checksum(krb5_context context,
@@ -1299,13 +1254,49 @@ des_verify(krb5_context context,
     EVP_DigestUpdate(m, data, len);
     EVP_DigestFinal_ex (m, res, NULL);
     EVP_MD_CTX_destroy(m);
-    if(memcmp(res, tmp + 8, sizeof(res)) != 0) {
+    if(ct_memcmp(res, tmp + 8, sizeof(res)) != 0) {
 	krb5_clear_error_message (context);
 	ret = KRB5KRB_AP_ERR_BAD_INTEGRITY;
     }
     memset(tmp, 0, sizeof(tmp));
     memset(res, 0, sizeof(res));
     return ret;
+}
+
+#endif
+
+#ifdef HEIM_WEAK_CRYPTO
+
+static krb5_error_code
+CRC32_checksum(krb5_context context,
+	       struct key_data *key,
+	       const void *data,
+	       size_t len,
+	       unsigned usage,
+	       Checksum *C)
+{
+    uint32_t crc;
+    unsigned char *r = C->checksum.data;
+    _krb5_crc_init_table ();
+    crc = _krb5_crc_update (data, len, 0);
+    r[0] = crc & 0xff;
+    r[1] = (crc >> 8)  & 0xff;
+    r[2] = (crc >> 16) & 0xff;
+    r[3] = (crc >> 24) & 0xff;
+    return 0;
+}
+
+static krb5_error_code
+RSA_MD4_checksum(krb5_context context,
+		 struct key_data *key,
+		 const void *data,
+		 size_t len,
+		 unsigned usage,
+		 Checksum *C)
+{
+    if (EVP_Digest(data, len, C->checksum.data, NULL, EVP_md4(), NULL) != 1)
+	krb5_abortx(context, "md4 checksum failed");
+    return 0;
 }
 
 static krb5_error_code
@@ -1331,19 +1322,6 @@ RSA_MD4_DES_verify(krb5_context context,
 }
 
 static krb5_error_code
-RSA_MD5_checksum(krb5_context context,
-		 struct key_data *key,
-		 const void *data,
-		 size_t len,
-		 unsigned usage,
-		 Checksum *C)
-{
-    if (EVP_Digest(data, len, C->checksum.data, NULL, EVP_md5(), NULL) != 1)
-	krb5_abortx(context, "md5 checksum failed");
-    return 0;
-}
-
-static krb5_error_code
 RSA_MD5_DES_checksum(krb5_context context,
 		     struct key_data *key,
 		     const void *data,
@@ -1364,6 +1342,8 @@ RSA_MD5_DES_verify(krb5_context context,
 {
     return des_verify(context, EVP_md5(), key, data, len, C);
 }
+
+#endif /* HEIM_WEAK_CRYPTO */
 
 #ifdef DES3_OLD_ENCTYPE
 static krb5_error_code
@@ -1460,7 +1440,7 @@ hmac(krb5_context context,
     return 0;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_hmac(krb5_context context,
 	  krb5_cksumtype cktype,
 	  const void *data,
@@ -1576,6 +1556,7 @@ static struct checksum_type checksum_none = {
     NONE_checksum,
     NULL
 };
+#ifdef HEIM_WEAK_CRYPTO
 static struct checksum_type checksum_crc32 = {
     CKSUMTYPE_CRC32,
     "crc32",
@@ -1603,15 +1584,6 @@ static struct checksum_type checksum_rsa_md4_des = {
     RSA_MD4_DES_checksum,
     RSA_MD4_DES_verify
 };
-static struct checksum_type checksum_rsa_md5 = {
-    CKSUMTYPE_RSA_MD5,
-    "rsa-md5",
-    64,
-    16,
-    F_CPROOF,
-    RSA_MD5_checksum,
-    NULL
-};
 static struct checksum_type checksum_rsa_md5_des = {
     CKSUMTYPE_RSA_MD5_DES,
     "rsa-md5-des",
@@ -1621,6 +1593,31 @@ static struct checksum_type checksum_rsa_md5_des = {
     RSA_MD5_DES_checksum,
     RSA_MD5_DES_verify
 };
+#endif /* HEIM_WEAK_CRYPTO */
+
+static krb5_error_code
+RSA_MD5_checksum(krb5_context context,
+		 struct key_data *key,
+		 const void *data,
+		 size_t len,
+		 unsigned usage,
+		 Checksum *C)
+{
+    if (EVP_Digest(data, len, C->checksum.data, NULL, EVP_md5(), NULL) != 1)
+	krb5_abortx(context, "md5 checksum failed");
+    return 0;
+}
+
+static struct checksum_type checksum_rsa_md5 = {
+    CKSUMTYPE_RSA_MD5,
+    "rsa-md5",
+    64,
+    16,
+    F_CPROOF,
+    RSA_MD5_checksum,
+    NULL
+};
+
 #ifdef DES3_OLD_ENCTYPE
 static struct checksum_type checksum_rsa_md5_des3 = {
     CKSUMTYPE_RSA_MD5_DES3,
@@ -1683,14 +1680,16 @@ static struct checksum_type checksum_hmac_md5 = {
 
 static struct checksum_type *checksum_types[] = {
     &checksum_none,
+#ifdef HEIM_WEAK_CRYPTO
     &checksum_crc32,
     &checksum_rsa_md4,
     &checksum_rsa_md4_des,
-    &checksum_rsa_md5,
     &checksum_rsa_md5_des,
+#endif
 #ifdef DES3_OLD_ENCTYPE
     &checksum_rsa_md5_des3,
 #endif
+    &checksum_rsa_md5,
     &checksum_sha1,
     &checksum_hmac_sha1_des3,
     &checksum_hmac_sha1_aes128,
@@ -1787,7 +1786,7 @@ arcfour_checksum_p(struct checksum_type *ct, krb5_crypto crypto)
 	(crypto->key.key->keytype == KEYTYPE_ARCFOUR);
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_create_checksum(krb5_context context,
 		     krb5_crypto crypto,
 		     krb5_key_usage usage,
@@ -1889,7 +1888,7 @@ verify_checksum(krb5_context context,
     }
 
     if(c.checksum.length != cksum->checksum.length ||
-       memcmp(c.checksum.data, cksum->checksum.data, c.checksum.length)) {
+       ct_memcmp(c.checksum.data, cksum->checksum.data, c.checksum.length)) {
 	krb5_clear_error_message (context);
 	ret = KRB5KRB_AP_ERR_BAD_INTEGRITY;
     } else {
@@ -1899,7 +1898,7 @@ verify_checksum(krb5_context context,
     return ret;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_verify_checksum(krb5_context context,
 		     krb5_crypto crypto,
 		     krb5_key_usage usage,
@@ -1928,7 +1927,7 @@ krb5_verify_checksum(krb5_context context,
 			   data, len, cksum);
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_crypto_get_checksum_type(krb5_context context,
                               krb5_crypto crypto,
 			      krb5_cksumtype *type)
@@ -1953,7 +1952,7 @@ krb5_crypto_get_checksum_type(krb5_context context,
 }
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_checksumsize(krb5_context context,
 		  krb5_cksumtype type,
 		  size_t *size)
@@ -1969,7 +1968,7 @@ krb5_checksumsize(krb5_context context,
     return 0;
 }
 
-krb5_boolean KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_boolean KRB5_LIB_CALL
 krb5_checksum_is_keyed(krb5_context context,
 		       krb5_cksumtype type)
 {
@@ -1984,7 +1983,7 @@ krb5_checksum_is_keyed(krb5_context context,
     return ct->flags & F_KEYED;
 }
 
-krb5_boolean KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_boolean KRB5_LIB_CALL
 krb5_checksum_is_collision_proof(krb5_context context,
 				 krb5_cksumtype type)
 {
@@ -1999,7 +1998,7 @@ krb5_checksum_is_collision_proof(krb5_context context,
     return ct->flags & F_CPROOF;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_checksum_disable(krb5_context context,
 		      krb5_cksumtype type)
 {
@@ -2045,13 +2044,13 @@ evp_encrypt(krb5_context context,
     c = encryptp ? &ctx->ectx : &ctx->dctx;
     if (ivec == NULL) {
 	/* alloca ? */
-	size_t len = EVP_CIPHER_CTX_iv_length(c);
-	void *loiv = malloc(len);
+	size_t len2 = EVP_CIPHER_CTX_iv_length(c);
+	void *loiv = malloc(len2);
 	if (loiv == NULL) {
 	    krb5_clear_error_message(context);
 	    return ENOMEM;
 	}
-	memset(loiv, 0, len);
+	memset(loiv, 0, len2);
 	EVP_CipherInit_ex(c, NULL, NULL, NULL, loiv, -1);
 	free(loiv);
     } else
@@ -2060,7 +2059,103 @@ evp_encrypt(krb5_context context,
     return 0;
 }
 
-#ifdef WEAK_ENCTYPES
+static const unsigned char zero_ivec[EVP_MAX_BLOCK_LENGTH] = { 0 };
+
+static krb5_error_code
+evp_encrypt_cts(krb5_context context,
+		struct key_data *key,
+		void *data,
+		size_t len,
+		krb5_boolean encryptp,
+		int usage,
+		void *ivec)
+{
+    size_t i, blocksize;
+    struct evp_schedule *ctx = key->schedule->data;
+    char tmp[EVP_MAX_BLOCK_LENGTH], ivec2[EVP_MAX_BLOCK_LENGTH];
+    EVP_CIPHER_CTX *c;
+    unsigned char *p;
+
+    c = encryptp ? &ctx->ectx : &ctx->dctx;
+
+    blocksize = EVP_CIPHER_CTX_block_size(c);
+
+    if (len < blocksize) {
+	krb5_set_error_message(context, EINVAL,
+			       "message block too short");
+	return EINVAL;
+    } else if (len == blocksize) {
+	EVP_CipherInit_ex(c, NULL, NULL, NULL, zero_ivec, -1);
+	EVP_Cipher(c, data, data, len);
+	return 0;
+    }
+
+    if (ivec)
+	EVP_CipherInit_ex(c, NULL, NULL, NULL, ivec, -1);
+    else
+	EVP_CipherInit_ex(c, NULL, NULL, NULL, zero_ivec, -1);
+
+    if (encryptp) {
+
+	p = data;
+	i = ((len - 1) / blocksize) * blocksize;
+	EVP_Cipher(c, p, p, i);
+	p += i - blocksize;
+	len -= i;
+	memcpy(ivec2, p, blocksize);
+
+	for (i = 0; i < len; i++)
+	    tmp[i] = p[i + blocksize] ^ ivec2[i];
+	for (; i < blocksize; i++)
+	    tmp[i] = 0 ^ ivec2[i];
+	
+	EVP_CipherInit_ex(c, NULL, NULL, NULL, zero_ivec, -1);
+	EVP_Cipher(c, p, tmp, blocksize);
+	
+	memcpy(p + blocksize, ivec2, len);
+	if (ivec)
+	    memcpy(ivec, p, blocksize);
+    } else { 
+	char tmp2[EVP_MAX_BLOCK_LENGTH], tmp3[EVP_MAX_BLOCK_LENGTH];
+
+	p = data;
+	if (len > blocksize * 2) {
+	    /* remove last two blocks and round up, decrypt this with cbc, then do cts dance */
+	    i = ((((len - blocksize * 2) + blocksize - 1) / blocksize) * blocksize);
+	    memcpy(ivec2, p + i - blocksize, blocksize);
+	    EVP_Cipher(c, p, p, i);
+	    p += i;
+	    len -= i + blocksize;
+	} else {
+	    if (ivec)
+		memcpy(ivec2, ivec, blocksize);
+	    else
+		memcpy(ivec2, zero_ivec, blocksize);
+	    len -= blocksize;
+	}
+
+	memcpy(tmp, p, blocksize);
+	EVP_CipherInit_ex(c, NULL, NULL, NULL, zero_ivec, -1);
+	EVP_Cipher(c, tmp2, p, blocksize);
+
+	memcpy(tmp3, p + blocksize, len);
+	memcpy(tmp3 + len, tmp2 + len, blocksize - len); /* xor 0 */
+
+	for (i = 0; i < len; i++)
+	    p[i + blocksize] = tmp2[i] ^ tmp3[i];
+
+	EVP_CipherInit_ex(c, NULL, NULL, NULL, zero_ivec, -1);
+	EVP_Cipher(c, p, tmp3, blocksize);
+
+	for (i = 0; i < blocksize; i++)
+	    p[i] ^= ivec2[i];
+	if (ivec)
+	    memcpy(ivec, tmp, blocksize);
+    }
+    return 0;
+}
+
+#ifdef HEIM_WEAK_CRYPTO
 static krb5_error_code
 evp_des_encrypt_null_ivec(krb5_context context,
 			  struct key_data *key,
@@ -2149,12 +2244,12 @@ ARCFOUR_subencrypt(krb5_context context,
 		   unsigned usage,
 		   void *ivec)
 {
+    EVP_CIPHER_CTX ctx;
     struct checksum_type *c = _find_checksum (CKSUMTYPE_RSA_MD5);
     Checksum k1_c, k2_c, k3_c, cksum;
     struct key_data ke;
     krb5_keyblock kb;
     unsigned char t[4];
-    RC4_KEY rc4_key;
     unsigned char *cdata = data;
     unsigned char k1_c_data[16], k2_c_data[16], k3_c_data[16];
     krb5_error_code ret;
@@ -2196,8 +2291,12 @@ ARCFOUR_subencrypt(krb5_context context,
     if (ret)
 	krb5_abortx(context, "hmac failed");
 
-    RC4_set_key (&rc4_key, k3_c.checksum.length, k3_c.checksum.data);
-    RC4 (&rc4_key, len - 16, cdata + 16, cdata + 16);
+    EVP_CIPHER_CTX_init(&ctx);
+
+    EVP_CipherInit_ex(&ctx, EVP_rc4(), NULL, k3_c.checksum.data, NULL, 1);
+    EVP_Cipher(&ctx, cdata + 16, cdata + 16, len - 16);
+    EVP_CIPHER_CTX_cleanup(&ctx);
+
     memset (k1_c_data, 0, sizeof(k1_c_data));
     memset (k2_c_data, 0, sizeof(k2_c_data));
     memset (k3_c_data, 0, sizeof(k3_c_data));
@@ -2212,12 +2311,12 @@ ARCFOUR_subdecrypt(krb5_context context,
 		   unsigned usage,
 		   void *ivec)
 {
+    EVP_CIPHER_CTX ctx;
     struct checksum_type *c = _find_checksum (CKSUMTYPE_RSA_MD5);
     Checksum k1_c, k2_c, k3_c, cksum;
     struct key_data ke;
     krb5_keyblock kb;
     unsigned char t[4];
-    RC4_KEY rc4_key;
     unsigned char *cdata = data;
     unsigned char k1_c_data[16], k2_c_data[16], k3_c_data[16];
     unsigned char cksum_data[16];
@@ -2250,8 +2349,10 @@ ARCFOUR_subdecrypt(krb5_context context,
     if (ret)
 	krb5_abortx(context, "hmac failed");
 
-    RC4_set_key (&rc4_key, k3_c.checksum.length, k3_c.checksum.data);
-    RC4 (&rc4_key, len - 16, cdata + 16, cdata + 16);
+    EVP_CIPHER_CTX_init(&ctx);
+    EVP_CipherInit_ex(&ctx, EVP_rc4(), NULL, k3_c.checksum.data, NULL, 0);
+    EVP_Cipher(&ctx, cdata + 16, cdata + 16, len - 16);
+    EVP_CIPHER_CTX_cleanup(&ctx);
 
     ke.key = &kb;
     kb.keyvalue = k2_c.checksum;
@@ -2267,7 +2368,7 @@ ARCFOUR_subdecrypt(krb5_context context,
     memset (k2_c_data, 0, sizeof(k2_c_data));
     memset (k3_c_data, 0, sizeof(k3_c_data));
 
-    if (memcmp (cksum.checksum.data, data, 16) != 0) {
+    if (ct_memcmp (cksum.checksum.data, data, 16) != 0) {
 	krb5_clear_error_message (context);
 	return KRB5KRB_AP_ERR_BAD_INTEGRITY;
     } else {
@@ -2286,7 +2387,6 @@ usage2arcfour (krb5_context context, unsigned *usage)
 {
     switch (*usage) {
     case KRB5_KU_AS_REP_ENC_PART : /* 3 */
-    case KRB5_KU_TGS_REP_ENC_PART_SUB_KEY : /* 9 */
 	*usage = 8;
 	return 0;
     case KRB5_KU_USAGE_SEAL :  /* 22 */
@@ -2471,7 +2571,7 @@ static struct encryption_type enctype_aes128_cts_hmac_sha1 = {
     &checksum_sha1,
     &checksum_hmac_sha1_aes128,
     F_DERIVED,
-    evp_encrypt,
+    evp_encrypt_cts,
     16,
     AES_PRF
 };
@@ -2485,7 +2585,7 @@ static struct encryption_type enctype_aes256_cts_hmac_sha1 = {
     &checksum_sha1,
     &checksum_hmac_sha1_aes256,
     F_DERIVED,
-    evp_encrypt,
+    evp_encrypt_cts,
     16,
     AES_PRF
 };
@@ -2503,7 +2603,7 @@ static struct encryption_type enctype_des3_cbc_none = {
     0,
     NULL
 };
-#ifdef WEAK_ENCTYPES
+#ifdef HEIM_WEAK_CRYPTO
 static struct encryption_type enctype_des_cbc_crc = {
     ETYPE_DES_CBC_CRC,
     "des-cbc-crc",
@@ -2513,7 +2613,7 @@ static struct encryption_type enctype_des_cbc_crc = {
     &keytype_des,
     &checksum_crc32,
     NULL,
-    F_DISABLED,
+    F_DISABLED|F_WEAK,
     evp_des_encrypt_key_ivec,
     0,
     NULL
@@ -2527,7 +2627,7 @@ static struct encryption_type enctype_des_cbc_md4 = {
     &keytype_des,
     &checksum_rsa_md4,
     &checksum_rsa_md4_des,
-    F_DISABLED,
+    F_DISABLED|F_WEAK,
     evp_des_encrypt_null_ivec,
     0,
     NULL
@@ -2541,7 +2641,7 @@ static struct encryption_type enctype_des_cbc_md5 = {
     &keytype_des,
     &checksum_rsa_md5,
     &checksum_rsa_md5_des,
-    F_DISABLED,
+    F_DISABLED|F_WEAK,
     evp_des_encrypt_null_ivec,
     0,
     NULL
@@ -2555,7 +2655,7 @@ static struct encryption_type enctype_des_cbc_none = {
     &keytype_des,
     &checksum_none,
     NULL,
-    F_PSEUDO|F_DISABLED,
+    F_PSEUDO|F_DISABLED|F_WEAK,
     evp_des_encrypt_null_ivec,
     0,
     NULL
@@ -2569,7 +2669,7 @@ static struct encryption_type enctype_des_cfb64_none = {
     &keytype_des_old,
     &checksum_none,
     NULL,
-    F_PSEUDO|F_DISABLED,
+    F_PSEUDO|F_DISABLED|F_WEAK,
     DES_CFB64_encrypt_null_ivec,
     0,
     NULL
@@ -2583,12 +2683,12 @@ static struct encryption_type enctype_des_pcbc_none = {
     &keytype_des_old,
     &checksum_none,
     NULL,
-    F_PSEUDO|F_DISABLED,
+    F_PSEUDO|F_DISABLED|F_WEAK,
     DES_PCBC_encrypt_key_ivec,
     0,
     NULL
 };
-#endif /* WEAK_ENCTYPES */
+#endif /* HEIM_WEAK_CRYPTO */
 
 static struct encryption_type *etypes[] = {
     &enctype_aes256_cts_hmac_sha1,
@@ -2600,7 +2700,7 @@ static struct encryption_type *etypes[] = {
     &enctype_des3_cbc_md5,
     &enctype_old_des3_cbc_sha1,
 #endif
-#ifdef WEAK_ENCTYPES
+#ifdef HEIM_WEAK_CRYPTO
     &enctype_des_cbc_crc,
     &enctype_des_cbc_md4,
     &enctype_des_cbc_md5,
@@ -2625,7 +2725,7 @@ _find_enctype(krb5_enctype type)
 }
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_enctype_to_string(krb5_context context,
 		       krb5_enctype etype,
 		       char **string)
@@ -2647,7 +2747,7 @@ krb5_enctype_to_string(krb5_context context,
     return 0;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_string_to_enctype(krb5_context context,
 		       const char *string,
 		       krb5_enctype *etype)
@@ -2664,7 +2764,7 @@ krb5_string_to_enctype(krb5_context context,
     return KRB5_PROG_ETYPE_NOSUPP;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_enctype_to_keytype(krb5_context context,
 			krb5_enctype etype,
 			krb5_keytype *keytype)
@@ -2680,7 +2780,7 @@ krb5_enctype_to_keytype(krb5_context context,
     return 0;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_enctype_valid(krb5_context context,
 		   krb5_enctype etype)
 {
@@ -2713,7 +2813,7 @@ krb5_enctype_valid(krb5_context context,
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cksumtype_to_enctype(krb5_context context,
 			  krb5_cksumtype ctype,
 			  krb5_enctype *etype)
@@ -2738,7 +2838,7 @@ krb5_cksumtype_to_enctype(krb5_context context,
 }
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cksumtype_valid(krb5_context context,
 		     krb5_cksumtype ctype)
 {
@@ -3044,8 +3144,14 @@ decrypt_internal(krb5_context context,
 	krb5_clear_error_message(context);
 	return KRB5_BAD_MSIZE;
     }
-
     checksum_sz = CHECKSUMSIZE(et->checksum);
+    if (len < checksum_sz + et->confoundersize) {
+	krb5_set_error_message(context, KRB5_BAD_MSIZE,
+			       N_("Encrypted data shorter then "
+				  "checksum + confunder", ""));
+	return KRB5_BAD_MSIZE;
+    }
+
     p = malloc(len);
     if(len != 0 && p == NULL) {
 	krb5_set_error_message(context, ENOMEM, N_("malloc: out of memory", ""));
@@ -3107,6 +3213,12 @@ decrypt_internal_special(krb5_context context,
 	krb5_clear_error_message(context);
 	return KRB5_BAD_MSIZE;
     }
+    if (len < cksum_sz + et->confoundersize) {
+	krb5_set_error_message(context, KRB5_BAD_MSIZE,
+			       N_("Encrypted data shorter then "
+				  "checksum + confunder", ""));
+	return KRB5_BAD_MSIZE;
+    }
 
     p = malloc (len);
     if (p == NULL) {
@@ -3166,7 +3278,7 @@ find_iv(krb5_crypto_iov *data, int num_data, int type)
  * 4. KRB5_CRYPTO_TYPE_TRAILER
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_encrypt_iov_ivec(krb5_context context,
 		      krb5_crypto crypto,
 		      unsigned usage,
@@ -3359,7 +3471,7 @@ krb5_encrypt_iov_ivec(krb5_context context,
  *  size as the input data or shorter.
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_decrypt_iov_ivec(krb5_context context,
 		      krb5_crypto crypto,
 		      unsigned usage,
@@ -3507,7 +3619,7 @@ krb5_decrypt_iov_ivec(krb5_context context,
  * @ingroup krb5_crypto
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_create_checksum_iov(krb5_context context,
 			 krb5_crypto crypto,
 			 unsigned usage,
@@ -3584,12 +3696,13 @@ krb5_create_checksum_iov(krb5_context context,
  * @param usage Key usage for this buffer
  * @param data array of buffers to process
  * @param num_data length of array
+ * @param type return checksum type if not NULL
  *
  * @return Return an error code or 0.
  * @ingroup krb5_crypto
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_verify_checksum_iov(krb5_context context,
 			 krb5_crypto crypto,
 			 unsigned usage,
@@ -3651,7 +3764,7 @@ krb5_verify_checksum_iov(krb5_context context,
 }
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_crypto_length(krb5_context context,
 		   krb5_crypto crypto,
 		   int type,
@@ -3695,7 +3808,7 @@ krb5_crypto_length(krb5_context context,
 }
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_crypto_length_iov(krb5_context context,
 		       krb5_crypto crypto,
 		       krb5_crypto_iov *data,
@@ -3715,7 +3828,7 @@ krb5_crypto_length_iov(krb5_context context,
 }
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_encrypt_ivec(krb5_context context,
 		  krb5_crypto crypto,
 		  unsigned usage,
@@ -3734,7 +3847,7 @@ krb5_encrypt_ivec(krb5_context context,
 	return encrypt_internal(context, crypto, data, len, result, ivec);
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_encrypt(krb5_context context,
 	     krb5_crypto crypto,
 	     unsigned usage,
@@ -3745,7 +3858,7 @@ krb5_encrypt(krb5_context context,
     return krb5_encrypt_ivec(context, crypto, usage, data, len, result, NULL);
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_encrypt_EncryptedData(krb5_context context,
 			   krb5_crypto crypto,
 			   unsigned usage,
@@ -3763,7 +3876,7 @@ krb5_encrypt_EncryptedData(krb5_context context,
     return krb5_encrypt(context, crypto, usage, data, len, &result->cipher);
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_decrypt_ivec(krb5_context context,
 		  krb5_crypto crypto,
 		  unsigned usage,
@@ -3782,7 +3895,7 @@ krb5_decrypt_ivec(krb5_context context,
 	return decrypt_internal(context, crypto, data, len, result, ivec);
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_decrypt(krb5_context context,
 	     krb5_crypto crypto,
 	     unsigned usage,
@@ -3794,7 +3907,7 @@ krb5_decrypt(krb5_context context,
 			      NULL);
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_decrypt_EncryptedData(krb5_context context,
 			   krb5_crypto crypto,
 			   unsigned usage,
@@ -3836,6 +3949,7 @@ seed_something(void)
     /* Calling RAND_status() will try to use /dev/urandom if it exists so
        we do not have to deal with it. */
     if (RAND_status() != 1) {
+#ifndef _WIN32
 	krb5_context context;
 	const char *p;
 
@@ -3847,6 +3961,10 @@ seed_something(void)
 		RAND_egd_bytes(p, ENTROPY_NEEDED);
 	    krb5_free_context(context);
 	}
+#else
+ 	/* TODO: Once a Windows CryptoAPI RAND method is defined, we
+ 	   can use that and failover to another method. */
+#endif
     }
 
     if (RAND_status() == 1)	{
@@ -3859,7 +3977,7 @@ seed_something(void)
 	return -1;
 }
 
-void KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION void KRB5_LIB_CALL
 krb5_generate_random_block(void *buf, size_t len)
 {
     static int rng_initialized = 0;
@@ -3983,7 +4101,7 @@ _new_derived_key(krb5_crypto crypto, unsigned usage)
     return &d->key;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_derive_key(krb5_context context,
 		const krb5_keyblock *key,
 		krb5_enctype etype,
@@ -4044,8 +4162,25 @@ _get_derived_key(krb5_context context,
     return 0;
 }
 
+/**
+ * Create a crypto context used for all encryption and signature
+ * operation. The encryption type to use is taken from the key, but
+ * can be overridden with the enctype parameter.  This can be useful
+ * for encryptions types which is compatiable (DES for example).
+ *
+ * To free the crypto context, use krb5_crypto_destroy().
+ *
+ * @param context Kerberos context
+ * @param key the key block information with all key data
+ * @param etype the encryption type
+ * @param crypto the resulting crypto context
+ *
+ * @return Return an error code or 0.
+ *
+ * @ingroup krb5_crypto
+ */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_crypto_init(krb5_context context,
 		 const krb5_keyblock *key,
 		 krb5_enctype etype,
@@ -4116,7 +4251,18 @@ free_key_usage(krb5_context context, struct key_usage *ku,
     free_key_data(context, &ku->key, et);
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+/**
+ * Free a crypto context created by krb5_crypto_init().
+ *
+ * @param context Kerberos context
+ * @param crypto crypto context to free
+ *
+ * @return Return an error code or 0.
+ *
+ * @ingroup krb5_crypto
+ */
+
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_crypto_destroy(krb5_context context,
 		    krb5_crypto crypto)
 {
@@ -4130,7 +4276,19 @@ krb5_crypto_destroy(krb5_context context,
     return 0;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+/**
+ * Return the blocksize used algorithm referenced by the crypto context
+ * 
+ * @param context Kerberos context
+ * @param crypto crypto context to query
+ * @param blocksize the resulting blocksize
+ *
+ * @return Return an error code or 0.
+ *
+ * @ingroup krb5_crypto
+ */
+
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_crypto_getblocksize(krb5_context context,
 			 krb5_crypto crypto,
 			 size_t *blocksize)
@@ -4139,7 +4297,19 @@ krb5_crypto_getblocksize(krb5_context context,
     return 0;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+/**
+ * Return the encryption type used by the crypto context
+ * 
+ * @param context Kerberos context
+ * @param crypto crypto context to query
+ * @param enctype the resulting encryption type
+ *
+ * @return Return an error code or 0.
+ *
+ * @ingroup krb5_crypto
+ */
+
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_crypto_getenctype(krb5_context context,
 		       krb5_crypto crypto,
 		       krb5_enctype *enctype)
@@ -4148,7 +4318,19 @@ krb5_crypto_getenctype(krb5_context context,
     return 0;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+/**
+ * Return the padding size used by the crypto context
+ * 
+ * @param context Kerberos context
+ * @param crypto crypto context to query
+ * @param padsize the return padding size
+ *
+ * @return Return an error code or 0.
+ *
+ * @ingroup krb5_crypto
+ */
+
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_crypto_getpadsize(krb5_context context,
                        krb5_crypto crypto,
                        size_t *padsize)
@@ -4157,7 +4339,19 @@ krb5_crypto_getpadsize(krb5_context context,
     return 0;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+/**
+ * Return the confounder size used by the crypto context
+ * 
+ * @param context Kerberos context
+ * @param crypto crypto context to query
+ * @param confoundersize the returned confounder size
+ *
+ * @return Return an error code or 0.
+ *
+ * @ingroup krb5_crypto
+ */
+
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_crypto_getconfoundersize(krb5_context context,
                               krb5_crypto crypto,
                               size_t *confoundersize)
@@ -4178,7 +4372,7 @@ krb5_crypto_getconfoundersize(krb5_context context,
  * @ingroup krb5_crypto
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_enctype_disable(krb5_context context,
 		     krb5_enctype enctype)
 {
@@ -4205,7 +4399,7 @@ krb5_enctype_disable(krb5_context context,
  * @ingroup krb5_crypto
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_enctype_enable(krb5_context context,
 		    krb5_enctype enctype)
 {
@@ -4221,8 +4415,35 @@ krb5_enctype_enable(krb5_context context,
     return 0;
 }
 
+/**
+ * Enable or disable all weak encryption types
+ *
+ * @param context Kerberos 5 context
+ * @param enable true to enable, false to disable
+ *
+ * @return Return an error code or 0.
+ *
+ * @ingroup krb5_crypto
+ */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_allow_weak_crypto(krb5_context context,
+		       krb5_boolean enable)
+{
+    int i;
+
+    for(i = 0; i < num_etypes; i++)
+	if(etypes[i]->flags & F_WEAK) {
+	    if(enable)
+		etypes[i]->flags &= ~F_DISABLED;
+	    else
+		etypes[i]->flags |= F_DISABLED;
+	}
+    return 0;
+}
+
+
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_string_to_key_derived(krb5_context context,
 			   const void *str,
 			   size_t len,
@@ -4386,15 +4607,15 @@ krb5_crypto_overhead (krb5_context context, krb5_crypto crypto)
  * @param context Kerberos 5 context
  * @param type the enctype resulting key will be of
  * @param data input random data to convert to a key
- * @param data size of input random data, at least krb5_enctype_keysize() long
- * @param data key, output key, free with krb5_free_keyblock_contents()
+ * @param size size of input random data, at least krb5_enctype_keysize() long
+ * @param key key, output key, free with krb5_free_keyblock_contents()
  *
  * @return Return an error code or 0.
  *
  * @ingroup krb5_crypto
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_random_to_key(krb5_context context,
 		   krb5_enctype type,
 		   const void *data,
@@ -4444,6 +4665,7 @@ _krb5_pk_octetstring2key(krb5_context context,
     void *keydata;
     unsigned char counter;
     unsigned char shaoutput[SHA_DIGEST_LENGTH];
+    EVP_MD_CTX *m;
 
     if(et == NULL) {
 	krb5_set_error_message(context, KRB5_PROG_ETYPE_NOSUPP,
@@ -4459,19 +4681,27 @@ _krb5_pk_octetstring2key(krb5_context context,
 	return ENOMEM;
     }
 
+    m = EVP_MD_CTX_create();
+    if (m == NULL) {
+	free(keydata);
+	krb5_set_error_message(context, ENOMEM, N_("malloc: out of memory", ""));
+	return ENOMEM;
+    }
+
     counter = 0;
     offset = 0;
     do {
-	SHA_CTX m;
 	
-	SHA1_Init(&m);
-	SHA1_Update(&m, &counter, 1);
-	SHA1_Update(&m, dhdata, dhsize);
+	EVP_DigestInit_ex(m, EVP_sha1(), NULL);
+	EVP_DigestUpdate(m, &counter, 1);
+	EVP_DigestUpdate(m, dhdata, dhsize);
+
 	if (c_n)
-	    SHA1_Update(&m, c_n->data, c_n->length);
+	    EVP_DigestUpdate(m, c_n->data, c_n->length);
 	if (k_n)
-	    SHA1_Update(&m, k_n->data, k_n->length);
-	SHA1_Final(shaoutput, &m);
+	    EVP_DigestUpdate(m, k_n->data, k_n->length);
+
+	EVP_DigestFinal_ex(m, shaoutput, NULL);
 
 	memcpy((unsigned char *)keydata + offset,
 	       shaoutput,
@@ -4481,6 +4711,8 @@ _krb5_pk_octetstring2key(krb5_context context,
 	counter++;
     } while(offset < keylen);
     memset(shaoutput, 0, sizeof(shaoutput));
+
+    EVP_MD_CTX_destroy(m);
 
     ret = krb5_random_to_key(context, type, keydata, keylen, key);
     memset(keydata, 0, sizeof(keylen));
@@ -4595,6 +4827,7 @@ _krb5_pk_kdf(krb5_context context,
     uint32_t counter;
     unsigned char *keydata;
     unsigned char shaoutput[SHA_DIGEST_LENGTH];
+    EVP_MD_CTX *m;
 
     if (der_heim_oid_cmp(&asn1_oid_id_pkinit_kdf_ah_sha1, &ai->algorithm) != 0) {
 	krb5_set_error_message(context, KRB5_PROG_ETYPE_NOSUPP,
@@ -4633,18 +4866,26 @@ _krb5_pk_kdf(krb5_context context,
 	return ret;
     }
 
+    m = EVP_MD_CTX_create();
+    if (m == NULL) {
+	free(keydata);
+	free(other.data);
+	krb5_set_error_message(context, ENOMEM, N_("malloc: out of memory", ""));
+	return ENOMEM;
+    }
+
     offset = 0;
     counter = 1;
     do {
 	unsigned char cdata[4];
-	SHA_CTX m;
 	
-	SHA1_Init(&m);
+	EVP_DigestInit_ex(m, EVP_sha1(), NULL);
 	_krb5_put_int(cdata, counter, 4);
-	SHA1_Update(&m, cdata, 4);
-	SHA1_Update(&m, dhdata, dhsize);
-	SHA1_Update(&m, other.data, other.length);
-	SHA1_Final(shaoutput, &m);
+	EVP_DigestUpdate(m, cdata, 4);
+	EVP_DigestUpdate(m, dhdata, dhsize);
+	EVP_DigestUpdate(m, other.data, other.length);
+
+	EVP_DigestFinal_ex(m, shaoutput, NULL);
 
 	memcpy((unsigned char *)keydata + offset,
 	       shaoutput,
@@ -4655,6 +4896,7 @@ _krb5_pk_kdf(krb5_context context,
     } while(offset < keylen);
     memset(shaoutput, 0, sizeof(shaoutput));
 
+    EVP_MD_CTX_destroy(m);
     free(other.data);
 
     ret = krb5_random_to_key(context, enctype, keydata, keylen, key);
@@ -4665,7 +4907,7 @@ _krb5_pk_kdf(krb5_context context,
 }
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_crypto_prf_length(krb5_context context,
 		       krb5_enctype type,
 		       size_t *length)
@@ -4683,7 +4925,7 @@ krb5_crypto_prf_length(krb5_context context,
     return 0;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_crypto_prf(krb5_context context,
 		const krb5_crypto crypto,
 		const krb5_data *input,
@@ -4765,7 +5007,7 @@ krb5_crypto_prfplus(krb5_context context,
  * @param crypto1 first key to combine
  * @param crypto2 second key to combine
  * @param pepper1 factor to combine with first key to garante uniqueness
- * @param pepper1 factor to combine with second key to garante uniqueness
+ * @param pepper2 factor to combine with second key to garante uniqueness
  * @param enctype the encryption type of the resulting key
  * @param res allocated key, free with krb5_free_keyblock_contents()
  *
@@ -4774,7 +5016,7 @@ krb5_crypto_prfplus(krb5_context context,
  * @ingroup krb5_crypto
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_crypto_fx_cf2(krb5_context context,
 		   const krb5_crypto crypto1,
 		   const krb5_crypto crypto2,
@@ -4822,12 +5064,18 @@ krb5_crypto_fx_cf2(krb5_context context,
 
 #ifndef HEIMDAL_SMALLER
 
-krb5_error_code KRB5_LIB_FUNCTION
+/**
+ * Deprecated: keytypes doesn't exists, they are really enctypes.
+ *
+ * @ingroup krb5_deprecated
+ */
+
+KRB5_DEPRECATED
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_keytype_to_enctypes (krb5_context context,
 			  krb5_keytype keytype,
 			  unsigned *len,
 			  krb5_enctype **val)
-    KRB5_DEPRECATED
 {
     int i;
     unsigned n = 0;
@@ -4862,12 +5110,18 @@ krb5_keytype_to_enctypes (krb5_context context,
     return 0;
 }
 
+/**
+ * Deprecated: keytypes doesn't exists, they are really enctypes.
+ *
+ * @ingroup krb5_deprecated
+ */
+
 /* if two enctypes have compatible keys */
-krb5_boolean KRB5_LIB_FUNCTION
+KRB5_DEPRECATED
+KRB5_LIB_FUNCTION krb5_boolean KRB5_LIB_CALL
 krb5_enctypes_compatible_keys(krb5_context context,
 			      krb5_enctype etype1,
 			      krb5_enctype etype2)
-    KRB5_DEPRECATED
 {
     struct encryption_type *e1 = _find_enctype(etype1);
     struct encryption_type *e2 = _find_enctype(etype2);

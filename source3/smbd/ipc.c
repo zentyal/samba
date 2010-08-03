@@ -93,7 +93,7 @@ void send_trans_reply(connection_struct *conn,
 
 	int ldata  = rdata  ? rdata_len : 0;
 	int lparam = rparam ? rparam_len : 0;
-	struct smbd_server_connection *sconn = smbd_server_conn;
+	struct smbd_server_connection *sconn = req->sconn;
 	int max_send = sconn->smb1.sessions.max_send;
 
 	if (buffer_too_large)
@@ -227,9 +227,20 @@ static void api_dcerpc_cmd(connection_struct *conn, struct smb_request *req,
 {
 	struct tevent_req *subreq;
 	struct dcerpc_cmd_state *state;
+	bool busy;
 
 	if (!fsp_is_np(fsp)) {
 		api_no_reply(conn, req);
+		return;
+	}
+
+	/*
+	 * Trans requests are only allowed
+	 * if no other Trans or Read is active
+	 */
+	busy = np_read_in_progress(fsp->fake_file_handle);
+	if (busy) {
+		reply_nterror(req, NT_STATUS_PIPE_BUSY);
 		return;
 	}
 

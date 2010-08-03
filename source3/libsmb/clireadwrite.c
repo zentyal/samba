@@ -25,7 +25,7 @@
 static size_t cli_read_max_bufsize(struct cli_state *cli)
 {
 	if (!client_is_signing_on(cli) && !cli_encryption_on(cli)
-	    && (cli->posix_capabilities & CIFS_UNIX_LARGE_READ_CAP)) {
+	    && (cli->server_posix_capabilities & CIFS_UNIX_LARGE_READ_CAP)) {
 		return CLI_SAMBA_MAX_POSIX_LARGE_READX_SIZE;
 	}
 	if (cli->capabilities & CAP_LARGE_READX) {
@@ -44,7 +44,7 @@ static size_t cli_write_max_bufsize(struct cli_state *cli, uint16_t write_mode)
         if (write_mode == 0 &&
 	    !client_is_signing_on(cli) &&
 	    !cli_encryption_on(cli) &&
-	    (cli->posix_capabilities & CIFS_UNIX_LARGE_WRITE_CAP) &&
+	    (cli->server_posix_capabilities & CIFS_UNIX_LARGE_WRITE_CAP) &&
 	    (cli->capabilities & CAP_LARGE_FILES)) {
 		/* Only do massive writes if we can do them direct
 		 * with no signing or encrypting - not on a pipe. */
@@ -88,7 +88,6 @@ struct tevent_req *cli_read_andx_create(TALLOC_CTX *mem_ctx,
 {
 	struct tevent_req *req, *subreq;
 	struct cli_read_andx_state *state;
-	bool bigoffset = False;
 	uint8_t wct = 10;
 
 	if (size > cli_read_max_bufsize(cli)) {
@@ -116,7 +115,6 @@ struct tevent_req *cli_read_andx_create(TALLOC_CTX *mem_ctx,
 	SSVAL(state->vwv + 9, 0, 0);
 
 	if ((uint64_t)offset >> 32) {
-		bigoffset = true;
 		SIVAL(state->vwv + 10, 0,
 		      (((uint64_t)offset)>>32) & 0xffffffff);
 		wct += 2;
@@ -167,8 +165,9 @@ static void cli_read_andx_done(struct tevent_req *subreq)
 	uint32_t num_bytes;
 	uint8_t *bytes;
 
-	state->status = cli_smb_recv(subreq, 12, &wct, &vwv, &num_bytes,
-				     &bytes);
+	state->status = cli_smb_recv(subreq, state, &inbuf, 12, &wct, &vwv,
+				     &num_bytes, &bytes);
+	TALLOC_FREE(subreq);
 	if (NT_STATUS_IS_ERR(state->status)) {
 		tevent_req_nterror(req, state->status);
 		return;
@@ -196,7 +195,6 @@ static void cli_read_andx_done(struct tevent_req *subreq)
 		return;
 	}
 
-	inbuf = cli_smb_inbuf(subreq);
 	state->buf = (uint8_t *)smb_base(inbuf) + SVAL(vwv+6, 0);
 
 	if (trans_oob(smb_len(inbuf), SVAL(vwv+6, 0), state->received)
@@ -410,7 +408,7 @@ static char *cli_pull_print(struct tevent_req *req, TALLOC_CTX *mem_ctx)
 		req, struct cli_pull_state);
 	char *result;
 
-	result = tevent_req_print(mem_ctx, req);
+	result = tevent_req_default_print(req, mem_ctx);
 	if (result == NULL) {
 		return NULL;
 	}
@@ -1020,11 +1018,13 @@ static void cli_write_andx_done(struct tevent_req *subreq)
 		req, struct cli_write_andx_state);
 	uint8_t wct;
 	uint16_t *vwv;
+	uint8_t *inbuf;
 	NTSTATUS status;
 
-	status = cli_smb_recv(subreq, 6, &wct, &vwv, NULL, NULL);
+	status = cli_smb_recv(subreq, state, &inbuf, 6, &wct, &vwv,
+			      NULL, NULL);
+	TALLOC_FREE(subreq);
 	if (NT_STATUS_IS_ERR(status)) {
-		TALLOC_FREE(subreq);
 		tevent_req_nterror(req, status);
 		return;
 	}

@@ -33,8 +33,6 @@
 #include "spnego_locl.h"
 #include <gssapi_mech.h>
 
-RCSID("$Id$");
-
 /*
  * RFC2478, SPNEGO:
  *  The security mechanism of the initial
@@ -46,6 +44,7 @@ static gssapi_mech_interface_desc spnego_mech = {
     GMI_VERSION,
     "spnego",
     {6, (void *)"\x2b\x06\x01\x05\x05\x02"},
+    0,
     _gss_spnego_acquire_cred,
     _gss_spnego_release_cred,
     _gss_spnego_init_sec_context,
@@ -67,7 +66,7 @@ static gssapi_mech_interface_desc spnego_mech = {
     _gss_spnego_inquire_cred,
     _gss_spnego_inquire_context,
     _gss_spnego_wrap_size_limit,
-    _gss_spnego_add_cred,
+    gss_add_cred,
     _gss_spnego_inquire_cred_by_mech,
     _gss_spnego_export_sec_context,
     _gss_spnego_import_sec_context,
@@ -80,9 +79,9 @@ static gssapi_mech_interface_desc spnego_mech = {
     _gss_spnego_set_sec_context_option,
     _gss_spnego_set_cred_option,
     _gss_spnego_pseudo_random,
-    NULL,
-    NULL,
-    NULL,
+    _gss_spnego_wrap_iov,
+    _gss_spnego_unwrap_iov,
+    _gss_spnego_wrap_iov_length,
     NULL,
     _gss_spnego_export_cred,
     _gss_spnego_import_cred

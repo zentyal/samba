@@ -36,6 +36,7 @@
 #include "libcli/security/security.h"
 #include "dsdb/samdb/samdb.h"
 #include "param/param.h"
+#include "lib/util/tsort.h"
 
 /* Kludge ACL rules:
  *
@@ -55,7 +56,7 @@ static enum security_user_level what_is_user(struct ldb_module *module)
 	struct ldb_context *ldb = ldb_module_get_ctx(module);
 	struct auth_session_info *session_info
 		= (struct auth_session_info *)ldb_get_opaque(ldb, "sessionInfo");
-	return security_session_user_level(session_info);
+	return security_session_user_level(session_info, NULL);
 }
 
 static const char *user_name(TALLOC_CTX *mem_ctx, struct ldb_module *module) 
@@ -93,10 +94,12 @@ static int kludge_acl_allowedAttributes(struct ldb_context *ldb, struct ldb_mess
 {
 	struct ldb_message_element *oc_el;
 	struct ldb_message_element *allowedAttributes;
-	const struct dsdb_schema *schema = dsdb_get_schema(ldb);
+	/* We need to ensure that the strings returned are valid for as long as the msg is valid */
+	const struct dsdb_schema *schema = dsdb_get_schema(ldb, msg);
 	TALLOC_CTX *mem_ctx;
 	const char **attr_list;
-	int i, ret;
+	unsigned int i;
+	int ret;
 
  	/* If we don't have a schema yet, we can't do anything... */
 	if (schema == NULL) {
@@ -112,8 +115,7 @@ static int kludge_acl_allowedAttributes(struct ldb_context *ldb, struct ldb_mess
 	
 	mem_ctx = talloc_new(msg);
 	if (!mem_ctx) {
-		ldb_oom(ldb);
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_oom(ldb);
 	}
 
 	/* To ensure that oc_el is valid, we must look for it after 
@@ -141,9 +143,12 @@ static int kludge_acl_childClasses(struct ldb_context *ldb, struct ldb_message *
 {
 	struct ldb_message_element *oc_el;
 	struct ldb_message_element *allowedClasses;
-	const struct dsdb_schema *schema = dsdb_get_schema(ldb);
+
+	/* We need to ensure that the strings returned are valid for as long as the msg is valid */
+	const struct dsdb_schema *schema = dsdb_get_schema(ldb, msg);
 	const struct dsdb_class *sclass;
-	int i, j, ret;
+	unsigned int i, j;
+	int ret;
 
  	/* If we don't have a schema yet, we can't do anything... */
 	if (schema == NULL) {
@@ -174,10 +179,7 @@ static int kludge_acl_childClasses(struct ldb_context *ldb, struct ldb_message *
 	}
 		
 	if (allowedClasses->num_values > 1) {
-		qsort(allowedClasses->values, 
-		      allowedClasses->num_values, 
-		      sizeof(*allowedClasses->values),
-		      (comparison_fn_t)data_blob_cmp);
+		TYPESAFE_QSORT(allowedClasses->values, allowedClasses->num_values, data_blob_cmp);
 	
 		for (i=1 ; i < allowedClasses->num_values; i++) {
 
@@ -192,7 +194,6 @@ static int kludge_acl_childClasses(struct ldb_context *ldb, struct ldb_message *
 	}
 
 	return LDB_SUCCESS;
-
 }
 
 /* find all attributes allowed by all these objectClasses */
@@ -202,7 +203,8 @@ static int kludge_acl_callback(struct ldb_request *req, struct ldb_reply *ares)
 	struct ldb_context *ldb;
 	struct kludge_acl_context *ac;
 	struct kludge_private_data *data;
-	int i, ret;
+	unsigned int i;
+	int ret;
 
 	ac = talloc_get_type(req->context, struct kludge_acl_context);
 	data = talloc_get_type(ldb_module_get_private(ac->module), struct kludge_private_data);
@@ -313,16 +315,14 @@ static int kludge_acl_search(struct ldb_module *module, struct ldb_request *req)
 	struct ldb_request *down_req;
 	struct kludge_private_data *data;
 	const char * const *attrs;
-	int ret, i;
-	struct ldb_control *sd_control;
-	struct ldb_control **sd_saved_controls;
+	int ret;
+	unsigned int i;
 
 	ldb = ldb_module_get_ctx(module);
 
 	ac = talloc(req, struct kludge_acl_context);
 	if (ac == NULL) {
-		ldb_oom(ldb);
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_oom(ldb);
 	}
 
 	data = talloc_get_type(ldb_module_get_private(module), struct kludge_private_data);
@@ -379,18 +379,7 @@ static int kludge_acl_search(struct ldb_module *module, struct ldb_request *req)
 					ac, kludge_acl_callback,
 					req);
 	if (ret != LDB_SUCCESS) {
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
-
-	/* check if there's an SD_FLAGS control */
-	sd_control = ldb_request_get_control(down_req, LDB_CONTROL_SD_FLAGS_OID);
-	if (sd_control) {
-		/* save it locally and remove it from the list */
-		/* we do not need to replace them later as we
-		 * are keeping the original req intact */
-		if (!save_controls(sd_control, down_req, &sd_saved_controls)) {
-			return LDB_ERR_OPERATIONS_ERROR;
-		}
+		return ret;
 	}
 
 	/* perform the search */
@@ -452,7 +441,8 @@ static int kludge_acl_extended(struct ldb_module *module, struct ldb_request *re
 static int kludge_acl_init(struct ldb_module *module)
 {
 	struct ldb_context *ldb;
-	int ret, i;
+	int ret;
+	unsigned int i;
 	TALLOC_CTX *mem_ctx = talloc_new(module);
 	static const char *attrs[] = { "passwordAttribute", NULL };
 	struct ldb_result *res;
@@ -465,18 +455,16 @@ static int kludge_acl_init(struct ldb_module *module)
 
 	data = talloc(module, struct kludge_private_data);
 	if (data == NULL) {
-		ldb_oom(ldb);
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_oom(ldb);
 	}
 
 	data->password_attrs = NULL;
-	data->acl_perform = lp_parm_bool(ldb_get_opaque(ldb, "loadparm"),
+	data->acl_perform = lpcfg_parm_bool(ldb_get_opaque(ldb, "loadparm"),
 					 NULL, "acl", "perform", false);
 	ldb_module_set_private(module, data);
 
 	if (!mem_ctx) {
-		ldb_oom(ldb);
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_oom(ldb);
 	}
 
 	ret = ldb_search(ldb, mem_ctx, &res,
@@ -503,21 +491,13 @@ static int kludge_acl_init(struct ldb_module *module)
 	data->password_attrs = talloc_array(data, const char *, password_attributes->num_values + 1);
 	if (!data->password_attrs) {
 		talloc_free(mem_ctx);
-		ldb_oom(ldb);
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_oom(ldb);
 	}
 	for (i=0; i < password_attributes->num_values; i++) {
 		data->password_attrs[i] = (const char *)password_attributes->values[i].data;	
 		talloc_steal(data->password_attrs, password_attributes->values[i].data);
 	}
 	data->password_attrs[i] = NULL;
-
-	ret = ldb_mod_register_control(module, LDB_CONTROL_SD_FLAGS_OID);
-	if (ret != LDB_SUCCESS) {
-		ldb_debug(ldb, LDB_DEBUG_ERROR,
-			"kludge_acl: Unable to register control with rootdse!\n");
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
 
 done:
 	talloc_free(mem_ctx);
@@ -526,11 +506,11 @@ done:
 
 _PUBLIC_ const struct ldb_module_ops ldb_kludge_acl_module_ops = {
 	.name		   = "kludge_acl",
-	.search            = kludge_acl_search,
+/*	.search            = kludge_acl_search, 
 	.add               = kludge_acl_change,
 	.modify            = kludge_acl_change,
 	.del               = kludge_acl_change,
-	.rename            = kludge_acl_change,
+	.rename            = kludge_acl_change, */
 	.extended          = kludge_acl_extended,
 	.init_context	   = kludge_acl_init
 };

@@ -76,7 +76,7 @@ host/admin@H5L.ORG
  * @ingroup krb5_principal
  */
 
-void KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION void KRB5_LIB_CALL
 krb5_free_principal(krb5_context context,
 		    krb5_principal p)
 {
@@ -98,7 +98,7 @@ krb5_free_principal(krb5_context context,
  * @ingroup krb5_principal
  */
 
-void KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION void KRB5_LIB_CALL
 krb5_principal_set_type(krb5_context context,
 			krb5_principal principal,
 			int type)
@@ -106,21 +106,43 @@ krb5_principal_set_type(krb5_context context,
     princ_type(principal) = type;
 }
 
-int KRB5_LIB_FUNCTION
+/**
+ * Get the type of the principal
+ *
+ * @param context A Kerberos context.
+ * @param principal principal to get the type for
+ *
+ * @return the type of principal
+ *
+ * @ingroup krb5_principal
+ */
+
+KRB5_LIB_FUNCTION int KRB5_LIB_CALL
 krb5_principal_get_type(krb5_context context,
 			krb5_const_principal principal)
 {
     return princ_type(principal);
 }
 
-const char* KRB5_LIB_FUNCTION
+/**
+ * Get the realm of the principal
+ *
+ * @param context A Kerberos context.
+ * @param principal principal to get the realm for
+ *
+ * @return realm of the principal, don't free or use after krb5_principal is freed
+ *
+ * @ingroup krb5_principal
+ */
+
+KRB5_LIB_FUNCTION const char* KRB5_LIB_CALL
 krb5_principal_get_realm(krb5_context context,
 			 krb5_const_principal principal)
 {
     return princ_realm(principal);
 }			
 
-const char* KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION const char* KRB5_LIB_CALL
 krb5_principal_get_comp_string(krb5_context context,
 			       krb5_const_principal principal,
 			       unsigned int component)
@@ -141,14 +163,27 @@ krb5_principal_get_comp_string(krb5_context context,
  * @ingroup krb5_principal
  */
 
-unsigned int KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION unsigned int KRB5_LIB_CALL
 krb5_principal_get_num_comp(krb5_context context,
 			    krb5_const_principal principal)
 {
     return princ_num_comp(principal);
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+/**
+ * Parse a name into a krb5_principal structure, flags controls the behavior.
+ *
+ * @param context Kerberos 5 context
+ * @param name name to parse into a Kerberos principal
+ * @param flags flags to control the behavior
+ * @param principal returned principal, free with krb5_free_principal().
+ *
+ * @return An krb5 error code, see krb5_get_error_message().
+ *
+ * @ingroup krb5_principal
+ */
+
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_parse_name_flags(krb5_context context,
 		      const char *name,
 		      int flags,
@@ -337,7 +372,19 @@ exit:
     return ret;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+/**
+ * Parse a name into a krb5_principal structure
+ *
+ * @param context Kerberos 5 context
+ * @param name name to parse into a Kerberos principal
+ * @param principal returned principal, free with krb5_free_principal().
+ *
+ * @return An krb5 error code, see krb5_get_error_message().
+ *
+ * @ingroup krb5_principal
+ */
+
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_parse_name(krb5_context context,
 		const char *name,
 		krb5_principal *principal)
@@ -425,7 +472,20 @@ unparse_name_fixed(krb5_context context,
     return 0;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+/**
+ * Unparse the principal name to a fixed buffer
+ *
+ * @param context A Kerberos context.
+ * @param principal principal to unparse
+ * @param name buffer to write name to
+ * @param len length of buffer
+ *
+ * @return An krb5 error code, see krb5_get_error_message().
+ *
+ * @ingroup krb5_principal
+ */
+
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_unparse_name_fixed(krb5_context context,
 			krb5_const_principal principal,
 			char *name,
@@ -434,7 +494,21 @@ krb5_unparse_name_fixed(krb5_context context,
     return unparse_name_fixed(context, principal, name, len, 0);
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+/**
+ * Unparse the principal name to a fixed buffer. The realm is skipped
+ * if its a default realm.
+ *
+ * @param context A Kerberos context.
+ * @param principal principal to unparse
+ * @param name buffer to write name to
+ * @param len length of buffer
+ *
+ * @return An krb5 error code, see krb5_get_error_message().
+ *
+ * @ingroup krb5_principal
+ */
+
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_unparse_name_fixed_short(krb5_context context,
 			      krb5_const_principal principal,
 			      char *name,
@@ -444,7 +518,21 @@ krb5_unparse_name_fixed_short(krb5_context context,
 			      KRB5_PRINCIPAL_UNPARSE_SHORT);
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+/**
+ * Unparse the principal name with unparse flags to a fixed buffer.
+ *
+ * @param context A Kerberos context.
+ * @param principal principal to unparse
+ * @param flags unparse flags
+ * @param name buffer to write name to
+ * @param len length of buffer
+ *
+ * @return An krb5 error code, see krb5_get_error_message().
+ *
+ * @ingroup krb5_principal
+ */
+
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_unparse_name_fixed_flags(krb5_context context,
 			      krb5_const_principal principal,
 			      int flags,
@@ -508,7 +596,7 @@ unparse_name(krb5_context context,
  * @ingroup krb5_principal
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_unparse_name(krb5_context context,
 		  krb5_const_principal principal,
 		  char **name)
@@ -529,7 +617,7 @@ krb5_unparse_name(krb5_context context,
  * @ingroup krb5_principal
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_unparse_name_flags(krb5_context context,
 			krb5_const_principal principal,
 			int flags,
@@ -538,7 +626,20 @@ krb5_unparse_name_flags(krb5_context context,
     return unparse_name(context, principal, name, flags);
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+/**
+ * Unparse the principal name to a allocated buffer. The realm is
+ * skipped if its a default realm.
+ *
+ * @param context A Kerberos context.
+ * @param principal principal to unparse
+ * @param name returned buffer, free with krb5_xfree()
+ *
+ * @return An krb5 error code, see krb5_get_error_message().
+ *
+ * @ingroup krb5_principal
+ */
+
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_unparse_name_short(krb5_context context,
 			krb5_const_principal principal,
 			char **name)
@@ -546,20 +647,20 @@ krb5_unparse_name_short(krb5_context context,
     return unparse_name(context, principal, name, KRB5_PRINCIPAL_UNPARSE_SHORT);
 }
 
-#if 0 /* not implemented */
+/**
+ * Set a new realm for a principal, and as a side-effect free the
+ * previous realm.
+ *
+ * @param context A Kerberos context.
+ * @param principal principal set the realm for
+ * @param realm the new realm to set
+ *
+ * @return An krb5 error code, see krb5_get_error_message().
+ *
+ * @ingroup krb5_principal
+ */
 
-krb5_error_code KRB5_LIB_FUNCTION
-krb5_unparse_name_ext(krb5_context context,
-		      krb5_const_principal principal,
-		      char **name,
-		      size_t *size)
-{
-    krb5_abortx(context, "unimplemented krb5_unparse_name_ext called");
-}
-
-#endif
-
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_principal_set_realm(krb5_context context,
 			 krb5_principal principal,
 			 krb5_const_realm realm)
@@ -576,8 +677,22 @@ krb5_principal_set_realm(krb5_context context,
     return 0;
 }
 
+#ifndef HEIMDAL_SMALLER
+/**
+ * Build a principal using vararg style building
+ *
+ * @param context A Kerberos context.
+ * @param principal returned principal
+ * @param rlen length of realm
+ * @param realm realm name
+ * @param ... a list of components ended with NULL.
+ *
+ * @return An krb5 error code, see krb5_get_error_message().
+ *
+ * @ingroup krb5_principal
+ */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_build_principal(krb5_context context,
 		     krb5_principal *principal,
 		     int rlen,
@@ -589,6 +704,43 @@ krb5_build_principal(krb5_context context,
     va_start(ap, realm);
     ret = krb5_build_principal_va(context, principal, rlen, realm, ap);
     va_end(ap);
+    return ret;
+}
+#endif
+
+/**
+ * Build a principal using vararg style building
+ *
+ * @param context A Kerberos context.
+ * @param principal returned principal
+ * @param realm realm name
+ * @param ... a list of components ended with NULL.
+ *
+ * @return An krb5 error code, see krb5_get_error_message().
+ *
+ * @ingroup krb5_principal
+ */
+
+krb5_error_code KRB5_LIB_FUNCTION
+krb5_make_principal(krb5_context context,
+		    krb5_principal *principal,
+		    krb5_const_realm realm,
+		    ...)
+{
+    krb5_error_code ret;
+    krb5_realm r = NULL;
+    va_list ap;
+    if(realm == NULL) {
+	ret = krb5_get_default_realm(context, &r);
+	if(ret)
+	    return ret;
+	realm = r;
+    }
+    va_start(ap, realm);
+    ret = krb5_build_principal_va(context, principal, strlen(realm), realm, ap);
+    va_end(ap);
+    if(r)
+	free(r);
     return ret;
 }
 
@@ -676,30 +828,7 @@ build_principal(krb5_context context,
     return 0;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
-krb5_make_principal(krb5_context context,
-		    krb5_principal *principal,
-		    krb5_const_realm realm,
-		    ...)
-{
-    krb5_error_code ret;
-    krb5_realm r = NULL;
-    va_list ap;
-    if(realm == NULL) {
-	ret = krb5_get_default_realm(context, &r);
-	if(ret)
-	    return ret;
-	realm = r;
-    }
-    va_start(ap, realm);
-    ret = krb5_build_principal_va(context, principal, strlen(realm), realm, ap);
-    va_end(ap);
-    if(r)
-	free(r);
-    return ret;
-}
-
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_build_principal_va(krb5_context context,
 			krb5_principal *principal,
 			int rlen,
@@ -709,7 +838,7 @@ krb5_build_principal_va(krb5_context context,
     return build_principal(context, principal, rlen, realm, va_princ, ap);
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_build_principal_va_ext(krb5_context context,
 			    krb5_principal *principal,
 			    int rlen,
@@ -720,7 +849,7 @@ krb5_build_principal_va_ext(krb5_context context,
 }
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_build_principal_ext(krb5_context context,
 			 krb5_principal *principal,
 			 int rlen,
@@ -735,8 +864,20 @@ krb5_build_principal_ext(krb5_context context,
     return ret;
 }
 
+/**
+ * Copy a principal
+ *
+ * @param context A Kerberos context.
+ * @param inprinc principal to copy
+ * @param outprinc copied principal, free with krb5_free_principal()
+ *
+ * @return An krb5 error code, see krb5_get_error_message().
+ *
+ * @ingroup krb5_principal
+ */
 
-krb5_error_code KRB5_LIB_FUNCTION
+
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_copy_principal(krb5_context context,
 		    krb5_const_principal inprinc,
 		    krb5_principal *outprinc)
@@ -767,9 +908,11 @@ krb5_copy_principal(krb5_context context,
  * @return non zero if equal, 0 if not
  *
  * @ingroup krb5_principal
+ * @see krb5_principal_compare()
+ * @see krb5_realm_compare()
  */
 
-krb5_boolean KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_boolean KRB5_LIB_CALL
 krb5_principal_compare_any_realm(krb5_context context,
 				 krb5_const_principal princ1,
 				 krb5_const_principal princ2)
@@ -784,7 +927,7 @@ krb5_principal_compare_any_realm(krb5_context context,
     return TRUE;
 }
 
-krb5_boolean KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_boolean KRB5_LIB_CALL
 _krb5_principal_compare_PrincipalName(krb5_context context,
 				      krb5_const_principal princ1,
 				      PrincipalName *princ2)
@@ -800,11 +943,24 @@ _krb5_principal_compare_PrincipalName(krb5_context context,
 }
 
 
+/**
+ * Compares the two principals, including realm of the principals and returns
+ * TRUE if they are the same and FALSE if not.
+ *
+ * @param context Kerberos 5 context
+ * @param princ1 first principal to compare
+ * @param princ2 second principal to compare
+ *
+ * @ingroup krb5_principal
+ * @see krb5_principal_compare_any_realm()
+ * @see krb5_realm_compare()
+ */
+
 /*
  * return TRUE iff princ1 == princ2
  */
 
-krb5_boolean KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_boolean KRB5_LIB_CALL
 krb5_principal_compare(krb5_context context,
 		       krb5_const_principal princ1,
 		       krb5_const_principal princ2)
@@ -814,11 +970,19 @@ krb5_principal_compare(krb5_context context,
     return krb5_principal_compare_any_realm(context, princ1, princ2);
 }
 
-/*
+/**
  * return TRUE iff realm(princ1) == realm(princ2)
+ *
+ * @param context Kerberos 5 context
+ * @param princ1 first principal to compare
+ * @param princ2 second principal to compare
+ *
+ * @ingroup krb5_principal
+ * @see krb5_principal_compare_any_realm()
+ * @see krb5_principal_compare()
  */
 
-krb5_boolean KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_boolean KRB5_LIB_CALL
 krb5_realm_compare(krb5_context context,
 		   krb5_const_principal princ1,
 		   krb5_const_principal princ2)
@@ -826,11 +990,13 @@ krb5_realm_compare(krb5_context context,
     return strcmp(princ_realm(princ1), princ_realm(princ2)) == 0;
 }
 
-/*
+/**
  * return TRUE iff princ matches pattern
+ *
+ * @ingroup krb5_principal
  */
 
-krb5_boolean KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_boolean KRB5_LIB_CALL
 krb5_principal_match(krb5_context context,
 		     krb5_const_principal princ,
 		     krb5_const_principal pattern)
@@ -916,7 +1082,7 @@ get_name_conversion(krb5_context context, const char *realm, const char *name)
  * if `func', use that function for validating the conversion
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_425_conv_principal_ext2(krb5_context context,
 			     const char *name,
 			     const char *instance,
@@ -1208,7 +1374,7 @@ name_convert(krb5_context context, const char *name, const char *realm,
  * three parameters.  They have to be 40 bytes each (ANAME_SZ).
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_524_conv_principal(krb5_context context,
 			const krb5_principal principal,
 			char *name,
@@ -1294,7 +1460,7 @@ krb5_524_conv_principal(krb5_context context,
  * @ingroup krb5_principal
  */
 			
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_sname_to_principal (krb5_context context,
 			 const char *hostname,
 			 const char *sname,
@@ -1364,6 +1530,12 @@ static const struct {
     { NULL }
 };
 
+/**
+ * Parse nametype string and return a nametype integer
+ *
+ * @ingroup krb5_principal
+ */
+
 krb5_error_code
 krb5_parse_nametype(krb5_context context, const char *str, int32_t *nametype)
 {
@@ -1378,4 +1550,18 @@ krb5_parse_nametype(krb5_context context, const char *str, int32_t *nametype)
     krb5_set_error_message(context, KRB5_PARSE_MALFORMED,
 			   N_("Failed to find name type %s", ""), str);
     return KRB5_PARSE_MALFORMED;
+}
+
+/**
+ * Check if the cname part of the principal is a krbtgt principal
+ *
+ * @ingroup krb5_principal
+ */
+
+krb5_boolean
+krb5_principal_is_krbtgt(krb5_context context, krb5_const_principal p)
+{
+    return p->name.name_string.len == 2 &&
+	strcmp(p->name.name_string.val[0], KRB5_TGS_NAME) == 0;
+
 }

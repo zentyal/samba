@@ -21,7 +21,7 @@
 
 #include "includes.h"
 #include "../lib/util/asn1.h"
-#include "libcli/ldap/ldap.h"
+#include "libcli/ldap/libcli_ldap.h"
 #include "lib/ldb/include/ldb.h"
 #include "libcli/ldap/ldap_proto.h"
 #include "dsdb/samdb/samdb.h"
@@ -214,7 +214,7 @@ static bool decode_sd_flags_request(void *mem_ctx, DATA_BLOB in, void *_out)
 		return false;
 	}
 
-	if (!asn1_read_Integer(data, &(lsdfc->secinfo_flags))) {
+	if (!asn1_read_Integer(data, (int *) &(lsdfc->secinfo_flags))) {
 		return false;
 	}
 
@@ -248,7 +248,7 @@ static bool decode_search_options_request(void *mem_ctx, DATA_BLOB in, void *_ou
 		return false;
 	}
 
-	if (!asn1_read_Integer(data, &(lsoc->search_options))) {
+	if (!asn1_read_Integer(data, (int *) &(lsoc->search_options))) {
 		return false;
 	}
 
@@ -437,6 +437,15 @@ static bool decode_domain_scope_request(void *mem_ctx, DATA_BLOB in, void *_out)
 }
 
 static bool decode_notification_request(void *mem_ctx, DATA_BLOB in, void *_out)
+{
+	if (in.length != 0) {
+		return false;
+	}
+
+	return true;
+}
+
+static bool decode_tree_delete_request(void *mem_ctx, DATA_BLOB in, void *_out)
 {
 	if (in.length != 0) {
 		return false;
@@ -969,6 +978,16 @@ static bool encode_notification_request(void *mem_ctx, void *in, DATA_BLOB *out)
 	return true;
 }
 
+static bool encode_tree_delete_request(void *mem_ctx, void *in, DATA_BLOB *out)
+{
+	if (in) {
+		return false;
+	}
+
+	*out = data_blob(NULL, 0);
+	return true;
+}
+
 static bool encode_show_deleted_request(void *mem_ctx, void *in, DATA_BLOB *out)
 {
 	if (in) {
@@ -1251,6 +1270,25 @@ static bool decode_openldap_dereference(void *mem_ctx, DATA_BLOB in, void *_out)
 	return true;
 }
 
+static bool encode_relax_request(void *mem_ctx, void *in, DATA_BLOB *out)
+{
+	if (in) {
+		return false;
+	}
+
+	*out = data_blob(NULL, 0);
+	return true;
+}
+
+static bool decode_relax_request(void *mem_ctx, DATA_BLOB in, void *_out)
+{
+	if (in.length != 0) {
+		return false;
+	}
+
+	return true;
+}
+
 static const struct ldap_control_handler ldap_known_controls[] = {
 	{ "1.2.840.113556.1.4.319", decode_paged_results_request, encode_paged_results_request },
 	{ "1.2.840.113556.1.4.529", decode_extended_dn_request, encode_extended_dn_request },
@@ -1259,6 +1297,7 @@ static const struct ldap_control_handler ldap_known_controls[] = {
 	{ "1.2.840.113556.1.4.1504", decode_asq_control, encode_asq_control },
 	{ "1.2.840.113556.1.4.841", decode_dirsync_request, encode_dirsync_request },
 	{ "1.2.840.113556.1.4.528", decode_notification_request, encode_notification_request },
+	{ "1.2.840.113556.1.4.805", decode_tree_delete_request, encode_tree_delete_request },
 	{ "1.2.840.113556.1.4.417", decode_show_deleted_request, encode_show_deleted_request },
 	{ "1.2.840.113556.1.4.2064", decode_show_recycled_request, encode_show_recycled_request },
 	{ "1.2.840.113556.1.4.2065", decode_show_deactivated_link_request, encode_show_deactivated_link_request },
@@ -1271,9 +1310,18 @@ static const struct ldap_control_handler ldap_known_controls[] = {
 	{ "2.16.840.1.113730.3.4.10", decode_vlv_response, encode_vlv_response },
 /* DSDB_CONTROL_CURRENT_PARTITION_OID is internal only, and has no network representation */
 	{ "1.3.6.1.4.1.7165.4.3.2", NULL, NULL },
+/* DSDB_CONTROL_DN_STORAGE_FORMAT_OID is internal only, and has no network representation */
+	{ "1.3.6.1.4.1.7165.4.3.4", NULL, NULL },
+/* LDB_CONTROL_REVEAL_INTERNALS is internal only, and has no network representation */
+	{ "1.3.6.1.4.1.7165.4.3.6", NULL, NULL },
+/* LDB_CONTROL_AS_SYSTEM_OID is internal only, and has no network representation */
+	{ "1.3.6.1.4.1.7165.4.3.7", NULL, NULL },
+/* DSDB_CONTROL_PASSWORD_CHANGE_STATUS_OID is internal only, and has no network representation */
+	{ "1.3.6.1.4.1.7165.4.3.8", NULL, NULL },
 /* DSDB_EXTENDED_REPLICATED_OBJECTS_OID is internal only, and has no network representation */
 	{ "1.3.6.1.4.1.7165.4.4.1", NULL, NULL },
 	{ DSDB_OPENLDAP_DEREFERENCE_CONTROL, decode_openldap_dereference, encode_openldap_dereference},
+	{ LDB_CONTROL_RELAX_OID, decode_relax_request, encode_relax_request },
 	{ NULL, NULL, NULL }
 };
 

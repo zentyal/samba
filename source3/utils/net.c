@@ -231,7 +231,7 @@ static int net_getauthuser(struct net_context *c, int argc, const char **argv)
  */
 static int net_getlocalsid(struct net_context *c, int argc, const char **argv)
 {
-        DOM_SID sid;
+        struct dom_sid sid;
 	const char *name;
 	fstring sid_str;
 
@@ -271,7 +271,7 @@ static int net_getlocalsid(struct net_context *c, int argc, const char **argv)
 
 static int net_setlocalsid(struct net_context *c, int argc, const char **argv)
 {
-	DOM_SID sid;
+	struct dom_sid sid;
 
 	if ( (argc != 1)
 	     || (strncmp(argv[0], "S-1-5-21-", strlen("S-1-5-21-")) != 0)
@@ -292,7 +292,7 @@ static int net_setlocalsid(struct net_context *c, int argc, const char **argv)
 
 static int net_setdomainsid(struct net_context *c, int argc, const char **argv)
 {
-	DOM_SID sid;
+	struct dom_sid sid;
 
 	if ( (argc != 1)
 	     || (strncmp(argv[0], "S-1-5-21-", strlen("S-1-5-21-")) != 0)
@@ -313,7 +313,7 @@ static int net_setdomainsid(struct net_context *c, int argc, const char **argv)
 
 static int net_getdomainsid(struct net_context *c, int argc, const char **argv)
 {
-	DOM_SID domain_sid;
+	struct dom_sid domain_sid;
 	fstring sid_str;
 
 	if (argc > 0) {
@@ -719,6 +719,21 @@ static struct functable net_func[] = {
 		N_("  Use 'net help eventlog' to get more information about "
 		   "'net eventlog' commands.")
 	},
+	{	"printing",
+		net_printing,
+		NET_TRANSPORT_LOCAL,
+		N_("Process tdb printer files"),
+		N_("  Use 'net help printing' to get more information about "
+		   "'net printing' commands.")
+	},
+
+	{	"serverid",
+		net_serverid,
+		NET_TRANSPORT_LOCAL,
+		N_("Manage the serverid tdb"),
+		N_("  Use 'net help serverid' to get more information about "
+		   "'net serverid' commands.")
+	},
 
 #ifdef WITH_FAKE_KASERVER
 	{	"afs",
@@ -897,7 +912,7 @@ static struct functable net_func[] = {
 	load_interfaces();
 
 	/* this makes sure that when we do things like call scripts,
-	   that it won't assert becouse we are not root */
+	   that it won't assert because we are not root */
 	sec_init();
 
 	if (c->opt_machine_pass) {

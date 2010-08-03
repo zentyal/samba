@@ -19,6 +19,8 @@
  * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "../librpc/gen_ndr/ndr_security.h"
+
 static NTSTATUS create_acl_blob(const struct security_descriptor *psd,
 			DATA_BLOB *pblob,
 			uint16_t hash_type,
@@ -34,10 +36,10 @@ static NTSTATUS store_acl_blob_fsp(vfs_handle_struct *handle,
 			files_struct *fsp,
 			DATA_BLOB *pblob);
 
-#define HASH_SECURITY_INFO (OWNER_SECURITY_INFORMATION | \
-				GROUP_SECURITY_INFORMATION | \
-				DACL_SECURITY_INFORMATION | \
-				SACL_SECURITY_INFORMATION)
+#define HASH_SECURITY_INFO (SECINFO_OWNER | \
+				SECINFO_GROUP | \
+				SECINFO_DACL | \
+				SECINFO_SACL)
 
 /*******************************************************************
  Hash a security descriptor.
@@ -77,7 +79,7 @@ static NTSTATUS parse_acl_blob(const DATA_BLOB *pblob,
 	enum ndr_err_code ndr_err;
 	size_t sd_size;
 
-	ndr_err = ndr_pull_struct_blob(pblob, ctx, NULL, &xacl,
+	ndr_err = ndr_pull_struct_blob(pblob, ctx, &xacl,
 			(ndr_pull_flags_fn_t)ndr_pull_xattr_NTACL);
 
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -88,7 +90,7 @@ static NTSTATUS parse_acl_blob(const DATA_BLOB *pblob,
 
 	switch (xacl.version) {
 		case 2:
-			*ppdesc = make_sec_desc(ctx, SEC_DESC_REVISION,
+			*ppdesc = make_sec_desc(ctx, SD_REVISION,
 					xacl.info.sd_hs2->sd->type | SEC_DESC_SELF_RELATIVE,
 					xacl.info.sd_hs2->sd->owner_sid,
 					xacl.info.sd_hs2->sd->group_sid,
@@ -100,7 +102,7 @@ static NTSTATUS parse_acl_blob(const DATA_BLOB *pblob,
 			memset(hash, '\0', XATTR_SD_HASH_SIZE);
 			break;
 		case 3:
-			*ppdesc = make_sec_desc(ctx, SEC_DESC_REVISION,
+			*ppdesc = make_sec_desc(ctx, SD_REVISION,
 					xacl.info.sd_hs3->sd->type | SEC_DESC_SELF_RELATIVE,
 					xacl.info.sd_hs3->sd->owner_sid,
 					xacl.info.sd_hs3->sd->group_sid,
@@ -144,7 +146,7 @@ static NTSTATUS create_acl_blob(const struct security_descriptor *psd,
 	memcpy(&xacl.info.sd_hs3->hash[0], hash, XATTR_SD_HASH_SIZE);
 
 	ndr_err = ndr_push_struct_blob(
-			pblob, ctx, NULL, &xacl,
+			pblob, ctx, &xacl,
 			(ndr_push_flags_fn_t)ndr_push_xattr_NTACL);
 
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -369,16 +371,16 @@ static NTSTATUS get_nt_acl_internal(vfs_handle_struct *handle,
 		}
 	}
 
-	if (!(security_info & OWNER_SECURITY_INFORMATION)) {
+	if (!(security_info & SECINFO_OWNER)) {
 		psd->owner_sid = NULL;
 	}
-	if (!(security_info & GROUP_SECURITY_INFORMATION)) {
+	if (!(security_info & SECINFO_GROUP)) {
 		psd->group_sid = NULL;
 	}
-	if (!(security_info & DACL_SECURITY_INFORMATION)) {
+	if (!(security_info & SECINFO_DACL)) {
 		psd->dacl = NULL;
 	}
-	if (!(security_info & SACL_SECURITY_INFORMATION)) {
+	if (!(security_info & SECINFO_SACL)) {
 		psd->sacl = NULL;
 	}
 
@@ -434,9 +436,9 @@ static NTSTATUS inherit_new_acl(vfs_handle_struct *handle,
 	}
 
 	return SMB_VFS_FSET_NT_ACL(fsp,
-				(OWNER_SECURITY_INFORMATION |
-				 GROUP_SECURITY_INFORMATION |
-				 DACL_SECURITY_INFORMATION),
+				(SECINFO_OWNER |
+				 SECINFO_GROUP |
+				 SECINFO_DACL),
 				psd);
 }
 
@@ -457,9 +459,9 @@ static NTSTATUS check_parent_acl_common(vfs_handle_struct *handle,
 	status = get_nt_acl_internal(handle,
 					NULL,
 					parent_name,
-					(OWNER_SECURITY_INFORMATION |
-					 GROUP_SECURITY_INFORMATION |
-					 DACL_SECURITY_INFORMATION),
+					(SECINFO_OWNER |
+					 SECINFO_GROUP |
+					 SECINFO_DACL),
 					&parent_desc);
 
 	if (!NT_STATUS_IS_OK(status)) {
@@ -471,8 +473,12 @@ static NTSTATUS check_parent_acl_common(vfs_handle_struct *handle,
 			nt_errstr(status) ));
 		return status;
 	}
-	status = smb1_file_se_access_check(parent_desc,
-					handle->conn->server_info->ptok,
+	if (pp_parent_desc) {
+		*pp_parent_desc = parent_desc;
+	}
+	status = smb1_file_se_access_check(handle->conn,
+					parent_desc,
+					get_current_nttok(handle->conn),
 					access_mask,
 					&access_granted);
 	if(!NT_STATUS_IS_OK(status)) {
@@ -484,9 +490,6 @@ static NTSTATUS check_parent_acl_common(vfs_handle_struct *handle,
 			access_mask,
 			nt_errstr(status) ));
 		return status;
-	}
-	if (pp_parent_desc) {
-		*pp_parent_desc = parent_desc;
 	}
 	return NT_STATUS_OK;
 }
@@ -529,14 +532,15 @@ static int open_acl_common(vfs_handle_struct *handle,
 	status = get_nt_acl_internal(handle,
 				NULL,
 				fname,
-				(OWNER_SECURITY_INFORMATION |
-				 GROUP_SECURITY_INFORMATION |
-				 DACL_SECURITY_INFORMATION),
+				(SECINFO_OWNER |
+				 SECINFO_GROUP |
+				 SECINFO_DACL),
 				&pdesc);
         if (NT_STATUS_IS_OK(status)) {
 		/* See if we can access it. */
-		status = smb1_file_se_access_check(pdesc,
-					handle->conn->server_info->ptok,
+		status = smb1_file_se_access_check(handle->conn,
+					pdesc,
+					get_current_nttok(handle->conn),
 					fsp->access_mask,
 					&access_granted);
 		if (!NT_STATUS_IS_OK(status)) {
@@ -674,20 +678,20 @@ static NTSTATUS fset_nt_acl_common(vfs_handle_struct *handle, files_struct *fsp,
 
         /* Ensure we have OWNER/GROUP/DACL set. */
 
-	if ((security_info_sent & (OWNER_SECURITY_INFORMATION|
-				GROUP_SECURITY_INFORMATION|
-				DACL_SECURITY_INFORMATION)) !=
-				(OWNER_SECURITY_INFORMATION|
-				 GROUP_SECURITY_INFORMATION|
-				 DACL_SECURITY_INFORMATION)) {
+	if ((security_info_sent & (SECINFO_OWNER|
+				SECINFO_GROUP|
+				SECINFO_DACL)) !=
+				(SECINFO_OWNER|
+				 SECINFO_GROUP|
+				 SECINFO_DACL)) {
 		/* No we don't - read from the existing SD. */
 		struct security_descriptor *nc_psd = NULL;
 
 		status = get_nt_acl_internal(handle, fsp,
 				NULL,
-				(OWNER_SECURITY_INFORMATION|
-				 GROUP_SECURITY_INFORMATION|
-				 DACL_SECURITY_INFORMATION),
+				(SECINFO_OWNER|
+				 SECINFO_GROUP|
+				 SECINFO_DACL),
 				&nc_psd);
 
 		if (!NT_STATUS_IS_OK(status)) {
@@ -695,23 +699,23 @@ static NTSTATUS fset_nt_acl_common(vfs_handle_struct *handle, files_struct *fsp,
 		}
 
 		/* This is safe as nc_psd is discarded at fn exit. */
-		if (security_info_sent & OWNER_SECURITY_INFORMATION) {
+		if (security_info_sent & SECINFO_OWNER) {
 			nc_psd->owner_sid = psd->owner_sid;
 		}
-		security_info_sent |= OWNER_SECURITY_INFORMATION;
+		security_info_sent |= SECINFO_OWNER;
 
-		if (security_info_sent & GROUP_SECURITY_INFORMATION) {
+		if (security_info_sent & SECINFO_GROUP) {
 			nc_psd->group_sid = psd->group_sid;
 		}
-		security_info_sent |= GROUP_SECURITY_INFORMATION;
+		security_info_sent |= SECINFO_GROUP;
 
-		if (security_info_sent & DACL_SECURITY_INFORMATION) {
+		if (security_info_sent & SECINFO_DACL) {
 			nc_psd->dacl = dup_sec_acl(talloc_tos(), psd->dacl);
 			if (nc_psd->dacl == NULL) {
 				return NT_STATUS_NO_MEMORY;
 			}
 		}
-		security_info_sent |= DACL_SECURITY_INFORMATION;
+		security_info_sent |= SECINFO_DACL;
 		psd = nc_psd;
 	}
 
@@ -783,7 +787,7 @@ static int acl_common_remove_object(vfs_handle_struct *handle,
 		is_directory ? "directory" : "file",
 		parent_dir, final_component ));
 
-	/* cd into the parent dir to pin it. */
+ 	/* cd into the parent dir to pin it. */
 	ret = SMB_VFS_CHDIR(conn, parent_dir);
 	if (ret == -1) {
 		saved_errno = errno;
@@ -873,6 +877,7 @@ static NTSTATUS create_file_acl_common(struct vfs_handle_struct *handle,
 				uint32_t file_attributes,
 				uint32_t oplock_request,
 				uint64_t allocation_size,
+				uint32_t private_flags,
 				struct security_descriptor *sd,
 				struct ea_list *ea_list,
 				files_struct **result,
@@ -894,6 +899,7 @@ static NTSTATUS create_file_acl_common(struct vfs_handle_struct *handle,
 					file_attributes,
 					oplock_request,
 					allocation_size,
+					private_flags,
 					sd,
 					ea_list,
 					result,

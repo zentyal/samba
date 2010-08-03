@@ -20,11 +20,9 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "librpc/gen_ndr/ndr_lsa.h"
 #include "librpc/gen_ndr/ndr_dssetup.h"
-#include "librpc/rpc/dcerpc.h"
-#include "torture/rpc/rpc.h"
+#include "torture/rpc/torture_rpc.h"
 
 bool torture_rpc_alter_context(struct torture_context *torture)
 {
@@ -40,12 +38,24 @@ bool torture_rpc_alter_context(struct torture_context *torture)
 	status = torture_rpc_connection(torture, &p, &ndr_table_lsarpc);
 	torture_assert_ntstatus_ok(torture, status, "connecting");
 
-	if (!test_lsa_OpenPolicy2(p, torture, &handle)) {
+	torture_comment(torture, "Testing change of primary context\n");
+	status = dcerpc_alter_context(p, torture, &p->syntax, &p->transfer_syntax);
+	torture_assert_ntstatus_ok(torture, status, "dcerpc_alter_context failed");
+
+	if (!test_lsa_OpenPolicy2(p->binding_handle, torture, &handle)) {
 		ret = false;
 	}
 
+	torture_comment(torture, "Testing change of primary context\n");
+	status = dcerpc_alter_context(p, torture, &p->syntax, &p->transfer_syntax);
+	torture_assert_ntstatus_ok(torture, status, "dcerpc_alter_context failed");
+
 	torture_comment(torture, "Opening secondary DSSETUP context\n");
 	status = dcerpc_secondary_context(p, &p2, &ndr_table_dssetup);
+	torture_assert_ntstatus_ok(torture, status, "dcerpc_alter_context failed");
+
+	torture_comment(torture, "Testing change of primary context\n");
+	status = dcerpc_alter_context(p2, torture, &p2->syntax, &p2->transfer_syntax);
 	torture_assert_ntstatus_ok(torture, status, "dcerpc_alter_context failed");
 
 	tmptbl = ndr_table_dssetup;
@@ -55,30 +65,46 @@ bool torture_rpc_alter_context(struct torture_context *torture)
 	torture_assert_ntstatus_equal(torture, status, NT_STATUS_RPC_UNSUPPORTED_NAME_SYNTAX,
 				      "dcerpc_alter_context with wrong version should fail");
 
-	torture_comment(torture, "testing DSSETUP pipe operations\n");
+	torture_comment(torture, "Testing DSSETUP pipe operations\n");
 	ret &= test_DsRoleGetPrimaryDomainInformation(torture, p2);
 
 	if (handle) {
-		ret &= test_lsa_Close(p, torture, handle);
+		ret &= test_lsa_Close(p->binding_handle, torture, handle);
 	}
 
 	syntax = p->syntax;
 	transfer_syntax = p->transfer_syntax;
 
 	torture_comment(torture, "Testing change of primary context\n");
-	status = dcerpc_alter_context(p, torture, &p2->syntax, &p2->transfer_syntax);
+	status = dcerpc_alter_context(p, torture, &p->syntax, &p->transfer_syntax);
 	torture_assert_ntstatus_ok(torture, status, "dcerpc_alter_context failed");
 
-	torture_comment(torture, "testing DSSETUP pipe operations - should fault\n");
-	ret &= test_DsRoleGetPrimaryDomainInformation_ext(torture, p, NT_STATUS_NET_WRITE_FAULT);
-
-	ret &= test_lsa_OpenPolicy2(p, torture, &handle);
+	ret &= test_lsa_OpenPolicy2(p->binding_handle, torture, &handle);
 
 	if (handle) {
-		ret &= test_lsa_Close(p, torture, handle);
+		ret &= test_lsa_Close(p->binding_handle, torture, handle);
 	}
 
-	torture_comment(torture, "testing DSSETUP pipe operations\n");
+	torture_comment(torture, "Testing change of primary context\n");
+	status = dcerpc_alter_context(p, torture, &p2->syntax, &p2->transfer_syntax);
+	if (NT_STATUS_EQUAL(status, NT_STATUS_RPC_PROTOCOL_ERROR)) {
+
+		ret &= test_lsa_OpenPolicy2_ex(p->binding_handle, torture, &handle,
+					       NT_STATUS_PIPE_DISCONNECTED);
+		return ret;
+	}
+	torture_assert_ntstatus_ok(torture, status, "dcerpc_alter_context failed");
+
+	torture_comment(torture, "Testing DSSETUP pipe operations - should fault\n");
+	ret &= test_DsRoleGetPrimaryDomainInformation_ext(torture, p, NT_STATUS_RPC_BAD_STUB_DATA);
+
+	ret &= test_lsa_OpenPolicy2(p->binding_handle, torture, &handle);
+
+	if (handle) {
+		ret &= test_lsa_Close(p->binding_handle, torture, handle);
+	}
+
+	torture_comment(torture, "Testing DSSETUP pipe operations\n");
 
 	ret &= test_DsRoleGetPrimaryDomainInformation(torture, p2);
 

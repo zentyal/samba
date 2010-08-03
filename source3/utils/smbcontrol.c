@@ -24,6 +24,7 @@
 */
 
 #include "includes.h"
+#include "librpc/gen_ndr/messaging.h"
 
 #if HAVE_LIBUNWIND_H
 #include <libunwind.h>
@@ -109,8 +110,12 @@ static void print_pid_string_cb(struct messaging_context *msg,
 				struct server_id pid,
 				DATA_BLOB *data)
 {
-	printf("PID %u: %.*s", (unsigned int)procid_to_pid(&pid),
-	       (int)data->length, (const char *)data->data);
+	char *pidstr;
+
+	pidstr = procid_str(talloc_tos(), &pid);
+	printf("PID %s: %.*s", pidstr, (int)data->length,
+	       (const char *)data->data);
+	TALLOC_FREE(pidstr);
 	num_replies++;
 }
 
@@ -122,7 +127,7 @@ static void print_string_cb(struct messaging_context *msg,
 			    struct server_id pid,
 			    DATA_BLOB *data)
 {
-	printf("%.*s", (int)data->length, (const char *)data->data);
+	printf("%*s", (int)data->length, (const char *)data->data);
 	num_replies++;
 }
 
@@ -259,8 +264,7 @@ cleanup:
 	ptrace(PTRACE_DETACH, pid, NULL, NULL);
 }
 
-static int stack_trace_connection(struct db_record *rec,
-				  const struct connections_key *key,
+static int stack_trace_connection(const struct connections_key *key,
 				  const struct connections_data *crec,
 				  void *priv)
 {
@@ -291,7 +295,7 @@ static bool do_daemon_stack_trace(struct messaging_context *msg_ctx,
 		 */
 		print_stack_trace(dest, &count);
 	} else {
-		connections_forall(stack_trace_connection, &count);
+		connections_forall_read(stack_trace_connection, &count);
 	}
 
 	return True;
@@ -954,7 +958,7 @@ static bool do_winbind_onlinestatus(struct messaging_context *msg_ctx,
 {
 	struct server_id myid;
 
-	myid = pid_to_procid(sys_getpid());
+	myid = procid_self();
 
 	if (argc != 1) {
 		fprintf(stderr, "Usage: smbcontrol winbindd onlinestatus\n");
@@ -986,7 +990,7 @@ static bool do_dump_event_list(struct messaging_context *msg_ctx,
 {
 	struct server_id myid;
 
-	myid = pid_to_procid(sys_getpid());
+	myid = procid_self();
 
 	if (argc != 1) {
 		fprintf(stderr, "Usage: smbcontrol <dest> dump-event-list\n");
@@ -1006,7 +1010,7 @@ static bool do_winbind_dump_domain_list(struct messaging_context *msg_ctx,
 	uint8_t *buf = NULL;
 	int buf_len = 0;
 
-	myid = pid_to_procid(sys_getpid());
+	myid = procid_self();
 
 	if (argc < 1 || argc > 2) {
 		fprintf(stderr, "Usage: smbcontrol <dest> dump_domain_list "
@@ -1069,7 +1073,7 @@ static bool do_winbind_validate_cache(struct messaging_context *msg_ctx,
 				      const struct server_id pid,
 				      const int argc, const char **argv)
 {
-	struct server_id myid = pid_to_procid(sys_getpid());
+	struct server_id myid = procid_self();
 
 	if (argc != 1) {
 		fprintf(stderr, "Usage: smbcontrol winbindd validate-cache\n");
@@ -1239,7 +1243,7 @@ static struct server_id parse_dest(const char *dest)
 	/* Try self - useful for testing */
 
 	if (strequal(dest, "self")) {
-		return pid_to_procid(sys_getpid());
+		return procid_self();
 	}
 
 	/* Fix winbind typo. */
@@ -1388,7 +1392,7 @@ int main(int argc, const char **argv)
          * shell needs 0. */ 
 	
 	if (!(evt_ctx = tevent_context_init(NULL)) ||
-	    !(msg_ctx = messaging_init(NULL, server_id_self(), evt_ctx))) {
+	    !(msg_ctx = messaging_init(NULL, procid_self(), evt_ctx))) {
 		fprintf(stderr, "could not init messaging context\n");
 		TALLOC_FREE(frame);
 		exit(1);

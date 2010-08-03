@@ -59,6 +59,27 @@ Run this::
   $ ./configure
   $ make
 
+
+Step 2bis: recompile Samba4
+---------------------------
+
+This only applies for those who are recompiling Samba4 after updating the code
+(using "rsync" or "git").
+
+Due to some imperfections in our actual build system (hope that this changes
+soon) it is recommended to perform this after the source upgrade:
+
+  $ cd samba4/source
+  $ make clean
+  $ ./autogen.sh
+  $ ./configure
+  $ make idl_full
+  $ make
+
+Not all the steps are needed every time but doing so makes sure that you won't
+have old compiled objects standing in the way and cause malfunctions.
+It also makes sure that changes in the IDL files are correctly catched up.
+
 Step 3: install Samba4
 ----------------------
 
@@ -70,12 +91,14 @@ configure above to change this.
  
   # make install
 
-
 Step 4: provision Samba4
 ------------------------
 
-The "provision" step sets up a basic user database. 
-Must be run as a user with permission to write to the install directory.
+The "provision" step sets up a basic user database. Be warned that this
+removes all preexisting database data (if any)!
+
+It must be run as a user with permission to write to the install directory
+(typically "root").
 
 ::
 
@@ -85,6 +108,14 @@ Must be run as a user with permission to write to the install directory.
 
 'YOURDOM' is the NT4 style domain name. 'YOUR.REALM' is your kerberos
 realm, which is typically your DNS domain name.
+
+If you provisioned a more recent Samba4 system already you should be able to
+use the procedures shown in "upgrading-samba4.txt" to upgrade it and keep all
+data.
+
+When you are using Samba3 at the moment you could try the experimental script
+"upgrade_from_s3" under the "setup" directory of the source
+distribution (it isn't included in binary distributions yet).
 
 Step 5: Create a simple smb.conf
 --------------------------------
@@ -97,26 +128,24 @@ example::
 	path = /data/test
 	read only = no
 
-
 Step 6: starting Samba4
 -----------------------
 
-The simplest is to just run "smbd", but as a developer you may find
+The simplest is to just run "samba", but as a developer you may find
 the following more useful::
 
-   # smbd -i -M single
+   # samba -i -M single
 
-that means "start smbd without messages in stdout, and running a
-single process. That mode of operation makes debugging smbd with gdb
+that means "start samba without messages in stdout, and running a
+single process. That mode of operation makes debugging samba with gdb
 particularly easy.
 
 Note that now it is no longer necessary to have an instance of nmbd
 from Samba 3 running.  If you are running any smbd or nmbd processes
-they need to be stopped before starting smbd from Samba 4.
+they need to be stopped before starting samba from Samba 4.
 
 Make sure you put the bin and sbin directories from your new install
 in your $PATH. Make sure you run the right version!
-
 
 Step 7: testing Samba4
 ----------------------

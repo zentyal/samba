@@ -43,12 +43,12 @@ ENABLE = YES
 "
 ])
 
-dnl SMB_LIBRARY(name,obj_files,required_subsystems,cflags,ldflags)
-AC_DEFUN([SMB_LIBRARY],
+dnl SMB_BUILD_LIBRARY(name,obj_files,required_subsystems,cflags,ldflags,realname)
+AC_DEFUN([SMB_BUILD_LIBRARY],
 [
 MAKE_SETTINGS="$MAKE_SETTINGS
-$1_CFLAGS = $6
-$1_LDFLAGS = $7
+$1_CFLAGS = $4
+$1_LDFLAGS = $5
 n1_ENABLE = YES
 $1_OBJ_FILES = $2
 "
@@ -61,6 +61,7 @@ PRIVATE_DEPENDENCIES = $3
 CFLAGS = \$($1_CFLAGS)
 LDFLAGS = \$($1_LDFLAGS)
 ENABLE = YES
+ifelse([$6], [], [], [LIBRARY_REALNAME = $6])
 # End Library $1
 ###################################
 "

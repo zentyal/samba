@@ -54,6 +54,7 @@ static NTSTATUS onefs_create_file_unixpath(connection_struct *conn,
 			      uint32_t file_attributes,
 			      uint32_t oplock_request,
 			      uint64_t allocation_size,
+			      uint32_t private_flags,
 			      struct security_descriptor *sd,
 			      struct ea_list *ea_list,
 			      files_struct **result,
@@ -312,7 +313,7 @@ static NTSTATUS onefs_open_file(files_struct *fsp,
 		fsp->can_write = (access_mask & (FILE_WRITE_DATA | FILE_APPEND_DATA)) ?
 			True : False;
 	}
-	fsp->print_file = False;
+	fsp->print_file = NULL;
 	fsp->modified = False;
 	fsp->sent_oplock_break = NO_BREAK_SENT;
 	fsp->is_directory = False;
@@ -357,7 +358,8 @@ static void defer_open(struct share_mode_lock *lck,
 
 		if (procid_is_me(&e->pid) && (e->op_mid == req->mid)) {
 			DEBUG(0, ("Trying to defer an already deferred "
-				  "request: mid=%d, exiting\n", req->mid));
+				"request: mid=%llu, exiting\n",
+				(unsigned long long)req->mid));
 			exit_server("attempt to defer a deferred request");
 		}
 	}
@@ -365,14 +367,14 @@ static void defer_open(struct share_mode_lock *lck,
 	/* End paranoia check */
 
 	DEBUG(10,("defer_open_sharing_error: time [%u.%06u] adding deferred "
-		  "open entry for mid %u\n",
+		  "open entry for mid %llu\n",
 		  (unsigned int)request_time.tv_sec,
 		  (unsigned int)request_time.tv_usec,
-		  (unsigned int)req->mid));
+		  (unsigned long long)req->mid));
 
-	if (!push_deferred_smb_message(req, request_time, timeout,
-				       (char *)state, sizeof(*state))) {
-		exit_server("push_deferred_smb_message failed");
+	if (!push_deferred_open_message_smb(req, request_time, timeout,
+				       state->id, (char *)state, sizeof(*state))) {
+		exit_server("push_deferred_open_message_smb failed");
 	}
 	add_deferred_open(lck, req->mid, request_time, state->id);
 }
@@ -438,6 +440,7 @@ NTSTATUS onefs_open_file_ntcreate(connection_struct *conn,
 				  uint32 create_options,
 				  uint32 new_dos_attributes,
 				  int oplock_request,
+				  uint32_t private_flags,
 				  struct security_descriptor *sd,
 				  files_struct *fsp,
 				  int *pinfo,
@@ -455,7 +458,6 @@ NTSTATUS onefs_open_file_ntcreate(connection_struct *conn,
 	mode_t unx_mode = (mode_t)0;
 	int info;
 	uint32 existing_dos_attributes = 0;
-	struct pending_message_list *pml = NULL;
 	struct timeval request_time = timeval_zero();
 	struct share_mode_lock *lck = NULL;
 	uint32 open_access_mask = access_mask;
@@ -481,8 +483,8 @@ NTSTATUS onefs_open_file_ntcreate(connection_struct *conn,
 		DEBUG(10, ("onefs_open_file_ntcreate: printer open fname=%s\n",
 			   smb_fname_str_dbg(smb_fname)));
 
-		return print_fsp_open(req, conn, smb_fname->base_name,
-				      req->vuid, fsp);
+		return print_spool_open(fsp, smb_fname->base_name,
+					req->vuid);
 	}
 
 	if (!parent_dirname(talloc_tos(), smb_fname->base_name, &parent_dir,
@@ -540,39 +542,33 @@ NTSTATUS onefs_open_file_ntcreate(connection_struct *conn,
 	 * Only non-internal opens can be deferred at all
 	 */
 
-	if ((req != NULL)
-	    && ((pml = get_open_deferred_message(req->mid)) != NULL)) {
-		struct deferred_open_record *state =
-			(struct deferred_open_record *)pml->private_data.data;
+	if (req) {
+		void *ptr;
+		if (get_deferred_open_message_state(req,
+				&request_time,
+				&ptr)) {
+			struct deferred_open_record *state = (struct deferred_open_record *)ptr;
 
-		/* Remember the absolute time of the original
-		   request with this mid. We'll use it later to
-		   see if this has timed out. */
+			/* Remember the absolute time of the original
+			   request with this mid. We'll use it later to
+			   see if this has timed out. */
 
-		request_time = pml->request_time;
+			/* Remove the deferred open entry under lock. */
+			remove_deferred_open_entry(state->id, req->mid);
 
-		/* Remove the deferred open entry under lock. */
-		lck = get_share_mode_lock(talloc_tos(), state->id, NULL, NULL,
-					  NULL);
-		if (lck == NULL) {
-			DEBUG(0, ("could not get share mode lock\n"));
-		} else {
-			del_deferred_open_entry(lck, req->mid);
-			TALLOC_FREE(lck);
-		}
+			/* Ensure we don't reprocess this message. */
+			remove_deferred_open_message_smb(req->mid);
 
-		/* Ensure we don't reprocess this message. */
-		remove_deferred_open_smb_message(req->mid);
-
-		/*
-		 * When receiving a semlock_async_failure message, the
-		 * deferred open will be marked as "failed". Returning
-		 * INTERNAL_ERROR.
-		 */
-		if (state->failed) {
-			DEBUG(0, ("onefs_open_file_ntcreate: "
-				  "semlock_async_failure detected!\n"));
-			return NT_STATUS_INTERNAL_ERROR;
+			/*
+			 * When receiving a semlock_async_failure message, the
+			 * deferred open will be marked as "failed". Returning
+			 * INTERNAL_ERROR.
+			 */
+			if (state->failed) {
+				DEBUG(0, ("onefs_open_file_ntcreate: "
+					  "semlock_async_failure detected!\n"));
+				return NT_STATUS_INTERNAL_ERROR;
+			}
 		}
 	}
 
@@ -595,7 +591,7 @@ NTSTATUS onefs_open_file_ntcreate(connection_struct *conn,
 	}
 
 	/* Ignore oplock requests if oplocks are disabled. */
-	if (!lp_oplocks(SNUM(conn)) || global_client_failed_oplock_break ||
+	if (!lp_oplocks(SNUM(conn)) ||
 	    IS_VETO_OPLOCK_PATH(conn, smb_fname->base_name)) {
 		/* Mask off everything except the private Samba bits. */
 		oplock_request &= SAMBA_PRIVATE_OPLOCK_MASK;
@@ -818,7 +814,7 @@ NTSTATUS onefs_open_file_ntcreate(connection_struct *conn,
 	DEBUG(10, ("fsp = %p\n", fsp));
 
 	fsp->share_access = share_access;
-	fsp->fh->private_options = create_options;
+	fsp->fh->private_options = private_flags;
 	fsp->access_mask = open_access_mask; /* We change this to the
 					      * requested access_mask after
 					      * the open is done. */
@@ -992,7 +988,7 @@ NTSTATUS onefs_open_file_ntcreate(connection_struct *conn,
 			 * calls. */
 
 			/* Try to find dup fsp if possible. */
-			if (create_options &
+			if (private_flags &
 			    (NTCREATEX_OPTIONS_PRIVATE_DENY_DOS|
 			     NTCREATEX_OPTIONS_PRIVATE_DENY_FCB)) {
 
@@ -1261,9 +1257,6 @@ NTSTATUS onefs_open_file_ntcreate(connection_struct *conn,
 	 * deny mode is compatible with all current opens.
 	 */
 
-	/* Record the options we were opened with. */
-	fsp->share_access = share_access;
-	fsp->fh->private_options = create_options;
 	/*
 	 * According to Samba4, SEC_FILE_READ_ATTRIBUTE is always granted,
 	 */
@@ -1629,12 +1622,12 @@ static NTSTATUS onefs_open_directory(connection_struct *conn,
 	fsp->can_write = False;
 
 	fsp->share_access = share_access;
-	fsp->fh->private_options = create_options;
+	fsp->fh->private_options = 0;
 	/*
 	 * According to Samba4, SEC_FILE_READ_ATTRIBUTE is always granted,
 	 */
 	fsp->access_mask = access_mask | FILE_READ_ATTRIBUTES;
-	fsp->print_file = False;
+	fsp->print_file = NULL;
 	fsp->modified = False;
 	fsp->oplock_type = NO_OPLOCK;
 	fsp->sent_oplock_break = NO_BREAK_SENT;
@@ -1718,6 +1711,7 @@ static NTSTATUS onefs_create_file_unixpath(connection_struct *conn,
 					   uint32_t file_attributes,
 					   uint32_t oplock_request,
 					   uint64_t allocation_size,
+					   uint32_t private_flags,
 					   struct security_descriptor *sd,
 					   struct ea_list *ea_list,
 					   files_struct **result,
@@ -1732,7 +1726,8 @@ static NTSTATUS onefs_create_file_unixpath(connection_struct *conn,
 	DEBUG(10,("onefs_create_file_unixpath: access_mask = 0x%x "
 		  "file_attributes = 0x%x, share_access = 0x%x, "
 		  "create_disposition = 0x%x create_options = 0x%x "
-		  "oplock_request = 0x%x ea_list = 0x%p, sd = 0x%p, "
+		  "oplock_request = 0x%x private_flags = 0x%x "
+		  "ea_list = 0x%p, sd = 0x%p, "
 		  "fname = %s\n",
 		  (unsigned int)access_mask,
 		  (unsigned int)file_attributes,
@@ -1740,6 +1735,7 @@ static NTSTATUS onefs_create_file_unixpath(connection_struct *conn,
 		  (unsigned int)create_disposition,
 		  (unsigned int)create_options,
 		  (unsigned int)oplock_request,
+		  (unsigned int)private_flags,
 		  ea_list, sd, smb_fname_str_dbg(smb_fname)));
 
 	if (create_options & FILE_OPEN_BY_FILE_ID) {
@@ -1823,6 +1819,7 @@ static NTSTATUS onefs_create_file_unixpath(connection_struct *conn,
 			file_attributes,		/* file_attributes */
 			NO_OPLOCK,			/* oplock_request */
 			0,				/* allocation_size */
+			0,				/* private_flags */
 			NULL,				/* sd */
 			NULL,				/* ea_list */
 			&base_fsp,			/* result */
@@ -2066,6 +2063,7 @@ NTSTATUS onefs_create_file(vfs_handle_struct *handle,
 			   uint32_t file_attributes,
 			   uint32_t oplock_request,
 			   uint64_t allocation_size,
+			   uint32_t private_flags,
 			   struct security_descriptor *sd,
 			   struct ea_list *ea_list,
 			   files_struct **result,
@@ -2080,7 +2078,7 @@ NTSTATUS onefs_create_file(vfs_handle_struct *handle,
 	DEBUG(10,("onefs_create_file: access_mask = 0x%x "
 		  "file_attributes = 0x%x, share_access = 0x%x, "
 		  "create_disposition = 0x%x create_options = 0x%x "
-		  "oplock_request = 0x%x "
+		  "oplock_request = 0x%x private_flags = 0x%x"
 		  "root_dir_fid = 0x%x, ea_list = 0x%p, sd = 0x%p, "
 		  "fname = %s\n",
 		  (unsigned int)access_mask,
@@ -2089,6 +2087,7 @@ NTSTATUS onefs_create_file(vfs_handle_struct *handle,
 		  (unsigned int)create_disposition,
 		  (unsigned int)create_options,
 		  (unsigned int)oplock_request,
+		  (unsigned int)private_flags,
 		  (unsigned int)root_dir_fid,
 		  ea_list, sd, smb_fname_str_dbg(smb_fname)));
 
@@ -2107,6 +2106,33 @@ NTSTATUS onefs_create_file(vfs_handle_struct *handle,
 		goto fail;
 	}
 
+	if (is_ntfs_stream_smb_fname(smb_fname)) {
+		if (!(conn->fs_capabilities & FILE_NAMED_STREAMS)) {
+			status = NT_STATUS_OBJECT_NAME_NOT_FOUND;
+			goto fail;
+		}
+
+		if (is_ntfs_default_stream_smb_fname(smb_fname)) {
+			int ret;
+			smb_fname->stream_name = NULL;
+			/* We have to handle this error here. */
+			if (create_options & FILE_DIRECTORY_FILE) {
+				status = NT_STATUS_NOT_A_DIRECTORY;
+				goto fail;
+			}
+			if (lp_posix_pathnames()) {
+				ret = SMB_VFS_LSTAT(conn, smb_fname);
+			} else {
+				ret = SMB_VFS_STAT(conn, smb_fname);
+			}
+
+			if (ret == 0 && VALID_STAT_OF_DIR(smb_fname->st)) {
+				status = NT_STATUS_FILE_IS_A_DIRECTORY;
+				goto fail;
+			}
+		}
+	}
+
 	status = onefs_create_file_unixpath(
 		conn,					/* conn */
 		req,					/* req */
@@ -2118,6 +2144,7 @@ NTSTATUS onefs_create_file(vfs_handle_struct *handle,
 		file_attributes,			/* file_attributes */
 		oplock_request,				/* oplock_request */
 		allocation_size,			/* allocation_size */
+		private_flags,
 		sd,					/* sd */
 		ea_list,				/* ea_list */
 		&fsp,					/* result */

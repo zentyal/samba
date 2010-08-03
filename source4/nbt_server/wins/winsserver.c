@@ -35,6 +35,7 @@
 #include "lib/ldb/include/ldb.h"
 #include "param/param.h"
 #include "libcli/resolve/resolve.h"
+#include "lib/util/util_net.h"
 
 /*
   work out the ttl we will use given a client requested ttl
@@ -281,8 +282,8 @@ static void wins_wack_allow(struct nbtd_wins_wack_state *s)
 	rec->registered_by = s->src->addr;
 
 	/*
-	 * now remove all addresses that're the client doesn't hold anymore
-	 * and update the time stamp and owner for the ownes that are still there
+	 * now remove all addresses that the client doesn't hold anymore
+	 * and update the time stamp and owner for the ones that are still there
 	 */
 	for (i=0; rec->addresses[i]; i++) {
 		bool found = false;
@@ -414,7 +415,7 @@ static void wins_register_wack(struct nbt_name_socket *nbtsock,
 	if (talloc_reference(s, src) == NULL) goto failed;
 
 	s->io.in.nbtd_server	= iface->nbtsrv;
-	s->io.in.nbt_port       = lp_nbt_port(iface->nbtsrv->task->lp_ctx);
+	s->io.in.nbt_port       = lpcfg_nbt_port(iface->nbtsrv->task->lp_ctx);
 	s->io.in.event_ctx	= iface->nbtsrv->task->event_ctx;
 	s->io.in.name		= rec->name;
 	s->io.in.num_addresses	= winsdb_addr_list_length(rec->addresses);
@@ -493,6 +494,11 @@ static void nbtd_winsserver_register(struct nbt_name_socket *nbtsock,
 	/* w2k3 refuses 0x1E names with out marked as group */
 	if (name->type == NBT_NAME_BROWSER && !(nb_flags & NBT_NM_GROUP)) {
 		rcode = NBT_RCODE_RFS;
+		goto done;
+	}
+
+	if (name->scope && strlen(name->scope) > 237) {
+		rcode = NBT_RCODE_SVR;
 		goto done;
 	}
 
@@ -664,10 +670,9 @@ static void nbtd_wins_randomize1Clist(struct loadparm_context *lp_ctx,
 	if (num_addrs <= 1) return; /* nothing to do */
 
 	/* first sort the addresses depending on the matching to the client */
-	ldb_qsort(addresses, num_addrs , sizeof(addresses[0]),
-		  src, (ldb_qsort_cmp_fn_t)nbtd_wins_randomize1Clist_sort);
+	LDB_TYPESAFE_QSORT(addresses, num_addrs, src, nbtd_wins_randomize1Clist_sort);
 
-	mask = lp_parm_string(lp_ctx, NULL, "nbtd", "wins_randomize1Clist_mask");
+	mask = lpcfg_parm_string(lp_ctx, NULL, "nbtd", "wins_randomize1Clist_mask");
 	if (!mask) {
 		mask = "255.255.255.0";
 	}
@@ -745,7 +750,7 @@ static void nbtd_winsserver_query(struct loadparm_context *lp_ctx,
 	 * Value: 0 = deactivated, 1 = activated
 	 */
 	if (name->type == NBT_NAME_LOGON && 
-	    lp_parm_bool(lp_ctx, NULL, "nbtd", "wins_prepend1Bto1Cqueries", true)) {
+	    lpcfg_parm_bool(lp_ctx, NULL, "nbtd", "wins_prepend1Bto1Cqueries", true)) {
 		struct nbt_name name_1b;
 
 		name_1b = *name;
@@ -759,7 +764,7 @@ static void nbtd_winsserver_query(struct loadparm_context *lp_ctx,
 
 	status = winsdb_lookup(winssrv->wins_db, name, packet, &rec);
 	if (!NT_STATUS_IS_OK(status)) {
-		if (!lp_wins_dns_proxy(lp_ctx)) {
+		if (!lpcfg_wins_dns_proxy(lp_ctx)) {
 			goto notfound;
 		}
 
@@ -841,7 +846,7 @@ static void nbtd_winsserver_query(struct loadparm_context *lp_ctx,
 	 * Value: 0 = deactivated, 1 = activated
 	 */
 	if (name->type == NBT_NAME_LOGON && 
-	    lp_parm_bool(lp_ctx, NULL, "nbtd", "wins_randomize1Clist", false)) {
+	    lpcfg_parm_bool(lp_ctx, NULL, "nbtd", "wins_randomize1Clist", false)) {
 		nbtd_wins_randomize1Clist(lp_ctx, addresses, src);
 	}
 
@@ -871,6 +876,10 @@ static void nbtd_winsserver_release(struct nbt_name_socket *nbtsock,
 	uint8_t ret;
 
 	if (name->type == NBT_NAME_MASTER) {
+		goto done;
+	}
+
+	if (name->scope && strlen(name->scope) > 237) {
 		goto done;
 	}
 
@@ -950,7 +959,7 @@ static void nbtd_winsserver_release(struct nbt_name_socket *nbtsock,
 		if (strcmp(rec->wins_owner, winssrv->wins_db->local_owner) != 0) {
 			modify_flags = WINSDB_FLAG_ALLOC_VERSION | WINSDB_FLAG_TAKE_OWNERSHIP;
 		}
-		if (lp_parm_bool(iface->nbtsrv->task->lp_ctx, NULL, "wreplsrv", "propagate name releases", false)) {
+		if (lpcfg_parm_bool(iface->nbtsrv->task->lp_ctx, NULL, "wreplsrv", "propagate name releases", false)) {
 			/*
 			 * We have an option to propagate every name release,
 			 * this is off by default to match windows servers
@@ -1029,7 +1038,7 @@ NTSTATUS nbtd_winsserver_init(struct nbtd_server *nbtsrv)
 	uint32_t tmp;
 	const char *owner;
 
-	if (!lp_wins_support(nbtsrv->task->lp_ctx)) {
+	if (!lpcfg_wins_support(nbtsrv->task->lp_ctx)) {
 		nbtsrv->winssrv = NULL;
 		return NT_STATUS_OK;
 	}
@@ -1037,18 +1046,18 @@ NTSTATUS nbtd_winsserver_init(struct nbtd_server *nbtsrv)
 	nbtsrv->winssrv = talloc_zero(nbtsrv, struct wins_server);
 	NT_STATUS_HAVE_NO_MEMORY(nbtsrv->winssrv);
 
-	nbtsrv->winssrv->config.max_renew_interval = lp_max_wins_ttl(nbtsrv->task->lp_ctx);
-	nbtsrv->winssrv->config.min_renew_interval = lp_min_wins_ttl(nbtsrv->task->lp_ctx);
-	tmp = lp_parm_int(nbtsrv->task->lp_ctx, NULL, "wreplsrv", "tombstone_interval", 6*24*60*60);
+	nbtsrv->winssrv->config.max_renew_interval = lpcfg_max_wins_ttl(nbtsrv->task->lp_ctx);
+	nbtsrv->winssrv->config.min_renew_interval = lpcfg_min_wins_ttl(nbtsrv->task->lp_ctx);
+	tmp = lpcfg_parm_int(nbtsrv->task->lp_ctx, NULL, "wreplsrv", "tombstone_interval", 6*24*60*60);
 	nbtsrv->winssrv->config.tombstone_interval = tmp;
-	tmp = lp_parm_int(nbtsrv->task->lp_ctx, NULL, "wreplsrv"," tombstone_timeout", 1*24*60*60);
+	tmp = lpcfg_parm_int(nbtsrv->task->lp_ctx, NULL, "wreplsrv"," tombstone_timeout", 1*24*60*60);
 	nbtsrv->winssrv->config.tombstone_timeout = tmp;
 
-	owner = lp_parm_string(nbtsrv->task->lp_ctx, NULL, "winsdb", "local_owner");
+	owner = lpcfg_parm_string(nbtsrv->task->lp_ctx, NULL, "winsdb", "local_owner");
 
 	if (owner == NULL) {
 		struct interface *ifaces;
-		load_interfaces(nbtsrv->task, lp_interfaces(nbtsrv->task->lp_ctx), &ifaces);
+		load_interfaces(nbtsrv->task, lpcfg_interfaces(nbtsrv->task->lp_ctx), &ifaces);
 		owner = iface_n_ip(ifaces, 0);
 	}
 

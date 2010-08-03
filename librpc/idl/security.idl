@@ -262,22 +262,56 @@ interface security
 	const string SID_BUILTIN_PREW2K            = "S-1-5-32-554";
 	const string SID_BUILTIN_REMOTE_DESKTOP_USERS   = "S-1-5-32-555";
 	const string SID_BUILTIN_NETWORK_CONF_OPERATORS = "S-1-5-32-556";
+	const string SID_BUILTIN_INCOMING_FOREST_TRUST  = "S-1-5-32-557";
+	const string SID_BUILTIN_PERFMON_USERS		= "S-1-5-32-558";
+	const string SID_BUILTIN_PERFLOG_USERS		= "S-1-5-32-559";
+	const string SID_BUILTIN_AUTH_ACCESS 		= "S-1-5-32-560";
+	const string SID_BUILTIN_TS_LICENSE_SERVERS	= "S-1-5-32-561";
+
+	/* SECURITY_NT_SERVICE */
+	const string NAME_NT_SERVICE            = "NT SERVICE";
+
+	const string SID_NT_NT_SERVICE          = "S-1-5-80";
+	const string SID_NT_TRUSTED_INSTALLER =
+		"S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464";
 
 	/* well-known domain RIDs */
-	const int DOMAIN_RID_LOGON                 = 9;
-	const int DOMAIN_RID_ADMINISTRATOR         = 500;
-	const int DOMAIN_RID_GUEST                 = 501;
-	const int DOMAIN_RID_KRBTGT                = 502;
-	const int DOMAIN_RID_ADMINS                = 512;
-	const int DOMAIN_RID_USERS                 = 513;
-	const int DOMAIN_RID_GUESTS                = 514;
-	const int DOMAIN_RID_DOMAIN_MEMBERS        = 515;
-	const int DOMAIN_RID_DCS                   = 516;
-	const int DOMAIN_RID_CERT_ADMINS           = 517;
-	const int DOMAIN_RID_SCHEMA_ADMINS         = 518;
-	const int DOMAIN_RID_ENTERPRISE_ADMINS     = 519;
-	const int DOMAIN_RID_POLICY_ADMINS         = 520;
+	const int DOMAIN_RID_LOGON                   = 9;
+	const int DOMAIN_RID_ENTERPRISE_READONLY_DCS = 498;
+	const int DOMAIN_RID_ADMINISTRATOR           = 500;
+	const int DOMAIN_RID_GUEST                   = 501;
+	const int DOMAIN_RID_KRBTGT                  = 502;
+	const int DOMAIN_RID_ADMINS                  = 512;
+	const int DOMAIN_RID_USERS                   = 513;
+	const int DOMAIN_RID_GUESTS                  = 514;
+	const int DOMAIN_RID_DOMAIN_MEMBERS          = 515;
+	const int DOMAIN_RID_DCS                     = 516;
+	const int DOMAIN_RID_CERT_ADMINS             = 517;
+	const int DOMAIN_RID_SCHEMA_ADMINS           = 518;
+	const int DOMAIN_RID_ENTERPRISE_ADMINS       = 519;
+	const int DOMAIN_RID_POLICY_ADMINS           = 520;
+	const int DOMAIN_RID_READONLY_DCS            = 521;
+	const int DOMAIN_RID_RAS_SERVERS             = 553;
 
+	/* well-known builtin RIDs */
+	const int BUILTIN_RID_ADMINISTRATORS		= 544;
+	const int BUILTIN_RID_USERS			= 545;
+	const int BUILTIN_RID_GUESTS			= 546;
+	const int BUILTIN_RID_POWER_USERS		= 547;
+	const int BUILTIN_RID_ACCOUNT_OPERATORS		= 548;
+	const int BUILTIN_RID_SERVER_OPERATORS		= 549;
+	const int BUILTIN_RID_PRINT_OPERATORS		= 550;
+	const int BUILTIN_RID_BACKUP_OPERATORS		= 551;
+	const int BUILTIN_RID_REPLICATOR		= 552;
+	const int BUILTIN_RID_RAS_SERVERS		= 553;
+	const int BUILTIN_RID_PRE_2K_ACCESS		= 554;
+	const int BUILTIN_RID_REMOTE_DESKTOP_USERS	= 555;
+	const int BUILTIN_RID_NETWORK_CONF_OPERATORS	= 556;
+	const int BUILTIN_RID_INCOMING_FOREST_TRUST	= 557;
+	const int BUILTIN_RID_PERFMON_USERS		= 558;
+	const int BUILTIN_RID_PERFLOG_USERS		= 559;
+	const int BUILTIN_RID_AUTH_ACCESS		= 560;
+	const int BUILTIN_RID_TS_LICENSE_SERVERS	= 561;
 
 	/*
 	  privilege IDs. Please keep the IDs below 64. If we get more
@@ -371,7 +405,7 @@ interface security
 	typedef [public,nopull,gensize,nosize] struct {
 		security_ace_type type;  /* SEC_ACE_TYPE_* */
 		security_ace_flags flags; /* SEC_ACE_FLAG_* */
-		[value(ndr_size_security_ace(r,ndr->iconv_convenience,ndr->flags))] uint16 size;
+		[value(ndr_size_security_ace(r,ndr->flags))] uint16 size;
 		uint32 access_mask;
 		[switch_is(type)] security_ace_object_ctr object;
 		dom_sid trustee;
@@ -386,7 +420,7 @@ interface security
 
 	typedef [public,gensize,nosize] struct {
 		security_acl_revision revision;
-		[value(ndr_size_security_acl(r,ndr->iconv_convenience,ndr->flags))] uint16 size;
+		[value(ndr_size_security_acl(r,ndr->flags))] uint16 size;
 		[range(0,1000)] uint32 num_aces;
 		security_ace aces[num_aces];
 	} security_acl;
@@ -428,7 +462,7 @@ interface security
 	} security_descriptor;
 
 	typedef [public] struct {
-		[range(0,0x40000),value(ndr_size_security_descriptor(sd,ndr->iconv_convenience,ndr->flags))] uint32 sd_size;
+		[range(0,0x40000),value(ndr_size_security_descriptor(sd,ndr->flags))] uint32 sd_size;
 		[subcontext(4)] security_descriptor *sd;
 	} sec_desc_buf;
 
@@ -438,7 +472,6 @@ interface security
 		uint32 num_sids;
 		[size_is(num_sids)] dom_sid *sids[*];
 		udlong privilege_mask;
-		security_acl *default_dacl;
 	} security_token;
 
 	/* bits that determine which parts of a security descriptor
@@ -469,4 +502,48 @@ interface security
 		SEC_OWNER_FROM_PARENT                = 0x00000008,
 		SEC_GROUP_FROM_PARENT                = 0x00000010
 	} security_autoinherit;
+
+	/***************************************************************/
+	/* Extended right guids */
+
+	const string GUID_DRS_ALLOCATE_RIDS           = "1abd7cf8-0a99-11d1-adbb-00c04fd8d5cd";
+	const string GUID_DRS_CHANGE_DOMAIN_MASTER    = "014bf69c-7b3b-11d1-85f6-08002be74fab";
+	const string GUID_DRS_CHANGE_INFR_MASTER      = "cc17b1fb-33d9-11d2-97d4-00c04fd8d5cd";
+	const string GUID_DRS_CHANGE_PDC              = "bae50096-4752-11d1-9052-00c04fc2d4cf";
+	const string GUID_DRS_CHANGE_RID_MASTER       = "d58d5f36-0a98-11d1-adbb-00c04fd8d5cd";
+	const string GUID_DRS_CHANGE_SCHEMA_MASTER    = "e12b56b6-0a95-11d1-adbb-00c04fd8d5cd";
+	const string GUID_DRS_GET_CHANGES             = "1131f6aa-9c07-11d1-f79f-00c04fc2dcd2";
+	const string GUID_DRS_GET_ALL_CHANGES         = "1131f6ad-9c07-11d1-f79f-00c04fc2dcd2";
+	const string GUID_DRS_GET_FILTERED_ATTRIBUTES = "89e95b76-444d-4c62-991a-0facbeda640c";
+	const string GUID_DRS_MANAGE_TOPOLOGY         = "1131f6ac-9c07-11d1-f79f-00c04fc2dcd2";
+	const string GUID_DRS_MONITOR_TOPOLOGY        = "f98340fb-7c5b-4cdb-a00b-2ebdfa115a96";
+	const string GUID_DRS_REPL_SYNCRONIZE         = "1131f6ab-9c07-11d1-f79f-00c04fc2dcd2";
+	const string GUID_DRS_RO_REPL_SECRET_SYNC     = "1131f6ae-9c07-11d1-f79f-00c04fc2dcd2";
+	const string GUID_DRS_USER_CHANGE_PASSWORD    = "ab721a53-1e2f-11d0-9819-00aa0040529b";
+	const string GUID_DRS_FORCE_CHANGE_PASSWORD   = "00299570-246d-11d0-a768-00aa006e0529";
+
+	/***************************************************************/
+	/* validated writes guids */
+	const string GUID_DRS_VALIDATE_SPN            = "f3a64788-5306-11d1-a9c5-0000f80367c1";
+	const string GUID_DRS_SELF_MEMBERSHIP         = "bf9679c0-0de6-11d0-a285-00aa003049e2";
+	const string GUID_DRS_DNS_HOST_NAME           = "72e39547-7b18-11d1-adef-00c04fd8d5cd";
+	const string GUID_DRS_ADD_DNS_HOST_NAME       = "80863791-dbe9-4eb8-837e-7f0ab55d9ac7";
+	const string GUID_DRS_BEHAVIOR_VERSION        = "d31a8757-2447-4545-8081-3bb610cacbf2";
+
+	/* A type to describe the mapping of generic access rights to object
+	   specific access rights. */
+
+	typedef struct {
+		uint32 generic_read;
+		uint32 generic_write;
+		uint32 generic_execute;
+		uint32 generic_all;
+	} generic_mapping;
+
+	typedef	struct {
+		uint32 std_read;
+		uint32 std_write;
+		uint32 std_execute;
+		uint32 std_all;
+	} standard_mapping;
 }

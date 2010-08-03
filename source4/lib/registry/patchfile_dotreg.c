@@ -35,7 +35,6 @@
 
 struct dotreg_data {
 	int fd;
-	struct smb_iconv_convenience *iconv_convenience;
 };
 
 static WERROR reg_dotreg_diff_add_key(void *_data, const char *key_name)
@@ -61,10 +60,12 @@ static WERROR reg_dotreg_diff_set_value(void *_data, const char *path,
 					uint32_t value_type, DATA_BLOB value)
 {
 	struct dotreg_data *data = (struct dotreg_data *)_data;
-
+	char *data_string = reg_val_data_string(NULL, 
+						value_type, value);
+	W_ERROR_HAVE_NO_MEMORY(data_string);
 	fdprintf(data->fd, "\"%s\"=%s:%s\n",
-			value_name, str_regtype(value_type),
-			reg_val_data_string(NULL, data->iconv_convenience, value_type, value));
+		 value_name, str_regtype(value_type), data_string);
+	talloc_free(data_string);
 
 	return WERR_OK;
 }
@@ -99,7 +100,6 @@ static WERROR reg_dotreg_diff_del_all_values(void *callback_data,
  * Save registry diff
  */
 _PUBLIC_ WERROR reg_dotreg_diff_save(TALLOC_CTX *ctx, const char *filename,
-				     struct smb_iconv_convenience *iconv_convenience,
 				     struct reg_diff_callbacks **callbacks,
 				     void **callback_data)
 {
@@ -107,8 +107,6 @@ _PUBLIC_ WERROR reg_dotreg_diff_save(TALLOC_CTX *ctx, const char *filename,
 
 	data = talloc_zero(ctx, struct dotreg_data);
 	*callback_data = data;
-
-	data->iconv_convenience = iconv_convenience;
 
 	if (filename) {
 		data->fd = open(filename, O_CREAT|O_WRONLY, 0755);
@@ -138,7 +136,6 @@ _PUBLIC_ WERROR reg_dotreg_diff_save(TALLOC_CTX *ctx, const char *filename,
  * Load diff file
  */
 _PUBLIC_ WERROR reg_dotreg_diff_load(int fd,
-				     struct smb_iconv_convenience *iconv_convenience,
 				     const struct reg_diff_callbacks *callbacks,
 				     void *callback_data)
 {
@@ -179,9 +176,11 @@ _PUBLIC_ WERROR reg_dotreg_diff_load(int fd,
 			/* Deleting key */
 			if (line[1] == '-') {
 				curkey = talloc_strndup(line, line+2, strlen(line)-3);
+				W_ERROR_HAVE_NO_MEMORY(curkey);
 
 				error = callbacks->del_key(callback_data,
 							   curkey);
+
 				if (!W_ERROR_IS_OK(error)) {
 					DEBUG(0,("Error deleting key %s\n",
 						curkey));
@@ -194,6 +193,7 @@ _PUBLIC_ WERROR reg_dotreg_diff_load(int fd,
 				continue;
 			}
 			curkey = talloc_strndup(mem_ctx, line+1, strlen(line)-2);
+			W_ERROR_HAVE_NO_MEMORY(curkey);
 
 			error = callbacks->add_key(callback_data, curkey);
 			if (!W_ERROR_IS_OK(error)) {
@@ -243,7 +243,7 @@ _PUBLIC_ WERROR reg_dotreg_diff_load(int fd,
 			q++;
 		}
 
-		reg_string_to_val(line, iconv_convenience, 
+		reg_string_to_val(line, 
 				  q?p:"REG_SZ", q?q:p,
 				  &value_type, &value);
 

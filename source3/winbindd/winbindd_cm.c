@@ -62,9 +62,14 @@
 #include "winbindd.h"
 #include "../libcli/auth/libcli_auth.h"
 #include "../librpc/gen_ndr/cli_netlogon.h"
+#include "rpc_client/cli_netlogon.h"
 #include "../librpc/gen_ndr/cli_samr.h"
 #include "../librpc/gen_ndr/cli_lsa.h"
+#include "rpc_client/cli_lsarpc.h"
 #include "../librpc/gen_ndr/cli_dssetup.h"
+#include "libads/sitename_cache.h"
+#include "librpc/gen_ndr/messaging.h"
+#include "libsmb/clidgram.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
@@ -1569,6 +1574,10 @@ void invalidate_cm_connection(struct winbindd_cm_conn *conn)
 	}
 
 	if (conn->samr_pipe != NULL) {
+		if (is_valid_policy_hnd(&conn->sam_connect_handle)) {
+			rpccli_samr_Close(conn->samr_pipe, talloc_tos(),
+					  &conn->sam_connect_handle);
+		}
 		TALLOC_FREE(conn->samr_pipe);
 		/* Ok, it must be dead. Drop timeout to 0.5 sec. */
 		if (conn->cli) {
@@ -1577,6 +1586,10 @@ void invalidate_cm_connection(struct winbindd_cm_conn *conn)
 	}
 
 	if (conn->lsa_pipe != NULL) {
+		if (is_valid_policy_hnd(&conn->lsa_policy)) {
+			rpccli_lsa_Close(conn->lsa_pipe, talloc_tos(),
+					 &conn->lsa_policy);
+		}
 		TALLOC_FREE(conn->lsa_pipe);
 		/* Ok, it must be dead. Drop timeout to 0.5 sec. */
 		if (conn->cli) {
@@ -1585,6 +1598,10 @@ void invalidate_cm_connection(struct winbindd_cm_conn *conn)
 	}
 
 	if (conn->lsa_pipe_tcp != NULL) {
+		if (is_valid_policy_hnd(&conn->lsa_policy)) {
+			rpccli_lsa_Close(conn->lsa_pipe, talloc_tos(),
+					 &conn->lsa_policy);
+		}
 		TALLOC_FREE(conn->lsa_pipe_tcp);
 		/* Ok, it must be dead. Drop timeout to 0.5 sec. */
 		if (conn->cli) {
@@ -1612,14 +1629,19 @@ void close_conns_after_fork(void)
 	struct winbindd_domain *domain;
 
 	for (domain = domain_list(); domain; domain = domain->next) {
-		if (domain->conn.cli == NULL)
-			continue;
+		struct cli_state *cli = domain->conn.cli;
 
-		if (domain->conn.cli->fd == -1)
-			continue;
+		/*
+		 * first close the low level SMB TCP connection
+		 * so that we don't generate any SMBclose
+		 * requests in invalidate_cm_connection()
+		 */
+		if (cli && cli->fd != -1) {
+			close(domain->conn.cli->fd);
+			domain->conn.cli->fd = -1;
+		}
 
-		close(domain->conn.cli->fd);
-		domain->conn.cli->fd = -1;
+		invalidate_cm_connection(&domain->conn);
 	}
 }
 
@@ -1681,6 +1703,10 @@ static NTSTATUS init_dc_connection_network(struct winbindd_domain *domain)
 
 NTSTATUS init_dc_connection(struct winbindd_domain *domain)
 {
+	if (domain->internal) {
+		return NT_STATUS_CANT_ACCESS_DOMAIN_INFO;
+	}
+
 	if (domain->initialized && !domain->online) {
 		/* We check for online status elsewhere. */
 		return NT_STATUS_DOMAIN_CONTROLLER_NOT_FOUND;
@@ -2051,6 +2077,14 @@ NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 	char *machine_password = NULL;
 	char *machine_account = NULL;
 	char *domain_name = NULL;
+
+	if (strequal(domain->name, get_global_sam_name())) {
+		result = open_internal_samr_conn(mem_ctx, domain, cli, sam_handle);
+		if (!NT_STATUS_IS_OK(result)) {
+			return result;
+		}
+		return NT_STATUS_OK;
+	}
 
 	result = init_dc_connection_rpc(domain);
 	if (!NT_STATUS_IS_OK(result)) {

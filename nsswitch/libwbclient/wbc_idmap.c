@@ -5,7 +5,6 @@
 
    Copyright (C) Gerald (Jerry) Carter 2007
 
-
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
    License as published by the Free Software Foundation; either
@@ -158,6 +157,7 @@ wbcErr wbcSidToGid(const struct wbcDomainSid *sid, gid_t *pgid)
 	return wbc_status;
 }
 
+
 /* Convert a Windows SID to a Unix gid if there already is a mapping */
 
 wbcErr wbcQuerySidToGid(const struct wbcDomainSid *sid,
@@ -165,6 +165,7 @@ wbcErr wbcQuerySidToGid(const struct wbcDomainSid *sid,
 {
 	return WBC_ERR_NOT_IMPLEMENTED;
 }
+
 
 /* Convert a Unix gid to a Windows SID, allocating a SID if needed */
 wbcErr wbcGidToSid(gid_t gid, struct wbcDomainSid *sid)

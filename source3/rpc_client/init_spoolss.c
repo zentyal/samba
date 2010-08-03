@@ -18,6 +18,8 @@
  */
 
 #include "includes.h"
+#include "rpc_client/init_spoolss.h"
+#include "../librpc/gen_ndr/ndr_spoolss.h"
 
 /*******************************************************************
 ********************************************************************/
@@ -41,6 +43,21 @@ bool init_systemtime(struct spoolss_Time *r,
 	return true;
 }
 
+time_t spoolss_Time_to_time_t(const struct spoolss_Time *r)
+{
+	struct tm unixtime;
+
+	unixtime.tm_year	= r->year - 1900;
+	unixtime.tm_mon		= r->month - 1;
+	unixtime.tm_wday	= r->day_of_week;
+	unixtime.tm_mday	= r->day;
+	unixtime.tm_hour	= r->hour;
+	unixtime.tm_min		= r->minute;
+	unixtime.tm_sec		= r->second;
+
+	return mktime(&unixtime);
+}
+
 /*******************************************************************
  ********************************************************************/
 
@@ -50,7 +67,7 @@ WERROR pull_spoolss_PrinterData(TALLOC_CTX *mem_ctx,
 				enum winreg_Type type)
 {
 	enum ndr_err_code ndr_err;
-	ndr_err = ndr_pull_union_blob(blob, mem_ctx, NULL, data, type,
+	ndr_err = ndr_pull_union_blob(blob, mem_ctx, data, type,
 			(ndr_pull_flags_fn_t)ndr_pull_spoolss_PrinterData);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		return WERR_GENERAL_FAILURE;
@@ -66,10 +83,39 @@ WERROR push_spoolss_PrinterData(TALLOC_CTX *mem_ctx, DATA_BLOB *blob,
 				union spoolss_PrinterData *data)
 {
 	enum ndr_err_code ndr_err;
-	ndr_err = ndr_push_union_blob(blob, mem_ctx, NULL, data, type,
+	ndr_err = ndr_push_union_blob(blob, mem_ctx, data, type,
 			(ndr_push_flags_fn_t)ndr_push_spoolss_PrinterData);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		return WERR_GENERAL_FAILURE;
 	}
 	return WERR_OK;
+}
+
+/*******************************************************************
+ ********************************************************************/
+
+void spoolss_printerinfo2_to_setprinterinfo2(const struct spoolss_PrinterInfo2 *i,
+					     struct spoolss_SetPrinterInfo2 *s)
+{
+	s->servername		= i->servername;
+	s->printername		= i->printername;
+	s->sharename		= i->sharename;
+	s->portname		= i->portname;
+	s->drivername		= i->drivername;
+	s->comment		= i->comment;
+	s->location		= i->location;
+	s->devmode_ptr		= 0;
+	s->sepfile		= i->sepfile;
+	s->printprocessor	= i->printprocessor;
+	s->datatype		= i->datatype;
+	s->parameters		= i->parameters;
+	s->secdesc_ptr		= 0;
+	s->attributes		= i->attributes;
+	s->priority		= i->priority;
+	s->defaultpriority	= i->defaultpriority;
+	s->starttime		= i->starttime;
+	s->untiltime		= i->untiltime;
+	s->status		= i->status;
+	s->cjobs		= i->cjobs;
+	s->averageppm		= i->averageppm;
 }

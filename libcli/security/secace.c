@@ -23,6 +23,7 @@
 #include "includes.h"
 #include "librpc/gen_ndr/ndr_security.h"
 #include "libcli/security/dom_sid.h"
+#include "lib/util/tsort.h"
 
 #define  SEC_ACE_HEADER_SIZE (2 * sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint32_t))
 
@@ -62,7 +63,7 @@ void init_sec_ace(struct security_ace *t, const struct dom_sid *sid, enum securi
 {
 	t->type = type;
 	t->flags = flag;
-	t->size = ndr_size_dom_sid(sid, NULL, 0) + 8;
+	t->size = ndr_size_dom_sid(sid, 0) + 8;
 	t->access_mask = mask;
 
 	t->trustee = *sid;
@@ -88,7 +89,7 @@ NTSTATUS sec_ace_add_sid(TALLOC_CTX *ctx, struct security_ace **pp_new, struct s
 
 	(*pp_new)[i].type  = SEC_ACE_TYPE_ACCESS_ALLOWED;
 	(*pp_new)[i].flags = 0;
-	(*pp_new)[i].size  = SEC_ACE_HEADER_SIZE + ndr_size_dom_sid(sid, NULL, 0);
+	(*pp_new)[i].size  = SEC_ACE_HEADER_SIZE + ndr_size_dom_sid(sid, 0);
 	(*pp_new)[i].access_mask = mask;
 	(*pp_new)[i].trustee = *sid;
 	return NT_STATUS_OK;
@@ -257,7 +258,7 @@ void dacl_sort_into_canonical_order(struct security_ace *srclist, unsigned int n
 		return;
 
 	/* Sort so that non-inherited ACE's come first. */
-	qsort( srclist, num_aces, sizeof(srclist[0]), QSORT_CAST nt_ace_inherit_comp);
+	TYPESAFE_QSORT(srclist, num_aces, nt_ace_inherit_comp);
 
 	/* Find the boundary between non-inherited ACEs. */
 	for (i = 0; i < num_aces; i++ ) {
@@ -270,12 +271,10 @@ void dacl_sort_into_canonical_order(struct security_ace *srclist, unsigned int n
 	/* i now points at entry number of the first inherited ACE. */
 
 	/* Sort the non-inherited ACEs. */
-	if (i)
-		qsort( srclist, i, sizeof(srclist[0]), QSORT_CAST nt_ace_canon_comp);
+	TYPESAFE_QSORT(srclist, i, nt_ace_canon_comp);
 
 	/* Now sort the inherited ACEs. */
-	if (num_aces - i)
-		qsort( &srclist[i], num_aces - i, sizeof(srclist[0]), QSORT_CAST nt_ace_canon_comp);
+	TYPESAFE_QSORT(&srclist[i], num_aces - i, nt_ace_canon_comp);
 }
 
 

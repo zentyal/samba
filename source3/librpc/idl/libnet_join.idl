@@ -1,6 +1,6 @@
 #include "idl_types.h"
 
-import "wkssvc.idl", "security.idl";
+import "wkssvc.idl", "security.idl", "misc.idl";
 
 /*
   libnetjoin interface definition
@@ -20,7 +20,7 @@ interface libnetjoin
 		[in,ref] string *domain_name,
 		[in] string account_ou,
 		[in] string admin_account,
-		[in] string admin_password,
+		[in,noprint] string admin_password,
 		[in] string machine_password,
 		[in] wkssvc_joinflags join_flags,
 		[in] string os_version,
@@ -28,7 +28,7 @@ interface libnetjoin
 		[in] boolean8 create_upn,
 		[in] string upn,
 		[in] boolean8 modify_config,
-		[in] ads_struct *ads,
+		[in,unique] ads_struct *ads,
 		[in] boolean8 debug,
 		[in] boolean8 use_kerberos,
 		[in] netr_SchannelType secure_channel_type,
@@ -50,13 +50,13 @@ interface libnetjoin
 		[in] string domain_name,
 		[in] string account_ou,
 		[in] string admin_account,
-		[in] string admin_password,
+		[in,noprint] string admin_password,
 		[in] string machine_password,
 		[in] wkssvc_joinflags unjoin_flags,
 		[in] boolean8 delete_machine_account,
 		[in] boolean8 modify_config,
 		[in] dom_sid *domain_sid,
-		[in] ads_struct *ads,
+		[in,unique] ads_struct *ads,
 		[in] boolean8 debug,
 		[in] boolean8 use_kerberos,
 		[in,noprint] messaging_context *msg_ctx,

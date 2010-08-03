@@ -1,0 +1,61 @@
+#!/usr/bin/env python
+
+conf.CHECK_TYPE('u_char', 'uint8_t')
+conf.CHECK_TYPE('u_int32_t', 'uint32_t')
+
+conf.CHECK_HEADERS('err.h')
+
+conf.CHECK_HEADERS('ifaddrs.h')
+conf.CHECK_HEADERS('''crypt.h errno.h inttypes.h netdb.h signal.h sys/bswap.h
+	              sys/file.h sys/stropts.h sys/timeb.h sys/times.h sys/uio.h sys/un.h
+		      sys/utsname.h time.h timezone.h ttyname.h netinet/in.h
+		      netinet/in6.h netinet6/in6.h libintl.h''')
+
+conf.CHECK_HEADERS('curses.h term.h termcap.h', together=True)
+
+conf.CHECK_FUNCS('''atexit cgetent getprogname setprogname gethostname
+                    putenv rcmd readv sendmsg setitimer strlwr strncasecmp
+		    strptime strsep strsep_copy	strtok_r strupr swab umask uname unsetenv
+		    closefrom err warn errx warnx flock writev''')
+
+conf.CHECK_FUNCS_IN('hstrerror', 'resolv socket nsl', checklibc=True)
+conf.CHECK_FUNCS_IN('''getnameinfo sendmsg socket getipnodebyname gethostent gethostent_r
+                       sethostent endhostent getipnodebyaddr freehostent gethostbyname
+                       gethostbyname_r gethostbyaddr''',
+                    'socket nsl',
+                    checklibc=True)
+
+conf.CHECK_FUNCS_IN('dgettext gettext', 'intl', headers='libintl.h')
+
+conf.CHECK_FUNCS('iruserok')
+
+conf.CHECK_FUNCS('bswap16')
+conf.CHECK_FUNCS('bswap32')
+
+conf.CHECK_TYPE('struct winsize', define='HAVE_STRUCT_WINSIZE', headers='sys/termios.h sys/ioctl.h')
+conf.CHECK_STRUCTURE_MEMBER('struct winsize', 'ws_xpixel',
+				    define='HAVE_WS_XPIXEL', headers='sys/termios.h sys/ioctl.h')
+conf.CHECK_STRUCTURE_MEMBER('struct winsize', 'ws_ypixel',
+				    define='HAVE_WS_YPIXEL', headers='sys/termios.h sys/ioctl.h')
+conf.DEFINE('HAVE_KRB_STRUCT_WINSIZE', 1)
+conf.DEFINE('VOID_RETSIGTYPE', 1)
+
+conf.CHECK_VARIABLE('h_errno', headers='netdb.h')
+
+# strangely enough, we need it with another define too
+conf.CHECK_DECLS('h_errno', headers='netdb.h')
+
+conf.CHECK_FUNCS_IN('res_search res_nsearch res_ndestroy dns_search dn_expand', 'resolv',
+                    checklibc=True, headers='netinet/in.h arpa/nameser.h resolv.h dns.h')
+conf.CHECK_VARIABLE('_res', headers='netinet/in.h arpa/nameser.h resolv.h')
+conf.CHECK_DECLS('_res', headers='netinet/in.h arpa/nameser.h resolv.h')
+conf.CHECK_FUNCS_IN('openpty', 'util', checklibc=True, headers='pty.h util.h libutil.h')
+
+conf.DEFINE('HAVE_KRB5',1)
+conf.DEFINE('HAVE_GSSAPI',1)
+
+conf.CHECK_FUNCS('dirfd', headers='dirent.h')
+conf.CHECK_DECLS('dirfd', reverse=True, headers='dirent.h')
+conf.CHECK_STRUCTURE_MEMBER('DIR', 'dd_fd', define='HAVE_DIR_DD_FD',  headers='dirent.h')
+
+conf.DEFINE('SAMBA4_INTERNAL_HEIMDAL', 1)

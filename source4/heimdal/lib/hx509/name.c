@@ -43,7 +43,7 @@
  * (RDN). Each RDN consists of an unordered list of typed strings. The
  * types are defined by OID and have long and short description. For
  * example id-at-commonName (2.5.4.3) have the long name CommonName
- * and short name CN. The string itself can be of serveral encoding,
+ * and short name CN. The string itself can be of several encoding,
  * UTF8, UTF16, Teltex string, etc. The type limit what encoding
  * should be used.
  *
@@ -243,11 +243,7 @@ _hx509_Name_to_string(const Name *n, char **str)
 		break;
 	    }
 	    case choice_DirectoryString_teletexString:
-		ss = malloc(ds->u.teletexString.length + 1);
-		if (ss == NULL)
-		    _hx509_abort("allocation failure"); /* XXX */
-		memcpy(ss, ds->u.teletexString.data, ds->u.teletexString.length);
-		ss[ds->u.teletexString.length] = '\0';
+		ss = ds->u.teletexString;
 		break;
 	    case choice_DirectoryString_universalString: {
 	        const uint32_t *uni = ds->u.universalString.data;
@@ -279,8 +275,7 @@ _hx509_Name_to_string(const Name *n, char **str)
 	    len = strlen(ss);
 	    append_string(str, &total_len, ss, len, 1);
 	    if (ds->element == choice_DirectoryString_universalString ||
-		ds->element == choice_DirectoryString_bmpString ||
-		ds->element == choice_DirectoryString_teletexString)
+		ds->element == choice_DirectoryString_bmpString)
 	    {
 		free(ss);
 	    }
@@ -341,7 +336,7 @@ dsstringprep(const DirectoryString *ds, uint32_t **rname, size_t *rlen)
 	COPYCHARARRAY(ds, printableString, len, name);
 	break;
     case choice_DirectoryString_teletexString:
-	COPYVOIDARRAY(ds, teletexString, len, name);
+	COPYCHARARRAY(ds, teletexString, len, name);
 	break;
     case choice_DirectoryString_bmpString:
 	COPYVALARRAY(ds, bmpString, len, name);
@@ -399,7 +394,7 @@ _hx509_name_ds_cmp(const DirectoryString *ds1,
 		   int *diff)
 {
     uint32_t *ds1lp, *ds2lp;
-    size_t ds1len, ds2len;
+    size_t ds1len, ds2len, i;
     int ret;
 
     ret = dsstringprep(ds1, &ds1lp, &ds1len);
@@ -413,9 +408,13 @@ _hx509_name_ds_cmp(const DirectoryString *ds1,
 
     if (ds1len != ds2len)
 	*diff = ds1len - ds2len;
-    else
-	*diff = memcmp(ds1lp, ds2lp, ds1len * sizeof(ds1lp[0]));
-
+    else {
+	for (i = 0; i < ds1len; i++) {
+	    *diff = ds1lp[i] - ds2lp[i];
+	    if (*diff)
+		break;
+	}
+    }
     free(ds1lp);
     free(ds2lp);
 
@@ -926,12 +925,12 @@ hx509_general_name_unparse(GeneralName *name, char **str)
 
     switch (name->element) {
     case choice_GeneralName_otherName: {
-	char *str;
-	hx509_oid_sprint(&name->u.otherName.type_id, &str);
-	if (str == NULL)
+	char *oid;
+	hx509_oid_sprint(&name->u.otherName.type_id, &oid);
+	if (oid == NULL)
 	    return ENOMEM;
-	strpool = rk_strpoolprintf(strpool, "otherName: %s", str);
-	free(str);
+	strpool = rk_strpoolprintf(strpool, "otherName: %s", oid);
+	free(oid);
 	break;
     }
     case choice_GeneralName_rfc822Name:
@@ -986,12 +985,12 @@ hx509_general_name_unparse(GeneralName *name, char **str)
 	break;
     }
     case choice_GeneralName_registeredID: {
-	char *str;
-	hx509_oid_sprint(&name->u.registeredID, &str);
-	if (str == NULL)
+	char *oid;
+	hx509_oid_sprint(&name->u.registeredID, &oid);
+	if (oid == NULL)
 	    return ENOMEM;
-	strpool = rk_strpoolprintf(strpool, "registeredID: %s", str);
-	free(str);
+	strpool = rk_strpoolprintf(strpool, "registeredID: %s", oid);
+	free(oid);
 	break;
     }
     default:

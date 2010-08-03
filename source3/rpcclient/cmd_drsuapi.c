@@ -34,9 +34,9 @@ static WERROR cracknames(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 	WERROR werr;
 	int i;
-	int32_t level = 1;
+	uint32_t level = 1;
 	union drsuapi_DsNameRequest req;
-	int32_t level_out;
+	uint32_t level_out;
 	struct drsuapi_DsNameString *names;
 
 	names = TALLOC_ZERO_ARRAY(mem_ctx, struct drsuapi_DsNameString, argc);
@@ -308,9 +308,9 @@ static WERROR cmd_drsuapi_getncchanges(struct rpc_pipe_client *cli,
 
 	DATA_BLOB session_key;
 
-	int32_t level = 8;
+	uint32_t level = 8;
 	bool single = false;
-	int32_t level_out = 0;
+	uint32_t level_out = 0;
 	union drsuapi_DsGetNCChangesRequest req;
 	union drsuapi_DsGetNCChangesCtr ctr;
 	struct drsuapi_DsReplicaObjectIdentifier nc;
@@ -318,15 +318,15 @@ static WERROR cmd_drsuapi_getncchanges(struct rpc_pipe_client *cli,
 
 	struct drsuapi_DsGetNCChangesCtr1 *ctr1 = NULL;
 	struct drsuapi_DsGetNCChangesCtr6 *ctr6 = NULL;
-	int32_t out_level = 0;
+	uint32_t out_level = 0;
 	int y;
 
 	uint32_t supported_extensions = 0;
-	uint32_t replica_flags	= DRSUAPI_DS_REPLICA_NEIGHBOUR_WRITEABLE |
-				  DRSUAPI_DS_REPLICA_NEIGHBOUR_SYNC_ON_STARTUP |
-				  DRSUAPI_DS_REPLICA_NEIGHBOUR_DO_SCHEDULED_SYNCS |
-				  DRSUAPI_DS_REPLICA_NEIGHBOUR_RETURN_OBJECT_PARENTS |
-				  DRSUAPI_DS_REPLICA_NEIGHBOUR_NEVER_SYNCED;
+	uint32_t replica_flags	= DRSUAPI_DRS_WRIT_REP |
+				  DRSUAPI_DRS_INIT_SYNC |
+				  DRSUAPI_DRS_PER_SYNC |
+				  DRSUAPI_DRS_GET_ANC |
+				  DRSUAPI_DRS_NEVER_SYNCED;
 
 	if (argc > 3) {
 		printf("usage: %s [naming_context_or_object_dn [single]]\n", argv[0]);

@@ -1,6 +1,6 @@
 #include "idl_types.h"
 
-import "security.idl", "misc.idl", "samr.idl";
+import "security.idl", "misc.idl", "lsa.idl", "samr.idl";
 
 [
   uuid("e3514235-4b06-11d1-ab04-00c04fc2dcd2"),
@@ -15,6 +15,49 @@ interface drsuapi
 {
 	typedef bitmap samr_GroupAttrs samr_GroupAttrs;
 
+	/* see MS-DRSR section 5.39 */
+	typedef [public,bitmap32bit] bitmap {
+		DRSUAPI_DRS_ASYNC_OP                  = 0x00000001,
+		DRSUAPI_DRS_GETCHG_CHECK              = 0x00000002,
+		DRSUAPI_DRS_UPDATE_NOTIFICATION       = 0x00000002,
+		DRSUAPI_DRS_ADD_REF                   = 0x00000004,
+		DRSUAPI_DRS_SYNC_ALL                  = 0x00000008,
+		DRSUAPI_DRS_DEL_REF                   = 0x00000008,
+		DRSUAPI_DRS_WRIT_REP                  = 0x00000010,
+		DRSUAPI_DRS_INIT_SYNC                 = 0x00000020,
+		DRSUAPI_DRS_PER_SYNC                  = 0x00000040,
+		DRSUAPI_DRS_MAIL_REP                  = 0x00000080,
+		DRSUAPI_DRS_ASYNC_REP                 = 0x00000100,
+		DRSUAPI_DRS_IGNORE_ERROR              = 0x00000100,
+		DRSUAPI_DRS_TWOWAY_SYNC               = 0x00000200,
+		DRSUAPI_DRS_CRITICAL_ONLY             = 0x00000400,
+		DRSUAPI_DRS_GET_ANC                   = 0x00000800,
+		DRSUAPI_DRS_GET_NC_SIZE               = 0x00001000,
+		DRSUAPI_DRS_LOCAL_ONLY                = 0x00001000,
+		DRSUAPI_DRS_NONGC_RO_REP	      = 0x00002000,
+		DRSUAPI_DRS_SYNC_BYNAME               = 0x00004000,
+		DRSUAPI_DRS_REF_OK                    = 0x00004000,
+		DRSUAPI_DRS_FULL_SYNC_NOW             = 0x00008000,
+		DRSUAPI_DRS_NO_SOURCE                 = 0x00008000,
+		DRSUAPI_DRS_FULL_SYNC_IN_PROGRESS     = 0x00010000,
+		DRSUAPI_DRS_FULL_SYNC_PACKET          = 0x00020000,
+		DRSUAPI_DRS_SYNC_REQUEUE              = 0x00040000,
+		DRSUAPI_DRS_SYNC_URGENT               = 0x00080000,
+		DRSUAPI_DRS_REF_GCSPN                 = 0x00100000,
+		DRSUAPI_DRS_NO_DISCARD                = 0x00100000,
+		DRSUAPI_DRS_NEVER_SYNCED              = 0x00200000,
+		DRSUAPI_DRS_SPECIAL_SECRET_PROCESSING = 0x00400000,
+		DRSUAPI_DRS_INIT_SYNC_NOW             = 0x00800000,
+		DRSUAPI_DRS_PREEMPTED                 = 0x01000000,
+		DRSUAPI_DRS_SYNC_FORCED               = 0x02000000,
+		DRSUAPI_DRS_DISABLE_AUTO_SYNC         = 0x04000000,
+		DRSUAPI_DRS_DISABLE_PERIODIC_SYNC     = 0x08000000,
+		DRSUAPI_DRS_USE_COMPRESSION           = 0x10000000,
+		DRSUAPI_DRS_NEVER_NOTIFY              = 0x20000000,
+		DRSUAPI_DRS_SYNC_PAS                  = 0x40000000,
+		DRSUAPI_DRS_GET_ALL_GROUP_MEMBERSHIP  = 0x80000000
+	} drsuapi_DrsOptions;
+
 	/*****************/
         /* Function 0x00 */
         typedef [bitmap32bit] bitmap {
@@ -25,7 +68,7 @@ interface drsuapi
 		DRSUAPI_SUPPORTED_EXTENSION_GETCHG_COMPRESS		= 0x00000010,
 		DRSUAPI_SUPPORTED_EXTENSION_DCINFO_V1			= 0x00000020,
 		DRSUAPI_SUPPORTED_EXTENSION_RESTORE_USN_OPTIMIZATION	= 0x00000040,
-		DRSUAPI_SUPPORTED_EXTENSION_00000080			= 0x00000080,
+		DRSUAPI_SUPPORTED_EXTENSION_ADDENTRY			= 0x00000080,
 		DRSUAPI_SUPPORTED_EXTENSION_KCC_EXECUTE			= 0x00000100,
 		DRSUAPI_SUPPORTED_EXTENSION_ADDENTRY_V2			= 0x00000200,
 		DRSUAPI_SUPPORTED_EXTENSION_LINKED_VALUE_REPLICATION	= 0x00000400,
@@ -38,7 +81,7 @@ interface drsuapi
 		DRSUAPI_SUPPORTED_EXTENSION_TRANSITIVE_MEMBERSHIP	= 0x00020000,
 		DRSUAPI_SUPPORTED_EXTENSION_ADD_SID_HISTORY		= 0x00040000,
 		DRSUAPI_SUPPORTED_EXTENSION_POST_BETA3			= 0x00080000,
-		DRSUAPI_SUPPORTED_EXTENSION_00100000			= 0x00100000,
+		DRSUAPI_SUPPORTED_EXTENSION_GETCHGREQ_V5		= 0x00100000,
 		DRSUAPI_SUPPORTED_EXTENSION_GET_MEMBERSHIPS2		= 0x00200000,
 		DRSUAPI_SUPPORTED_EXTENSION_GETCHGREQ_V6		= 0x00400000,
 		DRSUAPI_SUPPORTED_EXTENSION_NONDOMAIN_NCS		= 0x00800000,
@@ -53,14 +96,15 @@ interface drsuapi
 		DRSUAPI_SUPPORTED_EXTENSION_GETCHGREPLY_V7		= 0x08000000,
 		DRSUAPI_SUPPORTED_EXTENSION_VERIFY_OBJECT		= 0x08000000,
 		DRSUAPI_SUPPORTED_EXTENSION_XPRESS_COMPRESS		= 0x10000000,
-		DRSUAPI_SUPPORTED_EXTENSION_20000000			= 0x20000000,
-		DRSUAPI_SUPPORTED_EXTENSION_40000000			= 0x40000000,
-		DRSUAPI_SUPPORTED_EXTENSION_80000000			= 0x80000000
+		DRSUAPI_SUPPORTED_EXTENSION_GETCHGREQ_V10		= 0x20000000,
+		DRSUAPI_SUPPORTED_EXTENSION_RESERVED_PART2 		= 0x40000000,
+		DRSUAPI_SUPPORTED_EXTENSION_RESERVED_PART3		= 0x80000000
 	} drsuapi_SupportedExtensions;
 
 	typedef [bitmap32bit] bitmap {
 		DRSUAPI_SUPPORTED_EXTENSION_ADAM			= 0x00000001,
-		DRSUAPI_SUPPORTED_EXTENSION_LH_BETA2			= 0x00000002
+		DRSUAPI_SUPPORTED_EXTENSION_LH_BETA2			= 0x00000002,
+		DRSUAPI_SUPPORTED_EXTENSION_RECYCLE_BIN			= 0x00000004
 	} drsuapi_SupportedExtensionsExt;
 
 	/* this is used by w2k */
@@ -142,7 +186,7 @@ interface drsuapi
 	/*****************/
 	/* Function 0x02 */
 	typedef [public,gensize] struct {
-		[value(ndr_size_drsuapi_DsReplicaObjectIdentifier(r, ndr->iconv_convenience, ndr->flags)-4)] uint32 __ndr_size;
+		[value(ndr_size_drsuapi_DsReplicaObjectIdentifier(r, ndr->flags)-4)] uint32 __ndr_size;
 		[value(ndr_size_dom_sid28(&sid, ndr->flags))]  uint32 __ndr_size_sid;
 		GUID guid;
 		dom_sid28 sid;
@@ -150,48 +194,21 @@ interface drsuapi
 		[charset(UTF16),size_is(__ndr_size_dn+1)] uint16 dn[];
 	} drsuapi_DsReplicaObjectIdentifier;
 
-	typedef [public] bitmap {
-		DRSUAPI_DS_REPLICA_SYNC_ASYNCHRONOUS_OPERATION	= 0x00000001,
-		DRSUAPI_DS_REPLICA_SYNC_WRITEABLE		= 0x00000002,
-		DRSUAPI_DS_REPLICA_SYNC_PERIODIC		= 0x00000004,
-		DRSUAPI_DS_REPLICA_SYNC_INTERSITE_MESSAGING	= 0x00000008,
-		DRSUAPI_DS_REPLICA_SYNC_ALL_SOURCES		= 0x00000010,
-		DRSUAPI_DS_REPLICA_SYNC_FULL			= 0x00000020,
-		DRSUAPI_DS_REPLICA_SYNC_URGENT			= 0x00000040,
-		DRSUAPI_DS_REPLICA_SYNC_NO_DISCARD		= 0x00000080,
-		DRSUAPI_DS_REPLICA_SYNC_FORCE			= 0x00000100,
-		DRSUAPI_DS_REPLICA_SYNC_ADD_REFERENCE		= 0x00000200,
-		DRSUAPI_DS_REPLICA_SYNC_NEVER_COMPLETED		= 0x00000400,
-		DRSUAPI_DS_REPLICA_SYNC_TWO_WAY			= 0x00000800,
-		DRSUAPI_DS_REPLICA_SYNC_NEVER_NOTIFY		= 0x00001000,
-		DRSUAPI_DS_REPLICA_SYNC_INITIAL			= 0x00002000,
-		DRSUAPI_DS_REPLICA_SYNC_USE_COMPRESSION		= 0x00004000,
-		DRSUAPI_DS_REPLICA_SYNC_ABANDONED		= 0x00008000,
-		DRSUAPI_DS_REPLICA_SYNC_INITIAL_IN_PROGRESS	= 0x00010000,
-		DRSUAPI_DS_REPLICA_SYNC_PARTIAL_ATTRIBUTE_SET	= 0x00020000,
-		DRSUAPI_DS_REPLICA_SYNC_REQUEUE			= 0x00040000,
-		DRSUAPI_DS_REPLICA_SYNC_NOTIFICATION		= 0x00080000,
-		DRSUAPI_DS_REPLICA_SYNC_ASYNCHRONOUS_REPLICA	= 0x00100000,
-		DRSUAPI_DS_REPLICA_SYNC_CRITICAL		= 0x00200000,
-		DRSUAPI_DS_REPLICA_SYNC_FULL_IN_PROGRESS	= 0x00400000,
-		DRSUAPI_DS_REPLICA_SYNC_PREEMPTED		= 0x00800000
-	} drsuapi_DsReplicaSyncOptions;
-
 	typedef struct {
-		drsuapi_DsReplicaObjectIdentifier *naming_context;
+		[ref] drsuapi_DsReplicaObjectIdentifier *naming_context;
 		GUID source_dsa_guid;
-		astring *other_info; /* I assume this is related to the repsFromTo1OtherInfo dns_name */
-		drsuapi_DsReplicaSyncOptions options;
+		astring *source_dsa_dns; /* Source DSA dns_name in <guid>._msdcs.<domain_dns> form */
+		drsuapi_DrsOptions options;
 	} drsuapi_DsReplicaSyncRequest1;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(1)] drsuapi_DsReplicaSyncRequest1 req1;
 	} drsuapi_DsReplicaSyncRequest;
 
 	WERROR drsuapi_DsReplicaSync(
 		[in] policy_handle *bind_handle,
-		[in] int32 level,
-		[in,switch_is(level)] drsuapi_DsReplicaSyncRequest req
+		[in] uint32 level,
+		[in,switch_is(level)] drsuapi_DsReplicaSyncRequest *req
 		);
 
 	/*****************/
@@ -214,41 +231,6 @@ interface drsuapi
 		[value(0)] uint32 reserved2;
 		[size_is(count)] drsuapi_DsReplicaCursor cursors[];
 	} drsuapi_DsReplicaCursorCtrEx;
-
-	typedef [public] bitmap {
-		/* the _WRITEABLE flag indicates a replication with all attributes
-		 *
-		 * --metze
-		 */
-		DRSUAPI_DS_REPLICA_NEIGHBOUR_WRITEABLE				= 0x00000010,
-		DRSUAPI_DS_REPLICA_NEIGHBOUR_SYNC_ON_STARTUP			= 0x00000020,
-		DRSUAPI_DS_REPLICA_NEIGHBOUR_DO_SCHEDULED_SYNCS			= 0x00000040,
-		DRSUAPI_DS_REPLICA_NEIGHBOUR_USE_ASYNC_INTERSIDE_TRANSPORT	= 0x00000080,
-		DRSUAPI_DS_REPLICA_NEIGHBOUR_ASYNC_REP                  	= 0x00000100,
-		DRSUAPI_DS_REPLICA_NEIGHBOUR_IGNORE_ERROR                  	= 0x00000100,
-		DRSUAPI_DS_REPLICA_NEIGHBOUR_TWO_WAY_SYNC			= 0x00000200,
-		DRSUAPI_DS_REPLICA_NEIGHBOUR_CRITICAL_ONLY                      = 0x00000400,
-		DRSUAPI_DS_REPLICA_NEIGHBOUR_RETURN_OBJECT_PARENTS		= 0x00000800,/*Include updates to ancestor objects before updates to their descendants*/
-		DRSUAPI_DS_REPLICA_NEIGHBOUR_FULL_IN_PROGRESS			= 0x00010000,
-		DRSUAPI_DS_REPLICA_NEIGHBOUR_FULL_SYNC_PACKET			= 0x00020000,
-		DRSUAPI_DS_REPLICA_NEIGHBOUR_NEVER_SYNCED			= 0x00200000,
-		DRSUAPI_DS_REPLICA_NEIGHBOUR_SPECIAL_SECRET_PROCESSING		= 0x00800000,
-		DRSUAPI_DS_REPLICA_NEIGHBOUR_PREEMPTED				= 0x01000000,
-		DRSUAPI_DS_REPLICA_NEIGHBOUR_IGNORE_CHANGE_NOTIFICATIONS	= 0x04000000,
-		DRSUAPI_DS_REPLICA_NEIGHBOUR_DISABLE_SCHEDULED_SYNC		= 0x08000000,
-		/*
-		 * the following NOTE applies to DsGetNCChangesRequest5:
-		 *  - the data is only compressed when 10 or more objects are replicated
-		 *  - but there could also be a size limit of 35 KBytes or something like that
-		 *  - the reply is DsGetNCChangesCtr2
-		 *  - maybe the same applies to DsGetNCChangesRequest8...
-		 *
-		 *  --metze
-		 */
-		DRSUAPI_DS_REPLICA_NEIGHBOUR_COMPRESS_CHANGES			= 0x10000000,
-		DRSUAPI_DS_REPLICA_NEIGHBOUR_NO_CHANGE_NOTIFICATIONS		= 0x20000000,
-		DRSUAPI_DS_REPLICA_NEIGHBOUR_PARTIAL_ATTRIBUTE_SET		= 0x40000000
-	} drsuapi_DsReplicaNeighbourFlags;
 
 	typedef [flag(NDR_PAHEX),v1_enum] enum {
 		DRSUAPI_EXOP_NONE				= 0x00000000,
@@ -287,7 +269,7 @@ interface drsuapi
 		[ref] drsuapi_DsReplicaObjectIdentifier *naming_context;
 		drsuapi_DsReplicaHighWaterMark highwatermark;
 		drsuapi_DsReplicaCursorCtrEx *uptodateness_vector;
-		drsuapi_DsReplicaNeighbourFlags replica_flags;
+		drsuapi_DrsOptions replica_flags;
 		uint32 max_object_count; /* w2k3 uses min(133,max(100,max_object_count)) */
 		uint32 max_ndr_size; /* w2k3 seems to ignore this */
 		drsuapi_DsExtendedOperation extended_op;
@@ -378,9 +360,9 @@ interface drsuapi
 	 *
 	 * 2.5.5.17	=> dom_sid
 	 */
-	typedef [nopush,nopull] struct {
-		[range(0,10000),value(ndr_size_drsuapi_DsReplicaOID_oid(oid, 0))] uint32 __ndr_size;
-		[size_is(__ndr_size),charset(DOS)] uint8 *oid; /* it's encoded with asn1_write_OID_String() */
+	typedef [noprint] struct {
+		[range(0,10000)] uint32 length;
+		[size_is(length)] uint8 *binary_oid; /* partial-binary-OID encoded with asn1_write_partial_OID_String() */
 	} drsuapi_DsReplicaOID;
 
 	typedef struct {
@@ -401,22 +383,27 @@ interface drsuapi
 
 	typedef [flag(NDR_PAHEX),v1_enum,public] enum {
 		DRSUAPI_ATTRIBUTE_objectClass			= 0x00000000,
+		DRSUAPI_ATTRIBUTE_cn				= 0x00000003,
+		DRSUAPI_ATTRIBUTE_ou				= 0x0000000b,
 		DRSUAPI_ATTRIBUTE_description			= 0x0000000d,
 		DRSUAPI_ATTRIBUTE_member			= 0x0000001f,
 		DRSUAPI_ATTRIBUTE_instanceType			= 0x00020001,
 		DRSUAPI_ATTRIBUTE_whenCreated			= 0x00020002,
 		DRSUAPI_ATTRIBUTE_possSuperiors			= 0x00020008,
+		DRSUAPI_ATTRIBUTE_displayName			= 0x0002000d,
 		DRSUAPI_ATTRIBUTE_hasMasterNCs			= 0x0002000e,
 		DRSUAPI_ATTRIBUTE_subClassOf			= 0x00020015,
 		DRSUAPI_ATTRIBUTE_governsID			= 0x00020016,
 		DRSUAPI_ATTRIBUTE_mustContain			= 0x00020018,
 		DRSUAPI_ATTRIBUTE_mayContain			= 0x00020019,
+		DRSUAPI_ATTRIBUTE_rDNAttId			= 0x0002001A,
 		DRSUAPI_ATTRIBUTE_attributeID			= 0x0002001e,
 		DRSUAPI_ATTRIBUTE_attributeSyntax		= 0x00020020,
 		DRSUAPI_ATTRIBUTE_isSingleValued		= 0x00020021,
 		DRSUAPI_ATTRIBUTE_rangeLower			= 0x00020022,
 		DRSUAPI_ATTRIBUTE_rangeUpper			= 0x00020023,
 		DRSUAPI_ATTRIBUTE_dMDLocation			= 0x00020024,
+		DRSUAPI_ATTRIBUTE_isDeleted			= 0x00020030,
 		DRSUAPI_ATTRIBUTE_objectVersion			= 0x0002004c,
 		DRSUAPI_ATTRIBUTE_invocationId			= 0x00020073,
 		DRSUAPI_ATTRIBUTE_showInAdvancedViewOnly	= 0x000200a9,
@@ -429,29 +416,37 @@ interface drsuapi
 		DRSUAPI_ATTRIBUTE_lDAPDisplayName		= 0x000201cc,
 		DRSUAPI_ATTRIBUTE_name				= 0x00090001,
 		DRSUAPI_ATTRIBUTE_userAccountControl		= 0x00090008,
+		DRSUAPI_ATTRIBUTE_codePage			= 0x00090010,
+		DRSUAPI_ATTRIBUTE_countryCode			= 0x00090019,
 		DRSUAPI_ATTRIBUTE_currentValue			= 0x0009001b,
 		DRSUAPI_ATTRIBUTE_homeDirectory			= 0x0009002c,
 		DRSUAPI_ATTRIBUTE_homeDrive			= 0x0009002d,
-		DRSUAPI_ATTRIBUTE_scriptPath			= 0x0009003e,
-		DRSUAPI_ATTRIBUTE_profilePath			= 0x0009008b,
-		DRSUAPI_ATTRIBUTE_objectSid			= 0x00090092,
-		DRSUAPI_ATTRIBUTE_schemaIDGUID			= 0x00090094,
 		DRSUAPI_ATTRIBUTE_dBCSPwd			= 0x00090037,/* lmPwdHash */
+		DRSUAPI_ATTRIBUTE_scriptPath			= 0x0009003e,
 		DRSUAPI_ATTRIBUTE_logonHours			= 0x00090040,
 		DRSUAPI_ATTRIBUTE_userWorkstations		= 0x00090056,
 		DRSUAPI_ATTRIBUTE_unicodePwd			= 0x0009005a,/* ntPwdHash */
 		DRSUAPI_ATTRIBUTE_ntPwdHistory			= 0x0009005e,
+		DRSUAPI_ATTRIBUTE_pwdLastSet			= 0x00090060,
+		DRSUAPI_ATTRIBUTE_primaryGroupID		= 0x00090062,
 		DRSUAPI_ATTRIBUTE_priorValue			= 0x00090064,
 		DRSUAPI_ATTRIBUTE_supplementalCredentials	= 0x0009007d,
 		DRSUAPI_ATTRIBUTE_trustAuthIncoming		= 0x00090081,
 		DRSUAPI_ATTRIBUTE_trustAuthOutgoing		= 0x00090087,
+		DRSUAPI_ATTRIBUTE_profilePath			= 0x0009008b,
+		DRSUAPI_ATTRIBUTE_objectSid			= 0x00090092,
+		DRSUAPI_ATTRIBUTE_schemaIDGUID			= 0x00090094,
+		DRSUAPI_ATTRIBUTE_comment			= 0x0009009C,/* User-Comment */
+		DRSUAPI_ATTRIBUTE_accountExpires		= 0x0009009f,
 		DRSUAPI_ATTRIBUTE_lmPwdHistory			= 0x000900a0,
 		DRSUAPI_ATTRIBUTE_systemPossSuperiors		= 0x000900c3,
 		DRSUAPI_ATTRIBUTE_systemMayContain		= 0x000900c4,
 		DRSUAPI_ATTRIBUTE_systemMustContain		= 0x000900c5,
+		DRSUAPI_ATTRIBUTE_systemAuxiliaryClass		= 0x000900c6,
 		DRSUAPI_ATTRIBUTE_sAMAccountName		= 0x000900dd,
 		DRSUAPI_ATTRIBUTE_sAMAccountType		= 0x0009012e,
-		DRSUAPI_ATTRIBUTE_fSMORoleOwner			= 0x00090171,
+		DRSUAPI_ATTRIBUTE_options                       = 0x00090133,
+		DRSUAPI_ATTRIBUTE_fSMORoleOwner                 = 0x00090171,
 		DRSUAPI_ATTRIBUTE_systemFlags			= 0x00090177,
 		DRSUAPI_ATTRIBUTE_serverReference		= 0x00090203,
 		DRSUAPI_ATTRIBUTE_serverReferenceBL		= 0x00090204,
@@ -463,12 +458,16 @@ interface drsuapi
 		DRSUAPI_ATTRIBUTE_userPrincipalName		= 0x00090290,
 		DRSUAPI_ATTRIBUTE_groupType			= 0x000902ee,
 		DRSUAPI_ATTRIBUTE_servicePrincipalName		= 0x00090303,
+		DRSUAPI_ATTRIBUTE_lastKnownParent		= 0x0009030d,
 		DRSUAPI_ATTRIBUTE_objectCategory		= 0x0009030e,
 		DRSUAPI_ATTRIBUTE_gPLink			= 0x0009037b,
+		DRSUAPI_ATTRIBUTE_transportAddressAttribute	= 0x0009037f,
 		DRSUAPI_ATTRIBUTE_msDS_Behavior_Version		= 0x000905b3,
 		DRSUAPI_ATTRIBUTE_msDS_KeyVersionNumber		= 0x000906f6,
 		DRSUAPI_ATTRIBUTE_msDS_HasDomainNCs		= 0x0009071c,
-		DRSUAPI_ATTRIBUTE_msDS_hasMasterNCs		= 0x0009072c
+		DRSUAPI_ATTRIBUTE_msDS_hasMasterNCs		= 0x0009072c,
+		DRSUAPI_ATTRIBUTE_isRecycled			= 0x0009080a,
+		DRSUAPI_ATTRIBUTE_NONE				= 0xFFFFFFFF
 	} drsuapi_DsAttributeId;
 
 	typedef struct {
@@ -484,7 +483,7 @@ interface drsuapi
 		[ref] drsuapi_DsReplicaObjectIdentifier *naming_context;
 		drsuapi_DsReplicaHighWaterMark highwatermark;
 		drsuapi_DsReplicaCursorCtrEx *uptodateness_vector;
-		drsuapi_DsReplicaNeighbourFlags replica_flags;
+		drsuapi_DrsOptions replica_flags;
 		uint32 max_object_count; /* w2k3 uses min(133,max(100,max_object_count)) */
 		uint32 max_ndr_size; /* w2k3 seems to ignore this */
 		drsuapi_DsExtendedOperation extended_op;
@@ -500,7 +499,7 @@ interface drsuapi
 		[ref] drsuapi_DsReplicaObjectIdentifier *naming_context;
 		drsuapi_DsReplicaHighWaterMark highwatermark;
 		drsuapi_DsReplicaCursorCtrEx *uptodateness_vector;
-		drsuapi_DsReplicaNeighbourFlags replica_flags;
+		drsuapi_DrsOptions replica_flags;
 		uint32 max_object_count; /* w2k3 uses min(133,max(100,max_object_count)) */
 		uint32 max_ndr_size; /* w2k3 seems to ignore this */
 		drsuapi_DsExtendedOperation extended_op;
@@ -511,7 +510,7 @@ interface drsuapi
 		uint32 more_flags;
 	} drsuapi_DsGetNCChangesRequest10;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(5)] drsuapi_DsGetNCChangesRequest5 req5;
 		[case(8)] drsuapi_DsGetNCChangesRequest8 req8;
 		[case(10)] drsuapi_DsGetNCChangesRequest10 req10;
@@ -544,7 +543,7 @@ interface drsuapi
 
 	/* DN String values */
 	typedef [public,gensize] struct {
-		[value(ndr_size_drsuapi_DsReplicaObjectIdentifier3(r, ndr->iconv_convenience, ndr->flags))] uint32 __ndr_size;
+		[value(ndr_size_drsuapi_DsReplicaObjectIdentifier3(r, ndr->flags))] uint32 __ndr_size;
 		[value(ndr_size_dom_sid28(&sid,ndr->flags))]  uint32 __ndr_size_sid;
 		GUID guid;
 		dom_sid28 sid;
@@ -553,7 +552,7 @@ interface drsuapi
 	} drsuapi_DsReplicaObjectIdentifier3;
 
 	typedef [public] struct {
-		[value(ndr_size_drsuapi_DsReplicaObjectIdentifier3Binary_without_Binary(r, ndr->iconv_convenience, ndr->flags))] uint32 __ndr_size;
+		[value(ndr_size_drsuapi_DsReplicaObjectIdentifier3Binary_without_Binary(r, ndr->flags))] uint32 __ndr_size;
 		[value(ndr_size_dom_sid28(&sid,ndr->flags))]  uint32 __ndr_size_sid;
 		GUID guid;
 		dom_sid28 sid;
@@ -616,7 +615,7 @@ interface drsuapi
 		drsuapi_DsExtendedError extended_ret; /* w2k sends the nc_object_count value here */
 		uint32 object_count;
 		/* this +55 is sometimes +56, so I don't know where this comes from... --metze */
-		[value(ndr_size_drsuapi_DsGetNCChangesCtr1(r,ndr->iconv_convenience,ndr->flags)+55)] uint32 __ndr_size;
+		[value(ndr_size_drsuapi_DsGetNCChangesCtr1(r,ndr->flags)+55)] uint32 __ndr_size;
 		drsuapi_DsReplicaObjectListItemEx *first_object;
 		boolean32 more_data;
 	} drsuapi_DsGetNCChangesCtr1;
@@ -650,7 +649,7 @@ interface drsuapi
 		drsuapi_DsExtendedError extended_ret;
 		uint32 object_count;
 		/* this +55 is sometimes +56, so I don't know where this comes from... --metze */
-		[value(ndr_size_drsuapi_DsGetNCChangesCtr6(r,ndr->iconv_convenience,ndr->flags)+55)] uint32 __ndr_size;
+		[value(ndr_size_drsuapi_DsGetNCChangesCtr6(r,ndr->flags)+55)] uint32 __ndr_size;
 		drsuapi_DsReplicaObjectListItemEx *first_object;
 		boolean32 more_data;
 		uint32 nc_object_count; /* estimated amount of objects in the whole NC */
@@ -717,12 +716,12 @@ interface drsuapi
 	} drsuapi_DsGetNCChangesCtr2;
 
 	typedef struct {
-		[range(0,6)] int32 level;
+		[range(0,6)] uint32 level;
 		[range(2,3)] drsuapi_DsGetNCChangesCompressionType type;
 		[switch_is(level | (type<<16))] drsuapi_DsGetNCChangesCompressedCtr ctr;
 	} drsuapi_DsGetNCChangesCtr7;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(1)] drsuapi_DsGetNCChangesCtr1 ctr1;
 		[case(2)] drsuapi_DsGetNCChangesCtr2 ctr2;
 		[case(6)] drsuapi_DsGetNCChangesCtr6 ctr6;
@@ -731,54 +730,41 @@ interface drsuapi
 
 	WERROR drsuapi_DsGetNCChanges(
 		[in] policy_handle *bind_handle,
-		[in] int32 level,
+		[in] uint32 level,
 		[in,ref,switch_is(level)] drsuapi_DsGetNCChangesRequest *req,
-		[out,ref] int32 *level_out,
+		[out,ref] uint32 *level_out,
 		[out,ref,switch_is(*level_out)] drsuapi_DsGetNCChangesCtr *ctr
 		);
 
 	/*****************/
         /* Function 0x04 */
 	/* [MS-DRSR] 4.1.26 */
-	typedef bitmap {
-		DRSUAPI_DS_REPLICA_UPDATE_ASYNCHRONOUS_OPERATION	= 0x00000001,
-		DRSUAPI_DS_REPLICA_UPDATE_GETCHG_CHECK			= 0x00000002,
-		DRSUAPI_DS_REPLICA_UPDATE_ADD_REFERENCE			= 0x00000004,
-		DRSUAPI_DS_REPLICA_UPDATE_DELETE_REFERENCE		= 0x00000008,
-		DRSUAPI_DS_REPLICA_UPDATE_WRITEABLE			= 0x00000010
-	} drsuapi_DsReplicaUpdateRefsOptions;
 
 	typedef struct {
 		[ref] drsuapi_DsReplicaObjectIdentifier *naming_context;
 		[ref,charset(DOS),string] uint8 *dest_dsa_dns_name;
 		GUID dest_dsa_guid;
-		drsuapi_DsReplicaUpdateRefsOptions options;
+		drsuapi_DrsOptions options;
 	} drsuapi_DsReplicaUpdateRefsRequest1;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(1)] drsuapi_DsReplicaUpdateRefsRequest1 req1;
 	} drsuapi_DsReplicaUpdateRefsRequest;
 
 	WERROR drsuapi_DsReplicaUpdateRefs(
 		[in] policy_handle *bind_handle,
-		[in] int32 level,
+		[in] uint32 level,
 		[in,switch_is(level)] drsuapi_DsReplicaUpdateRefsRequest req
 		);
 
 	/*****************/
         /* Function 0x05 */
-	typedef bitmap {
-		DRSUAPI_DS_REPLICA_ADD_ASYNCHRONOUS_OPERATION	= 0x00000001,
-		DRSUAPI_DS_REPLICA_ADD_WRITEABLE		= 0x00000002
-		/* TODO ... */
-	} drsuapi_DsReplicaAddOptions;
-
 
 	typedef struct {
 		[ref] drsuapi_DsReplicaObjectIdentifier *naming_context;
 		[charset(UTF16),string] uint16 *source_dsa_address;
 		uint8 schedule[84];
-		drsuapi_DsReplicaAddOptions options;
+		drsuapi_DrsOptions options;
 	} drsuapi_DsReplicaAddRequest1;
 
 	typedef struct {
@@ -787,54 +773,41 @@ interface drsuapi
 		drsuapi_DsReplicaObjectIdentifier *transport_dn;
 		[charset(UTF16),string] uint16 *source_dsa_address;
 		uint8 schedule[84];
-		drsuapi_DsReplicaAddOptions options;
+		drsuapi_DrsOptions options;
 	} drsuapi_DsReplicaAddRequest2;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(1)] drsuapi_DsReplicaAddRequest1 req1;
 		[case(2)] drsuapi_DsReplicaAddRequest2 req2;
 	} drsuapi_DsReplicaAddRequest;
 
 	WERROR drsuapi_DsReplicaAdd(
 		[in] policy_handle *bind_handle,
-		[in] int32 level,
+		[in] uint32 level,
 		[in,switch_is(level)] drsuapi_DsReplicaAddRequest req
 		);
 		
 
 	/*****************/
         /* Function 0x06 */
-	typedef bitmap {
-		DRSUAPI_DS_REPLICA_ADD_ASYNCHRONOUS_OPERATION	= 0x00000001,
-		DRSUAPI_DS_REPLICA_ADD_WRITEABLE		= 0x00000002
-		/* TODO ... */
-	} drsuapi_DsReplicaDeleteOptions;
-
-
 	typedef struct {
 		[ref] drsuapi_DsReplicaObjectIdentifier *naming_context;
 		[charset(UTF16),string] uint16 *source_dsa_address;
-		drsuapi_DsReplicaDeleteOptions options;
+		drsuapi_DrsOptions options;
 	} drsuapi_DsReplicaDelRequest1;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(1)] drsuapi_DsReplicaDelRequest1 req1;
 	} drsuapi_DsReplicaDelRequest;
 
 	WERROR drsuapi_DsReplicaDel(
 		[in] policy_handle *bind_handle,
-		[in] int32 level,
+		[in] uint32 level,
 		[in,switch_is(level)] drsuapi_DsReplicaDelRequest req
 		);
 
 	/*****************/
         /* Function 0x07 */
-	typedef bitmap {
-		DRSUAPI_DS_REPLICA_ADD_ASYNCHRONOUS_OPERATION	= 0x00000001,
-		DRSUAPI_DS_REPLICA_ADD_WRITEABLE		= 0x00000002
-		/* TODO ... */
-	} drsuapi_DsReplicaModifyOptions;
-
 
 	typedef struct {
 		[ref] drsuapi_DsReplicaObjectIdentifier *naming_context;
@@ -843,16 +816,16 @@ interface drsuapi
 		uint8 schedule[84];
 		uint32 replica_flags;
 		uint32 modify_fields;
-		drsuapi_DsReplicaModifyOptions options;
+		drsuapi_DrsOptions options;
 	} drsuapi_DsReplicaModRequest1;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(1)] drsuapi_DsReplicaModRequest1 req1;
 	} drsuapi_DsReplicaModRequest;
 
 	WERROR drsuapi_DsReplicaMod(
 		[in] policy_handle *bind_handle,
-		[in] int32 level,
+		[in] uint32 level,
 		[in,switch_is(level)] drsuapi_DsReplicaModRequest req
 		);
 
@@ -883,7 +856,7 @@ interface drsuapi
 		[size_is(num_sids)] dom_sid28 **sids;
 	} drsuapi_DsGetMembershipsCtr1;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(1)] drsuapi_DsGetMembershipsCtr1 ctr1;
 	} drsuapi_DsGetMembershipsCtr;
 
@@ -893,19 +866,19 @@ interface drsuapi
 		[range(1,10000)] uint32 count;
 		[size_is(count)] drsuapi_DsReplicaObjectIdentifier **info_array;
 		uint32 flags;
-		drsuapi_DsMembershipType type;
+		[range(1,7)] drsuapi_DsMembershipType type;
 		drsuapi_DsReplicaObjectIdentifier *domain;
 	} drsuapi_DsGetMembershipsRequest1;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(1)] drsuapi_DsGetMembershipsRequest1 req1;
 	} drsuapi_DsGetMembershipsRequest;
 
-	[todo] WERROR drsuapi_DsGetMemberships(
+	WERROR drsuapi_DsGetMemberships(
 		[in] policy_handle *bind_handle,
-		[in] int32 level,
+		[in] uint32 level,
 		[in,ref] [switch_is(level)] drsuapi_DsGetMembershipsRequest *req,
-		[out,ref] int32 *level_out,
+		[out,ref] uint32 *level_out,
 		[out,ref] [switch_is(*level_out)] drsuapi_DsGetMembershipsCtr *ctr
 		);
 
@@ -915,11 +888,16 @@ interface drsuapi
 
 	/*****************/
         /* Function 0x0b */
+	typedef [bitmap32bit] bitmap {
+		DRSUAPI_NT4_CHANGELOG_GET_CHANGELOG		= 0x00000001,
+		DRSUAPI_NT4_CHANGELOG_GET_SERIAL_NUMBERS	= 0x00000002
+	} drsuapi_DsGetNT4ChangeLogFlags;
+
 	typedef struct {
-		uint32 unknown1;
-		uint32 unknown2;
-		[range(0,0x00A00000)] uint32 length;
-		[size_is(length)] uint8 *data;
+		drsuapi_DsGetNT4ChangeLogFlags flags;
+		uint32 preferred_maximum_length;
+		[range(0,0x00A00000)] uint32 restart_length;
+		[size_is(restart_length)] uint8 *restart_data;
 	} drsuapi_DsGetNT4ChangeLogRequest1;
 
 	typedef [switch_type(uint32)] union {
@@ -927,24 +905,24 @@ interface drsuapi
 	} drsuapi_DsGetNT4ChangeLogRequest;
 
 	typedef struct {
-		[range(0,0x00A00000)] uint32 length1;
-		[range(0,0x00A00000)] uint32 length2;
-		hyper unknown1;
-		NTTIME time2;
-		hyper unknown3;
-		NTTIME time4;
-		hyper unknown5;
-		NTTIME time6;
+		[range(0,0x00A00000)] uint32 restart_length;
+		[range(0,0x00A00000)] uint32 log_length;
+		hyper sam_serial_number;
+		NTTIME sam_creation_time;
+		hyper builtin_serial_number;
+		NTTIME builtin_creation_time;
+		hyper lsa_serial_number;
+		NTTIME lsa_creation_time;
 		NTSTATUS status;
-		[size_is(length1)] uint8 *data1;
-		[size_is(length2)] uint8 *data2;
+		[size_is(restart_length)] uint8 *restart_data;
+		[size_is(log_length)] uint8 *log_data;
 	} drsuapi_DsGetNT4ChangeLogInfo1;
 
 	typedef [switch_type(uint32)] union {
 		[case(1)] drsuapi_DsGetNT4ChangeLogInfo1 info1;
 	} drsuapi_DsGetNT4ChangeLogInfo;
 
-	[todo] WERROR drsuapi_DsGetNT4ChangeLog(
+	WERROR drsuapi_DsGetNT4ChangeLog(
 		[in] policy_handle *bind_handle,
 		[in] uint32 level,
 		[in,ref] [switch_is(level)] drsuapi_DsGetNT4ChangeLogRequest *req,
@@ -1001,7 +979,7 @@ interface drsuapi
 		[size_is(count)] drsuapi_DsNameString *names;
 	} drsuapi_DsNameRequest1;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(1)] drsuapi_DsNameRequest1 req1;
 	} drsuapi_DsNameRequest;
 
@@ -1016,15 +994,15 @@ interface drsuapi
 		[size_is(count)] drsuapi_DsNameInfo1 *array;
 	} drsuapi_DsNameCtr1;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(1)] drsuapi_DsNameCtr1 *ctr1;
 	} drsuapi_DsNameCtr;
 
 	WERROR drsuapi_DsCrackNames(
 		[in] policy_handle *bind_handle,
-		[in] int32 level,
+		[in] uint32 level,
 		[in,ref,switch_is(level)] drsuapi_DsNameRequest *req,
-		[out,ref] int32 *level_out,
+		[out,ref] uint32 *level_out,
 		[out,ref,switch_is(*level_out)] drsuapi_DsNameCtr *ctr
 		);
 
@@ -1044,7 +1022,7 @@ interface drsuapi
 		[size_is(count)] drsuapi_DsNameString *spn_names;
 	} drsuapi_DsWriteAccountSpnRequest1;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(1)] drsuapi_DsWriteAccountSpnRequest1 req1;
 	} drsuapi_DsWriteAccountSpnRequest;
 
@@ -1052,15 +1030,15 @@ interface drsuapi
 		WERROR status;
 	} drsuapi_DsWriteAccountSpnResult1;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(1)] drsuapi_DsWriteAccountSpnResult1 res1;
 	} drsuapi_DsWriteAccountSpnResult;
 
 	WERROR drsuapi_DsWriteAccountSpn(
 		[in] policy_handle *bind_handle,
-		[in] int32 level,
+		[in] uint32 level,
 		[in,ref,switch_is(level)] drsuapi_DsWriteAccountSpnRequest *req,
-		[out,ref] int32 *level_out,
+		[out,ref] uint32 *level_out,
 		[out,ref,switch_is(*level_out)] drsuapi_DsWriteAccountSpnResult *res
 		);
 
@@ -1072,7 +1050,7 @@ interface drsuapi
 		boolean32 commit;
 	} drsuapi_DsRemoveDSServerRequest1;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(1)] drsuapi_DsRemoveDSServerRequest1 req1;
 	} drsuapi_DsRemoveDSServerRequest;
 
@@ -1080,15 +1058,15 @@ interface drsuapi
 		boolean32 last_dc_in_domain;
 	} drsuapi_DsRemoveDSServerResult1;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(1)] drsuapi_DsRemoveDSServerResult1 res1;
 	} drsuapi_DsRemoveDSServerResult;
 
 	WERROR drsuapi_DsRemoveDSServer(
 		[in] policy_handle *bind_handle,
-		[in] int32 level,
+		[in] uint32 level,
 		[in,ref,switch_is(level)] drsuapi_DsRemoveDSServerRequest *req,
-		[out,ref] int32 *level_out,
+		[out,ref] uint32 *level_out,
 		[out,ref,switch_is(*level_out)] drsuapi_DsRemoveDSServerResult *res
 		);
 
@@ -1236,71 +1214,177 @@ interface drsuapi
 	 */
 	const char *DRSUAPI_NTDSDSA_KRB5_SERVICE_GUID = "E3514235-4B06-11D1-AB04-00C04FC2DCD2";
 
+	/* Error codes to classify an error that occurs
+	 * during a search for, or the update of,
+	 * a directory object */
+	typedef [v1_enum] enum {
+		DRSUAPI_DIRERR_OK         = 0,
+		DRSUAPI_DIRERR_ATTRIBUTE  = 1,
+		DRSUAPI_DIRERR_NAME       = 2,
+		DRSUAPI_DIRERR_REFERRAL   = 3,
+		DRSUAPI_DIRERR_SECURITY   = 4,
+		DRSUAPI_DIRERR_SERVICE    = 5,
+		DRSUAPI_DIRERR_UPDATE     = 6,
+		DRSUAPI_DIRERR_SYSTEM     = 7
+	} drsuapi_DsAddEntry_DirErr;
+
 	/*
-	 * please note the the current idl
-	 * for DsAddEntry does only parse
-	 * what I saw between 2 w2k3 boxes
-	 * in my dssync experiments I got some other replies
-	 * so all I want to say is that this is very incomplete yet...
-	 * --metze
+	 * Ref: DRS_MSG_ADDENTRYREQ_V2, [MS-DRSR]: 4.1.1.1.3
 	 */
 	typedef struct {
 		drsuapi_DsReplicaObjectListItem first_object;
 	} drsuapi_DsAddEntryRequest2;
 
-	typedef [switch_type(int32)] union {
+	/* Buffer type is actually more
+	 * like a semi Flags
+	 * Ref: DRS_SecBuffer, [MS-DRSR]: 5.41 */
+	typedef [v1_enum,noprint] enum {
+		DRSUAPI_SECBUFFER_EMPTY          = 0x00000000,
+		DRSUAPI_SECBUFFER_DATA           = 0x00000001,
+		DRSUAPI_SECBUFFER_TOKEN          = 0x00000002,
+		DRSUAPI_SECBUFFER_PKG_PARAMS     = 0x00000003,
+		DRSUAPI_SECBUFFER_MISSING        = 0x00000004,
+		DRSUAPI_SECBUFFER_EXTRA          = 0x00000005,
+		DRSUAPI_SECBUFFER_STREAM_TRAILER = 0x00000006,
+		DRSUAPI_SECBUFFER_STREAM_HEADER  = 0x00000007,
+		DRSUAPI_SECBUFFER_READONLY 	 = 0x80000000
+	} drsuapi_SecBufferType;
+
+	typedef struct {
+		[range(0,10000)] uint32 buf_size;
+		drsuapi_SecBufferType buf_type;
+		[size_is(buf_size)] uint8 *buffer;
+	} drsuapi_SecBuffer;
+
+	typedef struct {
+		[value(0)] uint32 version;
+		[range(0,10000)] uint32 buff_count;
+		[size_is(buff_count)] drsuapi_SecBuffer *buffers;
+	} drsuapi_SecBufferDesc;
+
+	/*
+	 * Ref: DRS_MSG_ADDENTRYREQ_V3, [MS-DRSR]: 4.1.1.1.4
+	 */
+	typedef struct {
+		drsuapi_DsReplicaObjectListItem first_object;
+		drsuapi_SecBufferDesc *client_creds;
+	} drsuapi_DsAddEntryRequest3;
+
+	typedef [switch_type(uint32)] union {
 		[case(2)] drsuapi_DsAddEntryRequest2 req2;
+		[case(3)] drsuapi_DsAddEntryRequest3 req3;
 	} drsuapi_DsAddEntryRequest;
 
+	/* Generic extended error info
+	 * commonly used in most places
+	 * where rich error info is returned */
 	typedef struct {
-		uint32 unknown1;
-		WERROR status;
-		uint32 unknown2;
-		uint16 unknown3;
+		uint32	dsid;		/* implementation-specific diagnostic code */
+		WERROR	extended_err;	/* 0, STATUS code, or Windows error code */
+		uint32	extended_data;	/* implementation-specific diagnostic code */
+		uint16	problem;	/* 0 or PROBLEM error code */
 	} drsuapi_DsAddEntryErrorInfoX;
 
+	/* Attribute errors
+	 * Ref: ATRERR_DRS_WIRE_V1, [MS-DRSR]: 4.1.1.1.11 */
 	typedef struct {
-		[range(0,10485760)] uint32 size;
-		[size_is(size)] uint8 *data;
-	} drsuapi_DsAddEntryExtraErrorBuffer;
-
-	typedef struct {
-		drsuapi_DsAddEntryErrorInfoX error;
+		uint32	dsid;
+		WERROR	extended_err;
+		uint32	extended_data;
+		uint16	problem;
 		drsuapi_DsAttributeId attid;
-		uint32 unknown2;
-		drsuapi_DsAddEntryExtraErrorBuffer buffer;
-	} drsuapi_DsAddEntryExtraError1;
+		boolean32 is_val_returned;
+		drsuapi_DsAttributeValue attr_val;
+	} drsuapi_DsAddEntry_AttrErr_V1;
 
-	typedef /*[noprint]*/ struct {
-		drsuapi_DsAddEntryErrorListItem1 *next;
-		drsuapi_DsAddEntryExtraError1 error;
-	} drsuapi_DsAddEntryErrorListItem1;
+	typedef [noprint] struct {
+		drsuapi_DsAddEntry_AttrErrListItem_V1 *next;
+		drsuapi_DsAddEntry_AttrErr_V1 err_data;
+	} drsuapi_DsAddEntry_AttrErrListItem_V1;
 
 	typedef struct {
 		drsuapi_DsReplicaObjectIdentifier *id;
-		WERROR status;
-		drsuapi_DsAddEntryErrorListItem1 first;
-	} drsuapi_DsAddEntryErrorInfo1;
+		uint32 count;
+		drsuapi_DsAddEntry_AttrErrListItem_V1 first;
+	} drsuapi_DsAddEntryErrorInfo_Attr_V1;
+
+	/* Name resolution error
+	 * Ref: NAMERR_DRS_WIRE_V1, [MS-DRSR]: 4.1.1.1.14 */
+	typedef struct {
+		uint32	dsid;
+		WERROR	extended_err;
+		uint32	extended_data;
+		uint16	problem;
+		drsuapi_DsReplicaObjectIdentifier *id_matched; /* The best match for the supplied object identity */
+	} drsuapi_DsAddEntryErrorInfo_Name_V1;
+
+	/* Referral error
+	 * Ref: REFERR_DRS_WIRE_V1, [MS-DRSR]: 4.1.1.1.15 */
+	typedef struct {
+		[value(83)] uint8  name_res;	/* Must be 'S' */
+		[value(0)]  uint8  unused_pad;
+		[value(0)]  uint16 next_rdn;
+	} drsuapi_NameResOp_V1;
+
+	typedef [enum16bit] enum {
+		DRSUAPI_CH_REFTYPE_SUPERIOR 	= 0x0000, /* referral to a superior DC */
+		DRSUAPI_CH_REFTYPE_SUBORDINATE	= 0x0001, /* referral to a subordinate DC */
+		DRSUAPI_CH_REFTYPE_NSSR		= 0x0002, /* Not used */
+		DRSUAPI_CH_REFTYPE_CROSS	= 0x0003  /* A referral to an external crossRef object */
+	} drsuapi_DsAddEntry_RefType;
+
+	typedef [enum8bit] enum {
+		DRSUAPI_SE_CHOICE_BASE_ONLY	= 0x00,
+		DRSUAPI_SE_CHOICE_IMMED_CHLDRN	= 0x01,
+		DRSUAPI_SE_CHOICE_WHOLE_SUBTREE	= 0x02
+	} drsuapi_DsAddEntry_ChoiceType;
+
+	/* list of network names of the DCs
+	 * to which the referral is directed */
+	typedef struct  {
+		drsuapi_DsaAddressListItem_V1 *next;
+		lsa_String *address;
+	} drsuapi_DsaAddressListItem_V1;
+
+	typedef struct {
+		drsuapi_DsReplicaObjectIdentifier *id_target; /* object to which the referral is directed */
+		drsuapi_NameResOp_V1 op_state;
+		[value(0)] uint16 rdn_alias;
+		[value(0)] uint16 rdn_internal;
+		drsuapi_DsAddEntry_RefType ref_type;
+		uint16 addr_list_count;
+		drsuapi_DsaAddressListItem_V1 *addr_list;
+		drsuapi_DsAddEntry_RefErrListItem_V1 *next;
+		boolean32 is_choice_set;
+		drsuapi_DsAddEntry_ChoiceType choice;
+	} drsuapi_DsAddEntry_RefErrListItem_V1;
+
+	typedef struct {
+		uint32	dsid;
+		WERROR	extended_err;
+		uint32	extended_data;
+		drsuapi_DsAddEntry_RefErrListItem_V1 refer;
+	} drsuapi_DsAddEntryErrorInfo_Referr_V1;
 
 	typedef [switch_type(uint32)] union {
-		[case(1)] drsuapi_DsAddEntryErrorInfo1 error1;
-/*		[case(2)] drsuapi_DsAddEntryErrorInfo2 error2;
-		[case(3)] drsuapi_DsAddEntryErrorInfo3 error3;
-*/		[case(4)] drsuapi_DsAddEntryErrorInfoX errorX;
-		[case(5)] drsuapi_DsAddEntryErrorInfoX errorX;
-		[case(6)] drsuapi_DsAddEntryErrorInfoX errorX;
-		[case(7)] drsuapi_DsAddEntryErrorInfoX errorX;
+		[case(1)] drsuapi_DsAddEntryErrorInfo_Attr_V1   attr_err;
+		[case(2)] drsuapi_DsAddEntryErrorInfo_Name_V1   name_err;
+		[case(3)] drsuapi_DsAddEntryErrorInfo_Referr_V1 referral_err;
+		[case(4)] drsuapi_DsAddEntryErrorInfoX 		security_err;
+		[case(5)] drsuapi_DsAddEntryErrorInfoX 		service_err;
+		[case(6)] drsuapi_DsAddEntryErrorInfoX 		update_err;
+		[case(7)] drsuapi_DsAddEntryErrorInfoX 		system_err;
 	} drsuapi_DsAddEntryErrorInfo;
 
 	typedef struct {
 		WERROR status;
-		uint32 level;
-		[switch_is(level)] drsuapi_DsAddEntryErrorInfo *info;
-	} drsuapi_DsAddEntryError1;
+		drsuapi_DsAddEntry_DirErr dir_err;
+		[switch_is(dir_err)] drsuapi_DsAddEntryErrorInfo *info;
+	} drsuapi_DsAddEntry_ErrData_V1;
 
 	typedef [switch_type(uint32)] union {
-		[case(1)] drsuapi_DsAddEntryError1 info1;
-	} drsuapi_DsAddEntryError;
+		[case(1)] drsuapi_DsAddEntry_ErrData_V1 v1;
+	} drsuapi_DsAddEntry_ErrData;
 
 	typedef struct {
 		GUID guid;
@@ -1309,30 +1393,33 @@ interface drsuapi
 
 	typedef struct {
 		drsuapi_DsReplicaObjectIdentifier *id;
-		uint32 unknown1;
-		drsuapi_DsAddEntryErrorInfoX error;
+		drsuapi_DsAddEntry_DirErr dir_err;
+		uint32			  dsid;		 /* implementation-specific diagnostic code */
+		WERROR			  extended_err;	 /* 0, STATUS code, or Windows error code */
+		uint32			  extended_data; /* implementation-specific diagnostic code */
+		uint16			  problem;	 /* 0 or PROBLEM error code */
 		[range(0,10000)] uint32 count;
 		[size_is(count)] drsuapi_DsReplicaObjectIdentifier2 *objects;
 	} drsuapi_DsAddEntryCtr2;
 
 	typedef struct {
 		drsuapi_DsReplicaObjectIdentifier *id;
-		uint32 level;
-		[switch_is(level)] drsuapi_DsAddEntryError *error;
+		uint32 err_ver;	/* Must be 1 */
+		[switch_is(err_ver)] drsuapi_DsAddEntry_ErrData *err_data;
 		[range(0,10000)] uint32 count;
 		[size_is(count)] drsuapi_DsReplicaObjectIdentifier2 *objects;
 	} drsuapi_DsAddEntryCtr3;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(2)] drsuapi_DsAddEntryCtr2 ctr2;
 		[case(3)] drsuapi_DsAddEntryCtr3 ctr3;
 	} drsuapi_DsAddEntryCtr;
 
 	[public] WERROR drsuapi_DsAddEntry(
 		[in] policy_handle *bind_handle,
-		[in] int32 level,
+		[in] uint32 level,
 		[in,ref,switch_is(level)] drsuapi_DsAddEntryRequest *req,
-		[out,ref] int32 *level_out,
+		[out,ref] uint32 *level_out,
 		[out,ref,switch_is(*level_out)] drsuapi_DsAddEntryCtr *ctr
 		);
 
@@ -1377,26 +1464,26 @@ interface drsuapi
 		DRSUAPI_DS_REPLICA_INFO_CURSORS3			= 8,
 		DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA2			= 9,
 		DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA2	= 10,
-		DRSUAPI_DS_REPLICA_INFO_NEIGHBORS02			= -2,
-		DRSUAPI_DS_REPLICA_INFO_CONNECTIONS04			= -4,
-		DRSUAPI_DS_REPLICA_INFO_CURSORS05			= -5,
-		DRSUAPI_DS_REPLICA_INFO_06				= -6
+		DRSUAPI_DS_REPLICA_INFO_REPSTO                          = -2,
+		DRSUAPI_DS_REPLICA_INFO_CLIENT_CONTEXTS			= -4,
+		DRSUAPI_DS_REPLICA_INFO_UPTODATE_VECTOR_V1		= -5,
+		DRSUAPI_DS_REPLICA_INFO_SERVER_OUTGOING_CALLS		= -6
 	} drsuapi_DsReplicaInfoType;
 
 	typedef struct {
 		drsuapi_DsReplicaInfoType info_type;
 		[charset(UTF16),string] uint16 *object_dn;
-		GUID guid1;
+		GUID source_dsa_guid;
 	} drsuapi_DsReplicaGetInfoRequest1;
 
 	typedef struct {
 		drsuapi_DsReplicaInfoType info_type;
 		[charset(UTF16),string] uint16 *object_dn;
-		GUID guid1;
-		uint32 unknown1;
-		[charset(UTF16),string] uint16 *string1;
-		[charset(UTF16),string] uint16 *string2;
-		uint32 unknown2;
+		GUID source_dsa_guid;
+		uint32 flags;
+		[charset(UTF16),string] uint16 *attribute_name;
+		[charset(UTF16),string] uint16 *value_dn_str;
+		uint32 enumeration_context;
 	} drsuapi_DsReplicaGetInfoRequest2;
 
 	typedef [switch_type(drsuapi_DsReplicaGetInfoLevel)] union {
@@ -1409,7 +1496,7 @@ interface drsuapi
 		[charset(UTF16),string] uint16 *source_dsa_obj_dn;
 		[charset(UTF16),string] uint16 *source_dsa_address;
 		[charset(UTF16),string] uint16 *transport_obj_dn;
-		drsuapi_DsReplicaNeighbourFlags replica_flags;
+		drsuapi_DrsOptions replica_flags;
 		uint32 reserved;
 		GUID naming_context_obj_guid;
 		GUID source_dsa_obj_guid;
@@ -1472,21 +1559,12 @@ interface drsuapi
 		DRSUAPI_DS_REPLICA_OP_TYPE_UPDATE_REFS	= 4
 	} drsuapi_DsReplicaOpType;
 
-	typedef [switch_type(drsuapi_DsReplicaOpType)] union {
-		[case(DRSUAPI_DS_REPLICA_OP_TYPE_SYNC)]		drsuapi_DsReplicaSyncOptions sync;
-		[case(DRSUAPI_DS_REPLICA_OP_TYPE_ADD)]		drsuapi_DsReplicaAddOptions add;
-		[case(DRSUAPI_DS_REPLICA_OP_TYPE_DELETE)]	drsuapi_DsReplicaDeleteOptions op_delete;
-		[case(DRSUAPI_DS_REPLICA_OP_TYPE_MODIFY)]	drsuapi_DsReplicaModifyOptions modify;
-		[case(DRSUAPI_DS_REPLICA_OP_TYPE_UPDATE_REFS)]	drsuapi_DsReplicaUpdateRefsOptions update_refs;
-		[default] uint32 unknown;
-	} drsuapi_DsRplicaOpOptions;
-
 	typedef struct {
 		NTTIME operation_start;
 		uint32 serial_num; /* unique till reboot */
 		uint32 priority;
 		drsuapi_DsReplicaOpType operation_type;
-		[switch_is(operation_type)] drsuapi_DsRplicaOpOptions options;
+		drsuapi_DrsOptions options;
 		[charset(UTF16),string] uint16 *nc_dn;
 		[charset(UTF16),string] uint16 *remote_dsa_obj_dn;
 		[charset(UTF16),string] uint16 *remote_dsa_address;
@@ -1516,13 +1594,13 @@ interface drsuapi
 
 	typedef struct {
 		uint32 count;
-		int32 enumeration_context;
+		uint32 enumeration_context;
 		[size_is(count)] drsuapi_DsReplicaAttrValMetaData array[];
 	} drsuapi_DsReplicaAttrValMetaDataCtr;
 
 	typedef struct {
 		uint32 count;
-		int32 enumeration_context;
+		uint32 enumeration_context;
 		[size_is(count)] drsuapi_DsReplicaCursor2 array[];
 	} drsuapi_DsReplicaCursor2Ctr;
 
@@ -1535,7 +1613,7 @@ interface drsuapi
 
 	typedef struct {
 		uint32 count;
-		int32 enumeration_context;
+		uint32 enumeration_context;
 		[size_is(count)] drsuapi_DsReplicaCursor3 array[];
 	} drsuapi_DsReplicaCursor3Ctr;
 
@@ -1551,7 +1629,7 @@ interface drsuapi
 
 	typedef struct {
 		uint32 count;
-		int32 enumeration_context;
+		uint32 enumeration_context;
 		[size_is(count)] drsuapi_DsReplicaObjMetaData2 array[];
 	} drsuapi_DsReplicaObjMetaData2Ctr;
 
@@ -1572,7 +1650,7 @@ interface drsuapi
 
 	typedef struct {
 		uint32 count;
-		int32 enumeration_context;
+		uint32 enumeration_context;
 		[size_is(count)] drsuapi_DsReplicaAttrValMetaData2 array[];
 	} drsuapi_DsReplicaAttrValMetaData2Ctr;
 
@@ -1621,10 +1699,10 @@ interface drsuapi
 		[case(DRSUAPI_DS_REPLICA_INFO_CURSORS3)] drsuapi_DsReplicaCursor3Ctr *cursors3;
 		[case(DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA2)] drsuapi_DsReplicaObjMetaData2Ctr *objmetadata2;
 		[case(DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA2)] drsuapi_DsReplicaAttrValMetaData2Ctr *attrvalmetadata2;
-		[case(DRSUAPI_DS_REPLICA_INFO_NEIGHBORS02)] drsuapi_DsReplicaNeighbourCtr *neighbours02;
-		[case(DRSUAPI_DS_REPLICA_INFO_CONNECTIONS04)] drsuapi_DsReplicaConnection04Ctr *connections04;
-		[case(DRSUAPI_DS_REPLICA_INFO_CURSORS05)] drsuapi_DsReplicaCursorCtrEx *cursors05;
-		[case(DRSUAPI_DS_REPLICA_INFO_06)] drsuapi_DsReplica06Ctr *i06;
+		[case(DRSUAPI_DS_REPLICA_INFO_REPSTO)] drsuapi_DsReplicaNeighbourCtr *repsto;
+		[case(DRSUAPI_DS_REPLICA_INFO_CLIENT_CONTEXTS)] drsuapi_DsReplicaConnection04Ctr *clientctx;
+		[case(DRSUAPI_DS_REPLICA_INFO_UPTODATE_VECTOR_V1)] drsuapi_DsReplicaCursorCtrEx *udv1;
+		[case(DRSUAPI_DS_REPLICA_INFO_SERVER_OUTGOING_CALLS)] drsuapi_DsReplica06Ctr *srvoutgoingcalls;
 	} drsuapi_DsReplicaInfo;
 
 	WERROR drsuapi_DsReplicaGetInfo(
@@ -1647,7 +1725,7 @@ interface drsuapi
 		[size_is(num_entries)] drsuapi_DsGetMembershipsCtr1 **ctrl_array;
 	} drsuapi_DsGetMemberships2Ctr1;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(1)] drsuapi_DsGetMembershipsCtr1 ctr1;
 	} drsuapi_DsGetMemberships2Ctr;
 
@@ -1656,15 +1734,15 @@ interface drsuapi
 		[size_is(num_req)] drsuapi_DsGetMembershipsRequest1 **req_array;
 	} drsuapi_DsGetMemberships2Request1;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(1)] drsuapi_DsGetMemberships2Request1 req1;
 	} drsuapi_DsGetMemberships2Request;
 
 	WERROR drsuapi_DsGetMemberships2(
 		[in] policy_handle *bind_handle,
-		[in] int32 level,
+		[in] uint32 level,
 		[in,ref] [switch_is(level)] drsuapi_DsGetMemberships2Request *req,
-		[out,ref] int32 *level_out,
+		[out,ref] uint32 *level_out,
 		[out,ref] [switch_is(*level_out)] drsuapi_DsGetMemberships2Ctr *ctr
 		);
 
@@ -1686,10 +1764,10 @@ interface drsuapi
 	typedef struct {
 		[range(0,10000)] uint32 num_info;
 		[size_is(num_info)] drsuapi_DsSiteCostInfo *info;
-		uint32 unknown;
+		[value(0)] uint32 flags_reserved;
 	} drsuapi_QuerySitesByCostCtr1;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(1)] drsuapi_QuerySitesByCostCtr1 ctr1;
 	} drsuapi_QuerySitesByCostCtr;
 
@@ -1700,15 +1778,15 @@ interface drsuapi
 		uint32 flags;
 	} drsuapi_QuerySitesByCostRequest1;
 
-	typedef [switch_type(int32)] union {
+	typedef [switch_type(uint32)] union {
 		[case(1)] drsuapi_QuerySitesByCostRequest1 req1;
 	} drsuapi_QuerySitesByCostRequest;
 
 	WERROR drsuapi_QuerySitesByCost(
 		[in] policy_handle *bind_handle,
-		[in] int32 level,
+		[in] uint32 level,
 		[in,ref] [switch_is(level)] drsuapi_QuerySitesByCostRequest *req,
-		[out,ref] int32 *level_out,
+		[out,ref] uint32 *level_out,
 		[out,ref] [switch_is(*level_out)] drsuapi_QuerySitesByCostCtr *ctr
 	);
 }

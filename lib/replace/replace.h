@@ -140,6 +140,12 @@ char *rep_strdup(const char *s);
 void *rep_memmove(void *dest,const void *src,int size);
 #endif
 
+#ifndef HAVE_MEMMEM
+#define memmem rep_memmem
+void *rep_memmem(const void *haystack, size_t haystacklen,
+		 const void *needle, size_t needlelen);
+#endif
+
 #ifndef HAVE_MKTIME
 #define mktime rep_mktime
 /* prototype is in "system/time.h" */
@@ -330,6 +336,16 @@ int rep_dlclose(void *handle);
 /* prototype is in system/network.h */
 #endif
 
+#ifndef HAVE_VDPRINTF
+#define vdprintf rep_vdprintf
+int rep_vdprintf(int fd, const char *format, va_list ap);
+#endif
+
+#ifndef HAVE_DPRINTF
+#define dprintf rep_dprintf
+int rep_dprintf(int fd, const char *format, ...);
+#endif
+
 #ifndef PRINTF_ATTRIBUTE
 #if (__GNUC__ >= 3) && (__GNUC_MINOR__ >= 1 )
 /** Use gcc attribute to check printf fns.  a1 is the 1-based index of
@@ -489,6 +505,16 @@ ssize_t rep_pwrite(int __fd, const void *__buf, size_t __nbytes, off_t __offset)
 #ifndef HAVE_FREEIFADDRS
 #define freeifaddrs rep_freeifaddrs
 /* prototype is in "system/network.h" */
+#endif
+
+#ifndef HAVE_GET_CURRENT_DIR_NAME
+#define get_current_dir_name rep_get_current_dir_name
+char *rep_get_current_dir_name(void);
+#endif
+
+#if !defined(HAVE_STRERROR_R) || !defined(STRERROR_R_PROTO_COMPATIBLE)
+#define strerror_r rep_strerror_r
+int rep_strerror_r(int errnum, char *buf, size_t buflen);
 #endif
 
 #ifdef HAVE_LIMITS_H
@@ -720,6 +746,28 @@ char *ufc_crypt(const char *key, const char *salt);
 #endif
 #ifndef unlikely
 #define unlikely(x) (x)
+#endif
+#endif
+
+#ifndef HAVE_FDATASYNC
+#define fdatasync(fd) fsync(fd)
+#endif
+
+/* these are used to mark symbols as local to a shared lib, or
+ * publicly available via the shared lib API */
+#ifndef _PUBLIC_
+#ifdef HAVE_VISIBILITY_ATTR
+#define _PUBLIC_ __attribute__((visibility("default")))
+#else
+#define _PUBLIC_
+#endif
+#endif
+
+#ifndef _PRIVATE_
+#ifdef HAVE_VISIBILITY_ATTR
+#  define _PRIVATE_ __attribute__((visibility("hidden")))
+#else
+#  define _PRIVATE_
 #endif
 #endif
 

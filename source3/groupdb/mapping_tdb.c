@@ -25,15 +25,22 @@
 
 static struct db_context *db; /* used for driver files */
 
-static bool enum_group_mapping(const DOM_SID *domsid, enum lsa_SidType sid_name_use, GROUP_MAP **pp_rmap,
-			       size_t *p_num_entries, bool unix_only);
-static bool group_map_remove(const DOM_SID *sid);
-	
+static bool enum_group_mapping(const struct dom_sid *domsid,
+			       enum lsa_SidType sid_name_use,
+			       GROUP_MAP **pp_rmap,
+			       size_t *p_num_entries,
+			       bool unix_only);
+static bool group_map_remove(const struct dom_sid *sid);
+
+static bool mapping_switch(const char *ldb_path);
+
 /****************************************************************************
  Open the group mapping tdb.
 ****************************************************************************/
 static bool init_group_mapping(void)
 {
+	const char *ldb_path;
+
 	if (db != NULL) {
 		return true;
 	}
@@ -46,13 +53,14 @@ static bool init_group_mapping(void)
 		return false;
 	}
 
-#if 0
-	/*
-	 * This code was designed to handle a group mapping version
-	 * upgrade. mapping_tdb is not active by default anymore, so ignore
-	 * this here.
-	 */
-	{
+	ldb_path = state_path("group_mapping.ldb");
+	if (file_exist(ldb_path) && !mapping_switch(ldb_path)) {
+		unlink(state_path("group_mapping.tdb"));
+		return false;
+
+	} else {
+		/* handle upgrade from old versions of the database */
+#if 0 /* -- Needs conversion to dbwrap -- */
 		const char *vstring = "INFO/version";
 		int32 vers_id;
 		GROUP_MAP *map_table = NULL;
@@ -96,13 +104,12 @@ static bool init_group_mapping(void)
 
 			SAFE_FREE( map_table );
 		}
-	}
 #endif
-
+	}
 	return true;
 }
 
-static char *group_mapping_key(TALLOC_CTX *mem_ctx, const DOM_SID *sid)
+static char *group_mapping_key(TALLOC_CTX *mem_ctx, const struct dom_sid *sid)
 {
 	char *sidstr, *result;
 
@@ -155,7 +162,7 @@ static bool add_mapping_entry(GROUP_MAP *map, int flag)
  Return the sid and the type of the unix group.
 ****************************************************************************/
 
-static bool get_group_map_from_sid(DOM_SID sid, GROUP_MAP *map)
+static bool get_group_map_from_sid(struct dom_sid sid, GROUP_MAP *map)
 {
 	TDB_DATA dbuf;
 	char *key;
@@ -279,7 +286,7 @@ static bool get_group_map_from_ntname(const char *name, GROUP_MAP *map)
  Remove a group mapping entry.
 ****************************************************************************/
 
-static bool group_map_remove(const DOM_SID *sid)
+static bool group_map_remove(const struct dom_sid *sid)
 {
 	char *key;
 	NTSTATUS status;
@@ -300,7 +307,7 @@ static bool group_map_remove(const DOM_SID *sid)
 ****************************************************************************/
 
 struct enum_map_state {
-	const DOM_SID *domsid;
+	const struct dom_sid *domsid;
 	enum lsa_SidType sid_name_use;
 	bool unix_only;
 
@@ -351,7 +358,7 @@ static int collect_map(struct db_record *rec, void *private_data)
 	return 0;
 }
 
-static bool enum_group_mapping(const DOM_SID *domsid,
+static bool enum_group_mapping(const struct dom_sid *domsid,
 			       enum lsa_SidType sid_name_use,
 			       GROUP_MAP **pp_rmap,
 			       size_t *p_num_entries, bool unix_only)
@@ -377,8 +384,8 @@ static bool enum_group_mapping(const DOM_SID *domsid,
 /* This operation happens on session setup, so it should better be fast. We
  * store a list of aliases a SID is member of hanging off MEMBEROF/SID. */
 
-static NTSTATUS one_alias_membership(const DOM_SID *member,
-			       DOM_SID **sids, size_t *num)
+static NTSTATUS one_alias_membership(const struct dom_sid *member,
+			       struct dom_sid **sids, size_t *num)
 {
 	fstring tmp;
 	fstring key;
@@ -400,7 +407,7 @@ static NTSTATUS one_alias_membership(const DOM_SID *member,
 	p = (const char *)dbuf.dptr;
 
 	while (next_token_talloc(frame, &p, &string_sid, " ")) {
-		DOM_SID alias;
+		struct dom_sid alias;
 
 		if (!string_to_sid(&alias, string_sid))
 			continue;
@@ -416,8 +423,8 @@ done:
 	return status;
 }
 
-static NTSTATUS alias_memberships(const DOM_SID *members, size_t num_members,
-				  DOM_SID **sids, size_t *num)
+static NTSTATUS alias_memberships(const struct dom_sid *members, size_t num_members,
+				  struct dom_sid **sids, size_t *num)
 {
 	size_t i;
 
@@ -432,9 +439,9 @@ static NTSTATUS alias_memberships(const DOM_SID *members, size_t num_members,
 	return NT_STATUS_OK;
 }
 
-static bool is_aliasmem(const DOM_SID *alias, const DOM_SID *member)
+static bool is_aliasmem(const struct dom_sid *alias, const struct dom_sid *member)
 {
-	DOM_SID *sids;
+	struct dom_sid *sids;
 	size_t i, num;
 
 	/* This feels the wrong way round, but the on-disk data structure
@@ -453,7 +460,7 @@ static bool is_aliasmem(const DOM_SID *alias, const DOM_SID *member)
 }
 
 
-static NTSTATUS add_aliasmem(const DOM_SID *alias, const DOM_SID *member)
+static NTSTATUS add_aliasmem(const struct dom_sid *alias, const struct dom_sid *member)
 {
 	GROUP_MAP map;
 	char *key;
@@ -536,8 +543,8 @@ static NTSTATUS add_aliasmem(const DOM_SID *alias, const DOM_SID *member)
 
 struct aliasmem_state {
 	TALLOC_CTX *mem_ctx;
-	const DOM_SID *alias;
-	DOM_SID **sids;
+	const struct dom_sid *alias;
+	struct dom_sid **sids;
 	size_t *num;
 };
 
@@ -557,7 +564,7 @@ static int collect_aliasmem(struct db_record *rec, void *priv)
 	frame = talloc_stackframe();
 
 	while (next_token_talloc(frame, &p, &alias_string, " ")) {
-		DOM_SID alias, member;
+		struct dom_sid alias, member;
 		const char *member_string;
 
 		if (!string_to_sid(&alias, alias_string))
@@ -594,8 +601,8 @@ static int collect_aliasmem(struct db_record *rec, void *priv)
 	return 0;
 }
 
-static NTSTATUS enum_aliasmem(const DOM_SID *alias, TALLOC_CTX *mem_ctx,
-			      DOM_SID **sids, size_t *num)
+static NTSTATUS enum_aliasmem(const struct dom_sid *alias, TALLOC_CTX *mem_ctx,
+			      struct dom_sid **sids, size_t *num)
 {
 	GROUP_MAP map;
 	struct aliasmem_state state;
@@ -619,10 +626,10 @@ static NTSTATUS enum_aliasmem(const DOM_SID *alias, TALLOC_CTX *mem_ctx,
 	return NT_STATUS_OK;
 }
 
-static NTSTATUS del_aliasmem(const DOM_SID *alias, const DOM_SID *member)
+static NTSTATUS del_aliasmem(const struct dom_sid *alias, const struct dom_sid *member)
 {
 	NTSTATUS status;
-	DOM_SID *sids;
+	struct dom_sid *sids;
 	size_t i, num;
 	bool found = False;
 	char *member_string;
@@ -717,6 +724,254 @@ static NTSTATUS del_aliasmem(const DOM_SID *alias, const DOM_SID *member)
 		smb_panic("transaction_cancel failed");
 	}
 	return status;
+}
+
+
+/* -- ldb->tdb switching code -------------------------------------------- */
+
+/* change this if the data format ever changes */
+#define LTDB_PACKING_FORMAT 0x26011967
+
+/* old packing formats (not supported for now,
+ * it was never used for group mapping AFAIK) */
+#define LTDB_PACKING_FORMAT_NODN 0x26011966
+
+static unsigned int pull_uint32(uint8_t *p, int ofs)
+{
+	p += ofs;
+	return p[0] | (p[1]<<8) | (p[2]<<16) | (p[3]<<24);
+}
+
+/*
+  unpack a ldb message from a linear buffer in TDB_DATA
+*/
+static int convert_ldb_record(TDB_CONTEXT *ltdb, TDB_DATA key,
+			      TDB_DATA data, void *ptr)
+{
+	TALLOC_CTX *tmp_ctx = talloc_tos();
+	GROUP_MAP map;
+	uint8_t *p;
+	uint32_t format;
+	uint32_t num_el;
+	unsigned int remaining;
+	unsigned int i, j;
+	size_t len;
+	char *name;
+	char *val;
+	char *q;
+	uint32_t num_mem = 0;
+	struct dom_sid *members = NULL;
+
+	p = (uint8_t *)data.dptr;
+	if (data.dsize < 8) {
+		errno = EIO;
+		goto failed;
+	}
+
+	format = pull_uint32(p, 0);
+	num_el = pull_uint32(p, 4);
+	p += 8;
+
+	remaining = data.dsize - 8;
+
+	switch (format) {
+	case LTDB_PACKING_FORMAT:
+		len = strnlen((char *)p, remaining);
+		if (len == remaining) {
+			errno = EIO;
+			goto failed;
+		}
+
+		if (*p == '@') {
+			/* ignore special LDB attributes */
+			return 0;
+		}
+
+		if (strncmp((char *)p, "rid=", 4)) {
+			/* unknown entry, ignore */
+			DEBUG(3, ("Found unknown entry in group mapping "
+				  "database named [%s]\n", (char *)p));
+			return 0;
+		}
+
+		remaining -= len + 1;
+		p += len + 1;
+		break;
+
+	case LTDB_PACKING_FORMAT_NODN:
+	default:
+		errno = EIO;
+		goto failed;
+	}
+
+	if (num_el == 0) {
+		/* bad entry, ignore */
+		return 0;
+	}
+
+	if (num_el > remaining / 6) {
+		errno = EIO;
+		goto failed;
+	}
+
+	ZERO_STRUCT(map);
+
+	for (i = 0; i < num_el; i++) {
+		uint32_t num_vals;
+
+		if (remaining < 10) {
+			errno = EIO;
+			goto failed;
+		}
+		len = strnlen((char *)p, remaining - 6);
+		if (len == remaining - 6) {
+			errno = EIO;
+			goto failed;
+		}
+		name = talloc_strndup(tmp_ctx, (char *)p, len);
+		if (name == NULL) {
+			errno = ENOMEM;
+			goto failed;
+		}
+		remaining -= len + 1;
+		p += len + 1;
+
+		num_vals = pull_uint32(p, 0);
+		if (StrCaseCmp(name, "member") == 0) {
+			num_mem = num_vals;
+			members = talloc_array(tmp_ctx, struct dom_sid, num_mem);
+			if (members == NULL) {
+				errno = ENOMEM;
+				goto failed;
+			}
+		} else if (num_vals != 1) {
+			errno = EIO;
+			goto failed;
+		}
+
+		p += 4;
+		remaining -= 4;
+
+		for (j = 0; j < num_vals; j++) {
+			len = pull_uint32(p, 0);
+			if (len > remaining-5) {
+				errno = EIO;
+				goto failed;
+			}
+
+			val = talloc_strndup(tmp_ctx, (char *)(p + 4), len);
+			if (val == NULL) {
+				errno = ENOMEM;
+				goto failed;
+			}
+
+			remaining -= len+4+1;
+			p += len+4+1;
+
+			/* we ignore unknown or uninteresting attributes
+			 * (objectclass, etc.) */
+			if (StrCaseCmp(name, "gidNumber") == 0) {
+				map.gid = strtoul(val, &q, 10);
+				if (*q) {
+					errno = EIO;
+					goto failed;
+				}
+			} else if (StrCaseCmp(name, "sid") == 0) {
+				if (!string_to_sid(&map.sid, val)) {
+					errno = EIO;
+					goto failed;
+				}
+			} else if (StrCaseCmp(name, "sidNameUse") == 0) {
+				map.sid_name_use = strtoul(val, &q, 10);
+				if (*q) {
+					errno = EIO;
+					goto failed;
+				}
+			} else if (StrCaseCmp(name, "ntname") == 0) {
+				strlcpy(map.nt_name, val,
+					sizeof(map.nt_name) -1);
+			} else if (StrCaseCmp(name, "comment") == 0) {
+				strlcpy(map.comment, val,
+					sizeof(map.comment) -1);
+			} else if (StrCaseCmp(name, "member") == 0) {
+				if (!string_to_sid(&members[j], val)) {
+					errno = EIO;
+					goto failed;
+				}
+			}
+
+			TALLOC_FREE(val);
+		}
+
+		TALLOC_FREE(name);
+	}
+
+	if (!add_mapping_entry(&map, 0)) {
+		errno = EIO;
+		goto failed;
+	}
+
+	if (num_mem) {
+		for (j = 0; j < num_mem; j++) {
+			NTSTATUS status;
+			status = add_aliasmem(&map.sid, &members[j]);
+			if (!NT_STATUS_IS_OK(status)) {
+				errno = EIO;
+				goto failed;
+			}
+		}
+	}
+
+	if (remaining != 0) {
+		DEBUG(0, ("Errror: %d bytes unread in ltdb_unpack_data\n",
+			  remaining));
+	}
+
+	return 0;
+
+failed:
+	return -1;
+}
+
+static bool mapping_switch(const char *ldb_path)
+{
+	TDB_CONTEXT *ltdb;
+	TALLOC_CTX *frame;
+	char *new_path;
+	int ret;
+
+	frame = talloc_stackframe();
+
+	ltdb = tdb_open_log(ldb_path, 0, TDB_DEFAULT, O_RDONLY, 0600);
+	if (ltdb == NULL) goto failed;
+
+	/* ldb is just a very fancy tdb, read out raw data and perform
+	 * conversion */
+	ret = tdb_traverse(ltdb, convert_ldb_record, NULL);
+	if (ret == -1) goto failed;
+
+	if (ltdb) {
+		tdb_close(ltdb);
+		ltdb = NULL;
+	}
+
+	/* now rename the old db out of the way */
+	new_path = state_path("group_mapping.ldb.replaced");
+	if (!new_path) {
+		goto failed;
+	}
+	if (rename(ldb_path, new_path) != 0) {
+		DEBUG(0,("Failed to rename old group mapping database\n"));
+		goto failed;
+	}
+	TALLOC_FREE(frame);
+	return True;
+
+failed:
+	DEBUG(0, ("Failed to switch to tdb group mapping database\n"));
+	if (ltdb) tdb_close(ltdb);
+	TALLOC_FREE(frame);
+	return False;
 }
 
 static const struct mapping_backend tdb_backend = {

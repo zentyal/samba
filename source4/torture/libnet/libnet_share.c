@@ -1,26 +1,26 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
    Test suite for libnet calls.
 
    Copyright (C) Gregory LEOCADIE <gleocadie@idealx.com> 2005
    Copyright (C) Rafal Szczesniak  2005
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
-#include "torture/rpc/rpc.h"
+#include "torture/rpc/torture_rpc.h"
 #include "libnet/libnet.h"
 #include "lib/cmdline/popt_common.h"
 #include "librpc/gen_ndr/ndr_srvsvc_c.h"
@@ -29,7 +29,8 @@
 #define TEST_SHARENAME "libnetsharetest"
 
 
-static void test_displayshares(struct libnet_ListShares s)
+static void test_displayshares(struct torture_context *tctx,
+			       struct libnet_ListShares s)
 {
 	int i, j;
 
@@ -55,7 +56,7 @@ static void test_displayshares(struct libnet_ListShares s)
 	case 0:
 		for (i = 0; i < s.out.ctr.ctr0->count; i++) {
 			struct srvsvc_NetShareInfo0 *info = &s.out.ctr.ctr0->array[i];
-			d_printf("\t[%d] %s\n", i, info->name);
+			torture_comment(tctx, "\t[%d] %s\n", i, info->name);
 		}
 		break;
 
@@ -65,7 +66,7 @@ static void test_displayshares(struct libnet_ListShares s)
 			for (j = 0; j < ARRAY_SIZE(share_types); j++) {
 				if (share_types[j].type == info->type) break;
 			}
-			d_printf("\t[%d] %s (%s)\t%s\n", i, info->name,
+			torture_comment(tctx, "\t[%d] %s (%s)\t%s\n", i, info->name,
 			       info->comment, share_types[j].desc);
 		}
 		break;
@@ -76,7 +77,7 @@ static void test_displayshares(struct libnet_ListShares s)
 			for (j = 0; j < ARRAY_SIZE(share_types); j++) {
 				if (share_types[j].type == info->type) break;
 			}
-			d_printf("\t[%d] %s\t%s\n\t    %s\n\t    [perms=0x%08x, max_usr=%d, cur_usr=%d, path=%s, pass=%s]\n",
+			torture_comment(tctx, "\t[%d] %s\t%s\n\t    %s\n\t    [perms=0x%08x, max_usr=%d, cur_usr=%d, path=%s, pass=%s]\n",
 				 i, info->name, share_types[j].desc, info->comment,
 				 info->permissions, info->max_users,
 				 info->current_users, info->path,
@@ -90,7 +91,7 @@ static void test_displayshares(struct libnet_ListShares s)
 			for (j = 0; j < ARRAY_SIZE(share_types); j++) {
 				if (share_types[j].type == info->type) break;
 			}
-			d_printf("\t[%d] %s\t%s [csc_policy=0x%08x]\n\t    %s\n", i, info->name,
+			torture_comment(tctx, "\t[%d] %s\t%s [csc_policy=0x%08x]\n\t    %s\n", i, info->name,
 				 share_types[j].desc, info->csc_policy,
 				 info->comment);
 		}
@@ -102,7 +103,7 @@ static void test_displayshares(struct libnet_ListShares s)
 			for (j = 0; j < ARRAY_SIZE(share_types); j++) {
 				if (share_types[j].type == info->type) break;
 			}
-			d_printf("\t[%d] %s\t%s\n\t    %s\n\t    [perms=0x%08x, max_usr=%d, cur_usr=%d, path=%s, pass=%s]\n",
+			torture_comment(tctx, "\t[%d] %s\t%s\n\t    %s\n\t    [perms=0x%08x, max_usr=%d, cur_usr=%d, path=%s, pass=%s]\n",
 				 i, info->name, share_types[j].desc, info->comment,
 				 info->permissions, info->max_users,
 				 info->current_users, info->path,
@@ -133,30 +134,30 @@ bool torture_listshares(struct torture_context *torture)
 
 	libnetctx = libnet_context_init(torture->ev, torture->lp_ctx);
 	if (!libnetctx) {
-		printf("Couldn't allocate libnet context\n");
+		torture_comment(torture, "Couldn't allocate libnet context\n");
 		ret = false;
 		goto done;
 	}
 
 	libnetctx->cred = cmdline_credentials;
-	
-	printf("Testing libnet_ListShare\n");
-	
+
+	torture_comment(torture, "Testing libnet_ListShare\n");
+
 	share.in.server_name = talloc_asprintf(mem_ctx, "%s", binding->host);
 
 	for (i = 0; i < ARRAY_SIZE(levels); i++) {
 		share.in.level = levels[i];
-		printf("testing libnet_ListShare level %u\n", share.in.level);
+		torture_comment(torture, "Testing libnet_ListShare level %u\n", share.in.level);
 
 		status = libnet_ListShares(libnetctx, mem_ctx, &share);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("libnet_ListShare level %u failed - %s\n", share.in.level, share.out.error_string);
+			torture_comment(torture, "libnet_ListShare level %u failed - %s\n", share.in.level, share.out.error_string);
 			ret = false;
 			goto done;
 		}
 
-		printf("listing shares:\n");
-		test_displayshares(share);
+		torture_comment(torture, "listing shares:\n");
+		test_displayshares(torture, share);
 	}
 
 done:
@@ -165,14 +166,15 @@ done:
 }
 
 
-static bool test_addshare(struct dcerpc_pipe *svc_pipe, TALLOC_CTX *mem_ctx, const char *host,
+static bool test_addshare(struct torture_context *tctx,
+			  struct dcerpc_binding_handle *b, TALLOC_CTX *mem_ctx, const char *host,
 			  const char* share)
 {
 	NTSTATUS status;
 	struct srvsvc_NetShareAdd add;
 	union srvsvc_NetShareInfo info;
 	struct srvsvc_NetShareInfo2 i;
-	
+
 	i.name         = share;
 	i.type         = STYPE_DISKTREE;
 	i.path         = "C:\\WINDOWS\\TEMP";
@@ -188,13 +190,13 @@ static bool test_addshare(struct dcerpc_pipe *svc_pipe, TALLOC_CTX *mem_ctx, con
 	add.in.info       = &info;
 	add.in.parm_error = NULL;
 
-	status = dcerpc_srvsvc_NetShareAdd(svc_pipe, mem_ctx, &add);
+	status = dcerpc_srvsvc_NetShareAdd_r(b, mem_ctx, &add);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("Failed to add a new share\n");
+		torture_comment(tctx, "Failed to add a new share\n");
 		return false;
 	}
 
-	printf("share added\n");
+	torture_comment(tctx, "share added\n");
 	return true;
 }
 
@@ -208,7 +210,7 @@ bool torture_delshare(struct torture_context *torture)
 	NTSTATUS  status;
 	bool ret = true;
 	struct libnet_DelShare share;
-	
+
 	host = torture_setting_string(torture, "host", NULL);
 	status = torture_rpc_binding(torture, &binding);
 	torture_assert_ntstatus_ok(torture, status, "Failed to get binding");
@@ -222,7 +224,7 @@ bool torture_delshare(struct torture_context *torture)
 
 	torture_assert_ntstatus_ok(torture, status, "Failed to get rpc connection");
 
-	if (!test_addshare(p, torture, host, TEST_SHARENAME)) {
+	if (!test_addshare(torture, p->binding_handle, torture, host, TEST_SHARENAME)) {
 		return false;
 	}
 

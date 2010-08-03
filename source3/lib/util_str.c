@@ -2003,6 +2003,7 @@ uint64_t STR_TO_SMB_BIG_UINT(const char *nptr, const char **entptr)
  */
 SMB_OFF_T conv_str_size(const char * str)
 {
+	SMB_OFF_T lval_orig;
         SMB_OFF_T lval;
 	char * end;
 
@@ -2012,9 +2013,9 @@ SMB_OFF_T conv_str_size(const char * str)
 
 #ifdef HAVE_STRTOULL
 	if (sizeof(SMB_OFF_T) == 8) {
-	    lval = strtoull(str, &end, 10 /* base */);
+		lval = strtoull(str, &end, 10 /* base */);
 	} else {
-	    lval = strtoul(str, &end, 10 /* base */);
+		lval = strtoul(str, &end, 10 /* base */);
 	}
 #else
 	lval = strtoul(str, &end, 10 /* base */);
@@ -2024,35 +2025,38 @@ SMB_OFF_T conv_str_size(const char * str)
                 return 0;
         }
 
-        if (*end) {
-		SMB_OFF_T lval_orig = lval;
+        if (*end == '\0') {
+		return lval;
+	}
 
-                if (strwicmp(end, "K") == 0) {
-                        lval *= (SMB_OFF_T)1024;
-                } else if (strwicmp(end, "M") == 0) {
-                        lval *= ((SMB_OFF_T)1024 * (SMB_OFF_T)1024);
-                } else if (strwicmp(end, "G") == 0) {
-                        lval *= ((SMB_OFF_T)1024 * (SMB_OFF_T)1024 *
-				(SMB_OFF_T)1024);
-                } else if (strwicmp(end, "T") == 0) {
-                        lval *= ((SMB_OFF_T)1024 * (SMB_OFF_T)1024 *
-				(SMB_OFF_T)1024 * (SMB_OFF_T)1024);
-                } else if (strwicmp(end, "P") == 0) {
-                        lval *= ((SMB_OFF_T)1024 * (SMB_OFF_T)1024 *
-				(SMB_OFF_T)1024 * (SMB_OFF_T)1024 *
-				(SMB_OFF_T)1024);
-                } else {
-                        return 0;
-                }
+	lval_orig = lval;
 
-		/* Primitive attempt to detect wrapping on platforms with
-		 * 4-byte SMB_OFF_T. It's better to let the caller handle
-		 * a failure than some random number.
-		 */
-		if (lval_orig <= lval) {
-			return 0;
-		}
-        }
+	if (strwicmp(end, "K") == 0) {
+		lval *= (SMB_OFF_T)1024;
+	} else if (strwicmp(end, "M") == 0) {
+		lval *= ((SMB_OFF_T)1024 * (SMB_OFF_T)1024);
+	} else if (strwicmp(end, "G") == 0) {
+		lval *= ((SMB_OFF_T)1024 * (SMB_OFF_T)1024 *
+			 (SMB_OFF_T)1024);
+	} else if (strwicmp(end, "T") == 0) {
+		lval *= ((SMB_OFF_T)1024 * (SMB_OFF_T)1024 *
+			 (SMB_OFF_T)1024 * (SMB_OFF_T)1024);
+	} else if (strwicmp(end, "P") == 0) {
+		lval *= ((SMB_OFF_T)1024 * (SMB_OFF_T)1024 *
+			 (SMB_OFF_T)1024 * (SMB_OFF_T)1024 *
+			 (SMB_OFF_T)1024);
+	} else {
+		return 0;
+	}
+
+	/*
+	 * Primitive attempt to detect wrapping on platforms with
+	 * 4-byte SMB_OFF_T. It's better to let the caller handle a
+	 * failure than some random number.
+	 */
+	if (lval_orig <= lval) {
+		return 0;
+	}
 
 	return lval;
 }
@@ -2488,4 +2492,12 @@ char **str_list_make_v3(TALLOC_CTX *mem_ctx, const char *string,
 
 	TALLOC_FREE(s);
 	return list;
+}
+
+char *sanitize_username(TALLOC_CTX *mem_ctx, const char *username)
+{
+	fstring tmp;
+
+	alpha_strcpy(tmp, username, ". _-$", sizeof(tmp));
+	return talloc_strdup(mem_ctx, tmp);
 }

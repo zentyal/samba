@@ -68,8 +68,6 @@
 
 
 /* access various service details */
-#define SERVICE(snum)      (lp_servicename(snum))
-#define PRINTERNAME(snum)  (lp_printername(snum))
 #define CAN_WRITE(conn)    (!conn->read_only)
 #define VALID_SNUM(snum)   (lp_snum_ok(snum))
 #define GUEST_OK(snum)     (VALID_SNUM(snum) && lp_guest_ok(snum))
@@ -206,6 +204,15 @@ copy an IP address from one buffer to another
 
 #define IS_DC  (lp_server_role()==ROLE_DOMAIN_PDC || lp_server_role()==ROLE_DOMAIN_BDC) 
 
+/*
+ * If you add any entries to KERBEROS_VERIFY defines, please modify the below expressions
+ * so they remain accurate.
+ */
+#define USE_KERBEROS_KEYTAB (KERBEROS_VERIFY_SECRETS != lp_kerberos_method())
+#define USE_SYSTEM_KEYTAB \
+    ((KERBEROS_VERIFY_SECRETS_AND_KEYTAB == lp_kerberos_method()) || \
+     (KERBEROS_VERIFY_SYSTEM_KEYTAB == lp_kerberos_method()))
+
 /*****************************************************************************
  Safe allocation macros.
 *****************************************************************************/
@@ -266,8 +273,6 @@ NULL returns on zero request. JRA.
 
 #if defined(PARANOID_MALLOC_CHECKER)
 
-#define PRS_ALLOC_MEM(ps, type, count) (type *)prs_alloc_mem_((ps),sizeof(type),(count))
-
 /* Get medieval on our ass about malloc.... */
 
 /* Restrictions on malloc/realloc/calloc. */
@@ -303,8 +308,6 @@ NULL returns on zero request. JRA.
 #define SMB_STRNDUP(s,n) smb_xstrndup(s,n)
 
 #else
-
-#define PRS_ALLOC_MEM(ps, type, count) (type *)prs_alloc_mem((ps),sizeof(type),(count))
 
 /* Regular malloc code. */
 

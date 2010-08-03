@@ -189,7 +189,7 @@ static int ldb_wildcard_compare(struct ldb_context *ldb,
 	struct ldb_val *chunk;
 	char *p, *g;
 	uint8_t *save_p = NULL;
-	int c = 0;
+	unsigned int c = 0;
 
 	a = ldb_schema_attribute_by_name(ldb, tree->u.substring.attr);
 
@@ -304,7 +304,7 @@ static int ldb_match_extended(struct ldb_context *ldb,
 			      const struct ldb_parse_tree *tree,
 			      enum ldb_scope scope)
 {
-	int i;
+	unsigned int i;
 	const struct {
 		const char *oid;
 		int (*comparator)(const struct ldb_val *, const struct ldb_val *);
@@ -316,8 +316,11 @@ static int ldb_match_extended(struct ldb_context *ldb,
 	struct ldb_message_element *el;
 
 	if (tree->u.extended.dnAttributes) {
-		ldb_debug(ldb, LDB_DEBUG_ERROR, "ldb: dnAttributes extended match not supported yet");
-		return -1;
+		/* FIXME: We really need to find out what this ":dn" part in
+		 * an extended match means and how to handle it. For now print
+		 * only a warning to have s3 winbind and other tools working
+		 * against us. - Matthias */
+		ldb_debug(ldb, LDB_DEBUG_WARNING, "ldb: dnAttributes extended match not supported yet");
 	}
 	if (tree->u.extended.rule_id == NULL) {
 		ldb_debug(ldb, LDB_DEBUG_ERROR, "ldb: no-rule extended matches not supported yet");
@@ -426,3 +429,22 @@ int ldb_match_msg(struct ldb_context *ldb,
 
 	return ldb_match_message(ldb, msg, tree, scope);
 }
+
+int ldb_match_msg_objectclass(const struct ldb_message *msg,
+			      const char *objectclass)
+{
+	int i;
+	struct ldb_message_element *el = ldb_msg_find_element(msg, "objectClass");
+	if (!el) {
+		return 0;
+	}
+	for (i=0; i < el->num_values; i++) {
+		if (ldb_attr_cmp((const char *)el->values[i].data, objectclass) == 0) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+
+			      

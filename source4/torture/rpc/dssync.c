@@ -25,20 +25,19 @@
 #include "librpc/gen_ndr/ndr_drsuapi_c.h"
 #include "librpc/gen_ndr/ndr_drsblobs.h"
 #include "libcli/cldap/cldap.h"
-#include "libcli/ldap/ldap_client.h"
 #include "torture/torture.h"
-#include "torture/ldap/proto.h"
-#include "libcli/auth/libcli_auth.h"
-#include "../lib/crypto/crypto.h"
 #include "../libcli/drsuapi/drsuapi.h"
-#include "auth/credentials/credentials.h"
-#include "libcli/auth/libcli_auth.h"
 #include "auth/gensec/gensec.h"
 #include "param/param.h"
 #include "dsdb/samdb/samdb.h"
+#include "torture/rpc/torture_rpc.h"
+#include "torture/drs/proto.h"
+#include "lib/tsocket/tsocket.h"
+#include "libcli/resolve/resolve.h"
 
 struct DsSyncBindInfo {
-	struct dcerpc_pipe *pipe;
+	struct dcerpc_pipe *drs_pipe;
+	struct dcerpc_binding_handle *drs_handle;
 	struct drsuapi_DsBind req;
 	struct GUID bind_guid;
 	struct drsuapi_DsBindInfoCtr our_bind_info_ctr;
@@ -48,7 +47,7 @@ struct DsSyncBindInfo {
 };
 
 struct DsSyncLDAPInfo {
-	struct ldap_connection *conn;
+	struct ldb_context *ldb;
 };
 
 struct DsSyncTest {
@@ -56,7 +55,7 @@ struct DsSyncTest {
 	
 	const char *ldap_url;
 	const char *site_name;
-	
+	const char *dest_address;
 	const char *domain_dn;
 
 	/* what we need to do as 'Administrator' */
@@ -88,6 +87,8 @@ static struct DsSyncTest *test_create_context(struct torture_context *tctx)
 	struct drsuapi_DsBindInfo28 *our_bind_info28;
 	struct drsuapi_DsBindInfoCtr *our_bind_info_ctr;
 	const char *binding = torture_setting_string(tctx, "binding", NULL);
+	struct nbt_name name;
+
 	ctx = talloc_zero(tctx, struct DsSyncTest);
 	if (!ctx) return NULL;
 
@@ -98,7 +99,18 @@ static struct DsSyncTest *test_create_context(struct torture_context *tctx)
 	}
 	ctx->drsuapi_binding->flags |= DCERPC_SIGN | DCERPC_SEAL;
 
-	ctx->ldap_url = talloc_asprintf(ctx, "ldap://%s/", ctx->drsuapi_binding->host);
+	ctx->ldap_url = talloc_asprintf(ctx, "ldap://%s", ctx->drsuapi_binding->host);
+
+	make_nbt_name_server(&name, ctx->drsuapi_binding->host);
+
+	/* do an initial name resolution to find its IP */
+	status = resolve_name(lpcfg_resolve_context(tctx->lp_ctx), &name, tctx,
+			      &ctx->dest_address, tctx->ev);
+	if (!NT_STATUS_IS_OK(status)) {
+		printf("Failed to resolve %s - %s\n",
+		       name.name, nt_errstr(status));
+		return NULL;
+	}
 
 	/* ctx->admin ...*/
 	ctx->admin.credentials				= cmdline_credentials;
@@ -152,7 +164,7 @@ static struct DsSyncTest *test_create_context(struct torture_context *tctx)
 	our_bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_ADDENTRYREPLY_V3;
 	our_bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_GETCHGREPLY_V7;
 	our_bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_VERIFY_OBJECT;
-	if (lp_parm_bool(tctx->lp_ctx, NULL, "dssync", "xpress", false)) {
+	if (lpcfg_parm_bool(tctx->lp_ctx, NULL, "dssync", "xpress", false)) {
 		our_bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_XPRESS_COMPRESS;
 	}
 	our_bind_info28->site_guid		= GUID_zero();
@@ -183,7 +195,7 @@ static bool _test_DsBind(struct torture_context *tctx,
 	bool ret = true;
 
 	status = dcerpc_pipe_connect_b(ctx,
-				       &b->pipe, ctx->drsuapi_binding, 
+				       &b->drs_pipe, ctx->drsuapi_binding,
 				       &ndr_table_drsuapi,
 				       credentials, tctx->ev, tctx->lp_ctx);
 	
@@ -191,13 +203,11 @@ static bool _test_DsBind(struct torture_context *tctx,
 		printf("Failed to connect to server as a BDC: %s\n", nt_errstr(status));
 		return false;
 	}
+	b->drs_handle = b->drs_pipe->binding_handle;
 
-	status = dcerpc_drsuapi_DsBind(b->pipe, ctx, &b->req);
+	status = dcerpc_drsuapi_DsBind_r(b->drs_handle, ctx, &b->req);
 	if (!NT_STATUS_IS_OK(status)) {
 		const char *errstr = nt_errstr(status);
-		if (NT_STATUS_EQUAL(status, NT_STATUS_NET_WRITE_FAULT)) {
-			errstr = dcerpc_errstr(ctx, b->pipe->last_fault_code);
-		}
 		printf("dcerpc_drsuapi_DsBind failed - %s\n", errstr);
 		ret = false;
 	} else if (!W_ERROR_IS_OK(b->req.out.result)) {
@@ -241,25 +251,48 @@ static bool _test_DsBind(struct torture_context *tctx,
 static bool test_LDAPBind(struct torture_context *tctx, struct DsSyncTest *ctx, 
 			  struct cli_credentials *credentials, struct DsSyncLDAPInfo *l)
 {
-	NTSTATUS status;
 	bool ret = true;
 
-	status = torture_ldap_connection(tctx, &l->conn, ctx->ldap_url);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf("failed to connect to LDAP: %s\n", ctx->ldap_url);
+	struct ldb_context *ldb;
+
+	const char *modules_option[] = { "modules:paged_searches", NULL };
+	ctx->admin.ldap.ldb = ldb = ldb_init(ctx, tctx->ev);
+	if (ldb == NULL) {
 		return false;
 	}
 
+	/* Despite us loading the schema from the AD server, we need
+	 * the samba handlers to get the extended DN syntax stuff */
+	ret = ldb_register_samba_handlers(ldb);
+	if (ret == -1) {
+		talloc_free(ldb);
+		return NULL;
+	}
+
+	ldb_set_modules_dir(ldb,
+			    talloc_asprintf(ldb,
+					    "%s/ldb",
+					    lpcfg_modulesdir(tctx->lp_ctx)));
+
+	if (ldb_set_opaque(ldb, "credentials", credentials)) {
+		talloc_free(ldb);
+		return NULL;
+	}
+
+	if (ldb_set_opaque(ldb, "loadparm", tctx->lp_ctx)) {
+		talloc_free(ldb);
+		return NULL;
+	}
+
+	ret = ldb_connect(ldb, ctx->ldap_url, 0, modules_option);
+	if (ret != LDB_SUCCESS) {
+		talloc_free(ldb);
+		torture_assert_int_equal(tctx, ret, LDB_SUCCESS, "Failed to make LDB connection to target");
+	}
+	
 	printf("connected to LDAP: %s\n", ctx->ldap_url);
 
-	status = torture_ldap_bind_sasl(l->conn, credentials, tctx->lp_ctx);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf("failed to bind to LDAP:\n");
-		return false;
-	}
-	printf("bound to LDAP.\n");
-
-	return ret;
+	return true;
 }
 
 static bool test_GetInfo(struct torture_context *tctx, struct DsSyncTest *ctx)
@@ -268,13 +301,26 @@ static bool test_GetInfo(struct torture_context *tctx, struct DsSyncTest *ctx)
 	struct drsuapi_DsCrackNames r;
 	union drsuapi_DsNameRequest req;
 	union drsuapi_DsNameCtr ctr;
-	int32_t level_out = 0;
+	uint32_t level_out = 0;
 	struct drsuapi_DsNameString names[1];
 	bool ret = true;
 	struct cldap_socket *cldap;
 	struct cldap_netlogon search;
+	struct tsocket_address *dest_addr;
+	int ret2;
 
-	status = cldap_socket_init(ctx, NULL, NULL, NULL, &cldap);
+	ret2 = tsocket_address_inet_from_strings(tctx, "ip",
+						 ctx->dest_address,
+						 lpcfg_cldap_port(tctx->lp_ctx),
+						 &dest_addr);
+	if (ret2 != 0) {
+		printf("failed to create tsocket_address for '%s' port %u - %s\n",
+			ctx->drsuapi_binding->host, lpcfg_cldap_port(tctx->lp_ctx),
+			strerror(errno));
+		return false;
+	}
+
+	status = cldap_socket_init(ctx, NULL, NULL, dest_addr, &cldap);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("failed to setup cldap socket - %s\n",
 			nt_errstr(status));
@@ -291,17 +337,14 @@ static bool test_GetInfo(struct torture_context *tctx, struct DsSyncTest *ctx)
 	r.in.req->req1.format_flags	= DRSUAPI_DS_NAME_FLAG_NO_FLAGS;
 	r.in.req->req1.format_offered	= DRSUAPI_DS_NAME_FORMAT_NT4_ACCOUNT;
 	r.in.req->req1.format_desired	= DRSUAPI_DS_NAME_FORMAT_FQDN_1779;
-	names[0].str = talloc_asprintf(ctx, "%s\\", lp_workgroup(tctx->lp_ctx));
+	names[0].str = talloc_asprintf(ctx, "%s\\", lpcfg_workgroup(tctx->lp_ctx));
 
 	r.out.level_out			= &level_out;
 	r.out.ctr			= &ctr;
 
-	status = dcerpc_drsuapi_DsCrackNames(ctx->admin.drsuapi.pipe, ctx, &r);
+	status = dcerpc_drsuapi_DsCrackNames_r(ctx->admin.drsuapi.drs_handle, ctx, &r);
 	if (!NT_STATUS_IS_OK(status)) {
 		const char *errstr = nt_errstr(status);
-		if (NT_STATUS_EQUAL(status, NT_STATUS_NET_WRITE_FAULT)) {
-			errstr = dcerpc_errstr(ctx, ctx->admin.drsuapi.pipe->last_fault_code);
-		}
 		printf("dcerpc_drsuapi_DsCrackNames failed - %s\n", errstr);
 		return false;
 	} else if (!W_ERROR_IS_OK(r.out.result)) {
@@ -312,12 +355,12 @@ static bool test_GetInfo(struct torture_context *tctx, struct DsSyncTest *ctx)
 	ctx->domain_dn = r.out.ctr->ctr1->array[0].result_name;
 	
 	ZERO_STRUCT(search);
-	search.in.dest_address = ctx->drsuapi_binding->host;
-	search.in.dest_port = lp_cldap_port(tctx->lp_ctx);
+	search.in.dest_address = NULL;
+	search.in.dest_port = 0;
 	search.in.acct_control = -1;
 	search.in.version		= NETLOGON_NT_VERSION_5 | NETLOGON_NT_VERSION_5EX;
 	search.in.map_response = true;
-	status = cldap_netlogon(cldap, lp_iconv_convenience(tctx->lp_ctx), ctx, &search);
+	status = cldap_netlogon(cldap, ctx, &search);
 	if (!NT_STATUS_IS_OK(status)) {
 		const char *errstr = nt_errstr(status);
 		ctx->site_name = talloc_asprintf(ctx, "%s", "Default-First-Site-Name");
@@ -339,26 +382,241 @@ static bool test_GetInfo(struct torture_context *tctx, struct DsSyncTest *ctx)
 	return ret;
 }
 
-static void test_analyse_objects(struct torture_context *tctx, 
+static bool test_analyse_objects(struct torture_context *tctx, 
 				 struct DsSyncTest *ctx,
-				 const DATA_BLOB *gensec_skey,
-				 struct drsuapi_DsReplicaObjectListItemEx *cur)
+				 const char *partition, 
+				 const struct drsuapi_DsReplicaOIDMapping_Ctr *mapping_ctr,
+				 uint32_t object_count,
+				 const struct drsuapi_DsReplicaObjectListItemEx *first_object,
+				 const DATA_BLOB *gensec_skey)
 {
 	static uint32_t object_id;
 	const char *save_values_dir;
+	const struct drsuapi_DsReplicaObjectListItemEx *cur;
+	struct ldb_context *ldb = ctx->admin.ldap.ldb;
+	struct ldb_dn *deleted_dn;
+	WERROR status;
+	int i, j, ret;
+	struct dsdb_extended_replicated_objects *objs;
+	struct ldb_extended_dn_control *extended_dn_ctrl;
+	const char *err_msg;
+	
+	if (!dsdb_get_schema(ldb, NULL)) {
+		struct dsdb_schema *ldap_schema;
+		struct ldb_result *a_res;
+		struct ldb_result *c_res;
+		struct ldb_dn *schema_dn = ldb_get_schema_basedn(ldb);
+		ldap_schema = dsdb_new_schema(ctx);
+		if (!ldap_schema) {
+			return false;
+		}
+		status = dsdb_load_prefixmap_from_drsuapi(ldap_schema, mapping_ctr);
 
-	if (!lp_parm_bool(tctx->lp_ctx, NULL, "dssync", "print_pwd_blobs", false)) {
-		return;	
+		/*
+		 * load the attribute definitions
+		 */
+		ret = ldb_search(ldb, ldap_schema, &a_res,
+				 schema_dn, LDB_SCOPE_ONELEVEL, NULL,
+				 "(objectClass=attributeSchema)");
+		if (ret != LDB_SUCCESS) {
+			err_msg = talloc_asprintf(tctx,
+						  "failed to search attributeSchema objects: %s",
+						  ldb_errstring(ldb));
+			torture_fail(tctx, err_msg);
+		}
+
+		/*
+		 * load the objectClass definitions
+		 */
+		ret = ldb_search(ldb, ldap_schema, &c_res,
+				 schema_dn, LDB_SCOPE_ONELEVEL, NULL,
+				 "(objectClass=classSchema)");
+		if (ret != LDB_SUCCESS) {
+			err_msg = talloc_asprintf(tctx,
+						  "failed to search classSchema objects: %s",
+						  ldb_errstring(ldb));
+			torture_fail(tctx, err_msg);
+		}
+
+		/* Build schema */
+		for (i=0; i < a_res->count; i++) {
+			status = dsdb_attribute_from_ldb(ldb, ldap_schema, a_res->msgs[i]);
+			torture_assert_werr_ok(tctx, status,
+					       talloc_asprintf(tctx,
+							       "dsdb_attribute_from_ldb() failed for: %s",
+							       ldb_dn_get_linearized(a_res->msgs[i]->dn)));
+		}
+		
+		for (i=0; i < c_res->count; i++) {
+			status = dsdb_class_from_ldb(ldap_schema, c_res->msgs[i]);
+			torture_assert_werr_ok(tctx, status,
+					       talloc_asprintf(tctx,
+							       "dsdb_class_from_ldb() failed for: %s",
+							       ldb_dn_get_linearized(c_res->msgs[i]->dn)));
+		}
+		talloc_free(a_res);
+		talloc_free(c_res);
+		ret = dsdb_set_schema(ldb, ldap_schema);
+		if (ret != LDB_SUCCESS) {
+			torture_fail(tctx,
+				     talloc_asprintf(tctx, "dsdb_set_schema() failed: %s", ldb_strerror(ret)));
+		}
 	}
 
-	save_values_dir = lp_parm_string(tctx->lp_ctx, NULL, "dssync", "save_pwd_blobs_dir");
+	status = dsdb_extended_replicated_objects_convert(ldb,
+							  partition,
+							  mapping_ctr,
+							  object_count,
+							  first_object,
+							  0, NULL, 
+							  NULL, NULL, 
+							  gensec_skey,
+							  ctx, &objs);
+	torture_assert_werr_ok(tctx, status, "dsdb_extended_replicated_objects_convert() failed!");
 
-	for (; cur; cur = cur->next_object) {
+	extended_dn_ctrl = talloc(objs, struct ldb_extended_dn_control);
+	extended_dn_ctrl->type = 1;
+
+	deleted_dn = ldb_dn_new(objs, ldb, partition);
+	ldb_dn_add_child_fmt(deleted_dn, "CN=Deleted Objects");
+		
+	for (i=0; i < object_count; i++) {
+		struct ldb_request *search_req;
+		struct ldb_result *res;
+		struct ldb_message *new_msg, *drs_msg, *ldap_msg;
+		const char **attrs = talloc_array(objs, const char *, objs->objects[i].msg->num_elements+1);
+		for (j=0; j < objs->objects[i].msg->num_elements; j++) {
+			attrs[j] = objs->objects[i].msg->elements[j].name;
+		}
+		attrs[j] = NULL;
+		res = talloc_zero(objs, struct ldb_result);
+		if (!res) {
+			return LDB_ERR_OPERATIONS_ERROR;
+		}
+		ret = ldb_build_search_req(&search_req, ldb, objs, 
+					   objs->objects[i].msg->dn,
+					   LDB_SCOPE_BASE,
+					   NULL,
+					   attrs,
+					   NULL,
+					   res,
+					   ldb_search_default_callback,
+					   NULL);
+		if (ret != LDB_SUCCESS) {
+			return false;
+		}
+		talloc_steal(search_req, res);
+		ret = ldb_request_add_control(search_req, LDB_CONTROL_SHOW_DELETED_OID, true, NULL);
+		if (ret != LDB_SUCCESS) {
+			return false;
+		}
+
+		ret = ldb_request_add_control(search_req, LDB_CONTROL_EXTENDED_DN_OID, true, extended_dn_ctrl);
+		if (ret != LDB_SUCCESS) {
+			return false;
+		}
+
+		ret = ldb_request(ldb, search_req);
+		if (ret == LDB_SUCCESS) {
+			ret = ldb_wait(search_req->handle, LDB_WAIT_ALL);
+		}
+
+		torture_assert_int_equal(tctx, ret, LDB_SUCCESS,
+					 talloc_asprintf(tctx,
+							 "Could not re-fetch object just delivered over DRS: %s",
+							 ldb_errstring(ldb)));
+		torture_assert_int_equal(tctx, res->count, 1, "Could not re-fetch object just delivered over DRS");
+		ldap_msg = res->msgs[0];
+		for (j=0; j < ldap_msg->num_elements; j++) {
+			ldap_msg->elements[j].flags = LDB_FLAG_MOD_ADD;
+			/* For unknown reasons, there is no nTSecurityDescriptor on cn=deleted objects over LDAP, but there is over DRS!  Skip it on both transports for now here so */
+			if ((ldb_attr_cmp(ldap_msg->elements[j].name, "nTSecurityDescriptor") == 0) && 
+			    (ldb_dn_compare(ldap_msg->dn, deleted_dn) == 0)) {
+				ldb_msg_remove_element(ldap_msg, &ldap_msg->elements[j]);
+				/* Don't skip one */
+				j--;
+			}
+		}
+
+		ret = ldb_msg_normalize(ldb, search_req,
+		                        objs->objects[i].msg, &drs_msg);
+		torture_assert(tctx, ret == LDB_SUCCESS,
+			       "ldb_msg_normalize() has failed");
+
+		for (j=0; j < drs_msg->num_elements; j++) {
+			if (drs_msg->elements[j].num_values == 0) {
+				ldb_msg_remove_element(drs_msg, &drs_msg->elements[j]);
+				/* Don't skip one */
+				j--;
+				
+				/* For unknown reasons, there is no nTSecurityDescriptor on cn=deleted objects over LDAP, but there is over DRS! */
+			} else if ((ldb_attr_cmp(drs_msg->elements[j].name, "nTSecurityDescriptor") == 0) && 
+				   (ldb_dn_compare(drs_msg->dn, deleted_dn) == 0)) {
+				ldb_msg_remove_element(drs_msg, &drs_msg->elements[j]);
+				/* Don't skip one */
+				j--;
+			} else if (ldb_attr_cmp(drs_msg->elements[j].name, "unicodePwd") == 0 ||
+				   ldb_attr_cmp(drs_msg->elements[j].name, "dBCSPwd") == 0 ||
+				   ldb_attr_cmp(drs_msg->elements[j].name, "ntPwdHistory") == 0 ||
+				   ldb_attr_cmp(drs_msg->elements[j].name, "lmPwdHistory") == 0 ||
+				   ldb_attr_cmp(drs_msg->elements[j].name, "supplementalCredentials") == 0 ||
+				   ldb_attr_cmp(drs_msg->elements[j].name, "priorValue") == 0 ||
+				   ldb_attr_cmp(drs_msg->elements[j].name, "currentValue") == 0 ||
+				   ldb_attr_cmp(drs_msg->elements[j].name, "trustAuthOutgoing") == 0 ||
+				   ldb_attr_cmp(drs_msg->elements[j].name, "trustAuthIncoming") == 0 ||
+				   ldb_attr_cmp(drs_msg->elements[j].name, "initialAuthOutgoing") == 0 ||
+				   ldb_attr_cmp(drs_msg->elements[j].name, "initialAuthIncoming") == 0) {
+
+				/* These are not shown over LDAP, so we need to skip them for the comparison */
+				ldb_msg_remove_element(drs_msg, &drs_msg->elements[j]);
+				/* Don't skip one */
+				j--;
+			} else {
+				drs_msg->elements[j].flags = LDB_FLAG_MOD_ADD;
+			}
+		}
+		
+		
+		ret = ldb_msg_difference(ldb, search_req,
+		                         drs_msg, ldap_msg, &new_msg);
+		torture_assert(tctx, ret == LDB_SUCCESS, "ldb_msg_difference() has failed");
+		if (new_msg->num_elements != 0) {
+			char *s;
+			struct ldb_ldif ldif;
+			ldif.changetype = LDB_CHANGETYPE_MODIFY;
+			ldif.msg = new_msg;
+			s = ldb_ldif_write_string(ldb, new_msg, &ldif);
+			s = talloc_asprintf(tctx, "\n# Difference in between DRS and LDAP objects: \n%s\n", s);
+
+			ret = ldb_msg_difference(ldb, search_req,
+			                         ldap_msg, drs_msg, &ldif.msg);
+			torture_assert(tctx, ret == LDB_SUCCESS, "ldb_msg_difference() has failed");
+			s = talloc_asprintf_append(s,
+						   "\n# Difference in between LDAP and DRS objects: \n%s\n",
+						   ldb_ldif_write_string(ldb, new_msg, &ldif));
+
+			s = talloc_asprintf_append(s,
+						   "# Should have no objects in 'difference' message. Diff elements: %d",
+						   new_msg->num_elements);
+			torture_fail(tctx, s);
+		}
+
+		/* search_req is used as a tmp talloc context in the above */
+		talloc_free(search_req);
+	}
+
+	if (!lpcfg_parm_bool(tctx->lp_ctx, NULL, "dssync", "print_pwd_blobs", false)) {
+		talloc_free(objs);
+		return true;	
+	}
+
+	save_values_dir = lpcfg_parm_string(tctx->lp_ctx, NULL, "dssync", "save_pwd_blobs_dir");
+
+	for (cur = first_object; cur; cur = cur->next_object) {
 		const char *dn;
 		struct dom_sid *sid = NULL;
 		uint32_t rid = 0;
 		bool dn_printed = false;
-		uint32_t i;
 
 		if (!cur->object.identifier) continue;
 
@@ -473,8 +731,7 @@ static void test_analyse_objects(struct torture_context *tctx,
 				if (pull_fn) {
 					/* Can't use '_all' because of PIDL bugs with relative pointers */
 					ndr_err = ndr_pull_struct_blob(&plain_data, ptr,
-								       lp_iconv_convenience(tctx->lp_ctx), ptr,
-								       pull_fn);
+								       ptr, pull_fn);
 					if (NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 						ndr_print_debug(print_fn, name, ptr);
 					} else {
@@ -487,6 +744,8 @@ static void test_analyse_objects(struct torture_context *tctx,
 			talloc_free(ptr);
 		}
 	}
+	talloc_free(objs);
+	return true;
 }
 
 static bool test_FetchData(struct torture_context *tctx, struct DsSyncTest *ctx)
@@ -501,12 +760,12 @@ static bool test_FetchData(struct torture_context *tctx, struct DsSyncTest *ctx)
 	struct drsuapi_DsReplicaObjectIdentifier nc;
 	struct drsuapi_DsGetNCChangesCtr1 *ctr1 = NULL;
 	struct drsuapi_DsGetNCChangesCtr6 *ctr6 = NULL;
-	int32_t out_level = 0;
+	uint32_t out_level = 0;
 	struct GUID null_guid;
 	struct dom_sid null_sid;
 	DATA_BLOB gensec_skey;
 	struct {
-		int32_t level;
+		uint32_t level;
 	} array[] = {
 /*		{
 			5
@@ -519,24 +778,24 @@ static bool test_FetchData(struct torture_context *tctx, struct DsSyncTest *ctx)
 	ZERO_STRUCT(null_guid);
 	ZERO_STRUCT(null_sid);
 
-	partition = lp_parm_string(tctx->lp_ctx, NULL, "dssync", "partition");
+	partition = lpcfg_parm_string(tctx->lp_ctx, NULL, "dssync", "partition");
 	if (partition == NULL) {
 		partition = ctx->domain_dn;
 		printf("dssync:partition not specified, defaulting to %s.\n", ctx->domain_dn);
 	}
 
-	highest_usn = lp_parm_int(tctx->lp_ctx, NULL, "dssync", "highest_usn", 0);
+	highest_usn = lpcfg_parm_int(tctx->lp_ctx, NULL, "dssync", "highest_usn", 0);
 
-	array[0].level = lp_parm_int(tctx->lp_ctx, NULL, "dssync", "get_nc_changes_level", array[0].level);
+	array[0].level = lpcfg_parm_int(tctx->lp_ctx, NULL, "dssync", "get_nc_changes_level", array[0].level);
 
-	if (lp_parm_bool(tctx->lp_ctx, NULL, "dssync", "print_pwd_blobs", false)) {
+	if (lpcfg_parm_bool(tctx->lp_ctx, NULL, "dssync", "print_pwd_blobs", false)) {
 		const struct samr_Password *nthash;
 		nthash = cli_credentials_get_nt_hash(ctx->new_dc.credentials, ctx);
 		if (nthash) {
 			dump_data_pw("CREDENTIALS nthash:", nthash->hash, sizeof(nthash->hash));
 		}
 	}
-	status = gensec_session_key(ctx->new_dc.drsuapi.pipe->conn->security_state.generic_state,
+	status = gensec_session_key(ctx->new_dc.drsuapi.drs_pipe->conn->security_state.generic_state,
 				    &gensec_skey);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("failed to get gensec session key: %s\n", nt_errstr(status));
@@ -544,7 +803,7 @@ static bool test_FetchData(struct torture_context *tctx, struct DsSyncTest *ctx)
 	}
 
 	for (i=0; i < ARRAY_SIZE(array); i++) {
-		printf("testing DsGetNCChanges level %d\n",
+		printf("Testing DsGetNCChanges level %d\n",
 			array[i].level);
 
 		r.in.bind_handle	= &ctx->new_dc.drsuapi.bind_handle;
@@ -565,16 +824,16 @@ static bool test_FetchData(struct torture_context *tctx, struct DsSyncTest *ctx)
 			r.in.req->req5.highwatermark.highest_usn	= highest_usn;
 			r.in.req->req5.uptodateness_vector		= NULL;
 			r.in.req->req5.replica_flags			= 0;
-			if (lp_parm_bool(tctx->lp_ctx, NULL, "dssync", "compression", false)) {
-				r.in.req->req5.replica_flags		|= DRSUAPI_DS_REPLICA_NEIGHBOUR_COMPRESS_CHANGES;
+			if (lpcfg_parm_bool(tctx->lp_ctx, NULL, "dssync", "compression", false)) {
+				r.in.req->req5.replica_flags		|= DRSUAPI_DRS_USE_COMPRESSION;
 			}
-			if (lp_parm_bool(tctx->lp_ctx, NULL, "dssync", "neighbour_writeable", true)) {
-				r.in.req->req5.replica_flags		|= DRSUAPI_DS_REPLICA_NEIGHBOUR_WRITEABLE;
+			if (lpcfg_parm_bool(tctx->lp_ctx, NULL, "dssync", "neighbour_writeable", true)) {
+				r.in.req->req5.replica_flags		|= DRSUAPI_DRS_WRIT_REP;
 			}
-			r.in.req->req5.replica_flags			|= DRSUAPI_DS_REPLICA_NEIGHBOUR_SYNC_ON_STARTUP
-									| DRSUAPI_DS_REPLICA_NEIGHBOUR_DO_SCHEDULED_SYNCS
-									| DRSUAPI_DS_REPLICA_NEIGHBOUR_RETURN_OBJECT_PARENTS
-									| DRSUAPI_DS_REPLICA_NEIGHBOUR_NEVER_SYNCED
+			r.in.req->req5.replica_flags			|= DRSUAPI_DRS_INIT_SYNC
+									| DRSUAPI_DRS_PER_SYNC
+									| DRSUAPI_DRS_GET_ANC
+									| DRSUAPI_DRS_NEVER_SYNCED
 									;
 			r.in.req->req5.max_object_count			= 133;
 			r.in.req->req5.max_ndr_size			= 1336770;
@@ -597,16 +856,16 @@ static bool test_FetchData(struct torture_context *tctx, struct DsSyncTest *ctx)
 			r.in.req->req8.highwatermark.highest_usn	= highest_usn;
 			r.in.req->req8.uptodateness_vector		= NULL;
 			r.in.req->req8.replica_flags			= 0;
-			if (lp_parm_bool(tctx->lp_ctx, NULL, "dssync", "compression", false)) {
-				r.in.req->req8.replica_flags		|= DRSUAPI_DS_REPLICA_NEIGHBOUR_COMPRESS_CHANGES;
+			if (lpcfg_parm_bool(tctx->lp_ctx, NULL, "dssync", "compression", false)) {
+				r.in.req->req8.replica_flags		|= DRSUAPI_DRS_USE_COMPRESSION;
 			}
-			if (lp_parm_bool(tctx->lp_ctx, NULL, "dssync", "neighbour_writeable", true)) {
-				r.in.req->req8.replica_flags		|= DRSUAPI_DS_REPLICA_NEIGHBOUR_WRITEABLE;
+			if (lpcfg_parm_bool(tctx->lp_ctx, NULL, "dssync", "neighbour_writeable", true)) {
+				r.in.req->req8.replica_flags		|= DRSUAPI_DRS_WRIT_REP;
 			}
-			r.in.req->req8.replica_flags			|= DRSUAPI_DS_REPLICA_NEIGHBOUR_SYNC_ON_STARTUP
-									| DRSUAPI_DS_REPLICA_NEIGHBOUR_DO_SCHEDULED_SYNCS
-									| DRSUAPI_DS_REPLICA_NEIGHBOUR_RETURN_OBJECT_PARENTS
-									| DRSUAPI_DS_REPLICA_NEIGHBOUR_NEVER_SYNCED
+			r.in.req->req8.replica_flags			|= DRSUAPI_DRS_INIT_SYNC
+									| DRSUAPI_DRS_PER_SYNC
+									| DRSUAPI_DRS_GET_ANC
+									| DRSUAPI_DRS_NEVER_SYNCED
 									;
 			r.in.req->req8.max_object_count			= 402;
 			r.in.req->req8.max_ndr_size			= 402116;
@@ -623,7 +882,7 @@ static bool test_FetchData(struct torture_context *tctx, struct DsSyncTest *ctx)
 		
 		printf("Dumping AD partition: %s\n", nc.dn);
 		for (y=0; ;y++) {
-			int32_t _level = 0;
+			uint32_t _level = 0;
 			union drsuapi_DsGetNCChangesCtr ctr;
 
 			ZERO_STRUCT(r.out);
@@ -632,29 +891,24 @@ static bool test_FetchData(struct torture_context *tctx, struct DsSyncTest *ctx)
 			r.out.ctr	= &ctr;
 
 			if (r.in.level == 5) {
-				DEBUG(0,("start[%d] tmp_higest_usn: %llu , highest_usn: %llu\n",y,
-					(long long)r.in.req->req5.highwatermark.tmp_highest_usn,
-					(long long)r.in.req->req5.highwatermark.highest_usn));
+				torture_comment(tctx,
+						"start[%d] tmp_higest_usn: %llu , highest_usn: %llu\n",
+						y,
+						r.in.req->req5.highwatermark.tmp_highest_usn,
+						r.in.req->req5.highwatermark.highest_usn);
 			}
 
 			if (r.in.level == 8) {
-				DEBUG(0,("start[%d] tmp_higest_usn: %llu , highest_usn: %llu\n",y,
-					(long long)r.in.req->req8.highwatermark.tmp_highest_usn,
-					(long long)r.in.req->req8.highwatermark.highest_usn));
+				torture_comment(tctx,
+						"start[%d] tmp_higest_usn: %llu , highest_usn: %llu\n",
+						y,
+						r.in.req->req8.highwatermark.tmp_highest_usn,
+						r.in.req->req8.highwatermark.highest_usn);
 			}
 
-			status = dcerpc_drsuapi_DsGetNCChanges(ctx->new_dc.drsuapi.pipe, ctx, &r);
-			if (!NT_STATUS_IS_OK(status)) {
-				const char *errstr = nt_errstr(status);
-				if (NT_STATUS_EQUAL(status, NT_STATUS_NET_WRITE_FAULT)) {
-					errstr = dcerpc_errstr(ctx, ctx->new_dc.drsuapi.pipe->last_fault_code);
-				}
-				printf("dcerpc_drsuapi_DsGetNCChanges failed - %s\n", errstr);
-				ret = false;
-			} else if (!W_ERROR_IS_OK(r.out.result)) {
-				printf("DsGetNCChanges failed - %s\n", win_errstr(r.out.result));
-				ret = false;
-			}
+			status = dcerpc_drsuapi_DsGetNCChanges_r(ctx->new_dc.drsuapi.drs_handle, ctx, &r);
+			torture_drsuapi_assert_call(tctx, ctx->new_dc.drsuapi.drs_pipe, status,
+						    &r, "dcerpc_drsuapi_DsGetNCChanges");
 
 			if (ret == true && *r.out.level_out == 1) {
 				out_level = 1;
@@ -666,11 +920,16 @@ static bool test_FetchData(struct torture_context *tctx, struct DsSyncTest *ctx)
 			}
 
 			if (out_level == 1) {
-				DEBUG(0,("end[%d] tmp_highest_usn: %llu , highest_usn: %llu\n",y,
-					(long long)ctr1->new_highwatermark.tmp_highest_usn,
-					(long long)ctr1->new_highwatermark.highest_usn));
+				torture_comment(tctx,
+						"end[%d] tmp_highest_usn: %llu , highest_usn: %llu\n",
+						y,
+						ctr1->new_highwatermark.tmp_highest_usn,
+						ctr1->new_highwatermark.highest_usn);
 
-				test_analyse_objects(tctx, ctx, &gensec_skey, ctr1->first_object);
+				if (!test_analyse_objects(tctx, ctx, partition, &ctr1->mapping_ctr,  ctr1->object_count, 
+							  ctr1->first_object, &gensec_skey)) {
+					return false;
+				}
 
 				if (ctr1->more_data) {
 					r.in.req->req5.highwatermark = ctr1->new_highwatermark;
@@ -696,11 +955,16 @@ static bool test_FetchData(struct torture_context *tctx, struct DsSyncTest *ctx)
 			}
 
 			if (out_level == 6) {
-				DEBUG(0,("end[%d] tmp_highest_usn: %llu , highest_usn: %llu\n",y,
-					(long long)ctr6->new_highwatermark.tmp_highest_usn,
-					(long long)ctr6->new_highwatermark.highest_usn));
+				torture_comment(tctx,
+						"end[%d] tmp_highest_usn: %llu , highest_usn: %llu\n",
+						y,
+						ctr6->new_highwatermark.tmp_highest_usn,
+						ctr6->new_highwatermark.highest_usn);
 
-				test_analyse_objects(tctx, ctx, &gensec_skey, ctr6->first_object);
+				if (!test_analyse_objects(tctx, ctx, partition, &ctr6->mapping_ctr,  ctr6->object_count, 
+							  ctr6->first_object, &gensec_skey)) {
+					return false;
+				}
 
 				if (ctr6->more_data) {
 					r.in.req->req8.highwatermark = ctr6->new_highwatermark;
@@ -719,7 +983,6 @@ static bool test_FetchNT4Data(struct torture_context *tctx,
 			      struct DsSyncTest *ctx)
 {
 	NTSTATUS status;
-	bool ret = true;
 	struct drsuapi_DsGetNT4ChangeLog r;
 	union drsuapi_DsGetNT4ChangeLogRequest req;
 	union drsuapi_DsGetNT4ChangeLogInfo info;
@@ -738,75 +1001,126 @@ static bool test_FetchNT4Data(struct torture_context *tctx,
 	r.out.info		= &info;
 	r.out.level_out		= &level_out;
 
-	req.req1.unknown1	= lp_parm_int(tctx->lp_ctx, NULL, "dssync", "nt4-1", 3);
-	req.req1.unknown2	= lp_parm_int(tctx->lp_ctx, NULL, "dssync", "nt4-2", 0x00004000);
+	req.req1.flags = lpcfg_parm_int(tctx->lp_ctx, NULL,
+				     "dssync", "nt4changelog_flags",
+				     DRSUAPI_NT4_CHANGELOG_GET_CHANGELOG |
+				     DRSUAPI_NT4_CHANGELOG_GET_SERIAL_NUMBERS);
+	req.req1.preferred_maximum_length = lpcfg_parm_int(tctx->lp_ctx, NULL,
+					"dssync", "nt4changelog_preferred_len",
+					0x00004000);
 
 	while (1) {
-		req.req1.length	= cookie.length;
-		req.req1.data	= cookie.data;
+		req.req1.restart_length = cookie.length;
+		req.req1.restart_data = cookie.data;
 
 		r.in.req = &req;
 
-		status = dcerpc_drsuapi_DsGetNT4ChangeLog(ctx->new_dc.drsuapi.pipe, ctx, &r);
+		status = dcerpc_drsuapi_DsGetNT4ChangeLog_r(ctx->new_dc.drsuapi.drs_handle, ctx, &r);
 		if (NT_STATUS_EQUAL(status, NT_STATUS_NOT_IMPLEMENTED)) {
-			printf("DsGetNT4ChangeLog not supported by target server\n");
-			break;
+			torture_skip(tctx, "DsGetNT4ChangeLog not supported by target server");
 		} else if (!NT_STATUS_IS_OK(status)) {
 			const char *errstr = nt_errstr(status);
-			if (NT_STATUS_EQUAL(status, NT_STATUS_NET_WRITE_FAULT)) {
-				errstr = dcerpc_errstr(ctx, ctx->new_dc.drsuapi.pipe->last_fault_code);
+			if (NT_STATUS_EQUAL(status, NT_STATUS_RPC_PROCNUM_OUT_OF_RANGE)) {
+				torture_skip(tctx, "DsGetNT4ChangeLog not supported by target server");
 			}
-			printf("dcerpc_drsuapi_DsGetNT4ChangeLog failed - %s\n", errstr);
-			ret = false;
+			torture_fail(tctx,
+				     talloc_asprintf(tctx, "dcerpc_drsuapi_DsGetNT4ChangeLog failed - %s\n",
+						     errstr));
 		} else if (W_ERROR_EQUAL(r.out.result, WERR_INVALID_DOMAIN_ROLE)) {
-			printf("DsGetNT4ChangeLog not supported by target server\n");
-			break;
+			torture_skip(tctx, "DsGetNT4ChangeLog not supported by target server");
 		} else if (!W_ERROR_IS_OK(r.out.result)) {
-			printf("DsGetNT4ChangeLog failed - %s\n", win_errstr(r.out.result));
-			ret = false;
+			torture_fail(tctx,
+				     talloc_asprintf(tctx, "DsGetNT4ChangeLog failed - %s\n",
+						     win_errstr(r.out.result)));
 		} else if (*r.out.level_out != 1) {
-			printf("DsGetNT4ChangeLog unknown level - %u\n", *r.out.level_out);
-			ret = false;
+			torture_fail(tctx,
+				     talloc_asprintf(tctx, "DsGetNT4ChangeLog unknown level - %u\n",
+						     *r.out.level_out));
 		} else if (NT_STATUS_IS_OK(r.out.info->info1.status)) {
 		} else if (NT_STATUS_EQUAL(r.out.info->info1.status, STATUS_MORE_ENTRIES)) {
-			cookie.length	= r.out.info->info1.length1;
-			cookie.data	= r.out.info->info1.data1;
+			cookie.length	= r.out.info->info1.restart_length;
+			cookie.data	= r.out.info->info1.restart_data;
 			continue;
 		} else {
-			printf("DsGetNT4ChangeLog failed - %s\n", nt_errstr(r.out.info->info1.status));
-			ret = false;
+			torture_fail(tctx,
+				     talloc_asprintf(tctx, "DsGetNT4ChangeLog failed - %s\n",
+						     nt_errstr(r.out.info->info1.status)));
 		}
 
 		break;
 	}
 
-	return ret;
+	return true;
 }
 
-bool torture_rpc_dssync(struct torture_context *torture)
+/**
+ * DSSYNC test case setup
+ */
+static bool torture_dssync_tcase_setup(struct torture_context *tctx, void **data)
 {
-	bool ret = true;
-	TALLOC_CTX *mem_ctx;
+	bool bret;
 	struct DsSyncTest *ctx;
-	
-	mem_ctx = talloc_init("torture_rpc_dssync");
-	ctx = test_create_context(torture);
-	
-	ret &= _test_DsBind(torture, ctx, ctx->admin.credentials, &ctx->admin.drsuapi);
-	if (!ret) {
-		return ret;
-	}
-	ret &= test_LDAPBind(torture, ctx, ctx->admin.credentials, &ctx->admin.ldap);
-	if (!ret) {
-		return ret;
-	}
-	ret &= test_GetInfo(torture, ctx);
-	ret &= _test_DsBind(torture, ctx, ctx->new_dc.credentials, &ctx->new_dc.drsuapi);
-	if (!ret) {
-		return ret;
-	}
-	ret &= test_FetchData(torture, ctx);
-	ret &= test_FetchNT4Data(torture, ctx);
 
-	return ret;
+	*data = ctx = test_create_context(tctx);
+	torture_assert(tctx, ctx, "test_create_context() failed");
+
+	bret = _test_DsBind(tctx, ctx, ctx->admin.credentials, &ctx->admin.drsuapi);
+	torture_assert(tctx, bret, "_test_DsBind() failed");
+
+	bret = test_LDAPBind(tctx, ctx, ctx->admin.credentials, &ctx->admin.ldap);
+	torture_assert(tctx, bret, "test_LDAPBind() failed");
+
+	bret = test_GetInfo(tctx, ctx);
+	torture_assert(tctx, bret, "test_GetInfo() failed");
+
+	bret = _test_DsBind(tctx, ctx, ctx->new_dc.credentials, &ctx->new_dc.drsuapi);
+	torture_assert(tctx, bret, "_test_DsBind() failed");
+
+	return true;
 }
+
+/**
+ * DSSYNC test case cleanup
+ */
+static bool torture_dssync_tcase_teardown(struct torture_context *tctx, void *data)
+{
+	struct DsSyncTest *ctx;
+	struct drsuapi_DsUnbind r;
+	struct policy_handle bind_handle;
+
+	ctx = talloc_get_type(data, struct DsSyncTest);
+
+	ZERO_STRUCT(r);
+	r.out.bind_handle = &bind_handle;
+
+	/* Unbing admin handle */
+	r.in.bind_handle = &ctx->admin.drsuapi.bind_handle;
+	dcerpc_drsuapi_DsUnbind_r(ctx->admin.drsuapi.drs_handle, ctx, &r);
+
+	/* Unbing new_dc handle */
+	r.in.bind_handle = &ctx->new_dc.drsuapi.bind_handle;
+	dcerpc_drsuapi_DsUnbind_r(ctx->new_dc.drsuapi.drs_handle, ctx, &r);
+
+	talloc_free(ctx);
+
+	return true;
+}
+
+/**
+ * DSSYNC test case implementation
+ */
+void torture_drs_rpc_dssync_tcase(struct torture_suite *suite)
+{
+	typedef bool (*run_func) (struct torture_context *test, void *tcase_data);
+
+	struct torture_test *test;
+	struct torture_tcase *tcase = torture_suite_add_tcase(suite, "DSSYNC");
+
+	torture_tcase_set_fixture(tcase,
+				  torture_dssync_tcase_setup,
+				  torture_dssync_tcase_teardown);
+
+	test = torture_tcase_add_simple_test(tcase, "DC_FetchData", (run_func)test_FetchData);
+	test = torture_tcase_add_simple_test(tcase, "FetchNT4Data", (run_func)test_FetchNT4Data);
+}
+

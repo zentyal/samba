@@ -51,8 +51,9 @@ int main(int argc, const char **argv)
 	int ret;
 	struct ldb_cmdline *options;
 	struct ldb_dn *dn1, *dn2;
+	TALLOC_CTX *mem_ctx = talloc_new(NULL);
 
-	ldb = ldb_init(NULL, NULL);
+	ldb = ldb_init(mem_ctx, NULL);
 
 	options = ldb_cmdline_process(ldb, argc, argv, usage);
 
@@ -63,15 +64,6 @@ int main(int argc, const char **argv)
 	dn1 = ldb_dn_new(ldb, ldb, options->argv[0]);
 	dn2 = ldb_dn_new(ldb, ldb, options->argv[1]);
 
-	if ( ! ldb_dn_validate(dn1)) {
-		printf("Invalid DN1: %s\n", options->argv[0]);
-		return -1;
-	}
-	if ( ! ldb_dn_validate(dn2)) {
-		printf("Invalid DN2: %s\n", options->argv[1]);
-		return -1;
-	}
-
 	ret = ldb_rename(ldb, dn1, dn2);
 	if (ret == 0) {
 		printf("Renamed 1 record\n");
@@ -80,7 +72,7 @@ int main(int argc, const char **argv)
 			options->argv[0], options->argv[1], ldb_errstring(ldb));
 	}
 
-	talloc_free(ldb);
+	talloc_free(mem_ctx);
 	
 	return ret;
 }

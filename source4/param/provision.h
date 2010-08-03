@@ -48,7 +48,6 @@ struct provision_store_self_join_settings {
 	const char *domain_name;
 	const char *realm;
 	const char *netbios_name;
-	const char *account_name;
 	enum netr_SchannelType secure_channel_type;
 	const char *machine_password;
 	int key_version_number;
@@ -63,5 +62,8 @@ NTSTATUS provision_store_self_join(TALLOC_CTX *mem_ctx, struct loadparm_context 
 				   struct tevent_context *ev_ctx,
 				   struct provision_store_self_join_settings *settings,
 				   const char **error_string);
+
+struct ldb_context *provision_get_schema(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx,
+					 DATA_BLOB *override_prefixmap);
 
 #endif /* _PROVISION_H_ */

@@ -19,6 +19,7 @@
 
 #include "includes.h"
 #include "nfs4_acls.h"
+#include "librpc/gen_ndr/ndr_security.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_ACLS
@@ -197,16 +198,16 @@ static int smbacl4_fGetFileOwner(files_struct *fsp, SMB_STRUCT_STAT *psbuf)
 }
 
 static bool smbacl4_nfs42win(TALLOC_CTX *mem_ctx, SMB4ACL_T *theacl, /* in */
-	DOM_SID *psid_owner, /* in */
-	DOM_SID *psid_group, /* in */
+	struct dom_sid *psid_owner, /* in */
+	struct dom_sid *psid_group, /* in */
 	bool is_directory, /* in */
-	SEC_ACE **ppnt_ace_list, /* out */
+	struct security_ace **ppnt_ace_list, /* out */
 	int *pgood_aces /* out */
 )
 {
 	SMB_ACL4_INT_T *aclint = (SMB_ACL4_INT_T *)theacl;
 	SMB_ACE4_INT_T *aceint;
-	SEC_ACE *nt_ace_list = NULL;
+	struct security_ace *nt_ace_list = NULL;
 	int good_aces = 0;
 
 	DEBUG(10, ("smbacl_nfs42win entered\n"));
@@ -214,7 +215,7 @@ static bool smbacl4_nfs42win(TALLOC_CTX *mem_ctx, SMB4ACL_T *theacl, /* in */
 	aclint = get_validated_aclint(theacl);
 	/* We do not check for naces being 0 or theacl being NULL here because it is done upstream */
 	/* in smb_get_nt_acl_nfs4(). */
-	nt_ace_list = (SEC_ACE *)TALLOC_ZERO_SIZE(mem_ctx, aclint->naces * sizeof(SEC_ACE));
+	nt_ace_list = (struct security_ace *)TALLOC_ZERO_SIZE(mem_ctx, aclint->naces * sizeof(struct security_ace));
 	if (nt_ace_list==NULL)
 	{
 		DEBUG(10, ("talloc error"));
@@ -224,7 +225,7 @@ static bool smbacl4_nfs42win(TALLOC_CTX *mem_ctx, SMB4ACL_T *theacl, /* in */
 
 	for (aceint=aclint->first; aceint!=NULL; aceint=(SMB_ACE4_INT_T *)aceint->next) {
 		uint32_t mask;
-		DOM_SID sid;
+		struct dom_sid sid;
 		SMB_ACE4PROP_T	*ace = &aceint->prop;
 		uint32_t mapped_ace_flags;
 
@@ -290,13 +291,13 @@ static bool smbacl4_nfs42win(TALLOC_CTX *mem_ctx, SMB4ACL_T *theacl, /* in */
 
 static NTSTATUS smb_get_nt_acl_nfs4_common(const SMB_STRUCT_STAT *sbuf,
 	uint32 security_info,
-	SEC_DESC **ppdesc, SMB4ACL_T *theacl)
+	struct security_descriptor **ppdesc, SMB4ACL_T *theacl)
 {
 	int	good_aces = 0;
-	DOM_SID sid_owner, sid_group;
+	struct dom_sid sid_owner, sid_group;
 	size_t sd_size = 0;
-	SEC_ACE *nt_ace_list = NULL;
-	SEC_ACL *psa = NULL;
+	struct security_ace *nt_ace_list = NULL;
+	struct security_acl *psa = NULL;
 	TALLOC_CTX *mem_ctx = talloc_tos();
 
 	if (theacl==NULL || smb_get_naces(theacl)==0)
@@ -321,9 +322,9 @@ static NTSTATUS smb_get_nt_acl_nfs4_common(const SMB_STRUCT_STAT *sbuf,
 	}
 
 	DEBUG(10,("after make sec_acl\n"));
-	*ppdesc = make_sec_desc(mem_ctx, SEC_DESC_REVISION, SEC_DESC_SELF_RELATIVE,
-	                        (security_info & OWNER_SECURITY_INFORMATION) ? &sid_owner : NULL,
-	                        (security_info & GROUP_SECURITY_INFORMATION) ? &sid_group : NULL,
+	*ppdesc = make_sec_desc(mem_ctx, SD_REVISION, SEC_DESC_SELF_RELATIVE,
+	                        (security_info & SECINFO_OWNER) ? &sid_owner : NULL,
+	                        (security_info & SECINFO_GROUP) ? &sid_group : NULL,
 	                        NULL, psa, &sd_size);
 	if (*ppdesc==NULL) {
 		DEBUG(2,("make_sec_desc failed\n"));
@@ -331,14 +332,14 @@ static NTSTATUS smb_get_nt_acl_nfs4_common(const SMB_STRUCT_STAT *sbuf,
 	}
 
 	DEBUG(10, ("smb_get_nt_acl_nfs4_common successfully exited with sd_size %d\n",
-		   (int)ndr_size_security_descriptor(*ppdesc, NULL, 0)));
+		   (int)ndr_size_security_descriptor(*ppdesc, 0)));
 
 	return NT_STATUS_OK;
 }
 
 NTSTATUS smb_fget_nt_acl_nfs4(files_struct *fsp,
 			       uint32 security_info,
-			       SEC_DESC **ppdesc, SMB4ACL_T *theacl)
+			       struct security_descriptor **ppdesc, SMB4ACL_T *theacl)
 {
 	SMB_STRUCT_STAT sbuf;
 
@@ -354,7 +355,7 @@ NTSTATUS smb_fget_nt_acl_nfs4(files_struct *fsp,
 NTSTATUS smb_get_nt_acl_nfs4(struct connection_struct *conn,
 			      const char *name,
 			      uint32 security_info,
-			      SEC_DESC **ppdesc, SMB4ACL_T *theacl)
+			      struct security_descriptor **ppdesc, SMB4ACL_T *theacl)
 {
 	SMB_STRUCT_STAT sbuf;
 
@@ -481,8 +482,8 @@ static SMB_ACE4PROP_T *smbacl4_find_equal_special(
 	return NULL;
 }
 
-static bool nfs4_map_sid(smbacl4_vfs_params *params, const DOM_SID *src,
-			 DOM_SID *dst)
+static bool nfs4_map_sid(smbacl4_vfs_params *params, const struct dom_sid *src,
+			 struct dom_sid *dst)
 {
 	static struct db_context *mapping_db = NULL;
 	TDB_DATA data;
@@ -543,7 +544,7 @@ static bool smbacl4_fill_ace4(
 	smbacl4_vfs_params *params,
 	uid_t ownerUID,
 	gid_t ownerGID,
-	const SEC_ACE *ace_nt, /* input */
+	const struct security_ace *ace_nt, /* input */
 	SMB_ACE4PROP_T *ace_v4 /* output */
 )
 {
@@ -553,7 +554,7 @@ static bool smbacl4_fill_ace4(
 	ace_v4->aceType = ace_nt->type; /* only ACCESS|DENY supported right now */
 	ace_v4->aceFlags = ace_nt->flags & SEC_ACE_FLAG_VALID_INHERIT;
 	ace_v4->aceMask = ace_nt->access_mask &
-		(STD_RIGHT_ALL_ACCESS | SA_RIGHT_FILE_ALL_ACCESS);
+		(SEC_STD_ALL | SEC_FILE_ALL);
 
 	se_map_generic(&ace_v4->aceMask, &file_generic_mapping);
 
@@ -573,13 +574,13 @@ static bool smbacl4_fill_ace4(
 		enum lsa_SidType type;
 		uid_t uid;
 		gid_t gid;
-		DOM_SID sid;
+		struct dom_sid sid;
 		
 		sid_copy(&sid, &ace_nt->trustee);
 		
 		if (!lookup_sid(mem_ctx, &sid, &dom, &name, &type)) {
 			
-			DOM_SID mapped;
+			struct dom_sid mapped;
 			
 			if (!nfs4_map_sid(params, &sid, &mapped)) {
 				DEBUG(1, ("nfs4_acls.c: file [%s]: SID %s "
@@ -675,7 +676,7 @@ static int smbacl4_MergeIgnoreReject(
 
 static SMB4ACL_T *smbacl4_win2nfs4(
 	const char *filename,
-	const SEC_ACL *dacl,
+	const struct security_acl *dacl,
 	smbacl4_vfs_params *pparams,
 	uid_t ownerUID,
 	gid_t ownerGID
@@ -719,7 +720,7 @@ static SMB4ACL_T *smbacl4_win2nfs4(
 
 NTSTATUS smb_set_nt_acl_nfs4(files_struct *fsp,
 	uint32 security_info_sent,
-	const SEC_DESC *psd,
+	const struct security_descriptor *psd,
 	set_nfs4acl_native_fn_t set_nfs4_native)
 {
 	smbacl4_vfs_params params;
@@ -734,8 +735,8 @@ NTSTATUS smb_set_nt_acl_nfs4(files_struct *fsp,
 
 	DEBUG(10, ("smb_set_nt_acl_nfs4 invoked for %s\n", fsp_str_dbg(fsp)));
 
-	if ((security_info_sent & (DACL_SECURITY_INFORMATION |
-		GROUP_SECURITY_INFORMATION | OWNER_SECURITY_INFORMATION)) == 0)
+	if ((security_info_sent & (SECINFO_DACL |
+		SECINFO_GROUP | SECINFO_OWNER)) == 0)
 	{
 		DEBUG(9, ("security_info_sent (0x%x) ignored\n",
 			security_info_sent));
@@ -751,7 +752,7 @@ NTSTATUS smb_set_nt_acl_nfs4(files_struct *fsp,
 
 	if (params.do_chown) {
 		/* chown logic is a copy/paste from posix_acl.c:set_nt_acl */
-		NTSTATUS status = unpack_nt_owners(SNUM(fsp->conn), &newUID, &newGID, security_info_sent, psd);
+		NTSTATUS status = unpack_nt_owners(fsp->conn, &newUID, &newGID, security_info_sent, psd);
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(8, ("unpack_nt_owners failed"));
 			return status;
@@ -784,7 +785,7 @@ NTSTATUS smb_set_nt_acl_nfs4(files_struct *fsp,
 		}
 	}
 
-	if (!(security_info_sent & DACL_SECURITY_INFORMATION) || psd->dacl ==NULL) {
+	if (!(security_info_sent & SECINFO_DACL) || psd->dacl ==NULL) {
 		DEBUG(10, ("no dacl found; security_info_sent = 0x%x\n", security_info_sent));
 		return NT_STATUS_OK;
 	}

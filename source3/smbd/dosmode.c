@@ -261,8 +261,16 @@ static bool get_ea_dos_attribute(connection_struct *conn,
 	blob.data = (uint8_t *)attrstr;
 	blob.length = sizeret;
 
-	ndr_err = ndr_pull_struct_blob(&blob, talloc_tos(), NULL, &dosattrib,
+	ndr_err = ndr_pull_struct_blob(&blob, talloc_tos(), &dosattrib,
 			(ndr_pull_flags_fn_t)ndr_pull_xattr_DOSATTRIB);
+
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		DEBUG(1,("get_ea_dos_attributes: bad ndr decode "
+			 "from EA on file %s: Error = %s\n",
+			 smb_fname_str_dbg(smb_fname),
+			 ndr_errstr(ndr_err)));
+		return false;
+	}
 
 	DEBUG(10,("get_ea_dos_attribute: %s attr = %s\n",
 		  smb_fname_str_dbg(smb_fname), dosattrib.attrib_hex));
@@ -364,8 +372,13 @@ static bool set_ea_dos_attribute(connection_struct *conn,
 	unix_timespec_to_nt_time(&dosattrib.info.info3.create_time,
 				smb_fname->st.st_ex_btime);
 
+	DEBUG(10,("set_ea_dos_attributes: set attribute 0x%x, btime = %s on file %s\n",
+		(unsigned int)dosmode,
+		time_to_asc(convert_timespec_to_time_t(smb_fname->st.st_ex_btime)),
+		smb_fname_str_dbg(smb_fname) ));
+
 	ndr_err = ndr_push_struct_blob(
-			&blob, talloc_tos(), NULL, &dosattrib,
+			&blob, talloc_tos(), &dosattrib,
 			(ndr_push_flags_fn_t)ndr_push_xattr_DOSATTRIB);
 
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {

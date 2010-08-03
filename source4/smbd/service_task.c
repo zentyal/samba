@@ -79,9 +79,8 @@ static void task_server_callback(struct tevent_context *event_ctx,
 	task->lp_ctx = lp_ctx;
 
 	task->msg_ctx = messaging_init(task, 
-				       lp_messaging_path(task, task->lp_ctx),
+				       lpcfg_messaging_path(task, task->lp_ctx),
 				       task->server_id, 
-				       lp_iconv_convenience(task->lp_ctx),
 				       task->event_ctx);
 	if (!task->msg_ctx) {
 		task_server_terminate(task, "messaging_init() failed", true);

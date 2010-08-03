@@ -23,15 +23,10 @@
 #include "libcli/ldap/ldap_client.h"
 #include "lib/cmdline/popt_common.h"
 #include "ldb_wrap.h"
-#include "lib/ldb/include/ldb.h"
-#include "lib/ldb/include/ldb_errors.h"
 #include "dsdb/samdb/samdb.h"
-#include "../lib/util/dlinklist.h"
 
 #include "torture/torture.h"
-#include "torture/ldap/proto.h"
 
-#include "librpc/ndr/libndr.h"
 #include "librpc/gen_ndr/ndr_drsblobs.h"
 
 #include "param/param.h"
@@ -70,7 +65,7 @@ static bool test_check_uptodatevector(struct torture_context *torture,
 	utdv_val1 = ldb_msg_find_ldb_val(r->msgs[0], "replUpToDateVector");
 	if (utdv_val1) {
 		ndr_err = ndr_pull_struct_blob_all(utdv_val1, torture, 
-						   lp_iconv_convenience(torture->lp_ctx), &utdv1,
+						   &utdv1,
 						   (ndr_pull_flags_fn_t)ndr_pull_replUpToDateVectorBlob);
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			return false;
@@ -116,7 +111,7 @@ static bool test_check_uptodatevector(struct torture_context *torture,
 		utdv_val = ldb_msg_find_ldb_val(r->msgs[0], "replUpToDateVector");
 		if (utdv_val) {
 			ndr_err = ndr_pull_struct_blob_all(utdv_val, torture, 
-							   lp_iconv_convenience(torture->lp_ctx), &utdv,
+							   &utdv,
 							   (ndr_pull_flags_fn_t)ndr_pull_replUpToDateVectorBlob);
 			if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 				return false;
@@ -164,12 +159,12 @@ bool torture_ldap_uptodatevector(struct torture_context *torture)
 	ldb = ldb_wrap_connect(torture, torture->ev, torture->lp_ctx, url,
 			       NULL,
 			       cmdline_credentials,
-			       0, NULL);
+			       0);
 	if (!ldb) goto failed;
 
-	ret &= test_check_uptodatevector(torture, ldb, samdb_base_dn(ldb));
-	ret &= test_check_uptodatevector(torture, ldb, samdb_config_dn(ldb));
-	ret &= test_check_uptodatevector(torture, ldb, samdb_schema_dn(ldb));
+	ret &= test_check_uptodatevector(torture, ldb, ldb_get_default_basedn(ldb));
+	ret &= test_check_uptodatevector(torture, ldb, ldb_get_config_basedn(ldb));
+	ret &= test_check_uptodatevector(torture, ldb, ldb_get_schema_basedn(ldb));
 
 	return ret;
 failed:

@@ -67,7 +67,7 @@ struct machine_acct_pass {
  */
 struct trustdom_info {
 	char *name;
-	DOM_SID sid;
+	struct dom_sid sid;
 };
 
 /*
@@ -87,7 +87,5 @@ struct afs_keyfile {
 };
 
 #define SECRETS_AFS_KEYFILE "SECRETS/AFS_KEYFILE"
-
-#define SECRETS_SCHANNEL_STATE "SECRETS/SCHANNEL"
 
 #endif /* _SECRETS_H */

@@ -121,19 +121,20 @@
 #attributeSyntax: 2.5.5.4
 #oMSyntax: 20
 
-dn: cn=privilege,${SCHEMADN}
-objectClass: top
-objectClass: attributeSchema
-cn: privilege
-lDAPDisplayName: privilege
-isSingleValued: FALSE
-systemFlags: 17
-systemOnly: TRUE
-schemaIDGUID: 7429BC94-CC6A-4481-8B2C-A97E316EB182
-adminDisplayName: Privilege
-attributeID: 1.3.6.1.4.1.7165.4.1.7
-attributeSyntax: 2.5.5.4
-oMSyntax: 20
+# not used anymore
+#dn: cn=privilege,${SCHEMADN}
+#objectClass: top
+#objectClass: attributeSchema
+#cn: privilege
+#lDAPDisplayName: privilege
+#isSingleValued: FALSE
+#systemFlags: 17
+#systemOnly: TRUE
+#schemaIDGUID: 7429BC94-CC6A-4481-8B2C-A97E316EB182
+#adminDisplayName: Privilege
+#attributeID: 1.3.6.1.4.1.7165.4.1.7
+#attributeSyntax: 2.5.5.4
+#oMSyntax: 20
 
 #
 # Not used anymore
@@ -171,15 +172,28 @@ oMSyntax: 20
 #attributeSyntax: 2.5.5.10
 #oMSyntax: 4
 
+# Controls 1.3.6.1.4.1.7165.4.3.x
 #Allocated: (not used anymore) DSDB_CONTROL_REPLICATED_OBJECT_OID 1.3.6.1.4.1.7165.4.3.1
-
 #Allocated: DSDB_CONTROL_CURRENT_PARTITION_OID 1.3.6.1.4.1.7165.4.3.2
-
 #Allocated: DSDB_CONTROL_REPLICATED_UPDATE_OID 1.3.6.1.4.1.7165.4.3.3
+#Allocated: DSDB_CONTROL_DN_STORAGE_FORMAT_OID 1.3.6.1.4.1.7165.4.3.4
+#Allocated: LDB_CONTROL_RECALCULATE_SD_OID 1.3.6.1.4.1.7165.4.3.5
+#Allocated: LDB_CONTROL_REVEAL_INTERNALS 1.3.6.1.4.1.7165.4.3.6
+#Allocated: LDB_CONTROL_AS_SYSTEM_OID 1.3.6.1.4.1.7165.4.3.7
+#Allocated: DSDB_CONTROL_PASSWORD_CHANGE_STATUS_OID 1.3.6.1.4.1.7165.4.3.8
+#Allocated: DSDB_CONTROL_PASSWORD_HASH_VALUES_OID 1.3.6.1.4.1.7165.4.3.9
+#Allocated: DSDB_CONTROL_PASSWORD_CHANGE_OLD_PW_CHECKED_OID 1.3.6.1.4.1.7165.4.3.10
+#Allocated: DSDB_CONTROL_APPLY_LINKS 1.3.6.1.4.1.7165.4.3.11
+#Allocated: DSDB_CONTROL_BYPASS_PASSWORD_HASH_OID 1.3.6.1.4.1.7165.4.3.12
+#Allocated: LDB_CONTROL_BYPASSOPERATIONAL_OID 1.3.6.1.4.1.7165.4.3.13
+#Allocated: DSDB_CONTROL_CHANGEREPLMETADATA_OID 1.3.6.1.4.1.7165.4.3.14
 
+# Extended 1.3.6.1.4.1.7165.4.4.x
 #Allocated: DSDB_EXTENDED_REPLICATED_OBJECTS_OID 1.3.6.1.4.1.7165.4.4.1
 #Allocated: DSDB_EXTENDED_SCHEMA_UPDATE_NOW_OID 1.3.6.1.4.1.7165.4.4.2
 #Allocated: LDB_EXTENDED_SEQUENCE_NUMBER 1.3.6.1.4.1.7165.4.4.3
+#Allocated: DSDB_EXTENDED_CREATE_PARTITION_OID 1.3.6.1.4.1.7165.4.4.4
+#Allocated: DSDB_EXTENDED_ALLOCATE_RID_POOL 1.3.6.1.4.1.7165.4.4.5
 
 #Allocated: (middleName) attributeID: 1.3.6.1.4.1.7165.4.255.1
 
@@ -193,30 +207,36 @@ oMSyntax: 20
 #Allocated: (dynamicObject) samba4DynamicObject: 1.3.6.1.4.1.7165.4.255.8
 #Allocated: (entryTTL) samba4EntryTTL: 1.3.6.1.4.1.7165.4.255.9
 
+#Allocated: (thumbnailPhoto) attributeID: 1.3.6.1.4.1.7165.4.255.10
+#Allocated: (thumbnailLogo) attributeID: 1.3.6.1.4.1.7165.4.255.11
+
 #
 # Based on domainDNS, but without the DNS bits.
 #
 
-dn: CN=Samba4-Local-Domain,${SCHEMADN}
-objectClass: top
-objectClass: classSchema
-cn: Samba4-Local-Domain
-subClassOf: top
-governsID: 1.3.6.1.4.1.7165.4.2.2
-rDNAttID: cn
-adminDisplayName: Samba4-Local-Domain
-adminDescription: Samba4-Local-Domain
-systemMayContain: msDS-Behavior-Version
-systemMayContain: managedBy
-objectClassCategory: 1
-lDAPDisplayName: samba4LocalDomain
-schemaIDGUID: 07be1647-8310-4fba-91ae-34e55d5a8293
-systemOnly: FALSE
-systemAuxiliaryClass: samDomain
-defaultSecurityDescriptor: D:(A;;RPLCLORC;;;DA)(A;;RPWPCRCCDCLCLORCWOWDSDDTSW;;;SY)(A;;RPLCLORC;;;AU)
-systemFlags: 16
-defaultHidingValue: TRUE
-defaultObjectCategory: CN=Samba4-Local-Domain,${SCHEMADN}
+#
+# Not used anymore
+#
+#dn: CN=Samba4-Local-Domain,${SCHEMADN}
+#objectClass: top
+#objectClass: classSchema
+#cn: Samba4-Local-Domain
+#subClassOf: top
+#governsID: 1.3.6.1.4.1.7165.4.2.2
+#rDNAttID: cn
+#adminDisplayName: Samba4-Local-Domain
+#adminDescription: Samba4-Local-Domain
+#systemMayContain: msDS-Behavior-Version
+#systemMayContain: managedBy
+#objectClassCategory: 1
+#lDAPDisplayName: samba4LocalDomain
+#schemaIDGUID: 07be1647-8310-4fba-91ae-34e55d5a8293
+#systemOnly: FALSE
+#systemAuxiliaryClass: samDomain
+#defaultSecurityDescriptor: D:(A;;RPLCLORC;;;DA)(A;;RPWPCRCCDCLCLORCWOWDSDDTSW;;;SY)(A;;RPLCLORC;;;AU)
+#systemFlags: 16
+#defaultHidingValue: TRUE
+#defaultObjectCategory: CN=Samba4-Local-Domain,${SCHEMADN}
 
 
 dn: CN=Samba4Top,${SCHEMADN}
@@ -268,6 +288,7 @@ systemMayContain: netbootSCPBL
 systemMayContain: ownerBL
 systemMayContain: msDS-ReplValueMetaData
 systemMayContain: msDS-ReplAttributeMetaData
+systemMayContain: msDS-NcType
 systemMayContain: msDS-NonMembersBL
 systemMayContain: msDS-NCReplOutboundNeighbors
 systemMayContain: msDS-NCReplInboundNeighbors
@@ -313,32 +334,9 @@ systemMayContain: adminDescription
 systemMustContain: objectCategory
 systemMustContain: nTSecurityDescriptor
 systemMustContain: instanceType
-systemAuxiliaryClass: samba4TopExtra
 defaultSecurityDescriptor: D:(A;;RPWPCRCCDCLCLORCWOWDSDDTSW;;;DA)(A;;RPWPCRCCDCLCLORCWOWDSDDTSW;;;SY)(A;;RPLCLORC;;;AU)
 systemFlags: 16
 defaultHidingValue: TRUE
 objectCategory: CN=Class-Schema,${SCHEMADN}
 defaultObjectCategory: CN=Samba4Top,${SCHEMADN}
-
-
-dn: CN=Samba4TopExtra,${SCHEMADN}
-objectClass: top
-objectClass: classSchema
-cn: Samba4TopExtra
-subClassOf: top
-governsID: 1.3.6.1.4.1.7165.4.2.3
-rDNAttID: cn
-adminDisplayName: Samba4TopExtra
-adminDescription: Attributes used in top in Samba4 that OpenLDAP does not
-objectClassCategory: 2
-lDAPDisplayName: samba4TopExtra
-schemaIDGUID: 073598d0-635b-4685-a929-da731b98d84e
-systemOnly: TRUE
-mayContain: privilege
-systemPossSuperiors: lostAndFound
-defaultSecurityDescriptor: D:(A;;RPWPCRCCDCLCLORCWOWDSDDTSW;;;DA)(A;;RPWPCRCCDCLCLORCWOWDSDDTSW;;;SY)(A;;RPLCLORC;;;AU)
-systemFlags: 16
-defaultHidingValue: TRUE
-objectCategory: CN=Class-Schema,${SCHEMADN}
-defaultObjectCategory: CN=Samba4TopExtra,${SCHEMADN}
 

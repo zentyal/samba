@@ -21,17 +21,12 @@
 */
 
 #include "includes.h"
-#include "librpc/gen_ndr/ndr_dcerpc.h"
 #include "auth/auth.h"
 #include "auth/gensec/gensec.h"
 #include "../lib/util/dlinklist.h"
 #include "rpc_server/dcerpc_server.h"
 #include "rpc_server/dcerpc_server_proto.h"
 #include "librpc/rpc/dcerpc_proto.h"
-#include "lib/events/events.h"
-#include "smbd/service_task.h"
-#include "smbd/service_stream.h"
-#include "smbd/service.h"
 #include "system/filesys.h"
 #include "libcli/security/security.h"
 #include "param/param.h"
@@ -336,13 +331,10 @@ NTSTATUS dcesrv_inherited_session_key(struct dcesrv_connection *p,
 	return NT_STATUS_NO_USER_SESSION_KEY;
 }
 
-NTSTATUS dcesrv_generic_session_key(struct dcesrv_connection *p,
+NTSTATUS dcesrv_generic_session_key(struct dcesrv_connection *c,
 				    DATA_BLOB *session_key)
 {
-	/* this took quite a few CPU cycles to find ... */
-	session_key->data = discard_const_p(uint8_t, "SystemLibraryDTC");
-	session_key->length = 16;
-	return NT_STATUS_OK;
+	return dcerpc_generic_session_key(NULL, session_key);
 }
 
 /*
@@ -394,7 +386,7 @@ _PUBLIC_ NTSTATUS dcesrv_endpoint_connect(struct dcesrv_context *dce_ctx,
 	p->endpoint = ep;
 	p->contexts = NULL;
 	p->call_list = NULL;
-	p->packet_log_dir = lp_lockdir(dce_ctx->lp_ctx);
+	p->packet_log_dir = lpcfg_lockdir(dce_ctx->lp_ctx);
 	p->incoming_fragmented_call_list = NULL;
 	p->pending_call_list = NULL;
 	p->cli_max_recv_frag = 0;
@@ -476,7 +468,7 @@ static NTSTATUS dcesrv_fault(struct dcesrv_call_state *call, uint32_t fault_code
 	NTSTATUS status;
 
 	/* setup a bind_ack */
-	dcesrv_init_hdr(&pkt, lp_rpc_big_endian(call->conn->dce_ctx->lp_ctx));
+	dcesrv_init_hdr(&pkt, lpcfg_rpc_big_endian(call->conn->dce_ctx->lp_ctx));
 	pkt.auth_length = 0;
 	pkt.call_id = call->pkt.call_id;
 	pkt.ptype = DCERPC_PKT_FAULT;
@@ -494,7 +486,7 @@ static NTSTATUS dcesrv_fault(struct dcesrv_call_state *call, uint32_t fault_code
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	status = ncacn_push_auth(&rep->blob, call, lp_iconv_convenience(call->conn->dce_ctx->lp_ctx), &pkt, NULL);
+	status = ncacn_push_auth(&rep->blob, call, &pkt, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -524,7 +516,7 @@ static NTSTATUS dcesrv_bind_nak(struct dcesrv_call_state *call, uint32_t reason)
 	NTSTATUS status;
 
 	/* setup a bind_nak */
-	dcesrv_init_hdr(&pkt, lp_rpc_big_endian(call->conn->dce_ctx->lp_ctx));
+	dcesrv_init_hdr(&pkt, lpcfg_rpc_big_endian(call->conn->dce_ctx->lp_ctx));
 	pkt.auth_length = 0;
 	pkt.call_id = call->pkt.call_id;
 	pkt.ptype = DCERPC_PKT_BIND_NAK;
@@ -539,7 +531,7 @@ static NTSTATUS dcesrv_bind_nak(struct dcesrv_call_state *call, uint32_t reason)
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	status = ncacn_push_auth(&rep->blob, call, lp_iconv_convenience(call->conn->dce_ctx->lp_ctx), &pkt, NULL);
+	status = ncacn_push_auth(&rep->blob, call, &pkt, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -588,7 +580,7 @@ static NTSTATUS dcesrv_bind(struct dcesrv_call_state *call)
 	  if provided, check the assoc_group is valid
 	 */
 	if (call->pkt.u.bind.assoc_group_id != 0 &&
-	    lp_parm_bool(call->conn->dce_ctx->lp_ctx, NULL, "dcesrv","assoc group checking", true) &&
+	    lpcfg_parm_bool(call->conn->dce_ctx->lp_ctx, NULL, "dcesrv","assoc group checking", true) &&
 	    dcesrv_assoc_group_find(call->conn->dce_ctx, call->pkt.u.bind.assoc_group_id) == NULL) {
 		return dcesrv_bind_nak(call, 0);	
 	}
@@ -656,7 +648,7 @@ static NTSTATUS dcesrv_bind(struct dcesrv_call_state *call)
 		call->context = context;
 		talloc_set_destructor(context, dcesrv_connection_context_destructor);
 
-		status = iface->bind(call, iface);
+		status = iface->bind(call, iface, if_version);
 		if (!NT_STATUS_IS_OK(status)) {
 			char *uuid_str = GUID_string(call, &uuid);
 			DEBUG(2,("Request for dcerpc interface %s/%d rejected: %s\n",
@@ -675,7 +667,7 @@ static NTSTATUS dcesrv_bind(struct dcesrv_call_state *call)
 	}
 
 	if ((call->pkt.pfc_flags & DCERPC_PFC_FLAG_SUPPORT_HEADER_SIGN) &&
-	    lp_parm_bool(call->conn->dce_ctx->lp_ctx, NULL, "dcesrv","header signing", false)) {
+	    lpcfg_parm_bool(call->conn->dce_ctx->lp_ctx, NULL, "dcesrv","header signing", false)) {
 		call->conn->state_flags |= DCESRV_CALL_STATE_FLAG_HEADER_SIGNING;
 		extra_flags |= DCERPC_PFC_FLAG_SUPPORT_HEADER_SIGN;
 	}
@@ -688,7 +680,7 @@ static NTSTATUS dcesrv_bind(struct dcesrv_call_state *call)
 	}
 
 	/* setup a bind_ack */
-	dcesrv_init_hdr(&pkt, lp_rpc_big_endian(call->conn->dce_ctx->lp_ctx));
+	dcesrv_init_hdr(&pkt, lpcfg_rpc_big_endian(call->conn->dce_ctx->lp_ctx));
 	pkt.auth_length = 0;
 	pkt.call_id = call->pkt.call_id;
 	pkt.ptype = DCERPC_PKT_BIND_ACK;
@@ -740,7 +732,8 @@ static NTSTATUS dcesrv_bind(struct dcesrv_call_state *call)
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	status = ncacn_push_auth(&rep->blob, call, lp_iconv_convenience(call->conn->dce_ctx->lp_ctx), &pkt, call->conn->auth_state.auth_info);
+	status = ncacn_push_auth(&rep->blob, call, &pkt,
+							 call->conn->auth_state.auth_info);
 	if (!NT_STATUS_IS_OK(status)) {
 		talloc_free(call->context);
 		call->context = NULL;
@@ -835,7 +828,7 @@ static NTSTATUS dcesrv_alter_new_context(struct dcesrv_call_state *call, uint32_
 	call->context = context;
 	talloc_set_destructor(context, dcesrv_connection_context_destructor);
 
-	status = iface->bind(call, iface);
+	status = iface->bind(call, iface, if_version);
 	if (!NT_STATUS_IS_OK(status)) {
 		/* we don't want to trigger the iface->unbind() hook */
 		context->iface = NULL;
@@ -882,7 +875,7 @@ static NTSTATUS dcesrv_alter(struct dcesrv_call_state *call)
 
 	if (result == 0 &&
 	    call->pkt.u.alter.assoc_group_id != 0 &&
-	    lp_parm_bool(call->conn->dce_ctx->lp_ctx, NULL, "dcesrv","assoc group checking", true) &&
+	    lpcfg_parm_bool(call->conn->dce_ctx->lp_ctx, NULL, "dcesrv","assoc group checking", true) &&
 	    call->pkt.u.alter.assoc_group_id != call->context->assoc_group->id) {
 		DEBUG(0,(__location__ ": Failed attempt to use new assoc_group in alter context (0x%08x 0x%08x)\n",
 			 call->context->assoc_group->id, call->pkt.u.alter.assoc_group_id));
@@ -892,7 +885,7 @@ static NTSTATUS dcesrv_alter(struct dcesrv_call_state *call)
 	}
 
 	/* setup a alter_resp */
-	dcesrv_init_hdr(&pkt, lp_rpc_big_endian(call->conn->dce_ctx->lp_ctx));
+	dcesrv_init_hdr(&pkt, lpcfg_rpc_big_endian(call->conn->dce_ctx->lp_ctx));
 	pkt.auth_length = 0;
 	pkt.call_id = call->pkt.call_id;
 	pkt.ptype = DCERPC_PKT_ALTER_RESP;
@@ -931,7 +924,7 @@ static NTSTATUS dcesrv_alter(struct dcesrv_call_state *call)
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	status = ncacn_push_auth(&rep->blob, call, lp_iconv_convenience(call->conn->dce_ctx->lp_ctx), &pkt, call->conn->auth_state.auth_info);
+	status = ncacn_push_auth(&rep->blob, call, &pkt, call->conn->auth_state.auth_info);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -970,8 +963,7 @@ static NTSTATUS dcesrv_request(struct dcesrv_call_state *call)
 		return dcesrv_fault(call, DCERPC_FAULT_UNK_IF);
 	}
 
-	pull = ndr_pull_init_blob(&call->pkt.u.request.stub_and_verifier, call,
-				  lp_iconv_convenience(call->conn->dce_ctx->lp_ctx));
+	pull = ndr_pull_init_blob(&call->pkt.u.request.stub_and_verifier, call);
 	NT_STATUS_HAVE_NO_MEMORY(pull);
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
@@ -1031,7 +1023,7 @@ _PUBLIC_ NTSTATUS dcesrv_reply(struct dcesrv_call_state *call)
 	}
 
 	/* form the reply NDR */
-	push = ndr_push_init_ctx(call, lp_iconv_convenience(call->conn->dce_ctx->lp_ctx));
+	push = ndr_push_init_ctx(call);
 	NT_STATUS_HAVE_NO_MEMORY(push);
 
 	/* carry over the pointer count to the reply in case we are
@@ -1039,7 +1031,7 @@ _PUBLIC_ NTSTATUS dcesrv_reply(struct dcesrv_call_state *call)
 	   pointers */
 	push->ptr_count = call->ndr_pull->ptr_count;
 
-	if (lp_rpc_big_endian(call->conn->dce_ctx->lp_ctx)) {
+	if (lpcfg_rpc_big_endian(call->conn->dce_ctx->lp_ctx)) {
 		push->flags |= LIBNDR_FLAG_BIGENDIAN;
 	}
 
@@ -1078,7 +1070,7 @@ _PUBLIC_ NTSTATUS dcesrv_reply(struct dcesrv_call_state *call)
 		length = MIN(chunk_size, stub.length);
 
 		/* form the dcerpc response packet */
-		dcesrv_init_hdr(&pkt, lp_rpc_big_endian(call->conn->dce_ctx->lp_ctx));
+		dcesrv_init_hdr(&pkt, lpcfg_rpc_big_endian(call->conn->dce_ctx->lp_ctx));
 		pkt.auth_length = 0;
 		pkt.call_id = call->pkt.call_id;
 		pkt.ptype = DCERPC_PKT_RESPONSE;
@@ -1119,25 +1111,6 @@ _PUBLIC_ NTSTATUS dcesrv_reply(struct dcesrv_call_state *call)
 	return NT_STATUS_OK;
 }
 
-_PUBLIC_ struct socket_address *dcesrv_connection_get_my_addr(struct dcesrv_connection *conn, TALLOC_CTX *mem_ctx)
-{
-	if (!conn->transport.get_my_addr) {
-		return NULL;
-	}
-
-	return conn->transport.get_my_addr(conn, mem_ctx);
-}
-
-_PUBLIC_ struct socket_address *dcesrv_connection_get_peer_addr(struct dcesrv_connection *conn, TALLOC_CTX *mem_ctx)
-{
-	if (!conn->transport.get_peer_addr) {
-		return NULL;
-	}
-
-	return conn->transport.get_peer_addr(conn, mem_ctx);
-}
-
-
 /*
   remove the call from the right list when freed
  */
@@ -1145,6 +1118,16 @@ static int dcesrv_call_dequeue(struct dcesrv_call_state *call)
 {
 	dcesrv_call_set_list(call, DCESRV_LIST_NONE);
 	return 0;
+}
+
+_PUBLIC_ const struct tsocket_address *dcesrv_connection_get_local_address(struct dcesrv_connection *conn)
+{
+	return conn->local_address;
+}
+
+_PUBLIC_ const struct tsocket_address *dcesrv_connection_get_remote_address(struct dcesrv_connection *conn)
+{
+	return conn->remote_address;
 }
 
 /*

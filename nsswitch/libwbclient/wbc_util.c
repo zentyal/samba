@@ -1,7 +1,7 @@
 /*
    Unix SMB/CIFS implementation.
 
-   Winbind client API
+   Winbind client asynchronous API, utility functions
 
    Copyright (C) Gerald (Jerry) Carter 2007-2008
 
@@ -24,14 +24,12 @@
 
 #include "replace.h"
 #include "libwbclient.h"
-
-
+#include "../winbind_client.h"
 
 /** @brief Ping winbindd to see if the daemon is running
  *
  * @return #wbcErr
  **/
-
 wbcErr wbcPing(void)
 {
 	struct winbindd_request request;
@@ -44,6 +42,23 @@ wbcErr wbcPing(void)
 
 	return wbcRequestResponse(WINBINDD_PING, &request, &response);
 }
+
+static void wbcInterfaceDetailsDestructor(void *ptr)
+{
+	struct wbcInterfaceDetails *i = (struct wbcInterfaceDetails *)ptr;
+	free(i->winbind_version);
+	free(i->netbios_name);
+	free(i->netbios_domain);
+	free(i->dns_domain);
+}
+
+/**
+ * @brief Query useful information about the winbind service
+ *
+ * @param *_details	pointer to hold the struct wbcInterfaceDetails
+ *
+ * @return #wbcErr
+ */
 
 wbcErr wbcInterfaceDetails(struct wbcInterfaceDetails **_details)
 {
@@ -58,7 +73,9 @@ wbcErr wbcInterfaceDetails(struct wbcInterfaceDetails **_details)
 	ZERO_STRUCT(request);
 	ZERO_STRUCT(response);
 
-	info = talloc(NULL, struct wbcInterfaceDetails);
+	info = (struct wbcInterfaceDetails *)wbcAllocateMemory(
+		sizeof(struct wbcInterfaceDetails), 1,
+		wbcInterfaceDetailsDestructor);
 	BAIL_ON_PTR_ERROR(info, wbc_status);
 
 	/* first the interface version */
@@ -70,8 +87,7 @@ wbcErr wbcInterfaceDetails(struct wbcInterfaceDetails **_details)
 	wbc_status = wbcRequestResponse(WINBINDD_INFO, NULL, &response);
 	BAIL_ON_WBC_ERROR(wbc_status);
 
-	info->winbind_version = talloc_strdup(info,
-					      response.data.info.samba_version);
+	info->winbind_version = strdup(response.data.info.samba_version);
 	BAIL_ON_PTR_ERROR(info->winbind_version, wbc_status);
 	info->winbind_separator = response.data.info.winbind_separator;
 
@@ -79,16 +95,14 @@ wbcErr wbcInterfaceDetails(struct wbcInterfaceDetails **_details)
 	wbc_status = wbcRequestResponse(WINBINDD_NETBIOS_NAME, NULL, &response);
 	BAIL_ON_WBC_ERROR(wbc_status);
 
-	info->netbios_name = talloc_strdup(info,
-					   response.data.netbios_name);
+	info->netbios_name = strdup(response.data.netbios_name);
 	BAIL_ON_PTR_ERROR(info->netbios_name, wbc_status);
 
 	/* then the local workgroup name */
 	wbc_status = wbcRequestResponse(WINBINDD_DOMAIN_NAME, NULL, &response);
 	BAIL_ON_WBC_ERROR(wbc_status);
 
-	info->netbios_domain = talloc_strdup(info,
-					response.data.domain_name);
+	info->netbios_domain = strdup(response.data.domain_name);
 	BAIL_ON_PTR_ERROR(info->netbios_domain, wbc_status);
 
 	wbc_status = wbcDomainInfo(info->netbios_domain, &domain);
@@ -101,8 +115,7 @@ wbcErr wbcInterfaceDetails(struct wbcInterfaceDetails **_details)
 	}
 
 	if (domain) {
-		info->dns_domain = talloc_strdup(info,
-						 domain->dns_name);
+		info->dns_domain = strdup(domain->dns_name);
 		wbcFreeMemory(domain);
 		BAIL_ON_PTR_ERROR(info->dns_domain, wbc_status);
 	} else {
@@ -115,12 +128,25 @@ wbcErr wbcInterfaceDetails(struct wbcInterfaceDetails **_details)
 	wbc_status = WBC_ERR_SUCCESS;
 
 done:
-	talloc_free(info);
+	wbcFreeMemory(info);
 	return wbc_status;
 }
 
+static void wbcDomainInfoDestructor(void *ptr)
+{
+	struct wbcDomainInfo *i = (struct wbcDomainInfo *)ptr;
+	free(i->short_name);
+	free(i->dns_name);
+}
 
-/* Lookup the current status of a trusted domain */
+/** @brief Lookup the current status of a trusted domain, sync wrapper
+ *
+ * @param domain      Domain to query
+ * @param *dinfo       Pointer to returned struct wbcDomainInfo
+ *
+ * @return #wbcErr
+ */
+
 wbcErr wbcDomainInfo(const char *domain, struct wbcDomainInfo **dinfo)
 {
 	struct winbindd_request request;
@@ -146,15 +172,14 @@ wbcErr wbcDomainInfo(const char *domain, struct wbcDomainInfo **dinfo)
 					&response);
 	BAIL_ON_WBC_ERROR(wbc_status);
 
-	info = talloc(NULL, struct wbcDomainInfo);
+	info = (struct wbcDomainInfo *)wbcAllocateMemory(
+		sizeof(struct wbcDomainInfo), 1, wbcDomainInfoDestructor);
 	BAIL_ON_PTR_ERROR(info, wbc_status);
 
-	info->short_name = talloc_strdup(info,
-					 response.data.domain_info.name);
+	info->short_name = strdup(response.data.domain_info.name);
 	BAIL_ON_PTR_ERROR(info->short_name, wbc_status);
 
-	info->dns_name = talloc_strdup(info,
-				       response.data.domain_info.alt_name);
+	info->dns_name = strdup(response.data.domain_info.alt_name);
 	BAIL_ON_PTR_ERROR(info->dns_name, wbc_status);
 
 	wbc_status = wbcStringToSid(response.data.domain_info.sid,
@@ -169,14 +194,12 @@ wbcErr wbcDomainInfo(const char *domain, struct wbcDomainInfo **dinfo)
 		info->domain_flags |= WBC_DOMINFO_DOMAIN_PRIMARY;
 
 	*dinfo = info;
+	info = NULL;
 
 	wbc_status = WBC_ERR_SUCCESS;
 
  done:
-	if (!WBC_ERROR_IS_OK(wbc_status)) {
-		talloc_free(info);
-	}
-
+	wbcFreeMemory(info);
 	return wbc_status;
 }
 
@@ -204,7 +227,7 @@ wbcErr wbcResolveWinsByName(const char *name, char **ip)
 
 	/* Display response */
 
-	ipaddr = talloc_strdup(NULL, response.data.winsresp);
+	ipaddr = wbcStrDup(response.data.winsresp);
 	BAIL_ON_PTR_ERROR(ipaddr, wbc_status);
 
 	*ip = ipaddr;
@@ -237,7 +260,7 @@ wbcErr wbcResolveWinsByIP(const char *ip, char **name)
 
 	/* Display response */
 
-	name_str = talloc_strdup(NULL, response.data.winsresp);
+	name_str = wbcStrDup(response.data.winsresp);
 	BAIL_ON_PTR_ERROR(name_str, wbc_status);
 
 	*name = name_str;
@@ -250,20 +273,12 @@ wbcErr wbcResolveWinsByIP(const char *ip, char **name)
 /**
  */
 
-static wbcErr process_domain_info_string(TALLOC_CTX *ctx,
-					 struct wbcDomainInfo *info,
+static wbcErr process_domain_info_string(struct wbcDomainInfo *info,
 					 char *info_string)
 {
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 	char *r = NULL;
 	char *s = NULL;
-
-	if (!info || !info_string) {
-		wbc_status = WBC_ERR_INVALID_PARAM;
-		BAIL_ON_WBC_ERROR(wbc_status);
-	}
-
-	ZERO_STRUCTP(info);
 
 	r = info_string;
 
@@ -275,7 +290,7 @@ static wbcErr process_domain_info_string(TALLOC_CTX *ctx,
 	*s = '\0';
 	s++;
 
-	info->short_name = talloc_strdup(ctx, r);
+	info->short_name = strdup(r);
 	BAIL_ON_PTR_ERROR(info->short_name, wbc_status);
 
 
@@ -288,7 +303,7 @@ static wbcErr process_domain_info_string(TALLOC_CTX *ctx,
 	*s = '\0';
 	s++;
 
-	info->dns_name = talloc_strdup(ctx, r);
+	info->dns_name = strdup(r);
 	BAIL_ON_PTR_ERROR(info->dns_name, wbc_status);
 
 	/* SID */
@@ -381,15 +396,24 @@ static wbcErr process_domain_info_string(TALLOC_CTX *ctx,
 	return wbc_status;
 }
 
+static void wbcDomainInfoListDestructor(void *ptr)
+{
+	struct wbcDomainInfo *i = (struct wbcDomainInfo *)ptr;
+
+	while (i->short_name != NULL) {
+		free(i->short_name);
+		free(i->dns_name);
+		i += 1;
+	}
+}
+
 /* Enumerate the domain trusts known by Winbind */
 wbcErr wbcListTrusts(struct wbcDomainInfo **domains, size_t *num_domains)
 {
 	struct winbindd_response response;
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 	char *p = NULL;
-	char *q = NULL;
 	char *extra_data = NULL;
-	int count = 0;
 	struct wbcDomainInfo *d_list = NULL;
 	int i = 0;
 
@@ -417,18 +441,9 @@ wbcErr wbcListTrusts(struct wbcDomainInfo **domains, size_t *num_domains)
 		BAIL_ON_WBC_ERROR(wbc_status);
 	}
 
-	/* Count number of domains */
-
-	count = 0;
-	while (p) {
-		count++;
-
-		if ((q = strchr(p, '\n')) != NULL)
-			q++;
-		p = q;
-	}
-
-	d_list = talloc_array(NULL, struct wbcDomainInfo, count);
+	d_list = (struct wbcDomainInfo *)wbcAllocateMemory(
+		sizeof(struct wbcDomainInfo), response.data.num_entries + 1,
+		wbcDomainInfoListDestructor);
 	BAIL_ON_PTR_ERROR(d_list, wbc_status);
 
 	extra_data = strdup((char*)response.extra_data.data);
@@ -438,7 +453,7 @@ wbcErr wbcListTrusts(struct wbcDomainInfo **domains, size_t *num_domains)
 
 	/* Outer loop processes the list of domain information */
 
-	for (i=0; i<count && p; i++) {
+	for (i=0; i<response.data.num_entries && p; i++) {
 		char *next = strchr(p, '\n');
 
 		if (next) {
@@ -446,24 +461,28 @@ wbcErr wbcListTrusts(struct wbcDomainInfo **domains, size_t *num_domains)
 			next++;
 		}
 
-		wbc_status = process_domain_info_string(d_list, &d_list[i], p);
+		wbc_status = process_domain_info_string(&d_list[i], p);
 		BAIL_ON_WBC_ERROR(wbc_status);
 
 		p = next;
 	}
 
 	*domains = d_list;
+	d_list = NULL;
 	*num_domains = i;
 
  done:
-	if (!WBC_ERROR_IS_OK(wbc_status)) {
-		if (d_list)
-			talloc_free(d_list);
-		if (extra_data)
-			free(extra_data);
-	}
-
+	winbindd_free_response(&response);
+	wbcFreeMemory(d_list);
+	free(extra_data);
 	return wbc_status;
+}
+
+static void wbcDomainControllerInfoDestructor(void *ptr)
+{
+	struct wbcDomainControllerInfo *i =
+		(struct wbcDomainControllerInfo *)ptr;
+	free(i->dc_name);
 }
 
 /* Enumerate the domain trusts known by Winbind */
@@ -491,7 +510,9 @@ wbcErr wbcLookupDomainController(const char *domain,
 
 	request.flags = flags;
 
-	dc = talloc(NULL, struct wbcDomainControllerInfo);
+	dc = (struct wbcDomainControllerInfo *)wbcAllocateMemory(
+		sizeof(struct wbcDomainControllerInfo), 1,
+		wbcDomainControllerInfoDestructor);
 	BAIL_ON_PTR_ERROR(dc, wbc_status);
 
 	/* Send request */
@@ -501,82 +522,87 @@ wbcErr wbcLookupDomainController(const char *domain,
 					&response);
 	BAIL_ON_WBC_ERROR(wbc_status);
 
-	dc->dc_name = talloc_strdup(dc, response.data.dsgetdcname.dc_unc);
+	dc->dc_name = strdup(response.data.dsgetdcname.dc_unc);
 	BAIL_ON_PTR_ERROR(dc->dc_name, wbc_status);
 
 	*dc_info = dc;
+	dc = NULL;
 
 done:
-	if (!WBC_ERROR_IS_OK(wbc_status)) {
-		talloc_free(dc);
-	}
-
+	wbcFreeMemory(dc);
 	return wbc_status;
 }
 
-static wbcErr wbc_create_domain_controller_info_ex(TALLOC_CTX *mem_ctx,
-						   const struct winbindd_response *resp,
+static void wbcDomainControllerInfoExDestructor(void *ptr)
+{
+	struct wbcDomainControllerInfoEx *i =
+		(struct wbcDomainControllerInfoEx *)ptr;
+	free((char *)(i->dc_unc));
+	free((char *)(i->dc_address));
+	free((char *)(i->domain_guid));
+	free((char *)(i->domain_name));
+	free((char *)(i->forest_name));
+	free((char *)(i->dc_site_name));
+	free((char *)(i->client_site_name));
+}
+
+static wbcErr wbc_create_domain_controller_info_ex(const struct winbindd_response *resp,
 						   struct wbcDomainControllerInfoEx **_i)
 {
 	wbcErr wbc_status = WBC_ERR_SUCCESS;
 	struct wbcDomainControllerInfoEx *i;
 	struct wbcGuid guid;
 
-	i = talloc(mem_ctx, struct wbcDomainControllerInfoEx);
+	i = (struct wbcDomainControllerInfoEx *)wbcAllocateMemory(
+		sizeof(struct wbcDomainControllerInfoEx), 1,
+		wbcDomainControllerInfoExDestructor);
 	BAIL_ON_PTR_ERROR(i, wbc_status);
 
-	i->dc_unc = talloc_strdup(i, resp->data.dsgetdcname.dc_unc);
+	i->dc_unc = strdup(resp->data.dsgetdcname.dc_unc);
 	BAIL_ON_PTR_ERROR(i->dc_unc, wbc_status);
 
-	i->dc_address = talloc_strdup(i, resp->data.dsgetdcname.dc_address);
+	i->dc_address = strdup(resp->data.dsgetdcname.dc_address);
 	BAIL_ON_PTR_ERROR(i->dc_address, wbc_status);
 
 	i->dc_address_type = resp->data.dsgetdcname.dc_address_type;
 
 	wbc_status = wbcStringToGuid(resp->data.dsgetdcname.domain_guid, &guid);
 	if (WBC_ERROR_IS_OK(wbc_status)) {
-		i->domain_guid = talloc(i, struct wbcGuid);
+		i->domain_guid = (struct wbcGuid *)malloc(
+			sizeof(struct wbcGuid));
 		BAIL_ON_PTR_ERROR(i->domain_guid, wbc_status);
 
 		*i->domain_guid = guid;
-	} else {
-		i->domain_guid = NULL;
 	}
 
-	i->domain_name = talloc_strdup(i, resp->data.dsgetdcname.domain_name);
+	i->domain_name = strdup(resp->data.dsgetdcname.domain_name);
 	BAIL_ON_PTR_ERROR(i->domain_name, wbc_status);
 
 	if (resp->data.dsgetdcname.forest_name[0] != '\0') {
-		i->forest_name = talloc_strdup(i,
-			resp->data.dsgetdcname.forest_name);
+		i->forest_name = strdup(resp->data.dsgetdcname.forest_name);
 		BAIL_ON_PTR_ERROR(i->forest_name, wbc_status);
-	} else {
-		i->forest_name = NULL;
 	}
 
 	i->dc_flags = resp->data.dsgetdcname.dc_flags;
 
 	if (resp->data.dsgetdcname.dc_site_name[0] != '\0') {
-		i->dc_site_name = talloc_strdup(i,
-			resp->data.dsgetdcname.dc_site_name);
+		i->dc_site_name = strdup(resp->data.dsgetdcname.dc_site_name);
 		BAIL_ON_PTR_ERROR(i->dc_site_name, wbc_status);
-	} else {
-		i->dc_site_name = NULL;
 	}
 
 	if (resp->data.dsgetdcname.client_site_name[0] != '\0') {
-		i->client_site_name = talloc_strdup(i,
+		i->client_site_name = strdup(
 			resp->data.dsgetdcname.client_site_name);
 		BAIL_ON_PTR_ERROR(i->client_site_name, wbc_status);
-	} else {
-		i->client_site_name = NULL;
 	}
 
 	*_i = i;
 	i = NULL;
 
 done:
-	talloc_free(i);
+	if (i != NULL) {
+		wbcFreeMemory(i);
+	}
 	return wbc_status;
 }
 
@@ -631,8 +657,7 @@ wbcErr wbcLookupDomainControllerEx(const char *domain,
 	BAIL_ON_WBC_ERROR(wbc_status);
 
 	if (dc_info) {
-		wbc_status = wbc_create_domain_controller_info_ex(NULL,
-								  &response,
+		wbc_status = wbc_create_domain_controller_info_ex(&response,
 								  dc_info);
 		BAIL_ON_WBC_ERROR(wbc_status);
 	}
@@ -642,35 +667,68 @@ done:
 	return wbc_status;
 }
 
+static void wbcNamedBlobDestructor(void *ptr)
+{
+	struct wbcNamedBlob *b = (struct wbcNamedBlob *)ptr;
+
+	while (b->name != NULL) {
+		free((char *)(b->name));
+		free(b->blob.data);
+		b += 1;
+	}
+}
+
 /* Initialize a named blob and add to list of blobs */
 wbcErr wbcAddNamedBlob(size_t *num_blobs,
-		       struct wbcNamedBlob **blobs,
+		       struct wbcNamedBlob **pblobs,
 		       const char *name,
 		       uint32_t flags,
 		       uint8_t *data,
 		       size_t length)
 {
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
-	struct wbcNamedBlob blob;
+	struct wbcNamedBlob *blobs, *blob;
 
-	*blobs = talloc_realloc(NULL, *blobs, struct wbcNamedBlob,
-				*(num_blobs)+1);
-	BAIL_ON_PTR_ERROR(*blobs, wbc_status);
+	if (name == NULL) {
+		return WBC_ERR_INVALID_PARAM;
+	}
 
-	blob.name		= talloc_strdup(*blobs, name);
-	BAIL_ON_PTR_ERROR(blob.name, wbc_status);
-	blob.flags		= flags;
-	blob.blob.length	= length;
-	blob.blob.data		= (uint8_t *)talloc_memdup(*blobs, data, length);
-	BAIL_ON_PTR_ERROR(blob.blob.data, wbc_status);
+	/*
+	 * Overallocate the b->name==NULL terminator for
+	 * wbcNamedBlobDestructor
+	 */
+	blobs = (struct wbcNamedBlob *)wbcAllocateMemory(
+		sizeof(struct wbcNamedBlob), *num_blobs + 2,
+		wbcNamedBlobDestructor);
 
-	(*(blobs))[*num_blobs] = blob;
-	*(num_blobs) += 1;
+	if (*pblobs != NULL) {
+		struct wbcNamedBlob *old = *pblobs;
+		memcpy(blobs, old, sizeof(struct wbcNamedBlob) * (*num_blobs));
+		if (*num_blobs != 0) {
+			/* end indicator for wbcNamedBlobDestructor */
+			old[0].name = NULL;
+		}
+		wbcFreeMemory(old);
+	}
+	*pblobs = blobs;
+
+	blob = &blobs[*num_blobs];
+
+	blob->name = strdup(name);
+	BAIL_ON_PTR_ERROR(blob->name, wbc_status);
+	blob->flags = flags;
+
+	blob->blob.length = length;
+	blob->blob.data	= (uint8_t *)malloc(length);
+	BAIL_ON_PTR_ERROR(blob->blob.data, wbc_status);
+	memcpy(blob->blob.data, data, length);
+
+	*num_blobs += 1;
+	*pblobs = blobs;
+	blobs = NULL;
 
 	wbc_status = WBC_ERR_SUCCESS;
 done:
-	if (!WBC_ERROR_IS_OK(wbc_status) && blobs) {
-		wbcFreeMemory(*blobs);
-	}
+	wbcFreeMemory(blobs);
 	return wbc_status;
 }

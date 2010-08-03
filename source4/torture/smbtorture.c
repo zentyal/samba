@@ -26,71 +26,63 @@
 #include "system/readline.h"
 #include "lib/smbreadline/smbreadline.h"
 #include "libcli/libcli.h"
-#include "lib/ldb/include/ldb.h"
 #include "lib/events/events.h"
-#include "dynconfig/dynconfig.h"
 
 #include "torture/smbtorture.h"
-#include "../lib/util/dlinklist.h"
 #include "librpc/rpc/dcerpc.h"
 #include "auth/gensec/gensec.h"
 #include "param/param.h"
 
-#include "auth/credentials/credentials.h"
+#if HAVE_READLINE_HISTORY_H
+#include <readline/history.h>
+#endif
 
 static bool run_matching(struct torture_context *torture,
 						 const char *prefix, 
 						 const char *expr,
+						 const char **restricted,
 						 struct torture_suite *suite,
 						 bool *matched)
 {
 	bool ret = true;
+	struct torture_suite *o;
+	struct torture_tcase *t;
+	struct torture_test *p;
 
-	if (suite == NULL) {
-		struct torture_suite *o;
-
-		for (o = (torture_root == NULL?NULL:torture_root->children); o; o = o->next) {
-			if (gen_fnmatch(expr, o->name) == 0) {
-				*matched = true;
-				reload_charcnv(torture->lp_ctx);
+	for (o = suite->children; o; o = o->next) {
+		char *name = NULL;
+		if (prefix == NULL)
+			name = talloc_strdup(torture, o->name);
+		else
+			name = talloc_asprintf(torture, "%s-%s", prefix, o->name);
+		if (gen_fnmatch(expr, name) == 0) {
+			*matched = true;
+			reload_charcnv(torture->lp_ctx);
+			torture->active_testname = name;
+			if (restricted != NULL)
+				ret &= torture_run_suite_restricted(torture, o, restricted);
+			else
 				ret &= torture_run_suite(torture, o);
-				continue;
-			}
-
-			ret &= run_matching(torture, o->name, expr, o, matched);
 		}
-	} else {
-		char *name;
-		struct torture_suite *c;
-		struct torture_tcase *t;
+		ret &= run_matching(torture, name, expr, restricted, o, matched);
+	}
 
-		for (c = suite->children; c; c = c->next) {
-			asprintf(&name, "%s-%s", prefix, c->name);
-
+	for (t = suite->testcases; t; t = t->next) {
+		char *name = talloc_asprintf(torture, "%s-%s", prefix, t->name);
+		if (gen_fnmatch(expr, name) == 0) {
+			*matched = true;
+			reload_charcnv(torture->lp_ctx);
+			torture->active_testname = name;
+			ret &= torture_run_tcase(torture, t);
+		}
+		for (p = t->tests; p; p = p->next) {
+			name = talloc_asprintf(torture, "%s-%s-%s", prefix, t->name, p->name);
 			if (gen_fnmatch(expr, name) == 0) {
 				*matched = true;
 				reload_charcnv(torture->lp_ctx);
-				torture->active_testname = talloc_strdup(torture, prefix);
-				ret &= torture_run_suite(torture, c);
-				free(name);
-				continue;
+				torture->active_testname = name;
+				ret &= torture_run_test(torture, t, p);
 			}
-			
-			ret &= run_matching(torture, name, expr, c, matched);
-
-			free(name);
-		}
-
-		for (t = suite->testcases; t; t = t->next) {
-			asprintf(&name, "%s-%s", prefix, t->name);
-			if (gen_fnmatch(expr, name) == 0) {
-				*matched = true;
-				reload_charcnv(torture->lp_ctx);
-				torture->active_testname = talloc_strdup(torture, prefix);
-				ret &= torture_run_tcase(torture, t);
-				talloc_free(torture->active_testname);
-			}
-			free(name);
 		}
 	}
 
@@ -102,20 +94,25 @@ static bool run_matching(struct torture_context *torture,
 /****************************************************************************
 run a specified test or "ALL"
 ****************************************************************************/
-static bool run_test(struct torture_context *torture, const char *name)
+bool torture_run_named_tests(struct torture_context *torture, const char *name,
+			    const char **restricted)
 {
 	bool ret = true;
 	bool matched = false;
 	struct torture_suite *o;
 
 	if (strequal(name, "ALL")) {
+		if (restricted != NULL) {
+			printf("--load-list and ALL are incompatible\n");
+			return false;
+		}
 		for (o = torture_root->children; o; o = o->next) {
 			ret &= torture_run_suite(torture, o);
 		}
 		return ret;
 	}
 
-	ret = run_matching(torture, NULL, name, NULL, &matched);
+	ret = run_matching(torture, NULL, name, restricted, torture_root, &matched);
 
 	if (!matched) {
 		printf("Unknown torture operation '%s'\n", name);
@@ -125,7 +122,7 @@ static bool run_test(struct torture_context *torture, const char *name)
 	return ret;
 }
 
-static bool parse_target(struct loadparm_context *lp_ctx, const char *target)
+bool torture_parse_target(struct loadparm_context *lp_ctx, const char *target)
 {
 	char *host = NULL, *share = NULL;
 	struct dcerpc_binding *binding_struct;
@@ -138,14 +135,14 @@ static bool parse_target(struct loadparm_context *lp_ctx, const char *target)
 			d_printf("Invalid option: %s is not a valid torture target (share or binding string)\n\n", target);
 			return false;
 		}
-		lp_set_cmdline(lp_ctx, "torture:host", binding_struct->host);
-		if (lp_parm_string(lp_ctx, NULL, "torture", "share") == NULL)
-			lp_set_cmdline(lp_ctx, "torture:share", "IPC$");
-		lp_set_cmdline(lp_ctx, "torture:binding", target);
+		lpcfg_set_cmdline(lp_ctx, "torture:host", binding_struct->host);
+		if (lpcfg_parm_string(lp_ctx, NULL, "torture", "share") == NULL)
+			lpcfg_set_cmdline(lp_ctx, "torture:share", "IPC$");
+		lpcfg_set_cmdline(lp_ctx, "torture:binding", target);
 	} else {
-		lp_set_cmdline(lp_ctx, "torture:host", host);
-		lp_set_cmdline(lp_ctx, "torture:share", share);
-		lp_set_cmdline(lp_ctx, "torture:binding", host);
+		lpcfg_set_cmdline(lp_ctx, "torture:host", host);
+		lpcfg_set_cmdline(lp_ctx, "torture:share", share);
+		lpcfg_set_cmdline(lp_ctx, "torture:binding", host);
 	}
 
 	return true;
@@ -159,36 +156,77 @@ static void parse_dns(struct loadparm_context *lp_ctx, const char *dns)
 	/* retrievieng the userdn */
 	p = strchr_m(dns, '#');
 	if (!p) {
-		lp_set_cmdline(lp_ctx, "torture:ldap_userdn", "");
-		lp_set_cmdline(lp_ctx, "torture:ldap_basedn", "");
-		lp_set_cmdline(lp_ctx, "torture:ldap_secret", "");
+		lpcfg_set_cmdline(lp_ctx, "torture:ldap_userdn", "");
+		lpcfg_set_cmdline(lp_ctx, "torture:ldap_basedn", "");
+		lpcfg_set_cmdline(lp_ctx, "torture:ldap_secret", "");
 		return;
 	}
 	userdn = strndup(dns, p - dns);
-	lp_set_cmdline(lp_ctx, "torture:ldap_userdn", userdn);
+	lpcfg_set_cmdline(lp_ctx, "torture:ldap_userdn", userdn);
 
 	/* retrieve the basedn */
 	d = p + 1;
 	p = strchr_m(d, '#');
 	if (!p) {
-		lp_set_cmdline(lp_ctx, "torture:ldap_basedn", "");
-		lp_set_cmdline(lp_ctx, "torture:ldap_secret", "");
+		lpcfg_set_cmdline(lp_ctx, "torture:ldap_basedn", "");
+		lpcfg_set_cmdline(lp_ctx, "torture:ldap_secret", "");
 		return;
 	}
 	basedn = strndup(d, p - d);
-	lp_set_cmdline(lp_ctx, "torture:ldap_basedn", basedn);
+	lpcfg_set_cmdline(lp_ctx, "torture:ldap_basedn", basedn);
 
 	/* retrieve the secret */
 	p = p + 1;
 	if (!p) {
-		lp_set_cmdline(lp_ctx, "torture:ldap_secret", "");
+		lpcfg_set_cmdline(lp_ctx, "torture:ldap_secret", "");
 		return;
 	}
 	secret = strdup(p);
-	lp_set_cmdline(lp_ctx, "torture:ldap_secret", secret);
+	lpcfg_set_cmdline(lp_ctx, "torture:ldap_secret", secret);
 
 	printf ("%s - %s - %s\n", userdn, basedn, secret);
 
+}
+
+/* Print the full test list, formatted into separate labelled test
+ * groups.
+ */
+static void print_structured_test_list(void)
+{
+	struct torture_suite *o;
+	struct torture_suite *s;
+	struct torture_tcase *t;
+	int i;
+
+	if (torture_root == NULL) {
+	    printf("NO TESTS LOADED\n");
+	    return;
+	}
+
+	for (o = torture_root->children; o; o = o->next) {
+		printf("\n%s (%s):\n  ", o->description, o->name);
+
+		i = 0;
+		for (s = o->children; s; s = s->next) {
+			if (i + strlen(o->name) + strlen(s->name) >= (MAX_COLS - 3)) {
+				printf("\n  ");
+				i = 0;
+			}
+			i+=printf("%s-%s ", o->name, s->name);
+		}
+
+		for (t = o->testcases; t; t = t->next) {
+			if (i + strlen(o->name) + strlen(t->name) >= (MAX_COLS - 3)) {
+				printf("\n  ");
+				i = 0;
+			}
+			i+=printf("%s-%s ", o->name, t->name);
+		}
+
+		if (i) printf("\n");
+	}
+
+	printf("\nThe default test is ALL.\n");
 }
 
 static void print_test_list(void)
@@ -211,13 +249,17 @@ static void print_test_list(void)
 	}
 }
 
+void torture_print_tests(bool structured)
+{
+	if (structured) {
+		print_structured_test_list();
+	} else {
+		print_test_list();
+	}
+}
+
 _NORETURN_ static void usage(poptContext pc)
 {
-	struct torture_suite *o;
-	struct torture_suite *s;
-	struct torture_tcase *t;
-	int i;
-
 	poptPrintUsage(pc, stdout, 0);
 	printf("\n");
 
@@ -270,35 +312,7 @@ _NORETURN_ static void usage(poptContext pc)
 
 	printf("Tests are:");
 
-	if (torture_root == NULL) {
-	    printf("NO TESTS LOADED\n");
-	    exit(1);
-	}
-
-	for (o = torture_root->children; o; o = o->next) {
-		printf("\n%s (%s):\n  ", o->description, o->name);
-
-		i = 0;
-		for (s = o->children; s; s = s->next) {
-			if (i + strlen(o->name) + strlen(s->name) >= (MAX_COLS - 3)) {
-				printf("\n  ");
-				i = 0;
-			}
-			i+=printf("%s-%s ", o->name, s->name);
-		}
-
-		for (t = o->testcases; t; t = t->next) {
-			if (i + strlen(o->name) + strlen(t->name) >= (MAX_COLS - 3)) {
-				printf("\n  ");
-				i = 0;
-			}
-			i+=printf("%s-%s ", o->name, t->name);
-		}
-
-		if (i) printf("\n");
-	}
-
-	printf("\nThe default test is ALL.\n");
+	print_structured_test_list();
 
 	exit(1);
 }
@@ -358,60 +372,19 @@ static void simple_warning(struct torture_context *test,
 	fprintf(stderr, "WARNING: %s\n", comment);
 }
 
+static void simple_progress(struct torture_context *test,
+	int offset, enum torture_progress_whence whence)
+{
+}
+
 const static struct torture_ui_ops std_ui_ops = {
 	.comment = simple_comment,
 	.warning = simple_warning,
 	.suite_start = simple_suite_start,
 	.suite_finish = simple_suite_finish,
-	.test_result = simple_test_result
+	.test_result = simple_test_result,
+	.progress = simple_progress,
 };
-
-
-static void run_shell(struct torture_context *tctx)
-{
-	char *cline;
-	int argc;
-	const char **argv;
-	int ret;
-
-	while (1) {
-		cline = smb_readline("torture> ", NULL, NULL);
-
-		if (cline == NULL)
-			return;
-	
-		ret = poptParseArgvString(cline, &argc, &argv);
-		if (ret != 0) {
-			fprintf(stderr, "Error parsing line\n");
-			continue;
-		}
-
-		if (!strcmp(argv[0], "quit")) {
-			return;
-		} else if (!strcmp(argv[0], "set")) {
-			if (argc < 3) {
-				fprintf(stderr, "Usage: set <variable> <value>\n");
-			} else {
-				char *name = talloc_asprintf(NULL, "torture:%s", argv[1]);
-				lp_set_cmdline(tctx->lp_ctx, name, argv[2]);
-				talloc_free(name);
-			}
-		} else if (!strcmp(argv[0], "help")) {
-			fprintf(stderr, "Available commands:\n"
-							" help - This help command\n"
-							" run - Run test\n"
-							" set - Change variables\n"
-							"\n");
-		} else if (!strcmp(argv[0], "run")) {
-			if (argc < 2) {
-				fprintf(stderr, "Usage: run TEST-NAME [OPTIONS...]\n");
-			} else {
-				run_test(tctx, argv[1]);
-			}
-		}
-		free(cline);
-	}
-}
 
 /****************************************************************************
   main program
@@ -435,6 +408,9 @@ int main(int argc,char *argv[])
 	const char *extra_module = NULL;
 	static int list_tests = 0;
 	int num_extra_users = 0;
+	char **restricted = NULL;
+	int num_restricted = -1;
+	const char *load_list = NULL;
 	enum {OPT_LOADFILE=1000,OPT_UNCLIST,OPT_TIMELIMIT,OPT_DNS, OPT_LIST,
 	      OPT_DANGEROUS,OPT_SMB_PORTS,OPT_ASYNC,OPT_NUMPROGS,
 	      OPT_EXTRA_USER,};
@@ -457,7 +433,7 @@ int main(int argc,char *argv[])
 		{"dangerous",	'X', POPT_ARG_NONE,	NULL,   OPT_DANGEROUS,
 		 "run dangerous tests (eg. wiping out password database)", NULL},
 		{"load-module",  0,  POPT_ARG_STRING, &extra_module,     0, "load tests from DSO file",    "SOFILE"},
-		{"shell", 		0, POPT_ARG_NONE, &shell, true, "Run shell", NULL},
+                {"shell",               0, POPT_ARG_NONE, &shell, true, "Run shell", NULL},
 		{"target", 		'T', POPT_ARG_STRING, &target, 0, "samba3|samba4|other", NULL},
 		{"async",       'a', POPT_ARG_NONE,     NULL,   OPT_ASYNC,
 		 "run async tests", NULL},
@@ -467,6 +443,8 @@ int main(int argc,char *argv[])
 		 "set maximum time for smbtorture to live", "seconds"},
 		{"extra-user",   0, POPT_ARG_STRING, NULL, OPT_EXTRA_USER,
 		 "extra user credentials", NULL},
+		{"load-list", 0, POPT_ARG_STRING, &load_list, 0,
+	     "load a test id list from a text file", NULL},
 		POPT_COMMON_SAMBA
 		POPT_COMMON_CONNECTION
 		POPT_COMMON_CREDENTIALS
@@ -487,54 +465,101 @@ int main(int argc,char *argv[])
 	while((opt = poptGetNextOpt(pc)) != -1) {
 		switch (opt) {
 		case OPT_LOADFILE:
-			lp_set_cmdline(cmdline_lp_ctx, "torture:loadfile", poptGetOptArg(pc));
+			lpcfg_set_cmdline(cmdline_lp_ctx, "torture:loadfile", poptGetOptArg(pc));
 			break;
 		case OPT_UNCLIST:
-			lp_set_cmdline(cmdline_lp_ctx, "torture:unclist", poptGetOptArg(pc));
+			lpcfg_set_cmdline(cmdline_lp_ctx, "torture:unclist", poptGetOptArg(pc));
 			break;
 		case OPT_TIMELIMIT:
-			lp_set_cmdline(cmdline_lp_ctx, "torture:timelimit", poptGetOptArg(pc));
+			lpcfg_set_cmdline(cmdline_lp_ctx, "torture:timelimit", poptGetOptArg(pc));
 			break;
 		case OPT_NUMPROGS:
-			lp_set_cmdline(cmdline_lp_ctx, "torture:nprocs", poptGetOptArg(pc));
+			lpcfg_set_cmdline(cmdline_lp_ctx, "torture:nprocs", poptGetOptArg(pc));
 			break;
 		case OPT_DNS:
 			parse_dns(cmdline_lp_ctx, poptGetOptArg(pc));
 			break;
 		case OPT_DANGEROUS:
-			lp_set_cmdline(cmdline_lp_ctx, "torture:dangerous", "Yes");
+			lpcfg_set_cmdline(cmdline_lp_ctx, "torture:dangerous", "Yes");
 			break;
 		case OPT_ASYNC:
-			lp_set_cmdline(cmdline_lp_ctx, "torture:async", "Yes");
+			lpcfg_set_cmdline(cmdline_lp_ctx, "torture:async", "Yes");
 			break;
 		case OPT_SMB_PORTS:
-			lp_set_cmdline(cmdline_lp_ctx, "smb ports", poptGetOptArg(pc));
+			lpcfg_set_cmdline(cmdline_lp_ctx, "smb ports", poptGetOptArg(pc));
 			break;
 		case OPT_EXTRA_USER:
 			{
 				char *option = talloc_asprintf(NULL, "torture:extra_user%u",
 							       ++num_extra_users);
-				char *value = poptGetOptArg(pc);
-				lp_set_cmdline(cmdline_lp_ctx, option, value);
+				const char *value = poptGetOptArg(pc);
+				lpcfg_set_cmdline(cmdline_lp_ctx, option, value);
 				talloc_free(option);
 			}
 			break;
 		default:
-			printf("bad command line option\n");
+			if (opt < 0) {
+				printf("bad command line option %d\n", opt);
+				exit(1);
+			}
+		}
+	}
+
+	if (load_list != NULL) {
+		restricted = file_lines_load(load_list, &num_restricted, 0,
+									 talloc_autofree_context());
+		if (restricted == NULL) {
+			printf("Unable to read load list file '%s'\n", load_list);
 			exit(1);
 		}
 	}
 
 	if (strcmp(target, "samba3") == 0) {
-		lp_set_cmdline(cmdline_lp_ctx, "torture:samba3", "true");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:samba3", "true");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:resume_key_support", "false");
 	} else if (strcmp(target, "samba4") == 0) {
-		lp_set_cmdline(cmdline_lp_ctx, "torture:samba4", "true");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:samba4", "true");
+	} else if (strcmp(target, "winxp") == 0) {
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:winxp", "true");
+	} else if (strcmp(target, "w2k3") == 0) {
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:w2k3", "true");
 	} else if (strcmp(target, "w2k8") == 0) {
-		lp_set_cmdline(cmdline_lp_ctx, "torture:w2k8", "true");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:w2k8", "true");
+		lpcfg_set_cmdline(cmdline_lp_ctx,
+		    "torture:invalid_lock_range_support", "false");
 	} else if (strcmp(target, "win7") == 0) {
-		lp_set_cmdline(cmdline_lp_ctx, "torture:win7", "true");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:win7", "true");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:cn_max_buffer_size",
+		    "0x00010000");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:resume_key_support", "false");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:rewind_support", "false");
+
+		/* RAW-SEARCH for fails for inexplicable reasons against win7 */
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:search_ea_support", "false");
+
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:hide_on_access_denied",
+		    "true");
 	} else if (strcmp(target, "onefs") == 0) {
-		lp_set_cmdline(cmdline_lp_ctx, "torture:sacl_support", "false");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:onefs", "true");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:openx_deny_dos_support",
+		    "false");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:range_not_locked_on_file_close", "false");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:sacl_support", "false");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:ea_support", "false");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:smbexit_pdu_support",
+		    "false");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:smblock_pdu_support",
+		    "false");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:2_step_break_to_none",
+		    "true");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:deny_dos_support", "false");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:deny_fcb_support", "false");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:read_support", "false");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:writeclose_support", "false");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:resume_key_support", "false");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:rewind_support", "false");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:raw_search_search", "false");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:search_ea_size", "false");
 	}
 
 	if (max_runtime) {
@@ -550,15 +575,15 @@ int main(int argc,char *argv[])
 	if (extra_module != NULL) {
 	    init_module_fn fn = load_module(talloc_autofree_context(), poptGetOptArg(pc));
 
-	    if (fn == NULL) 
-		d_printf("Unable to load module from %s\n", poptGetOptArg(pc));
-	    else {
-		status = fn();
-		if (NT_STATUS_IS_ERR(status)) {
-		    d_printf("Error initializing module %s: %s\n", 
-			     poptGetOptArg(pc), nt_errstr(status));
+		if (fn == NULL) 
+			d_printf("Unable to load module from %s\n", poptGetOptArg(pc));
+		else {
+			status = fn();
+			if (NT_STATUS_IS_ERR(status)) {
+				d_printf("Error initializing module %s: %s\n", 
+					poptGetOptArg(pc), nt_errstr(status));
+			}
 		}
-	    }
 	} else { 
 		torture_init();
 	}
@@ -584,16 +609,6 @@ int main(int argc,char *argv[])
 		}
 	}
 
-	if (!(argc_new >= 3 || (shell && argc_new >= 2))) {
-		usage(pc);
-		exit(1);
-	}
-
-	if (!parse_target(cmdline_lp_ctx, argv_new[1])) {
-		usage(pc);
-		exit(1);
-	}
-
 	if (!strcmp(ui_ops_name, "simple")) {
 		ui_ops = &std_ui_ops;
 	} else if (!strcmp(ui_ops_name, "subunit")) {
@@ -605,7 +620,8 @@ int main(int argc,char *argv[])
 
 	results = torture_results_init(talloc_autofree_context(), ui_ops);
 
-	torture = torture_context_init(s4_event_context_init(NULL), results);
+	torture = torture_context_init(s4_event_context_init(talloc_autofree_context()),
+	                               results);
 	if (basedir != NULL) {
 		if (basedir[0] != '/') {
 			fprintf(stderr, "Please specify an absolute path to --basedir\n");
@@ -625,13 +641,31 @@ int main(int argc,char *argv[])
 
 	gensec_init(cmdline_lp_ctx);
 
-	if (argc_new == 0) {
-		printf("You must specify a test to run, or 'ALL'\n");
-	} else if (shell) {
-		run_shell(torture);
+	if (shell) {
+		/* In shell mode, just ignore any remaining test names. */
+		torture_shell(torture);
 	} else {
+
+		/* At this point, we should just have a target string,
+		 * followed by a series of test names. Unless we are in
+		 * shell mode, in which case we don't need anythig more.
+		 */
+
+		if (argc_new < 3) {
+			printf("You must specify a test to run, or 'ALL'\n");
+			usage(pc);
+			exit(1);
+		}
+
+		/* Take the target name or binding. */
+		if (!torture_parse_target(cmdline_lp_ctx, argv_new[1])) {
+			usage(pc);
+			exit(1);
+		}
+
 		for (i=2;i<argc_new;i++) {
-			if (!run_test(torture, argv_new[i])) {
+			if (!torture_run_named_tests(torture, argv_new[i],
+				    (const char **)restricted)) {
 				correct = false;
 			}
 		}

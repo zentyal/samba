@@ -21,6 +21,7 @@
  */
 
 #include "includes.h"
+#include "librpc/gen_ndr/messaging.h"
 
 static int pong_count;
 
@@ -53,7 +54,7 @@ static void pong_message(struct messaging_context *msg_ctx,
 	lp_load(get_dyn_CONFIGFILE(),False,False,False,True);
 
 	if (!(evt_ctx = tevent_context_init(NULL)) ||
-	    !(msg_ctx = messaging_init(NULL, server_id_self(), evt_ctx))) {
+	    !(msg_ctx = messaging_init(NULL, procid_self(), evt_ctx))) {
 		fprintf(stderr, "could not init messaging context\n");
 		exit(1);
 	}
@@ -87,9 +88,9 @@ static void pong_message(struct messaging_context *msg_ctx,
 	safe_strcpy(buf, "1234567890", sizeof(buf)-1);
 
 	for (i=0;i<n;i++) {
-		messaging_send(msg_ctx, pid_to_procid(getpid()), MSG_PING,
+		messaging_send(msg_ctx, procid_self(), MSG_PING,
 			       &data_blob_null);
-		messaging_send_buf(msg_ctx, pid_to_procid(getpid()), MSG_PING,
+		messaging_send_buf(msg_ctx, procid_self(), MSG_PING,
 				   (uint8 *)buf, 11);
 	}
 

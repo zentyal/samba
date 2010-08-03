@@ -23,6 +23,8 @@
 #include "includes.h"
 #include "../libcli/auth/libcli_auth.h"
 #include "../librpc/gen_ndr/cli_netlogon.h"
+#include "rpc_client/cli_netlogon.h"
+#include "rpc_client/init_netlogon.h"
 
 /****************************************************************************
  Wrapper function that uses the auth and auth2 calls to set up a NETLOGON
@@ -158,10 +160,8 @@ NTSTATUS rpccli_netlogon_sam_logon(struct rpc_pipe_client *cli,
 	uint8_t authoritative;
 	int validation_level = 3;
 	fstring clnt_name_slash;
-	uint8 zeros[16];
 
 	ZERO_STRUCT(ret_creds);
-	ZERO_STRUCT(zeros);
 
 	logon = TALLOC_ZERO_P(mem_ctx, union netr_LogonLevel);
 	if (!logon) {
@@ -306,7 +306,6 @@ NTSTATUS rpccli_netlogon_sam_network_logon(struct rpc_pipe_client *cli,
 	int validation_level = 3;
 	const char *workstation_name_slash;
 	const char *server_name_slash;
-	uint8 zeros[16];
 	struct netr_Authenticator clnt_creds;
 	struct netr_Authenticator ret_creds;
 	union netr_LogonLevel *logon = NULL;
@@ -318,7 +317,6 @@ NTSTATUS rpccli_netlogon_sam_network_logon(struct rpc_pipe_client *cli,
 
 	*info3 = NULL;
 
-	ZERO_STRUCT(zeros);
 	ZERO_STRUCT(ret_creds);
 
 	ZERO_STRUCT(lm);
@@ -418,7 +416,6 @@ NTSTATUS rpccli_netlogon_sam_network_logon_ex(struct rpc_pipe_client *cli,
 	int validation_level = 3;
 	const char *workstation_name_slash;
 	const char *server_name_slash;
-	uint8 zeros[16];
 	union netr_LogonLevel *logon = NULL;
 	struct netr_NetworkInfo *network_info;
 	uint8_t authoritative;
@@ -428,8 +425,6 @@ NTSTATUS rpccli_netlogon_sam_network_logon_ex(struct rpc_pipe_client *cli,
 	uint32_t flags = 0;
 
 	*info3 = NULL;
-
-	ZERO_STRUCT(zeros);
 
 	ZERO_STRUCT(lm);
 	ZERO_STRUCT(nt);

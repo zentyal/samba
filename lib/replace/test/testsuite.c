@@ -751,7 +751,6 @@ FIXME:
 Types:
 bool
 socklen_t
-uint_t
 uint{8,16,32,64}_t
 int{8,16,32,64}_t
 intptr_t
@@ -1015,6 +1014,44 @@ static int test_utimes(void)
 	return true;
 }
 
+static int test_memmem(void)
+{
+	char *s;
+
+	printf("test: memmem\n");
+
+	s = (char *)memmem("foo", 3, "fo", 2);
+	if (strcmp(s, "foo") != 0) {
+		printf(__location__ ": Failed memmem\n");
+		return false;
+	}
+
+	s = (char *)memmem("foo", 3, "", 0);
+	/* it is allowable for this to return NULL (as happens on
+	   FreeBSD) */
+	if (s && strcmp(s, "foo") != 0) {
+		printf(__location__ ": Failed memmem\n");
+		return false;
+	}
+
+	s = (char *)memmem("foo", 4, "o", 1);
+	if (strcmp(s, "oo") != 0) {
+		printf(__location__ ": Failed memmem\n");
+		return false;
+	}
+
+	s = (char *)memmem("foobarfodx", 11, "fod", 3);
+	if (strcmp(s, "fodx") != 0) {
+		printf(__location__ ": Failed memmem\n");
+		return false;
+	}
+
+	printf("success: memmem\n");
+
+	return true;
+}
+
+
 struct torture_context;
 bool torture_local_replace(struct torture_context *ctx)
 {
@@ -1065,6 +1102,7 @@ bool torture_local_replace(struct torture_context *ctx)
 	ret &= test_getifaddrs();
 	ret &= test_utime();
 	ret &= test_utimes();
+	ret &= test_memmem();
 
 	return ret;
 }

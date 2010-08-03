@@ -24,6 +24,8 @@
 #include "lib/netapi/netapi_private.h"
 #include "lib/netapi/libnetapi.h"
 #include "../librpc/gen_ndr/cli_samr.h"
+#include "rpc_client/init_samr.h"
+#include "../libds/common/flags.h"
 
 /****************************************************************
 ****************************************************************/
@@ -111,7 +113,7 @@ static void convert_USER_INFO_X_to_samr_user_info21(struct USER_INFO_X *infoX,
 	info21->parameters		= zero_parameters;
 	info21->lm_owf_password		= zero_parameters;
 	info21->nt_owf_password		= zero_parameters;
-	info21->unknown3.string		= NULL;
+	info21->private_data.string	= NULL;
 	info21->buf_count		= 0;
 	info21->buffer			= NULL;
 	info21->rid			= infoX->usriX_user_id;
@@ -126,7 +128,7 @@ static void convert_USER_INFO_X_to_samr_user_info21(struct USER_INFO_X *infoX,
 	info21->lm_password_set		= 0;
 	info21->nt_password_set		= 0;
 	info21->password_expired	= infoX->usriX_password_expired;
-	info21->unknown4		= 0;
+	info21->private_data_sensitive	= 0;
 }
 
 /****************************************************************
@@ -530,7 +532,7 @@ WERROR NetUserDel_r(struct libnetapi_ctx *ctx,
 	status = rpccli_samr_OpenDomain(pipe_cli, ctx,
 					&connect_handle,
 					SAMR_DOMAIN_ACCESS_OPEN_ACCOUNT,
-					CONST_DISCARD(DOM_SID *, &global_sid_Builtin),
+					CONST_DISCARD(struct dom_sid *, &global_sid_Builtin),
 					&builtin_handle);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
@@ -1769,8 +1771,8 @@ WERROR NetUserSetInfo_r(struct libnetapi_ctx *ctx,
 				    SAMR_USER_ACCESS_GET_GROUPS;
 			break;
 		case 3:
-			user_mask = STD_RIGHT_READ_CONTROL_ACCESS |
-				    STD_RIGHT_WRITE_DAC_ACCESS |
+			user_mask = SEC_STD_READ_CONTROL |
+				    SEC_STD_WRITE_DAC |
 				    SAMR_USER_ACCESS_GET_GROUPS |
 				    SAMR_USER_ACCESS_SET_PASSWORD |
 				    SAMR_USER_ACCESS_SET_ATTRIBUTES |

@@ -39,12 +39,16 @@ struct drsuapi_bind_state {
 
 
 /* prototypes of internal functions */
+WERROR drsuapi_UpdateRefs(struct drsuapi_bind_state *b_state, TALLOC_CTX *mem_ctx,
+			  struct drsuapi_DsReplicaUpdateRefsRequest1 *req);
 WERROR dcesrv_drsuapi_DsReplicaUpdateRefs(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 					  struct drsuapi_DsReplicaUpdateRefs *r);
 WERROR dcesrv_drsuapi_DsGetNCChanges(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 				     struct drsuapi_DsGetNCChanges *r);
 WERROR dcesrv_drsuapi_DsAddEntry(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 				 struct drsuapi_DsAddEntry *r);
+WERROR dcesrv_drsuapi_DsWriteAccountSpn(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+					struct drsuapi_DsWriteAccountSpn *r);
 
 char *drs_ObjectIdentifier_to_string(TALLOC_CTX *mem_ctx,
 				     struct drsuapi_DsReplicaObjectIdentifier *nc);
@@ -55,11 +59,11 @@ int drsuapi_search_with_extended_dn(struct ldb_context *ldb,
 				    struct ldb_dn *basedn,
 				    enum ldb_scope scope,
 				    const char * const *attrs,
-				    const char *sort_attrib,
 				    const char *filter);
 
+enum security_user_level;
 WERROR drs_security_level_check(struct dcesrv_call_state *dce_call,
-				const char* call);
+				const char* call, enum security_user_level minimum_level);
 
 void drsuapi_process_secret_attribute(struct drsuapi_DsReplicaAttribute *attr,
 				      struct drsuapi_DsReplicaMetaData *meta_data);

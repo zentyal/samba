@@ -20,12 +20,9 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "librpc/gen_ndr/ndr_dssetup.h"
-#include "librpc/gen_ndr/ndr_dssetup_c.h"
 #include "librpc/gen_ndr/ndr_lsa.h"
-#include "librpc/gen_ndr/ndr_lsa_c.h"
-#include "torture/rpc/rpc.h"
+#include "torture/rpc/torture_rpc.h"
 
 /*
   this tests the send object uuids in the dcerpc request

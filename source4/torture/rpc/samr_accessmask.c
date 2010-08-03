@@ -20,12 +20,10 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "librpc/gen_ndr/ndr_samr_c.h"
-#include "torture/rpc/rpc.h"
+#include "torture/rpc/torture_rpc.h"
 #include "param/param.h"
 #include "libcli/security/security.h"
-#include "librpc/gen_ndr/ndr_security.h"
 
 
 /* test user created to test the ACLs associated to SAMR objects */
@@ -33,7 +31,7 @@
 #define TEST_MACHINENAME "samrtestmach"
 
 static NTSTATUS torture_samr_Close(struct torture_context *tctx,
-				   struct dcerpc_pipe *p,
+				   struct dcerpc_binding_handle *b,
 				   struct policy_handle *h)
 {
 	NTSTATUS status;
@@ -41,13 +39,16 @@ static NTSTATUS torture_samr_Close(struct torture_context *tctx,
 
 	cl.in.handle  = h;
 	cl.out.handle = h;
-	status = dcerpc_samr_Close(p, tctx, &cl);
+	status = dcerpc_samr_Close_r(b, tctx, &cl);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
 
-	return status;
+	return cl.out.result;
 }
 
 static NTSTATUS torture_samr_Connect5(struct torture_context *tctx,
-				      struct dcerpc_pipe *p,
+				      struct dcerpc_binding_handle *b,
 				      uint32_t mask, struct policy_handle *h)
 {
 	NTSTATUS status;
@@ -65,9 +66,12 @@ static NTSTATUS torture_samr_Connect5(struct torture_context *tctx,
 	r5.out.connect_handle = h;
 	r5.in.access_mask = mask;
 
-	status = dcerpc_samr_Connect5(p, tctx, &r5);
+	status = dcerpc_samr_Connect5_r(b, tctx, &r5);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
 
-	return status;
+	return r5.out.result;
 }
 
 /* check which bits in accessmask allows us to connect to the server */
@@ -78,12 +82,13 @@ static bool test_samr_accessmask_Connect5(struct torture_context *tctx,
 	struct policy_handle h;
 	int i;
 	uint32_t mask;
+	struct dcerpc_binding_handle *b = p->binding_handle;
 
-	printf("testing which bits in accessmask allows us to connect\n");
+	printf("Testing which bits in accessmask allows us to connect\n");
 	mask = 1;
 	for (i=0;i<33;i++) {
-		printf("testing Connect5 with access mask 0x%08x", mask);
-		status = torture_samr_Connect5(tctx, p, mask, &h);
+		printf("Testing Connect5 with access mask 0x%08x", mask);
+		status = torture_samr_Connect5(tctx, b, mask, &h);
 		mask <<= 1;
 
 		switch (i) {
@@ -119,7 +124,7 @@ static bool test_samr_accessmask_Connect5(struct torture_context *tctx,
 				return false;
 			}
 
-			status = torture_samr_Close(tctx, p, &h);
+			status = torture_samr_Close(tctx, b, &h);
 			if (!NT_STATUS_IS_OK(status)) {
 				printf("Close failed - %s\n", nt_errstr(status));
 				return false;
@@ -152,12 +157,13 @@ static bool test_samr_accessmask_EnumDomains(struct torture_context *tctx,
 	uint32_t resume_handle = 0;
 	struct samr_SamArray *sam = NULL;
 	uint32_t num_entries = 0;
+	struct dcerpc_binding_handle *b = p->binding_handle;
 
-	printf("testing which bits in Connect5 accessmask allows us to EnumDomains\n");
+	printf("Testing which bits in Connect5 accessmask allows us to EnumDomains\n");
 	mask = 1;
 	for (i=0;i<33;i++) {
-		printf("testing Connect5/EnumDomains with access mask 0x%08x", mask);
-		status = torture_samr_Connect5(tctx, p, mask, &ch);
+		printf("Testing Connect5/EnumDomains with access mask 0x%08x", mask);
+		status = torture_samr_Connect5(tctx, b, mask, &ch);
 		mask <<= 1;
 
 		switch (i) {
@@ -178,13 +184,14 @@ static bool test_samr_accessmask_EnumDomains(struct torture_context *tctx,
 			ed.out.num_entries = &num_entries;
 			ed.out.sam = &sam;
 
-			status = dcerpc_samr_EnumDomains(p, tctx, &ed);
-			if (!NT_STATUS_IS_OK(status)) {
-				printf("EnumDomains failed - %s\n", nt_errstr(status));
+			torture_assert_ntstatus_ok(tctx, dcerpc_samr_EnumDomains_r(b, tctx, &ed),
+				"EnumDomains failed");
+			if (!NT_STATUS_IS_OK(ed.out.result)) {
+				printf("EnumDomains failed - %s\n", nt_errstr(ed.out.result));
 				return false;
 			}
 
-			status = torture_samr_Close(tctx, p, &ch);
+			status = torture_samr_Close(tctx, b, &ch);
 			if (!NT_STATUS_IS_OK(status)) {
 				printf("Close failed - %s\n", nt_errstr(status));
 				return false;
@@ -205,13 +212,14 @@ static bool test_samr_accessmask_EnumDomains(struct torture_context *tctx,
 			ed.out.num_entries = &num_entries;
 			ed.out.sam = &sam;
 
-			status = dcerpc_samr_EnumDomains(p, tctx, &ed);
-			if(!NT_STATUS_EQUAL(NT_STATUS_ACCESS_DENIED, status)) {
-				printf("EnumDomains failed - %s\n", nt_errstr(status));
+			torture_assert_ntstatus_ok(tctx, dcerpc_samr_EnumDomains_r(b, tctx, &ed),
+				"EnumDomains failed");
+			if(!NT_STATUS_EQUAL(NT_STATUS_ACCESS_DENIED, ed.out.result)) {
+				printf("EnumDomains failed - %s\n", nt_errstr(ed.out.result));
 				return false;
 			}
 
-			status = torture_samr_Close(tctx, p, &ch);
+			status = torture_samr_Close(tctx, b, &ch);
 			if (!NT_STATUS_IS_OK(status)) {
 				printf("Close failed - %s\n", nt_errstr(status));
 				return false;
@@ -233,7 +241,7 @@ static bool test_samr_accessmask_EnumDomains(struct torture_context *tctx,
  * the server
  */
 static bool test_samr_connect_user_acl(struct torture_context *tctx,
-				       struct dcerpc_pipe *p,
+				       struct dcerpc_binding_handle *b,
 				       struct cli_credentials *test_credentials,
 				       const struct dom_sid *test_sid)
 
@@ -249,12 +257,13 @@ static bool test_samr_connect_user_acl(struct torture_context *tctx,
 	bool ret = true;
 	int sd_size;
 	struct dcerpc_pipe *test_p;
+	struct dcerpc_binding_handle *test_b;
 	const char *binding = torture_setting_string(tctx, "binding", NULL);
 
-	printf("testing ACLs to allow/prevent users to connect to SAMR");
+	printf("Testing ACLs to allow/prevent users to connect to SAMR");
 
 	/* connect to SAMR */
-	status = torture_samr_Connect5(tctx, p, SEC_FLAG_MAXIMUM_ALLOWED, &ch);
+	status = torture_samr_Connect5(tctx, b, SEC_FLAG_MAXIMUM_ALLOWED, &ch);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("Connect5 failed - %s\n", nt_errstr(status));
 		return false;
@@ -265,9 +274,10 @@ static bool test_samr_connect_user_acl(struct torture_context *tctx,
 	qs.in.handle = &ch;
 	qs.in.sec_info = SECINFO_DACL;
 	qs.out.sdbuf = &sdbuf;
-	status = dcerpc_samr_QuerySecurity(p, tctx, &qs);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf("QuerySecurity failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_samr_QuerySecurity_r(b, tctx, &qs),
+		"QuerySecurity failed");
+	if (!NT_STATUS_IS_OK(qs.out.result)) {
+		printf("QuerySecurity failed - %s\n", nt_errstr(qs.out.result));
 		ret = false;
 	}
 
@@ -292,9 +302,10 @@ static bool test_samr_connect_user_acl(struct torture_context *tctx,
 	ss.in.sec_info = SECINFO_DACL;
 	ss.in.sdbuf = &sdb;
 	sdb.sd = sd;
-	status = dcerpc_samr_SetSecurity(p, tctx, &ss);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf("SetSecurity failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_samr_SetSecurity_r(b, tctx, &ss),
+		"SetSecurity failed");
+	if (!NT_STATUS_IS_OK(ss.out.result)) {
+		printf("SetSecurity failed - %s\n", nt_errstr(ss.out.result));
 		ret = false;
 	}
 
@@ -307,9 +318,10 @@ static bool test_samr_connect_user_acl(struct torture_context *tctx,
 		printf("dcerpc_pipe_connect failed: %s\n", nt_errstr(status));
 		return false;
 	}
+	test_b = test_p->binding_handle;
 
 	/* connect to SAMR as the user */
-	status = torture_samr_Connect5(tctx, test_p, SEC_FLAG_MAXIMUM_ALLOWED, &uch);
+	status = torture_samr_Connect5(tctx, test_b, SEC_FLAG_MAXIMUM_ALLOWED, &uch);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("Connect5 failed - %s\n", nt_errstr(status));
 		return false;
@@ -321,9 +333,10 @@ static bool test_samr_connect_user_acl(struct torture_context *tctx,
 	/* read the sequrity descriptor back. it should not have changed
 	 * eventhough samr_SetSecurity returned SUCCESS
 	 */
-	status = dcerpc_samr_QuerySecurity(p, tctx, &qs);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf("QuerySecurity failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_samr_QuerySecurity_r(b, tctx, &qs),
+		"QuerySecurity failed");
+	if (!NT_STATUS_IS_OK(qs.out.result)) {
+		printf("QuerySecurity failed - %s\n", nt_errstr(qs.out.result));
 		ret = false;
 	}
 	if (sd_size != sdbuf->sd_size) {
@@ -332,7 +345,7 @@ static bool test_samr_connect_user_acl(struct torture_context *tctx,
 	}
 
 
-	status = torture_samr_Close(tctx, p, &ch);
+	status = torture_samr_Close(tctx, b, &ch);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("Close failed - %s\n", nt_errstr(status));
 		ret = false;
@@ -353,7 +366,7 @@ static bool test_samr_connect_user_acl(struct torture_context *tctx,
  * the connect should fail.
  */
 static bool test_samr_connect_user_acl_enforced(struct torture_context *tctx,
-						struct dcerpc_pipe *p,
+						struct dcerpc_binding_handle *b,
 						struct cli_credentials *test_credentials,
 						const struct dom_sid *test_sid)
 
@@ -362,9 +375,10 @@ static bool test_samr_connect_user_acl_enforced(struct torture_context *tctx,
 	struct policy_handle uch;
 	bool ret = true;
 	struct dcerpc_pipe *test_p;
+	struct dcerpc_binding_handle *test_b;
 	const char *binding = torture_setting_string(tctx, "binding", NULL);
 
-	printf("testing if ACLs are enforced for non domain admin users when connecting to SAMR");
+	printf("Testing if ACLs are enforced for non domain admin users when connecting to SAMR");
 
 
 	status = dcerpc_pipe_connect(tctx,
@@ -374,9 +388,10 @@ static bool test_samr_connect_user_acl_enforced(struct torture_context *tctx,
 		printf("dcerpc_pipe_connect failed: %s\n", nt_errstr(status));
 		return false;
 	}
+	test_b = test_p->binding_handle;
 
 	/* connect to SAMR as the user */
-	status = torture_samr_Connect5(tctx, test_p, SAMR_ACCESS_SHUTDOWN_SERVER, &uch);
+	status = torture_samr_Connect5(tctx, test_b, SAMR_ACCESS_SHUTDOWN_SERVER, &uch);
 	if (NT_STATUS_IS_OK(status)) {
 		printf("Connect5 failed - %s\n", nt_errstr(status));
 		return false;
@@ -408,12 +423,13 @@ static bool test_samr_accessmask_LookupDomain(struct torture_context *tctx,
 	struct lsa_String dn;
 	int i;
 	uint32_t mask;
+	struct dcerpc_binding_handle *b = p->binding_handle;
 
-	printf("testing which bits in Connect5 accessmask allows us to LookupDomain\n");
+	printf("Testing which bits in Connect5 accessmask allows us to LookupDomain\n");
 	mask = 1;
 	for (i=0;i<33;i++) {
-		printf("testing Connect5/LookupDomain with access mask 0x%08x", mask);
-		status = torture_samr_Connect5(tctx, p, mask, &ch);
+		printf("Testing Connect5/LookupDomain with access mask 0x%08x", mask);
+		status = torture_samr_Connect5(tctx, b, mask, &ch);
 		mask <<= 1;
 
 		switch (i) {
@@ -430,15 +446,16 @@ static bool test_samr_accessmask_LookupDomain(struct torture_context *tctx,
 			ld.in.connect_handle = &ch;
 			ld.in.domain_name    = &dn;
 			ld.out.sid           = &sid;
-			dn.string            = lp_workgroup(tctx->lp_ctx);
+			dn.string            = lpcfg_workgroup(tctx->lp_ctx);
 
-			status = dcerpc_samr_LookupDomain(p, tctx, &ld);
-			if (!NT_STATUS_IS_OK(status)) {
-				printf("LookupDomain failed - %s\n", nt_errstr(status));
+			torture_assert_ntstatus_ok(tctx, dcerpc_samr_LookupDomain_r(b, tctx, &ld),
+				"LookupDomain failed");
+			if (!NT_STATUS_IS_OK(ld.out.result)) {
+				printf("LookupDomain failed - %s\n", nt_errstr(ld.out.result));
 				return false;
 			}
 
-			status = torture_samr_Close(tctx, p, &ch);
+			status = torture_samr_Close(tctx, b, &ch);
 			if (!NT_STATUS_IS_OK(status)) {
 				printf("Close failed - %s\n", nt_errstr(status));
 				return false;
@@ -455,15 +472,16 @@ static bool test_samr_accessmask_LookupDomain(struct torture_context *tctx,
 			ld.in.connect_handle = &ch;
 			ld.in.domain_name    = &dn;
 			ld.out.sid           = &sid;
-			dn.string            = lp_workgroup(tctx->lp_ctx);
+			dn.string            = lpcfg_workgroup(tctx->lp_ctx);
 
-			status = dcerpc_samr_LookupDomain(p, tctx, &ld);
-			if(!NT_STATUS_EQUAL(NT_STATUS_ACCESS_DENIED, status)) {
-				printf("LookupDomain failed - %s\n", nt_errstr(status));
+			torture_assert_ntstatus_ok(tctx, dcerpc_samr_LookupDomain_r(b, tctx, &ld),
+				"LookupDomain failed");
+			if(!NT_STATUS_EQUAL(NT_STATUS_ACCESS_DENIED, ld.out.result)) {
+				printf("LookupDomain failed - %s\n", nt_errstr(ld.out.result));
 				return false;
 			}
 
-			status = torture_samr_Close(tctx, p, &ch);
+			status = torture_samr_Close(tctx, b, &ch);
 			if (!NT_STATUS_IS_OK(status)) {
 				printf("Close failed - %s\n", nt_errstr(status));
 				return false;
@@ -497,10 +515,11 @@ static bool test_samr_accessmask_OpenDomain(struct torture_context *tctx,
 	struct lsa_String dn;
 	int i;
 	uint32_t mask;
+	struct dcerpc_binding_handle *b = p->binding_handle;
 
 
 	/* first we must grab the sid of the domain */
-	status = torture_samr_Connect5(tctx, p, SEC_FLAG_MAXIMUM_ALLOWED, &ch);
+	status = torture_samr_Connect5(tctx, b, SEC_FLAG_MAXIMUM_ALLOWED, &ch);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("Connect5 failed - %s\n", nt_errstr(status));
 		return false;
@@ -509,20 +528,21 @@ static bool test_samr_accessmask_OpenDomain(struct torture_context *tctx,
 	ld.in.connect_handle = &ch;
 	ld.in.domain_name    = &dn;
 	ld.out.sid           = &sid;
-	dn.string            = lp_workgroup(tctx->lp_ctx);
-	status = dcerpc_samr_LookupDomain(p, tctx, &ld);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf("LookupDomain failed - %s\n", nt_errstr(status));
+	dn.string            = lpcfg_workgroup(tctx->lp_ctx);
+	torture_assert_ntstatus_ok(tctx, dcerpc_samr_LookupDomain_r(b, tctx, &ld),
+		"LookupDomain failed");
+	if (!NT_STATUS_IS_OK(ld.out.result)) {
+		printf("LookupDomain failed - %s\n", nt_errstr(ld.out.result));
 		return false;
 	}
 
 
 
-	printf("testing which bits in Connect5 accessmask allows us to OpenDomain\n");
+	printf("Testing which bits in Connect5 accessmask allows us to OpenDomain\n");
 	mask = 1;
 	for (i=0;i<33;i++) {
-		printf("testing Connect5/OpenDomain with access mask 0x%08x", mask);
-		status = torture_samr_Connect5(tctx, p, mask, &ch);
+		printf("Testing Connect5/OpenDomain with access mask 0x%08x", mask);
+		status = torture_samr_Connect5(tctx, b, mask, &ch);
 		mask <<= 1;
 
 		switch (i) {
@@ -541,19 +561,20 @@ static bool test_samr_accessmask_OpenDomain(struct torture_context *tctx,
 			od.in.sid = sid;
 			od.out.domain_handle = &dh;
 
-			status = dcerpc_samr_OpenDomain(p, tctx, &od);
-			if (!NT_STATUS_IS_OK(status)) {
-				printf("OpenDomain failed - %s\n", nt_errstr(status));
+			torture_assert_ntstatus_ok(tctx, dcerpc_samr_OpenDomain_r(b, tctx, &od),
+				"OpenDomain failed");
+			if (!NT_STATUS_IS_OK(od.out.result)) {
+				printf("OpenDomain failed - %s\n", nt_errstr(od.out.result));
 				return false;
 			}
 
-			status = torture_samr_Close(tctx, p, &dh);
+			status = torture_samr_Close(tctx, b, &dh);
 			if (!NT_STATUS_IS_OK(status)) {
 				printf("Close failed - %s\n", nt_errstr(status));
 				return false;
 			}
 
-			status = torture_samr_Close(tctx, p, &ch);
+			status = torture_samr_Close(tctx, b, &ch);
 			if (!NT_STATUS_IS_OK(status)) {
 				printf("Close failed - %s\n", nt_errstr(status));
 				return false;
@@ -567,7 +588,7 @@ static bool test_samr_accessmask_OpenDomain(struct torture_context *tctx,
 				continue;
 			}
 
-			status = torture_samr_Close(tctx, p, &ch);
+			status = torture_samr_Close(tctx, b, &ch);
 			if (!NT_STATUS_IS_OK(status)) {
 				printf("Close failed - %s\n", nt_errstr(status));
 				return false;
@@ -588,13 +609,14 @@ static bool test_samr_connect(struct torture_context *tctx,
 	struct cli_credentials *test_credentials;
 	bool ret = true;
 	const struct dom_sid *test_sid;
+	struct dcerpc_binding_handle *b = p->binding_handle;
 
 	if (torture_setting_bool(tctx, "samba3", false)) {
 		torture_skip(tctx, "Skipping test against Samba 3");
 	}
 
 	/* create a test user */
-	testuser = torture_create_testuser(tctx, TEST_USER_NAME, lp_workgroup(tctx->lp_ctx),
+	testuser = torture_create_testuser(tctx, TEST_USER_NAME, lpcfg_workgroup(tctx->lp_ctx),
 					   ACB_NORMAL, &testuser_passwd);
 	if (!testuser) {
 		printf("Failed to create test user\n");
@@ -602,7 +624,7 @@ static bool test_samr_connect(struct torture_context *tctx,
 	}
 	test_credentials = cli_credentials_init(tctx);
 	cli_credentials_set_workstation(test_credentials, "localhost", CRED_SPECIFIED);
-	cli_credentials_set_domain(test_credentials, lp_workgroup(tctx->lp_ctx),
+	cli_credentials_set_domain(test_credentials, lpcfg_workgroup(tctx->lp_ctx),
 				   CRED_SPECIFIED);
 	cli_credentials_set_username(test_credentials, TEST_USER_NAME, CRED_SPECIFIED);
 	cli_credentials_set_password(test_credentials, testuser_passwd, CRED_SPECIFIED);
@@ -612,7 +634,7 @@ static bool test_samr_connect(struct torture_context *tctx,
 	/* test if ACLs can be changed for the policy handle
 	 * returned by Connect5
 	 */
-	if (!test_samr_connect_user_acl(tctx, p, test_credentials, test_sid)) {
+	if (!test_samr_connect_user_acl(tctx, b, test_credentials, test_sid)) {
 		ret = false;
 	}
 
@@ -626,7 +648,7 @@ static bool test_samr_connect(struct torture_context *tctx,
 	 * is granted and should therefore not be able to connect when
 	 * requesting SAMR_ACCESS_SHUTDOWN_SERVER
 	 */
-	if (!test_samr_connect_user_acl_enforced(tctx, p, test_credentials, test_sid)) {
+	if (!test_samr_connect_user_acl_enforced(tctx, b, test_credentials, test_sid)) {
 		ret = false;
 	}
 
@@ -670,7 +692,7 @@ struct torture_suite *torture_rpc_samr_accessmask(TALLOC_CTX *mem_ctx)
 }
 
 static bool test_LookupRids(struct torture_context *tctx,
-			    struct dcerpc_pipe *p,
+			    struct dcerpc_binding_handle *b,
 			    struct policy_handle *domain_handle,
 			    uint32_t rid)
 {
@@ -678,7 +700,7 @@ static bool test_LookupRids(struct torture_context *tctx,
 	struct lsa_Strings names;
 	struct samr_Ids types;
 
-	torture_comment(tctx, "testing LookupRids %d\n", rid);
+	torture_comment(tctx, "Testing LookupRids %d\n", rid);
 
 	r.in.domain_handle = domain_handle;
 	r.in.num_rids = 1;
@@ -686,7 +708,9 @@ static bool test_LookupRids(struct torture_context *tctx,
 	r.out.names = &names;
 	r.out.types = &types;
 
-	torture_assert_ntstatus_ok(tctx, dcerpc_samr_LookupRids(p, tctx, &r),
+	torture_assert_ntstatus_ok(tctx, dcerpc_samr_LookupRids_r(b, tctx, &r),
+		"failed to call samr_LookupRids");
+	torture_assert_ntstatus_ok(tctx, r.out.result,
 		"failed to call samr_LookupRids");
 
 	return true;
@@ -694,16 +718,16 @@ static bool test_LookupRids(struct torture_context *tctx,
 
 
 static bool test_user(struct torture_context *tctx,
-		      struct dcerpc_pipe *p,
+		      struct dcerpc_binding_handle *b,
 		      struct policy_handle *domain_handle,
 		      uint32_t access_mask,
 		      struct samr_DispEntryGeneral *u)
 {
 	struct policy_handle user_handle;
 
-	torture_comment(tctx, "testing user %s (%d)\n", u->account_name.string, u->rid);
+	torture_comment(tctx, "Testing user %s (%d)\n", u->account_name.string, u->rid);
 
-	torture_assert(tctx, test_LookupRids(tctx, p, domain_handle, u->rid),
+	torture_assert(tctx, test_LookupRids(tctx, b, domain_handle, u->rid),
 		"failed to call lookuprids");
 
 	{
@@ -714,7 +738,9 @@ static bool test_user(struct torture_context *tctx,
 		r.in.rid = u->rid;
 		r.out.user_handle = &user_handle;
 
-		torture_assert_ntstatus_ok(tctx, dcerpc_samr_OpenUser(p, tctx, &r),
+		torture_assert_ntstatus_ok(tctx, dcerpc_samr_OpenUser_r(b, tctx, &r),
+			"failed to open user");
+		torture_assert_ntstatus_ok(tctx, r.out.result,
 			"failed to open user");
 	}
 	{
@@ -730,10 +756,12 @@ static bool test_user(struct torture_context *tctx,
 
 			r.in.level = levels[i];
 
-			torture_comment(tctx, "testing QueryUserInfo rid: %d level: %d\n",
+			torture_comment(tctx, "Testing QueryUserInfo rid: %d level: %d\n",
 				u->rid, r.in.level);
 
-			torture_assert_ntstatus_ok(tctx, dcerpc_samr_QueryUserInfo(p, tctx, &r),
+			torture_assert_ntstatus_ok(tctx, dcerpc_samr_QueryUserInfo_r(b, tctx, &r),
+				talloc_asprintf(tctx, "failed to query user info level %d", r.in.level));
+			torture_assert_ntstatus_ok(tctx, r.out.result,
 				talloc_asprintf(tctx, "failed to query user info level %d", r.in.level));
 		}
 	}
@@ -744,28 +772,30 @@ static bool test_user(struct torture_context *tctx,
 		r.in.user_handle = &user_handle;
 		r.out.rids = &rids;
 
-		torture_assert_ntstatus_ok(tctx, dcerpc_samr_GetGroupsForUser(p, tctx, &r),
+		torture_assert_ntstatus_ok(tctx, dcerpc_samr_GetGroupsForUser_r(b, tctx, &r),
+			"failed to query groups for user");
+		torture_assert_ntstatus_ok(tctx, r.out.result,
 			"failed to query groups for user");
 	}
 
 	torture_assert_ntstatus_ok(tctx,
-		torture_samr_Close(tctx, p, &user_handle),
+		torture_samr_Close(tctx, b, &user_handle),
 		"failed to close user handle");
 
 	return true;
 }
 
 static bool test_samr_group(struct torture_context *tctx,
-			    struct dcerpc_pipe *p,
+			    struct dcerpc_binding_handle *b,
 			    struct policy_handle *domain_handle,
 			    uint32_t access_mask,
 			    struct samr_SamEntry *g)
 {
 	struct policy_handle group_handle;
 
-	torture_comment(tctx, "testing group %s (%d)\n", g->name.string, g->idx);
+	torture_comment(tctx, "Testing group %s (%d)\n", g->name.string, g->idx);
 
-	torture_assert(tctx, test_LookupRids(tctx, p, domain_handle, g->idx),
+	torture_assert(tctx, test_LookupRids(tctx, b, domain_handle, g->idx),
 		"failed to call lookuprids");
 	{
 		struct samr_OpenGroup r;
@@ -775,7 +805,9 @@ static bool test_samr_group(struct torture_context *tctx,
 		r.in.rid = g->idx;
 		r.out.group_handle = &group_handle;
 
-		torture_assert_ntstatus_ok(tctx, dcerpc_samr_OpenGroup(p, tctx, &r),
+		torture_assert_ntstatus_ok(tctx, dcerpc_samr_OpenGroup_r(b, tctx, &r),
+			"failed to open group");
+		torture_assert_ntstatus_ok(tctx, r.out.result,
 			"failed to open group");
 	}
 	{
@@ -785,25 +817,28 @@ static bool test_samr_group(struct torture_context *tctx,
 		r.in.group_handle = &group_handle;
 		r.out.rids = &rids;
 
-		torture_assert_ntstatus_ok(tctx, dcerpc_samr_QueryGroupMember(p, tctx, &r),
+		torture_assert_ntstatus_ok(tctx, dcerpc_samr_QueryGroupMember_r(b, tctx, &r),
 			"failed to query group member");
+		torture_assert_ntstatus_ok(tctx, r.out.result,
+			"failed to query group member");
+
 	}
 
 	torture_assert_ntstatus_ok(tctx,
-		torture_samr_Close(tctx, p, &group_handle),
+		torture_samr_Close(tctx, b, &group_handle),
 		"failed to close group handle");
 
 	return true;
 }
 
 static bool test_samr_alias(struct torture_context *tctx,
-			    struct dcerpc_pipe *p,
+			    struct dcerpc_binding_handle *b,
 			    struct policy_handle *domain_handle,
 			    struct samr_SamEntry *a)
 {
-	torture_comment(tctx, "testing alias %s (%d)\n", a->name.string, a->idx);
+	torture_comment(tctx, "Testing alias %s (%d)\n", a->name.string, a->idx);
 
-	torture_assert(tctx, test_LookupRids(tctx, p, domain_handle, a->idx),
+	torture_assert(tctx, test_LookupRids(tctx, b, domain_handle, a->idx),
 		"failed to call lookuprids");
 
 	{
@@ -817,7 +852,9 @@ static bool test_samr_alias(struct torture_context *tctx,
 		r.in.sids = &sids;
 		r.out.rids = &rids;
 
-		torture_assert_ntstatus_ok(tctx, dcerpc_samr_GetAliasMembership(p, tctx, &r),
+		torture_assert_ntstatus_ok(tctx, dcerpc_samr_GetAliasMembership_r(b, tctx, &r),
+			"failed to get alias membership");
+		torture_assert_ntstatus_ok(tctx, r.out.result,
 			"failed to get alias membership");
 	}
 
@@ -826,7 +863,7 @@ static bool test_samr_alias(struct torture_context *tctx,
 }
 
 static bool test_samr_domain(struct torture_context *tctx,
-			     struct dcerpc_pipe *p,
+			     struct dcerpc_binding_handle *b,
 			     uint32_t access_mask,
 			     const char *domain_name,
 			     struct policy_handle *connect_handle,
@@ -849,7 +886,9 @@ static bool test_samr_domain(struct torture_context *tctx,
 		r.out.num_entries = &num_entries;
 		r.out.resume_handle = &resume_handle;
 
-		torture_assert_ntstatus_ok(tctx, dcerpc_samr_EnumDomains(p, tctx, &r),
+		torture_assert_ntstatus_ok(tctx, dcerpc_samr_EnumDomains_r(b, tctx, &r),
+			"failed to enum domains");
+		torture_assert_ntstatus_ok(tctx, r.out.result,
 			"failed to enum domains");
 
 		torture_assert_int_equal(tctx, num_entries, 2,
@@ -880,7 +919,9 @@ static bool test_samr_domain(struct torture_context *tctx,
 		r.in.domain_name = &name;
 		r.out.sid = &sid;
 
-		torture_assert_ntstatus_ok(tctx, dcerpc_samr_LookupDomain(p, tctx, &r),
+		torture_assert_ntstatus_ok(tctx, dcerpc_samr_LookupDomain_r(b, tctx, &r),
+			"failed to lookup domain");
+		torture_assert_ntstatus_ok(tctx, r.out.result,
 			"failed to lookup domain");
 
 		domain_sid = dom_sid_dup(tctx, sid);
@@ -894,8 +935,11 @@ static bool test_samr_domain(struct torture_context *tctx,
 		r.in.sid = domain_sid;
 		r.out.domain_handle = &domain_handle;
 
-		torture_assert_ntstatus_ok(tctx, dcerpc_samr_OpenDomain(p, tctx, &r),
+		torture_assert_ntstatus_ok(tctx, dcerpc_samr_OpenDomain_r(b, tctx, &r),
 			"failed to open domain");
+		torture_assert_ntstatus_ok(tctx, r.out.result,
+			"failed to open domain");
+
 	}
 
 	{
@@ -911,7 +955,9 @@ static bool test_samr_domain(struct torture_context *tctx,
 
 			r.in.level = levels[i];
 
-			torture_assert_ntstatus_ok(tctx, dcerpc_samr_QueryDomainInfo(p, tctx, &r),
+			torture_assert_ntstatus_ok(tctx, dcerpc_samr_QueryDomainInfo_r(b, tctx, &r),
+				talloc_asprintf(tctx, "failed to query domain info level %d", r.in.level));
+			torture_assert_ntstatus_ok(tctx, r.out.result,
 				talloc_asprintf(tctx, "failed to query domain info level %d", r.in.level));
 		}
 
@@ -952,12 +998,10 @@ static void get_query_dispinfo_params(int loop_count,
 
 
 static bool test_samr_users(struct torture_context *tctx,
-			    struct dcerpc_pipe *p,
+			    struct dcerpc_binding_handle *b,
 			    uint32_t access_mask,
 			    struct policy_handle *domain_handle)
 {
-	NTSTATUS status;
-
 	{
 		struct samr_QueryDisplayInfo r;
 		uint32_t total_size;
@@ -983,33 +1027,32 @@ static bool test_samr_users(struct torture_context *tctx,
 						  &r.in.max_entries,
 						  &r.in.buf_size);
 
-			status = dcerpc_samr_QueryDisplayInfo(p, tctx, &r);
-			if (NT_STATUS_IS_ERR(status)) {
-				torture_assert_ntstatus_ok(tctx, status,
+			torture_assert_ntstatus_ok(tctx, dcerpc_samr_QueryDisplayInfo_r(b, tctx, &r),
+				"QueryDisplayInfo failed");
+			if (NT_STATUS_IS_ERR(r.out.result)) {
+				torture_assert_ntstatus_ok(tctx, r.out.result,
 					"failed to call QueryDisplayInfo");
 			}
 
 			for (i=0; i < info.info1.count; i++) {
 				torture_assert(tctx,
-					test_user(tctx, p, domain_handle, access_mask, &info.info1.entries[i]),
+					test_user(tctx, b, domain_handle, access_mask, &info.info1.entries[i]),
 						"failed to test user");
 			}
 			loop_count++;
 			r.in.start_idx += info.info1.count;
 
-		} while (NT_STATUS_EQUAL(status, STATUS_MORE_ENTRIES));
+		} while (NT_STATUS_EQUAL(r.out.result, STATUS_MORE_ENTRIES));
 	}
 
 	return true;
 }
 
 static bool test_samr_groups(struct torture_context *tctx,
-			     struct dcerpc_pipe *p,
+			     struct dcerpc_binding_handle *b,
 			     uint32_t access_mask,
 			     struct policy_handle *domain_handle)
 {
-	NTSTATUS status;
-
 	{
 		struct samr_EnumDomainGroups r;
 		uint32_t resume_handle = 0;
@@ -1027,31 +1070,30 @@ static bool test_samr_groups(struct torture_context *tctx,
 		do {
 			int i;
 
-			status = dcerpc_samr_EnumDomainGroups(p, tctx, &r);
-			if (NT_STATUS_IS_ERR(status)) {
-				torture_assert_ntstatus_ok(tctx, status,
+			torture_assert_ntstatus_ok(tctx, dcerpc_samr_EnumDomainGroups_r(b, tctx, &r),
+				"EnumDomainGroups failed");
+			if (NT_STATUS_IS_ERR(r.out.result)) {
+				torture_assert_ntstatus_ok(tctx, r.out.result,
 					"failed to call EnumDomainGroups");
 			}
 
 			for (i=0; i < num_entries; i++) {
 				torture_assert(tctx,
-					test_samr_group(tctx, p, domain_handle, access_mask, &sam->entries[i]),
+					test_samr_group(tctx, b, domain_handle, access_mask, &sam->entries[i]),
 						"failed to test group");
 			}
 
-		} while (NT_STATUS_EQUAL(status, STATUS_MORE_ENTRIES));
+		} while (NT_STATUS_EQUAL(r.out.result, STATUS_MORE_ENTRIES));
 	}
 
 	return true;
 }
 
 static bool test_samr_aliases(struct torture_context *tctx,
-			      struct dcerpc_pipe *p,
+			      struct dcerpc_binding_handle *b,
 			      uint32_t access_mask,
 			      struct policy_handle *domain_handle)
 {
-	NTSTATUS status;
-
 	{
 		struct samr_EnumDomainAliases r;
 		uint32_t resume_handle = 0;
@@ -1069,19 +1111,20 @@ static bool test_samr_aliases(struct torture_context *tctx,
 		do {
 			int i;
 
-			status = dcerpc_samr_EnumDomainAliases(p, tctx, &r);
-			if (NT_STATUS_IS_ERR(status)) {
-				torture_assert_ntstatus_ok(tctx, status,
+			torture_assert_ntstatus_ok(tctx, dcerpc_samr_EnumDomainAliases_r(b, tctx, &r),
+				"EnumDomainAliases failed");
+			if (NT_STATUS_IS_ERR(r.out.result)) {
+				torture_assert_ntstatus_ok(tctx, r.out.result,
 					"failed to call EnumDomainAliases");
 			}
 
 			for (i=0; i < num_entries; i++) {
 				torture_assert(tctx,
-					test_samr_alias(tctx, p, domain_handle, &sam->entries[i]),
+					test_samr_alias(tctx, b, domain_handle, &sam->entries[i]),
 						"failed to test alias");
 			}
 
-		} while (NT_STATUS_EQUAL(status, STATUS_MORE_ENTRIES));
+		} while (NT_STATUS_EQUAL(r.out.result, STATUS_MORE_ENTRIES));
 	}
 
 	return true;
@@ -1093,39 +1136,40 @@ static bool torture_rpc_samr_workstation_query(struct torture_context *tctx,
 {
 	struct policy_handle connect_handle;
 	struct policy_handle domain_handle;
+	struct dcerpc_binding_handle *b = p->binding_handle;
 
 	torture_assert_ntstatus_ok(tctx,
-		torture_samr_Connect5(tctx, p, SEC_FLAG_MAXIMUM_ALLOWED,
+		torture_samr_Connect5(tctx, b, SEC_FLAG_MAXIMUM_ALLOWED,
 				      &connect_handle),
 		"failed to connect to samr server");
 
 	torture_assert(tctx,
-		test_samr_domain(tctx, p, SEC_FLAG_MAXIMUM_ALLOWED,
-				 lp_workgroup(tctx->lp_ctx),
+		test_samr_domain(tctx, b, SEC_FLAG_MAXIMUM_ALLOWED,
+				 lpcfg_workgroup(tctx->lp_ctx),
 				 &connect_handle, &domain_handle),
 		"failed to test domain");
 
 	torture_assert(tctx,
-		test_samr_users(tctx, p, SEC_FLAG_MAXIMUM_ALLOWED,
+		test_samr_users(tctx, b, SEC_FLAG_MAXIMUM_ALLOWED,
 				&domain_handle),
 		"failed to test users");
 
 	torture_assert(tctx,
-		test_samr_groups(tctx, p, SEC_FLAG_MAXIMUM_ALLOWED,
+		test_samr_groups(tctx, b, SEC_FLAG_MAXIMUM_ALLOWED,
 				 &domain_handle),
 		"failed to test groups");
 
 	torture_assert(tctx,
-		test_samr_aliases(tctx, p, SEC_FLAG_MAXIMUM_ALLOWED,
+		test_samr_aliases(tctx, b, SEC_FLAG_MAXIMUM_ALLOWED,
 				  &domain_handle),
 		"failed to test aliases");
 
 	torture_assert_ntstatus_ok(tctx,
-		torture_samr_Close(tctx, p, &domain_handle),
+		torture_samr_Close(tctx, b, &domain_handle),
 		"failed to close domain handle");
 
 	torture_assert_ntstatus_ok(tctx,
-		torture_samr_Close(tctx, p, &connect_handle),
+		torture_samr_Close(tctx, b, &connect_handle),
 		"failed to close connect handle");
 
 	return true;

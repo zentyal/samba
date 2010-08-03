@@ -25,6 +25,7 @@
 
 #include "includes.h"
 #include "librpc/gen_ndr/ndr_notify.h"
+#include "librpc/gen_ndr/messaging.h"
 
 struct notify_context {
 	struct db_context *db_recursive;
@@ -101,7 +102,7 @@ struct notify_context *notify_init(TALLOC_CTX *mem_ctx, struct server_id server,
 	}
 
 	notify->db_onelevel = db_open(notify, lock_path("notify_onelevel.tdb"),
-				      0, TDB_SEQNUM|TDB_CLEAR_IF_FIRST,
+				      0, TDB_CLEAR_IF_FIRST,
 				      O_RDWR|O_CREAT, 0644);
 	if (notify->db_onelevel == NULL) {
 		talloc_free(notify);
@@ -126,6 +127,39 @@ struct notify_context *notify_init(TALLOC_CTX *mem_ctx, struct server_id server,
 	notify->sys_notify_ctx = sys_notify_context_create(conn, notify, ev);
 
 	return notify;
+}
+
+bool notify_internal_parent_init(void)
+{
+	struct tdb_wrap *db1, *db2;
+
+	if (lp_clustering()) {
+		return true;
+	}
+
+	/*
+	 * Open the tdbs in the parent process (smbd) so that our
+	 * CLEAR_IF_FIRST optimization in tdb_reopen_all can properly
+	 * work.
+	 */
+
+	db1 = tdb_wrap_open(talloc_autofree_context(), lock_path("notify.tdb"),
+			    0, TDB_SEQNUM|TDB_CLEAR_IF_FIRST,
+			   O_RDWR|O_CREAT, 0644);
+	if (db1 == NULL) {
+		DEBUG(1, ("could not open notify.tdb: %s\n", strerror(errno)));
+		return false;
+	}
+	db2 = tdb_wrap_open(talloc_autofree_context(),
+			    lock_path("notify_onelevel.tdb"),
+			    0, TDB_CLEAR_IF_FIRST, O_RDWR|O_CREAT, 0644);
+	if (db2 == NULL) {
+		DEBUG(1, ("could not open notify_onelevel.tdb: %s\n",
+			  strerror(errno)));
+		TALLOC_FREE(db1);
+		return false;
+	}
+	return true;
 }
 
 /*
@@ -178,17 +212,28 @@ static NTSTATUS notify_load(struct notify_context *notify, struct db_record *rec
 	status = NT_STATUS_OK;
 	if (blob.length > 0) {
 		enum ndr_err_code ndr_err;
-		ndr_err = ndr_pull_struct_blob(&blob, notify->array, NULL, notify->array,
+		ndr_err = ndr_pull_struct_blob(&blob, notify->array, notify->array,
 					       (ndr_pull_flags_fn_t)ndr_pull_notify_array);
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-			status = ndr_map_error2ntstatus(ndr_err);
+			/* 1. log that we got a corrupt notify_array
+			 * 2. clear the variable the garbage was stored into to not trip
+			 *  over it next time this method is entered with the same seqnum
+			 * 3. delete it from the database */
+			DEBUG(2, ("notify_array is corrupt, discarding it\n"));
+
+			ZERO_STRUCTP(notify->array);
+			if (rec != NULL) {
+				rec->delete_rec(rec);
+			}
+
+		} else {
+			if (DEBUGLEVEL >= 10) {
+				DEBUG(10, ("notify_load:\n"));
+				NDR_PRINT_DEBUG(notify_array, notify->array);
+			}
 		}
 	}
 
-	if (DEBUGLEVEL >= 10) {
-		DEBUG(10, ("notify_load:\n"));
-		NDR_PRINT_DEBUG(notify_array, notify->array);
-	}
 
 	if (!rec) {
 		talloc_free(dbuf.dptr);
@@ -200,10 +245,8 @@ static NTSTATUS notify_load(struct notify_context *notify, struct db_record *rec
 /*
   compare notify entries for sorting
 */
-static int notify_compare(const void *p1, const void *p2)
+static int notify_compare(const struct notify_entry *e1, const struct notify_entry *e2)
 {
-	const struct notify_entry *e1 = (const struct notify_entry *)p1;
-	const struct notify_entry *e2 = (const struct notify_entry *)p2;
 	return strcmp(e1->path, e2->path);
 }
 
@@ -232,7 +275,7 @@ static NTSTATUS notify_save(struct notify_context *notify, struct db_record *rec
 	tmp_ctx = talloc_new(notify);
 	NT_STATUS_HAVE_NO_MEMORY(tmp_ctx);
 
-	ndr_err = ndr_push_struct_blob(&blob, tmp_ctx, NULL, notify->array,
+	ndr_err = ndr_push_struct_blob(&blob, tmp_ctx, notify->array,
 				      (ndr_push_flags_fn_t)ndr_push_notify_array);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(tmp_ctx);
@@ -270,7 +313,7 @@ static void notify_handler(struct messaging_context *msg_ctx, void *private_data
 		return;
 	}
 
-	ndr_err = ndr_pull_struct_blob(data, tmp_ctx, NULL, &ev,
+	ndr_err = ndr_pull_struct_blob(data, tmp_ctx, &ev,
 				       (ndr_pull_flags_fn_t)ndr_pull_notify_event);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(tmp_ctx);
@@ -339,9 +382,7 @@ static NTSTATUS notify_add_array(struct notify_context *notify, struct db_record
 	d->max_mask |= e->filter;
 	d->max_mask_subdir |= e->subdir_filter;
 
-	if (d->num_entries > 1) {
-		qsort(d->entries, d->num_entries, sizeof(d->entries[0]), notify_compare);
-	}
+	TYPESAFE_QSORT(d->entries, d->num_entries, notify_compare);
 
 	/* recalculate the maximum masks */
 	d->max_mask = 0;
@@ -388,8 +429,7 @@ static void notify_add_onelevel(struct notify_context *notify,
 	blob.length = rec->value.dsize;
 
 	if (blob.length > 0) {
-		ndr_err = ndr_pull_struct_blob(
-			&blob, array, NULL, array,
+		ndr_err = ndr_pull_struct_blob(&blob, array, array,
 			(ndr_pull_flags_fn_t)ndr_pull_notify_entry_array);
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			DEBUG(10, ("ndr_pull_notify_entry_array failed: %s\n",
@@ -415,8 +455,7 @@ static void notify_add_onelevel(struct notify_context *notify,
 	array->entries[array->num_entries].server = notify->server;
 	array->num_entries += 1;
 
-	ndr_err = ndr_push_struct_blob(
-		&blob, rec, NULL, array,
+	ndr_err = ndr_push_struct_blob(&blob, rec, array,
 		(ndr_push_flags_fn_t)ndr_push_notify_entry_array);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		DEBUG(10, ("ndr_push_notify_entry_array failed: %s\n",
@@ -568,8 +607,7 @@ NTSTATUS notify_remove_onelevel(struct notify_context *notify,
 	blob.length = rec->value.dsize;
 
 	if (blob.length > 0) {
-		ndr_err = ndr_pull_struct_blob(
-			&blob, array, NULL, array,
+		ndr_err = ndr_pull_struct_blob(&blob, array, array,
 			(ndr_pull_flags_fn_t)ndr_pull_notify_entry_array);
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			DEBUG(10, ("ndr_pull_notify_entry_array failed: %s\n",
@@ -605,8 +643,7 @@ NTSTATUS notify_remove_onelevel(struct notify_context *notify,
 		return NT_STATUS_OK;
 	}
 
-	ndr_err = ndr_push_struct_blob(
-		&blob, rec, NULL, array,
+	ndr_err = ndr_push_struct_blob(&blob, rec, array,
 		(ndr_push_flags_fn_t)ndr_push_notify_entry_array);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		DEBUG(10, ("ndr_push_notify_entry_array failed: %s\n",
@@ -768,7 +805,7 @@ static NTSTATUS notify_send(struct notify_context *notify, struct notify_entry *
 
 	tmp_ctx = talloc_new(notify);
 
-	ndr_err = ndr_push_struct_blob(&data, tmp_ctx, NULL, &ev,
+	ndr_err = ndr_push_struct_blob(&data, tmp_ctx, &ev,
 				       (ndr_push_flags_fn_t)ndr_push_notify_event);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(tmp_ctx);
@@ -812,8 +849,7 @@ void notify_onelevel(struct notify_context *notify, uint32_t action,
 
 	if (blob.length > 0) {
 		enum ndr_err_code ndr_err;
-		ndr_err = ndr_pull_struct_blob(
-			&blob, array, NULL, array,
+		ndr_err = ndr_pull_struct_blob(&blob, array, array,
 			(ndr_pull_flags_fn_t)ndr_pull_notify_entry_array);
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			DEBUG(10, ("ndr_pull_notify_entry_array failed: %s\n",

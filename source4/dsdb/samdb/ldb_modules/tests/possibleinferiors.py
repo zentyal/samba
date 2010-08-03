@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 # Unix SMB/CIFS implementation.
 # Copyright (C) Andrew Tridgell 2009
@@ -217,7 +217,7 @@ def possible_inferiors_constructed(db, classinfo, c):
 
 def test_class(db, classinfo, oc):
     """test to see if one objectclass returns the correct possibleInferiors"""
-    print "testing objectClass %s" % oc
+    print "Testing objectClass %s" % oc
     poss1 = possible_inferiors_search(db, oc)
     poss2 = possible_inferiors_constructed(db, classinfo, oc)
     if poss1 != poss2:

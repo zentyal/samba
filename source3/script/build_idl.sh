@@ -1,5 +1,12 @@
 #!/bin/sh
 
+if [ "$1" = "--full" ]; then
+	FULL=1
+	shift 1
+else
+	FULL=0
+fi
+
 ARGS="--includedir=../librpc/idl --outputdir $PIDL_OUTPUTDIR --header --ndr-parser --samba3-ndr-server --samba3-ndr-client $PIDL_ARGS --"
 IDL_FILES="$*"
 
@@ -10,22 +17,32 @@ cd ${srcdir}
 
 PIDL="$PIDL $ARGS"
 
+if [ $FULL = 1 ]; then
+	echo "Rebuilding all idl files"
+	$PIDL $IDL_FILES || exit 1
+	exit 0
+fi
+
 ##
 ## Find newer files rather than rebuild all of them
 ##
 
 list=""
 for f in ${IDL_FILES}; do
-	basename=`basename $f .idl`
-	ndr="$PIDL_OUTPUTDIR/ndr_$basename.c"
+        b=`basename $f .idl`
+	outfiles="cli_$b.c $b.h ndr_$b.h srv_$b.c"
+	outfiles="$outfiles cli_$b.h ndr_$b.c srv_$b.h"
 
-	if [ -f $ndr ]; then
-		if [ "x`find $f -newer $ndr -print`" = "x$f" ]; then
-			list="$list $f"
-		fi
-	else 
+	for o in $outfiles; do
+	    [ -f $PIDL_OUTPUTDIR/$o ] || {
 		list="$list $f"
-	fi
+		break
+	    }
+	    test "`find $f -newer $PIDL_OUTPUTDIR/$o`" != "" && {
+		list="$list $f"
+		break
+	    }
+	done
 done
 
 ##

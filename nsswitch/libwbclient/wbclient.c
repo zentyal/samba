@@ -23,8 +23,6 @@
 /* Required Headers */
 
 #include "replace.h"
-#include "talloc.h"
-#include "tevent.h"
 #include "libwbclient.h"
 
 /* From wb_common.c */
@@ -36,16 +34,7 @@ NSS_STATUS winbindd_priv_request_response(int req_type,
 					  struct winbindd_request *request,
 					  struct winbindd_response *response);
 
-/** @brief Wrapper around Winbind's send/receive API call
- *
- * @param cmd       Winbind command operation to perform
- * @param request   Send structure
- * @param response  Receive structure
- *
- * @return #wbcErr
- **/
-
-/**********************************************************************
+/*
  result == NSS_STATUS_UNAVAIL: winbind not around
  result == NSS_STATUS_NOTFOUND: winbind around, but domain missing
 
@@ -56,7 +45,7 @@ NSS_STATUS winbindd_priv_request_response(int req_type,
  (as far as I have seen) with the callers of is_trusted_domains.
 
  --Volker
-**********************************************************************/
+*/
 
 static wbcErr wbcRequestResponseInt(
 	int cmd,
@@ -91,6 +80,15 @@ static wbcErr wbcRequestResponseInt(
 	return wbc_status;
 }
 
+/**
+ * @brief Wrapper around Winbind's send/receive API call
+ *
+ * @param cmd       Winbind command operation to perform
+ * @param request   Send structure
+ * @param response  Receive structure
+ *
+ * @return #wbcErr
+ */
 wbcErr wbcRequestResponse(int cmd,
 			  struct winbindd_request *request,
 			  struct winbindd_response *response)
@@ -149,35 +147,108 @@ const char *wbcErrorString(wbcErr error)
 	return "unknown wbcErr value";
 }
 
+#define WBC_MAGIC (0x7a2b0e1e)
+
+struct wbcMemPrefix {
+	uint32_t magic;
+	void (*destructor)(void *ptr);
+};
+
+static size_t wbcPrefixLen(void)
+{
+	size_t result = sizeof(struct wbcMemPrefix);
+	return (result + 15) & ~15;
+}
+
+static struct wbcMemPrefix *wbcMemToPrefix(void *ptr)
+{
+	return (struct wbcMemPrefix *)(((char *)ptr) - wbcPrefixLen());
+}
+
+void *wbcAllocateMemory(size_t nelem, size_t elsize,
+			void (*destructor)(void *ptr))
+{
+	struct wbcMemPrefix *result;
+
+	if (nelem >= (2<<24)/elsize) {
+		/* basic protection against integer wrap */
+		return NULL;
+	}
+
+	result = (struct wbcMemPrefix *)calloc(
+		1, nelem*elsize + wbcPrefixLen());
+	if (result == NULL) {
+		return NULL;
+	}
+	result->magic = WBC_MAGIC;
+	result->destructor = destructor;
+	return ((char *)result) + wbcPrefixLen();
+}
+
 /* Free library allocated memory */
 void wbcFreeMemory(void *p)
 {
-	if (p)
-		talloc_free(p);
+	struct wbcMemPrefix *wbcMem;
 
+	if (p == NULL) {
+		return;
+	}
+	wbcMem = wbcMemToPrefix(p);
+	if (wbcMem->magic != WBC_MAGIC) {
+		return;
+	}
+	if (wbcMem->destructor != NULL) {
+		wbcMem->destructor(p);
+	}
+	free(wbcMem);
 	return;
+}
+
+char *wbcStrDup(const char *str)
+{
+	char *result;
+	size_t len;
+
+	len = strlen(str);
+	result = (char *)wbcAllocateMemory(len+1, sizeof(char), NULL);
+	if (result == NULL) {
+		return NULL;
+	}
+	memcpy(result, str, len+1);
+	return result;
+}
+
+static void wbcStringArrayDestructor(void *ptr)
+{
+	char **p = (char **)ptr;
+	while (*p != NULL) {
+		free(*p);
+		p += 1;
+	}
+}
+
+const char **wbcAllocateStringArray(int num_strings)
+{
+	return (const char **)wbcAllocateMemory(
+		num_strings + 1, sizeof(const char *),
+		wbcStringArrayDestructor);
 }
 
 wbcErr wbcLibraryDetails(struct wbcLibraryDetails **_details)
 {
-	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 	struct wbcLibraryDetails *info;
 
-	info = talloc(NULL, struct wbcLibraryDetails);
-	BAIL_ON_PTR_ERROR(info, wbc_status);
+	info = (struct wbcLibraryDetails *)wbcAllocateMemory(
+		1, sizeof(struct wbcLibraryDetails), NULL);
+
+	if (info == NULL) {
+		return WBC_ERR_NO_MEMORY;
+	}
 
 	info->major_version = WBCLIENT_MAJOR_VERSION;
 	info->minor_version = WBCLIENT_MINOR_VERSION;
-	info->vendor_version = talloc_strdup(info,
-					     WBCLIENT_VENDOR_VERSION);
-	BAIL_ON_PTR_ERROR(info->vendor_version, wbc_status);
+	info->vendor_version = WBCLIENT_VENDOR_VERSION;
 
 	*_details = info;
-	info = NULL;
-
-	wbc_status = WBC_ERR_SUCCESS;
-
-done:
-	talloc_free(info);
-	return wbc_status;
+	return WBC_ERR_SUCCESS;
 }

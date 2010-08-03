@@ -26,7 +26,6 @@
 #include "auth/gensec/gensec.h"
 #include "libcli/libcli.h"
 #include "param/param.h"
-#include "dynconfig/dynconfig.h"
 #include "libcli/resolve/resolve.h"
 
 static int numops = 1000;
@@ -34,9 +33,9 @@ static int showall;
 static int analyze;
 static int hide_unlock_fails;
 static int use_oplocks;
-static uint_t lock_range = 100;
-static uint_t lock_base = 0;
-static uint_t min_length = 0;
+static unsigned int lock_range = 100;
+static unsigned int lock_base = 0;
+static unsigned int min_length = 0;
 static int exact_error_codes;
 static int zero_zero;
 
@@ -119,8 +118,8 @@ static struct smbcli_state *connect_one(struct tevent_context *ev,
 	struct smbcli_options options;
 	struct smbcli_session_options session_options;
 
-	lp_smbcli_options(lp_ctx, &options);
-	lp_smbcli_session_options(lp_ctx, &session_options);
+	lpcfg_smbcli_options(lp_ctx, &options);
+	lpcfg_smbcli_session_options(lp_ctx, &session_options);
 
 	printf("connect_one(%s, %d, %d)\n", share, snum, conn);
 
@@ -134,7 +133,7 @@ static struct smbcli_state *connect_one(struct tevent_context *ev,
 		char **unc_list = NULL;
 		int num_unc_names;
 		const char *p;
-		p = lp_parm_string(lp_ctx, NULL, "torture", "unclist");
+		p = lpcfg_parm_string(lp_ctx, NULL, "torture", "unclist");
 		if (p) {
 			char *h, *s;
 			unc_list = file_lines_load(p, &num_unc_names, 0, NULL);
@@ -162,14 +161,13 @@ static struct smbcli_state *connect_one(struct tevent_context *ev,
 		printf("\\\\%s\\%s\n", server, share);
 		status = smbcli_full_connection(NULL, &c, 
 						server, 
-						lp_smb_ports(lp_ctx),
+						lpcfg_smb_ports(lp_ctx),
 						share, NULL,
-						lp_socket_options(lp_ctx),
+						lpcfg_socket_options(lp_ctx),
 						servers[snum], 
-						lp_resolve_context(lp_ctx),
+						lpcfg_resolve_context(lp_ctx),
 						ev, &options, &session_options,
-						lp_iconv_convenience(lp_ctx),
-						lp_gensec_settings(mem_ctx, lp_ctx));
+						lpcfg_gensec_settings(mem_ctx, lp_ctx));
 		if (!NT_STATUS_IS_OK(status)) {
 			sleep(2);
 		}
@@ -202,7 +200,7 @@ static void reconnect(struct tevent_context *ev,
 			}
 			talloc_free(cli[server][conn]);
 		}
-		cli[server][conn] = connect_one(ev, lp_ctx, mem_ctx, share[server], 
+		cli[server][conn] = connect_one(ev, lp_ctx, mem_ctx, share[server],
 						server, conn);
 		if (!cli[server][conn]) {
 			DEBUG(0,("Failed to connect to %s\n", share[server]));
@@ -217,8 +215,8 @@ static bool test_one(struct smbcli_state *cli[NSERVERS][NCONNECTIONS],
 		     int fnum[NSERVERS][NCONNECTIONS][NFILES],
 		     struct record *rec)
 {
-	uint_t conn = rec->conn;
-	uint_t f = rec->f;
+	unsigned int conn = rec->conn;
+	unsigned int f = rec->f;
 	uint64_t start = rec->start;
 	uint64_t len = rec->len;
 	enum brl_type op = rec->lock_type;
@@ -386,7 +384,7 @@ static int retest(struct smbcli_state *cli[NSERVERS][NCONNECTIONS],
 		   int n)
 {
 	int i;
-	printf("testing %u ...\n", n);
+	printf("Testing %u ...\n", n);
 	for (i=0; i<n; i++) {
 		if (i && i % 100 == 0) {
 			printf("%u\n", i);
@@ -427,7 +425,7 @@ static int test_locks(struct tevent_context *ev,
 #endif
 			recorded[n].conn = random() % NCONNECTIONS;
 			recorded[n].f = random() % NFILES;
-			recorded[n].start = lock_base + ((uint_t)random() % (lock_range-1));
+			recorded[n].start = lock_base + ((unsigned int)random() % (lock_range-1));
 			recorded[n].len =  min_length +
 				random() % (lock_range-(recorded[n].start-lock_base));
 			recorded[n].start *= RANGE_MULTIPLE;
@@ -600,7 +598,7 @@ static void usage(poptContext pc)
 	while((opt = poptGetNextOpt(pc)) != -1) {
 		switch (opt) {
 		case OPT_UNCLIST:
-			lp_set_cmdline(cmdline_lp_ctx, "torture:unclist", poptGetOptArg(pc));
+			lpcfg_set_cmdline(cmdline_lp_ctx, "torture:unclist", poptGetOptArg(pc));
 			break;
 		case 'U':
 			if (username_count == 2) {

@@ -20,6 +20,7 @@
 
 #include "includes.h"
 #include "idmap_adex.h"
+#include "../libds/common/flags.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_IDMAP
@@ -138,7 +139,7 @@ done:
 	ADS_STATUS status;
 	char *domain_dn = ads_build_dn(lp_realm());
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
-	DOM_SID sid;
+	struct dom_sid sid;
 	struct likewise_cell *cell = NULL;
 
 	/* In the Likewise plugin, I had to support the concept of cells

@@ -1,22 +1,22 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 #
-#	backend code for upgrading from Samba3
-#	Copyright Jelmer Vernooij 2005-2007
-#	Released under the GNU GPL v3 or later
+#    backend code for upgrading from Samba3
+#    Copyright Jelmer Vernooij 2005-2007
+#    Released under the GNU GPL v3 or later
 #
 
 """Support code for upgrading from Samba 3 to Samba 4."""
 
 __docformat__ = "restructuredText"
 
-from provision import provision, FILL_DRS
 import grp
 import ldb
 import time
 import pwd
-import registry
-from samba import Ldb
+
+from samba import Ldb, registry
 from samba.param import LoadParm
+from samba.provision import provision
 
 def import_sam_policy(samldb, policy, dn):
     """Import a Samba 3 policy database."""
@@ -208,73 +208,6 @@ def import_wins(samba4_winsdb, samba3_winsdb):
                        "objectClass": "winsMaxVersion",
                        "maxVersion": str(version_id)})
 
-def upgrade_provision(samba3, setup_dir, message, credentials, session_info, smbconf, targetdir):
-    oldconf = samba3.get_conf()
-
-    if oldconf.get("domain logons") == "True":
-        serverrole = "domain controller"
-    else:
-        if oldconf.get("security") == "user":
-            serverrole = "standalone"
-        else:
-            serverrole = "member server"
-
-    domainname = oldconf.get("workgroup")
-    if domainname:
-        domainname = str(domainname)
-    realm = oldconf.get("realm")
-    netbiosname = oldconf.get("netbios name")
-
-    secrets_db = samba3.get_secrets_db()
-    
-    if domainname is None:
-        domainname = secrets_db.domains()[0]
-        message("No domain specified in smb.conf file, assuming '%s'" % domainname)
-    
-    if realm is None:
-        realm = domainname.lower()
-        message("No realm specified in smb.conf file, assuming '%s'\n" % realm)
-
-    domainguid = secrets_db.get_domain_guid(domainname)
-    domainsid = secrets_db.get_sid(domainname)
-    if domainsid is None:
-        message("Can't find domain secrets for '%s'; using random SID\n" % domainname)
-    
-    if netbiosname is not None:
-        machinepass = secrets_db.get_machine_password(netbiosname)
-    else:
-        machinepass = None
-    
-    result = provision(setup_dir=setup_dir, message=message, 
-                       samdb_fill=FILL_DRS, smbconf=smbconf, session_info=session_info, 
-                       credentials=credentials, realm=realm, 
-                       domain=domainname, domainsid=domainsid, domainguid=domainguid, 
-                       machinepass=machinepass, serverrole=serverrole, targetdir=targetdir)
-
-    import_wins(Ldb(result.paths.winsdb), samba3.get_wins_db())
-
-    # FIXME: import_registry(registry.Registry(), samba3.get_registry())
-
-    # FIXME: import_idmap(samdb,samba3.get_idmap_db(),domaindn)
-    
-    groupdb = samba3.get_groupmapping_db()
-    for sid in groupdb.groupsids():
-        (gid, sid_name_use, nt_name, comment) = groupdb.get_group(sid)
-        # FIXME: import_sam_group(samdb, sid, gid, sid_name_use, nt_name, comment, domaindn)
-
-    # FIXME: Aliases
-
-    passdb = samba3.get_sam_db()
-    for name in passdb:
-        user = passdb[name]
-        #FIXME: import_sam_account(result.samdb, user, domaindn, domainsid)
-
-    if hasattr(passdb, 'ldap_url'):
-        message("Enabling Samba3 LDAP mappings for SAM database")
-
-        enable_samba3sam(result.samdb, passdb.ldap_url)
-
-
 def enable_samba3sam(samdb, ldapurl):
     """Enable Samba 3 LDAP URL database.
 
@@ -433,4 +366,77 @@ def import_registry(samba4_registry, samba3_regdb):
         for (value_name, (value_type, value_data)) in samba3_regdb.values(key).items():
             key_handle.set_value(value_name, value_type, value_data)
 
+
+def upgrade_provision(samba3, setup_dir, logger, credentials, session_info,
+                      smbconf, targetdir):
+    oldconf = samba3.get_conf()
+
+    if oldconf.get("domain logons") == "True":
+        serverrole = "domain controller"
+    else:
+        if oldconf.get("security") == "user":
+            serverrole = "standalone"
+        else:
+            serverrole = "member server"
+
+    domainname = oldconf.get("workgroup")
+    realm = oldconf.get("realm")
+    netbiosname = oldconf.get("netbios name")
+
+    secrets_db = samba3.get_secrets_db()
+    
+    if domainname is None:
+        domainname = secrets_db.domains()[0]
+        logger.warning("No domain specified in smb.conf file, assuming '%s'",
+                domainname)
+    
+    if realm is None:
+        if oldconf.get("domain logons") == "True":
+            logger.warning("No realm specified in smb.conf file and being a DC. That upgrade path doesn't work! Please add a 'realm' directive to your old smb.conf to let us know which one you want to use (generally it's the upcased DNS domainname).")
+            return
+        else:
+            realm = domainname.upper()
+            logger.warning("No realm specified in smb.conf file, assuming '%s'",
+                    realm)
+
+    domainguid = secrets_db.get_domain_guid(domainname)
+    domainsid = secrets_db.get_sid(domainname)
+    if domainsid is None:
+        logger.warning("Can't find domain secrets for '%s'; using random SID",
+            domainname)
+    
+    if netbiosname is not None:
+        machinepass = secrets_db.get_machine_password(netbiosname)
+    else:
+        machinepass = None
+
+    result = provision(setup_dir=setup_dir, logger=logger,
+                       session_info=session_info, credentials=credentials,
+                       targetdir=targetdir, realm=realm, domain=domainname,
+                       domainguid=domainguid, domainsid=domainsid,
+                       hostname=netbiosname, machinepass=machinepass,
+                       serverrole=serverrole)
+
+    import_wins(Ldb(result.paths.winsdb), samba3.get_wins_db())
+
+    # FIXME: import_registry(registry.Registry(), samba3.get_registry())
+
+    # FIXME: import_idmap(samdb,samba3.get_idmap_db(),domaindn)
+    
+    groupdb = samba3.get_groupmapping_db()
+    for sid in groupdb.groupsids():
+        (gid, sid_name_use, nt_name, comment) = groupdb.get_group(sid)
+        # FIXME: import_sam_group(samdb, sid, gid, sid_name_use, nt_name, comment, domaindn)
+
+    # FIXME: Aliases
+
+    passdb = samba3.get_sam_db()
+    for name in passdb:
+        user = passdb[name]
+        #FIXME: import_sam_account(result.samdb, user, domaindn, domainsid)
+
+    if hasattr(passdb, 'ldap_url'):
+        logger.info("Enabling Samba3 LDAP mappings for SAM database")
+
+        enable_samba3sam(result.samdb, passdb.ldap_url)
 

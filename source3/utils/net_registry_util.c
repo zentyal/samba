@@ -20,6 +20,7 @@
  */
 
 #include "includes.h"
+#include "registry.h"
 #include "utils/net_registry_util.h"
 #include "utils/net.h"
 
@@ -37,33 +38,49 @@ void print_registry_value(const struct registry_value *valvalue, bool raw)
 {
 	if (!raw) {
 		d_printf(_("Type       = %s\n"),
-			 reg_type_lookup(valvalue->type));
+			 str_regtype(valvalue->type));
 	}
 	switch(valvalue->type) {
-	case REG_DWORD:
+	case REG_DWORD: {
+		uint32_t v = 0;
+		if (valvalue->data.length >= 4) {
+			v = IVAL(valvalue->data.data, 0);
+		}
 		if (!raw) {
 			d_printf(_("Value      = "));
 		}
-		d_printf("%d\n", valvalue->v.dword);
+		d_printf("%d\n", v);
 		break;
+	}
 	case REG_SZ:
-	case REG_EXPAND_SZ:
+	case REG_EXPAND_SZ: {
+		const char *s;
+
+		if (!pull_reg_sz(talloc_tos(), &valvalue->data, &s)) {
+			break;
+		}
 		if (!raw) {
 			d_printf(_("Value      = \""));
 		}
-		d_printf("%s", valvalue->v.sz.str);
+		d_printf("%s", s);
 		if (!raw) {
 			d_printf("\"");
 		}
 		d_printf("\n");
 		break;
+	}
 	case REG_MULTI_SZ: {
 		uint32 j;
-		for (j = 0; j < valvalue->v.multi_sz.num_strings; j++) {
+		const char **a;
+
+		if (!pull_reg_multi_sz(talloc_tos(), &valvalue->data, &a)) {
+			break;
+		}
+		for (j = 0; a[j] != NULL; j++) {
 			if (!raw) {
 				d_printf(_("Value[%3.3d] = \""), j);
 			}
-			d_printf("%s", valvalue->v.multi_sz.strings[j]);
+			d_printf("%s", a[j]);
 			if (!raw) {
 				d_printf("\"");
 			}
@@ -75,7 +92,7 @@ void print_registry_value(const struct registry_value *valvalue, bool raw)
 		if (!raw) {
 			d_printf(_("Value      = "));
 		}
-		d_printf(_("%d bytes\n"), (int)valvalue->v.binary.length);
+		d_printf(_("%d bytes\n"), (int)valvalue->data.length);
 		break;
 	default:
 		if (!raw) {
@@ -97,7 +114,9 @@ void print_registry_value_with_name(const char *valname,
 /**
  * Split path into hive name and subkeyname
  * normalizations performed:
- *  - convert '/' to '\\'
+ *  - if the path contains no '\\' characters,
+ *    assume that the legacy format of using '/'
+ *    as a separator is used and  convert '/' to '\\'
  *  - strip trailing '\\' chars
  */
 WERROR split_hive_key(TALLOC_CTX *ctx, const char *path, char **hivename,
@@ -114,7 +133,12 @@ WERROR split_hive_key(TALLOC_CTX *ctx, const char *path, char **hivename,
 		return WERR_INVALID_PARAM;
 	}
 
-	*hivename = talloc_string_sub(ctx, path, "/", "\\");
+	if (strchr(path, '\\') == NULL) {
+		*hivename = talloc_string_sub(ctx, path, "/", "\\");
+	} else {
+		*hivename = talloc_strdup(ctx, path);
+	}
+
 	if (*hivename == NULL) {
 		return WERR_NOMEM;
 	}

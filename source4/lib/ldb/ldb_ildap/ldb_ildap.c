@@ -35,16 +35,16 @@
  *
  *  Modifications:
  *
- *  - description: make the module use asyncronous calls
+ *  - description: make the module use asynchronous calls
  *    date: Feb 2006
  *    author: Simo Sorce
  */
 
 #include "includes.h"
 #include "ldb_module.h"
-#include "dlinklist.h"
+#include "util/dlinklist.h"
 
-#include "libcli/ldap/ldap.h"
+#include "libcli/ldap/libcli_ldap.h"
 #include "libcli/ldap/ldap_client.h"
 #include "auth/auth.h"
 #include "auth/credentials/credentials.h"
@@ -60,6 +60,10 @@ struct ildb_context {
 
 	struct ildb_private *ildb;
 	struct ldap_request *ireq;
+
+	/* indicate we are already processing
+	 * the ldap_request in ildb_callback() */
+	bool in_ildb_callback;
 
 	bool done;
 
@@ -223,6 +227,13 @@ static void ildb_callback(struct ldap_request *req)
 	request_done = false;
 	controls = NULL;
 
+	/* check if we are already processing this request */
+	if (ac->in_ildb_callback) {
+		return;
+	}
+	/* mark the request as being in process */
+	ac->in_ildb_callback = true;
+
 	if (!NT_STATUS_IS_OK(req->status)) {
 		ret = ildb_map_error(ac->module, req->status);
 		ildb_request_done(ac, NULL, ret);
@@ -327,6 +338,7 @@ static void ildb_callback(struct ldap_request *req)
 				if (ret != LDB_SUCCESS) {
 					callback_failed = true;
 				}
+
 				break;
 
 			case LDAP_TAG_SearchResultReference:
@@ -337,6 +349,7 @@ static void ildb_callback(struct ldap_request *req)
 				if (ret != LDB_SUCCESS) {
 					callback_failed = true;
 				}
+
 				break;
 
 			default:
@@ -370,9 +383,13 @@ static void ildb_callback(struct ldap_request *req)
 		}
 	}
 
+	/* mark the request as not being in progress */
+	ac->in_ildb_callback = false;
+
 	if (request_done) {
 		ildb_request_done(ac, controls, ret);
 	}
+
 	return;
 }
 
@@ -513,6 +530,7 @@ static int ildb_add(struct ildb_context *ac)
 	for (i = 0; i < n; i++) {
 		msg->r.AddRequest.attributes[i] = mods[i]->attrib;
 	}
+	msg->controls = req->controls;
 
 	return ildb_request_send(ac, msg);
 }
@@ -556,7 +574,7 @@ static int ildb_modify(struct ildb_context *ac)
 	for (i = 0; i < n; i++) {
 		msg->r.ModifyRequest.mods[i] = *mods[i];
 	}
-
+	msg->controls = req->controls;
 	return ildb_request_send(ac, msg);
 }
 
@@ -580,6 +598,7 @@ static int ildb_delete(struct ildb_context *ac)
 		talloc_free(msg);
 		return LDB_ERR_INVALID_DN_SYNTAX;
 	}
+	msg->controls = req->controls;
 
 	return ildb_request_send(ac, msg);
 }
@@ -591,6 +610,8 @@ static int ildb_rename(struct ildb_context *ac)
 {
 	struct ldb_request *req = ac->req;
 	struct ldap_message *msg;
+	const char *rdn_name;
+	const struct ldb_val *rdn_val;
 
 	msg = new_ldap_message(req);
 	if (msg == NULL) {
@@ -604,10 +625,16 @@ static int ildb_rename(struct ildb_context *ac)
 		return LDB_ERR_INVALID_DN_SYNTAX;
 	}
 
-	msg->r.ModifyDNRequest.newrdn =
-		talloc_asprintf(msg, "%s=%s",
-				ldb_dn_get_rdn_name(req->op.rename.newdn),
-				ldb_dn_escape_value(msg, *ldb_dn_get_rdn_val(req->op.rename.newdn)));
+	rdn_name = ldb_dn_get_rdn_name(req->op.rename.newdn);
+	rdn_val = ldb_dn_get_rdn_val(req->op.rename.newdn);
+
+	if ((rdn_name != NULL) && (rdn_val != NULL)) {
+		msg->r.ModifyDNRequest.newrdn =
+			talloc_asprintf(msg, "%s=%s", rdn_name,
+				ldb_dn_escape_value(msg, *rdn_val));
+	} else {
+		msg->r.ModifyDNRequest.newrdn = talloc_strdup(msg, "");
+	}
 	if (msg->r.ModifyDNRequest.newrdn == NULL) {
 		talloc_free(msg);
 		return LDB_ERR_OPERATIONS_ERROR;
@@ -621,6 +648,7 @@ static int ildb_rename(struct ildb_context *ac)
 	}
 
 	msg->r.ModifyDNRequest.deleteolddn = true;
+	msg->controls = req->controls;
 
 	return ildb_request_send(ac, msg);
 }
@@ -763,7 +791,7 @@ static int ildb_connect(struct ldb_context *ldb, const char *url,
 	struct loadparm_context *lp_ctx;
 
 	module = ldb_module_new(ldb, ldb, "ldb_ildap backend", &ildb_ops);
-	if (!module) return -1;
+	if (!module) return LDB_ERR_OPERATIONS_ERROR;
 
 	ildb = talloc(module, struct ildb_private);
 	if (!ildb) {
@@ -825,11 +853,11 @@ static int ildb_connect(struct ldb_context *ldb, const char *url,
 	}
 
 	*_module = module;
-	return 0;
+	return LDB_SUCCESS;
 
 failed:
 	talloc_free(module);
-	return -1;
+	return LDB_ERR_OPERATIONS_ERROR;
 }
 
 _PUBLIC_ const struct ldb_backend_ops ldb_ldap_backend_ops = {

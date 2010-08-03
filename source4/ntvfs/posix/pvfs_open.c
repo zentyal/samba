@@ -73,7 +73,7 @@ static int pvfs_dir_handle_destructor(struct pvfs_file_handle *h)
 				DEBUG(0,("Warning: xattr unlink hook failed for '%s' - %s\n",
 					 delete_path, nt_errstr(status)));
 			}
-			if (rmdir(delete_path) != 0) {
+			if (pvfs_sys_rmdir(h->pvfs, delete_path) != 0) {
 				DEBUG(0,("pvfs_dir_handle_destructor: failed to rmdir '%s' - %s\n",
 					 delete_path, strerror(errno)));
 			}
@@ -103,10 +103,10 @@ static NTSTATUS pvfs_open_setup_eas_acl(struct pvfs_state *pvfs,
 					struct ntvfs_request *req,
 					struct pvfs_filename *name,
 					int fd,	struct pvfs_file *f,
-					union smb_open *io)
+					union smb_open *io,
+					struct security_descriptor *sd)
 {
-	NTSTATUS status;
-	struct security_descriptor *sd;
+	NTSTATUS status = NT_STATUS_OK;
 
 	/* setup any EAs that were asked for */
 	if (io->ntcreatex.in.ea_list) {
@@ -118,7 +118,6 @@ static NTSTATUS pvfs_open_setup_eas_acl(struct pvfs_state *pvfs,
 		}
 	}
 
-	sd = io->ntcreatex.in.sec_desc;
 	/* setup an initial sec_desc if requested */
 	if (sd && (sd->type & SEC_DESC_DACL_PRESENT)) {
 		union smb_setfileinfo set;
@@ -134,9 +133,6 @@ static NTSTATUS pvfs_open_setup_eas_acl(struct pvfs_state *pvfs,
 		set.set_secdesc.in.sd = sd;
 
 		status = pvfs_acl_set(pvfs, req, name, fd, SEC_STD_WRITE_DAC, &set);
-	} else {
-		/* otherwise setup an inherited acl from the parent */
-		status = pvfs_acl_inherit(pvfs, req, name, fd);
 	}
 
 	return status;
@@ -185,6 +181,7 @@ static NTSTATUS pvfs_open_directory(struct pvfs_state *pvfs,
 	uint32_t create_options;
 	uint32_t share_access;
 	bool forced;
+	struct security_descriptor *sd = NULL;
 
 	create_options = io->generic.in.create_options;
 	share_access   = io->generic.in.share_access;
@@ -209,6 +206,8 @@ static NTSTATUS pvfs_open_directory(struct pvfs_state *pvfs,
 	if (io->ntcreatex.in.access_mask == SEC_FLAG_MAXIMUM_ALLOWED &&
 	    (io->ntcreatex.in.create_options & NTCREATEX_OPTIONS_DIRECTORY) &&
 	    (io->ntcreatex.in.create_options & NTCREATEX_OPTIONS_DELETE_ON_CLOSE)) {
+		DEBUG(3,(__location__ ": Invalid access_mask/create_options 0x%08x 0x%08x for %s\n",
+			 io->ntcreatex.in.access_mask, io->ntcreatex.in.create_options, name->original_name));
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 	
@@ -232,6 +231,8 @@ static NTSTATUS pvfs_open_directory(struct pvfs_state *pvfs,
 	case NTCREATEX_DISP_OVERWRITE:
 	case NTCREATEX_DISP_SUPERSEDE:
 	default:
+		DEBUG(3,(__location__ ": Invalid open disposition 0x%08x for %s\n",
+			 io->generic.in.open_disposition, name->original_name));
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
@@ -251,8 +252,9 @@ static NTSTATUS pvfs_open_directory(struct pvfs_state *pvfs,
 	if (name->exists) {
 		/* check the security descriptor */
 		status = pvfs_access_check(pvfs, req, name, &access_mask);
-	} else {
-		status = pvfs_access_check_create(pvfs, req, name, &access_mask);
+	} else {		
+		sd = io->ntcreatex.in.sec_desc;
+		status = pvfs_access_check_create(pvfs, req, name, &access_mask, true, &sd);
 	}
 	NT_STATUS_NOT_OK_RETURN(status);
 
@@ -278,6 +280,7 @@ static NTSTATUS pvfs_open_directory(struct pvfs_state *pvfs,
 	f->handle->fd                = -1;
 	f->handle->odb_locking_key   = data_blob(NULL, 0);
 	f->handle->create_options    = io->generic.in.create_options;
+	f->handle->private_flags     = io->generic.in.private_flags;
 	f->handle->seek_offset       = 0;
 	f->handle->position          = 0;
 	f->handle->mode              = 0;
@@ -341,7 +344,7 @@ static NTSTATUS pvfs_open_directory(struct pvfs_state *pvfs,
 		uint32_t attrib = io->generic.in.file_attr | FILE_ATTRIBUTE_DIRECTORY;
 		mode_t mode = pvfs_fileperms(pvfs, attrib);
 
-		if (mkdir(name->full_name, mode) == -1) {
+		if (pvfs_sys_mkdir(pvfs, name->full_name, mode) == -1) {
 			return pvfs_map_errno(pvfs,errno);
 		}
 
@@ -352,7 +355,7 @@ static NTSTATUS pvfs_open_directory(struct pvfs_state *pvfs,
 			goto cleanup_delete;
 		}
 
-		status = pvfs_open_setup_eas_acl(pvfs, req, name, -1, f, io);
+		status = pvfs_open_setup_eas_acl(pvfs, req, name, -1, f, io, sd);
 		if (!NT_STATUS_IS_OK(status)) {
 			goto cleanup_delete;
 		}
@@ -429,7 +432,7 @@ static NTSTATUS pvfs_open_directory(struct pvfs_state *pvfs,
 	return NT_STATUS_OK;
 
 cleanup_delete:
-	rmdir(name->full_name);
+	pvfs_sys_rmdir(pvfs, name->full_name);
 	return status;
 }
 
@@ -511,7 +514,7 @@ static int pvfs_handle_destructor(struct pvfs_file_handle *h)
 				DEBUG(0,("Warning: xattr unlink hook failed for '%s' - %s\n",
 					 delete_path, nt_errstr(status)));
 			}
-			if (unlink(delete_path) != 0) {
+			if (pvfs_sys_unlink(h->pvfs, delete_path) != 0) {
 				DEBUG(0,("pvfs_close: failed to delete '%s' - %s\n",
 					 delete_path, strerror(errno)));
 			} else {
@@ -616,21 +619,29 @@ static NTSTATUS pvfs_create_file(struct pvfs_state *pvfs,
 	struct pvfs_filename *parent;
 	uint32_t oplock_level = OPLOCK_NONE, oplock_granted;
 	bool allow_level_II_oplock = false;
+	struct security_descriptor *sd = NULL;
 
 	if (io->ntcreatex.in.file_attr & ~FILE_ATTRIBUTE_ALL_MASK) {
+		DEBUG(3,(__location__ ": Invalid file_attr 0x%08x for %s\n",
+			 io->ntcreatex.in.file_attr, name->original_name));
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
 	if (io->ntcreatex.in.file_attr & FILE_ATTRIBUTE_ENCRYPTED) {
+		DEBUG(3,(__location__ ": Invalid encryption request for %s\n",
+			 name->original_name));
 		return NT_STATUS_ACCESS_DENIED;
 	}
 	    
 	if ((io->ntcreatex.in.file_attr & FILE_ATTRIBUTE_READONLY) &&
 	    (create_options & NTCREATEX_OPTIONS_DELETE_ON_CLOSE)) {
+		DEBUG(4,(__location__ ": Invalid delete on close for readonly file %s\n",
+			 name->original_name));
 		return NT_STATUS_CANNOT_DELETE;
 	}
 
-	status = pvfs_access_check_create(pvfs, req, name, &access_mask);
+	sd = io->ntcreatex.in.sec_desc;
+	status = pvfs_access_check_create(pvfs, req, name, &access_mask, false, &sd);
 	NT_STATUS_NOT_OK_RETURN(status);
 
 	/* check that the parent isn't opened with delete on close set */
@@ -666,7 +677,7 @@ static NTSTATUS pvfs_create_file(struct pvfs_state *pvfs,
 	mode = pvfs_fileperms(pvfs, attrib);
 
 	/* create the file */
-	fd = open(name->full_name, flags | O_CREAT | O_EXCL| O_NONBLOCK, mode);
+	fd = pvfs_sys_open(pvfs, name->full_name, flags | O_CREAT | O_EXCL| O_NONBLOCK, mode);
 	if (fd == -1) {
 		return pvfs_map_errno(pvfs, errno);
 	}
@@ -698,7 +709,7 @@ static NTSTATUS pvfs_create_file(struct pvfs_state *pvfs,
 	}
 
 
-	status = pvfs_open_setup_eas_acl(pvfs, req, name, fd, f, io);
+	status = pvfs_open_setup_eas_acl(pvfs, req, name, fd, f, io, sd);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto cleanup_delete;
 	}
@@ -776,6 +787,7 @@ static NTSTATUS pvfs_create_file(struct pvfs_state *pvfs,
 	f->handle->name              = talloc_steal(f->handle, name);
 	f->handle->fd                = fd;
 	f->handle->create_options    = io->generic.in.create_options;
+	f->handle->private_flags     = io->generic.in.private_flags;
 	f->handle->seek_offset       = 0;
 	f->handle->position          = 0;
 	f->handle->mode              = 0;
@@ -844,7 +856,7 @@ static NTSTATUS pvfs_create_file(struct pvfs_state *pvfs,
 
 cleanup_delete:
 	close(fd);
-	unlink(name->full_name);
+	pvfs_sys_unlink(pvfs, name->full_name);
 	return status;
 }
 
@@ -1061,7 +1073,7 @@ static NTSTATUS pvfs_open_deny_dos(struct ntvfs_module_context *ntvfs,
 		if (f2 != f &&
 		    f2->ntvfs->session_info == req->session_info &&
 		    f2->ntvfs->smbpid == req->smbpid &&
-		    (f2->handle->create_options & 
+		    (f2->handle->private_flags &
 		     (NTCREATEX_OPTIONS_PRIVATE_DENY_DOS |
 		      NTCREATEX_OPTIONS_PRIVATE_DENY_FCB)) &&
 		    (f2->access_mask & SEC_FILE_WRITE_DATA) &&
@@ -1077,7 +1089,7 @@ static NTSTATUS pvfs_open_deny_dos(struct ntvfs_module_context *ntvfs,
 
 	/* quite an insane set of semantics ... */
 	if (is_exe_filename(io->generic.in.fname) &&
-	    (f2->handle->create_options & NTCREATEX_OPTIONS_PRIVATE_DENY_DOS)) {
+	    (f2->handle->private_flags & NTCREATEX_OPTIONS_PRIVATE_DENY_DOS)) {
 		return NT_STATUS_SHARING_VIOLATION;
 	}
 
@@ -1129,7 +1141,7 @@ static NTSTATUS pvfs_open_setup_retry(struct ntvfs_module_context *ntvfs,
 	struct timeval end_time;
 	struct timeval *final_timeout = NULL;
 
-	if (io->generic.in.create_options & 
+	if (io->generic.in.private_flags &
 	    (NTCREATEX_OPTIONS_PRIVATE_DENY_DOS | NTCREATEX_OPTIONS_PRIVATE_DENY_FCB)) {
 		/* see if we can satisfy the request using the special DENY_DOS
 		   code */
@@ -1211,6 +1223,8 @@ NTSTATUS pvfs_open(struct ntvfs_module_context *ntvfs,
 	access_mask    = io->generic.in.access_mask;
 
 	if (share_access & ~NTCREATEX_SHARE_ACCESS_MASK) {
+		DEBUG(3,(__location__ ": Invalid share_access 0x%08x for %s\n",
+			 share_access, io->ntcreatex.in.fname));
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
@@ -1219,7 +1233,6 @@ NTSTATUS pvfs_open(struct ntvfs_module_context *ntvfs,
 	 * but we reuse some of them as private values for the generic mapping
 	 */
 	create_options_must_ignore_mask = NTCREATEX_OPTIONS_MUST_IGNORE_MASK;
-	create_options_must_ignore_mask &= ~NTCREATEX_OPTIONS_PRIVATE_MASK;
 	create_options &= ~create_options_must_ignore_mask;
 
 	if (create_options & NTCREATEX_OPTIONS_NOT_SUPPORTED_MASK) {
@@ -1229,6 +1242,8 @@ NTSTATUS pvfs_open(struct ntvfs_module_context *ntvfs,
 	}
 
 	if (create_options & NTCREATEX_OPTIONS_INVALID_PARAM_MASK) {
+		DEBUG(3,(__location__ ": Invalid create_options 0x%08x for %s\n",
+			 create_options, io->ntcreatex.in.fname));
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
@@ -1259,6 +1274,8 @@ NTSTATUS pvfs_open(struct ntvfs_module_context *ntvfs,
 	/* other create options are not allowed */
 	if ((create_options & NTCREATEX_OPTIONS_DELETE_ON_CLOSE) &&
 	    !(access_mask & SEC_STD_DELETE)) {
+		DEBUG(3,(__location__ ": Invalid delete_on_close option 0x%08x with access_mask 0x%08x for %s\n",
+			 create_options, access_mask, io->ntcreatex.in.fname));
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
@@ -1272,9 +1289,26 @@ NTSTATUS pvfs_open(struct ntvfs_module_context *ntvfs,
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
+	/* cope with non-zero root_fid */
+	if (io->ntcreatex.in.root_fid.ntvfs != NULL) {
+		f = pvfs_find_fd(pvfs, req, io->ntcreatex.in.root_fid.ntvfs);
+		if (f == NULL) {
+			return NT_STATUS_INVALID_HANDLE;
+		}
+		if (f->handle->fd != -1) {
+			return NT_STATUS_INVALID_DEVICE_REQUEST;
+		}
+		io->ntcreatex.in.fname = talloc_asprintf(req, "%s\\%s", 
+							 f->handle->name->original_name,
+							 io->ntcreatex.in.fname);
+		NT_STATUS_HAVE_NO_MEMORY(io->ntcreatex.in.fname);			
+	}
+
 	if (io->ntcreatex.in.file_attr & (FILE_ATTRIBUTE_DEVICE|
 					  FILE_ATTRIBUTE_VOLUME| 
 					  (~FILE_ATTRIBUTE_ALL_MASK))) {
+		DEBUG(3,(__location__ ": Invalid file_attr 0x%08x for %s\n",
+			 io->ntcreatex.in.file_attr, io->ntcreatex.in.fname));
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
@@ -1358,6 +1392,8 @@ NTSTATUS pvfs_open(struct ntvfs_module_context *ntvfs,
 		break;
 
 	default:
+		DEBUG(3,(__location__ ": Invalid open disposition 0x%08x for %s\n",
+			 io->generic.in.open_disposition, name->original_name));
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
@@ -1423,6 +1459,7 @@ NTSTATUS pvfs_open(struct ntvfs_module_context *ntvfs,
 	f->handle->fd                = -1;
 	f->handle->name              = talloc_steal(f->handle, name);
 	f->handle->create_options    = io->generic.in.create_options;
+	f->handle->private_flags     = io->generic.in.private_flags;
 	f->handle->seek_offset       = 0;
 	f->handle->position          = 0;
 	f->handle->mode              = 0;
@@ -1512,7 +1549,7 @@ NTSTATUS pvfs_open(struct ntvfs_module_context *ntvfs,
 	}
 
 	/* do the actual open */
-	fd = open(f->handle->name->full_name, flags | O_NONBLOCK);
+	fd = pvfs_sys_open(pvfs, f->handle->name->full_name, flags | O_NONBLOCK, 0);
 	if (fd == -1) {
 		status = pvfs_map_errno(f->pvfs, errno);
 
@@ -1588,7 +1625,7 @@ NTSTATUS pvfs_open(struct ntvfs_module_context *ntvfs,
 		mode_t mode = pvfs_fileperms(pvfs, attrib);
 		if (f->handle->name->st.st_mode != mode &&
 		    f->handle->name->dos.attrib != attrib &&
-		    fchmod(fd, mode) == -1) {
+		    pvfs_sys_fchmod(pvfs, fd, mode) == -1) {
 			talloc_free(lck);
 			return pvfs_map_errno(pvfs, errno);
 		}
@@ -1697,6 +1734,11 @@ NTSTATUS pvfs_logoff(struct ntvfs_module_context *ntvfs,
 	struct pvfs_state *pvfs = talloc_get_type(ntvfs->private_data,
 				  struct pvfs_state);
 	struct pvfs_file *f, *next;
+
+	/* If pvfs is NULL, we never logged on, and no files are open. */
+	if(pvfs == NULL) {
+		return NT_STATUS_OK;
+	}
 
 	for (f=pvfs->files.list;f;f=next) {
 		next = f->next;
@@ -1926,15 +1968,12 @@ NTSTATUS pvfs_can_update_file_size(struct pvfs_state *pvfs,
 			  NTCREATEX_SHARE_ACCESS_WRITE |
 			  NTCREATEX_SHARE_ACCESS_DELETE;
 	/*
-	 * I would have thought that we would need to pass
-	 * SEC_FILE_WRITE_DATA | SEC_FILE_APPEND_DATA here too
-	 *
-	 * But you only need SEC_FILE_WRITE_ATTRIBUTE permissions
-	 * to set the filesize.
-	 *
-	 * --metze
+	 * this code previous set only SEC_FILE_WRITE_ATTRIBUTE, with
+	 * a comment that this seemed to be wrong, but matched windows
+	 * behaviour. It now appears that this windows behaviour is
+	 * just a bug.
 	 */
-	access_mask	= SEC_FILE_WRITE_ATTRIBUTE;
+	access_mask	= SEC_FILE_WRITE_ATTRIBUTE | SEC_FILE_WRITE_DATA | SEC_FILE_APPEND_DATA;
 	delete_on_close	= false;
 	break_to_none	= true;
 

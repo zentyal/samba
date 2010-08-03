@@ -33,7 +33,7 @@
 #include "nsswitch/libwbclient/wbclient.h"
 #include "libcli/security/dom_sid.h"
 
-static NTSTATUS get_info3_from_ndr(TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience, struct winbindd_response *response, struct netr_SamInfo3 *info3)
+static NTSTATUS get_info3_from_ndr(TALLOC_CTX *mem_ctx, struct winbindd_response *response, struct netr_SamInfo3 *info3)
 {
 	size_t len = response->length - sizeof(struct winbindd_response);
 	if (len > 4) {
@@ -43,7 +43,7 @@ static NTSTATUS get_info3_from_ndr(TALLOC_CTX *mem_ctx, struct smb_iconv_conveni
 		blob.data = (uint8_t *)(((char *)response->extra_data.data) + 4);
 
 		ndr_err = ndr_pull_struct_blob(&blob, mem_ctx, 
-			       iconv_convenience, info3,
+			       info3,
 			      (ndr_pull_flags_fn_t)ndr_pull_netr_SamInfo3);
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			return ndr_map_error2ntstatus(ndr_err);
@@ -57,7 +57,6 @@ static NTSTATUS get_info3_from_ndr(TALLOC_CTX *mem_ctx, struct smb_iconv_conveni
 }
 
 static NTSTATUS get_info3_from_wbcAuthUserInfo(TALLOC_CTX *mem_ctx,
-					       struct smb_iconv_convenience *ic,
 					       struct wbcAuthUserInfo *info,
 					       struct netr_SamInfo3 *info3)
 {
@@ -197,7 +196,7 @@ static NTSTATUS winbind_check_password_samba3(struct auth_method_context *ctx,
 	if (result == NSS_STATUS_SUCCESS && response.extra_data.data) {
 		union netr_Validation validation;
 
-		nt_status = get_info3_from_ndr(mem_ctx, lp_iconv_convenience(ctx->auth_ctx->lp_ctx), &response, &info3);
+		nt_status = get_info3_from_ndr(mem_ctx, &response, &info3);
 		SAFE_FREE(response.extra_data.data);
 		NT_STATUS_NOT_OK_RETURN(nt_status); 
 
@@ -241,6 +240,11 @@ static NTSTATUS winbind_check_password(struct auth_method_context *ctx,
 	const struct auth_usersupplied_info *user_info_new;
 	struct netr_IdentityInfo *identity_info;
 
+	if (!ctx->auth_ctx->msg_ctx) {
+		DEBUG(0,("winbind_check_password: auth_context_create was called with out messaging context\n"));
+		return NT_STATUS_INTERNAL_ERROR;
+	}
+
 	s = talloc(mem_ctx, struct winbind_check_password_state);
 	NT_STATUS_HAVE_NO_MEMORY(s);
 
@@ -271,7 +275,7 @@ static NTSTATUS winbind_check_password(struct auth_method_context *ctx,
 		s->req.in.logon.password= password_info;
 	} else {
 		struct netr_NetworkInfo *network_info;
-		const uint8_t *challenge;
+		uint8_t chal[8];
 
 		status = encrypt_user_info(s, ctx->auth_ctx, AUTH_PASSWORD_RESPONSE,
 					   user_info, &user_info_new);
@@ -281,10 +285,10 @@ static NTSTATUS winbind_check_password(struct auth_method_context *ctx,
 		network_info = talloc(s, struct netr_NetworkInfo);
 		NT_STATUS_HAVE_NO_MEMORY(network_info);
 
-		status = auth_get_challenge(ctx->auth_ctx, &challenge);
+		status = auth_get_challenge(ctx->auth_ctx, chal);
 		NT_STATUS_NOT_OK_RETURN(status);
 
-		memcpy(network_info->challenge, challenge, sizeof(network_info->challenge));
+		memcpy(network_info->challenge, chal, sizeof(network_info->challenge));
 
 		network_info->nt.length = user_info->password.response.nt.length;
 		network_info->nt.data	= user_info->password.response.nt.data;
@@ -389,9 +393,7 @@ static NTSTATUS winbind_check_password_wbclient(struct auth_method_context *ctx,
 		wbcFreeMemory(err);
 		NT_STATUS_NOT_OK_RETURN(nt_status);
 	}
-	nt_status = get_info3_from_wbcAuthUserInfo(mem_ctx,
-				lp_iconv_convenience(ctx->auth_ctx->lp_ctx),
-				info, &info3);
+	nt_status = get_info3_from_wbcAuthUserInfo(mem_ctx, info, &info3);
 	wbcFreeMemory(info);
 	NT_STATUS_NOT_OK_RETURN(nt_status);
 

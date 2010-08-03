@@ -693,33 +693,8 @@ void cli_nt_pipes_close(struct cli_state *cli)
  Shutdown a client structure.
 ****************************************************************************/
 
-void cli_shutdown(struct cli_state *cli)
+static void _cli_shutdown(struct cli_state *cli)
 {
-	if (cli == NULL) {
-		return;
-	}
-
-	if (cli->prev == NULL) {
-		/*
-		 * Possible head of a DFS list,
-		 * shutdown all subsidiary DFS
-		 * connections.
-		 */
-		struct cli_state *p, *next;
-
-		for (p = cli->next; p; p = next) {
-			next = p->next;
-			cli_shutdown(p);
-		}
-	} else {
-		/*
-		 * We're a subsidiary connection.
-		 * Just remove ourselves from the
-		 * DFS list.
-		 */
-		DLIST_REMOVE(cli->prev, cli);
-	}
-
 	cli_nt_pipes_close(cli);
 
 	/*
@@ -757,6 +732,32 @@ void cli_shutdown(struct cli_state *cli)
 		talloc_free(cli->pending[0]);
 	}
 	TALLOC_FREE(cli);
+}
+
+void cli_shutdown(struct cli_state *cli)
+{
+	struct cli_state *cli_head;
+	if (cli == NULL) {
+		return;
+	}
+	DLIST_HEAD(cli, cli_head);
+	if (cli_head == cli) {
+		/*
+		 * head of a DFS list, shutdown all subsidiary DFS
+		 * connections.
+		 */
+		struct cli_state *p, *next;
+
+		for (p = cli_head->next; p; p = next) {
+			next = p->next;
+			DLIST_REMOVE(cli_head, p);
+			_cli_shutdown(p);
+		}
+	} else {
+		DLIST_REMOVE(cli_head, cli);
+	}
+
+	_cli_shutdown(cli);
 }
 
 /****************************************************************************
@@ -853,8 +854,10 @@ static void cli_echo_done(struct tevent_req *subreq)
 	NTSTATUS status;
 	uint32_t num_bytes;
 	uint8_t *bytes;
+	uint8_t *inbuf;
 
-	status = cli_smb_recv(subreq, 0, NULL, NULL, &num_bytes, &bytes);
+	status = cli_smb_recv(subreq, state, &inbuf, 0, NULL, NULL,
+			      &num_bytes, &bytes);
 	if (!NT_STATUS_IS_OK(status)) {
 		tevent_req_nterror(req, status);
 		return;
@@ -962,4 +965,41 @@ bool is_andx_req(uint8_t cmd)
 	}
 
 	return false;
+}
+
+NTSTATUS cli_smb(TALLOC_CTX *mem_ctx, struct cli_state *cli,
+		 uint8_t smb_command, uint8_t additional_flags,
+		 uint8_t wct, uint16_t *vwv,
+		 uint32_t num_bytes, const uint8_t *bytes,
+		 struct tevent_req **result_parent,
+		 uint8_t min_wct, uint8_t *pwct, uint16_t **pvwv,
+		 uint32_t *pnum_bytes, uint8_t **pbytes)
+{
+        struct tevent_context *ev;
+        struct tevent_req *req = NULL;
+        NTSTATUS status = NT_STATUS_NO_MEMORY;
+
+        if (cli_has_async_calls(cli)) {
+                return NT_STATUS_INVALID_PARAMETER;
+        }
+        ev = tevent_context_init(mem_ctx);
+        if (ev == NULL) {
+                goto fail;
+        }
+        req = cli_smb_send(mem_ctx, ev, cli, smb_command, additional_flags,
+			   wct, vwv, num_bytes, bytes);
+        if (req == NULL) {
+                goto fail;
+        }
+        if (!tevent_req_poll_ntstatus(req, ev, &status)) {
+                goto fail;
+        }
+        status = cli_smb_recv(req, NULL, NULL, min_wct, pwct, pvwv,
+			      pnum_bytes, pbytes);
+fail:
+        TALLOC_FREE(ev);
+	if (NT_STATUS_IS_OK(status)) {
+		*result_parent = req;
+	}
+        return status;
 }

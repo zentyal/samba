@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # Some simple tests for the Python bindings for TDB
 # Note that this tests the interface of the Python bindings
 # It does not test tdb itself.
@@ -12,12 +12,15 @@ import os, tempfile
 
 
 class OpenTdbTests(TestCase):
+
     def test_nonexistant_read(self):
-        self.assertRaises(IOError, tdb.Tdb, "/some/nonexistant/file", 0, tdb.DEFAULT, os.O_RDWR)
+        self.assertRaises(IOError, tdb.Tdb, "/some/nonexistant/file", 0,
+                tdb.DEFAULT, os.O_RDWR)
 
 class CloseTdbTests(TestCase):
     def test_double_close(self):
-        self.tdb = tdb.Tdb(tempfile.mkstemp()[1], 0, tdb.DEFAULT, os.O_CREAT|os.O_RDWR)
+        self.tdb = tdb.Tdb(tempfile.mkstemp()[1], 0, tdb.DEFAULT,
+                os.O_CREAT|os.O_RDWR)
         self.assertNotEqual(None, self.tdb)
 
         # ensure that double close does not crash python
@@ -26,9 +29,11 @@ class CloseTdbTests(TestCase):
 
 
 class SimpleTdbTests(TestCase):
+
     def setUp(self):
         super(SimpleTdbTests, self).setUp()
-        self.tdb = tdb.Tdb(tempfile.mkstemp()[1], 0, tdb.DEFAULT, os.O_CREAT|os.O_RDWR)
+        self.tdb = tdb.Tdb(tempfile.mkstemp()[1], 0, tdb.DEFAULT,
+                os.O_CREAT|os.O_RDWR)
         self.assertNotEqual(None, self.tdb)
 
     def tearDown(self):

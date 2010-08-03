@@ -27,7 +27,7 @@
 
 struct nbt_name_socket *torture_init_nbt_socket(struct torture_context *tctx)
 {
-	return nbt_name_socket_init(tctx, tctx->ev, lp_iconv_convenience(tctx->lp_ctx));
+	return nbt_name_socket_init(tctx, tctx->ev);
 }
 
 bool torture_nbt_get_name(struct torture_context *tctx, 
@@ -39,7 +39,7 @@ bool torture_nbt_get_name(struct torture_context *tctx,
 
 	/* do an initial name resolution to find its IP */
 	torture_assert_ntstatus_ok(tctx, 
-				   resolve_name(lp_resolve_context(tctx->lp_ctx), name, tctx, address, tctx->ev), 
+				   resolve_name(lpcfg_resolve_context(tctx->lp_ctx), name, tctx, address, tctx->ev),
 				   talloc_asprintf(tctx, 
 						   "Failed to resolve %s", name->name));
 	

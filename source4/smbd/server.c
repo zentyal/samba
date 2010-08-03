@@ -31,6 +31,7 @@
 #include "ntvfs/ntvfs.h"
 #include "ntptr/ntptr.h"
 #include "auth/gensec/gensec.h"
+#include "libcli/auth/schannel.h"
 #include "smbd/process_model.h"
 #include "param/secrets.h"
 #include "smbd/pidfile.h"
@@ -40,6 +41,7 @@
 #include "lib/messaging/irpc.h"
 #include "librpc/gen_ndr/ndr_irpc.h"
 #include "cluster/cluster.h"
+#include "dynconfig/dynconfig.h"
 
 /*
   recursively delete a directory tree
@@ -140,7 +142,7 @@ static void setup_signals(void)
 #endif
 
 	/* POSIX demands that signals are inherited. If the invoking process has
-	 * these signals masked, we will have problems, as we won't recieve them. */
+	 * these signals masked, we will have problems, as we won't receive them. */
 	BlockSignals(false, SIGHUP);
 	BlockSignals(false, SIGTERM);
 
@@ -181,15 +183,19 @@ _NORETURN_ static void max_runtime_handler(struct tevent_context *ev,
 }
 
 /*
-  pre-open the sam ldb to ensure the schema has been loaded. This
-  saves a lot of time in child processes  
+  pre-open the key databases. This saves a lot of time in child
+  processes
  */
-static void prime_samdb_schema(struct tevent_context *event_ctx)
+static void prime_ldb_databases(struct tevent_context *event_ctx)
 {
-	TALLOC_CTX *samdb_context;
-	samdb_context = talloc_new(event_ctx);
-	samdb_connect(samdb_context, event_ctx, cmdline_lp_ctx, system_session(samdb_context, cmdline_lp_ctx));
-	talloc_free(samdb_context);
+	TALLOC_CTX *db_context;
+	db_context = talloc_new(event_ctx);
+
+	samdb_connect(db_context, event_ctx, cmdline_lp_ctx, system_session(cmdline_lp_ctx));
+	privilege_connect(db_context, event_ctx, cmdline_lp_ctx);
+
+	/* we deliberately leave these open, which allows them to be
+	 * re-used in ldb_wrap_connect() */
 }
 
 
@@ -213,10 +219,8 @@ static NTSTATUS setup_parent_messaging(struct tevent_context *event_ctx,
 	NTSTATUS status;
 
 	msg = messaging_init(talloc_autofree_context(), 
-			     lp_messaging_path(event_ctx, lp_ctx),
-			     cluster_id(0, SAMBA_PARENT_TASKID),
-			     lp_iconv_convenience(lp_ctx),
-			     event_ctx);
+			     lpcfg_messaging_path(event_ctx, lp_ctx),
+			     cluster_id(0, SAMBA_PARENT_TASKID), event_ctx);
 	NT_STATUS_HAVE_NO_MEMORY(msg);
 
 	irpc_add_name(msg, "samba");
@@ -228,6 +232,48 @@ static NTSTATUS setup_parent_messaging(struct tevent_context *event_ctx,
 }
 
 
+/*
+  show build info
+ */
+static void show_build(void)
+{
+#define CONFIG_OPTION(n) { #n, dyn_ ## n }
+	struct {
+		const char *name;
+		const char *value;
+	} config_options[] = {
+		CONFIG_OPTION(BINDIR),
+		CONFIG_OPTION(SBINDIR),
+		CONFIG_OPTION(CONFIGFILE),
+		CONFIG_OPTION(NCALRPCDIR),
+		CONFIG_OPTION(LOGFILEBASE),
+		CONFIG_OPTION(LMHOSTSFILE),
+		CONFIG_OPTION(DATADIR),
+		CONFIG_OPTION(MODULESDIR),
+		CONFIG_OPTION(LOCKDIR),
+		CONFIG_OPTION(PIDDIR),
+		CONFIG_OPTION(PRIVATE_DIR),
+		CONFIG_OPTION(SWATDIR),
+		CONFIG_OPTION(SETUPDIR),
+		CONFIG_OPTION(WINBINDD_SOCKET_DIR),
+		CONFIG_OPTION(WINBINDD_PRIVILEGED_SOCKET_DIR),
+		CONFIG_OPTION(NTP_SIGND_SOCKET_DIR),
+		{ NULL, NULL}
+	};
+	int i;
+
+	printf("Build environment:\n");
+#ifdef BUILD_SYSTEM
+	printf("   Build host:  %s\n", BUILD_SYSTEM);
+#endif
+
+	printf("Paths:\n");
+	for (i=0; config_options[i].name; i++) {
+		printf("   %s: %s\n", config_options[i].name, config_options[i].value);
+	}
+
+	exit(0);
+}
 
 /*
  main server.
@@ -250,6 +296,7 @@ static int binary_smbd_main(const char *binary_name, int argc, const char *argv[
 	extern NTSTATUS server_service_smb_init(void);
 	extern NTSTATUS server_service_drepl_init(void);
 	extern NTSTATUS server_service_kcc_init(void);
+	extern NTSTATUS server_service_dnsupdate_init(void);
 	extern NTSTATUS server_service_rpc_init(void);
 	extern NTSTATUS server_service_ntp_signd_init(void);
 	extern NTSTATUS server_service_samba3_smb_init(void);
@@ -263,7 +310,8 @@ static int binary_smbd_main(const char *binary_name, int argc, const char *argv[
 	enum {
 		OPT_DAEMON = 1000,
 		OPT_INTERACTIVE,
-		OPT_PROCESS_MODEL
+		OPT_PROCESS_MODEL,
+		OPT_SHOW_BUILD
 	};
 	struct poptOption long_options[] = {
 		POPT_AUTOHELP
@@ -275,6 +323,7 @@ static int binary_smbd_main(const char *binary_name, int argc, const char *argv[
 		 "Select process model", "MODEL"},
 		{"maximum-runtime",0, POPT_ARG_INT, &max_runtime, 0, 
 		 "set maximum runtime of the server process, till autotermination", "seconds"},
+		{"show-build", 'b', POPT_ARG_NONE, NULL, OPT_SHOW_BUILD, "show build info", NULL },
 		POPT_COMMON_SAMBA
 		POPT_COMMON_VERSION
 		{ NULL }
@@ -292,11 +341,14 @@ static int binary_smbd_main(const char *binary_name, int argc, const char *argv[
 		case OPT_PROCESS_MODEL:
 			model = poptGetOptArg(pc);
 			break;
+		case OPT_SHOW_BUILD:
+			show_build();
+			break;
 		default:
 			fprintf(stderr, "\nInvalid option %s: %s\n\n",
 				  poptBadOption(pc, 0), poptStrerror(opt));
 			poptPrintUsage(pc, stderr, 0);
-			exit(1);
+			return 1;
 		}
 	}
 
@@ -304,7 +356,7 @@ static int binary_smbd_main(const char *binary_name, int argc, const char *argv[
 		fprintf(stderr,"\nERROR: "
 			  "Option -i|--interactive is not allowed together with -D|--daemon\n\n");
 		poptPrintUsage(pc, stderr, 0);
-		exit(1);
+		return 1;
 	} else if (!opt_interactive) {
 		/* default is --daemon */
 		opt_daemon = true;
@@ -320,33 +372,40 @@ static int binary_smbd_main(const char *binary_name, int argc, const char *argv[
 	umask(0);
 
 	DEBUG(0,("%s version %s started.\n", binary_name, SAMBA_VERSION_STRING));
-	DEBUGADD(0,("Copyright Andrew Tridgell and the Samba Team 1992-2009\n"));
+	DEBUGADD(0,("Copyright Andrew Tridgell and the Samba Team 1992-2010\n"));
 
 	if (sizeof(uint16_t) < 2 || sizeof(uint32_t) < 4 || sizeof(uint64_t) < 8) {
 		DEBUG(0,("ERROR: Samba is not configured correctly for the word size on your machine\n"));
 		DEBUGADD(0,("sizeof(uint16_t) = %u, sizeof(uint32_t) %u, sizeof(uint64_t) = %u\n",
 			    (unsigned int)sizeof(uint16_t), (unsigned int)sizeof(uint32_t), (unsigned int)sizeof(uint64_t)));
-		exit(1);
+		return 1;
 	}
 
 	if (opt_daemon) {
 		DEBUG(3,("Becoming a daemon.\n"));
-		become_daemon(true, false);
+		become_daemon(true, false, false);
 	}
 
 	cleanup_tmp_files(cmdline_lp_ctx);
 
-	if (!directory_exist(lp_lockdir(cmdline_lp_ctx))) {
-		mkdir(lp_lockdir(cmdline_lp_ctx), 0755);
+	if (!directory_exist(lpcfg_lockdir(cmdline_lp_ctx))) {
+		mkdir(lpcfg_lockdir(cmdline_lp_ctx), 0755);
 	}
 
-	pidfile_create(lp_piddir(cmdline_lp_ctx), binary_name);
+	pidfile_create(lpcfg_piddir(cmdline_lp_ctx), binary_name);
 
 	/* Do *not* remove this, until you have removed
 	 * passdb/secrets.c, and proved that Samba still builds... */
 	/* Setup the SECRETS subsystem */
 	if (secrets_init(talloc_autofree_context(), cmdline_lp_ctx) == NULL) {
-		exit(1);
+		return 1;
+	}
+
+	if (lpcfg_server_role(cmdline_lp_ctx) == ROLE_DOMAIN_CONTROLLER) {
+		if (!open_schannel_session_store(talloc_autofree_context(), lpcfg_private_dir(cmdline_lp_ctx))) {
+			DEBUG(0,("ERROR: Samba cannot open schannel store for secured NETLOGON operations.\n"));
+			exit(1);
+		}
 	}
 
 	gensec_init(cmdline_lp_ctx); /* FIXME: */
@@ -369,6 +428,9 @@ static int binary_smbd_main(const char *binary_name, int argc, const char *argv[
 	/* the event context is the top level structure in smbd. Everything else
 	   should hang off that */
 	event_ctx = s4_event_context_init(talloc_autofree_context());
+
+	/* setup this as the default context */
+	s4_event_context_set_default(event_ctx);
 
 	if (event_ctx == NULL) {
 		DEBUG(0,("Initializing event context failed\n"));
@@ -398,7 +460,7 @@ static int binary_smbd_main(const char *binary_name, int argc, const char *argv[
 				 discard_const(binary_name));
 	}
 
-	prime_samdb_schema(event_ctx);
+	prime_ldb_databases(event_ctx);
 
 	status = setup_parent_messaging(event_ctx, cmdline_lp_ctx);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -409,7 +471,7 @@ static int binary_smbd_main(const char *binary_name, int argc, const char *argv[
 	DEBUG(0,("%s: using '%s' process model\n", binary_name, model));
 
 	status = server_service_startup(event_ctx, cmdline_lp_ctx, model, 
-					lp_server_services(cmdline_lp_ctx));
+					lpcfg_server_services(cmdline_lp_ctx));
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("Starting Services failed - %s\n", nt_errstr(status)));
 		return 1;

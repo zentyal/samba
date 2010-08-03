@@ -36,6 +36,8 @@
 */
 
 #include "includes.h"
+#include "librpc/gen_ndr/messaging.h"
+#include "smbd/globals.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_LOCKING
@@ -76,7 +78,7 @@ const char *lock_flav_name(enum brl_flavour lock_flav)
 ****************************************************************************/
 
 void init_strict_lock_struct(files_struct *fsp,
-				uint32 smbpid,
+				uint64_t smblctx,
 				br_off start,
 				br_off size,
 				enum brl_type lock_type,
@@ -84,9 +86,9 @@ void init_strict_lock_struct(files_struct *fsp,
 {
 	SMB_ASSERT(lock_type == READ_LOCK || lock_type == WRITE_LOCK);
 
-	plock->context.smbpid = smbpid;
+	plock->context.smblctx = smblctx;
         plock->context.tid = fsp->conn->cnum;
-        plock->context.pid = procid_self();
+        plock->context.pid = sconn_server_id(fsp->conn->sconn);
         plock->start = start;
         plock->size = size;
         plock->fnum = fsp->fnum;
@@ -123,7 +125,7 @@ bool strict_lock_default(files_struct *fsp, struct lock_struct *plock)
 				return True;
 			}
 			ret = brl_locktest(br_lck,
-					plock->context.smbpid,
+					plock->context.smblctx,
 					plock->context.pid,
 					plock->start,
 					plock->size,
@@ -138,7 +140,7 @@ bool strict_lock_default(files_struct *fsp, struct lock_struct *plock)
 			return True;
 		}
 		ret = brl_locktest(br_lck,
-				plock->context.smbpid,
+				plock->context.smblctx,
 				plock->context.pid,
 				plock->start,
 				plock->size,
@@ -165,7 +167,7 @@ void strict_unlock_default(files_struct *fsp, struct lock_struct *plock)
 ****************************************************************************/
 
 NTSTATUS query_lock(files_struct *fsp,
-			uint32 *psmbpid,
+			uint64_t *psmblctx,
 			uint64_t *pcount,
 			uint64_t *poffset,
 			enum brl_type *plock_type,
@@ -187,8 +189,8 @@ NTSTATUS query_lock(files_struct *fsp,
 	}
 
 	return brl_lockquery(br_lck,
-			psmbpid,
-			procid_self(),
+			psmblctx,
+			sconn_server_id(fsp->conn->sconn),
 			poffset,
 			pcount,
 			plock_type,
@@ -229,17 +231,23 @@ static void decrement_current_lock_count(files_struct *fsp,
 
 struct byte_range_lock *do_lock(struct messaging_context *msg_ctx,
 			files_struct *fsp,
-			uint32 lock_pid,
+			uint64_t smblctx,
 			uint64_t count,
 			uint64_t offset,
 			enum brl_type lock_type,
 			enum brl_flavour lock_flav,
 			bool blocking_lock,
 			NTSTATUS *perr,
-			uint32 *plock_pid,
+			uint64_t *psmblctx,
 			struct blocking_lock_record *blr)
 {
 	struct byte_range_lock *br_lck = NULL;
+
+	/* silently return ok on print files as we don't do locking there */
+	if (fsp->print_file) {
+		*perr = NT_STATUS_OK;
+		return NULL;
+	}
 
 	if (!fsp->can_lock) {
 		*perr = fsp->is_directory ? NT_STATUS_INVALID_DEVICE_REQUEST : NT_STATUS_INVALID_HANDLE;
@@ -267,14 +275,14 @@ struct byte_range_lock *do_lock(struct messaging_context *msg_ctx,
 
 	*perr = brl_lock(msg_ctx,
 			br_lck,
-			lock_pid,
-			procid_self(),
+			smblctx,
+			sconn_server_id(fsp->conn->sconn),
 			offset,
-			count, 
+			count,
 			lock_type,
 			lock_flav,
 			blocking_lock,
-			plock_pid,
+			psmblctx,
 			blr);
 
 	DEBUG(10, ("do_lock: returning status=%s\n", nt_errstr(*perr)));
@@ -289,7 +297,7 @@ struct byte_range_lock *do_lock(struct messaging_context *msg_ctx,
 
 NTSTATUS do_unlock(struct messaging_context *msg_ctx,
 			files_struct *fsp,
-			uint32 lock_pid,
+			uint64_t smblctx,
 			uint64_t count,
 			uint64_t offset,
 			enum brl_flavour lock_flav)
@@ -316,8 +324,8 @@ NTSTATUS do_unlock(struct messaging_context *msg_ctx,
 
 	ok = brl_unlock(msg_ctx,
 			br_lck,
-			lock_pid,
-			procid_self(),
+			smblctx,
+			sconn_server_id(fsp->conn->sconn),
 			offset,
 			count,
 			lock_flav);
@@ -338,7 +346,7 @@ NTSTATUS do_unlock(struct messaging_context *msg_ctx,
 ****************************************************************************/
 
 NTSTATUS do_lock_cancel(files_struct *fsp,
-			uint32 lock_pid,
+			uint64 smblctx,
 			uint64_t count,
 			uint64_t offset,
 			enum brl_flavour lock_flav,
@@ -366,8 +374,8 @@ NTSTATUS do_lock_cancel(files_struct *fsp,
 	}
 
 	ok = brl_lock_cancel(br_lck,
-			lock_pid,
-			procid_self(),
+			smblctx,
+			sconn_server_id(fsp->conn->sconn),
 			offset,
 			count,
 			lock_flav,
@@ -389,7 +397,8 @@ NTSTATUS do_lock_cancel(files_struct *fsp,
 ****************************************************************************/
 
 void locking_close_file(struct messaging_context *msg_ctx,
-			files_struct *fsp)
+			files_struct *fsp,
+			enum file_close_type close_type)
 {
 	struct byte_range_lock *br_lck;
 
@@ -408,7 +417,7 @@ void locking_close_file(struct messaging_context *msg_ctx,
 	br_lck = brl_get_locks(talloc_tos(),fsp);
 
 	if (br_lck) {
-		cancel_pending_lock_requests_by_fid(fsp, br_lck);
+		cancel_pending_lock_requests_by_fid(fsp, br_lck, close_type);
 		brl_close_fnum(msg_ctx, br_lck);
 		TALLOC_FREE(br_lck);
 	}
@@ -480,13 +489,14 @@ char *share_mode_str(TALLOC_CTX *ctx, int num, const struct share_mode_entry *e)
 {
 	return talloc_asprintf(ctx, "share_mode_entry[%d]: %s "
 		 "pid = %s, share_access = 0x%x, private_options = 0x%x, "
-		 "access_mask = 0x%x, mid = 0x%x, type= 0x%x, gen_id = %lu, "
+		 "access_mask = 0x%x, mid = 0x%llx, type= 0x%x, gen_id = %lu, "
 		 "uid = %u, flags = %u, file_id %s",
 		 num,
 		 e->op_type == UNUSED_SHARE_MODE_ENTRY ? "UNUSED" : "",
 		 procid_str_static(&e->pid),
 		 e->share_access, e->private_options,
-		 e->access_mask, e->op_mid, e->op_type, e->share_file_id,
+		 e->access_mask, (unsigned long long)e->op_mid,
+		 e->op_type, e->share_file_id,
 		 (unsigned int)e->uid, (unsigned int)e->flags,
 		 file_id_string_tos(&e->id));
 }
@@ -653,7 +663,7 @@ static bool parse_share_modes(const TDB_DATA dbuf, struct share_mode_lock *lck)
 		}
 		DEBUG(10,("parse_share_modes: %s\n",
 			str ? str : ""));
-		if (!process_exists(entry_p->pid)) {
+		if (!serverid_exists(&entry_p->pid)) {
 			DEBUG(10,("parse_share_modes: deleted %s\n",
 				str ? str : ""));
 			entry_p->op_type = UNUSED_SHARE_MODE_ENTRY;
@@ -1098,10 +1108,10 @@ bool is_unused_share_mode_entry(const struct share_mode_entry *e)
 
 static void fill_share_mode_entry(struct share_mode_entry *e,
 				  files_struct *fsp,
-				  uid_t uid, uint16 mid, uint16 op_type)
+				  uid_t uid, uint64_t mid, uint16 op_type)
 {
 	ZERO_STRUCTP(e);
-	e->pid = procid_self();
+	e->pid = sconn_server_id(fsp->conn->sconn);
 	e->share_access = fsp->share_access;
 	e->private_options = fsp->fh->private_options;
 	e->access_mask = fsp->access_mask;
@@ -1117,10 +1127,12 @@ static void fill_share_mode_entry(struct share_mode_entry *e,
 
 static void fill_deferred_open_entry(struct share_mode_entry *e,
 				     const struct timeval request_time,
-				     struct file_id id, uint16 mid)
+				     struct file_id id,
+				     struct server_id pid,
+				     uint64_t mid)
 {
 	ZERO_STRUCTP(e);
-	e->pid = procid_self();
+	e->pid = pid;
 	e->op_mid = mid;
 	e->op_type = DEFERRED_OPEN_ENTRY;
 	e->time.tv_sec = request_time.tv_sec;
@@ -1152,19 +1164,19 @@ static void add_share_mode_entry(struct share_mode_lock *lck,
 }
 
 void set_share_mode(struct share_mode_lock *lck, files_struct *fsp,
-		    uid_t uid, uint16 mid, uint16 op_type)
+		    uid_t uid, uint64_t mid, uint16 op_type)
 {
 	struct share_mode_entry entry;
 	fill_share_mode_entry(&entry, fsp, uid, mid, op_type);
 	add_share_mode_entry(lck, &entry);
 }
 
-void add_deferred_open(struct share_mode_lock *lck, uint16 mid,
+void add_deferred_open(struct share_mode_lock *lck, uint64_t mid,
 		       struct timeval request_time,
-		       struct file_id id)
+		       struct server_id pid, struct file_id id)
 {
 	struct share_mode_entry entry;
-	fill_deferred_open_entry(&entry, request_time, id, mid);
+	fill_deferred_open_entry(&entry, request_time, id, pid, mid);
 	add_share_mode_entry(lck, &entry);
 }
 
@@ -1238,12 +1250,13 @@ bool del_share_mode(struct share_mode_lock *lck, files_struct *fsp)
 	return True;
 }
 
-void del_deferred_open_entry(struct share_mode_lock *lck, uint16 mid)
+void del_deferred_open_entry(struct share_mode_lock *lck, uint64_t mid,
+			     struct server_id pid)
 {
 	struct share_mode_entry entry, *e;
 
 	fill_deferred_open_entry(&entry, timeval_zero(),
-				 lck->id, mid);
+				 lck->id, pid, mid);
 
 	e = find_share_mode_entry(lck, &entry);
 	if (e == NULL) {
@@ -1427,7 +1440,6 @@ void set_delete_on_close_lck(struct share_mode_lock *lck, bool delete_on_close, 
 
 bool set_delete_on_close(files_struct *fsp, bool delete_on_close, const UNIX_USER_TOKEN *tok)
 {
-	UNIX_USER_TOKEN *tok_copy = NULL;
 	struct share_mode_lock *lck;
 	
 	DEBUG(10,("set_delete_on_close: %s delete on close flag for "
@@ -1439,16 +1451,6 @@ bool set_delete_on_close(files_struct *fsp, bool delete_on_close, const UNIX_USE
 				  NULL);
 	if (lck == NULL) {
 		return False;
-	}
-
-	if (fsp->conn->admin_user) {
-		tok_copy = copy_unix_token(lck, tok);
-		if (tok_copy == NULL) {
-			TALLOC_FREE(lck);
-			return false;
-		}
-		tok_copy->uid = (uid_t)0;
-		tok = tok_copy;
 	}
 
 	set_delete_on_close_lck(lck, delete_on_close, tok);

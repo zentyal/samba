@@ -21,7 +21,8 @@
 
 #include "includes.h"
 #include "lib/events/events.h"
-#include "lib/socket/socket.h"
+#include "lib/tsocket/tsocket.h"
+#include "smbd/service_task.h"
 #include "smbd/service_stream.h"
 #include "libcli/wrepl/winsrepl.h"
 #include "wrepl_server/wrepl_server.h"
@@ -30,6 +31,8 @@
 #include "lib/ldb/include/ldb.h"
 #include "lib/ldb/include/ldb_errors.h"
 #include "system/time.h"
+#include "lib/util/tsort.h"
+#include "param/param.h"
 
 static NTSTATUS wreplsrv_in_start_association(struct wreplsrv_in_call *call)
 {
@@ -198,7 +201,7 @@ static NTSTATUS wreplsrv_in_send_request(struct wreplsrv_in_call *call)
 	struct wrepl_wins_name *names;
 	struct winsdb_record *rec;
 	NTSTATUS status;
-	uint32_t i, j;
+	unsigned int i, j;
 	time_t now = time(NULL);
 
 	owner = wreplsrv_find_owner(service, service->table, owner_in->address);
@@ -300,7 +303,7 @@ static NTSTATUS wreplsrv_in_send_request(struct wreplsrv_in_call *call)
 	}
 
 	/* sort the names before we send them */
-	qsort(names, j, sizeof(struct wrepl_wins_name), (comparison_fn_t)wreplsrv_in_sort_wins_name);
+	TYPESAFE_QSORT(names, j, wreplsrv_in_sort_wins_name);
 
 	DEBUG(2,("WINSREPL:reply [%u] records owner[%s] min[%llu] max[%llu] to partner[%s]\n",
 		j, owner_in->address, 
@@ -340,20 +343,11 @@ static NTSTATUS wreplsrv_in_update(struct wreplsrv_in_call *call)
 	struct wreplsrv_out_connection *wrepl_out;
 	struct wrepl_table *update_in = &call->req_packet.message.replication.info.table;
 	struct wreplsrv_in_update_state *update_state;
-	uint16_t fde_flags;
+	NTSTATUS status;
 
 	DEBUG(2,("WREPL_REPL_UPDATE: partner[%s] initiator[%s] num_owners[%u]\n",
 		call->wreplconn->partner->address,
 		update_in->initiator, update_in->partner_count));
-
-	/* 
-	 * we need to flip the connection into a client connection
-	 * and do a WREPL_REPL_SEND_REQUEST's on the that connection
-	 * and then stop this connection
-	 */
-	fde_flags = event_get_fd_flags(wrepl_in->conn->event.fde);
-	talloc_free(wrepl_in->conn->event.fde);
-	wrepl_in->conn->event.fde = NULL;
 
 	update_state = talloc(wrepl_in, struct wreplsrv_in_update_state);
 	NT_STATUS_HAVE_NO_MEMORY(update_state);
@@ -364,13 +358,15 @@ static NTSTATUS wreplsrv_in_update(struct wreplsrv_in_call *call)
 	wrepl_out->partner		= wrepl_in->partner;
 	wrepl_out->assoc_ctx.our_ctx	= wrepl_in->assoc_ctx.our_ctx;
 	wrepl_out->assoc_ctx.peer_ctx	= wrepl_in->assoc_ctx.peer_ctx;
-	wrepl_out->sock			= wrepl_socket_merge(wrepl_out,
-							     wrepl_in->conn->event.ctx,
-							     wrepl_in->conn->socket,
-							     wrepl_in->packet);
-	NT_STATUS_HAVE_NO_MEMORY(wrepl_out->sock);
+	wrepl_out->sock			= wrepl_socket_init(wrepl_out,
+							    wrepl_in->conn->event.ctx);
+							    
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(wrepl_out->sock, update_state);
 
-	event_set_fd_flags(wrepl_out->sock->event.fde, fde_flags);
+	TALLOC_FREE(wrepl_in->send_queue);
+
+	status = wrepl_socket_donate_stream(wrepl_out->sock, &wrepl_in->tstream);
+	NT_STATUS_NOT_OK_RETURN_AND_FREE(status, update_state);
 
 	update_state->wrepl_in			= wrepl_in;
 	update_state->wrepl_out			= wrepl_out;
@@ -381,6 +377,7 @@ static NTSTATUS wreplsrv_in_update(struct wreplsrv_in_call *call)
 	update_state->cycle_io.in.wreplconn	= wrepl_out;
 	update_state->creq = wreplsrv_pull_cycle_send(update_state, &update_state->cycle_io);
 	if (!update_state->creq) {
+		talloc_free(update_state);
 		return NT_STATUS_INTERNAL_ERROR;
 	}
 
@@ -432,12 +429,23 @@ static NTSTATUS wreplsrv_in_replication(struct wreplsrv_in_call *call)
 	}
 
 	if (!call->wreplconn->partner) {
-		struct socket_address *partner_ip = socket_get_peer_addr(call->wreplconn->conn->socket, call);
+		struct tsocket_address *peer_addr = call->wreplconn->conn->remote_address;
+		char *peer_ip;
 
-		call->wreplconn->partner = wreplsrv_find_partner(call->wreplconn->service, partner_ip->addr);
+		if (!tsocket_address_is_inet(peer_addr, "ipv4")) {
+			DEBUG(0,("wreplsrv_in_replication: non ipv4 peer addr '%s'\n",
+				tsocket_address_string(peer_addr, call)));
+			return NT_STATUS_INTERNAL_ERROR;
+		}
+
+		peer_ip = tsocket_address_inet_addr_string(peer_addr, call);
+		if (peer_ip == NULL) {
+			return NT_STATUS_NO_MEMORY;
+		}
+
+		call->wreplconn->partner = wreplsrv_find_partner(call->wreplconn->service, peer_ip);
 		if (!call->wreplconn->partner) {
-			DEBUG(1,("Failing WINS replication from non-partner %s\n",
-				 partner_ip ? partner_ip->addr : NULL));
+			DEBUG(1,("Failing WINS replication from non-partner %s\n", peer_ip));
 			return wreplsrv_in_stop_assoc_ctx(call);
 		}
 	}

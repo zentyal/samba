@@ -534,8 +534,17 @@ static void init_stat_ex_from_stat (struct stat_ex *dst,
 	dst->st_ex_mtime = get_mtimespec(src);
 	dst->st_ex_ctime = get_ctimespec(src);
 	make_create_timespec(src, dst, fake_dir_create_times);
+#ifdef HAVE_STAT_ST_BLKSIZE
 	dst->st_ex_blksize = src->st_blksize;
+#else
+	dst->st_ex_blksize = STAT_ST_BLOCKSIZE;
+#endif
+
+#ifdef HAVE_STAT_ST_BLOCKS
 	dst->st_ex_blocks = src->st_blocks;
+#else
+	dst->st_ex_blocks = src->st_size / dst->st_ex_blksize + 1;
+#endif
 
 #ifdef HAVE_STAT_ST_FLAGS
 	dst->st_ex_flags = src->st_flags;
@@ -627,6 +636,31 @@ int sys_posix_fallocate(int fd, SMB_OFF_T offset, SMB_OFF_T len)
 	return posix_fallocate64(fd, offset, len);
 #elif defined(HAVE_POSIX_FALLOCATE) && !defined(HAVE_BROKEN_POSIX_FALLOCATE)
 	return posix_fallocate(fd, offset, len);
+#elif defined(F_RESVSP64)
+	/* this handles XFS on IRIX */
+	struct flock64 fl;
+	SMB_OFF_T new_len = offset + len;
+	int ret;
+	struct stat64 sbuf;
+
+	/* unlikely to get a too large file on a 64bit system but ... */
+	if (new_len < 0)
+		return EFBIG;
+
+	fl.l_whence = SEEK_SET;
+	fl.l_start = offset;
+	fl.l_len = len;
+
+	ret=fcntl(fd, F_RESVSP64, &fl);
+
+	if (ret != 0)
+		return errno;
+
+	/* Make sure the file gets enlarged after we allocated space: */
+	fstat64(fd, &sbuf);
+	if (new_len > sbuf.st_size)
+		ftruncate64(fd, new_len);
+	return 0;
 #else
 	return ENOSYS;
 #endif

@@ -223,7 +223,7 @@ verify_ocsp(hx509_context context,
 	}
 
 	ret = _hx509_verify_signature_bitstring(context,
-						p,
+						parent,
 						&s->signatureAlgorithm,
 						&s->tbsCertificate._save,
 						&s->signatureValue);
@@ -240,7 +240,7 @@ verify_ocsp(hx509_context context,
     }
 
     ret = _hx509_verify_signature_bitstring(context,
-					    _hx509_get_cert(signer),
+					    signer,
 					    &ocsp->ocsp.signatureAlgorithm,
 					    &ocsp->ocsp.tbsResponseData._save,
 					    &ocsp->ocsp.signature);
@@ -506,7 +506,7 @@ verify_crl(hx509_context context,
     }
 
     ret = _hx509_verify_signature_bitstring(context,
-					    _hx509_get_cert(signer),
+					    signer,
 					    &crl->signatureAlgorithm,
 					    &crl->tbsCertList._save,
 					    &crl->signatureValue);
@@ -989,7 +989,7 @@ hx509_ocsp_request(hx509_context context,
     ctx.digest = digest;
     ctx.parent = NULL;
 
-    ret = hx509_certs_iter(context, reqcerts, add_to_req, &ctx);
+    ret = hx509_certs_iter_f(context, reqcerts, add_to_req, &ctx);
     hx509_cert_free(ctx.parent);
     if (ret)
 	goto out;
@@ -1153,7 +1153,7 @@ hx509_revoke_ocsp_print(hx509_context context, const char *path, FILE *out)
 
     fprintf(out, "appended certs:\n");
     if (ocsp.certs)
-	ret = hx509_certs_iter(context, ocsp.certs, hx509_ci_print_names, out);
+	ret = hx509_certs_iter_f(context, ocsp.certs, hx509_ci_print_names, out);
 
     free_ocsp(&ocsp);
     return ret;
@@ -1486,7 +1486,7 @@ hx509_crl_sign(hx509_context context,
     }
     c.tbsCertList.crlExtensions = NULL;
 
-    ret = hx509_certs_iter(context, crl->revoked, add_revoked, &c.tbsCertList);
+    ret = hx509_certs_iter_f(context, crl->revoked, add_revoked, &c.tbsCertList);
     if (ret)
 	goto out;
 

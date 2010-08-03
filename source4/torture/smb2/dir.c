@@ -34,6 +34,7 @@
 #include "torture/util.h"
 
 #include "system/filesys.h"
+#include "lib/util/tsort.h"
 
 #define DNAME	"smb2_dir"
 #define NFILES	100
@@ -108,7 +109,7 @@ static bool test_find(struct torture_context *tctx,
 	struct file_elem files[NFILES] = {};
 	NTSTATUS status;
 	bool ret = true;
-	uint_t count;
+	unsigned int count;
 	int i, j, file_count = 0;
 
 	status = populate_tree(tctx, mem_ctx, tree, files, NFILES, &h);
@@ -193,7 +194,7 @@ static bool test_fixed(struct torture_context *tctx,
 	struct file_elem files[NFILES] = {};
 	NTSTATUS status;
 	bool ret = true;
-	uint_t count;
+	unsigned int count;
 	int i;
 
 	status = populate_tree(tctx, mem_ctx, tree, files, NFILES, &h);
@@ -266,8 +267,8 @@ static bool test_fixed(struct torture_context *tctx,
 				continue;
 
 			torture_result(tctx, TORTURE_FAIL,
-			    "(%s): didn't expect %s\n",
-			    __location__, found);
+				       "(%s): didn't expect %s (count=%u)\n",
+				       __location__, found, count);
 			ret = false;
 			goto done;
 		}
@@ -360,7 +361,7 @@ static union smb_search_data *find(const char *name)
 static bool fill_level_data(TALLOC_CTX *mem_ctx,
 			    union smb_search_data *data,
 			    union smb_search_data *d,
-			    uint_t count,
+			    unsigned int count,
 			    uint8_t level,
 			    enum smb_search_data_level data_level)
 {
@@ -385,7 +386,7 @@ NTSTATUS torture_single_file_search(struct smb2_tree *tree,
 				    enum smb_search_data_level data_level,
 				    int idx,
 				    union smb_search_data *d,
-				    uint_t *count,
+				    unsigned int *count,
 				    struct smb2_handle *h)
 {
 	struct smb2_find f;
@@ -416,7 +417,7 @@ static bool test_one_file(struct torture_context *tctx,
 	const char *fname =  "torture_search.txt";
 	NTSTATUS status;
 	int i;
-	uint_t count;
+	unsigned int count;
 	union smb_fileinfo all_info2, alt_info, internal_info;
 	union smb_search_data *s;
 	union smb_search_data d;
@@ -431,7 +432,7 @@ static bool test_one_file(struct torture_context *tctx,
 
 	/* call all the File Information Classes */
 	for (i=0;i<ARRAY_SIZE(levels);i++) {
-		torture_comment(tctx, "testing %s %d\n", levels[i].name,
+		torture_comment(tctx, "Testing %s %d\n", levels[i].name,
 				levels[i].level);
 
 		levels[i].status = torture_single_file_search(tree, mem_ctx,
@@ -671,7 +672,7 @@ static NTSTATUS multiple_smb2_search(struct smb2_tree *tree,
 {
 	struct smb2_find f;
 	bool ret = true;
-	uint_t count = 0;
+	unsigned int count = 0;
 	union smb_search_data *d;
 	NTSTATUS status;
 	struct multiple_result *result = (struct multiple_result *)data;
@@ -808,8 +809,7 @@ static bool test_many_files(struct torture_context *tctx,
 		compare_data_level = search_types[t].data_level;
 		level_sort = search_types[t].level;
 
-		qsort(result.list, result.count, sizeof(result.list[0]),
-		      QSORT_CAST  search_compare);
+		TYPESAFE_QSORT(result.list, result.count, search_compare);
 
 		for (i=0;i<result.count;i++) {
 			const char *s;
@@ -895,7 +895,7 @@ static bool test_modify_search(struct torture_context *tctx,
 	NTSTATUS status;
 	bool ret = true;
 	int i;
-	uint_t count;
+	unsigned int count;
 
 	smb2_deltree(tree, DNAME);
 
@@ -1105,7 +1105,7 @@ static bool test_file_index(struct torture_context *tctx,
 	struct smb2_find f;
 	struct smb2_handle h;
 	union smb_search_data *d;
-	int count;
+	unsigned count;
 
 	smb2_deltree(tree, DNAME);
 
@@ -1223,9 +1223,9 @@ static bool test_large_files(struct torture_context *tctx,
 	struct smb2_find f;
 	struct smb2_handle h;
 	union smb_search_data *d;
-	int count, file_count = 0;
+	int i, j, file_count = 0;
 	char **strs = NULL;
-	int i, j;
+	unsigned count;
 
 	torture_comment(tctx,
 	    "Testing directory enumeration in a directory with >1000 files\n");

@@ -58,7 +58,7 @@ _PUBLIC_ size_t ndr_align_size(uint32_t offset, size_t n)
 /*
   initialise a ndr parse structure from a data blob
 */
-_PUBLIC_ struct ndr_pull *ndr_pull_init_blob(const DATA_BLOB *blob, TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience)
+_PUBLIC_ struct ndr_pull *ndr_pull_init_blob(const DATA_BLOB *blob, TALLOC_CTX *mem_ctx)
 {
 	struct ndr_pull *ndr;
 
@@ -68,7 +68,6 @@ _PUBLIC_ struct ndr_pull *ndr_pull_init_blob(const DATA_BLOB *blob, TALLOC_CTX *
 
 	ndr->data = blob->data;
 	ndr->data_size = blob->length;
-	ndr->iconv_convenience = talloc_reference(ndr, iconv_convenience);
 
 	return ndr;
 }
@@ -102,7 +101,7 @@ static enum ndr_err_code ndr_pull_set_offset(struct ndr_pull *ndr, uint32_t ofs)
 }
 
 /* create a ndr_push structure, ready for some marshalling */
-_PUBLIC_ struct ndr_push *ndr_push_init_ctx(TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience)
+_PUBLIC_ struct ndr_push *ndr_push_init_ctx(TALLOC_CTX *mem_ctx)
 {
 	struct ndr_push *ndr;
 
@@ -117,7 +116,6 @@ _PUBLIC_ struct ndr_push *ndr_push_init_ctx(TALLOC_CTX *mem_ctx, struct smb_icon
 	if (!ndr->data) {
 		return NULL;
 	}
-	ndr->iconv_convenience = talloc_reference(ndr, iconv_convenience);
 
 	return ndr;
 }
@@ -256,13 +254,6 @@ _PUBLIC_ void ndr_print_function_debug(ndr_print_function_t fn, const char *name
 	ndr->depth = 1;
 	ndr->flags = 0;
 
-	/* this is a s4 hack until we build up the courage to pass
-	 * this all the way down 
-	 */
-#if _SAMBA_BUILD_ == 4
-	ndr->iconv_convenience = smb_iconv_convenience_init(talloc_autofree_context(), "ASCII", "UTF-8", true);
-#endif
-
 	fn(ndr, name, flags, ptr);
 	talloc_free(ndr);
 }
@@ -284,13 +275,6 @@ _PUBLIC_ char *ndr_print_struct_string(TALLOC_CTX *mem_ctx, ndr_print_fn_t fn, c
 	ndr->print = ndr_print_string_helper;
 	ndr->depth = 1;
 	ndr->flags = 0;
-
-	/* this is a s4 hack until we build up the courage to pass
-	 * this all the way down 
-	 */
-#if _SAMBA_BUILD_ == 4
-	ndr->iconv_convenience = smb_iconv_convenience_init(talloc_autofree_context(), "ASCII", "UTF-8", true);
-#endif
 
 	fn(ndr, name, ptr);
 	ret = talloc_steal(mem_ctx, (char *)ndr->private_data);
@@ -553,7 +537,6 @@ _PUBLIC_ enum ndr_err_code ndr_pull_subcontext_start(struct ndr_pull *ndr,
 	subndr->data = ndr->data + ndr->offset;
 	subndr->offset = 0;
 	subndr->data_size = r_content_size;
-	subndr->iconv_convenience = talloc_reference(subndr, ndr->iconv_convenience);
 
 	if (force_le) {
 		ndr_set_flags(&ndr->flags, LIBNDR_FLAG_LITTLE_ENDIAN);
@@ -589,7 +572,7 @@ _PUBLIC_ enum ndr_err_code ndr_push_subcontext_start(struct ndr_push *ndr,
 {
 	struct ndr_push *subndr;
 
-	subndr = ndr_push_init_ctx(ndr, ndr->iconv_convenience);
+	subndr = ndr_push_init_ctx(ndr);
 	NDR_ERR_HAVE_NO_MEMORY(subndr);
 	subndr->flags	= ndr->flags & ~LIBNDR_FLAG_NDR64;
 
@@ -850,11 +833,11 @@ _PUBLIC_ uint32_t ndr_print_get_switch_value(struct ndr_print *ndr, const void *
 /*
   pull a struct from a blob using NDR
 */
-_PUBLIC_ enum ndr_err_code ndr_pull_struct_blob(const DATA_BLOB *blob, TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience, void *p,
+_PUBLIC_ enum ndr_err_code ndr_pull_struct_blob(const DATA_BLOB *blob, TALLOC_CTX *mem_ctx, void *p,
 			      ndr_pull_flags_fn_t fn)
 {
 	struct ndr_pull *ndr;
-	ndr = ndr_pull_init_blob(blob, mem_ctx, iconv_convenience);
+	ndr = ndr_pull_init_blob(blob, mem_ctx);
 	NDR_ERR_HAVE_NO_MEMORY(ndr);
 	NDR_CHECK_FREE(fn(ndr, NDR_SCALARS|NDR_BUFFERS, p));
 	talloc_free(ndr);
@@ -865,17 +848,25 @@ _PUBLIC_ enum ndr_err_code ndr_pull_struct_blob(const DATA_BLOB *blob, TALLOC_CT
   pull a struct from a blob using NDR - failing if all bytes are not consumed
 */
 _PUBLIC_ enum ndr_err_code ndr_pull_struct_blob_all(const DATA_BLOB *blob, TALLOC_CTX *mem_ctx, 
-						    struct smb_iconv_convenience *iconv_convenience,
 						    void *p, ndr_pull_flags_fn_t fn)
 {
 	struct ndr_pull *ndr;
-	ndr = ndr_pull_init_blob(blob, mem_ctx, iconv_convenience);
+	uint32_t highest_ofs;
+	ndr = ndr_pull_init_blob(blob, mem_ctx);
 	NDR_ERR_HAVE_NO_MEMORY(ndr);
 	NDR_CHECK_FREE(fn(ndr, NDR_SCALARS|NDR_BUFFERS, p));
-	if (ndr->offset < ndr->data_size) {
-		return ndr_pull_error(ndr, NDR_ERR_UNREAD_BYTES,
-				      "not all bytes consumed ofs[%u] size[%u]",
-				      ndr->offset, ndr->data_size);
+	if (ndr->offset > ndr->relative_highest_offset) {
+		highest_ofs = ndr->offset;
+	} else {
+		highest_ofs = ndr->relative_highest_offset;
+	}
+	if (highest_ofs < ndr->data_size) {
+		enum ndr_err_code ret;
+		ret = ndr_pull_error(ndr, NDR_ERR_UNREAD_BYTES,
+				     "not all bytes consumed ofs[%u] size[%u]",
+				     highest_ofs, ndr->data_size);
+		talloc_free(ndr);
+		return ret;
 	}
 	talloc_free(ndr);
 	return NDR_ERR_SUCCESS;
@@ -885,11 +876,11 @@ _PUBLIC_ enum ndr_err_code ndr_pull_struct_blob_all(const DATA_BLOB *blob, TALLO
   pull a union from a blob using NDR, given the union discriminator
 */
 _PUBLIC_ enum ndr_err_code ndr_pull_union_blob(const DATA_BLOB *blob, TALLOC_CTX *mem_ctx, 
-					       struct smb_iconv_convenience *iconv_convenience, void *p,
+					       void *p,
 			     uint32_t level, ndr_pull_flags_fn_t fn)
 {
 	struct ndr_pull *ndr;
-	ndr = ndr_pull_init_blob(blob, mem_ctx, iconv_convenience);
+	ndr = ndr_pull_init_blob(blob, mem_ctx);
 	NDR_ERR_HAVE_NO_MEMORY(ndr);
 	NDR_CHECK_FREE(ndr_pull_set_switch_value(ndr, p, level));
 	NDR_CHECK_FREE(fn(ndr, NDR_SCALARS|NDR_BUFFERS, p));
@@ -902,19 +893,25 @@ _PUBLIC_ enum ndr_err_code ndr_pull_union_blob(const DATA_BLOB *blob, TALLOC_CTX
   failing if all bytes are not consumed
 */
 _PUBLIC_ enum ndr_err_code ndr_pull_union_blob_all(const DATA_BLOB *blob, TALLOC_CTX *mem_ctx, 
-						   struct smb_iconv_convenience *iconv_convenience, void *p,
+						   void *p,
 			     uint32_t level, ndr_pull_flags_fn_t fn)
 {
 	struct ndr_pull *ndr;
-	ndr = ndr_pull_init_blob(blob, mem_ctx, iconv_convenience);
+	uint32_t highest_ofs;
+	ndr = ndr_pull_init_blob(blob, mem_ctx);
 	NDR_ERR_HAVE_NO_MEMORY(ndr);
 	NDR_CHECK_FREE(ndr_pull_set_switch_value(ndr, p, level));
 	NDR_CHECK_FREE(fn(ndr, NDR_SCALARS|NDR_BUFFERS, p));
-	if (ndr->offset < ndr->data_size) {
+	if (ndr->offset > ndr->relative_highest_offset) {
+		highest_ofs = ndr->offset;
+	} else {
+		highest_ofs = ndr->relative_highest_offset;
+	}
+	if (highest_ofs < ndr->data_size) {
 		enum ndr_err_code ret;
 		ret = ndr_pull_error(ndr, NDR_ERR_UNREAD_BYTES,
 				     "not all bytes consumed ofs[%u] size[%u]",
-				     ndr->offset, ndr->data_size);
+				     highest_ofs, ndr->data_size);
 		talloc_free(ndr);
 		return ret;
 	}
@@ -925,10 +922,10 @@ _PUBLIC_ enum ndr_err_code ndr_pull_union_blob_all(const DATA_BLOB *blob, TALLOC
 /*
   push a struct to a blob using NDR
 */
-_PUBLIC_ enum ndr_err_code ndr_push_struct_blob(DATA_BLOB *blob, TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience, const void *p, ndr_push_flags_fn_t fn)
+_PUBLIC_ enum ndr_err_code ndr_push_struct_blob(DATA_BLOB *blob, TALLOC_CTX *mem_ctx, const void *p, ndr_push_flags_fn_t fn)
 {
 	struct ndr_push *ndr;
-	ndr = ndr_push_init_ctx(mem_ctx, iconv_convenience);
+	ndr = ndr_push_init_ctx(mem_ctx);
 	NDR_ERR_HAVE_NO_MEMORY(ndr);
 
 	NDR_CHECK(fn(ndr, NDR_SCALARS|NDR_BUFFERS, p));
@@ -943,11 +940,11 @@ _PUBLIC_ enum ndr_err_code ndr_push_struct_blob(DATA_BLOB *blob, TALLOC_CTX *mem
 /*
   push a union to a blob using NDR
 */
-_PUBLIC_ enum ndr_err_code ndr_push_union_blob(DATA_BLOB *blob, TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience, void *p,
+_PUBLIC_ enum ndr_err_code ndr_push_union_blob(DATA_BLOB *blob, TALLOC_CTX *mem_ctx, void *p,
 			     uint32_t level, ndr_push_flags_fn_t fn)
 {
 	struct ndr_push *ndr;
-	ndr = ndr_push_init_ctx(mem_ctx, iconv_convenience);
+	ndr = ndr_push_init_ctx(mem_ctx);
 	NDR_ERR_HAVE_NO_MEMORY(ndr);
 
 	NDR_CHECK(ndr_push_set_switch_value(ndr, p, level));
@@ -963,7 +960,7 @@ _PUBLIC_ enum ndr_err_code ndr_push_union_blob(DATA_BLOB *blob, TALLOC_CTX *mem_
 /*
   generic ndr_size_*() handler for structures
 */
-_PUBLIC_ size_t ndr_size_struct(const void *p, int flags, ndr_push_flags_fn_t push, struct smb_iconv_convenience *iconv_convenience)
+_PUBLIC_ size_t ndr_size_struct(const void *p, int flags, ndr_push_flags_fn_t push)
 {
 	struct ndr_push *ndr;
 	enum ndr_err_code status;
@@ -972,7 +969,7 @@ _PUBLIC_ size_t ndr_size_struct(const void *p, int flags, ndr_push_flags_fn_t pu
 	/* avoid recursion */
 	if (flags & LIBNDR_FLAG_NO_NDR_SIZE) return 0;
 
-	ndr = ndr_push_init_ctx(NULL, iconv_convenience);
+	ndr = ndr_push_init_ctx(NULL);
 	if (!ndr) return 0;
 	ndr->flags |= flags | LIBNDR_FLAG_NO_NDR_SIZE;
 	status = push(ndr, NDR_SCALARS|NDR_BUFFERS, discard_const(p));
@@ -988,7 +985,7 @@ _PUBLIC_ size_t ndr_size_struct(const void *p, int flags, ndr_push_flags_fn_t pu
 /*
   generic ndr_size_*() handler for unions
 */
-_PUBLIC_ size_t ndr_size_union(const void *p, int flags, uint32_t level, ndr_push_flags_fn_t push, struct smb_iconv_convenience *iconv_convenience)
+_PUBLIC_ size_t ndr_size_union(const void *p, int flags, uint32_t level, ndr_push_flags_fn_t push)
 {
 	struct ndr_push *ndr;
 	enum ndr_err_code status;
@@ -997,7 +994,7 @@ _PUBLIC_ size_t ndr_size_union(const void *p, int flags, uint32_t level, ndr_pus
 	/* avoid recursion */
 	if (flags & LIBNDR_FLAG_NO_NDR_SIZE) return 0;
 
-	ndr = ndr_push_init_ctx(NULL, iconv_convenience);
+	ndr = ndr_push_init_ctx(NULL);
 	if (!ndr) return 0;
 	ndr->flags |= flags | LIBNDR_FLAG_NO_NDR_SIZE;
 
@@ -1067,6 +1064,20 @@ _PUBLIC_ enum ndr_err_code ndr_push_relative_ptr1(struct ndr_push *ndr, const vo
 }
 
 /*
+  push a short relative object - stage1
+  this is called during SCALARS processing
+*/
+_PUBLIC_ enum ndr_err_code ndr_push_short_relative_ptr1(struct ndr_push *ndr, const void *p)
+{
+	if (p == NULL) {
+		NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, 0));
+		return NDR_ERR_SUCCESS;
+	}
+	NDR_CHECK(ndr_push_align(ndr, 2));
+	NDR_CHECK(ndr_token_store(ndr, &ndr->relative_list, p, ndr->offset));
+	return ndr_push_uint16(ndr, NDR_SCALARS, 0xFFFF);
+}
+/*
   push a relative object - stage2
   this is called during buffers processing
 */
@@ -1091,6 +1102,34 @@ static enum ndr_err_code ndr_push_relative_ptr2(struct ndr_push *ndr, const void
 				      save_offset, ndr->relative_base_offset);
 	}	
 	NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, save_offset - ndr->relative_base_offset));
+	ndr->offset = save_offset;
+	return NDR_ERR_SUCCESS;
+}
+/*
+  push a short relative object - stage2
+  this is called during buffers processing
+*/
+_PUBLIC_ enum ndr_err_code ndr_push_short_relative_ptr2(struct ndr_push *ndr, const void *p)
+{
+	uint32_t save_offset;
+	uint32_t ptr_offset = 0xFFFF;
+	if (p == NULL) {
+		return NDR_ERR_SUCCESS;
+	}
+	save_offset = ndr->offset;
+	NDR_CHECK(ndr_token_retrieve(&ndr->relative_list, p, &ptr_offset));
+	if (ptr_offset > ndr->offset) {
+		return ndr_push_error(ndr, NDR_ERR_BUFSIZE,
+				      "ndr_push_short_relative_ptr2 ptr_offset(%u) > ndr->offset(%u)",
+				      ptr_offset, ndr->offset);
+	}
+	ndr->offset = ptr_offset;
+	if (save_offset < ndr->relative_base_offset) {
+		return ndr_push_error(ndr, NDR_ERR_BUFSIZE,
+				      "ndr_push_relative_ptr2 save_offset(%u) < ndr->relative_base_offset(%u)",
+				      save_offset, ndr->relative_base_offset);
+	}
+	NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, save_offset - ndr->relative_base_offset));
 	ndr->offset = save_offset;
 	return NDR_ERR_SUCCESS;
 }

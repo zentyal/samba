@@ -20,8 +20,9 @@
 */
 
 #include "includes.h"
-
-extern struct current_user current_user;
+#include "printing.h"
+#include "librpc/gen_ndr/messaging.h"
+#include "smbd/globals.h"
 
 /****************************************************************************
  Run a file if it is a magic script.
@@ -153,7 +154,8 @@ static NTSTATUS close_filestruct(files_struct *fsp)
  If any deferred opens are waiting on this close, notify them.
 ****************************************************************************/
 
-static void notify_deferred_opens(struct share_mode_lock *lck)
+static void notify_deferred_opens(struct messaging_context *msg_ctx,
+				  struct share_mode_lock *lck)
 {
  	int i;
 
@@ -175,14 +177,13 @@ static void notify_deferred_opens(struct share_mode_lock *lck)
  			 * the head of the queue and changing the wait time to
  			 * zero.
  			 */
- 			schedule_deferred_open_smb_message(e->op_mid);
+ 			schedule_deferred_open_message_smb(e->op_mid);
  		} else {
 			char msg[MSG_SMB_SHARE_MODE_ENTRY_SIZE];
 
 			share_mode_entry_to_message(msg, e);
 
- 			messaging_send_buf(smbd_messaging_context(),
-					   e->pid, MSG_SMB_OPEN_RETRY,
+			messaging_send_buf(msg_ctx, e->pid, MSG_SMB_OPEN_RETRY,
 					   (uint8 *)msg,
 					   MSG_SMB_SHARE_MODE_ENTRY_SIZE);
  		}
@@ -332,12 +333,12 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 		/* Initial delete on close was set and no one else
 		 * wrote a real delete on close. */
 
-		if (current_user.vuid != fsp->vuid) {
+		if (get_current_vuid(conn) != fsp->vuid) {
 			become_user(conn, fsp->vuid);
 			became_user = True;
 		}
 		fsp->delete_on_close = true;
-		set_delete_on_close_lck(lck, True, &current_user.ut);
+		set_delete_on_close_lck(lck, True, get_current_utok(conn));
 		if (became_user) {
 			unbecome_user();
 		}
@@ -362,7 +363,7 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 	}
 
 	/* Notify any deferred opens waiting on this close. */
-	notify_deferred_opens(lck);
+	notify_deferred_opens(conn->sconn->msg_ctx, lck);
 	reply_to_oplock_break_requests(fsp);
 
 	/*
@@ -389,7 +390,7 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 	 */
 	fsp->update_write_time_on_close = false;
 
-	if (!unix_token_equal(lck->delete_token, &current_user.ut)) {
+	if (!unix_token_equal(lck->delete_token, get_current_utok(conn))) {
 		/* Become the user who requested the delete. */
 
 		DEBUG(5,("close_remove_share_mode: file %s. "
@@ -581,9 +582,11 @@ static NTSTATUS close_normal_file(struct smb_request *req, files_struct *fsp,
 	NTSTATUS tmp;
 	connection_struct *conn = fsp->conn;
 
-	if (fsp->aio_write_behind) {
+	if (close_type == ERROR_CLOSE) {
+		cancel_aio_by_fsp(fsp);
+	} else {
 		/*
-	 	 * If we're finishing write behind on a close we can get a write
+	 	 * If we're finishing async io on a close we can get a write
 		 * error here, we must remember this.
 		 */
 		int ret = wait_for_aio_completion(fsp);
@@ -591,10 +594,8 @@ static NTSTATUS close_normal_file(struct smb_request *req, files_struct *fsp,
 			status = ntstatus_keeperror(
 				status, map_nt_error_from_unix(ret));
 		}
-	} else {
-		cancel_aio_by_fsp(fsp);
 	}
- 
+
 	/*
 	 * If we're flushing on a close we can get a write
 	 * error here, we must remember this.
@@ -604,7 +605,8 @@ static NTSTATUS close_normal_file(struct smb_request *req, files_struct *fsp,
 	status = ntstatus_keeperror(status, tmp);
 
 	if (fsp->print_file) {
-		print_fsp_end(fsp, close_type);
+		/* FIXME: return spool errors */
+		print_spool_end(fsp, close_type);
 		file_free(req, fsp);
 		return NT_STATUS_OK;
 	}
@@ -624,7 +626,7 @@ static NTSTATUS close_normal_file(struct smb_request *req, files_struct *fsp,
 		status = ntstatus_keeperror(status, tmp);
 	}
 
-	locking_close_file(smbd_messaging_context(), fsp);
+	locking_close_file(conn->sconn->msg_ctx, fsp, close_type);
 
 	tmp = fd_close(fsp);
 	status = ntstatus_keeperror(status, tmp);
@@ -955,12 +957,12 @@ static NTSTATUS close_directory(struct smb_request *req, files_struct *fsp,
 		 * directories we don't care if anyone else
 		 * wrote a real delete on close. */
 
-		if (current_user.vuid != fsp->vuid) {
+		if (get_current_vuid(fsp->conn) != fsp->vuid) {
 			become_user(fsp->conn, fsp->vuid);
 			became_user = True;
 		}
 		send_stat_cache_delete_message(fsp->fsp_name->base_name);
-		set_delete_on_close_lck(lck, True, &current_user.ut);
+		set_delete_on_close_lck(lck, True, get_current_utok(fsp->conn));
 		fsp->delete_on_close = true;
 		if (became_user) {
 			unbecome_user();

@@ -18,13 +18,10 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "system/time.h"
 #include "libcli/raw/libcliraw.h"
-#include "libcli/raw/raw_proto.h"
 #include "libcli/libcli.h"
 #include "torture/util.h"
-#include "torture/raw/proto.h"
 
 #define BASEDIR "\\testsfileinfo"
 
@@ -32,8 +29,8 @@
    for each call we test that it succeeds, and where possible test 
    for consistency between the calls. 
 */
-bool torture_raw_sfileinfo(struct torture_context *torture, 
-			   struct smbcli_state *cli)
+static bool
+torture_raw_sfileinfo_base(struct torture_context *torture, struct smbcli_state *cli)
 {
 	bool ret = true;
 	int fnum = -1;
@@ -82,7 +79,11 @@ bool torture_raw_sfileinfo(struct torture_context *torture,
 	sfinfo.generic.level = RAW_SFILEINFO_ ## call; \
 	sfinfo.generic.in.file.fnum = fnum; \
 	status = smb_raw_setfileinfo(cli->tree, &sfinfo); \
-	if (!NT_STATUS_EQUAL(status, rightstatus)) { \
+	if (NT_STATUS_EQUAL(status, NT_STATUS_NOT_SUPPORTED)) { \
+                torture_warning(torture, \
+			"(%s) %s - %s", __location__, #call, \
+                        nt_errstr(status)); \
+        } else if (!NT_STATUS_EQUAL(status, rightstatus)) { \
 		printf("(%s) %s - %s (should be %s)\n", __location__, #call, \
 			nt_errstr(status), nt_errstr(rightstatus)); \
 		ret = false; \
@@ -90,7 +91,11 @@ bool torture_raw_sfileinfo(struct torture_context *torture,
 	finfo1.generic.level = RAW_FILEINFO_ALL_INFO; \
 	finfo1.generic.in.file.fnum = fnum; \
 	status2 = smb_raw_fileinfo(cli->tree, torture, &finfo1); \
-	if (!NT_STATUS_IS_OK(status2)) { \
+	if (NT_STATUS_EQUAL(status, NT_STATUS_NOT_SUPPORTED)) { \
+                torture_warning(torture, \
+			"(%s) %s - %s", __location__, #call, \
+                        nt_errstr(status)); \
+        } else if (!NT_STATUS_IS_OK(status2)) { \
 		printf("(%s) %s pathinfo - %s\n", __location__, #call, nt_errstr(status)); \
 		ret = false; \
 	}} while (0)
@@ -105,7 +110,11 @@ bool torture_raw_sfileinfo(struct torture_context *torture,
 		sfinfo.generic.in.file.path = path_fname_new; \
 		status = smb_raw_setpathinfo(cli->tree, &sfinfo); \
 	} \
-	if (!NT_STATUS_EQUAL(status, rightstatus)) { \
+	if (NT_STATUS_EQUAL(status, NT_STATUS_NOT_SUPPORTED)) { \
+                torture_warning(torture, \
+			"(%s) %s - %s", __location__, #call, \
+                        nt_errstr(status)); \
+        } else if (!NT_STATUS_EQUAL(status, rightstatus)) { \
 		printf("(%s) %s - %s (should be %s)\n", __location__, #call, \
 			nt_errstr(status), nt_errstr(rightstatus)); \
 		ret = false; \
@@ -117,7 +126,11 @@ bool torture_raw_sfileinfo(struct torture_context *torture,
 		finfo1.generic.in.file.path = path_fname_new; \
 		status2 = smb_raw_pathinfo(cli->tree, torture, &finfo1); \
 	} \
-	if (!NT_STATUS_IS_OK(status2)) { \
+	if (NT_STATUS_EQUAL(status, NT_STATUS_NOT_SUPPORTED)) { \
+                torture_warning(torture, \
+			"(%s) %s - %s", __location__, #call, \
+                        nt_errstr(status)); \
+        } else if (!NT_STATUS_IS_OK(status2)) { \
 		printf("(%s) %s pathinfo - %s\n", __location__, #call, nt_errstr(status2)); \
 		ret = false; \
 	}} while (0)
@@ -147,7 +160,7 @@ bool torture_raw_sfileinfo(struct torture_context *torture,
 	if (NT_STATUS_IS_OK(status) && NT_STATUS_IS_OK(status2) && finfo2.stype.out.field != value) { \
 		printf("(%s) %s - %s/%s should be 0x%x - 0x%x\n", __location__, \
 		       call_name, #stype, #field, \
-		       (uint_t)value, (uint_t)finfo2.stype.out.field); \
+		       (unsigned int)value, (unsigned int)finfo2.stype.out.field); \
 		dump_all_info(torture, &finfo1); \
 		ret = false; \
 	}} while (0)
@@ -157,8 +170,8 @@ bool torture_raw_sfileinfo(struct torture_context *torture,
 	if (NT_STATUS_IS_OK(status) && NT_STATUS_IS_OK(status2) && nt_time_to_unix(finfo2.stype.out.field) != value) { \
 		printf("(%s) %s - %s/%s should be 0x%x - 0x%x\n", __location__, \
 		        call_name, #stype, #field, \
-		        (uint_t)value, \
-			(uint_t)nt_time_to_unix(finfo2.stype.out.field)); \
+		        (unsigned int)value, \
+			(unsigned int)nt_time_to_unix(finfo2.stype.out.field)); \
 		printf("\t%s", timestring(torture, value)); \
 		printf("\t%s\n", nt_time_string(torture, finfo2.stype.out.field)); \
 		dump_all_info(torture, &finfo1); \
@@ -185,7 +198,7 @@ bool torture_raw_sfileinfo(struct torture_context *torture,
 	}} while (0)
 
 	
-	printf("test setattr\n");
+	printf("Test setattr\n");
 	sfinfo.setattr.in.attrib = FILE_ATTRIBUTE_READONLY;
 	sfinfo.setattr.in.write_time = basetime;
 	CHECK_CALL_PATH(SETATTR, NT_STATUS_OK);
@@ -206,7 +219,7 @@ bool torture_raw_sfileinfo(struct torture_context *torture,
 	CHECK_VALUE(ALL_INFO, all_info, attrib,     FILE_ATTRIBUTE_NORMAL);
 	CHECK_TIME (ALL_INFO, all_info, write_time, basetime);
 
-	printf("test setattre\n");
+	printf("Test setattre\n");
 	sfinfo.setattre.in.create_time = basetime + 20;
 	sfinfo.setattre.in.access_time = basetime + 30;
 	sfinfo.setattre.in.write_time  = basetime + 40;
@@ -223,7 +236,7 @@ bool torture_raw_sfileinfo(struct torture_context *torture,
 	CHECK_TIME(ALL_INFO, all_info, access_time, basetime + 30);
 	CHECK_TIME(ALL_INFO, all_info, write_time,  basetime + 40);
 
-	printf("test standard level\n");
+	printf("Test standard level\n");
 	sfinfo.standard.in.create_time = basetime + 100;
 	sfinfo.standard.in.access_time = basetime + 200;
 	sfinfo.standard.in.write_time  = basetime + 300;
@@ -232,7 +245,7 @@ bool torture_raw_sfileinfo(struct torture_context *torture,
 	CHECK_TIME(ALL_INFO, all_info, access_time, basetime + 200);
 	CHECK_TIME(ALL_INFO, all_info, write_time,  basetime + 300);
 
-	printf("test basic_info level\n");
+	printf("Test basic_info level\n");
 	basetime += 86400;
 	unix_to_nt_time(&sfinfo.basic_info.in.create_time, basetime + 100);
 	unix_to_nt_time(&sfinfo.basic_info.in.access_time, basetime + 200);
@@ -259,7 +272,7 @@ bool torture_raw_sfileinfo(struct torture_context *torture,
 	CHECK_TIME(ALL_INFO, all_info, change_time, basetime + 400);
 	CHECK_VALUE(ALL_INFO, all_info, attrib,     FILE_ATTRIBUTE_READONLY);
 
-	printf("test basic_information level\n");
+	printf("Test basic_information level\n");
 	basetime += 86400;
 	unix_to_nt_time(&sfinfo.basic_info.in.create_time, basetime + 100);
 	unix_to_nt_time(&sfinfo.basic_info.in.access_time, basetime + 200);
@@ -279,6 +292,10 @@ bool torture_raw_sfileinfo(struct torture_context *torture,
 	CHECK_TIME(ALL_INFO, all_info, write_time,  basetime + 300);
 	CHECK_TIME(ALL_INFO, all_info, change_time, basetime + 400);
 	CHECK_VALUE(ALL_INFO, all_info, attrib,     FILE_ATTRIBUTE_NORMAL);
+
+	torture_comment(torture, "try to change a file to a directory\n");
+	sfinfo.basic_info.in.attrib = FILE_ATTRIBUTE_DIRECTORY;
+	CHECK_CALL_FNUM(BASIC_INFO, NT_STATUS_INVALID_PARAMETER);
 
 	printf("a zero time means don't change\n");
 	unix_to_nt_time(&sfinfo.basic_info.in.create_time, 0);
@@ -304,7 +321,7 @@ bool torture_raw_sfileinfo(struct torture_context *torture,
 	*/
 	CHECK_VALUE(ALL_INFO, all_info, attrib,     FILE_ATTRIBUTE_NORMAL);
 
-	printf("test disposition_info level\n");
+	printf("Test disposition_info level\n");
 	sfinfo.disposition_info.in.delete_on_close = 1;
 	CHECK_CALL_FNUM(DISPOSITION_INFO, NT_STATUS_OK);
 	CHECK_VALUE(ALL_INFO, all_info, delete_pending, 1);
@@ -315,7 +332,7 @@ bool torture_raw_sfileinfo(struct torture_context *torture,
 	CHECK_VALUE(ALL_INFO, all_info, delete_pending, 0);
 	CHECK_VALUE(ALL_INFO, all_info, nlink, 1);
 
-	printf("test disposition_information level\n");
+	printf("Test disposition_information level\n");
 	sfinfo.disposition_info.in.delete_on_close = 1;
 	CHECK_CALL_FNUM(DISPOSITION_INFORMATION, NT_STATUS_OK);
 	CHECK_VALUE(ALL_INFO, all_info, delete_pending, 1);
@@ -337,7 +354,7 @@ bool torture_raw_sfileinfo(struct torture_context *torture,
 	CHECK_VALUE(ALL_INFO, all_info, delete_pending, 0);
 	CHECK_VALUE(ALL_INFO, all_info, nlink, 1);
 
-	printf("test allocation_info level\n");
+	printf("Test allocation_info level\n");
 	sfinfo.allocation_info.in.alloc_size = 0;
 	CHECK_CALL_FNUM(ALLOCATION_INFO, NT_STATUS_OK);
 	CHECK_VALUE(ALL_INFO, all_info, size, 0);
@@ -369,7 +386,7 @@ bool torture_raw_sfileinfo(struct torture_context *torture,
 	CHECK_VALUE(ALL_INFO, all_info, alloc_size, 0);
 	CHECK_VALUE(ALL_INFO, all_info, size, 0);
 
-	printf("test end_of_file_info level\n");
+	printf("Test end_of_file_info level\n");
 	sfinfo.end_of_file_info.in.size = 37;
 	CHECK_CALL_FNUM(END_OF_FILE_INFO, NT_STATUS_OK);
 	CHECK_VALUE(ALL_INFO, all_info, size, 37);
@@ -392,7 +409,7 @@ bool torture_raw_sfileinfo(struct torture_context *torture,
 	CHECK_CALL_PATH(END_OF_FILE_INFORMATION, NT_STATUS_OK);
 	CHECK_VALUE(ALL_INFO, all_info, size, 7);
 
-	printf("test position_information level\n");
+	printf("Test position_information level\n");
 	sfinfo.position_information.in.position = 123456;
 	CHECK_CALL_FNUM(POSITION_INFORMATION, NT_STATUS_OK);
 	CHECK_VALUE(POSITION_INFORMATION, position_information, position, 123456);
@@ -400,7 +417,7 @@ bool torture_raw_sfileinfo(struct torture_context *torture,
 	CHECK_CALL_PATH(POSITION_INFORMATION, NT_STATUS_OK);
 	CHECK_VALUE(POSITION_INFORMATION, position_information, position, 0);
 
-	printf("test mode_information level\n");
+	printf("Test mode_information level\n");
 	sfinfo.mode_information.in.mode = 2;
 	CHECK_CALL_FNUM(MODE_INFORMATION, NT_STATUS_OK);
 	CHECK_VALUE(MODE_INFORMATION, mode_information, mode, 2);
@@ -420,11 +437,11 @@ bool torture_raw_sfileinfo(struct torture_context *torture,
 	CHECK_VALUE(MODE_INFORMATION, mode_information, mode, 0);
 
 #if 0
-	printf("test unix_basic level\n");
+	printf("Test unix_basic level\n");
 	CHECK_CALL_FNUM(UNIX_BASIC, NT_STATUS_OK);
 	CHECK_CALL_PATH(UNIX_BASIC, NT_STATUS_OK);
 
-	printf("test unix_link level\n");
+	printf("Test unix_link level\n");
 	CHECK_CALL_FNUM(UNIX_LINK, NT_STATUS_OK);
 	CHECK_CALL_PATH(UNIX_LINK, NT_STATUS_OK);
 #endif
@@ -445,8 +462,9 @@ done:
 /*
  * basic testing of all RAW_SFILEINFO_RENAME call
  */
-bool torture_raw_sfileinfo_rename(struct torture_context *torture,
-								  struct smbcli_state *cli)
+static bool
+torture_raw_sfileinfo_rename(struct torture_context *torture,
+    struct smbcli_state *cli)
 {
 	bool ret = true;
 	int fnum_saved, d_fnum, fnum2, fnum = -1;
@@ -672,8 +690,8 @@ done:
 /* 
    look for the w2k3 setpathinfo STANDARD bug
 */
-bool torture_raw_sfileinfo_bug(struct torture_context *torture,
-							   struct smbcli_state *cli)
+static bool torture_raw_sfileinfo_bug(struct torture_context *torture,
+    struct smbcli_state *cli)
 {
 	const char *fname = "\\bug3.txt";
 	union smb_setfileinfo sfinfo;
@@ -700,4 +718,443 @@ bool torture_raw_sfileinfo_bug(struct torture_context *torture,
 	printf("now try and delete %s\n", fname);
 
 	return true;
+}
+
+/**
+ * Test both the snia cifs RAW_SFILEINFO_END_OF_FILE_INFO and the undocumented
+ * pass-through RAW_SFILEINFO_END_OF_FILE_INFORMATION in the context of
+ * trans2setpathinfo.
+ */
+static bool
+torture_raw_sfileinfo_eof(struct torture_context *tctx,
+    struct smbcli_state *cli1, struct smbcli_state *cli2)
+{
+	const char *fname = BASEDIR "\\test_sfileinfo_end_of_file.dat";
+	NTSTATUS status;
+	bool ret = true;
+	union smb_open io;
+	union smb_setfileinfo sfi;
+	union smb_fileinfo qfi;
+	uint16_t fnum = 0;
+
+	if (!torture_setup_dir(cli1, BASEDIR)) {
+		return false;
+	}
+
+	/* cleanup */
+	smbcli_unlink(cli1->tree, fname);
+
+	io.generic.level = RAW_OPEN_NTCREATEX;
+	io.ntcreatex.in.root_fid.fnum = 0;
+	io.ntcreatex.in.access_mask = SEC_RIGHTS_FILE_ALL;
+	io.ntcreatex.in.alloc_size = 0;
+	io.ntcreatex.in.file_attr = FILE_ATTRIBUTE_NORMAL;
+	io.ntcreatex.in.share_access = NTCREATEX_SHARE_ACCESS_NONE;
+	io.ntcreatex.in.open_disposition = NTCREATEX_DISP_OPEN_IF;
+	io.ntcreatex.in.create_options = 0;
+	io.ntcreatex.in.impersonation = NTCREATEX_IMPERSONATION_ANONYMOUS;
+	io.ntcreatex.in.security_flags = 0;
+	io.ntcreatex.in.fname = fname;
+	io.ntcreatex.in.flags = 0;
+
+	/* Open the file sharing none. */
+	status = smb_raw_open(cli1->tree, tctx, &io);
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK, ret,
+	    done, "Status should be OK");
+	fnum = io.ntcreatex.out.file.fnum;
+
+	/* Try to sfileinfo to extend the file. */
+	ZERO_STRUCT(sfi);
+	sfi.generic.level = RAW_SFILEINFO_END_OF_FILE_INFO;
+	sfi.generic.in.file.path = fname;
+	sfi.end_of_file_info.in.size = 100;
+	status = smb_raw_setpathinfo(cli2->tree, &sfi);
+
+	/* There should be share mode contention in this case. */
+	torture_assert_ntstatus_equal_goto(tctx, status,
+	    NT_STATUS_SHARING_VIOLATION, ret, done, "Status should be "
+	    "SHARING_VIOLATION");
+
+	/* Make sure the size is still 0. */
+	ZERO_STRUCT(qfi);
+	qfi.generic.level = RAW_FILEINFO_STANDARD_INFO;
+	qfi.generic.in.file.path = fname;
+	status = smb_raw_pathinfo(cli2->tree, tctx, &qfi);
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK, ret,
+	    done, "Status should be OK");
+
+	torture_assert_u64_equal(tctx, qfi.standard_info.out.size, 0,
+	    "alloc_size should be 0 since the setpathinfo failed.");
+
+	/* Try again with the pass through instead of documented version. */
+	ZERO_STRUCT(sfi);
+	sfi.generic.level = RAW_SFILEINFO_END_OF_FILE_INFORMATION;
+	sfi.generic.in.file.path = fname;
+	sfi.end_of_file_info.in.size = 100;
+	status = smb_raw_setpathinfo(cli2->tree, &sfi);
+
+	/*
+	 * Looks like a windows bug:
+	 * http://lists.samba.org/archive/cifs-protocol/2009-November/001130.html
+	 */
+	if (TARGET_IS_W2K8(tctx) || TARGET_IS_WIN7(tctx)) {
+		/* It succeeds! This is just weird! */
+		torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK,
+		    ret, done, "Status should be OK");
+
+		/* Verify that the file was actually extended to 100. */
+		ZERO_STRUCT(qfi);
+		qfi.generic.level = RAW_FILEINFO_STANDARD_INFO;
+		qfi.generic.in.file.path = fname;
+		status = smb_raw_pathinfo(cli2->tree, tctx, &qfi);
+		torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK,
+		    ret, done, "Status should be OK");
+
+		torture_assert_u64_equal(tctx, qfi.standard_info.out.size, 100,
+		    "alloc_size should be 100 since the setpathinfo "
+		    "succeeded.");
+	} else {
+		torture_assert_ntstatus_equal_goto(tctx, status,
+		    NT_STATUS_SHARING_VIOLATION, ret, done, "Status should be "
+		    "SHARING_VIOLATION");
+	}
+
+	/* close the first file. */
+	smbcli_close(cli1->tree, fnum);
+	fnum = 0;
+
+	/* Try to sfileinfo to extend the file again (non-pass-through). */
+	ZERO_STRUCT(sfi);
+	sfi.generic.level = RAW_SFILEINFO_END_OF_FILE_INFO;
+	sfi.generic.in.file.path = fname;
+	sfi.end_of_file_info.in.size = 200;
+	status = smb_raw_setpathinfo(cli2->tree, &sfi);
+
+	/* This should cause the client to retun invalid level. */
+	if (TARGET_IS_W2K8(tctx) || TARGET_IS_WIN7(tctx)) {
+		/*
+		 * Windows sends back an invalid packet that smbclient sees
+		 * and returns INTERNAL_ERROR.
+		 */
+		torture_assert_ntstatus_equal_goto(tctx, status,
+		    NT_STATUS_INTERNAL_ERROR, ret, done, "Status should be "
+		    "INTERNAL_ERROR");
+	} else {
+		torture_assert_ntstatus_equal_goto(tctx, status,
+		    NT_STATUS_INVALID_LEVEL, ret, done, "Status should be "
+		    "INVALID_LEVEL");
+	}
+
+	/* Try to extend the file now with the passthrough level. */
+	sfi.generic.level = RAW_SFILEINFO_END_OF_FILE_INFORMATION;
+	status = smb_raw_setpathinfo(cli2->tree, &sfi);
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK, ret,
+	    done, "Status should be OK");
+
+	/* Verify that the file was actually extended to 200. */
+	ZERO_STRUCT(qfi);
+	qfi.generic.level = RAW_FILEINFO_STANDARD_INFO;
+	qfi.generic.in.file.path = fname;
+	status = smb_raw_pathinfo(cli2->tree, tctx, &qfi);
+
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK, ret,
+	    done, "Status should be OK");
+	torture_assert_u64_equal(tctx, qfi.standard_info.out.size, 200,
+	    "alloc_size should be 200 since the setpathinfo succeeded.");
+
+	/* Open the file so end of file can be set by handle. */
+	io.ntcreatex.in.access_mask = SEC_RIGHTS_FILE_WRITE;
+	status = smb_raw_open(cli1->tree, tctx, &io);
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK, ret,
+	    done, "Status should be OK");
+	fnum = io.ntcreatex.out.file.fnum;
+
+	/* Try sfileinfo to extend the file by handle (non-pass-through). */
+	ZERO_STRUCT(sfi);
+	sfi.generic.level = RAW_SFILEINFO_END_OF_FILE_INFO;
+	sfi.generic.in.file.fnum = fnum;
+	sfi.end_of_file_info.in.size = 300;
+	status = smb_raw_setfileinfo(cli1->tree, &sfi);
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK, ret,
+	    done, "Status should be OK");
+
+	/* Verify that the file was actually extended to 300. */
+	ZERO_STRUCT(qfi);
+	qfi.generic.level = RAW_FILEINFO_STANDARD_INFO;
+	qfi.generic.in.file.path = fname;
+	status = smb_raw_pathinfo(cli1->tree, tctx, &qfi);
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK, ret,
+	    done, "Status should be OK");
+	torture_assert_u64_equal(tctx, qfi.standard_info.out.size, 300,
+	    "alloc_size should be 300 since the setpathinfo succeeded.");
+
+	/* Try sfileinfo to extend the file by handle (pass-through). */
+	ZERO_STRUCT(sfi);
+	sfi.generic.level = RAW_SFILEINFO_END_OF_FILE_INFORMATION;
+	sfi.generic.in.file.fnum = fnum;
+	sfi.end_of_file_info.in.size = 400;
+	status = smb_raw_setfileinfo(cli1->tree, &sfi);
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK, ret,
+	    done, "Status should be OK");
+
+	/* Verify that the file was actually extended to 300. */
+	ZERO_STRUCT(qfi);
+	qfi.generic.level = RAW_FILEINFO_STANDARD_INFO;
+	qfi.generic.in.file.path = fname;
+	status = smb_raw_pathinfo(cli1->tree, tctx, &qfi);
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK, ret,
+	    done, "Status should be OK");
+	torture_assert_u64_equal(tctx, qfi.standard_info.out.size, 400,
+	    "alloc_size should be 400 since the setpathinfo succeeded.");
+ done:
+	if (fnum > 0) {
+		smbcli_close(cli1->tree, fnum);
+		fnum = 0;
+	}
+
+	smb_raw_exit(cli1->session);
+	smb_raw_exit(cli2->session);
+	smbcli_deltree(cli1->tree, BASEDIR);
+	return ret;
+}
+
+static bool
+torture_raw_sfileinfo_eof_access(struct torture_context *tctx,
+    struct smbcli_state *cli1, struct smbcli_state *cli2)
+{
+	const char *fname = BASEDIR "\\test_exclusive3.dat";
+	NTSTATUS status, expected_status;
+	bool ret = true;
+	union smb_open io;
+	union smb_setfileinfo sfi;
+	uint16_t fnum=0;
+	uint32_t access_mask = 0;
+
+	if (!torture_setup_dir(cli1, BASEDIR)) {
+		return false;
+	}
+
+	/* cleanup */
+	smbcli_unlink(cli1->tree, fname);
+
+	/*
+	 * base ntcreatex parms
+	 */
+	io.generic.level = RAW_OPEN_NTCREATEX;
+	io.ntcreatex.in.root_fid.fnum = 0;
+	io.ntcreatex.in.alloc_size = 0;
+	io.ntcreatex.in.file_attr = FILE_ATTRIBUTE_NORMAL;
+	io.ntcreatex.in.share_access = NTCREATEX_SHARE_ACCESS_NONE;
+	io.ntcreatex.in.open_disposition = NTCREATEX_DISP_OVERWRITE_IF;
+	io.ntcreatex.in.create_options = 0;
+	io.ntcreatex.in.impersonation = NTCREATEX_IMPERSONATION_ANONYMOUS;
+	io.ntcreatex.in.security_flags = 0;
+	io.ntcreatex.in.fname = fname;
+	io.ntcreatex.in.flags = 0;
+
+
+	for (access_mask = 1; access_mask <= 0x00001FF; access_mask++) {
+		io.ntcreatex.in.access_mask = access_mask;
+
+		status = smb_raw_open(cli1->tree, tctx, &io);
+		if (!NT_STATUS_IS_OK(status)) {
+			continue;
+		}
+
+		fnum = io.ntcreatex.out.file.fnum;
+
+		ZERO_STRUCT(sfi);
+		sfi.generic.level = RAW_SFILEINFO_END_OF_FILE_INFO;
+		sfi.generic.in.file.fnum = fnum;
+		sfi.end_of_file_info.in.size = 100;
+
+		status = smb_raw_setfileinfo(cli1->tree, &sfi);
+
+		expected_status = (access_mask & SEC_FILE_WRITE_DATA) ?
+		    NT_STATUS_OK : NT_STATUS_ACCESS_DENIED;
+
+		if (!NT_STATUS_EQUAL(expected_status, status)) {
+			torture_comment(tctx, "0x%x wrong\n", access_mask);
+		}
+
+		torture_assert_ntstatus_equal_goto(tctx, status,
+		    expected_status, ret, done, "Status Wrong");
+
+		smbcli_close(cli1->tree, fnum);
+	}
+
+done:
+	smb_raw_exit(cli1->session);
+	smb_raw_exit(cli2->session);
+	smbcli_deltree(cli1->tree, BASEDIR);
+	return ret;
+}
+
+static bool
+torture_raw_sfileinfo_archive(struct torture_context *tctx,
+    struct smbcli_state *cli)
+{
+	const char *fname = BASEDIR "\\test_archive.dat";
+	NTSTATUS status;
+	bool ret = true;
+	union smb_open io;
+	union smb_setfileinfo sfinfo;
+	union smb_fileinfo finfo;
+	uint16_t fnum=0;
+
+	if (!torture_setup_dir(cli, BASEDIR)) {
+		return false;
+	}
+
+	/* cleanup */
+	smbcli_unlink(cli->tree, fname);
+
+	/*
+	 * create a normal file, verify archive bit
+	 */
+	io.generic.level = RAW_OPEN_NTCREATEX;
+	io.ntcreatex.in.root_fid.fnum = 0;
+	io.ntcreatex.in.access_mask = SEC_RIGHTS_FILE_ALL;
+	io.ntcreatex.in.alloc_size = 0;
+	io.ntcreatex.in.file_attr = FILE_ATTRIBUTE_NORMAL;
+	io.ntcreatex.in.share_access = NTCREATEX_SHARE_ACCESS_NONE;
+	io.ntcreatex.in.open_disposition = NTCREATEX_DISP_CREATE;
+	io.ntcreatex.in.create_options = 0;
+	io.ntcreatex.in.impersonation = NTCREATEX_IMPERSONATION_ANONYMOUS;
+	io.ntcreatex.in.security_flags = 0;
+	io.ntcreatex.in.fname = fname;
+	io.ntcreatex.in.flags = 0;
+	status = smb_raw_open(cli->tree, tctx, &io);
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK,
+	    ret, done, "open failed");
+	fnum = io.ntcreatex.out.file.fnum;
+
+	torture_assert_int_equal(tctx,
+	    io.ntcreatex.out.attrib & ~FILE_ATTRIBUTE_NONINDEXED,
+	    FILE_ATTRIBUTE_ARCHIVE,
+	    "archive bit not set");
+
+	/*
+	 * try to turn off archive bit
+	 */
+	ZERO_STRUCT(sfinfo);
+	sfinfo.generic.level = RAW_SFILEINFO_BASIC_INFO;
+	sfinfo.generic.in.file.fnum = fnum;
+	sfinfo.basic_info.in.attrib = FILE_ATTRIBUTE_NORMAL;
+	status = smb_raw_setfileinfo(cli->tree, &sfinfo);
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK,
+	    ret, done, "setfileinfo failed");
+
+	finfo.generic.level = RAW_FILEINFO_ALL_INFO;
+	finfo.generic.in.file.fnum = fnum;
+	status = smb_raw_fileinfo(cli->tree, tctx, &finfo);
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK,
+	    ret, done, "fileinfo failed");
+
+	torture_assert_int_equal(tctx,
+	    finfo.all_info.out.attrib & ~FILE_ATTRIBUTE_NONINDEXED,
+	    FILE_ATTRIBUTE_NORMAL,
+	    "archive bit set");
+
+	status = smbcli_close(cli->tree, fnum);
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK,
+	    ret, done, "close failed");
+
+	status = smbcli_unlink(cli->tree, fname);
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK,
+	    ret, done, "unlink failed");
+
+	/*
+	 * create a directory, verify no archive bit
+	 */
+	io.generic.level = RAW_OPEN_NTCREATEX;
+	io.ntcreatex.in.root_fid.fnum = 0;
+	io.ntcreatex.in.access_mask = SEC_RIGHTS_DIR_ALL;
+	io.ntcreatex.in.alloc_size = 0;
+	io.ntcreatex.in.file_attr = FILE_ATTRIBUTE_DIRECTORY;
+	io.ntcreatex.in.share_access = NTCREATEX_SHARE_ACCESS_NONE;
+	io.ntcreatex.in.open_disposition = NTCREATEX_DISP_CREATE;
+	io.ntcreatex.in.create_options = NTCREATEX_OPTIONS_DIRECTORY;
+	io.ntcreatex.in.impersonation = NTCREATEX_IMPERSONATION_ANONYMOUS;
+	io.ntcreatex.in.security_flags = 0;
+	io.ntcreatex.in.fname = fname;
+	io.ntcreatex.in.flags = 0;
+	status = smb_raw_open(cli->tree, tctx, &io);
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK,
+	    ret, done, "directory open failed");
+	fnum = io.ntcreatex.out.file.fnum;
+
+	torture_assert_int_equal(tctx,
+	    io.ntcreatex.out.attrib & ~FILE_ATTRIBUTE_NONINDEXED,
+	    FILE_ATTRIBUTE_DIRECTORY,
+	    "archive bit set");
+
+	/*
+	 * verify you can turn on archive bit
+	 */
+	sfinfo.generic.level = RAW_SFILEINFO_BASIC_INFO;
+	sfinfo.generic.in.file.fnum = fnum;
+	sfinfo.basic_info.in.attrib = FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_ARCHIVE;
+	status = smb_raw_setfileinfo(cli->tree, &sfinfo);
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK,
+	    ret, done, "setfileinfo failed");
+
+	finfo.generic.level = RAW_FILEINFO_ALL_INFO;
+	finfo.generic.in.file.fnum = fnum;
+	status = smb_raw_fileinfo(cli->tree, tctx, &finfo);
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK,
+	    ret, done, "fileinfo failed");
+
+	torture_assert_int_equal(tctx,
+	    finfo.all_info.out.attrib & ~FILE_ATTRIBUTE_NONINDEXED,
+	    FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_ARCHIVE,
+	    "archive bit not set");
+
+	/*
+	 * and try to turn it back off
+	 */
+	sfinfo.generic.level = RAW_SFILEINFO_BASIC_INFO;
+	sfinfo.generic.in.file.fnum = fnum;
+	sfinfo.basic_info.in.attrib = FILE_ATTRIBUTE_DIRECTORY;
+	status = smb_raw_setfileinfo(cli->tree, &sfinfo);
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK,
+	    ret, done, "setfileinfo failed");
+
+	finfo.generic.level = RAW_FILEINFO_ALL_INFO;
+	finfo.generic.in.file.fnum = fnum;
+	status = smb_raw_fileinfo(cli->tree, tctx, &finfo);
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK,
+	    ret, done, "fileinfo failed");
+
+	torture_assert_int_equal(tctx,
+	    finfo.all_info.out.attrib & ~FILE_ATTRIBUTE_NONINDEXED,
+	    FILE_ATTRIBUTE_DIRECTORY,
+	    "archive bit set");
+
+	status = smbcli_close(cli->tree, fnum);
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK,
+	    ret, done, "close failed");
+
+done:
+	smbcli_close(cli->tree, fnum);
+	smbcli_deltree(cli->tree, BASEDIR);
+	return ret;
+}
+
+struct torture_suite *torture_raw_sfileinfo(TALLOC_CTX *mem_ctx)
+{
+	struct torture_suite *suite = torture_suite_create(mem_ctx,
+	    "SFILEINFO");
+
+	torture_suite_add_1smb_test(suite, "BASE", torture_raw_sfileinfo_base);
+	torture_suite_add_1smb_test(suite, "RENAME",
+				      torture_raw_sfileinfo_rename);
+	torture_suite_add_1smb_test(suite, "BUG", torture_raw_sfileinfo_bug);
+	torture_suite_add_2smb_test(suite, "END-OF-FILE",
+	    torture_raw_sfileinfo_eof);
+	torture_suite_add_2smb_test(suite, "END-OF-FILE-ACCESS",
+	    torture_raw_sfileinfo_eof_access);
+	torture_suite_add_1smb_test(suite, "ARCHIVE", torture_raw_sfileinfo_archive);
+
+	return suite;
 }

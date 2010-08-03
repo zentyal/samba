@@ -1193,7 +1193,7 @@ static NTSTATUS r_do_sgroup_merge(struct wreplsrv_partner *partner,
 	bool changed_old_addrs = false;
 	bool skip_replica_owned_by_us = false;
 	bool become_owner = true;
-	bool propagate = lp_parm_bool(partner->service->task->lp_ctx, NULL, "wreplsrv", "propagate name releases", false);
+	bool propagate = lpcfg_parm_bool(partner->service->task->lp_ctx, NULL, "wreplsrv", "propagate name releases", false);
 	const char *local_owner = partner->service->wins_db->local_owner;
 
 	merge = talloc(mem_ctx, struct winsdb_record);
@@ -1357,6 +1357,20 @@ static NTSTATUS wreplsrv_apply_one_record(struct wreplsrv_partner *partner,
 	bool same_owner = false;
 	bool replica_vs_replica = false;
 	bool local_vs_replica = false;
+
+	if (replica->name.scope) {
+		TALLOC_CTX *parent;
+		const char *scope;
+
+		/*
+		 * Windows 2008 truncates the scope to 237 bytes,
+		 * so we do...
+		 */
+		parent = talloc_parent(replica->name.scope);
+		scope = talloc_strndup(parent, replica->name.scope, 237);
+		NT_STATUS_HAVE_NO_MEMORY(scope);
+		replica->name.scope = scope;
+	}
 
 	status = winsdb_lookup(partner->service->wins_db,
 			       &replica->name, mem_ctx, &rec);

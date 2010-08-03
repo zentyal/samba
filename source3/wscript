@@ -1,0 +1,630 @@
+#! /usr/bin/env python
+
+srcdir = '..'
+blddir = 'bin'
+
+import sys, os
+from optparse import SUPPRESS_HELP
+sys.path.insert(0, srcdir+"/buildtools/wafsamba")
+import wafsamba, Options
+import build.charset
+import samba_utils
+import samba3
+
+version = wafsamba.samba_version_file("./VERSION")
+
+VERSION=version.STRING
+
+def set_options(opt):
+    opt.BUILTIN_DEFAULT('NONE')
+    opt.BUNDLED_EXTENSION_DEFAULT('s3')
+    opt.RECURSE('../lib/replace')
+    opt.RECURSE('build')
+    opt.RECURSE('../lib/nss_wrapper')
+    opt.RECURSE('../lib/socket_wrapper')
+    opt.RECURSE('../lib/tevent')
+    opt.RECURSE('../lib/tdb')
+
+    opt.add_option('--with-static-modules',
+                   help=("Comma-separated list of names of modules to statically link in"),
+                   action="store", dest='static_modules', default='')
+    opt.add_option('--with-shared-modules',
+                   help=("Comma-separated list of names of modules to build shared"),
+                   action="store", dest='shared_modules', default='')
+    opt.add_option('--enable-selftest',
+                  help=("enable options necessary for selftest"),
+                  action="store_true", dest='enable_selftest', default=False)
+
+    opt.SAMBA3_ADD_OPTION('winbind')
+    opt.SAMBA3_ADD_OPTION('swat')
+    opt.SAMBA3_ADD_OPTION('ads')
+    opt.SAMBA3_ADD_OPTION('krb5')
+    opt.SAMBA3_ADD_OPTION('ldap')
+    opt.SAMBA3_ADD_OPTION('cups', with_name="enable", without_name="disable")
+    opt.SAMBA3_ADD_OPTION('merged-build', with_name="enable", without_name="disable")
+    opt.SAMBA3_ADD_OPTION('pam')
+    opt.SAMBA3_ADD_OPTION('quotas')
+    opt.SAMBA3_ADD_OPTION('sys-quotas')
+    opt.SAMBA3_ADD_OPTION('sendfile-support')
+    opt.SAMBA3_ADD_OPTION('utmp')
+    opt.SAMBA3_ADD_OPTION('pthreadpool', with_name="enable", without_name="disable")
+    opt.SAMBA3_ADD_OPTION('avahi', with_name="enable", without_name="disable")
+    opt.SAMBA3_ADD_OPTION('iconv')
+
+
+def configure(conf):
+    from samba_utils import TO_LIST
+
+    conf.DEFINE('PACKAGE_NAME', 'Samba', quote=True)
+    conf.DEFINE('PACKAGE_STRING', 'Samba %s' % version.MAJOR, quote=True)
+    conf.DEFINE('PACKAGE_TARNAME',  'samba', quote=True)
+    conf.DEFINE('PACKAGE_URL', "", quote=True)
+    conf.DEFINE('PACKAGE_VERSION', "%s" % version.MAJOR, quote=True)
+    conf.DEFINE('PACKAGE_BUGREPORT', 'samba-technical@samba.org', quote=True)
+
+    conf.DEFINE('CONFIG_H_IS_FROM_SAMBA', 1)
+    conf.DEFINE('_SAMBA_BUILD_', version.MAJOR, add_to_cflags=True)
+    conf.DEFINE('HAVE_CONFIG_H', 1, add_to_cflags=True)
+    if Options.options.developer:
+        conf.ADD_CFLAGS('-DDEVELOPER -DDEBUG_PASSWORD')
+        conf.env['developer'] = True
+
+    if Options.options.with_swat:
+        conf.env['build_swat'] = True
+
+    # set a limit on recursing in the waf preprocessor
+    conf.env.preprocessor_recursion_limit = 10
+
+    conf.ADD_EXTRA_INCLUDES('''#source3 #source3/include #lib/replace #lib/talloc
+                               #lib/tevent #source3/libaddns #source3/librpc
+                               #source3/lib #lib/tdb/include #lib/popt #source4''')
+
+    conf.RECURSE('../lib/replace')
+    conf.RECURSE('build')
+    conf.RECURSE('../lib/tdb')
+    conf.RECURSE('../lib/talloc')
+    conf.RECURSE('../lib/tevent')
+    conf.RECURSE('../lib/popt')
+    conf.RECURSE('../lib/nss_wrapper')
+    conf.RECURSE('../lib/socket_wrapper')
+    conf.RECURSE('../lib/zlib')
+
+    conf.CHECK_HEADERS('execinfo.h libexc.h libunwind.h netdb.h')
+
+    conf.CHECK_FUNCS('getcwd fchown chmod fchmod mknod mknod64')
+    conf.CHECK_FUNCS('strtol strchr strupr chflags')
+    conf.CHECK_FUNCS('getrlimit fsync fdatasync setpgid')
+    conf.CHECK_FUNCS('setsid glob strpbrk crypt16 getauthuid')
+    conf.CHECK_FUNCS('sigprocmask sigblock sigaction sigset innetgr')
+    conf.CHECK_FUNCS('initgroups select poll rdchk getgrnam getgrent pathconf')
+    conf.CHECK_FUNCS('setpriv setgidx setuidx setgroups sysconf stat64 fstat64')
+    conf.CHECK_FUNCS('lstat64 fopen64 atexit grantpt lseek64 ftruncate64 posix_fallocate posix_fallocate64')
+    conf.CHECK_FUNCS('fseek64 fseeko64 ftell64 ftello64 setluid')
+    conf.CHECK_FUNCS('getpwnam', headers='sys/types.h pwd.h')
+    conf.CHECK_FUNCS('opendir64 readdir64 seekdir64 telldir64 rewinddir64 closedir64')
+    conf.CHECK_FUNCS('getpwent_r getdents64 setenv strcasecmp fcvt fcvtl')
+    conf.CHECK_FUNCS('syslog vsyslog timegm setlocale nl_langinfo')
+    conf.CHECK_FUNCS_IN('nanosleep', 'rt')
+    conf.CHECK_FUNCS('lutimes futimes utimensat futimens')
+    conf.CHECK_FUNCS('mlock munlock mlockall munlockall')
+    conf.CHECK_FUNCS('memalign posix_memalign hstrerror')
+    conf.CHECK_FUNCS('shmget')
+    conf.CHECK_FUNCS_IN('shm_open', 'rt', checklibc=True)
+    conf.CHECK_FUNCS('gettext dgettext bindtextdomain textdomain')
+    #FIXME: for some reason this one still fails
+    conf.CHECK_FUNCS_IN('yp_get_default_domain', 'nsl')
+    conf.CHECK_FUNCS_IN('dn_expand _dn_expand __dn_expand', 'resolv')
+
+    # Check for inotify support
+    conf.CHECK_HEADERS('linux/inotify.h asm/unistd.h sys/inotify.h')
+    conf.CHECK_FUNCS('inotify_init')
+    if "HAVE_LINUX_INOTIFY_H" in conf.env and "HAVE_INOTIFY_INIT" in conf.env:
+        conf.DEFINE('HAVE_INOTIFY', 1)
+
+    # Check for kernel change notify support
+    conf.CHECK_CODE('''
+#ifndef F_NOTIFY
+#define F_NOTIFY 1026
+#endif
+main() {
+        exit(fcntl(open("/tmp", O_RDONLY), F_NOTIFY, 0) == -1 ?  1 : 0);
+}''', 'HAVE_KERNEL_CHANGE_NOTIFY', addmain=False, execute=True,
+        headers='fcntl.h signal.h',
+        msg="Checking for kernel change notify support")
+
+    # Check for Linux kernel oplocks
+    conf.CHECK_CODE('''
+#include <sys/types.h>
+#include <fcntl.h>
+#include <signal.h>
+#ifndef F_NOTIFY
+#define F_NOTIFY 1026
+#endif
+main() {
+        exit(fcntl(open("/tmp", O_RDONLY), F_NOTIFY, 0) == -1 ?  1 : 0);
+}''', 'HAVE_KERNEL_OPLOCKS_LINUX', addmain=False, execute=True,
+        msg="Checking for Linux kernel oplocks")
+
+    # Check for IRIX kernel oplock types
+    conf.CHECK_CODE('oplock_stat_t t; t.os_state = OP_REVOKE; t.os_dev = 1; t.os_ino = 1;',
+                    'HAVE_KERNEL_OPLOCKS_IRIX', headers='fcntl.h',
+                    msg="Checking for IRIX kernel oplock types")
+
+    # Check for krenel share modes
+    conf.CHECK_CODE('''
+#include <sys/types.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/file.h>
+#ifndef LOCK_MAND
+#define LOCK_MAND	32
+#define LOCK_READ	64
+#endif
+main() {
+        exit(flock(open("/dev/null", O_RDWR), LOCK_MAND|LOCK_READ) != 0);
+}''', 'HAVE_KERNEL_SHARE_MODES', addmain=False, execute=True,
+        msg="Checking for krenel share modes")
+
+    # Check for various members of the stat structure
+    conf.CHECK_TYPES('blksize_t blkcnt_t')
+    conf.CHECK_STRUCTURE_MEMBER('struct stat', 'st_blocks', define='HAVE_STAT_ST_BLOCKS',
+                                headers='sys/stat.h')
+    conf.CHECK_STRUCTURE_MEMBER('struct stat', 'st_blksize', define='HAVE_STAT_ST_BLKSIZE',
+                                headers='sys/stat.h')
+
+    # Check for POSIX capability support
+    conf.CHECK_FUNCS_IN('cap_get_proc', 'cap', headers='sys/capability.h')
+
+    if "HAVE_SYS_CAPABILITY_H" in conf.env:
+        conf.CHECK_CODE('''
+        cap_t cap;
+        cap_value_t vals[1];
+        if (!(cap = cap_get_proc())) exit(1);
+        vals[0] = CAP_CHOWN;
+        cap_set_flag(cap, CAP_INHERITABLE, 1, vals, CAP_CLEAR);
+        cap_set_proc(cap);''',
+                        'HAVE_POSIX_CAPABILITIES', execute=True, lib="cap",
+                        headers='sys/capability.h',
+                        msg="Checking whether POSIX capabilities are available")
+
+    # Check for int16, uint16, int32 and uint32 in rpc/types.h included from
+    # rpc/rpc.h. This is *really* broken but some systems (DEC OSF1) do this.
+    # -- JRA.
+    if conf.CONFIG_SET("HAVE_RPC_RPC_H"):
+        conf.CHECK_TYPE('int16', headers='rpc/rpc.h',
+                        define='HAVE_INT16_FROM_RPC_RPC_H',
+                        msg="Checking for int16 typedef included by rpc/rpc.h")
+        conf.CHECK_CODE('uint16 testvar;', 'HAVE_INT16_FROM_RPC_RPC_H',
+                        headers='sys/types.h rpc/rpc.h',
+                        msg="Checking for uint16 typedef included by rpc/rpc.h")
+        conf.CHECK_CODE('int32 testvar;', 'HAVE_INT16_FROM_RPC_RPC_H',
+                        headers='sys/types.h rpc/rpc.h',
+                        msg="Checking for int32 typedef included by rpc/rpc.h")
+        conf.CHECK_CODE('uint32 testvar;', 'HAVE_INT16_FROM_RPC_RPC_H',
+                        headers='sys/types.h rpc/rpc.h',
+                        msg="Checking for uint32 typedef included by rpc/rpc.h")
+    conf.CHECK_CODE('int i;', 'BROKEN_NISPLUS_INCLUDE_FILES',
+                    headers='sys/types.h sys/acl.h rpcsvc/nis.h',
+                    msg="Checking for broken nisplus include files")
+
+    # Check if the compiler will optimize out functions
+    conf.CHECK_CODE('''
+if (0) {
+    this_function_does_not_exist();
+} else {
+    return 1;
+}''', 'HAVE_COMPILER_WILL_OPTIMIZE_OUT_FNS',
+        msg="Checking if the compiler will optimize out functions")
+
+    # Check if the compiler supports the LL suffix on long long integers
+    # AIX needs this
+    conf.CHECK_CODE('long long i = 0x8000000000LL', 'COMPILER_SUPPORTS_LL',
+                    headers='stdio.h',
+                    msg="Checking for LL suffix on long long integers")
+
+    conf.CHECK_FUNCS('''
+_acl __acl add_proplist_entry atexit attr_getf attr_list attr_listf
+attropen attr_remove attr_removef attr_set attr_setf backtrace_symbols
+bindtextdomain _chdir __chdir chflags chmod _close __close _closedir
+__closedir closedir64 creat64 crypt16 delproplist devnm dgettext dirfd
+DNSServiceRegister _dup __dup _dup2 __dup2 endmntent execl
+extattr_delete_fd extattr_delete_link extattr_get_fd extattr_get_file
+extattr_get_link extattr_list_fd extattr_list_file extattr_list_link
+extattr_set_fd extattr_set_file extattr_set_link _facl __facl _fchdir
+__fchdir fchmod fchown _fcntl __fcntl fcvt fcvtl fdatasync
+fdelproplist fgetea fgetproplist fgetxattr flistea flistxattr fopen64
+_fork __fork fremoveea fremovexattr fseek64 fseeko64 fsetea
+fsetproplist fsetxattr _fstat __fstat fstat64 _fstat64 __fstat64 fsync
+ftell64 ftello64 ftruncate64 futimens futimes __fxstat getauthuid
+getcwd _getcwd __getcwd getdents __getdents getdents64 getdirentries
+getgrent getgrnam getgrouplist getmntent getpagesize
+getproplist get_proplist_entry getpwanam getpwent_r getrlimit gettext
+glob grantpt hstrerror initgroups innetgr
+inotify_init lgetea lgetxattr listea listxattr llistea llistxattr
+llseek _llseek __llseek lremoveea lremovexattr _lseek __lseek lseek64
+lsetea lsetxattr _lstat __lstat lstat64 _lstat64 __lstat64 lutimes
+__lxstat memalign mknod mknod64 mlock mlockall munlock munlockall
+nl_langinfo _open __open open64 _open64 __open64 _opendir __opendir
+opendir64 pathconf poll posix_fallocate posix_fallocate64
+posix_memalign prctl pread _pread __pread pread64 _pread64 __pread64
+pwrite _pwrite __pwrite pwrite64 _pwrite64
+__pwrite64 rdchk _read __read _readdir __readdir readdir64 _readdir64
+__readdir64 removeea removexattr rewinddir64 _seekdir __seekdir
+seekdir64 select setea setenv setgidx setgroups setlocale setluid
+setmntent setpgid setpriv setproplist setsid setuidx
+setxattr shmget shm_open sigaction sigblock sigprocmask sigset
+sizeof_proplist_entry _stat __stat stat64 _stat64 __stat64 statvfs
+strcasecmp strchr strpbrk strsignal strtol strupr sysconf sysctlbyname
+__sys_llseek syslog _telldir __telldir telldir64 textdomain timegm
+utimensat vsyslog _write __write __xstat
+''')
+
+    conf.CHECK_TYPE('struct timespec', headers='sys/time.h time.h')
+
+    conf.CHECK_SAMBA3_CHARSET() # see build/charset.py
+
+
+    default_static_modules=TO_LIST('''pdb_smbpasswd pdb_tdbsam pdb_wbc_sam rpc_lsarpc rpc_samr
+                                      rpc_winreg rpc_initshutdown rpc_dssetup rpc_wkssvc rpc_svcctl
+                                      rpc_ntsvcs rpc_netlogon rpc_netdfs rpc_srvsvc rpc_spoolss
+                                      rpc_eventlog auth_sam auth_unix auth_winbind auth_wbc auth_server
+                                      auth_domain auth_builtin auth_netlogond vfs_default
+                                      nss_info_template''')
+
+    default_shared_modules=TO_LIST('''vfs_recycle vfs_audit vfs_extd_audit vfs_full_audit vfs_netatalk
+                                      vfs_fake_perms vfs_default_quota vfs_readonly vfs_cap
+                                      vfs_expand_msdfs vfs_shadow_copy vfs_shadow_copy2 charset_CP850
+                                      charset_CP437 auth_script vfs_readahead vfs_xattr_tdb
+                                      vfs_streams_xattr vfs_streams_depot vfs_acl_xattr vfs_acl_tdb
+                                      vfs_smb_traffic_analyzer vfs_preopen vfs_catia vfs_scannedonly
+                                      vfs_crossrename''')
+
+    if Options.options.developer:
+        default_static_modules.extend(TO_LIST('rpc_rpcecho pdb_ads'))
+        default_shared_modules.extend(TO_LIST('charset_weird perfcount_test'))
+
+    move_to_shared = TO_LIST(Options.options.shared_modules)
+    move_to_static = TO_LIST(Options.options.static_modules)
+
+    for m in move_to_static:
+        if m in default_shared_modules:
+            default_shared_modules.remove(m)
+            default_static_modules.append(m)
+    for m in move_to_shared:
+        if m in default_static_modules:
+            default_static_modules.remove(m)
+            default_shared_modules.append(m)
+
+    conf.DEFINE('STRING_STATIC_MODULES', ' '.join(default_static_modules), quote=True)
+
+    static_list = {}
+    shared_list = {}
+
+    prefixes = ['vfs', 'pdb', 'rpc', 'auth', 'nss_info', 'charset', 'idmap', 'gpext', 'perfcount']
+    conf.env['MODULE_PREFIXES'] = prefixes
+    for p in prefixes:
+        for m in default_static_modules:
+            if m.find(p) == 0:
+                if not p in static_list:
+                    static_list[p] = []
+                static_list[p].append(m)
+        for m in default_shared_modules:
+            if m.find(p) == 0:
+                if not p in shared_list:
+                    shared_list[p] = []
+                shared_list[p].append(m)
+
+    for p in prefixes:
+        static_env = "%s_STATIC" % p.upper()
+        shared_env = "%s_SHARED" % p.upper()
+        conf.env[static_env] = []
+        conf.env[shared_env] = []
+        if p in static_list:
+            decl_list=""
+            if p == "rpc":
+                for entry in static_list[p]:
+                    decl_list += "extern NTSTATUS %s_init(const struct rpc_srv_callbacks *rpc_srv_cb); " % entry
+                    conf.env[static_env].append('%s' % entry.upper())
+                decl_list = decl_list.rstrip()
+                conf.DEFINE('static_decl_%s' % p, decl_list)
+                conf.DEFINE('static_init_%s' % p, '{ %s_init(NULL); }' % '_init(NULL);  '.join(static_list[p]))
+            else:
+                for entry in static_list[p]:
+                    decl_list += "extern NTSTATUS %s_init(void); " % entry
+                    conf.env[static_env].append('%s' % entry.upper())
+                decl_list = decl_list.rstrip()
+                conf.DEFINE('static_decl_%s' % p, decl_list)
+                conf.DEFINE('static_init_%s' % p, '{ %s_init(); }' % '_init();  '.join(static_list[p]))
+        else:
+            conf.DEFINE('static_decl_%s' % p, '')
+            conf.DEFINE('static_init_%s' % p, '{}')
+        if p in shared_list:
+            for entry in shared_list[p]:
+                conf.DEFINE('%s_init' % entry, 'init_samba_module')
+                conf.env[shared_env].append('%s' % entry.upper())
+
+    if Options.options.with_winbind:
+        conf.env.build_winbind = True
+        conf.DEFINE('WITH_WINBIND', '1')
+
+    conf.find_program('awk', var='AWK')
+
+    # Darwin has extra options to xattr-family functions
+    conf.CHECK_CODE('getxattr(0, 0, 0, 0, 0, 0);',
+                    'XATTR_ADD_OPT',
+                    msg="Checking whether xattr interface takes additional options",
+                    headers='sys/types.h attr/xattr.h sys/xattr.h')
+
+    conf.CHECK_HEADERS('asm/types.h')
+
+    conf.CHECK_CODE('dev_t dev; int i = major(dev); return 0', "HAVE_DEVICE_MAJOR_FN",
+                    headers='unistd.h sys/types.h',
+                    msg="Checking for major macro")
+
+    conf.CHECK_CODE('dev_t dev; int i = minor(dev); return 0', "HAVE_DEVICE_MINOR_FN",
+                    headers='unistd.h sys/types.h',
+                    msg="Checking for minor macro")
+
+    conf.CHECK_STRUCTURE_MEMBER('struct dirent', 'd_off',
+                                headers='unistd.h sys/types.h dirent.h',
+                                define='HAVE_DIRENT_D_OFF')
+
+    conf.CHECK_FUNCS('setnetgrent getnetgrent endnetgrent')
+    conf.CHECK_CODE('setnetgrent("foo")', 'HAVE_SETNETGRENT_PROTOTYPE',
+                    msg="Checking for setnetgrent prototype",
+                    headers='netdb.h netgroup.h',
+                    cflags="-Werror-implicit-function-declaration")
+    conf.CHECK_CODE('getnetgrent', 'HAVE_GETNETGRENT_PROTOTYPE',
+                    msg="Checking for getnetgrent prototype",
+                    headers='netdb.h netgroup.h',
+                    cflags="-Werror-implicit-function-declaration")
+    conf.CHECK_CODE('endnetgrent', 'HAVE_ENDNETGRENT_PROTOTYPE',
+                    msg="Checking for endnetgrent prototype",
+                    headers='netdb.h netgroup.h',
+                    cflags="-Werror-implicit-function-declaration")
+
+    #FIXME: Should just be set when krb5 and ldap requirements are fulfilled
+    if Options.options.with_ads:
+        conf.DEFINE('WITH_ADS', '1')
+
+    # Look for CUPS
+    conf.find_program('cups-config', var='CUPS_CONFIG')
+    if conf.env.CUPS_CONFIG and Options.options.with_cups:
+        conf.check_cfg(path="cups-config", args="--cflags --ldflags --libs",
+                       package="", uselib_store="cups")
+        conf.CHECK_HEADERS('cups/cups.h cups/language.h', lib='cups')
+        conf.CHECK_LIB('cups')
+    else:
+        # define an empty subsystem for cups, to allow it to be used as an empty dependency
+        conf.SET_TARGET_TYPE('cups', 'EMPTY')
+
+    # Check for LDAP
+    if Options.options.with_ldap:
+        conf.CHECK_HEADERS('ldap.h lber.h')
+        conf.CHECK_TYPE('ber_tag_t', 'unsigned int', headers='ldap.h lber.h')
+        conf.CHECK_FUNCS_IN('ber_scanf ber_sockbuf_add_io', 'lber')
+        conf.CHECK_VARIABLE('LDAP_OPT_SOCKBUF', headers='ldap.h')
+        # if ber_sockbuf_add_io() and LDAP_OPT_SOCKBUF are available, we can add
+        # SASL wrapping hooks
+        if conf.CONFIG_SET('HAVE_BER_SOCKBUF_ADD_IO') and \
+                conf.CONFIG_SET('HAVE_LDAP_OPT_SOCKBUF'):
+            conf.DEFINE('HAVE_LDAP_SASL_WRAPPING', '1')
+
+        # if we LBER_OPT_LOG_PRINT_FN we can intercept ldap logging and print it out
+        # for the samba logs
+        conf.CHECK_VARIABLE('LBER_OPT_LOG_PRINT_FN',
+                            define='HAVE_LBER_LOG_PRINT_FN', headers='lber.h')
+
+        conf.CHECK_FUNCS_IN('ldap_init ldap_initialize ldap_set_rebind_proc', 'ldap')
+        conf.CHECK_FUNCS_IN('ldap_add_result_entry', 'ldap')
+
+        # Check if ldap_set_rebind_proc() takes three arguments
+        if conf.CHECK_CODE('ldap_set_rebind_proc(0, 0, 0)',
+                           'LDAP_SET_REBIND_PROC_ARGS',
+                           msg="Checking whether ldap_set_rebind_proc takes 3 arguments",
+                           headers='ldap.h lber.h', link=False):
+            conf.DEFINE('LDAP_SET_REBIND_PROC_ARGS', '3')
+        else:
+            conf.DEFINE('LDAP_SET_REBIND_PROC_ARGS', '2')
+
+        # last but not least, if ldap_init() exists, we want to use ldap
+        if conf.CONFIG_SET('HAVE_LDAP_INIT'):
+            conf.DEFINE('HAVE_LDAP', '1')
+            conf.DEFINE('LDAP_DEPRECATED', '1')
+            conf.env['SMBLDAP'] = 'lib/smbldap.c'
+            conf.env['SMBLDAPUTIL'] = 'lib/smbldap_util.c'
+    else:
+        conf.SET_TARGET_TYPE('ldap', 'EMPTY')
+        conf.SET_TARGET_TYPE('lber', 'EMPTY')
+
+    # Check for kerberos
+    conf.find_program('krb5-config', var='KRB5_CONFIG')
+    if conf.env.KRB5_CONFIG and Options.options.with_krb5:
+        conf.check_cfg(path="krb5-config", args="--cflags --libs",
+                       package="gssapi", uselib_store="krb5")
+        conf.CHECK_HEADERS('krb5.h krb5/locate_plugin.h', lib='krb5')
+        conf.CHECK_HEADERS('gssapi.h gssapi/gssapi_generic.h gssapi/gssapi.h com_err.h', lib='krb5')
+
+        if conf.CONFIG_SET('HAVE_KRB5_LOCATE_PLUGIN_H'):
+            conf.env['WINBIND_KRB5_LOCATOR'] = 'bin/winbind_krb5_locator.so'
+
+        conf.CHECK_FUNCS_IN('_et_list', 'com_err')
+        conf.CHECK_FUNCS_IN('krb5_encrypt_data', 'k5crypto')
+        conf.CHECK_FUNCS_IN('crypto', 'des_set_key')
+        conf.CHECK_FUNCS_IN('copy_Authenticator', 'asn1')
+        conf.CHECK_FUNCS_IN('roken_getaddrinfo_hostspec', 'roken')
+        if conf.CHECK_FUNCS_IN('gss_display_status', 'gssapi gssapi_krb5'):
+            conf.DEFINE('HAVE_GSSAPI', '1')
+        conf.CHECK_FUNCS_IN('krb5_mk_req_extended krb5_kt_compare', 'krb5')
+        conf.CHECK_FUNCS('''
+krb5_set_real_time krb5_set_default_in_tkt_etypes krb5_set_default_tgs_enctypes
+krb5_set_default_tgs_ktypes krb5_principal2salt krb5_use_enctype
+krb5_string_to_key krb5_get_pw_salt krb5_string_to_key_salt krb5_auth_con_setkey
+krb5_auth_con_setuseruserkey krb5_locate_kdc krb5_get_permitted_enctypes
+krb5_get_default_in_tkt_etypes krb5_free_data_contents
+krb5_principal_get_comp_string krb5_free_unparsed_name
+krb5_free_keytab_entry_contents krb5_kt_free_entry krb5_krbhst_init
+krb5_krbhst_get_addrinfo krb5_c_enctype_compare krb5_enctypes_compatible_keys
+krb5_crypto_init krb5_crypto_destroy krb5_decode_ap_req free_AP_REQ
+krb5_verify_checksum krb5_c_verify_checksum krb5_principal_compare_any_realm
+krb5_parse_name_norealm krb5_princ_size krb5_get_init_creds_opt_set_pac_request
+krb5_get_renewed_creds krb5_get_kdc_cred krb5_free_error_contents
+initialize_krb5_error_table krb5_get_init_creds_opt_alloc
+krb5_get_init_creds_opt_free krb5_get_init_creds_opt_get_error
+krb5_enctype_to_string krb5_fwd_tgt_creds krb5_auth_con_set_req_cksumtype
+krb5_get_creds_opt_alloc krb5_get_creds_opt_set_impersonate krb5_get_creds
+krb5_get_credentials_for_user krb5_get_host_realm krb5_free_host_realm''',
+                         lib='krb5')
+        conf.CHECK_DECLS('''krb5_get_credentials_for_user
+                            krb5_auth_con_set_req_cksumtype''',
+                            headers='krb5.h', always=True)
+        conf.CHECK_VARIABLE('AP_OPTS_USE_SUBKEY', headers='krb5.h')
+        conf.CHECK_VARIABLE('KV5M_KEYTAB', headers='krb5.h')
+        conf.CHECK_VARIABLE('KRB5_KU_OTHER_CKSUM', headers='krb5.h')
+        conf.CHECK_VARIABLE('KRB5_KEYUSAGE_APP_DATA_CKSUM', headers='krb5.h')
+        conf.CHECK_STRUCTURE_MEMBER('krb5_keytab_entry', 'key', headers='krb5.h',
+                                    define='HAVE_KRB5_KEYTAB_ENTRY_KEY')
+        conf.CHECK_STRUCTURE_MEMBER('krb5_keytab_entry', 'keyblock', headers='krb5.h',
+                                    define='HAVE_KRB5_KEYTAB_ENTRY_KEYBLOCK')
+        conf.CHECK_STRUCTURE_MEMBER('krb5_address', 'magic', headers='krb5.h',
+                                    define='HAVE_MAGIC_IN_KRB5_ADDRESS')
+        conf.CHECK_STRUCTURE_MEMBER('krb5_address', 'addrtype', headers='krb5.h',
+                                    define='HAVE_ADDRTYPE_IN_KRB5_ADDRESS')
+        conf.CHECK_STRUCTURE_MEMBER('krb5_ticket', 'enc_part2', headers='krb5.h',
+                                    define='HAVE_KRB5_TKT_ENC_PART2')
+        conf.CHECK_STRUCTURE_MEMBER('krb5_creds', 'keyblock', headers='krb5.h',
+                                    define='HAVE_KRB5_KEYBLOCK_IN_CREDS')
+        conf.CHECK_STRUCTURE_MEMBER('krb5_creds', 'session', headers='krb5.h',
+                                    define='HAVE_KRB5_SESSION_IN_CREDS')
+        conf.CHECK_TYPE('krb5_encrypt_block', headers='krb5.h')
+        conf.CHECK_CODE('''
+krb5_context ctx;
+krb5_get_init_creds_opt *opt = NULL;
+krb5_get_init_creds_opt_free(ctx, opt);
+''',
+                        'KRB5_CREDS_OPT_FREE_REQUIRES_CONTEXT',
+                        headers='krb5.h', link=False,
+                        msg="Checking whether krb5_get_init_creds_opt_free takes a context argument")
+        conf.CHECK_CODE('krb5_mk_error(0,0,0)',
+                        'HAVE_SHORT_KRB5_MK_ERROR_INTERFACE',
+                        headers='krb5.h', link=False,
+                        msg="Checking whether krb5_mk_error takes 3 arguments MIT or 9 Heimdal")
+        conf.CHECK_CODE('''
+const krb5_data *pkdata;
+krb5_context context;
+krb5_principal principal;
+pkdata = krb5_princ_component(context, principal, 0);
+''',
+                        'HAVE_KRB5_PRINC_COMPONENT',
+                        headers='krb5.h', lib='krb5',
+                        msg="Checking whether krb5_princ_component is available")
+
+        conf.CHECK_CODE('''
+int main(void) {
+char buf[256];
+krb5_enctype_to_string(1, buf, 256);
+return 0;
+}''',
+                        'HAVE_KRB5_ENCTYPE_TO_STRING_WITH_SIZE_T_ARG',
+                        headers='krb5.h', lib='krb5',
+                        addmain=False, cflags='-Werror',
+                        msg="Checking whether krb5_enctype_to_string takes size_t argument")
+
+        conf.CHECK_CODE('''
+int main(void) {
+krb5_context context = NULL;
+char *str = NULL;
+krb5_enctype_to_string(context, 1, &str);
+if (str) free (str);
+return 0;
+}''',
+                        'HAVE_KRB5_ENCTYPE_TO_STRING_WITH_KRB5_CONTEXT_ARG',
+                        headers='krb5.h stdlib.h', lib='krb5',
+                        addmain=False, cflags='-Werror',
+                        msg="Checking whether krb5_enctype_to_string takes krb5_context argument")
+
+    else:
+        conf.SET_TARGET_TYPE('krb5', 'EMPTY')
+        conf.SET_TARGET_TYPE('gssapi', 'EMPTY')
+        conf.SET_TARGET_TYPE('gssapi_krb5', 'EMPTY')
+
+    if Options.options.with_utmp:
+        conf.CHECK_FUNCS('pututline pututxline updwtmp updwtmpx getutmpx getutxent')
+        conf.CHECK_STRUCTURE_MEMBER('struct utmp', 'ut_name', headers='utmp.h',
+                                    define='HAVE_UT_UT_NAME')
+        conf.CHECK_STRUCTURE_MEMBER('struct utmp', 'ut_user', headers='utmp.h',
+                                    define='HAVE_UT_UT_USER')
+        conf.CHECK_STRUCTURE_MEMBER('struct utmp', 'ut_id', headers='utmp.h',
+                                    define='HAVE_UT_UT_ID')
+        conf.CHECK_STRUCTURE_MEMBER('struct utmp', 'ut_host', headers='utmp.h',
+                                    define='HAVE_UT_UT_HOST')
+        conf.CHECK_STRUCTURE_MEMBER('struct utmp', 'ut_time', headers='utmp.h',
+                                    define='HAVE_UT_UT_TIME')
+        conf.CHECK_STRUCTURE_MEMBER('struct utmp', 'ut_tv', headers='utmp.h',
+                                    define='HAVE_UT_UT_TV')
+        conf.CHECK_STRUCTURE_MEMBER('struct utmp', 'ut_type', headers='utmp.h',
+                                    define='HAVE_UT_UT_TYPE')
+        conf.CHECK_STRUCTURE_MEMBER('struct utmp', 'ut_pid', headers='utmp.h',
+                                    define='HAVE_UT_UT_PID')
+        conf.CHECK_STRUCTURE_MEMBER('struct utmp', 'ut_exit.e_exit', headers='utmp.h',
+                                    define='HAVE_UT_UT_EXIT')
+        conf.CHECK_STRUCTURE_MEMBER('struct utmp', 'ut_addr_v6', headers='utmp.h',
+                                    define='HAVE_UT_UT_ADDR_V6')
+        conf.CHECK_STRUCTURE_MEMBER('struct utmp', 'ut_addr', headers='utmp.h',
+                                    define='HAVE_UT_UT_ADDR')
+        conf.CHECK_STRUCTURE_MEMBER('struct utmpx', 'ut_syslen', headers='utmpx.h',
+                                    define='HAVE_UX_UT_SYSLEN')
+        conf.CHECK_CODE('struct utmp utarg; struct utmp *utreturn; utreturn = pututline(&utarg);',
+                        'PUTUTLINE_RETURNS_UTMP', headers='utmp.h',
+                        msg="Checking whether pututline returns pointer")
+        conf.DEFINE('WITH_UTMP', 1)
+
+    if Options.options.with_avahi:
+        conf.env.with_avahi = True
+        if not conf.CHECK_HEADERS('avahi-common/watch.h avahi-client/client.h'): conf.env.with_avahi = False
+        if not conf.CHECK_FUNCS_IN('avahi_client_new', 'avahi-client'): conf.env.with_avahi = False
+        if not conf.CHECK_FUNCS_IN('avahi_strerror', 'avahi-common'): conf.env.with_avahi = False
+        if conf.env.with_avahi:
+            conf.DEFINE('WITH_AVAHI_SUPPORT', 1)
+    else:
+        conf.SET_TARGET_TYPE('avahi-common', 'EMPTY')
+        conf.SET_TARGET_TYPE('avahi-client', 'EMPTY')
+
+    if Options.options.with_iconv:
+        conf.env.with_iconv = True
+        if not conf.CHECK_FUNCS_IN('iconv_open', 'iconv', headers='iconv.h'):
+            conf.env.with_iconv = False
+        if conf.env.with_iconv:
+            conf.DEFINE('HAVE_ICONV', 1)
+
+    # FIXME: these should be tests for features, but the old build system just
+    # checks for OSes.
+    import sys
+    host_os = sys.platform
+
+    # Python doesn't have case switches... :/
+    # FIXME: original was *linux* | gnu* | k*bsd*-gnu | kopensolaris*-gnu | *qnx*)
+    # the search for .rfind('gnu') covers gnu* and *-gnu is that too broad?
+    if (host_os.rfind('linux') > -1) or (host_os.rfind('gnu') > -1) or (host_os.rfind('qnx') > -1):
+        if host_os.rfind('linux') > -1:
+            conf.DEFINE('LINUX', '1')
+        elif host_os.rfind('qnx') > -1:
+            conf.DEFINE('QNX', '1')
+        conf.DEFINE('STAT_ST_BLOCKSIZE', '512')
+    elif (host_os.rfind('darwin') > -1):
+        conf.DEFINE('DARWINOS', 1)
+        conf.DEFINE('STAT_ST_BLOCKSIZE', '512')
+        conf.ADD_CFLAGS('-fno-common')
+    # FIXME: Add more checks here.
+    else:
+        print "Unknown host_os '%s', please report this to samba-technical@samba.org" % host_os
+
+    conf.SAMBA_CONFIG_H('include/config.h')
+
+def ctags(ctx):
+    "build 'tags' file using ctags"
+    import Utils
+    source_root = os.path.dirname(Utils.g_module.root_path)
+    cmd = 'ctags $(find %s/.. -name "*.[ch]" | grep -v "*_proto\.h")' % source_root
+    print("Running: %s" % cmd)
+    os.system(cmd)

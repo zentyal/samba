@@ -21,6 +21,10 @@
  */
 
 #include "includes.h"
+#include "registry.h"
+#include "reg_backend_db.h"
+#include "reg_eventlog.h"
+#include "reg_objects.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
@@ -87,7 +91,9 @@ bool eventlog_init_keys(void)
 		TALLOC_FREE( subkeys );
 
 		/* now add the values to the KEY_EVENTLOG/Application form key */
-		if (!(values = TALLOC_ZERO_P(ctx, struct regval_ctr))) {
+
+		werr = regval_ctr_init(ctx, &values);
+		if (!W_ERROR_IS_OK(werr)) {
 			DEBUG( 0, ( "talloc() failure!\n" ) );
 			return False;
 		}
@@ -108,18 +114,18 @@ bool eventlog_init_keys(void)
 			uiRetention = 0x93A80;
 
 			regval_ctr_addvalue(values, "MaxSize", REG_DWORD,
-					     (char *)&uiMaxSize,
+					     (uint8 *)&uiMaxSize,
 					     sizeof(uint32));
 
 			regval_ctr_addvalue(values, "Retention", REG_DWORD,
-					     (char *)&uiRetention,
+					     (uint8 *)&uiRetention,
 					     sizeof(uint32));
 
 			regval_ctr_addvalue_sz(values, "PrimaryModule", *elogs);
 			push_reg_sz(talloc_tos(), &data, *elogs);
 
 			regval_ctr_addvalue(values, "Sources", REG_MULTI_SZ,
-					     (char *)data.data,
+					     data.data,
 					     data.length);
 
 			evtfilepath = talloc_asprintf(ctx,
@@ -129,7 +135,7 @@ bool eventlog_init_keys(void)
 				TALLOC_FREE(values);
 			}
 			push_reg_sz(talloc_tos(), &data, evtfilepath);
-			regval_ctr_addvalue(values, "File", REG_EXPAND_SZ, (char *)data.data,
+			regval_ctr_addvalue(values, "File", REG_EXPAND_SZ, data.data,
 					     data.length);
 			regdb_store_values(evtlogpath, values);
 
@@ -144,7 +150,9 @@ bool eventlog_init_keys(void)
 		if (!evtlogpath) {
 			return false;
 		}
-		if (!(values = TALLOC_ZERO_P(ctx, struct regval_ctr))) {
+
+		werr = regval_ctr_init(ctx, &values);
+		if (!W_ERROR_IS_OK(werr)) {
 			DEBUG( 0, ( "talloc() failure!\n" ) );
 			return False;
 		}
@@ -159,14 +167,14 @@ bool eventlog_init_keys(void)
 			uiCategoryCount = 0x00000007;
 			regval_ctr_addvalue( values, "CategoryCount",
 					     REG_DWORD,
-					     ( char * ) &uiCategoryCount,
+					     (uint8 *) &uiCategoryCount,
 					     sizeof( uint32 ) );
 			push_reg_sz(talloc_tos(), &data,
 				      "%SystemRoot%\\system32\\eventlog.dll");
 
 			regval_ctr_addvalue( values, "CategoryMessageFile",
 					     REG_EXPAND_SZ,
-					     ( char * ) data.data,
+					     data.data,
 					     data.length);
 			regdb_store_values( evtlogpath, values );
 		}
@@ -225,7 +233,8 @@ bool eventlog_add_source( const char *eventlog, const char *sourcename,
 
 	/* todo add to Sources */
 
-	if (!( values = TALLOC_ZERO_P(ctx, struct regval_ctr))) {
+	werr = regval_ctr_init(ctx, &values);
+	if(!W_ERROR_IS_OK(werr)) {
 		DEBUG( 0, ( "talloc() failure!\n" ));
 		return false;
 	}
@@ -246,7 +255,7 @@ bool eventlog_add_source( const char *eventlog, const char *sourcename,
 	/* perhaps this adding a new string to a multi_sz should be a fn? */
 	/* check to see if it's there already */
 
-	if ( rval->type != REG_MULTI_SZ ) {
+	if ( regval_type(rval) != REG_MULTI_SZ ) {
 		DEBUG( 0,
 		       ( "Wrong type for Sources, should be REG_MULTI_SZ\n" ) );
 		return False;
@@ -255,9 +264,9 @@ bool eventlog_add_source( const char *eventlog, const char *sourcename,
 
 	already_in = False;
 	wrklist = NULL;
-	dump_data( 1, rval->data_p, rval->size );
+	dump_data(1, regval_data_p(rval), regval_size(rval));
 
-	blob = data_blob_const(rval->data_p, rval->size);
+	blob = data_blob_const(regval_data_p(rval), regval_size(rval));
 	if (!pull_reg_multi_sz(talloc_tos(), &blob, &wrklist)) {
 		return false;
 	}
@@ -303,7 +312,7 @@ bool eventlog_add_source( const char *eventlog, const char *sourcename,
 		}
 		dump_data( 1, blob.data, blob.length);
 		regval_ctr_addvalue( values, "Sources", REG_MULTI_SZ,
-				     ( char * ) blob.data, blob.length);
+				     blob.data, blob.length);
 		regdb_store_values( evtlogpath, values );
 		data_blob_free(&blob);
 	} else {
@@ -358,7 +367,8 @@ bool eventlog_add_source( const char *eventlog, const char *sourcename,
 	regdb_fetch_keys( evtlogpath, subkeys );
 
 	/* now add the values to the KEY_EVENTLOG/Application form key */
-	if ( !( values = TALLOC_ZERO_P(ctx, struct regval_ctr ) ) ) {
+	werr = regval_ctr_init(ctx, &values);
+	if (!W_ERROR_IS_OK(werr)) {
 		DEBUG( 0, ( "talloc() failure!\n" ) );
 		return False;
 	}

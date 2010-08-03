@@ -25,6 +25,9 @@
 #include "includes.h"
 #include "winbindd.h"
 #include "../../nsswitch/libwbclient/wbc_async.h"
+#include "librpc/gen_ndr/messaging.h"
+#include "../librpc/gen_ndr/srv_lsa.h"
+#include "../librpc/gen_ndr/srv_samr.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
@@ -35,30 +38,6 @@ static bool opt_nocache = False;
 static bool interactive = False;
 
 extern bool override_logfile;
-
-struct event_context *winbind_event_context(void)
-{
-	static struct event_context *ctx;
-
-	if (!ctx && !(ctx = event_context_init(NULL))) {
-		smb_panic("Could not init winbind event context");
-	}
-	return ctx;
-}
-
-struct messaging_context *winbind_messaging_context(void)
-{
-	static struct messaging_context *ctx;
-
-	if (ctx == NULL) {
-		ctx = messaging_init(NULL, server_id_self(),
-				     winbind_event_context());
-	}
-	if (ctx == NULL) {
-		DEBUG(0, ("Could not init winbind messaging context.\n"));
-	}
-	return ctx;
-}
 
 /* Reload configuration */
 
@@ -141,6 +120,29 @@ static void flush_caches(void)
 	}
 }
 
+static void flush_caches_noinit(void)
+{
+	/*
+	 * We need to invalidate cached user list entries on a SIGHUP
+         * otherwise cached access denied errors due to restrict anonymous
+         * hang around until the sequence number changes.
+	 * NB
+	 * Skip uninitialized domains when flush cache.
+	 * If domain is not initialized, it means it is never
+	 * used or never become online. look, wcache_invalidate_cache()
+	 * -> get_cache() -> init_dc_connection(). It causes a lot of traffic
+	 * for unused domains and large traffic for primay domain's DC if there
+	 * are many domains..
+	 */
+
+	if (!wcache_invalidate_cache_noinit()) {
+		DEBUG(0, ("invalidating the cache failed; revalidate the cache\n"));
+		if (!winbindd_cache_validate_and_initialize()) {
+			exit(1);
+		}
+	}
+}
+
 /* Handle the signal by unlinking socket and exiting */
 
 static void terminate(bool is_parent)
@@ -176,6 +178,7 @@ static void terminate(bool is_parent)
 #endif
 
 	if (is_parent) {
+		serverid_deregister(procid_self());
 		pidfile_unlink();
 	}
 
@@ -254,7 +257,7 @@ static void winbindd_sig_hup_handler(struct tevent_context *ev,
 	const char *file = (const char *)private_data;
 
 	DEBUG(1,("Reloading services after SIGHUP\n"));
-	flush_caches();
+	flush_caches_noinit();
 	reload_services_file(file);
 }
 
@@ -418,14 +421,6 @@ static struct winbindd_dispatch_table {
 	const char *winbindd_cmd_name;
 } dispatch_table[] = {
 
-	/* PAM auth functions */
-
-	{ WINBINDD_PAM_AUTH, winbindd_pam_auth, "PAM_AUTH" },
-	{ WINBINDD_PAM_AUTH_CRAP, winbindd_pam_auth_crap, "AUTH_CRAP" },
-	{ WINBINDD_PAM_CHAUTHTOK, winbindd_pam_chauthtok, "CHAUTHTOK" },
-	{ WINBINDD_PAM_LOGOFF, winbindd_pam_logoff, "PAM_LOGOFF" },
-	{ WINBINDD_PAM_CHNG_PSWD_AUTH_CRAP, winbindd_pam_chng_pswd_auth_crap, "CHNG_PSWD_AUTH_CRAP" },
-
 	/* Enumeration functions */
 
 	{ WINBINDD_LIST_TRUSTDOM, winbindd_list_trusted_domains,
@@ -528,6 +523,15 @@ static struct winbindd_async_dispatch_table async_nonpriv_table[] = {
 	  winbindd_check_machine_acct_send, winbindd_check_machine_acct_recv },
 	{ WINBINDD_PING_DC, "PING_DC",
 	  winbindd_ping_dc_send, winbindd_ping_dc_recv },
+	{ WINBINDD_PAM_AUTH, "PAM_AUTH",
+	  winbindd_pam_auth_send, winbindd_pam_auth_recv },
+	{ WINBINDD_PAM_LOGOFF, "PAM_LOGOFF",
+	  winbindd_pam_logoff_send, winbindd_pam_logoff_recv },
+	{ WINBINDD_PAM_CHAUTHTOK, "PAM_CHAUTHTOK",
+	  winbindd_pam_chauthtok_send, winbindd_pam_chauthtok_recv },
+	{ WINBINDD_PAM_CHNG_PSWD_AUTH_CRAP, "PAM_CHNG_PSWD_AUTH_CRAP",
+	  winbindd_pam_chng_pswd_auth_crap_send,
+	  winbindd_pam_chng_pswd_auth_crap_recv },
 
 	{ 0, NULL, NULL, NULL }
 };
@@ -545,6 +549,8 @@ static struct winbindd_async_dispatch_table async_priv_table[] = {
 	  winbindd_set_hwm_send, winbindd_set_hwm_recv },
 	{ WINBINDD_CHANGE_MACHACC, "CHANGE_MACHACC",
 	  winbindd_change_machine_acct_send, winbindd_change_machine_acct_recv },
+	{ WINBINDD_PAM_AUTH_CRAP, "PAM_AUTH_CRAP",
+	  winbindd_pam_auth_crap_send, winbindd_pam_auth_crap_recv },
 
 	{ 0, NULL, NULL, NULL }
 };
@@ -556,7 +562,7 @@ static void process_request(struct winbindd_cli_state *state)
 	struct winbindd_dispatch_table *table = dispatch_table;
 	struct winbindd_async_dispatch_table *atable;
 
-	state->mem_ctx = talloc_init("winbind request");
+	state->mem_ctx = talloc_named(state, 0, "winbind request");
 	if (state->mem_ctx == NULL)
 		return;
 
@@ -712,8 +718,8 @@ static void winbind_client_response_written(struct tevent_req *req)
 		return;
 	}
 
-	DEBUG(10,("winbind_client_response_written[%d:%s]: deliverd response to client\n",
-		  (int)state->pid, state->cmd_name));
+	DEBUG(10,("winbind_client_response_written[%d:%s]: delivered response "
+		  "to client\n", (int)state->pid, state->cmd_name));
 
 	TALLOC_FREE(state->mem_ctx);
 	state->response = NULL;
@@ -920,6 +926,20 @@ static void winbindd_listen_fde_handler(struct tevent_context *ev,
 	new_connection(s->fd, s->privileged);
 }
 
+/*
+ * Winbindd socket accessor functions
+ */
+
+const char *get_winbind_pipe_dir(void)
+{
+	return lp_parm_const_string(-1, "winbindd", "socket dir", WINBINDD_SOCKET_DIR);
+}
+
+char *get_winbind_priv_pipe_dir(void)
+{
+	return lock_path(WINBINDD_PRIV_SOCKET_SUBDIR);
+}
+
 static bool winbindd_setup_listeners(void)
 {
 	struct winbindd_listen_state *pub_state = NULL;
@@ -933,7 +953,8 @@ static bool winbindd_setup_listeners(void)
 	}
 
 	pub_state->privileged = false;
-	pub_state->fd = open_winbindd_socket();
+	pub_state->fd = create_pipe_sock(
+		get_winbind_pipe_dir(), WINBINDD_SOCKET_NAME, 0755);
 	if (pub_state->fd == -1) {
 		goto failed;
 	}
@@ -954,7 +975,8 @@ static bool winbindd_setup_listeners(void)
 	}
 
 	priv_state->privileged = true;
-	priv_state->fd = open_winbindd_priv_socket();
+	priv_state->fd = create_pipe_sock(
+		get_winbind_priv_pipe_dir(), WINBINDD_SOCKET_NAME, 0750);
 	if (priv_state->fd == -1) {
 		goto failed;
 	}
@@ -985,6 +1007,95 @@ bool winbindd_use_cache(void)
 	return !opt_nocache;
 }
 
+void winbindd_register_handlers(void)
+{
+	struct tevent_timer *te;
+	/* Setup signal handlers */
+
+	if (!winbindd_setup_sig_term_handler(true))
+		exit(1);
+	if (!winbindd_setup_sig_hup_handler(NULL))
+		exit(1);
+	if (!winbindd_setup_sig_chld_handler())
+		exit(1);
+	if (!winbindd_setup_sig_usr2_handler())
+		exit(1);
+
+	CatchSignal(SIGPIPE, SIG_IGN);                 /* Ignore sigpipe */
+
+	/*
+	 * Ensure all cache and idmap caches are consistent
+	 * and initialized before we startup.
+	 */
+	if (!winbindd_cache_validate_and_initialize()) {
+		exit(1);
+	}
+
+	/* get broadcast messages */
+
+	if (!serverid_register(procid_self(),
+			       FLAG_MSG_GENERAL|FLAG_MSG_DBWRAP)) {
+		DEBUG(1, ("Could not register myself in serverid.tdb\n"));
+		exit(1);
+	}
+
+	/* React on 'smbcontrol winbindd reload-config' in the same way
+	   as to SIGHUP signal */
+	messaging_register(winbind_messaging_context(), NULL,
+			   MSG_SMB_CONF_UPDATED, msg_reload_services);
+	messaging_register(winbind_messaging_context(), NULL,
+			   MSG_SHUTDOWN, msg_shutdown);
+
+	/* Handle online/offline messages. */
+	messaging_register(winbind_messaging_context(), NULL,
+			   MSG_WINBIND_OFFLINE, winbind_msg_offline);
+	messaging_register(winbind_messaging_context(), NULL,
+			   MSG_WINBIND_ONLINE, winbind_msg_online);
+	messaging_register(winbind_messaging_context(), NULL,
+			   MSG_WINBIND_ONLINESTATUS, winbind_msg_onlinestatus);
+
+	messaging_register(winbind_messaging_context(), NULL,
+			   MSG_DUMP_EVENT_LIST, winbind_msg_dump_event_list);
+
+	messaging_register(winbind_messaging_context(), NULL,
+			   MSG_WINBIND_VALIDATE_CACHE,
+			   winbind_msg_validate_cache);
+
+	messaging_register(winbind_messaging_context(), NULL,
+			   MSG_WINBIND_DUMP_DOMAIN_LIST,
+			   winbind_msg_dump_domain_list);
+
+	/* Register handler for MSG_DEBUG. */
+	messaging_register(winbind_messaging_context(), NULL,
+			   MSG_DEBUG,
+			   winbind_msg_debug);
+
+	netsamlogon_cache_init(); /* Non-critical */
+
+	/* clear the cached list of trusted domains */
+
+	wcache_tdc_clear();
+
+	if (!init_domain_list()) {
+		DEBUG(0,("unable to initialize domain list\n"));
+		exit(1);
+	}
+
+	init_idmap_child();
+	init_locator_child();
+
+	smb_nscd_flush_user_cache();
+	smb_nscd_flush_group_cache();
+
+	te = tevent_add_timer(winbind_event_context(), NULL, timeval_zero(),
+			      rescan_trusted_domains, NULL);
+	if (te == NULL) {
+		DEBUG(0, ("Could not trigger rescan_trusted_domains()\n"));
+		exit(1);
+	}
+
+}
+
 /* Main function */
 
 int main(int argc, char **argv, char **envp)
@@ -1013,7 +1124,7 @@ int main(int argc, char **argv, char **envp)
 	poptContext pc;
 	int opt;
 	TALLOC_CTX *frame = talloc_stackframe();
-	struct tevent_timer *te;
+	NTSTATUS status;
 
 	/* glibc (?) likes to print "User defined signal 1" and exit if a
 	   SIGUSR[12] is received before a handler is installed */
@@ -1138,10 +1249,6 @@ int main(int argc, char **argv, char **envp)
 		return False;
 	}
 
-	/* Enable netbios namecache */
-
-	namecache_enable();
-
 	/* Unblock all signals we are interested in as they may have been
 	   blocked by the parent process. */
 
@@ -1154,7 +1261,7 @@ int main(int argc, char **argv, char **envp)
 	BlockSignals(False, SIGCHLD);
 
 	if (!interactive)
-		become_daemon(Fork, no_process_group);
+		become_daemon(Fork, no_process_group, log_stdout);
 
 	pidfile_create("winbindd");
 
@@ -1174,96 +1281,28 @@ int main(int argc, char **argv, char **envp)
 	 * winbindd-specific resources we must free yet. JRA.
 	 */
 
-	if (!NT_STATUS_IS_OK(reinit_after_fork(winbind_messaging_context(),
-					       winbind_event_context(),
-					       false))) {
+	status = reinit_after_fork(winbind_messaging_context(),
+				   winbind_event_context(),
+				   procid_self(), false);
+	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("reinit_after_fork() failed\n"));
 		exit(1);
 	}
 
-	/* Setup signal handlers */
+	winbindd_register_handlers();
 
-	if (!winbindd_setup_sig_term_handler(true))
-		exit(1);
-	if (!winbindd_setup_sig_hup_handler(NULL))
-		exit(1);
-	if (!winbindd_setup_sig_chld_handler())
-		exit(1);
-	if (!winbindd_setup_sig_usr2_handler())
-		exit(1);
+	rpc_lsarpc_init(NULL);
+	rpc_samr_init(NULL);
 
-	CatchSignal(SIGPIPE, SIG_IGN);                 /* Ignore sigpipe */
-
-	/*
-	 * Ensure all cache and idmap caches are consistent
-	 * and initialized before we startup.
-	 */
-	if (!winbindd_cache_validate_and_initialize()) {
+	if (!init_system_info()) {
+		DEBUG(0,("ERROR: failed to setup system user info.\n"));
 		exit(1);
 	}
-
-	/* get broadcast messages */
-	claim_connection(NULL,"",FLAG_MSG_GENERAL|FLAG_MSG_DBWRAP);
-
-	/* React on 'smbcontrol winbindd reload-config' in the same way
-	   as to SIGHUP signal */
-	messaging_register(winbind_messaging_context(), NULL,
-			   MSG_SMB_CONF_UPDATED, msg_reload_services);
-	messaging_register(winbind_messaging_context(), NULL,
-			   MSG_SHUTDOWN, msg_shutdown);
-
-	/* Handle online/offline messages. */
-	messaging_register(winbind_messaging_context(), NULL,
-			   MSG_WINBIND_OFFLINE, winbind_msg_offline);
-	messaging_register(winbind_messaging_context(), NULL,
-			   MSG_WINBIND_ONLINE, winbind_msg_online);
-	messaging_register(winbind_messaging_context(), NULL,
-			   MSG_WINBIND_ONLINESTATUS, winbind_msg_onlinestatus);
-
-	messaging_register(winbind_messaging_context(), NULL,
-			   MSG_DUMP_EVENT_LIST, winbind_msg_dump_event_list);
-
-	messaging_register(winbind_messaging_context(), NULL,
-			   MSG_WINBIND_VALIDATE_CACHE,
-			   winbind_msg_validate_cache);
-
-	messaging_register(winbind_messaging_context(), NULL,
-			   MSG_WINBIND_DUMP_DOMAIN_LIST,
-			   winbind_msg_dump_domain_list);
-
-	/* Register handler for MSG_DEBUG. */
-	messaging_register(winbind_messaging_context(), NULL,
-			   MSG_DEBUG,
-			   winbind_msg_debug);
-
-	netsamlogon_cache_init(); /* Non-critical */
-
-	/* clear the cached list of trusted domains */
-
-	wcache_tdc_clear();	
-
-	if (!init_domain_list()) {
-		DEBUG(0,("unable to initialize domain list\n"));
-		exit(1);
-	}
-
-	init_idmap_child();
-	init_locator_child();
-
-	smb_nscd_flush_user_cache();
-	smb_nscd_flush_group_cache();
 
 	/* setup listen sockets */
 
 	if (!winbindd_setup_listeners()) {
 		DEBUG(0,("winbindd_setup_listeners() failed\n"));
-		exit(1);
-	}
-
-	te = tevent_add_timer(winbind_event_context(), NULL, timeval_zero(),
-			      rescan_trusted_domains, NULL);
-	if (te == NULL) {
-		DEBUG(0, ("Could not trigger rescan_trusted_domains()\n"));
 		exit(1);
 	}
 

@@ -53,6 +53,7 @@ enum hdb_lockop{ HDB_RLOCK, HDB_WLOCK };
 #define HDB_F_GET_KRBTGT	16	/* fetch krbtgt */
 #define HDB_F_GET_ANY		28	/* fetch any of client,server,krbtgt */
 #define HDB_F_CANON		32	/* want canonicalition */
+#define HDB_F_ADMIN_DATA	64	/* want data that kdc don't use  */
 
 /* hdb_capability_flags */
 #define HDB_CAP_F_HANDLE_ENTERPRISE_PRINCIPAL 1
@@ -157,6 +158,8 @@ typedef struct HDB{
     krb5_error_code (*hdb_unlock)(krb5_context, struct HDB*);
     /**
      * Rename the data base.
+     *
+     * Assume that the database is not hdb_open'ed and not locked.
      */
     krb5_error_code (*hdb_rename)(krb5_context, struct HDB*, const char*);
     /**
@@ -193,10 +196,17 @@ typedef struct HDB{
      */
     krb5_error_code (*hdb_destroy)(krb5_context, struct HDB*);
     /**
+     * Get the list of realms this backend handles.
+     * This call is optional to support. The returned realms are used
+     * for announcing the realms over bonjour. Free returned array
+     * with krb5_free_host_realm().
+     */
+    krb5_error_code (*hdb_get_realms)(krb5_context, struct HDB *, krb5_realm **);
+    /**
      * Change password.
      *
      * Will update keys for the entry when given password.  The new
-     * keys must be written into the entry and and will then later be
+     * keys must be written into the entry and will then later be
      * ->hdb_store() into the database. The backend will still perform
      * all other operations, increasing the kvno, and update
      * modification timestamp.
@@ -225,9 +235,14 @@ typedef struct HDB{
      * Check if this name is an alias for the supplied client for PKINIT userPrinicpalName logins
      */
     krb5_error_code (*hdb_check_pkinit_ms_upn_match)(krb5_context, struct HDB *, hdb_entry_ex *, krb5_const_principal);
+
+    /**
+     * Check if s4u2self is allowed from this client to this server
+     */
+    krb5_error_code (*hdb_check_s4u2self)(krb5_context, struct HDB *, hdb_entry_ex *, krb5_const_principal);
 }HDB;
 
-#define HDB_INTERFACE_VERSION	6
+#define HDB_INTERFACE_VERSION	7
 
 struct hdb_so_method {
     int version;
@@ -244,6 +259,8 @@ struct hdb_method {
     const char *prefix;
     krb5_error_code (*create)(krb5_context, HDB **, const char *filename);
 };
+
+extern const int hdb_interface_version;
 
 #include <hdb-protos.h>
 

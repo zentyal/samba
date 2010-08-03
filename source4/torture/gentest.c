@@ -48,9 +48,9 @@ static struct gentest_options {
 	int analyze;
 	int analyze_always;
 	int analyze_continuous;
-	uint_t max_open_handles;
-	uint_t seed;
-	uint_t numops;
+	unsigned int max_open_handles;
+	unsigned int seed;
+	unsigned int numops;
 	int use_oplocks;
 	char **ignore_patterns;
 	const char *seeds_file;
@@ -67,12 +67,12 @@ static struct gentest_options {
 /* mapping between open handles on the server and local handles */
 static struct {
 	bool active;
-	uint_t instance;
+	unsigned int instance;
 	struct smb2_handle smb2_handle[NSERVERS]; /* SMB2 */
 	uint16_t smb_handle[NSERVERS];            /* SMB */
 	const char *name;
 } *open_handles;
-static uint_t num_open_handles;
+static unsigned int num_open_handles;
 
 /* state information for the servers. We open NINSTANCES connections to
    each server */
@@ -86,7 +86,7 @@ static struct {
 
 /* the seeds and flags for each operation */
 static struct {
-	uint_t seed;
+	unsigned int seed;
 	bool disabled;
 } *op_parms;
 
@@ -111,9 +111,9 @@ static struct {
 /* info relevant to the current operation */
 static struct {
 	const char *name;
-	uint_t seed;
+	unsigned int seed;
 	NTSTATUS status;
-	uint_t opnum;
+	unsigned int opnum;
 	TALLOC_CTX *mem_ctx;
 	const char *mismatch;
 } current_op;
@@ -215,8 +215,8 @@ static bool connect_servers(struct tevent_context *ev,
 			NTSTATUS status;
 			struct smbcli_options smb_options;
 			struct smbcli_session_options smb_session_options;
-			lp_smbcli_options(lp_ctx, &smb_options);
-			lp_smbcli_session_options(lp_ctx, &smb_session_options);
+			lpcfg_smbcli_options(lp_ctx, &smb_options);
+			lpcfg_smbcli_session_options(lp_ctx, &smb_session_options);
 
 			printf("Connecting to \\\\%s\\%s as %s - instance %d\n",
 			       servers[i].server_name, servers[i].share_name, 
@@ -227,28 +227,27 @@ static bool connect_servers(struct tevent_context *ev,
 
 			if (options.smb2) {
 				status = smb2_connect(NULL, servers[i].server_name, 
-									  lp_smb_ports(lp_ctx),
+									  lpcfg_smb_ports(lp_ctx),
 						      servers[i].share_name,
-						      lp_resolve_context(lp_ctx),
+						      lpcfg_resolve_context(lp_ctx),
 						      servers[i].credentials,
 						      &servers[i].smb2_tree[j],
 						      ev, &smb_options,
-							  lp_socket_options(lp_ctx),
-							  lp_gensec_settings(lp_ctx, lp_ctx)
+							  lpcfg_socket_options(lp_ctx),
+							  lpcfg_gensec_settings(lp_ctx, lp_ctx)
 							  );
 			} else {
 				status = smbcli_tree_full_connection(NULL,
 								     &servers[i].smb_tree[j], 
 								     servers[i].server_name, 
-								     lp_smb_ports(lp_ctx),
+								     lpcfg_smb_ports(lp_ctx),
 								     servers[i].share_name, "A:",
-									 lp_socket_options(lp_ctx),
+									 lpcfg_socket_options(lp_ctx),
 								     servers[i].credentials,
-								     lp_resolve_context(lp_ctx), ev,
+								     lpcfg_resolve_context(lp_ctx), ev,
 								     &smb_options,
 								     &smb_session_options,
-									 lp_iconv_convenience(lp_ctx),
-									 lp_gensec_settings(lp_ctx, lp_ctx));
+									 lpcfg_gensec_settings(lp_ctx, lp_ctx));
 			}
 			if (!NT_STATUS_IS_OK(status)) {
 				printf("Failed to connect to \\\\%s\\%s - %s\n",
@@ -277,9 +276,9 @@ static bool connect_servers(struct tevent_context *ev,
 /*
   work out the time skew between the servers - be conservative
 */
-static uint_t time_skew(void)
+static unsigned int time_skew(void)
 {
-	uint_t ret;
+	unsigned int ret;
 	if (options.smb2) {
 		ret = labs(servers[0].smb2_tree[0]->session->transport->negotiate.system_time -
 			   servers[1].smb2_tree[0]->session->transport->negotiate.system_time);
@@ -299,9 +298,9 @@ static bool smb2_handle_equal(const struct smb2_handle *h1, const struct smb2_ha
 /*
   turn a server handle into a local handle
 */
-static uint_t fnum_to_handle_smb2(int server, int instance, struct smb2_handle server_handle)
+static unsigned int fnum_to_handle_smb2(int server, int instance, struct smb2_handle server_handle)
 {
-	uint_t i;
+	unsigned int i;
 	for (i=0;i<options.max_open_handles;i++) {
 		if (!open_handles[i].active ||
 		    instance != open_handles[i].instance) continue;
@@ -317,9 +316,9 @@ static uint_t fnum_to_handle_smb2(int server, int instance, struct smb2_handle s
 /*
   turn a server handle into a local handle
 */
-static uint_t fnum_to_handle_smb(int server, int instance, uint16_t server_handle)
+static unsigned int fnum_to_handle_smb(int server, int instance, uint16_t server_handle)
 {
-	uint_t i;
+	unsigned int i;
 	for (i=0;i<options.max_open_handles;i++) {
 		if (!open_handles[i].active ||
 		    instance != open_handles[i].instance) continue;
@@ -450,7 +449,7 @@ static void gen_remove_handle_smb(int instance, uint16_t handles[NSERVERS])
 /*
   return true with 'chance' probability as a percentage
 */
-static bool gen_chance(uint_t chance)
+static bool gen_chance(unsigned int chance)
 {
 	return ((random() % 100) <= chance);
 }
@@ -511,7 +510,7 @@ static uint16_t gen_fnum_close(int instance)
 */
 static int gen_int_range(uint64_t min, uint64_t max)
 {
-	uint_t r = random();
+	unsigned int r = random();
 	return min + (r % (1+max-min));
 }
 
@@ -640,9 +639,9 @@ static uint32_t gen_bits_levels(int nlevels, ...)
 /*
   generate a bitmask
 */
-static uint32_t gen_bits_mask(uint_t mask)
+static uint32_t gen_bits_mask(unsigned int mask)
 {
-	uint_t ret = random();
+	unsigned int ret = random();
 	return ret & mask;
 }
 
@@ -869,9 +868,9 @@ static NTTIME gen_timewarp(void)
 /*
   generate a file allocation size
 */
-static uint_t gen_alloc_size(void)
+static unsigned int gen_alloc_size(void)
 {
-	uint_t ret;
+	unsigned int ret;
 
 	if (gen_chance(30)) return 0;
 
@@ -1819,7 +1818,7 @@ static bool handler_smb_ntcreatex(int instance)
 
 	parm[0].ntcreatex.level = RAW_OPEN_NTCREATEX;
 	parm[0].ntcreatex.in.flags = gen_ntcreatex_flags();
-	parm[0].ntcreatex.in.root_fid = gen_root_fid(instance);
+	parm[0].ntcreatex.in.root_fid.fnum = gen_root_fid(instance);
 	parm[0].ntcreatex.in.access_mask = gen_access_mask();
 	parm[0].ntcreatex.in.alloc_size = gen_alloc_size();
 	parm[0].ntcreatex.in.file_attr = gen_attrib();
@@ -1837,8 +1836,8 @@ static bool handler_smb_ntcreatex(int instance)
 	}
 	
 	GEN_COPY_PARM;
-	if (parm[0].ntcreatex.in.root_fid != 0) {
-		GEN_SET_FNUM_SMB(ntcreatex.in.root_fid);
+	if (parm[0].ntcreatex.in.root_fid.fnum != 0) {
+		GEN_SET_FNUM_SMB(ntcreatex.in.root_fid.fnum);
 	}
 	GEN_CALL_SMB(smb_raw_open(tree, current_op.mem_ctx, &parm[i]));
 
@@ -2661,7 +2660,7 @@ static bool handler_smb2_lock(int instance)
 	parm[0].level = RAW_LOCK_LOCKX;
 	parm[0].in.file.handle.data[0] = gen_fnum(instance);
 	parm[0].in.lock_count = gen_lock_count();
-	parm[0].in.reserved = gen_reserved32();
+	parm[0].in.lock_sequence = gen_reserved32();
 	
 	parm[0].in.locks = talloc_array(current_op.mem_ctx,
 					struct smb2_lock_element,
@@ -3186,7 +3185,7 @@ static bool split_unc_name(const char *unc, char **server, char **share)
 	while((opt = poptGetNextOpt(pc)) != -1) {
 		switch (opt) {
 		case OPT_UNCLIST:
-			lp_set_cmdline(cmdline_lp_ctx, "torture:unclist", poptGetOptArg(pc));
+			lpcfg_set_cmdline(cmdline_lp_ctx, "torture:unclist", poptGetOptArg(pc));
 			break;
 		case 'U':
 			if (username_count == 2) {

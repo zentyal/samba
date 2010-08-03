@@ -26,39 +26,10 @@
 #ifndef __DCERPC_H__
 #define __DCERPC_H__
 
-#include "includes.h"
-#include "librpc/rpc/dcerpc.h"
-#include "librpc/gen_ndr/epmapper.h"
-
-struct loadparm_context;
-struct cli_credentials;
-
-/**
- * Connection to a particular DCE/RPC interface.
- */
-struct dcerpc_pipe {
-	const struct ndr_interface_table *table;
-
-	/** SMB context used when transport is ncacn_np. */
-	struct cli_state *cli;
-
-	/** Samba 3 DCE/RPC client context. */
-	struct rpc_pipe_client *rpc_cli;
-};
-
-struct rpc_request {
-	const struct ndr_interface_call *call;
-	prs_struct q_ps;
-	uint32_t opnum;
-	struct dcerpc_pipe *pipe;
-	void *r;
-};
-
 enum dcerpc_transport_t {
 	NCA_UNKNOWN, NCACN_NP, NCACN_IP_TCP, NCACN_IP_UDP, NCACN_VNS_IPC, 
 	NCACN_VNS_SPP, NCACN_AT_DSP, NCADG_AT_DDP, NCALRPC, NCACN_UNIX_STREAM, 
 	NCADG_UNIX_DGRAM, NCACN_HTTP, NCADG_IPX, NCACN_SPX, NCACN_INTERNAL };
-
 
 /** this describes a binding to a particular transport/pipe */
 struct dcerpc_binding {
@@ -122,5 +93,51 @@ struct dcerpc_binding {
 /* use NDR64 transport */
 #define DCERPC_NDR64                   (1<<21)
 
+/* The following definitions come from librpc/rpc/binding.c  */
+
+const char *epm_floor_string(TALLOC_CTX *mem_ctx, struct epm_floor *epm_floor);
+_PUBLIC_ char *dcerpc_binding_string(TALLOC_CTX *mem_ctx, const struct dcerpc_binding *b);
+_PUBLIC_ NTSTATUS dcerpc_parse_binding(TALLOC_CTX *mem_ctx, const char *s, struct dcerpc_binding **b_out);
+_PUBLIC_ NTSTATUS dcerpc_floor_get_lhs_data(const struct epm_floor *epm_floor,
+					    struct ndr_syntax_id *syntax);
+const char *dcerpc_floor_get_rhs_data(TALLOC_CTX *mem_ctx, struct epm_floor *epm_floor);
+enum dcerpc_transport_t dcerpc_transport_by_endpoint_protocol(int prot);
+_PUBLIC_ enum dcerpc_transport_t dcerpc_transport_by_tower(const struct epm_tower *tower);
+_PUBLIC_ const char *derpc_transport_string_by_transport(enum dcerpc_transport_t t);
+_PUBLIC_ NTSTATUS dcerpc_binding_from_tower(TALLOC_CTX *mem_ctx,
+				   struct epm_tower *tower,
+				   struct dcerpc_binding **b_out);
+_PUBLIC_ NTSTATUS dcerpc_binding_build_tower(TALLOC_CTX *mem_ctx,
+					     const struct dcerpc_binding *binding,
+					     struct epm_tower *tower);
+
+struct NL_AUTH_MESSAGE;
+
+/* The following definitions come from librpc/rpc/dcerpc_helpers.c  */
+NTSTATUS dcerpc_push_ncacn_packet(TALLOC_CTX *mem_ctx,
+				  enum dcerpc_pkt_type ptype,
+				  uint8_t pfc_flags,
+				  uint16_t auth_length,
+				  uint32_t call_id,
+				  union dcerpc_payload *u,
+				  DATA_BLOB *blob);
+NTSTATUS dcerpc_pull_ncacn_packet(TALLOC_CTX *mem_ctx,
+				  const DATA_BLOB *blob,
+				  struct ncacn_packet *r,
+				  bool bigendian);
+NTSTATUS dcerpc_push_schannel_bind(TALLOC_CTX *mem_ctx,
+				   struct NL_AUTH_MESSAGE *r,
+				   DATA_BLOB *blob);
+NTSTATUS dcerpc_push_dcerpc_auth(TALLOC_CTX *mem_ctx,
+				 enum dcerpc_AuthType auth_type,
+				 enum dcerpc_AuthLevel auth_level,
+				 uint8_t auth_pad_length,
+				 uint32_t auth_context_id,
+				 const DATA_BLOB *credentials,
+				 DATA_BLOB *blob);
+NTSTATUS dcerpc_pull_dcerpc_auth(TALLOC_CTX *mem_ctx,
+				 const DATA_BLOB *blob,
+				 struct dcerpc_auth *r,
+				 bool bigendian);
 
 #endif /* __DCERPC_H__ */

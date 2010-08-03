@@ -91,6 +91,7 @@ HEIMDAL_HDB_OBJ_FILES = \
 	$(heimdalsrcdir)/lib/hdb/hdb.o \
 	$(heimdalsrcdir)/lib/hdb/ext.o \
 	$(heimdalsrcdir)/lib/hdb/keytab.o \
+	$(heimdalsrcdir)/lib/hdb/hdb-keytab.o \
 	$(heimdalsrcdir)/lib/hdb/mkey.o \
 	$(heimdalsrcdir)/lib/hdb/ndbm.o \
 	$(heimdalsrcdir)/lib/hdb/hdb_err.o \
@@ -109,6 +110,8 @@ $(eval $(call heimdal_proto_header_template, \
   $(HEIMDAL_HDB_OBJ_FILES:.o=.c), \
   $(HEIMDAL_HDB_OBJ_FILES) $(HEIMDAL_HDB_OBJ_FILES:.o=.d) \
 ))
+
+basics:: $(heimdalsrcdir)/lib/hdb/hdb-protos.h $(heimdalsrcdir)/lib/hdb/hdb-private.h
 
 #######################
 # Start SUBSYSTEM HEIMDAL_GSSAPI
@@ -428,7 +431,6 @@ HEIMDAL_HCRYPTO_OBJ_FILES = \
 	$(heimdalsrcdir)/lib/hcrypto/ui.o \
 	$(heimdalsrcdir)/lib/hcrypto/evp.o \
 	$(heimdalsrcdir)/lib/hcrypto/evp-hcrypto.o \
-	$(heimdalsrcdir)/lib/hcrypto/evp-aes-cts.o \
 	$(heimdalsrcdir)/lib/hcrypto/pkcs5.o \
 	$(heimdalsrcdir)/lib/hcrypto/pkcs12.o \
 	$(heimdalsrcdir)/lib/hcrypto/rand.o \
@@ -586,12 +588,12 @@ $(HEIMDAL_ROKEN_CLOSEFROM_OBJ_FILES): CFLAGS+=-I$(heimdalbuildsrcdir) -I$(heimda
 HEIMDAL_ROKEN_PROGNAME_H_OBJ_FILES = \
 			$(heimdalsrcdir)/lib/roken/getprogname.ho \
 			$(heimdalsrcdir)/lib/roken/setprogname.ho
-$(HEIMDAL_ROKEN_PROGNAME_H_OBJ_FILES): CFLAGS+=-I$(heimdalbuildsrcdir) -I$(heimdalsrcdir)/lib/roken -DSOCKET_WRAPPER_DISABLE=1
+$(HEIMDAL_ROKEN_PROGNAME_H_OBJ_FILES): CFLAGS+=-I$(heimdalbuildsrcdir) -I$(heimdalsrcdir)/lib/roken -DSOCKET_WRAPPER_DISABLE=1 -DNSS_WRAPPER_DISABLE=1
 
 [SUBSYSTEM::HEIMDAL_ROKEN_CLOSEFROM_H]
 
 HEIMDAL_ROKEN_CLOSEFROM_H_OBJ_FILES = $(heimdalsrcdir)/lib/roken/closefrom.ho
-$(HEIMDAL_ROKEN_CLOSEFROM_H_OBJ_FILES): CFLAGS+=-I$(heimdalbuildsrcdir) -I$(heimdalsrcdir)/lib/roken -DSOCKET_WRAPPER_DISABLE=1
+$(HEIMDAL_ROKEN_CLOSEFROM_H_OBJ_FILES): CFLAGS+=-I$(heimdalbuildsrcdir) -I$(heimdalsrcdir)/lib/roken -DSOCKET_WRAPPER_DISABLE=1 -DNSS_WRAPPER_DISABLE=1
 
 #######################
 # Start SUBSYSTEM HEIMDAL_ROKEN
@@ -608,6 +610,7 @@ PRIVATE_DEPENDENCIES = \
 
 HEIMDAL_ROKEN_OBJ_FILES = \
 	$(heimdalsrcdir)/lib/roken/base64.o \
+	$(heimdalsrcdir)/lib/roken/ct.o \
 	$(heimdalsrcdir)/lib/roken/hex.o \
 	$(heimdalsrcdir)/lib/roken/bswap.o \
 	$(heimdalsrcdir)/lib/roken/dumpdata.o \
@@ -644,7 +647,7 @@ HEIMDAL_ROKEN_OBJ_FILES = \
 $(HEIMDAL_ROKEN_OBJ_FILES) $(HEIMDAL_ROKEN_OBJ_FILES:.o=.d):: $(heimdalsrcdir)/lib/roken/roken.h
 
 [SUBSYSTEM::HEIMDAL_ROKEN_H]
-CFLAGS =  -I$(heimdalbuildsrcdir) -I$(heimdalsrcdir)/lib/roken -DSOCKET_WRAPPER_DISABLE=1
+CFLAGS =  -I$(heimdalbuildsrcdir) -I$(heimdalsrcdir)/lib/roken -DSOCKET_WRAPPER_DISABLE=1 -DNSS_WRAPPER_DISABLE=1
 PRIVATE_DEPENDENCIES = \
 			HEIMDAL_ROKEN_PROGNAME_H \
 			HEIMDAL_ROKEN_CLOSEFROM_H \
@@ -691,6 +694,7 @@ asn1_compile_ASN1_OBJ_FILES = \
 	$(heimdalsrcdir)/lib/asn1/gen_glue.ho \
 	$(heimdalsrcdir)/lib/asn1/gen_length.ho \
 	$(heimdalsrcdir)/lib/asn1/gen_seq.ho \
+	$(heimdalsrcdir)/lib/asn1/gen_template.ho \
 	$(heimdalsrcdir)/lib/asn1/hash.ho \
 	$(heimdalsrcdir)/lib/asn1/symbol.ho \
 	$(heimdalsrcdir)/lib/asn1/asn1parse.ho \
@@ -703,11 +707,19 @@ asn1_compile_OBJ_FILES = \
 	$(asn1_compile_ASN1_OBJ_FILES) \
 	$(heimdalsrcdir)/lib/vers/print_version.ho
 
-$(asn1_compile_OBJ_FILES): CFLAGS+=-I$(heimdalbuildsrcdir) -I$(heimdalsrcdir)/lib/asn1 -I$(heimdalsrcdir)/lib/roken -DSOCKET_WRAPPER_DISABLE=1
+$(asn1_compile_OBJ_FILES): CFLAGS+=-I$(heimdalbuildsrcdir) -I$(heimdalsrcdir)/lib/asn1 -I$(heimdalsrcdir)/lib/roken -DSOCKET_WRAPPER_DISABLE=1 -DNSS_WRAPPER_DISABLE=1
+basics::  $(heimdalsrcdir)/lib/asn1/der-protos.h $(heimdalsrcdir)/lib/asn1/der-private.h
 
 $(eval $(call heimdal_proto_header_template, \
   $(heimdalsrcdir)/lib/asn1/der-protos.h, \
   -q -P comment -o, \
+  $(HEIMDAL_HEIM_ASN1_DER_OBJ_FILES:.o=.c), \
+  $(asn1_compile_ASN1_OBJ_FILES) $(asn1_compile_ASN1_OBJ_FILES:.ho=.hd) \
+))
+
+$(eval $(call heimdal_proto_header_template, \
+  $(heimdalsrcdir)/lib/asn1/der-private.h, \
+  -q -P comment -p, \
   $(HEIMDAL_HEIM_ASN1_DER_OBJ_FILES:.o=.c), \
   $(asn1_compile_ASN1_OBJ_FILES) $(asn1_compile_ASN1_OBJ_FILES:.ho=.hd) \
 ))
@@ -730,7 +742,7 @@ compile_et_OBJ_FILES = $(heimdalsrcdir)/lib/vers/print_version.ho \
 	$(heimdalsrcdir)/lib/com_err/lex.ho \
 	$(heimdalsrcdir)/lib/com_err/compile_et.ho
 
-$(compile_et_OBJ_FILES): CFLAGS+=-I$(heimdalbuildsrcdir) -I$(heimdalsrcdir)/lib/com_err -I$(heimdalsrcdir)/lib/roken -DSOCKET_WRAPPER_DISABLE=1
+$(compile_et_OBJ_FILES): CFLAGS+=-I$(heimdalbuildsrcdir) -I$(heimdalsrcdir)/lib/com_err -I$(heimdalsrcdir)/lib/roken -DSOCKET_WRAPPER_DISABLE=1 -DNSS_WRAPPER_DISABLE=1
 
 $(heimdalsrcdir)/lib/com_err/lex.c:: $(heimdalsrcdir)/lib/com_err/parse.c
 dist:: $(heimdalsrcdir)/lib/com_err/lex.c

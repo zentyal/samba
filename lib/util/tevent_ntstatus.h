@@ -23,10 +23,17 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "../libcli/util/ntstatus.h"
-#include "../tevent/tevent.h"
+#include <tevent.h>
 
 bool tevent_req_nterror(struct tevent_req *req, NTSTATUS status);
 bool tevent_req_is_nterror(struct tevent_req *req, NTSTATUS *pstatus);
 NTSTATUS tevent_req_simple_recv_ntstatus(struct tevent_req *req);
+
+/*
+ * Helper routine to pass the subreq_ntstatus to the req embedded in
+ * tevent_req_callback_data(subreq), which will be freed.
+ */
+void tevent_req_simple_finish_ntstatus(struct tevent_req *subreq,
+				       NTSTATUS subreq_status);
 
 #endif

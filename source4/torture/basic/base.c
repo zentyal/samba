@@ -27,9 +27,7 @@
 #include "system/filesys.h"
 #include "system/time.h"
 #include "libcli/resolve/resolve.h"
-#include "librpc/gen_ndr/ndr_nbt.h"
 #include "lib/events/events.h"
-#include "lib/cmdline/popt_common.h"
 #include "param/param.h"
 
 
@@ -43,7 +41,7 @@ static struct smbcli_state *open_nbt_connection(struct torture_context *tctx)
 	const char *host = torture_setting_string(tctx, "host", NULL);
 	struct smbcli_options options;
 
-	make_nbt_name_client(&calling, lp_netbios_name(tctx->lp_ctx));
+	make_nbt_name_client(&calling, lpcfg_netbios_name(tctx->lp_ctx));
 
 	nbt_choose_called_name(NULL, &called, host, NBT_NAME_SERVER);
 
@@ -53,12 +51,11 @@ static struct smbcli_state *open_nbt_connection(struct torture_context *tctx)
 		goto failed;
 	}
 
-	lp_smbcli_options(tctx->lp_ctx, &options);
+	lpcfg_smbcli_options(tctx->lp_ctx, &options);
 
-	if (!smbcli_socket_connect(cli, host, lp_smb_ports(tctx->lp_ctx), tctx->ev,
-				   lp_resolve_context(tctx->lp_ctx), &options, 
-				   lp_iconv_convenience(tctx->lp_ctx),
-                   lp_socket_options(tctx->lp_ctx))) {
+	if (!smbcli_socket_connect(cli, host, lpcfg_smb_ports(tctx->lp_ctx), tctx->ev,
+				   lpcfg_resolve_context(tctx->lp_ctx), &options,
+                   lpcfg_socket_options(tctx->lp_ctx))) {
 		torture_comment(tctx, "Failed to connect with %s\n", host);
 		goto failed;
 	}
@@ -362,7 +359,7 @@ static bool run_negprot_nowait(struct torture_context *tctx)
 
 	for (i=0;i<100;i++) {
 		struct smbcli_request *req;
-		req = smb_raw_negotiate_send(cli->transport, lp_unicode(tctx->lp_ctx), PROTOCOL_NT1);
+		req = smb_raw_negotiate_send(cli->transport, lpcfg_unicode(tctx->lp_ctx), PROTOCOL_NT1);
 		event_loop_once(cli->transport->socket->event.ctx);
 		if (req->state == SMBCLI_REQUEST_ERROR) {
 			if (i > 0) {
@@ -570,7 +567,7 @@ static bool rw_torture2(struct torture_context *tctx,
 
 	for (i=0;i<torture_numops;i++)
 	{
-		size_t buf_size = ((uint_t)random()%(sizeof(buf)-1))+ 1;
+		size_t buf_size = ((unsigned int)random()%(sizeof(buf)-1))+ 1;
 		if (i % 10 == 0) {
 			if (torture_setting_bool(tctx, "progress", true)) {
 				torture_comment(tctx, "%d\r", i); fflush(stdout);
@@ -932,7 +929,7 @@ error_test3:
 	smbcli_unlink(cli1->tree, fname);
 
 
-	torture_comment(tctx, "testing ctemp\n");
+	torture_comment(tctx, "Testing ctemp\n");
 	fnum1 = smbcli_ctemp(cli1->tree, "\\", &tmp_path);
 	if (fnum1 == -1) {
 		torture_comment(tctx, "ctemp failed (%s)\n", smbcli_errstr(cli1->tree));
@@ -952,13 +949,13 @@ error_test4:
 	smbcli_setatr(cli2->tree, fname, 0, 0);
 	smbcli_unlink(cli2->tree, fname);
 	
-	torture_comment(tctx, "TEST #1 testing 2 non-io opens (no delete)\n");
+	torture_comment(tctx, "Test #1 testing 2 non-io opens (no delete)\n");
 	
 	fnum1 = smbcli_nt_create_full(cli1->tree, fname, 0, SEC_FILE_READ_ATTRIBUTE, FILE_ATTRIBUTE_NORMAL,
 				   NTCREATEX_SHARE_ACCESS_NONE, NTCREATEX_DISP_OVERWRITE_IF, 0, 0);
 
 	if (fnum1 == -1) {
-		torture_comment(tctx, "test 1 open 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
+		torture_comment(tctx, "Test 1 open 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
 		CHECK_MAX_FAILURES(error_test10);
 		return false;
 	}
@@ -966,17 +963,17 @@ error_test4:
 	fnum2 = smbcli_nt_create_full(cli2->tree, fname, 0, SEC_FILE_READ_ATTRIBUTE, FILE_ATTRIBUTE_NORMAL,
 				   NTCREATEX_SHARE_ACCESS_NONE, NTCREATEX_DISP_OPEN_IF, 0, 0);
 	if (fnum2 == -1) {
-		torture_comment(tctx, "test 1 open 2 of %s failed (%s)\n", fname, smbcli_errstr(cli2->tree));
+		torture_comment(tctx, "Test 1 open 2 of %s failed (%s)\n", fname, smbcli_errstr(cli2->tree));
 		CHECK_MAX_FAILURES(error_test10);
 		return false;
 	}
 
 	if (NT_STATUS_IS_ERR(smbcli_close(cli1->tree, fnum1))) {
-		torture_comment(tctx, "test 1 close 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
+		torture_comment(tctx, "Test 1 close 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
 		return false;
 	}
 	if (NT_STATUS_IS_ERR(smbcli_close(cli2->tree, fnum2))) {
-		torture_comment(tctx, "test 1 close 2 of %s failed (%s)\n", fname, smbcli_errstr(cli2->tree));
+		torture_comment(tctx, "Test 1 close 2 of %s failed (%s)\n", fname, smbcli_errstr(cli2->tree));
 		return false;
 	}
 
@@ -984,13 +981,13 @@ error_test4:
 error_test10:
 	smbcli_unlink(cli1->tree, fname);
 
-	torture_comment(tctx, "TEST #2 testing 2 non-io opens (first with delete)\n");
+	torture_comment(tctx, "Test #2 testing 2 non-io opens (first with delete)\n");
 	
 	fnum1 = smbcli_nt_create_full(cli1->tree, fname, 0, SEC_STD_DELETE|SEC_FILE_READ_ATTRIBUTE, FILE_ATTRIBUTE_NORMAL,
 				   NTCREATEX_SHARE_ACCESS_NONE, NTCREATEX_DISP_OVERWRITE_IF, 0, 0);
 
 	if (fnum1 == -1) {
-		torture_comment(tctx, "test 2 open 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
+		torture_comment(tctx, "Test 2 open 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
 		CHECK_MAX_FAILURES(error_test20);
 		return false;
 	}
@@ -999,17 +996,17 @@ error_test10:
 				   NTCREATEX_SHARE_ACCESS_NONE, NTCREATEX_DISP_OPEN_IF, 0, 0);
 
 	if (fnum2 == -1) {
-		torture_comment(tctx, "test 2 open 2 of %s failed (%s)\n", fname, smbcli_errstr(cli2->tree));
+		torture_comment(tctx, "Test 2 open 2 of %s failed (%s)\n", fname, smbcli_errstr(cli2->tree));
 		CHECK_MAX_FAILURES(error_test20);
 		return false;
 	}
 
 	if (NT_STATUS_IS_ERR(smbcli_close(cli1->tree, fnum1))) {
-		torture_comment(tctx, "test 1 close 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
+		torture_comment(tctx, "Test 1 close 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
 		return false;
 	}
 	if (NT_STATUS_IS_ERR(smbcli_close(cli2->tree, fnum2))) {
-		torture_comment(tctx, "test 1 close 2 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
+		torture_comment(tctx, "Test 1 close 2 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
 		return false;
 	}
 
@@ -1017,13 +1014,13 @@ error_test10:
 error_test20:
 	smbcli_unlink(cli1->tree, fname);
 
-	torture_comment(tctx, "TEST #3 testing 2 non-io opens (second with delete)\n");
+	torture_comment(tctx, "Test #3 testing 2 non-io opens (second with delete)\n");
 	
 	fnum1 = smbcli_nt_create_full(cli1->tree, fname, 0, SEC_FILE_READ_ATTRIBUTE, FILE_ATTRIBUTE_NORMAL,
 				   NTCREATEX_SHARE_ACCESS_NONE, NTCREATEX_DISP_OVERWRITE_IF, 0, 0);
 
 	if (fnum1 == -1) {
-		torture_comment(tctx, "test 3 open 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
+		torture_comment(tctx, "Test 3 open 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
 		CHECK_MAX_FAILURES(error_test30);
 		return false;
 	}
@@ -1032,17 +1029,17 @@ error_test20:
 				   NTCREATEX_SHARE_ACCESS_NONE, NTCREATEX_DISP_OPEN_IF, 0, 0);
 
 	if (fnum2 == -1) {
-		torture_comment(tctx, "test 3 open 2 of %s failed (%s)\n", fname, smbcli_errstr(cli2->tree));
+		torture_comment(tctx, "Test 3 open 2 of %s failed (%s)\n", fname, smbcli_errstr(cli2->tree));
 		CHECK_MAX_FAILURES(error_test30);
 		return false;
 	}
 
 	if (NT_STATUS_IS_ERR(smbcli_close(cli1->tree, fnum1))) {
-		torture_comment(tctx, "test 3 close 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
+		torture_comment(tctx, "Test 3 close 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
 		return false;
 	}
 	if (NT_STATUS_IS_ERR(smbcli_close(cli2->tree, fnum2))) {
-		torture_comment(tctx, "test 3 close 2 of %s failed (%s)\n", fname, smbcli_errstr(cli2->tree));
+		torture_comment(tctx, "Test 3 close 2 of %s failed (%s)\n", fname, smbcli_errstr(cli2->tree));
 		return false;
 	}
 
@@ -1050,13 +1047,13 @@ error_test20:
 error_test30:
 	smbcli_unlink(cli1->tree, fname);
 
-	torture_comment(tctx, "TEST #4 testing 2 non-io opens (both with delete)\n");
+	torture_comment(tctx, "Test #4 testing 2 non-io opens (both with delete)\n");
 	
 	fnum1 = smbcli_nt_create_full(cli1->tree, fname, 0, SEC_STD_DELETE|SEC_FILE_READ_ATTRIBUTE, FILE_ATTRIBUTE_NORMAL,
 				   NTCREATEX_SHARE_ACCESS_NONE, NTCREATEX_DISP_OVERWRITE_IF, 0, 0);
 
 	if (fnum1 == -1) {
-		torture_comment(tctx, "test 4 open 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
+		torture_comment(tctx, "Test 4 open 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
 		CHECK_MAX_FAILURES(error_test40);
 		return false;
 	}
@@ -1065,15 +1062,15 @@ error_test30:
 				   NTCREATEX_SHARE_ACCESS_NONE, NTCREATEX_DISP_OPEN_IF, 0, 0);
 
 	if (fnum2 != -1) {
-		torture_comment(tctx, "test 4 open 2 of %s SUCCEEDED - should have failed (%s)\n", fname, smbcli_errstr(cli2->tree));
+		torture_comment(tctx, "Test 4 open 2 of %s SUCCEEDED - should have failed (%s)\n", fname, smbcli_errstr(cli2->tree));
 		CHECK_MAX_FAILURES(error_test40);
 		return false;
 	}
 
-	torture_comment(tctx, "test 4 open 2 of %s gave %s (correct error should be %s)\n", fname, smbcli_errstr(cli2->tree), "sharing violation");
+	torture_comment(tctx, "Test 4 open 2 of %s gave %s (correct error should be %s)\n", fname, smbcli_errstr(cli2->tree), "sharing violation");
 
 	if (NT_STATUS_IS_ERR(smbcli_close(cli1->tree, fnum1))) {
-		torture_comment(tctx, "test 4 close 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
+		torture_comment(tctx, "Test 4 close 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
 		return false;
 	}
 
@@ -1081,13 +1078,13 @@ error_test30:
 error_test40:
 	smbcli_unlink(cli1->tree, fname);
 
-	torture_comment(tctx, "TEST #5 testing 2 non-io opens (both with delete - both with file share delete)\n");
+	torture_comment(tctx, "Test #5 testing 2 non-io opens (both with delete - both with file share delete)\n");
 	
 	fnum1 = smbcli_nt_create_full(cli1->tree, fname, 0, SEC_STD_DELETE|SEC_FILE_READ_ATTRIBUTE, FILE_ATTRIBUTE_NORMAL,
 				   NTCREATEX_SHARE_ACCESS_DELETE, NTCREATEX_DISP_OVERWRITE_IF, 0, 0);
 
 	if (fnum1 == -1) {
-		torture_comment(tctx, "test 5 open 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
+		torture_comment(tctx, "Test 5 open 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
 		CHECK_MAX_FAILURES(error_test50);
 		return false;
 	}
@@ -1096,24 +1093,24 @@ error_test40:
 				   NTCREATEX_SHARE_ACCESS_DELETE, NTCREATEX_DISP_OPEN_IF, 0, 0);
 
 	if (fnum2 == -1) {
-		torture_comment(tctx, "test 5 open 2 of %s failed (%s)\n", fname, smbcli_errstr(cli2->tree));
+		torture_comment(tctx, "Test 5 open 2 of %s failed (%s)\n", fname, smbcli_errstr(cli2->tree));
 		CHECK_MAX_FAILURES(error_test50);
 		return false;
 	}
 
 	if (NT_STATUS_IS_ERR(smbcli_close(cli1->tree, fnum1))) {
-		torture_comment(tctx, "test 5 close 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
+		torture_comment(tctx, "Test 5 close 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
 		return false;
 	}
 
 	if (NT_STATUS_IS_ERR(smbcli_close(cli2->tree, fnum2))) {
-		torture_comment(tctx, "test 5 close 2 of %s failed (%s)\n", fname, smbcli_errstr(cli2->tree));
+		torture_comment(tctx, "Test 5 close 2 of %s failed (%s)\n", fname, smbcli_errstr(cli2->tree));
 		return false;
 	}
 
 	torture_comment(tctx, "non-io open test #5 passed.\n");
 error_test50:
-	torture_comment(tctx, "TEST #6 testing 1 non-io open, one io open\n");
+	torture_comment(tctx, "Test #6 testing 1 non-io open, one io open\n");
 	
 	smbcli_unlink(cli1->tree, fname);
 
@@ -1121,7 +1118,7 @@ error_test50:
 				   NTCREATEX_SHARE_ACCESS_NONE, NTCREATEX_DISP_OVERWRITE_IF, 0, 0);
 
 	if (fnum1 == -1) {
-		torture_comment(tctx, "test 6 open 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
+		torture_comment(tctx, "Test 6 open 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
 		CHECK_MAX_FAILURES(error_test60);
 		return false;
 	}
@@ -1130,24 +1127,24 @@ error_test50:
 				   NTCREATEX_SHARE_ACCESS_READ, NTCREATEX_DISP_OPEN_IF, 0, 0);
 
 	if (fnum2 == -1) {
-		torture_comment(tctx, "test 6 open 2 of %s failed (%s)\n", fname, smbcli_errstr(cli2->tree));
+		torture_comment(tctx, "Test 6 open 2 of %s failed (%s)\n", fname, smbcli_errstr(cli2->tree));
 		CHECK_MAX_FAILURES(error_test60);
 		return false;
 	}
 
 	if (NT_STATUS_IS_ERR(smbcli_close(cli1->tree, fnum1))) {
-		torture_comment(tctx, "test 6 close 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
+		torture_comment(tctx, "Test 6 close 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
 		return false;
 	}
 
 	if (NT_STATUS_IS_ERR(smbcli_close(cli2->tree, fnum2))) {
-		torture_comment(tctx, "test 6 close 2 of %s failed (%s)\n", fname, smbcli_errstr(cli2->tree));
+		torture_comment(tctx, "Test 6 close 2 of %s failed (%s)\n", fname, smbcli_errstr(cli2->tree));
 		return false;
 	}
 
 	torture_comment(tctx, "non-io open test #6 passed.\n");
 error_test60:
-	torture_comment(tctx, "TEST #7 testing 1 non-io open, one io open with delete\n");
+	torture_comment(tctx, "Test #7 testing 1 non-io open, one io open with delete\n");
 
 	smbcli_unlink(cli1->tree, fname);
 
@@ -1155,7 +1152,7 @@ error_test60:
 				   NTCREATEX_SHARE_ACCESS_NONE, NTCREATEX_DISP_OVERWRITE_IF, 0, 0);
 
 	if (fnum1 == -1) {
-		torture_comment(tctx, "test 7 open 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
+		torture_comment(tctx, "Test 7 open 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
 		CHECK_MAX_FAILURES(error_test70);
 		return false;
 	}
@@ -1164,15 +1161,15 @@ error_test60:
 				   NTCREATEX_SHARE_ACCESS_READ|NTCREATEX_SHARE_ACCESS_DELETE, NTCREATEX_DISP_OPEN_IF, 0, 0);
 
 	if (fnum2 != -1) {
-		torture_comment(tctx, "test 7 open 2 of %s SUCCEEDED - should have failed (%s)\n", fname, smbcli_errstr(cli2->tree));
+		torture_comment(tctx, "Test 7 open 2 of %s SUCCEEDED - should have failed (%s)\n", fname, smbcli_errstr(cli2->tree));
 		CHECK_MAX_FAILURES(error_test70);
 		return false;
 	}
 
-	torture_comment(tctx, "test 7 open 2 of %s gave %s (correct error should be %s)\n", fname, smbcli_errstr(cli2->tree), "sharing violation");
+	torture_comment(tctx, "Test 7 open 2 of %s gave %s (correct error should be %s)\n", fname, smbcli_errstr(cli2->tree), "sharing violation");
 
 	if (NT_STATUS_IS_ERR(smbcli_close(cli1->tree, fnum1))) {
-		torture_comment(tctx, "test 7 close 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
+		torture_comment(tctx, "Test 7 close 1 of %s failed (%s)\n", fname, smbcli_errstr(cli1->tree));
 		return false;
 	}
 
@@ -1180,7 +1177,7 @@ error_test60:
 
 error_test70:
 
-	torture_comment(tctx, "TEST #8 testing one normal open, followed by lock, followed by open with truncate\n");
+	torture_comment(tctx, "Test #8 testing one normal open, followed by lock, followed by open with truncate\n");
 
 	smbcli_unlink(cli1->tree, fname);
 
@@ -1456,9 +1453,9 @@ static bool torture_samba3_errorpaths(struct torture_context *tctx)
 	union smb_open io;
 	NTSTATUS status;
 
-	nt_status_support = lp_nt_status_support(tctx->lp_ctx);
+	nt_status_support = lpcfg_nt_status_support(tctx->lp_ctx);
 
-	if (!lp_set_cmdline(tctx->lp_ctx, "nt status support", "yes")) {
+	if (!lpcfg_set_cmdline(tctx->lp_ctx, "nt status support", "yes")) {
 		torture_comment(tctx, "Could not set 'nt status support = yes'\n");
 		goto fail;
 	}
@@ -1467,7 +1464,7 @@ static bool torture_samba3_errorpaths(struct torture_context *tctx)
 		goto fail;
 	}
 
-	if (!lp_set_cmdline(tctx->lp_ctx, "nt status support", "no")) {
+	if (!lpcfg_set_cmdline(tctx->lp_ctx, "nt status support", "no")) {
 		torture_comment(tctx, "Could not set 'nt status support = yes'\n");
 		goto fail;
 	}
@@ -1476,7 +1473,7 @@ static bool torture_samba3_errorpaths(struct torture_context *tctx)
 		goto fail;
 	}
 
-	if (!lp_set_cmdline(tctx->lp_ctx, "nt status support",
+	if (!lpcfg_set_cmdline(tctx->lp_ctx, "nt status support",
 			    nt_status_support ? "yes":"no")) {
 		torture_comment(tctx, "Could not reset 'nt status support = yes'");
 		goto fail;
@@ -1493,7 +1490,7 @@ static bool torture_samba3_errorpaths(struct torture_context *tctx)
 
 	io.generic.level = RAW_OPEN_NTCREATEX;
 	io.ntcreatex.in.flags = NTCREATEX_FLAGS_EXTENDED;
-	io.ntcreatex.in.root_fid = 0;
+	io.ntcreatex.in.root_fid.fnum = 0;
 	io.ntcreatex.in.access_mask = SEC_RIGHTS_FILE_ALL;
 	io.ntcreatex.in.alloc_size = 1024*1024;
 	io.ntcreatex.in.file_attr = FILE_ATTRIBUTE_DIRECTORY;
@@ -1627,7 +1624,7 @@ static bool torture_samba3_errorpaths(struct torture_context *tctx)
 		smbcli_close(cli_nt->tree, fnum);
 
 		io.generic.level = RAW_OPEN_NTCREATEX;
-		io.ntcreatex.in.root_fid = 0;
+		io.ntcreatex.in.root_fid.fnum = 0;
 		io.ntcreatex.in.access_mask = SEC_RIGHTS_FILE_ALL;
 		io.ntcreatex.in.alloc_size = 0;
 		io.ntcreatex.in.file_attr = FILE_ATTRIBUTE_DIRECTORY;
@@ -1773,6 +1770,7 @@ NTSTATUS torture_base_init(void)
 	torture_suite_add_1smb_test(suite, "MAXIMUM_ALLOWED", torture_maximum_allowed);
 
 	torture_suite_add_simple_test(suite, "BENCH-HOLDCON", torture_holdcon);
+	torture_suite_add_1smb_test(suite, "BENCH-HOLDOPEN", torture_holdopen);
 	torture_suite_add_simple_test(suite, "BENCH-READWRITE", run_benchrw);
 	torture_suite_add_smb_multi_test(suite, "BENCH-TORTURE", run_torture);
 	torture_suite_add_1smb_test(suite, "SCAN-PIPE_NUMBER", run_pipe_number);

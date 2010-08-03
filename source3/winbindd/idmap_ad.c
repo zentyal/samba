@@ -27,6 +27,9 @@
 
 #include "includes.h"
 #include "winbindd.h"
+#include "../libds/common/flags.h"
+#include "libads/ldap_schema.h"
+#include "nss_info.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_IDMAP
@@ -267,7 +270,7 @@ static struct id_map *find_map_by_id(struct id_map **maps, enum id_type type, ui
  Search up to IDMAP_AD_MAX_IDS entries in maps for a match
  ***********************************************************************/
 
-static struct id_map *find_map_by_sid(struct id_map **maps, DOM_SID *sid)
+static struct id_map *find_map_by_sid(struct id_map **maps, struct dom_sid *sid)
 {
 	int i;
 
@@ -400,7 +403,7 @@ again:
 
 	entry = res;
 	for (i = 0; (i < count) && entry; i++) {
-		DOM_SID sid;
+		struct dom_sid sid;
 		enum id_type type;
 		struct id_map *map;
 		uint32_t id;
@@ -593,7 +596,7 @@ again:
 
 	entry = res;	
 	for (i = 0; (i < count) && entry; i++) {
-		DOM_SID sid;
+		struct dom_sid sid;
 		enum id_type type;
 		struct id_map *map;
 		uint32_t id;
@@ -818,7 +821,7 @@ static NTSTATUS nss_rfc2307_init( struct nss_domain_entry *e )
  ***********************************************************************/
 
 static NTSTATUS nss_ad_get_info( struct nss_domain_entry *e, 
-				  const DOM_SID *sid, 
+				  const struct dom_sid *sid,
 				  TALLOC_CTX *mem_ctx,
 				  ADS_STRUCT *ads, 
 				  LDAPMessage *msg,

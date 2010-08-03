@@ -25,6 +25,7 @@
 
 #include "replace.h"
 #include "libwbclient.h"
+#include "../winbind_client.h"
 
 /* Authenticate a username/password pair */
 wbcErr wbcAuthenticateUser(const char *username,
@@ -46,8 +47,36 @@ done:
 	return wbc_status;
 }
 
-static wbcErr wbc_create_auth_info(TALLOC_CTX *mem_ctx,
-				   const struct winbindd_response *resp,
+static bool sid_attr_compose(struct wbcSidWithAttr *s,
+			     const struct wbcDomainSid *d,
+			     uint32_t rid, uint32_t attr)
+{
+	if (d->num_auths >= WBC_MAXSUBAUTHS) {
+		return false;
+	}
+	s->sid = *d;
+	s->sid.sub_auths[s->sid.num_auths++] = rid;
+	s->attributes = attr;
+	return true;
+}
+
+static void wbcAuthUserInfoDestructor(void *ptr)
+{
+	struct wbcAuthUserInfo *i = (struct wbcAuthUserInfo *)ptr;
+	free(i->account_name);
+	free(i->user_principal);
+	free(i->full_name);
+	free(i->domain_name);
+	free(i->dns_domain_name);
+	free(i->logon_server);
+	free(i->logon_script);
+	free(i->profile_path);
+	free(i->home_directory);
+	free(i->home_drive);
+	free(i->sids);
+}
+
+static wbcErr wbc_create_auth_info(const struct winbindd_response *resp,
 				   struct wbcAuthUserInfo **_i)
 {
 	wbcErr wbc_status = WBC_ERR_SUCCESS;
@@ -57,17 +86,19 @@ static wbcErr wbc_create_auth_info(TALLOC_CTX *mem_ctx,
 	uint32_t sn = 0;
 	uint32_t j;
 
-	i = talloc(mem_ctx, struct wbcAuthUserInfo);
+	i = (struct wbcAuthUserInfo *)wbcAllocateMemory(
+		sizeof(struct wbcAuthUserInfo), 1,
+		wbcAuthUserInfoDestructor);
 	BAIL_ON_PTR_ERROR(i, wbc_status);
 
 	i->user_flags	= resp->data.auth.info3.user_flgs;
 
-	i->account_name	= talloc_strdup(i, resp->data.auth.info3.user_name);
+	i->account_name	= strdup(resp->data.auth.info3.user_name);
 	BAIL_ON_PTR_ERROR(i->account_name, wbc_status);
 	i->user_principal= NULL;
-	i->full_name	= talloc_strdup(i, resp->data.auth.info3.full_name);
+	i->full_name	= strdup(resp->data.auth.info3.full_name);
 	BAIL_ON_PTR_ERROR(i->full_name, wbc_status);
-	i->domain_name	= talloc_strdup(i, resp->data.auth.info3.logon_dom);
+	i->domain_name	= strdup(resp->data.auth.info3.logon_dom);
 	BAIL_ON_PTR_ERROR(i->domain_name, wbc_status);
 	i->dns_domain_name= NULL;
 
@@ -89,47 +120,41 @@ static wbcErr wbc_create_auth_info(TALLOC_CTX *mem_ctx,
 	i->pass_can_change_time	= resp->data.auth.info3.pass_can_change_time;
 	i->pass_must_change_time= resp->data.auth.info3.pass_must_change_time;
 
-	i->logon_server	= talloc_strdup(i, resp->data.auth.info3.logon_srv);
+	i->logon_server	= strdup(resp->data.auth.info3.logon_srv);
 	BAIL_ON_PTR_ERROR(i->logon_server, wbc_status);
-	i->logon_script	= talloc_strdup(i, resp->data.auth.info3.logon_script);
+	i->logon_script	= strdup(resp->data.auth.info3.logon_script);
 	BAIL_ON_PTR_ERROR(i->logon_script, wbc_status);
-	i->profile_path	= talloc_strdup(i, resp->data.auth.info3.profile_path);
+	i->profile_path	= strdup(resp->data.auth.info3.profile_path);
 	BAIL_ON_PTR_ERROR(i->profile_path, wbc_status);
-	i->home_directory= talloc_strdup(i, resp->data.auth.info3.home_dir);
+	i->home_directory= strdup(resp->data.auth.info3.home_dir);
 	BAIL_ON_PTR_ERROR(i->home_directory, wbc_status);
-	i->home_drive	= talloc_strdup(i, resp->data.auth.info3.dir_drive);
+	i->home_drive	= strdup(resp->data.auth.info3.dir_drive);
 	BAIL_ON_PTR_ERROR(i->home_drive, wbc_status);
 
 	i->num_sids	= 2;
 	i->num_sids 	+= resp->data.auth.info3.num_groups;
 	i->num_sids	+= resp->data.auth.info3.num_other_sids;
 
-	i->sids	= talloc_array(i, struct wbcSidWithAttr, i->num_sids);
+	i->sids	= (struct wbcSidWithAttr *)calloc(
+		sizeof(struct wbcSidWithAttr), i->num_sids);
 	BAIL_ON_PTR_ERROR(i->sids, wbc_status);
 
 	wbc_status = wbcStringToSid(resp->data.auth.info3.dom_sid,
 				    &domain_sid);
 	BAIL_ON_WBC_ERROR(wbc_status);
 
-#define _SID_COMPOSE(s, d, r, a) { \
-	(s).sid = d; \
-	if ((s).sid.num_auths < WBC_MAXSUBAUTHS) { \
-		(s).sid.sub_auths[(s).sid.num_auths++] = r; \
-	} else { \
-		wbc_status = WBC_ERR_INVALID_SID; \
-		BAIL_ON_WBC_ERROR(wbc_status); \
-	} \
-	(s).attributes = a; \
-} while (0)
-
 	sn = 0;
-	_SID_COMPOSE(i->sids[sn], domain_sid,
-		     resp->data.auth.info3.user_rid,
-		     0);
+	if (!sid_attr_compose(&i->sids[sn], &domain_sid,
+			      resp->data.auth.info3.user_rid, 0)) {
+		wbc_status = WBC_ERR_INVALID_SID;
+		goto done;
+	}
 	sn++;
-	_SID_COMPOSE(i->sids[sn], domain_sid,
-		     resp->data.auth.info3.group_rid,
-		     0);
+	if (!sid_attr_compose(&i->sids[sn], &domain_sid,
+			      resp->data.auth.info3.group_rid, 0)) {
+		wbc_status = WBC_ERR_INVALID_SID;
+		goto done;
+	}
 	sn++;
 
 	p = (char *)resp->extra_data.data;
@@ -157,8 +182,11 @@ static wbcErr wbc_create_auth_info(TALLOC_CTX *mem_ctx,
 			BAIL_ON_WBC_ERROR(wbc_status);
 		}
 
-		_SID_COMPOSE(i->sids[sn], domain_sid,
-			     rid, attrs);
+		if (!sid_attr_compose(&i->sids[sn], &domain_sid,
+				      rid, attrs)) {
+			wbc_status = WBC_ERR_INVALID_SID;
+			goto done;
+		}
 		sn++;
 	}
 
@@ -202,44 +230,52 @@ static wbcErr wbc_create_auth_info(TALLOC_CTX *mem_ctx,
 	*_i = i;
 	i = NULL;
 done:
-	talloc_free(i);
+	wbcFreeMemory(i);
 	return wbc_status;
 }
 
-static wbcErr wbc_create_error_info(TALLOC_CTX *mem_ctx,
-				  const struct winbindd_response *resp,
-				  struct wbcAuthErrorInfo **_e)
+static void wbcAuthErrorInfoDestructor(void *ptr)
+{
+	struct wbcAuthErrorInfo *e = (struct wbcAuthErrorInfo *)ptr;
+	free(e->nt_string);
+	free(e->display_string);
+}
+
+static wbcErr wbc_create_error_info(const struct winbindd_response *resp,
+				    struct wbcAuthErrorInfo **_e)
 {
 	wbcErr wbc_status = WBC_ERR_SUCCESS;
 	struct wbcAuthErrorInfo *e;
 
-	e = talloc(mem_ctx, struct wbcAuthErrorInfo);
+	e = (struct wbcAuthErrorInfo *)wbcAllocateMemory(
+		sizeof(struct wbcAuthErrorInfo), 1,
+		wbcAuthErrorInfoDestructor);
 	BAIL_ON_PTR_ERROR(e, wbc_status);
 
 	e->nt_status = resp->data.auth.nt_status;
 	e->pam_error = resp->data.auth.pam_error;
-	e->nt_string = talloc_strdup(e, resp->data.auth.nt_status_string);
+	e->nt_string = strdup(resp->data.auth.nt_status_string);
 	BAIL_ON_PTR_ERROR(e->nt_string, wbc_status);
 
-	e->display_string = talloc_strdup(e, resp->data.auth.error_string);
+	e->display_string = strdup(resp->data.auth.error_string);
 	BAIL_ON_PTR_ERROR(e->display_string, wbc_status);
 
 	*_e = e;
 	e = NULL;
 
 done:
-	talloc_free(e);
+	wbcFreeMemory(e);
 	return wbc_status;
 }
 
-static wbcErr wbc_create_password_policy_info(TALLOC_CTX *mem_ctx,
-					      const struct winbindd_response *resp,
+static wbcErr wbc_create_password_policy_info(const struct winbindd_response *resp,
 					      struct wbcUserPasswordPolicyInfo **_i)
 {
 	wbcErr wbc_status = WBC_ERR_SUCCESS;
 	struct wbcUserPasswordPolicyInfo *i;
 
-	i = talloc(mem_ctx, struct wbcUserPasswordPolicyInfo);
+	i = (struct wbcUserPasswordPolicyInfo *)wbcAllocateMemory(
+		sizeof(struct wbcUserPasswordPolicyInfo), 1, NULL);
 	BAIL_ON_PTR_ERROR(i, wbc_status);
 
 	i->min_passwordage	= resp->data.auth.policy.min_passwordage;
@@ -252,21 +288,29 @@ static wbcErr wbc_create_password_policy_info(TALLOC_CTX *mem_ctx,
 	i = NULL;
 
 done:
-	talloc_free(i);
+	wbcFreeMemory(i);
 	return wbc_status;
 }
 
-static wbcErr wbc_create_logon_info(TALLOC_CTX *mem_ctx,
-				    struct winbindd_response *resp,
+static void wbcLogonUserInfoDestructor(void *ptr)
+{
+	struct wbcLogonUserInfo *i = (struct wbcLogonUserInfo *)ptr;
+	wbcFreeMemory(i->info);
+	wbcFreeMemory(i->blobs);
+}
+
+static wbcErr wbc_create_logon_info(struct winbindd_response *resp,
 				    struct wbcLogonUserInfo **_i)
 {
 	wbcErr wbc_status = WBC_ERR_SUCCESS;
 	struct wbcLogonUserInfo *i;
 
-	i = talloc_zero(mem_ctx, struct wbcLogonUserInfo);
+	i = (struct wbcLogonUserInfo *)wbcAllocateMemory(
+		sizeof(struct wbcLogonUserInfo), 1,
+		wbcLogonUserInfoDestructor);
 	BAIL_ON_PTR_ERROR(i, wbc_status);
 
-	wbc_status = wbc_create_auth_info(i, resp, &i->info);
+	wbc_status = wbc_create_auth_info(resp, &i->info);
 	BAIL_ON_WBC_ERROR(wbc_status);
 
 	if (resp->data.auth.krb5ccname &&
@@ -294,13 +338,10 @@ static wbcErr wbc_create_logon_info(TALLOC_CTX *mem_ctx,
 	*_i = i;
 	i = NULL;
 done:
-	if (!WBC_ERROR_IS_OK(wbc_status) && i) {
-		wbcFreeMemory(i->blobs);
-	}
-
-	talloc_free(i);
+	wbcFreeMemory(i);
 	return wbc_status;
 }
+
 
 /* Authenticate with more detailed information */
 wbcErr wbcAuthenticateUserEx(const struct wbcAuthUserParams *params,
@@ -436,7 +477,8 @@ wbcErr wbcAuthenticateUserEx(const struct wbcAuthUserParams *params,
 		if (params->password.response.nt_length > sizeof(request.data.auth_crap.nt_resp)) {
 			request.flags |= WBFLAG_BIG_NTLMV2_BLOB;
 			request.extra_len = params->password.response.nt_length;
-			request.extra_data.data = talloc_zero_array(NULL, char, request.extra_len);
+			request.extra_data.data = (char *)malloc(
+				request.extra_len);
 			if (request.extra_data.data == NULL) {
 				wbc_status = WBC_ERR_NO_MEMORY;
 				BAIL_ON_WBC_ERROR(wbc_status);
@@ -470,8 +512,7 @@ wbcErr wbcAuthenticateUserEx(const struct wbcAuthUserParams *params,
 	}
 	if (response.data.auth.nt_status != 0) {
 		if (error) {
-			wbc_status = wbc_create_error_info(NULL,
-							   &response,
+			wbc_status = wbc_create_error_info(&response,
 							   error);
 			BAIL_ON_WBC_ERROR(wbc_status);
 		}
@@ -482,17 +523,14 @@ wbcErr wbcAuthenticateUserEx(const struct wbcAuthUserParams *params,
 	BAIL_ON_WBC_ERROR(wbc_status);
 
 	if (info) {
-		wbc_status = wbc_create_auth_info(NULL,
-						  &response,
-						  info);
+		wbc_status = wbc_create_auth_info(&response, info);
 		BAIL_ON_WBC_ERROR(wbc_status);
 	}
 
 done:
-	if (response.extra_data.data)
-		free(response.extra_data.data);
+	winbindd_free_response(&response);
 
-	talloc_free(request.extra_data.data);
+	free(request.extra_data.data);
 
 	return wbc_status;
 }
@@ -519,8 +557,7 @@ wbcErr wbcCheckTrustCredentials(const char *domain,
 					    &request, &response);
 	if (response.data.auth.nt_status != 0) {
 		if (error) {
-			wbc_status = wbc_create_error_info(NULL,
-							   &response,
+			wbc_status = wbc_create_error_info(&response,
 							   error);
 			BAIL_ON_WBC_ERROR(wbc_status);
 		}
@@ -556,8 +593,7 @@ wbcErr wbcChangeTrustCredentials(const char *domain,
 					&request, &response);
 	if (response.data.auth.nt_status != 0) {
 		if (error) {
-			wbc_status = wbc_create_error_info(NULL,
-							   &response,
+			wbc_status = wbc_create_error_info(&response,
 							   error);
 			BAIL_ON_WBC_ERROR(wbc_status);
 		}
@@ -600,8 +636,7 @@ wbcErr wbcPingDc(const char *domain, struct wbcAuthErrorInfo **error)
 					&response);
 	if (response.data.auth.nt_status != 0) {
 		if (error) {
-			wbc_status = wbc_create_error_info(NULL,
-							   &response,
+			wbc_status = wbc_create_error_info(&response,
 							   error);
 			BAIL_ON_WBC_ERROR(wbc_status);
 		}
@@ -687,8 +722,7 @@ wbcErr wbcLogoffUserEx(const struct wbcLogoffUserParams *params,
 	/* Take the response above and return it to the caller */
 	if (response.data.auth.nt_status != 0) {
 		if (error) {
-			wbc_status = wbc_create_error_info(NULL,
-							   &response,
+			wbc_status = wbc_create_error_info(&response,
 							   error);
 			BAIL_ON_WBC_ERROR(wbc_status);
 		}
@@ -757,7 +791,7 @@ wbcErr wbcChangeUserPasswordEx(const struct wbcChangePasswordParams *params,
 
 	if (!params->account_name) {
 		wbc_status = WBC_ERR_INVALID_PARAM;
-		BAIL_ON_WBC_ERROR(wbc_status);
+		goto done;
 	}
 
 	if (error) {
@@ -781,7 +815,7 @@ wbcErr wbcChangeUserPasswordEx(const struct wbcChangePasswordParams *params,
 
 		if (!params->account_name) {
 			wbc_status = WBC_ERR_INVALID_PARAM;
-			BAIL_ON_WBC_ERROR(wbc_status);
+			goto done;
 		}
 
 		strncpy(request.data.chauthtok.user, params->account_name,
@@ -805,55 +839,55 @@ wbcErr wbcChangeUserPasswordEx(const struct wbcChangePasswordParams *params,
 
 		if (!params->account_name || !params->domain_name) {
 			wbc_status = WBC_ERR_INVALID_PARAM;
-			BAIL_ON_WBC_ERROR(wbc_status);
+			goto done;
 		}
 
 		if (params->old_password.response.old_lm_hash_enc_length &&
 		    !params->old_password.response.old_lm_hash_enc_data) {
 			wbc_status = WBC_ERR_INVALID_PARAM;
-			BAIL_ON_WBC_ERROR(wbc_status);
+			goto done;
 		}
 
 		if (params->old_password.response.old_lm_hash_enc_length == 0 &&
 		    params->old_password.response.old_lm_hash_enc_data) {
 			wbc_status = WBC_ERR_INVALID_PARAM;
-			BAIL_ON_WBC_ERROR(wbc_status);
+			goto done;
 		}
 
 		if (params->old_password.response.old_nt_hash_enc_length &&
 		    !params->old_password.response.old_nt_hash_enc_data) {
 			wbc_status = WBC_ERR_INVALID_PARAM;
-			BAIL_ON_WBC_ERROR(wbc_status);
+			goto done;
 		}
 
 		if (params->old_password.response.old_nt_hash_enc_length == 0 &&
 		    params->old_password.response.old_nt_hash_enc_data) {
 			wbc_status = WBC_ERR_INVALID_PARAM;
-			BAIL_ON_WBC_ERROR(wbc_status);
+			goto done;
 		}
 
 		if (params->new_password.response.lm_length &&
 		    !params->new_password.response.lm_data) {
 			wbc_status = WBC_ERR_INVALID_PARAM;
-			BAIL_ON_WBC_ERROR(wbc_status);
+			goto done;
 		}
 
 		if (params->new_password.response.lm_length == 0 &&
 		    params->new_password.response.lm_data) {
 			wbc_status = WBC_ERR_INVALID_PARAM;
-			BAIL_ON_WBC_ERROR(wbc_status);
+			goto done;
 		}
 
 		if (params->new_password.response.nt_length &&
 		    !params->new_password.response.nt_data) {
 			wbc_status = WBC_ERR_INVALID_PARAM;
-			BAIL_ON_WBC_ERROR(wbc_status);
+			goto done;
 		}
 
 		if (params->new_password.response.nt_length == 0 &&
 		    params->new_password.response.nt_data) {
 			wbc_status = WBC_ERR_INVALID_PARAM;
-			BAIL_ON_WBC_ERROR(wbc_status);
+			goto done;
 		}
 
 		strncpy(request.data.chng_pswd_auth_crap.user,
@@ -865,41 +899,41 @@ wbcErr wbcChangeUserPasswordEx(const struct wbcChangePasswordParams *params,
 			sizeof(request.data.chng_pswd_auth_crap.domain) - 1);
 
 		if (params->new_password.response.nt_data) {
+			request.data.chng_pswd_auth_crap.new_nt_pswd_len =
+				params->new_password.response.nt_length;
 			memcpy(request.data.chng_pswd_auth_crap.new_nt_pswd,
 			       params->new_password.response.nt_data,
 			       request.data.chng_pswd_auth_crap.new_nt_pswd_len);
-			request.data.chng_pswd_auth_crap.new_nt_pswd_len =
-				params->new_password.response.nt_length;
 		}
 
 		if (params->new_password.response.lm_data) {
+			request.data.chng_pswd_auth_crap.new_lm_pswd_len =
+				params->new_password.response.lm_length;
 			memcpy(request.data.chng_pswd_auth_crap.new_lm_pswd,
 			       params->new_password.response.lm_data,
 			       request.data.chng_pswd_auth_crap.new_lm_pswd_len);
-			request.data.chng_pswd_auth_crap.new_lm_pswd_len =
-				params->new_password.response.lm_length;
 		}
 
 		if (params->old_password.response.old_nt_hash_enc_data) {
+			request.data.chng_pswd_auth_crap.old_nt_hash_enc_len =
+				params->old_password.response.old_nt_hash_enc_length;
 			memcpy(request.data.chng_pswd_auth_crap.old_nt_hash_enc,
 			       params->old_password.response.old_nt_hash_enc_data,
 			       request.data.chng_pswd_auth_crap.old_nt_hash_enc_len);
-			request.data.chng_pswd_auth_crap.old_nt_hash_enc_len =
-				params->old_password.response.old_nt_hash_enc_length;
 		}
 
 		if (params->old_password.response.old_lm_hash_enc_data) {
+			request.data.chng_pswd_auth_crap.old_lm_hash_enc_len =
+				params->old_password.response.old_lm_hash_enc_length;
 			memcpy(request.data.chng_pswd_auth_crap.old_lm_hash_enc,
 			       params->old_password.response.old_lm_hash_enc_data,
 			       request.data.chng_pswd_auth_crap.old_lm_hash_enc_len);
-			request.data.chng_pswd_auth_crap.old_lm_hash_enc_len =
-				params->old_password.response.old_lm_hash_enc_length;
 		}
 
 		break;
 	default:
 		wbc_status = WBC_ERR_INVALID_PARAM;
-		BAIL_ON_WBC_ERROR(wbc_status);
+		goto done;
 		break;
 	}
 
@@ -916,8 +950,7 @@ wbcErr wbcChangeUserPasswordEx(const struct wbcChangePasswordParams *params,
 
 	if (response.data.auth.nt_status != 0) {
 		if (error) {
-			wbc_status = wbc_create_error_info(NULL,
-							   &response,
+			wbc_status = wbc_create_error_info(&response,
 							   error);
 			BAIL_ON_WBC_ERROR(wbc_status);
 		}
@@ -925,8 +958,7 @@ wbcErr wbcChangeUserPasswordEx(const struct wbcChangePasswordParams *params,
 	}
 
 	if (policy) {
-		wbc_status = wbc_create_password_policy_info(NULL,
-							     &response,
+		wbc_status = wbc_create_password_policy_info(&response,
 							     policy);
 		BAIL_ON_WBC_ERROR(wbc_status);
 	}
@@ -974,7 +1006,6 @@ wbcErr wbcLogonUser(const struct wbcLogonUserParams *params,
 		    struct wbcUserPasswordPolicyInfo **policy)
 {
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
-	int cmd = 0;
 	struct winbindd_request request;
 	struct winbindd_response response;
 	uint32_t i;
@@ -1013,7 +1044,6 @@ wbcErr wbcLogonUser(const struct wbcLogonUserParams *params,
 
 	/* Initialize request */
 
-	cmd = WINBINDD_PAM_AUTH;
 	request.flags = WBFLAG_PAM_INFO3_TEXT |
 			WBFLAG_PAM_USER_SESSION_KEY |
 			WBFLAG_PAM_LMKEY;
@@ -1075,14 +1105,13 @@ wbcErr wbcLogonUser(const struct wbcLogonUserParams *params,
 		}
 	}
 
-	wbc_status = wbcRequestResponse(cmd,
+	wbc_status = wbcRequestResponse(WINBINDD_PAM_AUTH,
 					&request,
 					&response);
 
 	if (response.data.auth.nt_status != 0) {
 		if (error) {
-			wbc_status = wbc_create_error_info(NULL,
-							   &response,
+			wbc_status = wbc_create_error_info(&response,
 							   error);
 			BAIL_ON_WBC_ERROR(wbc_status);
 		}
@@ -1093,24 +1122,28 @@ wbcErr wbcLogonUser(const struct wbcLogonUserParams *params,
 	BAIL_ON_WBC_ERROR(wbc_status);
 
 	if (info) {
-		wbc_status = wbc_create_logon_info(NULL,
-						   &response,
+		wbc_status = wbc_create_logon_info(&response,
 						   info);
 		BAIL_ON_WBC_ERROR(wbc_status);
 	}
 
 	if (policy) {
-		wbc_status = wbc_create_password_policy_info(NULL,
-							     &response,
+		wbc_status = wbc_create_password_policy_info(&response,
 							     policy);
 		BAIL_ON_WBC_ERROR(wbc_status);
 	}
 
 done:
-	if (response.extra_data.data)
-		free(response.extra_data.data);
+	winbindd_free_response(&response);
 
 	return wbc_status;
+}
+
+static void wbcCredentialCacheInfoDestructor(void *ptr)
+{
+	struct wbcCredentialCacheInfo *i =
+		(struct wbcCredentialCacheInfo *)ptr;
+	wbcFreeMemory(i->blobs);
 }
 
 /* Authenticate a user with cached credentials */
@@ -1186,8 +1219,7 @@ wbcErr wbcCredentialCache(struct wbcCredentialCacheParams *params,
 	}
 
 	if (request.extra_len != 0) {
-		request.extra_data.data = talloc_array(
-			NULL, char, request.extra_len);
+		request.extra_data.data = (char *)malloc(request.extra_len);
 		if (request.extra_data.data == NULL) {
 			status = WBC_ERR_NO_MEMORY;
 			goto fail;
@@ -1210,17 +1242,15 @@ wbcErr wbcCredentialCache(struct wbcCredentialCacheParams *params,
 		goto fail;
 	}
 
-	result = talloc(NULL, struct wbcCredentialCacheInfo);
+	result = (struct wbcCredentialCacheInfo *)wbcAllocateMemory(
+		sizeof(struct wbcCredentialCacheInfo), 1,
+		wbcCredentialCacheInfoDestructor);
 	if (result == NULL) {
 		status = WBC_ERR_NO_MEMORY;
 		goto fail;
 	}
 	result->num_blobs = 0;
-	result->blobs = talloc(result, struct wbcNamedBlob);
-	if (result->blobs == NULL) {
-		status = WBC_ERR_NO_MEMORY;
-		goto fail;
-	}
+	result->blobs = NULL;
 	status = wbcAddNamedBlob(&result->num_blobs, &result->blobs,
 				 "auth_blob", 0,
 				 (uint8_t *)response.extra_data.data,
@@ -1236,16 +1266,13 @@ wbcErr wbcCredentialCache(struct wbcCredentialCacheParams *params,
 		goto fail;
 	}
 
-	if (response.extra_data.data)
-		free(response.extra_data.data);
 	*info = result;
-	return WBC_ERR_SUCCESS;
-
+	result = NULL;
+	status = WBC_ERR_SUCCESS;
 fail:
-	TALLOC_FREE(request.extra_data.data);
-	if (response.extra_data.data)
-		free(response.extra_data.data);
-	talloc_free(result);
+	free(request.extra_data.data);
+	winbindd_free_response(&response);
+	wbcFreeMemory(result);
 	return status;
 }
 

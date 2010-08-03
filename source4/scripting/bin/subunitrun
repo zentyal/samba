@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 # Simple subunit testrunner for python
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2007
@@ -21,27 +21,24 @@ import sys
 
 # Find right directory when running from source tree
 sys.path.insert(0, "bin/python")
-sys.path.insert(1, "../lib/subunit/python")
 
-from subunit import SubunitTestRunner
 from unittest import TestProgram
 import optparse
-import os
-from samba import param
+import samba
+samba.ensure_external_module("testtools", "testtools")
+samba.ensure_external_module("subunit", "subunit/python")
 import samba.getopt as options
 import samba.tests
+
+from subunit.run import SubunitTestRunner
 
 parser = optparse.OptionParser("subunitrun [options] <tests>")
 credopts = options.CredentialsOptions(parser)
 parser.add_option_group(credopts)
-sambaopts = options.SambaOptions(parser)
-parser.add_option_group(sambaopts)
-parser.add_option_group(options.VersionOptions(parser))
 
 args = parser.parse_args()[1]
 
-samba.tests.cmdline_loadparm = sambaopts.get_loadparm()
-samba.tests.cmdline_credentials = credopts.get_credentials(samba.tests.cmdline_loadparm)
+samba.tests.cmdline_credentials = credopts.get_credentials(samba.tests.env_loadparm())
 
 runner = SubunitTestRunner()
 program = TestProgram(module=None, argv=[sys.argv[0]] + args, testRunner=runner)

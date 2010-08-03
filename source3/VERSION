@@ -24,8 +24,8 @@
 #  ->  "3.0.0"                                         #
 ########################################################
 SAMBA_VERSION_MAJOR=3
-SAMBA_VERSION_MINOR=5
-SAMBA_VERSION_RELEASE=4
+SAMBA_VERSION_MINOR=6
+SAMBA_VERSION_RELEASE=0
 
 ########################################################
 # Bug fix releases use a letter for the patch revision #
@@ -46,7 +46,7 @@ SAMBA_VERSION_REVISION=
 # e.g. SAMBA_VERSION_PRE_RELEASE=1                     #
 #  ->  "2.2.9pre1"                                     #
 ########################################################
-SAMBA_VERSION_PRE_RELEASE=
+SAMBA_VERSION_PRE_RELEASE=1
 
 ########################################################
 # For 'rc' releases the version will be                #
@@ -75,7 +75,7 @@ SAMBA_VERSION_IS_GIT_SNAPSHOT=no
 #                                                      #
 # <MAJOR>.<MINOR>.<RELEASE>[...]-<VENDOR_SUFFIX>       #
 #                                                      #
-# Note the '-' is automaticaly added                   #
+# Note the '-' is automatically added                  #
 #                                                      #
 # e.g. SAMBA_VERSION_VENDOR_SUFFIX="VendorVersion"     #
 #  ->  "CVS 3.0.0rc2-VendorVersion"                    #

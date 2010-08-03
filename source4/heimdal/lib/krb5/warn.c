@@ -59,19 +59,13 @@ _warnerr(krb5_context context, int do_errtext,
 	*arg++ = msg;
     }
     if(context && do_errtext){
-	const char *err_msg;
-
 	strlcat(xfmt, "%s", sizeof(xfmt));
 
 	err_str = krb5_get_error_message(context, code);
 	if (err_str != NULL) {
 	    *arg = err_str;
 	} else {
-	    err_msg = krb5_get_err_text(context, code);
-	    if (err_msg)
-		*arg = err_msg;
-	    else
-		*arg= "<unknown error>";
+	    *arg= "<unknown error>";
 	}
     }
 	
@@ -106,7 +100,7 @@ _warnerr(krb5_context context, int do_errtext,
  * @ingroup krb5_error
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_vwarn(krb5_context context, krb5_error_code code,
 	   const char *fmt, va_list ap)
      __attribute__ ((format (printf, 3, 0)))
@@ -125,7 +119,7 @@ krb5_vwarn(krb5_context context, krb5_error_code code,
  * @ingroup krb5_error
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_warn(krb5_context context, krb5_error_code code, const char *fmt, ...)
      __attribute__ ((format (printf, 3, 4)))
 {
@@ -143,7 +137,7 @@ krb5_warn(krb5_context context, krb5_error_code code, const char *fmt, ...)
  * @ingroup krb5_error
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_vwarnx(krb5_context context, const char *fmt, va_list ap)
      __attribute__ ((format (printf, 2, 0)))
 {
@@ -159,7 +153,7 @@ krb5_vwarnx(krb5_context context, const char *fmt, va_list ap)
  * @ingroup krb5_error
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_warnx(krb5_context context, const char *fmt, ...)
      __attribute__ ((format (printf, 2, 3)))
 {
@@ -180,7 +174,7 @@ krb5_warnx(krb5_context context, const char *fmt, ...)
  * @ingroup krb5_error
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_verr(krb5_context context, int eval, krb5_error_code code,
 	  const char *fmt, va_list ap)
      __attribute__ ((noreturn, format (printf, 4, 0)))
@@ -201,7 +195,7 @@ krb5_verr(krb5_context context, int eval, krb5_error_code code,
  * @ingroup krb5_error
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_err(krb5_context context, int eval, krb5_error_code code,
 	 const char *fmt, ...)
      __attribute__ ((noreturn, format (printf, 4, 5)))
@@ -221,7 +215,7 @@ krb5_err(krb5_context context, int eval, krb5_error_code code,
  * @ingroup krb5_error
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_verrx(krb5_context context, int eval, const char *fmt, va_list ap)
      __attribute__ ((noreturn, format (printf, 3, 0)))
 {
@@ -239,7 +233,7 @@ krb5_verrx(krb5_context context, int eval, const char *fmt, va_list ap)
  * @ingroup krb5_error
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_errx(krb5_context context, int eval, const char *fmt, ...)
      __attribute__ ((noreturn, format (printf, 3, 4)))
 {
@@ -259,7 +253,7 @@ krb5_errx(krb5_context context, int eval, const char *fmt, ...)
  * @ingroup krb5_error
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_vabort(krb5_context context, krb5_error_code code,
 	    const char *fmt, va_list ap)
      __attribute__ ((noreturn, format (printf, 3, 0)))
@@ -269,7 +263,7 @@ krb5_vabort(krb5_context context, krb5_error_code code,
 }
 
 /**
- * Log a warning to the log, default stderr, include bthe error from
+ * Log a warning to the log, default stderr, include the error from
  * the last failure and then abort.
  *
  * @param context A Kerberos 5 context
@@ -279,7 +273,7 @@ krb5_vabort(krb5_context context, krb5_error_code code,
  * @ingroup krb5_error
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_abort(krb5_context context, krb5_error_code code, const char *fmt, ...)
      __attribute__ ((noreturn, format (printf, 3, 4)))
 {
@@ -287,7 +281,7 @@ krb5_abort(krb5_context context, krb5_error_code code, const char *fmt, ...)
     abort();
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_vabortx(krb5_context context, const char *fmt, va_list ap)
      __attribute__ ((noreturn, format (printf, 2, 0)))
 {
@@ -305,7 +299,7 @@ krb5_vabortx(krb5_context context, const char *fmt, va_list ap)
  * @ingroup krb5_error
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_abortx(krb5_context context, const char *fmt, ...)
      __attribute__ ((noreturn, format (printf, 2, 3)))
 {
@@ -322,7 +316,7 @@ krb5_abortx(krb5_context context, const char *fmt, ...)
  * @ingroup krb5_error
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_set_warn_dest(krb5_context context, krb5_log_facility *fac)
 {
     context->warn_dest = fac;
@@ -337,7 +331,7 @@ krb5_set_warn_dest(krb5_context context, krb5_log_facility *fac)
  * @ingroup krb5_error
  */
 
-krb5_log_facility * KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_log_facility * KRB5_LIB_CALL
 krb5_get_warn_dest(krb5_context context)
 {
     return context->warn_dest;

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 # Unix SMB/CIFS implementation.
@@ -19,9 +19,10 @@
 #
 
 from samba.messaging import Messaging
-from unittest import TestCase
+from samba.tests import TestCase
 
 class MessagingTests(TestCase):
+
     def get_context(self, *args, **kwargs):
         kwargs["messaging_path"] = "."
         return Messaging(*args, **kwargs)
@@ -52,6 +53,6 @@ class MessagingTests(TestCase):
         client_ctx = self.get_context((0, 2))
         msg_pong = client_ctx.register(pong_callback)
 
-        client_ctx.send((0,1), msg_ping, "testing")
-        client_ctx.send((0,1), msg_ping, "")
+        client_ctx.send((0, 1), msg_ping, "testing")
+        client_ctx.send((0, 1), msg_ping, "")
 

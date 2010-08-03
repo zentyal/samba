@@ -18,6 +18,7 @@
 */
 
 #include "includes.h"
+#include "../libcli/auth/ntlmssp.h"
 
 /******************************************************************************
  Pull out the encryption context for this packet. 0 means global context.
@@ -59,7 +60,7 @@ bool common_encryption_on(struct smb_trans_enc_state *es)
  output, so cope with the same for compatibility.
 ******************************************************************************/
 
-NTSTATUS common_ntlm_decrypt_buffer(NTLMSSP_STATE *ntlmssp_state, char *buf)
+NTSTATUS common_ntlm_decrypt_buffer(struct ntlmssp_state *ntlmssp_state, char *buf)
 {
 	NTSTATUS status;
 	size_t buf_len = smb_len(buf) + 4; /* Don't forget the 4 length bytes. */
@@ -107,7 +108,7 @@ NTSTATUS common_ntlm_decrypt_buffer(NTLMSSP_STATE *ntlmssp_state, char *buf)
  output, so do the same for compatibility.
 ******************************************************************************/
 
-NTSTATUS common_ntlm_encrypt_buffer(NTLMSSP_STATE *ntlmssp_state,
+NTSTATUS common_ntlm_encrypt_buffer(struct ntlmssp_state *ntlmssp_state,
 				uint16 enc_ctx_num,
 				char *buf,
 				char **ppbuf_out)
@@ -116,13 +117,14 @@ NTSTATUS common_ntlm_encrypt_buffer(NTLMSSP_STATE *ntlmssp_state,
 	char *buf_out;
 	size_t data_len = smb_len(buf) - 4; /* Ignore the 0xFF SMB bytes. */
 	DATA_BLOB sig;
-
+	TALLOC_CTX *frame;
 	*ppbuf_out = NULL;
 
 	if (data_len == 0) {
 		return NT_STATUS_BUFFER_TOO_SMALL;
 	}
 
+	frame = talloc_stackframe();
 	/* 
 	 * We know smb_len can't return a value > 128k, so no int overflow
 	 * check needed.
@@ -139,6 +141,7 @@ NTSTATUS common_ntlm_encrypt_buffer(NTLMSSP_STATE *ntlmssp_state,
 	ZERO_STRUCT(sig);
 
 	status = ntlmssp_seal_packet(ntlmssp_state,
+				     frame,
 		(unsigned char *)buf_out + 8 + NTLMSSP_SIG_SIZE, /* 4 byte len + 0xFF 'S' <enc> <ctx> */
 		data_len,
 		(unsigned char *)buf_out + 8 + NTLMSSP_SIG_SIZE,
@@ -146,14 +149,14 @@ NTSTATUS common_ntlm_encrypt_buffer(NTLMSSP_STATE *ntlmssp_state,
 		&sig);
 
 	if (!NT_STATUS_IS_OK(status)) {
-		data_blob_free(&sig);
+		talloc_free(frame);
 		SAFE_FREE(buf_out);
 		return status;
 	}
 
 	/* First 16 data bytes are signature for SSPI compatibility. */
 	memcpy(buf_out + 8, sig.data, NTLMSSP_SIG_SIZE);
-	data_blob_free(&sig);
+	talloc_free(frame);
 	*ppbuf_out = buf_out;
 	return NT_STATUS_OK;
 }
@@ -368,7 +371,7 @@ void common_free_encryption_state(struct smb_trans_enc_state **pp_es)
 
 	if (es->smb_enc_type == SMB_TRANS_ENC_NTLM) {
 		if (es->s.ntlmssp_state) {
-			ntlmssp_end(&es->s.ntlmssp_state);
+			TALLOC_FREE(es->s.ntlmssp_state);
 		}
 	}
 #if defined(HAVE_GSSAPI) && defined(HAVE_KRB5)

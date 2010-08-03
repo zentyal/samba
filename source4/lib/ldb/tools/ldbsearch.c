@@ -31,8 +31,14 @@
  *  Author: Andrew Tridgell
  */
 
+#ifdef _SAMBA_BUILD_
+#include "includes.h"
+#include <ldb.h>
+#else
 #include "ldb_includes.h"
 #include "ldb.h"
+#endif
+
 #include "tools/cmdline.h"
 
 static void usage(void)
@@ -54,15 +60,15 @@ struct search_context {
 	struct ldb_control **req_ctrls;
 
 	int sort;
-	int num_stored;
+	unsigned int num_stored;
 	struct ldb_message **store;
-	int refs_stored;
+	unsigned int refs_stored;
 	char **refs_store;
 
-	int entries;
-	int refs;
+	unsigned int entries;
+	unsigned int refs;
 
-	int pending;
+	unsigned int pending;
 	int status;
 };
 
@@ -191,21 +197,16 @@ static int do_search(struct ldb_context *ldb,
 
 	req = NULL;
 	
-	sctx = talloc(ldb, struct search_context);
+	sctx = talloc_zero(ldb, struct search_context);
 	if (!sctx) return -1;
 
 	sctx->ldb = ldb;
 	sctx->sort = options->sorted;
-	sctx->num_stored = 0;
-	sctx->refs_stored = 0;
-	sctx->store = NULL;
 	sctx->req_ctrls = ldb_parse_control_strings(ldb, sctx, (const char **)options->controls);
 	if (options->controls != NULL &&  sctx->req_ctrls== NULL) {
 		printf("parsing controls failed: %s\n", ldb_errstring(ldb));
 		return -1;
 	}
-	sctx->entries = 0;
-	sctx->refs = 0;
 
 	if (basedn == NULL) {
 		basedn = ldb_get_default_basedn(ldb);
@@ -245,11 +246,10 @@ again:
 		goto again;
 
 	if (sctx->sort && (sctx->num_stored != 0 || sctx->refs != 0)) {
-		int i;
+		unsigned int i;
 
 		if (sctx->num_stored) {
-			ldb_qsort(sctx->store, sctx->num_stored, sizeof(struct ldb_message *),
-				  ldb, (ldb_qsort_cmp_fn_t)do_compare_msg);
+			LDB_TYPESAFE_QSORT(sctx->store, sctx->num_stored, ldb, do_compare_msg);
 		}
 		for (i = 0; i < sctx->num_stored; i++) {
 			display_message(sctx->store[i], sctx);
@@ -277,8 +277,9 @@ int main(int argc, const char **argv)
 	struct ldb_cmdline *options;
 	int ret = -1;
 	const char *expression = "(|(objectClass=*)(distinguishedName=*))";
+	TALLOC_CTX *mem_ctx = talloc_new(NULL);
 
-	ldb = ldb_init(NULL, NULL);
+	ldb = ldb_init(mem_ctx, NULL);
 	if (ldb == NULL) {
 		return -1;
 	}
@@ -317,6 +318,7 @@ int main(int argc, const char **argv)
 		ret = do_search(ldb, basedn, options, expression, attrs);
 	}
 
-	talloc_free(ldb);
+	talloc_free(mem_ctx);
+
 	return ret;
 }

@@ -5,7 +5,7 @@
 
 if [ $# -lt 5 ]; then
 cat <<EOF
-Usage: test_kinit.sh SERVER USERNAME PASSWORD REALM DOMAIN PREFIX
+Usage: test_passwords.sh SERVER USERNAME PASSWORD REALM DOMAIN PREFIX
 EOF
 exit 1;
 fi
@@ -25,9 +25,7 @@ samba4kinit="$samba4bindir/samba4kinit$EXEEXT"
 net="$samba4bindir/net$EXEEXT"
 rkpty="$samba4bindir/rkpty$EXEEXT"
 samba4kpasswd="$samba4bindir/samba4kpasswd$EXEEXT"
-enableaccount="$PYTHON `dirname $0`/../../source4/setup/enableaccount"
-setpassword="$PYTHON `dirname $0`/../../source4/setup/setpassword"
-newuser="$PYTHON `dirname $0`/../../source4/setup/newuser"
+newuser="$net newuser"
 
 . `dirname $0`/subunit.sh
 
@@ -47,9 +45,14 @@ test_smbclient() {
 	return $status
 }
 
+CONFIG="--configfile=$PREFIX/dc/etc/smb.conf"
+export CONFIG
+
+testit "reset password policies beside of minimum password age of 0 days" $VALGRIND $net pwsettings $CONFIG set --complexity=default --history-length=default --min-pwd-length=default --min-pwd-age=0 --max-pwd-age=default || failed=`expr $failed + 1`
+
 USERPASS=testPaSS@01%
 
-testit "create user locally" $VALGRIND $newuser nettestuser $USERPASS $@ || failed=`expr $failed + 1`
+testit "create user locally" $VALGRIND $newuser $CONFIG nettestuser $USERPASS $@ || failed=`expr $failed + 1`
 
 KRB5CCNAME="$PREFIX/tmpuserccache"
 export KRB5CCNAME
@@ -61,7 +64,7 @@ testit "kinit with user password" $samba4kinit --password-file=$PREFIX/tmpuserpa
 test_smbclient "Test login with user kerberos ccache" 'ls' -k yes || failed=`expr $failed + 1`
 
 NEWUSERPASS=testPaSS@02%
-testit "change user password with 'net password change' (unforced)" $VALGRIND $net password change -W$DOMAIN -U$DOMAIN\\nettestuser%$USERPASS  -k no $NEWUSERPASS $@ || failed=`expr $failed + 1`
+testit "change user password with 'net password change' (unforced)" $VALGRIND $net password change -W$DOMAIN -U$DOMAIN/nettestuser%$USERPASS  -k no $NEWUSERPASS $@ || failed=`expr $failed + 1`
 
 echo $NEWUSERPASS > ./tmpuserpassfile
 testit "kinit with user password" $samba4kinit --password-file=./tmpuserpassfile --request-pac nettestuser@$REALM   || failed=`expr $failed + 1`
@@ -70,8 +73,52 @@ test_smbclient "Test login with user kerberos ccache" 'ls' -k yes || failed=`exp
 
 
 USERPASS=$NEWUSERPASS
+WEAKPASS=testpass1
 NEWUSERPASS=testPaSS@03%
 
+# password mismatch check doesn't work yet (kpasswd bug, reported to Love)
+#echo "check that password mismatch gives the right error"
+#cat > ./tmpkpasswdscript <<EOF
+#expect Password
+#password ${USERPASS}\n
+#expect New password
+#send ${WEAKPASS}\n
+#expect New password
+#send ${NEWUSERPASS}\n
+#expect password mismatch
+#EOF
+#
+#testit "change user password with kpasswd" $rkpty ./tmpkpasswdscript $samba4kpasswd nettestuser@$REALM || failed=`expr $failed + 1`
+
+
+echo "check that a weak password is rejected"
+cat > ./tmpkpasswdscript <<EOF
+expect Password
+password ${USERPASS}\n
+expect New password
+send ${WEAKPASS}\n
+expect New password
+send ${WEAKPASS}\n
+expect Password does not meet complexity requirements
+EOF
+
+testit "change to weak user password with kpasswd" $rkpty ./tmpkpasswdscript $samba4kpasswd nettestuser@$REALM || failed=`expr $failed + 1`
+
+echo "check that a short password is rejected"
+cat > ./tmpkpasswdscript <<EOF
+expect Password
+password ${USERPASS}\n
+expect New password
+send xx1\n
+expect New password
+send xx1\n
+expect Password too short
+EOF
+
+testit "change to short user password with kpasswd" $rkpty ./tmpkpasswdscript $samba4kpasswd nettestuser@$REALM || failed=`expr $failed + 1`
+
+
+echo "check that a strong new password is accepted"
 cat > ./tmpkpasswdscript <<EOF
 expect Password
 password ${USERPASS}\n
@@ -88,15 +135,15 @@ test_smbclient "Test login with user kerberos (unforced)" 'ls' -k yes -Unettestu
 
 
 NEWUSERPASS=testPaSS@04%
-testit "set password on user locally" $VALGRIND $setpassword nettestuser --newpassword=$NEWUSERPASS --must-change-at-next-login $@ || failed=`expr $failed + 1`
+testit "set password on user locally" $VALGRIND $net setpassword $CONFIG nettestuser --newpassword=$NEWUSERPASS --must-change-at-next-login $@ || failed=`expr $failed + 1`
 USERPASS=$NEWUSERPASS
 
 NEWUSERPASS=testPaSS@05%
-testit "change user password with 'net password change' (after must change flag set)" $VALGRIND $net password change -W$DOMAIN -U$DOMAIN\\nettestuser%$USERPASS -k no $NEWUSERPASS $@ || failed=`expr $failed + 1`
+testit "change user password with 'net password change' (after must change flag set)" $VALGRIND $net password change -W$DOMAIN -U$DOMAIN/nettestuser%$USERPASS -k no $NEWUSERPASS $@ || failed=`expr $failed + 1`
 USERPASS=$NEWUSERPASS
 
 NEWUSERPASS=testPaSS@06%
-testit "set password on user locally" $VALGRIND $setpassword nettestuser --newpassword=$NEWUSERPASS --must-change-at-next-login $@ || failed=`expr $failed + 1`
+testit "set password on user locally" $VALGRIND $net setpassword $CONFIG nettestuser --newpassword=$NEWUSERPASS --must-change-at-next-login $@ || failed=`expr $failed + 1`
 USERPASS=$NEWUSERPASS
 
 NEWUSERPASS=testPaSS@07%
@@ -116,32 +163,32 @@ USERPASS=$NEWUSERPASS
 
 test_smbclient "Test login with user kerberos" 'ls' -k yes -Unettestuser@$REALM%$NEWUSERPASS || failed=`expr $failed + 1`
 
-testit "reset password policies" $VALGRIND $PYTHON ./setup/pwsettings set --configfile=$PREFIX/dc/etc/smb.conf --complexity=default --history-length=default --min-pwd-length=default --min-pwd-age=default --max-pwd-age=default || failed=`expr $failed + 1`
-
 NEWUSERPASS=abcdefg
-testit_expect_failure "try to set a non-complex password (command should not succeed)" $VALGRIND $net password change -W$DOMAIN -U$DOMAIN\\nettestuser%$USERPASS -k no $NEWUSERPASS $@ && failed=`expr $failed + 1`
+testit_expect_failure "try to set a non-complex password (command should not succeed)" $VALGRIND $net password change -W$DOMAIN "-U$DOMAIN/nettestuser%$USERPASS" -k no "$NEWUSERPASS" $@ && failed=`expr $failed + 1`
 
-testit "allow non-complex passwords" $VALGRIND $PYTHON ./setup/pwsettings set --configfile=$PREFIX/dc/etc/smb.conf --complexity=off || failed=`expr $failed + 1`
+testit "allow non-complex passwords" $VALGRIND $net pwsettings set $CONFIG --complexity=off || failed=`expr $failed + 1`
 
-testit "try to set a non-complex password (command should succeed)" $VALGRIND $net password change -W$DOMAIN -U$DOMAIN\\nettestuser%$USERPASS -k no $NEWUSERPASS $@ || failed=`expr $failed + 1`
+testit "try to set a non-complex password (command should succeed)" $VALGRIND $net password change -W$DOMAIN "-U$DOMAIN/nettestuser%$USERPASS" -k no "$NEWUSERPASS" $@ || failed=`expr $failed + 1`
 USERPASS=$NEWUSERPASS
 
 test_smbclient "test login with non-complex password" 'ls' -k no -Unettestuser@$REALM%$USERPASS || failed=`expr $failed + 1`
 
 NEWUSERPASS=abc
-testit_expect_failure "try to set a short password (command should not succeed)" $VALGRIND $net password change -W$DOMAIN -U$DOMAIN\\nettestuser%$USERPASS -k no $NEWUSERPASS $@ && failed=`expr $failed + 1`
+testit_expect_failure "try to set a short password (command should not succeed)" $VALGRIND $net password change -W$DOMAIN "-U$DOMAIN/nettestuser%$USERPASS" -k no "$NEWUSERPASS" $@ && failed=`expr $failed + 1`
 
-testit "allow short passwords (length 1)" $VALGRIND $PYTHON ./setup/pwsettings set --configfile=$PREFIX/dc/etc/smb.conf --min-pwd-length=1 || failed=`expr $failed + 1`
+testit "allow short passwords (length 1)" $VALGRIND $net pwsettings $CONFIG set --min-pwd-length=1 || failed=`expr $failed + 1`
 
-testit "try to set a short password (command should succeed)" $VALGRIND $net password change -W$DOMAIN -U$DOMAIN\\nettestuser%$USERPASS -k no $NEWUSERPASS $@ || failed=`expr $failed + 1`
-USERPASS=$NEWUSERPASS
+testit "try to set a short password (command should succeed)" $VALGRIND $net password change -W$DOMAIN "-U$DOMAIN/nettestuser%$USERPASS" -k no "$NEWUSERPASS" $@ || failed=`expr $failed + 1`
+USERPASS="$NEWUSERPASS"
 
-testit "require minimum password age of 1 day" $VALGRIND $PYTHON ./setup/pwsettings set --configfile=$PREFIX/dc/etc/smb.conf --min-pwd-age=1 || failed=`expr $failed + 1`
+testit "require minimum password age of 1 day" $VALGRIND $net pwsettings $CONFIG set --min-pwd-age=1 || failed=`expr $failed + 1`
 
-NEWUSERPASS=testPaSS@08%
-testit_expect_failure "try to change password too quickly (command should not succeed)" $VALGRIND $net password change -W$DOMAIN -U$DOMAIN\\nettestuser%$USERPASS -k no $NEWUSERPASS $@ && failed=`expr $failed + 1`
+testit "show password settings" $VALGRIND $net pwsettings $CONFIG show || failed=`expr $failed + 1`
 
-testit "reset password policies" $VALGRIND $PYTHON ./setup/pwsettings set --configfile=$PREFIX/dc/etc/smb.conf --complexity=default --history-length=default --min-pwd-length=default --min-pwd-age=default --max-pwd-age=default || failed=`expr $failed + 1`
+NEWUSERPASS="testPaSS@08%"
+testit_expect_failure "try to change password too quickly (command should not succeed)" $VALGRIND $net password change -W$DOMAIN "-U$DOMAIN/nettestuser%$USERPASS" -k no "$NEWUSERPASS" $@ && failed=`expr $failed + 1`
+
+testit "reset password policies" $VALGRIND $net pwsettings $CONFIG set --complexity=default --history-length=default --min-pwd-length=default --min-pwd-age=default --max-pwd-age=default || failed=`expr $failed + 1`
 
 testit "del user" $VALGRIND $net user delete nettestuser -U"$USERNAME%$PASSWORD" -k no $@ || failed=`expr $failed + 1`
 

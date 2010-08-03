@@ -19,6 +19,7 @@
 
 #include "includes.h"
 #include "g_lock.h"
+#include "librpc/gen_ndr/messaging.h"
 
 static NTSTATUS g_lock_force_unlock(struct g_lock_ctx *ctx, const char *name,
 				    struct server_id pid);
@@ -311,7 +312,8 @@ NTSTATUS g_lock_lock(struct g_lock_ctx *ctx, const char *name,
 
 #ifdef CLUSTER_SUPPORT
 	if (lp_clustering()) {
-		status = ctdb_watch_us(messaging_ctdbd_connection());
+		status = ctdb_watch_us(
+			messaging_ctdbd_connection(procid_self()));
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(10, ("could not register retry with ctdb: %s\n",
 				   nt_errstr(status)));
@@ -386,7 +388,9 @@ NTSTATUS g_lock_lock(struct g_lock_ctx *ctx, const char *name,
 
 #ifdef CLUSTER_SUPPORT
 		if (lp_clustering()) {
-			struct ctdbd_connection *conn = messaging_ctdbd_connection();
+			struct ctdbd_connection *conn;
+
+			conn = messaging_ctdbd_connection(procid_self());
 
 			r_fds = &_r_fds;
 			FD_ZERO(r_fds);
@@ -591,7 +595,7 @@ NTSTATUS g_lock_unlock(struct g_lock_ctx *ctx, const char *name)
 
 #ifdef CLUSTER_SUPPORT
 	if (lp_clustering()) {
-		ctdb_unwatch(messaging_ctdbd_connection());
+		ctdb_unwatch(messaging_ctdbd_connection(procid_self()));
 	}
 #endif
 	return status;

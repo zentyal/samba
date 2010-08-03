@@ -35,6 +35,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 #include "base64.h"
 
 static const char base64_chars[] =
@@ -50,7 +51,7 @@ pos(char c)
     return -1;
 }
 
-int ROKEN_LIB_FUNCTION
+ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
 base64_encode(const void *data, int size, char **str)
 {
     char *s, *p;
@@ -119,7 +120,7 @@ token_decode(const char *token)
     return (marker << 24) | val;
 }
 
-int ROKEN_LIB_FUNCTION
+ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
 base64_decode(const char *str, void *data)
 {
     const char *p;

@@ -2,17 +2,17 @@
    Unix SMB/CIFS implementation.
    Files[] structure handling
    Copyright (C) Andrew Tridgell 1998
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -142,7 +142,7 @@ NTSTATUS file_new(struct smb_request *req, connection_struct *conn,
 void file_close_conn(connection_struct *conn)
 {
 	files_struct *fsp, *next;
-	
+
 	for (fsp=Files;fsp;fsp=next) {
 		next = fsp->next;
 		if (fsp->conn == conn) {
@@ -158,7 +158,7 @@ void file_close_conn(connection_struct *conn)
 void file_close_pid(uint16 smbpid, int vuid)
 {
 	files_struct *fsp, *next;
-	
+
 	for (fsp=Files;fsp;fsp=next) {
 		next = fsp->next;
 		if ((fsp->file_pid == smbpid) && (fsp->vuid == vuid)) {
@@ -195,8 +195,9 @@ open files, %d are available.\n", request_max_open_files, real_max_open_files));
 
 	SMB_ASSERT(real_max_open_files > 100);
 
-	file_bmap = bitmap_allocate(real_max_open_files);
-	
+	file_bmap = bitmap_talloc(talloc_autofree_context(),
+				  real_max_open_files);
+
 	if (!file_bmap) {
 		exit_server("out of memory in file_init");
 	}
@@ -222,7 +223,7 @@ void file_close_user(int vuid)
  * Walk the files table until "fn" returns non-NULL
  */
 
-struct files_struct *file_walk_table(
+struct files_struct *files_forall(
 	struct files_struct *(*fn)(struct files_struct *fsp,
 				   void *private_data),
 	void *private_data)
@@ -502,6 +503,14 @@ void file_free(struct smb_request *req, files_struct *fsp)
 		req->chain_fsp = NULL;
 	}
 
+	/*
+	 * Clear all possible chained fsp
+	 * pointers in the SMB2 request queue.
+	 */
+	if (req != NULL && req->smb2req) {
+		remove_smb2_chained_fsp(fsp);
+	}
+
 	/* Closing a file can invalidate the positive cache. */
 	if (fsp == fsp_fi_cache.fsp) {
 		ZERO_STRUCT(fsp_fi_cache);
@@ -588,10 +597,18 @@ NTSTATUS dup_file_fsp(struct smb_request *req, files_struct *from,
 	} else {
 		to->can_write = (access_mask & (FILE_WRITE_DATA | FILE_APPEND_DATA)) ? True : False;
 	}
-	to->print_file = from->print_file;
 	to->modified = from->modified;
 	to->is_directory = from->is_directory;
 	to->aio_write_behind = from->aio_write_behind;
+
+	if (from->print_file) {
+		to->print_file = talloc(to, struct print_file_data);
+		if (!to->print_file) return NT_STATUS_NO_MEMORY;
+		to->print_file->rap_jobid = from->print_file->rap_jobid;
+	} else {
+		to->print_file = NULL;
+	}
+
 	return fsp_set_smb_fname(to, from->fsp_name);
 }
 

@@ -2,17 +2,17 @@
    Unix SMB/CIFS implementation.
    Translate BUILTIN names to SIDs and vice versa
    Copyright (C) Volker Lendecke 2005
-      
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -25,17 +25,32 @@ struct rid_name_map {
 };
 
 static const struct rid_name_map builtin_aliases[] = {
-	{ BUILTIN_ALIAS_RID_ADMINS,		"Administrators" },
-	{ BUILTIN_ALIAS_RID_USERS,		"Users" },
-	{ BUILTIN_ALIAS_RID_GUESTS,		"Guests" },
-	{ BUILTIN_ALIAS_RID_POWER_USERS,	"Power Users" },
-	{ BUILTIN_ALIAS_RID_ACCOUNT_OPS,	"Account Operators" },
-	{ BUILTIN_ALIAS_RID_SYSTEM_OPS,		"Server Operators" },
-	{ BUILTIN_ALIAS_RID_PRINT_OPS,		"Print Operators" },
-	{ BUILTIN_ALIAS_RID_BACKUP_OPS,		"Backup Operators" },
-	{ BUILTIN_ALIAS_RID_REPLICATOR,		"Replicator" },
-	{ BUILTIN_ALIAS_RID_RAS_SERVERS,	"RAS Servers" },
-	{ BUILTIN_ALIAS_RID_PRE_2K_ACCESS,	"Pre-Windows 2000 Compatible Access" },
+	{ BUILTIN_RID_ADMINISTRATORS,		"Administrators" },
+	{ BUILTIN_RID_USERS,		"Users" },
+	{ BUILTIN_RID_GUESTS,		"Guests" },
+	{ BUILTIN_RID_POWER_USERS,	"Power Users" },
+	{ BUILTIN_RID_ACCOUNT_OPERATORS,	"Account Operators" },
+	{ BUILTIN_RID_SERVER_OPERATORS,		"Server Operators" },
+	{ BUILTIN_RID_PRINT_OPERATORS,		"Print Operators" },
+	{ BUILTIN_RID_BACKUP_OPERATORS,		"Backup Operators" },
+	{ BUILTIN_RID_REPLICATOR,		"Replicator" },
+	{ BUILTIN_RID_RAS_SERVERS,		"RAS Servers" },
+	{ BUILTIN_RID_PRE_2K_ACCESS,
+		"Pre-Windows 2000 Compatible Access" },
+	{ BUILTIN_RID_REMOTE_DESKTOP_USERS,
+		"Remote Desktop Users" },
+	{ BUILTIN_RID_NETWORK_CONF_OPERATORS,
+		"Network Configuration Operators" },
+	{ BUILTIN_RID_INCOMING_FOREST_TRUST,
+		"Incoming Forest Trust Builders" },
+	{ BUILTIN_RID_PERFMON_USERS,
+		"Performance Monitor Users" },
+	{ BUILTIN_RID_PERFLOG_USERS,
+		"Performance Log Users" },
+	{ BUILTIN_RID_AUTH_ACCESS,
+		"Windows Authorization Access Group" },
+	{ BUILTIN_RID_TS_LICENSE_SERVERS,
+		"Terminal Server License Servers" },
 	{  0, NULL}};
 
 /*******************************************************************
@@ -87,7 +102,7 @@ const char *builtin_domain_name(void)
  Check if the SID is the builtin SID (S-1-5-32).
 *****************************************************************/  
 
-bool sid_check_is_builtin(const DOM_SID *sid)
+bool sid_check_is_builtin(const struct dom_sid *sid)
 {
 	return sid_equal(sid, &global_sid_Builtin);
 }
@@ -96,9 +111,9 @@ bool sid_check_is_builtin(const DOM_SID *sid)
  Check if the SID is one of the builtin SIDs (S-1-5-32-a).
 *****************************************************************/  
 
-bool sid_check_is_in_builtin(const DOM_SID *sid)
+bool sid_check_is_in_builtin(const struct dom_sid *sid)
 {
-	DOM_SID dom_sid;
+	struct dom_sid dom_sid;
 	uint32 rid;
 
 	sid_copy(&dom_sid, sid);

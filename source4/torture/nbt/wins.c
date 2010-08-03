@@ -49,7 +49,8 @@
 */
 static bool nbt_test_wins_name(struct torture_context *tctx, const char *address,
 			       struct nbt_name *name, uint16_t nb_flags,
-			       bool try_low_port)
+			       bool try_low_port,
+			       uint8_t register_rcode)
 {
 	struct nbt_name_register_wins io;
 	struct nbt_name_register name_register;
@@ -64,13 +65,13 @@ static bool nbt_test_wins_name(struct torture_context *tctx, const char *address
 	struct interface *ifaces;
 	bool low_port = try_low_port;
 
-	load_interfaces(tctx, lp_interfaces(tctx->lp_ctx), &ifaces);
+	load_interfaces(tctx, lpcfg_interfaces(tctx->lp_ctx), &ifaces);
 
 	myaddress = talloc_strdup(tctx, iface_best_ip(ifaces, address));
 
 	socket_address = socket_address_from_strings(tctx, 
 						     nbtsock->sock->backend_name,
-						     myaddress, lp_nbt_port(tctx->lp_ctx));
+						     myaddress, lpcfg_nbt_port(tctx->lp_ctx));
 	torture_assert(tctx, socket_address != NULL, 
 				   "Error getting address");
 
@@ -97,7 +98,7 @@ static bool nbt_test_wins_name(struct torture_context *tctx, const char *address
 
 	torture_comment(tctx, "release the name\n");
 	release.in.name = *name;
-	release.in.dest_port = lp_nbt_port(tctx->lp_ctx);
+	release.in.dest_port = lpcfg_nbt_port(tctx->lp_ctx);
 	release.in.dest_addr = address;
 	release.in.address = myaddress;
 	release.in.nb_flags = nb_flags;
@@ -116,9 +117,11 @@ static bool nbt_test_wins_name(struct torture_context *tctx, const char *address
 	} else {
 		torture_comment(tctx, "register the name with a wrong address (makes the next request slow!)\n");
 		io.in.name = *name;
-		io.in.wins_port = lp_nbt_port(tctx->lp_ctx);
-		io.in.wins_servers = str_list_make_single(tctx, address);
-		io.in.addresses = str_list_make_single(tctx, "127.64.64.1");
+		io.in.wins_port = lpcfg_nbt_port(tctx->lp_ctx);
+		io.in.wins_servers = const_str_list(
+			str_list_make_single(tctx, address));
+		io.in.addresses = const_str_list(
+			str_list_make_single(tctx, "127.64.64.1"));
 		io.in.nb_flags = nb_flags;
 		io.in.ttl = 300000;
 
@@ -137,7 +140,7 @@ static bool nbt_test_wins_name(struct torture_context *tctx, const char *address
 
 		torture_comment(tctx, "register the name correct address\n");
 		name_register.in.name		= *name;
-		name_register.in.dest_port	= lp_nbt_port(tctx->lp_ctx);
+		name_register.in.dest_port	= lpcfg_nbt_port(tctx->lp_ctx);
 		name_register.in.dest_addr	= address;
 		name_register.in.address	= myaddress;
 		name_register.in.nb_flags	= nb_flags;
@@ -188,7 +191,7 @@ static bool nbt_test_wins_name(struct torture_context *tctx, const char *address
 
 	torture_comment(tctx, "register the name correct address\n");
 	io.in.name = *name;
-	io.in.wins_port = lp_nbt_port(tctx->lp_ctx);
+	io.in.wins_port = lpcfg_nbt_port(tctx->lp_ctx);
 	io.in.wins_servers = (const char **)str_list_make_single(tctx, address);
 	io.in.addresses = (const char **)str_list_make_single(tctx, myaddress);
 	io.in.nb_flags = nb_flags;
@@ -198,7 +201,11 @@ static bool nbt_test_wins_name(struct torture_context *tctx, const char *address
 	torture_assert_ntstatus_ok(tctx, status, talloc_asprintf(tctx, "Bad response from %s for name register", address));
 	
 	CHECK_STRING(tctx, io.out.wins_server, address);
-	CHECK_VALUE(tctx, io.out.rcode, 0);
+	CHECK_VALUE(tctx, io.out.rcode, register_rcode);
+
+	if (register_rcode != NBT_RCODE_OK) {
+		return true;
+	}
 
 	if (name->type != NBT_NAME_MASTER &&
 	    name->type != NBT_NAME_LOGON && 
@@ -215,7 +222,7 @@ static bool nbt_test_wins_name(struct torture_context *tctx, const char *address
 	torture_comment(tctx, "query the name to make sure its there\n");
 	query.in.name = *name;
 	query.in.dest_addr = address;
-	query.in.dest_port = lp_nbt_port(tctx->lp_ctx);
+	query.in.dest_port = lpcfg_nbt_port(tctx->lp_ctx);
 	query.in.broadcast = false;
 	query.in.wins_lookup = true;
 	query.in.timeout = 3;
@@ -261,7 +268,7 @@ static bool nbt_test_wins_name(struct torture_context *tctx, const char *address
 
 	torture_comment(tctx, "refresh the name\n");
 	refresh.in.name = *name;
-	refresh.in.wins_port = lp_nbt_port(tctx->lp_ctx);
+	refresh.in.wins_port = lpcfg_nbt_port(tctx->lp_ctx);
 	refresh.in.wins_servers = (const char **)str_list_make_single(tctx, address);
 	refresh.in.addresses = (const char **)str_list_make_single(tctx, myaddress);
 	refresh.in.nb_flags = nb_flags;
@@ -282,7 +289,7 @@ static bool nbt_test_wins_name(struct torture_context *tctx, const char *address
 
 	printf("release the name\n");
 	release.in.name = *name;
-	release.in.dest_port = lp_nbt_port(tctx->lp_ctx);
+	release.in.dest_port = lpcfg_nbt_port(tctx->lp_ctx);
 	release.in.dest_addr = address;
 	release.in.address = myaddress;
 	release.in.nb_flags = nb_flags;
@@ -310,9 +317,11 @@ static bool nbt_test_wins_name(struct torture_context *tctx, const char *address
 	} else {
 		torture_comment(tctx, "register the name with a wrong address (makes the next request slow!)\n");
 		io.in.name = *name;
-		io.in.wins_port = lp_nbt_port(tctx->lp_ctx);
-		io.in.wins_servers = str_list_make_single(tctx, address);
-		io.in.addresses = str_list_make_single(tctx, "127.64.64.1");
+		io.in.wins_port = lpcfg_nbt_port(tctx->lp_ctx);
+		io.in.wins_servers = const_str_list(
+			str_list_make_single(tctx, address));
+		io.in.addresses = const_str_list(
+			str_list_make_single(tctx, "127.64.64.1"));
 		io.in.nb_flags = nb_flags;
 		io.in.ttl = 300000;
 	
@@ -332,9 +341,11 @@ static bool nbt_test_wins_name(struct torture_context *tctx, const char *address
 
 	torture_comment(tctx, "refresh the name with the correct address\n");
 	refresh.in.name = *name;
-	refresh.in.wins_port = lp_nbt_port(tctx->lp_ctx);
-	refresh.in.wins_servers = str_list_make_single(tctx, address);
-	refresh.in.addresses = str_list_make_single(tctx, myaddress);
+	refresh.in.wins_port = lpcfg_nbt_port(tctx->lp_ctx);
+	refresh.in.wins_servers = const_str_list(
+			str_list_make_single(tctx, address));
+	refresh.in.addresses = const_str_list(
+			str_list_make_single(tctx, myaddress));
 	refresh.in.nb_flags = nb_flags;
 	refresh.in.ttl = 12345;
 
@@ -353,7 +364,7 @@ static bool nbt_test_wins_name(struct torture_context *tctx, const char *address
 
 	torture_comment(tctx, "release the name\n");
 	release.in.name = *name;
-	release.in.dest_port = lp_nbt_port(tctx->lp_ctx);
+	release.in.dest_port = lpcfg_nbt_port(tctx->lp_ctx);
 	release.in.dest_addr = address;
 	release.in.address = myaddress;
 	release.in.nb_flags = nb_flags;
@@ -394,6 +405,35 @@ static bool nbt_test_wins_name(struct torture_context *tctx, const char *address
 }
 
 
+static char *test_nbt_wins_scope_string(TALLOC_CTX *mem_ctx, uint8_t count)
+{
+	char *res;
+	uint8_t i;
+
+	res = talloc_array(mem_ctx, char, count+1);
+	if (res == NULL) {
+		return NULL;
+	}
+
+	for (i=0; i < count; i++) {
+		switch (i) {
+		case 63:
+		case 63 + 1 + 63:
+		case 63 + 1 + 63 + 1 + 63:
+			res[i] = '.';
+			break;
+		default:
+			res[i] = '0' + (i%10);
+			break;
+		}
+	}
+
+	res[count] = '\0';
+
+	talloc_set_name_const(res, res);
+
+	return res;
+}
 
 /*
   test operations against a WINS server
@@ -412,54 +452,78 @@ static bool nbt_test_wins(struct torture_context *tctx)
 
 	name.type = NBT_NAME_CLIENT;
 	name.scope = NULL;
-	ret &= nbt_test_wins_name(tctx, address, &name, NBT_NODE_H, true);
+	ret &= nbt_test_wins_name(tctx, address, &name,
+				  NBT_NODE_H, true, NBT_RCODE_OK);
 
 	name.type = NBT_NAME_MASTER;
-	ret &= nbt_test_wins_name(tctx, address, &name, NBT_NODE_H, false);
+	ret &= nbt_test_wins_name(tctx, address, &name,
+				  NBT_NODE_H, false, NBT_RCODE_OK);
 
-	ret &= nbt_test_wins_name(tctx, address, &name, NBT_NODE_H | NBT_NM_GROUP, false);
+	ret &= nbt_test_wins_name(tctx, address, &name,
+				  NBT_NODE_H | NBT_NM_GROUP, false, NBT_RCODE_OK);
 
 	name.type = NBT_NAME_SERVER;
-	ret &= nbt_test_wins_name(tctx, address, &name, NBT_NODE_H, true);
+	ret &= nbt_test_wins_name(tctx, address, &name,
+				  NBT_NODE_H, true, NBT_RCODE_OK);
 
 	name.type = NBT_NAME_LOGON;
-	ret &= nbt_test_wins_name(tctx, address, &name, NBT_NODE_H | NBT_NM_GROUP, false);
+	ret &= nbt_test_wins_name(tctx, address, &name,
+				  NBT_NODE_H | NBT_NM_GROUP, false, NBT_RCODE_OK);
 
 	name.type = NBT_NAME_BROWSER;
-	ret &= nbt_test_wins_name(tctx, address, &name, NBT_NODE_H | NBT_NM_GROUP, false);
+	ret &= nbt_test_wins_name(tctx, address, &name,
+				  NBT_NODE_H | NBT_NM_GROUP, false, NBT_RCODE_OK);
 
 	name.type = NBT_NAME_PDC;
-	ret &= nbt_test_wins_name(tctx, address, &name, NBT_NODE_H, true);
+	ret &= nbt_test_wins_name(tctx, address, &name,
+				  NBT_NODE_H, true, NBT_RCODE_OK);
 
 	name.type = 0xBF;
-	ret &= nbt_test_wins_name(tctx, address, &name, NBT_NODE_H, true);
+	ret &= nbt_test_wins_name(tctx, address, &name,
+				  NBT_NODE_H, true, NBT_RCODE_OK);
 
 	name.type = 0xBE;
-	ret &= nbt_test_wins_name(tctx, address, &name, NBT_NODE_H, false);
+	ret &= nbt_test_wins_name(tctx, address, &name,
+				  NBT_NODE_H, false, NBT_RCODE_OK);
 
 	name.scope = "example";
 	name.type = 0x72;
-	ret &= nbt_test_wins_name(tctx, address, &name, NBT_NODE_H, true);
+	ret &= nbt_test_wins_name(tctx, address, &name,
+				  NBT_NODE_H, true, NBT_RCODE_OK);
 
 	name.scope = "example";
 	name.type = 0x71;
-	ret &= nbt_test_wins_name(tctx, address, &name, NBT_NODE_H | NBT_NM_GROUP, false);
+	ret &= nbt_test_wins_name(tctx, address, &name,
+				  NBT_NODE_H | NBT_NM_GROUP, false, NBT_RCODE_OK);
 
 	name.scope = "foo.example.com";
 	name.type = 0x72;
-	ret &= nbt_test_wins_name(tctx, address, &name, NBT_NODE_H, false);
+	ret &= nbt_test_wins_name(tctx, address, &name,
+				  NBT_NODE_H, false, NBT_RCODE_OK);
 
 	name.name = talloc_asprintf(tctx, "_T\01-%5u.foo", r);
-	ret &= nbt_test_wins_name(tctx, address, &name, NBT_NODE_H, false);
+	ret &= nbt_test_wins_name(tctx, address, &name,
+				  NBT_NODE_H, false, NBT_RCODE_OK);
 
 	name.name = "";
-	ret &= nbt_test_wins_name(tctx, address, &name, NBT_NODE_H, false);
+	ret &= nbt_test_wins_name(tctx, address, &name,
+				  NBT_NODE_H, false, NBT_RCODE_OK);
 
 	name.name = talloc_asprintf(tctx, ".");
-	ret &= nbt_test_wins_name(tctx, address, &name, NBT_NODE_H, false);
+	ret &= nbt_test_wins_name(tctx, address, &name,
+				  NBT_NODE_H, false, NBT_RCODE_OK);
 
 	name.name = talloc_asprintf(tctx, "%5u-\377\200\300FOO", r);
-	ret &= nbt_test_wins_name(tctx, address, &name, NBT_NODE_H, false);
+	ret &= nbt_test_wins_name(tctx, address, &name,
+				  NBT_NODE_H, false, NBT_RCODE_OK);
+
+	name.scope = test_nbt_wins_scope_string(tctx, 237);
+	ret &= nbt_test_wins_name(tctx, address, &name,
+				  NBT_NODE_H, false, NBT_RCODE_OK);
+
+	name.scope = test_nbt_wins_scope_string(tctx, 238);
+	ret &= nbt_test_wins_name(tctx, address, &name,
+				  NBT_NODE_H, false, NBT_RCODE_SVR);
 
 	return ret;
 }

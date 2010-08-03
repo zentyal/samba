@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 # Unix SMB/CIFS implementation.
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2007
@@ -17,11 +17,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from samba import Ldb
 from samba.upgrade import import_wins
 from samba.tests import LdbTestCase
 
 class WinsUpgradeTests(LdbTestCase):
+
     def test_upgrade(self):
         winsdb = {
             "FOO#20": (200, ["127.0.0.1", "127.0.0.2"], 0x60)

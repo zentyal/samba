@@ -20,6 +20,7 @@
 
 #include "includes.h"
 #include "system/locale.h"
+#include "lib/util/tsort.h"
 
 #undef strcasecmp
 
@@ -120,7 +121,7 @@ _PUBLIC_ char **str_list_make(TALLOC_CTX *mem_ctx, const char *string, const cha
 
 /**
  * build a null terminated list of strings from an argv-like input string 
- * Entries are seperated by spaces and can be enclosed by quotes. 
+ * Entries are separated by spaces and can be enclosed by quotes.
  * Does NOT support escaping
  */
 _PUBLIC_ char **str_list_make_shell(TALLOC_CTX *mem_ctx, const char *string, const char *sep)
@@ -182,7 +183,7 @@ _PUBLIC_ char **str_list_make_shell(TALLOC_CTX *mem_ctx, const char *string, con
 /**
  * join a list back to one string 
  */
-_PUBLIC_ char *str_list_join(TALLOC_CTX *mem_ctx, const char **list, char seperator)
+_PUBLIC_ char *str_list_join(TALLOC_CTX *mem_ctx, const char **list, char separator)
 {
 	char *ret = NULL;
 	int i;
@@ -193,14 +194,14 @@ _PUBLIC_ char *str_list_join(TALLOC_CTX *mem_ctx, const char **list, char sepera
 	ret = talloc_strdup(mem_ctx, list[0]);
 
 	for (i = 1; list[i]; i++) {
-		ret = talloc_asprintf_append_buffer(ret, "%c%s", seperator, list[i]);
+		ret = talloc_asprintf_append_buffer(ret, "%c%s", separator, list[i]);
 	}
 
 	return ret;
 }
 
 /** join a list back to one (shell-like) string; entries 
- * seperated by spaces, using quotes where necessary */
+ * separated by spaces, using quotes where necessary */
 _PUBLIC_ char *str_list_join_shell(TALLOC_CTX *mem_ctx, const char **list, char sep)
 {
 	char *ret = NULL;
@@ -264,7 +265,8 @@ _PUBLIC_ char **str_list_copy(TALLOC_CTX *mem_ctx, const char **list)
 /**
    Return true if all the elements of the list match exactly.
  */
-_PUBLIC_ bool str_list_equal(const char **list1, const char **list2)
+_PUBLIC_ bool str_list_equal(const char * const *list1,
+			     const char * const *list2)
 {
 	int i;
 	
@@ -392,7 +394,7 @@ _PUBLIC_ const char **str_list_unique(const char **list)
 	}
 	list2 = (const char **)talloc_memdup(list, list,
 					     sizeof(list[0])*(len+1));
-	qsort(list2, len, sizeof(list2[0]), QSORT_CAST list_cmp);
+	TYPESAFE_QSORT(list2, len, list_cmp);
 	list[0] = list2[0];
 	for (i=j=1;i<len;i++) {
 		if (strcmp(list2[i], list[j-1]) != 0) {
@@ -485,3 +487,12 @@ _PUBLIC_ const char **str_list_copy_const(TALLOC_CTX *mem_ctx,
 	ret[i] = NULL;
 	return ret;
 }
+
+/**
+ * Needed for making an "unconst" list "const"
+ */
+_PUBLIC_ const char **const_str_list(char **list)
+{
+	return (const char **)list;
+}
+

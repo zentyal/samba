@@ -294,6 +294,43 @@ ssize_t tsocket_address_bsd_sockaddr(const struct tsocket_address *addr,
 	return sa_socklen;
 }
 
+bool tsocket_address_is_inet(const struct tsocket_address *addr, const char *fam)
+{
+	struct tsocket_address_bsd *bsda = talloc_get_type(addr->private_data,
+					   struct tsocket_address_bsd);
+
+	if (!bsda) {
+		return false;
+	}
+
+	switch (bsda->u.sa.sa_family) {
+	case AF_INET:
+		if (strcasecmp(fam, "ip") == 0) {
+			return true;
+		}
+
+		if (strcasecmp(fam, "ipv4") == 0) {
+			return true;
+		}
+
+		return false;
+#ifdef HAVE_IPV6
+	case AF_INET6:
+		if (strcasecmp(fam, "ip") == 0) {
+			return true;
+		}
+
+		if (strcasecmp(fam, "ipv6") == 0) {
+			return true;
+		}
+
+		return false;
+#endif
+	}
+
+	return false;
+}
+
 int _tsocket_address_inet_from_strings(TALLOC_CTX *mem_ctx,
 				       const char *fam,
 				       const char *addr,
@@ -464,6 +501,23 @@ int tsocket_address_inet_set_port(struct tsocket_address *addr,
 	}
 
 	return 0;
+}
+
+bool tsocket_address_is_unix(const struct tsocket_address *addr)
+{
+	struct tsocket_address_bsd *bsda = talloc_get_type(addr->private_data,
+					   struct tsocket_address_bsd);
+
+	if (!bsda) {
+		return false;
+	}
+
+	switch (bsda->u.sa.sa_family) {
+	case AF_UNIX:
+		return true;
+	}
+
+	return false;
 }
 
 int _tsocket_address_unix_from_path(TALLOC_CTX *mem_ctx,
@@ -1609,7 +1663,7 @@ static void tstream_bsd_readv_handler(void *private_data)
 			uint8_t *base;
 			base = (uint8_t *)state->vector[0].iov_base;
 			base += ret;
-			state->vector[0].iov_base = base;
+			state->vector[0].iov_base = (void *)base;
 			state->vector[0].iov_len -= ret;
 			break;
 		}
@@ -1769,7 +1823,7 @@ static void tstream_bsd_writev_handler(void *private_data)
 			uint8_t *base;
 			base = (uint8_t *)state->vector[0].iov_base;
 			base += ret;
-			state->vector[0].iov_base = base;
+			state->vector[0].iov_base = (void *)base;
 			state->vector[0].iov_len -= ret;
 			break;
 		}

@@ -156,7 +156,7 @@ static inline void textdomain_init(void);
 static inline void textdomain_init(void)
 {
 	if (!initialized) {
-		bindtextdomain(MODULE_NAME, dyn_LOCALEDIR);
+		bindtextdomain(MODULE_NAME, LOCALEDIR);
 		initialized = 1;
 	}
 	return;
@@ -1144,7 +1144,7 @@ static bool winbind_name_list_to_sid_string_list(struct pwb_context *ctx,
 	}
 
 	search_location = name_list;
-	while ((comma = strstr(search_location, ",")) != NULL) {
+	while ((comma = strchr(search_location, ',')) != NULL) {
 		current_name = strndup(search_location,
 				       comma - search_location);
 		if (NULL == current_name) {
@@ -1199,10 +1199,8 @@ static bool winbind_name_list_to_sid_string_list(struct pwb_context *ctx,
 		 * It is malformated parameter here, overwrite the last ','.
 		 */
 		len = strlen(sid_list_buffer);
-		if (len) {
-			if (sid_list_buffer[len - 1] == ',') {
-				sid_list_buffer[len - 1] = '\0';
-			}
+		if ((len != 0) && (sid_list_buffer[len - 1] == ',')) {
+			sid_list_buffer[len - 1] = '\0';
 		}
 	}
 
@@ -1434,12 +1432,12 @@ static void _pam_warn_krb5_failure(struct pwb_context *ctx,
 static bool _pam_check_remark_auth_err(struct pwb_context *ctx,
 				       const struct wbcAuthErrorInfo *e,
 				       const char *nt_status_string,
-				       int *pam_error)
+				       int *pam_err)
 {
 	const char *ntstatus = NULL;
 	const char *error_string = NULL;
 
-	if (!e || !pam_error) {
+	if (!e || !pam_err) {
 		return false;
 	}
 
@@ -1453,18 +1451,18 @@ static bool _pam_check_remark_auth_err(struct pwb_context *ctx,
 		error_string = _get_ntstatus_error_string(nt_status_string);
 		if (error_string) {
 			_make_remark(ctx, PAM_ERROR_MSG, error_string);
-			*pam_error = e->pam_error;
+			*pam_err = e->pam_error;
 			return true;
 		}
 
 		if (e->display_string) {
-			_make_remark(ctx, PAM_ERROR_MSG, e->display_string);
-			*pam_error = e->pam_error;
+			_make_remark(ctx, PAM_ERROR_MSG, _(e->display_string));
+			*pam_err = e->pam_error;
 			return true;
 		}
 
 		_make_remark(ctx, PAM_ERROR_MSG, nt_status_string);
-		*pam_error = e->pam_error;
+		*pam_err = e->pam_error;
 
 		return true;
 	}
@@ -2000,22 +1998,22 @@ static int winbind_chauthtok_request(struct pwb_context *ctx,
 		switch (reject_reason) {
 			case -1:
 				break;
-			case WBC_PWD_CHANGE_REJECT_OTHER:
+			case WBC_PWD_CHANGE_NO_ERROR:
 				if ((min_pwd_age > 0) &&
 				    (pwd_last_set + min_pwd_age > time(NULL))) {
 					PAM_WB_REMARK_DIRECT(ctx,
 					     "NT_STATUS_PWD_TOO_RECENT");
 				}
 				break;
-			case WBC_PWD_CHANGE_REJECT_TOO_SHORT:
+			case WBC_PWD_CHANGE_PASSWORD_TOO_SHORT:
 				PAM_WB_REMARK_DIRECT(ctx,
 					"NT_STATUS_PWD_TOO_SHORT");
 				break;
-			case WBC_PWD_CHANGE_REJECT_IN_HISTORY:
+			case WBC_PWD_CHANGE_PWD_IN_HISTORY:
 				PAM_WB_REMARK_DIRECT(ctx,
 					"NT_STATUS_PWD_HISTORY_CONFLICT");
 				break;
-			case WBC_PWD_CHANGE_REJECT_COMPLEXITY:
+			case WBC_PWD_CHANGE_NOT_COMPLEX:
 				_make_remark(ctx, PAM_ERROR_MSG,
 					     _("Password does not meet "
 					       "complexity requirements"));
@@ -2424,7 +2422,7 @@ static char* winbind_upn_to_username(struct pwb_context *ctx,
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 	struct wbcDomainSid sid;
 	enum wbcSidType type;
-	char *domain;
+	char *domain = NULL;
 	char *name;
 	char *p;
 

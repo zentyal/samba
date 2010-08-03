@@ -22,10 +22,9 @@
 #include "includes.h"
 #include "rpc_server/dcerpc_server.h"
 #include "dsdb/samdb/samdb.h"
-#include "libcli/security/dom_sid.h"
-#include "rpc_server/drsuapi/dcesrv_drsuapi.h"
 #include "libcli/security/security.h"
 #include "param/param.h"
+#include "auth/session.h"
 
 /*
   format a drsuapi_DsReplicaObjectIdentifier naming context as a string
@@ -49,7 +48,6 @@ int drsuapi_search_with_extended_dn(struct ldb_context *ldb,
 				    struct ldb_dn *basedn,
 				    enum ldb_scope scope,
 				    const char * const *attrs,
-				    const char *sort_attrib,
 				    const char *filter)
 {
 	int ret;
@@ -88,25 +86,10 @@ int drsuapi_search_with_extended_dn(struct ldb_context *ldb,
 		return ret;
 	}
 
-	if (sort_attrib) {
-		struct ldb_server_sort_control **sort_control;
-		sort_control = talloc_array(req, struct ldb_server_sort_control *, 2);
-		if (sort_control == NULL) {
-			talloc_free(tmp_ctx);
-			return LDB_ERR_OPERATIONS_ERROR;
-		}
-		sort_control[0] = talloc(req, struct ldb_server_sort_control);
-		sort_control[0]->attributeName = sort_attrib;
-		sort_control[0]->orderingRule = NULL;
-		sort_control[0]->reverse = 1;
-		sort_control[1] = NULL;
-
-		ret = ldb_request_add_control(req, LDB_CONTROL_SERVER_SORT_OID, true, sort_control);
-		if (ret != LDB_SUCCESS) {
-			return ret;
-		}
+	ret = ldb_request_add_control(req, LDB_CONTROL_REVEAL_INTERNALS, false, NULL);
+	if (ret != LDB_SUCCESS) {
+		return ret;
 	}
-
 
 	ret = ldb_request(ldb, req);
 	if (ret == LDB_SUCCESS) {
@@ -118,16 +101,24 @@ int drsuapi_search_with_extended_dn(struct ldb_context *ldb,
 	return ret;
 }
 
-WERROR drs_security_level_check(struct dcesrv_call_state *dce_call, const char* call)
+WERROR drs_security_level_check(struct dcesrv_call_state *dce_call,
+				const char* call,
+				enum security_user_level minimum_level)
 {
-	if (lp_parm_bool(dce_call->conn->dce_ctx->lp_ctx, NULL, 
+	enum security_user_level level;
+
+	if (lpcfg_parm_bool(dce_call->conn->dce_ctx->lp_ctx, NULL,
 			 "drs", "disable_sec_check", false)) {
 		return WERR_OK;
 	}
 
-	if (security_session_user_level(dce_call->conn->auth_state.session_info) <
-		SECURITY_DOMAIN_CONTROLLER) {
-		DEBUG(0,("DsReplicaGetInfo refused for security token\n"));
+	level = security_session_user_level(dce_call->conn->auth_state.session_info, NULL);
+	if (level < minimum_level) {
+		if (call) {
+			DEBUG(0,("%s refused for security token (level=%u)\n",
+				 call, (unsigned)level));
+			security_token_debug(2, dce_call->conn->auth_state.session_info->security_token);
+		}
 		return WERR_DS_DRA_ACCESS_DENIED;
 	}
 
@@ -162,5 +153,4 @@ void drsuapi_process_secret_attribute(struct drsuapi_DsReplicaAttribute *attr,
 	default:
 		return;
 	}
-	return;
 }

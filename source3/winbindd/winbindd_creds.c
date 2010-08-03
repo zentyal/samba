@@ -4,17 +4,17 @@
    Winbind daemon - cached credentials funcions
 
    Copyright (C) Guenther Deschner 2005
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -29,7 +29,7 @@
 
 NTSTATUS winbindd_get_creds(struct winbindd_domain *domain,
 			    TALLOC_CTX *mem_ctx,
-			    const DOM_SID *sid,
+			    const struct dom_sid *sid,
 			    struct netr_SamInfo3 **info3,
 			    const uint8 *cached_nt_pass[NT_HASH_LEN],
 			    const uint8 *cred_salt[NT_HASH_LEN])
@@ -58,18 +58,16 @@ NTSTATUS winbindd_store_creds(struct winbindd_domain *domain,
 			      const char *user, 
 			      const char *pass, 
 			      struct netr_SamInfo3 *info3,
-			      const DOM_SID *user_sid)
+			      const struct dom_sid *user_sid)
 {
 	NTSTATUS status;
 	uchar nt_pass[NT_HASH_LEN];
-	DOM_SID cred_sid;
+	struct dom_sid cred_sid;
 
 	if (info3 != NULL) {
 
-		DOM_SID sid;
-		sid_copy(&sid, info3->base.domain_sid);
-		sid_append_rid(&sid, info3->base.rid);
-		sid_copy(&cred_sid, &sid);
+		sid_compose(&cred_sid, info3->base.domain_sid,
+			    info3->base.rid);
 		info3->base.user_flags |= NETLOGON_CACHED_ACCOUNT;
 
 	} else if (user_sid != NULL) {
@@ -146,7 +144,7 @@ NTSTATUS winbindd_update_creds_by_info3(struct winbindd_domain *domain,
 
 NTSTATUS winbindd_update_creds_by_sid(struct winbindd_domain *domain,
 				      TALLOC_CTX *mem_ctx,
-				      const DOM_SID *sid,
+				      const struct dom_sid *sid,
 				      const char *pass)
 {
 	return winbindd_store_creds(domain, mem_ctx, NULL, pass, NULL, sid);

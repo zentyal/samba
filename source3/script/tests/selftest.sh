@@ -36,9 +36,22 @@ if [ $CUSTOM_CONF_ARG ]; then
 fi
 
 ##
-## create the test directory
+## create the test directory layout
 ##
 PREFIX=`echo $DIRECTORY | sed s+//+/+`
+printf "%s" "CREATE TEST ENVIRONMENT IN '$PREFIX'"...
+/bin/rm -rf $PREFIX
+if [ -e "$PREFIX" ]; then
+	echo "***"
+	echo "*** Failed to delete test environment $PREFIX"
+	echo "*** Was a previous run done as root ?"
+	echo "***"
+	exit 1
+fi
+
+##
+## create the test directory
+##
 mkdir -p $PREFIX || exit $?
 OLD_PWD=`pwd`
 cd $PREFIX || exit $?
@@ -68,7 +81,7 @@ else
 fi
 USERID=`PATH=/usr/ucb:$PATH id | cut -d ' ' -f1 | sed -e 's/uid=\([0-9]*\).*/\1/g'`
 GROUPID=`PATH=/usr/ucb:$PATH id | cut -d ' ' -f2 | sed -e 's/gid=\([0-9]*\).*/\1/g'`
-PASSWORD=test
+PASSWORD=testPw
 
 SRCDIR="`dirname $0`/../.."
 BINDIR="`pwd`/bin"
@@ -80,9 +93,11 @@ SAMBA4CONFFILE=$LIBDIR/samba4client.conf
 SERVERCONFFILE=$LIBDIR/server.conf
 COMMONCONFFILE=$LIBDIR/common.conf
 PRIVATEDIR=$PREFIX_ABS/private
+NCALRPCDIR=$PREFIX_ABS/ncalrpc
 LOCKDIR=$PREFIX_ABS/lockdir
+EVENTLOGDIR=$LOCKDIR/eventlog
 LOGDIR=$PREFIX_ABS/logs
-SOCKET_WRAPPER_DIR=$PREFIX/sw
+SOCKET_WRAPPER_DIR=$PREFIX_ABS/sw
 CONFIGURATION="--configfile $CONFFILE"
 SAMBA4CONFIGURATION="-s $SAMBA4CONFFILE"
 NSS_WRAPPER_PASSWD="$PRIVATEDIR/passwd"
@@ -90,6 +105,7 @@ NSS_WRAPPER_GROUP="$PRIVATEDIR/group"
 WINBINDD_SOCKET_DIR=$PREFIX_ABS/winbindd
 WINBINDD_PRIV_PIPE_DIR=$LOCKDIR/winbindd_privileged
 TEST_DIRECTORY=$DIRECTORY
+LOCAL_PATH=$SHRDIR
 
 export PREFIX PREFIX_ABS
 export CONFIGURATION CONFFILE SAMBA4CONFIGURATION SAMBA4CONFFILE
@@ -101,6 +117,7 @@ export WORKGROUP SERVER SERVER_IP
 export NSS_WRAPPER_PASSWD NSS_WRAPPER_GROUP
 export WINBINDD_SOCKET_DIR WINBINDD_PRIV_PIPE_DIR
 export TEST_DIRECTORY
+export LOCAL_PATH
 
 PATH=bin:$PATH
 export PATH
@@ -144,12 +161,7 @@ if test "x`smbd -b | grep NSS_WRAPPER`" = "x"; then
 fi
 
 
-## 
-## create the test directory layout
-##
-printf "%s" "CREATE TEST ENVIRONMENT IN '$PREFIX'"...
-/bin/rm -rf $PREFIX/*
-mkdir -p $PRIVATEDIR $LIBDIR $PIDDIR $LOCKDIR $LOGDIR
+mkdir -p $PRIVATEDIR $NCALRPCDIR $LIBDIR $PIDDIR $LOCKDIR $LOGDIR $EVENTLOGDIR
 mkdir -p $SOCKET_WRAPPER_DIR
 mkdir -p $WINBINDD_SOCKET_DIR
 chmod 755 $WINBINDD_SOCKET_DIR
@@ -170,6 +182,36 @@ else
     mkdir -p $SHRDIR
 fi
 chmod 777 $SHRDIR
+
+##
+## Create driver share dirs
+##
+mkdir $SHRDIR/W32X86
+mkdir $SHRDIR/x64
+
+##
+## Create a read-only directory.
+##
+RO_SHRDIR=`echo $SHRDIR | sed -e 's:/[^/]*$::'`
+RO_SHRDIR=$RO_SHRDIR/root-tmp
+mkdir -p $RO_SHRDIR
+chmod 755 $RO_SHRDIR
+touch $RO_SHRDIR/unreadable_file
+chmod 600 $RO_SHRDIR/unreadable_file
+##
+## Create an MS-DFS root share.
+##
+MSDFS_SHRDIR=`echo $SHRDIR | sed -e 's:/[^/]*$::'`
+MSDFS_SHRDIR=$MSDFS_SHRDIR/msdfsshare
+mkdir -p $MSDFS_SHRDIR
+chmod 777 $MSDFS_SHRDIR
+mkdir -p $MSDFS_SHRDIR/deeppath
+chmod 777 $MSDFS_SHRDIR/deeppath
+## Create something visible in the target.
+touch $RO_SHRDIR/msdfs-target
+chmod 666 $RO_SHRDIR/msdfs-target
+ln -s msdfs:$SERVER_IP\\ro-tmp $MSDFS_SHRDIR/msdfs-src1
+ln -s msdfs:$SERVER_IP\\ro-tmp $MSDFS_SHRDIR/deeppath/msdfs-src2
 
 ##
 ## Create the common config include file with the basic settings
@@ -206,7 +248,31 @@ cat >$SAMBA4CONFFILE<<EOF
 	panic action = $SCRIPTDIR/gdb_backtrace %PID% %PROG%
 	include = $COMMONCONFFILE
 	modules dir = $SRCDIR/bin/modules
+	ncalrpc dir = $NCALRPCDIR
 EOF
+
+##
+## calculate uids and gids
+##
+
+if [ $USERID -lt $(( 0xffff - 2 )) ]; then
+	MAXUID=0xffff
+else
+	MAXUID=$USERID
+fi
+
+UID_ROOT=$(( $MAXUID - 1 ))
+UID_NOBODY=$(( MAXUID - 2 ))
+
+if [ $GROUPID -lt $(( 0xffff - 3 )) ]; then
+	MAXGID=0xffff
+else
+	MAXGID=$GROUPID
+fi
+
+GID_NOBODY=$(( $MAXGID - 3 ))
+GID_NOGROUP=$(( $MAXGID - 2 ))
+GID_ROOT=$(( $MAXGID - 1 ))
 
 cat >$SERVERCONFFILE<<EOF
 [global]
@@ -226,14 +292,18 @@ cat >$SERVERCONFFILE<<EOF
 	lanman auth = yes
 	time server = yes
 
-	add user script =		$PERL $SRCDIR/../lib/nss_wrapper/nss_wrapper.pl --passwd_path $NSS_WRAPPER_PASSWD --type passwd --action add --name %u
+	add user script =		$PERL $SRCDIR/../lib/nss_wrapper/nss_wrapper.pl --passwd_path $NSS_WRAPPER_PASSWD --type passwd --action add --name %u --gid $GID_NOGROUP
 	add group script =		$PERL $SRCDIR/../lib/nss_wrapper/nss_wrapper.pl --group_path  $NSS_WRAPPER_GROUP  --type group  --action add --name %g
 	add user to group script =	$PERL $SRCDIR/../lib/nss_wrapper/nss_wrapper.pl --group_path  $NSS_WRAPPER_GROUP  --type member --action add --name %g --member %u --passwd_path $NSS_WRAPPER_PASSWD
-	add machine script =		$PERL $SRCDIR/../lib/nss_wrapper/nss_wrapper.pl --passwd_path $NSS_WRAPPER_PASSWD --type passwd --action add --name %u
+	add machine script =		$PERL $SRCDIR/../lib/nss_wrapper/nss_wrapper.pl --passwd_path $NSS_WRAPPER_PASSWD --type passwd --action add --name %u --gid $GID_NOGROUP
 	delete user script =		$PERL $SRCDIR/../lib/nss_wrapper/nss_wrapper.pl --passwd_path $NSS_WRAPPER_PASSWD --type passwd --action delete --name %u
 	delete group script =		$PERL $SRCDIR/../lib/nss_wrapper/nss_wrapper.pl --group_path  $NSS_WRAPPER_GROUP  --type group  --action delete --name %g
 	delete user from group script = $PERL $SRCDIR/../lib/nss_wrapper/nss_wrapper.pl --group_path  $NSS_WRAPPER_GROUP  --type member --action delete --name %g --member %u --passwd_path $NSS_WRAPPER_PASSWD
 
+	addprinter command =            $PERL $SRCDIR/../source3/script/tests/printing/modprinter.pl -a -s $SERVERCONFFILE --
+	deleteprinter command =         $PERL $SRCDIR/../source3/script/tests/printing/modprinter.pl -d -s $SERVERCONFFILE --
+
+	eventlog list = "dns server" application
 	kernel oplocks = no
 	kernel change notify = no
 
@@ -244,6 +314,8 @@ cat >$SERVERCONFFILE<<EOF
 	winbindd:socket dir = $WINBINDD_SOCKET_DIR
 	idmap uid = 100000-200000
 	idmap gid = 100000-200000
+	winbind enum users = yes
+	winbind enum groups = yes
 
 #	min receivefile size = 4000
 
@@ -255,14 +327,30 @@ cat >$SERVERCONFFILE<<EOF
 	map readonly = no
 	store dos attributes = yes
 	create mask = 755
-	store create time = yes
 	vfs objects = $BINDIR/xattr_tdb.so $BINDIR/streams_depot.so
+
+	printing = vlp
+	print command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb print %p %s
+	lpq command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb lpq %p
+	lp rm command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb lprm %p %j
+	lp pause command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb lppause %p %j
+	lp resume command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb lpresume %p %j
+	queue pause command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb queuepause %p
+	queue resume command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb queueresume %p
+	lpq cache time = 0
 
 	#Include user defined custom parameters if set
 	$INCLUDE_CUSTOM_CONF
 
 [tmp]
 	path = $SHRDIR
+[ro-tmp]
+	path = $RO_SHRDIR
+	guest ok = yes
+[msdfs-share]
+	path = $MSDFS_SHRDIR
+	msdfs root = yes
+	guest ok = yes
 [hideunread]
 	copy = tmp
 	hide unreadable = yes
@@ -275,14 +363,6 @@ cat >$SERVERCONFFILE<<EOF
 [print1]
 	copy = tmp
 	printable = yes
-	printing = vlp
-	print command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb print %p %s
-	lpq command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb lpq %p
-	lp rm command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb lprm %p %j
-	lp pause command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb lppause %p %j
-	lp resume command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb lpresume %p %j
-	queue pause command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb queuepause %p
-	queue resume command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb queueresume %p
 
 [print2]
 	copy = print1
@@ -290,6 +370,8 @@ cat >$SERVERCONFFILE<<EOF
 	copy = print1
 [print4]
 	copy = print1
+[print$]
+	copy = tmp
 EOF
 
 ##
@@ -297,17 +379,33 @@ EOF
 ##
 
 cat >$NSS_WRAPPER_PASSWD<<EOF
-root:x:65533:65532:root gecos:$PREFIX_ABS:/bin/false
-nobody:x:65534:65533:nobody gecos:$PREFIX_ABS:/bin/false
+nobody:x:$UID_NOBODY:$GID_NOBODY:nobody gecos:$PREFIX_ABS:/bin/false
 $USERNAME:x:$USERID:$GROUPID:$USERNAME gecos:$PREFIX_ABS:/bin/false
 EOF
 
 cat >$NSS_WRAPPER_GROUP<<EOF
-nobody:x:65533:
-nogroup:x:65534:nobody
-root:x:65532:
+nobody:x:$GID_NOBODY:
+nogroup:x:$GID_NOGROUP:nobody
 $USERNAME-group:x:$GROUPID:
 EOF
+
+##
+## add fake root user when not running as root
+##
+if [ "$USERID" != 0 ]; then
+
+cat >>$NSS_WRAPPER_PASSWD<<EOF
+root:x:$UID_ROOT:$GID_ROOT:root gecos:$PREFIX_ABS:/bin/false
+EOF
+
+cat >>$NSS_WRAPPER_GROUP<<EOF
+root:x:$GID_ROOT:
+EOF
+
+fi
+
+touch $EVENTLOGDIR/dns\ server.tdb
+touch $EVENTLOGDIR/application.tdb
 
 MAKE_TEST_BINARY="bin/smbpasswd"
 export MAKE_TEST_BINARY
@@ -347,6 +445,7 @@ TORTURE4_OPTIONS="$SAMBA4CONFIGURATION"
 TORTURE4_OPTIONS="$TORTURE4_OPTIONS --maximum-runtime=$TORTURE_MAXTIME"
 TORTURE4_OPTIONS="$TORTURE4_OPTIONS --target=samba3"
 TORTURE4_OPTIONS="$TORTURE4_OPTIONS --option=torture:localdir=$SHRDIR"
+TORTURE4_OPTIONS="$TORTURE4_OPTIONS --option=torture:winbindd_netbios_name=$SERVER"
 export TORTURE4_OPTIONS
 
 if [ x"$RUN_FROM_BUILD_FARM" = x"yes" ];then

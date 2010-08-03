@@ -20,9 +20,8 @@
 #include "includes.h"
 #include "torture/smbtorture.h"
 #include "librpc/rpc/dcerpc.h"
-#include "librpc/gen_ndr/security.h"
 #include "librpc/gen_ndr/lsa.h"
-#include "libnet/composite.h"
+#include "libnet/libnet.h"
 #include "torture/libnet/proto.h"
 
 NTSTATUS torture_net_init(void)

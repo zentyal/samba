@@ -21,6 +21,7 @@
 #include "lib/netapi/netapi.h"
 #include "lib/netapi/netapi_private.h"
 #include "../librpc/gen_ndr/cli_samr.h"
+#include "rpc_client/cli_samr.h"
 
 /****************************************************************
 ****************************************************************/
@@ -207,7 +208,7 @@ WERROR libnetapi_samr_open_builtin_domain(struct libnetapi_ctx *mem_ctx,
 	status = rpccli_samr_OpenDomain(pipe_cli, mem_ctx,
 					connect_handle,
 					builtin_mask,
-					CONST_DISCARD(DOM_SID *, &global_sid_Builtin),
+					CONST_DISCARD(struct dom_sid *, &global_sid_Builtin),
 					builtin_handle);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);

@@ -33,8 +33,6 @@
 
 #include "spnego_locl.h"
 
-RCSID("$Id$");
-
 /*
  * Is target_name an sane target for `mech´.
  */
@@ -179,7 +177,7 @@ spnego_reply_internal(OM_uint32 *minor_status,
 static OM_uint32
 spnego_initial
            (OM_uint32 * minor_status,
-	    gssspnego_cred cred,
+	    gss_cred_id_t cred,
             gss_ctx_id_t * context_handle,
             const gss_name_t target_name,
             const gss_OID mech_type,
@@ -254,8 +252,7 @@ spnego_initial
 
     /* generate optimistic token */
     sub = gss_init_sec_context(&minor,
-			       (cred != NULL) ? cred->negotiated_cred_id :
-			          GSS_C_NO_CREDENTIAL,
+			       cred,
 			       &ctx->negotiated_ctx_id,
 			       ctx->target_name,
 			       ctx->preferred_mech_type,
@@ -377,7 +374,7 @@ spnego_initial
 static OM_uint32
 spnego_reply
            (OM_uint32 * minor_status,
-	    const gssspnego_cred cred,
+	    const gss_cred_id_t cred,
             gss_ctx_id_t * context_handle,
             const gss_name_t target_name,
             const gss_OID mech_type,
@@ -498,8 +495,7 @@ spnego_reply
 	/* Fall through as if the negotiated mechanism
 	   was requested explicitly */
 	ret = gss_init_sec_context(&minor,
-				   (cred != NULL) ? cred->negotiated_cred_id :
-				       GSS_C_NO_CREDENTIAL,
+				   cred,
 				   &ctx->negotiated_ctx_id,
 				   ctx->target_name,
 				   &mech,
@@ -629,11 +625,9 @@ OM_uint32 _gss_spnego_init_sec_context
             OM_uint32 * time_rec
            )
 {
-    gssspnego_cred cred = (gssspnego_cred)initiator_cred_handle;
-
     if (*context_handle == GSS_C_NO_CONTEXT)
 	return spnego_initial (minor_status,
-			       cred,
+			       initiator_cred_handle,
 			       context_handle,
 			       target_name,
 			       mech_type,
@@ -647,7 +641,7 @@ OM_uint32 _gss_spnego_init_sec_context
 			       time_rec);
     else
 	return spnego_reply (minor_status,
-			     cred,
+			     initiator_cred_handle,
 			     context_handle,
 			     target_name,
 			     mech_type,

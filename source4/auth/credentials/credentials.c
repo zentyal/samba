@@ -37,12 +37,10 @@
 _PUBLIC_ struct cli_credentials *cli_credentials_init(TALLOC_CTX *mem_ctx) 
 {
 	struct cli_credentials *cred = talloc(mem_ctx, struct cli_credentials);
-	if (!cred) {
+	if (cred == NULL) {
 		return cred;
 	}
 
-	cred->netlogon_creds = NULL;
-	cred->machine_account_pending = false;
 	cred->workstation_obtained = CRED_UNINITIALISED;
 	cred->username_obtained = CRED_UNINITIALISED;
 	cred->password_obtained = CRED_UNINITIALISED;
@@ -50,21 +48,63 @@ _PUBLIC_ struct cli_credentials *cli_credentials_init(TALLOC_CTX *mem_ctx)
 	cred->realm_obtained = CRED_UNINITIALISED;
 	cred->ccache_obtained = CRED_UNINITIALISED;
 	cred->client_gss_creds_obtained = CRED_UNINITIALISED;
-	cred->server_gss_creds_obtained = CRED_UNINITIALISED;
-	cred->keytab_obtained = CRED_UNINITIALISED;
 	cred->principal_obtained = CRED_UNINITIALISED;
+	cred->keytab_obtained = CRED_UNINITIALISED;
+	cred->server_gss_creds_obtained = CRED_UNINITIALISED;
 
 	cred->ccache_threshold = CRED_UNINITIALISED;
 	cred->client_gss_creds_threshold = CRED_UNINITIALISED;
 
+	cred->workstation = NULL;
+	cred->username = NULL;
+	cred->password = NULL;
 	cred->old_password = NULL;
-	cred->smb_krb5_context = NULL;
+	cred->domain = NULL;
+	cred->realm = NULL;
+	cred->principal = NULL;
 	cred->salt_principal = NULL;
-	cred->machine_account = false;
+	cred->impersonate_principal = NULL;
+	cred->target_service = NULL;
 
 	cred->bind_dn = NULL;
 
+	cred->nt_hash = NULL;
+
+	cred->lm_response.data = NULL;
+	cred->lm_response.length = 0;
+	cred->nt_response.data = NULL;
+	cred->nt_response.length = 0;
+
+	cred->ccache = NULL;
+	cred->client_gss_creds = NULL;
+	cred->keytab = NULL;
+	cred->server_gss_creds = NULL;
+
+	cred->workstation_cb = NULL;
+	cred->password_cb = NULL;
+	cred->username_cb = NULL;
+	cred->domain_cb = NULL;
+	cred->realm_cb = NULL;
+	cred->principal_cb = NULL;
+
+	cred->priv_data = NULL;
+
+	cred->netlogon_creds = NULL;
+	cred->secure_channel_type = SEC_CHAN_NULL;
+
+	cred->kvno = 0;
+
+	cred->password_last_changed_time = 0;
+
+	cred->smb_krb5_context = NULL;
+
+	cred->machine_account_pending = false;
+	cred->machine_account_pending_lp_ctx = NULL;
+
+	cred->machine_account = false;
+
 	cred->tries = 3;
+
 	cred->callback_running = false;
 
 	cli_credentials_set_kerberos_state(cred, CRED_AUTO_USE_KERBEROS);
@@ -184,7 +224,7 @@ _PUBLIC_ const char *cli_credentials_get_bind_dn(struct cli_credentials *cred)
  * @retval The username set on this context.
  * @note Return value will never be NULL except by programmer error.
  */
-_PUBLIC_ const char *cli_credentials_get_principal(struct cli_credentials *cred, TALLOC_CTX *mem_ctx)
+const char *cli_credentials_get_principal_and_obtained(struct cli_credentials *cred, TALLOC_CTX *mem_ctx, enum credentials_obtained *obtained)
 {
 	if (cred->machine_account_pending) {
 		cli_credentials_set_machine_account(cred,
@@ -200,18 +240,34 @@ _PUBLIC_ const char *cli_credentials_get_principal(struct cli_credentials *cred,
 		cli_credentials_invalidate_ccache(cred, cred->principal_obtained);
 	}
 
-	if (cred->principal_obtained < cred->username_obtained) {
+	if (cred->principal_obtained < cred->username_obtained
+	    || cred->principal_obtained < MAX(cred->domain_obtained, cred->realm_obtained)) {
 		if (cred->domain_obtained > cred->realm_obtained) {
+			*obtained = MIN(cred->domain_obtained, cred->username_obtained);
 			return talloc_asprintf(mem_ctx, "%s@%s", 
 					       cli_credentials_get_username(cred),
 					       cli_credentials_get_domain(cred));
 		} else {
+			*obtained = MIN(cred->domain_obtained, cred->username_obtained);
 			return talloc_asprintf(mem_ctx, "%s@%s", 
 					       cli_credentials_get_username(cred),
 					       cli_credentials_get_realm(cred));
 		}
 	}
+	*obtained = cred->principal_obtained;
 	return talloc_reference(mem_ctx, cred->principal);
+}
+
+/**
+ * Obtain the client principal for this credentials context.
+ * @param cred credentials context
+ * @retval The username set on this context.
+ * @note Return value will never be NULL except by programmer error.
+ */
+_PUBLIC_ const char *cli_credentials_get_principal(struct cli_credentials *cred, TALLOC_CTX *mem_ctx)
+{
+	enum credentials_obtained obtained;
+	return cli_credentials_get_principal_and_obtained(cred, mem_ctx, &obtained);
 }
 
 bool cli_credentials_set_principal(struct cli_credentials *cred, 
@@ -613,9 +669,9 @@ _PUBLIC_ void cli_credentials_set_conf(struct cli_credentials *cred,
 			      struct loadparm_context *lp_ctx)
 {
 	cli_credentials_set_username(cred, "", CRED_UNINITIALISED);
-	cli_credentials_set_domain(cred, lp_workgroup(lp_ctx), CRED_UNINITIALISED);
-	cli_credentials_set_workstation(cred, lp_netbios_name(lp_ctx), CRED_UNINITIALISED);
-	cli_credentials_set_realm(cred, lp_realm(lp_ctx), CRED_UNINITIALISED);
+	cli_credentials_set_domain(cred, lpcfg_workgroup(lp_ctx), CRED_UNINITIALISED);
+	cli_credentials_set_workstation(cred, lpcfg_netbios_name(lp_ctx), CRED_UNINITIALISED);
+	cli_credentials_set_realm(cred, lpcfg_realm(lp_ctx), CRED_UNINITIALISED);
 }
 
 /**
@@ -628,6 +684,7 @@ _PUBLIC_ void cli_credentials_guess(struct cli_credentials *cred,
 			   struct loadparm_context *lp_ctx)
 {
 	char *p;
+	const char *error_string;
 
 	if (lp_ctx != NULL) {
 		cli_credentials_set_conf(cred, lp_ctx);
@@ -659,7 +716,8 @@ _PUBLIC_ void cli_credentials_guess(struct cli_credentials *cred,
 	}
 	
 	if (cli_credentials_get_kerberos_state(cred) != CRED_DONT_USE_KERBEROS) {
-		cli_credentials_set_ccache(cred, event_context_find(cred), lp_ctx, NULL, CRED_GUESS_FILE);
+		cli_credentials_set_ccache(cred, event_context_find(cred), lp_ctx, NULL, CRED_GUESS_FILE,
+					   &error_string);
 	}
 }
 
@@ -696,6 +754,25 @@ _PUBLIC_ void cli_credentials_set_secure_channel_type(struct cli_credentials *cr
  * Return NETLOGON secure chanel type
  */
 
+_PUBLIC_ time_t cli_credentials_get_password_last_changed_time(struct cli_credentials *cred)
+{
+	return cred->password_last_changed_time;
+}
+
+/** 
+ * Set NETLOGON secure channel type
+ */
+
+_PUBLIC_ void cli_credentials_set_password_last_changed_time(struct cli_credentials *cred,
+							     time_t last_changed_time)
+{
+	cred->password_last_changed_time = last_changed_time;
+}
+
+/**
+ * Return NETLOGON secure chanel type
+ */
+
 _PUBLIC_ enum netr_SchannelType cli_credentials_get_secure_channel_type(struct cli_credentials *cred)
 {
 	return cred->secure_channel_type;
@@ -722,6 +799,11 @@ _PUBLIC_ bool cli_credentials_is_anonymous(struct cli_credentials *cred)
 {
 	const char *username;
 	
+	/* if bind dn is set it's not anonymous */
+	if (cred->bind_dn) {
+		return false;
+	}
+
 	if (cred->machine_account_pending) {
 		cli_credentials_set_machine_account(cred,
 						    cred->machine_account_pending_lp_ctx);

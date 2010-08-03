@@ -25,6 +25,8 @@
  */
 
 #include "includes.h"
+#include "registry.h"
+#include "reg_objects.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
@@ -40,7 +42,7 @@ static int netlogon_params_fetch_values(const char *key, struct regval_ctr *regv
 	}
 
 	regval_ctr_addvalue(regvals, "RefusePasswordChange", REG_DWORD,
-			    (char*)&dwValue, sizeof(dwValue));
+			    (uint8_t *)&dwValue, sizeof(dwValue));
 
 	return regval_ctr_numvals(regvals);
 }

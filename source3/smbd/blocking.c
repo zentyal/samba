@@ -19,6 +19,7 @@
 
 #include "includes.h"
 #include "smbd/globals.h"
+#include "librpc/gen_ndr/messaging.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_LOCKING
@@ -33,25 +34,33 @@ static void received_unlock_msg(struct messaging_context *msg,
 				struct server_id server_id,
 				DATA_BLOB *data);
 
-static void brl_timeout_fn(struct event_context *event_ctx,
+void brl_timeout_fn(struct event_context *event_ctx,
 			   struct timed_event *te,
 			   struct timeval now,
 			   void *private_data)
 {
-	SMB_ASSERT(brl_timeout == te);
-	TALLOC_FREE(brl_timeout);
+	struct smbd_server_connection *sconn = talloc_get_type_abort(
+		private_data, struct smbd_server_connection);
+
+	if (sconn->using_smb2) {
+		SMB_ASSERT(sconn->smb2.locks.brl_timeout == te);
+		TALLOC_FREE(sconn->smb2.locks.brl_timeout);
+	} else {
+		SMB_ASSERT(sconn->smb1.locks.brl_timeout == te);
+		TALLOC_FREE(sconn->smb1.locks.brl_timeout);
+	}
 
 	change_to_root_user();	/* TODO: Possibly run all timed events as
 				 * root */
 
-	process_blocking_lock_queue();
+	process_blocking_lock_queue(sconn);
 }
 
 /****************************************************************************
  We need a version of timeval_min that treats zero timval as infinite.
 ****************************************************************************/
 
-static struct timeval timeval_brl_min(const struct timeval *tv1,
+struct timeval timeval_brl_min(const struct timeval *tv1,
 					const struct timeval *tv2)
 {
 	if (timeval_is_zero(tv1)) {
@@ -68,24 +77,24 @@ static struct timeval timeval_brl_min(const struct timeval *tv1,
  next processing.
 ****************************************************************************/
 
-static bool recalc_brl_timeout(void)
+static bool recalc_brl_timeout(struct smbd_server_connection *sconn)
 {
 	struct blocking_lock_record *blr;
 	struct timeval next_timeout;
 	int max_brl_timeout = lp_parm_int(-1, "brl", "recalctime", 5);
 
-	TALLOC_FREE(brl_timeout);
+	TALLOC_FREE(sconn->smb1.locks.brl_timeout);
 
-	next_timeout = timeval_zero();	
+	next_timeout = timeval_zero();
 
-	for (blr = blocking_lock_queue; blr; blr = blr->next) {
+	for (blr = sconn->smb1.locks.blocking_lock_queue; blr; blr = blr->next) {
 		if (timeval_is_zero(&blr->expire_time)) {
 			/*
-			 * If we're blocked on pid 0xFFFFFFFF this is
+			 * If we're blocked on pid 0xFFFFFFFFFFFFFFFFLL this is
 			 * a POSIX lock, so calculate a timeout of
 			 * 10 seconds into the future.
 			 */
-                        if (blr->blocking_pid == 0xFFFFFFFF) {
+                        if (blr->blocking_smblctx == 0xFFFFFFFFFFFFFFFFLL) {
 				struct timeval psx_to = timeval_current_ofs(10, 0);
 				next_timeout = timeval_brl_min(&next_timeout, &psx_to);
                         }
@@ -117,7 +126,7 @@ static bool recalc_brl_timeout(void)
 
 	if (max_brl_timeout > 0) {
 		struct timeval min_to = timeval_current_ofs(max_brl_timeout, 0);
-		next_timeout = timeval_min(&next_timeout, &min_to);             
+		next_timeout = timeval_min(&next_timeout, &min_to);
 	}
 
 	if (DEBUGLVL(10)) {
@@ -129,9 +138,10 @@ static bool recalc_brl_timeout(void)
 		    (int)from_now.tv_sec, (int)from_now.tv_usec));
 	}
 
-	if (!(brl_timeout = event_add_timed(smbd_event_context(), NULL,
-					    next_timeout,
-					    brl_timeout_fn, NULL))) {
+	sconn->smb1.locks.brl_timeout = event_add_timed(smbd_event_context(),
+							NULL, next_timeout,
+							brl_timeout_fn, sconn);
+	if (sconn->smb1.locks.brl_timeout == NULL) {
 		return False;
 	}
 
@@ -148,15 +158,30 @@ bool push_blocking_lock_request( struct byte_range_lock *br_lck,
 		files_struct *fsp,
 		int lock_timeout,
 		int lock_num,
-		uint32_t lock_pid,
+		uint64_t smblctx,
 		enum brl_type lock_type,
 		enum brl_flavour lock_flav,
 		uint64_t offset,
 		uint64_t count,
-		uint32_t blocking_pid)
+		uint64_t blocking_smblctx)
 {
+	struct smbd_server_connection *sconn = req->sconn;
 	struct blocking_lock_record *blr;
 	NTSTATUS status;
+
+	if (req->smb2req) {
+		return push_blocking_lock_request_smb2(br_lck,
+				req,
+				fsp,
+				lock_timeout,
+				lock_num,
+				smblctx,
+				lock_type,
+				lock_flav,
+				offset,
+				count,
+				blocking_smblctx);
+	}
 
 	if(req_is_in_chain(req)) {
 		DEBUG(0,("push_blocking_lock_request: cannot queue a chained request (currently).\n"));
@@ -186,8 +211,8 @@ bool push_blocking_lock_request( struct byte_range_lock *br_lck,
 					(lock_timeout % 1000) * 1000);
 	}
 	blr->lock_num = lock_num;
-	blr->lock_pid = lock_pid;
-	blr->blocking_pid = blocking_pid;
+	blr->smblctx = smblctx;
+	blr->blocking_smblctx = blocking_smblctx;
 	blr->lock_flav = lock_flav;
 	blr->lock_type = lock_type;
 	blr->offset = offset;
@@ -197,10 +222,10 @@ bool push_blocking_lock_request( struct byte_range_lock *br_lck,
 	blr->blr_private = NULL;
 
 	/* Add a pending lock record for this. */
-	status = brl_lock(smbd_messaging_context(),
+	status = brl_lock(req->sconn->msg_ctx,
 			br_lck,
-			lock_pid,
-			procid_self(),
+			smblctx,
+			sconn_server_id(req->sconn),
 			offset,
 			count,
 			lock_type == READ_LOCK ? PENDING_READ_LOCK : PENDING_WRITE_LOCK,
@@ -218,14 +243,14 @@ bool push_blocking_lock_request( struct byte_range_lock *br_lck,
 	SMB_PERFCOUNT_DEFER_OP(&req->pcd, &req->pcd);
 	blr->req = talloc_move(blr, &req);
 
-	DLIST_ADD_END(blocking_lock_queue, blr, struct blocking_lock_record *);
-	recalc_brl_timeout();
+	DLIST_ADD_END(sconn->smb1.locks.blocking_lock_queue, blr, struct blocking_lock_record *);
+	recalc_brl_timeout(sconn);
 
 	/* Ensure we'll receive messages when this is unlocked. */
-	if (!blocking_lock_unlock_state) {
-		messaging_register(smbd_messaging_context(), NULL,
+	if (!sconn->smb1.locks.blocking_lock_unlock_state) {
+		messaging_register(sconn->msg_ctx, NULL,
 				   MSG_SMB_UNLOCK, received_unlock_msg);
-		blocking_lock_unlock_state = true;
+		sconn->smb1.locks.blocking_lock_unlock_state = true;
 	}
 
 	DEBUG(3,("push_blocking_lock_request: lock request blocked with "
@@ -274,9 +299,10 @@ static void generic_blocking_lock_error(struct blocking_lock_record *blr, NTSTAT
 		files_struct *fsp = blr->fsp;
 
 		if (fsp) {
-			fsp->last_lock_failure.context.smbpid = blr->lock_pid;
+			fsp->last_lock_failure.context.smblctx = blr->smblctx;
 			fsp->last_lock_failure.context.tid = fsp->conn->cnum;
-			fsp->last_lock_failure.context.pid = procid_self();
+			fsp->last_lock_failure.context.pid =
+				sconn_server_id(fsp->conn->sconn);
 			fsp->last_lock_failure.start = blr->offset;
 			fsp->last_lock_failure.size = blr->count;
 			fsp->last_lock_failure.fnum = fsp->fnum;
@@ -304,7 +330,7 @@ static void reply_lockingX_error(struct blocking_lock_record *blr, NTSTATUS stat
 	files_struct *fsp = blr->fsp;
 	uint16 num_ulocks = SVAL(blr->req->vwv+6, 0);
 	uint64_t count = (uint64_t)0, offset = (uint64_t) 0;
-	uint32 lock_pid;
+	uint64_t smblctx;
 	unsigned char locktype = CVAL(blr->req->vwv+3, 0);
 	bool large_file_format = (locktype & LOCKING_ANDX_LARGE_FILES);
 	uint8_t *data;
@@ -327,7 +353,7 @@ static void reply_lockingX_error(struct blocking_lock_record *blr, NTSTATUS stat
 	for(i = blr->lock_num - 1; i >= 0; i--) {
 		bool err;
 
-		lock_pid = get_lock_pid( data, i, large_file_format);
+		smblctx = get_lock_pid( data, i, large_file_format);
 		count = get_lock_count( data, i, large_file_format);
 		offset = get_lock_offset( data, i, large_file_format, &err);
 
@@ -336,9 +362,9 @@ static void reply_lockingX_error(struct blocking_lock_record *blr, NTSTATUS stat
 		 * request would never have been queued. JRA.
 		 */
 
-		do_unlock(smbd_messaging_context(),
+		do_unlock(fsp->conn->sconn->msg_ctx,
 			fsp,
-			lock_pid,
+			smblctx,
 			count,
 			offset,
 			WINDOWS_LOCK);
@@ -397,7 +423,7 @@ static bool process_lockingX(struct blocking_lock_record *blr)
 	uint16 num_ulocks = SVAL(blr->req->vwv+6, 0);
 	uint16 num_locks = SVAL(blr->req->vwv+7, 0);
 	uint64_t count = (uint64_t)0, offset = (uint64_t)0;
-	uint32 lock_pid;
+	uint64_t smblctx;
 	bool large_file_format = (locktype & LOCKING_ANDX_LARGE_FILES);
 	uint8_t *data;
 	NTSTATUS status = NT_STATUS_OK;
@@ -414,7 +440,7 @@ static bool process_lockingX(struct blocking_lock_record *blr)
 		struct byte_range_lock *br_lck = NULL;
 		bool err;
 
-		lock_pid = get_lock_pid( data, blr->lock_num, large_file_format);
+		smblctx = get_lock_pid( data, blr->lock_num, large_file_format);
 		count = get_lock_count( data, blr->lock_num, large_file_format);
 		offset = get_lock_offset( data, blr->lock_num, large_file_format, &err);
 
@@ -423,17 +449,17 @@ static bool process_lockingX(struct blocking_lock_record *blr)
 		 * request would never have been queued. JRA.
 		 */
 		errno = 0;
-		br_lck = do_lock(smbd_messaging_context(),
+		br_lck = do_lock(fsp->conn->sconn->msg_ctx,
 				fsp,
-				lock_pid,
+				smblctx,
 				count,
-				offset, 
+				offset,
 				((locktype & LOCKING_ANDX_SHARED_LOCK) ?
 					READ_LOCK : WRITE_LOCK),
 				WINDOWS_LOCK,
 				True,
 				&status,
-				&blr->blocking_pid,
+				&blr->blocking_smblctx,
 				blr);
 
 		TALLOC_FREE(br_lck);
@@ -487,16 +513,17 @@ static bool process_trans2(struct blocking_lock_record *blr)
 {
 	char params[2];
 	NTSTATUS status;
-	struct byte_range_lock *br_lck = do_lock(smbd_messaging_context(),
+	struct byte_range_lock *br_lck = do_lock(
+						blr->fsp->conn->sconn->msg_ctx,
 						blr->fsp,
-						blr->lock_pid,
+						blr->smblctx,
 						blr->count,
 						blr->offset,
 						blr->lock_type,
 						blr->lock_flav,
 						True,
 						&status,
-						&blr->blocking_pid,
+						&blr->blocking_smblctx,
 						blr);
 	TALLOC_FREE(br_lck);
 
@@ -544,13 +571,24 @@ static bool blocking_lock_record_process(struct blocking_lock_record *blr)
 
 /****************************************************************************
  Cancel entries by fnum from the blocking lock pending queue.
+ Called when a file is closed.
 *****************************************************************************/
 
-void cancel_pending_lock_requests_by_fid(files_struct *fsp, struct byte_range_lock *br_lck)
+void cancel_pending_lock_requests_by_fid(files_struct *fsp,
+			struct byte_range_lock *br_lck,
+			enum file_close_type close_type)
 {
+	struct smbd_server_connection *sconn = fsp->conn->sconn;
 	struct blocking_lock_record *blr, *blr_cancelled, *next = NULL;
 
-	for(blr = blocking_lock_queue; blr; blr = next) {
+	if (sconn->using_smb2) {
+		cancel_pending_lock_requests_by_fid_smb2(fsp,
+					br_lck,
+					close_type);
+		return;
+	}
+
+	for(blr = sconn->smb1.locks.blocking_lock_queue; blr; blr = next) {
 		unsigned char locktype = 0;
 
 		next = blr->next;
@@ -566,8 +604,8 @@ void cancel_pending_lock_requests_by_fid(files_struct *fsp, struct byte_range_lo
 			   "request type %d for file %s fnum = %d\n",
 			   blr->req->cmd, fsp_str_dbg(fsp), fsp->fnum));
 
-		blr_cancelled = blocking_lock_cancel(fsp,
-				     blr->lock_pid,
+		blr_cancelled = blocking_lock_cancel_smb1(fsp,
+				     blr->smblctx,
 				     blr->offset,
 				     blr->count,
 				     blr->lock_flav,
@@ -577,8 +615,8 @@ void cancel_pending_lock_requests_by_fid(files_struct *fsp, struct byte_range_lo
 		SMB_ASSERT(blr_cancelled == blr);
 
 		brl_lock_cancel(br_lck,
-				blr->lock_pid,
-				procid_self(),
+				blr->smblctx,
+				sconn_server_id(sconn),
 				blr->offset,
 				blr->count,
 				blr->lock_flav,
@@ -592,13 +630,15 @@ void cancel_pending_lock_requests_by_fid(files_struct *fsp, struct byte_range_lo
 
 /****************************************************************************
  Delete entries by mid from the blocking lock pending queue. Always send reply.
+ Only called from the SMB1 cancel code.
 *****************************************************************************/
 
-void remove_pending_lock_requests_by_mid(int mid)
+void remove_pending_lock_requests_by_mid_smb1(
+	struct smbd_server_connection *sconn, uint64_t mid)
 {
 	struct blocking_lock_record *blr, *next = NULL;
 
-	for(blr = blocking_lock_queue; blr; blr = next) {
+	for(blr = sconn->smb1.locks.blocking_lock_queue; blr; blr = next) {
 		files_struct *fsp;
 		struct byte_range_lock *br_lck;
 
@@ -612,14 +652,14 @@ void remove_pending_lock_requests_by_mid(int mid)
 		br_lck = brl_get_locks(talloc_tos(), fsp);
 
 		if (br_lck) {
-			DEBUG(10, ("remove_pending_lock_requests_by_mid - "
+			DEBUG(10, ("remove_pending_lock_requests_by_mid_smb1 - "
 				   "removing request type %d for file %s fnum "
 				   "= %d\n", blr->req->cmd, fsp_str_dbg(fsp),
 				   fsp->fnum ));
 
 			brl_lock_cancel(br_lck,
-					blr->lock_pid,
-					procid_self(),
+					blr->smblctx,
+					sconn_server_id(sconn),
 					blr->offset,
 					blr->count,
 					blr->lock_flav,
@@ -628,20 +668,22 @@ void remove_pending_lock_requests_by_mid(int mid)
 		}
 
 		blocking_lock_reply_error(blr,NT_STATUS_FILE_LOCK_CONFLICT);
-		DLIST_REMOVE(blocking_lock_queue, blr);
+		DLIST_REMOVE(sconn->smb1.locks.blocking_lock_queue, blr);
 		TALLOC_FREE(blr);
 	}
 }
 
 /****************************************************************************
  Is this mid a blocking lock request on the queue ?
+ Currently only called from the SMB1 unix extensions POSIX lock code.
 *****************************************************************************/
 
-bool blocking_lock_was_deferred(int mid)
+bool blocking_lock_was_deferred_smb1(
+	struct smbd_server_connection *sconn, uint64_t mid)
 {
 	struct blocking_lock_record *blr, *next = NULL;
 
-	for(blr = blocking_lock_queue; blr; blr = next) {
+	for(blr = sconn->smb1.locks.blocking_lock_queue; blr; blr = next) {
 		next = blr->next;
 		if(blr->req->mid == mid) {
 			return True;
@@ -661,23 +703,28 @@ static void received_unlock_msg(struct messaging_context *msg,
 				DATA_BLOB *data)
 {
 	DEBUG(10,("received_unlock_msg\n"));
-	process_blocking_lock_queue();
+	process_blocking_lock_queue(smbd_server_conn);
 }
 
 /****************************************************************************
  Process the blocking lock queue. Note that this is only called as root.
 *****************************************************************************/
 
-void process_blocking_lock_queue(void)
+void process_blocking_lock_queue(struct smbd_server_connection *sconn)
 {
 	struct timeval tv_curr = timeval_current();
 	struct blocking_lock_record *blr, *next = NULL;
+
+	if (sconn->using_smb2) {
+		process_blocking_lock_queue_smb2(sconn, tv_curr);
+		return;
+	}
 
 	/*
 	 * Go through the queue and see if we can get any of the locks.
 	 */
 
-	for (blr = blocking_lock_queue; blr; blr = next) {
+	for (blr = sconn->smb1.locks.blocking_lock_queue; blr; blr = next) {
 
 		next = blr->next;
 
@@ -706,8 +753,8 @@ void process_blocking_lock_queue(void)
 
 			if (br_lck) {
 				brl_lock_cancel(br_lck,
-					blr->lock_pid,
-					procid_self(),
+					blr->smblctx,
+					sconn_server_id(sconn),
 					blr->offset,
 					blr->count,
 					blr->lock_flav,
@@ -715,7 +762,7 @@ void process_blocking_lock_queue(void)
 				TALLOC_FREE(br_lck);
 			}
 
-			DLIST_REMOVE(blocking_lock_queue, blr);
+			DLIST_REMOVE(sconn->smb1.locks.blocking_lock_queue, blr);
 			TALLOC_FREE(blr);
 			continue;
 		}
@@ -743,8 +790,8 @@ void process_blocking_lock_queue(void)
 					 fsp_str_dbg(blr->fsp)));
 
 				brl_lock_cancel(br_lck,
-					blr->lock_pid,
-					procid_self(),
+					blr->smblctx,
+					sconn_server_id(sconn),
 					blr->offset,
 					blr->count,
 					blr->lock_flav,
@@ -753,12 +800,12 @@ void process_blocking_lock_queue(void)
 			}
 
 			blocking_lock_reply_error(blr,NT_STATUS_FILE_LOCK_CONFLICT);
-			DLIST_REMOVE(blocking_lock_queue, blr);
+			DLIST_REMOVE(sconn->smb1.locks.blocking_lock_queue, blr);
 			TALLOC_FREE(blr);
 		}
 	}
 
-	recalc_brl_timeout();
+	recalc_brl_timeout(sconn);
 }
 
 /****************************************************************************
@@ -773,6 +820,7 @@ static void process_blocking_lock_cancel_message(struct messaging_context *ctx,
 						 struct server_id server_id,
 						 DATA_BLOB *data)
 {
+	struct smbd_server_connection *sconn = smbd_server_conn;
 	NTSTATUS err;
 	const char *msg = (const char *)data->data;
 	struct blocking_lock_record *blr;
@@ -794,38 +842,40 @@ static void process_blocking_lock_cancel_message(struct messaging_context *ctx,
 		nt_errstr(err) ));
 
 	blocking_lock_reply_error(blr, err);
-	DLIST_REMOVE(blocking_lock_cancelled_queue, blr);
+	DLIST_REMOVE(sconn->smb1.locks.blocking_lock_cancelled_queue, blr);
 	TALLOC_FREE(blr);
 }
 
 /****************************************************************************
  Send ourselves a blocking lock cancelled message. Handled asynchronously above.
  Returns the blocking_lock_record that is being cancelled.
+ Only called from the SMB1 code.
 *****************************************************************************/
 
-struct blocking_lock_record *blocking_lock_cancel(files_struct *fsp,
-			uint32 lock_pid,
+struct blocking_lock_record *blocking_lock_cancel_smb1(files_struct *fsp,
+			uint64_t smblctx,
 			uint64_t offset,
 			uint64_t count,
 			enum brl_flavour lock_flav,
 			unsigned char locktype,
                         NTSTATUS err)
 {
+	struct smbd_server_connection *sconn = fsp->conn->sconn;
 	char msg[MSG_BLOCKING_LOCK_CANCEL_SIZE];
 	struct blocking_lock_record *blr;
 
-	if (!blocking_lock_cancel_state) {
+	if (!sconn->smb1.locks.blocking_lock_cancel_state) {
 		/* Register our message. */
-		messaging_register(smbd_messaging_context(), NULL,
+		messaging_register(sconn->msg_ctx, NULL,
 				   MSG_SMB_BLOCKING_LOCK_CANCEL,
 				   process_blocking_lock_cancel_message);
 
-		blocking_lock_cancel_state = True;
+		sconn->smb1.locks.blocking_lock_cancel_state = True;
 	}
 
-	for (blr = blocking_lock_queue; blr; blr = blr->next) {
+	for (blr = sconn->smb1.locks.blocking_lock_queue; blr; blr = blr->next) {
 		if (fsp == blr->fsp &&
-				lock_pid == blr->lock_pid &&
+				smblctx == blr->smblctx &&
 				offset == blr->offset &&
 				count == blr->count &&
 				lock_flav == blr->lock_flav) {
@@ -845,14 +895,14 @@ struct blocking_lock_record *blocking_lock_cancel(files_struct *fsp,
 	}
 
 	/* Move to cancelled queue. */
-	DLIST_REMOVE(blocking_lock_queue, blr);
-	DLIST_ADD(blocking_lock_cancelled_queue, blr);
+	DLIST_REMOVE(sconn->smb1.locks.blocking_lock_queue, blr);
+	DLIST_ADD(sconn->smb1.locks.blocking_lock_cancelled_queue, blr);
 
 	/* Create the message. */
 	memcpy(msg, &blr, sizeof(blr));
 	memcpy(&msg[sizeof(blr)], &err, sizeof(NTSTATUS));
 
-	messaging_send_buf(smbd_messaging_context(), procid_self(),
+	messaging_send_buf(sconn->msg_ctx, sconn_server_id(sconn),
 			   MSG_SMB_BLOCKING_LOCK_CANCEL,
 			   (uint8 *)&msg, sizeof(msg));
 

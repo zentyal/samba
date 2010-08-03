@@ -18,8 +18,8 @@
  */
 
 #include "includes.h"
-#if _SAMBA_BUILD_ == 4
 #include "libgpo/gpo.h"
+#if _SAMBA_BUILD_ == 4
 #include "libgpo/gpo_s4.h"
 #include "source4/libgpo/ads_convenience.h"
 #endif
@@ -485,7 +485,7 @@ ADS_STATUS ads_get_gpo(ADS_STRUCT *ads,
 		"ntSecurityDescriptor",
 		"versionNumber",
 		NULL};
-	uint32_t sd_flags = DACL_SECURITY_INFORMATION;
+	uint32_t sd_flags = SECINFO_DACL;
 
 	ZERO_STRUCTP(gpo);
 
@@ -622,11 +622,11 @@ ADS_STATUS ads_get_sid_token(ADS_STRUCT *ads,
 			     NT_USER_TOKEN **token)
 {
 	ADS_STATUS status;
-	DOM_SID object_sid;
-	DOM_SID primary_group_sid;
-	DOM_SID *ad_token_sids;
+	struct dom_sid object_sid;
+	struct dom_sid primary_group_sid;
+	struct dom_sid *ad_token_sids;
 	size_t num_ad_token_sids = 0;
-	DOM_SID *token_sids;
+	struct dom_sid *token_sids;
 	size_t num_token_sids = 0;
 	NT_USER_TOKEN *new_token = NULL;
 	int i;
@@ -638,7 +638,7 @@ ADS_STATUS ads_get_sid_token(ADS_STRUCT *ads,
 		return status;
 	}
 
-	token_sids = TALLOC_ARRAY(mem_ctx, DOM_SID, 1);
+	token_sids = TALLOC_ARRAY(mem_ctx, struct dom_sid, 1);
 	ADS_ERROR_HAVE_NO_MEMORY(token_sids);
 
 	status = ADS_ERROR_NT(add_sid_to_array_unique(mem_ctx,
@@ -724,6 +724,10 @@ ADS_STATUS ads_get_gpo_list(ADS_STRUCT *ads,
 
 	if (!dn) {
 		return ADS_ERROR_NT(NT_STATUS_INVALID_PARAMETER);
+	}
+
+	if (!ads_set_sasl_wrap_flags(ads, ADS_AUTH_SASL_SIGN)) {
+		return ADS_ERROR(LDAP_INVALID_CREDENTIALS);
 	}
 
 	DEBUG(10,("ads_get_gpo_list: getting GPO list for [%s]\n", dn));

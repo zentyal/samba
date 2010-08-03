@@ -18,6 +18,7 @@
 */
 
 #include "includes.h"
+#include "../librpc/gen_ndr/ndr_security.h"
 
 NTSTATUS cli_get_quota_handle(struct cli_state *cli, uint16_t *quota_fnum)
 {
@@ -144,7 +145,7 @@ bool cli_get_user_quota(struct cli_state *cli, int quota_fnum, SMB_NTQUOTA_STRUC
 	SIVAL(params, 8,0x00000000);
 	SIVAL(params,12,0x00000024);
 
-	sid_len = ndr_size_dom_sid(&pqt->sid, NULL, 0);
+	sid_len = ndr_size_dom_sid(&pqt->sid, 0);
 	data_len = sid_len+8;
 	SIVAL(data, 0, 0x00000000);
 	SIVAL(data, 4, sid_len);
@@ -207,7 +208,7 @@ bool cli_set_user_quota(struct cli_state *cli, int quota_fnum, SMB_NTQUOTA_STRUC
 
 	SSVAL(params,0,quota_fnum);
 
-	sid_len = ndr_size_dom_sid(&pqt->sid, NULL, 0);
+	sid_len = ndr_size_dom_sid(&pqt->sid, 0);
 	SIVAL(data,0,0);
 	SIVAL(data,4,sid_len);
 	SBIG_UINT(data, 8,(uint64_t)0);
@@ -568,7 +569,7 @@ static const char *quota_str_static(uint64_t val, bool special, bool _numeric)
 	return result;
 }
 
-void dump_ntquota(SMB_NTQUOTA_STRUCT *qt, bool _verbose, bool _numeric, void (*_sidtostring)(fstring str, DOM_SID *sid, bool _numeric))
+void dump_ntquota(SMB_NTQUOTA_STRUCT *qt, bool _verbose, bool _numeric, void (*_sidtostring)(fstring str, struct dom_sid *sid, bool _numeric))
 {
 	TALLOC_CTX *frame = talloc_stackframe();
 
@@ -621,7 +622,7 @@ void dump_ntquota(SMB_NTQUOTA_STRUCT *qt, bool _verbose, bool _numeric, void (*_
 	return;
 }
 
-void dump_ntquota_list(SMB_NTQUOTA_LIST **qtl, bool _verbose, bool _numeric, void (*_sidtostring)(fstring str, DOM_SID *sid, bool _numeric))
+void dump_ntquota_list(SMB_NTQUOTA_LIST **qtl, bool _verbose, bool _numeric, void (*_sidtostring)(fstring str, struct dom_sid *sid, bool _numeric))
 {
 	SMB_NTQUOTA_LIST *cur;
 

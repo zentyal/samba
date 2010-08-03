@@ -67,7 +67,11 @@ void ldb_debug_set(struct ldb_context *ldb, enum ldb_debug_level level,
 void ldb_debug_add(struct ldb_context *ldb, const char *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
 void ldb_debug_end(struct ldb_context *ldb, enum ldb_debug_level level);
 
-#define ldb_oom(ldb) ldb_debug_set(ldb, LDB_DEBUG_FATAL, "ldb out of memory at %s:%d\n", __FILE__, __LINE__)
+#define ldb_error(ldb, ecode, reason) ldb_error_at(ldb, ecode, reason, __FILE__, __LINE__)
+
+#define ldb_oom(ldb) ldb_error(ldb, LDB_DEBUG_FATAL, "ldb out of memory")
+#define ldb_module_oom(module) ldb_oom(ldb_module_get_ctx(module))
+#define ldb_operr(ldb) ldb_error(ldb, LDB_ERR_OPERATIONS_ERROR, "operations error")
 
 /* The following definitions come from lib/ldb/common/ldb.c  */
 
@@ -98,9 +102,21 @@ void ldb_schema_attribute_set_override_handler(struct ldb_context *ldb,
 					       ldb_attribute_handler_override_fn_t override,
 					       void *private_data);
 
+/* A useful function to build comparison functions with */
+int ldb_any_comparison(struct ldb_context *ldb, void *mem_ctx, 
+		       ldb_attr_handler_t canonicalise_fn, 
+		       const struct ldb_val *v1,
+		       const struct ldb_val *v2);
+
 /* The following definitions come from lib/ldb/common/ldb_controls.c  */
 struct ldb_control *get_control_from_list(struct ldb_control **controls, const char *oid);
 int save_controls(struct ldb_control *exclude, struct ldb_request *req, struct ldb_control ***saver);
+/* Returns a list of controls, except the one specified.  Included
+ * controls become a child of returned list if they were children of
+ * controls_in */
+struct ldb_control **controls_except_specified(struct ldb_control **controls_in, 
+					       TALLOC_CTX *mem_ctx, 
+					       struct ldb_control *exclude);
 int check_critical_controls(struct ldb_control **controls);
 
 /* The following definitions come from lib/ldb/common/ldb_ldif.c  */
@@ -113,6 +129,9 @@ int ldb_match_msg(struct ldb_context *ldb,
 		  struct ldb_dn *base,
 		  enum ldb_scope scope);
 
+int ldb_match_msg_objectclass(const struct ldb_message *msg,
+			      const char *objectclass);
+
 /* The following definitions come from lib/ldb/common/ldb_modules.c  */
 
 struct ldb_module *ldb_module_new(TALLOC_CTX *memctx,
@@ -124,6 +143,7 @@ const char * ldb_module_get_name(struct ldb_module *module);
 struct ldb_context *ldb_module_get_ctx(struct ldb_module *module);
 void *ldb_module_get_private(struct ldb_module *module);
 void ldb_module_set_private(struct ldb_module *module, void *private_data);
+const struct ldb_module_ops *ldb_module_get_ops(struct ldb_module *module);
 
 int ldb_next_request(struct ldb_module *module, struct ldb_request *request);
 int ldb_next_start_trans(struct ldb_module *module);
@@ -135,6 +155,7 @@ int ldb_next_init(struct ldb_module *module);
 void ldb_set_errstring(struct ldb_context *ldb, const char *err_string);
 void ldb_asprintf_errstring(struct ldb_context *ldb, const char *format, ...) PRINTF_ATTRIBUTE(2,3);
 void ldb_reset_err_string(struct ldb_context *ldb);
+int ldb_error_at(struct ldb_context *ldb, int ecode, const char *reason, const char *file, int line);
 
 const char *ldb_default_modules_dir(void);
 
@@ -170,5 +191,16 @@ int ldb_module_done(struct ldb_request *req,
 int ldb_mod_register_control(struct ldb_module *module, const char *oid);
 
 void ldb_set_default_dns(struct ldb_context *ldb);
+/**
+  Add a ldb_control to a ldb_reply
+
+  \param ares the reply struct where to add the control
+  \param oid the object identifier of the control as string
+  \param critical whether the control should be critical or not
+  \param data a talloc pointer to the control specific data
+
+  \return result code (LDB_SUCCESS on success, or a failure code)
+*/
+int ldb_reply_add_control(struct ldb_reply *ares, const char *oid, bool critical, void *data);
 
 #endif

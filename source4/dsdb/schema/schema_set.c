@@ -1,7 +1,7 @@
-/* 
-   Unix SMB/CIFS mplementation.
+/*
+   Unix SMB/CIFS implementation.
    DSDB schema header
-   
+
    Copyright (C) Stefan Metzmacher <metze@samba.org> 2006-2007
    Copyright (C) Andrew Bartlett <abartlet@samba.org> 2006-2008
 
@@ -9,15 +9,15 @@
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-   
+
 */
 
 #include "includes.h"
@@ -25,11 +25,14 @@
 #include "dsdb/samdb/samdb.h"
 #include "lib/ldb/include/ldb_module.h"
 #include "param/param.h"
+#include "librpc/ndr/libndr.h"
+#include "librpc/gen_ndr/ndr_misc.h"
+#include "lib/util/tsort.h"
 
 /*
   override the name to attribute handler function
  */
-const struct ldb_schema_attribute *dsdb_attribute_handler_override(struct ldb_context *ldb, 
+const struct ldb_schema_attribute *dsdb_attribute_handler_override(struct ldb_context *ldb,
 								   void *private_data,
 								   const char *name)
 {
@@ -62,7 +65,7 @@ static int dsdb_schema_set_attributes(struct ldb_context *ldb, struct dsdb_schem
 
 	mem_ctx = talloc_new(ldb);
 	if (!mem_ctx) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_oom(ldb);
 	}
 
 	msg = ldb_msg_new(mem_ctx);
@@ -80,7 +83,7 @@ static int dsdb_schema_set_attributes(struct ldb_context *ldb, struct dsdb_schem
 		ldb_oom(ldb);
 		goto op_error;
 	}
-	msg_idx->dn = ldb_dn_new(msg, ldb, "@INDEXLIST");
+	msg_idx->dn = ldb_dn_new(msg_idx, ldb, "@INDEXLIST");
 	if (!msg_idx->dn) {
 		ldb_oom(ldb);
 		goto op_error;
@@ -93,17 +96,20 @@ static int dsdb_schema_set_attributes(struct ldb_context *ldb, struct dsdb_schem
 
 	for (attr = schema->attributes; attr; attr = attr->next) {
 		const char *syntax = attr->syntax->ldb_syntax;
-		
+
 		if (!syntax) {
 			syntax = attr->syntax->ldap_oid;
 		}
 
-		/* Write out a rough approximation of the schema as an @ATTRIBUTES value, for bootstrapping */
+		/*
+		 * Write out a rough approximation of the schema
+		 * as an @ATTRIBUTES value, for bootstrapping
+		 */
 		if (strcmp(syntax, LDB_SYNTAX_INTEGER) == 0) {
 			ret = ldb_msg_add_string(msg, attr->lDAPDisplayName, "INTEGER");
 		} else if (strcmp(syntax, LDB_SYNTAX_DIRECTORY_STRING) == 0) {
 			ret = ldb_msg_add_string(msg, attr->lDAPDisplayName, "CASE_INSENSITIVE");
-		} 
+		}
 		if (ret != LDB_SUCCESS) {
 			break;
 		}
@@ -121,8 +127,12 @@ static int dsdb_schema_set_attributes(struct ldb_context *ldb, struct dsdb_schem
 		return ret;
 	}
 
-	/* Try to avoid churning the attributes too much - we only want to do this if they have changed */
-	ret = ldb_search(ldb, mem_ctx, &res, msg->dn, LDB_SCOPE_BASE, NULL, "dn=%s", ldb_dn_get_linearized(msg->dn));
+	/*
+	 * Try to avoid churning the attributes too much,
+	 * we only want to do this if they have changed
+	 */
+	ret = ldb_search(ldb, mem_ctx, &res, msg->dn, LDB_SCOPE_BASE, NULL,
+			 NULL);
 	if (ret == LDB_ERR_NO_SUCH_OBJECT) {
 		ret = ldb_add(ldb, msg);
 	} else if (ret != LDB_SUCCESS) {
@@ -132,15 +142,20 @@ static int dsdb_schema_set_attributes(struct ldb_context *ldb, struct dsdb_schem
 		ret = LDB_SUCCESS;
 		/* Annoyingly added to our search results */
 		ldb_msg_remove_attr(res->msgs[0], "distinguishedName");
-		
-		mod_msg = ldb_msg_diff(ldb, res->msgs[0], msg);
-		if (mod_msg->num_elements > 0) {
-			ret = samdb_replace(ldb, mem_ctx, mod_msg);
+
+		ret = ldb_msg_difference(ldb, mem_ctx,
+		                         res->msgs[0], msg, &mod_msg);
+		if (ret != LDB_SUCCESS) {
+			goto op_error;
 		}
+		if (mod_msg->num_elements > 0) {
+			ret = dsdb_replace(ldb, mod_msg, 0);
+		}
+		talloc_free(mod_msg);
 	}
 
-	if (ret == LDB_ERR_OPERATIONS_ERROR || ret == LDB_ERR_INSUFFICIENT_ACCESS_RIGHTS) {
-		/* We might be on a read-only DB */
+	if (ret == LDB_ERR_OPERATIONS_ERROR || ret == LDB_ERR_INSUFFICIENT_ACCESS_RIGHTS || ret == LDB_ERR_INVALID_DN_SYNTAX) {
+		/* We might be on a read-only DB or LDAP */
 		ret = LDB_SUCCESS;
 	}
 	if (ret != LDB_SUCCESS) {
@@ -148,9 +163,10 @@ static int dsdb_schema_set_attributes(struct ldb_context *ldb, struct dsdb_schem
 		return ret;
 	}
 
-	/* Now write out the indexs, as found in the schema (if they have changed) */
+	/* Now write out the indexes, as found in the schema (if they have changed) */
 
-	ret = ldb_search(ldb, mem_ctx, &res_idx, msg_idx->dn, LDB_SCOPE_BASE, NULL, "dn=%s", ldb_dn_get_linearized(msg_idx->dn));
+	ret = ldb_search(ldb, mem_ctx, &res_idx, msg_idx->dn, LDB_SCOPE_BASE,
+			 NULL, NULL);
 	if (ret == LDB_ERR_NO_SUCH_OBJECT) {
 		ret = ldb_add(ldb, msg_idx);
 	} else if (ret != LDB_SUCCESS) {
@@ -161,12 +177,17 @@ static int dsdb_schema_set_attributes(struct ldb_context *ldb, struct dsdb_schem
 		/* Annoyingly added to our search results */
 		ldb_msg_remove_attr(res_idx->msgs[0], "distinguishedName");
 
-		mod_msg = ldb_msg_diff(ldb, res_idx->msgs[0], msg_idx);
-		if (mod_msg->num_elements > 0) {
-			ret = samdb_replace(ldb, mem_ctx, mod_msg);
+		ret = ldb_msg_difference(ldb, mem_ctx,
+		                         res_idx->msgs[0], msg_idx, &mod_msg);
+		if (ret != LDB_SUCCESS) {
+			goto op_error;
 		}
+		if (mod_msg->num_elements > 0) {
+			ret = dsdb_replace(ldb, mod_msg, 0);
+		}
+		talloc_free(mod_msg);
 	}
-	if (ret == LDB_ERR_OPERATIONS_ERROR || ret == LDB_ERR_INSUFFICIENT_ACCESS_RIGHTS) {
+	if (ret == LDB_ERR_OPERATIONS_ERROR || ret == LDB_ERR_INSUFFICIENT_ACCESS_RIGHTS || ret == LDB_ERR_INVALID_DN_SYNTAX) {
 		/* We might be on a read-only DB */
 		ret = LDB_SUCCESS;
 	}
@@ -175,7 +196,13 @@ static int dsdb_schema_set_attributes(struct ldb_context *ldb, struct dsdb_schem
 
 op_error:
 	talloc_free(mem_ctx);
-	return LDB_ERR_OPERATIONS_ERROR;
+	return ldb_operr(ldb);
+}
+
+static int uint32_cmp(uint32_t c1, uint32_t c2)
+{
+	if (c1 == c2) return 0;
+	return c1 > c2 ? 1 : -1;
 }
 
 static int dsdb_compare_class_by_lDAPDisplayName(struct dsdb_class **c1, struct dsdb_class **c2)
@@ -184,7 +211,7 @@ static int dsdb_compare_class_by_lDAPDisplayName(struct dsdb_class **c1, struct 
 }
 static int dsdb_compare_class_by_governsID_id(struct dsdb_class **c1, struct dsdb_class **c2)
 {
-	return (*c1)->governsID_id - (*c2)->governsID_id;
+	return uint32_cmp((*c1)->governsID_id, (*c2)->governsID_id);
 }
 static int dsdb_compare_class_by_governsID_oid(struct dsdb_class **c1, struct dsdb_class **c2)
 {
@@ -201,7 +228,7 @@ static int dsdb_compare_attribute_by_lDAPDisplayName(struct dsdb_attribute **a1,
 }
 static int dsdb_compare_attribute_by_attributeID_id(struct dsdb_attribute **a1, struct dsdb_attribute **a2)
 {
-	return (*a1)->attributeID_id - (*a2)->attributeID_id;
+	return uint32_cmp((*a1)->attributeID_id, (*a2)->attributeID_id);
 }
 static int dsdb_compare_attribute_by_attributeID_oid(struct dsdb_attribute **a1, struct dsdb_attribute **a2)
 {
@@ -209,7 +236,25 @@ static int dsdb_compare_attribute_by_attributeID_oid(struct dsdb_attribute **a1,
 }
 static int dsdb_compare_attribute_by_linkID(struct dsdb_attribute **a1, struct dsdb_attribute **a2)
 {
-	return (*a1)->linkID - (*a2)->linkID;
+	return uint32_cmp((*a1)->linkID, (*a2)->linkID);
+}
+
+/**
+ * Clean up Classes and Attributes accessor arrays
+ */
+static void dsdb_sorted_accessors_free(struct dsdb_schema *schema)
+{
+	/* free classes accessors */
+	TALLOC_FREE(schema->classes_by_lDAPDisplayName);
+	TALLOC_FREE(schema->classes_by_governsID_id);
+	TALLOC_FREE(schema->classes_by_governsID_oid);
+	TALLOC_FREE(schema->classes_by_cn);
+	/* free attribute accessors */
+	TALLOC_FREE(schema->attributes_by_lDAPDisplayName);
+	TALLOC_FREE(schema->attributes_by_attributeID_id);
+	TALLOC_FREE(schema->attributes_by_msDS_IntId);
+	TALLOC_FREE(schema->attributes_by_attributeID_oid);
+	TALLOC_FREE(schema->attributes_by_linkID);
 }
 
 /*
@@ -220,12 +265,11 @@ static int dsdb_setup_sorted_accessors(struct ldb_context *ldb,
 {
 	struct dsdb_class *cur;
 	struct dsdb_attribute *a;
-	uint32_t i;
+	unsigned int i;
+	unsigned int num_int_id;
 
-	talloc_free(schema->classes_by_lDAPDisplayName);
-	talloc_free(schema->classes_by_governsID_id);
-	talloc_free(schema->classes_by_governsID_oid);
-	talloc_free(schema->classes_by_cn);
+	/* free all caches */
+	dsdb_sorted_accessors_free(schema);
 
 	/* count the classes */
 	for (i=0, cur=schema->classes; cur; i++, cur=cur->next) /* noop */ ;
@@ -251,67 +295,65 @@ static int dsdb_setup_sorted_accessors(struct ldb_context *ldb,
 	}
 
 	/* sort the arrays */
-	qsort(schema->classes_by_lDAPDisplayName, schema->num_classes, 
-	      sizeof(struct dsdb_class *), QSORT_CAST dsdb_compare_class_by_lDAPDisplayName);
-	qsort(schema->classes_by_governsID_id, schema->num_classes, 
-	      sizeof(struct dsdb_class *), QSORT_CAST dsdb_compare_class_by_governsID_id);
-	qsort(schema->classes_by_governsID_oid, schema->num_classes, 
-	      sizeof(struct dsdb_class *), QSORT_CAST dsdb_compare_class_by_governsID_oid);
-	qsort(schema->classes_by_cn, schema->num_classes, 
-	      sizeof(struct dsdb_class *), QSORT_CAST dsdb_compare_class_by_cn);
+	TYPESAFE_QSORT(schema->classes_by_lDAPDisplayName, schema->num_classes, dsdb_compare_class_by_lDAPDisplayName);
+	TYPESAFE_QSORT(schema->classes_by_governsID_id, schema->num_classes, dsdb_compare_class_by_governsID_id);
+	TYPESAFE_QSORT(schema->classes_by_governsID_oid, schema->num_classes, dsdb_compare_class_by_governsID_oid);
+	TYPESAFE_QSORT(schema->classes_by_cn, schema->num_classes, dsdb_compare_class_by_cn);
 
 	/* now build the attribute accessor arrays */
-	talloc_free(schema->attributes_by_lDAPDisplayName);
-	talloc_free(schema->attributes_by_attributeID_id);
-	talloc_free(schema->attributes_by_attributeID_oid);
-	talloc_free(schema->attributes_by_linkID);
 
-	/* count the attributes */
-	for (i=0, a=schema->attributes; a; i++, a=a->next) /* noop */ ;
+	/* count the attributes
+	 * and attributes with msDS-IntId set */
+	num_int_id = 0;
+	for (i=0, a=schema->attributes; a; i++, a=a->next) {
+		if (a->msDS_IntId != 0) {
+			num_int_id++;
+		}
+	}
 	schema->num_attributes = i;
+	schema->num_int_id_attr = num_int_id;
 
 	/* setup attributes_by_* */
 	schema->attributes_by_lDAPDisplayName = talloc_array(schema, struct dsdb_attribute *, i);
 	schema->attributes_by_attributeID_id    = talloc_array(schema, struct dsdb_attribute *, i);
+	schema->attributes_by_msDS_IntId        = talloc_array(schema,
+	                                                       struct dsdb_attribute *, num_int_id);
 	schema->attributes_by_attributeID_oid   = talloc_array(schema, struct dsdb_attribute *, i);
 	schema->attributes_by_linkID              = talloc_array(schema, struct dsdb_attribute *, i);
 	if (schema->attributes_by_lDAPDisplayName == NULL ||
 	    schema->attributes_by_attributeID_id == NULL ||
+	    schema->attributes_by_msDS_IntId == NULL ||
 	    schema->attributes_by_attributeID_oid == NULL ||
 	    schema->attributes_by_linkID == NULL) {
 		goto failed;
 	}
 
+	num_int_id = 0;
 	for (i=0, a=schema->attributes; a; i++, a=a->next) {
 		schema->attributes_by_lDAPDisplayName[i] = a;
 		schema->attributes_by_attributeID_id[i]    = a;
 		schema->attributes_by_attributeID_oid[i]   = a;
 		schema->attributes_by_linkID[i]          = a;
+		/* append attr-by-msDS-IntId values */
+		if (a->msDS_IntId != 0) {
+			schema->attributes_by_msDS_IntId[num_int_id] = a;
+			num_int_id++;
+		}
 	}
+	SMB_ASSERT(num_int_id == schema->num_int_id_attr);
 
 	/* sort the arrays */
-	qsort(schema->attributes_by_lDAPDisplayName, schema->num_attributes, 
-	      sizeof(struct dsdb_attribute *), QSORT_CAST dsdb_compare_attribute_by_lDAPDisplayName);
-	qsort(schema->attributes_by_attributeID_id, schema->num_attributes, 
-	      sizeof(struct dsdb_attribute *), QSORT_CAST dsdb_compare_attribute_by_attributeID_id);
-	qsort(schema->attributes_by_attributeID_oid, schema->num_attributes, 
-	      sizeof(struct dsdb_attribute *), QSORT_CAST dsdb_compare_attribute_by_attributeID_oid);
-	qsort(schema->attributes_by_linkID, schema->num_attributes, 
-	      sizeof(struct dsdb_attribute *), QSORT_CAST dsdb_compare_attribute_by_linkID);
+	TYPESAFE_QSORT(schema->attributes_by_lDAPDisplayName, schema->num_attributes, dsdb_compare_attribute_by_lDAPDisplayName);
+	TYPESAFE_QSORT(schema->attributes_by_attributeID_id, schema->num_attributes, dsdb_compare_attribute_by_attributeID_id);
+	TYPESAFE_QSORT(schema->attributes_by_msDS_IntId, schema->num_int_id_attr, dsdb_compare_attribute_by_attributeID_id);
+	TYPESAFE_QSORT(schema->attributes_by_attributeID_oid, schema->num_attributes, dsdb_compare_attribute_by_attributeID_oid);
+	TYPESAFE_QSORT(schema->attributes_by_linkID, schema->num_attributes, dsdb_compare_attribute_by_linkID);
 
 	return LDB_SUCCESS;
 
 failed:
-	schema->classes_by_lDAPDisplayName = NULL;
-	schema->classes_by_governsID_id = NULL;
-	schema->classes_by_governsID_oid = NULL;
-	schema->classes_by_cn = NULL;
-	schema->attributes_by_lDAPDisplayName = NULL;
-	schema->attributes_by_attributeID_id = NULL;
-	schema->attributes_by_attributeID_oid = NULL;
-	schema->attributes_by_linkID = NULL;
-	ldb_oom(ldb);
-	return LDB_ERR_OPERATIONS_ERROR;
+	dsdb_sorted_accessors_free(schema);
+	return ldb_oom(ldb);
 }
 
 int dsdb_setup_schema_inversion(struct ldb_context *ldb, struct dsdb_schema *schema)
@@ -326,19 +368,19 @@ int dsdb_setup_schema_inversion(struct ldb_context *ldb, struct dsdb_schema *sch
 	 * order as an integer in the dsdb_class (for sorting
 	 * objectClass lists efficiently) */
 
-	/* Walk the list of scheam classes */
-	
+	/* Walk the list of schema classes */
+
 	/*  Create a 'total possible superiors' on each class */
 	return LDB_SUCCESS;
 }
 
 /**
- * Attach the schema to an opaque pointer on the ldb, so ldb modules
- * can find it 
+ * Attach the schema to an opaque pointer on the ldb,
+ * so ldb modules can find it
  */
-
 int dsdb_set_schema(struct ldb_context *ldb, struct dsdb_schema *schema)
 {
+	struct dsdb_schema *old_schema;
 	int ret;
 
 	ret = dsdb_setup_sorted_accessors(ldb, schema);
@@ -346,9 +388,26 @@ int dsdb_set_schema(struct ldb_context *ldb, struct dsdb_schema *schema)
 		return ret;
 	}
 
-	schema_fill_constructed(schema);
+	ret = schema_fill_constructed(schema);
+	if (ret != LDB_SUCCESS) {
+		return ret;
+	}
+
+	old_schema = ldb_get_opaque(ldb, "dsdb_schema");
 
 	ret = ldb_set_opaque(ldb, "dsdb_schema", schema);
+	if (ret != LDB_SUCCESS) {
+		return ret;
+	}
+
+	/* Remove the reference to the schema we just overwrote - if there was
+	 * none, NULL is harmless here */
+	if (old_schema != schema) {
+		talloc_unlink(ldb, old_schema);
+		talloc_steal(ldb, schema);
+	}
+
+	ret = ldb_set_opaque(ldb, "dsdb_use_global_schema", NULL);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -358,8 +417,6 @@ int dsdb_set_schema(struct ldb_context *ldb, struct dsdb_schema *schema)
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
-
-	talloc_steal(ldb, schema);
 
 	return LDB_SUCCESS;
 }
@@ -376,20 +433,24 @@ int dsdb_reference_schema(struct ldb_context *ldb, struct dsdb_schema *schema,
 			  bool write_attributes)
 {
 	int ret;
+	struct dsdb_schema *old_schema;
+	old_schema = ldb_get_opaque(ldb, "dsdb_schema");
 	ret = ldb_set_opaque(ldb, "dsdb_schema", schema);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
 
-	/* Set the new attributes based on the new schema */
+	/* Remove the reference to the schema we just overwrote - if there was
+	 * none, NULL is harmless here */
+	talloc_unlink(ldb, old_schema);
+
+	if (talloc_reference(ldb, schema) == NULL) {
+		return ldb_oom(ldb);
+	}
+
 	ret = dsdb_schema_set_attributes(ldb, schema, write_attributes);
 	if (ret != LDB_SUCCESS) {
 		return ret;
-	}
-
-	/* Keep a reference to this schema, just incase the original copy is replaced */
-	if (talloc_reference(ldb, schema) == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
 	return LDB_SUCCESS;
@@ -400,43 +461,93 @@ int dsdb_reference_schema(struct ldb_context *ldb, struct dsdb_schema *schema,
  */
 int dsdb_set_global_schema(struct ldb_context *ldb)
 {
+	int ret;
+	void *use_global_schema = (void *)1;
 	if (!global_schema) {
 		return LDB_SUCCESS;
 	}
+	ret = ldb_set_opaque(ldb, "dsdb_use_global_schema", use_global_schema);
+	if (ret != LDB_SUCCESS) {
+		return ret;
+	}
 
-	return dsdb_reference_schema(ldb, global_schema, false /* Don't write attributes, it's expensive */);
+	/* Set the new attributes based on the new schema */
+	ret = dsdb_schema_set_attributes(ldb, global_schema, false /* Don't write attributes, it's expensive */);
+	if (ret == LDB_SUCCESS) {
+		/* Keep a reference to this schema, just in case the original copy is replaced */
+		if (talloc_reference(ldb, global_schema) == NULL) {
+			return ldb_oom(ldb);
+		}
+	}
+
+	return ret;
 }
 
 /**
  * Find the schema object for this ldb
+ *
+ * If reference_ctx is not NULL, then talloc_reference onto that context
  */
 
-struct dsdb_schema *dsdb_get_schema(struct ldb_context *ldb)
+struct dsdb_schema *dsdb_get_schema(struct ldb_context *ldb, TALLOC_CTX *reference_ctx)
 {
 	const void *p;
-	struct dsdb_schema *schema;
+	struct dsdb_schema *schema_out;
+	struct dsdb_schema *schema_in;
+	bool use_global_schema;
+	TALLOC_CTX *tmp_ctx = talloc_new(reference_ctx);
+	if (!tmp_ctx) {
+		return NULL;
+	}
 
 	/* see if we have a cached copy */
-	p = ldb_get_opaque(ldb, "dsdb_schema");
-	if (!p) {
-		return NULL;
+	use_global_schema = (ldb_get_opaque(ldb, "dsdb_use_global_schema") != NULL);
+	if (use_global_schema) {
+		schema_in = global_schema;
+	} else {
+		p = ldb_get_opaque(ldb, "dsdb_schema");
+
+		schema_in = talloc_get_type(p, struct dsdb_schema);
+		if (!schema_in) {
+			talloc_free(tmp_ctx);
+			return NULL;
+		}
 	}
 
-	schema = talloc_get_type(p, struct dsdb_schema);
-	if (!schema) {
-		return NULL;
+	if (schema_in->refresh_fn && !schema_in->refresh_in_progress) {
+		if (!talloc_reference(tmp_ctx, schema_in)) {
+			/*
+			 * ensure that the schema_in->refresh_in_progress
+			 * remains valid for the right amount of time
+			 */
+			talloc_free(tmp_ctx);
+			return NULL;
+		}
+		schema_in->refresh_in_progress = true;
+		/* This may change schema, if it needs to reload it from disk */
+		schema_out = schema_in->refresh_fn(schema_in->loaded_from_module,
+						   schema_in,
+						   use_global_schema);
+		schema_in->refresh_in_progress = false;
+	} else {
+		schema_out = schema_in;
 	}
 
-	return schema;
+	/* This removes the extra reference above */
+	talloc_free(tmp_ctx);
+	if (!reference_ctx) {
+		return schema_out;
+	} else {
+		return talloc_reference(reference_ctx, schema_out);
+	}
 }
 
 /**
  * Make the schema found on this ldb the 'global' schema
  */
 
-void dsdb_make_schema_global(struct ldb_context *ldb)
+void dsdb_make_schema_global(struct ldb_context *ldb, struct dsdb_schema *schema)
 {
-	struct dsdb_schema *schema = dsdb_get_schema(ldb);
 	if (!schema) {
 		return;
 	}
@@ -446,13 +557,73 @@ void dsdb_make_schema_global(struct ldb_context *ldb)
 	}
 
 	/* we want the schema to be around permanently */
-	talloc_reparent(talloc_parent(schema), talloc_autofree_context(), schema);
-
+	talloc_reparent(ldb, talloc_autofree_context(), schema);
 	global_schema = schema;
 
+	/* This calls the talloc_reference() of the global schema back onto the ldb */
 	dsdb_set_global_schema(ldb);
 }
 
+/**
+ * When loading the schema from LDIF files, we don't get the extended DNs.
+ *
+ * We need to set these up, so that from the moment we start the provision,
+ * the defaultObjectCategory links are set up correctly.
+ */
+int dsdb_schema_fill_extended_dn(struct ldb_context *ldb, struct dsdb_schema *schema)
+{
+	struct dsdb_class *cur;
+	const struct dsdb_class *target_class;
+	for (cur = schema->classes; cur; cur = cur->next) {
+		const struct ldb_val *rdn;
+		struct ldb_val guid;
+		NTSTATUS status;
+		struct ldb_dn *dn = ldb_dn_new(NULL, ldb, cur->defaultObjectCategory);
+
+		if (!dn) {
+			return LDB_ERR_INVALID_DN_SYNTAX;
+		}
+		rdn = ldb_dn_get_component_val(dn, 0);
+		if (!rdn) {
+			talloc_free(dn);
+			return LDB_ERR_INVALID_DN_SYNTAX;
+		}
+		target_class = dsdb_class_by_cn_ldb_val(schema, rdn);
+		if (!target_class) {
+			talloc_free(dn);
+			return LDB_ERR_CONSTRAINT_VIOLATION;
+		}
+
+		status = GUID_to_ndr_blob(&target_class->objectGUID, dn, &guid);
+		if (!NT_STATUS_IS_OK(status)) {
+			talloc_free(dn);
+			return ldb_operr(ldb);
+		}
+		ldb_dn_set_extended_component(dn, "GUID", &guid);
+
+		cur->defaultObjectCategory = ldb_dn_get_extended_linearized(cur, dn, 1);
+		talloc_free(dn);
+	}
+	return LDB_SUCCESS;
+}
+
+/**
+ * Add an element to the schema (attribute or class) from an LDB message
+ */
+WERROR dsdb_schema_set_el_from_ldb_msg(struct ldb_context *ldb, struct dsdb_schema *schema,
+				       struct ldb_message *msg)
+{
+	if (samdb_find_attribute(ldb, msg,
+				 "objectclass", "attributeSchema") != NULL) {
+		return dsdb_attribute_from_ldb(ldb, schema, msg);
+	} else if (samdb_find_attribute(ldb, msg,
+				 "objectclass", "classSchema") != NULL) {
+		return dsdb_class_from_ldb(schema, msg);
+	}
+
+	/* Don't fail on things not classes or attributes */
+	return WERR_OK;
+}
 
 /**
  * Rather than read a schema from the LDB itself, read it from an ldif
@@ -472,12 +643,13 @@ WERROR dsdb_set_schema_from_ldif(struct ldb_context *ldb, const char *pf, const 
 	const struct ldb_val *info_val;
 	struct ldb_val info_val_default;
 
+
 	mem_ctx = talloc_new(ldb);
 	if (!mem_ctx) {
 		goto nomem;
 	}
 
-	schema = dsdb_new_schema(mem_ctx, lp_iconv_convenience(ldb_get_opaque(ldb, "loadparm")));
+	schema = dsdb_new_schema(mem_ctx);
 
 	schema->fsmo.we_are_master = true;
 	schema->fsmo.master_dn = ldb_dn_new_fmt(schema, ldb, "@PROVISION_SCHEMA_MASTER");
@@ -495,11 +667,10 @@ WERROR dsdb_set_schema_from_ldif(struct ldb_context *ldb, const char *pf, const 
 	}
 	talloc_steal(mem_ctx, ldif);
 
-	msg = ldb_msg_canonicalize(ldb, ldif->msg);
-	if (!msg) {
+	ret = ldb_msg_normalize(ldb, mem_ctx, ldif->msg, &msg);
+	if (ret != LDB_SUCCESS) {
 		goto nomem;
 	}
-	talloc_steal(mem_ctx, msg);
 	talloc_free(ldif);
 
 	prefix_val = ldb_msg_find_ldb_val(msg, "prefixMap");
@@ -510,70 +681,40 @@ WERROR dsdb_set_schema_from_ldif(struct ldb_context *ldb, const char *pf, const 
 
 	info_val = ldb_msg_find_ldb_val(msg, "schemaInfo");
 	if (!info_val) {
-		info_val_default = strhex_to_data_blob(mem_ctx, "FF0000000000000000000000000000000000000000");
-		if (!info_val_default.data) {
-			goto nomem;
-		}
+		status = dsdb_schema_info_blob_new(mem_ctx, &info_val_default);
+		W_ERROR_NOT_OK_GOTO(status, failed);
 		info_val = &info_val_default;
 	}
 
 	status = dsdb_load_oid_mappings_ldb(schema, prefix_val, info_val);
 	if (!W_ERROR_IS_OK(status)) {
+		DEBUG(0,("ERROR: dsdb_load_oid_mappings_ldb() failed with %s\n", win_errstr(status)));
 		goto failed;
 	}
 
-	/*
-	 * load the attribute and class definitions outof df
-	 */
+	/* load the attribute and class definitions out of df */
 	while ((ldif = ldb_ldif_read_string(ldb, &df))) {
-		bool is_sa;
-		bool is_sc;
-
 		talloc_steal(mem_ctx, ldif);
 
-		msg = ldb_msg_canonicalize(ldb, ldif->msg);
-		if (!msg) {
+		ret = ldb_msg_normalize(ldb, ldif, ldif->msg, &msg);
+		if (ret != LDB_SUCCESS) {
 			goto nomem;
 		}
 
-		talloc_steal(mem_ctx, msg);
+		status = dsdb_schema_set_el_from_ldb_msg(ldb, schema, msg);
 		talloc_free(ldif);
-
-		is_sa = ldb_msg_check_string_attribute(msg, "objectClass", "attributeSchema");
-		is_sc = ldb_msg_check_string_attribute(msg, "objectClass", "classSchema");
-
-		if (is_sa) {
-			struct dsdb_attribute *sa;
-
-			sa = talloc_zero(schema, struct dsdb_attribute);
-			if (!sa) {
-				goto nomem;
-			}
-
-			status = dsdb_attribute_from_ldb(ldb, schema, msg, sa, sa);
-			if (!W_ERROR_IS_OK(status)) {
-				goto failed;
-			}
-
-			DLIST_ADD(schema->attributes, sa);
-		} else if (is_sc) {
-			struct dsdb_class *sc;
-
-			sc = talloc_zero(schema, struct dsdb_class);
-			if (!sc) {
-				goto nomem;
-			}
-
-			status = dsdb_class_from_ldb(schema, msg, sc, sc);
-			if (!W_ERROR_IS_OK(status)) {
-				goto failed;
-			}
-
-			DLIST_ADD(schema->classes, sc);
+		if (!W_ERROR_IS_OK(status)) {
+			goto failed;
 		}
 	}
 
 	ret = dsdb_set_schema(ldb, schema);
+	if (ret != LDB_SUCCESS) {
+		status = WERR_FOOBAR;
+		goto failed;
+	}
+
+	ret = dsdb_schema_fill_extended_dn(ldb, schema);
 	if (ret != LDB_SUCCESS) {
 		status = WERR_FOOBAR;
 		goto failed;

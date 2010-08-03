@@ -11,6 +11,19 @@ ldb_asq_OBJ_FILES = $(ldbsrcdir)/modules/asq.o
 ################################################
 
 ################################################
+# Start MODULE sample_module
+[MODULE::sample]
+PRIVATE_DEPENDENCIES = LIBTALLOC LIBTEVENT
+CFLAGS = -I$(ldbsrcdir)/include
+INIT_FUNCTION = LDB_MODULE(sample)
+SUBSYSTEM = LIBLDB
+
+# End MODULE sample_module
+################################################
+sample_OBJ_FILES = $(ldbsrcdir)/tests/sample_module.o
+
+
+################################################
 # Start MODULE ldb_server_sort
 [MODULE::ldb_server_sort]
 PRIVATE_DEPENDENCIES = LIBTALLOC LIBTEVENT
@@ -117,7 +130,7 @@ PC_FILES += $(ldbsrcdir)/ldb.pc
 LIBLDB_VERSION = 0.0.1
 LIBLDB_SOVERSION = 0
 
-LIBLDB_OBJ_FILES = $(addprefix $(ldbsrcdir)/common/, ldb.o ldb_ldif.o ldb_parse.o ldb_msg.o ldb_utf8.o ldb_debug.o ldb_modules.o ldb_match.o ldb_attributes.o attrib_handlers.o ldb_dn.o ldb_controls.o qsort.o) $(ldb_map_OBJ_FILES)
+LIBLDB_OBJ_FILES = $(addprefix $(ldbsrcdir)/common/, ldb.o ldb_ldif.o ldb_parse.o ldb_msg.o ldb_utf8.o ldb_debug.o ldb_modules.o ldb_options.o ldb_match.o ldb_attributes.o attrib_handlers.o ldb_dn.o ldb_controls.o qsort.o) $(ldb_map_OBJ_FILES)
 
 $(LIBLDB_OBJ_FILES): CFLAGS+=-I$(ldbsrcdir)/include
 

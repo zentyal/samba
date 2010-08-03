@@ -27,9 +27,6 @@
 #define DBGC_CLASS DBGC_WINBIND
 
 extern struct winbindd_methods cache_methods;
-extern struct winbindd_methods builtin_passdb_methods;
-extern struct winbindd_methods sam_passdb_methods;
-
 
 /**
  * @file winbindd_util.c
@@ -58,7 +55,7 @@ struct winbindd_domain *domain_list(void)
 
 /* Free all entries in the trusted domain list */
 
-void free_domain_list(void)
+static void free_domain_list(void)
 {
 	struct winbindd_domain *domain = _domain_list;
 
@@ -71,7 +68,7 @@ void free_domain_list(void)
 	}
 }
 
-static bool is_internal_domain(const DOM_SID *sid)
+static bool is_internal_domain(const struct dom_sid *sid)
 {
 	if (sid == NULL)
 		return False;
@@ -79,7 +76,7 @@ static bool is_internal_domain(const DOM_SID *sid)
 	return (sid_check_is_domain(sid) || sid_check_is_builtin(sid));
 }
 
-static bool is_in_internal_domain(const DOM_SID *sid)
+static bool is_in_internal_domain(const struct dom_sid *sid)
 {
 	if (sid == NULL)
 		return False;
@@ -91,7 +88,7 @@ static bool is_in_internal_domain(const DOM_SID *sid)
 /* Add a trusted domain to our list of domains */
 static struct winbindd_domain *add_trusted_domain(const char *domain_name, const char *alt_name,
 						  struct winbindd_methods *methods,
-						  const DOM_SID *sid)
+						  const struct dom_sid *sid)
 {
 	struct winbindd_domain *domain;
 	const char *alternative_name = NULL;
@@ -143,13 +140,14 @@ static struct winbindd_domain *add_trusted_domain(const char *domain_name, const
 		}
 	}
 
-	/* See if we found a match.  Check if we need to update the
-	   SID. */
-
-	if ( domain && sid) {
-		if ( sid_equal( &domain->sid, &global_sid_NULL ) )
+	if (domain != NULL) {
+		/*
+		 * We found a match. Possibly update the SID
+		 */
+		if ((sid != NULL)
+		    && sid_equal(&domain->sid, &global_sid_NULL)) {
 			sid_copy( &domain->sid, sid );
-
+		}
 		return domain;
 	}
 
@@ -223,71 +221,64 @@ done:
 	return domain;
 }
 
+bool domain_is_forest_root(const struct winbindd_domain *domain)
+{
+	const uint32_t fr_flags =
+		(NETR_TRUST_FLAG_TREEROOT|NETR_TRUST_FLAG_IN_FOREST);
+
+	return ((domain->domain_flags & fr_flags) == fr_flags);
+}
+
 /********************************************************************
   rescan our domains looking for new trusted domains
 ********************************************************************/
 
 struct trustdom_state {
-	TALLOC_CTX *mem_ctx;
-	bool primary;
-	bool forest_root;
-	struct winbindd_response *response;
+	struct winbindd_domain *domain;
+	struct winbindd_request request;
 };
 
-static void trustdom_recv(void *private_data, bool success);
+static void trustdom_list_done(struct tevent_req *req);
 static void rescan_forest_root_trusts( void );
 static void rescan_forest_trusts( void );
 
 static void add_trusted_domains( struct winbindd_domain *domain )
 {
-	TALLOC_CTX *mem_ctx;
-	struct winbindd_request *request;
-	struct winbindd_response *response;
-	uint32 fr_flags = (NETR_TRUST_FLAG_TREEROOT|NETR_TRUST_FLAG_IN_FOREST);
-
 	struct trustdom_state *state;
+	struct tevent_req *req;
 
-	mem_ctx = talloc_init("add_trusted_domains");
-	if (mem_ctx == NULL) {
-		DEBUG(0, ("talloc_init failed\n"));
-		return;
-	}
-
-	request = TALLOC_ZERO_P(mem_ctx, struct winbindd_request);
-	response = TALLOC_P(mem_ctx, struct winbindd_response);
-	state = TALLOC_P(mem_ctx, struct trustdom_state);
-
-	if ((request == NULL) || (response == NULL) || (state == NULL)) {
+	state = TALLOC_ZERO_P(NULL, struct trustdom_state);
+	if (state == NULL) {
 		DEBUG(0, ("talloc failed\n"));
-		talloc_destroy(mem_ctx);
 		return;
 	}
+	state->domain = domain;
 
-	state->mem_ctx = mem_ctx;
-	state->response = response;
+	state->request.length = sizeof(state->request);
+	state->request.cmd = WINBINDD_LIST_TRUSTDOM;
 
-	/* Flags used to know how to continue the forest trust search */
-
-	state->primary = domain->primary;
-	state->forest_root = ((domain->domain_flags & fr_flags) == fr_flags );
-
-	request->length = sizeof(*request);
-	request->cmd = WINBINDD_LIST_TRUSTDOM;
-
-	async_domain_request(mem_ctx, domain, request, response,
-			     trustdom_recv, state);
+	req = wb_domain_request_send(state, winbind_event_context(),
+				     domain, &state->request);
+	if (req == NULL) {
+		DEBUG(1, ("wb_domain_request_send failed\n"));
+		TALLOC_FREE(state);
+		return;
+	}
+	tevent_req_set_callback(req, trustdom_list_done, state);
 }
 
-static void trustdom_recv(void *private_data, bool success)
+static void trustdom_list_done(struct tevent_req *req)
 {
-	struct trustdom_state *state =
-		talloc_get_type_abort(private_data, struct trustdom_state);
-	struct winbindd_response *response = state->response;
+	struct trustdom_state *state = tevent_req_callback_data(
+		req, struct trustdom_state);
+	struct winbindd_response *response;
+	int res, err;
 	char *p;
 
-	if ((!success) || (response->result != WINBINDD_OK)) {
+	res = wb_domain_request_recv(req, state, &response, &err);
+	if ((res == -1) || (response->result != WINBINDD_OK)) {
 		DEBUG(1, ("Could not receive trustdoms\n"));
-		talloc_destroy(state->mem_ctx);
+		TALLOC_FREE(state);
 		return;
 	}
 
@@ -295,7 +286,7 @@ static void trustdom_recv(void *private_data, bool success)
 
 	while ((p != NULL) && (*p != '\0')) {
 		char *q, *sidstr, *alt_name;
-		DOM_SID sid;
+		struct dom_sid sid;
 		struct winbindd_domain *domain;
 		char *alternate_name = NULL;
 
@@ -345,8 +336,7 @@ static void trustdom_recv(void *private_data, bool success)
 						    &cache_methods,
 						    &sid);
 			if (domain) {
-				setup_domain_child(domain,
-						   &domain->child);
+				setup_domain_child(domain);
 			}
 		}
 		p=q;
@@ -362,23 +352,23 @@ static void trustdom_recv(void *private_data, bool success)
 	       && !forest_root)
 	*/
 
-	if ( state->primary ) {
+	if (state->domain->primary) {
 		/* If this is our primary domain and we are not in the
 		   forest root, we have to scan the root trusts first */
 
-		if ( !state->forest_root )
+		if (!domain_is_forest_root(state->domain))
 			rescan_forest_root_trusts();
 		else
 			rescan_forest_trusts();
 
-	} else if ( state->forest_root ) {
+	} else if (domain_is_forest_root(state->domain)) {
 		/* Once we have done root forest trust search, we can
 		   go on to search the trusted forests */
 
 		rescan_forest_trusts();
 	}
 
-	talloc_destroy(state->mem_ctx);
+	TALLOC_FREE(state);
 
 	return;
 }
@@ -423,7 +413,7 @@ static void rescan_forest_root_trusts( void )
 						&cache_methods,
 						&dom_list[i].sid );
 			if (d != NULL) {
-				setup_domain_child(d, &d->child);
+				setup_domain_child(d);
 			}
 		}
 
@@ -495,7 +485,7 @@ static void rescan_forest_trusts( void )
 							&cache_methods,
 							&dom_list[i].sid );
 				if (d != NULL) {
-					setup_domain_child(d, &d->child);
+					setup_domain_child(d);
 				}
 			}
 
@@ -605,29 +595,27 @@ bool init_domain_list(void)
 
 	/* BUILTIN domain */
 
-	domain = add_trusted_domain("BUILTIN", NULL, &builtin_passdb_methods,
+	domain = add_trusted_domain("BUILTIN", NULL, &cache_methods,
 				    &global_sid_Builtin);
 	if (domain) {
-		setup_domain_child(domain,
-				   &domain->child);
+		setup_domain_child(domain);
 	}
 
 	/* Local SAM */
 
 	domain = add_trusted_domain(get_global_sam_name(), NULL,
-				    &sam_passdb_methods, get_global_sam_sid());
+				    &cache_methods, get_global_sam_sid());
 	if (domain) {
 		if ( role != ROLE_DOMAIN_MEMBER ) {
 			domain->primary = True;
 		}
-		setup_domain_child(domain,
-				   &domain->child);
+		setup_domain_child(domain);
 	}
 
 	/* Add ourselves as the first entry. */
 
 	if ( role == ROLE_DOMAIN_MEMBER ) {
-		DOM_SID our_sid;
+		struct dom_sid our_sid;
 
 		if (!secrets_fetch_domain_sid(lp_workgroup(), &our_sid)) {
 			DEBUG(0, ("Could not fetch our SID - did we join?\n"));
@@ -638,8 +626,7 @@ bool init_domain_list(void)
 					     &cache_methods, &our_sid);
 		if (domain) {
 			domain->primary = True;
-			setup_domain_child(domain,
-					   &domain->child);
+			setup_domain_child(domain);
 
 			/* Even in the parent winbindd we'll need to
 			   talk to the DC, so try and see if we can
@@ -654,10 +641,10 @@ bool init_domain_list(void)
 	return True;
 }
 
-void check_domain_trusted( const char *name, const DOM_SID *user_sid )
+void check_domain_trusted( const char *name, const struct dom_sid *user_sid )
 {
 	struct winbindd_domain *domain;
-	DOM_SID dom_sid;
+	struct dom_sid dom_sid;
 	uint32 rid;
 
 	/* Check if we even care */
@@ -690,8 +677,7 @@ void check_domain_trusted( const char *name, const DOM_SID *user_sid )
 	domain->internal = False;
 	domain->online = True;
 
-	setup_domain_child(domain,
-			   &domain->child);
+	setup_domain_child(domain);
 
 	wcache_tdc_add_domain( domain );
 
@@ -746,7 +732,7 @@ struct winbindd_domain *find_domain_from_name(const char *domain_name)
 
 /* Given a domain sid, return the struct winbindd domain info for it */
 
-struct winbindd_domain *find_domain_from_sid_noinit(const DOM_SID *sid)
+struct winbindd_domain *find_domain_from_sid_noinit(const struct dom_sid *sid)
 {
 	struct winbindd_domain *domain;
 
@@ -764,7 +750,7 @@ struct winbindd_domain *find_domain_from_sid_noinit(const DOM_SID *sid)
 
 /* Given a domain sid, return the struct winbindd domain info for it */
 
-struct winbindd_domain *find_domain_from_sid(const DOM_SID *sid)
+struct winbindd_domain *find_domain_from_sid(const struct dom_sid *sid)
 {
 	struct winbindd_domain *domain;
 
@@ -798,23 +784,18 @@ struct winbindd_domain *find_root_domain(void)
 {
 	struct winbindd_domain *ours = find_our_domain();
 
-	if ( !ours )
+	if (ours->forest_name[0] == '\0') {
 		return NULL;
-
-	if ( strlen(ours->forest_name) == 0 )
-		return NULL;
+	}
 
 	return find_domain_from_name( ours->forest_name );
 }
 
 struct winbindd_domain *find_builtin_domain(void)
 {
-	DOM_SID sid;
 	struct winbindd_domain *domain;
 
-	string_to_sid(&sid, "S-1-5-32");
-	domain = find_domain_from_sid(&sid);
-
+	domain = find_domain_from_sid(&global_sid_Builtin);
 	if (domain == NULL) {
 		smb_panic("Could not find BUILTIN domain");
 	}
@@ -824,7 +805,7 @@ struct winbindd_domain *find_builtin_domain(void)
 
 /* Find the appropriate domain to lookup a name or SID */
 
-struct winbindd_domain *find_lookup_domain_from_sid(const DOM_SID *sid)
+struct winbindd_domain *find_lookup_domain_from_sid(const struct dom_sid *sid)
 {
 	/* SIDs in the S-1-22-{1,2} domain should be handled by our passdb */
 
@@ -1045,49 +1026,6 @@ char *fill_domain_username_talloc(TALLOC_CTX *mem_ctx,
 }
 
 /*
- * Winbindd socket accessor functions
- */
-
-const char *get_winbind_pipe_dir(void)
-{
-	return lp_parm_const_string(-1, "winbindd", "socket dir", WINBINDD_SOCKET_DIR);
-}
-
-char *get_winbind_priv_pipe_dir(void)
-{
-	return lock_path(WINBINDD_PRIV_SOCKET_SUBDIR);
-}
-
-/* Open the winbindd socket */
-
-static int _winbindd_socket = -1;
-static int _winbindd_priv_socket = -1;
-
-int open_winbindd_socket(void)
-{
-	if (_winbindd_socket == -1) {
-		_winbindd_socket = create_pipe_sock(
-			get_winbind_pipe_dir(), WINBINDD_SOCKET_NAME, 0755);
-		DEBUG(10, ("open_winbindd_socket: opened socket fd %d\n",
-			   _winbindd_socket));
-	}
-
-	return _winbindd_socket;
-}
-
-int open_winbindd_priv_socket(void)
-{
-	if (_winbindd_priv_socket == -1) {
-		_winbindd_priv_socket = create_pipe_sock(
-			get_winbind_priv_pipe_dir(), WINBINDD_SOCKET_NAME, 0750);
-		DEBUG(10, ("open_winbindd_priv_socket: opened socket fd %d\n",
-			   _winbindd_priv_socket));
-	}
-
-	return _winbindd_priv_socket;
-}
-
-/*
  * Client list accessor functions
  */
 
@@ -1117,23 +1055,6 @@ void winbindd_remove_client(struct winbindd_cli_state *cli)
 	_num_clients--;
 }
 
-/* Close all open clients */
-
-void winbindd_kill_all_clients(void)
-{
-	struct winbindd_cli_state *cl = winbindd_client_list();
-
-	DEBUG(10, ("winbindd_kill_all_clients: going postal\n"));
-
-	while (cl) {
-		struct winbindd_cli_state *next;
-
-		next = cl->next;
-		winbindd_remove_client(cl);
-		cl = next;
-	}
-}
-
 /* Return number of open clients */
 
 int winbindd_num_clients(void)
@@ -1143,8 +1064,8 @@ int winbindd_num_clients(void)
 
 NTSTATUS lookup_usergroups_cached(struct winbindd_domain *domain,
 				  TALLOC_CTX *mem_ctx,
-				  const DOM_SID *user_sid,
-				  uint32 *p_num_groups, DOM_SID **user_sids)
+				  const struct dom_sid *user_sid,
+				  uint32 *p_num_groups, struct dom_sid **user_sids)
 {
 	struct netr_SamInfo3 *info3 = NULL;
 	NTSTATUS status = NT_STATUS_NO_MEMORY;

@@ -94,7 +94,7 @@ static void generate_sambaPrimaryGroupSID(struct ldb_module *module, const char 
 		return;
 	}
 
-	ndr_err = ndr_pull_struct_blob(sidval, sid, NULL, sid, (ndr_pull_flags_fn_t)ndr_pull_dom_sid);
+	ndr_err = ndr_pull_struct_blob(sidval, sid, sid, (ndr_pull_flags_fn_t)ndr_pull_dom_sid);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(sid);
 		return;
@@ -188,7 +188,6 @@ static struct ldb_val encode_sid(struct ldb_module *module, TALLOC_CTX *ctx, con
 	}
 
 	ndr_err = ndr_push_struct_blob(&out, ctx, 
-				       NULL,
 				       sid, (ndr_push_flags_fn_t)ndr_push_dom_sid);
 	talloc_free(sid);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -210,7 +209,7 @@ static struct ldb_val decode_sid(struct ldb_module *module, TALLOC_CTX *ctx, con
 		return out;
 	}
 
-	ndr_err = ndr_pull_struct_blob(val, sid, NULL, sid,
+	ndr_err = ndr_pull_struct_blob(val, sid, sid,
 				       (ndr_pull_flags_fn_t)ndr_pull_dom_sid);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		goto done;
@@ -308,7 +307,7 @@ const struct ldb_map_attribute samba3_attributes[] =
 	/* sambaNextRid -> nextRid */
 	{
 		.local_name = "nextRid",
-		.type = MAP_RENAME,
+		.type = LDB_MAP_RENAME,
 		.u = {
 			.rename = {
 				.remote_name = "sambaNextRid",
@@ -319,7 +318,7 @@ const struct ldb_map_attribute samba3_attributes[] =
 	/* sambaBadPasswordTime -> badPasswordtime*/
 	{
 		.local_name = "badPasswordTime",
-		.type = MAP_RENAME,
+		.type = LDB_MAP_RENAME,
 		.u = {
 			.rename = {
 				.remote_name = "sambaBadPasswordTime",
@@ -330,7 +329,7 @@ const struct ldb_map_attribute samba3_attributes[] =
 	/* sambaLMPassword -> lmPwdHash*/
 	{
 		.local_name = "dBCSPwd",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				.remote_name = "sambaLMPassword",
@@ -343,7 +342,7 @@ const struct ldb_map_attribute samba3_attributes[] =
 	/* sambaGroupType -> groupType */
 	{
 		.local_name = "groupType",
-		.type = MAP_RENAME,
+		.type = LDB_MAP_RENAME,
 		.u = {
 			.rename = {
 				.remote_name = "sambaGroupType",
@@ -354,7 +353,7 @@ const struct ldb_map_attribute samba3_attributes[] =
 	/* sambaNTPassword -> ntPwdHash*/
 	{
 		.local_name = "ntpwdhash",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				.remote_name = "sambaNTPassword",
@@ -367,7 +366,7 @@ const struct ldb_map_attribute samba3_attributes[] =
 	/* sambaPrimaryGroupSID -> primaryGroupID */
 	{
 		.local_name = "primaryGroupID",
-		.type = MAP_GENERATE,
+		.type = LDB_MAP_GENERATE,
 		.u = {
 			.generate = {
 				.remote_names = { "sambaPrimaryGroupSID", NULL },
@@ -380,7 +379,7 @@ const struct ldb_map_attribute samba3_attributes[] =
 	/* sambaBadPasswordCount -> badPwdCount */
 	{
 		.local_name = "badPwdCount",
-		.type = MAP_RENAME,
+		.type = LDB_MAP_RENAME,
 		.u = {
 			.rename = {
 				.remote_name = "sambaBadPasswordCount",
@@ -391,7 +390,7 @@ const struct ldb_map_attribute samba3_attributes[] =
 	/* sambaLogonTime -> lastLogon*/
 	{
 		.local_name = "lastLogon",
-		.type = MAP_RENAME,
+		.type = LDB_MAP_RENAME,
 		.u = {
 			.rename = {
 				.remote_name = "sambaLogonTime",
@@ -402,7 +401,7 @@ const struct ldb_map_attribute samba3_attributes[] =
 	/* sambaLogoffTime -> lastLogoff*/
 	{
 		.local_name = "lastLogoff",
-		.type = MAP_RENAME,
+		.type = LDB_MAP_RENAME,
 		.u = {
 			.rename = {
 				.remote_name = "sambaLogoffTime",
@@ -413,7 +412,7 @@ const struct ldb_map_attribute samba3_attributes[] =
 	/* uid -> unixName */
 	{
 		.local_name = "unixName",
-		.type = MAP_RENAME,
+		.type = LDB_MAP_RENAME,
 		.u = {
 			.rename = {
 				.remote_name = "uid",
@@ -424,7 +423,7 @@ const struct ldb_map_attribute samba3_attributes[] =
 	/* displayName -> name */
 	{
 		.local_name = "name",
-		.type = MAP_RENAME,
+		.type = LDB_MAP_RENAME,
 		.u = {
 			.rename = {
 				.remote_name = "displayName",
@@ -435,13 +434,13 @@ const struct ldb_map_attribute samba3_attributes[] =
 	/* cn */
 	{
 		.local_name = "cn",
-		.type = MAP_KEEP,
+		.type = LDB_MAP_KEEP,
 	},
 
 	/* sAMAccountName -> cn */
 	{
 		.local_name = "sAMAccountName",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				.remote_name = "uid",
@@ -453,117 +452,117 @@ const struct ldb_map_attribute samba3_attributes[] =
 	/* objectCategory */
 	{
 		.local_name = "objectCategory",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* objectGUID */
 	{
 		.local_name = "objectGUID",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* objectVersion */
 	{
 		.local_name = "objectVersion",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* codePage */
 	{
 		.local_name = "codePage",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* dNSHostName */
 	{
 		.local_name = "dNSHostName",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 
 	/* dnsDomain */
 	{
 		.local_name = "dnsDomain",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* dnsRoot */
 	{
 		.local_name = "dnsRoot",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* countryCode */
 	{
 		.local_name = "countryCode",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* nTMixedDomain */
 	{
 		.local_name = "nTMixedDomain",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* operatingSystem */
 	{
 		.local_name = "operatingSystem",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* operatingSystemVersion */
 	{
 		.local_name = "operatingSystemVersion",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 
 	/* servicePrincipalName */
 	{
 		.local_name = "servicePrincipalName",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* msDS-Behavior-Version */
 	{
 		.local_name = "msDS-Behavior-Version",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* msDS-KeyVersionNumber */
 	{
 		.local_name = "msDS-KeyVersionNumber",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* msDs-masteredBy */
 	{
 		.local_name = "msDs-masteredBy",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* ou */
 	{
 		.local_name = "ou",
-		.type = MAP_KEEP,
+		.type = LDB_MAP_KEEP,
 	},
 
 	/* dc */
 	{
 		.local_name = "dc",
-		.type = MAP_KEEP,
+		.type = LDB_MAP_KEEP,
 	},
 
 	/* description */
 	{
 		.local_name = "description",
-		.type = MAP_KEEP,
+		.type = LDB_MAP_KEEP,
 	},
 
 	/* sambaSID -> objectSid*/
 	{
 		.local_name = "objectSid",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				.remote_name = "sambaSID",
@@ -576,7 +575,7 @@ const struct ldb_map_attribute samba3_attributes[] =
 	/* sambaPwdLastSet -> pwdLastSet */
 	{
 		.local_name = "pwdLastSet",
-		.type = MAP_RENAME,
+		.type = LDB_MAP_RENAME,
 		.u = {
 			.rename = {
 				.remote_name = "sambaPwdLastSet",
@@ -587,295 +586,295 @@ const struct ldb_map_attribute samba3_attributes[] =
 	/* accountExpires */
 	{
 		.local_name = "accountExpires",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* adminCount */
 	{
 		.local_name = "adminCount",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* canonicalName */
 	{
 		.local_name = "canonicalName",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* createTimestamp */
 	{
 		.local_name = "createTimestamp",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* creationTime */
 	{
 		.local_name = "creationTime",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* dMDLocation */
 	{
 		.local_name = "dMDLocation",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* fSMORoleOwner */
 	{
 		.local_name = "fSMORoleOwner",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* forceLogoff */
 	{
 		.local_name = "forceLogoff",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* instanceType */
 	{
 		.local_name = "instanceType",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* invocationId */
 	{
 		.local_name = "invocationId",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* isCriticalSystemObject */
 	{
 		.local_name = "isCriticalSystemObject",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* localPolicyFlags */
 	{
 		.local_name = "localPolicyFlags",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* lockOutObservationWindow */
 	{
 		.local_name = "lockOutObservationWindow",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* lockoutDuration */
 	{
 		.local_name = "lockoutDuration",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* lockoutThreshold */
 	{
 		.local_name = "lockoutThreshold",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* logonCount */
 	{
 		.local_name = "logonCount",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* masteredBy */
 	{
 		.local_name = "masteredBy",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* maxPwdAge */
 	{
 		.local_name = "maxPwdAge",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* member */
 	{
 		.local_name = "member",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* memberOf */
 	{
 		.local_name = "memberOf",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* minPwdAge */
 	{
 		.local_name = "minPwdAge",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* minPwdLength */
 	{
 		.local_name = "minPwdLength",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* modifiedCount */
 	{
 		.local_name = "modifiedCount",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* modifiedCountAtLastProm */
 	{
 		.local_name = "modifiedCountAtLastProm",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* modifyTimestamp */
 	{
 		.local_name = "modifyTimestamp",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* nCName */
 	{
 		.local_name = "nCName",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* nETBIOSName */
 	{
 		.local_name = "nETBIOSName",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* oEMInformation */
 	{
 		.local_name = "oEMInformation",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* privilege */
 	{
 		.local_name = "privilege",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* pwdHistoryLength */
 	{
 		.local_name = "pwdHistoryLength",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* pwdProperties */
 	{
 		.local_name = "pwdProperties",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* rIDAvailablePool */
 	{
 		.local_name = "rIDAvailablePool",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* revision */
 	{
 		.local_name = "revision",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* ridManagerReference */
 	{
 		.local_name = "ridManagerReference",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* sAMAccountType */
 	{
 		.local_name = "sAMAccountType",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* sPNMappings */
 	{
 		.local_name = "sPNMappings",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* serverReference */
 	{
 		.local_name = "serverReference",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* serverState */
 	{
 		.local_name = "serverState",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* showInAdvancedViewOnly */
 	{
 		.local_name = "showInAdvancedViewOnly",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* subRefs */
 	{
 		.local_name = "subRefs",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* systemFlags */
 	{
 		.local_name = "systemFlags",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* uASCompat */
 	{
 		.local_name = "uASCompat",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* uSNChanged */
 	{
 		.local_name = "uSNChanged",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* uSNCreated */
 	{
 		.local_name = "uSNCreated",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* userPassword */
 	{
 		.local_name = "userPassword",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* userAccountControl */
 	{
 		.local_name = "userAccountControl",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* whenChanged */
 	{
 		.local_name = "whenChanged",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* whenCreated */
 	{
 		.local_name = "whenCreated",
-		.type = MAP_IGNORE,
+		.type = LDB_MAP_IGNORE,
 	},
 
 	/* uidNumber */
 	{
 		.local_name = "unixName",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				.remote_name = "uidNumber",
@@ -888,7 +887,7 @@ const struct ldb_map_attribute samba3_attributes[] =
 	 * groups and accounts? */
 	{
 		.local_name = "unixName",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				.remote_name = "gidNumber",
@@ -900,7 +899,7 @@ const struct ldb_map_attribute samba3_attributes[] =
 	/* homeDirectory */
 	{
 		.local_name = "unixName",
-		.type = MAP_CONVERT,
+		.type = LDB_MAP_CONVERT,
 		.u = {
 			.convert = {
 				.remote_name = "homeDirectory",

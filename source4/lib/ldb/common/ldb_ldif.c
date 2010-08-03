@@ -219,7 +219,7 @@ int ldb_should_b64_encode(struct ldb_context *ldb, const struct ldb_val *val)
 static int fold_string(int (*fprintf_fn)(void *, const char *, ...), void *private_data,
 			const char *buf, size_t length, int start_pos)
 {
-	unsigned int i;
+	size_t i;
 	int total=0, ret;
 
 	for (i=0;i<length;i++) {
@@ -373,6 +373,8 @@ int ldb_ldif_write(struct ldb_context *ldb,
 	ret = fprintf_fn(private_data,"\n");
 	CHECK_RET;
 
+	talloc_free(mem_ctx);
+
 	return total;
 }
 
@@ -508,7 +510,7 @@ static int next_attr(void *mem_ctx, char **s, const char **attr, struct ldb_val 
 	if (binary_file) {
 		int len = ldb_read_data_file(mem_ctx, value);
 		if (len == -1) {
-			/* an error occured hile trying to retrieve the file */
+			/* an error occurred while trying to retrieve the file */
 			return -1;
 		}
 	}

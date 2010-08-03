@@ -20,6 +20,8 @@
 */
 
 #include "includes.h"
+#include "librpc/gen_ndr/messaging.h"
+#include "libsmb/clidgram.h"
 
 /*
  * cli_send_mailslot, send a mailslot for client code ...
@@ -130,7 +132,7 @@ bool send_getdc_request(TALLOC_CTX *mem_ctx,
 			struct messaging_context *msg_ctx,
 			struct sockaddr_storage *dc_ss,
 			const char *domain_name,
-			const DOM_SID *sid,
+			const struct dom_sid *sid,
 			uint32_t nt_version)
 {
 	struct in_addr dc_ip;
@@ -181,7 +183,7 @@ bool send_getdc_request(TALLOC_CTX *mem_ctx,
 		NDR_PRINT_DEBUG(nbt_netlogon_packet, &packet);
 	}
 
-	ndr_err = ndr_push_struct_blob(&blob, mem_ctx, NULL, &packet,
+	ndr_err = ndr_push_struct_blob(&blob, mem_ctx, &packet,
 		       (ndr_push_flags_fn_t)ndr_push_nbt_netlogon_packet);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		return false;
@@ -249,7 +251,7 @@ bool receive_getdc_response(TALLOC_CTX *mem_ctx,
 	blob.data += 4;
 	blob.length -= 4;
 
-	ndr_err = ndr_pull_union_blob_all(&blob, mem_ctx, NULL, &p, DGRAM_SMB,
+	ndr_err = ndr_pull_union_blob_all(&blob, mem_ctx, &p, DGRAM_SMB,
 		       (ndr_pull_flags_fn_t)ndr_pull_dgram_smb_packet);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		DEBUG(0,("failed to parse packet\n"));
@@ -269,7 +271,7 @@ bool receive_getdc_response(TALLOC_CTX *mem_ctx,
 
 	ZERO_STRUCT(r);
 
-	status = pull_netlogon_samlogon_response(&blob, mem_ctx, NULL, &r);
+	status = pull_netlogon_samlogon_response(&blob, mem_ctx, &r);
 	if (!NT_STATUS_IS_OK(status)) {
 		return false;
 	}
@@ -279,7 +281,7 @@ bool receive_getdc_response(TALLOC_CTX *mem_ctx,
 	/* do we still need this ? */
 	*nt_version = r.ntver;
 
-	returned_domain = r.data.nt5_ex.domain;
+	returned_domain = r.data.nt5_ex.domain_name;
 	returned_dc = r.data.nt5_ex.pdc_name;
 
 	if (!strequal(returned_domain, domain_name)) {

@@ -31,12 +31,13 @@
 
 #include "includes.h"
 #include "ldb_module.h"
+#include "dsdb/samdb/samdb.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "param/param.h"
 
 static struct ldb_message_element *objectguid_find_attribute(const struct ldb_message *msg, const char *name)
 {
-	int i;
+	unsigned int i;
 
 	for (i = 0; i < msg->num_elements; i++) {
 		if (ldb_attr_cmp(name, msg->elements[i].name) == 0) {
@@ -136,10 +137,8 @@ static int objectguid_add(struct ldb_module *module, struct ldb_request *req)
 	struct ldb_request *down_req;
 	struct ldb_message_element *attribute;
 	struct ldb_message *msg;
-	struct ldb_val v;
 	struct GUID guid;
 	uint64_t seq_num;
-	enum ndr_err_code ndr_err;
 	int ret;
 	time_t t = time(NULL);
 	struct og_context *ac;
@@ -159,7 +158,7 @@ static int objectguid_add(struct ldb_module *module, struct ldb_request *req)
 
 	ac = talloc(req, struct og_context);
 	if (ac == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_oom(ldb);
 	}
 	ac->module = module;
 	ac->req = req;
@@ -168,28 +167,20 @@ static int objectguid_add(struct ldb_module *module, struct ldb_request *req)
 	msg = ldb_msg_copy_shallow(ac, req->op.add.message);
 	if (msg == NULL) {
 		talloc_free(down_req);
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb);
 	}
 
 	/* a new GUID */
 	guid = GUID_random();
 
-	ndr_err = ndr_push_struct_blob(&v, msg, 
-				       lp_iconv_convenience(ldb_get_opaque(ldb, "loadparm")),
-				       &guid,
-				       (ndr_push_flags_fn_t)ndr_push_GUID);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
-
-	ret = ldb_msg_add_value(msg, "objectGUID", &v, NULL);
+	ret = dsdb_msg_add_guid(msg, &guid, "objectGUID");
 	if (ret) {
 		return ret;
 	}
 	
 	if (add_time_element(msg, "whenCreated", t) != 0 ||
 	    add_time_element(msg, "whenChanged", t) != 0) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb);
 	}
 
 	/* Get a sequence number from the backend */
@@ -199,7 +190,7 @@ static int objectguid_add(struct ldb_module *module, struct ldb_request *req)
 	if (ret == LDB_SUCCESS) {
 		if (add_uint64_element(msg, "uSNCreated", seq_num) != 0 ||
 		    add_uint64_element(msg, "uSNChanged", seq_num) != 0) {
-			return LDB_ERR_OPERATIONS_ERROR;
+			return ldb_operr(ldb);
 		}
 	}
 
@@ -209,7 +200,7 @@ static int objectguid_add(struct ldb_module *module, struct ldb_request *req)
 				ac, og_op_callback,
 				req);
 	if (ret != LDB_SUCCESS) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ret;
 	}
 
 	/* go on with the call chain */
@@ -238,7 +229,7 @@ static int objectguid_modify(struct ldb_module *module, struct ldb_request *req)
 
 	ac = talloc(req, struct og_context);
 	if (ac == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_oom(ldb);
 	}
 	ac->module = module;
 	ac->req = req;
@@ -246,18 +237,18 @@ static int objectguid_modify(struct ldb_module *module, struct ldb_request *req)
 	/* we have to copy the message as the caller might have it as a const */
 	msg = ldb_msg_copy_shallow(ac, req->op.mod.message);
 	if (msg == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb);
 	}
 
 	if (add_time_element(msg, "whenChanged", t) != 0) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb);
 	}
 
 	/* Get a sequence number from the backend */
 	ret = ldb_sequence_number(ldb, LDB_SEQ_NEXT, &seq_num);
 	if (ret == LDB_SUCCESS) {
 		if (add_uint64_element(msg, "uSNChanged", seq_num) != 0) {
-			return LDB_ERR_OPERATIONS_ERROR;
+			return ldb_operr(ldb);
 		}
 	}
 
@@ -267,7 +258,7 @@ static int objectguid_modify(struct ldb_module *module, struct ldb_request *req)
 				ac, og_op_callback,
 				req);
 	if (ret != LDB_SUCCESS) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ret;
 	}
 
 	/* go on with the call chain */

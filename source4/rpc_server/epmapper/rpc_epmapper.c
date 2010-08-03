@@ -65,7 +65,7 @@ static uint32_t build_ep_list(TALLOC_CTX *mem_ctx,
 			description = d->ep_description;
 			description->object = iface->iface.syntax_id;
 
-			status = dcerpc_binding_build_tower(mem_ctx, description, &(*eps)[total].ep);
+			status = dcerpc_binding_build_tower(*eps, description, &(*eps)[total].ep);
 			if (NT_STATUS_IS_ERR(status)) {
 				DEBUG(1, ("Unable to build tower for %s\n", iface->iface.name));
 				continue;
@@ -103,7 +103,7 @@ static error_status_t dcesrv_epm_Lookup(struct dcesrv_call_state *dce_call, TALL
 		struct dcesrv_ep_iface *e;
 	} *eps;
 	uint32_t num_ents;
-	int i;
+	unsigned int i;
 
 	DCESRV_PULL_HANDLE_FAULT(h, r->in.entry_handle, HTYPE_LOOKUP);
 
@@ -168,7 +168,7 @@ static error_status_t dcesrv_epm_Map(struct dcesrv_call_state *dce_call, TALLOC_
 			      struct epm_Map *r)
 {
 	uint32_t count;
-	int i;
+	unsigned int i;
 	struct dcesrv_ep_iface *eps;
 	struct epm_floor *floors;
 	enum dcerpc_transport_t transport;

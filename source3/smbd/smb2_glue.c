@@ -38,6 +38,7 @@ struct smb_request *smbd_smb2_fake_smb_request(struct smbd_smb2_request *req)
 	smbreq->vuid = req->session->compat_vuser->vuid;
 	smbreq->tid = req->tcon->compat_conn->cnum;
 	smbreq->conn = req->tcon->compat_conn;
+	smbreq->sconn = req->sconn;
 	smbreq->smbpid = (uint16_t)IVAL(inhdr, SMB2_HDR_PID);
 	smbreq->flags2 = FLAGS2_UNICODE_STRINGS |
 			 FLAGS2_32_BIT_ERROR_CODES |
@@ -46,7 +47,29 @@ struct smb_request *smbd_smb2_fake_smb_request(struct smbd_smb2_request *req)
 	if (IVAL(inhdr, SMB2_HDR_FLAGS) & SMB2_HDR_FLAG_DFS) {
 		smbreq->flags2 |= FLAGS2_DFS_PATHNAMES;
 	}
+	smbreq->mid = BVAL(inhdr, SMB2_HDR_MESSAGE_ID);
 	smbreq->chain_fsp = req->compat_chain_fsp;
+	smbreq->smb2req = req;
+	req->smb1req = smbreq;
 
 	return smbreq;
+}
+
+/*********************************************************
+ Called from file_free() to remove any chained fsp pointers.
+*********************************************************/
+
+void remove_smb2_chained_fsp(files_struct *fsp)
+{
+	struct smbd_server_connection *sconn = smbd_server_conn;
+	struct smbd_smb2_request *smb2req;
+
+	for (smb2req = sconn->smb2.requests; smb2req; smb2req = smb2req->next) {
+		if (smb2req->compat_chain_fsp == fsp) {
+			smb2req->compat_chain_fsp = NULL;
+		}
+		if (smb2req->smb1req && smb2req->smb1req->chain_fsp == fsp) {
+			smb2req->smb1req->chain_fsp = NULL;
+		}
+	}
 }

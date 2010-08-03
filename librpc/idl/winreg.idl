@@ -112,6 +112,15 @@ import "lsa.idl", "security.idl", "misc.idl";
 		boolean8  inherit;
 	} winreg_SecBuf;
 
+	const int REG_OPTION_NON_VOLATILE = 0x00000000;
+
+	typedef [bitmap32bit] bitmap {
+		REG_OPTION_VOLATILE		= 0x00000001,
+		REG_OPTION_CREATE_LINK		= 0x00000002,
+		REG_OPTION_BACKUP_RESTORE	= 0x00000004,
+		REG_OPTION_OPEN_LINK		= 0x00000008
+	} winreg_KeyOptions;
+
 	typedef [v1_enum] enum {
 		REG_ACTION_NONE         = 0, /* used by caller */
 		REG_CREATED_NEW_KEY     = 1,
@@ -122,7 +131,7 @@ import "lsa.idl", "security.idl", "misc.idl";
 		[in,ref] policy_handle *handle,
 		[in] winreg_String name,
 		[in] winreg_String keyclass,
-		[in] uint32 options,
+		[in] winreg_KeyOptions options,
 		[in] winreg_AccessMask access_mask,
 		[in,unique] winreg_SecBuf *secdesc,
 		[out,ref] policy_handle *new_handle,
@@ -230,7 +239,7 @@ import "lsa.idl", "security.idl", "misc.idl";
 	[public] WERROR winreg_OpenKey(
 		[in,ref] policy_handle *parent_handle,
 		[in] winreg_String keyname,
-		[in] uint32 unknown,
+		[in] winreg_KeyOptions options,
 		[in] winreg_AccessMask access_mask,
 		[out,ref] policy_handle *handle
 	);
@@ -263,7 +272,11 @@ import "lsa.idl", "security.idl", "misc.idl";
 
 	/******************/
 	/* Function: 0x12 */
-	[todo] WERROR winreg_ReplaceKey(
+	WERROR winreg_ReplaceKey(
+		[in,ref] policy_handle *handle,
+		[in,ref] winreg_String *subkey,
+		[in,ref] winreg_String *new_file,
+		[in,ref] winreg_String *old_file
 	);
 
 	/******************/
@@ -309,7 +322,9 @@ import "lsa.idl", "security.idl", "misc.idl";
 
 	/******************/
 	/* Function: 0x17 */
-	[todo] WERROR winreg_UnLoadKey(
+	WERROR winreg_UnLoadKey(
+		[in,ref] policy_handle *handle,
+		[in,ref] winreg_String *subkey
 	);
 
 	/******************/
@@ -356,17 +371,18 @@ import "lsa.idl", "security.idl", "misc.idl";
 	);
 
 	typedef struct {
-		winreg_String *name;
-		winreg_Type type;
-		uint32 offset;
-		uint32 length;
+		winreg_ValNameBuf *ve_valuename;
+		uint32 ve_valuelen;
+		uint32 ve_valueptr;
+		winreg_Type ve_type;
 	} QueryMultipleValue;
-	
+
 	/******************/
 	/* Function: 0x1d */
 	[public] WERROR winreg_QueryMultipleValues(
 		[in,ref] policy_handle *key_handle, 
-		[in,out,ref,size_is(num_values),length_is(num_values)] QueryMultipleValue *values,
+		[in,ref,size_is(num_values),length_is(num_values)] QueryMultipleValue *values_in,
+		[out,ref,size_is(num_values),length_is(num_values)] QueryMultipleValue *values_out,
 		[in] uint32 num_values,
 		[in,out,unique,size_is(*buffer_size),length_is(*buffer_size)] uint8 *buffer,
 		[in,out,ref] uint32 *buffer_size
@@ -389,7 +405,11 @@ import "lsa.idl", "security.idl", "misc.idl";
 
 	/******************/
 	/* Function: 0x1f */
-	[todo] WERROR winreg_SaveKeyEx(
+	WERROR winreg_SaveKeyEx(
+		[in,ref] policy_handle *handle,
+		[in,ref] winreg_String *filename,
+		[in,unique] KeySecurityAttribute *sec_attrib,
+		[in] uint32 flags
 	);
 
 	/******************/
@@ -410,6 +430,22 @@ import "lsa.idl", "security.idl", "misc.idl";
 
 	/******************/
 	/* Function: 0x22 */
-	[todo] WERROR winreg_QueryMultipleValues2(
+	[public] WERROR winreg_QueryMultipleValues2(
+		[in,ref] policy_handle *key_handle,
+		[in,ref,size_is(num_values),length_is(num_values)] QueryMultipleValue *values_in,
+		[out,ref,size_is(num_values),length_is(num_values)] QueryMultipleValue *values_out,
+		[in] uint32 num_values,
+		[in,out,unique,size_is(*offered),length_is(*offered)] uint8 *buffer,
+		[in,ref] uint32 *offered,
+		[out,ref] uint32 *needed
+	);
+
+	/******************/
+	/* Function: 0x23 */
+	WERROR winreg_DeleteKeyEx(
+		[in,ref] policy_handle *handle,
+		[in,ref] winreg_String *key,
+		[in] winreg_AccessMask access_mask,
+		[in] uint32 reserved
 	);
 }

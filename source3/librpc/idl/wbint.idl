@@ -1,12 +1,13 @@
 #include "idl_types.h"
-import "lsa.idl", "netlogon.idl";
+import "lsa.idl", "netlogon.idl", "misc.idl", "security.idl";
 
 [
     uuid("bf09192c-ed60-4928-9dff-d0d7bcb03ed8"),
     endpoint("ncalrpc:"),
     pointer_default(unique),
     version(1.0),
-    helpstring("winbind parent-child protocol")
+    helpstring("winbind parent-child protocol"),
+    no_srv_register
 ]
 interface wbint
 {

@@ -29,12 +29,12 @@ testit() {
 	return $status
 }
 
-testit "domain join" $VALGRIND $net join $DOMAIN $CONFIGURATION  -W "$DOMAIN" -U"$USERNAME%$PASSWORD" $@ || failed=`expr $failed + 1`
+testit "Test login with --machine-pass without kerberos" $VALGRIND $smbclient -c 'ls' $CONFIGURATION //$SERVER/tmp --machine-pass -k no
 
-testit "Test login with --machine-pass without kerberos" $VALGRIND $smbclient -c 'ls' $CONFIGURATION //$SERVER/tmp --machine-pass -k no || failed=`expr $failed + 1`
+testit "Test login with --machine-pass and kerberos" $VALGRIND $smbclient -c 'ls' $CONFIGURATION //$SERVER/tmp --machine-pass -k yes
 
-testit "Test login with --machine-pass and kerberos" $VALGRIND $smbclient -c 'ls' $CONFIGURATION //$SERVER/tmp --machine-pass -k yes || failed=`expr $failed + 1`
+testit "time" $VALGRIND $net time $SERVER $CONFIGURATION  -W "$DOMAIN" -U"$USERNAME%$PASSWORD" $@
+
+# FIXME: testit "domainlevel.show" $VALGRIND $net domainlevel show $CONFIGURATION
 
 exit $failed
-
-

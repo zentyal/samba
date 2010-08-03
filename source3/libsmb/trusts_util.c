@@ -21,6 +21,9 @@
 #include "includes.h"
 #include "../libcli/auth/libcli_auth.h"
 #include "../librpc/gen_ndr/cli_lsa.h"
+#include "rpc_client/cli_lsarpc.h"
+#include "rpc_client/cli_netlogon.h"
+#include "../librpc/gen_ndr/ndr_netlogon.h"
 
 /*********************************************************
  Change the domain password on the PDC.
@@ -135,7 +138,7 @@ NTSTATUS trust_pw_find_change_and_store_it(struct rpc_pipe_client *cli,
 
 bool enumerate_domain_trusts( TALLOC_CTX *mem_ctx, const char *domain,
                                      char ***domain_names, uint32 *num_domains,
-				     DOM_SID **sids )
+				     struct dom_sid **sids )
 {
 	struct policy_handle 	pol;
 	NTSTATUS 	result = NT_STATUS_UNSUCCESSFUL;
@@ -200,7 +203,7 @@ bool enumerate_domain_trusts( TALLOC_CTX *mem_ctx, const char *domain,
 		goto done;
 	}
 
-	*sids = TALLOC_ZERO_ARRAY(mem_ctx, DOM_SID, *num_domains);
+	*sids = TALLOC_ZERO_ARRAY(mem_ctx, struct dom_sid, *num_domains);
 	if (!*sids) {
 		result = NT_STATUS_NO_MEMORY;
 		goto done;
@@ -219,4 +222,77 @@ done:
 	}
 
 	return NT_STATUS_IS_OK(result);
+}
+
+NTSTATUS change_trust_account_password( const char *domain, const char *remote_machine)
+{
+	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
+	struct sockaddr_storage pdc_ss;
+	fstring dc_name;
+	struct cli_state *cli = NULL;
+	struct rpc_pipe_client *netlogon_pipe = NULL;
+
+	DEBUG(5,("change_trust_account_password: Attempting to change trust account password in domain %s....\n",
+		domain));
+
+	if (remote_machine == NULL || !strcmp(remote_machine, "*")) {
+		/* Use the PDC *only* for this */
+
+		if ( !get_pdc_ip(domain, &pdc_ss) ) {
+			DEBUG(0,("Can't get IP for PDC for domain %s\n", domain));
+			goto failed;
+		}
+
+		if ( !name_status_find( domain, 0x1b, 0x20, &pdc_ss, dc_name) )
+			goto failed;
+	} else {
+		/* supoport old deprecated "smbpasswd -j DOMAIN -r MACHINE" behavior */
+		fstrcpy( dc_name, remote_machine );
+	}
+
+	/* if this next call fails, then give up.  We can't do
+	   password changes on BDC's  --jerry */
+
+	if (!NT_STATUS_IS_OK(cli_full_connection(&cli, global_myname(), dc_name,
+					   NULL, 0,
+					   "IPC$", "IPC",
+					   "", "",
+					   "", 0, Undefined, NULL))) {
+		DEBUG(0,("modify_trust_password: Connection to %s failed!\n", dc_name));
+		nt_status = NT_STATUS_UNSUCCESSFUL;
+		goto failed;
+	}
+
+	/*
+	 * Ok - we have an anonymous connection to the IPC$ share.
+	 * Now start the NT Domain stuff :-).
+	 */
+
+	/* Shouldn't we open this with schannel ? JRA. */
+
+	nt_status = cli_rpc_pipe_open_noauth(
+		cli, &ndr_table_netlogon.syntax_id, &netlogon_pipe);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		DEBUG(0,("modify_trust_password: unable to open the domain client session to machine %s. Error was : %s.\n",
+			dc_name, nt_errstr(nt_status)));
+		cli_shutdown(cli);
+		cli = NULL;
+		goto failed;
+	}
+
+	nt_status = trust_pw_find_change_and_store_it(
+		netlogon_pipe, netlogon_pipe, domain);
+
+	cli_shutdown(cli);
+	cli = NULL;
+
+failed:
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		DEBUG(0,("%s : change_trust_account_password: Failed to change password for domain %s.\n",
+			current_timestring(talloc_tos(), False), domain));
+	}
+	else
+		DEBUG(5,("change_trust_account_password: sucess!\n"));
+
+	return nt_status;
 }

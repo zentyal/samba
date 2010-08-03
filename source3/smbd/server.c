@@ -23,6 +23,9 @@
 
 #include "includes.h"
 #include "smbd/globals.h"
+#include "librpc/gen_ndr/messaging.h"
+#include "registry.h"
+#include "libcli/auth/schannel.h"
 
 static_decl_rpc;
 
@@ -47,39 +50,7 @@ int get_client_fd(void)
 
 struct event_context *smbd_event_context(void)
 {
-	if (!smbd_event_ctx) {
-		smbd_event_ctx = event_context_init(talloc_autofree_context());
-	}
-	if (!smbd_event_ctx) {
-		smb_panic("Could not init smbd event context");
-	}
-	return smbd_event_ctx;
-}
-
-struct messaging_context *smbd_messaging_context(void)
-{
-	if (smbd_msg_ctx == NULL) {
-		smbd_msg_ctx = messaging_init(talloc_autofree_context(),
-					      server_id_self(),
-					      smbd_event_context());
-	}
-	if (smbd_msg_ctx == NULL) {
-		DEBUG(0, ("Could not init smbd messaging context.\n"));
-	}
-	return smbd_msg_ctx;
-}
-
-struct memcache *smbd_memcache(void)
-{
-	if (!smbd_memcache_ctx) {
-		smbd_memcache_ctx = memcache_init(talloc_autofree_context(),
-						  lp_max_stat_cache_size()*1024);
-	}
-	if (!smbd_memcache_ctx) {
-		smb_panic("Could not init smbd memcache");
-	}
-
-	return smbd_memcache_ctx;
+	return server_event_context();
 }
 
 /*******************************************************************
@@ -157,7 +128,6 @@ static void msg_inject_fault(struct messaging_context *msg,
 	int sig;
 
 	if (data->length != sizeof(sig)) {
-		
 		DEBUG(0, ("Process %s sent bogus signal injection request\n",
 			  procid_str_static(&src)));
 		return;
@@ -239,7 +209,7 @@ static void cleanup_timeout_fn(struct event_context *event_ctx,
 
 	DEBUG(1,("Cleaning up brl and lock database after unclean shutdown\n"));
 	message_send_all(smbd_messaging_context(), MSG_SMB_UNLOCK, NULL, 0, NULL);
-	messaging_send_buf(smbd_messaging_context(), procid_self(), 
+	messaging_send_buf(smbd_messaging_context(), procid_self(),
 				MSG_SMB_BRL_VALIDATE, NULL, 0);
 	/* mark the cleanup as having been done */
 	(*cleanup_te) = NULL;
@@ -249,23 +219,32 @@ static void remove_child_pid(pid_t pid, bool unclean_shutdown)
 {
 	struct child_pid *child;
 	static struct timed_event *cleanup_te;
+	struct server_id child_id;
 
 	if (unclean_shutdown) {
 		/* a child terminated uncleanly so tickle all
 		   processes to see if they can grab any of the
 		   pending locks
                 */
-		DEBUG(3,(__location__ " Unclean shutdown of pid %u\n", 
+		DEBUG(3,(__location__ " Unclean shutdown of pid %u\n",
 			(unsigned int)pid));
 		if (!cleanup_te) {
 			/* call the cleanup timer, but not too often */
 			int cleanup_time = lp_parm_int(-1, "smbd", "cleanuptime", 20);
 			cleanup_te = event_add_timed(smbd_event_context(), NULL,
 						timeval_current_ofs(cleanup_time, 0),
-						cleanup_timeout_fn, 
+						cleanup_timeout_fn,
 						&cleanup_te);
 			DEBUG(1,("Scheduled cleanup of brl and lock database after unclean shutdown\n"));
 		}
+	}
+
+	child_id = procid_self(); /* Just initialize pid and potentially vnn */
+	child_id.pid = pid;
+
+	if (!serverid_deregister(child_id)) {
+		DEBUG(1, ("Could not remove pid %d from serverid.tdb\n",
+			  (int)pid));
 	}
 
 	for (child = children; child != NULL; child = child->next) {
@@ -374,8 +353,9 @@ static void smbd_accept_connection(struct tevent_context *ev,
 	struct sockaddr_storage addr;
 	socklen_t in_addrlen = sizeof(addr);
 	pid_t pid = 0;
+	uint64_t unique_id;
 
-	smbd_set_server_fd(accept(s->fd,(struct sockaddr *)&addr,&in_addrlen));
+	smbd_set_server_fd(accept(s->fd, (struct sockaddr *)(void *)&addr,&in_addrlen));
 
 	if (smbd_server_fd() == -1 && errno == EINTR)
 		return;
@@ -398,11 +378,20 @@ static void smbd_accept_connection(struct tevent_context *ev,
 		return;
 	}
 
+	/*
+	 * Generate a unique id in the parent process so that we use
+	 * the global random state in the parent.
+	 */
+	generate_random_buffer((uint8_t *)&unique_id, sizeof(unique_id));
+
 	pid = sys_fork();
 	if (pid == 0) {
 		NTSTATUS status = NT_STATUS_OK;
+
 		/* Child code ... */
 		am_parent = 0;
+
+		set_my_unique_id(unique_id);
 
 		/* Stop zombies, the parent explicitly handles
 		 * them, counting worker smbds. */
@@ -420,7 +409,8 @@ static void smbd_accept_connection(struct tevent_context *ev,
 		s = NULL;
 
 		status = reinit_after_fork(smbd_messaging_context(),
-					   smbd_event_context(), true);
+					   smbd_event_context(), procid_self(),
+					   true);
 		if (!NT_STATUS_IS_OK(status)) {
 			if (NT_STATUS_EQUAL(status,
 					    NT_STATUS_TOO_MANY_OPENED_FILES)) {
@@ -434,6 +424,14 @@ static void smbd_accept_connection(struct tevent_context *ev,
 
 		smbd_setup_sig_term_handler();
 		smbd_setup_sig_hup_handler();
+
+		if (!serverid_register(procid_self(),
+				       FLAG_MSG_GENERAL|FLAG_MSG_SMBD
+				       |FLAG_MSG_DBWRAP
+				       |FLAG_MSG_PRINT_GENERAL)) {
+			exit_server_cleanly("Could not register myself in "
+					    "serverid.tdb");
+		}
 
 		smbd_process();
 	 exit:
@@ -665,8 +663,14 @@ static bool open_sockets_smbd(struct smbd_parent_context *parent,
 	   clustered mode, ctdb won't allow us to start doing database
 	   operations until it has gone thru a full startup, which
 	   includes checking to see that smbd is listening. */
-	claim_connection(NULL,"",
-			 FLAG_MSG_GENERAL|FLAG_MSG_SMBD|FLAG_MSG_DBWRAP);
+
+	if (!serverid_register(procid_self(),
+			       FLAG_MSG_GENERAL|FLAG_MSG_SMBD
+			       |FLAG_MSG_DBWRAP)) {
+		DEBUG(0, ("open_sockets_smbd: Failed to register "
+			  "myself in serverid.tdb\n"));
+		return false;
+	}
 
         /* Listen to messages */
 
@@ -686,7 +690,8 @@ static bool open_sockets_smbd(struct smbd_parent_context *parent,
 
 #ifdef CLUSTER_SUPPORT
 	if (lp_clustering()) {
-		ctdbd_register_reconfigure(messaging_ctdbd_connection());
+		ctdbd_register_reconfigure(
+			messaging_ctdbd_connection(procid_self()));
 	}
 #endif
 
@@ -734,203 +739,6 @@ static void smbd_parent_loop(struct smbd_parent_context *parent)
 /* NOTREACHED	return True; */
 }
 
-/****************************************************************************
- Reload printers
-**************************************************************************/
-void reload_printers(void)
-{
-	int snum;
-	int n_services = lp_numservices();
-	int pnum = lp_servicenumber(PRINTERS_NAME);
-	const char *pname;
-
-	pcap_cache_reload();
-
-	/* remove stale printers */
-	for (snum = 0; snum < n_services; snum++) {
-		/* avoid removing PRINTERS_NAME or non-autoloaded printers */
-		if (snum == pnum || !(lp_snum_ok(snum) && lp_print_ok(snum) &&
-		                      lp_autoloaded(snum)))
-			continue;
-
-		pname = lp_printername(snum);
-		if (!pcap_printername_ok(pname)) {
-			DEBUG(3, ("removing stale printer %s\n", pname));
-
-			if (is_printer_published(NULL, snum, NULL))
-				nt_printer_publish(NULL, snum, DSPRINT_UNPUBLISH);
-			del_a_printer(pname);
-			lp_killservice(snum);
-		}
-	}
-
-	load_printers();
-}
-
-/****************************************************************************
- Reload the services file.
-**************************************************************************/
-
-bool reload_services(bool test)
-{
-	bool ret;
-
-	if (lp_loaded()) {
-		char *fname = lp_configfile();
-		if (file_exist(fname) &&
-		    !strcsequal(fname, get_dyn_CONFIGFILE())) {
-			set_dyn_CONFIGFILE(fname);
-			test = False;
-		}
-	}
-
-	reopen_logs();
-
-	if (test && !lp_file_list_changed())
-		return(True);
-
-	lp_killunused(conn_snum_used);
-
-	ret = lp_load(get_dyn_CONFIGFILE(), False, False, True, True);
-
-	reload_printers();
-
-	/* perhaps the config filename is now set */
-	if (!test)
-		reload_services(True);
-
-	reopen_logs();
-
-	load_interfaces();
-
-	if (smbd_server_fd() != -1) {
-		set_socket_options(smbd_server_fd(),"SO_KEEPALIVE");
-		set_socket_options(smbd_server_fd(), lp_socket_options());
-	}
-
-	mangle_reset_cache();
-	reset_stat_cache();
-
-	/* this forces service parameters to be flushed */
-	set_current_service(NULL,0,True);
-
-	return(ret);
-}
-
-/****************************************************************************
- Exit the server.
-****************************************************************************/
-
-/* Reasons for shutting down a server process. */
-enum server_exit_reason { SERVER_EXIT_NORMAL, SERVER_EXIT_ABNORMAL };
-
-static void exit_server_common(enum server_exit_reason how,
-	const char *const reason) _NORETURN_;
-
-static void exit_server_common(enum server_exit_reason how,
-	const char *const reason)
-{
-	bool had_open_conn = false;
-	struct smbd_server_connection *sconn = smbd_server_conn;
-
-	if (!exit_firsttime)
-		exit(0);
-	exit_firsttime = false;
-
-	change_to_root_user();
-
-	if (sconn && sconn->smb1.negprot.auth_context) {
-		struct auth_context *a = sconn->smb1.negprot.auth_context;
-		a->free(&sconn->smb1.negprot.auth_context);
-	}
-
-	if (sconn) {
-		had_open_conn = conn_close_all(sconn);
-		invalidate_all_vuids(sconn);
-	}
-
-	/* 3 second timeout. */
-	print_notify_send_messages(smbd_messaging_context(), 3);
-
-	/* delete our entry in the connections database. */
-	yield_connection(NULL,"");
-
-#ifdef WITH_DFS
-	if (dcelogin_atmost_once) {
-		dfs_unlogin();
-	}
-#endif
-
-#ifdef USE_DMAPI
-	/* Destroy Samba DMAPI session only if we are master smbd process */
-	if (am_parent) {
-		if (!dmapi_destroy_session()) {
-			DEBUG(0,("Unable to close Samba DMAPI session\n"));
-		}
-	}
-#endif
-
-	locking_end();
-	printing_end();
-
-	/*
-	 * we need to force the order of freeing the following,
-	 * because smbd_msg_ctx is not a talloc child of smbd_server_conn.
-	 */
-	sconn = NULL;
-	TALLOC_FREE(smbd_server_conn);
-	TALLOC_FREE(smbd_msg_ctx);
-	TALLOC_FREE(smbd_event_ctx);
-
-	if (how != SERVER_EXIT_NORMAL) {
-		int oldlevel = DEBUGLEVEL;
-
-		DEBUGLEVEL = 10;
-
-		DEBUGSEP(0);
-		DEBUG(0,("Abnormal server exit: %s\n",
-			reason ? reason : "no explanation provided"));
-		DEBUGSEP(0);
-
-		log_stack_trace();
-
-		DEBUGLEVEL = oldlevel;
-		dump_core();
-
-	} else {    
-		DEBUG(3,("Server exit (%s)\n",
-			(reason ? reason : "normal exit")));
-		if (am_parent) {
-			pidfile_unlink();
-		}
-		gencache_stabilize();
-	}
-
-	/* if we had any open SMB connections when we exited then we
-	   need to tell the parent smbd so that it can trigger a retry
-	   of any locks we may have been holding or open files we were
-	   blocking */
-	if (had_open_conn) {
-		exit(1);
-	} else {
-		exit(0);
-	}
-}
-
-void exit_server(const char *const explanation)
-{
-	exit_server_common(SERVER_EXIT_ABNORMAL, explanation);
-}
-
-void exit_server_cleanly(const char *const explanation)
-{
-	exit_server_common(SERVER_EXIT_NORMAL, explanation);
-}
-
-void exit_server_fault(void)
-{
-	exit_server("critical server fault");
-}
 
 /****************************************************************************
  Initialise connect, service and file structs.
@@ -1000,6 +808,8 @@ extern void build_options(bool screen);
 	};
 	struct smbd_parent_context *parent = NULL;
 	TALLOC_CTX *frame = talloc_stackframe(); /* Setup tos. */
+	NTSTATUS status;
+	uint64_t unique_id;
 
 	smbd_init_globals();
 
@@ -1174,8 +984,11 @@ extern void build_options(bool screen);
 
 	if (is_daemon && !interactive) {
 		DEBUG( 3, ( "Becoming a daemon.\n" ) );
-		become_daemon(Fork, no_process_group);
+		become_daemon(Fork, no_process_group, log_stdout);
 	}
+
+        generate_random_buffer((uint8_t *)&unique_id, sizeof(unique_id));
+        set_my_unique_id(unique_id);
 
 #if HAVE_SETPGID
 	/*
@@ -1192,11 +1005,15 @@ extern void build_options(bool screen);
 	if (is_daemon)
 		pidfile_create("smbd");
 
-	if (!NT_STATUS_IS_OK(reinit_after_fork(smbd_messaging_context(),
-			     smbd_event_context(), false))) {
+	status = reinit_after_fork(smbd_messaging_context(),
+				   smbd_event_context(),
+				   procid_self(), false);
+	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("reinit_after_fork() failed\n"));
 		exit(1);
 	}
+
+	smbd_server_conn->msg_ctx = smbd_messaging_context();
 
 	smbd_setup_sig_term_handler();
 	smbd_setup_sig_hup_handler();
@@ -1220,13 +1037,21 @@ extern void build_options(bool screen);
 		exit(1);
 	}
 
+	if (lp_server_role() == ROLE_DOMAIN_BDC || lp_server_role() == ROLE_DOMAIN_PDC) {
+		if (!open_schannel_session_store(NULL, lp_private_dir())) {
+			DEBUG(0,("ERROR: Samba cannot open schannel store for secured NETLOGON operations.\n"));
+			exit(1);
+		}
+	}
+
 	if(!get_global_sam_sid()) {
 		DEBUG(0,("ERROR: Samba cannot create a SAM SID.\n"));
 		exit(1);
 	}
 
-	if (!session_init())
+	if (!sessionid_init()) {
 		exit(1);
+	}
 
 	if (!connections_init(True))
 		exit(1);
@@ -1234,7 +1059,17 @@ extern void build_options(bool screen);
 	if (!locking_init())
 		exit(1);
 
-	namecache_enable();
+	if (!messaging_tdb_parent_init()) {
+		exit(1);
+	}
+
+	if (!notify_internal_parent_init()) {
+		exit(1);
+	}
+
+	if (!serverid_parent_init()) {
+		exit(1);
+	}
 
 	if (!W_ERROR_IS_OK(registry_init_full()))
 		exit(1);
@@ -1243,6 +1078,11 @@ extern void build_options(bool screen);
 	if (!init_svcctl_db())
                 exit(1);
 #endif
+
+	if (!init_system_info()) {
+		DEBUG(0,("ERROR: failed to setup system user info.\n"));
+		return -1;
+	}
 
 	if (!print_backend_init(smbd_messaging_context()))
 		exit(1);

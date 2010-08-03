@@ -8,6 +8,11 @@ LIBSAMBA-ERRORS_OBJ_FILES = $(addprefix ../libcli/util/, doserr.o ) $(libclisrcd
 
 PUBLIC_HEADERS += $(addprefix ../libcli/util/, error.h ntstatus.h doserr.h werror.h)
 
+[SUBSYSTEM::LIBSAMBA_TSOCKET]
+PUBLIC_DEPENDENCIES = LIBTSOCKET UTIL_TEVENT
+
+LIBSAMBA_TSOCKET_OBJ_FILES = $(addprefix ../libcli/util/, tstream.o)
+
 [SUBSYSTEM::LIBCLI_LSA]
 PUBLIC_DEPENDENCIES = RPC_NDR_LSA
 PRIVATE_DEPENDENCIES = LIBSECURITY
@@ -53,14 +58,14 @@ LIBCLI_DGRAM_OBJ_FILES = $(addprefix $(libclisrcdir)/dgram/, \
 	browse.o)
 
 [SUBSYSTEM::LIBCLI_WREPL]
-PUBLIC_DEPENDENCIES = NDR_WINSREPL samba_socket LIBEVENTS LIBPACKET
+PUBLIC_DEPENDENCIES = NDR_WINSREPL LIBEVENTS UTIL_TEVENT LIBTSOCKET LIBSAMBA_TSOCKET
 
 LIBCLI_WREPL_OBJ_FILES = $(libclisrcdir)/wrepl/winsrepl.o
 
 $(eval $(call proto_header_template,$(libclisrcdir)/wrepl/winsrepl_proto.h,$(LIBCLI_WREPL_OBJ_FILES:.o=.c)))
 
 [SUBSYSTEM::LIBCLI_RESOLVE]
-PUBLIC_DEPENDENCIES = NDR_NBT
+PUBLIC_DEPENDENCIES = NDR_NBT LIBTSOCKET
 
 LIBCLI_RESOLVE_OBJ_FILES = $(libclisrcdir)/resolve/resolve.o
 
@@ -71,7 +76,7 @@ PRIVATE_DEPENDENCIES = LIBCLI_NBT LIBSAMBA-HOSTCONFIG LIBNETIF
 
 LP_RESOLVE_OBJ_FILES = $(addprefix $(libclisrcdir)/resolve/, \
 					  bcast.o nbtlist.o wins.o \
-					  dns_ex.o \
+					  dns_ex.o file.o \
 					  host.o resolve_lp.o)
 
 $(eval $(call proto_header_template,$(libclisrcdir)/resolve/lp_proto.h,$(LP_RESOLVE_OBJ_FILES:.o=.c)))

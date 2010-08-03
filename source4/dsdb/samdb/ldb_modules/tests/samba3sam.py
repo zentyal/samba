@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 # Unix SMB/CIFS implementation.
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2005-2008
@@ -24,11 +24,12 @@
 
 import os
 import ldb
-from ldb import SCOPE_DEFAULT, SCOPE_BASE, SCOPE_SUBTREE
+from ldb import SCOPE_DEFAULT, SCOPE_BASE
 from samba import Ldb, substitute_var
-from samba.tests import LdbTestCase, TestCaseInTempDir, cmdline_loadparm
+from samba.tests import TestCaseInTempDir, env_loadparm
 import samba.dcerpc.security
 import samba.ndr
+from samba.auth import system_session
 
 datadir = os.path.join(os.path.dirname(__file__), 
                        "../../../../../testdata/samba3")
@@ -49,14 +50,19 @@ class MapBaseTestCase(TestCaseInTempDir):
                  "@TO": "sambaDomainName=TESTS," + s3.basedn})
 
         ldb.add({"dn": "@MODULES",
-                 "@LIST": "rootdse,paged_results,server_sort,asq,samldb,password_hash,operational,objectguid,rdn_name,samba3sam,partition"})
+                 "@LIST": "rootdse,paged_results,server_sort,asq,samldb,password_hash,operational,objectguid,rdn_name,samba3sam,samba3sid,partition"})
 
         ldb.add({"dn": "@PARTITION",
-            "partition": ["%s:%s" % (s4.basedn, s4.url), 
-                          "%s:%s" % (s3.basedn, s3.url)],
-            "replicateEntries": ["@ATTRIBUTES", "@INDEXLIST"]})
+            "partition": ["%s" % (s4.basedn_casefold), 
+                          "%s" % (s3.basedn_casefold)],
+            "replicateEntries": ["@ATTRIBUTES", "@INDEXLIST"],
+            "modules": "*:"})
 
     def setUp(self):
+        self.lp = env_loadparm()
+        self.lp.set("sid generator", "backend")
+        self.lp.set("workgroup", "TESTS")
+        self.lp.set("netbios name", "TESTS")
         super(MapBaseTestCase, self).setUp()
 
         def make_dn(basedn, rdn):
@@ -73,12 +79,14 @@ class MapBaseTestCase(TestCaseInTempDir):
         class Target:
             """Simple helper class that contains data for a specific SAM 
             connection."""
-            def __init__(self, file, basedn, dn):
-                self.file = os.path.join(tempdir, file)
-                self.url = "tdb://" + self.file
+
+            def __init__(self, basedn, dn, lp):
+                self.db = Ldb(lp=lp, session_info=system_session())
                 self.basedn = basedn
+                self.basedn_casefold = ldb.Dn(self.db, basedn).get_casefold()
                 self.substvars = {"BASEDN": self.basedn}
-                self.db = Ldb(lp=cmdline_loadparm)
+                self.file = os.path.join(tempdir, "%s.ldb" % self.basedn_casefold)
+                self.url = "tdb://" + self.file
                 self._dn = dn
 
             def dn(self, rdn):
@@ -99,18 +107,15 @@ class MapBaseTestCase(TestCaseInTempDir):
             def modify_ldif(self, ldif):
                 self.db.modify_ldif(self.subst(ldif))
 
-        self.samba4 = Target("samba4.ldb", "dc=vernstok,dc=nl", make_s4dn)
-        self.samba3 = Target("samba3.ldb", "cn=Samba3Sam", make_dn)
-        self.templates = Target("templates.ldb", "cn=templates", None)
+        self.samba4 = Target("dc=vernstok,dc=nl", make_s4dn, self.lp)
+        self.samba3 = Target("cn=Samba3Sam", make_dn, self.lp)
 
         self.samba3.connect()
-        self.templates.connect()
         self.samba4.connect()
 
     def tearDown(self):
         os.unlink(self.ldbfile)
         os.unlink(self.samba3.file)
-        os.unlink(self.templates.file)
         os.unlink(self.samba4.file)
         super(MapBaseTestCase, self).tearDown()
 
@@ -125,14 +130,13 @@ class Samba3SamTestCase(MapBaseTestCase):
 
     def setUp(self):
         super(Samba3SamTestCase, self).setUp()
-        ldb = Ldb(self.ldburl, lp=cmdline_loadparm)
+        ldb = Ldb(self.ldburl, lp=self.lp, session_info=system_session())
         self.samba3.setup_data("samba3.ldif")
-        self.templates.setup_data("provision_samba3sam_templates.ldif")
         ldif = read_datafile("provision_samba3sam.ldif")
         ldb.add_ldif(self.samba4.subst(ldif))
         self.setup_modules(ldb, self.samba3, self.samba4)
         del ldb
-        self.ldb = Ldb(self.ldburl, lp=cmdline_loadparm)
+        self.ldb = Ldb(self.ldburl, lp=self.lp, session_info=system_session())
 
     def test_search_non_mapped(self):
         """Looking up by non-mapped attribute"""
@@ -293,13 +297,12 @@ class MapTestCase(MapBaseTestCase):
 
     def setUp(self):
         super(MapTestCase, self).setUp()
-        ldb = Ldb(self.ldburl, lp=cmdline_loadparm)
-        self.templates.setup_data("provision_samba3sam_templates.ldif")
+        ldb = Ldb(self.ldburl, lp=self.lp, session_info=system_session())
         ldif = read_datafile("provision_samba3sam.ldif")
         ldb.add_ldif(self.samba4.subst(ldif))
         self.setup_modules(ldb, self.samba3, self.samba4)
         del ldb
-        self.ldb = Ldb(self.ldburl, lp=cmdline_loadparm)
+        self.ldb = Ldb(self.ldburl, lp=self.lp, session_info=system_session())
 
     def test_map_search(self):
         """Running search tests on mapped data."""
@@ -310,6 +313,14 @@ class MapTestCase(MapBaseTestCase):
             "sambaNextRid": "2000",
             "sambaDomainName": "TESTS"
             })
+
+        # Add a set of split records
+        self.ldb.add_ldif("""
+dn: """+ self.samba4.dn("cn=Domain Users") + """
+objectClass: group
+cn: Domain Users
+objectSid: S-1-5-21-4231626423-2410014848-2360679739-513
+""")
 
         # Add a set of split records
         self.ldb.add_ldif("""
@@ -459,7 +470,7 @@ objectSid: S-1-5-21-4231626423-2410014848-2360679739-552
         #   errors, letting the search fail with no results.
         #res = self.ldb.search("(objectSid=S-1-5-21-4231626423-2410014848-2360679739-552)", scope=SCOPE_DEFAULT, attrs)
         res = self.ldb.search(expression="(objectSid=*)", base=None, scope=SCOPE_DEFAULT, attrs=["dnsHostName", "lastLogon", "objectSid"])
-        self.assertEquals(len(res), 3)
+        self.assertEquals(len(res), 4)
         self.assertEquals(str(res[0].dn), self.samba4.dn("cn=X"))
         self.assertEquals(str(res[0]["dnsHostName"]), "x")
         self.assertEquals(str(res[0]["lastLogon"]), "x")
@@ -621,7 +632,7 @@ objectSid: S-1-5-21-4231626423-2410014848-2360679739-552
         # Search by negated local attribute
         res = self.ldb.search(expression="(!(revision=x))", 
                               attrs=["dnsHostName", "lastLogon"])
-        self.assertEquals(len(res), 5)
+        self.assertEquals(len(res), 6)
         self.assertEquals(str(res[0].dn), self.samba4.dn("cn=B"))
         self.assertTrue(not "dnsHostName" in res[0])
         self.assertEquals(str(res[0]["lastLogon"]), "y")
@@ -638,7 +649,7 @@ objectSid: S-1-5-21-4231626423-2410014848-2360679739-552
         # Search by negated remote attribute
         res = self.ldb.search(expression="(!(description=x))", 
                               attrs=["dnsHostName", "lastLogon"])
-        self.assertEquals(len(res), 3)
+        self.assertEquals(len(res), 4)
         self.assertEquals(str(res[0].dn), self.samba4.dn("cn=Z"))
         self.assertEquals(str(res[0]["dnsHostName"]), "z")
         self.assertEquals(str(res[0]["lastLogon"]), "z")
@@ -649,7 +660,7 @@ objectSid: S-1-5-21-4231626423-2410014848-2360679739-552
         # Search by negated conjunction of local attributes
         res = self.ldb.search(expression="(!(&(codePage=x)(revision=x)))", 
                               attrs=["dnsHostName", "lastLogon"])
-        self.assertEquals(len(res), 5)
+        self.assertEquals(len(res), 6)
         self.assertEquals(str(res[0].dn), self.samba4.dn("cn=B"))
         self.assertTrue(not "dnsHostName" in res[0])
         self.assertEquals(str(res[0]["lastLogon"]), "y")
@@ -666,7 +677,7 @@ objectSid: S-1-5-21-4231626423-2410014848-2360679739-552
         # Search by negated conjunction of remote attributes
         res = self.ldb.search(expression="(!(&(lastLogon=x)(description=x)))", 
                               attrs=["dnsHostName", "lastLogon"])
-        self.assertEquals(len(res), 5)
+        self.assertEquals(len(res), 6)
         self.assertEquals(str(res[0].dn), self.samba4.dn("cn=Y"))
         self.assertEquals(str(res[0]["dnsHostName"]), "y")
         self.assertEquals(str(res[0]["lastLogon"]), "y")
@@ -683,7 +694,7 @@ objectSid: S-1-5-21-4231626423-2410014848-2360679739-552
         # Search by negated conjunction of local and remote attribute
         res = self.ldb.search(expression="(!(&(codePage=x)(description=x)))", 
                               attrs=["dnsHostName", "lastLogon"])
-        self.assertEquals(len(res), 5)
+        self.assertEquals(len(res), 6)
         self.assertEquals(str(res[0].dn), self.samba4.dn("cn=B"))
         self.assertTrue(not "dnsHostName" in res[0])
         self.assertEquals(str(res[0]["lastLogon"]), "y")
@@ -716,7 +727,7 @@ objectSid: S-1-5-21-4231626423-2410014848-2360679739-552
         # Search by negated disjunction of remote attributes
         res = self.ldb.search(expression="(!(|(badPwdCount=x)(lastLogon=x)))", 
                               attrs=["dnsHostName", "lastLogon"])
-        self.assertEquals(len(res), 4)
+        self.assertEquals(len(res), 5)
         self.assertEquals(str(res[0].dn), self.samba4.dn("cn=Y"))
         self.assertEquals(str(res[0]["dnsHostName"]), "y")
         self.assertEquals(str(res[0]["lastLogon"]), "y")
@@ -730,7 +741,7 @@ objectSid: S-1-5-21-4231626423-2410014848-2360679739-552
         # Search by negated disjunction of local and remote attribute
         res = self.ldb.search(expression="(!(|(revision=x)(lastLogon=y)))", 
                               attrs=["dnsHostName", "lastLogon"])
-        self.assertEquals(len(res), 4)
+        self.assertEquals(len(res), 5)
         self.assertEquals(str(res[0].dn), self.samba4.dn("cn=A"))
         self.assertTrue(not "dnsHostName" in res[0])
         self.assertEquals(str(res[0]["lastLogon"]), "x")
@@ -743,7 +754,7 @@ objectSid: S-1-5-21-4231626423-2410014848-2360679739-552
 
         # Search by complex parse tree
         res = self.ldb.search(expression="(|(&(revision=x)(dnsHostName=x))(!(&(description=x)(nextRid=y)))(badPwdCount=y))", attrs=["dnsHostName", "lastLogon"])
-        self.assertEquals(len(res), 6)
+        self.assertEquals(len(res), 7)
         self.assertEquals(str(res[0].dn), self.samba4.dn("cn=B"))
         self.assertTrue(not "dnsHostName" in res[0])
         self.assertEquals(str(res[0]["lastLogon"]), "y")

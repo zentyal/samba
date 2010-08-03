@@ -21,6 +21,7 @@
  */
 
 #include "includes.h"
+#include "lib/eventlog/eventlog.h"
 
 /* maintain a list of open eventlog tdbs with reference counts */
 
@@ -65,14 +66,28 @@ TDB_CONTEXT *elog_init_tdb( char *tdbfilename )
 
 char *elog_tdbname(TALLOC_CTX *ctx, const char *name )
 {
-	char *path = talloc_asprintf(ctx, "%s/%s.tdb",
-			state_path("eventlog"),
-			name);
+	char *path;
+	char *file;
+	char *tdbname;
+
+	path = talloc_strdup(ctx, state_path("eventlog"));
 	if (!path) {
 		return NULL;
 	}
-	strlower_m(path);
-	return path;
+
+	file = talloc_asprintf_strlower_m(path, "%s.tdb", name);
+	if (!file) {
+		talloc_free(path);
+		return NULL;
+	}
+
+	tdbname = talloc_asprintf(path, "%s/%s", state_path("eventlog"), file);
+	if (!tdbname) {
+		talloc_free(path);
+		return NULL;
+	}
+
+	return tdbname;
 }
 
 
@@ -676,7 +691,7 @@ struct eventlog_Record_tdb *evlog_pull_record_tdb(TALLOC_CTX *mem_ctx,
 
 	blob = data_blob_const(data.dptr, data.dsize);
 
-	ndr_err = ndr_pull_struct_blob(&blob, mem_ctx, NULL, r,
+	ndr_err = ndr_pull_struct_blob(&blob, mem_ctx, r,
 			   (ndr_pull_flags_fn_t)ndr_pull_eventlog_Record_tdb);
 
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -726,7 +741,7 @@ struct EVENTLOGRECORD *evlog_pull_record(TALLOC_CTX *mem_ctx,
 		return NULL;
 	}
 
-	r->Length = r->Length2 = ndr_size_EVENTLOGRECORD(r, NULL, 0);
+	r->Length = r->Length2 = ndr_size_EVENTLOGRECORD(r, 0);
 
 	return r;
 }
@@ -770,7 +785,7 @@ NTSTATUS evlog_push_record_tdb(TALLOC_CTX *mem_ctx,
 	/* read */
 	r->record_number = tdb_fetch_int32(tdb, EVT_NEXT_RECORD);
 
-	ndr_err = ndr_push_struct_blob(&blob, mem_ctx, NULL, r,
+	ndr_err = ndr_push_struct_blob(&blob, mem_ctx, r,
 		      (ndr_push_flags_fn_t)ndr_push_eventlog_Record_tdb);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		tdb_unlock_bystring(tdb, EVT_NEXT_RECORD);
@@ -940,7 +955,7 @@ NTSTATUS evlog_tdb_entry_to_evt_entry(TALLOC_CTX *mem_ctx,
 			return NT_STATUS_INVALID_SID;
 		}
 		if (len > 0) {
-			e->UserSid = *string_sid_talloc(mem_ctx, sid_str);
+			string_to_sid(&e->UserSid, sid_str);
 		}
 	}
 
@@ -992,7 +1007,7 @@ NTSTATUS evlog_convert_tdb_to_evt(TALLOC_CTX *mem_ctx,
 			goto done;
 		}
 
-		endoffset += ndr_size_EVENTLOGRECORD(&e, NULL, 0);
+		endoffset += ndr_size_EVENTLOGRECORD(&e, 0);
 
 		ADD_TO_ARRAY(mem_ctx, struct EVENTLOGRECORD, e, &evt.records, &num_records);
 		count++;
@@ -1019,7 +1034,7 @@ NTSTATUS evlog_convert_tdb_to_evt(TALLOC_CTX *mem_ctx,
 		NDR_PRINT_DEBUG(EVENTLOGEOF, &evt.eof);
 	}
 
-	ndr_err = ndr_push_struct_blob(&blob, mem_ctx, NULL, &evt,
+	ndr_err = ndr_push_struct_blob(&blob, mem_ctx, &evt,
 		   (ndr_push_flags_fn_t)ndr_push_EVENTLOG_EVT_FILE);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		status = ndr_map_error2ntstatus(ndr_err);

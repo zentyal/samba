@@ -1,161 +1,13 @@
+'\" t
 .\"     Title: smbd
 .\"    Author: [see the "AUTHOR" section]
-.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 06/18/2010
+.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
+.\"      Date: 07/28/2010
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.5
+.\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "SMBD" "8" "06/18/2010" "Samba 3\&.5" "System Administration tools"
-.\" -----------------------------------------------------------------
-.\" * (re)Define some macros
-.\" -----------------------------------------------------------------
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" toupper - uppercase a string (locale-aware)
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de toupper
-.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
-\\$*
-.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SH-xref - format a cross-reference to an SH section
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de SH-xref
-.ie n \{\
-.\}
-.toupper \\$*
-.el \{\
-\\$*
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SH - level-one heading that works better for non-TTY output
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de1 SH
-.\" put an extra blank line of space above the head in non-TTY output
-.if t \{\
-.sp 1
-.\}
-.sp \\n[PD]u
-.nr an-level 1
-.set-an-margin
-.nr an-prevailing-indent \\n[IN]
-.fi
-.in \\n[an-margin]u
-.ti 0
-.HTML-TAG ".NH \\n[an-level]"
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-\." make the size of the head bigger
-.ps +3
-.ft B
-.ne (2v + 1u)
-.ie n \{\
-.\" if n (TTY output), use uppercase
-.toupper \\$*
-.\}
-.el \{\
-.nr an-break-flag 0
-.\" if not n (not TTY), use normal case (not uppercase)
-\\$1
-.in \\n[an-margin]u
-.ti 0
-.\" if not n (not TTY), put a border/line under subheading
-.sp -.6
-\l'\n(.lu'
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SS - level-two heading that works better for non-TTY output
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de1 SS
-.sp \\n[PD]u
-.nr an-level 1
-.set-an-margin
-.nr an-prevailing-indent \\n[IN]
-.fi
-.in \\n[IN]u
-.ti \\n[SN]u
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.ps \\n[PS-SS]u
-\." make the size of the head bigger
-.ps +2
-.ft B
-.ne (2v + 1u)
-.if \\n[.$] \&\\$*
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" BB/BE - put background/screen (filled box) around block of text
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de BB
-.if t \{\
-.sp -.5
-.br
-.in +2n
-.ll -2n
-.gcolor red
-.di BX
-.\}
-..
-.de EB
-.if t \{\
-.if "\\$2"adjust-for-leading-newline" \{\
-.sp -1
-.\}
-.br
-.di
-.in
-.ll
-.gcolor
-.nr BW \\n(.lu-\\n(.i
-.nr BH \\n(dn+.5v
-.ne \\n(BHu+.5v
-.ie "\\$2"adjust-for-leading-newline" \{\
-\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
-.\}
-.el \{\
-\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
-.\}
-.in 0
-.sp -.5v
-.nf
-.BX
-.in
-.sp .5v
-.fi
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" BM/EM - put colored marker in margin next to block of text
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de BM
-.if t \{\
-.br
-.ll -2n
-.gcolor red
-.di BX
-.\}
-..
-.de EM
-.if t \{\
-.br
-.di
-.ll
-.gcolor
-.nr BH \\n(dn
-.ne \\n(BHu
-\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
-.in 0
-.nf
-.BX
-.in
-.fi
-.\}
-..
+.TH "SMBD" "8" "07/28/2010" "Samba 3\&.6" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -166,20 +18,18 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.SH "Name"
+.SH "NAME"
 smbd \- server to provide SMB/CIFS services to clients
-.SH "Synopsis"
-.fam C
+.SH "SYNOPSIS"
 .HP \w'\ 'u
-\FCsmbd\F[] [\-D] [\-F] [\-S] [\-i] [\-h] [\-V] [\-b] [\-d\ <debug\ level>] [\-l\ <log\ directory>] [\-p\ <port\ number(s)>] [\-P\ <profiling\ level>] [\-O\ <socket\ option>] [\-s\ <configuration\ file>]
-.fam
+smbd [\-D] [\-F] [\-S] [\-i] [\-h] [\-V] [\-b] [\-d\ <debug\ level>] [\-l\ <log\ directory>] [\-p\ <port\ number(s)>] [\-P\ <profiling\ level>] [\-O\ <socket\ option>] [\-s\ <configuration\ file>]
 .SH "DESCRIPTION"
 .PP
 This program is part of the
 \fBsamba\fR(7)
 suite\&.
 .PP
-\FCsmbd\F[]
+smbd
 is the server daemon that provides filesharing and printing services to Windows clients\&. The server provides filespace and printer services to clients using the SMB (or CIFS) protocol\&. This is compatible with the LanManager protocol, and can service LanManager clients\&. These include MSCLIENT 3\&.0 for DOS, Windows for Workgroups, Windows 95/98/ME, Windows NT, Windows 2000, OS/2, DAVE for Macintosh, and smbfs for Linux\&.
 .PP
 An extensive description of the services that the server can provide is given in the man page for the configuration file controlling the attributes of those services (see
@@ -192,47 +42,47 @@ manual page should be regarded as mandatory reading before proceeding with insta
 A session is created whenever a client requests one\&. Each client gets a copy of the server for each session\&. This copy then services all connections made by the client during that session\&. When all connections from its client are closed, the copy of the server for that client terminates\&.
 .PP
 The configuration file, and any files that it includes, are automatically reloaded every minute, if they change\&. You can force a reload by sending a SIGHUP to the server\&. Reloading the configuration file will not affect connections to any service that is already established\&. Either the user will have to disconnect from the service, or
-\FCsmbd\F[]
+smbd
 killed and restarted\&.
 .SH "OPTIONS"
 .PP
 \-D
 .RS 4
 If specified, this parameter causes the server to operate as a daemon\&. That is, it detaches itself and runs in the background, fielding requests on the appropriate port\&. Operating the server as a daemon is the recommended way of running
-\FCsmbd\F[]
+smbd
 for servers that provide more than casual use file and print services\&. This switch is assumed if
-\FCsmbd \F[]
+smbd
 is executed on the command line of a shell\&.
 .RE
 .PP
 \-F
 .RS 4
 If specified, this parameter causes the main
-\FCsmbd\F[]
+smbd
 process to not daemonize, i\&.e\&. double\-fork and disassociate with the terminal\&. Child processes are still created as normal to service each connection request, but the main process does not exit\&. This operation mode is suitable for running
-\FCsmbd\F[]
+smbd
 under process supervisors such as
-\FCsupervise\F[]
+supervise
 and
-\FCsvscan\F[]
+svscan
 from Daniel J\&. Bernstein\'s
-\FCdaemontools\F[]
+daemontools
 package, or the AIX process monitor\&.
 .RE
 .PP
 \-S
 .RS 4
 If specified, this parameter causes
-\FCsmbd\F[]
+smbd
 to log to standard output rather than a file\&.
 .RE
 .PP
 \-i
 .RS 4
 If this parameter is specified it causes the server to run "interactively", not as a daemon, even if the server is executed on the command line of a shell\&. Setting this parameter negates the implicit daemon mode when run from the command line\&.
-\FCsmbd\F[]
+smbd
 also logs to standard output, as if the
-\FC\-S\F[]
+\-S
 parameter had been given\&.
 .RE
 .PP
@@ -248,7 +98,7 @@ Levels above 1 will generate considerable amounts of log data, and should only b
 Note that specifying this parameter here will override the
 \m[blue]\fB\%smb.conf.5.html#\fR\m[]
 parameter in the
-\FCsmb\&.conf\F[]
+smb\&.conf
 file\&.
 .RE
 .PP
@@ -260,7 +110,7 @@ Prints the program version number\&.
 \-s|\-\-configfile <configuration file>
 .RS 4
 The file specified contains the configuration details required by the server\&. The information in this file includes server\-specific information such as what printcap file to use, as well as descriptions of all the services that the server is to provide\&. See
-\FCsmb\&.conf\F[]
+smb\&.conf
 for more information\&. The default configuration file name is determined at compile time\&.
 .RE
 .PP
@@ -287,7 +137,7 @@ Prints information about how Samba was built\&.
 is a space or comma\-separated list of TCP ports smbd should listen on\&. The default value is taken from the
 \m[blue]\fBports\fR\m[]
 parameter in
-\FCsmb\&.conf\F[]
+smb\&.conf
 .sp
 The default ports are 139 (used for SMB over NetBIOS over TCP) and port 445 (used for plain SMB over TCP)\&.
 .RE
@@ -299,34 +149,34 @@ is a number specifying the level of profiling data to be collected\&. 0 turns of
 .RE
 .SH "FILES"
 .PP
-\FC/etc/inetd\&.conf\F[]
+/etc/inetd\&.conf
 .RS 4
 If the server is to be run by the
-\FCinetd\F[]
+inetd
 meta\-daemon, this file must contain suitable startup information for the meta\-daemon\&.
 .RE
 .PP
-\FC/etc/rc\F[]
+/etc/rc
 .RS 4
 or whatever initialization script your system uses)\&.
 .sp
 If running the server as a daemon at startup, this file will need to contain an appropriate startup sequence for the server\&.
 .RE
 .PP
-\FC/etc/services\F[]
+/etc/services
 .RS 4
 If running the server via the meta\-daemon
-\FCinetd\F[], this file must contain a mapping of service name (e\&.g\&., netbios\-ssn) to service port (e\&.g\&., 139) and protocol type (e\&.g\&., tcp)\&.
+inetd, this file must contain a mapping of service name (e\&.g\&., netbios\-ssn) to service port (e\&.g\&., 139) and protocol type (e\&.g\&., tcp)\&.
 .RE
 .PP
-\FC/usr/local/samba/lib/smb\&.conf\F[]
+/usr/local/samba/lib/smb\&.conf
 .RS 4
 This is the default location of the
 \fBsmb.conf\fR(5)
 server configuration file\&. Other common places that systems install this file are
-\FC/usr/samba/lib/smb\&.conf\F[]
+/usr/samba/lib/smb\&.conf
 and
-\FC/etc/samba/smb\&.conf\F[]\&.
+/etc/samba/smb\&.conf\&.
 .sp
 This file describes all the services the server is to make available to clients\&. See
 \fBsmb.conf\fR(5)
@@ -335,7 +185,7 @@ for more information\&.
 .SH "LIMITATIONS"
 .PP
 On some systems
-\FCsmbd\F[]
+smbd
 cannot change uid back to root after a setuid() call\&. Such systems are called trapdoor uid systems\&. If you have such a system, you will be unable to connect from a client (such as a PC) as two different users at once\&. Attempts to connect the second user will result in access denied or similar\&.
 .SH "ENVIRONMENT VARIABLES"
 .PP
@@ -385,7 +235,7 @@ Most messages are reasonably self\-explanatory\&. Unfortunately, at the time thi
 .SH "TDB FILES"
 .PP
 Samba stores it\'s data in several TDB (Trivial Database) files, usually located in
-\FC/var/lib/samba\F[]\&.
+/var/lib/samba\&.
 .PP
 (*) information persistent across restarts (but not necessarily important to backup)\&.
 .PP
@@ -491,29 +341,29 @@ wins database when \'wins support = yes\'
 .SH "SIGNALS"
 .PP
 Sending the
-\FCsmbd\F[]
+smbd
 a SIGHUP will cause it to reload its
-\FCsmb\&.conf\F[]
+smb\&.conf
 configuration file within a short period of time\&.
 .PP
 To shut down a user\'s
-\FCsmbd\F[]
+smbd
 process it is recommended that
-\FCSIGKILL (\-9)\F[]
+SIGKILL (\-9)
 \fINOT\fR
 be used, except as a last resort, as this may leave the shared memory area in an inconsistent state\&. The safe way to terminate an
-\FCsmbd\F[]
+smbd
 is to send it a SIGTERM (\-15) signal and wait for it to die on its own\&.
 .PP
 The debug log level of
-\FCsmbd\F[]
+smbd
 may be raised or lowered using
 \fBsmbcontrol\fR(1)
 program (SIGUSR[1|2] signals are no longer used since Samba 2\&.2)\&. This is to allow transient problems to be diagnosed, whilst still running at a normally low log level\&.
 .PP
 Note that as the signal handlers send a debug write, they are not re\-entrant in
-\FCsmbd\F[]\&. This you should wait until
-\FCsmbd\F[]
+smbd\&. This you should wait until
+smbd
 is in a state of waiting for an incoming SMB before issuing them\&. It is possible to make the signal handlers safe by un\-blocking the signals before the select call and re\-blocking them after, however this would affect performance\&.
 .SH "SEE ALSO"
 .PP
@@ -524,8 +374,8 @@ is in a state of waiting for an incoming SMB before issuing them\&. It is possib
 \fBsmbclient\fR(1),
 \fBtestparm\fR(1),
 \fBtestprns\fR(1), and the Internet RFC\'s
-\FCrfc1001\&.txt\F[],
-\FCrfc1002\&.txt\F[]\&. In addition the CIFS (formerly SMB) specification is available as a link from the Web page
+rfc1001\&.txt,
+rfc1002\&.txt\&. In addition the CIFS (formerly SMB) specification is available as a link from the Web page
 http://samba\&.org/cifs/\&.
 .SH "AUTHOR"
 .PP

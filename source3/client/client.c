@@ -163,6 +163,24 @@ const char *client_set_cur_dir(const char *newdir)
 }
 
 /****************************************************************************
+ Put up a yes/no prompt.
+****************************************************************************/
+
+static bool yesno(const char *p)
+{
+	char ans[20];
+	printf("%s",p);
+
+	if (!fgets(ans,sizeof(ans)-1,stdin))
+		return(False);
+
+	if (*ans == 'y' || *ans == 'Y')
+		return(True);
+
+	return(False);
+}
+
+/****************************************************************************
  Write to a local file with CR/LF->LF translation if appropriate. Return the
  number taken from the buffer. This may not equal the number written.
 ****************************************************************************/
@@ -314,7 +332,7 @@ static int cmd_pwd(void)
 
 static void normalize_name(char *newdir)
 {
-	if (!(cli->posix_capabilities & CIFS_UNIX_POSIX_PATHNAMES_CAP)) {
+	if (!(cli->requested_posix_capabilities & CIFS_UNIX_POSIX_PATHNAMES_CAP)) {
 		string_replace(newdir,'/','\\');
 	}
 }
@@ -390,8 +408,12 @@ static int do_cd(const char *new_dir)
 	   Except Win9x doesn't support the qpathinfo_basic() call..... */
 
 	if (targetcli->protocol > PROTOCOL_LANMAN2 && !targetcli->win95) {
-		if (!cli_qpathinfo_basic( targetcli, targetpath, &sbuf, &attributes ) ) {
-			d_printf("cd %s: %s\n", new_cd, cli_errstr(targetcli));
+		NTSTATUS status;
+
+		status = cli_qpathinfo_basic(targetcli, targetpath, &sbuf,
+					     &attributes);
+		if (!NT_STATUS_IS_OK(status)) {
+			d_printf("cd %s: %s\n", new_cd, nt_errstr(status));
 			client_set_cur_dir(saved_dir);
 			goto out;
 		}
@@ -462,7 +484,7 @@ static int cmd_cd_oneup(void)
  Decide if a file should be operated on.
 ********************************************************************/
 
-static bool do_this_one(file_info *finfo)
+static bool do_this_one(struct file_info *finfo)
 {
 	if (!finfo->name) {
 		return false;
@@ -495,7 +517,7 @@ static bool do_this_one(file_info *finfo)
  Display info about a file.
 ****************************************************************************/
 
-static void display_finfo(file_info *finfo, const char *dir)
+static void display_finfo(struct file_info *finfo, const char *dir)
 {
 	time_t t;
 	TALLOC_CTX *ctx = talloc_tos();
@@ -540,7 +562,7 @@ static void display_finfo(file_info *finfo, const char *dir)
 				afname,
 				cli_errstr( finfo->cli)));
 		} else {
-			SEC_DESC *sd = NULL;
+			struct security_descriptor *sd = NULL;
 			sd = cli_query_secdesc(finfo->cli, fnum, ctx);
 			if (!sd) {
 				DEBUG( 0, ("display_finfo() failed to "
@@ -559,7 +581,7 @@ static void display_finfo(file_info *finfo, const char *dir)
  Accumulate size of a file.
 ****************************************************************************/
 
-static void do_du(file_info *finfo, const char *dir)
+static void do_du(struct file_info *finfo, const char *dir)
 {
 	if (do_this_one(finfo)) {
 		dir_total += finfo->size;
@@ -572,7 +594,7 @@ static char *do_list_queue = 0;
 static long do_list_queue_size = 0;
 static long do_list_queue_start = 0;
 static long do_list_queue_end = 0;
-static void (*do_list_fn)(file_info *, const char *dir);
+static void (*do_list_fn)(struct file_info *, const char *dir);
 
 /****************************************************************************
  Functions for do_list_queue.
@@ -689,7 +711,8 @@ static int do_list_queue_empty(void)
  A helper for do_list.
 ****************************************************************************/
 
-static void do_list_helper(const char *mntpoint, file_info *f, const char *mask, void *state)
+static void do_list_helper(const char *mntpoint, struct file_info *f,
+			   const char *mask, void *state)
 {
 	TALLOC_CTX *ctx = talloc_tos();
 	char *dir = NULL;
@@ -762,7 +785,7 @@ static void do_list_helper(const char *mntpoint, file_info *f, const char *mask,
 
 void do_list(const char *mask,
 			uint16 attribute,
-			void (*fn)(file_info *, const char *dir),
+			void (*fn)(struct file_info *, const char *dir),
 			bool rec,
 			bool dirs)
 {
@@ -1131,7 +1154,7 @@ static int cmd_get(void)
  Do an mget operation on one file.
 ****************************************************************************/
 
-static void do_mget(file_info *finfo, const char *dir)
+static void do_mget(struct file_info *finfo, const char *dir)
 {
 	TALLOC_CTX *ctx = talloc_tos();
 	char *rname = NULL;
@@ -1504,6 +1527,31 @@ static int cmd_altname(void)
 	return 0;
 }
 
+static char *attr_str(TALLOC_CTX *mem_ctx, uint16_t mode)
+{
+	char *attrs = TALLOC_ZERO_ARRAY(mem_ctx, char, 17);
+	int i = 0;
+
+	if (!(mode & FILE_ATTRIBUTE_NORMAL)) {
+		if (mode & FILE_ATTRIBUTE_READONLY) {
+			attrs[i++] = 'R';
+		}
+		if (mode & FILE_ATTRIBUTE_HIDDEN) {
+			attrs[i++] = 'H';
+		}
+		if (mode & FILE_ATTRIBUTE_SYSTEM) {
+			attrs[i++] = 'S';
+		}
+		if (mode & FILE_ATTRIBUTE_DIRECTORY) {
+			attrs[i++] = 'D';
+		}
+		if (mode & FILE_ATTRIBUTE_ARCHIVE) {
+			attrs[i++] = 'A';
+		}
+	}
+	return attrs;
+}
+
 /****************************************************************************
  Show all info we can get
 ****************************************************************************/
@@ -1519,18 +1567,21 @@ static int do_allinfo(const char *name)
 	unsigned int num_streams;
 	struct stream_struct *streams;
 	unsigned int i;
+	NTSTATUS status;
 
-	if (!NT_STATUS_IS_OK(cli_qpathinfo_alt_name(cli, name, altname))) {
-		d_printf("%s getting alt name for %s\n",
-			 cli_errstr(cli),name);
+	status = cli_qpathinfo_alt_name(cli, name, altname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("%s getting alt name for %s\n", nt_errstr(status),
+			 name);
 		return false;
 	}
 	d_printf("altname: %s\n", altname);
 
-	if (!cli_qpathinfo2(cli, name, &b_time, &a_time, &m_time, &c_time,
-			    &size, &mode, &ino)) {
-		d_printf("%s getting pathinfo for %s\n",
-			 cli_errstr(cli),name);
+	status = cli_qpathinfo2(cli, name, &b_time, &a_time, &m_time, &c_time,
+				&size, &mode, &ino);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("%s getting pathinfo for %s\n", nt_errstr(status),
+			 name);
 		return false;
 	}
 
@@ -1546,10 +1597,13 @@ static int do_allinfo(const char *name)
 	unix_timespec_to_nt_time(&tmp, c_time);
 	d_printf("change_time:    %s\n", nt_time_string(talloc_tos(), tmp));
 
-	if (!cli_qpathinfo_streams(cli, name, talloc_tos(), &num_streams,
-				   &streams)) {
-		d_printf("%s getting streams for %s\n",
-			 cli_errstr(cli),name);
+	d_printf("attributes: %s\n", attr_str(talloc_tos(), mode));
+
+	status = cli_qpathinfo_streams(cli, name, talloc_tos(), &num_streams,
+				       &streams);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("%s getting streams for %s\n", nt_errstr(status),
+			 name);
 		return false;
 	}
 
@@ -1668,6 +1722,7 @@ static int do_put(const char *rname, const char *lname, bool reput)
 			  &state);
 	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr, "cli_push returned %s\n", nt_errstr(status));
+		rc = 1;
 	}
 
 	if (!NT_STATUS_IS_OK(cli_close(targetcli, fnum))) {
@@ -2078,7 +2133,7 @@ static int cmd_queue(void)
  Delete some files.
 ****************************************************************************/
 
-static void do_del(file_info *finfo, const char *dir)
+static void do_del(struct file_info *finfo, const char *dir)
 {
 	TALLOC_CTX *ctx = talloc_tos();
 	char *mask = NULL;
@@ -2532,8 +2587,11 @@ static int cmd_posix(void)
 
 	d_printf("Server supports CIFS capabilities %s\n", caps);
 
-	if (!cli_set_unix_extensions_capabilities(cli, major, minor, caplow, caphigh)) {
-		d_printf("Can't set UNIX CIFS extensions capabilities. %s.\n", cli_errstr(cli));
+	status = cli_set_unix_extensions_capabilities(cli, major, minor,
+						      caplow, caphigh);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("Can't set UNIX CIFS extensions capabilities. %s.\n",
+			 nt_errstr(status));
 		return 1;
 	}
 
@@ -3355,9 +3413,12 @@ static int cmd_volume(void)
 	fstring volname;
 	uint32 serial_num;
 	time_t create_date;
+	NTSTATUS status;
 
-	if (!cli_get_fs_volume_info(cli, volname, &serial_num, &create_date)) {
-		d_printf("Errr %s getting volume info\n",cli_errstr(cli));
+	status = cli_get_fs_volume_info(cli, volname, &serial_num,
+					&create_date);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("Error %s getting volume info\n", nt_errstr(status));
 		return 1;
 	}
 
@@ -4133,68 +4194,74 @@ static int process_command_string(const char *cmd_in)
 
 #define MAX_COMPLETIONS 100
 
-typedef struct {
+struct completion_remote {
 	char *dirmask;
 	char **matches;
 	int count, samelen;
 	const char *text;
 	int len;
-} completion_remote_t;
+};
 
 static void completion_remote_filter(const char *mnt,
-				file_info *f,
+				struct file_info *f,
 				const char *mask,
 				void *state)
 {
-	completion_remote_t *info = (completion_remote_t *)state;
+	struct completion_remote *info = (struct completion_remote *)state;
 
-	if ((info->count < MAX_COMPLETIONS - 1) &&
-			(strncmp(info->text, f->name, info->len) == 0) &&
-			(strcmp(f->name, ".") != 0) &&
-			(strcmp(f->name, "..") != 0)) {
-		if ((info->dirmask[0] == 0) && !(f->mode & aDIR))
-			info->matches[info->count] = SMB_STRDUP(f->name);
-		else {
-			TALLOC_CTX *ctx = talloc_stackframe();
-			char *tmp;
+	if (info->count >= MAX_COMPLETIONS - 1) {
+		return;
+	}
+	if (strncmp(info->text, f->name, info->len) != 0) {
+		return;
+	}
+	if (ISDOT(f->name) || ISDOTDOT(f->name)) {
+		return;
+	}
 
-			tmp = talloc_strdup(ctx,info->dirmask);
-			if (!tmp) {
-				TALLOC_FREE(ctx);
-				return;
-			}
-			tmp = talloc_asprintf_append(tmp, "%s", f->name);
-			if (!tmp) {
-				TALLOC_FREE(ctx);
-				return;
-			}
-			if (f->mode & aDIR) {
-				tmp = talloc_asprintf_append(tmp, "%s", CLI_DIRSEP_STR);
-			}
-			if (!tmp) {
-				TALLOC_FREE(ctx);
-				return;
-			}
-			info->matches[info->count] = SMB_STRDUP(tmp);
+	if ((info->dirmask[0] == 0) && !(f->mode & aDIR))
+		info->matches[info->count] = SMB_STRDUP(f->name);
+	else {
+		TALLOC_CTX *ctx = talloc_stackframe();
+		char *tmp;
+
+		tmp = talloc_strdup(ctx,info->dirmask);
+		if (!tmp) {
 			TALLOC_FREE(ctx);
+			return;
 		}
-		if (info->matches[info->count] == NULL) {
+		tmp = talloc_asprintf_append(tmp, "%s", f->name);
+		if (!tmp) {
+			TALLOC_FREE(ctx);
 			return;
 		}
 		if (f->mode & aDIR) {
-			smb_readline_ca_char(0);
+			tmp = talloc_asprintf_append(tmp, "%s",
+						     CLI_DIRSEP_STR);
 		}
-		if (info->count == 1) {
-			info->samelen = strlen(info->matches[info->count]);
-		} else {
-			while (strncmp(info->matches[info->count],
-						info->matches[info->count-1],
-						info->samelen) != 0) {
-				info->samelen--;
-			}
+		if (!tmp) {
+			TALLOC_FREE(ctx);
+			return;
 		}
-		info->count++;
+		info->matches[info->count] = SMB_STRDUP(tmp);
+		TALLOC_FREE(ctx);
 	}
+	if (info->matches[info->count] == NULL) {
+		return;
+	}
+	if (f->mode & aDIR) {
+		smb_readline_ca_char(0);
+	}
+	if (info->count == 1) {
+		info->samelen = strlen(info->matches[info->count]);
+	} else {
+		while (strncmp(info->matches[info->count],
+			       info->matches[info->count-1],
+			       info->samelen) != 0) {
+			info->samelen--;
+		}
+	}
+	info->count++;
 }
 
 static char **remote_completion(const char *text, int len)
@@ -4204,9 +4271,9 @@ static char **remote_completion(const char *text, int len)
 	char *targetpath = NULL;
 	struct cli_state *targetcli = NULL;
 	int i;
-	completion_remote_t info = { NULL, NULL, 1, 0, NULL, 0 };
+	struct completion_remote info = { NULL, NULL, 1, 0, NULL, 0 };
 
-	/* can't have non-static intialisation on Sun CC, so do it
+	/* can't have non-static initialisation on Sun CC, so do it
 	   at run time here */
 	info.samelen = len;
 	info.text = text;

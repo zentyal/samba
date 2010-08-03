@@ -51,14 +51,13 @@ const struct ndr_interface_call *dcerpc_iface_find_call(const struct ndr_interfa
    push a ncacn_packet into a blob, potentially with auth info
 */
 NTSTATUS ncacn_push_auth(DATA_BLOB *blob, TALLOC_CTX *mem_ctx, 
-			 struct smb_iconv_convenience *iconv_convenience,
-			  struct ncacn_packet *pkt,
-			  struct dcerpc_auth *auth_info)
+			 struct ncacn_packet *pkt,
+			 struct dcerpc_auth *auth_info)
 {
 	struct ndr_push *ndr;
 	enum ndr_err_code ndr_err;
 
-	ndr = ndr_push_init_ctx(mem_ctx, iconv_convenience);
+	ndr = ndr_push_init_ctx(mem_ctx);
 	if (!ndr) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -83,6 +82,19 @@ NTSTATUS ncacn_push_auth(DATA_BLOB *blob, TALLOC_CTX *mem_ctx,
 	}
 
 	if (auth_info) {
+#if 0
+		/* the s3 rpc server doesn't handle auth padding in
+		   bind requests. Use zero auth padding to keep us
+		   working with old servers */
+		uint32_t offset = ndr->offset;
+		ndr_err = ndr_push_align(ndr, 16);
+		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+			return ndr_map_error2ntstatus(ndr_err);
+		}
+		auth_info->auth_pad_length = ndr->offset - offset;
+#else
+		auth_info->auth_pad_length = 0;
+#endif
 		ndr_err = ndr_push_dcerpc_auth(ndr, NDR_SCALARS|NDR_BUFFERS, auth_info);
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			return ndr_map_error2ntstatus(ndr_err);
@@ -111,7 +123,7 @@ struct epm_map_binding_state {
 
 
 static void continue_epm_recv_binding(struct composite_context *ctx);
-static void continue_epm_map(struct rpc_request *req);
+static void continue_epm_map(struct tevent_req *subreq);
 
 
 /*
@@ -120,12 +132,11 @@ static void continue_epm_map(struct rpc_request *req);
 */
 static void continue_epm_recv_binding(struct composite_context *ctx)
 {
-	struct rpc_request *map_req;
-
 	struct composite_context *c = talloc_get_type(ctx->async.private_data,
 						      struct composite_context);
 	struct epm_map_binding_state *s = talloc_get_type(c->private_data,
 							  struct epm_map_binding_state);
+	struct tevent_req *subreq;
 
 	/* receive result of rpc pipe connect request */
 	c->status = dcerpc_pipe_connect_b_recv(ctx, c, &s->pipe);
@@ -147,25 +158,28 @@ static void continue_epm_recv_binding(struct composite_context *ctx)
 	s->r.out.entry_handle = &s->handle;
 
 	/* send request for an endpoint mapping - a rpc request on connected pipe */
-	map_req = dcerpc_epm_Map_send(s->pipe, c, &s->r);
-	if (composite_nomem(map_req, c)) return;
+	subreq = dcerpc_epm_Map_r_send(s, c->event_ctx,
+				       s->pipe->binding_handle,
+				       &s->r);
+	if (composite_nomem(subreq, c)) return;
 	
-	composite_continue_rpc(c, map_req, continue_epm_map, c);
+	tevent_req_set_callback(subreq, continue_epm_map, c);
 }
 
 
 /*
   Stage 3 of epm_map_binding: Receive endpoint mapping and provide binding details
 */
-static void continue_epm_map(struct rpc_request *req)
+static void continue_epm_map(struct tevent_req *subreq)
 {
-	struct composite_context *c = talloc_get_type(req->async.private_data,
-						      struct composite_context);
+	struct composite_context *c = tevent_req_callback_data(subreq,
+				      struct composite_context);
 	struct epm_map_binding_state *s = talloc_get_type(c->private_data,
 							  struct epm_map_binding_state);
 
 	/* receive result of a rpc request */
-	c->status = dcerpc_ndr_request_recv(req);
+	c->status = dcerpc_epm_Map_r_recv(subreq, s);
+	TALLOC_FREE(subreq);
 	if (!composite_is_ok(c)) return;
 
 	/* check the details */
@@ -407,6 +421,7 @@ static void continue_ntlmssp_connection(struct composite_context *ctx)
 	struct pipe_auth_state *s;
 	struct composite_context *auth_req;
 	struct dcerpc_pipe *p2;
+	void *pp;
 
 	c = talloc_get_type(ctx->async.private_data, struct composite_context);
 	s = talloc_get_type(c->private_data, struct pipe_auth_state);
@@ -415,14 +430,37 @@ static void continue_ntlmssp_connection(struct composite_context *ctx)
 	c->status = dcerpc_secondary_connection_recv(ctx, &p2);
 	if (!composite_is_ok(c)) return;
 
+
+	/* this is a rather strange situation. When
+	   we come into the routine, s is a child of s->pipe, and
+	   when we created p2 above, it also became a child of
+	   s->pipe.
+
+	   Now we want p2 to be a parent of s->pipe, and we want s to
+	   be a parent of both of them! If we don't do this very
+	   carefully we end up creating a talloc loop
+	*/
+
+	/* we need the new contexts to hang off the same context
+	   that s->pipe is on, but the only way to get that is
+	   via talloc_parent() */
+	pp = talloc_parent(s->pipe);
+
+	/* promote s to be at the top */
+	talloc_steal(pp, s);
+
+	/* and put p2 under s */
 	talloc_steal(s, p2);
+
+	/* now put s->pipe under p2 */
 	talloc_steal(p2, s->pipe);
+
 	s->pipe = p2;
 
 	/* initiate a authenticated bind */
 	auth_req = dcerpc_bind_auth_send(c, s->pipe, s->table,
 					 s->credentials, 
-					 lp_gensec_settings(c, s->lp_ctx),
+					 lpcfg_gensec_settings(c, s->lp_ctx),
 					 DCERPC_AUTH_TYPE_NTLMSSP,
 					 dcerpc_auth_level(s->pipe->conn),
 					 s->table->authservices->names[0]);
@@ -455,7 +493,7 @@ static void continue_spnego_after_wrong_pass(struct composite_context *ctx)
 	/* initiate a authenticated bind */
 	auth_req = dcerpc_bind_auth_send(c, s->pipe, s->table,
 					 s->credentials, 
-					 lp_gensec_settings(c, s->lp_ctx), 
+					 lpcfg_gensec_settings(c, s->lp_ctx),
 					 DCERPC_AUTH_TYPE_SPNEGO,
 					 dcerpc_auth_level(s->pipe->conn),
 					 s->table->authservices->names[0]);
@@ -580,7 +618,7 @@ struct composite_context *dcerpc_pipe_auth_send(struct dcerpc_pipe *p,
 		/* try SPNEGO with fallback to NTLMSSP */
 		auth_req = dcerpc_bind_auth_send(c, s->pipe, s->table,
 						 s->credentials, 
-						 lp_gensec_settings(c, s->lp_ctx), 
+						 lpcfg_gensec_settings(c, s->lp_ctx),
 						 DCERPC_AUTH_TYPE_SPNEGO,
 						 dcerpc_auth_level(conn),
 						 s->table->authservices->names[0]);
@@ -590,7 +628,7 @@ struct composite_context *dcerpc_pipe_auth_send(struct dcerpc_pipe *p,
 
 	auth_req = dcerpc_bind_auth_send(c, s->pipe, s->table,
 					 s->credentials, 
-					 lp_gensec_settings(c, s->lp_ctx), 
+					 lpcfg_gensec_settings(c, s->lp_ctx),
 					 auth_type,
 					 dcerpc_auth_level(conn),
 					 s->table->authservices->names[0]);
@@ -739,6 +777,13 @@ _PUBLIC_ NTSTATUS dcerpc_secondary_context(struct dcerpc_pipe *p,
 	p2->transfer_syntax = p->transfer_syntax;
 
 	p2->binding = talloc_reference(p2, p->binding);
+
+	p2->binding_handle = talloc(p2, struct dcerpc_binding_handle);
+	if (p2->binding_handle == NULL) {
+		talloc_free(p2);
+		return NT_STATUS_NO_MEMORY;
+	}
+	p2->binding_handle->private_data = p2;
 
 	status = dcerpc_alter_context(p2, p2, &p2->syntax, &p2->transfer_syntax);
 	if (!NT_STATUS_IS_OK(status)) {

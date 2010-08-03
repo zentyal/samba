@@ -173,7 +173,7 @@ size_t smbsrv_blob_push_string(TALLOC_CTX *mem_ctx,
 NTSTATUS smbsrv_blob_append_string(TALLOC_CTX *mem_ctx,
 				   DATA_BLOB *blob,
 				   const char *str,
-				   uint_t len_offset,
+				   unsigned int len_offset,
 				   int default_flags,
 				   int flags)
 {
@@ -197,7 +197,7 @@ NTSTATUS smbsrv_push_passthru_fsinfo(TALLOC_CTX *mem_ctx,
 				     union smb_fsinfo *fsinfo,
 				     int default_str_flags)
 {
-	uint_t i;
+	unsigned int i;
 	DATA_BLOB guid_blob;
 
 	switch (level) {
@@ -272,15 +272,13 @@ NTSTATUS smbsrv_push_passthru_fsinfo(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_OK;
 
 	case RAW_QFS_OBJECTID_INFORMATION: {
-		enum ndr_err_code ndr_err;
+		NTSTATUS status;
 
 		BLOB_CHECK(smbsrv_blob_grow_data(mem_ctx, blob, 64));
 
-		ndr_err = ndr_push_struct_blob(&guid_blob, mem_ctx, NULL, 
-					       &fsinfo->objectid_information.out.guid,
-					       (ndr_push_flags_fn_t)ndr_push_GUID);
-		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-			BLOB_CHECK(ndr_map_error2ntstatus(ndr_err));
+		status = GUID_to_ndr_blob(&fsinfo->objectid_information.out.guid, mem_ctx, &guid_blob);
+		if (!NT_STATUS_IS_OK(status)) {
+			BLOB_CHECK(status);
 		}
 
 		memcpy(blob->data, guid_blob.data, guid_blob.length);
@@ -294,8 +292,6 @@ NTSTATUS smbsrv_push_passthru_fsinfo(TALLOC_CTX *mem_ctx,
 	default:
 		return NT_STATUS_INVALID_LEVEL;
 	}
-
-	return NT_STATUS_INVALID_LEVEL;
 }
 
 NTSTATUS smbsrv_push_passthru_fileinfo(TALLOC_CTX *mem_ctx,
@@ -304,7 +300,7 @@ NTSTATUS smbsrv_push_passthru_fileinfo(TALLOC_CTX *mem_ctx,
 				       union smb_fileinfo *st,
 				       int default_str_flags)
 {
-	uint_t i;
+	unsigned int i;
 	size_t list_size;
 
 	switch (level) {
@@ -511,8 +507,6 @@ NTSTATUS smbsrv_push_passthru_fileinfo(TALLOC_CTX *mem_ctx,
 	default:
 		return NT_STATUS_INVALID_LEVEL;
 	}
-
-	return NT_STATUS_INVALID_LEVEL;
 }
 
 NTSTATUS smbsrv_pull_passthru_sfileinfo(TALLOC_CTX *mem_ctx,
@@ -638,8 +632,6 @@ NTSTATUS smbsrv_pull_passthru_sfileinfo(TALLOC_CTX *mem_ctx,
 	default:
 		return NT_STATUS_INVALID_LEVEL;
 	}
-
-	return NT_STATUS_INVALID_LEVEL;
 }
 
 /*
@@ -652,7 +644,7 @@ NTSTATUS smbsrv_push_passthru_search(TALLOC_CTX *mem_ctx,
 				     int default_str_flags)
 {
 	uint8_t *data;
-	uint_t ofs = blob->length;
+	unsigned int ofs = blob->length;
 
 	switch (level) {
 	case RAW_SEARCH_DATA_DIRECTORY_INFO:
@@ -786,6 +778,4 @@ NTSTATUS smbsrv_push_passthru_search(TALLOC_CTX *mem_ctx,
 	default:
 		return NT_STATUS_INVALID_LEVEL;
 	}
-
-	return NT_STATUS_INVALID_LEVEL;
 }

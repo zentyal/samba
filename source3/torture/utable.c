@@ -18,6 +18,7 @@
 */
 
 #include "includes.h"
+#include "torture/proto.h"
 
 bool torture_utable(int dummy)
 {

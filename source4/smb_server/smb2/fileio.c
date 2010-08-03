@@ -109,7 +109,7 @@ void smb2srv_create_recv(struct smb2srv_request *req)
 				smb2srv_send_error(req,  NT_STATUS_NO_MEMORY);
 				return;
 			}
-			ndr_err = ndr_pull_struct_blob(&io->smb2.in.blobs.blobs[i].data, io, NULL,
+			ndr_err = ndr_pull_struct_blob(&io->smb2.in.blobs.blobs[i].data, io, 
 						       io->smb2.in.sec_desc,
 						       (ndr_pull_flags_fn_t)ndr_pull_security_descriptor);
 			if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -345,7 +345,7 @@ void smb2srv_lock_recv(struct smb2srv_request *req)
 
 	io->smb2.level			= RAW_LOCK_SMB2;
 	io->smb2.in.lock_count		= SVAL(req->in.body, 0x02);
-	io->smb2.in.reserved		= IVAL(req->in.body, 0x04);
+	io->smb2.in.lock_sequence	= IVAL(req->in.body, 0x04);
 	io->smb2.in.file.ntvfs		= smb2srv_pull_handle(req, req->in.body, 0x08);
 	if (req->in.body_size < 24 + 24*(uint64_t)io->smb2.in.lock_count) {
 		DEBUG(0,("%s: lock buffer too small\n", __location__));

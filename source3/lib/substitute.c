@@ -3,23 +3,26 @@
    string substitution functions
    Copyright (C) Andrew Tridgell 1992-2000
    Copyright (C) Gerald Carter   2006
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
 #include "includes.h"
+
+static char *alloc_sub_basic(const char *smb_name, const char *domain_name,
+			     const char *str);
 
 userdom_struct current_user_info;
 fstring remote_proto="UNKNOWN";
@@ -276,12 +279,12 @@ static char * realloc_expand_env_var(char *str, char *p)
 
 	r = p + 3;
 	copylen = q - r;
-	
+
 	/* reserve space for use later add %$() chars */
 	if ( (envname = (char *)SMB_MALLOC(copylen + 1 + 4)) == NULL ) {
 		return NULL;
 	}
-	
+
 	strncpy(envname,r,copylen);
 	envname[copylen] = '\0';
 
@@ -301,7 +304,7 @@ static char * realloc_expand_env_var(char *str, char *p)
 	envname[copylen] = '\0';
 	r = realloc_string_sub(str, envname, envval);
 	SAFE_FREE(envname);
-		
+
 	return r;
 }
 
@@ -310,20 +313,20 @@ static char * realloc_expand_env_var(char *str, char *p)
 
 static char *longvar_domainsid( void )
 {
-	DOM_SID sid;
+	struct dom_sid sid;
 	fstring tmp;
 	char *sid_string;
-	
+
 	if ( !secrets_fetch_domain_sid( lp_workgroup(), &sid ) ) {
 		return NULL;
 	}
-	
+
 	sid_string = SMB_STRDUP( sid_to_fstring( tmp, &sid ) );
-	
+
 	if ( !sid_string ) {
 		DEBUG(0,("longvar_domainsid: failed to dup SID string!\n"));
 	}
-	
+
 	return sid_string;
 }
 
@@ -343,15 +346,15 @@ static struct api_longvar longvar_table[] = {
 static char *get_longvar_val( const char *varname )
 {
 	int i;
-	
+
 	DEBUG(7,("get_longvar_val: expanding variable [%s]\n", varname));
-	
+
 	for ( i=0; longvar_table[i].name; i++ ) {
 		if ( strequal( longvar_table[i].name, varname ) ) {
 			return longvar_table[i].fn();
 		}
 	}
-	
+
 	return NULL;
 }
 
@@ -515,13 +518,12 @@ void standard_sub_basic(const char *smb_name, const char *domain_name,
 			char *str, size_t len)
 {
 	char *s;
-	
+
 	if ( (s = alloc_sub_basic( smb_name, domain_name, str )) != NULL ) {
 		strncpy( str, s, len );
 	}
-	
+
 	SAFE_FREE( s );
-	
 }
 
 /****************************************************************************
@@ -533,7 +535,7 @@ char *talloc_sub_basic(TALLOC_CTX *mem_ctx, const char *smb_name,
 		       const char *domain_name, const char *str)
 {
 	char *a, *t;
-	
+
 	if ( (a = alloc_sub_basic(smb_name, domain_name, str)) == NULL ) {
 		return NULL;
 	}
@@ -545,8 +547,8 @@ char *talloc_sub_basic(TALLOC_CTX *mem_ctx, const char *smb_name,
 /****************************************************************************
 ****************************************************************************/
 
-char *alloc_sub_basic(const char *smb_name, const char *domain_name,
-		      const char *str)
+static char *alloc_sub_basic(const char *smb_name, const char *domain_name,
+			     const char *str)
 {
 	char *b, *p, *s, *r, *a_string;
 	fstring pidstr, vnnstr;
@@ -555,12 +557,12 @@ char *alloc_sub_basic(const char *smb_name, const char *domain_name,
 	TALLOC_CTX *tmp_ctx = NULL;
 
 	/* workaround to prevent a crash while looking at bug #687 */
-	
+
 	if (!str) {
 		DEBUG(0,("alloc_sub_basic: NULL source string!  This should not happen\n"));
 		return NULL;
 	}
-	
+
 	a_string = SMB_STRDUP(str);
 	if (a_string == NULL) {
 		DEBUG(0, ("alloc_sub_basic: Out of memory!\n"));
@@ -722,11 +724,11 @@ char *talloc_sub_specified(TALLOC_CTX *mem_ctx,
 		DEBUG(0, ("talloc_sub_specified: Out of memory!\n"));
 		goto done;
 	}
-	
+
 	for (b = s = a_string; (p = strchr_m(s, '%')); s = a_string + (p - b)) {
-		
+
 		b = a_string;
-		
+
 		switch (*(p+1)) {
 		case 'U' : 
 			a_string = talloc_string_sub(
@@ -802,11 +804,11 @@ static char *alloc_sub_advanced(const char *servicename, const char *user,
 		DEBUG(0, ("alloc_sub_advanced: Out of memory!\n"));
 		return NULL;
 	}
-	
+
 	for (b = s = a_string; (p = strchr_m(s, '%')); s = a_string + (p - b)) {
-		
+
 		b = a_string;
-		
+
 		switch (*(p+1)) {
 		case 'N' :
 			a_string = realloc_string_sub(a_string, "%N", automount_server(user));
@@ -830,7 +832,7 @@ static char *alloc_sub_advanced(const char *servicename, const char *user,
 		case 'u': 
 			a_string = realloc_string_sub(a_string, "%u", user); 
 			break;
-			
+
 			/* Patch from jkf@soton.ac.uk Left the %N (NIS
 			 * server name) in standard_sub_basic as it is
 			 * a feature for logon servers, hence uses the
@@ -842,7 +844,7 @@ static char *alloc_sub_advanced(const char *servicename, const char *user,
 			a_string = realloc_string_sub(a_string, "%p",
 						      automount_path(servicename)); 
 			break;
-			
+
 		default: 
 			break;
 		}

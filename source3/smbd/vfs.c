@@ -111,7 +111,8 @@ bool vfs_init_custom(connection_struct *conn, const char *vfs_object)
 	const struct vfs_init_function_entry *entry;
 
 	if (!conn||!vfs_object||!vfs_object[0]) {
-		DEBUG(0,("vfs_init_custon() called with NULL pointer or emtpy vfs_object!\n"));
+		DEBUG(0, ("vfs_init_custom() called with NULL pointer or "
+			  "empty vfs_object!\n"));
 		return False;
 	}
 
@@ -1249,6 +1250,7 @@ NTSTATUS smb_vfs_call_create_file(struct vfs_handle_struct *handle,
 				  uint32_t file_attributes,
 				  uint32_t oplock_request,
 				  uint64_t allocation_size,
+				  uint32_t private_flags,
 				  struct security_descriptor *sd,
 				  struct ea_list *ea_list,
 				  files_struct **result,
@@ -1258,7 +1260,8 @@ NTSTATUS smb_vfs_call_create_file(struct vfs_handle_struct *handle,
 	return handle->fns->create_file(
 		handle, req, root_dir_fid, smb_fname, access_mask,
 		share_access, create_disposition, create_options,
-		file_attributes, oplock_request, allocation_size, sd, ea_list,
+		file_attributes, oplock_request, allocation_size,
+		private_flags, sd, ea_list,
 		result, pinfo);
 }
 

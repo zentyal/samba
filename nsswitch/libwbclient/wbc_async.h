@@ -92,4 +92,109 @@ struct tevent_req *wb_simple_trans_send(TALLOC_CTX *mem_ctx,
 int wb_simple_trans_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx,
 			 struct winbindd_response **presponse, int *err);
 
+/* Async functions from wbc_idmap.c */
+
+struct tevent_req *wbcSidToUid_send(TALLOC_CTX *mem_ctx,
+				    struct tevent_context *ev,
+				    struct wb_context *wb_ctx,
+				    const struct wbcDomainSid *sid);
+wbcErr wbcSidToUid_recv(struct tevent_req *req, uid_t *puid);
+
+struct tevent_req *wbcUidToSid_send(TALLOC_CTX *mem_ctx,
+				    struct tevent_context *ev,
+				    struct wb_context *wb_ctx,
+				    uid_t uid);
+wbcErr wbcUidToSid_recv(struct tevent_req *req, struct wbcDomainSid *psid);
+
+struct tevent_req *wbcSidToGid_send(TALLOC_CTX *mem_ctx,
+				    struct tevent_context *ev,
+				    struct wb_context *wb_ctx,
+				    const struct wbcDomainSid *sid);
+wbcErr wbcSidToGid_recv(struct tevent_req *req, gid_t *pgid);
+
+struct tevent_req *wbcGidToSid_send(TALLOC_CTX *mem_ctx,
+				    struct tevent_context *ev,
+				    struct wb_context *wb_ctx,
+				    gid_t gid);
+wbcErr wbcGidToSid_recv(struct tevent_req *req, struct wbcDomainSid *psid);
+
+/* Async functions from wbc_pam.c */
+struct tevent_req *wbcAuthenticateUserEx_send(TALLOC_CTX *mem_ctx,
+					struct tevent_context *ev,
+					struct wb_context *wb_ctx,
+					const struct wbcAuthUserParams *params);
+wbcErr wbcAuthenticateUserEx_recv(struct tevent_req *req,
+				  TALLOC_CTX *mem_ctx,
+				  struct wbcAuthUserInfo **info,
+				  struct wbcAuthErrorInfo **error);
+
+/* Async functions from wbc_sid.c */
+struct tevent_req *wbcLookupName_send(TALLOC_CTX *mem_ctx,
+				      struct tevent_context *ev,
+				      struct wb_context *wb_ctx,
+				      const char *domain,
+				      const char *name);
+wbcErr wbcLookupName_recv(struct tevent_req *req,
+			  struct wbcDomainSid *sid,
+			  enum wbcSidType *name_type);
+struct tevent_req *wbcLookupSid_send(TALLOC_CTX *mem_ctx,
+				     struct tevent_context *ev,
+				     struct wb_context *wb_ctx,
+				     const struct wbcDomainSid *sid);
+wbcErr wbcLookupSid_recv(struct tevent_req *req,
+			 TALLOC_CTX *mem_ctx,
+			 char **pdomain,
+			 char **pname,
+			 enum wbcSidType *pname_type);
+
+/* Async functions from wbc_util.c */
+
+struct tevent_req *wbcPing_send(TALLOC_CTX *mem_ctx,
+			       struct tevent_context *ev,
+			       struct wb_context *wb_ctx);
+wbcErr wbcPing_recv(struct tevent_req *req);
+
+struct tevent_req *wbcInterfaceVersion_send(TALLOC_CTX *mem_ctx,
+					    struct tevent_context *ev,
+					    struct wb_context *wb_ctx);
+wbcErr wbcInterfaceVersion_recv(struct tevent_req *req,
+			        uint32_t *interface_version);
+
+struct tevent_req *wbcInfo_send(TALLOC_CTX *mem_ctx,
+				struct tevent_context *ev,
+				struct wb_context *wb_ctx);
+wbcErr wbcInfo_recv(struct tevent_req *req,
+		    TALLOC_CTX *mem_ctx,
+		    char *winbind_separator,
+		    char **version_string);
+
+struct tevent_req *wbcNetbiosName_send(TALLOC_CTX *mem_ctx,
+				       struct tevent_context *ev,
+				       struct wb_context *wb_ctx);
+wbcErr wbcNetbiosName_recv(struct tevent_req *req,
+			   TALLOC_CTX *mem_ctx,
+			   char **netbios_name);
+
+struct tevent_req *wbcDomainName_send(TALLOC_CTX *mem_ctx,
+				      struct tevent_context *ev,
+				      struct wb_context *wb_ctx);
+wbcErr wbcDomainName_recv(struct tevent_req *req,
+			  TALLOC_CTX *mem_ctx,
+			  char **netbios_name);
+
+struct tevent_req *wbcInterfaceDetails_send(TALLOC_CTX *mem_ctx,
+					    struct tevent_context *ev,
+					    struct wb_context *wb_ctx);
+wbcErr wbcInterfaceDetails_recv(struct tevent_req *req,
+				TALLOC_CTX *mem_ctx,
+				struct wbcInterfaceDetails **details);
+
+struct tevent_req *wbcDomainInfo_send(TALLOC_CTX *mem_ctx,
+				      struct tevent_context *ev,
+				      struct wb_context *wb_ctx,
+				      const char *domain);
+wbcErr wbcDomainInfo_recv(struct tevent_req *req,
+			  TALLOC_CTX *mem_ctx,
+			  struct wbcDomainInfo **dinfo);
+
 #endif /*_WBC_ASYNC_H_*/

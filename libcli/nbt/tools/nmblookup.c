@@ -212,7 +212,7 @@ static bool process_one(struct loadparm_context *lp_ctx, struct tevent_context *
 		node_name = talloc_strdup(tmp_ctx, name);
 	}
 
-	nbtsock = nbt_name_socket_init(tmp_ctx, ev, lp_iconv_convenience(lp_ctx));
+	nbtsock = nbt_name_socket_init(tmp_ctx, ev);
 	
 	if (options.root_port) {
 		all_zero_addr = socket_address_from_strings(tmp_ctx, nbtsock->sock->backend_name, 
@@ -357,14 +357,14 @@ int main(int argc, const char *argv[])
 		exit(1);
 	}
 
-	load_interfaces(NULL, lp_interfaces(cmdline_lp_ctx), &ifaces);
+	load_interfaces(NULL, lpcfg_interfaces(cmdline_lp_ctx), &ifaces);
 
 	ev = s4_event_context_init(talloc_autofree_context());
 
 	while (poptPeekArg(pc)) {
 		const char *name = poptGetArg(pc);
 
-		ret &= process_one(cmdline_lp_ctx, ev, ifaces, name, lp_nbt_port(cmdline_lp_ctx));
+		ret &= process_one(cmdline_lp_ctx, ev, ifaces, name, lpcfg_nbt_port(cmdline_lp_ctx));
 	}
 
 	talloc_free(ev);

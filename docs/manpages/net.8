@@ -1,161 +1,13 @@
+'\" t
 .\"     Title: net
 .\"    Author: [see the "AUTHOR" section]
-.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 06/18/2010
+.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
+.\"      Date: 07/28/2010
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.5
+.\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "NET" "8" "06/18/2010" "Samba 3\&.5" "System Administration tools"
-.\" -----------------------------------------------------------------
-.\" * (re)Define some macros
-.\" -----------------------------------------------------------------
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" toupper - uppercase a string (locale-aware)
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de toupper
-.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
-\\$*
-.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SH-xref - format a cross-reference to an SH section
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de SH-xref
-.ie n \{\
-.\}
-.toupper \\$*
-.el \{\
-\\$*
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SH - level-one heading that works better for non-TTY output
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de1 SH
-.\" put an extra blank line of space above the head in non-TTY output
-.if t \{\
-.sp 1
-.\}
-.sp \\n[PD]u
-.nr an-level 1
-.set-an-margin
-.nr an-prevailing-indent \\n[IN]
-.fi
-.in \\n[an-margin]u
-.ti 0
-.HTML-TAG ".NH \\n[an-level]"
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-\." make the size of the head bigger
-.ps +3
-.ft B
-.ne (2v + 1u)
-.ie n \{\
-.\" if n (TTY output), use uppercase
-.toupper \\$*
-.\}
-.el \{\
-.nr an-break-flag 0
-.\" if not n (not TTY), use normal case (not uppercase)
-\\$1
-.in \\n[an-margin]u
-.ti 0
-.\" if not n (not TTY), put a border/line under subheading
-.sp -.6
-\l'\n(.lu'
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SS - level-two heading that works better for non-TTY output
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de1 SS
-.sp \\n[PD]u
-.nr an-level 1
-.set-an-margin
-.nr an-prevailing-indent \\n[IN]
-.fi
-.in \\n[IN]u
-.ti \\n[SN]u
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.ps \\n[PS-SS]u
-\." make the size of the head bigger
-.ps +2
-.ft B
-.ne (2v + 1u)
-.if \\n[.$] \&\\$*
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" BB/BE - put background/screen (filled box) around block of text
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de BB
-.if t \{\
-.sp -.5
-.br
-.in +2n
-.ll -2n
-.gcolor red
-.di BX
-.\}
-..
-.de EB
-.if t \{\
-.if "\\$2"adjust-for-leading-newline" \{\
-.sp -1
-.\}
-.br
-.di
-.in
-.ll
-.gcolor
-.nr BW \\n(.lu-\\n(.i
-.nr BH \\n(dn+.5v
-.ne \\n(BHu+.5v
-.ie "\\$2"adjust-for-leading-newline" \{\
-\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
-.\}
-.el \{\
-\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
-.\}
-.in 0
-.sp -.5v
-.nf
-.BX
-.in
-.sp .5v
-.fi
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" BM/EM - put colored marker in margin next to block of text
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de BM
-.if t \{\
-.br
-.ll -2n
-.gcolor red
-.di BX
-.\}
-..
-.de EM
-.if t \{\
-.br
-.di
-.ll
-.gcolor
-.nr BH \\n(dn
-.ne \\n(BHu
-\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
-.in 0
-.nf
-.BX
-.in
-.fi
-.\}
-..
+.TH "NET" "8" "07/28/2010" "Samba 3\&.6" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -166,13 +18,11 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.SH "Name"
+.SH "NAME"
 net \- Tool for administration of Samba and remote CIFS servers\&.
-.SH "Synopsis"
-.fam C
+.SH "SYNOPSIS"
 .HP \w'\ 'u
-\FCnet\F[] {<ads|rap|rpc>} [\-h] [\-w\ workgroup] [\-W\ myworkgroup] [\-U\ user] [\-I\ ip\-address] [\-p\ port] [\-n\ myname] [\-s\ conffile] [\-S\ server] [\-l] [\-P] [\-d\ debuglevel] [\-V] [\-\-request\-timeout\ seconds]
-.fam
+net {<ads|rap|rpc>} [\-h] [\-w\ workgroup] [\-W\ myworkgroup] [\-U\ user] [\-I\ ip\-address] [\-p\ port] [\-n\ myname] [\-s\ conffile] [\-S\ server] [\-l] [\-P] [\-d\ debuglevel] [\-V] [\-\-request\-timeout\ seconds]
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
@@ -217,15 +67,15 @@ Port on the target server to connect to (usually 139 or 445)\&. Defaults to tryi
 This option allows you to override the NetBIOS name that Samba uses for itself\&. This is identical to setting the
 \m[blue]\fB\%smb.conf.5.html#\fR\m[]
 parameter in the
-\FCsmb\&.conf\F[]
+smb\&.conf
 file\&. However, a command line setting will take precedence over settings in
-\FCsmb\&.conf\F[]\&.
+smb\&.conf\&.
 .RE
 .PP
 \-s|\-\-configfile <configuration file>
 .RS 4
 The file specified contains the configuration details required by the server\&. The information in this file includes server\-specific information such as what printcap file to use, as well as descriptions of all the services that the server is to provide\&. See
-\FCsmb\&.conf\F[]
+smb\&.conf
 for more information\&. The default configuration file name is determined at compile time\&.
 .RE
 .PP
@@ -261,7 +111,7 @@ Levels above 1 will generate considerable amounts of log data, and should only b
 Note that specifying this parameter here will override the
 \m[blue]\fB\%smb.conf.5.html#\fR\m[]
 parameter in the
-\FCsmb\&.conf\F[]
+smb\&.conf
 file\&.
 .RE
 .SH "COMMANDS"
@@ -271,21 +121,21 @@ This command allows the Samba machine account password to be set from an externa
 .SS "TIME"
 .PP
 The
-\FCNET TIME\F[]
+NET TIME
 command allows you to view the time on a remote server or synchronise the time on the local server with the time on the remote server\&.
 .SS "TIME"
 .PP
 Without any options, the
-\FCNET TIME\F[]
+NET TIME
 command displays the time on the remote server\&.
 .SS "TIME SYSTEM"
 .PP
 Displays the time on the remote server in a format ready for
-\FC/bin/date\F[]\&.
+/bin/date\&.
 .SS "TIME SET"
 .PP
 Tries to set the date and time of the local server to that on the remote server using
-\FC/bin/date\F[]\&.
+/bin/date\&.
 .SS "TIME ZONE"
 .PP
 Displays the timezone in hours from GMT on the remote computer\&.
@@ -354,7 +204,7 @@ Print information on specified
 .PP
 List files opened by specified
 \fIuser\fR\&. Please note that
-\FCnet rap file user\F[]
+net rap file user
 does not work against Samba servers\&.
 .SS "SESSION"
 .SS "RAP SESSION"
@@ -388,7 +238,6 @@ Validate whether the specified user can log in to the remote server\&. If the pa
 .sp
 .\}
 .RS 4
-.BM yellow
 .it 1 an-trap
 .nr an-no-space-flag 1
 .nr an-break-flag 1
@@ -400,7 +249,6 @@ Validate whether the specified user can log in to the remote server\&. If the pa
 .PP
 Currently NOT implemented\&.
 .sp .5v
-.EM yellow
 .RE
 .SS "RAP GROUPMEMBER"
 .SS "RAP GROUPMEMBER LIST GROUP"
@@ -421,7 +269,6 @@ on the remote server\&. Only works with OS/2 servers\&.
 .sp
 .\}
 .RS 4
-.BM yellow
 .it 1 an-trap
 .nr an-no-space-flag 1
 .nr an-break-flag 1
@@ -433,7 +280,6 @@ on the remote server\&. Only works with OS/2 servers\&.
 .PP
 Currently NOT implemented\&.
 .sp .5v
-.EM yellow
 .RE
 .SS "RAP SERVICE"
 .SS "RAP SERVICE START NAME [arguments...]"
@@ -443,7 +289,6 @@ Start the specified service on the remote server\&. Not implemented yet\&.
 .sp
 .\}
 .RS 4
-.BM yellow
 .it 1 an-trap
 .nr an-no-space-flag 1
 .nr an-break-flag 1
@@ -455,7 +300,6 @@ Start the specified service on the remote server\&. Not implemented yet\&.
 .PP
 Currently NOT implemented\&.
 .sp .5v
-.EM yellow
 .RE
 .SS "RAP SERVICE STOP"
 .PP
@@ -464,7 +308,6 @@ Stop the specified service on the remote server\&.
 .sp
 .\}
 .RS 4
-.BM yellow
 .it 1 an-trap
 .nr an-no-space-flag 1
 .nr an-break-flag 1
@@ -476,7 +319,6 @@ Stop the specified service on the remote server\&.
 .PP
 Currently NOT implemented\&.
 .sp .5v
-.EM yellow
 .RE
 .SS "RAP PASSWORD \fIUSER\fR \fIOLDPASS\fR \fINEWPASS\fR"
 .PP
@@ -634,24 +476,10 @@ Add a new group mapping entry:
 .if n \{\
 .RS 4
 .\}
-.fam C
-.ps -1
 .nf
-.if t \{\
-.sp -1
-.\}
-.BB lightgray adjust-for-leading-newline
-.sp -1
-
 net groupmap add {rid=int|sid=string} unixgroup=string \e
 	[type={domain|local}] [ntgroup=string] [comment=string]
-.EB lightgray adjust-for-leading-newline
-.if t \{\
-.sp 1
-.\}
 .fi
-.fam
-.ps +1
 .if n \{\
 .RE
 .\}
@@ -671,24 +499,10 @@ Update en existing group entry\&.
 .if n \{\
 .RS 4
 .\}
-.fam C
-.ps -1
 .nf
-.if t \{\
-.sp -1
-.\}
-.BB lightgray adjust-for-leading-newline
-.sp -1
-
 net groupmap modify {ntgroup=string|sid=SID} [unixgroup=string] \e
        [comment=string] [type={domain|local}]
-.EB lightgray adjust-for-leading-newline
-.if t \{\
-.sp 1
-.\}
 .fi
-.fam
-.ps +1
 .if n \{\
 .RE
 .\}
@@ -720,12 +534,12 @@ Add a interdomain trust account for
 with the account flag
 \fB\'I\'\fR
 (interdomain trust account)\&. This is required for incoming trusts to work\&. It makes Samba be a trusted domain of the foreign (trusting) domain\&. Users of the Samba domain will be made available in the foreign domain\&. If the command is used against localhost it has the same effect as
-\FCsmbpasswd \-a \-i DOMAIN\F[]\&. Please note that both commands expect a appropriate UNIX account\&.
+smbpasswd \-a \-i DOMAIN\&. Please note that both commands expect a appropriate UNIX account\&.
 .SS "RPC TRUSTDOM DEL DOMAIN"
 .PP
 Remove interdomain trust account for
 \fIDOMAIN\fR\&. If it is used against localhost it has the same effect as
-\FCsmbpasswd \-x DOMAIN$\F[]\&.
+smbpasswd \-x DOMAIN$\&.
 .SS "RPC TRUSTDOM ESTABLISH DOMAIN"
 .PP
 Establish a trust relationship to a trusted domain\&. Interdomain account must already be created on the remote PDC\&. This is required for outgoing trusts to work\&. It makes Samba be a trusting domain of a foreign (trusted) domain\&. Users of the foreign domain will be made available in our domain\&. You\'ll need winbind and a working idmap config to make them appear in your system\&.
@@ -782,14 +596,14 @@ Dump remote SAM database to local LDIF file or standard output\&.
 .SS "RPC GETSID"
 .PP
 Fetch domain SID and store it in the local
-\FCsecrets\&.tdb\F[]\&.
+secrets\&.tdb\&.
 .SS "ADS LEAVE"
 .PP
 Make the remote host leave the domain it is part of\&.
 .SS "ADS STATUS"
 .PP
 Print out status of machine account of the local machine in ADS\&. Prints out quite some debug info\&. Aimed at developers, regular users should use
-\FCNET ADS TESTJOIN\F[]\&.
+NET ADS TESTJOIN\&.
 .SS "ADS PRINTER"
 .SS "ADS PRINTER INFO [PRINTER] [SERVER]"
 .PP
@@ -1329,7 +1143,7 @@ Manage global locks\&.
 .SS "G_LOCK DO lockname timeout command"
 .PP
 Execute a shell command under a global lock\&. This might be useful to define the order in which several shell commands will be executed\&. The locking information is stored in a file called
-\FCg_lock\&.tdb\F[]\&. In setups with CTDB running, the locking information will be available on all cluster nodes\&.
+g_lock\&.tdb\&. In setups with CTDB running, the locking information will be available on all cluster nodes\&.
 .sp
 .RS 4
 .ie n \{\

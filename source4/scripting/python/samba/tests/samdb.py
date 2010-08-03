@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 # Unix SMB/CIFS implementation. Tests for SamDB
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2008
@@ -16,15 +16,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-from samba.auth import system_session
-from samba.credentials import Credentials
+import logging
 import os
-from samba.provision import setup_samdb, guess_names, setup_templatesdb, make_smbconf, find_setup_dir
-from samba.samdb import SamDB
+import uuid
+
+from samba.auth import system_session
+from samba.provision import setup_samdb, guess_names, make_smbconf, find_setup_dir, provision_paths_from_lp
+from samba.provision import DEFAULT_POLICY_GUID, DEFAULT_DC_POLICY_GUID
+from samba.provisionbackend import ProvisionBackend
 from samba.tests import TestCaseInTempDir
 from samba.dcerpc import security
-from unittest import TestCase
-import uuid
+from samba.schema import Schema
 from samba import param
 
 
@@ -46,11 +48,8 @@ class SamDBTestCase(TestCaseInTempDir):
         configdn = "CN=Configuration," + domaindn
         schemadn = "CN=Schema," + configdn
         domainguid = str(uuid.uuid4())
-        policyguid = str(uuid.uuid4())
-        creds = Credentials()
-        creds.set_anonymous()
+        policyguid = DEFAULT_POLICY_GUID
         domainsid = security.random_sid()
-        hostguid = str(uuid.uuid4())
         path = os.path.join(self.tempdir, "samdb.ldb")
         session_info = system_session()
         
@@ -58,6 +57,7 @@ class SamDBTestCase(TestCaseInTempDir):
         domain="EXAMPLE"
         dnsdomain="example.com" 
         serverrole="domain controller"
+        policyguid_dc = DEFAULT_DC_POLICY_GUID
 
         smbconf = os.path.join(self.tempdir, "smb.conf")
         make_smbconf(smbconf, self.setup_path, hostname, domain, dnsdomain, 
@@ -71,18 +71,27 @@ class SamDBTestCase(TestCaseInTempDir):
                             serverrole=serverrole, 
                             domaindn=self.domaindn, configdn=configdn, 
                             schemadn=schemadn)
-        setup_templatesdb(os.path.join(self.tempdir, "templates.ldb"), 
-                          self.setup_path, session_info=session_info, lp=self.lp)
-        self.samdb = setup_samdb(path, self.setup_path, session_info, creds, 
-                                 self.lp, names, 
-                                 lambda x: None, domainsid, 
-                                 domainguid, 
-                                 policyguid, False, "secret", 
-                                 "secret", "secret", invocationid, 
-                                 "secret", "domain controller")
+
+        paths = provision_paths_from_lp(self.lp, names.dnsdomain)
+
+        logger = logging.getLogger("provision")
+
+        provision_backend = ProvisionBackend("ldb", paths=paths,
+                setup_path=self.setup_path, lp=self.lp, credentials=None,
+                names=names, logger=logger)
+
+        schema = Schema(self.setup_path, domainsid, invocationid=invocationid,
+                schemadn=names.schemadn, serverdn=names.serverdn,
+                am_rodc=False)
+
+        self.samdb = setup_samdb(path, self.setup_path, session_info,
+                provision_backend, self.lp, names, logger,
+                domainsid, domainguid, policyguid, policyguid_dc, False,
+                "secret", "secret", "secret", invocationid, "secret",
+                None, "domain controller", schema=schema)
 
     def tearDown(self):
-        for f in ['templates.ldb', 'schema.ldb', 'configuration.ldb', 
+        for f in ['schema.ldb', 'configuration.ldb',
                   'users.ldb', 'samdb.ldb', 'smb.conf']:
             os.remove(os.path.join(self.tempdir, f))
         super(SamDBTestCase, self).tearDown()

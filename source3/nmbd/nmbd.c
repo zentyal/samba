@@ -21,6 +21,7 @@
 */
 
 #include "includes.h"
+#include "librpc/gen_ndr/messaging.h"
 
 int ClientNMB       = -1;
 int ClientDGRAM     = -1;
@@ -53,7 +54,7 @@ struct messaging_context *nmbd_messaging_context(void)
 	static struct messaging_context *ctx;
 
 	if (ctx == NULL) {
-		ctx = messaging_init(NULL, server_id_self(),
+		ctx = messaging_init(NULL, procid_self(),
 				     nmbd_event_context());
 	}
 	if (ctx == NULL) {
@@ -83,6 +84,7 @@ static void terminate(void)
 	kill_async_dns_child();
 
 	gencache_stabilize();
+	serverid_deregister(procid_self());
 
 	pidfile_unlink();
 
@@ -253,8 +255,9 @@ static void reload_interfaces(time_t t)
 			continue;
 		}
 
-		ip = ((struct sockaddr_in *)&iface->ip)->sin_addr;
-		nmask = ((struct sockaddr_in *)&iface->netmask)->sin_addr;
+		ip = ((struct sockaddr_in *)(void *)&iface->ip)->sin_addr;
+		nmask = ((struct sockaddr_in *)(void *)
+			 &iface->netmask)->sin_addr;
 
 		/*
 		 * We don't want to add a loopback interface, in case
@@ -262,7 +265,7 @@ static void reload_interfaces(time_t t)
 		 * ignore it here. JRA.
 		 */
 
-		if (is_loopback_addr((struct sockaddr *)&iface->ip)) {
+		if (is_loopback_addr((struct sockaddr *)(void *)&iface->ip)) {
 			DEBUG(2,("reload_interfaces: Ignoring loopback "
 				"interface %s\n",
 				print_sockaddr(str, sizeof(str), &iface->ip) ));
@@ -301,8 +304,10 @@ static void reload_interfaces(time_t t)
 					"ignoring non IPv4 interface.\n"));
 				continue;
 			}
-			ip = ((struct sockaddr_in *)&iface->ip)->sin_addr;
-			nmask = ((struct sockaddr_in *)&iface->netmask)->sin_addr;
+			ip = ((struct sockaddr_in *)(void *)
+			      &iface->ip)->sin_addr;
+			nmask = ((struct sockaddr_in *)(void *)
+				 &iface->netmask)->sin_addr;
 			if (ip_equal_v4(ip, subrec->myip) &&
 			    ip_equal_v4(nmask, subrec->mask_ip)) {
 				break;
@@ -337,7 +342,7 @@ static void reload_interfaces(time_t t)
 		 * Whilst we're waiting for an interface, allow SIGTERM to
 		 * cause us to exit.
 		 */
-		saved_handler = CatchSignal( SIGTERM, SIGNAL_CAST SIG_DFL );
+		saved_handler = CatchSignal(SIGTERM, SIG_DFL);
 
 		/* We only count IPv4, non-loopback interfaces here. */
 		while (iface_count_v4_nl() == 0) {
@@ -345,7 +350,7 @@ static void reload_interfaces(time_t t)
 			load_interfaces();
 		}
 
-		CatchSignal( SIGTERM, SIGNAL_CAST saved_handler );
+		CatchSignal(SIGTERM, saved_handler);
 
 		/*
 		 * We got an interface, go back to blocking term.
@@ -432,7 +437,7 @@ static void msg_nmbd_send_packet(struct messaging_context *msg,
 	}
 
 	in_addr_to_sockaddr_storage(&ss, p->ip);
-	pss = iface_ip((struct sockaddr *)&ss);
+	pss = iface_ip((struct sockaddr *)(void *)&ss);
 
 	if (pss == NULL) {
 		DEBUG(2, ("Could not find ip for packet from %u\n",
@@ -774,6 +779,7 @@ static bool open_sockets(bool isdaemon, int port)
 	{ NULL }
 	};
 	TALLOC_CTX *frame = talloc_stackframe(); /* Setup tos. */
+	NTSTATUS status;
 
 	load_case_tables();
 
@@ -888,7 +894,7 @@ static bool open_sockets(bool isdaemon, int port)
   
 	if (is_daemon && !opt_interactive) {
 		DEBUG( 2, ( "Becoming a daemon.\n" ) );
-		become_daemon(Fork, no_process_group);
+		become_daemon(Fork, no_process_group, log_stdout);
 	}
 
 #if HAVE_SETPGID
@@ -918,8 +924,11 @@ static bool open_sockets(bool isdaemon, int port)
 
 	pidfile_create("nmbd");
 
-	if (!NT_STATUS_IS_OK(reinit_after_fork(nmbd_messaging_context(),
-					       nmbd_event_context(), false))) {
+	status = reinit_after_fork(nmbd_messaging_context(),
+				   nmbd_event_context(),
+				   procid_self(), false);
+
+	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("reinit_after_fork() failed\n"));
 		exit(1);
 	}
@@ -930,7 +939,12 @@ static bool open_sockets(bool isdaemon, int port)
 		exit(1);
 
 	/* get broadcast messages */
-	claim_connection(NULL,"",FLAG_MSG_GENERAL|FLAG_MSG_DBWRAP);
+
+	if (!serverid_register(procid_self(),
+			       FLAG_MSG_GENERAL|FLAG_MSG_DBWRAP)) {
+		DEBUG(1, ("Could not register myself in serverid.tdb\n"));
+		exit(1);
+	}
 
 	messaging_register(nmbd_messaging_context(), NULL,
 			   MSG_FORCE_ELECTION, nmbd_message_election);

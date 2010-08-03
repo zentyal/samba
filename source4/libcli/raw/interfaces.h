@@ -185,7 +185,7 @@ union smb_mkdir {
 		enum smb_mkdir_level level;
 		struct {
 			const char *path;
-			uint_t num_eas;
+			unsigned int num_eas;
 			struct ea_struct *eas;			
 		} in;
 	} t2mkdir;
@@ -488,7 +488,7 @@ union smb_fileinfo {
 		struct {
 			uint32_t attrib;
 			uint32_t ea_size;
-			uint_t num_eas;
+			unsigned int num_eas;
 			struct ea_struct {
 				uint8_t flags;
 				struct smb_wire_string name;
@@ -516,7 +516,7 @@ union smb_fileinfo {
 			uint32_t mode;
 			uint32_t alignment_requirement;
 			uint32_t reparse_tag;
-			uint_t num_streams;
+			unsigned int num_streams;
 			struct stream_struct {
 				uint64_t size;
 				uint64_t alloc_size;
@@ -578,14 +578,14 @@ union smb_fileinfo {
 		enum smb_fileinfo_level level;
 		struct {
 			union smb_handle_or_path file;
-			uint_t num_names;
+			unsigned int num_names;
 			struct ea_name {
 				struct smb_wire_string name;
 			} *ea_names;	
 		} in;	
 
 		struct smb_ea_list {
-			uint_t num_eas;
+			unsigned int num_eas;
 			struct ea_struct *eas;
 		} out;
 	} ea_list;
@@ -732,7 +732,7 @@ union smb_fileinfo {
 			union smb_handle_or_path file;
 		} in;
 		struct stream_information {
-			uint_t num_streams;
+			unsigned int num_streams;
 			struct stream_struct *streams;
 		} out;
 	} stream_info;
@@ -993,7 +993,7 @@ union smb_setfileinfo {
 		enum smb_setfileinfo_level level;
 		struct {
 			union smb_handle_or_path file;
-			uint_t num_eas;
+			unsigned int num_eas;
 			struct ea_struct *eas;			
 		} in;
 	} ea_set;
@@ -1356,6 +1356,7 @@ enum smb_open_level {
 	RAW_OPEN_T2OPEN,
 	RAW_OPEN_NTTRANS_CREATE, 
 	RAW_OPEN_OPENX_READX,
+	RAW_OPEN_NTCREATEX_READX,
 	RAW_OPEN_SMB2
 };
 
@@ -1400,6 +1401,9 @@ union smb_open {
 	case RAW_OPEN_OPENX_READX: \
 		file = &op->openxreadx.out.file; \
 		break; \
+	case RAW_OPEN_NTCREATEX_READX: \
+		file = &op->ntcreatexreadx.out.file; \
+		break; \
 	case RAW_OPEN_SMB2: \
 		file = &op->smb2.out.file; \
 		break; \
@@ -1414,7 +1418,7 @@ union smb_open {
 		enum smb_open_level level;
 		struct {
 			uint32_t flags;
-			uint32_t root_fid;
+			union smb_handle root_fid;
 			uint32_t access_mask;
 			uint64_t alloc_size;
 			uint32_t file_attr;
@@ -1435,6 +1439,9 @@ union smb_open {
 			
 			/* some optional parameters from the SMB2 varient */
 			bool query_maximal_access;
+
+			/* private flags for internal use only */
+			uint8_t private_flags;
 		} in;
 		struct {
 			union smb_handle file;
@@ -1470,7 +1477,7 @@ union smb_open {
 			uint32_t size;
 			uint32_t timeout;
 			const char *fname;
-			uint_t num_eas;
+			unsigned int num_eas;
 			struct ea_struct *eas;			
 		} in;
 		struct {
@@ -1618,6 +1625,54 @@ union smb_open {
 			uint16_t nread;
 		} out;
 	} openxreadx;
+
+	/* chained NTCreateX/ReadX interface */
+	struct {
+		enum smb_open_level level;
+		struct {
+			uint32_t flags;
+			union smb_handle root_fid;
+			uint32_t access_mask;
+			uint64_t alloc_size;
+			uint32_t file_attr;
+			uint32_t share_access;
+			uint32_t open_disposition;
+			uint32_t create_options;
+			uint32_t impersonation;
+			uint8_t  security_flags;
+			/* NOTE: fname can also be a pointer to a
+			 uint64_t file_id if create_options has the
+			 NTCREATEX_OPTIONS_OPEN_BY_FILE_ID flag set */
+			const char *fname;
+
+			/* readx part */
+			uint64_t offset;
+			uint16_t mincnt;
+			uint32_t maxcnt;
+			uint16_t remaining;
+		} in;
+		struct {
+			union smb_handle file;
+			uint8_t oplock_level;
+			uint32_t create_action;
+			NTTIME create_time;
+			NTTIME access_time;
+			NTTIME write_time;
+			NTTIME change_time;
+			uint32_t attrib;
+			uint64_t alloc_size;
+			uint64_t size;
+			uint16_t file_type;
+			uint16_t ipc_state;
+			uint8_t  is_directory;
+
+			/* readx part */
+			uint8_t *data;
+			uint16_t remaining;
+			uint16_t compaction_mode;
+			uint16_t nread;
+		} out;
+	} ntcreatexreadx;
 
 #define SMB2_CREATE_FLAG_REQUEST_OPLOCK           0x0100
 #define SMB2_CREATE_FLAG_REQUEST_EXCLUSIVE_OPLOCK 0x0800
@@ -1978,7 +2033,7 @@ union smb_lock {
 			/* static body buffer 48 (0x30) bytes */
 			/* uint16_t buffer_code;  0x30 */
 			uint16_t lock_count;
-			uint32_t reserved;
+			uint32_t lock_sequence;
 			/* struct smb2_handle handle; */
 			struct smb2_lock_element {
 				uint64_t offset;
@@ -2432,7 +2487,7 @@ union smb_search_first {
 			const char *pattern;
 
 			/* the ea names are only used for RAW_SEARCH_EA_LIST */
-			uint_t num_names;
+			unsigned int num_names;
 			struct ea_name *ea_names;
 		} in;
 		struct {
@@ -2516,7 +2571,7 @@ union smb_search_next {
 			const char *last_name;
 
 			/* the ea names are only used for RAW_SEARCH_EA_LIST */
-			uint_t num_names;
+			unsigned int num_names;
 			struct ea_name *ea_names;
 		} in;
 		struct {

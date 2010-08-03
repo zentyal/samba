@@ -23,8 +23,11 @@
 #include "rpcclient.h"
 #include "../libcli/auth/libcli_auth.h"
 #include "../librpc/gen_ndr/cli_lsa.h"
+#include "rpc_client/cli_lsarpc.h"
+#include "../librpc/gen_ndr/ndr_netlogon.h"
+#include "rpc_client/cli_netlogon.h"
 
-DOM_SID domain_sid;
+struct dom_sid domain_sid;
 
 static enum pipe_auth_type pipe_default_auth_type = PIPE_AUTH_TYPE_NONE;
 static enum dcerpc_AuthLevel pipe_default_auth_level = DCERPC_AUTH_LEVEL_NONE;
@@ -399,6 +402,7 @@ static NTSTATUS cmd_sign(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx,
 			pipe_default_auth_type = PIPE_AUTH_TYPE_SCHANNEL;
 		} else {
 			printf("unknown type %s\n", type);
+			printf("Usage: %s [NTLMSSP|NTLMSSP_SPNEGO|SCHANNEL]\n", argv[0]);
 			return NT_STATUS_INVALID_LEVEL;
 		}
 	}
@@ -431,6 +435,7 @@ static NTSTATUS cmd_seal(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx,
 			pipe_default_auth_type = PIPE_AUTH_TYPE_SCHANNEL;
 		} else {
 			printf("unknown type %s\n", type);
+			printf("Usage: %s [NTLMSSP|NTLMSSP_SPNEGO|SCHANNEL]\n", argv[0]);
 			return NT_STATUS_INVALID_LEVEL;
 		}
 	}

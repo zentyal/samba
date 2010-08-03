@@ -19,7 +19,6 @@
 
 #include "includes.h"
 #include "libcli/smb2/smb2.h"
-#include "libcli/smb2/smb2_calls.h"
 
 #include "torture/smbtorture.h"
 #include "torture/smb2/proto.h"
@@ -137,12 +136,16 @@ NTSTATUS torture_smb2_init(void)
 	torture_suite_add_suite(suite, torture_smb2_lock_init());
 	torture_suite_add_suite(suite, torture_smb2_read_init());
 	torture_suite_add_suite(suite, torture_smb2_create_init());
-	torture_suite_add_simple_test(suite, "NOTIFY", torture_smb2_notify);
+	torture_suite_add_suite(suite, torture_smb2_acls_init());
+	torture_suite_add_suite(suite, torture_smb2_notify_init());
 	torture_suite_add_suite(suite, torture_smb2_durable_open_init());
-	torture_suite_add_1smb2_test(suite, "OPLOCK-BATCH1", torture_smb2_oplock_batch1);
 	torture_suite_add_suite(suite, torture_smb2_dir_init());
 	torture_suite_add_suite(suite, torture_smb2_lease_init());
 	torture_suite_add_suite(suite, torture_smb2_compound_init());
+	torture_suite_add_suite(suite, torture_smb2_oplocks_init());
+	torture_suite_add_suite(suite, torture_smb2_streams_init());
+	torture_suite_add_1smb2_test(suite, "BENCH-OPLOCK", test_smb2_bench_oplock);
+	torture_suite_add_1smb2_test(suite, "HOLD-OPLOCK", test_smb2_hold_oplock);
 
 	suite->description = talloc_strdup(suite, "SMB2-specific tests");
 

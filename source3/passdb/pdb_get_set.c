@@ -40,7 +40,7 @@
  Collection of get...() functions for struct samu.
  ********************************************************************/
 
-uint32 pdb_get_acct_ctrl(const struct samu *sampass)
+uint32_t pdb_get_acct_ctrl(const struct samu *sampass)
 {
 	return sampass->acct_ctrl;
 }
@@ -72,7 +72,7 @@ time_t pdb_get_pass_last_set_time(const struct samu *sampass)
 
 time_t pdb_get_pass_can_change_time(const struct samu *sampass)
 {
-	uint32 allow;
+	uint32_t allow;
 
 	/* if the last set time is zero, it means the user cannot 
 	   change their password, and this time must be zero.   jmcd 
@@ -85,7 +85,7 @@ time_t pdb_get_pass_can_change_time(const struct samu *sampass)
 	   to indicate that the user cannot change their password.  jmcd
 	*/
 	if (sampass->pass_can_change_time == get_time_t_max() &&
-	    pdb_get_init_flags(sampass, PDB_CANCHANGETIME) == PDB_CHANGED)
+	    IS_SAM_CHANGED(sampass, PDB_CANCHANGETIME))
 		return sampass->pass_can_change_time;
 
 	if (!pdb_get_account_policy(PDB_POLICY_MIN_PASSWORD_AGE, &allow))
@@ -104,7 +104,7 @@ time_t pdb_get_pass_can_change_time_noncalc(const struct samu *sampass)
 
 time_t pdb_get_pass_must_change_time(const struct samu *sampass)
 {
-	uint32 expire;
+	uint32_t expire;
 
 	if (sampass->pass_last_set_time == 0)
 		return (time_t) 0;
@@ -113,7 +113,7 @@ time_t pdb_get_pass_must_change_time(const struct samu *sampass)
 		return get_time_t_max();
 
 	if (!pdb_get_account_policy(PDB_POLICY_MAX_PASSWORD_AGE, &expire)
-	    || expire == (uint32)-1 || expire == 0) 
+	    || expire == (uint32_t)-1 || expire == 0)
 		return get_time_t_max();
 
 	return sampass->pass_last_set_time + expire;
@@ -127,12 +127,12 @@ bool pdb_get_pass_can_change(const struct samu *sampass)
 	return True;
 }
 
-uint16 pdb_get_logon_divs(const struct samu *sampass)
+uint16_t pdb_get_logon_divs(const struct samu *sampass)
 {
 	return sampass->logon_divs;
 }
 
-uint32 pdb_get_hours_len(const struct samu *sampass)
+uint32_t pdb_get_hours_len(const struct samu *sampass)
 {
 	return sampass->hours_len;
 }
@@ -156,7 +156,7 @@ const uint8 *pdb_get_lanman_passwd(const struct samu *sampass)
 	return (uint8 *)sampass->lm_pw.data;
 }
 
-const uint8 *pdb_get_pw_history(const struct samu *sampass, uint32 *current_hist_len)
+const uint8 *pdb_get_pw_history(const struct samu *sampass, uint32_t *current_hist_len)
 {
 	SMB_ASSERT((!sampass->nt_pw_his.data) 
 	   || ((sampass->nt_pw_his.length % PW_HISTORY_ENTRY_LEN) == 0));
@@ -175,112 +175,34 @@ const char *pdb_get_plaintext_passwd(const struct samu *sampass)
 	return sampass->plaintext_pw;
 }
 
-const DOM_SID *pdb_get_user_sid(const struct samu *sampass)
+const struct dom_sid *pdb_get_user_sid(const struct samu *sampass)
 {
 	return &sampass->user_sid;
 }
 
-const DOM_SID *pdb_get_group_sid(struct samu *sampass)
+const struct dom_sid *pdb_get_group_sid(struct samu *sampass)
 {
-	DOM_SID *gsid;
-	struct passwd *pwd;
-	bool need_lookup_sid = false;
+	NTSTATUS status;
 
 	/* Return the cached group SID if we have that */
-	if ( sampass->group_sid ) {
+	if (sampass->group_sid) {
 		return sampass->group_sid;
-	}
-
-	/* generate the group SID from the user's primary Unix group */
-
-	if ( !(gsid  = TALLOC_ZERO_P( sampass, DOM_SID )) ) {
-		return NULL;
 	}
 
 	/* No algorithmic mapping, meaning that we have to figure out the
 	   primary group SID according to group mapping and the user SID must
 	   be a newly allocated one.  We rely on the user's Unix primary gid.
 	   We have no choice but to fail if we can't find it. */
-
-	if ( sampass->unix_pw ) {
-		pwd = sampass->unix_pw;
-	} else {
-		pwd = Get_Pwnam_alloc( sampass, pdb_get_username(sampass) );
-	}
-
-	if ( !pwd ) {
-		DEBUG(0,("pdb_get_group_sid: Failed to find Unix account for %s\n", pdb_get_username(sampass) ));
+	status = get_primary_group_sid(sampass,
+					pdb_get_username(sampass),
+					&sampass->unix_pw,
+					&sampass->group_sid);
+	if (!NT_STATUS_IS_OK(status)) {
 		return NULL;
 	}
 
-	gid_to_sid(gsid, pwd->pw_gid);
-	if (!is_null_sid(gsid)) {
-		DOM_SID dgsid;
-		uint32_t rid;
-
-		sid_copy(&dgsid, gsid);
-		sid_split_rid(&dgsid, &rid);
-		if (sid_equal(&dgsid, get_global_sam_sid())) {
-			/*
-			 * As shortcut for the expensive lookup_sid call
-			 * compare the domain sid part
-			 */
-			switch (rid) {
-			case DOMAIN_RID_ADMINS:
-			case DOMAIN_RID_USERS:
-				sampass->group_sid = gsid;
-				return sampass->group_sid;
-			default:
-				need_lookup_sid = true;
-				break;
-			}
-		} else {
-			ZERO_STRUCTP(gsid);
-			if (pdb_gid_to_sid(pwd->pw_gid, gsid)) {
-				need_lookup_sid = true;
-			}
-		}
-	}
-
-	if (need_lookup_sid) {
-		enum lsa_SidType type = SID_NAME_UNKNOWN;
-		TALLOC_CTX *mem_ctx;
-		bool lookup_ret;
-		const DOM_SID *usid = pdb_get_user_sid(sampass);
-
-		mem_ctx = talloc_init("pdb_get_group_sid");
-		if (!mem_ctx) {
-			return NULL;
-		}
-
-		DEBUG(10,("do lookup_sid(%s) for group of user %s\n",
-			  sid_string_dbg(gsid), sid_string_dbg(usid)));
-
-		/* Now check that it's actually a domain group and not something else */
-
-		lookup_ret = lookup_sid(mem_ctx, gsid, NULL, NULL, &type);
-
-		TALLOC_FREE( mem_ctx );
-
-		if ( lookup_ret && (type == SID_NAME_DOM_GRP) ) {
-			sampass->group_sid = gsid;
-			return sampass->group_sid;
-		}
-
-		DEBUG(3, ("Primary group %s for user %s is a %s and not a domain group\n",
-			sid_string_dbg(gsid), pwd->pw_name, sid_type_lookup(type)));
-	}
-
-	/* Just set it to the 'Domain Users' RID of 512 which will 
-	   always resolve to a name */
-
-	sid_copy( gsid, get_global_sam_sid() );
-	sid_append_rid( gsid, DOMAIN_GROUP_RID_USERS );
-
-	sampass->group_sid = gsid;
-
 	return sampass->group_sid;
-}	
+}
 
 /**
  * Get flags showing what is initalised in the struct samu
@@ -372,17 +294,17 @@ const char *pdb_get_munged_dial(const struct samu *sampass)
 	return sampass->munged_dial;
 }
 
-uint16 pdb_get_bad_password_count(const struct samu *sampass)
+uint16_t pdb_get_bad_password_count(const struct samu *sampass)
 {
 	return sampass->bad_password_count;
 }
 
-uint16 pdb_get_logon_count(const struct samu *sampass)
+uint16_t pdb_get_logon_count(const struct samu *sampass)
 {
 	return sampass->logon_count;
 }
 
-uint32 pdb_get_unknown_6(const struct samu *sampass)
+uint32_t pdb_get_unknown_6(const struct samu *sampass)
 {
 	return sampass->unknown_6;
 }
@@ -400,7 +322,7 @@ void *pdb_get_backend_private_data(const struct samu *sampass, const struct pdb_
  Collection of set...() functions for struct samu.
  ********************************************************************/
 
-bool pdb_set_acct_ctrl(struct samu *sampass, uint32 acct_ctrl, enum pdb_value_state flag)
+bool pdb_set_acct_ctrl(struct samu *sampass, uint32_t acct_ctrl, enum pdb_value_state flag)
 {
 	sampass->acct_ctrl = acct_ctrl;
 	return pdb_set_init_flags(sampass, PDB_ACCTCTRL, flag);
@@ -448,13 +370,13 @@ bool pdb_set_pass_last_set_time(struct samu *sampass, time_t mytime, enum pdb_va
 	return pdb_set_init_flags(sampass, PDB_PASSLASTSET, flag);
 }
 
-bool pdb_set_hours_len(struct samu *sampass, uint32 len, enum pdb_value_state flag)
+bool pdb_set_hours_len(struct samu *sampass, uint32_t len, enum pdb_value_state flag)
 {
 	sampass->hours_len = len;
 	return pdb_set_init_flags(sampass, PDB_HOURSLEN, flag);
 }
 
-bool pdb_set_logon_divs(struct samu *sampass, uint16 hours, enum pdb_value_state flag)
+bool pdb_set_logon_divs(struct samu *sampass, uint16_t hours, enum pdb_value_state flag)
 {
 	sampass->logon_divs = hours;
 	return pdb_set_init_flags(sampass, PDB_LOGONDIVS, flag);
@@ -526,7 +448,7 @@ bool pdb_set_init_flags(struct samu *sampass, enum pdb_elements element, enum pd
         return True;
 }
 
-bool pdb_set_user_sid(struct samu *sampass, const DOM_SID *u_sid, enum pdb_value_state flag)
+bool pdb_set_user_sid(struct samu *sampass, const struct dom_sid *u_sid, enum pdb_value_state flag)
 {
 	if (!u_sid)
 		return False;
@@ -541,7 +463,7 @@ bool pdb_set_user_sid(struct samu *sampass, const DOM_SID *u_sid, enum pdb_value
 
 bool pdb_set_user_sid_from_string(struct samu *sampass, fstring u_sid, enum pdb_value_state flag)
 {
-	DOM_SID new_sid;
+	struct dom_sid new_sid;
 
 	if (!u_sid)
 		return False;
@@ -570,25 +492,29 @@ bool pdb_set_user_sid_from_string(struct samu *sampass, fstring u_sid, enum pdb_
  have to allow the explicitly setting of a group SID here.
 ********************************************************************/
 
-bool pdb_set_group_sid(struct samu *sampass, const DOM_SID *g_sid, enum pdb_value_state flag)
+bool pdb_set_group_sid(struct samu *sampass, const struct dom_sid *g_sid, enum pdb_value_state flag)
 {
 	gid_t gid;
+	struct dom_sid dug_sid;
 
 	if (!g_sid)
 		return False;
 
-	if ( !(sampass->group_sid = TALLOC_P( sampass, DOM_SID )) ) {
+	if ( !(sampass->group_sid = TALLOC_P( sampass, struct dom_sid )) ) {
 		return False;
 	}
 
 	/* if we cannot resolve the SID to gid, then just ignore it and 
 	   store DOMAIN_USERS as the primary groupSID */
 
-	if ( sid_to_gid( g_sid, &gid ) ) {
+	sid_compose(&dug_sid, get_global_sam_sid(), DOMAIN_RID_USERS);
+
+	if (sid_equal(&dug_sid, g_sid)) {
+		sid_copy(sampass->group_sid, &dug_sid);
+	} else if (sid_to_gid( g_sid, &gid ) ) {
 		sid_copy(sampass->group_sid, g_sid);
 	} else {
-		sid_copy( sampass->group_sid, get_global_sam_sid() );
-		sid_append_rid( sampass->group_sid, DOMAIN_GROUP_RID_USERS );
+		sid_copy(sampass->group_sid, &dug_sid);
 	}
 
 	DEBUG(10, ("pdb_set_group_sid: setting group sid %s\n", 
@@ -908,9 +834,10 @@ bool pdb_set_lanman_passwd(struct samu *sampass, const uint8 pwd[LM_HASH_LEN], e
  in pwd.
 ********************************************************************/
 
-bool pdb_set_pw_history(struct samu *sampass, const uint8 *pwd, uint32 historyLen, enum pdb_value_state flag)
+bool pdb_set_pw_history(struct samu *sampass, const uint8 *pwd, uint32_t historyLen, enum pdb_value_state flag)
 {
 	if (historyLen && pwd){
+		data_blob_free(&(sampass->nt_pw_his));
 		sampass->nt_pw_his = data_blob_talloc(sampass,
 						pwd, historyLen*PW_HISTORY_ENTRY_LEN);
 		if (!sampass->nt_pw_his.length) {
@@ -948,19 +875,19 @@ bool pdb_set_plaintext_pw_only(struct samu *sampass, const char *password, enum 
 	return pdb_set_init_flags(sampass, PDB_PLAINTEXT_PW, flag);
 }
 
-bool pdb_set_bad_password_count(struct samu *sampass, uint16 bad_password_count, enum pdb_value_state flag)
+bool pdb_set_bad_password_count(struct samu *sampass, uint16_t bad_password_count, enum pdb_value_state flag)
 {
 	sampass->bad_password_count = bad_password_count;
 	return pdb_set_init_flags(sampass, PDB_BAD_PASSWORD_COUNT, flag);
 }
 
-bool pdb_set_logon_count(struct samu *sampass, uint16 logon_count, enum pdb_value_state flag)
+bool pdb_set_logon_count(struct samu *sampass, uint16_t logon_count, enum pdb_value_state flag)
 {
 	sampass->logon_count = logon_count;
 	return pdb_set_init_flags(sampass, PDB_LOGON_COUNT, flag);
 }
 
-bool pdb_set_unknown_6(struct samu *sampass, uint32 unkn, enum pdb_value_state flag)
+bool pdb_set_unknown_6(struct samu *sampass, uint32_t unkn, enum pdb_value_state flag)
 {
 	sampass->unknown_6 = unkn;
 	return pdb_set_init_flags(sampass, PDB_UNKNOWN6, flag);
@@ -1016,8 +943,8 @@ bool pdb_set_plaintext_passwd(struct samu *sampass, const char *plaintext)
 	uchar new_lanman_p16[LM_HASH_LEN];
 	uchar new_nt_p16[NT_HASH_LEN];
 	uchar *pwhistory;
-	uint32 pwHistLen;
-	uint32 current_history_len;
+	uint32_t pwHistLen;
+	uint32_t current_history_len;
 
 	if (!plaintext)
 		return False;
@@ -1125,7 +1052,7 @@ bool pdb_set_plaintext_passwd(struct samu *sampass, const char *plaintext)
 }
 
 /* check for any PDB_SET/CHANGED field and fill the appropriate mask bit */
-uint32 pdb_build_fields_present(struct samu *sampass)
+uint32_t pdb_build_fields_present(struct samu *sampass)
 {
 	/* value set to all for testing */
 	return 0x00ffffff;

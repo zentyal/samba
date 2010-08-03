@@ -3,6 +3,8 @@
  * (Royal Institute of Technology, Stockholm, Sweden).
  * All rights reserved.
  *
+ * Portions Copyright (c) 2009 Apple Inc. All rights reserved.
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -33,7 +35,19 @@
 
 #include "krb5_locl.h"
 
-krb5_error_code KRB5_LIB_FUNCTION
+/**
+ * Free ticket and content
+ *
+ * @param context a Kerberos 5 context
+ * @param ticket ticket to free
+ *
+ * @return Returns 0 to indicate success.  Otherwise an kerberos et
+ * error code is returned, see krb5_get_error_message().
+ *
+ * @ingroup krb5
+ */
+
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_free_ticket(krb5_context context,
 		 krb5_ticket *ticket)
 {
@@ -44,7 +58,20 @@ krb5_free_ticket(krb5_context context,
     return 0;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+/**
+ * Copy ticket and content
+ *
+ * @param context a Kerberos 5 context
+ * @param from ticket to copy
+ * @param to new copy of ticket, free with krb5_free_ticket()
+ *
+ * @return Returns 0 to indicate success.  Otherwise an kerberos et
+ * error code is returned, see krb5_get_error_message().
+ *
+ * @ingroup krb5
+ */
+
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_copy_ticket(krb5_context context,
 		 const krb5_ticket *from,
 		 krb5_ticket **to)
@@ -80,7 +107,20 @@ krb5_copy_ticket(krb5_context context,
     return 0;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+/**
+ * Return client principal in ticket
+ *
+ * @param context a Kerberos 5 context
+ * @param ticket ticket to copy
+ * @param client client principal, free with krb5_free_principal()
+ *
+ * @return Returns 0 to indicate success.  Otherwise an kerberos et
+ * error code is returned, see krb5_get_error_message().
+ *
+ * @ingroup krb5
+ */
+
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_ticket_get_client(krb5_context context,
 		       const krb5_ticket *ticket,
 		       krb5_principal *client)
@@ -88,7 +128,20 @@ krb5_ticket_get_client(krb5_context context,
     return krb5_copy_principal(context, ticket->client, client);
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+/**
+ * Return server principal in ticket
+ *
+ * @param context a Kerberos 5 context
+ * @param ticket ticket to copy
+ * @param server server principal, free with krb5_free_principal()
+ *
+ * @return Returns 0 to indicate success.  Otherwise an kerberos et
+ * error code is returned, see krb5_get_error_message().
+ *
+ * @ingroup krb5
+ */
+
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_ticket_get_server(krb5_context context,
 		       const krb5_ticket *ticket,
 		       krb5_principal *server)
@@ -96,7 +149,18 @@ krb5_ticket_get_server(krb5_context context,
     return krb5_copy_principal(context, ticket->server, server);
 }
 
-time_t KRB5_LIB_FUNCTION
+/**
+ * Return end time of ticket
+ *
+ * @param context a Kerberos 5 context
+ * @param ticket ticket to copy
+ *
+ * @return end time of ticket
+ *
+ * @ingroup krb5
+ */
+
+KRB5_LIB_FUNCTION time_t KRB5_LIB_CALL
 krb5_ticket_get_endtime(krb5_context context,
 			const krb5_ticket *ticket)
 {
@@ -261,13 +325,20 @@ out:
     return ret;
 }
 
-/*
- * Extract the authorization data type of `type' from the
- * 'ticket'. Store the field in `data'. This function is to use for
- * kerberos applications.
+/**
+ * Extract the authorization data type of type from the ticket. Store
+ * the field in data. This function is to use for kerberos
+ * applications.
+ *
+ * @param context a Kerberos 5 context
+ * @param ticket Kerberos ticket
+ * @param type type to fetch
+ * @param data returned data, free with krb5_data_free()
+ *
+ * @ingroup krb5
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_ticket_get_authorization_data_type(krb5_context context,
 					krb5_ticket *ticket,
 					int type,
@@ -372,9 +443,7 @@ check_server_referral(krb5_context context,
 	return KRB5KRB_AP_ERR_MODIFIED;
     }
 
-    if (returned->name.name_string.len == 2 &&
-	strcmp(returned->name.name_string.val[0], KRB5_TGS_NAME) == 0)
-    {
+    if (krb5_principal_is_krbtgt(context, returned)) {
 	const char *realm = returned->name.name_string.val[1];
 
 	if (ref.referred_realm == NULL
@@ -414,7 +483,13 @@ check_server_referral(krb5_context context,
 
     return ret;
 noreferral:
-    if (krb5_principal_compare(context, requested, returned) == FALSE) {
+    /*
+     * Expect excact match or that we got a krbtgt
+     */
+    if (krb5_principal_compare(context, requested, returned) != TRUE &&
+	(krb5_realm_compare(context, requested, returned) != TRUE &&
+	 krb5_principal_is_krbtgt(context, returned) != TRUE))
+    {
 	krb5_set_error_message(context, KRB5KRB_AP_ERR_MODIFIED,
 			       N_("Not same server principal returned "
 				  "as requested", ""));
@@ -692,6 +767,7 @@ _krb5_extract_ticket(krb5_context context,
 
     krb5_timeofday (context, &sec_now);
     if (rep->enc_part.flags.initial
+	&& (flags & EXTRACT_TICKET_TIMESYNC)
 	&& context->kdc_sec_offset == 0
 	&& krb5_config_get_bool (context, NULL,
 				 "libdefaults",

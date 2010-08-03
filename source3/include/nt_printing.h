@@ -22,6 +22,9 @@
 #ifndef NT_PRINTING_H_
 #define NT_PRINTING_H_
 
+#include "client.h"
+#include "../librpc/gen_ndr/srv_spoolss.h"
+
 /* container for a single registry key */
 
 typedef struct {
@@ -35,47 +38,6 @@ typedef struct {
 	int		num_keys;
 	NT_PRINTER_KEY	*keys;
 } NT_PRINTER_DATA;
-
-typedef struct ntdevicemode
-{
-	fstring	devicename;
-	fstring	formname;
-
-	uint16	specversion;
-	uint16	driverversion;
-	uint16	size;
-	uint16	driverextra;
-	uint16	orientation;
-	uint16	papersize;
-	uint16	paperlength;
-	uint16	paperwidth;
-	uint16	scale;
-	uint16	copies;
-	uint16	defaultsource;
-	uint16	printquality;
-	uint16	color;
-	uint16	duplex;
-	uint16	yresolution;
-	uint16	ttoption;
-	uint16	collate;
-	uint16	logpixels;
-
-	uint32	fields;
-	uint32	bitsperpel;
-	uint32	pelswidth;
-	uint32	pelsheight;
-	uint32	displayflags;
-	uint32	displayfrequency;
-	uint32	icmmethod;
-	uint32	icmintent;
-	uint32	mediatype;
-	uint32	dithertype;
-	uint32	reserved1;
-	uint32	reserved2;
-	uint32	panningwidth;
-	uint32	panningheight;
-	uint8 	*nt_dev_private;
-} NT_DEVICEMODE;
 
 typedef struct nt_printer_info_level_2
 {
@@ -94,13 +56,13 @@ typedef struct nt_printer_info_level_2
 	fstring drivername;
 	char comment[1024];
 	fstring location;
-	NT_DEVICEMODE *devmode;
+	struct spoolss_DeviceMode *devmode;
 	fstring sepfile;
 	fstring printprocessor;
 	fstring datatype;
 	fstring parameters;
 	NT_PRINTER_DATA *data;
-	SEC_DESC_BUF *secdesc_buf;
+	struct sec_desc_buf *secdesc_buf;
 	uint32 changeid;
 	uint32 c_setprinter;
 	uint32 setuptime;	
@@ -230,12 +192,12 @@ typedef struct _Printer{
 		fstring machine;
 		fstring user;
 	} client;
-	
+
 	/* devmode sent in the OpenPrinter() call */
-	NT_DEVICEMODE	*nt_devmode;
-	
-	/* cache the printer info */
-	NT_PRINTER_INFO_LEVEL *printer_info;
+	struct spoolss_DeviceMode *devmode;
+
+	/* TODO cache the printer info2 structure */
+	struct spoolss_PrinterInfo2 *info2;
 	
 } Printer_entry;
 
@@ -260,5 +222,68 @@ struct print_architecture_table_node {
 	const char 	*short_archi;
 	int	version;
 };
+
+bool nt_printing_init(struct messaging_context *msg_ctx);
+
+WERROR spoolss_create_default_devmode(TALLOC_CTX *mem_ctx,
+				      const char *devicename,
+				      struct spoolss_DeviceMode **devmode);
+
+WERROR spoolss_create_default_secdesc(TALLOC_CTX *mem_ctx,
+				      struct spoolss_security_descriptor **secdesc);
+
+WERROR spoolss_map_to_os2_driver(TALLOC_CTX *mem_ctx, const char **pdrivername);
+
+const char *get_short_archi(const char *long_archi);
+
+bool add_printer_hook(TALLOC_CTX *ctx, NT_USER_TOKEN *token,
+		      struct spoolss_SetPrinterInfo2 *info2,
+		      const char *remote_machine);
+
+bool print_access_check(struct auth_serversupplied_info *server_info, int snum,
+			int access_type);
+
+WERROR nt_printer_publish(TALLOC_CTX *mem_ctx,
+			  struct auth_serversupplied_info *server_info,
+			  struct spoolss_PrinterInfo2 *pinfo2,
+			  int action);
+
+bool is_printer_published(TALLOC_CTX *mem_ctx,
+			  struct auth_serversupplied_info *server_info,
+			  char *servername, char *printer, struct GUID *guid,
+			  struct spoolss_PrinterInfo2 **info2);
+
+WERROR check_published_printers(void);
+
+bool driver_info_ctr_to_info8(struct spoolss_AddDriverInfoCtr *r,
+			      struct spoolss_DriverInfo8 *_info8);
+
+bool printer_driver_in_use(TALLOC_CTX *mem_ctx,
+			   struct auth_serversupplied_info *server_info,
+			   const struct spoolss_DriverInfo8 *r);
+bool printer_driver_files_in_use(TALLOC_CTX *mem_ctx,
+				 struct auth_serversupplied_info *server_info,
+				 struct spoolss_DriverInfo8 *r);
+bool delete_driver_files(struct auth_serversupplied_info *server_info,
+			 const struct spoolss_DriverInfo8 *r);
+
+WERROR move_driver_to_download_area(struct pipes_struct *p,
+				    struct spoolss_AddDriverInfoCtr *r,
+				    WERROR *perr);
+
+WERROR clean_up_driver_struct(TALLOC_CTX *mem_ctx,
+			      struct pipes_struct *rpc_pipe,
+			      struct spoolss_AddDriverInfoCtr *r);
+
+void map_printer_permissions(struct security_descriptor *sd);
+
+void map_job_permissions(struct security_descriptor *sd);
+
+bool print_time_access_check(struct auth_serversupplied_info *server_info,
+			     const char *servicename);
+
+void nt_printer_remove(TALLOC_CTX *mem_ctx,
+			struct auth_serversupplied_info *server_info,
+			const char *printer);
 
 #endif /* NT_PRINTING_H_ */

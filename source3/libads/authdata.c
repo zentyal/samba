@@ -25,7 +25,6 @@
 #include "includes.h"
 #include "librpc/gen_ndr/ndr_krb5pac.h"
 #include "smb_krb5.h"
-#include "authdata.h"
 
 #ifdef HAVE_KRB5
 
@@ -100,6 +99,8 @@ static krb5_error_code check_pac_checksum(TALLOC_CTX *mem_ctx,
 	DATA_BLOB *srv_sig_blob = NULL;
 	DATA_BLOB *kdc_sig_blob = NULL;
 
+	bool bool_ret;
+
 	*pac_data_out = NULL;
 
 	pac_data = TALLOC_ZERO_P(mem_ctx, struct PAC_DATA);
@@ -110,8 +111,7 @@ static krb5_error_code check_pac_checksum(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	ndr_err = ndr_pull_struct_blob(pac_data_blob, pac_data,
-			NULL, pac_data,
+	ndr_err = ndr_pull_struct_blob(pac_data_blob, pac_data, pac_data,
 		       (ndr_pull_flags_fn_t)ndr_pull_PAC_DATA);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		status = ndr_map_error2ntstatus(ndr_err);
@@ -126,8 +126,7 @@ static krb5_error_code check_pac_checksum(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	ndr_err = ndr_pull_struct_blob(pac_data_blob, pac_data_raw,
-				       NULL, pac_data_raw,
+	ndr_err = ndr_pull_struct_blob(pac_data_blob, pac_data_raw, pac_data_raw,
 				       (ndr_pull_flags_fn_t)ndr_pull_PAC_DATA_RAW);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		status = ndr_map_error2ntstatus(ndr_err);
@@ -207,8 +206,7 @@ static krb5_error_code check_pac_checksum(TALLOC_CTX *mem_ctx,
 	/* Find and zero out the signatures, as required by the signing algorithm */
 
 	/* We find the data blobs above, now we parse them to get at the exact portion we should zero */
-	ndr_err = ndr_pull_struct_blob(kdc_sig_blob, kdc_sig_wipe,
-				       NULL, kdc_sig_wipe,
+	ndr_err = ndr_pull_struct_blob(kdc_sig_blob, kdc_sig_wipe, kdc_sig_wipe,
 				       (ndr_pull_flags_fn_t)ndr_pull_PAC_SIGNATURE_DATA);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		status = ndr_map_error2ntstatus(ndr_err);
@@ -217,8 +215,7 @@ static krb5_error_code check_pac_checksum(TALLOC_CTX *mem_ctx,
 		return status;
 	}
 
-	ndr_err = ndr_pull_struct_blob(srv_sig_blob, srv_sig_wipe,
-				       NULL, srv_sig_wipe,
+	ndr_err = ndr_pull_struct_blob(srv_sig_blob, srv_sig_wipe, srv_sig_wipe,
 				       (ndr_pull_flags_fn_t)ndr_pull_PAC_SIGNATURE_DATA);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		status = ndr_map_error2ntstatus(ndr_err);
@@ -232,8 +229,7 @@ static krb5_error_code check_pac_checksum(TALLOC_CTX *mem_ctx,
 	memset(srv_sig_wipe->signature.data, '\0', srv_sig_wipe->signature.length);
 
 	/* and reencode, back into the same place it came from */
-	ndr_err = ndr_push_struct_blob(kdc_sig_blob, pac_data_raw,
-				       NULL, kdc_sig_wipe,
+	ndr_err = ndr_push_struct_blob(kdc_sig_blob, pac_data_raw, kdc_sig_wipe,
 				       (ndr_push_flags_fn_t)ndr_push_PAC_SIGNATURE_DATA);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		status = ndr_map_error2ntstatus(ndr_err);
@@ -241,8 +237,7 @@ static krb5_error_code check_pac_checksum(TALLOC_CTX *mem_ctx,
 			nt_errstr(status)));
 		return status;
 	}
-	ndr_err = ndr_push_struct_blob(srv_sig_blob, pac_data_raw,
-				       NULL, srv_sig_wipe,
+	ndr_err = ndr_push_struct_blob(srv_sig_blob, pac_data_raw, srv_sig_wipe,
 				       (ndr_push_flags_fn_t)ndr_push_PAC_SIGNATURE_DATA);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		status = ndr_map_error2ntstatus(ndr_err);
@@ -253,7 +248,7 @@ static krb5_error_code check_pac_checksum(TALLOC_CTX *mem_ctx,
 
 	/* push out the whole structure, but now with zero'ed signatures */
 	ndr_err = ndr_push_struct_blob(&modified_pac_blob, pac_data_raw,
-				       NULL, pac_data_raw,
+				       pac_data_raw,
 				       (ndr_push_flags_fn_t)ndr_push_PAC_DATA_RAW);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		status = ndr_map_error2ntstatus(ndr_err);
@@ -292,10 +287,14 @@ static krb5_error_code check_pac_checksum(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	if (!smb_krb5_principal_compare_any_realm(context, client_principal, client_principal_pac)) {
+	bool_ret = smb_krb5_principal_compare_any_realm(
+		context, client_principal, client_principal_pac);
+
+	krb5_free_principal(context, client_principal_pac);
+
+	if (!bool_ret) {
 		DEBUG(2, ("Name in PAC [%s] does not match principal name in ticket\n",
 			  logon_name->account_name));
-		krb5_free_principal(context, client_principal_pac);
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
@@ -319,25 +318,9 @@ static krb5_error_code check_pac_checksum(TALLOC_CTX *mem_ctx,
 }
 
 /****************************************************************
-****************************************************************/
-
-struct PAC_LOGON_INFO *get_logon_info_from_pac(struct PAC_DATA *pac_data)
-{
-	int i;
-
-	for (i=0; i < pac_data->num_buffers; i++) {
-
-		if (pac_data->buffers[i].type != PAC_TYPE_LOGON_INFO) {
-			continue;
-		}
-
-		return pac_data->buffers[i].info->logon_info.info;
-	}
-
-	return NULL;
-}
-
-/****************************************************************
+Given a username, password and other details, return the
+PAC_LOGON_INFO (the structure containing the important user
+information such as groups).
 ****************************************************************/
 
 NTSTATUS kerberos_return_pac(TALLOC_CTX *mem_ctx,
@@ -351,12 +334,11 @@ NTSTATUS kerberos_return_pac(TALLOC_CTX *mem_ctx,
 			     bool add_netbios_addr,
 			     time_t renewable_time,
 			     const char *impersonate_princ_s,
-			     struct PAC_DATA **pac_ret)
+			     struct PAC_LOGON_INFO **logon_info)
 {
 	krb5_error_code ret;
 	NTSTATUS status = NT_STATUS_INVALID_PARAMETER;
 	DATA_BLOB tkt, ap_rep, sesskey1, sesskey2;
-	struct PAC_DATA *pac_data = NULL;
 	char *client_princ_out = NULL;
 	const char *auth_princ = NULL;
 	const char *local_service = NULL;
@@ -424,7 +406,8 @@ NTSTATUS kerberos_return_pac(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_INVALID_LOGON_TYPE;
 	}
 
-	ret = cli_krb5_get_ticket(local_service,
+	ret = cli_krb5_get_ticket(mem_ctx,
+				  local_service,
 				  time_offset,
 				  &tkt,
 				  &sesskey1,
@@ -447,7 +430,7 @@ NTSTATUS kerberos_return_pac(TALLOC_CTX *mem_ctx,
 				   time_offset,
 				   &tkt,
 				   &client_princ_out,
-				   &pac_data,
+				   logon_info,
 				   &ap_rep,
 				   &sesskey2,
 				   False);
@@ -457,13 +440,11 @@ NTSTATUS kerberos_return_pac(TALLOC_CTX *mem_ctx,
 		goto out;
 	}
 
-	if (!pac_data) {
+	if (!*logon_info) {
 		DEBUG(1,("no PAC\n"));
 		status = NT_STATUS_INVALID_PARAMETER;
 		goto out;
 	}
-
-	*pac_ret = pac_data;
 
 out:
 	if (cc != cache_name) {
@@ -480,95 +461,4 @@ out:
 	return status;
 }
 
-/****************************************************************
-****************************************************************/
-
-static NTSTATUS kerberos_return_pac_logon_info(TALLOC_CTX *mem_ctx,
-					       const char *name,
-					       const char *pass,
-					       time_t time_offset,
-					       time_t *expire_time,
-					       time_t *renew_till_time,
-					       const char *cache_name,
-					       bool request_pac,
-					       bool add_netbios_addr,
-					       time_t renewable_time,
-					       const char *impersonate_princ_s,
-					       struct PAC_LOGON_INFO **logon_info)
-{
-	NTSTATUS status;
-	struct PAC_DATA *pac_data = NULL;
-	struct PAC_LOGON_INFO *info = NULL;
-
-	status = kerberos_return_pac(mem_ctx,
-				     name,
-				     pass,
-				     time_offset,
-				     expire_time,
-				     renew_till_time,
-				     cache_name,
-				     request_pac,
-				     add_netbios_addr,
-				     renewable_time,
-				     impersonate_princ_s,
-				     &pac_data);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	if (!pac_data) {
-		DEBUG(3,("no pac\n"));
-		return NT_STATUS_INVALID_USER_BUFFER;
-	}
-
-	info = get_logon_info_from_pac(pac_data);
-	if (!info) {
-		DEBUG(1,("no logon_info\n"));
-		return NT_STATUS_INVALID_USER_BUFFER;
-	}
-
-	*logon_info = info;
-
-	return NT_STATUS_OK;
-}
-
-/****************************************************************
-****************************************************************/
-
-NTSTATUS kerberos_return_info3_from_pac(TALLOC_CTX *mem_ctx,
-					const char *name,
-					const char *pass,
-					time_t time_offset,
-					time_t *expire_time,
-					time_t *renew_till_time,
-					const char *cache_name,
-					bool request_pac,
-					bool add_netbios_addr,
-					time_t renewable_time,
-					const char *impersonate_princ_s,
-					struct netr_SamInfo3 **info3)
-{
-	NTSTATUS status;
-	struct PAC_LOGON_INFO *logon_info = NULL;
-
-	status = kerberos_return_pac_logon_info(mem_ctx,
-						name,
-						pass,
-						time_offset,
-						expire_time,
-						renew_till_time,
-						cache_name,
-						request_pac,
-						add_netbios_addr,
-						renewable_time,
-						impersonate_princ_s,
-						&logon_info);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	*info3 = &logon_info->info3;
-
-	return NT_STATUS_OK;
-}
 #endif

@@ -2,7 +2,7 @@
 # Start SUBSYSTEM gensec
 [LIBRARY::gensec]
 PUBLIC_DEPENDENCIES = \
-		CREDENTIALS LIBSAMBA-UTIL LIBCRYPTO ASN1_UTIL samba_socket LIBPACKET
+		CREDENTIALS LIBSAMBA-UTIL LIBCRYPTO ASN1_UTIL samba_socket LIBPACKET LIBTSOCKET UTIL_TEVENT
 # End SUBSYSTEM gensec
 #################################
 
@@ -67,7 +67,7 @@ $(eval $(call proto_header_template,$(gensecsrcdir)/spnego_proto.h,$(gensec_spne
 [MODULE::gensec_schannel]
 SUBSYSTEM = gensec
 INIT_FUNCTION = gensec_schannel_init
-PRIVATE_DEPENDENCIES = SCHANNELDB NDR_SCHANNEL CREDENTIALS LIBNDR auth_session
+PRIVATE_DEPENDENCIES = COMMON_SCHANNELDB NDR_SCHANNEL CREDENTIALS LIBNDR auth_session
 OUTPUT_TYPE = MERGED_OBJ
 # End MODULE gensec_schannel
 ################################################
@@ -75,18 +75,8 @@ OUTPUT_TYPE = MERGED_OBJ
 gensec_schannel_OBJ_FILES = $(addprefix $(gensecsrcdir)/, schannel.o) ../libcli/auth/schannel_sign.o
 $(eval $(call proto_header_template,$(gensecsrcdir)/schannel_proto.h,$(gensec_schannel_OBJ_FILES:.o=.c)))
 
-################################################
-# Start SUBSYSTEM SCHANNELDB
-[SUBSYSTEM::SCHANNELDB]
-PRIVATE_DEPENDENCIES = LDB_WRAP COMMON_SCHANNELDB
-# End SUBSYSTEM SCHANNELDB
-################################################
-
-SCHANNELDB_OBJ_FILES = $(addprefix $(gensecsrcdir)/, schannel_state.o)
-$(eval $(call proto_header_template,$(gensecsrcdir)/schannel_state.h,$(SCHANNELDB_OBJ_FILES:.o=.c)))
-
 [PYTHON::pygensec]
-PRIVATE_DEPENDENCIES = gensec PYTALLOC
+PRIVATE_DEPENDENCIES = gensec PYTALLOC pyparam_util
 LIBRARY_REALNAME = samba/gensec.$(SHLIBEXT)
 
 pygensec_OBJ_FILES = $(gensecsrcdir)/pygensec.o

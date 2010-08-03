@@ -100,7 +100,7 @@ function parseOptions
 }
 
 ##
-## Build the dopcumentation (may be a no-op)
+## Build the documentation (may be a no-op)
 ##
 
 function buildDocs
@@ -213,10 +213,12 @@ function main
     # Remove RFCs as they are non-free content (with a strict interpretation of
     # the DFSG)
 
-    #if [ -d source4 ]; then
-    #	echo "Removing RFCs"
-    #	find source4/ -name "rfc*.txt" -exec rm -f {} \;
-    #fi
+    if [ -d source4 ]; then
+	echo "Removing RFCs"
+	find source4/ -name "rfc*.txt" -exec rm -f {} \;
+	rm -f source4/ldap_server/devdocs/draft-armijo-ldap-syntax-00.txt
+	rm -f source4/ldap_server/devdocs/ldapext-ldapv3-vlv-04.txt
+    fi
 
     packaging/bin/update-pkginfo ${version} 1 ""
 

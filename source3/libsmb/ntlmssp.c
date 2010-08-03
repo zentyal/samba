@@ -22,9 +22,14 @@
 */
 
 #include "includes.h"
+#include "../libcli/auth/ntlmssp.h"
+#include "../libcli/auth/ntlmssp_private.h"
 #include "../libcli/auth/libcli_auth.h"
 #include "../librpc/gen_ndr/ndr_ntlmssp.h"
-#include "libsmb/ntlmssp_ndr.h"
+#include "../libcli/auth/ntlmssp_ndr.h"
+#include "../lib/crypto/md5.h"
+#include "../lib/crypto/arcfour.h"
+#include "../lib/crypto/hmacmd5.h"
 
 static NTSTATUS ntlmssp_client_initial(struct ntlmssp_state *ntlmssp_state,
 				       DATA_BLOB reply, DATA_BLOB *next_request);
@@ -41,8 +46,8 @@ static NTSTATUS ntlmssp_server_auth(struct ntlmssp_state *ntlmssp_state,
  */
 
 static const struct ntlmssp_callbacks {
-	enum NTLMSSP_ROLE role;
-	enum NTLM_MESSAGE_TYPE ntlmssp_command;
+	enum ntlmssp_role role;
+	enum ntlmssp_message_type ntlmssp_command;
 	NTSTATUS (*fn)(struct ntlmssp_state *ntlmssp_state,
 		       DATA_BLOB in, DATA_BLOB *out);
 } ntlmssp_callbacks[] = {
@@ -56,65 +61,15 @@ static const struct ntlmssp_callbacks {
 
 
 /**
- * Print out the NTLMSSP flags for debugging
- * @param neg_flags The flags from the packet
- */
-
-void debug_ntlmssp_flags(uint32 neg_flags)
-{
-	DEBUG(3,("Got NTLMSSP neg_flags=0x%08x\n", neg_flags));
-
-	if (neg_flags & NTLMSSP_NEGOTIATE_UNICODE)
-		DEBUGADD(4, ("  NTLMSSP_NEGOTIATE_UNICODE\n"));
-	if (neg_flags & NTLMSSP_NEGOTIATE_OEM)
-		DEBUGADD(4, ("  NTLMSSP_NEGOTIATE_OEM\n"));
-	if (neg_flags & NTLMSSP_REQUEST_TARGET)
-		DEBUGADD(4, ("  NTLMSSP_REQUEST_TARGET\n"));
-	if (neg_flags & NTLMSSP_NEGOTIATE_SIGN)
-		DEBUGADD(4, ("  NTLMSSP_NEGOTIATE_SIGN\n"));
-	if (neg_flags & NTLMSSP_NEGOTIATE_SEAL)
-		DEBUGADD(4, ("  NTLMSSP_NEGOTIATE_SEAL\n"));
-	if (neg_flags & NTLMSSP_NEGOTIATE_DATAGRAM)
-		DEBUGADD(4, ("  NTLMSSP_NEGOTIATE_DATAGRAM\n"));
-	if (neg_flags & NTLMSSP_NEGOTIATE_LM_KEY)
-		DEBUGADD(4, ("  NTLMSSP_NEGOTIATE_LM_KEY\n"));
-	if (neg_flags & NTLMSSP_NEGOTIATE_NETWARE)
-		DEBUGADD(4, ("  NTLMSSP_NEGOTIATE_NETWARE\n"));
-	if (neg_flags & NTLMSSP_NEGOTIATE_NTLM)
-		DEBUGADD(4, ("  NTLMSSP_NEGOTIATE_NTLM\n"));
-	if (neg_flags & NTLMSSP_NEGOTIATE_OEM_DOMAIN_SUPPLIED)
-		DEBUGADD(4, ("  NTLMSSP_NEGOTIATE_OEM_DOMAIN_SUPPLIED\n"));
-	if (neg_flags & NTLMSSP_NEGOTIATE_OEM_WORKSTATION_SUPPLIED)
-		DEBUGADD(4, ("  NTLMSSP_NEGOTIATE_OEM_WORKSTATION_SUPPLIED\n"));
-	if (neg_flags & NTLMSSP_NEGOTIATE_THIS_IS_LOCAL_CALL)
-		DEBUGADD(4, ("  NTLMSSP_NEGOTIATE_THIS_IS_LOCAL_CALL\n"));
-	if (neg_flags & NTLMSSP_NEGOTIATE_ALWAYS_SIGN)
-		DEBUGADD(4, ("  NTLMSSP_NEGOTIATE_ALWAYS_SIGN\n"));
-	if (neg_flags & NTLMSSP_REQUEST_NON_NT_SESSION_KEY)
-		DEBUGADD(4, ("  NTLMSSP_REQUEST_NON_NT_SESSION_KEY\n"));
-	if (neg_flags & NTLMSSP_NEGOTIATE_NTLM2)
-		DEBUGADD(4, ("  NTLMSSP_NEGOTIATE_NTLM2\n"));
-	if (neg_flags & NTLMSSP_NEGOTIATE_TARGET_INFO)
-		DEBUGADD(4, ("  NTLMSSP_NEGOTIATE_TARGET_INFO\n"));
-	if (neg_flags & NTLMSSP_NEGOTIATE_VERSION)
-		DEBUGADD(4, ("  NTLMSSP_NEGOTIATE_VERSION\n"));
-	if (neg_flags & NTLMSSP_NEGOTIATE_128)
-		DEBUGADD(4, ("  NTLMSSP_NEGOTIATE_128\n"));
-	if (neg_flags & NTLMSSP_NEGOTIATE_KEY_EXCH)
-		DEBUGADD(4, ("  NTLMSSP_NEGOTIATE_KEY_EXCH\n"));
-	if (neg_flags & NTLMSSP_NEGOTIATE_56)
-		DEBUGADD(4, ("  NTLMSSP_NEGOTIATE_56\n"));
-}
-
-/**
  * Default challenge generation code.
  *
  */
 
-static void get_challenge(const struct ntlmssp_state *ntlmssp_state,
-			  uint8_t chal[8])
+static NTSTATUS get_challenge(const struct ntlmssp_state *ntlmssp_state,
+			      uint8_t chal[8])
 {
 	generate_random_buffer(chal, 8);
+	return NT_STATUS_OK;
 }
 
 /**
@@ -145,7 +100,7 @@ static NTSTATUS set_challenge(struct ntlmssp_state *ntlmssp_state, DATA_BLOB *ch
  *
  */
 
-NTSTATUS ntlmssp_set_username(NTLMSSP_STATE *ntlmssp_state, const char *user)
+NTSTATUS ntlmssp_set_username(struct ntlmssp_state *ntlmssp_state, const char *user)
 {
 	ntlmssp_state->user = talloc_strdup(ntlmssp_state, user ? user : "" );
 	if (!ntlmssp_state->user) {
@@ -158,13 +113,13 @@ NTSTATUS ntlmssp_set_username(NTLMSSP_STATE *ntlmssp_state, const char *user)
  * Store NT and LM hashes on an NTLMSSP context - ensures they are talloc()ed
  *
  */
-NTSTATUS ntlmssp_set_hashes(NTLMSSP_STATE *ntlmssp_state,
-		const unsigned char lm_hash[16],
-		const unsigned char nt_hash[16])
+NTSTATUS ntlmssp_set_hashes(struct ntlmssp_state *ntlmssp_state,
+			    const uint8_t lm_hash[16],
+			    const uint8_t nt_hash[16])
 {
-	ntlmssp_state->lm_hash = (unsigned char *)
+	ntlmssp_state->lm_hash = (uint8_t *)
 		TALLOC_MEMDUP(ntlmssp_state, lm_hash, 16);
-	ntlmssp_state->nt_hash = (unsigned char *)
+	ntlmssp_state->nt_hash = (uint8_t *)
 		TALLOC_MEMDUP(ntlmssp_state, nt_hash, 16);
 	if (!ntlmssp_state->lm_hash || !ntlmssp_state->nt_hash) {
 		TALLOC_FREE(ntlmssp_state->lm_hash);
@@ -178,14 +133,14 @@ NTSTATUS ntlmssp_set_hashes(NTLMSSP_STATE *ntlmssp_state,
  * Converts a password to the hashes on an NTLMSSP context.
  *
  */
-NTSTATUS ntlmssp_set_password(NTLMSSP_STATE *ntlmssp_state, const char *password)
+NTSTATUS ntlmssp_set_password(struct ntlmssp_state *ntlmssp_state, const char *password)
 {
 	if (!password) {
 		ntlmssp_state->lm_hash = NULL;
 		ntlmssp_state->nt_hash = NULL;
 	} else {
-		unsigned char lm_hash[16];
-		unsigned char nt_hash[16];
+		uint8_t lm_hash[16];
+		uint8_t nt_hash[16];
 
 		E_deshash(password, lm_hash);
 		E_md4hash(password, nt_hash);
@@ -198,7 +153,7 @@ NTSTATUS ntlmssp_set_password(NTLMSSP_STATE *ntlmssp_state, const char *password
  * Set a domain on an NTLMSSP context - ensures it is talloc()ed
  *
  */
-NTSTATUS ntlmssp_set_domain(NTLMSSP_STATE *ntlmssp_state, const char *domain)
+NTSTATUS ntlmssp_set_domain(struct ntlmssp_state *ntlmssp_state, const char *domain)
 {
 	ntlmssp_state->domain = talloc_strdup(ntlmssp_state,
 					      domain ? domain : "" );
@@ -209,39 +164,12 @@ NTSTATUS ntlmssp_set_domain(NTLMSSP_STATE *ntlmssp_state, const char *domain)
 }
 
 /**
- * Set a workstation on an NTLMSSP context - ensures it is talloc()ed
- *
- */
-NTSTATUS ntlmssp_set_workstation(NTLMSSP_STATE *ntlmssp_state, const char *workstation)
-{
-	ntlmssp_state->workstation = talloc_strdup(ntlmssp_state, workstation);
-	if (!ntlmssp_state->workstation) {
-		return NT_STATUS_NO_MEMORY;
-	}
-	return NT_STATUS_OK;
-}
-
-/**
- *  Store a DATA_BLOB containing an NTLMSSP response, for use later.
- *  This copies the data blob
- */
-
-NTSTATUS ntlmssp_store_response(NTLMSSP_STATE *ntlmssp_state,
-				DATA_BLOB response)
-{
-	ntlmssp_state->stored_response = data_blob_talloc(ntlmssp_state,
-							  response.data,
-							  response.length);
-	return NT_STATUS_OK;
-}
-
-/**
  * Request features for the NTLMSSP negotiation
  *
  * @param ntlmssp_state NTLMSSP state
  * @param feature_list List of space seperated features requested from NTLMSSP.
  */
-void ntlmssp_want_feature_list(NTLMSSP_STATE *ntlmssp_state, char *feature_list)
+void ntlmssp_want_feature_list(struct ntlmssp_state *ntlmssp_state, char *feature_list)
 {
 	/*
 	 * We need to set this to allow a later SetPassword
@@ -268,7 +196,7 @@ void ntlmssp_want_feature_list(NTLMSSP_STATE *ntlmssp_state, char *feature_list)
  * @param ntlmssp_state NTLMSSP state
  * @param feature Bit flag specifying the requested feature
  */
-void ntlmssp_want_feature(NTLMSSP_STATE *ntlmssp_state, uint32 feature)
+void ntlmssp_want_feature(struct ntlmssp_state *ntlmssp_state, uint32_t feature)
 {
 	/* As per JRA's comment above */
 	if (feature & NTLMSSP_FEATURE_SESSION_KEY) {
@@ -294,11 +222,10 @@ void ntlmssp_want_feature(NTLMSSP_STATE *ntlmssp_state, uint32 feature)
  * @return Errors, NT_STATUS_MORE_PROCESSING_REQUIRED or NT_STATUS_OK.
  */
 
-NTSTATUS ntlmssp_update(NTLMSSP_STATE *ntlmssp_state,
-			const DATA_BLOB in, DATA_BLOB *out)
+NTSTATUS ntlmssp_update(struct ntlmssp_state *ntlmssp_state,
+			const DATA_BLOB input, DATA_BLOB *out)
 {
-	DATA_BLOB input;
-	uint32 ntlmssp_command;
+	uint32_t ntlmssp_command;
 	int i;
 
 	if (ntlmssp_state->expected_state == NTLMSSP_DONE) {
@@ -308,15 +235,6 @@ NTSTATUS ntlmssp_update(NTLMSSP_STATE *ntlmssp_state,
 	}
 
 	*out = data_blob_null;
-
-	if (!in.length && ntlmssp_state->stored_response.length) {
-		input = ntlmssp_state->stored_response;
-
-		/* we only want to read the stored response once - overwrite it */
-		ntlmssp_state->stored_response = data_blob_null;
-	} else {
-		input = in;
-	}
 
 	if (!input.length) {
 		switch (ntlmssp_state->role) {
@@ -357,27 +275,6 @@ NTSTATUS ntlmssp_update(NTLMSSP_STATE *ntlmssp_state,
 }
 
 /**
- * End an NTLMSSP state machine
- *
- * @param ntlmssp_state NTLMSSP State, free()ed by this function
- */
-
-void ntlmssp_end(NTLMSSP_STATE **ntlmssp_state)
-{
-	(*ntlmssp_state)->ref_count--;
-
-	if ((*ntlmssp_state)->ref_count == 0) {
-		data_blob_free(&(*ntlmssp_state)->chal);
-		data_blob_free(&(*ntlmssp_state)->lm_resp);
-		data_blob_free(&(*ntlmssp_state)->nt_resp);
-		TALLOC_FREE(*ntlmssp_state);
-	}
-
-	*ntlmssp_state = NULL;
-	return;
-}
-
-/**
  * Determine correct target name flags for reply, given server role
  * and negotiated flags
  *
@@ -388,17 +285,17 @@ void ntlmssp_end(NTLMSSP_STATE **ntlmssp_state)
  */
 
 static const char *ntlmssp_target_name(struct ntlmssp_state *ntlmssp_state,
-				       uint32 neg_flags, uint32 *chal_flags)
+				       uint32_t neg_flags, uint32_t *chal_flags)
 {
 	if (neg_flags & NTLMSSP_REQUEST_TARGET) {
 		*chal_flags |= NTLMSSP_NEGOTIATE_TARGET_INFO;
 		*chal_flags |= NTLMSSP_REQUEST_TARGET;
-		if (ntlmssp_state->server_role == ROLE_STANDALONE) {
+		if (ntlmssp_state->server.is_standalone) {
 			*chal_flags |= NTLMSSP_TARGET_TYPE_SERVER;
-			return ntlmssp_state->get_global_myname();
+			return ntlmssp_state->server.netbios_name;
 		} else {
 			*chal_flags |= NTLMSSP_TARGET_TYPE_DOMAIN;
-			return ntlmssp_state->get_domain();
+			return ntlmssp_state->server.netbios_domain;
 		};
 	} else {
 		return "";
@@ -406,7 +303,7 @@ static const char *ntlmssp_target_name(struct ntlmssp_state *ntlmssp_state,
 }
 
 static void ntlmssp_handle_neg_flags(struct ntlmssp_state *ntlmssp_state,
-				      uint32 neg_flags, bool allow_lm) {
+				     uint32_t neg_flags, bool allow_lm) {
 	if (neg_flags & NTLMSSP_NEGOTIATE_UNICODE) {
 		ntlmssp_state->neg_flags |= NTLMSSP_NEGOTIATE_UNICODE;
 		ntlmssp_state->neg_flags &= ~NTLMSSP_NEGOTIATE_OEM;
@@ -465,47 +362,6 @@ static void ntlmssp_handle_neg_flags(struct ntlmssp_state *ntlmssp_state,
 }
 
 /**
- Weaken NTLMSSP keys to cope with down-level clients and servers.
-
- We probably should have some parameters to control this, but as
- it only occours for LM_KEY connections, and this is controlled
- by the client lanman auth/lanman auth parameters, it isn't too bad.
-*/
-
-DATA_BLOB ntlmssp_weaken_keys(NTLMSSP_STATE *ntlmssp_state, TALLOC_CTX *mem_ctx)
-{
-	DATA_BLOB weakened_key = data_blob_talloc(mem_ctx,
-					ntlmssp_state->session_key.data,
-					ntlmssp_state->session_key.length);
-
-	/* Nothing to weaken.  We certainly don't want to 'extend' the length... */
-	if (weakened_key.length < 16) {
-		/* perhaps there was no key? */
-		return weakened_key;
-	}
-
-	/* Key weakening not performed on the master key for NTLM2
-	   and does not occour for NTLM1.  Therefore we only need
-	   to do this for the LM_KEY.
-	*/
-
-	if (ntlmssp_state->neg_flags & NTLMSSP_NEGOTIATE_LM_KEY) {
-		/* LM key doesn't support 128 bit crypto, so this is
-		 * the best we can do.  If you negotiate 128 bit, but
-		 * not 56, you end up with 40 bit... */
-		if (ntlmssp_state->neg_flags & NTLMSSP_NEGOTIATE_56) {
-			weakened_key.data[7] = 0xa0;
-		} else { /* forty bits */
-			weakened_key.data[5] = 0xe5;
-			weakened_key.data[6] = 0x38;
-			weakened_key.data[7] = 0xb0;
-		}
-		weakened_key.length = 8;
-	}
-	return weakened_key;
-}
-
-/**
  * Next state function for the Negotiate packet
  *
  * @param ntlmssp_state NTLMSSP State
@@ -518,14 +374,11 @@ static NTSTATUS ntlmssp_server_negotiate(struct ntlmssp_state *ntlmssp_state,
 					 const DATA_BLOB request, DATA_BLOB *reply)
 {
 	DATA_BLOB struct_blob;
-	const char *dnsname;
-	char *dnsdomname = NULL;
-	uint32 neg_flags = 0;
-	uint32 ntlmssp_command, chal_flags;
+	uint32_t neg_flags = 0;
+	uint32_t ntlmssp_command, chal_flags;
 	uint8_t cryptkey[8];
 	const char *target_name;
-	struct NEGOTIATE_MESSAGE negotiate;
-	struct CHALLENGE_MESSAGE challenge;
+	NTSTATUS status;
 
 	/* parse the NTLMSSP packet */
 #if 0
@@ -545,12 +398,16 @@ static NTSTATUS ntlmssp_server_negotiate(struct ntlmssp_state *ntlmssp_state,
 		debug_ntlmssp_flags(neg_flags);
 
 		if (DEBUGLEVEL >= 10) {
-			if (NT_STATUS_IS_OK(ntlmssp_pull_NEGOTIATE_MESSAGE(&request,
-						       ntlmssp_state,
-						       NULL,
-						       &negotiate)))
-			{
-				NDR_PRINT_DEBUG(NEGOTIATE_MESSAGE, &negotiate);
+			struct NEGOTIATE_MESSAGE *negotiate = talloc(
+				talloc_tos(), struct NEGOTIATE_MESSAGE);
+			if (negotiate != NULL) {
+				status = ntlmssp_pull_NEGOTIATE_MESSAGE(
+					&request, negotiate, negotiate);
+				if (NT_STATUS_IS_OK(status)) {
+					NDR_PRINT_DEBUG(NEGOTIATE_MESSAGE,
+							negotiate);
+				}
+				TALLOC_FREE(negotiate);
 			}
 		}
 	}
@@ -558,7 +415,10 @@ static NTSTATUS ntlmssp_server_negotiate(struct ntlmssp_state *ntlmssp_state,
 	ntlmssp_handle_neg_flags(ntlmssp_state, neg_flags, lp_lanman_auth());
 
 	/* Ask our caller what challenge they would like in the packet */
-	ntlmssp_state->get_challenge(ntlmssp_state, cryptkey);
+	status = ntlmssp_state->get_challenge(ntlmssp_state, cryptkey);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
 
 	/* Check if we may set the challenge */
 	if (!ntlmssp_state->may_set_challenge(ntlmssp_state)) {
@@ -582,59 +442,75 @@ static NTSTATUS ntlmssp_server_negotiate(struct ntlmssp_state *ntlmssp_state,
 	ntlmssp_state->internal_chal = data_blob_talloc(ntlmssp_state,
 							cryptkey, 8);
 
-	/* This should be a 'netbios domain -> DNS domain' mapping */
-	dnsdomname = get_mydnsdomname(ntlmssp_state);
-	if (!dnsdomname) {
-		dnsdomname = talloc_strdup(ntlmssp_state, "");
-	}
-	if (!dnsdomname) {
-		return NT_STATUS_NO_MEMORY;
-	}
-	strlower_m(dnsdomname);
-
-	dnsname = get_mydnsfullname();
-	if (!dnsname) {
-		dnsname = "";
-	}
-
 	/* This creates the 'blob' of names that appears at the end of the packet */
 	if (chal_flags & NTLMSSP_NEGOTIATE_TARGET_INFO)
 	{
 		msrpc_gen(ntlmssp_state, &struct_blob, "aaaaa",
 			  MsvAvNbDomainName, target_name,
-			  MsvAvNbComputerName, ntlmssp_state->get_global_myname(),
-			  MsvAvDnsDomainName, dnsdomname,
-			  MsvAvDnsComputerName, dnsname,
+			  MsvAvNbComputerName, ntlmssp_state->server.netbios_name,
+			  MsvAvDnsDomainName, ntlmssp_state->server.dns_domain,
+			  MsvAvDnsComputerName, ntlmssp_state->server.dns_name,
 			  MsvAvEOL, "");
 	} else {
 		struct_blob = data_blob_null;
 	}
 
 	{
-		/* Marshel the packet in the right format, be it unicode or ASCII */
+		/* Marshal the packet in the right format, be it unicode or ASCII */
 		const char *gen_string;
+		DATA_BLOB version_blob = data_blob_null;
+
+		if (chal_flags & NTLMSSP_NEGOTIATE_VERSION) {
+			enum ndr_err_code err;
+			struct VERSION vers;
+
+			/* "What Windows returns" as a version number. */
+			ZERO_STRUCT(vers);
+			vers.ProductMajorVersion = NTLMSSP_WINDOWS_MAJOR_VERSION_6;
+			vers.ProductMinorVersion = NTLMSSP_WINDOWS_MINOR_VERSION_1;
+			vers.ProductBuild = 0;
+			vers.NTLMRevisionCurrent = NTLMSSP_REVISION_W2K3;
+
+			err = ndr_push_struct_blob(&version_blob,
+						ntlmssp_state,
+						&vers,
+						(ndr_push_flags_fn_t)ndr_push_VERSION);
+
+			if (!NDR_ERR_CODE_IS_SUCCESS(err)) {
+				return NT_STATUS_NO_MEMORY;
+			}
+		}
+
 		if (ntlmssp_state->unicode) {
-			gen_string = "CdUdbddB";
+			gen_string = "CdUdbddBb";
 		} else {
-			gen_string = "CdAdbddB";
+			gen_string = "CdAdbddBb";
 		}
 
 		msrpc_gen(ntlmssp_state, reply, gen_string,
-			  "NTLMSSP",
-			  NTLMSSP_CHALLENGE,
-			  target_name,
-			  chal_flags,
-			  cryptkey, 8,
-			  0, 0,
-			  struct_blob.data, struct_blob.length);
+			"NTLMSSP",
+			NTLMSSP_CHALLENGE,
+			target_name,
+			chal_flags,
+			cryptkey, 8,
+			0, 0,
+			struct_blob.data, struct_blob.length,
+			version_blob.data, version_blob.length);
+
+		data_blob_free(&version_blob);
 
 		if (DEBUGLEVEL >= 10) {
-			if (NT_STATUS_IS_OK(ntlmssp_pull_CHALLENGE_MESSAGE(reply,
-						       ntlmssp_state,
-						       NULL,
-						       &challenge)))
-			{
-				NDR_PRINT_DEBUG(CHALLENGE_MESSAGE, &challenge);
+			struct CHALLENGE_MESSAGE *challenge = talloc(
+				talloc_tos(), struct CHALLENGE_MESSAGE);
+			if (challenge != NULL) {
+				challenge->NegotiateFlags = chal_flags;
+				status = ntlmssp_pull_CHALLENGE_MESSAGE(
+					reply, challenge, challenge);
+				if (NT_STATUS_IS_OK(status)) {
+					NDR_PRINT_DEBUG(CHALLENGE_MESSAGE,
+							challenge);
+				}
+				TALLOC_FREE(challenge);
 			}
 		}
 	}
@@ -662,15 +538,14 @@ static NTSTATUS ntlmssp_server_auth(struct ntlmssp_state *ntlmssp_state,
 	DATA_BLOB user_session_key = data_blob_null;
 	DATA_BLOB lm_session_key = data_blob_null;
 	DATA_BLOB session_key = data_blob_null;
-	uint32 ntlmssp_command, auth_flags;
+	uint32_t ntlmssp_command, auth_flags;
 	NTSTATUS nt_status = NT_STATUS_OK;
-	struct AUTHENTICATE_MESSAGE authenticate;
 
 	/* used by NTLM2 */
 	bool doing_ntlm2 = False;
 
-	uchar session_nonce[16];
-	uchar session_nonce_hash[16];
+	uint8_t session_nonce[16];
+	uint8_t session_nonce_hash[16];
 
 	const char *parse_string;
 
@@ -692,7 +567,6 @@ static NTSTATUS ntlmssp_server_auth(struct ntlmssp_state *ntlmssp_state,
 
 	ntlmssp_state->user = NULL;
 	ntlmssp_state->domain = NULL;
-	ntlmssp_state->workstation = NULL;
 
 	/* now the NTLMSSP encoded auth hashes */
 	if (!msrpc_parse(ntlmssp_state, &request, parse_string,
@@ -702,7 +576,7 @@ static NTSTATUS ntlmssp_server_auth(struct ntlmssp_state *ntlmssp_state,
 			 &ntlmssp_state->nt_resp,
 			 &ntlmssp_state->domain,
 			 &ntlmssp_state->user,
-			 &ntlmssp_state->workstation,
+			 &ntlmssp_state->client.netbios_name,
 			 &encrypted_session_key,
 			 &auth_flags)) {
 		auth_flags = 0;
@@ -722,7 +596,7 @@ static NTSTATUS ntlmssp_server_auth(struct ntlmssp_state *ntlmssp_state,
 				 &ntlmssp_state->nt_resp,
 				 &ntlmssp_state->domain,
 				 &ntlmssp_state->user,
-				 &ntlmssp_state->workstation)) {
+				 &ntlmssp_state->client.netbios_name)) {
 			DEBUG(1, ("ntlmssp_server_auth: failed to parse NTLMSSP (tried both formats):\n"));
 			dump_data(2, request.data, request.length);
 
@@ -734,17 +608,26 @@ static NTSTATUS ntlmssp_server_auth(struct ntlmssp_state *ntlmssp_state,
 		ntlmssp_handle_neg_flags(ntlmssp_state, auth_flags, lp_lanman_auth());
 
 	if (DEBUGLEVEL >= 10) {
-		if (NT_STATUS_IS_OK(ntlmssp_pull_AUTHENTICATE_MESSAGE(&request,
-						  ntlmssp_state,
-						  NULL,
-						  &authenticate)))
-		{
-			NDR_PRINT_DEBUG(AUTHENTICATE_MESSAGE, &authenticate);
+		struct AUTHENTICATE_MESSAGE *authenticate = talloc(
+			talloc_tos(), struct AUTHENTICATE_MESSAGE);
+		if (authenticate != NULL) {
+			NTSTATUS status;
+			authenticate->NegotiateFlags = auth_flags;
+			status = ntlmssp_pull_AUTHENTICATE_MESSAGE(
+				&request, authenticate, authenticate);
+			if (NT_STATUS_IS_OK(status)) {
+				NDR_PRINT_DEBUG(AUTHENTICATE_MESSAGE,
+						authenticate);
+			}
+			TALLOC_FREE(authenticate);
 		}
 	}
 
 	DEBUG(3,("Got user=[%s] domain=[%s] workstation=[%s] len1=%lu len2=%lu\n",
-		 ntlmssp_state->user, ntlmssp_state->domain, ntlmssp_state->workstation, (unsigned long)ntlmssp_state->lm_resp.length, (unsigned long)ntlmssp_state->nt_resp.length));
+		 ntlmssp_state->user, ntlmssp_state->domain,
+		 ntlmssp_state->client.netbios_name,
+		 (unsigned long)ntlmssp_state->lm_resp.length,
+		 (unsigned long)ntlmssp_state->nt_resp.length));
 
 #if 0
 	file_save("nthash1.dat",  &ntlmssp_state->nt_resp.data,  &ntlmssp_state->nt_resp.length);
@@ -831,8 +714,7 @@ static NTSTATUS ntlmssp_server_auth(struct ntlmssp_state *ntlmssp_state,
 							  session_key.data);
 				DEBUG(10,("ntlmssp_server_auth: Created NTLM session key.\n"));
 			} else {
-				uint8 zeros[24];
-				ZERO_STRUCT(zeros);
+				static const uint8_t zeros[24] = {0, };
 				session_key = data_blob_talloc(
 					ntlmssp_state, NULL, 16);
 				if (session_key.data == NULL) {
@@ -908,30 +790,48 @@ static NTSTATUS ntlmssp_server_auth(struct ntlmssp_state *ntlmssp_state,
  * @param ntlmssp_state NTLMSSP State, allocated by this function
  */
 
-NTSTATUS ntlmssp_server_start(NTLMSSP_STATE **ntlmssp_state)
+NTSTATUS ntlmssp_server_start(TALLOC_CTX *mem_ctx,
+			      bool is_standalone,
+			      const char *netbios_name,
+			      const char *netbios_domain,
+			      const char *dns_name,
+			      const char *dns_domain,
+			      struct ntlmssp_state **_ntlmssp_state)
 {
-	*ntlmssp_state = TALLOC_ZERO_P(NULL, NTLMSSP_STATE);
-	if (!*ntlmssp_state) {
-		DEBUG(0,("ntlmssp_server_start: talloc failed!\n"));
-		talloc_destroy(*ntlmssp_state);
+	struct ntlmssp_state *ntlmssp_state;
+
+	if (!netbios_name) {
+		netbios_name = "";
+	}
+
+	if (!netbios_domain) {
+		netbios_domain = "";
+	}
+
+	if (!dns_domain) {
+		dns_domain = "";
+	}
+
+	if (!dns_name) {
+		dns_name = "";
+	}
+
+	ntlmssp_state = talloc_zero(mem_ctx, struct ntlmssp_state);
+	if (!ntlmssp_state) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	(*ntlmssp_state)->role = NTLMSSP_SERVER;
+	ntlmssp_state->role = NTLMSSP_SERVER;
 
-	(*ntlmssp_state)->get_challenge = get_challenge;
-	(*ntlmssp_state)->set_challenge = set_challenge;
-	(*ntlmssp_state)->may_set_challenge = may_set_challenge;
+	ntlmssp_state->get_challenge = get_challenge;
+	ntlmssp_state->set_challenge = set_challenge;
+	ntlmssp_state->may_set_challenge = may_set_challenge;
 
-	(*ntlmssp_state)->get_global_myname = global_myname;
-	(*ntlmssp_state)->get_domain = lp_workgroup;
-	(*ntlmssp_state)->server_role = ROLE_DOMAIN_MEMBER; /* a good default */
+	ntlmssp_state->server.is_standalone = is_standalone;
 
-	(*ntlmssp_state)->expected_state = NTLMSSP_NEGOTIATE;
+	ntlmssp_state->expected_state = NTLMSSP_NEGOTIATE;
 
-	(*ntlmssp_state)->ref_count = 1;
-
-	(*ntlmssp_state)->neg_flags =
+	ntlmssp_state->neg_flags =
 		NTLMSSP_NEGOTIATE_128 |
 		NTLMSSP_NEGOTIATE_56 |
 		NTLMSSP_NEGOTIATE_VERSION |
@@ -942,6 +842,28 @@ NTSTATUS ntlmssp_server_start(NTLMSSP_STATE **ntlmssp_state)
 		NTLMSSP_NEGOTIATE_SIGN |
 		NTLMSSP_NEGOTIATE_SEAL;
 
+	ntlmssp_state->server.netbios_name = talloc_strdup(ntlmssp_state, netbios_name);
+	if (!ntlmssp_state->server.netbios_name) {
+		talloc_free(ntlmssp_state);
+		return NT_STATUS_NO_MEMORY;
+	}
+	ntlmssp_state->server.netbios_domain = talloc_strdup(ntlmssp_state, netbios_domain);
+	if (!ntlmssp_state->server.netbios_domain) {
+		talloc_free(ntlmssp_state);
+		return NT_STATUS_NO_MEMORY;
+	}
+	ntlmssp_state->server.dns_name = talloc_strdup(ntlmssp_state, dns_name);
+	if (!ntlmssp_state->server.dns_name) {
+		talloc_free(ntlmssp_state);
+		return NT_STATUS_NO_MEMORY;
+	}
+	ntlmssp_state->server.dns_domain = talloc_strdup(ntlmssp_state, dns_domain);
+	if (!ntlmssp_state->server.dns_domain) {
+		talloc_free(ntlmssp_state);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	*_ntlmssp_state = ntlmssp_state;
 	return NT_STATUS_OK;
 }
 
@@ -961,8 +883,6 @@ NTSTATUS ntlmssp_server_start(NTLMSSP_STATE **ntlmssp_state)
 static NTSTATUS ntlmssp_client_initial(struct ntlmssp_state *ntlmssp_state,
 				  DATA_BLOB reply, DATA_BLOB *next_request)
 {
-	struct NEGOTIATE_MESSAGE negotiate;
-
 	if (ntlmssp_state->unicode) {
 		ntlmssp_state->neg_flags |= NTLMSSP_NEGOTIATE_UNICODE;
 	} else {
@@ -978,16 +898,21 @@ static NTSTATUS ntlmssp_client_initial(struct ntlmssp_state *ntlmssp_state,
 		  "NTLMSSP",
 		  NTLMSSP_NEGOTIATE,
 		  ntlmssp_state->neg_flags,
-		  ntlmssp_state->get_domain(),
-		  ntlmssp_state->get_global_myname());
+		  ntlmssp_state->client.netbios_domain,
+		  ntlmssp_state->client.netbios_name);
 
 	if (DEBUGLEVEL >= 10) {
-		if (NT_STATUS_IS_OK(ntlmssp_pull_NEGOTIATE_MESSAGE(next_request,
-					       ntlmssp_state,
-					       NULL,
-					       &negotiate)))
-		{
-			NDR_PRINT_DEBUG(NEGOTIATE_MESSAGE, &negotiate);
+		struct NEGOTIATE_MESSAGE *negotiate = talloc(
+			talloc_tos(), struct NEGOTIATE_MESSAGE);
+		if (negotiate != NULL) {
+			NTSTATUS status;
+			status = ntlmssp_pull_NEGOTIATE_MESSAGE(
+				next_request, negotiate, negotiate);
+			if (NT_STATUS_IS_OK(status)) {
+				NDR_PRINT_DEBUG(NEGOTIATE_MESSAGE,
+						negotiate);
+			}
+			TALLOC_FREE(negotiate);
 		}
 	}
 
@@ -1008,7 +933,7 @@ static NTSTATUS ntlmssp_client_initial(struct ntlmssp_state *ntlmssp_state,
 static NTSTATUS ntlmssp_client_challenge(struct ntlmssp_state *ntlmssp_state,
 					 const DATA_BLOB reply, DATA_BLOB *next_request)
 {
-	uint32 chal_flags, ntlmssp_command, unkn1, unkn2;
+	uint32_t chal_flags, ntlmssp_command, unkn1, unkn2;
 	DATA_BLOB server_domain_blob;
 	DATA_BLOB challenge_blob;
 	DATA_BLOB struct_blob = data_blob_null;
@@ -1020,8 +945,6 @@ static NTSTATUS ntlmssp_client_challenge(struct ntlmssp_state *ntlmssp_state,
 	DATA_BLOB session_key = data_blob_null;
 	DATA_BLOB encrypted_session_key = data_blob_null;
 	NTSTATUS nt_status = NT_STATUS_OK;
-	struct CHALLENGE_MESSAGE challenge;
-	struct AUTHENTICATE_MESSAGE authenticate;
 
 	if (ntlmssp_state->use_ccache) {
 		struct wbcCredentialCacheParams params;
@@ -1087,12 +1010,18 @@ noccache:
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		if (NT_STATUS_IS_OK(ntlmssp_pull_CHALLENGE_MESSAGE(&reply,
-					       ntlmssp_state,
-					       NULL,
-					       &challenge)))
-		{
-			NDR_PRINT_DEBUG(CHALLENGE_MESSAGE, &challenge);
+		struct CHALLENGE_MESSAGE *challenge = talloc(
+			talloc_tos(), struct CHALLENGE_MESSAGE);
+		if (challenge != NULL) {
+			NTSTATUS status;
+			challenge->NegotiateFlags = chal_flags;
+			status = ntlmssp_pull_CHALLENGE_MESSAGE(
+				&reply, challenge, challenge);
+			if (NT_STATUS_IS_OK(status)) {
+				NDR_PRINT_DEBUG(CHALLENGE_MESSAGE,
+						challenge);
+			}
+			TALLOC_FREE(challenge);
 		}
 	}
 
@@ -1136,7 +1065,16 @@ noccache:
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	ntlmssp_state->server_domain = server_domain;
+	if (chal_flags & NTLMSSP_TARGET_TYPE_SERVER) {
+		ntlmssp_state->server.is_standalone = true;
+	} else {
+		ntlmssp_state->server.is_standalone = false;
+	}
+	/* TODO: parse struct_blob and fill in the rest */
+	ntlmssp_state->server.netbios_name = "";
+	ntlmssp_state->server.netbios_domain = server_domain;
+	ntlmssp_state->server.dns_name = "";
+	ntlmssp_state->server.dns_domain = "";
 
 	if (challenge_blob.length != 8) {
 		data_blob_free(&struct_blob);
@@ -1144,10 +1082,8 @@ noccache:
 	}
 
 	if (!ntlmssp_state->nt_hash || !ntlmssp_state->lm_hash) {
-		uchar zeros[16];
+		static const uint8_t zeros[16] = {0, };
 		/* do nothing - blobs are zero length */
-
-		ZERO_STRUCT(zeros);
 
 		/* session key is all zeros */
 		session_key = data_blob_talloc(ntlmssp_state, zeros, 16);
@@ -1177,9 +1113,9 @@ noccache:
 		}
 	} else if (ntlmssp_state->neg_flags & NTLMSSP_NEGOTIATE_NTLM2) {
 		struct MD5Context md5_session_nonce_ctx;
-		uchar session_nonce[16];
-		uchar session_nonce_hash[16];
-		uchar user_session_key[16];
+		uint8_t session_nonce[16];
+		uint8_t session_nonce_hash[16];
+		uint8_t user_session_key[16];
 
 		lm_response = data_blob_talloc(ntlmssp_state, NULL, 24);
 		generate_random_buffer(lm_response.data, 8);
@@ -1237,7 +1173,7 @@ noccache:
 	   the password-derived key */
 	if (ntlmssp_state->neg_flags & NTLMSSP_NEGOTIATE_KEY_EXCH) {
 		/* Make up a new session key */
-		uint8 client_session_key[16];
+		uint8_t client_session_key[16];
 		generate_random_buffer(client_session_key, sizeof(client_session_key));
 
 		/* Encrypt the new session key with the old one */
@@ -1261,7 +1197,7 @@ noccache:
 		       nt_response.data, nt_response.length,
 		       ntlmssp_state->domain,
 		       ntlmssp_state->user,
-		       ntlmssp_state->get_global_myname(),
+		       ntlmssp_state->client.netbios_name,
 		       encrypted_session_key.data, encrypted_session_key.length,
 		       ntlmssp_state->neg_flags)) {
 
@@ -1269,12 +1205,19 @@ noccache:
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		if (NT_STATUS_IS_OK(ntlmssp_pull_AUTHENTICATE_MESSAGE(next_request,
-						  ntlmssp_state,
-						  NULL,
-						  &authenticate)))
-		{
-			NDR_PRINT_DEBUG(AUTHENTICATE_MESSAGE, &authenticate);
+		struct AUTHENTICATE_MESSAGE *authenticate = talloc(
+			talloc_tos(), struct AUTHENTICATE_MESSAGE);
+		if (authenticate != NULL) {
+			NTSTATUS status;
+			authenticate->NegotiateFlags =
+				ntlmssp_state->neg_flags;
+			status = ntlmssp_pull_AUTHENTICATE_MESSAGE(
+				next_request, authenticate, authenticate);
+			if (NT_STATUS_IS_OK(status)) {
+				NDR_PRINT_DEBUG(AUTHENTICATE_MESSAGE,
+						authenticate);
+			}
+			TALLOC_FREE(authenticate);
 		}
 	}
 
@@ -1299,29 +1242,36 @@ done:
 	return nt_status;
 }
 
-NTSTATUS ntlmssp_client_start(NTLMSSP_STATE **ntlmssp_state)
+NTSTATUS ntlmssp_client_start(TALLOC_CTX *mem_ctx,
+			      const char *netbios_name,
+			      const char *netbios_domain,
+			      bool use_ntlmv2,
+			      struct ntlmssp_state **_ntlmssp_state)
 {
-	*ntlmssp_state = TALLOC_ZERO_P(NULL, NTLMSSP_STATE);
-	if (!*ntlmssp_state) {
-		DEBUG(0,("ntlmssp_client_start: talloc failed!\n"));
-		talloc_destroy(*ntlmssp_state);
+	struct ntlmssp_state *ntlmssp_state;
+
+	if (!netbios_name) {
+		netbios_name = "";
+	}
+
+	if (!netbios_domain) {
+		netbios_domain = "";
+	}
+
+	ntlmssp_state = talloc_zero(mem_ctx, struct ntlmssp_state);
+	if (!ntlmssp_state) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	(*ntlmssp_state)->role = NTLMSSP_CLIENT;
+	ntlmssp_state->role = NTLMSSP_CLIENT;
 
-	(*ntlmssp_state)->get_global_myname = global_myname;
-	(*ntlmssp_state)->get_domain = lp_workgroup;
+	ntlmssp_state->unicode = True;
 
-	(*ntlmssp_state)->unicode = True;
+	ntlmssp_state->use_ntlmv2 = use_ntlmv2;
 
-	(*ntlmssp_state)->use_ntlmv2 = lp_client_ntlmv2_auth();
+	ntlmssp_state->expected_state = NTLMSSP_INITIAL;
 
-	(*ntlmssp_state)->expected_state = NTLMSSP_INITIAL;
-
-	(*ntlmssp_state)->ref_count = 1;
-
-	(*ntlmssp_state)->neg_flags =
+	ntlmssp_state->neg_flags =
 		NTLMSSP_NEGOTIATE_128 |
 		NTLMSSP_NEGOTIATE_ALWAYS_SIGN |
 		NTLMSSP_NEGOTIATE_NTLM |
@@ -1329,5 +1279,17 @@ NTSTATUS ntlmssp_client_start(NTLMSSP_STATE **ntlmssp_state)
 		NTLMSSP_NEGOTIATE_KEY_EXCH |
 		NTLMSSP_REQUEST_TARGET;
 
+	ntlmssp_state->client.netbios_name = talloc_strdup(ntlmssp_state, netbios_name);
+	if (!ntlmssp_state->client.netbios_name) {
+		talloc_free(ntlmssp_state);
+		return NT_STATUS_NO_MEMORY;
+	}
+	ntlmssp_state->client.netbios_domain = talloc_strdup(ntlmssp_state, netbios_domain);
+	if (!ntlmssp_state->client.netbios_domain) {
+		talloc_free(ntlmssp_state);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	*_ntlmssp_state = ntlmssp_state;
 	return NT_STATUS_OK;
 }

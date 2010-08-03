@@ -23,17 +23,13 @@
 
 #include "includes.h"
 #include "auth/auth.h"
-#include "auth/auth_proto.h"
-#include "libcli/security/security.h"
 #include "libcli/auth/libcli_auth.h"
-#include "dsdb/samdb/samdb.h"
-#include "auth/credentials/credentials.h"
 #include "param/param.h"
 
 /* this default function can be used by mostly all backends
  * which don't want to set a challenge
  */
-NTSTATUS auth_get_challenge_not_implemented(struct auth_method_context *ctx, TALLOC_CTX *mem_ctx, DATA_BLOB *challenge)
+NTSTATUS auth_get_challenge_not_implemented(struct auth_method_context *ctx, TALLOC_CTX *mem_ctx, uint8_t chal[8])
 {
 	/* we don't want to set a challenge */
 	return NT_STATUS_NOT_IMPLEMENTED;
@@ -126,7 +122,7 @@ NTSTATUS encrypt_user_info(TALLOC_CTX *mem_ctx, struct auth_context *auth_contex
 		}
 		case AUTH_PASSWORD_HASH:
 		{
-			const uint8_t *challenge;
+			uint8_t chal[8];
 			DATA_BLOB chall_blob;
 			user_info_temp = talloc(mem_ctx, struct auth_usersupplied_info);
 			if (!user_info_temp) {
@@ -138,14 +134,14 @@ NTSTATUS encrypt_user_info(TALLOC_CTX *mem_ctx, struct auth_context *auth_contex
 			*user_info_temp = *user_info_in;
 			user_info_temp->mapped_state = to_state;
 			
-			nt_status = auth_get_challenge(auth_context, &challenge);
+			nt_status = auth_get_challenge(auth_context, chal);
 			if (!NT_STATUS_IS_OK(nt_status)) {
 				return nt_status;
 			}
 			
-			chall_blob = data_blob_talloc(mem_ctx, challenge, 8);
-			if (lp_client_ntlmv2_auth(auth_context->lp_ctx)) {
-				DATA_BLOB names_blob = NTLMv2_generate_names_blob(mem_ctx,  lp_netbios_name(auth_context->lp_ctx), lp_workgroup(auth_context->lp_ctx));
+			chall_blob = data_blob_talloc(mem_ctx, chal, 8);
+			if (lpcfg_client_ntlmv2_auth(auth_context->lp_ctx)) {
+				DATA_BLOB names_blob = NTLMv2_generate_names_blob(mem_ctx,  lpcfg_netbios_name(auth_context->lp_ctx), lpcfg_workgroup(auth_context->lp_ctx));
 				DATA_BLOB lmv2_response, ntlmv2_response, lmv2_session_key, ntlmv2_session_key;
 				
 				if (!SMBNTLMv2encrypt_hash(user_info_temp,
@@ -166,12 +162,12 @@ NTSTATUS encrypt_user_info(TALLOC_CTX *mem_ctx, struct auth_context *auth_contex
 				data_blob_free(&ntlmv2_session_key);
 			} else {
 				DATA_BLOB blob = data_blob_talloc(mem_ctx, NULL, 24);
-				SMBOWFencrypt(user_info_in->password.hash.nt->hash, challenge, blob.data);
+				SMBOWFencrypt(user_info_in->password.hash.nt->hash, chal, blob.data);
 
 				user_info_temp->password.response.nt = blob;
-				if (lp_client_lanman_auth(auth_context->lp_ctx) && user_info_in->password.hash.lanman) {
+				if (lpcfg_client_lanman_auth(auth_context->lp_ctx) && user_info_in->password.hash.lanman) {
 					DATA_BLOB lm_blob = data_blob_talloc(mem_ctx, NULL, 24);
-					SMBOWFencrypt(user_info_in->password.hash.lanman->hash, challenge, blob.data);
+					SMBOWFencrypt(user_info_in->password.hash.lanman->hash, chal, blob.data);
 					user_info_temp->password.response.lanman = lm_blob;
 				} else {
 					/* if not sending the LM password, send the NT password twice */

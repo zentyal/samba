@@ -27,7 +27,7 @@
 #include "lib/events/events.h"
 #include "libcli/security/security.h"
 #include "libcli/auth/libcli_auth.h"
-#include "torture/rpc/rpc.h"
+#include "torture/rpc/torture_rpc.h"
 #include "param/param.h"
 #include "../lib/crypto/crypto.h"
 #define TEST_MACHINENAME "lsatestmach"
@@ -37,14 +37,13 @@ static void init_lsa_String(struct lsa_String *name, const char *s)
 	name->string = s;
 }
 
-static bool test_OpenPolicy(struct dcerpc_pipe *p,
+static bool test_OpenPolicy(struct dcerpc_binding_handle *b,
 			    struct torture_context *tctx)
 {
 	struct lsa_ObjectAttribute attr;
 	struct policy_handle handle;
 	struct lsa_QosInfo qos;
 	struct lsa_OpenPolicy r;
-	NTSTATUS status;
 	uint16_t system_name = '\\';
 
 	torture_comment(tctx, "\nTesting OpenPolicy\n");
@@ -66,14 +65,17 @@ static bool test_OpenPolicy(struct dcerpc_pipe *p,
 	r.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	r.out.handle = &handle;
 
-	status = dcerpc_lsa_OpenPolicy(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		if (NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED) ||
-		    NT_STATUS_EQUAL(status, NT_STATUS_RPC_PROTSEQ_NOT_SUPPORTED)) {
-			torture_comment(tctx, "not considering %s to be an error\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_OpenPolicy_r(b, tctx, &r),
+				   "OpenPolicy failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		if (NT_STATUS_EQUAL(r.out.result, NT_STATUS_ACCESS_DENIED) ||
+		    NT_STATUS_EQUAL(r.out.result, NT_STATUS_RPC_PROTSEQ_NOT_SUPPORTED)) {
+			torture_comment(tctx, "not considering %s to be an error\n",
+					nt_errstr(r.out.result));
 			return true;
 		}
-		torture_comment(tctx, "OpenPolicy failed - %s\n", nt_errstr(status));
+		torture_comment(tctx, "OpenPolicy failed - %s\n",
+				nt_errstr(r.out.result));
 		return false;
 	}
 
@@ -81,9 +83,10 @@ static bool test_OpenPolicy(struct dcerpc_pipe *p,
 }
 
 
-bool test_lsa_OpenPolicy2(struct dcerpc_pipe *p,
-			  struct torture_context *tctx,
-			  struct policy_handle **handle)
+bool test_lsa_OpenPolicy2_ex(struct dcerpc_binding_handle *b,
+			     struct torture_context *tctx,
+			     struct policy_handle **handle,
+			     NTSTATUS expected_status)
 {
 	struct lsa_ObjectAttribute attr;
 	struct lsa_QosInfo qos;
@@ -114,22 +117,36 @@ bool test_lsa_OpenPolicy2(struct dcerpc_pipe *p,
 	r.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	r.out.handle = *handle;
 
-	status = dcerpc_lsa_OpenPolicy2(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		if (NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED) ||
-		    NT_STATUS_EQUAL(status, NT_STATUS_RPC_PROTSEQ_NOT_SUPPORTED)) {
-			torture_comment(tctx, "not considering %s to be an error\n", nt_errstr(status));
+	status = dcerpc_lsa_OpenPolicy2_r(b, tctx, &r);
+	torture_assert_ntstatus_equal(tctx, status, expected_status,
+				   "OpenPolicy2 failed");
+	if (!NT_STATUS_IS_OK(expected_status)) {
+		return true;
+	}
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		if (NT_STATUS_EQUAL(r.out.result, NT_STATUS_ACCESS_DENIED) ||
+		    NT_STATUS_EQUAL(r.out.result, NT_STATUS_RPC_PROTSEQ_NOT_SUPPORTED)) {
+			torture_comment(tctx, "not considering %s to be an error\n",
+					nt_errstr(r.out.result));
 			talloc_free(*handle);
 			*handle = NULL;
 			return true;
 		}
-		torture_comment(tctx, "OpenPolicy2 failed - %s\n", nt_errstr(status));
+		torture_comment(tctx, "OpenPolicy2 failed - %s\n",
+				nt_errstr(r.out.result));
 		return false;
 	}
 
 	return true;
 }
 
+
+bool test_lsa_OpenPolicy2(struct dcerpc_binding_handle *b,
+			  struct torture_context *tctx,
+			  struct policy_handle **handle)
+{
+	return test_lsa_OpenPolicy2_ex(b, tctx, handle, NT_STATUS_OK);
+}
 
 static const char *sid_type_lookup(enum lsa_SidType r)
 {
@@ -148,7 +165,7 @@ static const char *sid_type_lookup(enum lsa_SidType r)
 	return "Invalid sid type\n";
 }
 
-static bool test_LookupNames(struct dcerpc_pipe *p,
+static bool test_LookupNames(struct dcerpc_binding_handle *b,
 			     struct torture_context *tctx,
 			     struct policy_handle *handle,
 			     struct lsa_TransNameArray *tnames)
@@ -158,7 +175,6 @@ static bool test_LookupNames(struct dcerpc_pipe *p,
 	struct lsa_RefDomainList *domains = NULL;
 	struct lsa_String *names;
 	uint32_t count = 0;
-	NTSTATUS status;
 	int i;
 
 	torture_comment(tctx, "\nTesting LookupNames with %d names\n", tnames->count);
@@ -181,10 +197,10 @@ static bool test_LookupNames(struct dcerpc_pipe *p,
 	r.out.sids = &sids;
 	r.out.domains = &domains;
 
-	status = dcerpc_lsa_LookupNames(p, tctx, &r);
-
-	if (NT_STATUS_EQUAL(status, STATUS_SOME_UNMAPPED) ||
-	    NT_STATUS_EQUAL(status, NT_STATUS_NONE_MAPPED)) {
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupNames_r(b, tctx, &r),
+				   "LookupNames failed");
+	if (NT_STATUS_EQUAL(r.out.result, STATUS_SOME_UNMAPPED) ||
+	    NT_STATUS_EQUAL(r.out.result, NT_STATUS_NONE_MAPPED)) {
 		for (i=0;i< tnames->count;i++) {
 			if (i < count && sids.sids[i].sid_type == SID_NAME_UNKNOWN) {
 				torture_comment(tctx, "LookupName of %s was unmapped\n",
@@ -194,10 +210,12 @@ static bool test_LookupNames(struct dcerpc_pipe *p,
 				       tnames->names[i].name.string);
 			}
 		}
-		torture_comment(tctx, "LookupNames failed - %s\n", nt_errstr(status));
+		torture_comment(tctx, "LookupNames failed - %s\n",
+				nt_errstr(r.out.result));
 		return false;
-	} else if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "LookupNames failed - %s\n", nt_errstr(status));
+	} else if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "LookupNames failed - %s\n",
+				nt_errstr(r.out.result));
 		return false;
 	}
 
@@ -225,7 +243,7 @@ static bool test_LookupNames(struct dcerpc_pipe *p,
 	return true;
 }
 
-static bool test_LookupNames_bogus(struct dcerpc_pipe *p,
+static bool test_LookupNames_bogus(struct dcerpc_binding_handle *b,
 				   struct torture_context *tctx,
 				   struct policy_handle *handle)
 {
@@ -234,7 +252,6 @@ static bool test_LookupNames_bogus(struct dcerpc_pipe *p,
 	struct lsa_RefDomainList *domains = NULL;
 	struct lsa_String names[1];
 	uint32_t count = 0;
-	NTSTATUS status;
 
 	torture_comment(tctx, "\nTesting LookupNames with bogus name\n");
 
@@ -253,9 +270,11 @@ static bool test_LookupNames_bogus(struct dcerpc_pipe *p,
 	r.out.sids = &sids;
 	r.out.domains = &domains;
 
-	status = dcerpc_lsa_LookupNames(p, tctx, &r);
-	if (!NT_STATUS_EQUAL(status, NT_STATUS_NONE_MAPPED)) {
-		torture_comment(tctx, "LookupNames failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupNames_r(b, tctx, &r),
+				   "LookupNames bogus failed");
+	if (!NT_STATUS_EQUAL(r.out.result, NT_STATUS_NONE_MAPPED)) {
+		torture_comment(tctx, "LookupNames failed - %s\n",
+				nt_errstr(r.out.result));
 		return false;
 	}
 
@@ -264,7 +283,7 @@ static bool test_LookupNames_bogus(struct dcerpc_pipe *p,
 	return true;
 }
 
-static bool test_LookupNames_NULL(struct dcerpc_pipe *p,
+static bool test_LookupNames_NULL(struct dcerpc_binding_handle *b,
 				  struct torture_context *tctx,
 				  struct policy_handle *handle)
 {
@@ -298,7 +317,9 @@ static bool test_LookupNames_NULL(struct dcerpc_pipe *p,
 	 * SID_NAME_DOMAIN, rid -1 and sid_index 0 and BUILTIN domain
 	 */
 
-	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupNames(p, tctx, &r),
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupNames_r(b, tctx, &r),
+		"LookupNames with NULL name failed");
+	torture_assert_ntstatus_ok(tctx, r.out.result,
 		"LookupNames with NULL name failed");
 
 	torture_comment(tctx, "\n");
@@ -306,7 +327,7 @@ static bool test_LookupNames_NULL(struct dcerpc_pipe *p,
 	return true;
 }
 
-static bool test_LookupNames_wellknown(struct dcerpc_pipe *p,
+static bool test_LookupNames_wellknown(struct dcerpc_binding_handle *b,
 				       struct torture_context *tctx,
 				       struct policy_handle *handle)
 {
@@ -320,43 +341,43 @@ static bool test_LookupNames_wellknown(struct dcerpc_pipe *p,
 	tnames.count = 1;
 	name.name.string = "NT AUTHORITY\\SYSTEM";
 	name.sid_type = SID_NAME_WKN_GRP;
-	ret &= test_LookupNames(p, tctx, handle, &tnames);
+	ret &= test_LookupNames(b, tctx, handle, &tnames);
 
 	name.name.string = "NT AUTHORITY\\ANONYMOUS LOGON";
 	name.sid_type = SID_NAME_WKN_GRP;
-	ret &= test_LookupNames(p, tctx, handle, &tnames);
+	ret &= test_LookupNames(b, tctx, handle, &tnames);
 
 	name.name.string = "NT AUTHORITY\\Authenticated Users";
 	name.sid_type = SID_NAME_WKN_GRP;
-	ret &= test_LookupNames(p, tctx, handle, &tnames);
+	ret &= test_LookupNames(b, tctx, handle, &tnames);
 
 #if 0
 	name.name.string = "NT AUTHORITY";
-	ret &= test_LookupNames(p, tctx, handle, &tnames);
+	ret &= test_LookupNames(b, tctx, handle, &tnames);
 
 	name.name.string = "NT AUTHORITY\\";
-	ret &= test_LookupNames(p, tctx, handle, &tnames);
+	ret &= test_LookupNames(b, tctx, handle, &tnames);
 #endif
 
 	name.name.string = "BUILTIN\\";
 	name.sid_type = SID_NAME_DOMAIN;
-	ret &= test_LookupNames(p, tctx, handle, &tnames);
+	ret &= test_LookupNames(b, tctx, handle, &tnames);
 
 	name.name.string = "BUILTIN\\Administrators";
 	name.sid_type = SID_NAME_ALIAS;
-	ret &= test_LookupNames(p, tctx, handle, &tnames);
+	ret &= test_LookupNames(b, tctx, handle, &tnames);
 
 	name.name.string = "SYSTEM";
 	name.sid_type = SID_NAME_WKN_GRP;
-	ret &= test_LookupNames(p, tctx, handle, &tnames);
+	ret &= test_LookupNames(b, tctx, handle, &tnames);
 
 	name.name.string = "Everyone";
 	name.sid_type = SID_NAME_WKN_GRP;
-	ret &= test_LookupNames(p, tctx, handle, &tnames);
+	ret &= test_LookupNames(b, tctx, handle, &tnames);
 	return ret;
 }
 
-static bool test_LookupNames2(struct dcerpc_pipe *p,
+static bool test_LookupNames2(struct dcerpc_binding_handle *b,
 			      struct torture_context *tctx,
 			      struct policy_handle *handle,
 			      struct lsa_TransNameArray2 *tnames,
@@ -367,7 +388,6 @@ static bool test_LookupNames2(struct dcerpc_pipe *p,
 	struct lsa_RefDomainList *domains = NULL;
 	struct lsa_String *names;
 	uint32_t count = 0;
-	NTSTATUS status;
 	int i;
 
 	torture_comment(tctx, "\nTesting LookupNames2 with %d names\n", tnames->count);
@@ -392,9 +412,11 @@ static bool test_LookupNames2(struct dcerpc_pipe *p,
 	r.out.sids = &sids;
 	r.out.domains = &domains;
 
-	status = dcerpc_lsa_LookupNames2(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "LookupNames2 failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupNames2_r(b, tctx, &r),
+		"LookupNames2 failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "LookupNames2 failed - %s\n",
+				nt_errstr(r.out.result));
 		return false;
 	}
 
@@ -412,7 +434,7 @@ static bool test_LookupNames2(struct dcerpc_pipe *p,
 }
 
 
-static bool test_LookupNames3(struct dcerpc_pipe *p,
+static bool test_LookupNames3(struct dcerpc_binding_handle *b,
 			      struct torture_context *tctx,
 			      struct policy_handle *handle,
 			      struct lsa_TransNameArray2 *tnames,
@@ -423,7 +445,6 @@ static bool test_LookupNames3(struct dcerpc_pipe *p,
 	struct lsa_RefDomainList *domains = NULL;
 	struct lsa_String *names;
 	uint32_t count = 0;
-	NTSTATUS status;
 	int i;
 
 	torture_comment(tctx, "\nTesting LookupNames3 with %d names\n", tnames->count);
@@ -448,9 +469,11 @@ static bool test_LookupNames3(struct dcerpc_pipe *p,
 	r.out.sids = &sids;
 	r.out.domains = &domains;
 
-	status = dcerpc_lsa_LookupNames3(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "LookupNames3 failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupNames3_r(b, tctx, &r),
+		"LookupNames3 failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "LookupNames3 failed - %s\n",
+				nt_errstr(r.out.result));
 		return false;
 	}
 
@@ -467,7 +490,7 @@ static bool test_LookupNames3(struct dcerpc_pipe *p,
 	return true;
 }
 
-static bool test_LookupNames4(struct dcerpc_pipe *p,
+static bool test_LookupNames4(struct dcerpc_binding_handle *b,
 			      struct torture_context *tctx,
 			      struct lsa_TransNameArray2 *tnames,
 			      bool check_result)
@@ -477,7 +500,6 @@ static bool test_LookupNames4(struct dcerpc_pipe *p,
 	struct lsa_RefDomainList *domains = NULL;
 	struct lsa_String *names;
 	uint32_t count = 0;
-	NTSTATUS status;
 	int i;
 
 	torture_comment(tctx, "\nTesting LookupNames4 with %d names\n", tnames->count);
@@ -501,9 +523,11 @@ static bool test_LookupNames4(struct dcerpc_pipe *p,
 	r.out.sids = &sids;
 	r.out.domains = &domains;
 
-	status = dcerpc_lsa_LookupNames4(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "LookupNames4 failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupNames4_r(b, tctx, &r),
+		"LookupNames4 failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "LookupNames4 failed - %s\n",
+				nt_errstr(r.out.result));
 		return false;
 	}
 
@@ -521,7 +545,7 @@ static bool test_LookupNames4(struct dcerpc_pipe *p,
 }
 
 
-static bool test_LookupSids(struct dcerpc_pipe *p,
+static bool test_LookupSids(struct dcerpc_binding_handle *b,
 			    struct torture_context *tctx,
 			    struct policy_handle *handle,
 			    struct lsa_SidArray *sids)
@@ -530,7 +554,6 @@ static bool test_LookupSids(struct dcerpc_pipe *p,
 	struct lsa_TransNameArray names;
 	struct lsa_RefDomainList *domains = NULL;
 	uint32_t count = sids->num_sids;
-	NTSTATUS status;
 
 	torture_comment(tctx, "\nTesting LookupSids\n");
 
@@ -546,15 +569,17 @@ static bool test_LookupSids(struct dcerpc_pipe *p,
 	r.out.names = &names;
 	r.out.domains = &domains;
 
-	status = dcerpc_lsa_LookupSids(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "LookupSids failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupSids_r(b, tctx, &r),
+		"LookupSids failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "LookupSids failed - %s\n",
+				nt_errstr(r.out.result));
 		return false;
 	}
 
 	torture_comment(tctx, "\n");
 
-	if (!test_LookupNames(p, tctx, handle, &names)) {
+	if (!test_LookupNames(b, tctx, handle, &names)) {
 		return false;
 	}
 
@@ -562,7 +587,7 @@ static bool test_LookupSids(struct dcerpc_pipe *p,
 }
 
 
-static bool test_LookupSids2(struct dcerpc_pipe *p,
+static bool test_LookupSids2(struct dcerpc_binding_handle *b,
 			    struct torture_context *tctx,
 			    struct policy_handle *handle,
 			    struct lsa_SidArray *sids)
@@ -571,7 +596,6 @@ static bool test_LookupSids2(struct dcerpc_pipe *p,
 	struct lsa_TransNameArray2 names;
 	struct lsa_RefDomainList *domains = NULL;
 	uint32_t count = sids->num_sids;
-	NTSTATUS status;
 
 	torture_comment(tctx, "\nTesting LookupSids2\n");
 
@@ -589,26 +613,28 @@ static bool test_LookupSids2(struct dcerpc_pipe *p,
 	r.out.names = &names;
 	r.out.domains = &domains;
 
-	status = dcerpc_lsa_LookupSids2(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "LookupSids2 failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupSids2_r(b, tctx, &r),
+		"LookupSids2 failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "LookupSids2 failed - %s\n",
+				nt_errstr(r.out.result));
 		return false;
 	}
 
 	torture_comment(tctx, "\n");
 
-	if (!test_LookupNames2(p, tctx, handle, &names, false)) {
+	if (!test_LookupNames2(b, tctx, handle, &names, false)) {
 		return false;
 	}
 
-	if (!test_LookupNames3(p, tctx, handle, &names, false)) {
+	if (!test_LookupNames3(b, tctx, handle, &names, false)) {
 		return false;
 	}
 
 	return true;
 }
 
-static bool test_LookupSids3(struct dcerpc_pipe *p,
+static bool test_LookupSids3(struct dcerpc_binding_handle *b,
 			    struct torture_context *tctx,
 			    struct lsa_SidArray *sids)
 {
@@ -616,7 +642,6 @@ static bool test_LookupSids3(struct dcerpc_pipe *p,
 	struct lsa_TransNameArray2 names;
 	struct lsa_RefDomainList *domains = NULL;
 	uint32_t count = sids->num_sids;
-	NTSTATUS status;
 
 	torture_comment(tctx, "\nTesting LookupSids3\n");
 
@@ -633,21 +658,23 @@ static bool test_LookupSids3(struct dcerpc_pipe *p,
 	r.out.count = &count;
 	r.out.names = &names;
 
-	status = dcerpc_lsa_LookupSids3(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		if (NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED) ||
-		    NT_STATUS_EQUAL(status, NT_STATUS_RPC_PROTSEQ_NOT_SUPPORTED)) {
-			torture_comment(tctx, "not considering %s to be an error\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupSids3_r(b, tctx, &r),
+		"LookupSids3 failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		if (NT_STATUS_EQUAL(r.out.result, NT_STATUS_ACCESS_DENIED) ||
+		    NT_STATUS_EQUAL(r.out.result, NT_STATUS_RPC_PROTSEQ_NOT_SUPPORTED)) {
+			torture_comment(tctx, "not considering %s to be an error\n",
+					nt_errstr(r.out.result));
 			return true;
 		}
 		torture_comment(tctx, "LookupSids3 failed - %s - not considered an error\n",
-		       nt_errstr(status));
+				nt_errstr(r.out.result));
 		return false;
 	}
 
 	torture_comment(tctx, "\n");
 
-	if (!test_LookupNames4(p, tctx, &names, false)) {
+	if (!test_LookupNames4(b, tctx, &names, false)) {
 		return false;
 	}
 
@@ -659,9 +686,9 @@ bool test_many_LookupSids(struct dcerpc_pipe *p,
 			  struct policy_handle *handle)
 {
 	uint32_t count;
-	NTSTATUS status;
 	struct lsa_SidArray sids;
 	int i;
+	struct dcerpc_binding_handle *b = p->binding_handle;
 
 	torture_comment(tctx, "\nTesting LookupSids with lots of SIDs\n");
 
@@ -692,15 +719,17 @@ bool test_many_LookupSids(struct dcerpc_pipe *p,
 		r.out.names = &names;
 		r.out.domains = &domains;
 
-		status = dcerpc_lsa_LookupSids(p, tctx, &r);
-		if (!NT_STATUS_IS_OK(status)) {
-			torture_comment(tctx, "LookupSids failed - %s\n", nt_errstr(status));
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupSids_r(b, tctx, &r),
+			"LookupSids failed");
+		if (!NT_STATUS_IS_OK(r.out.result)) {
+			torture_comment(tctx, "LookupSids failed - %s\n",
+					nt_errstr(r.out.result));
 			return false;
 		}
 
 		torture_comment(tctx, "\n");
 
-		if (!test_LookupNames(p, tctx, handle, &names)) {
+		if (!test_LookupNames(b, tctx, handle, &names)) {
 			return false;
 		}
 	} else if (p->conn->security_state.auth_info->auth_type == DCERPC_AUTH_TYPE_SCHANNEL &&
@@ -724,18 +753,20 @@ bool test_many_LookupSids(struct dcerpc_pipe *p,
 		r.out.names = &names;
 		r.out.domains = &domains;
 
-		status = dcerpc_lsa_LookupSids3(p, tctx, &r);
-		if (!NT_STATUS_IS_OK(status)) {
-			if (NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED) ||
-			    NT_STATUS_EQUAL(status, NT_STATUS_RPC_PROTSEQ_NOT_SUPPORTED)) {
-				torture_comment(tctx, "not considering %s to be an error\n", nt_errstr(status));
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupSids3_r(b, tctx, &r),
+			"LookupSids3 failed");
+		if (!NT_STATUS_IS_OK(r.out.result)) {
+			if (NT_STATUS_EQUAL(r.out.result, NT_STATUS_ACCESS_DENIED) ||
+			    NT_STATUS_EQUAL(r.out.result, NT_STATUS_RPC_PROTSEQ_NOT_SUPPORTED)) {
+				torture_comment(tctx, "not considering %s to be an error\n",
+						nt_errstr(r.out.result));
 				return true;
 			}
 			torture_comment(tctx, "LookupSids3 failed - %s\n",
-			       nt_errstr(status));
+					nt_errstr(r.out.result));
 			return false;
 		}
-		if (!test_LookupNames4(p, tctx, &names, false)) {
+		if (!test_LookupNames4(b, tctx, &names, false)) {
 			return false;
 		}
 	}
@@ -747,12 +778,13 @@ bool test_many_LookupSids(struct dcerpc_pipe *p,
 	return true;
 }
 
-static void lookupsids_cb(struct rpc_request *req)
+static void lookupsids_cb(struct tevent_req *subreq)
 {
-	int *replies = (int *)req->async.private_data;
+	int *replies = (int *)tevent_req_callback_data_void(subreq);
 	NTSTATUS status;
 
-	status = dcerpc_ndr_request_recv(req);
+	status = dcerpc_lsa_LookupSids_r_recv(subreq, subreq);
+	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("lookupsids returned %s\n", nt_errstr(status));
 		*replies = -1;
@@ -763,7 +795,7 @@ static void lookupsids_cb(struct rpc_request *req)
 	}
 }
 
-static bool test_LookupSids_async(struct dcerpc_pipe *p,
+static bool test_LookupSids_async(struct dcerpc_binding_handle *b,
 				  struct torture_context *tctx,
 				  struct policy_handle *handle)
 {
@@ -773,7 +805,7 @@ static bool test_LookupSids_async(struct dcerpc_pipe *p,
 	struct lsa_TransNameArray *names;
 	struct lsa_LookupSids *r;
 	struct lsa_RefDomainList *domains = NULL;
-	struct rpc_request **req;
+	struct tevent_req **req;
 	int i, replies;
 	bool ret = true;
 	const int num_async_requests = 50;
@@ -784,7 +816,7 @@ static bool test_LookupSids_async(struct dcerpc_pipe *p,
 
 	torture_comment(tctx, "\nTesting %d async lookupsids request\n", num_async_requests);
 
-	req = talloc_array(tctx, struct rpc_request *, num_async_requests);
+	req = talloc_array(tctx, struct tevent_req *, num_async_requests);
 
 	sids.num_sids = 1;
 	sids.sids = &sidptr;
@@ -806,18 +838,17 @@ static bool test_LookupSids_async(struct dcerpc_pipe *p,
 		r[i].out.names = &names[i];
 		r[i].out.domains = &domains;
 
-		req[i] = dcerpc_lsa_LookupSids_send(p, req, &r[i]);
+		req[i] = dcerpc_lsa_LookupSids_r_send(tctx, tctx->ev, b, &r[i]);
 		if (req[i] == NULL) {
 			ret = false;
 			break;
 		}
 
-		req[i]->async.callback = lookupsids_cb;
-		req[i]->async.private_data = &replies;
+		tevent_req_set_callback(req[i], lookupsids_cb, &replies);
 	}
 
 	while (replies >= 0 && replies < num_async_requests) {
-		event_loop_once(p->conn->event_ctx);
+		event_loop_once(tctx->ev);
 	}
 
 	talloc_free(req);
@@ -829,12 +860,11 @@ static bool test_LookupSids_async(struct dcerpc_pipe *p,
 	return ret;
 }
 
-static bool test_LookupPrivValue(struct dcerpc_pipe *p,
+static bool test_LookupPrivValue(struct dcerpc_binding_handle *b,
 				 struct torture_context *tctx,
 				 struct policy_handle *handle,
 				 struct lsa_String *name)
 {
-	NTSTATUS status;
 	struct lsa_LookupPrivValue r;
 	struct lsa_LUID luid;
 
@@ -842,21 +872,22 @@ static bool test_LookupPrivValue(struct dcerpc_pipe *p,
 	r.in.name = name;
 	r.out.luid = &luid;
 
-	status = dcerpc_lsa_LookupPrivValue(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "\nLookupPrivValue failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupPrivValue_r(b, tctx, &r),
+		"LookupPrivValue failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "\nLookupPrivValue failed - %s\n",
+				nt_errstr(r.out.result));
 		return false;
 	}
 
 	return true;
 }
 
-static bool test_LookupPrivName(struct dcerpc_pipe *p,
+static bool test_LookupPrivName(struct dcerpc_binding_handle *b,
 				struct torture_context *tctx,
 				struct policy_handle *handle,
 				struct lsa_LUID *luid)
 {
-	NTSTATUS status;
 	struct lsa_LookupPrivName r;
 	struct lsa_StringLarge *name = NULL;
 
@@ -864,22 +895,23 @@ static bool test_LookupPrivName(struct dcerpc_pipe *p,
 	r.in.luid = luid;
 	r.out.name = &name;
 
-	status = dcerpc_lsa_LookupPrivName(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "\nLookupPrivName failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupPrivName_r(b, tctx, &r),
+		"LookupPrivName failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "\nLookupPrivName failed - %s\n",
+				nt_errstr(r.out.result));
 		return false;
 	}
 
 	return true;
 }
 
-static bool test_RemovePrivilegesFromAccount(struct dcerpc_pipe *p,
+static bool test_RemovePrivilegesFromAccount(struct dcerpc_binding_handle *b,
 					     struct torture_context *tctx,
 					     struct policy_handle *handle,
 					     struct policy_handle *acct_handle,
 					     struct lsa_LUID *luid)
 {
-	NTSTATUS status;
 	struct lsa_RemovePrivilegesFromAccount r;
 	struct lsa_PrivilegeSet privs;
 	bool ret = true;
@@ -896,8 +928,9 @@ static bool test_RemovePrivilegesFromAccount(struct dcerpc_pipe *p,
 	privs.set[0].luid = *luid;
 	privs.set[0].attribute = 0;
 
-	status = dcerpc_lsa_RemovePrivilegesFromAccount(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_RemovePrivilegesFromAccount_r(b, tctx, &r),
+		"RemovePrivilegesFromAccount failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
 
 		struct lsa_LookupPrivName r_name;
 		struct lsa_StringLarge *name = NULL;
@@ -906,9 +939,11 @@ static bool test_RemovePrivilegesFromAccount(struct dcerpc_pipe *p,
 		r_name.in.luid = luid;
 		r_name.out.name = &name;
 
-		status = dcerpc_lsa_LookupPrivName(p, tctx, &r_name);
-		if (!NT_STATUS_IS_OK(status)) {
-			torture_comment(tctx, "\nLookupPrivName failed - %s\n", nt_errstr(status));
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupPrivName_r(b, tctx, &r_name),
+			"LookupPrivName failed");
+		if (!NT_STATUS_IS_OK(r_name.out.result)) {
+			torture_comment(tctx, "\nLookupPrivName failed - %s\n",
+					nt_errstr(r_name.out.result));
 			return false;
 		}
 		/* Windows 2008 does not allow this to be removed */
@@ -918,19 +953,18 @@ static bool test_RemovePrivilegesFromAccount(struct dcerpc_pipe *p,
 
 		torture_comment(tctx, "RemovePrivilegesFromAccount failed to remove %s - %s\n",
 		       name->string,
-		       nt_errstr(status));
+		       nt_errstr(r.out.result));
 		return false;
 	}
 
 	return ret;
 }
 
-static bool test_AddPrivilegesToAccount(struct dcerpc_pipe *p,
+static bool test_AddPrivilegesToAccount(struct dcerpc_binding_handle *b,
 					struct torture_context *tctx,
 					struct policy_handle *acct_handle,
 					struct lsa_LUID *luid)
 {
-	NTSTATUS status;
 	struct lsa_AddPrivilegesToAccount r;
 	struct lsa_PrivilegeSet privs;
 	bool ret = true;
@@ -946,21 +980,22 @@ static bool test_AddPrivilegesToAccount(struct dcerpc_pipe *p,
 	privs.set[0].luid = *luid;
 	privs.set[0].attribute = 0;
 
-	status = dcerpc_lsa_AddPrivilegesToAccount(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "AddPrivilegesToAccount failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_AddPrivilegesToAccount_r(b, tctx, &r),
+		"AddPrivilegesToAccount failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "AddPrivilegesToAccount failed - %s\n",
+				nt_errstr(r.out.result));
 		return false;
 	}
 
 	return ret;
 }
 
-static bool test_EnumPrivsAccount(struct dcerpc_pipe *p,
+static bool test_EnumPrivsAccount(struct dcerpc_binding_handle *b,
 				  struct torture_context *tctx,
 				  struct policy_handle *handle,
 				  struct policy_handle *acct_handle)
 {
-	NTSTATUS status;
 	struct lsa_EnumPrivsAccount r;
 	struct lsa_PrivilegeSet *privs = NULL;
 	bool ret = true;
@@ -970,34 +1005,35 @@ static bool test_EnumPrivsAccount(struct dcerpc_pipe *p,
 	r.in.handle = acct_handle;
 	r.out.privs = &privs;
 
-	status = dcerpc_lsa_EnumPrivsAccount(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "EnumPrivsAccount failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_EnumPrivsAccount_r(b, tctx, &r),
+		"EnumPrivsAccount failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "EnumPrivsAccount failed - %s\n",
+				nt_errstr(r.out.result));
 		return false;
 	}
 
 	if (privs && privs->count > 0) {
 		int i;
 		for (i=0;i<privs->count;i++) {
-			test_LookupPrivName(p, tctx, handle,
+			test_LookupPrivName(b, tctx, handle,
 					    &privs->set[i].luid);
 		}
 
-		ret &= test_RemovePrivilegesFromAccount(p, tctx, handle, acct_handle,
+		ret &= test_RemovePrivilegesFromAccount(b, tctx, handle, acct_handle,
 							&privs->set[0].luid);
-		ret &= test_AddPrivilegesToAccount(p, tctx, acct_handle,
+		ret &= test_AddPrivilegesToAccount(b, tctx, acct_handle,
 						   &privs->set[0].luid);
 	}
 
 	return ret;
 }
 
-static bool test_GetSystemAccessAccount(struct dcerpc_pipe *p,
+static bool test_GetSystemAccessAccount(struct dcerpc_binding_handle *b,
 					struct torture_context *tctx,
 					struct policy_handle *handle,
 					struct policy_handle *acct_handle)
 {
-	NTSTATUS status;
 	uint32_t access_mask;
 	struct lsa_GetSystemAccessAccount r;
 
@@ -1006,9 +1042,11 @@ static bool test_GetSystemAccessAccount(struct dcerpc_pipe *p,
 	r.in.handle = acct_handle;
 	r.out.access_mask = &access_mask;
 
-	status = dcerpc_lsa_GetSystemAccessAccount(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "GetSystemAccessAccount failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_GetSystemAccessAccount_r(b, tctx, &r),
+		"GetSystemAccessAccount failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "GetSystemAccessAccount failed - %s\n",
+				nt_errstr(r.out.result));
 		return false;
 	}
 
@@ -1046,39 +1084,40 @@ static bool test_GetSystemAccessAccount(struct dcerpc_pipe *p,
 	return true;
 }
 
-static bool test_Delete(struct dcerpc_pipe *p,
+static bool test_Delete(struct dcerpc_binding_handle *b,
 			struct torture_context *tctx,
 			struct policy_handle *handle)
 {
-	NTSTATUS status;
 	struct lsa_Delete r;
 
 	torture_comment(tctx, "\nTesting Delete\n");
 
 	r.in.handle = handle;
-	status = dcerpc_lsa_Delete(p, tctx, &r);
-	if (!NT_STATUS_EQUAL(status, NT_STATUS_NOT_SUPPORTED)) {
-		torture_comment(tctx, "Delete should have failed NT_STATUS_NOT_SUPPORTED - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_Delete_r(b, tctx, &r),
+		"Delete failed");
+	if (!NT_STATUS_EQUAL(r.out.result, NT_STATUS_NOT_SUPPORTED)) {
+		torture_comment(tctx, "Delete should have failed NT_STATUS_NOT_SUPPORTED - %s\n", nt_errstr(r.out.result));
 		return false;
 	}
 
 	return true;
 }
 
-static bool test_DeleteObject(struct dcerpc_pipe *p,
+static bool test_DeleteObject(struct dcerpc_binding_handle *b,
 			      struct torture_context *tctx,
 			      struct policy_handle *handle)
 {
-	NTSTATUS status;
 	struct lsa_DeleteObject r;
 
 	torture_comment(tctx, "\nTesting DeleteObject\n");
 
 	r.in.handle = handle;
 	r.out.handle = handle;
-	status = dcerpc_lsa_DeleteObject(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "DeleteObject failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_DeleteObject_r(b, tctx, &r),
+		"DeleteObject failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "DeleteObject failed - %s\n",
+				nt_errstr(r.out.result));
 		return false;
 	}
 
@@ -1086,11 +1125,10 @@ static bool test_DeleteObject(struct dcerpc_pipe *p,
 }
 
 
-static bool test_CreateAccount(struct dcerpc_pipe *p,
+static bool test_CreateAccount(struct dcerpc_binding_handle *b,
 			       struct torture_context *tctx,
 			       struct policy_handle *handle)
 {
-	NTSTATUS status;
 	struct lsa_CreateAccount r;
 	struct dom_sid2 *newsid;
 	struct policy_handle acct_handle;
@@ -1104,41 +1142,44 @@ static bool test_CreateAccount(struct dcerpc_pipe *p,
 	r.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	r.out.acct_handle = &acct_handle;
 
-	status = dcerpc_lsa_CreateAccount(p, tctx, &r);
-	if (NT_STATUS_EQUAL(status, NT_STATUS_OBJECT_NAME_COLLISION)) {
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_CreateAccount_r(b, tctx, &r),
+		"CreateAccount failed");
+	if (NT_STATUS_EQUAL(r.out.result, NT_STATUS_OBJECT_NAME_COLLISION)) {
 		struct lsa_OpenAccount r_o;
 		r_o.in.handle = handle;
 		r_o.in.sid = newsid;
 		r_o.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 		r_o.out.acct_handle = &acct_handle;
 
-		status = dcerpc_lsa_OpenAccount(p, tctx, &r_o);
-		if (!NT_STATUS_IS_OK(status)) {
-			torture_comment(tctx, "OpenAccount failed - %s\n", nt_errstr(status));
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_OpenAccount_r(b, tctx, &r_o),
+			"OpenAccount failed");
+		if (!NT_STATUS_IS_OK(r_o.out.result)) {
+			torture_comment(tctx, "OpenAccount failed - %s\n",
+					nt_errstr(r_o.out.result));
 			return false;
 		}
-	} else if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "CreateAccount failed - %s\n", nt_errstr(status));
+	} else if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "CreateAccount failed - %s\n",
+				nt_errstr(r.out.result));
 		return false;
 	}
 
-	if (!test_Delete(p, tctx, &acct_handle)) {
+	if (!test_Delete(b, tctx, &acct_handle)) {
 		return false;
 	}
 
-	if (!test_DeleteObject(p, tctx, &acct_handle)) {
+	if (!test_DeleteObject(b, tctx, &acct_handle)) {
 		return false;
 	}
 
 	return true;
 }
 
-static bool test_DeleteTrustedDomain(struct dcerpc_pipe *p,
+static bool test_DeleteTrustedDomain(struct dcerpc_binding_handle *b,
 				     struct torture_context *tctx,
 				     struct policy_handle *handle,
 				     struct lsa_StringLarge name)
 {
-	NTSTATUS status;
 	struct lsa_OpenTrustedDomainByName r;
 	struct policy_handle trustdom_handle;
 
@@ -1147,37 +1188,38 @@ static bool test_DeleteTrustedDomain(struct dcerpc_pipe *p,
 	r.in.access_mask = SEC_STD_DELETE;
 	r.out.trustdom_handle = &trustdom_handle;
 
-	status = dcerpc_lsa_OpenTrustedDomainByName(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "OpenTrustedDomainByName failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_OpenTrustedDomainByName_r(b, tctx, &r),
+		"OpenTrustedDomainByName failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "OpenTrustedDomainByName failed - %s\n", nt_errstr(r.out.result));
 		return false;
 	}
 
-	if (!test_Delete(p, tctx, &trustdom_handle)) {
+	if (!test_Delete(b, tctx, &trustdom_handle)) {
 		return false;
 	}
 
-	if (!test_DeleteObject(p, tctx, &trustdom_handle)) {
+	if (!test_DeleteObject(b, tctx, &trustdom_handle)) {
 		return false;
 	}
 
 	return true;
 }
 
-static bool test_DeleteTrustedDomainBySid(struct dcerpc_pipe *p,
+static bool test_DeleteTrustedDomainBySid(struct dcerpc_binding_handle *b,
 					  struct torture_context *tctx,
 					  struct policy_handle *handle,
 					  struct dom_sid *sid)
 {
-	NTSTATUS status;
 	struct lsa_DeleteTrustedDomain r;
 
 	r.in.handle = handle;
 	r.in.dom_sid = sid;
 
-	status = dcerpc_lsa_DeleteTrustedDomain(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "DeleteTrustedDomain failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_DeleteTrustedDomain_r(b, tctx, &r),
+		"DeleteTrustedDomain failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "DeleteTrustedDomain failed - %s\n", nt_errstr(r.out.result));
 		return false;
 	}
 
@@ -1218,9 +1260,10 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 	int i;
 	const int LOCAL = 0;
 	const int GLOBAL = 1;
+	struct dcerpc_binding_handle *b = p->binding_handle;
 
-	secname[LOCAL] = talloc_asprintf(tctx, "torturesecret-%u", (uint_t)random());
-	secname[GLOBAL] = talloc_asprintf(tctx, "G$torturesecret-%u", (uint_t)random());
+	secname[LOCAL] = talloc_asprintf(tctx, "torturesecret-%u", (unsigned int)random());
+	secname[GLOBAL] = talloc_asprintf(tctx, "G$torturesecret-%u", (unsigned int)random());
 
 	for (i=0; i< 2; i++) {
 		torture_comment(tctx, "\nTesting CreateSecret of %s\n", secname[i]);
@@ -1231,9 +1274,10 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 		r.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 		r.out.sec_handle = &sec_handle;
 
-		status = dcerpc_lsa_CreateSecret(p, tctx, &r);
-		if (!NT_STATUS_IS_OK(status)) {
-			torture_comment(tctx, "CreateSecret failed - %s\n", nt_errstr(status));
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_CreateSecret_r(b, tctx, &r),
+			"CreateSecret failed");
+		if (!NT_STATUS_IS_OK(r.out.result)) {
+			torture_comment(tctx, "CreateSecret failed - %s\n", nt_errstr(r.out.result));
 			return false;
 		}
 
@@ -1241,9 +1285,10 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 		r.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 		r.out.sec_handle = &sec_handle3;
 
-		status = dcerpc_lsa_CreateSecret(p, tctx, &r);
-		if (!NT_STATUS_EQUAL(status, NT_STATUS_OBJECT_NAME_COLLISION)) {
-			torture_comment(tctx, "CreateSecret should have failed OBJECT_NAME_COLLISION - %s\n", nt_errstr(status));
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_CreateSecret_r(b, tctx, &r),
+			"CreateSecret failed");
+		if (!NT_STATUS_EQUAL(r.out.result, NT_STATUS_OBJECT_NAME_COLLISION)) {
+			torture_comment(tctx, "CreateSecret should have failed OBJECT_NAME_COLLISION - %s\n", nt_errstr(r.out.result));
 			return false;
 		}
 
@@ -1254,9 +1299,10 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 
 		torture_comment(tctx, "Testing OpenSecret\n");
 
-		status = dcerpc_lsa_OpenSecret(p, tctx, &r2);
-		if (!NT_STATUS_IS_OK(status)) {
-			torture_comment(tctx, "OpenSecret failed - %s\n", nt_errstr(status));
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_OpenSecret_r(b, tctx, &r2),
+			"OpenSecret failed");
+		if (!NT_STATUS_IS_OK(r2.out.result)) {
+			torture_comment(tctx, "OpenSecret failed - %s\n", nt_errstr(r2.out.result));
 			return false;
 		}
 
@@ -1277,9 +1323,10 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 
 		torture_comment(tctx, "Testing SetSecret\n");
 
-		status = dcerpc_lsa_SetSecret(p, tctx, &r3);
-		if (!NT_STATUS_IS_OK(status)) {
-			torture_comment(tctx, "SetSecret failed - %s\n", nt_errstr(status));
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_SetSecret_r(b, tctx, &r3),
+			"SetSecret failed");
+		if (!NT_STATUS_IS_OK(r3.out.result)) {
+			torture_comment(tctx, "SetSecret failed - %s\n", nt_errstr(r3.out.result));
 			return false;
 		}
 
@@ -1295,9 +1342,10 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 
 		torture_comment(tctx, "Testing SetSecret with broken key\n");
 
-		status = dcerpc_lsa_SetSecret(p, tctx, &r3);
-		if (!NT_STATUS_EQUAL(status, NT_STATUS_UNKNOWN_REVISION)) {
-			torture_comment(tctx, "SetSecret should have failed UNKNOWN_REVISION - %s\n", nt_errstr(status));
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_SetSecret_r(b, tctx, &r3),
+			"SetSecret failed");
+		if (!NT_STATUS_EQUAL(r3.out.result, NT_STATUS_UNKNOWN_REVISION)) {
+			torture_comment(tctx, "SetSecret should have failed UNKNOWN_REVISION - %s\n", nt_errstr(r3.out.result));
 			ret = false;
 		}
 
@@ -1316,9 +1364,10 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 		bufp1.buf = NULL;
 
 		torture_comment(tctx, "Testing QuerySecret\n");
-		status = dcerpc_lsa_QuerySecret(p, tctx, &r4);
-		if (!NT_STATUS_IS_OK(status)) {
-			torture_comment(tctx, "QuerySecret failed - %s\n", nt_errstr(status));
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_QuerySecret_r(b, tctx, &r4),
+			"QuerySecret failed");
+		if (!NT_STATUS_IS_OK(r4.out.result)) {
+			torture_comment(tctx, "QuerySecret failed - %s\n", nt_errstr(r4.out.result));
 			ret = false;
 		} else {
 			if (r4.out.new_val == NULL || r4.out.new_val->buf == NULL) {
@@ -1354,9 +1403,10 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 		msleep(200);
 		torture_comment(tctx, "Testing SetSecret (existing value should move to old)\n");
 
-		status = dcerpc_lsa_SetSecret(p, tctx, &r5);
-		if (!NT_STATUS_IS_OK(status)) {
-			torture_comment(tctx, "SetSecret failed - %s\n", nt_errstr(status));
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_SetSecret_r(b, tctx, &r5),
+			"SetSecret failed");
+		if (!NT_STATUS_IS_OK(r5.out.result)) {
+			torture_comment(tctx, "SetSecret failed - %s\n", nt_errstr(r5.out.result));
 			ret = false;
 		}
 
@@ -1375,9 +1425,10 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 		bufp1.buf = NULL;
 		bufp2.buf = NULL;
 
-		status = dcerpc_lsa_QuerySecret(p, tctx, &r6);
-		if (!NT_STATUS_IS_OK(status)) {
-			torture_comment(tctx, "QuerySecret failed - %s\n", nt_errstr(status));
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_QuerySecret_r(b, tctx, &r6),
+			"QuerySecret failed");
+		if (!NT_STATUS_IS_OK(r6.out.result)) {
+			torture_comment(tctx, "QuerySecret failed - %s\n", nt_errstr(r6.out.result));
 			ret = false;
 			secret4 = NULL;
 		} else {
@@ -1436,9 +1487,10 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 
 		torture_comment(tctx, "Testing SetSecret of old Secret only\n");
 
-		status = dcerpc_lsa_SetSecret(p, tctx, &r7);
-		if (!NT_STATUS_IS_OK(status)) {
-			torture_comment(tctx, "SetSecret failed - %s\n", nt_errstr(status));
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_SetSecret_r(b, tctx, &r7),
+			"SetSecret failed");
+		if (!NT_STATUS_IS_OK(r7.out.result)) {
+			torture_comment(tctx, "SetSecret failed - %s\n", nt_errstr(r7.out.result));
 			ret = false;
 		}
 
@@ -1454,9 +1506,10 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 		bufp1.buf = NULL;
 		bufp2.buf = NULL;
 
-		status = dcerpc_lsa_QuerySecret(p, tctx, &r8);
-		if (!NT_STATUS_IS_OK(status)) {
-			torture_comment(tctx, "QuerySecret failed - %s\n", nt_errstr(status));
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_QuerySecret_r(b, tctx, &r8),
+			"QuerySecret failed");
+		if (!NT_STATUS_IS_OK(r8.out.result)) {
+			torture_comment(tctx, "QuerySecret failed - %s\n", nt_errstr(r8.out.result));
 			ret = false;
 		} else {
 			if (!r8.out.new_val || !r8.out.old_val) {
@@ -1495,27 +1548,29 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 			}
 		}
 
-		if (!test_Delete(p, tctx, &sec_handle)) {
+		if (!test_Delete(b, tctx, &sec_handle)) {
 			ret = false;
 		}
 
-		if (!test_DeleteObject(p, tctx, &sec_handle)) {
+		if (!test_DeleteObject(b, tctx, &sec_handle)) {
 			return false;
 		}
 
 		d_o.in.handle = &sec_handle2;
 		d_o.out.handle = &sec_handle2;
-		status = dcerpc_lsa_DeleteObject(p, tctx, &d_o);
-		if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_HANDLE)) {
-			torture_comment(tctx, "Second delete expected INVALID_HANDLE - %s\n", nt_errstr(status));
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_DeleteObject_r(b, tctx, &d_o),
+			"DeleteObject failed");
+		if (!NT_STATUS_EQUAL(d_o.out.result, NT_STATUS_INVALID_HANDLE)) {
+			torture_comment(tctx, "Second delete expected INVALID_HANDLE - %s\n", nt_errstr(d_o.out.result));
 			ret = false;
 		} else {
 
 			torture_comment(tctx, "Testing OpenSecret of just-deleted secret\n");
 
-			status = dcerpc_lsa_OpenSecret(p, tctx, &r2);
-			if (!NT_STATUS_EQUAL(status, NT_STATUS_OBJECT_NAME_NOT_FOUND)) {
-				torture_comment(tctx, "OpenSecret expected OBJECT_NAME_NOT_FOUND - %s\n", nt_errstr(status));
+			torture_assert_ntstatus_ok(tctx, dcerpc_lsa_OpenSecret_r(b, tctx, &r2),
+				"OpenSecret failed");
+			if (!NT_STATUS_EQUAL(r2.out.result, NT_STATUS_OBJECT_NAME_NOT_FOUND)) {
+				torture_comment(tctx, "OpenSecret expected OBJECT_NAME_NOT_FOUND - %s\n", nt_errstr(r2.out.result));
 				ret = false;
 			}
 		}
@@ -1526,12 +1581,11 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 }
 
 
-static bool test_EnumAccountRights(struct dcerpc_pipe *p,
+static bool test_EnumAccountRights(struct dcerpc_binding_handle *b,
 				   struct torture_context *tctx,
 				   struct policy_handle *acct_handle,
 				   struct dom_sid *sid)
 {
-	NTSTATUS status;
 	struct lsa_EnumAccountRights r;
 	struct lsa_RightSet rights;
 
@@ -1541,10 +1595,11 @@ static bool test_EnumAccountRights(struct dcerpc_pipe *p,
 	r.in.sid = sid;
 	r.out.rights = &rights;
 
-	status = dcerpc_lsa_EnumAccountRights(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_EnumAccountRights_r(b, tctx, &r),
+		"EnumAccountRights failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
 		torture_comment(tctx, "EnumAccountRights of %s failed - %s\n",
-		       dom_sid_string(tctx, sid), nt_errstr(status));
+		       dom_sid_string(tctx, sid), nt_errstr(r.out.result));
 		return false;
 	}
 
@@ -1552,12 +1607,11 @@ static bool test_EnumAccountRights(struct dcerpc_pipe *p,
 }
 
 
-static bool test_QuerySecurity(struct dcerpc_pipe *p,
+static bool test_QuerySecurity(struct dcerpc_binding_handle *b,
 			     struct torture_context *tctx,
 			     struct policy_handle *handle,
 			     struct policy_handle *acct_handle)
 {
-	NTSTATUS status;
 	struct lsa_QuerySecurity r;
 	struct sec_desc_buf *sdbuf = NULL;
 
@@ -1574,21 +1628,21 @@ static bool test_QuerySecurity(struct dcerpc_pipe *p,
 			SECINFO_DACL;
 	r.out.sdbuf = &sdbuf;
 
-	status = dcerpc_lsa_QuerySecurity(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "QuerySecurity failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_QuerySecurity_r(b, tctx, &r),
+		"QuerySecurity failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "QuerySecurity failed - %s\n", nt_errstr(r.out.result));
 		return false;
 	}
 
 	return true;
 }
 
-static bool test_OpenAccount(struct dcerpc_pipe *p,
+static bool test_OpenAccount(struct dcerpc_binding_handle *b,
 			     struct torture_context *tctx,
 			     struct policy_handle *handle,
 			     struct dom_sid *sid)
 {
-	NTSTATUS status;
 	struct lsa_OpenAccount r;
 	struct policy_handle acct_handle;
 
@@ -1599,32 +1653,32 @@ static bool test_OpenAccount(struct dcerpc_pipe *p,
 	r.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	r.out.acct_handle = &acct_handle;
 
-	status = dcerpc_lsa_OpenAccount(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "OpenAccount failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_OpenAccount_r(b, tctx, &r),
+		"OpenAccount failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "OpenAccount failed - %s\n", nt_errstr(r.out.result));
 		return false;
 	}
 
-	if (!test_EnumPrivsAccount(p, tctx, handle, &acct_handle)) {
+	if (!test_EnumPrivsAccount(b, tctx, handle, &acct_handle)) {
 		return false;
 	}
 
-	if (!test_GetSystemAccessAccount(p, tctx, handle, &acct_handle)) {
+	if (!test_GetSystemAccessAccount(b, tctx, handle, &acct_handle)) {
 		return false;
 	}
 
-	if (!test_QuerySecurity(p, tctx, handle, &acct_handle)) {
+	if (!test_QuerySecurity(b, tctx, handle, &acct_handle)) {
 		return false;
 	}
 
 	return true;
 }
 
-static bool test_EnumAccounts(struct dcerpc_pipe *p,
+static bool test_EnumAccounts(struct dcerpc_binding_handle *b,
 			      struct torture_context *tctx,
 			      struct policy_handle *handle)
 {
-	NTSTATUS status;
 	struct lsa_EnumAccounts r;
 	struct lsa_SidArray sids1, sids2;
 	uint32_t resume_handle = 0;
@@ -1641,20 +1695,21 @@ static bool test_EnumAccounts(struct dcerpc_pipe *p,
 
 	resume_handle = 0;
 	while (true) {
-		status = dcerpc_lsa_EnumAccounts(p, tctx, &r);
-		if (NT_STATUS_EQUAL(status, NT_STATUS_NO_MORE_ENTRIES)) {
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_EnumAccounts_r(b, tctx, &r),
+			"EnumAccounts failed");
+		if (NT_STATUS_EQUAL(r.out.result, NT_STATUS_NO_MORE_ENTRIES)) {
 			break;
 		}
-		if (!NT_STATUS_IS_OK(status)) {
-			torture_comment(tctx, "EnumAccounts failed - %s\n", nt_errstr(status));
+		if (!NT_STATUS_IS_OK(r.out.result)) {
+			torture_comment(tctx, "EnumAccounts failed - %s\n", nt_errstr(r.out.result));
 			return false;
 		}
 
-		if (!test_LookupSids(p, tctx, handle, &sids1)) {
+		if (!test_LookupSids(b, tctx, handle, &sids1)) {
 			return false;
 		}
 
-		if (!test_LookupSids2(p, tctx, handle, &sids1)) {
+		if (!test_LookupSids2(b, tctx, handle, &sids1)) {
 			return false;
 		}
 
@@ -1664,8 +1719,8 @@ static bool test_EnumAccounts(struct dcerpc_pipe *p,
 
 		torture_comment(tctx, "Testing all accounts\n");
 		for (i=0;i<sids1.num_sids;i++) {
-			ret &= test_OpenAccount(p, tctx, handle, sids1.sids[i].sid);
-			ret &= test_EnumAccountRights(p, tctx, handle, sids1.sids[i].sid);
+			ret &= test_OpenAccount(b, tctx, handle, sids1.sids[i].sid);
+			ret &= test_EnumAccountRights(b, tctx, handle, sids1.sids[i].sid);
 		}
 		torture_comment(tctx, "\n");
 	}
@@ -1679,9 +1734,10 @@ static bool test_EnumAccounts(struct dcerpc_pipe *p,
 	r.in.num_entries = 1;
 	r.out.sids = &sids2;
 
-	status = dcerpc_lsa_EnumAccounts(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "EnumAccounts failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_EnumAccounts_r(b, tctx, &r),
+		"EnumAccounts failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "EnumAccounts failed - %s\n", nt_errstr(r.out.result));
 		return false;
 	}
 
@@ -1693,13 +1749,12 @@ static bool test_EnumAccounts(struct dcerpc_pipe *p,
 	return true;
 }
 
-static bool test_LookupPrivDisplayName(struct dcerpc_pipe *p,
+static bool test_LookupPrivDisplayName(struct dcerpc_binding_handle *b,
 				       struct torture_context *tctx,
 				       struct policy_handle *handle,
 				       struct lsa_String *priv_name)
 {
 	struct lsa_LookupPrivDisplayName r;
-	NTSTATUS status;
 	/* produce a reasonable range of language output without screwing up
 	   terminals */
 	uint16_t language_id = (random() % 4) + 0x409;
@@ -1715,9 +1770,10 @@ static bool test_LookupPrivDisplayName(struct dcerpc_pipe *p,
 	r.out.returned_language_id = &returned_language_id;
 	r.out.disp_name = &disp_name;
 
-	status = dcerpc_lsa_LookupPrivDisplayName(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "LookupPrivDisplayName failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupPrivDisplayName_r(b, tctx, &r),
+		"LookupPrivDisplayName failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "LookupPrivDisplayName failed - %s\n", nt_errstr(r.out.result));
 		return false;
 	}
 	torture_comment(tctx, "%s -> \"%s\"  (language 0x%x/0x%x)\n",
@@ -1727,14 +1783,13 @@ static bool test_LookupPrivDisplayName(struct dcerpc_pipe *p,
 	return true;
 }
 
-static bool test_EnumAccountsWithUserRight(struct dcerpc_pipe *p,
+static bool test_EnumAccountsWithUserRight(struct dcerpc_binding_handle *b,
 					   struct torture_context *tctx,
 					   struct policy_handle *handle,
 					   struct lsa_String *priv_name)
 {
 	struct lsa_EnumAccountsWithUserRight r;
 	struct lsa_SidArray sids;
-	NTSTATUS status;
 
 	ZERO_STRUCT(sids);
 
@@ -1744,15 +1799,16 @@ static bool test_EnumAccountsWithUserRight(struct dcerpc_pipe *p,
 	r.in.name = priv_name;
 	r.out.sids = &sids;
 
-	status = dcerpc_lsa_EnumAccountsWithUserRight(p, tctx, &r);
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_EnumAccountsWithUserRight_r(b, tctx, &r),
+		"EnumAccountsWithUserRight failed");
 
 	/* NT_STATUS_NO_MORE_ENTRIES means noone has this privilege */
-	if (NT_STATUS_EQUAL(status, NT_STATUS_NO_MORE_ENTRIES)) {
+	if (NT_STATUS_EQUAL(r.out.result, NT_STATUS_NO_MORE_ENTRIES)) {
 		return true;
 	}
 
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "EnumAccountsWithUserRight failed - %s\n", nt_errstr(status));
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "EnumAccountsWithUserRight failed - %s\n", nt_errstr(r.out.result));
 		return false;
 	}
 
@@ -1760,11 +1816,10 @@ static bool test_EnumAccountsWithUserRight(struct dcerpc_pipe *p,
 }
 
 
-static bool test_EnumPrivs(struct dcerpc_pipe *p,
+static bool test_EnumPrivs(struct dcerpc_binding_handle *b,
 			   struct torture_context *tctx,
 			   struct policy_handle *handle)
 {
-	NTSTATUS status;
 	struct lsa_EnumPrivs r;
 	struct lsa_PrivArray privs1;
 	uint32_t resume_handle = 0;
@@ -1780,16 +1835,17 @@ static bool test_EnumPrivs(struct dcerpc_pipe *p,
 	r.out.privs = &privs1;
 
 	resume_handle = 0;
-	status = dcerpc_lsa_EnumPrivs(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "EnumPrivs failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_EnumPrivs_r(b, tctx, &r),
+		"EnumPrivs failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "EnumPrivs failed - %s\n", nt_errstr(r.out.result));
 		return false;
 	}
 
 	for (i = 0; i< privs1.count; i++) {
-		test_LookupPrivDisplayName(p, tctx, handle, (struct lsa_String *)&privs1.privs[i].name);
-		test_LookupPrivValue(p, tctx, handle, (struct lsa_String *)&privs1.privs[i].name);
-		if (!test_EnumAccountsWithUserRight(p, tctx, handle, (struct lsa_String *)&privs1.privs[i].name)) {
+		test_LookupPrivDisplayName(b, tctx, handle, (struct lsa_String *)&privs1.privs[i].name);
+		test_LookupPrivValue(b, tctx, handle, (struct lsa_String *)&privs1.privs[i].name);
+		if (!test_EnumAccountsWithUserRight(b, tctx, handle, (struct lsa_String *)&privs1.privs[i].name)) {
 			ret = false;
 		}
 	}
@@ -1797,14 +1853,13 @@ static bool test_EnumPrivs(struct dcerpc_pipe *p,
 	return ret;
 }
 
-static bool test_QueryForestTrustInformation(struct dcerpc_pipe *p,
+static bool test_QueryForestTrustInformation(struct dcerpc_binding_handle *b,
 					     struct torture_context *tctx,
 					     struct policy_handle *handle,
 					     const char *trusted_domain_name)
 {
 	bool ret = true;
 	struct lsa_lsaRQueryForestTrustInformation r;
-	NTSTATUS status;
 	struct lsa_String string;
 	struct lsa_ForestTrustInformation info, *info_ptr;
 
@@ -1828,17 +1883,18 @@ static bool test_QueryForestTrustInformation(struct dcerpc_pipe *p,
 	r.in.unknown = 0;
 	r.out.forest_trust_info = &info_ptr;
 
-	status = dcerpc_lsa_lsaRQueryForestTrustInformation(p, tctx, &r);
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_lsaRQueryForestTrustInformation_r(b, tctx, &r),
+		"lsaRQueryForestTrustInformation failed");
 
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "lsaRQueryForestTrustInformation of %s failed - %s\n", trusted_domain_name, nt_errstr(status));
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "lsaRQueryForestTrustInformation of %s failed - %s\n", trusted_domain_name, nt_errstr(r.out.result));
 		ret = false;
 	}
 
 	return ret;
 }
 
-static bool test_query_each_TrustDomEx(struct dcerpc_pipe *p,
+static bool test_query_each_TrustDomEx(struct dcerpc_binding_handle *b,
 				       struct torture_context *tctx,
 				       struct policy_handle *handle,
 				       struct lsa_DomainListEx *domains)
@@ -1849,7 +1905,7 @@ static bool test_query_each_TrustDomEx(struct dcerpc_pipe *p,
 	for (i=0; i< domains->count; i++) {
 
 		if (domains->domains[i].trust_attributes & NETR_TRUST_ATTRIBUTE_FOREST_TRANSITIVE) {
-			ret &= test_QueryForestTrustInformation(p, tctx, handle,
+			ret &= test_QueryForestTrustInformation(b, tctx, handle,
 								domains->domains[i].domain_name.string);
 		}
 	}
@@ -1857,12 +1913,11 @@ static bool test_query_each_TrustDomEx(struct dcerpc_pipe *p,
 	return ret;
 }
 
-static bool test_query_each_TrustDom(struct dcerpc_pipe *p,
+static bool test_query_each_TrustDom(struct dcerpc_binding_handle *b,
 				     struct torture_context *tctx,
 				     struct policy_handle *handle,
 				     struct lsa_DomainList *domains)
 {
-	NTSTATUS status;
 	int i,j;
 	bool ret = true;
 
@@ -1883,10 +1938,11 @@ static bool test_query_each_TrustDom(struct dcerpc_pipe *p,
 			trust.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 			trust.out.trustdom_handle = &trustdom_handle;
 
-			status = dcerpc_lsa_OpenTrustedDomain(p, tctx, &trust);
+			torture_assert_ntstatus_ok(tctx, dcerpc_lsa_OpenTrustedDomain_r(b, tctx, &trust),
+				"OpenTrustedDomain failed");
 
-			if (!NT_STATUS_IS_OK(status)) {
-				torture_comment(tctx, "OpenTrustedDomain failed - %s\n", nt_errstr(status));
+			if (!NT_STATUS_IS_OK(trust.out.result)) {
+				torture_comment(tctx, "OpenTrustedDomain failed - %s\n", nt_errstr(trust.out.result));
 				return false;
 			}
 
@@ -1902,30 +1958,33 @@ static bool test_query_each_TrustDom(struct dcerpc_pipe *p,
 				q.in.trustdom_handle = &trustdom_handle;
 				q.in.level = levels[j];
 				q.out.info = &info;
-				status = dcerpc_lsa_QueryTrustedDomainInfo(p, tctx, &q);
-				if (!NT_STATUS_IS_OK(status) && ok[j]) {
+				torture_assert_ntstatus_ok(tctx, dcerpc_lsa_QueryTrustedDomainInfo_r(b, tctx, &q),
+					"QueryTrustedDomainInfo failed");
+				if (!NT_STATUS_IS_OK(q.out.result) && ok[j]) {
 					torture_comment(tctx, "QueryTrustedDomainInfo level %d failed - %s\n",
-					       levels[j], nt_errstr(status));
+					       levels[j], nt_errstr(q.out.result));
 					ret = false;
-				} else if (NT_STATUS_IS_OK(status) && !ok[j]) {
+				} else if (NT_STATUS_IS_OK(q.out.result) && !ok[j]) {
 					torture_comment(tctx, "QueryTrustedDomainInfo level %d unexpectedly succeeded - %s\n",
-					       levels[j], nt_errstr(status));
+					       levels[j], nt_errstr(q.out.result));
 					ret = false;
 				}
 			}
 
-			status = dcerpc_lsa_CloseTrustedDomainEx(p, tctx, &c_trust);
-			if (!NT_STATUS_EQUAL(status, NT_STATUS_NOT_IMPLEMENTED)) {
-				torture_comment(tctx, "Expected CloseTrustedDomainEx to return NT_STATUS_NOT_IMPLEMENTED, instead - %s\n", nt_errstr(status));
+			torture_assert_ntstatus_ok(tctx, dcerpc_lsa_CloseTrustedDomainEx_r(b, tctx, &c_trust),
+				"CloseTrustedDomainEx failed");
+			if (!NT_STATUS_EQUAL(c_trust.out.result, NT_STATUS_NOT_IMPLEMENTED)) {
+				torture_comment(tctx, "Expected CloseTrustedDomainEx to return NT_STATUS_NOT_IMPLEMENTED, instead - %s\n", nt_errstr(c_trust.out.result));
 				return false;
 			}
 
 			c.in.handle = &trustdom_handle;
 			c.out.handle = &handle2;
 
-			status = dcerpc_lsa_Close(p, tctx, &c);
-			if (!NT_STATUS_IS_OK(status)) {
-				torture_comment(tctx, "Close of trusted domain failed - %s\n", nt_errstr(status));
+			torture_assert_ntstatus_ok(tctx, dcerpc_lsa_Close_r(b, tctx, &c),
+				"Close failed");
+			if (!NT_STATUS_IS_OK(c.out.result)) {
+				torture_comment(tctx, "Close of trusted domain failed - %s\n", nt_errstr(c.out.result));
 				return false;
 			}
 
@@ -1942,14 +2001,15 @@ static bool test_query_each_TrustDom(struct dcerpc_pipe *p,
 				q.in.level   = levels[j];
 				q.out.info   = &info;
 
-				status = dcerpc_lsa_QueryTrustedDomainInfoBySid(p, tctx, &q);
-				if (!NT_STATUS_IS_OK(status) && ok[j]) {
+				torture_assert_ntstatus_ok(tctx, dcerpc_lsa_QueryTrustedDomainInfoBySid_r(b, tctx, &q),
+					"lsa_QueryTrustedDomainInfoBySid failed");
+				if (!NT_STATUS_IS_OK(q.out.result) && ok[j]) {
 					torture_comment(tctx, "QueryTrustedDomainInfoBySid level %d failed - %s\n",
-					       levels[j], nt_errstr(status));
+					       levels[j], nt_errstr(q.out.result));
 					ret = false;
-				} else if (NT_STATUS_IS_OK(status) && !ok[j]) {
+				} else if (NT_STATUS_IS_OK(q.out.result) && !ok[j]) {
 					torture_comment(tctx, "QueryTrustedDomainInfoBySid level %d unexpectedly succeeded - %s\n",
-					       levels[j], nt_errstr(status));
+					       levels[j], nt_errstr(q.out.result));
 					ret = false;
 				}
 			}
@@ -1960,10 +2020,11 @@ static bool test_query_each_TrustDom(struct dcerpc_pipe *p,
 		trust_by_name.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 		trust_by_name.out.trustdom_handle = &trustdom_handle;
 
-		status = dcerpc_lsa_OpenTrustedDomainByName(p, tctx, &trust_by_name);
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_OpenTrustedDomainByName_r(b, tctx, &trust_by_name),
+			"OpenTrustedDomainByName failed");
 
-		if (!NT_STATUS_IS_OK(status)) {
-			torture_comment(tctx, "OpenTrustedDomainByName failed - %s\n", nt_errstr(status));
+		if (!NT_STATUS_IS_OK(trust_by_name.out.result)) {
+			torture_comment(tctx, "OpenTrustedDomainByName failed - %s\n", nt_errstr(trust_by_name.out.result));
 			return false;
 		}
 
@@ -1973,14 +2034,15 @@ static bool test_query_each_TrustDom(struct dcerpc_pipe *p,
 			q.in.trustdom_handle = &trustdom_handle;
 			q.in.level = levels[j];
 			q.out.info = &info;
-			status = dcerpc_lsa_QueryTrustedDomainInfo(p, tctx, &q);
-			if (!NT_STATUS_IS_OK(status) && ok[j]) {
+			torture_assert_ntstatus_ok(tctx, dcerpc_lsa_QueryTrustedDomainInfo_r(b, tctx, &q),
+				"QueryTrustedDomainInfo failed");
+			if (!NT_STATUS_IS_OK(q.out.result) && ok[j]) {
 				torture_comment(tctx, "QueryTrustedDomainInfo level %d failed - %s\n",
-				       levels[j], nt_errstr(status));
+				       levels[j], nt_errstr(q.out.result));
 				ret = false;
-			} else if (NT_STATUS_IS_OK(status) && !ok[j]) {
+			} else if (NT_STATUS_IS_OK(q.out.result) && !ok[j]) {
 				torture_comment(tctx, "QueryTrustedDomainInfo level %d unexpectedly succeeded - %s\n",
-				       levels[j], nt_errstr(status));
+				       levels[j], nt_errstr(q.out.result));
 				ret = false;
 			}
 		}
@@ -1988,9 +2050,10 @@ static bool test_query_each_TrustDom(struct dcerpc_pipe *p,
 		c.in.handle = &trustdom_handle;
 		c.out.handle = &handle2;
 
-		status = dcerpc_lsa_Close(p, tctx, &c);
-		if (!NT_STATUS_IS_OK(status)) {
-			torture_comment(tctx, "Close of trusted domain failed - %s\n", nt_errstr(status));
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_Close_r(b, tctx, &c),
+			"Close failed");
+		if (!NT_STATUS_IS_OK(c.out.result)) {
+			torture_comment(tctx, "Close of trusted domain failed - %s\n", nt_errstr(c.out.result));
 			return false;
 		}
 
@@ -2005,14 +2068,15 @@ static bool test_query_each_TrustDom(struct dcerpc_pipe *p,
 			q.in.trusted_domain = &name;
 			q.in.level          = levels[j];
 			q.out.info          = &info;
-			status = dcerpc_lsa_QueryTrustedDomainInfoByName(p, tctx, &q);
-			if (!NT_STATUS_IS_OK(status) && ok[j]) {
+			torture_assert_ntstatus_ok(tctx, dcerpc_lsa_QueryTrustedDomainInfoByName_r(b, tctx, &q),
+				"QueryTrustedDomainInfoByName failed");
+			if (!NT_STATUS_IS_OK(q.out.result) && ok[j]) {
 				torture_comment(tctx, "QueryTrustedDomainInfoByName level %d failed - %s\n",
-				       levels[j], nt_errstr(status));
+				       levels[j], nt_errstr(q.out.result));
 				ret = false;
-			} else if (NT_STATUS_IS_OK(status) && !ok[j]) {
+			} else if (NT_STATUS_IS_OK(q.out.result) && !ok[j]) {
 				torture_comment(tctx, "QueryTrustedDomainInfoByName level %d unexpectedly succeeded - %s\n",
-				       levels[j], nt_errstr(status));
+				       levels[j], nt_errstr(q.out.result));
 				ret = false;
 			}
 		}
@@ -2020,12 +2084,11 @@ static bool test_query_each_TrustDom(struct dcerpc_pipe *p,
 	return ret;
 }
 
-static bool test_EnumTrustDom(struct dcerpc_pipe *p,
+static bool test_EnumTrustDom(struct dcerpc_binding_handle *b,
 			      struct torture_context *tctx,
 			      struct policy_handle *handle)
 {
 	struct lsa_EnumTrustDom r;
-	NTSTATUS enum_status;
 	uint32_t in_resume_handle = 0;
 	uint32_t out_resume_handle;
 	struct lsa_DomainList domains;
@@ -2039,7 +2102,8 @@ static bool test_EnumTrustDom(struct dcerpc_pipe *p,
 	r.out.domains = &domains;
 	r.out.resume_handle = &out_resume_handle;
 
-	enum_status = dcerpc_lsa_EnumTrustDom(p, tctx, &r);
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_EnumTrustDom_r(b, tctx, &r),
+		"lsa_EnumTrustDom failed");
 
 	/* according to MS-LSAD 3.1.4.7.8 output resume handle MUST
 	 * always be larger than the previous input resume handle, in
@@ -2048,9 +2112,9 @@ static bool test_EnumTrustDom(struct dcerpc_pipe *p,
 	 * seen e.g.  with Windows XP SP3 when resume handle is 0 and
 	 * status is NT_STATUS_OK - gd */
 
-	if (NT_STATUS_IS_OK(enum_status) ||
-	    NT_STATUS_EQUAL(enum_status, NT_STATUS_NO_MORE_ENTRIES) ||
-	    NT_STATUS_EQUAL(enum_status, STATUS_MORE_ENTRIES))
+	if (NT_STATUS_IS_OK(r.out.result) ||
+	    NT_STATUS_EQUAL(r.out.result, NT_STATUS_NO_MORE_ENTRIES) ||
+	    NT_STATUS_EQUAL(r.out.result, STATUS_MORE_ENTRIES))
 	{
 		if (out_resume_handle <= in_resume_handle) {
 			torture_comment(tctx, "EnumTrustDom failed - should have returned output resume_handle (0x%08x) larger than input resume handle (0x%08x)\n",
@@ -2059,13 +2123,13 @@ static bool test_EnumTrustDom(struct dcerpc_pipe *p,
 		}
 	}
 
-	if (NT_STATUS_IS_OK(enum_status)) {
+	if (NT_STATUS_IS_OK(r.out.result)) {
 		if (domains.count == 0) {
 			torture_comment(tctx, "EnumTrustDom failed - should have returned 'NT_STATUS_NO_MORE_ENTRIES' for 0 trusted domains\n");
 			return false;
 		}
-	} else if (!(NT_STATUS_EQUAL(enum_status, STATUS_MORE_ENTRIES) || NT_STATUS_EQUAL(enum_status, NT_STATUS_NO_MORE_ENTRIES))) {
-		torture_comment(tctx, "EnumTrustDom of zero size failed - %s\n", nt_errstr(enum_status));
+	} else if (!(NT_STATUS_EQUAL(r.out.result, STATUS_MORE_ENTRIES) || NT_STATUS_EQUAL(r.out.result, NT_STATUS_NO_MORE_ENTRIES))) {
+		torture_comment(tctx, "EnumTrustDom of zero size failed - %s\n", nt_errstr(r.out.result));
 		return false;
 	}
 
@@ -2079,7 +2143,8 @@ static bool test_EnumTrustDom(struct dcerpc_pipe *p,
 		r.out.domains = &domains;
 		r.out.resume_handle = &out_resume_handle;
 
-		enum_status = dcerpc_lsa_EnumTrustDom(p, tctx, &r);
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_EnumTrustDom_r(b, tctx, &r),
+			"EnumTrustDom failed");
 
 		/* according to MS-LSAD 3.1.4.7.8 output resume handle MUST
 		 * always be larger than the previous input resume handle, in
@@ -2088,9 +2153,9 @@ static bool test_EnumTrustDom(struct dcerpc_pipe *p,
 		 * seen e.g.  with Windows XP SP3 when resume handle is 0 and
 		 * status is NT_STATUS_OK - gd */
 
-		if (NT_STATUS_IS_OK(enum_status) ||
-		    NT_STATUS_EQUAL(enum_status, NT_STATUS_NO_MORE_ENTRIES) ||
-		    NT_STATUS_EQUAL(enum_status, STATUS_MORE_ENTRIES))
+		if (NT_STATUS_IS_OK(r.out.result) ||
+		    NT_STATUS_EQUAL(r.out.result, NT_STATUS_NO_MORE_ENTRIES) ||
+		    NT_STATUS_EQUAL(r.out.result, STATUS_MORE_ENTRIES))
 		{
 			if (out_resume_handle <= in_resume_handle) {
 				torture_comment(tctx, "EnumTrustDom failed - should have returned output resume_handle (0x%08x) larger than input resume handle (0x%08x)\n",
@@ -2100,13 +2165,13 @@ static bool test_EnumTrustDom(struct dcerpc_pipe *p,
 		}
 
 		/* NO_MORE_ENTRIES is allowed */
-		if (NT_STATUS_EQUAL(enum_status, NT_STATUS_NO_MORE_ENTRIES)) {
+		if (NT_STATUS_EQUAL(r.out.result, NT_STATUS_NO_MORE_ENTRIES)) {
 			if (domains.count == 0) {
 				return true;
 			}
 			torture_comment(tctx, "EnumTrustDom failed - should have returned 0 trusted domains with 'NT_STATUS_NO_MORE_ENTRIES'\n");
 			return false;
-		} else if (NT_STATUS_EQUAL(enum_status, STATUS_MORE_ENTRIES)) {
+		} else if (NT_STATUS_EQUAL(r.out.result, STATUS_MORE_ENTRIES)) {
 			/* Windows 2003 gets this off by one on the first run */
 			if (r.out.domains->count < 3 || r.out.domains->count > 4) {
 				torture_comment(tctx, "EnumTrustDom didn't fill the buffer we "
@@ -2115,8 +2180,8 @@ static bool test_EnumTrustDom(struct dcerpc_pipe *p,
 				       LSA_ENUM_TRUST_DOMAIN_MULTIPLIER, r.in.max_size);
 				ret = false;
 			}
-		} else if (!NT_STATUS_IS_OK(enum_status)) {
-			torture_comment(tctx, "EnumTrustDom failed - %s\n", nt_errstr(enum_status));
+		} else if (!NT_STATUS_IS_OK(r.out.result)) {
+			torture_comment(tctx, "EnumTrustDom failed - %s\n", nt_errstr(r.out.result));
 			return false;
 		}
 
@@ -2125,21 +2190,20 @@ static bool test_EnumTrustDom(struct dcerpc_pipe *p,
 			return false;
 		}
 
-		ret &= test_query_each_TrustDom(p, tctx, handle, &domains);
+		ret &= test_query_each_TrustDom(b, tctx, handle, &domains);
 
 		in_resume_handle = out_resume_handle;
 
-	} while ((NT_STATUS_EQUAL(enum_status, STATUS_MORE_ENTRIES)));
+	} while ((NT_STATUS_EQUAL(r.out.result, STATUS_MORE_ENTRIES)));
 
 	return ret;
 }
 
-static bool test_EnumTrustDomEx(struct dcerpc_pipe *p,
+static bool test_EnumTrustDomEx(struct dcerpc_binding_handle *b,
 				struct torture_context *tctx,
 				struct policy_handle *handle)
 {
 	struct lsa_EnumTrustedDomainsEx r_ex;
-	NTSTATUS enum_status;
 	uint32_t resume_handle = 0;
 	struct lsa_DomainListEx domains_ex;
 	bool ret = true;
@@ -2152,10 +2216,11 @@ static bool test_EnumTrustDomEx(struct dcerpc_pipe *p,
 	r_ex.out.domains = &domains_ex;
 	r_ex.out.resume_handle = &resume_handle;
 
-	enum_status = dcerpc_lsa_EnumTrustedDomainsEx(p, tctx, &r_ex);
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_EnumTrustedDomainsEx_r(b, tctx, &r_ex),
+		"EnumTrustedDomainsEx failed");
 
-	if (!(NT_STATUS_EQUAL(enum_status, STATUS_MORE_ENTRIES) || NT_STATUS_EQUAL(enum_status, NT_STATUS_NO_MORE_ENTRIES))) {
-		torture_comment(tctx, "EnumTrustedDomainEx of zero size failed - %s\n", nt_errstr(enum_status));
+	if (!(NT_STATUS_EQUAL(r_ex.out.result, STATUS_MORE_ENTRIES) || NT_STATUS_EQUAL(r_ex.out.result, NT_STATUS_NO_MORE_ENTRIES))) {
+		torture_comment(tctx, "EnumTrustedDomainEx of zero size failed - %s\n", nt_errstr(r_ex.out.result));
 		return false;
 	}
 
@@ -2167,16 +2232,17 @@ static bool test_EnumTrustDomEx(struct dcerpc_pipe *p,
 		r_ex.out.domains = &domains_ex;
 		r_ex.out.resume_handle = &resume_handle;
 
-		enum_status = dcerpc_lsa_EnumTrustedDomainsEx(p, tctx, &r_ex);
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_EnumTrustedDomainsEx_r(b, tctx, &r_ex),
+			"EnumTrustedDomainsEx failed");
 
 		/* NO_MORE_ENTRIES is allowed */
-		if (NT_STATUS_EQUAL(enum_status, NT_STATUS_NO_MORE_ENTRIES)) {
+		if (NT_STATUS_EQUAL(r_ex.out.result, NT_STATUS_NO_MORE_ENTRIES)) {
 			if (domains_ex.count == 0) {
 				return true;
 			}
 			torture_comment(tctx, "EnumTrustDomainsEx failed - should have returned 0 trusted domains with 'NT_STATUS_NO_MORE_ENTRIES'\n");
 			return false;
-		} else if (NT_STATUS_EQUAL(enum_status, STATUS_MORE_ENTRIES)) {
+		} else if (NT_STATUS_EQUAL(r_ex.out.result, STATUS_MORE_ENTRIES)) {
 			/* Windows 2003 gets this off by one on the first run */
 			if (r_ex.out.domains->count < 3 || r_ex.out.domains->count > 4) {
 				torture_comment(tctx, "EnumTrustDom didn't fill the buffer we "
@@ -2186,8 +2252,8 @@ static bool test_EnumTrustDomEx(struct dcerpc_pipe *p,
 				       LSA_ENUM_TRUST_DOMAIN_EX_MULTIPLIER,
 				       r_ex.in.max_size / LSA_ENUM_TRUST_DOMAIN_EX_MULTIPLIER);
 			}
-		} else if (!NT_STATUS_IS_OK(enum_status)) {
-			torture_comment(tctx, "EnumTrustedDomainEx failed - %s\n", nt_errstr(enum_status));
+		} else if (!NT_STATUS_IS_OK(r_ex.out.result)) {
+			torture_comment(tctx, "EnumTrustedDomainEx failed - %s\n", nt_errstr(r_ex.out.result));
 			return false;
 		}
 
@@ -2196,20 +2262,19 @@ static bool test_EnumTrustDomEx(struct dcerpc_pipe *p,
 			return false;
 		}
 
-		ret &= test_query_each_TrustDomEx(p, tctx, handle, &domains_ex);
+		ret &= test_query_each_TrustDomEx(b, tctx, handle, &domains_ex);
 
-	} while ((NT_STATUS_EQUAL(enum_status, STATUS_MORE_ENTRIES)));
+	} while ((NT_STATUS_EQUAL(r_ex.out.result, STATUS_MORE_ENTRIES)));
 
 	return ret;
 }
 
 
-static bool test_CreateTrustedDomain(struct dcerpc_pipe *p,
+static bool test_CreateTrustedDomain(struct dcerpc_binding_handle *b,
 				     struct torture_context *tctx,
 				     struct policy_handle *handle,
 				     uint32_t num_trusts)
 {
-	NTSTATUS status;
 	bool ret = true;
 	struct lsa_CreateTrustedDomain r;
 	struct lsa_DomainInfo trustinfo;
@@ -2221,11 +2286,11 @@ static bool test_CreateTrustedDomain(struct dcerpc_pipe *p,
 
 	torture_comment(tctx, "\nTesting CreateTrustedDomain for %d domains\n", num_trusts);
 
-	if (!test_EnumTrustDom(p, tctx, handle)) {
+	if (!test_EnumTrustDom(b, tctx, handle)) {
 		ret = false;
 	}
 
-	if (!test_EnumTrustDomEx(p, tctx, handle)) {
+	if (!test_EnumTrustDomEx(b, tctx, handle)) {
 		ret = false;
 	}
 
@@ -2246,22 +2311,25 @@ static bool test_CreateTrustedDomain(struct dcerpc_pipe *p,
 		r.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 		r.out.trustdom_handle = &trustdom_handle[i];
 
-		status = dcerpc_lsa_CreateTrustedDomain(p, tctx, &r);
-		if (NT_STATUS_EQUAL(status, NT_STATUS_OBJECT_NAME_COLLISION)) {
-			test_DeleteTrustedDomain(p, tctx, handle, trustinfo.name);
-			status = dcerpc_lsa_CreateTrustedDomain(p, tctx, &r);
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_CreateTrustedDomain_r(b, tctx, &r),
+			"CreateTrustedDomain failed");
+		if (NT_STATUS_EQUAL(r.out.result, NT_STATUS_OBJECT_NAME_COLLISION)) {
+			test_DeleteTrustedDomain(b, tctx, handle, trustinfo.name);
+			torture_assert_ntstatus_ok(tctx, dcerpc_lsa_CreateTrustedDomain_r(b, tctx, &r),
+				"CreateTrustedDomain failed");
 		}
-		if (!NT_STATUS_IS_OK(status)) {
-			torture_comment(tctx, "CreateTrustedDomain failed - %s\n", nt_errstr(status));
+		if (!NT_STATUS_IS_OK(r.out.result)) {
+			torture_comment(tctx, "CreateTrustedDomain failed - %s\n", nt_errstr(r.out.result));
 			ret = false;
 		} else {
 
 			q.in.trustdom_handle = &trustdom_handle[i];
 			q.in.level = LSA_TRUSTED_DOMAIN_INFO_INFO_EX;
 			q.out.info = &info;
-			status = dcerpc_lsa_QueryTrustedDomainInfo(p, tctx, &q);
-			if (!NT_STATUS_IS_OK(status)) {
-				torture_comment(tctx, "QueryTrustedDomainInfo level %d failed - %s\n", q.in.level, nt_errstr(status));
+			torture_assert_ntstatus_ok(tctx, dcerpc_lsa_QueryTrustedDomainInfo_r(b, tctx, &q),
+				"QueryTrustedDomainInfo failed");
+			if (!NT_STATUS_IS_OK(q.out.result)) {
+				torture_comment(tctx, "QueryTrustedDomainInfo level %d failed - %s\n", q.in.level, nt_errstr(q.out.result));
 				ret = false;
 			} else if (!q.out.info) {
 				ret = false;
@@ -2291,16 +2359,16 @@ static bool test_CreateTrustedDomain(struct dcerpc_pipe *p,
 	}
 
 	/* now that we have some domains to look over, we can test the enum calls */
-	if (!test_EnumTrustDom(p, tctx, handle)) {
+	if (!test_EnumTrustDom(b, tctx, handle)) {
 		ret = false;
 	}
 
-	if (!test_EnumTrustDomEx(p, tctx, handle)) {
+	if (!test_EnumTrustDomEx(b, tctx, handle)) {
 		ret = false;
 	}
 
 	for (i=0; i<num_trusts; i++) {
-		if (!test_DeleteTrustedDomainBySid(p, tctx, handle, domsid[i])) {
+		if (!test_DeleteTrustedDomainBySid(b, tctx, handle, domsid[i])) {
 			ret = false;
 		}
 	}
@@ -2327,6 +2395,7 @@ static bool test_CreateTrustedDomainEx2(struct dcerpc_pipe *p,
 	DATA_BLOB session_key;
 	enum ndr_err_code ndr_err;
 	int i;
+	struct dcerpc_binding_handle *b = p->binding_handle;
 
 	torture_comment(tctx, "\nTesting CreateTrustedDomainEx2 for %d domains\n", num_trusts);
 
@@ -2369,7 +2438,7 @@ static bool test_CreateTrustedDomainEx2(struct dcerpc_pipe *p,
 		auth_struct.outgoing.count = 0;
 		auth_struct.incoming.count = 0;
 
-		ndr_err = ndr_push_struct_blob(&auth_blob, tctx, lp_iconv_convenience(tctx->lp_ctx), &auth_struct,
+		ndr_err = ndr_push_struct_blob(&auth_blob, tctx, &auth_struct,
 					       (ndr_push_flags_fn_t)ndr_push_trustDomainPasswords);
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			torture_comment(tctx, "ndr_push_struct_blob of trustDomainPasswords structure failed");
@@ -2387,22 +2456,25 @@ static bool test_CreateTrustedDomainEx2(struct dcerpc_pipe *p,
 		r.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 		r.out.trustdom_handle = &trustdom_handle[i];
 
-		status = dcerpc_lsa_CreateTrustedDomainEx2(p, tctx, &r);
-		if (NT_STATUS_EQUAL(status, NT_STATUS_OBJECT_NAME_COLLISION)) {
-			test_DeleteTrustedDomain(p, tctx, handle, trustinfo.netbios_name);
-			status = dcerpc_lsa_CreateTrustedDomainEx2(p, tctx, &r);
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_CreateTrustedDomainEx2_r(b, tctx, &r),
+			"CreateTrustedDomainEx2 failed");
+		if (NT_STATUS_EQUAL(r.out.result, NT_STATUS_OBJECT_NAME_COLLISION)) {
+			test_DeleteTrustedDomain(b, tctx, handle, trustinfo.netbios_name);
+			torture_assert_ntstatus_ok(tctx, dcerpc_lsa_CreateTrustedDomainEx2_r(b, tctx, &r),
+				"CreateTrustedDomainEx2 failed");
 		}
-		if (!NT_STATUS_IS_OK(status)) {
-			torture_comment(tctx, "CreateTrustedDomainEx failed2 - %s\n", nt_errstr(status));
+		if (!NT_STATUS_IS_OK(r.out.result)) {
+			torture_comment(tctx, "CreateTrustedDomainEx failed2 - %s\n", nt_errstr(r.out.result));
 			ret = false;
 		} else {
 
 			q.in.trustdom_handle = &trustdom_handle[i];
 			q.in.level = LSA_TRUSTED_DOMAIN_INFO_INFO_EX;
 			q.out.info = &info;
-			status = dcerpc_lsa_QueryTrustedDomainInfo(p, tctx, &q);
-			if (!NT_STATUS_IS_OK(status)) {
-				torture_comment(tctx, "QueryTrustedDomainInfo level 1 failed - %s\n", nt_errstr(status));
+			torture_assert_ntstatus_ok(tctx, dcerpc_lsa_QueryTrustedDomainInfo_r(b, tctx, &q),
+				"QueryTrustedDomainInfo failed");
+			if (!NT_STATUS_IS_OK(q.out.result)) {
+				torture_comment(tctx, "QueryTrustedDomainInfo level 1 failed - %s\n", nt_errstr(q.out.result));
 				ret = false;
 			} else if (!q.out.info) {
 				torture_comment(tctx, "QueryTrustedDomainInfo level 1 failed to return an info pointer\n");
@@ -2433,18 +2505,18 @@ static bool test_CreateTrustedDomainEx2(struct dcerpc_pipe *p,
 	}
 
 	/* now that we have some domains to look over, we can test the enum calls */
-	if (!test_EnumTrustDom(p, tctx, handle)) {
+	if (!test_EnumTrustDom(b, tctx, handle)) {
 		torture_comment(tctx, "test_EnumTrustDom failed\n");
 		ret = false;
 	}
 
-	if (!test_EnumTrustDomEx(p, tctx, handle)) {
+	if (!test_EnumTrustDomEx(b, tctx, handle)) {
 		torture_comment(tctx, "test_EnumTrustDomEx failed\n");
 		ret = false;
 	}
 
 	for (i=0; i<num_trusts; i++) {
-		if (!test_DeleteTrustedDomainBySid(p, tctx, handle, domsid[i])) {
+		if (!test_DeleteTrustedDomainBySid(b, tctx, handle, domsid[i])) {
 			torture_comment(tctx, "test_DeleteTrustedDomainBySid failed\n");
 			ret = false;
 		}
@@ -2453,13 +2525,12 @@ static bool test_CreateTrustedDomainEx2(struct dcerpc_pipe *p,
 	return ret;
 }
 
-static bool test_QueryDomainInfoPolicy(struct dcerpc_pipe *p,
+static bool test_QueryDomainInfoPolicy(struct dcerpc_binding_handle *b,
 				 struct torture_context *tctx,
 				 struct policy_handle *handle)
 {
 	struct lsa_QueryDomainInformationPolicy r;
 	union lsa_DomainInformationPolicy *info = NULL;
-	NTSTATUS status;
 	int i;
 	bool ret = true;
 
@@ -2476,13 +2547,14 @@ static bool test_QueryDomainInfoPolicy(struct dcerpc_pipe *p,
 
 		torture_comment(tctx, "\nTrying QueryDomainInformationPolicy level %d\n", i);
 
-		status = dcerpc_lsa_QueryDomainInformationPolicy(p, tctx, &r);
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_QueryDomainInformationPolicy_r(b, tctx, &r),
+			"QueryDomainInformationPolicy failed");
 
 		/* If the server does not support EFS, then this is the correct return */
-		if (i == LSA_DOMAIN_INFO_POLICY_EFS && NT_STATUS_EQUAL(status, NT_STATUS_OBJECT_NAME_NOT_FOUND)) {
+		if (i == LSA_DOMAIN_INFO_POLICY_EFS && NT_STATUS_EQUAL(r.out.result, NT_STATUS_OBJECT_NAME_NOT_FOUND)) {
 			continue;
-		} else if (!NT_STATUS_IS_OK(status)) {
-			torture_comment(tctx, "QueryDomainInformationPolicy failed - %s\n", nt_errstr(status));
+		} else if (!NT_STATUS_IS_OK(r.out.result)) {
+			torture_comment(tctx, "QueryDomainInformationPolicy failed - %s\n", nt_errstr(r.out.result));
 			ret = false;
 			continue;
 		}
@@ -2493,13 +2565,12 @@ static bool test_QueryDomainInfoPolicy(struct dcerpc_pipe *p,
 
 
 static bool test_QueryInfoPolicyCalls(	bool version2,
-					struct dcerpc_pipe *p,
+					struct dcerpc_binding_handle *b,
 					struct torture_context *tctx,
 					struct policy_handle *handle)
 {
 	struct lsa_QueryInfoPolicy r;
 	union lsa_PolicyInformation *info = NULL;
-	NTSTATUS status;
 	int i;
 	bool ret = true;
 	const char *call = talloc_asprintf(tctx, "QueryInfoPolicy%s", version2 ? "2":"");
@@ -2520,17 +2591,19 @@ static bool test_QueryInfoPolicyCalls(	bool version2,
 		if (version2)
 			/* We can perform the cast, because both types are
 			   structurally equal */
-			status = dcerpc_lsa_QueryInfoPolicy2(p, tctx,
-				 (struct lsa_QueryInfoPolicy2*) &r);
+			torture_assert_ntstatus_ok(tctx, dcerpc_lsa_QueryInfoPolicy2_r(b, tctx,
+				 (struct lsa_QueryInfoPolicy2*) &r),
+				 "QueryInfoPolicy2 failed");
 		else
-			status = dcerpc_lsa_QueryInfoPolicy(p, tctx, &r);
+			torture_assert_ntstatus_ok(tctx, dcerpc_lsa_QueryInfoPolicy_r(b, tctx, &r),
+				"QueryInfoPolicy2 failed");
 
 		switch (i) {
 		case LSA_POLICY_INFO_MOD:
 		case LSA_POLICY_INFO_AUDIT_FULL_SET:
 		case LSA_POLICY_INFO_AUDIT_FULL_QUERY:
-			if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_PARAMETER)) {
-				torture_comment(tctx, "Server should have failed level %u: %s\n", i, nt_errstr(status));
+			if (!NT_STATUS_EQUAL(r.out.result, NT_STATUS_INVALID_PARAMETER)) {
+				torture_comment(tctx, "Server should have failed level %u: %s\n", i, nt_errstr(r.out.result));
 				ret = false;
 			}
 			break;
@@ -2542,8 +2615,8 @@ static bool test_QueryInfoPolicyCalls(	bool version2,
 		case LSA_POLICY_INFO_AUDIT_LOG:
 		case LSA_POLICY_INFO_AUDIT_EVENTS:
 		case LSA_POLICY_INFO_PD:
-			if (!NT_STATUS_IS_OK(status)) {
-				torture_comment(tctx, "%s failed - %s\n", call, nt_errstr(status));
+			if (!NT_STATUS_IS_OK(r.out.result)) {
+				torture_comment(tctx, "%s failed - %s\n", call, nt_errstr(r.out.result));
 				ret = false;
 			}
 			break;
@@ -2552,30 +2625,30 @@ static bool test_QueryInfoPolicyCalls(	bool version2,
 		case LSA_POLICY_INFO_DNS:
 			if (torture_setting_bool(tctx, "samba3", false)) {
 				/* Other levels not implemented yet */
-				if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_INFO_CLASS)) {
-					torture_comment(tctx, "%s failed - %s\n", call, nt_errstr(status));
+				if (!NT_STATUS_EQUAL(r.out.result, NT_STATUS_INVALID_INFO_CLASS)) {
+					torture_comment(tctx, "%s failed - %s\n", call, nt_errstr(r.out.result));
 					ret = false;
 				}
-			} else if (!NT_STATUS_IS_OK(status)) {
-				torture_comment(tctx, "%s failed - %s\n", call, nt_errstr(status));
+			} else if (!NT_STATUS_IS_OK(r.out.result)) {
+				torture_comment(tctx, "%s failed - %s\n", call, nt_errstr(r.out.result));
 				ret = false;
 			}
 			break;
 		default:
 			if (torture_setting_bool(tctx, "samba4", false)) {
 				/* Other levels not implemented yet */
-				if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_INFO_CLASS)) {
-					torture_comment(tctx, "%s failed - %s\n", call, nt_errstr(status));
+				if (!NT_STATUS_EQUAL(r.out.result, NT_STATUS_INVALID_INFO_CLASS)) {
+					torture_comment(tctx, "%s failed - %s\n", call, nt_errstr(r.out.result));
 					ret = false;
 				}
-			} else if (!NT_STATUS_IS_OK(status)) {
-				torture_comment(tctx, "%s failed - %s\n", call, nt_errstr(status));
+			} else if (!NT_STATUS_IS_OK(r.out.result)) {
+				torture_comment(tctx, "%s failed - %s\n", call, nt_errstr(r.out.result));
 				ret = false;
 			}
 			break;
 		}
 
-		if (NT_STATUS_IS_OK(status) && (i == LSA_POLICY_INFO_DNS
+		if (NT_STATUS_IS_OK(r.out.result) && (i == LSA_POLICY_INFO_DNS
 			|| i == LSA_POLICY_INFO_DNS_INT)) {
 			/* Let's look up some of these names */
 
@@ -2610,7 +2683,7 @@ static bool test_QueryInfoPolicyCalls(	bool version2,
 			tnames.names[12].sid_type = SID_NAME_USER;
 			tnames.names[13].name.string = talloc_asprintf(tctx, TEST_MACHINENAME "$@%s", info->dns.dns_domain.string);
 			tnames.names[13].sid_type = SID_NAME_USER;
-			ret &= test_LookupNames(p, tctx, handle, &tnames);
+			ret &= test_LookupNames(b, tctx, handle, &tnames);
 
 		}
 	}
@@ -2618,25 +2691,24 @@ static bool test_QueryInfoPolicyCalls(	bool version2,
 	return ret;
 }
 
-static bool test_QueryInfoPolicy(struct dcerpc_pipe *p,
+static bool test_QueryInfoPolicy(struct dcerpc_binding_handle *b,
 				 struct torture_context *tctx,
 				 struct policy_handle *handle)
 {
-	return test_QueryInfoPolicyCalls(false, p, tctx, handle);
+	return test_QueryInfoPolicyCalls(false, b, tctx, handle);
 }
 
-static bool test_QueryInfoPolicy2(struct dcerpc_pipe *p,
+static bool test_QueryInfoPolicy2(struct dcerpc_binding_handle *b,
 				  struct torture_context *tctx,
 				  struct policy_handle *handle)
 {
-	return test_QueryInfoPolicyCalls(true, p, tctx, handle);
+	return test_QueryInfoPolicyCalls(true, b, tctx, handle);
 }
 
-static bool test_GetUserName(struct dcerpc_pipe *p,
+static bool test_GetUserName(struct dcerpc_binding_handle *b,
 			     struct torture_context *tctx)
 {
 	struct lsa_GetUserName r;
-	NTSTATUS status;
 	bool ret = true;
 	struct lsa_String *authority_name_p = NULL;
 	struct lsa_String *account_name_p = NULL;
@@ -2648,10 +2720,11 @@ static bool test_GetUserName(struct dcerpc_pipe *p,
 	r.in.authority_name	= NULL;
 	r.out.account_name	= &account_name_p;
 
-	status = dcerpc_lsa_GetUserName(p, tctx, &r);
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_GetUserName_r(b, tctx, &r),
+		"GetUserName failed");
 
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "GetUserName failed - %s\n", nt_errstr(status));
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "GetUserName failed - %s\n", nt_errstr(r.out.result));
 		ret = false;
 	}
 
@@ -2660,21 +2733,21 @@ static bool test_GetUserName(struct dcerpc_pipe *p,
 	r.in.authority_name	= &authority_name_p;
 	r.out.account_name	= &account_name_p;
 
-	status = dcerpc_lsa_GetUserName(p, tctx, &r);
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_GetUserName_r(b, tctx, &r),
+		"GetUserName failed");
 
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "GetUserName failed - %s\n", nt_errstr(status));
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "GetUserName failed - %s\n", nt_errstr(r.out.result));
 		ret = false;
 	}
 
 	return ret;
 }
 
-bool test_lsa_Close(struct dcerpc_pipe *p,
+bool test_lsa_Close(struct dcerpc_binding_handle *b,
 		    struct torture_context *tctx,
 		    struct policy_handle *handle)
 {
-	NTSTATUS status;
 	struct lsa_Close r;
 	struct policy_handle handle2;
 
@@ -2683,18 +2756,16 @@ bool test_lsa_Close(struct dcerpc_pipe *p,
 	r.in.handle = handle;
 	r.out.handle = &handle2;
 
-	status = dcerpc_lsa_Close(p, tctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(tctx, "Close failed - %s\n", nt_errstr(status));
+	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_Close_r(b, tctx, &r),
+		"Close failed");
+	if (!NT_STATUS_IS_OK(r.out.result)) {
+		torture_comment(tctx, "Close failed - %s\n",
+		nt_errstr(r.out.result));
 		return false;
 	}
 
-	status = dcerpc_lsa_Close(p, tctx, &r);
-	/* its really a fault - we need a status code for rpc fault */
-	if (!NT_STATUS_EQUAL(status, NT_STATUS_NET_WRITE_FAULT)) {
-		torture_comment(tctx, "Close failed - %s\n", nt_errstr(status));
-		return false;
-	}
+	torture_assert_ntstatus_equal(tctx, dcerpc_lsa_Close_r(b, tctx, &r),
+		NT_STATUS_RPC_SS_CONTEXT_MISMATCH, "Close should failed");
 
 	torture_comment(tctx, "\n");
 
@@ -2709,17 +2780,19 @@ bool torture_rpc_lsa(struct torture_context *tctx)
 	struct policy_handle *handle;
 	struct test_join *join = NULL;
 	struct cli_credentials *machine_creds;
+	struct dcerpc_binding_handle *b;
 
 	status = torture_rpc_connection(tctx, &p, &ndr_table_lsarpc);
 	if (!NT_STATUS_IS_OK(status)) {
 		return false;
 	}
+	b = p->binding_handle;
 
-	if (!test_OpenPolicy(p, tctx)) {
+	if (!test_OpenPolicy(b, tctx)) {
 		ret = false;
 	}
 
-	if (!test_lsa_OpenPolicy2(p, tctx, &handle)) {
+	if (!test_lsa_OpenPolicy2(b, tctx, &handle)) {
 		ret = false;
 	}
 
@@ -2729,11 +2802,11 @@ bool torture_rpc_lsa(struct torture_context *tctx)
 			ret = false;
 		}
 
-		if (!test_LookupSids_async(p, tctx, handle)) {
+		if (!test_LookupSids_async(b, tctx, handle)) {
 			ret = false;
 		}
 
-		if (!test_QueryDomainInfoPolicy(p, tctx, handle)) {
+		if (!test_QueryDomainInfoPolicy(b, tctx, handle)) {
 			ret = false;
 		}
 
@@ -2741,15 +2814,15 @@ bool torture_rpc_lsa(struct torture_context *tctx)
 			ret = false;
 		}
 
-		if (!test_QueryInfoPolicy(p, tctx, handle)) {
+		if (!test_QueryInfoPolicy(b, tctx, handle)) {
 			ret = false;
 		}
 
-		if (!test_QueryInfoPolicy2(p, tctx, handle)) {
+		if (!test_QueryInfoPolicy2(b, tctx, handle)) {
 			ret = false;
 		}
 
-		if (!test_Delete(p, tctx, handle)) {
+		if (!test_Delete(b, tctx, handle)) {
 			ret = false;
 		}
 
@@ -2757,7 +2830,7 @@ bool torture_rpc_lsa(struct torture_context *tctx)
 			ret = false;
 		}
 
-		if (!test_lsa_Close(p, tctx, handle)) {
+		if (!test_lsa_Close(b, tctx, handle)) {
 			ret = false;
 		}
 
@@ -2769,7 +2842,7 @@ bool torture_rpc_lsa(struct torture_context *tctx)
 		}
 	}
 
-	if (!test_GetUserName(p, tctx)) {
+	if (!test_GetUserName(b, tctx)) {
 		ret = false;
 	}
 
@@ -2781,13 +2854,15 @@ bool torture_rpc_lsa_get_user(struct torture_context *tctx)
         NTSTATUS status;
         struct dcerpc_pipe *p;
 	bool ret = true;
+	struct dcerpc_binding_handle *b;
 
 	status = torture_rpc_connection(tctx, &p, &ndr_table_lsarpc);
 	if (!NT_STATUS_IS_OK(status)) {
 		return false;
 	}
+	b = p->binding_handle;
 
-	if (!test_GetUserName(p, tctx)) {
+	if (!test_GetUserName(b, tctx)) {
 		ret = false;
 	}
 
@@ -2801,12 +2876,13 @@ static bool testcase_LookupNames(struct torture_context *tctx,
 	struct policy_handle *handle;
 	struct lsa_TransNameArray tnames;
 	struct lsa_TransNameArray2 tnames2;
+	struct dcerpc_binding_handle *b = p->binding_handle;
 
-	if (!test_OpenPolicy(p, tctx)) {
+	if (!test_OpenPolicy(b, tctx)) {
 		ret = false;
 	}
 
-	if (!test_lsa_OpenPolicy2(p, tctx, &handle)) {
+	if (!test_lsa_OpenPolicy2(b, tctx, &handle)) {
 		ret = false;
 	}
 
@@ -2820,7 +2896,7 @@ static bool testcase_LookupNames(struct torture_context *tctx,
 	tnames.names[0].name.string = "BUILTIN";
 	tnames.names[0].sid_type = SID_NAME_DOMAIN;
 
-	if (!test_LookupNames(p, tctx, handle, &tnames)) {
+	if (!test_LookupNames(b, tctx, handle, &tnames)) {
 		ret = false;
 	}
 
@@ -2830,27 +2906,27 @@ static bool testcase_LookupNames(struct torture_context *tctx,
 	tnames2.names[0].name.string = "BUILTIN";
 	tnames2.names[0].sid_type = SID_NAME_DOMAIN;
 
-	if (!test_LookupNames2(p, tctx, handle, &tnames2, true)) {
+	if (!test_LookupNames2(b, tctx, handle, &tnames2, true)) {
 		ret = false;
 	}
 
-	if (!test_LookupNames3(p, tctx, handle, &tnames2, true)) {
+	if (!test_LookupNames3(b, tctx, handle, &tnames2, true)) {
 		ret = false;
 	}
 
-	if (!test_LookupNames_wellknown(p, tctx, handle)) {
+	if (!test_LookupNames_wellknown(b, tctx, handle)) {
 		ret = false;
 	}
 
-	if (!test_LookupNames_NULL(p, tctx, handle)) {
+	if (!test_LookupNames_NULL(b, tctx, handle)) {
 		ret = false;
 	}
 
-	if (!test_LookupNames_bogus(p, tctx, handle)) {
+	if (!test_LookupNames_bogus(b, tctx, handle)) {
 		ret = false;
 	}
 
-	if (!test_lsa_Close(p, tctx, handle)) {
+	if (!test_lsa_Close(b, tctx, handle)) {
 		ret = false;
 	}
 
@@ -2884,14 +2960,15 @@ static bool testcase_TrustedDomains(struct torture_context *tctx,
 	struct policy_handle *handle;
 	struct lsa_trustdom_state *state =
 		talloc_get_type_abort(data, struct lsa_trustdom_state);
+	struct dcerpc_binding_handle *b = p->binding_handle;
 
-	torture_comment(tctx, "testing %d domains\n", state->num_trusts);
+	torture_comment(tctx, "Testing %d domains\n", state->num_trusts);
 
-	if (!test_OpenPolicy(p, tctx)) {
+	if (!test_OpenPolicy(b, tctx)) {
 		ret = false;
 	}
 
-	if (!test_lsa_OpenPolicy2(p, tctx, &handle)) {
+	if (!test_lsa_OpenPolicy2(b, tctx, &handle)) {
 		ret = false;
 	}
 
@@ -2899,7 +2976,7 @@ static bool testcase_TrustedDomains(struct torture_context *tctx,
 		ret = false;
 	}
 
-	if (!test_CreateTrustedDomain(p, tctx, handle, state->num_trusts)) {
+	if (!test_CreateTrustedDomain(b, tctx, handle, state->num_trusts)) {
 		ret = false;
 	}
 
@@ -2907,7 +2984,7 @@ static bool testcase_TrustedDomains(struct torture_context *tctx,
 		ret = false;
 	}
 
-	if (!test_lsa_Close(p, tctx, handle)) {
+	if (!test_lsa_Close(b, tctx, handle)) {
 		ret = false;
 	}
 
@@ -2940,12 +3017,13 @@ static bool testcase_Privileges(struct torture_context *tctx,
 {
 	bool ret = true;
 	struct policy_handle *handle;
+	struct dcerpc_binding_handle *b = p->binding_handle;
 
-	if (!test_OpenPolicy(p, tctx)) {
+	if (!test_OpenPolicy(b, tctx)) {
 		ret = false;
 	}
 
-	if (!test_lsa_OpenPolicy2(p, tctx, &handle)) {
+	if (!test_lsa_OpenPolicy2(b, tctx, &handle)) {
 		ret = false;
 	}
 
@@ -2953,19 +3031,19 @@ static bool testcase_Privileges(struct torture_context *tctx,
 		ret = false;
 	}
 
-	if (!test_CreateAccount(p, tctx, handle)) {
+	if (!test_CreateAccount(b, tctx, handle)) {
 		ret = false;
 	}
 
-	if (!test_EnumAccounts(p, tctx, handle)) {
+	if (!test_EnumAccounts(b, tctx, handle)) {
 		ret = false;
 	}
 
-	if (!test_EnumPrivs(p, tctx, handle)) {
+	if (!test_EnumPrivs(b, tctx, handle)) {
 		ret = false;
 	}
 
-	if (!test_lsa_Close(p, tctx, handle)) {
+	if (!test_lsa_Close(b, tctx, handle)) {
 		ret = false;
 	}
 

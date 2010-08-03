@@ -22,13 +22,13 @@
 /****************************************************************************
   query the security descriptor for a open file
  ****************************************************************************/
-SEC_DESC *cli_query_secdesc(struct cli_state *cli, uint16_t fnum, 
+struct security_descriptor *cli_query_secdesc(struct cli_state *cli, uint16_t fnum,
 			    TALLOC_CTX *mem_ctx)
 {
 	uint8_t param[8];
-	uint8_t *rparam=NULL, *rdata=NULL;
-	unsigned int rparam_count=0, rdata_count=0;
-	SEC_DESC *psd = NULL;
+	uint8_t *rdata=NULL;
+	uint32_t rdata_count=0;
+	struct security_descriptor *psd = NULL;
 	NTSTATUS status;
 
 	SIVAL(param, 0, fnum);
@@ -40,9 +40,9 @@ SEC_DESC *cli_query_secdesc(struct cli_state *cli, uint16_t fnum,
 			   NULL, 0, 0, /* setup, length, max */
 			   param, 8, 4, /* param, length, max */
 			   NULL, 0, 0x10000, /* data, length, max */
-			   NULL, NULL, /* rsetup, length */
-			   &rparam, &rparam_count,
-			   &rdata, &rdata_count);
+			   NULL, 0, NULL, /* rsetup, length */
+			   NULL, 0, NULL,
+			   &rdata, 0, &rdata_count);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(1, ("NT_TRANSACT_QUERY_SECURITY_DESC failed: %s\n",
@@ -61,7 +61,6 @@ SEC_DESC *cli_query_secdesc(struct cli_state *cli, uint16_t fnum,
 
  cleanup:
 
-	TALLOC_FREE(rparam);
 	TALLOC_FREE(rdata);
 
 	return psd;
@@ -70,7 +69,7 @@ SEC_DESC *cli_query_secdesc(struct cli_state *cli, uint16_t fnum,
 /****************************************************************************
   set the security descriptor for a open file
  ****************************************************************************/
-bool cli_set_secdesc(struct cli_state *cli, uint16_t fnum, SEC_DESC *sd)
+bool cli_set_secdesc(struct cli_state *cli, uint16_t fnum, struct security_descriptor *sd)
 {
 	char param[8];
 	char *rparam=NULL, *rdata=NULL;
@@ -92,11 +91,11 @@ bool cli_set_secdesc(struct cli_state *cli, uint16_t fnum, SEC_DESC *sd)
 	SIVAL(param, 0, fnum);
 
 	if (sd->dacl)
-		sec_info |= DACL_SECURITY_INFORMATION;
+		sec_info |= SECINFO_DACL;
 	if (sd->owner_sid)
-		sec_info |= OWNER_SECURITY_INFORMATION;
+		sec_info |= SECINFO_OWNER;
 	if (sd->group_sid)
-		sec_info |= GROUP_SECURITY_INFORMATION;
+		sec_info |= SECINFO_GROUP;
 	SSVAL(param, 4, sec_info);
 
 	if (!cli_send_nt_trans(cli, 

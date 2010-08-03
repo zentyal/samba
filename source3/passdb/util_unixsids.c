@@ -19,14 +19,14 @@
 
 #include "includes.h"
 
-bool sid_check_is_unix_users(const DOM_SID *sid)
+bool sid_check_is_unix_users(const struct dom_sid *sid)
 {
 	return sid_equal(sid, &global_sid_Unix_Users);
 }
 
-bool sid_check_is_in_unix_users(const DOM_SID *sid)
+bool sid_check_is_in_unix_users(const struct dom_sid *sid)
 {
-	DOM_SID dom_sid;
+	struct dom_sid dom_sid;
 	uint32 rid;
 
 	sid_copy(&dom_sid, sid);
@@ -35,16 +35,22 @@ bool sid_check_is_in_unix_users(const DOM_SID *sid)
 	return sid_check_is_unix_users(&dom_sid);
 }
 
-bool uid_to_unix_users_sid(uid_t uid, DOM_SID *sid)
+void uid_to_unix_users_sid(uid_t uid, struct dom_sid *sid)
 {
-	sid_copy(sid, &global_sid_Unix_Users);
-	return sid_append_rid(sid, (uint32_t)uid);
+	/*
+	 * This can never fail, we know that global_sid_Unix_Users is
+	 * short enough for a domain sid.
+	 */
+	sid_compose(sid, &global_sid_Unix_Users, uid);
 }
 
-bool gid_to_unix_groups_sid(gid_t gid, DOM_SID *sid)
+void gid_to_unix_groups_sid(gid_t gid, struct dom_sid *sid)
 {
-	sid_copy(sid, &global_sid_Unix_Groups);
-	return sid_append_rid(sid, (uint32_t)gid);
+	/*
+	 * This can never fail, we know that global_sid_Unix_Groups is
+	 * short enough for a domain sid.
+	 */
+	sid_compose(sid, &global_sid_Unix_Groups, gid);
 }
 
 const char *unix_users_domain_name(void)
@@ -52,30 +58,33 @@ const char *unix_users_domain_name(void)
 	return "Unix User";
 }
 
-bool lookup_unix_user_name(const char *name, DOM_SID *sid)
+bool lookup_unix_user_name(const char *name, struct dom_sid *sid)
 {
 	struct passwd *pwd;
+	bool ret;
 
 	pwd = getpwnam_alloc(talloc_autofree_context(), name);
 	if (pwd == NULL) {
 		return False;
 	}
 
-	sid_copy(sid, &global_sid_Unix_Users);
-	sid_append_rid(sid, (uint32_t)pwd->pw_uid); /* For 64-bit uid's we have enough
-					  * space ... */
+	/*
+	 * For 64-bit uid's we have enough space in the whole SID,
+	 * should they become necessary
+	 */
+	ret = sid_compose(sid, &global_sid_Unix_Users, pwd->pw_uid);
 	TALLOC_FREE(pwd);
-	return True;
+	return ret;
 }
 
-bool sid_check_is_unix_groups(const DOM_SID *sid)
+bool sid_check_is_unix_groups(const struct dom_sid *sid)
 {
 	return sid_equal(sid, &global_sid_Unix_Groups);
 }
 
-bool sid_check_is_in_unix_groups(const DOM_SID *sid)
+bool sid_check_is_in_unix_groups(const struct dom_sid *sid)
 {
-	DOM_SID dom_sid;
+	struct dom_sid dom_sid;
 	uint32 rid;
 
 	sid_copy(&dom_sid, sid);
@@ -89,7 +98,7 @@ const char *unix_groups_domain_name(void)
 	return "Unix Group";
 }
 
-bool lookup_unix_group_name(const char *name, DOM_SID *sid)
+bool lookup_unix_group_name(const char *name, struct dom_sid *sid)
 {
 	struct group *grp;
 
@@ -98,8 +107,9 @@ bool lookup_unix_group_name(const char *name, DOM_SID *sid)
 		return False;
 	}
 
-	sid_copy(sid, &global_sid_Unix_Groups);
-	sid_append_rid(sid, (uint32_t)grp->gr_gid); /* For 64-bit uid's we have enough
-					   * space ... */
-	return True;
+	/*
+	 * For 64-bit gid's we have enough space in the whole SID,
+	 * should they become necessary
+	 */
+	return sid_compose(sid, &global_sid_Unix_Groups, grp->gr_gid);
 }

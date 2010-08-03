@@ -22,6 +22,8 @@
 */
 
 #include "includes.h"
+#include "../librpc/gen_ndr/ndr_lsa.h"
+#include "rpc_client/cli_lsarpc.h"
 
 static char *server;
 
@@ -77,7 +79,7 @@ static bool cli_open_policy_hnd(void)
 }
 
 /* convert a SID to a string, either numeric or username/group */
-static void SidToString(fstring str, DOM_SID *sid, bool _numeric)
+static void SidToString(fstring str, struct dom_sid *sid, bool _numeric)
 {
 	char **domains = NULL;
 	char **names = NULL;
@@ -106,10 +108,10 @@ static void SidToString(fstring str, DOM_SID *sid, bool _numeric)
 }
 
 /* convert a string to a SID, either numeric or username/group */
-static bool StringToSid(DOM_SID *sid, const char *str)
+static bool StringToSid(struct dom_sid *sid, const char *str)
 {
 	enum lsa_SidType *types = NULL;
-	DOM_SID *sids = NULL;
+	struct dom_sid *sids = NULL;
 	bool result = True;
 
 	if (strncmp(str, "S-", 2) == 0) {
@@ -235,7 +237,7 @@ static int do_quota(struct cli_state *cli,
 	SMB_NTQUOTA_STRUCT qt;
 	ZERO_STRUCT(qt);
 
-	if (!cli_get_fs_attr_info(cli, &fs_attrs)) {
+	if (!NT_STATUS_IS_OK(cli_get_fs_attr_info(cli, &fs_attrs))) {
 		d_printf("Failed to get the filesystem attributes %s.\n",
 			cli_errstr(cli));
 		return -1;

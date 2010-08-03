@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 # Unix SMB/CIFS implementation.
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2007-2008
@@ -22,13 +22,18 @@
 import os
 import ldb
 import samba
+from samba import param
 import tempfile
-import unittest
 
-class LdbTestCase(unittest.TestCase):
+# Other modules import these two classes from here, for convenience:
+from testtools.testcase import TestCase, TestSkipped
 
+
+class LdbTestCase(TestCase):
     """Trivial test case for running tests against a LDB."""
+
     def setUp(self):
+        super(LdbTestCase, self).setUp()
         self.filename = os.tempnam()
         self.ldb = samba.Ldb(self.filename)
 
@@ -41,7 +46,7 @@ class LdbTestCase(unittest.TestCase):
         self.ldb = samba.Ldb(self.filename)
 
 
-class TestCaseInTempDir(unittest.TestCase):
+class TestCaseInTempDir(TestCase):
 
     def setUp(self):
         super(TestCaseInTempDir, self).setUp()
@@ -53,20 +58,22 @@ class TestCaseInTempDir(unittest.TestCase):
         os.rmdir(self.tempdir)
 
 
-class SubstituteVarTestCase(unittest.TestCase):
+class SubstituteVarTestCase(TestCase):
 
     def test_empty(self):
         self.assertEquals("", samba.substitute_var("", {}))
 
     def test_nothing(self):
-        self.assertEquals("foo bar", samba.substitute_var("foo bar", {"bar": "bla"}))
+        self.assertEquals("foo bar",
+                samba.substitute_var("foo bar", {"bar": "bla"}))
 
     def test_replace(self):
-        self.assertEquals("foo bla", samba.substitute_var("foo ${bar}", {"bar": "bla"}))
+        self.assertEquals("foo bla",
+                samba.substitute_var("foo ${bar}", {"bar": "bla"}))
 
     def test_broken(self):
         self.assertEquals("foo ${bdkjfhsdkfh sdkfh ", 
-                samba.substitute_var("foo ${bdkjfhsdkfh sdkfh ", {"bar": "bla"}))
+            samba.substitute_var("foo ${bdkjfhsdkfh sdkfh ", {"bar": "bla"}))
 
     def test_unknown_var(self):
         self.assertEquals("foo ${bla} gsff", 
@@ -74,7 +81,8 @@ class SubstituteVarTestCase(unittest.TestCase):
                 
     def test_check_all_substituted(self):
         samba.check_all_substituted("nothing to see here")
-        self.assertRaises(Exception, samba.check_all_substituted, "Not subsituted: ${FOOBAR}")
+        self.assertRaises(Exception, samba.check_all_substituted,
+                "Not subsituted: ${FOOBAR}")
 
 
 class LdbExtensionTests(TestCaseInTempDir):
@@ -84,26 +92,33 @@ class LdbExtensionTests(TestCaseInTempDir):
         l = samba.Ldb(path)
         try:
             l.add({"dn": "foo=dc", "bar": "bla"})
-            self.assertEquals("bla", l.searchone(basedn=ldb.Dn(l, "foo=dc"), attribute="bar"))
+            self.assertEquals("bla",
+                l.searchone(basedn=ldb.Dn(l, "foo=dc"), attribute="bar"))
         finally:
             del l
             os.unlink(path)
 
 
-cmdline_loadparm = None
+def env_loadparm():
+    lp = param.LoadParm()
+    try:
+        lp.load(os.environ["SMB_CONF_PATH"])
+    except KeyError:
+        raise Exception("SMB_CONF_PATH not set")
+    return lp
+
 cmdline_credentials = None
 
-class RpcInterfaceTestCase(unittest.TestCase):
+class RpcInterfaceTestCase(TestCase):
 
     def get_loadparm(self):
-        assert cmdline_loadparm is not None
-        return cmdline_loadparm
+        return env_loadparm()
 
     def get_credentials(self):
         return cmdline_credentials
 
 
-class ValidNetbiosNameTests(unittest.TestCase):
+class ValidNetbiosNameTests(TestCase):
 
     def test_valid(self):
         self.assertTrue(samba.valid_netbios_name("FOO"))

@@ -17,9 +17,10 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <Python.h>
 #include "replace.h"
 #include <talloc.h>
-#include <pytalloc.h>
+#include "pytalloc.h"
 
 /**
  * Simple dealloc for talloc-wrapping PyObjects

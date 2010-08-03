@@ -18,7 +18,9 @@ PRIVATE_DEPENDENCIES = \
 		share \
 		torture_registry \
 		PROVISION \
-		NSS_WRAPPER
+		NSS_WRAPPER \
+		LDB \
+		SAMDB
 # End SUBSYSTEM TORTURE_LOCAL
 #################################
 
@@ -33,6 +35,7 @@ TORTURE_LOCAL_OBJ_FILES = \
 		$(torturesrcdir)/../lib/messaging/tests/irpc.o \
 		$(torturesrcdir)/../librpc/tests/binding_string.o \
 		$(torturesrcdir)/../../lib/util/tests/idtree.o \
+		$(torturesrcdir)/../../lib/util/tests/dlinklist.o \
 		$(torturesrcdir)/../lib/socket/testsuite.o \
 		$(torturesrcdir)/../../lib/socket_wrapper/testsuite.o \
 		$(torturesrcdir)/../../lib/nss_wrapper/testsuite.o \
@@ -41,6 +44,7 @@ TORTURE_LOCAL_OBJ_FILES = \
 		$(torturesrcdir)/../../lib/util/tests/parmlist.o \
 		$(torturesrcdir)/../../lib/util/tests/str.o \
 		$(torturesrcdir)/../../lib/util/tests/time.o \
+		$(torturesrcdir)/../../lib/util/tests/asn1_tests.o \
 		$(torturesrcdir)/../../lib/util/tests/data_blob.o \
 		$(torturesrcdir)/../../lib/util/tests/file.o \
 		$(torturesrcdir)/../../lib/util/tests/genrand.o \
@@ -55,6 +59,8 @@ TORTURE_LOCAL_OBJ_FILES = \
 		$(torturesrcdir)/local/local.o \
 		$(torturesrcdir)/local/dbspeed.o \
 		$(torturesrcdir)/local/torture.o \
-		$(torturesrcdir)/ldb/ldb.o
+		$(torturesrcdir)/ldb/ldb.o \
+		$(torturesrcdir)/../dsdb/common/tests/dsdb_dn.o \
+		$(torturesrcdir)/../dsdb/schema/tests/schema_syntax.o
 
 $(eval $(call proto_header_template,$(torturesrcdir)/local/proto.h,$(TORTURE_LOCAL_OBJ_FILES:.o=.c)))

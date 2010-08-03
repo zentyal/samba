@@ -24,7 +24,7 @@
 #include "rpc_server/dcerpc_server.h"
 #include "librpc/gen_ndr/ndr_spoolss.h"
 #include "ntptr/ntptr.h"
-#include "lib/socket/socket.h"
+#include "lib/tsocket/tsocket.h"
 #include "librpc/gen_ndr/ndr_spoolss_c.h"
 #include "auth/credentials/credentials.h"
 #include "param/param.h"
@@ -33,11 +33,11 @@ enum spoolss_handle {
 	SPOOLSS_NOTIFY
 };
 
-#define SPOOLSS_BUFFER_UNION(fn,ic,info,level) \
-	((info)?ndr_size_##fn(info, level, ic, 0):0)
+#define SPOOLSS_BUFFER_UNION(fn,info,level) \
+	((info)?ndr_size_##fn(info, level, 0):0)
 
-#define SPOOLSS_BUFFER_UNION_ARRAY(fn,ic,info,level,count) \
-	((info)?ndr_size_##fn##_info(dce_call, ic, level, count, info):0)
+#define SPOOLSS_BUFFER_UNION_ARRAY(fn,info,level,count) \
+	((info)?ndr_size_##fn##_info(dce_call, level, count, info):0)
 
 #define SPOOLSS_BUFFER_OK(val_true,val_false) ((r->in.offered >= *r->out.needed)?val_true:val_false)
 
@@ -148,9 +148,11 @@ static WERROR dcesrv_spoolss_check_server_name(struct dcesrv_call_state *dce_cal
 					const char *server_name)
 {
 	bool ret;
-	struct socket_address *myaddr;
+	const struct tsocket_address *local_address;
+	char *myaddr;
 	const char **aliases;
-	int i;
+	const char *dnsdomain;
+	unsigned int i;
 
 	/* NULL is ok */
 	if (!server_name) return WERR_OK;
@@ -172,10 +174,10 @@ static WERROR dcesrv_spoolss_check_server_name(struct dcesrv_call_state *dce_cal
 	server_name += 2;
 
 	/* NETBIOS NAME is ok */
-	ret = strequal(lp_netbios_name(dce_call->conn->dce_ctx->lp_ctx), server_name);
+	ret = strequal(lpcfg_netbios_name(dce_call->conn->dce_ctx->lp_ctx), server_name);
 	if (ret) return WERR_OK;
 
-	aliases = lp_netbios_aliases(dce_call->conn->dce_ctx->lp_ctx);
+	aliases = lpcfg_netbios_aliases(dce_call->conn->dce_ctx->lp_ctx);
 
 	for (i=0; aliases && aliases[i]; i++) {
 		if (strequal(aliases[i], server_name)) {
@@ -186,12 +188,13 @@ static WERROR dcesrv_spoolss_check_server_name(struct dcesrv_call_state *dce_cal
 	/* DNS NAME is ok
 	 * TODO: we need to check if aliases are also ok
 	 */
-	if (lp_realm(dce_call->conn->dce_ctx->lp_ctx)) {
+	dnsdomain = lpcfg_dnsdomain(dce_call->conn->dce_ctx->lp_ctx);
+	if (dnsdomain != NULL) {
 		char *str;
 
 		str = talloc_asprintf(mem_ctx, "%s.%s",
-						lp_netbios_name(dce_call->conn->dce_ctx->lp_ctx),
-						lp_realm(dce_call->conn->dce_ctx->lp_ctx));
+						lpcfg_netbios_name(dce_call->conn->dce_ctx->lp_ctx),
+						dnsdomain);
 		W_ERROR_HAVE_NO_MEMORY(str);
 
 		ret = strequal(str, server_name);
@@ -199,10 +202,12 @@ static WERROR dcesrv_spoolss_check_server_name(struct dcesrv_call_state *dce_cal
 		if (ret) return WERR_OK;
 	}
 
-	myaddr = dcesrv_connection_get_my_addr(dce_call->conn, mem_ctx);
+	local_address = dcesrv_connection_get_local_address(dce_call->conn);
+
+	myaddr = tsocket_address_inet_addr_string(local_address, mem_ctx);
 	W_ERROR_HAVE_NO_MEMORY(myaddr);
 
-	ret = strequal(myaddr->addr, server_name);
+	ret = strequal(myaddr, server_name);
 	talloc_free(myaddr);
 	if (ret) return WERR_OK;
 
@@ -215,7 +220,7 @@ static NTSTATUS dcerpc_spoolss_bind(struct dcesrv_call_state *dce_call, const st
 	struct ntptr_context *ntptr;
 
 	status = ntptr_init_context(dce_call->context, dce_call->conn->event_ctx, dce_call->conn->dce_ctx->lp_ctx,
-				    lp_ntptr_providor(dce_call->conn->dce_ctx->lp_ctx), &ntptr);
+				    lpcfg_ntptr_providor(dce_call->conn->dce_ctx->lp_ctx), &ntptr);
 	NT_STATUS_NOT_OK_RETURN(status);
 
 	dce_call->context->private_data = ntptr;
@@ -233,7 +238,6 @@ static WERROR dcesrv_spoolss_EnumPrinters(struct dcesrv_call_state *dce_call, TA
 {
 	struct ntptr_context *ntptr = talloc_get_type(dce_call->context->private_data, struct ntptr_context);
 	WERROR status;
-	struct smb_iconv_convenience *ic = lp_iconv_convenience(ntptr->lp_ctx);
 
 	status = dcesrv_spoolss_check_server_name(dce_call, mem_ctx, r->in.server);
 	W_ERROR_NOT_OK_RETURN(status);
@@ -241,7 +245,7 @@ static WERROR dcesrv_spoolss_EnumPrinters(struct dcesrv_call_state *dce_call, TA
 	status = ntptr_EnumPrinters(ntptr, mem_ctx, r);
 	W_ERROR_NOT_OK_RETURN(status);
 
-	*r->out.needed	= SPOOLSS_BUFFER_UNION_ARRAY(spoolss_EnumPrinters, ic, *r->out.info, r->in.level, *r->out.count);
+	*r->out.needed	= SPOOLSS_BUFFER_UNION_ARRAY(spoolss_EnumPrinters, *r->out.info, r->in.level, *r->out.count);
 	*r->out.info	= SPOOLSS_BUFFER_OK(*r->out.info, NULL);
 	*r->out.count	= SPOOLSS_BUFFER_OK(*r->out.count, 0);
 	return SPOOLSS_BUFFER_OK(WERR_OK, WERR_INSUFFICIENT_BUFFER);
@@ -369,7 +373,6 @@ static WERROR dcesrv_spoolss_EnumPrinterDrivers(struct dcesrv_call_state *dce_ca
 {
 	struct ntptr_context *ntptr = talloc_get_type(dce_call->context->private_data, struct ntptr_context);
 	WERROR status;
-	struct smb_iconv_convenience *ic = lp_iconv_convenience(ntptr->lp_ctx);
 
 	status = dcesrv_spoolss_check_server_name(dce_call, mem_ctx, r->in.server);
 	W_ERROR_NOT_OK_RETURN(status);
@@ -377,7 +380,7 @@ static WERROR dcesrv_spoolss_EnumPrinterDrivers(struct dcesrv_call_state *dce_ca
 	status = ntptr_EnumPrinterDrivers(ntptr, mem_ctx, r);
 	W_ERROR_NOT_OK_RETURN(status);
 
-	*r->out.needed	= SPOOLSS_BUFFER_UNION_ARRAY(spoolss_EnumPrinterDrivers, ic, *r->out.info, r->in.level, *r->out.count);
+	*r->out.needed	= SPOOLSS_BUFFER_UNION_ARRAY(spoolss_EnumPrinterDrivers, *r->out.info, r->in.level, *r->out.count);
 	*r->out.info	= SPOOLSS_BUFFER_OK(*r->out.info, NULL);
 	*r->out.count	= SPOOLSS_BUFFER_OK(*r->out.count, 0);
 	return SPOOLSS_BUFFER_OK(WERR_OK, WERR_INSUFFICIENT_BUFFER);
@@ -402,7 +405,6 @@ static WERROR dcesrv_spoolss_GetPrinterDriverDirectory(struct dcesrv_call_state 
 {
 	struct ntptr_context *ntptr = talloc_get_type(dce_call->context->private_data, struct ntptr_context);
 	WERROR status;
-	struct smb_iconv_convenience *ic = lp_iconv_convenience(ntptr->lp_ctx);
 
 	status = dcesrv_spoolss_check_server_name(dce_call, mem_ctx, r->in.server);
 	W_ERROR_NOT_OK_RETURN(status);
@@ -410,7 +412,7 @@ static WERROR dcesrv_spoolss_GetPrinterDriverDirectory(struct dcesrv_call_state 
 	status = ntptr_GetPrinterDriverDirectory(ntptr, mem_ctx, r);
 	W_ERROR_NOT_OK_RETURN(status);
 
-	*r->out.needed	= SPOOLSS_BUFFER_UNION(spoolss_DriverDirectoryInfo, ic, r->out.info, r->in.level);
+	*r->out.needed	= SPOOLSS_BUFFER_UNION(spoolss_DriverDirectoryInfo, r->out.info, r->in.level);
 	r->out.info	= SPOOLSS_BUFFER_OK(r->out.info, NULL);
 	return SPOOLSS_BUFFER_OK(WERR_OK, WERR_INSUFFICIENT_BUFFER);
 }
@@ -454,7 +456,6 @@ static WERROR dcesrv_spoolss_GetPrintProcessorDirectory(struct dcesrv_call_state
 {
 	struct ntptr_context *ntptr = talloc_get_type(dce_call->context->private_data, struct ntptr_context);
 	WERROR status;
-	struct smb_iconv_convenience *ic = lp_iconv_convenience(ntptr->lp_ctx);
 
 	status = dcesrv_spoolss_check_server_name(dce_call, mem_ctx, r->in.server);
 	W_ERROR_NOT_OK_RETURN(status);
@@ -462,7 +463,7 @@ static WERROR dcesrv_spoolss_GetPrintProcessorDirectory(struct dcesrv_call_state
 	status = ntptr_GetPrintProcessorDirectory(ntptr, mem_ctx, r);
 	W_ERROR_NOT_OK_RETURN(status);
 
-	*r->out.needed	= SPOOLSS_BUFFER_UNION(spoolss_PrintProcessorDirectoryInfo, ic, r->out.info, r->in.level);
+	*r->out.needed	= SPOOLSS_BUFFER_UNION(spoolss_PrintProcessorDirectoryInfo, r->out.info, r->in.level);
 	r->out.info	= SPOOLSS_BUFFER_OK(r->out.info, NULL);
 	return SPOOLSS_BUFFER_OK(WERR_OK, WERR_INSUFFICIENT_BUFFER);
 }
@@ -571,7 +572,6 @@ static WERROR dcesrv_spoolss_GetPrinterData(struct dcesrv_call_state *dce_call, 
 	struct ntptr_GenericHandle *handle;
 	struct dcesrv_handle *h;
 	WERROR status;
-	struct smb_iconv_convenience *ic = lp_iconv_convenience(dce_call->conn->dce_ctx->lp_ctx);
 
 	r->out.type = talloc_zero(mem_ctx, enum winreg_Type);
 	W_ERROR_HAVE_NO_MEMORY(r->out.type);
@@ -717,7 +717,6 @@ static WERROR dcesrv_spoolss_GetForm(struct dcesrv_call_state *dce_call, TALLOC_
 	struct ntptr_GenericHandle *handle;
 	struct dcesrv_handle *h;
 	WERROR status;
-	struct smb_iconv_convenience *ic = lp_iconv_convenience(dce_call->conn->dce_ctx->lp_ctx);
 
 	DCESRV_PULL_HANDLE_WERR(h, r->in.handle, DCESRV_HANDLE_ANY);
 	handle = talloc_get_type(h->data, struct ntptr_GenericHandle);
@@ -738,7 +737,7 @@ static WERROR dcesrv_spoolss_GetForm(struct dcesrv_call_state *dce_call, TALLOC_
 			return WERR_FOOBAR;
 	}
 
-	*r->out.needed	= SPOOLSS_BUFFER_UNION(spoolss_FormInfo, ic, r->out.info, r->in.level);
+	*r->out.needed	= SPOOLSS_BUFFER_UNION(spoolss_FormInfo, r->out.info, r->in.level);
 	r->out.info	= SPOOLSS_BUFFER_OK(r->out.info, NULL);
 	return SPOOLSS_BUFFER_OK(WERR_OK, WERR_INSUFFICIENT_BUFFER);
 }
@@ -785,7 +784,6 @@ static WERROR dcesrv_spoolss_EnumForms(struct dcesrv_call_state *dce_call, TALLO
 	struct ntptr_GenericHandle *handle;
 	struct dcesrv_handle *h;
 	WERROR status;
-	struct smb_iconv_convenience *ic = lp_iconv_convenience(dce_call->conn->dce_ctx->lp_ctx);
 
 	DCESRV_PULL_HANDLE_WERR(h, r->in.handle, DCESRV_HANDLE_ANY);
 	handle = talloc_get_type(h->data, struct ntptr_GenericHandle);
@@ -805,7 +803,7 @@ static WERROR dcesrv_spoolss_EnumForms(struct dcesrv_call_state *dce_call, TALLO
 			return WERR_FOOBAR;
 	}
 
-	*r->out.needed	= SPOOLSS_BUFFER_UNION_ARRAY(spoolss_EnumForms, ic, *r->out.info, r->in.level, *r->out.count);
+	*r->out.needed	= SPOOLSS_BUFFER_UNION_ARRAY(spoolss_EnumForms, *r->out.info, r->in.level, *r->out.count);
 	*r->out.info	= SPOOLSS_BUFFER_OK(*r->out.info, NULL);
 	*r->out.count	= SPOOLSS_BUFFER_OK(*r->out.count, 0);
 	return SPOOLSS_BUFFER_OK(WERR_OK, WERR_INSUFFICIENT_BUFFER);
@@ -820,7 +818,6 @@ static WERROR dcesrv_spoolss_EnumPorts(struct dcesrv_call_state *dce_call, TALLO
 {
 	struct ntptr_context *ntptr = talloc_get_type(dce_call->context->private_data, struct ntptr_context);
 	WERROR status;
-	struct smb_iconv_convenience *ic = lp_iconv_convenience(ntptr->lp_ctx);
 
 	status = dcesrv_spoolss_check_server_name(dce_call, mem_ctx, r->in.servername);
 	W_ERROR_NOT_OK_RETURN(status);
@@ -828,7 +825,7 @@ static WERROR dcesrv_spoolss_EnumPorts(struct dcesrv_call_state *dce_call, TALLO
 	status = ntptr_EnumPorts(ntptr, mem_ctx, r);
 	W_ERROR_NOT_OK_RETURN(status);
 
-	*r->out.needed	= SPOOLSS_BUFFER_UNION_ARRAY(spoolss_EnumPorts, ic, *r->out.info, r->in.level, *r->out.count);
+	*r->out.needed	= SPOOLSS_BUFFER_UNION_ARRAY(spoolss_EnumPorts, *r->out.info, r->in.level, *r->out.count);
 	*r->out.info	= SPOOLSS_BUFFER_OK(*r->out.info, NULL);
 	*r->out.count	= SPOOLSS_BUFFER_OK(*r->out.count, 0);
 	return SPOOLSS_BUFFER_OK(WERR_OK, WERR_INSUFFICIENT_BUFFER);
@@ -843,7 +840,6 @@ static WERROR dcesrv_spoolss_EnumMonitors(struct dcesrv_call_state *dce_call, TA
 {
 	struct ntptr_context *ntptr = talloc_get_type(dce_call->context->private_data, struct ntptr_context);
 	WERROR status;
-	struct smb_iconv_convenience *ic = lp_iconv_convenience(ntptr->lp_ctx);
 
 	status = dcesrv_spoolss_check_server_name(dce_call, mem_ctx, r->in.servername);
 	W_ERROR_NOT_OK_RETURN(status);
@@ -851,7 +847,7 @@ static WERROR dcesrv_spoolss_EnumMonitors(struct dcesrv_call_state *dce_call, TA
 	status = ntptr_EnumMonitors(ntptr, mem_ctx, r);
 	W_ERROR_NOT_OK_RETURN(status);
 
-	*r->out.needed	= SPOOLSS_BUFFER_UNION_ARRAY(spoolss_EnumMonitors, ic, *r->out.info, r->in.level, *r->out.count);
+	*r->out.needed	= SPOOLSS_BUFFER_UNION_ARRAY(spoolss_EnumMonitors, *r->out.info, r->in.level, *r->out.count);
 	*r->out.info	= SPOOLSS_BUFFER_OK(*r->out.info, NULL);
 	*r->out.count	= SPOOLSS_BUFFER_OK(*r->out.count, 0);
 	return SPOOLSS_BUFFER_OK(WERR_OK, WERR_INSUFFICIENT_BUFFER);
@@ -1195,7 +1191,7 @@ static WERROR dcesrv_spoolss_RemoteFindFirstPrinterChangeNotifyEx(struct dcesrv_
 	}
 
 	ZERO_STRUCT(rop);
-	rop.in.server_name = lp_netbios_name(dce_call->conn->dce_ctx->lp_ctx);
+	rop.in.server_name = lpcfg_netbios_name(dce_call->conn->dce_ctx->lp_ctx);
 	W_ERROR_HAVE_NO_MEMORY(rop.in.server_name);
 	rop.in.printer_local = 0;
 	rop.in.type = REG_NONE;
@@ -1203,7 +1199,7 @@ static WERROR dcesrv_spoolss_RemoteFindFirstPrinterChangeNotifyEx(struct dcesrv_
 	rop.in.buffer = NULL;
 	rop.out.handle = &notify_handle;
 
-	status = dcerpc_spoolss_ReplyOpenPrinter(p, mem_ctx, &rop);
+	status = dcerpc_spoolss_ReplyOpenPrinter_r(p->binding_handle, mem_ctx, &rop);
 	if (NT_STATUS_IS_ERR(status)) {
 		DEBUG(0, ("unable to open remote printer %s\n",
 			r->in.local_machine));

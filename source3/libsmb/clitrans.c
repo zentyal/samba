@@ -1106,6 +1106,7 @@ static void cli_trans_done(struct tevent_req *subreq)
 	uint16_t *vwv;
 	uint32_t num_bytes;
 	uint8_t *bytes;
+	uint8_t *inbuf;
 	uint8_t num_setup	= 0;
 	uint16_t *setup		= NULL;
 	uint32_t total_param	= 0;
@@ -1117,7 +1118,12 @@ static void cli_trans_done(struct tevent_req *subreq)
 	uint8_t *param		= NULL;
 	uint8_t *data		= NULL;
 
-	status = cli_smb_recv(subreq, 0, &wct, &vwv, &num_bytes, &bytes);
+	status = cli_smb_recv(subreq, state, &inbuf, 0, &wct, &vwv,
+			      &num_bytes, &bytes);
+	/*
+	 * Do not TALLOC_FREE(subreq) here, we might receive more than
+	 * one response for the same mid.
+	 */
 
 	/*
 	 * We can receive something like STATUS_MORE_ENTRIES, so don't use
@@ -1132,7 +1138,7 @@ static void cli_trans_done(struct tevent_req *subreq)
 		    && (state->data_sent == state->num_data));
 
 	status = cli_pull_trans(
-		cli_smb_inbuf(subreq), wct, vwv, num_bytes, bytes,
+		inbuf, wct, vwv, num_bytes, bytes,
 		state->cmd, !sent_all, &num_setup, &setup,
 		&total_param, &num_param, &param_disp, &param,
 		&total_data, &num_data, &data_disp, &data);
@@ -1191,6 +1197,8 @@ static void cli_trans_done(struct tevent_req *subreq)
 		return;
 	}
 
+	TALLOC_FREE(inbuf);
+
 	if (!cli_smb_req_set_pending(subreq)) {
 		status = NT_STATUS_NO_MEMORY;
 		goto fail;
@@ -1204,9 +1212,12 @@ static void cli_trans_done(struct tevent_req *subreq)
 }
 
 NTSTATUS cli_trans_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx,
-			uint16_t **setup, uint8_t *num_setup,
-			uint8_t **param, uint32_t *num_param,
-			uint8_t **data, uint32_t *num_data)
+			uint16_t **setup, uint8_t min_setup,
+			uint8_t *num_setup,
+			uint8_t **param, uint32_t min_param,
+			uint32_t *num_param,
+			uint8_t **data, uint32_t min_data,
+			uint32_t *num_data)
 {
 	struct cli_trans_state *state = tevent_req_data(
 		req, struct cli_trans_state);
@@ -1214,6 +1225,12 @@ NTSTATUS cli_trans_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx,
 
 	if (tevent_req_is_nterror(req, &status)) {
 		return status;
+	}
+
+	if ((state->num_rsetup < min_setup)
+	    || (state->rparam.total < min_param)
+	    || (state->rdata.total < min_data)) {
+		return NT_STATUS_INVALID_NETWORK_RESPONSE;
 	}
 
 	if (setup != NULL) {
@@ -1247,9 +1264,9 @@ NTSTATUS cli_trans(TALLOC_CTX *mem_ctx, struct cli_state *cli,
 		   uint16_t *setup, uint8_t num_setup, uint8_t max_setup,
 		   uint8_t *param, uint32_t num_param, uint32_t max_param,
 		   uint8_t *data, uint32_t num_data, uint32_t max_data,
-		   uint16_t **rsetup, uint8_t *num_rsetup,
-		   uint8_t **rparam, uint32_t *num_rparam,
-		   uint8_t **rdata, uint32_t *num_rdata)
+		   uint16_t **rsetup, uint8_t min_rsetup, uint8_t *num_rsetup,
+		   uint8_t **rparam, uint32_t min_rparam, uint32_t *num_rparam,
+		   uint8_t **rdata, uint32_t min_rdata, uint32_t *num_rdata)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
 	struct event_context *ev;
@@ -1285,8 +1302,9 @@ NTSTATUS cli_trans(TALLOC_CTX *mem_ctx, struct cli_state *cli,
 		goto fail;
 	}
 
-	status = cli_trans_recv(req, mem_ctx, rsetup, num_rsetup,
-				rparam, num_rparam, rdata, num_rdata);
+	status = cli_trans_recv(req, mem_ctx, rsetup, min_rsetup, num_rsetup,
+				rparam, min_rparam, num_rparam,
+				rdata, min_rdata, num_rdata);
  fail:
 	TALLOC_FREE(frame);
 	if (!NT_STATUS_IS_OK(status)) {

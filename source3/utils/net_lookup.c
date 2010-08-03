@@ -18,6 +18,10 @@
 
 #include "includes.h"
 #include "utils/net.h"
+#include "libads/sitename_cache.h"
+#include "libads/dns.h"
+#include "../librpc/gen_ndr/ndr_netlogon.h"
+#include "smb_krb5.h"
 
 int net_lookup_usage(struct net_context *c, int argc, const char **argv)
 {
@@ -319,7 +323,7 @@ static int net_lookup_kdc(struct net_context *c, int argc, const char **argv)
 static int net_lookup_name(struct net_context *c, int argc, const char **argv)
 {
 	const char *dom, *name;
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 
 	if (argc != 1) {
@@ -343,7 +347,7 @@ static int net_lookup_name(struct net_context *c, int argc, const char **argv)
 static int net_lookup_sid(struct net_context *c, int argc, const char **argv)
 {
 	const char *dom, *name;
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 
 	if (argc != 1) {

@@ -18,6 +18,7 @@
  */
 
 #include "includes.h"
+#include "../librpc/gen_ndr/ndr_security.h"
 
 /*******************************************************************
  Create the share security tdb.
@@ -26,7 +27,9 @@
 static struct db_context *share_db; /* used for share security descriptors */
 #define SHARE_DATABASE_VERSION_V1 1
 #define SHARE_DATABASE_VERSION_V2 2 /* version id in little endian. */
+#define SHARE_DATABASE_VERSION_V3 3 /* canonicalized sharenames as lower case */
 
+#define SHARE_SECURITY_DB_KEY_PREFIX_STR "SECDESC/"
 /* Map generic permissions to file object specific permissions */
 
 extern const struct generic_mapping file_generic_mapping;
@@ -37,10 +40,97 @@ static int delete_fn(struct db_record *rec, void *priv)
 	return 0;
 }
 
+/*****************************************************
+ Looking for keys of the form: SHARE_SECURITY_DB_KEY_PREFIX_STR + "non lower case str".
+ If we find one re-write it into a canonical case form.
+*****************************************************/
+
+static int upgrade_v2_to_v3(struct db_record *rec, void *priv)
+{
+	size_t prefix_len = strlen(SHARE_SECURITY_DB_KEY_PREFIX_STR);
+	const char *servicename = NULL;
+	char *c_servicename = NULL;
+	char *newkey = NULL;
+	bool *p_upgrade_ok = (bool *)priv;
+	NTSTATUS status;
+
+	/* Is there space for a one character sharename ? */
+	if (rec->key.dsize <= prefix_len+2) {
+		return 0;
+	}
+
+	/* Does it start with the share key prefix ? */
+	if (memcmp(rec->key.dptr, SHARE_SECURITY_DB_KEY_PREFIX_STR,
+			prefix_len) != 0) {
+		return 0;
+	}
+
+	/* Is it a null terminated string as a key ? */
+	if (rec->key.dptr[rec->key.dsize-1] != '\0') {
+		return 0;
+	}
+
+	/* Bytes after the prefix are the sharename string. */
+	servicename = (char *)&rec->key.dptr[prefix_len];
+	c_servicename = canonicalize_servicename(talloc_tos(), servicename);
+	if (!c_servicename) {
+		smb_panic("out of memory upgrading share security db from v2 -> v3");
+	}
+
+	if (strcmp(servicename, c_servicename) == 0) {
+		/* Old and new names match. No canonicalization needed. */
+		TALLOC_FREE(c_servicename);
+		return 0;
+	}
+
+	/* Oops. Need to canonicalize name, delete old then store new. */
+	status = rec->delete_rec(rec);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("upgrade_v2_to_v3: Failed to delete secdesc for "
+			  "%s: %s\n", rec->key.dptr, nt_errstr(status)));
+		TALLOC_FREE(c_servicename);
+		*p_upgrade_ok = false;
+		return -1;
+	} else {
+		DEBUG(10, ("upgrade_v2_to_v3: deleted secdesc for "
+                          "%s\n", rec->key.dptr ));
+	}
+
+	if (!(newkey = talloc_asprintf(talloc_tos(),
+			SHARE_SECURITY_DB_KEY_PREFIX_STR "%s",
+			c_servicename))) {
+		smb_panic("out of memory upgrading share security db from v2 -> v3");
+	}
+
+	status = dbwrap_store(share_db,
+				string_term_tdb_data(newkey),
+				rec->value,
+				TDB_REPLACE);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("upgrade_v2_to_v3: Failed to store secdesc for "
+			  "%s: %s\n", c_servicename, nt_errstr(status)));
+		TALLOC_FREE(c_servicename);
+		TALLOC_FREE(newkey);
+		*p_upgrade_ok = false;
+		return -1;
+	} else {
+		DEBUG(10, ("upgrade_v2_to_v3: stored secdesc for "
+                          "%s\n", newkey ));
+	}
+
+	TALLOC_FREE(newkey);
+	TALLOC_FREE(c_servicename);
+
+	return 0;
+}
+
 bool share_info_db_init(void)
 {
 	const char *vstring = "INFO/version";
 	int32 vers_id;
+	int ret;
+	bool upgrade_ok = true;
 
 	if (share_db != NULL) {
 		return True;
@@ -55,7 +145,7 @@ bool share_info_db_init(void)
 	}
 
 	vers_id = dbwrap_fetch_int32(share_db, vstring);
-	if (vers_id == SHARE_DATABASE_VERSION_V2) {
+	if (vers_id == SHARE_DATABASE_VERSION_V3) {
 		return true;
 	}
 
@@ -66,7 +156,7 @@ bool share_info_db_init(void)
 	}
 
 	vers_id = dbwrap_fetch_int32(share_db, vstring);
-	if (vers_id == SHARE_DATABASE_VERSION_V2) {
+	if (vers_id == SHARE_DATABASE_VERSION_V3) {
 		/*
 		 * Race condition
 		 */
@@ -75,6 +165,8 @@ bool share_info_db_init(void)
 		}
 		return true;
 	}
+
+	/* Move to at least V2. */
 
 	/* Cope with byte-reversed older versions of the db. */
 	if ((vers_id == SHARE_DATABASE_VERSION_V1) || (IREV(vers_id) == SHARE_DATABASE_VERSION_V1)) {
@@ -89,7 +181,6 @@ bool share_info_db_init(void)
 	}
 
 	if (vers_id != SHARE_DATABASE_VERSION_V2) {
-		int ret;
 		ret = share_db->traverse(share_db, delete_fn, NULL);
 		if (ret < 0) {
 			DEBUG(0, ("traverse failed\n"));
@@ -100,6 +191,19 @@ bool share_info_db_init(void)
 			DEBUG(0, ("dbwrap_store_int32 failed\n"));
 			goto cancel;
 		}
+	}
+
+	/* Finally upgrade to version 3, with canonicalized sharenames. */
+
+	ret = share_db->traverse(share_db, upgrade_v2_to_v3, &upgrade_ok);
+	if (ret < 0 || upgrade_ok == false) {
+		DEBUG(0, ("traverse failed\n"));
+		goto cancel;
+	}
+	if (dbwrap_store_int32(share_db, vstring,
+			       SHARE_DATABASE_VERSION_V3) != 0) {
+		DEBUG(0, ("dbwrap_store_int32 failed\n"));
+		goto cancel;
 	}
 
 	if (share_db->transaction_commit(share_db) != 0) {
@@ -122,12 +226,12 @@ bool share_info_db_init(void)
  def_access is a GENERIC_XXX access mode.
  ********************************************************************/
 
-SEC_DESC *get_share_security_default( TALLOC_CTX *ctx, size_t *psize, uint32 def_access)
+struct security_descriptor *get_share_security_default( TALLOC_CTX *ctx, size_t *psize, uint32 def_access)
 {
 	uint32_t sa;
-	SEC_ACE ace;
-	SEC_ACL *psa = NULL;
-	SEC_DESC *psd = NULL;
+	struct security_ace ace;
+	struct security_acl *psa = NULL;
+	struct security_descriptor *psd = NULL;
 	uint32 spec_access = def_access;
 
 	se_map_generic(&spec_access, &file_generic_mapping);
@@ -153,22 +257,31 @@ SEC_DESC *get_share_security_default( TALLOC_CTX *ctx, size_t *psize, uint32 def
  Pull a security descriptor from the share tdb.
  ********************************************************************/
 
-SEC_DESC *get_share_security( TALLOC_CTX *ctx, const char *servicename,
+struct security_descriptor *get_share_security( TALLOC_CTX *ctx, const char *servicename,
 			      size_t *psize)
 {
 	char *key;
-	SEC_DESC *psd = NULL;
+	struct security_descriptor *psd = NULL;
 	TDB_DATA data;
+	char *c_servicename = canonicalize_servicename(talloc_tos(), servicename);
 	NTSTATUS status;
 
-	if (!share_info_db_init()) {
+	if (!c_servicename) {
 		return NULL;
 	}
 
-	if (!(key = talloc_asprintf(ctx, "SECDESC/%s", servicename))) {
+	if (!share_info_db_init()) {
+		TALLOC_FREE(c_servicename);
+		return NULL;
+	}
+
+	if (!(key = talloc_asprintf(ctx, SHARE_SECURITY_DB_KEY_PREFIX_STR "%s", c_servicename))) {
+		TALLOC_FREE(c_servicename);
 		DEBUG(0, ("talloc_asprintf failed\n"));
 		return NULL;
 	}
+
+	TALLOC_FREE(c_servicename);
 
 	data = dbwrap_fetch_bystring(share_db, talloc_tos(), key);
 
@@ -186,11 +299,16 @@ SEC_DESC *get_share_security( TALLOC_CTX *ctx, const char *servicename,
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("unmarshall_sec_desc failed: %s\n",
 			  nt_errstr(status)));
-		return NULL;
+		return get_share_security_default(ctx, psize,
+						  GENERIC_ALL_ACCESS);
 	}
 
-	if (psd)
-		*psize = ndr_size_security_descriptor(psd, NULL, 0);
+	if (psd) {
+		*psize = ndr_size_security_descriptor(psd, 0);
+	} else {
+		return get_share_security_default(ctx, psize,
+						  GENERIC_ALL_ACCESS);
+	}
 
 	return psd;
 }
@@ -199,19 +317,22 @@ SEC_DESC *get_share_security( TALLOC_CTX *ctx, const char *servicename,
  Store a security descriptor in the share db.
  ********************************************************************/
 
-bool set_share_security(const char *share_name, SEC_DESC *psd)
+bool set_share_security(const char *share_name, struct security_descriptor *psd)
 {
-	TALLOC_CTX *frame;
+	TALLOC_CTX *frame = talloc_stackframe();
 	char *key;
 	bool ret = False;
 	TDB_DATA blob;
 	NTSTATUS status;
+	char *c_share_name = canonicalize_servicename(frame, share_name);
 
-	if (!share_info_db_init()) {
-		return False;
+	if (!c_share_name) {
+		goto out;
 	}
 
-	frame = talloc_stackframe();
+	if (!share_info_db_init()) {
+		goto out;
+	}
 
 	status = marshall_sec_desc(frame, psd, &blob.dptr, &blob.dsize);
 
@@ -221,7 +342,7 @@ bool set_share_security(const char *share_name, SEC_DESC *psd)
 		goto out;
 	}
 
-	if (!(key = talloc_asprintf(frame, "SECDESC/%s", share_name))) {
+	if (!(key = talloc_asprintf(frame, SHARE_SECURITY_DB_KEY_PREFIX_STR "%s", c_share_name))) {
 		DEBUG(0, ("talloc_asprintf failed\n"));
 		goto out;
 	}
@@ -251,13 +372,20 @@ bool delete_share_security(const char *servicename)
 	TDB_DATA kbuf;
 	char *key;
 	NTSTATUS status;
+	char *c_servicename = canonicalize_servicename(talloc_tos(), servicename);
+
+	if (!c_servicename) {
+		return NULL;
+	}
 
 	if (!share_info_db_init()) {
+		TALLOC_FREE(c_servicename);
 		return False;
 	}
 
-	if (!(key = talloc_asprintf(talloc_tos(), "SECDESC/%s",
-				    servicename))) {
+	if (!(key = talloc_asprintf(talloc_tos(), SHARE_SECURITY_DB_KEY_PREFIX_STR "%s",
+				    c_servicename))) {
+		TALLOC_FREE(c_servicename);
 		return False;
 	}
 	kbuf = string_term_tdb_data(key);
@@ -265,10 +393,12 @@ bool delete_share_security(const char *servicename)
 	status = dbwrap_trans_delete(share_db, kbuf);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("delete_share_security: Failed to delete entry for "
-			  "share %s: %s\n", servicename, nt_errstr(status)));
+			  "share %s: %s\n", c_servicename, nt_errstr(status)));
+		TALLOC_FREE(c_servicename);
 		return False;
 	}
 
+	TALLOC_FREE(c_servicename);
 	return True;
 }
 
@@ -281,7 +411,7 @@ bool share_access_check(const NT_USER_TOKEN *token, const char *sharename,
 {
 	uint32 granted;
 	NTSTATUS status;
-	SEC_DESC *psd = NULL;
+	struct security_descriptor *psd = NULL;
 	size_t sd_size;
 
 	psd = get_share_security(talloc_tos(), sharename, &sd_size);
@@ -301,14 +431,14 @@ bool share_access_check(const NT_USER_TOKEN *token, const char *sharename,
  Parse the contents of an acl string from a usershare file.
 ***************************************************************************/
 
-bool parse_usershare_acl(TALLOC_CTX *ctx, const char *acl_str, SEC_DESC **ppsd)
+bool parse_usershare_acl(TALLOC_CTX *ctx, const char *acl_str, struct security_descriptor **ppsd)
 {
 	size_t s_size = 0;
 	const char *pacl = acl_str;
 	int num_aces = 0;
-	SEC_ACE *ace_list = NULL;
-	SEC_ACL *psa = NULL;
-	SEC_DESC *psd = NULL;
+	struct security_ace *ace_list = NULL;
+	struct security_acl *psa = NULL;
+	struct security_descriptor *psd = NULL;
 	size_t sd_size = 0;
 	int i;
 
@@ -316,7 +446,7 @@ bool parse_usershare_acl(TALLOC_CTX *ctx, const char *acl_str, SEC_DESC **ppsd)
 
 	/* If the acl string is blank return "Everyone:R" */
 	if (!*acl_str) {
-		SEC_DESC *default_psd = get_share_security_default(ctx, &s_size, GENERIC_READ_ACCESS);
+		struct security_descriptor *default_psd = get_share_security_default(ctx, &s_size, GENERIC_READ_ACCESS);
 		if (!default_psd) {
 			return False;
 		}
@@ -329,7 +459,7 @@ bool parse_usershare_acl(TALLOC_CTX *ctx, const char *acl_str, SEC_DESC **ppsd)
 	/* Add the number of ',' characters to get the number of aces. */
 	num_aces += count_chars(pacl,',');
 
-	ace_list = TALLOC_ARRAY(ctx, SEC_ACE, num_aces);
+	ace_list = TALLOC_ARRAY(ctx, struct security_ace, num_aces);
 	if (!ace_list) {
 		return False;
 	}
@@ -338,7 +468,7 @@ bool parse_usershare_acl(TALLOC_CTX *ctx, const char *acl_str, SEC_DESC **ppsd)
 		uint32_t sa;
 		uint32 g_access;
 		uint32 s_access;
-		DOM_SID sid;
+		struct dom_sid sid;
 		char *sidstr;
 		enum security_ace_type type = SEC_ACE_TYPE_ACCESS_ALLOWED;
 

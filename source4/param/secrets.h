@@ -26,7 +26,7 @@
 #define SECRETS_PRIMARY_REALM_FILTER "(&(realm=%s)(objectclass=primaryDomain))"
 #define SECRETS_KRBTGT_SEARCH "(&((|(realm=%s)(flatname=%s))(samAccountName=krbtgt)))"
 #define SECRETS_PRINCIPAL_SEARCH "(&(|(realm=%s)(flatname=%s))(servicePrincipalName=%s))"
-#define SECRETS_LDAP_FILTER "(objectclass=ldapSecret)"
+#define SECRETS_LDAP_FILTER "(&(objectclass=ldapSecret)(cn=SAMDB Credentials))"
 
 /**
  * Use a TDB to store an incrementing random seed.
@@ -40,7 +40,11 @@ struct loadparm_context;
 struct tevent_context;
 struct tdb_wrap *secrets_init(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx);
 struct ldb_context *secrets_db_connect(TALLOC_CTX *mem_ctx, struct tevent_context *ev_ctx, struct loadparm_context *lp_ctx);
-struct dom_sid *secrets_get_domain_sid(TALLOC_CTX *mem_ctx, struct tevent_context *ev_ctx, struct loadparm_context *lp_ctx, const char *domain);
+struct dom_sid *secrets_get_domain_sid(TALLOC_CTX *mem_ctx,
+				       struct tevent_context *ev_ctx,
+				       struct loadparm_context *lp_ctx,
+				       const char *domain,
+				       char **errstring);
 
 
 #endif /* _SECRETS_H */

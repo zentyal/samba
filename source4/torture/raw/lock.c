@@ -71,8 +71,23 @@
 
 #define TARGET_IS_W2K8(_tctx) (torture_setting_bool(_tctx, "w2k8", false))
 #define TARGET_IS_WIN7(_tctx) (torture_setting_bool(_tctx, "win7", false))
+#define TARGET_IS_WINDOWS(_tctx) \
+	((torture_setting_bool(_tctx, "w2k3", false)) || \
+	 (torture_setting_bool(_tctx, "w2k8", false)) || \
+	 (torture_setting_bool(_tctx, "win7", false)))
 #define TARGET_IS_SAMBA3(_tctx) (torture_setting_bool(_tctx, "samba3", false))
+#define TARGET_IS_SAMBA4(_tctx) (torture_setting_bool(_tctx, "samba4", false))
 
+#define TARGET_SUPPORTS_INVALID_LOCK_RANGE(_tctx) \
+	(torture_setting_bool(_tctx, "invalid_lock_range_support", true))
+#define TARGET_SUPPORTS_SMBEXIT(_tctx) \
+    (torture_setting_bool(_tctx, "smbexit_pdu_support", true))
+#define TARGET_SUPPORTS_SMBLOCK(_tctx) \
+    (torture_setting_bool(_tctx, "smblock_pdu_support", true))
+#define TARGET_SUPPORTS_OPENX_DENY_DOS(_tctx) \
+    (torture_setting_bool(_tctx, "openx_deny_dos_support", true))
+#define TARGET_RETURNS_RANGE_NOT_LOCKED(_tctx) \
+    (torture_setting_bool(_tctx, "range_not_locked_on_file_close", true))
 /*
   test SMBlock and SMBunlock ops
 */
@@ -83,6 +98,9 @@ static bool test_lock(struct torture_context *tctx, struct smbcli_state *cli)
 	bool ret = true;
 	int fnum;
 	const char *fname = BASEDIR "\\test.txt";
+
+	if (!TARGET_SUPPORTS_SMBLOCK(tctx))
+		torture_skip(tctx, "Target does not support the SMBlock PDU");
 
 	if (!torture_setup_dir(cli, BASEDIR)) {
 		return false;
@@ -365,7 +383,7 @@ static bool test_lockx(struct torture_context *tctx, struct smbcli_state *cli)
 	lock[0].pid++;
 	lock[0].count = 2;
 	status = smb_raw_lock(cli->tree, &io);
-	if (TARGET_IS_WIN7(tctx))
+	if (TARGET_SUPPORTS_INVALID_LOCK_RANGE(tctx))
 		CHECK_STATUS(status, NT_STATUS_INVALID_LOCK_RANGE);
 	else
 		CHECK_STATUS(status, NT_STATUS_OK);
@@ -488,14 +506,14 @@ static bool test_async(struct torture_context *tctx,
 	int fnum;
 	const char *fname = BASEDIR "\\test.txt";
 	time_t t;
-	struct smbcli_request *req;
+	struct smbcli_request *req, *req2;
 	struct smbcli_session_options options;
 
 	if (!torture_setup_dir(cli, BASEDIR)) {
 		return false;
 	}
 
-	lp_smbcli_session_options(tctx->lp_ctx, &options);
+	lpcfg_smbcli_session_options(tctx->lp_ctx, &options);
 
 	torture_comment(tctx, "Testing LOCKING_ANDX_CANCEL_LOCK\n");
 	io.generic.level = RAW_LOCK_LOCKX;
@@ -514,13 +532,16 @@ static bool test_async(struct torture_context *tctx,
 	lock[0].pid = cli->session->pid;
 	lock[0].offset = 100;
 	lock[0].count = 10;
+	lock[1].pid = cli->session->pid;
+	lock[1].offset = 110;
+	lock[1].count = 10;
 	io.lockx.in.locks = &lock[0];
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_OK);
 
 	t = time(NULL);
 
-	torture_comment(tctx, "testing cancel by CANCEL_LOCK\n");
+	torture_comment(tctx, "Testing cancel by CANCEL_LOCK\n");
 
 	/* setup a timed lock */
 	io.lockx.in.timeout = 10000;
@@ -556,13 +577,182 @@ static bool test_async(struct torture_context *tctx,
 	torture_assert(tctx,!(time(NULL) > t+2), talloc_asprintf(tctx,
 		       "lock cancel was not immediate (%s)\n", __location__));
 
-	torture_comment(tctx, "testing cancel by unlock\n");
+	/* MS-CIFS (2.2.4.32.1) states that a cancel is honored if and only
+	 * if the lock vector contains one entry. When given mutliple cancel
+	 * requests in a single PDU we expect the server to return an
+	 * error. Samba4 handles this correctly. Windows servers seem to
+	 * accept the request but only cancel the first lock.  Samba3
+	 * now does what Windows does (JRA).
+	 */
+	torture_comment(tctx, "Testing multiple cancel\n");
+
+	/* acquire second lock */
+	io.lockx.in.timeout = 0;
+	io.lockx.in.ulock_cnt = 0;
+	io.lockx.in.lock_cnt = 1;
+	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
+	io.lockx.in.locks = &lock[1];
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* setup 2 timed locks */
+	t = time(NULL);
+	io.lockx.in.timeout = 10000;
+	io.lockx.in.lock_cnt = 1;
+	io.lockx.in.locks = &lock[0];
+	req = smb_raw_lock_send(cli->tree, &io);
+	torture_assert(tctx,(req != NULL), talloc_asprintf(tctx,
+		       "Failed to setup timed lock (%s)\n", __location__));
+	io.lockx.in.locks = &lock[1];
+	req2 = smb_raw_lock_send(cli->tree, &io);
+	torture_assert(tctx,(req2 != NULL), talloc_asprintf(tctx,
+		       "Failed to setup timed lock (%s)\n", __location__));
+
+	/* try to cancel both locks in the same packet */
+	io.lockx.in.timeout = 0;
+	io.lockx.in.lock_cnt = 2;
+	io.lockx.in.mode = LOCKING_ANDX_CANCEL_LOCK | LOCKING_ANDX_LARGE_FILES;
+	io.lockx.in.locks = lock;
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	torture_warning(tctx, "Target server accepted a lock cancel "
+			      "request with multiple locks. This violates "
+			      "MS-CIFS 2.2.4.32.1.\n");
+
+	/* receive the failed lock requests */
+	status = smbcli_request_simple_recv(req);
+	CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
+
+	torture_assert(tctx,!(time(NULL) > t+2), talloc_asprintf(tctx,
+		       "first lock was not cancelled immediately (%s)\n",
+		       __location__));
+
+	/* send cancel to second lock */
+	io.lockx.in.timeout = 0;
+	io.lockx.in.lock_cnt = 1;
+	io.lockx.in.mode = LOCKING_ANDX_CANCEL_LOCK |
+			   LOCKING_ANDX_LARGE_FILES;
+	io.lockx.in.locks = &lock[1];
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	status = smbcli_request_simple_recv(req2);
+	CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
+
+	torture_assert(tctx,!(time(NULL) > t+2), talloc_asprintf(tctx,
+		       "second lock was not cancelled immediately (%s)\n",
+		       __location__));
+
+	/* cleanup the second lock */
+	io.lockx.in.ulock_cnt = 1;
+	io.lockx.in.lock_cnt = 0;
+	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
+	io.lockx.in.locks = &lock[1];
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* If a lock request contained multiple ranges and we are cancelling
+	 * one while it's still pending, what happens? */
+	torture_comment(tctx, "Testing cancel 1/2 lock request\n");
+
+	/* Send request with two ranges */
+	io.lockx.in.timeout = -1;
+	io.lockx.in.ulock_cnt = 0;
+	io.lockx.in.lock_cnt = 2;
+	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
+	io.lockx.in.locks = lock;
+	req = smb_raw_lock_send(cli->tree, &io);
+	torture_assert(tctx,(req != NULL), talloc_asprintf(tctx,
+		       "Failed to setup pending lock (%s)\n", __location__));
+
+	/* Try to cancel the first lock range */
+	io.lockx.in.timeout = 0;
+	io.lockx.in.lock_cnt = 1;
+	io.lockx.in.mode = LOCKING_ANDX_CANCEL_LOCK | LOCKING_ANDX_LARGE_FILES;
+	io.lockx.in.locks = &lock[0];
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* Locking request should've failed and second range should be
+	 * unlocked */
+	status = smbcli_request_simple_recv(req);
+	CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
+
+	io.lockx.in.timeout = 0;
+	io.lockx.in.ulock_cnt = 0;
+	io.lockx.in.lock_cnt = 1;
+	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
+	io.lockx.in.locks = &lock[1];
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* Cleanup both locks */
+	io.lockx.in.ulock_cnt = 2;
+	io.lockx.in.lock_cnt = 0;
+	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
+	io.lockx.in.locks = lock;
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	torture_comment(tctx, "Testing cancel 2/2 lock request\n");
+
+	/* Lock second range so it contends */
+	io.lockx.in.timeout = 0;
+	io.lockx.in.ulock_cnt = 0;
+	io.lockx.in.lock_cnt = 1;
+	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
+	io.lockx.in.locks = &lock[1];
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* Send request with two ranges */
+	io.lockx.in.timeout = -1;
+	io.lockx.in.ulock_cnt = 0;
+	io.lockx.in.lock_cnt = 2;
+	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
+	io.lockx.in.locks = lock;
+	req = smb_raw_lock_send(cli->tree, &io);
+	torture_assert(tctx,(req != NULL), talloc_asprintf(tctx,
+		       "Failed to setup pending lock (%s)\n", __location__));
+
+	/* Try to cancel the second lock range */
+	io.lockx.in.timeout = 0;
+	io.lockx.in.lock_cnt = 1;
+	io.lockx.in.mode = LOCKING_ANDX_CANCEL_LOCK | LOCKING_ANDX_LARGE_FILES;
+	io.lockx.in.locks = &lock[1];
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* Locking request should've failed and first range should be
+	 * unlocked */
+	status = smbcli_request_simple_recv(req);
+	CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
+
+	io.lockx.in.timeout = 0;
+	io.lockx.in.ulock_cnt = 0;
+	io.lockx.in.lock_cnt = 1;
+	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
+	io.lockx.in.locks = &lock[0];
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* Cleanup both locks */
+	io.lockx.in.ulock_cnt = 2;
+	io.lockx.in.lock_cnt = 0;
+	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
+	io.lockx.in.locks = lock;
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	torture_comment(tctx, "Testing cancel by unlock\n");
 	io.lockx.in.ulock_cnt = 0;
 	io.lockx.in.lock_cnt = 1;
 	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
 	io.lockx.in.timeout = 0;
+	io.lockx.in.locks = &lock[0];
 	status = smb_raw_lock(cli->tree, &io);
-	CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
+	CHECK_STATUS(status, NT_STATUS_OK);
 
 	io.lockx.in.timeout = 5000;
 	req = smb_raw_lock_send(cli->tree, &io);
@@ -582,13 +772,13 @@ static bool test_async(struct torture_context *tctx,
 		       "lock cancel by unlock was not immediate (%s) - took %d secs\n",
 		       __location__, (int)(time(NULL)-t)));
 
-	torture_comment(tctx, "testing cancel by close\n");
+	torture_comment(tctx, "Testing cancel by close\n");
 	io.lockx.in.ulock_cnt = 0;
 	io.lockx.in.lock_cnt = 1;
 	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
 	io.lockx.in.timeout = 0;
 	status = smb_raw_lock(cli->tree, &io);
-	CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
+	CHECK_STATUS(status, NT_STATUS_LOCK_NOT_GRANTED);
 
 	t = time(NULL);
 	io.lockx.in.timeout = 10000;
@@ -600,7 +790,10 @@ static bool test_async(struct torture_context *tctx,
 	CHECK_STATUS(status, NT_STATUS_OK);
 
 	status = smbcli_request_simple_recv(req);
-	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
+	if (TARGET_RETURNS_RANGE_NOT_LOCKED(tctx))
+		CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
+	else
+		CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
 
 	torture_assert(tctx,!(time(NULL) > t+2), talloc_asprintf(tctx,
 		       "lock cancel by close was not immediate (%s)\n", __location__));
@@ -609,9 +802,9 @@ static bool test_async(struct torture_context *tctx,
 	session = smbcli_session_init(cli->transport, tctx, false, options);
 	setup.in.sesskey = cli->transport->negotiate.sesskey;
 	setup.in.capabilities = cli->transport->negotiate.capabilities;
-	setup.in.workgroup = lp_workgroup(tctx->lp_ctx);
+	setup.in.workgroup = lpcfg_workgroup(tctx->lp_ctx);
 	setup.in.credentials = cmdline_credentials;
-	setup.in.gensec_settings = lp_gensec_settings(tctx, tctx->lp_ctx);
+	setup.in.gensec_settings = lpcfg_gensec_settings(tctx, tctx->lp_ctx);
 	status = smb_composite_sesssetup(session, &setup);
 	CHECK_STATUS(status, NT_STATUS_OK);
 	session->vuid = setup.out.vuid;
@@ -629,49 +822,60 @@ static bool test_async(struct torture_context *tctx,
 	CHECK_STATUS(status, NT_STATUS_OK);
 	tree->tid = tcon.tconx.out.tid;
 
-	torture_comment(tctx, "testing cancel by exit\n");
-	fname = BASEDIR "\\test_exit.txt";
-	fnum = smbcli_open(tree, fname, O_RDWR|O_CREAT, DENY_NONE);
-	torture_assert(tctx,(fnum != -1), talloc_asprintf(tctx,
-		       "Failed to reopen %s - %s\n",
-		       fname, smbcli_errstr(tree)));
+	torture_comment(tctx, "Testing cancel by exit\n");
+	if (TARGET_SUPPORTS_SMBEXIT(tctx)) {
+		fname = BASEDIR "\\test_exit.txt";
+		fnum = smbcli_open(tree, fname, O_RDWR|O_CREAT, DENY_NONE);
+		torture_assert(tctx,(fnum != -1), talloc_asprintf(tctx,
+			       "Failed to reopen %s - %s\n",
+			       fname, smbcli_errstr(tree)));
 
-	io.lockx.level = RAW_LOCK_LOCKX;
-	io.lockx.in.file.fnum = fnum;
-	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
-	io.lockx.in.timeout = 0;
-	io.lockx.in.ulock_cnt = 0;
-	io.lockx.in.lock_cnt = 1;
-	lock[0].pid = session->pid;
-	lock[0].offset = 100;
-	lock[0].count = 10;
-	io.lockx.in.locks = &lock[0];
-	status = smb_raw_lock(tree, &io);
-	CHECK_STATUS(status, NT_STATUS_OK);
+		io.lockx.level = RAW_LOCK_LOCKX;
+		io.lockx.in.file.fnum = fnum;
+		io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
+		io.lockx.in.timeout = 0;
+		io.lockx.in.ulock_cnt = 0;
+		io.lockx.in.lock_cnt = 1;
+		lock[0].pid = session->pid;
+		lock[0].offset = 100;
+		lock[0].count = 10;
+		io.lockx.in.locks = &lock[0];
+		status = smb_raw_lock(tree, &io);
+		CHECK_STATUS(status, NT_STATUS_OK);
 
-	io.lockx.in.ulock_cnt = 0;
-	io.lockx.in.lock_cnt = 1;
-	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
-	io.lockx.in.timeout = 0;
-	status = smb_raw_lock(tree, &io);
-	CHECK_STATUS(status, NT_STATUS_LOCK_NOT_GRANTED);
+		io.lockx.in.ulock_cnt = 0;
+		io.lockx.in.lock_cnt = 1;
+		io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
+		io.lockx.in.timeout = 0;
+		status = smb_raw_lock(tree, &io);
+		CHECK_STATUS(status, NT_STATUS_LOCK_NOT_GRANTED);
 
-	io.lockx.in.timeout = 10000;
-	t = time(NULL);
-	req = smb_raw_lock_send(tree, &io);
-	torture_assert(tctx,(req != NULL), talloc_asprintf(tctx,
-		       "Failed to setup timed lock (%s)\n", __location__));
+		io.lockx.in.timeout = 10000;
+		t = time(NULL);
+		req = smb_raw_lock_send(tree, &io);
+		torture_assert(tctx,(req != NULL), talloc_asprintf(tctx,
+			       "Failed to setup timed lock (%s)\n",
+			       __location__));
 
-	status = smb_raw_exit(session);
-	CHECK_STATUS(status, NT_STATUS_OK);
+		status = smb_raw_exit(session);
+		CHECK_STATUS(status, NT_STATUS_OK);
 
-	status = smbcli_request_simple_recv(req);
-	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
+		status = smbcli_request_simple_recv(req);
+		if (TARGET_RETURNS_RANGE_NOT_LOCKED(tctx))
+			CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
+		else
+			CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
 
-	torture_assert(tctx,!(time(NULL) > t+2), talloc_asprintf(tctx,
-		       "lock cancel by exit was not immediate (%s)\n", __location__));
+		torture_assert(tctx,!(time(NULL) > t+2), talloc_asprintf(tctx,
+			       "lock cancel by exit was not immediate (%s)\n",
+			       __location__));
+	}
+	else {
+		torture_comment(tctx,
+				"  skipping test, SMBExit not supported\n");
+	}
 
-	torture_comment(tctx, "testing cancel by ulogoff\n");
+	torture_comment(tctx, "Testing cancel by ulogoff\n");
 	fname = BASEDIR "\\test_ulogoff.txt";
 	fnum = smbcli_open(tree, fname, O_RDWR|O_CREAT, DENY_NONE);
 	torture_assert(tctx,(fnum != -1), talloc_asprintf(tctx,
@@ -708,20 +912,25 @@ static bool test_async(struct torture_context *tctx,
 	CHECK_STATUS(status, NT_STATUS_OK);
 
 	status = smbcli_request_simple_recv(req);
-	if (NT_STATUS_EQUAL(NT_STATUS_FILE_LOCK_CONFLICT, status)) {
-		torture_result(tctx, TORTURE_FAIL,
-			"lock not canceled by ulogoff - %s (ignored because of vfs_vifs fails it)\n",
-			nt_errstr(status));
-		smb_tree_disconnect(tree);
-		smb_raw_exit(session);
-		goto done;
+	if (TARGET_RETURNS_RANGE_NOT_LOCKED(tctx)) {
+		if (NT_STATUS_EQUAL(NT_STATUS_FILE_LOCK_CONFLICT, status)) {
+			torture_result(tctx, TORTURE_FAIL,
+				"lock not canceled by ulogoff - %s "
+				"(ignored because of vfs_vifs fails it)\n",
+				nt_errstr(status));
+			smb_tree_disconnect(tree);
+			smb_raw_exit(session);
+			goto done;
+		}
+		CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
+	} else {
+		CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
 	}
-	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
 
 	torture_assert(tctx,!(time(NULL) > t+2), talloc_asprintf(tctx,
 		       "lock cancel by ulogoff was not immediate (%s)\n", __location__));
 
-	torture_comment(tctx, "testing cancel by tdis\n");
+	torture_comment(tctx, "Testing cancel by tdis\n");
 	tree->session = cli->session;
 
 	fname = BASEDIR "\\test_tdis.txt";
@@ -756,7 +965,10 @@ static bool test_async(struct torture_context *tctx,
 	CHECK_STATUS(status, NT_STATUS_OK);
 
 	status = smbcli_request_simple_recv(req);
-	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
+	if (TARGET_RETURNS_RANGE_NOT_LOCKED(tctx))
+		CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
+	else
+		CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
 
 	torture_assert(tctx,!(time(NULL) > t+2), talloc_asprintf(tctx,
 		       "lock cancel by tdis was not immediate (%s)\n", __location__));
@@ -784,6 +996,7 @@ static bool test_errorcode(struct torture_context *tctx,
 	time_t start;
 	int t;
 	int delay;
+	uint16_t deny_mode = 0;
 
 	if (!torture_setup_dir(cli, BASEDIR)) {
 		return false;
@@ -791,7 +1004,7 @@ static bool test_errorcode(struct torture_context *tctx,
 
 	torture_comment(tctx, "Testing LOCK_NOT_GRANTED vs. FILE_LOCK_CONFLICT\n");
 
-	torture_comment(tctx, "testing with timeout = 0\n");
+	torture_comment(tctx, "Testing with timeout = 0\n");
 	fname = BASEDIR "\\test0.txt";
 	t = 0;
 
@@ -800,14 +1013,20 @@ static bool test_errorcode(struct torture_context *tctx,
 	 * the second with t > 0 (=1)
 	 */
 next_run:
-	/* 
-	 * use the DENY_DOS mode, that creates two fnum's of one low-level file handle,
-	 * this demonstrates that the cache is per fnum
+	/*
+	 * use the DENY_DOS mode, that creates two fnum's of one low-level
+	 * file handle, this demonstrates that the cache is per fnum, not
+	 * per file handle
 	 */
+	if (TARGET_SUPPORTS_OPENX_DENY_DOS(tctx))
+	    deny_mode = OPENX_MODE_DENY_DOS;
+	else
+	    deny_mode = OPENX_MODE_DENY_NONE;
+
 	op.openx.level = RAW_OPEN_OPENX;
 	op.openx.in.fname = fname;
 	op.openx.in.flags = OPENX_FLAGS_ADDITIONAL_INFO;
-	op.openx.in.open_mode = OPENX_MODE_ACCESS_RDWR | OPENX_MODE_DENY_DOS;
+	op.openx.in.open_mode = OPENX_MODE_ACCESS_RDWR | deny_mode;
 	op.openx.in.open_func = OPENX_OPEN_FUNC_OPEN | OPENX_OPEN_FUNC_CREATE;
 	op.openx.in.search_attrs = 0;
 	op.openx.in.file_attrs = 0;
@@ -1058,7 +1277,7 @@ next_run:
 	/* 
 	 * demonstrate the a successful lock in a different range, 
 	 * doesn't reset the cache, the failing lock on the 2nd handle
-	 * resets the resets the cache
+	 * resets the cache
 	 */
 	lock[0].offset = 120;
 	lock[0].count = 15;
@@ -1088,14 +1307,14 @@ next_run:
 	if (t == 0) {
 		smb_raw_exit(cli->session);
 		t = 1;
-		torture_comment(tctx, "testing with timeout > 0 (=%d)\n",
+		torture_comment(tctx, "Testing with timeout > 0 (=%d)\n",
 				t);
 		fname = BASEDIR "\\test1.txt";
 		goto next_run;
 	}
 
 	t = 4000;
-	torture_comment(tctx, "testing special cases with timeout > 0 (=%d)\n",
+	torture_comment(tctx, "Testing special cases with timeout > 0 (=%d)\n",
 			t);
 
 	/*
@@ -1104,7 +1323,7 @@ next_run:
 	 * to the client (after the timeout went by)
 	 */
 	smb_raw_exit(cli->session);
-	torture_comment(tctx, "testing a conflict while a lock is pending\n");
+	torture_comment(tctx, "Testing a conflict while a lock is pending\n");
 	fname = BASEDIR "\\test2.txt";
 	fnum = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
 	torture_assert(tctx,(fnum != -1), talloc_asprintf(tctx,
@@ -1326,7 +1545,7 @@ struct double_lock_test {
 /**
  * Tests zero byte locks.
  */
-static const struct double_lock_test zero_byte_tests[] = {
+static struct double_lock_test zero_byte_tests[] = {
 	/* {pid, offset, count}, {pid, offset, count}, status */
 
 	/** First, takes a zero byte lock at offset 10. Then:
@@ -1403,11 +1622,13 @@ static bool test_zerobytelocks(struct torture_context *tctx, struct smbcli_state
 		io.lockx.in.ulock_cnt = 0;
 		io.lockx.in.lock_cnt = 1;
 
-		io.lockx.in.locks = &zero_byte_tests[i].lock1;
+		io.lockx.in.locks = discard_const_p(struct smb_lock_entry,
+						    &zero_byte_tests[i].lock1);
 		status = smb_raw_lock(cli->tree, &io);
 		CHECK_STATUS(status, NT_STATUS_OK);
 
-		io.lockx.in.locks = &zero_byte_tests[i].lock2;
+		io.lockx.in.locks = discard_const_p(struct smb_lock_entry,
+						    &zero_byte_tests[i].lock2);
 		status = smb_raw_lock(cli->tree, &io);
 
 		if (NT_STATUS_EQUAL(zero_byte_tests[i].exp_status,
@@ -1432,7 +1653,8 @@ static bool test_zerobytelocks(struct torture_context *tctx, struct smbcli_state
 			CHECK_STATUS(status, NT_STATUS_OK);
 		}
 
-		io.lockx.in.locks = &zero_byte_tests[i].lock1;
+		io.lockx.in.locks = discard_const_p(struct smb_lock_entry,
+						    &zero_byte_tests[i].lock1);
 		status = smb_raw_lock(cli->tree, &io);
 		CHECK_STATUS(status, NT_STATUS_OK);
 	}
@@ -1730,6 +1952,73 @@ static bool test_multiple_unlock(struct torture_context *tctx, struct smbcli_sta
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_OK);
 
+	/* Test3: Request 2 locks, second will contend.  What happens to the
+	 * first? */
+	torture_comment(tctx, "  request 2 locks, second one will contend. "
+	   "Expect both to fail.\n");
+
+	/* Lock the second range */
+	io.lockx.in.ulock_cnt = 0;
+	io.lockx.in.lock_cnt = 1;
+	io.lockx.in.locks = &lock2;
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* Request both locks */
+	io.lockx.in.ulock_cnt = 0;
+	io.lockx.in.lock_cnt = 2;
+	io.lockx.in.locks = locks;
+
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
+
+	/* First lock should be unlocked. */
+	io.lockx.in.ulock_cnt = 0;
+	io.lockx.in.lock_cnt = 1;
+	io.lockx.in.locks = &lock1;
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* cleanup */
+	io.lockx.in.ulock_cnt = 2;
+	io.lockx.in.lock_cnt = 0;
+	io.lockx.in.locks = locks;
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* Test4: Request unlock and lock. The lock contends, is the unlock
+	 * then re-locked? */
+	torture_comment(tctx, "  request unlock and lock, second one will "
+	   "contend. Expect the unlock to succeed.\n");
+
+	/* Lock both ranges */
+	io.lockx.in.ulock_cnt = 0;
+	io.lockx.in.lock_cnt = 2;
+	io.lockx.in.locks = locks;
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* Attempt to unlock the first range and lock the second */
+	io.lockx.in.ulock_cnt = 1;
+	io.lockx.in.lock_cnt = 1;
+	io.lockx.in.locks = locks;
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
+
+	/* The first lock should've been unlocked */
+	io.lockx.in.ulock_cnt = 0;
+	io.lockx.in.lock_cnt = 1;
+	io.lockx.in.locks = &lock1;
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* cleanup */
+	io.lockx.in.ulock_cnt = 2;
+	io.lockx.in.lock_cnt = 0;
+	io.lockx.in.locks = locks;
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
 done:
 	smbcli_close(cli->tree, fnum1);
 	smb_raw_exit(cli->session);
@@ -1828,7 +2117,158 @@ done:
 	return ret;
 }
 
-/* 
+/**
+ * Test how 0-byte read requests contend with byte range locks
+ */
+static bool test_zerobyteread(struct torture_context *tctx,
+			      struct smbcli_state *cli)
+{
+	union smb_lock io;
+	union smb_read rd;
+	NTSTATUS status;
+	bool ret = true;
+	int fnum1, fnum2;
+	const char *fname = BASEDIR "\\zerobyteread.txt";
+	struct smb_lock_entry lock1;
+	uint8_t c = 1;
+
+	if (!torture_setup_dir(cli, BASEDIR)) {
+		return false;
+	}
+
+	io.generic.level = RAW_LOCK_LOCKX;
+
+	fnum1 = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
+	torture_assert(tctx,(fnum1 != -1), talloc_asprintf(tctx,
+		       "Failed to create %s - %s\n",
+		       fname, smbcli_errstr(cli->tree)));
+
+	fnum2 = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
+	torture_assert(tctx,(fnum2 != -1), talloc_asprintf(tctx,
+		       "Failed to create %s - %s\n",
+		       fname, smbcli_errstr(cli->tree)));
+
+	/* Setup initial parameters */
+	io.lockx.level = RAW_LOCK_LOCKX;
+	io.lockx.in.timeout = 0;
+
+	lock1.pid = cli->session->pid;
+	lock1.offset = 0;
+	lock1.count = 10;
+
+	ZERO_STRUCT(rd);
+	rd.readx.level = RAW_READ_READX;
+
+	torture_comment(tctx, "Testing zero byte read on lock range:\n");
+
+	/* Take an exclusive lock */
+	torture_comment(tctx, "  taking exclusive lock.\n");
+	io.lockx.in.ulock_cnt = 0;
+	io.lockx.in.lock_cnt = 1;
+	io.lockx.in.mode = LOCKING_ANDX_EXCLUSIVE_LOCK;
+	io.lockx.in.file.fnum = fnum1;
+	io.lockx.in.locks = &lock1;
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* Try a zero byte read */
+	torture_comment(tctx, "  reading 0 bytes.\n");
+	rd.readx.in.file.fnum = fnum2;
+	rd.readx.in.offset    = 5;
+	rd.readx.in.mincnt    = 0;
+	rd.readx.in.maxcnt    = 0;
+	rd.readx.in.remaining = 0;
+	rd.readx.in.read_for_execute = false;
+	rd.readx.out.data     = &c;
+	status = smb_raw_read(cli->tree, &rd);
+	torture_assert_int_equal_goto(tctx, rd.readx.out.nread, 0, ret, done,
+				      "zero byte read did not return 0 bytes");
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* Unlock lock */
+	io.lockx.in.ulock_cnt = 1;
+	io.lockx.in.lock_cnt = 0;
+	io.lockx.in.mode = LOCKING_ANDX_EXCLUSIVE_LOCK;
+	io.lockx.in.file.fnum = fnum1;
+	io.lockx.in.locks = &lock1;
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	torture_comment(tctx, "Testing zero byte read on zero byte lock "
+			      "range:\n");
+
+	/* Take an exclusive lock */
+	torture_comment(tctx, "  taking exclusive 0-byte lock.\n");
+	io.lockx.in.ulock_cnt = 0;
+	io.lockx.in.lock_cnt = 1;
+	io.lockx.in.mode = LOCKING_ANDX_EXCLUSIVE_LOCK;
+	io.lockx.in.file.fnum = fnum1;
+	io.lockx.in.locks = &lock1;
+	lock1.offset = 5;
+	lock1.count = 0;
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* Try a zero byte read before the lock */
+	torture_comment(tctx, "  reading 0 bytes before the lock.\n");
+	rd.readx.in.file.fnum = fnum2;
+	rd.readx.in.offset    = 4;
+	rd.readx.in.mincnt    = 0;
+	rd.readx.in.maxcnt    = 0;
+	rd.readx.in.remaining = 0;
+	rd.readx.in.read_for_execute = false;
+	rd.readx.out.data     = &c;
+	status = smb_raw_read(cli->tree, &rd);
+	torture_assert_int_equal_goto(tctx, rd.readx.out.nread, 0, ret, done,
+				      "zero byte read did not return 0 bytes");
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* Try a zero byte read on the lock */
+	torture_comment(tctx, "  reading 0 bytes on the lock.\n");
+	rd.readx.in.file.fnum = fnum2;
+	rd.readx.in.offset    = 5;
+	rd.readx.in.mincnt    = 0;
+	rd.readx.in.maxcnt    = 0;
+	rd.readx.in.remaining = 0;
+	rd.readx.in.read_for_execute = false;
+	rd.readx.out.data     = &c;
+	status = smb_raw_read(cli->tree, &rd);
+	torture_assert_int_equal_goto(tctx, rd.readx.out.nread, 0, ret, done,
+				      "zero byte read did not return 0 bytes");
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* Try a zero byte read after the lock */
+	torture_comment(tctx, "  reading 0 bytes after the lock.\n");
+	rd.readx.in.file.fnum = fnum2;
+	rd.readx.in.offset    = 6;
+	rd.readx.in.mincnt    = 0;
+	rd.readx.in.maxcnt    = 0;
+	rd.readx.in.remaining = 0;
+	rd.readx.in.read_for_execute = false;
+	rd.readx.out.data     = &c;
+	status = smb_raw_read(cli->tree, &rd);
+	torture_assert_int_equal_goto(tctx, rd.readx.out.nread, 0, ret, done,
+				      "zero byte read did not return 0 bytes");
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* Unlock lock */
+	io.lockx.in.ulock_cnt = 1;
+	io.lockx.in.lock_cnt = 0;
+	io.lockx.in.mode = LOCKING_ANDX_EXCLUSIVE_LOCK;
+	io.lockx.in.file.fnum = fnum1;
+	io.lockx.in.locks = &lock1;
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+done:
+	smbcli_close(cli->tree, fnum1);
+	smbcli_close(cli->tree, fnum2);
+	smb_raw_exit(cli->session);
+	smbcli_deltree(cli->tree, BASEDIR);
+	return ret;
+}
+
+/*
    basic testing of lock calls
 */
 struct torture_suite *torture_raw_lock(TALLOC_CTX *mem_ctx)
@@ -1848,6 +2288,8 @@ struct torture_suite *torture_raw_lock(TALLOC_CTX *mem_ctx)
 	    test_multiple_unlock);
 	torture_suite_add_1smb_test(suite, "zerobytelocks",
 	    test_zerobytelocks);
+	torture_suite_add_1smb_test(suite, "zerobyteread",
+	    test_zerobyteread);
 
 	return suite;
 }

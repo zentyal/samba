@@ -35,7 +35,7 @@ static bool iconv_untestable(struct torture_context *tctx)
 {
 	iconv_t cd;
 
-	if (!lp_parm_bool(tctx->lp_ctx, NULL, "iconv", "native", true))
+	if (!lpcfg_parm_bool(tctx->lp_ctx, NULL, "iconv", "native", true))
 		torture_skip(tctx, "system iconv disabled - skipping test");
 
 	cd = iconv_open("UTF-16LE", "UCS-4LE");
@@ -134,7 +134,7 @@ static bool test_buffer(struct torture_context *test,
 {
 	uint8_t buf1[1000], buf2[1000], buf3[1000];
 	size_t outsize1, outsize2, outsize3;
-	const char *ptr_in;
+	char *ptr_in;
 	char *ptr_out;
 	size_t size_in1, size_in2, size_in3;
 	size_t ret1, ret2, ret3, len1, len2;
@@ -158,31 +158,31 @@ static bool test_buffer(struct torture_context *test,
 						     "failed to open %s to UTF-16LE",
 						     charset));
 		}
-		cd2 = smb_iconv_open_ex(test, charset, "UTF-16LE", lp_parm_bool(test->lp_ctx, NULL, "iconv", "native", true));
-		cd3 = smb_iconv_open_ex(test, "UTF-16LE", charset, lp_parm_bool(test->lp_ctx, NULL, "iconv", "native", true));
+		cd2 = smb_iconv_open_ex(test, charset, "UTF-16LE", lpcfg_parm_bool(test->lp_ctx, NULL, "iconv", "native", true));
+		cd3 = smb_iconv_open_ex(test, "UTF-16LE", charset, lpcfg_parm_bool(test->lp_ctx, NULL, "iconv", "native", true));
 		last_charset = charset;
 	}
 
 	/* internal convert to charset - placing result in buf1 */
-	ptr_in = (const char *)inbuf;
+	ptr_in = (char *)inbuf;
 	ptr_out = (char *)buf1;
 	size_in1 = size;
 	outsize1 = sizeof(buf1);
 
 	memset(ptr_out, 0, outsize1);
 	errno = 0;
-	ret1 = smb_iconv(cd2, &ptr_in, &size_in1, &ptr_out, &outsize1);
+	ret1 = smb_iconv(cd2, (const char **) &ptr_in, &size_in1, &ptr_out, &outsize1);
 	errno1 = errno;
 
 	/* system convert to charset - placing result in buf2 */
-	ptr_in = (const char *)inbuf;
+	ptr_in = (char *)inbuf;
 	ptr_out = (char *)buf2;
 	size_in2 = size;
 	outsize2 = sizeof(buf2);
 	
 	memset(ptr_out, 0, outsize2);
 	errno = 0;
-	ret2 = iconv(cd, discard_const_p(char *, &ptr_in), &size_in2, &ptr_out, &outsize2);
+	ret2 = iconv(cd, &ptr_in, &size_in2, &ptr_out, &outsize2);
 	errno2 = errno;
 
 	len1 = sizeof(buf1) - outsize1;
@@ -236,13 +236,13 @@ static bool test_buffer(struct torture_context *test,
 
 	/* convert back to UTF-16, putting result in buf3 */
 	size = size - size_in1;
-	ptr_in = (const char *)buf1;
+	ptr_in = (char *)buf1;
 	ptr_out = (char *)buf3;
 	size_in3 = len1;
 	outsize3 = sizeof(buf3);
 
 	memset(ptr_out, 0, outsize3);
-	ret3 = smb_iconv(cd3, &ptr_in, &size_in3, &ptr_out, &outsize3);
+	ret3 = smb_iconv(cd3, (const char **) &ptr_in, &size_in3, &ptr_out, &outsize3);
 
 	/* we only internally support the first 1M codepoints */
 	if (outsize3 != sizeof(buf3) - size &&
@@ -289,7 +289,7 @@ static bool test_codepoint(struct torture_context *tctx, unsigned int codepoint)
 	size_t size, size2;
 	codepoint_t c;
 
-	size = push_codepoint_convenience(lp_iconv_convenience(tctx->lp_ctx), (char *)buf, codepoint);
+	size = push_codepoint_convenience(lpcfg_iconv_convenience(tctx->lp_ctx), (char *)buf, codepoint);
 	torture_assert(tctx, size != -1 || (codepoint >= 0xd800 && codepoint <= 0x10000), 
 		       "Invalid Codepoint range");
 
@@ -300,7 +300,7 @@ static bool test_codepoint(struct torture_context *tctx, unsigned int codepoint)
 	buf[size+2] = random();
 	buf[size+3] = random();
 
-	c = next_codepoint_convenience(lp_iconv_convenience(tctx->lp_ctx), (char *)buf, &size2);
+	c = next_codepoint_convenience(lpcfg_iconv_convenience(tctx->lp_ctx), (char *)buf, &size2);
 
 	torture_assert(tctx, c == codepoint, 
 		       talloc_asprintf(tctx, 

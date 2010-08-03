@@ -60,7 +60,7 @@
 	}\
 	if (r->in.buffer) {\
 		DATA_BLOB _data_blob_info;\
-		_ndr_info = ndr_push_init_ctx(ndr, ndr->iconv_convenience);\
+		_ndr_info = ndr_push_init_ctx(ndr);\
 		NDR_ERR_HAVE_NO_MEMORY(_ndr_info);\
 		_ndr_info->flags= ndr->flags;\
 		if (r->out.info) {\
@@ -137,7 +137,7 @@
 	if (_r.out.info) {\
 		struct ndr_pull *_ndr_info;\
 		NDR_PULL_ALLOC(ndr, *r->out.info);\
-		_ndr_info = ndr_pull_init_blob(_r.out.info, *r->out.info, ndr->iconv_convenience);\
+		_ndr_info = ndr_pull_init_blob(_r.out.info, *r->out.info);\
 		NDR_ERR_HAVE_NO_MEMORY(_ndr_info);\
 		_ndr_info->flags= ndr->flags;\
 		if (r->in.offered != _ndr_info->data_size) {\
@@ -181,7 +181,7 @@
 #define NDR_SPOOLSS_SIZE_ENUM_LEVEL(fn) do { \
 	struct __##fn __r;\
 	DATA_BLOB _data_blob_info;\
-	struct ndr_push *_ndr_info = ndr_push_init_ctx(mem_ctx, iconv_convenience);\
+	struct ndr_push *_ndr_info = ndr_push_init_ctx(mem_ctx);\
 	if (!_ndr_info) return 0;\
 	_ndr_info->flags|=LIBNDR_FLAG_NO_NDR_SIZE;\
 	__r.in.level	= level;\
@@ -196,7 +196,7 @@
 #define NDR_SPOOLSS_SIZE_ENUM(fn) do { \
 	struct __##fn __r;\
 	DATA_BLOB _data_blob_info;\
-	struct ndr_push *_ndr_info = ndr_push_init_ctx(mem_ctx, iconv_convenience);\
+	struct ndr_push *_ndr_info = ndr_push_init_ctx(mem_ctx);\
 	if (!_ndr_info) return 0;\
 	_ndr_info->flags|=LIBNDR_FLAG_NO_NDR_SIZE;\
 	__r.in.count	= count;\
@@ -234,7 +234,7 @@ enum ndr_err_code ndr_pull_spoolss_EnumPrinters(struct ndr_pull *ndr, int flags,
 	return NDR_ERR_SUCCESS;
 }
 
-uint32_t ndr_size_spoolss_EnumPrinters_info(TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience, uint32_t level, uint32_t count, union spoolss_PrinterInfo *info)
+uint32_t ndr_size_spoolss_EnumPrinters_info(TALLOC_CTX *mem_ctx, uint32_t level, uint32_t count, union spoolss_PrinterInfo *info)
 {
 	NDR_SPOOLSS_SIZE_ENUM_LEVEL(spoolss_EnumPrinters);
 }
@@ -270,7 +270,7 @@ enum ndr_err_code ndr_pull_spoolss_EnumJobs(struct ndr_pull *ndr, int flags, str
 	return NDR_ERR_SUCCESS;
 }
 
-uint32_t ndr_size_spoolss_EnumJobs_info(TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience, uint32_t level, uint32_t count, union spoolss_JobInfo *info)
+uint32_t ndr_size_spoolss_EnumJobs_info(TALLOC_CTX *mem_ctx, uint32_t level, uint32_t count, union spoolss_JobInfo *info)
 {
 	NDR_SPOOLSS_SIZE_ENUM_LEVEL(spoolss_EnumJobs);
 }
@@ -302,7 +302,7 @@ enum ndr_err_code ndr_pull_spoolss_EnumPrinterDrivers(struct ndr_pull *ndr, int 
 	return NDR_ERR_SUCCESS;
 }
 
-uint32_t ndr_size_spoolss_EnumPrinterDrivers_info(TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience, uint32_t level, uint32_t count, union spoolss_DriverInfo *info)
+uint32_t ndr_size_spoolss_EnumPrinterDrivers_info(TALLOC_CTX *mem_ctx, uint32_t level, uint32_t count, union spoolss_DriverInfo *info)
 {
 	NDR_SPOOLSS_SIZE_ENUM_LEVEL(spoolss_EnumPrinterDrivers);
 }
@@ -330,7 +330,7 @@ enum ndr_err_code ndr_pull_spoolss_EnumForms(struct ndr_pull *ndr, int flags, st
 	return NDR_ERR_SUCCESS;
 }
 
-uint32_t ndr_size_spoolss_EnumForms_info(TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience, uint32_t level, uint32_t count, union spoolss_FormInfo *info)
+uint32_t ndr_size_spoolss_EnumForms_info(TALLOC_CTX *mem_ctx, uint32_t level, uint32_t count, union spoolss_FormInfo *info)
 {
 	NDR_SPOOLSS_SIZE_ENUM_LEVEL(spoolss_EnumForms);
 }
@@ -358,7 +358,7 @@ enum ndr_err_code ndr_pull_spoolss_EnumPorts(struct ndr_pull *ndr, int flags, st
 	return NDR_ERR_SUCCESS;
 }
 
-uint32_t ndr_size_spoolss_EnumPorts_info(TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience, uint32_t level, uint32_t count, union spoolss_PortInfo *info)
+uint32_t ndr_size_spoolss_EnumPorts_info(TALLOC_CTX *mem_ctx, uint32_t level, uint32_t count, union spoolss_PortInfo *info)
 {
 	NDR_SPOOLSS_SIZE_ENUM_LEVEL(spoolss_EnumPorts);
 }
@@ -386,7 +386,7 @@ enum ndr_err_code ndr_pull_spoolss_EnumMonitors(struct ndr_pull *ndr, int flags,
 	return NDR_ERR_SUCCESS;
 }
 
-uint32_t ndr_size_spoolss_EnumMonitors_info(TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience, uint32_t level, uint32_t count, union spoolss_MonitorInfo *info)
+uint32_t ndr_size_spoolss_EnumMonitors_info(TALLOC_CTX *mem_ctx, uint32_t level, uint32_t count, union spoolss_MonitorInfo *info)
 {
 	NDR_SPOOLSS_SIZE_ENUM_LEVEL(spoolss_EnumMonitors);
 }
@@ -418,7 +418,7 @@ enum ndr_err_code ndr_pull_spoolss_EnumPrintProcessors(struct ndr_pull *ndr, int
 	return NDR_ERR_SUCCESS;
 }
 
-uint32_t ndr_size_spoolss_EnumPrintProcessors_info(TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience,
+uint32_t ndr_size_spoolss_EnumPrintProcessors_info(TALLOC_CTX *mem_ctx, 
 						   uint32_t level, uint32_t count, union spoolss_PrintProcessorInfo *info)
 {
 	NDR_SPOOLSS_SIZE_ENUM_LEVEL(spoolss_EnumPrintProcessors);
@@ -451,7 +451,7 @@ enum ndr_err_code ndr_pull_spoolss_EnumPrintProcDataTypes(struct ndr_pull *ndr, 
 	return NDR_ERR_SUCCESS;
 }
 
-uint32_t ndr_size_spoolss_EnumPrintProcDataTypes_info(TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience,
+uint32_t ndr_size_spoolss_EnumPrintProcDataTypes_info(TALLOC_CTX *mem_ctx, 
 						      uint32_t level, uint32_t count, union spoolss_PrintProcDataTypesInfo *info)
 {
 	NDR_SPOOLSS_SIZE_ENUM_LEVEL(spoolss_EnumPrintProcDataTypes);
@@ -481,7 +481,7 @@ enum ndr_err_code ndr_push_spoolss_EnumPrinterDataEx(struct ndr_push *ndr, int f
 		_r.out.info 	= data_blob(NULL, 0);
 		if (r->in.offered >= *r->out.needed) {
 			struct __spoolss_EnumPrinterDataEx __r;
-			_ndr_info = ndr_push_init_ctx(ndr, ndr->iconv_convenience);
+			_ndr_info = ndr_push_init_ctx(ndr);
 			NDR_ERR_HAVE_NO_MEMORY(_ndr_info);
 			_ndr_info->flags= ndr->flags;
 			__r.in.count	= *r->out.count;
@@ -531,7 +531,7 @@ enum ndr_err_code ndr_pull_spoolss_EnumPrinterDataEx(struct ndr_pull *ndr, int f
 		if (_r.out.info.length) {
 			struct ndr_pull *_ndr_info;
 			NDR_PULL_ALLOC(ndr, *r->out.info);
-			_ndr_info = ndr_pull_init_blob(&_r.out.info, *r->out.info, ndr->iconv_convenience);
+			_ndr_info = ndr_pull_init_blob(&_r.out.info, *r->out.info);
 			NDR_ERR_HAVE_NO_MEMORY(_ndr_info);
 			_ndr_info->flags= ndr->flags;
 			if (r->in.offered != _ndr_info->data_size) {
@@ -551,25 +551,25 @@ enum ndr_err_code ndr_pull_spoolss_EnumPrinterDataEx(struct ndr_pull *ndr, int f
 	return NDR_ERR_SUCCESS;
 }
 
-uint32_t ndr_size_spoolss_EnumPrinterDataEx_info(TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience,
+uint32_t ndr_size_spoolss_EnumPrinterDataEx_info(TALLOC_CTX *mem_ctx,
 						 uint32_t count, struct spoolss_PrinterEnumValues *info)
 {
 	NDR_SPOOLSS_SIZE_ENUM(spoolss_EnumPrinterDataEx);
 }
 
-uint32_t _ndr_size_spoolss_DeviceMode(struct spoolss_DeviceMode *devmode, struct smb_iconv_convenience *ic, uint32_t flags)
+uint32_t _ndr_size_spoolss_DeviceMode(struct spoolss_DeviceMode *devmode, uint32_t flags)
 {
 	if (!devmode) return 0;
-	return ndr_size_spoolss_DeviceMode(devmode,ic,flags);
+	return ndr_size_spoolss_DeviceMode(devmode, flags);
 }
 
-_PUBLIC_ size_t ndr_size_spoolss_StringArray(const struct spoolss_StringArray *r, struct smb_iconv_convenience *ic, int flags)
+_PUBLIC_ size_t ndr_size_spoolss_StringArray(const struct spoolss_StringArray *r, int flags)
 {
 	if (!r) {
 		return 4;
 	}
 
-	return ndr_size_struct(r, flags, (ndr_push_flags_fn_t)ndr_push_spoolss_StringArray, ic);
+	return ndr_size_struct(r, flags, (ndr_push_flags_fn_t)ndr_push_spoolss_StringArray);
 }
 
 /* hand marshall as pidl cannot (yet) generate a relative pointer to a fixed array of
@@ -639,6 +639,7 @@ _PUBLIC_ enum ndr_err_code ndr_push_spoolss_DriverInfo101(struct ndr_push *ndr, 
 			NDR_CHECK(ndr_push_relative_ptr1(ndr, r->provider));
 			ndr->flags = _flags_save_string;
 		}
+		NDR_CHECK(ndr_push_trailer_align(ndr, 8));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
 		{
@@ -664,7 +665,7 @@ _PUBLIC_ enum ndr_err_code ndr_push_spoolss_DriverInfo101(struct ndr_push *ndr, 
 		if (r->file_info) {
 			NDR_CHECK(ndr_push_relative_ptr2_start(ndr, r->file_info));
 #if 0
-			NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->file_count));
+			NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, r->file_count));
 #endif
 			for (cntr_file_info_1 = 0; cntr_file_info_1 < r->file_count; cntr_file_info_1++) {
 				NDR_CHECK(ndr_push_spoolss_DriverFileInfo(ndr, NDR_SCALARS, &r->file_info[cntr_file_info_1]));
@@ -893,6 +894,7 @@ _PUBLIC_ enum ndr_err_code ndr_pull_spoolss_DriverInfo101(struct ndr_pull *ndr, 
 			}
 			ndr->flags = _flags_save_string;
 		}
+		NDR_CHECK(ndr_pull_trailer_align(ndr, 8));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
 		{
@@ -906,6 +908,9 @@ _PUBLIC_ enum ndr_err_code ndr_pull_spoolss_DriverInfo101(struct ndr_pull *ndr, 
 				NDR_PULL_SET_MEM_CTX(ndr, r->driver_name, 0);
 				NDR_CHECK(ndr_pull_string(ndr, NDR_SCALARS, &r->driver_name));
 				NDR_PULL_SET_MEM_CTX(ndr, _mem_save_driver_name_0, 0);
+				if (ndr->offset > ndr->relative_highest_offset) {
+					ndr->relative_highest_offset = ndr->offset;
+				}
 				ndr->offset = _relative_save_offset;
 			}
 			ndr->flags = _flags_save_string;
@@ -921,6 +926,9 @@ _PUBLIC_ enum ndr_err_code ndr_pull_spoolss_DriverInfo101(struct ndr_pull *ndr, 
 				NDR_PULL_SET_MEM_CTX(ndr, r->architecture, 0);
 				NDR_CHECK(ndr_pull_string(ndr, NDR_SCALARS, &r->architecture));
 				NDR_PULL_SET_MEM_CTX(ndr, _mem_save_architecture_0, 0);
+				if (ndr->offset > ndr->relative_highest_offset) {
+					ndr->relative_highest_offset = ndr->offset;
+				}
 				ndr->offset = _relative_save_offset;
 			}
 			ndr->flags = _flags_save_string;
@@ -947,6 +955,9 @@ _PUBLIC_ enum ndr_err_code ndr_pull_spoolss_DriverInfo101(struct ndr_pull *ndr, 
 			}
 			NDR_PULL_SET_MEM_CTX(ndr, _mem_save_file_info_1, 0);
 			NDR_PULL_SET_MEM_CTX(ndr, _mem_save_file_info_0, 0);
+			if (ndr->offset > ndr->relative_highest_offset) {
+				ndr->relative_highest_offset = ndr->offset;
+			}
 			ndr->offset = _relative_save_offset;
 		}
 		{
@@ -960,6 +971,9 @@ _PUBLIC_ enum ndr_err_code ndr_pull_spoolss_DriverInfo101(struct ndr_pull *ndr, 
 				NDR_PULL_SET_MEM_CTX(ndr, r->monitor_name, 0);
 				NDR_CHECK(ndr_pull_string(ndr, NDR_SCALARS, &r->monitor_name));
 				NDR_PULL_SET_MEM_CTX(ndr, _mem_save_monitor_name_0, 0);
+				if (ndr->offset > ndr->relative_highest_offset) {
+					ndr->relative_highest_offset = ndr->offset;
+				}
 				ndr->offset = _relative_save_offset;
 			}
 			ndr->flags = _flags_save_string;
@@ -975,6 +989,9 @@ _PUBLIC_ enum ndr_err_code ndr_pull_spoolss_DriverInfo101(struct ndr_pull *ndr, 
 				NDR_PULL_SET_MEM_CTX(ndr, r->default_datatype, 0);
 				NDR_CHECK(ndr_pull_string(ndr, NDR_SCALARS, &r->default_datatype));
 				NDR_PULL_SET_MEM_CTX(ndr, _mem_save_default_datatype_0, 0);
+				if (ndr->offset > ndr->relative_highest_offset) {
+					ndr->relative_highest_offset = ndr->offset;
+				}
 				ndr->offset = _relative_save_offset;
 			}
 			ndr->flags = _flags_save_string;
@@ -990,6 +1007,9 @@ _PUBLIC_ enum ndr_err_code ndr_pull_spoolss_DriverInfo101(struct ndr_pull *ndr, 
 				NDR_PULL_SET_MEM_CTX(ndr, r->previous_names, 0);
 				NDR_CHECK(ndr_pull_string_array(ndr, NDR_SCALARS, &r->previous_names));
 				NDR_PULL_SET_MEM_CTX(ndr, _mem_save_previous_names_0, 0);
+				if (ndr->offset > ndr->relative_highest_offset) {
+					ndr->relative_highest_offset = ndr->offset;
+				}
 				ndr->offset = _relative_save_offset;
 			}
 			ndr->flags = _flags_save_string_array;
@@ -1005,6 +1025,9 @@ _PUBLIC_ enum ndr_err_code ndr_pull_spoolss_DriverInfo101(struct ndr_pull *ndr, 
 				NDR_PULL_SET_MEM_CTX(ndr, r->manufacturer_name, 0);
 				NDR_CHECK(ndr_pull_string(ndr, NDR_SCALARS, &r->manufacturer_name));
 				NDR_PULL_SET_MEM_CTX(ndr, _mem_save_manufacturer_name_0, 0);
+				if (ndr->offset > ndr->relative_highest_offset) {
+					ndr->relative_highest_offset = ndr->offset;
+				}
 				ndr->offset = _relative_save_offset;
 			}
 			ndr->flags = _flags_save_string;
@@ -1020,6 +1043,9 @@ _PUBLIC_ enum ndr_err_code ndr_pull_spoolss_DriverInfo101(struct ndr_pull *ndr, 
 				NDR_PULL_SET_MEM_CTX(ndr, r->manufacturer_url, 0);
 				NDR_CHECK(ndr_pull_string(ndr, NDR_SCALARS, &r->manufacturer_url));
 				NDR_PULL_SET_MEM_CTX(ndr, _mem_save_manufacturer_url_0, 0);
+				if (ndr->offset > ndr->relative_highest_offset) {
+					ndr->relative_highest_offset = ndr->offset;
+				}
 				ndr->offset = _relative_save_offset;
 			}
 			ndr->flags = _flags_save_string;
@@ -1035,6 +1061,9 @@ _PUBLIC_ enum ndr_err_code ndr_pull_spoolss_DriverInfo101(struct ndr_pull *ndr, 
 				NDR_PULL_SET_MEM_CTX(ndr, r->hardware_id, 0);
 				NDR_CHECK(ndr_pull_string(ndr, NDR_SCALARS, &r->hardware_id));
 				NDR_PULL_SET_MEM_CTX(ndr, _mem_save_hardware_id_0, 0);
+				if (ndr->offset > ndr->relative_highest_offset) {
+					ndr->relative_highest_offset = ndr->offset;
+				}
 				ndr->offset = _relative_save_offset;
 			}
 			ndr->flags = _flags_save_string;
@@ -1050,6 +1079,9 @@ _PUBLIC_ enum ndr_err_code ndr_pull_spoolss_DriverInfo101(struct ndr_pull *ndr, 
 				NDR_PULL_SET_MEM_CTX(ndr, r->provider, 0);
 				NDR_CHECK(ndr_pull_string(ndr, NDR_SCALARS, &r->provider));
 				NDR_PULL_SET_MEM_CTX(ndr, _mem_save_provider_0, 0);
+				if (ndr->offset > ndr->relative_highest_offset) {
+					ndr->relative_highest_offset = ndr->offset;
+				}
 				ndr->offset = _relative_save_offset;
 			}
 			ndr->flags = _flags_save_string;
@@ -1082,12 +1114,12 @@ void ndr_print_spoolss_Field(struct ndr_print *ndr, const char *name, const unio
 	}
 }
 
-_PUBLIC_ size_t ndr_size_spoolss_PrinterData(const union spoolss_PrinterData *r, uint32_t level, struct smb_iconv_convenience *ic, int flags)
+_PUBLIC_ size_t ndr_size_spoolss_PrinterData(const union spoolss_PrinterData *r, uint32_t level, int flags)
 {
 	if (!r) {
 		return 0;
 	}
-	return ndr_size_union(r, flags, level, (ndr_push_flags_fn_t)ndr_push_spoolss_PrinterData, ic);
+	return ndr_size_union(r, flags, level, (ndr_push_flags_fn_t)ndr_push_spoolss_PrinterData);
 }
 
 void ndr_print_spoolss_security_descriptor(struct ndr_print *ndr, const char *name, const struct security_descriptor *r)
@@ -1381,4 +1413,31 @@ _PUBLIC_ enum ndr_err_code ndr_push_spoolss_PrinterInfo2(struct ndr_push *ndr, i
 		}
 	}
 	return NDR_ERR_SUCCESS;
+}
+
+_PUBLIC_ void ndr_print_spoolss_Time(struct ndr_print *ndr, const char *name, const struct spoolss_Time *r)
+{
+	struct tm tm;
+	time_t t;
+	char *str;
+
+	tm.tm_sec	= r->second;
+	tm.tm_min	= r->minute;
+	tm.tm_hour	= r->hour;
+	tm.tm_mday	= r->day;
+	tm.tm_mon	= r->month - 1;
+	tm.tm_year	= r->year - 1900;
+	tm.tm_wday	= r->day_of_week;
+	tm.tm_yday	= 0;
+	tm.tm_isdst	= -1;
+
+	t = mktime(&tm);
+
+	str = timestring(ndr, t);
+
+	ndr_print_struct(ndr, name, "spoolss_Time");
+	ndr->depth++;
+	ndr_print_string(ndr, "", str);
+	ndr->depth--;
+	talloc_free(str);
 }

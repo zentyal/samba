@@ -1,161 +1,13 @@
+'\" t
 .\"     Title: vfs_scannedonly
 .\"    Author: [see the "AUTHOR" section]
-.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 06/18/2010
+.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
+.\"      Date: 07/28/2010
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.5
+.\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "VFS_SCANNEDONLY" "8" "06/18/2010" "Samba 3\&.5" "System Administration tools"
-.\" -----------------------------------------------------------------
-.\" * (re)Define some macros
-.\" -----------------------------------------------------------------
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" toupper - uppercase a string (locale-aware)
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de toupper
-.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
-\\$*
-.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SH-xref - format a cross-reference to an SH section
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de SH-xref
-.ie n \{\
-.\}
-.toupper \\$*
-.el \{\
-\\$*
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SH - level-one heading that works better for non-TTY output
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de1 SH
-.\" put an extra blank line of space above the head in non-TTY output
-.if t \{\
-.sp 1
-.\}
-.sp \\n[PD]u
-.nr an-level 1
-.set-an-margin
-.nr an-prevailing-indent \\n[IN]
-.fi
-.in \\n[an-margin]u
-.ti 0
-.HTML-TAG ".NH \\n[an-level]"
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-\." make the size of the head bigger
-.ps +3
-.ft B
-.ne (2v + 1u)
-.ie n \{\
-.\" if n (TTY output), use uppercase
-.toupper \\$*
-.\}
-.el \{\
-.nr an-break-flag 0
-.\" if not n (not TTY), use normal case (not uppercase)
-\\$1
-.in \\n[an-margin]u
-.ti 0
-.\" if not n (not TTY), put a border/line under subheading
-.sp -.6
-\l'\n(.lu'
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SS - level-two heading that works better for non-TTY output
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de1 SS
-.sp \\n[PD]u
-.nr an-level 1
-.set-an-margin
-.nr an-prevailing-indent \\n[IN]
-.fi
-.in \\n[IN]u
-.ti \\n[SN]u
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.ps \\n[PS-SS]u
-\." make the size of the head bigger
-.ps +2
-.ft B
-.ne (2v + 1u)
-.if \\n[.$] \&\\$*
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" BB/BE - put background/screen (filled box) around block of text
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de BB
-.if t \{\
-.sp -.5
-.br
-.in +2n
-.ll -2n
-.gcolor red
-.di BX
-.\}
-..
-.de EB
-.if t \{\
-.if "\\$2"adjust-for-leading-newline" \{\
-.sp -1
-.\}
-.br
-.di
-.in
-.ll
-.gcolor
-.nr BW \\n(.lu-\\n(.i
-.nr BH \\n(dn+.5v
-.ne \\n(BHu+.5v
-.ie "\\$2"adjust-for-leading-newline" \{\
-\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
-.\}
-.el \{\
-\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
-.\}
-.in 0
-.sp -.5v
-.nf
-.BX
-.in
-.sp .5v
-.fi
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" BM/EM - put colored marker in margin next to block of text
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de BM
-.if t \{\
-.br
-.ll -2n
-.gcolor red
-.di BX
-.\}
-..
-.de EM
-.if t \{\
-.br
-.di
-.ll
-.gcolor
-.nr BH \\n(dn
-.ne \\n(BHu
-\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
-.in 0
-.nf
-.BX
-.in
-.fi
-.\}
-..
+.TH "VFS_SCANNEDONLY" "8" "07/28/2010" "Samba 3\&.6" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -166,13 +18,11 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.SH "Name"
+.SH "NAME"
 vfs_scannedonly \- Ensures that only files that have been scanned for viruses are visible and accessible to the end user\&.
-.SH "Synopsis"
-.fam C
+.SH "SYNOPSIS"
 .HP \w'\ 'u
-\FCvfs objects = scannedonly\F[]
-.fam
+vfs objects = scannedonly
 .SH "DESCRIPTION"
 .PP
 This VFS module is part of the
@@ -180,25 +30,25 @@ This VFS module is part of the
 suite\&.
 .PP
 The
-\FCvfs_scannedonly\F[]
+vfs_scannedonly
 VFS module ensures that only files that have been scanned for viruses are visible and accessible to the end user\&. If non\-scanned files are found an anti\-virus scanning daemon is notified\&. The anti\-virus scanning daemon is not part of the Samba suite\&.
 .PP
 Scannedonly comes in two parts: a samba vfs module and (one or more) daemons\&. The daemon scans files\&. If a certain file is clean, a second file is created with prefix
-\FC\&.scanned:\F[]\&. The Samba module simply looks if such a
-\FC\&.scanned:\F[]
+\&.scanned:\&. The Samba module simply looks if such a
+\&.scanned:
 file exists, and is newer than the pertinent file\&. If this is the case, the file is shown to the user\&. If this is not the case, the file is not returned in a directory listing (configurable), and cannot be opened (configurable)\&. The Samba vfs module will notify the daemon to scan this file\&.
 .PP
 So what happens for the user in the default configuration\&. The first time a directory is listed, it shows files as \'file is being scanned for viruses, but after the first time all files are shown\&. There is a utility scannedonly_prescan that can help you to prescan all directories\&. When new files are written the daemon is notified immediately after the file is complete\&.
 .PP
 If a virus is found by the daemon, a file with a warning message is created in the directory of the user, a warning is sent to the logs, and the file is renamed to have prefix
-\FC\&.virus:\F[]\&. Files with the
-\FC\&.virus:\F[]
+\&.virus:\&. Files with the
+\&.virus:
 prefix are never shown to the user and all access is denied\&.
 .PP
 This module is stackable\&.
 .SH "CONFIGURATION"
 .PP
-\FCvfs_scannedonly\F[]
+vfs_scannedonly
 relies on a anti\-virus scanning daemon that listens on the scannedonly socket (unix domain socket or UDP socket)\&.
 .SH "OPTIONS"
 .PP
@@ -229,11 +79,11 @@ Whether sockets, devices and fifo\'s (all not scanned for viruses) should be vis
 .PP
 scannedonly:rm_hidden_files_on_rmdir = True
 .RS 4
-Whether files that are not visible (\FC\&.scanned:\F[]
+Whether files that are not visible (\&.scanned:
 files,
-\FC\&.failed:\F[]
+\&.failed:
 files and
-\FC\&.virus: \F[]
+\&.virus:
 files) should be deleted if the user tries to remove the directory\&. If false, the user will get the "directory is not empty" error\&.
 .RE
 .PP
@@ -250,7 +100,7 @@ If non\-scanned files are hidden (if scannedonly:hide_nonscanned_files = True), 
 scannedonly:recheck_time_open = 50
 .RS 4
 If a non\-scanned file is opened, the vfs module will wait recheck_tries_open times for recheck_time_open milliseconds for the scanning daemon to create a
-\FC\&.scanned:\F[]
+\&.scanned:
 file\&. For small files that are scanned by the daemon within the time (tries * time) the behavior will be just like on\-access scanning\&.
 .RE
 .PP
@@ -272,11 +122,11 @@ See recheck_time_readdir\&.
 scannedonly:allow_nonscanned_files = False
 .RS 4
 Allow access to non\-scanned files\&. The daemon is notified, however, and special files such as
-\FC\&.scanned:\F[]
+\&.scanned:
 files\&.
-\FC\&.virus:\F[]
+\&.virus:
 files and
-\FC\&.failed:\F[]
+\&.failed:
 files are not listed\&.
 .RE
 .SH "EXAMPLES"
@@ -286,25 +136,11 @@ Enable anti\-virus scanning:
 .if n \{\
 .RS 4
 .\}
-.fam C
-.ps -1
 .nf
-.if t \{\
-.sp -1
-.\}
-.BB lightgray adjust-for-leading-newline
-.sp -1
-
         \fI[homes]\fR
 	\m[blue]\fBvfs objects = scannedonly\fR\m[]
 	\m[blue]\fBscannedonly:hide_nonscanned_files = False\fR\m[]
-.EB lightgray adjust-for-leading-newline
-.if t \{\
-.sp 1
-.\}
 .fi
-.fam
-.ps +1
 .if n \{\
 .RE
 .\}
@@ -313,7 +149,7 @@ Enable anti\-virus scanning:
 This is not true on\-access scanning\&. However, it is very fast for files that have been scanned already\&.
 .SH "VERSION"
 .PP
-This man page is correct for version 3\&.5\&.0 of the Samba suite\&.
+This man page is correct for version 3\&.6\&.0 of the Samba suite\&.
 .SH "AUTHOR"
 .PP
 The original Samba software and related utilities were created by Andrew Tridgell\&. Scannedonly was developed for Samba by Olivier Sessink\&. Samba is now developed by the Samba Team as an Open Source project similar to the way the Linux kernel is developed\&.

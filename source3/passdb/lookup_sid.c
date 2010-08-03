@@ -20,6 +20,7 @@
 */
 
 #include "includes.h"
+#include "../librpc/gen_ndr/ndr_security.h"
 
 /*****************************************************************
  Dissect a user-provided name into domain, name, sid and type.
@@ -32,14 +33,14 @@
 bool lookup_name(TALLOC_CTX *mem_ctx,
 		 const char *full_name, int flags,
 		 const char **ret_domain, const char **ret_name,
-		 DOM_SID *ret_sid, enum lsa_SidType *ret_type)
+		 struct dom_sid *ret_sid, enum lsa_SidType *ret_type)
 {
 	char *p;
 	const char *tmp;
 	const char *domain = NULL;
 	const char *name = NULL;
 	uint32 rid;
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 
@@ -65,7 +66,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 		return false;
 	}
 
-	DEBUG(10,("lookup_name: %s => %s (domain), %s (name)\n",
+	DEBUG(10,("lookup_name: %s => domain=[%s], name=[%s]\n",
 		full_name, domain, name));
 	DEBUG(10, ("lookup_name: flags = 0x0%x\n", flags));
 
@@ -75,8 +76,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 
 		/* It's our own domain, lookup the name in passdb */
 		if (lookup_global_sam_name(name, flags, &rid, &type)) {
-			sid_copy(&sid, get_global_sam_sid());
-			sid_append_rid(&sid, rid);
+			sid_compose(&sid, get_global_sam_sid(), rid);
 			goto ok;
 		}
 		TALLOC_FREE(tmp_ctx);
@@ -96,8 +96,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 
 		/* Explicit request for a name in BUILTIN */
 		if (lookup_builtin_name(name, &rid)) {
-			sid_copy(&sid, &global_sid_Builtin);
-			sid_append_rid(&sid, rid);
+			sid_compose(&sid, &global_sid_Builtin, rid);
 			type = SID_NAME_ALIAS;
 			goto ok;
 		}
@@ -215,8 +214,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 	    lookup_builtin_name(name, &rid))
 	{
 		domain = talloc_strdup(tmp_ctx, builtin_domain_name());
-		sid_copy(&sid, &global_sid_Builtin);
-		sid_append_rid(&sid, rid);
+		sid_compose(&sid, &global_sid_Builtin, rid);
 		type = SID_NAME_ALIAS;
 		goto ok;
 	}
@@ -230,8 +228,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 	    lookup_global_sam_name(name, flags, &rid, &type))
 	{
 		domain = talloc_strdup(tmp_ctx, get_global_sam_name());
-		sid_copy(&sid, get_global_sam_sid());
-		sid_append_rid(&sid, rid);
+		sid_compose(&sid, get_global_sam_sid(), rid);
 		goto ok;
 	}
 
@@ -257,7 +254,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 	 * that (yet), but give it a chance. */
 
 	if (IS_DC && winbind_lookup_name("", name, &sid, &type)) {
-		DOM_SID dom_sid;
+		struct dom_sid dom_sid;
 		uint32 tmp_rid;
 		enum lsa_SidType domain_type;
 		
@@ -361,7 +358,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 bool lookup_name_smbconf(TALLOC_CTX *mem_ctx,
 		 const char *full_name, int flags,
 		 const char **ret_domain, const char **ret_name,
-		 DOM_SID *ret_sid, enum lsa_SidType *ret_type)
+		 struct dom_sid *ret_sid, enum lsa_SidType *ret_type)
 {
 	char *qualified_name;
 	const char *p;
@@ -419,7 +416,7 @@ bool lookup_name_smbconf(TALLOC_CTX *mem_ctx,
 }
 
 static bool wb_lookup_rids(TALLOC_CTX *mem_ctx,
-			   const DOM_SID *domain_sid,
+			   const struct dom_sid *domain_sid,
 			   int num_rids, uint32 *rids,
 			   const char **domain_name,
 			   const char **names, enum lsa_SidType *types)
@@ -469,7 +466,7 @@ static bool wb_lookup_rids(TALLOC_CTX *mem_ctx,
 	return true;
 }
 
-static bool lookup_rids(TALLOC_CTX *mem_ctx, const DOM_SID *domain_sid,
+static bool lookup_rids(TALLOC_CTX *mem_ctx, const struct dom_sid *domain_sid,
 			int num_rids, uint32_t *rids,
 			const char **domain_name,
 			const char ***names, enum lsa_SidType **types)
@@ -543,9 +540,8 @@ static bool lookup_rids(TALLOC_CTX *mem_ctx, const DOM_SID *domain_sid,
 
 	if (sid_check_is_wellknown_domain(domain_sid, NULL)) {
 		for (i=0; i<num_rids; i++) {
-			DOM_SID sid;
-			sid_copy(&sid, domain_sid);
-			sid_append_rid(&sid, rids[i]);
+			struct dom_sid sid;
+			sid_compose(&sid, domain_sid, rids[i]);
 			if (lookup_wellknown_sid(mem_ctx, &sid,
 						 domain_name, &(*names)[i])) {
 				if ((*names)[i] == NULL) {
@@ -605,7 +601,7 @@ static bool lookup_rids(TALLOC_CTX *mem_ctx, const DOM_SID *domain_sid,
  * Is the SID a domain as such? If yes, lookup its name.
  */
 
-static bool lookup_as_domain(const DOM_SID *sid, TALLOC_CTX *mem_ctx,
+static bool lookup_as_domain(const struct dom_sid *sid, TALLOC_CTX *mem_ctx,
 			     const char **name)
 {
 	const char *tmp;
@@ -693,7 +689,7 @@ static bool lookup_as_domain(const DOM_SID *sid, TALLOC_CTX *mem_ctx,
  * Level 6: Like 4
  */
 
-static bool check_dom_sid_to_level(const DOM_SID *sid, int level)
+static bool check_dom_sid_to_level(const struct dom_sid *sid, int level)
 {
 	int ret = false;
 
@@ -734,7 +730,7 @@ static bool check_dom_sid_to_level(const DOM_SID *sid, int level)
  */
 
 NTSTATUS lookup_sids(TALLOC_CTX *mem_ctx, int num_sids,
-		     const DOM_SID **sids, int level,
+		     const struct dom_sid **sids, int level,
 		     struct lsa_dom_info **ret_domains,
 		     struct lsa_name_info **ret_names)
 {
@@ -782,8 +778,8 @@ NTSTATUS lookup_sids(TALLOC_CTX *mem_ctx, int num_sids,
 	 */
 
 	for (i=0; i<num_sids; i++) {
-		DOM_SID sid;
-		uint32 rid;
+		struct dom_sid sid;
+		uint32_t rid = 0;
 		const char *domain_name = NULL;
 
 		sid_copy(&sid, sids[i]);
@@ -953,7 +949,7 @@ NTSTATUS lookup_sids(TALLOC_CTX *mem_ctx, int num_sids,
  *THE CANONICAL* convert SID to name function.
 *****************************************************************/  
 
-bool lookup_sid(TALLOC_CTX *mem_ctx, const DOM_SID *sid,
+bool lookup_sid(TALLOC_CTX *mem_ctx, const struct dom_sid *sid,
 		const char **ret_domain, const char **ret_name,
 		enum lsa_SidType *ret_type)
 {
@@ -1017,7 +1013,7 @@ bool lookup_sid(TALLOC_CTX *mem_ctx, const DOM_SID *sid,
   Find a SID given a uid.
 *****************************************************************/
 
-static bool fetch_sid_from_uid_cache(DOM_SID *psid, uid_t uid)
+static bool fetch_sid_from_uid_cache(struct dom_sid *psid, uid_t uid)
 {
 	DATA_BLOB cache_value;
 
@@ -1029,7 +1025,7 @@ static bool fetch_sid_from_uid_cache(DOM_SID *psid, uid_t uid)
 
 	memcpy(psid, cache_value.data, MIN(sizeof(*psid), cache_value.length));
 	SMB_ASSERT(cache_value.length >= offsetof(struct dom_sid, id_auth));
-	SMB_ASSERT(cache_value.length == ndr_size_dom_sid(psid, NULL, 0));
+	SMB_ASSERT(cache_value.length == ndr_size_dom_sid(psid, 0));
 
 	return true;
 }
@@ -1038,12 +1034,12 @@ static bool fetch_sid_from_uid_cache(DOM_SID *psid, uid_t uid)
   Find a uid given a SID.
 *****************************************************************/
 
-static bool fetch_uid_from_cache( uid_t *puid, const DOM_SID *psid )
+static bool fetch_uid_from_cache( uid_t *puid, const struct dom_sid *psid )
 {
 	DATA_BLOB cache_value;
 
 	if (!memcache_lookup(NULL, SID_UID_CACHE,
-			     data_blob_const(psid, ndr_size_dom_sid(psid, NULL, 0)),
+			     data_blob_const(psid, ndr_size_dom_sid(psid, 0)),
 			     &cache_value)) {
 		return false;
 	}
@@ -1058,21 +1054,21 @@ static bool fetch_uid_from_cache( uid_t *puid, const DOM_SID *psid )
  Store uid to SID mapping in cache.
 *****************************************************************/
 
-void store_uid_sid_cache(const DOM_SID *psid, uid_t uid)
+void store_uid_sid_cache(const struct dom_sid *psid, uid_t uid)
 {
 	memcache_add(NULL, SID_UID_CACHE,
-		     data_blob_const(psid, ndr_size_dom_sid(psid, NULL, 0)),
+		     data_blob_const(psid, ndr_size_dom_sid(psid, 0)),
 		     data_blob_const(&uid, sizeof(uid)));
 	memcache_add(NULL, UID_SID_CACHE,
 		     data_blob_const(&uid, sizeof(uid)),
-		     data_blob_const(psid, ndr_size_dom_sid(psid, NULL, 0)));
+		     data_blob_const(psid, ndr_size_dom_sid(psid, 0)));
 }
 
 /*****************************************************************
   Find a SID given a gid.
 *****************************************************************/
 
-static bool fetch_sid_from_gid_cache(DOM_SID *psid, gid_t gid)
+static bool fetch_sid_from_gid_cache(struct dom_sid *psid, gid_t gid)
 {
 	DATA_BLOB cache_value;
 
@@ -1084,7 +1080,7 @@ static bool fetch_sid_from_gid_cache(DOM_SID *psid, gid_t gid)
 
 	memcpy(psid, cache_value.data, MIN(sizeof(*psid), cache_value.length));
 	SMB_ASSERT(cache_value.length >= offsetof(struct dom_sid, id_auth));
-	SMB_ASSERT(cache_value.length == ndr_size_dom_sid(psid, NULL, 0));
+	SMB_ASSERT(cache_value.length == ndr_size_dom_sid(psid, 0));
 
 	return true;
 }
@@ -1093,12 +1089,12 @@ static bool fetch_sid_from_gid_cache(DOM_SID *psid, gid_t gid)
   Find a gid given a SID.
 *****************************************************************/
 
-static bool fetch_gid_from_cache(gid_t *pgid, const DOM_SID *psid)
+static bool fetch_gid_from_cache(gid_t *pgid, const struct dom_sid *psid)
 {
 	DATA_BLOB cache_value;
 
 	if (!memcache_lookup(NULL, SID_GID_CACHE,
-			     data_blob_const(psid, ndr_size_dom_sid(psid, NULL, 0)),
+			     data_blob_const(psid, ndr_size_dom_sid(psid, 0)),
 			     &cache_value)) {
 		return false;
 	}
@@ -1113,21 +1109,21 @@ static bool fetch_gid_from_cache(gid_t *pgid, const DOM_SID *psid)
  Store gid to SID mapping in cache.
 *****************************************************************/
 
-void store_gid_sid_cache(const DOM_SID *psid, gid_t gid)
+void store_gid_sid_cache(const struct dom_sid *psid, gid_t gid)
 {
 	memcache_add(NULL, SID_GID_CACHE,
-		     data_blob_const(psid, ndr_size_dom_sid(psid, NULL, 0)),
+		     data_blob_const(psid, ndr_size_dom_sid(psid, 0)),
 		     data_blob_const(&gid, sizeof(gid)));
 	memcache_add(NULL, GID_SID_CACHE,
 		     data_blob_const(&gid, sizeof(gid)),
-		     data_blob_const(psid, ndr_size_dom_sid(psid, NULL, 0)));
+		     data_blob_const(psid, ndr_size_dom_sid(psid, 0)));
 }
 
 /*****************************************************************
  *THE LEGACY* convert uid_t to SID function.
 *****************************************************************/  
 
-static void legacy_uid_to_sid(DOM_SID *psid, uid_t uid)
+static void legacy_uid_to_sid(struct dom_sid *psid, uid_t uid)
 {
 	bool ret;
 
@@ -1158,7 +1154,7 @@ static void legacy_uid_to_sid(DOM_SID *psid, uid_t uid)
  *THE LEGACY* convert gid_t to SID function.
 *****************************************************************/  
 
-static void legacy_gid_to_sid(DOM_SID *psid, gid_t gid)
+static void legacy_gid_to_sid(struct dom_sid *psid, gid_t gid)
 {
 	bool ret;
 
@@ -1189,12 +1185,11 @@ static void legacy_gid_to_sid(DOM_SID *psid, gid_t gid)
  *THE LEGACY* convert SID to uid function.
 *****************************************************************/  
 
-static bool legacy_sid_to_uid(const DOM_SID *psid, uid_t *puid)
+static bool legacy_sid_to_uid(const struct dom_sid *psid, uid_t *puid)
 {
 	enum lsa_SidType type;
-	uint32 rid;
 
-	if (sid_peek_check_rid(get_global_sam_sid(), psid, &rid)) {
+	if (sid_check_is_in_our_domain(psid)) {
 		union unid_t id;
 		bool ret;
 
@@ -1233,9 +1228,8 @@ done:
  Group mapping is used for gids that maps to Wellknown SIDs
 *****************************************************************/  
 
-static bool legacy_sid_to_gid(const DOM_SID *psid, gid_t *pgid)
+static bool legacy_sid_to_gid(const struct dom_sid *psid, gid_t *pgid)
 {
-	uint32 rid;
 	GROUP_MAP map;
 	union unid_t id;
 	enum lsa_SidType type;
@@ -1257,7 +1251,7 @@ static bool legacy_sid_to_gid(const DOM_SID *psid, gid_t *pgid)
 		return false;
 	}
 
-	if (sid_peek_check_rid(get_global_sam_sid(), psid, &rid)) {
+	if (sid_check_is_in_our_domain(psid)) {
 		bool ret;
 
 		become_root();
@@ -1296,7 +1290,7 @@ static bool legacy_sid_to_gid(const DOM_SID *psid, gid_t *pgid)
  *THE CANONICAL* convert uid_t to SID function.
 *****************************************************************/  
 
-void uid_to_sid(DOM_SID *psid, uid_t uid)
+void uid_to_sid(struct dom_sid *psid, uid_t uid)
 {
 	bool expired = true;
 	bool ret;
@@ -1349,7 +1343,7 @@ void uid_to_sid(DOM_SID *psid, uid_t uid)
  *THE CANONICAL* convert gid_t to SID function.
 *****************************************************************/  
 
-void gid_to_sid(DOM_SID *psid, gid_t gid)
+void gid_to_sid(struct dom_sid *psid, gid_t gid)
 {
 	bool expired = true;
 	bool ret;
@@ -1402,7 +1396,7 @@ void gid_to_sid(DOM_SID *psid, gid_t gid)
  *THE CANONICAL* convert SID to uid function.
 *****************************************************************/  
 
-bool sid_to_uid(const DOM_SID *psid, uid_t *puid)
+bool sid_to_uid(const struct dom_sid *psid, uid_t *puid)
 {
 	bool expired = true;
 	bool ret;
@@ -1464,7 +1458,7 @@ bool sid_to_uid(const DOM_SID *psid, uid_t *puid)
  Group mapping is used for gids that maps to Wellknown SIDs
 *****************************************************************/  
 
-bool sid_to_gid(const DOM_SID *psid, gid_t *pgid)
+bool sid_to_gid(const struct dom_sid *psid, gid_t *pgid)
 {
 	bool expired = true;
 	bool ret;
@@ -1519,4 +1513,128 @@ bool sid_to_gid(const DOM_SID *psid, gid_t *pgid)
 
 	store_gid_sid_cache(psid, *pgid);
 	return true;
+}
+
+/**
+ * @brief This function gets the primary group SID mapping the primary
+ *        GID of the user as obtained by an actual getpwnam() call.
+ *        This is necessary to avoid issues with arbitrary group SIDs
+ *        stored in passdb. We try as hard as we can to get the SID
+ *        corresponding to the GID, including trying group mapping.
+ *        If nothing else works, we will force "Domain Users" as the
+ *        primary group.
+ *        This is needed because we must always be able to lookup the
+ *        primary group SID, so we cannot settle for an arbitrary SID.
+ *
+ *        This call can be expensive. Use with moderation.
+ *        If you have a "samu" struct around use pdb_get_group_sid()
+ *        instead as it does properly cache results.
+ *
+ * @param mem_ctx[in]     The memory context iused to allocate the result.
+ * @param username[in]    The user's name
+ * @param _pwd[in|out]    If available, pass in user's passwd struct.
+ *                        It will contain a tallocated passwd if NULL was
+ *                        passed in.
+ * @param _group_sid[out] The user's Primary Group SID
+ *
+ * @return NTSTATUS error code.
+ */
+NTSTATUS get_primary_group_sid(TALLOC_CTX *mem_ctx,
+				const char *username,
+				struct passwd **_pwd,
+				struct dom_sid **_group_sid)
+{
+	TALLOC_CTX *tmp_ctx;
+	bool need_lookup_sid = false;
+	struct dom_sid *group_sid;
+	struct passwd *pwd = *_pwd;
+
+	tmp_ctx = talloc_new(mem_ctx);
+	if (!tmp_ctx) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	if (!pwd) {
+		pwd = Get_Pwnam_alloc(mem_ctx, username);
+		if (!pwd) {
+			DEBUG(0, ("Failed to find a Unix account for %s",
+				  username));
+			TALLOC_FREE(tmp_ctx);
+			return NT_STATUS_NO_SUCH_USER;
+		}
+	}
+
+	group_sid = talloc_zero(mem_ctx, struct dom_sid);
+	if (!group_sid) {
+		TALLOC_FREE(tmp_ctx);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	gid_to_sid(group_sid, pwd->pw_gid);
+	if (!is_null_sid(group_sid)) {
+		struct dom_sid domain_sid;
+		uint32_t rid;
+
+		/* We need a sid within our domain */
+		sid_copy(&domain_sid, group_sid);
+		sid_split_rid(&domain_sid, &rid);
+		if (sid_equal(&domain_sid, get_global_sam_sid())) {
+			/*
+			 * As shortcut for the expensive lookup_sid call
+			 * compare the domain sid part
+			 */
+			switch (rid) {
+			case DOMAIN_RID_ADMINS:
+			case DOMAIN_RID_USERS:
+				goto done;
+			default:
+				need_lookup_sid = true;
+				break;
+			}
+		} else {
+			/* Try group mapping */
+			ZERO_STRUCTP(group_sid);
+			if (pdb_gid_to_sid(pwd->pw_gid, group_sid)) {
+				need_lookup_sid = true;
+			}
+		}
+	}
+
+	/* We must verify that this is a valid SID that resolves to a
+	 * group of the correct type */
+	if (need_lookup_sid) {
+		enum lsa_SidType type = SID_NAME_UNKNOWN;
+		bool lookup_ret;
+
+		DEBUG(10, ("do lookup_sid(%s) for group of user %s\n",
+			   sid_string_dbg(group_sid), username));
+
+		/* Now check that it's actually a domain group and
+		 * not something else */
+		lookup_ret = lookup_sid(tmp_ctx, group_sid,
+					NULL, NULL, &type);
+
+		if (lookup_ret && (type == SID_NAME_DOM_GRP)) {
+			goto done;
+		}
+
+		DEBUG(3, ("Primary group %s for user %s is"
+			  " a %s and not a domain group\n",
+			  sid_string_dbg(group_sid), username,
+			  sid_type_lookup(type)));
+	}
+
+	/* Everything else, failed.
+	 * Just set it to the 'Domain Users' RID of 513 which will
+	   always resolve to a name */
+	DEBUG(3, ("Forcing Primary Group to 'Domain Users' for %s\n",
+		  username));
+
+	sid_compose(group_sid, get_global_sam_sid(), DOMAIN_RID_USERS);
+
+done:
+	*_pwd = talloc_move(mem_ctx, &pwd);
+	*_group_sid = talloc_move(mem_ctx, &group_sid);
+	TALLOC_FREE(tmp_ctx);
+	return NT_STATUS_OK;
 }

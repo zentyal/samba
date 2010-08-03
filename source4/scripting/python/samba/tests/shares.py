@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 # Unix SMB/CIFS implementation. Tests for shares
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2009
@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 from samba.shares import SharesContainer
-from unittest import TestCase
+from samba.tests import TestCase
 
 
 class MockService(object):
@@ -36,9 +36,6 @@ class MockLoadParm(object):
 
     def __getitem__(self, name):
         return MockService(self.data[name])
-
-    def __contains__(self, name):
-        return name in self.data
 
     def __len__(self):
         return len(self.data)

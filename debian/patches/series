@@ -10,3 +10,4 @@ usershare.patch
 smbtar-bashism.patch
 no-unnecessary-cups.patch
 autoconf.patch
+debian-changes-2:3.6.0~pre1-1

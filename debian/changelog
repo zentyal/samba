@@ -1,3 +1,10 @@
+samba (2:3.4.8~dfsg-3) UNRELEASED; urgency=low
+
+  [ Debconf translations ]  
+  * Danish (Joe Dalton).  Closes: #592789.
+
+ -- Steve Langasek <vorlon@debian.org>  Thu, 12 Aug 2010 16:31:39 -0700
+
 samba (2:3.4.8~dfsg-2) unstable; urgency=low
 
   [ Steve Langasek ]

@@ -2,6 +2,7 @@ samba (2:3.4.8~dfsg-3) UNRELEASED; urgency=low
 
   [ Debconf translations ]  
   * Danish (Joe Dalton).  Closes: #592789.
+  * Galician (Jorge Barreiro).  Closes: #592809
 
  -- Steve Langasek <vorlon@debian.org>  Thu, 12 Aug 2010 16:31:39 -0700
 

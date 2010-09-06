@@ -10,4 +10,3 @@ usershare.patch
 smbtar-bashism.patch
 no-unnecessary-cups.patch
 autoconf.patch
-bug_586337_upstream_7139.patch

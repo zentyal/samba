@@ -72,6 +72,7 @@ static bool recalc_brl_timeout(void)
 {
 	struct blocking_lock_record *blr;
 	struct timeval next_timeout;
+	int max_brl_timeout = lp_parm_int(-1, "brl", "recalctime", 5);
 
 	TALLOC_FREE(brl_timeout);
 
@@ -98,6 +99,25 @@ static bool recalc_brl_timeout(void)
 	if (timeval_is_zero(&next_timeout)) {
 		DEBUG(10, ("Next timeout = Infinite.\n"));
 		return True;
+	}
+
+	/* 
+	 to account for unclean shutdowns by clients we need a
+	 maximum timeout that we use for checking pending locks. If
+	 we have any pending locks at all, then check if the pending
+	 lock can continue at least every brl:recalctime seconds
+	 (default 5 seconds).
+
+	 This saves us needing to do a message_send_all() in the
+	 SIGCHLD handler in the parent daemon. That
+	 message_send_all() caused O(n^2) work to be done when IP
+	 failovers happened in clustered Samba, which could make the
+	 entire system unusable for many minutes.
+	*/
+
+	if (max_brl_timeout > 0) {
+		struct timeval min_to = timeval_current_ofs(max_brl_timeout, 0);
+		next_timeout = timeval_min(&next_timeout, &min_to);             
 	}
 
 	if (DEBUGLVL(10)) {
@@ -185,7 +205,7 @@ bool push_blocking_lock_request( struct byte_range_lock *br_lck,
 			count,
 			lock_type == READ_LOCK ? PENDING_READ_LOCK : PENDING_WRITE_LOCK,
 			blr->lock_flav,
-			lock_timeout ? True : False, /* blocking_lock. */
+			True,
 			NULL,
 			blr);
 
@@ -212,10 +232,7 @@ bool push_blocking_lock_request( struct byte_range_lock *br_lck,
 		"expiry time (%u sec. %u usec) (+%d msec) for fnum = %d, name = %s\n",
 		(unsigned int)blr->expire_time.tv_sec,
 		(unsigned int)blr->expire_time.tv_usec, lock_timeout,
-		blr->fsp->fnum, blr->fsp->fsp_name ));
-
-	/* Push the MID of this packet on the signing queue. */
-	srv_defer_sign_response(blr->req->mid);
+		blr->fsp->fnum, fsp_str_dbg(blr->fsp)));
 
 	return True;
 }
@@ -270,6 +287,7 @@ static void generic_blocking_lock_error(struct blocking_lock_record *blr, NTSTAT
 
 	reply_nterror(blr->req, status);
 	if (!srv_send_smb(smbd_server_fd(), (char *)blr->req->outbuf,
+			  true, blr->req->seqnum+1,
 			  blr->req->encrypted, NULL)) {
 		exit_server_cleanly("generic_blocking_lock_error: srv_send_smb failed.");
 	}
@@ -353,6 +371,7 @@ static void blocking_lock_reply_error(struct blocking_lock_record *blr, NTSTATUS
 
 		if (!srv_send_smb(smbd_server_fd(),
 				  (char *)blr->req->outbuf,
+				  true, blr->req->seqnum+1,
 				  IS_CONN_ENCRYPTED(blr->fsp->conn),
 				  NULL)) {
 			exit_server_cleanly("blocking_lock_reply_error: "
@@ -429,8 +448,9 @@ static bool process_lockingX(struct blocking_lock_record *blr)
 		 * Success - we got all the locks.
 		 */
 
-		DEBUG(3,("process_lockingX file = %s, fnum=%d type=%d num_locks=%d\n",
-			 fsp->fsp_name, fsp->fnum, (unsigned int)locktype, num_locks) );
+		DEBUG(3,("process_lockingX file = %s, fnum=%d type=%d "
+			 "num_locks=%d\n", fsp_str_dbg(fsp), fsp->fnum,
+			 (unsigned int)locktype, num_locks));
 
 		reply_lockingX_success(blr);
 		return True;
@@ -453,7 +473,7 @@ static bool process_lockingX(struct blocking_lock_record *blr)
 
 	DEBUG(10,("process_lockingX: only got %d locks of %d needed for file %s, fnum = %d. \
 Waiting....\n", 
-		  blr->lock_num, num_locks, fsp->fsp_name, fsp->fnum));
+		 blr->lock_num, num_locks, fsp_str_dbg(fsp), fsp->fnum));
 
 	return False;
 }
@@ -544,7 +564,7 @@ void cancel_pending_lock_requests_by_fid(files_struct *fsp, struct byte_range_lo
 
 		DEBUG(10, ("remove_pending_lock_requests_by_fid - removing "
 			   "request type %d for file %s fnum = %d\n",
-			   blr->req->cmd, fsp->fsp_name, fsp->fnum));
+			   blr->req->cmd, fsp_str_dbg(fsp), fsp->fnum));
 
 		blr_cancelled = blocking_lock_cancel(fsp,
 				     blr->lock_pid,
@@ -594,7 +614,7 @@ void remove_pending_lock_requests_by_mid(int mid)
 		if (br_lck) {
 			DEBUG(10, ("remove_pending_lock_requests_by_mid - "
 				   "removing request type %d for file %s fnum "
-				   "= %d\n", blr->req->cmd, fsp->fsp_name,
+				   "= %d\n", blr->req->cmd, fsp_str_dbg(fsp),
 				   fsp->fnum ));
 
 			brl_lock_cancel(br_lck,
@@ -720,7 +740,7 @@ void process_blocking_lock_queue(void)
 				DEBUG(5,("process_blocking_lock_queue: "
 					 "pending lock fnum = %d for file %s "
 					 "timed out.\n", blr->fsp->fnum,
-					 blr->fsp->fsp_name ));
+					 fsp_str_dbg(blr->fsp)));
 
 				brl_lock_cancel(br_lck,
 					blr->lock_pid,

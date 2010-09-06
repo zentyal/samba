@@ -255,16 +255,16 @@ static void show_parameter(int snum, struct parm_struct *parm)
 			for (;*list;list++) {
 				/* enclose in HTML encoded quotes if the string contains a space */
 				if ( strchr_m(*list, ' ') ) {
-					push_utf8_allocate(&utf8_s1, *list, &converted_size);
-					push_utf8_allocate(&utf8_s2, ((*(list+1))?", ":""), &converted_size);
+					push_utf8_talloc(talloc_tos(), &utf8_s1, *list, &converted_size);
+					push_utf8_talloc(talloc_tos(), &utf8_s2, ((*(list+1))?", ":""), &converted_size);
 					printf("&quot;%s&quot;%s", utf8_s1, utf8_s2);
 				} else {
-					push_utf8_allocate(&utf8_s1, *list, &converted_size);
-					push_utf8_allocate(&utf8_s2, ((*(list+1))?", ":""), &converted_size);
+					push_utf8_talloc(talloc_tos(), &utf8_s1, *list, &converted_size);
+					push_utf8_talloc(talloc_tos(), &utf8_s2, ((*(list+1))?", ":""), &converted_size);
 					printf("%s%s", utf8_s1, utf8_s2);
 				}
-				SAFE_FREE(utf8_s1);
-				SAFE_FREE(utf8_s2);
+				TALLOC_FREE(utf8_s1);
+				TALLOC_FREE(utf8_s2);
 			}
 		}
 		printf("\">");
@@ -285,10 +285,10 @@ static void show_parameter(int snum, struct parm_struct *parm)
 
 	case P_STRING:
 	case P_USTRING:
-		push_utf8_allocate(&utf8_s1, *(char **)ptr, &converted_size);
+		push_utf8_talloc(talloc_tos(), &utf8_s1, *(char **)ptr, &converted_size);
 		printf("<input type=text size=40 name=\"parm_%s\" value=\"%s\">",
 		       make_parm_name(parm->label), fix_quotes(ctx, utf8_s1));
-		SAFE_FREE(utf8_s1);
+		TALLOC_FREE(utf8_s1);
 		printf("<input type=button value=\"%s\" onClick=\"swatform.parm_%s.value=\'%s\'\">",
 			_("Set Default"), make_parm_name(parm->label),fix_backslash((char *)(parm->def.svalue)));
 		break;
@@ -645,7 +645,7 @@ static void wizard_params_page(void)
 
 	if (cgi_variable("Commit")) {
 		commit_parameters(GLOBAL_SECTION_SNUM);
-		save_reload(0);
+		save_reload(-1);
 	}
 
 	printf("<form name=\"swatform\" method=post action=wizard_params>\n");
@@ -669,7 +669,7 @@ static void wizard_params_page(void)
 static void rewritecfg_file(void)
 {
 	commit_parameters(GLOBAL_SECTION_SNUM);
-	save_reload(0);
+	save_reload(-1);
 	printf("<H2>%s</H2>\n", _("Note: smb.conf file has been read and rewritten"));
 }
 
@@ -757,7 +757,7 @@ static void wizard_page(void)
 		}
 
 		commit_parameters(GLOBAL_SECTION_SNUM);
-		save_reload(0);
+		save_reload(-1);
 	}
 	else
 	{
@@ -851,7 +851,7 @@ static void globals_page(void)
 
 	if (cgi_variable("Commit")) {
 		commit_parameters(GLOBAL_SECTION_SNUM);
-		save_reload(0);
+		save_reload(-1);
 	}
 
 	if ( cgi_variable("ViewMode") )
@@ -909,13 +909,13 @@ static void shares_page(void)
 
 	if (cgi_variable("Commit") && snum >= 0) {
 		commit_parameters(snum);
-		save_reload(0);
+		save_reload(-1);
 		snum = lp_servicenumber(share);
 	}
 
 	if (cgi_variable("Delete") && snum >= 0) {
 		lp_remove_service(snum);
-		save_reload(0);
+		save_reload(-1);
 		share = NULL;
 		snum = -1;
 	}
@@ -959,11 +959,11 @@ static void shares_page(void)
 	for (i=0;i<lp_numservices();i++) {
 		s = lp_servicename(i);
 		if (s && (*s) && strcmp(s,"IPC$") && !lp_print_ok(i)) {
-			push_utf8_allocate(&utf8_s, s, &converted_size);
+			push_utf8_talloc(talloc_tos(), &utf8_s, s, &converted_size);
 			printf("<option %s value=\"%s\">%s\n", 
 			       (share && strcmp(share,s)==0)?"SELECTED":"",
 			       utf8_s, utf8_s);
-			SAFE_FREE(utf8_s);
+			TALLOC_FREE(utf8_s);
 		}
 	}
 	printf("</select></td>\n");
@@ -1265,13 +1265,13 @@ static void printers_page(void)
 		if (snum >= iNumNonAutoPrintServices)
 		    save_reload(snum);
 		else
-		    save_reload(0);
+		    save_reload(-1);
 		snum = lp_servicenumber(share);
 	}
 
 	if (cgi_variable("Delete") && snum >= 0) {
 		lp_remove_service(snum);
-		save_reload(0);
+		save_reload(-1);
 		share = NULL;
 		snum = -1;
 	}

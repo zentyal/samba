@@ -79,27 +79,24 @@ struct rpc_sock_read_state {
 
 static void rpc_sock_read_done(struct tevent_req *subreq);
 
-static struct async_req *rpc_sock_read_send(TALLOC_CTX *mem_ctx,
-					    struct event_context *ev,
-					    uint8_t *data, size_t size,
-					    void *priv)
+static struct tevent_req *rpc_sock_read_send(TALLOC_CTX *mem_ctx,
+					     struct event_context *ev,
+					     uint8_t *data, size_t size,
+					     void *priv)
 {
 	struct rpc_transport_sock_state *sock_transp = talloc_get_type_abort(
 		priv, struct rpc_transport_sock_state);
-	struct async_req *result;
-	struct tevent_req *subreq;
+	struct tevent_req *req, *subreq;
 	struct rpc_sock_read_state *state;
 	struct timeval endtime;
 
-	if (!async_req_setup(mem_ctx, &result, &state,
-			     struct rpc_sock_read_state)) {
+	req = tevent_req_create(mem_ctx, &state, struct rpc_sock_read_state);
+	if (req == NULL) {
 		return NULL;
 	}
 	if (!rpc_sock_is_connected(sock_transp)) {
-		if (!async_post_ntstatus(result, ev, NT_STATUS_CONNECTION_INVALID)) {
-			goto fail;
-		}
-		return result;
+		tevent_req_nterror(req, NT_STATUS_CONNECTION_INVALID);
+		return tevent_req_post(req, ev);
 	}
 	state->transp = sock_transp;
 	endtime = timeval_current_ofs(0, sock_transp->timeout * 1000);
@@ -112,19 +109,19 @@ static struct async_req *rpc_sock_read_send(TALLOC_CTX *mem_ctx,
 		goto fail;
 	}
 
-	tevent_req_set_callback(subreq, rpc_sock_read_done, result);
-	return result;
+	tevent_req_set_callback(subreq, rpc_sock_read_done, req);
+	return req;
  fail:
-	TALLOC_FREE(result);
+	TALLOC_FREE(req);
 	return NULL;
 }
 
 static void rpc_sock_read_done(struct tevent_req *subreq)
 {
-	struct async_req *req =
-		tevent_req_callback_data(subreq, struct async_req);
-	struct rpc_sock_read_state *state = talloc_get_type_abort(
-		req->private_data, struct rpc_sock_read_state);
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpc_sock_read_state *state = tevent_req_data(
+		req, struct rpc_sock_read_state);
 	int err;
 
 	/* We must free subreq in this function as there is
@@ -135,20 +132,20 @@ static void rpc_sock_read_done(struct tevent_req *subreq)
 	if (state->received == -1) {
 		TALLOC_FREE(subreq);
 		rpc_sock_disconnect(state->transp);
-		async_req_nterror(req, map_nt_error_from_unix(err));
+		tevent_req_nterror(req, map_nt_error_from_unix(err));
 		return;
 	}
 	TALLOC_FREE(subreq);
-	async_req_done(req);
+	tevent_req_done(req);
 }
 
-static NTSTATUS rpc_sock_read_recv(struct async_req *req, ssize_t *preceived)
+static NTSTATUS rpc_sock_read_recv(struct tevent_req *req, ssize_t *preceived)
 {
-	struct rpc_sock_read_state *state = talloc_get_type_abort(
-		req->private_data, struct rpc_sock_read_state);
+	struct rpc_sock_read_state *state = tevent_req_data(
+		req, struct rpc_sock_read_state);
 	NTSTATUS status;
 
-	if (async_req_is_nterror(req, &status)) {
+	if (tevent_req_is_nterror(req, &status)) {
 		return status;
 	}
 	*preceived = state->received;
@@ -162,27 +159,24 @@ struct rpc_sock_write_state {
 
 static void rpc_sock_write_done(struct tevent_req *subreq);
 
-static struct async_req *rpc_sock_write_send(TALLOC_CTX *mem_ctx,
-					     struct event_context *ev,
-					     const uint8_t *data, size_t size,
-					     void *priv)
+static struct tevent_req *rpc_sock_write_send(TALLOC_CTX *mem_ctx,
+					      struct event_context *ev,
+					      const uint8_t *data, size_t size,
+					      void *priv)
 {
 	struct rpc_transport_sock_state *sock_transp = talloc_get_type_abort(
 		priv, struct rpc_transport_sock_state);
-	struct async_req *result;
-	struct tevent_req *subreq;
+	struct tevent_req *req, *subreq;
 	struct rpc_sock_write_state *state;
 	struct timeval endtime;
 
-	if (!async_req_setup(mem_ctx, &result, &state,
-			     struct rpc_sock_write_state)) {
+	req = tevent_req_create(mem_ctx, &state, struct rpc_sock_write_state);
+	if (req == NULL) {
 		return NULL;
 	}
 	if (!rpc_sock_is_connected(sock_transp)) {
-		if (!async_post_ntstatus(result, ev, NT_STATUS_CONNECTION_INVALID)) {
-			goto fail;
-		}
-		return result;
+		tevent_req_nterror(req, NT_STATUS_CONNECTION_INVALID);
+		return tevent_req_post(req, ev);
 	}
 	state->transp = sock_transp;
 	endtime = timeval_current_ofs(0, sock_transp->timeout * 1000);
@@ -195,19 +189,19 @@ static struct async_req *rpc_sock_write_send(TALLOC_CTX *mem_ctx,
 		goto fail;
 	}
 
-	tevent_req_set_callback(subreq, rpc_sock_write_done, result);
-	return result;
+	tevent_req_set_callback(subreq, rpc_sock_write_done, req);
+	return req;
  fail:
-	TALLOC_FREE(result);
+	TALLOC_FREE(req);
 	return NULL;
 }
 
 static void rpc_sock_write_done(struct tevent_req *subreq)
 {
-	struct async_req *req =
-		tevent_req_callback_data(subreq, struct async_req);
-	struct rpc_sock_write_state *state = talloc_get_type_abort(
-		req->private_data, struct rpc_sock_write_state);
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpc_sock_write_state *state = tevent_req_data(
+		req, struct rpc_sock_write_state);
 	int err;
 
 	/* We must free subreq in this function as there is
@@ -218,20 +212,20 @@ static void rpc_sock_write_done(struct tevent_req *subreq)
 	if (state->sent == -1) {
 		TALLOC_FREE(subreq);
 		rpc_sock_disconnect(state->transp);
-		async_req_nterror(req, map_nt_error_from_unix(err));
+		tevent_req_nterror(req, map_nt_error_from_unix(err));
 		return;
 	}
 	TALLOC_FREE(subreq);
-	async_req_done(req);
+	tevent_req_done(req);
 }
 
-static NTSTATUS rpc_sock_write_recv(struct async_req *req, ssize_t *psent)
+static NTSTATUS rpc_sock_write_recv(struct tevent_req *req, ssize_t *psent)
 {
-	struct rpc_sock_write_state *state = talloc_get_type_abort(
-		req->private_data, struct rpc_sock_write_state);
+	struct rpc_sock_write_state *state = tevent_req_data(
+		req, struct rpc_sock_write_state);
 	NTSTATUS status;
 
-	if (async_req_is_nterror(req, &status)) {
+	if (tevent_req_is_nterror(req, &status)) {
 		return status;
 	}
 	*psent = state->sent;

@@ -29,13 +29,11 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
 
-extern REGISTRY_OPS regdb_ops;
+extern struct registry_ops regdb_ops;
 
-static int prod_options_fetch_values(const char *key, REGVAL_CTR *regvals)
+static int prod_options_fetch_values(const char *key, struct regval_ctr *regvals)
 {
 	const char *value_ascii = "";
-	fstring value;
-	int value_length;
 
 	switch (lp_server_role()) {
 		case ROLE_DOMAIN_PDC:
@@ -50,10 +48,7 @@ static int prod_options_fetch_values(const char *key, REGVAL_CTR *regvals)
 			break;
 	}
 
-	value_length = push_ucs2(value, value, value_ascii, sizeof(value),
-				 STR_TERMINATE|STR_NOALIGN );
-	regval_ctr_addvalue(regvals, "ProductType", REG_SZ, value,
-			    value_length);
+	regval_ctr_addvalue_sz(regvals, "ProductType", value_ascii);
 
 	return regval_ctr_numvals( regvals );
 }
@@ -64,7 +59,7 @@ static int prod_options_fetch_subkeys(const char *key,
 	return regdb_ops.fetch_subkeys(key, subkey_ctr);
 }
 
-REGISTRY_OPS prod_options_reg_ops = {
+struct registry_ops prod_options_reg_ops = {
 	.fetch_values = prod_options_fetch_values,
 	.fetch_subkeys = prod_options_fetch_subkeys,
 };

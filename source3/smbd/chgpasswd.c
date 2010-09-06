@@ -46,6 +46,7 @@
    */
 
 #include "includes.h"
+#include "../libcli/auth/libcli_auth.h"
 
 static NTSTATUS check_oem_password(const char *user,
 				   uchar password_encrypted_with_lm_hash[516],
@@ -849,7 +850,7 @@ static NTSTATUS check_oem_password(const char *user,
 	const uint8 *encryption_key;
 	const uint8 *lanman_pw, *nt_pw;
 	uint32 acct_ctrl;
-	uint32 new_pw_len;
+	size_t new_pw_len;
 	uchar new_nt_hash[16];
 	uchar new_lm_hash[16];
 	uchar verifier[16];
@@ -918,13 +919,13 @@ static NTSTATUS check_oem_password(const char *user,
 	/*
 	 * Decrypt the password with the key
 	 */
-	SamOEMhash( password_encrypted, encryption_key, 516);
+	arcfour_crypt( password_encrypted, encryption_key, 516);
 
 	if (!decode_pw_buffer(talloc_tos(),
 				password_encrypted,
 				pp_new_passwd,
 				&new_pw_len,
-				nt_pass_set ? STR_UNICODE : STR_ASCII)) {
+				nt_pass_set ? CH_UTF16 : CH_DOS)) {
 		return NT_STATUS_WRONG_PASSWORD;
 	}
 
@@ -1007,6 +1008,59 @@ static NTSTATUS check_oem_password(const char *user,
 	return NT_STATUS_WRONG_PASSWORD;
 }
 
+bool password_in_history(uint8_t nt_pw[NT_HASH_LEN],
+			 uint32_t pw_history_len,
+			 const uint8_t *pw_history)
+{
+	static const uint8_t zero_md5_nt_pw[SALTED_MD5_HASH_LEN] = { 0, };
+	int i;
+
+	dump_data(100, nt_pw, NT_HASH_LEN);
+	dump_data(100, pw_history, PW_HISTORY_ENTRY_LEN * pw_history_len);
+
+	for (i=0; i<pw_history_len; i++) {
+		uint8_t new_nt_pw_salted_md5_hash[SALTED_MD5_HASH_LEN];
+		const uint8_t *current_salt;
+		const uint8_t *old_nt_pw_salted_md5_hash;
+
+		current_salt = &pw_history[i*PW_HISTORY_ENTRY_LEN];
+		old_nt_pw_salted_md5_hash = current_salt + PW_HISTORY_SALT_LEN;
+
+		if (memcmp(zero_md5_nt_pw, old_nt_pw_salted_md5_hash,
+			   SALTED_MD5_HASH_LEN) == 0) {
+			/* Ignore zero valued entries. */
+			continue;
+		}
+
+		if (memcmp(zero_md5_nt_pw, current_salt,
+			   PW_HISTORY_SALT_LEN) == 0)
+		{
+			/*
+			 * New format: zero salt and then plain nt hash.
+			 * Directly compare the hashes.
+			 */
+			if (memcmp(nt_pw, old_nt_pw_salted_md5_hash,
+				   SALTED_MD5_HASH_LEN) == 0)
+			{
+				return true;
+			}
+		} else {
+			/*
+			 * Old format: md5sum of salted nt hash.
+			 * Create salted version of new pw to compare.
+			 */
+			E_md5hash(current_salt, nt_pw, new_nt_pw_salted_md5_hash);
+
+			if (memcmp(new_nt_pw_salted_md5_hash,
+				   old_nt_pw_salted_md5_hash,
+				   SALTED_MD5_HASH_LEN) == 0) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 /***********************************************************
  This routine takes the given password and checks it against
  the password history. Returns True if this password has been
@@ -1016,14 +1070,11 @@ static NTSTATUS check_oem_password(const char *user,
 static bool check_passwd_history(struct samu *sampass, const char *plaintext)
 {
 	uchar new_nt_p16[NT_HASH_LEN];
-	uchar zero_md5_nt_pw[SALTED_MD5_HASH_LEN];
 	const uint8 *nt_pw;
 	const uint8 *pwhistory;
-	bool found = False;
-	int i;
 	uint32 pwHisLen, curr_pwHisLen;
 
-	pdb_get_account_policy(AP_PASSWORD_HISTORY, &pwHisLen);
+	pdb_get_account_policy(PDB_POLICY_PASSWORD_HISTORY, &pwHisLen);
 	if (pwHisLen == 0) {
 		return False;
 	}
@@ -1047,30 +1098,13 @@ static bool check_passwd_history(struct samu *sampass, const char *plaintext)
 		return True;
 	}
 
-	dump_data(100, new_nt_p16, NT_HASH_LEN);
-	dump_data(100, pwhistory, PW_HISTORY_ENTRY_LEN*pwHisLen);
-
-	memset(zero_md5_nt_pw, '\0', SALTED_MD5_HASH_LEN);
-	for (i=0; i<pwHisLen; i++) {
-		uchar new_nt_pw_salted_md5_hash[SALTED_MD5_HASH_LEN];
-		const uchar *current_salt = &pwhistory[i*PW_HISTORY_ENTRY_LEN];
-		const uchar *old_nt_pw_salted_md5_hash = &pwhistory[(i*PW_HISTORY_ENTRY_LEN)+
-							PW_HISTORY_SALT_LEN];
-		if (!memcmp(zero_md5_nt_pw, old_nt_pw_salted_md5_hash, SALTED_MD5_HASH_LEN)) {
-			/* Ignore zero valued entries. */
-			continue;
-		}
-		/* Create salted versions of new to compare. */
-		E_md5hash(current_salt, new_nt_p16, new_nt_pw_salted_md5_hash);
-
-		if (!memcmp(new_nt_pw_salted_md5_hash, old_nt_pw_salted_md5_hash, SALTED_MD5_HASH_LEN)) {
-			DEBUG(1,("check_passwd_history: proposed new password for user %s found in history list !\n",
-				pdb_get_username(sampass) ));
-			found = True;
-			break;
-		}
+	if (password_in_history(new_nt_p16, pwHisLen, pwhistory)) {
+		DEBUG(1,("check_passwd_history: proposed new password for "
+			 "user %s found in history list !\n",
+			 pdb_get_username(sampass) ));
+		return true;
 	}
-	return found;
+	return false;
 }
 
 /***********************************************************
@@ -1084,6 +1118,7 @@ NTSTATUS change_oem_password(struct samu *hnd, char *old_passwd, char *new_passw
 {
 	uint32 min_len;
 	uint32 refuse;
+	TALLOC_CTX *tosctx = talloc_tos();
 	struct passwd *pass = NULL;
 	const char *username = pdb_get_username(hnd);
 	time_t can_change_time = pdb_get_pass_can_change_time(hnd);
@@ -1105,7 +1140,7 @@ NTSTATUS change_oem_password(struct samu *hnd, char *old_passwd, char *new_passw
 	 * denies machines to change the password. *
 	 * Should we deny also SRVTRUST and/or DOMSTRUST ? .SSS. */
 	if (pdb_get_acct_ctrl(hnd) & ACB_WSTRUST) {
-		if (pdb_get_account_policy(AP_REFUSE_MACHINE_PW_CHANGE, &refuse) && refuse) {
+		if (pdb_get_account_policy(PDB_POLICY_REFUSE_MACHINE_PW_CHANGE, &refuse) && refuse) {
 			DEBUG(1, ("Machine %s cannot change password now, "
 				  "denied by Refuse Machine Password Change policy\n",
 				  username));
@@ -1116,19 +1151,19 @@ NTSTATUS change_oem_password(struct samu *hnd, char *old_passwd, char *new_passw
 		}
 	}
 
-	/* removed calculation here, becuase passdb now calculates
+	/* removed calculation here, because passdb now calculates
 	   based on policy.  jmcd */
 	if ((can_change_time != 0) && (time(NULL) < can_change_time)) {
 		DEBUG(1, ("user %s cannot change password now, must "
 			  "wait until %s\n", username,
-			  http_timestring(talloc_tos(), can_change_time)));
+			  http_timestring(tosctx, can_change_time)));
 		if (samr_reject_reason) {
 			*samr_reject_reason = SAMR_REJECT_OTHER;
 		}
 		return NT_STATUS_ACCOUNT_RESTRICTION;
 	}
 
-	if (pdb_get_account_policy(AP_MIN_PASSWORD_LEN, &min_len) && (str_charnum(new_passwd) < min_len)) {
+	if (pdb_get_account_policy(PDB_POLICY_MIN_PASSWORD_LEN, &min_len) && (str_charnum(new_passwd) < min_len)) {
 		DEBUG(1, ("user %s cannot change password - password too short\n", 
 			  username));
 		DEBUGADD(1, (" account policy min password len = %d\n", min_len));
@@ -1146,7 +1181,7 @@ NTSTATUS change_oem_password(struct samu *hnd, char *old_passwd, char *new_passw
 		return NT_STATUS_PASSWORD_RESTRICTION;
 	}
 
-	pass = Get_Pwnam_alloc(talloc_tos(), username);
+	pass = Get_Pwnam_alloc(tosctx, username);
 	if (!pass) {
 		DEBUG(1, ("change_oem_password: Username %s does not exist in system !?!\n", username));
 		return NT_STATUS_ACCESS_DENIED;
@@ -1155,9 +1190,16 @@ NTSTATUS change_oem_password(struct samu *hnd, char *old_passwd, char *new_passw
 	/* Use external script to check password complexity */
 	if (lp_check_password_script() && *(lp_check_password_script())) {
 		int check_ret;
+		char *cmd;
 
-		check_ret = smbrunsecret(lp_check_password_script(), new_passwd);
-		DEBUG(5, ("change_oem_password: check password script (%s) returned [%d]\n", lp_check_password_script(), check_ret));
+		cmd = talloc_string_sub(tosctx, lp_check_password_script(), "%u", username);
+        	if (!cmd) {
+                	return NT_STATUS_PASSWORD_RESTRICTION;
+        	}
+
+		check_ret = smbrunsecret(cmd, new_passwd);
+		DEBUG(5, ("change_oem_password: check password script (%s) returned [%d]\n", cmd, check_ret));
+		TALLOC_FREE(cmd);
 
 		if (check_ret != 0) {
 			DEBUG(1, ("change_oem_password: check password script said new password is not good enough!\n"));

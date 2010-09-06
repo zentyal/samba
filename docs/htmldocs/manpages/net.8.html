@@ -1,13 +1,13 @@
 <html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>net</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="net.8"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>net &#8212; Tool for administration of Samba and remote
 	CIFS servers.
-	</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">net</code> {&lt;ads|rap|rpc&gt;} [-h] [-w workgroup] [-W myworkgroup] [-U user] [-I ip-address] [-p port] [-n myname] [-s conffile] [-S server] [-l] [-P] [-d debuglevel] [-V] [--request-timeout seconds]</p></div></div><div class="refsect1" lang="en"><a name="id2483395"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p>The Samba net utility is meant to work just like the net utility 
+	</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">net</code> {&lt;ads|rap|rpc&gt;} [-h] [-w workgroup] [-W myworkgroup] [-U user] [-I ip-address] [-p port] [-n myname] [-s conffile] [-S server] [-l] [-P] [-d debuglevel] [-V] [--request-timeout seconds]</p></div></div><div class="refsect1" lang="en"><a name="id2483514"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p>The Samba net utility is meant to work just like the net utility 
 	available for windows and DOS. The first argument should be used 
 	to specify the protocol to use when executing a certain command. 
 	ADS is used for ActiveDirectory, RAP is using for old (Win9x/NT3) 
 	clients and RPC can be used for NT4 and Windows 2000. If this 
 	argument is omitted, net will try to determine it automatically. 
 	Not all commands are available on all protocols.
-	</p></div><div class="refsect1" lang="en"><a name="id2483548"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">-h|--help</span></dt><dd><p>Print a summary of command line options.
+	</p></div><div class="refsect1" lang="en"><a name="id2483543"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">-h|--help</span></dt><dd><p>Print a summary of command line options.
 </p></dd><dt><span class="term">-w target-workgroup</span></dt><dd><p>
 		Sets target workgroup or domain. You have to specify 
 		either this option or the IP address or the name of a server.
@@ -57,18 +57,18 @@ investigating a problem. Levels above 3 are designed for
 use only by developers and generate HUGE amounts of log
 data, most of which is extremely cryptic.</p><p>Note that specifying this parameter here will 
 override the <a class="link" href="smb.conf.5.html#" target="_top"></a> parameter
-in the <code class="filename">smb.conf</code> file.</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2481568"></a><h2>COMMANDS</h2><div class="refsect2" lang="en"><a name="id2481573"></a><h3>CHANGESECRETPW</h3><p>This command allows the Samba machine account password to be set from an external application
+in the <code class="filename">smb.conf</code> file.</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2481559"></a><h2>COMMANDS</h2><div class="refsect2" lang="en"><a name="id2481565"></a><h3>CHANGESECRETPW</h3><p>This command allows the Samba machine account password to be set from an external application
 to a machine account password that has already been stored in Active Directory. DO NOT USE this command
 unless you know exactly what you are doing. The use of this command requires that the force flag (-f)
 be used also. There will be NO command prompt. Whatever information is piped into stdin, either by
 typing at the command line or otherwise, will be stored as the literal machine password. Do NOT use
 this without care and attention as it will overwrite a legitimate machine password without warning.
 YOU HAVE BEEN WARNED.
-</p></div><div class="refsect2" lang="en"><a name="id2481594"></a><h3>TIME</h3><p>The <code class="literal">NET TIME</code> command allows you to view the time on a remote server
-	or synchronise the time on the local server with the time on the remote server.</p><div class="refsect3" lang="en"><a name="id2481611"></a><h4>TIME</h4><p>Without any options, the <code class="literal">NET TIME</code> command 
+</p></div><div class="refsect2" lang="en"><a name="id2481586"></a><h3>TIME</h3><p>The <code class="literal">NET TIME</code> command allows you to view the time on a remote server
+	or synchronise the time on the local server with the time on the remote server.</p><div class="refsect3" lang="en"><a name="id2481603"></a><h4>TIME</h4><p>Without any options, the <code class="literal">NET TIME</code> command 
 displays the time on the remote server.
-</p></div><div class="refsect3" lang="en"><a name="id2481628"></a><h4>TIME SYSTEM</h4><p>Displays the time on the remote server in a format ready for <code class="literal">/bin/date</code>.</p></div><div class="refsect3" lang="en"><a name="id2481644"></a><h4>TIME SET</h4><p>Tries to set the date and time of the local server to that on 
-the remote server using <code class="literal">/bin/date</code>. </p></div><div class="refsect3" lang="en"><a name="id2481662"></a><h4>TIME ZONE</h4><p>Displays the timezone in hours from GMT on the remote computer.</p></div></div><div class="refsect2" lang="en"><a name="id2481674"></a><h3>[RPC|ADS] JOIN [TYPE] [-U username[%password]] [createupn=UPN] [createcomputer=OU] [options]</h3><p>
+</p></div><div class="refsect3" lang="en"><a name="id2481619"></a><h4>TIME SYSTEM</h4><p>Displays the time on the remote server in a format ready for <code class="literal">/bin/date</code>.</p></div><div class="refsect3" lang="en"><a name="id2481636"></a><h4>TIME SET</h4><p>Tries to set the date and time of the local server to that on 
+the remote server using <code class="literal">/bin/date</code>. </p></div><div class="refsect3" lang="en"><a name="id2481654"></a><h4>TIME ZONE</h4><p>Displays the timezone in hours from GMT on the remote computer.</p></div></div><div class="refsect2" lang="en"><a name="id2481666"></a><h3>[RPC|ADS] JOIN [TYPE] [-U username[%password]] [createupn=UPN] [createcomputer=OU] [options]</h3><p>
 Join a domain.  If the account already exists on the server, and 
 [TYPE] is MEMBER, the machine will attempt to join automatically. 
 (Assuming that the machine has been created in server manager)
@@ -85,81 +85,89 @@ OU string reads from top to bottom without RDNs, and is delimited by
 a '/'.  Please note that '\' is used for escape by both the shell
 and ldap, so it may need to be doubled or quadrupled to pass through, 
 and it is not used as a delimiter.
-</p></div><div class="refsect2" lang="en"><a name="id2481709"></a><h3>[RPC] OLDJOIN [options]</h3><p>Join a domain. Use the OLDJOIN option to join the domain 
+</p></div><div class="refsect2" lang="en"><a name="id2481700"></a><h3>[RPC] OLDJOIN [options]</h3><p>Join a domain. Use the OLDJOIN option to join the domain 
 using the old style of domain joining - you need to create a trust 
-account in server manager first.</p></div><div class="refsect2" lang="en"><a name="id2481721"></a><h3>[RPC|ADS] USER</h3><div class="refsect3" lang="en"><a name="id2481727"></a><h4>[RPC|ADS] USER</h4><p>List all users</p></div><div class="refsect3" lang="en"><a name="id2481737"></a><h4>[RPC|ADS] USER DELETE <em class="replaceable"><code>target</code></em></h4><p>Delete specified user</p></div><div class="refsect3" lang="en"><a name="id2481749"></a><h4>[RPC|ADS] USER INFO <em class="replaceable"><code>target</code></em></h4><p>List the domain groups of the specified user.</p></div><div class="refsect3" lang="en"><a name="id2481762"></a><h4>[RPC|ADS] USER RENAME <em class="replaceable"><code>oldname</code></em> <em class="replaceable"><code>newname</code></em></h4><p>Rename specified user.</p></div><div class="refsect3" lang="en"><a name="id2481778"></a><h4>[RPC|ADS] USER ADD <em class="replaceable"><code>name</code></em> [password] [-F user flags] [-C comment]</h4><p>Add specified user.</p></div></div><div class="refsect2" lang="en"><a name="id2481793"></a><h3>[RPC|ADS] GROUP</h3><div class="refsect3" lang="en"><a name="id2481798"></a><h4>[RPC|ADS] GROUP [misc options] [targets]</h4><p>List user groups.</p></div><div class="refsect3" lang="en"><a name="id2481809"></a><h4>[RPC|ADS] GROUP DELETE <em class="replaceable"><code>name</code></em> [misc. options]</h4><p>Delete specified group.</p></div><div class="refsect3" lang="en"><a name="id2481823"></a><h4>[RPC|ADS] GROUP ADD <em class="replaceable"><code>name</code></em> [-C comment]</h4><p>Create specified group.</p></div></div><div class="refsect2" lang="en"><a name="id2481837"></a><h3>[RAP|RPC] SHARE</h3><div class="refsect3" lang="en"><a name="id2481843"></a><h4>[RAP|RPC] SHARE [misc. options] [targets]</h4><p>Enumerates all exported resources (network shares) on target server.</p></div><div class="refsect3" lang="en"><a name="id2481855"></a><h4>[RAP|RPC] SHARE ADD <em class="replaceable"><code>name=serverpath</code></em> [-C comment] [-M maxusers] [targets]</h4><p>Adds a share from a server (makes the export active). Maxusers 
+account in server manager first.</p></div><div class="refsect2" lang="en"><a name="id2481713"></a><h3>[RPC|ADS] USER</h3><div class="refsect3" lang="en"><a name="id2481718"></a><h4>[RPC|ADS] USER</h4><p>List all users</p></div><div class="refsect3" lang="en"><a name="id2481729"></a><h4>[RPC|ADS] USER DELETE <em class="replaceable"><code>target</code></em></h4><p>Delete specified user</p></div><div class="refsect3" lang="en"><a name="id2481741"></a><h4>[RPC|ADS] USER INFO <em class="replaceable"><code>target</code></em></h4><p>List the domain groups of the specified user.</p></div><div class="refsect3" lang="en"><a name="id2481754"></a><h4>[RPC|ADS] USER RENAME <em class="replaceable"><code>oldname</code></em> <em class="replaceable"><code>newname</code></em></h4><p>Rename specified user.</p></div><div class="refsect3" lang="en"><a name="id2481769"></a><h4>[RPC|ADS] USER ADD <em class="replaceable"><code>name</code></em> [password] [-F user flags] [-C comment]</h4><p>Add specified user.</p></div></div><div class="refsect2" lang="en"><a name="id2481784"></a><h3>[RPC|ADS] GROUP</h3><div class="refsect3" lang="en"><a name="id2481790"></a><h4>[RPC|ADS] GROUP [misc options] [targets]</h4><p>List user groups.</p></div><div class="refsect3" lang="en"><a name="id2481801"></a><h4>[RPC|ADS] GROUP DELETE <em class="replaceable"><code>name</code></em> [misc. options]</h4><p>Delete specified group.</p></div><div class="refsect3" lang="en"><a name="id2481814"></a><h4>[RPC|ADS] GROUP ADD <em class="replaceable"><code>name</code></em> [-C comment]</h4><p>Create specified group.</p></div></div><div class="refsect2" lang="en"><a name="id2481829"></a><h3>[RAP|RPC] SHARE</h3><div class="refsect3" lang="en"><a name="id2481834"></a><h4>[RAP|RPC] SHARE [misc. options] [targets]</h4><p>Enumerates all exported resources (network shares) on target server.</p></div><div class="refsect3" lang="en"><a name="id2481846"></a><h4>[RAP|RPC] SHARE ADD <em class="replaceable"><code>name=serverpath</code></em> [-C comment] [-M maxusers] [targets]</h4><p>Adds a share from a server (makes the export active). Maxusers 
 specifies the number of users that can be connected to the 
-share simultaneously.</p></div><div class="refsect3" lang="en"><a name="id2481871"></a><h4>SHARE DELETE <em class="replaceable"><code>sharename</code></em></h4><p>Delete specified share.</p></div></div><div class="refsect2" lang="en"><a name="id2481885"></a><h3>[RPC|RAP] FILE</h3><div class="refsect3" lang="en"><a name="id2481890"></a><h4>[RPC|RAP] FILE</h4><p>List all open files on remote server.</p></div><div class="refsect3" lang="en"><a name="id2481901"></a><h4>[RPC|RAP] FILE CLOSE <em class="replaceable"><code>fileid</code></em></h4><p>Close file with specified <em class="replaceable"><code>fileid</code></em> on 
-remote server.</p></div><div class="refsect3" lang="en"><a name="id2481917"></a><h4>[RPC|RAP] FILE INFO <em class="replaceable"><code>fileid</code></em></h4><p>
+share simultaneously.</p></div><div class="refsect3" lang="en"><a name="id2481863"></a><h4>SHARE DELETE <em class="replaceable"><code>sharename</code></em></h4><p>Delete specified share.</p></div></div><div class="refsect2" lang="en"><a name="id2481876"></a><h3>[RPC|RAP] FILE</h3><div class="refsect3" lang="en"><a name="id2481882"></a><h4>[RPC|RAP] FILE</h4><p>List all open files on remote server.</p></div><div class="refsect3" lang="en"><a name="id2481893"></a><h4>[RPC|RAP] FILE CLOSE <em class="replaceable"><code>fileid</code></em></h4><p>Close file with specified <em class="replaceable"><code>fileid</code></em> on 
+remote server.</p></div><div class="refsect3" lang="en"><a name="id2481909"></a><h4>[RPC|RAP] FILE INFO <em class="replaceable"><code>fileid</code></em></h4><p>
 Print information on specified <em class="replaceable"><code>fileid</code></em>. 
 Currently listed are: file-id, username, locks, path, permissions.
-</p></div><div class="refsect3" lang="en"><a name="id2481934"></a><h4>[RAP|RPC] FILE USER <em class="replaceable"><code>user</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2481925"></a><h4>[RAP|RPC] FILE USER <em class="replaceable"><code>user</code></em></h4><p>
 List files opened by specified <em class="replaceable"><code>user</code></em>.
 Please note that <code class="literal">net rap file user</code> does not work
 against Samba servers. 
-</p></div></div><div class="refsect2" lang="en"><a name="id2481957"></a><h3>SESSION</h3><div class="refsect3" lang="en"><a name="id2481963"></a><h4>RAP SESSION</h4><p>Without any other options, SESSION enumerates all active SMB/CIFS 
-sessions on the target server.</p></div><div class="refsect3" lang="en"><a name="id2481975"></a><h4>RAP SESSION DELETE|CLOSE <em class="replaceable"><code>CLIENT_NAME</code></em></h4><p>Close the specified sessions.</p></div><div class="refsect3" lang="en"><a name="id2481987"></a><h4>RAP SESSION INFO <em class="replaceable"><code>CLIENT_NAME</code></em></h4><p>Give a list with all the open files in specified session.</p></div></div><div class="refsect2" lang="en"><a name="id2482001"></a><h3>RAP SERVER <em class="replaceable"><code>DOMAIN</code></em></h3><p>List all servers in specified domain or workgroup. Defaults
-to local domain.</p></div><div class="refsect2" lang="en"><a name="id2482015"></a><h3>RAP DOMAIN</h3><p>Lists all domains and workgroups visible on the 
-current network.</p></div><div class="refsect2" lang="en"><a name="id2482026"></a><h3>RAP PRINTQ</h3><div class="refsect3" lang="en"><a name="id2482032"></a><h4>RAP PRINTQ INFO <em class="replaceable"><code>QUEUE_NAME</code></em></h4><p>Lists the specified print queue and print jobs on the server.
+</p></div></div><div class="refsect2" lang="en"><a name="id2481949"></a><h3>SESSION</h3><div class="refsect3" lang="en"><a name="id2481955"></a><h4>RAP SESSION</h4><p>Without any other options, SESSION enumerates all active SMB/CIFS 
+sessions on the target server.</p></div><div class="refsect3" lang="en"><a name="id2481966"></a><h4>RAP SESSION DELETE|CLOSE <em class="replaceable"><code>CLIENT_NAME</code></em></h4><p>Close the specified sessions.</p></div><div class="refsect3" lang="en"><a name="id2481978"></a><h4>RAP SESSION INFO <em class="replaceable"><code>CLIENT_NAME</code></em></h4><p>Give a list with all the open files in specified session.</p></div></div><div class="refsect2" lang="en"><a name="id2481993"></a><h3>RAP SERVER <em class="replaceable"><code>DOMAIN</code></em></h3><p>List all servers in specified domain or workgroup. Defaults
+to local domain.</p></div><div class="refsect2" lang="en"><a name="id2482006"></a><h3>RAP DOMAIN</h3><p>Lists all domains and workgroups visible on the 
+current network.</p></div><div class="refsect2" lang="en"><a name="id2482018"></a><h3>RAP PRINTQ</h3><div class="refsect3" lang="en"><a name="id2482023"></a><h4>RAP PRINTQ INFO <em class="replaceable"><code>QUEUE_NAME</code></em></h4><p>Lists the specified print queue and print jobs on the server.
 If the <em class="replaceable"><code>QUEUE_NAME</code></em> is omitted, all 
-queues are listed.</p></div><div class="refsect3" lang="en"><a name="id2532513"></a><h4>RAP PRINTQ DELETE <em class="replaceable"><code>JOBID</code></em></h4><p>Delete job with specified id.</p></div></div><div class="refsect2" lang="en"><a name="id2532526"></a><h3>RAP VALIDATE <em class="replaceable"><code>user</code></em> [<em class="replaceable"><code>password</code></em>]</h3><p>
+queues are listed.</p></div><div class="refsect3" lang="en"><a name="id2532506"></a><h4>RAP PRINTQ DELETE <em class="replaceable"><code>JOBID</code></em></h4><p>Delete job with specified id.</p></div></div><div class="refsect2" lang="en"><a name="id2532518"></a><h3>RAP VALIDATE <em class="replaceable"><code>user</code></em> [<em class="replaceable"><code>password</code></em>]</h3><p>
 Validate whether the specified user can log in to the 
 remote server. If the password is not specified on the commandline, it 
 will be prompted. 
-</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>Currently NOT implemented.</p></div></div><div class="refsect2" lang="en"><a name="id2532549"></a><h3>RAP GROUPMEMBER</h3><div class="refsect3" lang="en"><a name="id2532554"></a><h4>RAP GROUPMEMBER LIST <em class="replaceable"><code>GROUP</code></em></h4><p>List all members of the specified group.</p></div><div class="refsect3" lang="en"><a name="id2532567"></a><h4>RAP GROUPMEMBER DELETE <em class="replaceable"><code>GROUP</code></em> <em class="replaceable"><code>USER</code></em></h4><p>Delete member from group.</p></div><div class="refsect3" lang="en"><a name="id2532582"></a><h4>RAP GROUPMEMBER ADD <em class="replaceable"><code>GROUP</code></em> <em class="replaceable"><code>USER</code></em></h4><p>Add member to group.</p></div></div><div class="refsect2" lang="en"><a name="id2532598"></a><h3>RAP ADMIN <em class="replaceable"><code>command</code></em></h3><p>Execute the specified <em class="replaceable"><code>command</code></em> on 
+</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>Currently NOT implemented.</p></div></div><div class="refsect2" lang="en"><a name="id2532541"></a><h3>RAP GROUPMEMBER</h3><div class="refsect3" lang="en"><a name="id2532547"></a><h4>RAP GROUPMEMBER LIST <em class="replaceable"><code>GROUP</code></em></h4><p>List all members of the specified group.</p></div><div class="refsect3" lang="en"><a name="id2532559"></a><h4>RAP GROUPMEMBER DELETE <em class="replaceable"><code>GROUP</code></em> <em class="replaceable"><code>USER</code></em></h4><p>Delete member from group.</p></div><div class="refsect3" lang="en"><a name="id2532574"></a><h4>RAP GROUPMEMBER ADD <em class="replaceable"><code>GROUP</code></em> <em class="replaceable"><code>USER</code></em></h4><p>Add member to group.</p></div></div><div class="refsect2" lang="en"><a name="id2532590"></a><h3>RAP ADMIN <em class="replaceable"><code>command</code></em></h3><p>Execute the specified <em class="replaceable"><code>command</code></em> on 
 the remote server. Only works with OS/2 servers.
-</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>Currently NOT implemented.</p></div></div><div class="refsect2" lang="en"><a name="id2532618"></a><h3>RAP SERVICE</h3><div class="refsect3" lang="en"><a name="id2532623"></a><h4>RAP SERVICE START <em class="replaceable"><code>NAME</code></em> [arguments...]</h4><p>Start the specified service on the remote server. Not implemented yet.</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>Currently NOT implemented.</p></div></div><div class="refsect3" lang="en"><a name="id2532642"></a><h4>RAP SERVICE STOP</h4><p>Stop the specified service on the remote server.</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>Currently NOT implemented.</p></div></div></div><div class="refsect2" lang="en"><a name="id2532658"></a><h3>RAP PASSWORD <em class="replaceable"><code>USER</code></em> <em class="replaceable"><code>OLDPASS</code></em> <em class="replaceable"><code>NEWPASS</code></em></h3><p>
+</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>Currently NOT implemented.</p></div></div><div class="refsect2" lang="en"><a name="id2532610"></a><h3>RAP SERVICE</h3><div class="refsect3" lang="en"><a name="id2532616"></a><h4>RAP SERVICE START <em class="replaceable"><code>NAME</code></em> [arguments...]</h4><p>Start the specified service on the remote server. Not implemented yet.</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>Currently NOT implemented.</p></div></div><div class="refsect3" lang="en"><a name="id2532634"></a><h4>RAP SERVICE STOP</h4><p>Stop the specified service on the remote server.</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>Currently NOT implemented.</p></div></div></div><div class="refsect2" lang="en"><a name="id2532650"></a><h3>RAP PASSWORD <em class="replaceable"><code>USER</code></em> <em class="replaceable"><code>OLDPASS</code></em> <em class="replaceable"><code>NEWPASS</code></em></h3><p>
 Change password of <em class="replaceable"><code>USER</code></em> from <em class="replaceable"><code>OLDPASS</code></em> to <em class="replaceable"><code>NEWPASS</code></em>.
-</p></div><div class="refsect2" lang="en"><a name="id2532685"></a><h3>LOOKUP</h3><div class="refsect3" lang="en"><a name="id2532691"></a><h4>LOOKUP HOST <em class="replaceable"><code>HOSTNAME</code></em> [<em class="replaceable"><code>TYPE</code></em>]</h4><p>
+</p></div><div class="refsect2" lang="en"><a name="id2532678"></a><h3>LOOKUP</h3><div class="refsect3" lang="en"><a name="id2532683"></a><h4>LOOKUP HOST <em class="replaceable"><code>HOSTNAME</code></em> [<em class="replaceable"><code>TYPE</code></em>]</h4><p>
 Lookup the IP address of the given host with the specified type (netbios suffix). 
 The type defaults to 0x20 (workstation).
-</p></div><div class="refsect3" lang="en"><a name="id2532709"></a><h4>LOOKUP LDAP [<em class="replaceable"><code>DOMAIN</code></em>]</h4><p>Give IP address of LDAP server of specified <em class="replaceable"><code>DOMAIN</code></em>. Defaults to local domain.</p></div><div class="refsect3" lang="en"><a name="id2532726"></a><h4>LOOKUP KDC [<em class="replaceable"><code>REALM</code></em>]</h4><p>Give IP address of KDC for the specified <em class="replaceable"><code>REALM</code></em>.
-Defaults to local realm.</p></div><div class="refsect3" lang="en"><a name="id2532743"></a><h4>LOOKUP DC [<em class="replaceable"><code>DOMAIN</code></em>]</h4><p>Give IP's of Domain Controllers for specified <em class="replaceable"><code>
-DOMAIN</code></em>. Defaults to local domain.</p></div><div class="refsect3" lang="en"><a name="id2532760"></a><h4>LOOKUP MASTER <em class="replaceable"><code>DOMAIN</code></em></h4><p>Give IP of master browser for specified <em class="replaceable"><code>DOMAIN</code></em>
-or workgroup. Defaults to local domain.</p></div></div><div class="refsect2" lang="en"><a name="id2532777"></a><h3>CACHE</h3><p>Samba uses a general caching interface called 'gencache'. It 
+</p></div><div class="refsect3" lang="en"><a name="id2532701"></a><h4>LOOKUP LDAP [<em class="replaceable"><code>DOMAIN</code></em>]</h4><p>Give IP address of LDAP server of specified <em class="replaceable"><code>DOMAIN</code></em>. Defaults to local domain.</p></div><div class="refsect3" lang="en"><a name="id2532718"></a><h4>LOOKUP KDC [<em class="replaceable"><code>REALM</code></em>]</h4><p>Give IP address of KDC for the specified <em class="replaceable"><code>REALM</code></em>.
+Defaults to local realm.</p></div><div class="refsect3" lang="en"><a name="id2532735"></a><h4>LOOKUP DC [<em class="replaceable"><code>DOMAIN</code></em>]</h4><p>Give IP's of Domain Controllers for specified <em class="replaceable"><code>
+DOMAIN</code></em>. Defaults to local domain.</p></div><div class="refsect3" lang="en"><a name="id2532752"></a><h4>LOOKUP MASTER <em class="replaceable"><code>DOMAIN</code></em></h4><p>Give IP of master browser for specified <em class="replaceable"><code>DOMAIN</code></em>
+or workgroup. Defaults to local domain.</p></div></div><div class="refsect2" lang="en"><a name="id2532770"></a><h3>CACHE</h3><p>Samba uses a general caching interface called 'gencache'. It 
 can be controlled using 'NET CACHE'.</p><p>All the timeout parameters support the suffixes:
 
 </p><table class="simplelist" border="0" summary="Simple list"><tr><td>s - Seconds</td></tr><tr><td>m - Minutes</td></tr><tr><td>h - Hours</td></tr><tr><td>d - Days</td></tr><tr><td>w - Weeks</td></tr></table><p>
 
-</p><div class="refsect3" lang="en"><a name="id2532813"></a><h4>CACHE ADD <em class="replaceable"><code>key</code></em> <em class="replaceable"><code>data</code></em> <em class="replaceable"><code>time-out</code></em></h4><p>Add specified key+data to the cache with the given timeout.</p></div><div class="refsect3" lang="en"><a name="id2532832"></a><h4>CACHE DEL <em class="replaceable"><code>key</code></em></h4><p>Delete key from the cache.</p></div><div class="refsect3" lang="en"><a name="id2532844"></a><h4>CACHE SET <em class="replaceable"><code>key</code></em> <em class="replaceable"><code>data</code></em> <em class="replaceable"><code>time-out</code></em></h4><p>Update data of existing cache entry.</p></div><div class="refsect3" lang="en"><a name="id2532863"></a><h4>CACHE SEARCH <em class="replaceable"><code>PATTERN</code></em></h4><p>Search for the specified pattern in the cache data.</p></div><div class="refsect3" lang="en"><a name="id2532875"></a><h4>CACHE LIST</h4><p>
+</p><div class="refsect3" lang="en"><a name="id2532805"></a><h4>CACHE ADD <em class="replaceable"><code>key</code></em> <em class="replaceable"><code>data</code></em> <em class="replaceable"><code>time-out</code></em></h4><p>Add specified key+data to the cache with the given timeout.</p></div><div class="refsect3" lang="en"><a name="id2532824"></a><h4>CACHE DEL <em class="replaceable"><code>key</code></em></h4><p>Delete key from the cache.</p></div><div class="refsect3" lang="en"><a name="id2532836"></a><h4>CACHE SET <em class="replaceable"><code>key</code></em> <em class="replaceable"><code>data</code></em> <em class="replaceable"><code>time-out</code></em></h4><p>Update data of existing cache entry.</p></div><div class="refsect3" lang="en"><a name="id2532855"></a><h4>CACHE SEARCH <em class="replaceable"><code>PATTERN</code></em></h4><p>Search for the specified pattern in the cache data.</p></div><div class="refsect3" lang="en"><a name="id2532868"></a><h4>CACHE LIST</h4><p>
 List all current items in the cache.
-</p></div><div class="refsect3" lang="en"><a name="id2532886"></a><h4>CACHE FLUSH</h4><p>Remove all the current items from the cache.</p></div></div><div class="refsect2" lang="en"><a name="id2532897"></a><h3>GETLOCALSID [DOMAIN]</h3><p>Prints the SID of the specified domain, or if the parameter is
-omitted, the SID of the local server.</p></div><div class="refsect2" lang="en"><a name="id2532909"></a><h3>SETLOCALSID S-1-5-21-x-y-z</h3><p>Sets SID for the local server to the specified SID.</p></div><div class="refsect2" lang="en"><a name="id2532919"></a><h3>GETDOMAINSID</h3><p>Prints the local machine SID and the SID of the current 
-domain.</p></div><div class="refsect2" lang="en"><a name="id2532930"></a><h3>SETDOMAINSID</h3><p>Sets the SID of the current domain.</p></div><div class="refsect2" lang="en"><a name="id2532940"></a><h3>GROUPMAP</h3><p>Manage the mappings between Windows group SIDs and UNIX groups.
+</p></div><div class="refsect3" lang="en"><a name="id2532878"></a><h4>CACHE FLUSH</h4><p>Remove all the current items from the cache.</p></div></div><div class="refsect2" lang="en"><a name="id2532890"></a><h3>GETLOCALSID [DOMAIN]</h3><p>Prints the SID of the specified domain, or if the parameter is
+omitted, the SID of the local server.</p></div><div class="refsect2" lang="en"><a name="id2532901"></a><h3>SETLOCALSID S-1-5-21-x-y-z</h3><p>Sets SID for the local server to the specified SID.</p></div><div class="refsect2" lang="en"><a name="id2532912"></a><h3>GETDOMAINSID</h3><p>Prints the local machine SID and the SID of the current 
+domain.</p></div><div class="refsect2" lang="en"><a name="id2532922"></a><h3>SETDOMAINSID</h3><p>Sets the SID of the current domain.</p></div><div class="refsect2" lang="en"><a name="id2532932"></a><h3>GROUPMAP</h3><p>Manage the mappings between Windows group SIDs and UNIX groups.
 Common options include:</p><div class="itemizedlist"><ul type="disc"><li><p>unixgroup - Name of the UNIX group</p></li><li><p>ntgroup - Name of the Windows NT group (must be
   resolvable to a SID</p></li><li><p>rid - Unsigned 32-bit integer</p></li><li><p>sid - Full SID in the form of "S-1-..."</p></li><li><p>type - Type of the group; either 'domain', 'local',
-  or 'builtin'</p></li><li><p>comment - Freeform text description of the group</p></li></ul></div><div class="refsect3" lang="en"><a name="id2532983"></a><h4>GROUPMAP ADD</h4><p>
+  or 'builtin'</p></li><li><p>comment - Freeform text description of the group</p></li></ul></div><div class="refsect3" lang="en"><a name="id2532975"></a><h4>GROUPMAP ADD</h4><p>
 Add a new group mapping entry:
 </p><pre class="programlisting">
 net groupmap add {rid=int|sid=string} unixgroup=string \
 	[type={domain|local}] [ntgroup=string] [comment=string]
 </pre><p>
-</p></div><div class="refsect3" lang="en"><a name="id2533000"></a><h4>GROUPMAP DELETE</h4><p>Delete a group mapping entry. If more than one group name matches, the first entry found is deleted.</p><p>net groupmap delete {ntgroup=string|sid=SID}</p></div><div class="refsect3" lang="en"><a name="id2533015"></a><h4>GROUPMAP MODIFY</h4><p>Update en existing group entry.</p><p>
+</p></div><div class="refsect3" lang="en"><a name="id2532992"></a><h4>GROUPMAP DELETE</h4><p>Delete a group mapping entry. If more than one group name matches, the first entry found is deleted.</p><p>net groupmap delete {ntgroup=string|sid=SID}</p></div><div class="refsect3" lang="en"><a name="id2533008"></a><h4>GROUPMAP MODIFY</h4><p>Update en existing group entry.</p><p>
 </p><pre class="programlisting">
 net groupmap modify {ntgroup=string|sid=SID} [unixgroup=string] \
        [comment=string] [type={domain|local}]
 </pre><p>
-</p></div><div class="refsect3" lang="en"><a name="id2533035"></a><h4>GROUPMAP LIST</h4><p>List existing group mapping entries.</p><p>net groupmap list [verbose] [ntgroup=string] [sid=SID]</p></div></div><div class="refsect2" lang="en"><a name="id2533051"></a><h3>MAXRID</h3><p>Prints out the highest RID currently in use on the local
+</p></div><div class="refsect3" lang="en"><a name="id2533028"></a><h4>GROUPMAP LIST</h4><p>List existing group mapping entries.</p><p>net groupmap list [verbose] [ntgroup=string] [sid=SID]</p></div></div><div class="refsect2" lang="en"><a name="id2533043"></a><h3>MAXRID</h3><p>Prints out the highest RID currently in use on the local
 server (by the active 'passdb backend').
-</p></div><div class="refsect2" lang="en"><a name="id2533062"></a><h3>RPC INFO</h3><p>Print information about the domain of the remote server,
+</p></div><div class="refsect2" lang="en"><a name="id2533055"></a><h3>RPC INFO</h3><p>Print information about the domain of the remote server,
 such as domain name, domain sid and number of users and groups.
-</p></div><div class="refsect2" lang="en"><a name="id2533074"></a><h3>[RPC|ADS] TESTJOIN</h3><p>Check whether participation in a domain is still valid.</p></div><div class="refsect2" lang="en"><a name="id2533085"></a><h3>[RPC|ADS] CHANGETRUSTPW</h3><p>Force change of domain trust password.</p></div><div class="refsect2" lang="en"><a name="id2533095"></a><h3>RPC TRUSTDOM</h3><div class="refsect3" lang="en"><a name="id2533101"></a><h4>RPC TRUSTDOM ADD <em class="replaceable"><code>DOMAIN</code></em></h4><p>Add a interdomain trust account for <em class="replaceable"><code>DOMAIN</code></em>. 
+</p></div><div class="refsect2" lang="en"><a name="id2533066"></a><h3>[RPC|ADS] TESTJOIN</h3><p>Check whether participation in a domain is still valid.</p></div><div class="refsect2" lang="en"><a name="id2533077"></a><h3>[RPC|ADS] CHANGETRUSTPW</h3><p>Force change of domain trust password.</p></div><div class="refsect2" lang="en"><a name="id2533088"></a><h3>RPC TRUSTDOM</h3><div class="refsect3" lang="en"><a name="id2533093"></a><h4>RPC TRUSTDOM ADD <em class="replaceable"><code>DOMAIN</code></em></h4><p>Add a interdomain trust account for <em class="replaceable"><code>DOMAIN</code></em>. 
 This is in fact a Samba account named <em class="replaceable"><code>DOMAIN$</code></em> 
 with the account flag <code class="constant">'I'</code> (interdomain trust account). 
+This is required for incoming trusts to work. It makes Samba be a
+trusted domain of the foreign (trusting) domain.
+Users of the Samba domain will be made available in the foreign domain.
 If the command is used against localhost it has the same effect as 
 <code class="literal">smbpasswd -a -i DOMAIN</code>. Please note that both commands
 expect a appropriate UNIX account. 
-</p></div><div class="refsect3" lang="en"><a name="id2533132"></a><h4>RPC TRUSTDOM DEL <em class="replaceable"><code>DOMAIN</code></em></h4><p>Remove interdomain trust account for 
+</p></div><div class="refsect3" lang="en"><a name="id2533127"></a><h4>RPC TRUSTDOM DEL <em class="replaceable"><code>DOMAIN</code></em></h4><p>Remove interdomain trust account for 
 <em class="replaceable"><code>DOMAIN</code></em>. If it is used against localhost 
 it has the same effect as <code class="literal">smbpasswd -x DOMAIN$</code>. 
-</p></div><div class="refsect3" lang="en"><a name="id2533154"></a><h4>RPC TRUSTDOM ESTABLISH <em class="replaceable"><code>DOMAIN</code></em></h4><p>
-Establish a trust relationship to a trusting domain. 
+</p></div><div class="refsect3" lang="en"><a name="id2533149"></a><h4>RPC TRUSTDOM ESTABLISH <em class="replaceable"><code>DOMAIN</code></em></h4><p>
+Establish a trust relationship to a trusted domain. 
 Interdomain account must already be created on the remote PDC.
-</p></div><div class="refsect3" lang="en"><a name="id2533168"></a><h4>RPC TRUSTDOM REVOKE <em class="replaceable"><code>DOMAIN</code></em></h4><p>Abandon relationship to trusted domain</p></div><div class="refsect3" lang="en"><a name="id2533180"></a><h4>RPC TRUSTDOM LIST</h4><p>List all current interdomain trust relationships.</p></div><div class="refsect3" lang="en"><a name="id2533191"></a><h4>RPC RIGHTS</h4><p>This subcommand is used to view and manage Samba's rights assignments (also 
+This is required for outgoing trusts to work. It makes Samba be a
+trusting domain of a foreign (trusted) domain.
+Users of the foreign domain will be made available in our domain.
+You'll need winbind and a working idmap config to make them
+appear in your system.
+</p></div><div class="refsect3" lang="en"><a name="id2533168"></a><h4>RPC TRUSTDOM REVOKE <em class="replaceable"><code>DOMAIN</code></em></h4><p>Abandon relationship to trusted domain</p></div><div class="refsect3" lang="en"><a name="id2533180"></a><h4>RPC TRUSTDOM LIST</h4><p>List all interdomain trust relationships.</p></div><div class="refsect3" lang="en"><a name="id2533190"></a><h4>RPC RIGHTS</h4><p>This subcommand is used to view and manage Samba's rights assignments (also 
 referred to as privileges).  There are three options currently available: 
 <em class="parameter"><code>list</code></em>, <em class="parameter"><code>grant</code></em>, and 
 <em class="parameter"><code>revoke</code></em>.  More details on Samba's privilege model and its use
-can be found in the Samba-HOWTO-Collection.</p></div></div><div class="refsect2" lang="en"><a name="id2533222"></a><h3>RPC ABORTSHUTDOWN</h3><p>Abort the shutdown of a remote server.</p></div><div class="refsect2" lang="en"><a name="id2533232"></a><h3>RPC SHUTDOWN [-t timeout] [-r] [-f] [-C message]</h3><p>Shut down the remote server.</p><div class="variablelist"><dl><dt><span class="term">-r</span></dt><dd><p>
+can be found in the Samba-HOWTO-Collection.</p></div></div><div class="refsect2" lang="en"><a name="id2533221"></a><h3>RPC ABORTSHUTDOWN</h3><p>Abort the shutdown of a remote server.</p></div><div class="refsect2" lang="en"><a name="id2533232"></a><h3>RPC SHUTDOWN [-t timeout] [-r] [-f] [-C message]</h3><p>Shut down the remote server.</p><div class="variablelist"><dl><dt><span class="term">-r</span></dt><dd><p>
 Reboot after shutdown.
 </p></dd><dt><span class="term">-f</span></dt><dd><p>
 Force shutting down all applications.
@@ -172,18 +180,18 @@ to run this against the PDC, from a Samba machine joined as a BDC. </p></div><di
 local server.  You need to run this against the PDC, from a Samba machine joined as a BDC. 
 </p></div><div class="refsect2" lang="en"><a name="id2533317"></a><h3>RPC VAMPIRE KEYTAB</h3><p>Dump remote SAM database to local Kerberos keytab file.
 </p></div><div class="refsect2" lang="en"><a name="id2533328"></a><h3>RPC VAMPIRE LDIF</h3><p>Dump remote SAM database to local LDIF file or standard output.
-</p></div><div class="refsect2" lang="en"><a name="id2533339"></a><h3>RPC GETSID</h3><p>Fetch domain SID and store it in the local <code class="filename">secrets.tdb</code>. </p></div><div class="refsect2" lang="en"><a name="id2533354"></a><h3>ADS LEAVE</h3><p>Make the remote host leave the domain it is part of. </p></div><div class="refsect2" lang="en"><a name="id2533365"></a><h3>ADS STATUS</h3><p>Print out status of machine account of the local machine in ADS.
+</p></div><div class="refsect2" lang="en"><a name="id2533338"></a><h3>RPC GETSID</h3><p>Fetch domain SID and store it in the local <code class="filename">secrets.tdb</code>. </p></div><div class="refsect2" lang="en"><a name="id2533354"></a><h3>ADS LEAVE</h3><p>Make the remote host leave the domain it is part of. </p></div><div class="refsect2" lang="en"><a name="id2533365"></a><h3>ADS STATUS</h3><p>Print out status of machine account of the local machine in ADS.
 Prints out quite some debug info. Aimed at developers, regular 
-users should use <code class="literal">NET ADS TESTJOIN</code>.</p></div><div class="refsect2" lang="en"><a name="id2533382"></a><h3>ADS PRINTER</h3><div class="refsect3" lang="en"><a name="id2533388"></a><h4>ADS PRINTER INFO [<em class="replaceable"><code>PRINTER</code></em>] [<em class="replaceable"><code>SERVER</code></em>]</h4><p>
+users should use <code class="literal">NET ADS TESTJOIN</code>.</p></div><div class="refsect2" lang="en"><a name="id2533382"></a><h3>ADS PRINTER</h3><div class="refsect3" lang="en"><a name="id2533387"></a><h4>ADS PRINTER INFO [<em class="replaceable"><code>PRINTER</code></em>] [<em class="replaceable"><code>SERVER</code></em>]</h4><p>
 Lookup info for <em class="replaceable"><code>PRINTER</code></em> on <em class="replaceable"><code>SERVER</code></em>. The printer name defaults to "*", the 
-server name defaults to the local host.</p></div><div class="refsect3" lang="en"><a name="id2533412"></a><h4>ADS PRINTER PUBLISH <em class="replaceable"><code>PRINTER</code></em></h4><p>Publish specified printer using ADS.</p></div><div class="refsect3" lang="en"><a name="id2533424"></a><h4>ADS PRINTER REMOVE <em class="replaceable"><code>PRINTER</code></em></h4><p>Remove specified printer from ADS directory.</p></div></div><div class="refsect2" lang="en"><a name="id2533438"></a><h3>ADS SEARCH <em class="replaceable"><code>EXPRESSION</code></em> <em class="replaceable"><code>ATTRIBUTES...</code></em></h3><p>Perform a raw LDAP search on a ADS server and dump the results. The 
+server name defaults to the local host.</p></div><div class="refsect3" lang="en"><a name="id2533411"></a><h4>ADS PRINTER PUBLISH <em class="replaceable"><code>PRINTER</code></em></h4><p>Publish specified printer using ADS.</p></div><div class="refsect3" lang="en"><a name="id2533424"></a><h4>ADS PRINTER REMOVE <em class="replaceable"><code>PRINTER</code></em></h4><p>Remove specified printer from ADS directory.</p></div></div><div class="refsect2" lang="en"><a name="id2533437"></a><h3>ADS SEARCH <em class="replaceable"><code>EXPRESSION</code></em> <em class="replaceable"><code>ATTRIBUTES...</code></em></h3><p>Perform a raw LDAP search on a ADS server and dump the results. The 
 expression is a standard LDAP search expression, and the 
 attributes are a list of LDAP fields to show in the results.</p><p>Example: <strong class="userinput"><code>net ads search '(objectCategory=group)' sAMAccountName</code></strong>
 </p></div><div class="refsect2" lang="en"><a name="id2533465"></a><h3>ADS DN <em class="replaceable"><code>DN</code></em> <em class="replaceable"><code>(attributes)</code></em></h3><p>
 Perform a raw LDAP search on a ADS server and dump the results. The 
 DN standard LDAP DN, and the attributes are a list of LDAP fields 
 to show in the result. 
-</p><p>Example: <strong class="userinput"><code>net ads dn 'CN=administrator,CN=Users,DC=my,DC=domain' SAMAccountName</code></strong></p></div><div class="refsect2" lang="en"><a name="id2533492"></a><h3>ADS WORKGROUP</h3><p>Print out workgroup name for specified kerberos realm.</p></div><div class="refsect2" lang="en"><a name="id2533502"></a><h3>SAM CREATEBUILTINGROUP &lt;NAME&gt;</h3><p>
+</p><p>Example: <strong class="userinput"><code>net ads dn 'CN=administrator,CN=Users,DC=my,DC=domain' SAMAccountName</code></strong></p></div><div class="refsect2" lang="en"><a name="id2533491"></a><h3>ADS WORKGROUP</h3><p>Print out workgroup name for specified kerberos realm.</p></div><div class="refsect2" lang="en"><a name="id2533502"></a><h3>SAM CREATEBUILTINGROUP &lt;NAME&gt;</h3><p>
 (Re)Create a BUILTIN group.
 Only a wellknown set of BUILTIN groups can be created with this command.
 This is the list of currently recognized group names: Administrators,
@@ -201,15 +209,15 @@ configured. The group gid will be allocated out of the winbindd range.
 </p></div><div class="refsect2" lang="en"><a name="id2533535"></a><h3>SAM DELETELOCALGROUP &lt;NAME&gt;</h3><p>
 Delete an existing LOCAL group (also known as Alias).
 
-</p></div><div class="refsect2" lang="en"><a name="id2533547"></a><h3>SAM MAPUNIXGROUP &lt;NAME&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2533546"></a><h3>SAM MAPUNIXGROUP &lt;NAME&gt;</h3><p>
 Map an existing Unix group and make it a Domain Group, the domain group
 will have the same name.
-</p></div><div class="refsect2" lang="en"><a name="id2533559"></a><h3>SAM UNMAPUNIXGROUP &lt;NAME&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2533558"></a><h3>SAM UNMAPUNIXGROUP &lt;NAME&gt;</h3><p>
 Remove an existing group mapping entry.
 </p></div><div class="refsect2" lang="en"><a name="id2533570"></a><h3>SAM ADDMEM &lt;GROUP&gt; &lt;MEMBER&gt;</h3><p>
 Add a member to a Local group. The group can be specified only by name,
 the member can be specified by name or SID.
-</p></div><div class="refsect2" lang="en"><a name="id2533583"></a><h3>SAM DELMEM  &lt;GROUP&gt; &lt;MEMBER&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2533582"></a><h3>SAM DELMEM  &lt;GROUP&gt; &lt;MEMBER&gt;</h3><p>
 Remove a member from a Local group. The group and the member must be
 specified by name.
 </p></div><div class="refsect2" lang="en"><a name="id2533595"></a><h3>SAM LISTMEM &lt;GROUP&gt;</h3><p>
@@ -221,7 +229,7 @@ the rid and description is also provided for each account.
 List all available privileges.
 </p></div><div class="refsect2" lang="en"><a name="id2533630"></a><h3>SAM RIGHTS GRANT &lt;NAME&gt; &lt;PRIVILEGE&gt;</h3><p>
 Grant one or more privileges to a user.
-</p></div><div class="refsect2" lang="en"><a name="id2533642"></a><h3>SAM RIGHTS REVOKE &lt;NAME&gt; &lt;PRIVILEGE&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2533641"></a><h3>SAM RIGHTS REVOKE &lt;NAME&gt; &lt;PRIVILEGE&gt;</h3><p>
 Revoke one or more privileges from a user.
 </p></div><div class="refsect2" lang="en"><a name="id2533653"></a><h3>SAM SHOW &lt;NAME&gt;</h3><p>
 Show the full DOMAIN\\NAME the SID and the type for the corresponding
@@ -232,9 +240,9 @@ Set the home directory for a user account.
 Set the profile path for a user account.
 </p></div><div class="refsect2" lang="en"><a name="id2533686"></a><h3>SAM SET COMMENT &lt;NAME&gt; &lt;COMMENT&gt;</h3><p>
 Set the comment for a user or group account.
-</p></div><div class="refsect2" lang="en"><a name="id2533698"></a><h3>SAM SET FULLNAME &lt;NAME&gt; &lt;FULL NAME&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2533697"></a><h3>SAM SET FULLNAME &lt;NAME&gt; &lt;FULL NAME&gt;</h3><p>
 Set the full name for a user account.
-</p></div><div class="refsect2" lang="en"><a name="id2533709"></a><h3>SAM SET LOGONSCRIPT &lt;NAME&gt; &lt;SCRIPT&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2533708"></a><h3>SAM SET LOGONSCRIPT &lt;NAME&gt; &lt;SCRIPT&gt;</h3><p>
 Set the logon script for a user account.
 </p></div><div class="refsect2" lang="en"><a name="id2533720"></a><h3>SAM SET HOMEDRIVE &lt;NAME&gt; &lt;DRIVE&gt;</h3><p>
 Set the home drive for a user account.
@@ -244,7 +252,7 @@ Set the workstations a user account is allowed to log in from.
 Set the "disabled" flag for a user account.
 </p></div><div class="refsect2" lang="en"><a name="id2533754"></a><h3>SAM SET PWNOTREQ &lt;NAME&gt;</h3><p>
 Set the "password not required" flag for a user account.
-</p></div><div class="refsect2" lang="en"><a name="id2533766"></a><h3>SAM SET AUTOLOCK &lt;NAME&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2533765"></a><h3>SAM SET AUTOLOCK &lt;NAME&gt;</h3><p>
 Set the "autolock" flag for a user account.
 </p></div><div class="refsect2" lang="en"><a name="id2533777"></a><h3>SAM SET PWNOEXP &lt;NAME&gt;</h3><p>
 Set the "password do not expire" flag for a user account.
@@ -252,16 +260,16 @@ Set the "password do not expire" flag for a user account.
 Set or unset the "password must change" flag for a user account.
 </p></div><div class="refsect2" lang="en"><a name="id2533800"></a><h3>SAM POLICY LIST</h3><p>
 List the available account policies.
-</p></div><div class="refsect2" lang="en"><a name="id2533811"></a><h3>SAM POLICY SHOW &lt;account policy&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2533810"></a><h3>SAM POLICY SHOW &lt;account policy&gt;</h3><p>
 Show the account policy value.
-</p></div><div class="refsect2" lang="en"><a name="id2533822"></a><h3>SAM POLICY SET &lt;account policy&gt; &lt;value&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2533821"></a><h3>SAM POLICY SET &lt;account policy&gt; &lt;value&gt;</h3><p>
 Set a value for the account policy.
 Valid values can be: "forever", "never", "off", or a number.
 </p></div><div class="refsect2" lang="en"><a name="id2533834"></a><h3>SAM PROVISION</h3><p>
 Only available if ldapsam:editposix is set and winbindd is running.
 Properly populates the ldap tree with the basic accounts (Administrator)
 and groups (Domain Users, Domain Admins, Domain Guests) on the ldap tree.
-</p></div><div class="refsect2" lang="en"><a name="id2533848"></a><h3>IDMAP DUMP &lt;local tdb file name&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2533847"></a><h3>IDMAP DUMP &lt;local tdb file name&gt;</h3><p>
 Dumps the mappings contained in the local tdb file specified.
 This command is useful to dump only the mappings produced by the idmap_tdb backend.
 </p></div><div class="refsect2" lang="en"><a name="id2533861"></a><h3>IDMAP RESTORE [input file]</h3><p>
@@ -299,7 +307,7 @@ can create user defined shares on demand using the commands below.
 
 </p><table class="simplelist" border="0" summary="Simple list"><tr><td>net usershare add sharename path [comment [acl] [guest_ok=[y|n]]] - to add or change a user defined share.</td></tr><tr><td>net usershare delete sharename - to delete a user defined share.</td></tr><tr><td>net usershare info [-l|--long] [wildcard sharename] - to print info about a user defined share.</td></tr><tr><td>net usershare list [-l|--long] [wildcard sharename] - to list user defined shares.</td></tr></table><p>
 
-</p><div class="refsect3" lang="en"><a name="id2533959"></a><h4>USERSHARE ADD <em class="replaceable"><code>sharename</code></em> <em class="replaceable"><code>path</code></em> <em class="replaceable"><code>[comment]</code></em> <em class="replaceable"><code>[acl]</code></em> <em class="replaceable"><code>[guest_ok=[y|n]]</code></em></h4><p>
+</p><div class="refsect3" lang="en"><a name="id2533944"></a><h4>USERSHARE ADD <em class="replaceable"><code>sharename</code></em> <em class="replaceable"><code>path</code></em> <em class="replaceable"><code>[comment]</code></em> <em class="replaceable"><code>[acl]</code></em> <em class="replaceable"><code>[guest_ok=[y|n]]</code></em></h4><p>
 Add or replace a new user defined share, with name "sharename".
 </p><p>
 "path" specifies the absolute pathname on the system to be exported.
@@ -336,11 +344,11 @@ sharename as the one you wish to modify and specify the new options
 you wish. The Samba smbd daemon notices user defined share modifications
 at connect time so will see the change immediately, there is no need
 to restart smbd on adding, deleting or changing a user defined share.
-</div><div class="refsect3" lang="en"><a name="id2534031"></a><h4>USERSHARE DELETE <em class="replaceable"><code>sharename</code></em></h4><p>
+</div><div class="refsect3" lang="en"><a name="id2534016"></a><h4>USERSHARE DELETE <em class="replaceable"><code>sharename</code></em></h4><p>
 Deletes the user defined share by name. The Samba smbd daemon
 immediately notices this change, although it will not disconnect
 any users currently connected to the deleted share.
-</p></div><div class="refsect3" lang="en"><a name="id2534046"></a><h4>USERSHARE INFO <em class="replaceable"><code>[-l|--long]</code></em> <em class="replaceable"><code>[wildcard sharename]</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2534031"></a><h4>USERSHARE INFO <em class="replaceable"><code>[-l|--long]</code></em> <em class="replaceable"><code>[wildcard sharename]</code></em></h4><p>
 Get info on user defined shares owned by the current user matching the given pattern, or all users.
 </p><p>
 net usershare info on its own dumps out info on the user defined shares that were
@@ -359,7 +367,7 @@ guest_ok=n
 
 And is a list of the current settings of the user defined share that can be
 modified by the "net usershare add" command.
-</p></div><div class="refsect3" lang="en"><a name="id2534086"></a><h4>USERSHARE LIST <em class="replaceable"><code>[-l|--long]</code></em> <em class="replaceable"><code>wildcard sharename</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2534065"></a><h4>USERSHARE LIST <em class="replaceable"><code>[-l|--long]</code></em> <em class="replaceable"><code>wildcard sharename</code></em></h4><p>
 List all the user defined shares owned by the current user matching the given pattern, or all users.
 </p><p>
 net usershare list on its own list out the names of the user defined shares that were
@@ -367,7 +375,7 @@ created by the current user, or restricts the list to share names that match the
 wildcard pattern ('*' matches one or more characters, '?' matches only one character).
 If the '-l' or '--long' option is also given, it includes the names of user defined
 shares created by other users.
-</p></div></div><div class="refsect2" lang="en"><a name="id2534113"></a><h3>CONF</h3><p>Starting with version 3.2.0, a Samba server can be configured by data
+</p></div></div><div class="refsect2" lang="en"><a name="id2534092"></a><h3>CONF</h3><p>Starting with version 3.2.0, a Samba server can be configured by data
 stored in registry. This configuration data can be edited with the new "net
 conf" commands.
 </p><p>
@@ -385,10 +393,10 @@ See the <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry
 format.</td></tr><tr><td>net conf import - Import configuration from file in smb.conf
 format.</td></tr><tr><td>net conf listshares - List the registry shares.</td></tr><tr><td>net conf drop - Delete the complete configuration from
 registry.</td></tr><tr><td>net conf showshare - Show the definition of a registry share.</td></tr><tr><td>net conf addshare - Create a new registry share.</td></tr><tr><td>net conf delshare - Delete a registry share.</td></tr><tr><td>net conf setparm - Store a parameter.</td></tr><tr><td>net conf getparm - Retrieve the value of a parameter.</td></tr><tr><td>net conf delparm - Delete a parameter.</td></tr><tr><td>net conf getincludes - Show the includes of a share definition.</td></tr><tr><td>net conf setincludes - Set includes for a share.</td></tr><tr><td>net conf delincludes - Delete includes from a share definition.</td></tr></table><p>
-</p><div class="refsect3" lang="en"><a name="id2534234"></a><h4>CONF LIST</h4><p>
+</p><div class="refsect3" lang="en"><a name="id2534213"></a><h4>CONF LIST</h4><p>
 Print the configuration data stored in the registry in a smb.conf-like format to
 standard output.
-</p></div><div class="refsect3" lang="en"><a name="id2534245"></a><h4>CONF IMPORT <em class="replaceable"><code>[--test|-T]</code></em> <em class="replaceable"><code>filename</code></em> <em class="replaceable"><code>[section]</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2534224"></a><h4>CONF IMPORT <em class="replaceable"><code>[--test|-T]</code></em> <em class="replaceable"><code>filename</code></em> <em class="replaceable"><code>[section]</code></em></h4><p>
 This command imports configuration from a file in smb.conf format.
 If a section encountered in the input file is present in registry,
 its contents is replaced. Sections of registry configuration that have
@@ -398,30 +406,30 @@ Optionally, a section may be specified to restrict the effect of the
 import command to that specific section. A test mode is enabled by specifying
 the parameter "-T" on the commandline. In test mode, no changes are made to the
 registry, and the resulting configuration is printed to standard output instead.
-</p></div><div class="refsect3" lang="en"><a name="id2534286"></a><h4>CONF LISTSHARES</h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2534254"></a><h4>CONF LISTSHARES</h4><p>
 List the names of the shares defined in registry.
-</p></div><div class="refsect3" lang="en"><a name="id2534296"></a><h4>CONF DROP</h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2534264"></a><h4>CONF DROP</h4><p>
 Delete the complete configuration data from registry.
-</p></div><div class="refsect3" lang="en"><a name="id2534307"></a><h4>CONF SHOWSHARE <em class="replaceable"><code>sharename</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2534275"></a><h4>CONF SHOWSHARE <em class="replaceable"><code>sharename</code></em></h4><p>
 Show the definition of the share or section specified. It is valid to specify
 "global" as sharename to retrieve the global configuration options from
 registry.
-</p></div><div class="refsect3" lang="en"><a name="id2534321"></a><h4>CONF ADDSHARE <em class="replaceable"><code>sharename</code></em> <em class="replaceable"><code>path</code></em> [<em class="replaceable"><code>writeable={y|N}</code></em> [<em class="replaceable"><code>guest_ok={y|N}</code></em> [<em class="replaceable"><code>comment</code></em>]]] </h4><p>Create a new share definition in registry.
+</p></div><div class="refsect3" lang="en"><a name="id2534289"></a><h4>CONF ADDSHARE <em class="replaceable"><code>sharename</code></em> <em class="replaceable"><code>path</code></em> [<em class="replaceable"><code>writeable={y|N}</code></em> [<em class="replaceable"><code>guest_ok={y|N}</code></em> [<em class="replaceable"><code>comment</code></em>]]] </h4><p>Create a new share definition in registry.
 The sharename and path have to be given. The share name may
 <span class="emphasis"><em>not</em></span> be "global". Optionally, values for the very
 common options "writeable", "guest ok" and a "comment" may be specified.
 The same result may be obtained by a sequence of "net conf setparm"
 commands.
-</p></div><div class="refsect3" lang="en"><a name="id2534356"></a><h4>CONF DELSHARE <em class="replaceable"><code>sharename</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2534323"></a><h4>CONF DELSHARE <em class="replaceable"><code>sharename</code></em></h4><p>
 Delete a share definition from registry.
-</p></div><div class="refsect3" lang="en"><a name="id2534368"></a><h4>CONF SETPARM <em class="replaceable"><code>section</code></em> <em class="replaceable"><code>parameter</code></em> <em class="replaceable"><code>value</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2534336"></a><h4>CONF SETPARM <em class="replaceable"><code>section</code></em> <em class="replaceable"><code>parameter</code></em> <em class="replaceable"><code>value</code></em></h4><p>
 Store a parameter in registry. The section may be global or a sharename.
 The section is created if it does not exist yet.
-</p></div><div class="refsect3" lang="en"><a name="id2534388"></a><h4>CONF GETPARM <em class="replaceable"><code>section</code></em> <em class="replaceable"><code>parameter</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2534356"></a><h4>CONF GETPARM <em class="replaceable"><code>section</code></em> <em class="replaceable"><code>parameter</code></em></h4><p>
 Show a parameter stored in registry.
-</p></div><div class="refsect3" lang="en"><a name="id2534404"></a><h4>CONF DELPARM <em class="replaceable"><code>section</code></em> <em class="replaceable"><code>parameter</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2534372"></a><h4>CONF DELPARM <em class="replaceable"><code>section</code></em> <em class="replaceable"><code>parameter</code></em></h4><p>
 Delete a parameter stored in registry.
-</p></div><div class="refsect3" lang="en"><a name="id2534420"></a><h4>CONF GETINCLUDES <em class="replaceable"><code>section</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2534388"></a><h4>CONF GETINCLUDES <em class="replaceable"><code>section</code></em></h4><p>
 Get the list of includes for the provided section (global or share).
 </p><p>
 Note that due to the nature of the registry database and the nature of include directives,
@@ -437,13 +445,13 @@ per share, and this list is evaluated after all the parameters of the share.
 Further note that currently, only files can be included from registry
 configuration. In the future, there will be the ability to include configuration
 data from other registry keys.
-</p></div><div class="refsect3" lang="en"><a name="id2534455"></a><h4>CONF SETINCLUDES <em class="replaceable"><code>section</code></em> [<em class="replaceable"><code>filename</code></em>]+</h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2534423"></a><h4>CONF SETINCLUDES <em class="replaceable"><code>section</code></em> [<em class="replaceable"><code>filename</code></em>]+</h4><p>
 Set the list of includes for the provided section (global or share) to the given
 list of one or more filenames. The filenames may contain the usual smb.conf
 macros like %I.
-</p></div><div class="refsect3" lang="en"><a name="id2534474"></a><h4>CONF DELINCLUDES <em class="replaceable"><code>section</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2534442"></a><h4>CONF DELINCLUDES <em class="replaceable"><code>section</code></em></h4><p>
 Delete the list of includes from the provided section (global or share).
-</p></div></div><div class="refsect2" lang="en"><a name="id2534488"></a><h3>EVENTLOG</h3><p>Starting with version 3.4.0 net can read, dump, import and export native
+</p></div></div><div class="refsect2" lang="en"><a name="id2534456"></a><h3>EVENTLOG</h3><p>Starting with version 3.4.0 net can read, dump, import and export native
 win32 eventlog files (usually *.evt). evt files are used by the native Windows eventviewer tools.
 </p><p>
 The import and export of evt files can only succeed when <em class="parameter"><code>eventlog list</code></em> is used in
@@ -453,25 +461,25 @@ See the <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry
 </p><table class="simplelist" border="0" summary="Simple list"><tr><td>net eventlog dump - Dump a eventlog *.evt file on the screen.</td></tr><tr><td>net eventlog import - Import a eventlog *.evt into the samba internal
 tdb based representation of eventlogs.</td></tr><tr><td>net eventlog export - Export the samba internal tdb based representation
 of eventlogs into an eventlog *.evt file.</td></tr></table><p>
-</p><div class="refsect3" lang="en"><a name="id2534543"></a><h4>EVENTLOG DUMP <em class="replaceable"><code>filename</code></em></h4><p>
+</p><div class="refsect3" lang="en"><a name="id2534511"></a><h4>EVENTLOG DUMP <em class="replaceable"><code>filename</code></em></h4><p>
 Prints a eventlog *.evt file to standard output.
-</p></div><div class="refsect3" lang="en"><a name="id2534555"></a><h4>EVENTLOG IMPORT <em class="replaceable"><code>filename</code></em> <em class="replaceable"><code>eventlog</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2534523"></a><h4>EVENTLOG IMPORT <em class="replaceable"><code>filename</code></em> <em class="replaceable"><code>eventlog</code></em></h4><p>
 Imports a eventlog *.evt file defined by <em class="replaceable"><code>filename</code></em> into the
 samba internal tdb representation of eventlog defined by <em class="replaceable"><code>eventlog</code></em>.
 <em class="replaceable"><code>eventlog</code></em> needs to part of the <em class="parameter"><code>eventlog list</code></em>
 defined in smb.conf.
 See the <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a> manpage for details.
-</p></div><div class="refsect3" lang="en"><a name="id2534595"></a><h4>EVENTLOG EXPORT <em class="replaceable"><code>filename</code></em> <em class="replaceable"><code>eventlog</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2534563"></a><h4>EVENTLOG EXPORT <em class="replaceable"><code>filename</code></em> <em class="replaceable"><code>eventlog</code></em></h4><p>
 Exports the samba internal tdb representation of eventlog defined by <em class="replaceable"><code>eventlog</code></em>
 to a eventlog *.evt file defined by <em class="replaceable"><code>filename</code></em>.
 <em class="replaceable"><code>eventlog</code></em> needs to part of the <em class="parameter"><code>eventlog list</code></em>
 defined in smb.conf.
 See the <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a> manpage for details.
-</p></div></div><div class="refsect2" lang="en"><a name="id2534636"></a><h3>DOM</h3><p>Starting with version 3.2.0 Samba has support for remote join and unjoin APIs, both client and server-side. Windows supports remote join capabilities since Windows 2000.
+</p></div></div><div class="refsect2" lang="en"><a name="id2534604"></a><h3>DOM</h3><p>Starting with version 3.2.0 Samba has support for remote join and unjoin APIs, both client and server-side. Windows supports remote join capabilities since Windows 2000.
 </p><p>In order for Samba to be joined or unjoined remotely an account must be used that is either member of the Domain Admins group, a member of the local Administrators group or a user that is granted the SeMachineAccountPrivilege privilege.
 </p><p>The client side support for remote join is implemented in the net dom commands which are:
 </p><table class="simplelist" border="0" summary="Simple list"><tr><td>net dom join - Join a remote computer into a domain.</td></tr><tr><td>net dom unjoin - Unjoin a remote computer from a domain.</td></tr><tr><td>net dom renamecomputer - Renames a remote computer joined to a domain.</td></tr></table><p>
-</p><div class="refsect3" lang="en"><a name="id2534678"></a><h4>DOM JOIN	<em class="replaceable"><code>domain=DOMAIN</code></em> <em class="replaceable"><code>ou=OU</code></em> <em class="replaceable"><code>account=ACCOUNT</code></em> <em class="replaceable"><code>password=PASSWORD</code></em> <em class="replaceable"><code>reboot</code></em></h4><p>
+</p><div class="refsect3" lang="en"><a name="id2534646"></a><h4>DOM JOIN	<em class="replaceable"><code>domain=DOMAIN</code></em> <em class="replaceable"><code>ou=OU</code></em> <em class="replaceable"><code>account=ACCOUNT</code></em> <em class="replaceable"><code>password=PASSWORD</code></em> <em class="replaceable"><code>reboot</code></em></h4><p>
 Joins a computer into a domain. This command supports the following additional parameters:
 </p><div class="itemizedlist"><ul type="disc"><li><p><em class="replaceable"><code>DOMAIN</code></em> can be a NetBIOS domain name (also known as short domain name) or a DNS domain name for Active Directory Domains. As in Windows, it is also possible to control which Domain Controller to use. This can be achieved by appending the DC name using the \ separator character. Example: MYDOM\MYDC. The <em class="replaceable"><code>DOMAIN</code></em> parameter cannot be NULL.</p></li><li><p><em class="replaceable"><code>OU</code></em> can be set to a RFC 1779 LDAP DN, like <span class="emphasis"><em>ou=mymachines,cn=Users,dc=example,dc=com</em></span> in order to create the machine account in a non-default LDAP containter. This optional parameter is only supported when joining Active Directory Domains.</p></li><li><p><em class="replaceable"><code>ACCOUNT</code></em> defines a domain account that will be used to join the machine to the domain. This domain account needs to have sufficient privileges to join machines.</p></li><li><p><em class="replaceable"><code>PASSWORD</code></em> defines the password for the domain account defined with <em class="replaceable"><code>ACCOUNT</code></em>.</p></li><li><p><em class="replaceable"><code>REBOOT</code></em> is an optional parameter that can be set to reboot the remote machine after successful join to the domain.</p></li></ul></div><p>
 Note that you also need to use standard net parameters to connect and authenticate to the remote machine that you want to join. These additional parameters include: -S computer and -U user.
@@ -480,7 +488,7 @@ Note that you also need to use standard net parameters to connect and authentica
 	net dom join -S xp -U XP\\administrator%secret domain=MYDOM account=MYDOM\\administrator password=topsecret reboot.
 </p><p>
 This example would connect to a computer named XP as the local administrator using password secret, and join the computer into a domain called MYDOM using the MYDOM domain administrator account and password topsecret. After successful join, the computer would reboot.
-</p></div><div class="refsect3" lang="en"><a name="id2534784"></a><h4>DOM UNJOIN <em class="replaceable"><code>account=ACCOUNT</code></em> <em class="replaceable"><code>password=PASSWORD</code></em> <em class="replaceable"><code>reboot</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2534752"></a><h4>DOM UNJOIN <em class="replaceable"><code>account=ACCOUNT</code></em> <em class="replaceable"><code>password=PASSWORD</code></em> <em class="replaceable"><code>reboot</code></em></h4><p>
 Unjoins a computer from a domain. This command supports the following additional parameters:
 </p><div class="itemizedlist"><ul type="disc"><li><p><em class="replaceable"><code>ACCOUNT</code></em> defines a domain account that will be used to unjoin the machine from the domain. This domain account needs to have sufficient privileges to unjoin machines.</p></li><li><p><em class="replaceable"><code>PASSWORD</code></em> defines the password for the domain account defined with <em class="replaceable"><code>ACCOUNT</code></em>.</p></li><li><p><em class="replaceable"><code>REBOOT</code></em> is an optional parameter that can be set to reboot the remote machine after successful unjoin from the domain.</p></li></ul></div><p>
 Note that you also need to use standard net parameters to connect and authenticate to the remote machine that you want to unjoin. These additional parameters include: -S computer and -U user.
@@ -489,7 +497,7 @@ Note that you also need to use standard net parameters to connect and authentica
 	net dom unjoin -S xp -U XP\\administrator%secret account=MYDOM\\administrator password=topsecret reboot.
 </p><p>
 This example would connect to a computer named XP as the local administrator using password secret, and unjoin the computer from the domain using the MYDOM domain administrator account and password topsecret. After successful unjoin, the computer would reboot.
-</p></div><div class="refsect3" lang="en"><a name="id2534855"></a><h4>DOM RENAMECOMPUTER <em class="replaceable"><code>newname=NEWNAME</code></em> <em class="replaceable"><code>account=ACCOUNT</code></em> <em class="replaceable"><code>password=PASSWORD</code></em> <em class="replaceable"><code>reboot</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2534823"></a><h4>DOM RENAMECOMPUTER <em class="replaceable"><code>newname=NEWNAME</code></em> <em class="replaceable"><code>account=ACCOUNT</code></em> <em class="replaceable"><code>password=PASSWORD</code></em> <em class="replaceable"><code>reboot</code></em></h4><p>
 Renames a computer that is joined to a domain. This command supports the following additional parameters:
 </p><div class="itemizedlist"><ul type="disc"><li><p><em class="replaceable"><code>NEWNAME</code></em> defines the new name of the machine in the domain.</p></li><li><p><em class="replaceable"><code>ACCOUNT</code></em> defines a domain account that will be used to rename the machine in the domain. This domain account needs to have sufficient privileges to rename machines.</p></li><li><p><em class="replaceable"><code>PASSWORD</code></em> defines the password for the domain account defined with <em class="replaceable"><code>ACCOUNT</code></em>.</p></li><li><p><em class="replaceable"><code>REBOOT</code></em> is an optional parameter that can be set to reboot the remote machine after successful rename in the domain.</p></li></ul></div><p>
 Note that you also need to use standard net parameters to connect and authenticate to the remote machine that you want to rename in the domain. These additional parameters include: -S computer and -U user.
@@ -498,8 +506,17 @@ Note that you also need to use standard net parameters to connect and authentica
 	net dom renamecomputer -S xp -U XP\\administrator%secret newname=XPNEW account=MYDOM\\administrator password=topsecret reboot.
 </p><p>
 This example would connect to a computer named XP as the local administrator using password secret, and rename the joined computer to XPNEW using the MYDOM domain administrator account and password topsecret. After successful rename, the computer would reboot.
-</p></div></div><div class="refsect2" lang="en"><a name="id2534938"></a><h3>HELP [COMMAND]</h3><p>Gives usage information for the specified command.</p></div></div><div class="refsect1" lang="en"><a name="id2534950"></a><h2>VERSION</h2><p>This man page is complete for version 3 of the Samba 
-	suite.</p></div><div class="refsect1" lang="en"><a name="id2534961"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
+</p></div></div><div class="refsect2" lang="en"><a name="id2534906"></a><h3>G_LOCK</h3><p>Manage global locks.</p><div class="refsect3" lang="en"><a name="id2534915"></a><h4>G_LOCK DO <em class="replaceable"><code>lockname</code></em> <em class="replaceable"><code>timeout</code></em> <em class="replaceable"><code>command</code></em></h4><p>
+Execute a shell command under a global lock. This might be useful to define the
+order in which several shell commands will be executed. The locking information
+is stored in a file called <code class="filename">g_lock.tdb</code>. In setups with CTDB
+running, the locking information will be available on all cluster nodes.
+</p><div class="itemizedlist"><ul type="disc"><li><p><em class="replaceable"><code>LOCKNAME</code></em> defines the name of the global lock.</p></li><li><p><em class="replaceable"><code>TIMEOUT</code></em> defines the timeout.</p></li><li><p><em class="replaceable"><code>COMMAND</code></em> defines the shell command to execute.</p></li></ul></div></div><div class="refsect3" lang="en"><a name="id2534967"></a><h4>G_LOCK LOCKS</h4><p>
+Print a list of all currently existing locknames.
+</p></div><div class="refsect3" lang="en"><a name="id2534978"></a><h4>G_LOCK DUMP <em class="replaceable"><code>lockname</code></em></h4><p>
+Dump the locking table of a certain global lock.
+</p></div></div><div class="refsect2" lang="en"><a name="id2534991"></a><h3>HELP [COMMAND]</h3><p>Gives usage information for the specified command.</p></div></div><div class="refsect1" lang="en"><a name="id2535003"></a><h2>VERSION</h2><p>This man page is complete for version 3 of the Samba 
+	suite.</p></div><div class="refsect1" lang="en"><a name="id2535014"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar 
 	to the way the Linux kernel is developed.</p><p>The net manpage was written by Jelmer Vernooij.</p></div></div></body></html>

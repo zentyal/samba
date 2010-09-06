@@ -29,6 +29,12 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+#define TALLOC_VERSION_MAJOR 2
+#define TALLOC_VERSION_MINOR 0
+
+int talloc_version_major(void);
+int talloc_version_minor(void);
+
 /* this is only needed for compatibility with the old talloc */
 typedef void TALLOC_CTX;
 
@@ -69,15 +75,15 @@ typedef void TALLOC_CTX;
 	} while(0)
 /* this extremely strange macro is to avoid some braindamaged warning
    stupidity in gcc 4.1.x */
-#define talloc_steal(ctx, ptr) ({ _TALLOC_TYPEOF(ptr) __talloc_steal_ret = (_TALLOC_TYPEOF(ptr))_talloc_steal((ctx),(ptr)); __talloc_steal_ret; })
+#define talloc_steal(ctx, ptr) ({ _TALLOC_TYPEOF(ptr) __talloc_steal_ret = (_TALLOC_TYPEOF(ptr))_talloc_steal_loc((ctx),(ptr), __location__); __talloc_steal_ret; })
 #else
 #define talloc_set_destructor(ptr, function) \
 	_talloc_set_destructor((ptr), (int (*)(void *))(function))
 #define _TALLOC_TYPEOF(ptr) void *
-#define talloc_steal(ctx, ptr) (_TALLOC_TYPEOF(ptr))_talloc_steal((ctx),(ptr))
+#define talloc_steal(ctx, ptr) (_TALLOC_TYPEOF(ptr))_talloc_steal_loc((ctx),(ptr), __location__)
 #endif
 
-#define talloc_reference(ctx, ptr) (_TALLOC_TYPEOF(ptr))_talloc_reference((ctx),(ptr))
+#define talloc_reference(ctx, ptr) (_TALLOC_TYPEOF(ptr))_talloc_reference_loc((ctx),(ptr), __location__)
 #define talloc_move(ctx, ptr) (_TALLOC_TYPEOF(*(ptr)))_talloc_move((ctx),(void *)(ptr))
 
 /* useful macros for creating type checked pointers */
@@ -106,6 +112,8 @@ typedef void TALLOC_CTX;
 #define talloc_get_type_abort(ptr, type) (type *)_talloc_get_type_abort(ptr, #type, __location__)
 
 #define talloc_find_parent_bytype(ptr, type) (type *)talloc_find_parent_byname(ptr, #type)
+#define talloc_free(ctx) _talloc_free(ctx, __location__)
+
 
 #if TALLOC_DEPRECATED
 #define talloc_zero_p(ctx, type) talloc_zero(ctx, type)
@@ -121,10 +129,10 @@ typedef void TALLOC_CTX;
 /* The following definitions come from talloc.c  */
 void *_talloc(const void *context, size_t size);
 void *talloc_pool(const void *context, size_t size);
-void _talloc_set_destructor(const void *ptr, int (*destructor)(void *));
+void _talloc_set_destructor(const void *ptr, int (*_destructor)(void *));
 int talloc_increase_ref_count(const void *ptr);
 size_t talloc_reference_count(const void *ptr);
-void *_talloc_reference(const void *context, const void *ptr);
+void *_talloc_reference_loc(const void *context, const void *ptr, const char *location);
 int talloc_unlink(const void *context, void *ptr);
 const char *talloc_set_name(const void *ptr, const char *fmt, ...) PRINTF_ATTRIBUTE(2,3);
 void talloc_set_name_const(const void *ptr, const char *name);
@@ -137,10 +145,11 @@ void *_talloc_get_type_abort(const void *ptr, const char *name, const char *loca
 void *talloc_parent(const void *ptr);
 const char *talloc_parent_name(const void *ptr);
 void *talloc_init(const char *fmt, ...) PRINTF_ATTRIBUTE(1,2);
-int talloc_free(void *ptr);
+int _talloc_free(void *ptr, const char *location);
 void talloc_free_children(void *ptr);
 void *_talloc_realloc(const void *context, void *ptr, size_t size, const char *name);
-void *_talloc_steal(const void *new_ctx, const void *ptr);
+void *_talloc_steal_loc(const void *new_ctx, const void *ptr, const char *location);
+void *talloc_reparent(const void *old_parent, const void *new_parent, const void *ptr);
 void *_talloc_move(const void *new_ctx, const void *pptr);
 size_t talloc_total_size(const void *ptr);
 size_t talloc_total_blocks(const void *ptr);
@@ -154,6 +163,7 @@ void talloc_report_depth_file(const void *ptr, int depth, int max_depth, FILE *f
 void talloc_report_full(const void *ptr, FILE *f);
 void talloc_report(const void *ptr, FILE *f);
 void talloc_enable_null_tracking(void);
+void talloc_enable_null_tracking_no_autofree(void);
 void talloc_disable_null_tracking(void);
 void talloc_enable_leak_report(void);
 void talloc_enable_leak_report_full(void);
@@ -186,5 +196,7 @@ char *talloc_asprintf_append(char *s, const char *fmt, ...) PRINTF_ATTRIBUTE(2,3
 char *talloc_asprintf_append_buffer(char *s, const char *fmt, ...) PRINTF_ATTRIBUTE(2,3);
 
 void talloc_set_abort_fn(void (*abort_fn)(const char *reason));
+void talloc_set_log_fn(void (*log_fn)(const char *message));
+void talloc_set_log_stderr(void);
 
 #endif

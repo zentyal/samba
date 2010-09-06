@@ -43,13 +43,8 @@ testit "share and server list" $VALGRIND $smbclient -L $SERVER $CONFIGURATION  -
 
 testit "share and server list anonymously" $VALGRIND $smbclient -N -L $SERVER $CONFIGURATION $@ || failed=`expr $failed + 1`
 
-# Generate random file
-cat >tmpfile<<EOF
-foo
-bar
-bloe
-blah
-EOF
+# Use the smbclient binary as our test file
+cat $smbclient >tmpfile
 
 # put that file
 runcmd "MPutting file" 'mput tmpfile' || failed=`expr $failed + 1`
@@ -117,7 +112,7 @@ runcmd "Removing file" 'rm tmpfilex'|| failed=`expr $failed + 1`
 
 runcmd "Lookup name" "lookup $DOMAIN\\$USERNAME" || failed=`expr $failed + 1`
 
-#Fails unless there are privilages
+#Fails unless there are privileges
 #runcmd "Lookup privs of name" "privileges $DOMAIN\\$USERNAME" || failed=`expr $failed + 1`
 
 # do some simple operations using old protocol versions

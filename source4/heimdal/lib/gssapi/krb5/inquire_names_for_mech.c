@@ -31,10 +31,7 @@
  * SUCH DAMAGE.
  */
 
-#include "krb5/gsskrb5_locl.h"
-
-RCSID("$Id$");
-
+#include "gsskrb5_locl.h"
 
 static gss_OID *name_list[] = {
     &GSS_C_NT_HOSTBASED_SERVICE,

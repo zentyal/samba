@@ -23,7 +23,7 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
 
-extern REGISTRY_OPS smbconf_reg_ops;
+extern struct registry_ops smbconf_reg_ops;
 
 const char *reg_type_lookup(enum winreg_Type type)
 {
@@ -71,45 +71,6 @@ const char *reg_type_lookup(enum winreg_Type type)
 		break;
 	}
 	return result;
-}
-
-WERROR reg_pull_multi_sz(TALLOC_CTX *mem_ctx, const void *buf, size_t len,
-			 uint32 *num_values, char ***values)
-{
-	const smb_ucs2_t *p = (const smb_ucs2_t *)buf;
-	*num_values = 0;
-
-	/*
-	 * Make sure that a talloc context for the strings retrieved exists
-	 */
-
-	if (!(*values = TALLOC_ARRAY(mem_ctx, char *, 1))) {
-		return WERR_NOMEM;
-	}
-
-	len /= 2; 		/* buf is a set of UCS2 strings */
-
-	while (len > 0) {
-		char *val;
-		size_t dstlen, thislen;
-
-		thislen = strnlen_w(p, len) + 1;
-		if (!convert_string_allocate(*values, CH_UTF16LE, CH_UNIX,
-			p, thislen*2, (void *)&val, &dstlen, true)) {
-			TALLOC_FREE(*values);
-			return WERR_NOMEM;
-		}
-
-		ADD_TO_ARRAY(*values, char *, val, values, num_values);
-		if (*values == NULL) {
-			return WERR_NOMEM;
-		}
-
-		p += thislen;
-		len -= thislen;
-	}
-
-	return WERR_OK;
 }
 
 /*******************************************************************

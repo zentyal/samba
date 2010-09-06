@@ -284,10 +284,10 @@ NTSTATUS gensec_server_start(TALLOC_CTX *mem_ctx,
 NTSTATUS gensec_session_info(struct gensec_security *gensec_security, 
 			     struct auth_session_info **session_info);
 NTSTATUS auth_nt_status_squash(NTSTATUS nt_status);
-struct creds_CredentialState;
+struct netlogon_creds_CredentialState;
 NTSTATUS dcerpc_schannel_creds(struct gensec_security *gensec_security,
 			       TALLOC_CTX *mem_ctx,
-			       struct creds_CredentialState **creds);
+			       struct netlogon_creds_CredentialState **creds);
 NTSTATUS gensec_set_peer_addr(struct gensec_security *gensec_security, struct socket_address *peer_addr);
 NTSTATUS gensec_set_my_addr(struct gensec_security *gensec_security, struct socket_address *my_addr);
 
@@ -304,7 +304,7 @@ NTSTATUS gensec_wrap(struct gensec_security *gensec_security,
 		     DATA_BLOB *out);
 
 struct gensec_security_ops **gensec_security_all(void);
-bool gensec_security_ops_enabled(struct gensec_security_ops *ops, struct loadparm_context *lp_ctx);
+bool gensec_security_ops_enabled(struct gensec_security_ops *ops, struct gensec_security *security);
 struct gensec_security_ops **gensec_use_kerberos_mechs(TALLOC_CTX *mem_ctx, 
 						       struct gensec_security_ops **old_gensec_list, 
 						       struct cli_credentials *creds);

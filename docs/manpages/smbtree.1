@@ -1,12 +1,12 @@
 .\"     Title: smbtree
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 05/10/2010
+.\"      Date: 06/18/2010
 .\"    Manual: User Commands
-.\"    Source: Samba 3.4
+.\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "SMBTREE" "1" "05/10/2010" "Samba 3\&.4" "User Commands"
+.TH "SMBTREE" "1" "06/18/2010" "Samba 3\&.5" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -183,17 +183,17 @@ suite\&.
 is a smb browser program in text mode\&. It is similar to the "Network Neighborhood" found on Windows computers\&. It prints a tree with all the known domains, the servers in those domains and the shares on the servers\&.
 .SH "OPTIONS"
 .PP
-\-b
+\-b|\-\-broadcast
 .RS 4
 Query network nodes by sending requests as broadcasts instead of querying the local master browser\&.
 .RE
 .PP
-\-D
+\-D|\-\-domains
 .RS 4
 Only print a list of all the domains known on broadcast or by the master browser
 .RE
 .PP
-\-S
+\-S|\-\-servers
 .RS 4
 Only print a list of all the domains and servers responding on broadcast or known by the master browser\&.
 .RE

@@ -99,14 +99,14 @@ case "$withval" in
 		build_lib=yes
 		;;
 	*)
-		AC_MSG_RESULT(yes)
+		AC_MSG_RESULT(no)
 		build_lib=no
 		;;
 esac
 ],
 [
 # if unspecified, default is not to build
-AC_MSG_RESULT(yes)
+AC_MSG_RESULT(no)
 build_lib=no
 ]
 )
@@ -335,7 +335,7 @@ AC_DEFUN([AC_CHECK_FUNC_EXT],
 	    [AC_DEFINE_UNQUOTED(AS_TR_CPP([HAVE_$1])) $3], 
 	    [$4])dnl
 AS_VAR_POPDEF([ac_var])dnl
-])# AC_CHECK_FUNC
+])# AC_CHECK_FUNC_EXT
 
 # AH_CHECK_FUNC_EXT(FUNCNAME)
 # ---------------------
@@ -363,9 +363,9 @@ EOF
 
 dnl Copied from libtool.m4
 AC_DEFUN(AC_PROG_LD_GNU,
-[AC_CACHE_CHECK([if the linker ($LD) is GNU ld], ac_cv_prog_gnu_ld,
+[AC_CACHE_CHECK([if the linker used by compiler is GNU ld], ac_cv_prog_gnu_ld,
 [# I'd rather use --version here, but apparently some GNU ld's only accept -v.
-if $LD -v 2>&1 </dev/null | egrep '(GNU|with BFD)' 1>&5; then
+if $CC -Wl,-v /dev/null 2>&1 </dev/null | egrep '(GNU|with BFD)' 1>&5; then
   ac_cv_prog_gnu_ld=yes
 else
   ac_cv_prog_gnu_ld=no
@@ -609,6 +609,19 @@ AC_DEFUN([AC_DISABLE_STATIC],
 [AC_BEFORE([$0],[AC_LIBTOOL_SETUP])dnl
 AC_ENABLE_STATIC(no)])
 
+dnl AC_TRY_COMMAND_NO_STDERR - also fail if there is output on stderr
+AC_DEFUN( [AC_TRY_COMMAND_NO_STDERR],
+[
+	{ OUT=`($1) 3>&AS_MESSAGE_LOG_FD 2>&1 1>&3`
+	RC=$?
+	echo "\$?=$RC" >&AS_MESSAGE_LOG_FD
+	if test x"$OUT" != x ; then
+		echo "stderr:" >&AS_MESSAGE_LOG_FD
+		echo "$OUT" >&AS_MESSAGE_LOG_FD
+	fi
+	test $RC -eq 0 -a x"$OUT" = x ; }
+])
+
 dnl AC_TRY_RUN_STRICT(PROGRAM,CFLAGS,CPPFLAGS,LDFLAGS,
 dnl		[ACTION-IF-TRUE],[ACTION-IF-FALSE],
 dnl		[ACTION-IF-CROSS-COMPILING = RUNTIME-ERROR])
@@ -697,13 +710,13 @@ AC_DEFUN([SMB_CHECK_DMAPI],
     fi
 
     if test x"$samba_dmapi_libs" = x"" ; then
-	AC_CHECK_LIB(xdsm, dm_get_eventlist,
-		[samba_dmapi_libs="-lxdsm"], [])
+        AC_CHECK_LIB(dmapi, dm_get_eventlist,
+                [samba_dmapi_libs="-ldmapi"], [])
     fi
 
     if test x"$samba_dmapi_libs" = x"" ; then
-        AC_CHECK_LIB(dmapi, dm_get_eventlist,
-                [samba_dmapi_libs="-ldmapi"], [])
+	AC_CHECK_LIB(xdsm, dm_get_eventlist,
+		[samba_dmapi_libs="-lxdsm"], [])
     fi
 
 
@@ -831,6 +844,9 @@ AC_DEFUN([SMB_IF_RTSIGNAL_BUG],
 #include <fcntl.h>
 #include <signal.h>
 
+#ifndef SIGRTMIN
+#define SIGRTMIN NSIG
+#endif
 /* from smbd/notify_kernel.c */
 #ifndef RT_SIGNAL_NOTIFY
 #define RT_SIGNAL_NOTIFY (SIGRTMIN+2)

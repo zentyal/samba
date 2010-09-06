@@ -1,5 +1,19 @@
 #!/usr/bin/perl
+# Plain text output for selftest
+# Copyright (C) 2008-2009 Jelmer Vernooij <jelmer@samba.org>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package output::plain;
 use Exporter;
 @ISA = qw(Exporter);
@@ -15,7 +29,7 @@ sub new($$$$$$$) {
 		verbose => $verbose, 
 		immediate => $immediate, 
 		statistics => $statistics,
-		start_time => time(),
+		start_time => undef,
 		test_output => {},
 		suitesfailed => [],
 		suites_ok => 0,
@@ -27,6 +41,21 @@ sub new($$$$$$$) {
 	bless($self, $class);
 }
 
+sub testsuite_count($$)
+{
+	my ($self, $count) = @_;
+	$self->{totalsuites} = $count;
+}
+
+sub report_time($$)
+{
+	my ($self, $time) = @_;
+	unless ($self->{start_time}) {
+		$self->{start_time} = $time;
+	}
+	$self->{last_time} = $time;
+}
+
 sub output_msg($$);
 
 sub start_testsuite($$)
@@ -35,14 +64,18 @@ sub start_testsuite($$)
 
 	$self->{index}++;
 	$self->{NAME} = $name;
-	$self->{START_TIME} = time();
+	$self->{START_TIME} = $self->{last_time};
 
 	my $duration = $self->{START_TIME} - $self->{start_time};
 
 	$self->{test_output}->{$name} = "" unless($self->{verbose});
 
 	my $out = "";
-	$out .= "[$self->{index}/$self->{totalsuites} in ".$duration."s";
+	$out .= "[$self->{index}";
+	if ($self->{totalsuites}) {
+		$out .= "/$self->{totalsuites}";
+	}
+	$out.= " in ".$duration."s";
 	$out .= sprintf(", %d errors", ($#{$self->{suitesfailed}}+1)) if ($#{$self->{suitesfailed}} > -1);
 	$out .= "] $name"; 
 	if ($self->{immediate}) {
@@ -60,8 +93,10 @@ sub output_msg($$)
 		require FileHandle;
 		print $output;
 		STDOUT->flush();
-	} else {
+	} elsif (defined($self->{NAME})) {
 		$self->{test_output}->{$self->{NAME}} .= $output;
+	} else {
+		print $output;
 	}
 }
 
@@ -69,30 +104,28 @@ sub control_msg($$)
 {
 	my ($self, $output) = @_;
 
-	$self->output_msg($output);
+	#$self->output_msg($output);
 }
 
-sub end_testsuite($$$$$)
+sub end_testsuite($$$$)
 {
-	my ($self, $name, $result, $unexpected, $reason) = @_;
+	my ($self, $name, $result, $reason) = @_;
 	my $out = "";
+	my $unexpected = 0;
 
-	if ($unexpected) {
-		if ($result eq "success" and not defined($reason)) {
-			$reason = "Expected negative exit code, got positive exit code";
-		} 
+	if ($result eq "success" or $result eq "xfail") {
+		$self->{suites_ok}++;
+	} else {
 		$self->output_msg("ERROR: $reason\n");
 		push (@{$self->{suitesfailed}}, $name);
-	} else {
-		$self->{suites_ok}++;
-	}
-
-	if ($unexpected and $self->{immediate} and not $self->{verbose}) {
-		$out .= $self->{test_output}->{$name};
+		if ($self->{immediate} and not $self->{verbose}) {
+			$out .= $self->{test_output}->{$name};
+		}
+		$unexpected = 1;
 	}
 
 	if (not $self->{immediate}) {
-		if (not $unexpected) {
+		unless($unexpected) {
 			$out .= " ok\n";
 		} else {
 			$out .= " " . uc($result) . "\n";
@@ -104,28 +137,20 @@ sub end_testsuite($$$$$)
 
 sub start_test($$$)
 {
-	my ($self, $parents, $testname) = @_;
-
-	if ($#$parents == -1) {
-		$self->start_testsuite($testname);
-	}
+	my ($self, $testname) = @_;
 }
 
 sub end_test($$$$$)
 {
-	my ($self, $parents, $testname, $result, $unexpected, $reason) = @_;
+	my ($self, $testname, $result, $unexpected, $reason) = @_;
 	
-	if ($#$parents == -1) {
-		$self->end_testsuite($testname, $result, $unexpected, $reason);
-		return;
-	}
-
 	my $append = "";
 
 	unless ($unexpected) {
 		$self->{test_output}->{$self->{NAME}} = "";
 		if (not $self->{immediate}) {
 			if ($result eq "failure") { print "f"; }
+			elsif ($result eq "xfail") { print "X"; }
 			elsif ($result eq "skip") { print "s"; }
 			elsif ($result eq "success") { print "."; }
 			else { print "?($result)"; }
@@ -133,9 +158,7 @@ sub end_test($$$$$)
 		return;
 	}
 
-	my $fullname = join(".", @$parents).".$testname";
-
-	$append = "UNEXPECTED($result): $testname ($fullname)\n";
+	$append = "UNEXPECTED($result): $testname\n";
 
 	$self->{test_output}->{$self->{NAME}} .= $append;
 
@@ -200,13 +223,18 @@ sub summary($)
 
 }
 
-sub skip_testsuite($$)
+sub skip_testsuite($$$)
 {
 	my ($self, $name, $reason) = @_;
 
+	unless (defined($reason)) {
+		$reason = "UNKNOWN";
+	}
 	push (@{$self->{skips}->{$reason}}, $name);
 
-	$self->{totalsuites}--;
+	if ($self->{totalsuites}) {
+		$self->{totalsuites}--;
+	}
 }
 
 1;

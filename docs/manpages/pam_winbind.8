@@ -1,12 +1,12 @@
 .\"     Title: pam_winbind
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 05/10/2010
+.\"      Date: 06/18/2010
 .\"    Manual: 8
-.\"    Source: Samba 3.4
+.\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "PAM_WINBIND" "8" "05/10/2010" "Samba 3\&.4" "8"
+.TH "PAM_WINBIND" "8" "06/18/2010" "Samba 3\&.5" "8"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -219,7 +219,9 @@ Make sure that pam_winbind is one of the first modules in the session part\&. It
 .SH "OPTIONS"
 .PP
 pam_winbind supports several options which can either be set in the PAM configuration files or in the pam_winbind configuration file situated at
-\FC/etc/security/pam_winbind\&.conf\F[]\&. Options from the PAM configuration file take precedence to those from the configuration file\&.
+\FC/etc/security/pam_winbind\&.conf\F[]\&. Options from the PAM configuration file take precedence to those from the configuration file\&. See
+\fBpam_winbind.conf\fR(5)
+for further details\&.
 .PP
 debug
 .RS 4
@@ -311,10 +313,11 @@ This exports the Active Directory server we are authenticating against\&. This c
 .PP
 PAM_WINBIND_PROFILEPATH
 .RS 4
-This is the profile path set in the profile tab in the user settings\&. Noramlly the home directory is synced with this directory on a share\&.
+This is the profile path set in the profile tab in the user settings\&. Normally the home directory is synced with this directory on a share\&.
 .RE
 .SH "SEE ALSO"
 .PP
+\fBpam_winbind.conf\fR(5),
 \fBwbinfo\fR(1),
 \fBwinbindd\fR(8),
 \fBsmb.conf\fR(5)

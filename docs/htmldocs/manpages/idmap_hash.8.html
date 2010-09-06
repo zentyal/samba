@@ -4,13 +4,13 @@
 	  to support a local name mapping files if enabled via the
 	  "winbind normalize names" and "winbind nss info"
 	  parameters in smb.conf.
-	</p></div><div class="refsect1" lang="en"><a name="id2522917"></a><h2>IDMAP OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">name_map</span></dt><dd><p>
+	</p></div><div class="refsect1" lang="en"><a name="id2522906"></a><h2>IDMAP OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">name_map</span></dt><dd><p>
 		    Specifies the absolute path to the name mapping
 		    file used by the nss_info API.  Entries in the file
 		    are of the form "<em class="replaceable"><code>unix name</code></em>
 		    = <em class="replaceable"><code>qualified domain name</code></em>".
 		    Mapping of both user and group names is supported.
-		</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2522949"></a><h2>EXAMPLES</h2><p>The following example utilizes the idmap_hash plugin for
+		</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2522937"></a><h2>EXAMPLES</h2><p>The following example utilizes the idmap_hash plugin for
 	  the idmap and nss_info information.
 	</p><pre class="programlisting">
 	[global]
@@ -21,7 +21,7 @@
 	winbind nss info = hash
 	winbind normalize names = yes
 	idmap_hash:name_map = /etc/samba/name_map.cfg
-	</pre></div><div class="refsect1" lang="en"><a name="id2483339"></a><h2>AUTHOR</h2><p>
+	</pre></div><div class="refsect1" lang="en"><a name="id2483327"></a><h2>AUTHOR</h2><p>
 	The original Samba software and related utilities
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar

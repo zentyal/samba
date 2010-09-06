@@ -1,12 +1,12 @@
 .\"     Title: smbcontrol
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 05/10/2010
+.\"      Date: 06/18/2010
 .\"    Manual: User Commands
-.\"    Source: Samba 3.4
+.\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "SMBCONTROL" "1" "05/10/2010" "Samba 3\&.4" "User Commands"
+.TH "SMBCONTROL" "1" "06/18/2010" "Samba 3\&.5" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -263,7 +263,7 @@ Order smbd to close the client connections to the named share\&. Note that this 
 .PP
 debug
 .RS 4
-Set debug level to the value specified by the parameter\&. This can be sent to any of the destinations\&.
+Set debug level to the value specified by the parameter\&. This can be sent to any of the destinations\&. If this message is sent to either the smbd or winbindd daemons, the parent process will rebroadcast the message to all child processes changing the debug level in each one\&.
 .RE
 .PP
 force\-election

@@ -25,22 +25,22 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
 
-extern REGISTRY_OPS printing_ops;
-extern REGISTRY_OPS eventlog_ops;
-extern REGISTRY_OPS shares_reg_ops;
-extern REGISTRY_OPS smbconf_reg_ops;
-extern REGISTRY_OPS netlogon_params_reg_ops;
-extern REGISTRY_OPS prod_options_reg_ops;
-extern REGISTRY_OPS tcpip_params_reg_ops;
-extern REGISTRY_OPS hkpt_params_reg_ops;
-extern REGISTRY_OPS current_version_reg_ops;
-extern REGISTRY_OPS perflib_reg_ops;
-extern REGISTRY_OPS regdb_ops;		/* these are the default */
+extern struct registry_ops printing_ops;
+extern struct registry_ops eventlog_ops;
+extern struct registry_ops shares_reg_ops;
+extern struct registry_ops smbconf_reg_ops;
+extern struct registry_ops netlogon_params_reg_ops;
+extern struct registry_ops prod_options_reg_ops;
+extern struct registry_ops tcpip_params_reg_ops;
+extern struct registry_ops hkpt_params_reg_ops;
+extern struct registry_ops current_version_reg_ops;
+extern struct registry_ops perflib_reg_ops;
+extern struct registry_ops regdb_ops;		/* these are the default */
 
-/* array of REGISTRY_HOOK's which are read into a tree for easy access */
+/* array of registry_hook's which are read into a tree for easy access */
 /* #define REG_TDB_ONLY		1 */
 
-REGISTRY_HOOK reg_hooks[] = {
+struct registry_hook reg_hooks[] = {
 #ifndef REG_TDB_ONLY 
   { KEY_PRINTING,    		&printing_ops },
   { KEY_PRINTING_2K, 		&printing_ops },
@@ -58,7 +58,7 @@ REGISTRY_HOOK reg_hooks[] = {
 };
 
 /***********************************************************************
- Open the registry database and initialize the REGISTRY_HOOK cache
+ Open the registry database and initialize the registry_hook cache
  with all available backens.
  ***********************************************************************/
 

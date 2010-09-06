@@ -53,12 +53,12 @@ static WERROR dreplsrv_connect_samdb(struct dreplsrv_service *service, struct lo
 
 	service->samdb = samdb_connect(service, service->task->event_ctx, lp_ctx, service->system_session_info);
 	if (!service->samdb) {
-		return WERR_DS_SERVICE_UNAVAILABLE;
+		return WERR_DS_UNAVAILABLE;
 	}
 
 	ntds_guid = samdb_ntds_objectGUID(service->samdb);
 	if (!ntds_guid) {
-		return WERR_DS_SERVICE_UNAVAILABLE;
+		return WERR_DS_UNAVAILABLE;
 	}
 
 	service->ntds_guid = *ntds_guid;
@@ -73,12 +73,7 @@ static WERROR dreplsrv_connect_samdb(struct dreplsrv_service *service, struct lo
 	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_RESTORE_USN_OPTIMIZATION;
 	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_KCC_EXECUTE;
 	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_ADDENTRY_V2;
-#if 0
-	if (s->domain_behavior_version == 2) {
-		/* TODO: find out how this is really triggered! */
-		bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_LINKED_VALUE_REPLICATION;
-	}
-#endif
+	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_LINKED_VALUE_REPLICATION;
 	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_DCINFO_V2;
 	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_INSTANCE_TYPE_NOT_REQ_ON_MOD;
 	bind_info28->supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_CRYPTO_BIND;
@@ -111,6 +106,28 @@ static WERROR dreplsrv_connect_samdb(struct dreplsrv_service *service, struct lo
 }
 
 /*
+  DsReplicaSync messages from the DRSUAPI server are forwarded here
+ */
+static NTSTATUS drepl_replica_sync(struct irpc_message *msg, 
+				   struct drsuapi_DsReplicaSync *r)
+{
+	struct dreplsrv_service *service = talloc_get_type(msg->private_data,
+							   struct dreplsrv_service);
+	struct GUID *guid = &r->in.req.req1.naming_context->guid;
+
+	r->out.result = dreplsrv_schedule_partition_pull_by_guid(service, msg, guid);
+	if (W_ERROR_IS_OK(r->out.result)) {
+		DEBUG(3,("drepl_replica_sync: forcing sync of partition %s\n",
+			 GUID_string(msg, guid)));
+		dreplsrv_run_pending_ops(service);
+	} else {
+		DEBUG(3,("drepl_replica_sync: failed setup of sync of partition %s - %s\n",
+			 GUID_string(msg, guid), win_errstr(r->out.result)));
+	}
+	return NT_STATUS_OK;
+}
+
+/*
   startup the dsdb replicator service task
 */
 static void dreplsrv_task_init(struct task_server *task)
@@ -121,10 +138,12 @@ static void dreplsrv_task_init(struct task_server *task)
 
 	switch (lp_server_role(task->lp_ctx)) {
 	case ROLE_STANDALONE:
-		task_server_terminate(task, "dreplsrv: no DSDB replication required in standalone configuration");
+		task_server_terminate(task, "dreplsrv: no DSDB replication required in standalone configuration", 
+				      false);
 		return;
 	case ROLE_DOMAIN_MEMBER:
-		task_server_terminate(task, "dreplsrv: no DSDB replication required in domain member configuration");
+		task_server_terminate(task, "dreplsrv: no DSDB replication required in domain member configuration", 
+				      false);
 		return;
 	case ROLE_DOMAIN_CONTROLLER:
 		/* Yes, we want DSDB replication */
@@ -135,7 +154,7 @@ static void dreplsrv_task_init(struct task_server *task)
 
 	service = talloc_zero(task, struct dreplsrv_service);
 	if (!service) {
-		task_server_terminate(task, "dreplsrv_task_init: out of memory");
+		task_server_terminate(task, "dreplsrv_task_init: out of memory", true);
 		return;
 	}
 	service->task		= task;
@@ -146,7 +165,7 @@ static void dreplsrv_task_init(struct task_server *task)
 	if (!W_ERROR_IS_OK(status)) {
 		task_server_terminate(task, talloc_asprintf(task,
 				      "dreplsrv: Failed to obtain server credentials: %s\n",
-				      win_errstr(status)));
+							    win_errstr(status)), true);
 		return;
 	}
 
@@ -154,7 +173,7 @@ static void dreplsrv_task_init(struct task_server *task)
 	if (!W_ERROR_IS_OK(status)) {
 		task_server_terminate(task, talloc_asprintf(task,
 				      "dreplsrv: Failed to connect to local samdb: %s\n",
-				      win_errstr(status)));
+							    win_errstr(status)), true);
 		return;
 	}
 
@@ -162,7 +181,7 @@ static void dreplsrv_task_init(struct task_server *task)
 	if (!W_ERROR_IS_OK(status)) {
 		task_server_terminate(task, talloc_asprintf(task,
 				      "dreplsrv: Failed to load partitions: %s\n",
-				      win_errstr(status)));
+							    win_errstr(status)), true);
 		return;
 	}
 
@@ -173,11 +192,23 @@ static void dreplsrv_task_init(struct task_server *task)
 	if (!W_ERROR_IS_OK(status)) {
 		task_server_terminate(task, talloc_asprintf(task,
 				      "dreplsrv: Failed to periodic schedule: %s\n",
-				      win_errstr(status)));
+							    win_errstr(status)), true);
+		return;
+	}
+
+	service->notify.interval = lp_parm_int(task->lp_ctx, NULL, "dreplsrv", 
+					       "notify_interval", 5); /* in seconds */
+	status = dreplsrv_notify_schedule(service, service->notify.interval);
+	if (!W_ERROR_IS_OK(status)) {
+		task_server_terminate(task, talloc_asprintf(task,
+				      "dreplsrv: Failed to setup notify schedule: %s\n",
+							    win_errstr(status)), true);
 		return;
 	}
 
 	irpc_add_name(task->msg_ctx, "dreplsrv");
+
+	IRPC_REGISTER(task->msg_ctx, drsuapi, DRSUAPI_DSREPLICASYNC, drepl_replica_sync, service);
 }
 
 /*

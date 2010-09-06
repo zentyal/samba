@@ -25,6 +25,7 @@
 */
 #define SECRETS_MACHINE_ACCT_PASS "SECRETS/$MACHINE.ACC"
 #define SECRETS_MACHINE_PASSWORD "SECRETS/MACHINE_PASSWORD"
+#define SECRETS_MACHINE_PASSWORD_PREV "SECRETS/MACHINE_PASSWORD.PREV"
 #define SECRETS_MACHINE_LAST_CHANGE_TIME "SECRETS/MACHINE_LAST_CHANGE_TIME"
 #define SECRETS_MACHINE_SEC_CHANNEL_TYPE "SECRETS/MACHINE_SEC_CHANNEL_TYPE"
 #define SECRETS_MACHINE_TRUST_ACCOUNT_NAME "SECRETS/SECRETS_MACHINE_TRUST_ACCOUNT_NAME"
@@ -59,18 +60,6 @@ struct machine_acct_pass {
 	uint8 hash[16];
 	time_t mod_time;
 };
-
-/*
- * storage structure for trusted domain
- */
-typedef struct trusted_dom_pass {
-	size_t uni_name_len;
-	smb_ucs2_t uni_name[32]; /* unicode domain name */
-	size_t pass_len;
-	fstring pass;		/* trust relationship's password */
-	time_t mod_time;
-	DOM_SID domain_sid;	/* remote domain's sid */
-} TRUSTED_DOM_PASS;
 
 /*
  * trusted domain entry/entries returned by secrets_get_trusted_domains

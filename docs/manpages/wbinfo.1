@@ -1,12 +1,12 @@
 .\"     Title: wbinfo
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 05/10/2010
+.\"      Date: 06/18/2010
 .\"    Manual: User Commands
-.\"    Source: Samba 3.4
+.\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "WBINFO" "1" "05/10/2010" "Samba 3\&.4" "User Commands"
+.TH "WBINFO" "1" "06/18/2010" "Samba 3\&.5" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -171,7 +171,7 @@ wbinfo \- Query information from winbind daemon
 .SH "Synopsis"
 .fam C
 .HP \w'\ 'u
-\FCwbinfo\F[] [\-a\ user%password] [\-\-all\-domains] [\-\-allocate\-gid] [\-\-allocate\-uid] [\-D\ domain] [\-\-domain\ domain] [\-g] [\-\-getdcname\ domain] [\-\-get\-auth\-user] [\-G\ gid] [\-h] [\-i\ user] [\-I\ ip] [\-K\ user%password] [\-m] [\-n\ name] [\-N\ netbios\-name] [\-\-own\-domain] [\-p] [\-r\ user] [\-\-remove\-uid\-mapping\ uid,sid] [\-\-remove\-gid\-mapping\ gid,sid] [\-s\ sid] [\-\-separator] [\-\-sequence] [\-\-set\-auth\-user\ user%password] [\-\-set\-uid\-mapping\ uid,sid] [\-\-set\-gid\-mapping\ gid,sid] [\-S\ sid] [\-t] [\-u] [\-\-uid\-info\ uid] [\-\-user\-domgroups\ sid] [\-\-user\-sids\ sid] [\-U\ uid] [\-V] [\-Y\ sid] [\-\-verbose]
+\FCwbinfo\F[] [\-a\ user%password] [\-\-all\-domains] [\-\-allocate\-gid] [\-\-allocate\-uid] [\-c] [\-D\ domain] [\-\-domain\ domain] [\-g] [\-\-getdcname\ domain] [\-\-get\-auth\-user] [\-G\ gid] [\-h] [\-i\ user] [\-I\ ip] [\-K\ user%password] [\-m] [\-n\ name] [\-N\ netbios\-name] [\-\-own\-domain] [\-p] [\-r\ user] [\-\-remove\-uid\-mapping\ uid,sid] [\-\-remove\-gid\-mapping\ gid,sid] [\-s\ sid] [\-\-separator] [\-\-sequence] [\-\-set\-auth\-user\ user%password] [\-\-set\-uid\-mapping\ uid,sid] [\-\-set\-gid\-mapping\ gid,sid] [\-S\ sid] [\-t] [\-u] [\-\-uid\-info\ uid] [\-\-user\-domgroups\ sid] [\-\-user\-sids\ sid] [\-U\ uid] [\-V] [\-Y\ sid] [\-\-verbose]
 .fam
 .SH "DESCRIPTION"
 .PP
@@ -229,6 +229,13 @@ Get a new UID out of idmap
 \-\-all\-domains
 .RS 4
 List all domains (trusted and own domain)\&.
+.RE
+.PP
+\-c|\-\-change\-secret
+.RS 4
+Change the trust account password\&. May be used in conjunction with
+\fBdomain\fR
+in order to change interdomain trust account passwords\&.
 .RE
 .PP
 \-\-domain \fIname\fR
@@ -376,7 +383,9 @@ then the operation will fail\&.
 .PP
 \-t|\-\-check\-secret
 .RS 4
-Verify that the workstation trust account created when the Samba server is added to the Windows NT domain is working\&.
+Verify that the workstation trust account created when the Samba server is added to the Windows NT domain is working\&. May be used in conjunction with
+\fBdomain\fR
+in order to verify interdomain trust accounts\&.
 .RE
 .PP
 \-u|\-\-domain\-users

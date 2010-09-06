@@ -21,10 +21,8 @@
 #include "libcli/smb2/smb2.h"
 #include "libcli/smb2/smb2_calls.h"
 #include "smb_server/smb_server.h"
-#include "smb_server/service_smb_proto.h"
 #include "smb_server/smb2/smb2_server.h"
 #include "ntvfs/ntvfs.h"
-#include "libcli/raw/libcliraw.h"
 #include "libcli/raw/raw_proto.h"
 #include "librpc/gen_ndr/ndr_security.h"
 
@@ -181,6 +179,10 @@ static void smb2srv_close_send(struct ntvfs_request *ntvfs)
 	SBVAL(req->out.body,	0x28,	io->smb2.out.alloc_size);
 	SBVAL(req->out.body,	0x30,	io->smb2.out.size);
 	SIVAL(req->out.body,	0x38,	io->smb2.out.file_attr);
+
+	/* also destroy the chained file handle */
+	req->chained_file_handle = NULL;
+	memset(req->_chained_file_handle, 0, sizeof(req->_chained_file_handle));
 
 	smb2srv_send_reply(req);
 }

@@ -38,22 +38,18 @@ struct tevent_context;
 #include "dsdb/schema/schema.h"
 #include "dsdb/samdb/samdb_proto.h"
 #include "dsdb/common/proto.h"
-#include "dsdb/common/flags.h"
+#include "../libds/common/flags.h"
 
 #define DSDB_CONTROL_CURRENT_PARTITION_OID "1.3.6.1.4.1.7165.4.3.2"
 struct dsdb_control_current_partition {
 	/* 
 	 * this is the version of the dsdb_control_current_partition
 	 * version 0: initial implementation
+	 * version 1: got rid of backend and module fields
 	 */
-#define DSDB_CONTROL_CURRENT_PARTITION_VERSION 0
+#define DSDB_CONTROL_CURRENT_PARTITION_VERSION 1
 	uint32_t version;
-
 	struct ldb_dn *dn;
-
-	const char *backend;
-
-	struct ldb_module *module;
 };
 
 #define DSDB_CONTROL_REPLICATED_UPDATE_OID "1.3.6.1.4.1.7165.4.3.3"
@@ -77,7 +73,7 @@ struct dsdb_extended_replicated_objects {
 	 * this is the version of the dsdb_extended_replicated_objects
 	 * version 0: initial implementation
 	 */
-#define DSDB_EXTENDED_REPLICATED_OBJECTS_VERSION 0
+#define DSDB_EXTENDED_REPLICATED_OBJECTS_VERSION 1
 	uint32_t version;
 
 	struct ldb_dn *partition_dn;
@@ -87,6 +83,9 @@ struct dsdb_extended_replicated_objects {
 
 	uint32_t num_objects;
 	struct dsdb_extended_replicated_object *objects;
+
+	uint32_t linked_attributes_count;
+	const struct drsuapi_DsReplicaLinkedAttribute *linked_attributes;
 };
 
 struct dsdb_naming_fsmo {

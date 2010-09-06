@@ -436,7 +436,7 @@ void tevent_loop_set_nesting_hook(struct tevent_context *ev,
 				  tevent_nesting_hook hook,
 				  void *private_data)
 {
-	if (ev->nesting.hook_fn &&
+	if (ev->nesting.hook_fn && 
 	    (ev->nesting.hook_fn != hook ||
 	     ev->nesting.hook_private != private_data)) {
 		/* the way the nesting hook code is currently written

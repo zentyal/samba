@@ -24,6 +24,7 @@ from samba.tests import RpcInterfaceTestCase
 
 
 class RpcEchoTests(RpcInterfaceTestCase):
+
     def setUp(self):
         self.conn = echo.rpcecho("ncalrpc:", self.get_loadparm())
 
@@ -49,7 +50,7 @@ class RpcEchoTests(RpcInterfaceTestCase):
         surrounding_struct.x = 4
         surrounding_struct.surrounding = [1,2,3,4]
         y = self.conn.TestSurrounding(surrounding_struct)
-        self.assertEquals(4 * [0], y.surrounding)
+        self.assertEquals(8 * [0], y.surrounding)
 
     def test_manual_request(self):
         self.assertEquals("\x01\x00\x00\x00", self.conn.request(0, chr(0) * 4))
@@ -59,6 +60,7 @@ class RpcEchoTests(RpcInterfaceTestCase):
 
 
 class NdrEchoTests(unittest.TestCase):
+
     def test_info1_push(self):
         x = echo.info1()
         x.v = 42

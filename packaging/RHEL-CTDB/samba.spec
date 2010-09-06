@@ -5,8 +5,8 @@ Summary: Samba SMB client and server
 Vendor: Samba Team
 Packager: Samba Team <samba@samba.org>
 Name:         samba
-Version:      3.4.8
-Release:      ctdb.1
+Version:      3.5.4
+Release:      1GITHASH
 Epoch:        0
 License: GNU GPL version 3
 Group: System Environment/Daemons
@@ -29,7 +29,7 @@ Provides: samba = %{version}
 
 Prefix: /usr
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
-BuildRequires: pam-devel, readline-devel, fileutils, libacl-devel, openldap-devel, krb5-devel, cups-devel, ctdb
+BuildRequires: pam-devel, readline-devel, fileutils, libacl-devel, openldap-devel, krb5-devel, cups-devel, ctdb, e2fsprogs-devel
 
 # Working around perl dependency problem from docs
 %define __perl_requires %{SOURCE998}
@@ -43,6 +43,7 @@ BuildRequires: pam-devel, readline-devel, fileutils, libacl-devel, openldap-deve
 
 %define _libarchdir /usr/%{_libarch}
 
+%define numcpu  %(grep "^processor" /proc/cpuinfo |wc -l | sed -e 's/^0$/1/')
 
 %description
 Samba is the protocol by which a lot of PC-related machines share
@@ -93,7 +94,7 @@ The samba-swat package includes the new SWAT (Samba Web Administration
 Tool), for remotely managing Samba's smb.conf file using your favorite
 Web browser.
 
-%ifarch i386 i486 i586 i686 ppc s390
+%ifarch x86_64 ppc64
 %package winbind-32bit
 Summary:        Samba winbind compatibility package for 32bit apps on 64bit archs
 Group:          Applications/System
@@ -129,7 +130,7 @@ utilized by SWAT as well as the HTML and PDF version of "Using Samba",
 
 /bin/cp setup/filter-requires-samba.sh %{SOURCE998}
 
-cd source
+cd source3
 # RPM_OPT_FLAGS="$RPM_OPT_FLAGS -D_FILE_OFFSET_BITS=64"
 
 ## check for ccache
@@ -143,6 +144,80 @@ export CC
 
 ## always run autogen.sh
 ./autogen.sh
+
+
+##
+## build the files for the winbind-32bit compat package
+## and copy them to a safe location
+##
+%ifarch x86_64 ppc64
+
+# a directory to store the 32bit compatibility modules for later install
+%define _32bit_tmp_dir %{_tmppath}/%{name}-%{version}-32bit
+
+CC_SAVE="$CC"
+CC="$CC -m32"
+
+CFLAGS="$RPM_OPT_FLAGS -D_GNU_SOURCE -m32" ./configure \
+	--prefix=%{_prefix} \
+	--localstatedir=/var \
+        --with-configdir=%{_sysconfdir}/samba \
+        --with-libdir=/usr/lib/samba \
+	--with-pammodulesdir=/lib/security \
+        --with-lockdir=/var/lib/samba \
+        --with-logfilebase=/var/log/samba \
+        --with-mandir=%{_mandir} \
+        --with-piddir=/var/run \
+	--with-privatedir=%{_sysconfdir}/samba \
+	--disable-cups \
+        --with-acl-support \
+	--with-ads \
+        --with-automount \
+        --with-fhs \
+	--with-pam_smbpass \
+	--with-libsmbclient \
+	--with-libsmbsharemodes \
+        --without-smbwrapper \
+	--with-pam \
+	--with-quotas \
+	--with-syslog \
+	--with-utmp \
+	--with-cluster-support \
+	--with-ctdb=/usr/include \
+	--without-ldb \
+	--without-dnsupdate \
+	--with-aio-support \
+	--disable-merged-build
+
+make showlayout
+
+## check for gcc 3.4 or later
+CC_VERSION=`${CC} --version | head -1 | awk '{print $3}'`
+CC_MAJOR=`echo ${CC_VERSION} | cut -d. -f 1`
+CC_MINOR=`echo ${CC_VERSION} | cut -d. -f 2`
+if [ ${CC_MAJOR} -ge 3 ]; then
+        if [ ${CC_MAJOR} -gt 3 -o ${CC_MINOR} -ge 4 ]; then
+                make pch
+        fi
+fi
+
+make -j%{numcpu} %{?_smp_mflags} \
+	nss_modules pam_modules
+
+rm -rf %{_32bit_tmp_dir}
+mkdir %{_32bit_tmp_dir}
+
+mv ../nsswitch/libnss_winbind.so %{_32bit_tmp_dir}/
+mv bin/pam_winbind.so %{_32bit_tmp_dir}/
+mv bin/libtalloc.so* %{_32bit_tmp_dir}/
+mv bin/libtdb.so* %{_32bit_tmp_dir}/
+mv bin/libwbclient.so* %{_32bit_tmp_dir}/
+
+make clean
+
+CC="$CC_SAVE"
+
+%endif
 
 CFLAGS="$RPM_OPT_FLAGS $EXTRA -D_GNU_SOURCE" ./configure \
 	--prefix=%{_prefix} \
@@ -176,7 +251,8 @@ CFLAGS="$RPM_OPT_FLAGS $EXTRA -D_GNU_SOURCE" ./configure \
 	--with-ctdb=/usr/include \
 	--without-ldb \
 	--without-dnsupdate \
-	--with-aio-support
+	--with-aio-support\
+	--disable-merged-build
 
 make showlayout
 
@@ -191,8 +267,18 @@ if [ ${CC_MAJOR} -ge 3 ]; then
 fi
 
 
-make CFLAGS="$RPM_OPT_FLAGS -D_GNU_SOURCE" %{?_smp_mflags} \
-	all modules pam_smbpass
+make -j %{numcpu} %{?_smp_mflags} \
+	everything modules pam_smbpass
+
+# check that desired suppor has been compiled into smbd:
+export LD_LIBRARY_PATH=./bin
+for test in HAVE_POSIX_ACLS HAVE_LDAP HAVE_KRB5 HAVE_GPFS CLUSTER_SUPPORT
+do
+	if ! $(./bin/smbd -b | grep -q $test ) ; then
+		echo "ERROR: '$test' is not in smbd. Build stopped."
+		exit 1;
+	fi
+done
 
 # Remove some permission bits to avoid to many dependencies
 cd ..
@@ -209,6 +295,7 @@ mkdir -p $RPM_BUILD_ROOT%{_initrddir}
 mkdir -p $RPM_BUILD_ROOT{%{_libarchdir},%{_includedir}}
 mkdir -p $RPM_BUILD_ROOT%{_libarchdir}/samba/{auth,charset,idmap,vfs,pdb}
 mkdir -p $RPM_BUILD_ROOT/%{_libarch}/security
+mkdir -p $RPM_BUILD_ROOT/lib/security
 mkdir -p $RPM_BUILD_ROOT%{_mandir}
 mkdir -p $RPM_BUILD_ROOT%{_prefix}/{bin,sbin}
 mkdir -p $RPM_BUILD_ROOT%{_prefix}/lib
@@ -220,23 +307,43 @@ mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/{samba,sysconfig}
 mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/xinetd.d
 mkdir -p $RPM_BUILD_ROOT/var/lib/samba/winbindd_privileged
 mkdir -p $RPM_BUILD_ROOT/var/{log,run/winbindd,spool}/samba
+mkdir -p $RPM_BUILD_ROOT/%{_libarchdir}/krb5/plugins/libkrb5
 
-cd source
+cd source3
 make DESTDIR=$RPM_BUILD_ROOT \
         install
+
+make DESTDIR=$RPM_BUILD_ROOT \
+        install-dbwrap_tool install-dbwrap_torture
 cd ..
 
 # NSS winbind support
-install -m 755 source/nsswitch/libnss_winbind.so $RPM_BUILD_ROOT/%{_libarch}/libnss_winbind.so.2
+install -m 755 nsswitch/libnss_winbind.so $RPM_BUILD_ROOT/%{_libarch}/libnss_winbind.so.2
 ( cd $RPM_BUILD_ROOT/%{_libarch};
   ln -sf libnss_winbind.so.2  libnss_winbind.so )
 #
 # do not install libnss_wins.so in order to reduce dependencies
 # (we do not need it for the samba-ctdb scenario)
 #
-#install -m 755 source/nsswitch/libnss_wins.so $RPM_BUILD_ROOT/%{_libarch}/libnss_wins.so
+#install -m 755 nsswitch/libnss_wins.so $RPM_BUILD_ROOT/%{_libarch}/libnss_wins.so
 # ( cd $RPM_BUILD_ROOT/%{_libarch}; ln -sf libnss_wins.so  libnss_wins.so.2 )
 
+cp -p source3/bin/winbind_krb5_locator.so ${RPM_BUILD_ROOT}/%{_libarchdir}/krb5/plugins/libkrb5
+
+# install files for winbind-32bit package
+%ifarch x86_64 ppc64
+
+install -m 755 %{_32bit_tmp_dir}/libnss_winbind.so ${RPM_BUILD_ROOT}/lib/libnss_winbind.so.2
+( cd ${RPM_BUILD_ROOT}/lib; ln -sf libnss_winbind.so.2  libnss_winbind.so )
+
+mv %{_32bit_tmp_dir}/libtalloc* ${RPM_BUILD_ROOT}/usr/lib
+mv %{_32bit_tmp_dir}/libtdb* ${RPM_BUILD_ROOT}/usr/lib
+mv %{_32bit_tmp_dir}/libwbclient* ${RPM_BUILD_ROOT}/usr/lib
+mv %{_32bit_tmp_dir}/pam_winbind.so ${RPM_BUILD_ROOT}/lib/security
+
+rm -rf %{_32bit_tmp_dir}
+
+%endif
 
 ## cleanup
 /bin/rm -rf $RPM_BUILD_ROOT/usr/lib*/samba/security
@@ -253,9 +360,9 @@ install -m644 setup/samba.pamd $RPM_BUILD_ROOT%{_sysconfdir}/pam.d/samba
 install -m755 setup/smbprint $RPM_BUILD_ROOT%{_bindir}
 install -m644 setup/smbusers $RPM_BUILD_ROOT%{_sysconfdir}/samba/smbusers
 install -m644 setup/smb.conf $RPM_BUILD_ROOT%{_sysconfdir}/samba/smb.conf
-install -m755 source/bin/mount.cifs $RPM_BUILD_ROOT/sbin/mount.cifs
-install -m755 source/bin/umount.cifs $RPM_BUILD_ROOT/sbin/umount.cifs
-install -m755 source/script/mksmbpasswd.sh $RPM_BUILD_ROOT%{_bindir}
+install -m755 source3/bin/mount.cifs $RPM_BUILD_ROOT/sbin/mount.cifs
+install -m755 source3/bin/umount.cifs $RPM_BUILD_ROOT/sbin/umount.cifs
+install -m755 source3/script/mksmbpasswd.sh $RPM_BUILD_ROOT%{_bindir}
 
 /bin/rm $RPM_BUILD_ROOT%{_sbindir}/*mount.cifs
 
@@ -363,10 +470,34 @@ exit 0
 %{_bindir}/tdbdump
 %{_bindir}/eventlogadm
 
-%{_libarchdir}/samba/idmap/*.so
-%{_libarchdir}/samba/nss_info/*.so
-%{_libarchdir}/samba/vfs/*.so
-%{_libarchdir}/samba/auth/*.so
+%{_libarchdir}/samba/auth/script.so
+%{_libarchdir}/samba/vfs/acl_tdb.so
+%{_libarchdir}/samba/vfs/acl_xattr.so
+%{_libarchdir}/samba/vfs/aio_fork.so
+%{_libarchdir}/samba/vfs/audit.so
+%{_libarchdir}/samba/vfs/cap.so
+%{_libarchdir}/samba/vfs/default_quota.so
+%{_libarchdir}/samba/vfs/dirsort.so
+%{_libarchdir}/samba/vfs/expand_msdfs.so
+%{_libarchdir}/samba/vfs/extd_audit.so
+%{_libarchdir}/samba/vfs/fake_perms.so
+%{_libarchdir}/samba/vfs/fileid.so
+%{_libarchdir}/samba/vfs/full_audit.so
+%{_libarchdir}/samba/vfs/gpfs.so
+%{_libarchdir}/samba/vfs/netatalk.so
+%{_libarchdir}/samba/vfs/preopen.so
+%{_libarchdir}/samba/vfs/readahead.so
+%{_libarchdir}/samba/vfs/readonly.so
+%{_libarchdir}/samba/vfs/recycle.so
+%{_libarchdir}/samba/vfs/shadow_copy.so
+%{_libarchdir}/samba/vfs/shadow_copy2.so
+%{_libarchdir}/samba/vfs/smb_traffic_analyzer.so
+%{_libarchdir}/samba/vfs/streams_depot.so
+%{_libarchdir}/samba/vfs/streams_xattr.so
+%{_libarchdir}/samba/vfs/syncops.so
+%{_libarchdir}/samba/vfs/tsmsm.so
+%{_libarchdir}/samba/vfs/xattr_tdb.so
+
 
 %{_mandir}/man1/smbcontrol.1*
 %{_mandir}/man1/smbstatus.1*
@@ -381,7 +512,6 @@ exit 0
 %{_mandir}/man8/tdbtool.8*
 %{_mandir}/man8/eventlogadm.8*
 %{_mandir}/man8/vfs_*.8*
-%{_mandir}/man8/idmap_*.8*
 
 
 ##########
@@ -424,6 +554,7 @@ exit 0
 %{_bindir}/smbspool
 %{_bindir}/smbtar
 %{_bindir}/smbtree
+%{_bindir}/sharesec
 
 %{_mandir}/man8/mount.cifs.8.*
 %{_mandir}/man8/umount.cifs.8.*
@@ -438,6 +569,7 @@ exit 0
 %{_mandir}/man1/smbclient.1*
 %{_mandir}/man1/smbtar.1*
 %{_mandir}/man1/smbtree.1*
+%{_mandir}/man1/sharesec.1*
 
 ##########
 
@@ -450,29 +582,44 @@ exit 0
 %config(noreplace) %{_sysconfdir}/samba/lmhosts
 %attr(755,root,root) %config %{initdir}/winbind
 
-#%attr(755,root,root) /%{_libarch}/libnss_wins.so*
-%attr(755,root,root) /%{_libarch}/libnss_winbind.so*
+%attr(755,root,root) /%{_libarch}/libnss_winbind.so
+%attr(755,root,root) /%{_libarch}/libnss_winbind.so.2
 %attr(755,root,root) /%{_libarch}/security/pam_winbind.so
 %attr(755,root,root) /%{_libarch}/security/pam_smbpass.so
+/usr/share/locale/*/LC_MESSAGES/pam_winbind.mo
+
+%{_libarchdir}/samba/charset/CP437.so
+%{_libarchdir}/samba/charset/CP850.so
+%{_libarchdir}/samba/idmap/ad.so
+%{_libarchdir}/samba/idmap/rid.so
+%{_libarchdir}/samba/idmap/tdb2.so
+%{_libarchdir}/samba/lowcase.dat
+%{_libarchdir}/samba/nss_info/rfc2307.so
+%{_libarchdir}/samba/nss_info/sfu.so
+%{_libarchdir}/samba/nss_info/sfu20.so
+%{_libarchdir}/samba/upcase.dat
+%{_libarchdir}/samba/valid.dat
 
 %{_includedir}/libsmbclient.h
 %{_libarchdir}/libsmbclient.*
-#%{_includedir}/libmsrpc.h
-#%{_libarchdir}/libmsrpc.*
 %{_includedir}/smb_share_modes.h
-%{_libarchdir}/libsmbsharemodes.*
-
-%{_libarchdir}/samba/*.dat
-%{_libarchdir}/samba/charset/*.so
+%{_libarchdir}/libsmbsharemodes.so
+%{_libarchdir}/libsmbsharemodes.so.0
 
 %{_includedir}/netapi.h
 %{_includedir}/wbclient.h
 %{_includedir}/talloc.h
 %{_includedir}/tdb.h
-%{_libarchdir}/libnetapi.so*
-%{_libarchdir}/libtalloc.so*
-%{_libarchdir}/libtdb.so*
-%{_libarchdir}/libwbclient.so*
+%{_libarchdir}/libnetapi.so
+%{_libarchdir}/libnetapi.so.0
+%{_libarchdir}/libtalloc.so
+%{_libarchdir}/libtalloc.so.1
+%{_libarchdir}/libtdb.so
+%{_libarchdir}/libtdb.so.1
+%{_libarchdir}/libwbclient.so
+%{_libarchdir}/libwbclient.so.0
+
+%{_libarchdir}/krb5/plugins/libkrb5/winbind_krb5_locator.so
 
 %{_sbindir}/winbind
 
@@ -486,10 +633,13 @@ exit 0
 %{_bindir}/ldbedit
 %{_bindir}/ldbmodify
 %{_bindir}/ldbsearch
+%{_bindir}/ldbrename
 %{_bindir}/wbinfo
 %{_bindir}/ntlm_auth
 %{_bindir}/pdbedit
 %{_bindir}/smbcquotas
+%{_bindir}/dbwrap_tool
+%{_bindir}/dbwrap_torture
 
 %{_mandir}/man1/ntlm_auth.1*
 %{_mandir}/man1/profiles.1*
@@ -501,21 +651,28 @@ exit 0
 %{_mandir}/man1/wbinfo.1*
 %{_mandir}/man8/winbindd.8*
 %{_mandir}/man8/net.8*
-%{_mandir}/man7/pam_winbind.7*
+%{_mandir}/man8/pam_winbind.8*
 %{_mandir}/man7/libsmbclient.7*
 %{_mandir}/man1/ldbadd.1*
 %{_mandir}/man1/ldbdel.1*
 %{_mandir}/man1/ldbedit.1*
 %{_mandir}/man1/ldbmodify.1*
 %{_mandir}/man1/ldbsearch.1*
+%{_mandir}/man1/ldbrename.1*
+%{_mandir}/man7/winbind_krb5_locator.7*
+%{_mandir}/man8/idmap_*.8*
 
-%ifarch i386 i486 i586 i686 ppc s390
+%ifarch x86_64 ppc64
 %files winbind-32bit
-%attr(755,root,root) /%{_libarch}/libnss_winbind.so*
-#%attr(755,root,root) /%{_libarch}/libnss_wins.so*
-%attr(755,root,root) /%{_libarchdir}/libtalloc.so*
-%attr(755,root,root) /%{_libarchdir}/libtdb.so*
-%attr(755,root,root) /%{_libarch}/security/pam_winbind.so
+%attr(755,root,root) /lib/libnss_winbind.so
+%attr(755,root,root) /lib/libnss_winbind.so.2
+%attr(755,root,root) /usr/lib/libtalloc.so
+%attr(755,root,root) /usr/lib/libtalloc.so.1
+%attr(755,root,root) /usr/lib/libtdb.so
+%attr(755,root,root) /usr/lib/libtdb.so.1
+%attr(755,root,root) /usr/lib/libwbclient.so
+%attr(755,root,root) /usr/lib/libwbclient.so.0
+%attr(755,root,root) /lib/security/pam_winbind.so
 %endif
 
 

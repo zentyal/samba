@@ -118,8 +118,10 @@
 #define real_setsockopt setsockopt
 #define real_recvfrom recvfrom
 #define real_sendto sendto
+#define real_sendmsg sendmsg
 #define real_ioctl ioctl
 #define real_recv recv
+#define real_read read
 #define real_send send
 #define real_readv readv
 #define real_writev writev
@@ -218,6 +220,7 @@ struct socket_info
 	int bcast;
 	int is_server;
 	int connected;
+	int defer_connect;
 
 	char *path;
 	char *tmp_path;
@@ -346,7 +349,7 @@ static int convert_in_un_remote(struct socket_info *si, const struct sockaddr *i
 
 	if (bcast) *bcast = 0;
 
-	switch (si->family) {
+	switch (inaddr->sa_family) {
 	case AF_INET: {
 		const struct sockaddr_in *in = 
 		    (const struct sockaddr_in *)inaddr;
@@ -667,7 +670,7 @@ enum swrap_packet_type {
 	SWRAP_SEND_RST,
 	SWRAP_CLOSE_SEND,
 	SWRAP_CLOSE_RECV,
-	SWRAP_CLOSE_ACK
+	SWRAP_CLOSE_ACK,
 };
 
 struct swrap_file_hdr {
@@ -1382,6 +1385,13 @@ _PUBLIC_ int swrap_socket(int family, int type, int protocol)
 {
 	struct socket_info *si;
 	int fd;
+	int real_type = type;
+#ifdef SOCK_CLOEXEC
+	real_type &= ~SOCK_CLOEXEC;
+#endif
+#ifdef SOCK_NONBLOCK
+	real_type &= ~SOCK_NONBLOCK;
+#endif
 
 	if (!socket_wrapper_dir()) {
 		return real_socket(family, type, protocol);
@@ -1400,7 +1410,7 @@ _PUBLIC_ int swrap_socket(int family, int type, int protocol)
 		return -1;
 	}
 
-	switch (type) {
+	switch (real_type) {
 	case SOCK_STREAM:
 		break;
 	case SOCK_DGRAM:
@@ -1414,12 +1424,12 @@ _PUBLIC_ int swrap_socket(int family, int type, int protocol)
 	case 0:
 		break;
 	case 6:
-		if (type == SOCK_STREAM) {
+		if (real_type == SOCK_STREAM) {
 			break;
 		}
 		/*fall through*/
 	case 17:
-		if (type == SOCK_DGRAM) {
+		if (real_type == SOCK_DGRAM) {
 			break;
 		}
 		/*fall through*/
@@ -1428,6 +1438,8 @@ _PUBLIC_ int swrap_socket(int family, int type, int protocol)
 		return -1;
 	}
 
+	/* We must call real_socket with type, from the caller, not the version we removed
+	   SOCK_CLOEXEC and SOCK_NONBLOCK from */
 	fd = real_socket(AF_UNIX, type, 0);
 
 	if (fd == -1) return -1;
@@ -1435,7 +1447,10 @@ _PUBLIC_ int swrap_socket(int family, int type, int protocol)
 	si = (struct socket_info *)calloc(1, sizeof(struct socket_info));
 
 	si->family = family;
-	si->type = type;
+
+	/* however, the rest of the socket_wrapper code expects just
+	 * the type, not the flags */
+	si->type = real_type;
 	si->protocol = protocol;
 	si->fd = fd;
 
@@ -1688,10 +1703,15 @@ _PUBLIC_ int swrap_connect(int s, const struct sockaddr *serv_addr, socklen_t ad
 	ret = sockaddr_convert_to_un(si, (const struct sockaddr *)serv_addr, addrlen, &un_addr, 0, NULL);
 	if (ret == -1) return -1;
 
-	swrap_dump_packet(si, serv_addr, SWRAP_CONNECT_SEND, NULL, 0);
+	if (si->type == SOCK_DGRAM) {
+		si->defer_connect = 1;
+		ret = 0;
+	} else {
+		swrap_dump_packet(si, serv_addr, SWRAP_CONNECT_SEND, NULL, 0);
 
-	ret = real_connect(s, (struct sockaddr *)&un_addr, 
-			   sizeof(struct sockaddr_un));
+		ret = real_connect(s, (struct sockaddr *)&un_addr,
+				   sizeof(struct sockaddr_un));
+	}
 
 	/* to give better errors */
 	if (ret == -1 && errno == ENOENT) {
@@ -1819,6 +1839,10 @@ _PUBLIC_ int swrap_setsockopt(int s, int  level,  int  optname,  const  void  *o
 	switch (si->family) {
 	case AF_INET:
 		return 0;
+#ifdef HAVE_IPV6
+	case AF_INET6:
+		return 0;
+#endif
 	default:
 		errno = ENOPROTOOPT;
 		return -1;
@@ -1843,7 +1867,12 @@ _PUBLIC_ ssize_t swrap_recvfrom(int s, void *buf, size_t len, int flags, struct 
 		fromlen = &ss_len;
 	}
 
-	len = MIN(len, 1500);
+	if (si->type == SOCK_STREAM) {
+		/* cut down to 1500 byte packets for stream sockets,
+		 * which makes it easier to format PCAP capture files
+		 * (as the caller will simply continue from here) */
+		len = MIN(len, 1500);
+	}
 
 	/* irix 6.4 forgets to null terminate the sun_path string :-( */
 	memset(&un_addr, 0, sizeof(un_addr));
@@ -1883,10 +1912,13 @@ _PUBLIC_ ssize_t swrap_sendto(int s, const void *buf, size_t len, int flags, con
 		tolen = si->peername_len;
 	}
 
-	len = MIN(len, 1500);
-
 	switch (si->type) {
 	case SOCK_STREAM:
+		/* cut down to 1500 byte packets for stream sockets,
+		 * which makes it easier to format PCAP capture files
+		 * (as the caller will simply continue from here) */
+		len = MIN(len, 1500);
+	
 		ret = real_send(s, buf, len, flags);
 		break;
 	case SOCK_DGRAM:
@@ -1919,7 +1951,22 @@ _PUBLIC_ ssize_t swrap_sendto(int s, const void *buf, size_t len, int flags, con
 			
 			return len;
 		}
-		
+
+		if (si->defer_connect) {
+			ret = real_connect(s, (struct sockaddr *)&un_addr,
+					   sizeof(un_addr));
+
+			/* to give better errors */
+			if (ret == -1 && errno == ENOENT) {
+				errno = EHOSTUNREACH;
+			}
+
+			if (ret == -1) {
+				return ret;
+			}
+			si->defer_connect = 0;
+		}
+
 		ret = real_sendto(s, buf, len, flags, (struct sockaddr *)&un_addr, sizeof(un_addr));
 		break;
 	default:
@@ -1978,9 +2025,42 @@ _PUBLIC_ ssize_t swrap_recv(int s, void *buf, size_t len, int flags)
 		return real_recv(s, buf, len, flags);
 	}
 
-	len = MIN(len, 1500);
+	if (si->type == SOCK_STREAM) {
+		/* cut down to 1500 byte packets for stream sockets,
+		 * which makes it easier to format PCAP capture files
+		 * (as the caller will simply continue from here) */
+		len = MIN(len, 1500);
+	}
 
 	ret = real_recv(s, buf, len, flags);
+	if (ret == -1 && errno != EAGAIN && errno != ENOBUFS) {
+		swrap_dump_packet(si, NULL, SWRAP_RECV_RST, NULL, 0);
+	} else if (ret == 0) { /* END OF FILE */
+		swrap_dump_packet(si, NULL, SWRAP_RECV_RST, NULL, 0);
+	} else if (ret > 0) {
+		swrap_dump_packet(si, NULL, SWRAP_RECV, buf, ret);
+	}
+
+	return ret;
+}
+
+_PUBLIC_ ssize_t swrap_read(int s, void *buf, size_t len)
+{
+	int ret;
+	struct socket_info *si = find_socket_info(s);
+
+	if (!si) {
+		return real_read(s, buf, len);
+	}
+
+	if (si->type == SOCK_STREAM) {
+		/* cut down to 1500 byte packets for stream sockets,
+		 * which makes it easier to format PCAP capture files
+		 * (as the caller will simply continue from here) */
+		len = MIN(len, 1500);
+	}
+
+	ret = real_read(s, buf, len);
 	if (ret == -1 && errno != EAGAIN && errno != ENOBUFS) {
 		swrap_dump_packet(si, NULL, SWRAP_RECV_RST, NULL, 0);
 	} else if (ret == 0) { /* END OF FILE */
@@ -2002,7 +2082,39 @@ _PUBLIC_ ssize_t swrap_send(int s, const void *buf, size_t len, int flags)
 		return real_send(s, buf, len, flags);
 	}
 
-	len = MIN(len, 1500);
+	if (si->type == SOCK_STREAM) {
+		/* cut down to 1500 byte packets for stream sockets,
+		 * which makes it easier to format PCAP capture files
+		 * (as the caller will simply continue from here) */
+		len = MIN(len, 1500);
+	}
+
+	if (si->defer_connect) {
+		struct sockaddr_un un_addr;
+		int bcast = 0;
+
+		if (si->bound == 0) {
+			ret = swrap_auto_bind(si, si->family);
+			if (ret == -1) return -1;
+		}
+
+		ret = sockaddr_convert_to_un(si, si->peername, si->peername_len,
+					     &un_addr, 0, &bcast);
+		if (ret == -1) return -1;
+
+		ret = real_connect(s, (struct sockaddr *)&un_addr,
+				   sizeof(un_addr));
+
+		/* to give better errors */
+		if (ret == -1 && errno == ENOENT) {
+			errno = EHOSTUNREACH;
+		}
+
+		if (ret == -1) {
+			return ret;
+		}
+		si->defer_connect = 0;
+	}
 
 	ret = real_send(s, buf, len, flags);
 
@@ -2011,6 +2123,76 @@ _PUBLIC_ ssize_t swrap_send(int s, const void *buf, size_t len, int flags)
 		swrap_dump_packet(si, NULL, SWRAP_SEND_RST, NULL, 0);
 	} else {
 		swrap_dump_packet(si, NULL, SWRAP_SEND, buf, ret);
+	}
+
+	return ret;
+}
+
+_PUBLIC_ ssize_t swrap_sendmsg(int s, const struct msghdr *msg, int flags)
+{
+	int ret;
+	uint8_t *buf;
+	off_t ofs = 0;
+	size_t i;
+	size_t remain;
+	
+	struct socket_info *si = find_socket_info(s);
+
+	if (!si) {
+		return real_sendmsg(s, msg, flags);
+	}
+
+	if (si->defer_connect) {
+		struct sockaddr_un un_addr;
+		int bcast = 0;
+
+		if (si->bound == 0) {
+			ret = swrap_auto_bind(si, si->family);
+			if (ret == -1) return -1;
+		}
+
+		ret = sockaddr_convert_to_un(si, si->peername, si->peername_len,
+					     &un_addr, 0, &bcast);
+		if (ret == -1) return -1;
+
+		ret = real_connect(s, (struct sockaddr *)&un_addr,
+				   sizeof(un_addr));
+
+		/* to give better errors */
+		if (ret == -1 && errno == ENOENT) {
+			errno = EHOSTUNREACH;
+		}
+
+		if (ret == -1) {
+			return ret;
+		}
+		si->defer_connect = 0;
+	}
+
+	ret = real_sendmsg(s, msg, flags);
+	remain = ret;
+		
+	/* we capture it as one single packet */
+	buf = (uint8_t *)malloc(ret);
+	if (!buf) {
+		/* we just not capture the packet */
+		errno = 0;
+		return ret;
+	}
+	
+	for (i=0; i < msg->msg_iovlen; i++) {
+		size_t this_time = MIN(remain, msg->msg_iov[i].iov_len);
+		memcpy(buf + ofs,
+		       msg->msg_iov[i].iov_base,
+		       this_time);
+		ofs += this_time;
+		remain -= this_time;
+	}
+	
+	swrap_dump_packet(si, NULL, SWRAP_SEND, buf, ret);
+	free(buf);
+	if (ret == -1) {
+		swrap_dump_packet(si, NULL, SWRAP_SEND_RST, NULL, 0);
 	}
 
 	return ret;
@@ -2026,10 +2208,12 @@ int swrap_readv(int s, const struct iovec *vector, size_t count)
 		return real_readv(s, vector, count);
 	}
 
-	/* we read 1500 bytes as maximum */
-	if (count > 0) {
+	if (si->type == SOCK_STREAM && count > 0) {
+		/* cut down to 1500 byte packets for stream sockets,
+		 * which makes it easier to format PCAP capture files
+		 * (as the caller will simply continue from here) */
 		size_t i, len = 0;
-
+		
 		for (i=0; i < count; i++) {
 			size_t nlen;
 			nlen = len + vector[i].iov_len;
@@ -2091,8 +2275,10 @@ int swrap_writev(int s, const struct iovec *vector, size_t count)
 		return real_writev(s, vector, count);
 	}
 
-	/* we write 1500 bytes as maximum */
-	if (count > 0) {
+	if (si->type == SOCK_STREAM && count > 0) {
+		/* cut down to 1500 byte packets for stream sockets,
+		 * which makes it easier to format PCAP capture files
+		 * (as the caller will simply continue from here) */
 		size_t i, len = 0;
 
 		for (i=0; i < count; i++) {

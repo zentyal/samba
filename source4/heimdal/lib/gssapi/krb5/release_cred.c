@@ -31,9 +31,7 @@
  * SUCH DAMAGE.
  */
 
-#include "krb5/gsskrb5_locl.h"
-
-RCSID("$Id$");
+#include "gsskrb5_locl.h"
 
 OM_uint32 _gsskrb5_release_cred
            (OM_uint32 * minor_status,
@@ -61,8 +59,6 @@ OM_uint32 _gsskrb5_release_cred
     if (cred->keytab != NULL)
 	krb5_kt_close(context, cred->keytab);
     if (cred->ccache != NULL) {
-	const krb5_cc_ops *ops;
-	ops = krb5_cc_get_ops(context, cred->ccache);
 	if (cred->cred_flags & GSS_CF_DESTROY_CRED_ON_RELEASE)
 	    krb5_cc_destroy(context, cred->ccache);
 	else

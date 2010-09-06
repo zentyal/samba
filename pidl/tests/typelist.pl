@@ -4,7 +4,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 54;
+use Test::More tests => 56;
 use FindBin qw($RealBin);
 use lib "$RealBin";
 use Util;
@@ -21,6 +21,7 @@ is("int32", expandAlias("int32"));
 is("uint32_t", mapScalarType("uint32"));
 is("void", mapScalarType("void"));
 is("uint64_t", mapScalarType("hyper"));
+is("double", mapScalarType("double"));
 
 my $x = { TYPE => "ENUM", NAME => "foo", EXTRADATA => 1 };
 addType($x);
@@ -33,6 +34,12 @@ is_deeply(getType("uint16"), {
 		BASEFILE => "<builtin>",
 		TYPE => "TYPEDEF",
 		DATA => { NAME => "uint16", TYPE => "SCALAR" }});
+
+is_deeply(getType("double"), {
+		NAME => "double",
+		BASEFILE => "<builtin>",
+		TYPE => "TYPEDEF",
+		DATA => { NAME => "double", TYPE => "SCALAR" }});
 
 is(0, typeIs("someUnknownType", "ENUM"));
 is(0, typeIs("foo", "ENUM"));
@@ -64,7 +71,7 @@ is(0, scalar_is_reference({TYPE => "STRUCT", NAME => "echo_foobar"}));
 
 is("uint8", enum_type_fn({TYPE => "ENUM", PARENT=>{PROPERTIES => {enum8bit => 1}}}));
 is("uint32", enum_type_fn({TYPE => "ENUM", PARENT=>{PROPERTIES => {v1_enum => 1}}}));
-is("uint16", enum_type_fn({TYPE => "ENUM", PARENT=>{PROPERTIES => {}}}));
+is("uint1632", enum_type_fn({TYPE => "ENUM", PARENT=>{PROPERTIES => {}}}));
 
 is("uint8", bitmap_type_fn({TYPE => "BITMAP", PROPERTIES => {bitmap8bit => 1}}));
 is("uint16", bitmap_type_fn({TYPE => "BITMAP", PROPERTIES => {bitmap16bit => 1}}));

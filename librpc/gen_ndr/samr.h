@@ -41,9 +41,9 @@
 enum netr_SamDatabaseID
 #ifndef USE_UINT_ENUMS
  {
-	SAM_DATABASE_DOMAIN=0,
-	SAM_DATABASE_BUILTIN=1,
-	SAM_DATABASE_PRIVS=2
+	SAM_DATABASE_DOMAIN=(int)(0),
+	SAM_DATABASE_BUILTIN=(int)(1),
+	SAM_DATABASE_PRIVS=(int)(2)
 }
 #else
  { __donnot_use_enum_netr_SamDatabaseID=0x7FFFFFFF}
@@ -56,10 +56,10 @@ enum netr_SamDatabaseID
 enum samr_RejectReason
 #ifndef USE_UINT_ENUMS
  {
-	SAMR_REJECT_OTHER=0,
-	SAMR_REJECT_TOO_SHORT=1,
-	SAMR_REJECT_IN_HISTORY=2,
-	SAMR_REJECT_COMPLEXITY=5
+	SAMR_REJECT_OTHER=(int)(0),
+	SAMR_REJECT_TOO_SHORT=(int)(1),
+	SAMR_REJECT_IN_HISTORY=(int)(2),
+	SAMR_REJECT_COMPLEXITY=(int)(5)
 }
 #else
  { __donnot_use_enum_samr_RejectReason=0x7FFFFFFF}
@@ -149,13 +149,48 @@ struct samr_SamArray {
 	struct samr_SamEntry *entries;/* [unique,size_is(count)] */
 };
 
+enum samr_DomainInfoClass
+#ifndef USE_UINT_ENUMS
+ {
+	DomainPasswordInformation=(int)(1),
+	DomainGeneralInformation=(int)(2),
+	DomainLogoffInformation=(int)(3),
+	DomainOemInformation=(int)(4),
+	DomainNameInformation=(int)(5),
+	DomainReplicationInformation=(int)(6),
+	DomainServerRoleInformation=(int)(7),
+	DomainModifiedInformation=(int)(8),
+	DomainStateInformation=(int)(9),
+	DomainUasInformation=(int)(10),
+	DomainGeneralInformation2=(int)(11),
+	DomainLockoutInformation=(int)(12),
+	DomainModifiedInformation2=(int)(13)
+}
+#else
+ { __donnot_use_enum_samr_DomainInfoClass=0x7FFFFFFF}
+#define DomainPasswordInformation ( 1 )
+#define DomainGeneralInformation ( 2 )
+#define DomainLogoffInformation ( 3 )
+#define DomainOemInformation ( 4 )
+#define DomainNameInformation ( 5 )
+#define DomainReplicationInformation ( 6 )
+#define DomainServerRoleInformation ( 7 )
+#define DomainModifiedInformation ( 8 )
+#define DomainStateInformation ( 9 )
+#define DomainUasInformation ( 10 )
+#define DomainGeneralInformation2 ( 11 )
+#define DomainLockoutInformation ( 12 )
+#define DomainModifiedInformation2 ( 13 )
+#endif
+;
+
 enum samr_Role
 #ifndef USE_UINT_ENUMS
  {
-	SAMR_ROLE_STANDALONE=0,
-	SAMR_ROLE_DOMAIN_MEMBER=1,
-	SAMR_ROLE_DOMAIN_BDC=2,
-	SAMR_ROLE_DOMAIN_PDC=3
+	SAMR_ROLE_STANDALONE=(int)(0),
+	SAMR_ROLE_DOMAIN_MEMBER=(int)(1),
+	SAMR_ROLE_DOMAIN_BDC=(int)(2),
+	SAMR_ROLE_DOMAIN_PDC=(int)(3)
 }
 #else
  { __donnot_use_enum_samr_Role=0x7FFFFFFF}
@@ -177,8 +212,8 @@ enum samr_Role
 enum samr_DomainServerState
 #ifndef USE_UINT_ENUMS
  {
-	DOMAIN_SERVER_ENABLED=1,
-	DOMAIN_SERVER_DISABLED=2
+	DOMAIN_SERVER_ENABLED=(int)(1),
+	DOMAIN_SERVER_DISABLED=(int)(2)
 }
 #else
  { __donnot_use_enum_samr_DomainServerState=0x7FFFFFFF}
@@ -304,11 +339,11 @@ struct samr_GroupInfoDescription {
 enum samr_GroupInfoEnum
 #ifndef USE_UINT_ENUMS
  {
-	GROUPINFOALL=1,
-	GROUPINFONAME=2,
-	GROUPINFOATTRIBUTES=3,
-	GROUPINFODESCRIPTION=4,
-	GROUPINFOALL2=5
+	GROUPINFOALL=(int)(1),
+	GROUPINFONAME=(int)(2),
+	GROUPINFOATTRIBUTES=(int)(3),
+	GROUPINFODESCRIPTION=(int)(4),
+	GROUPINFOALL2=(int)(5)
 }
 #else
  { __donnot_use_enum_samr_GroupInfoEnum=0x7FFFFFFF}
@@ -343,9 +378,9 @@ struct samr_AliasInfoAll {
 enum samr_AliasInfoEnum
 #ifndef USE_UINT_ENUMS
  {
-	ALIASINFOALL=1,
-	ALIASINFONAME=2,
-	ALIASINFODESCRIPTION=3
+	ALIASINFOALL=(int)(1),
+	ALIASINFONAME=(int)(2),
+	ALIASINFODESCRIPTION=(int)(3)
 }
 #else
  { __donnot_use_enum_samr_AliasInfoEnum=0x7FFFFFFF}
@@ -360,6 +395,61 @@ union samr_AliasInfo {
 	struct lsa_String name;/* [case(ALIASINFONAME)] */
 	struct lsa_String description;/* [case(ALIASINFODESCRIPTION)] */
 }/* [switch_type(samr_AliasInfoEnum)] */;
+
+enum samr_UserInfoLevel
+#ifndef USE_UINT_ENUMS
+ {
+	UserGeneralInformation=(int)(1),
+	UserPreferencesInformation=(int)(2),
+	UserLogonInformation=(int)(3),
+	UserLogonHoursInformation=(int)(4),
+	UserAccountInformation=(int)(5),
+	UserNameInformation=(int)(6),
+	UserAccountNameInformation=(int)(7),
+	UserFullNameInformation=(int)(8),
+	UserPrimaryGroupInformation=(int)(9),
+	UserHomeInformation=(int)(10),
+	UserScriptInformation=(int)(11),
+	UserProfileInformation=(int)(12),
+	UserAdminCommentInformation=(int)(13),
+	UserWorkStationsInformation=(int)(14),
+	UserControlInformation=(int)(16),
+	UserExpiresInformation=(int)(17),
+	UserInternal1Information=(int)(18),
+	UserParametersInformation=(int)(20),
+	UserAllInformation=(int)(21),
+	UserInternal4Information=(int)(23),
+	UserInternal5Information=(int)(24),
+	UserInternal4InformationNew=(int)(25),
+	UserInternal5InformationNew=(int)(26)
+}
+#else
+ { __donnot_use_enum_samr_UserInfoLevel=0x7FFFFFFF}
+#define UserGeneralInformation ( 1 )
+#define UserPreferencesInformation ( 2 )
+#define UserLogonInformation ( 3 )
+#define UserLogonHoursInformation ( 4 )
+#define UserAccountInformation ( 5 )
+#define UserNameInformation ( 6 )
+#define UserAccountNameInformation ( 7 )
+#define UserFullNameInformation ( 8 )
+#define UserPrimaryGroupInformation ( 9 )
+#define UserHomeInformation ( 10 )
+#define UserScriptInformation ( 11 )
+#define UserProfileInformation ( 12 )
+#define UserAdminCommentInformation ( 13 )
+#define UserWorkStationsInformation ( 14 )
+#define UserControlInformation ( 16 )
+#define UserExpiresInformation ( 17 )
+#define UserInternal1Information ( 18 )
+#define UserParametersInformation ( 20 )
+#define UserAllInformation ( 21 )
+#define UserInternal4Information ( 23 )
+#define UserInternal5Information ( 24 )
+#define UserInternal4InformationNew ( 25 )
+#define UserInternal5InformationNew ( 26 )
+#endif
+;
 
 struct samr_UserInfo1 {
 	struct lsa_String account_name;
@@ -688,9 +778,9 @@ struct samr_PwInfo {
 enum samr_ConnectVersion
 #ifndef USE_UINT_ENUMS
  {
-	SAMR_CONNECT_PRE_W2K=1,
-	SAMR_CONNECT_W2K=2,
-	SAMR_CONNECT_AFTER_W2K=3
+	SAMR_CONNECT_PRE_W2K=(int)(1),
+	SAMR_CONNECT_W2K=(int)(2),
+	SAMR_CONNECT_AFTER_W2K=(int)(3)
 }
 #else
  { __donnot_use_enum_samr_ConnectVersion=0x7FFFFFFF}
@@ -726,9 +816,9 @@ union samr_ConnectInfo {
 enum samr_ValidatePasswordLevel
 #ifndef USE_UINT_ENUMS
  {
-	NetValidateAuthentication=1,
-	NetValidatePasswordChange=2,
-	NetValidatePasswordReset=3
+	NetValidateAuthentication=(int)(1),
+	NetValidatePasswordChange=(int)(2),
+	NetValidatePasswordReset=(int)(3)
 }
 #else
  { __donnot_use_enum_samr_ValidatePasswordLevel=0x7FFFFFFF}
@@ -741,27 +831,31 @@ enum samr_ValidatePasswordLevel
 enum samr_ValidationStatus
 #ifndef USE_UINT_ENUMS
  {
-	SAMR_VALIDATION_STATUS_SUCCESS=0,
-	SAMR_VALIDATION_STATUS_PASSWORD_MUST_CHANGE=1,
-	SAMR_VALIDATION_STATUS_ACCOUNT_LOCKED_OUT=2,
-	SAMR_VALIDATION_STATUS_BAD_PASSWORD=4,
-	SAMR_VALIDATION_STATUS_PWD_HISTORY_CONFLICT=5,
-	SAMR_VALIDATION_STATUS_PWD_TOO_SHORT=6,
-	SAMR_VALIDATION_STATUS_PWD_TOO_LONG=7,
-	SAMR_VALIDATION_STATUS_NOT_COMPLEX_ENOUGH=8,
-	SAMR_VALIDATION_STATUS_PASSWORD_TOO_RECENT=9
+	SAMR_VALIDATION_STATUS_SUCCESS=(int)(0),
+	SAMR_VALIDATION_STATUS_PASSWORD_MUST_CHANGE=(int)(1),
+	SAMR_VALIDATION_STATUS_ACCOUNT_LOCKED_OUT=(int)(2),
+	SAMR_VALIDATION_STATUS_PASSWORD_EXPIRED=(int)(3),
+	SAMR_VALIDATION_STATUS_BAD_PASSWORD=(int)(4),
+	SAMR_VALIDATION_STATUS_PWD_HISTORY_CONFLICT=(int)(5),
+	SAMR_VALIDATION_STATUS_PWD_TOO_SHORT=(int)(6),
+	SAMR_VALIDATION_STATUS_PWD_TOO_LONG=(int)(7),
+	SAMR_VALIDATION_STATUS_NOT_COMPLEX_ENOUGH=(int)(8),
+	SAMR_VALIDATION_STATUS_PASSWORD_TOO_RECENT=(int)(9),
+	SAMR_VALIDATION_STATUS_PASSWORD_FILTER_ERROR=(int)(10)
 }
 #else
  { __donnot_use_enum_samr_ValidationStatus=0x7FFFFFFF}
 #define SAMR_VALIDATION_STATUS_SUCCESS ( 0 )
 #define SAMR_VALIDATION_STATUS_PASSWORD_MUST_CHANGE ( 1 )
 #define SAMR_VALIDATION_STATUS_ACCOUNT_LOCKED_OUT ( 2 )
+#define SAMR_VALIDATION_STATUS_PASSWORD_EXPIRED ( 3 )
 #define SAMR_VALIDATION_STATUS_BAD_PASSWORD ( 4 )
 #define SAMR_VALIDATION_STATUS_PWD_HISTORY_CONFLICT ( 5 )
 #define SAMR_VALIDATION_STATUS_PWD_TOO_SHORT ( 6 )
 #define SAMR_VALIDATION_STATUS_PWD_TOO_LONG ( 7 )
 #define SAMR_VALIDATION_STATUS_NOT_COMPLEX_ENOUGH ( 8 )
 #define SAMR_VALIDATION_STATUS_PASSWORD_TOO_RECENT ( 9 )
+#define SAMR_VALIDATION_STATUS_PASSWORD_FILTER_ERROR ( 10 )
 #endif
 ;
 
@@ -936,7 +1030,7 @@ struct samr_OpenDomain {
 struct samr_QueryDomainInfo {
 	struct {
 		struct policy_handle *domain_handle;/* [ref] */
-		uint16_t level;
+		enum samr_DomainInfoClass level;
 	} in;
 
 	struct {
@@ -950,7 +1044,7 @@ struct samr_QueryDomainInfo {
 struct samr_SetDomainInfo {
 	struct {
 		struct policy_handle *domain_handle;/* [ref] */
-		uint16_t level;
+		enum samr_DomainInfoClass level;
 		union samr_DomainInfo *info;/* [ref,switch_is(level)] */
 	} in;
 
@@ -1343,7 +1437,7 @@ struct samr_DeleteUser {
 struct samr_QueryUserInfo {
 	struct {
 		struct policy_handle *user_handle;/* [ref] */
-		uint16_t level;
+		enum samr_UserInfoLevel level;
 	} in;
 
 	struct {
@@ -1357,7 +1451,7 @@ struct samr_QueryUserInfo {
 struct samr_SetUserInfo {
 	struct {
 		struct policy_handle *user_handle;/* [ref] */
-		uint16_t level;
+		enum samr_UserInfoLevel level;
 		union samr_UserInfo *info;/* [ref,switch_is(level)] */
 	} in;
 
@@ -1490,7 +1584,7 @@ struct samr_RemoveMemberFromForeignDomain {
 struct samr_QueryDomainInfo2 {
 	struct {
 		struct policy_handle *domain_handle;/* [ref] */
-		uint16_t level;
+		enum samr_DomainInfoClass level;
 	} in;
 
 	struct {
@@ -1504,7 +1598,7 @@ struct samr_QueryDomainInfo2 {
 struct samr_QueryUserInfo2 {
 	struct {
 		struct policy_handle *user_handle;/* [ref] */
-		uint16_t level;
+		enum samr_UserInfoLevel level;
 	} in;
 
 	struct {
@@ -1675,7 +1769,7 @@ struct samr_Connect2 {
 struct samr_SetUserInfo2 {
 	struct {
 		struct policy_handle *user_handle;/* [ref] */
-		uint16_t level;
+		enum samr_UserInfoLevel level;
 		union samr_UserInfo *info;/* [ref,switch_is(level)] */
 	} in;
 

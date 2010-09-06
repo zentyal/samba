@@ -160,7 +160,7 @@ static bool test_GetPrinterData(struct torture_context *tctx,
 	struct spoolss_GetPrinterData gpd;
 	uint32_t needed;
 	enum winreg_Type type;
-	union spoolss_PrinterData data;
+	uint8_t *data = talloc_zero_array(tctx, uint8_t, 4);
 
 	torture_comment(tctx, "Testing GetPrinterData(%s).\n", value_name);
 	gpd.in.handle = handle;
@@ -168,7 +168,7 @@ static bool test_GetPrinterData(struct torture_context *tctx,
 	gpd.in.offered = 4;
 	gpd.out.needed = &needed;
 	gpd.out.type = &type;
-	gpd.out.data = &data;
+	gpd.out.data = data;
 
 	status = dcerpc_spoolss_GetPrinterData(p, tctx, &gpd);
 	torture_assert_ntstatus_ok(tctx, status, "GetPrinterData failed.");
@@ -176,7 +176,8 @@ static bool test_GetPrinterData(struct torture_context *tctx,
 			"GetPrinterData did not return expected error value.");
 
 	if (W_ERROR_IS_OK(expected_werr)) {
-		torture_assert_int_equal(tctx, data.value,
+		uint32_t value = IVAL(data, 0);
+		torture_assert_int_equal(tctx, value,
 			expected_value,
 			talloc_asprintf(tctx, "GetPrinterData for %s did not return expected value.", value_name));
 	}
@@ -401,7 +402,6 @@ static bool test_EnumPrinterKey(struct torture_context *tctx,
 	status = dcerpc_spoolss_EnumPrinterKey(p, tctx, &epk);
 	torture_assert_ntstatus_ok(tctx, status, "EnumPrinterKey failed");
 
-
 	if (W_ERROR_EQUAL(epk.out.result, WERR_MORE_DATA)) {
 		epk.in.offered = needed;
 		status = dcerpc_spoolss_EnumPrinterKey(p, tctx, &epk);
@@ -554,7 +554,7 @@ static bool test_WinXP(struct torture_context *tctx, struct dcerpc_pipe *p)
 
 	ret &= test_EnumPrinterKey(tctx, p, &handle03, "", ctx);
 
-	for (i=0; ctx->printer_keys[i] != NULL; i++) {
+	for (i=0; ctx->printer_keys && ctx->printer_keys[i] != NULL; i++) {
 
 		ret &= test_EnumPrinterKey(tctx, p, &handle03,
 					   ctx->printer_keys[i],

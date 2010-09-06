@@ -3,17 +3,17 @@
    Samba internal messaging functions
    Copyright (C) 2007 by Volker Lendecke
    Copyright (C) 2007 by Andrew Tridgell
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -36,7 +36,7 @@ struct ctdbd_connection {
 	uint64 rand_srvid;
 	struct packet_context *pkt;
 	struct fd_event *fde;
-	
+
 	void (*release_ip_handler)(const char *ip_addr, void *private_data);
 	void *release_ip_priv;
 };
@@ -275,6 +275,17 @@ static struct messaging_rec *ctdb_pull_messaging_rec(TALLOC_CTX *mem_ctx,
 	return result;
 }
 
+static NTSTATUS ctdb_packet_fd_read_sync(struct packet_context *ctx)
+{
+	struct timeval timeout;
+	struct timeval *ptimeout;
+
+	timeout = timeval_set(lp_ctdb_timeout(), 0);
+	ptimeout = (timeout.tv_sec != 0) ? &timeout : NULL;
+
+	return packet_fd_read_sync(ctx, ptimeout);
+}
+
 /*
  * Read a full ctdbd request. If we have a messaging context, defer incoming
  * messages that might come in between.
@@ -289,7 +300,7 @@ static NTSTATUS ctdb_read_req(struct ctdbd_connection *conn, uint32 reqid,
 
  again:
 
-	status = packet_fd_read_sync(conn->pkt);
+	status = ctdb_packet_fd_read_sync(conn->pkt);
 
 	if (NT_STATUS_EQUAL(status, NT_STATUS_NETWORK_BUSY)) {
 		/* EAGAIN */
@@ -339,7 +350,7 @@ static NTSTATUS ctdb_read_req(struct ctdbd_connection *conn, uint32 reqid,
 				  (long long unsigned)msg->srvid));
 			goto next_pkt;
 		}
-		
+
 		if ((conn->release_ip_handler != NULL)
 		    && (msg->srvid == CTDB_SRVID_RELEASE_IP)) {
 			/* must be dispatched immediately */
@@ -350,15 +361,23 @@ static NTSTATUS ctdb_read_req(struct ctdbd_connection *conn, uint32 reqid,
 			goto next_pkt;
 		}
 
-		if (msg->srvid == CTDB_SRVID_RECONFIGURE) {
-			DEBUG(0,("Got cluster reconfigure message in ctdb_read_req\n"));
+		if ((msg->srvid == CTDB_SRVID_RECONFIGURE)
+		    || (msg->srvid == CTDB_SRVID_SAMBA_NOTIFY)) {
+
+			DEBUG(1, ("ctdb_read_req: Got %s message\n",
+				  (msg->srvid == CTDB_SRVID_RECONFIGURE)
+				  ? "cluster reconfigure" : "SAMBA_NOTIFY"));
+
 			messaging_send(conn->msg_ctx, procid_self(),
 				       MSG_SMB_BRL_VALIDATE, &data_blob_null);
+			messaging_send(conn->msg_ctx, procid_self(),
+				       MSG_DBWRAP_G_LOCK_RETRY,
+				       &data_blob_null);
 			TALLOC_FREE(hdr);
 			goto next_pkt;
 		}
 
-		if (!(msg_state = TALLOC_P(NULL, struct deferred_msg_state))) {
+		if (!(msg_state = TALLOC_P(talloc_autofree_context(), struct deferred_msg_state))) {
 			DEBUG(0, ("talloc failed\n"));
 			TALLOC_FREE(hdr);
 			goto next_pkt;
@@ -375,7 +394,7 @@ static NTSTATUS ctdb_read_req(struct ctdbd_connection *conn, uint32 reqid,
 		TALLOC_FREE(hdr);
 
 		msg_state->msg_ctx = conn->msg_ctx;
-		
+
 		/*
 		 * We're waiting for a call reply, but an async message has
 		 * crossed. Defer dispatching to the toplevel event loop.
@@ -391,7 +410,7 @@ static NTSTATUS ctdb_read_req(struct ctdbd_connection *conn, uint32 reqid,
 			TALLOC_FREE(hdr);
 			goto next_pkt;
 		}
-		
+
 		goto next_pkt;
 	}
 
@@ -482,12 +501,27 @@ NTSTATUS ctdbd_messaging_connection(TALLOC_CTX *mem_ctx,
 		goto fail;
 	}
 
+	status = register_with_ctdbd(conn, CTDB_SRVID_SAMBA_NOTIFY);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto fail;
+	}
+
 	*pconn = conn;
 	return NT_STATUS_OK;
 
  fail:
 	TALLOC_FREE(conn);
 	return status;
+}
+
+struct messaging_context *ctdb_conn_msg_ctx(struct ctdbd_connection *conn)
+{
+	return conn->msg_ctx;
+}
+
+int ctdbd_conn_get_fd(struct ctdbd_connection *conn)
+{
+	return packet_get_fd(conn->pkt);
 }
 
 /*
@@ -522,26 +556,23 @@ static NTSTATUS ctdb_handle_message(uint8_t *buf, size_t length,
 
 	SMB_ASSERT(conn->msg_ctx != NULL);
 
-	if (msg->srvid == CTDB_SRVID_RECONFIGURE) {
+	if ((msg->srvid == CTDB_SRVID_RECONFIGURE)
+	    || (msg->srvid == CTDB_SRVID_SAMBA_NOTIFY)){
 		DEBUG(0,("Got cluster reconfigure message\n"));
 		/*
-		 * when the cluster is reconfigured, we need to clean the brl
-		 * database
+		 * when the cluster is reconfigured or someone of the
+		 * family has passed away (SAMBA_NOTIFY), we need to
+		 * clean the brl database
 		 */
 		messaging_send(conn->msg_ctx, procid_self(),
 			       MSG_SMB_BRL_VALIDATE, &data_blob_null);
 
-		/*
-		 * it's possible that we have just rejoined the cluster after
-		 * an outage. In that case our pending locks could have been
-		 * removed from the lockdb, so retry them once more
-		 */
-		message_send_all(conn->msg_ctx, MSG_SMB_UNLOCK, NULL, 0, NULL);
+		messaging_send(conn->msg_ctx, procid_self(),
+			       MSG_DBWRAP_G_LOCK_RETRY,
+			       &data_blob_null);
 
 		TALLOC_FREE(buf);
-
 		return NT_STATUS_OK;
-		
 	}
 
 	/* only messages to our pid or the broadcast are valid here */
@@ -895,7 +926,7 @@ NTSTATUS ctdbd_migrate(struct ctdbd_connection *conn, uint32 db_id,
 	NTSTATUS status;
 
 	ZERO_STRUCT(req);
-	
+
 	req.hdr.length = offsetof(struct ctdb_req_call, data) + key.dsize;
 	req.hdr.ctdb_magic   = CTDB_MAGIC;
 	req.hdr.ctdb_version = CTDB_VERSION;
@@ -957,7 +988,7 @@ NTSTATUS ctdbd_fetch(struct ctdbd_connection *conn, uint32 db_id,
 	NTSTATUS status;
 
 	ZERO_STRUCT(req);
-	
+
 	req.hdr.length = offsetof(struct ctdb_req_call, data) + key.dsize;
 	req.hdr.ctdb_magic   = CTDB_MAGIC;
 	req.hdr.ctdb_version = CTDB_VERSION;
@@ -1157,7 +1188,7 @@ NTSTATUS ctdbd_traverse(uint32 db_id,
 			break;
 		}
 
-		status = packet_fd_read_sync(conn->pkt);
+		status = ctdb_packet_fd_read_sync(conn->pkt);
 
 		if (NT_STATUS_EQUAL(status, NT_STATUS_RETRY)) {
 			/*
@@ -1168,6 +1199,7 @@ NTSTATUS ctdbd_traverse(uint32 db_id,
 
 		if (NT_STATUS_EQUAL(status, NT_STATUS_END_OF_FILE)) {
 			status = NT_STATUS_OK;
+			break;
 		}
 
 		if (!NT_STATUS_IS_OK(status)) {
@@ -1297,6 +1329,50 @@ NTSTATUS ctdbd_control_local(struct ctdbd_connection *conn, uint32 opcode,
 			     int *cstatus)
 {
 	return ctdbd_control(conn, CTDB_CURRENT_NODE, opcode, srvid, flags, data, mem_ctx, outdata, cstatus);
+}
+
+NTSTATUS ctdb_watch_us(struct ctdbd_connection *conn)
+{
+	struct ctdb_client_notify_register reg_data;
+	size_t struct_len;
+	NTSTATUS status;
+	int cstatus;
+
+	reg_data.srvid = CTDB_SRVID_SAMBA_NOTIFY;
+	reg_data.len = 1;
+	reg_data.notify_data[0] = 0;
+
+	struct_len = offsetof(struct ctdb_client_notify_register,
+			      notify_data) + reg_data.len;
+
+	status = ctdbd_control_local(
+		conn, CTDB_CONTROL_REGISTER_NOTIFY, conn->rand_srvid, 0,
+		make_tdb_data((uint8_t *)&reg_data, struct_len),
+		NULL, NULL, &cstatus);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("ctdbd_control_local failed: %s\n",
+			  nt_errstr(status)));
+	}
+	return status;
+}
+
+NTSTATUS ctdb_unwatch(struct ctdbd_connection *conn)
+{
+	struct ctdb_client_notify_deregister dereg_data;
+	NTSTATUS status;
+	int cstatus;
+
+	dereg_data.srvid = CTDB_SRVID_SAMBA_NOTIFY;
+
+	status = ctdbd_control_local(
+		conn, CTDB_CONTROL_DEREGISTER_NOTIFY, conn->rand_srvid, 0,
+		make_tdb_data((uint8_t *)&dereg_data, sizeof(dereg_data)),
+		NULL, NULL, &cstatus);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("ctdbd_control_local failed: %s\n",
+			  nt_errstr(status)));
+	}
+	return status;
 }
 
 #else

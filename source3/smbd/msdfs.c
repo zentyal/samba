@@ -268,11 +268,11 @@ NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
 	if (!smbd_vfs_init(conn)) {
 		NTSTATUS status = map_nt_error_from_unix(errno);
 		DEBUG(0,("create_conn_struct: smbd_vfs_init failed.\n"));
-		conn_free_internal(conn);
+		conn_free(conn);
 		return status;
 	}
 
-	conn->fs_capabilities = SMB_VFS_FS_CAPABILITIES(conn);
+	conn->fs_capabilities = SMB_VFS_FS_CAPABILITIES(conn, &conn->ts_res);
 
 	/*
 	 * Windows seems to insist on doing trans2getdfsreferral() calls on
@@ -284,7 +284,7 @@ NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
 	if (oldcwd == NULL) {
 		NTSTATUS status = map_nt_error_from_unix(errno);
 		DEBUG(3, ("vfs_GetWd failed: %s\n", strerror(errno)));
-		conn_free_internal(conn);
+		conn_free(conn);
 		return status;
 	}
 
@@ -293,7 +293,7 @@ NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
 		DEBUG(3,("create_conn_struct: Can't ChDir to new conn path %s. "
 			"Error was %s\n",
 			conn->connectpath, strerror(errno) ));
-		conn_free_internal(conn);
+		conn_free(conn);
 		return status;
 	}
 
@@ -411,7 +411,6 @@ static bool is_msdfs_link_internal(TALLOC_CTX *ctx,
 			char **pp_link_target,
 			SMB_STRUCT_STAT *sbufp)
 {
-	SMB_STRUCT_STAT st;
 	int referral_len = 0;
 #if defined(HAVE_BROKEN_READLINK)
 	char link_target_buf[PATH_MAX];
@@ -420,6 +419,7 @@ static bool is_msdfs_link_internal(TALLOC_CTX *ctx,
 #endif
 	size_t bufsize = 0;
 	char *link_target = NULL;
+	struct smb_filename smb_fname;
 
 	if (pp_link_target) {
 		bufsize = 1024;
@@ -433,20 +433,21 @@ static bool is_msdfs_link_internal(TALLOC_CTX *ctx,
 		link_target = link_target_buf;
 	}
 
-	if (sbufp == NULL) {
-		sbufp = &st;
-	}
+	ZERO_STRUCT(smb_fname);
+	smb_fname.base_name = discard_const_p(char, path);
 
-	if (SMB_VFS_LSTAT(conn, path, sbufp) != 0) {
+	if (SMB_VFS_LSTAT(conn, &smb_fname) != 0) {
 		DEBUG(5,("is_msdfs_link_read_target: %s does not exist.\n",
 			path));
 		goto err;
 	}
-
-	if (!S_ISLNK(sbufp->st_mode)) {
+	if (!S_ISLNK(smb_fname.st.st_ex_mode)) {
 		DEBUG(5,("is_msdfs_link_read_target: %s is not a link.\n",
 					path));
 		goto err;
+	}
+	if (sbufp != NULL) {
+		*sbufp = smb_fname.st;
 	}
 
 	referral_len = SMB_VFS_READLINK(conn, path, link_target, bufsize - 1);
@@ -515,9 +516,8 @@ static NTSTATUS dfs_path_lookup(TALLOC_CTX *ctx,
 {
 	char *p = NULL;
 	char *q = NULL;
-	SMB_STRUCT_STAT sbuf;
 	NTSTATUS status;
-	char *localpath = NULL;
+	struct smb_filename *smb_fname = NULL;
 	char *canon_dfspath = NULL; /* Canonicalized dfs path. (only '/'
 				  components). */
 
@@ -536,20 +536,32 @@ static NTSTATUS dfs_path_lookup(TALLOC_CTX *ctx,
 	 * think this is needed. JRA.
 	 */
 
-	status = unix_convert(ctx, conn, pdp->reqpath, search_flag, &localpath,
-			NULL, &sbuf);
-	if (!NT_STATUS_IS_OK(status) && !NT_STATUS_EQUAL(status,
-					NT_STATUS_OBJECT_PATH_NOT_FOUND)) {
-		return status;
+	status = unix_convert(ctx, conn, pdp->reqpath, &smb_fname,
+			      search_flag ? UCF_ALWAYS_ALLOW_WCARD_LCOMP : 0);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		if (!NT_STATUS_EQUAL(status,
+				     NT_STATUS_OBJECT_PATH_NOT_FOUND)) {
+			return status;
+		}
+
+		/* Create an smb_fname to use below. */
+		status = create_synthetic_smb_fname(ctx, pdp->reqpath, NULL,
+						    NULL, &smb_fname);
+		if (!NT_STATUS_IS_OK(status)) {
+			return status;
+		}
 	}
 
 	/* Optimization - check if we can redirect the whole path. */
 
-	if (is_msdfs_link_internal(ctx, conn, localpath, pp_targetpath, NULL)) {
+	if (is_msdfs_link_internal(ctx, conn, smb_fname->base_name,
+				   pp_targetpath, NULL)) {
 		if (search_flag) {
 			DEBUG(6,("dfs_path_lookup (FindFirst) No redirection "
 				 "for dfs link %s.\n", dfspath));
-			return NT_STATUS_OK;
+			status = NT_STATUS_OK;
+			goto out;
 		}
 
 		DEBUG(6,("dfs_path_lookup: %s resolves to a "
@@ -559,7 +571,8 @@ static NTSTATUS dfs_path_lookup(TALLOC_CTX *ctx,
 		if (consumedcntp) {
 			*consumedcntp = strlen(dfspath);
 		}
-		return NT_STATUS_PATH_NOT_COVERED;
+		status = NT_STATUS_PATH_NOT_COVERED;
+		goto out;
 	}
 
 	/* Prepare to test only for '/' components in the given path,
@@ -568,7 +581,8 @@ static NTSTATUS dfs_path_lookup(TALLOC_CTX *ctx,
 
 	canon_dfspath = talloc_strdup(ctx, dfspath);
 	if (!canon_dfspath) {
-		return NT_STATUS_NO_MEMORY;
+		status = NT_STATUS_NO_MEMORY;
+		goto out;
 	}
 	if (!pdp->posix_path) {
 		string_replace(canon_dfspath, '\\', '/');
@@ -590,7 +604,7 @@ static NTSTATUS dfs_path_lookup(TALLOC_CTX *ctx,
 	 * DFS path. If we hit a DFS link then we're done.
 	 */
 
-	p = strrchr_m(localpath, '/');
+	p = strrchr_m(smb_fname->base_name, '/');
 	if (consumedcntp) {
 		q = strrchr_m(canon_dfspath, '/');
 	}
@@ -602,9 +616,11 @@ static NTSTATUS dfs_path_lookup(TALLOC_CTX *ctx,
 		}
 
 		if (is_msdfs_link_internal(ctx, conn,
-					localpath, pp_targetpath, NULL)) {
+					   smb_fname->base_name, pp_targetpath,
+					   NULL)) {
 			DEBUG(4, ("dfs_path_lookup: Redirecting %s because "
-				"parent %s is dfs link\n", dfspath, localpath));
+				  "parent %s is dfs link\n", dfspath,
+				  smb_fname_str_dbg(smb_fname)));
 
 			if (consumedcntp) {
 				*consumedcntp = strlen(canon_dfspath);
@@ -614,11 +630,12 @@ static NTSTATUS dfs_path_lookup(TALLOC_CTX *ctx,
 					*consumedcntp));
 			}
 
-			return NT_STATUS_PATH_NOT_COVERED;
+			status = NT_STATUS_PATH_NOT_COVERED;
+			goto out;
 		}
 
 		/* Step back on the filesystem. */
-		p = strrchr_m(localpath, '/');
+		p = strrchr_m(smb_fname->base_name, '/');
 
 		if (consumedcntp) {
 			/* And in the canonicalized dfs path. */
@@ -626,7 +643,10 @@ static NTSTATUS dfs_path_lookup(TALLOC_CTX *ctx,
 		}
 	}
 
-	return NT_STATUS_OK;
+	status = NT_STATUS_OK;
+ out:
+	TALLOC_FREE(smb_fname);
+	return status;
 }
 
 /*****************************************************************
@@ -912,7 +932,7 @@ NTSTATUS get_referred_path(TALLOC_CTX *ctx,
 		DEBUG(3,("get_referred_path: No valid referrals for path %s\n",
 			dfs_path));
 		vfs_ChDir(conn, oldpath);
-		conn_free_internal(conn);
+		conn_free(conn);
 		TALLOC_FREE(pdp);
 		return status;
 	}
@@ -924,13 +944,13 @@ NTSTATUS get_referred_path(TALLOC_CTX *ctx,
 		DEBUG(3,("get_referred_path: failed to parse symlink "
 			"target %s\n", targetpath ));
 		vfs_ChDir(conn, oldpath);
-		conn_free_internal(conn);
+		conn_free(conn);
 		TALLOC_FREE(pdp);
 		return NT_STATUS_NOT_FOUND;
 	}
 
 	vfs_ChDir(conn, oldpath);
-	conn_free_internal(conn);
+	conn_free(conn);
 	TALLOC_FREE(pdp);
 	return NT_STATUS_OK;
 }
@@ -1347,7 +1367,7 @@ static bool junction_to_local_path(const struct junction_map *jucn,
 			jucn->volume_name);
 	if (!*pp_path_out) {
 		vfs_ChDir(*conn_out, *oldpath);
-		conn_free_internal(*conn_out);
+		conn_free(*conn_out);
 		return False;
 	}
 	return True;
@@ -1406,9 +1426,22 @@ bool create_msdfs_link(const struct junction_map *jucn)
 
 	if(SMB_VFS_SYMLINK(conn, msdfs_link, path) < 0) {
 		if (errno == EEXIST) {
-			if(SMB_VFS_UNLINK(conn,path)!=0) {
+			struct smb_filename *smb_fname = NULL;
+			NTSTATUS status;
+
+			status = create_synthetic_smb_fname(talloc_tos(), path,
+							    NULL, NULL,
+							    &smb_fname);
+			if (!NT_STATUS_IS_OK(status)) {
+				errno = map_errno_from_nt_status(status);
 				goto out;
 			}
+
+			if(SMB_VFS_UNLINK(conn, smb_fname)!=0) {
+				TALLOC_FREE(smb_fname);
+				goto out;
+			}
+			TALLOC_FREE(smb_fname);
 		}
 		if (SMB_VFS_SYMLINK(conn, msdfs_link, path) < 0) {
 			DEBUG(1,("create_msdfs_link: symlink failed "
@@ -1422,7 +1455,7 @@ bool create_msdfs_link(const struct junction_map *jucn)
 
 out:
 	vfs_ChDir(conn, cwd);
-	conn_free_internal(conn);
+	conn_free(conn);
 	return ret;
 }
 
@@ -1432,17 +1465,28 @@ bool remove_msdfs_link(const struct junction_map *jucn)
 	char *cwd;
 	connection_struct *conn;
 	bool ret = False;
+	struct smb_filename *smb_fname = NULL;
+	NTSTATUS status;
 
 	if (!junction_to_local_path(jucn, &path, &conn, &cwd)) {
 		return false;
 	}
 
-	if( SMB_VFS_UNLINK(conn, path) == 0 ) {
+	status = create_synthetic_smb_fname(talloc_tos(), path,
+					    NULL, NULL,
+					    &smb_fname);
+	if (!NT_STATUS_IS_OK(status)) {
+		errno = map_errno_from_nt_status(status);
+		return false;
+	}
+
+	if( SMB_VFS_UNLINK(conn, smb_fname) == 0 ) {
 		ret = True;
 	}
 
+	TALLOC_FREE(smb_fname);
 	vfs_ChDir(conn, cwd);
-	conn_free_internal(conn);
+	conn_free(conn);
 	return ret;
 }
 
@@ -1454,7 +1498,8 @@ static int count_dfs_links(TALLOC_CTX *ctx, int snum)
 {
 	size_t cnt = 0;
 	SMB_STRUCT_DIR *dirp = NULL;
-	char *dname = NULL;
+	const char *dname = NULL;
+	char *talloced = NULL;
 	const char *connect_path = lp_pathname(snum);
 	const char *msdfs_proxy = lp_msdfs_proxy(snum);
 	connection_struct *conn;
@@ -1491,19 +1536,21 @@ static int count_dfs_links(TALLOC_CTX *ctx, int snum)
 		goto out;
 	}
 
-	while ((dname = vfs_readdirname(conn, dirp, NULL)) != NULL) {
+	while ((dname = vfs_readdirname(conn, dirp, NULL, &talloced))
+	       != NULL) {
 		if (is_msdfs_link(conn,
 				dname,
 				NULL)) {
 			cnt++;
 		}
+		TALLOC_FREE(talloced);
 	}
 
 	SMB_VFS_CLOSEDIR(conn,dirp);
 
 out:
 	vfs_ChDir(conn, cwd);
-	conn_free_internal(conn);
+	conn_free(conn);
 	return cnt;
 }
 
@@ -1517,7 +1564,8 @@ static int form_junctions(TALLOC_CTX *ctx,
 {
 	size_t cnt = 0;
 	SMB_STRUCT_DIR *dirp = NULL;
-	char *dname = NULL;
+	const char *dname = NULL;
+	char *talloced = NULL;
 	const char *connect_path = lp_pathname(snum);
 	char *service_name = lp_servicename(snum);
 	const char *msdfs_proxy = lp_msdfs_proxy(snum);
@@ -1591,11 +1639,13 @@ static int form_junctions(TALLOC_CTX *ctx,
 		goto out;
 	}
 
-	while ((dname = vfs_readdirname(conn, dirp, NULL)) != NULL) {
+	while ((dname = vfs_readdirname(conn, dirp, NULL, &talloced))
+	       != NULL) {
 		char *link_target = NULL;
 		if (cnt >= jn_remain) {
 			DEBUG(2, ("form_junctions: ran out of MSDFS "
 				"junction slots"));
+			TALLOC_FREE(talloced);
 			goto out;
 		}
 		if (is_msdfs_link_internal(ctx,
@@ -1613,6 +1663,7 @@ static int form_junctions(TALLOC_CTX *ctx,
 								dname);
 				if (!jucn[cnt].service_name ||
 						!jucn[cnt].volume_name) {
+					TALLOC_FREE(talloced);
 					goto out;
 				}
 				jucn[cnt].comment = "";
@@ -1620,6 +1671,7 @@ static int form_junctions(TALLOC_CTX *ctx,
 			}
 			TALLOC_FREE(link_target);
 		}
+		TALLOC_FREE(talloced);
 	}
 
 out:
@@ -1629,7 +1681,7 @@ out:
 	}
 
 	vfs_ChDir(conn, cwd);
-	conn_free_internal(conn);
+	conn_free(conn);
 	return cnt;
 }
 
@@ -1677,57 +1729,33 @@ struct junction_map *enum_msdfs_links(TALLOC_CTX *ctx, size_t *p_num_jn)
 }
 
 /******************************************************************************
- Core function to resolve a dfs pathname.
-******************************************************************************/
-
-NTSTATUS resolve_dfspath(TALLOC_CTX *ctx,
-			connection_struct *conn,
-			bool dfs_pathnames,
-			const char *name_in,
-			char **pp_name_out)
-{
-	NTSTATUS status = NT_STATUS_OK;
-	bool dummy;
-	if (dfs_pathnames) {
-		status = dfs_redirect(ctx,
-					conn,
-					name_in,
-					False,
-					pp_name_out,
-					&dummy);
-	} else {
-		/*
-		 * Cheat and just return a copy of the in ptr.
-		 * Once srvstr_get_path() uses talloc it'll
-		 * be a talloced ptr anyway.
-		 */
-		*pp_name_out = CONST_DISCARD(char *,name_in);
-	}
-	return status;
-}
-
-/******************************************************************************
- Core function to resolve a dfs pathname possibly containing a wildcard.
- This function is identical to the above except for the bool param to
- dfs_redirect but I need this to be separate so it's really clear when
- we're allowing wildcards and when we're not. JRA.
+ Core function to resolve a dfs pathname possibly containing a wildcard.  If
+ ppath_contains_wcard != NULL, it will be set to true if a wildcard is
+ detected during dfs resolution.
 ******************************************************************************/
 
 NTSTATUS resolve_dfspath_wcard(TALLOC_CTX *ctx,
 				connection_struct *conn,
 				bool dfs_pathnames,
 				const char *name_in,
+				bool allow_wcards,
 				char **pp_name_out,
 				bool *ppath_contains_wcard)
 {
+	bool path_contains_wcard;
 	NTSTATUS status = NT_STATUS_OK;
+
 	if (dfs_pathnames) {
 		status = dfs_redirect(ctx,
 					conn,
 					name_in,
-					True,
+					allow_wcards,
 					pp_name_out,
-					ppath_contains_wcard);
+					&path_contains_wcard);
+
+		if (NT_STATUS_IS_OK(status) && ppath_contains_wcard != NULL) {
+			*ppath_contains_wcard = path_contains_wcard;
+		}
 	} else {
 		/*
 		 * Cheat and just return a copy of the in ptr.

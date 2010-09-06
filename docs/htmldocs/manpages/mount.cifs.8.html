@@ -1,4 +1,4 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>mount.cifs</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="mount.cifs.8"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>mount.cifs &#8212; mount using the Common Internet File System (CIFS)</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">mount.cifs</code> {service} {mount-point} [-o options]</p></div></div><div class="refsect1" lang="en"><a name="id2522940"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p>mount.cifs mounts a Linux CIFS filesystem. It
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>mount.cifs</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="mount.cifs.8"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>mount.cifs &#8212; mount using the Common Internet File System (CIFS)</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">mount.cifs</code> {service} {mount-point} [-o options]</p></div></div><div class="refsect1" lang="en"><a name="id2522927"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p>mount.cifs mounts a Linux CIFS filesystem. It
 is usually invoked indirectly by
 the <a class="citerefentry" href="mount.8.html"><span class="citerefentry"><span class="refentrytitle">mount</span>(8)</span></a> command when using the 
 "-t cifs" option. This command only works in Linux, and the kernel must
@@ -11,9 +11,6 @@ by the popular Open Source server Samba.
 	specified as <span class="emphasis"><em>service</em></span> (using //server/share syntax,
 	where "server" is the server name or IP address and "share" is the name
 	of the share) to the local directory <span class="emphasis"><em>mount-point</em></span>.
-	It is possible to set the mode for mount.cifs to setuid root to allow
-	non-root users to mount shares to directories for which they
-	have write permission.
 	</p><p>
 		Options to <span class="emphasis"><em>mount.cifs</em></span> are specified as a comma-separated
 list of key=value pairs. It is possible to send options other
@@ -28,7 +25,7 @@ kernel log.
 	</p><p>
 
 		<span class="emphasis"><em>modinfo cifs</em></span> command displays the version of cifs module.
-	</p></div><div class="refsect1" lang="en"><a name="id2483524"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">user=<em class="replaceable"><code>arg</code></em></span></dt><dd><p>specifies the username to connect as. If
+	</p></div><div class="refsect1" lang="en"><a name="id2483383"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">user=<em class="replaceable"><code>arg</code></em></span></dt><dd><p>specifies the username to connect as. If
 				this is not given, then the environment variable <span class="emphasis"><em>USER</em></span> is used. This option can also take the
 form "user%password" or "workgroup/user" or
 "workgroup/user%password" to allow the password and workgroup
@@ -57,42 +54,23 @@ below) or entered at the password prompt will be read correctly.
 This is preferred over having passwords in plaintext in a
 shared file, such as <code class="filename">/etc/fstab</code>. Be sure to protect any
 credentials file properly.
-		</p></dd><dt><span class="term">uid=<em class="replaceable"><code>arg</code></em></span></dt><dd><p>sets the uid that will own all files on
-	the mounted filesystem.
-	It may be specified as either a username or a numeric uid.
-	For mounts to servers which do support the CIFS Unix extensions, 
-        such as a properly configured Samba server, the server provides
-                the uid, gid and mode so this parameter should not be
-                specified unless the server and client uid and gid
-                numbering differ.  If the server and client are in the
-                same domain (e.g. running winbind or nss_ldap) and
-                the server supports the Unix Extensions then the uid
-                and gid can be retrieved from the server (and uid
-                and gid would not have to be specified on the mount.
-                For servers which do not support the CIFS Unix
-                extensions, the default uid (and gid) returned on lookup 
-                of existing files will be the uid (gid) of the person
-                who executed the mount (root, except when mount.cifs
-                is configured setuid for user mounts) unless the "uid="
-                (gid) mount option is specified.  For the uid (gid) of newly
-                created files and directories, ie files created since
-                the last mount of the server share, the expected uid
-                (gid) is cached as long as the inode remains in
-                memory on the client.   Also note that permission
-                checks (authorization checks) on accesses to a file occur
-                at the server, but there are cases in which an administrator
-                may want to restrict at the client as well.  For those
-                servers which do not report a uid/gid owner
-                (such as Windows), permissions can also be checked at the
-                client, and a crude form of client side permission checking
-                can be enabled by specifying file_mode and dir_mode on
-                the client.  Note that the mount.cifs helper must be
-                at version 1.10 or higher to support specifying the uid
-                (or gid) in non-numeric form.
-	</p></dd><dt><span class="term">gid=<em class="replaceable"><code>arg</code></em></span></dt><dd><p>sets the gid that will own all files on
-the mounted filesystem.  It may be specified as either a groupname or a numeric 
-gid. For other considerations see the description of uid above. 
-		</p></dd><dt><span class="term">port=<em class="replaceable"><code>arg</code></em></span></dt><dd><p>sets the port number on the server to attempt to contact to negotiate
+		</p></dd><dt><span class="term">uid=<em class="replaceable"><code>arg</code></em></span></dt><dd><p>sets the uid that will own all files or directories on the
+mounted filesystem when the server does not provide ownership
+information. It may be specified as either a username or a numeric uid.
+When not specified, the default is uid 0.  The mount.cifs helper must be
+at version 1.10 or higher to support specifying the uid in non-numeric
+form. See the section on FILE AND DIRECTORY OWNERSHIP AND PERMISSIONS below for more
+information.  </p></dd><dt><span class="term">forceuid</span></dt><dd><p>instructs the client to ignore any uid provided by
+the server for files and directories and to always assign the owner to
+be the value of the uid= option. See the section on FILE AND DIRECTORY OWNERSHIP AND PERMISSIONS below for more information.</p></dd><dt><span class="term">gid=<em class="replaceable"><code>arg</code></em></span></dt><dd><p>sets the gid that will own all files or
+directories on the mounted filesystem when the server does not provide
+ownership information.  It may be specified as either a groupname or a
+numeric gid.  When not specified, the default is gid 0. The mount.cifs
+helper must be at version 1.10 or higher to support specifying the gid
+in non-numeric form. See the section on FILE AND DIRECTORY OWNERSHIP AND
+PERMISSIONS below for more information.</p></dd><dt><span class="term">forcegid</span></dt><dd><p>instructs the client to ignore any gid provided by
+the server for files and directories and to always assign the owner to
+be the value of the gid= option. See the section on FILE AND DIRECTORY OWNERSHIP AND PERMISSIONS below for more information.</p></dd><dt><span class="term">port=<em class="replaceable"><code>arg</code></em></span></dt><dd><p>sets the port number on the server to attempt to contact to negotiate
 CIFS support.  If the CIFS server is not listening on this port or
 if it is not specified, the default ports will be tried i.e. 
 port 445 is tried and if no response then port 139 is tried.
@@ -144,7 +122,9 @@ port 445 is tried and if no response then port 139 is tried.
                 access by the user doing the mount.
                 Note that this does not affect the normal ACL check on the
                 target machine done by the server software (of the server
-                ACL against the user name provided at mount time).</p></dd><dt><span class="term">directio</span></dt><dd><p>Do not do inode data caching on files opened on this mount.
+                ACL against the user name provided at mount time).</p></dd><dt><span class="term">dynperm</span></dt><dd><p>Instructs the server to maintain ownership and
+permissions in memory that can't be stored on the server. This information can disappear at any time (whenever the inode is flushed from the cache), so while this may help make some applications work, it's behavior is somewhat unreliable. See the section below on FILE AND DIRECTORY OWNERSHIP AND PERMISSIONS for more information.
+		</p></dd><dt><span class="term">directio</span></dt><dd><p>Do not do inode data caching on files opened on this mount.
                 This precludes mmaping files on this mount. In some cases
                 with fast networks and little or no caching benefits on the
                 client (e.g. when the application is doing large sequential
@@ -163,7 +143,9 @@ port 445 is tried and if no response then port 139 is tried.
                 (which also forbids creating and opening files
                 whose names contain any of these seven characters).
                 This has no effect if the server does not support
-                Unicode on the wire.</p></dd><dt><span class="term">nomapchars</span></dt><dd><p>Do not translate any of these seven characters (default)</p></dd><dt><span class="term">intr</span></dt><dd><p>currently unimplemented</p></dd><dt><span class="term">nointr</span></dt><dd><p>(default) currently unimplemented </p></dd><dt><span class="term">hard</span></dt><dd><p>The  program  accessing  a file on the cifs mounted file system will hang when the
+                Unicode on the wire. Please note that the files created
+		with mapchars mount option may not be accessible
+		if the share is mounted without that option.</p></dd><dt><span class="term">nomapchars</span></dt><dd><p>Do not translate any of these seven characters (default)</p></dd><dt><span class="term">intr</span></dt><dd><p>currently unimplemented</p></dd><dt><span class="term">nointr</span></dt><dd><p>(default) currently unimplemented </p></dd><dt><span class="term">hard</span></dt><dd><p>The  program  accessing  a file on the cifs mounted file system will hang when the
               server crashes.</p></dd><dt><span class="term">soft</span></dt><dd><p>(default) The  program  accessing  a file on the cifs mounted file system will not hang when the server crashes and will return errors to the user application.</p></dd><dt><span class="term">noacl</span></dt><dd><p>Do not allow POSIX ACL operations even if server would support them.</p><p>
 		The CIFS client can get and set POSIX ACLs (getfacl, setfacl) to Samba servers
 		version 3.0.10 and later.  Setting POSIX ACLs requires enabling both XATTR and
@@ -206,8 +188,22 @@ port 445 is tried and if no response then port 139 is tried.
 		later servers typically do support this (although not necessarily
 		on every local server filesystem). Parameter has no effect if
                 the server lacks support for returning inode numbers or equivalent.
-		</p></dd><dt><span class="term">noserverino</span></dt><dd><p>client generates inode numbers (rather than using the actual one
-                from the server) by default.
+		</p></dd><dt><span class="term">noserverino</span></dt><dd><p>
+			Client generates inode numbers (rather than
+		using the actual one from the server) by default.
+		</p><p>
+			See section <span class="emphasis"><em>INODE NUMBERS</em></span> for
+		more information.
+		</p></dd><dt><span class="term">nounix</span></dt><dd><p>
+			Disable the CIFS Unix Extensions for this mount. This
+		can be useful in order to turn off multiple settings at once.
+		This includes POSIX acls, POSIX locks, POSIX paths, symlink
+		support and retrieving uids/gids/mode from the server. This
+		can also be useful to work around a bug in a server that
+		supports Unix Extensions.
+		</p><p>
+		See section <span class="emphasis"><em>INODE NUMBERS</em></span> for
+		more information.
 		</p></dd><dt><span class="term">nouser_xattr</span></dt><dd><p>(default) Do not allow getfattr/setfattr to get/set xattrs, even if server would support it otherwise. </p></dd><dt><span class="term">rsize=<em class="replaceable"><code>arg</code></em></span></dt><dd><p>default network read size (usually 16K). The client currently
                 can not use rsize larger than CIFSMaxBufSize. CIFSMaxBufSize
                 defaults to 16K and may be changed (from 8K to the maximum
@@ -223,11 +219,56 @@ port 445 is tried and if no response then port 139 is tried.
 
 		</p></dd><dt><span class="term">wsize=<em class="replaceable"><code>arg</code></em></span></dt><dd><p>default network write size (default 57344)
                 maximum wsize currently allowed by CIFS is 57344 (fourteen
-                4096 byte pages)</p></dd><dt><span class="term">--verbose</span></dt><dd><p>Print additional debugging information for the mount. Note that this parameter must be specified before the -o. For example:</p><p>mount -t cifs //server/share /mnt --verbose -o user=username</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2481455"></a><h2>SERVICE FORMATTING AND DELIMITERS</h2><p>
+                4096 byte pages)</p></dd><dt><span class="term">--verbose</span></dt><dd><p>Print additional debugging information for the mount. Note that this parameter must be specified before the -o. For example:</p><p>mount -t cifs //server/share /mnt --verbose -o user=username</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2532669"></a><h2>SERVICE FORMATTING AND DELIMITERS</h2><p>
 		It's generally preferred to use forward slashes (/) as a delimiter in service names. They are considered to be the "universal delimiter" since they are generally not allowed to be embedded within path components on Windows machines and the client can convert them to blackslashes (\) unconditionally. Conversely, backslash characters are allowed by POSIX to be part of a path component, and can't be automatically converted in the same way.
 	</p><p>
 		mount.cifs will attempt to convert backslashes to forward slashes where it's able to do so, but it cannot do so in any path component following the sharename.
-	</p></div><div class="refsect1" lang="en"><a name="id2481902"></a><h2>ENVIRONMENT VARIABLES</h2><p>
+	</p></div><div class="refsect1" lang="en"><a name="id2532692"></a><h2>INODE NUMBERS</h2><p>
+		When Unix Extensions are enabled, we use the actual inode
+	number provided by the server in response to the POSIX calls as an
+	inode number.
+	</p><p>
+		When Unix Extensions are disabled and "serverino" mount option
+	is enabled there is no way to get the server inode number. The
+	client typically maps the server-assigned "UniqueID" onto an inode
+	number.
+	</p><p>
+		Note that the UniqueID is a different value from the server
+	inode number. The UniqueID value is unique over the scope of the entire
+	server and is often greater than 2 power 32. This value often makes
+	programs that are not compiled with LFS (Large File Support), to
+	trigger a glibc EOVERFLOW error as this won't fit in the target
+	structure field. It is strongly recommended to compile your programs
+	with LFS support (i.e. with -D_FILE_OFFSET_BITS=64) to prevent this
+	problem. You can also use "noserverino" mount option to generate inode
+	numbers smaller than 2 power 32 on the client. But you may not be able
+	to detect hardlinks properly.
+	</p></div><div class="refsect1" lang="en"><a name="id2532725"></a><h2>FILE AND DIRECTORY OWNERSHIP AND PERMISSIONS</h2><p> The core CIFS protocol does not provide unix ownership
+information or mode for files and directories. Because of this, files
+and directories will generally appear to be owned by whatever values the
+uid= or gid= options are set, and will have permissions set to the
+default file_mode and dir_mode for the mount. Attempting to change these
+values via chmod/chown will return success but have no effect.</p><p>When the client and server negotiate unix extensions,
+files and directories will be assigned the uid, gid, and mode provided
+by the server. Because CIFS mounts are generally single-user, and the
+same credentials are used no matter what user accesses the mount, newly
+created files and directories will generally be given ownership
+corresponding to whatever credentials were used to mount the
+share.</p><p>If the uid's and gid's being used do not match on the
+client and server, the forceuid and forcegid options may be helpful.
+Note however, that there is no corresponding option to override the
+mode. Permissions assigned to a file when forceuid or forcegid are in
+effect may not reflect the the real permissions.</p><p>When unix extensions are not negotiated, it's also
+possible to emulate them locally on the server using the "dynperm" mount
+option. When this mount option is in effect, newly created files and
+directories will receive what appear to be proper permissions. These
+permissions are not stored on the server however and can disappear at
+any time in the future (subject to the whims of the kernel flushing out
+the inode cache). In general, this mount option is discouraged.
+	</p><p>It's also possible to override permission checking on the client
+altogether via the noperm option. Server-side permission checks cannot be
+overriden. The permission checks done by the server will always correspond to
+the credentials used to mount the share, and not necessarily to the user who is accessing the share.</p></div><div class="refsect1" lang="en"><a name="id2532781"></a><h2>ENVIRONMENT VARIABLES</h2><p>
 		The variable <span class="emphasis"><em>USER</em></span> may contain the username of the
 person to be used to authenticate to the server.
 The variable can be used to set both username and
@@ -239,7 +280,12 @@ person using the client.
 		The variable <span class="emphasis"><em>PASSWD_FILE</em></span> may contain the pathname
 of a file to read the password from. A single line of input is
 read and used as the password.
-	</p></div><div class="refsect1" lang="en"><a name="id2481937"></a><h2>NOTES</h2><p>This command may be used only by root, unless installed setuid, in which case the noeexec and nosuid mount flags are enabled.</p></div><div class="refsect1" lang="en"><a name="id2481949"></a><h2>CONFIGURATION</h2><p>
+	</p></div><div class="refsect1" lang="en"><a name="id2532813"></a><h2>NOTES</h2><p>This command may be used only by root, unless installed setuid, in which case the noeexec and nosuid mount flags are enabled. When installed as a setuid program, the program follows the conventions set forth by the mount program for user mounts.</p><p>
+	Some samba client tools like smbclient(8) honour client-side
+	configuration parameters present in smb.conf. Unlike those
+	client tools, <span class="emphasis"><em>mount.cifs</em></span> ignores smb.conf
+	completely.
+	</p></div><div class="refsect1" lang="en"><a name="id2532836"></a><h2>CONFIGURATION</h2><p>
 The primary mechanism for making configuration changes and for reading 
 debug information for the cifs vfs is via the Linux /proc filesystem.
 In the directory <code class="filename">/proc/fs/cifs</code> are various 
@@ -250,7 +296,7 @@ loaded.  These can be seen by running the modinfo utility against the file
 cifs.ko which will list the options that may be passed to cifs during module
 installation (device driver load).
 For more information see the kernel file <code class="filename">fs/cifs/README</code>.
-</p></div><div class="refsect1" lang="en"><a name="id2481982"></a><h2>BUGS</h2><p>Mounting using the CIFS URL specification is currently not supported.
+</p></div><div class="refsect1" lang="en"><a name="id2532866"></a><h2>BUGS</h2><p>Mounting using the CIFS URL specification is currently not supported.
 	</p><p>The credentials file does not handle usernames or passwords with
 		leading space.</p><p>
 Note that the typical response to a bug report is a suggestion
@@ -258,11 +304,11 @@ to try the latest version first. So please try doing that first,
 and always include which versions you use of relevant software
 when reporting bugs (minimum: mount.cifs (try mount.cifs -V), kernel (see /proc/version) and
 server type you are trying to contact.
-</p></div><div class="refsect1" lang="en"><a name="id2482007"></a><h2>VERSION</h2><p>This man page is correct for version 1.52 of 
-	the cifs vfs filesystem (roughly Linux kernel 2.6.24).</p></div><div class="refsect1" lang="en"><a name="id2482018"></a><h2>SEE ALSO</h2><p>
+</p></div><div class="refsect1" lang="en"><a name="id2532891"></a><h2>VERSION</h2><p>This man page is correct for version 1.52 of 
+	the cifs vfs filesystem (roughly Linux kernel 2.6.24).</p></div><div class="refsect1" lang="en"><a name="id2532902"></a><h2>SEE ALSO</h2><p>
 	Documentation/filesystems/cifs.txt and fs/cifs/README in the linux kernel
 	source tree may contain additional options and information.
-</p><p><a class="citerefentry" href="umount.cifs.8.html"><span class="citerefentry"><span class="refentrytitle">umount.cifs</span>(8)</span></a></p></div><div class="refsect1" lang="en"><a name="id2532776"></a><h2>AUTHOR</h2><p>Steve French</p><p>The syntax and manpage were loosely based on that of smbmount. It 
+</p><p><a class="citerefentry" href="umount.cifs.8.html"><span class="citerefentry"><span class="refentrytitle">umount.cifs</span>(8)</span></a></p></div><div class="refsect1" lang="en"><a name="id2532923"></a><h2>AUTHOR</h2><p>Steve French</p><p>The syntax and manpage were loosely based on that of smbmount. It 
 		was converted to Docbook/XML by Jelmer Vernooij.</p><p>The maintainer of the Linux cifs vfs and the userspace
 		tool <span class="emphasis"><em>mount.cifs</em></span> is <a class="ulink" href="mailto:sfrench@samba.org" target="_top">Steve French</a>.
 		The <a class="ulink" href="mailto:linux-cifs-client@lists.samba.org" target="_top">Linux CIFS Mailing list</a> 

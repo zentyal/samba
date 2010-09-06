@@ -45,7 +45,7 @@ static void print_lock_struct(unsigned int i, struct lock_struct *pls)
 			i,
 			(unsigned int)pls->context.smbpid,
 			(unsigned int)pls->context.tid,
-			procid_str(debug_ctx(), &pls->context.pid) ));
+			procid_str(talloc_tos(), &pls->context.pid) ));
 	
 	DEBUG(10,("start = %.0f, size = %.0f, fnum = %d, %s %s\n",
 		(double)pls->start,
@@ -264,12 +264,25 @@ NTSTATUS brl_lock_failed(files_struct *fsp, const struct lock_struct *lock, bool
 
 void brl_init(bool read_only)
 {
+	int tdb_flags;
+
 	if (brlock_db) {
 		return;
 	}
+
+	tdb_flags = TDB_DEFAULT|TDB_VOLATILE|TDB_CLEAR_IF_FIRST;
+
+	if (!lp_clustering()) {
+		/*
+		 * We can't use the SEQNUM trick to cache brlock
+		 * entries in the clustering case because ctdb seqnum
+		 * propagation has a delay.
+		 */
+		tdb_flags |= TDB_SEQNUM;
+	}
+
 	brlock_db = db_open(NULL, lock_path("brlock.tdb"),
-			    lp_open_files_db_hash_size(),
-			    TDB_DEFAULT|TDB_VOLATILE|TDB_CLEAR_IF_FIRST,
+			    lp_open_files_db_hash_size(), tdb_flags,
 			    read_only?O_RDONLY:(O_RDWR|O_CREAT), 0644 );
 	if (!brlock_db) {
 		DEBUG(0,("Failed to open byte range locking database %s\n",
@@ -320,6 +333,11 @@ NTSTATUS brl_lock_windows_default(struct byte_range_lock *br_lck,
 	SMB_ASSERT(plock->lock_type != UNLOCK_LOCK);
 
 	for (i=0; i < br_lck->num_locks; i++) {
+		if (locks[i].start + locks[i].size < locks[i].start) {
+			/* 64-bit wrap. Error. */
+			return NT_STATUS_INVALID_LOCK_RANGE;
+		}
+
 		/* Do any Windows or POSIX locks conflict ? */
 		if (brl_conflict(&locks[i], plock)) {
 			/* Remember who blocked us. */
@@ -867,6 +885,17 @@ static NTSTATUS brl_lock_posix(struct messaging_context *msg_ctx,
 	return status;
 }
 
+NTSTATUS smb_vfs_call_brl_lock_windows(struct vfs_handle_struct *handle,
+				       struct byte_range_lock *br_lck,
+				       struct lock_struct *plock,
+				       bool blocking_lock,
+				       struct blocking_lock_record *blr)
+{
+	VFS_FIND(brl_lock_windows);
+	return handle->fns->brl_lock_windows(handle, br_lck, plock,
+					     blocking_lock, blr);
+}
+
 /****************************************************************************
  Lock a range of bytes.
 ****************************************************************************/
@@ -1187,6 +1216,15 @@ static bool brl_unlock_posix(struct messaging_context *msg_ctx,
 	return True;
 }
 
+bool smb_vfs_call_brl_unlock_windows(struct vfs_handle_struct *handle,
+				     struct messaging_context *msg_ctx,
+				     struct byte_range_lock *br_lck,
+				     const struct lock_struct *plock)
+{
+	VFS_FIND(brl_unlock_windows);
+	return handle->fns->brl_unlock_windows(handle, msg_ctx, br_lck, plock);
+}
+
 /****************************************************************************
  Unlock a range of bytes.
 ****************************************************************************/
@@ -1267,7 +1305,7 @@ bool brl_locktest(struct byte_range_lock *br_lck,
 
 		DEBUG(10,("brl_locktest: posix start=%.0f len=%.0f %s for fnum %d file %s\n",
 			(double)start, (double)size, ret ? "locked" : "unlocked",
-			fsp->fnum, fsp->fsp_name ));
+			fsp->fnum, fsp_str_dbg(fsp)));
 
 		/* We need to return the inverse of is_posix_locked. */
 		ret = !ret;
@@ -1333,7 +1371,7 @@ NTSTATUS brl_lockquery(struct byte_range_lock *br_lck,
 
 		DEBUG(10,("brl_lockquery: posix start=%.0f len=%.0f %s for fnum %d file %s\n",
 			(double)*pstart, (double)*psize, ret ? "locked" : "unlocked",
-			fsp->fnum, fsp->fsp_name ));
+			fsp->fnum, fsp_str_dbg(fsp)));
 
 		if (ret) {
 			/* Hmmm. No clue what to set smbpid to - use -1. */
@@ -1343,6 +1381,16 @@ NTSTATUS brl_lockquery(struct byte_range_lock *br_lck,
         }
 
 	return NT_STATUS_OK;
+}
+
+
+bool smb_vfs_call_brl_cancel_windows(struct vfs_handle_struct *handle,
+				     struct byte_range_lock *br_lck,
+				     struct lock_struct *plock,
+				     struct blocking_lock_record *blr)
+{
+	VFS_FIND(brl_cancel_windows);
+	return handle->fns->brl_cancel_windows(handle, br_lck, plock, blr);
 }
 
 /****************************************************************************
@@ -1767,7 +1815,6 @@ static struct byte_range_lock *brl_get_locks_internal(TALLOC_CTX *mem_ctx,
 	br_lck->fsp = fsp;
 	br_lck->num_locks = 0;
 	br_lck->modified = False;
-	memset(&br_lck->key, '\0', sizeof(struct file_id));
 	br_lck->key = fsp->file_id;
 
 	key.dptr = (uint8 *)&br_lck->key;
@@ -1860,10 +1907,49 @@ struct byte_range_lock *brl_get_locks(TALLOC_CTX *mem_ctx,
 	return brl_get_locks_internal(mem_ctx, fsp, False);
 }
 
-struct byte_range_lock *brl_get_locks_readonly(TALLOC_CTX *mem_ctx,
-					files_struct *fsp)
+struct byte_range_lock *brl_get_locks_readonly(files_struct *fsp)
 {
-	return brl_get_locks_internal(mem_ctx, fsp, True);
+	struct byte_range_lock *br_lock;
+
+	if (lp_clustering()) {
+		return brl_get_locks_internal(talloc_tos(), fsp, true);
+	}
+
+	if ((fsp->brlock_rec != NULL)
+	    && (brlock_db->get_seqnum(brlock_db) == fsp->brlock_seqnum)) {
+		return fsp->brlock_rec;
+	}
+
+	TALLOC_FREE(fsp->brlock_rec);
+
+	br_lock = brl_get_locks_internal(talloc_tos(), fsp, false);
+	if (br_lock == NULL) {
+		return NULL;
+	}
+	fsp->brlock_seqnum = brlock_db->get_seqnum(brlock_db);
+
+	fsp->brlock_rec = talloc_zero(fsp, struct byte_range_lock);
+	if (fsp->brlock_rec == NULL) {
+		goto fail;
+	}
+	fsp->brlock_rec->fsp = fsp;
+	fsp->brlock_rec->num_locks = br_lock->num_locks;
+	fsp->brlock_rec->read_only = true;
+	fsp->brlock_rec->key = br_lock->key;
+
+	fsp->brlock_rec->lock_data = (struct lock_struct *)
+		talloc_memdup(fsp->brlock_rec, br_lock->lock_data,
+			      sizeof(struct lock_struct) * br_lock->num_locks);
+	if (fsp->brlock_rec->lock_data == NULL) {
+		goto fail;
+	}
+
+	TALLOC_FREE(br_lock);
+	return fsp->brlock_rec;
+fail:
+	TALLOC_FREE(br_lock);
+	TALLOC_FREE(fsp->brlock_rec);
+	return NULL;
 }
 
 struct brl_revalidate_state {

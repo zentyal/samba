@@ -44,89 +44,74 @@ static void reply_simple_send(struct ntvfs_request *ntvfs)
 
 
 /****************************************************************************
+ Reply to a tcon (async reply)
+****************************************************************************/
+static void reply_tcon_send(struct ntvfs_request *ntvfs)
+{
+	struct smbsrv_request *req;
+	union smb_tcon *con;
+
+	SMBSRV_CHECK_ASYNC_STATUS(con, union smb_tcon);
+
+	/* construct reply */
+	smbsrv_setup_reply(req, 2, 0);
+
+	SSVAL(req->out.vwv, VWV(0), con->tcon.out.max_xmit);
+	SSVAL(req->out.vwv, VWV(1), con->tcon.out.tid);
+	SSVAL(req->out.hdr, HDR_TID, req->tcon->tid);
+
+	smbsrv_send_reply(req);
+}
+
+/****************************************************************************
  Reply to a tcon.
 ****************************************************************************/
 void smbsrv_reply_tcon(struct smbsrv_request *req)
 {
-	union smb_tcon con;
+	union smb_tcon *con;
 	NTSTATUS status;
 	uint8_t *p;
 	
 	/* parse request */
 	SMBSRV_CHECK_WCT(req, 0);
 
-	con.tcon.level = RAW_TCON_TCON;
+	SMBSRV_TALLOC_IO_PTR(con, union smb_tcon);
+
+	con->tcon.level = RAW_TCON_TCON;
 
 	p = req->in.data;	
-	p += req_pull_ascii4(&req->in.bufinfo, &con.tcon.in.service, p, STR_TERMINATE);
-	p += req_pull_ascii4(&req->in.bufinfo, &con.tcon.in.password, p, STR_TERMINATE);
-	p += req_pull_ascii4(&req->in.bufinfo, &con.tcon.in.dev, p, STR_TERMINATE);
+	p += req_pull_ascii4(&req->in.bufinfo, &con->tcon.in.service, p, STR_TERMINATE);
+	p += req_pull_ascii4(&req->in.bufinfo, &con->tcon.in.password, p, STR_TERMINATE);
+	p += req_pull_ascii4(&req->in.bufinfo, &con->tcon.in.dev, p, STR_TERMINATE);
 
-	if (!con.tcon.in.service || !con.tcon.in.password || !con.tcon.in.dev) {
+	if (!con->tcon.in.service || !con->tcon.in.password || !con->tcon.in.dev) {
 		smbsrv_send_error(req, NT_STATUS_INVALID_PARAMETER);
 		return;
 	}
 
-	/* call backend */
-	status = smbsrv_tcon_backend(req, &con);
-
+	/* Instantiate backend */
+	status = smbsrv_tcon_backend(req, con);
 	if (!NT_STATUS_IS_OK(status)) {
 		smbsrv_send_error(req, status);
 		return;
 	}
 
-	/* construct reply */
-	smbsrv_setup_reply(req, 2, 0);
+	SMBSRV_SETUP_NTVFS_REQUEST(reply_tcon_send, NTVFS_ASYNC_STATE_MAY_ASYNC);
 
-	SSVAL(req->out.vwv, VWV(0), con.tcon.out.max_xmit);
-	SSVAL(req->out.vwv, VWV(1), con.tcon.out.tid);
-	SSVAL(req->out.hdr, HDR_TID, req->tcon->tid);
-  
-	smbsrv_send_reply(req);
+	/* Invoke NTVFS connection hook */
+	SMBSRV_CALL_NTVFS_BACKEND(ntvfs_connect(req->ntvfs, con));
 }
 
 
 /****************************************************************************
- Reply to a tcon and X.
+ Reply to a tcon and X (async reply)
 ****************************************************************************/
-void smbsrv_reply_tcon_and_X(struct smbsrv_request *req)
+static void reply_tcon_and_X_send(struct ntvfs_request *ntvfs)
 {
-	NTSTATUS status;
-	union smb_tcon con;
-	uint8_t *p;
-	uint16_t passlen;
+	struct smbsrv_request *req;
+	union smb_tcon *con;
 
-	con.tconx.level = RAW_TCON_TCONX;
-
-	/* parse request */
-	SMBSRV_CHECK_WCT(req, 4);
-
-	con.tconx.in.flags  = SVAL(req->in.vwv, VWV(2));
-	passlen             = SVAL(req->in.vwv, VWV(3));
-
-	p = req->in.data;
-
-	if (!req_pull_blob(&req->in.bufinfo, p, passlen, &con.tconx.in.password)) {
-		smbsrv_send_error(req, NT_STATUS_ILL_FORMED_PASSWORD);
-		return;
-	}
-	p += passlen;
-
-	p += req_pull_string(&req->in.bufinfo, &con.tconx.in.path, p, -1, STR_TERMINATE);
-	p += req_pull_string(&req->in.bufinfo, &con.tconx.in.device, p, -1, STR_ASCII);
-
-	if (!con.tconx.in.path || !con.tconx.in.device) {
-		smbsrv_send_error(req, NT_STATUS_BAD_DEVICE_TYPE);
-		return;
-	}
-
-	/* call backend */
-	status = smbsrv_tcon_backend(req, &con);
-
-	if (!NT_STATUS_IS_OK(status)) {
-		smbsrv_send_error(req, status);
-		return;
-	}
+	SMBSRV_CHECK_ASYNC_STATUS(con, union smb_tcon);
 
 	/* construct reply - two variants */
 	if (req->smb_conn->negotiate.protocol < PROTOCOL_NT1) {
@@ -135,23 +120,72 @@ void smbsrv_reply_tcon_and_X(struct smbsrv_request *req)
 		SSVAL(req->out.vwv, VWV(0), SMB_CHAIN_NONE);
 		SSVAL(req->out.vwv, VWV(1), 0);
 
-		req_push_str(req, NULL, con.tconx.out.dev_type, -1, STR_TERMINATE|STR_ASCII);
+		req_push_str(req, NULL, con->tconx.out.dev_type, -1, STR_TERMINATE|STR_ASCII);
 	} else {
 		smbsrv_setup_reply(req, 3, 0);
 
 		SSVAL(req->out.vwv, VWV(0), SMB_CHAIN_NONE);
 		SSVAL(req->out.vwv, VWV(1), 0);
-		SSVAL(req->out.vwv, VWV(2), con.tconx.out.options);
+		SSVAL(req->out.vwv, VWV(2), con->tconx.out.options);
 
-		req_push_str(req, NULL, con.tconx.out.dev_type, -1, STR_TERMINATE|STR_ASCII);
-		req_push_str(req, NULL, con.tconx.out.fs_type, -1, STR_TERMINATE);
+		req_push_str(req, NULL, con->tconx.out.dev_type, -1, STR_TERMINATE|STR_ASCII);
+		req_push_str(req, NULL, con->tconx.out.fs_type, -1, STR_TERMINATE);
 	}
 
 	/* set the incoming and outgoing tid to the just created one */
-	SSVAL(req->in.hdr, HDR_TID, con.tconx.out.tid);
-	SSVAL(req->out.hdr,HDR_TID, con.tconx.out.tid);
+	SSVAL(req->in.hdr, HDR_TID, con->tconx.out.tid);
+	SSVAL(req->out.hdr,HDR_TID, con->tconx.out.tid);
 
 	smbsrv_chain_reply(req);
+}
+
+/****************************************************************************
+ Reply to a tcon and X.
+****************************************************************************/
+void smbsrv_reply_tcon_and_X(struct smbsrv_request *req)
+{
+	NTSTATUS status;
+	union smb_tcon *con;
+	uint8_t *p;
+	uint16_t passlen;
+
+	SMBSRV_TALLOC_IO_PTR(con, union smb_tcon);
+
+	con->tconx.level = RAW_TCON_TCONX;
+
+	/* parse request */
+	SMBSRV_CHECK_WCT(req, 4);
+
+	con->tconx.in.flags  = SVAL(req->in.vwv, VWV(2));
+	passlen              = SVAL(req->in.vwv, VWV(3));
+
+	p = req->in.data;
+
+	if (!req_pull_blob(&req->in.bufinfo, p, passlen, &con->tconx.in.password)) {
+		smbsrv_send_error(req, NT_STATUS_ILL_FORMED_PASSWORD);
+		return;
+	}
+	p += passlen;
+
+	p += req_pull_string(&req->in.bufinfo, &con->tconx.in.path, p, -1, STR_TERMINATE);
+	p += req_pull_string(&req->in.bufinfo, &con->tconx.in.device, p, -1, STR_ASCII);
+
+	if (!con->tconx.in.path || !con->tconx.in.device) {
+		smbsrv_send_error(req, NT_STATUS_BAD_DEVICE_TYPE);
+		return;
+	}
+
+	/* Instantiate backend */
+	status = smbsrv_tcon_backend(req, con);
+	if (!NT_STATUS_IS_OK(status)) {
+		smbsrv_send_error(req, status);
+		return;
+	}
+
+	SMBSRV_SETUP_NTVFS_REQUEST(reply_tcon_and_X_send, NTVFS_ASYNC_STATE_MAY_ASYNC);
+
+	/* Invoke NTVFS connection hook */
+	SMBSRV_CALL_NTVFS_BACKEND(ntvfs_connect(req->ntvfs, con));
 }
 
 
@@ -797,7 +831,8 @@ static void reply_read_and_X_send(struct ntvfs_request *ntvfs)
 	SMBSRV_VWV_RESERVED(4, 1);
 	SSVAL(req->out.vwv, VWV(5), io->readx.out.nread);
 	SSVAL(req->out.vwv, VWV(6), PTR_DIFF(io->readx.out.data, req->out.hdr));
-	SMBSRV_VWV_RESERVED(7, 5);
+	SSVAL(req->out.vwv, VWV(7), (io->readx.out.nread>>16));
+	SMBSRV_VWV_RESERVED(8, 4);
 
 	smbsrv_chain_reply(req);
 }
@@ -1028,7 +1063,7 @@ void smbsrv_reply_write_and_X(struct smbsrv_request *req)
 
 	/* make sure the data is in bounds */
 	if (req_data_oob(&req->in.bufinfo, io->writex.in.data, io->writex.in.count)) {
-		smbsrv_send_error(req, NT_STATUS_FOOBAR);
+		smbsrv_send_error(req, NT_STATUS_DOS(ERRSRV, ERRerror));
 		return;
 	}
 

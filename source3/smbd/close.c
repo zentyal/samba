@@ -27,7 +27,7 @@ extern struct current_user current_user;
  Run a file if it is a magic script.
 ****************************************************************************/
 
-static void check_magic(struct files_struct *fsp)
+static NTSTATUS check_magic(struct files_struct *fsp)
 {
 	int ret;
 	const char *magic_output = NULL;
@@ -36,77 +36,99 @@ static void check_magic(struct files_struct *fsp)
 	TALLOC_CTX *ctx = NULL;
 	const char *p;
 	struct connection_struct *conn = fsp->conn;
+	char *fname = NULL;
+	NTSTATUS status;
 
 	if (!*lp_magicscript(SNUM(conn))) {
-		return;
+		return NT_STATUS_OK;
 	}
 
-	DEBUG(5,("checking magic for %s\n",fsp->fsp_name));
+	DEBUG(5,("checking magic for %s\n", fsp_str_dbg(fsp)));
 
-	if (!(p = strrchr_m(fsp->fsp_name,'/'))) {
-		p = fsp->fsp_name;
+	ctx = talloc_stackframe();
+
+	fname = fsp->fsp_name->base_name;
+
+	if (!(p = strrchr_m(fname,'/'))) {
+		p = fname;
 	} else {
 		p++;
 	}
 
 	if (!strequal(lp_magicscript(SNUM(conn)),p)) {
-		return;
+		status = NT_STATUS_OK;
+		goto out;
 	}
-
-	ctx = talloc_stackframe();
 
 	if (*lp_magicoutput(SNUM(conn))) {
 		magic_output = lp_magicoutput(SNUM(conn));
 	} else {
 		magic_output = talloc_asprintf(ctx,
 				"%s.out",
-				fsp->fsp_name);
+				fname);
 	}
 	if (!magic_output) {
-		TALLOC_FREE(ctx);
-		return;
+		status = NT_STATUS_NO_MEMORY;
+		goto out;
 	}
 
 	/* Ensure we don't depend on user's PATH. */
-	p = talloc_asprintf(ctx, "./%s", fsp->fsp_name);
+	p = talloc_asprintf(ctx, "./%s", fname);
 	if (!p) {
-		TALLOC_FREE(ctx);
-		return;
+		status = NT_STATUS_NO_MEMORY;
+		goto out;
 	}
 
-	if (chmod(fsp->fsp_name,0755) == -1) {
-		TALLOC_FREE(ctx);
-		return;
+	if (chmod(fname, 0755) == -1) {
+		status = map_nt_error_from_unix(errno);
+		goto out;
 	}
 	ret = smbrun(p,&tmp_fd);
 	DEBUG(3,("Invoking magic command %s gave %d\n",
 		p,ret));
 
-	unlink(fsp->fsp_name);
+	unlink(fname);
 	if (ret != 0 || tmp_fd == -1) {
 		if (tmp_fd != -1) {
 			close(tmp_fd);
 		}
-		TALLOC_FREE(ctx);
-		return;
+		status = NT_STATUS_UNSUCCESSFUL;
+		goto out;
 	}
 	outfd = open(magic_output, O_CREAT|O_EXCL|O_RDWR, 0600);
 	if (outfd == -1) {
+		int err = errno;
 		close(tmp_fd);
-		TALLOC_FREE(ctx);
-		return;
+		status = map_nt_error_from_unix(err);
+		goto out;
 	}
 
-	if (sys_fstat(tmp_fd,&st) == -1) {
+	if (sys_fstat(tmp_fd, &st, false) == -1) {
+		int err = errno;
 		close(tmp_fd);
 		close(outfd);
-		return;
+		status = map_nt_error_from_unix(err);
+		goto out;
 	}
 
-	transfer_file(tmp_fd,outfd,(SMB_OFF_T)st.st_size);
+	if (transfer_file(tmp_fd,outfd,(SMB_OFF_T)st.st_ex_size) == (SMB_OFF_T)-1) {
+		int err = errno;
+		close(tmp_fd);
+		close(outfd);
+		status = map_nt_error_from_unix(err);
+		goto out;
+	}
 	close(tmp_fd);
-	close(outfd);
+	if (close(outfd) == -1) {
+		status = map_nt_error_from_unix(errno);
+		goto out;
+	}
+
+	status = NT_STATUS_OK;
+
+ out:
 	TALLOC_FREE(ctx);
+	return status;
 }
 
 /****************************************************************************
@@ -204,31 +226,32 @@ NTSTATUS delete_all_streams(connection_struct *conn, const char *fname)
 
 	for (i=0; i<num_streams; i++) {
 		int res;
-		char *streamname;
+		struct smb_filename *smb_fname_stream = NULL;
 
 		if (strequal(stream_info[i].name, "::$DATA")) {
 			continue;
 		}
 
-		streamname = talloc_asprintf(talloc_tos(), "%s%s", fname,
-					     stream_info[i].name);
+		status = create_synthetic_smb_fname(talloc_tos(), fname,
+						    stream_info[i].name, NULL,
+						    &smb_fname_stream);
 
-		if (streamname == NULL) {
+		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(0, ("talloc_aprintf failed\n"));
-			status = NT_STATUS_NO_MEMORY;
 			goto fail;
 		}
 
-		res = SMB_VFS_UNLINK(conn, streamname);
-
-		TALLOC_FREE(streamname);
+		res = SMB_VFS_UNLINK(conn, smb_fname_stream);
 
 		if (res == -1) {
 			status = map_nt_error_from_unix(errno);
 			DEBUG(10, ("Could not delete stream %s: %s\n",
-				   streamname, strerror(errno)));
+				   smb_fname_str_dbg(smb_fname_stream),
+				   strerror(errno)));
+			TALLOC_FREE(smb_fname_stream);
 			break;
 		}
+		TALLOC_FREE(smb_fname_stream);
 	}
 
  fail:
@@ -246,11 +269,18 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 	connection_struct *conn = fsp->conn;
 	bool delete_file = false;
 	bool changed_user = false;
-	struct share_mode_lock *lck;
-	SMB_STRUCT_STAT sbuf;
+	struct share_mode_lock *lck = NULL;
 	NTSTATUS status = NT_STATUS_OK;
-	int ret;
+	NTSTATUS tmp_status;
 	struct file_id id;
+
+	/* Ensure any pending write time updates are done. */
+	if (fsp->update_write_time_event) {
+		update_write_time_handler(smbd_event_context(),
+					fsp->update_write_time_event,
+					timeval_current(),
+					(void *)fsp);
+	}
 
 	/*
 	 * Lock the share entries, and determine if we should delete
@@ -263,17 +293,37 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 
 	if (lck == NULL) {
 		DEBUG(0, ("close_remove_share_mode: Could not get share mode "
-			  "lock for file %s\n", fsp->fsp_name));
-		return NT_STATUS_INVALID_PARAMETER;
+			  "lock for file %s\n", fsp_str_dbg(fsp)));
+		status = NT_STATUS_INVALID_PARAMETER;
+		goto done;
 	}
 
 	if (fsp->write_time_forced) {
+		DEBUG(10,("close_remove_share_mode: write time forced "
+			"for file %s\n",
+			fsp_str_dbg(fsp)));
 		set_close_write_time(fsp, lck->changed_write_time);
+	} else if (fsp->update_write_time_on_close) {
+		/* Someone had a pending write. */
+		if (null_timespec(fsp->close_write_time)) {
+			DEBUG(10,("close_remove_share_mode: update to current time "
+				"for file %s\n",
+				fsp_str_dbg(fsp)));
+			/* Update to current time due to "normal" write. */
+			set_close_write_time(fsp, timespec_current());
+		} else {
+			DEBUG(10,("close_remove_share_mode: write time pending "
+				"for file %s\n",
+				fsp_str_dbg(fsp)));
+			/* Update to time set on close call. */
+			set_close_write_time(fsp, fsp->close_write_time);
+		}
 	}
 
 	if (!del_share_mode(lck, fsp)) {
 		DEBUG(0, ("close_remove_share_mode: Could not delete share "
-			  "entry for file %s\n", fsp->fsp_name));
+			  "entry for file %s\n",
+			  fsp_str_dbg(fsp)));
 	}
 
 	if (fsp->initial_delete_on_close && (lck->delete_token == NULL)) {
@@ -286,6 +336,7 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 			become_user(conn, fsp->vuid);
 			became_user = True;
 		}
+		fsp->delete_on_close = true;
 		set_delete_on_close_lck(lck, True, &current_user.ut);
 		if (became_user) {
 			unbecome_user();
@@ -331,7 +382,7 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 	 */
 
 	DEBUG(5,("close_remove_share_mode: file %s. Delete on close was set "
-		 "- deleting file.\n", fsp->fsp_name));
+		 "- deleting file.\n", fsp_str_dbg(fsp)));
 
 	/*
 	 * Don't try to update the write time when we delete the file
@@ -343,7 +394,7 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 
 		DEBUG(5,("close_remove_share_mode: file %s. "
 			"Change user to uid %u\n",
-			fsp->fsp_name,
+			fsp_str_dbg(fsp),
 			(unsigned int)lck->delete_token->uid));
 
 		if (!push_sec_ctx()) {
@@ -363,31 +414,26 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 	/* We can only delete the file if the name we have is still valid and
 	   hasn't been renamed. */
 
-	if (fsp->posix_open) {
-		ret = SMB_VFS_LSTAT(conn,fsp->fsp_name,&sbuf);
-	} else {
-		ret = SMB_VFS_STAT(conn,fsp->fsp_name,&sbuf);
-	}
-
-	if (ret != 0) {
+	tmp_status = vfs_stat_fsp(fsp);
+	if (!NT_STATUS_IS_OK(tmp_status)) {
 		DEBUG(5,("close_remove_share_mode: file %s. Delete on close "
 			 "was set and stat failed with error %s\n",
-			 fsp->fsp_name, strerror(errno) ));
+			 fsp_str_dbg(fsp), nt_errstr(tmp_status)));
 		/*
 		 * Don't save the errno here, we ignore this error
 		 */
 		goto done;
 	}
 
-	id = vfs_file_id_from_sbuf(conn, &sbuf);
+	id = vfs_file_id_from_sbuf(conn, &fsp->fsp_name->st);
 
 	if (!file_id_equal(&fsp->file_id, &id)) {
 		DEBUG(5,("close_remove_share_mode: file %s. Delete on close "
 			 "was set and dev and/or inode does not match\n",
-			 fsp->fsp_name ));
+			 fsp_str_dbg(fsp)));
 		DEBUG(5,("close_remove_share_mode: file %s. stored file_id %s, "
 			 "stat file_id %s\n",
-			 fsp->fsp_name,
+			 fsp_str_dbg(fsp),
 			 file_id_string_tos(&fsp->file_id),
 			 file_id_string_tos(&id)));
 		/*
@@ -397,9 +443,9 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 	}
 
 	if ((conn->fs_capabilities & FILE_NAMED_STREAMS)
-	    && !is_ntfs_stream_name(fsp->fsp_name)) {
+	    && !is_ntfs_stream_smb_fname(fsp->fsp_name)) {
 
-		status = delete_all_streams(conn, fsp->fsp_name);
+		status = delete_all_streams(conn, fsp->fsp_name->base_name);
 
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(5, ("delete_all_streams failed: %s\n",
@@ -409,7 +455,7 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 	}
 
 
-	if (SMB_VFS_UNLINK(conn,fsp->fsp_name) != 0) {
+	if (SMB_VFS_UNLINK(conn, fsp->fsp_name) != 0) {
 		/*
 		 * This call can potentially fail as another smbd may
 		 * have had the file open with delete on close set and
@@ -420,14 +466,14 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 
 		DEBUG(5,("close_remove_share_mode: file %s. Delete on close "
 			 "was set and unlink failed with error %s\n",
-			 fsp->fsp_name, strerror(errno) ));
+			 fsp_str_dbg(fsp), strerror(errno)));
 
 		status = map_nt_error_from_unix(errno);
 	}
 
 	notify_fname(conn, NOTIFY_ACTION_REMOVED,
 		     FILE_NOTIFY_CHANGE_FILE_NAME,
-		     fsp->fsp_name);
+		     fsp->fsp_name->base_name);
 
 	/* As we now have POSIX opens which can unlink
  	 * with other open files we may have taken
@@ -436,6 +482,7 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
  	 * the delete on close flag. JRA.
  	 */
 
+	fsp->delete_on_close = false;
 	set_delete_on_close_lck(lck, False, NULL);
 
  done:
@@ -456,24 +503,17 @@ void set_close_write_time(struct files_struct *fsp, struct timespec ts)
 	if (null_timespec(ts)) {
 		return;
 	}
-	/*
-	 * if the write time on close is explict set, then don't
-	 * need to fix it up to the value in the locking db
-	 */
 	fsp->write_time_forced = false;
-
 	fsp->update_write_time_on_close = true;
 	fsp->close_write_time = ts;
 }
 
 static NTSTATUS update_write_time_on_close(struct files_struct *fsp)
 {
-	SMB_STRUCT_STAT sbuf;
 	struct smb_file_time ft;
 	NTSTATUS status;
-	int ret = -1;
+	struct share_mode_lock *lck = NULL;
 
-	ZERO_STRUCT(sbuf);
 	ZERO_STRUCT(ft);
 
 	if (!fsp->update_write_time_on_close) {
@@ -485,33 +525,45 @@ static NTSTATUS update_write_time_on_close(struct files_struct *fsp)
 	}
 
 	/* Ensure we have a valid stat struct for the source. */
-	if (fsp->fh->fd != -1) {
-		ret = SMB_VFS_FSTAT(fsp, &sbuf);
-	} else {
-		if (fsp->posix_open) {
-			ret = SMB_VFS_LSTAT(fsp->conn,fsp->fsp_name,&sbuf);
-		} else {
-			ret = SMB_VFS_STAT(fsp->conn,fsp->fsp_name,&sbuf);
-		}
-	}
-
-	if (ret == -1) {
-		return map_nt_error_from_unix(errno);
-	}
-
-	if (!VALID_STAT(sbuf)) {
-		/* if it doesn't seem to be a real file */
-		return NT_STATUS_OK;
-	}
-
-	ft.mtime = fsp->close_write_time;
-	status = smb_set_file_time(fsp->conn, fsp, fsp->fsp_name,
-				   &sbuf, &ft, true);
+	status = vfs_stat_fsp(fsp);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
 
-	return NT_STATUS_OK;
+	if (!VALID_STAT(fsp->fsp_name->st)) {
+		/* if it doesn't seem to be a real file */
+		return NT_STATUS_OK;
+	}
+
+	/* On close if we're changing the real file time we
+	 * must update it in the open file db too. */
+	(void)set_write_time(fsp->file_id, fsp->close_write_time);
+
+	lck = get_share_mode_lock(talloc_tos(), fsp->file_id, NULL, NULL, NULL);
+	if (lck) {
+		/* Close write times overwrite sticky write times
+		   so we must replace any sticky write time here. */
+		if (!null_timespec(lck->changed_write_time)) {
+			(void)set_sticky_write_time(fsp->file_id, fsp->close_write_time);
+		}
+		TALLOC_FREE(lck);
+	}
+
+	ft.mtime = fsp->close_write_time;
+	status = smb_set_file_time(fsp->conn, fsp, fsp->fsp_name, &ft, false);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	return status;
+}
+
+static NTSTATUS ntstatus_keeperror(NTSTATUS s1, NTSTATUS s2)
+{
+	if (!NT_STATUS_IS_OK(s1)) {
+		return s1;
+	}
+	return s2;
 }
 
 /****************************************************************************
@@ -526,10 +578,7 @@ static NTSTATUS close_normal_file(struct smb_request *req, files_struct *fsp,
 				  enum file_close_type close_type)
 {
 	NTSTATUS status = NT_STATUS_OK;
-	NTSTATUS saved_status1 = NT_STATUS_OK;
-	NTSTATUS saved_status2 = NT_STATUS_OK;
-	NTSTATUS saved_status3 = NT_STATUS_OK;
-	NTSTATUS saved_status4 = NT_STATUS_OK;
+	NTSTATUS tmp;
 	connection_struct *conn = fsp->conn;
 
 	if (fsp->aio_write_behind) {
@@ -539,7 +588,8 @@ static NTSTATUS close_normal_file(struct smb_request *req, files_struct *fsp,
 		 */
 		int ret = wait_for_aio_completion(fsp);
 		if (ret) {
-			saved_status1 = map_nt_error_from_unix(ret);
+			status = ntstatus_keeperror(
+				status, map_nt_error_from_unix(ret));
 		}
 	} else {
 		cancel_aio_by_fsp(fsp);
@@ -550,7 +600,8 @@ static NTSTATUS close_normal_file(struct smb_request *req, files_struct *fsp,
 	 * error here, we must remember this.
 	 */
 
-	saved_status2 = close_filestruct(fsp);
+	tmp = close_filestruct(fsp);
+	status = ntstatus_keeperror(status, tmp);
 
 	if (fsp->print_file) {
 		print_fsp_end(fsp, close_type);
@@ -569,50 +620,300 @@ static NTSTATUS close_normal_file(struct smb_request *req, files_struct *fsp,
 
 	if (fsp->fh->ref_count == 1) {
 		/* Should we return on error here... ? */
-		saved_status3 = close_remove_share_mode(fsp, close_type);
+		tmp = close_remove_share_mode(fsp, close_type);
+		status = ntstatus_keeperror(status, tmp);
 	}
 
 	locking_close_file(smbd_messaging_context(), fsp);
 
-	status = fd_close(fsp);
+	tmp = fd_close(fsp);
+	status = ntstatus_keeperror(status, tmp);
 
 	/* check for magic scripts */
 	if (close_type == NORMAL_CLOSE) {
-		check_magic(fsp);
+		tmp = check_magic(fsp);
+		status = ntstatus_keeperror(status, tmp);
 	}
 
 	/*
 	 * Ensure pending modtime is set after close.
 	 */
 
-	saved_status4 = update_write_time_on_close(fsp);
-	if (NT_STATUS_EQUAL(saved_status4, NT_STATUS_OBJECT_NAME_NOT_FOUND)) {
+	tmp = update_write_time_on_close(fsp);
+	if (NT_STATUS_EQUAL(tmp, NT_STATUS_OBJECT_NAME_NOT_FOUND)) {
 		/* Someone renamed the file or a parent directory containing
 		 * this file. We can't do anything about this, we don't have
 		 * an "update timestamp by fd" call in POSIX. Eat the error. */
 
-		saved_status4 = NT_STATUS_OK;
+		tmp = NT_STATUS_OK;
 	}
 
-	if (NT_STATUS_IS_OK(status)) {
-		if (!NT_STATUS_IS_OK(saved_status1)) {
-			status = saved_status1;
-		} else if (!NT_STATUS_IS_OK(saved_status2)) {
-			status = saved_status2;
-		} else if (!NT_STATUS_IS_OK(saved_status3)) {
-			status = saved_status3;
-		} else if (!NT_STATUS_IS_OK(saved_status4)) {
-			status = saved_status4;
-		}
-	}
+	status = ntstatus_keeperror(status, tmp);
 
 	DEBUG(2,("%s closed file %s (numopen=%d) %s\n",
-		conn->server_info->unix_name,fsp->fsp_name,
+		conn->server_info->unix_name, fsp_str_dbg(fsp),
 		conn->num_files_open - 1,
 		nt_errstr(status) ));
 
 	file_free(req, fsp);
 	return status;
+}
+/****************************************************************************
+ Static function used by reply_rmdir to delete an entire directory
+ tree recursively. Return True on ok, False on fail.
+****************************************************************************/
+
+static bool recursive_rmdir(TALLOC_CTX *ctx,
+			connection_struct *conn,
+			struct smb_filename *smb_dname)
+{
+	const char *dname = NULL;
+	char *talloced = NULL;
+	bool ret = True;
+	long offset = 0;
+	SMB_STRUCT_STAT st;
+	struct smb_Dir *dir_hnd;
+
+	SMB_ASSERT(!is_ntfs_stream_smb_fname(smb_dname));
+
+	dir_hnd = OpenDir(talloc_tos(), conn, smb_dname->base_name, NULL, 0);
+	if(dir_hnd == NULL)
+		return False;
+
+	while((dname = ReadDirName(dir_hnd, &offset, &st, &talloced))) {
+		struct smb_filename *smb_dname_full = NULL;
+		char *fullname = NULL;
+		bool do_break = true;
+		NTSTATUS status;
+
+		if (ISDOT(dname) || ISDOTDOT(dname)) {
+			TALLOC_FREE(talloced);
+			continue;
+		}
+
+		if (!is_visible_file(conn, smb_dname->base_name, dname, &st,
+				     false)) {
+			TALLOC_FREE(talloced);
+			continue;
+		}
+
+		/* Construct the full name. */
+		fullname = talloc_asprintf(ctx,
+				"%s/%s",
+				smb_dname->base_name,
+				dname);
+		if (!fullname) {
+			errno = ENOMEM;
+			goto err_break;
+		}
+
+		status = create_synthetic_smb_fname(talloc_tos(), fullname,
+						    NULL, NULL,
+						    &smb_dname_full);
+		if (!NT_STATUS_IS_OK(status)) {
+			goto err_break;
+		}
+
+		if(SMB_VFS_LSTAT(conn, smb_dname_full) != 0) {
+			goto err_break;
+		}
+
+		if(smb_dname_full->st.st_ex_mode & S_IFDIR) {
+			if(!recursive_rmdir(ctx, conn, smb_dname_full)) {
+				goto err_break;
+			}
+			if(SMB_VFS_RMDIR(conn,
+					 smb_dname_full->base_name) != 0) {
+				goto err_break;
+			}
+		} else if(SMB_VFS_UNLINK(conn, smb_dname_full) != 0) {
+			goto err_break;
+		}
+
+		/* Successful iteration. */
+		do_break = false;
+
+	 err_break:
+		TALLOC_FREE(smb_dname_full);
+		TALLOC_FREE(fullname);
+		TALLOC_FREE(talloced);
+		if (do_break) {
+			ret = false;
+			break;
+		}
+	}
+	TALLOC_FREE(dir_hnd);
+	return ret;
+}
+
+/****************************************************************************
+ The internals of the rmdir code - called elsewhere.
+****************************************************************************/
+
+static NTSTATUS rmdir_internals(TALLOC_CTX *ctx, files_struct *fsp)
+{
+	connection_struct *conn = fsp->conn;
+	struct smb_filename *smb_dname = fsp->fsp_name;
+	int ret;
+
+	SMB_ASSERT(!is_ntfs_stream_smb_fname(smb_dname));
+
+	/* Might be a symlink. */
+	if(SMB_VFS_LSTAT(conn, smb_dname) != 0) {
+		return map_nt_error_from_unix(errno);
+	}
+
+	if (S_ISLNK(smb_dname->st.st_ex_mode)) {
+		/* Is what it points to a directory ? */
+		if(SMB_VFS_STAT(conn, smb_dname) != 0) {
+			return map_nt_error_from_unix(errno);
+		}
+		if (!(S_ISDIR(smb_dname->st.st_ex_mode))) {
+			return NT_STATUS_NOT_A_DIRECTORY;
+		}
+		ret = SMB_VFS_UNLINK(conn, smb_dname);
+	} else {
+		ret = SMB_VFS_RMDIR(conn, smb_dname->base_name);
+	}
+	if (ret == 0) {
+		notify_fname(conn, NOTIFY_ACTION_REMOVED,
+			     FILE_NOTIFY_CHANGE_DIR_NAME,
+			     smb_dname->base_name);
+		return NT_STATUS_OK;
+	}
+
+	if(((errno == ENOTEMPTY)||(errno == EEXIST)) && lp_veto_files(SNUM(conn))) {
+		/*
+		 * Check to see if the only thing in this directory are
+		 * vetoed files/directories. If so then delete them and
+		 * retry. If we fail to delete any of them (and we *don't*
+		 * do a recursive delete) then fail the rmdir.
+		 */
+		SMB_STRUCT_STAT st;
+		const char *dname = NULL;
+		char *talloced = NULL;
+		long dirpos = 0;
+		struct smb_Dir *dir_hnd = OpenDir(talloc_tos(), conn,
+						  smb_dname->base_name, NULL,
+						  0);
+
+		if(dir_hnd == NULL) {
+			errno = ENOTEMPTY;
+			goto err;
+		}
+
+		while ((dname = ReadDirName(dir_hnd, &dirpos, &st,
+					    &talloced)) != NULL) {
+			if((strcmp(dname, ".") == 0) || (strcmp(dname, "..")==0)) {
+				TALLOC_FREE(talloced);
+				continue;
+			}
+			if (!is_visible_file(conn, smb_dname->base_name, dname,
+					     &st, false)) {
+				TALLOC_FREE(talloced);
+				continue;
+			}
+			if(!IS_VETO_PATH(conn, dname)) {
+				TALLOC_FREE(dir_hnd);
+				TALLOC_FREE(talloced);
+				errno = ENOTEMPTY;
+				goto err;
+			}
+			TALLOC_FREE(talloced);
+		}
+
+		/* We only have veto files/directories.
+		 * Are we allowed to delete them ? */
+
+		if(!lp_recursive_veto_delete(SNUM(conn))) {
+			TALLOC_FREE(dir_hnd);
+			errno = ENOTEMPTY;
+			goto err;
+		}
+
+		/* Do a recursive delete. */
+		RewindDir(dir_hnd,&dirpos);
+		while ((dname = ReadDirName(dir_hnd, &dirpos, &st,
+					    &talloced)) != NULL) {
+			struct smb_filename *smb_dname_full = NULL;
+			char *fullname = NULL;
+			bool do_break = true;
+			NTSTATUS status;
+
+			if (ISDOT(dname) || ISDOTDOT(dname)) {
+				TALLOC_FREE(talloced);
+				continue;
+			}
+			if (!is_visible_file(conn, smb_dname->base_name, dname,
+					     &st, false)) {
+				TALLOC_FREE(talloced);
+				continue;
+			}
+
+			fullname = talloc_asprintf(ctx,
+					"%s/%s",
+					smb_dname->base_name,
+					dname);
+
+			if(!fullname) {
+				errno = ENOMEM;
+				goto err_break;
+			}
+
+			status = create_synthetic_smb_fname(talloc_tos(),
+							    fullname, NULL,
+							    NULL,
+							    &smb_dname_full);
+			if (!NT_STATUS_IS_OK(status)) {
+				errno = map_errno_from_nt_status(status);
+				goto err_break;
+			}
+
+			if(SMB_VFS_LSTAT(conn, smb_dname_full) != 0) {
+				goto err_break;
+			}
+			if(smb_dname_full->st.st_ex_mode & S_IFDIR) {
+				if(!recursive_rmdir(ctx, conn,
+						    smb_dname_full)) {
+					goto err_break;
+				}
+				if(SMB_VFS_RMDIR(conn,
+					smb_dname_full->base_name) != 0) {
+					goto err_break;
+				}
+			} else if(SMB_VFS_UNLINK(conn, smb_dname_full) != 0) {
+				goto err_break;
+			}
+
+			/* Successful iteration. */
+			do_break = false;
+
+		 err_break:
+			TALLOC_FREE(fullname);
+			TALLOC_FREE(smb_dname_full);
+			TALLOC_FREE(talloced);
+			if (do_break)
+				break;
+		}
+		TALLOC_FREE(dir_hnd);
+		/* Retry the rmdir */
+		ret = SMB_VFS_RMDIR(conn, smb_dname->base_name);
+	}
+
+  err:
+
+	if (ret != 0) {
+		DEBUG(3,("rmdir_internals: couldn't remove directory %s : "
+			 "%s\n", smb_fname_str_dbg(smb_dname),
+			 strerror(errno)));
+		return map_nt_error_from_unix(errno);
+	}
+
+	notify_fname(conn, NOTIFY_ACTION_REMOVED,
+		     FILE_NOTIFY_CHANGE_DIR_NAME,
+		     smb_dname->base_name);
+
+	return NT_STATUS_OK;
 }
 
 /****************************************************************************
@@ -622,9 +923,10 @@ static NTSTATUS close_normal_file(struct smb_request *req, files_struct *fsp,
 static NTSTATUS close_directory(struct smb_request *req, files_struct *fsp,
 				enum file_close_type close_type)
 {
-	struct share_mode_lock *lck = 0;
+	struct share_mode_lock *lck = NULL;
 	bool delete_dir = False;
 	NTSTATUS status = NT_STATUS_OK;
+	NTSTATUS status1 = NT_STATUS_OK;
 
 	/*
 	 * NT can set delete_on_close of the last open
@@ -635,12 +937,15 @@ static NTSTATUS close_directory(struct smb_request *req, files_struct *fsp,
 				  NULL);
 
 	if (lck == NULL) {
-		DEBUG(0, ("close_directory: Could not get share mode lock for %s\n", fsp->fsp_name));
-		return NT_STATUS_INVALID_PARAMETER;
+		DEBUG(0, ("close_directory: Could not get share mode lock for "
+			  "%s\n", fsp_str_dbg(fsp)));
+		status = NT_STATUS_INVALID_PARAMETER;
+		goto out;
 	}
 
 	if (!del_share_mode(lck, fsp)) {
-		DEBUG(0, ("close_directory: Could not delete share entry for %s\n", fsp->fsp_name));
+		DEBUG(0, ("close_directory: Could not delete share entry for "
+			  "%s\n", fsp_str_dbg(fsp)));
 	}
 
 	if (fsp->initial_delete_on_close) {
@@ -654,8 +959,9 @@ static NTSTATUS close_directory(struct smb_request *req, files_struct *fsp,
 			become_user(fsp->conn, fsp->vuid);
 			became_user = True;
 		}
-		send_stat_cache_delete_message(fsp->fsp_name);
+		send_stat_cache_delete_message(fsp->fsp_name->base_name);
 		set_delete_on_close_lck(lck, True, &current_user.ut);
+		fsp->delete_on_close = true;
 		if (became_user) {
 			unbecome_user();
 		}
@@ -697,12 +1003,11 @@ static NTSTATUS close_directory(struct smb_request *req, files_struct *fsp,
 
 		TALLOC_FREE(lck);
 
-		status = rmdir_internals(talloc_tos(),
-				fsp->conn, fsp->fsp_name);
+		status = rmdir_internals(talloc_tos(), fsp);
 
 		DEBUG(5,("close_directory: %s. Delete on close was set - "
 			 "deleting directory returned %s.\n",
-			 fsp->fsp_name, nt_errstr(status)));
+			 fsp_str_dbg(fsp), nt_errstr(status)));
 
 		/* unbecome user. */
 		pop_sec_ctx();
@@ -721,11 +1026,16 @@ static NTSTATUS close_directory(struct smb_request *req, files_struct *fsp,
 			fsp, NT_STATUS_OK);
 	}
 
-	status = fd_close(fsp);
+	status1 = fd_close(fsp);
 
-	if (!NT_STATUS_IS_OK(status)) {
+	if (!NT_STATUS_IS_OK(status1)) {
 		DEBUG(0, ("Could not close dir! fname=%s, fd=%d, err=%d=%s\n",
-			  fsp->fsp_name, fsp->fh->fd, errno, strerror(errno)));
+			  fsp_str_dbg(fsp), fsp->fh->fd, errno,
+			  strerror(errno)));
+	}
+
+	if (fsp->dptr) {
+		dptr_CloseDir(fsp->dptr);
 	}
 
 	/*
@@ -733,6 +1043,12 @@ static NTSTATUS close_directory(struct smb_request *req, files_struct *fsp,
 	 */
 	close_filestruct(fsp);
 	file_free(req, fsp);
+
+ out:
+	TALLOC_FREE(lck);
+	if (NT_STATUS_IS_OK(status) && !NT_STATUS_IS_OK(status1)) {
+		status = status1;
+	}
 	return status;
 }
 

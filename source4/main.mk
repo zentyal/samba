@@ -7,6 +7,7 @@ mkinclude smbd/process_model.mk
 mkinclude libnet/config.mk
 mkinclude auth/config.mk
 mkinclude ../nsswitch/config.mk
+mkinclude ../nsswitch/libwbclient/config.mk
 mkinclude lib/samba3/config.mk
 mkinclude lib/socket/config.mk
 mkinclude ../lib/util/charset/config.mk
@@ -18,9 +19,11 @@ mkinclude lib/events/config.mk
 mkinclude lib/cmdline/config.mk
 mkinclude ../lib/socket_wrapper/config.mk
 mkinclude ../lib/nss_wrapper/config.mk
+mkinclude ../lib/uid_wrapper/config.mk
 mkinclude lib/stream/config.mk
 mkinclude ../lib/util/config.mk
-mkinclude lib/tdr/config.mk
+mkinclude ../lib/tdr/config.mk
+mkinclude ../lib/tsocket/config.mk
 mkinclude ../lib/crypto/config.mk
 mkinclude ../lib/torture/config.mk
 mkinclude lib/basic.mk
@@ -45,10 +48,17 @@ mkinclude torture/config.mk
 mkinclude librpc/config.mk
 mkinclude client/config.mk
 mkinclude libcli/config.mk
+mkinclude ../libcli/smb/config.mk
+mkinclude ../libcli/cldap/config.mk
 mkinclude scripting/python/config.mk
 mkinclude kdc/config.mk
 mkinclude ../lib/smbconf/config.mk
 mkinclude ../lib/async_req/config.mk
 mkinclude ../libcli/security/config.mk
 mkinclude ../libcli/ldap/config.mk
-
+mkinclude ../libcli/nbt/config.mk
+mkinclude ../libcli/auth/config.mk
+mkinclude ../libcli/drsuapi/config.mk
+mkinclude ../libcli/samsync/config.mk
+mkinclude ../libgpo/config.mk
+mkinclude ../libcli/named_pipe_auth/config.mk

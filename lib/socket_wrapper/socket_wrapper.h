@@ -49,8 +49,10 @@ int swrap_getsockopt(int s, int level, int optname, void *optval, socklen_t *opt
 int swrap_setsockopt(int s, int  level,  int  optname,  const  void  *optval, socklen_t optlen);
 ssize_t swrap_recvfrom(int s, void *buf, size_t len, int flags, struct sockaddr *from, socklen_t *fromlen);
 ssize_t swrap_sendto(int s, const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen);
+ssize_t swrap_sendmsg(int s, const struct msghdr *msg, int flags);
 int swrap_ioctl(int s, int req, void *ptr);
 ssize_t swrap_recv(int s, void *buf, size_t len, int flags);
+ssize_t swrap_read(int s, void *buf, size_t len);
 ssize_t swrap_send(int s, const void *buf, size_t len, int flags);
 int swrap_readv(int s, const struct iovec *vector, size_t count);
 int swrap_writev(int s, const struct iovec *vector, size_t count);
@@ -108,6 +110,11 @@ int swrap_close(int);
 #endif
 #define sendto(s,buf,len,flags,to,tolen)          swrap_sendto(s,buf,len,flags,to,tolen)
 
+#ifdef sendmsg
+#undef sendmsg
+#endif
+#define sendmsg(s,msg,flags)            swrap_sendmsg(s,msg,flags)
+
 #ifdef ioctl
 #undef ioctl
 #endif
@@ -117,6 +124,11 @@ int swrap_close(int);
 #undef recv
 #endif
 #define recv(s,buf,len,flags)		swrap_recv(s,buf,len,flags)
+
+#ifdef read
+#undef read
+#endif
+#define read(s,buf,len)		swrap_read(s,buf,len)
 
 #ifdef send
 #undef send

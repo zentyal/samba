@@ -20,6 +20,7 @@
  */
 
 #include "includes.h"
+#include "../librpc/gen_ndr/srv_ntsvcs.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_RPC_SRV
@@ -76,9 +77,8 @@ WERROR _PNP_GetDeviceList(pipes_struct *p,
 {
 	char *devicepath;
 	uint32_t size = 0;
-	char **multi_sz = NULL;
-	size_t multi_sz_len;
-	uint16_t *multi_sz_buf;
+	const char **multi_sz = NULL;
+	DATA_BLOB blob;
 
 	if ((r->in.flags & CM_GETIDLIST_FILTER_SERVICE) &&
 	    (!r->in.filter)) {
@@ -95,23 +95,22 @@ WERROR _PNP_GetDeviceList(pipes_struct *p,
 		return WERR_CM_BUFFER_SMALL;
 	}
 
-	multi_sz = talloc_zero_array(p->mem_ctx, char *, 2);
+	multi_sz = talloc_zero_array(p->mem_ctx, const char *, 2);
 	if (!multi_sz) {
 		return WERR_NOMEM;
 	}
 
 	multi_sz[0] = devicepath;
 
-	multi_sz_len = regval_build_multi_sz(multi_sz, &multi_sz_buf);
-	if (!multi_sz_len) {
+	if (!push_reg_multi_sz(multi_sz, &blob, multi_sz)) {
 		return WERR_NOMEM;
 	}
 
-	if (*r->in.length < multi_sz_len/2) {
+	if (*r->in.length < blob.length/2) {
 		return WERR_CM_BUFFER_SMALL;
 	}
 
-	memcpy(r->out.buffer, multi_sz_buf, multi_sz_len);
+	memcpy(r->out.buffer, blob.data, blob.length);
 
 	return WERR_OK;
 }
@@ -124,8 +123,8 @@ WERROR _PNP_GetDeviceRegProp(pipes_struct *p,
 			     struct PNP_GetDeviceRegProp *r)
 {
 	char *ptr;
-	REGVAL_CTR *values;
-	REGISTRY_VALUE *val;
+	struct regval_ctr *values;
+	struct regval_blob *val;
 
 	switch( r->in.property ) {
 	case DEV_REGPROP_DESC:

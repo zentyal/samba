@@ -27,173 +27,16 @@
 #include "librpc/gen_ndr/ndr_drsuapi.h"
 #include "librpc/gen_ndr/ndr_drsblobs.h"
 #include "../lib/crypto/crypto.h"
+#include "../libcli/drsuapi/drsuapi.h"
 #include "libcli/auth/libcli_auth.h"
 #include "param/param.h"
 
-static WERROR dsdb_decrypt_attribute_value(TALLOC_CTX *mem_ctx,
-					   const DATA_BLOB *gensec_skey,
-					   bool rid_crypt,
-					   uint32_t rid,
-					   DATA_BLOB *in,
-					   DATA_BLOB *out)
-{
-	DATA_BLOB confounder;
-	DATA_BLOB enc_buffer;
-
-	struct MD5Context md5;
-	uint8_t _enc_key[16];
-	DATA_BLOB enc_key;
-
-	DATA_BLOB dec_buffer;
-
-	uint32_t crc32_given;
-	uint32_t crc32_calc;
-	DATA_BLOB checked_buffer;
-
-	DATA_BLOB plain_buffer;
-
-	/*
-	 * users with rid == 0 should not exist
-	 */
-	if (rid_crypt && rid == 0) {
-		return WERR_DS_DRA_INVALID_PARAMETER;
-	}
-
-	/* 
-	 * the first 16 bytes at the beginning are the confounder
-	 * followed by the 4 byte crc32 checksum
-	 */
-	if (in->length < 20) {
-		return WERR_DS_DRA_INVALID_PARAMETER;
-	}
-	confounder = data_blob_const(in->data, 16);
-	enc_buffer = data_blob_const(in->data + 16, in->length - 16);
-
-	/* 
-	 * build the encryption key md5 over the session key followed
-	 * by the confounder
-	 * 
-	 * here the gensec session key is used and
-	 * not the dcerpc ncacn_ip_tcp "SystemLibraryDTC" key!
-	 */
-	enc_key = data_blob_const(_enc_key, sizeof(_enc_key));
-	MD5Init(&md5);
-	MD5Update(&md5, gensec_skey->data, gensec_skey->length);
-	MD5Update(&md5, confounder.data, confounder.length);
-	MD5Final(enc_key.data, &md5);
-
-	/*
-	 * copy the encrypted buffer part and 
-	 * decrypt it using the created encryption key using arcfour
-	 */
-	dec_buffer = data_blob_const(enc_buffer.data, enc_buffer.length);
-	arcfour_crypt_blob(dec_buffer.data, dec_buffer.length, &enc_key);
-
-	/* 
-	 * the first 4 byte are the crc32 checksum
-	 * of the remaining bytes
-	 */
-	crc32_given = IVAL(dec_buffer.data, 0);
-	crc32_calc = crc32_calc_buffer(dec_buffer.data + 4 , dec_buffer.length - 4);
-	if (crc32_given != crc32_calc) {
-		return WERR_SEC_E_DECRYPT_FAILURE;
-	}
-	checked_buffer = data_blob_const(dec_buffer.data + 4, dec_buffer.length - 4);
-
-	plain_buffer = data_blob_talloc(mem_ctx, checked_buffer.data, checked_buffer.length);
-	W_ERROR_HAVE_NO_MEMORY(plain_buffer.data);
-
-	/*
-	 * The following rid_crypt obfuscation isn't session specific
-	 * and not really needed here, because we allways know the rid of the
-	 * user account.
-	 *
-	 * But for the rest of samba it's easier when we remove this static
-	 * obfuscation here
-	 */
-	if (rid_crypt) {
-		uint32_t i, num_hashes;
-
-		if ((checked_buffer.length % 16) != 0) {
-			return WERR_DS_DRA_INVALID_PARAMETER;
-		}
-
-		num_hashes = plain_buffer.length / 16;
-		for (i = 0; i < num_hashes; i++) {
-			uint32_t offset = i * 16;
-			sam_rid_crypt(rid, checked_buffer.data + offset, plain_buffer.data + offset, 0);
-		}
-	}
-
-	*out = plain_buffer;
-	return WERR_OK;
-}
-
-static WERROR dsdb_decrypt_attribute(const DATA_BLOB *gensec_skey,
-				     uint32_t rid,
-				     struct drsuapi_DsReplicaAttribute *attr)
-{
-	WERROR status;
-	TALLOC_CTX *mem_ctx;
-	DATA_BLOB *enc_data;
-	DATA_BLOB plain_data;
-	bool rid_crypt = false;
-
-	if (attr->value_ctr.num_values == 0) {
-		return WERR_OK;
-	}
-
-	switch (attr->attid) {
-	case DRSUAPI_ATTRIBUTE_dBCSPwd:
-	case DRSUAPI_ATTRIBUTE_unicodePwd:
-	case DRSUAPI_ATTRIBUTE_ntPwdHistory:
-	case DRSUAPI_ATTRIBUTE_lmPwdHistory:
-		rid_crypt = true;
-		break;
-	case DRSUAPI_ATTRIBUTE_supplementalCredentials:
-	case DRSUAPI_ATTRIBUTE_priorValue:
-	case DRSUAPI_ATTRIBUTE_currentValue:
-	case DRSUAPI_ATTRIBUTE_trustAuthOutgoing:
-	case DRSUAPI_ATTRIBUTE_trustAuthIncoming:
-	case DRSUAPI_ATTRIBUTE_initialAuthOutgoing:
-	case DRSUAPI_ATTRIBUTE_initialAuthIncoming:
-		break;
-	default:
-		return WERR_OK;
-	}
-
-	if (attr->value_ctr.num_values > 1) {
-		return WERR_DS_DRA_INVALID_PARAMETER;
-	}
-
-	if (!attr->value_ctr.values[0].blob) {
-		return WERR_DS_DRA_INVALID_PARAMETER;
-	}
-
-	mem_ctx		= attr->value_ctr.values[0].blob;
-	enc_data	= attr->value_ctr.values[0].blob;
-
-	status = dsdb_decrypt_attribute_value(mem_ctx,
-					      gensec_skey,
-					      rid_crypt,
-					      rid,
-					      enc_data,
-					      &plain_data);
-	W_ERROR_NOT_OK_RETURN(status);
-
-	talloc_free(attr->value_ctr.values[0].blob->data);
-	*attr->value_ctr.values[0].blob = plain_data;
-
-	return WERR_OK;
-}
-
-static WERROR dsdb_convert_object(struct ldb_context *ldb,
-				  const struct dsdb_schema *schema,
-				  struct dsdb_extended_replicated_objects *ctr,
-				  const struct drsuapi_DsReplicaObjectListItemEx *in,
-				  const DATA_BLOB *gensec_skey,
-				  TALLOC_CTX *mem_ctx,
-				  struct dsdb_extended_replicated_object *out)
+static WERROR dsdb_convert_object_ex(struct ldb_context *ldb,
+				     const struct dsdb_schema *schema,
+				     const struct drsuapi_DsReplicaObjectListItemEx *in,
+				     const DATA_BLOB *gensec_skey,
+				     TALLOC_CTX *mem_ctx,
+				     struct dsdb_extended_replicated_object *out)
 {
 	NTSTATUS nt_status;
 	enum ndr_err_code ndr_err;
@@ -273,14 +116,17 @@ static WERROR dsdb_convert_object(struct ldb_context *ldb,
 		struct drsuapi_DsReplicaMetaData *d;
 		struct replPropertyMetaData1 *m;
 		struct ldb_message_element *e;
+		int j;
 
 		a = &in->object.attribute_ctr.attributes[i];
 		d = &in->meta_data_ctr->meta_data[i];
 		m = &md->ctr.ctr1.array[i];
 		e = &msg->elements[i];
 
-		status = dsdb_decrypt_attribute(gensec_skey, rid, a);
-		W_ERROR_NOT_OK_RETURN(status);
+		for (j=0; j<a->value_ctr.num_values; j++) {
+			status = drsuapi_decrypt_attribute(a->value_ctr.values[j].blob, gensec_skey, rid, a);
+			W_ERROR_NOT_OK_RETURN(status);
+		}
 
 		status = dsdb_attribute_drsuapi_to_ldb(ldb, schema, a, msg->elements, e);
 		W_ERROR_NOT_OK_RETURN(status);
@@ -304,9 +150,25 @@ static WERROR dsdb_convert_object(struct ldb_context *ldb,
 	}
 
 	if (rdn_m) {
-		ret = ldb_msg_add_value(msg, rdn_attr->lDAPDisplayName, rdn_value, NULL);
-		if (ret != LDB_SUCCESS) {
-			return WERR_FOOBAR;
+		struct ldb_message_element *el;
+		el = ldb_msg_find_element(msg, rdn_attr->lDAPDisplayName);
+		if (!el) {
+			ret = ldb_msg_add_value(msg, rdn_attr->lDAPDisplayName, rdn_value, NULL);
+			if (ret != LDB_SUCCESS) {
+				return WERR_FOOBAR;
+			}
+		} else {
+			if (el->num_values != 1) {
+				DEBUG(0,(__location__ ": Unexpected num_values=%u\n",
+					 el->num_values));
+				return WERR_FOOBAR;				
+			}
+			if (!ldb_val_equal_exact(&el->values[0], rdn_value)) {
+				DEBUG(0,(__location__ ": RDN value changed? '%*.*s' '%*.*s'\n",
+					 (int)el->values[0].length, (int)el->values[0].length, el->values[0].data,
+					 (int)rdn_value->length, (int)rdn_value->length, rdn_value->data));
+				return WERR_FOOBAR;				
+			}
 		}
 
 		rdn_m->attid				= rdn_attid;
@@ -350,7 +212,8 @@ WERROR dsdb_extended_replicated_objects_commit(struct ldb_context *ldb,
 					       const struct drsuapi_DsReplicaCursor2CtrEx *uptodateness_vector,
 					       const DATA_BLOB *gensec_skey,
 					       TALLOC_CTX *mem_ctx,
-					       struct dsdb_extended_replicated_objects **_out)
+					       struct dsdb_extended_replicated_objects **_out,
+					       uint64_t *notify_uSN)
 {
 	WERROR status;
 	const struct dsdb_schema *schema;
@@ -359,6 +222,7 @@ WERROR dsdb_extended_replicated_objects_commit(struct ldb_context *ldb,
 	const struct drsuapi_DsReplicaObjectListItemEx *cur;
 	uint32_t i;
 	int ret;
+	uint64_t seq_num1, seq_num2;
 
 	schema = dsdb_get_schema(ldb);
 	if (!schema) {
@@ -384,13 +248,23 @@ WERROR dsdb_extended_replicated_objects_commit(struct ldb_context *ldb,
 					       out->num_objects);
 	W_ERROR_HAVE_NO_MEMORY(out->objects);
 
+	/* pass the linked attributes down to the repl_meta_data
+	   module */
+	out->linked_attributes_count = linked_attributes_count;
+	out->linked_attributes       = linked_attributes;
+
 	for (i=0, cur = first_object; cur; cur = cur->next_object, i++) {
 		if (i == out->num_objects) {
 			return WERR_FOOBAR;
 		}
 
-		status = dsdb_convert_object(ldb, schema, out, cur, gensec_skey, out->objects, &out->objects[i]);
-		W_ERROR_NOT_OK_RETURN(status);
+		status = dsdb_convert_object_ex(ldb, schema,
+						cur, gensec_skey,
+						out->objects, &out->objects[i]);
+		if (!W_ERROR_IS_OK(status)) {
+			DEBUG(0,("Failed to convert object %s\n", cur->object.identifier->dn));
+			return status;
+		}
 	}
 	if (i != out->num_objects) {
 		return WERR_FOOBAR;
@@ -398,14 +272,68 @@ WERROR dsdb_extended_replicated_objects_commit(struct ldb_context *ldb,
 
 	/* TODO: handle linked attributes */
 
+	/* wrap the extended operation in a transaction 
+	   See [MS-DRSR] 3.3.2 Transactions
+	 */
+	ret = ldb_transaction_start(ldb);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(0,(__location__ " Failed to start transaction\n"));
+		talloc_free(out);
+		return WERR_FOOBAR;
+	}
+
+	ret = dsdb_load_partition_usn(ldb, out->partition_dn, &seq_num1);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(0,(__location__ " Failed to load partition uSN\n"));
+		talloc_free(out);
+		ldb_transaction_cancel(ldb);
+		return WERR_FOOBAR;		
+	}
+
 	ret = ldb_extended(ldb, DSDB_EXTENDED_REPLICATED_OBJECTS_OID, out, &ext_res);
 	if (ret != LDB_SUCCESS) {
 		DEBUG(0,("Failed to apply records: %s: %s\n",
 			 ldb_errstring(ldb), ldb_strerror(ret)));
 		talloc_free(out);
+		ldb_transaction_cancel(ldb);
 		return WERR_FOOBAR;
 	}
 	talloc_free(ext_res);
+
+	ret = ldb_transaction_prepare_commit(ldb);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(0,(__location__ " Failed to prepare commit of transaction\n"));
+		talloc_free(out);
+		return WERR_FOOBAR;
+	}
+
+	ret = dsdb_load_partition_usn(ldb, out->partition_dn, &seq_num2);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(0,(__location__ " Failed to load partition uSN\n"));
+		talloc_free(out);
+		ldb_transaction_cancel(ldb);
+		return WERR_FOOBAR;		
+	}
+
+	/* if this replication partner didn't need to be notified
+	   before this transaction then it still doesn't need to be
+	   notified, as the changes came from this server */	
+	if (seq_num2 > seq_num1 && seq_num1 <= *notify_uSN) {
+		*notify_uSN = seq_num2;
+	}
+
+	ret = ldb_transaction_commit(ldb);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(0,(__location__ " Failed to commit transaction\n"));
+		talloc_free(out);
+		return WERR_FOOBAR;
+	}
+
+
+	DEBUG(2,("Replicated %u objects (%u linked attributes) for %s\n",
+		 out->num_objects, out->linked_attributes_count,
+		 ldb_dn_get_linearized(out->partition_dn)));
+		 
 
 	if (_out) {
 		*_out = out;
@@ -414,4 +342,135 @@ WERROR dsdb_extended_replicated_objects_commit(struct ldb_context *ldb,
 	}
 
 	return WERR_OK;
+}
+
+static WERROR dsdb_convert_object(struct ldb_context *ldb,
+				  const struct dsdb_schema *schema,
+				  const struct drsuapi_DsReplicaObjectListItem *in,
+				  TALLOC_CTX *mem_ctx,
+				  struct ldb_message **_msg)
+{
+	WERROR status;
+	uint32_t i;
+	struct ldb_message *msg;
+
+	if (!in->object.identifier) {
+		return WERR_FOOBAR;
+	}
+
+	if (!in->object.identifier->dn || !in->object.identifier->dn[0]) {
+		return WERR_FOOBAR;
+	}
+
+	msg = ldb_msg_new(mem_ctx);
+	W_ERROR_HAVE_NO_MEMORY(msg);
+
+	msg->dn	= ldb_dn_new(msg, ldb, in->object.identifier->dn);
+	W_ERROR_HAVE_NO_MEMORY(msg->dn);
+
+	msg->num_elements	= in->object.attribute_ctr.num_attributes;
+	msg->elements		= talloc_array(msg, struct ldb_message_element,
+					       msg->num_elements);
+	W_ERROR_HAVE_NO_MEMORY(msg->elements);
+
+	for (i=0; i < msg->num_elements; i++) {
+		struct drsuapi_DsReplicaAttribute *a;
+		struct ldb_message_element *e;
+
+		a = &in->object.attribute_ctr.attributes[i];
+		e = &msg->elements[i];
+
+		status = dsdb_attribute_drsuapi_to_ldb(ldb, schema, a, msg->elements, e);
+		W_ERROR_NOT_OK_RETURN(status);
+	}
+
+
+	*_msg = msg;
+
+	return WERR_OK;
+}
+
+WERROR dsdb_origin_objects_commit(struct ldb_context *ldb,
+				  TALLOC_CTX *mem_ctx,
+				  const struct drsuapi_DsReplicaObjectListItem *first_object,
+				  uint32_t *_num,
+				  struct drsuapi_DsReplicaObjectIdentifier2 **_ids)
+{
+	WERROR status;
+	const struct dsdb_schema *schema;
+	const struct drsuapi_DsReplicaObjectListItem *cur;
+	struct ldb_message **objects;
+	struct drsuapi_DsReplicaObjectIdentifier2 *ids;
+	uint32_t i;
+	uint32_t num_objects = 0;
+	const char * const attrs[] = {
+		"objectGUID",
+		"objectSid",
+		NULL
+	};
+	struct ldb_result *res;
+	int ret;
+
+	schema = dsdb_get_schema(ldb);
+	if (!schema) {
+		return WERR_DS_SCHEMA_NOT_LOADED;
+	}
+
+	for (cur = first_object; cur; cur = cur->next_object) {
+		num_objects++;
+	}
+
+	if (num_objects == 0) {
+		return WERR_OK;
+	}
+
+	objects	= talloc_array(mem_ctx, struct ldb_message *,
+			       num_objects);
+	W_ERROR_HAVE_NO_MEMORY(objects);
+
+	for (i=0, cur = first_object; cur; cur = cur->next_object, i++) {
+		status = dsdb_convert_object(ldb, schema,
+					     cur, objects, &objects[i]);
+		W_ERROR_NOT_OK_RETURN(status);
+	}
+
+	ids = talloc_array(mem_ctx,
+			   struct drsuapi_DsReplicaObjectIdentifier2,
+			   num_objects);
+	W_ERROR_HAVE_NO_MEMORY(objects);
+
+	for (i=0; i < num_objects; i++) {
+		struct dom_sid *sid = NULL;
+
+		DEBUG(6,(__location__ ": adding %s\n", 
+			 ldb_dn_get_linearized(objects[i]->dn)));
+		
+		ret = ldb_add(ldb, objects[i]);
+		if (ret != 0) {
+			goto cancel;
+		}
+		ret = ldb_search(ldb, objects, &res, objects[i]->dn,
+				 LDB_SCOPE_BASE, attrs,
+				 "(objectClass=*)");
+		if (ret != 0) {
+			goto cancel;
+		}
+		ids[i].guid = samdb_result_guid(res->msgs[0], "objectGUID");
+		sid = samdb_result_dom_sid(objects, res->msgs[0], "objectSid");
+		if (sid) {
+			ids[i].sid = *sid;
+		} else {
+			ZERO_STRUCT(ids[i].sid);
+		}
+	}
+
+	talloc_free(objects);
+
+	*_num = num_objects;
+	*_ids = ids;
+	return WERR_OK;
+cancel:
+	talloc_free(objects);
+	ldb_transaction_cancel(ldb);
+	return WERR_FOOBAR;
 }

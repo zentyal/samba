@@ -19,18 +19,19 @@ while(<IN>) {
 	} else { $invar = 0; }
 }
 
+$progs =~ s/@([^@]+)@//g;
+
 foreach(split(/bin\//, $progs)) {
 	next if($_ eq " ");
 	s/\@EXEEXT\@//g;
 	s/ //g;
-
 
 	$f = $_;
 	
 	$found = 0;
 
 	for($i = 0; $i < 9; $i++) {
-		if(-e "manpages/$f.$i.xml") { $found = 1; }
+		if(-e "manpages-3/$f.$i.xml") { $found = 1; }
 	}
 
 	if(!$found) {

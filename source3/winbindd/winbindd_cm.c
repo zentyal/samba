@@ -60,6 +60,11 @@
 
 #include "includes.h"
 #include "winbindd.h"
+#include "../libcli/auth/libcli_auth.h"
+#include "../librpc/gen_ndr/cli_netlogon.h"
+#include "../librpc/gen_ndr/cli_samr.h"
+#include "../librpc/gen_ndr/cli_lsa.h"
+#include "../librpc/gen_ndr/cli_dssetup.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
@@ -352,7 +357,7 @@ void set_domain_offline(struct winbindd_domain *domain)
 		return;
 	}
 
-	/* If we're in statup mode, check again in 10 seconds, not in
+	/* If we're in startup mode, check again in 10 seconds, not in
 	   lp_winbind_reconnect_delay() seconds (which is 30 seconds by default). */
 
 	calc_new_online_timeout_check(domain);
@@ -478,6 +483,12 @@ void set_domain_online_request(struct winbindd_domain *domain)
 	if (get_global_winbindd_state_offline()) {
 		DEBUG(10,("set_domain_online_request: domain %s remaining globally offline\n",
 			domain->name ));
+		return;
+	}
+
+	if (domain->internal) {
+		DEBUG(10, ("set_domain_online_request: Internal domains are "
+			   "always online\n"));
 		return;
 	}
 
@@ -675,7 +686,7 @@ static bool get_dc_name_via_netlogon(struct winbindd_domain *domain,
 
 	DEBUG(10,("rpccli_netr_GetAnyDCName returned %s\n", dcname));
 
-	if (!resolve_name(dcname, dc_ss, 0x20)) {
+	if (!resolve_name(dcname, dc_ss, 0x20, true)) {
 		return False;
 	}
 
@@ -765,7 +776,8 @@ static NTSTATUS cm_prepare_connection(const struct winbindd_domain *domain,
 	struct sockaddr peeraddr;
 	socklen_t peeraddr_len;
 
-	struct sockaddr_in *peeraddr_in = (struct sockaddr_in *)&peeraddr;
+	struct sockaddr_in *peeraddr_in =
+		(struct sockaddr_in *)(void *)&peeraddr;
 
 	DEBUG(10,("cm_prepare_connection: connecting to DC %s for domain %s\n",
 		controller, domain->name ));
@@ -794,11 +806,31 @@ static NTSTATUS cm_prepare_connection(const struct winbindd_domain *domain,
 
 	peeraddr_len = sizeof(peeraddr);
 
-	if ((getpeername((*cli)->fd, &peeraddr, &peeraddr_len) != 0) ||
-	    (peeraddr_len != sizeof(struct sockaddr_in)) ||
-	    (peeraddr_in->sin_family != PF_INET))
-	{
-		DEBUG(0,("cm_prepare_connection: %s\n", strerror(errno)));
+	if ((getpeername((*cli)->fd, &peeraddr, &peeraddr_len) != 0)) {
+		DEBUG(0,("cm_prepare_connection: getpeername failed with: %s\n",
+			strerror(errno)));
+		result = NT_STATUS_UNSUCCESSFUL;
+		goto done;
+	}
+
+	if ((peeraddr_len != sizeof(struct sockaddr_in))
+#ifdef HAVE_IPV6
+	    && (peeraddr_len != sizeof(struct sockaddr_in6))
+#endif
+	    ) {
+		DEBUG(0,("cm_prepare_connection: got unexpected peeraddr len %d\n",
+			peeraddr_len));
+		result = NT_STATUS_UNSUCCESSFUL;
+		goto done;
+	}
+
+	if ((peeraddr_in->sin_family != PF_INET)
+#ifdef HAVE_IPV6
+	    && (peeraddr_in->sin_family != PF_INET6)
+#endif
+	    ) {
+		DEBUG(0,("cm_prepare_connection: got unexpected family %d\n",
+			peeraddr_in->sin_family));
 		result = NT_STATUS_UNSUCCESSFUL;
 		goto done;
 	}
@@ -1036,7 +1068,9 @@ static bool add_one_dc_unique(TALLOC_CTX *mem_ctx, const char *domain_name,
 
 	/* Make sure there's no duplicates in the list */
 	for (i=0; i<*num; i++)
-		if (sockaddr_equal((struct sockaddr *)&(*dcs)[i].ss, (struct sockaddr *)pss))
+		if (sockaddr_equal(
+			    (struct sockaddr *)(void *)&(*dcs)[i].ss,
+			    (struct sockaddr *)(void *)pss))
 			return False;
 
 	*dcs = TALLOC_REALLOC_ARRAY(mem_ctx, *dcs, struct dc_name_ip, (*num)+1);
@@ -1116,7 +1150,8 @@ static bool dcip_to_name(TALLOC_CTX *mem_ctx,
 					create_local_private_krb5_conf_for_domain(domain->alt_name,
 									domain->name,
 									sitename,
-									pss);
+									pss,
+									name);
 
 					SAFE_FREE(sitename);
 				} else {
@@ -1124,7 +1159,8 @@ static bool dcip_to_name(TALLOC_CTX *mem_ctx,
 					create_local_private_krb5_conf_for_domain(domain->alt_name,
 									domain->name,
 									NULL,
-									pss);
+									pss,
+									name);
 				}
 				winbindd_set_locator_kdc_envs(domain);
 
@@ -1460,7 +1496,7 @@ static NTSTATUS cm_open_connection(struct winbindd_domain *domain,
 
 		if (*domain->dcname 
 			&& NT_STATUS_IS_OK(check_negative_conn_cache( domain->name, domain->dcname))
-			&& (resolve_name(domain->dcname, &domain->dcaddr, 0x20)))
+			&& (resolve_name(domain->dcname, &domain->dcaddr, 0x20, true)))
 		{
 			struct sockaddr_storage *addrs = NULL;
 			int num_addrs = 0;
@@ -1980,8 +2016,8 @@ static void set_dc_type_and_flags( struct winbindd_domain *domain )
 /**********************************************************************
 ***********************************************************************/
 
-static bool cm_get_schannel_dcinfo(struct winbindd_domain *domain,
-				   struct dcinfo **ppdc)
+static bool cm_get_schannel_creds(struct winbindd_domain *domain,
+				   struct netlogon_creds_CredentialState **ppdc)
 {
 	NTSTATUS result;
 	struct rpc_pipe_client *netlogon_pipe;
@@ -1995,7 +2031,7 @@ static bool cm_get_schannel_dcinfo(struct winbindd_domain *domain,
 		return False;
 	}
 
-	/* Return a pointer to the struct dcinfo from the
+	/* Return a pointer to the struct netlogon_creds_CredentialState from the
 	   netlogon pipe. */
 
 	if (!domain->conn.netlogon_pipe->dc) {
@@ -2011,7 +2047,7 @@ NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 {
 	struct winbindd_cm_conn *conn;
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
-	struct dcinfo *p_dcinfo;
+	struct netlogon_creds_CredentialState *p_creds;
 	char *machine_password = NULL;
 	char *machine_account = NULL;
 	char *domain_name = NULL;
@@ -2064,7 +2100,7 @@ NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 	result = cli_rpc_pipe_open_spnego_ntlmssp(conn->cli,
 						  &ndr_table_samr.syntax_id,
 						  NCACN_NP,
-						  PIPE_AUTH_LEVEL_PRIVACY,
+						  DCERPC_AUTH_LEVEL_PRIVACY,
 						  domain_name,
 						  machine_account,
 						  machine_password,
@@ -2100,7 +2136,7 @@ NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 
 	/* Fall back to schannel if it's a W2K pre-SP1 box. */
 
-	if (!cm_get_schannel_dcinfo(domain, &p_dcinfo)) {
+	if (!cm_get_schannel_creds(domain, &p_creds)) {
 		/* If this call fails - conn->cli can now be NULL ! */
 		DEBUG(10, ("cm_connect_sam: Could not get schannel auth info "
 			   "for domain %s, trying anon\n", domain->name));
@@ -2108,8 +2144,8 @@ NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 	}
 	result = cli_rpc_pipe_open_schannel_with_key
 		(conn->cli, &ndr_table_samr.syntax_id, NCACN_NP,
-		PIPE_AUTH_LEVEL_PRIVACY,
-		 domain->name, p_dcinfo, &conn->samr_pipe);
+		 DCERPC_AUTH_LEVEL_PRIVACY,
+		 domain->name, &p_creds, &conn->samr_pipe);
 
 	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(10,("cm_connect_sam: failed to connect to SAMR pipe for "
@@ -2208,7 +2244,7 @@ NTSTATUS cm_connect_lsa_tcp(struct winbindd_domain *domain,
 
 	if (conn->lsa_pipe_tcp &&
 	    conn->lsa_pipe_tcp->transport->transport == NCACN_IP_TCP &&
-	    conn->lsa_pipe_tcp->auth->auth_level == PIPE_AUTH_LEVEL_PRIVACY &&
+	    conn->lsa_pipe_tcp->auth->auth_level == DCERPC_AUTH_LEVEL_PRIVACY &&
 	    rpccli_is_connected(conn->lsa_pipe_tcp)) {
 		goto done;
 	}
@@ -2218,7 +2254,7 @@ NTSTATUS cm_connect_lsa_tcp(struct winbindd_domain *domain,
 	status = cli_rpc_pipe_open_schannel(conn->cli,
 					    &ndr_table_lsarpc.syntax_id,
 					    NCACN_IP_TCP,
-					    PIPE_AUTH_LEVEL_PRIVACY,
+					    DCERPC_AUTH_LEVEL_PRIVACY,
 					    domain->name,
 					    &conn->lsa_pipe_tcp);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -2243,7 +2279,7 @@ NTSTATUS cm_connect_lsa(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 {
 	struct winbindd_cm_conn *conn;
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
-	struct dcinfo *p_dcinfo;
+	struct netlogon_creds_CredentialState *p_creds;
 
 	result = init_dc_connection_rpc(domain);
 	if (!NT_STATUS_IS_OK(result))
@@ -2269,7 +2305,7 @@ NTSTATUS cm_connect_lsa(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 	 * authenticated LSA pipe with sign & seal. */
 	result = cli_rpc_pipe_open_spnego_ntlmssp
 		(conn->cli, &ndr_table_lsarpc.syntax_id, NCACN_NP,
-		 PIPE_AUTH_LEVEL_PRIVACY,
+		 DCERPC_AUTH_LEVEL_PRIVACY,
 		 conn->cli->domain, conn->cli->user_name, conn->cli->password,
 		 &conn->lsa_pipe);
 
@@ -2302,7 +2338,7 @@ NTSTATUS cm_connect_lsa(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 
 	/* Fall back to schannel if it's a W2K pre-SP1 box. */
 
-	if (!cm_get_schannel_dcinfo(domain, &p_dcinfo)) {
+	if (!cm_get_schannel_creds(domain, &p_creds)) {
 		/* If this call fails - conn->cli can now be NULL ! */
 		DEBUG(10, ("cm_connect_lsa: Could not get schannel auth info "
 			   "for domain %s, trying anon\n", domain->name));
@@ -2310,8 +2346,8 @@ NTSTATUS cm_connect_lsa(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 	}
 	result = cli_rpc_pipe_open_schannel_with_key
 		(conn->cli, &ndr_table_lsarpc.syntax_id, NCACN_NP,
-		 PIPE_AUTH_LEVEL_PRIVACY,
-		 domain->name, p_dcinfo, &conn->lsa_pipe);
+		 DCERPC_AUTH_LEVEL_PRIVACY,
+		 domain->name, &p_creds, &conn->lsa_pipe);
 
 	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(10,("cm_connect_lsa: failed to connect to LSA pipe for "
@@ -2371,7 +2407,7 @@ NTSTATUS cm_connect_netlogon(struct winbindd_domain *domain,
 
 	uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS;
 	uint8  mach_pwd[16];
-	uint32  sec_chan_type;
+	enum netr_SchannelType sec_chan_type;
 	const char *account_name;
 	struct rpc_pipe_client *netlogon_pipe = NULL;
 
@@ -2459,7 +2495,7 @@ NTSTATUS cm_connect_netlogon(struct winbindd_domain *domain,
 
 	result = cli_rpc_pipe_open_schannel_with_key(
 		conn->cli, &ndr_table_netlogon.syntax_id, NCACN_NP,
-		PIPE_AUTH_LEVEL_PRIVACY, domain->name, netlogon_pipe->dc,
+		DCERPC_AUTH_LEVEL_PRIVACY, domain->name, &netlogon_pipe->dc,
 		&conn->netlogon_pipe);
 
 	/* We can now close the initial netlogon pipe. */
@@ -2474,9 +2510,13 @@ NTSTATUS cm_connect_netlogon(struct winbindd_domain *domain,
 	}
 
 	/*
-	 * Try NetSamLogonEx for AD domains
+	 * Always try netr_LogonSamLogonEx. We will fall back for NT4
+	 * which gives DCERPC_FAULT_OP_RNG_ERROR (function not
+	 * supported). We used to only try SamLogonEx for AD, but
+	 * Samba DCs can also do it. And because we don't distinguish
+	 * between Samba and NT4, always try it once.
 	 */
-	domain->can_do_samlogon_ex = domain->active_directory;
+	domain->can_do_samlogon_ex = true;
 
 	*cli = conn->netlogon_pipe;
 	return NT_STATUS_OK;

@@ -4,6 +4,7 @@
    Copyright (C) Andrew Bartlett <abartlet@samba.org> 2001-2004
    Copyright (C) Gerald Carter                             2003
    Copyright (C) Stefan Metzmacher                         2005
+   Copyright (C) Matthias Dieter Wallnöfer                 2009
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -27,29 +28,43 @@
 #include "dsdb/samdb/samdb.h"
 #include "libcli/security/security.h"
 #include "libcli/ldap/ldap.h"
+#include "../libcli/ldap/ldap_ndr.h"
 #include "librpc/gen_ndr/ndr_netlogon.h"
+#include "librpc/gen_ndr/ndr_security.h"
 #include "param/param.h"
 #include "auth/auth_sam.h"
 
+#define KRBTGT_ATTRS \
+	/* required for the krb5 kdc */		\
+	"objectClass",				\
+	"sAMAccountName",			\
+	"userPrincipalName",			\
+	"servicePrincipalName",			\
+	"msDS-KeyVersionNumber",		\
+	"supplementalCredentials",		\
+						\
+	/* passwords */				\
+	"dBCSPwd",				\
+	"unicodePwd",				\
+						\
+	"userAccountControl",			\
+	"objectSid",				\
+						\
+	"pwdLastSet",				\
+	"accountExpires"			
+
+const char *krbtgt_attrs[] = {
+	KRBTGT_ATTRS
+};
+
+const char *server_attrs[] = {
+	KRBTGT_ATTRS
+};
+
 const char *user_attrs[] = {
-	/* required for the krb5 kdc */
-	"objectClass",
-	"sAMAccountName",
-	"userPrincipalName",
-	"servicePrincipalName",
-	"msDS-KeyVersionNumber",
-	"supplementalCredentials",
+	KRBTGT_ATTRS,
 
-	/* passwords */
-	"dBCSPwd", 
-	"unicodePwd",
-
-	"userAccountControl",
-
-	"pwdLastSet",
-	"accountExpires",
 	"logonHours",
-	"objectSid",
 
 	/* check 'allowed workstations' */
 	"userWorkstations",
@@ -66,11 +81,9 @@ const char *user_attrs[] = {
 	"badPwdCount",
 	"logonCount",
 	"primaryGroupID",
+	"memberOf",
 	NULL,
 };
-
-const char *domain_ref_attrs[] =  {"nETBIOSName", "nCName", 
-				   "dnsRoot", "objectClass", NULL};
 
 /****************************************************************************
  Check if a user is allowed to logon at this time. Note this is the
@@ -139,20 +152,19 @@ static bool logon_hours_ok(struct ldb_message *msg, const char *name_for_logs)
  (ie not disabled, expired and the like).
 ****************************************************************************/
 _PUBLIC_ NTSTATUS authsam_account_ok(TALLOC_CTX *mem_ctx,
-			    struct ldb_context *sam_ctx,
-			    uint32_t logon_parameters,
-			    struct ldb_message *msg,
-			    struct ldb_message *msg_domain_ref,
-			    const char *logon_workstation,
-			    const char *name_for_logs,
-			    bool allow_domain_trust)
+				     struct ldb_context *sam_ctx,
+				     uint32_t logon_parameters,
+				     struct ldb_dn *domain_dn,
+				     struct ldb_message *msg,
+				     const char *logon_workstation,
+				     const char *name_for_logs,
+				     bool allow_domain_trust,
+				     bool password_change)
 {
 	uint16_t acct_flags;
 	const char *workstation_list;
 	NTTIME acct_expiry;
 	NTTIME must_change_time;
-
-	struct ldb_dn *domain_dn = samdb_result_dn(sam_ctx, mem_ctx, msg_domain_ref, "nCName", ldb_dn_new(mem_ctx, sam_ctx, NULL));
 
 	NTTIME now;
 	DEBUG(4,("authsam_account_ok: Checking SMB password for user %s\n", name_for_logs));
@@ -189,15 +201,15 @@ _PUBLIC_ NTSTATUS authsam_account_ok(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_ACCOUNT_EXPIRED;
 	}
 
-	/* check for immediate expiry "must change at next logon" */
-	if (must_change_time == 0) {
+	/* check for immediate expiry "must change at next logon" (but not if this is a password change request) */
+	if ((must_change_time == 0) && !password_change) {
 		DEBUG(1,("sam_account_ok: Account for user '%s' password must change!.\n", 
 			 name_for_logs));
 		return NT_STATUS_PASSWORD_MUST_CHANGE;
 	}
 
-	/* check for expired password */
-	if (must_change_time < now) {
+	/* check for expired password (but not if this is a password change request) */
+	if ((must_change_time < now) && !password_change) {
 		DEBUG(1,("sam_account_ok: Account for user '%s' password expired!.\n", 
 			 name_for_logs));
 		DEBUG(1,("sam_account_ok: Password expired at '%s' unix time.\n", 
@@ -245,6 +257,8 @@ _PUBLIC_ NTSTATUS authsam_account_ok(TALLOC_CTX *mem_ctx,
 		}
 	}
 	if (!(logon_parameters & MSV1_0_ALLOW_WORKSTATION_TRUST_ACCOUNT)) {
+		/* TODO: this fails with current solaris client. We
+		   need to work with Gordon to work out why */
 		if (acct_flags & ACB_WSTRUST) {
 			DEBUG(4,("sam_account_ok: Wksta trust account %s denied by server\n", name_for_logs));
 			return NT_STATUS_NOLOGON_WORKSTATION_TRUST_ACCOUNT;
@@ -254,130 +268,245 @@ _PUBLIC_ NTSTATUS authsam_account_ok(TALLOC_CTX *mem_ctx,
 	return NT_STATUS_OK;
 }
 
-_PUBLIC_ NTSTATUS authsam_make_server_info(TALLOC_CTX *mem_ctx, struct ldb_context *sam_ctx,
-					   const char *netbios_name,
-					   struct ldb_message *msg,
-					   struct ldb_message *msg_domain_ref,
-					   DATA_BLOB user_sess_key, DATA_BLOB lm_sess_key,
-					   struct auth_serversupplied_info **_server_info)
+/* This function tests if a SID structure "sids" contains the SID "sid" */
+static bool sids_contains_sid(const struct dom_sid **sids, const int num_sids,
+	const struct dom_sid *sid)
 {
-	struct auth_serversupplied_info *server_info;
-	struct ldb_message **group_msgs;
-	int group_ret;
-	const char *group_attrs[3] = { "sAMAccountType", "objectSid", NULL }; 
-	/* find list of sids */
-	struct dom_sid **groupSIDs = NULL;
-	struct dom_sid *account_sid;
-	struct dom_sid *primary_group_sid;
-	struct ldb_dn *domain_dn;
-	const char *str;
-	struct ldb_dn *ncname;
 	int i;
-	uint_t rid;
-	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 
-	group_ret = gendb_search(sam_ctx,
-				 tmp_ctx, NULL, &group_msgs, group_attrs,
-				 "(&(member=%s)(sAMAccountType=*))", 
-				 ldb_dn_get_linearized(msg->dn));
-	if (group_ret == -1) {
+	for (i = 0; i < num_sids; i++) {
+		if (dom_sid_equal(sids[i], sid))
+			return true;
+	}
+	return false;
+}
+
+/*
+ * This function generates the transitive closure of a given SID "sid" (it
+ * basically expands nested groups of a SID).
+ * If the SID isn't located in the "res_sids" structure yet and the
+ * "only_childs" flag is negative, we add it to "res_sids".
+ * Then we've always to consider the "memberOf" attributes. We invoke the
+ * function recursively on each item of it with the "only_childs" flag set to
+ * "false".
+ * The "only_childs" flag is particularly useful if you have a user SID and
+ * want to include all his groups (referenced with "memberOf") without his SID
+ * itself.
+ *
+ * At the beginning "res_sids" should reference to a NULL pointer.
+ */
+static NTSTATUS authsam_expand_nested_groups(struct ldb_context *sam_ctx,
+	const struct dom_sid *sid, const bool only_childs,
+	TALLOC_CTX *res_sids_ctx, struct dom_sid ***res_sids,
+	int *num_res_sids)
+{
+	const char * const attrs[] = { "memberOf", NULL };
+	int i, ret;
+	bool already_there;
+	struct ldb_dn *tmp_dn;
+	struct dom_sid *tmp_sid;
+	TALLOC_CTX *tmp_ctx;
+	struct ldb_message **res;
+	NTSTATUS status;
+
+	if (*res_sids == NULL) {
+		*num_res_sids = 0;
+	}
+
+	if (sid == NULL) {
+		return NT_STATUS_OK;
+	}
+
+	already_there = sids_contains_sid((const struct dom_sid**) *res_sids,
+		*num_res_sids, sid);
+	if (already_there) {
+		return NT_STATUS_OK;
+	}
+
+	if (!only_childs) {
+		tmp_sid = dom_sid_dup(res_sids_ctx, sid);
+		NT_STATUS_HAVE_NO_MEMORY(tmp_sid);
+		*res_sids = talloc_realloc(res_sids_ctx, *res_sids,
+			struct dom_sid *, *num_res_sids + 1);
+		NT_STATUS_HAVE_NO_MEMORY(*res_sids);
+		(*res_sids)[*num_res_sids] = tmp_sid;
+		++(*num_res_sids);
+	}
+
+	tmp_ctx = talloc_new(sam_ctx);
+
+	ret = gendb_search(sam_ctx, tmp_ctx, NULL, &res, attrs,
+		"objectSid=%s", ldap_encode_ndr_dom_sid(tmp_ctx, sid));
+	if (ret != 1) {
 		talloc_free(tmp_ctx);
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
 
-	server_info = talloc(mem_ctx, struct auth_serversupplied_info);
-	NT_STATUS_HAVE_NO_MEMORY(server_info);
-	
-	if (group_ret > 0) {
-		groupSIDs = talloc_array(server_info, struct dom_sid *, group_ret);
-		NT_STATUS_HAVE_NO_MEMORY(groupSIDs);
+	if (res[0]->num_elements == 0) {
+		talloc_free(res);
+		talloc_free(tmp_ctx);
+		return NT_STATUS_OK;
 	}
 
-	/* Need to unroll some nested groups, but not aliases */
-	for (i = 0; i < group_ret; i++) {
-		groupSIDs[i] = samdb_result_dom_sid(groupSIDs, 
-						    group_msgs[i], "objectSid");
-		NT_STATUS_HAVE_NO_MEMORY(groupSIDs[i]);
+	for (i = 0; i < res[0]->elements[0].num_values; i++) {
+		tmp_dn = ldb_dn_from_ldb_val(tmp_ctx, sam_ctx,
+			&res[0]->elements[0].values[i]);
+		tmp_sid = samdb_search_dom_sid(sam_ctx, tmp_ctx, tmp_dn,
+			"objectSid", NULL);
+
+		status = authsam_expand_nested_groups(sam_ctx, tmp_sid,
+			false, res_sids_ctx, res_sids, num_res_sids);
+		if (!NT_STATUS_IS_OK(status)) {
+			talloc_free(res);
+			talloc_free(tmp_ctx);
+			return status;
+		}
 	}
 
+	talloc_free(res);
 	talloc_free(tmp_ctx);
 
+	return NT_STATUS_OK;
+}
+
+_PUBLIC_ NTSTATUS authsam_make_server_info(TALLOC_CTX *mem_ctx,
+					   struct ldb_context *sam_ctx,
+					   const char *netbios_name,
+					   const char *domain_name,
+					   struct ldb_dn *domain_dn, 
+					   struct ldb_message *msg,
+					   DATA_BLOB user_sess_key,
+					   DATA_BLOB lm_sess_key,
+					   struct auth_serversupplied_info
+						   **_server_info)
+{
+	NTSTATUS status;
+	struct auth_serversupplied_info *server_info;
+	const char *str;
+	struct dom_sid *tmp_sid;
+	/* SIDs for the account and his primary group */
+	struct dom_sid *account_sid;
+	struct dom_sid *primary_group_sid;
+	/* SID structures for the expanded group memberships */
+	struct dom_sid **groupSIDs = NULL, **groupSIDs_2 = NULL;
+	int num_groupSIDs = 0, num_groupSIDs_2 = 0, i;
+	uint32_t userAccountControl;
+
+	server_info = talloc(mem_ctx, struct auth_serversupplied_info);
+	NT_STATUS_HAVE_NO_MEMORY(server_info);
+
 	account_sid = samdb_result_dom_sid(server_info, msg, "objectSid");
-	NT_STATUS_HAVE_NO_MEMORY(account_sid);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(account_sid, server_info);
 
-	primary_group_sid = dom_sid_dup(server_info, account_sid);
-	NT_STATUS_HAVE_NO_MEMORY(primary_group_sid);
+	primary_group_sid = dom_sid_add_rid(server_info,
+		samdb_domain_sid(sam_ctx),
+		samdb_result_uint(msg, "primaryGroupID", ~0));
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(primary_group_sid, server_info);
 
-	rid = samdb_result_uint(msg, "primaryGroupID", ~0);
-	if (rid == ~0) {
-		if (group_ret > 0) {
-			primary_group_sid = groupSIDs[0];
-		} else {
-			primary_group_sid = NULL;
-		}
-	} else {
-		primary_group_sid->sub_auths[primary_group_sid->num_auths-1] = rid;
+	/* Expands the primary group */
+	status = authsam_expand_nested_groups(sam_ctx, primary_group_sid, false,
+					      server_info, &groupSIDs, &num_groupSIDs);
+	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(server_info);
+		return status;
 	}
+
+	/* Expands the additional groups */
+	status = authsam_expand_nested_groups(sam_ctx, account_sid, true,
+		server_info, &groupSIDs_2, &num_groupSIDs_2);
+	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(server_info);
+		return status;
+	}
+
+	/* Merge the two expanded structures (groupSIDs, groupSIDs_2) */
+	for (i = 0; i < num_groupSIDs_2; i++)
+		if (!sids_contains_sid((const struct dom_sid **) groupSIDs,
+				num_groupSIDs, groupSIDs_2[i])) {
+			tmp_sid = dom_sid_dup(server_info, groupSIDs_2[i]);
+			NT_STATUS_HAVE_NO_MEMORY_AND_FREE(tmp_sid, server_info);
+			groupSIDs = talloc_realloc(server_info, groupSIDs,
+				struct dom_sid *, num_groupSIDs + 1);
+			NT_STATUS_HAVE_NO_MEMORY_AND_FREE(groupSIDs,
+				server_info);
+			groupSIDs[num_groupSIDs] = tmp_sid;
+			++num_groupSIDs;
+		}
+	talloc_free(groupSIDs_2);
 
 	server_info->account_sid = account_sid;
 	server_info->primary_group_sid = primary_group_sid;
 	
-	server_info->n_domain_groups = group_ret;
+	/* DCs also get SID_NT_ENTERPRISE_DCS */
+	userAccountControl = ldb_msg_find_attr_as_uint(msg, "userAccountControl", 0);
+	if (userAccountControl & UF_SERVER_TRUST_ACCOUNT) {
+		groupSIDs = talloc_realloc(server_info, groupSIDs, struct dom_sid *,
+					   num_groupSIDs+1);
+		NT_STATUS_HAVE_NO_MEMORY_AND_FREE(groupSIDs, server_info);
+		groupSIDs[num_groupSIDs] = dom_sid_parse_talloc(groupSIDs, SID_NT_ENTERPRISE_DCS);
+		NT_STATUS_HAVE_NO_MEMORY_AND_FREE(groupSIDs[num_groupSIDs], server_info);
+		num_groupSIDs++;
+	}
+
 	server_info->domain_groups = groupSIDs;
+	server_info->n_domain_groups = num_groupSIDs;
 
-	server_info->account_name = talloc_steal(server_info, samdb_result_string(msg, "sAMAccountName", NULL));
+	server_info->account_name = talloc_steal(server_info,
+		samdb_result_string(msg, "sAMAccountName", NULL));
 
-	server_info->domain_name = talloc_steal(server_info, samdb_result_string(msg_domain_ref, "nETBIOSName", NULL));
+	server_info->domain_name = talloc_strdup(server_info, domain_name);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(server_info->domain_name,
+		server_info);
 
 	str = samdb_result_string(msg, "displayName", "");
 	server_info->full_name = talloc_strdup(server_info, str);
-	NT_STATUS_HAVE_NO_MEMORY(server_info->full_name);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(server_info->full_name, server_info);
 
 	str = samdb_result_string(msg, "scriptPath", "");
 	server_info->logon_script = talloc_strdup(server_info, str);
-	NT_STATUS_HAVE_NO_MEMORY(server_info->logon_script);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(server_info->logon_script,
+		server_info);
 
 	str = samdb_result_string(msg, "profilePath", "");
 	server_info->profile_path = talloc_strdup(server_info, str);
-	NT_STATUS_HAVE_NO_MEMORY(server_info->profile_path);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(server_info->profile_path,
+		server_info);
 
 	str = samdb_result_string(msg, "homeDirectory", "");
 	server_info->home_directory = talloc_strdup(server_info, str);
-	NT_STATUS_HAVE_NO_MEMORY(server_info->home_directory);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(server_info->home_directory,
+		server_info);
 
 	str = samdb_result_string(msg, "homeDrive", "");
 	server_info->home_drive = talloc_strdup(server_info, str);
-	NT_STATUS_HAVE_NO_MEMORY(server_info->home_drive);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(server_info->home_drive, server_info);
 
 	server_info->logon_server = talloc_strdup(server_info, netbios_name);
-	NT_STATUS_HAVE_NO_MEMORY(server_info->logon_server);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(server_info->logon_server,
+		server_info);
 
 	server_info->last_logon = samdb_result_nttime(msg, "lastLogon", 0);
-	server_info->last_logoff = samdb_result_nttime(msg, "lastLogoff", 0);
+	server_info->last_logoff = samdb_result_last_logoff(msg);
 	server_info->acct_expiry = samdb_result_account_expires(msg);
-	server_info->last_password_change = samdb_result_nttime(msg, "pwdLastSet", 0);
-
-	ncname = samdb_result_dn(sam_ctx, mem_ctx, msg_domain_ref, "nCName", NULL);
-	if (!ncname) {
-		return NT_STATUS_INTERNAL_DB_CORRUPTION;
-	}
+	server_info->last_password_change = samdb_result_nttime(msg,
+		"pwdLastSet", 0);
 	server_info->allow_password_change
 		= samdb_result_allow_password_change(sam_ctx, mem_ctx, 
-						     ncname, msg, "pwdLastSet");
+			domain_dn, msg, "pwdLastSet");
 	server_info->force_password_change
-		= samdb_result_force_password_change(sam_ctx, mem_ctx, 
-						     ncname, msg);
-	
+		= samdb_result_force_password_change(sam_ctx, mem_ctx,
+			domain_dn, msg);
 	server_info->logon_count = samdb_result_uint(msg, "logonCount", 0);
-	server_info->bad_password_count = samdb_result_uint(msg, "badPwdCount", 0);
-
-	domain_dn = samdb_result_dn(sam_ctx, mem_ctx, msg_domain_ref, "nCName", NULL);
+	server_info->bad_password_count = samdb_result_uint(msg, "badPwdCount",
+		0);
 
 	server_info->acct_flags = samdb_result_acct_flags(sam_ctx, mem_ctx, 
 							  msg, domain_dn);
 
-	server_info->user_session_key = user_sess_key;
-	server_info->lm_session_key = lm_sess_key;
+	server_info->user_session_key = data_blob_talloc_reference(server_info,
+		&user_sess_key);
+	server_info->lm_session_key = data_blob_talloc_reference(server_info,
+		&lm_sess_key);
 
 	server_info->authenticated = true;
 
@@ -388,42 +517,35 @@ _PUBLIC_ NTSTATUS authsam_make_server_info(TALLOC_CTX *mem_ctx, struct ldb_conte
 
 NTSTATUS sam_get_results_principal(struct ldb_context *sam_ctx,
 				   TALLOC_CTX *mem_ctx, const char *principal,
-				   struct ldb_message ***msgs,
-				   struct ldb_message ***msgs_domain_ref)
+				   const char **attrs,
+				   struct ldb_dn **domain_dn,
+				   struct ldb_message **msg)
 {			   
-	struct ldb_dn *user_dn, *domain_dn;
+	struct ldb_dn *user_dn;
 	NTSTATUS nt_status;
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 	int ret;
-	struct ldb_dn *partitions_basedn = samdb_partitions_dn(sam_ctx, mem_ctx);
 
 	if (!tmp_ctx) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	nt_status = crack_user_principal_name(sam_ctx, tmp_ctx, principal, &user_dn, &domain_dn);
+	nt_status = crack_user_principal_name(sam_ctx, tmp_ctx, principal, 
+					      &user_dn, domain_dn);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		talloc_free(tmp_ctx);
 		return nt_status;
 	}
 	
-	/* grab domain info from the reference */
-	ret = gendb_search(sam_ctx, tmp_ctx, partitions_basedn, msgs_domain_ref, domain_ref_attrs,
-			   "(ncName=%s)", ldb_dn_get_linearized(domain_dn));
-
-	if (ret != 1) {
-		talloc_free(tmp_ctx);
-		return NT_STATUS_INTERNAL_DB_CORRUPTION;
-	}
-	
 	/* pull the user attributes */
-	ret = gendb_search_dn(sam_ctx, tmp_ctx, user_dn, msgs, user_attrs);
-	if (ret != 1) {
+	ret = gendb_search_single_extended_dn(sam_ctx, tmp_ctx, user_dn,
+		LDB_SCOPE_BASE, msg, attrs, "(objectClass=*)");
+	if (ret != LDB_SUCCESS) {
 		talloc_free(tmp_ctx);
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
-	talloc_steal(mem_ctx, *msgs);
-	talloc_steal(mem_ctx, *msgs_domain_ref);
+	talloc_steal(mem_ctx, *msg);
+	talloc_steal(mem_ctx, *domain_dn);
 	talloc_free(tmp_ctx);
 	
 	return NT_STATUS_OK;

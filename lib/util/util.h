@@ -21,8 +21,6 @@
 #ifndef _SAMBA_UTIL_H_
 #define _SAMBA_UTIL_H_
 
-#include <netinet/in.h>
-
 #if _SAMBA_BUILD_ == 4
 #include "../lib/util/charset/charset.h"
 #endif
@@ -192,6 +190,16 @@ _PUBLIC_ char *generate_random_str_list(TALLOC_CTX *mem_ctx, size_t len, const c
  */
 _PUBLIC_ char *generate_random_str(TALLOC_CTX *mem_ctx, size_t len);
 
+/**
+ * Generate an array of unique text strings all of the same length.
+ * The returned strings will be allocated.
+ * Returns NULL if the number of unique combinations cannot be created.
+ *
+ * Characters used are: ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+_-#.,
+ */
+_PUBLIC_ char** generate_unique_strs(TALLOC_CTX *mem_ctx, size_t len,
+                                         uint32_t num);
+
 /* The following definitions come from lib/util/dprintf.c  */
 #if _SAMBA_BUILD_ == 4
 
@@ -299,6 +307,31 @@ _PUBLIC_ void all_string_sub(char *s,const char *pattern,const char *insert, siz
 **/
 _PUBLIC_ void rfc1738_unescape(char *buf);
 
+
+/**
+ * rfc1738_escape
+ * Returns a static buffer that contains the RFC
+ * 1738 compliant, escaped version of the given url. (escapes unsafe and % characters)
+ **/
+_PUBLIC_ char *rfc1738_escape(TALLOC_CTX *mem_ctx, const char *url);
+
+/**
+ * rfc1738_escape_unescaped
+ *
+ * Returns a static buffer that contains
+ * the RFC 1738 compliant, escaped version of the given url (escapes unsafe chars only)
+ **/
+_PUBLIC_ char *rfc1738_escape_unescaped(TALLOC_CTX *mem_ctx, const char *url);
+
+/**
+ * rfc1738_escape_part 
+ * Returns a static buffer that contains the RFC
+ * 1738 compliant, escaped version of the given url segment. (escapes
+ * unsafe, reserved and % chars) It would mangle the :// in http://,
+ * and mangle paths (because of /).
+ **/
+_PUBLIC_ char *rfc1738_escape_part(TALLOC_CTX *mem_ctx, const char *url);
+
 /**
   format a string into length-prefixed dotted domain format, as used in NBT
   and in some ADS structures
@@ -397,18 +430,30 @@ _PUBLIC_ bool strequal(const char *s1, const char *s2);
 #endif
 
 /**
+  build an empty (only NULL terminated) list of strings (for expansion with str_list_add() etc)
+*/
+_PUBLIC_ char **str_list_make_empty(TALLOC_CTX *mem_ctx);
+
+/**
+  place the only element 'entry' into a new, NULL terminated string list
+*/
+_PUBLIC_ char **str_list_make_single(TALLOC_CTX *mem_ctx,
+	const char *entry);
+
+/**
   build a null terminated list of strings from a input string and a
   separator list. The separator list must contain characters less than
   or equal to 0x2f for this to work correctly on multi-byte strings
 */
-_PUBLIC_ char **str_list_make(TALLOC_CTX *mem_ctx, const char *string, const char *sep);
+_PUBLIC_ char **str_list_make(TALLOC_CTX *mem_ctx, const char *string,
+	const char *sep);
 
 /**
  * build a null terminated list of strings from an argv-like input string 
  * Entries are seperated by spaces and can be enclosed by quotes. 
  * Does NOT support escaping
  */
-_PUBLIC_ const char **str_list_make_shell(TALLOC_CTX *mem_ctx, const char *string, const char *sep);
+_PUBLIC_ char **str_list_make_shell(TALLOC_CTX *mem_ctx, const char *string, const char *sep);
 
 /**
  * join a list back to one string 
@@ -453,6 +498,43 @@ _PUBLIC_ bool str_list_check(const char **list, const char *s);
   return true if a string is in a list, case insensitively
 */
 _PUBLIC_ bool str_list_check_ci(const char **list, const char *s);
+/**
+  append one list to another - expanding list1
+*/
+_PUBLIC_ const char **str_list_append(const char **list1,
+	const char * const *list2);
+
+/**
+ remove duplicate elements from a list 
+*/
+_PUBLIC_ const char **str_list_unique(const char **list);
+
+/*
+  very useful when debugging complex list related code
+ */
+_PUBLIC_ void str_list_show(const char **list);
+
+
+/**
+  append one list to another - expanding list1
+  this assumes the elements of list2 are const pointers, so we can re-use them
+*/
+_PUBLIC_ const char **str_list_append_const(const char **list1,
+					    const char **list2);
+
+/**
+  add an entry to a string list
+  this assumes s will not change
+*/
+_PUBLIC_ const char **str_list_add_const(const char **list, const char *s);
+
+/**
+  copy a string list
+  this assumes list will not change
+*/
+_PUBLIC_ const char **str_list_copy_const(TALLOC_CTX *mem_ctx,
+					  const char **list);
+
 
 /* The following definitions come from lib/util/util_file.c  */
 
@@ -770,5 +852,18 @@ bool pm_process( const char *fileName,
 bool unmap_file(void *start, size_t size);
 
 void print_asc(int level, const uint8_t *buf,int len);
+
+/**
+ * Add an id to an array of ids.
+ *
+ * num should be a pointer to an integer that holds the current
+ * number of elements in ids. It will be updated by this function.
+ */
+
+bool add_uid_to_array_unique(TALLOC_CTX *mem_ctx, uid_t uid,
+			     uid_t **uids, size_t *num_uids);
+bool add_gid_to_array_unique(TALLOC_CTX *mem_ctx, gid_t gid,
+			     gid_t **gids, size_t *num_gids);
+
 
 #endif /* _SAMBA_UTIL_H_ */

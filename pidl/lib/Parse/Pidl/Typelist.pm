@@ -32,12 +32,15 @@ my %scalars = (
 	"uint8"		=> "uint8_t",
 	"int16"		=> "int16_t",
 	"uint16"	=> "uint16_t",
+	"int1632"	=> "int16_t",
+	"uint1632"	=> "uint16_t",
 	"int32"		=> "int32_t",
 	"uint32"	=> "uint32_t",
 	"hyper"		=> "uint64_t",
 	"dlong"		=> "int64_t",
 	"udlong"	=> "uint64_t",
 	"udlongr"	=> "uint64_t",
+	"double"	=> "double",
 	"pointer"	=> "void*",
 	"DATA_BLOB"	=> "DATA_BLOB",
 	"string"	=> "const char *",
@@ -219,7 +222,7 @@ sub enum_type_fn($)
 	} elsif (has_property($enum->{PARENT}, "v1_enum")) {
 		return "uint32";
 	}
-	return "uint16";
+	return "uint1632";
 }
 
 sub bitmap_type_fn($)
@@ -272,12 +275,15 @@ sub mapTypeName($)
 	my $dt;
 	$t = expandAlias($t);
 
-	unless ($dt or ($dt = getType($t))) {
+	if ($dt = getType($t)) {
+		return mapType($dt, $dt->{NAME});
+	} elsif (ref($t) eq "HASH" and defined($t->{NAME})) {
+		return mapType($t, $t->{NAME});
+	} else {
 		# Best guess
 		return "struct $t";
 	}
 
-	return mapType($dt, $dt->{NAME});
 }
 
 sub LoadIdl($;$)

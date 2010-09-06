@@ -18,6 +18,7 @@
 */
 
 #include "includes.h"
+#include "../librpc/gen_ndr/cli_spoolss.h"
 
 #ifdef HAVE_ADS
 
@@ -118,7 +119,7 @@ ADS_STATUS ads_add_printer_entry(ADS_STRUCT *ads, char *prt_dn,
   map a REG_SZ to an ldap mod
 */
 static bool map_sz(TALLOC_CTX *ctx, ADS_MODLIST *mods, 
-			    const REGISTRY_VALUE *value)
+		   const struct regval_blob *value)
 {
 	char *str_value = NULL;
 	size_t converted_size;
@@ -145,7 +146,7 @@ static bool map_sz(TALLOC_CTX *ctx, ADS_MODLIST *mods,
   map a REG_DWORD to an ldap mod
 */
 static bool map_dword(TALLOC_CTX *ctx, ADS_MODLIST *mods, 
-		      const REGISTRY_VALUE *value)
+		      const struct regval_blob *value)
 {
 	char *str_value = NULL;
 	ADS_STATUS status;
@@ -164,7 +165,7 @@ static bool map_dword(TALLOC_CTX *ctx, ADS_MODLIST *mods,
   map a boolean REG_BINARY to an ldap mod
 */
 static bool map_bool(TALLOC_CTX *ctx, ADS_MODLIST *mods,
-		     const REGISTRY_VALUE *value)
+		     const struct regval_blob *value)
 {
 	char *str_value;
 	ADS_STATUS status;
@@ -184,7 +185,7 @@ static bool map_bool(TALLOC_CTX *ctx, ADS_MODLIST *mods,
   map a REG_MULTI_SZ to an ldap mod
 */
 static bool map_multi_sz(TALLOC_CTX *ctx, ADS_MODLIST *mods,
-			 const REGISTRY_VALUE *value)
+			 const struct regval_blob *value)
 {
 	char **str_values = NULL;
 	size_t converted_size;
@@ -225,14 +226,14 @@ static bool map_multi_sz(TALLOC_CTX *ctx, ADS_MODLIST *mods,
 
 struct valmap_to_ads {
 	const char *valname;
-	bool (*fn)(TALLOC_CTX *, ADS_MODLIST *, const REGISTRY_VALUE *);
+	bool (*fn)(TALLOC_CTX *, ADS_MODLIST *, const struct regval_blob *);
 };
 
 /*
   map a REG_SZ to an ldap mod
 */
 static void map_regval_to_ads(TALLOC_CTX *ctx, ADS_MODLIST *mods, 
-			      REGISTRY_VALUE *value)
+			      struct regval_blob *value)
 {
 	const struct valmap_to_ads map[] = {
 		{SPOOL_REG_ASSETNUMBER, map_sz},
@@ -344,7 +345,7 @@ WERROR get_remote_printer_publishing_data(struct rpc_pipe_client *cli,
 	} else {
 		/* Have the data we need now, so start building */
 		for (i=0; i < count; i++) {
-			REGISTRY_VALUE v;
+			struct regval_blob v;
 
 			fstrcpy(v.valuename, info[i].value_name);
 			v.type = info[i].type;
@@ -365,7 +366,7 @@ WERROR get_remote_printer_publishing_data(struct rpc_pipe_client *cli,
 			  printername, win_errstr(result)));
 	} else {
 		for (i=0; i < count; i++) {
-			REGISTRY_VALUE v;
+			struct regval_blob v;
 
 			fstrcpy(v.valuename, info[i].value_name);
 			v.type = info[i].type;
@@ -391,7 +392,7 @@ bool get_local_printer_publishing_data(TALLOC_CTX *mem_ctx,
 	uint32 key,val;
 
 	for (key=0; key < data->num_keys; key++) {
-		REGVAL_CTR *ctr = data->keys[key].values;
+		struct regval_ctr *ctr = data->keys[key].values;
 		for (val=0; val < ctr->num_values; val++)
 			map_regval_to_ads(mem_ctx, mods, ctr->values[val]);
 	}

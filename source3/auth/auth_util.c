@@ -22,6 +22,8 @@
 */
 
 #include "includes.h"
+#include "smbd/globals.h"
+#include "../libcli/auth/libcli_auth.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
@@ -197,12 +199,13 @@ NTSTATUS make_user_info_map(auth_usersupplied_info **user_info,
 			    DATA_BLOB *plaintext,
 			    bool encrypted)
 {
+	struct smbd_server_connection *sconn = smbd_server_conn;
 	const char *domain;
 	NTSTATUS result;
 	bool was_mapped;
 	fstring internal_username;
 	fstrcpy(internal_username, smb_name);
-	was_mapped = map_username(internal_username);
+	was_mapped = map_username(sconn, internal_username);
 
 	DEBUG(5, ("Mapping user [%s]\\[%s] from workstation [%s]\n",
 		 client_domain, smb_name, wksta_name));
@@ -323,10 +326,10 @@ bool make_user_info_netlogon_interactive(auth_usersupplied_info **user_info,
 #endif
 	
 	if (lm_interactive_pwd)
-		SamOEMhash(lm_pwd, key, sizeof(lm_pwd));
+		arcfour_crypt(lm_pwd, key, sizeof(lm_pwd));
 	
 	if (nt_interactive_pwd)
-		SamOEMhash(nt_pwd, key, sizeof(nt_pwd));
+		arcfour_crypt(nt_pwd, key, sizeof(nt_pwd));
 	
 #ifdef DEBUG_PASSWORD
 	DEBUG(100,("decrypt of lm owf password:"));
@@ -465,8 +468,8 @@ NTSTATUS make_user_info_for_reply_enc(auth_usersupplied_info **user_info,
 	return make_user_info_map(user_info, smb_name, 
 				  client_domain, 
 				  get_remote_machine_name(), 
-				  lm_resp.data ? &lm_resp : NULL, 
-				  nt_resp.data ? &nt_resp : NULL, 
+				  lm_resp.data && (lm_resp.length > 0) ? &lm_resp : NULL,
+				  nt_resp.data && (nt_resp.length > 0) ? &nt_resp : NULL,
 				  NULL, NULL, NULL,
 				  True);
 }
@@ -879,8 +882,9 @@ NTSTATUS create_token_from_username(TALLOC_CTX *mem_ctx, const char *username,
 						    &group_sids, &gids,
 						    &num_group_sids);
 		if (!NT_STATUS_IS_OK(result)) {
-			DEBUG(10, ("enum_group_memberships failed for %s\n",
-				   username));
+			DEBUG(1, ("enum_group_memberships failed for %s (%s): "
+				  "%s\n", username, sid_string_dbg(&user_sid),
+				  nt_errstr(result)));
 			DEBUGADD(1, ("Fall back to unix user %s\n", username));
 			goto unix_user;
 		}
@@ -1485,6 +1489,7 @@ static NTSTATUS fill_sam_account(TALLOC_CTX *mem_ctx,
 				 struct samu *account,
 				 bool *username_was_mapped)
 {
+	struct smbd_server_connection *sconn = smbd_server_conn;
 	NTSTATUS nt_status;
 	fstring dom_user, lower_username;
 	fstring real_username;
@@ -1498,7 +1503,7 @@ static NTSTATUS fill_sam_account(TALLOC_CTX *mem_ctx,
 
 	/* Get the passwd struct.  Try to create the account is necessary. */
 
-	*username_was_mapped = map_username( dom_user );
+	*username_was_mapped = map_username(sconn, dom_user);
 
 	if ( !(passwd = smb_getpwnam( NULL, dom_user, real_username, True )) )
 		return NT_STATUS_NO_SUCH_USER;
@@ -2162,7 +2167,7 @@ bool make_auth_methods(struct auth_context *auth_context, auth_methods **auth_me
  * Verify whether or not given domain is trusted.
  *
  * @param domain_name name of the domain to be verified
- * @return true if domain is one of the trusted once or
+ * @return true if domain is one of the trusted ones or
  *         false if otherwise
  **/
 

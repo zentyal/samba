@@ -27,6 +27,7 @@
 #include "libcli/raw/libcliraw.h"
 #include "param/param.h"
 #include "torture/util.h"
+#include "talloc.h"
 
 #if HAVE_NATIVE_ICONV
 
@@ -288,7 +289,7 @@ static bool test_codepoint(struct torture_context *tctx, unsigned int codepoint)
 	size_t size, size2;
 	codepoint_t c;
 
-	size = push_codepoint(lp_iconv_convenience(tctx->lp_ctx), (char *)buf, codepoint);
+	size = push_codepoint_convenience(lp_iconv_convenience(tctx->lp_ctx), (char *)buf, codepoint);
 	torture_assert(tctx, size != -1 || (codepoint >= 0xd800 && codepoint <= 0x10000), 
 		       "Invalid Codepoint range");
 
@@ -440,7 +441,8 @@ static bool test_string2key(struct torture_context *tctx)
 		torture_fail(tctx, "Failed to convert fixed buffer to UTF8\n");
 	}
 
-	torture_assert(tctx, strcmp(correct, out1) == 0, "conversion gave incorrect result\n");
+	torture_assert(tctx, strcmp(correct, (const char *) out1) == 0,
+		"conversion gave incorrect result\n");
 
 	talloc_free(mem_ctx);
 

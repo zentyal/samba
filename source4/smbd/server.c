@@ -28,16 +28,18 @@
 #include "lib/cmdline/popt_common.h"
 #include "system/dir.h"
 #include "system/filesys.h"
-#include "ldb/include/ldb.h"
-#include "registry/registry.h"
 #include "ntvfs/ntvfs.h"
 #include "ntptr/ntptr.h"
 #include "auth/gensec/gensec.h"
 #include "smbd/process_model.h"
-#include "smbd/service.h"
 #include "param/secrets.h"
 #include "smbd/pidfile.h"
 #include "param/param.h"
+#include "dsdb/samdb/samdb.h"
+#include "auth/session.h"
+#include "lib/messaging/irpc.h"
+#include "librpc/gen_ndr/ndr_irpc.h"
+#include "cluster/cluster.h"
 
 /*
   recursively delete a directory tree
@@ -112,6 +114,7 @@ static void sig_term(int sig)
 		kill(-getpgrp(), SIGTERM);
 	}
 #endif
+	DEBUG(0,("Exiting pid %d on SIGTERM\n", (int)getpid()));
 	exit(0);
 }
 
@@ -157,6 +160,7 @@ static void server_stdin_handler(struct tevent_context *event_ctx, struct tevent
 		DEBUG(0,("%s: EOF on stdin - terminating\n", binary_name));
 #if HAVE_GETPGRP
 		if (getpgrp() == getpid()) {
+			DEBUG(0,("Sending SIGTERM from pid %d\n", (int)getpid()));
 			kill(-getpgrp(), SIGTERM);
 		}
 #endif
@@ -175,6 +179,55 @@ _NORETURN_ static void max_runtime_handler(struct tevent_context *ev,
 	DEBUG(0,("%s: maximum runtime exceeded - terminating\n", binary_name));
 	exit(0);
 }
+
+/*
+  pre-open the sam ldb to ensure the schema has been loaded. This
+  saves a lot of time in child processes  
+ */
+static void prime_samdb_schema(struct tevent_context *event_ctx)
+{
+	TALLOC_CTX *samdb_context;
+	samdb_context = talloc_new(event_ctx);
+	samdb_connect(samdb_context, event_ctx, cmdline_lp_ctx, system_session(samdb_context, cmdline_lp_ctx));
+	talloc_free(samdb_context);
+}
+
+
+/*
+  called when a fatal condition occurs in a child task
+ */
+static NTSTATUS samba_terminate(struct irpc_message *msg, 
+				struct samba_terminate *r)
+{
+	DEBUG(0,("samba_terminate: %s\n", r->in.reason));
+	exit(1);
+}
+
+/*
+  setup messaging for the top level samba (parent) task
+ */
+static NTSTATUS setup_parent_messaging(struct tevent_context *event_ctx, 
+				       struct loadparm_context *lp_ctx)
+{
+	struct messaging_context *msg;
+	NTSTATUS status;
+
+	msg = messaging_init(talloc_autofree_context(), 
+			     lp_messaging_path(event_ctx, lp_ctx),
+			     cluster_id(0, SAMBA_PARENT_TASKID),
+			     lp_iconv_convenience(lp_ctx),
+			     event_ctx);
+	NT_STATUS_HAVE_NO_MEMORY(msg);
+
+	irpc_add_name(msg, "samba");
+
+	status = IRPC_REGISTER(msg, irpc, SAMBA_TERMINATE,
+			       samba_terminate, NULL);
+
+	return status;
+}
+
+
 
 /*
  main server.
@@ -196,6 +249,7 @@ static int binary_smbd_main(const char *binary_name, int argc, const char *argv[
 	extern NTSTATUS server_service_cldapd_init(void);
 	extern NTSTATUS server_service_smb_init(void);
 	extern NTSTATUS server_service_drepl_init(void);
+	extern NTSTATUS server_service_kcc_init(void);
 	extern NTSTATUS server_service_rpc_init(void);
 	extern NTSTATUS server_service_ntp_signd_init(void);
 	extern NTSTATUS server_service_samba3_smb_init(void);
@@ -344,7 +398,16 @@ static int binary_smbd_main(const char *binary_name, int argc, const char *argv[
 				 discard_const(binary_name));
 	}
 
+	prime_samdb_schema(event_ctx);
+
+	status = setup_parent_messaging(event_ctx, cmdline_lp_ctx);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0,("Failed to setup parent messaging - %s\n", nt_errstr(status)));
+		return 1;
+	}
+
 	DEBUG(0,("%s: using '%s' process model\n", binary_name, model));
+
 	status = server_service_startup(event_ctx, cmdline_lp_ctx, model, 
 					lp_server_services(cmdline_lp_ctx));
 	if (!NT_STATUS_IS_OK(status)) {
@@ -363,7 +426,7 @@ static int binary_smbd_main(const char *binary_name, int argc, const char *argv[
 	return 0;
 }
 
- int main(int argc, const char *argv[])
+int main(int argc, const char *argv[])
 {
-	return binary_smbd_main("smbd", argc, argv);
+	return binary_smbd_main("samba", argc, argv);
 }

@@ -28,13 +28,16 @@
 #include "dsdb/samdb/samdb.h"
 #include "param/param.h"
 #include "torture/smbtorture.h"
-#include "torture/ldb/proto.h"
+#include "torture/local/proto.h"
 
 static const char *sid = "S-1-5-21-4177067393-1453636373-93818737";
 static const char *hex_sid = "01040000000000051500000081FDF8F815BBA456718F9705";
 static const char *guid = "975ac5fa-35d9-431d-b86a-845bcd34fff9";
 static const char *guid2 = "{975ac5fa-35d9-431d-b86a-845bcd34fff9}";
 static const char *hex_guid = "FAC55A97D9351D43B86A845BCD34FFF9";
+
+static const char *prefix_map_newline = "2:1.2.840.113556.1.2\n5:2.16.840.1.101.2.2.3";
+static const char *prefix_map_semi = "2:1.2.840.113556.1.2;5:2.16.840.1.101.2.2.3";
 
 static bool torture_ldb_attrs(struct torture_context *torture)
 {
@@ -43,6 +46,8 @@ static bool torture_ldb_attrs(struct torture_context *torture)
 	const struct ldb_schema_attribute *attr;
 	struct ldb_val string_sid_blob, binary_sid_blob;
 	struct ldb_val string_guid_blob, string_guid_blob2, binary_guid_blob;
+	struct ldb_val string_prefix_map_newline_blob, string_prefix_map_semi_blob, string_prefix_map_blob;
+	struct ldb_val prefix_map_blob;
 
 	DATA_BLOB sid_blob = strhex_to_data_blob(mem_ctx, hex_sid);
 	DATA_BLOB guid_blob = strhex_to_data_blob(mem_ctx, hex_guid);
@@ -159,8 +164,37 @@ static bool torture_ldb_attrs(struct torture_context *torture)
 				 attr->syntax->comparison_fn(ldb, mem_ctx, &binary_guid_blob, &binary_guid_blob), 0,
 				 "Failed to compare binary and binary GUID");
 	
+	string_prefix_map_newline_blob = data_blob_string_const(prefix_map_newline);
 	
+	string_prefix_map_semi_blob = data_blob_string_const(prefix_map_semi);
 	
+	/* Test prefixMap behaviour */
+	torture_assert(torture, attr = ldb_schema_attribute_by_name(ldb, "prefixMap"), 
+		       "Failed to get prefixMap schema attribute");
+	
+	torture_assert_int_equal(torture, 
+				 attr->syntax->comparison_fn(ldb, mem_ctx, &string_prefix_map_newline_blob, &string_prefix_map_semi_blob), 0,
+				 "Failed to compare prefixMap with newlines and prefixMap with semicolons");
+	
+	torture_assert_int_equal(torture, 
+				 attr->syntax->ldif_read_fn(ldb, mem_ctx, &string_prefix_map_newline_blob, &prefix_map_blob), 0,
+				 "Failed to read prefixMap with newlines");
+	torture_assert_int_equal(torture, 
+				 attr->syntax->comparison_fn(ldb, mem_ctx, &string_prefix_map_newline_blob, &prefix_map_blob), 0,
+				 "Failed to compare prefixMap with newlines and prefixMap binary");
+	
+	torture_assert_int_equal(torture, 
+				 attr->syntax->ldif_write_fn(ldb, mem_ctx, &prefix_map_blob, &string_prefix_map_blob), 0,
+				 "Failed to write prefixMap");
+	torture_assert_int_equal(torture, 
+				 attr->syntax->comparison_fn(ldb, mem_ctx, &string_prefix_map_blob, &prefix_map_blob), 0,
+				 "Failed to compare prefixMap ldif write and prefixMap binary");
+	
+	torture_assert_data_blob_equal(torture, string_prefix_map_blob, string_prefix_map_semi_blob,
+		"Failed to compare prefixMap ldif write and prefixMap binary");
+	
+
+
 	talloc_free(mem_ctx);
 	return true;
 }
@@ -553,6 +587,7 @@ static bool torture_ldb_dn(struct torture_context *torture)
 	struct ldb_dn *dn;
 	struct ldb_dn *child_dn;
 	struct ldb_dn *typo_dn;
+	struct ldb_val val;
 
 	torture_assert(torture, 
 		       ldb = ldb_init(mem_ctx, torture->ev),
@@ -620,6 +655,34 @@ static bool torture_ldb_dn(struct torture_context *torture)
 	torture_assert(torture, 
 		       ldb_dn_compare_base(dn, typo_dn) != 0,
 		       "Base Comparison on dc=samba,dc=org and c=samba,dc=org should != 0");
+
+	/* Check DN based on MS-ADTS:3.1.1.5.1.2 Naming Constraints*/
+	torture_assert(torture,
+		       dn = ldb_dn_new(mem_ctx, ldb, "CN=New\nLine,DC=SAMBA,DC=org"),
+		       "Failed to create a DN with 0xA in it");
+
+	torture_assert(torture,
+		       ldb_dn_validate(dn) == false,
+		       "should have failed to validate a DN with 0xA in it");
+
+	val.data = "CN=Zer\0,DC=SAMBA,DC=org";
+	val.length = 23;
+	torture_assert(torture,
+		       NULL == ldb_dn_from_ldb_val(mem_ctx, ldb, &val),
+		       "should fail to create a DN with 0x0 in it");
+
+	torture_assert(torture,
+		       dn = ldb_dn_new(mem_ctx, ldb, "CN=loooooooooooooooooooooooooooo"
+"ooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo"
+"ooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo"
+"ooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo"
+"ooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo"
+"ooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooongdn,DC=SAMBA,DC=org"),
+		       "Failed to create a DN with size more than 255 characters");
+
+	torture_assert(torture,
+		       ldb_dn_validate(dn) == false,
+		       "should have failed to validate DN with size more than 255 characters");
 
 	talloc_free(mem_ctx);
 	return true;
@@ -718,9 +781,14 @@ static bool torture_ldb_dn_invalid_extended(struct torture_context *torture)
 	return true;
 }
 
-NTSTATUS torture_ldb_init(void)
+struct torture_suite *torture_ldb(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(talloc_autofree_context(), "LDB");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "LDB");
+
+	if (suite == NULL) {
+		return NULL;
+	}
+
 	torture_suite_add_simple_test(suite, "ATTRS", torture_ldb_attrs);
 	torture_suite_add_simple_test(suite, "DN-ATTRS", torture_ldb_dn_attrs);
 	torture_suite_add_simple_test(suite, "DN-EXTENDED", torture_ldb_dn_extended);
@@ -729,7 +797,5 @@ NTSTATUS torture_ldb_init(void)
 
 	suite->description = talloc_strdup(suite, "LDB (samba-specific behaviour) tests");
 
-	torture_register_suite(suite);
-
-	return NT_STATUS_OK;
+	return suite;
 }

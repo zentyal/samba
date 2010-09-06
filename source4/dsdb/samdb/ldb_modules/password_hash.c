@@ -42,7 +42,7 @@
 #include "auth/kerberos/kerberos.h"
 #include "system/time.h"
 #include "dsdb/samdb/samdb.h"
-#include "dsdb/common/flags.h"
+#include "../libds/common/flags.h"
 #include "dsdb/samdb/ldb_modules/password_modules.h"
 #include "librpc/ndr/libndr.h"
 #include "librpc/gen_ndr/ndr_drsblobs.h"
@@ -248,7 +248,7 @@ static int setup_kerberos_keys(struct setup_password_fields_io *io)
 		char *name;
 		char *saltbody;
 
-		name = talloc_strdup(io->ac, io->u.sAMAccountName);
+		name = strlower_talloc(io->ac, io->u.sAMAccountName);
 		if (!name) {
 			ldb_oom(ldb);
 			return LDB_ERR_OPERATIONS_ERROR;
@@ -1026,6 +1026,7 @@ static int setup_supplemental_field(struct setup_password_fields_io *io)
 	uint8_t zero16[16];
 	bool do_newer_keys = false;
 	bool do_cleartext = false;
+	int *domainFunctionality;
 
 	ZERO_STRUCT(zero16);
 	ZERO_STRUCT(names);
@@ -1064,10 +1065,11 @@ static int setup_supplemental_field(struct setup_password_fields_io *io)
 					       _old_scb.sub.signature, SUPPLEMENTAL_CREDENTIALS_SIGNATURE);
 		}
 	}
+	/* Per MS-SAMR 3.1.1.8.11.6 we create AES keys if our domain functionality level is 2008 or higher */
+	domainFunctionality = talloc_get_type(ldb_get_opaque(ldb, "domainFunctionality"), int);
 
-	/* TODO: do the correct check for this, it maybe depends on the functional level? */
-	do_newer_keys = lp_parm_bool(ldb_get_opaque(ldb, "loadparm"),
-				     NULL, "password_hash", "create_aes_key", false);
+	do_newer_keys = *domainFunctionality &&
+		(*domainFunctionality >= DS_DOMAIN_FUNCTION_2008);
 
 	if (io->domain->store_cleartext &&
 	    (io->u.user_account_control & UF_ENCRYPTED_TEXT_PASSWORD_ALLOWED)) {
@@ -1379,7 +1381,8 @@ static int setup_password_fields(struct setup_password_fields_io *io)
 	if (io->n.cleartext_utf8) {
 		struct samr_Password *lm_hash;
 		char *cleartext_unix;
-		if (convert_string_talloc_convenience(io->ac, lp_iconv_convenience(ldb_get_opaque(ldb, "loadparm")), 
+		if (lp_lanman_auth(ldb_get_opaque(ldb, "loadparm")) &&
+		    convert_string_talloc_convenience(io->ac, lp_iconv_convenience(ldb_get_opaque(ldb, "loadparm")), 
 							 CH_UTF8, CH_UNIX, io->n.cleartext_utf8->data, io->n.cleartext_utf8->length, 
 							 (void **)&cleartext_unix, &converted_pw_len, false)) {
 			lm_hash = talloc(io->ac, struct samr_Password);
@@ -1398,35 +1401,96 @@ static int setup_password_fields(struct setup_password_fields_io *io)
 		}
 
 		ret = setup_kerberos_keys(io);
-		if (ret != 0) {
+		if (ret != LDB_SUCCESS) {
 			return ret;
 		}
 	}
 
 	ret = setup_nt_fields(io);
-	if (ret != 0) {
+	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
 
 	ret = setup_lm_fields(io);
-	if (ret != 0) {
+	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
 
 	ret = setup_supplemental_field(io);
-	if (ret != 0) {
+	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
 
 	ret = setup_last_set_field(io);
-	if (ret != 0) {
+	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
 
 	ret = setup_kvno_field(io);
-	if (ret != 0) {
+	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
+
+	return LDB_SUCCESS;
+}
+
+static int setup_io(struct ph_context *ac, 
+		    const struct ldb_message *new_msg, 
+		    const struct ldb_message *searched_msg, 
+		    struct setup_password_fields_io *io) 
+{ 
+	const struct ldb_val *quoted_utf16;
+	struct ldb_context *ldb = ldb_module_get_ctx(ac->module);
+
+	ZERO_STRUCTP(io);
+
+	/* Some operations below require kerberos contexts */
+	if (smb_krb5_init_context(ac,
+				  ldb_get_event_context(ldb),
+				  (struct loadparm_context *)ldb_get_opaque(ldb, "loadparm"),
+				  &io->smb_krb5_context) != 0) {
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+
+	io->ac				= ac;
+	io->domain			= ac->domain;
+
+	io->u.user_account_control	= samdb_result_uint(searched_msg, "userAccountControl", 0);
+	io->u.sAMAccountName		= samdb_result_string(searched_msg, "samAccountName", NULL);
+	io->u.user_principal_name	= samdb_result_string(searched_msg, "userPrincipalName", NULL);
+	io->u.is_computer		= ldb_msg_check_string_attribute(searched_msg, "objectClass", "computer");
+
+	io->n.cleartext_utf8		= ldb_msg_find_ldb_val(new_msg, "userPassword");
+	io->n.cleartext_utf16		= ldb_msg_find_ldb_val(new_msg, "clearTextPassword");
+
+	/* this rather strange looking piece of code is there to
+	   handle a ldap client setting a password remotely using the
+	   unicodePwd ldap field. The syntax is that the password is
+	   in UTF-16LE, with a " at either end. Unfortunately the
+	   unicodePwd field is also used to store the nt hashes
+	   internally in Samba, and is used in the nt hash format on
+	   the wire in DRS replication, so we have a single name for
+	   two distinct values. The code below leaves us with a small
+	   chance (less than 1 in 2^32) of a mixup, if someone manages
+	   to create a MD4 hash which starts and ends in 0x22 0x00, as
+	   that would then be treated as a UTF16 password rather than
+	   a nthash */
+	quoted_utf16			= ldb_msg_find_ldb_val(new_msg, "unicodePwd");
+	if (quoted_utf16 && 
+	    quoted_utf16->length >= 4 &&
+	    quoted_utf16->data[0] == '"' && 
+	    quoted_utf16->data[1] == 0 && 
+	    quoted_utf16->data[quoted_utf16->length-2] == '"' && 
+	    quoted_utf16->data[quoted_utf16->length-1] == 0) {
+		io->n.quoted_utf16.data = talloc_memdup(io->ac, quoted_utf16->data+2, quoted_utf16->length-4);
+		io->n.quoted_utf16.length = quoted_utf16->length-4;
+		io->n.cleartext_utf16 = &io->n.quoted_utf16;
+		io->n.nt_hash = NULL;
+	} else {
+		io->n.nt_hash		= samdb_result_hash(io->ac, new_msg, "unicodePwd");
+	}
+
+	io->n.lm_hash			= samdb_result_hash(io->ac, new_msg, "dBCSPwd");
 
 	return LDB_SUCCESS;
 }
@@ -1586,6 +1650,7 @@ static int get_domain_data_callback(struct ldb_request *req,
 		if (ret != LDB_SUCCESS) {
 			return ldb_module_done(ac->req, NULL, NULL, ret);
 		}
+		break;
 
 	case LDB_REPLY_REFERRAL:
 		/* ignore */
@@ -1742,49 +1807,31 @@ static int password_hash_add_do_add(struct ph_context *ac)
 {
 	struct ldb_context *ldb;
 	struct ldb_request *down_req;
-	struct smb_krb5_context *smb_krb5_context;
 	struct ldb_message *msg;
 	struct setup_password_fields_io io;
 	int ret;
 
-	ldb = ldb_module_get_ctx(ac->module);
+	/* Prepare the internal data structure containing the passwords */
+	ret = setup_io(ac, ac->req->op.add.message, ac->req->op.add.message, &io);
+	if (ret != LDB_SUCCESS) {
+		return ret;
+	}
 
 	msg = ldb_msg_copy_shallow(ac, ac->req->op.add.message);
 	if (msg == NULL) {
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
-	/* Some operations below require kerberos contexts */
-	if (smb_krb5_init_context(ac,
-				  ldb_get_event_context(ldb),
-				  (struct loadparm_context *)ldb_get_opaque(ldb, "loadparm"),
-				  &smb_krb5_context) != 0) {
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
-
-	ZERO_STRUCT(io);
-	io.ac				= ac;
-	io.domain			= ac->domain;
-	io.smb_krb5_context		= smb_krb5_context;
-
-	io.u.user_account_control	= samdb_result_uint(msg, "userAccountControl", 0);
-	io.u.sAMAccountName		= samdb_result_string(msg, "samAccountName", NULL);
-	io.u.user_principal_name	= samdb_result_string(msg, "userPrincipalName", NULL);
-	io.u.is_computer		= ldb_msg_check_string_attribute(msg, "objectClass", "computer");
-
-	io.n.cleartext_utf8		= ldb_msg_find_ldb_val(msg, "userPassword");
-	io.n.cleartext_utf16		= ldb_msg_find_ldb_val(msg, "clearTextPassword");
-	io.n.nt_hash			= samdb_result_hash(io.ac, msg, "unicodePwd");
-	io.n.lm_hash			= samdb_result_hash(io.ac, msg, "dBCSPwd");
-
-	/* remove attributes */
-	if (io.n.cleartext_utf8) ldb_msg_remove_attr(msg, "userPassword");
-	if (io.n.cleartext_utf16) ldb_msg_remove_attr(msg, "clearTextPassword");
-	if (io.n.nt_hash) ldb_msg_remove_attr(msg, "unicodePwd");
-	if (io.n.lm_hash) ldb_msg_remove_attr(msg, "dBCSPwd");
+	/* remove attributes that we just read into 'io' */
+	ldb_msg_remove_attr(msg, "userPassword");
+	ldb_msg_remove_attr(msg, "clearTextPassword");
+	ldb_msg_remove_attr(msg, "unicodePwd");
+	ldb_msg_remove_attr(msg, "dBCSPwd");
 	ldb_msg_remove_attr(msg, "pwdLastSet");
 	io.o.kvno = samdb_result_uint(msg, "msDs-KeyVersionNumber", 1) - 1;
 	ldb_msg_remove_attr(msg, "msDs-KeyVersionNumber");
+
+	ldb = ldb_module_get_ctx(ac->module);
 
 	ret = setup_password_fields(&io);
 	if (ret != LDB_SUCCESS) {
@@ -1909,20 +1956,25 @@ static int password_hash_modify(struct ldb_module *module, struct ldb_request *r
 	/* check passwords are single valued here */
 	/* TODO: remove this when passwords will be single valued in schema */
 	if (sambaAttr && (sambaAttr->num_values > 1)) {
+		DEBUG(0,(__location__ ": %s\n", ldb_errstring(ldb)));
 		return LDB_ERR_CONSTRAINT_VIOLATION;
 	}
 	if (clearTextAttr && (clearTextAttr->num_values > 1)) {
+		DEBUG(0,(__location__ ": %s\n", ldb_errstring(ldb)));
 		return LDB_ERR_CONSTRAINT_VIOLATION;
 	}
 	if (ntAttr && (ntAttr->num_values > 1)) {
+		DEBUG(0,(__location__ ": %s\n", ldb_errstring(ldb)));
 		return LDB_ERR_CONSTRAINT_VIOLATION;
 	}
 	if (lmAttr && (lmAttr->num_values > 1)) {
+		DEBUG(0,(__location__ ": %s\n", ldb_errstring(ldb)));
 		return LDB_ERR_CONSTRAINT_VIOLATION;
 	}
 
 	ac = ph_init_context(module, req);
 	if (!ac) {
+		DEBUG(0,(__location__ ": %s\n", ldb_errstring(ldb)));
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
@@ -2095,12 +2147,9 @@ static int password_hash_mod_do_mod(struct ph_context *ac)
 {
 	struct ldb_context *ldb;
 	struct ldb_request *mod_req;
-	struct smb_krb5_context *smb_krb5_context;
 	struct ldb_message *msg;
-	struct ldb_message *orig_msg;
-	struct ldb_message *searched_msg;
+	const struct ldb_message *searched_msg;
 	struct setup_password_fields_io io;
-	const struct ldb_val *quoted_utf16;
 	int ret;
 
 	ldb = ldb_module_get_ctx(ac->module);
@@ -2114,59 +2163,18 @@ static int password_hash_mod_do_mod(struct ph_context *ac)
 	/* modify dn */
 	msg->dn = ac->req->op.mod.message->dn;
 
-	/* Some operations below require kerberos contexts */
-	if (smb_krb5_init_context(ac,
-				  ldb_get_event_context(ldb),
-				  (struct loadparm_context *)ldb_get_opaque(ldb, "loadparm"),
-				  &smb_krb5_context) != 0) {
-		return LDB_ERR_OPERATIONS_ERROR;
+	/* Prepare the internal data structure containing the passwords */
+	ret = setup_io(ac, 
+		       ac->req->op.mod.message, 
+		       ac->search_res->message, 
+		       &io);
+	if (ret != LDB_SUCCESS) {
+		return ret;
 	}
+	
+	searched_msg = ac->search_res->message;
 
-	orig_msg	= discard_const(ac->req->op.mod.message);
-	searched_msg	= ac->search_res->message;
-
-	ZERO_STRUCT(io);
-	io.ac				= ac;
-	io.domain			= ac->domain;
-	io.smb_krb5_context		= smb_krb5_context;
-
-	io.u.user_account_control	= samdb_result_uint(searched_msg, "userAccountControl", 0);
-	io.u.sAMAccountName		= samdb_result_string(searched_msg, "samAccountName", NULL);
-	io.u.user_principal_name	= samdb_result_string(searched_msg, "userPrincipalName", NULL);
-	io.u.is_computer		= ldb_msg_check_string_attribute(searched_msg, "objectClass", "computer");
-
-	io.n.cleartext_utf8		= ldb_msg_find_ldb_val(orig_msg, "userPassword");
-	io.n.cleartext_utf16		= ldb_msg_find_ldb_val(orig_msg, "clearTextPassword");
-
-	/* this rather strange looking piece of code is there to
-	   handle a ldap client setting a password remotely using the
-	   unicodePwd ldap field. The syntax is that the password is
-	   in UTF-16LE, with a " at either end. Unfortunately the
-	   unicodePwd field is also used to store the nt hashes
-	   internally in Samba, and is used in the nt hash format on
-	   the wire in DRS replication, so we have a single name for
-	   two distinct values. The code below leaves us with a small
-	   chance (less than 1 in 2^32) of a mixup, if someone manages
-	   to create a MD4 hash which starts and ends in 0x22 0x00, as
-	   that would then be treated as a UTF16 password rather than
-	   a nthash */
-	quoted_utf16			= ldb_msg_find_ldb_val(orig_msg, "unicodePwd");
-	if (quoted_utf16 && 
-	    quoted_utf16->length >= 4 &&
-	    quoted_utf16->data[0] == '"' && 
-	    quoted_utf16->data[1] == 0 && 
-	    quoted_utf16->data[quoted_utf16->length-2] == '"' && 
-	    quoted_utf16->data[quoted_utf16->length-1] == 0) {
-		io.n.quoted_utf16.data = talloc_memdup(orig_msg, quoted_utf16->data+2, quoted_utf16->length-4);
-		io.n.quoted_utf16.length = quoted_utf16->length-4;
-		io.n.cleartext_utf16 = &io.n.quoted_utf16;
-		io.n.nt_hash = NULL;
-	} else {
-		io.n.nt_hash		= samdb_result_hash(io.ac, orig_msg, "unicodePwd");
-	}
-
-	io.n.lm_hash			= samdb_result_hash(io.ac, orig_msg, "dBCSPwd");
-
+	/* Fill in some final details (only relevent once the password has been set) */
 	io.o.kvno			= samdb_result_uint(searched_msg, "msDs-KeyVersionNumber", 0);
 	io.o.nt_history_len		= samdb_result_hashes(io.ac, searched_msg, "ntPwdHistory", &io.o.nt_history);
 	io.o.lm_history_len		= samdb_result_hashes(io.ac, searched_msg, "lmPwdHistory", &io.o.lm_history);

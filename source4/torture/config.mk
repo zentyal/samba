@@ -89,6 +89,7 @@ $(eval $(call proto_header_template,$(torturesrcdir)/raw/proto.h,$(TORTURE_RAW_O
 
 mkinclude smb2/config.mk
 mkinclude winbind/config.mk
+mkinclude libnetapi/config.mk
 
 [SUBSYSTEM::TORTURE_NDR]
 PRIVATE_DEPENDENCIES = torture SERVICE_SMB
@@ -110,8 +111,8 @@ PRIVATE_DEPENDENCIES = \
 		RPC_NDR_LSA RPC_NDR_EPMAPPER RPC_NDR_DFS RPC_NDR_FRSAPI RPC_NDR_SPOOLSS \
 		RPC_NDR_SRVSVC RPC_NDR_WKSSVC RPC_NDR_ROT RPC_NDR_DSSETUP \
 		RPC_NDR_REMACT RPC_NDR_OXIDRESOLVER RPC_NDR_NTSVCS WB_HELPER LIBSAMBA-NET \
-		LIBCLI_AUTH POPT_CREDENTIALS TORTURE_LDAP TORTURE_LDB TORTURE_UTIL TORTURE_RAP \
-		dcerpc_server service process_model ntvfs SERVICE_SMB RPC_NDR_BROWSER
+		LIBCLI_AUTH POPT_CREDENTIALS TORTURE_LDAP TORTURE_UTIL TORTURE_RAP \
+		dcerpc_server service process_model ntvfs SERVICE_SMB RPC_NDR_BROWSER LIBCLI_DRSUAPI TORTURE_LDB_MODULE
 
 torture_rpc_OBJ_FILES = $(addprefix $(torturesrcdir)/rpc/, \
 		join.o lsa.o lsa_lookup.o session_key.o echo.o dfs.o drsuapi.o \
@@ -190,28 +191,13 @@ SUBSYSTEM = smbtorture
 OUTPUT_TYPE = MERGED_OBJ
 INIT_FUNCTION = torture_ldap_init
 PRIVATE_DEPENDENCIES = \
-		LIBCLI_LDAP LIBCLI_CLDAP SAMDB POPT_CREDENTIALS torture
+		LIBCLI_LDAP LIBCLI_CLDAP SAMDB POPT_CREDENTIALS torture LDB_WRAP
 # End SUBSYSTEM TORTURE_LDAP
 #################################
 
-TORTURE_LDAP_OBJ_FILES = $(addprefix $(torturesrcdir)/ldap/, common.o basic.o schema.o uptodatevector.o cldap.o cldapbench.o)
+TORTURE_LDAP_OBJ_FILES = $(addprefix $(torturesrcdir)/ldap/, common.o basic.o schema.o uptodatevector.o cldap.o cldapbench.o ldap_sort.o)
 
 $(eval $(call proto_header_template,$(torturesrcdir)/ldap/proto.h,$(TORTURE_LDAP_OBJ_FILES:.o=.c)))
-
-#################################
-# Start SUBSYSTEM TORTURE_LDB
-[MODULE::TORTURE_LDB]
-SUBSYSTEM = smbtorture
-OUTPUT_TYPE = MERGED_OBJ
-INIT_FUNCTION = torture_ldb_init
-PRIVATE_DEPENDENCIES = \
-		LDB_WRAP
-# End SUBSYSTEM TORTURE_LDB
-#################################
-
-TORTURE_LDB_OBJ_FILES = $(addprefix $(torturesrcdir)/ldb/, ldb.o)
-
-$(eval $(call proto_header_template,$(torturesrcdir)/ldb/proto.h,$(TORTURE_LDB_OBJ_FILES:.o=.c)))
 
 #################################
 # Start SUBSYSTEM TORTURE_NBT
@@ -249,6 +235,22 @@ TORTURE_NET_OBJ_FILES = $(addprefix $(torturesrcdir)/libnet/, libnet.o \
 					   libnet_share.o libnet_rpc.o libnet_domain.o libnet_BecomeDC.o)
 
 $(eval $(call proto_header_template,$(torturesrcdir)/libnet/proto.h,$(TORTURE_NET_OBJ_FILES:.o=.c)))
+
+#################################
+# Start SUBSYSTEM TORTURE_NTP
+[MODULE::TORTURE_NTP]
+SUBSYSTEM = smbtorture
+OUTPUT_TYPE = MERGED_OBJ
+INIT_FUNCTION = torture_ntp_init
+PRIVATE_DEPENDENCIES = \
+		POPT_CREDENTIALS \
+		torture_rpc 
+# End SUBSYSTEM TORTURE_NTP
+#################################
+
+TORTURE_NTP_OBJ_FILES = $(addprefix $(torturesrcdir)/ntp/, ntp_signd.o)
+
+$(eval $(call proto_header_template,$(torturesrcdir)/ntp/proto.h,$(TORTURE_NET_OBJ_FILES:.o=.c)))
 
 #################################
 # Start BINARY smbtorture
@@ -351,11 +353,11 @@ gcov: test
 		do $(GCOV) -p -o $$I $$I/*.c; \
 	done
 
-samba.info: test
-	-rm heimdal/lib/*/{lex,parse}.{gcda,gcno}
-	lcov --base-directory `pwd` --directory . --capture --output-file samba.info
+samba4.info: test
+	-rm heimdal/lib/*/{lex,parse,sel-lex}.{gcda,gcno}
+	cd .. && lcov --base-directory `pwd`/source4 --directory source4 --directory nsswitch --directory libcli --directory librpc --directory lib --capture --output-file source4/samba4.info
 
-lcov: samba.info
+lcov: samba4.info
 	genhtml -o coverage $<
 
 testcov-html:: lcov

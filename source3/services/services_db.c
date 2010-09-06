@@ -248,9 +248,9 @@ static bool read_init_file( const char *servicename, struct rcinit_file_informat
  Display name, Description, etc...
 ********************************************************************/
 
-static void fill_service_values( const char *name, REGVAL_CTR *values )
+static void fill_service_values(const char *name, struct regval_ctr *values)
 {
-	UNISTR2 data, dname, ipath, description;
+	char *dname, *ipath, *description;
 	uint32 dword;
 	int i;
 
@@ -268,24 +268,17 @@ static void fill_service_values( const char *name, REGVAL_CTR *values )
 
 	/* everything runs as LocalSystem */
 
-	init_unistr2( &data, "LocalSystem", UNI_STR_TERMINATE );
-	regval_ctr_addvalue( values, "ObjectName", REG_SZ, (char*)data.buffer, data.uni_str_len*2);
+	regval_ctr_addvalue_sz(values, "ObjectName", "LocalSystem");
 
 	/* special considerations for internal services and the DisplayName value */
 
 	for ( i=0; builtin_svcs[i].servicename; i++ ) {
 		if ( strequal( name, builtin_svcs[i].servicename ) ) {
-			char *pstr = NULL;
-			if (asprintf(&pstr, "%s/%s/%s",
+			ipath = talloc_asprintf(talloc_tos(), "%s/%s/%s",
 					get_dyn_MODULESDIR(), SVCCTL_SCRIPT_DIR,
-					builtin_svcs[i].daemon) > 0) {
-				init_unistr2( &ipath, pstr, UNI_STR_TERMINATE );
-				SAFE_FREE(pstr);
-			} else {
-				init_unistr2( &ipath, "", UNI_STR_TERMINATE );
-			}
-			init_unistr2( &description, builtin_svcs[i].description, UNI_STR_TERMINATE );
-			init_unistr2( &dname, builtin_svcs[i].dispname, UNI_STR_TERMINATE );
+					builtin_svcs[i].daemon);
+			description = talloc_strdup(talloc_tos(), builtin_svcs[i].description);
+			dname = talloc_strdup(talloc_tos(), builtin_svcs[i].dispname);
 			break;
 		}
 	}
@@ -293,38 +286,37 @@ static void fill_service_values( const char *name, REGVAL_CTR *values )
 	/* default to an external service if we haven't found a match */
 
 	if ( builtin_svcs[i].servicename == NULL ) {
-		char *pstr = NULL;
 		char *dispname = NULL;
 		struct rcinit_file_information *init_info = NULL;
 
-		if (asprintf(&pstr, "%s/%s/%s",get_dyn_MODULESDIR(),
-					SVCCTL_SCRIPT_DIR, name) > 0) {
-			init_unistr2( &ipath, pstr, UNI_STR_TERMINATE );
-			SAFE_FREE(pstr);
-		} else {
-			init_unistr2( &ipath, "", UNI_STR_TERMINATE );
-		}
+		ipath = talloc_asprintf(talloc_tos(), "%s/%s/%s",
+					get_dyn_MODULESDIR(), SVCCTL_SCRIPT_DIR,
+					name);
 
 		/* lookup common unix display names */
 		dispname = get_common_service_dispname(name);
-		init_unistr2( &dname, dispname ? dispname : "", UNI_STR_TERMINATE );
+		dname = talloc_strdup(talloc_tos(), dispname ? dispname : "");
 		SAFE_FREE(dispname);
 
 		/* get info from init file itself */
 		if ( read_init_file( name, &init_info ) ) {
-			init_unistr2( &description, init_info->description, UNI_STR_TERMINATE );
+			description = talloc_strdup(talloc_tos(), init_info->description);
 			TALLOC_FREE( init_info );
 		}
 		else {
-			init_unistr2( &description, "External Unix Service", UNI_STR_TERMINATE );
+			description = talloc_strdup(talloc_tos(), "External Unix Service");
 		}
 	}
 
 	/* add the new values */
 
-	regval_ctr_addvalue( values, "DisplayName", REG_SZ, (char*)dname.buffer, dname.uni_str_len*2);
-	regval_ctr_addvalue( values, "ImagePath", REG_SZ, (char*)ipath.buffer, ipath.uni_str_len*2);
-	regval_ctr_addvalue( values, "Description", REG_SZ, (char*)description.buffer, description.uni_str_len*2);
+	regval_ctr_addvalue_sz(values, "DisplayName", dname);
+	regval_ctr_addvalue_sz(values, "ImagePath", ipath);
+	regval_ctr_addvalue_sz(values, "Description", description);
+
+	TALLOC_FREE(dname);
+	TALLOC_FREE(ipath);
+	TALLOC_FREE(description);
 
 	return;
 }
@@ -332,13 +324,14 @@ static void fill_service_values( const char *name, REGVAL_CTR *values )
 /********************************************************************
 ********************************************************************/
 
-static void add_new_svc_name( REGISTRY_KEY *key_parent, struct regsubkey_ctr *subkeys,
-                              const char *name )
+static void add_new_svc_name(struct registry_key_handle *key_parent,
+			     struct regsubkey_ctr *subkeys,
+			     const char *name )
 {
-	REGISTRY_KEY *key_service = NULL, *key_secdesc = NULL;
+	struct registry_key_handle *key_service = NULL, *key_secdesc = NULL;
 	WERROR wresult;
 	char *path = NULL;
-	REGVAL_CTR *values = NULL;
+	struct regval_ctr *values = NULL;
 	struct regsubkey_ctr *svc_subkeys = NULL;
 	SEC_DESC *sd = NULL;
 	DATA_BLOB sd_blob;
@@ -379,7 +372,7 @@ static void add_new_svc_name( REGISTRY_KEY *key_parent, struct regsubkey_ctr *su
 
 	/* now for the service values */
 
-	if ( !(values = TALLOC_ZERO_P( key_service, REGVAL_CTR )) ) {
+	if ( !(values = TALLOC_ZERO_P( key_service, struct regval_ctr )) ) {
 		DEBUG(0,("add_new_svc_name: talloc() failed!\n"));
 		TALLOC_FREE( key_service );
 		return;
@@ -408,7 +401,7 @@ static void add_new_svc_name( REGISTRY_KEY *key_parent, struct regsubkey_ctr *su
 	}
 	SAFE_FREE(path);
 
-	if ( !(values = TALLOC_ZERO_P( key_secdesc, REGVAL_CTR )) ) {
+	if ( !(values = TALLOC_ZERO_P( key_secdesc, struct regval_ctr )) ) {
 		DEBUG(0,("add_new_svc_name: talloc() failed!\n"));
 		TALLOC_FREE( key_secdesc );
 		return;
@@ -446,7 +439,7 @@ void svcctl_init_keys( void )
 	const char **service_list = lp_svcctl_list();
 	int i;
 	struct regsubkey_ctr *subkeys = NULL;
-	REGISTRY_KEY *key = NULL;
+	struct registry_key_handle *key = NULL;
 	WERROR wresult;
 
 	/* bad mojo here if the lookup failed.  Should not happen */
@@ -504,9 +497,9 @@ void svcctl_init_keys( void )
 
 SEC_DESC *svcctl_get_secdesc( TALLOC_CTX *ctx, const char *name, NT_USER_TOKEN *token )
 {
-	REGISTRY_KEY *key = NULL;
-	REGVAL_CTR *values = NULL;
-	REGISTRY_VALUE *val = NULL;
+	struct registry_key_handle *key = NULL;
+	struct regval_ctr *values = NULL;
+	struct regval_blob *val = NULL;
 	SEC_DESC *ret_sd = NULL;
 	char *path= NULL;
 	WERROR wresult;
@@ -525,7 +518,7 @@ SEC_DESC *svcctl_get_secdesc( TALLOC_CTX *ctx, const char *name, NT_USER_TOKEN *
 		goto done;
 	}
 
-	if ( !(values = TALLOC_ZERO_P( key, REGVAL_CTR )) ) {
+	if ( !(values = TALLOC_ZERO_P( key, struct regval_ctr )) ) {
 		DEBUG(0,("svcctl_get_secdesc: talloc() failed!\n"));
 		goto done;
 	}
@@ -565,10 +558,10 @@ done:
 
 bool svcctl_set_secdesc( TALLOC_CTX *ctx, const char *name, SEC_DESC *sec_desc, NT_USER_TOKEN *token )
 {
-	REGISTRY_KEY *key = NULL;
+	struct registry_key_handle *key = NULL;
 	WERROR wresult;
 	char *path = NULL;
-	REGVAL_CTR *values = NULL;
+	struct regval_ctr *values = NULL;
 	DATA_BLOB blob;
 	NTSTATUS status;
 	bool ret = False;
@@ -588,7 +581,7 @@ bool svcctl_set_secdesc( TALLOC_CTX *ctx, const char *name, SEC_DESC *sec_desc, 
 	}
 	SAFE_FREE(path);
 
-	if ( !(values = TALLOC_ZERO_P( key, REGVAL_CTR )) ) {
+	if ( !(values = TALLOC_ZERO_P( key, struct regval_ctr )) ) {
 		DEBUG(0,("svcctl_set_secdesc: talloc() failed!\n"));
 		TALLOC_FREE( key );
 		return False;
@@ -618,12 +611,13 @@ bool svcctl_set_secdesc( TALLOC_CTX *ctx, const char *name, SEC_DESC *sec_desc, 
 
 const char *svcctl_lookup_dispname(TALLOC_CTX *ctx, const char *name, NT_USER_TOKEN *token )
 {
-	char *display_name = NULL;
-	REGISTRY_KEY *key = NULL;
-	REGVAL_CTR *values = NULL;
-	REGISTRY_VALUE *val = NULL;
+	const char *display_name = NULL;
+	struct registry_key_handle *key = NULL;
+	struct regval_ctr *values = NULL;
+	struct regval_blob *val = NULL;
 	char *path = NULL;
 	WERROR wresult;
+	DATA_BLOB blob;
 
 	/* now add the security descriptor */
 
@@ -640,7 +634,7 @@ const char *svcctl_lookup_dispname(TALLOC_CTX *ctx, const char *name, NT_USER_TO
 	}
 	SAFE_FREE(path);
 
-	if ( !(values = TALLOC_ZERO_P( key, REGVAL_CTR )) ) {
+	if ( !(values = TALLOC_ZERO_P( key, struct regval_ctr )) ) {
 		DEBUG(0,("svcctl_lookup_dispname: talloc() failed!\n"));
 		TALLOC_FREE( key );
 		goto fail;
@@ -651,7 +645,8 @@ const char *svcctl_lookup_dispname(TALLOC_CTX *ctx, const char *name, NT_USER_TO
 	if ( !(val = regval_ctr_getvalue( values, "DisplayName" )) )
 		goto fail;
 
-	rpcstr_pull_talloc(ctx, &display_name, regval_data_p(val), regval_size(val), 0 );
+	blob = data_blob_const(regval_data_p(val), regval_size(val));
+	pull_reg_sz(ctx, &blob, &display_name);
 
 	TALLOC_FREE( key );
 
@@ -668,12 +663,13 @@ fail:
 
 const char *svcctl_lookup_description(TALLOC_CTX *ctx, const char *name, NT_USER_TOKEN *token )
 {
-	char *description = NULL;
-	REGISTRY_KEY *key = NULL;
-	REGVAL_CTR *values = NULL;
-	REGISTRY_VALUE *val = NULL;
+	const char *description = NULL;
+	struct registry_key_handle *key = NULL;
+	struct regval_ctr *values = NULL;
+	struct regval_blob *val = NULL;
 	char *path = NULL;
 	WERROR wresult;
+	DATA_BLOB blob;
 
 	/* now add the security descriptor */
 
@@ -690,7 +686,7 @@ const char *svcctl_lookup_description(TALLOC_CTX *ctx, const char *name, NT_USER
 	}
 	SAFE_FREE(path);
 
-	if ( !(values = TALLOC_ZERO_P( key, REGVAL_CTR )) ) {
+	if ( !(values = TALLOC_ZERO_P( key, struct regval_ctr )) ) {
 		DEBUG(0,("svcctl_lookup_description: talloc() failed!\n"));
 		TALLOC_FREE( key );
 		return NULL;
@@ -702,7 +698,10 @@ const char *svcctl_lookup_description(TALLOC_CTX *ctx, const char *name, NT_USER
 		TALLOC_FREE( key );
 		return "Unix Service";
 	}
-	rpcstr_pull_talloc(ctx, &description, regval_data_p(val), regval_size(val), 0 );
+
+	blob = data_blob_const(regval_data_p(val), regval_size(val));
+	pull_reg_sz(ctx, &blob, &description);
+
 	TALLOC_FREE(key);
 
 	return description;
@@ -712,10 +711,10 @@ const char *svcctl_lookup_description(TALLOC_CTX *ctx, const char *name, NT_USER
 /********************************************************************
 ********************************************************************/
 
-REGVAL_CTR *svcctl_fetch_regvalues( const char *name, NT_USER_TOKEN *token )
+struct regval_ctr *svcctl_fetch_regvalues(const char *name, NT_USER_TOKEN *token)
 {
-	REGISTRY_KEY *key = NULL;
-	REGVAL_CTR *values = NULL;
+	struct registry_key_handle *key = NULL;
+	struct regval_ctr *values = NULL;
 	char *path = NULL;
 	WERROR wresult;
 
@@ -734,7 +733,7 @@ REGVAL_CTR *svcctl_fetch_regvalues( const char *name, NT_USER_TOKEN *token )
 	}
 	SAFE_FREE(path);
 
-	if ( !(values = TALLOC_ZERO_P( NULL, REGVAL_CTR )) ) {
+	if ( !(values = TALLOC_ZERO_P( NULL, struct regval_ctr )) ) {
 		DEBUG(0,("svcctl_fetch_regvalues: talloc() failed!\n"));
 		TALLOC_FREE( key );
 		return NULL;

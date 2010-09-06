@@ -157,31 +157,35 @@ static NTSTATUS cmd_readdir(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc
 
 	printf("readdir: %s\n", dent->d_name);
 	if (VALID_STAT(st)) {
+		time_t tmp_time;
 		printf("  stat available");
-		if (S_ISREG(st.st_mode)) printf("  Regular File\n");
-		else if (S_ISDIR(st.st_mode)) printf("  Directory\n");
-		else if (S_ISCHR(st.st_mode)) printf("  Character Device\n");
-		else if (S_ISBLK(st.st_mode)) printf("  Block Device\n");
-		else if (S_ISFIFO(st.st_mode)) printf("  Fifo\n");
-		else if (S_ISLNK(st.st_mode)) printf("  Symbolic Link\n");
-		else if (S_ISSOCK(st.st_mode)) printf("  Socket\n");
-		printf("  Size: %10u", (unsigned int)st.st_size);
+		if (S_ISREG(st.st_ex_mode)) printf("  Regular File\n");
+		else if (S_ISDIR(st.st_ex_mode)) printf("  Directory\n");
+		else if (S_ISCHR(st.st_ex_mode)) printf("  Character Device\n");
+		else if (S_ISBLK(st.st_ex_mode)) printf("  Block Device\n");
+		else if (S_ISFIFO(st.st_ex_mode)) printf("  Fifo\n");
+		else if (S_ISLNK(st.st_ex_mode)) printf("  Symbolic Link\n");
+		else if (S_ISSOCK(st.st_ex_mode)) printf("  Socket\n");
+		printf("  Size: %10u", (unsigned int)st.st_ex_size);
 #ifdef HAVE_STAT_ST_BLOCKS
-		printf(" Blocks: %9u", (unsigned int)st.st_blocks);
+		printf(" Blocks: %9u", (unsigned int)st.st_ex_blocks);
 #endif
 #ifdef HAVE_STAT_ST_BLKSIZE
-		printf(" IO Block: %u\n", (unsigned int)st.st_blksize);
+		printf(" IO Block: %u\n", (unsigned int)st.st_ex_blksize);
 #endif
-		printf("  Device: 0x%10x", (unsigned int)st.st_dev);
-		printf(" Inode: %10u", (unsigned int)st.st_ino);
-		printf(" Links: %10u\n", (unsigned int)st.st_nlink);
-		printf("  Access: %05o", (int)((st.st_mode) & 007777));
+		printf("  Device: 0x%10x", (unsigned int)st.st_ex_dev);
+		printf(" Inode: %10u", (unsigned int)st.st_ex_ino);
+		printf(" Links: %10u\n", (unsigned int)st.st_ex_nlink);
+		printf("  Access: %05o", (int)((st.st_ex_mode) & 007777));
 		printf(" Uid: %5lu Gid: %5lu\n",
-		       (unsigned long)st.st_uid,
-		       (unsigned long)st.st_gid);
-		printf("  Access: %s", ctime(&(st.st_atime)));
-		printf("  Modify: %s", ctime(&(st.st_mtime)));
-		printf("  Change: %s", ctime(&(st.st_ctime)));
+		       (unsigned long)st.st_ex_uid,
+		       (unsigned long)st.st_ex_gid);
+		tmp_time = convert_timespec_to_time_t(st.st_ex_atime);
+		printf("  Access: %s", ctime(&tmp_time));
+		tmp_time = convert_timespec_to_time_t(st.st_ex_mtime);
+		printf("  Modify: %s", ctime(&tmp_time));
+		tmp_time = convert_timespec_to_time_t(st.st_ex_ctime);
+		printf("  Change: %s", ctime(&tmp_time));
 	}
 
 	return NT_STATUS_OK;
@@ -232,6 +236,8 @@ static NTSTATUS cmd_open(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, c
 	mode_t mode;
 	const char *flagstr;
 	files_struct *fsp;
+	struct smb_filename *smb_fname = NULL;
+	NTSTATUS status;
 
 	mode = 00400;
 
@@ -311,11 +317,6 @@ static NTSTATUS cmd_open(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, c
 	if (fsp == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
-	fsp->fsp_name = SMB_STRDUP(argv[1]);
-	if (fsp->fsp_name == NULL) {
-		SAFE_FREE(fsp);
-		return NT_STATUS_NO_MEMORY;
-	}
 	fsp->fh = SMB_MALLOC_P(struct fd_handle);
 	if (fsp->fh == NULL) {
 		SAFE_FREE(fsp->fsp_name);
@@ -324,12 +325,21 @@ static NTSTATUS cmd_open(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, c
 	}
 	fsp->conn = vfs->conn;
 
-	fsp->fh->fd = SMB_VFS_OPEN(vfs->conn, argv[1], fsp, flags, mode);
+	status = create_synthetic_smb_fname_split(mem_ctx, argv[1], NULL,
+						  &smb_fname);
+	if (!NT_STATUS_IS_OK(status)) {
+		SAFE_FREE(fsp);
+		return status;
+	}
+
+	fsp->fsp_name = smb_fname;
+
+	fsp->fh->fd = SMB_VFS_OPEN(vfs->conn, smb_fname, fsp, flags, mode);
 	if (fsp->fh->fd == -1) {
 		printf("open: error=%d (%s)\n", errno, strerror(errno));
 		SAFE_FREE(fsp->fh);
-		SAFE_FREE(fsp->fsp_name);
 		SAFE_FREE(fsp);
+		TALLOC_FREE(smb_fname);
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
@@ -351,7 +361,17 @@ static NTSTATUS cmd_pathfunc(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int arg
 	if (strcmp("rmdir", argv[0]) == 0 ) {
 		ret = SMB_VFS_RMDIR(vfs->conn, argv[1]);
 	} else if (strcmp("unlink", argv[0]) == 0 ) {
-		ret = SMB_VFS_UNLINK(vfs->conn, argv[1]);
+		struct smb_filename *smb_fname = NULL;
+		NTSTATUS status;
+
+		status = create_synthetic_smb_fname_split(mem_ctx, argv[1],
+							  NULL, &smb_fname);
+		if (!NT_STATUS_IS_OK(status)) {
+			return status;
+		}
+
+		ret = SMB_VFS_UNLINK(vfs->conn, smb_fname);
+		TALLOC_FREE(smb_fname);
 	} else if (strcmp("chdir", argv[0]) == 0 ) {
 		ret = SMB_VFS_CHDIR(vfs->conn, argv[1]);
 	} else {
@@ -390,7 +410,7 @@ static NTSTATUS cmd_close(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 	else
 		printf("close: ok\n");
 
-	SAFE_FREE(vfs->files[fd]->fsp_name);
+	TALLOC_FREE(vfs->files[fd]->fsp_name);
 	SAFE_FREE(vfs->files[fd]->fh);
 	SAFE_FREE(vfs->files[fd]);
 	vfs->files[fd] = NULL;
@@ -496,12 +516,31 @@ static NTSTATUS cmd_lseek(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 static NTSTATUS cmd_rename(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, const char **argv)
 {
 	int ret;
+	struct smb_filename *smb_fname_src = NULL;
+	struct smb_filename *smb_fname_dst = NULL;
+	NTSTATUS status;
+
 	if (argc != 3) {
 		printf("Usage: rename <old> <new>\n");
 		return NT_STATUS_OK;
 	}
 
-	ret = SMB_VFS_RENAME(vfs->conn, argv[1], argv[2]);
+	status = create_synthetic_smb_fname_split(mem_ctx, argv[1], NULL,
+						  &smb_fname_src);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	status = create_synthetic_smb_fname_split(mem_ctx, argv[2], NULL,
+						  &smb_fname_dst);
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(smb_fname_src);
+		return status;
+	}
+
+	ret = SMB_VFS_RENAME(vfs->conn, smb_fname_src, smb_fname_dst);
+	TALLOC_FREE(smb_fname_src);
+	TALLOC_FREE(smb_fname_dst);
 	if (ret == -1) {
 		printf("rename: error=%d (%s)\n", errno, strerror(errno));
 		return NT_STATUS_UNSUCCESSFUL;
@@ -539,51 +578,66 @@ static NTSTATUS cmd_stat(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, c
 	const char *group;
 	struct passwd *pwd = NULL;
 	struct group *grp = NULL;
+	struct smb_filename *smb_fname = NULL;
 	SMB_STRUCT_STAT st;
+	time_t tmp_time;
+	NTSTATUS status;
 
 	if (argc != 2) {
 		printf("Usage: stat <fname>\n");
 		return NT_STATUS_OK;
 	}
 
-	ret = SMB_VFS_STAT(vfs->conn, argv[1], &st);
-	if (ret == -1) {
-		printf("stat: error=%d (%s)\n", errno, strerror(errno));
-		return NT_STATUS_UNSUCCESSFUL;
+	status = create_synthetic_smb_fname_split(mem_ctx, argv[1], NULL,
+						  &smb_fname);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
 	}
 
-	pwd = sys_getpwuid(st.st_uid);
+	ret = SMB_VFS_STAT(vfs->conn, smb_fname);
+	if (ret == -1) {
+		printf("stat: error=%d (%s)\n", errno, strerror(errno));
+		TALLOC_FREE(smb_fname);
+		return NT_STATUS_UNSUCCESSFUL;
+	}
+	st = smb_fname->st;
+	TALLOC_FREE(smb_fname);
+
+	pwd = sys_getpwuid(st.st_ex_uid);
 	if (pwd != NULL) user = pwd->pw_name;
 	else user = null_string;
-	grp = sys_getgrgid(st.st_gid);
+	grp = sys_getgrgid(st.st_ex_gid);
 	if (grp != NULL) group = grp->gr_name;
 	else group = null_string;
 
 	printf("stat: ok\n");
 	printf("  File: %s", argv[1]);
-	if (S_ISREG(st.st_mode)) printf("  Regular File\n");
-	else if (S_ISDIR(st.st_mode)) printf("  Directory\n");
-	else if (S_ISCHR(st.st_mode)) printf("  Character Device\n");
-	else if (S_ISBLK(st.st_mode)) printf("  Block Device\n");
-	else if (S_ISFIFO(st.st_mode)) printf("  Fifo\n");
-	else if (S_ISLNK(st.st_mode)) printf("  Symbolic Link\n");
-	else if (S_ISSOCK(st.st_mode)) printf("  Socket\n");
-	printf("  Size: %10u", (unsigned int)st.st_size);
+	if (S_ISREG(st.st_ex_mode)) printf("  Regular File\n");
+	else if (S_ISDIR(st.st_ex_mode)) printf("  Directory\n");
+	else if (S_ISCHR(st.st_ex_mode)) printf("  Character Device\n");
+	else if (S_ISBLK(st.st_ex_mode)) printf("  Block Device\n");
+	else if (S_ISFIFO(st.st_ex_mode)) printf("  Fifo\n");
+	else if (S_ISLNK(st.st_ex_mode)) printf("  Symbolic Link\n");
+	else if (S_ISSOCK(st.st_ex_mode)) printf("  Socket\n");
+	printf("  Size: %10u", (unsigned int)st.st_ex_size);
 #ifdef HAVE_STAT_ST_BLOCKS
-	printf(" Blocks: %9u", (unsigned int)st.st_blocks);
+	printf(" Blocks: %9u", (unsigned int)st.st_ex_blocks);
 #endif
 #ifdef HAVE_STAT_ST_BLKSIZE
-	printf(" IO Block: %u\n", (unsigned int)st.st_blksize);
+	printf(" IO Block: %u\n", (unsigned int)st.st_ex_blksize);
 #endif
-	printf("  Device: 0x%10x", (unsigned int)st.st_dev);
-	printf(" Inode: %10u", (unsigned int)st.st_ino);
-	printf(" Links: %10u\n", (unsigned int)st.st_nlink);
-	printf("  Access: %05o", (int)((st.st_mode) & 007777));
-	printf(" Uid: %5lu/%.16s Gid: %5lu/%.16s\n", (unsigned long)st.st_uid, user, 
-	       (unsigned long)st.st_gid, group);
-	printf("  Access: %s", ctime(&(st.st_atime)));
-	printf("  Modify: %s", ctime(&(st.st_mtime)));
-	printf("  Change: %s", ctime(&(st.st_ctime)));
+	printf("  Device: 0x%10x", (unsigned int)st.st_ex_dev);
+	printf(" Inode: %10u", (unsigned int)st.st_ex_ino);
+	printf(" Links: %10u\n", (unsigned int)st.st_ex_nlink);
+	printf("  Access: %05o", (int)((st.st_ex_mode) & 007777));
+	printf(" Uid: %5lu/%.16s Gid: %5lu/%.16s\n", (unsigned long)st.st_ex_uid, user,
+	       (unsigned long)st.st_ex_gid, group);
+	tmp_time = convert_timespec_to_time_t(st.st_ex_atime);
+	printf("  Access: %s", ctime(&tmp_time));
+	tmp_time = convert_timespec_to_time_t(st.st_ex_mtime);
+	printf("  Modify: %s", ctime(&tmp_time));
+	tmp_time = convert_timespec_to_time_t(st.st_ex_ctime);
+	printf("  Change: %s", ctime(&tmp_time));
 
 	return NT_STATUS_OK;
 }
@@ -597,6 +651,7 @@ static NTSTATUS cmd_fstat(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 	struct passwd *pwd = NULL;
 	struct group *grp = NULL;
 	SMB_STRUCT_STAT st;
+	time_t tmp_time;
 
 	if (argc != 2) {
 		printf("Usage: fstat <fd>\n");
@@ -619,37 +674,40 @@ static NTSTATUS cmd_fstat(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
-	pwd = sys_getpwuid(st.st_uid);
+	pwd = sys_getpwuid(st.st_ex_uid);
 	if (pwd != NULL) user = pwd->pw_name;
 	else user = null_string;
-	grp = sys_getgrgid(st.st_gid);
+	grp = sys_getgrgid(st.st_ex_gid);
 	if (grp != NULL) group = grp->gr_name;
 	else group = null_string;
 
 	printf("fstat: ok\n");
-	if (S_ISREG(st.st_mode)) printf("  Regular File\n");
-	else if (S_ISDIR(st.st_mode)) printf("  Directory\n");
-	else if (S_ISCHR(st.st_mode)) printf("  Character Device\n");
-	else if (S_ISBLK(st.st_mode)) printf("  Block Device\n");
-	else if (S_ISFIFO(st.st_mode)) printf("  Fifo\n");
-	else if (S_ISLNK(st.st_mode)) printf("  Symbolic Link\n");
-	else if (S_ISSOCK(st.st_mode)) printf("  Socket\n");
-	printf("  Size: %10u", (unsigned int)st.st_size);
+	if (S_ISREG(st.st_ex_mode)) printf("  Regular File\n");
+	else if (S_ISDIR(st.st_ex_mode)) printf("  Directory\n");
+	else if (S_ISCHR(st.st_ex_mode)) printf("  Character Device\n");
+	else if (S_ISBLK(st.st_ex_mode)) printf("  Block Device\n");
+	else if (S_ISFIFO(st.st_ex_mode)) printf("  Fifo\n");
+	else if (S_ISLNK(st.st_ex_mode)) printf("  Symbolic Link\n");
+	else if (S_ISSOCK(st.st_ex_mode)) printf("  Socket\n");
+	printf("  Size: %10u", (unsigned int)st.st_ex_size);
 #ifdef HAVE_STAT_ST_BLOCKS
-	printf(" Blocks: %9u", (unsigned int)st.st_blocks);
+	printf(" Blocks: %9u", (unsigned int)st.st_ex_blocks);
 #endif
 #ifdef HAVE_STAT_ST_BLKSIZE
-	printf(" IO Block: %u\n", (unsigned int)st.st_blksize);
+	printf(" IO Block: %u\n", (unsigned int)st.st_ex_blksize);
 #endif
-	printf("  Device: 0x%10x", (unsigned int)st.st_dev);
-	printf(" Inode: %10u", (unsigned int)st.st_ino);
-	printf(" Links: %10u\n", (unsigned int)st.st_nlink);
-	printf("  Access: %05o", (int)((st.st_mode) & 007777));
-	printf(" Uid: %5lu/%.16s Gid: %5lu/%.16s\n", (unsigned long)st.st_uid, user, 
-	       (unsigned long)st.st_gid, group);
-	printf("  Access: %s", ctime(&(st.st_atime)));
-	printf("  Modify: %s", ctime(&(st.st_mtime)));
-	printf("  Change: %s", ctime(&(st.st_ctime)));
+	printf("  Device: 0x%10x", (unsigned int)st.st_ex_dev);
+	printf(" Inode: %10u", (unsigned int)st.st_ex_ino);
+	printf(" Links: %10u\n", (unsigned int)st.st_ex_nlink);
+	printf("  Access: %05o", (int)((st.st_ex_mode) & 007777));
+	printf(" Uid: %5lu/%.16s Gid: %5lu/%.16s\n", (unsigned long)st.st_ex_uid, user,
+	       (unsigned long)st.st_ex_gid, group);
+	tmp_time = convert_timespec_to_time_t(st.st_ex_atime);
+	printf("  Access: %s", ctime(&tmp_time));
+	tmp_time = convert_timespec_to_time_t(st.st_ex_mtime);
+	printf("  Modify: %s", ctime(&tmp_time));
+	tmp_time = convert_timespec_to_time_t(st.st_ex_ctime);
+	printf("  Change: %s", ctime(&tmp_time));
 
 	return NT_STATUS_OK;
 }
@@ -661,49 +719,64 @@ static NTSTATUS cmd_lstat(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 	const char *group;
 	struct passwd *pwd = NULL;
 	struct group *grp = NULL;
+	struct smb_filename *smb_fname = NULL;
 	SMB_STRUCT_STAT st;
+	time_t tmp_time;
+	NTSTATUS status;
 
 	if (argc != 2) {
 		printf("Usage: lstat <path>\n");
 		return NT_STATUS_OK;
 	}
 
-	if (SMB_VFS_LSTAT(vfs->conn, argv[1], &st) == -1) {
-		printf("lstat: error=%d (%s)\n", errno, strerror(errno));
-		return NT_STATUS_UNSUCCESSFUL;
+	status = create_synthetic_smb_fname_split(mem_ctx, argv[1], NULL,
+						  &smb_fname);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
 	}
 
-	pwd = sys_getpwuid(st.st_uid);
+	if (SMB_VFS_LSTAT(vfs->conn, smb_fname) == -1) {
+		printf("lstat: error=%d (%s)\n", errno, strerror(errno));
+		TALLOC_FREE(smb_fname);
+		return NT_STATUS_UNSUCCESSFUL;
+	}
+	st = smb_fname->st;
+	TALLOC_FREE(smb_fname);
+
+	pwd = sys_getpwuid(st.st_ex_uid);
 	if (pwd != NULL) user = pwd->pw_name;
 	else user = null_string;
-	grp = sys_getgrgid(st.st_gid);
+	grp = sys_getgrgid(st.st_ex_gid);
 	if (grp != NULL) group = grp->gr_name;
 	else group = null_string;
 
 	printf("lstat: ok\n");
-	if (S_ISREG(st.st_mode)) printf("  Regular File\n");
-	else if (S_ISDIR(st.st_mode)) printf("  Directory\n");
-	else if (S_ISCHR(st.st_mode)) printf("  Character Device\n");
-	else if (S_ISBLK(st.st_mode)) printf("  Block Device\n");
-	else if (S_ISFIFO(st.st_mode)) printf("  Fifo\n");
-	else if (S_ISLNK(st.st_mode)) printf("  Symbolic Link\n");
-	else if (S_ISSOCK(st.st_mode)) printf("  Socket\n");
-	printf("  Size: %10u", (unsigned int)st.st_size);
+	if (S_ISREG(st.st_ex_mode)) printf("  Regular File\n");
+	else if (S_ISDIR(st.st_ex_mode)) printf("  Directory\n");
+	else if (S_ISCHR(st.st_ex_mode)) printf("  Character Device\n");
+	else if (S_ISBLK(st.st_ex_mode)) printf("  Block Device\n");
+	else if (S_ISFIFO(st.st_ex_mode)) printf("  Fifo\n");
+	else if (S_ISLNK(st.st_ex_mode)) printf("  Symbolic Link\n");
+	else if (S_ISSOCK(st.st_ex_mode)) printf("  Socket\n");
+	printf("  Size: %10u", (unsigned int)st.st_ex_size);
 #ifdef HAVE_STAT_ST_BLOCKS
-	printf(" Blocks: %9u", (unsigned int)st.st_blocks);
+	printf(" Blocks: %9u", (unsigned int)st.st_ex_blocks);
 #endif
 #ifdef HAVE_STAT_ST_BLKSIZE
-	printf(" IO Block: %u\n", (unsigned int)st.st_blksize);
+	printf(" IO Block: %u\n", (unsigned int)st.st_ex_blksize);
 #endif
-	printf("  Device: 0x%10x", (unsigned int)st.st_dev);
-	printf(" Inode: %10u", (unsigned int)st.st_ino);
-	printf(" Links: %10u\n", (unsigned int)st.st_nlink);
-	printf("  Access: %05o", (int)((st.st_mode) & 007777));
-	printf(" Uid: %5lu/%.16s Gid: %5lu/%.16s\n", (unsigned long)st.st_uid, user, 
-	       (unsigned long)st.st_gid, group);
-	printf("  Access: %s", ctime(&(st.st_atime)));
-	printf("  Modify: %s", ctime(&(st.st_mtime)));
-	printf("  Change: %s", ctime(&(st.st_ctime)));
+	printf("  Device: 0x%10x", (unsigned int)st.st_ex_dev);
+	printf(" Inode: %10u", (unsigned int)st.st_ex_ino);
+	printf(" Links: %10u\n", (unsigned int)st.st_ex_nlink);
+	printf("  Access: %05o", (int)((st.st_ex_mode) & 007777));
+	printf(" Uid: %5lu/%.16s Gid: %5lu/%.16s\n", (unsigned long)st.st_ex_uid, user,
+	       (unsigned long)st.st_ex_gid, group);
+	tmp_time = convert_timespec_to_time_t(st.st_ex_atime);
+	printf("  Access: %s", ctime(&tmp_time));
+	tmp_time = convert_timespec_to_time_t(st.st_ex_mtime);
+	printf("  Modify: %s", ctime(&tmp_time));
+	tmp_time = convert_timespec_to_time_t(st.st_ex_ctime);
+	printf("  Change: %s", ctime(&tmp_time));
 	
 	return NT_STATUS_OK;
 }
@@ -825,6 +898,9 @@ static NTSTATUS cmd_getwd(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 static NTSTATUS cmd_utime(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, const char **argv)
 {
 	struct smb_file_time ft;
+	struct smb_filename *smb_fname = NULL;
+	NTSTATUS status;
+
 	if (argc != 4) {
 		printf("Usage: utime <path> <access> <modify>\n");
 		return NT_STATUS_OK;
@@ -834,11 +910,20 @@ static NTSTATUS cmd_utime(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 
 	ft.atime = convert_time_t_to_timespec(atoi(argv[2]));
 	ft.mtime = convert_time_t_to_timespec(atoi(argv[3]));
-	if (SMB_VFS_NTIMES(vfs->conn, argv[1], &ft) != 0) {
+
+	status = create_synthetic_smb_fname_split(mem_ctx, argv[1],
+						  NULL, &smb_fname);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	if (SMB_VFS_NTIMES(vfs->conn, smb_fname, &ft) != 0) {
 		printf("utime: error=%d (%s)\n", errno, strerror(errno));
+		TALLOC_FREE(smb_fname);
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
+	TALLOC_FREE(smb_fname);
 	printf("utime: ok\n");
 	return NT_STATUS_OK;
 }

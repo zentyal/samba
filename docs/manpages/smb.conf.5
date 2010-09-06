@@ -1,12 +1,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 05/10/2010
+.\"      Date: 06/18/2010
 .\"    Manual: File Formats and Conventions
-.\"    Source: Samba 3.4
+.\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "05/10/2010" "Samba 3\&.4" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "06/18/2010" "Samba 3\&.5" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -2289,6 +2289,20 @@ Example:
 \fI\fIcopy\fR\fR\fI = \fR\fI\FCotherservice\F[]\fR\fI \fR
 .RE
 
+create krb5 conf (G)
+.\" create krb5 conf
+.PP
+.RS 4
+Setting this paramter to
+\FCno\F[]
+prevents winbind from creating custom krb5\&.conf files\&. Winbind normally does this because the krb5 libraries are not AD\-site\-aware and thus would pick any domain controller out of potentially very many\&. Winbind is site\-aware and makes the krb5 libraries use a local DC by creating its own krb5\&.conf files\&.
+.sp
+Preventing winbind from doing this might become necessary if you have to add special options into your system\-krb5\&.conf that winbind does not see\&.
+.sp
+Default:
+\fI\fIcreate krb5 conf\fR\fR\fI = \fR\fI\FCyes\F[]\fR\fI \fR
+.RE
+
 create mode
 .\" create mode
 .PP
@@ -2362,6 +2376,25 @@ Example:
 \fI\fIctdbd socket\fR\fR\fI = \fR\fI\FC/tmp/ctdb\&.socket\F[]\fR\fI \fR
 .RE
 
+ctdb timeout (G)
+.\" ctdb timeout
+.PP
+.RS 4
+This parameter specifies a timeout in seconds for the connection between Samba and ctdb\&. It is only valid if you have compiled Samba with clustering and if you have set
+\fIclustering=yes\fR\&.
+.sp
+When something in the cluster blocks, it can happen that we wait indefinitely long for ctdb, just adding to the blocking condition\&. In a well\-running cluster this should never happen, but there are too many components in a cluster that might have hickups\&. Choosing the right balance for this value is very tricky, because on a busy cluster long service times to transfer something across the cluster might be valid\&. Setting it too short will degrade the service your cluster presents, setting it too long might make the cluster itself not recover from something severely broken for too long\&.
+.sp
+Be aware that if you set this parameter, this needs to be in the file smb\&.conf, it is not really helpful to put this into a registry configuration (typical on a cluster), because to access the registry contact to ctdb is requred\&.
+.sp
+Setting
+\fIctdb timeout\fR
+to n makes any process waiting longer than n seconds for a reply by the cluster panic\&. Setting it to 0 (the default) makes Samba block forever, which is the highly recommended default\&.
+.sp
+Default:
+\fI\fIctdb timeout\fR\fR\fI = \fR\fI\FC0\F[]\fR\fI \fR
+.RE
+
 cups connection timeout (G)
 .\" cups connection timeout
 .PP
@@ -2378,6 +2411,26 @@ Default:
 .sp
 Example:
 \fI\fIcups connection timeout\fR\fR\fI = \fR\fI\FC60\F[]\fR\fI \fR
+.RE
+
+cups encrypt (G)
+.\" cups encrypt
+.PP
+.RS 4
+This parameter is only applicable if
+\m[blue]\fBprinting\fR\m[]
+is set to
+\fBcups\fR
+and if you use CUPS newer than 1\&.0\&.x\&.It is used to define whether or not Samba should use encryption when talking to the CUPS server\&. Possible values are
+\fIauto\fR,
+\fIyes\fR
+and
+\fIno\fR
+.sp
+When set to auto we will try to do a TLS handshake on each CUPS connection setup\&. If that fails, we will fall back to unencrypted operation\&.
+.sp
+Default:
+\fI\fIcups encrypt\fR\fR\fI = \fR\fI\FC"no"\F[]\fR\fI \fR
 .RE
 
 cups options (S)
@@ -2474,7 +2527,7 @@ Note that the parameter
 must be on for this to have an effect\&.
 .sp
 Default:
-\fI\fIdebug hires timestamp\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
+\fI\fIdebug hires timestamp\fR\fR\fI = \fR\fI\FCyes\F[]\fR\fI \fR
 .RE
 
 debug pid (G)
@@ -3157,7 +3210,7 @@ dos filemode (S)
 .\" dos filemode
 .PP
 .RS 4
-The default behavior in Samba is to provide UNIX\-like behavior where only the owner of a file/directory is able to change the permissions on it\&. However, this behavior is often confusing to DOS/Windows users\&. Enabling this parameter allows a user who has write access to the file (by whatever means, including an ACL permission) to modify the permissions (including ACL) on it\&. Note that a user belonging to the group owning the file will not be allowed to change permissions if the group is only granted read access\&. Ownership of the file/directory may also be changed\&.
+The default behavior in Samba is to provide UNIX\-like behavior where only the owner of a file/directory is able to change the permissions on it\&. However, this behavior is often confusing to DOS/Windows users\&. Enabling this parameter allows a user who has write access to the file (by whatever means, including an ACL permission) to modify the permissions (including ACL) on it\&. Note that a user belonging to the group owning the file will not be allowed to change permissions if the group is only granted read access\&. Ownership of the file/directory may also be changed\&. Note that using the VFS modules acl_xattr or acl_tdb which store native Windows as meta\-data will automatically turn this option on for any share for which they are loaded, as they require this option to emulate Windows ACLs correctly\&.
 .sp
 Default:
 \fI\fIdos filemode\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
@@ -3180,13 +3233,9 @@ dos filetimes (S)
 .\" dos filetimes
 .PP
 .RS 4
-Under DOS and Windows, if a user can write to a file they can change the timestamp on it\&. Under POSIX semantics, only the owner of the file or root may change the timestamp\&. By default, Samba runs with POSIX semantics and refuses to change the timestamp on a file if the user
+Under DOS and Windows, if a user can write to a file they can change the timestamp on it\&. Under POSIX semantics, only the owner of the file or root may change the timestamp\&. By default, Samba emulates the DOS semantics and allows to change the timestamp on a file if the user
 \FCsmbd\F[]
-is acting on behalf of is not the file owner\&. Setting this option to
-\fB yes\fR
-allows DOS semantics and
-\fBsmbd\fR(8)
-will change the file timestamp as DOS requires\&. Due to changes in Microsoft Office 2000 and beyond, the default for this parameter has been changed from "no" to "yes" in Samba 3\&.0\&.14 and above\&. Microsoft Excel will display dialog box warnings about the file being changed by another user if this parameter is not set to "yes" and files are being shared between users\&.
+is acting on behalf has write permissions\&. Due to changes in Microsoft Office 2000 and beyond, the default for this parameter has been changed from "no" to "yes" in Samba 3\&.0\&.14 and above\&. Microsoft Excel will display dialog box warnings about the file being changed by another user if this parameter is not set to "yes" and files are being shared between users\&.
 .sp
 Default:
 \fI\fIdos filetimes\fR\fR\fI = \fR\fI\FCyes\F[]\fR\fI \fR
@@ -4389,7 +4438,7 @@ inherit acls (S)
 .\" inherit acls
 .PP
 .RS 4
-This parameter can be used to ensure that if default acls exist on parent directories, they are always honored when creating a new file or subdirectory in these parent directories\&. The default behavior is to use the unix mode specified when creating the directory\&. Enabling this option sets the unix mode to 0777, thus guaranteeing that default directory acls are propagated\&.
+This parameter can be used to ensure that if default acls exist on parent directories, they are always honored when creating a new file or subdirectory in these parent directories\&. The default behavior is to use the unix mode specified when creating the directory\&. Enabling this option sets the unix mode to 0777, thus guaranteeing that default directory acls are propagated\&. Note that using the VFS modules acl_xattr or acl_tdb which store native Windows as meta\-data will automatically turn this option on for any share for which they are loaded, as they require this option to emulate Windows ACLs correctly\&.
 .sp
 Default:
 \fI\fIinherit acls\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
@@ -4703,6 +4752,10 @@ will attempt to authenticate users or permit password changes using the LANMAN p
 .sp
 The LANMAN encrypted response is easily broken, due to its case\-insensitive nature, and the choice of algorithm\&. Servers without Windows 95/98/ME or MS DOS clients are advised to disable this option\&.
 .sp
+When this parameter is set to
+\FCno\F[]
+this will also result in sambaLMPassword in Samba\'s passdb being blanked after the next password change\&. As a result of that lanman clients won\'t be able to authenticate, even if lanman auth is reenabled later on\&.
+.sp
 Unlike the
 \FCencrypt passwords\F[]
 option, this parameter cannot alter client behaviour, and the LANMAN response will still be sent over the network\&. See the
@@ -4810,6 +4863,43 @@ This parameter specifies whether a delete operation in the ldapsam deletes the c
 .sp
 Default:
 \fI\fIldap delete dn\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
+.RE
+
+ldap deref (G)
+.\" ldap deref
+.PP
+.RS 4
+This option controls whether Samba should tell the LDAP library to use a certain alias dereferencing method\&. The default is
+\fIauto\fR, which means that the default setting of the ldap client library will be kept\&. Other possible values are
+\fInever\fR,
+\fIfinding\fR,
+\fIsearching\fR
+and
+\fIalways\fR\&. Grab your LDAP manual for more information\&.
+.sp
+Default:
+\fI\fIldap deref\fR\fR\fI = \fR\fI\FCauto\F[]\fR\fI \fR
+.sp
+Example:
+\fI\fIldap deref\fR\fR\fI = \fR\fI\FCsearching\F[]\fR\fI \fR
+.RE
+
+ldap follow referral (G)
+.\" ldap follow referral
+.PP
+.RS 4
+This option controls whether to follow LDAP referrals or not when searching for entries in the LDAP database\&. Possible values are
+\fIon\fR
+to enable following referrals,
+\fIoff\fR
+to disable this, and
+\fIauto\fR, to use the libldap default settings\&. libldap\'s choice of following referrals or not is set in /etc/openldap/ldap\&.conf with the REFERRALS parameter as documented in ldap\&.conf(5)\&.
+.sp
+Default:
+\fI\fIldap follow referral\fR\fR\fI = \fR\fI\FCauto\F[]\fR\fI \fR
+.sp
+Example:
+\fI\fIldap follow referral\fR\fR\fI = \fR\fI\FCoff\F[]\fR\fI \fR
 .RE
 
 ldap group suffix (G)
@@ -5390,7 +5480,7 @@ lock spin time (G)
 .\" lock spin time
 .PP
 .RS 4
-The time in microseconds that smbd should keep waiting to see if a failed lock request can be granted\&. This parameter has changed in default value from Samba 3\&.0\&.23 from 10 to 200\&. The associated
+The time in milliseconds that smbd should keep waiting to see if a failed lock request can be granted\&. This parameter has changed in default value from Samba 3\&.0\&.23 from 10 to 200\&. The associated
 \m[blue]\fBlock spin count\fR\m[]
 parameter is no longer used in Samba 3\&.0\&.24\&. You should not need to change the value of this parameter\&.
 .sp
@@ -6287,8 +6377,8 @@ for details\&.
 \fINo default\fR
 .RE
 
-map read only (S)
-.\" map read only
+map readonly (S)
+.\" map readonly
 .PP
 .RS 4
 This controls how the DOS read only attribute should be mapped from a UNIX filesystem\&.
@@ -6351,7 +6441,7 @@ method\&. This may be useful for exporting mounted CDs\&.
 .sp
 .RE
 Default:
-\fI\fImap read only\fR\fR\fI = \fR\fI\FCyes\F[]\fR\fI \fR
+\fI\fImap readonly\fR\fR\fI = \fR\fI\FCyes\F[]\fR\fI \fR
 .RE
 
 map system (S)
@@ -6553,12 +6643,12 @@ max open files (G)
 .RS 4
 This parameter limits the maximum number of open files that one
 \fBsmbd\fR(8)
-file serving process may have open for a client at any one time\&. The default for this parameter is set very high (10,000) as Samba uses only one bit per unopened file\&.
+file serving process may have open for a client at any one time\&. The This parameter can be set very high (16404) as Samba uses only one bit per unopened file\&. Setting this parameter lower than 16404 will cause Samba to complain and set this value back to the minimum of 16404, as Windows 7 depends on this number of open file handles being available\&.
 .sp
 The limit of the number of open files is usually set by the UNIX per\-process file descriptor limit rather than this parameter so you should never need to touch this parameter\&.
 .sp
 Default:
-\fI\fImax open files\fR\fR\fI = \fR\fI\FC10000\F[]\fR\fI \fR
+\fI\fImax open files\fR\fR\fI = \fR\fI\FC16404\F[]\fR\fI \fR
 .RE
 
 max print jobs (S)
@@ -6647,6 +6737,17 @@ version of the protocol\&. Long filename support\&.
 .IP \(bu 2.3
 .\}
 \fBNT1\fR: Current up to date version of the protocol\&. Used by Windows NT\&. Known as CIFS\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB2\fR: Re\-implementation of the SMB protocol\&. Used by Windows Vista and newer\&. The Samba implementation of SMB2 is currently marked experimental!
 .sp
 .RE
 Normally this option should not be set as the automatic negotiation phase in the SMB protocol takes care of choosing the appropriate protocol\&.
@@ -7133,6 +7234,20 @@ Note that for this option to work there must be a working NIS system and the Sam
 .sp
 Default:
 \fI\fInis homedir\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
+.RE
+
+nmbd bind explicit broadcast (G)
+.\" nmbd bind explicit broadcast
+.PP
+.RS 4
+This option causes
+\fBnmbd\fR(8)
+to explicitly bind to the broadcast address of the local subnets\&. This is needed to make nmbd work correctly in combination with the
+\m[blue]\fBsocket address\fR\m[]
+option\&. You should not need to unset this option\&.
+.sp
+Default:
+\fI\fInmbd bind explicit broadcast\fR\fR\fI = \fR\fI\FCyes\F[]\fR\fI \fR
 .RE
 
 nt acl support (S)
@@ -9469,12 +9584,13 @@ Shutdown script example:
 .sp -1
 
 #!/bin/bash
-		
-$time=0
-let "time/60"
-let "time++"
+
+time=$2
+let time="${time} / 60"
+let time="${time} + 1"
 
 /sbin/shutdown $3 $4 +$time $1 &
+
 .EB lightgray adjust-for-leading-newline
 .if t \{\
 .sp 1
@@ -9782,7 +9898,7 @@ and
 \m[blue]\fBmap archive\fR\m[]
 and
 \m[blue]\fBmap readonly\fR\m[]
-must be set to off\&. This parameter writes the DOS attributes as a string into the extended attribute named "user\&.DOSATTRIB"\&. This extended attribute is explicitly hidden from smbd clients requesting an EA list\&. On Linux the filesystem must have been mounted with the mount option user_xattr in order for extended attributes to work, also extended attributes must be compiled into the Linux kernel\&.
+must be set to off\&. This parameter writes the DOS attributes as a string into the extended attribute named "user\&.DOSATTRIB"\&. This extended attribute is explicitly hidden from smbd clients requesting an EA list\&. On Linux the filesystem must have been mounted with the mount option user_xattr in order for extended attributes to work, also extended attributes must be compiled into the Linux kernel\&. In Samba 3\&.5\&.0 and above the "user\&.DOSATTRIB" extended attribute has been extended to store the create time for a file as well as the DOS attributes\&. This is done in a backwards compatible way so files created by Samba 3\&.5\&.0 and above can still have the DOS attribute read from this extended attribute by earlier versions of Samba, but they will not be able to read the create time stored there\&. Storing the create time separately from the normal filesystem meta\-data allows Samba to faithfully reproduce NTFS semantics on top of a POSIX filesystem\&.
 .sp
 Default:
 \fI\fIstore dos attributes\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
@@ -9794,15 +9910,11 @@ strict allocate (S)
 .RS 4
 This is a boolean that controls the handling of disk space allocation in the server\&. When this is set to
 \fByes\fR
-the server will change from UNIX behaviour of not committing real disk storage blocks when a file is extended to the Windows behaviour of actually forcing the disk system to allocate real storage blocks when a file is created or extended to be a given size\&. In UNIX terminology this means that Samba will stop creating sparse files\&. This can be slow on some systems\&.
+the server will change from UNIX behaviour of not committing real disk storage blocks when a file is extended to the Windows behaviour of actually forcing the disk system to allocate real storage blocks when a file is created or extended to be a given size\&. In UNIX terminology this means that Samba will stop creating sparse files\&. This can be slow on some systems\&. When you work with large files like >100MB or so you may even run into problems with clients running into timeouts\&.
 .sp
-When strict allocate is
-\fBno\fR
-the server does sparse disk block allocation when a file is extended\&.
+When you have an extent based filesystem it\'s likely that we can make use of unwritten extents which allows Samba to allocate even large amounts of space very fast and you will not see any timeout problems caused by strict allocate\&. With strict allocate in use you will also get much better out of quota messages in case you use quotas\&. Another advantage of activating this setting is that it will help to reduce file fragmentation\&.
 .sp
-Setting this to
-\fByes\fR
-can help Samba return out of quota messages on systems that are restricting the disk quota of users\&.
+To give you an idea on which filesystems this setting might currently be a good option for you: XFS, ext4, btrfs, ocfs2 on Linux and JFS2 on AIX support unwritten extents\&. On Filesystems that do not support it, preallocation is probably an expensive operation where you will see reduced performance and risk to let clients run into timeouts when creating large files\&. Examples are ext3, ZFS, HFS+ and most others, so be aware if you activate this setting on those filesystems\&.
 .sp
 Default:
 \fI\fIstrict allocate\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR

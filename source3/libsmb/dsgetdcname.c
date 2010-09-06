@@ -133,10 +133,6 @@ static NTSTATUS dsgetdcname_cache_delete(TALLOC_CTX *mem_ctx,
 {
 	char *key;
 
-	if (!gencache_init()) {
-		return NT_STATUS_INTERNAL_DB_ERROR;
-	}
-
 	key = dsgetdcname_cache_key(mem_ctx, domain_name);
 	if (!key) {
 		return NT_STATUS_NO_MEMORY;
@@ -160,10 +156,6 @@ static NTSTATUS dsgetdcname_cache_store(TALLOC_CTX *mem_ctx,
 	char *key;
 	bool ret = false;
 
-	if (!gencache_init()) {
-		return NT_STATUS_INTERNAL_DB_ERROR;
-	}
-
 	key = dsgetdcname_cache_key(mem_ctx, domain_name);
 	if (!key) {
 		return NT_STATUS_NO_MEMORY;
@@ -171,13 +163,7 @@ static NTSTATUS dsgetdcname_cache_store(TALLOC_CTX *mem_ctx,
 
 	expire_time = time(NULL) + DSGETDCNAME_CACHE_TTL;
 
-	if (gencache_lock_entry(key) != 0) {
-		return NT_STATUS_LOCK_NOT_GRANTED;
-	}
-
 	ret = gencache_set_data_blob(key, blob, expire_time);
-
-	gencache_unlock_entry(key);
 
 	return ret ? NT_STATUS_OK : NT_STATUS_UNSUCCESSFUL;
 }
@@ -234,28 +220,6 @@ static NTSTATUS store_cldap_reply(TALLOC_CTX *mem_ctx,
 	data_blob_free(&blob);
 
 	return status;
-}
-
-/****************************************************************
-****************************************************************/
-
-static NTSTATUS dsgetdcname_cache_refresh(TALLOC_CTX *mem_ctx,
-					  struct messaging_context *msg_ctx,
-					  const char *domain_name,
-					  struct GUID *domain_guid,
-					  uint32_t flags,
-					  const char *site_name,
-					  struct netr_DsRGetDCNameInfo *info)
-{
-	struct netr_DsRGetDCNameInfo *dc_info;
-
-	return dsgetdcname(mem_ctx,
-			   msg_ctx,
-			   domain_name,
-			   domain_guid,
-			   site_name,
-			   flags | DS_FORCE_REDISCOVERY,
-			   &dc_info);
 }
 
 /****************************************************************
@@ -350,11 +314,10 @@ static bool check_cldap_reply_required_flags(uint32_t ret_flags,
 
 static NTSTATUS dsgetdcname_cache_fetch(TALLOC_CTX *mem_ctx,
 					const char *domain_name,
-					struct GUID *domain_guid,
+					const struct GUID *domain_guid,
 					uint32_t flags,
 					const char *site_name,
-					struct netr_DsRGetDCNameInfo **info_p,
-					bool *expired)
+					struct netr_DsRGetDCNameInfo **info_p)
 {
 	char *key;
 	DATA_BLOB blob;
@@ -363,17 +326,13 @@ static NTSTATUS dsgetdcname_cache_fetch(TALLOC_CTX *mem_ctx,
 	struct NETLOGON_SAM_LOGON_RESPONSE_EX r;
 	NTSTATUS status;
 
-	if (!gencache_init()) {
-		return NT_STATUS_INTERNAL_DB_ERROR;
-	}
-
 	key = dsgetdcname_cache_key(mem_ctx, domain_name);
 	if (!key) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	if (!gencache_get_data_blob(key, &blob, expired)) {
-		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
+	if (!gencache_get_data_blob(key, &blob, NULL, NULL)) {
+		return NT_STATUS_NOT_FOUND;
 	}
 
 	info = TALLOC_ZERO_P(mem_ctx, struct netr_DsRGetDCNameInfo);
@@ -422,17 +381,17 @@ static NTSTATUS dsgetdcname_cache_fetch(TALLOC_CTX *mem_ctx,
 static NTSTATUS dsgetdcname_cached(TALLOC_CTX *mem_ctx,
 				   struct messaging_context *msg_ctx,
 				   const char *domain_name,
-				   struct GUID *domain_guid,
+				   const struct GUID *domain_guid,
 				   uint32_t flags,
 				   const char *site_name,
 				   struct netr_DsRGetDCNameInfo **info)
 {
 	NTSTATUS status;
-	bool expired = false;
 
 	status = dsgetdcname_cache_fetch(mem_ctx, domain_name, domain_guid,
-					 flags, site_name, info, &expired);
-	if (!NT_STATUS_IS_OK(status)) {
+					 flags, site_name, info);
+	if (!NT_STATUS_IS_OK(status)
+	    && !NT_STATUS_EQUAL(status, NT_STATUS_NOT_FOUND)) {
 		DEBUG(10,("dsgetdcname_cached: cache fetch failed with: %s\n",
 			nt_errstr(status)));
 		return NT_STATUS_DOMAIN_CONTROLLER_NOT_FOUND;
@@ -442,14 +401,19 @@ static NTSTATUS dsgetdcname_cached(TALLOC_CTX *mem_ctx,
 		return status;
 	}
 
-	if (expired) {
-		status = dsgetdcname_cache_refresh(mem_ctx, msg_ctx,
-						   domain_name,
-						   domain_guid, flags,
-						   site_name, *info);
+	if (NT_STATUS_EQUAL(status, NT_STATUS_NOT_FOUND)) {
+		struct netr_DsRGetDCNameInfo *dc_info;
+
+		status = dsgetdcname(mem_ctx, msg_ctx, domain_name,
+				     domain_guid, site_name,
+				     flags | DS_FORCE_REDISCOVERY,
+				     &dc_info);
+
 		if (!NT_STATUS_IS_OK(status)) {
 			return status;
 		}
+
+		*info = dc_info;
 	}
 
 	return status;
@@ -563,7 +527,7 @@ static NTSTATUS discover_dc_netbios(TALLOC_CTX *mem_ctx,
 
 static NTSTATUS discover_dc_dns(TALLOC_CTX *mem_ctx,
 				const char *domain_name,
-				struct GUID *domain_guid,
+				const struct GUID *domain_guid,
 				uint32_t flags,
 				const char *site_name,
 				struct ip_service_name **returned_dclist,
@@ -632,7 +596,8 @@ static NTSTATUS discover_dc_dns(TALLOC_CTX *mem_ctx,
 		/* If we don't have an IP list for a name, lookup it up */
 
 		if (!dcs[i].ss_s) {
-			interpret_string_addr(&r->ss, dcs[i].hostname, 0);
+			interpret_string_addr_prefer_ipv4(&r->ss,
+						dcs[i].hostname, 0);
 			i++;
 			j = 0;
 		} else {
@@ -656,7 +621,7 @@ static NTSTATUS discover_dc_dns(TALLOC_CTX *mem_ctx,
 		 * back to netbios lookups is that our DNS server doesn't know
 		 * anything about the DC's   -- jerry */
 
-		if (!is_zero_addr((struct sockaddr *)&r->ss)) {
+		if (!is_zero_addr((struct sockaddr *)(void *)&r->ss)) {
 			count++;
 			continue;
 		}
@@ -992,7 +957,7 @@ static NTSTATUS process_dc_netbios(TALLOC_CTX *mem_ctx,
 		ip_list.ss = dclist[i].ss;
 		ip_list.port = 0;
 
-		if (!interpret_string_addr(&ss, dclist[i].hostname, AI_NUMERICHOST)) {
+		if (!interpret_string_addr_prefer_ipv4(&ss, dclist[i].hostname, AI_NUMERICHOST)) {
 			return NT_STATUS_UNSUCCESSFUL;
 		}
 
@@ -1068,7 +1033,7 @@ static NTSTATUS process_dc_netbios(TALLOC_CTX *mem_ctx,
 static NTSTATUS dsgetdcname_rediscover(TALLOC_CTX *mem_ctx,
 				       struct messaging_context *msg_ctx,
 				       const char *domain_name,
-				       struct GUID *domain_guid,
+				       const struct GUID *domain_guid,
 				       uint32_t flags,
 				       const char *site_name,
 				       struct netr_DsRGetDCNameInfo **info)
@@ -1149,7 +1114,7 @@ static bool is_closest_site(struct netr_DsRGetDCNameInfo *info)
 NTSTATUS dsgetdcname(TALLOC_CTX *mem_ctx,
 		     struct messaging_context *msg_ctx,
 		     const char *domain_name,
-		     struct GUID *domain_guid,
+		     const struct GUID *domain_guid,
 		     const char *site_name,
 		     uint32_t flags,
 		     struct netr_DsRGetDCNameInfo **info)
@@ -1173,7 +1138,7 @@ NTSTATUS dsgetdcname(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	if (!site_name) {
+	if ((site_name == NULL) || (site_name[0] == '\0')) {
 		query_site = sitename_fetch(domain_name);
 	} else {
 		query_site = SMB_STRDUP(site_name);

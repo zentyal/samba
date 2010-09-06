@@ -277,6 +277,11 @@ static int smb_traffic_analyzer_connect(struct vfs_handle_struct *handle,
 	uint16_t port = (st == UNIX_DOMAIN_SOCKET) ? 0 :
 				atoi( lp_parm_const_string(SNUM(conn),
 				"smb_traffic_analyzer", "port", "9430"));
+	int ret = SMB_VFS_NEXT_CONNECT(handle, service, user);
+
+	if (ret < 0) {
+		return ret;
+	}
 
 	/* Are we already connected ? */
 	for (rf_sock = sock_list; rf_sock; rf_sock = rf_sock->next) {
@@ -294,11 +299,13 @@ static int smb_traffic_analyzer_connect(struct vfs_handle_struct *handle,
 		/* New connection. */
 		rf_sock = TALLOC_ZERO_P(NULL, struct refcounted_sock);
 		if (rf_sock == NULL) {
+			SMB_VFS_NEXT_DISCONNECT(handle);
 			errno = ENOMEM;
 			return -1;
 		}
 		rf_sock->name = talloc_strdup(rf_sock, name);
 		if (rf_sock->name == NULL) {
+			SMB_VFS_NEXT_DISCONNECT(handle);
 			TALLOC_FREE(rf_sock);
 			errno = ENOMEM;
 			return -1;
@@ -316,6 +323,7 @@ static int smb_traffic_analyzer_connect(struct vfs_handle_struct *handle,
 							port);
 		}
 		if (rf_sock->sock == -1) {
+			SMB_VFS_NEXT_DISCONNECT(handle);
 			TALLOC_FREE(rf_sock);
 			return -1;
 		}
@@ -325,7 +333,7 @@ static int smb_traffic_analyzer_connect(struct vfs_handle_struct *handle,
 	/* Store the private data. */
 	SMB_VFS_HANDLE_SET_DATA(handle, rf_sock, smb_traffic_analyzer_free_data,
 				struct refcounted_sock, return -1);
-	return SMB_VFS_NEXT_CONNECT(handle, service, user);
+	return 0;
 }
 
 /* VFS Functions: write, read, pread, pwrite for now */
@@ -336,11 +344,11 @@ static ssize_t smb_traffic_analyzer_read(vfs_handle_struct *handle, \
 	ssize_t result;
 
 	result = SMB_VFS_NEXT_READ(handle, fsp, data, n);
-	DEBUG(10, ("smb_traffic_analyzer_read: READ: %s\n", fsp->fsp_name ));
+	DEBUG(10, ("smb_traffic_analyzer_read: READ: %s\n", fsp_str_dbg(fsp)));
 
 	smb_traffic_analyzer_send_data(handle,
 			result,
-			fsp->fsp_name,
+			fsp->fsp_name->base_name,
 			false);
 	return result;
 }
@@ -353,11 +361,12 @@ static ssize_t smb_traffic_analyzer_pread(vfs_handle_struct *handle, \
 
 	result = SMB_VFS_NEXT_PREAD(handle, fsp, data, n, offset);
 
-	DEBUG(10, ("smb_traffic_analyzer_pread: PREAD: %s\n", fsp->fsp_name ));
+	DEBUG(10, ("smb_traffic_analyzer_pread: PREAD: %s\n",
+		   fsp_str_dbg(fsp)));
 
 	smb_traffic_analyzer_send_data(handle,
 			result,
-			fsp->fsp_name,
+			fsp->fsp_name->base_name,
 			false);
 
 	return result;
@@ -370,11 +379,12 @@ static ssize_t smb_traffic_analyzer_write(vfs_handle_struct *handle, \
 
 	result = SMB_VFS_NEXT_WRITE(handle, fsp, data, n);
 
-	DEBUG(10, ("smb_traffic_analyzer_write: WRITE: %s\n", fsp->fsp_name ));
+	DEBUG(10, ("smb_traffic_analyzer_write: WRITE: %s\n",
+		   fsp_str_dbg(fsp)));
 
 	smb_traffic_analyzer_send_data(handle,
 			result,
-			fsp->fsp_name,
+			fsp->fsp_name->base_name,
 			true);
 	return result;
 }
@@ -386,38 +396,30 @@ static ssize_t smb_traffic_analyzer_pwrite(vfs_handle_struct *handle, \
 
 	result = SMB_VFS_NEXT_PWRITE(handle, fsp, data, n, offset);
 
-	DEBUG(10, ("smb_traffic_analyzer_pwrite: PWRITE: %s\n", fsp->fsp_name ));
+	DEBUG(10, ("smb_traffic_analyzer_pwrite: PWRITE: %s\n", fsp_str_dbg(fsp)));
 
 	smb_traffic_analyzer_send_data(handle,
 			result,
-			fsp->fsp_name,
+			fsp->fsp_name->base_name,
 			true);
 	return result;
 }
 
-/* VFS operations we use */
-
-static vfs_op_tuple smb_traffic_analyzer_tuples[] = {
-
-        {SMB_VFS_OP(smb_traffic_analyzer_connect), SMB_VFS_OP_CONNECT,
-         SMB_VFS_LAYER_LOGGER},
-	{SMB_VFS_OP(smb_traffic_analyzer_read),	SMB_VFS_OP_READ,
-	 SMB_VFS_LAYER_LOGGER},
-	{SMB_VFS_OP(smb_traffic_analyzer_pread), SMB_VFS_OP_PREAD,
-	 SMB_VFS_LAYER_LOGGER},
-	{SMB_VFS_OP(smb_traffic_analyzer_write), SMB_VFS_OP_WRITE,
-	 SMB_VFS_LAYER_LOGGER},
-	{SMB_VFS_OP(smb_traffic_analyzer_pwrite), SMB_VFS_OP_PWRITE,
-	 SMB_VFS_LAYER_LOGGER},
-       	{SMB_VFS_OP(NULL),SMB_VFS_OP_NOOP,SMB_VFS_LAYER_NOOP}
+static struct vfs_fn_pointers vfs_smb_traffic_analyzer_fns = {
+        .connect_fn = smb_traffic_analyzer_connect,
+	.vfs_read = smb_traffic_analyzer_read,
+	.pread = smb_traffic_analyzer_pread,
+	.write = smb_traffic_analyzer_write,
+	.pwrite = smb_traffic_analyzer_pwrite,
 };
 
 /* Module initialization */
 
 NTSTATUS vfs_smb_traffic_analyzer_init(void)
 {
-	NTSTATUS ret = smb_register_vfs(SMB_VFS_INTERFACE_VERSION, \
-		"smb_traffic_analyzer",	smb_traffic_analyzer_tuples);
+	NTSTATUS ret = smb_register_vfs(SMB_VFS_INTERFACE_VERSION,
+					"smb_traffic_analyzer",
+					&vfs_smb_traffic_analyzer_fns);
 
 	if (!NT_STATUS_IS_OK(ret)) {
 		return ret;

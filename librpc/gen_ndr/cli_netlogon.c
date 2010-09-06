@@ -6,11 +6,128 @@
 #include "includes.h"
 #include "../librpc/gen_ndr/cli_netlogon.h"
 
+struct rpccli_netr_LogonUasLogon_state {
+	struct netr_LogonUasLogon orig;
+	struct netr_LogonUasLogon tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_LogonUasLogon_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_LogonUasLogon_send(TALLOC_CTX *mem_ctx,
+						  struct tevent_context *ev,
+						  struct rpc_pipe_client *cli,
+						  const char *_server_name /* [in] [unique,charset(UTF16)] */,
+						  const char *_account_name /* [in] [ref,charset(UTF16)] */,
+						  const char *_workstation /* [in] [ref,charset(UTF16)] */,
+						  struct netr_UasInfo **_info /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_LogonUasLogon_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_LogonUasLogon_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.account_name = _account_name;
+	state->orig.in.workstation = _workstation;
+
+	/* Out parameters */
+	state->orig.out.info = _info;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_LogonUasLogon_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_LOGONUASLOGON,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_LogonUasLogon_done, req);
+	return req;
+}
+
+static void rpccli_netr_LogonUasLogon_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_LogonUasLogon_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonUasLogon_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.info = *state->tmp.out.info;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_LogonUasLogon_recv(struct tevent_req *req,
+					TALLOC_CTX *mem_ctx,
+					WERROR *result)
+{
+	struct rpccli_netr_LogonUasLogon_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonUasLogon_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_LogonUasLogon(struct rpc_pipe_client *cli,
 				   TALLOC_CTX *mem_ctx,
 				   const char *server_name /* [in] [unique,charset(UTF16)] */,
-				   const char *account_name /* [in] [charset(UTF16)] */,
-				   const char *workstation /* [in] [charset(UTF16)] */,
+				   const char *account_name /* [in] [ref,charset(UTF16)] */,
+				   const char *workstation /* [in] [ref,charset(UTF16)] */,
 				   struct netr_UasInfo **info /* [out] [ref] */,
 				   WERROR *werror)
 {
@@ -22,10 +139,6 @@ NTSTATUS rpccli_netr_LogonUasLogon(struct rpc_pipe_client *cli,
 	r.in.account_name = account_name;
 	r.in.workstation = workstation;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_LogonUasLogon, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -34,10 +147,6 @@ NTSTATUS rpccli_netr_LogonUasLogon(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_LogonUasLogon, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -55,11 +164,128 @@ NTSTATUS rpccli_netr_LogonUasLogon(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_netr_LogonUasLogoff_state {
+	struct netr_LogonUasLogoff orig;
+	struct netr_LogonUasLogoff tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_LogonUasLogoff_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_LogonUasLogoff_send(TALLOC_CTX *mem_ctx,
+						   struct tevent_context *ev,
+						   struct rpc_pipe_client *cli,
+						   const char *_server_name /* [in] [unique,charset(UTF16)] */,
+						   const char *_account_name /* [in] [ref,charset(UTF16)] */,
+						   const char *_workstation /* [in] [ref,charset(UTF16)] */,
+						   struct netr_UasLogoffInfo *_info /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_LogonUasLogoff_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_LogonUasLogoff_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.account_name = _account_name;
+	state->orig.in.workstation = _workstation;
+
+	/* Out parameters */
+	state->orig.out.info = _info;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_LogonUasLogoff_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_LOGONUASLOGOFF,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_LogonUasLogoff_done, req);
+	return req;
+}
+
+static void rpccli_netr_LogonUasLogoff_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_LogonUasLogoff_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonUasLogoff_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.info = *state->tmp.out.info;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_LogonUasLogoff_recv(struct tevent_req *req,
+					 TALLOC_CTX *mem_ctx,
+					 WERROR *result)
+{
+	struct rpccli_netr_LogonUasLogoff_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonUasLogoff_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_LogonUasLogoff(struct rpc_pipe_client *cli,
 				    TALLOC_CTX *mem_ctx,
 				    const char *server_name /* [in] [unique,charset(UTF16)] */,
-				    const char *account_name /* [in] [charset(UTF16)] */,
-				    const char *workstation /* [in] [charset(UTF16)] */,
+				    const char *account_name /* [in] [ref,charset(UTF16)] */,
+				    const char *workstation /* [in] [ref,charset(UTF16)] */,
 				    struct netr_UasLogoffInfo *info /* [out] [ref] */,
 				    WERROR *werror)
 {
@@ -71,10 +297,6 @@ NTSTATUS rpccli_netr_LogonUasLogoff(struct rpc_pipe_client *cli,
 	r.in.account_name = account_name;
 	r.in.workstation = workstation;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_LogonUasLogoff, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -83,10 +305,6 @@ NTSTATUS rpccli_netr_LogonUasLogoff(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_LogonUasLogoff, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -102,6 +320,138 @@ NTSTATUS rpccli_netr_LogonUasLogoff(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_netr_LogonSamLogon_state {
+	struct netr_LogonSamLogon orig;
+	struct netr_LogonSamLogon tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_LogonSamLogon_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_LogonSamLogon_send(TALLOC_CTX *mem_ctx,
+						  struct tevent_context *ev,
+						  struct rpc_pipe_client *cli,
+						  const char *_server_name /* [in] [unique,charset(UTF16)] */,
+						  const char *_computer_name /* [in] [unique,charset(UTF16)] */,
+						  struct netr_Authenticator *_credential /* [in] [unique] */,
+						  struct netr_Authenticator *_return_authenticator /* [in,out] [unique] */,
+						  enum netr_LogonInfoClass _logon_level /* [in]  */,
+						  union netr_LogonLevel *_logon /* [in] [ref,switch_is(logon_level)] */,
+						  uint16_t _validation_level /* [in]  */,
+						  union netr_Validation *_validation /* [out] [ref,switch_is(validation_level)] */,
+						  uint8_t *_authoritative /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_LogonSamLogon_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_LogonSamLogon_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.computer_name = _computer_name;
+	state->orig.in.credential = _credential;
+	state->orig.in.return_authenticator = _return_authenticator;
+	state->orig.in.logon_level = _logon_level;
+	state->orig.in.logon = _logon;
+	state->orig.in.validation_level = _validation_level;
+
+	/* Out parameters */
+	state->orig.out.return_authenticator = _return_authenticator;
+	state->orig.out.validation = _validation;
+	state->orig.out.authoritative = _authoritative;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_LogonSamLogon_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_LOGONSAMLOGON,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_LogonSamLogon_done, req);
+	return req;
+}
+
+static void rpccli_netr_LogonSamLogon_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_LogonSamLogon_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonSamLogon_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	if (state->orig.out.return_authenticator && state->tmp.out.return_authenticator) {
+		*state->orig.out.return_authenticator = *state->tmp.out.return_authenticator;
+	}
+	*state->orig.out.validation = *state->tmp.out.validation;
+	*state->orig.out.authoritative = *state->tmp.out.authoritative;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_LogonSamLogon_recv(struct tevent_req *req,
+					TALLOC_CTX *mem_ctx,
+					NTSTATUS *result)
+{
+	struct rpccli_netr_LogonSamLogon_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonSamLogon_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_netr_LogonSamLogon(struct rpc_pipe_client *cli,
@@ -128,10 +478,6 @@ NTSTATUS rpccli_netr_LogonSamLogon(struct rpc_pipe_client *cli,
 	r.in.logon = logon;
 	r.in.validation_level = validation_level;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_LogonSamLogon, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -140,10 +486,6 @@ NTSTATUS rpccli_netr_LogonSamLogon(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_LogonSamLogon, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -159,6 +501,130 @@ NTSTATUS rpccli_netr_LogonSamLogon(struct rpc_pipe_client *cli,
 
 	/* Return result */
 	return r.out.result;
+}
+
+struct rpccli_netr_LogonSamLogoff_state {
+	struct netr_LogonSamLogoff orig;
+	struct netr_LogonSamLogoff tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_LogonSamLogoff_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_LogonSamLogoff_send(TALLOC_CTX *mem_ctx,
+						   struct tevent_context *ev,
+						   struct rpc_pipe_client *cli,
+						   const char *_server_name /* [in] [unique,charset(UTF16)] */,
+						   const char *_computer_name /* [in] [unique,charset(UTF16)] */,
+						   struct netr_Authenticator *_credential /* [in] [unique] */,
+						   struct netr_Authenticator *_return_authenticator /* [in,out] [unique] */,
+						   enum netr_LogonInfoClass _logon_level /* [in]  */,
+						   union netr_LogonLevel _logon /* [in] [switch_is(logon_level)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_LogonSamLogoff_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_LogonSamLogoff_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.computer_name = _computer_name;
+	state->orig.in.credential = _credential;
+	state->orig.in.return_authenticator = _return_authenticator;
+	state->orig.in.logon_level = _logon_level;
+	state->orig.in.logon = _logon;
+
+	/* Out parameters */
+	state->orig.out.return_authenticator = _return_authenticator;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_LogonSamLogoff_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_LOGONSAMLOGOFF,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_LogonSamLogoff_done, req);
+	return req;
+}
+
+static void rpccli_netr_LogonSamLogoff_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_LogonSamLogoff_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonSamLogoff_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	if (state->orig.out.return_authenticator && state->tmp.out.return_authenticator) {
+		*state->orig.out.return_authenticator = *state->tmp.out.return_authenticator;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_LogonSamLogoff_recv(struct tevent_req *req,
+					 TALLOC_CTX *mem_ctx,
+					 NTSTATUS *result)
+{
+	struct rpccli_netr_LogonSamLogoff_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonSamLogoff_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_netr_LogonSamLogoff(struct rpc_pipe_client *cli,
@@ -181,10 +647,6 @@ NTSTATUS rpccli_netr_LogonSamLogoff(struct rpc_pipe_client *cli,
 	r.in.logon_level = logon_level;
 	r.in.logon = logon;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_LogonSamLogoff, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -193,10 +655,6 @@ NTSTATUS rpccli_netr_LogonSamLogoff(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_LogonSamLogoff, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -212,10 +670,127 @@ NTSTATUS rpccli_netr_LogonSamLogoff(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
+struct rpccli_netr_ServerReqChallenge_state {
+	struct netr_ServerReqChallenge orig;
+	struct netr_ServerReqChallenge tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_ServerReqChallenge_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_ServerReqChallenge_send(TALLOC_CTX *mem_ctx,
+						       struct tevent_context *ev,
+						       struct rpc_pipe_client *cli,
+						       const char *_server_name /* [in] [unique,charset(UTF16)] */,
+						       const char *_computer_name /* [in] [ref,charset(UTF16)] */,
+						       struct netr_Credential *_credentials /* [in] [ref] */,
+						       struct netr_Credential *_return_credentials /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_ServerReqChallenge_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_ServerReqChallenge_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.computer_name = _computer_name;
+	state->orig.in.credentials = _credentials;
+
+	/* Out parameters */
+	state->orig.out.return_credentials = _return_credentials;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_ServerReqChallenge_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_SERVERREQCHALLENGE,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_ServerReqChallenge_done, req);
+	return req;
+}
+
+static void rpccli_netr_ServerReqChallenge_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_ServerReqChallenge_state *state = tevent_req_data(
+		req, struct rpccli_netr_ServerReqChallenge_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.return_credentials = *state->tmp.out.return_credentials;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_ServerReqChallenge_recv(struct tevent_req *req,
+					     TALLOC_CTX *mem_ctx,
+					     NTSTATUS *result)
+{
+	struct rpccli_netr_ServerReqChallenge_state *state = tevent_req_data(
+		req, struct rpccli_netr_ServerReqChallenge_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_ServerReqChallenge(struct rpc_pipe_client *cli,
 					TALLOC_CTX *mem_ctx,
 					const char *server_name /* [in] [unique,charset(UTF16)] */,
-					const char *computer_name /* [in] [charset(UTF16)] */,
+					const char *computer_name /* [in] [ref,charset(UTF16)] */,
 					struct netr_Credential *credentials /* [in] [ref] */,
 					struct netr_Credential *return_credentials /* [out] [ref] */)
 {
@@ -227,10 +802,6 @@ NTSTATUS rpccli_netr_ServerReqChallenge(struct rpc_pipe_client *cli,
 	r.in.computer_name = computer_name;
 	r.in.credentials = credentials;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_ServerReqChallenge, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -239,10 +810,6 @@ NTSTATUS rpccli_netr_ServerReqChallenge(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_ServerReqChallenge, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -256,12 +823,133 @@ NTSTATUS rpccli_netr_ServerReqChallenge(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
+struct rpccli_netr_ServerAuthenticate_state {
+	struct netr_ServerAuthenticate orig;
+	struct netr_ServerAuthenticate tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_ServerAuthenticate_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_ServerAuthenticate_send(TALLOC_CTX *mem_ctx,
+						       struct tevent_context *ev,
+						       struct rpc_pipe_client *cli,
+						       const char *_server_name /* [in] [unique,charset(UTF16)] */,
+						       const char *_account_name /* [in] [ref,charset(UTF16)] */,
+						       enum netr_SchannelType _secure_channel_type /* [in]  */,
+						       const char *_computer_name /* [in] [ref,charset(UTF16)] */,
+						       struct netr_Credential *_credentials /* [in] [ref] */,
+						       struct netr_Credential *_return_credentials /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_ServerAuthenticate_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_ServerAuthenticate_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.account_name = _account_name;
+	state->orig.in.secure_channel_type = _secure_channel_type;
+	state->orig.in.computer_name = _computer_name;
+	state->orig.in.credentials = _credentials;
+
+	/* Out parameters */
+	state->orig.out.return_credentials = _return_credentials;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_ServerAuthenticate_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_SERVERAUTHENTICATE,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_ServerAuthenticate_done, req);
+	return req;
+}
+
+static void rpccli_netr_ServerAuthenticate_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_ServerAuthenticate_state *state = tevent_req_data(
+		req, struct rpccli_netr_ServerAuthenticate_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.return_credentials = *state->tmp.out.return_credentials;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_ServerAuthenticate_recv(struct tevent_req *req,
+					     TALLOC_CTX *mem_ctx,
+					     NTSTATUS *result)
+{
+	struct rpccli_netr_ServerAuthenticate_state *state = tevent_req_data(
+		req, struct rpccli_netr_ServerAuthenticate_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_ServerAuthenticate(struct rpc_pipe_client *cli,
 					TALLOC_CTX *mem_ctx,
 					const char *server_name /* [in] [unique,charset(UTF16)] */,
-					const char *account_name /* [in] [charset(UTF16)] */,
+					const char *account_name /* [in] [ref,charset(UTF16)] */,
 					enum netr_SchannelType secure_channel_type /* [in]  */,
-					const char *computer_name /* [in] [charset(UTF16)] */,
+					const char *computer_name /* [in] [ref,charset(UTF16)] */,
 					struct netr_Credential *credentials /* [in] [ref] */,
 					struct netr_Credential *return_credentials /* [out] [ref] */)
 {
@@ -275,10 +963,6 @@ NTSTATUS rpccli_netr_ServerAuthenticate(struct rpc_pipe_client *cli,
 	r.in.computer_name = computer_name;
 	r.in.credentials = credentials;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_ServerAuthenticate, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -287,10 +971,6 @@ NTSTATUS rpccli_netr_ServerAuthenticate(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_ServerAuthenticate, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -304,12 +984,135 @@ NTSTATUS rpccli_netr_ServerAuthenticate(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
+struct rpccli_netr_ServerPasswordSet_state {
+	struct netr_ServerPasswordSet orig;
+	struct netr_ServerPasswordSet tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_ServerPasswordSet_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_ServerPasswordSet_send(TALLOC_CTX *mem_ctx,
+						      struct tevent_context *ev,
+						      struct rpc_pipe_client *cli,
+						      const char *_server_name /* [in] [unique,charset(UTF16)] */,
+						      const char *_account_name /* [in] [ref,charset(UTF16)] */,
+						      enum netr_SchannelType _secure_channel_type /* [in]  */,
+						      const char *_computer_name /* [in] [ref,charset(UTF16)] */,
+						      struct netr_Authenticator *_credential /* [in] [ref] */,
+						      struct netr_Authenticator *_return_authenticator /* [out] [ref] */,
+						      struct samr_Password *_new_password /* [in] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_ServerPasswordSet_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_ServerPasswordSet_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.account_name = _account_name;
+	state->orig.in.secure_channel_type = _secure_channel_type;
+	state->orig.in.computer_name = _computer_name;
+	state->orig.in.credential = _credential;
+	state->orig.in.new_password = _new_password;
+
+	/* Out parameters */
+	state->orig.out.return_authenticator = _return_authenticator;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_ServerPasswordSet_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_SERVERPASSWORDSET,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_ServerPasswordSet_done, req);
+	return req;
+}
+
+static void rpccli_netr_ServerPasswordSet_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_ServerPasswordSet_state *state = tevent_req_data(
+		req, struct rpccli_netr_ServerPasswordSet_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.return_authenticator = *state->tmp.out.return_authenticator;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_ServerPasswordSet_recv(struct tevent_req *req,
+					    TALLOC_CTX *mem_ctx,
+					    NTSTATUS *result)
+{
+	struct rpccli_netr_ServerPasswordSet_state *state = tevent_req_data(
+		req, struct rpccli_netr_ServerPasswordSet_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_ServerPasswordSet(struct rpc_pipe_client *cli,
 				       TALLOC_CTX *mem_ctx,
 				       const char *server_name /* [in] [unique,charset(UTF16)] */,
-				       const char *account_name /* [in] [charset(UTF16)] */,
+				       const char *account_name /* [in] [ref,charset(UTF16)] */,
 				       enum netr_SchannelType secure_channel_type /* [in]  */,
-				       const char *computer_name /* [in] [charset(UTF16)] */,
+				       const char *computer_name /* [in] [ref,charset(UTF16)] */,
 				       struct netr_Authenticator *credential /* [in] [ref] */,
 				       struct netr_Authenticator *return_authenticator /* [out] [ref] */,
 				       struct samr_Password *new_password /* [in] [ref] */)
@@ -325,10 +1128,6 @@ NTSTATUS rpccli_netr_ServerPasswordSet(struct rpc_pipe_client *cli,
 	r.in.credential = credential;
 	r.in.new_password = new_password;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_ServerPasswordSet, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -337,10 +1136,6 @@ NTSTATUS rpccli_netr_ServerPasswordSet(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_ServerPasswordSet, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -354,10 +1149,139 @@ NTSTATUS rpccli_netr_ServerPasswordSet(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
+struct rpccli_netr_DatabaseDeltas_state {
+	struct netr_DatabaseDeltas orig;
+	struct netr_DatabaseDeltas tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_DatabaseDeltas_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_DatabaseDeltas_send(TALLOC_CTX *mem_ctx,
+						   struct tevent_context *ev,
+						   struct rpc_pipe_client *cli,
+						   const char *_logon_server /* [in] [ref,charset(UTF16)] */,
+						   const char *_computername /* [in] [ref,charset(UTF16)] */,
+						   struct netr_Authenticator *_credential /* [in] [ref] */,
+						   struct netr_Authenticator *_return_authenticator /* [in,out] [ref] */,
+						   enum netr_SamDatabaseID _database_id /* [in]  */,
+						   uint64_t *_sequence_num /* [in,out] [ref] */,
+						   struct netr_DELTA_ENUM_ARRAY **_delta_enum_array /* [out] [ref] */,
+						   uint32_t _preferredmaximumlength /* [in]  */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_DatabaseDeltas_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_DatabaseDeltas_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.logon_server = _logon_server;
+	state->orig.in.computername = _computername;
+	state->orig.in.credential = _credential;
+	state->orig.in.return_authenticator = _return_authenticator;
+	state->orig.in.database_id = _database_id;
+	state->orig.in.sequence_num = _sequence_num;
+	state->orig.in.preferredmaximumlength = _preferredmaximumlength;
+
+	/* Out parameters */
+	state->orig.out.return_authenticator = _return_authenticator;
+	state->orig.out.sequence_num = _sequence_num;
+	state->orig.out.delta_enum_array = _delta_enum_array;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_DatabaseDeltas_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_DATABASEDELTAS,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_DatabaseDeltas_done, req);
+	return req;
+}
+
+static void rpccli_netr_DatabaseDeltas_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_DatabaseDeltas_state *state = tevent_req_data(
+		req, struct rpccli_netr_DatabaseDeltas_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.return_authenticator = *state->tmp.out.return_authenticator;
+	*state->orig.out.sequence_num = *state->tmp.out.sequence_num;
+	*state->orig.out.delta_enum_array = *state->tmp.out.delta_enum_array;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_DatabaseDeltas_recv(struct tevent_req *req,
+					 TALLOC_CTX *mem_ctx,
+					 NTSTATUS *result)
+{
+	struct rpccli_netr_DatabaseDeltas_state *state = tevent_req_data(
+		req, struct rpccli_netr_DatabaseDeltas_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_DatabaseDeltas(struct rpc_pipe_client *cli,
 				    TALLOC_CTX *mem_ctx,
-				    const char *logon_server /* [in] [charset(UTF16)] */,
-				    const char *computername /* [in] [charset(UTF16)] */,
+				    const char *logon_server /* [in] [ref,charset(UTF16)] */,
+				    const char *computername /* [in] [ref,charset(UTF16)] */,
 				    struct netr_Authenticator *credential /* [in] [ref] */,
 				    struct netr_Authenticator *return_authenticator /* [in,out] [ref] */,
 				    enum netr_SamDatabaseID database_id /* [in]  */,
@@ -377,10 +1301,6 @@ NTSTATUS rpccli_netr_DatabaseDeltas(struct rpc_pipe_client *cli,
 	r.in.sequence_num = sequence_num;
 	r.in.preferredmaximumlength = preferredmaximumlength;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_DatabaseDeltas, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -389,10 +1309,6 @@ NTSTATUS rpccli_netr_DatabaseDeltas(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_DatabaseDeltas, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -408,10 +1324,139 @@ NTSTATUS rpccli_netr_DatabaseDeltas(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
+struct rpccli_netr_DatabaseSync_state {
+	struct netr_DatabaseSync orig;
+	struct netr_DatabaseSync tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_DatabaseSync_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_DatabaseSync_send(TALLOC_CTX *mem_ctx,
+						 struct tevent_context *ev,
+						 struct rpc_pipe_client *cli,
+						 const char *_logon_server /* [in] [ref,charset(UTF16)] */,
+						 const char *_computername /* [in] [ref,charset(UTF16)] */,
+						 struct netr_Authenticator *_credential /* [in] [ref] */,
+						 struct netr_Authenticator *_return_authenticator /* [in,out] [ref] */,
+						 enum netr_SamDatabaseID _database_id /* [in]  */,
+						 uint32_t *_sync_context /* [in,out] [ref] */,
+						 struct netr_DELTA_ENUM_ARRAY **_delta_enum_array /* [out] [ref] */,
+						 uint32_t _preferredmaximumlength /* [in]  */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_DatabaseSync_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_DatabaseSync_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.logon_server = _logon_server;
+	state->orig.in.computername = _computername;
+	state->orig.in.credential = _credential;
+	state->orig.in.return_authenticator = _return_authenticator;
+	state->orig.in.database_id = _database_id;
+	state->orig.in.sync_context = _sync_context;
+	state->orig.in.preferredmaximumlength = _preferredmaximumlength;
+
+	/* Out parameters */
+	state->orig.out.return_authenticator = _return_authenticator;
+	state->orig.out.sync_context = _sync_context;
+	state->orig.out.delta_enum_array = _delta_enum_array;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_DatabaseSync_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_DATABASESYNC,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_DatabaseSync_done, req);
+	return req;
+}
+
+static void rpccli_netr_DatabaseSync_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_DatabaseSync_state *state = tevent_req_data(
+		req, struct rpccli_netr_DatabaseSync_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.return_authenticator = *state->tmp.out.return_authenticator;
+	*state->orig.out.sync_context = *state->tmp.out.sync_context;
+	*state->orig.out.delta_enum_array = *state->tmp.out.delta_enum_array;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_DatabaseSync_recv(struct tevent_req *req,
+				       TALLOC_CTX *mem_ctx,
+				       NTSTATUS *result)
+{
+	struct rpccli_netr_DatabaseSync_state *state = tevent_req_data(
+		req, struct rpccli_netr_DatabaseSync_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_DatabaseSync(struct rpc_pipe_client *cli,
 				  TALLOC_CTX *mem_ctx,
-				  const char *logon_server /* [in] [charset(UTF16)] */,
-				  const char *computername /* [in] [charset(UTF16)] */,
+				  const char *logon_server /* [in] [ref,charset(UTF16)] */,
+				  const char *computername /* [in] [ref,charset(UTF16)] */,
 				  struct netr_Authenticator *credential /* [in] [ref] */,
 				  struct netr_Authenticator *return_authenticator /* [in,out] [ref] */,
 				  enum netr_SamDatabaseID database_id /* [in]  */,
@@ -431,10 +1476,6 @@ NTSTATUS rpccli_netr_DatabaseSync(struct rpc_pipe_client *cli,
 	r.in.sync_context = sync_context;
 	r.in.preferredmaximumlength = preferredmaximumlength;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_DatabaseSync, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -443,10 +1484,6 @@ NTSTATUS rpccli_netr_DatabaseSync(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_DatabaseSync, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -462,10 +1499,148 @@ NTSTATUS rpccli_netr_DatabaseSync(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
+struct rpccli_netr_AccountDeltas_state {
+	struct netr_AccountDeltas orig;
+	struct netr_AccountDeltas tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_AccountDeltas_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_AccountDeltas_send(TALLOC_CTX *mem_ctx,
+						  struct tevent_context *ev,
+						  struct rpc_pipe_client *cli,
+						  const char *_logon_server /* [in] [unique,charset(UTF16)] */,
+						  const char *_computername /* [in] [ref,charset(UTF16)] */,
+						  struct netr_Authenticator _credential /* [in]  */,
+						  struct netr_Authenticator *_return_authenticator /* [in,out] [ref] */,
+						  struct netr_UAS_INFO_0 _uas /* [in]  */,
+						  uint32_t _count /* [in]  */,
+						  uint32_t _level /* [in]  */,
+						  uint32_t _buffersize /* [in]  */,
+						  struct netr_AccountBuffer *_buffer /* [out] [ref,subcontext(4)] */,
+						  uint32_t *_count_returned /* [out] [ref] */,
+						  uint32_t *_total_entries /* [out] [ref] */,
+						  struct netr_UAS_INFO_0 *_recordid /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_AccountDeltas_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_AccountDeltas_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.logon_server = _logon_server;
+	state->orig.in.computername = _computername;
+	state->orig.in.credential = _credential;
+	state->orig.in.return_authenticator = _return_authenticator;
+	state->orig.in.uas = _uas;
+	state->orig.in.count = _count;
+	state->orig.in.level = _level;
+	state->orig.in.buffersize = _buffersize;
+
+	/* Out parameters */
+	state->orig.out.return_authenticator = _return_authenticator;
+	state->orig.out.buffer = _buffer;
+	state->orig.out.count_returned = _count_returned;
+	state->orig.out.total_entries = _total_entries;
+	state->orig.out.recordid = _recordid;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_AccountDeltas_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_ACCOUNTDELTAS,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_AccountDeltas_done, req);
+	return req;
+}
+
+static void rpccli_netr_AccountDeltas_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_AccountDeltas_state *state = tevent_req_data(
+		req, struct rpccli_netr_AccountDeltas_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.return_authenticator = *state->tmp.out.return_authenticator;
+	*state->orig.out.buffer = *state->tmp.out.buffer;
+	*state->orig.out.count_returned = *state->tmp.out.count_returned;
+	*state->orig.out.total_entries = *state->tmp.out.total_entries;
+	*state->orig.out.recordid = *state->tmp.out.recordid;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_AccountDeltas_recv(struct tevent_req *req,
+					TALLOC_CTX *mem_ctx,
+					NTSTATUS *result)
+{
+	struct rpccli_netr_AccountDeltas_state *state = tevent_req_data(
+		req, struct rpccli_netr_AccountDeltas_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_AccountDeltas(struct rpc_pipe_client *cli,
 				   TALLOC_CTX *mem_ctx,
 				   const char *logon_server /* [in] [unique,charset(UTF16)] */,
-				   const char *computername /* [in] [charset(UTF16)] */,
+				   const char *computername /* [in] [ref,charset(UTF16)] */,
 				   struct netr_Authenticator credential /* [in]  */,
 				   struct netr_Authenticator *return_authenticator /* [in,out] [ref] */,
 				   struct netr_UAS_INFO_0 uas /* [in]  */,
@@ -490,10 +1665,6 @@ NTSTATUS rpccli_netr_AccountDeltas(struct rpc_pipe_client *cli,
 	r.in.level = level;
 	r.in.buffersize = buffersize;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_AccountDeltas, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -502,10 +1673,6 @@ NTSTATUS rpccli_netr_AccountDeltas(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_AccountDeltas, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -523,10 +1690,150 @@ NTSTATUS rpccli_netr_AccountDeltas(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
+struct rpccli_netr_AccountSync_state {
+	struct netr_AccountSync orig;
+	struct netr_AccountSync tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_AccountSync_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_AccountSync_send(TALLOC_CTX *mem_ctx,
+						struct tevent_context *ev,
+						struct rpc_pipe_client *cli,
+						const char *_logon_server /* [in] [unique,charset(UTF16)] */,
+						const char *_computername /* [in] [ref,charset(UTF16)] */,
+						struct netr_Authenticator _credential /* [in]  */,
+						struct netr_Authenticator *_return_authenticator /* [in,out] [ref] */,
+						uint32_t _reference /* [in]  */,
+						uint32_t _level /* [in]  */,
+						uint32_t _buffersize /* [in]  */,
+						struct netr_AccountBuffer *_buffer /* [out] [ref,subcontext(4)] */,
+						uint32_t *_count_returned /* [out] [ref] */,
+						uint32_t *_total_entries /* [out] [ref] */,
+						uint32_t *_next_reference /* [out] [ref] */,
+						struct netr_UAS_INFO_0 *_recordid /* [in,out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_AccountSync_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_AccountSync_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.logon_server = _logon_server;
+	state->orig.in.computername = _computername;
+	state->orig.in.credential = _credential;
+	state->orig.in.return_authenticator = _return_authenticator;
+	state->orig.in.reference = _reference;
+	state->orig.in.level = _level;
+	state->orig.in.buffersize = _buffersize;
+	state->orig.in.recordid = _recordid;
+
+	/* Out parameters */
+	state->orig.out.return_authenticator = _return_authenticator;
+	state->orig.out.buffer = _buffer;
+	state->orig.out.count_returned = _count_returned;
+	state->orig.out.total_entries = _total_entries;
+	state->orig.out.next_reference = _next_reference;
+	state->orig.out.recordid = _recordid;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_AccountSync_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_ACCOUNTSYNC,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_AccountSync_done, req);
+	return req;
+}
+
+static void rpccli_netr_AccountSync_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_AccountSync_state *state = tevent_req_data(
+		req, struct rpccli_netr_AccountSync_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.return_authenticator = *state->tmp.out.return_authenticator;
+	*state->orig.out.buffer = *state->tmp.out.buffer;
+	*state->orig.out.count_returned = *state->tmp.out.count_returned;
+	*state->orig.out.total_entries = *state->tmp.out.total_entries;
+	*state->orig.out.next_reference = *state->tmp.out.next_reference;
+	*state->orig.out.recordid = *state->tmp.out.recordid;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_AccountSync_recv(struct tevent_req *req,
+				      TALLOC_CTX *mem_ctx,
+				      NTSTATUS *result)
+{
+	struct rpccli_netr_AccountSync_state *state = tevent_req_data(
+		req, struct rpccli_netr_AccountSync_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_AccountSync(struct rpc_pipe_client *cli,
 				 TALLOC_CTX *mem_ctx,
 				 const char *logon_server /* [in] [unique,charset(UTF16)] */,
-				 const char *computername /* [in] [charset(UTF16)] */,
+				 const char *computername /* [in] [ref,charset(UTF16)] */,
 				 struct netr_Authenticator credential /* [in]  */,
 				 struct netr_Authenticator *return_authenticator /* [in,out] [ref] */,
 				 uint32_t reference /* [in]  */,
@@ -551,10 +1858,6 @@ NTSTATUS rpccli_netr_AccountSync(struct rpc_pipe_client *cli,
 	r.in.buffersize = buffersize;
 	r.in.recordid = recordid;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_AccountSync, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -563,10 +1866,6 @@ NTSTATUS rpccli_netr_AccountSync(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_AccountSync, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -585,9 +1884,124 @@ NTSTATUS rpccli_netr_AccountSync(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
+struct rpccli_netr_GetDcName_state {
+	struct netr_GetDcName orig;
+	struct netr_GetDcName tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_GetDcName_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_GetDcName_send(TALLOC_CTX *mem_ctx,
+					      struct tevent_context *ev,
+					      struct rpc_pipe_client *cli,
+					      const char *_logon_server /* [in] [ref,charset(UTF16)] */,
+					      const char *_domainname /* [in] [unique,charset(UTF16)] */,
+					      const char **_dcname /* [out] [ref,charset(UTF16)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_GetDcName_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_GetDcName_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.logon_server = _logon_server;
+	state->orig.in.domainname = _domainname;
+
+	/* Out parameters */
+	state->orig.out.dcname = _dcname;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_GetDcName_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_GETDCNAME,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_GetDcName_done, req);
+	return req;
+}
+
+static void rpccli_netr_GetDcName_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_GetDcName_state *state = tevent_req_data(
+		req, struct rpccli_netr_GetDcName_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.dcname = *state->tmp.out.dcname;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_GetDcName_recv(struct tevent_req *req,
+				    TALLOC_CTX *mem_ctx,
+				    WERROR *result)
+{
+	struct rpccli_netr_GetDcName_state *state = tevent_req_data(
+		req, struct rpccli_netr_GetDcName_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_GetDcName(struct rpc_pipe_client *cli,
 			       TALLOC_CTX *mem_ctx,
-			       const char *logon_server /* [in] [charset(UTF16)] */,
+			       const char *logon_server /* [in] [ref,charset(UTF16)] */,
 			       const char *domainname /* [in] [unique,charset(UTF16)] */,
 			       const char **dcname /* [out] [ref,charset(UTF16)] */,
 			       WERROR *werror)
@@ -599,10 +2013,6 @@ NTSTATUS rpccli_netr_GetDcName(struct rpc_pipe_client *cli,
 	r.in.logon_server = logon_server;
 	r.in.domainname = domainname;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_GetDcName, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -611,10 +2021,6 @@ NTSTATUS rpccli_netr_GetDcName(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_GetDcName, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -632,12 +2038,129 @@ NTSTATUS rpccli_netr_GetDcName(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_netr_LogonControl_state {
+	struct netr_LogonControl orig;
+	struct netr_LogonControl tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_LogonControl_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_LogonControl_send(TALLOC_CTX *mem_ctx,
+						 struct tevent_context *ev,
+						 struct rpc_pipe_client *cli,
+						 const char *_logon_server /* [in] [unique,charset(UTF16)] */,
+						 enum netr_LogonControlCode _function_code /* [in]  */,
+						 uint32_t _level /* [in]  */,
+						 union netr_CONTROL_QUERY_INFORMATION *_query /* [out] [ref,switch_is(level)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_LogonControl_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_LogonControl_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.logon_server = _logon_server;
+	state->orig.in.function_code = _function_code;
+	state->orig.in.level = _level;
+
+	/* Out parameters */
+	state->orig.out.query = _query;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_LogonControl_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_LOGONCONTROL,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_LogonControl_done, req);
+	return req;
+}
+
+static void rpccli_netr_LogonControl_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_LogonControl_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonControl_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.query = *state->tmp.out.query;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_LogonControl_recv(struct tevent_req *req,
+				       TALLOC_CTX *mem_ctx,
+				       WERROR *result)
+{
+	struct rpccli_netr_LogonControl_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonControl_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_LogonControl(struct rpc_pipe_client *cli,
 				  TALLOC_CTX *mem_ctx,
 				  const char *logon_server /* [in] [unique,charset(UTF16)] */,
 				  enum netr_LogonControlCode function_code /* [in]  */,
 				  uint32_t level /* [in]  */,
-				  union netr_CONTROL_QUERY_INFORMATION *info /* [out] [ref,switch_is(level)] */,
+				  union netr_CONTROL_QUERY_INFORMATION *query /* [out] [ref,switch_is(level)] */,
 				  WERROR *werror)
 {
 	struct netr_LogonControl r;
@@ -647,10 +2170,6 @@ NTSTATUS rpccli_netr_LogonControl(struct rpc_pipe_client *cli,
 	r.in.logon_server = logon_server;
 	r.in.function_code = function_code;
 	r.in.level = level;
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_LogonControl, &r);
-	}
 
 	status = cli->dispatch(cli,
 				mem_ctx,
@@ -662,16 +2181,12 @@ NTSTATUS rpccli_netr_LogonControl(struct rpc_pipe_client *cli,
 		return status;
 	}
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_LogonControl, &r);
-	}
-
 	if (NT_STATUS_IS_ERR(status)) {
 		return status;
 	}
 
 	/* Return variables */
-	*info = *r.out.info;
+	*query = *r.out.query;
 
 	/* Return result */
 	if (werror) {
@@ -679,6 +2194,121 @@ NTSTATUS rpccli_netr_LogonControl(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_netr_GetAnyDCName_state {
+	struct netr_GetAnyDCName orig;
+	struct netr_GetAnyDCName tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_GetAnyDCName_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_GetAnyDCName_send(TALLOC_CTX *mem_ctx,
+						 struct tevent_context *ev,
+						 struct rpc_pipe_client *cli,
+						 const char *_logon_server /* [in] [unique,charset(UTF16)] */,
+						 const char *_domainname /* [in] [unique,charset(UTF16)] */,
+						 const char **_dcname /* [out] [ref,charset(UTF16)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_GetAnyDCName_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_GetAnyDCName_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.logon_server = _logon_server;
+	state->orig.in.domainname = _domainname;
+
+	/* Out parameters */
+	state->orig.out.dcname = _dcname;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_GetAnyDCName_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_GETANYDCNAME,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_GetAnyDCName_done, req);
+	return req;
+}
+
+static void rpccli_netr_GetAnyDCName_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_GetAnyDCName_state *state = tevent_req_data(
+		req, struct rpccli_netr_GetAnyDCName_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.dcname = *state->tmp.out.dcname;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_GetAnyDCName_recv(struct tevent_req *req,
+				       TALLOC_CTX *mem_ctx,
+				       WERROR *result)
+{
+	struct rpccli_netr_GetAnyDCName_state *state = tevent_req_data(
+		req, struct rpccli_netr_GetAnyDCName_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_netr_GetAnyDCName(struct rpc_pipe_client *cli,
@@ -695,10 +2325,6 @@ NTSTATUS rpccli_netr_GetAnyDCName(struct rpc_pipe_client *cli,
 	r.in.logon_server = logon_server;
 	r.in.domainname = domainname;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_GetAnyDCName, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -707,10 +2333,6 @@ NTSTATUS rpccli_netr_GetAnyDCName(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_GetAnyDCName, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -726,6 +2348,125 @@ NTSTATUS rpccli_netr_GetAnyDCName(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_netr_LogonControl2_state {
+	struct netr_LogonControl2 orig;
+	struct netr_LogonControl2 tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_LogonControl2_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_LogonControl2_send(TALLOC_CTX *mem_ctx,
+						  struct tevent_context *ev,
+						  struct rpc_pipe_client *cli,
+						  const char *_logon_server /* [in] [unique,charset(UTF16)] */,
+						  enum netr_LogonControlCode _function_code /* [in]  */,
+						  uint32_t _level /* [in]  */,
+						  union netr_CONTROL_DATA_INFORMATION *_data /* [in] [ref,switch_is(function_code)] */,
+						  union netr_CONTROL_QUERY_INFORMATION *_query /* [out] [ref,switch_is(level)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_LogonControl2_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_LogonControl2_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.logon_server = _logon_server;
+	state->orig.in.function_code = _function_code;
+	state->orig.in.level = _level;
+	state->orig.in.data = _data;
+
+	/* Out parameters */
+	state->orig.out.query = _query;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_LogonControl2_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_LOGONCONTROL2,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_LogonControl2_done, req);
+	return req;
+}
+
+static void rpccli_netr_LogonControl2_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_LogonControl2_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonControl2_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.query = *state->tmp.out.query;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_LogonControl2_recv(struct tevent_req *req,
+					TALLOC_CTX *mem_ctx,
+					WERROR *result)
+{
+	struct rpccli_netr_LogonControl2_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonControl2_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_netr_LogonControl2(struct rpc_pipe_client *cli,
@@ -746,10 +2487,6 @@ NTSTATUS rpccli_netr_LogonControl2(struct rpc_pipe_client *cli,
 	r.in.level = level;
 	r.in.data = data;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_LogonControl2, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -758,10 +2495,6 @@ NTSTATUS rpccli_netr_LogonControl2(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_LogonControl2, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -779,12 +2512,137 @@ NTSTATUS rpccli_netr_LogonControl2(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_netr_ServerAuthenticate2_state {
+	struct netr_ServerAuthenticate2 orig;
+	struct netr_ServerAuthenticate2 tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_ServerAuthenticate2_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_ServerAuthenticate2_send(TALLOC_CTX *mem_ctx,
+							struct tevent_context *ev,
+							struct rpc_pipe_client *cli,
+							const char *_server_name /* [in] [unique,charset(UTF16)] */,
+							const char *_account_name /* [in] [ref,charset(UTF16)] */,
+							enum netr_SchannelType _secure_channel_type /* [in]  */,
+							const char *_computer_name /* [in] [ref,charset(UTF16)] */,
+							struct netr_Credential *_credentials /* [in] [ref] */,
+							struct netr_Credential *_return_credentials /* [out] [ref] */,
+							uint32_t *_negotiate_flags /* [in,out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_ServerAuthenticate2_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_ServerAuthenticate2_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.account_name = _account_name;
+	state->orig.in.secure_channel_type = _secure_channel_type;
+	state->orig.in.computer_name = _computer_name;
+	state->orig.in.credentials = _credentials;
+	state->orig.in.negotiate_flags = _negotiate_flags;
+
+	/* Out parameters */
+	state->orig.out.return_credentials = _return_credentials;
+	state->orig.out.negotiate_flags = _negotiate_flags;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_ServerAuthenticate2_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_SERVERAUTHENTICATE2,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_ServerAuthenticate2_done, req);
+	return req;
+}
+
+static void rpccli_netr_ServerAuthenticate2_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_ServerAuthenticate2_state *state = tevent_req_data(
+		req, struct rpccli_netr_ServerAuthenticate2_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.return_credentials = *state->tmp.out.return_credentials;
+	*state->orig.out.negotiate_flags = *state->tmp.out.negotiate_flags;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_ServerAuthenticate2_recv(struct tevent_req *req,
+					      TALLOC_CTX *mem_ctx,
+					      NTSTATUS *result)
+{
+	struct rpccli_netr_ServerAuthenticate2_state *state = tevent_req_data(
+		req, struct rpccli_netr_ServerAuthenticate2_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_ServerAuthenticate2(struct rpc_pipe_client *cli,
 					 TALLOC_CTX *mem_ctx,
 					 const char *server_name /* [in] [unique,charset(UTF16)] */,
-					 const char *account_name /* [in] [charset(UTF16)] */,
+					 const char *account_name /* [in] [ref,charset(UTF16)] */,
 					 enum netr_SchannelType secure_channel_type /* [in]  */,
-					 const char *computer_name /* [in] [charset(UTF16)] */,
+					 const char *computer_name /* [in] [ref,charset(UTF16)] */,
 					 struct netr_Credential *credentials /* [in] [ref] */,
 					 struct netr_Credential *return_credentials /* [out] [ref] */,
 					 uint32_t *negotiate_flags /* [in,out] [ref] */)
@@ -800,10 +2658,6 @@ NTSTATUS rpccli_netr_ServerAuthenticate2(struct rpc_pipe_client *cli,
 	r.in.credentials = credentials;
 	r.in.negotiate_flags = negotiate_flags;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_ServerAuthenticate2, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -812,10 +2666,6 @@ NTSTATUS rpccli_netr_ServerAuthenticate2(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_ServerAuthenticate2, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -830,14 +2680,145 @@ NTSTATUS rpccli_netr_ServerAuthenticate2(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
+struct rpccli_netr_DatabaseSync2_state {
+	struct netr_DatabaseSync2 orig;
+	struct netr_DatabaseSync2 tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_DatabaseSync2_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_DatabaseSync2_send(TALLOC_CTX *mem_ctx,
+						  struct tevent_context *ev,
+						  struct rpc_pipe_client *cli,
+						  const char *_logon_server /* [in] [ref,charset(UTF16)] */,
+						  const char *_computername /* [in] [ref,charset(UTF16)] */,
+						  struct netr_Authenticator *_credential /* [in] [ref] */,
+						  struct netr_Authenticator *_return_authenticator /* [in,out] [ref] */,
+						  enum netr_SamDatabaseID _database_id /* [in]  */,
+						  enum SyncStateEnum _restart_state /* [in]  */,
+						  uint32_t *_sync_context /* [in,out] [ref] */,
+						  struct netr_DELTA_ENUM_ARRAY **_delta_enum_array /* [out] [ref] */,
+						  uint32_t _preferredmaximumlength /* [in]  */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_DatabaseSync2_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_DatabaseSync2_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.logon_server = _logon_server;
+	state->orig.in.computername = _computername;
+	state->orig.in.credential = _credential;
+	state->orig.in.return_authenticator = _return_authenticator;
+	state->orig.in.database_id = _database_id;
+	state->orig.in.restart_state = _restart_state;
+	state->orig.in.sync_context = _sync_context;
+	state->orig.in.preferredmaximumlength = _preferredmaximumlength;
+
+	/* Out parameters */
+	state->orig.out.return_authenticator = _return_authenticator;
+	state->orig.out.sync_context = _sync_context;
+	state->orig.out.delta_enum_array = _delta_enum_array;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_DatabaseSync2_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_DATABASESYNC2,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_DatabaseSync2_done, req);
+	return req;
+}
+
+static void rpccli_netr_DatabaseSync2_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_DatabaseSync2_state *state = tevent_req_data(
+		req, struct rpccli_netr_DatabaseSync2_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.return_authenticator = *state->tmp.out.return_authenticator;
+	*state->orig.out.sync_context = *state->tmp.out.sync_context;
+	*state->orig.out.delta_enum_array = *state->tmp.out.delta_enum_array;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_DatabaseSync2_recv(struct tevent_req *req,
+					TALLOC_CTX *mem_ctx,
+					NTSTATUS *result)
+{
+	struct rpccli_netr_DatabaseSync2_state *state = tevent_req_data(
+		req, struct rpccli_netr_DatabaseSync2_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_DatabaseSync2(struct rpc_pipe_client *cli,
 				   TALLOC_CTX *mem_ctx,
-				   const char *logon_server /* [in] [charset(UTF16)] */,
-				   const char *computername /* [in] [charset(UTF16)] */,
+				   const char *logon_server /* [in] [ref,charset(UTF16)] */,
+				   const char *computername /* [in] [ref,charset(UTF16)] */,
 				   struct netr_Authenticator *credential /* [in] [ref] */,
 				   struct netr_Authenticator *return_authenticator /* [in,out] [ref] */,
 				   enum netr_SamDatabaseID database_id /* [in]  */,
-				   uint16_t restart_state /* [in]  */,
+				   enum SyncStateEnum restart_state /* [in]  */,
 				   uint32_t *sync_context /* [in,out] [ref] */,
 				   struct netr_DELTA_ENUM_ARRAY **delta_enum_array /* [out] [ref] */,
 				   uint32_t preferredmaximumlength /* [in]  */)
@@ -855,10 +2836,6 @@ NTSTATUS rpccli_netr_DatabaseSync2(struct rpc_pipe_client *cli,
 	r.in.sync_context = sync_context;
 	r.in.preferredmaximumlength = preferredmaximumlength;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_DatabaseSync2, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -867,10 +2844,6 @@ NTSTATUS rpccli_netr_DatabaseSync2(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_DatabaseSync2, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -886,10 +2859,135 @@ NTSTATUS rpccli_netr_DatabaseSync2(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
+struct rpccli_netr_DatabaseRedo_state {
+	struct netr_DatabaseRedo orig;
+	struct netr_DatabaseRedo tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_DatabaseRedo_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_DatabaseRedo_send(TALLOC_CTX *mem_ctx,
+						 struct tevent_context *ev,
+						 struct rpc_pipe_client *cli,
+						 const char *_logon_server /* [in] [ref,charset(UTF16)] */,
+						 const char *_computername /* [in] [ref,charset(UTF16)] */,
+						 struct netr_Authenticator *_credential /* [in] [ref] */,
+						 struct netr_Authenticator *_return_authenticator /* [in,out] [ref] */,
+						 struct netr_ChangeLogEntry _change_log_entry /* [in] [subcontext_size(change_log_entry_size),subcontext(4)] */,
+						 uint32_t _change_log_entry_size /* [in] [value(ndr_size_netr_ChangeLogEntry(&change_log_entry,ndr->iconv_convenience,ndr->flags))] */,
+						 struct netr_DELTA_ENUM_ARRAY **_delta_enum_array /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_DatabaseRedo_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_DatabaseRedo_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.logon_server = _logon_server;
+	state->orig.in.computername = _computername;
+	state->orig.in.credential = _credential;
+	state->orig.in.return_authenticator = _return_authenticator;
+	state->orig.in.change_log_entry = _change_log_entry;
+	state->orig.in.change_log_entry_size = _change_log_entry_size;
+
+	/* Out parameters */
+	state->orig.out.return_authenticator = _return_authenticator;
+	state->orig.out.delta_enum_array = _delta_enum_array;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_DatabaseRedo_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_DATABASEREDO,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_DatabaseRedo_done, req);
+	return req;
+}
+
+static void rpccli_netr_DatabaseRedo_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_DatabaseRedo_state *state = tevent_req_data(
+		req, struct rpccli_netr_DatabaseRedo_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.return_authenticator = *state->tmp.out.return_authenticator;
+	*state->orig.out.delta_enum_array = *state->tmp.out.delta_enum_array;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_DatabaseRedo_recv(struct tevent_req *req,
+				       TALLOC_CTX *mem_ctx,
+				       NTSTATUS *result)
+{
+	struct rpccli_netr_DatabaseRedo_state *state = tevent_req_data(
+		req, struct rpccli_netr_DatabaseRedo_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_DatabaseRedo(struct rpc_pipe_client *cli,
 				  TALLOC_CTX *mem_ctx,
-				  const char *logon_server /* [in] [charset(UTF16)] */,
-				  const char *computername /* [in] [charset(UTF16)] */,
+				  const char *logon_server /* [in] [ref,charset(UTF16)] */,
+				  const char *computername /* [in] [ref,charset(UTF16)] */,
 				  struct netr_Authenticator *credential /* [in] [ref] */,
 				  struct netr_Authenticator *return_authenticator /* [in,out] [ref] */,
 				  struct netr_ChangeLogEntry change_log_entry /* [in] [subcontext_size(change_log_entry_size),subcontext(4)] */,
@@ -907,10 +3005,6 @@ NTSTATUS rpccli_netr_DatabaseRedo(struct rpc_pipe_client *cli,
 	r.in.change_log_entry = change_log_entry;
 	r.in.change_log_entry_size = change_log_entry_size;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_DatabaseRedo, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -919,10 +3013,6 @@ NTSTATUS rpccli_netr_DatabaseRedo(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_DatabaseRedo, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -935,6 +3025,125 @@ NTSTATUS rpccli_netr_DatabaseRedo(struct rpc_pipe_client *cli,
 
 	/* Return result */
 	return r.out.result;
+}
+
+struct rpccli_netr_LogonControl2Ex_state {
+	struct netr_LogonControl2Ex orig;
+	struct netr_LogonControl2Ex tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_LogonControl2Ex_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_LogonControl2Ex_send(TALLOC_CTX *mem_ctx,
+						    struct tevent_context *ev,
+						    struct rpc_pipe_client *cli,
+						    const char *_logon_server /* [in] [unique,charset(UTF16)] */,
+						    enum netr_LogonControlCode _function_code /* [in]  */,
+						    uint32_t _level /* [in]  */,
+						    union netr_CONTROL_DATA_INFORMATION *_data /* [in] [ref,switch_is(function_code)] */,
+						    union netr_CONTROL_QUERY_INFORMATION *_query /* [out] [ref,switch_is(level)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_LogonControl2Ex_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_LogonControl2Ex_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.logon_server = _logon_server;
+	state->orig.in.function_code = _function_code;
+	state->orig.in.level = _level;
+	state->orig.in.data = _data;
+
+	/* Out parameters */
+	state->orig.out.query = _query;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_LogonControl2Ex_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_LOGONCONTROL2EX,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_LogonControl2Ex_done, req);
+	return req;
+}
+
+static void rpccli_netr_LogonControl2Ex_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_LogonControl2Ex_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonControl2Ex_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.query = *state->tmp.out.query;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_LogonControl2Ex_recv(struct tevent_req *req,
+					  TALLOC_CTX *mem_ctx,
+					  WERROR *result)
+{
+	struct rpccli_netr_LogonControl2Ex_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonControl2Ex_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_netr_LogonControl2Ex(struct rpc_pipe_client *cli,
@@ -955,10 +3164,6 @@ NTSTATUS rpccli_netr_LogonControl2Ex(struct rpc_pipe_client *cli,
 	r.in.level = level;
 	r.in.data = data;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_LogonControl2Ex, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -967,10 +3172,6 @@ NTSTATUS rpccli_netr_LogonControl2Ex(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_LogonControl2Ex, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -988,6 +3189,119 @@ NTSTATUS rpccli_netr_LogonControl2Ex(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_netr_NetrEnumerateTrustedDomains_state {
+	struct netr_NetrEnumerateTrustedDomains orig;
+	struct netr_NetrEnumerateTrustedDomains tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_NetrEnumerateTrustedDomains_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_NetrEnumerateTrustedDomains_send(TALLOC_CTX *mem_ctx,
+								struct tevent_context *ev,
+								struct rpc_pipe_client *cli,
+								const char *_server_name /* [in] [unique,charset(UTF16)] */,
+								struct netr_Blob *_trusted_domains_blob /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_NetrEnumerateTrustedDomains_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_NetrEnumerateTrustedDomains_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+
+	/* Out parameters */
+	state->orig.out.trusted_domains_blob = _trusted_domains_blob;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_NetrEnumerateTrustedDomains_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_NETRENUMERATETRUSTEDDOMAINS,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_NetrEnumerateTrustedDomains_done, req);
+	return req;
+}
+
+static void rpccli_netr_NetrEnumerateTrustedDomains_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_NetrEnumerateTrustedDomains_state *state = tevent_req_data(
+		req, struct rpccli_netr_NetrEnumerateTrustedDomains_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.trusted_domains_blob = *state->tmp.out.trusted_domains_blob;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_NetrEnumerateTrustedDomains_recv(struct tevent_req *req,
+						      TALLOC_CTX *mem_ctx,
+						      WERROR *result)
+{
+	struct rpccli_netr_NetrEnumerateTrustedDomains_state *state = tevent_req_data(
+		req, struct rpccli_netr_NetrEnumerateTrustedDomains_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_NetrEnumerateTrustedDomains(struct rpc_pipe_client *cli,
 						 TALLOC_CTX *mem_ctx,
 						 const char *server_name /* [in] [unique,charset(UTF16)] */,
@@ -1000,10 +3314,6 @@ NTSTATUS rpccli_netr_NetrEnumerateTrustedDomains(struct rpc_pipe_client *cli,
 	/* In parameters */
 	r.in.server_name = server_name;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_NetrEnumerateTrustedDomains, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1012,10 +3322,6 @@ NTSTATUS rpccli_netr_NetrEnumerateTrustedDomains(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_NetrEnumerateTrustedDomains, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1031,6 +3337,127 @@ NTSTATUS rpccli_netr_NetrEnumerateTrustedDomains(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_netr_DsRGetDCName_state {
+	struct netr_DsRGetDCName orig;
+	struct netr_DsRGetDCName tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_DsRGetDCName_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_DsRGetDCName_send(TALLOC_CTX *mem_ctx,
+						 struct tevent_context *ev,
+						 struct rpc_pipe_client *cli,
+						 const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						 const char *_domain_name /* [in] [unique,charset(UTF16)] */,
+						 struct GUID *_domain_guid /* [in] [unique] */,
+						 struct GUID *_site_guid /* [in] [unique] */,
+						 uint32_t _flags /* [in]  */,
+						 struct netr_DsRGetDCNameInfo **_info /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_DsRGetDCName_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_DsRGetDCName_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.domain_name = _domain_name;
+	state->orig.in.domain_guid = _domain_guid;
+	state->orig.in.site_guid = _site_guid;
+	state->orig.in.flags = _flags;
+
+	/* Out parameters */
+	state->orig.out.info = _info;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_DsRGetDCName_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_DSRGETDCNAME,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_DsRGetDCName_done, req);
+	return req;
+}
+
+static void rpccli_netr_DsRGetDCName_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_DsRGetDCName_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsRGetDCName_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.info = *state->tmp.out.info;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_DsRGetDCName_recv(struct tevent_req *req,
+				       TALLOC_CTX *mem_ctx,
+				       WERROR *result)
+{
+	struct rpccli_netr_DsRGetDCName_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsRGetDCName_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_netr_DsRGetDCName(struct rpc_pipe_client *cli,
@@ -1053,10 +3480,6 @@ NTSTATUS rpccli_netr_DsRGetDCName(struct rpc_pipe_client *cli,
 	r.in.site_guid = site_guid;
 	r.in.flags = flags;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_DsRGetDCName, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1065,10 +3488,6 @@ NTSTATUS rpccli_netr_DsRGetDCName(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_DsRGetDCName, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1086,9 +3505,132 @@ NTSTATUS rpccli_netr_DsRGetDCName(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_netr_LogonGetCapabilities_state {
+	struct netr_LogonGetCapabilities orig;
+	struct netr_LogonGetCapabilities tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_LogonGetCapabilities_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_LogonGetCapabilities_send(TALLOC_CTX *mem_ctx,
+							 struct tevent_context *ev,
+							 struct rpc_pipe_client *cli,
+							 const char *_server_name /* [in] [ref,charset(UTF16)] */,
+							 const char *_computer_name /* [in] [unique,charset(UTF16)] */,
+							 struct netr_Authenticator *_credential /* [in] [ref] */,
+							 struct netr_Authenticator *_return_authenticator /* [in,out] [ref] */,
+							 uint32_t _query_level /* [in]  */,
+							 union netr_Capabilities *_capabilities /* [out] [ref,switch_is(query_level)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_LogonGetCapabilities_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_LogonGetCapabilities_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.computer_name = _computer_name;
+	state->orig.in.credential = _credential;
+	state->orig.in.return_authenticator = _return_authenticator;
+	state->orig.in.query_level = _query_level;
+
+	/* Out parameters */
+	state->orig.out.return_authenticator = _return_authenticator;
+	state->orig.out.capabilities = _capabilities;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_LogonGetCapabilities_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_LOGONGETCAPABILITIES,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_LogonGetCapabilities_done, req);
+	return req;
+}
+
+static void rpccli_netr_LogonGetCapabilities_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_LogonGetCapabilities_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonGetCapabilities_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.return_authenticator = *state->tmp.out.return_authenticator;
+	*state->orig.out.capabilities = *state->tmp.out.capabilities;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_LogonGetCapabilities_recv(struct tevent_req *req,
+					       TALLOC_CTX *mem_ctx,
+					       NTSTATUS *result)
+{
+	struct rpccli_netr_LogonGetCapabilities_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonGetCapabilities_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_LogonGetCapabilities(struct rpc_pipe_client *cli,
 					  TALLOC_CTX *mem_ctx,
-					  const char *server_name /* [in] [charset(UTF16)] */,
+					  const char *server_name /* [in] [ref,charset(UTF16)] */,
 					  const char *computer_name /* [in] [unique,charset(UTF16)] */,
 					  struct netr_Authenticator *credential /* [in] [ref] */,
 					  struct netr_Authenticator *return_authenticator /* [in,out] [ref] */,
@@ -1105,10 +3647,6 @@ NTSTATUS rpccli_netr_LogonGetCapabilities(struct rpc_pipe_client *cli,
 	r.in.return_authenticator = return_authenticator;
 	r.in.query_level = query_level;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_LogonGetCapabilities, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1117,10 +3655,6 @@ NTSTATUS rpccli_netr_LogonGetCapabilities(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_LogonGetCapabilities, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1135,6 +3669,108 @@ NTSTATUS rpccli_netr_LogonGetCapabilities(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
+struct rpccli_netr_NETRLOGONSETSERVICEBITS_state {
+	struct netr_NETRLOGONSETSERVICEBITS orig;
+	struct netr_NETRLOGONSETSERVICEBITS tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_NETRLOGONSETSERVICEBITS_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_NETRLOGONSETSERVICEBITS_send(TALLOC_CTX *mem_ctx,
+							    struct tevent_context *ev,
+							    struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_NETRLOGONSETSERVICEBITS_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_NETRLOGONSETSERVICEBITS_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_NETRLOGONSETSERVICEBITS,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_NETRLOGONSETSERVICEBITS_done, req);
+	return req;
+}
+
+static void rpccli_netr_NETRLOGONSETSERVICEBITS_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_NETRLOGONSETSERVICEBITS_state *state = tevent_req_data(
+		req, struct rpccli_netr_NETRLOGONSETSERVICEBITS_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_NETRLOGONSETSERVICEBITS_recv(struct tevent_req *req,
+						  TALLOC_CTX *mem_ctx,
+						  WERROR *result)
+{
+	struct rpccli_netr_NETRLOGONSETSERVICEBITS_state *state = tevent_req_data(
+		req, struct rpccli_netr_NETRLOGONSETSERVICEBITS_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_NETRLOGONSETSERVICEBITS(struct rpc_pipe_client *cli,
 					     TALLOC_CTX *mem_ctx,
 					     WERROR *werror)
@@ -1144,10 +3780,6 @@ NTSTATUS rpccli_netr_NETRLOGONSETSERVICEBITS(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_NETRLOGONSETSERVICEBITS, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1156,10 +3788,6 @@ NTSTATUS rpccli_netr_NETRLOGONSETSERVICEBITS(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_NETRLOGONSETSERVICEBITS, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1174,6 +3802,121 @@ NTSTATUS rpccli_netr_NETRLOGONSETSERVICEBITS(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_netr_LogonGetTrustRid_state {
+	struct netr_LogonGetTrustRid orig;
+	struct netr_LogonGetTrustRid tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_LogonGetTrustRid_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_LogonGetTrustRid_send(TALLOC_CTX *mem_ctx,
+						     struct tevent_context *ev,
+						     struct rpc_pipe_client *cli,
+						     const char *_server_name /* [in] [unique,charset(UTF16)] */,
+						     const char *_domain_name /* [in] [unique,charset(UTF16)] */,
+						     uint32_t *_rid /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_LogonGetTrustRid_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_LogonGetTrustRid_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.domain_name = _domain_name;
+
+	/* Out parameters */
+	state->orig.out.rid = _rid;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_LogonGetTrustRid_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_LOGONGETTRUSTRID,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_LogonGetTrustRid_done, req);
+	return req;
+}
+
+static void rpccli_netr_LogonGetTrustRid_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_LogonGetTrustRid_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonGetTrustRid_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.rid = *state->tmp.out.rid;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_LogonGetTrustRid_recv(struct tevent_req *req,
+					   TALLOC_CTX *mem_ctx,
+					   WERROR *result)
+{
+	struct rpccli_netr_LogonGetTrustRid_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonGetTrustRid_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_netr_LogonGetTrustRid(struct rpc_pipe_client *cli,
@@ -1190,10 +3933,6 @@ NTSTATUS rpccli_netr_LogonGetTrustRid(struct rpc_pipe_client *cli,
 	r.in.server_name = server_name;
 	r.in.domain_name = domain_name;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_LogonGetTrustRid, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1202,10 +3941,6 @@ NTSTATUS rpccli_netr_LogonGetTrustRid(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_LogonGetTrustRid, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1223,6 +3958,108 @@ NTSTATUS rpccli_netr_LogonGetTrustRid(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_netr_NETRLOGONCOMPUTESERVERDIGEST_state {
+	struct netr_NETRLOGONCOMPUTESERVERDIGEST orig;
+	struct netr_NETRLOGONCOMPUTESERVERDIGEST tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_NETRLOGONCOMPUTESERVERDIGEST_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_NETRLOGONCOMPUTESERVERDIGEST_send(TALLOC_CTX *mem_ctx,
+								 struct tevent_context *ev,
+								 struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_NETRLOGONCOMPUTESERVERDIGEST_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_NETRLOGONCOMPUTESERVERDIGEST_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_NETRLOGONCOMPUTESERVERDIGEST,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_NETRLOGONCOMPUTESERVERDIGEST_done, req);
+	return req;
+}
+
+static void rpccli_netr_NETRLOGONCOMPUTESERVERDIGEST_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_NETRLOGONCOMPUTESERVERDIGEST_state *state = tevent_req_data(
+		req, struct rpccli_netr_NETRLOGONCOMPUTESERVERDIGEST_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_NETRLOGONCOMPUTESERVERDIGEST_recv(struct tevent_req *req,
+						       TALLOC_CTX *mem_ctx,
+						       WERROR *result)
+{
+	struct rpccli_netr_NETRLOGONCOMPUTESERVERDIGEST_state *state = tevent_req_data(
+		req, struct rpccli_netr_NETRLOGONCOMPUTESERVERDIGEST_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_NETRLOGONCOMPUTESERVERDIGEST(struct rpc_pipe_client *cli,
 						  TALLOC_CTX *mem_ctx,
 						  WERROR *werror)
@@ -1231,10 +4068,6 @@ NTSTATUS rpccli_netr_NETRLOGONCOMPUTESERVERDIGEST(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 
 	/* In parameters */
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_NETRLOGONCOMPUTESERVERDIGEST, &r);
-	}
 
 	status = cli->dispatch(cli,
 				mem_ctx,
@@ -1246,10 +4079,6 @@ NTSTATUS rpccli_netr_NETRLOGONCOMPUTESERVERDIGEST(struct rpc_pipe_client *cli,
 		return status;
 	}
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_NETRLOGONCOMPUTESERVERDIGEST, &r);
-	}
-
 	if (NT_STATUS_IS_ERR(status)) {
 		return status;
 	}
@@ -1262,6 +4091,108 @@ NTSTATUS rpccli_netr_NETRLOGONCOMPUTESERVERDIGEST(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_netr_NETRLOGONCOMPUTECLIENTDIGEST_state {
+	struct netr_NETRLOGONCOMPUTECLIENTDIGEST orig;
+	struct netr_NETRLOGONCOMPUTECLIENTDIGEST tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_NETRLOGONCOMPUTECLIENTDIGEST_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_NETRLOGONCOMPUTECLIENTDIGEST_send(TALLOC_CTX *mem_ctx,
+								 struct tevent_context *ev,
+								 struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_NETRLOGONCOMPUTECLIENTDIGEST_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_NETRLOGONCOMPUTECLIENTDIGEST_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_NETRLOGONCOMPUTECLIENTDIGEST,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_NETRLOGONCOMPUTECLIENTDIGEST_done, req);
+	return req;
+}
+
+static void rpccli_netr_NETRLOGONCOMPUTECLIENTDIGEST_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_NETRLOGONCOMPUTECLIENTDIGEST_state *state = tevent_req_data(
+		req, struct rpccli_netr_NETRLOGONCOMPUTECLIENTDIGEST_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_NETRLOGONCOMPUTECLIENTDIGEST_recv(struct tevent_req *req,
+						       TALLOC_CTX *mem_ctx,
+						       WERROR *result)
+{
+	struct rpccli_netr_NETRLOGONCOMPUTECLIENTDIGEST_state *state = tevent_req_data(
+		req, struct rpccli_netr_NETRLOGONCOMPUTECLIENTDIGEST_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_netr_NETRLOGONCOMPUTECLIENTDIGEST(struct rpc_pipe_client *cli,
@@ -1273,10 +4204,6 @@ NTSTATUS rpccli_netr_NETRLOGONCOMPUTECLIENTDIGEST(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_NETRLOGONCOMPUTECLIENTDIGEST, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1285,10 +4212,6 @@ NTSTATUS rpccli_netr_NETRLOGONCOMPUTECLIENTDIGEST(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_NETRLOGONCOMPUTECLIENTDIGEST, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1305,12 +4228,140 @@ NTSTATUS rpccli_netr_NETRLOGONCOMPUTECLIENTDIGEST(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_netr_ServerAuthenticate3_state {
+	struct netr_ServerAuthenticate3 orig;
+	struct netr_ServerAuthenticate3 tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_ServerAuthenticate3_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_ServerAuthenticate3_send(TALLOC_CTX *mem_ctx,
+							struct tevent_context *ev,
+							struct rpc_pipe_client *cli,
+							const char *_server_name /* [in] [unique,charset(UTF16)] */,
+							const char *_account_name /* [in] [ref,charset(UTF16)] */,
+							enum netr_SchannelType _secure_channel_type /* [in]  */,
+							const char *_computer_name /* [in] [ref,charset(UTF16)] */,
+							struct netr_Credential *_credentials /* [in] [ref] */,
+							struct netr_Credential *_return_credentials /* [out] [ref] */,
+							uint32_t *_negotiate_flags /* [in,out] [ref] */,
+							uint32_t *_rid /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_ServerAuthenticate3_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_ServerAuthenticate3_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.account_name = _account_name;
+	state->orig.in.secure_channel_type = _secure_channel_type;
+	state->orig.in.computer_name = _computer_name;
+	state->orig.in.credentials = _credentials;
+	state->orig.in.negotiate_flags = _negotiate_flags;
+
+	/* Out parameters */
+	state->orig.out.return_credentials = _return_credentials;
+	state->orig.out.negotiate_flags = _negotiate_flags;
+	state->orig.out.rid = _rid;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_ServerAuthenticate3_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_SERVERAUTHENTICATE3,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_ServerAuthenticate3_done, req);
+	return req;
+}
+
+static void rpccli_netr_ServerAuthenticate3_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_ServerAuthenticate3_state *state = tevent_req_data(
+		req, struct rpccli_netr_ServerAuthenticate3_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.return_credentials = *state->tmp.out.return_credentials;
+	*state->orig.out.negotiate_flags = *state->tmp.out.negotiate_flags;
+	*state->orig.out.rid = *state->tmp.out.rid;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_ServerAuthenticate3_recv(struct tevent_req *req,
+					      TALLOC_CTX *mem_ctx,
+					      NTSTATUS *result)
+{
+	struct rpccli_netr_ServerAuthenticate3_state *state = tevent_req_data(
+		req, struct rpccli_netr_ServerAuthenticate3_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_ServerAuthenticate3(struct rpc_pipe_client *cli,
 					 TALLOC_CTX *mem_ctx,
 					 const char *server_name /* [in] [unique,charset(UTF16)] */,
-					 const char *account_name /* [in] [charset(UTF16)] */,
+					 const char *account_name /* [in] [ref,charset(UTF16)] */,
 					 enum netr_SchannelType secure_channel_type /* [in]  */,
-					 const char *computer_name /* [in] [charset(UTF16)] */,
+					 const char *computer_name /* [in] [ref,charset(UTF16)] */,
 					 struct netr_Credential *credentials /* [in] [ref] */,
 					 struct netr_Credential *return_credentials /* [out] [ref] */,
 					 uint32_t *negotiate_flags /* [in,out] [ref] */,
@@ -1327,10 +4378,6 @@ NTSTATUS rpccli_netr_ServerAuthenticate3(struct rpc_pipe_client *cli,
 	r.in.credentials = credentials;
 	r.in.negotiate_flags = negotiate_flags;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_ServerAuthenticate3, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1339,10 +4386,6 @@ NTSTATUS rpccli_netr_ServerAuthenticate3(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_ServerAuthenticate3, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1356,6 +4399,127 @@ NTSTATUS rpccli_netr_ServerAuthenticate3(struct rpc_pipe_client *cli,
 
 	/* Return result */
 	return r.out.result;
+}
+
+struct rpccli_netr_DsRGetDCNameEx_state {
+	struct netr_DsRGetDCNameEx orig;
+	struct netr_DsRGetDCNameEx tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_DsRGetDCNameEx_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_DsRGetDCNameEx_send(TALLOC_CTX *mem_ctx,
+						   struct tevent_context *ev,
+						   struct rpc_pipe_client *cli,
+						   const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						   const char *_domain_name /* [in] [unique,charset(UTF16)] */,
+						   struct GUID *_domain_guid /* [in] [unique] */,
+						   const char *_site_name /* [in] [unique,charset(UTF16)] */,
+						   uint32_t _flags /* [in]  */,
+						   struct netr_DsRGetDCNameInfo **_info /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_DsRGetDCNameEx_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_DsRGetDCNameEx_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.domain_name = _domain_name;
+	state->orig.in.domain_guid = _domain_guid;
+	state->orig.in.site_name = _site_name;
+	state->orig.in.flags = _flags;
+
+	/* Out parameters */
+	state->orig.out.info = _info;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_DsRGetDCNameEx_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_DSRGETDCNAMEEX,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_DsRGetDCNameEx_done, req);
+	return req;
+}
+
+static void rpccli_netr_DsRGetDCNameEx_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_DsRGetDCNameEx_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsRGetDCNameEx_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.info = *state->tmp.out.info;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_DsRGetDCNameEx_recv(struct tevent_req *req,
+					 TALLOC_CTX *mem_ctx,
+					 WERROR *result)
+{
+	struct rpccli_netr_DsRGetDCNameEx_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsRGetDCNameEx_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_netr_DsRGetDCNameEx(struct rpc_pipe_client *cli,
@@ -1378,10 +4542,6 @@ NTSTATUS rpccli_netr_DsRGetDCNameEx(struct rpc_pipe_client *cli,
 	r.in.site_name = site_name;
 	r.in.flags = flags;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_DsRGetDCNameEx, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1390,10 +4550,6 @@ NTSTATUS rpccli_netr_DsRGetDCNameEx(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_DsRGetDCNameEx, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1411,6 +4567,119 @@ NTSTATUS rpccli_netr_DsRGetDCNameEx(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_netr_DsRGetSiteName_state {
+	struct netr_DsRGetSiteName orig;
+	struct netr_DsRGetSiteName tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_DsRGetSiteName_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_DsRGetSiteName_send(TALLOC_CTX *mem_ctx,
+						   struct tevent_context *ev,
+						   struct rpc_pipe_client *cli,
+						   const char *_computer_name /* [in] [unique,charset(UTF16)] */,
+						   const char **_site /* [out] [ref,charset(UTF16)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_DsRGetSiteName_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_DsRGetSiteName_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.computer_name = _computer_name;
+
+	/* Out parameters */
+	state->orig.out.site = _site;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_DsRGetSiteName_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_DSRGETSITENAME,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_DsRGetSiteName_done, req);
+	return req;
+}
+
+static void rpccli_netr_DsRGetSiteName_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_DsRGetSiteName_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsRGetSiteName_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.site = *state->tmp.out.site;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_DsRGetSiteName_recv(struct tevent_req *req,
+					 TALLOC_CTX *mem_ctx,
+					 WERROR *result)
+{
+	struct rpccli_netr_DsRGetSiteName_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsRGetSiteName_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_DsRGetSiteName(struct rpc_pipe_client *cli,
 				    TALLOC_CTX *mem_ctx,
 				    const char *computer_name /* [in] [unique,charset(UTF16)] */,
@@ -1423,10 +4692,6 @@ NTSTATUS rpccli_netr_DsRGetSiteName(struct rpc_pipe_client *cli,
 	/* In parameters */
 	r.in.computer_name = computer_name;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_DsRGetSiteName, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1435,10 +4700,6 @@ NTSTATUS rpccli_netr_DsRGetSiteName(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_DsRGetSiteName, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1456,14 +4717,139 @@ NTSTATUS rpccli_netr_DsRGetSiteName(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_netr_LogonGetDomainInfo_state {
+	struct netr_LogonGetDomainInfo orig;
+	struct netr_LogonGetDomainInfo tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_LogonGetDomainInfo_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_LogonGetDomainInfo_send(TALLOC_CTX *mem_ctx,
+						       struct tevent_context *ev,
+						       struct rpc_pipe_client *cli,
+						       const char *_server_name /* [in] [ref,charset(UTF16)] */,
+						       const char *_computer_name /* [in] [unique,charset(UTF16)] */,
+						       struct netr_Authenticator *_credential /* [in] [ref] */,
+						       struct netr_Authenticator *_return_authenticator /* [in,out] [ref] */,
+						       uint32_t _level /* [in]  */,
+						       union netr_WorkstationInfo *_query /* [in] [ref,switch_is(level)] */,
+						       union netr_DomainInfo *_info /* [out] [ref,switch_is(level)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_LogonGetDomainInfo_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_LogonGetDomainInfo_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.computer_name = _computer_name;
+	state->orig.in.credential = _credential;
+	state->orig.in.return_authenticator = _return_authenticator;
+	state->orig.in.level = _level;
+	state->orig.in.query = _query;
+
+	/* Out parameters */
+	state->orig.out.return_authenticator = _return_authenticator;
+	state->orig.out.info = _info;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_LogonGetDomainInfo_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_LOGONGETDOMAININFO,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_LogonGetDomainInfo_done, req);
+	return req;
+}
+
+static void rpccli_netr_LogonGetDomainInfo_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_LogonGetDomainInfo_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonGetDomainInfo_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.return_authenticator = *state->tmp.out.return_authenticator;
+	*state->orig.out.info = *state->tmp.out.info;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_LogonGetDomainInfo_recv(struct tevent_req *req,
+					     TALLOC_CTX *mem_ctx,
+					     NTSTATUS *result)
+{
+	struct rpccli_netr_LogonGetDomainInfo_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonGetDomainInfo_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_LogonGetDomainInfo(struct rpc_pipe_client *cli,
 					TALLOC_CTX *mem_ctx,
-					const char *server_name /* [in] [charset(UTF16)] */,
+					const char *server_name /* [in] [ref,charset(UTF16)] */,
 					const char *computer_name /* [in] [unique,charset(UTF16)] */,
 					struct netr_Authenticator *credential /* [in] [ref] */,
 					struct netr_Authenticator *return_authenticator /* [in,out] [ref] */,
 					uint32_t level /* [in]  */,
-					union netr_DomainQuery query /* [in] [switch_is(level)] */,
+					union netr_WorkstationInfo *query /* [in] [ref,switch_is(level)] */,
 					union netr_DomainInfo *info /* [out] [ref,switch_is(level)] */)
 {
 	struct netr_LogonGetDomainInfo r;
@@ -1477,10 +4863,6 @@ NTSTATUS rpccli_netr_LogonGetDomainInfo(struct rpc_pipe_client *cli,
 	r.in.level = level;
 	r.in.query = query;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_LogonGetDomainInfo, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1489,10 +4871,6 @@ NTSTATUS rpccli_netr_LogonGetDomainInfo(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_LogonGetDomainInfo, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1507,12 +4885,135 @@ NTSTATUS rpccli_netr_LogonGetDomainInfo(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
+struct rpccli_netr_ServerPasswordSet2_state {
+	struct netr_ServerPasswordSet2 orig;
+	struct netr_ServerPasswordSet2 tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_ServerPasswordSet2_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_ServerPasswordSet2_send(TALLOC_CTX *mem_ctx,
+						       struct tevent_context *ev,
+						       struct rpc_pipe_client *cli,
+						       const char *_server_name /* [in] [unique,charset(UTF16)] */,
+						       const char *_account_name /* [in] [ref,charset(UTF16)] */,
+						       enum netr_SchannelType _secure_channel_type /* [in]  */,
+						       const char *_computer_name /* [in] [ref,charset(UTF16)] */,
+						       struct netr_Authenticator *_credential /* [in] [ref] */,
+						       struct netr_Authenticator *_return_authenticator /* [out] [ref] */,
+						       struct netr_CryptPassword *_new_password /* [in] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_ServerPasswordSet2_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_ServerPasswordSet2_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.account_name = _account_name;
+	state->orig.in.secure_channel_type = _secure_channel_type;
+	state->orig.in.computer_name = _computer_name;
+	state->orig.in.credential = _credential;
+	state->orig.in.new_password = _new_password;
+
+	/* Out parameters */
+	state->orig.out.return_authenticator = _return_authenticator;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_ServerPasswordSet2_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_SERVERPASSWORDSET2,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_ServerPasswordSet2_done, req);
+	return req;
+}
+
+static void rpccli_netr_ServerPasswordSet2_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_ServerPasswordSet2_state *state = tevent_req_data(
+		req, struct rpccli_netr_ServerPasswordSet2_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.return_authenticator = *state->tmp.out.return_authenticator;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_ServerPasswordSet2_recv(struct tevent_req *req,
+					     TALLOC_CTX *mem_ctx,
+					     NTSTATUS *result)
+{
+	struct rpccli_netr_ServerPasswordSet2_state *state = tevent_req_data(
+		req, struct rpccli_netr_ServerPasswordSet2_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_ServerPasswordSet2(struct rpc_pipe_client *cli,
 					TALLOC_CTX *mem_ctx,
 					const char *server_name /* [in] [unique,charset(UTF16)] */,
-					const char *account_name /* [in] [charset(UTF16)] */,
+					const char *account_name /* [in] [ref,charset(UTF16)] */,
 					enum netr_SchannelType secure_channel_type /* [in]  */,
-					const char *computer_name /* [in] [charset(UTF16)] */,
+					const char *computer_name /* [in] [ref,charset(UTF16)] */,
 					struct netr_Authenticator *credential /* [in] [ref] */,
 					struct netr_Authenticator *return_authenticator /* [out] [ref] */,
 					struct netr_CryptPassword *new_password /* [in] [ref] */)
@@ -1528,10 +5029,6 @@ NTSTATUS rpccli_netr_ServerPasswordSet2(struct rpc_pipe_client *cli,
 	r.in.credential = credential;
 	r.in.new_password = new_password;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_ServerPasswordSet2, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1540,10 +5037,6 @@ NTSTATUS rpccli_netr_ServerPasswordSet2(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_ServerPasswordSet2, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1557,12 +5050,136 @@ NTSTATUS rpccli_netr_ServerPasswordSet2(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
+struct rpccli_netr_ServerPasswordGet_state {
+	struct netr_ServerPasswordGet orig;
+	struct netr_ServerPasswordGet tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_ServerPasswordGet_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_ServerPasswordGet_send(TALLOC_CTX *mem_ctx,
+						      struct tevent_context *ev,
+						      struct rpc_pipe_client *cli,
+						      const char *_server_name /* [in] [unique,charset(UTF16)] */,
+						      const char *_account_name /* [in] [ref,charset(UTF16)] */,
+						      enum netr_SchannelType _secure_channel_type /* [in]  */,
+						      const char *_computer_name /* [in] [ref,charset(UTF16)] */,
+						      struct netr_Authenticator *_credential /* [in] [ref] */,
+						      struct netr_Authenticator *_return_authenticator /* [out] [ref] */,
+						      struct samr_Password *_password /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_ServerPasswordGet_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_ServerPasswordGet_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.account_name = _account_name;
+	state->orig.in.secure_channel_type = _secure_channel_type;
+	state->orig.in.computer_name = _computer_name;
+	state->orig.in.credential = _credential;
+
+	/* Out parameters */
+	state->orig.out.return_authenticator = _return_authenticator;
+	state->orig.out.password = _password;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_ServerPasswordGet_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_SERVERPASSWORDGET,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_ServerPasswordGet_done, req);
+	return req;
+}
+
+static void rpccli_netr_ServerPasswordGet_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_ServerPasswordGet_state *state = tevent_req_data(
+		req, struct rpccli_netr_ServerPasswordGet_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.return_authenticator = *state->tmp.out.return_authenticator;
+	*state->orig.out.password = *state->tmp.out.password;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_ServerPasswordGet_recv(struct tevent_req *req,
+					    TALLOC_CTX *mem_ctx,
+					    WERROR *result)
+{
+	struct rpccli_netr_ServerPasswordGet_state *state = tevent_req_data(
+		req, struct rpccli_netr_ServerPasswordGet_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_ServerPasswordGet(struct rpc_pipe_client *cli,
 				       TALLOC_CTX *mem_ctx,
 				       const char *server_name /* [in] [unique,charset(UTF16)] */,
-				       const char *account_name /* [in] [charset(UTF16)] */,
+				       const char *account_name /* [in] [ref,charset(UTF16)] */,
 				       enum netr_SchannelType secure_channel_type /* [in]  */,
-				       const char *computer_name /* [in] [charset(UTF16)] */,
+				       const char *computer_name /* [in] [ref,charset(UTF16)] */,
 				       struct netr_Authenticator *credential /* [in] [ref] */,
 				       struct netr_Authenticator *return_authenticator /* [out] [ref] */,
 				       struct samr_Password *password /* [out] [ref] */,
@@ -1578,10 +5195,6 @@ NTSTATUS rpccli_netr_ServerPasswordGet(struct rpc_pipe_client *cli,
 	r.in.computer_name = computer_name;
 	r.in.credential = credential;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_ServerPasswordGet, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1590,10 +5203,6 @@ NTSTATUS rpccli_netr_ServerPasswordGet(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_ServerPasswordGet, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1612,6 +5221,108 @@ NTSTATUS rpccli_netr_ServerPasswordGet(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_netr_NETRLOGONSENDTOSAM_state {
+	struct netr_NETRLOGONSENDTOSAM orig;
+	struct netr_NETRLOGONSENDTOSAM tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_NETRLOGONSENDTOSAM_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_NETRLOGONSENDTOSAM_send(TALLOC_CTX *mem_ctx,
+						       struct tevent_context *ev,
+						       struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_NETRLOGONSENDTOSAM_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_NETRLOGONSENDTOSAM_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_NETRLOGONSENDTOSAM,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_NETRLOGONSENDTOSAM_done, req);
+	return req;
+}
+
+static void rpccli_netr_NETRLOGONSENDTOSAM_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_NETRLOGONSENDTOSAM_state *state = tevent_req_data(
+		req, struct rpccli_netr_NETRLOGONSENDTOSAM_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_NETRLOGONSENDTOSAM_recv(struct tevent_req *req,
+					     TALLOC_CTX *mem_ctx,
+					     WERROR *result)
+{
+	struct rpccli_netr_NETRLOGONSENDTOSAM_state *state = tevent_req_data(
+		req, struct rpccli_netr_NETRLOGONSENDTOSAM_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_NETRLOGONSENDTOSAM(struct rpc_pipe_client *cli,
 					TALLOC_CTX *mem_ctx,
 					WERROR *werror)
@@ -1621,10 +5332,6 @@ NTSTATUS rpccli_netr_NETRLOGONSENDTOSAM(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_NETRLOGONSENDTOSAM, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1633,10 +5340,6 @@ NTSTATUS rpccli_netr_NETRLOGONSENDTOSAM(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_NETRLOGONSENDTOSAM, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1651,6 +5354,123 @@ NTSTATUS rpccli_netr_NETRLOGONSENDTOSAM(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_netr_DsRAddressToSitenamesW_state {
+	struct netr_DsRAddressToSitenamesW orig;
+	struct netr_DsRAddressToSitenamesW tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_DsRAddressToSitenamesW_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_DsRAddressToSitenamesW_send(TALLOC_CTX *mem_ctx,
+							   struct tevent_context *ev,
+							   struct rpc_pipe_client *cli,
+							   const char *_server_name /* [in] [unique,charset(UTF16)] */,
+							   uint32_t _count /* [in] [range(0,32000)] */,
+							   struct netr_DsRAddress *_addresses /* [in] [ref,size_is(count)] */,
+							   struct netr_DsRAddressToSitenamesWCtr **_ctr /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_DsRAddressToSitenamesW_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_DsRAddressToSitenamesW_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.count = _count;
+	state->orig.in.addresses = _addresses;
+
+	/* Out parameters */
+	state->orig.out.ctr = _ctr;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_DsRAddressToSitenamesW_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_DSRADDRESSTOSITENAMESW,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_DsRAddressToSitenamesW_done, req);
+	return req;
+}
+
+static void rpccli_netr_DsRAddressToSitenamesW_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_DsRAddressToSitenamesW_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsRAddressToSitenamesW_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.ctr = *state->tmp.out.ctr;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_DsRAddressToSitenamesW_recv(struct tevent_req *req,
+						 TALLOC_CTX *mem_ctx,
+						 WERROR *result)
+{
+	struct rpccli_netr_DsRAddressToSitenamesW_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsRAddressToSitenamesW_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_netr_DsRAddressToSitenamesW(struct rpc_pipe_client *cli,
@@ -1669,10 +5489,6 @@ NTSTATUS rpccli_netr_DsRAddressToSitenamesW(struct rpc_pipe_client *cli,
 	r.in.count = count;
 	r.in.addresses = addresses;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_DsRAddressToSitenamesW, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1681,10 +5497,6 @@ NTSTATUS rpccli_netr_DsRAddressToSitenamesW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_DsRAddressToSitenamesW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1700,6 +5512,131 @@ NTSTATUS rpccli_netr_DsRAddressToSitenamesW(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_netr_DsRGetDCNameEx2_state {
+	struct netr_DsRGetDCNameEx2 orig;
+	struct netr_DsRGetDCNameEx2 tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_DsRGetDCNameEx2_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_DsRGetDCNameEx2_send(TALLOC_CTX *mem_ctx,
+						    struct tevent_context *ev,
+						    struct rpc_pipe_client *cli,
+						    const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						    const char *_client_account /* [in] [unique,charset(UTF16)] */,
+						    uint32_t _mask /* [in]  */,
+						    const char *_domain_name /* [in] [unique,charset(UTF16)] */,
+						    struct GUID *_domain_guid /* [in] [unique] */,
+						    const char *_site_name /* [in] [unique,charset(UTF16)] */,
+						    uint32_t _flags /* [in]  */,
+						    struct netr_DsRGetDCNameInfo **_info /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_DsRGetDCNameEx2_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_DsRGetDCNameEx2_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.client_account = _client_account;
+	state->orig.in.mask = _mask;
+	state->orig.in.domain_name = _domain_name;
+	state->orig.in.domain_guid = _domain_guid;
+	state->orig.in.site_name = _site_name;
+	state->orig.in.flags = _flags;
+
+	/* Out parameters */
+	state->orig.out.info = _info;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_DsRGetDCNameEx2_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_DSRGETDCNAMEEX2,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_DsRGetDCNameEx2_done, req);
+	return req;
+}
+
+static void rpccli_netr_DsRGetDCNameEx2_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_DsRGetDCNameEx2_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsRGetDCNameEx2_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.info = *state->tmp.out.info;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_DsRGetDCNameEx2_recv(struct tevent_req *req,
+					  TALLOC_CTX *mem_ctx,
+					  WERROR *result)
+{
+	struct rpccli_netr_DsRGetDCNameEx2_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsRGetDCNameEx2_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_netr_DsRGetDCNameEx2(struct rpc_pipe_client *cli,
@@ -1726,10 +5663,6 @@ NTSTATUS rpccli_netr_DsRGetDCNameEx2(struct rpc_pipe_client *cli,
 	r.in.site_name = site_name;
 	r.in.flags = flags;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_DsRGetDCNameEx2, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1738,10 +5671,6 @@ NTSTATUS rpccli_netr_DsRGetDCNameEx2(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_DsRGetDCNameEx2, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1759,6 +5688,108 @@ NTSTATUS rpccli_netr_DsRGetDCNameEx2(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN_state {
+	struct netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN orig;
+	struct netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN_send(TALLOC_CTX *mem_ctx,
+									struct tevent_context *ev,
+									struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_NETRLOGONGETTIMESERVICEPARENTDOMAIN,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN_done, req);
+	return req;
+}
+
+static void rpccli_netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN_state *state = tevent_req_data(
+		req, struct rpccli_netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN_recv(struct tevent_req *req,
+							      TALLOC_CTX *mem_ctx,
+							      WERROR *result)
+{
+	struct rpccli_netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN_state *state = tevent_req_data(
+		req, struct rpccli_netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN(struct rpc_pipe_client *cli,
 							 TALLOC_CTX *mem_ctx,
 							 WERROR *werror)
@@ -1768,10 +5799,6 @@ NTSTATUS rpccli_netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN(struct rpc_pipe_client 
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1780,10 +5807,6 @@ NTSTATUS rpccli_netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN(struct rpc_pipe_client 
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1800,6 +5823,119 @@ NTSTATUS rpccli_netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN(struct rpc_pipe_client 
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_netr_NetrEnumerateTrustedDomainsEx_state {
+	struct netr_NetrEnumerateTrustedDomainsEx orig;
+	struct netr_NetrEnumerateTrustedDomainsEx tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_NetrEnumerateTrustedDomainsEx_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_NetrEnumerateTrustedDomainsEx_send(TALLOC_CTX *mem_ctx,
+								  struct tevent_context *ev,
+								  struct rpc_pipe_client *cli,
+								  const char *_server_name /* [in] [unique,charset(UTF16)] */,
+								  struct netr_DomainTrustList *_dom_trust_list /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_NetrEnumerateTrustedDomainsEx_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_NetrEnumerateTrustedDomainsEx_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+
+	/* Out parameters */
+	state->orig.out.dom_trust_list = _dom_trust_list;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_NetrEnumerateTrustedDomainsEx_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_NETRENUMERATETRUSTEDDOMAINSEX,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_NetrEnumerateTrustedDomainsEx_done, req);
+	return req;
+}
+
+static void rpccli_netr_NetrEnumerateTrustedDomainsEx_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_NetrEnumerateTrustedDomainsEx_state *state = tevent_req_data(
+		req, struct rpccli_netr_NetrEnumerateTrustedDomainsEx_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.dom_trust_list = *state->tmp.out.dom_trust_list;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_NetrEnumerateTrustedDomainsEx_recv(struct tevent_req *req,
+							TALLOC_CTX *mem_ctx,
+							WERROR *result)
+{
+	struct rpccli_netr_NetrEnumerateTrustedDomainsEx_state *state = tevent_req_data(
+		req, struct rpccli_netr_NetrEnumerateTrustedDomainsEx_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_NetrEnumerateTrustedDomainsEx(struct rpc_pipe_client *cli,
 						   TALLOC_CTX *mem_ctx,
 						   const char *server_name /* [in] [unique,charset(UTF16)] */,
@@ -1812,10 +5948,6 @@ NTSTATUS rpccli_netr_NetrEnumerateTrustedDomainsEx(struct rpc_pipe_client *cli,
 	/* In parameters */
 	r.in.server_name = server_name;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_NetrEnumerateTrustedDomainsEx, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1824,10 +5956,6 @@ NTSTATUS rpccli_netr_NetrEnumerateTrustedDomainsEx(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_NetrEnumerateTrustedDomainsEx, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1843,6 +5971,123 @@ NTSTATUS rpccli_netr_NetrEnumerateTrustedDomainsEx(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_netr_DsRAddressToSitenamesExW_state {
+	struct netr_DsRAddressToSitenamesExW orig;
+	struct netr_DsRAddressToSitenamesExW tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_DsRAddressToSitenamesExW_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_DsRAddressToSitenamesExW_send(TALLOC_CTX *mem_ctx,
+							     struct tevent_context *ev,
+							     struct rpc_pipe_client *cli,
+							     const char *_server_name /* [in] [unique,charset(UTF16)] */,
+							     uint32_t _count /* [in] [range(0,32000)] */,
+							     struct netr_DsRAddress *_addresses /* [in] [ref,size_is(count)] */,
+							     struct netr_DsRAddressToSitenamesExWCtr **_ctr /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_DsRAddressToSitenamesExW_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_DsRAddressToSitenamesExW_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.count = _count;
+	state->orig.in.addresses = _addresses;
+
+	/* Out parameters */
+	state->orig.out.ctr = _ctr;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_DsRAddressToSitenamesExW_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_DSRADDRESSTOSITENAMESEXW,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_DsRAddressToSitenamesExW_done, req);
+	return req;
+}
+
+static void rpccli_netr_DsRAddressToSitenamesExW_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_DsRAddressToSitenamesExW_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsRAddressToSitenamesExW_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.ctr = *state->tmp.out.ctr;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_DsRAddressToSitenamesExW_recv(struct tevent_req *req,
+						   TALLOC_CTX *mem_ctx,
+						   WERROR *result)
+{
+	struct rpccli_netr_DsRAddressToSitenamesExW_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsRAddressToSitenamesExW_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_netr_DsRAddressToSitenamesExW(struct rpc_pipe_client *cli,
@@ -1861,10 +6106,6 @@ NTSTATUS rpccli_netr_DsRAddressToSitenamesExW(struct rpc_pipe_client *cli,
 	r.in.count = count;
 	r.in.addresses = addresses;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_DsRAddressToSitenamesExW, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1873,10 +6114,6 @@ NTSTATUS rpccli_netr_DsRAddressToSitenamesExW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_DsRAddressToSitenamesExW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1894,6 +6131,119 @@ NTSTATUS rpccli_netr_DsRAddressToSitenamesExW(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_netr_DsrGetDcSiteCoverageW_state {
+	struct netr_DsrGetDcSiteCoverageW orig;
+	struct netr_DsrGetDcSiteCoverageW tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_DsrGetDcSiteCoverageW_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_DsrGetDcSiteCoverageW_send(TALLOC_CTX *mem_ctx,
+							  struct tevent_context *ev,
+							  struct rpc_pipe_client *cli,
+							  const char *_server_name /* [in] [unique,charset(UTF16)] */,
+							  struct DcSitesCtr **_ctr /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_DsrGetDcSiteCoverageW_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_DsrGetDcSiteCoverageW_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+
+	/* Out parameters */
+	state->orig.out.ctr = _ctr;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_DsrGetDcSiteCoverageW_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_DSRGETDCSITECOVERAGEW,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_DsrGetDcSiteCoverageW_done, req);
+	return req;
+}
+
+static void rpccli_netr_DsrGetDcSiteCoverageW_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_DsrGetDcSiteCoverageW_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsrGetDcSiteCoverageW_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.ctr = *state->tmp.out.ctr;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_DsrGetDcSiteCoverageW_recv(struct tevent_req *req,
+						TALLOC_CTX *mem_ctx,
+						WERROR *result)
+{
+	struct rpccli_netr_DsrGetDcSiteCoverageW_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsrGetDcSiteCoverageW_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_DsrGetDcSiteCoverageW(struct rpc_pipe_client *cli,
 					   TALLOC_CTX *mem_ctx,
 					   const char *server_name /* [in] [unique,charset(UTF16)] */,
@@ -1906,10 +6256,6 @@ NTSTATUS rpccli_netr_DsrGetDcSiteCoverageW(struct rpc_pipe_client *cli,
 	/* In parameters */
 	r.in.server_name = server_name;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_DsrGetDcSiteCoverageW, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1918,10 +6264,6 @@ NTSTATUS rpccli_netr_DsrGetDcSiteCoverageW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_DsrGetDcSiteCoverageW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1937,6 +6279,134 @@ NTSTATUS rpccli_netr_DsrGetDcSiteCoverageW(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_netr_LogonSamLogonEx_state {
+	struct netr_LogonSamLogonEx orig;
+	struct netr_LogonSamLogonEx tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_LogonSamLogonEx_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_LogonSamLogonEx_send(TALLOC_CTX *mem_ctx,
+						    struct tevent_context *ev,
+						    struct rpc_pipe_client *cli,
+						    const char *_server_name /* [in] [unique,charset(UTF16)] */,
+						    const char *_computer_name /* [in] [unique,charset(UTF16)] */,
+						    enum netr_LogonInfoClass _logon_level /* [in]  */,
+						    union netr_LogonLevel *_logon /* [in] [ref,switch_is(logon_level)] */,
+						    uint16_t _validation_level /* [in]  */,
+						    union netr_Validation *_validation /* [out] [ref,switch_is(validation_level)] */,
+						    uint8_t *_authoritative /* [out] [ref] */,
+						    uint32_t *_flags /* [in,out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_LogonSamLogonEx_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_LogonSamLogonEx_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.computer_name = _computer_name;
+	state->orig.in.logon_level = _logon_level;
+	state->orig.in.logon = _logon;
+	state->orig.in.validation_level = _validation_level;
+	state->orig.in.flags = _flags;
+
+	/* Out parameters */
+	state->orig.out.validation = _validation;
+	state->orig.out.authoritative = _authoritative;
+	state->orig.out.flags = _flags;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_LogonSamLogonEx_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_LOGONSAMLOGONEX,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_LogonSamLogonEx_done, req);
+	return req;
+}
+
+static void rpccli_netr_LogonSamLogonEx_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_LogonSamLogonEx_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonSamLogonEx_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.validation = *state->tmp.out.validation;
+	*state->orig.out.authoritative = *state->tmp.out.authoritative;
+	*state->orig.out.flags = *state->tmp.out.flags;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_LogonSamLogonEx_recv(struct tevent_req *req,
+					  TALLOC_CTX *mem_ctx,
+					  NTSTATUS *result)
+{
+	struct rpccli_netr_LogonSamLogonEx_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonSamLogonEx_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_netr_LogonSamLogonEx(struct rpc_pipe_client *cli,
@@ -1961,10 +6431,6 @@ NTSTATUS rpccli_netr_LogonSamLogonEx(struct rpc_pipe_client *cli,
 	r.in.validation_level = validation_level;
 	r.in.flags = flags;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_LogonSamLogonEx, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -1973,10 +6439,6 @@ NTSTATUS rpccli_netr_LogonSamLogonEx(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_LogonSamLogonEx, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1990,6 +6452,121 @@ NTSTATUS rpccli_netr_LogonSamLogonEx(struct rpc_pipe_client *cli,
 
 	/* Return result */
 	return r.out.result;
+}
+
+struct rpccli_netr_DsrEnumerateDomainTrusts_state {
+	struct netr_DsrEnumerateDomainTrusts orig;
+	struct netr_DsrEnumerateDomainTrusts tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_DsrEnumerateDomainTrusts_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_DsrEnumerateDomainTrusts_send(TALLOC_CTX *mem_ctx,
+							     struct tevent_context *ev,
+							     struct rpc_pipe_client *cli,
+							     const char *_server_name /* [in] [unique,charset(UTF16)] */,
+							     uint32_t _trust_flags /* [in]  */,
+							     struct netr_DomainTrustList *_trusts /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_DsrEnumerateDomainTrusts_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_DsrEnumerateDomainTrusts_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.trust_flags = _trust_flags;
+
+	/* Out parameters */
+	state->orig.out.trusts = _trusts;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_DsrEnumerateDomainTrusts_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_DSRENUMERATEDOMAINTRUSTS,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_DsrEnumerateDomainTrusts_done, req);
+	return req;
+}
+
+static void rpccli_netr_DsrEnumerateDomainTrusts_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_DsrEnumerateDomainTrusts_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsrEnumerateDomainTrusts_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.trusts = *state->tmp.out.trusts;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_DsrEnumerateDomainTrusts_recv(struct tevent_req *req,
+						   TALLOC_CTX *mem_ctx,
+						   WERROR *result)
+{
+	struct rpccli_netr_DsrEnumerateDomainTrusts_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsrEnumerateDomainTrusts_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_netr_DsrEnumerateDomainTrusts(struct rpc_pipe_client *cli,
@@ -2006,10 +6583,6 @@ NTSTATUS rpccli_netr_DsrEnumerateDomainTrusts(struct rpc_pipe_client *cli,
 	r.in.server_name = server_name;
 	r.in.trust_flags = trust_flags;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_DsrEnumerateDomainTrusts, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -2018,10 +6591,6 @@ NTSTATUS rpccli_netr_DsrEnumerateDomainTrusts(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_DsrEnumerateDomainTrusts, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2037,6 +6606,118 @@ NTSTATUS rpccli_netr_DsrEnumerateDomainTrusts(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_netr_DsrDeregisterDNSHostRecords_state {
+	struct netr_DsrDeregisterDNSHostRecords orig;
+	struct netr_DsrDeregisterDNSHostRecords tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_DsrDeregisterDNSHostRecords_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_DsrDeregisterDNSHostRecords_send(TALLOC_CTX *mem_ctx,
+								struct tevent_context *ev,
+								struct rpc_pipe_client *cli,
+								const char *_server_name /* [in] [unique,charset(UTF16)] */,
+								const char *_domain /* [in] [unique,charset(UTF16)] */,
+								struct GUID *_domain_guid /* [in] [unique] */,
+								struct GUID *_dsa_guid /* [in] [unique] */,
+								const char *_dns_host /* [in] [ref,charset(UTF16)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_DsrDeregisterDNSHostRecords_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_DsrDeregisterDNSHostRecords_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.domain = _domain;
+	state->orig.in.domain_guid = _domain_guid;
+	state->orig.in.dsa_guid = _dsa_guid;
+	state->orig.in.dns_host = _dns_host;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_DSRDEREGISTERDNSHOSTRECORDS,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_DsrDeregisterDNSHostRecords_done, req);
+	return req;
+}
+
+static void rpccli_netr_DsrDeregisterDNSHostRecords_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_DsrDeregisterDNSHostRecords_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsrDeregisterDNSHostRecords_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_DsrDeregisterDNSHostRecords_recv(struct tevent_req *req,
+						      TALLOC_CTX *mem_ctx,
+						      WERROR *result)
+{
+	struct rpccli_netr_DsrDeregisterDNSHostRecords_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsrDeregisterDNSHostRecords_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_netr_DsrDeregisterDNSHostRecords(struct rpc_pipe_client *cli,
@@ -2058,10 +6739,6 @@ NTSTATUS rpccli_netr_DsrDeregisterDNSHostRecords(struct rpc_pipe_client *cli,
 	r.in.dsa_guid = dsa_guid;
 	r.in.dns_host = dns_host;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_DsrDeregisterDNSHostRecords, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -2070,10 +6747,6 @@ NTSTATUS rpccli_netr_DsrDeregisterDNSHostRecords(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_DsrDeregisterDNSHostRecords, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2090,12 +6763,139 @@ NTSTATUS rpccli_netr_DsrDeregisterDNSHostRecords(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_netr_ServerTrustPasswordsGet_state {
+	struct netr_ServerTrustPasswordsGet orig;
+	struct netr_ServerTrustPasswordsGet tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_ServerTrustPasswordsGet_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_ServerTrustPasswordsGet_send(TALLOC_CTX *mem_ctx,
+							    struct tevent_context *ev,
+							    struct rpc_pipe_client *cli,
+							    const char *_server_name /* [in] [unique,charset(UTF16)] */,
+							    const char *_account_name /* [in] [ref,charset(UTF16)] */,
+							    enum netr_SchannelType _secure_channel_type /* [in]  */,
+							    const char *_computer_name /* [in] [ref,charset(UTF16)] */,
+							    struct netr_Authenticator *_credential /* [in] [ref] */,
+							    struct netr_Authenticator *_return_authenticator /* [out] [ref] */,
+							    struct samr_Password *_password /* [out] [ref] */,
+							    struct samr_Password *_password2 /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_ServerTrustPasswordsGet_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_ServerTrustPasswordsGet_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.account_name = _account_name;
+	state->orig.in.secure_channel_type = _secure_channel_type;
+	state->orig.in.computer_name = _computer_name;
+	state->orig.in.credential = _credential;
+
+	/* Out parameters */
+	state->orig.out.return_authenticator = _return_authenticator;
+	state->orig.out.password = _password;
+	state->orig.out.password2 = _password2;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_ServerTrustPasswordsGet_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_SERVERTRUSTPASSWORDSGET,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_ServerTrustPasswordsGet_done, req);
+	return req;
+}
+
+static void rpccli_netr_ServerTrustPasswordsGet_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_ServerTrustPasswordsGet_state *state = tevent_req_data(
+		req, struct rpccli_netr_ServerTrustPasswordsGet_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.return_authenticator = *state->tmp.out.return_authenticator;
+	*state->orig.out.password = *state->tmp.out.password;
+	*state->orig.out.password2 = *state->tmp.out.password2;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_ServerTrustPasswordsGet_recv(struct tevent_req *req,
+						  TALLOC_CTX *mem_ctx,
+						  NTSTATUS *result)
+{
+	struct rpccli_netr_ServerTrustPasswordsGet_state *state = tevent_req_data(
+		req, struct rpccli_netr_ServerTrustPasswordsGet_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_netr_ServerTrustPasswordsGet(struct rpc_pipe_client *cli,
 					     TALLOC_CTX *mem_ctx,
 					     const char *server_name /* [in] [unique,charset(UTF16)] */,
-					     const char *account_name /* [in] [charset(UTF16)] */,
+					     const char *account_name /* [in] [ref,charset(UTF16)] */,
 					     enum netr_SchannelType secure_channel_type /* [in]  */,
-					     const char *computer_name /* [in] [charset(UTF16)] */,
+					     const char *computer_name /* [in] [ref,charset(UTF16)] */,
 					     struct netr_Authenticator *credential /* [in] [ref] */,
 					     struct netr_Authenticator *return_authenticator /* [out] [ref] */,
 					     struct samr_Password *password /* [out] [ref] */,
@@ -2111,10 +6911,6 @@ NTSTATUS rpccli_netr_ServerTrustPasswordsGet(struct rpc_pipe_client *cli,
 	r.in.computer_name = computer_name;
 	r.in.credential = credential;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_ServerTrustPasswordsGet, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -2123,10 +6919,6 @@ NTSTATUS rpccli_netr_ServerTrustPasswordsGet(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_ServerTrustPasswordsGet, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2140,6 +6932,123 @@ NTSTATUS rpccli_netr_ServerTrustPasswordsGet(struct rpc_pipe_client *cli,
 
 	/* Return result */
 	return r.out.result;
+}
+
+struct rpccli_netr_DsRGetForestTrustInformation_state {
+	struct netr_DsRGetForestTrustInformation orig;
+	struct netr_DsRGetForestTrustInformation tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_DsRGetForestTrustInformation_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_DsRGetForestTrustInformation_send(TALLOC_CTX *mem_ctx,
+								 struct tevent_context *ev,
+								 struct rpc_pipe_client *cli,
+								 const char *_server_name /* [in] [unique,charset(UTF16)] */,
+								 const char *_trusted_domain_name /* [in] [unique,charset(UTF16)] */,
+								 uint32_t _flags /* [in]  */,
+								 struct lsa_ForestTrustInformation **_forest_trust_info /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_DsRGetForestTrustInformation_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_DsRGetForestTrustInformation_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.trusted_domain_name = _trusted_domain_name;
+	state->orig.in.flags = _flags;
+
+	/* Out parameters */
+	state->orig.out.forest_trust_info = _forest_trust_info;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_DsRGetForestTrustInformation_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_DSRGETFORESTTRUSTINFORMATION,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_DsRGetForestTrustInformation_done, req);
+	return req;
+}
+
+static void rpccli_netr_DsRGetForestTrustInformation_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_DsRGetForestTrustInformation_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsRGetForestTrustInformation_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.forest_trust_info = *state->tmp.out.forest_trust_info;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_DsRGetForestTrustInformation_recv(struct tevent_req *req,
+						       TALLOC_CTX *mem_ctx,
+						       WERROR *result)
+{
+	struct rpccli_netr_DsRGetForestTrustInformation_state *state = tevent_req_data(
+		req, struct rpccli_netr_DsRGetForestTrustInformation_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_netr_DsRGetForestTrustInformation(struct rpc_pipe_client *cli,
@@ -2158,10 +7067,6 @@ NTSTATUS rpccli_netr_DsRGetForestTrustInformation(struct rpc_pipe_client *cli,
 	r.in.trusted_domain_name = trusted_domain_name;
 	r.in.flags = flags;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_DsRGetForestTrustInformation, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -2170,10 +7075,6 @@ NTSTATUS rpccli_netr_DsRGetForestTrustInformation(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_DsRGetForestTrustInformation, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2189,6 +7090,128 @@ NTSTATUS rpccli_netr_DsRGetForestTrustInformation(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_netr_GetForestTrustInformation_state {
+	struct netr_GetForestTrustInformation orig;
+	struct netr_GetForestTrustInformation tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_GetForestTrustInformation_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_GetForestTrustInformation_send(TALLOC_CTX *mem_ctx,
+							      struct tevent_context *ev,
+							      struct rpc_pipe_client *cli,
+							      const char *_server_name /* [in] [unique,charset(UTF16)] */,
+							      const char *_trusted_domain_name /* [in] [ref,charset(UTF16)] */,
+							      struct netr_Authenticator *_credential /* [in] [ref] */,
+							      struct netr_Authenticator *_return_authenticator /* [out] [ref] */,
+							      uint32_t _flags /* [in]  */,
+							      struct lsa_ForestTrustInformation **_forest_trust_info /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_GetForestTrustInformation_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_GetForestTrustInformation_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.trusted_domain_name = _trusted_domain_name;
+	state->orig.in.credential = _credential;
+	state->orig.in.flags = _flags;
+
+	/* Out parameters */
+	state->orig.out.return_authenticator = _return_authenticator;
+	state->orig.out.forest_trust_info = _forest_trust_info;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_GetForestTrustInformation_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_GETFORESTTRUSTINFORMATION,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_GetForestTrustInformation_done, req);
+	return req;
+}
+
+static void rpccli_netr_GetForestTrustInformation_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_GetForestTrustInformation_state *state = tevent_req_data(
+		req, struct rpccli_netr_GetForestTrustInformation_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.return_authenticator = *state->tmp.out.return_authenticator;
+	*state->orig.out.forest_trust_info = *state->tmp.out.forest_trust_info;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_GetForestTrustInformation_recv(struct tevent_req *req,
+						    TALLOC_CTX *mem_ctx,
+						    WERROR *result)
+{
+	struct rpccli_netr_GetForestTrustInformation_state *state = tevent_req_data(
+		req, struct rpccli_netr_GetForestTrustInformation_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_netr_GetForestTrustInformation(struct rpc_pipe_client *cli,
@@ -2210,10 +7233,6 @@ NTSTATUS rpccli_netr_GetForestTrustInformation(struct rpc_pipe_client *cli,
 	r.in.credential = credential;
 	r.in.flags = flags;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_GetForestTrustInformation, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -2222,10 +7241,6 @@ NTSTATUS rpccli_netr_GetForestTrustInformation(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_GetForestTrustInformation, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2242,6 +7257,142 @@ NTSTATUS rpccli_netr_GetForestTrustInformation(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_netr_LogonSamLogonWithFlags_state {
+	struct netr_LogonSamLogonWithFlags orig;
+	struct netr_LogonSamLogonWithFlags tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_LogonSamLogonWithFlags_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_LogonSamLogonWithFlags_send(TALLOC_CTX *mem_ctx,
+							   struct tevent_context *ev,
+							   struct rpc_pipe_client *cli,
+							   const char *_server_name /* [in] [unique,charset(UTF16)] */,
+							   const char *_computer_name /* [in] [unique,charset(UTF16)] */,
+							   struct netr_Authenticator *_credential /* [in] [unique] */,
+							   struct netr_Authenticator *_return_authenticator /* [in,out] [unique] */,
+							   enum netr_LogonInfoClass _logon_level /* [in]  */,
+							   union netr_LogonLevel *_logon /* [in] [ref,switch_is(logon_level)] */,
+							   uint16_t _validation_level /* [in]  */,
+							   union netr_Validation *_validation /* [out] [ref,switch_is(validation_level)] */,
+							   uint8_t *_authoritative /* [out] [ref] */,
+							   uint32_t *_flags /* [in,out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_LogonSamLogonWithFlags_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_LogonSamLogonWithFlags_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.computer_name = _computer_name;
+	state->orig.in.credential = _credential;
+	state->orig.in.return_authenticator = _return_authenticator;
+	state->orig.in.logon_level = _logon_level;
+	state->orig.in.logon = _logon;
+	state->orig.in.validation_level = _validation_level;
+	state->orig.in.flags = _flags;
+
+	/* Out parameters */
+	state->orig.out.return_authenticator = _return_authenticator;
+	state->orig.out.validation = _validation;
+	state->orig.out.authoritative = _authoritative;
+	state->orig.out.flags = _flags;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_LogonSamLogonWithFlags_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_LOGONSAMLOGONWITHFLAGS,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_LogonSamLogonWithFlags_done, req);
+	return req;
+}
+
+static void rpccli_netr_LogonSamLogonWithFlags_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_LogonSamLogonWithFlags_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonSamLogonWithFlags_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	if (state->orig.out.return_authenticator && state->tmp.out.return_authenticator) {
+		*state->orig.out.return_authenticator = *state->tmp.out.return_authenticator;
+	}
+	*state->orig.out.validation = *state->tmp.out.validation;
+	*state->orig.out.authoritative = *state->tmp.out.authoritative;
+	*state->orig.out.flags = *state->tmp.out.flags;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_LogonSamLogonWithFlags_recv(struct tevent_req *req,
+						 TALLOC_CTX *mem_ctx,
+						 NTSTATUS *result)
+{
+	struct rpccli_netr_LogonSamLogonWithFlags_state *state = tevent_req_data(
+		req, struct rpccli_netr_LogonSamLogonWithFlags_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_netr_LogonSamLogonWithFlags(struct rpc_pipe_client *cli,
@@ -2270,10 +7421,6 @@ NTSTATUS rpccli_netr_LogonSamLogonWithFlags(struct rpc_pipe_client *cli,
 	r.in.validation_level = validation_level;
 	r.in.flags = flags;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_LogonSamLogonWithFlags, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -2282,10 +7429,6 @@ NTSTATUS rpccli_netr_LogonSamLogonWithFlags(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_LogonSamLogonWithFlags, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2302,6 +7445,136 @@ NTSTATUS rpccli_netr_LogonSamLogonWithFlags(struct rpc_pipe_client *cli,
 
 	/* Return result */
 	return r.out.result;
+}
+
+struct rpccli_netr_ServerGetTrustInfo_state {
+	struct netr_ServerGetTrustInfo orig;
+	struct netr_ServerGetTrustInfo tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_netr_ServerGetTrustInfo_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_netr_ServerGetTrustInfo_send(TALLOC_CTX *mem_ctx,
+						       struct tevent_context *ev,
+						       struct rpc_pipe_client *cli,
+						       const char *_server_name /* [in] [unique,charset(UTF16)] */,
+						       const char *_account_name /* [in] [ref,charset(UTF16)] */,
+						       enum netr_SchannelType _secure_channel_type /* [in]  */,
+						       const char *_computer_name /* [in] [ref,charset(UTF16)] */,
+						       struct netr_Authenticator *_credential /* [in] [ref] */,
+						       struct netr_Authenticator *_return_authenticator /* [out] [ref] */,
+						       struct samr_Password *_new_owf_password /* [out] [ref] */,
+						       struct samr_Password *_old_owf_password /* [out] [ref] */,
+						       struct netr_TrustInfo **_trust_info /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_netr_ServerGetTrustInfo_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_netr_ServerGetTrustInfo_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_name = _server_name;
+	state->orig.in.account_name = _account_name;
+	state->orig.in.secure_channel_type = _secure_channel_type;
+	state->orig.in.computer_name = _computer_name;
+	state->orig.in.credential = _credential;
+
+	/* Out parameters */
+	state->orig.out.return_authenticator = _return_authenticator;
+	state->orig.out.new_owf_password = _new_owf_password;
+	state->orig.out.old_owf_password = _old_owf_password;
+	state->orig.out.trust_info = _trust_info;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_netr_ServerGetTrustInfo_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_netlogon,
+				    NDR_NETR_SERVERGETTRUSTINFO,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_netr_ServerGetTrustInfo_done, req);
+	return req;
+}
+
+static void rpccli_netr_ServerGetTrustInfo_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_netr_ServerGetTrustInfo_state *state = tevent_req_data(
+		req, struct rpccli_netr_ServerGetTrustInfo_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.return_authenticator = *state->tmp.out.return_authenticator;
+	*state->orig.out.new_owf_password = *state->tmp.out.new_owf_password;
+	*state->orig.out.old_owf_password = *state->tmp.out.old_owf_password;
+	*state->orig.out.trust_info = *state->tmp.out.trust_info;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_netr_ServerGetTrustInfo_recv(struct tevent_req *req,
+					     TALLOC_CTX *mem_ctx,
+					     NTSTATUS *result)
+{
+	struct rpccli_netr_ServerGetTrustInfo_state *state = tevent_req_data(
+		req, struct rpccli_netr_ServerGetTrustInfo_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_netr_ServerGetTrustInfo(struct rpc_pipe_client *cli,
@@ -2326,10 +7599,6 @@ NTSTATUS rpccli_netr_ServerGetTrustInfo(struct rpc_pipe_client *cli,
 	r.in.computer_name = computer_name;
 	r.in.credential = credential;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(netr_ServerGetTrustInfo, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_netlogon,
@@ -2338,10 +7607,6 @@ NTSTATUS rpccli_netr_ServerGetTrustInfo(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(netr_ServerGetTrustInfo, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {

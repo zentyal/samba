@@ -5,17 +5,17 @@
 
    Copyright (C) Andrew Tridgell 2002
    Copyright (C) Volker Lendecke 2004,2005
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -29,6 +29,7 @@
 
 #include "includes.h"
 #include "winbindd.h"
+#include "../../nsswitch/libwbclient/wbc_async.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
@@ -38,305 +39,335 @@ extern struct winbindd_methods cache_methods;
 
 /* Read some data from a client connection */
 
-static void child_read_request(struct winbindd_cli_state *state)
+static NTSTATUS child_read_request(struct winbindd_cli_state *state)
 {
 	NTSTATUS status;
 
 	/* Read data */
 
-	status = read_data(state->sock, (char *)&state->request,
-			   sizeof(state->request));
+	status = read_data(state->sock, (char *)state->request,
+			   sizeof(*state->request));
 
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(3, ("child_read_request: read_data failed: %s\n",
 			  nt_errstr(status)));
-		state->finished = True;
-		return;
+		return status;
 	}
 
-	if (state->request.extra_len == 0) {
-		state->request.extra_data.data = NULL;
-		return;
+	if (state->request->extra_len == 0) {
+		state->request->extra_data.data = NULL;
+		return NT_STATUS_OK;
 	}
 
-	DEBUG(10, ("Need to read %d extra bytes\n", (int)state->request.extra_len));
+	DEBUG(10, ("Need to read %d extra bytes\n", (int)state->request->extra_len));
 
-	state->request.extra_data.data =
-		SMB_MALLOC_ARRAY(char, state->request.extra_len + 1);
+	state->request->extra_data.data =
+		SMB_MALLOC_ARRAY(char, state->request->extra_len + 1);
 
-	if (state->request.extra_data.data == NULL) {
+	if (state->request->extra_data.data == NULL) {
 		DEBUG(0, ("malloc failed\n"));
-		state->finished = True;
-		return;
+		return NT_STATUS_NO_MEMORY;
 	}
 
 	/* Ensure null termination */
-	state->request.extra_data.data[state->request.extra_len] = '\0';
+	state->request->extra_data.data[state->request->extra_len] = '\0';
 
-	status= read_data(state->sock, state->request.extra_data.data,
-			  state->request.extra_len);
+	status= read_data(state->sock, state->request->extra_data.data,
+			  state->request->extra_len);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("Could not read extra data: %s\n",
 			  nt_errstr(status)));
-		state->finished = True;
-		return;
 	}
+	return status;
 }
 
 /*
- * Machinery for async requests sent to children. You set up a
- * winbindd_request, select a child to query, and issue a async_request
- * call. When the request is completed, the callback function you specified is
- * called back with the private pointer you gave to async_request.
+ * Do winbind child async request. This is not simply wb_simple_trans. We have
+ * to do the queueing ourselves because while a request is queued, the child
+ * might have crashed, and we have to re-fork it in the _trigger function.
  */
 
-struct winbindd_async_request {
-	struct winbindd_async_request *next, *prev;
-	TALLOC_CTX *mem_ctx;
+struct wb_child_request_state {
+	struct tevent_context *ev;
 	struct winbindd_child *child;
 	struct winbindd_request *request;
 	struct winbindd_response *response;
-	void (*continuation)(void *private_data, bool success);
-	struct timed_event *reply_timeout_event;
-	pid_t child_pid; /* pid of the child we're waiting on. Used to detect
-			    a restart of the child (child->pid != child_pid). */
-	void *private_data;
 };
-
-static void async_request_fail(struct winbindd_async_request *state);
-static void async_main_request_sent(void *private_data, bool success);
-static void async_request_sent(void *private_data, bool success);
-static void async_reply_recv(void *private_data, bool success);
-static void schedule_async_request(struct winbindd_child *child);
-
-void async_request(TALLOC_CTX *mem_ctx, struct winbindd_child *child,
-		   struct winbindd_request *request,
-		   struct winbindd_response *response,
-		   void (*continuation)(void *private_data, bool success),
-		   void *private_data)
-{
-	struct winbindd_async_request *state;
-
-	SMB_ASSERT(continuation != NULL);
-
-	DEBUG(10, ("Sending request to child pid %d (domain=%s)\n",
-		   (int)child->pid,
-		   (child->domain != NULL) ? child->domain->name : "''"));
-
-	state = TALLOC_P(mem_ctx, struct winbindd_async_request);
-
-	if (state == NULL) {
-		DEBUG(0, ("talloc failed\n"));
-		continuation(private_data, False);
-		return;
-	}
-
-	state->mem_ctx = mem_ctx;
-	state->child = child;
-	state->reply_timeout_event = NULL;
-	state->request = request;
-	state->response = response;
-	state->continuation = continuation;
-	state->private_data = private_data;
-
-	DLIST_ADD_END(child->requests, state, struct winbindd_async_request *);
-
-	schedule_async_request(child);
-
-	return;
-}
-
-static void async_main_request_sent(void *private_data, bool success)
-{
-	struct winbindd_async_request *state =
-		talloc_get_type_abort(private_data, struct winbindd_async_request);
-
-	if (!success) {
-		DEBUG(5, ("Could not send async request\n"));
-		async_request_fail(state);
-		return;
-	}
-
-	if (state->request->extra_len == 0) {
-		async_request_sent(private_data, True);
-		return;
-	}
-
-	setup_async_write(&state->child->event, state->request->extra_data.data,
-			  state->request->extra_len,
-			  async_request_sent, state);
-}
-
-/****************************************************************
- Handler triggered if the child winbindd doesn't respond within
- a given timeout.
-****************************************************************/
-
-static void async_request_timeout_handler(struct event_context *ctx,
-					struct timed_event *te,
-					struct timeval now,
-					void *private_data)
-{
-	struct winbindd_async_request *state =
-		talloc_get_type_abort(private_data, struct winbindd_async_request);
-
-	DEBUG(0,("async_request_timeout_handler: child pid %u is not responding. "
-		"Closing connection to it.\n",
-		(unsigned int)state->child_pid ));
-
-	/* Deal with the reply - set to error. */
-	async_reply_recv(private_data, False);
-}
-
-/**************************************************************
- Common function called on both async send and recv fail.
- Cleans up the child and schedules the next request.
-**************************************************************/
-
-static void async_request_fail(struct winbindd_async_request *state)
-{
-	DLIST_REMOVE(state->child->requests, state);
-
-	TALLOC_FREE(state->reply_timeout_event);
-
-	/* If child exists and is not already reaped,
-	   send kill signal to child. */
-
-	if ((state->child->pid != (pid_t)0) &&
-			(state->child->pid != (pid_t)-1) &&
-			(state->child->pid == state->child_pid)) {
-		kill(state->child_pid, SIGTERM);
-
-		/* 
-		 * Close the socket to the child.
-		 */
-		winbind_child_died(state->child_pid);
-	}
-
-	state->response->length = sizeof(struct winbindd_response);
-	state->response->result = WINBINDD_ERROR;
-	state->continuation(state->private_data, False);
-}
-
-static void async_request_sent(void *private_data_data, bool success)
-{
-	struct winbindd_async_request *state =
-		talloc_get_type_abort(private_data_data, struct winbindd_async_request);
-
-	if (!success) {
-		DEBUG(5, ("Could not send async request to child pid %u\n",
-			(unsigned int)state->child_pid ));
-		async_request_fail(state);
-		return;
-	}
-
-	/* Request successfully sent to the child, setup the wait for reply */
-
-	setup_async_read(&state->child->event,
-			 &state->response->result,
-			 sizeof(state->response->result),
-			 async_reply_recv, state);
-
-	/* 
-	 * Set up a timeout of 300 seconds for the response.
-	 * If we don't get it close the child socket and
-	 * report failure.
-	 */
-
-	state->reply_timeout_event = event_add_timed(winbind_event_context(),
-							NULL,
-							timeval_current_ofs(300,0),
-							async_request_timeout_handler,
-							state);
-	if (!state->reply_timeout_event) {
-		smb_panic("async_request_sent: failed to add timeout handler.\n");
-	}
-}
-
-static void async_reply_recv(void *private_data, bool success)
-{
-	struct winbindd_async_request *state =
-		talloc_get_type_abort(private_data, struct winbindd_async_request);
-	struct winbindd_child *child = state->child;
-
-	TALLOC_FREE(state->reply_timeout_event);
-
-	state->response->length = sizeof(struct winbindd_response);
-
-	if (!success) {
-		DEBUG(5, ("Could not receive async reply from child pid %u\n",
-			(unsigned int)state->child_pid ));
-
-		cache_cleanup_response(state->child_pid);
-		async_request_fail(state);
-		return;
-	}
-
-	SMB_ASSERT(cache_retrieve_response(state->child_pid,
-					   state->response));
-
-	cache_cleanup_response(state->child_pid);
-	
-	DLIST_REMOVE(child->requests, state);
-
-	schedule_async_request(child);
-
-	state->continuation(state->private_data, True);
-}
 
 static bool fork_domain_child(struct winbindd_child *child);
 
-static void schedule_async_request(struct winbindd_child *child)
-{
-	struct winbindd_async_request *request = child->requests;
+static void wb_child_request_trigger(struct tevent_req *req,
+					    void *private_data);
+static void wb_child_request_done(struct tevent_req *subreq);
 
-	if (request == NULL) {
+struct tevent_req *wb_child_request_send(TALLOC_CTX *mem_ctx,
+					 struct tevent_context *ev,
+					 struct winbindd_child *child,
+					 struct winbindd_request *request)
+{
+	struct tevent_req *req;
+	struct wb_child_request_state *state;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct wb_child_request_state);
+	if (req == NULL) {
+		return NULL;
+	}
+
+	state->ev = ev;
+	state->child = child;
+	state->request = request;
+
+	if (!tevent_queue_add(child->queue, ev, req,
+			      wb_child_request_trigger, NULL)) {
+		tevent_req_nomem(NULL, req);
+		return tevent_req_post(req, ev);
+	}
+	return req;
+}
+
+static void wb_child_request_trigger(struct tevent_req *req,
+				     void *private_data)
+{
+	struct wb_child_request_state *state = tevent_req_data(
+		req, struct wb_child_request_state);
+	struct tevent_req *subreq;
+
+	if ((state->child->pid == 0) && (!fork_domain_child(state->child))) {
+		tevent_req_error(req, errno);
 		return;
 	}
 
-	if (child->event.flags != 0) {
-		return;		/* Busy */
+	subreq = wb_simple_trans_send(state, winbind_event_context(), NULL,
+				      state->child->sock, state->request);
+	if (tevent_req_nomem(subreq, req)) {
+		return;
+	}
+	tevent_req_set_callback(subreq, wb_child_request_done, req);
+
+	if (!tevent_req_set_endtime(req, state->ev,
+				    timeval_current_ofs(300, 0))) {
+		tevent_req_nomem(NULL, req);
+                return;
+        }
+}
+
+static void wb_child_request_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct wb_child_request_state *state = tevent_req_data(
+		req, struct wb_child_request_state);
+	int ret, err;
+
+	ret = wb_simple_trans_recv(subreq, state, &state->response, &err);
+	TALLOC_FREE(subreq);
+	if (ret == -1) {
+		tevent_req_error(req, err);
+		return;
+	}
+	tevent_req_done(req);
+}
+
+int wb_child_request_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx,
+			  struct winbindd_response **presponse, int *err)
+{
+	struct wb_child_request_state *state = tevent_req_data(
+		req, struct wb_child_request_state);
+
+	if (tevent_req_is_unix_error(req, err)) {
+		return -1;
+	}
+	*presponse = talloc_move(mem_ctx, &state->response);
+	return 0;
+}
+
+struct wb_domain_request_state {
+	struct tevent_context *ev;
+	struct winbindd_domain *domain;
+	struct winbindd_request *request;
+	struct winbindd_request *init_req;
+	struct winbindd_response *response;
+};
+
+static void wb_domain_request_gotdc(struct tevent_req *subreq);
+static void wb_domain_request_initialized(struct tevent_req *subreq);
+static void wb_domain_request_done(struct tevent_req *subreq);
+
+struct tevent_req *wb_domain_request_send(TALLOC_CTX *mem_ctx,
+					  struct tevent_context *ev,
+					  struct winbindd_domain *domain,
+					  struct winbindd_request *request)
+{
+	struct tevent_req *req, *subreq;
+	struct wb_domain_request_state *state;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct wb_domain_request_state);
+	if (req == NULL) {
+		return NULL;
+	}
+
+	if (domain->initialized) {
+		subreq = wb_child_request_send(state, ev, &domain->child,
+					       request);
+		if (tevent_req_nomem(subreq, req)) {
+			return tevent_req_post(req, ev);
+		}
+		tevent_req_set_callback(subreq, wb_domain_request_done, req);
+		return req;
+	}
+
+	state->domain = domain;
+	state->ev = ev;
+	state->request = request;
+
+	state->init_req = talloc_zero(state, struct winbindd_request);
+	if (tevent_req_nomem(state->init_req, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	if (IS_DC || domain->primary || domain->internal) {
+		/* The primary domain has to find the DC name itself */
+		state->init_req->cmd = WINBINDD_INIT_CONNECTION;
+		fstrcpy(state->init_req->domain_name, domain->name);
+		state->init_req->data.init_conn.is_primary =
+			domain->primary ? true : false;
+		fstrcpy(state->init_req->data.init_conn.dcname, "");
+
+		subreq = wb_child_request_send(state, ev, &domain->child,
+					       state->init_req);
+		if (tevent_req_nomem(subreq, req)) {
+			return tevent_req_post(req, ev);
+		}
+		tevent_req_set_callback(subreq, wb_domain_request_initialized,
+					req);
+		return req;
 	}
 
 	/*
-	 * This may be a reschedule, so we might
-	 * have an existing timeout event pending on
-	 * the first entry in the child->requests list
-	 * (we only send one request at a time).
-	 * Ensure we free it before we reschedule.
-	 * Bug #5814, from hargagan <shargagan@novell.com>.
-	 * JRA.
+	 * Ask our DC for a DC name
 	 */
+	domain = find_our_domain();
 
-	TALLOC_FREE(request->reply_timeout_event);
+	/* This is *not* the primary domain, let's ask our DC about a DC
+	 * name */
 
-	if ((child->pid == 0) && (!fork_domain_child(child))) {
-		/* fork_domain_child failed.
-		   Cancel all outstanding requests */
+	state->init_req->cmd = WINBINDD_GETDCNAME;
+	fstrcpy(state->init_req->domain_name, domain->name);
 
-		while (request != NULL) {
-			/* request might be free'd in the continuation */
-			struct winbindd_async_request *next = request->next;
+	subreq = wb_child_request_send(state, ev, &domain->child, request);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, wb_domain_request_gotdc, req);
+	return req;
+}
 
-			async_request_fail(request);
-			request = next;
-		}
+static void wb_domain_request_gotdc(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct wb_domain_request_state *state = tevent_req_data(
+		req, struct wb_domain_request_state);
+	struct winbindd_response *response;
+	int ret, err;
+
+	ret = wb_child_request_recv(subreq, talloc_tos(), &response, &err);
+	TALLOC_FREE(subreq);
+	if (ret == -1) {
+		tevent_req_error(req, err);
+		return;
+	}
+	state->init_req->cmd = WINBINDD_INIT_CONNECTION;
+	fstrcpy(state->init_req->domain_name, state->domain->name);
+	state->init_req->data.init_conn.is_primary = False;
+	fstrcpy(state->init_req->data.init_conn.dcname,
+		response->data.dc_name);
+
+	TALLOC_FREE(response);
+
+	subreq = wb_child_request_send(state, state->ev, &state->domain->child,
+				       state->init_req);
+	if (tevent_req_nomem(subreq, req)) {
+		return;
+	}
+	tevent_req_set_callback(subreq, wb_domain_request_initialized, req);
+}
+
+static void wb_domain_request_initialized(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct wb_domain_request_state *state = tevent_req_data(
+		req, struct wb_domain_request_state);
+	struct winbindd_response *response;
+	int ret, err;
+
+	ret = wb_child_request_recv(subreq, talloc_tos(), &response, &err);
+	TALLOC_FREE(subreq);
+	if (ret == -1) {
+		tevent_req_error(req, err);
 		return;
 	}
 
-	/* Now we know who we're sending to - remember the pid. */
-	request->child_pid = child->pid;
+	if (!string_to_sid(&state->domain->sid,
+			   response->data.domain_info.sid)) {
+		DEBUG(1,("init_child_recv: Could not convert sid %s "
+			"from string\n", response->data.domain_info.sid));
+		tevent_req_error(req, EINVAL);
+		return;
+	}
+	fstrcpy(state->domain->name, response->data.domain_info.name);
+	fstrcpy(state->domain->alt_name, response->data.domain_info.alt_name);
+	state->domain->native_mode = response->data.domain_info.native_mode;
+	state->domain->active_directory =
+		response->data.domain_info.active_directory;
+	state->domain->initialized = true;
 
-	setup_async_write(&child->event, request->request,
-			  sizeof(*request->request),
-			  async_main_request_sent, request);
+	TALLOC_FREE(response);
 
-	return;
+	subreq = wb_child_request_send(state, state->ev, &state->domain->child,
+				       state->request);
+	if (tevent_req_nomem(subreq, req)) {
+		return;
+	}
+	tevent_req_set_callback(subreq, wb_domain_request_done, req);
+}
+
+static void wb_domain_request_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct wb_domain_request_state *state = tevent_req_data(
+		req, struct wb_domain_request_state);
+	int ret, err;
+
+	ret = wb_child_request_recv(subreq, talloc_tos(), &state->response,
+				    &err);
+	TALLOC_FREE(subreq);
+	if (ret == -1) {
+		tevent_req_error(req, err);
+		return;
+	}
+	tevent_req_done(req);
+}
+
+int wb_domain_request_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx,
+			   struct winbindd_response **presponse, int *err)
+{
+	struct wb_domain_request_state *state = tevent_req_data(
+		req, struct wb_domain_request_state);
+
+	if (tevent_req_is_unix_error(req, err)) {
+		return -1;
+	}
+	*presponse = talloc_move(mem_ctx, &state->response);
+	return 0;
 }
 
 struct domain_request_state {
-	TALLOC_CTX *mem_ctx;
 	struct winbindd_domain *domain;
 	struct winbindd_request *request;
 	struct winbindd_response *response;
@@ -344,7 +375,7 @@ struct domain_request_state {
 	void *private_data_data;
 };
 
-static void domain_init_recv(void *private_data_data, bool success);
+static void async_domain_request_done(struct tevent_req *req);
 
 void async_domain_request(TALLOC_CTX *mem_ctx,
 			  struct winbindd_domain *domain,
@@ -353,13 +384,8 @@ void async_domain_request(TALLOC_CTX *mem_ctx,
 			  void (*continuation)(void *private_data_data, bool success),
 			  void *private_data_data)
 {
+	struct tevent_req *subreq;
 	struct domain_request_state *state;
-
-	if (domain->initialized) {
-		async_request(mem_ctx, &domain->child, request, response,
-			      continuation, private_data_data);
-		return;
-	}
 
 	state = TALLOC_P(mem_ctx, struct domain_request_state);
 	if (state == NULL) {
@@ -368,43 +394,51 @@ void async_domain_request(TALLOC_CTX *mem_ctx,
 		return;
 	}
 
-	state->mem_ctx = mem_ctx;
 	state->domain = domain;
 	state->request = request;
 	state->response = response;
 	state->continuation = continuation;
 	state->private_data_data = private_data_data;
 
-	init_child_connection(domain, domain_init_recv, state);
-}
-
-static void domain_init_recv(void *private_data_data, bool success)
-{
-	struct domain_request_state *state =
-		talloc_get_type_abort(private_data_data, struct domain_request_state);
-
-	if (!success) {
-		DEBUG(5, ("Domain init returned an error\n"));
-		state->continuation(state->private_data_data, False);
+	subreq = wb_domain_request_send(state, winbind_event_context(),
+					domain, request);
+	if (subreq == NULL) {
+		DEBUG(5, ("wb_domain_request_send failed\n"));
+		continuation(private_data_data, false);
 		return;
 	}
+	tevent_req_set_callback(subreq, async_domain_request_done, state);
+}
 
-	async_request(state->mem_ctx, &state->domain->child,
-		      state->request, state->response,
-		      state->continuation, state->private_data_data);
+static void async_domain_request_done(struct tevent_req *req)
+{
+	struct domain_request_state *state = tevent_req_callback_data(
+		req, struct domain_request_state);
+	struct winbindd_response *response;
+	int ret, err;
+
+	ret = wb_domain_request_recv(req, state, &response, &err);
+	TALLOC_FREE(req);
+	if (ret == -1) {
+		DEBUG(5, ("wb_domain_request returned %s\n", strerror(err)));
+		state->continuation(state->private_data_data, false);
+		return;
+	}
+	*(state->response) = *response;
+	state->continuation(state->private_data_data, true);
 }
 
 static void recvfrom_child(void *private_data_data, bool success)
 {
 	struct winbindd_cli_state *state =
 		talloc_get_type_abort(private_data_data, struct winbindd_cli_state);
-	enum winbindd_result result = state->response.result;
+	enum winbindd_result result = state->response->result;
 
 	/* This is an optimization: The child has written directly to the
 	 * response buffer. The request itself is still in pending state,
 	 * state that in the result code. */
 
-	state->response.result = WINBINDD_PENDING;
+	state->response->result = WINBINDD_PENDING;
 
 	if ((!success) || (result != WINBINDD_OK)) {
 		request_error(state);
@@ -414,18 +448,11 @@ static void recvfrom_child(void *private_data_data, bool success)
 	request_ok(state);
 }
 
-void sendto_child(struct winbindd_cli_state *state,
-		  struct winbindd_child *child)
-{
-	async_request(state->mem_ctx, child, &state->request,
-		      &state->response, recvfrom_child, state);
-}
-
 void sendto_domain(struct winbindd_cli_state *state,
 		   struct winbindd_domain *domain)
 {
 	async_domain_request(state->mem_ctx, domain,
-			     &state->request, &state->response,
+			     state->request, state->response,
 			     recvfrom_child, state);
 }
 
@@ -438,8 +465,8 @@ static void child_process_request(struct winbindd_child *child,
 	/* Free response data - we may be interrupted and receive another
 	   command before being able to send this data off. */
 
-	state->response.result = WINBINDD_ERROR;
-	state->response.length = sizeof(struct winbindd_response);
+	state->response->result = WINBINDD_ERROR;
+	state->response->length = sizeof(struct winbindd_response);
 
 	/* as all requests in the child are sync, we can use talloc_tos() */
 	state->mem_ctx = talloc_tos();
@@ -447,20 +474,20 @@ static void child_process_request(struct winbindd_child *child,
 	/* Process command */
 
 	for (; table->name; table++) {
-		if (state->request.cmd == table->struct_cmd) {
+		if (state->request->cmd == table->struct_cmd) {
 			DEBUG(10,("child_process_request: request fn %s\n",
 				  table->name));
-			state->response.result = table->struct_fn(domain, state);
+			state->response->result = table->struct_fn(domain, state);
 			return;
 		}
 	}
 
 	DEBUG(1 ,("child_process_request: unknown request fn number %d\n",
-		  (int)state->request.cmd));
-	state->response.result = WINBINDD_ERROR;
+		  (int)state->request->cmd));
+	state->response->result = WINBINDD_ERROR;
 }
 
-void setup_child(struct winbindd_child *child,
+void setup_child(struct winbindd_domain *domain, struct winbindd_child *child,
 		 const struct winbindd_child_dispatch_table *table,
 		 const char *logprefix,
 		 const char *logname)
@@ -475,8 +502,12 @@ void setup_child(struct winbindd_child *child,
 			  "logname == NULL");
 	}
 
-	child->domain = NULL;
+	child->domain = domain;
 	child->table = table;
+	child->queue = tevent_queue_create(NULL, "winbind_child");
+	SMB_ASSERT(child->queue != NULL);
+	child->rpccli = wbint_rpccli_create(NULL, domain, child);
+	SMB_ASSERT(child->rpccli != NULL);
 }
 
 struct winbindd_child *children = NULL;
@@ -499,25 +530,10 @@ void winbind_child_died(pid_t pid)
 	/* This will be re-added in fork_domain_child() */
 
 	DLIST_REMOVE(children, child);
-	
-	remove_fd_event(&child->event);
-	close(child->event.fd);
-	child->event.fd = 0;
-	child->event.flags = 0;
+
+	close(child->sock);
+	child->sock = -1;
 	child->pid = 0;
-
-	if (child->requests) {
-		/*
-		 * schedule_async_request() will also
-		 * clear this event but the call is
-		 * idempotent so it doesn't hurt to
-		 * cover all possible future code
-		 * paths. JRA.
-		 */
-		TALLOC_FREE(child->requests->reply_timeout_event);
-	}
-
-	schedule_async_request(child);
 }
 
 /* Ensure any negative cache entries with the netbios or realm names are removed. */
@@ -545,7 +561,7 @@ void winbind_msg_debug(struct messaging_context *msg_ctx,
 	struct winbindd_child *child;
 
 	DEBUG(10,("winbind_msg_debug: got debug message.\n"));
-	
+
 	debug_message(msg_ctx, private_data, MSG_DEBUG, server_id, data);
 
 	for (child = children; child != NULL; child = child->next) {
@@ -657,7 +673,7 @@ void winbind_msg_online(struct messaging_context *msg_ctx,
 
 		if ( domain->primary ) {
 			struct winbindd_child *idmap = idmap_child();
-			
+
 			if ( idmap->pid != 0 ) {
 				messaging_send_buf(msg_ctx,
 						   pid_to_procid(idmap->pid), 
@@ -665,7 +681,6 @@ void winbind_msg_online(struct messaging_context *msg_ctx,
 						   (uint8 *)domain->name,
 						   strlen(domain->name)+1);
 			}
-			
 		}
 	}
 
@@ -693,29 +708,66 @@ void winbind_msg_online(struct messaging_context *msg_ctx,
 	}
 }
 
-/* Forward the online/offline messages to our children. */
+static const char *collect_onlinestatus(TALLOC_CTX *mem_ctx)
+{
+	struct winbindd_domain *domain;
+	char *buf = NULL;
+
+	if ((buf = talloc_asprintf(mem_ctx, "global:%s ", 
+				   get_global_winbindd_state_offline() ? 
+				   "Offline":"Online")) == NULL) {
+		return NULL;
+	}
+
+	for (domain = domain_list(); domain; domain = domain->next) {
+		if ((buf = talloc_asprintf_append_buffer(buf, "%s:%s ", 
+						  domain->name, 
+						  domain->online ?
+						  "Online":"Offline")) == NULL) {
+			return NULL;
+		}
+	}
+
+	buf = talloc_asprintf_append_buffer(buf, "\n");
+
+	DEBUG(5,("collect_onlinestatus: %s", buf));
+
+	return buf;
+}
+
 void winbind_msg_onlinestatus(struct messaging_context *msg_ctx,
 			      void *private_data,
 			      uint32_t msg_type,
 			      struct server_id server_id,
 			      DATA_BLOB *data)
 {
-	struct winbindd_child *child;
+	TALLOC_CTX *mem_ctx;
+	const char *message;
+	struct server_id *sender;
 
-	DEBUG(10,("winbind_msg_onlinestatus: got onlinestatus message.\n"));
+	DEBUG(5,("winbind_msg_onlinestatus received.\n"));
 
-	for (child = children; child != NULL; child = child->next) {
-		if (child->domain && child->domain->primary) {
-			DEBUG(10,("winbind_msg_onlinestatus: "
-				  "sending message to pid %u of primary domain.\n",
-				  (unsigned int)child->pid));
-			messaging_send_buf(msg_ctx, pid_to_procid(child->pid), 
-					   MSG_WINBIND_ONLINESTATUS,
-					   (uint8 *)data->data,
-					   data->length);
-			break;
-		}
+	if (!data->data) {
+		return;
 	}
+
+	sender = (struct server_id *)data->data;
+
+	mem_ctx = talloc_init("winbind_msg_onlinestatus");
+	if (mem_ctx == NULL) {
+		return;
+	}
+
+	message = collect_onlinestatus(mem_ctx);
+	if (message == NULL) {
+		talloc_destroy(mem_ctx);
+		return;
+	}
+
+	messaging_send_buf(msg_ctx, *sender, MSG_WINBIND_ONLINESTATUS, 
+			   (uint8 *)message, strlen(message) + 1);
+
+	talloc_destroy(mem_ctx);
 }
 
 void winbind_msg_dump_event_list(struct messaging_context *msg_ctx,
@@ -881,6 +933,7 @@ static bool calculate_next_machine_pwd_change(const char *domain,
 	time_t pass_last_set_time;
 	time_t timeout;
 	time_t next_change;
+	struct timeval tv;
 	char *pw;
 
 	pw = secrets_fetch_machine_password(domain,
@@ -900,11 +953,36 @@ static bool calculate_next_machine_pwd_change(const char *domain,
 		return false;
 	}
 
+	tv.tv_sec = pass_last_set_time;
+	DEBUG(10, ("password last changed %s\n",
+		   timeval_string(talloc_tos(), &tv, false)));
+	tv.tv_sec += timeout;
+	DEBUGADD(10, ("password valid until %s\n",
+		      timeval_string(talloc_tos(), &tv, false)));
+
 	if (time(NULL) < (pass_last_set_time + timeout)) {
 		next_change = pass_last_set_time + timeout;
 		DEBUG(10,("machine password still valid until: %s\n",
 			http_timestring(talloc_tos(), next_change)));
 		*t = timeval_set(next_change, 0);
+
+		if (lp_clustering()) {
+			uint8_t randbuf;
+			/*
+			 * When having a cluster, we have several
+			 * winbinds racing for the password change. In
+			 * the machine_password_change_handler()
+			 * function we check if someone else was
+			 * faster when the event triggers. We add a
+			 * 255-second random delay here, so that we
+			 * don't run to change the password at the
+			 * exact same moment.
+			 */
+			generate_random_buffer(&randbuf, sizeof(randbuf));
+			DEBUG(10, ("adding %d seconds randomness\n",
+				   (int)randbuf));
+			t->tv_sec += randbuf;
+		}
 		return true;
 	}
 
@@ -933,7 +1011,16 @@ static void machine_password_change_handler(struct event_context *ctx,
 
 	if (!calculate_next_machine_pwd_change(child->domain->name,
 					       &next_change)) {
+		DEBUG(10, ("calculate_next_machine_pwd_change failed\n"));
 		return;
+	}
+
+	DEBUG(10, ("calculate_next_machine_pwd_change returned %s\n",
+		   timeval_string(talloc_tos(), &next_change, false)));
+
+	if (!timeval_expired(&next_change)) {
+		DEBUG(10, ("Someone else has already changed the pw\n"));
+		goto done;
 	}
 
 	if (!winbindd_can_contact_domain(child->domain)) {
@@ -958,15 +1045,38 @@ static void machine_password_change_handler(struct event_context *ctx,
 						   child->domain->name);
 	TALLOC_FREE(frame);
 
-	if (!NT_STATUS_IS_OK(result)) {
-		DEBUG(10,("machine_password_change_handler: "
-			"failed to change machine password: %s\n",
-			 nt_errstr(result)));
-	} else {
-		DEBUG(10,("machine_password_change_handler: "
-			"successfully changed machine password\n"));
+	DEBUG(10, ("machine_password_change_handler: "
+		   "trust_pw_find_change_and_store_it returned %s\n",
+		   nt_errstr(result)));
+
+	if (NT_STATUS_EQUAL(result, NT_STATUS_ACCESS_DENIED) ) {
+		DEBUG(3,("machine_password_change_handler: password set returned "
+			 "ACCESS_DENIED.  Maybe the trust account "
+			 "password was changed and we didn't know it. "
+			 "Killing connections to domain %s\n",
+			 child->domain->name));
+		TALLOC_FREE(child->domain->conn.netlogon_pipe);
 	}
 
+	if (!calculate_next_machine_pwd_change(child->domain->name,
+					       &next_change)) {
+		DEBUG(10, ("calculate_next_machine_pwd_change failed\n"));
+		return;
+	}
+
+	DEBUG(10, ("calculate_next_machine_pwd_change returned %s\n",
+		   timeval_string(talloc_tos(), &next_change, false)));
+
+	if (!NT_STATUS_IS_OK(result)) {
+		struct timeval tmp;
+		/*
+		 * In case of failure, give the DC a minute to recover
+		 */
+		tmp = timeval_current_ofs(60, 0);
+		next_change = timeval_max(&next_change, &tmp);
+	}
+
+done:
 	child->machine_password_change_event = event_add_timed(winbind_event_context(), NULL,
 							      next_change,
 							      machine_password_change_handler,
@@ -1069,68 +1179,6 @@ static void child_msg_online(struct messaging_context *msg,
 	}
 }
 
-static const char *collect_onlinestatus(TALLOC_CTX *mem_ctx)
-{
-	struct winbindd_domain *domain;
-	char *buf = NULL;
-
-	if ((buf = talloc_asprintf(mem_ctx, "global:%s ", 
-				   get_global_winbindd_state_offline() ? 
-				   "Offline":"Online")) == NULL) {
-		return NULL;
-	}
-
-	for (domain = domain_list(); domain; domain = domain->next) {
-		if ((buf = talloc_asprintf_append_buffer(buf, "%s:%s ", 
-						  domain->name, 
-						  domain->online ?
-						  "Online":"Offline")) == NULL) {
-			return NULL;
-		}
-	}
-
-	buf = talloc_asprintf_append_buffer(buf, "\n");
-
-	DEBUG(5,("collect_onlinestatus: %s", buf));
-
-	return buf;
-}
-
-static void child_msg_onlinestatus(struct messaging_context *msg_ctx,
-				   void *private_data,
-				   uint32_t msg_type,
-				   struct server_id server_id,
-				   DATA_BLOB *data)
-{
-	TALLOC_CTX *mem_ctx;
-	const char *message;
-	struct server_id *sender;
-	
-	DEBUG(5,("winbind_msg_onlinestatus received.\n"));
-
-	if (!data->data) {
-		return;
-	}
-
-	sender = (struct server_id *)data->data;
-
-	mem_ctx = talloc_init("winbind_msg_onlinestatus");
-	if (mem_ctx == NULL) {
-		return;
-	}
-	
-	message = collect_onlinestatus(mem_ctx);
-	if (message == NULL) {
-		talloc_destroy(mem_ctx);
-		return;
-	}
-
-	messaging_send_buf(msg_ctx, *sender, MSG_WINBIND_ONLINESTATUS, 
-			   (uint8 *)message, strlen(message) + 1);
-
-	talloc_destroy(mem_ctx);
-}
-
 static void child_msg_dump_event_list(struct messaging_context *msg,
 				      void *private_data,
 				      uint32_t msg_type,
@@ -1205,11 +1253,6 @@ bool winbindd_reinit_after_fork(const char *logfilename)
 
 	/* Destroy all possible events in child list. */
 	for (cl = children; cl != NULL; cl = cl->next) {
-		struct winbindd_async_request *request;
-
-		for (request = cl->requests; request; request = request->next) {
-			TALLOC_FREE(request->reply_timeout_event);
-		}
 		TALLOC_FREE(cl->lockout_policy_event);
 		TALLOC_FREE(cl->machine_password_change_event);
 
@@ -1241,10 +1284,22 @@ bool winbindd_reinit_after_fork(const char *logfilename)
 	return true;
 }
 
+/*
+ * In a child there will be only one domain, reference that here.
+ */
+static struct winbindd_domain *child_domain;
+
+struct winbindd_domain *wb_child_domain(void)
+{
+	return child_domain;
+}
+
 static bool fork_domain_child(struct winbindd_child *child)
 {
 	int fdpair[2];
 	struct winbindd_cli_state state;
+	struct winbindd_request request;
+	struct winbindd_response response;
 	struct winbindd_domain *primary_domain = NULL;
 
 	if (child->domain) {
@@ -1253,6 +1308,7 @@ static bool fork_domain_child(struct winbindd_child *child)
 	} else {
 		DEBUG(10, ("fork_domain_child called without domain.\n"));
 	}
+	child_domain = child->domain;
 
 	if (socketpair(AF_UNIX, SOCK_STREAM, 0, fdpair) != 0) {
 		DEBUG(0, ("Could not open child pipe: %s\n",
@@ -1262,6 +1318,8 @@ static bool fork_domain_child(struct winbindd_child *child)
 
 	ZERO_STRUCT(state);
 	state.pid = sys_getpid();
+	state.request = &request;
+	state.response = &response;
 
 	child->pid = sys_fork();
 
@@ -1275,9 +1333,7 @@ static bool fork_domain_child(struct winbindd_child *child)
 		close(fdpair[0]);
 		child->next = child->prev = NULL;
 		DLIST_ADD(children, child);
-		child->event.fd = fdpair[1];
-		child->event.flags = 0;
-		add_fd_event(&child->event);
+		child->sock = fdpair[1];
 		return True;
 	}
 
@@ -1297,8 +1353,6 @@ static bool fork_domain_child(struct winbindd_child *child)
 			   MSG_WINBIND_OFFLINE, child_msg_offline);
 	messaging_register(winbind_messaging_context(), NULL,
 			   MSG_WINBIND_ONLINE, child_msg_online);
-	messaging_register(winbind_messaging_context(), NULL,
-			   MSG_WINBIND_ONLINESTATUS, child_msg_onlinestatus);
 	messaging_register(winbind_messaging_context(), NULL,
 			   MSG_DUMP_EVENT_LIST, child_msg_dump_event_list);
 	messaging_register(winbind_messaging_context(), NULL,
@@ -1327,7 +1381,7 @@ static bool fork_domain_child(struct winbindd_child *child)
 			}
 		}
 	}
-	
+
 	/*
 	 * We are in idmap child, make sure that we set the
 	 * check_online_event to bring primary domain online.
@@ -1385,6 +1439,9 @@ static bool fork_domain_child(struct winbindd_child *child)
 		struct timeval *tp;
 		struct timeval now;
 		TALLOC_CTX *frame = talloc_stackframe();
+		struct iovec iov[2];
+		int iov_count;
+		NTSTATUS status;
 
 		if (run_events(winbind_event_context(), 0, NULL, NULL)) {
 			TALLOC_FREE(frame);
@@ -1406,13 +1463,13 @@ static bool fork_domain_child(struct winbindd_child *child)
 		FD_SET(state.sock, &r_fds);
 		maxfd = state.sock;
 
-                /*
+		/*
 		 * Initialize this high as event_add_to_select_args()
 		 * uses a timeval_min() on this and next_event. Fix
 		 * from Roel van Meer <rolek@alt001.com>.
 		 */
-                t.tv_sec = 999999;
-                t.tv_usec = 0;
+		t.tv_sec = 999999;
+		t.tv_usec = 0;
 
 		event_add_to_select_args(winbind_event_context(), &now,
 					 &r_fds, &w_fds, &t, &maxfd);
@@ -1450,33 +1507,41 @@ static bool fork_domain_child(struct winbindd_child *child)
 		}
 
 		/* fetch a request from the main daemon */
-		child_read_request(&state);
+		status = child_read_request(&state);
 
-		if (state.finished) {
+		if (!NT_STATUS_IS_OK(status)) {
 			/* we lost contact with our parent */
 			_exit(0);
 		}
 
-		DEBUG(4,("child daemon request %d\n", (int)state.request.cmd));
+		DEBUG(4,("child daemon request %d\n", (int)state.request->cmd));
 
-		ZERO_STRUCT(state.response);
-		state.request.null_term = '\0';
+		ZERO_STRUCTP(state.response);
+		state.request->null_term = '\0';
+		state.mem_ctx = frame;
 		child_process_request(child, &state);
 
-		SAFE_FREE(state.request.extra_data.data);
+		DEBUG(4, ("Finished processing child request %d\n",
+			  (int)state.request->cmd));
 
-		cache_store_response(sys_getpid(), &state.response);
+		SAFE_FREE(state.request->extra_data.data);
 
-		SAFE_FREE(state.response.extra_data.data);
+		iov[0].iov_base = (void *)state.response;
+		iov[0].iov_len = sizeof(struct winbindd_response);
+		iov_count = 1;
 
-		/* We just send the result code back, the result
-		 * structure needs to be fetched via the
-		 * winbindd_cache. Hmm. That needs fixing... */
+		if (state.response->length > sizeof(struct winbindd_response)) {
+			iov[1].iov_base =
+				(void *)state.response->extra_data.data;
+			iov[1].iov_len = state.response->length-iov[0].iov_len;
+			iov_count = 2;
+		}
 
-		if (write_data(state.sock,
-			       (const char *)&state.response.result,
-			       sizeof(state.response.result)) !=
-		    sizeof(state.response.result)) {
+		DEBUG(10, ("Writing %d bytes to parent\n",
+			   (int)state.response->length));
+
+		if (write_data_iov(state.sock, iov, iov_count) !=
+		    state.response->length) {
 			DEBUG(0, ("Could not write result\n"));
 			exit(1);
 		}

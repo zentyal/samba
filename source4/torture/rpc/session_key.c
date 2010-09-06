@@ -148,6 +148,7 @@ static bool test_secrets(struct torture_context *torture, const void *_data)
 	struct dcerpc_binding *binding;
 	const struct secret_settings *settings = 
 		(const struct secret_settings *)_data;
+	NTSTATUS status;
 
 	lp_set_cmdline(torture->lp_ctx, "ntlmssp client:keyexchange", settings->keyexchange?"True":"False");
 	lp_set_cmdline(torture->lp_ctx, "ntlmssp_client:ntlm2", settings->ntlm2?"True":"False");
@@ -158,23 +159,33 @@ static bool test_secrets(struct torture_context *torture, const void *_data)
 
 	binding->flags |= settings->bindoptions;
 
-	torture_assert_ntstatus_ok(torture, 
-				   dcerpc_pipe_connect_b(torture, &p, binding,
-							 &ndr_table_lsarpc,
-							 cmdline_credentials,
-							 torture->ev,
-							 torture->lp_ctx),
-				   "connect");
+	if (binding->flags & DCERPC_PUSH_BIGENDIAN) {
+		if (torture_setting_bool(torture, "samba3", false)) {
+			torture_skip(torture, "skipping bigendian test against samba3\n");
+		}
+	}
+
+	status = dcerpc_pipe_connect_b(torture, &p, binding,
+				       &ndr_table_lsarpc,
+				       cmdline_credentials,
+				       torture->ev,
+				       torture->lp_ctx);
+
+	torture_assert_ntstatus_ok(torture, status, "connect");
 
 	if (!test_lsa_OpenPolicy2(p, torture, &handle)) {
+		talloc_free(p);
 		return false;
 	}
 
 	torture_assert(torture, handle, "OpenPolicy2 failed.  This test cannot run against this server");
 	
 	if (!test_CreateSecret_basic(p, torture, handle)) {
+		talloc_free(p);
 		return false;
 	}
+
+	talloc_free(p);
 
 	return true;
 }
@@ -215,7 +226,7 @@ static const bool bool_vals[] = { true, false };
 /* TEST session key correctness by pushing and pulling secrets */
 struct torture_suite *torture_rpc_lsa_secrets(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "SECRETS");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "LSA-SECRETS");
 	int keyexchange, ntlm2, lm_key;
 
 	for (keyexchange = 0; keyexchange < ARRAY_SIZE(bool_vals); keyexchange++) {

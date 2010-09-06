@@ -22,13 +22,15 @@
 #include "includes.h"
 #include "../lib/util/dlinklist.h"
 #include "rpc_server/dcerpc_server.h"
+#include "libcli/security/dom_sid.h"
+#include "auth/session.h"
 
 /*
   destroy a rpc handle
 */
 static int dcesrv_handle_destructor(struct dcesrv_handle *h)
 {
-	DLIST_REMOVE(h->context->handles, h);
+	DLIST_REMOVE(h->assoc_group->handles, h);
 	return 0;
 }
 
@@ -37,21 +39,29 @@ static int dcesrv_handle_destructor(struct dcesrv_handle *h)
   allocate a new rpc handle
 */
 _PUBLIC_ struct dcesrv_handle *dcesrv_handle_new(struct dcesrv_connection_context *context, 
-					uint8_t handle_type)
+						 uint8_t handle_type)
 {
 	struct dcesrv_handle *h;
+	struct dom_sid *sid;
 
-	h = talloc(context, struct dcesrv_handle);
+	sid = context->conn->auth_state.session_info->security_token->user_sid;
+
+	h = talloc(context->assoc_group, struct dcesrv_handle);
 	if (!h) {
 		return NULL;
 	}
 	h->data = NULL;
-	h->context = context;
-
+	h->sid = dom_sid_dup(h, sid);
+	if (h->sid == NULL) {
+		talloc_free(h);
+		return NULL;
+	}
+	h->assoc_group = context->assoc_group;
+	h->iface = context->iface;
 	h->wire_handle.handle_type = handle_type;
 	h->wire_handle.uuid = GUID_random();
 	
-	DLIST_ADD(context->handles, h);
+	DLIST_ADD(context->assoc_group->handles, h);
 
 	talloc_set_destructor(h, dcesrv_handle_destructor);
 
@@ -68,18 +78,32 @@ _PUBLIC_ struct dcesrv_handle *dcesrv_handle_fetch(
 					  uint8_t handle_type)
 {
 	struct dcesrv_handle *h;
+	struct dom_sid *sid;
+
+	sid = context->conn->auth_state.session_info->security_token->user_sid;
 
 	if (policy_handle_empty(p)) {
+		/* TODO: we should probably return a NULL handle here */
 		return dcesrv_handle_new(context, handle_type);
 	}
 
-	for (h=context->handles; h; h=h->next) {
+	for (h=context->assoc_group->handles; h; h=h->next) {
 		if (h->wire_handle.handle_type == p->handle_type &&
 		    GUID_equal(&p->uuid, &h->wire_handle.uuid)) {
 			if (handle_type != DCESRV_HANDLE_ANY &&
 			    p->handle_type != handle_type) {
 				DEBUG(0,("client gave us the wrong handle type (%d should be %d)\n",
 					 p->handle_type, handle_type));
+				return NULL;
+			}
+			if (!dom_sid_equal(h->sid, sid)) {
+				DEBUG(0,(__location__ ": Attempt to use invalid sid %s - %s\n",
+					 dom_sid_string(context, h->sid),
+					 dom_sid_string(context, sid)));
+				return NULL;
+			}
+			if (h->iface != context->iface) {
+				DEBUG(0,(__location__ ": Attempt to use invalid iface\n"));
 				return NULL;
 			}
 			return h;

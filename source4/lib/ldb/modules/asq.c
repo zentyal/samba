@@ -26,8 +26,8 @@
  *
  *  Component: ldb attribute scoped query control module
  *
- *  Description: this module searches all the the objects pointed
- *  		 by the DNs contained in the references attribute
+ *  Description: this module searches all the objects pointed by
+ *  		 the DNs contained in the references attribute
  *
  *  Author: Simo Sorce
  */
@@ -351,7 +351,7 @@ static int asq_search(struct ldb_module *module, struct ldb_request *req)
 
 	ldb = ldb_module_get_ctx(module);
 
-	/* check if there's a paged request control */
+	/* check if there's an ASQ control */
 	control = ldb_request_get_control(req, LDB_CONTROL_ASQ_OID);
 	if (control == NULL) {
 		/* not found go on */
@@ -393,7 +393,7 @@ static int asq_init(struct ldb_module *module)
 
 	ret = ldb_mod_register_control(module, LDB_CONTROL_ASQ_OID);
 	if (ret != LDB_SUCCESS) {
-		ldb_debug(ldb, LDB_DEBUG_WARNING, "asq: Unable to register control with rootdse!\n");
+		ldb_debug(ldb, LDB_DEBUG_WARNING, "asq: Unable to register control with rootdse!");
 	}
 
 	return ldb_next_init(module);

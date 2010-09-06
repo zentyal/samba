@@ -693,8 +693,12 @@ static bool run_deferopen(struct torture_context *tctx, struct smbcli_state *cli
 	}
 
 	if (NT_STATUS_IS_ERR(smbcli_unlink(cli->tree, fname))) {
-		/* All until the last unlink will fail with sharing violation. */
-		if (!NT_STATUS_EQUAL(smbcli_nt_error(cli->tree),NT_STATUS_SHARING_VIOLATION)) {
+		/* All until the last unlink will fail with sharing violation
+		   but also the last request can fail since the file could have
+		   been successfully deleted by another (test) process */
+		NTSTATUS status = smbcli_nt_error(cli->tree);
+		if ((!NT_STATUS_EQUAL(status, NT_STATUS_SHARING_VIOLATION))
+			&& (!NT_STATUS_EQUAL(status, NT_STATUS_OBJECT_NAME_NOT_FOUND))) {
 			torture_comment(tctx, "unlink of %s failed (%s)\n", fname, smbcli_errstr(cli->tree));
 			correct = false;
 		}
@@ -1763,6 +1767,10 @@ NTSTATUS torture_base_init(void)
 	torture_suite_add_suite(suite, torture_trans2_aliases(suite));
 	torture_suite_add_1smb_test(suite, "TRANS2-SCAN", torture_trans2_scan);
 	torture_suite_add_1smb_test(suite, "NTTRANS", torture_nttrans_scan);
+	torture_suite_add_1smb_test(suite, "CREATEX_ACCESS", torture_createx_access);
+	torture_suite_add_2smb_test(suite, "CREATEX_SHAREMODES_FILE", torture_createx_sharemodes_file);
+	torture_suite_add_2smb_test(suite, "CREATEX_SHAREMODES_DIR", torture_createx_sharemodes_dir);
+	torture_suite_add_1smb_test(suite, "MAXIMUM_ALLOWED", torture_maximum_allowed);
 
 	torture_suite_add_simple_test(suite, "BENCH-HOLDCON", torture_holdcon);
 	torture_suite_add_simple_test(suite, "BENCH-READWRITE", run_benchrw);

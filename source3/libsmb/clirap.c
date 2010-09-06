@@ -20,6 +20,7 @@
 */
 
 #include "includes.h"
+#include "../libcli/auth/libcli_auth.h"
 
 /****************************************************************************
  Call a remote api
@@ -483,7 +484,7 @@ bool cli_oem_change_password(struct cli_state *cli, const char *user, const char
 	DEBUG(100,("make_oem_passwd_hash\n"));
 	dump_data(100, data, 516);
 #endif
-	SamOEMhash( (unsigned char *)data, (unsigned char *)old_pw_hash, 516);
+	arcfour_crypt( (unsigned char *)data, (unsigned char *)old_pw_hash, 516);
 
 	/*
 	 * Now place the old password hash in the data.
@@ -933,7 +934,7 @@ bool cli_qpathinfo_streams(struct cli_state *cli, const char *fname,
  Send a qfileinfo QUERY_FILE_NAME_INFO call.
 ****************************************************************************/
 
-bool cli_qfilename(struct cli_state *cli, int fnum, char *name, size_t namelen)
+bool cli_qfilename(struct cli_state *cli, uint16_t fnum, char *name, size_t namelen)
 {
 	unsigned int data_len = 0;
 	unsigned int param_len = 0;
@@ -980,7 +981,7 @@ bool cli_qfilename(struct cli_state *cli, int fnum, char *name, size_t namelen)
  Send a qfileinfo call.
 ****************************************************************************/
 
-bool cli_qfileinfo(struct cli_state *cli, int fnum,
+bool cli_qfileinfo(struct cli_state *cli, uint16_t fnum,
 		   uint16 *mode, SMB_OFF_T *size,
 		   struct timespec *create_time,
                    struct timespec *access_time,
@@ -1119,9 +1120,9 @@ bool cli_qpathinfo_basic( struct cli_state *cli, const char *name,
 		return False;
 	}
 
-	set_atimespec(sbuf, interpret_long_date( rdata+8 )); /* Access time. */
-	set_mtimespec(sbuf, interpret_long_date( rdata+16 )); /* Write time. */
-	set_ctimespec(sbuf, interpret_long_date( rdata+24 )); /* Change time. */
+	sbuf->st_ex_atime = interpret_long_date( rdata+8 ); /* Access time. */
+	sbuf->st_ex_mtime = interpret_long_date( rdata+16 ); /* Write time. */
+	sbuf->st_ex_ctime = interpret_long_date( rdata+24 ); /* Change time. */
 
 	*attributes = IVAL( rdata, 32 );
 
@@ -1135,7 +1136,7 @@ bool cli_qpathinfo_basic( struct cli_state *cli, const char *name,
  Send a qfileinfo call.
 ****************************************************************************/
 
-bool cli_qfileinfo_test(struct cli_state *cli, int fnum, int level, char **poutdata, uint32 *poutlen)
+bool cli_qfileinfo_test(struct cli_state *cli, uint16_t fnum, int level, char **poutdata, uint32 *poutlen)
 {
 	unsigned int data_len = 0;
 	unsigned int param_len = 0;

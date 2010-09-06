@@ -31,9 +31,7 @@
  * SUCH DAMAGE.
  */
 
-#include "krb5/gsskrb5_locl.h"
-
-RCSID("$Id$");
+#include "gsskrb5_locl.h"
 
 OM_uint32 _gsskrb5_canonicalize_name (
             OM_uint32 * minor_status,
@@ -50,7 +48,7 @@ OM_uint32 _gsskrb5_canonicalize_name (
 
     GSSAPI_KRB5_INIT (&context);
 
-    ret = _gsskrb5_canon_name(minor_status, context, 1, input_name, &name);
+    ret = _gsskrb5_canon_name(minor_status, context, 1, NULL, input_name, &name);
     if (ret)
 	return ret;
 

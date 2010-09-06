@@ -1,12 +1,12 @@
 .\"     Title: smbclient
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 05/10/2010
+.\"      Date: 06/18/2010
 .\"    Manual: User Commands
-.\"    Source: Samba 3.4
+.\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "SMBCLIENT" "1" "05/10/2010" "Samba 3\&.4" "User Commands"
+.TH "SMBCLIENT" "1" "06/18/2010" "Samba 3\&.5" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -171,11 +171,11 @@ smbclient \- ftp\-like client to access SMB/CIFS resources on servers
 .SH "Synopsis"
 .fam C
 .HP \w'\ 'u
-\FCsmbclient\F[] [\-b\ <buffer\ size>] [\-d\ debuglevel] [\-e] [\-L\ <netbios\ name>] [\-U\ username] [\-I\ destinationIP] [\-M\ <netbios\ name>] [\-m\ maxprotocol] [\-A\ authfile] [\-N] [\-g] [\-i\ scope] [\-O\ <socket\ options>] [\-p\ port] [\-R\ <name\ resolve\ order>] [\-s\ <smb\ config\ file>] [\-k] [\-P] [\-c\ <command>]
+\FCsmbclient\F[] [\-b\ <buffer\ size>] [\-d\ debuglevel] [\-e] [\-L\ <netbios\ name>] [\-U\ username] [\-I\ destinationIP] [\-M\ <netbios\ name>] [\-m\ maxprotocol] [\-A\ authfile] [\-N] [\-C] [\-g] [\-i\ scope] [\-O\ <socket\ options>] [\-p\ port] [\-R\ <name\ resolve\ order>] [\-s\ <smb\ config\ file>] [\-k] [\-P] [\-c\ <command>]
 .fam
 .fam C
 .HP \w'\ 'u
-\FCsmbclient\F[] {servicename} [password] [\-b\ <buffer\ size>] [\-d\ debuglevel] [\-e] [\-D\ Directory] [\-U\ username] [\-W\ workgroup] [\-M\ <netbios\ name>] [\-m\ maxprotocol] [\-A\ authfile] [\-N] [\-g] [\-l\ log\-basename] [\-I\ destinationIP] [\-E] [\-c\ <command\ string>] [\-i\ scope] [\-O\ <socket\ options>] [\-p\ port] [\-R\ <name\ resolve\ order>] [\-s\ <smb\ config\ file>] [\-T<c|x>IXFqgbNan] [\-k]
+\FCsmbclient\F[] {servicename} [password] [\-b\ <buffer\ size>] [\-d\ debuglevel] [\-e] [\-D\ Directory] [\-U\ username] [\-W\ workgroup] [\-M\ <netbios\ name>] [\-m\ maxprotocol] [\-A\ authfile] [\-N] [\-C] [\-g] [\-l\ log\-basename] [\-I\ destinationIP] [\-E] [\-c\ <command\ string>] [\-i\ scope] [\-O\ <socket\ options>] [\-p\ port] [\-R\ <name\ resolve\ order>] [\-s\ <smb\ config\ file>] [\-T<c|x>IXFqgbNan] [\-k]
 .fam
 .SH "DESCRIPTION"
 .PP
@@ -227,7 +227,7 @@ Note: Some servers (including OS/2 and Windows for Workgroups) insist on an uppe
 Be cautious about including passwords in scripts\&.
 .RE
 .PP
-\-R <name resolve order>
+\-R|\-\-name\-resolve <name resolve order>
 .RS 4
 This option is used by the programs in the Samba suite to determine what naming services and in what order to resolve host names to IP addresses\&. The option takes a space\-separated string of different name resolution options\&.
 .sp
@@ -297,7 +297,7 @@ parameter of the
 file the name resolution methods will be attempted in this order\&.
 .RE
 .PP
-\-M NetBIOS name
+\-M|\-\-message NetBIOS name
 .RS 4
 This options allows you to send messages, using the "WinPopup" protocol, to another computer\&. Once a connection is established you then type your message, pressing ^D (control\-D) to end\&.
 .sp
@@ -325,16 +325,21 @@ for a description of how to handle incoming WinPopup messages in Samba\&.
 \fINote\fR: Copy WinPopup into the startup group on your WfWg PCs if you want them to always be able to receive messages\&.
 .RE
 .PP
-\-p port
+\-p|\-\-port port
 .RS 4
 This number is the TCP port number that will be used when making connections to the server\&. The standard (well\-known) TCP port number for an SMB/CIFS server is 139, which is the default\&.
 .RE
 .PP
-\-g
+\-g|\-\-grepable
 .RS 4
 This parameter provides combined with
 \fI\-L\fR
 easy parseable output that allows processing with utilities such as grep and cut\&.
+.RE
+.PP
+\-m|\-\-max\-protocol protocol
+.RS 4
+This parameter sets the maximum protocol version announced by the client\&.
 .RE
 .PP
 \-P
@@ -347,7 +352,7 @@ Make queries to the external server using the machine account of the local serve
 Print a summary of command line options\&.
 .RE
 .PP
-\-I IP\-address
+\-I|\-\-ip\-address IP\-address
 .RS 4
 \fIIP address\fR
 is the address of the server to connect to\&. It should be specified in standard "a\&.b\&.c\&.d" notation\&.
@@ -359,14 +364,14 @@ parameter above\&. Using this parameter will force the client to assume that the
 There is no default for this parameter\&. If not supplied, it will be determined automatically by the client as described above\&.
 .RE
 .PP
-\-E
+\-E|\-\-stderr
 .RS 4
 This parameter causes the client to write messages to the standard error stream (stderr) rather than to the standard output stream\&.
 .sp
 By default, the client writes messages to standard output \- typically the user\'s tty\&.
 .RE
 .PP
-\-L
+\-L|\-\-list
 .RS 4
 This option allows you to look at what services are available on a server\&. You use it as
 \FCsmbclient \-L host\F[]
@@ -375,21 +380,7 @@ and a list should appear\&. The
 option may be useful if your NetBIOS names don\'t match your TCP/IP DNS host names or if you are trying to reach a host on another network\&.
 .RE
 .PP
-\-t terminal code
-.RS 4
-This option tells
-\FCsmbclient\F[]
-how to interpret filenames coming from the remote server\&. Usually Asian language multibyte UNIX implementations use different character sets than SMB/CIFS servers (\fIEUC\fR
-instead of
-\fI SJIS\fR
-for example)\&. Setting this parameter will let
-\FCsmbclient\F[]
-convert between the UNIX filenames and the SMB filenames correctly\&. This option has not been seriously tested and may have some problems\&.
-.sp
-The terminal codes include CWsjis, CWeuc, CWjis7, CWjis8, CWjunet, CWhex, CWcap\&. This is not a complete list, check the Samba source code for the complete list\&.
-.RE
-.PP
-\-b buffersize
+\-b|\-\-send\-buffer buffersize
 .RS 4
 This option changes the transmit/send buffer size when getting or putting a file from/to the server\&. The default is 65520 bytes\&. Setting this value smaller (to 1200 bytes) has been observed to speed up file transfers to and from a Win9x server\&.
 .RE
@@ -540,7 +531,7 @@ TCP socket options to set on the client socket\&. See the socket options paramet
 manual page for the list of valid options\&.
 .RE
 .PP
-\-T tar options
+\-T|\-\-tar tar options
 .RS 4
 smbclient may be used to create
 \FCtar(1) \F[]
@@ -739,12 +730,12 @@ Create a tar file of all the files and directories in the share\&.
 \FCsmbclient //mypc/myshare "" \-N \-Tc backup\&.tar * \F[]
 .RE
 .PP
-\-D initial directory
+\-D|\-\-directory initial directory
 .RS 4
 Change to initial directory before starting\&. Probably only of any use with the tar \-T option\&.
 .RE
 .PP
-\-c command string
+\-c|\-\-comand command string
 .RS 4
 command string is a semicolon\-separated list of commands to be executed instead of prompting from stdin\&.
 \fI \-N\fR
@@ -1055,6 +1046,11 @@ Displays the print queue, showing the job id, name, size and current status\&.
 quit
 .RS 4
 See the exit command\&.
+.RE
+.PP
+readlink symlinkname
+.RS 4
+This command depends on the server supporting the CIFS UNIX extensions and will fail if the server does not\&. Print the value of the symlink "symlinkname"\&.
 .RE
 .PP
 rd <directory name>

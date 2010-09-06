@@ -91,9 +91,12 @@ NT_USER_TOKEN *get_root_nt_token( void )
 			cache_data, struct nt_user_token);
 	}
 
-	if ( !(pw = sys_getpwnam( "root" )) ) {
-		DEBUG(0,("get_root_nt_token: getpwnam(\"root\") failed!\n"));
-		return NULL;
+	if ( !(pw = sys_getpwuid(0)) ) {
+		if ( !(pw = sys_getpwnam("root")) ) {
+			DEBUG(0,("get_root_nt_token: both sys_getpwuid(0) "
+				"and sys_getpwnam(\"root\") failed!\n"));
+			return NULL;
+		}
 	}
 
 	/* get the user and primary group SIDs; although the

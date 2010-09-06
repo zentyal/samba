@@ -39,104 +39,124 @@
 static int net_conf_list_usage(struct net_context *c, int argc,
 			       const char **argv)
 {
-	d_printf("USAGE: net conf list\n");
+	d_printf("%s net conf list\n", _("Usage:"));
 	return -1;
 }
 
 static int net_conf_import_usage(struct net_context *c, int argc,
 				 const char**argv)
 {
-	d_printf("USAGE: net conf import [--test|-T] <filename> "
-		 "[<servicename>]\n"
-		 "\t[--test|-T]    testmode - do not act, just print "
+	d_printf("%s\n%s",
+		 _("Usage:"),
+		 _(" net conf import [--test|-T] <filename> "
+		   "[<servicename>]\n"
+		   "\t[--test|-T]    testmode - do not act, just print "
 			"what would be done\n"
-		 "\t<servicename>  only import service <servicename>, "
-			"ignore the rest\n");
+		   "\t<servicename>  only import service <servicename>, "
+			"ignore the rest\n"));
 	return -1;
 }
 
 static int net_conf_listshares_usage(struct net_context *c, int argc,
 				     const char **argv)
 {
-	d_printf("USAGE: net conf listshares\n");
+	d_printf("%s\nnet conf listshares\n", _("Usage:"));
 	return -1;
 }
 
 static int net_conf_drop_usage(struct net_context *c, int argc,
 			       const char **argv)
 {
-	d_printf("USAGE: net conf drop\n");
+	d_printf("%s\nnet conf drop\n", _("Usage:"));
 	return -1;
 }
 
 static int net_conf_showshare_usage(struct net_context *c, int argc,
 				    const char **argv)
 {
-	d_printf("USAGE: net conf showshare <sharename>\n");
+	d_printf("%s\n%s",
+		 _("Usage:"),
+		 _("net conf showshare <sharename>\n"));
 	return -1;
 }
 
 static int net_conf_addshare_usage(struct net_context *c, int argc,
 				   const char **argv)
 {
-	d_printf("USAGE: net conf addshare <sharename> <path> "
-		 "[writeable={y|N} [guest_ok={y|N} [<comment>]]\n"
-		 "\t<sharename>      the new share name.\n"
-		 "\t<path>           the path on the filesystem to export.\n"
-		 "\twriteable={y|N}  set \"writeable to \"yes\" or "
-		 "\"no\" (default) on this share.\n"
-		 "\tguest_ok={y|N}   set \"guest ok\" to \"yes\" or "
-		 "\"no\" (default)   on this share.\n"
-		 "\t<comment>        optional comment for the new share.\n");
+	d_printf("%s\n%s",
+		 _("Usage:"),
+		 _(" net conf addshare <sharename> <path> "
+		   "[writeable={y|N} [guest_ok={y|N} [<comment>]]\n"
+		   "\t<sharename>      the new share name.\n"
+		   "\t<path>           the path on the filesystem to export.\n"
+		   "\twriteable={y|N}  set \"writeable to \"yes\" or "
+		   "\"no\" (default) on this share.\n"
+		   "\tguest_ok={y|N}   set \"guest ok\" to \"yes\" or "
+		   "\"no\" (default)   on this share.\n"
+		   "\t<comment>        optional comment for the new share.\n"));
 	return -1;
 }
 
 static int net_conf_delshare_usage(struct net_context *c, int argc,
 				   const char **argv)
 {
-	d_printf("USAGE: net conf delshare <sharename>\n");
+	d_printf("%s\n%s",
+		 _("Usage:"),
+		 _("net conf delshare <sharename>\n"));
 	return -1;
 }
 
 static int net_conf_setparm_usage(struct net_context *c, int argc,
 				  const char **argv)
 {
-	d_printf("USAGE: net conf setparm <section> <param> <value>\n");
+	d_printf("%s\n%s",
+		 _("Usage:"),
+		 _(" net conf setparm <section> <param> <value>\n"));
 	return -1;
 }
 
 static int net_conf_getparm_usage(struct net_context *c, int argc,
 				  const char **argv)
 {
-	d_printf("USAGE: net conf getparm <section> <param>\n");
+	d_printf("%s\n%s",
+		 _("Usage:"),
+		 _(" net conf getparm <section> <param>\n"));
 	return -1;
 }
 
 static int net_conf_delparm_usage(struct net_context *c, int argc,
 				  const char **argv)
 {
-	d_printf("USAGE: net conf delparm <section> <param>\n");
+	d_printf("%s\n%s",
+		 _("Usage:"),
+		 _(" net conf delparm <section> <param>\n"));
 	return -1;
 }
 
 static int net_conf_getincludes_usage(struct net_context *c, int argc,
 				      const char **argv)
 {
-	d_printf("USAGE: net conf getincludes <section>\n");
+	d_printf("%s\n%s",
+		 _("Usage:"),
+		 _(" net conf getincludes <section>\n"));
 	return -1;
 }
 
 static int net_conf_setincludes_usage(struct net_context *c, int argc,
 				      const char **argv)
 {
-	d_printf("USAGE: net conf setincludes <section> [<filename>]*\n");
+	d_printf("%s\n%s",
+		 _("Usage:"),
+		 _(" net conf setincludes <section> [<filename>]*\n"));
 	return -1;
 }
 
 static int net_conf_delincludes_usage(struct net_context *c, int argc,
 				      const char **argv)
 {
-	d_printf("USAGE: net conf delincludes <section>\n");
+	d_printf("%s\n%s",
+		_("Usage:"),
+		_(" net conf delincludes <section>\n"));
 	return -1;
 }
 
@@ -209,9 +229,10 @@ static WERROR import_process_service(struct net_context *c,
 						     service->param_names[idx],
 						     service->param_values[idx]);
 			if (!W_ERROR_IS_OK(werr)) {
-				d_printf("Error in section [%s], parameter \"%s\": %s\n",
-					 service->name, service->param_names[idx],
-					 win_errstr(werr));
+				d_fprintf(stderr,
+					  _("Error in section [%s], parameter \"%s\": %s\n"),
+					  service->name, service->param_names[idx],
+					  win_errstr(werr));
 				goto done;
 			}
 		}
@@ -251,7 +272,7 @@ static int net_conf_list(struct net_context *c, struct smbconf_ctx *conf_ctx,
 
 	werr = smbconf_get_config(conf_ctx, mem_ctx, &num_shares, &shares);
 	if (!W_ERROR_IS_OK(werr)) {
-		d_fprintf(stderr, "Error getting config: %s\n",
+		d_fprintf(stderr, _("Error getting config: %s\n"),
 			  win_errstr(werr));
 		goto done;
 	}
@@ -305,7 +326,7 @@ static int net_conf_import(struct net_context *c, struct smbconf_ctx *conf_ctx,
 		case 2:
 			servicename = talloc_strdup(mem_ctx, argv[1]);
 			if (servicename == NULL) {
-				d_printf("error: out of memory!\n");
+				d_printf(_("error: out of memory!\n"));
 				goto done;
 			}
 		case 1:
@@ -318,20 +339,20 @@ static int net_conf_import(struct net_context *c, struct smbconf_ctx *conf_ctx,
 
 	conf_source = talloc_asprintf(mem_ctx, "file:%s", filename);
 	if (conf_source == NULL) {
-		d_printf("error: out of memory!\n");
+		d_printf(_("error: out of memory!\n"));
 		goto done;
 	}
 
 	werr = smbconf_init(mem_ctx, &txt_ctx, conf_source);
 	if (!W_ERROR_IS_OK(werr)) {
-		d_printf("error loading file '%s': %s\n", filename,
+		d_printf(_("error loading file '%s': %s\n"), filename,
 			 win_errstr(werr));
 		goto done;
 	}
 
 	if (c->opt_testmode) {
-		d_printf("\nTEST MODE - "
-			 "would import the following configuration:\n\n");
+		d_printf(_("\nTEST MODE - "
+			 "would import the following configuration:\n\n"));
 	}
 
 	if (servicename != NULL) {
@@ -346,7 +367,7 @@ static int net_conf_import(struct net_context *c, struct smbconf_ctx *conf_ctx,
 
 		werr = smbconf_transaction_start(conf_ctx);
 		if (!W_ERROR_IS_OK(werr)) {
-			d_printf("error starting transaction: %s\n",
+			d_printf(_("error starting transaction: %s\n"),
 				 win_errstr(werr));
 			goto done;
 		}
@@ -382,7 +403,7 @@ static int net_conf_import(struct net_context *c, struct smbconf_ctx *conf_ctx,
 		 */
 		werr = smbconf_transaction_start(conf_ctx);
 		if (!W_ERROR_IS_OK(werr)) {
-			d_printf("error starting transaction: %s\n",
+			d_printf(_("error starting transaction: %s\n"),
 				 win_errstr(werr));
 			goto done;
 		}
@@ -400,13 +421,14 @@ static int net_conf_import(struct net_context *c, struct smbconf_ctx *conf_ctx,
 
 			werr = smbconf_transaction_commit(conf_ctx);
 			if (!W_ERROR_IS_OK(werr)) {
-				d_printf("error committing transaction: %s\n",
+				d_printf(_("error committing transaction: "
+					   "%s\n"),
 					 win_errstr(werr));
 				goto done;
 			}
 			werr = smbconf_transaction_start(conf_ctx);
 			if (!W_ERROR_IS_OK(werr)) {
-				d_printf("error starting transaction: %s\n",
+				d_printf(_("error starting transaction: %s\n"),
 					 win_errstr(werr));
 				goto done;
 			}
@@ -415,7 +437,7 @@ static int net_conf_import(struct net_context *c, struct smbconf_ctx *conf_ctx,
 
 	werr = smbconf_transaction_commit(conf_ctx);
 	if (!W_ERROR_IS_OK(werr)) {
-		d_printf("error committing transaction: %s\n",
+		d_printf(_("error committing transaction: %s\n"),
 			 win_errstr(werr));
 	} else {
 		ret = 0;
@@ -426,7 +448,7 @@ static int net_conf_import(struct net_context *c, struct smbconf_ctx *conf_ctx,
 cancel:
 	werr = smbconf_transaction_cancel(conf_ctx);
 	if (!W_ERROR_IS_OK(werr)) {
-		d_printf("error cancelling transaction: %s\n",
+		d_printf(_("error cancelling transaction: %s\n"),
 			 win_errstr(werr));
 	}
 
@@ -483,7 +505,7 @@ static int net_conf_drop(struct net_context *c, struct smbconf_ctx *conf_ctx,
 
 	werr = smbconf_drop(conf_ctx);
 	if (!W_ERROR_IS_OK(werr)) {
-		d_fprintf(stderr, "Error deleting configuration: %s\n",
+		d_fprintf(stderr, _("Error deleting configuration: %s\n"),
 			  win_errstr(werr));
 		goto done;
 	}
@@ -520,7 +542,7 @@ static int net_conf_showshare(struct net_context *c,
 
 	werr = smbconf_get_share(conf_ctx, mem_ctx, sharename, &service);
 	if (!W_ERROR_IS_OK(werr)) {
-		d_printf("error getting share parameters: %s\n",
+		d_printf(_("error getting share parameters: %s\n"),
 			 win_errstr(werr));
 		goto done;
 	}
@@ -613,7 +635,7 @@ static int net_conf_addshare(struct net_context *c,
 			path = argv[1];
 			sharename = talloc_strdup(mem_ctx, argv[0]);
 			if (sharename == NULL) {
-				d_printf("error: out of memory!\n");
+				d_printf(_("error: out of memory!\n"));
 				goto done;
 			}
 
@@ -629,20 +651,20 @@ static int net_conf_addshare(struct net_context *c,
 	if (!validate_net_name(sharename, INVALID_SHARENAME_CHARS,
 			       strlen(sharename)))
 	{
-		d_fprintf(stderr, "ERROR: share name %s contains "
-                        "invalid characters (any of %s)\n",
+		d_fprintf(stderr, _("ERROR: share name %s contains "
+                        "invalid characters (any of %s)\n"),
                         sharename, INVALID_SHARENAME_CHARS);
 		goto done;
 	}
 
 	if (strequal(sharename, GLOBAL_NAME)) {
 		d_fprintf(stderr,
-			  "ERROR: 'global' is not a valid share name.\n");
+			  _("ERROR: 'global' is not a valid share name.\n"));
 		goto done;
 	}
 
 	if (smbconf_share_exists(conf_ctx, sharename)) {
-		d_fprintf(stderr, "ERROR: share %s already exists.\n",
+		d_fprintf(stderr, _("ERROR: share %s already exists.\n"),
 			  sharename);
 		goto done;
 	}
@@ -651,24 +673,35 @@ static int net_conf_addshare(struct net_context *c,
 
 	if (path[0] != '/') {
 		d_fprintf(stderr,
-			  "Error: path '%s' is not an absolute path.\n",
+			  _("Error: path '%s' is not an absolute path.\n"),
 			  path);
 		goto done;
 	}
 
-	if (sys_stat(path, &sbuf) != 0) {
+	if (sys_stat(path, &sbuf, false) != 0) {
 		d_fprintf(stderr,
-			  "ERROR: cannot stat path '%s' to ensure "
-			  "this is a directory.\n"
-			  "Error was '%s'.\n",
+			  _("ERROR: cannot stat path '%s' to ensure "
+			    "this is a directory.\n"
+			    "Error was '%s'.\n"),
 			  path, strerror(errno));
 		goto done;
 	}
 
-	if (!S_ISDIR(sbuf.st_mode)) {
+	if (!S_ISDIR(sbuf.st_ex_mode)) {
 		d_fprintf(stderr,
-			  "ERROR: path '%s' is not a directory.\n",
+			  _("ERROR: path '%s' is not a directory.\n"),
 			  path);
+		goto done;
+	}
+
+	/*
+	 * start a transaction
+	 */
+
+	werr = smbconf_transaction_start(conf_ctx);
+	if (!W_ERROR_IS_OK(werr)) {
+		d_printf("error starting transaction: %s\n",
+			 win_errstr(werr));
 		goto done;
 	}
 
@@ -678,9 +711,9 @@ static int net_conf_addshare(struct net_context *c,
 
 	werr = smbconf_create_share(conf_ctx, sharename);
 	if (!W_ERROR_IS_OK(werr)) {
-		d_fprintf(stderr, "Error creating share %s: %s\n",
+		d_fprintf(stderr, _("Error creating share %s: %s\n"),
 			  sharename, win_errstr(werr));
-		goto done;
+		goto cancel;
 	}
 
 	/*
@@ -689,37 +722,56 @@ static int net_conf_addshare(struct net_context *c,
 
 	werr = smbconf_set_parameter(conf_ctx, sharename, "path", path);
 	if (!W_ERROR_IS_OK(werr)) {
-		d_fprintf(stderr, "Error setting parameter %s: %s\n",
+		d_fprintf(stderr, _("Error setting parameter %s: %s\n"),
 			  "path", win_errstr(werr));
-		goto done;
+		goto cancel;
 	}
 
 	if (comment != NULL) {
 		werr = smbconf_set_parameter(conf_ctx, sharename, "comment",
 					     comment);
 		if (!W_ERROR_IS_OK(werr)) {
-			d_fprintf(stderr, "Error setting parameter %s: %s\n",
+			d_fprintf(stderr, _("Error setting parameter %s: %s\n"),
 				  "comment", win_errstr(werr));
-			goto done;
+			goto cancel;
 		}
 	}
 
 	werr = smbconf_set_parameter(conf_ctx, sharename, "guest ok", guest_ok);
 	if (!W_ERROR_IS_OK(werr)) {
-		d_fprintf(stderr, "Error setting parameter %s: %s\n",
+		d_fprintf(stderr, _("Error setting parameter %s: %s\n"),
 			  "'guest ok'", win_errstr(werr));
-		goto done;
+		goto cancel;
 	}
 
 	werr = smbconf_set_parameter(conf_ctx, sharename, "writeable",
 				     writeable);
 	if (!W_ERROR_IS_OK(werr)) {
-		d_fprintf(stderr, "Error setting parameter %s: %s\n",
+		d_fprintf(stderr, _("Error setting parameter %s: %s\n"),
 			  "writeable", win_errstr(werr));
-		goto done;
+		goto cancel;
 	}
 
-	ret = 0;
+	/*
+	 * commit the whole thing
+	 */
+
+	werr = smbconf_transaction_commit(conf_ctx);
+	if (!W_ERROR_IS_OK(werr)) {
+		d_printf("error committing transaction: %s\n",
+			 win_errstr(werr));
+	} else {
+		ret = 0;
+	}
+
+	goto done;
+
+cancel:
+	werr = smbconf_transaction_cancel(conf_ctx);
+	if (!W_ERROR_IS_OK(werr)) {
+		d_printf("error cancelling transaction: %s\n",
+			 win_errstr(werr));
+	}
 
 done:
 	TALLOC_FREE(mem_ctx);
@@ -741,13 +793,13 @@ static int net_conf_delshare(struct net_context *c,
 	}
 	sharename = talloc_strdup(mem_ctx, argv[0]);
 	if (sharename == NULL) {
-		d_printf("error: out of memory!\n");
+		d_printf(_("error: out of memory!\n"));
 		goto done;
 	}
 
 	werr = smbconf_delete_share(conf_ctx, sharename);
 	if (!W_ERROR_IS_OK(werr)) {
-		d_fprintf(stderr, "Error deleting share %s: %s\n",
+		d_fprintf(stderr, _("Error deleting share %s: %s\n"),
 			  sharename, win_errstr(werr));
 		goto done;
 	}
@@ -772,21 +824,27 @@ static int net_conf_setparm(struct net_context *c, struct smbconf_ctx *conf_ctx,
 		net_conf_setparm_usage(c, argc, argv);
 		goto done;
 	}
-	service = talloc_strdup(mem_ctx, argv[0]);
-	if (service == NULL) {
-		d_printf("error: out of memory!\n");
-		goto done;
+	/*
+	 * NULL service name means "dangling parameters" to libsmbconf.
+	 * We use the empty string from the command line for this purpose.
+	 */
+	if (strlen(argv[0]) != 0) {
+		service = talloc_strdup(mem_ctx, argv[0]);
+		if (service == NULL) {
+			d_printf(_("error: out of memory!\n"));
+			goto done;
+		}
 	}
-	param = talloc_strdup_lower(mem_ctx, argv[1]);
+	param = strlower_talloc(mem_ctx, argv[1]);
 	if (param == NULL) {
-		d_printf("error: out of memory!\n");
+		d_printf(_("error: out of memory!\n"));
 		goto done;
 	}
 	value_str = argv[2];
 
 	werr = smbconf_transaction_start(conf_ctx);
 	if (!W_ERROR_IS_OK(werr)) {
-		d_printf("error starting transaction: %s\n",
+		d_printf(_("error starting transaction: %s\n"),
 			 win_errstr(werr));
 		goto done;
 	}
@@ -794,7 +852,7 @@ static int net_conf_setparm(struct net_context *c, struct smbconf_ctx *conf_ctx,
 	if (!smbconf_share_exists(conf_ctx, service)) {
 		werr = smbconf_create_share(conf_ctx, service);
 		if (!W_ERROR_IS_OK(werr)) {
-			d_fprintf(stderr, "Error creating share '%s': %s\n",
+			d_fprintf(stderr, _("Error creating share '%s': %s\n"),
 				  service, win_errstr(werr));
 			goto cancel;
 		}
@@ -803,14 +861,14 @@ static int net_conf_setparm(struct net_context *c, struct smbconf_ctx *conf_ctx,
 	werr = smbconf_set_parameter(conf_ctx, service, param, value_str);
 
 	if (!W_ERROR_IS_OK(werr)) {
-		d_fprintf(stderr, "Error setting value '%s': %s\n",
+		d_fprintf(stderr, _("Error setting value '%s': %s\n"),
 			  param, win_errstr(werr));
 		goto cancel;
 	}
 
 	werr = smbconf_transaction_commit(conf_ctx);
 	if (!W_ERROR_IS_OK(werr)) {
-		d_printf("error committing transaction: %s\n",
+		d_printf(_("error committing transaction: %s\n"),
 			 win_errstr(werr));
 	} else {
 		ret = 0;
@@ -821,7 +879,7 @@ static int net_conf_setparm(struct net_context *c, struct smbconf_ctx *conf_ctx,
 cancel:
 	werr = smbconf_transaction_cancel(conf_ctx);
 	if (!W_ERROR_IS_OK(werr)) {
-		d_printf("error cancelling transaction: %s\n",
+		d_printf(_("error cancelling transaction: %s\n"),
 			 win_errstr(werr));
 	}
 
@@ -846,14 +904,20 @@ static int net_conf_getparm(struct net_context *c, struct smbconf_ctx *conf_ctx,
 		net_conf_getparm_usage(c, argc, argv);
 		goto done;
 	}
-	service = talloc_strdup(mem_ctx, argv[0]);
-	if (service == NULL) {
-		d_printf("error: out of memory!\n");
-		goto done;
+	/*
+	 * NULL service name means "dangling parameters" to libsmbconf.
+	 * We use the empty string from the command line for this purpose.
+	 */
+	if (strlen(argv[0]) != 0) {
+		service = talloc_strdup(mem_ctx, argv[0]);
+		if (service == NULL) {
+			d_printf(_("error: out of memory!\n"));
+			goto done;
+		}
 	}
-	param = talloc_strdup_lower(mem_ctx, argv[1]);
+	param = strlower_talloc(mem_ctx, argv[1]);
 	if (param == NULL) {
-		d_printf("error: out of memory!\n");
+		d_printf(_("error: out of memory!\n"));
 		goto done;
 	}
 
@@ -861,16 +925,16 @@ static int net_conf_getparm(struct net_context *c, struct smbconf_ctx *conf_ctx,
 
 	if (W_ERROR_EQUAL(werr, WERR_NO_SUCH_SERVICE)) {
 		d_fprintf(stderr,
-			  "Error: given service '%s' does not exist.\n",
+			  _("Error: given service '%s' does not exist.\n"),
 			  service);
 		goto done;
 	} else if (W_ERROR_EQUAL(werr, WERR_INVALID_PARAM)) {
 		d_fprintf(stderr,
-			  "Error: given parameter '%s' is not set.\n",
+			  _("Error: given parameter '%s' is not set.\n"),
 			  param);
 		goto done;
 	} else if (!W_ERROR_IS_OK(werr)) {
-		d_fprintf(stderr, "Error getting value '%s': %s.\n",
+		d_fprintf(stderr, _("Error getting value '%s': %s.\n"),
 			  param, win_errstr(werr));
 		goto done;
 	}
@@ -896,12 +960,18 @@ static int net_conf_delparm(struct net_context *c, struct smbconf_ctx *conf_ctx,
 		net_conf_delparm_usage(c, argc, argv);
 		goto done;
 	}
-	service = talloc_strdup(mem_ctx, argv[0]);
-	if (service == NULL) {
-		d_printf("error: out of memory!\n");
-		goto done;
+	/*
+	 * NULL service name means "dangling parameters" to libsmbconf.
+	 * We use the empty string from the command line for this purpose.
+	 */
+	if (strlen(argv[0]) != 0) {
+		service = talloc_strdup(mem_ctx, argv[0]);
+		if (service == NULL) {
+			d_printf(_("error: out of memory!\n"));
+			goto done;
+		}
 	}
-	param = talloc_strdup_lower(mem_ctx, argv[1]);
+	param = strlower_talloc(mem_ctx, argv[1]);
 	if (param == NULL) {
 		d_printf("error: out of memory!\n");
 		goto done;
@@ -911,16 +981,16 @@ static int net_conf_delparm(struct net_context *c, struct smbconf_ctx *conf_ctx,
 
 	if (W_ERROR_EQUAL(werr, WERR_NO_SUCH_SERVICE)) {
 		d_fprintf(stderr,
-			  "Error: given service '%s' does not exist.\n",
+			  _("Error: given service '%s' does not exist.\n"),
 			  service);
 		goto done;
 	} else if (W_ERROR_EQUAL(werr, WERR_INVALID_PARAM)) {
 		d_fprintf(stderr,
-			  "Error: given parameter '%s' is not set.\n",
+			  _("Error: given parameter '%s' is not set.\n"),
 			  param);
 		goto done;
 	} else if (!W_ERROR_IS_OK(werr)) {
-		d_fprintf(stderr, "Error deleting value '%s': %s.\n",
+		d_fprintf(stderr, _("Error deleting value '%s': %s.\n"),
 			  param, win_errstr(werr));
 		goto done;
 	}
@@ -951,14 +1021,14 @@ static int net_conf_getincludes(struct net_context *c,
 
 	service = talloc_strdup(mem_ctx, argv[0]);
 	if (service == NULL) {
-		d_printf("error: out of memory!\n");
+		d_printf(_("error: out of memory!\n"));
 		goto done;
 	}
 
 	werr = smbconf_get_includes(conf_ctx, mem_ctx, service,
 				    &num_includes, &includes);
 	if (!W_ERROR_IS_OK(werr)) {
-		d_printf("error getting includes: %s\n", win_errstr(werr));
+		d_printf(_("error getting includes: %s\n"), win_errstr(werr));
 		goto done;
 	}
 
@@ -991,7 +1061,7 @@ static int net_conf_setincludes(struct net_context *c,
 
 	service = talloc_strdup(mem_ctx, argv[0]);
 	if (service == NULL) {
-		d_printf("error: out of memory!\n");
+		d_printf(_("error: out of memory!\n"));
 		goto done;
 	}
 
@@ -1004,7 +1074,7 @@ static int net_conf_setincludes(struct net_context *c,
 
 	werr = smbconf_set_includes(conf_ctx, service, num_includes, includes);
 	if (!W_ERROR_IS_OK(werr)) {
-		d_printf("error setting includes: %s\n", win_errstr(werr));
+		d_printf(_("error setting includes: %s\n"), win_errstr(werr));
 		goto done;
 	}
 
@@ -1031,13 +1101,13 @@ static int net_conf_delincludes(struct net_context *c,
 
 	service = talloc_strdup(mem_ctx, argv[0]);
 	if (service == NULL) {
-		d_printf("error: out of memory!\n");
+		d_printf(_("error: out of memory!\n"));
 		goto done;
 	}
 
 	werr = smbconf_delete_includes(conf_ctx, service);
 	if (!W_ERROR_IS_OK(werr)) {
-		d_printf("error deleting includes: %s\n", win_errstr(werr));
+		d_printf(_("error deleting includes: %s\n"), win_errstr(werr));
 		goto done;
 	}
 
@@ -1117,7 +1187,7 @@ static int net_conf_run_function(struct net_context *c, int argc,
 		}
 	}
 
-	d_printf("Usage:\n");
+	d_printf(_("Usage:\n"));
 	for (i=0; table[i].funcname; i++) {
 		if (c->display_usage == false)
 			d_printf("%s %-15s %s\n", whoami, table[i].funcname,
@@ -1141,108 +1211,110 @@ int net_conf(struct net_context *c, int argc, const char **argv)
 			"list",
 			net_conf_list,
 			NET_TRANSPORT_LOCAL,
-			"Dump the complete configuration in smb.conf like "
-			"format.",
-			"net conf list\n"
-			"    Dump the complete configuration in smb.conf like "
-			"format."
+			N_("Dump the complete configuration in smb.conf like "
+			   "format."),
+			N_("net conf list\n"
+			   "    Dump the complete configuration in smb.conf "
+			   "like format.")
 
 		},
 		{
 			"import",
 			net_conf_import,
 			NET_TRANSPORT_LOCAL,
-			"Import configuration from file in smb.conf format.",
-			"net conf import\n"
-			"    Import configuration from file in smb.conf format."
+			N_("Import configuration from file in smb.conf "
+			   "format."),
+			N_("net conf import\n"
+			   "    Import configuration from file in smb.conf "
+			   "format.")
 		},
 		{
 			"listshares",
 			net_conf_listshares,
 			NET_TRANSPORT_LOCAL,
-			"List the share names.",
-			"net conf listshares\n"
-			"    List the share names."
+			N_("List the share names."),
+			N_("net conf listshares\n"
+			   "    List the share names.")
 		},
 		{
 			"drop",
 			net_conf_drop,
 			NET_TRANSPORT_LOCAL,
-			"Delete the complete configuration.",
-			"net conf drop\n"
-			"    Delete the complete configuration."
+			N_("Delete the complete configuration."),
+			N_("net conf drop\n"
+			   "    Delete the complete configuration.")
 		},
 		{
 			"showshare",
 			net_conf_showshare,
 			NET_TRANSPORT_LOCAL,
-			"Show the definition of a share.",
-			"net conf showshare\n"
-			"    Show the definition of a share."
+			N_("Show the definition of a share."),
+			N_("net conf showshare\n"
+			   "    Show the definition of a share.")
 		},
 		{
 			"addshare",
 			net_conf_addshare,
 			NET_TRANSPORT_LOCAL,
-			"Create a new share.",
-			"net conf addshare\n"
-			"    Create a new share."
+			N_("Create a new share."),
+			N_("net conf addshare\n"
+			   "    Create a new share.")
 		},
 		{
 			"delshare",
 			net_conf_delshare,
 			NET_TRANSPORT_LOCAL,
-			"Delete a share.",
-			"net conf delshare\n"
-			"    Delete a share."
+			N_("Delete a share."),
+			N_("net conf delshare\n"
+			   "    Delete a share.")
 		},
 		{
 			"setparm",
 			net_conf_setparm,
 			NET_TRANSPORT_LOCAL,
-			"Store a parameter.",
-			"net conf setparm\n"
-			"    Store a parameter."
+			N_("Store a parameter."),
+			N_("net conf setparm\n"
+			   "    Store a parameter.")
 		},
 		{
 			"getparm",
 			net_conf_getparm,
 			NET_TRANSPORT_LOCAL,
-			"Retrieve the value of a parameter.",
-			"net conf getparm\n"
-			"    Retrieve the value of a parameter."
+			N_("Retrieve the value of a parameter."),
+			N_("net conf getparm\n"
+			   "    Retrieve the value of a parameter.")
 		},
 		{
 			"delparm",
 			net_conf_delparm,
 			NET_TRANSPORT_LOCAL,
-			"Delete a parameter.",
-			"net conf delparm\n"
-			"    Delete a parameter."
+			N_("Delete a parameter."),
+			N_("net conf delparm\n"
+			   "    Delete a parameter.")
 		},
 		{
 			"getincludes",
 			net_conf_getincludes,
 			NET_TRANSPORT_LOCAL,
-			"Show the includes of a share definition.",
-			"net conf getincludes\n"
-			"    Show the includes of a share definition."
+			N_("Show the includes of a share definition."),
+			N_("net conf getincludes\n"
+			   "    Show the includes of a share definition.")
 		},
 		{
 			"setincludes",
 			net_conf_setincludes,
 			NET_TRANSPORT_LOCAL,
-			"Set includes for a share.",
-			"net conf setincludes\n"
-			"    Set includes for a share."
+			N_("Set includes for a share."),
+			N_("net conf setincludes\n"
+			   "    Set includes for a share.")
 		},
 		{
 			"delincludes",
 			net_conf_delincludes,
 			NET_TRANSPORT_LOCAL,
-			"Delete includes from a share definition.",
-			"net conf setincludes\n"
-			"    Delete includes from a share definition."
+			N_("Delete includes from a share definition."),
+			N_("net conf setincludes\n"
+			   "    Delete includes from a share definition.")
 		},
 		{NULL, NULL, 0, NULL, NULL}
 	};

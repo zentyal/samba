@@ -5,6 +5,7 @@
 
    Copyright (C) Andrew Bartlett <abartlet@samba.org> 2004-2008
    Copyright (C) Stefan Metzmacher <metze@samba.org>  2005
+   Copyright (C) Matthias Dieter Wallnöfer            2009
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,23 +23,18 @@
 
 #include "includes.h"
 #include "rpc_server/dcerpc_server.h"
-#include "rpc_server/common/common.h"
-#include "lib/ldb/include/ldb.h"
 #include "auth/auth.h"
 #include "auth/auth_sam_reply.h"
 #include "dsdb/samdb/samdb.h"
-#include "dsdb/common/flags.h"
-#include "rpc_server/samr/proto.h"
 #include "../lib/util/util_ldb.h"
-#include "libcli/auth/libcli_auth.h"
+#include "../libcli/auth/schannel.h"
 #include "auth/gensec/schannel_state.h"
 #include "libcli/security/security.h"
 #include "param/param.h"
 #include "lib/messaging/irpc.h"
 #include "librpc/gen_ndr/ndr_irpc.h"
-#include "librpc/gen_ndr/ndr_netlogon.h"
 
-struct server_pipe_state {
+struct netlogon_server_pipe_state {
 	struct netr_Credential client_challenge;
 	struct netr_Credential server_challenge;
 };
@@ -47,8 +43,8 @@ struct server_pipe_state {
 static NTSTATUS dcesrv_netr_ServerReqChallenge(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 					struct netr_ServerReqChallenge *r)
 {
-	struct server_pipe_state *pipe_state =
-		(struct server_pipe_state *)dce_call->context->private_data;
+	struct netlogon_server_pipe_state *pipe_state =
+		talloc_get_type(dce_call->context->private_data, struct netlogon_server_pipe_state);
 
 	ZERO_STRUCTP(r->out.return_credentials);
 
@@ -59,7 +55,7 @@ static NTSTATUS dcesrv_netr_ServerReqChallenge(struct dcesrv_call_state *dce_cal
 		dce_call->context->private_data = NULL;
 	}
 	
-	pipe_state = talloc(dce_call->context, struct server_pipe_state);
+	pipe_state = talloc(dce_call->context, struct netlogon_server_pipe_state);
 	NT_STATUS_HAVE_NO_MEMORY(pipe_state);
 
 	pipe_state->client_challenge = *r->in.credentials;
@@ -77,10 +73,11 @@ static NTSTATUS dcesrv_netr_ServerReqChallenge(struct dcesrv_call_state *dce_cal
 static NTSTATUS dcesrv_netr_ServerAuthenticate3(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 					 struct netr_ServerAuthenticate3 *r)
 {
-	struct server_pipe_state *pipe_state =
-		(struct server_pipe_state *)dce_call->context->private_data;
-	struct creds_CredentialState *creds;
-	void *sam_ctx;
+	struct netlogon_server_pipe_state *pipe_state =
+		talloc_get_type(dce_call->context->private_data, struct netlogon_server_pipe_state);
+	struct netlogon_creds_CredentialState *creds;
+	struct ldb_context *schannel_ldb;
+	struct ldb_context *sam_ctx;
 	struct samr_Password *mach_pwd;
 	uint32_t user_account_control;
 	int num_records;
@@ -150,8 +147,7 @@ static NTSTATUS dcesrv_netr_ServerAuthenticate3(struct dcesrv_call_state *dce_ca
 		}
 
 		/* pull the user attributes */
-		num_records = gendb_search((struct ldb_context *)sam_ctx,
-					   mem_ctx, NULL, &msgs,
+		num_records = gendb_search(sam_ctx, mem_ctx, NULL, &msgs,
 					   trust_dom_attrs,
 					   "(&(trustPartner=%s)(objectclass=trustedDomain))", 
 					   encoded_account);
@@ -183,8 +179,7 @@ static NTSTATUS dcesrv_netr_ServerAuthenticate3(struct dcesrv_call_state *dce_ca
 	}
 	
 	/* pull the user attributes */
-	num_records = gendb_search((struct ldb_context *)sam_ctx, mem_ctx,
-				   NULL, &msgs, attrs,
+	num_records = gendb_search(sam_ctx, mem_ctx, NULL, &msgs, attrs,
 				   "(&(sAMAccountName=%s)(objectclass=user))", 
 				   ldb_binary_encode_string(mem_ctx, account_name));
 
@@ -238,31 +233,30 @@ static NTSTATUS dcesrv_netr_ServerAuthenticate3(struct dcesrv_call_state *dce_ca
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
-	creds = talloc(mem_ctx, struct creds_CredentialState);
-	NT_STATUS_HAVE_NO_MEMORY(creds);
-
-	creds_server_init(creds, &pipe_state->client_challenge, 
-			  &pipe_state->server_challenge, mach_pwd,
-			  r->out.return_credentials,
-			  *r->in.negotiate_flags);
+	creds = netlogon_creds_server_init(mem_ctx, 	
+					   r->in.account_name,
+					   r->in.computer_name,
+					   r->in.secure_channel_type,
+					   &pipe_state->client_challenge, 
+					   &pipe_state->server_challenge, 
+					   mach_pwd,
+					   r->in.credentials,
+					   r->out.return_credentials,
+					   *r->in.negotiate_flags);
 	
-	if (!creds_server_check(creds, r->in.credentials)) {
-		talloc_free(creds);
+	if (!creds) {
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
-	creds->account_name = talloc_steal(creds, r->in.account_name);
-	
-	creds->computer_name = talloc_steal(creds, r->in.computer_name);
-	creds->domain = talloc_strdup(creds, lp_workgroup(dce_call->conn->dce_ctx->lp_ctx));
-
-	creds->secure_channel_type = r->in.secure_channel_type;
-
 	creds->sid = samdb_result_dom_sid(creds, msgs[0], "objectSid");
 
+	schannel_ldb = schannel_db_connect(mem_ctx, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx);
+	if (!schannel_ldb) {
+		return NT_STATUS_ACCESS_DENIED;
+	}
 
-	/* remember this session key state */
-	nt_status = schannel_store_session_key(mem_ctx, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx, creds);
+	nt_status = schannel_store_session_key_ldb(schannel_ldb, mem_ctx, creds);
+	talloc_free(schannel_ldb);
 
 	return nt_status;
 }
@@ -270,8 +264,8 @@ static NTSTATUS dcesrv_netr_ServerAuthenticate3(struct dcesrv_call_state *dce_ca
 static NTSTATUS dcesrv_netr_ServerAuthenticate(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 					struct netr_ServerAuthenticate *r)
 {
-	struct netr_ServerAuthenticate3 r3;
-	uint32_t rid = 0;
+	struct netr_ServerAuthenticate3 a;
+	uint32_t rid;
 	/* TODO: 
 	 * negotiate_flags is used as an [in] parameter
 	 * so it need to be initialised.
@@ -281,17 +275,18 @@ static NTSTATUS dcesrv_netr_ServerAuthenticate(struct dcesrv_call_state *dce_cal
 	uint32_t negotiate_flags_in = 0;
 	uint32_t negotiate_flags_out = 0;
 
-	r3.in.server_name = r->in.server_name;
-	r3.in.account_name = r->in.account_name;
-	r3.in.secure_channel_type = r->in.secure_channel_type;
-	r3.in.computer_name = r->in.computer_name;
-	r3.in.credentials = r->in.credentials;
-	r3.out.return_credentials = r->out.return_credentials;
-	r3.in.negotiate_flags = &negotiate_flags_in;
-	r3.out.negotiate_flags = &negotiate_flags_out;
-	r3.out.rid = &rid;
-	
-	return dcesrv_netr_ServerAuthenticate3(dce_call, mem_ctx, &r3);
+	a.in.server_name		= r->in.server_name;
+	a.in.account_name		= r->in.account_name;
+	a.in.secure_channel_type	= r->in.secure_channel_type;
+	a.in.computer_name		= r->in.computer_name;
+	a.in.credentials		= r->in.credentials;
+	a.in.negotiate_flags		= &negotiate_flags_in;
+
+	a.out.return_credentials	= r->out.return_credentials;
+	a.out.rid			= &rid;
+	a.out.negotiate_flags		= &negotiate_flags_out;
+
+	return dcesrv_netr_ServerAuthenticate3(dce_call, mem_ctx, &a);
 }
 
 static NTSTATUS dcesrv_netr_ServerAuthenticate2(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
@@ -323,55 +318,31 @@ static NTSTATUS dcesrv_netr_ServerAuthenticate2(struct dcesrv_call_state *dce_ca
   the caller needs some of that information.
 
 */
-static NTSTATUS dcesrv_netr_creds_server_step_check(struct tevent_context *event_ctx, 
-						    struct loadparm_context *lp_ctx,
+static NTSTATUS dcesrv_netr_creds_server_step_check(struct dcesrv_call_state *dce_call,
+						    TALLOC_CTX *mem_ctx, 
 						    const char *computer_name,
-					     TALLOC_CTX *mem_ctx, 
-					     struct netr_Authenticator *received_authenticator,
-					     struct netr_Authenticator *return_authenticator,
-					     struct creds_CredentialState **creds_out) 
+						    struct netr_Authenticator *received_authenticator,
+						    struct netr_Authenticator *return_authenticator,
+						    struct netlogon_creds_CredentialState **creds_out) 
 {
-	struct creds_CredentialState *creds;
 	NTSTATUS nt_status;
 	struct ldb_context *ldb;
-	int ret;
+	bool schannel_global_required = false; /* Should be lp_schannel_server() == true */
+	bool schannel_in_use = dce_call->conn->auth_state.auth_info
+		&& dce_call->conn->auth_state.auth_info->auth_type == DCERPC_AUTH_TYPE_SCHANNEL
+		&& (dce_call->conn->auth_state.auth_info->auth_level == DCERPC_AUTH_LEVEL_INTEGRITY 
+		    || dce_call->conn->auth_state.auth_info->auth_level == DCERPC_AUTH_LEVEL_PRIVACY);
 
-	ldb = schannel_db_connect(mem_ctx, event_ctx, lp_ctx);
+	ldb = schannel_db_connect(mem_ctx, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx);
 	if (!ldb) {
 		return NT_STATUS_ACCESS_DENIED;
 	}
-
-	ret = ldb_transaction_start(ldb);
-	if (ret != 0) {
-		talloc_free(ldb);
-		return NT_STATUS_INTERNAL_DB_CORRUPTION;
-	}
-
-	/* Because this is a shared structure (even across
-	 * disconnects) we must update the database every time we
-	 * update the structure */ 
-	
-	nt_status = schannel_fetch_session_key_ldb(ldb, ldb, computer_name, 
-						   lp_workgroup(lp_ctx),
-						   &creds);
-	if (NT_STATUS_IS_OK(nt_status)) {
-		nt_status = creds_server_step_check(creds, 
-						    received_authenticator, 
-						    return_authenticator);
-	}
-	if (NT_STATUS_IS_OK(nt_status)) {
-		nt_status = schannel_store_session_key_ldb(ldb, ldb, creds);
-	}
-
-	if (NT_STATUS_IS_OK(nt_status)) {
-		ldb_transaction_commit(ldb);
-		if (creds_out) {
-			*creds_out = creds;
-			talloc_steal(mem_ctx, creds);
-		}
-	} else {
-		ldb_transaction_cancel(ldb);
-	}
+	nt_status = schannel_creds_server_step_check_ldb(ldb, mem_ctx,
+							 computer_name,
+							 schannel_global_required,
+							 schannel_in_use,
+							 received_authenticator,
+							 return_authenticator, creds_out);
 	talloc_free(ldb);
 	return nt_status;
 }
@@ -384,14 +355,15 @@ static NTSTATUS dcesrv_netr_creds_server_step_check(struct tevent_context *event
 static NTSTATUS dcesrv_netr_ServerPasswordSet(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 				       struct netr_ServerPasswordSet *r)
 {
-	struct creds_CredentialState *creds;
+	struct netlogon_creds_CredentialState *creds;
 	struct ldb_context *sam_ctx;
 	NTSTATUS nt_status;
 
-	nt_status = dcesrv_netr_creds_server_step_check(dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx,
-							r->in.computer_name, mem_ctx, 
-						 r->in.credential, r->out.return_authenticator,
-						 &creds);
+	nt_status = dcesrv_netr_creds_server_step_check(dce_call,
+							mem_ctx, 
+							r->in.computer_name, 
+							r->in.credential, r->out.return_authenticator,
+							&creds);
 	NT_STATUS_NOT_OK_RETURN(nt_status);
 
 	sam_ctx = samdb_connect(mem_ctx, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx, system_session(mem_ctx, dce_call->conn->dce_ctx->lp_ctx));
@@ -399,7 +371,7 @@ static NTSTATUS dcesrv_netr_ServerPasswordSet(struct dcesrv_call_state *dce_call
 		return NT_STATUS_INVALID_SYSTEM_SERVICE;
 	}
 
-	creds_des_decrypt(creds, r->in.new_password);
+	netlogon_creds_des_decrypt(creds, r->in.new_password);
 
 	/* Using the sid for the account as the key, set the password */
 	nt_status = samdb_set_password_sid(sam_ctx, mem_ctx, 
@@ -418,15 +390,16 @@ static NTSTATUS dcesrv_netr_ServerPasswordSet(struct dcesrv_call_state *dce_call
 static NTSTATUS dcesrv_netr_ServerPasswordSet2(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 				       struct netr_ServerPasswordSet2 *r)
 {
-	struct creds_CredentialState *creds;
+	struct netlogon_creds_CredentialState *creds;
 	struct ldb_context *sam_ctx;
 	NTSTATUS nt_status;
 	DATA_BLOB new_password;
 
 	struct samr_CryptPassword password_buf;
 
-	nt_status = dcesrv_netr_creds_server_step_check(dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx,
-							r->in.computer_name, mem_ctx, 
+	nt_status = dcesrv_netr_creds_server_step_check(dce_call,
+							mem_ctx, 
+							r->in.computer_name, 
 							r->in.credential, r->out.return_authenticator,
 							&creds);
 	NT_STATUS_NOT_OK_RETURN(nt_status);
@@ -438,7 +411,7 @@ static NTSTATUS dcesrv_netr_ServerPasswordSet2(struct dcesrv_call_state *dce_cal
 
 	memcpy(password_buf.data, r->in.new_password->data, 512);
 	SIVAL(password_buf.data, 512, r->in.new_password->length);
-	creds_arcfour_crypt(creds, password_buf.data, 516);
+	netlogon_creds_arcfour_crypt(creds, password_buf.data, 516);
 
 	if (!extract_pw_from_buffer(mem_ctx, password_buf.data, &new_password)) {
 		DEBUG(3,("samr: failed to decode password buffer\n"));
@@ -484,7 +457,7 @@ static WERROR dcesrv_netr_LogonUasLogoff(struct dcesrv_call_state *dce_call, TAL
   We can't do the traditional 'wrapping' format completly, as this function must only run under schannel
 */
 static NTSTATUS dcesrv_netr_LogonSamLogon_base(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
-					struct netr_LogonSamLogonEx *r, struct creds_CredentialState *creds)
+					struct netr_LogonSamLogonEx *r, struct netlogon_creds_CredentialState *creds)
 {
 	struct auth_context *auth_context;
 	struct auth_usersupplied_info *user_info;
@@ -509,15 +482,15 @@ static NTSTATUS dcesrv_netr_LogonSamLogon_base(struct dcesrv_call_state *dce_cal
 	case NetlogonInteractiveTransitiveInformation:
 	case NetlogonServiceTransitiveInformation:
 		if (creds->negotiate_flags & NETLOGON_NEG_ARCFOUR) {
-			creds_arcfour_crypt(creds, 
+			netlogon_creds_arcfour_crypt(creds, 
 					    r->in.logon->password->lmpassword.hash,
 					    sizeof(r->in.logon->password->lmpassword.hash));
-			creds_arcfour_crypt(creds, 
+			netlogon_creds_arcfour_crypt(creds, 
 					    r->in.logon->password->ntpassword.hash,
 					    sizeof(r->in.logon->password->ntpassword.hash));
 		} else {
-			creds_des_decrypt(creds, &r->in.logon->password->lmpassword);
-			creds_des_decrypt(creds, &r->in.logon->password->ntpassword);
+			netlogon_creds_des_decrypt(creds, &r->in.logon->password->lmpassword);
+			netlogon_creds_des_decrypt(creds, &r->in.logon->password->ntpassword);
 		}
 
 		/* TODO: we need to deny anonymous access here */
@@ -572,7 +545,7 @@ static NTSTATUS dcesrv_netr_LogonSamLogon_base(struct dcesrv_call_state *dce_cal
 	case NetlogonGenericInformation:
 	{
 		if (creds->negotiate_flags & NETLOGON_NEG_ARCFOUR) {
-			creds_arcfour_crypt(creds, 
+			netlogon_creds_arcfour_crypt(creds, 
 					    r->in.logon->generic->data, r->in.logon->generic->length);
 		} else {
 			/* Using DES to verify kerberos tickets makes no sense */
@@ -631,7 +604,7 @@ static NTSTATUS dcesrv_netr_LogonSamLogon_base(struct dcesrv_call_state *dce_cal
 	    memcmp(sam->key.key, zeros, sizeof(sam->key.key)) != 0) {
 		/* This key is sent unencrypted without the ARCFOUR flag set */
 		if (creds->negotiate_flags & NETLOGON_NEG_ARCFOUR) {
-			creds_arcfour_crypt(creds, 
+			netlogon_creds_arcfour_crypt(creds, 
 					    sam->key.key, 
 					    sizeof(sam->key.key));
 		}
@@ -642,11 +615,11 @@ static NTSTATUS dcesrv_netr_LogonSamLogon_base(struct dcesrv_call_state *dce_cal
 	if ((r->in.validation_level != 6) &&
 	    memcmp(sam->LMSessKey.key, zeros, sizeof(sam->LMSessKey.key)) != 0) {
 		if (creds->negotiate_flags & NETLOGON_NEG_ARCFOUR) {
-			creds_arcfour_crypt(creds, 
+			netlogon_creds_arcfour_crypt(creds, 
 					    sam->LMSessKey.key, 
 					    sizeof(sam->LMSessKey.key));
 		} else {
-			creds_des_encrypt_LMKey(creds, 
+			netlogon_creds_des_encrypt_LMKey(creds, 
 						&sam->LMSessKey);
 		}
 	}
@@ -693,15 +666,20 @@ static NTSTATUS dcesrv_netr_LogonSamLogonEx(struct dcesrv_call_state *dce_call, 
 				     struct netr_LogonSamLogonEx *r) 
 {
 	NTSTATUS nt_status;
-	struct creds_CredentialState *creds;
-	nt_status = schannel_fetch_session_key(mem_ctx, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx, r->in.computer_name, lp_workgroup(dce_call->conn->dce_ctx->lp_ctx), &creds);
+	struct netlogon_creds_CredentialState *creds;
+	struct ldb_context *ldb = schannel_db_connect(mem_ctx, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx);
+	if (!ldb) {
+		return NT_STATUS_ACCESS_DENIED;
+	}
+	
+	nt_status = schannel_fetch_session_key_ldb(ldb, mem_ctx, r->in.computer_name, &creds);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		return nt_status;
 	}
 
 	if (!dce_call->conn->auth_state.auth_info ||
 	    dce_call->conn->auth_state.auth_info->auth_type != DCERPC_AUTH_TYPE_SCHANNEL) {
-		return NT_STATUS_INTERNAL_ERROR;
+		return NT_STATUS_ACCESS_DENIED;
 	}
 	return dcesrv_netr_LogonSamLogon_base(dce_call, mem_ctx, r, creds);
 }
@@ -714,7 +692,7 @@ static NTSTATUS dcesrv_netr_LogonSamLogonWithFlags(struct dcesrv_call_state *dce
 					    struct netr_LogonSamLogonWithFlags *r)
 {
 	NTSTATUS nt_status;
-	struct creds_CredentialState *creds;
+	struct netlogon_creds_CredentialState *creds;
 	struct netr_LogonSamLogonEx r2;
 
 	struct netr_Authenticator *return_authenticator;
@@ -722,10 +700,11 @@ static NTSTATUS dcesrv_netr_LogonSamLogonWithFlags(struct dcesrv_call_state *dce
 	return_authenticator = talloc(mem_ctx, struct netr_Authenticator);
 	NT_STATUS_HAVE_NO_MEMORY(return_authenticator);
 
-	nt_status = dcesrv_netr_creds_server_step_check(dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx,
-							r->in.computer_name, mem_ctx, 
-						 r->in.credential, return_authenticator,
-						 &creds);
+	nt_status = dcesrv_netr_creds_server_step_check(dce_call,
+							mem_ctx, 
+							r->in.computer_name, 
+							r->in.credential, return_authenticator,
+							&creds);
 	NT_STATUS_NOT_OK_RETURN(nt_status);
 
 	ZERO_STRUCT(r2);
@@ -801,13 +780,40 @@ static NTSTATUS dcesrv_netr_DatabaseDeltas(struct dcesrv_call_state *dce_call, T
 
 
 /* 
+  netr_DatabaseSync2 
+*/
+static NTSTATUS dcesrv_netr_DatabaseSync2(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+		       struct netr_DatabaseSync2 *r)
+{
+	/* win2k3 native mode returns  "NOT IMPLEMENTED" for this call */
+	return NT_STATUS_NOT_IMPLEMENTED;
+}
+
+
+/* 
   netr_DatabaseSync 
 */
 static NTSTATUS dcesrv_netr_DatabaseSync(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 		       struct netr_DatabaseSync *r)
 {
-	/* win2k3 native mode returns  "NOT IMPLEMENTED" for this call */
-	return NT_STATUS_NOT_IMPLEMENTED;
+	struct netr_DatabaseSync2 r2;
+	NTSTATUS status;
+
+	ZERO_STRUCT(r2);
+
+	r2.in.logon_server = r->in.logon_server;
+	r2.in.computername = r->in.computername;
+	r2.in.credential = r->in.credential;
+	r2.in.database_id = r->in.database_id;
+	r2.in.restart_state = SYNCSTATE_NORMAL_STATE;
+	r2.in.sync_context = r->in.sync_context;
+	r2.out.sync_context = r->out.sync_context;
+	r2.out.delta_enum_array = r->out.delta_enum_array;
+	r2.in.preferredmaximumlength = r->in.preferredmaximumlength;
+
+	status = dcesrv_netr_DatabaseSync2(dce_call, mem_ctx, &r2);
+
+	return status;
 }
 
 
@@ -840,7 +846,7 @@ static WERROR dcesrv_netr_GetDcName(struct dcesrv_call_state *dce_call, TALLOC_C
 		       struct netr_GetDcName *r)
 {
 	const char * const attrs[] = { NULL };
-	void *sam_ctx;
+	struct ldb_context *sam_ctx;
 	struct ldb_message **res;
 	struct ldb_dn *domain_dn;
 	int ret;
@@ -850,16 +856,16 @@ static WERROR dcesrv_netr_GetDcName(struct dcesrv_call_state *dce_call, TALLOC_C
 				dce_call->conn->dce_ctx->lp_ctx,
 				dce_call->conn->auth_state.session_info);
 	if (sam_ctx == NULL) {
-		return WERR_DS_SERVICE_UNAVAILABLE;
+		return WERR_DS_UNAVAILABLE;
 	}
 
-	domain_dn = samdb_domain_to_dn((struct ldb_context *)sam_ctx, mem_ctx,
+	domain_dn = samdb_domain_to_dn(sam_ctx, mem_ctx,
 				       r->in.domainname);
 	if (domain_dn == NULL) {
-		return WERR_DS_SERVICE_UNAVAILABLE;
+		return WERR_DS_UNAVAILABLE;
 	}
 
-	ret = gendb_search_dn((struct ldb_context *)sam_ctx, mem_ctx,
+	ret = gendb_search_dn(sam_ctx, mem_ctx,
 			      domain_dn, &res, attrs);
 	if (ret != 1) {
 		return WERR_NO_SUCH_DOMAIN;
@@ -878,12 +884,64 @@ static WERROR dcesrv_netr_GetDcName(struct dcesrv_call_state *dce_call, TALLOC_C
 
 
 /* 
+  netr_LogonControl2Ex 
+*/
+static WERROR dcesrv_netr_LogonControl2Ex(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+		       struct netr_LogonControl2Ex *r)
+{
+	return WERR_NOT_SUPPORTED;
+}
+
+
+/* 
   netr_LogonControl 
 */
 static WERROR dcesrv_netr_LogonControl(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 		       struct netr_LogonControl *r)
 {
-	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
+	struct netr_LogonControl2Ex r2;
+	WERROR werr;
+
+	if (r->in.level == 0x00000001) {
+		ZERO_STRUCT(r2);
+
+		r2.in.logon_server = r->in.logon_server;
+		r2.in.function_code = r->in.function_code;
+		r2.in.level = r->in.level;
+		r2.in.data = NULL;
+		r2.out.query = r->out.query;
+
+		werr = dcesrv_netr_LogonControl2Ex(dce_call, mem_ctx, &r2);
+	} else if (r->in.level == 0x00000002) {
+		werr = WERR_NOT_SUPPORTED;
+	} else {
+		werr = WERR_UNKNOWN_LEVEL;
+	}
+
+	return werr;
+}
+
+
+/* 
+  netr_LogonControl2 
+*/
+static WERROR dcesrv_netr_LogonControl2(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+		       struct netr_LogonControl2 *r)
+{
+	struct netr_LogonControl2Ex r2;
+	WERROR werr;
+
+	ZERO_STRUCT(r2);
+
+	r2.in.logon_server = r->in.logon_server;
+	r2.in.function_code = r->in.function_code;
+	r2.in.level = r->in.level;
+	r2.in.data = r->in.data;
+	r2.out.query = r->out.query;
+
+	werr = dcesrv_netr_LogonControl2Ex(dce_call, mem_ctx, &r2);
+
+	return werr;
 }
 
 
@@ -909,41 +967,10 @@ static WERROR dcesrv_netr_GetAnyDCName(struct dcesrv_call_state *dce_call, TALLO
 
 
 /* 
-  netr_LogonControl2 
-*/
-static WERROR dcesrv_netr_LogonControl2(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
-		       struct netr_LogonControl2 *r)
-{
-	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
-}
-
-
-/* 
-  netr_DatabaseSync2 
-*/
-static NTSTATUS dcesrv_netr_DatabaseSync2(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
-		       struct netr_DatabaseSync2 *r)
-{
-	/* win2k3 native mode returns  "NOT IMPLEMENTED" for this call */
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-
-/* 
   netr_DatabaseRedo 
 */
 static NTSTATUS dcesrv_netr_DatabaseRedo(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 		       struct netr_DatabaseRedo *r)
-{
-	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
-}
-
-
-/* 
-  netr_LogonControl2Ex 
-*/
-static WERROR dcesrv_netr_LogonControl2Ex(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
-		       struct netr_LogonControl2Ex *r)
 {
 	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
@@ -1022,45 +1049,64 @@ static WERROR dcesrv_netr_DsRGetSiteName(struct dcesrv_call_state *dce_call, TAL
 
 
 /*
-  fill in a netr_DomainTrustInfo from a ldb search result
+  fill in a netr_OneDomainInfo from a ldb search result
 */
-static NTSTATUS fill_domain_trust_info(TALLOC_CTX *mem_ctx,
-				       struct ldb_message *res,
-				       struct ldb_message *ref_res,
-				       struct netr_DomainTrustInfo *info, 
-				       bool is_local, bool is_trust_list)
+static NTSTATUS fill_one_domain_info(TALLOC_CTX *mem_ctx,
+				     struct loadparm_context *lp_ctx,
+				     struct ldb_context *sam_ctx,
+				     struct ldb_message *res,
+				     struct netr_OneDomainInfo *info,
+				     bool is_local, bool is_trust_list)
 {
 	ZERO_STRUCTP(info);
 
-	info->trust_extension.info = talloc_zero(mem_ctx, struct netr_trust_extension);
-	info->trust_extension.length = 16;
-	info->trust_extension.info->flags = 
-		NETR_TRUST_FLAG_TREEROOT | 
-		NETR_TRUST_FLAG_IN_FOREST | 
-		NETR_TRUST_FLAG_PRIMARY;
-	info->trust_extension.info->parent_index = 0; /* should be index into array
-							 of parent */
-	info->trust_extension.info->trust_type = LSA_TRUST_TYPE_UPLEVEL; /* should be based on ldb search for trusts */
-	info->trust_extension.info->trust_attributes = LSA_TRUST_ATTRIBUTE_NON_TRANSITIVE; /* needs to be based on ldb search */
+	if (is_trust_list) {
+		/* w2k8 only fills this on trusted domains */
+		info->trust_extension.info = talloc_zero(mem_ctx, struct netr_trust_extension);
+		info->trust_extension.length = 16;
+		info->trust_extension.info->flags = 
+			NETR_TRUST_FLAG_TREEROOT |
+			NETR_TRUST_FLAG_IN_FOREST | 
+			NETR_TRUST_FLAG_PRIMARY |
+			NETR_TRUST_FLAG_NATIVE;
+
+		info->trust_extension.info->parent_index = 0; /* should be index into array
+								 of parent */
+		info->trust_extension.info->trust_type = LSA_TRUST_TYPE_UPLEVEL; /* should be based on ldb search for trusts */
+		info->trust_extension.info->trust_attributes = 0; /* 	TODO: base on ldb search? */
+	}
 
 	if (is_trust_list) {
 		/* MS-NRPC 3.5.4.3.9 - must be set to NULL for trust list */
-		info->forest.string = NULL;
+		info->dns_forestname.string = NULL;
 	} else {
+		char *p;
 		/* TODO: we need a common function for pulling the forest */
-		info->forest.string = samdb_result_string(ref_res, "dnsRoot", NULL);
+		info->dns_forestname.string = ldb_dn_canonical_string(info, ldb_get_root_basedn(sam_ctx));
+		if (!info->dns_forestname.string) {
+			return NT_STATUS_NO_SUCH_DOMAIN;		
+		}
+		p = strchr(info->dns_forestname.string, '/');
+		if (p) {
+			*p = '\0';
+		}
+		info->dns_forestname.string = talloc_asprintf(mem_ctx, "%s.", info->dns_forestname.string);
+					
 	}
 
 	if (is_local) {
-		info->domainname.string = samdb_result_string(ref_res, "nETBIOSName", NULL);
-		info->fulldomainname.string = samdb_result_string(ref_res, "dnsRoot", NULL);
-		info->guid = samdb_result_guid(res, "objectGUID");
-		info->sid = samdb_result_dom_sid(mem_ctx, res, "objectSid");
+		info->domainname.string = lp_sam_name(lp_ctx);
+		info->dns_domainname.string = lp_realm(lp_ctx);
+		info->domain_guid = samdb_result_guid(res, "objectGUID");
+		info->domain_sid = samdb_result_dom_sid(mem_ctx, res, "objectSid");
 	} else {
 		info->domainname.string = samdb_result_string(res, "flatName", NULL);
-		info->fulldomainname.string = samdb_result_string(res, "trustPartner", NULL);
-		info->guid = samdb_result_guid(res, "objectGUID");
-		info->sid = samdb_result_dom_sid(mem_ctx, res, "securityIdentifier");
+		info->dns_domainname.string = samdb_result_string(res, "trustPartner", NULL);
+		info->domain_guid = samdb_result_guid(res, "objectGUID");
+		info->domain_sid = samdb_result_dom_sid(mem_ctx, res, "securityIdentifier");
+	}
+	if (!is_trust_list) {
+		info->dns_domainname.string = talloc_asprintf(mem_ctx, "%s.", info->dns_domainname.string);
 	}
 
 	return NT_STATUS_OK;
@@ -1073,95 +1119,238 @@ static NTSTATUS fill_domain_trust_info(TALLOC_CTX *mem_ctx,
   It has an important role in convaying details about the client, such
   as Operating System, Version, Service Pack etc.
 */
-static NTSTATUS dcesrv_netr_LogonGetDomainInfo(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
-					struct netr_LogonGetDomainInfo *r)
+static NTSTATUS dcesrv_netr_LogonGetDomainInfo(struct dcesrv_call_state *dce_call,
+	TALLOC_CTX *mem_ctx, struct netr_LogonGetDomainInfo *r)
 {
-	const char * const attrs[] = { "objectSid", 
-				       "objectGUID", "flatName", "securityIdentifier",
-				       "trustPartner", NULL };
-	const char * const ref_attrs[] = { "nETBIOSName", "dnsRoot", NULL };
+	struct netlogon_creds_CredentialState *creds;
+	const char * const attrs[] = { "objectSid", "objectGUID", "flatName",
+		"securityIdentifier", "trustPartner", NULL };
+	const char *temp_str;
+	const char *old_dns_hostname;
 	struct ldb_context *sam_ctx;
-	struct ldb_message **res1, **res2, **ref_res;
-	struct netr_DomainInfo1 *info1;
-	int ret, ret1, ret2, i;
+	struct ldb_message **res1, **res2, *new_msg;
+	struct ldb_dn *workstation_dn;
+	struct netr_DomainInformation *domain_info;
+	struct netr_LsaPolicyInformation *lsa_policy_info;
+	struct netr_OsVersionInfoEx *os_version;
+	uint32_t default_supported_enc_types = 0xFFFFFFFF;
+	int ret1, ret2, i;
 	NTSTATUS status;
-	struct ldb_dn *partitions_basedn;
 
-	const char *local_domain;
-
-	status = dcesrv_netr_creds_server_step_check(dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx,
-						     r->in.computer_name, mem_ctx, 
-					      r->in.credential, 
-					      r->out.return_authenticator,
-					      NULL);
+	status = dcesrv_netr_creds_server_step_check(dce_call,
+						     mem_ctx, 
+						     r->in.computer_name, 
+						     r->in.credential, 
+						     r->out.return_authenticator,
+						     &creds);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,(__location__ " Bad credentials - error\n"));
 	}
 	NT_STATUS_NOT_OK_RETURN(status);
 
-	sam_ctx = samdb_connect(mem_ctx, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx, dce_call->conn->auth_state.session_info);
+	sam_ctx = samdb_connect(mem_ctx, dce_call->event_ctx,
+		dce_call->conn->dce_ctx->lp_ctx,
+		system_session(mem_ctx, dce_call->conn->dce_ctx->lp_ctx));
 	if (sam_ctx == NULL) {
 		return NT_STATUS_INVALID_SYSTEM_SERVICE;
 	}
 
-	partitions_basedn = samdb_partitions_dn(sam_ctx, mem_ctx);
+	switch (r->in.level) {
+	case 1: /* Domain information */
 
-	/* we need to do two searches. The first will pull our primary
-	   domain and the second will pull any trusted domains. Our
-	   primary domain is also a "trusted" domain, so we need to
-	   put the primary domain into the lists of returned trusts as
-	   well */
-	ret1 = gendb_search_dn(sam_ctx, mem_ctx, samdb_base_dn(sam_ctx), &res1, attrs);
-	if (ret1 != 1) {
-		return NT_STATUS_INTERNAL_DB_CORRUPTION;
-	}
+		/* TODO: check NTSTATUS results - and fail also on SAMDB
+		 * errors (needs some testing against Windows Server 2008) */
 
-	/* try and find the domain */
-	ret = gendb_search(sam_ctx, mem_ctx, partitions_basedn, 
-			   &ref_res, ref_attrs, 
-			   "(&(objectClass=crossRef)(ncName=%s))", 
-			   ldb_dn_get_linearized(res1[0]->dn));
-	if (ret != 1) {
-		return NT_STATUS_INTERNAL_DB_CORRUPTION;
-	}
+		/*
+		 * Check that the computer name parameter matches as prefix with
+		 * the DNS hostname in the workstation info structure.
+		 */
+		temp_str = strndup(r->in.query->workstation_info->dns_hostname,
+			strcspn(r->in.query->workstation_info->dns_hostname,
+			"."));
+		if (strcasecmp(r->in.computer_name, temp_str) != 0)
+			return NT_STATUS_INVALID_PARAMETER;
 
-	local_domain = samdb_result_string(ref_res[0], "nETBIOSName", NULL);
+		workstation_dn = ldb_dn_new_fmt(mem_ctx, sam_ctx, "<SID=%s>",
+			dom_sid_string(mem_ctx, creds->sid));
+		NT_STATUS_HAVE_NO_MEMORY(workstation_dn);
 
-	ret2 = gendb_search(sam_ctx, mem_ctx, NULL, &res2, attrs, "(objectClass=trustedDomain)");
-	if (ret2 == -1) {
-		return NT_STATUS_INTERNAL_DB_CORRUPTION;
-	}
+		/* Gets the old DNS hostname */
+		old_dns_hostname = samdb_search_string(sam_ctx, mem_ctx,
+							workstation_dn,
+							"dNSHostName",
+							NULL);
 
-	info1 = talloc(mem_ctx, struct netr_DomainInfo1);
-	NT_STATUS_HAVE_NO_MEMORY(info1);
+		/* Gets host informations and put them in our directory */
+		new_msg = ldb_msg_new(mem_ctx);
+		NT_STATUS_HAVE_NO_MEMORY(new_msg);
 
-	ZERO_STRUCTP(info1);
+		new_msg->dn = workstation_dn;
 
-	info1->num_trusts = ret2 + 1;
-	info1->trusts = talloc_array(mem_ctx, struct netr_DomainTrustInfo, 
-				       info1->num_trusts);
-	NT_STATUS_HAVE_NO_MEMORY(info1->trusts);
+		/* Deletes old OS version values */
+		samdb_msg_add_delete(sam_ctx, mem_ctx, new_msg,
+			"operatingSystemServicePack");
+		samdb_msg_add_delete(sam_ctx, mem_ctx, new_msg,
+			"operatingSystemVersion");
 
-	status = fill_domain_trust_info(mem_ctx, res1[0], ref_res[0], &info1->domaininfo, 
-					true, false);
-	NT_STATUS_NOT_OK_RETURN(status);
+		if (samdb_replace(sam_ctx, mem_ctx, new_msg) != LDB_SUCCESS) {
+			DEBUG(3,("Impossible to update samdb: %s\n",
+				ldb_errstring(sam_ctx)));
+		}
 
-	for (i=0;i<ret2;i++) {
-		status = fill_domain_trust_info(mem_ctx, res2[i], NULL, &info1->trusts[i], 
-						false, true);
+		talloc_free(new_msg);
+
+		new_msg = ldb_msg_new(mem_ctx);
+		NT_STATUS_HAVE_NO_MEMORY(new_msg);
+
+		new_msg->dn = workstation_dn;
+
+		/* Sets the OS name */
+		samdb_msg_set_string(sam_ctx, mem_ctx, new_msg,
+			"operatingSystem",
+			r->in.query->workstation_info->os_name.string);
+
+		if (r->in.query->workstation_info->dns_hostname) {
+			/* TODO: should this always be done? */
+			samdb_msg_add_string(sam_ctx, mem_ctx, new_msg,
+					     "dNSHostname",
+					     r->in.query->workstation_info->dns_hostname);
+		}
+
+		/*
+		 * Sets informations from "os_version". On a empty structure
+		 * the values are cleared.
+		 */
+		if (r->in.query->workstation_info->os_version.os != NULL) {
+			os_version = &r->in.query->workstation_info->os_version.os->os;
+
+			samdb_msg_set_string(sam_ctx, mem_ctx, new_msg,
+					     "operatingSystemServicePack",
+					     os_version->CSDVersion);
+
+			samdb_msg_set_string(sam_ctx, mem_ctx, new_msg,
+				"operatingSystemVersion",
+				talloc_asprintf(mem_ctx, "%d.%d (%d)",
+					os_version->MajorVersion,
+					os_version->MinorVersion,
+					os_version->BuildNumber
+				)
+			);
+		}
+
+		/*
+		 * Updates the "dNSHostname" and the "servicePrincipalName"s
+		 * since the client wishes that the server should handle this
+		 * for him ("NETR_WS_FLAG_HANDLES_SPN_UPDATE" not set).
+		 * See MS-NRPC section 3.5.4.3.9
+		 */
+		if ((r->in.query->workstation_info->workstation_flags
+			& NETR_WS_FLAG_HANDLES_SPN_UPDATE) == 0) {
+
+			samdb_msg_add_string(sam_ctx, mem_ctx, new_msg,
+				"servicePrincipalName",
+				talloc_asprintf(mem_ctx, "HOST/%s",
+				r->in.computer_name)
+			);
+			samdb_msg_add_string(sam_ctx, mem_ctx, new_msg,
+				"servicePrincipalName",
+				talloc_asprintf(mem_ctx, "HOST/%s",
+				r->in.query->workstation_info->dns_hostname)
+			);
+		}
+
+		if (samdb_replace(sam_ctx, mem_ctx, new_msg) != LDB_SUCCESS) {
+			DEBUG(3,("Impossible to update samdb: %s\n",
+				ldb_errstring(sam_ctx)));
+		}
+
+		talloc_free(new_msg);
+
+		/* Writes back the domain information */
+
+		/* We need to do two searches. The first will pull our primary
+		   domain and the second will pull any trusted domains. Our
+		   primary domain is also a "trusted" domain, so we need to
+		   put the primary domain into the lists of returned trusts as
+		   well. */
+		ret1 = gendb_search_dn(sam_ctx, mem_ctx, samdb_base_dn(sam_ctx),
+			&res1, attrs);
+		if (ret1 != 1) {
+			return NT_STATUS_INTERNAL_DB_CORRUPTION;
+		}
+
+		ret2 = gendb_search(sam_ctx, mem_ctx, NULL, &res2, attrs,
+			"(objectClass=trustedDomain)");
+		if (ret2 == -1) {
+			return NT_STATUS_INTERNAL_DB_CORRUPTION;
+		}
+
+		domain_info = talloc(mem_ctx, struct netr_DomainInformation);
+		NT_STATUS_HAVE_NO_MEMORY(domain_info);
+
+		ZERO_STRUCTP(domain_info);
+
+		/* Informations about the local and trusted domains */
+
+		status = fill_one_domain_info(mem_ctx,
+			dce_call->conn->dce_ctx->lp_ctx,
+			sam_ctx, res1[0], &domain_info->primary_domain,
+			true, false);
 		NT_STATUS_NOT_OK_RETURN(status);
+
+		domain_info->trusted_domain_count = ret2 + 1;
+		domain_info->trusted_domains = talloc_array(mem_ctx,
+			struct netr_OneDomainInfo,
+			domain_info->trusted_domain_count);
+		NT_STATUS_HAVE_NO_MEMORY(domain_info->trusted_domains);
+
+		for (i=0;i<ret2;i++) {
+			status = fill_one_domain_info(mem_ctx,
+				dce_call->conn->dce_ctx->lp_ctx,
+				sam_ctx, res2[i],
+				&domain_info->trusted_domains[i],
+				false, true);
+			NT_STATUS_NOT_OK_RETURN(status);
+		}
+
+		status = fill_one_domain_info(mem_ctx,
+			dce_call->conn->dce_ctx->lp_ctx, sam_ctx, res1[0],
+			&domain_info->trusted_domains[i], true, true);
+		NT_STATUS_NOT_OK_RETURN(status);
+
+		/* Sets the supported encryption types */
+		domain_info->supported_enc_types = samdb_search_uint(
+			sam_ctx, mem_ctx,
+			default_supported_enc_types, workstation_dn,
+			"msDS-SupportedEncryptionTypes", NULL);
+
+		/* Other host domain informations */
+
+		lsa_policy_info = talloc(mem_ctx,
+			struct netr_LsaPolicyInformation);
+		NT_STATUS_HAVE_NO_MEMORY(lsa_policy_info);
+		ZERO_STRUCTP(lsa_policy_info);
+
+		domain_info->lsa_policy = *lsa_policy_info;
+
+		domain_info->dns_hostname.string = old_dns_hostname;
+		domain_info->workstation_flags =
+			r->in.query->workstation_info->workstation_flags;
+
+		r->out.info->domain_info = domain_info;
+	break;
+	case 2: /* LSA policy information - not used at the moment */
+		lsa_policy_info = talloc(mem_ctx,
+			struct netr_LsaPolicyInformation);
+		NT_STATUS_HAVE_NO_MEMORY(lsa_policy_info);
+		ZERO_STRUCTP(lsa_policy_info);
+
+		r->out.info->lsa_policy_info = lsa_policy_info;
+	break;
+	default:
+		return NT_STATUS_INVALID_LEVEL;
+	break;
 	}
-
-	status = fill_domain_trust_info(mem_ctx, res1[0], ref_res[0], &info1->trusts[i], 
-					true, true);
-	NT_STATUS_NOT_OK_RETURN(status);
-
-	info1->dns_hostname.string = samdb_result_string(ref_res[0], "dnsRoot", NULL);
-	info1->workstation_flags = 
-		NETR_WS_FLAG_HANDLES_INBOUND_TRUSTS | NETR_WS_FLAG_HANDLES_SPN_UPDATE;
-	info1->supported_enc_types = 0; /* w2008 gives this 0 */
-
-	r->out.info->info1 = info1;
 
 	return NT_STATUS_OK;
 }
@@ -1205,7 +1394,7 @@ static WERROR dcesrv_netr_DsRGetDCNameEx2(struct dcesrv_call_state *dce_call, TA
 				   struct netr_DsRGetDCNameEx2 *r)
 {
 	const char * const attrs[] = { "objectGUID", NULL };
-	void *sam_ctx;
+	struct ldb_context *sam_ctx;
 	struct ldb_message **res;
 	struct ldb_dn *domain_dn;
 	int ret;
@@ -1215,26 +1404,24 @@ static WERROR dcesrv_netr_DsRGetDCNameEx2(struct dcesrv_call_state *dce_call, TA
 
 	sam_ctx = samdb_connect(mem_ctx, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx, dce_call->conn->auth_state.session_info);
 	if (sam_ctx == NULL) {
-		return WERR_DS_SERVICE_UNAVAILABLE;
+		return WERR_DS_UNAVAILABLE;
 	}
 
 	/* Win7-beta will send the domain name in the form the user typed, so we have to cope
 	   with both the short and long form here */
-	if (r->in.domain_name == NULL || strcasecmp(r->in.domain_name, lp_workgroup(dce_call->conn->dce_ctx->lp_ctx)) == 0) {
-		r->in.domain_name = lp_realm(dce_call->conn->dce_ctx->lp_ctx);
+	if (r->in.domain_name != NULL && !lp_is_my_domain_or_realm(dce_call->conn->dce_ctx->lp_ctx, 
+								r->in.domain_name)) {
+		return WERR_NO_SUCH_DOMAIN;
 	}
 
-	domain_dn = samdb_dns_domain_to_dn((struct ldb_context *)sam_ctx,
-					   mem_ctx,
-					   r->in.domain_name);   
+	domain_dn = ldb_get_default_basedn(sam_ctx);
 	if (domain_dn == NULL) {
-		return WERR_DS_SERVICE_UNAVAILABLE;
+		return WERR_DS_UNAVAILABLE;
 	}
 
-	ret = gendb_search_dn((struct ldb_context *)sam_ctx, mem_ctx,
+	ret = gendb_search_dn(sam_ctx, mem_ctx,
 			      domain_dn, &res, attrs);
 	if (ret != 1) {
-		return WERR_NO_SUCH_DOMAIN;
 	}
 
 	info = talloc(mem_ctx, struct netr_DsRGetDCNameInfo);
@@ -1348,9 +1535,31 @@ static WERROR dcesrv_netr_NetrEnumerateTrustedDomainsEx(struct dcesrv_call_state
   netr_DsRAddressToSitenamesExW 
 */
 static WERROR dcesrv_netr_DsRAddressToSitenamesExW(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
-		       struct netr_DsRAddressToSitenamesExW *r)
+						   struct netr_DsRAddressToSitenamesExW *r)
 {
-	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
+	struct netr_DsRAddressToSitenamesExWCtr *ctr;
+	int i;
+
+	/* we should map the provided IPs to site names, once we have
+	 * sites support
+	 */
+	ctr = talloc(mem_ctx, struct netr_DsRAddressToSitenamesExWCtr);
+	W_ERROR_HAVE_NO_MEMORY(ctr);
+
+	*r->out.ctr = ctr;
+
+	ctr->count = r->in.count;
+	ctr->sitename = talloc_array(ctr, struct lsa_String, ctr->count);
+	W_ERROR_HAVE_NO_MEMORY(ctr->sitename);
+	ctr->subnetname = talloc_array(ctr, struct lsa_String, ctr->count);
+	W_ERROR_HAVE_NO_MEMORY(ctr->subnetname);
+
+	for (i=0; i<ctr->count; i++) {
+		ctr->sitename[i].string   = "Default-First-Site-Name";
+		ctr->subnetname[i].string = NULL;
+	}
+
+	return WERR_OK;
 }
 
 
@@ -1371,12 +1580,10 @@ static WERROR dcesrv_netr_DsrEnumerateDomainTrusts(struct dcesrv_call_state *dce
 					      struct netr_DsrEnumerateDomainTrusts *r)
 {
 	struct netr_DomainTrustList *trusts;
-	void *sam_ctx;
+	struct ldb_context *sam_ctx;
 	int ret;
-	struct ldb_message **dom_res, **ref_res;
+	struct ldb_message **dom_res;
 	const char * const dom_attrs[] = { "objectSid", "objectGUID", NULL };
-	const char * const ref_attrs[] = { "nETBIOSName", "dnsRoot", NULL };
-	struct ldb_dn *partitions_basedn;
 
 	ZERO_STRUCT(r->out);
 
@@ -1385,24 +1592,10 @@ static WERROR dcesrv_netr_DsrEnumerateDomainTrusts(struct dcesrv_call_state *dce
 		return WERR_GENERAL_FAILURE;
 	}
 
-	partitions_basedn = samdb_partitions_dn((struct ldb_context *)sam_ctx,
-						mem_ctx);
-
-	ret = gendb_search_dn((struct ldb_context *)sam_ctx, mem_ctx, NULL,
+	ret = gendb_search_dn(sam_ctx, mem_ctx, NULL,
 			      &dom_res, dom_attrs);
 	if (ret == -1) {
 		return WERR_GENERAL_FAILURE;		
-	}
-	if (ret != 1) {
-		return WERR_GENERAL_FAILURE;
-	}
-
-	ret = gendb_search((struct ldb_context *)sam_ctx, mem_ctx,
-			   partitions_basedn, &ref_res, ref_attrs,
-			   "(&(objectClass=crossRef)(ncName=%s))",
-			   ldb_dn_get_linearized(dom_res[0]->dn));
-	if (ret == -1) {
-		return WERR_GENERAL_FAILURE;
 	}
 	if (ret != 1) {
 		return WERR_GENERAL_FAILURE;
@@ -1420,8 +1613,8 @@ static WERROR dcesrv_netr_DsrEnumerateDomainTrusts(struct dcesrv_call_state *dce
 
 	/* TODO: add filtering by trust_flags, and correct trust_type
 	   and attributes */
-	trusts->array[0].netbios_name = samdb_result_string(ref_res[0], "nETBIOSName", NULL);
-	trusts->array[0].dns_name     = samdb_result_string(ref_res[0], "dnsRoot", NULL);
+	trusts->array[0].netbios_name = lp_sam_name(dce_call->conn->dce_ctx->lp_ctx);
+	trusts->array[0].dns_name     = lp_realm(dce_call->conn->dce_ctx->lp_ctx);
 	trusts->array[0].trust_flags =
 		NETR_TRUST_FLAG_TREEROOT | 
 		NETR_TRUST_FLAG_IN_FOREST | 

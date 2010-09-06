@@ -92,7 +92,7 @@ WERROR registry_pull_value(TALLOC_CTX *mem_ctx,
 		}
 
 		if (!convert_string_talloc(value, CH_UTF16LE, CH_UNIX, tmp,
-					   length+2, (void **)&value->v.sz.str,
+					   length+2, (void *)&value->v.sz.str,
 					   &value->v.sz.len, False)) {
 			SAFE_FREE(tmp);
 			err = WERR_INVALID_PARAM;
@@ -102,14 +102,27 @@ WERROR registry_pull_value(TALLOC_CTX *mem_ctx,
 		SAFE_FREE(tmp);
 		break;
 	}
-	case REG_MULTI_SZ:
-		err = reg_pull_multi_sz(value, (void *)data, length,
-					&value->v.multi_sz.num_strings,
-					&value->v.multi_sz.strings);
-		if (!(W_ERROR_IS_OK(err))) {
+	case REG_MULTI_SZ: {
+		int i;
+		const char **vals;
+		DATA_BLOB blob;
+
+		blob = data_blob_const(data, length);
+
+		if (!pull_reg_multi_sz(mem_ctx, &blob, &vals)) {
+			err = WERR_NOMEM;
 			goto error;
 		}
+
+		for (i=0; vals[i]; i++) {
+			;;
+		}
+
+		value->v.multi_sz.num_strings = i;
+		value->v.multi_sz.strings = (char **)vals;
+
 		break;
+	}
 	case REG_BINARY:
 		value->v.binary = data_blob_talloc(mem_ctx, data, length);
 		break;
@@ -142,72 +155,33 @@ WERROR registry_push_value(TALLOC_CTX *mem_ctx,
 	}
 	case REG_SZ:
 	case REG_EXPAND_SZ: {
-		if (!convert_string_talloc(mem_ctx, CH_UNIX, CH_UTF16LE,
-					   value->v.sz.str,
-					   MIN(value->v.sz.len,
-					       strlen(value->v.sz.str)+1),
-					   (void *)&(presult->data),
-					   &presult->length, False))
+		if (!push_reg_sz(mem_ctx, presult, value->v.sz.str))
 		{
 			return WERR_NOMEM;
 		}
 		break;
 	}
 	case REG_MULTI_SZ: {
-		uint32_t count;
-		size_t len = 0;
-		char **strings;
-		size_t *string_lengths;
-		uint32_t ofs;
-		TALLOC_CTX *tmp_ctx = talloc_stackframe();
+		/* handle the case where we don't get a NULL terminated array */
+		const char **array;
+		int i;
 
-		strings = TALLOC_ARRAY(tmp_ctx, char *,
-				       value->v.multi_sz.num_strings);
-		if (strings == NULL) {
+		array = talloc_array(mem_ctx, const char *,
+				     value->v.multi_sz.num_strings + 1);
+		if (!array) {
 			return WERR_NOMEM;
 		}
 
-		string_lengths = TALLOC_ARRAY(tmp_ctx, size_t,
-					      value->v.multi_sz.num_strings);
-		if (string_lengths == NULL) {
-			TALLOC_FREE(tmp_ctx);
+		for (i=0; i < value->v.multi_sz.num_strings; i++) {
+			array[i] = value->v.multi_sz.strings[i];
+		}
+		array[i] = NULL;
+
+		if (!push_reg_multi_sz(mem_ctx, presult, array)) {
+			talloc_free(array);
 			return WERR_NOMEM;
 		}
-
-		/* convert the single strings */
-		for (count = 0; count < value->v.multi_sz.num_strings; count++)
-		{
-			if (!convert_string_talloc(strings, CH_UNIX,
-				CH_UTF16LE, value->v.multi_sz.strings[count],
-				strlen(value->v.multi_sz.strings[count])+1,
-				(void *)&strings[count],
-				&string_lengths[count], false))
-			{
-
-				TALLOC_FREE(tmp_ctx);
-				return WERR_NOMEM;
-			}
-			len += string_lengths[count];
-		}
-
-		/* now concatenate all into the data blob */
-		presult->data = TALLOC_ARRAY(mem_ctx, uint8_t, len);
-		if (presult->data == NULL) {
-			TALLOC_FREE(tmp_ctx);
-			return WERR_NOMEM;
-		}
-		for (count = 0, ofs = 0;
-		     count < value->v.multi_sz.num_strings;
-		     count++)
-		{
-			memcpy(presult->data + ofs, strings[count],
-			       string_lengths[count]);
-			ofs += string_lengths[count];
-		}
-		presult->length = len;
-
-		TALLOC_FREE(tmp_ctx);
-
+		talloc_free(array);
 		break;
 	}
 	case REG_BINARY:

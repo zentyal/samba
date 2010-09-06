@@ -304,7 +304,7 @@ static int ldb_msg_el_merge(struct ldb_module *module, struct ldb_message *local
 		if (map->u.convert.convert_remote == NULL) {
 			ldb_debug(ldb, LDB_DEBUG_ERROR, "ldb_map: "
 				  "Skipping attribute '%s': "
-				  "'convert_remote' not set\n",
+				  "'convert_remote' not set",
 				  attr_name);
 			return LDB_SUCCESS;
 		}
@@ -323,7 +323,7 @@ static int ldb_msg_el_merge(struct ldb_module *module, struct ldb_message *local
 		if (map->u.generate.generate_local == NULL) {
 			ldb_debug(ldb, LDB_DEBUG_ERROR, "ldb_map: "
 				  "Skipping attribute '%s': "
-				  "'generate_local' not set\n",
+				  "'generate_local' not set",
 				  attr_name);
 			return LDB_SUCCESS;
 		}
@@ -900,7 +900,7 @@ static int map_subtree_collect_remote(struct ldb_module *module, void *mem_ctx, 
 	if (map->type == MAP_GENERATE) {
 		ldb_debug(ldb, LDB_DEBUG_WARNING, "ldb_map: "
 			  "Skipping attribute '%s': "
-			  "'convert_operator' not set\n",
+			  "'convert_operator' not set",
 			  tree->u.equality.attr);
 		*new = NULL;
 		return 0;
@@ -1062,7 +1062,7 @@ int map_return_entry(struct map_context *ac, struct ldb_reply *ares)
 			   ac->req->op.search.scope)) {
 		ldb_debug(ldb, LDB_DEBUG_TRACE, "ldb_map: "
 			  "Skipping record '%s': "
-			  "doesn't match original search\n",
+			  "doesn't match original search",
 			  ldb_dn_get_linearized(ares->message->dn));
 		return LDB_SUCCESS;
 	}
@@ -1250,16 +1250,18 @@ static int map_remote_search_callback(struct ldb_request *req,
 						ares->response, LDB_SUCCESS);
 		}
 
-		talloc_free(ares);
-
 		/* reset the pointer to the start of the list */
 		ac->r_current = ac->r_list;
 
 		/* no entry just return */
 		if (ac->r_current == NULL) {
-			return ldb_module_done(ac->req, ares->controls,
+			ret = ldb_module_done(ac->req, ares->controls,
 						ares->response, LDB_SUCCESS);
+			talloc_free(ares);
+			return ret;
 		}
+
+		talloc_free(ares);
 
 		ret = map_search_local(ac);
 		if (ret != LDB_SUCCESS) {

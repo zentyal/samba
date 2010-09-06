@@ -107,6 +107,9 @@ const char *ndr_errstr(enum ndr_err_code err)
 	case NDR_ERR_UNREAD_BYTES:
 		return "NDR_ERR_UNREAD_BYTES";
 		break;
+	case NDR_ERR_NDR64:
+		return "NDR_ERR_NDR64";
+		break;
 	}
 
 	return talloc_asprintf(talloc_tos(), "Unknown NDR error: %d", err);
@@ -210,3 +213,6 @@ struct smb_iconv_convenience *lp_iconv_convenience(void *lp_ctx)
 {
 	return NULL;
 }
+
+const struct ndr_syntax_id null_ndr_syntax_id =
+{ { 0, 0, 0, { 0, 0 }, { 0, 0, 0, 0, 0, 0 } }, 0 };

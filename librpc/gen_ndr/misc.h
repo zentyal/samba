@@ -28,11 +28,11 @@ struct policy_handle {
 enum netr_SchannelType
 #ifndef USE_UINT_ENUMS
  {
-	SEC_CHAN_NULL=0,
-	SEC_CHAN_WKSTA=2,
-	SEC_CHAN_DNS_DOMAIN=3,
-	SEC_CHAN_DOMAIN=4,
-	SEC_CHAN_BDC=6
+	SEC_CHAN_NULL=(int)(0),
+	SEC_CHAN_WKSTA=(int)(2),
+	SEC_CHAN_DNS_DOMAIN=(int)(3),
+	SEC_CHAN_DOMAIN=(int)(4),
+	SEC_CHAN_BDC=(int)(6)
 }
 #else
  { __donnot_use_enum_netr_SchannelType=0x7FFFFFFF}
@@ -53,18 +53,18 @@ struct KRB5_EDATA_NTSTATUS {
 enum winreg_Type
 #ifndef USE_UINT_ENUMS
  {
-	REG_NONE=0,
-	REG_SZ=1,
-	REG_EXPAND_SZ=2,
-	REG_BINARY=3,
-	REG_DWORD=4,
-	REG_DWORD_BIG_ENDIAN=5,
-	REG_LINK=6,
-	REG_MULTI_SZ=7,
-	REG_RESOURCE_LIST=8,
-	REG_FULL_RESOURCE_DESCRIPTOR=9,
-	REG_RESOURCE_REQUIREMENTS_LIST=10,
-	REG_QWORD=11
+	REG_NONE=(int)(0),
+	REG_SZ=(int)(1),
+	REG_EXPAND_SZ=(int)(2),
+	REG_BINARY=(int)(3),
+	REG_DWORD=(int)(4),
+	REG_DWORD_BIG_ENDIAN=(int)(5),
+	REG_LINK=(int)(6),
+	REG_MULTI_SZ=(int)(7),
+	REG_RESOURCE_LIST=(int)(8),
+	REG_FULL_RESOURCE_DESCRIPTOR=(int)(9),
+	REG_RESOURCE_REQUIREMENTS_LIST=(int)(10),
+	REG_QWORD=(int)(11)
 }
 #else
  { __donnot_use_enum_winreg_Type=0x7FFFFFFF}

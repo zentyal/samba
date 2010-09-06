@@ -31,14 +31,14 @@
 #include "vfs_gpfs.h"
 
 static int vfs_gpfs_kernel_flock(vfs_handle_struct *handle, files_struct *fsp, 
-				 uint32 share_mode)
+				 uint32 share_mode, uint32 access_mask)
 {
 
 	START_PROFILE(syscall_kernel_flock);
 
-	kernel_flock(fsp->fh->fd, share_mode);
+	kernel_flock(fsp->fh->fd, share_mode, access_mask);
 
-	if (!set_gpfs_sharemode(fsp, fsp->access_mask, fsp->share_access)) {
+	if (!set_gpfs_sharemode(fsp, access_mask, fsp->share_access)) {
 
 		return -1;
 
@@ -303,7 +303,7 @@ static NTSTATUS gpfsacl_fget_nt_acl(vfs_handle_struct *handle,
 	int	result;
 
 	*ppdesc = NULL;
-	result = gpfs_get_nfs4_acl(fsp->fsp_name, &pacl);
+	result = gpfs_get_nfs4_acl(fsp->fsp_name->base_name, &pacl);
 
 	if (result == 0)
 		return smb_fget_nt_acl_nfs4(fsp, security_info, ppdesc, pacl);
@@ -389,7 +389,7 @@ static bool gpfsacl_process_smbacl(files_struct *fsp, SMB4ACL_T *smbacl)
 				 "merge_writeappend", True)) {
 			DEBUG(2, ("vfs_gpfs.c: file [%s]: ACE contains "
 				  "WRITE^APPEND, setting WRITE|APPEND\n",
-				  fsp->fsp_name));
+				  fsp_str_dbg(fsp)));
 			gace->aceMask |= ACE4_MASK_WRITE|ACE4_MASK_APPEND;
 		}
 
@@ -423,7 +423,8 @@ static bool gpfsacl_process_smbacl(files_struct *fsp, SMB4ACL_T *smbacl)
 		gacl->acl_nace++;
 	}
 
-	ret = smbd_gpfs_putacl(fsp->fsp_name, GPFS_PUTACL_STRUCT | GPFS_ACL_SAMBA, gacl);
+	ret = smbd_gpfs_putacl(fsp->fsp_name->base_name,
+			       GPFS_PUTACL_STRUCT | GPFS_ACL_SAMBA, gacl);
 	if (ret != 0) {
 		DEBUG(8, ("gpfs_putacl failed with %s\n", strerror(errno)));
 		gpfs_dumpacl(8, gacl);
@@ -439,12 +440,19 @@ static NTSTATUS gpfsacl_set_nt_acl_internal(files_struct *fsp, uint32 security_i
 	struct gpfs_acl *acl;
 	NTSTATUS result = NT_STATUS_ACCESS_DENIED;
 
-	acl = gpfs_getacl_alloc(fsp->fsp_name, 0);
+	acl = gpfs_getacl_alloc(fsp->fsp_name->base_name, 0);
 	if (acl == NULL)
 		return result;
 
 	if (acl->acl_version&GPFS_ACL_VERSION_NFS4)
 	{
+		if (lp_parm_bool(fsp->conn->params->service, "gpfs",
+				 "refuse_dacl_protected", false)
+		    && (psd->type&SEC_DESC_DACL_PROTECTED)) {
+			DEBUG(2, ("Rejecting unsupported ACL with DACL_PROTECTED bit set\n"));
+			return NT_STATUS_NOT_SUPPORTED;
+		}
+
 		result = smb_set_nt_acl_nfs4(
 			fsp, security_info_sent, psd,
 			gpfsacl_process_smbacl);
@@ -589,7 +597,8 @@ static SMB_ACL_T gpfsacl_sys_acl_get_file(vfs_handle_struct *handle,
 static SMB_ACL_T gpfsacl_sys_acl_get_fd(vfs_handle_struct *handle,
 					files_struct *fsp)
 {
-	return gpfsacl_get_posix_acl(fsp->fsp_name, GPFS_ACL_TYPE_ACCESS);
+	return gpfsacl_get_posix_acl(fsp->fsp_name->base_name,
+				     GPFS_ACL_TYPE_ACCESS);
 }
 
 static struct gpfs_acl *smb2gpfs_acl(const SMB_ACL_T pacl,
@@ -702,7 +711,8 @@ static int gpfsacl_sys_acl_set_fd(vfs_handle_struct *handle,
 				  files_struct *fsp,
 				  SMB_ACL_T theacl)
 {
-	return gpfsacl_sys_acl_set_file(handle, fsp->fsp_name, SMB_ACL_TYPE_ACCESS, theacl);
+	return gpfsacl_sys_acl_set_file(handle, fsp->fsp_name->base_name,
+					SMB_ACL_TYPE_ACCESS, theacl);
 }
 
 static int gpfsacl_sys_acl_delete_def_file(vfs_handle_struct *handle,
@@ -759,6 +769,7 @@ static int gpfsacl_emu_chmod(const char *path, mode_t mode)
 	int     i;
 	files_struct    fake_fsp; /* TODO: rationalize parametrization */
 	SMB4ACE_T       *smbace;
+	NTSTATUS status;
 
 	DEBUG(10, ("gpfsacl_emu_chmod invoked for %s mode %o\n", path, mode));
 
@@ -828,32 +839,44 @@ static int gpfsacl_emu_chmod(const char *path, mode_t mode)
 
 	/* don't add complementary DENY ACEs here */
 	ZERO_STRUCT(fake_fsp);
-	fake_fsp.fsp_name = (char *)path; /* no file_new is needed here */
-
-	/* put the acl */
-	if (gpfsacl_process_smbacl(&fake_fsp, pacl) == False)
+	status = create_synthetic_smb_fname(talloc_tos(), path, NULL, NULL,
+					    &fake_fsp.fsp_name);
+	if (!NT_STATUS_IS_OK(status)) {
+		errno = map_errno_from_nt_status(status);
 		return -1;
+	}
+	/* put the acl */
+	if (gpfsacl_process_smbacl(&fake_fsp, pacl) == False) {
+		TALLOC_FREE(fake_fsp.fsp_name);
+		return -1;
+	}
+
+	TALLOC_FREE(fake_fsp.fsp_name);
 	return 0; /* ok for [f]chmod */
 }
 
 static int vfs_gpfs_chmod(vfs_handle_struct *handle, const char *path, mode_t mode)
 {
-		 SMB_STRUCT_STAT st;
-		 int rc;
+	struct smb_filename *smb_fname_cpath;
+	int rc;
+	NTSTATUS status;
 
-		 if (SMB_VFS_NEXT_STAT(handle, path, &st) != 0) {
-			 return -1;
-		 }
+	status = create_synthetic_smb_fname(
+		talloc_tos(), path, NULL, NULL, &smb_fname_cpath);
 
-		 /* avoid chmod() if possible, to preserve acls */
-		 if ((st.st_mode & ~S_IFMT) == mode) {
-			 return 0;
-		 }
+	if (SMB_VFS_NEXT_STAT(handle, smb_fname_cpath) != 0) {
+		return -1;
+	}
 
-		 rc = gpfsacl_emu_chmod(path, mode);
-		 if (rc == 1)
-			 return SMB_VFS_NEXT_CHMOD(handle, path, mode);
-		 return rc;
+	/* avoid chmod() if possible, to preserve acls */
+	if ((smb_fname_cpath->st.st_ex_mode & ~S_IFMT) == mode) {
+		return 0;
+	}
+
+	rc = gpfsacl_emu_chmod(path, mode);
+	if (rc == 1)
+		return SMB_VFS_NEXT_CHMOD(handle, path, mode);
+	return rc;
 }
 
 static int vfs_gpfs_fchmod(vfs_handle_struct *handle, files_struct *fsp, mode_t mode)
@@ -866,80 +889,242 @@ static int vfs_gpfs_fchmod(vfs_handle_struct *handle, files_struct *fsp, mode_t 
 		 }
 
 		 /* avoid chmod() if possible, to preserve acls */
-		 if ((st.st_mode & ~S_IFMT) == mode) {
+		 if ((st.st_ex_mode & ~S_IFMT) == mode) {
 			 return 0;
 		 }
 
-		 rc = gpfsacl_emu_chmod(fsp->fsp_name, mode);
+		 rc = gpfsacl_emu_chmod(fsp->fsp_name->base_name, mode);
 		 if (rc == 1)
 			 return SMB_VFS_NEXT_FCHMOD(handle, fsp, mode);
 		 return rc;
 }
 
-/* VFS operations structure */
+static int gpfs_set_xattr(struct vfs_handle_struct *handle,  const char *path,
+                           const char *name, const void *value, size_t size,  int flags){
+        const char *attrstr = value;
+        unsigned int dosmode=0;
+        struct gpfs_winattr attrs;
+        int ret = 0;
 
-static vfs_op_tuple gpfs_op_tuples[] = {
+        DEBUG(10, ("gpfs_set_xattr: %s \n",path));
 
-	{ SMB_VFS_OP(vfs_gpfs_kernel_flock), 
-	  SMB_VFS_OP_KERNEL_FLOCK,
-	  SMB_VFS_LAYER_OPAQUE },
+        /* Only handle DOS Attributes */
+        if (strcmp(name,SAMBA_XATTR_DOS_ATTRIB) != 0){
+		DEBUG(1, ("gpfs_set_xattr:name is %s\n",name));
+		return SMB_VFS_NEXT_SETXATTR(handle,path,name,value,size,flags);
+        }
 
-        { SMB_VFS_OP(vfs_gpfs_setlease), 
-	  SMB_VFS_OP_LINUX_SETLEASE,
-	  SMB_VFS_LAYER_OPAQUE },
+        if (size < 2 || attrstr[0] != '0' || attrstr[1] != 'x' ||
+                                sscanf(attrstr, "%x", &dosmode) != 1) {
+                        DEBUG(1,("gpfs_set_xattr: Trying to set badly formed DOSATTRIB on file %s - %s\n", path, attrstr));
+                return False;
+        }
 
-        { SMB_VFS_OP(vfs_gpfs_get_real_filename),
-	  SMB_VFS_OP_GET_REAL_FILENAME,
-	  SMB_VFS_LAYER_OPAQUE },
+        attrs.winAttrs = 0;
+        /*Just map RD_ONLY, ARCHIVE, SYSTEM and HIDDEN. Ignore the others*/
+        if (dosmode & FILE_ATTRIBUTE_ARCHIVE){
+                attrs.winAttrs |= GPFS_WINATTR_ARCHIVE;
+        }
+        if (dosmode & FILE_ATTRIBUTE_HIDDEN){
+                        attrs.winAttrs |= GPFS_WINATTR_HIDDEN;
+                }
+        if (dosmode & FILE_ATTRIBUTE_SYSTEM){
+                        attrs.winAttrs |= GPFS_WINATTR_SYSTEM;
+                }
+        if (dosmode & FILE_ATTRIBUTE_READONLY){
+                        attrs.winAttrs |= GPFS_WINATTR_READONLY;
+        }
 
-        { SMB_VFS_OP(gpfsacl_fget_nt_acl), 
-	  SMB_VFS_OP_FGET_NT_ACL,
-	  SMB_VFS_LAYER_TRANSPARENT },
 
-        { SMB_VFS_OP(gpfsacl_get_nt_acl), 
-	  SMB_VFS_OP_GET_NT_ACL,
-	  SMB_VFS_LAYER_TRANSPARENT },
+        ret = set_gpfs_winattrs(CONST_DISCARD(char *, path),
+				GPFS_WINATTR_SET_ATTRS, &attrs);
+        if ( ret == -1){
+                DEBUG(1, ("gpfs_set_xattr:Set GPFS attributes failed %d\n",ret));
+                return -1;
+        }
 
-        { SMB_VFS_OP(gpfsacl_fset_nt_acl), 
-	  SMB_VFS_OP_FSET_NT_ACL,
-	  SMB_VFS_LAYER_TRANSPARENT },
+        DEBUG(10, ("gpfs_set_xattr:Set attributes: 0x%x\n",attrs.winAttrs));
+        return 0;
+}
 
-        { SMB_VFS_OP(gpfsacl_sys_acl_get_file), 
-	  SMB_VFS_OP_SYS_ACL_GET_FILE,
-	  SMB_VFS_LAYER_TRANSPARENT },
+static ssize_t gpfs_get_xattr(struct vfs_handle_struct *handle,  const char *path,
+                              const char *name, void *value, size_t size){
+        char *attrstr = value;
+        unsigned int dosmode = 0;
+        struct gpfs_winattr attrs;
+        int ret = 0;
 
-        { SMB_VFS_OP(gpfsacl_sys_acl_get_fd), 
-	  SMB_VFS_OP_SYS_ACL_GET_FD,
-	  SMB_VFS_LAYER_TRANSPARENT },
+        DEBUG(10, ("gpfs_get_xattr: %s \n",path));
 
-        { SMB_VFS_OP(gpfsacl_sys_acl_set_file), 
-	  SMB_VFS_OP_SYS_ACL_SET_FILE,
-	  SMB_VFS_LAYER_TRANSPARENT },
+        /* Only handle DOS Attributes */
+        if (strcmp(name,SAMBA_XATTR_DOS_ATTRIB) != 0){
+                DEBUG(1, ("gpfs_get_xattr:name is %s\n",name));
+                return SMB_VFS_NEXT_GETXATTR(handle,path,name,value,size);
+        }
 
-        { SMB_VFS_OP(gpfsacl_sys_acl_set_fd), 
-	  SMB_VFS_OP_SYS_ACL_SET_FD,
-	  SMB_VFS_LAYER_TRANSPARENT },
+        ret = get_gpfs_winattrs(CONST_DISCARD(char *, path), &attrs);
+        if ( ret == -1){
+                DEBUG(1, ("gpfs_get_xattr: Get GPFS attributes failed: %d\n",ret));
+                return -1;
+        }
 
-        { SMB_VFS_OP(gpfsacl_sys_acl_delete_def_file),
-	  SMB_VFS_OP_SYS_ACL_DELETE_DEF_FILE,
-	  SMB_VFS_LAYER_TRANSPARENT },
+        DEBUG(10, ("gpfs_get_xattr:Got attributes: 0x%x\n",attrs.winAttrs));
 
-        { SMB_VFS_OP(vfs_gpfs_chmod), 
-	  SMB_VFS_OP_CHMOD,
-	  SMB_VFS_LAYER_TRANSPARENT },
+        /*Just map RD_ONLY, ARCHIVE, SYSTEM and HIDDEN. Ignore the others*/
+        if (attrs.winAttrs & GPFS_WINATTR_ARCHIVE){
+                dosmode |= FILE_ATTRIBUTE_ARCHIVE;
+        }
+        if (attrs.winAttrs & GPFS_WINATTR_HIDDEN){
+                dosmode |= FILE_ATTRIBUTE_HIDDEN;
+        }
+        if (attrs.winAttrs & GPFS_WINATTR_SYSTEM){
+                dosmode |= FILE_ATTRIBUTE_SYSTEM;
+        }
+        if (attrs.winAttrs & GPFS_WINATTR_READONLY){
+                dosmode |= FILE_ATTRIBUTE_READONLY;
+        }
 
-        { SMB_VFS_OP(vfs_gpfs_fchmod), 
-	  SMB_VFS_OP_FCHMOD,
-	  SMB_VFS_LAYER_TRANSPARENT },
+        snprintf(attrstr, size, "0x%x", dosmode & SAMBA_ATTRIBUTES_MASK);
+        DEBUG(10, ("gpfs_get_xattr: returning %s\n",attrstr));
+        return size;
+}
 
-        { SMB_VFS_OP(vfs_gpfs_close),
-	  SMB_VFS_OP_CLOSE,
-	  SMB_VFS_LAYER_TRANSPARENT },
+static int vfs_gpfs_stat(struct vfs_handle_struct *handle,
+			 struct smb_filename *smb_fname)
+{
+	struct gpfs_winattr attrs;
+	char *fname = NULL;
+	NTSTATUS status;
+	int ret;
 
-        { SMB_VFS_OP(NULL), SMB_VFS_OP_NOOP, SMB_VFS_LAYER_NOOP }
+	ret = SMB_VFS_NEXT_STAT(handle, smb_fname);
+	if (ret == -1) {
+		return -1;
+	}
+	status = get_full_smb_filename(talloc_tos(), smb_fname, &fname);
+	if (!NT_STATUS_IS_OK(status)) {
+		errno = map_errno_from_nt_status(status);
+		return -1;
+	}
+	ret = get_gpfs_winattrs(CONST_DISCARD(char *, fname), &attrs);
+	TALLOC_FREE(fname);
+	if (ret == 0) {
+		smb_fname->st.st_ex_btime.tv_sec = attrs.creationTime.tv_sec;
+		smb_fname->st.st_ex_btime.tv_nsec = attrs.creationTime.tv_nsec;
+	}
+	return 0;
+}
 
+static int vfs_gpfs_fstat(struct vfs_handle_struct *handle,
+			  struct files_struct *fsp, SMB_STRUCT_STAT *sbuf)
+{
+	struct gpfs_winattr attrs;
+	int ret;
+
+	ret = SMB_VFS_NEXT_FSTAT(handle, fsp, sbuf);
+	if (ret == -1) {
+		return -1;
+	}
+	if ((fsp->fh == NULL) || (fsp->fh->fd == -1)) {
+		return 0;
+	}
+	ret = smbd_fget_gpfs_winattrs(fsp->fh->fd, &attrs);
+	if (ret == 0) {
+		sbuf->st_ex_btime.tv_sec = attrs.creationTime.tv_sec;
+		sbuf->st_ex_btime.tv_nsec = attrs.creationTime.tv_nsec;
+	}
+	return 0;
+}
+
+static int vfs_gpfs_lstat(struct vfs_handle_struct *handle,
+			  struct smb_filename *smb_fname)
+{
+	struct gpfs_winattr attrs;
+	char *path = NULL;
+	NTSTATUS status;
+	int ret;
+
+	ret = SMB_VFS_NEXT_LSTAT(handle, smb_fname);
+	if (ret == -1) {
+		return -1;
+	}
+	status = get_full_smb_filename(talloc_tos(), smb_fname, &path);
+	if (!NT_STATUS_IS_OK(status)) {
+		errno = map_errno_from_nt_status(status);
+		return -1;
+	}
+	ret = get_gpfs_winattrs(CONST_DISCARD(char *, path), &attrs);
+	TALLOC_FREE(path);
+	if (ret == 0) {
+		smb_fname->st.st_ex_btime.tv_sec = attrs.creationTime.tv_sec;
+		smb_fname->st.st_ex_btime.tv_nsec = attrs.creationTime.tv_nsec;
+	}
+	return 0;
+}
+
+static int vfs_gpfs_ntimes(struct vfs_handle_struct *handle,
+                        const struct smb_filename *smb_fname,
+			struct smb_file_time *ft)
+{
+
+        struct gpfs_winattr attrs;
+        int ret;
+        char *path = NULL;
+        NTSTATUS status;
+
+        ret = SMB_VFS_NEXT_NTIMES(handle, smb_fname, ft);
+        if(ret == -1){
+                DEBUG(1,("vfs_gpfs_ntimes: SMB_VFS_NEXT_NTIMES failed\n"));
+                return -1;
+        }
+
+        if(null_timespec(ft->create_time)){
+                DEBUG(10,("vfs_gpfs_ntimes:Create Time is NULL\n"));
+                return 0;
+        }
+
+        status = get_full_smb_filename(talloc_tos(), smb_fname, &path);
+        if (!NT_STATUS_IS_OK(status)) {
+                errno = map_errno_from_nt_status(status);
+                return -1;
+        }
+
+        attrs.winAttrs = 0;
+        attrs.creationTime.tv_sec = ft->create_time.tv_sec;
+        attrs.creationTime.tv_nsec = ft->create_time.tv_nsec;
+
+        ret = set_gpfs_winattrs(CONST_DISCARD(char *, path),
+                                GPFS_WINATTR_SET_CREATION_TIME, &attrs);
+        if(ret == -1){
+                DEBUG(1,("vfs_gpfs_ntimes: set GPFS ntimes failed %d\n",ret));
+	        return -1;
+        }
+        return 0;
+
+}
+
+static struct vfs_fn_pointers vfs_gpfs_fns = {
+	.kernel_flock = vfs_gpfs_kernel_flock,
+        .linux_setlease = vfs_gpfs_setlease,
+        .get_real_filename = vfs_gpfs_get_real_filename,
+        .fget_nt_acl = gpfsacl_fget_nt_acl,
+        .get_nt_acl = gpfsacl_get_nt_acl,
+        .fset_nt_acl = gpfsacl_fset_nt_acl,
+        .sys_acl_get_file = gpfsacl_sys_acl_get_file,
+        .sys_acl_get_fd = gpfsacl_sys_acl_get_fd,
+        .sys_acl_set_file = gpfsacl_sys_acl_set_file,
+        .sys_acl_set_fd = gpfsacl_sys_acl_set_fd,
+        .sys_acl_delete_def_file = gpfsacl_sys_acl_delete_def_file,
+        .chmod = vfs_gpfs_chmod,
+        .fchmod = vfs_gpfs_fchmod,
+        .close_fn = vfs_gpfs_close,
+        .setxattr = gpfs_set_xattr,
+        .getxattr = gpfs_get_xattr,
+        .stat = vfs_gpfs_stat,
+        .fstat = vfs_gpfs_fstat,
+        .lstat = vfs_gpfs_lstat,
+	.ntimes = vfs_gpfs_ntimes,
 };
-
 
 NTSTATUS vfs_gpfs_init(void);
 NTSTATUS vfs_gpfs_init(void)
@@ -947,5 +1132,5 @@ NTSTATUS vfs_gpfs_init(void)
 	init_gpfs();
 
 	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "gpfs",
-				gpfs_op_tuples);
+				&vfs_gpfs_fns);
 }

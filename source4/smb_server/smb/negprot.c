@@ -24,7 +24,6 @@
 #include "smb_server/smb_server.h"
 #include "libcli/smb2/smb2.h"
 #include "smb_server/smb2/smb2_server.h"
-#include "smb_server/service_smb_proto.h"
 #include "smbd/service_stream.h"
 #include "lib/stream/packet.h"
 #include "param/param.h"
@@ -384,7 +383,7 @@ static void reply_nt1(struct smbsrv_request *req, uint16_t choice)
 			smbsrv_terminate_connection(req->smb_conn, "reply_nt1: is this a secondary negprot?  auth_context is non-NULL!\n");
 			return;
 		}
-		req->smb_conn->negotiate.server_credentials = talloc_steal(req->smb_conn, server_credentials);
+		req->smb_conn->negotiate.server_credentials = talloc_reparent(req, req->smb_conn, server_credentials);
 
 		gensec_set_target_service(gensec_security, "cifs");
 
@@ -469,7 +468,6 @@ static const struct {
 	int protocol_level;
 } supported_protocols[] = {
 	{"SMB 2.002",			"SMB2",		reply_smb2,	PROTOCOL_SMB2},
-	{"SMB 2.001",			"SMB2",		reply_smb2,	PROTOCOL_SMB2},
 	{"NT LANMAN 1.0",		"NT1",		reply_nt1,	PROTOCOL_NT1},
 	{"NT LM 0.12",			"NT1",		reply_nt1,	PROTOCOL_NT1},
 	{"LANMAN2.1",			"LANMAN2",	reply_lanman2,	PROTOCOL_LANMAN2},

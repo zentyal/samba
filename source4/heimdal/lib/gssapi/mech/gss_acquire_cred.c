@@ -50,8 +50,8 @@ gss_acquire_cred(OM_uint32 *minor_status,
 	int i;
 
 	*minor_status = 0;
-	if (output_cred_handle)
-	    *output_cred_handle = GSS_C_NO_CREDENTIAL;
+	if (output_cred_handle == NULL)
+	    return GSS_S_CALL_INACCESSIBLE_READ;
 	if (actual_mechs)
 	    *actual_mechs = GSS_C_NO_OID_SET;
 	if (time_rec)

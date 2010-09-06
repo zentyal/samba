@@ -136,8 +136,10 @@ struct dcesrv_call_state {
 /* a dcerpc handle in internal format */
 struct dcesrv_handle {
 	struct dcesrv_handle *next, *prev;
-	struct dcesrv_connection_context *context;
+	struct dcesrv_assoc_group *assoc_group;
 	struct policy_handle wire_handle;
+	struct dom_sid *sid;
+	const struct dcesrv_interface *iface;
 	void *data;
 };
 
@@ -153,7 +155,7 @@ struct dcesrv_connection_context {
 	struct dcesrv_connection_context *next, *prev;
 	uint32_t context_id;
 
-	uint32_t assoc_group_id;
+	struct dcesrv_assoc_group *assoc_group;
 
 	/* the connection this is on */
 	struct dcesrv_connection *conn;
@@ -163,10 +165,6 @@ struct dcesrv_connection_context {
 
 	/* private data for the interface implementation */
 	void *private_data;
-
-	/* current rpc handles - this is really the wrong scope for
-	   them, but it will do for now */
-	struct dcesrv_handle *handles;
 };
 
 
@@ -223,6 +221,9 @@ struct dcesrv_connection {
 		struct socket_address *(*get_my_addr)(struct dcesrv_connection *, TALLOC_CTX *mem_ctx);
 		struct socket_address *(*get_peer_addr)(struct dcesrv_connection *, TALLOC_CTX *mem_ctx);
 	} transport;
+
+	struct tstream_context *stream;
+	struct tevent_queue *send_queue;
 };
 
 
@@ -249,6 +250,18 @@ struct dcesrv_endpoint_server {
 };
 
 
+/* one association groups */
+struct dcesrv_assoc_group {
+	/* the wire id */
+	uint32_t id;
+	
+	/* list of handles in this association group */
+	struct dcesrv_handle *handles;
+
+	/* parent context */
+	struct dcesrv_context *dce_ctx;
+};
+
 /* server-wide context information for the dcerpc server */
 struct dcesrv_context {
 	/* the list of endpoints that have registered 
@@ -269,6 +282,8 @@ struct dcesrv_context {
 
 	/* loadparm context to use for this connection */
 	struct loadparm_context *lp_ctx;
+
+	struct idr_context *assoc_groups_idr;
 };
 
 /* this structure is used by modules to determine the size of some critical types */
@@ -295,21 +310,6 @@ NTSTATUS dcerpc_register_ep_server(const void *_ep_server);
 NTSTATUS dcesrv_init_context(TALLOC_CTX *mem_ctx, 
 				      struct loadparm_context *lp_ctx,
 				      const char **endpoint_servers, struct dcesrv_context **_dce_ctx);
-NTSTATUS dcesrv_init_ipc_context(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx,
-					  struct dcesrv_context **_dce_ctx);
-NTSTATUS dcesrv_endpoint_search_connect(struct dcesrv_context *dce_ctx,
-					TALLOC_CTX *mem_ctx,
-					const struct dcerpc_binding *ep_description,
-					struct auth_session_info *session_info,
-					struct tevent_context *event_ctx,
-					struct messaging_context *msg_ctx,
-					struct server_id server_id,
-					uint32_t state_flags,
-					struct dcesrv_connection **dce_conn_p);
-NTSTATUS dcesrv_output(struct dcesrv_connection *dce_conn, 
-		       void *private_data,
-		       NTSTATUS (*write_fn)(void *private_data, DATA_BLOB *output, size_t *nwritten));
-NTSTATUS dcesrv_input(struct dcesrv_connection *dce_conn, const DATA_BLOB *data);
 NTSTATUS dcesrv_endpoint_connect(struct dcesrv_context *dce_ctx,
 				 TALLOC_CTX *mem_ctx,
 				 const struct dcesrv_endpoint *ep,

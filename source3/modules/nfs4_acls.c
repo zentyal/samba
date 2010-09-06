@@ -165,18 +165,12 @@ static int smbacl4_GetFileOwner(struct connection_struct *conn,
 				const char *filename,
 				SMB_STRUCT_STAT *psbuf)
 {
-	int ret;
 	memset(psbuf, 0, sizeof(SMB_STRUCT_STAT));
 
 	/* Get the stat struct for the owner info. */
-	if (lp_posix_pathnames()) {
-		ret = SMB_VFS_LSTAT(conn, filename, psbuf);
-	} else {
-		ret = SMB_VFS_STAT(conn, filename, psbuf);
-	}
-	if (ret == -1)
+	if (vfs_stat_smb_fname(conn, filename, psbuf) != 0)
 	{
-		DEBUG(8, ("SMB_VFS_STAT failed with error %s\n",
+		DEBUG(8, ("vfs_stat_smb_fname failed with error %s\n",
 			strerror(errno)));
 		return -1;
 	}
@@ -189,7 +183,8 @@ static int smbacl4_fGetFileOwner(files_struct *fsp, SMB_STRUCT_STAT *psbuf)
 	memset(psbuf, 0, sizeof(SMB_STRUCT_STAT));
 
 	if (fsp->is_directory || fsp->fh->fd == -1) {
-		return smbacl4_GetFileOwner(fsp->conn, fsp->fsp_name, psbuf);
+		return smbacl4_GetFileOwner(fsp->conn,
+					    fsp->fsp_name->base_name, psbuf);
 	}
 	if (SMB_VFS_FSTAT(fsp, psbuf) != 0)
 	{
@@ -214,7 +209,7 @@ static bool smbacl4_nfs42win(TALLOC_CTX *mem_ctx, SMB4ACL_T *theacl, /* in */
 	SEC_ACE *nt_ace_list = NULL;
 	int good_aces = 0;
 
-	DEBUG(10, ("smbacl_nfs42win entered"));
+	DEBUG(10, ("smbacl_nfs42win entered\n"));
 
 	aclint = get_validated_aclint(theacl);
 	/* We do not check for naces being 0 or theacl being NULL here because it is done upstream */
@@ -231,6 +226,7 @@ static bool smbacl4_nfs42win(TALLOC_CTX *mem_ctx, SMB4ACL_T *theacl, /* in */
 		uint32_t mask;
 		DOM_SID sid;
 		SMB_ACE4PROP_T	*ace = &aceint->prop;
+		uint32_t mapped_ace_flags;
 
 		DEBUG(10, ("magic: 0x%x, type: %d, iflags: %x, flags: %x, mask: %x, "
 			"who: %d\n", aceint->magic, ace->aceType, ace->flags,
@@ -267,10 +263,23 @@ static bool smbacl4_nfs42win(TALLOC_CTX *mem_ctx, SMB4ACL_T *theacl, /* in */
 			ace->aceMask |= SMB_ACE4_DELETE_CHILD;
 		}
 
+		mapped_ace_flags = ace->aceFlags & 0xf;
+		if (!is_directory && (mapped_ace_flags & (SMB_ACE4_FILE_INHERIT_ACE|SMB_ACE4_DIRECTORY_INHERIT_ACE))) {
+			/*
+			 * GPFS sets inherits dir_inhert and file_inherit flags
+			 * to files, too, which confuses windows, and seems to
+			 * be wrong anyways. ==> Map these bits away for files.
+			 */
+			DEBUG(10, ("removing inherit flags from nfs4 ace\n"));
+			mapped_ace_flags &= ~(SMB_ACE4_FILE_INHERIT_ACE|SMB_ACE4_DIRECTORY_INHERIT_ACE);
+		}
+		DEBUG(10, ("mapped ace flags: 0x%x => 0x%x\n",
+		      ace->aceFlags, mapped_ace_flags));
+
 		mask = ace->aceMask;
 		init_sec_ace(&nt_ace_list[good_aces++], &sid,
 			ace->aceType, mask,
-			ace->aceFlags & 0xf);
+			mapped_ace_flags);
 	}
 
 	*ppnt_ace_list = nt_ace_list;
@@ -295,10 +304,11 @@ static NTSTATUS smb_get_nt_acl_nfs4_common(const SMB_STRUCT_STAT *sbuf,
 						 * shouldn't alloc 0 for
 						 * win */
 
-	uid_to_sid(&sid_owner, sbuf->st_uid);
-	gid_to_sid(&sid_group, sbuf->st_gid);
+	uid_to_sid(&sid_owner, sbuf->st_ex_uid);
+	gid_to_sid(&sid_group, sbuf->st_ex_gid);
 
-	if (smbacl4_nfs42win(mem_ctx, theacl, &sid_owner, &sid_group, S_ISDIR(sbuf->st_mode),
+	if (smbacl4_nfs42win(mem_ctx, theacl, &sid_owner, &sid_group,
+			     S_ISDIR(sbuf->st_ex_mode),
 				&nt_ace_list, &good_aces)==False) {
 		DEBUG(8,("smbacl4_nfs42win failed\n"));
 		return map_nt_error_from_unix(errno);
@@ -321,7 +331,7 @@ static NTSTATUS smb_get_nt_acl_nfs4_common(const SMB_STRUCT_STAT *sbuf,
 	}
 
 	DEBUG(10, ("smb_get_nt_acl_nfs4_common successfully exited with sd_size %d\n",
-		   ndr_size_security_descriptor(*ppdesc, NULL, 0)));
+		   (int)ndr_size_security_descriptor(*ppdesc, NULL, 0)));
 
 	return NT_STATUS_OK;
 }
@@ -332,7 +342,7 @@ NTSTATUS smb_fget_nt_acl_nfs4(files_struct *fsp,
 {
 	SMB_STRUCT_STAT sbuf;
 
-	DEBUG(10, ("smb_fget_nt_acl_nfs4 invoked for %s\n", fsp->fsp_name));
+	DEBUG(10, ("smb_fget_nt_acl_nfs4 invoked for %s\n", fsp_str_dbg(fsp)));
 
 	if (smbacl4_fGetFileOwner(fsp, &sbuf)) {
 		return map_nt_error_from_unix(errno);
@@ -438,8 +448,15 @@ static SMB_ACE4PROP_T *smbacl4_find_equal_special(
 	for(aceint = aclint->first; aceint!=NULL; aceint=(SMB_ACE4_INT_T *)aceint->next) {
 		SMB_ACE4PROP_T *ace = &aceint->prop;
 
+                DEBUG(10,("ace type:0x%x flags:0x%x aceFlags:0x%x "
+			  "new type:0x%x flags:0x%x aceFlags:0x%x\n",
+			  ace->aceType, ace->flags, ace->aceFlags,
+			  aceNew->aceType, aceNew->flags,aceNew->aceFlags));
+
 		if (ace->flags == aceNew->flags &&
 			ace->aceType==aceNew->aceType &&
+			((ace->aceFlags&SMB_ACE4_INHERIT_ONLY_ACE)==
+			 (aceNew->aceFlags&SMB_ACE4_INHERIT_ONLY_ACE)) &&
 			(ace->aceFlags&SMB_ACE4_IDENTIFIER_GROUP)==
 			(aceNew->aceFlags&SMB_ACE4_IDENTIFIER_GROUP)
 		) {
@@ -715,7 +732,7 @@ NTSTATUS smb_set_nt_acl_nfs4(files_struct *fsp,
 	gid_t newGID = (gid_t)-1;
 	int saved_errno;
 
-	DEBUG(10, ("smb_set_nt_acl_nfs4 invoked for %s\n", fsp->fsp_name));
+	DEBUG(10, ("smb_set_nt_acl_nfs4 invoked for %s\n", fsp_str_dbg(fsp)));
 
 	if ((security_info_sent & (DACL_SECURITY_INFORMATION |
 		GROUP_SECURITY_INFORMATION | OWNER_SECURITY_INFORMATION)) == 0)
@@ -739,18 +756,25 @@ NTSTATUS smb_set_nt_acl_nfs4(files_struct *fsp,
 			DEBUG(8, ("unpack_nt_owners failed"));
 			return status;
 		}
-		if (((newUID != (uid_t)-1) && (sbuf.st_uid != newUID)) ||
-		    ((newGID != (gid_t)-1) && (sbuf.st_gid != newGID))) {
-			if(try_chown(fsp->conn, fsp->fsp_name, newUID, newGID)) {
-				DEBUG(3,("chown %s, %u, %u failed. Error = %s.\n",
-					 fsp->fsp_name, (unsigned int)newUID, (unsigned int)newGID, 
+		if (((newUID != (uid_t)-1) && (sbuf.st_ex_uid != newUID)) ||
+		    ((newGID != (gid_t)-1) && (sbuf.st_ex_gid != newGID))) {
+
+			if(try_chown(fsp->conn, fsp->fsp_name, newUID,
+				     newGID)) {
+				DEBUG(3,("chown %s, %u, %u failed. Error = "
+					 "%s.\n", fsp_str_dbg(fsp),
+					 (unsigned int)newUID,
+					 (unsigned int)newGID,
 					 strerror(errno)));
 				return map_nt_error_from_unix(errno);
 			}
 
 			DEBUG(10,("chown %s, %u, %u succeeded.\n",
-				  fsp->fsp_name, (unsigned int)newUID, (unsigned int)newGID));
-			if (smbacl4_GetFileOwner(fsp->conn, fsp->fsp_name, &sbuf))
+				  fsp_str_dbg(fsp), (unsigned int)newUID,
+				  (unsigned int)newGID));
+			if (smbacl4_GetFileOwner(fsp->conn,
+						 fsp->fsp_name->base_name,
+						 &sbuf))
 				return map_nt_error_from_unix(errno);
 
 			/* If we successfully chowned, we know we must
@@ -765,7 +789,8 @@ NTSTATUS smb_set_nt_acl_nfs4(files_struct *fsp,
 		return NT_STATUS_OK;
 	}
 
-	theacl = smbacl4_win2nfs4(fsp->fsp_name, psd->dacl, &params, sbuf.st_uid, sbuf.st_gid);
+	theacl = smbacl4_win2nfs4(fsp->fsp_name->base_name, psd->dacl, &params,
+				  sbuf.st_ex_uid, sbuf.st_ex_gid);
 	if (!theacl)
 		return map_nt_error_from_unix(errno);
 

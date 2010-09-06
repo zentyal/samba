@@ -5,17 +5,17 @@
 
    Copyright (C) Tim Potter 2000
    Copyright (C) Jim McDonough <jmcd@us.ibm.com> 2003
-   
+
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
    License as published by the Free Software Foundation; either
    version 3 of the License, or (at your option) any later version.
-   
+
    This library is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
    Library General Public License for more details.
-   
+
    You should have received a copy of the GNU Lesser General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -25,6 +25,7 @@
 
 #include "nsswitch/winbind_struct_protocol.h"
 #include "nsswitch/libwbclient/wbclient.h"
+#include "librpc/gen_ndr/wbint.h"
 
 #ifdef HAVE_LIBNSCD
 #include <libnscd.h>
@@ -39,17 +40,6 @@
 
 #define WB_REPLACE_CHAR		'_'
 
-struct winbindd_fd_event {
-	struct winbindd_fd_event *next, *prev;
-	int fd;
-	int flags; /* see EVENT_FD_* flags */
-	void (*handler)(struct winbindd_fd_event *fde, int flags);
-	void *data;
-	size_t length, done;
-	void (*finished)(void *private_data, bool success);
-	void *private_data;
-};
-
 struct sid_ctr {
 	DOM_SID *sid;
 	bool finished;
@@ -61,32 +51,38 @@ struct sid_ctr {
 struct winbindd_cli_state {
 	struct winbindd_cli_state *prev, *next;   /* Linked list pointers */
 	int sock;                                 /* Open socket from client */
-	struct winbindd_fd_event fd_event;
 	pid_t pid;                                /* pid of client */
-	bool finished;                            /* Can delete from list */
-	bool write_extra_data;                    /* Write extra_data field */
 	time_t last_access;                       /* Time of last access (read or write) */
 	bool privileged;                           /* Is the client 'privileged' */
 
 	TALLOC_CTX *mem_ctx;			  /* memory per request */
-	struct winbindd_request request;          /* Request from client */
-	struct winbindd_response response;        /* Respose to client */
+	const char *cmd_name;
+	NTSTATUS (*recv_fn)(struct tevent_req *req,
+			    struct winbindd_response *presp);
+	struct winbindd_request *request;         /* Request from client */
+	struct tevent_queue *out_queue;
+	struct winbindd_response *response;        /* Respose to client */
 	bool getpwent_initialized;                /* Has getpwent_state been
 						   * initialized? */
 	bool getgrent_initialized;                /* Has getgrent_state been
 						   * initialized? */
-	struct getent_state *getpwent_state;      /* State for getpwent() */
-	struct getent_state *getgrent_state;      /* State for getgrent() */
+
+	struct getpwent_state *pwent_state; /* State for getpwent() */
+	struct getgrent_state *grent_state; /* State for getgrent() */
 };
 
-/* State between get{pw,gr}ent() calls */
+struct getpwent_state {
+	struct winbindd_domain *domain;
+	int next_user;
+	int num_users;
+	struct wbint_userinfo *users;
+};
 
-struct getent_state {
-	struct getent_state *prev, *next;
-	void *sam_entries;
-	uint32 sam_entry_index, num_sam_entries;
-	bool got_sam_entries;
-	fstring domain_name;
+struct getgrent_state {
+	struct winbindd_domain *domain;
+	int next_group;
+	int num_groups;
+	struct wbint_Principal *groups;
 };
 
 /* Storage for cached getpwent() user entries */
@@ -99,19 +95,6 @@ struct getpwent_user {
 	DOM_SID user_sid;                    /* NT user and primary group SIDs */
 	DOM_SID group_sid;
 };
-
-/* Server state structure */
-
-typedef struct {
-	char *acct_name;
-	char *full_name;
-	char *homedir;
-	char *shell;
-	gid_t primary_gid;                   /* allow the nss_info
-						backend to set the primary group */
-	DOM_SID user_sid;                    /* NT user and primary group SIDs */
-	DOM_SID group_sid;
-} WINBIND_USERINFO;
 
 /* Our connection to the DC */
 
@@ -127,8 +110,6 @@ struct winbindd_cm_conn {
 
 	struct rpc_pipe_client *netlogon_pipe;
 };
-
-struct winbindd_async_request;
 
 /* Async child */
 
@@ -148,10 +129,12 @@ struct winbindd_child {
 	struct winbindd_domain *domain;
 	char *logfilename;
 
-	struct winbindd_fd_event event;
+	int sock;
+	struct tevent_queue *queue;
+	struct rpc_pipe_client *rpccli;
+
 	struct timed_event *lockout_policy_event;
 	struct timed_event *machine_password_change_event;
-	struct winbindd_async_request *requests;
 
 	const struct winbindd_child_dispatch_table *table;
 };
@@ -239,11 +222,11 @@ struct winbindd_methods {
 	   always correct) */
 	bool consistent;
 
-	/* get a list of users, returning a WINBIND_USERINFO for each one */
+	/* get a list of users, returning a wbint_userinfo for each one */
 	NTSTATUS (*query_user_list)(struct winbindd_domain *domain,
 				   TALLOC_CTX *mem_ctx,
 				   uint32 *num_entries, 
-				   WINBIND_USERINFO **info);
+				   struct wbint_userinfo **info);
 
 	/* get a list of domain groups */
 	NTSTATUS (*enum_dom_groups)(struct winbindd_domain *domain,
@@ -256,13 +239,13 @@ struct winbindd_methods {
 				    TALLOC_CTX *mem_ctx,
 				    uint32 *num_entries, 
 				    struct acct_info **info);
-				    
+
 	/* convert one user or group name to a sid */
 	NTSTATUS (*name_to_sid)(struct winbindd_domain *domain,
 				TALLOC_CTX *mem_ctx,
-				enum winbindd_cmd orig_cmd,
 				const char *domain_name,
 				const char *name,
+				uint32_t flags,
 				DOM_SID *sid,
 				enum lsa_SidType *type);
 
@@ -287,7 +270,7 @@ struct winbindd_methods {
 	NTSTATUS (*query_user)(struct winbindd_domain *domain, 
 			       TALLOC_CTX *mem_ctx, 
 			       const DOM_SID *user_sid,
-			       WINBIND_USERINFO *user_info);
+			       struct wbint_userinfo *user_info);
 
 	/* lookup all groups that a user is a member of. The backend
 	   can also choose to lookup by username or rid for this
@@ -310,6 +293,7 @@ struct winbindd_methods {
 	NTSTATUS (*lookup_groupmem)(struct winbindd_domain *domain,
 				    TALLOC_CTX *mem_ctx,
 				    const DOM_SID *group_sid,
+				    enum lsa_SidType type,
 				    uint32 *num_names, 
 				    DOM_SID **sid_mem, char ***names, 
 				    uint32 **name_types);
@@ -330,10 +314,7 @@ struct winbindd_methods {
 	/* enumerate trusted domains */
 	NTSTATUS (*trusted_domains)(struct winbindd_domain *domain,
 				    TALLOC_CTX *mem_ctx,
-				    uint32 *num_domains,
-				    char ***names,
-				    char ***alt_names,
-				    DOM_SID **dom_sids);
+				    struct netr_DomainTrustList *trusts);
 };
 
 /* Filled out by IDMAP backends */
@@ -403,10 +384,5 @@ struct WINBINDD_CCACHE_ENTRY {
 #define WINBINDD_RESCAN_FREQ lp_winbind_cache_time()
 #define WINBINDD_PAM_AUTH_KRB5_RENEW_TIME 2592000 /* one month */
 #define DOM_SEQUENCE_NONE ((uint32)-1)
-
-#define IS_DOMAIN_OFFLINE(x) ( lp_winbind_offline_logon() && \
-			       ( get_global_winbindd_state_offline() \
-				 || !(x)->online ) )
-#define IS_DOMAIN_ONLINE(x) (!IS_DOMAIN_OFFLINE(x))
 
 #endif /* _WINBINDD_H */

@@ -173,7 +173,7 @@ LIBS="${LIBREPLACE_NETWORK_LIBS}"
 libreplace_SAVE_CPPFLAGS="$CPPFLAGS"
 CPPFLAGS="$CPPFLAGS -I$libreplacedir"
 
-AC_CHECK_FUNCS(socketpair,[],[LIBREPLACE_NETWORK_OBJS="${LIBREPLACE_NETWORK_OBJS} socketpair.o"])
+AC_CHECK_FUNCS(socketpair,[],[LIBREPLACE_NETWORK_OBJS="${LIBREPLACE_NETWORK_OBJS} $libreplacedir/socketpair.o"])
 
 AC_CACHE_CHECK([for broken inet_ntoa],libreplace_cv_REPLACE_INET_NTOA,[
 AC_TRY_RUN([
@@ -193,14 +193,14 @@ exit(1);}],
 AC_CHECK_FUNCS(inet_ntoa,[],[libreplace_cv_REPLACE_INET_NTOA=yes])
 if test x"$libreplace_cv_REPLACE_INET_NTOA" = x"yes"; then
     AC_DEFINE(REPLACE_INET_NTOA,1,[Whether inet_ntoa should be replaced])
-    LIBREPLACE_NETWORK_OBJS="${LIBREPLACE_NETWORK_OBJS} inet_ntoa.o"
+    LIBREPLACE_NETWORK_OBJS="${LIBREPLACE_NETWORK_OBJS} $libreplacedir/inet_ntoa.o"
 fi
 
-AC_CHECK_FUNCS(inet_aton,[],[LIBREPLACE_NETWORK_OBJS="${LIBREPLACE_NETWORK_OBJS} inet_aton.o"])
+AC_CHECK_FUNCS(inet_aton,[],[LIBREPLACE_NETWORK_OBJS="${LIBREPLACE_NETWORK_OBJS} $libreplacedir/inet_aton.o"])
 
-AC_CHECK_FUNCS(inet_ntop,[],[LIBREPLACE_NETWORK_OBJS="${LIBREPLACE_NETWORK_OBJS} inet_ntop.o"])
+AC_CHECK_FUNCS(inet_ntop,[],[LIBREPLACE_NETWORK_OBJS="${LIBREPLACE_NETWORK_OBJS} $libreplacedir/inet_ntop.o"])
 
-AC_CHECK_FUNCS(inet_pton,[],[LIBREPLACE_NETWORK_OBJS="${LIBREPLACE_NETWORK_OBJS} inet_pton.o"])
+AC_CHECK_FUNCS(inet_pton,[],[LIBREPLACE_NETWORK_OBJS="${LIBREPLACE_NETWORK_OBJS} $libreplacedir/inet_pton.o"])
 
 dnl test for getaddrinfo/getnameinfo
 AC_CACHE_CHECK([for getaddrinfo],libreplace_cv_HAVE_GETADDRINFO,[
@@ -232,7 +232,7 @@ if test x"$libreplace_cv_HAVE_GETADDRINFO" = x"yes"; then
 	AC_DEFINE(HAVE_FREEADDRINFO,1,[Whether the system has freeaddrinfo])
 	AC_DEFINE(HAVE_GAI_STRERROR,1,[Whether the system has gai_strerror])
 else
-	LIBREPLACE_NETWORK_OBJS="${LIBREPLACE_NETWORK_OBJS} getaddrinfo.o"
+	LIBREPLACE_NETWORK_OBJS="${LIBREPLACE_NETWORK_OBJS} $libreplacedir/getaddrinfo.o"
 fi
 
 AC_CHECK_HEADERS([ifaddrs.h])
@@ -287,7 +287,7 @@ AC_TRY_RUN([
 if test x"$libreplace_cv_HAVE_IFACE_GETIFADDRS" = x"yes"; then
     iface=yes;AC_DEFINE(HAVE_IFACE_GETIFADDRS,1,[Whether iface getifaddrs is available])
 else
-	LIBREPLACE_NETWORK_OBJS="${LIBREPLACE_NETWORK_OBJS} getifaddrs.o"
+	LIBREPLACE_NETWORK_OBJS="${LIBREPLACE_NETWORK_OBJS} $libreplacedir/getifaddrs.o"
 fi
 
 
@@ -350,6 +350,50 @@ if test x"$libreplace_cv_HAVE_IFACE_IFREQ" = x"yes"; then
 fi
 fi
 
+dnl Some old Linux systems have broken header files and
+dnl miss the IPV6_V6ONLY define in netinet/in.h,
+dnl but have it in linux/in6.h.
+dnl We can't include both files so we just check if the value
+dnl if defined and do the replacement in system/network.h
+AC_CACHE_CHECK([for IPV6_V6ONLY support],libreplace_cv_HAVE_IPV6_V6ONLY,[
+	AC_TRY_COMPILE([
+#include <stdlib.h> /* for NULL */
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netdb.h>
+#include <netinet/in.h>
+		],
+		[
+#ifndef IPV6_V6ONLY
+#error no IPV6_V6ONLY
+#endif
+		],[
+		libreplace_cv_HAVE_IPV6_V6ONLY=yes
+		],[
+		libreplace_cv_HAVE_IPV6_V6ONLY=no
+		])
+])
+if test x"$libreplace_cv_HAVE_IPV6_V6ONLY" != x"yes"; then
+   dnl test for IPV6_V6ONLY
+   AC_CACHE_CHECK([for IPV6_V6ONLY in linux/in6.h],libreplace_cv_HAVE_LINUX_IPV6_V6ONLY_26,[
+	AC_TRY_COMPILE([
+	#include <linux/in6.h>
+		],
+		[
+	#if (IPV6_V6ONLY != 26)
+	#error no linux IPV6_V6ONLY
+	#endif
+		],[
+		libreplace_cv_HAVE_LINUX_IPV6_V6ONLY_26=yes
+		],[
+		libreplace_cv_HAVE_LINUX_IPV6_V6ONLY_26=no
+		])
+	])
+	if test x"$libreplace_cv_HAVE_LINUX_IPV6_V6ONLY_26" = x"yes"; then
+		AC_DEFINE(HAVE_LINUX_IPV6_V6ONLY_26,1,[Whether the system has IPV6_V6ONLY in linux/in6.h])
+	fi
+fi
+
 dnl test for ipv6
 AC_CACHE_CHECK([for ipv6 support],libreplace_cv_HAVE_IPV6,[
 	AC_TRY_LINK([
@@ -370,6 +414,14 @@ if (ret != 0) {
 	const char *es = gai_strerror(ret);
 }
 freeaddrinfo(ai);
+{
+	int val = 1;
+	#ifdef HAVE_LINUX_IPV6_V6ONLY_26
+	#define IPV6_V6ONLY 26
+	#endif
+	ret = setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY,
+			 (const void *)&val, sizeof(val));
+}
 		],[
 		libreplace_cv_HAVE_IPV6=yes
 		],[

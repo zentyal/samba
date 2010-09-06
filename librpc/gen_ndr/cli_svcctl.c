@@ -6,6 +6,118 @@
 #include "includes.h"
 #include "../librpc/gen_ndr/cli_svcctl.h"
 
+struct rpccli_svcctl_CloseServiceHandle_state {
+	struct svcctl_CloseServiceHandle orig;
+	struct svcctl_CloseServiceHandle tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_CloseServiceHandle_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_CloseServiceHandle_send(TALLOC_CTX *mem_ctx,
+							 struct tevent_context *ev,
+							 struct rpc_pipe_client *cli,
+							 struct policy_handle *_handle /* [in,out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_CloseServiceHandle_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_CloseServiceHandle_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+
+	/* Out parameters */
+	state->orig.out.handle = _handle;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_CloseServiceHandle_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_CLOSESERVICEHANDLE,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_CloseServiceHandle_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_CloseServiceHandle_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_CloseServiceHandle_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_CloseServiceHandle_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.handle = *state->tmp.out.handle;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_CloseServiceHandle_recv(struct tevent_req *req,
+					       TALLOC_CTX *mem_ctx,
+					       WERROR *result)
+{
+	struct rpccli_svcctl_CloseServiceHandle_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_CloseServiceHandle_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_CloseServiceHandle(struct rpc_pipe_client *cli,
 					  TALLOC_CTX *mem_ctx,
 					  struct policy_handle *handle /* [in,out] [ref] */,
@@ -17,10 +129,6 @@ NTSTATUS rpccli_svcctl_CloseServiceHandle(struct rpc_pipe_client *cli,
 	/* In parameters */
 	r.in.handle = handle;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_CloseServiceHandle, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -29,10 +137,6 @@ NTSTATUS rpccli_svcctl_CloseServiceHandle(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_CloseServiceHandle, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -50,6 +154,121 @@ NTSTATUS rpccli_svcctl_CloseServiceHandle(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_ControlService_state {
+	struct svcctl_ControlService orig;
+	struct svcctl_ControlService tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_ControlService_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_ControlService_send(TALLOC_CTX *mem_ctx,
+						     struct tevent_context *ev,
+						     struct rpc_pipe_client *cli,
+						     struct policy_handle *_handle /* [in] [ref] */,
+						     enum SERVICE_CONTROL _control /* [in]  */,
+						     struct SERVICE_STATUS *_service_status /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_ControlService_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_ControlService_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.control = _control;
+
+	/* Out parameters */
+	state->orig.out.service_status = _service_status;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_ControlService_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_CONTROLSERVICE,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_ControlService_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_ControlService_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_ControlService_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_ControlService_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.service_status = *state->tmp.out.service_status;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_ControlService_recv(struct tevent_req *req,
+					   TALLOC_CTX *mem_ctx,
+					   WERROR *result)
+{
+	struct rpccli_svcctl_ControlService_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_ControlService_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_ControlService(struct rpc_pipe_client *cli,
 				      TALLOC_CTX *mem_ctx,
 				      struct policy_handle *handle /* [in] [ref] */,
@@ -64,10 +283,6 @@ NTSTATUS rpccli_svcctl_ControlService(struct rpc_pipe_client *cli,
 	r.in.handle = handle;
 	r.in.control = control;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_ControlService, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -76,10 +291,6 @@ NTSTATUS rpccli_svcctl_ControlService(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_ControlService, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -97,6 +308,110 @@ NTSTATUS rpccli_svcctl_ControlService(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_DeleteService_state {
+	struct svcctl_DeleteService orig;
+	struct svcctl_DeleteService tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_DeleteService_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_DeleteService_send(TALLOC_CTX *mem_ctx,
+						    struct tevent_context *ev,
+						    struct rpc_pipe_client *cli,
+						    struct policy_handle *_handle /* [in] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_DeleteService_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_DeleteService_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_DELETESERVICE,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_DeleteService_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_DeleteService_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_DeleteService_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_DeleteService_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_DeleteService_recv(struct tevent_req *req,
+					  TALLOC_CTX *mem_ctx,
+					  WERROR *result)
+{
+	struct rpccli_svcctl_DeleteService_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_DeleteService_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_DeleteService(struct rpc_pipe_client *cli,
 				     TALLOC_CTX *mem_ctx,
 				     struct policy_handle *handle /* [in] [ref] */,
@@ -108,10 +423,6 @@ NTSTATUS rpccli_svcctl_DeleteService(struct rpc_pipe_client *cli,
 	/* In parameters */
 	r.in.handle = handle;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_DeleteService, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -120,10 +431,6 @@ NTSTATUS rpccli_svcctl_DeleteService(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_DeleteService, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -140,6 +447,119 @@ NTSTATUS rpccli_svcctl_DeleteService(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_LockServiceDatabase_state {
+	struct svcctl_LockServiceDatabase orig;
+	struct svcctl_LockServiceDatabase tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_LockServiceDatabase_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_LockServiceDatabase_send(TALLOC_CTX *mem_ctx,
+							  struct tevent_context *ev,
+							  struct rpc_pipe_client *cli,
+							  struct policy_handle *_handle /* [in] [ref] */,
+							  struct policy_handle *_lock /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_LockServiceDatabase_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_LockServiceDatabase_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+
+	/* Out parameters */
+	state->orig.out.lock = _lock;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_LockServiceDatabase_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_LOCKSERVICEDATABASE,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_LockServiceDatabase_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_LockServiceDatabase_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_LockServiceDatabase_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_LockServiceDatabase_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.lock = *state->tmp.out.lock;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_LockServiceDatabase_recv(struct tevent_req *req,
+						TALLOC_CTX *mem_ctx,
+						WERROR *result)
+{
+	struct rpccli_svcctl_LockServiceDatabase_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_LockServiceDatabase_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_LockServiceDatabase(struct rpc_pipe_client *cli,
 					   TALLOC_CTX *mem_ctx,
 					   struct policy_handle *handle /* [in] [ref] */,
@@ -152,10 +572,6 @@ NTSTATUS rpccli_svcctl_LockServiceDatabase(struct rpc_pipe_client *cli,
 	/* In parameters */
 	r.in.handle = handle;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_LockServiceDatabase, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -164,10 +580,6 @@ NTSTATUS rpccli_svcctl_LockServiceDatabase(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_LockServiceDatabase, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -183,6 +595,126 @@ NTSTATUS rpccli_svcctl_LockServiceDatabase(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_svcctl_QueryServiceObjectSecurity_state {
+	struct svcctl_QueryServiceObjectSecurity orig;
+	struct svcctl_QueryServiceObjectSecurity tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_QueryServiceObjectSecurity_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_QueryServiceObjectSecurity_send(TALLOC_CTX *mem_ctx,
+								 struct tevent_context *ev,
+								 struct rpc_pipe_client *cli,
+								 struct policy_handle *_handle /* [in] [ref] */,
+								 uint32_t _security_flags /* [in]  */,
+								 uint8_t *_buffer /* [out] [ref,size_is(offered)] */,
+								 uint32_t _offered /* [in] [range(0,0x40000)] */,
+								 uint32_t *_needed /* [out] [ref,range(0,0x40000)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_QueryServiceObjectSecurity_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_QueryServiceObjectSecurity_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.security_flags = _security_flags;
+	state->orig.in.offered = _offered;
+
+	/* Out parameters */
+	state->orig.out.buffer = _buffer;
+	state->orig.out.needed = _needed;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_QueryServiceObjectSecurity_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_QUERYSERVICEOBJECTSECURITY,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_QueryServiceObjectSecurity_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_QueryServiceObjectSecurity_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_QueryServiceObjectSecurity_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_QueryServiceObjectSecurity_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	memcpy(state->orig.out.buffer, state->tmp.out.buffer, (state->tmp.in.offered) * sizeof(*state->orig.out.buffer));
+	*state->orig.out.needed = *state->tmp.out.needed;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_QueryServiceObjectSecurity_recv(struct tevent_req *req,
+						       TALLOC_CTX *mem_ctx,
+						       WERROR *result)
+{
+	struct rpccli_svcctl_QueryServiceObjectSecurity_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_QueryServiceObjectSecurity_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_svcctl_QueryServiceObjectSecurity(struct rpc_pipe_client *cli,
@@ -202,10 +734,6 @@ NTSTATUS rpccli_svcctl_QueryServiceObjectSecurity(struct rpc_pipe_client *cli,
 	r.in.security_flags = security_flags;
 	r.in.offered = offered;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_QueryServiceObjectSecurity, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -214,10 +742,6 @@ NTSTATUS rpccli_svcctl_QueryServiceObjectSecurity(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_QueryServiceObjectSecurity, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -234,6 +758,116 @@ NTSTATUS rpccli_svcctl_QueryServiceObjectSecurity(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_svcctl_SetServiceObjectSecurity_state {
+	struct svcctl_SetServiceObjectSecurity orig;
+	struct svcctl_SetServiceObjectSecurity tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_SetServiceObjectSecurity_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_SetServiceObjectSecurity_send(TALLOC_CTX *mem_ctx,
+							       struct tevent_context *ev,
+							       struct rpc_pipe_client *cli,
+							       struct policy_handle *_handle /* [in] [ref] */,
+							       uint32_t _security_flags /* [in]  */,
+							       uint8_t *_buffer /* [in] [ref,size_is(offered)] */,
+							       uint32_t _offered /* [in]  */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_SetServiceObjectSecurity_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_SetServiceObjectSecurity_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.security_flags = _security_flags;
+	state->orig.in.buffer = _buffer;
+	state->orig.in.offered = _offered;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_SETSERVICEOBJECTSECURITY,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_SetServiceObjectSecurity_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_SetServiceObjectSecurity_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_SetServiceObjectSecurity_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_SetServiceObjectSecurity_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_SetServiceObjectSecurity_recv(struct tevent_req *req,
+						     TALLOC_CTX *mem_ctx,
+						     WERROR *result)
+{
+	struct rpccli_svcctl_SetServiceObjectSecurity_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_SetServiceObjectSecurity_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_svcctl_SetServiceObjectSecurity(struct rpc_pipe_client *cli,
@@ -253,10 +887,6 @@ NTSTATUS rpccli_svcctl_SetServiceObjectSecurity(struct rpc_pipe_client *cli,
 	r.in.buffer = buffer;
 	r.in.offered = offered;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_SetServiceObjectSecurity, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -265,10 +895,6 @@ NTSTATUS rpccli_svcctl_SetServiceObjectSecurity(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_SetServiceObjectSecurity, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -285,6 +911,119 @@ NTSTATUS rpccli_svcctl_SetServiceObjectSecurity(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_QueryServiceStatus_state {
+	struct svcctl_QueryServiceStatus orig;
+	struct svcctl_QueryServiceStatus tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_QueryServiceStatus_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_QueryServiceStatus_send(TALLOC_CTX *mem_ctx,
+							 struct tevent_context *ev,
+							 struct rpc_pipe_client *cli,
+							 struct policy_handle *_handle /* [in] [ref] */,
+							 struct SERVICE_STATUS *_service_status /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_QueryServiceStatus_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_QueryServiceStatus_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+
+	/* Out parameters */
+	state->orig.out.service_status = _service_status;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_QueryServiceStatus_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_QUERYSERVICESTATUS,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_QueryServiceStatus_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_QueryServiceStatus_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_QueryServiceStatus_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_QueryServiceStatus_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.service_status = *state->tmp.out.service_status;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_QueryServiceStatus_recv(struct tevent_req *req,
+					       TALLOC_CTX *mem_ctx,
+					       WERROR *result)
+{
+	struct rpccli_svcctl_QueryServiceStatus_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_QueryServiceStatus_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_QueryServiceStatus(struct rpc_pipe_client *cli,
 					  TALLOC_CTX *mem_ctx,
 					  struct policy_handle *handle /* [in] [ref] */,
@@ -297,10 +1036,6 @@ NTSTATUS rpccli_svcctl_QueryServiceStatus(struct rpc_pipe_client *cli,
 	/* In parameters */
 	r.in.handle = handle;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_QueryServiceStatus, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -309,10 +1044,6 @@ NTSTATUS rpccli_svcctl_QueryServiceStatus(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_QueryServiceStatus, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -330,6 +1061,108 @@ NTSTATUS rpccli_svcctl_QueryServiceStatus(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_SetServiceStatus_state {
+	struct svcctl_SetServiceStatus orig;
+	struct svcctl_SetServiceStatus tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_SetServiceStatus_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_SetServiceStatus_send(TALLOC_CTX *mem_ctx,
+						       struct tevent_context *ev,
+						       struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_SetServiceStatus_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_SetServiceStatus_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_SETSERVICESTATUS,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_SetServiceStatus_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_SetServiceStatus_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_SetServiceStatus_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_SetServiceStatus_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_SetServiceStatus_recv(struct tevent_req *req,
+					     TALLOC_CTX *mem_ctx,
+					     WERROR *result)
+{
+	struct rpccli_svcctl_SetServiceStatus_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_SetServiceStatus_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_SetServiceStatus(struct rpc_pipe_client *cli,
 					TALLOC_CTX *mem_ctx,
 					WERROR *werror)
@@ -339,10 +1172,6 @@ NTSTATUS rpccli_svcctl_SetServiceStatus(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_SetServiceStatus, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -351,10 +1180,6 @@ NTSTATUS rpccli_svcctl_SetServiceStatus(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_SetServiceStatus, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -371,6 +1196,118 @@ NTSTATUS rpccli_svcctl_SetServiceStatus(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_UnlockServiceDatabase_state {
+	struct svcctl_UnlockServiceDatabase orig;
+	struct svcctl_UnlockServiceDatabase tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_UnlockServiceDatabase_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_UnlockServiceDatabase_send(TALLOC_CTX *mem_ctx,
+							    struct tevent_context *ev,
+							    struct rpc_pipe_client *cli,
+							    struct policy_handle *_lock /* [in,out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_UnlockServiceDatabase_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_UnlockServiceDatabase_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.lock = _lock;
+
+	/* Out parameters */
+	state->orig.out.lock = _lock;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_UnlockServiceDatabase_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_UNLOCKSERVICEDATABASE,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_UnlockServiceDatabase_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_UnlockServiceDatabase_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_UnlockServiceDatabase_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_UnlockServiceDatabase_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.lock = *state->tmp.out.lock;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_UnlockServiceDatabase_recv(struct tevent_req *req,
+						  TALLOC_CTX *mem_ctx,
+						  WERROR *result)
+{
+	struct rpccli_svcctl_UnlockServiceDatabase_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_UnlockServiceDatabase_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_UnlockServiceDatabase(struct rpc_pipe_client *cli,
 					     TALLOC_CTX *mem_ctx,
 					     struct policy_handle *lock /* [in,out] [ref] */,
@@ -382,10 +1319,6 @@ NTSTATUS rpccli_svcctl_UnlockServiceDatabase(struct rpc_pipe_client *cli,
 	/* In parameters */
 	r.in.lock = lock;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_UnlockServiceDatabase, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -394,10 +1327,6 @@ NTSTATUS rpccli_svcctl_UnlockServiceDatabase(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_UnlockServiceDatabase, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -415,6 +1344,108 @@ NTSTATUS rpccli_svcctl_UnlockServiceDatabase(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_NotifyBootConfigStatus_state {
+	struct svcctl_NotifyBootConfigStatus orig;
+	struct svcctl_NotifyBootConfigStatus tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_NotifyBootConfigStatus_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_NotifyBootConfigStatus_send(TALLOC_CTX *mem_ctx,
+							     struct tevent_context *ev,
+							     struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_NotifyBootConfigStatus_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_NotifyBootConfigStatus_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_NOTIFYBOOTCONFIGSTATUS,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_NotifyBootConfigStatus_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_NotifyBootConfigStatus_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_NotifyBootConfigStatus_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_NotifyBootConfigStatus_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_NotifyBootConfigStatus_recv(struct tevent_req *req,
+						   TALLOC_CTX *mem_ctx,
+						   WERROR *result)
+{
+	struct rpccli_svcctl_NotifyBootConfigStatus_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_NotifyBootConfigStatus_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_NotifyBootConfigStatus(struct rpc_pipe_client *cli,
 					      TALLOC_CTX *mem_ctx,
 					      WERROR *werror)
@@ -424,10 +1455,6 @@ NTSTATUS rpccli_svcctl_NotifyBootConfigStatus(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_NotifyBootConfigStatus, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -436,10 +1463,6 @@ NTSTATUS rpccli_svcctl_NotifyBootConfigStatus(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_NotifyBootConfigStatus, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -454,6 +1477,116 @@ NTSTATUS rpccli_svcctl_NotifyBootConfigStatus(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_svcctl_SCSetServiceBitsW_state {
+	struct svcctl_SCSetServiceBitsW orig;
+	struct svcctl_SCSetServiceBitsW tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_SCSetServiceBitsW_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_SCSetServiceBitsW_send(TALLOC_CTX *mem_ctx,
+							struct tevent_context *ev,
+							struct rpc_pipe_client *cli,
+							struct policy_handle *_handle /* [in] [ref] */,
+							uint32_t _bits /* [in]  */,
+							uint32_t _bitson /* [in]  */,
+							uint32_t _immediate /* [in]  */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_SCSetServiceBitsW_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_SCSetServiceBitsW_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.bits = _bits;
+	state->orig.in.bitson = _bitson;
+	state->orig.in.immediate = _immediate;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_SCSETSERVICEBITSW,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_SCSetServiceBitsW_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_SCSetServiceBitsW_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_SCSetServiceBitsW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_SCSetServiceBitsW_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_SCSetServiceBitsW_recv(struct tevent_req *req,
+					      TALLOC_CTX *mem_ctx,
+					      WERROR *result)
+{
+	struct rpccli_svcctl_SCSetServiceBitsW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_SCSetServiceBitsW_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_svcctl_SCSetServiceBitsW(struct rpc_pipe_client *cli,
@@ -473,10 +1606,6 @@ NTSTATUS rpccli_svcctl_SCSetServiceBitsW(struct rpc_pipe_client *cli,
 	r.in.bitson = bitson;
 	r.in.immediate = immediate;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_SCSetServiceBitsW, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -485,10 +1614,6 @@ NTSTATUS rpccli_svcctl_SCSetServiceBitsW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_SCSetServiceBitsW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -503,6 +1628,137 @@ NTSTATUS rpccli_svcctl_SCSetServiceBitsW(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_svcctl_ChangeServiceConfigW_state {
+	struct svcctl_ChangeServiceConfigW orig;
+	struct svcctl_ChangeServiceConfigW tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_ChangeServiceConfigW_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_ChangeServiceConfigW_send(TALLOC_CTX *mem_ctx,
+							   struct tevent_context *ev,
+							   struct rpc_pipe_client *cli,
+							   struct policy_handle *_handle /* [in] [ref] */,
+							   uint32_t _type /* [in]  */,
+							   enum svcctl_StartType _start_type /* [in]  */,
+							   enum svcctl_ErrorControl _error_control /* [in]  */,
+							   const char *_binary_path /* [in] [unique,charset(UTF16)] */,
+							   const char *_load_order_group /* [in] [unique,charset(UTF16)] */,
+							   uint32_t *_tag_id /* [out] [ref] */,
+							   const char *_dependencies /* [in] [unique,charset(UTF16)] */,
+							   const char *_service_start_name /* [in] [unique,charset(UTF16)] */,
+							   const char *_password /* [in] [unique,charset(UTF16)] */,
+							   const char *_display_name /* [in] [unique,charset(UTF16)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_ChangeServiceConfigW_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_ChangeServiceConfigW_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.type = _type;
+	state->orig.in.start_type = _start_type;
+	state->orig.in.error_control = _error_control;
+	state->orig.in.binary_path = _binary_path;
+	state->orig.in.load_order_group = _load_order_group;
+	state->orig.in.dependencies = _dependencies;
+	state->orig.in.service_start_name = _service_start_name;
+	state->orig.in.password = _password;
+	state->orig.in.display_name = _display_name;
+
+	/* Out parameters */
+	state->orig.out.tag_id = _tag_id;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_ChangeServiceConfigW_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_CHANGESERVICECONFIGW,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_ChangeServiceConfigW_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_ChangeServiceConfigW_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_ChangeServiceConfigW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_ChangeServiceConfigW_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.tag_id = *state->tmp.out.tag_id;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_ChangeServiceConfigW_recv(struct tevent_req *req,
+						 TALLOC_CTX *mem_ctx,
+						 WERROR *result)
+{
+	struct rpccli_svcctl_ChangeServiceConfigW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_ChangeServiceConfigW_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_svcctl_ChangeServiceConfigW(struct rpc_pipe_client *cli,
@@ -535,10 +1791,6 @@ NTSTATUS rpccli_svcctl_ChangeServiceConfigW(struct rpc_pipe_client *cli,
 	r.in.password = password;
 	r.in.display_name = display_name;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_ChangeServiceConfigW, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -547,10 +1799,6 @@ NTSTATUS rpccli_svcctl_ChangeServiceConfigW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_ChangeServiceConfigW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -566,6 +1814,151 @@ NTSTATUS rpccli_svcctl_ChangeServiceConfigW(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_svcctl_CreateServiceW_state {
+	struct svcctl_CreateServiceW orig;
+	struct svcctl_CreateServiceW tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_CreateServiceW_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_CreateServiceW_send(TALLOC_CTX *mem_ctx,
+						     struct tevent_context *ev,
+						     struct rpc_pipe_client *cli,
+						     struct policy_handle *_scmanager_handle /* [in] [ref] */,
+						     const char *_ServiceName /* [in] [charset(UTF16)] */,
+						     const char *_DisplayName /* [in] [unique,charset(UTF16)] */,
+						     uint32_t _desired_access /* [in]  */,
+						     uint32_t _type /* [in]  */,
+						     enum svcctl_StartType _start_type /* [in]  */,
+						     enum svcctl_ErrorControl _error_control /* [in]  */,
+						     const char *_binary_path /* [in] [charset(UTF16)] */,
+						     const char *_LoadOrderGroupKey /* [in] [unique,charset(UTF16)] */,
+						     uint32_t *_TagId /* [in,out] [unique] */,
+						     uint8_t *_dependencies /* [in] [unique,size_is(dependencies_size)] */,
+						     uint32_t _dependencies_size /* [in]  */,
+						     const char *_service_start_name /* [in] [unique,charset(UTF16)] */,
+						     uint8_t *_password /* [in] [unique,size_is(password_size)] */,
+						     uint32_t _password_size /* [in]  */,
+						     struct policy_handle *_handle /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_CreateServiceW_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_CreateServiceW_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.scmanager_handle = _scmanager_handle;
+	state->orig.in.ServiceName = _ServiceName;
+	state->orig.in.DisplayName = _DisplayName;
+	state->orig.in.desired_access = _desired_access;
+	state->orig.in.type = _type;
+	state->orig.in.start_type = _start_type;
+	state->orig.in.error_control = _error_control;
+	state->orig.in.binary_path = _binary_path;
+	state->orig.in.LoadOrderGroupKey = _LoadOrderGroupKey;
+	state->orig.in.TagId = _TagId;
+	state->orig.in.dependencies = _dependencies;
+	state->orig.in.dependencies_size = _dependencies_size;
+	state->orig.in.service_start_name = _service_start_name;
+	state->orig.in.password = _password;
+	state->orig.in.password_size = _password_size;
+
+	/* Out parameters */
+	state->orig.out.TagId = _TagId;
+	state->orig.out.handle = _handle;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_CreateServiceW_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_CREATESERVICEW,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_CreateServiceW_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_CreateServiceW_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_CreateServiceW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_CreateServiceW_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	if (state->orig.out.TagId && state->tmp.out.TagId) {
+		*state->orig.out.TagId = *state->tmp.out.TagId;
+	}
+	*state->orig.out.handle = *state->tmp.out.handle;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_CreateServiceW_recv(struct tevent_req *req,
+					   TALLOC_CTX *mem_ctx,
+					   WERROR *result)
+{
+	struct rpccli_svcctl_CreateServiceW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_CreateServiceW_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_svcctl_CreateServiceW(struct rpc_pipe_client *cli,
@@ -608,10 +2001,6 @@ NTSTATUS rpccli_svcctl_CreateServiceW(struct rpc_pipe_client *cli,
 	r.in.password = password;
 	r.in.password_size = password_size;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_CreateServiceW, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -620,10 +2009,6 @@ NTSTATUS rpccli_svcctl_CreateServiceW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_CreateServiceW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -644,6 +2029,129 @@ NTSTATUS rpccli_svcctl_CreateServiceW(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_EnumDependentServicesW_state {
+	struct svcctl_EnumDependentServicesW orig;
+	struct svcctl_EnumDependentServicesW tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_EnumDependentServicesW_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_EnumDependentServicesW_send(TALLOC_CTX *mem_ctx,
+							     struct tevent_context *ev,
+							     struct rpc_pipe_client *cli,
+							     struct policy_handle *_service /* [in] [ref] */,
+							     enum svcctl_ServiceState _state /* [in]  */,
+							     uint8_t *_service_status /* [out] [ref,size_is(offered)] */,
+							     uint32_t _offered /* [in] [range(0,0x40000)] */,
+							     uint32_t *_needed /* [out] [ref,range(0,0x40000)] */,
+							     uint32_t *_services_returned /* [out] [ref,range(0,0x40000)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_EnumDependentServicesW_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_EnumDependentServicesW_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.service = _service;
+	state->orig.in.state = _state;
+	state->orig.in.offered = _offered;
+
+	/* Out parameters */
+	state->orig.out.service_status = _service_status;
+	state->orig.out.needed = _needed;
+	state->orig.out.services_returned = _services_returned;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_EnumDependentServicesW_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_ENUMDEPENDENTSERVICESW,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_EnumDependentServicesW_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_EnumDependentServicesW_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_EnumDependentServicesW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_EnumDependentServicesW_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	memcpy(state->orig.out.service_status, state->tmp.out.service_status, (state->tmp.in.offered) * sizeof(*state->orig.out.service_status));
+	*state->orig.out.needed = *state->tmp.out.needed;
+	*state->orig.out.services_returned = *state->tmp.out.services_returned;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_EnumDependentServicesW_recv(struct tevent_req *req,
+						   TALLOC_CTX *mem_ctx,
+						   WERROR *result)
+{
+	struct rpccli_svcctl_EnumDependentServicesW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_EnumDependentServicesW_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_EnumDependentServicesW(struct rpc_pipe_client *cli,
 					      TALLOC_CTX *mem_ctx,
 					      struct policy_handle *service /* [in] [ref] */,
@@ -662,10 +2170,6 @@ NTSTATUS rpccli_svcctl_EnumDependentServicesW(struct rpc_pipe_client *cli,
 	r.in.state = state;
 	r.in.offered = offered;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_EnumDependentServicesW, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -674,10 +2178,6 @@ NTSTATUS rpccli_svcctl_EnumDependentServicesW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_EnumDependentServicesW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -695,6 +2195,137 @@ NTSTATUS rpccli_svcctl_EnumDependentServicesW(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_svcctl_EnumServicesStatusW_state {
+	struct svcctl_EnumServicesStatusW orig;
+	struct svcctl_EnumServicesStatusW tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_EnumServicesStatusW_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_EnumServicesStatusW_send(TALLOC_CTX *mem_ctx,
+							  struct tevent_context *ev,
+							  struct rpc_pipe_client *cli,
+							  struct policy_handle *_handle /* [in] [ref] */,
+							  uint32_t _type /* [in]  */,
+							  enum svcctl_ServiceState _state /* [in]  */,
+							  uint8_t *_service /* [out] [ref,size_is(offered)] */,
+							  uint32_t _offered /* [in] [range(0,0x40000)] */,
+							  uint32_t *_needed /* [out] [ref,range(0,0x40000)] */,
+							  uint32_t *_services_returned /* [out] [ref,range(0,0x40000)] */,
+							  uint32_t *_resume_handle /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_EnumServicesStatusW_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_EnumServicesStatusW_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.type = _type;
+	state->orig.in.state = _state;
+	state->orig.in.offered = _offered;
+	state->orig.in.resume_handle = _resume_handle;
+
+	/* Out parameters */
+	state->orig.out.service = _service;
+	state->orig.out.needed = _needed;
+	state->orig.out.services_returned = _services_returned;
+	state->orig.out.resume_handle = _resume_handle;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_EnumServicesStatusW_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_ENUMSERVICESSTATUSW,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_EnumServicesStatusW_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_EnumServicesStatusW_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_EnumServicesStatusW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_EnumServicesStatusW_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	memcpy(state->orig.out.service, state->tmp.out.service, (state->tmp.in.offered) * sizeof(*state->orig.out.service));
+	*state->orig.out.needed = *state->tmp.out.needed;
+	*state->orig.out.services_returned = *state->tmp.out.services_returned;
+	if (state->orig.out.resume_handle && state->tmp.out.resume_handle) {
+		*state->orig.out.resume_handle = *state->tmp.out.resume_handle;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_EnumServicesStatusW_recv(struct tevent_req *req,
+						TALLOC_CTX *mem_ctx,
+						WERROR *result)
+{
+	struct rpccli_svcctl_EnumServicesStatusW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_EnumServicesStatusW_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_svcctl_EnumServicesStatusW(struct rpc_pipe_client *cli,
@@ -719,10 +2350,6 @@ NTSTATUS rpccli_svcctl_EnumServicesStatusW(struct rpc_pipe_client *cli,
 	r.in.offered = offered;
 	r.in.resume_handle = resume_handle;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_EnumServicesStatusW, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -731,10 +2358,6 @@ NTSTATUS rpccli_svcctl_EnumServicesStatusW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_EnumServicesStatusW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -757,6 +2380,123 @@ NTSTATUS rpccli_svcctl_EnumServicesStatusW(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_OpenSCManagerW_state {
+	struct svcctl_OpenSCManagerW orig;
+	struct svcctl_OpenSCManagerW tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_OpenSCManagerW_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_OpenSCManagerW_send(TALLOC_CTX *mem_ctx,
+						     struct tevent_context *ev,
+						     struct rpc_pipe_client *cli,
+						     const char *_MachineName /* [in] [unique,charset(UTF16)] */,
+						     const char *_DatabaseName /* [in] [unique,charset(UTF16)] */,
+						     uint32_t _access_mask /* [in]  */,
+						     struct policy_handle *_handle /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_OpenSCManagerW_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_OpenSCManagerW_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.MachineName = _MachineName;
+	state->orig.in.DatabaseName = _DatabaseName;
+	state->orig.in.access_mask = _access_mask;
+
+	/* Out parameters */
+	state->orig.out.handle = _handle;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_OpenSCManagerW_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_OPENSCMANAGERW,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_OpenSCManagerW_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_OpenSCManagerW_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_OpenSCManagerW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_OpenSCManagerW_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.handle = *state->tmp.out.handle;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_OpenSCManagerW_recv(struct tevent_req *req,
+					   TALLOC_CTX *mem_ctx,
+					   WERROR *result)
+{
+	struct rpccli_svcctl_OpenSCManagerW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_OpenSCManagerW_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_OpenSCManagerW(struct rpc_pipe_client *cli,
 				      TALLOC_CTX *mem_ctx,
 				      const char *MachineName /* [in] [unique,charset(UTF16)] */,
@@ -773,10 +2513,6 @@ NTSTATUS rpccli_svcctl_OpenSCManagerW(struct rpc_pipe_client *cli,
 	r.in.DatabaseName = DatabaseName;
 	r.in.access_mask = access_mask;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_OpenSCManagerW, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -785,10 +2521,6 @@ NTSTATUS rpccli_svcctl_OpenSCManagerW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_OpenSCManagerW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -804,6 +2536,123 @@ NTSTATUS rpccli_svcctl_OpenSCManagerW(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_svcctl_OpenServiceW_state {
+	struct svcctl_OpenServiceW orig;
+	struct svcctl_OpenServiceW tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_OpenServiceW_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_OpenServiceW_send(TALLOC_CTX *mem_ctx,
+						   struct tevent_context *ev,
+						   struct rpc_pipe_client *cli,
+						   struct policy_handle *_scmanager_handle /* [in] [ref] */,
+						   const char *_ServiceName /* [in] [charset(UTF16)] */,
+						   uint32_t _access_mask /* [in]  */,
+						   struct policy_handle *_handle /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_OpenServiceW_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_OpenServiceW_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.scmanager_handle = _scmanager_handle;
+	state->orig.in.ServiceName = _ServiceName;
+	state->orig.in.access_mask = _access_mask;
+
+	/* Out parameters */
+	state->orig.out.handle = _handle;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_OpenServiceW_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_OPENSERVICEW,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_OpenServiceW_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_OpenServiceW_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_OpenServiceW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_OpenServiceW_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.handle = *state->tmp.out.handle;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_OpenServiceW_recv(struct tevent_req *req,
+					 TALLOC_CTX *mem_ctx,
+					 WERROR *result)
+{
+	struct rpccli_svcctl_OpenServiceW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_OpenServiceW_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_svcctl_OpenServiceW(struct rpc_pipe_client *cli,
@@ -822,10 +2671,6 @@ NTSTATUS rpccli_svcctl_OpenServiceW(struct rpc_pipe_client *cli,
 	r.in.ServiceName = ServiceName;
 	r.in.access_mask = access_mask;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_OpenServiceW, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -834,10 +2679,6 @@ NTSTATUS rpccli_svcctl_OpenServiceW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_OpenServiceW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -855,6 +2696,124 @@ NTSTATUS rpccli_svcctl_OpenServiceW(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_QueryServiceConfigW_state {
+	struct svcctl_QueryServiceConfigW orig;
+	struct svcctl_QueryServiceConfigW tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_QueryServiceConfigW_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_QueryServiceConfigW_send(TALLOC_CTX *mem_ctx,
+							  struct tevent_context *ev,
+							  struct rpc_pipe_client *cli,
+							  struct policy_handle *_handle /* [in] [ref] */,
+							  struct QUERY_SERVICE_CONFIG *_query /* [out] [ref] */,
+							  uint32_t _offered /* [in] [range(0,8192)] */,
+							  uint32_t *_needed /* [out] [ref,range(0,8192)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_QueryServiceConfigW_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_QueryServiceConfigW_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.offered = _offered;
+
+	/* Out parameters */
+	state->orig.out.query = _query;
+	state->orig.out.needed = _needed;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_QueryServiceConfigW_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_QUERYSERVICECONFIGW,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_QueryServiceConfigW_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_QueryServiceConfigW_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_QueryServiceConfigW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_QueryServiceConfigW_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.query = *state->tmp.out.query;
+	*state->orig.out.needed = *state->tmp.out.needed;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_QueryServiceConfigW_recv(struct tevent_req *req,
+						TALLOC_CTX *mem_ctx,
+						WERROR *result)
+{
+	struct rpccli_svcctl_QueryServiceConfigW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_QueryServiceConfigW_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_QueryServiceConfigW(struct rpc_pipe_client *cli,
 					   TALLOC_CTX *mem_ctx,
 					   struct policy_handle *handle /* [in] [ref] */,
@@ -870,10 +2829,6 @@ NTSTATUS rpccli_svcctl_QueryServiceConfigW(struct rpc_pipe_client *cli,
 	r.in.handle = handle;
 	r.in.offered = offered;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_QueryServiceConfigW, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -882,10 +2837,6 @@ NTSTATUS rpccli_svcctl_QueryServiceConfigW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_QueryServiceConfigW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -904,6 +2855,124 @@ NTSTATUS rpccli_svcctl_QueryServiceConfigW(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_QueryServiceLockStatusW_state {
+	struct svcctl_QueryServiceLockStatusW orig;
+	struct svcctl_QueryServiceLockStatusW tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_QueryServiceLockStatusW_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_QueryServiceLockStatusW_send(TALLOC_CTX *mem_ctx,
+							      struct tevent_context *ev,
+							      struct rpc_pipe_client *cli,
+							      struct policy_handle *_handle /* [in] [ref] */,
+							      uint32_t _offered /* [in]  */,
+							      struct SERVICE_LOCK_STATUS *_lock_status /* [out] [ref] */,
+							      uint32_t *_needed /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_QueryServiceLockStatusW_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_QueryServiceLockStatusW_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.offered = _offered;
+
+	/* Out parameters */
+	state->orig.out.lock_status = _lock_status;
+	state->orig.out.needed = _needed;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_QueryServiceLockStatusW_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_QUERYSERVICELOCKSTATUSW,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_QueryServiceLockStatusW_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_QueryServiceLockStatusW_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_QueryServiceLockStatusW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_QueryServiceLockStatusW_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.lock_status = *state->tmp.out.lock_status;
+	*state->orig.out.needed = *state->tmp.out.needed;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_QueryServiceLockStatusW_recv(struct tevent_req *req,
+						    TALLOC_CTX *mem_ctx,
+						    WERROR *result)
+{
+	struct rpccli_svcctl_QueryServiceLockStatusW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_QueryServiceLockStatusW_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_QueryServiceLockStatusW(struct rpc_pipe_client *cli,
 					       TALLOC_CTX *mem_ctx,
 					       struct policy_handle *handle /* [in] [ref] */,
@@ -919,10 +2988,6 @@ NTSTATUS rpccli_svcctl_QueryServiceLockStatusW(struct rpc_pipe_client *cli,
 	r.in.handle = handle;
 	r.in.offered = offered;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_QueryServiceLockStatusW, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -931,10 +2996,6 @@ NTSTATUS rpccli_svcctl_QueryServiceLockStatusW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_QueryServiceLockStatusW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -953,6 +3014,114 @@ NTSTATUS rpccli_svcctl_QueryServiceLockStatusW(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_StartServiceW_state {
+	struct svcctl_StartServiceW orig;
+	struct svcctl_StartServiceW tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_StartServiceW_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_StartServiceW_send(TALLOC_CTX *mem_ctx,
+						    struct tevent_context *ev,
+						    struct rpc_pipe_client *cli,
+						    struct policy_handle *_handle /* [in] [ref] */,
+						    uint32_t _NumArgs /* [in] [range(0,SC_MAX_ARGUMENTS)] */,
+						    struct svcctl_ArgumentString *_Arguments /* [in] [unique,size_is(NumArgs)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_StartServiceW_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_StartServiceW_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.NumArgs = _NumArgs;
+	state->orig.in.Arguments = _Arguments;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_STARTSERVICEW,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_StartServiceW_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_StartServiceW_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_StartServiceW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_StartServiceW_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_StartServiceW_recv(struct tevent_req *req,
+					  TALLOC_CTX *mem_ctx,
+					  WERROR *result)
+{
+	struct rpccli_svcctl_StartServiceW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_StartServiceW_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_StartServiceW(struct rpc_pipe_client *cli,
 				     TALLOC_CTX *mem_ctx,
 				     struct policy_handle *handle /* [in] [ref] */,
@@ -968,10 +3137,6 @@ NTSTATUS rpccli_svcctl_StartServiceW(struct rpc_pipe_client *cli,
 	r.in.NumArgs = NumArgs;
 	r.in.Arguments = Arguments;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_StartServiceW, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -980,10 +3145,6 @@ NTSTATUS rpccli_svcctl_StartServiceW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_StartServiceW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -998,6 +3159,127 @@ NTSTATUS rpccli_svcctl_StartServiceW(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_svcctl_GetServiceDisplayNameW_state {
+	struct svcctl_GetServiceDisplayNameW orig;
+	struct svcctl_GetServiceDisplayNameW tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_GetServiceDisplayNameW_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_GetServiceDisplayNameW_send(TALLOC_CTX *mem_ctx,
+							     struct tevent_context *ev,
+							     struct rpc_pipe_client *cli,
+							     struct policy_handle *_handle /* [in] [ref] */,
+							     const char *_service_name /* [in] [unique,charset(UTF16)] */,
+							     const char **_display_name /* [out] [ref,charset(UTF16)] */,
+							     uint32_t *_display_name_length /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_GetServiceDisplayNameW_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_GetServiceDisplayNameW_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.service_name = _service_name;
+	state->orig.in.display_name_length = _display_name_length;
+
+	/* Out parameters */
+	state->orig.out.display_name = _display_name;
+	state->orig.out.display_name_length = _display_name_length;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_GetServiceDisplayNameW_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_GETSERVICEDISPLAYNAMEW,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_GetServiceDisplayNameW_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_GetServiceDisplayNameW_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_GetServiceDisplayNameW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_GetServiceDisplayNameW_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.display_name = *state->tmp.out.display_name;
+	if (state->orig.out.display_name_length && state->tmp.out.display_name_length) {
+		*state->orig.out.display_name_length = *state->tmp.out.display_name_length;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_GetServiceDisplayNameW_recv(struct tevent_req *req,
+						   TALLOC_CTX *mem_ctx,
+						   WERROR *result)
+{
+	struct rpccli_svcctl_GetServiceDisplayNameW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_GetServiceDisplayNameW_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_svcctl_GetServiceDisplayNameW(struct rpc_pipe_client *cli,
@@ -1016,10 +3298,6 @@ NTSTATUS rpccli_svcctl_GetServiceDisplayNameW(struct rpc_pipe_client *cli,
 	r.in.service_name = service_name;
 	r.in.display_name_length = display_name_length;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_GetServiceDisplayNameW, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -1028,10 +3306,6 @@ NTSTATUS rpccli_svcctl_GetServiceDisplayNameW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_GetServiceDisplayNameW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1052,6 +3326,127 @@ NTSTATUS rpccli_svcctl_GetServiceDisplayNameW(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_GetServiceKeyNameW_state {
+	struct svcctl_GetServiceKeyNameW orig;
+	struct svcctl_GetServiceKeyNameW tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_GetServiceKeyNameW_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_GetServiceKeyNameW_send(TALLOC_CTX *mem_ctx,
+							 struct tevent_context *ev,
+							 struct rpc_pipe_client *cli,
+							 struct policy_handle *_handle /* [in] [ref] */,
+							 const char *_service_name /* [in] [unique,charset(UTF16)] */,
+							 const char **_key_name /* [out] [ref,charset(UTF16)] */,
+							 uint32_t *_display_name_length /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_GetServiceKeyNameW_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_GetServiceKeyNameW_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.service_name = _service_name;
+	state->orig.in.display_name_length = _display_name_length;
+
+	/* Out parameters */
+	state->orig.out.key_name = _key_name;
+	state->orig.out.display_name_length = _display_name_length;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_GetServiceKeyNameW_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_GETSERVICEKEYNAMEW,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_GetServiceKeyNameW_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_GetServiceKeyNameW_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_GetServiceKeyNameW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_GetServiceKeyNameW_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.key_name = *state->tmp.out.key_name;
+	if (state->orig.out.display_name_length && state->tmp.out.display_name_length) {
+		*state->orig.out.display_name_length = *state->tmp.out.display_name_length;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_GetServiceKeyNameW_recv(struct tevent_req *req,
+					       TALLOC_CTX *mem_ctx,
+					       WERROR *result)
+{
+	struct rpccli_svcctl_GetServiceKeyNameW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_GetServiceKeyNameW_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_GetServiceKeyNameW(struct rpc_pipe_client *cli,
 					  TALLOC_CTX *mem_ctx,
 					  struct policy_handle *handle /* [in] [ref] */,
@@ -1068,10 +3463,6 @@ NTSTATUS rpccli_svcctl_GetServiceKeyNameW(struct rpc_pipe_client *cli,
 	r.in.service_name = service_name;
 	r.in.display_name_length = display_name_length;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_GetServiceKeyNameW, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -1080,10 +3471,6 @@ NTSTATUS rpccli_svcctl_GetServiceKeyNameW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_GetServiceKeyNameW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1104,6 +3491,116 @@ NTSTATUS rpccli_svcctl_GetServiceKeyNameW(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_SCSetServiceBitsA_state {
+	struct svcctl_SCSetServiceBitsA orig;
+	struct svcctl_SCSetServiceBitsA tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_SCSetServiceBitsA_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_SCSetServiceBitsA_send(TALLOC_CTX *mem_ctx,
+							struct tevent_context *ev,
+							struct rpc_pipe_client *cli,
+							struct policy_handle *_handle /* [in] [ref] */,
+							uint32_t _bits /* [in]  */,
+							uint32_t _bitson /* [in]  */,
+							uint32_t _immediate /* [in]  */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_SCSetServiceBitsA_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_SCSetServiceBitsA_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.bits = _bits;
+	state->orig.in.bitson = _bitson;
+	state->orig.in.immediate = _immediate;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_SCSETSERVICEBITSA,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_SCSetServiceBitsA_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_SCSetServiceBitsA_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_SCSetServiceBitsA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_SCSetServiceBitsA_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_SCSetServiceBitsA_recv(struct tevent_req *req,
+					      TALLOC_CTX *mem_ctx,
+					      WERROR *result)
+{
+	struct rpccli_svcctl_SCSetServiceBitsA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_SCSetServiceBitsA_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_SCSetServiceBitsA(struct rpc_pipe_client *cli,
 					 TALLOC_CTX *mem_ctx,
 					 struct policy_handle *handle /* [in] [ref] */,
@@ -1121,10 +3618,6 @@ NTSTATUS rpccli_svcctl_SCSetServiceBitsA(struct rpc_pipe_client *cli,
 	r.in.bitson = bitson;
 	r.in.immediate = immediate;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_SCSetServiceBitsA, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -1133,10 +3626,6 @@ NTSTATUS rpccli_svcctl_SCSetServiceBitsA(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_SCSetServiceBitsA, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1151,6 +3640,137 @@ NTSTATUS rpccli_svcctl_SCSetServiceBitsA(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_svcctl_ChangeServiceConfigA_state {
+	struct svcctl_ChangeServiceConfigA orig;
+	struct svcctl_ChangeServiceConfigA tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_ChangeServiceConfigA_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_ChangeServiceConfigA_send(TALLOC_CTX *mem_ctx,
+							   struct tevent_context *ev,
+							   struct rpc_pipe_client *cli,
+							   struct policy_handle *_handle /* [in] [ref] */,
+							   uint32_t _type /* [in]  */,
+							   enum svcctl_StartType _start_type /* [in]  */,
+							   enum svcctl_ErrorControl _error_control /* [in]  */,
+							   const char *_binary_path /* [in] [unique,charset(UTF16)] */,
+							   const char *_load_order_group /* [in] [unique,charset(UTF16)] */,
+							   uint32_t *_tag_id /* [out] [ref] */,
+							   const char *_dependencies /* [in] [unique,charset(UTF16)] */,
+							   const char *_service_start_name /* [in] [unique,charset(UTF16)] */,
+							   const char *_password /* [in] [unique,charset(UTF16)] */,
+							   const char *_display_name /* [in] [unique,charset(UTF16)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_ChangeServiceConfigA_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_ChangeServiceConfigA_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.type = _type;
+	state->orig.in.start_type = _start_type;
+	state->orig.in.error_control = _error_control;
+	state->orig.in.binary_path = _binary_path;
+	state->orig.in.load_order_group = _load_order_group;
+	state->orig.in.dependencies = _dependencies;
+	state->orig.in.service_start_name = _service_start_name;
+	state->orig.in.password = _password;
+	state->orig.in.display_name = _display_name;
+
+	/* Out parameters */
+	state->orig.out.tag_id = _tag_id;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_ChangeServiceConfigA_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_CHANGESERVICECONFIGA,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_ChangeServiceConfigA_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_ChangeServiceConfigA_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_ChangeServiceConfigA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_ChangeServiceConfigA_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.tag_id = *state->tmp.out.tag_id;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_ChangeServiceConfigA_recv(struct tevent_req *req,
+						 TALLOC_CTX *mem_ctx,
+						 WERROR *result)
+{
+	struct rpccli_svcctl_ChangeServiceConfigA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_ChangeServiceConfigA_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_svcctl_ChangeServiceConfigA(struct rpc_pipe_client *cli,
@@ -1183,10 +3803,6 @@ NTSTATUS rpccli_svcctl_ChangeServiceConfigA(struct rpc_pipe_client *cli,
 	r.in.password = password;
 	r.in.display_name = display_name;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_ChangeServiceConfigA, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -1195,10 +3811,6 @@ NTSTATUS rpccli_svcctl_ChangeServiceConfigA(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_ChangeServiceConfigA, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1214,6 +3826,143 @@ NTSTATUS rpccli_svcctl_ChangeServiceConfigA(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_svcctl_CreateServiceA_state {
+	struct svcctl_CreateServiceA orig;
+	struct svcctl_CreateServiceA tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_CreateServiceA_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_CreateServiceA_send(TALLOC_CTX *mem_ctx,
+						     struct tevent_context *ev,
+						     struct rpc_pipe_client *cli,
+						     struct policy_handle *_handle /* [in] [ref] */,
+						     const char *_ServiceName /* [in] [unique,charset(UTF16)] */,
+						     const char *_DisplayName /* [in] [unique,charset(UTF16)] */,
+						     uint32_t _desired_access /* [in]  */,
+						     uint32_t _type /* [in]  */,
+						     enum svcctl_StartType _start_type /* [in]  */,
+						     enum svcctl_ErrorControl _error_control /* [in]  */,
+						     const char *_binary_path /* [in] [unique,charset(UTF16)] */,
+						     const char *_LoadOrderGroupKey /* [in] [unique,charset(UTF16)] */,
+						     uint32_t *_TagId /* [out] [unique] */,
+						     const char *_dependencies /* [in] [unique,charset(UTF16)] */,
+						     const char *_service_start_name /* [in] [unique,charset(UTF16)] */,
+						     const char *_password /* [in] [unique,charset(UTF16)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_CreateServiceA_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_CreateServiceA_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.ServiceName = _ServiceName;
+	state->orig.in.DisplayName = _DisplayName;
+	state->orig.in.desired_access = _desired_access;
+	state->orig.in.type = _type;
+	state->orig.in.start_type = _start_type;
+	state->orig.in.error_control = _error_control;
+	state->orig.in.binary_path = _binary_path;
+	state->orig.in.LoadOrderGroupKey = _LoadOrderGroupKey;
+	state->orig.in.dependencies = _dependencies;
+	state->orig.in.service_start_name = _service_start_name;
+	state->orig.in.password = _password;
+
+	/* Out parameters */
+	state->orig.out.TagId = _TagId;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_CreateServiceA_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_CREATESERVICEA,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_CreateServiceA_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_CreateServiceA_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_CreateServiceA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_CreateServiceA_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	if (state->orig.out.TagId && state->tmp.out.TagId) {
+		*state->orig.out.TagId = *state->tmp.out.TagId;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_CreateServiceA_recv(struct tevent_req *req,
+					   TALLOC_CTX *mem_ctx,
+					   WERROR *result)
+{
+	struct rpccli_svcctl_CreateServiceA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_CreateServiceA_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_svcctl_CreateServiceA(struct rpc_pipe_client *cli,
@@ -1250,10 +3999,6 @@ NTSTATUS rpccli_svcctl_CreateServiceA(struct rpc_pipe_client *cli,
 	r.in.service_start_name = service_start_name;
 	r.in.password = password;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_CreateServiceA, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -1262,10 +4007,6 @@ NTSTATUS rpccli_svcctl_CreateServiceA(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_CreateServiceA, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1283,6 +4024,131 @@ NTSTATUS rpccli_svcctl_CreateServiceA(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_svcctl_EnumDependentServicesA_state {
+	struct svcctl_EnumDependentServicesA orig;
+	struct svcctl_EnumDependentServicesA tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_EnumDependentServicesA_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_EnumDependentServicesA_send(TALLOC_CTX *mem_ctx,
+							     struct tevent_context *ev,
+							     struct rpc_pipe_client *cli,
+							     struct policy_handle *_service /* [in] [ref] */,
+							     enum svcctl_ServiceState _state /* [in]  */,
+							     struct ENUM_SERVICE_STATUSA *_service_status /* [out] [unique] */,
+							     uint32_t _offered /* [in]  */,
+							     uint32_t *_needed /* [out] [ref] */,
+							     uint32_t *_services_returned /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_EnumDependentServicesA_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_EnumDependentServicesA_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.service = _service;
+	state->orig.in.state = _state;
+	state->orig.in.offered = _offered;
+
+	/* Out parameters */
+	state->orig.out.service_status = _service_status;
+	state->orig.out.needed = _needed;
+	state->orig.out.services_returned = _services_returned;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_EnumDependentServicesA_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_ENUMDEPENDENTSERVICESA,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_EnumDependentServicesA_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_EnumDependentServicesA_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_EnumDependentServicesA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_EnumDependentServicesA_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	if (state->orig.out.service_status && state->tmp.out.service_status) {
+		*state->orig.out.service_status = *state->tmp.out.service_status;
+	}
+	*state->orig.out.needed = *state->tmp.out.needed;
+	*state->orig.out.services_returned = *state->tmp.out.services_returned;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_EnumDependentServicesA_recv(struct tevent_req *req,
+						   TALLOC_CTX *mem_ctx,
+						   WERROR *result)
+{
+	struct rpccli_svcctl_EnumDependentServicesA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_EnumDependentServicesA_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_svcctl_EnumDependentServicesA(struct rpc_pipe_client *cli,
@@ -1303,10 +4169,6 @@ NTSTATUS rpccli_svcctl_EnumDependentServicesA(struct rpc_pipe_client *cli,
 	r.in.state = state;
 	r.in.offered = offered;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_EnumDependentServicesA, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -1315,10 +4177,6 @@ NTSTATUS rpccli_svcctl_EnumDependentServicesA(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_EnumDependentServicesA, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1338,6 +4196,137 @@ NTSTATUS rpccli_svcctl_EnumDependentServicesA(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_svcctl_EnumServicesStatusA_state {
+	struct svcctl_EnumServicesStatusA orig;
+	struct svcctl_EnumServicesStatusA tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_EnumServicesStatusA_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_EnumServicesStatusA_send(TALLOC_CTX *mem_ctx,
+							  struct tevent_context *ev,
+							  struct rpc_pipe_client *cli,
+							  struct policy_handle *_handle /* [in] [ref] */,
+							  uint32_t _type /* [in]  */,
+							  enum svcctl_ServiceState _state /* [in]  */,
+							  uint32_t _offered /* [in]  */,
+							  uint8_t *_service /* [out] [size_is(offered)] */,
+							  uint32_t *_needed /* [out] [ref] */,
+							  uint32_t *_services_returned /* [out] [ref] */,
+							  uint32_t *_resume_handle /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_EnumServicesStatusA_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_EnumServicesStatusA_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.type = _type;
+	state->orig.in.state = _state;
+	state->orig.in.offered = _offered;
+	state->orig.in.resume_handle = _resume_handle;
+
+	/* Out parameters */
+	state->orig.out.service = _service;
+	state->orig.out.needed = _needed;
+	state->orig.out.services_returned = _services_returned;
+	state->orig.out.resume_handle = _resume_handle;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_EnumServicesStatusA_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_ENUMSERVICESSTATUSA,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_EnumServicesStatusA_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_EnumServicesStatusA_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_EnumServicesStatusA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_EnumServicesStatusA_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	memcpy(state->orig.out.service, state->tmp.out.service, (state->tmp.in.offered) * sizeof(*state->orig.out.service));
+	*state->orig.out.needed = *state->tmp.out.needed;
+	*state->orig.out.services_returned = *state->tmp.out.services_returned;
+	if (state->orig.out.resume_handle && state->tmp.out.resume_handle) {
+		*state->orig.out.resume_handle = *state->tmp.out.resume_handle;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_EnumServicesStatusA_recv(struct tevent_req *req,
+						TALLOC_CTX *mem_ctx,
+						WERROR *result)
+{
+	struct rpccli_svcctl_EnumServicesStatusA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_EnumServicesStatusA_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_svcctl_EnumServicesStatusA(struct rpc_pipe_client *cli,
@@ -1362,10 +4351,6 @@ NTSTATUS rpccli_svcctl_EnumServicesStatusA(struct rpc_pipe_client *cli,
 	r.in.offered = offered;
 	r.in.resume_handle = resume_handle;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_EnumServicesStatusA, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -1374,10 +4359,6 @@ NTSTATUS rpccli_svcctl_EnumServicesStatusA(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_EnumServicesStatusA, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1400,6 +4381,123 @@ NTSTATUS rpccli_svcctl_EnumServicesStatusA(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_OpenSCManagerA_state {
+	struct svcctl_OpenSCManagerA orig;
+	struct svcctl_OpenSCManagerA tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_OpenSCManagerA_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_OpenSCManagerA_send(TALLOC_CTX *mem_ctx,
+						     struct tevent_context *ev,
+						     struct rpc_pipe_client *cli,
+						     const char *_MachineName /* [in] [unique,charset(UTF16)] */,
+						     const char *_DatabaseName /* [in] [unique,charset(UTF16)] */,
+						     uint32_t _access_mask /* [in]  */,
+						     struct policy_handle *_handle /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_OpenSCManagerA_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_OpenSCManagerA_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.MachineName = _MachineName;
+	state->orig.in.DatabaseName = _DatabaseName;
+	state->orig.in.access_mask = _access_mask;
+
+	/* Out parameters */
+	state->orig.out.handle = _handle;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_OpenSCManagerA_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_OPENSCMANAGERA,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_OpenSCManagerA_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_OpenSCManagerA_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_OpenSCManagerA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_OpenSCManagerA_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.handle = *state->tmp.out.handle;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_OpenSCManagerA_recv(struct tevent_req *req,
+					   TALLOC_CTX *mem_ctx,
+					   WERROR *result)
+{
+	struct rpccli_svcctl_OpenSCManagerA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_OpenSCManagerA_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_OpenSCManagerA(struct rpc_pipe_client *cli,
 				      TALLOC_CTX *mem_ctx,
 				      const char *MachineName /* [in] [unique,charset(UTF16)] */,
@@ -1416,10 +4514,6 @@ NTSTATUS rpccli_svcctl_OpenSCManagerA(struct rpc_pipe_client *cli,
 	r.in.DatabaseName = DatabaseName;
 	r.in.access_mask = access_mask;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_OpenSCManagerA, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -1428,10 +4522,6 @@ NTSTATUS rpccli_svcctl_OpenSCManagerA(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_OpenSCManagerA, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1449,6 +4539,114 @@ NTSTATUS rpccli_svcctl_OpenSCManagerA(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_OpenServiceA_state {
+	struct svcctl_OpenServiceA orig;
+	struct svcctl_OpenServiceA tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_OpenServiceA_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_OpenServiceA_send(TALLOC_CTX *mem_ctx,
+						   struct tevent_context *ev,
+						   struct rpc_pipe_client *cli,
+						   struct policy_handle *_scmanager_handle /* [in] [ref] */,
+						   const char *_ServiceName /* [in] [unique,charset(UTF16)] */,
+						   uint32_t _access_mask /* [in]  */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_OpenServiceA_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_OpenServiceA_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.scmanager_handle = _scmanager_handle;
+	state->orig.in.ServiceName = _ServiceName;
+	state->orig.in.access_mask = _access_mask;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_OPENSERVICEA,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_OpenServiceA_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_OpenServiceA_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_OpenServiceA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_OpenServiceA_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_OpenServiceA_recv(struct tevent_req *req,
+					 TALLOC_CTX *mem_ctx,
+					 WERROR *result)
+{
+	struct rpccli_svcctl_OpenServiceA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_OpenServiceA_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_OpenServiceA(struct rpc_pipe_client *cli,
 				    TALLOC_CTX *mem_ctx,
 				    struct policy_handle *scmanager_handle /* [in] [ref] */,
@@ -1464,10 +4662,6 @@ NTSTATUS rpccli_svcctl_OpenServiceA(struct rpc_pipe_client *cli,
 	r.in.ServiceName = ServiceName;
 	r.in.access_mask = access_mask;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_OpenServiceA, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -1476,10 +4670,6 @@ NTSTATUS rpccli_svcctl_OpenServiceA(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_OpenServiceA, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1494,6 +4684,124 @@ NTSTATUS rpccli_svcctl_OpenServiceA(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_svcctl_QueryServiceConfigA_state {
+	struct svcctl_QueryServiceConfigA orig;
+	struct svcctl_QueryServiceConfigA tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_QueryServiceConfigA_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_QueryServiceConfigA_send(TALLOC_CTX *mem_ctx,
+							  struct tevent_context *ev,
+							  struct rpc_pipe_client *cli,
+							  struct policy_handle *_handle /* [in] [ref] */,
+							  uint8_t *_query /* [out]  */,
+							  uint32_t _offered /* [in]  */,
+							  uint32_t *_needed /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_QueryServiceConfigA_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_QueryServiceConfigA_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.offered = _offered;
+
+	/* Out parameters */
+	state->orig.out.query = _query;
+	state->orig.out.needed = _needed;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_QueryServiceConfigA_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_QUERYSERVICECONFIGA,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_QueryServiceConfigA_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_QueryServiceConfigA_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_QueryServiceConfigA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_QueryServiceConfigA_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	memcpy(state->orig.out.query, state->tmp.out.query, (state->tmp.in.offered) * sizeof(*state->orig.out.query));
+	*state->orig.out.needed = *state->tmp.out.needed;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_QueryServiceConfigA_recv(struct tevent_req *req,
+						TALLOC_CTX *mem_ctx,
+						WERROR *result)
+{
+	struct rpccli_svcctl_QueryServiceConfigA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_QueryServiceConfigA_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_svcctl_QueryServiceConfigA(struct rpc_pipe_client *cli,
@@ -1511,10 +4819,6 @@ NTSTATUS rpccli_svcctl_QueryServiceConfigA(struct rpc_pipe_client *cli,
 	r.in.handle = handle;
 	r.in.offered = offered;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_QueryServiceConfigA, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -1523,10 +4827,6 @@ NTSTATUS rpccli_svcctl_QueryServiceConfigA(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_QueryServiceConfigA, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1545,6 +4845,124 @@ NTSTATUS rpccli_svcctl_QueryServiceConfigA(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_QueryServiceLockStatusA_state {
+	struct svcctl_QueryServiceLockStatusA orig;
+	struct svcctl_QueryServiceLockStatusA tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_QueryServiceLockStatusA_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_QueryServiceLockStatusA_send(TALLOC_CTX *mem_ctx,
+							      struct tevent_context *ev,
+							      struct rpc_pipe_client *cli,
+							      struct policy_handle *_handle /* [in] [ref] */,
+							      uint32_t _offered /* [in]  */,
+							      struct SERVICE_LOCK_STATUS *_lock_status /* [out] [ref] */,
+							      uint32_t *_needed /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_QueryServiceLockStatusA_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_QueryServiceLockStatusA_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.offered = _offered;
+
+	/* Out parameters */
+	state->orig.out.lock_status = _lock_status;
+	state->orig.out.needed = _needed;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_QueryServiceLockStatusA_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_QUERYSERVICELOCKSTATUSA,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_QueryServiceLockStatusA_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_QueryServiceLockStatusA_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_QueryServiceLockStatusA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_QueryServiceLockStatusA_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.lock_status = *state->tmp.out.lock_status;
+	*state->orig.out.needed = *state->tmp.out.needed;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_QueryServiceLockStatusA_recv(struct tevent_req *req,
+						    TALLOC_CTX *mem_ctx,
+						    WERROR *result)
+{
+	struct rpccli_svcctl_QueryServiceLockStatusA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_QueryServiceLockStatusA_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_QueryServiceLockStatusA(struct rpc_pipe_client *cli,
 					       TALLOC_CTX *mem_ctx,
 					       struct policy_handle *handle /* [in] [ref] */,
@@ -1560,10 +4978,6 @@ NTSTATUS rpccli_svcctl_QueryServiceLockStatusA(struct rpc_pipe_client *cli,
 	r.in.handle = handle;
 	r.in.offered = offered;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_QueryServiceLockStatusA, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -1572,10 +4986,6 @@ NTSTATUS rpccli_svcctl_QueryServiceLockStatusA(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_QueryServiceLockStatusA, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1594,6 +5004,114 @@ NTSTATUS rpccli_svcctl_QueryServiceLockStatusA(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_StartServiceA_state {
+	struct svcctl_StartServiceA orig;
+	struct svcctl_StartServiceA tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_StartServiceA_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_StartServiceA_send(TALLOC_CTX *mem_ctx,
+						    struct tevent_context *ev,
+						    struct rpc_pipe_client *cli,
+						    struct policy_handle *_handle /* [in] [ref] */,
+						    uint32_t _NumArgs /* [in]  */,
+						    const char *_Arguments /* [in] [unique,charset(UTF16)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_StartServiceA_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_StartServiceA_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.NumArgs = _NumArgs;
+	state->orig.in.Arguments = _Arguments;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_STARTSERVICEA,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_StartServiceA_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_StartServiceA_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_StartServiceA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_StartServiceA_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_StartServiceA_recv(struct tevent_req *req,
+					  TALLOC_CTX *mem_ctx,
+					  WERROR *result)
+{
+	struct rpccli_svcctl_StartServiceA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_StartServiceA_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_StartServiceA(struct rpc_pipe_client *cli,
 				     TALLOC_CTX *mem_ctx,
 				     struct policy_handle *handle /* [in] [ref] */,
@@ -1609,10 +5127,6 @@ NTSTATUS rpccli_svcctl_StartServiceA(struct rpc_pipe_client *cli,
 	r.in.NumArgs = NumArgs;
 	r.in.Arguments = Arguments;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_StartServiceA, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -1621,10 +5135,6 @@ NTSTATUS rpccli_svcctl_StartServiceA(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_StartServiceA, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1639,6 +5149,127 @@ NTSTATUS rpccli_svcctl_StartServiceA(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_svcctl_GetServiceDisplayNameA_state {
+	struct svcctl_GetServiceDisplayNameA orig;
+	struct svcctl_GetServiceDisplayNameA tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_GetServiceDisplayNameA_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_GetServiceDisplayNameA_send(TALLOC_CTX *mem_ctx,
+							     struct tevent_context *ev,
+							     struct rpc_pipe_client *cli,
+							     struct policy_handle *_handle /* [in] [ref] */,
+							     const char *_service_name /* [in] [unique,charset(UTF16)] */,
+							     const char **_display_name /* [out] [ref,charset(UTF16)] */,
+							     uint32_t *_display_name_length /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_GetServiceDisplayNameA_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_GetServiceDisplayNameA_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.service_name = _service_name;
+	state->orig.in.display_name_length = _display_name_length;
+
+	/* Out parameters */
+	state->orig.out.display_name = _display_name;
+	state->orig.out.display_name_length = _display_name_length;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_GetServiceDisplayNameA_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_GETSERVICEDISPLAYNAMEA,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_GetServiceDisplayNameA_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_GetServiceDisplayNameA_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_GetServiceDisplayNameA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_GetServiceDisplayNameA_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.display_name = *state->tmp.out.display_name;
+	if (state->orig.out.display_name_length && state->tmp.out.display_name_length) {
+		*state->orig.out.display_name_length = *state->tmp.out.display_name_length;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_GetServiceDisplayNameA_recv(struct tevent_req *req,
+						   TALLOC_CTX *mem_ctx,
+						   WERROR *result)
+{
+	struct rpccli_svcctl_GetServiceDisplayNameA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_GetServiceDisplayNameA_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_svcctl_GetServiceDisplayNameA(struct rpc_pipe_client *cli,
@@ -1657,10 +5288,6 @@ NTSTATUS rpccli_svcctl_GetServiceDisplayNameA(struct rpc_pipe_client *cli,
 	r.in.service_name = service_name;
 	r.in.display_name_length = display_name_length;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_GetServiceDisplayNameA, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -1669,10 +5296,6 @@ NTSTATUS rpccli_svcctl_GetServiceDisplayNameA(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_GetServiceDisplayNameA, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1693,6 +5316,127 @@ NTSTATUS rpccli_svcctl_GetServiceDisplayNameA(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_GetServiceKeyNameA_state {
+	struct svcctl_GetServiceKeyNameA orig;
+	struct svcctl_GetServiceKeyNameA tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_GetServiceKeyNameA_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_GetServiceKeyNameA_send(TALLOC_CTX *mem_ctx,
+							 struct tevent_context *ev,
+							 struct rpc_pipe_client *cli,
+							 struct policy_handle *_handle /* [in] [ref] */,
+							 const char *_service_name /* [in] [unique,charset(UTF16)] */,
+							 const char **_key_name /* [out] [ref,charset(UTF16)] */,
+							 uint32_t *_display_name_length /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_GetServiceKeyNameA_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_GetServiceKeyNameA_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.service_name = _service_name;
+	state->orig.in.display_name_length = _display_name_length;
+
+	/* Out parameters */
+	state->orig.out.key_name = _key_name;
+	state->orig.out.display_name_length = _display_name_length;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_GetServiceKeyNameA_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_GETSERVICEKEYNAMEA,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_GetServiceKeyNameA_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_GetServiceKeyNameA_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_GetServiceKeyNameA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_GetServiceKeyNameA_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.key_name = *state->tmp.out.key_name;
+	if (state->orig.out.display_name_length && state->tmp.out.display_name_length) {
+		*state->orig.out.display_name_length = *state->tmp.out.display_name_length;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_GetServiceKeyNameA_recv(struct tevent_req *req,
+					       TALLOC_CTX *mem_ctx,
+					       WERROR *result)
+{
+	struct rpccli_svcctl_GetServiceKeyNameA_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_GetServiceKeyNameA_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_GetServiceKeyNameA(struct rpc_pipe_client *cli,
 					  TALLOC_CTX *mem_ctx,
 					  struct policy_handle *handle /* [in] [ref] */,
@@ -1709,10 +5453,6 @@ NTSTATUS rpccli_svcctl_GetServiceKeyNameA(struct rpc_pipe_client *cli,
 	r.in.service_name = service_name;
 	r.in.display_name_length = display_name_length;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_GetServiceKeyNameA, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -1721,10 +5461,6 @@ NTSTATUS rpccli_svcctl_GetServiceKeyNameA(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_GetServiceKeyNameA, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1745,6 +5481,108 @@ NTSTATUS rpccli_svcctl_GetServiceKeyNameA(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_GetCurrentGroupeStateW_state {
+	struct svcctl_GetCurrentGroupeStateW orig;
+	struct svcctl_GetCurrentGroupeStateW tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_GetCurrentGroupeStateW_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_GetCurrentGroupeStateW_send(TALLOC_CTX *mem_ctx,
+							     struct tevent_context *ev,
+							     struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_GetCurrentGroupeStateW_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_GetCurrentGroupeStateW_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_GETCURRENTGROUPESTATEW,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_GetCurrentGroupeStateW_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_GetCurrentGroupeStateW_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_GetCurrentGroupeStateW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_GetCurrentGroupeStateW_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_GetCurrentGroupeStateW_recv(struct tevent_req *req,
+						   TALLOC_CTX *mem_ctx,
+						   WERROR *result)
+{
+	struct rpccli_svcctl_GetCurrentGroupeStateW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_GetCurrentGroupeStateW_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_GetCurrentGroupeStateW(struct rpc_pipe_client *cli,
 					      TALLOC_CTX *mem_ctx,
 					      WERROR *werror)
@@ -1754,10 +5592,6 @@ NTSTATUS rpccli_svcctl_GetCurrentGroupeStateW(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_GetCurrentGroupeStateW, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -1766,10 +5600,6 @@ NTSTATUS rpccli_svcctl_GetCurrentGroupeStateW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_GetCurrentGroupeStateW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1786,6 +5616,108 @@ NTSTATUS rpccli_svcctl_GetCurrentGroupeStateW(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_EnumServiceGroupW_state {
+	struct svcctl_EnumServiceGroupW orig;
+	struct svcctl_EnumServiceGroupW tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_EnumServiceGroupW_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_EnumServiceGroupW_send(TALLOC_CTX *mem_ctx,
+							struct tevent_context *ev,
+							struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_EnumServiceGroupW_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_EnumServiceGroupW_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_ENUMSERVICEGROUPW,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_EnumServiceGroupW_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_EnumServiceGroupW_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_EnumServiceGroupW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_EnumServiceGroupW_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_EnumServiceGroupW_recv(struct tevent_req *req,
+					      TALLOC_CTX *mem_ctx,
+					      WERROR *result)
+{
+	struct rpccli_svcctl_EnumServiceGroupW_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_EnumServiceGroupW_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_EnumServiceGroupW(struct rpc_pipe_client *cli,
 					 TALLOC_CTX *mem_ctx,
 					 WERROR *werror)
@@ -1795,10 +5727,6 @@ NTSTATUS rpccli_svcctl_EnumServiceGroupW(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_EnumServiceGroupW, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -1807,10 +5735,6 @@ NTSTATUS rpccli_svcctl_EnumServiceGroupW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_EnumServiceGroupW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1825,6 +5749,114 @@ NTSTATUS rpccli_svcctl_EnumServiceGroupW(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_svcctl_ChangeServiceConfig2A_state {
+	struct svcctl_ChangeServiceConfig2A orig;
+	struct svcctl_ChangeServiceConfig2A tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_ChangeServiceConfig2A_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_ChangeServiceConfig2A_send(TALLOC_CTX *mem_ctx,
+							    struct tevent_context *ev,
+							    struct rpc_pipe_client *cli,
+							    struct policy_handle *_handle /* [in] [ref] */,
+							    uint32_t _info_level /* [in]  */,
+							    uint8_t *_info /* [in] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_ChangeServiceConfig2A_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_ChangeServiceConfig2A_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.info_level = _info_level;
+	state->orig.in.info = _info;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_CHANGESERVICECONFIG2A,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_ChangeServiceConfig2A_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_ChangeServiceConfig2A_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_ChangeServiceConfig2A_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_ChangeServiceConfig2A_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_ChangeServiceConfig2A_recv(struct tevent_req *req,
+						  TALLOC_CTX *mem_ctx,
+						  WERROR *result)
+{
+	struct rpccli_svcctl_ChangeServiceConfig2A_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_ChangeServiceConfig2A_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_svcctl_ChangeServiceConfig2A(struct rpc_pipe_client *cli,
@@ -1842,10 +5874,6 @@ NTSTATUS rpccli_svcctl_ChangeServiceConfig2A(struct rpc_pipe_client *cli,
 	r.in.info_level = info_level;
 	r.in.info = info;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_ChangeServiceConfig2A, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -1854,10 +5882,6 @@ NTSTATUS rpccli_svcctl_ChangeServiceConfig2A(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_ChangeServiceConfig2A, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1872,6 +5896,114 @@ NTSTATUS rpccli_svcctl_ChangeServiceConfig2A(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_svcctl_ChangeServiceConfig2W_state {
+	struct svcctl_ChangeServiceConfig2W orig;
+	struct svcctl_ChangeServiceConfig2W tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_ChangeServiceConfig2W_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_ChangeServiceConfig2W_send(TALLOC_CTX *mem_ctx,
+							    struct tevent_context *ev,
+							    struct rpc_pipe_client *cli,
+							    struct policy_handle *_handle /* [in] [ref] */,
+							    uint32_t _info_level /* [in]  */,
+							    uint8_t *_info /* [in] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_ChangeServiceConfig2W_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_ChangeServiceConfig2W_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.info_level = _info_level;
+	state->orig.in.info = _info;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_CHANGESERVICECONFIG2W,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_ChangeServiceConfig2W_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_ChangeServiceConfig2W_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_ChangeServiceConfig2W_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_ChangeServiceConfig2W_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_ChangeServiceConfig2W_recv(struct tevent_req *req,
+						  TALLOC_CTX *mem_ctx,
+						  WERROR *result)
+{
+	struct rpccli_svcctl_ChangeServiceConfig2W_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_ChangeServiceConfig2W_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_svcctl_ChangeServiceConfig2W(struct rpc_pipe_client *cli,
@@ -1889,10 +6021,6 @@ NTSTATUS rpccli_svcctl_ChangeServiceConfig2W(struct rpc_pipe_client *cli,
 	r.in.info_level = info_level;
 	r.in.info = info;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_ChangeServiceConfig2W, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -1901,10 +6029,6 @@ NTSTATUS rpccli_svcctl_ChangeServiceConfig2W(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_ChangeServiceConfig2W, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1919,6 +6043,126 @@ NTSTATUS rpccli_svcctl_ChangeServiceConfig2W(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_svcctl_QueryServiceConfig2A_state {
+	struct svcctl_QueryServiceConfig2A orig;
+	struct svcctl_QueryServiceConfig2A tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_QueryServiceConfig2A_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_QueryServiceConfig2A_send(TALLOC_CTX *mem_ctx,
+							   struct tevent_context *ev,
+							   struct rpc_pipe_client *cli,
+							   struct policy_handle *_handle /* [in] [ref] */,
+							   enum svcctl_ConfigLevel _info_level /* [in]  */,
+							   uint8_t *_buffer /* [out]  */,
+							   uint32_t _offered /* [in]  */,
+							   uint32_t *_needed /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_QueryServiceConfig2A_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_QueryServiceConfig2A_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.info_level = _info_level;
+	state->orig.in.offered = _offered;
+
+	/* Out parameters */
+	state->orig.out.buffer = _buffer;
+	state->orig.out.needed = _needed;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_QueryServiceConfig2A_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_QUERYSERVICECONFIG2A,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_QueryServiceConfig2A_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_QueryServiceConfig2A_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_QueryServiceConfig2A_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_QueryServiceConfig2A_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	memcpy(state->orig.out.buffer, state->tmp.out.buffer, (state->tmp.in.offered) * sizeof(*state->orig.out.buffer));
+	*state->orig.out.needed = *state->tmp.out.needed;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_QueryServiceConfig2A_recv(struct tevent_req *req,
+						 TALLOC_CTX *mem_ctx,
+						 WERROR *result)
+{
+	struct rpccli_svcctl_QueryServiceConfig2A_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_QueryServiceConfig2A_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_svcctl_QueryServiceConfig2A(struct rpc_pipe_client *cli,
@@ -1938,10 +6182,6 @@ NTSTATUS rpccli_svcctl_QueryServiceConfig2A(struct rpc_pipe_client *cli,
 	r.in.info_level = info_level;
 	r.in.offered = offered;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_QueryServiceConfig2A, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -1950,10 +6190,6 @@ NTSTATUS rpccli_svcctl_QueryServiceConfig2A(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_QueryServiceConfig2A, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1970,6 +6206,126 @@ NTSTATUS rpccli_svcctl_QueryServiceConfig2A(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_svcctl_QueryServiceConfig2W_state {
+	struct svcctl_QueryServiceConfig2W orig;
+	struct svcctl_QueryServiceConfig2W tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_QueryServiceConfig2W_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_QueryServiceConfig2W_send(TALLOC_CTX *mem_ctx,
+							   struct tevent_context *ev,
+							   struct rpc_pipe_client *cli,
+							   struct policy_handle *_handle /* [in] [ref] */,
+							   enum svcctl_ConfigLevel _info_level /* [in]  */,
+							   uint8_t *_buffer /* [out] [ref,size_is(offered)] */,
+							   uint32_t _offered /* [in] [range(0,8192)] */,
+							   uint32_t *_needed /* [out] [ref,range(0,8192)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_QueryServiceConfig2W_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_QueryServiceConfig2W_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.info_level = _info_level;
+	state->orig.in.offered = _offered;
+
+	/* Out parameters */
+	state->orig.out.buffer = _buffer;
+	state->orig.out.needed = _needed;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_QueryServiceConfig2W_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_QUERYSERVICECONFIG2W,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_QueryServiceConfig2W_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_QueryServiceConfig2W_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_QueryServiceConfig2W_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_QueryServiceConfig2W_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	memcpy(state->orig.out.buffer, state->tmp.out.buffer, (state->tmp.in.offered) * sizeof(*state->orig.out.buffer));
+	*state->orig.out.needed = *state->tmp.out.needed;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_QueryServiceConfig2W_recv(struct tevent_req *req,
+						 TALLOC_CTX *mem_ctx,
+						 WERROR *result)
+{
+	struct rpccli_svcctl_QueryServiceConfig2W_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_QueryServiceConfig2W_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_svcctl_QueryServiceConfig2W(struct rpc_pipe_client *cli,
@@ -1989,10 +6345,6 @@ NTSTATUS rpccli_svcctl_QueryServiceConfig2W(struct rpc_pipe_client *cli,
 	r.in.info_level = info_level;
 	r.in.offered = offered;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_QueryServiceConfig2W, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -2001,10 +6353,6 @@ NTSTATUS rpccli_svcctl_QueryServiceConfig2W(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_QueryServiceConfig2W, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2021,6 +6369,126 @@ NTSTATUS rpccli_svcctl_QueryServiceConfig2W(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_svcctl_QueryServiceStatusEx_state {
+	struct svcctl_QueryServiceStatusEx orig;
+	struct svcctl_QueryServiceStatusEx tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_QueryServiceStatusEx_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_QueryServiceStatusEx_send(TALLOC_CTX *mem_ctx,
+							   struct tevent_context *ev,
+							   struct rpc_pipe_client *cli,
+							   struct policy_handle *_handle /* [in] [ref] */,
+							   enum svcctl_StatusLevel _info_level /* [in]  */,
+							   uint8_t *_buffer /* [out] [ref,size_is(offered)] */,
+							   uint32_t _offered /* [in] [range(0,8192)] */,
+							   uint32_t *_needed /* [out] [ref,range(0,8192)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_QueryServiceStatusEx_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_QueryServiceStatusEx_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.handle = _handle;
+	state->orig.in.info_level = _info_level;
+	state->orig.in.offered = _offered;
+
+	/* Out parameters */
+	state->orig.out.buffer = _buffer;
+	state->orig.out.needed = _needed;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_svcctl_QueryServiceStatusEx_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_QUERYSERVICESTATUSEX,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_QueryServiceStatusEx_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_QueryServiceStatusEx_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_QueryServiceStatusEx_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_QueryServiceStatusEx_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	memcpy(state->orig.out.buffer, state->tmp.out.buffer, (state->tmp.in.offered) * sizeof(*state->orig.out.buffer));
+	*state->orig.out.needed = *state->tmp.out.needed;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_QueryServiceStatusEx_recv(struct tevent_req *req,
+						 TALLOC_CTX *mem_ctx,
+						 WERROR *result)
+{
+	struct rpccli_svcctl_QueryServiceStatusEx_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_QueryServiceStatusEx_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_svcctl_QueryServiceStatusEx(struct rpc_pipe_client *cli,
@@ -2040,10 +6508,6 @@ NTSTATUS rpccli_svcctl_QueryServiceStatusEx(struct rpc_pipe_client *cli,
 	r.in.info_level = info_level;
 	r.in.offered = offered;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_QueryServiceStatusEx, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -2052,10 +6516,6 @@ NTSTATUS rpccli_svcctl_QueryServiceStatusEx(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_QueryServiceStatusEx, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2072,6 +6532,142 @@ NTSTATUS rpccli_svcctl_QueryServiceStatusEx(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_EnumServicesStatusExA_state {
+	struct EnumServicesStatusExA orig;
+	struct EnumServicesStatusExA tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_EnumServicesStatusExA_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_EnumServicesStatusExA_send(TALLOC_CTX *mem_ctx,
+						     struct tevent_context *ev,
+						     struct rpc_pipe_client *cli,
+						     struct policy_handle *_scmanager /* [in] [ref] */,
+						     uint32_t _info_level /* [in]  */,
+						     uint32_t _type /* [in]  */,
+						     enum svcctl_ServiceState _state /* [in]  */,
+						     uint8_t *_services /* [out]  */,
+						     uint32_t _offered /* [in]  */,
+						     uint32_t *_needed /* [out] [ref] */,
+						     uint32_t *_service_returned /* [out] [ref] */,
+						     uint32_t *_resume_handle /* [in,out] [unique] */,
+						     const char **_group_name /* [out] [ref,charset(UTF16)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_EnumServicesStatusExA_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_EnumServicesStatusExA_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.scmanager = _scmanager;
+	state->orig.in.info_level = _info_level;
+	state->orig.in.type = _type;
+	state->orig.in.state = _state;
+	state->orig.in.offered = _offered;
+	state->orig.in.resume_handle = _resume_handle;
+
+	/* Out parameters */
+	state->orig.out.services = _services;
+	state->orig.out.needed = _needed;
+	state->orig.out.service_returned = _service_returned;
+	state->orig.out.resume_handle = _resume_handle;
+	state->orig.out.group_name = _group_name;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_EnumServicesStatusExA_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_ENUMSERVICESSTATUSEXA,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_EnumServicesStatusExA_done, req);
+	return req;
+}
+
+static void rpccli_EnumServicesStatusExA_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_EnumServicesStatusExA_state *state = tevent_req_data(
+		req, struct rpccli_EnumServicesStatusExA_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	memcpy(state->orig.out.services, state->tmp.out.services, (state->tmp.in.offered) * sizeof(*state->orig.out.services));
+	*state->orig.out.needed = *state->tmp.out.needed;
+	*state->orig.out.service_returned = *state->tmp.out.service_returned;
+	if (state->orig.out.resume_handle && state->tmp.out.resume_handle) {
+		*state->orig.out.resume_handle = *state->tmp.out.resume_handle;
+	}
+	*state->orig.out.group_name = *state->tmp.out.group_name;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_EnumServicesStatusExA_recv(struct tevent_req *req,
+					   TALLOC_CTX *mem_ctx,
+					   WERROR *result)
+{
+	struct rpccli_EnumServicesStatusExA_state *state = tevent_req_data(
+		req, struct rpccli_EnumServicesStatusExA_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_EnumServicesStatusExA(struct rpc_pipe_client *cli,
@@ -2099,10 +6695,6 @@ NTSTATUS rpccli_EnumServicesStatusExA(struct rpc_pipe_client *cli,
 	r.in.offered = offered;
 	r.in.resume_handle = resume_handle;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(EnumServicesStatusExA, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -2111,10 +6703,6 @@ NTSTATUS rpccli_EnumServicesStatusExA(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(EnumServicesStatusExA, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2136,6 +6724,141 @@ NTSTATUS rpccli_EnumServicesStatusExA(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_EnumServicesStatusExW_state {
+	struct EnumServicesStatusExW orig;
+	struct EnumServicesStatusExW tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_EnumServicesStatusExW_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_EnumServicesStatusExW_send(TALLOC_CTX *mem_ctx,
+						     struct tevent_context *ev,
+						     struct rpc_pipe_client *cli,
+						     struct policy_handle *_scmanager /* [in] [ref] */,
+						     uint32_t _info_level /* [in]  */,
+						     uint32_t _type /* [in]  */,
+						     enum svcctl_ServiceState _state /* [in]  */,
+						     uint8_t *_services /* [out] [ref,size_is(offered)] */,
+						     uint32_t _offered /* [in] [range(0,0x40000)] */,
+						     uint32_t *_needed /* [out] [ref,range(0,0x40000)] */,
+						     uint32_t *_service_returned /* [out] [ref,range(0,0x40000)] */,
+						     uint32_t *_resume_handle /* [in,out] [unique,range(0,0x40000)] */,
+						     const char *_group_name /* [in] [unique,charset(UTF16)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_EnumServicesStatusExW_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_EnumServicesStatusExW_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.scmanager = _scmanager;
+	state->orig.in.info_level = _info_level;
+	state->orig.in.type = _type;
+	state->orig.in.state = _state;
+	state->orig.in.offered = _offered;
+	state->orig.in.resume_handle = _resume_handle;
+	state->orig.in.group_name = _group_name;
+
+	/* Out parameters */
+	state->orig.out.services = _services;
+	state->orig.out.needed = _needed;
+	state->orig.out.service_returned = _service_returned;
+	state->orig.out.resume_handle = _resume_handle;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_EnumServicesStatusExW_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_ENUMSERVICESSTATUSEXW,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_EnumServicesStatusExW_done, req);
+	return req;
+}
+
+static void rpccli_EnumServicesStatusExW_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_EnumServicesStatusExW_state *state = tevent_req_data(
+		req, struct rpccli_EnumServicesStatusExW_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	memcpy(state->orig.out.services, state->tmp.out.services, (state->tmp.in.offered) * sizeof(*state->orig.out.services));
+	*state->orig.out.needed = *state->tmp.out.needed;
+	*state->orig.out.service_returned = *state->tmp.out.service_returned;
+	if (state->orig.out.resume_handle && state->tmp.out.resume_handle) {
+		*state->orig.out.resume_handle = *state->tmp.out.resume_handle;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_EnumServicesStatusExW_recv(struct tevent_req *req,
+					   TALLOC_CTX *mem_ctx,
+					   WERROR *result)
+{
+	struct rpccli_EnumServicesStatusExW_state *state = tevent_req_data(
+		req, struct rpccli_EnumServicesStatusExW_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_EnumServicesStatusExW(struct rpc_pipe_client *cli,
@@ -2164,10 +6887,6 @@ NTSTATUS rpccli_EnumServicesStatusExW(struct rpc_pipe_client *cli,
 	r.in.resume_handle = resume_handle;
 	r.in.group_name = group_name;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(EnumServicesStatusExW, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -2176,10 +6895,6 @@ NTSTATUS rpccli_EnumServicesStatusExW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(EnumServicesStatusExW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2202,6 +6917,108 @@ NTSTATUS rpccli_EnumServicesStatusExW(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_svcctl_SCSendTSMessage_state {
+	struct svcctl_SCSendTSMessage orig;
+	struct svcctl_SCSendTSMessage tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_svcctl_SCSendTSMessage_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_svcctl_SCSendTSMessage_send(TALLOC_CTX *mem_ctx,
+						      struct tevent_context *ev,
+						      struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_svcctl_SCSendTSMessage_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_svcctl_SCSendTSMessage_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_svcctl,
+				    NDR_SVCCTL_SCSENDTSMESSAGE,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_svcctl_SCSendTSMessage_done, req);
+	return req;
+}
+
+static void rpccli_svcctl_SCSendTSMessage_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_svcctl_SCSendTSMessage_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_SCSendTSMessage_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_svcctl_SCSendTSMessage_recv(struct tevent_req *req,
+					    TALLOC_CTX *mem_ctx,
+					    WERROR *result)
+{
+	struct rpccli_svcctl_SCSendTSMessage_state *state = tevent_req_data(
+		req, struct rpccli_svcctl_SCSendTSMessage_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_svcctl_SCSendTSMessage(struct rpc_pipe_client *cli,
 				       TALLOC_CTX *mem_ctx,
 				       WERROR *werror)
@@ -2211,10 +7028,6 @@ NTSTATUS rpccli_svcctl_SCSendTSMessage(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(svcctl_SCSendTSMessage, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_svcctl,
@@ -2223,10 +7036,6 @@ NTSTATUS rpccli_svcctl_SCSendTSMessage(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(svcctl_SCSendTSMessage, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {

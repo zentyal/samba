@@ -447,7 +447,9 @@ bool kpasswdd_process(struct kdc_server *kdc,
 	struct cli_credentials *server_credentials;
 	struct gensec_security *gensec_security;
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
-	
+
+	char *keytab_name;
+
 	if (!tmp_ctx) {
 		return false;
 	}
@@ -489,8 +491,12 @@ bool kpasswdd_process(struct kdc_server *kdc,
 	 * we already have, rather than a new context */	
 	cli_credentials_set_krb5_context(server_credentials, kdc->smb_krb5_context);
 	cli_credentials_set_conf(server_credentials, kdc->task->lp_ctx);
-	nt_status = cli_credentials_set_stored_principal(server_credentials, kdc->task->event_ctx, kdc->task->lp_ctx, "kadmin/changepw");
-	if (!NT_STATUS_IS_OK(nt_status)) {
+
+	keytab_name = talloc_asprintf(server_credentials, "HDB:samba4&%p", kdc->hdb_samba4_context);
+
+	cli_credentials_set_username(server_credentials, "kadmin/changepw", CRED_SPECIFIED);
+	ret = cli_credentials_set_keytab_name(server_credentials, kdc->task->event_ctx, kdc->task->lp_ctx, keytab_name, CRED_SPECIFIED);
+	if (ret != 0) {
 		ret = kpasswdd_make_unauth_error_reply(kdc, mem_ctx, 
 						       KRB5_KPASSWD_HARDERROR,
 						       talloc_asprintf(mem_ctx, 
@@ -522,11 +528,19 @@ bool kpasswdd_process(struct kdc_server *kdc,
 
 	/* The kerberos PRIV packets include these addresses.  MIT
 	 * clients check that they are present */
+#if 0
+	/* Skip this part for now, it breaks with a NetAPP filer and
+	 * in any case where the client address is behind NAT.  If
+	 * older MIT clients need this, we might have to insert more
+	 * complex code */
+
 	nt_status = gensec_set_peer_addr(gensec_security, peer_addr);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		talloc_free(tmp_ctx);
 		return false;
 	}
+#endif
+
 	nt_status = gensec_set_my_addr(gensec_security, my_addr);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		talloc_free(tmp_ctx);

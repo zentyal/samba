@@ -904,7 +904,7 @@ static bool auth2(struct smbcli_state *cli,
 	struct netr_Credential netr_srv_creds;
 	uint32_t negotiate_flags;
 	struct netr_ServerAuthenticate2 a;
-	struct creds_CredentialState *creds_state;
+	struct netlogon_creds_CredentialState *creds_state;
 	struct netr_Credential netr_cred;
 	struct samr_Password mach_pw;
 
@@ -958,11 +958,6 @@ static bool auth2(struct smbcli_state *cli,
 	negotiate_flags = NETLOGON_NEG_AUTH2_FLAGS;
 	E_md4hash(cli_credentials_get_password(wks_cred), mach_pw.hash);
 
-	creds_state = talloc(mem_ctx, struct creds_CredentialState);
-	creds_client_init(creds_state, r.in.credentials,
-			  r.out.return_credentials, &mach_pw,
-			  &netr_cred, negotiate_flags);
-
 	a.in.server_name = talloc_asprintf(
 		mem_ctx, "\\\\%s", dcerpc_server_name(net_pipe));
 	a.in.account_name = talloc_asprintf(
@@ -974,6 +969,13 @@ static bool auth2(struct smbcli_state *cli,
 	a.in.credentials = &netr_cred;
 	a.out.return_credentials = &netr_cred;
 
+	creds_state = netlogon_creds_client_init(mem_ctx, 
+						 a.in.account_name, 
+						 a.in.computer_name,
+						 r.in.credentials,
+						 r.out.return_credentials, &mach_pw,
+						 &netr_cred, negotiate_flags);
+
 	status = dcerpc_netr_ServerAuthenticate2(net_pipe, mem_ctx, &a);
 	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("netr_ServerServerAuthenticate2 failed: %s\n",
@@ -981,7 +983,7 @@ static bool auth2(struct smbcli_state *cli,
 		goto done;
 	}
 
-	if (!creds_client_check(creds_state, a.out.return_credentials)) {
+	if (!netlogon_creds_client_check(creds_state, a.out.return_credentials)) {
 		d_printf("creds_client_check failed\n");
 		goto done;
 	}
@@ -1054,7 +1056,7 @@ static bool schan(struct smbcli_state *cli,
 	for (i=2; i<4; i++) {
 		int flags;
 		DATA_BLOB chal, nt_resp, lm_resp, names_blob, session_key;
-		struct creds_CredentialState *creds_state;
+		struct netlogon_creds_CredentialState *creds_state;
 		struct netr_Authenticator netr_auth, netr_auth2;
 		struct netr_NetworkInfo ninfo;
 		struct netr_PasswordInfo pinfo;
@@ -1088,7 +1090,7 @@ static bool schan(struct smbcli_state *cli,
 		}
 
 		creds_state = cli_credentials_get_netlogon_creds(wks_creds);
-		creds_client_authenticator(creds_state, &netr_auth);
+		netlogon_creds_client_authenticator(creds_state, &netr_auth);
 
 		ninfo.identity_info.account_name.string =
 			cli_credentials_get_username(user_creds);
@@ -1129,13 +1131,13 @@ static bool schan(struct smbcli_state *cli,
 		}
 
 		if ((r.out.return_authenticator == NULL) ||
-		    (!creds_client_check(creds_state,
+		    (!netlogon_creds_client_check(creds_state,
 					 &r.out.return_authenticator->cred))) {
 			d_printf("Credentials check failed!\n");
 			goto done;
 		}
 
-		creds_client_authenticator(creds_state, &netr_auth);
+		netlogon_creds_client_authenticator(creds_state, &netr_auth);
 
 		pinfo.identity_info = ninfo.identity_info;
 		ZERO_STRUCT(pinfo.lmpassword.hash);
@@ -1161,7 +1163,7 @@ static bool schan(struct smbcli_state *cli,
 		}
 
 		if ((r.out.return_authenticator == NULL) ||
-		    (!creds_client_check(creds_state,
+		    (!netlogon_creds_client_check(creds_state,
 					 &r.out.return_authenticator->cred))) {
 			d_printf("Credentials check failed!\n");
 			goto done;
@@ -1171,7 +1173,7 @@ static bool schan(struct smbcli_state *cli,
 	{
 		struct netr_ServerPasswordSet s;
 		char *password = generate_random_str(wks_creds, 8);
-		struct creds_CredentialState *creds_state;
+		struct netlogon_creds_CredentialState *creds_state;
 		struct netr_Authenticator credential, return_authenticator;
 		struct samr_Password new_password;
 
@@ -1188,8 +1190,8 @@ static bool schan(struct smbcli_state *cli,
 		E_md4hash(password, new_password.hash);
 
 		creds_state = cli_credentials_get_netlogon_creds(wks_creds);
-		creds_des_encrypt(creds_state, &new_password);
-		creds_client_authenticator(creds_state, &credential);
+		netlogon_creds_des_encrypt(creds_state, &new_password);
+		netlogon_creds_client_authenticator(creds_state, &credential);
 
 		status = dcerpc_netr_ServerPasswordSet(net_pipe, mem_ctx, &s);
 		if (!NT_STATUS_IS_OK(status)) {
@@ -1197,8 +1199,8 @@ static bool schan(struct smbcli_state *cli,
 			goto done;
 		}
 
-		if (!creds_client_check(creds_state,
-					&s.out.return_authenticator->cred)) {
+		if (!netlogon_creds_client_check(creds_state,
+						 &s.out.return_authenticator->cred)) {
 			printf("Credential chaining failed\n");
 		}
 
@@ -2088,7 +2090,7 @@ bool torture_samba3_rpc_randomauth2(struct torture_context *torture)
 	struct netr_Credential netr_srv_creds;
 	uint32_t negotiate_flags;
 	struct netr_ServerAuthenticate2 a;
-	struct creds_CredentialState *creds_state;
+	struct netlogon_creds_CredentialState *creds_state;
 	struct netr_Credential netr_cred;
 	struct samr_Password mach_pw;
 	struct smbcli_state *cli;
@@ -2155,11 +2157,6 @@ bool torture_samba3_rpc_randomauth2(struct torture_context *torture)
 	negotiate_flags = NETLOGON_NEG_AUTH2_FLAGS;
 	E_md4hash("foobar", mach_pw.hash);
 
-	creds_state = talloc(mem_ctx, struct creds_CredentialState);
-	creds_client_init(creds_state, r.in.credentials,
-			  r.out.return_credentials, &mach_pw,
-			  &netr_cred, negotiate_flags);
-
 	a.in.server_name = talloc_asprintf(
 		mem_ctx, "\\\\%s", dcerpc_server_name(net_pipe));
 	a.in.account_name = talloc_asprintf(
@@ -2170,6 +2167,14 @@ bool torture_samba3_rpc_randomauth2(struct torture_context *torture)
 	a.out.negotiate_flags = &negotiate_flags;
 	a.in.credentials = &netr_cred;
 	a.out.return_credentials = &netr_cred;
+
+	creds_state = netlogon_creds_client_init(mem_ctx, 
+						 a.in.account_name,
+						 a.in.computer_name,
+						 r.in.credentials,
+						 r.out.return_credentials, &mach_pw,
+						 &netr_cred, negotiate_flags);
+	
 
 	status = dcerpc_netr_ServerAuthenticate2(net_pipe, mem_ctx, &a);
 
@@ -3247,13 +3252,14 @@ static NTSTATUS get_shareinfo(TALLOC_CTX *mem_ctx,
 	if (!NT_STATUS_IS_OK(status) || !W_ERROR_IS_OK(r.out.result)) {
 		d_printf("(%s) srvsvc_NetShareGetInfo failed: %s, %s\n", __location__,
 			 nt_errstr(status), win_errstr(r.out.result));
+		status = NT_STATUS_IS_OK(status) ? werror_to_ntstatus(r.out.result) : status;
 		goto fail;
 	}
 
 	*info502 = talloc_move(mem_ctx, &info.info502);
 	return NT_STATUS_OK;
 
- fail:
+fail:
 	talloc_free(p);
 	return status;
 }
@@ -3314,6 +3320,7 @@ static NTSTATUS get_hklm_handle(TALLOC_CTX *mem_ctx,
 	if (!NT_STATUS_IS_OK(status) || !W_ERROR_IS_OK(r.out.result)) {
 		d_printf("(%s) OpenHKLM failed: %s, %s\n", __location__,
 			 nt_errstr(status), win_errstr(r.out.result));
+		status = NT_STATUS_IS_OK(status) ? werror_to_ntstatus(r.out.result) : status;
 		goto fail;
 	}
 
@@ -3368,6 +3375,7 @@ static NTSTATUS torture_samba3_createshare(struct smbcli_state *cli,
 	if (!NT_STATUS_IS_OK(status) || !W_ERROR_IS_OK(c.out.result)) {
 		d_printf("(%s) OpenKey failed: %s, %s\n", __location__,
 			 nt_errstr(status), win_errstr(c.out.result));
+		status = NT_STATUS_IS_OK(status) ? werror_to_ntstatus(c.out.result) : status;
 		goto fail;
 	}
 
@@ -3377,11 +3385,12 @@ static NTSTATUS torture_samba3_createshare(struct smbcli_state *cli,
 	if (!NT_STATUS_IS_OK(status) || !W_ERROR_IS_OK(cl.out.result)) {
 		d_printf("(%s) OpenKey failed: %s, %s\n", __location__,
 			 nt_errstr(status), win_errstr(cl.out.result));
+		status = NT_STATUS_IS_OK(status) ? werror_to_ntstatus(cl.out.result) : status;
 		goto fail;
 	}
 
 
- fail:
+fail:
 	talloc_free(mem_ctx);
 	return status;
 }
@@ -3418,10 +3427,11 @@ static NTSTATUS torture_samba3_deleteshare(struct torture_context *torture,
 	if (!NT_STATUS_IS_OK(status) || !W_ERROR_IS_OK(d.out.result)) {
 		d_printf("(%s) OpenKey failed: %s, %s\n", __location__,
 			 nt_errstr(status), win_errstr(d.out.result));
+		status = NT_STATUS_IS_OK(status) ? werror_to_ntstatus(d.out.result) : status;
 		goto fail;
 	}
 
- fail:
+fail:
 	talloc_free(mem_ctx);
 	return status;
 }
@@ -3462,6 +3472,7 @@ static NTSTATUS torture_samba3_setconfig(struct smbcli_state *cli,
 	if (!NT_STATUS_IS_OK(status) || !W_ERROR_IS_OK(o.out.result)) {
 		d_printf("(%s) OpenKey failed: %s, %s\n", __location__,
 			 nt_errstr(status), win_errstr(o.out.result));
+		status = NT_STATUS_IS_OK(status) ? werror_to_ntstatus(o.out.result) : status;
 		goto done;
 	}
 
@@ -3481,10 +3492,11 @@ static NTSTATUS torture_samba3_setconfig(struct smbcli_state *cli,
 	if (!NT_STATUS_IS_OK(status) || !W_ERROR_IS_OK(s.out.result)) {
 		d_printf("(%s) SetValue failed: %s, %s\n", __location__,
 			 nt_errstr(status), win_errstr(s.out.result));
+		status = NT_STATUS_IS_OK(status) ? werror_to_ntstatus(s.out.result) : status;
 		goto done;
 	}
 
- done:
+done:
 	talloc_free(hklm);
 	return status;
 }

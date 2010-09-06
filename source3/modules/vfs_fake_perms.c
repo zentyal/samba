@@ -26,19 +26,20 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_VFS
 
-static int fake_perms_stat(vfs_handle_struct *handle, const char *fname, SMB_STRUCT_STAT *sbuf)
+static int fake_perms_stat(vfs_handle_struct *handle,
+			   struct smb_filename *smb_fname)
 {
 	int ret = -1;
 
-	ret = SMB_VFS_NEXT_STAT(handle, fname, sbuf);
+	ret = SMB_VFS_NEXT_STAT(handle, smb_fname);
 	if (ret == 0) {
-		if (S_ISDIR(sbuf->st_mode)) {
-			sbuf->st_mode = S_IFDIR | S_IRWXU;
+		if (S_ISDIR(smb_fname->st.st_ex_mode)) {
+			smb_fname->st.st_ex_mode = S_IFDIR | S_IRWXU;
 		} else {
-			sbuf->st_mode = S_IRWXU;
+			smb_fname->st.st_ex_mode = S_IRWXU;
 		}
-		sbuf->st_uid = handle->conn->server_info->utok.uid;
-		sbuf->st_gid = handle->conn->server_info->utok.gid;
+		smb_fname->st.st_ex_uid = handle->conn->server_info->utok.uid;
+		smb_fname->st.st_ex_gid = handle->conn->server_info->utok.gid;
 	}
 
 	return ret;
@@ -50,28 +51,25 @@ static int fake_perms_fstat(vfs_handle_struct *handle, files_struct *fsp, SMB_ST
 
 	ret = SMB_VFS_NEXT_FSTAT(handle, fsp, sbuf);
 	if (ret == 0) {
-		if (S_ISDIR(sbuf->st_mode)) {
-			sbuf->st_mode = S_IFDIR | S_IRWXU;
+		if (S_ISDIR(sbuf->st_ex_mode)) {
+			sbuf->st_ex_mode = S_IFDIR | S_IRWXU;
 		} else {
-			sbuf->st_mode = S_IRWXU;
+			sbuf->st_ex_mode = S_IRWXU;
 		}
-		sbuf->st_uid = handle->conn->server_info->utok.uid;
-		sbuf->st_gid = handle->conn->server_info->utok.gid;
+		sbuf->st_ex_uid = handle->conn->server_info->utok.uid;
+		sbuf->st_ex_gid = handle->conn->server_info->utok.gid;
 	}
 	return ret;
 }
 
-/* VFS operations structure */
-
-static vfs_op_tuple fake_perms_ops[] = {	
-	{SMB_VFS_OP(fake_perms_stat),	SMB_VFS_OP_STAT,	SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(fake_perms_fstat),	SMB_VFS_OP_FSTAT,	SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(NULL),		SMB_VFS_OP_NOOP,	SMB_VFS_LAYER_NOOP}
+static struct vfs_fn_pointers vfs_fake_perms_fns = {
+	.stat = fake_perms_stat,
+	.fstat = fake_perms_fstat
 };
 
 NTSTATUS vfs_fake_perms_init(void);
 NTSTATUS vfs_fake_perms_init(void)
 {
-	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "fake_perms", fake_perms_ops);
+	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "fake_perms",
+				&vfs_fake_perms_fns);
 }

@@ -47,10 +47,14 @@ struct ldb_module_ops;
 
 struct ldb_backend_ops;
 
+#define LDB_HANDLE_FLAG_DONE_CALLED 1
+
 struct ldb_handle {
 	int status;
 	enum ldb_state state;
 	struct ldb_context *ldb;
+	unsigned flags;
+	unsigned nesting;
 };
 
 /* basic module structure */
@@ -65,6 +69,9 @@ struct ldb_module {
   schema related information needed for matching rules
 */
 struct ldb_schema {
+	void *attribute_handler_override_private;
+	ldb_attribute_handler_override_fn_t attribute_handler_override;
+	
 	/* attribute handling table */
 	unsigned num_attributes;
 	struct ldb_schema_attribute *attributes;
@@ -108,17 +115,19 @@ struct ldb_context {
 	char *modules_dir;
 
 	struct tevent_context *ev_ctx;
+
+	bool prepare_commit_done;
+
+	char *partial_debug;
 };
 
 /* The following definitions come from lib/ldb/common/ldb.c  */
 
 int ldb_connect_backend(struct ldb_context *ldb, const char *url, const char *options[],
 			struct ldb_module **backend_module);
-void ldb_set_default_dns(struct ldb_context *ldb);
 
 
 extern const struct ldb_module_ops ldb_objectclass_module_ops;
-extern const struct ldb_module_ops ldb_operational_module_ops;
 extern const struct ldb_module_ops ldb_paged_results_module_ops;
 extern const struct ldb_module_ops ldb_rdn_name_module_ops;
 extern const struct ldb_module_ops ldb_schema_module_ops;

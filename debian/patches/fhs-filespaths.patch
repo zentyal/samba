@@ -13,11 +13,11 @@ Bug-Debian: http://bugs.debian.org/49011
 Forwarded: not-needed
 
 
-Index: b/source3/passdb/pdb_tdb.c
+Index: experimental/source3/passdb/pdb_tdb.c
 ===================================================================
---- a/source3/passdb/pdb_tdb.c	2009-11-08 15:54:27.000000000 +0100
-+++ b/source3/passdb/pdb_tdb.c	2009-11-08 15:55:33.000000000 +0100
-@@ -1252,7 +1252,7 @@
+--- experimental.orig/source3/passdb/pdb_tdb.c
++++ experimental/source3/passdb/pdb_tdb.c
+@@ -1255,7 +1255,7 @@
  	/* save the path for later */
  
  	if (!location) {
@@ -26,11 +26,11 @@ Index: b/source3/passdb/pdb_tdb.c
  			     PASSDB_FILE_NAME) < 0) {
  			return NT_STATUS_NO_MEMORY;
  		}
-Index: b/source3/passdb/secrets.c
+Index: experimental/source3/passdb/secrets.c
 ===================================================================
---- a/source3/passdb/secrets.c	2009-11-08 15:54:27.000000000 +0100
-+++ b/source3/passdb/secrets.c	2009-11-08 15:55:33.000000000 +0100
-@@ -59,7 +59,7 @@
+--- experimental.orig/source3/passdb/secrets.c
++++ experimental/source3/passdb/secrets.c
+@@ -61,7 +61,7 @@
  		return True;
  
  	fname = talloc_asprintf(talloc_tos(), "%s/secrets.tdb",
@@ -39,12 +39,3 @@ Index: b/source3/passdb/secrets.c
  	if (fname == NULL) {
  		return false;
  	}
-@@ -1138,7 +1138,7 @@
- 	TDB_DATA vers;
- 	uint32 ver;
- 	TDB_CONTEXT *tdb_sc = NULL;
--	char *fname = talloc_asprintf(mem_ctx, "%s/schannel_store.tdb", lp_private_dir());
-+	char *fname = talloc_asprintf(mem_ctx, "%s/schannel_store.tdb", get_dyn_STATEDIR());
- 
- 	if (!fname) {
- 		return NULL;

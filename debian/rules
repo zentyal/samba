@@ -47,7 +47,6 @@ conf_args = \
 		--with-automount \
 		--with-ldap \
 		--with-ads \
-		--without-smbmount \
 		--with-dnsupdate \
 		--without-libtdb \
 		--without-libnetapi \
@@ -58,9 +57,10 @@ conf_args = \
 		--with-lockdir=/var/run/samba \
 		--with-statedir=/var/lib/samba \
 		--with-cachedir=/var/cache/samba \
+		--with-codepagedir=/usr/share/samba \
 		--enable-external-libtalloc \
 		--without-libtalloc \
-		--disable-avahi \
+		--disable-avahi
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \

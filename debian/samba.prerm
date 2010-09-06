@@ -2,9 +2,11 @@
 
 set -e 
 
-if [ "x$1" != xupgrade ]; then
+case "$1" in
+    remove|upgrade|deconfigure)
 	update-alternatives --remove smbstatus /usr/bin/smbstatus.samba3
-fi
+	;;
+esac
 
 #DEBHELPER#
 

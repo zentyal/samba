@@ -1,0 +1,15 @@
+#!/bin/sh
+
+set -e 
+
+case "$1" in
+    remove|upgrade|deconfigure)
+	update-alternatives --remove nmblookup /usr/bin/nmblookup.samba3
+	update-alternatives --remove net /usr/bin/net.samba3
+	update-alternatives --remove testparm /usr/bin/testparm.samba3
+		;;
+esac
+
+#DEBHELPER#
+
+exit 0

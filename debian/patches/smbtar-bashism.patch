@@ -3,10 +3,10 @@ Author: Jelmer Vernooij <jelmer@samba.org>
 Bug-Debian: http://bugs.debian.org/486056
 Forwarded: no
 
-Index: b/source3/script/smbtar
+Index: experimental/source3/script/smbtar
 ===================================================================
---- a/source3/script/smbtar	2009-11-08 15:54:27.000000000 +0100
-+++ b/source3/script/smbtar	2009-11-08 15:55:36.000000000 +0100
+--- experimental.orig/source3/script/smbtar
++++ experimental/source3/script/smbtar
 @@ -151,7 +151,7 @@
  if [ -z "$verbose" ]; then
        echo "server    is $server"

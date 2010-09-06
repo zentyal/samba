@@ -62,6 +62,7 @@ libsmbclient.so.0 libsmbclient #MINVER#
  smbc_getOptionOpenShareMode@Base 2:3.2.0
  smbc_getOptionSmbEncryptionLevel@Base 2:3.2.0
  smbc_getOptionUrlEncodeReaddirEntries@Base 2:3.2.0
+ smbc_getOptionUseCCache@Base 2:3.5.0~rc2~dfsg
  smbc_getOptionUseKerberos@Base 2:3.2.0
  smbc_getOptionUserData@Base 2:3.2.0
  smbc_getServerCacheData@Base 2:3.2.0
@@ -144,6 +145,7 @@ libsmbclient.so.0 libsmbclient #MINVER#
  smbc_setOptionOpenShareMode@Base 2:3.2.0
  smbc_setOptionSmbEncryptionLevel@Base 2:3.2.0
  smbc_setOptionUrlEncodeReaddirEntries@Base 2:3.2.0
+ smbc_setOptionUseCCache@Base 2:3.5.0~rc2~dfsg
  smbc_setOptionUseKerberos@Base 2:3.2.0
  smbc_setOptionUserData@Base 2:3.2.0
  smbc_setServerCacheData@Base 2:3.2.0
@@ -154,6 +156,8 @@ libsmbclient.so.0 libsmbclient #MINVER#
  smbc_setxattr@Base 3.0.24
  smbc_stat@Base 3.0.24
  smbc_telldir@Base 3.0.24
+ smbc_thread_impl@Base 2:3.5.0~pre2
+ smbc_thread_posix@Base 2:3.5.0~pre2
  smbc_unlink@Base 3.0.24
  smbc_unlink_print_job@Base 3.0.24
  smbc_utime@Base 3.0.24

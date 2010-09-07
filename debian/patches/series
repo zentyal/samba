@@ -6,6 +6,7 @@ README_nosmbldap-tools.patch
 smbclient-pager.patch
 undefined-symbols.patch
 VERSION.patch
+adapt_machine_creation_script.patch
 usershare.patch
 smbtar-bashism.patch
 no-unnecessary-cups.patch

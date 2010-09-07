@@ -13,10 +13,10 @@ Bug-Debian: http://bugs.debian.org/49011
 Forwarded: not-needed
 
 
-Index: experimental/source3/passdb/pdb_tdb.c
+Index: b/source3/passdb/pdb_tdb.c
 ===================================================================
---- experimental.orig/source3/passdb/pdb_tdb.c
-+++ experimental/source3/passdb/pdb_tdb.c
+--- a/source3/passdb/pdb_tdb.c
++++ b/source3/passdb/pdb_tdb.c
 @@ -1255,7 +1255,7 @@
  	/* save the path for later */
  
@@ -26,10 +26,10 @@ Index: experimental/source3/passdb/pdb_tdb.c
  			     PASSDB_FILE_NAME) < 0) {
  			return NT_STATUS_NO_MEMORY;
  		}
-Index: experimental/source3/passdb/secrets.c
+Index: b/source3/passdb/secrets.c
 ===================================================================
---- experimental.orig/source3/passdb/secrets.c
-+++ experimental/source3/passdb/secrets.c
+--- a/source3/passdb/secrets.c
++++ b/source3/passdb/secrets.c
 @@ -61,7 +61,7 @@
  		return True;
  
@@ -39,3 +39,42 @@ Index: experimental/source3/passdb/secrets.c
  	if (fname == NULL) {
  		return false;
  	}
+Index: b/source3/passdb/machine_sid.c
+===================================================================
+--- a/source3/passdb/machine_sid.c
++++ b/source3/passdb/machine_sid.c
+@@ -128,7 +128,7 @@
+ 	}
+ 
+ 	/* check for an old MACHINE.SID file for backwards compatibility */
+-	if (asprintf(&fname, "%s/MACHINE.SID", lp_private_dir()) == -1) {
++	if (asprintf(&fname, "%s/MACHINE.SID", get_dyn_STATEDIR()) == -1) {
+ 		SAFE_FREE(sam_sid);
+ 		return NULL;
+ 	}
+Index: b/source3/passdb/secrets_schannel.c
+===================================================================
+--- a/source3/passdb/secrets_schannel.c
++++ b/source3/passdb/secrets_schannel.c
+@@ -33,7 +33,7 @@
+ 	TDB_DATA vers;
+ 	uint32 ver;
+ 	TDB_CONTEXT *tdb_sc = NULL;
+-	char *fname = talloc_asprintf(mem_ctx, "%s/schannel_store.tdb", lp_private_dir());
++	char *fname = talloc_asprintf(mem_ctx, "%s/schannel_store.tdb", get_dyn_STATEDIR());
+ 
+ 	if (!fname) {
+ 		return NULL;
+Index: b/source3/winbindd/idmap_tdb2.c
+===================================================================
+--- a/source3/winbindd/idmap_tdb2.c
++++ b/source3/winbindd/idmap_tdb2.c
+@@ -107,7 +107,7 @@
+ 	if (db_path == NULL) {
+ 		/* fall back to the private directory, which, despite
+ 		   its name, is usually on shared storage */
+-		db_path = talloc_asprintf(NULL, "%s/idmap2.tdb", lp_private_dir());
++		db_path = talloc_asprintf(NULL, "%s/idmap2.tdb", dyn_get_STATEDIR());
+ 	}
+ 	NT_STATUS_HAVE_NO_MEMORY(db_path);
+ 

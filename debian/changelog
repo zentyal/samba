@@ -1,3 +1,13 @@
+samba (2:3.5.4~dfsg-2) UNRELEASED; urgency=low
+
+  * Release to unstable
+
+  [ Debconf translations ]  
+  * Danish (Joe Dalton).  Closes: #592789.
+  * Galician (Jorge Barreiro).  Closes: #592809
+
+ -- Christian Perrier <bubulle@debian.org>  Mon, 06 Sep 2010 22:41:12 +0200
+
 samba (2:3.5.4~dfsg-1) experimental; urgency=low
 
   * New upstream release
@@ -66,14 +76,6 @@ samba (2:3.5.0~rc1~dfsg-1) experimental; urgency=low
   * New upstream pre-release
 
  -- Christian Perrier <bubulle@debian.org>  Fri, 15 Jan 2010 23:31:01 +0100
-
-samba (2:3.4.8~dfsg-3) UNRELEASED; urgency=low
-
-  [ Debconf translations ]  
-  * Danish (Joe Dalton).  Closes: #592789.
-  * Galician (Jorge Barreiro).  Closes: #592809
-
- -- Steve Langasek <vorlon@debian.org>  Thu, 12 Aug 2010 16:31:39 -0700
 
 samba (2:3.4.8~dfsg-2) unstable; urgency=low
 
@@ -193,53 +195,6 @@ samba (2:3.4.5~dfsg-1) unstable; urgency=low
     for some local reason.
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 23 Jan 2010 12:16:42 +0100
-
-samba (2:3.5.2~dfsg-1) experimental; urgency=low
-
-  * New upstream release
-  * Bugs fixed upstream:
-    - Fix parsing of the gecos field
-      Closes: #460494
-
- -- Christian Perrier <bubulle@debian.org>  Thu, 08 Apr 2010 19:48:07 +0200
-
-samba (2:3.5.1~dfsg-1) experimental; urgency=low
-
-  * New upstream release. Security fix: all smbd processes inherited
-    CAP_DAC_OVERRIDE capabilities, allowing all file system access to be
-    allowed even when permissions should have denied access.
-
- -- Christian Perrier <bubulle@debian.org>  Tue, 09 Mar 2010 10:54:01 +0100
-
-samba (2:3.5.0dfsg-1) experimental; urgency=low
-
-  * New upstream release. Not using "3.5.0~dfsg" as version number
-    because we used a "higher" version number in previous versions.
-
- -- Christian Perrier <bubulle@debian.org>  Tue, 02 Mar 2010 22:03:15 +0100
-
-samba (2:3.5.0~rc3~dfsg-1) experimental; urgency=low
-
-  * New upstream release candidate
-
- -- Christian Perrier <bubulle@debian.org>  Sat, 20 Feb 2010 08:36:57 +0100
-
-samba (2:3.5.0~rc2~dfsg-1) experimental; urgency=low
-
-  * New upstream pre-release
-  * Use new --with-codepagedir option. Consequently drop
-    codepages-location.patch
-  * Drop "Using Samba" from the samba-doc file list as it was
-    removed upstream.
-
- -- Christian Perrier <bubulle@debian.org>  Sun, 31 Jan 2010 11:53:48 +0100
-
-samba (2:3.5.0~rc1~dfsg-1) experimental; urgency=low
-
-  [ Christian Perrier ]
-  * New upstream pre-release
-
- -- Christian Perrier <bubulle@debian.org>  Fri, 15 Jan 2010 23:31:01 +0100
 
 samba (2:3.4.4~dfsg-1) unstable; urgency=low
 

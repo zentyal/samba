@@ -1,4 +1,4 @@
-samba (2:3.5.4~dfsg-2) UNRELEASED; urgency=low
+samba (2:3.5.4~dfsg-2) unstable; urgency=low
 
   * Release to unstable
 
@@ -12,7 +12,7 @@ samba (2:3.5.4~dfsg-2) UNRELEASED; urgency=low
     /var/lib/samba where they belong: MACHINE.SID, schannel_store.tdb,
     and idmap2.tdb.
 
- -- Christian Perrier <bubulle@debian.org>  Mon, 06 Sep 2010 22:41:12 +0200
+ -- Christian Perrier <bubulle@debian.org>  Tue, 07 Sep 2010 17:47:32 +0200
 
 samba (2:3.5.4~dfsg-1) experimental; urgency=low
 

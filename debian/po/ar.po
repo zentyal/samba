@@ -5,19 +5,22 @@
 #
 # younes <behloul.younes@gmail.com>, 2006.
 # Ossama M. Khayat <okhayat@yahoo.com>, 2006, 2007.
+# Ossama Khayat <okhayat@yahoo.com>, 2010.
+#
 msgid ""
 msgstr ""
 "Project-Id-Version: ar\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
 "POT-Creation-Date: 2009-01-02 12:18-0800\n"
-"PO-Revision-Date: 2007-03-14 11:37+0300\n"
-"Last-Translator: Ossama M. Khayat <okhayat@yahoo.com>\n"
+"PO-Revision-Date: 2010-09-09 01:19+0300\n"
+"Last-Translator: Ossama Khayat <okhayat@yahoo.com>\n"
 "Language-Team: Arabic <support@arabeyes.org>\n"
 "Language: ar\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
+"Content-Transfer-Encoding: UTF-8\n"
 "X-Generator: KBabel 1.11.4\n"
+"Plural-Forms: \n"
 
 #. Type: boolean
 #. Description
@@ -90,20 +93,16 @@ msgstr " اسم مجموعة العمل/الحقل:"
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"من فضلك حدِّد مجموعة العمل التي تريد أن يظهر داخلها هذا الخادم عند استفساره من "
-"طرف الزبائن. لاحظ أن هذا المقياس يتحكم في إسم الحقل المستعمل مع الخيار "
-"security=domain setting."
+"رجاءً حدد مجموعة العمل لهذا النظام. يتحكم هذا الإعداد باسم مجموعة العمل التي "
+"سيظهر بها النظام عند استخدامه كخادم، وهي مجموعة العمل الافتراضية التي يجب "
+"استخدامها عند التصفح باستخدام الواجهات المختلفة، واسم النطاق المستخدم في "
+"الإعداد \"security=domain\"."
 
 #. Type: boolean
 #. Description
@@ -114,35 +113,28 @@ msgstr "تشفير كلمة المرور ؟"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"زبائن Windows الجديدة كلّها تتصل مع خُدّام SMB مستعملة كلمات مرور مشفرة. إذا "
-"أردت استعمال كلمات مرور واضخة عليك بتغيير إعداد في قاعدة تسجيلات Windows."
+"تتصل جميع عملاء ويندوز الجديدة مع خوادم SMB/CIFS باستخدام كلمات مرور مشفرة. "
+"إذا أردت استخدام كلمات مرور غير مشفرة عليك بتغيير مُعطى في قاعدة تسجيلات "
+"ويندوز."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"يستحسن تمكين هذا الخيار. إذا فعلت ذلك، تأكد من وجود ملف /etc/samba/smbpasswd "
-"صالح و من وضعك كلمة مرور لكل مستخدم باستعمال اﻷمر smbpasswd."
+"يُستحسن بشدة تمكين هذا الخيار حيث أن دعم كلمات المرور الغير مشفرة لم يعد "
+"متوفراً في منتجات ميكروسوفت.\n"
+"إن فعلت ذلك، فتأكد من وجود ملف /etc/samba/smbpasswd صالح وأن تضع فيه كلمات "
+"المرور الخاصة بكل مستخدم باستخدام الأمر smbpasswd."
 
 #. Type: boolean
 #. Description
@@ -189,7 +181,7 @@ msgstr ""
 #. Choices
 #: ../samba.templates:2001
 msgid "daemons"
-msgstr "رقباء"
+msgstr "daemons"
 
 #. Type: select
 #. Choices

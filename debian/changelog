@@ -6,6 +6,7 @@ samba (2:3.5.4~dfsg-3) UNRELEASED; urgency=low
   [ Christian Perrier ]
   * Fix comment in swat's postinst. It is not turned off by default
     Closes: #596040
+  * Drop transition code from (pre-etch) 3.0.20b-3 version in swat postinst
 
  -- Christian Perrier <bubulle@debian.org>  Thu, 09 Sep 2010 20:49:29 +0200
 

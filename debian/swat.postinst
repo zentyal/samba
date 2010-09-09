@@ -3,7 +3,7 @@
 action="$1"
 oldversion="$2"
 
-# Set up swat, turned off by default.
+# Set up swat
 update-inetd --group OTHER --add \
  'swat\t\tstream\ttcp\tnowait.400\troot\t/usr/sbin/tcpd\t/usr/sbin/swat'
 

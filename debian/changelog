@@ -1,9 +1,9 @@
-samba (2:3.5.4~dfsg-3) UNRELEASED; urgency=low
-
-  [ Debconf translations ]  
-  * Arabic (Ossama Khayat).  Closes: #596164
+samba (2:3.5.5~dfsg-1) UNRELEASED; urgency=low
 
   [ Christian Perrier ]
+  * New upstream release. Security release fixing:
+    - CVE-2019-3069: Buffer overrun vulnerability in sid_parse.
+      Closes: #596891.
   * Fix comment in swat's postinst. It is not turned off by default
     Closes: #596040
   * Drop transition code from (pre-etch) 3.0.20b-3 version in swat postinst
@@ -11,6 +11,9 @@ samba (2:3.5.4~dfsg-3) UNRELEASED; urgency=low
   [ Steve Langasek ]
   * debian/control: winbind needs libpam-runtime (>= 1.0.1-6) for
     pam-auth-update.  Closes: #594325.
+
+  [ Debconf translations ]  
+  * Arabic (Ossama Khayat).  Closes: #596164
 
  -- Christian Perrier <bubulle@debian.org>  Thu, 09 Sep 2010 20:49:29 +0200
 

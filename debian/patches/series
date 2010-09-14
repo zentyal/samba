@@ -44,3 +44,4 @@ security-CVE-2010-0547.patch
 bug_575951_upstream_6697.patch
 bug_538819_upstream_7021.patch
 security-CVE-2010-2063.patch
+security-CVE-2010-3069.patch

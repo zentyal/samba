@@ -1,4 +1,4 @@
-samba (2:3.5.5~dfsg-1) UNRELEASED; urgency=low
+samba (2:3.5.5~dfsg-1) unstable; urgency=high
 
   [ Christian Perrier ]
   * New upstream release. Security release fixing:
@@ -15,7 +15,7 @@ samba (2:3.5.5~dfsg-1) UNRELEASED; urgency=low
   [ Debconf translations ]  
   * Arabic (Ossama Khayat).  Closes: #596164
 
- -- Christian Perrier <bubulle@debian.org>  Thu, 09 Sep 2010 20:49:29 +0200
+ -- Christian Perrier <bubulle@debian.org>  Tue, 14 Sep 2010 23:03:35 +0200
 
 samba (2:3.5.4~dfsg-2) unstable; urgency=low
 

@@ -490,13 +490,15 @@ ssize_t read_udp_v4_socket(int fd,
 }
 
 /****************************************************************************
- Read data from a socket with a timout in msec.
+ Read data from a file descriptor with a timout in msec.
  mincount = if timeout, minimum to read before returning
  maxcount = number to be read.
  time_out = timeout in milliseconds
+ NB. This can be called with a non-socket fd, don't change
+ sys_read() to sys_recv() or other socket call.
 ****************************************************************************/
 
-NTSTATUS read_socket_with_timeout(int fd, char *buf,
+NTSTATUS read_fd_with_timeout(int fd, char *buf,
 				  size_t mincnt, size_t maxcnt,
 				  unsigned int time_out,
 				  size_t *size_ret)
@@ -519,10 +521,10 @@ NTSTATUS read_socket_with_timeout(int fd, char *buf,
 		}
 
 		while (nread < mincnt) {
-			readret = sys_recv(fd, buf + nread, maxcnt - nread, 0);
+			readret = sys_read(fd, buf + nread, maxcnt - nread);
 
 			if (readret == 0) {
-				DEBUG(5,("read_socket_with_timeout: "
+				DEBUG(5,("read_fd_with_timeout: "
 					"blocking read. EOF from client.\n"));
 				return NT_STATUS_END_OF_FILE;
 			}
@@ -531,12 +533,12 @@ NTSTATUS read_socket_with_timeout(int fd, char *buf,
 				if (fd == get_client_fd()) {
 					/* Try and give an error message
 					 * saying what client failed. */
-					DEBUG(0,("read_socket_with_timeout: "
+					DEBUG(0,("read_fd_with_timeout: "
 						"client %s read error = %s.\n",
 						get_peer_addr(fd,addr,sizeof(addr)),
 						strerror(errno) ));
 				} else {
-					DEBUG(0,("read_socket_with_timeout: "
+					DEBUG(0,("read_fd_with_timeout: "
 						"read error = %s.\n",
 						strerror(errno) ));
 				}
@@ -569,12 +571,12 @@ NTSTATUS read_socket_with_timeout(int fd, char *buf,
 			if (fd == get_client_fd()) {
 				/* Try and give an error message saying
 				 * what client failed. */
-				DEBUG(0,("read_socket_with_timeout: timeout "
+				DEBUG(0,("read_fd_with_timeout: timeout "
 				"read for client %s. select error = %s.\n",
 				get_peer_addr(fd,addr,sizeof(addr)),
 				strerror(errno) ));
 			} else {
-				DEBUG(0,("read_socket_with_timeout: timeout "
+				DEBUG(0,("read_fd_with_timeout: timeout "
 				"read. select error = %s.\n",
 				strerror(errno) ));
 			}
@@ -583,16 +585,16 @@ NTSTATUS read_socket_with_timeout(int fd, char *buf,
 
 		/* Did we timeout ? */
 		if (selrtn == 0) {
-			DEBUG(10,("read_socket_with_timeout: timeout read. "
+			DEBUG(10,("read_fd_with_timeout: timeout read. "
 				"select timed out.\n"));
 			return NT_STATUS_IO_TIMEOUT;
 		}
 
-		readret = sys_recv(fd, buf+nread, maxcnt-nread, 0);
+		readret = sys_read(fd, buf+nread, maxcnt-nread);
 
 		if (readret == 0) {
 			/* we got EOF on the file descriptor */
-			DEBUG(5,("read_socket_with_timeout: timeout read. "
+			DEBUG(5,("read_fd_with_timeout: timeout read. "
 				"EOF from client.\n"));
 			return NT_STATUS_END_OF_FILE;
 		}
@@ -602,12 +604,12 @@ NTSTATUS read_socket_with_timeout(int fd, char *buf,
 			if (fd == get_client_fd()) {
 				/* Try and give an error message
 				 * saying what client failed. */
-				DEBUG(0,("read_socket_with_timeout: timeout "
+				DEBUG(0,("read_fd_with_timeout: timeout "
 					"read to client %s. read error = %s.\n",
 					get_peer_addr(fd,addr,sizeof(addr)),
 					strerror(errno) ));
 			} else {
-				DEBUG(0,("read_socket_with_timeout: timeout "
+				DEBUG(0,("read_fd_with_timeout: timeout "
 					"read. read error = %s.\n",
 					strerror(errno) ));
 			}
@@ -626,16 +628,20 @@ NTSTATUS read_socket_with_timeout(int fd, char *buf,
 }
 
 /****************************************************************************
- Read data from the client, reading exactly N bytes.
+ Read data from an fd, reading exactly N bytes.
+ NB. This can be called with a non-socket fd, don't add dependencies
+ on socket calls.
 ****************************************************************************/
 
 NTSTATUS read_data(int fd, char *buffer, size_t N)
 {
-	return read_socket_with_timeout(fd, buffer, N, N, 0, NULL);
+	return read_fd_with_timeout(fd, buffer, N, N, 0, NULL);
 }
 
 /****************************************************************************
  Write all data from an iov array
+ NB. This can be called with a non-socket fd, don't add dependencies
+ on socket calls.
 ****************************************************************************/
 
 ssize_t write_data_iov(int fd, const struct iovec *orig_iov, int iovcnt)
@@ -705,6 +711,8 @@ ssize_t write_data_iov(int fd, const struct iovec *orig_iov, int iovcnt)
 
 /****************************************************************************
  Write data to a fd.
+ NB. This can be called with a non-socket fd, don't add dependencies
+ on socket calls.
 ****************************************************************************/
 
 ssize_t write_data(int fd, const char *buffer, size_t N)
@@ -765,7 +773,7 @@ NTSTATUS read_smb_length_return_keepalive(int fd, char *inbuf,
 	int msg_type;
 	NTSTATUS status;
 
-	status = read_socket_with_timeout(fd, inbuf, 4, 4, timeout, NULL);
+	status = read_fd_with_timeout(fd, inbuf, 4, 4, timeout, NULL);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
@@ -846,7 +854,7 @@ NTSTATUS receive_smb_raw(int fd, char *buffer, size_t buflen, unsigned int timeo
 			len = MIN(len,maxlen);
 		}
 
-		status = read_socket_with_timeout(
+		status = read_fd_with_timeout(
 			fd, buffer+4, len, len, timeout, &len);
 
 		if (!NT_STATUS_IS_OK(status)) {
@@ -1413,24 +1421,39 @@ bool open_any_socket_out(struct sockaddr_storage *addrs, int num_addrs,
 
 int open_udp_socket(const char *host, int port)
 {
-	int type = SOCK_DGRAM;
-	struct sockaddr_in sock_out;
+	struct sockaddr_storage ss;
 	int res;
-	struct in_addr addr;
 
-	addr = interpret_addr2(host);
+	if (!interpret_string_addr(&ss, host, 0)) {
+		DEBUG(10,("open_udp_socket: can't resolve name %s\n",
+			host));
+		return -1;
+	}
 
-	res = socket(PF_INET, type, 0);
+	res = socket(ss.ss_family, SOCK_DGRAM, 0);
 	if (res == -1) {
 		return -1;
 	}
 
-	memset((char *)&sock_out,'\0',sizeof(sock_out));
-	putip((char *)&sock_out.sin_addr,(char *)&addr);
-	sock_out.sin_port = htons(port);
-	sock_out.sin_family = PF_INET;
+#if defined(HAVE_IPV6)
+	if (ss.ss_family == AF_INET6) {
+		struct sockaddr_in6 *psa6;
+		psa6 = (struct sockaddr_in6 *)&ss;
+		psa6->sin6_port = htons(port);
+		if (psa6->sin6_scope_id == 0
+				&& IN6_IS_ADDR_LINKLOCAL(&psa6->sin6_addr)) {
+			setup_linklocal_scope_id(
+				(struct sockaddr *)&ss);
+		}
+	}
+#endif
+        if (ss.ss_family == AF_INET) {
+                struct sockaddr_in *psa;
+                psa = (struct sockaddr_in *)&ss;
+                psa->sin_port = htons(port);
+        }
 
-	if (sys_connect(res,(struct sockaddr *)&sock_out)) {
+	if (sys_connect(res,(struct sockaddr *)&ss)) {
 		close(res);
 		return -1;
 	}

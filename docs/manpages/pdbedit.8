@@ -1,12 +1,12 @@
 .\"     Title: pdbedit
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 06/19/2009
+.\"      Date: 05/10/2010
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "PDBEDIT" "8" "06/19/2009" "Samba 3\&.4" "System Administration tools"
+.TH "PDBEDIT" "8" "05/10/2010" "Samba 3\&.4" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -171,7 +171,7 @@ pdbedit \- manage the SAM database (Database of Samba Users)
 .SH "Synopsis"
 .fam C
 .HP \w'\ 'u
-\FCpdbedit\F[] [\-L] [\-v] [\-w] [\-u\ username] [\-f\ fullname] [\-h\ homedir] [\-D\ drive] [\-S\ script] [\-p\ profile] [\-a] [\-t,\ \-\-password\-from\-stdin] [\-m] [\-r] [\-x] [\-i\ passdb\-backend] [\-e\ passdb\-backend] [\-b\ passdb\-backend] [\-g] [\-d\ debuglevel] [\-s\ configfile] [\-P\ account\-policy] [\-C\ value] [\-c\ account\-control] [\-y]
+\FCpdbedit\F[] [\-L] [\-v] [\-w] [\-u\ username] [\-f\ fullname] [\-h\ homedir] [\-D\ drive] [\-S\ script] [\-p\ profile] [\-K] [\-a] [\-t,\ \-\-password\-from\-stdin] [\-m] [\-r] [\-x] [\-i\ passdb\-backend] [\-e\ passdb\-backend] [\-b\ passdb\-backend] [\-g] [\-d\ debuglevel] [\-s\ configfile] [\-P\ account\-policy] [\-C\ value] [\-c\ account\-control] [\-y]
 .fam
 .SH "DESCRIPTION"
 .PP
@@ -506,6 +506,14 @@ Example:
 \FC\-c "[X ]"\F[]
 .RE
 .PP
+\-K|\-\-kickoff\-time
+.RS 4
+This option is used to modify the kickoff time for a certain user\&. Use "never" as argument to set the kickoff time to unlimited\&.
+.sp
+Example:
+\FCpdbedit \-K never user\F[]
+.RE
+.PP
 \-a
 .RS 4
 This option is used to add a user into the database\&. This command needs a user name specified with the \-u switch\&. When adding a new user, pdbedit will also ask for the password to be used\&.
@@ -721,18 +729,18 @@ The higher this value, the more detail will be logged to the log files about the
 Levels above 1 will generate considerable amounts of log data, and should only be used when investigating a problem\&. Levels above 3 are designed for use only by developers and generate HUGE amounts of log data, most of which is extremely cryptic\&.
 .sp
 Note that specifying this parameter here will override the
-\m[blue]\fBlog level\fR\m[]
+\m[blue]\fB\%smb.conf.5.html#\fR\m[]
 parameter in the
 \FCsmb\&.conf\F[]
 file\&.
 .RE
 .PP
-\-V
+\-V|\-\-version
 .RS 4
 Prints the program version number\&.
 .RE
 .PP
-\-s <configuration file>
+\-s|\-\-configfile <configuration file>
 .RS 4
 The file specified contains the configuration details required by the server\&. The information in this file includes server\-specific information such as what printcap file to use, as well as descriptions of all the services that the server is to provide\&. See
 \FCsmb\&.conf\F[]

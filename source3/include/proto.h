@@ -1017,7 +1017,8 @@ char *current_timestring(TALLOC_CTX *ctx, bool hires);
 void srv_put_dos_date(char *buf,int offset,time_t unixdate);
 void srv_put_dos_date2(char *buf,int offset, time_t unixdate);
 void srv_put_dos_date3(char *buf,int offset,time_t unixdate);
-void put_long_date_timespec(char *p, struct timespec ts);
+void round_timespec(enum timestamp_set_resolution res, struct timespec *ts);
+void put_long_date_timespec(enum timestamp_set_resolution res, char *p, struct timespec ts);
 void put_long_date(char *p, time_t t);
 struct timespec get_create_timespec(const SMB_STRUCT_STAT *st,bool fake_dirs);
 struct timespec get_atimespec(const SMB_STRUCT_STAT *pst);
@@ -1038,6 +1039,8 @@ struct timespec timespec_current(void);
 struct timespec timespec_min(const struct timespec *ts1,
 			   const struct timespec *ts2);
 int timespec_compare(const struct timespec *ts1, const struct timespec *ts2);
+void round_timespec_to_sec(struct timespec *ts);
+void round_timespec_to_usec(struct timespec *ts);
 struct timespec interpret_long_date(const char *p);
 void cli_put_dos_date(struct cli_state *cli, char *buf, int offset, time_t unixdate);
 void cli_put_dos_date2(struct cli_state *cli, char *buf, int offset, time_t unixdate);
@@ -1250,6 +1253,10 @@ struct passwd *getpwuid_alloc(TALLOC_CTX *mem_ctx, uid_t uid) ;
 const char *reg_type_lookup(enum winreg_Type type);
 WERROR reg_pull_multi_sz(TALLOC_CTX *mem_ctx, const void *buf, size_t len,
 			 uint32 *num_values, char ***values);
+bool push_reg_sz(TALLOC_CTX *mem_ctx, DATA_BLOB *blob, const char *s);
+bool push_reg_multi_sz(TALLOC_CTX *mem_ctx, DATA_BLOB *blob, const char **a);
+bool pull_reg_sz(TALLOC_CTX *mem_ctx, const DATA_BLOB *blob, const char **s);
+bool pull_reg_multi_sz(TALLOC_CTX *mem_ctx, const DATA_BLOB *blob, const char ***a);
 
 /* The following definitions come from lib/util_reg_api.c  */
 
@@ -1373,7 +1380,7 @@ ssize_t read_udp_v4_socket(int fd,
 			char *buf,
 			size_t len,
 			struct sockaddr_storage *psa);
-NTSTATUS read_socket_with_timeout(int fd, char *buf,
+NTSTATUS read_fd_with_timeout(int fd, char *buf,
 				  size_t mincnt, size_t maxcnt,
 				  unsigned int time_out,
 				  size_t *size_ret);
@@ -2371,7 +2378,7 @@ bool cli_dfs_get_referral(TALLOC_CTX *ctx,
 			const char *path,
 			CLIENT_DFS_REFERRAL**refs,
 			size_t *num_refs,
-			uint16 *consumed);
+			size_t *consumed);
 bool cli_resolve_path(TALLOC_CTX *ctx,
 			const char *mountpt,
 			const struct user_auth_info *dfs_auth_info,
@@ -2449,6 +2456,7 @@ bool cli_is_dos_error(struct cli_state *cli);
 NTSTATUS cli_get_nt_error(struct cli_state *cli);
 void cli_set_nt_error(struct cli_state *cli, NTSTATUS status);
 void cli_reset_error(struct cli_state *cli);
+bool cli_state_is_connected(struct cli_state *cli);
 
 /* The following definitions come from libsmb/clifile.c  */
 
@@ -2593,10 +2601,6 @@ bool unwrap_edata_ntstatus(TALLOC_CTX *mem_ctx,
 			   DATA_BLOB *edata, 
 			   DATA_BLOB *edata_out);
 bool unwrap_pac(TALLOC_CTX *mem_ctx, DATA_BLOB *auth_data, DATA_BLOB *unwrapped_pac_data);
-int cli_krb5_get_ticket(const char *principal, time_t time_offset, 
-			DATA_BLOB *ticket, DATA_BLOB *session_key_krb5, 
-			uint32 extra_ap_opts, const char *ccname, 
-			time_t *tgs_expire);
 
 /* The following definitions come from libsmb/clilist.c  */
 
@@ -2729,14 +2733,14 @@ bool cli_ns_check_server_type(struct cli_state *cli, char *workgroup, uint32 sty
 bool cli_NetWkstaUserLogoff(struct cli_state *cli, const char *user, const char *workstation);
 int cli_NetPrintQEnum(struct cli_state *cli,
 		void (*qfn)(const char*,uint16,uint16,uint16,const char*,const char*,const char*,const char*,const char*,uint16,uint16),
-		void (*jfn)(uint16,const char*,const char*,const char*,const char*,uint16,uint16,const char*,uint,uint,const char*));
+		void (*jfn)(uint16,const char*,const char*,const char*,const char*,uint16,uint16,const char*,uint_t,uint_t,const char*));
 int cli_NetPrintQGetInfo(struct cli_state *cli, const char *printer,
 	void (*qfn)(const char*,uint16,uint16,uint16,const char*,const char*,const char*,const char*,const char*,uint16,uint16),
-	void (*jfn)(uint16,const char*,const char*,const char*,const char*,uint16,uint16,const char*,uint,uint,const char*));
+	void (*jfn)(uint16,const char*,const char*,const char*,const char*,uint16,uint16,const char*,uint_t,uint_t,const char*));
 int cli_RNetServiceEnum(struct cli_state *cli, void (*fn)(const char *, const char *, void *), void *state);
-int cli_NetSessionEnum(struct cli_state *cli, void (*fn)(char *, char *, uint16, uint16, uint16, uint, uint, uint, char *));
+int cli_NetSessionEnum(struct cli_state *cli, void (*fn)(char *, char *, uint16, uint16, uint16, uint_t, uint_t, uint_t, char *));
 int cli_NetSessionGetInfo(struct cli_state *cli, const char *workstation,
-		void (*fn)(const char *, const char *, uint16, uint16, uint16, uint, uint, uint, const char *));
+		void (*fn)(const char *, const char *, uint16, uint16, uint16, uint_t, uint_t, uint_t, const char *));
 int cli_NetSessionDel(struct cli_state *cli, const char *workstation);
 int cli_NetConnectionEnum(struct cli_state *cli, const char *qualifier,
 			void (*fn)(uint16_t conid, uint16_t contype,
@@ -3290,7 +3294,7 @@ WERROR map_werror_from_unix(int error);
 
 /* The following definitions come from libsmb/spnego.c  */
 
-ssize_t read_spnego_data(DATA_BLOB data, SPNEGO_DATA *token);
+ssize_t read_spnego_data(TALLOC_CTX *mem_ctx, DATA_BLOB data, SPNEGO_DATA *token);
 ssize_t write_spnego_data(DATA_BLOB *blob, SPNEGO_DATA *spnego);
 bool free_spnego_data(SPNEGO_DATA *spnego);
 
@@ -4355,6 +4359,7 @@ void lp_set_posix_default_cifsx_readwrite_locktype(enum brl_flavour val);
 int lp_min_receive_file_size(void);
 char* lp_perfcount_module(void);
 void lp_set_passdb_backend(const char *backend);
+void widelinks_warning(int snum);
 
 /* The following definitions come from param/util.c  */
 
@@ -4752,6 +4757,7 @@ void load_printers(void);
 bool parse_lpq_entry(enum printing_types printing_type,char *line,
 		     print_queue_struct *buf,
 		     print_status_struct *status,bool first);
+uint32_t print_parse_jobid(const char *fname);
 
 /* The following definitions come from printing/notify.c  */
 
@@ -5174,6 +5180,14 @@ NTSTATUS rpccli_lsa_lookup_sids(struct rpc_pipe_client *cli,
 				char ***pdomains,
 				char ***pnames,
 				enum lsa_SidType **ptypes);
+NTSTATUS rpccli_lsa_lookup_sids3(struct rpc_pipe_client *cli,
+				 TALLOC_CTX *mem_ctx,
+				 struct policy_handle *pol,
+				 int num_sids,
+				 const DOM_SID *sids,
+				 char ***pdomains,
+				 char ***pnames,
+				 enum lsa_SidType **ptypes);
 NTSTATUS rpccli_lsa_lookup_names(struct rpc_pipe_client *cli,
 				 TALLOC_CTX *mem_ctx,
 				 struct policy_handle *pol, int num_names,
@@ -5182,6 +5196,15 @@ NTSTATUS rpccli_lsa_lookup_names(struct rpc_pipe_client *cli,
 				 int level,
 				 DOM_SID **sids,
 				 enum lsa_SidType **types);
+NTSTATUS rpccli_lsa_lookup_names4(struct rpc_pipe_client *cli,
+				  TALLOC_CTX *mem_ctx,
+				  struct policy_handle *pol, int num_names,
+				  const char **names,
+				  const char ***dom_names,
+				  int level,
+				  DOM_SID **sids,
+				  enum lsa_SidType **types);
+
 bool fetch_domain_sid( char *domain, char *remote_machine, DOM_SID *psid);
 
 /* The following definitions come from rpc_client/cli_netlogon.c  */
@@ -5253,6 +5276,7 @@ NTSTATUS rpc_pipe_bind(struct rpc_pipe_client *cli,
 		       struct cli_pipe_auth_data *auth);
 unsigned int rpccli_set_timeout(struct rpc_pipe_client *cli,
 				unsigned int timeout);
+bool rpccli_is_connected(struct rpc_pipe_client *rpc_cli);
 bool rpccli_get_pwd_hash(struct rpc_pipe_client *cli, uint8_t nt_hash[16]);
 NTSTATUS rpccli_anon_bind_data(TALLOC_CTX *mem_ctx,
 			       struct cli_pipe_auth_data **presult);
@@ -5286,8 +5310,13 @@ NTSTATUS rpc_pipe_open_internal(TALLOC_CTX *mem_ctx, const struct ndr_syntax_id 
 NTSTATUS cli_rpc_pipe_open_noauth(struct cli_state *cli,
 				  const struct ndr_syntax_id *interface,
 				  struct rpc_pipe_client **presult);
+NTSTATUS cli_rpc_pipe_open_noauth_transport(struct cli_state *cli,
+					    enum dcerpc_transport_t transport,
+					    const struct ndr_syntax_id *interface,
+					    struct rpc_pipe_client **presult);
 NTSTATUS cli_rpc_pipe_open_ntlmssp(struct cli_state *cli,
 				   const struct ndr_syntax_id *interface,
+				   enum dcerpc_transport_t transport,
 				   enum pipe_auth_level auth_level,
 				   const char *domain,
 				   const char *username,
@@ -5295,6 +5324,7 @@ NTSTATUS cli_rpc_pipe_open_ntlmssp(struct cli_state *cli,
 				   struct rpc_pipe_client **presult);
 NTSTATUS cli_rpc_pipe_open_spnego_ntlmssp(struct cli_state *cli,
 					  const struct ndr_syntax_id *interface,
+					  enum dcerpc_transport_t transport,
 					  enum pipe_auth_level auth_level,
 					  const char *domain,
 					  const char *username,
@@ -5306,12 +5336,14 @@ NTSTATUS get_schannel_session_key(struct cli_state *cli,
 				  struct rpc_pipe_client **presult);
 NTSTATUS cli_rpc_pipe_open_schannel_with_key(struct cli_state *cli,
 					     const struct ndr_syntax_id *interface,
+					     enum dcerpc_transport_t transport,
 					     enum pipe_auth_level auth_level,
 					     const char *domain,
 					     const struct dcinfo *pdc,
 					     struct rpc_pipe_client **presult);
 NTSTATUS cli_rpc_pipe_open_ntlmssp_auth_schannel(struct cli_state *cli,
 						 const struct ndr_syntax_id *interface,
+						 enum dcerpc_transport_t transport,
 						 enum pipe_auth_level auth_level,
 						 const char *domain,
 						 const char *username,
@@ -5319,6 +5351,7 @@ NTSTATUS cli_rpc_pipe_open_ntlmssp_auth_schannel(struct cli_state *cli,
 						 struct rpc_pipe_client **presult);
 NTSTATUS cli_rpc_pipe_open_schannel(struct cli_state *cli,
 				    const struct ndr_syntax_id *interface,
+				    enum dcerpc_transport_t transport,
 				    enum pipe_auth_level auth_level,
 				    const char *domain,
 				    struct rpc_pipe_client **presult);
@@ -5527,7 +5560,8 @@ WERROR rpccli_spoolss_getprinterdata(struct rpc_pipe_client *cli,
 				     const char *value_name,
 				     uint32_t offered,
 				     enum winreg_Type *type,
-				     union spoolss_PrinterData *data);
+				     uint32_t *needed_p,
+				     uint8_t **data_p);
 WERROR rpccli_spoolss_enumprinterkey(struct rpc_pipe_client *cli,
 				     TALLOC_CTX *mem_ctx,
 				     struct policy_handle *handle,

@@ -196,6 +196,11 @@ struct ldapsam_privates {
 
 	/* ldap server location parameter */
 	char *location;
+
+	struct {
+		char *filter;
+		LDAPMessage *result;
+	} search_cache;
 };
 
 /* Functions shared between pdb_ldap.c and pdb_nds.c. */
@@ -211,6 +216,9 @@ const char** get_userattr_list( TALLOC_CTX *mem_ctx, int schema_ver );
 char * smbldap_talloc_single_attribute(LDAP *ldap_struct, LDAPMessage *entry,
 				       const char *attribute,
 				       TALLOC_CTX *mem_ctx);
+char * smbldap_talloc_first_attribute(LDAP *ldap_struct, LDAPMessage *entry,
+				      const char *attribute,
+				      TALLOC_CTX *mem_ctx);
 char * smbldap_talloc_smallest_attribute(LDAP *ldap_struct, LDAPMessage *entry,
 					 const char *attribute,
 					 TALLOC_CTX *mem_ctx);

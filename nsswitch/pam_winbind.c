@@ -976,7 +976,8 @@ static bool winbind_name_to_sid_string(struct pwb_context *ctx,
 				       char *sid_list_buffer,
 				       int sid_list_buffer_size)
 {
-	const char* sid_string;
+	const char* sid_string = NULL;
+	char *sid_str = NULL;
 
 	/* lookup name? */
 	if (IS_SID_STRING(name)) {
@@ -985,7 +986,6 @@ static bool winbind_name_to_sid_string(struct pwb_context *ctx,
 		wbcErr wbc_status;
 		struct wbcDomainSid sid;
 		enum wbcSidType type;
-		char *sid_str;
 
 		_pam_log_debug(ctx, LOG_DEBUG,
 			       "no sid given, looking up: %s\n", name);
@@ -1002,15 +1002,16 @@ static bool winbind_name_to_sid_string(struct pwb_context *ctx,
 			return false;
 		}
 
-		wbcFreeMemory(sid_str);
 		sid_string = sid_str;
 	}
 
 	if (!safe_append_string(sid_list_buffer, sid_string,
 				sid_list_buffer_size)) {
+		wbcFreeMemory(sid_str);
 		return false;
 	}
 
+	wbcFreeMemory(sid_str);
 	return true;
 }
 
@@ -1035,6 +1036,7 @@ static bool winbind_name_list_to_sid_string_list(struct pwb_context *ctx,
 	char *current_name = NULL;
 	const char *search_location;
 	const char *comma;
+	int len;
 
 	if (sid_list_buffer_size > 0) {
 		sid_list_buffer[0] = 0;
@@ -1052,7 +1054,23 @@ static bool winbind_name_list_to_sid_string_list(struct pwb_context *ctx,
 						current_name,
 						sid_list_buffer,
 						sid_list_buffer_size)) {
-			goto out;
+			/*
+			 * If one group name failed, we must not fail
+			 * the authentication totally, continue with
+			 * the following group names. If user belongs to
+			 * one of the valid groups, we must allow it
+			 * login. -- BoYang
+			 */
+
+			_pam_log(ctx, LOG_INFO, "cannot convert group %s to sid, "
+				 "check if group %s is valid group.", current_name,
+				 current_name);
+			_make_remark_format(ctx, PAM_TEXT_INFO, _("Cannot convert group %s "
+					"to sid, please contact your administrator to see "
+					"if group %s is valid."), current_name, current_name);
+			SAFE_FREE(current_name);
+			search_location = comma + 1;
+			continue;
 		}
 
 		SAFE_FREE(current_name);
@@ -1068,7 +1086,23 @@ static bool winbind_name_list_to_sid_string_list(struct pwb_context *ctx,
 	if (!winbind_name_to_sid_string(ctx, user, search_location,
 					sid_list_buffer,
 					sid_list_buffer_size)) {
-		goto out;
+		_pam_log(ctx, LOG_INFO, "cannot convert group %s to sid, "
+			 "check if group %s is valid group.", search_location,
+			 search_location);
+		_make_remark_format(ctx, PAM_TEXT_INFO, _("Cannot convert group %s "
+				"to sid, please contact your administrator to see "
+				"if group %s is valid."), search_location, search_location);
+		/*
+		 * The lookup of the last name failed..
+		 * It results in require_member_of_sid ends with ','
+		 * It is malformated parameter here, overwrite the last ','.
+		 */
+		len = strlen(sid_list_buffer);
+		if (len) {
+			if (sid_list_buffer[len - 1] == ',') {
+				sid_list_buffer[len - 1] = '\0';
+			}
+		}
 	}
 
 	result = true;
@@ -1762,7 +1796,7 @@ static int winbind_auth_request(struct pwb_context *ctx,
 	if (logon.blobs) {
 		wbcFreeMemory(logon.blobs);
 	}
-	if (info && info->blobs) {
+	if (info && info->blobs && !p_info) {
 		wbcFreeMemory(info->blobs);
 	}
 	if (error && !p_error) {
@@ -2284,6 +2318,7 @@ static char* winbind_upn_to_username(struct pwb_context *ctx,
 	enum wbcSidType type;
 	char *domain;
 	char *name;
+	char *p;
 
 	/* This cannot work when the winbind separator = @ */
 
@@ -2292,9 +2327,19 @@ static char* winbind_upn_to_username(struct pwb_context *ctx,
 		return NULL;
 	}
 
+	name = talloc_strdup(ctx, upn);
+	if (!name) {
+		return NULL;
+	}
+
+	if ((p = strchr(name, '@')) != NULL) {
+		*p = 0;
+		domain = p + 1;
+	}
+
 	/* Convert the UPN to a SID */
 
-	wbc_status = wbcLookupName("", upn, &sid, &type);
+	wbc_status = wbcLookupName(domain, name, &sid, &type);
 	if (!WBC_ERROR_IS_OK(wbc_status)) {
 		return NULL;
 	}
@@ -3045,8 +3090,6 @@ int pam_sm_chauthtok(pam_handle_t * pamh, int flags,
 		ret = winbind_chauthtok_request(ctx, user, pass_old,
 						pass_new, pwdlastset_update);
 		if (ret) {
-			_pam_overwrite(pass_new);
-			_pam_overwrite(pass_old);
 			pass_old = pass_new = NULL;
 			goto out;
 		}
@@ -3075,8 +3118,6 @@ int pam_sm_chauthtok(pam_handle_t * pamh, int flags,
 						   member, cctype, 0,
 						   &error, &info, &policy,
 						   NULL, &username_ret);
-			_pam_overwrite(pass_new);
-			_pam_overwrite(pass_old);
 			pass_old = pass_new = NULL;
 
 			if (ret == PAM_SUCCESS) {
@@ -3109,9 +3150,13 @@ int pam_sm_chauthtok(pam_handle_t * pamh, int flags,
 					free(username_ret);
 				}
 
-				wbcFreeMemory(info);
-				wbcFreeMemory(policy);
 			}
+
+			if (info && info->blobs) {
+				wbcFreeMemory(info->blobs);
+			}
+			wbcFreeMemory(info);
+			wbcFreeMemory(policy);
 
 			goto out;
 		}

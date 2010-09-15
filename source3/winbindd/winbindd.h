@@ -122,6 +122,7 @@ struct winbindd_cm_conn {
 	struct policy_handle sam_connect_handle, sam_domain_handle;
 
 	struct rpc_pipe_client *lsa_pipe;
+	struct rpc_pipe_client *lsa_pipe_tcp;
 	struct policy_handle lsa_policy;
 
 	struct rpc_pipe_client *netlogon_pipe;
@@ -181,6 +182,8 @@ struct winbindd_domain {
 				  * DCERPC_FAULT_OP_RNG_ERROR, then set this
 				  * to False. This variable is around so that
 				  * we don't have to try _ex every time. */
+
+	bool can_do_ncacn_ip_tcp;
 
 	/* Lookup methods for this domain (LDAP or RPC) */
 	struct winbindd_methods *methods;

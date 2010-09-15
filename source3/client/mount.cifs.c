@@ -39,10 +39,11 @@
 #include <mntent.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <fstab.h>
 #include "mount.h"
 
 #define MOUNT_CIFS_VERSION_MAJOR "1"
-#define MOUNT_CIFS_VERSION_MINOR "12"
+#define MOUNT_CIFS_VERSION_MINOR "14"
 
 #ifndef MOUNT_CIFS_VENDOR_SUFFIX
  #ifdef _SAMBA_BUILD_
@@ -69,6 +70,10 @@
 #define MS_BIND 4096
 #endif
 
+/* private flags - clear these before passing to kernel */
+#define MS_USERS	0x40000000
+#define MS_USER		0x80000000
+
 #define MAX_UNC_LEN 1024
 
 #define CONST_DISCARD(type, ptr)      ((type) ((void *) (ptr)))
@@ -82,6 +87,38 @@
 
 /* currently maximum length of IPv6 address string */
 #define MAX_ADDRESS_LEN INET6_ADDRSTRLEN
+
+/*
+ * mount.cifs has been the subject of many "security" bugs that have arisen
+ * because of users and distributions installing it as a setuid root program.
+ * mount.cifs has not been audited for security. Thus, we strongly recommend
+ * that it not be installed setuid root. To make that abundantly clear,
+ * mount.cifs now check whether it's running setuid root and exit with an
+ * error if it is. If you wish to disable this check, then set the following
+ * #define to 1, but please realize that you do so at your own peril.
+ */
+#define CIFS_DISABLE_SETUID_CHECK 0
+
+/*
+ * By default, mount.cifs follows the conventions set forth by /bin/mount
+ * for user mounts. That is, it requires that the mount be listed in
+ * /etc/fstab with the "user" option when run as an unprivileged user and
+ * mount.cifs is setuid root.
+ *
+ * Older versions of mount.cifs however were "looser" in this regard. When
+ * made setuid root, a user could run mount.cifs directly and mount any share
+ * on a directory owned by that user.
+ *
+ * The legacy behavior is now disabled by default. To reenable it, set the
+ * following #define to true.
+ */
+#define CIFS_LEGACY_SETUID_CHECK 0
+
+/*
+ * When an unprivileged user runs a setuid mount.cifs, we set certain mount
+ * flags by default. These defaults can be changed here.
+ */
+#define CIFS_SETUID_FLAGS (MS_NOSUID|MS_NODEV)
 
 const char *thisprogram;
 int verboseflag = 0;
@@ -142,6 +179,122 @@ static size_t strlcat(char *d, const char *s, size_t bufsize)
 }
 #endif
 
+/*
+ * If an unprivileged user is doing the mounting then we need to ensure
+ * that the entry is in /etc/fstab.
+ */
+static int
+check_mountpoint(const char *progname, char *mountpoint)
+{
+	int err;
+	struct stat statbuf;
+
+	/* does mountpoint exist and is it a directory? */
+	err = stat(".", &statbuf);
+	if (err) {
+		fprintf(stderr, "%s: failed to stat %s: %s\n", progname,
+				mountpoint, strerror(errno));
+		return EX_USAGE;
+	}
+
+	if (!S_ISDIR(statbuf.st_mode)) {
+		fprintf(stderr, "%s: %s is not a directory!", progname,
+				mountpoint);
+		return EX_USAGE;
+	}
+
+#if CIFS_LEGACY_SETUID_CHECK
+	/* do extra checks on mountpoint for legacy setuid behavior */
+	if (!getuid() || geteuid())
+		return 0;
+
+	if (statbuf.st_uid != getuid()) {
+		fprintf(stderr, "%s: %s is not owned by user\n", progname,
+			mountpoint);
+		return EX_USAGE;
+	}
+
+	if ((statbuf.st_mode & S_IRWXU) != S_IRWXU) {
+		fprintf(stderr, "%s: invalid permissions on %s\n", progname,
+			mountpoint);
+		return EX_USAGE;
+	}
+#endif /* CIFS_LEGACY_SETUID_CHECK */
+
+	return 0;
+}
+
+#if CIFS_DISABLE_SETUID_CHECK
+static int
+check_setuid(void)
+{
+	return 0;
+}
+#else /* CIFS_DISABLE_SETUID_CHECK */
+static int
+check_setuid(void)
+{
+	if (getuid() && !geteuid()) {
+		printf("This mount.cifs program has been built with the "
+			"ability to run as a setuid root program disabled.\n"
+			"mount.cifs has not been well audited for security "
+			"holes. Therefore the Samba team does not recommend "
+			"installing it as a setuid root program.\n");
+		return 1;
+	}
+
+	return 0;
+}
+#endif /* CIFS_DISABLE_SETUID_CHECK */
+
+#if CIFS_LEGACY_SETUID_CHECK
+static int
+check_fstab(const char *progname, char *mountpoint, char *devname,
+	    char **options)
+{
+	return 0;
+}
+#else /* CIFS_LEGACY_SETUID_CHECK */
+static int
+check_fstab(const char *progname, char *mountpoint, char *devname,
+	    char **options)
+{
+	FILE *fstab;
+	struct mntent *mnt;
+
+	/* make sure this mount is listed in /etc/fstab */
+	fstab = setmntent(_PATH_FSTAB, "r");
+	if (!fstab) {
+		fprintf(stderr, "Couldn't open %s for reading!\n",
+				_PATH_FSTAB);
+		return EX_FILEIO;
+	}
+
+	while((mnt = getmntent(fstab))) {
+		if (!strcmp(mountpoint, mnt->mnt_dir))
+			break;
+	}
+	endmntent(fstab);
+
+	if (mnt == NULL || strcmp(mnt->mnt_fsname, devname)) {
+		fprintf(stderr, "%s: permission denied: no match for "
+				"%s found in %s\n", progname, mountpoint,
+				_PATH_FSTAB);
+		return EX_USAGE;
+	}
+
+	/*
+	 * 'mount' munges the options from fstab before passing them
+	 * to us. It is non-trivial to test that we have the correct
+	 * set of options. We don't want to trust what the user
+	 * gave us, so just take whatever is in /etc/fstab.
+	 */
+	free(*options);
+	*options = strdup(mnt->mnt_opts);
+	return 0;
+}
+#endif /* CIFS_LEGACY_SETUID_CHECK */
+
 /* BB finish BB
 
         cifs_umount
@@ -198,6 +351,11 @@ static int open_cred_file(char * file_name)
 	char * temp_val;
 	FILE * fs;
 	int i, length;
+
+	i = access(file_name, R_OK);
+	if (i)
+		return i;
+
 	fs = fopen(file_name,"r");
 	if(fs == NULL)
 		return errno;
@@ -320,6 +478,12 @@ static int get_password_from_file(int file_descript, char * filename)
 	}
 
 	if(filename != NULL) {
+		rc = access(filename, R_OK);
+		if (rc) {
+			fprintf(stderr, "mount.cifs failed: access check of %s failed: %s\n",
+					filename, strerror(errno));
+			exit(EX_SYSERR);
+		}
 		file_descript = open(filename, O_RDONLY);
 		if(file_descript < 0) {
 			printf("mount.cifs failed. %s attempting to open password file %s\n",
@@ -362,7 +526,7 @@ static int get_password_from_file(int file_descript, char * filename)
 	return rc;
 }
 
-static int parse_options(char ** optionsp, int * filesys_flags)
+static int parse_options(char ** optionsp, unsigned long * filesys_flags)
 {
 	const char * data;
 	char * percent_char = NULL;
@@ -378,9 +542,6 @@ static int parse_options(char ** optionsp, int * filesys_flags)
 	if (!optionsp || !*optionsp)
 		return 1;
 	data = *optionsp;
-
-	if(verboseflag)
-		printf("parsing options: %s\n", data);
 
 	/* BB fixme check for separator override BB */
 
@@ -415,6 +576,7 @@ static int parse_options(char ** optionsp, int * filesys_flags)
 
 		if (strncmp(data, "users",5) == 0) {
 			if(!value || !*value) {
+				*filesys_flags |= MS_USERS;
 				goto nocopy;
 			}
 		} else if (strncmp(data, "user_xattr",10) == 0) {
@@ -423,10 +585,7 @@ static int parse_options(char ** optionsp, int * filesys_flags)
 
 			if (!value || !*value) {
 				if(data[4] == '\0') {
-					if(verboseflag)
-						printf("\nskipping empty user mount parameter\n");
-					/* remove the parm since it would otherwise be confusing
-					to the kernel code which would think it was a real username */
+					*filesys_flags |= MS_USER;
 					goto nocopy;
 				} else {
 					printf("username specified with no parameter\n");
@@ -470,18 +629,27 @@ static int parse_options(char ** optionsp, int * filesys_flags)
 		} else if (strncmp(data, "pass", 4) == 0) {
 			if (!value || !*value) {
 				if(got_password) {
-					printf("\npassword specified twice, ignoring second\n");
+					fprintf(stderr, "\npassword specified twice, ignoring second\n");
 				} else
 					got_password = 1;
-			} else if (strnlen(value, 17) < 17) {
-				if(got_password)
-					printf("\nmount.cifs warning - password specified twice\n");
-				got_password = 1;
+			} else if (strnlen(value, MOUNT_PASSWD_SIZE) < MOUNT_PASSWD_SIZE) {
+				if (got_password) {
+					fprintf(stderr, "\nmount.cifs warning - password specified twice\n");
+				} else {
+					mountpassword = strndup(value, MOUNT_PASSWD_SIZE);
+					if (!mountpassword) {
+						fprintf(stderr, "mount.cifs error: %s", strerror(ENOMEM));
+						SAFE_FREE(out);
+						return 1;
+					}
+					got_password = 1;
+				}
 			} else {
-				printf("password too long\n");
+				fprintf(stderr, "password too long\n");
 				SAFE_FREE(out);
 				return 1;
 			}
+			goto nocopy;
 		} else if (strncmp(data, "sec", 3) == 0) {
 			if (value) {
 				if (!strncmp(value, "none", 4) ||
@@ -1026,10 +1194,40 @@ static void print_cifs_mount_version(void)
 		MOUNT_CIFS_VENDOR_SUFFIX);
 }
 
+/*
+ * This function borrowed from fuse-utils...
+ *
+ * glibc's addmntent (at least as of 2.10 or so) doesn't properly encode
+ * newlines embedded within the text fields. To make sure no one corrupts
+ * the mtab, fail the mount if there are embedded newlines.
+ */
+static int check_newline(const char *progname, const char *name)
+{
+    char *s;
+    for (s = "\n"; *s; s++) {
+        if (strchr(name, *s)) {
+            fprintf(stderr, "%s: illegal character 0x%02x in mount entry\n",
+                    progname, *s);
+            return EX_USAGE;
+        }
+    }
+    return 0;
+}
+
+static int check_mtab(const char *progname, const char *devname,
+			const char *dir)
+{
+	if (check_newline(progname, devname) == -1 ||
+	    check_newline(progname, dir) == -1)
+		return EX_USAGE;
+	return 0;
+}
+
+
 int main(int argc, char ** argv)
 {
 	int c;
-	int flags = MS_MANDLOCK; /* no need to set legacy MS_MGC_VAL */
+	unsigned long flags = MS_MANDLOCK;
 	char * orgoptions = NULL;
 	char * share_name = NULL;
 	const char * ipaddr = NULL;
@@ -1052,12 +1250,14 @@ int main(int argc, char ** argv)
 	size_t current_len;
 	int retry = 0; /* set when we have to retry mount with uppercase */
 	struct addrinfo *addrhead = NULL, *addr;
-	struct stat statbuf;
 	struct utsname sysinfo;
 	struct mntent mountent;
 	struct sockaddr_in *addr4;
 	struct sockaddr_in6 *addr6;
 	FILE * pmntfile;
+
+	if (check_setuid())
+		return EX_USAGE;
 
 	/* setlocale(LC_ALL, "");
 	bindtextdomain(PACKAGE, LOCALEDIR);
@@ -1110,8 +1310,8 @@ int main(int argc, char ** argv)
 		exit(EX_USAGE);
 	}
 
-	/* add sharename in opts string as unc= parm */
 
+	/* add sharename in opts string as unc= parm */
 	while ((c = getopt_long (argc, argv, "afFhilL:no:O:rsSU:vVwt:",
 			 longopts, NULL)) != -1) {
 		switch (c) {
@@ -1249,6 +1449,30 @@ int main(int argc, char ** argv)
 		exit(EX_USAGE);
 	}
 
+	/* make sure mountpoint is legit */
+	rc = chdir(mountpoint);
+	if (rc) {
+		fprintf(stderr, "Couldn't chdir to %s: %s\n", mountpoint,
+				strerror(errno));
+		rc = EX_USAGE;
+		goto mount_exit;
+	}
+
+	rc = check_mountpoint(thisprogram, mountpoint);
+	if (rc)
+		goto mount_exit;
+
+	/* sanity check for unprivileged mounts */
+	if (getuid()) {
+		rc = check_fstab(thisprogram, mountpoint, dev_name,
+				 &orgoptions);
+		if (rc)
+			goto mount_exit;
+
+		/* enable any default user mount flags */
+		flags |= CIFS_SETUID_FLAGS;
+	}
+
 	if (getenv("PASSWD")) {
 		if(mountpassword == NULL)
 			mountpassword = (char *)calloc(MOUNT_PASSWD_SIZE+1,1);
@@ -1266,6 +1490,27 @@ int main(int argc, char ** argv)
                 rc = EX_USAGE;
 		goto mount_exit;
 	}
+
+	if (getuid()) {
+#if !CIFS_LEGACY_SETUID_CHECK
+		if (!(flags & (MS_USERS|MS_USER))) {
+			fprintf(stderr, "%s: permission denied\n", thisprogram);
+			rc = EX_USAGE;
+			goto mount_exit;
+		}
+#endif /* !CIFS_LEGACY_SETUID_CHECK */
+
+		if (geteuid()) {
+			fprintf(stderr, "%s: not installed setuid - \"user\" "
+					"CIFS mounts not supported.",
+					thisprogram);
+			rc = EX_FAIL;
+			goto mount_exit;
+		}
+	}
+
+	flags &= ~(MS_USERS|MS_USER);
+
 	addrhead = addr = parse_server(&share_name);
 	if((addrhead == NULL) && (got_ip == 0)) {
 		printf("No ip address specified and hostname not found\n");
@@ -1275,43 +1520,22 @@ int main(int argc, char ** argv)
 	
 	/* BB save off path and pop after mount returns? */
 	resolved_path = (char *)malloc(PATH_MAX+1);
-	if(resolved_path) {
-		/* Note that if we can not canonicalize the name, we get
-		another chance to see if it is valid when we chdir to it */
-		if (realpath(mountpoint, resolved_path)) {
-			mountpoint = resolved_path; 
-		}
-	}
-	if(chdir(mountpoint)) {
-		printf("mount error: can not change directory into mount target %s\n",mountpoint);
-		rc = EX_USAGE;
+	if (!resolved_path) {
+		fprintf(stderr, "Unable to allocate memory.\n");
+		rc = EX_SYSERR;
 		goto mount_exit;
 	}
 
-	if(stat (".", &statbuf)) {
-		printf("mount error: mount point %s does not exist\n",mountpoint);
-		rc = EX_USAGE;
+	/* Note that if we can not canonicalize the name, we get
+	   another chance to see if it is valid when we chdir to it */
+	if(!realpath(".", resolved_path)) {
+		fprintf(stderr, "Unable to resolve %s to canonical path: %s\n",
+				mountpoint, strerror(errno));
+		rc = EX_SYSERR;
 		goto mount_exit;
 	}
 
-	if (S_ISDIR(statbuf.st_mode) == 0) {
-		printf("mount error: mount point %s is not a directory\n",mountpoint);
-		rc = EX_USAGE;
-		goto mount_exit;
-	}
-
-	if((getuid() != 0) && (geteuid() == 0)) {
-		if((statbuf.st_uid == getuid()) && (S_IRWXU == (statbuf.st_mode & S_IRWXU))) {
-#ifndef CIFS_ALLOW_USR_SUID
-			/* Do not allow user mounts to control suid flag
-			for mount unless explicitly built that way */
-			flags |= MS_NOSUID | MS_NODEV;
-#endif						
-		} else {
-			printf("mount error: permission denied or not superuser and mount.cifs not installed SUID\n"); 
-			exit(EX_USAGE);
-		}
-	}
+	mountpoint = resolved_path;
 
 	if(got_user == 0) {
 		/* Note that the password will not be retrieved from the
@@ -1384,15 +1608,6 @@ mount_retry:
 			strlcat(options,domain_name,options_size);
 		}
 	}
-	if(mountpassword) {
-		/* Commas have to be doubled, or else they will
-		look like the parameter separator */
-/*		if(sep is not set)*/
-		if(retry == 0)
-			check_for_comma(&mountpassword);
-		strlcat(options,",pass=",options_size);
-		strlcat(options,mountpassword,options_size);
-	}
 
 	strlcat(options,",ver=",options_size);
 	strlcat(options,MOUNT_CIFS_VERSION_MAJOR,options_size);
@@ -1405,8 +1620,6 @@ mount_retry:
 		strlcat(options,",prefixpath=",options_size);
 		strlcat(options,prefixpath,options_size); /* no need to cat the / */
 	}
-	if(verboseflag)
-		printf("\nmount.cifs kernel mount options %s \n",options);
 
 	/* convert all '\\' to '/' in share portion so that /proc/mounts looks pretty */
 	replace_char(dev_name, '\\', '/', strlen(share_name));
@@ -1438,7 +1651,30 @@ mount_retry:
 		}
 	}
 
-	if (!fakemnt && mount(dev_name, mountpoint, "cifs", flags, options)) {
+	if(verboseflag)
+		fprintf(stderr, "\nmount.cifs kernel mount options: %s", options);
+
+	if (mountpassword) {
+		/*
+		 * Commas have to be doubled, or else they will
+		 * look like the parameter separator
+		 */
+		if(retry == 0)
+			check_for_comma(&mountpassword);
+		strlcat(options,",pass=",options_size);
+		strlcat(options,mountpassword,options_size);
+		if (verboseflag)
+			fprintf(stderr, ",pass=********");
+	}
+
+	if (verboseflag)
+		fprintf(stderr, "\n");
+
+	rc = check_mtab(thisprogram, dev_name, mountpoint);
+	if (rc)
+		goto mount_exit;
+
+	if (!fakemnt && mount(dev_name, ".", "cifs", flags, options)) {
 		switch (errno) {
 		case ECONNREFUSED:
 		case EHOSTUNREACH:

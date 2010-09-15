@@ -1,12 +1,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 06/19/2009
+.\"      Date: 05/10/2010
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "06/19/2009" "Samba 3\&.4" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "05/10/2010" "Samba 3\&.4" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -1039,14 +1039,6 @@ Example:
 \fI\fIabort shutdown script\fR\fR\fI = \fR\fI\FC/sbin/shutdown \-c\F[]\fR\fI \fR
 .RE
 
-public
-.\" public
-.PP
-.RS 4
-This parameter is a synonym for
-access based share enum\&.
-.RE
-
 access based share enum (S)
 .\" access based share enum
 .PP
@@ -1565,6 +1557,23 @@ Example:
 \fI\fIaio read size\fR\fR\fI = \fR\fI\FC16384 # Use asynchronous I/O for reads bigger than 16KB request size\F[]\fR\fI \fR
 .RE
 
+aio write behind (S)
+.\" aio write behind
+.PP
+.RS 4
+If Samba has been built with asynchronous I/O support, Samba will not wait until write requests are finished before returning the result to the client for files listed in this parameter\&. Instead, Samba will immediately return that the write request has been finished successfully, no matter if the operation will succeed or not\&. This might speed up clients without aio support, but is really dangerous, because data could be lost and files could be damaged\&.
+.sp
+The syntax is identical to the
+\m[blue]\fBveto files\fR\m[]
+parameter\&.
+.sp
+Default:
+\fI\fIaio write behind\fR\fR\fI = \fR\fI\FC\F[]\fR\fI \fR
+.sp
+Example:
+\fI\fIaio write behind\fR\fR\fI = \fR\fI\FC/*\&.tmp/\F[]\fR\fI \fR
+.RE
+
 aio write size (S)
 .\" aio write size
 .PP
@@ -1873,6 +1882,26 @@ Default:
 \fI\fIbrowse list\fR\fR\fI = \fR\fI\FCyes\F[]\fR\fI \fR
 .RE
 
+cache directory (G)
+.\" cache directory
+.PP
+.RS 4
+Usually, most of the TDB files are stored in the
+\fIlock directory\fR\&. Since Samba 3\&.4\&.0, it is possible to differentiate between TDB files with persistent data and TDB files with non\-persistent data using the
+\fIstate directory\fR
+and the
+\fIcache directory\fR
+options\&.
+.sp
+This option specifies the directory where TDB files containing non\-persistent data will be stored\&.
+.sp
+Default:
+\fI\fIcache directory\fR\fR\fI = \fR\fI\FC${prefix}/var/locks\F[]\fR\fI \fR
+.sp
+Example:
+\fI\fIcache directory\fR\fR\fI = \fR\fI\FC/var/run/samba/locks/cache\F[]\fR\fI \fR
+.RE
+
 casesignames
 .\" casesignames
 .PP
@@ -2014,7 +2043,7 @@ Default:
 \fI\fIcheck password script\fR\fR\fI = \fR\fI\FCDisabled\F[]\fR\fI \fR
 .sp
 Example:
-\fI\fIcheck password script\fR\fR\fI = \fR\fI\FCcheck password script = /usr/local/sbin/crackcheck\F[]\fR\fI \fR
+\fI\fIcheck password script\fR\fR\fI = \fR\fI\FC/usr/local/sbin/crackcheck\F[]\fR\fI \fR
 .RE
 
 client lanman auth (G)
@@ -2513,6 +2542,21 @@ Default:
 \fI\fIdebug uid\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
 .RE
 
+dedicated keytab file (G)
+.\" dedicated keytab file
+.PP
+.RS 4
+Specifies the path to the kerberos keytab file when
+\m[blue]\fBkerberos method\fR\m[]
+is set to "dedicated keytab"\&.
+.sp
+Default:
+\fI\fIdedicated keytab file\fR\fR\fI = \fR\fI\FC\F[]\fR\fI \fR
+.sp
+Example:
+\fI\fIdedicated keytab file\fR\fR\fI = \fR\fI\FC/usr/local/etc/krb5\&.keytab\F[]\fR\fI \fR
+.RE
+
 default case (S)
 .\" default case
 .PP
@@ -2902,6 +2946,16 @@ Example:
 \fI\fIdirectory mask\fR\fR\fI = \fR\fI\FC0775\F[]\fR\fI \fR
 .RE
 
+directory name cache size (S)
+.\" directory name cache size
+.PP
+.RS 4
+This parameter specifies the the size of the directory name cache\&. It will be needed to turn this off for *BSD systems\&.
+.sp
+Default:
+\fI\fIdirectory name cache size\fR\fR\fI = \fR\fI\FC100\F[]\fR\fI \fR
+.RE
+
 directory security mask (S)
 .\" directory security mask
 .PP
@@ -3160,6 +3214,20 @@ Default:
 \fI\fIenable asu support\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
 .RE
 
+enable core files (G)
+.\" enable core files
+.PP
+.RS 4
+This parameter specifies whether core dumps should be written on internal exits\&. Normally set to
+\fByes\fR\&. You should never need to change this\&.
+.sp
+Default:
+\fI\fIenable core files\fR\fR\fI = \fR\fI\FCyes\F[]\fR\fI \fR
+.sp
+Example:
+\fI\fIenable core files\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
+.RE
+
 enable privileges (G)
 .\" enable privileges
 .PP
@@ -3174,6 +3242,17 @@ Please read the extended description provided in the Samba HOWTO documentation\&
 .sp
 Default:
 \fI\fIenable privileges\fR\fR\fI = \fR\fI\FCyes\F[]\fR\fI \fR
+.RE
+
+enable spoolss (G)
+.\" enable spoolss
+.PP
+.RS 4
+Inverted synonym for
+\m[blue]\fBdisable spoolss\fR\m[]\&.
+.sp
+Default:
+\fI\fIenable spoolss\fR\fR\fI = \fR\fI\FCyes\F[]\fR\fI \fR
 .RE
 
 encrypt passwords (G)
@@ -4517,6 +4596,68 @@ Example:
 \fI\fIkeepalive\fR\fR\fI = \fR\fI\FC600\F[]\fR\fI \fR
 .RE
 
+kerberos method (G)
+.\" kerberos method
+.PP
+.RS 4
+Controls how kerberos tickets are verified\&.
+.sp
+Valid options are:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+secrets only \- use only the secrets\&.tdb for ticket verification (default)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+system keytab \- use only the system keytab for ticket verification
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+dedicated keytab \- use a dedicated keytab for ticket verification
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+secrets and keytab \- use the secrets\&.tdb first, then the system keytab
+.sp
+.RE
+The major difference between "system keytab" and "dedicated keytab" is that the latter method relies on kerberos to find the correct keytab entry instead of filtering based on expected principals\&.
+.sp
+When the kerberos method is in "dedicated keytab" mode,
+\m[blue]\fBdedicated keytab file\fR\m[]
+must be set to specify the location of the keytab file\&.
+.sp
+Default:
+\fI\fIkerberos method\fR\fR\fI = \fR\fI\FCsecrets only\F[]\fR\fI \fR
+.RE
+
 kernel change notify (S)
 .\" kernel change notify
 .PP
@@ -4582,7 +4723,7 @@ large readwrite (G)
 .RS 4
 This parameter determines whether or not
 \fBsmbd\fR(8)
-supports the new 64k streaming read and write varient SMB requests introduced with Windows 2000\&. Note that due to Windows 2000 client redirector bugs this requires Samba to be running on a 64\-bit capable operating system such as IRIX, Solaris or a Linux 2\&.4 kernel\&. Can improve performance by 10% with Windows 2000 clients\&. Defaults to on\&. Not as tested as some other Samba code paths\&.
+supports the new 64k streaming read and write variant SMB requests introduced with Windows 2000\&. Note that due to Windows 2000 client redirector bugs this requires Samba to be running on a 64\-bit capable operating system such as IRIX, Solaris or a Linux 2\&.4 kernel\&. Can improve performance by 10% with Windows 2000 clients\&. Defaults to on\&. Not as tested as some other Samba code paths\&.
 .sp
 Default:
 \fI\fIlarge readwrite\fR\fR\fI = \fR\fI\FCyes\F[]\fR\fI \fR
@@ -4720,6 +4861,21 @@ Default:
 .sp
 Example:
 \fI\fIldap machine suffix\fR\fR\fI = \fR\fI\FCou=Computers\F[]\fR\fI \fR
+.RE
+
+ldap page size (G)
+.\" ldap page size
+.PP
+.RS 4
+This parameter specifies the number of entries per page\&.
+.sp
+If the LDAP server supports paged results, clients can request subsets of search results (pages) instead of the entire list\&. This parameter specifies the size of these pages\&.
+.sp
+Default:
+\fI\fIldap page size\fR\fR\fI = \fR\fI\FC1024\F[]\fR\fI \fR
+.sp
+Example:
+\fI\fIldap page size\fR\fR\fI = \fR\fI\FC512\F[]\fR\fI \fR
 .RE
 
 ldap passwd sync (G)
@@ -5995,7 +6151,7 @@ See the section on
 \m[blue]\fBname mangling\fR\m[]
 for details on how to control the mangling process\&.
 .sp
-If mangling is used then the mangling algorithm is as follows:
+If mangling is used then the mangling method is as follows:
 .sp
 .RS 4
 .ie n \{\
@@ -7150,11 +7306,7 @@ oplocks (S)
 .RS 4
 This boolean option tells
 \FCsmbd\F[]
-whether to issue oplocks (opportunistic locks) to file open requests on this share\&. The oplock code can dramatically (approx\&. 30% or more) improve the speed of access to files on Samba servers\&. It allows the clients to aggressively cache files locally and you may want to disable this option for unreliable network environments (it is turned on by default in Windows NT Servers)\&. For more information see the file
-\FCSpeed\&.txt\F[]
-in the Samba
-\FCdocs/\F[]
-directory\&.
+whether to issue oplocks (opportunistic locks) to file open requests on this share\&. The oplock code can dramatically (approx\&. 30% or more) improve the speed of access to files on Samba servers\&. It allows the clients to aggressively cache files locally and you may want to disable this option for unreliable network environments (it is turned on by default in Windows NT Servers)\&.
 .sp
 Oplocks may be selectively turned off on certain files with a share\&. See the
 \m[blue]\fBveto oplock files\fR\m[]
@@ -9153,6 +9305,18 @@ Example:
 \fI\fIset quota command\fR\fR\fI = \fR\fI\FC/usr/local/sbin/set_quota\F[]\fR\fI \fR
 .RE
 
+share:fake_fscaps (G)
+.\" share:fake_fscaps
+.PP
+.RS 4
+This is needed to support some special application that makes QFSINFO calls to check whether we set the SPARSE_FILES bit (0x40)\&. If this bit is not set that particular application refuses to work against Samba\&. With
+\m[blue]\fBshare:fake_fscaps = 64\fR\m[]
+the SPARSE_FILES file system capability flag is set\&. Use other decimal values to specify the bitmask you need to fake\&.
+.sp
+Default:
+\fI\fIshare:fake_fscaps\fR\fR\fI = \fR\fI\FC0\F[]\fR\fI \fR
+.RE
+
 share modes (S)
 .\" share modes
 .PP
@@ -9585,6 +9749,26 @@ Default:
 \fI\fIstat cache\fR\fR\fI = \fR\fI\FCyes\F[]\fR\fI \fR
 .RE
 
+state directory (G)
+.\" state directory
+.PP
+.RS 4
+Usually, most of the TDB files are stored in the
+\fIlock directory\fR\&. Since Samba 3\&.4\&.0, it is possible to differentiate between TDB files with persistent data and TDB files with non\-persistent data using the
+\fIstate directory\fR
+and the
+\fIcache directory\fR
+options\&.
+.sp
+This option specifies the directory where TDB files containing persistent data will be stored\&.
+.sp
+Default:
+\fI\fIstate directory\fR\fR\fI = \fR\fI\FC${prefix}/var/locks\F[]\fR\fI \fR
+.sp
+Example:
+\fI\fIstate directory\fR\fR\fI = \fR\fI\FC/var/run/samba/locks/state\F[]\fR\fI \fR
+.RE
+
 store dos attributes (S)
 .\" store dos attributes
 .PP
@@ -9800,6 +9984,10 @@ unix extensions (G)
 .PP
 .RS 4
 This boolean parameter controls whether Samba implements the CIFS UNIX extensions, as defined by HP\&. These extensions enable Samba to better serve UNIX CIFS clients by supporting features such as symbolic links, hard links, etc\&.\&.\&. These extensions require a similarly enabled client, and are of no current use to Windows clients\&.
+.sp
+Note if this parameter is turned on, the
+\m[blue]\fBwide links\fR\m[]
+parameter will automatically be disabled\&.
 .sp
 Default:
 \fI\fIunix extensions\fR\fR\fI = \fR\fI\FCyes\F[]\fR\fI \fR
@@ -10506,10 +10694,12 @@ wide links (S)
 .RS 4
 This parameter controls whether or not links in the UNIX file system may be followed by the server\&. Links that point to areas within the directory tree exported by the server are always allowed; this parameter controls access only to areas that are outside the directory tree being exported\&.
 .sp
-Note that setting this parameter can have a negative effect on your server performance due to the extra system calls that Samba has to do in order to perform the link checks\&.
+Note: Turning this parameter on when UNIX extensions are enabled will allow UNIX clients to create symbolic links on the share that can point to files or directories outside restricted path exported by the share definition\&. This can cause access to areas outside of the share\&. Due to this problem, this parameter will be automatically disabled (with a message in the log file) if the
+\m[blue]\fBunix extensions\fR\m[]
+option is on\&.
 .sp
 Default:
-\fI\fIwide links\fR\fR\fI = \fR\fI\FCyes\F[]\fR\fI \fR
+\fI\fIwide links\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
 .RE
 
 winbind cache time (G)
@@ -10634,7 +10824,7 @@ winbind normalize names (G)
 .RS 4
 This parameter controls whether winbindd will replace whitespace in user and group names with an underscore (_) character\&. For example, whether the name "Space Kadet" should be replaced with the string "space_kadet"\&. Frequently Unix shell scripts will have difficulty with usernames contains whitespace due to the default field separator in the shell\&. If your domain possesses names containing the underscore character, this option may cause problems unless the name aliasing feature is supported by your nss_info plugin\&.
 .sp
-This feature also enables the name aliasing API which can be used to make domain user and group names to a non\-qualified version\&. Please refer to the manpage for the configured idmap and nss_info plugin for the specifics on how to configure name aliasing for a specific configuration\&. Name aliasing takes precendence (and is mutually exclusive) over the whitespace replacement mechanism discussed previsouly\&.
+This feature also enables the name aliasing API which can be used to make domain user and group names to a non\-qualified version\&. Please refer to the manpage for the configured idmap and nss_info plugin for the specifics on how to configure name aliasing for a specific configuration\&. Name aliasing takes precedence (and is mutually exclusive) over the whitespace replacement mechanism discussed previsouly\&.
 .sp
 Default:
 \fI\fIwinbind normalize names\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
@@ -10674,8 +10864,6 @@ and
 .\}
 \fI<sfu | rfc2307 >\fR
 \- When Samba is running in security = ads and your Active Directory Domain Controller does support the Microsoft "Services for Unix" (SFU) LDAP schema, winbind can retrieve the login shell and the home directory attributes directly from your Directory Server\&. Note that retrieving UID and GID from your ADS\-Server requires to use
-\fIidmap backend\fR
-= ad or
 \fIidmap config DOMAIN:backend\fR
 = ad as well\&.
 .sp
@@ -10685,7 +10873,7 @@ Default:
 \fI\fIwinbind nss info\fR\fR\fI = \fR\fI\FCtemplate\F[]\fR\fI \fR
 .sp
 Example:
-\fI\fIwinbind nss info\fR\fR\fI = \fR\fI\FCtemplate sfu\F[]\fR\fI \fR
+\fI\fIwinbind nss info\fR\fR\fI = \fR\fI\FCsfu\F[]\fR\fI \fR
 .RE
 
 winbind offline logon (G)

@@ -32,8 +32,12 @@
 
 #define NUM_SIGNALS 64
 
-/* maximum number of SA_SIGINFO signals to hold in the queue */
-#define SA_INFO_QUEUE_COUNT 100
+/* maximum number of SA_SIGINFO signals to hold in the queue.
+  NB. This *MUST* be a power of 2, in order for the ring buffer
+  wrap to work correctly. Thanks to Petr Vandrovec <petr@vandrovec.name>
+  for this. */
+
+#define SA_INFO_QUEUE_COUNT 64
 
 struct sigcounter {
 	uint32_t count;
@@ -57,7 +61,6 @@ static struct sig_state {
 	struct sigaction *oldact[NUM_SIGNALS+1];
 	struct sigcounter signal_count[NUM_SIGNALS+1];
 	struct sigcounter got_signal;
-	int pipe_hack[2];
 #ifdef SA_SIGINFO
 	/* with SA_SIGINFO we get quite a lot of info per signal */
 	siginfo_t *sig_info[NUM_SIGNALS+1];
@@ -70,10 +73,7 @@ static struct sig_state {
 */
 static uint32_t sig_count(struct sigcounter s)
 {
-	if (s.count >= s.seen) {
-		return s.count - s.seen;
-	}
-	return 1 + (0xFFFFFFFF & ~(s.seen - s.count));
+	return s.count - s.seen;
 }
 
 /*
@@ -83,10 +83,23 @@ static void tevent_common_signal_handler(int signum)
 {
 	char c = 0;
 	ssize_t res;
+	struct tevent_common_signal_list *sl;
+	struct tevent_context *ev = NULL;
+	int saved_errno = errno;
+
 	SIG_INCREMENT(sig_state->signal_count[signum]);
 	SIG_INCREMENT(sig_state->got_signal);
-	/* doesn't matter if this pipe overflows */
-	res = write(sig_state->pipe_hack[1], &c, 1);
+
+	/* Write to each unique event context. */
+	for (sl = sig_state->sig_handlers[signum]; sl; sl = sl->next) {
+		if (sl->se->event_ctx && sl->se->event_ctx != ev) {
+			ev = sl->se->event_ctx;
+			/* doesn't matter if this pipe overflows */
+			res = write(ev->pipe_fds[1], &c, 1);
+		}
+	}
+
+	errno = saved_errno;
 }
 
 #ifdef SA_SIGINFO
@@ -97,7 +110,11 @@ static void tevent_common_signal_handler_info(int signum, siginfo_t *info,
 					      void *uctx)
 {
 	uint32_t count = sig_count(sig_state->signal_count[signum]);
-	sig_state->sig_info[signum][count] = *info;
+	/* sig_state->signal_count[signum].seen % SA_INFO_QUEUE_COUNT
+	 * is the base of the unprocessed signals in the ringbuffer. */
+	uint32_t ofs = (sig_state->signal_count[signum].seen + count) %
+				SA_INFO_QUEUE_COUNT;
+	sig_state->sig_info[signum][ofs] = *info;
 
 	tevent_common_signal_handler(signum);
 
@@ -116,7 +133,9 @@ static void tevent_common_signal_handler_info(int signum, siginfo_t *info,
 
 static int tevent_common_signal_list_destructor(struct tevent_common_signal_list *sl)
 {
-	DLIST_REMOVE(sig_state->sig_handlers[sl->se->signum], sl);
+	if (sig_state->sig_handlers[sl->se->signum]) {
+		DLIST_REMOVE(sig_state->sig_handlers[sl->se->signum], sl);
+	}
 	return 0;
 }
 
@@ -137,12 +156,16 @@ static int tevent_signal_destructor(struct tevent_signal *se)
 
 	if (sig_state->sig_handlers[se->signum] == NULL) {
 		/* restore old handler, if any */
-		sigaction(se->signum, sig_state->oldact[se->signum], NULL);
-		sig_state->oldact[se->signum] = NULL;
+		if (sig_state->oldact[se->signum]) {
+			sigaction(se->signum, sig_state->oldact[se->signum], NULL);
+			sig_state->oldact[se->signum] = NULL;
+		}
 #ifdef SA_SIGINFO
 		if (se->sa_flags & SA_SIGINFO) {
-			talloc_free(sig_state->sig_info[se->signum]);
-			sig_state->sig_info[se->signum] = NULL;
+			if (sig_state->sig_info[se->signum]) {
+				talloc_free(sig_state->sig_info[se->signum]);
+				sig_state->sig_info[se->signum] = NULL;
+			}
 		}
 #endif
 	}
@@ -154,12 +177,12 @@ static int tevent_signal_destructor(struct tevent_signal *se)
   this is part of the pipe hack needed to avoid the signal race condition
 */
 static void signal_pipe_handler(struct tevent_context *ev, struct tevent_fd *fde, 
-				uint16_t flags, void *private)
+				uint16_t flags, void *_private)
 {
 	char c[16];
 	ssize_t res;
 	/* its non-blocking, doesn't matter if we read too much */
-	res = read(sig_state->pipe_hack[0], c, sizeof(c));
+	res = read(fde->fd, c, sizeof(c));
 }
 
 /*
@@ -177,6 +200,7 @@ struct tevent_signal *tevent_common_add_signal(struct tevent_context *ev,
 {
 	struct tevent_signal *se;
 	struct tevent_common_signal_list *sl;
+	sigset_t set, oldset;
 
 	if (signum >= NUM_SIGNALS) {
 		errno = EINVAL;
@@ -218,6 +242,26 @@ struct tevent_signal *tevent_common_add_signal(struct tevent_context *ev,
 		return NULL;
 	}
 
+	/* we need to setup the pipe hack handler if not already
+	   setup */
+	if (ev->pipe_fde == NULL) {
+		if (pipe(ev->pipe_fds) == -1) {
+			talloc_free(se);
+			return NULL;
+		}
+		ev_set_blocking(ev->pipe_fds[0], false);
+		ev_set_blocking(ev->pipe_fds[1], false);
+		ev->pipe_fde = tevent_add_fd(ev, ev, ev->pipe_fds[0],
+					     TEVENT_FD_READ,
+					     signal_pipe_handler, NULL);
+		if (!ev->pipe_fde) {
+			close(ev->pipe_fds[0]);
+			close(ev->pipe_fds[1]);
+			talloc_free(se);
+			return NULL;
+		}
+	}
+
 	/* only install a signal handler if not already installed */
 	if (sig_state->sig_handlers[signum] == NULL) {
 		struct sigaction act;
@@ -229,7 +273,7 @@ struct tevent_signal *tevent_common_add_signal(struct tevent_context *ev,
 			act.sa_handler   = NULL;
 			act.sa_sigaction = tevent_common_signal_handler_info;
 			if (sig_state->sig_info[signum] == NULL) {
-				sig_state->sig_info[signum] = talloc_array(sig_state, siginfo_t, SA_INFO_QUEUE_COUNT);
+				sig_state->sig_info[signum] = talloc_zero_array(sig_state, siginfo_t, SA_INFO_QUEUE_COUNT);
 				if (sig_state->sig_info[signum] == NULL) {
 					talloc_free(se);
 					return NULL;
@@ -249,30 +293,16 @@ struct tevent_signal *tevent_common_add_signal(struct tevent_context *ev,
 	}
 
 	DLIST_ADD(se->event_ctx->signal_events, se);
+
+	/* Make sure the signal doesn't come in while we're mangling list. */
+	sigemptyset(&set);
+	sigaddset(&set, signum);
+	sigprocmask(SIG_BLOCK, &set, &oldset);
 	DLIST_ADD(sig_state->sig_handlers[signum], sl);
+	sigprocmask(SIG_SETMASK, &oldset, NULL);
 
 	talloc_set_destructor(se, tevent_signal_destructor);
 	talloc_set_destructor(sl, tevent_common_signal_list_destructor);
-
-	/* we need to setup the pipe hack handler if not already
-	   setup */
-	if (ev->pipe_fde == NULL) {
-		if (sig_state->pipe_hack[0] == 0 && 
-		    sig_state->pipe_hack[1] == 0) {
-			if (pipe(sig_state->pipe_hack) == -1) {
-				talloc_free(se);
-				return NULL;
-			}
-			ev_set_blocking(sig_state->pipe_hack[0], false);
-			ev_set_blocking(sig_state->pipe_hack[1], false);
-		}
-		ev->pipe_fde = tevent_add_fd(ev, ev, sig_state->pipe_hack[0],
-					     TEVENT_FD_READ, signal_pipe_handler, NULL);
-		if (!ev->pipe_fde) {
-			talloc_free(se);
-			return NULL;
-		}
-	}
 
 	return se;
 }
@@ -294,6 +324,11 @@ int tevent_common_check_signal(struct tevent_context *ev)
 		struct tevent_common_signal_list *sl, *next;
 		struct sigcounter counter = sig_state->signal_count[i];
 		uint32_t count = sig_count(counter);
+#ifdef SA_SIGINFO
+		/* Ensure we null out any stored siginfo_t entries
+		 * after processing for debugging purposes. */
+		bool clear_processed_siginfo = false;
+#endif
 
 		if (count == 0) {
 			continue;
@@ -303,24 +338,20 @@ int tevent_common_check_signal(struct tevent_context *ev)
 			next = sl->next;
 #ifdef SA_SIGINFO
 			if (se->sa_flags & SA_SIGINFO) {
-				int j;
+				uint32_t j;
+
+				clear_processed_siginfo = true;
+
 				for (j=0;j<count;j++) {
-					/* note the use of the sig_info array as a
-					   ring buffer */
-					int ofs = ((count-1) + j) % SA_INFO_QUEUE_COUNT;
-					se->handler(ev, se, i, 1, 
+					/* sig_state->signal_count[i].seen
+					 * % SA_INFO_QUEUE_COUNT is
+					 * the base position of the unprocessed
+					 * signals in the ringbuffer. */
+					uint32_t ofs = (counter.seen + j)
+						% SA_INFO_QUEUE_COUNT;
+					se->handler(ev, se, i, 1,
 						    (void*)&sig_state->sig_info[i][ofs], 
 						    se->private_data);
-				}
-				if (SIG_PENDING(sig_state->sig_blocked[i])) {
-					/* we'd filled the queue, unblock the
-					   signal now */
-					sigset_t set;
-					sigemptyset(&set);
-					sigaddset(&set, i);
-					SIG_SEEN(sig_state->sig_blocked[i], 
-						 sig_count(sig_state->sig_blocked[i]));
-					sigprocmask(SIG_UNBLOCK, &set, NULL);
 				}
 				if (se->sa_flags & SA_RESETHAND) {
 					talloc_free(se);
@@ -333,9 +364,58 @@ int tevent_common_check_signal(struct tevent_context *ev)
 				talloc_free(se);
 			}
 		}
+
+#ifdef SA_SIGINFO
+		if (clear_processed_siginfo) {
+			uint32_t j;
+			for (j=0;j<count;j++) {
+				uint32_t ofs = (counter.seen + j)
+					% SA_INFO_QUEUE_COUNT;
+				memset((void*)&sig_state->sig_info[i][ofs],
+					'\0',
+					sizeof(siginfo_t));
+			}
+		}
+#endif
+
 		SIG_SEEN(sig_state->signal_count[i], count);
 		SIG_SEEN(sig_state->got_signal, count);
+
+#ifdef SA_SIGINFO
+		if (SIG_PENDING(sig_state->sig_blocked[i])) {
+			/* We'd filled the queue, unblock the
+			   signal now the queue is empty again.
+			   Note we MUST do this after the
+			   SIG_SEEN(sig_state->signal_count[i], count)
+			   call to prevent a new signal running
+			   out of room in the sig_state->sig_info[i][]
+			   ring buffer. */
+			sigset_t set;
+			sigemptyset(&set);
+			sigaddset(&set, i);
+			SIG_SEEN(sig_state->sig_blocked[i],
+				 sig_count(sig_state->sig_blocked[i]));
+			sigprocmask(SIG_UNBLOCK, &set, NULL);
+		}
+#endif
 	}
 
 	return 1;
+}
+
+void tevent_cleanup_pending_signal_handlers(struct tevent_signal *se)
+{
+	struct tevent_common_signal_list *sl;
+	sl = talloc_get_type(se->additional_data,
+			     struct tevent_common_signal_list);
+
+	tevent_common_signal_list_destructor(sl);
+
+	if (sig_state->sig_handlers[se->signum] == NULL) {
+		if (sig_state->oldact[se->signum]) {
+			sigaction(se->signum, sig_state->oldact[se->signum], NULL);
+			sig_state->oldact[se->signum] = NULL;
+		}
+	}
+	return;
 }

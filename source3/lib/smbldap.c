@@ -333,6 +333,40 @@ ATTRIB_MAP_ENTRY sidmap_attr_list[] = {
 	return result;
 }
 
+ char * smbldap_talloc_first_attribute(LDAP *ldap_struct, LDAPMessage *entry,
+				       const char *attribute,
+				       TALLOC_CTX *mem_ctx)
+{
+	char **values;
+	char *result;
+	size_t converted_size;
+
+	if (attribute == NULL) {
+		return NULL;
+	}
+
+	values = ldap_get_values(ldap_struct, entry, attribute);
+
+	if (values == NULL) {
+		DEBUG(10, ("attribute %s does not exist\n", attribute));
+		return NULL;
+	}
+
+	if (!pull_utf8_talloc(mem_ctx, &result, values[0], &converted_size)) {
+		DEBUG(10, ("pull_utf8_talloc failed\n"));
+		ldap_value_free(values);
+		return NULL;
+	}
+
+	ldap_value_free(values);
+
+#ifdef DEBUG_PASSWORDS
+	DEBUG (100, ("smbldap_get_first_attribute: [%s] = [%s]\n",
+		     attribute, result));
+#endif
+	return result;
+}
+
  char * smbldap_talloc_smallest_attribute(LDAP *ldap_struct, LDAPMessage *entry,
 					  const char *attribute,
 					  TALLOC_CTX *mem_ctx)
@@ -1409,7 +1443,7 @@ int smbldap_search_paged(struct smbldap_state *ldap_state,
 		goto done;
 	}
 
-	DEBUG(3,("smbldap_search_paged: search was successfull\n"));
+	DEBUG(3,("smbldap_search_paged: search was successful\n"));
 
 	rc = ldap_parse_result(ldap_state->ldap_struct, *res, NULL, NULL, 
 			       NULL, NULL, &rcontrols,  0);

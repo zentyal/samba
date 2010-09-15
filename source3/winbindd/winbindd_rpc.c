@@ -277,8 +277,6 @@ static NTSTATUS msrpc_name_to_sid(struct winbindd_domain *domain,
 	DOM_SID *sids = NULL;
 	enum lsa_SidType *types = NULL;
 	char *full_name = NULL;
-	struct rpc_pipe_client *cli;
-	struct policy_handle lsa_policy;
 	NTSTATUS name_map_status = NT_STATUS_UNSUCCESSFUL;
 	char *mapped_name = NULL;
 
@@ -310,13 +308,9 @@ static NTSTATUS msrpc_name_to_sid(struct winbindd_domain *domain,
 	DEBUG(3,("name_to_sid [rpc] %s for domain %s\n",
 		 full_name?full_name:"", domain_name ));
 
-	result = cm_connect_lsa(domain, mem_ctx, &cli, &lsa_policy);
-	if (!NT_STATUS_IS_OK(result))
-		return result;
-
-	result = rpccli_lsa_lookup_names(cli, mem_ctx, &lsa_policy, 1, 
-					 (const char**) &full_name, NULL, 1, &sids, &types);
-        
+	result = winbindd_lookup_names(mem_ctx, domain, 1,
+				       (const char **)&full_name, NULL,
+				       &sids, &types);
 	if (!NT_STATUS_IS_OK(result))
 		return result;
 
@@ -342,29 +336,25 @@ static NTSTATUS msrpc_sid_to_name(struct winbindd_domain *domain,
 	char **names;
 	enum lsa_SidType *types = NULL;
 	NTSTATUS result;
-	struct rpc_pipe_client *cli;
-	struct policy_handle lsa_policy;
 	NTSTATUS name_map_status = NT_STATUS_UNSUCCESSFUL;
 	char *mapped_name = NULL;
 
 	DEBUG(3,("sid_to_name [rpc] %s for domain %s\n", sid_string_dbg(sid),
 		 domain->name ));
 
-	result = cm_connect_lsa(domain, mem_ctx, &cli, &lsa_policy);
+	result = winbindd_lookup_sids(mem_ctx,
+				      domain,
+				      1,
+				      sid,
+				      &domains,
+				      &names,
+				      &types);
 	if (!NT_STATUS_IS_OK(result)) {
-		DEBUG(2,("msrpc_sid_to_name: cm_connect_lsa() failed (%s)\n",
-			 nt_errstr(result)));		
+		DEBUG(2,("msrpc_sid_to_name: failed to lookup sids: %s\n",
+			nt_errstr(result)));
 		return result;
 	}
 	
-
-	result = rpccli_lsa_lookup_sids(cli, mem_ctx, &lsa_policy,
-					1, sid, &domains, &names, &types);
-	if (!NT_STATUS_IS_OK(result)) {		
-		DEBUG(2,("msrpc_sid_to_name: rpccli_lsa_lookup_sids()  failed (%s)\n",
-			 nt_errstr(result)));		
-		return result;
-	}
 
 	*type = (enum lsa_SidType)types[0];
 	*domain_name = domains[0];
@@ -395,8 +385,6 @@ static NTSTATUS msrpc_rids_to_names(struct winbindd_domain *domain,
 {
 	char **domains;
 	NTSTATUS result;
-	struct rpc_pipe_client *cli;
-	struct policy_handle lsa_policy;
 	DOM_SID *sids;
 	size_t i;
 	char **ret_names;
@@ -418,14 +406,14 @@ static NTSTATUS msrpc_rids_to_names(struct winbindd_domain *domain,
 		}
 	}
 
-	result = cm_connect_lsa(domain, mem_ctx, &cli, &lsa_policy);
-	if (!NT_STATUS_IS_OK(result)) {
-		return result;
-	}
+	result = winbindd_lookup_sids(mem_ctx,
+				      domain,
+				      num_rids,
+				      sids,
+				      &domains,
+				      names,
+				      types);
 
-	result = rpccli_lsa_lookup_sids(cli, mem_ctx, &lsa_policy,
-					num_rids, sids, &domains,
-					names, types);
 	if (!NT_STATUS_IS_OK(result) &&
 	    !NT_STATUS_EQUAL(result, STATUS_SOME_UNMAPPED)) {
 		return result;
@@ -801,15 +789,15 @@ static NTSTATUS lookup_groupmem(struct winbindd_domain *domain,
         if (!NT_STATUS_IS_OK(result))
 		return result;
 
-	*num_names = rids->count;
-	rid_mem = rids->rids;
-
-	if (!*num_names) {
+	if (!rids || !rids->count) {
 		names = NULL;
 		name_types = NULL;
 		sid_mem = NULL;
 		return NT_STATUS_OK;
 	}
+
+	*num_names = rids->count;
+	rid_mem = rids->rids;
 
         /* Step #2: Convert list of rids into list of usernames.  Do this
            in bunches of ~1000 to avoid crashing NT4.  It looks like there
@@ -1187,6 +1175,136 @@ static NTSTATUS msrpc_password_policy(struct winbindd_domain *domain,
 	return result;
 }
 
+typedef NTSTATUS (*lookup_sids_fn_t)(struct rpc_pipe_client *cli,
+				     TALLOC_CTX *mem_ctx,
+				     struct policy_handle *pol,
+				     int num_sids,
+				     const DOM_SID *sids,
+				     char ***pdomains,
+				     char ***pnames,
+				     enum lsa_SidType **ptypes);
+
+NTSTATUS winbindd_lookup_sids(TALLOC_CTX *mem_ctx,
+			      struct winbindd_domain *domain,
+			      uint32_t num_sids,
+			      const struct dom_sid *sids,
+			      char ***domains,
+			      char ***names,
+			      enum lsa_SidType **types)
+{
+	NTSTATUS status;
+	struct rpc_pipe_client *cli = NULL;
+	struct policy_handle lsa_policy;
+	unsigned int orig_timeout;
+	lookup_sids_fn_t lookup_sids_fn = rpccli_lsa_lookup_sids;
+
+	if (domain->can_do_ncacn_ip_tcp) {
+		status = cm_connect_lsa_tcp(domain, mem_ctx, &cli);
+		if (NT_STATUS_IS_OK(status)) {
+			lookup_sids_fn = rpccli_lsa_lookup_sids3;
+			goto lookup;
+		}
+		domain->can_do_ncacn_ip_tcp = false;
+	}
+	status = cm_connect_lsa(domain, mem_ctx, &cli, &lsa_policy);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+ lookup:
+	/*
+	 * This call can take a long time
+	 * allow the server to time out.
+	 * 35 seconds should do it.
+	 */
+	orig_timeout = rpccli_set_timeout(cli, 35000);
+
+	status = lookup_sids_fn(cli,
+				mem_ctx,
+				&lsa_policy,
+				num_sids,
+				sids,
+				domains,
+				names,
+				types);
+
+	/* And restore our original timeout. */
+	rpccli_set_timeout(cli, orig_timeout);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	return status;
+}
+
+typedef NTSTATUS (*lookup_names_fn_t)(struct rpc_pipe_client *cli,
+				      TALLOC_CTX *mem_ctx,
+				      struct policy_handle *pol,
+				      int num_names,
+				      const char **names,
+				      const char ***dom_names,
+				      int level,
+				      struct dom_sid **sids,
+				      enum lsa_SidType **types);
+
+NTSTATUS winbindd_lookup_names(TALLOC_CTX *mem_ctx,
+			       struct winbindd_domain *domain,
+			       uint32_t num_names,
+			       const char **names,
+			       const char ***domains,
+			       struct dom_sid **sids,
+			       enum lsa_SidType **types)
+{
+	NTSTATUS status;
+	struct rpc_pipe_client *cli = NULL;
+	struct policy_handle lsa_policy;
+	unsigned int orig_timeout;
+	lookup_names_fn_t lookup_names_fn = rpccli_lsa_lookup_names;
+
+	if (domain->can_do_ncacn_ip_tcp) {
+		status = cm_connect_lsa_tcp(domain, mem_ctx, &cli);
+		if (NT_STATUS_IS_OK(status)) {
+			lookup_names_fn = rpccli_lsa_lookup_names4;
+			goto lookup;
+		}
+		domain->can_do_ncacn_ip_tcp = false;
+	}
+	status = cm_connect_lsa(domain, mem_ctx, &cli, &lsa_policy);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+ lookup:
+
+	/*
+	 * This call can take a long time
+	 * allow the server to time out.
+	 * 35 seconds should do it.
+	 */
+	orig_timeout = rpccli_set_timeout(cli, 35000);
+
+	status = lookup_names_fn(cli,
+				 mem_ctx,
+				 &lsa_policy,
+				 num_names,
+				 (const char **) names,
+				 domains,
+				 1,
+				 sids,
+				 types);
+
+	/* And restore our original timeout. */
+	rpccli_set_timeout(cli, orig_timeout);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	return status;
+}
 
 /* the rpc backend methods are exposed via this structure */
 struct winbindd_methods msrpc_methods = {

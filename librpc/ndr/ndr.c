@@ -349,6 +349,9 @@ _PUBLIC_ void ndr_set_flags(uint32_t *pflags, uint32_t new_flags)
 	if (new_flags & LIBNDR_ALIGN_FLAGS) {
 		(*pflags) &= ~LIBNDR_FLAG_REMAINING;
 	}
+	if (new_flags & LIBNDR_FLAG_NO_RELATIVE_REVERSE) {
+		(*pflags) &= ~LIBNDR_FLAG_RELATIVE_REVERSE;
+	}
 	(*pflags) |= new_flags;
 }
 
@@ -572,6 +575,12 @@ _PUBLIC_ enum ndr_err_code ndr_push_subcontext_start(struct ndr_push *ndr,
 	NDR_ERR_HAVE_NO_MEMORY(subndr);
 	subndr->flags	= ndr->flags;
 
+	if (size_is > 0) {
+		NDR_CHECK(ndr_push_zero(subndr, size_is));
+		subndr->offset = 0;
+		subndr->relative_end_offset = size_is;
+	}
+
 	*_subndr = subndr;
 	return NDR_ERR_SUCCESS;
 }
@@ -588,12 +597,11 @@ _PUBLIC_ enum ndr_err_code ndr_push_subcontext_end(struct ndr_push *ndr,
 
 	if (size_is >= 0) {
 		padding_len = size_is - subndr->offset;
-		if (padding_len > 0) {
-			NDR_CHECK(ndr_push_zero(subndr, padding_len));
-		} else if (padding_len < 0) {
+		if (padding_len < 0) {
 			return ndr_push_error(ndr, NDR_ERR_SUBCONTEXT, "Bad subcontext (PUSH) content_size %d is larger than size_is(%d)",
 					      (int)subndr->offset, (int)size_is);
 		}
+		subndr->offset = size_is;
 	}
 
 	switch (header_size) {
@@ -1037,7 +1045,7 @@ _PUBLIC_ enum ndr_err_code ndr_push_relative_ptr1(struct ndr_push *ndr, const vo
   push a relative object - stage2
   this is called during buffers processing
 */
-_PUBLIC_ enum ndr_err_code ndr_push_relative_ptr2(struct ndr_push *ndr, const void *p)
+static enum ndr_err_code ndr_push_relative_ptr2(struct ndr_push *ndr, const void *p)
 {
 	uint32_t save_offset;
 	uint32_t ptr_offset = 0xFFFFFFFF;
@@ -1059,6 +1067,133 @@ _PUBLIC_ enum ndr_err_code ndr_push_relative_ptr2(struct ndr_push *ndr, const vo
 	}	
 	NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, save_offset - ndr->relative_base_offset));
 	ndr->offset = save_offset;
+	return NDR_ERR_SUCCESS;
+}
+
+/*
+  push a relative object - stage2 start
+  this is called during buffers processing
+*/
+_PUBLIC_ enum ndr_err_code ndr_push_relative_ptr2_start(struct ndr_push *ndr, const void *p)
+{
+	if (p == NULL) {
+		return NDR_ERR_SUCCESS;
+	}
+	if (!(ndr->flags & LIBNDR_FLAG_RELATIVE_REVERSE)) {
+		return ndr_push_relative_ptr2(ndr, p);
+	}
+	if (ndr->relative_end_offset == -1) {
+		return ndr_push_error(ndr, NDR_ERR_RELATIVE,
+			      "ndr_push_relative_ptr2_start RELATIVE_REVERSE flag set and relative_end_offset %d",
+			      ndr->relative_end_offset);
+	}
+	NDR_CHECK(ndr_token_store(ndr, &ndr->relative_begin_list, p, ndr->offset));
+	return NDR_ERR_SUCCESS;
+}
+
+/*
+  push a relative object - stage2 end
+  this is called during buffers processing
+*/
+_PUBLIC_ enum ndr_err_code ndr_push_relative_ptr2_end(struct ndr_push *ndr, const void *p)
+{
+	uint32_t begin_offset = 0xFFFFFFFF;
+	ssize_t len;
+	uint32_t correct_offset = 0;
+	uint32_t align = 1;
+	uint32_t pad = 0;
+
+	if (p == NULL) {
+		return NDR_ERR_SUCCESS;
+	}
+
+	if (!(ndr->flags & LIBNDR_FLAG_RELATIVE_REVERSE)) {
+		return NDR_ERR_SUCCESS;
+	}
+
+	if (ndr->flags & LIBNDR_FLAG_NO_NDR_SIZE) {
+		/* better say more than calculation a too small buffer */
+		NDR_PUSH_ALIGN(ndr, 8);
+		return NDR_ERR_SUCCESS;
+	}
+
+	if (ndr->relative_end_offset < ndr->offset) {
+		return ndr_push_error(ndr, NDR_ERR_RELATIVE,
+				      "ndr_push_relative_ptr2_end:"
+				      "relative_end_offset %u < offset %u",
+				      ndr->relative_end_offset, ndr->offset);
+	}
+
+	NDR_CHECK(ndr_token_retrieve(&ndr->relative_begin_list, p, &begin_offset));
+
+	/* we have marshalled a buffer, see how long it was */
+	len = ndr->offset - begin_offset;
+
+	if (len < 0) {
+		return ndr_push_error(ndr, NDR_ERR_RELATIVE,
+				      "ndr_push_relative_ptr2_end:"
+				      "offset %u - begin_offset %u < 0",
+				      ndr->offset, begin_offset);
+	}
+
+	if (ndr->relative_end_offset < len) {
+		return ndr_push_error(ndr, NDR_ERR_RELATIVE,
+				      "ndr_push_relative_ptr2_end:"
+				      "relative_end_offset %u < len %lld",
+				      ndr->offset, (long long)len);
+	}
+
+	/* the reversed offset is at the end of the main buffer */
+	correct_offset = ndr->relative_end_offset - len;
+
+	/* TODO: remove this hack and let the idl use FLAG_ALIGN2 explicit */
+	align = 2;
+
+	if (ndr->flags & LIBNDR_FLAG_ALIGN2) {
+		align = 2;
+	} else if (ndr->flags & LIBNDR_FLAG_ALIGN4) {
+		align = 4;
+	} else if (ndr->flags & LIBNDR_FLAG_ALIGN8) {
+		align = 8;
+	}
+
+	pad = ndr_align_size(correct_offset, align);
+	if (pad) {
+		correct_offset += pad;
+		correct_offset -= align;
+	}
+
+	if (correct_offset < begin_offset) {
+		return ndr_push_error(ndr, NDR_ERR_RELATIVE,
+				      "ndr_push_relative_ptr2_end: "
+				      "correct_offset %u < begin_offset %u",
+				      correct_offset, begin_offset);
+	}
+
+	if (len > 0) {
+		uint32_t clear_size = correct_offset - begin_offset;
+
+		clear_size = MIN(clear_size, len);
+
+		/* now move the marshalled buffer to the end of the main buffer */
+		memmove(ndr->data + correct_offset, ndr->data + begin_offset, len);
+
+		if (clear_size) {
+			/* and wipe out old buffer within the main buffer */
+			memset(ndr->data + begin_offset, '\0', clear_size);
+		}
+	}
+
+	/* and set the end offset for the next buffer */
+	ndr->relative_end_offset = correct_offset;
+
+	/* finally write the offset to the main buffer */
+	ndr->offset = correct_offset;
+	NDR_CHECK(ndr_push_relative_ptr2(ndr, p));
+
+	/* restore to where we were in the main buffer */
+	ndr->offset = begin_offset;
+
 	return NDR_ERR_SUCCESS;
 }
 

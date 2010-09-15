@@ -16,11 +16,11 @@ EXTRA_OPTIONS="$1"
 SPECDIR=`rpm --eval %_specdir`
 SRCDIR=`rpm --eval %_sourcedir`
 
-# At this point the SPECDIR and SRCDIR vaiables must have a value!
+# At this point the SPECDIR and SRCDIR variables must have a value!
 
 USERID=`id -u`
 GRPID=`id -g`
-VERSION='3.4.0rc1'
+VERSION='3.4.9'
 REVISION=''
 SPECFILE="samba.spec"
 RPMVER=`rpm --version | awk '{print $3}'`
@@ -40,8 +40,8 @@ case $RPMVER in
 esac
 
 pushd .
-cd ../../source
-if [ -f Makefile ]; then 
+cd ../../source3
+if [ -f Makefile ]; then
 	make distclean
 fi
 popd

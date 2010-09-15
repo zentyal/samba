@@ -71,6 +71,22 @@ int main(int argc, char **argv, char **envp);
 
 /* The following definitions come from winbindd/winbindd_ads.c  */
 
+/* The following definitions come from winbindd/winbindd_rpc.c  */
+
+NTSTATUS winbindd_lookup_sids(TALLOC_CTX *mem_ctx,
+			      struct winbindd_domain *domain,
+			      uint32_t num_sids,
+			      const struct dom_sid *sids,
+			      char ***domains,
+			      char ***names,
+			      enum lsa_SidType **types);
+NTSTATUS winbindd_lookup_names(TALLOC_CTX *mem_ctx,
+			       struct winbindd_domain *domain,
+			       uint32_t num_names,
+			       const char **names,
+			       const char ***domains,
+			       struct dom_sid **sids,
+			       enum lsa_SidType **types);
 
 /* The following definitions come from winbindd/winbindd_async.c  */
 
@@ -211,6 +227,9 @@ NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 			struct rpc_pipe_client **cli, struct policy_handle *sam_handle);
 NTSTATUS cm_connect_lsa(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 			struct rpc_pipe_client **cli, struct policy_handle *lsa_policy);
+NTSTATUS cm_connect_lsa_tcp(struct winbindd_domain *domain,
+			    TALLOC_CTX *mem_ctx,
+			    struct rpc_pipe_client **cli);
 NTSTATUS cm_connect_netlogon(struct winbindd_domain *domain,
 			     struct rpc_pipe_client **cli);
 

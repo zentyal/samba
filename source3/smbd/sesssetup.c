@@ -1184,7 +1184,7 @@ static void reply_sesssetup_and_X_spnego(struct smb_request *req)
 	file_save("negotiate.dat", blob1.data, blob1.length);
 #endif
 
-	p2 = (char *)req->buf + data_blob_len;
+	p2 = (char *)req->buf + blob1.length;
 
 	p2 += srvstr_pull_req_talloc(talloc_tos(), req, &tmp, p2,
 				     STR_TERMINATE);
@@ -1805,6 +1805,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 
 	SSVAL(req->outbuf,smb_uid,sess_vuid);
 	SSVAL(req->inbuf,smb_uid,sess_vuid);
+	req->vuid = sess_vuid;
 
 	if (!done_sesssetup)
 		max_send = MIN(max_send,smb_bufsize);

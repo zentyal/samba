@@ -148,6 +148,8 @@ int tevent_common_context_destructor(struct tevent_context *ev)
 
 	if (ev->pipe_fde) {
 		talloc_free(ev->pipe_fde);
+		close(ev->pipe_fds[0]);
+		close(ev->pipe_fds[1]);
 		ev->pipe_fde = NULL;
 	}
 
@@ -174,6 +176,13 @@ int tevent_common_context_destructor(struct tevent_context *ev)
 		sn = se->next;
 		se->event_ctx = NULL;
 		DLIST_REMOVE(ev->signal_events, se);
+		/*
+		 * This is important, Otherwise signals
+		 * are handled twice in child. eg, SIGHUP.
+		 * one added in parent, and another one in
+		 * the child. -- BoYang
+		 */
+		tevent_cleanup_pending_signal_handlers(se);
 	}
 
 	return 0;
@@ -427,6 +436,14 @@ void tevent_loop_set_nesting_hook(struct tevent_context *ev,
 				  tevent_nesting_hook hook,
 				  void *private_data)
 {
+	if (ev->nesting.hook_fn &&
+	    (ev->nesting.hook_fn != hook ||
+	     ev->nesting.hook_private != private_data)) {
+		/* the way the nesting hook code is currently written
+		   we cannot support two different nesting hooks at the
+		   same time. */
+		tevent_abort(ev, "tevent: Violation of nesting hook rules\n");
+	}
 	ev->nesting.hook_fn = hook;
 	ev->nesting.hook_private = private_data;
 }
@@ -460,6 +477,8 @@ int _tevent_loop_once(struct tevent_context *ev, const char *location)
 			errno = ELOOP;
 			return -1;
 		}
+	}
+	if (ev->nesting.level > 0) {
 		if (ev->nesting.hook_fn) {
 			int ret2;
 			ret2 = ev->nesting.hook_fn(ev,
@@ -477,7 +496,7 @@ int _tevent_loop_once(struct tevent_context *ev, const char *location)
 
 	ret = ev->ops->loop_once(ev, location);
 
-	if (ev->nesting.level > 1) {
+	if (ev->nesting.level > 0) {
 		if (ev->nesting.hook_fn) {
 			int ret2;
 			ret2 = ev->nesting.hook_fn(ev,
@@ -517,6 +536,8 @@ int _tevent_loop_until(struct tevent_context *ev,
 			errno = ELOOP;
 			return -1;
 		}
+	}
+	if (ev->nesting.level > 0) {
 		if (ev->nesting.hook_fn) {
 			int ret2;
 			ret2 = ev->nesting.hook_fn(ev,
@@ -539,7 +560,7 @@ int _tevent_loop_until(struct tevent_context *ev,
 		}
 	}
 
-	if (ev->nesting.level > 1) {
+	if (ev->nesting.level > 0) {
 		if (ev->nesting.hook_fn) {
 			int ret2;
 			ret2 = ev->nesting.hook_fn(ev,

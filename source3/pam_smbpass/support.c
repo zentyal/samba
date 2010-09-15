@@ -20,6 +20,21 @@
 
 #include "support.h"
 
+#if defined(HAVE_SECURITY_PAM_EXT_H)
+#include <security/pam_ext.h>
+#elif defined(HAVE_PAM_PAM_EXT_H)
+#include <pam/pam_ext.h>
+#endif
+
+#if defined(HAVE_SECURITY__PAM_MACROS_H)
+#include <security/_pam_macros.h>
+#elif defined(HAVE_PAM__PAM_MACROS_H)
+#include <pam/_pam_macros.h>
+#endif
+
+#ifdef HAVE_SYSLOG_H
+#include <syslog.h>
+#endif
 
 #define _pam_overwrite(x)        \
 do {                             \
@@ -90,7 +105,7 @@ void _log_err( pam_handle_t *pamh, int err, const char *format, ... )
 	}
 
 	strncpy(mod_format, tag, strlen(tag)+1);
-	strncat(mod_format, format, strlen(format));
+	strlcat(mod_format, format, strlen(format)+1);
 
 	va_start(args, format);
 	vsyslog(err | LOG_AUTH, mod_format, args);

@@ -559,6 +559,10 @@ typedef struct connection_struct {
 	bool ipc;
 	bool read_only; /* Attributes for the current user of the share. */
 	bool admin_user; /* Attributes for the current user of the share. */
+	/* Does this filesystem honor
+	   sub second timestamps on files
+	   and directories when setting time ? */
+	enum timestamp_set_resolution ts_res;
 	char *dirpath;
 	char *connectpath;
 	char *origpath;
@@ -659,6 +663,8 @@ struct smb_request {
 	 * state information for async smb handling
 	 */
 	void *async_priv;
+
+	bool done;
 };
 
 /* Defines for the sent_oplock_break field above. */
@@ -723,6 +729,7 @@ struct pending_message_list {
 	struct timed_event *te;
 	struct smb_perfcount_data pcd;
 	bool encrypted;
+	bool processed;
 	DATA_BLOB buf;
 	DATA_BLOB private_data;
 };

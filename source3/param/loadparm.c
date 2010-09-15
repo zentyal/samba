@@ -54,6 +54,10 @@
 #include "includes.h"
 #include "printing.h"
 
+#ifdef HAVE_SYS_SYSCTL_H
+#include <sys/sysctl.h>
+#endif
+
 bool bLoaded = False;
 
 extern enum protocol_types Protocol;
@@ -594,7 +598,7 @@ static struct service sDefault = {
 	True,			/* bLevel2OpLocks */
 	False,			/* bOnlyUser */
 	True,			/* bMangledNames */
-	True,			/* bWidelinks */
+	false,			/* bWidelinks */
 	True,			/* bSymlinks */
 	False,			/* bSyncAlways */
 	False,			/* bStrictAllocate */
@@ -3241,6 +3245,8 @@ static struct parm_struct parm_table[] = {
 		.type		= P_LIST,
 		.p_class	= P_GLOBAL,
 		.ptr		= &Globals.szInitLogonDelayedHosts,
+		.special        = NULL,
+		.enum_list	= NULL,
 		.flags		= FLAG_ADVANCED,
 	},
 
@@ -3249,6 +3255,8 @@ static struct parm_struct parm_table[] = {
 		.type		= P_INTEGER,
 		.p_class	= P_GLOBAL,
 		.ptr		= &Globals.InitLogonDelay,
+		.special        = NULL,
+		.enum_list	= NULL,
 		.flags		= FLAG_ADVANCED,
 
 	},
@@ -4684,6 +4692,22 @@ static int max_open_files(void)
 #endif
 #endif
 
+	if (sysctl_max < MIN_OPEN_FILES_WINDOWS) {
+		DEBUG(2,("max_open_files: sysctl_max (%d) below "
+			"minimum Windows limit (%d)\n",
+			sysctl_max,
+			MIN_OPEN_FILES_WINDOWS));
+		sysctl_max = MIN_OPEN_FILES_WINDOWS;
+	}
+
+	if (rlimit_max < MIN_OPEN_FILES_WINDOWS) {
+		DEBUG(2,("rlimit_max: rlimit_max (%d) below "
+			"minimum Windows limit (%d)\n",
+			rlimit_max,
+			MIN_OPEN_FILES_WINDOWS));
+		rlimit_max = MIN_OPEN_FILES_WINDOWS;
+	}
+
 	return MIN(sysctl_max, rlimit_max);
 }
 
@@ -5537,7 +5561,6 @@ FN_LOCAL_BOOL(lp_oplocks, bOpLocks)
 FN_LOCAL_BOOL(lp_level2_oplocks, bLevel2OpLocks)
 FN_LOCAL_BOOL(lp_onlyuser, bOnlyUser)
 FN_LOCAL_PARM_BOOL(lp_manglednames, bMangledNames)
-FN_LOCAL_BOOL(lp_widelinks, bWidelinks)
 FN_LOCAL_BOOL(lp_symlinks, bSymlinks)
 FN_LOCAL_BOOL(lp_syncalways, bSyncAlways)
 FN_LOCAL_BOOL(lp_strict_allocate, bStrictAllocate)
@@ -6090,6 +6113,11 @@ bool lp_add_home(const char *pszHomename, int iDefaultService,
 		 const char *user, const char *pszHomedir)
 {
 	int i;
+
+	if (pszHomename == NULL || user == NULL || pszHomedir == NULL ||
+			pszHomedir[0] == '\0') {
+		return false;
+	}
 
 	i = add_a_service(ServicePtrs[iDefaultService], pszHomename);
 
@@ -8062,7 +8090,7 @@ static void lp_add_auto_services(char *str)
 
 		home = get_user_home_dir(talloc_tos(), p);
 
-		if (home && homes >= 0)
+		if (home && home[0] && homes >= 0)
 			lp_add_home(p, homes, p, home);
 
 		TALLOC_FREE(home);
@@ -9740,4 +9768,36 @@ const char *lp_socket_address(void)
 void lp_set_passdb_backend(const char *backend)
 {
 	string_set(&Globals.szPassdbBackend, backend);
+}
+
+/*******************************************************************
+ Safe wide links checks.
+ This helper function always verify the validity of wide links,
+ even after a configuration file reload.
+********************************************************************/
+
+static bool lp_widelinks_internal(int snum)
+{
+	return (bool)(LP_SNUM_OK(snum)? ServicePtrs[(snum)]->bWidelinks :
+			sDefault.bWidelinks);
+}
+
+void widelinks_warning(int snum)
+{
+	if (lp_unix_extensions() && lp_widelinks_internal(snum)) {
+		DEBUG(0,("Share '%s' has wide links and unix extensions enabled. "
+			"These parameters are incompatible. "
+			"Wide links will be disabled for this share.\n",
+			lp_servicename(snum) ));
+	}
+}
+
+bool lp_widelinks(int snum)
+{
+	/* wide links is always incompatible with unix extensions */
+	if (lp_unix_extensions()) {
+		return false;
+	}
+
+	return lp_widelinks_internal(snum);
 }

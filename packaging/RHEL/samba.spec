@@ -5,7 +5,7 @@ Summary: Samba SMB client and server
 Vendor: Samba Team
 Packager: Samba Team <samba@samba.org>
 Name:         samba
-Version:      3.4.0rc1
+Version:      3.4.9
 Release:      1
 Epoch:        0
 License: GNU GPL version 3
@@ -122,8 +122,7 @@ cd source3
 # RPM_OPT_FLAGS="$RPM_OPT_FLAGS -D_FILE_OFFSET_BITS=64"
 
 ## check for ccache
- ccache -h 2>&1 > /dev/null
-if [ $? -eq 0 ]; then
+if [ "$(which ccache 2> /dev/null)" != "" ]; then
 	CC="ccache gcc"
 else
 	CC="gcc"
@@ -175,8 +174,7 @@ if [ ${CC_MAJOR} -ge 3 ]; then
 fi
 
 
-make CFLAGS="$RPM_OPT_FLAGS -D_GNU_SOURCE" %{?_smp_mflags} \
-	all modules pam_smbpass
+make all modules pam_smbpass
 
 # Remove some permission bits to avoid to many dependencies
 cd ..
@@ -211,8 +209,8 @@ make DESTDIR=$RPM_BUILD_ROOT \
 cd ..
 
 # NSS winbind support
-install -m 755 source3/nsswitch/libnss_winbind.so $RPM_BUILD_ROOT/%{_libarch}/libnss_winbind.so.2
-install -m 755 source3/nsswitch/libnss_wins.so $RPM_BUILD_ROOT/%{_libarch}/libnss_wins.so.2
+install -m 755 nsswitch/libnss_winbind.so $RPM_BUILD_ROOT/%{_libarch}/libnss_winbind.so.2
+install -m 755 nsswitch/libnss_wins.so $RPM_BUILD_ROOT/%{_libarch}/libnss_wins.so.2
 ( cd $RPM_BUILD_ROOT/%{_libarch};
   ln -sf libnss_winbind.so.2  libnss_winbind.so;
   ln -sf libnss_wins.so.2  libnss_wins.so )
@@ -441,6 +439,24 @@ fi
 %attr(755,root,root) /%{_libarch}/security/pam_winbind.so
 %attr(755,root,root) /%{_libarch}/security/pam_smbpass.so
 /usr/share/locale/de/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/ar/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/cs/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/da/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/es/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/fi/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/fr/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/hu/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/it/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/ja/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/ko/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/nb/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/nl/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/pl/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/pt_BR/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/ru/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/sv/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/zh_CN/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/zh_TW/LC_MESSAGES/pam_winbind.mo
 
 %{_includedir}/libsmbclient.h
 %{_libarchdir}/libsmbclient.*

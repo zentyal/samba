@@ -116,6 +116,19 @@ function buildDocs
 	rsync -av "${OPT_DOCSDIR}"/ docs/
 	exitOnError $? "Failed top copy docs from ${OPT_DOCSDIR}"
 
+	cd docs/
+	/bin/rm -rf test.pdf Samba4*pdf htmldocs/Samba4* htmldocs/test
+	if [ -d manpages-3 ]; then
+		mv manpages-3 manpages
+	fi
+	if [ -d htmldocs/manpages-3 ]; then
+		mv htmldocs/manpages-3 htmldocs/manpages
+	fi
+	# Sync thanks, history and registry/ into the docs dir
+	rsync -Ca --exclude=.svn ../../$OPT_BRANCH/docs-xml/registry ../docs/
+	rsync -Ca --exclude=.svn ../../$OPT_BRANCH/docs-xml/archives/ ../docs/
+	cd ../
+
 	return 0
     fi
 
@@ -183,7 +196,7 @@ function main
     if [ -n "$vendor_version" ]; then
 	version="$version-$vendor_version"
     fi
-    vendor_patch=`grep "define SAMBA_VERSION_VENDOR_PATCH" $VER_H | awk '{print $3}'`
+    vendor_patch=`grep "define SAMBA_VERSION_VENDOR_PATCH_STRING" $VER_H | awk '{print $3}'`
     if [ -n "$vendor_patch" ]; then
 	version="$version-$vendor_patch"
     fi
@@ -196,6 +209,14 @@ function main
     exitOnError $? "Failed to create release directory tree"
 
     pushd ../samba-${version}
+
+    # Remove RFCs as they are non-free content (with a strict interpretation of
+    # the DFSG)
+
+    #if [ -d source4 ]; then
+    #	echo "Removing RFCs"
+    #	find source4/ -name "rfc*.txt" -exec rm -f {} \;
+    #fi
 
     packaging/bin/update-pkginfo ${version} 1 ""
 

@@ -1,12 +1,12 @@
 .\"     Title: smbstatus
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 06/19/2009
+.\"      Date: 05/10/2010
 .\"    Manual: User Commands
 .\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "SMBSTATUS" "1" "06/19/2009" "Samba 3\&.4" "User Commands"
+.TH "SMBSTATUS" "1" "05/10/2010" "Samba 3\&.4" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -203,18 +203,18 @@ The higher this value, the more detail will be logged to the log files about the
 Levels above 1 will generate considerable amounts of log data, and should only be used when investigating a problem\&. Levels above 3 are designed for use only by developers and generate HUGE amounts of log data, most of which is extremely cryptic\&.
 .sp
 Note that specifying this parameter here will override the
-\m[blue]\fBlog level\fR\m[]
+\m[blue]\fB\%smb.conf.5.html#\fR\m[]
 parameter in the
 \FCsmb\&.conf\F[]
 file\&.
 .RE
 .PP
-\-V
+\-V|\-\-version
 .RS 4
 Prints the program version number\&.
 .RE
 .PP
-\-s <configuration file>
+\-s|\-\-configfile <configuration file>
 .RS 4
 The file specified contains the configuration details required by the server\&. The information in this file includes server\-specific information such as what printcap file to use, as well as descriptions of all the services that the server is to provide\&. See
 \FCsmb\&.conf\F[]

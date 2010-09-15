@@ -1,12 +1,12 @@
 .\"     Title: idmap_ad
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 06/19/2009
+.\"      Date: 05/10/2010
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "IDMAP_AD" "8" "06/19/2009" "Samba 3\&.4" "System Administration tools"
+.TH "IDMAP_AD" "8" "05/10/2010" "Samba 3\&.4" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -184,7 +184,7 @@ Defines the schema that idmap_ad should use when querying Active Directory regar
 .RE
 .SH "EXAMPLES"
 .PP
-The following example shows how to retrieve idmappings from our principal and and trusted AD domains\&. If trusted domains are present id conflicts must be resolved beforehand, there is no guarantee on the order conflicting mappings would be resolved at this point\&. This example also shows how to leave a small non conflicting range for local id allocation that may be used in internal backends like BUILTIN\&.
+The following example shows how to retrieve idmappings from our principal and trusted AD domains\&. If trusted domains are present id conflicts must be resolved beforehand, there is no guarantee on the order conflicting mappings would be resolved at this point\&. This example also shows how to leave a small non conflicting range for local id allocation that may be used in internal backends like BUILTIN\&.
 .sp
 .if n \{\
 .RS 4

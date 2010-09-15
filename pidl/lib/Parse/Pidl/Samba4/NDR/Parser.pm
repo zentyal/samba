@@ -567,17 +567,21 @@ sub ParseElementPushLevel
 	}
 
 	if ($l->{TYPE} eq "POINTER" and $deferred) {
+		my $rel_var_name = $var_name;
 		if ($l->{POINTER_TYPE} ne "ref") {
 			$self->pidl("if ($var_name) {");
 			$self->indent;
 			if ($l->{POINTER_TYPE} eq "relative") {
-				$self->pidl("NDR_CHECK(ndr_push_relative_ptr2($ndr, $var_name));");
+				$self->pidl("NDR_CHECK(ndr_push_relative_ptr2_start($ndr, $rel_var_name));");
 			}
 		}
 		$var_name = get_value_of($var_name);
 		$self->ParseElementPushLevel($e, GetNextLevel($e, $l), $ndr, $var_name, $env, 1, 1);
 
 		if ($l->{POINTER_TYPE} ne "ref") {
+			if ($l->{POINTER_TYPE} eq "relative") {
+				$self->pidl("NDR_CHECK(ndr_push_relative_ptr2_end($ndr, $rel_var_name));");
+			}
 			$self->deindent;
 			$self->pidl("}");
 		}
@@ -2119,7 +2123,7 @@ sub AllocateArrayLevel($$$$$$)
 		$self->pidl("}");
 		if (grep(/in/,@{$e->{DIRECTION}}) and
 		    grep(/out/,@{$e->{DIRECTION}})) {
-			$self->pidl("memcpy(r->out.$e->{NAME}, r->in.$e->{NAME}, $size * sizeof(*r->in.$e->{NAME}));");
+			$self->pidl("memcpy(r->out.$e->{NAME}, r->in.$e->{NAME}, ($size) * sizeof(*r->in.$e->{NAME}));");
 		}
 		return;
 	}

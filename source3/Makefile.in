@@ -212,7 +212,7 @@ BIN_PROGS4 = bin/ldbedit@EXEEXT@ bin/ldbsearch@EXEEXT@ bin/ldbadd@EXEEXT@ \
 TORTURE_PROGS = bin/smbtorture@EXEEXT@ bin/msgtest@EXEEXT@ \
 	bin/masktest@EXEEXT@ bin/locktest@EXEEXT@ \
 	bin/locktest2@EXEEXT@ bin/nsstest@EXEEXT@ bin/vfstest@EXEEXT@ \
-	bin/pdbtest@EXEEXT@ bin/talloctort@EXEEXT@ bin/replacetort@EXEEXT@ \
+	bin/pdbtest@EXEEXT@ @BIN_TALLOCTORT@ bin/replacetort@EXEEXT@ \
 	bin/tdbtorture@EXEEXT@ \
 	bin/smbconftort@EXEEXT@ bin/vlp@EXEEXT@
 
@@ -220,7 +220,7 @@ BIN_PROGS = @EXTRA_BIN_PROGS@ \
 	$(BIN_PROGS1) $(BIN_PROGS2) $(BIN_PROGS3) $(BIN_PROGS4) 
 
 EVERYTHING_PROGS = bin/debug2html@EXEEXT@ bin/smbfilter@EXEEXT@ \
-	bin/talloctort@EXEEXT@ bin/replacetort@EXEEXT@ \
+	@BIN_TALLOCTORT@ bin/replacetort@EXEEXT@ \
 	bin/log2pcap@EXEEXT@ \
 	bin/vlp@EXEEXT@ bin/smbiconv@EXEEXT@ \
 	bin/dbwrap_tool@EXEEXT@
@@ -465,7 +465,7 @@ LIBCLI_LDAP_NDR_OBJ = ../libcli/ldap/ldap_ndr.o
 CLDAP_OBJ = libads/cldap.o $(LIBCLI_LDAP_MESSAGE_OBJ) $(LIBCLI_LDAP_NDR_OBJ)
 
 LIBSMB_OBJ = libsmb/clientgen.o libsmb/cliconnect.o libsmb/clifile.o \
-	     libsmb/clikrb5.o libsmb/clispnego.o ../lib/util/asn1.o \
+	     libsmb/clikrb5.o libsmb/clispnego.o libsmb/spnego.o ../lib/util/asn1.o \
 	     libsmb/clirap.o libsmb/clierror.o libsmb/climessage.o \
 	     libsmb/clireadwrite.o libsmb/clilist.o libsmb/cliprint.o \
 	     libsmb/clitrans.o libsmb/clisecdesc.o libsmb/clidgram.o \
@@ -1276,7 +1276,7 @@ samba3-idl::
 #####################################################################
 
 
-everything:: all libtalloc libsmbclient libnetapi debug2html smbfilter talloctort replacetort smbconftort modules torture \
+everything:: all libtalloc libsmbclient libnetapi debug2html smbfilter @TALLOCTORT@ replacetort smbconftort modules torture \
 	$(EVERYTHING_PROGS)
 
 .SUFFIXES:
@@ -1427,10 +1427,10 @@ bin/swat@EXEEXT@: $(BINARY_PREREQS) $(SWAT_OBJ) @BUILD_POPT@ @LIBTALLOC_TARGET@ 
 
 bin/rpcclient@EXEEXT@: $(BINARY_PREREQS) $(RPCCLIENT_OBJ) @BUILD_POPT@ @LIBTALLOC_TARGET@ @LIBTDB_TARGET@ @LIBWBCLIENT_TARGET@
 	@echo Linking $@
-	@$(CC) -o $@ $(LDFLAGS) $(PASSDB_LIBS) $(RPCCLIENT_OBJ) \
+	@$(CC) -o $@ $(LDFLAGS) $(RPCCLIENT_OBJ) \
 		$(DYNEXP) $(TERMLDFLAGS) $(TERMLIBS) $(LIBS) $(POPT_LIBS) \
 		$(KRB5LIBS) $(LDAP_LIBS) $(LIBTALLOC_LIBS) $(LIBTDB_LIBS) \
-		$(LIBWBCLIENT_LIBS) $(ZLIB_LIBS)
+		$(LIBWBCLIENT_LIBS) $(ZLIB_LIBS) $(PASSDB_LIBS)
 
 bin/smbclient@EXEEXT@: $(BINARY_PREREQS) $(CLIENT_OBJ) @BUILD_POPT@ @LIBTALLOC_TARGET@ @LIBTDB_TARGET@ @LIBWBCLIENT_TARGET@
 	@echo Linking $@
@@ -1468,9 +1468,9 @@ bin/umount.cifs@EXEEXT@: $(BINARY_PREREQS) $(CIFS_UMOUNT_OBJ)
 bin/cifs.upcall@EXEEXT@: $(BINARY_PREREQS) $(CIFS_UPCALL_OBJ) $(LIBSMBCLIENT_OBJ1) @LIBTALLOC_TARGET@ @LIBTDB_TARGET@ @LIBWBCLIENT_TARGET@
 	@echo Linking $@
 	@$(CC) -o $@ $(CIFS_UPCALL_OBJ) $(DYNEXP) $(LDFLAGS) \
-		-lkeyutils $(LIBS) $(LIBSMBCLIENT_OBJ1) $(KRB5LIBS) \
+		$(LIBSMBCLIENT_OBJ1) $(LIBS) -lkeyutils $(KRB5LIBS) \
 		$(LDAP_LIBS) $(LIBTALLOC_LIBS) $(LIBWBCLIENT_LIBS) \
-		$(LIBTDB_LIBS) $(NSCD_LIBS)
+		$(LIBTDB_LIBS) $(NSCD_LIBS) $(ZLIB_LIBS)
 
 bin/testparm@EXEEXT@: $(BINARY_PREREQS) $(TESTPARM_OBJ) @BUILD_POPT@ @LIBTALLOC_TARGET@ @LIBTDB_TARGET@
 	@echo Linking $@
@@ -1872,7 +1872,7 @@ $(LIBWBCLIENT_SYMS): $(LIBWBCLIENT_HEADERS)
 
 $(LIBWBCLIENT_SHARED_TARGET_SONAME): $(BINARY_PREREQS) $(LIBWBCLIENT_OBJ) $(LIBWBCLIENT_SYMS) @LIBTALLOC_TARGET@
 	@echo Linking shared library $@
-	@$(SHLD_DSO) $(LIBTALLOC_LIBS) $(LIBWBCLIENT_OBJ) \
+	@$(SHLD_DSO) $(LIBWBCLIENT_OBJ) $(LIBTALLOC_LIBS) \
 		@SONAMEFLAG@`basename $@`
 
 $(LIBWBCLIENT_SHARED_TARGET): $(LIBWBCLIENT_SHARED_TARGET_SONAME)
@@ -2050,7 +2050,7 @@ $(LIBNETAPI_SHARED_TARGET_SONAME): $(BINARY_PREREQS) $(LIBNETAPI_OBJ) $(LIBNETAP
 	@echo Linking shared library $@
 	@$(SHLD_DSO) $(LIBNETAPI_OBJ) \
 		$(LIBTALLOC_LIBS) $(LIBTDB_LIBS) $(LIBWBCLIENT_LIBS) $(LIBS) \
-		$(LDAP_LIBS) $(KRB5LIBS) $(NSCD_LIBS) \
+		$(LDAP_LIBS) $(KRB5LIBS) $(NSCD_LIBS) $(ZLIB_LIBS) \
 		@SONAMEFLAG@`basename $@`
 
 $(LIBNETAPI_SHARED_TARGET): $(LIBNETAPI_SHARED_TARGET_SONAME)
@@ -2386,11 +2386,11 @@ bin/vlp@EXEEXT@: $(BINARY_PREREQS) $(VLP_OBJ) @LIBTALLOC_TARGET@ @LIBTDB_TARGET@
 	@echo "Linking $@"
 	@$(SHLD) $(LDSHFLAGS) -o $@ $(WINBIND_WINS_NSS_OBJ) \
 		$(LDAP_LIBS) $(KRB5LIBS) $(LIBS) $(LIBTALLOC_LIBS) $(LIBTDB_LIBS) \
-		@SONAMEFLAG@`basename $@`@NSSSONAMEVERSIONSUFFIX@
+		$(ZLIB_LIBS) @SONAMEFLAG@`basename $@`@NSSSONAMEVERSIONSUFFIX@
 
 bin/winbind_krb5_locator.@SHLIBEXT@: $(BINARY_PREREQS) $(WINBIND_KRB5_LOCATOR_OBJ) @LIBWBCLIENT_TARGET@
 	@echo "Linking $@"
-	@$(SHLD) $(LDSHFLAGS) -o $@ $(WINBIND_KRB5_LOCATOR_OBJ) $(LIBWBCLIENT_LIBS) \
+	@$(SHLD) $(LDSHFLAGS) -o $@ $(WINBIND_KRB5_LOCATOR_OBJ) $(LIBWBCLIENT_LIBS) $(KRB5LIBS) \
 		@SONAMEFLAG@`basename $@`
 
 bin/pam_winbind.@SHLIBEXT@: $(BINARY_PREREQS) $(PAM_WINBIND_OBJ) @LIBTALLOC_TARGET@ @LIBWBCLIENT_TARGET@

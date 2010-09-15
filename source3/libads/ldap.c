@@ -2076,7 +2076,7 @@ ADS_STATUS ads_move_machine_acct(ADS_STRUCT *ads, const char *machine_name,
 done:
 	ads_msgfree(ads, res);
 	SAFE_FREE(filter);
-	SAFE_FREE(computer_dn);
+	TALLOC_FREE(computer_dn);
 	SAFE_FREE(computer_rdn);
 
 	if (!ADS_ERR_OK(rc)) {
@@ -2128,7 +2128,9 @@ static void dump_sid(ADS_STRUCT *ads, const char *field, struct berval **values)
 	for (i=0; values[i]; i++) {
 		DOM_SID sid;
 		fstring tmp;
-		sid_parse(values[i]->bv_val, values[i]->bv_len, &sid);
+		if (!sid_parse(values[i]->bv_val, values[i]->bv_len, &sid)) {
+			continue;
+		}
 		printf("%s: %s\n", field, sid_to_fstring(tmp, &sid));
 	}
 }

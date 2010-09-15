@@ -3,7 +3,9 @@
 
    generalised event loop handling
 
-   Internal structs
+   INTERNAL STRUCTS. THERE ARE NO API GUARANTEES.
+   External users should only ever have to include this header when
+   implementing new tevent backends.
 
    Copyright (C) Stefan Metzmacher 2005-2009
 
@@ -63,6 +65,15 @@ struct tevent_req {
 	tevent_req_print_fn private_print;
 
 	/**
+	 * @brief A function to cancel the request
+	 *
+	 * The implementation might want to set a function
+	 * that is called when the tevent_req_cancel() function
+	 * was called.
+	 */
+	tevent_req_cancel_fn private_cancel;
+
+	/**
 	 * @brief Internal state of the request
 	 *
 	 * Callers should only access this via functions and never directly.
@@ -98,6 +109,16 @@ struct tevent_req {
 		const char *finish_location;
 
 		/**
+		 * @brief The location where the request was canceled
+		 *
+		 * This uses the __location__ macro via the
+		 * tevent_req_cancel() macro.
+		 *
+		 * This for debugging only.
+		 */
+		const char *cancel_location;
+
+		/**
 		 * @brief The external state - will be queried by the caller
 		 *
 		 * While the async request is being processed, state will remain in
@@ -126,54 +147,6 @@ struct tevent_req {
 		 */
 		struct tevent_timer *timer;
 	} internal;
-};
-
-struct tevent_ops {
-	/* conntext init */
-	int (*context_init)(struct tevent_context *ev);
-
-	/* fd_event functions */
-	struct tevent_fd *(*add_fd)(struct tevent_context *ev,
-				    TALLOC_CTX *mem_ctx,
-				    int fd, uint16_t flags,
-				    tevent_fd_handler_t handler,
-				    void *private_data,
-				    const char *handler_name,
-				    const char *location);
-	void (*set_fd_close_fn)(struct tevent_fd *fde,
-				tevent_fd_close_fn_t close_fn);
-	uint16_t (*get_fd_flags)(struct tevent_fd *fde);
-	void (*set_fd_flags)(struct tevent_fd *fde, uint16_t flags);
-
-	/* timed_event functions */
-	struct tevent_timer *(*add_timer)(struct tevent_context *ev,
-					  TALLOC_CTX *mem_ctx,
-					  struct timeval next_event,
-					  tevent_timer_handler_t handler,
-					  void *private_data,
-					  const char *handler_name,
-					  const char *location);
-
-	/* immediate event functions */
-	void (*schedule_immediate)(struct tevent_immediate *im,
-				   struct tevent_context *ev,
-				   tevent_immediate_handler_t handler,
-				   void *private_data,
-				   const char *handler_name,
-				   const char *location);
-
-	/* signal functions */
-	struct tevent_signal *(*add_signal)(struct tevent_context *ev,
-					    TALLOC_CTX *mem_ctx,
-					    int signum, int sa_flags,
-					    tevent_signal_handler_t handler,
-					    void *private_data,
-					    const char *handler_name,
-					    const char *location);
-
-	/* loop functions */
-	int (*loop_once)(struct tevent_context *ev, const char *location);
-	int (*loop_wait)(struct tevent_context *ev, const char *location);
 };
 
 struct tevent_fd {
@@ -267,6 +240,7 @@ struct tevent_context {
 
 	/* pipe hack used with signal handlers */
 	struct tevent_fd *pipe_fde;
+	int pipe_fds[2];
 
 	/* debugging operations */
 	struct tevent_debug_ops debug_ops;
@@ -280,8 +254,6 @@ struct tevent_context {
 	} nesting;
 };
 
-
-bool tevent_register_backend(const char *name, const struct tevent_ops *ops);
 
 int tevent_common_context_destructor(struct tevent_context *ev);
 int tevent_common_loop_wait(struct tevent_context *ev,
@@ -327,6 +299,7 @@ struct tevent_signal *tevent_common_add_signal(struct tevent_context *ev,
 					       const char *handler_name,
 					       const char *location);
 int tevent_common_check_signal(struct tevent_context *ev);
+void tevent_cleanup_pending_signal_handlers(struct tevent_signal *se);
 
 bool tevent_standard_init(void);
 bool tevent_select_init(void);

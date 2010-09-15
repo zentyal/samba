@@ -1,12 +1,12 @@
 .\"     Title: cifs.upcall
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 06/19/2009
+.\"      Date: 05/10/2010
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "CIFS\&.UPCALL" "8" "06/19/2009" "Samba 3\&.4" "System Administration tools"
+.TH "CIFS\&.UPCALL" "8" "05/10/2010" "Samba 3\&.4" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -171,7 +171,7 @@ cifs.upcall \- Userspace upcall helper for Common Internet File System (CIFS)
 .SH "Synopsis"
 .fam C
 .HP \w'\ 'u
-\FCcifs\&.upcall\F[] [\-c] [\-v] {keyid}
+\FCcifs\&.upcall\F[] [\-\-trust\-dns|\-t] [\-\-version|\-v] {keyid}
 .fam
 .SH "DESCRIPTION"
 .PP
@@ -187,10 +187,17 @@ for a particular key type\&. While it can be run directly from the command\-line
 .PP
 \-c
 .RS 4
-When handling a kerberos upcall, use a service principal that starts with "cifs/"\&. The default is to use the "host/" service principal\&.
+This option is deprecated and is currently ignored\&.
 .RE
 .PP
-\-v
+\-\-trust\-dns|\-t
+.RS 4
+With krb5 upcalls, the name used as the host portion of the service principal defaults to the hostname portion of the UNC\&. This option allows the upcall program to reverse resolve the network address of the server in order to get the hostname\&.
+.sp
+This is less secure than not trusting DNS\&. When using this option, it\'s possible that an attacker could get control of DNS and trick the client into mounting a different server altogether\&. It\'s preferable to instead add server principals to the KDC for every possible hostname, but this option exists for cases where that isn\'t possible\&. The default is to not trust reverse hostname lookups in this fashion\&.
+.RE
+.PP
+\-\-version|\-v
 .RS 4
 Print version number and exit\&.
 .RE
@@ -223,8 +230,8 @@ To make this program useful for CIFS, you\'ll need to set up entries for them in
 .sp -1
 
 #OPERATION  TYPE           D C PROGRAM ARG1 ARG2\&.\&.\&.
-#=========  =============  = = ==========================================
-create	    cifs\&.spnego    * * /usr/local/sbin/cifs\&.upcall \-c %k
+#=========  =============  = = ================================
+create      cifs\&.spnego    * * /usr/local/sbin/cifs\&.upcall %k
 create      dns_resolver   * * /usr/local/sbin/cifs\&.upcall %k
 .EB lightgray adjust-for-leading-newline
 .if t \{\

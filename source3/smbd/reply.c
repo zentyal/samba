@@ -46,9 +46,9 @@ static NTSTATUS check_path_syntax_internal(char *path,
 {
 	char *d = path;
 	const char *s = path;
-	NTSTATUS ret = NT_STATUS_OK;
 	bool start_of_name_component = True;
 	bool stream_started = false;
+	bool check_quota = false;
 
 	*p_last_component_contains_wcard = False;
 
@@ -66,7 +66,7 @@ static NTSTATUS check_path_syntax_internal(char *path,
 					return NT_STATUS_OBJECT_NAME_INVALID;
 				}
 				if (StrCaseCmp(s, ":$DATA") != 0) {
-					return NT_STATUS_INVALID_PARAMETER;
+					check_quota = true;
 				}
 				break;
 			}
@@ -127,8 +127,7 @@ static NTSTATUS check_path_syntax_internal(char *path,
 
 				/* Are we at the start ? Can't go back further if so. */
 				if (d <= path) {
-					ret = NT_STATUS_OBJECT_PATH_SYNTAX_BAD;
-					break;
+					return NT_STATUS_OBJECT_PATH_SYNTAX_BAD;
 				}
 				/* Go back one level... */
 				/* We know this is safe as '/' cannot be part of a mb sequence. */
@@ -201,7 +200,13 @@ static NTSTATUS check_path_syntax_internal(char *path,
 
 	*d = '\0';
 
-	return ret;
+	if (check_quota) {
+		if (StrCaseCmp(path, FAKE_FILE_NAME_QUOTA_UNIX) != 0) {
+			return NT_STATUS_INVALID_PARAMETER;
+		}
+	}
+
+	return NT_STATUS_OK;
 }
 
 /****************************************************************************
@@ -759,6 +764,7 @@ void reply_tcon_and_X(struct smb_request *req)
 
 	END_PROFILE(SMBtconX);
 
+	req->tid = conn->cnum;
 	chain_reply(req);
 	return;
 }
@@ -917,10 +923,19 @@ void reply_checkpath(struct smb_request *req)
 		goto path_err;
 	}
 
-	if (!VALID_STAT(sbuf) && (SMB_VFS_STAT(conn,name,&sbuf) != 0)) {
-		DEBUG(3,("reply_checkpath: stat of %s failed (%s)\n",name,strerror(errno)));
-		status = map_nt_error_from_unix(errno);
-		goto path_err;
+	if (!VALID_STAT(sbuf)) {
+		int ret;
+
+		if (lp_posix_pathnames()) {
+			ret = SMB_VFS_LSTAT(conn,name,&sbuf);
+		} else {
+			ret = SMB_VFS_STAT(conn,name,&sbuf);
+		}
+		if (ret != 0) {
+			DEBUG(3,("reply_checkpath: stat of %s failed (%s)\n",name,strerror(errno)));
+			status = map_nt_error_from_unix(errno);
+			goto path_err;
+		}
 	}
 
 	if (!S_ISDIR(sbuf.st_mode)) {
@@ -1026,11 +1041,20 @@ void reply_getatr(struct smb_request *req)
 			END_PROFILE(SMBgetatr);
 			return;
 		}
-		if (!VALID_STAT(sbuf) && (SMB_VFS_STAT(conn,fname,&sbuf) != 0)) {
-			DEBUG(3,("reply_getatr: stat of %s failed (%s)\n",fname,strerror(errno)));
-			reply_unixerror(req, ERRDOS,ERRbadfile);
-			END_PROFILE(SMBgetatr);
-			return;
+		if (!VALID_STAT(sbuf)) {
+			int ret;
+
+			if (lp_posix_pathnames()) {
+				ret = SMB_VFS_LSTAT(conn,fname,&sbuf);
+			} else {
+				ret = SMB_VFS_STAT(conn,fname,&sbuf);
+			}
+			if (ret != 0) {
+				DEBUG(3,("reply_getatr: stat of %s failed (%s)\n",fname,strerror(errno)));
+				reply_unixerror(req, ERRDOS,ERRbadfile);
+				END_PROFILE(SMBgetatr);
+				return;
+			}
 		}
 
 		mode = dos_mode(conn,fname,&sbuf);
@@ -1924,6 +1948,7 @@ void reply_ulogoffX(struct smb_request *req)
 	DEBUG( 3, ( "ulogoffX vuid=%d\n", req->vuid ) );
 
 	END_PROFILE(SMBulogoffX);
+	req->vuid = UID_FIELD_INVALID;
 	chain_reply(req);
 }
 
@@ -2258,6 +2283,8 @@ static NTSTATUS do_unlink(connection_struct *conn,
 	uint32 fattr;
 	files_struct *fsp;
 	uint32 dirtype_orig = dirtype;
+	bool posix_paths = lp_posix_pathnames();
+	int ret;
 	NTSTATUS status;
 
 	DEBUG(10,("do_unlink: %s, dirtype = %d\n", fname, dirtype ));
@@ -2266,7 +2293,12 @@ static NTSTATUS do_unlink(connection_struct *conn,
 		return NT_STATUS_MEDIA_WRITE_PROTECTED;
 	}
 
-	if (SMB_VFS_LSTAT(conn,fname,&sbuf) != 0) {
+	if (posix_paths) {
+		ret = SMB_VFS_LSTAT(conn,fname,&sbuf);
+	} else {
+		ret = SMB_VFS_STAT(conn,fname,&sbuf);
+	}
+	if (ret != 0) {
 		return map_nt_error_from_unix(errno);
 	}
 
@@ -2354,7 +2386,9 @@ static NTSTATUS do_unlink(connection_struct *conn,
 		 FILE_SHARE_NONE,	/* share_access */
 		 FILE_OPEN,		/* create_disposition*/
 		 FILE_NON_DIRECTORY_FILE, /* create_options */
-		 FILE_ATTRIBUTE_NORMAL,	/* file_attributes */
+					/* file_attributes */
+		 posix_paths ? FILE_FLAG_POSIX_SEMANTICS|0777 :
+				FILE_ATTRIBUTE_NORMAL,
 		 0,			/* oplock_request */
 		 0,			/* allocation_size */
 		 NULL,			/* sd */
@@ -5781,6 +5815,23 @@ NTSTATUS rename_internals_fsp(connection_struct *conn,
 		DEBUG(3,("rename_internals_fsp: succeeded doing rename on %s -> %s\n",
 			fsp->fsp_name,newname));
 
+		if (lp_map_archive(SNUM(conn)) ||
+		    lp_store_dos_attributes(SNUM(conn))) {
+			/* We must set the archive bit on the newly
+			   renamed file. */
+			if (SMB_VFS_STAT(conn,newname,&sbuf1) == 0) {
+				uint32_t old_dosmode = dos_mode(conn,
+							newname,
+							&sbuf1);
+				file_set_dosmode(conn,
+					newname,
+					old_dosmode | FILE_ATTRIBUTE_ARCHIVE,
+					&sbuf1,
+					NULL,
+					true);
+			}
+		}
+
 		notify_rename(conn, fsp->is_directory, fsp->fsp_name, newname);
 
 		rename_open_files(conn, lck, newname);
@@ -7163,18 +7214,18 @@ void reply_lockingX(struct smb_request *req)
 		}
 
 		if (NT_STATUS_V(status)) {
-			END_PROFILE(SMBlockingX);
-			reply_nterror(req, status);
-			return;
+			break;
 		}
 	}
 
 	/* If any of the above locks failed, then we must unlock
 	   all of the previous locks (X/Open spec). */
+	if (num_locks != 0 && !NT_STATUS_IS_OK(status)) {
 
-	if (!(locktype & LOCKING_ANDX_CANCEL_LOCK) &&
-			(i != num_locks) &&
-			(num_locks != 0)) {
+		if (locktype & LOCKING_ANDX_CANCEL_LOCK) {
+			i = -1; /* we want to skip the for loop */
+		}
+
 		/*
 		 * Ensure we don't do a remove on the lock that just failed,
 		 * as under POSIX rules, if we have a lock already there, we

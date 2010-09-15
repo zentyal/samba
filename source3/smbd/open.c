@@ -3163,7 +3163,8 @@ static NTSTATUS create_file_unixpath(connection_struct *conn,
 		}
 	}
 
-	if ((ea_list != NULL) && (info == FILE_WAS_CREATED)) {
+	if ((ea_list != NULL) &&
+			((info == FILE_WAS_CREATED) || (info == FILE_WAS_OVERWRITTEN))) {
 		status = set_ea(conn, fsp, fname, ea_list);
 		if (!NT_STATUS_IS_OK(status)) {
 			goto fail;
@@ -3343,7 +3344,6 @@ NTSTATUS create_file_default(connection_struct *conn,
 			     int *pinfo,
 			     SMB_STRUCT_STAT *psbuf)
 {
-	struct case_semantics_state *case_state = NULL;
 	SMB_STRUCT_STAT sbuf;
 	int info = FILE_WAS_OPENED;
 	files_struct *fsp = NULL;
@@ -3442,14 +3442,6 @@ NTSTATUS create_file_default(connection_struct *conn,
 		}
 	}
 
-	/*
-	 * Check if POSIX semantics are wanted.
-	 */
-
-	if (file_attributes & FILE_FLAG_POSIX_SEMANTICS) {
-		case_state = set_posix_case_semantics(talloc_tos(), conn);
-	}
-
 	if (create_file_flags & CFF_DOS_PATH) {
 		char *converted_fname;
 
@@ -3471,8 +3463,6 @@ NTSTATUS create_file_default(connection_struct *conn,
 		}
 
 	}
-
-	TALLOC_FREE(case_state);
 
 	/* All file access must go through check_name() */
 

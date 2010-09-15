@@ -923,6 +923,12 @@ static void handle_incoming_pdu(struct cli_state *cli)
 		}
 	}
 
+	if ((raw_pdu_len == 4) && (CVAL(pdu, 0) == SMBkeepalive)) {
+		DEBUG(10, ("Got keepalive\n"));
+		TALLOC_FREE(pdu);
+		return;
+	}
+
 	status = validate_smb_crypto(cli, pdu);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto invalidate_requests;
@@ -1003,6 +1009,11 @@ static void cli_state_handler(struct event_context *event_ctx,
 	NTSTATUS status;
 
 	DEBUG(11, ("cli_state_handler called with flags %d\n", flags));
+
+	if (cli->fd == -1) {
+		status = NT_STATUS_CONNECTION_INVALID;
+		goto sock_error;
+	}
 
 	if (flags & EVENT_FD_WRITE) {
 		size_t to_send;
@@ -1117,6 +1128,8 @@ static void cli_state_handler(struct event_context *event_ctx,
 		}
 	}
 	TALLOC_FREE(cli->fd_event);
-	close(cli->fd);
-	cli->fd = -1;
+	if (cli->fd != -1) {
+		close(cli->fd);
+		cli->fd = -1;
+	}
 }

@@ -19,7 +19,7 @@
 	any explicitly configured domain with idmap backend ldap
 	should have the same range as the default range, since it needs
 	to use the global uid / gid allocator. See the example below.
-	</p></div><div class="refsect1" lang="en"><a name="id2522958"></a><h2>IDMAP OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">ldap_base_dn = DN</span></dt><dd><p>
+	</p></div><div class="refsect1" lang="en"><a name="id2522944"></a><h2>IDMAP OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">ldap_base_dn = DN</span></dt><dd><p>
 			Defines the directory base suffix to use when searching for
 			SID/uid/gid mapping entries.  If not defined, idmap_ldap will default
 			to using the "ldap idmap suffix" option from smb.conf.
@@ -36,7 +36,7 @@
 			If the parameter is absent, Winbind fails over to use the
 			"idmap uid" and "idmap gid" options
 			from smb.conf.
-                </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2483397"></a><h2>IDMAP ALLOC OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">ldap_base_dn = DN</span></dt><dd><p>
+                </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2483381"></a><h2>IDMAP ALLOC OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">ldap_base_dn = DN</span></dt><dd><p>
 			Defines the directory base suffix under which new SID/uid/gid mapping
 			entries should be stored.  If not defined, idmap_ldap will default
 			to using the "ldap idmap suffix" option from smb.conf.
@@ -47,7 +47,7 @@
 			Specifies the LDAP server to which modify/add/delete requests should
 			be sent.  If not defined, idmap_ldap will assume that ldap://localhost/
 			should be used.
-		</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2483567"></a><h2>EXAMPLES</h2><p>
+		</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2483559"></a><h2>EXAMPLES</h2><p>
 	The follow sets of a LDAP configuration which uses two LDAP
 	directories, one for storing the ID mappings and one for retrieving
 	new IDs.
@@ -65,7 +65,7 @@
 	in plain text in the configuration file we store it into a security
 	store. The "net idmap " command is used to store a secret
 	for the DN specified in a specific idmap domain.
-	</p></div><div class="refsect1" lang="en"><a name="id2483605"></a><h2>AUTHOR</h2><p>
+	</p></div><div class="refsect1" lang="en"><a name="id2483596"></a><h2>AUTHOR</h2><p>
 	The original Samba software and related utilities
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar

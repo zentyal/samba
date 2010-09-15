@@ -155,8 +155,6 @@ void file_close_pid(uint16 smbpid, int vuid)
  Initialise file structures.
 ****************************************************************************/
 
-#define MAX_OPEN_FUDGEFACTOR 20
-
 void file_init(void)
 {
 	int request_max_open_files = lp_max_open_files();
@@ -389,7 +387,6 @@ bool file_find_subpath(files_struct *dir_fsp)
 					"%s/%s",
 					dir_fsp->conn->connectpath,
 					dir_fsp->fsp_name);
-
 	if (!d_fullname) {
 		return false;
 	}
@@ -408,13 +405,18 @@ bool file_find_subpath(files_struct *dir_fsp)
 					fsp->conn->connectpath,
 					fsp->fsp_name);
 
-		if (strnequal(d_fullname, d1_fullname, dlen)) {
-			TALLOC_FREE(d_fullname);
+                /*
+		 * If the open file has a path that is a longer
+		 * component, then it's a subpath.
+		 */
+		if (strnequal(d_fullname, d1_fullname, dlen) &&
+				(d1_fullname[dlen] == '/')) {
 			TALLOC_FREE(d1_fullname);
+			TALLOC_FREE(d_fullname);
 			return true;
 		}
 		TALLOC_FREE(d1_fullname);
-	} 
+	}
 
 	TALLOC_FREE(d_fullname);
 	return false;

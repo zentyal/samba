@@ -207,9 +207,6 @@
 /* Define to 1 if you have the <avahi-client/client.h> header file. */
 #undef HAVE_AVAHI_CLIENT_CLIENT_H
 
-/* Define to 1 if you have the `avahi_client_new' function. */
-#undef HAVE_AVAHI_CLIENT_NEW
-
 /* Define to 1 if you have the <avahi-common/watch.h> header file. */
 #undef HAVE_AVAHI_COMMON_WATCH_H
 
@@ -380,6 +377,10 @@
 /* Define to 1 if you have the declaration of `h_errno', and to 0 if you
    don't. */
 #undef HAVE_DECL_H_ERRNO
+
+/* Define to 1 if you have the declaration of
+   `krb5_auth_con_set_req_cksumtype', and to 0 if you don't. */
+#undef HAVE_DECL_KRB5_AUTH_CON_SET_REQ_CKSUMTYPE
 
 /* Define to 1 if you have the declaration of `rl_event_hook', and to 0 if you
    don't. */
@@ -846,8 +847,11 @@
 /* gnutls set_version */
 #undef HAVE_GNUTLS_X509_CRT_SET_VERSION
 
-/* Whether GPFS GPL libs are available */
+/* Whether GPFS GPL headers are available */
 #undef HAVE_GPFS
+
+/* Define to 1 if you have the <gpfs_gpl.h> header file. */
+#undef HAVE_GPFS_GPL_H
 
 /* Define to 1 if you have the `grantpt' function. */
 #undef HAVE_GRANTPT
@@ -1016,6 +1020,9 @@
 
 /* Define to 1 if you have the `krb5_decode_ap_req' function. */
 #undef HAVE_KRB5_DECODE_AP_REQ
+
+/* Whether to use deprecated krb5 interfaces */
+#undef HAVE_KRB5_DEPRECATED_WITH_IDENTIFIER
 
 /* Whether the type krb5_encrypt_block exists */
 #undef HAVE_KRB5_ENCRYPT_BLOCK
@@ -1225,9 +1232,6 @@
 
 /* Define to 1 if you have the `asn1' library (-lasn1). */
 #undef HAVE_LIBASN1
-
-/* Define to 1 if you have the `avahi-client' library (-lavahi-client). */
-#undef HAVE_LIBAVAHI_CLIENT
 
 /* Whether we have blkid support (e2fsprogs) */
 #undef HAVE_LIBBLKID
@@ -2347,6 +2351,9 @@
 
 /* Define to 1 if you have the <sys/syscall.h> header file. */
 #undef HAVE_SYS_SYSCALL_H
+
+/* Define to 1 if you have the <sys/sysctl.h> header file. */
+#undef HAVE_SYS_SYSCTL_H
 
 /* Define to 1 if you have the <sys/syslog.h> header file. */
 #undef HAVE_SYS_SYSLOG_H

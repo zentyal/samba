@@ -48,6 +48,22 @@ static void brl_timeout_fn(struct event_context *event_ctx,
 }
 
 /****************************************************************************
+ We need a version of timeval_min that treats zero timval as infinite.
+****************************************************************************/
+
+static struct timeval timeval_brl_min(const struct timeval *tv1,
+					const struct timeval *tv2)
+{
+	if (timeval_is_zero(tv1)) {
+		return *tv2;
+	}
+	if (timeval_is_zero(tv2)) {
+		return *tv1;
+	}
+	return timeval_min(tv1, tv2);
+}
+
+/****************************************************************************
  After a change to blocking_lock_queue, recalculate the timed_event for the
  next processing.
 ****************************************************************************/
@@ -70,19 +86,13 @@ static bool recalc_brl_timeout(void)
 			 */
                         if (blr->blocking_pid == 0xFFFFFFFF) {
 				struct timeval psx_to = timeval_current_ofs(10, 0);
-				next_timeout = timeval_min(&next_timeout, &psx_to);
+				next_timeout = timeval_brl_min(&next_timeout, &psx_to);
                         }
 
 			continue;
 		}
 
-		if (timeval_is_zero(&next_timeout)) {
-			next_timeout = blr->expire_time;
-		}
-		else {
-			next_timeout = timeval_min(&next_timeout,
-						   &blr->expire_time);
-		}
+		next_timeout = timeval_brl_min(&next_timeout, &blr->expire_time);
 	}
 
 	if (timeval_is_zero(&next_timeout)) {
@@ -642,7 +652,6 @@ void process_blocking_lock_queue(void)
 {
 	struct timeval tv_curr = timeval_current();
 	struct blocking_lock_record *blr, *next = NULL;
-	bool recalc_timeout = False;
 
 	/*
 	 * Go through the queue and see if we can get any of the locks.
@@ -659,6 +668,14 @@ void process_blocking_lock_queue(void)
 		 */
 
 		DEBUG(10, ("Processing BLR = %p\n", blr));
+
+		/* We use set_current_service so connections with
+		 * pending locks are not marked as idle.
+		 */
+
+		set_current_service(blr->fsp->conn,
+				SVAL(blr->req->inbuf,smb_flg),
+				false);
 
 		if(blocking_lock_record_process(blr)) {
 			struct byte_range_lock *br_lck = brl_get_locks(
@@ -680,7 +697,6 @@ void process_blocking_lock_queue(void)
 
 			DLIST_REMOVE(blocking_lock_queue, blr);
 			TALLOC_FREE(blr);
-			recalc_timeout = True;
 			continue;
 		}
 
@@ -719,13 +735,10 @@ void process_blocking_lock_queue(void)
 			blocking_lock_reply_error(blr,NT_STATUS_FILE_LOCK_CONFLICT);
 			DLIST_REMOVE(blocking_lock_queue, blr);
 			TALLOC_FREE(blr);
-			recalc_timeout = True;
 		}
 	}
 
-	if (recalc_timeout) {
-		recalc_brl_timeout();
-	}
+	recalc_brl_timeout();
 }
 
 /****************************************************************************

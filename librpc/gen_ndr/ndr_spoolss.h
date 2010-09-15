@@ -211,6 +211,8 @@ void ndr_print_spoolss_ProcessorArchitecture(struct ndr_print *ndr, const char *
 void ndr_print_spoolss_ProcessorType(struct ndr_print *ndr, const char *name, enum spoolss_ProcessorType r);
 void ndr_print_spoolss_MajorVersion(struct ndr_print *ndr, const char *name, enum spoolss_MajorVersion r);
 void ndr_print_spoolss_MinorVersion(struct ndr_print *ndr, const char *name, enum spoolss_MinorVersion r);
+enum ndr_err_code ndr_push_spoolss_PrinterStatus(struct ndr_push *ndr, int ndr_flags, uint32_t r);
+enum ndr_err_code ndr_pull_spoolss_PrinterStatus(struct ndr_pull *ndr, int ndr_flags, uint32_t *r);
 void ndr_print_spoolss_PrinterStatus(struct ndr_print *ndr, const char *name, uint32_t r);
 void ndr_print_spoolss_JobStatus(struct ndr_print *ndr, const char *name, uint32_t r);
 enum ndr_err_code ndr_push_spoolss_PrinterInfo0(struct ndr_push *ndr, int ndr_flags, const struct spoolss_PrinterInfo0 *r);
@@ -229,6 +231,8 @@ enum ndr_err_code ndr_push_spoolss_PrinterInfo1(struct ndr_push *ndr, int ndr_fl
 enum ndr_err_code ndr_pull_spoolss_PrinterInfo1(struct ndr_pull *ndr, int ndr_flags, struct spoolss_PrinterInfo1 *r);
 void ndr_print_spoolss_PrinterInfo1(struct ndr_print *ndr, const char *name, const struct spoolss_PrinterInfo1 *r);
 size_t ndr_size_spoolss_PrinterInfo1(const struct spoolss_PrinterInfo1 *r, struct smb_iconv_convenience *ic, int flags);
+enum ndr_err_code ndr_push_spoolss_PrinterAttributes(struct ndr_push *ndr, int ndr_flags, uint32_t r);
+enum ndr_err_code ndr_pull_spoolss_PrinterAttributes(struct ndr_pull *ndr, int ndr_flags, uint32_t *r);
 void ndr_print_spoolss_PrinterAttributes(struct ndr_print *ndr, const char *name, uint32_t r);
 enum ndr_err_code ndr_push_spoolss_PrinterInfo2(struct ndr_push *ndr, int ndr_flags, const struct spoolss_PrinterInfo2 *r);
 enum ndr_err_code ndr_pull_spoolss_PrinterInfo2(struct ndr_pull *ndr, int ndr_flags, struct spoolss_PrinterInfo2 *r);
@@ -298,6 +302,8 @@ void ndr_print_spoolss_SetPrinterInfo4(struct ndr_print *ndr, const char *name, 
 void ndr_print_spoolss_SetPrinterInfo5(struct ndr_print *ndr, const char *name, const struct spoolss_SetPrinterInfo5 *r);
 void ndr_print_spoolss_SetPrinterInfo6(struct ndr_print *ndr, const char *name, const struct spoolss_SetPrinterInfo6 *r);
 void ndr_print_spoolss_SetPrinterInfo7(struct ndr_print *ndr, const char *name, const struct spoolss_SetPrinterInfo7 *r);
+void ndr_print_spoolss_SetPrinterInfo8(struct ndr_print *ndr, const char *name, const struct spoolss_SetPrinterInfo8 *r);
+void ndr_print_spoolss_SetPrinterInfo9(struct ndr_print *ndr, const char *name, const struct spoolss_SetPrinterInfo9 *r);
 void ndr_print_spoolss_SetPrinterInfo(struct ndr_print *ndr, const char *name, const union spoolss_SetPrinterInfo *r);
 void ndr_print_spoolss_SetPrinterInfoCtr(struct ndr_print *ndr, const char *name, const struct spoolss_SetPrinterInfoCtr *r);
 enum ndr_err_code ndr_push_spoolss_StringArray(struct ndr_push *ndr, int ndr_flags, const struct spoolss_StringArray *r);
@@ -480,6 +486,7 @@ enum ndr_err_code ndr_push_spoolss_PrinterEnumValues(struct ndr_push *ndr, int n
 enum ndr_err_code ndr_pull_spoolss_PrinterEnumValues(struct ndr_pull *ndr, int ndr_flags, struct spoolss_PrinterEnumValues *r);
 void ndr_print_spoolss_PrinterEnumValues(struct ndr_print *ndr, const char *name, const struct spoolss_PrinterEnumValues *r);
 size_t ndr_size_spoolss_PrinterEnumValues(const struct spoolss_PrinterEnumValues *r, struct smb_iconv_convenience *ic, int flags);
+void ndr_print_spoolss_KeyNames(struct ndr_print *ndr, const char *name, const union spoolss_KeyNames *r);
 enum ndr_err_code ndr_push_spoolss_DeleteDriverFlags(struct ndr_push *ndr, int ndr_flags, uint32_t r);
 enum ndr_err_code ndr_pull_spoolss_DeleteDriverFlags(struct ndr_pull *ndr, int ndr_flags, uint32_t *r);
 void ndr_print_spoolss_DeleteDriverFlags(struct ndr_print *ndr, const char *name, uint32_t r);
@@ -558,22 +565,7 @@ void ndr_print_spoolss_ReadPrinter(struct ndr_print *ndr, const char *name, int 
 void ndr_print_spoolss_EndDocPrinter(struct ndr_print *ndr, const char *name, int flags, const struct spoolss_EndDocPrinter *r);
 void ndr_print_spoolss_AddJob(struct ndr_print *ndr, const char *name, int flags, const struct spoolss_AddJob *r);
 void ndr_print_spoolss_ScheduleJob(struct ndr_print *ndr, const char *name, int flags, const struct spoolss_ScheduleJob *r);
-enum ndr_err_code ndr_push__spoolss_GetPrinterData(struct ndr_push *ndr, int flags, const struct _spoolss_GetPrinterData *r);
-enum ndr_err_code ndr_pull__spoolss_GetPrinterData(struct ndr_pull *ndr, int flags, struct _spoolss_GetPrinterData *r);
-void ndr_print__spoolss_GetPrinterData(struct ndr_print *ndr, const char *name, int flags, const struct _spoolss_GetPrinterData *r);
-enum ndr_err_code ndr_push___spoolss_GetPrinterData(struct ndr_push *ndr, int flags, const struct __spoolss_GetPrinterData *r);
-enum ndr_err_code ndr_pull___spoolss_GetPrinterData(struct ndr_pull *ndr, int flags, struct __spoolss_GetPrinterData *r);
-void ndr_print___spoolss_GetPrinterData(struct ndr_print *ndr, const char *name, int flags, const struct __spoolss_GetPrinterData *r);
-enum ndr_err_code ndr_push_spoolss_GetPrinterData(struct ndr_push *ndr, int flags, const struct spoolss_GetPrinterData *r);
-enum ndr_err_code ndr_pull_spoolss_GetPrinterData(struct ndr_pull *ndr, int flags, struct spoolss_GetPrinterData *r);
 void ndr_print_spoolss_GetPrinterData(struct ndr_print *ndr, const char *name, int flags, const struct spoolss_GetPrinterData *r);
-enum ndr_err_code ndr_push__spoolss_SetPrinterData(struct ndr_push *ndr, int flags, const struct _spoolss_SetPrinterData *r);
-enum ndr_err_code ndr_pull__spoolss_SetPrinterData(struct ndr_pull *ndr, int flags, struct _spoolss_SetPrinterData *r);
-void ndr_print__spoolss_SetPrinterData(struct ndr_print *ndr, const char *name, int flags, const struct _spoolss_SetPrinterData *r);
-enum ndr_err_code ndr_push___spoolss_SetPrinterData(struct ndr_push *ndr, int flags, const struct __spoolss_SetPrinterData *r);
-enum ndr_err_code ndr_pull___spoolss_SetPrinterData(struct ndr_pull *ndr, int flags, struct __spoolss_SetPrinterData *r);
-void ndr_print___spoolss_SetPrinterData(struct ndr_print *ndr, const char *name, int flags, const struct __spoolss_SetPrinterData *r);
-enum ndr_err_code ndr_push_spoolss_SetPrinterData(struct ndr_push *ndr, int flags, const struct spoolss_SetPrinterData *r);
 void ndr_print_spoolss_SetPrinterData(struct ndr_print *ndr, const char *name, int flags, const struct spoolss_SetPrinterData *r);
 void ndr_print_spoolss_WaitForPrinterChange(struct ndr_print *ndr, const char *name, int flags, const struct spoolss_WaitForPrinterChange *r);
 enum ndr_err_code ndr_push_spoolss_ClosePrinter(struct ndr_push *ndr, int flags, const struct spoolss_ClosePrinter *r);

@@ -28,6 +28,7 @@
 		<arg choice="opt">-D drive</arg>	
 		<arg choice="opt">-S script</arg>
 		<arg choice="opt">-p profile</arg>	
+		<arg choice="opt">-K</arg>
 		<arg choice="opt">-a</arg>	
 		<arg choice="opt">-t, --password-from-stdin</arg>
 		<arg choice="opt">-m</arg>	
@@ -251,6 +252,16 @@ samba:45:0F2B255F7B67A7A9AAD3B435B51404EE:
 		<para>Example: <command>-c "[X          ]"</command></para>
 		</listitem>
 		</varlistentry>
+
+		<varlistentry>
+		<term>-K|--kickoff-time</term>
+		<listitem><para>This option is used to modify the kickoff
+		time for a certain user. Use "never" as argument to set the
+		kickoff time to unlimited.
+		</para>
+		<para>Example: <command>pdbedit -K never user</command></para>
+		</listitem>
+                </varlistentry>
 
 		<varlistentry>
 		<term>-a</term>

@@ -157,7 +157,7 @@ int run_rpc_command(struct net_context *c,
 					    &ndr_table_netlogon.syntax_id))) {
 			/* Always try and create an schannel netlogon pipe. */
 			nt_status = cli_rpc_pipe_open_schannel(
-				cli, interface,
+				cli, interface, NCACN_NP,
 				PIPE_AUTH_LEVEL_PRIVACY, domain_name,
 				&pipe_hnd);
 			if (!NT_STATUS_IS_OK(nt_status)) {
@@ -169,6 +169,8 @@ int run_rpc_command(struct net_context *c,
 			if (conn_flags & NET_FLAGS_SEAL) {
 				nt_status = cli_rpc_pipe_open_ntlmssp(
 					cli, interface,
+					(conn_flags & NET_FLAGS_TCP) ?
+					NCACN_IP_TCP : NCACN_NP,
 					PIPE_AUTH_LEVEL_PRIVACY,
 					lp_workgroup(), c->opt_user_name,
 					c->opt_password, &pipe_hnd);
@@ -584,6 +586,12 @@ static NTSTATUS rpc_getsid_internals(struct net_context *c,
 
 int net_rpc_getsid(struct net_context *c, int argc, const char **argv)
 {
+	int conn_flags = NET_FLAGS_PDC;
+
+	if (!c->opt_user_specified) {
+		conn_flags |= NET_FLAGS_ANONYMOUS;
+	}
+
 	if (c->display_usage) {
 		d_printf("Usage:\n"
 			 "net rpc getsid\n"
@@ -592,7 +600,7 @@ int net_rpc_getsid(struct net_context *c, int argc, const char **argv)
 	}
 
 	return run_rpc_command(c, NULL, &ndr_table_samr.syntax_id,
-			       NET_FLAGS_ANONYMOUS | NET_FLAGS_PDC,
+			       conn_flags,
 			       rpc_getsid_internals,
 			       argc, argv);
 }
@@ -5947,16 +5955,16 @@ static int rpc_trustdom_list(struct net_context *c, int argc, const char **argv)
 	NTSTATUS nt_status;
 	const char *domain_name = NULL;
 	DOM_SID *queried_dom_sid;
-	fstring padding;
 	int ascii_dom_name_len;
 	struct policy_handle connect_hnd;
 	union lsa_PolicyInformation *info = NULL;
 
 	/* trusted domains listing variables */
 	unsigned int num_domains, enum_ctx = 0;
-	int i, pad_len, col_len = 20;
+	int i;
 	struct lsa_DomainList dom_list;
 	fstring pdc_name;
+	bool found_domain;
 
 	/* trusting domains listing variables */
 	struct policy_handle domain_hnd;
@@ -6041,6 +6049,8 @@ static int rpc_trustdom_list(struct net_context *c, int argc, const char **argv)
 	 
 	d_printf("Trusted domains list:\n\n");
 
+	found_domain = false;
+
 	do {
 		nt_status = rpccli_lsa_EnumTrustDom(pipe_hnd, mem_ctx,
 						    &connect_hnd,
@@ -6058,15 +6068,18 @@ static int rpc_trustdom_list(struct net_context *c, int argc, const char **argv)
 		for (i = 0; i < dom_list.count; i++) {
 			print_trusted_domain(dom_list.domains[i].sid,
 					     dom_list.domains[i].name.string);
+			found_domain = true;
 		};
 
-		/*
-		 * in case of no trusted domains say something rather
-		 * than just display blank line
-		 */
-		if (!dom_list.count) d_printf("none\n");
-
 	} while (NT_STATUS_EQUAL(nt_status, STATUS_MORE_ENTRIES));
+
+	/*
+	 * in case of no trusted domains say something rather
+	 * than just display blank line
+	 */
+	if (!found_domain) {
+		d_printf("none\n");
+	}
 
 	/* close this connection before doing next one */
 	nt_status = rpccli_lsa_Close(pipe_hnd, mem_ctx, &connect_hnd);
@@ -6130,6 +6143,8 @@ static int rpc_trustdom_list(struct net_context *c, int argc, const char **argv)
 	 * perform actual enumeration
 	 */
 
+	found_domain = false;
+
 	enum_ctx = 0;	/* reset enumeration context from last enumeration */
 	do {
 
@@ -6152,6 +6167,8 @@ static int rpc_trustdom_list(struct net_context *c, int argc, const char **argv)
 
 			char *str = CONST_DISCARD(char *, trusts->entries[i].name.string);
 
+			found_domain = true;
+
 			/*
 			 * get each single domain's sid (do we _really_ need this ?):
 			 *  1) connect to domain's pdc
@@ -6163,17 +6180,12 @@ static int rpc_trustdom_list(struct net_context *c, int argc, const char **argv)
 			if (ascii_dom_name_len && ascii_dom_name_len < FSTRING_LEN)
 				str[ascii_dom_name_len - 1] = '\0';
 
-			/* calculate padding space for d_printf to look nicer */
-			pad_len = col_len - strlen(str);
-			padding[pad_len] = 0;
-			do padding[--pad_len] = ' '; while (pad_len);
-
 			/* set opt_* variables to remote domain */
 			strupper_m(str);
 			c->opt_workgroup = talloc_strdup(mem_ctx, str);
 			c->opt_target_workgroup = c->opt_workgroup;
 
-			d_printf("%s%s", str, padding);
+			d_printf("%-20s", str);
 
 			/* connect to remote domain controller */
 			nt_status = net_make_ipc_connection(c,
@@ -6197,9 +6209,11 @@ static int rpc_trustdom_list(struct net_context *c, int argc, const char **argv)
 			};
 		};
 
-		if (!num_domains) d_printf("none\n");
-
 	} while (NT_STATUS_EQUAL(nt_status, STATUS_MORE_ENTRIES));
+
+	if (!found_domain) {
+		d_printf("none\n");
+	}
 
 	/* close opened samr and domain policy handles */
 	nt_status = rpccli_samr_Close(pipe_hnd, mem_ctx, &domain_hnd);

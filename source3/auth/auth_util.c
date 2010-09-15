@@ -218,7 +218,7 @@ NTSTATUS make_user_info_map(auth_usersupplied_info **user_info,
 	 * This also deals with the client passing in a "" domain */
 
 	if (!is_trusted_domain(domain) &&
-	    !strequal(domain, get_global_sam_name()) )
+	    !strequal(domain, my_sam_name()))
 	{
 		if (lp_map_untrusted_to_domain())
 			domain = my_sam_name();
@@ -2175,6 +2175,14 @@ bool is_trusted_domain(const char* dom_name)
 
 	if ( lp_server_role() == ROLE_STANDALONE )
 		return False;
+
+	if (dom_name == NULL || dom_name[0] == '\0') {
+		return false;
+	}
+
+	if (strequal(dom_name, get_global_sam_name())) {
+		return false;
+	}
 
 	/* if we are a DC, then check for a direct trust relationships */
 

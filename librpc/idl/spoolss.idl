@@ -5,6 +5,9 @@
 */
 import "misc.idl", "security.idl", "winreg.idl";
 
+
+cpp_quote("#define spoolss_security_descriptor security_descriptor")
+
 [ uuid("12345678-1234-abcd-ef00-0123456789ab"),
   version(1.0),
   endpoint("ncacn_np:[\\pipe\\spoolss]"),
@@ -68,7 +71,7 @@ import "misc.idl", "security.idl", "winreg.idl";
 
 	const int PRINTER_STATUS_OK		= 0x00000000;
 
-	typedef bitmap {
+	typedef [public] bitmap {
 		PRINTER_STATUS_PAUSED		= 0x00000001,
 		PRINTER_STATUS_ERROR		= 0x00000002,
 		PRINTER_STATUS_PENDING_DELETION	= 0x00000004,
@@ -255,7 +258,7 @@ import "misc.idl", "security.idl", "winreg.idl";
 		[relative] nstring *comment;
 	} spoolss_PrinterInfo1;
 
-	typedef bitmap {
+	typedef [public] bitmap {
 		PRINTER_ATTRIBUTE_QUEUED		= 0x00000001,
 		PRINTER_ATTRIBUTE_DIRECT		= 0x00000002,
 		PRINTER_ATTRIBUTE_DEFAULT		= 0x00000004,
@@ -274,7 +277,7 @@ import "misc.idl", "security.idl", "winreg.idl";
 		PRINTER_ATTRIBUTE_TS			= 0x00008000
 	} spoolss_PrinterAttributes;
 
-	typedef [public,gensize] struct {
+	typedef [public,gensize,nopush] struct {
 		[relative] nstring *servername;
 		[relative] nstring *printername;
 		[relative] nstring *sharename;
@@ -282,12 +285,12 @@ import "misc.idl", "security.idl", "winreg.idl";
 		[relative] nstring *drivername;
 		[relative] nstring *comment;
 		[relative] nstring *location;
-		[relative,subcontext(0)] spoolss_DeviceMode *devmode;
+		[relative,subcontext(0),flag(NDR_ALIGN4)] spoolss_DeviceMode *devmode;
 		[relative] nstring *sepfile;
 		[relative] nstring *printprocessor;
 		[relative] nstring *datatype;
 		[relative] nstring *parameters;
-		[relative,subcontext(0)] security_descriptor *secdesc;
+		[relative,subcontext(0),flag(NDR_ALIGN4)] spoolss_security_descriptor *secdesc;
 		spoolss_PrinterAttributes attributes;
 		[range(0,99)] uint32 priority;
 		uint32 defaultpriority;
@@ -299,7 +302,7 @@ import "misc.idl", "security.idl", "winreg.idl";
 	} spoolss_PrinterInfo2;
 
 	typedef [public,gensize] struct {
-		[relative,subcontext(0)] security_descriptor *secdesc;
+		[relative,subcontext(0),flag(NDR_ALIGN4)] spoolss_security_descriptor *secdesc;
 	} spoolss_PrinterInfo3;
 
 	typedef [public,gensize] struct {
@@ -334,10 +337,10 @@ import "misc.idl", "security.idl", "winreg.idl";
 	} spoolss_PrinterInfo7;
 
 	typedef struct {
-		[relative,subcontext(0)] spoolss_DeviceMode *devmode;
+		[relative,subcontext(0),flag(NDR_ALIGN4)] spoolss_DeviceMode *devmode;
 	} spoolss_DeviceModeInfo;
 
-	typedef [nodiscriminant,relative_base,public,gensize] union {
+	typedef [nodiscriminant,relative_base,public,gensize,flag(NDR_RELATIVE_REVERSE)] union {
 		[case(0)] spoolss_PrinterInfo0 info0;
 		[case(1)] spoolss_PrinterInfo1 info1;
 		[case(2)] spoolss_PrinterInfo2 info2;
@@ -428,9 +431,9 @@ import "misc.idl", "security.idl", "winreg.idl";
 		[relative] nstring *print_processor;
 		[relative] nstring *parameters;
 		[relative] nstring *driver_name;
-		[relative] spoolss_DeviceMode *devmode;
+		[relative,subcontext(0),flag(NDR_ALIGN4)] spoolss_DeviceMode *devmode;
 		[relative] nstring *text_status;
-		[relative] security_descriptor *secdesc;
+		[relative,subcontext(0),flag(NDR_ALIGN4)] spoolss_security_descriptor *secdesc;
 		spoolss_JobStatus status;
 		[range(0,99)] uint32 priority;
 		uint32 position;
@@ -460,9 +463,9 @@ import "misc.idl", "security.idl", "winreg.idl";
 		[relative] nstring *print_processor;
 		[relative] nstring *parameters;
 		[relative] nstring *driver_name;
-		[relative] spoolss_DeviceMode *devmode;
+		[relative,subcontext(0),flag(NDR_ALIGN4)] spoolss_DeviceMode *devmode;
 		[relative] nstring *text_status;
-		[relative] security_descriptor *secdesc;
+		[relative,subcontext(0),flag(NDR_ALIGN4)] spoolss_security_descriptor *secdesc;
 		spoolss_JobStatus status;
 		[range(0,99)] uint32 priority;
 		uint32 position;
@@ -476,7 +479,7 @@ import "misc.idl", "security.idl", "winreg.idl";
 		uint32 size_high;
 	} spoolss_JobInfo4;
 
-	typedef [nodiscriminant,relative_base,public,gensize] union {
+	typedef [nodiscriminant,relative_base,public,gensize,flag(NDR_RELATIVE_REVERSE)] union {
 		[case(1)] spoolss_JobInfo1 info1;
 		[case(2)] spoolss_JobInfo2 info2;
 		[case(3)] spoolss_JobInfo3 info3;
@@ -697,12 +700,12 @@ import "misc.idl", "security.idl", "winreg.idl";
 		[string,charset(UTF16)] uint16 *drivername;
 		[string,charset(UTF16)] uint16 *comment;
 		[string,charset(UTF16)] uint16 *location;
-		[subcontext(0)] spoolss_DeviceMode *devmode;
+		uint32 devmode_ptr;
 		[string,charset(UTF16)] uint16 *sepfile;
 		[string,charset(UTF16)] uint16 *printprocessor;
 		[string,charset(UTF16)] uint16 *datatype;
 		[string,charset(UTF16)] uint16 *parameters;
-		[subcontext(0)] security_descriptor *secdesc;
+		uint32 secdesc_ptr;
 		spoolss_PrinterAttributes attributes;
 		[range(0,99)] uint32 priority;
 		uint32 defaultpriority;
@@ -740,6 +743,14 @@ import "misc.idl", "security.idl", "winreg.idl";
 		spoolss_DsPrintAction action;
 	} spoolss_SetPrinterInfo7;
 
+	typedef struct {
+		uint32 devmode_ptr;
+	} spoolss_SetPrinterInfo8;
+
+	typedef struct {
+		uint32 devmode_ptr;
+	} spoolss_SetPrinterInfo9;
+
 	typedef [switch_type(uint32)] union {
 		[case(0)] spoolss_SetPrinterInfo0 *info0;
 		[case(1)] spoolss_SetPrinterInfo1 *info1;
@@ -749,8 +760,8 @@ import "misc.idl", "security.idl", "winreg.idl";
 		[case(5)] spoolss_SetPrinterInfo5 *info5;
 		[case(6)] spoolss_SetPrinterInfo6 *info6;
 		[case(7)] spoolss_SetPrinterInfo7 *info7;
-		[case(8)] spoolss_DeviceModeInfo *info8;
-		[case(9)] spoolss_DeviceModeInfo *info9;
+		[case(8)] spoolss_SetPrinterInfo8 *info8;
+		[case(9)] spoolss_SetPrinterInfo9 *info9;
 		[default];
 	} spoolss_SetPrinterInfo;
 
@@ -1056,7 +1067,7 @@ import "misc.idl", "security.idl", "winreg.idl";
 		[relative] nstring *provider;
 	} spoolss_DriverInfo101;
 
-	typedef [nodiscriminant,relative_base,public,gensize] union {
+	typedef [nodiscriminant,relative_base,public,gensize,flag(NDR_RELATIVE_REVERSE)] union {
 		[case(1)] spoolss_DriverInfo1 info1;
 		[case(2)] spoolss_DriverInfo2 info2;
 		[case(3)] spoolss_DriverInfo3 info3;
@@ -1110,7 +1121,7 @@ import "misc.idl", "security.idl", "winreg.idl";
 	/* NOTE: it's seems that w2k3 completly ignores the level
 	         in its server code
 	 */
-	typedef [nodiscriminant,relative_base,gensize,public] union {
+	typedef [nodiscriminant,relative_base,public,gensize,flag(NDR_RELATIVE_REVERSE)] union {
 		[case(1)] spoolss_DriverDirectoryInfo1 info1;
 		[default] spoolss_DriverDirectoryInfo1 info1;
 	} spoolss_DriverDirectoryInfo;
@@ -1148,7 +1159,7 @@ import "misc.idl", "security.idl", "winreg.idl";
 		[relative] nstring *print_processor_name;
 	} spoolss_PrintProcessorInfo1;
 
-	typedef [nodiscriminant,relative_base,public] union {
+	typedef [nodiscriminant,relative_base,public,flag(NDR_RELATIVE_REVERSE)] union {
 		[case(1)] spoolss_PrintProcessorInfo1 info1;
 		[default];
 	} spoolss_PrintProcessorInfo;
@@ -1185,7 +1196,7 @@ import "misc.idl", "security.idl", "winreg.idl";
 		nstring directory_name;
 	} spoolss_PrintProcessorDirectoryInfo1;
 
-	typedef [nodiscriminant,relative_base,gensize,public] union {
+	typedef [nodiscriminant,relative_base,public,gensize,flag(NDR_RELATIVE_REVERSE)] union {
 		[case(1)] spoolss_PrintProcessorDirectoryInfo1 info1;
 		[default] spoolss_PrintProcessorDirectoryInfo1 info1;
 	} spoolss_PrintProcessorDirectoryInfo;
@@ -1325,46 +1336,23 @@ import "misc.idl", "security.idl", "winreg.idl";
 		[default,flag(NDR_REMAINING)] DATA_BLOB data;
 	} spoolss_PrinterData;
 
-	[noopnum,noprint,public] WERROR _spoolss_GetPrinterData(
+	WERROR spoolss_GetPrinterData(
 		[in,ref] policy_handle *handle,
 		[in] 	 [string,charset(UTF16)] uint16 value_name[],
-		[in] 	 uint32 offered,
 		[out,ref] winreg_Type *type,
-		[out,ref] DATA_BLOB *data,
-		[out,ref] uint32 *needed
-	);
-	[noopnum,noprint,public] void __spoolss_GetPrinterData(
-		[in] winreg_Type type,
-		[out,ref,switch_is(type)] spoolss_PrinterData *data
-	);
-	[nopull,nopush,public] WERROR spoolss_GetPrinterData(
-		[in,ref] policy_handle *handle,
-		[in] 	 [string,charset(UTF16)] uint16 value_name[],
+		[out,ref] [size_is(offered)] uint8 *data,
 		[in] 	 uint32 offered,
-		[out,ref] winreg_Type *type,
-		[out,ref,subcontext(4),subcontext_size(offered),switch_is(*type)] spoolss_PrinterData *data,
 		[out,ref] uint32 *needed
 	);
 
 	/******************/
 	/* Function: 0x1b */
-	[noopnum,nopull,noprint,public] WERROR _spoolss_SetPrinterData(
+	WERROR spoolss_SetPrinterData(
 		[in,ref] policy_handle *handle,
-		[in] [string,charset(UTF16)] uint16 value_name[],
-		[in] winreg_Type type,
-		[in] DATA_BLOB data,
-		[in] uint32 _offered
-	);
-	[noopnum,nopull,noprint,public] void __spoolss_SetPrinterData(
-		[in] winreg_Type type,
-		[out,ref,switch_is(type)] spoolss_PrinterData *data
-	);
-	[nopush] WERROR spoolss_SetPrinterData(
-		[in,ref] policy_handle *handle,
-		[in] [string,charset(UTF16)] uint16 value_name[],
-		[in] winreg_Type type,
-		[in,subcontext(4),switch_is(type)] spoolss_PrinterData data,
-		[in,value(ndr_size_spoolss_PrinterData(&data,type,ndr->iconv_convenience,flags))] uint32 _offered
+		[in] 	 [string,charset(UTF16)] uint16 value_name[],
+		[in] 	 winreg_Type type,
+		[in,ref] [size_is(offered)] uint8 *data,
+		[in] 	 uint32 offered
 	);
 
 	/******************/
@@ -1424,7 +1412,7 @@ import "misc.idl", "security.idl", "winreg.idl";
 		uint32 lang_id;
 	} spoolss_FormInfo2;
 
-	typedef [nodiscriminant,relative_base,public,gensize] union {
+	typedef [nodiscriminant,relative_base,public,gensize,flag(NDR_RELATIVE_REVERSE)] union {
 		[case(1)] spoolss_FormInfo1 info1;
 		[case(2)] spoolss_FormInfo2 info2;
 		[default];
@@ -1577,7 +1565,7 @@ import "misc.idl", "security.idl", "winreg.idl";
 		DATA_BLOB monitor_data; /* relative ?? */
 	} spoolss_PortInfoFF;
 
-	typedef [nodiscriminant,relative_base,public] union {
+	typedef [nodiscriminant,relative_base,public,flag(NDR_RELATIVE_REVERSE)] union {
 		[case(1)] spoolss_PortInfo1 info1;
 		[case(2)] spoolss_PortInfo2 info2;
 		[case(3)] spoolss_PortInfo3 info3;
@@ -1623,7 +1611,7 @@ import "misc.idl", "security.idl", "winreg.idl";
 		[relative] nstring *dll_name;
 	} spoolss_MonitorInfo2;
 
-	typedef [nodiscriminant,relative_base,public] union {
+	typedef [nodiscriminant,relative_base,public,flag(NDR_RELATIVE_REVERSE)] union {
 		[case(1)] spoolss_MonitorInfo1 info1;
 		[case(2)] spoolss_MonitorInfo2 info2;
 		[default];
@@ -1735,7 +1723,7 @@ import "misc.idl", "security.idl", "winreg.idl";
 		[relative] nstring *name_array;
 	} spoolss_PrintProcDataTypesInfo1;
 
-	typedef [nodiscriminant,relative_base,public] union {
+	typedef [nodiscriminant,relative_base,public,flag(NDR_RELATIVE_REVERSE)] union {
 		[case(1)] spoolss_PrintProcDataTypesInfo1 info1;
 		[default];
 	} spoolss_PrintProcDataTypesInfo;
@@ -2249,7 +2237,7 @@ import "misc.idl", "security.idl", "winreg.idl";
 		[in] 	 [string,charset(UTF16)] uint16 key_name[],
 		[in] 	 [string,charset(UTF16)] uint16 value_name[],
 		[in] 	 winreg_Type type,
-		[in,ref] [size_is(offered)] uint8 *buffer,
+		[in,ref] [size_is(offered)] uint8 *data,
 		[in] 	 uint32 offered
 	);
 
@@ -2260,7 +2248,7 @@ import "misc.idl", "security.idl", "winreg.idl";
 		[in] 	 [string,charset(UTF16)] uint16 key_name[],
 		[in] 	 [string,charset(UTF16)] uint16 value_name[],
 		[out,ref] winreg_Type *type,
-		[out,ref] [size_is(offered)] uint8 *buffer,
+		[out,ref] [size_is(offered)] uint8 *data,
 		[in] 	 uint32 offered,
 		[out,ref] uint32 *needed
 	);
@@ -2272,8 +2260,8 @@ import "misc.idl", "security.idl", "winreg.idl";
 		[relative] nstring *value_name;
 		[value(2*strlen_m_term(value_name))] uint32 value_name_len;
 		winreg_Type type;
-		[relative,switch_is(type),subcontext(0),subcontext_size(r->data_length)] spoolss_PrinterData *data;
-		[value(ndr_size_spoolss_PrinterData(data, type, ndr->iconv_convenience, ndr->flags))] uint32 data_length;
+		[relative,subcontext(0),subcontext_size(data_length),flag(NDR_REMAINING)] DATA_BLOB *data;
+		[value(data->length)] uint32 data_length;
 	} spoolss_PrinterEnumValues;
 
 	[public,noopnum,noprint] WERROR _spoolss_EnumPrinterDataEx(
@@ -2297,12 +2285,19 @@ import "misc.idl", "security.idl", "winreg.idl";
 		[out,ref] uint32 *needed
 	);
 
+	typedef [nodiscriminant] union {
+		[case(0)];
+		[case(1)];
+		[default] nstring_array string_array;
+	} spoolss_KeyNames;
+
 	/******************/
 	/* Function: 0x50 */
 	[public] WERROR spoolss_EnumPrinterKey(
 		[in, ref] policy_handle *handle,
 		[in] [string,charset(UTF16)] uint16 key_name[],
-		[out,ref] [subcontext(0),subcontext_size(offered)] nstring_array **key_buffer,
+		[out,ref] uint32 *_ndr_size,
+		[out,ref,subcontext(0),subcontext_size(*_ndr_size*2),switch_is(*_ndr_size)] spoolss_KeyNames *key_buffer,
 		[in] uint32 offered,
 		[out,ref] uint32 *needed
 	);

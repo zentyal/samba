@@ -331,6 +331,7 @@ static void init_chartest( void )
 	chartest = SMB_MALLOC_ARRAY(unsigned char, 256);
 
 	SMB_ASSERT(chartest != NULL);
+	memset(chartest, '\0', 256);
 
 	for( s = (const unsigned char *)basechars; *s; s++ ) {
 		chartest[*s] |= BASECHAR_MASK;
@@ -408,8 +409,8 @@ static void cache_mangled_name( const char mangled_name[13],
 {
 	TDB_DATA data_val;
 	char mangled_name_key[13];
-	char *s1;
-	char *s2;
+	char *s1 = NULL;
+	char *s2 = NULL;
 
 	/* If the cache isn't initialized, give up. */
 	if( !tdb_mangled_cache )
@@ -429,6 +430,13 @@ static void cache_mangled_name( const char mangled_name[13],
 		if( !s1[i] && !s2[i] ) {
 			/* Truncate at the '.' */
 			*s1 = '\0';
+			/*
+			 * DANGER WILL ROBINSON - this
+			 * is changing a const string via
+			 * an aliased pointer ! Remember to
+			 * put it back once we've used it.
+			 * JRA
+			 */
 			*s2 = '\0';
 		}
 	}
@@ -439,6 +447,10 @@ static void cache_mangled_name( const char mangled_name[13],
 		DEBUG(0,("cache_mangled_name: Error storing entry %s -> %s\n", mangled_name_key, raw_name));
 	} else {
 		DEBUG(5,("cache_mangled_name: Stored entry %s -> %s\n", mangled_name_key, raw_name));
+	}
+	/* Restore the change we made to the const string. */
+	if (s2) {
+		*s2 = '.';
 	}
 }
 
@@ -612,7 +624,10 @@ static bool must_mangle(const char *name,
 	}
 	status = is_valid_name(name_ucs2, False, False);
 	SAFE_FREE(name_ucs2);
-	return NT_STATUS_IS_OK(status);
+	/* We return true if we *must* mangle, so if it's
+	 * a valid name (status == OK) then we must return
+	 * false. Bug #6939. */
+	return !NT_STATUS_IS_OK(status);
 }
 
 /*****************************************************************************

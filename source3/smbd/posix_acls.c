@@ -181,6 +181,7 @@ static char *create_pai_buf_v2(canon_ace *file_ace_list,
 	char *entry_offset = NULL;
 	unsigned int num_entries = 0;
 	unsigned int num_def_entries = 0;
+	unsigned int i;
 
 	for (ace_list = file_ace_list; ace_list; ace_list = ace_list->next) {
 		num_entries++;
@@ -207,8 +208,12 @@ static char *create_pai_buf_v2(canon_ace *file_ace_list,
 	SSVAL(pai_buf,PAI_V2_NUM_ENTRIES_OFFSET,num_entries);
 	SSVAL(pai_buf,PAI_V2_NUM_DEFAULT_ENTRIES_OFFSET,num_def_entries);
 
+	DEBUG(10,("create_pai_buf_v2: sd_type = 0x%x\n",
+			(unsigned int)sd_type ));
+
 	entry_offset = pai_buf + PAI_V2_ENTRIES_BASE;
 
+	i = 0;
 	for (ace_list = file_ace_list; ace_list; ace_list = ace_list->next) {
 		uint8_t type_val = (uint8_t)ace_list->owner_type;
 		uint32_t entry_val = get_entry_val(ace_list);
@@ -216,6 +221,12 @@ static char *create_pai_buf_v2(canon_ace *file_ace_list,
 		SCVAL(entry_offset,0,ace_list->ace_flags);
 		SCVAL(entry_offset,1,type_val);
 		SIVAL(entry_offset,2,entry_val);
+		DEBUG(10,("create_pai_buf_v2: entry %u [0x%x] [0x%x] [0x%x]\n",
+			i,
+			(unsigned int)ace_list->ace_flags,
+			(unsigned int)type_val,
+			(unsigned int)entry_val ));
+		i++;
 		entry_offset += PAI_V2_ENTRY_LENGTH;
 	}
 
@@ -226,6 +237,12 @@ static char *create_pai_buf_v2(canon_ace *file_ace_list,
 		SCVAL(entry_offset,0,ace_list->ace_flags);
 		SCVAL(entry_offset,1,type_val);
 		SIVAL(entry_offset,2,entry_val);
+		DEBUG(10,("create_pai_buf_v2: entry %u [0x%x] [0x%x] [0x%x]\n",
+			i,
+			(unsigned int)ace_list->ace_flags,
+			(unsigned int)type_val,
+			(unsigned int)entry_val ));
+		i++;
 		entry_offset += PAI_V2_ENTRY_LENGTH;
 	}
 
@@ -399,6 +416,8 @@ static bool get_pai_owner_type(struct pai_entry *paie, const char *entry_offset)
 			DEBUG(10,("get_pai_owner_type: world ace\n"));
 			break;
 		default:
+			DEBUG(10,("get_pai_owner_type: unknown type %u\n",
+				(unsigned int)paie->owner_type ));
 			return false;
 	}
 	return true;
@@ -485,12 +504,13 @@ static struct pai_val *create_pai_val_v1(const char *buf, size_t size)
 ************************************************************************/
 
 static const char *create_pai_v2_entries(struct pai_val *paiv,
+				unsigned int num_entries,
 				const char *entry_offset,
 				bool def_entry)
 {
-	int i;
+	unsigned int i;
 
-	for (i = 0; i < paiv->num_entries; i++) {
+	for (i = 0; i < num_entries; i++) {
 		struct pai_entry *paie = SMB_MALLOC_P(struct pai_entry);
 		if (!paie) {
 			return NULL;
@@ -498,9 +518,7 @@ static const char *create_pai_v2_entries(struct pai_val *paiv,
 
 		paie->ace_flags = CVAL(entry_offset,0);
 
-		entry_offset++;
-
-		if (!get_pai_owner_type(paie, entry_offset)) {
+		if (!get_pai_owner_type(paie, entry_offset+1)) {
 			return NULL;
 		}
 		if (!def_entry) {
@@ -540,15 +558,18 @@ static struct pai_val *create_pai_val_v2(const char *buf, size_t size)
 
 	entry_offset = buf + PAI_V2_ENTRIES_BASE;
 
-	DEBUG(10,("create_pai_val_v2: num_entries = %u, num_def_entries = %u\n",
+	DEBUG(10,("create_pai_val_v2: sd_type = 0x%x num_entries = %u, num_def_entries = %u\n",
+			(unsigned int)paiv->sd_type,
 			paiv->num_entries, paiv->num_def_entries ));
 
-	entry_offset = create_pai_v2_entries(paiv, entry_offset, false);
+	entry_offset = create_pai_v2_entries(paiv, paiv->num_entries,
+				entry_offset, false);
 	if (entry_offset == NULL) {
 		free_inherited_info(paiv);
 		return NULL;
 	}
-	entry_offset = create_pai_v2_entries(paiv, entry_offset, true);
+	entry_offset = create_pai_v2_entries(paiv, paiv->num_def_entries,
+				entry_offset, true);
 	if (entry_offset == NULL) {
 		free_inherited_info(paiv);
 		return NULL;
@@ -1085,6 +1106,9 @@ static uint32_t map_canon_ace_perms(int snum,
 			nt_mask |= ((perms & S_IRUSR) ? UNIX_ACCESS_R : 0 );
 			nt_mask |= ((perms & S_IWUSR) ? UNIX_ACCESS_W : 0 );
 			nt_mask |= ((perms & S_IXUSR) ? UNIX_ACCESS_X : 0 );
+		}
+		if ((perms & S_IWUSR) && lp_dos_filemode(snum)) {
+			nt_mask |= (SEC_STD_WRITE_DAC|SEC_STD_WRITE_OWNER);
 		}
 	}
 
@@ -3341,13 +3365,19 @@ NTSTATUS posix_get_nt_acl(struct connection_struct *conn, const char *name,
 	SMB_ACL_T posix_acl = NULL;
 	SMB_ACL_T def_acl = NULL;
 	struct pai_val *pal;
+	int ret;
 
 	*ppdesc = NULL;
 
 	DEBUG(10,("posix_get_nt_acl: called for file %s\n", name ));
 
 	/* Get the stat struct for the owner info. */
-	if(SMB_VFS_STAT(conn, name, &sbuf) != 0) {
+	if (lp_posix_pathnames()) {
+		ret = SMB_VFS_LSTAT(conn, name, &sbuf);
+	} else {
+		ret = SMB_VFS_STAT(conn, name, &sbuf);
+	}
+	if(ret != 0) {
 		return map_nt_error_from_unix(errno);
 	}
 
@@ -3381,6 +3411,7 @@ int try_chown(connection_struct *conn, const char *fname, uid_t uid, gid_t gid)
 	int ret;
 	files_struct *fsp;
 	SMB_STRUCT_STAT st;
+	bool posix_paths = lp_posix_pathnames();
 
 	if(!CAN_WRITE(conn)) {
 		return -1;
@@ -3388,7 +3419,11 @@ int try_chown(connection_struct *conn, const char *fname, uid_t uid, gid_t gid)
 
 	/* Case (1). */
 	/* try the direct way first */
-	ret = SMB_VFS_CHOWN(conn, fname, uid, gid);
+	if (posix_paths) {
+		ret = SMB_VFS_LCHOWN(conn, fname, uid, gid);
+	} else {
+		ret = SMB_VFS_CHOWN(conn, fname, uid, gid);
+	}
 	if (ret == 0)
 		return 0;
 
@@ -3428,7 +3463,12 @@ int try_chown(connection_struct *conn, const char *fname, uid_t uid, gid_t gid)
 		return -1;
 	}
 
-	if (SMB_VFS_STAT(conn,fname,&st)) {
+	if (posix_paths) {
+		ret = SMB_VFS_LSTAT(conn,fname,&st);
+	} else {
+		ret = SMB_VFS_STAT(conn,fname,&st);
+	}
+	if (ret != 0) {
 		return -1;
 	}
 
@@ -3664,6 +3704,8 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, const SEC_DESC
 	bool set_acl_as_root = false;
 	bool acl_set_support = false;
 	bool ret = false;
+	bool posix_paths = lp_posix_pathnames();
+	int sret;
 
 	DEBUG(10,("set_nt_acl: called for file %s\n", fsp->fsp_name ));
 
@@ -3677,8 +3719,14 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, const SEC_DESC
 	 */
 
 	if(fsp->is_directory || fsp->fh->fd == -1) {
-		if(SMB_VFS_STAT(fsp->conn,fsp->fsp_name, &sbuf) != 0)
+		if (posix_paths) {
+			sret = SMB_VFS_LSTAT(fsp->conn,fsp->fsp_name, &sbuf);
+		} else {
+			sret = SMB_VFS_STAT(fsp->conn,fsp->fsp_name, &sbuf);
+		}
+		if (sret != 0) {
 			return map_nt_error_from_unix(errno);
+		}
 	} else {
 		if(SMB_VFS_FSTAT(fsp, &sbuf) != 0)
 			return map_nt_error_from_unix(errno);
@@ -3722,17 +3770,24 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, const SEC_DESC
 		 */
 
 		if(fsp->is_directory) {
-			if(SMB_VFS_STAT(fsp->conn, fsp->fsp_name, &sbuf) != 0) {
+			if (posix_paths) {
+				sret = SMB_VFS_LSTAT(fsp->conn, fsp->fsp_name, &sbuf);
+			} else {
+				sret = SMB_VFS_STAT(fsp->conn, fsp->fsp_name, &sbuf);
+			}
+			if (sret != 0) {
 				return map_nt_error_from_unix(errno);
 			}
 		} else {
-
-			int sret;
-
-			if(fsp->fh->fd == -1)
-				sret = SMB_VFS_STAT(fsp->conn, fsp->fsp_name, &sbuf);
-			else
+			if(fsp->fh->fd == -1) {
+				if (posix_paths) {
+					sret = SMB_VFS_LSTAT(fsp->conn, fsp->fsp_name, &sbuf);
+				} else {
+					sret = SMB_VFS_STAT(fsp->conn, fsp->fsp_name, &sbuf);
+				}
+			} else {
 				sret = SMB_VFS_FSTAT(fsp, &sbuf);
+			}
 
 			if(sret != 0)
 				return map_nt_error_from_unix(errno);
@@ -3811,8 +3866,6 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, const SEC_DESC
 				return map_nt_error_from_unix(errno);
 			}
 		} else {
-			int sret = -1;
-
 			/*
 			 * No default ACL - delete one if it exists.
 			 */
@@ -3874,8 +3927,6 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, const SEC_DESC
 		}
 
 		if (orig_mode != posix_perms) {
-			int sret = -1;
-
 			DEBUG(3,("set_nt_acl: chmod %s. perms = 0%o.\n",
 				fsp->fsp_name, (unsigned int)posix_perms ));
 

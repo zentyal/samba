@@ -1,12 +1,12 @@
 .\"     Title: net
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 06/19/2009
+.\"      Date: 05/10/2010
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "NET" "8" "06/19/2009" "Samba 3\&.4" "System Administration tools"
+.TH "NET" "8" "05/10/2010" "Samba 3\&.4" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -212,17 +212,17 @@ IP address of target server to use\&. You have to specify either this option or 
 Port on the target server to connect to (usually 139 or 445)\&. Defaults to trying 445 first, then 139\&.
 .RE
 .PP
-\-n <primary NetBIOS name>
+\-n|\-\-netbiosname <primary NetBIOS name>
 .RS 4
 This option allows you to override the NetBIOS name that Samba uses for itself\&. This is identical to setting the
-\m[blue]\fBnetbios name\fR\m[]
+\m[blue]\fB\%smb.conf.5.html#\fR\m[]
 parameter in the
 \FCsmb\&.conf\F[]
 file\&. However, a command line setting will take precedence over settings in
 \FCsmb\&.conf\F[]\&.
 .RE
 .PP
-\-s <configuration file>
+\-s|\-\-configfile <configuration file>
 .RS 4
 The file specified contains the configuration details required by the server\&. The information in this file includes server\-specific information such as what printcap file to use, as well as descriptions of all the services that the server is to provide\&. See
 \FCsmb\&.conf\F[]
@@ -259,7 +259,7 @@ The higher this value, the more detail will be logged to the log files about the
 Levels above 1 will generate considerable amounts of log data, and should only be used when investigating a problem\&. Levels above 3 are designed for use only by developers and generate HUGE amounts of log data, most of which is extremely cryptic\&.
 .sp
 Note that specifying this parameter here will override the
-\m[blue]\fBlog level\fR\m[]
+\m[blue]\fB\%smb.conf.5.html#\fR\m[]
 parameter in the
 \FCsmb\&.conf\F[]
 file\&.
@@ -923,7 +923,7 @@ To set this up, first set up your smb\&.conf by adding to the [global] section: 
 .PP
 The usershare commands are:
 .RS 4
-net usershare add sharename path [comment] [acl] [guest_ok=[y|n]] \- to add or change a user defined share\&.
+net usershare add sharename path [comment [acl] [guest_ok=[y|n]]] \- to add or change a user defined share\&.
 .RE
 .RS 4
 net usershare delete sharename \- to delete a user defined share\&.
@@ -1213,7 +1213,7 @@ is an optional parameter that can be set to reboot the remote machine after succ
 .sp
 .RE
 .PP
-Note that you also need to use standard net paramters to connect and authenticate to the remote machine that you want to join\&. These additional parameters include: \-S computer and \-U user\&.
+Note that you also need to use standard net parameters to connect and authenticate to the remote machine that you want to join\&. These additional parameters include: \-S computer and \-U user\&.
 .PP
 Example: net dom join \-S xp \-U XP\e\eadministrator%secret domain=MYDOM account=MYDOM\e\eadministrator password=topsecret reboot\&.
 .PP
@@ -1260,7 +1260,7 @@ is an optional parameter that can be set to reboot the remote machine after succ
 .sp
 .RE
 .PP
-Note that you also need to use standard net paramters to connect and authenticate to the remote machine that you want to unjoin\&. These additional parameters include: \-S computer and \-U user\&.
+Note that you also need to use standard net parameters to connect and authenticate to the remote machine that you want to unjoin\&. These additional parameters include: \-S computer and \-U user\&.
 .PP
 Example: net dom unjoin \-S xp \-U XP\e\eadministrator%secret account=MYDOM\e\eadministrator password=topsecret reboot\&.
 .PP
@@ -1319,7 +1319,7 @@ is an optional parameter that can be set to reboot the remote machine after succ
 .sp
 .RE
 .PP
-Note that you also need to use standard net paramters to connect and authenticate to the remote machine that you want to rename in the domain\&. These additional parameters include: \-S computer and \-U user\&.
+Note that you also need to use standard net parameters to connect and authenticate to the remote machine that you want to rename in the domain\&. These additional parameters include: \-S computer and \-U user\&.
 .PP
 Example: net dom renamecomputer \-S xp \-U XP\e\eadministrator%secret newname=XPNEW account=MYDOM\e\eadministrator password=topsecret reboot\&.
 .PP

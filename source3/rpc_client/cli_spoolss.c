@@ -715,33 +715,43 @@ WERROR rpccli_spoolss_getprinterdata(struct rpc_pipe_client *cli,
 				     const char *value_name,
 				     uint32_t offered,
 				     enum winreg_Type *type,
-				     union spoolss_PrinterData *data)
+				     uint32_t *needed_p,
+				     uint8_t **data_p)
 {
 	NTSTATUS status;
 	WERROR werror;
 	uint32_t needed;
+	uint8_t *data;
+
+	data = talloc_zero_array(mem_ctx, uint8_t, offered);
+	W_ERROR_HAVE_NO_MEMORY(data);
 
 	status = rpccli_spoolss_GetPrinterData(cli, mem_ctx,
 					       handle,
 					       value_name,
-					       offered,
 					       type,
 					       data,
+					       offered,
 					       &needed,
 					       &werror);
 
 	if (W_ERROR_EQUAL(werror, WERR_MORE_DATA)) {
 		offered = needed;
+		data = talloc_zero_array(mem_ctx, uint8_t, offered);
+		W_ERROR_HAVE_NO_MEMORY(data);
 
 		status = rpccli_spoolss_GetPrinterData(cli, mem_ctx,
 						       handle,
 						       value_name,
-						       offered,
 						       type,
 						       data,
+						       offered,
 						       &needed,
 						       &werror);
 	}
+
+	*data_p = data;
+	*needed_p = needed;
 
 	return werror;
 }
@@ -760,26 +770,31 @@ WERROR rpccli_spoolss_enumprinterkey(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 	WERROR werror;
 	uint32_t needed;
+	union spoolss_KeyNames _key_buffer;
+	uint32_t _ndr_size;
 
 	status = rpccli_spoolss_EnumPrinterKey(cli, mem_ctx,
 					       handle,
 					       key_name,
-					       key_buffer,
+					       &_ndr_size,
+					       &_key_buffer,
 					       offered,
 					       &needed,
 					       &werror);
 
 	if (W_ERROR_EQUAL(werror, WERR_MORE_DATA)) {
 		offered = needed;
-
 		status = rpccli_spoolss_EnumPrinterKey(cli, mem_ctx,
 						       handle,
 						       key_name,
-						       key_buffer,
+						       &_ndr_size,
+						       &_key_buffer,
 						       offered,
 						       &needed,
 						       &werror);
 	}
+
+	*key_buffer = _key_buffer.string_array;
 
 	return werror;
 }

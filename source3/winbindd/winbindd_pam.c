@@ -24,6 +24,8 @@
 
 #include "includes.h"
 #include "winbindd.h"
+#include "smb_krb5.h"
+
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
 
@@ -810,8 +812,8 @@ static NTSTATUS append_data(struct winbindd_cli_state *state,
 void winbindd_pam_auth(struct winbindd_cli_state *state)
 {
 	struct winbindd_domain *domain;
-	fstring name_domain, name_user;
-	char *mapped_user = NULL;
+	fstring name_domain, name_user, mapped_user;
+	char *mapped = NULL;
 	NTSTATUS result;
 	NTSTATUS name_map_status = NT_STATUS_UNSUCCESSFUL;
 
@@ -835,15 +837,16 @@ void winbindd_pam_auth(struct winbindd_cli_state *state)
 
 	name_map_status = normalize_name_unmap(state->mem_ctx,
 					       state->request.data.auth.user,
-					       &mapped_user);
+					       &mapped);
 
 	/* If the name normalization didnt' actually do anything,
 	   just use the original name */
 
-	if (!NT_STATUS_IS_OK(name_map_status) &&
-	    !NT_STATUS_EQUAL(name_map_status, NT_STATUS_FILE_RENAMED))
-	{
-		mapped_user = state->request.data.auth.user;
+	if (NT_STATUS_IS_OK(name_map_status)
+	    ||NT_STATUS_EQUAL(name_map_status, NT_STATUS_FILE_RENAMED)) {
+		fstrcpy(mapped_user, mapped);
+	} else {
+		fstrcpy(mapped_user, state->request.data.auth.user);
 	}
 
 	if (!canonicalize_username(mapped_user, name_domain, name_user)) {
@@ -1366,7 +1369,7 @@ NTSTATUS winbindd_dual_pam_auth_samlogon(struct winbindd_domain *domain,
 		   might not yet have noticed that the DC has killed
 		   our connection. */
 
-		if (NT_STATUS_EQUAL(result, NT_STATUS_UNSUCCESSFUL)) {
+		if (!rpccli_is_connected(netlogon_pipe)) {
 			retry = true;
 			continue;
 		}
@@ -1941,7 +1944,7 @@ enum winbindd_result winbindd_dual_pam_auth_crap(struct winbindd_domain *domain,
 		   might not yet have noticed that the DC has killed
 		   our connection. */
 
-		if (NT_STATUS_EQUAL(result, NT_STATUS_UNSUCCESSFUL)) {
+		if (!rpccli_is_connected(netlogon_pipe)) {
 			retry = true;
 			continue;
 		}

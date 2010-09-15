@@ -22,11 +22,6 @@ SHLD_FLAGS = @SHLD_FLAGS@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PICFLAG = @PICFLAG@
 SHLIBEXT = @SHLIBEXT@
-PYTHON = @PYTHON@
-PYTHON_CONFIG = @PYTHON_CONFIG@
-PYTHON_BUILD_TARGET = @PYTHON_BUILD_TARGET@
-PYTHON_INSTALL_TARGET = @PYTHON_INSTALL_TARGET@
-PYTHON_CHECK_TARGET = @PYTHON_CHECK_TARGET@
 LIB_PATH_VAR = @LIB_PATH_VAR@
 teventdir = @teventdir@
 
@@ -44,16 +39,20 @@ LIBS = $(TALLOC_LIBS) $(TEVENT_LIBS) @LIBS@
 
 TEVENT_OBJ = @TEVENT_OBJ@ @LIBREPLACEOBJ@
 
+SONAMEFLAG = @SONAMEFLAG@
+VERSIONSCRIPT = @VERSIONSCRIPT@
+EXPORTSFILE = @EXPORTSFILE@
+
 default: all
 
 include $(teventdir)/tevent.mk
 include $(teventdir)/rules.mk
 
-all:: showflags dirs $(PROGS) $(TEVENT_SOLIB) libtevent.a $(PYTHON_BUILD_TARGET)
+all:: showflags dirs $(PROGS) $(TEVENT_SOLIB) libtevent.a
 
 install:: all
 $(TEVENT_SOLIB): $(TEVENT_OBJ)
-	$(SHLD) $(SHLD_FLAGS) $(LDFLAGS) $(LIBS) -o $@ $(TEVENT_OBJ) @SONAMEFLAG@$(TEVENT_SONAME)
+	$(SHLD) $(SHLD_FLAGS) $(LDFLAGS) $(LIBS) -o $@ $(TEVENT_OBJ) $(VERSIONSCRIPT) $(EXPORTSFILE) $(SONAMEFLAG)$(TEVENT_SONAME)
 
 shared-build: all
 	${INSTALLCMD} -d $(sharedbuilddir)/lib
@@ -66,11 +65,11 @@ shared-build: all
 
 check: test
 
-test:: $(PYTHON_CHECK_TARGET)
 installcheck:: test install
 
 clean::
 	rm -f *.o *.a */*.o
+	rm -fr abi
 
 distclean:: clean
 	rm -f config.log config.status config.h config.cache

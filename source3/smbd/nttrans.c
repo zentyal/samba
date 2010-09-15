@@ -436,6 +436,7 @@ void reply_ntcreate_and_X(struct smb_request *req)
 	NTSTATUS status;
 	int oplock_request;
 	uint8_t oplock_granted = NO_OPLOCK_RETURN;
+	struct case_semantics_state *case_state = NULL;
 	TALLOC_CTX *ctx = talloc_tos();
 
 	START_PROFILE(SMBntcreateX);
@@ -509,6 +510,25 @@ void reply_ntcreate_and_X(struct smb_request *req)
 			? BATCH_OPLOCK : 0;
 	}
 
+	/*
+	 * Check if POSIX semantics are wanted.
+	 */
+
+	if (file_attributes & FILE_FLAG_POSIX_SEMANTICS) {
+		case_state = set_posix_case_semantics(ctx, conn);
+		if (!case_state) {
+			reply_nterror(req, NT_STATUS_NO_MEMORY);
+			END_PROFILE(SMBntcreateX);
+			return;
+		}
+		/*
+		 * Bug #6898 - clients using Windows opens should
+		 * never be able to set this attribute into the
+		 * VFS.
+		 */
+		file_attributes &= ~FILE_FLAG_POSIX_SEMANTICS;
+	}
+
 	status = SMB_VFS_CREATE_FILE(
 		conn,					/* conn */
 		req,					/* req */
@@ -527,6 +547,8 @@ void reply_ntcreate_and_X(struct smb_request *req)
 		&fsp,					/* result */
 		&info,					/* pinfo */
 		&sbuf);					/* psbuf */
+
+	TALLOC_FREE(case_state);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		if (open_was_deferred(req->mid)) {
@@ -614,13 +636,13 @@ void reply_ntcreate_and_X(struct smb_request *req)
 		dos_filetime_timespec(&m_timespec);
 	}
 
-	put_long_date_timespec(p, c_timespec); /* create time. */
+	put_long_date_timespec(conn->ts_res, p, c_timespec); /* create time. */
 	p += 8;
-	put_long_date_timespec(p, a_timespec); /* access time */
+	put_long_date_timespec(conn->ts_res, p, a_timespec); /* access time */
 	p += 8;
-	put_long_date_timespec(p, m_timespec); /* write time */
+	put_long_date_timespec(conn->ts_res, p, m_timespec); /* write time */
 	p += 8;
-	put_long_date_timespec(p, m_timespec); /* change time */
+	put_long_date_timespec(conn->ts_res, p, m_timespec); /* change time */
 	p += 8;
 	SIVAL(p,0,fattr); /* File Attributes. */
 	p += 4;
@@ -864,6 +886,7 @@ static void call_nt_transact_create(connection_struct *conn,
 	uint64_t allocation_size;
 	int oplock_request;
 	uint8_t oplock_granted;
+	struct case_semantics_state *case_state = NULL;
 	TALLOC_CTX *ctx = talloc_tos();
 
 	SET_STAT_INVALID(sbuf);
@@ -983,6 +1006,24 @@ static void call_nt_transact_create(connection_struct *conn,
 			? BATCH_OPLOCK : 0;
 	}
 
+	/*
+	 * Check if POSIX semantics are wanted.
+	 */
+
+	if (file_attributes & FILE_FLAG_POSIX_SEMANTICS) {
+		case_state = set_posix_case_semantics(ctx, conn);
+		if (!case_state) {
+			reply_nterror(req, NT_STATUS_NO_MEMORY);
+			return;
+		}
+		/*
+		 * Bug #6898 - clients using Windows opens should
+		 * never be able to set this attribute into the
+		 * VFS.
+		 */
+		file_attributes &= ~FILE_FLAG_POSIX_SEMANTICS;
+	}
+
 	status = SMB_VFS_CREATE_FILE(
 		conn,					/* conn */
 		req,					/* req */
@@ -1001,6 +1042,8 @@ static void call_nt_transact_create(connection_struct *conn,
 		&fsp,					/* result */
 		&info,					/* pinfo */
 		&sbuf);					/* psbuf */
+
+	TALLOC_FREE(case_state);
 
 	if(!NT_STATUS_IS_OK(status)) {
 		if (open_was_deferred(req->mid)) {
@@ -1081,13 +1124,13 @@ static void call_nt_transact_create(connection_struct *conn,
 		dos_filetime_timespec(&m_timespec);
 	}
 
-	put_long_date_timespec(p, c_timespec); /* create time. */
+	put_long_date_timespec(conn->ts_res, p, c_timespec); /* create time. */
 	p += 8;
-	put_long_date_timespec(p, a_timespec); /* access time */
+	put_long_date_timespec(conn->ts_res, p, a_timespec); /* access time */
 	p += 8;
-	put_long_date_timespec(p, m_timespec); /* write time */
+	put_long_date_timespec(conn->ts_res, p, m_timespec); /* write time */
 	p += 8;
-	put_long_date_timespec(p, m_timespec); /* change time */
+	put_long_date_timespec(conn->ts_res, p, m_timespec); /* change time */
 	p += 8;
 	SIVAL(p,0,fattr); /* File Attributes. */
 	p += 4;
@@ -1991,7 +2034,7 @@ static void call_nt_transact_ioctl(connection_struct *conn,
 		}
 
 		/* needed_data_count 4 bytes */
-		SIVAL(pdata,8,labels_data_count);
+		SIVAL(pdata, 8, labels_data_count+4);
 
 		cur_pdata+=12;
 
@@ -2037,7 +2080,11 @@ static void call_nt_transact_ioctl(connection_struct *conn,
 		/* unknown 4 bytes: this is not the length of the sid :-(  */
 		/*unknown = IVAL(pdata,0);*/
 
-		sid_parse(pdata+4,sid_len,&sid);
+		if (!sid_parse(pdata+4,sid_len,&sid)) {
+			reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
+			return;
+		}
+
 		DEBUGADD(10, ("for SID: %s\n", sid_string_dbg(&sid)));
 
 		if (!sid_to_uid(&sid, &uid)) {
@@ -2293,7 +2340,10 @@ static void call_nt_transact_get_user_quota(connection_struct *conn,
 				break;
 			}
 
-			sid_parse(pdata+8,sid_len,&sid);
+			if (!sid_parse(pdata+8,sid_len,&sid)) {
+				reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
+				return;
+			}
 
 			if (vfs_get_ntquota(fsp, SMB_USER_QUOTA_TYPE, &sid, &qt)!=0) {
 				ZERO_STRUCT(qt);
@@ -2474,7 +2524,11 @@ static void call_nt_transact_set_user_quota(connection_struct *conn,
 	}
 #endif /* LARGE_SMB_OFF_T */
 
-	sid_parse(pdata+40,sid_len,&sid);
+	if (!sid_parse(pdata+40,sid_len,&sid)) {
+		reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
+		return;
+	}
+
 	DEBUGADD(8,("SID: %s\n", sid_string_dbg(&sid)));
 
 	/* 44 unknown bytes left... */

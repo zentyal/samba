@@ -1,3 +1,11 @@
+samba (2:3.4.9~dfsg-1) UNRELEASED; urgency=low
+
+  * New upstream release. Security release fixing:
+    - CVE-2019-3069: Buffer overrun vulnerability in sid_parse.
+      Closes: #596891.
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 15 Sep 2010 20:03:40 +0200
+
 samba (2:3.4.8~dfsg-2) unstable; urgency=low
 
   [ Steve Langasek ]

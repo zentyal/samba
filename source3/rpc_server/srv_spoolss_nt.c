@@ -432,6 +432,14 @@ static bool set_printer_hnd_name(Printer_entry *Printer, const char *handlename)
 	NT_PRINTER_INFO_LEVEL *printer = NULL;
 	WERROR result;
 
+	/*
+	 * Hopefully nobody names his printers like this. Maybe \ or ,
+	 * are illegal in printer names even?
+	 */
+	const char printer_not_found[] = "Printer \\, !@#$%^&*( not found";
+	char *cache_key;
+	char *tmp;
+
 	DEBUG(4,("Setting printer name=%s (len=%lu)\n", handlename,
 		(unsigned long)strlen(handlename)));
 
@@ -472,6 +480,27 @@ static bool set_printer_hnd_name(Printer_entry *Printer, const char *handlename)
 		Printer->printer_type = SPLHND_PORTMON_LOCAL;
 		fstrcpy(sname, SPL_XCV_MONITOR_LOCALMON);
 		found = true;
+	}
+
+	/*
+	 * With hundreds of printers, the "for" loop iterating all
+	 * shares can be quite expensive, as it is done on every
+	 * OpenPrinter. The loop maps "aprinter" to "sname", the
+	 * result of which we cache in gencache.
+	 */
+
+	cache_key = talloc_asprintf(talloc_tos(), "PRINTERNAME/%s",
+				    aprinter);
+	if ((cache_key != NULL) && gencache_get(cache_key, &tmp, NULL)) {
+
+		found = (strcmp(tmp, printer_not_found) != 0);
+		if (!found) {
+			DEBUG(4, ("Printer %s not found\n", aprinter));
+			SAFE_FREE(tmp);
+			return false;
+		}
+		fstrcpy(sname, tmp);
+		SAFE_FREE(tmp);
 	}
 
 	/* Search all sharenames first as this is easier than pulling
@@ -539,8 +568,18 @@ static bool set_printer_hnd_name(Printer_entry *Printer, const char *handlename)
 	free_a_printer( &printer, 2);
 
 	if ( !found ) {
+		if (cache_key != NULL) {
+			gencache_set(cache_key, printer_not_found,
+				     time(NULL)+300);
+			TALLOC_FREE(cache_key);
+		}
 		DEBUGADD(4,("Printer not found\n"));
 		return false;
+	}
+
+	if (cache_key != NULL) {
+		gencache_set(cache_key, sname, time(NULL)+300);
+		TALLOC_FREE(cache_key);
 	}
 
 	DEBUGADD(4,("set_printer_hnd_name: Printer found: %s -> %s\n", aprinter, sname));
@@ -1645,7 +1684,8 @@ WERROR _spoolss_OpenPrinterEx(pipes_struct *p,
 						 &se_printop ) &&
 			    !token_contains_name_in_list(
 				    uidtoname(p->server_info->utok.uid),
-				    NULL, NULL,
+				    pdb_get_domain(p->server_info->sam_account),
+				    NULL,
 				    p->server_info->ptok,
 				    lp_printer_admin(snum))) {
 				close_printer_handle(p, r->out.handle);
@@ -1941,8 +1981,10 @@ WERROR _spoolss_DeletePrinterDriver(pipes_struct *p,
 	if ( (p->server_info->utok.uid != sec_initial_uid())
 		&& !user_has_privileges(p->server_info->ptok, &se_printop )
 		&& !token_contains_name_in_list(
-			uidtoname(p->server_info->utok.uid), NULL,
-			NULL, p->server_info->ptok,
+			uidtoname(p->server_info->utok.uid),
+			pdb_get_domain(p->server_info->sam_account),
+			NULL,
+			p->server_info->ptok,
 			lp_printer_admin(-1)) )
 	{
 		return WERR_ACCESS_DENIED;
@@ -2040,7 +2082,9 @@ WERROR _spoolss_DeletePrinterDriverEx(pipes_struct *p,
 	if ( (p->server_info->utok.uid != sec_initial_uid())
 		&& !user_has_privileges(p->server_info->ptok, &se_printop )
 		&& !token_contains_name_in_list(
-			uidtoname(p->server_info->utok.uid), NULL, NULL,
+			uidtoname(p->server_info->utok.uid),
+			pdb_get_domain(p->server_info->sam_account),
+			NULL,
 			p->server_info->ptok, lp_printer_admin(-1)) )
 	{
 		return WERR_ACCESS_DENIED;
@@ -7845,7 +7889,8 @@ WERROR _spoolss_AddForm(pipes_struct *p,
 	if ((p->server_info->utok.uid != sec_initial_uid()) &&
 	     !user_has_privileges(p->server_info->ptok, &se_printop) &&
 	     !token_contains_name_in_list(uidtoname(p->server_info->utok.uid),
-					  NULL, NULL,
+					  pdb_get_domain(p->server_info->sam_account),
+					  NULL,
 					  p->server_info->ptok,
 					  lp_printer_admin(snum))) {
 		DEBUG(2,("_spoolss_Addform: denied by insufficient permissions.\n"));
@@ -7926,7 +7971,8 @@ WERROR _spoolss_DeleteForm(pipes_struct *p,
 	if ((p->server_info->utok.uid != sec_initial_uid()) &&
 	     !user_has_privileges(p->server_info->ptok, &se_printop) &&
 	     !token_contains_name_in_list(uidtoname(p->server_info->utok.uid),
-					  NULL, NULL,
+					  pdb_get_domain(p->server_info->sam_account),
+					  NULL,
 					  p->server_info->ptok,
 					  lp_printer_admin(snum))) {
 		DEBUG(2,("_spoolss_DeleteForm: denied by insufficient permissions.\n"));
@@ -8009,7 +8055,8 @@ WERROR _spoolss_SetForm(pipes_struct *p,
 	if ((p->server_info->utok.uid != sec_initial_uid()) &&
 	     !user_has_privileges(p->server_info->ptok, &se_printop) &&
 	     !token_contains_name_in_list(uidtoname(p->server_info->utok.uid),
-					  NULL, NULL,
+					  pdb_get_domain(p->server_info->sam_account),
+					  NULL,
 					  p->server_info->ptok,
 					  lp_printer_admin(snum))) {
 		DEBUG(2,("_spoolss_Setform: denied by insufficient permissions.\n"));

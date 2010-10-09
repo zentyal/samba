@@ -1007,7 +1007,8 @@ ADS_STATUS cli_session_setup_spnego(struct cli_state *cli, const char *user,
 	 * negprot reply. It is WRONG to depend on the principal sent in the
 	 * negprot reply, but right now we do it. If we don't receive one,
 	 * we try to best guess, then fall back to NTLM.  */
-	if (!spnego_parse_negTokenInit(blob, OIDs, &principal)) {
+	if (!spnego_parse_negTokenInit(blob, OIDs, &principal) ||
+			OIDs[0] == NULL) {
 		data_blob_free(&blob);
 		return ADS_ERROR_NT(NT_STATUS_INVALID_PARAMETER);
 	}
@@ -1872,6 +1873,7 @@ bool cli_session_request(struct cli_state *cli,
 {
 	char *p;
 	int len = 4;
+	int namelen = 0;
 	char *tmp;
 
 	/* 445 doesn't have session request */
@@ -1890,8 +1892,11 @@ bool cli_session_request(struct cli_state *cli,
 	}
 
 	p = cli->outbuf+len;
-	memcpy(p, tmp, name_len(tmp));
-	len += name_len(tmp);
+	namelen = name_len((unsigned char *)tmp, talloc_get_size(tmp));
+	if (namelen > 0) {
+		memcpy(p, tmp, namelen);
+		len += namelen;
+	}
 	TALLOC_FREE(tmp);
 
 	/* and my name */
@@ -1903,8 +1908,11 @@ bool cli_session_request(struct cli_state *cli,
 	}
 
 	p = cli->outbuf+len;
-	memcpy(p, tmp, name_len(tmp));
-	len += name_len(tmp);
+	namelen = name_len((unsigned char *)tmp, talloc_get_size(tmp));
+	if (namelen > 0) {
+		memcpy(p, tmp, namelen);
+		len += namelen;
+	}
 	TALLOC_FREE(tmp);
 
 	/* send a session request (RFC 1002) */

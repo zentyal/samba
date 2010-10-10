@@ -1,6 +1,7 @@
 samba (2:3.5.6~dfsg-1) UNRELEASED; urgency=low
 
-  * New upstream release
+  * New upstream release. Fixes the following Debian bug:
+    - rpcclient readline segfault. Closes: #597203
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 10 Oct 2010 09:43:24 +0200
 

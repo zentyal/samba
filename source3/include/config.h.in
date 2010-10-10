@@ -914,6 +914,9 @@
 /* Define to 1 if you have the `hstrerror' function. */
 #undef HAVE_HSTRERROR
 
+/* Define to 1 if you have the `httpConnect' function. */
+#undef HAVE_HTTPCONNECT
+
 /* Define to 1 if you have the `httpConnectEncrypt' function. */
 #undef HAVE_HTTPCONNECTENCRYPT
 

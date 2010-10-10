@@ -3191,8 +3191,8 @@ bool match_mailslot_name(struct packet_struct *p, const char *mailslot_name);
 int matching_len_bits(unsigned char *p1, unsigned char *p2, size_t len);
 void sort_query_replies(char *data, int n, struct in_addr ip);
 char *name_mangle(TALLOC_CTX *mem_ctx, char *In, char name_type);
-int name_extract(char *buf,int ofs, fstring name);
-int name_len(char *s1);
+int name_extract(unsigned char *buf,size_t buf_len, unsigned int ofs, fstring name);
+int name_len(unsigned char *s1, size_t buf_len);
 
 /* The following definitions come from libsmb/nterr.c  */
 
@@ -5595,6 +5595,8 @@ WERROR pull_spoolss_PrinterData(TALLOC_CTX *mem_ctx,
 WERROR push_spoolss_PrinterData(TALLOC_CTX *mem_ctx, DATA_BLOB *blob,
 				enum winreg_Type type,
 				union spoolss_PrinterData *data);
+void spoolss_printerinfo2_to_setprinterinfo2(const struct spoolss_PrinterInfo2 *i,
+					     struct spoolss_SetPrinterInfo2 *s);
 
 /* The following definitions come from rpc_client/init_lsa.c  */
 
@@ -6583,7 +6585,8 @@ void reply_nttranss(struct smb_request *req);
 
 /* The following definitions come from smbd/open.c  */
 
-NTSTATUS smb1_file_se_access_check(const struct security_descriptor *sd,
+NTSTATUS smb1_file_se_access_check(connection_struct *conn,
+			  const struct security_descriptor *sd,
                           const NT_USER_TOKEN *token,
                           uint32_t access_desired,
                           uint32_t *access_granted);
@@ -6856,7 +6859,7 @@ bool check_fsp_ntquota_handle(connection_struct *conn, struct smb_request *req,
 			      files_struct *fsp);
 bool fsp_belongs_conn(connection_struct *conn, struct smb_request *req,
 		      files_struct *fsp);
-void reply_special(char *inbuf);
+void reply_special(char *inbuf, size_t inbuf_len);
 void reply_tcon(struct smb_request *req);
 void reply_tcon_and_X(struct smb_request *req);
 void reply_unknown_new(struct smb_request *req, uint8 type);

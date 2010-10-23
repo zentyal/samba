@@ -120,7 +120,7 @@ msgid ""
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"Tots els clients de Windows recents es comuniquen amb els servidors de Samba/"
+"Tots els clients de Windows recents es comuniquen amb els servidors de SMB/"
 "CIFS emprant contrasenyes xifrades. Si voleu utilitzar contrasenyes amb text "
 "pla, haureu de modificar el vostre registre de Windows."
 

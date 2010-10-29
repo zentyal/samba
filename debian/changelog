@@ -1,7 +1,8 @@
 samba (2:3.5.6~dfsg-2) UNRELEASED; urgency=low
 
-  *  
-  * cat cat ca Catalan (Jordi Mallach).  Closes: #601101
+  [ Debconf translations ]  
+  * Catalan (Jordi Mallach).  Closes: #601101
+  * Hebrew (Omer Zak).  Closes: #601633
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 23 Oct 2010 16:32:47 +0200
 

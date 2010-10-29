@@ -1,22 +1,24 @@
-# translation of samba.po to Hebrew
+# translation of samba_2_3_5_6_dfsg_2_debconf_he.po to Hebrew
 # translation of PACKAGE.
 # Copyright (C) 2007 THE PACKAGE'S COPYRIGHT HOLDER
 # This file is distributed under the same license as the PACKAGE package.
 #
-# Katriel Traum <katriel.traum@gmail.com>, 2007
+# Katriel Traum <katriel.traum@gmail.com>, 2007.
+# Omer Zak <w1@zak.co.il>, 2010.
 msgid ""
 msgstr ""
-"Project-Id-Version: samba\n"
+"Project-Id-Version: samba_2_3_5_6_dfsg_2_debconf_he\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
 "POT-Creation-Date: 2009-01-02 12:18-0800\n"
-"PO-Revision-Date: 2007-09-25 21:03+0200\n"
-"Last-Translator: Katriel Traum <katriel.traum@gmail.com>\n"
+"PO-Revision-Date: 2010-10-26 18:04+0200\n"
+"Last-Translator: Omer Zak <w1@zak.co.il>\n"
 "Language-Team: Hebrew <debian-hebrew-common@lists.alioth.debian.org>\n"
 "Language: he\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: KBabel 1.11.4\n"
+"Plural-Forms:  nplurals=2; plural=(n != 1);\n"
 
 #. Type: boolean
 #. Description
@@ -68,7 +70,7 @@ msgstr ""
 "הרקע של Samba (שהם smbd ו-nmbd). הקובץ smb.conf הנוכחי שלך כולל שורת "
 "'include' או פרמטר אשר מתפרש על כמה שורות. פרמטרים אלו עשויים לבלבל את תהליך "
 "ההגדרה האוטומטי, ויצריכו עריכה ידנית של הקובץ smb.conf על מנת לתקן את הבעיות "
-"ולאפשר ל-Samba לעובד."
+"ולאפשר ל-Samba לעבוד."
 
 #. Type: boolean
 #. Description
@@ -85,25 +87,21 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:3001
 msgid "Workgroup/Domain Name:"
-msgstr "מהו שם קבוצת העבודה/מתחם (Workgroup/Domain)?"
+msgstr "שם קבוצת העבודה/מתחם (Workgroup/Domain):"
 
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"אנא ציין את שם קבוצת העבודה (Workgroup) ששרת זה יציג ללקוחות אשר יתחברו "
-"אליו. שים לב כי שם קבוצת העבודה גם קובע את שם המתחם (Domain) בעת שימוש "
-"באפשרות security=domain."
+"אנא ציין את שם קבוצת העבודה (Workgroup) עבור מערכת זו. הגדרה זו קובעת באיזו "
+"קבוצת עבודה תימצא מערכת זו כשישתמשו בה בתור שרת, מה תהיה ברירת המחדל לקבוצת "
+"העבודה שישתמשו בה בזמן דפדוף באמצעות ממשקים שונים, ושם המתחם (Domain) בעת "
+"שימוש באפשרות security=domain."
 
 #. Type: boolean
 #. Description
@@ -114,37 +112,28 @@ msgstr "האם להשתמש בסיסמאות מוצפנות?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"כל הלקוחות החדשים מסוג-Windows מתקשרים עם שרתי SMB בעזרת סיסמאות מוצפנות. אם "
-"תרצה להשתמש בסיסמאות שאינן מוצפנות, יהיה עליך לבצע שינויים ב-Registry של "
-"לקוח ה-Windows."
+"כל הלקוחות החדשים מסוג-Windows מתקשרים עם שרתי SMB/CIFS באמצעות סיסמאות "
+"מוצפנות. אם ברצונך להשתמש בסיסמאות שאינן מוצפנות, יהיה עליך לשנות פרמטר ב-"
+"Registry של מערכת ה-Windows שלך."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"הפעלת אופציה זו מומלצת מאוד. במידה ותופעל, וודא כי קיים הקובץ /etc/samba/"
-"smbpasswd, וכי הוא תקין. בנוסף, יש לדאוג שהקובץ יכיל סיסמה בעבור כל משתמש "
-"בעזרת שימוש בפקודה smbpasswd."
+"הפעלת אופציה זו מומלצת מאוד מכיוון שמיקרוסופט יותר אינה מתחזקת את התמיכה "
+"בסיסמאות לא מוצפנות במוצרי Windows שלה. אם הינך מפעיל אופציה זו, וודא כי "
+"קיים הקובץ /etc/samba/smbpasswd, וכי הוא תקין. בנוסף, יש לדאוג שהקובץ יכיל "
+"סיסמה בעבור כל משתמש בעזרת שימוש בפקודה smbpasswd."
 
 #. Type: boolean
 #. Description
@@ -176,8 +165,8 @@ msgid ""
 "If you do not create it, you will have to reconfigure Samba (and probably "
 "your client machines) to use plaintext passwords."
 msgstr ""
-"אם לא תצור את זה, יהיה עליך לשנות את התצורה של שרת ה-Samba (וסביר להניח שגם "
-"של כל לקוחותיו) להשתמש בסיסמאות שאינן מוצפנות. "
+"אם לא תיצור קובץ זה, יהיה עליך לשנות את התצורה של שרת ה-Samba (וסביר להניח "
+"שגם של כל לקוחותיו) כדי להשתמש בסיסמאות שאינן מוצפנות."
 
 #. Type: boolean
 #. Description
@@ -186,8 +175,8 @@ msgid ""
 "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
 "from the samba-doc package for more details."
 msgstr ""
-"ראה עוד מידע בקובץ /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/"
-"pwencrypt.html מתוך החבילה samba-doc."
+"ראה מידע נוסף בקובץ /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-"
+"Guide/pwencrypt.html מתוך החבילה samba-doc."
 
 #. Type: select
 #. Choices
@@ -215,36 +204,4 @@ msgid ""
 "daemon is the recommended approach."
 msgstr ""
 "תהליך הרקע של Samba שנקרא smbd יכול לרוץ כתהליך רקע רגיל או דרך inetd. ריצה "
-"כתהליך רקע היא השיטה המומלצת."
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr "שינוי סוג מסד הסיסמאות (passdb backends) אינו ניתמך"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "החל מגרסה 3.0.23, שרת Samba אינו מאפשר שרשור של כמה מסדי סיסמאות בפרמטר "
-#~ "\"passdb-backend\". נראה כי הקובץ smb.conf שלך כולל פרמטר אשר מכיל רשימה "
-#~ "של כמה מסדי סיסמאות. הגירסה החדשה של samba לא תעבוד עד אשר בעיה זו תתוקן."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr "האם להזיז את /etc/samba/smbpasswd ל- /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "פרויקט Samba הציג בגרסה 3.0 מנשק חדש למסד המשתמשים והסיסמאות (SAM) אשר בא "
-#~ "במקום הקובץ /etc/samba/smbpasswd."
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "אנא אשר כי ברצונך להמיר בצורה אוטומטית, את הקובץ smbpasswd הקיים לקובץ  /"
-#~ "var/lib/samba/passdb.tdb. אל תבחר באופציה זו אם בכוונתך להשתמש במסד "
-#~ "סיסמאות (pdb) אחר (למשל LDAP) במקום."
+"כתהליך רקע רגיל היא השיטה המומלצת."

@@ -103,7 +103,11 @@ msgid ""
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
-msgstr "このシステムのワークグループを指定してください。この設定は、システムがサーバとして使われるときにどのワークグループとして現れるか、いくつかのフロントエンドでブラウジングされたときに使われるデフォルトのワークグループ、そして\"security=domain\" 設定が使われたときのドメイン名を制御します。"
+msgstr ""
+"このシステムのワークグループを指定してください。この設定は、システムがサーバ"
+"として使われるときにどのワークグループとして現れるか、いくつかのフロントエン"
+"ドでブラウジングされたときに使われるデフォルトのワークグループ、そして"
+"\"security=domain\" 設定が使われたときのドメイン名を制御します。"
 
 #. Type: boolean
 #. Description
@@ -118,7 +122,10 @@ msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
-msgstr "ほとんどの Windows クライアントは暗号化されたパスワードを使って SMB/CIFS サーバとやり取りします。クリアテキストパスワードを使いたい場合は、あなたの Windows のレジストリにあるパラメータを変更する必要があります。"
+msgstr ""
+"ほとんどの Windows クライアントは暗号化されたパスワードを使って SMB/CIFS サー"
+"バとやり取りします。クリアテキストパスワードを使いたい場合は、あなたの "
+"Windows のレジストリにあるパラメータを変更する必要があります。"
 
 #. Type: boolean
 #. Description
@@ -128,7 +135,11 @@ msgid ""
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
-msgstr "プレインテキストパスワードのサポートはもう Microsoft Windows 製品では保守されていないので、ここで「はい」と答えることを強くお勧めします。この場合、有効な /etc/samba/smbpasswd ファイルがあることを確認し、各ユーザのパスワードは smbpasswd コマンドを使って設定してください。"
+msgstr ""
+"プレインテキストパスワードのサポートはもう Microsoft Windows 製品では保守され"
+"ていないので、ここで「はい」と答えることを強くお勧めします。この場合、有効"
+"な /etc/samba/smbpasswd ファイルがあることを確認し、各ユーザのパスワードは "
+"smbpasswd コマンドを使って設定してください。"
 
 #. Type: boolean
 #. Description

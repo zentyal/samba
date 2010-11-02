@@ -28,13 +28,24 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:1001
-msgid "If your computer gets IP address information from a DHCP server on the network, the DHCP server may also provide information about WINS servers (\"NetBIOS name servers\") present on the network.  This requires a change to your smb.conf file so that DHCP-provided WINS settings will automatically be read from /etc/samba/dhcp.conf."
-msgstr "Eger kompîtera te ji ser pêşkêşkarê ji DHCPê navnîşaneke IPê bistîne, dibe ku pêşkêşkara DHCP jî derbarê pêşkêşkara WINSê de agahiyan peyda bike (\"NetBIOS navê pêşkêşkaran) ji ser torê pêşkêş bike. Ji bo vê divê pelê te yê smb.conf bê guherandin lewre mîhengên WINSê yên DHCP-pêşkêş dike ji /etc/samba/dhcp/confê xweber bên xwendin."
+msgid ""
+"If your computer gets IP address information from a DHCP server on the "
+"network, the DHCP server may also provide information about WINS servers "
+"(\"NetBIOS name servers\") present on the network.  This requires a change "
+"to your smb.conf file so that DHCP-provided WINS settings will automatically "
+"be read from /etc/samba/dhcp.conf."
+msgstr ""
+"Eger kompîtera te ji ser pêşkêşkarê ji DHCPê navnîşaneke IPê bistîne, dibe "
+"ku pêşkêşkara DHCP jî derbarê pêşkêşkara WINSê de agahiyan peyda bike "
+"(\"NetBIOS navê pêşkêşkaran) ji ser torê pêşkêş bike. Ji bo vê divê pelê te "
+"yê smb.conf bê guherandin lewre mîhengên WINSê yên DHCP-pêşkêş dike ji /etc/"
+"samba/dhcp/confê xweber bên xwendin."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:1001
-msgid "The dhcp3-client package must be installed to take advantage of this feature."
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
 msgstr "Ji bo bikaranîna vê fonksiyonê divê pakêta dhcp3-client were sazkirin."
 
 #. Type: boolean
@@ -46,14 +57,30 @@ msgstr "Bila smb.conf were jixweber mîhengkirin?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:2001
-msgid "The rest of the configuration of Samba deals with questions that affect parameters in /etc/samba/smb.conf, which is the file used to configure the Samba programs (nmbd and smbd). Your current smb.conf contains an \"include\" line or an option that spans multiple lines, which could confuse the automated configuration process and require you to edit your smb.conf by hand to get it working again."
-msgstr "Tevahiya vesazkirina peymana Sambayê ya bi pirsan bandorê li parametreya /etc/samba/smb.confê dikin yên bernameyên Sambayê (nmbd û smbd) vesaz kirine. Di smb.confa te ya niha de rêzikeke \"include\" an jî zêdetir rêzik, yên ku dikarin pêvajoya vesazkirina xweber têk bibin û hewcetî derxin ku tu smb.confê bi destan saz bikî da ku bixebite."
+msgid ""
+"The rest of the configuration of Samba deals with questions that affect "
+"parameters in /etc/samba/smb.conf, which is the file used to configure the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
+"\" line or an option that spans multiple lines, which could confuse the "
+"automated configuration process and require you to edit your smb.conf by "
+"hand to get it working again."
+msgstr ""
+"Tevahiya vesazkirina peymana Sambayê ya bi pirsan bandorê li parametreya /"
+"etc/samba/smb.confê dikin yên bernameyên Sambayê (nmbd û smbd) vesaz kirine. "
+"Di smb.confa te ya niha de rêzikeke \"include\" an jî zêdetir rêzik, yên ku "
+"dikarin pêvajoya vesazkirina xweber têk bibin û hewcetî derxin ku tu smb."
+"confê bi destan saz bikî da ku bixebite."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:2001
-msgid "If you do not choose this option, you will have to handle any configuration changes yourself, and will not be able to take advantage of periodic configuration enhancements."
-msgstr "Eger tu vê vebijêrkê hilnebijêrî, dê pêwîst bibe ku tu hemû veaszkirinan bi serê xwe pêk bînî, û dê avantaja pêşdeçûna vesazkirina periyodîk pêk neyê."
+msgid ""
+"If you do not choose this option, you will have to handle any configuration "
+"changes yourself, and will not be able to take advantage of periodic "
+"configuration enhancements."
+msgstr ""
+"Eger tu vê vebijêrkê hilnebijêrî, dê pêwîst bibe ku tu hemû veaszkirinan bi "
+"serê xwe pêk bînî, û dê avantaja pêşdeçûna vesazkirina periyodîk pêk neyê."
 
 #. Type: string
 #. Description
@@ -64,8 +91,16 @@ msgstr "Navê Koma Xebatê/Domain:"
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
-msgid "Please specify the workgroup for this system.  This setting controls which workgroup the system will appear in when used as a server, the default workgroup to be used when browsing with various frontends, and the domain name used with the \"security=domain\" setting."
-msgstr "Tika ye Koma Xebatê ya vê pergalê diyar bike. Ev mîheng kontrol dike ka dê di bikaranîna pêşkêşkarekê de kîjan Koma Xebatê bê nîşandan, Koma Xebatê ya heyî ya dem bi dem fronted tê gerîn û navê domaînê ya bi mîhenga  \"security=domain\"ê tê bikaranîn."
+msgid ""
+"Please specify the workgroup for this system.  This setting controls which "
+"workgroup the system will appear in when used as a server, the default "
+"workgroup to be used when browsing with various frontends, and the domain "
+"name used with the \"security=domain\" setting."
+msgstr ""
+"Tika ye Koma Xebatê ya vê pergalê diyar bike. Ev mîheng kontrol dike ka dê "
+"di bikaranîna pêşkêşkarekê de kîjan Koma Xebatê bê nîşandan, Koma Xebatê ya "
+"heyî ya dem bi dem fronted tê gerîn û navê domaînê ya bi mîhenga  "
+"\"security=domain\"ê tê bikaranîn."
 
 #. Type: boolean
 #. Description
@@ -76,14 +111,27 @@ msgstr "Bila kilîla şîfreyê bê bikaranîn?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-msgid "All recent Windows clients communicate with SMB/CIFS servers using encrypted passwords. If you want to use clear text passwords you will need to change a parameter in your Windows registry."
-msgstr "Hemû navrûyên Windowsê dema şîfreyên kilîlkirî tên bikaranîn, bi pêşkêşkarên SMB/CIFS re dikevin têkiliyê. Eger dixwazî deqa şîfreya zelal bi kar bînî divê parametreya di tomarkirina Windowsa xwe de biguherînî."
+msgid ""
+"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
+"passwords. If you want to use clear text passwords you will need to change a "
+"parameter in your Windows registry."
+msgstr ""
+"Hemû navrûyên Windowsê dema şîfreyên kilîlkirî tên bikaranîn, bi pêşkêşkarên "
+"SMB/CIFS re dikevin têkiliyê. Eger dixwazî deqa şîfreya zelal bi kar bînî "
+"divê parametreya di tomarkirina Windowsa xwe de biguherînî."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-msgid "Enabling this option is highly recommended as support for plain text passwords is no longer maintained in Microsoft Windows products. If you do, make sure you have a valid /etc/samba/smbpasswd file and that you set passwords in there for each user using the smbpasswd command."
-msgstr "Çalakirina vê vebijêrkê wekî desteka ji bo şîfreyên deqa sade ya zêdetir nayên parastin ya di berhemên Microsoft Windowsê de, bi tundî tê pêşniyarkirin."
+msgid ""
+"Enabling this option is highly recommended as support for plain text "
+"passwords is no longer maintained in Microsoft Windows products. If you do, "
+"make sure you have a valid /etc/samba/smbpasswd file and that you set "
+"passwords in there for each user using the smbpasswd command."
+msgstr ""
+"Çalakirina vê vebijêrkê wekî desteka ji bo şîfreyên deqa sade ya zêdetir "
+"nayên parastin ya di berhemên Microsoft Windowsê de, bi tundî tê "
+"pêşniyarkirin."
 
 #. Type: boolean
 #. Description
@@ -94,20 +142,38 @@ msgstr "Danegeha şîfreyên samba, /var/lib/samba/passdb.tdb, were afirandin?"
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
-msgid "To be compatible with the defaults in most versions of Windows, Samba must be configured to use encrypted passwords.  This requires user passwords to be stored in a file separate from /etc/passwd.  This file can be created automatically, but the passwords must be added manually by running smbpasswd and be kept up-to-date in the future."
-msgstr "Ji bo hevgirtîkirina srandard a di piraniya guhertoyên Windowsê de, divê Samba ji bo bikaranîna şîfreya kilîlkirî bê vesazkirin. Ji bo vê divê şîfreyên bikarhêneran di /etc/passwdê de hatibin tomarkirin. Dibe ku ev pel xweber bê afirandin, lê divê şîfre bi destan bi meşandina smbpasswd hatibin lêzêdekirin û di siberojê de rojane bê girtin."
+msgid ""
+"To be compatible with the defaults in most versions of Windows, Samba must "
+"be configured to use encrypted passwords.  This requires user passwords to "
+"be stored in a file separate from /etc/passwd.  This file can be created "
+"automatically, but the passwords must be added manually by running smbpasswd "
+"and be kept up-to-date in the future."
+msgstr ""
+"Ji bo hevgirtîkirina srandard a di piraniya guhertoyên Windowsê de, divê "
+"Samba ji bo bikaranîna şîfreya kilîlkirî bê vesazkirin. Ji bo vê divê "
+"şîfreyên bikarhêneran di /etc/passwdê de hatibin tomarkirin. Dibe ku ev pel "
+"xweber bê afirandin, lê divê şîfre bi destan bi meşandina smbpasswd hatibin "
+"lêzêdekirin û di siberojê de rojane bê girtin."
 
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
-msgid "If you do not create it, you will have to reconfigure Samba (and probably your client machines) to use plaintext passwords."
-msgstr "Eger tu vê neafirînî, divê Sambayê veasz bikî (û pêkan e ku makîneya navrûyê jî) ji bo şîfreya deqa sade."
+msgid ""
+"If you do not create it, you will have to reconfigure Samba (and probably "
+"your client machines) to use plaintext passwords."
+msgstr ""
+"Eger tu vê neafirînî, divê Sambayê veasz bikî (û pêkan e ku makîneya navrûyê "
+"jî) ji bo şîfreya deqa sade."
 
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
-msgid "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html from the samba-doc package for more details."
-msgstr "Ji bo agahiyên zêdetir ji pakêta samba-docê /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.htmlê bibîne."
+msgid ""
+"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
+"from the samba-doc package for more details."
+msgstr ""
+"Ji bo agahiyên zêdetir ji pakêta samba-docê /usr/share/doc/samba-doc/"
+"htmldocs/Samba3-Developers-Guide/pwencrypt.htmlê bibîne."
 
 #. Type: select
 #. Choices
@@ -130,7 +196,9 @@ msgstr "Dixwazî Samba çawa bixebitînî?"
 #. Type: select
 #. Description
 #: ../samba.templates:2002
-msgid "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a daemon is the recommended approach."
+msgid ""
+"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
+"daemon is the recommended approach."
 msgstr ""
 "Daemona Sambayê dikare wekî daemon'eke ji rêzê an jî inetd'ê bixebite. "
 "Xebitandina wekî daemonekê tê pêşniyarkirin."

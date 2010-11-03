@@ -16,8 +16,8 @@ msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
 "POT-Creation-Date: 2009-01-02 12:18-0800\n"
-"PO-Revision-Date: 2007-03-12 21:30+0100\n"
-"Last-Translator: Bart Cornelis <cobaco@skolelinux.no>\n"
+"PO-Revision-Date: 2010-11-02 17:48+0100\n"
+"Last-Translator: Remco Rijnders <remco@webconquest.com>\n"
 "Language-Team: debian-l10n-dutch <debian-l10n-dutch@lists.debian.org>\n"
 "Language: \n"
 "MIME-Version: 1.0\n"
@@ -43,7 +43,7 @@ msgid ""
 msgstr ""
 "Indien uw computer zijn ip-adresinformatie van een DHCP-server op het "
 "netwerk haalt, voorziet deze mogelijk ook informatie betreffende de op het "
-"netwerk aanwezige WINS-servers (\"NetBIOS naamservers\").\" Dit vereist een "
+"netwerk aanwezige WINS-servers (\"NetBIOS naamservers\"). Dit vereist een "
 "verandering aan uw smb.conf bestand, opdat de door DHCP doorgegeven WINS "
 "instellingen automatisch gelezen worden van /etc/samba/dhcp.conf."
 
@@ -76,9 +76,9 @@ msgstr ""
 "De resterende Samba-configuratievragen hebben betrekking op parameters in /"
 "etc/samba/smb.conf, het configuratiebestand dat gebruikt wordt voor de Samba "
 "programma's (nmbd en smbd). Uw huidige smb.conf bevat een 'include'-regel of "
-"een optie die meerdere regels beslaat, het kan zijn dat dit het automatische "
-"configuratieproces in verwarring brengt. In dat geval dient u uw smb.conf "
-"handmatig aan te passen om samba terug werkend te krijgen."
+"een optie die meerdere regels beslaat; Het kan zijn dat dit het automatische "
+"configuratieproces verstoort. In dat geval dient u uw smb.conf handmatig aan "
+"te passen om samba terug werkend te krijgen."
 
 #. Type: boolean
 #. Description
@@ -101,20 +101,17 @@ msgstr "Werkgroep/Domeinnaam:"
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"Van welke werkgroep moet deze server deel lijken uit te maken, wanneer "
-"clients hierom vragen? Merk op dat deze parameter ook de domeinnaam bepaald "
-"die wordt gebruikt voor de security=domain instelling."
+"Tot welke werkgroep behoort dit systeem? Deze instelling bepaalt ook de "
+"werkgroep waarin dit systeem zal verschijnen wanneer het als server wordt "
+"gebruikt, de standaard werkgroep die gebruikt wordt bij het verkennen met de "
+"diverse interfaces, en de domeinnaam die wordt gebruikt voor de "
+"\"security=domain\" instelling."
 
 #. Type: boolean
 #. Description
@@ -125,38 +122,30 @@ msgstr "Wachtwoordversleuteling gebruiken?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
 "Alle recente windows-clients maken gebruik van versleutelde wachtwoorden bij "
-"de communicatie met SMB-servers. Als u 'onversleutelde tekst'-wachtwoorden "
-"wilt gebruiken dient u een parameter te veranderen in het Windows register."
+"de communicatie met SMB/CIFS-servers. Als u 'onversleutelde tekst'-"
+"wachtwoorden wilt gebruiken dient u een parameter te veranderen in het "
+"Windows register."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"Het activeren van deze optie is ten sterkste aangeraden. Indien u hiervoor "
-"kiest dient u er wel voor te zorgen dat u een geldig '/etc/samba/smbpasswd'- "
-"bestand heeft en dat u de wachtwoorden daar voor elke gebruiker met behulp "
-"van het commando 'smbpasswd' instelt."
+"Het activeren van deze optie is ten sterkste aangeraden aangezien er geen "
+"ondersteuning meer is voor platte tekst wachtwoorden in Microsoft Windows "
+"producten. Indien u hiervoor kiest dient u er wel voor te zorgen dat u een "
+"geldig '/etc/samba/smbpasswd'- bestand heeft en dat u de wachtwoorden daar "
+"voor elke gebruiker met behulp van het commando 'smbpasswd' instelt."
 
 #. Type: boolean
 #. Description

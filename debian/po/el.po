@@ -11,19 +11,21 @@
 #    Developers do not need to manually edit POT or PO files.
 #
 # QUAD-nrg.net <yodesy@quad-nrg.net>, 2006.
+# Konstantinos Margaritis <markos@codex.gr>, 2010.
+# Konstantinos Margaritis <markos@debian.org>, 2010.
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_el\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
 "POT-Creation-Date: 2009-01-02 12:18-0800\n"
-"PO-Revision-Date: 2007-03-16 11:29+0200\n"
-"Last-Translator: galaxico\n"
-"Language-Team:  <en@li.org>\n"
+"PO-Revision-Date: 2010-11-23 15:27+0200\n"
+"Last-Translator: Konstantinos Margaritis <markos@debian.org>\n"
+"Language-Team: American English <debian-l10n-greek@lists.debian.org>\n"
 "Language: \n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: KBabel 1.11.4\n"
+"X-Generator: Lokalize 1.0\n"
 "Plural-Forms:  nplurals=2; plural=(n != 1);\n"
 
 #. Type: boolean
@@ -106,21 +108,17 @@ msgstr "Όνομα Ομάδας Εργασίας/Τομέα:"
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"Παρακαλώ προσδιορίστε το όνομα της ομάδας εργασίας (workgroup) στην οποία "
-"θέλετε να εμφανίζει αυτός ο εξυπηρετητής ότι ανήκει όταν ερωτάται από τους "
-"πελάτες. Σημειώστε ότι αυτή η παράμετρος ελέγχει επίσης το όνομα του τομέα "
-"που χρησιμοποιείται στην ρύθμιση security=domain."
+"Παρακαλώ προσδιορίστε το όνομα της ομάδας εργασίας (workgroup) του "
+"συστήματος.  Η παράμετρος αυτή ελέγχει την ομάδα εργασίας με την οποία θα "
+"εμφανίζεται το σύστημα ως εξυπηρετητής, την προκαθορισμένη ομάδα εργασίας "
+"κατά την περιήγηση με διάφορα προγράμματα, και το όνομα του τομέα που "
+"χρησιμοποιείται στην ρύθμιση security=domain."
 
 #. Type: boolean
 #. Description
@@ -131,39 +129,30 @@ msgstr "Να χρησιμοποιηθεί κρυπτογράφηση των κω
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
 "Όλες οι πρόσφατες εκδόσεις των πελατών Windows επικοινωνούν με τους "
-"εξυπηρετητές SMB χρησιμοποιώντας κρυπτογραφημένους κωδικούς πρόσβασης. Αν "
-"θέλετε να χρησιμοποιήσετε μη κρυπτογραφημένους κωδικούς θα πρέπει να "
+"εξυπηρετητές SMB/CIFS χρησιμοποιώντας κρυπτογραφημένους κωδικούς πρόσβασης. "
+"Αν θέλετε να χρησιμοποιήσετε μη κρυπτογραφημένους κωδικούς θα πρέπει να "
 "αλλάξετε μια παράμετρο στο registry των Windows."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"Η ενεργοποίηση αυτής της επιλογής συνιστάται έντονα. Αν την κάνετε, "
-"βεβαιωθείτε ότι έχετε ένα έγκυρο αρχείο /etc/samba/smbpasswd και ότι ορίζετε "
-"κωδικούς πρόσβασης σ' αυτό για κάθε χρήστη που χρησιμοποιεί την εντολή "
-"smbpasswd."
+"Η ενεργοποίηση αυτής της επιλογής συνιστάται έντονα καθώς πλέον δεν υπάρχει "
+"υποστήριξη για μη κρυπτογραφημένους κωδικούς σε προϊόντα Microsoft Windows. "
+"Αν την επιλέξετε, βεβαιωθείτε ότι έχετε ένα έγκυρο αρχείο /etc/samba/"
+"smbpasswd και ότι ορίζετε κωδικούς πρόσβασης σ' αυτό για κάθε χρήστη με τη "
+"χρήση της εντολήςsmbpasswd."
 
 #. Type: boolean
 #. Description

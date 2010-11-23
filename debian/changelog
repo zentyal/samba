@@ -11,6 +11,7 @@ samba (2:3.5.6~dfsg-2) UNRELEASED; urgency=low
   * Hebrew (Omer Zak).  Closes: #601633
   * Kurdish (Erdal Ronahî).  Closes: #601719
   * Dutch (Remco Rijnders).  Closes: #602220
+  * Greek (Konstantinos Margaritis).
 
  -- Christian Perrier <bubulle@debian.org>  Tue, 02 Nov 2010 17:23:15 +0100
 

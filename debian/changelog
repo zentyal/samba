@@ -1,6 +1,5 @@
 samba (2:3.5.6~dfsg-2) UNRELEASED; urgency=low
 
-  * Support armh port. Closes: #604523 
   * Fix debian/rules update-archs target to not add extra spaces on every
     invocation...
 

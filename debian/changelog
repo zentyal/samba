@@ -1,4 +1,4 @@
-samba (2:3.5.6~dfsg-2) UNRELEASED; urgency=low
+samba (2:3.5.6~dfsg-2) unstable; urgency=low
 
   [ Steve Langasek ]
   * Fix debian/rules update-archs target to not add extra spaces on every
@@ -19,7 +19,7 @@ samba (2:3.5.6~dfsg-2) UNRELEASED; urgency=low
     to be released 3.5.7 version
     Closes: #605729
 
- -- Christian Perrier <bubulle@debian.org>  Tue, 02 Nov 2010 17:23:15 +0100
+ -- Christian Perrier <bubulle@debian.org>  Sat, 04 Dec 2010 07:44:22 +0100
 
 samba (2:3.5.6~dfsg-1) unstable; urgency=low
 

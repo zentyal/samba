@@ -1,6 +1,9 @@
 samba (2:3.5.6~dfsg-3) UNRELEASED; urgency=low
 
   * Bump libwbclient0 shlibs to match the newest version in the symbols file.
+  * Mark libwbclient0 as breaking other samba packages with versions older
+    than 2:3.4.1, as they were linked against libtalloc1 instead of
+    libtalloc2, and the combination causes crashes (closes: #593823).
 
  -- Julien Cristau <jcristau@debian.org>  Mon, 06 Dec 2010 16:12:41 +0100
 

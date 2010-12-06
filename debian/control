@@ -209,6 +209,16 @@ Section: libs
 Priority: optional
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
+Breaks:
+ libpam-smbpass (<< 2:3.4.1),
+ libsmbclient (<< 2:3.4.1),
+ samba-common (<< 2:3.4.1),
+ samba-tools (<< 2:3.4.1),
+ samba (<< 2:3.4.1),
+ smbclient (<< 2:3.4.1),
+ smbfs (<< 2:3.4.1),
+ swat (<< 2:3.4.1),
+ winbind (<< 2:3.4.1),
 Description: Samba winbind client library
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with

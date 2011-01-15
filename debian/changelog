@@ -1,5 +1,12 @@
 samba (2:3.5.6~dfsg-4) UNRELEASED; urgency=low
 
+  * Fix pam_winbind file descriptor leak with a patch
+    proposed in https://bugzilla.samba.org/show_bug.cgi?id=7265.
+    Upstream claim is that #7265 is fixed in 3.5.6 but our bug submitter
+    confirmed it is not while the patch applied here fixes the file
+    descriptor leak.
+    Closes: #574468
+
   [ Debconf translations ]  
   * Brazilian Portuguese (Adriano Rafael Gomes).  Closes: #607402
 

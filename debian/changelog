@@ -1,4 +1,4 @@
-samba (2:3.5.6~dfsg-4) UNRELEASED; urgency=low
+samba (2:3.5.6~dfsg-4) unstable; urgency=low
 
   * Fix pam_winbind file descriptor leak with a patch
     proposed in https://bugzilla.samba.org/show_bug.cgi?id=7265.
@@ -10,7 +10,7 @@ samba (2:3.5.6~dfsg-4) UNRELEASED; urgency=low
   [ Debconf translations ]  
   * Brazilian Portuguese (Adriano Rafael Gomes).  Closes: #607402
 
- -- Christian Perrier <bubulle@debian.org>  Sat, 18 Dec 2010 08:24:03 +0100
+ -- Christian Perrier <bubulle@debian.org>  Sat, 15 Jan 2011 18:06:22 +0100
 
 samba (2:3.5.6~dfsg-3) unstable; urgency=low
 

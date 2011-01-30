@@ -1,0 +1,8 @@
+etc/samba/
+etc/dhcp3/
+etc/pam.d/
+usr/share/samba/lowcase.dat
+usr/share/samba/panic-action
+usr/share/samba/smb.conf*
+usr/share/samba/upcase.dat
+usr/share/samba/valid.dat

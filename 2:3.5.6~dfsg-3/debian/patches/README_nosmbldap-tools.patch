@@ -1,0 +1,19 @@
+Description: Mention smbldap-tools package in examples/LDAP/README
+Author: Christian Perrier <bubulle@debian.org>
+Bug-Debian: http://bugs.debian.org/341934
+Forwarded: not-needed
+
+Index: experimental/examples/LDAP/README
+===================================================================
+--- experimental.orig/examples/LDAP/README
++++ experimental/examples/LDAP/README
+@@ -69,6 +69,9 @@
+ The smbldap-tools package can be downloaded individually from
+ https://gna.org/projects/smbldap-tools/
+ 
++On Debian systems, the smbldap-tools exists as a separate package
++and is not included in LDAP examples.
++
+ !==
+ !== end of README
+ !==

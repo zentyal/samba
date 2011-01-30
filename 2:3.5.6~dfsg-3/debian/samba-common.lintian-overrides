@@ -1,0 +1,2 @@
+# This is on purpose to hide sensitive information
+samba-common: non-standard-dir-perm var/log/samba/ 0750 != 0755

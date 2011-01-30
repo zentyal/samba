@@ -1,0 +1,3 @@
+version=3
+opts=dversionmangle=s/\~dfsg// \
+http://www.samba.org/samba/ftp/stable/samba-(\d[\w.]+).tar.gz

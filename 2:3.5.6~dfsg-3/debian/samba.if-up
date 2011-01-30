@@ -1,0 +1,33 @@
+#!/bin/sh
+# Try to bring nmbd up when an interface comes up, if smbd is already running.
+
+# Don't bother to do anything for lo.
+if [ "$IFACE" = lo ]; then
+	exit 0
+fi
+
+# Only run from ifup.
+if [ "$MODE" != start ]; then
+	exit 0
+fi
+
+# Samba only cares about inet and inet6. Get thee gone, strange people
+# still using ipx.
+case $ADDRFAM in
+	inet|inet6|NetworkManager)
+		;;
+	*)
+		exit 0
+		;;
+esac
+
+status=$(/etc/init.d/samba status)
+
+# Really only necessary to do anything if nmbd is not already running
+if echo "$status" | grep -q 'smbd is running' \
+   && ! echo "$status" | grep -q 'nmbd is running'
+then
+	/etc/init.d/samba start
+fi
+
+exit 0

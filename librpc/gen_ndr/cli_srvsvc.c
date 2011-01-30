@@ -6,6 +6,131 @@
 #include "includes.h"
 #include "../librpc/gen_ndr/cli_srvsvc.h"
 
+struct rpccli_srvsvc_NetCharDevEnum_state {
+	struct srvsvc_NetCharDevEnum orig;
+	struct srvsvc_NetCharDevEnum tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetCharDevEnum_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetCharDevEnum_send(TALLOC_CTX *mem_ctx,
+						     struct tevent_context *ev,
+						     struct rpc_pipe_client *cli,
+						     const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						     struct srvsvc_NetCharDevInfoCtr *_info_ctr /* [in,out] [ref] */,
+						     uint32_t _max_buffer /* [in]  */,
+						     uint32_t *_totalentries /* [out] [ref] */,
+						     uint32_t *_resume_handle /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetCharDevEnum_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetCharDevEnum_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.info_ctr = _info_ctr;
+	state->orig.in.max_buffer = _max_buffer;
+	state->orig.in.resume_handle = _resume_handle;
+
+	/* Out parameters */
+	state->orig.out.info_ctr = _info_ctr;
+	state->orig.out.totalentries = _totalentries;
+	state->orig.out.resume_handle = _resume_handle;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetCharDevEnum_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETCHARDEVENUM,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetCharDevEnum_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetCharDevEnum_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetCharDevEnum_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetCharDevEnum_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.info_ctr = *state->tmp.out.info_ctr;
+	*state->orig.out.totalentries = *state->tmp.out.totalentries;
+	if (state->orig.out.resume_handle && state->tmp.out.resume_handle) {
+		*state->orig.out.resume_handle = *state->tmp.out.resume_handle;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetCharDevEnum_recv(struct tevent_req *req,
+					   TALLOC_CTX *mem_ctx,
+					   WERROR *result)
+{
+	struct rpccli_srvsvc_NetCharDevEnum_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetCharDevEnum_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NetCharDevEnum(struct rpc_pipe_client *cli,
 				      TALLOC_CTX *mem_ctx,
 				      const char *server_unc /* [in] [unique,charset(UTF16)] */,
@@ -24,10 +149,6 @@ NTSTATUS rpccli_srvsvc_NetCharDevEnum(struct rpc_pipe_client *cli,
 	r.in.max_buffer = max_buffer;
 	r.in.resume_handle = resume_handle;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetCharDevEnum, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -36,10 +157,6 @@ NTSTATUS rpccli_srvsvc_NetCharDevEnum(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetCharDevEnum, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -61,6 +178,123 @@ NTSTATUS rpccli_srvsvc_NetCharDevEnum(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_srvsvc_NetCharDevGetInfo_state {
+	struct srvsvc_NetCharDevGetInfo orig;
+	struct srvsvc_NetCharDevGetInfo tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetCharDevGetInfo_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetCharDevGetInfo_send(TALLOC_CTX *mem_ctx,
+							struct tevent_context *ev,
+							struct rpc_pipe_client *cli,
+							const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+							const char *_device_name /* [in] [charset(UTF16)] */,
+							uint32_t _level /* [in]  */,
+							union srvsvc_NetCharDevInfo *_info /* [out] [ref,switch_is(level)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetCharDevGetInfo_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetCharDevGetInfo_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.device_name = _device_name;
+	state->orig.in.level = _level;
+
+	/* Out parameters */
+	state->orig.out.info = _info;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetCharDevGetInfo_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETCHARDEVGETINFO,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetCharDevGetInfo_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetCharDevGetInfo_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetCharDevGetInfo_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetCharDevGetInfo_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.info = *state->tmp.out.info;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetCharDevGetInfo_recv(struct tevent_req *req,
+					      TALLOC_CTX *mem_ctx,
+					      WERROR *result)
+{
+	struct rpccli_srvsvc_NetCharDevGetInfo_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetCharDevGetInfo_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NetCharDevGetInfo(struct rpc_pipe_client *cli,
 					 TALLOC_CTX *mem_ctx,
 					 const char *server_unc /* [in] [unique,charset(UTF16)] */,
@@ -77,10 +311,6 @@ NTSTATUS rpccli_srvsvc_NetCharDevGetInfo(struct rpc_pipe_client *cli,
 	r.in.device_name = device_name;
 	r.in.level = level;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetCharDevGetInfo, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -89,10 +319,6 @@ NTSTATUS rpccli_srvsvc_NetCharDevGetInfo(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetCharDevGetInfo, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -110,6 +336,114 @@ NTSTATUS rpccli_srvsvc_NetCharDevGetInfo(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_srvsvc_NetCharDevControl_state {
+	struct srvsvc_NetCharDevControl orig;
+	struct srvsvc_NetCharDevControl tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetCharDevControl_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetCharDevControl_send(TALLOC_CTX *mem_ctx,
+							struct tevent_context *ev,
+							struct rpc_pipe_client *cli,
+							const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+							const char *_device_name /* [in] [charset(UTF16)] */,
+							uint32_t _opcode /* [in]  */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetCharDevControl_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetCharDevControl_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.device_name = _device_name;
+	state->orig.in.opcode = _opcode;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETCHARDEVCONTROL,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetCharDevControl_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetCharDevControl_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetCharDevControl_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetCharDevControl_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetCharDevControl_recv(struct tevent_req *req,
+					      TALLOC_CTX *mem_ctx,
+					      WERROR *result)
+{
+	struct rpccli_srvsvc_NetCharDevControl_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetCharDevControl_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NetCharDevControl(struct rpc_pipe_client *cli,
 					 TALLOC_CTX *mem_ctx,
 					 const char *server_unc /* [in] [unique,charset(UTF16)] */,
@@ -125,10 +459,6 @@ NTSTATUS rpccli_srvsvc_NetCharDevControl(struct rpc_pipe_client *cli,
 	r.in.device_name = device_name;
 	r.in.opcode = opcode;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetCharDevControl, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -137,10 +467,6 @@ NTSTATUS rpccli_srvsvc_NetCharDevControl(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetCharDevControl, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -155,6 +481,133 @@ NTSTATUS rpccli_srvsvc_NetCharDevControl(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetCharDevQEnum_state {
+	struct srvsvc_NetCharDevQEnum orig;
+	struct srvsvc_NetCharDevQEnum tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetCharDevQEnum_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetCharDevQEnum_send(TALLOC_CTX *mem_ctx,
+						      struct tevent_context *ev,
+						      struct rpc_pipe_client *cli,
+						      const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						      const char *_user /* [in] [unique,charset(UTF16)] */,
+						      struct srvsvc_NetCharDevQInfoCtr *_info_ctr /* [in,out] [ref] */,
+						      uint32_t _max_buffer /* [in]  */,
+						      uint32_t *_totalentries /* [out] [ref] */,
+						      uint32_t *_resume_handle /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetCharDevQEnum_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetCharDevQEnum_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.user = _user;
+	state->orig.in.info_ctr = _info_ctr;
+	state->orig.in.max_buffer = _max_buffer;
+	state->orig.in.resume_handle = _resume_handle;
+
+	/* Out parameters */
+	state->orig.out.info_ctr = _info_ctr;
+	state->orig.out.totalentries = _totalentries;
+	state->orig.out.resume_handle = _resume_handle;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetCharDevQEnum_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETCHARDEVQENUM,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetCharDevQEnum_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetCharDevQEnum_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetCharDevQEnum_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetCharDevQEnum_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.info_ctr = *state->tmp.out.info_ctr;
+	*state->orig.out.totalentries = *state->tmp.out.totalentries;
+	if (state->orig.out.resume_handle && state->tmp.out.resume_handle) {
+		*state->orig.out.resume_handle = *state->tmp.out.resume_handle;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetCharDevQEnum_recv(struct tevent_req *req,
+					    TALLOC_CTX *mem_ctx,
+					    WERROR *result)
+{
+	struct rpccli_srvsvc_NetCharDevQEnum_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetCharDevQEnum_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetCharDevQEnum(struct rpc_pipe_client *cli,
@@ -177,10 +630,6 @@ NTSTATUS rpccli_srvsvc_NetCharDevQEnum(struct rpc_pipe_client *cli,
 	r.in.max_buffer = max_buffer;
 	r.in.resume_handle = resume_handle;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetCharDevQEnum, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -189,10 +638,6 @@ NTSTATUS rpccli_srvsvc_NetCharDevQEnum(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetCharDevQEnum, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -214,6 +659,125 @@ NTSTATUS rpccli_srvsvc_NetCharDevQEnum(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_srvsvc_NetCharDevQGetInfo_state {
+	struct srvsvc_NetCharDevQGetInfo orig;
+	struct srvsvc_NetCharDevQGetInfo tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetCharDevQGetInfo_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetCharDevQGetInfo_send(TALLOC_CTX *mem_ctx,
+							 struct tevent_context *ev,
+							 struct rpc_pipe_client *cli,
+							 const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+							 const char *_queue_name /* [in] [charset(UTF16)] */,
+							 const char *_user /* [in] [charset(UTF16)] */,
+							 uint32_t _level /* [in]  */,
+							 union srvsvc_NetCharDevQInfo *_info /* [out] [ref,switch_is(level)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetCharDevQGetInfo_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetCharDevQGetInfo_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.queue_name = _queue_name;
+	state->orig.in.user = _user;
+	state->orig.in.level = _level;
+
+	/* Out parameters */
+	state->orig.out.info = _info;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetCharDevQGetInfo_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETCHARDEVQGETINFO,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetCharDevQGetInfo_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetCharDevQGetInfo_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetCharDevQGetInfo_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetCharDevQGetInfo_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.info = *state->tmp.out.info;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetCharDevQGetInfo_recv(struct tevent_req *req,
+					       TALLOC_CTX *mem_ctx,
+					       WERROR *result)
+{
+	struct rpccli_srvsvc_NetCharDevQGetInfo_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetCharDevQGetInfo_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NetCharDevQGetInfo(struct rpc_pipe_client *cli,
 					  TALLOC_CTX *mem_ctx,
 					  const char *server_unc /* [in] [unique,charset(UTF16)] */,
@@ -232,10 +796,6 @@ NTSTATUS rpccli_srvsvc_NetCharDevQGetInfo(struct rpc_pipe_client *cli,
 	r.in.user = user;
 	r.in.level = level;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetCharDevQGetInfo, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -244,10 +804,6 @@ NTSTATUS rpccli_srvsvc_NetCharDevQGetInfo(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetCharDevQGetInfo, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -263,6 +819,128 @@ NTSTATUS rpccli_srvsvc_NetCharDevQGetInfo(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetCharDevQSetInfo_state {
+	struct srvsvc_NetCharDevQSetInfo orig;
+	struct srvsvc_NetCharDevQSetInfo tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetCharDevQSetInfo_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetCharDevQSetInfo_send(TALLOC_CTX *mem_ctx,
+							 struct tevent_context *ev,
+							 struct rpc_pipe_client *cli,
+							 const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+							 const char *_queue_name /* [in] [charset(UTF16)] */,
+							 uint32_t _level /* [in]  */,
+							 union srvsvc_NetCharDevQInfo _info /* [in] [switch_is(level)] */,
+							 uint32_t *_parm_error /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetCharDevQSetInfo_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetCharDevQSetInfo_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.queue_name = _queue_name;
+	state->orig.in.level = _level;
+	state->orig.in.info = _info;
+	state->orig.in.parm_error = _parm_error;
+
+	/* Out parameters */
+	state->orig.out.parm_error = _parm_error;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetCharDevQSetInfo_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETCHARDEVQSETINFO,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetCharDevQSetInfo_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetCharDevQSetInfo_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetCharDevQSetInfo_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetCharDevQSetInfo_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	if (state->orig.out.parm_error && state->tmp.out.parm_error) {
+		*state->orig.out.parm_error = *state->tmp.out.parm_error;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetCharDevQSetInfo_recv(struct tevent_req *req,
+					       TALLOC_CTX *mem_ctx,
+					       WERROR *result)
+{
+	struct rpccli_srvsvc_NetCharDevQSetInfo_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetCharDevQSetInfo_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetCharDevQSetInfo(struct rpc_pipe_client *cli,
@@ -284,10 +962,6 @@ NTSTATUS rpccli_srvsvc_NetCharDevQSetInfo(struct rpc_pipe_client *cli,
 	r.in.info = info;
 	r.in.parm_error = parm_error;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetCharDevQSetInfo, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -296,10 +970,6 @@ NTSTATUS rpccli_srvsvc_NetCharDevQSetInfo(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetCharDevQSetInfo, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -319,6 +989,112 @@ NTSTATUS rpccli_srvsvc_NetCharDevQSetInfo(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_srvsvc_NetCharDevQPurge_state {
+	struct srvsvc_NetCharDevQPurge orig;
+	struct srvsvc_NetCharDevQPurge tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetCharDevQPurge_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetCharDevQPurge_send(TALLOC_CTX *mem_ctx,
+						       struct tevent_context *ev,
+						       struct rpc_pipe_client *cli,
+						       const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						       const char *_queue_name /* [in] [charset(UTF16)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetCharDevQPurge_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetCharDevQPurge_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.queue_name = _queue_name;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETCHARDEVQPURGE,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetCharDevQPurge_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetCharDevQPurge_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetCharDevQPurge_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetCharDevQPurge_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetCharDevQPurge_recv(struct tevent_req *req,
+					     TALLOC_CTX *mem_ctx,
+					     WERROR *result)
+{
+	struct rpccli_srvsvc_NetCharDevQPurge_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetCharDevQPurge_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NetCharDevQPurge(struct rpc_pipe_client *cli,
 					TALLOC_CTX *mem_ctx,
 					const char *server_unc /* [in] [unique,charset(UTF16)] */,
@@ -332,10 +1108,6 @@ NTSTATUS rpccli_srvsvc_NetCharDevQPurge(struct rpc_pipe_client *cli,
 	r.in.server_unc = server_unc;
 	r.in.queue_name = queue_name;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetCharDevQPurge, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -344,10 +1116,6 @@ NTSTATUS rpccli_srvsvc_NetCharDevQPurge(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetCharDevQPurge, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -362,6 +1130,114 @@ NTSTATUS rpccli_srvsvc_NetCharDevQPurge(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetCharDevQPurgeSelf_state {
+	struct srvsvc_NetCharDevQPurgeSelf orig;
+	struct srvsvc_NetCharDevQPurgeSelf tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetCharDevQPurgeSelf_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetCharDevQPurgeSelf_send(TALLOC_CTX *mem_ctx,
+							   struct tevent_context *ev,
+							   struct rpc_pipe_client *cli,
+							   const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+							   const char *_queue_name /* [in] [charset(UTF16)] */,
+							   const char *_computer_name /* [in] [charset(UTF16)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetCharDevQPurgeSelf_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetCharDevQPurgeSelf_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.queue_name = _queue_name;
+	state->orig.in.computer_name = _computer_name;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETCHARDEVQPURGESELF,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetCharDevQPurgeSelf_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetCharDevQPurgeSelf_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetCharDevQPurgeSelf_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetCharDevQPurgeSelf_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetCharDevQPurgeSelf_recv(struct tevent_req *req,
+						 TALLOC_CTX *mem_ctx,
+						 WERROR *result)
+{
+	struct rpccli_srvsvc_NetCharDevQPurgeSelf_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetCharDevQPurgeSelf_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetCharDevQPurgeSelf(struct rpc_pipe_client *cli,
@@ -379,10 +1255,6 @@ NTSTATUS rpccli_srvsvc_NetCharDevQPurgeSelf(struct rpc_pipe_client *cli,
 	r.in.queue_name = queue_name;
 	r.in.computer_name = computer_name;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetCharDevQPurgeSelf, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -391,10 +1263,6 @@ NTSTATUS rpccli_srvsvc_NetCharDevQPurgeSelf(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetCharDevQPurgeSelf, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -409,6 +1277,133 @@ NTSTATUS rpccli_srvsvc_NetCharDevQPurgeSelf(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetConnEnum_state {
+	struct srvsvc_NetConnEnum orig;
+	struct srvsvc_NetConnEnum tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetConnEnum_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetConnEnum_send(TALLOC_CTX *mem_ctx,
+						  struct tevent_context *ev,
+						  struct rpc_pipe_client *cli,
+						  const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						  const char *_path /* [in] [unique,charset(UTF16)] */,
+						  struct srvsvc_NetConnInfoCtr *_info_ctr /* [in,out] [ref] */,
+						  uint32_t _max_buffer /* [in]  */,
+						  uint32_t *_totalentries /* [out] [ref] */,
+						  uint32_t *_resume_handle /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetConnEnum_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetConnEnum_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.path = _path;
+	state->orig.in.info_ctr = _info_ctr;
+	state->orig.in.max_buffer = _max_buffer;
+	state->orig.in.resume_handle = _resume_handle;
+
+	/* Out parameters */
+	state->orig.out.info_ctr = _info_ctr;
+	state->orig.out.totalentries = _totalentries;
+	state->orig.out.resume_handle = _resume_handle;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetConnEnum_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETCONNENUM,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetConnEnum_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetConnEnum_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetConnEnum_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetConnEnum_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.info_ctr = *state->tmp.out.info_ctr;
+	*state->orig.out.totalentries = *state->tmp.out.totalentries;
+	if (state->orig.out.resume_handle && state->tmp.out.resume_handle) {
+		*state->orig.out.resume_handle = *state->tmp.out.resume_handle;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetConnEnum_recv(struct tevent_req *req,
+					TALLOC_CTX *mem_ctx,
+					WERROR *result)
+{
+	struct rpccli_srvsvc_NetConnEnum_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetConnEnum_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetConnEnum(struct rpc_pipe_client *cli,
@@ -431,10 +1426,6 @@ NTSTATUS rpccli_srvsvc_NetConnEnum(struct rpc_pipe_client *cli,
 	r.in.max_buffer = max_buffer;
 	r.in.resume_handle = resume_handle;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetConnEnum, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -443,10 +1434,6 @@ NTSTATUS rpccli_srvsvc_NetConnEnum(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetConnEnum, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -466,6 +1453,135 @@ NTSTATUS rpccli_srvsvc_NetConnEnum(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetFileEnum_state {
+	struct srvsvc_NetFileEnum orig;
+	struct srvsvc_NetFileEnum tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetFileEnum_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetFileEnum_send(TALLOC_CTX *mem_ctx,
+						  struct tevent_context *ev,
+						  struct rpc_pipe_client *cli,
+						  const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						  const char *_path /* [in] [unique,charset(UTF16)] */,
+						  const char *_user /* [in] [unique,charset(UTF16)] */,
+						  struct srvsvc_NetFileInfoCtr *_info_ctr /* [in,out] [ref] */,
+						  uint32_t _max_buffer /* [in]  */,
+						  uint32_t *_totalentries /* [out] [ref] */,
+						  uint32_t *_resume_handle /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetFileEnum_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetFileEnum_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.path = _path;
+	state->orig.in.user = _user;
+	state->orig.in.info_ctr = _info_ctr;
+	state->orig.in.max_buffer = _max_buffer;
+	state->orig.in.resume_handle = _resume_handle;
+
+	/* Out parameters */
+	state->orig.out.info_ctr = _info_ctr;
+	state->orig.out.totalentries = _totalentries;
+	state->orig.out.resume_handle = _resume_handle;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetFileEnum_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETFILEENUM,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetFileEnum_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetFileEnum_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetFileEnum_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetFileEnum_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.info_ctr = *state->tmp.out.info_ctr;
+	*state->orig.out.totalentries = *state->tmp.out.totalentries;
+	if (state->orig.out.resume_handle && state->tmp.out.resume_handle) {
+		*state->orig.out.resume_handle = *state->tmp.out.resume_handle;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetFileEnum_recv(struct tevent_req *req,
+					TALLOC_CTX *mem_ctx,
+					WERROR *result)
+{
+	struct rpccli_srvsvc_NetFileEnum_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetFileEnum_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetFileEnum(struct rpc_pipe_client *cli,
@@ -490,10 +1606,6 @@ NTSTATUS rpccli_srvsvc_NetFileEnum(struct rpc_pipe_client *cli,
 	r.in.max_buffer = max_buffer;
 	r.in.resume_handle = resume_handle;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetFileEnum, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -502,10 +1614,6 @@ NTSTATUS rpccli_srvsvc_NetFileEnum(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetFileEnum, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -527,6 +1635,123 @@ NTSTATUS rpccli_srvsvc_NetFileEnum(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_srvsvc_NetFileGetInfo_state {
+	struct srvsvc_NetFileGetInfo orig;
+	struct srvsvc_NetFileGetInfo tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetFileGetInfo_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetFileGetInfo_send(TALLOC_CTX *mem_ctx,
+						     struct tevent_context *ev,
+						     struct rpc_pipe_client *cli,
+						     const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						     uint32_t _fid /* [in]  */,
+						     uint32_t _level /* [in]  */,
+						     union srvsvc_NetFileInfo *_info /* [out] [ref,switch_is(level)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetFileGetInfo_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetFileGetInfo_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.fid = _fid;
+	state->orig.in.level = _level;
+
+	/* Out parameters */
+	state->orig.out.info = _info;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetFileGetInfo_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETFILEGETINFO,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetFileGetInfo_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetFileGetInfo_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetFileGetInfo_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetFileGetInfo_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.info = *state->tmp.out.info;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetFileGetInfo_recv(struct tevent_req *req,
+					   TALLOC_CTX *mem_ctx,
+					   WERROR *result)
+{
+	struct rpccli_srvsvc_NetFileGetInfo_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetFileGetInfo_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NetFileGetInfo(struct rpc_pipe_client *cli,
 				      TALLOC_CTX *mem_ctx,
 				      const char *server_unc /* [in] [unique,charset(UTF16)] */,
@@ -543,10 +1768,6 @@ NTSTATUS rpccli_srvsvc_NetFileGetInfo(struct rpc_pipe_client *cli,
 	r.in.fid = fid;
 	r.in.level = level;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetFileGetInfo, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -555,10 +1776,6 @@ NTSTATUS rpccli_srvsvc_NetFileGetInfo(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetFileGetInfo, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -576,6 +1793,112 @@ NTSTATUS rpccli_srvsvc_NetFileGetInfo(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_srvsvc_NetFileClose_state {
+	struct srvsvc_NetFileClose orig;
+	struct srvsvc_NetFileClose tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetFileClose_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetFileClose_send(TALLOC_CTX *mem_ctx,
+						   struct tevent_context *ev,
+						   struct rpc_pipe_client *cli,
+						   const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						   uint32_t _fid /* [in]  */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetFileClose_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetFileClose_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.fid = _fid;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETFILECLOSE,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetFileClose_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetFileClose_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetFileClose_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetFileClose_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetFileClose_recv(struct tevent_req *req,
+					 TALLOC_CTX *mem_ctx,
+					 WERROR *result)
+{
+	struct rpccli_srvsvc_NetFileClose_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetFileClose_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NetFileClose(struct rpc_pipe_client *cli,
 				    TALLOC_CTX *mem_ctx,
 				    const char *server_unc /* [in] [unique,charset(UTF16)] */,
@@ -589,10 +1912,6 @@ NTSTATUS rpccli_srvsvc_NetFileClose(struct rpc_pipe_client *cli,
 	r.in.server_unc = server_unc;
 	r.in.fid = fid;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetFileClose, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -601,10 +1920,6 @@ NTSTATUS rpccli_srvsvc_NetFileClose(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetFileClose, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -619,6 +1934,135 @@ NTSTATUS rpccli_srvsvc_NetFileClose(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetSessEnum_state {
+	struct srvsvc_NetSessEnum orig;
+	struct srvsvc_NetSessEnum tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetSessEnum_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetSessEnum_send(TALLOC_CTX *mem_ctx,
+						  struct tevent_context *ev,
+						  struct rpc_pipe_client *cli,
+						  const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						  const char *_client /* [in] [unique,charset(UTF16)] */,
+						  const char *_user /* [in] [unique,charset(UTF16)] */,
+						  struct srvsvc_NetSessInfoCtr *_info_ctr /* [in,out] [ref] */,
+						  uint32_t _max_buffer /* [in]  */,
+						  uint32_t *_totalentries /* [out] [ref] */,
+						  uint32_t *_resume_handle /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetSessEnum_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetSessEnum_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.client = _client;
+	state->orig.in.user = _user;
+	state->orig.in.info_ctr = _info_ctr;
+	state->orig.in.max_buffer = _max_buffer;
+	state->orig.in.resume_handle = _resume_handle;
+
+	/* Out parameters */
+	state->orig.out.info_ctr = _info_ctr;
+	state->orig.out.totalentries = _totalentries;
+	state->orig.out.resume_handle = _resume_handle;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetSessEnum_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETSESSENUM,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetSessEnum_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetSessEnum_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetSessEnum_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetSessEnum_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.info_ctr = *state->tmp.out.info_ctr;
+	*state->orig.out.totalentries = *state->tmp.out.totalentries;
+	if (state->orig.out.resume_handle && state->tmp.out.resume_handle) {
+		*state->orig.out.resume_handle = *state->tmp.out.resume_handle;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetSessEnum_recv(struct tevent_req *req,
+					TALLOC_CTX *mem_ctx,
+					WERROR *result)
+{
+	struct rpccli_srvsvc_NetSessEnum_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetSessEnum_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetSessEnum(struct rpc_pipe_client *cli,
@@ -643,10 +2087,6 @@ NTSTATUS rpccli_srvsvc_NetSessEnum(struct rpc_pipe_client *cli,
 	r.in.max_buffer = max_buffer;
 	r.in.resume_handle = resume_handle;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetSessEnum, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -655,10 +2095,6 @@ NTSTATUS rpccli_srvsvc_NetSessEnum(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetSessEnum, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -680,6 +2116,114 @@ NTSTATUS rpccli_srvsvc_NetSessEnum(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_srvsvc_NetSessDel_state {
+	struct srvsvc_NetSessDel orig;
+	struct srvsvc_NetSessDel tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetSessDel_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetSessDel_send(TALLOC_CTX *mem_ctx,
+						 struct tevent_context *ev,
+						 struct rpc_pipe_client *cli,
+						 const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						 const char *_client /* [in] [unique,charset(UTF16)] */,
+						 const char *_user /* [in] [unique,charset(UTF16)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetSessDel_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetSessDel_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.client = _client;
+	state->orig.in.user = _user;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETSESSDEL,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetSessDel_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetSessDel_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetSessDel_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetSessDel_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetSessDel_recv(struct tevent_req *req,
+				       TALLOC_CTX *mem_ctx,
+				       WERROR *result)
+{
+	struct rpccli_srvsvc_NetSessDel_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetSessDel_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NetSessDel(struct rpc_pipe_client *cli,
 				  TALLOC_CTX *mem_ctx,
 				  const char *server_unc /* [in] [unique,charset(UTF16)] */,
@@ -695,10 +2239,6 @@ NTSTATUS rpccli_srvsvc_NetSessDel(struct rpc_pipe_client *cli,
 	r.in.client = client;
 	r.in.user = user;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetSessDel, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -707,10 +2247,6 @@ NTSTATUS rpccli_srvsvc_NetSessDel(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetSessDel, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -725,6 +2261,126 @@ NTSTATUS rpccli_srvsvc_NetSessDel(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetShareAdd_state {
+	struct srvsvc_NetShareAdd orig;
+	struct srvsvc_NetShareAdd tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetShareAdd_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetShareAdd_send(TALLOC_CTX *mem_ctx,
+						  struct tevent_context *ev,
+						  struct rpc_pipe_client *cli,
+						  const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						  uint32_t _level /* [in]  */,
+						  union srvsvc_NetShareInfo *_info /* [in] [ref,switch_is(level)] */,
+						  uint32_t *_parm_error /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetShareAdd_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetShareAdd_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.level = _level;
+	state->orig.in.info = _info;
+	state->orig.in.parm_error = _parm_error;
+
+	/* Out parameters */
+	state->orig.out.parm_error = _parm_error;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetShareAdd_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETSHAREADD,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetShareAdd_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetShareAdd_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetShareAdd_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareAdd_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	if (state->orig.out.parm_error && state->tmp.out.parm_error) {
+		*state->orig.out.parm_error = *state->tmp.out.parm_error;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetShareAdd_recv(struct tevent_req *req,
+					TALLOC_CTX *mem_ctx,
+					WERROR *result)
+{
+	struct rpccli_srvsvc_NetShareAdd_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareAdd_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetShareAdd(struct rpc_pipe_client *cli,
@@ -744,10 +2400,6 @@ NTSTATUS rpccli_srvsvc_NetShareAdd(struct rpc_pipe_client *cli,
 	r.in.info = info;
 	r.in.parm_error = parm_error;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetShareAdd, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -756,10 +2408,6 @@ NTSTATUS rpccli_srvsvc_NetShareAdd(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetShareAdd, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -777,6 +2425,131 @@ NTSTATUS rpccli_srvsvc_NetShareAdd(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetShareEnumAll_state {
+	struct srvsvc_NetShareEnumAll orig;
+	struct srvsvc_NetShareEnumAll tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetShareEnumAll_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetShareEnumAll_send(TALLOC_CTX *mem_ctx,
+						      struct tevent_context *ev,
+						      struct rpc_pipe_client *cli,
+						      const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						      struct srvsvc_NetShareInfoCtr *_info_ctr /* [in,out] [ref] */,
+						      uint32_t _max_buffer /* [in]  */,
+						      uint32_t *_totalentries /* [out] [ref] */,
+						      uint32_t *_resume_handle /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetShareEnumAll_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetShareEnumAll_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.info_ctr = _info_ctr;
+	state->orig.in.max_buffer = _max_buffer;
+	state->orig.in.resume_handle = _resume_handle;
+
+	/* Out parameters */
+	state->orig.out.info_ctr = _info_ctr;
+	state->orig.out.totalentries = _totalentries;
+	state->orig.out.resume_handle = _resume_handle;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetShareEnumAll_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETSHAREENUMALL,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetShareEnumAll_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetShareEnumAll_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetShareEnumAll_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareEnumAll_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.info_ctr = *state->tmp.out.info_ctr;
+	*state->orig.out.totalentries = *state->tmp.out.totalentries;
+	if (state->orig.out.resume_handle && state->tmp.out.resume_handle) {
+		*state->orig.out.resume_handle = *state->tmp.out.resume_handle;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetShareEnumAll_recv(struct tevent_req *req,
+					    TALLOC_CTX *mem_ctx,
+					    WERROR *result)
+{
+	struct rpccli_srvsvc_NetShareEnumAll_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareEnumAll_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetShareEnumAll(struct rpc_pipe_client *cli,
@@ -797,10 +2570,6 @@ NTSTATUS rpccli_srvsvc_NetShareEnumAll(struct rpc_pipe_client *cli,
 	r.in.max_buffer = max_buffer;
 	r.in.resume_handle = resume_handle;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetShareEnumAll, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -809,10 +2578,6 @@ NTSTATUS rpccli_srvsvc_NetShareEnumAll(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetShareEnumAll, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -834,6 +2599,123 @@ NTSTATUS rpccli_srvsvc_NetShareEnumAll(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_srvsvc_NetShareGetInfo_state {
+	struct srvsvc_NetShareGetInfo orig;
+	struct srvsvc_NetShareGetInfo tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetShareGetInfo_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetShareGetInfo_send(TALLOC_CTX *mem_ctx,
+						      struct tevent_context *ev,
+						      struct rpc_pipe_client *cli,
+						      const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						      const char *_share_name /* [in] [charset(UTF16)] */,
+						      uint32_t _level /* [in]  */,
+						      union srvsvc_NetShareInfo *_info /* [out] [ref,switch_is(level)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetShareGetInfo_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetShareGetInfo_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.share_name = _share_name;
+	state->orig.in.level = _level;
+
+	/* Out parameters */
+	state->orig.out.info = _info;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetShareGetInfo_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETSHAREGETINFO,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetShareGetInfo_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetShareGetInfo_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetShareGetInfo_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareGetInfo_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.info = *state->tmp.out.info;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetShareGetInfo_recv(struct tevent_req *req,
+					    TALLOC_CTX *mem_ctx,
+					    WERROR *result)
+{
+	struct rpccli_srvsvc_NetShareGetInfo_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareGetInfo_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NetShareGetInfo(struct rpc_pipe_client *cli,
 				       TALLOC_CTX *mem_ctx,
 				       const char *server_unc /* [in] [unique,charset(UTF16)] */,
@@ -850,10 +2732,6 @@ NTSTATUS rpccli_srvsvc_NetShareGetInfo(struct rpc_pipe_client *cli,
 	r.in.share_name = share_name;
 	r.in.level = level;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetShareGetInfo, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -862,10 +2740,6 @@ NTSTATUS rpccli_srvsvc_NetShareGetInfo(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetShareGetInfo, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -881,6 +2755,128 @@ NTSTATUS rpccli_srvsvc_NetShareGetInfo(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetShareSetInfo_state {
+	struct srvsvc_NetShareSetInfo orig;
+	struct srvsvc_NetShareSetInfo tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetShareSetInfo_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetShareSetInfo_send(TALLOC_CTX *mem_ctx,
+						      struct tevent_context *ev,
+						      struct rpc_pipe_client *cli,
+						      const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						      const char *_share_name /* [in] [charset(UTF16)] */,
+						      uint32_t _level /* [in]  */,
+						      union srvsvc_NetShareInfo *_info /* [in] [ref,switch_is(level)] */,
+						      uint32_t *_parm_error /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetShareSetInfo_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetShareSetInfo_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.share_name = _share_name;
+	state->orig.in.level = _level;
+	state->orig.in.info = _info;
+	state->orig.in.parm_error = _parm_error;
+
+	/* Out parameters */
+	state->orig.out.parm_error = _parm_error;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetShareSetInfo_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETSHARESETINFO,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetShareSetInfo_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetShareSetInfo_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetShareSetInfo_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareSetInfo_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	if (state->orig.out.parm_error && state->tmp.out.parm_error) {
+		*state->orig.out.parm_error = *state->tmp.out.parm_error;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetShareSetInfo_recv(struct tevent_req *req,
+					    TALLOC_CTX *mem_ctx,
+					    WERROR *result)
+{
+	struct rpccli_srvsvc_NetShareSetInfo_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareSetInfo_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetShareSetInfo(struct rpc_pipe_client *cli,
@@ -902,10 +2898,6 @@ NTSTATUS rpccli_srvsvc_NetShareSetInfo(struct rpc_pipe_client *cli,
 	r.in.info = info;
 	r.in.parm_error = parm_error;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetShareSetInfo, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -914,10 +2906,6 @@ NTSTATUS rpccli_srvsvc_NetShareSetInfo(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetShareSetInfo, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -937,6 +2925,114 @@ NTSTATUS rpccli_srvsvc_NetShareSetInfo(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_srvsvc_NetShareDel_state {
+	struct srvsvc_NetShareDel orig;
+	struct srvsvc_NetShareDel tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetShareDel_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetShareDel_send(TALLOC_CTX *mem_ctx,
+						  struct tevent_context *ev,
+						  struct rpc_pipe_client *cli,
+						  const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						  const char *_share_name /* [in] [charset(UTF16)] */,
+						  uint32_t _reserved /* [in]  */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetShareDel_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetShareDel_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.share_name = _share_name;
+	state->orig.in.reserved = _reserved;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETSHAREDEL,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetShareDel_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetShareDel_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetShareDel_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareDel_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetShareDel_recv(struct tevent_req *req,
+					TALLOC_CTX *mem_ctx,
+					WERROR *result)
+{
+	struct rpccli_srvsvc_NetShareDel_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareDel_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NetShareDel(struct rpc_pipe_client *cli,
 				   TALLOC_CTX *mem_ctx,
 				   const char *server_unc /* [in] [unique,charset(UTF16)] */,
@@ -952,10 +3048,6 @@ NTSTATUS rpccli_srvsvc_NetShareDel(struct rpc_pipe_client *cli,
 	r.in.share_name = share_name;
 	r.in.reserved = reserved;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetShareDel, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -964,10 +3056,6 @@ NTSTATUS rpccli_srvsvc_NetShareDel(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetShareDel, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -982,6 +3070,114 @@ NTSTATUS rpccli_srvsvc_NetShareDel(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetShareDelSticky_state {
+	struct srvsvc_NetShareDelSticky orig;
+	struct srvsvc_NetShareDelSticky tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetShareDelSticky_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetShareDelSticky_send(TALLOC_CTX *mem_ctx,
+							struct tevent_context *ev,
+							struct rpc_pipe_client *cli,
+							const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+							const char *_share_name /* [in] [charset(UTF16)] */,
+							uint32_t _reserved /* [in]  */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetShareDelSticky_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetShareDelSticky_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.share_name = _share_name;
+	state->orig.in.reserved = _reserved;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETSHAREDELSTICKY,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetShareDelSticky_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetShareDelSticky_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetShareDelSticky_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareDelSticky_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetShareDelSticky_recv(struct tevent_req *req,
+					      TALLOC_CTX *mem_ctx,
+					      WERROR *result)
+{
+	struct rpccli_srvsvc_NetShareDelSticky_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareDelSticky_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetShareDelSticky(struct rpc_pipe_client *cli,
@@ -999,10 +3195,6 @@ NTSTATUS rpccli_srvsvc_NetShareDelSticky(struct rpc_pipe_client *cli,
 	r.in.share_name = share_name;
 	r.in.reserved = reserved;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetShareDelSticky, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1011,10 +3203,6 @@ NTSTATUS rpccli_srvsvc_NetShareDelSticky(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetShareDelSticky, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1031,6 +3219,121 @@ NTSTATUS rpccli_srvsvc_NetShareDelSticky(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_srvsvc_NetShareCheck_state {
+	struct srvsvc_NetShareCheck orig;
+	struct srvsvc_NetShareCheck tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetShareCheck_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetShareCheck_send(TALLOC_CTX *mem_ctx,
+						    struct tevent_context *ev,
+						    struct rpc_pipe_client *cli,
+						    const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						    const char *_device_name /* [in] [charset(UTF16)] */,
+						    enum srvsvc_ShareType *_type /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetShareCheck_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetShareCheck_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.device_name = _device_name;
+
+	/* Out parameters */
+	state->orig.out.type = _type;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetShareCheck_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETSHARECHECK,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetShareCheck_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetShareCheck_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetShareCheck_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareCheck_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.type = *state->tmp.out.type;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetShareCheck_recv(struct tevent_req *req,
+					  TALLOC_CTX *mem_ctx,
+					  WERROR *result)
+{
+	struct rpccli_srvsvc_NetShareCheck_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareCheck_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NetShareCheck(struct rpc_pipe_client *cli,
 				     TALLOC_CTX *mem_ctx,
 				     const char *server_unc /* [in] [unique,charset(UTF16)] */,
@@ -1045,10 +3348,6 @@ NTSTATUS rpccli_srvsvc_NetShareCheck(struct rpc_pipe_client *cli,
 	r.in.server_unc = server_unc;
 	r.in.device_name = device_name;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetShareCheck, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1057,10 +3356,6 @@ NTSTATUS rpccli_srvsvc_NetShareCheck(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetShareCheck, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1078,6 +3373,121 @@ NTSTATUS rpccli_srvsvc_NetShareCheck(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_srvsvc_NetSrvGetInfo_state {
+	struct srvsvc_NetSrvGetInfo orig;
+	struct srvsvc_NetSrvGetInfo tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetSrvGetInfo_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetSrvGetInfo_send(TALLOC_CTX *mem_ctx,
+						    struct tevent_context *ev,
+						    struct rpc_pipe_client *cli,
+						    const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						    uint32_t _level /* [in]  */,
+						    union srvsvc_NetSrvInfo *_info /* [out] [ref,switch_is(level)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetSrvGetInfo_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetSrvGetInfo_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.level = _level;
+
+	/* Out parameters */
+	state->orig.out.info = _info;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetSrvGetInfo_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETSRVGETINFO,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetSrvGetInfo_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetSrvGetInfo_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetSrvGetInfo_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetSrvGetInfo_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.info = *state->tmp.out.info;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetSrvGetInfo_recv(struct tevent_req *req,
+					  TALLOC_CTX *mem_ctx,
+					  WERROR *result)
+{
+	struct rpccli_srvsvc_NetSrvGetInfo_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetSrvGetInfo_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NetSrvGetInfo(struct rpc_pipe_client *cli,
 				     TALLOC_CTX *mem_ctx,
 				     const char *server_unc /* [in] [unique,charset(UTF16)] */,
@@ -1092,10 +3502,6 @@ NTSTATUS rpccli_srvsvc_NetSrvGetInfo(struct rpc_pipe_client *cli,
 	r.in.server_unc = server_unc;
 	r.in.level = level;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetSrvGetInfo, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1104,10 +3510,6 @@ NTSTATUS rpccli_srvsvc_NetSrvGetInfo(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetSrvGetInfo, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1123,6 +3525,126 @@ NTSTATUS rpccli_srvsvc_NetSrvGetInfo(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetSrvSetInfo_state {
+	struct srvsvc_NetSrvSetInfo orig;
+	struct srvsvc_NetSrvSetInfo tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetSrvSetInfo_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetSrvSetInfo_send(TALLOC_CTX *mem_ctx,
+						    struct tevent_context *ev,
+						    struct rpc_pipe_client *cli,
+						    const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						    uint32_t _level /* [in]  */,
+						    union srvsvc_NetSrvInfo *_info /* [in] [ref,switch_is(level)] */,
+						    uint32_t *_parm_error /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetSrvSetInfo_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetSrvSetInfo_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.level = _level;
+	state->orig.in.info = _info;
+	state->orig.in.parm_error = _parm_error;
+
+	/* Out parameters */
+	state->orig.out.parm_error = _parm_error;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetSrvSetInfo_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETSRVSETINFO,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetSrvSetInfo_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetSrvSetInfo_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetSrvSetInfo_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetSrvSetInfo_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	if (state->orig.out.parm_error && state->tmp.out.parm_error) {
+		*state->orig.out.parm_error = *state->tmp.out.parm_error;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetSrvSetInfo_recv(struct tevent_req *req,
+					  TALLOC_CTX *mem_ctx,
+					  WERROR *result)
+{
+	struct rpccli_srvsvc_NetSrvSetInfo_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetSrvSetInfo_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetSrvSetInfo(struct rpc_pipe_client *cli,
@@ -1142,10 +3664,6 @@ NTSTATUS rpccli_srvsvc_NetSrvSetInfo(struct rpc_pipe_client *cli,
 	r.in.info = info;
 	r.in.parm_error = parm_error;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetSrvSetInfo, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1154,10 +3672,6 @@ NTSTATUS rpccli_srvsvc_NetSrvSetInfo(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetSrvSetInfo, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1175,6 +3689,133 @@ NTSTATUS rpccli_srvsvc_NetSrvSetInfo(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetDiskEnum_state {
+	struct srvsvc_NetDiskEnum orig;
+	struct srvsvc_NetDiskEnum tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetDiskEnum_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetDiskEnum_send(TALLOC_CTX *mem_ctx,
+						  struct tevent_context *ev,
+						  struct rpc_pipe_client *cli,
+						  const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						  uint32_t _level /* [in]  */,
+						  struct srvsvc_NetDiskInfo *_info /* [in,out] [ref] */,
+						  uint32_t _maxlen /* [in]  */,
+						  uint32_t *_totalentries /* [out] [ref] */,
+						  uint32_t *_resume_handle /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetDiskEnum_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetDiskEnum_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.level = _level;
+	state->orig.in.info = _info;
+	state->orig.in.maxlen = _maxlen;
+	state->orig.in.resume_handle = _resume_handle;
+
+	/* Out parameters */
+	state->orig.out.info = _info;
+	state->orig.out.totalentries = _totalentries;
+	state->orig.out.resume_handle = _resume_handle;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetDiskEnum_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETDISKENUM,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetDiskEnum_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetDiskEnum_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetDiskEnum_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetDiskEnum_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.info = *state->tmp.out.info;
+	*state->orig.out.totalentries = *state->tmp.out.totalentries;
+	if (state->orig.out.resume_handle && state->tmp.out.resume_handle) {
+		*state->orig.out.resume_handle = *state->tmp.out.resume_handle;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetDiskEnum_recv(struct tevent_req *req,
+					TALLOC_CTX *mem_ctx,
+					WERROR *result)
+{
+	struct rpccli_srvsvc_NetDiskEnum_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetDiskEnum_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetDiskEnum(struct rpc_pipe_client *cli,
@@ -1197,10 +3838,6 @@ NTSTATUS rpccli_srvsvc_NetDiskEnum(struct rpc_pipe_client *cli,
 	r.in.maxlen = maxlen;
 	r.in.resume_handle = resume_handle;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetDiskEnum, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1209,10 +3846,6 @@ NTSTATUS rpccli_srvsvc_NetDiskEnum(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetDiskEnum, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1234,6 +3867,125 @@ NTSTATUS rpccli_srvsvc_NetDiskEnum(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_srvsvc_NetServerStatisticsGet_state {
+	struct srvsvc_NetServerStatisticsGet orig;
+	struct srvsvc_NetServerStatisticsGet tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetServerStatisticsGet_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetServerStatisticsGet_send(TALLOC_CTX *mem_ctx,
+							     struct tevent_context *ev,
+							     struct rpc_pipe_client *cli,
+							     const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+							     const char *_service /* [in] [unique,charset(UTF16)] */,
+							     uint32_t _level /* [in]  */,
+							     uint32_t _options /* [in]  */,
+							     struct srvsvc_Statistics **_stats /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetServerStatisticsGet_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetServerStatisticsGet_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.service = _service;
+	state->orig.in.level = _level;
+	state->orig.in.options = _options;
+
+	/* Out parameters */
+	state->orig.out.stats = _stats;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetServerStatisticsGet_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETSERVERSTATISTICSGET,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetServerStatisticsGet_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetServerStatisticsGet_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetServerStatisticsGet_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetServerStatisticsGet_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.stats = *state->tmp.out.stats;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetServerStatisticsGet_recv(struct tevent_req *req,
+						   TALLOC_CTX *mem_ctx,
+						   WERROR *result)
+{
+	struct rpccli_srvsvc_NetServerStatisticsGet_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetServerStatisticsGet_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NetServerStatisticsGet(struct rpc_pipe_client *cli,
 					      TALLOC_CTX *mem_ctx,
 					      const char *server_unc /* [in] [unique,charset(UTF16)] */,
@@ -1252,10 +4004,6 @@ NTSTATUS rpccli_srvsvc_NetServerStatisticsGet(struct rpc_pipe_client *cli,
 	r.in.level = level;
 	r.in.options = options;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetServerStatisticsGet, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1264,10 +4012,6 @@ NTSTATUS rpccli_srvsvc_NetServerStatisticsGet(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetServerStatisticsGet, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1285,6 +4029,114 @@ NTSTATUS rpccli_srvsvc_NetServerStatisticsGet(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_srvsvc_NetTransportAdd_state {
+	struct srvsvc_NetTransportAdd orig;
+	struct srvsvc_NetTransportAdd tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetTransportAdd_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetTransportAdd_send(TALLOC_CTX *mem_ctx,
+						      struct tevent_context *ev,
+						      struct rpc_pipe_client *cli,
+						      const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						      uint32_t _level /* [in]  */,
+						      union srvsvc_NetTransportInfo _info /* [in] [switch_is(level)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetTransportAdd_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetTransportAdd_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.level = _level;
+	state->orig.in.info = _info;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETTRANSPORTADD,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetTransportAdd_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetTransportAdd_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetTransportAdd_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetTransportAdd_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetTransportAdd_recv(struct tevent_req *req,
+					    TALLOC_CTX *mem_ctx,
+					    WERROR *result)
+{
+	struct rpccli_srvsvc_NetTransportAdd_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetTransportAdd_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NetTransportAdd(struct rpc_pipe_client *cli,
 				       TALLOC_CTX *mem_ctx,
 				       const char *server_unc /* [in] [unique,charset(UTF16)] */,
@@ -1300,10 +4152,6 @@ NTSTATUS rpccli_srvsvc_NetTransportAdd(struct rpc_pipe_client *cli,
 	r.in.level = level;
 	r.in.info = info;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetTransportAdd, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1312,10 +4160,6 @@ NTSTATUS rpccli_srvsvc_NetTransportAdd(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetTransportAdd, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1330,6 +4174,131 @@ NTSTATUS rpccli_srvsvc_NetTransportAdd(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetTransportEnum_state {
+	struct srvsvc_NetTransportEnum orig;
+	struct srvsvc_NetTransportEnum tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetTransportEnum_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetTransportEnum_send(TALLOC_CTX *mem_ctx,
+						       struct tevent_context *ev,
+						       struct rpc_pipe_client *cli,
+						       const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						       struct srvsvc_NetTransportInfoCtr *_transports /* [in,out] [ref] */,
+						       uint32_t _max_buffer /* [in]  */,
+						       uint32_t *_totalentries /* [out] [ref] */,
+						       uint32_t *_resume_handle /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetTransportEnum_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetTransportEnum_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.transports = _transports;
+	state->orig.in.max_buffer = _max_buffer;
+	state->orig.in.resume_handle = _resume_handle;
+
+	/* Out parameters */
+	state->orig.out.transports = _transports;
+	state->orig.out.totalentries = _totalentries;
+	state->orig.out.resume_handle = _resume_handle;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetTransportEnum_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETTRANSPORTENUM,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetTransportEnum_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetTransportEnum_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetTransportEnum_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetTransportEnum_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.transports = *state->tmp.out.transports;
+	*state->orig.out.totalentries = *state->tmp.out.totalentries;
+	if (state->orig.out.resume_handle && state->tmp.out.resume_handle) {
+		*state->orig.out.resume_handle = *state->tmp.out.resume_handle;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetTransportEnum_recv(struct tevent_req *req,
+					     TALLOC_CTX *mem_ctx,
+					     WERROR *result)
+{
+	struct rpccli_srvsvc_NetTransportEnum_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetTransportEnum_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetTransportEnum(struct rpc_pipe_client *cli,
@@ -1350,10 +4319,6 @@ NTSTATUS rpccli_srvsvc_NetTransportEnum(struct rpc_pipe_client *cli,
 	r.in.max_buffer = max_buffer;
 	r.in.resume_handle = resume_handle;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetTransportEnum, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1362,10 +4327,6 @@ NTSTATUS rpccli_srvsvc_NetTransportEnum(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetTransportEnum, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1387,6 +4348,114 @@ NTSTATUS rpccli_srvsvc_NetTransportEnum(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_srvsvc_NetTransportDel_state {
+	struct srvsvc_NetTransportDel orig;
+	struct srvsvc_NetTransportDel tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetTransportDel_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetTransportDel_send(TALLOC_CTX *mem_ctx,
+						      struct tevent_context *ev,
+						      struct rpc_pipe_client *cli,
+						      const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						      uint32_t _level /* [in]  */,
+						      struct srvsvc_NetTransportInfo0 *_info0 /* [in] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetTransportDel_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetTransportDel_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.level = _level;
+	state->orig.in.info0 = _info0;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETTRANSPORTDEL,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetTransportDel_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetTransportDel_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetTransportDel_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetTransportDel_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetTransportDel_recv(struct tevent_req *req,
+					    TALLOC_CTX *mem_ctx,
+					    WERROR *result)
+{
+	struct rpccli_srvsvc_NetTransportDel_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetTransportDel_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NetTransportDel(struct rpc_pipe_client *cli,
 				       TALLOC_CTX *mem_ctx,
 				       const char *server_unc /* [in] [unique,charset(UTF16)] */,
@@ -1402,10 +4471,6 @@ NTSTATUS rpccli_srvsvc_NetTransportDel(struct rpc_pipe_client *cli,
 	r.in.level = level;
 	r.in.info0 = info0;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetTransportDel, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1414,10 +4479,6 @@ NTSTATUS rpccli_srvsvc_NetTransportDel(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetTransportDel, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1434,6 +4495,119 @@ NTSTATUS rpccli_srvsvc_NetTransportDel(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_srvsvc_NetRemoteTOD_state {
+	struct srvsvc_NetRemoteTOD orig;
+	struct srvsvc_NetRemoteTOD tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetRemoteTOD_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetRemoteTOD_send(TALLOC_CTX *mem_ctx,
+						   struct tevent_context *ev,
+						   struct rpc_pipe_client *cli,
+						   const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						   struct srvsvc_NetRemoteTODInfo **_info /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetRemoteTOD_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetRemoteTOD_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+
+	/* Out parameters */
+	state->orig.out.info = _info;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetRemoteTOD_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETREMOTETOD,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetRemoteTOD_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetRemoteTOD_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetRemoteTOD_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetRemoteTOD_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.info = *state->tmp.out.info;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetRemoteTOD_recv(struct tevent_req *req,
+					 TALLOC_CTX *mem_ctx,
+					 WERROR *result)
+{
+	struct rpccli_srvsvc_NetRemoteTOD_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetRemoteTOD_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NetRemoteTOD(struct rpc_pipe_client *cli,
 				    TALLOC_CTX *mem_ctx,
 				    const char *server_unc /* [in] [unique,charset(UTF16)] */,
@@ -1446,10 +4620,6 @@ NTSTATUS rpccli_srvsvc_NetRemoteTOD(struct rpc_pipe_client *cli,
 	/* In parameters */
 	r.in.server_unc = server_unc;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetRemoteTOD, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1458,10 +4628,6 @@ NTSTATUS rpccli_srvsvc_NetRemoteTOD(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetRemoteTOD, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1477,6 +4643,116 @@ NTSTATUS rpccli_srvsvc_NetRemoteTOD(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetSetServiceBits_state {
+	struct srvsvc_NetSetServiceBits orig;
+	struct srvsvc_NetSetServiceBits tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetSetServiceBits_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetSetServiceBits_send(TALLOC_CTX *mem_ctx,
+							struct tevent_context *ev,
+							struct rpc_pipe_client *cli,
+							const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+							const char *_transport /* [in] [unique,charset(UTF16)] */,
+							uint32_t _servicebits /* [in]  */,
+							uint32_t _updateimmediately /* [in]  */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetSetServiceBits_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetSetServiceBits_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.transport = _transport;
+	state->orig.in.servicebits = _servicebits;
+	state->orig.in.updateimmediately = _updateimmediately;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETSETSERVICEBITS,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetSetServiceBits_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetSetServiceBits_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetSetServiceBits_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetSetServiceBits_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetSetServiceBits_recv(struct tevent_req *req,
+					      TALLOC_CTX *mem_ctx,
+					      WERROR *result)
+{
+	struct rpccli_srvsvc_NetSetServiceBits_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetSetServiceBits_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetSetServiceBits(struct rpc_pipe_client *cli,
@@ -1496,10 +4772,6 @@ NTSTATUS rpccli_srvsvc_NetSetServiceBits(struct rpc_pipe_client *cli,
 	r.in.servicebits = servicebits;
 	r.in.updateimmediately = updateimmediately;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetSetServiceBits, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1508,10 +4780,6 @@ NTSTATUS rpccli_srvsvc_NetSetServiceBits(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetSetServiceBits, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1526,6 +4794,123 @@ NTSTATUS rpccli_srvsvc_NetSetServiceBits(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetPathType_state {
+	struct srvsvc_NetPathType orig;
+	struct srvsvc_NetPathType tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetPathType_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetPathType_send(TALLOC_CTX *mem_ctx,
+						  struct tevent_context *ev,
+						  struct rpc_pipe_client *cli,
+						  const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						  const char *_path /* [in] [charset(UTF16)] */,
+						  uint32_t _pathflags /* [in]  */,
+						  uint32_t *_pathtype /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetPathType_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetPathType_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.path = _path;
+	state->orig.in.pathflags = _pathflags;
+
+	/* Out parameters */
+	state->orig.out.pathtype = _pathtype;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetPathType_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETPATHTYPE,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetPathType_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetPathType_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetPathType_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetPathType_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.pathtype = *state->tmp.out.pathtype;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetPathType_recv(struct tevent_req *req,
+					TALLOC_CTX *mem_ctx,
+					WERROR *result)
+{
+	struct rpccli_srvsvc_NetPathType_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetPathType_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetPathType(struct rpc_pipe_client *cli,
@@ -1544,10 +4929,6 @@ NTSTATUS rpccli_srvsvc_NetPathType(struct rpc_pipe_client *cli,
 	r.in.path = path;
 	r.in.pathflags = pathflags;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetPathType, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1556,10 +4937,6 @@ NTSTATUS rpccli_srvsvc_NetPathType(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetPathType, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1575,6 +4952,131 @@ NTSTATUS rpccli_srvsvc_NetPathType(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetPathCanonicalize_state {
+	struct srvsvc_NetPathCanonicalize orig;
+	struct srvsvc_NetPathCanonicalize tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetPathCanonicalize_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetPathCanonicalize_send(TALLOC_CTX *mem_ctx,
+							  struct tevent_context *ev,
+							  struct rpc_pipe_client *cli,
+							  const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+							  const char *_path /* [in] [charset(UTF16)] */,
+							  uint8_t *_can_path /* [out] [size_is(maxbuf)] */,
+							  uint32_t _maxbuf /* [in]  */,
+							  const char *_prefix /* [in] [charset(UTF16)] */,
+							  uint32_t *_pathtype /* [in,out] [ref] */,
+							  uint32_t _pathflags /* [in]  */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetPathCanonicalize_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetPathCanonicalize_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.path = _path;
+	state->orig.in.maxbuf = _maxbuf;
+	state->orig.in.prefix = _prefix;
+	state->orig.in.pathtype = _pathtype;
+	state->orig.in.pathflags = _pathflags;
+
+	/* Out parameters */
+	state->orig.out.can_path = _can_path;
+	state->orig.out.pathtype = _pathtype;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetPathCanonicalize_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETPATHCANONICALIZE,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetPathCanonicalize_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetPathCanonicalize_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetPathCanonicalize_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetPathCanonicalize_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	memcpy(state->orig.out.can_path, state->tmp.out.can_path, (state->tmp.in.maxbuf) * sizeof(*state->orig.out.can_path));
+	*state->orig.out.pathtype = *state->tmp.out.pathtype;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetPathCanonicalize_recv(struct tevent_req *req,
+						TALLOC_CTX *mem_ctx,
+						WERROR *result)
+{
+	struct rpccli_srvsvc_NetPathCanonicalize_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetPathCanonicalize_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetPathCanonicalize(struct rpc_pipe_client *cli,
@@ -1599,10 +5101,6 @@ NTSTATUS rpccli_srvsvc_NetPathCanonicalize(struct rpc_pipe_client *cli,
 	r.in.pathtype = pathtype;
 	r.in.pathflags = pathflags;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetPathCanonicalize, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1611,10 +5109,6 @@ NTSTATUS rpccli_srvsvc_NetPathCanonicalize(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetPathCanonicalize, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1631,6 +5125,118 @@ NTSTATUS rpccli_srvsvc_NetPathCanonicalize(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetPathCompare_state {
+	struct srvsvc_NetPathCompare orig;
+	struct srvsvc_NetPathCompare tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetPathCompare_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetPathCompare_send(TALLOC_CTX *mem_ctx,
+						     struct tevent_context *ev,
+						     struct rpc_pipe_client *cli,
+						     const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						     const char *_path1 /* [in] [charset(UTF16)] */,
+						     const char *_path2 /* [in] [charset(UTF16)] */,
+						     uint32_t _pathtype /* [in]  */,
+						     uint32_t _pathflags /* [in]  */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetPathCompare_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetPathCompare_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.path1 = _path1;
+	state->orig.in.path2 = _path2;
+	state->orig.in.pathtype = _pathtype;
+	state->orig.in.pathflags = _pathflags;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETPATHCOMPARE,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetPathCompare_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetPathCompare_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetPathCompare_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetPathCompare_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetPathCompare_recv(struct tevent_req *req,
+					   TALLOC_CTX *mem_ctx,
+					   WERROR *result)
+{
+	struct rpccli_srvsvc_NetPathCompare_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetPathCompare_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetPathCompare(struct rpc_pipe_client *cli,
@@ -1652,10 +5258,6 @@ NTSTATUS rpccli_srvsvc_NetPathCompare(struct rpc_pipe_client *cli,
 	r.in.pathtype = pathtype;
 	r.in.pathflags = pathflags;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetPathCompare, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1664,10 +5266,6 @@ NTSTATUS rpccli_srvsvc_NetPathCompare(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetPathCompare, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1682,6 +5280,116 @@ NTSTATUS rpccli_srvsvc_NetPathCompare(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetNameValidate_state {
+	struct srvsvc_NetNameValidate orig;
+	struct srvsvc_NetNameValidate tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetNameValidate_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetNameValidate_send(TALLOC_CTX *mem_ctx,
+						      struct tevent_context *ev,
+						      struct rpc_pipe_client *cli,
+						      const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						      const char *_name /* [in] [charset(UTF16)] */,
+						      uint32_t _name_type /* [in]  */,
+						      uint32_t _flags /* [in]  */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetNameValidate_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetNameValidate_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.name = _name;
+	state->orig.in.name_type = _name_type;
+	state->orig.in.flags = _flags;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETNAMEVALIDATE,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetNameValidate_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetNameValidate_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetNameValidate_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetNameValidate_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetNameValidate_recv(struct tevent_req *req,
+					    TALLOC_CTX *mem_ctx,
+					    WERROR *result)
+{
+	struct rpccli_srvsvc_NetNameValidate_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetNameValidate_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetNameValidate(struct rpc_pipe_client *cli,
@@ -1701,10 +5409,6 @@ NTSTATUS rpccli_srvsvc_NetNameValidate(struct rpc_pipe_client *cli,
 	r.in.name_type = name_type;
 	r.in.flags = flags;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetNameValidate, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1713,10 +5417,6 @@ NTSTATUS rpccli_srvsvc_NetNameValidate(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetNameValidate, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1733,6 +5433,108 @@ NTSTATUS rpccli_srvsvc_NetNameValidate(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_srvsvc_NETRPRNAMECANONICALIZE_state {
+	struct srvsvc_NETRPRNAMECANONICALIZE orig;
+	struct srvsvc_NETRPRNAMECANONICALIZE tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NETRPRNAMECANONICALIZE_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NETRPRNAMECANONICALIZE_send(TALLOC_CTX *mem_ctx,
+							     struct tevent_context *ev,
+							     struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NETRPRNAMECANONICALIZE_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NETRPRNAMECANONICALIZE_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETRPRNAMECANONICALIZE,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NETRPRNAMECANONICALIZE_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NETRPRNAMECANONICALIZE_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NETRPRNAMECANONICALIZE_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRPRNAMECANONICALIZE_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NETRPRNAMECANONICALIZE_recv(struct tevent_req *req,
+						   TALLOC_CTX *mem_ctx,
+						   WERROR *result)
+{
+	struct rpccli_srvsvc_NETRPRNAMECANONICALIZE_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRPRNAMECANONICALIZE_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NETRPRNAMECANONICALIZE(struct rpc_pipe_client *cli,
 					      TALLOC_CTX *mem_ctx,
 					      WERROR *werror)
@@ -1742,10 +5544,6 @@ NTSTATUS rpccli_srvsvc_NETRPRNAMECANONICALIZE(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NETRPRNAMECANONICALIZE, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1754,10 +5552,6 @@ NTSTATUS rpccli_srvsvc_NETRPRNAMECANONICALIZE(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NETRPRNAMECANONICALIZE, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1772,6 +5566,118 @@ NTSTATUS rpccli_srvsvc_NETRPRNAMECANONICALIZE(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetPRNameCompare_state {
+	struct srvsvc_NetPRNameCompare orig;
+	struct srvsvc_NetPRNameCompare tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetPRNameCompare_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetPRNameCompare_send(TALLOC_CTX *mem_ctx,
+						       struct tevent_context *ev,
+						       struct rpc_pipe_client *cli,
+						       const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						       const char *_name1 /* [in] [charset(UTF16)] */,
+						       const char *_name2 /* [in] [charset(UTF16)] */,
+						       uint32_t _name_type /* [in]  */,
+						       uint32_t _flags /* [in]  */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetPRNameCompare_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetPRNameCompare_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.name1 = _name1;
+	state->orig.in.name2 = _name2;
+	state->orig.in.name_type = _name_type;
+	state->orig.in.flags = _flags;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETPRNAMECOMPARE,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetPRNameCompare_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetPRNameCompare_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetPRNameCompare_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetPRNameCompare_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetPRNameCompare_recv(struct tevent_req *req,
+					     TALLOC_CTX *mem_ctx,
+					     WERROR *result)
+{
+	struct rpccli_srvsvc_NetPRNameCompare_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetPRNameCompare_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetPRNameCompare(struct rpc_pipe_client *cli,
@@ -1793,10 +5699,6 @@ NTSTATUS rpccli_srvsvc_NetPRNameCompare(struct rpc_pipe_client *cli,
 	r.in.name_type = name_type;
 	r.in.flags = flags;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetPRNameCompare, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1805,10 +5707,6 @@ NTSTATUS rpccli_srvsvc_NetPRNameCompare(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetPRNameCompare, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1823,6 +5721,131 @@ NTSTATUS rpccli_srvsvc_NetPRNameCompare(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetShareEnum_state {
+	struct srvsvc_NetShareEnum orig;
+	struct srvsvc_NetShareEnum tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetShareEnum_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetShareEnum_send(TALLOC_CTX *mem_ctx,
+						   struct tevent_context *ev,
+						   struct rpc_pipe_client *cli,
+						   const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						   struct srvsvc_NetShareInfoCtr *_info_ctr /* [in,out] [ref] */,
+						   uint32_t _max_buffer /* [in]  */,
+						   uint32_t *_totalentries /* [out] [ref] */,
+						   uint32_t *_resume_handle /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetShareEnum_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetShareEnum_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.info_ctr = _info_ctr;
+	state->orig.in.max_buffer = _max_buffer;
+	state->orig.in.resume_handle = _resume_handle;
+
+	/* Out parameters */
+	state->orig.out.info_ctr = _info_ctr;
+	state->orig.out.totalentries = _totalentries;
+	state->orig.out.resume_handle = _resume_handle;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetShareEnum_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETSHAREENUM,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetShareEnum_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetShareEnum_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetShareEnum_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareEnum_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.info_ctr = *state->tmp.out.info_ctr;
+	*state->orig.out.totalentries = *state->tmp.out.totalentries;
+	if (state->orig.out.resume_handle && state->tmp.out.resume_handle) {
+		*state->orig.out.resume_handle = *state->tmp.out.resume_handle;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetShareEnum_recv(struct tevent_req *req,
+					 TALLOC_CTX *mem_ctx,
+					 WERROR *result)
+{
+	struct rpccli_srvsvc_NetShareEnum_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareEnum_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetShareEnum(struct rpc_pipe_client *cli,
@@ -1843,10 +5866,6 @@ NTSTATUS rpccli_srvsvc_NetShareEnum(struct rpc_pipe_client *cli,
 	r.in.max_buffer = max_buffer;
 	r.in.resume_handle = resume_handle;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetShareEnum, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1855,10 +5874,6 @@ NTSTATUS rpccli_srvsvc_NetShareEnum(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetShareEnum, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1880,6 +5895,125 @@ NTSTATUS rpccli_srvsvc_NetShareEnum(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_srvsvc_NetShareDelStart_state {
+	struct srvsvc_NetShareDelStart orig;
+	struct srvsvc_NetShareDelStart tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetShareDelStart_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetShareDelStart_send(TALLOC_CTX *mem_ctx,
+						       struct tevent_context *ev,
+						       struct rpc_pipe_client *cli,
+						       const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+						       const char *_share /* [in] [charset(UTF16)] */,
+						       uint32_t _reserved /* [in]  */,
+						       struct policy_handle *_hnd /* [out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetShareDelStart_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetShareDelStart_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.share = _share;
+	state->orig.in.reserved = _reserved;
+
+	/* Out parameters */
+	state->orig.out.hnd = _hnd;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetShareDelStart_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETSHAREDELSTART,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetShareDelStart_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetShareDelStart_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetShareDelStart_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareDelStart_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	if (state->orig.out.hnd && state->tmp.out.hnd) {
+		*state->orig.out.hnd = *state->tmp.out.hnd;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetShareDelStart_recv(struct tevent_req *req,
+					     TALLOC_CTX *mem_ctx,
+					     WERROR *result)
+{
+	struct rpccli_srvsvc_NetShareDelStart_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareDelStart_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NetShareDelStart(struct rpc_pipe_client *cli,
 					TALLOC_CTX *mem_ctx,
 					const char *server_unc /* [in] [unique,charset(UTF16)] */,
@@ -1896,10 +6030,6 @@ NTSTATUS rpccli_srvsvc_NetShareDelStart(struct rpc_pipe_client *cli,
 	r.in.share = share;
 	r.in.reserved = reserved;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetShareDelStart, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1908,10 +6038,6 @@ NTSTATUS rpccli_srvsvc_NetShareDelStart(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetShareDelStart, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1931,6 +6057,120 @@ NTSTATUS rpccli_srvsvc_NetShareDelStart(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_srvsvc_NetShareDelCommit_state {
+	struct srvsvc_NetShareDelCommit orig;
+	struct srvsvc_NetShareDelCommit tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetShareDelCommit_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetShareDelCommit_send(TALLOC_CTX *mem_ctx,
+							struct tevent_context *ev,
+							struct rpc_pipe_client *cli,
+							struct policy_handle *_hnd /* [in,out] [unique] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetShareDelCommit_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetShareDelCommit_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.hnd = _hnd;
+
+	/* Out parameters */
+	state->orig.out.hnd = _hnd;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetShareDelCommit_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETSHAREDELCOMMIT,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetShareDelCommit_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetShareDelCommit_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetShareDelCommit_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareDelCommit_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	if (state->orig.out.hnd && state->tmp.out.hnd) {
+		*state->orig.out.hnd = *state->tmp.out.hnd;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetShareDelCommit_recv(struct tevent_req *req,
+					      TALLOC_CTX *mem_ctx,
+					      WERROR *result)
+{
+	struct rpccli_srvsvc_NetShareDelCommit_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetShareDelCommit_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NetShareDelCommit(struct rpc_pipe_client *cli,
 					 TALLOC_CTX *mem_ctx,
 					 struct policy_handle *hnd /* [in,out] [unique] */,
@@ -1942,10 +6182,6 @@ NTSTATUS rpccli_srvsvc_NetShareDelCommit(struct rpc_pipe_client *cli,
 	/* In parameters */
 	r.in.hnd = hnd;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetShareDelCommit, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -1954,10 +6190,6 @@ NTSTATUS rpccli_srvsvc_NetShareDelCommit(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetShareDelCommit, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1975,6 +6207,125 @@ NTSTATUS rpccli_srvsvc_NetShareDelCommit(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetGetFileSecurity_state {
+	struct srvsvc_NetGetFileSecurity orig;
+	struct srvsvc_NetGetFileSecurity tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetGetFileSecurity_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetGetFileSecurity_send(TALLOC_CTX *mem_ctx,
+							 struct tevent_context *ev,
+							 struct rpc_pipe_client *cli,
+							 const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+							 const char *_share /* [in] [unique,charset(UTF16)] */,
+							 const char *_file /* [in] [charset(UTF16)] */,
+							 uint32_t _securityinformation /* [in]  */,
+							 struct sec_desc_buf **_sd_buf /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetGetFileSecurity_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetGetFileSecurity_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.share = _share;
+	state->orig.in.file = _file;
+	state->orig.in.securityinformation = _securityinformation;
+
+	/* Out parameters */
+	state->orig.out.sd_buf = _sd_buf;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_srvsvc_NetGetFileSecurity_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETGETFILESECURITY,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetGetFileSecurity_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetGetFileSecurity_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetGetFileSecurity_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetGetFileSecurity_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.sd_buf = *state->tmp.out.sd_buf;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetGetFileSecurity_recv(struct tevent_req *req,
+					       TALLOC_CTX *mem_ctx,
+					       WERROR *result)
+{
+	struct rpccli_srvsvc_NetGetFileSecurity_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetGetFileSecurity_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetGetFileSecurity(struct rpc_pipe_client *cli,
@@ -1995,10 +6346,6 @@ NTSTATUS rpccli_srvsvc_NetGetFileSecurity(struct rpc_pipe_client *cli,
 	r.in.file = file;
 	r.in.securityinformation = securityinformation;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetGetFileSecurity, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -2007,10 +6354,6 @@ NTSTATUS rpccli_srvsvc_NetGetFileSecurity(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetGetFileSecurity, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2026,6 +6369,118 @@ NTSTATUS rpccli_srvsvc_NetGetFileSecurity(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetSetFileSecurity_state {
+	struct srvsvc_NetSetFileSecurity orig;
+	struct srvsvc_NetSetFileSecurity tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetSetFileSecurity_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetSetFileSecurity_send(TALLOC_CTX *mem_ctx,
+							 struct tevent_context *ev,
+							 struct rpc_pipe_client *cli,
+							 const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+							 const char *_share /* [in] [unique,charset(UTF16)] */,
+							 const char *_file /* [in] [charset(UTF16)] */,
+							 uint32_t _securityinformation /* [in]  */,
+							 struct sec_desc_buf *_sd_buf /* [in] [ref] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetSetFileSecurity_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetSetFileSecurity_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.share = _share;
+	state->orig.in.file = _file;
+	state->orig.in.securityinformation = _securityinformation;
+	state->orig.in.sd_buf = _sd_buf;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETSETFILESECURITY,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetSetFileSecurity_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetSetFileSecurity_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetSetFileSecurity_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetSetFileSecurity_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetSetFileSecurity_recv(struct tevent_req *req,
+					       TALLOC_CTX *mem_ctx,
+					       WERROR *result)
+{
+	struct rpccli_srvsvc_NetSetFileSecurity_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetSetFileSecurity_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetSetFileSecurity(struct rpc_pipe_client *cli,
@@ -2047,10 +6502,6 @@ NTSTATUS rpccli_srvsvc_NetSetFileSecurity(struct rpc_pipe_client *cli,
 	r.in.securityinformation = securityinformation;
 	r.in.sd_buf = sd_buf;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetSetFileSecurity, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -2059,10 +6510,6 @@ NTSTATUS rpccli_srvsvc_NetSetFileSecurity(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetSetFileSecurity, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2077,6 +6524,114 @@ NTSTATUS rpccli_srvsvc_NetSetFileSecurity(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetServerTransportAddEx_state {
+	struct srvsvc_NetServerTransportAddEx orig;
+	struct srvsvc_NetServerTransportAddEx tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetServerTransportAddEx_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetServerTransportAddEx_send(TALLOC_CTX *mem_ctx,
+							      struct tevent_context *ev,
+							      struct rpc_pipe_client *cli,
+							      const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+							      uint32_t _level /* [in]  */,
+							      union srvsvc_NetTransportInfo _info /* [in] [switch_is(level)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetServerTransportAddEx_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetServerTransportAddEx_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.level = _level;
+	state->orig.in.info = _info;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETSERVERTRANSPORTADDEX,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetServerTransportAddEx_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetServerTransportAddEx_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetServerTransportAddEx_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetServerTransportAddEx_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetServerTransportAddEx_recv(struct tevent_req *req,
+						    TALLOC_CTX *mem_ctx,
+						    WERROR *result)
+{
+	struct rpccli_srvsvc_NetServerTransportAddEx_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetServerTransportAddEx_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetServerTransportAddEx(struct rpc_pipe_client *cli,
@@ -2094,10 +6649,6 @@ NTSTATUS rpccli_srvsvc_NetServerTransportAddEx(struct rpc_pipe_client *cli,
 	r.in.level = level;
 	r.in.info = info;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetServerTransportAddEx, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -2106,10 +6657,6 @@ NTSTATUS rpccli_srvsvc_NetServerTransportAddEx(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetServerTransportAddEx, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2124,6 +6671,120 @@ NTSTATUS rpccli_srvsvc_NetServerTransportAddEx(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NetServerSetServiceBitsEx_state {
+	struct srvsvc_NetServerSetServiceBitsEx orig;
+	struct srvsvc_NetServerSetServiceBitsEx tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NetServerSetServiceBitsEx_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NetServerSetServiceBitsEx_send(TALLOC_CTX *mem_ctx,
+								struct tevent_context *ev,
+								struct rpc_pipe_client *cli,
+								const char *_server_unc /* [in] [unique,charset(UTF16)] */,
+								const char *_emulated_server_unc /* [in] [unique,charset(UTF16)] */,
+								const char *_transport /* [in] [unique,charset(UTF16)] */,
+								uint32_t _servicebitsofinterest /* [in]  */,
+								uint32_t _servicebits /* [in]  */,
+								uint32_t _updateimmediately /* [in]  */)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NetServerSetServiceBitsEx_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NetServerSetServiceBitsEx_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.server_unc = _server_unc;
+	state->orig.in.emulated_server_unc = _emulated_server_unc;
+	state->orig.in.transport = _transport;
+	state->orig.in.servicebitsofinterest = _servicebitsofinterest;
+	state->orig.in.servicebits = _servicebits;
+	state->orig.in.updateimmediately = _updateimmediately;
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETSERVERSETSERVICEBITSEX,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NetServerSetServiceBitsEx_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NetServerSetServiceBitsEx_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NetServerSetServiceBitsEx_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetServerSetServiceBitsEx_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NetServerSetServiceBitsEx_recv(struct tevent_req *req,
+						      TALLOC_CTX *mem_ctx,
+						      WERROR *result)
+{
+	struct rpccli_srvsvc_NetServerSetServiceBitsEx_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NetServerSetServiceBitsEx_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NetServerSetServiceBitsEx(struct rpc_pipe_client *cli,
@@ -2147,10 +6808,6 @@ NTSTATUS rpccli_srvsvc_NetServerSetServiceBitsEx(struct rpc_pipe_client *cli,
 	r.in.servicebits = servicebits;
 	r.in.updateimmediately = updateimmediately;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NetServerSetServiceBitsEx, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -2159,10 +6816,6 @@ NTSTATUS rpccli_srvsvc_NetServerSetServiceBitsEx(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NetServerSetServiceBitsEx, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2177,6 +6830,108 @@ NTSTATUS rpccli_srvsvc_NetServerSetServiceBitsEx(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NETRDFSGETVERSION_state {
+	struct srvsvc_NETRDFSGETVERSION orig;
+	struct srvsvc_NETRDFSGETVERSION tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NETRDFSGETVERSION_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NETRDFSGETVERSION_send(TALLOC_CTX *mem_ctx,
+							struct tevent_context *ev,
+							struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NETRDFSGETVERSION_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NETRDFSGETVERSION_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETRDFSGETVERSION,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NETRDFSGETVERSION_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NETRDFSGETVERSION_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NETRDFSGETVERSION_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSGETVERSION_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NETRDFSGETVERSION_recv(struct tevent_req *req,
+					      TALLOC_CTX *mem_ctx,
+					      WERROR *result)
+{
+	struct rpccli_srvsvc_NETRDFSGETVERSION_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSGETVERSION_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NETRDFSGETVERSION(struct rpc_pipe_client *cli,
@@ -2188,10 +6943,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSGETVERSION(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NETRDFSGETVERSION, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -2200,10 +6951,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSGETVERSION(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NETRDFSGETVERSION, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2218,6 +6965,108 @@ NTSTATUS rpccli_srvsvc_NETRDFSGETVERSION(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NETRDFSCREATELOCALPARTITION_state {
+	struct srvsvc_NETRDFSCREATELOCALPARTITION orig;
+	struct srvsvc_NETRDFSCREATELOCALPARTITION tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NETRDFSCREATELOCALPARTITION_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NETRDFSCREATELOCALPARTITION_send(TALLOC_CTX *mem_ctx,
+								  struct tevent_context *ev,
+								  struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NETRDFSCREATELOCALPARTITION_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NETRDFSCREATELOCALPARTITION_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETRDFSCREATELOCALPARTITION,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NETRDFSCREATELOCALPARTITION_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NETRDFSCREATELOCALPARTITION_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NETRDFSCREATELOCALPARTITION_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSCREATELOCALPARTITION_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NETRDFSCREATELOCALPARTITION_recv(struct tevent_req *req,
+							TALLOC_CTX *mem_ctx,
+							WERROR *result)
+{
+	struct rpccli_srvsvc_NETRDFSCREATELOCALPARTITION_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSCREATELOCALPARTITION_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NETRDFSCREATELOCALPARTITION(struct rpc_pipe_client *cli,
@@ -2229,10 +7078,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSCREATELOCALPARTITION(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NETRDFSCREATELOCALPARTITION, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -2241,10 +7086,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSCREATELOCALPARTITION(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NETRDFSCREATELOCALPARTITION, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2259,6 +7100,108 @@ NTSTATUS rpccli_srvsvc_NETRDFSCREATELOCALPARTITION(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NETRDFSDELETELOCALPARTITION_state {
+	struct srvsvc_NETRDFSDELETELOCALPARTITION orig;
+	struct srvsvc_NETRDFSDELETELOCALPARTITION tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NETRDFSDELETELOCALPARTITION_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NETRDFSDELETELOCALPARTITION_send(TALLOC_CTX *mem_ctx,
+								  struct tevent_context *ev,
+								  struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NETRDFSDELETELOCALPARTITION_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NETRDFSDELETELOCALPARTITION_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETRDFSDELETELOCALPARTITION,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NETRDFSDELETELOCALPARTITION_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NETRDFSDELETELOCALPARTITION_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NETRDFSDELETELOCALPARTITION_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSDELETELOCALPARTITION_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NETRDFSDELETELOCALPARTITION_recv(struct tevent_req *req,
+							TALLOC_CTX *mem_ctx,
+							WERROR *result)
+{
+	struct rpccli_srvsvc_NETRDFSDELETELOCALPARTITION_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSDELETELOCALPARTITION_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NETRDFSDELETELOCALPARTITION(struct rpc_pipe_client *cli,
@@ -2270,10 +7213,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSDELETELOCALPARTITION(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NETRDFSDELETELOCALPARTITION, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -2282,10 +7221,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSDELETELOCALPARTITION(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NETRDFSDELETELOCALPARTITION, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2300,6 +7235,108 @@ NTSTATUS rpccli_srvsvc_NETRDFSDELETELOCALPARTITION(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NETRDFSSETLOCALVOLUMESTATE_state {
+	struct srvsvc_NETRDFSSETLOCALVOLUMESTATE orig;
+	struct srvsvc_NETRDFSSETLOCALVOLUMESTATE tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NETRDFSSETLOCALVOLUMESTATE_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NETRDFSSETLOCALVOLUMESTATE_send(TALLOC_CTX *mem_ctx,
+								 struct tevent_context *ev,
+								 struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NETRDFSSETLOCALVOLUMESTATE_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NETRDFSSETLOCALVOLUMESTATE_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETRDFSSETLOCALVOLUMESTATE,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NETRDFSSETLOCALVOLUMESTATE_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NETRDFSSETLOCALVOLUMESTATE_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NETRDFSSETLOCALVOLUMESTATE_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSSETLOCALVOLUMESTATE_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NETRDFSSETLOCALVOLUMESTATE_recv(struct tevent_req *req,
+						       TALLOC_CTX *mem_ctx,
+						       WERROR *result)
+{
+	struct rpccli_srvsvc_NETRDFSSETLOCALVOLUMESTATE_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSSETLOCALVOLUMESTATE_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NETRDFSSETLOCALVOLUMESTATE(struct rpc_pipe_client *cli,
@@ -2311,10 +7348,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSSETLOCALVOLUMESTATE(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NETRDFSSETLOCALVOLUMESTATE, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -2323,10 +7356,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSSETLOCALVOLUMESTATE(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NETRDFSSETLOCALVOLUMESTATE, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2341,6 +7370,108 @@ NTSTATUS rpccli_srvsvc_NETRDFSSETLOCALVOLUMESTATE(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NETRDFSSETSERVERINFO_state {
+	struct srvsvc_NETRDFSSETSERVERINFO orig;
+	struct srvsvc_NETRDFSSETSERVERINFO tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NETRDFSSETSERVERINFO_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NETRDFSSETSERVERINFO_send(TALLOC_CTX *mem_ctx,
+							   struct tevent_context *ev,
+							   struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NETRDFSSETSERVERINFO_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NETRDFSSETSERVERINFO_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETRDFSSETSERVERINFO,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NETRDFSSETSERVERINFO_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NETRDFSSETSERVERINFO_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NETRDFSSETSERVERINFO_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSSETSERVERINFO_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NETRDFSSETSERVERINFO_recv(struct tevent_req *req,
+						 TALLOC_CTX *mem_ctx,
+						 WERROR *result)
+{
+	struct rpccli_srvsvc_NETRDFSSETSERVERINFO_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSSETSERVERINFO_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NETRDFSSETSERVERINFO(struct rpc_pipe_client *cli,
@@ -2352,10 +7483,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSSETSERVERINFO(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NETRDFSSETSERVERINFO, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -2364,10 +7491,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSSETSERVERINFO(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NETRDFSSETSERVERINFO, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2382,6 +7505,108 @@ NTSTATUS rpccli_srvsvc_NETRDFSSETSERVERINFO(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NETRDFSCREATEEXITPOINT_state {
+	struct srvsvc_NETRDFSCREATEEXITPOINT orig;
+	struct srvsvc_NETRDFSCREATEEXITPOINT tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NETRDFSCREATEEXITPOINT_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NETRDFSCREATEEXITPOINT_send(TALLOC_CTX *mem_ctx,
+							     struct tevent_context *ev,
+							     struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NETRDFSCREATEEXITPOINT_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NETRDFSCREATEEXITPOINT_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETRDFSCREATEEXITPOINT,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NETRDFSCREATEEXITPOINT_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NETRDFSCREATEEXITPOINT_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NETRDFSCREATEEXITPOINT_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSCREATEEXITPOINT_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NETRDFSCREATEEXITPOINT_recv(struct tevent_req *req,
+						   TALLOC_CTX *mem_ctx,
+						   WERROR *result)
+{
+	struct rpccli_srvsvc_NETRDFSCREATEEXITPOINT_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSCREATEEXITPOINT_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NETRDFSCREATEEXITPOINT(struct rpc_pipe_client *cli,
@@ -2393,10 +7618,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSCREATEEXITPOINT(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NETRDFSCREATEEXITPOINT, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -2405,10 +7626,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSCREATEEXITPOINT(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NETRDFSCREATEEXITPOINT, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2423,6 +7640,108 @@ NTSTATUS rpccli_srvsvc_NETRDFSCREATEEXITPOINT(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NETRDFSDELETEEXITPOINT_state {
+	struct srvsvc_NETRDFSDELETEEXITPOINT orig;
+	struct srvsvc_NETRDFSDELETEEXITPOINT tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NETRDFSDELETEEXITPOINT_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NETRDFSDELETEEXITPOINT_send(TALLOC_CTX *mem_ctx,
+							     struct tevent_context *ev,
+							     struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NETRDFSDELETEEXITPOINT_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NETRDFSDELETEEXITPOINT_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETRDFSDELETEEXITPOINT,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NETRDFSDELETEEXITPOINT_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NETRDFSDELETEEXITPOINT_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NETRDFSDELETEEXITPOINT_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSDELETEEXITPOINT_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NETRDFSDELETEEXITPOINT_recv(struct tevent_req *req,
+						   TALLOC_CTX *mem_ctx,
+						   WERROR *result)
+{
+	struct rpccli_srvsvc_NETRDFSDELETEEXITPOINT_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSDELETEEXITPOINT_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NETRDFSDELETEEXITPOINT(struct rpc_pipe_client *cli,
@@ -2434,10 +7753,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSDELETEEXITPOINT(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NETRDFSDELETEEXITPOINT, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -2446,10 +7761,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSDELETEEXITPOINT(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NETRDFSDELETEEXITPOINT, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2464,6 +7775,108 @@ NTSTATUS rpccli_srvsvc_NETRDFSDELETEEXITPOINT(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NETRDFSMODIFYPREFIX_state {
+	struct srvsvc_NETRDFSMODIFYPREFIX orig;
+	struct srvsvc_NETRDFSMODIFYPREFIX tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NETRDFSMODIFYPREFIX_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NETRDFSMODIFYPREFIX_send(TALLOC_CTX *mem_ctx,
+							  struct tevent_context *ev,
+							  struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NETRDFSMODIFYPREFIX_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NETRDFSMODIFYPREFIX_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETRDFSMODIFYPREFIX,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NETRDFSMODIFYPREFIX_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NETRDFSMODIFYPREFIX_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NETRDFSMODIFYPREFIX_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSMODIFYPREFIX_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NETRDFSMODIFYPREFIX_recv(struct tevent_req *req,
+						TALLOC_CTX *mem_ctx,
+						WERROR *result)
+{
+	struct rpccli_srvsvc_NETRDFSMODIFYPREFIX_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSMODIFYPREFIX_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NETRDFSMODIFYPREFIX(struct rpc_pipe_client *cli,
@@ -2475,10 +7888,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSMODIFYPREFIX(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NETRDFSMODIFYPREFIX, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -2487,10 +7896,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSMODIFYPREFIX(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NETRDFSMODIFYPREFIX, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2505,6 +7910,108 @@ NTSTATUS rpccli_srvsvc_NETRDFSMODIFYPREFIX(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NETRDFSFIXLOCALVOLUME_state {
+	struct srvsvc_NETRDFSFIXLOCALVOLUME orig;
+	struct srvsvc_NETRDFSFIXLOCALVOLUME tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NETRDFSFIXLOCALVOLUME_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NETRDFSFIXLOCALVOLUME_send(TALLOC_CTX *mem_ctx,
+							    struct tevent_context *ev,
+							    struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NETRDFSFIXLOCALVOLUME_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NETRDFSFIXLOCALVOLUME_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETRDFSFIXLOCALVOLUME,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NETRDFSFIXLOCALVOLUME_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NETRDFSFIXLOCALVOLUME_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NETRDFSFIXLOCALVOLUME_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSFIXLOCALVOLUME_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NETRDFSFIXLOCALVOLUME_recv(struct tevent_req *req,
+						  TALLOC_CTX *mem_ctx,
+						  WERROR *result)
+{
+	struct rpccli_srvsvc_NETRDFSFIXLOCALVOLUME_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSFIXLOCALVOLUME_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NETRDFSFIXLOCALVOLUME(struct rpc_pipe_client *cli,
@@ -2516,10 +8023,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSFIXLOCALVOLUME(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NETRDFSFIXLOCALVOLUME, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -2528,10 +8031,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSFIXLOCALVOLUME(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NETRDFSFIXLOCALVOLUME, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2546,6 +8045,108 @@ NTSTATUS rpccli_srvsvc_NETRDFSFIXLOCALVOLUME(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_srvsvc_NETRDFSMANAGERREPORTSITEINFO_state {
+	struct srvsvc_NETRDFSMANAGERREPORTSITEINFO orig;
+	struct srvsvc_NETRDFSMANAGERREPORTSITEINFO tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NETRDFSMANAGERREPORTSITEINFO_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NETRDFSMANAGERREPORTSITEINFO_send(TALLOC_CTX *mem_ctx,
+								   struct tevent_context *ev,
+								   struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NETRDFSMANAGERREPORTSITEINFO_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NETRDFSMANAGERREPORTSITEINFO_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETRDFSMANAGERREPORTSITEINFO,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NETRDFSMANAGERREPORTSITEINFO_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NETRDFSMANAGERREPORTSITEINFO_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NETRDFSMANAGERREPORTSITEINFO_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSMANAGERREPORTSITEINFO_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NETRDFSMANAGERREPORTSITEINFO_recv(struct tevent_req *req,
+							 TALLOC_CTX *mem_ctx,
+							 WERROR *result)
+{
+	struct rpccli_srvsvc_NETRDFSMANAGERREPORTSITEINFO_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRDFSMANAGERREPORTSITEINFO_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_srvsvc_NETRDFSMANAGERREPORTSITEINFO(struct rpc_pipe_client *cli,
@@ -2557,10 +8158,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSMANAGERREPORTSITEINFO(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NETRDFSMANAGERREPORTSITEINFO, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -2569,10 +8166,6 @@ NTSTATUS rpccli_srvsvc_NETRDFSMANAGERREPORTSITEINFO(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NETRDFSMANAGERREPORTSITEINFO, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -2589,6 +8182,108 @@ NTSTATUS rpccli_srvsvc_NETRDFSMANAGERREPORTSITEINFO(struct rpc_pipe_client *cli,
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_srvsvc_NETRSERVERTRANSPORTDELEX_state {
+	struct srvsvc_NETRSERVERTRANSPORTDELEX orig;
+	struct srvsvc_NETRSERVERTRANSPORTDELEX tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_srvsvc_NETRSERVERTRANSPORTDELEX_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_srvsvc_NETRSERVERTRANSPORTDELEX_send(TALLOC_CTX *mem_ctx,
+							       struct tevent_context *ev,
+							       struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_srvsvc_NETRSERVERTRANSPORTDELEX_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_srvsvc_NETRSERVERTRANSPORTDELEX_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_srvsvc,
+				    NDR_SRVSVC_NETRSERVERTRANSPORTDELEX,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_srvsvc_NETRSERVERTRANSPORTDELEX_done, req);
+	return req;
+}
+
+static void rpccli_srvsvc_NETRSERVERTRANSPORTDELEX_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_srvsvc_NETRSERVERTRANSPORTDELEX_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRSERVERTRANSPORTDELEX_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_srvsvc_NETRSERVERTRANSPORTDELEX_recv(struct tevent_req *req,
+						     TALLOC_CTX *mem_ctx,
+						     WERROR *result)
+{
+	struct rpccli_srvsvc_NETRSERVERTRANSPORTDELEX_state *state = tevent_req_data(
+		req, struct rpccli_srvsvc_NETRSERVERTRANSPORTDELEX_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_srvsvc_NETRSERVERTRANSPORTDELEX(struct rpc_pipe_client *cli,
 						TALLOC_CTX *mem_ctx,
 						WERROR *werror)
@@ -2598,10 +8293,6 @@ NTSTATUS rpccli_srvsvc_NETRSERVERTRANSPORTDELEX(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(srvsvc_NETRSERVERTRANSPORTDELEX, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_srvsvc,
@@ -2610,10 +8301,6 @@ NTSTATUS rpccli_srvsvc_NETRSERVERTRANSPORTDELEX(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(srvsvc_NETRSERVERTRANSPORTDELEX, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {

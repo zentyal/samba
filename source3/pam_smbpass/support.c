@@ -20,6 +20,7 @@
 
 #include "support.h"
 
+#include "../libcli/auth/libcli_auth.h"
 #if defined(HAVE_SECURITY_PAM_EXT_H)
 #include <security/pam_ext.h>
 #elif defined(HAVE_PAM_PAM_EXT_H)

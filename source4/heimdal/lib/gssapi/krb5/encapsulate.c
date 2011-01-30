@@ -31,9 +31,7 @@
  * SUCH DAMAGE.
  */
 
-#include "krb5/gsskrb5_locl.h"
-
-RCSID("$Id$");
+#include "gsskrb5_locl.h"
 
 void
 _gssapi_encap_length (size_t data_len,

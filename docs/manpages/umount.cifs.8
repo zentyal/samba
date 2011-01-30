@@ -1,12 +1,12 @@
 .\"     Title: umount.cifs
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 05/10/2010
+.\"      Date: 06/18/2010
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.4
+.\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "UMOUNT\&.CIFS" "8" "05/10/2010" "Samba 3\&.4" "System Administration tools"
+.TH "UMOUNT\&.CIFS" "8" "06/18/2010" "Samba 3\&.5" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -190,12 +190,47 @@ from the corresponding UNC name (exported network resource) and frees the associ
 \fBfstab\fR(5)
 .SH "OPTIONS"
 .PP
-\-\-verbose
+\-V
 .RS 4
-print additional debugging information
+Print version and exit\&.
 .RE
 .PP
-\-\-no\-mtab
+\-h
+.RS 4
+Print help message and exit\&.
+.RE
+.PP
+\-r
+.RS 4
+In case unmounting fails, try to remount read\-only\&.
+.RE
+.PP
+\-d
+.RS 4
+In case the unmounted device was a loop device, also free this loop device\&.
+.RE
+.PP
+\-f
+.RS 4
+Force unmount (in case of an unreachable server)\&.
+.RE
+.PP
+\-l
+.RS 4
+Lazy unmount\&. Detach the filesystem from the filesysetm hierarchy now, and cleanup all references to the filesystem as soon as it is not busy anymore\&.
+.RE
+.PP
+\-e
+.RS 4
+Mark the mount point as expired\&. If a mount point is not currently in use, then an initial call to unmount with this flag fails with the error EAGAIN, but marks the mount point as expired\&. The mount point remains expired as long as it isn\'t accessed by any process\&. A second unmount call specifying \-e unmounts an expired mount point\&. This flag cannot be specified with either \-f or \-l
+.RE
+.PP
+\-v|\-\-verbose
+.RS 4
+Verbose Mode\&. Print additional debugging information
+.RE
+.PP
+\-n|\-\-no\-mtab
 .RS 4
 Do not update the mtab even if unmount completes successfully (/proc/mounts will still display the correct information)
 .RE

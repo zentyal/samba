@@ -5,14 +5,14 @@
 
 _PUBLIC_ enum ndr_err_code ndr_push_messaging_type(struct ndr_push *ndr, int ndr_flags, enum messaging_type r)
 {
-	NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r));
+	NDR_CHECK(ndr_push_enum_uint32(ndr, NDR_SCALARS, r));
 	return NDR_ERR_SUCCESS;
 }
 
 _PUBLIC_ enum ndr_err_code ndr_pull_messaging_type(struct ndr_pull *ndr, int ndr_flags, enum messaging_type *r)
 {
 	uint32_t v;
-	NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &v));
+	NDR_CHECK(ndr_pull_enum_uint32(ndr, NDR_SCALARS, &v));
 	*r = v;
 	return NDR_ERR_SUCCESS;
 }
@@ -74,6 +74,7 @@ _PUBLIC_ void ndr_print_messaging_type(struct ndr_print *ndr, const char *name, 
 		case MSG_WINBIND_DUMP_DOMAIN_LIST: val = "MSG_WINBIND_DUMP_DOMAIN_LIST"; break;
 		case MSG_DUMP_EVENT_LIST: val = "MSG_DUMP_EVENT_LIST"; break;
 		case MSG_DBWRAP_TDB2_CHANGES: val = "MSG_DBWRAP_TDB2_CHANGES"; break;
+		case MSG_DBWRAP_G_LOCK_RETRY: val = "MSG_DBWRAP_G_LOCK_RETRY"; break;
 	}
 	ndr_print_enum(ndr, name, "ENUM", val, r);
 }
@@ -87,6 +88,7 @@ _PUBLIC_ enum ndr_err_code ndr_push_messaging_rec(struct ndr_push *ndr, int ndr_
 		NDR_CHECK(ndr_push_server_id(ndr, NDR_SCALARS, &r->dest));
 		NDR_CHECK(ndr_push_server_id(ndr, NDR_SCALARS, &r->src));
 		NDR_CHECK(ndr_push_DATA_BLOB(ndr, NDR_SCALARS, r->buf));
+		NDR_CHECK(ndr_push_trailer_align(ndr, 4));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
 		NDR_CHECK(ndr_push_server_id(ndr, NDR_BUFFERS, &r->dest));
@@ -104,6 +106,7 @@ _PUBLIC_ enum ndr_err_code ndr_pull_messaging_rec(struct ndr_pull *ndr, int ndr_
 		NDR_CHECK(ndr_pull_server_id(ndr, NDR_SCALARS, &r->dest));
 		NDR_CHECK(ndr_pull_server_id(ndr, NDR_SCALARS, &r->src));
 		NDR_CHECK(ndr_pull_DATA_BLOB(ndr, NDR_SCALARS, &r->buf));
+		NDR_CHECK(ndr_pull_trailer_align(ndr, 4));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
 		NDR_CHECK(ndr_pull_server_id(ndr, NDR_BUFFERS, &r->dest));
@@ -133,6 +136,7 @@ _PUBLIC_ enum ndr_err_code ndr_push_messaging_array(struct ndr_push *ndr, int nd
 		for (cntr_messages_0 = 0; cntr_messages_0 < r->num_messages; cntr_messages_0++) {
 			NDR_CHECK(ndr_push_messaging_rec(ndr, NDR_SCALARS, &r->messages[cntr_messages_0]));
 		}
+		NDR_CHECK(ndr_push_trailer_align(ndr, 4));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
 		for (cntr_messages_0 = 0; cntr_messages_0 < r->num_messages; cntr_messages_0++) {
@@ -156,6 +160,7 @@ _PUBLIC_ enum ndr_err_code ndr_pull_messaging_array(struct ndr_pull *ndr, int nd
 			NDR_CHECK(ndr_pull_messaging_rec(ndr, NDR_SCALARS, &r->messages[cntr_messages_0]));
 		}
 		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_messages_0, 0);
+		NDR_CHECK(ndr_pull_trailer_align(ndr, 4));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
 		_mem_save_messages_0 = NDR_PULL_GET_MEM_CTX(ndr);
@@ -194,9 +199,9 @@ _PUBLIC_ enum ndr_err_code ndr_push_dbwrap_tdb2_changes(struct ndr_push *ndr, in
 		NDR_CHECK(ndr_push_align(ndr, 4));
 		NDR_CHECK(ndr_push_charset(ndr, NDR_SCALARS, "TDB2", 4, sizeof(uint8_t), CH_DOS));
 		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, 1));
-		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, ndr_charset_length(r->name, CH_UTF8)));
-		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, 0));
-		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, ndr_charset_length(r->name, CH_UTF8)));
+		NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, ndr_charset_length(r->name, CH_UTF8)));
+		NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, 0));
+		NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, ndr_charset_length(r->name, CH_UTF8)));
 		NDR_CHECK(ndr_push_charset(ndr, NDR_SCALARS, r->name, ndr_charset_length(r->name, CH_UTF8), sizeof(uint8_t), CH_UTF8));
 		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->old_seqnum));
 		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->new_seqnum));
@@ -205,6 +210,7 @@ _PUBLIC_ enum ndr_err_code ndr_push_dbwrap_tdb2_changes(struct ndr_push *ndr, in
 		for (cntr_keys_0 = 0; cntr_keys_0 < r->num_keys; cntr_keys_0++) {
 			NDR_CHECK(ndr_push_DATA_BLOB(ndr, NDR_SCALARS, r->keys[cntr_keys_0]));
 		}
+		NDR_CHECK(ndr_push_trailer_align(ndr, 4));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
 	}
@@ -237,6 +243,7 @@ _PUBLIC_ enum ndr_err_code ndr_pull_dbwrap_tdb2_changes(struct ndr_pull *ndr, in
 			NDR_CHECK(ndr_pull_DATA_BLOB(ndr, NDR_SCALARS, &r->keys[cntr_keys_0]));
 		}
 		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_keys_0, 0);
+		NDR_CHECK(ndr_pull_trailer_align(ndr, 4));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
 	}

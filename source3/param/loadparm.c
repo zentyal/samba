@@ -58,9 +58,12 @@
 #include <sys/sysctl.h>
 #endif
 
+#ifdef HAVE_HTTPCONNECTENCRYPT
+#include <cups/http.h>
+#endif
+
 bool bLoaded = False;
 
-extern enum protocol_types Protocol;
 extern userdom_struct current_user_info;
 
 #ifndef GLOBAL_NAME
@@ -157,6 +160,7 @@ struct global {
 	char *szRemoteAnnounce;
 	char *szRemoteBrowseSync;
 	char *szSocketAddress;
+	bool bNmbdBindExplicitBroadcast;
 	char *szNISHomeMapName;
 	char *szAnnounceVersion;	/* This is initialised in init_globals */
 	char *szWorkgroup;
@@ -199,6 +203,7 @@ struct global {
 	bool bWinbindOfflineLogon;
 	bool bWinbindNormalizeNames;
 	bool bWinbindRpcOnly;
+	bool bCreateKrb5Conf;
 	char *szIdmapBackend;
 	char *szIdmapAllocBackend;
 	char *szAddShareCommand;
@@ -255,16 +260,20 @@ struct global {
 	char *szLdapGroupSuffix;
 	int ldap_ssl;
 	bool ldap_ssl_ads;
+	int ldap_deref;
+	int ldap_follow_referral;
 	char *szLdapSuffix;
 	char *szLdapAdminDn;
 	int ldap_debug_level;
 	int ldap_debug_threshold;
 	int iAclCompat;
 	char *szCupsServer;
+	int CupsEncrypt;
 	char *szIPrintServer;
 	char *ctdbdSocket;
 	char **szClusterAddresses;
 	bool clustering;
+	int ctdb_timeout;
 	int ldap_passwd_sync;
 	int ldap_replication_sleep;
 	int ldap_timeout; /* This is initialised in init_globals */
@@ -361,7 +370,7 @@ struct service {
 	bool valid;
 	bool autoloaded;
 	int usershare;
-	time_t usershare_last_mod;
+	struct timespec usershare_last_mod;
 	char *szService;
 	char *szPath;
 	char *szUsername;
@@ -505,7 +514,7 @@ static struct service sDefault = {
 	True,			/* valid */
 	False,			/* not autoloaded */
 	0,			/* not a usershare */
-	(time_t)0,              /* No last mod time */
+	{0, },                  /* No last mod time */
 	NULL,			/* szService */
 	NULL,			/* szPath */
 	NULL,			/* szUsername */
@@ -684,6 +693,7 @@ static void *lp_local_ptr(struct service *service, void *ptr);
 static void add_to_file_list(const char *fname, const char *subfname);
 
 static const struct enum_list enum_protocol[] = {
+	{PROTOCOL_SMB2, "SMB2"},
 	{PROTOCOL_NT1, "NT1"},
 	{PROTOCOL_LANMAN2, "LANMAN2"},
 	{PROTOCOL_LANMAN1, "LANMAN1"},
@@ -738,6 +748,20 @@ static const struct enum_list enum_ldap_ssl[] = {
 	{-1, NULL}
 };
 
+/* LDAP Dereferencing Alias types */
+#define SAMBA_LDAP_DEREF_NEVER		0
+#define SAMBA_LDAP_DEREF_SEARCHING	1
+#define SAMBA_LDAP_DEREF_FINDING	2
+#define SAMBA_LDAP_DEREF_ALWAYS		3
+
+static const struct enum_list enum_ldap_deref[] = {
+	{SAMBA_LDAP_DEREF_NEVER, "never"},
+	{SAMBA_LDAP_DEREF_SEARCHING, "searching"},
+	{SAMBA_LDAP_DEREF_FINDING, "finding"},
+	{SAMBA_LDAP_DEREF_ALWAYS, "always"},
+	{-1, "auto"}
+};
+
 static const struct enum_list enum_ldap_passwd_sync[] = {
 	{LDAP_PASSWD_SYNC_OFF, "no"},
 	{LDAP_PASSWD_SYNC_OFF, "off"},
@@ -779,6 +803,8 @@ static const struct enum_list enum_case[] = {
 	{CASE_UPPER, "upper"},
 	{-1, NULL}
 };
+
+
 
 static const struct enum_list enum_bool_auto[] = {
 	{False, "No"},
@@ -2493,7 +2519,7 @@ static struct parm_struct parm_table[] = {
 		.ptr		= &sDefault.iWriteCacheSize,
 		.special	= NULL,
 		.enum_list	= NULL,
-		.flags		= FLAG_ADVANCED | FLAG_SHARE | FLAG_DEPRECATED,
+		.flags		= FLAG_ADVANCED | FLAG_SHARE,
 	},
 	{
 		.label		= "name cache timeout",
@@ -2527,6 +2553,15 @@ static struct parm_struct parm_table[] = {
 		.type		= P_BOOL,
 		.p_class	= P_GLOBAL,
 		.ptr		= &Globals.clustering,
+		.special	= NULL,
+		.enum_list	= NULL,
+		.flags		= FLAG_ADVANCED | FLAG_GLOBAL,
+	},
+	{
+		.label		= "ctdb timeout",
+		.type		= P_INTEGER,
+		.p_class	= P_GLOBAL,
+		.ptr		= &Globals.ctdb_timeout,
 		.special	= NULL,
 		.enum_list	= NULL,
 		.flags		= FLAG_ADVANCED | FLAG_GLOBAL,
@@ -2634,6 +2669,16 @@ static struct parm_struct parm_table[] = {
 		.flags		= FLAG_ADVANCED | FLAG_PRINT | FLAG_GLOBAL,
 	},
 	{
+		.label          = "cups encrypt",
+		.type           = P_ENUM,
+		.p_class        = P_GLOBAL,
+		.ptr            = &Globals.CupsEncrypt,
+		.special        = NULL,
+		.enum_list      = enum_bool_auto,
+		.flags          = FLAG_ADVANCED | FLAG_PRINT | FLAG_GLOBAL,
+	},
+	{
+
 		.label		= "cups connection timeout",
 		.type		= P_INTEGER,
 		.p_class	= P_GLOBAL,
@@ -3345,15 +3390,6 @@ static struct parm_struct parm_table[] = {
 		.flags		= FLAG_BASIC | FLAG_ADVANCED | FLAG_SHARE | FLAG_PRINT,
 	},
 	{
-		.label		= "access based share enum",
-		.type		= P_BOOL,
-		.p_class	= P_LOCAL,
-		.ptr		= &sDefault.bAccessBasedShareEnum,
-		.special	= NULL,
-		.enum_list	= NULL,
-		.flags		= FLAG_BASIC | FLAG_ADVANCED | FLAG_SHARE
-	},
-	{
 		.label		= "browsable",
 		.type		= P_BOOL,
 		.p_class	= P_LOCAL,
@@ -3361,6 +3397,15 @@ static struct parm_struct parm_table[] = {
 		.special	= NULL,
 		.enum_list	= NULL,
 		.flags		= FLAG_HIDE,
+	},
+	{
+		.label		= "access based share enum",
+		.type		= P_BOOL,
+		.p_class	= P_LOCAL,
+		.ptr		= &sDefault.bAccessBasedShareEnum,
+		.special	= NULL,
+		.enum_list	= NULL,
+		.flags		= FLAG_BASIC | FLAG_ADVANCED | FLAG_SHARE
 	},
 	{
 		.label		= "enhanced browsing",
@@ -3639,6 +3684,24 @@ static struct parm_struct parm_table[] = {
 		.ptr		= &Globals.ldap_ssl_ads,
 		.special	= NULL,
 		.enum_list	= NULL,
+		.flags		= FLAG_ADVANCED,
+	},
+	{
+		.label		= "ldap deref",
+		.type		= P_ENUM,
+		.p_class	= P_GLOBAL,
+		.ptr		= &Globals.ldap_deref,
+		.special	= NULL,
+		.enum_list	= enum_ldap_deref,
+		.flags		= FLAG_ADVANCED,
+	},
+	{
+		.label		= "ldap follow referral",
+		.type		= P_ENUM,
+		.p_class	= P_GLOBAL,
+		.ptr		= &Globals.ldap_follow_referral,
+		.special	= NULL,
+		.enum_list	= enum_bool_auto,
 		.flags		= FLAG_ADVANCED,
 	},
 	{
@@ -3924,6 +3987,15 @@ static struct parm_struct parm_table[] = {
 		.type		= P_STRING,
 		.p_class	= P_GLOBAL,
 		.ptr		= &Globals.szSocketAddress,
+		.special	= NULL,
+		.enum_list	= NULL,
+		.flags		= FLAG_ADVANCED,
+	},
+	{
+		.label		= "nmbd bind explicit broadcast",
+		.type		= P_BOOL,
+		.p_class	= P_GLOBAL,
+		.ptr		= &Globals.bNmbdBindExplicitBroadcast,
 		.special	= NULL,
 		.enum_list	= NULL,
 		.flags		= FLAG_ADVANCED,
@@ -4268,7 +4340,7 @@ static struct parm_struct parm_table[] = {
 		.ptr		= &sDefault.bFakeDirCreateTimes,
 		.special	= NULL,
 		.enum_list	= NULL,
-		.flags		= FLAG_ADVANCED | FLAG_SHARE | FLAG_GLOBAL,
+		.flags		= FLAG_ADVANCED | FLAG_GLOBAL,
 	},
 	{
 		.label		= "panic action",
@@ -4564,6 +4636,15 @@ static struct parm_struct parm_table[] = {
 		.type		= P_BOOL,
 		.p_class	= P_GLOBAL,
 		.ptr		= &Globals.bWinbindRpcOnly,
+		.special	= NULL,
+		.enum_list	= NULL,
+		.flags		= FLAG_ADVANCED,
+	},
+	{
+		.label		= "create krb5 conf",
+		.type		= P_BOOL,
+		.p_class	= P_GLOBAL,
+		.ptr		= &Globals.bCreateKrb5Conf,
 		.special	= NULL,
 		.enum_list	= NULL,
 		.flags		= FLAG_ADVANCED,
@@ -4887,6 +4968,11 @@ static void init_globals(bool first_time_only)
 	string_set(&Globals.szCacheDir, get_dyn_CACHEDIR());
 	string_set(&Globals.szPidDir, get_dyn_PIDDIR());
 	string_set(&Globals.szSocketAddress, "0.0.0.0");
+	/*
+	 * By default support explicit binding to broadcast
+	 * addresses.
+	 */
+	Globals.bNmbdBindExplicitBroadcast = true;
 
 	if (asprintf(&s, "Samba %s", samba_version_string()) < 0) {
 		smb_panic("init_globals: ENOMEM");
@@ -4952,7 +5038,7 @@ static void init_globals(bool first_time_only)
 	Globals.bTimestampLogs = True;
 	string_set(&Globals.szLogLevel, "0");
 	Globals.bDebugPrefixTimestamp = False;
-	Globals.bDebugHiresTimestamp = False;
+	Globals.bDebugHiresTimestamp = true;
 	Globals.bDebugPid = False;
 	Globals.bDebugUid = False;
 	Globals.bDebugClass = False;
@@ -5001,6 +5087,7 @@ static void init_globals(bool first_time_only)
 #endif
 	Globals.bUnixExtensions = True;
 	Globals.bResetOnZeroVC = False;
+	Globals.bCreateKrb5Conf = true;
 
 	/* hostname lookups can be very expensive and are broken on
 	   a large number of sites (tridge) */
@@ -5016,9 +5103,11 @@ static void init_globals(bool first_time_only)
 	string_set(&Globals.szLdapAdminDn, "");
 	Globals.ldap_ssl = LDAP_SSL_START_TLS;
 	Globals.ldap_ssl_ads = False;
+	Globals.ldap_deref = -1;
 	Globals.ldap_passwd_sync = LDAP_PASSWD_SYNC_OFF;
 	Globals.ldap_delete_dn = False;
 	Globals.ldap_replication_sleep = 1000; /* wait 1 sec for replication */
+	Globals.ldap_follow_referral = Auto;
 	Globals.ldap_timeout = LDAP_DEFAULT_TIMEOUT;
 	Globals.ldap_connection_timeout = LDAP_CONNECTION_DEFAULT_TIMEOUT;
 	Globals.ldap_page_size = LDAP_PAGE_SIZE;
@@ -5074,6 +5163,7 @@ static void init_globals(bool first_time_only)
 	string_set(&Globals.ctdbdSocket, "");
 	Globals.szClusterAddresses = NULL;
 	Globals.clustering = False;
+	Globals.ctdb_timeout = 0;
 
 	Globals.winbind_cache_time = 300;	/* 5 minutes */
 	Globals.winbind_reconnect_delay = 30;	/* 30 seconds */
@@ -5149,6 +5239,9 @@ static char *lp_string(const char *s)
 #if 0
 	DEBUG(10, ("lp_string(%s)\n", s));
 #endif
+	if (!s) {
+		return NULL;
+	}
 
 	ret = talloc_sub_basic(ctx,
 			get_current_username(),
@@ -5269,6 +5362,7 @@ FN_GLOBAL_CONST_STRING(lp_logon_drive, &Globals.szLogonDrive)
 FN_GLOBAL_CONST_STRING(lp_logon_home, &Globals.szLogonHome)
 FN_GLOBAL_STRING(lp_remote_announce, &Globals.szRemoteAnnounce)
 FN_GLOBAL_STRING(lp_remote_browse_sync, &Globals.szRemoteBrowseSync)
+FN_GLOBAL_BOOL(lp_nmbd_bind_explicit_broadcast, &Globals.bNmbdBindExplicitBroadcast)
 FN_GLOBAL_LIST(lp_wins_server_list, &Globals.szWINSservers)
 FN_GLOBAL_LIST(lp_interfaces, &Globals.szInterfaces)
 FN_GLOBAL_STRING(lp_nis_home_map_name, &Globals.szNISHomeMapName)
@@ -5352,6 +5446,7 @@ FN_GLOBAL_BOOL(lp_winbind_refresh_tickets, &Globals.bWinbindRefreshTickets)
 FN_GLOBAL_BOOL(lp_winbind_offline_logon, &Globals.bWinbindOfflineLogon)
 FN_GLOBAL_BOOL(lp_winbind_normalize_names, &Globals.bWinbindNormalizeNames)
 FN_GLOBAL_BOOL(lp_winbind_rpc_only, &Globals.bWinbindRpcOnly)
+FN_GLOBAL_BOOL(lp_create_krb5_conf, &Globals.bCreateKrb5Conf)
 
 FN_GLOBAL_CONST_STRING(lp_idmap_backend, &Globals.szIdmapBackend)
 FN_GLOBAL_STRING(lp_idmap_alloc_backend, &Globals.szIdmapAllocBackend)
@@ -5364,6 +5459,8 @@ FN_GLOBAL_STRING(lp_ldap_suffix, &Globals.szLdapSuffix)
 FN_GLOBAL_STRING(lp_ldap_admin_dn, &Globals.szLdapAdminDn)
 FN_GLOBAL_INTEGER(lp_ldap_ssl, &Globals.ldap_ssl)
 FN_GLOBAL_BOOL(lp_ldap_ssl_ads, &Globals.ldap_ssl_ads)
+FN_GLOBAL_INTEGER(lp_ldap_deref, &Globals.ldap_deref)
+FN_GLOBAL_INTEGER(lp_ldap_follow_referral, &Globals.ldap_follow_referral)
 FN_GLOBAL_INTEGER(lp_ldap_passwd_sync, &Globals.ldap_passwd_sync)
 FN_GLOBAL_BOOL(lp_ldap_delete_dn, &Globals.ldap_delete_dn)
 FN_GLOBAL_INTEGER(lp_ldap_replication_sleep, &Globals.ldap_replication_sleep)
@@ -5497,11 +5594,30 @@ FN_LOCAL_LIST(lp_admin_users, szAdminUsers)
 FN_GLOBAL_LIST(lp_svcctl_list, &Globals.szServicesList)
 FN_LOCAL_STRING(lp_cups_options, szCupsOptions)
 FN_GLOBAL_STRING(lp_cups_server, &Globals.szCupsServer)
+int lp_cups_encrypt(void)
+{
+	int result = 0;
+#ifdef HAVE_HTTPCONNECTENCRYPT
+	switch (Globals.CupsEncrypt) {
+		case Auto:
+			result = HTTP_ENCRYPT_REQUIRED;
+			break;
+		case True:
+			result = HTTP_ENCRYPT_ALWAYS;
+			break;
+		case False:
+			result = HTTP_ENCRYPT_NEVER;
+			break;
+	}
+#endif
+	return result;
+}
 FN_GLOBAL_STRING(lp_iprint_server, &Globals.szIPrintServer)
 FN_GLOBAL_INTEGER(lp_cups_connection_timeout, &Globals.cups_connection_timeout)
 FN_GLOBAL_CONST_STRING(lp_ctdbd_socket, &Globals.ctdbdSocket)
 FN_GLOBAL_LIST(lp_cluster_addresses, &Globals.szClusterAddresses)
 FN_GLOBAL_BOOL(lp_clustering, &Globals.clustering)
+FN_GLOBAL_INTEGER(lp_ctdb_timeout, &Globals.ctdb_timeout)
 FN_LOCAL_STRING(lp_printcommand, szPrintcommand)
 FN_LOCAL_STRING(lp_lpqcommand, szLpqcommand)
 FN_LOCAL_STRING(lp_lprmcommand, szLprmcommand)
@@ -8320,29 +8436,30 @@ static void set_allowed_client_auth(void)
  get their sorry ass fired.
 ***************************************************************************/
 
-static bool check_usershare_stat(const char *fname, SMB_STRUCT_STAT *psbuf)
+static bool check_usershare_stat(const char *fname,
+				 const SMB_STRUCT_STAT *psbuf)
 {
-	if (!S_ISREG(psbuf->st_mode)) {
+	if (!S_ISREG(psbuf->st_ex_mode)) {
 		DEBUG(0,("check_usershare_stat: file %s owned by uid %u is "
 			"not a regular file\n",
-			fname, (unsigned int)psbuf->st_uid ));
+			fname, (unsigned int)psbuf->st_ex_uid ));
 		return False;
 	}
 
 	/* Ensure this doesn't have the other write bit set. */
-	if (psbuf->st_mode & S_IWOTH) {
+	if (psbuf->st_ex_mode & S_IWOTH) {
 		DEBUG(0,("check_usershare_stat: file %s owned by uid %u allows "
 			"public write. Refusing to allow as a usershare file.\n",
-			fname, (unsigned int)psbuf->st_uid ));
+			fname, (unsigned int)psbuf->st_ex_uid ));
 		return False;
 	}
 
 	/* Should be 10k or less. */
-	if (psbuf->st_size > MAX_USERSHARE_FILE_SIZE) {
+	if (psbuf->st_ex_size > MAX_USERSHARE_FILE_SIZE) {
 		DEBUG(0,("check_usershare_stat: file %s owned by uid %u is "
 			"too large (%u) to be a user share file.\n",
-			fname, (unsigned int)psbuf->st_uid,
-			(unsigned int)psbuf->st_size ));
+			fname, (unsigned int)psbuf->st_ex_uid,
+			(unsigned int)psbuf->st_ex_size ));
 		return False;
 	}
 
@@ -8492,7 +8609,7 @@ enum usershare_err parse_usershare_file(TALLOC_CTX *ctx,
 	/* Ensure the owner of the usershare file has permission to share
 	   this directory. */
 
-	if (sys_stat(sharepath, &sbuf) == -1) {
+	if (sys_stat(sharepath, &sbuf, false) == -1) {
 		DEBUG(2,("parse_usershare_file: share %s : stat failed on path %s. %s\n",
 			servicename, sharepath, strerror(errno) ));
 		sys_closedir(dp);
@@ -8501,7 +8618,7 @@ enum usershare_err parse_usershare_file(TALLOC_CTX *ctx,
 
 	sys_closedir(dp);
 
-	if (!S_ISDIR(sbuf.st_mode)) {
+	if (!S_ISDIR(sbuf.st_ex_mode)) {
 		DEBUG(2,("parse_usershare_file: share %s path %s is not a directory.\n",
 			servicename, sharepath ));
 		return USERSHARE_PATH_NOT_DIRECTORY;
@@ -8513,7 +8630,7 @@ enum usershare_err parse_usershare_file(TALLOC_CTX *ctx,
 
 	if (lp_usershare_owner_only()) {
 		/* root can share anything. */
-		if ((psbuf->st_uid != 0) && (sbuf.st_uid != psbuf->st_uid)) {
+		if ((psbuf->st_ex_uid != 0) && (sbuf.st_ex_uid != psbuf->st_ex_uid)) {
 			return USERSHARE_PATH_NOT_ALLOWED;
 		}
 	}
@@ -8564,7 +8681,7 @@ static int process_usershare_file(const char *dir_name, const char *file_name, i
 	/* Minimize the race condition by doing an lstat before we
 	   open and fstat. Ensure this isn't a symlink link. */
 
-	if (sys_lstat(fname, &lsbuf) != 0) {
+	if (sys_lstat(fname, &lsbuf, false) != 0) {
 		DEBUG(0,("process_usershare_file: stat of %s failed. %s\n",
 			fname, strerror(errno) ));
 		SAFE_FREE(fname);
@@ -8591,7 +8708,9 @@ static int process_usershare_file(const char *dir_name, const char *file_name, i
 		TALLOC_FREE(canon_name);
 	}
 
-	if (iService != -1 && ServicePtrs[iService]->usershare_last_mod == lsbuf.st_mtime) {
+	if (iService != -1 &&
+	    timespec_compare(&ServicePtrs[iService]->usershare_last_mod,
+			     &lsbuf.st_ex_mtime) == 0) {
 		/* Nothing changed - Mark valid and return. */
 		DEBUG(10,("process_usershare_file: service %s not changed.\n",
 			service_name ));
@@ -8615,7 +8734,7 @@ static int process_usershare_file(const char *dir_name, const char *file_name, i
 	}
 
 	/* Now fstat to be *SURE* it's a regular file. */
-	if (sys_fstat(fd, &sbuf) != 0) {
+	if (sys_fstat(fd, &sbuf, false) != 0) {
 		close(fd);
 		DEBUG(0,("process_usershare_file: fstat of %s failed. %s\n",
 			fname, strerror(errno) ));
@@ -8624,7 +8743,7 @@ static int process_usershare_file(const char *dir_name, const char *file_name, i
 	}
 
 	/* Is it the same dev/inode as was lstated ? */
-	if (lsbuf.st_dev != sbuf.st_dev || lsbuf.st_ino != sbuf.st_ino) {
+	if (lsbuf.st_ex_dev != sbuf.st_ex_dev || lsbuf.st_ex_ino != sbuf.st_ex_ino) {
 		close(fd);
 		DEBUG(0,("process_usershare_file: fstat of %s is a different file from lstat. "
 			"Symlink spoofing going on ?\n", fname ));
@@ -8644,7 +8763,7 @@ static int process_usershare_file(const char *dir_name, const char *file_name, i
 	close(fd);
 	if (lines == NULL) {
 		DEBUG(0,("process_usershare_file: loading file %s owned by %u failed.\n",
-			fname, (unsigned int)sbuf.st_uid ));
+			fname, (unsigned int)sbuf.st_ex_uid ));
 		SAFE_FREE(fname);
 		return -1;
 	}
@@ -8708,7 +8827,7 @@ static int process_usershare_file(const char *dir_name, const char *file_name, i
 	}
 
 	/* And note when it was loaded. */
-	ServicePtrs[iService]->usershare_last_mod = sbuf.st_mtime;
+	ServicePtrs[iService]->usershare_last_mod = sbuf.st_ex_mtime;
 	string_set(&ServicePtrs[iService]->szPath, sharepath);
 	string_set(&ServicePtrs[iService]->comment, comment);
 
@@ -8721,7 +8840,7 @@ static int process_usershare_file(const char *dir_name, const char *file_name, i
  Checks if a usershare entry has been modified since last load.
 ***************************************************************************/
 
-static bool usershare_exists(int iService, time_t *last_mod)
+static bool usershare_exists(int iService, struct timespec *last_mod)
 {
 	SMB_STRUCT_STAT lsbuf;
 	const char *usersharepath = Globals.szUsersharePath;
@@ -8733,18 +8852,18 @@ static bool usershare_exists(int iService, time_t *last_mod)
 		return false;
 	}
 
-	if (sys_lstat(fname, &lsbuf) != 0) {
+	if (sys_lstat(fname, &lsbuf, false) != 0) {
 		SAFE_FREE(fname);
 		return false;
 	}
 
-	if (!S_ISREG(lsbuf.st_mode)) {
+	if (!S_ISREG(lsbuf.st_ex_mode)) {
 		SAFE_FREE(fname);
 		return false;
 	}
 
 	SAFE_FREE(fname);
-	*last_mod = lsbuf.st_mtime;
+	*last_mod = lsbuf.st_ex_mtime;
 	return true;
 }
 
@@ -8763,13 +8882,13 @@ int load_usershare_service(const char *servicename)
 		return -1;
 	}
 
-	if (sys_stat(usersharepath, &sbuf) != 0) {
+	if (sys_stat(usersharepath, &sbuf, false) != 0) {
 		DEBUG(0,("load_usershare_service: stat of %s failed. %s\n",
 			usersharepath, strerror(errno) ));
 		return -1;
 	}
 
-	if (!S_ISDIR(sbuf.st_mode)) {
+	if (!S_ISDIR(sbuf.st_ex_mode)) {
 		DEBUG(0,("load_usershare_service: %s is not a directory.\n",
 			usersharepath ));
 		return -1;
@@ -8781,9 +8900,9 @@ int load_usershare_service(const char *servicename)
 	 */
 
 #ifdef S_ISVTX
-	if (sbuf.st_uid != 0 || !(sbuf.st_mode & S_ISVTX) || (sbuf.st_mode & S_IWOTH)) {
+	if (sbuf.st_ex_uid != 0 || !(sbuf.st_ex_mode & S_ISVTX) || (sbuf.st_ex_mode & S_IWOTH)) {
 #else
-	if (sbuf.st_uid != 0 || (sbuf.st_mode & S_IWOTH)) {
+	if (sbuf.st_ex_uid != 0 || (sbuf.st_ex_mode & S_IWOTH)) {
 #endif
 		DEBUG(0,("load_usershare_service: directory %s is not owned by root "
 			"or does not have the sticky bit 't' set or is writable by anyone.\n",
@@ -8840,7 +8959,7 @@ int load_usershare_shares(void)
 		return lp_numservices();
 	}
 
-	if (sys_stat(usersharepath, &sbuf) != 0) {
+	if (sys_stat(usersharepath, &sbuf, false) != 0) {
 		DEBUG(0,("load_usershare_shares: stat of %s failed. %s\n",
 			usersharepath, strerror(errno) ));
 		return ret;
@@ -8852,9 +8971,9 @@ int load_usershare_shares(void)
 	 */
 
 #ifdef S_ISVTX
-	if (sbuf.st_uid != 0 || !(sbuf.st_mode & S_ISVTX) || (sbuf.st_mode & S_IWOTH)) {
+	if (sbuf.st_ex_uid != 0 || !(sbuf.st_ex_mode & S_ISVTX) || (sbuf.st_ex_mode & S_IWOTH)) {
 #else
-	if (sbuf.st_uid != 0 || (sbuf.st_mode & S_IWOTH)) {
+	if (sbuf.st_ex_uid != 0 || (sbuf.st_ex_mode & S_IWOTH)) {
 #endif
 		DEBUG(0,("load_usershare_shares: directory %s is not owned by root "
 			"or does not have the sticky bit 't' set or is writable by anyone.\n",
@@ -9255,7 +9374,7 @@ int lp_servicenumber(const char *pszServiceName)
 	}
 
 	if (iService >= 0 && ServicePtrs[iService]->usershare == USERSHARE_VALID) {
-		time_t last_mod;
+		struct timespec last_mod;
 
 		if (!usershare_exists(iService, &last_mod)) {
 			/* Remove the share security tdb entry for it. */
@@ -9267,7 +9386,8 @@ int lp_servicenumber(const char *pszServiceName)
 		}
 
 		/* Has it been modified ? If so delete and reload. */
-		if (ServicePtrs[iService]->usershare_last_mod < last_mod) {
+		if (timespec_compare(&ServicePtrs[iService]->usershare_last_mod,
+				     &last_mod) < 0) {
 			/* Remove it from the array. */
 			free_service_byindex(iService);
 			/* and now reload it. */
@@ -9627,10 +9747,6 @@ const char *lp_printcapname(void)
 	return PRINTCAP_NAME;
 }
 
-/*******************************************************************
- Ensure we don't use sendfile if server smb signing is active.
-********************************************************************/
-
 static uint32 spoolss_state;
 
 bool lp_disable_spoolss( void )
@@ -9657,15 +9773,20 @@ uint32 lp_get_spoolss_state( void )
  Ensure we don't use sendfile if server smb signing is active.
 ********************************************************************/
 
-bool lp_use_sendfile(int snum)
+bool lp_use_sendfile(int snum, struct smb_signing_state *signing_state)
 {
+	bool sign_active = false;
+
 	/* Using sendfile blows the brains out of any DOS or Win9x TCP stack... JRA. */
-	if (Protocol < PROTOCOL_NT1) {
-		return False;
+	if (get_Protocol() < PROTOCOL_NT1) {
+		return false;
+	}
+	if (signing_state) {
+		sign_active = smb_signing_is_active(signing_state);
 	}
 	return (_lp_use_sendfile(snum) &&
 			(get_remote_arch() != RA_WIN95) &&
-			!srv_is_signing_active());
+			!sign_active);
 }
 
 /*******************************************************************

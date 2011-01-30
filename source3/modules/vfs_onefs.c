@@ -28,15 +28,20 @@
 static int onefs_connect(struct vfs_handle_struct *handle, const char *service,
 			 const char *user)
 {
-	int ret;
+	int ret = SMB_VFS_NEXT_CONNECT(handle, service, user);
+
+	if (ret < 0) {
+		return ret;
+	}
 
 	ret = onefs_load_config(handle->conn);
 	if (ret) {
+		SMB_VFS_NEXT_DISCONNECT(handle);
 		DEBUG(3, ("Load config failed: %s\n", strerror(errno)));
 		return ret;
 	}
 
-	return SMB_VFS_NEXT_CONNECT(handle, service, user);
+	return 0;
 }
 
 static int onefs_mkdir(vfs_handle_struct *handle, const char *path,
@@ -47,12 +52,13 @@ static int onefs_mkdir(vfs_handle_struct *handle, const char *path,
 	return SMB_VFS_NEXT_MKDIR(handle, path, mode);
 }
 
-static int onefs_open(vfs_handle_struct *handle, const char *fname,
+static int onefs_open(vfs_handle_struct *handle,
+		      struct smb_filename *smb_fname,
 		      files_struct *fsp, int flags, mode_t mode)
 {
 	/* SMB_VFS_OPEN should never be called in vfs_onefs */
 	SMB_ASSERT(false);
-	return SMB_VFS_NEXT_OPEN(handle, fname, fsp, flags, mode);
+	return SMB_VFS_NEXT_OPEN(handle, smb_fname, fsp, flags, mode);
 }
 
 static ssize_t onefs_sendfile(vfs_handle_struct *handle, int tofd,
@@ -88,7 +94,7 @@ static uint64_t onefs_get_alloc_size(struct vfs_handle_struct *handle,
 
 	START_PROFILE(syscall_get_alloc_size);
 
-	if(S_ISDIR(sbuf->st_mode)) {
+	if(S_ISDIR(sbuf->st_ex_mode)) {
 		result = 0;
 		goto out;
 	}
@@ -107,7 +113,7 @@ static uint64_t onefs_get_alloc_size(struct vfs_handle_struct *handle,
 }
 
 static struct file_id onefs_file_id_create(struct vfs_handle_struct *handle,
-					     SMB_STRUCT_STAT *sbuf)
+					   const SMB_STRUCT_STAT *sbuf)
 {
 	struct file_id key;
 
@@ -115,9 +121,9 @@ static struct file_id onefs_file_id_create(struct vfs_handle_struct *handle,
 	 * blob */
 	ZERO_STRUCT(key);
 
-	key.devid = sbuf->st_dev;
-	key.inode = sbuf->st_ino;
-	key.extid = sbuf->st_snapid;
+	key.devid = sbuf->st_ex_dev;
+	key.inode = sbuf->st_ex_ino;
+	key.extid = sbuf->vfs_private;
 
 	return key;
 }
@@ -152,7 +158,7 @@ static int onefs_get_real_filename(vfs_handle_struct *handle, const char *path,
 				   const char *name, TALLOC_CTX *mem_ctx,
 				   char **found_name)
 {
-	SMB_STRUCT_STAT sb;
+	struct stat sb;
 	struct connection_struct *conn = handle->conn;
 	struct stat_extra se;
 	int result;
@@ -199,7 +205,8 @@ done:
 	return result;
 }
 
-static int onefs_ntimes(vfs_handle_struct *handle, const char *fname,
+static int onefs_ntimes(vfs_handle_struct *handle,
+			const struct smb_filename *smb_fname,
 			struct smb_file_time *ft)
 {
 	int flags = 0;
@@ -229,10 +236,10 @@ static int onefs_ntimes(vfs_handle_struct *handle, const char *fname,
 		   ft->create_time.tv_nsec));
 	}
 
-	return onefs_vtimes_streams(handle, fname, flags, times);
+	return onefs_vtimes_streams(handle, smb_fname, flags, times);
 }
 
-static uint32_t onefs_fs_capabilities(struct vfs_handle_struct *handle)
+static uint32_t onefs_fs_capabilities(struct vfs_handle_struct *handle, enum timestamp_set_resolution *p_ts_res)
 {
 	uint32_t result = 0;
 
@@ -241,89 +248,51 @@ static uint32_t onefs_fs_capabilities(struct vfs_handle_struct *handle)
 		result |= FILE_NAMED_STREAMS;
 	}
 
-	result |= SMB_VFS_NEXT_FS_CAPABILITIES(handle);
-	conn->ts_res = TIMESTAMP_SET_MSEC;
+	result |= SMB_VFS_NEXT_FS_CAPABILITIES(handle, p_ts_res);
+	*p_ts_res = TIMESTAMP_SET_MSEC;
 	return result;
 }
 
-static vfs_op_tuple onefs_ops[] = {
-	{SMB_VFS_OP(onefs_connect), SMB_VFS_OP_CONNECT,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_fs_capabilities), SMB_VFS_OP_FS_CAPABILITIES,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_opendir), SMB_VFS_OP_OPENDIR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_readdir), SMB_VFS_OP_READDIR,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_seekdir), SMB_VFS_OP_SEEKDIR,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_telldir), SMB_VFS_OP_TELLDIR,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_rewinddir), SMB_VFS_OP_REWINDDIR,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_mkdir), SMB_VFS_OP_MKDIR,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_closedir), SMB_VFS_OP_CLOSEDIR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_init_search_op), SMB_VFS_OP_INIT_SEARCH_OP,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_open), SMB_VFS_OP_OPEN,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_create_file), SMB_VFS_OP_CREATE_FILE,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_close), SMB_VFS_OP_CLOSE,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_sendfile), SMB_VFS_OP_SENDFILE,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_recvfile), SMB_VFS_OP_RECVFILE,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_rename), SMB_VFS_OP_RENAME,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_stat), SMB_VFS_OP_STAT,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_fstat), SMB_VFS_OP_FSTAT,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_lstat), SMB_VFS_OP_LSTAT,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_get_alloc_size), SMB_VFS_OP_GET_ALLOC_SIZE,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_unlink), SMB_VFS_OP_UNLINK,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_ntimes), SMB_VFS_OP_NTIMES,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_chflags), SMB_VFS_OP_CHFLAGS,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_file_id_create), SMB_VFS_OP_FILE_ID_CREATE,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_streaminfo), SMB_VFS_OP_STREAMINFO,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_brl_lock_windows), SMB_VFS_OP_BRL_LOCK_WINDOWS,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_brl_unlock_windows), SMB_VFS_OP_BRL_UNLOCK_WINDOWS,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_brl_cancel_windows), SMB_VFS_OP_BRL_CANCEL_WINDOWS,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_strict_lock),		SMB_VFS_OP_STRICT_LOCK,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_strict_unlock),	SMB_VFS_OP_STRICT_UNLOCK,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_notify_watch), SMB_VFS_OP_NOTIFY_WATCH,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_fget_nt_acl), SMB_VFS_OP_FGET_NT_ACL,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_get_nt_acl), SMB_VFS_OP_GET_NT_ACL,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_fset_nt_acl), SMB_VFS_OP_FSET_NT_ACL,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_statvfs), SMB_VFS_OP_STATVFS,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_get_real_filename), SMB_VFS_OP_GET_REAL_FILENAME,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(NULL), SMB_VFS_OP_NOOP, SMB_VFS_LAYER_NOOP}
+static struct vfs_fn_pointers onefs_fns = {
+	.connect_fn = onefs_connect,
+	.fs_capabilities = onefs_fs_capabilities,
+	.opendir = onefs_opendir,
+	.readdir = onefs_readdir,
+	.seekdir = onefs_seekdir,
+	.telldir = onefs_telldir,
+	.rewind_dir = onefs_rewinddir,
+	.mkdir = onefs_mkdir,
+	.closedir = onefs_closedir,
+	.init_search_op = onefs_init_search_op,
+	.open = onefs_open,
+	.create_file = onefs_create_file,
+	.close_fn = onefs_close,
+	.sendfile = onefs_sendfile,
+	.recvfile = onefs_recvfile,
+	.rename = onefs_rename,
+	.stat = onefs_stat,
+	.fstat = onefs_fstat,
+	.lstat = onefs_lstat,
+	.get_alloc_size = onefs_get_alloc_size,
+	.unlink = onefs_unlink,
+	.ntimes = onefs_ntimes,
+	.file_id_create = onefs_file_id_create,
+	.streaminfo = onefs_streaminfo,
+	.brl_lock_windows = onefs_brl_lock_windows,
+	.brl_unlock_windows = onefs_brl_unlock_windows,
+	.brl_cancel_windows = onefs_brl_cancel_windows,
+	.strict_lock = onefs_strict_lock,
+	.strict_unlock = onefs_strict_unlock,
+	.notify_watch = onefs_notify_watch,
+	.fget_nt_acl = onefs_fget_nt_acl,
+	.get_nt_acl = onefs_get_nt_acl,
+	.fset_nt_acl = onefs_fset_nt_acl,
+	.statvfs = onefs_statvfs,
+	.get_real_filename = onefs_get_real_filename,
 };
 
 NTSTATUS vfs_onefs_init(void)
 {
 	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "onefs",
-				onefs_ops);
+				&onefs_fns);
 }

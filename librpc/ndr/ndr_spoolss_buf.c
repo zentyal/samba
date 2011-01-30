@@ -1082,6 +1082,14 @@ void ndr_print_spoolss_Field(struct ndr_print *ndr, const char *name, const unio
 	}
 }
 
+_PUBLIC_ size_t ndr_size_spoolss_PrinterData(const union spoolss_PrinterData *r, uint32_t level, struct smb_iconv_convenience *ic, int flags)
+{
+	if (!r) {
+		return 0;
+	}
+	return ndr_size_union(r, flags, level, (ndr_push_flags_fn_t)ndr_push_spoolss_PrinterData, ic);
+}
+
 void ndr_print_spoolss_security_descriptor(struct ndr_print *ndr, const char *name, const struct security_descriptor *r)
 {
 	ndr_print_security_descriptor(ndr, name, r);
@@ -1102,13 +1110,14 @@ enum ndr_err_code ndr_push_spoolss_security_descriptor(struct ndr_push *ndr, int
 		uint32_t _flags_save_STRUCT = ndr->flags;
 		ndr_set_flags(&ndr->flags, LIBNDR_FLAG_LITTLE_ENDIAN|LIBNDR_FLAG_NO_RELATIVE_REVERSE);
 		if (ndr_flags & NDR_SCALARS) {
-			NDR_CHECK(ndr_push_align(ndr, 4));
+			NDR_CHECK(ndr_push_align(ndr, 5));
 			NDR_CHECK(ndr_push_security_descriptor_revision(ndr, NDR_SCALARS, r->revision));
 			NDR_CHECK(ndr_push_security_descriptor_type(ndr, NDR_SCALARS, r->type));
 			NDR_CHECK(ndr_push_relative_ptr1(ndr, r->owner_sid));
 			NDR_CHECK(ndr_push_relative_ptr1(ndr, r->group_sid));
 			NDR_CHECK(ndr_push_relative_ptr1(ndr, r->sacl));
 			NDR_CHECK(ndr_push_relative_ptr1(ndr, r->dacl));
+			NDR_CHECK(ndr_push_trailer_align(ndr, 5));
 		}
 		if (ndr_flags & NDR_BUFFERS) {
 			if (r->sacl) {
@@ -1140,7 +1149,7 @@ enum ndr_err_code ndr_push_spoolss_security_descriptor(struct ndr_push *ndr, int
 _PUBLIC_ enum ndr_err_code ndr_push_spoolss_PrinterInfo2(struct ndr_push *ndr, int ndr_flags, const struct spoolss_PrinterInfo2 *r)
 {
 	if (ndr_flags & NDR_SCALARS) {
-		NDR_CHECK(ndr_push_align(ndr, 4));
+		NDR_CHECK(ndr_push_align(ndr, 5));
 		{
 			uint32_t _flags_save_string = ndr->flags;
 			ndr_set_flags(&ndr->flags, LIBNDR_FLAG_STR_NULLTERM);
@@ -1227,6 +1236,7 @@ _PUBLIC_ enum ndr_err_code ndr_push_spoolss_PrinterInfo2(struct ndr_push *ndr, i
 		NDR_CHECK(ndr_push_spoolss_PrinterStatus(ndr, NDR_SCALARS, r->status));
 		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->cjobs));
 		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->averageppm));
+		NDR_CHECK(ndr_push_trailer_align(ndr, 5));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
 		{

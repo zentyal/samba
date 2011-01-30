@@ -1,12 +1,12 @@
 .\"     Title: net
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 05/10/2010
+.\"      Date: 06/18/2010
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.4
+.\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "NET" "8" "05/10/2010" "Samba 3\&.4" "System Administration tools"
+.TH "NET" "8" "06/18/2010" "Samba 3\&.5" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -719,7 +719,7 @@ Add a interdomain trust account for
 \fIDOMAIN$\fR
 with the account flag
 \fB\'I\'\fR
-(interdomain trust account)\&. If the command is used against localhost it has the same effect as
+(interdomain trust account)\&. This is required for incoming trusts to work\&. It makes Samba be a trusted domain of the foreign (trusting) domain\&. Users of the Samba domain will be made available in the foreign domain\&. If the command is used against localhost it has the same effect as
 \FCsmbpasswd \-a \-i DOMAIN\F[]\&. Please note that both commands expect a appropriate UNIX account\&.
 .SS "RPC TRUSTDOM DEL DOMAIN"
 .PP
@@ -728,13 +728,13 @@ Remove interdomain trust account for
 \FCsmbpasswd \-x DOMAIN$\F[]\&.
 .SS "RPC TRUSTDOM ESTABLISH DOMAIN"
 .PP
-Establish a trust relationship to a trusting domain\&. Interdomain account must already be created on the remote PDC\&.
+Establish a trust relationship to a trusted domain\&. Interdomain account must already be created on the remote PDC\&. This is required for outgoing trusts to work\&. It makes Samba be a trusting domain of a foreign (trusted) domain\&. Users of the foreign domain will be made available in our domain\&. You\'ll need winbind and a working idmap config to make them appear in your system\&.
 .SS "RPC TRUSTDOM REVOKE DOMAIN"
 .PP
 Abandon relationship to trusted domain
 .SS "RPC TRUSTDOM LIST"
 .PP
-List all current interdomain trust relationships\&.
+List all interdomain trust relationships\&.
 .SS "RPC RIGHTS"
 .PP
 This subcommand is used to view and manage Samba\'s rights assignments (also referred to as privileges)\&. There are three options currently available:
@@ -762,7 +762,6 @@ Force shutting down all applications\&.
 .RS 4
 Timeout before system will be shut down\&. An interactive user of the system can use this time to cancel the shutdown\&.
 .RE
-\'>
 .PP
 \-C message
 .RS 4
@@ -1324,6 +1323,54 @@ Note that you also need to use standard net parameters to connect and authentica
 Example: net dom renamecomputer \-S xp \-U XP\e\eadministrator%secret newname=XPNEW account=MYDOM\e\eadministrator password=topsecret reboot\&.
 .PP
 This example would connect to a computer named XP as the local administrator using password secret, and rename the joined computer to XPNEW using the MYDOM domain administrator account and password topsecret\&. After successful rename, the computer would reboot\&.
+.SS "G_LOCK"
+.PP
+Manage global locks\&.
+.SS "G_LOCK DO lockname timeout command"
+.PP
+Execute a shell command under a global lock\&. This might be useful to define the order in which several shell commands will be executed\&. The locking information is stored in a file called
+\FCg_lock\&.tdb\F[]\&. In setups with CTDB running, the locking information will be available on all cluster nodes\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fILOCKNAME\fR
+defines the name of the global lock\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fITIMEOUT\fR
+defines the timeout\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fICOMMAND\fR
+defines the shell command to execute\&.
+.SS "G_LOCK LOCKS"
+.PP
+Print a list of all currently existing locknames\&.
+.SS "G_LOCK DUMP lockname"
+.PP
+Dump the locking table of a certain global lock\&.
 .SS "HELP [COMMAND]"
 .PP
 Gives usage information for the specified command\&.

@@ -7,11 +7,12 @@ rootDomainNamingContext: ${ROOTDN}
 configurationNamingContext: ${CONFIGDN}
 schemaNamingContext: ${SCHEMADN}
 supportedLDAPVersion: 3
+supportedLDAPVersion: 2
 dnsHostName: ${DNSNAME}
 ldapServiceName: ${DNSDOMAIN}:${NETBIOSNAME}$@${REALM}
 serverName: ${SERVERDN}
-domainFunctionality: 0
-forestFunctionality: 0
-domainControllerFunctionality: 2
 isSynchronized: FALSE
 vendorName: Samba Team (http://samba.org)
+supportedCapabilities: 1.2.840.113556.1.4.800
+supportedCapabilities: 1.2.840.113556.1.4.1791
+supportedCapabilities: 1.2.840.113556.1.4.1670

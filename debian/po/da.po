@@ -1,27 +1,27 @@
-# translation of da.po to Danish
-# translation of samba Debian debconf template to Danish
+# Danish translation samba.
+# Copyright (C) 2010 samba & nedenstÃ¥ende oversÃ¦ttere.
+# This file is distributed under the same license as the samba package.
+# Claus Hindsgaul <claus.hindsgaul@gmail.com>, 2004, 2006, 2007.
+# Joe Hansen (joedalton2@yahoo.dk), 2010.
 #
-# Claus Hindsgaul <claus_h@image.dk>, 2004.
-# Claus Hindsgaul <claus.hindsgaul@gmail.com>, 2006, 2007.
 msgid ""
 msgstr ""
-"Project-Id-Version: da\n"
+"Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
 "POT-Creation-Date: 2009-01-02 12:18-0800\n"
-"PO-Revision-Date: 2007-05-30 22:20+0200\n"
-"Last-Translator: Claus Hindsgaul <claus.hindsgaul@gmail.com>\n"
-"Language-Team: Danish\n"
+"PO-Revision-Date: 2010-08-12 17:30+01:00\n"
+"Last-Translator: Joe Hansen <joedalton2@yahoo.dk>\n"
+"Language-Team: Danish <debian-l10n-danish@lists.debian.org> \n"
 "Language: \n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=ISO-8859-1\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: KBabel 1.11.4\n"
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:1001
 msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "Ret smb.conf, så den benytter WINS-indstillinger fra DHCP?"
+msgstr "Ret smb.conf, sÃ¥ den benytter WINS-indstillinger fra DHCP?"
 
 #. Type: boolean
 #. Description
@@ -33,10 +33,10 @@ msgid ""
 "to your smb.conf file so that DHCP-provided WINS settings will automatically "
 "be read from /etc/samba/dhcp.conf."
 msgstr ""
-"Hvis din computer får IP-adresseoplysninger fra en DHCP-server på netværket, "
-"kan DHCP-serveren også give oplysninger om WINS-servere (\"NetBIOS "
-"navneservere\") på netværket. Dette kræver en ændring i din smb.conf-fil, så "
-"WINS-indstillingerne fra DHCP-serveren automatisk indlæses fra /etc/samba/"
+"Hvis din computer fÃ¥r IP-adresseoplysninger fra en DHCP-server pÃ¥ netvÃ¦rket, "
+"kan DHCP-serveren ogsÃ¥ give oplysninger om WINS-servere (Â»NetBIOS "
+"navneservereÂ«) pÃ¥ netvÃ¦rket. Dette krÃ¦ver en Ã¦ndring i din smb.conf-fil, sÃ¥ "
+"WINS-indstillingerne fra DHCP-serveren automatisk indlÃ¦ses fra /etc/samba/"
 "dhcp.conf."
 
 #. Type: boolean
@@ -45,14 +45,14 @@ msgstr ""
 msgid ""
 "The dhcp3-client package must be installed to take advantage of this feature."
 msgstr ""
-"Pakken dhcp3-client skal være installeret, for at kunne udnytte denne "
+"Pakken dhcp3-client skal vÃ¦re installeret, for at kunne udnytte denne "
 "funktion."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:2001
 msgid "Configure smb.conf automatically?"
-msgstr "Sæt smb.conf op automatisk?"
+msgstr "SÃ¦t smb.conf op automatisk?"
 
 #. Type: boolean
 #. Description
@@ -65,12 +65,12 @@ msgid ""
 "automated configuration process and require you to edit your smb.conf by "
 "hand to get it working again."
 msgstr ""
-"Resten af Samba-opsætningen drejer sig om spørgsmål, der vedrører "
-"indstillingerne i filen /etc/samba/smb.conf, som benyttes til at sætte Samba-"
-"programmerne (nmbd og smbd) op. Din nuværende smb.conf indeholder en "
+"Resten af Samba-opsÃ¦tningen drejer sig om spÃ¸rgsmÃ¥l, der vedrÃ¸rer "
+"indstillingerne i filen /etc/samba/smb.conf, som benyttes til at sÃ¦tte Samba-"
+"programmerne (nmbd og smbd) op. Din nuvÃ¦rende smb.conf indeholder en "
 "'include'-linje eller en indstilling, der fylder flere linjer, hvilket kan "
-"forvirre den automatiske opsætning, og kræver at du redigerer din smb.conf "
-"selv for at få den til at fungere igen."
+"forvirre den automatiske opsÃ¦tning, og krÃ¦ver at du redigerer din smb.conf "
+"selv for at fÃ¥ den til at fungere igen."
 
 #. Type: boolean
 #. Description
@@ -80,74 +80,61 @@ msgid ""
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
 msgstr ""
-"Hvis du ikke vælger denne indstilling, må du selv håndtere ændringer i "
-"opsætningen, og vil ikke kunne drage nytte af de løbende forbedringer i "
-"opsætningen."
+"Hvis du ikke vÃ¦lger denne indstilling, mÃ¥ du selv hÃ¥ndtere Ã¦ndringer i "
+"opsÃ¦tningen, og vil ikke kunne drage nytte af de lÃ¸bende forbedringer i "
+"opsÃ¦tningen."
 
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
 msgid "Workgroup/Domain Name:"
-msgstr "Arbejdsgruppe/domæne-navn:"
+msgstr "Arbejdsgruppe/domÃ¦nenavn:"
 
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"Angiv den arbejdsgruppe, din server skal optræde i, når den bliver spurgt af "
-"klienter. Bemærk at dette også styrer det domænenavn, der bruges ved "
-"indstillingen \"security=domain\"."
+"Angiv venligst arbejdsgruppen for dette system. Denne indstilling kontroller "
+"hvilken arbejdsgruppe systemet vil fremgÃ¥ i, nÃ¥r den bruges som en server, "
+"standardarbejdsgruppen der bruges nÃ¥r der browses med forskellige "
+"grÃ¦nseflader, og domÃ¦nenavnet brugt med indstillingen Â»security=domainÂ«."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
 msgid "Use password encryption?"
-msgstr "Kryptér adgangskoder?"
+msgstr "KryptÃ©r adgangskoder?"
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"Alle nyere Windows-klienter kommunikerer med SMB-servere ved hjælp af "
+"Alle nyere Windowsklienter kommunikerer med SMB/CIFS-servere ved hjÃ¦lp af "
 "krypterede adgangskoder. Hvis du vil bruge adgangkoder i klar tekst, er du "
-"nødt til at ændre en indstilling i Windows's registreringsdatabase."
+"nÃ¸dt til at Ã¦ndre en indstilling i Windows' registreringsdatabase."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"Det anbefales at du vælger denne indstilling. Hvis du gør, så sørg for at du "
-"har en gyldig /etc/samba/smbpasswd-fil og at du her angiver adgangskoder for "
-"hver bruger med kommandoen smbpasswd."
+"Aktivering af denne indstilling anbefales, da understÃ¸ttelse af klar tekst "
+"ikke lÃ¦ngere vedligeholdes i Microsoft Windows' produkter. Hvis du "
+"aktiverer, sÃ¥ sÃ¸rg for at du har en gyldig /etc/samba/smbpasswd-fil, og at "
+"du her angiver adgangskoder for hver bruger med kommandoen smbpasswd."
 
 #. Type: boolean
 #. Description
@@ -165,11 +152,11 @@ msgid ""
 "automatically, but the passwords must be added manually by running smbpasswd "
 "and be kept up-to-date in the future."
 msgstr ""
-"For at være kompatibel med standardindstillingerne i de fleste udgaver af "
-"Windows, skal Samba sættes op til at benytte krypterede adgangskoder. Dette "
-"kræver, at brugernes adgangskoder gemmes i en anden fil end /etc/passwd. "
-"Denne fil kan oprettes automatisk, men adgangskoderne skal tilføjes manuelt "
-"ved at køre smbpasswd, og skal fremover holdes opdateret."
+"For at vÃ¦re kompatibel med standardindstillingerne i de fleste udgaver af "
+"Windows, skal Samba sÃ¦ttes op til at benytte krypterede adgangskoder. Dette "
+"krÃ¦ver, at brugernes adgangskoder gemmes i en anden fil end /etc/passwd. "
+"Denne fil kan oprettes automatisk, men adgangskoderne skal tilfÃ¸jes manuelt "
+"ved at kÃ¸re smbpasswd, og skal fremover holdes opdateret."
 
 #. Type: boolean
 #. Description
@@ -178,7 +165,7 @@ msgid ""
 "If you do not create it, you will have to reconfigure Samba (and probably "
 "your client machines) to use plaintext passwords."
 msgstr ""
-"Hvis du ikke opretter den, er du nødt til at sætte samba (og sikkert også "
+"Hvis du ikke opretter den, er du nÃ¸dt til at sÃ¦tte samba (og sikkert ogsÃ¥ "
 "dine klientmaskiner) op til at benytte adgangskoder i klar tekst."
 
 #. Type: boolean
@@ -195,7 +182,7 @@ msgstr ""
 #. Choices
 #: ../samba.templates:2001
 msgid "daemons"
-msgstr "dæmoner"
+msgstr "dÃ¦moner"
 
 #. Type: select
 #. Choices
@@ -207,7 +194,7 @@ msgstr "inetd"
 #. Description
 #: ../samba.templates:2002
 msgid "How do you want to run Samba?"
-msgstr "Hvordan skal Samba køres?"
+msgstr "Hvordan skal Samba kÃ¸res?"
 
 #. Type: select
 #. Description
@@ -216,42 +203,5 @@ msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
-"Samba-dæmonen smbd kan køre som en almindelig dæmon eller fra inetd. Det "
-"anbefales at køre den som dæmon."
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr "Sammenkædning af passdb-bagender understøttes ikke"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "Fra og med version 3.0.23 understøtter samba ikke længere sammenkædning "
-#~ "af flere bagender i parameteren \"passdb backend\". Det lader til, at din "
-#~ "smb.conf-fil indeholder en passdb-bagendeparemeter, der består af en "
-#~ "liste med bagender. Den nye version af samba vil ikke fungere, før du har "
-#~ "rettet dette."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr "Flyt /etc/samba/smbpasswd til /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "Samba 3.0 introducerede en mere komplet SAM-databasegrænseflade, som "
-#~ "efterfølger til filen /etc/samba/smbpasswd."
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "Bekræft om du ønsker at migrere den eksisterende smbpasswd-fil til /var/"
-#~ "lib/samba/passdb.tdb automatisk. Vælg ikke denne indstilling, hvis du i "
-#~ "stedet planlægger at benytte en anden pdb-håndtering (f.eks. LDAP)."
-
-#~ msgid "daemons, inetd"
-#~ msgstr "dæmoner, inetd"
+"Samba-dÃ¦monen smbd kan kÃ¸re som en almindelig dÃ¦mon eller fra inetd. Det "
+"anbefales at kÃ¸re den som dÃ¦mon."

@@ -96,7 +96,7 @@ static struct pipes_struct *make_internal_rpc_pipe_p(TALLOC_CTX *mem_ctx,
 	pipes_struct *p;
 
 	DEBUG(4,("Create pipe requested %s\n",
-		 get_pipe_name_from_iface(syntax)));
+		 get_pipe_name_from_syntax(talloc_tos(), syntax)));
 
 	p = TALLOC_ZERO_P(mem_ctx, struct pipes_struct);
 
@@ -105,9 +105,10 @@ static struct pipes_struct *make_internal_rpc_pipe_p(TALLOC_CTX *mem_ctx,
 		return NULL;
 	}
 
-	if ((p->mem_ctx = talloc_init("pipe %s %p",
-				      get_pipe_name_from_iface(syntax),
-				      p)) == NULL) {
+	p->mem_ctx = talloc_init("pipe %s %p",
+				 get_pipe_name_from_syntax(talloc_tos(),
+							   syntax), p);
+	if (p->mem_ctx == NULL) {
 		DEBUG(0,("open_rpc_pipe_p: talloc_init failed.\n"));
 		TALLOC_FREE(p);
 		return NULL;
@@ -158,7 +159,7 @@ static struct pipes_struct *make_internal_rpc_pipe_p(TALLOC_CTX *mem_ctx,
 	p->syntax = *syntax;
 
 	DEBUG(4,("Created internal pipe %s (pipes_open=%d)\n",
-		 get_pipe_name_from_iface(syntax), pipes_open));
+		 get_pipe_name_from_syntax(talloc_tos(), syntax), pipes_open));
 
 	talloc_set_destructor(p, close_internal_rpc_pipe_hnd);
 
@@ -176,7 +177,7 @@ static void set_incoming_fault(pipes_struct *p)
 	p->in_data.pdu_received_len = 0;
 	p->fault_state = True;
 	DEBUG(10, ("set_incoming_fault: Setting fault state on pipe %s\n",
-		   get_pipe_name_from_iface(&p->syntax)));
+		   get_pipe_name_from_syntax(talloc_tos(), &p->syntax)));
 }
 
 /****************************************************************************
@@ -264,7 +265,7 @@ static ssize_t unmarshall_rpc_header(pipes_struct *p)
 		 * AS/U doesn't set FIRST flag in a BIND packet it seems.
 		 */
 
-		if ((p->hdr.pkt_type == RPC_REQUEST) && !(p->hdr.flags & RPC_FLG_FIRST)) {
+		if ((p->hdr.pkt_type == DCERPC_PKT_REQUEST) && !(p->hdr.flags & DCERPC_PFC_FLAG_FIRST)) {
 			/*
 			 * Ensure that the FIRST flag is set. If not then we have
 			 * a stream missmatch.
@@ -344,7 +345,9 @@ static void free_pipe_context(pipes_struct *p)
 		talloc_free_children(p->mem_ctx);
 	} else {
 		p->mem_ctx = talloc_init(
-			"pipe %s %p", get_pipe_name_from_iface(&p->syntax), p);
+			"pipe %s %p", get_pipe_name_from_syntax(talloc_tos(),
+								&p->syntax),
+			p);
 		if (p->mem_ctx == NULL) {
 			p->fault_state = True;
 		}
@@ -444,7 +447,7 @@ static bool process_request_pdu(pipes_struct *p, prs_struct *rpc_in_p)
 		return False;
 	}
 
-	if(p->hdr.flags & RPC_FLG_LAST) {
+	if(p->hdr.flags & DCERPC_PFC_FLAG_LAST) {
 		bool ret = False;
 		/*
 		 * Ok - we finally have a complete RPC stream.
@@ -512,7 +515,7 @@ static void process_complete_pdu(pipes_struct *p)
 
 	if(p->fault_state) {
 		DEBUG(10,("process_complete_pdu: pipe %s in fault state.\n",
-			 get_pipe_name_from_iface(&p->syntax)));
+			  get_pipe_name_from_syntax(talloc_tos(), &p->syntax)));
 		set_incoming_fault(p);
 		setup_fault_pdu(p, NT_STATUS(DCERPC_FAULT_OP_RNG_ERROR));
 		return;
@@ -534,35 +537,38 @@ static void process_complete_pdu(pipes_struct *p)
 			(unsigned int)p->hdr.pkt_type ));
 
 	switch (p->hdr.pkt_type) {
-		case RPC_REQUEST:
+		case DCERPC_PKT_REQUEST:
 			reply = process_request_pdu(p, &rpc_in);
 			break;
 
-		case RPC_PING: /* CL request - ignore... */
+		case DCERPC_PKT_PING: /* CL request - ignore... */
 			DEBUG(0,("process_complete_pdu: Error. Connectionless packet type %u received on pipe %s.\n",
 				(unsigned int)p->hdr.pkt_type,
-				get_pipe_name_from_iface(&p->syntax)));
+				 get_pipe_name_from_syntax(talloc_tos(),
+							   &p->syntax)));
 			break;
 
-		case RPC_RESPONSE: /* No responses here. */
-			DEBUG(0,("process_complete_pdu: Error. RPC_RESPONSE received from client on pipe %s.\n",
-				get_pipe_name_from_iface(&p->syntax)));
+		case DCERPC_PKT_RESPONSE: /* No responses here. */
+			DEBUG(0,("process_complete_pdu: Error. DCERPC_PKT_RESPONSE received from client on pipe %s.\n",
+				 get_pipe_name_from_syntax(talloc_tos(),
+							   &p->syntax)));
 			break;
 
-		case RPC_FAULT:
-		case RPC_WORKING: /* CL request - reply to a ping when a call in process. */
-		case RPC_NOCALL: /* CL - server reply to a ping call. */
-		case RPC_REJECT:
-		case RPC_ACK:
-		case RPC_CL_CANCEL:
-		case RPC_FACK:
-		case RPC_CANCEL_ACK:
+		case DCERPC_PKT_FAULT:
+		case DCERPC_PKT_WORKING: /* CL request - reply to a ping when a call in process. */
+		case DCERPC_PKT_NOCALL: /* CL - server reply to a ping call. */
+		case DCERPC_PKT_REJECT:
+		case DCERPC_PKT_ACK:
+		case DCERPC_PKT_CL_CANCEL:
+		case DCERPC_PKT_FACK:
+		case DCERPC_PKT_CANCEL_ACK:
 			DEBUG(0,("process_complete_pdu: Error. Connectionless packet type %u received on pipe %s.\n",
 				(unsigned int)p->hdr.pkt_type,
-				get_pipe_name_from_iface(&p->syntax)));
+				 get_pipe_name_from_syntax(talloc_tos(),
+							   &p->syntax)));
 			break;
 
-		case RPC_BIND:
+		case DCERPC_PKT_BIND:
 			/*
 			 * We assume that a pipe bind is only in one pdu.
 			 */
@@ -571,15 +577,16 @@ static void process_complete_pdu(pipes_struct *p)
 			}
 			break;
 
-		case RPC_BINDACK:
-		case RPC_BINDNACK:
-			DEBUG(0,("process_complete_pdu: Error. RPC_BINDACK/RPC_BINDNACK packet type %u received on pipe %s.\n",
+		case DCERPC_PKT_BIND_ACK:
+		case DCERPC_PKT_BIND_NAK:
+			DEBUG(0,("process_complete_pdu: Error. DCERPC_PKT_BINDACK/DCERPC_PKT_BINDNACK packet type %u received on pipe %s.\n",
 				(unsigned int)p->hdr.pkt_type,
-				get_pipe_name_from_iface(&p->syntax)));
+				 get_pipe_name_from_syntax(talloc_tos(),
+							   &p->syntax)));
 			break;
 
 
-		case RPC_ALTCONT:
+		case DCERPC_PKT_ALTER:
 			/*
 			 * We assume that a pipe bind is only in one pdu.
 			 */
@@ -588,12 +595,13 @@ static void process_complete_pdu(pipes_struct *p)
 			}
 			break;
 
-		case RPC_ALTCONTRESP:
-			DEBUG(0,("process_complete_pdu: Error. RPC_ALTCONTRESP on pipe %s: Should only be server -> client.\n",
-				get_pipe_name_from_iface(&p->syntax)));
+		case DCERPC_PKT_ALTER_RESP:
+			DEBUG(0,("process_complete_pdu: Error. DCERPC_PKT_ALTER_RESP on pipe %s: Should only be server -> client.\n",
+				 get_pipe_name_from_syntax(talloc_tos(),
+							   &p->syntax)));
 			break;
 
-		case RPC_AUTH3:
+		case DCERPC_PKT_AUTH3:
 			/*
 			 * The third packet in an NTLMSSP auth exchange.
 			 */
@@ -602,14 +610,15 @@ static void process_complete_pdu(pipes_struct *p)
 			}
 			break;
 
-		case RPC_SHUTDOWN:
-			DEBUG(0,("process_complete_pdu: Error. RPC_SHUTDOWN on pipe %s: Should only be server -> client.\n",
-				get_pipe_name_from_iface(&p->syntax)));
+		case DCERPC_PKT_SHUTDOWN:
+			DEBUG(0,("process_complete_pdu: Error. DCERPC_PKT_SHUTDOWN on pipe %s: Should only be server -> client.\n",
+				 get_pipe_name_from_syntax(talloc_tos(),
+							   &p->syntax)));
 			break;
 
-		case RPC_CO_CANCEL:
+		case DCERPC_PKT_CO_CANCEL:
 			/* For now just free all client data and continue processing. */
-			DEBUG(3,("process_complete_pdu: RPC_ORPHANED. Abandoning rpc call.\n"));
+			DEBUG(3,("process_complete_pdu: DCERPC_PKT_CO_CANCEL. Abandoning rpc call.\n"));
 			/* As we never do asynchronous RPC serving, we can never cancel a
 			   call (as far as I know). If we ever did we'd have to send a cancel_ack
 			   reply. For now, just free all client data and continue processing. */
@@ -626,10 +635,10 @@ static void process_complete_pdu(pipes_struct *p)
 			break;
 #endif
 
-		case RPC_ORPHANED:
+		case DCERPC_PKT_ORPHANED:
 			/* We should probably check the auth-verifier here.
 			   For now just free all client data and continue processing. */
-			DEBUG(3,("process_complete_pdu: RPC_ORPHANED. Abandoning rpc call.\n"));
+			DEBUG(3,("process_complete_pdu: DCERPC_PKT_ORPHANED. Abandoning rpc call.\n"));
 			reply = True;
 			break;
 
@@ -643,7 +652,8 @@ static void process_complete_pdu(pipes_struct *p)
 
 	if (!reply) {
 		DEBUG(3,("process_complete_pdu: DCE/RPC fault sent on "
-			 "pipe %s\n", get_pipe_name_from_iface(&p->syntax)));
+			 "pipe %s\n", get_pipe_name_from_syntax(talloc_tos(),
+								&p->syntax)));
 		set_incoming_fault(p);
 		setup_fault_pdu(p, NT_STATUS(DCERPC_FAULT_OP_RNG_ERROR));
 		prs_mem_free(&rpc_in);
@@ -712,7 +722,7 @@ incoming data size = %u\n", (unsigned int)p->in_data.pdu_received_len, (unsigned
 			return rret;
 		}
 		/* If rret == 0 and pdu_needed_len == 0 here we have a PDU that consists
-		   of an RPC_HEADER only. This is a RPC_SHUTDOWN, RPC_CO_CANCEL or RPC_ORPHANED
+		   of an RPC_HEADER only. This is a DCERPC_PKT_SHUTDOWN, DCERPC_PKT_CO_CANCEL or DCERPC_PKT_ORPHANED
 		   pdu type. Deal with this in process_complete_pdu(). */
 	}
 
@@ -798,7 +808,8 @@ static ssize_t read_from_internal_pipe(struct pipes_struct *p, char *data, size_
 		return -1;		
 	}
 
-	DEBUG(6,(" name: %s len: %u\n", get_pipe_name_from_iface(&p->syntax),
+	DEBUG(6,(" name: %s len: %u\n",
+		 get_pipe_name_from_syntax(talloc_tos(), &p->syntax),
 		 (unsigned int)n));
 
 	/*
@@ -815,7 +826,8 @@ static ssize_t read_from_internal_pipe(struct pipes_struct *p, char *data, size_
 	if(n > RPC_MAX_PDU_FRAG_LEN) {
                 DEBUG(5,("read_from_pipe: too large read (%u) requested on "
 			 "pipe %s. We can only service %d sized reads.\n",
-			 (unsigned int)n, get_pipe_name_from_iface(&p->syntax),
+			 (unsigned int)n,
+			 get_pipe_name_from_syntax(talloc_tos(), &p->syntax),
 			 RPC_MAX_PDU_FRAG_LEN ));
 		n = RPC_MAX_PDU_FRAG_LEN;
 	}
@@ -836,7 +848,7 @@ static ssize_t read_from_internal_pipe(struct pipes_struct *p, char *data, size_
 
 		DEBUG(10,("read_from_pipe: %s: current_pdu_len = %u, "
 			  "current_pdu_sent = %u returning %d bytes.\n",
-			  get_pipe_name_from_iface(&p->syntax),
+			  get_pipe_name_from_syntax(talloc_tos(), &p->syntax),
 			  (unsigned int)prs_offset(&p->out_data.frag),
 			  (unsigned int)p->out_data.current_pdu_sent,
 			  (int)data_returned));
@@ -857,7 +869,8 @@ static ssize_t read_from_internal_pipe(struct pipes_struct *p, char *data, size_
 
 	DEBUG(10,("read_from_pipe: %s: fault_state = %d : data_sent_length "
 		  "= %u, prs_offset(&p->out_data.rdata) = %u.\n",
-		  get_pipe_name_from_iface(&p->syntax), (int)p->fault_state,
+		  get_pipe_name_from_syntax(talloc_tos(), &p->syntax),
+		  (int)p->fault_state,
 		  (unsigned int)p->out_data.data_sent_length,
 		  (unsigned int)prs_offset(&p->out_data.rdata) ));
 
@@ -878,7 +891,7 @@ static ssize_t read_from_internal_pipe(struct pipes_struct *p, char *data, size_
 
 	if(!create_next_pdu(p)) {
 		DEBUG(0,("read_from_pipe: %s: create_next_pdu failed.\n",
-			 get_pipe_name_from_iface(&p->syntax)));
+			 get_pipe_name_from_syntax(talloc_tos(), &p->syntax)));
 		return -1;
 	}
 
@@ -1228,7 +1241,7 @@ struct tevent_req *np_write_send(TALLOC_CTX *mem_ctx, struct event_context *ev,
 		state->iov.iov_len = len;
 
 		subreq = writev_send(state, ev, p->write_queue, p->fd,
-				     &state->iov, 1);
+				     false, &state->iov, 1);
 		if (subreq == NULL) {
 			goto fail;
 		}
@@ -1485,5 +1498,292 @@ NTSTATUS rpc_pipe_open_internal(TALLOC_CTX *mem_ctx,
 	result->max_recv_frag = -1;
 
 	*presult = result;
+	return NT_STATUS_OK;
+}
+
+/*******************************************************************
+ gets a domain user's groups from their already-calculated NT_USER_TOKEN
+ ********************************************************************/
+
+static NTSTATUS nt_token_to_group_list(TALLOC_CTX *mem_ctx,
+				       const DOM_SID *domain_sid,
+				       size_t num_sids,
+				       const DOM_SID *sids,
+				       int *numgroups,
+				       struct samr_RidWithAttribute **pgids)
+{
+	int i;
+
+	*numgroups=0;
+	*pgids = NULL;
+
+	for (i=0; i<num_sids; i++) {
+		struct samr_RidWithAttribute gid;
+		if (!sid_peek_check_rid(domain_sid, &sids[i], &gid.rid)) {
+			continue;
+		}
+		gid.attributes = (SE_GROUP_MANDATORY|SE_GROUP_ENABLED_BY_DEFAULT|
+			    SE_GROUP_ENABLED);
+		ADD_TO_ARRAY(mem_ctx, struct samr_RidWithAttribute,
+			     gid, pgids, numgroups);
+		if (*pgids == NULL) {
+			return NT_STATUS_NO_MEMORY;
+		}
+	}
+	return NT_STATUS_OK;
+}
+
+/****************************************************************************
+ inits a netr_SamBaseInfo structure from an auth_serversupplied_info.
+*****************************************************************************/
+
+static NTSTATUS serverinfo_to_SamInfo_base(TALLOC_CTX *mem_ctx,
+					   struct auth_serversupplied_info *server_info,
+					   uint8_t *pipe_session_key,
+					   size_t pipe_session_key_len,
+					   struct netr_SamBaseInfo *base)
+{
+	struct samu *sampw;
+	struct samr_RidWithAttribute *gids = NULL;
+	const DOM_SID *user_sid = NULL;
+	const DOM_SID *group_sid = NULL;
+	DOM_SID domain_sid;
+	uint32 user_rid, group_rid;
+	NTSTATUS status;
+
+	int num_gids = 0;
+	const char *my_name;
+
+	struct netr_UserSessionKey user_session_key;
+	struct netr_LMSessionKey lm_session_key;
+
+	NTTIME last_logon, last_logoff, acct_expiry, last_password_change;
+	NTTIME allow_password_change, force_password_change;
+	struct samr_RidWithAttributeArray groups;
+	int i;
+	struct dom_sid2 *sid = NULL;
+
+	ZERO_STRUCT(user_session_key);
+	ZERO_STRUCT(lm_session_key);
+
+	sampw = server_info->sam_account;
+
+	user_sid = pdb_get_user_sid(sampw);
+	group_sid = pdb_get_group_sid(sampw);
+
+	if (pipe_session_key && pipe_session_key_len != 16) {
+		DEBUG(0,("serverinfo_to_SamInfo3: invalid "
+			 "pipe_session_key_len[%zu] != 16\n",
+			 pipe_session_key_len));
+		return NT_STATUS_INTERNAL_ERROR;
+	}
+
+	if ((user_sid == NULL) || (group_sid == NULL)) {
+		DEBUG(1, ("_netr_LogonSamLogon: User without group or user SID\n"));
+		return NT_STATUS_UNSUCCESSFUL;
+	}
+
+	sid_copy(&domain_sid, user_sid);
+	sid_split_rid(&domain_sid, &user_rid);
+
+	sid = sid_dup_talloc(mem_ctx, &domain_sid);
+	if (!sid) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	if (!sid_peek_check_rid(&domain_sid, group_sid, &group_rid)) {
+		DEBUG(1, ("_netr_LogonSamLogon: user %s\\%s has user sid "
+			  "%s\n but group sid %s.\n"
+			  "The conflicting domain portions are not "
+			  "supported for NETLOGON calls\n",
+			  pdb_get_domain(sampw),
+			  pdb_get_username(sampw),
+			  sid_string_dbg(user_sid),
+			  sid_string_dbg(group_sid)));
+		return NT_STATUS_UNSUCCESSFUL;
+	}
+
+	if(server_info->login_server) {
+		my_name = server_info->login_server;
+	} else {
+		my_name = global_myname();
+	}
+
+	status = nt_token_to_group_list(mem_ctx, &domain_sid,
+					server_info->num_sids,
+					server_info->sids,
+					&num_gids, &gids);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	if (server_info->user_session_key.length) {
+		memcpy(user_session_key.key,
+		       server_info->user_session_key.data,
+		       MIN(sizeof(user_session_key.key),
+			   server_info->user_session_key.length));
+		if (pipe_session_key) {
+			arcfour_crypt(user_session_key.key, pipe_session_key, 16);
+		}
+	}
+	if (server_info->lm_session_key.length) {
+		memcpy(lm_session_key.key,
+		       server_info->lm_session_key.data,
+		       MIN(sizeof(lm_session_key.key),
+			   server_info->lm_session_key.length));
+		if (pipe_session_key) {
+			arcfour_crypt(lm_session_key.key, pipe_session_key, 8);
+		}
+	}
+
+	groups.count = num_gids;
+	groups.rids = TALLOC_ARRAY(mem_ctx, struct samr_RidWithAttribute, groups.count);
+	if (!groups.rids) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	for (i=0; i < groups.count; i++) {
+		groups.rids[i].rid = gids[i].rid;
+		groups.rids[i].attributes = gids[i].attributes;
+	}
+
+	unix_to_nt_time(&last_logon, pdb_get_logon_time(sampw));
+	unix_to_nt_time(&last_logoff, get_time_t_max());
+	unix_to_nt_time(&acct_expiry, get_time_t_max());
+	unix_to_nt_time(&last_password_change, pdb_get_pass_last_set_time(sampw));
+	unix_to_nt_time(&allow_password_change, pdb_get_pass_can_change_time(sampw));
+	unix_to_nt_time(&force_password_change, pdb_get_pass_must_change_time(sampw));
+
+	base->last_logon		= last_logon;
+	base->last_logoff		= last_logoff;
+	base->acct_expiry		= acct_expiry;
+	base->last_password_change	= last_password_change;
+	base->allow_password_change	= allow_password_change;
+	base->force_password_change	= force_password_change;
+	base->account_name.string	= talloc_strdup(mem_ctx, pdb_get_username(sampw));
+	base->full_name.string		= talloc_strdup(mem_ctx, pdb_get_fullname(sampw));
+	base->logon_script.string	= talloc_strdup(mem_ctx, pdb_get_logon_script(sampw));
+	base->profile_path.string	= talloc_strdup(mem_ctx, pdb_get_profile_path(sampw));
+	base->home_directory.string	= talloc_strdup(mem_ctx, pdb_get_homedir(sampw));
+	base->home_drive.string		= talloc_strdup(mem_ctx, pdb_get_dir_drive(sampw));
+	base->logon_count		= 0; /* ?? */
+	base->bad_password_count	= 0; /* ?? */
+	base->rid			= user_rid;
+	base->primary_gid		= group_rid;
+	base->groups			= groups;
+	base->user_flags		= NETLOGON_EXTRA_SIDS;
+	base->key			= user_session_key;
+	base->logon_server.string	= talloc_strdup(mem_ctx, my_name);
+	base->domain.string		= talloc_strdup(mem_ctx, pdb_get_domain(sampw));
+	base->domain_sid		= sid;
+	base->LMSessKey			= lm_session_key;
+	base->acct_flags		= pdb_get_acct_ctrl(sampw);
+
+	ZERO_STRUCT(user_session_key);
+	ZERO_STRUCT(lm_session_key);
+
+	return NT_STATUS_OK;
+}
+
+/****************************************************************************
+ inits a netr_SamInfo2 structure from an auth_serversupplied_info. sam2 must
+ already be initialized and is used as the talloc parent for its members.
+*****************************************************************************/
+
+NTSTATUS serverinfo_to_SamInfo2(struct auth_serversupplied_info *server_info,
+				uint8_t *pipe_session_key,
+				size_t pipe_session_key_len,
+				struct netr_SamInfo2 *sam2)
+{
+	NTSTATUS status;
+
+	status = serverinfo_to_SamInfo_base(sam2,
+					    server_info,
+					    pipe_session_key,
+					    pipe_session_key_len,
+					    &sam2->base);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	return NT_STATUS_OK;
+}
+
+/****************************************************************************
+ inits a netr_SamInfo3 structure from an auth_serversupplied_info. sam3 must
+ already be initialized and is used as the talloc parent for its members.
+*****************************************************************************/
+
+NTSTATUS serverinfo_to_SamInfo3(struct auth_serversupplied_info *server_info,
+				uint8_t *pipe_session_key,
+				size_t pipe_session_key_len,
+				struct netr_SamInfo3 *sam3)
+{
+	NTSTATUS status;
+
+	status = serverinfo_to_SamInfo_base(sam3,
+					    server_info,
+					    pipe_session_key,
+					    pipe_session_key_len,
+					    &sam3->base);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	sam3->sidcount		= 0;
+	sam3->sids		= NULL;
+
+	return NT_STATUS_OK;
+}
+
+/****************************************************************************
+ inits a netr_SamInfo6 structure from an auth_serversupplied_info. sam6 must
+ already be initialized and is used as the talloc parent for its members.
+*****************************************************************************/
+
+NTSTATUS serverinfo_to_SamInfo6(struct auth_serversupplied_info *server_info,
+				uint8_t *pipe_session_key,
+				size_t pipe_session_key_len,
+				struct netr_SamInfo6 *sam6)
+{
+	NTSTATUS status;
+	struct pdb_domain_info *dominfo;
+
+	if ((pdb_capabilities() & PDB_CAP_ADS) == 0) {
+		DEBUG(10,("Not adding validation info level 6 "
+			   "without ADS passdb backend\n"));
+		return NT_STATUS_INVALID_INFO_CLASS;
+	}
+
+	dominfo = pdb_get_domain_info(sam6);
+	if (dominfo == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	status = serverinfo_to_SamInfo_base(sam6,
+					    server_info,
+					    pipe_session_key,
+					    pipe_session_key_len,
+					    &sam6->base);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	sam6->sidcount		= 0;
+	sam6->sids		= NULL;
+
+	sam6->forest.string	= talloc_strdup(sam6, dominfo->dns_forest);
+	if (sam6->forest.string == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	sam6->principle.string	= talloc_asprintf(sam6, "%s@%s",
+						  pdb_get_username(server_info->sam_account),
+						  dominfo->dns_domain);
+	if (sam6->principle.string == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
 	return NT_STATUS_OK;
 }

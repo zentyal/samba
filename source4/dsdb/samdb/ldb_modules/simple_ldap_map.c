@@ -146,19 +146,12 @@ static struct ldb_val objectCategory_always_dn(struct ldb_module *module, TALLOC
 
 static struct ldb_val normalise_to_signed32(struct ldb_module *module, TALLOC_CTX *ctx, const struct ldb_val *val)
 {
-	long long int signed_ll = strtoll((const char *)val->data, NULL, 10);
-	if (signed_ll >= 0x80000000LL) {
-		union {
-			int32_t signed_int;
-			uint32_t unsigned_int;
-		} u = {
-			.unsigned_int = strtoul((const char *)val->data, NULL, 10)
-		};
-
-		struct ldb_val out = data_blob_string_const(talloc_asprintf(ctx, "%d", u.signed_int));
-		return out;
-	}
-	return val_copy(module, ctx, val);
+	struct ldb_val out;
+	/* We've to use "strtoll" here to have the intended overflows.
+	 * Otherwise we may get "LONG_MAX" and the conversion is wrong. */
+	int32_t i = (int32_t) strtoll((char *)val->data, NULL, 0);
+	out = data_blob_string_const(talloc_asprintf(ctx, "%d", i));
+	return out;
 }
 
 static struct ldb_val usn_to_entryCSN(struct ldb_module *module, TALLOC_CTX *ctx, const struct ldb_val *val)
@@ -348,6 +341,17 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 		}
 	},
 	{
+		.local_name = "primaryGroupID",
+		.type = MAP_CONVERT,
+		.u = {
+			.convert = {
+				 .remote_name = "primaryGroupID",
+				 .convert_local = normalise_to_signed32,
+				 .convert_remote = val_copy,
+			}
+		}
+	},
+	{
 		.local_name = "groupType",
 		.type = MAP_CONVERT,
 		.u = {
@@ -355,7 +359,18 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 				 .remote_name = "groupType",
 				 .convert_local = normalise_to_signed32,
 				 .convert_remote = val_copy,
-			 },
+			 }
+		}
+	},
+	{
+		.local_name = "userAccountControl",
+		.type = MAP_CONVERT,
+		.u = {
+			.convert = {
+				 .remote_name = "userAccountControl",
+				 .convert_local = normalise_to_signed32,
+				 .convert_remote = val_copy,
+			 }
 		}
 	},
 	{
@@ -366,7 +381,18 @@ static const struct ldb_map_attribute entryuuid_attributes[] =
 				 .remote_name = "sAMAccountType",
 				 .convert_local = normalise_to_signed32,
 				 .convert_remote = val_copy,
-			 },
+			 }
+		}
+	},
+	{
+		.local_name = "systemFlags",
+		.type = MAP_CONVERT,
+		.u = {
+			.convert = {
+				 .remote_name = "systemFlags",
+				 .convert_local = normalise_to_signed32,
+				 .convert_remote = val_copy,
+			 }
 		}
 	},
 	{
@@ -435,8 +461,8 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 				.remote_name = "nsuniqueid", 
 				.convert_local = guid_ns_string,
 				.convert_remote = encode_ns_guid,
-			},
-		},
+			}
+		}
 	},
 	/* objectSid */	
 	{
@@ -447,8 +473,8 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 				.remote_name = "objectSid", 
 				.convert_local = sid_always_binary,
 				.convert_remote = val_copy,
-			},
-		},
+			}
+		}
 	},
 	{
 		.local_name = "whenCreated",
@@ -476,8 +502,8 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 				.remote_name = "objectCategory", 
 				.convert_local = objectCategory_always_dn,
 				.convert_remote = val_copy,
-			},
-		},
+			}
+		}
 	},
 	{
 		.local_name = "distinguishedName",
@@ -489,6 +515,17 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 		}
 	},
 	{
+		.local_name = "primaryGroupID",
+		.type = MAP_CONVERT,
+		.u = {
+			.convert = {
+				 .remote_name = "primaryGroupID",
+				 .convert_local = normalise_to_signed32,
+				 .convert_remote = val_copy,
+			}
+		}
+	},
+	{
 		.local_name = "groupType",
 		.type = MAP_CONVERT,
 		.u = {
@@ -496,7 +533,18 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 				 .remote_name = "groupType",
 				 .convert_local = normalise_to_signed32,
 				 .convert_remote = val_copy,
-			 },
+			 }
+		}
+	},
+	{
+		.local_name = "userAccountControl",
+		.type = MAP_CONVERT,
+		.u = {
+			.convert = {
+				 .remote_name = "userAccountControl",
+				 .convert_local = normalise_to_signed32,
+				 .convert_remote = val_copy,
+			 }
 		}
 	},
 	{
@@ -507,7 +555,18 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 				 .remote_name = "sAMAccountType",
 				 .convert_local = normalise_to_signed32,
 				 .convert_remote = val_copy,
-			 },
+			 }
+		}
+	},
+	{
+		.local_name = "systemFlags",
+		.type = MAP_CONVERT,
+		.u = {
+			.convert = {
+				 .remote_name = "systemFlags",
+				 .convert_local = normalise_to_signed32,
+				 .convert_remote = val_copy,
+			 }
 		}
 	},
 	{
@@ -518,8 +577,8 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 				 .remote_name = "modifyTimestamp",
 				 .convert_local = usn_to_timestamp,
 				 .convert_remote = timestamp_to_usn,
-			 },
-		},
+			 }
+		}
 	},
 	{
 		.local_name = "usnCreated",
@@ -529,8 +588,8 @@ static const struct ldb_map_attribute nsuniqueid_attributes[] =
 				 .remote_name = "createTimestamp",
 				 .convert_local = usn_to_timestamp,
 				 .convert_remote = timestamp_to_usn,
-			 },
-		},
+			 }
+		}
 	},
 	{
 		.local_name = "*",

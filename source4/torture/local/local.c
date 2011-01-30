@@ -34,6 +34,7 @@
 	torture_local_messaging, 
 	torture_local_irpc, 
 	torture_local_util_strlist, 
+	torture_local_util_parmlist, 
 	torture_local_util_file, 
 	torture_local_util_str, 
 	torture_local_util_time, 
@@ -43,6 +44,7 @@
 	torture_local_iconv,
 	torture_local_socket, 
 	torture_local_socket_wrapper, 
+	torture_local_nss_wrapper,
 	torture_pac, 
 	torture_local_resolve,
 	torture_local_sddl,
@@ -56,6 +58,7 @@
 	torture_local_torture,
 	torture_local_dbspeed, 
 	torture_local_credentials,
+	torture_ldb,
 	torture_registry,
 	NULL
 };

@@ -50,9 +50,12 @@ my $scalar_alignment = {
 	'uint8' => 1,
 	'int16' => 2,
 	'uint16' => 2,
+	'int1632' => 3,
+	'uint1632' => 3,
 	'int32' => 4,
 	'uint32' => 4,
 	'hyper' => 8,
+	'double' => 8,
 	'pointer' => 8,
 	'dlong' => 4,
 	'udlong' => 4,
@@ -140,6 +143,13 @@ sub GetElementLevelTable($$)
 
 		$is_fixed = 1 if (not $is_conformant and Parse::Pidl::Util::is_constant($size));
 		$is_inline = 1 if (not $is_conformant and not Parse::Pidl::Util::is_constant($size));
+
+		if ($i == 0 and $is_fixed and has_property($e, "string")) {
+			$is_fixed = 0;
+			$is_varying = 1;
+			$is_string = 1;
+			delete($e->{PROPERTIES}->{string});
+		}
 
 		push (@$order, {
 			TYPE => "ARRAY",
@@ -355,7 +365,10 @@ sub find_largest_alignment($)
 		my $a = 1;
 
 		if ($e->{POINTERS}) {
-			$a = 4; 
+			# this is a hack for NDR64
+			# the NDR layer translates this into
+			# an alignment of 4 for NDR and 8 for NDR64
+			$a = 5;
 		} elsif (has_property($e, "subcontext")) { 
 			$a = 1;
 		} elsif (has_property($e, "transmit_as")) {
@@ -498,7 +511,8 @@ sub ParseUnion($$)
 		ELEMENTS => undef,
 		PROPERTIES => $e->{PROPERTIES},
 		HAS_DEFAULT => $hasdefault,
-		ORIGINAL => $e
+		ORIGINAL => $e,
+		ALIGN => undef
 	} unless defined($e->{ELEMENTS});
 
 	CheckPointerTypes($e, $pointer_default);
@@ -522,6 +536,11 @@ sub ParseUnion($$)
 		push @elements, $t;
 	}
 
+	my $align = undef;
+	if ($e->{NAME}) {
+		$align = align_type($e->{NAME});
+	}
+
 	return {
 		TYPE => "UNION",
 		NAME => $e->{NAME},
@@ -529,7 +548,8 @@ sub ParseUnion($$)
 		ELEMENTS => \@elements,
 		PROPERTIES => $e->{PROPERTIES},
 		HAS_DEFAULT => $hasdefault,
-		ORIGINAL => $e
+		ORIGINAL => $e,
+		ALIGN => $align
 	};
 }
 
@@ -920,7 +940,7 @@ my %property_list = (
 	"bitmap64bit"		=> ["BITMAP"],
 
 	# array
-	"range"			=> ["ELEMENT"],
+	"range"			=> ["ELEMENT", "PIPE"],
 	"size_is"		=> ["ELEMENT"],
 	"string"		=> ["ELEMENT"],
 	"noheader"		=> ["ELEMENT"],
@@ -1112,6 +1132,18 @@ sub ValidUnion($)
 }
 
 #####################################################################
+# validate a pipe
+sub ValidPipe($)
+{
+	my ($pipe) = @_;
+	my $data = $pipe->{DATA};
+
+	ValidProperties($pipe, "PIPE");
+
+	fatal($pipe, $pipe->{NAME} . ": 'pipe' is not yet supported by pidl");
+}
+
+#####################################################################
 # parse a typedef
 sub ValidTypedef($)
 {
@@ -1156,7 +1188,8 @@ sub ValidType($)
 		STRUCT => \&ValidStruct,
 		UNION => \&ValidUnion,
 		ENUM => \&ValidEnum,
-		BITMAP => \&ValidBitmap
+		BITMAP => \&ValidBitmap,
+		PIPE => \&ValidPipe
 	}->{$t->{TYPE}}->($t);
 }
 
@@ -1198,7 +1231,8 @@ sub ValidInterface($)
 		 $d->{TYPE} eq "STRUCT" or
 	 	 $d->{TYPE} eq "UNION" or 
 	 	 $d->{TYPE} eq "ENUM" or
-		 $d->{TYPE} eq "BITMAP") && ValidType($d);
+		 $d->{TYPE} eq "BITMAP" or
+		 $d->{TYPE} eq "PIPE") && ValidType($d);
 	}
 
 }

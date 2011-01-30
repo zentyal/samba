@@ -201,8 +201,9 @@ SMB_ACL_T hpuxacl_sys_acl_get_fd(vfs_handle_struct *handle,
 	DEBUG(10, ("redirecting call of hpuxacl_sys_acl_get_fd to "
 		"hpuxacl_sys_acl_get_file (no facl syscall on HPUX).\n"));
 
-        return hpuxacl_sys_acl_get_file(handle, file_struct_p->fsp_name, 
-			SMB_ACL_TYPE_ACCESS);
+        return hpuxacl_sys_acl_get_file(handle,
+					file_struct_p->fsp_name->base_name,
+					SMB_ACL_TYPE_ACCESS);
 }
 
 
@@ -212,13 +213,19 @@ int hpuxacl_sys_acl_set_file(vfs_handle_struct *handle,
 			     SMB_ACL_T theacl)
 {
 	int ret = -1;
-	SMB_STRUCT_STAT s;
 	HPUX_ACL_T hpux_acl = NULL;
 	int count;
+	struct smb_filename *smb_fname = NULL;
+	NTSTATUS status;
 	
 	DEBUG(10, ("hpuxacl_sys_acl_set_file called for file '%s'\n",
 		   name));
 
+	status = create_synthetic_smb_fname(talloc_tos(), name, NULL, NULL,
+					    &smb_fname);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
 
 	if(hpux_acl_call_present() == False) {
 		/* Looks like we don't have the acl() system call on HPUX. 
@@ -249,16 +256,15 @@ int hpuxacl_sys_acl_set_file(vfs_handle_struct *handle,
 	 * and concatenate it with the acl provided.
 	 */
 	if (lp_posix_pathnames()) {
-		ret = SMB_VFS_LSTAT(handle->conn, name, &s);
+		ret = SMB_VFS_LSTAT(handle->conn, smb_fname);
 	} else {
-		ret = SMB_VFS_STAT(handle->conn, name, &s);
+		ret = SMB_VFS_STAT(handle->conn, smb_fname);
 	}
-
 	if (ret != 0) {
 		DEBUG(10, ("Error in stat call: %s\n", strerror(errno)));
 		goto done;
 	}
-	if (S_ISDIR(s.st_mode)) {
+	if (S_ISDIR(smb_fname->st.st_ex_mode)) {
 		HPUX_ACL_T other_acl; 
 		int other_count;
 		SMB_ACL_TYPE_T other_type;
@@ -267,7 +273,8 @@ int hpuxacl_sys_acl_set_file(vfs_handle_struct *handle,
 			? SMB_ACL_TYPE_DEFAULT
 			: SMB_ACL_TYPE_ACCESS;
 		DEBUGADD(10, ("getting acl from filesystem\n"));
-		if (!hpux_acl_get_file(name, &other_acl, &other_count)) {
+		if (!hpux_acl_get_file(smb_fname->base_name, &other_acl,
+				       &other_count)) {
 			DEBUG(10, ("error getting acl from directory\n"));
 			goto done;
 		}
@@ -295,7 +302,8 @@ int hpuxacl_sys_acl_set_file(vfs_handle_struct *handle,
 	}
 	DEBUG(10, ("resulting acl is valid.\n"));
 
-	ret = acl(CONST_DISCARD(char *, name), ACL_SET, count, hpux_acl);
+	ret = acl(CONST_DISCARD(char *, smb_fname->base_name), ACL_SET, count,
+		  hpux_acl);
 	if (ret != 0) {
 		DEBUG(0, ("ERROR calling acl: %s\n", strerror(errno)));
 	}
@@ -303,6 +311,7 @@ int hpuxacl_sys_acl_set_file(vfs_handle_struct *handle,
  done:
 	DEBUG(10, ("hpuxacl_sys_acl_set_file %s.\n",
 		   ((ret != 0) ? "failed" : "succeeded")));
+	TALLOC_FREE(smb_fname);
 	SAFE_FREE(hpux_acl);
 	return ret;
 }
@@ -331,8 +340,9 @@ int hpuxacl_sys_acl_set_fd(vfs_handle_struct *handle,
 	DEBUG(10, ("redirecting call of hpuxacl_sys_acl_set_fd to "
 		"hpuxacl_sys_acl_set_file (no facl syscall on HPUX)\n"));
 
-        return hpuxacl_sys_acl_set_file(handle, file_struct_p->fsp_name,
-			SMB_ACL_TYPE_ACCESS, theacl);
+        return hpuxacl_sys_acl_set_file(handle,
+					file_struct_p->fsp_name->base_name,
+					SMB_ACL_TYPE_ACCESS, theacl);
 }
 
 
@@ -1154,37 +1164,18 @@ static bool hpux_acl_check(HPUX_ACL_T hpux_acl, int count)
 
 /* VFS operations structure */
 
-static vfs_op_tuple hpuxacl_op_tuples[] = {
-	/* Disk operations */
-	{SMB_VFS_OP(hpuxacl_sys_acl_get_file),
-	 SMB_VFS_OP_SYS_ACL_GET_FILE,
-	 SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(hpuxacl_sys_acl_get_fd),
-	 SMB_VFS_OP_SYS_ACL_GET_FD,
-	 SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(hpuxacl_sys_acl_set_file),
-	 SMB_VFS_OP_SYS_ACL_SET_FILE,
-	 SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(hpuxacl_sys_acl_set_fd),
-	 SMB_VFS_OP_SYS_ACL_SET_FD,
-	 SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(hpuxacl_sys_acl_delete_def_file),
-	 SMB_VFS_OP_SYS_ACL_DELETE_DEF_FILE,
-	 SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(NULL),
-	 SMB_VFS_OP_NOOP,
-	 SMB_VFS_LAYER_NOOP}
+static struct vfs_fn_pointers hpuxacl_fns = {
+	.sys_acl_get_file = hpuxacl_sys_acl_get_file,
+	.sys_acl_get_fd = hpuxacl_sys_acl_get_fd,
+	.sys_acl_set_file = hpuxacl_sys_acl_set_file,
+	.sys_acl_set_fd = hpuxacl_sys_acl_set_fd,
+	.sys_acl_delete_def_file = hpuxacl_sys_acl_delete_def_file,
 };
 
 NTSTATUS vfs_hpuxacl_init(void)
 {
 	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "hpuxacl",
-				hpuxacl_op_tuples);
+				&hpuxacl_fns);
 }
 
 /* ENTE */

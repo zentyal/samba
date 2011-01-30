@@ -7,8 +7,8 @@ msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
 "POT-Creation-Date: 2009-01-02 12:18-0800\n"
-"PO-Revision-Date: 2007-03-13 18:47+0200\n"
-"Last-Translator: Mehmet Türker <mturker@innova.com.tr>\n"
+"PO-Revision-Date: 2010-10-25 12:33+0200\n"
+"Last-Translator: Mehmet Turker <mturker@innova.com.tr>\n"
 "Language-Team: Turkish <debian-l10n-turkish@lists.debian.org>\n"
 "Language: tr\n"
 "MIME-Version: 1.0\n"
@@ -94,21 +94,17 @@ msgstr "Çalışma Grubu/Etki Alanı İsmi:"
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"Lütfen sunucunuzun istemciler tarafından sorgulandığında içerisinde "
-"gözükmesini istediğiniz Çalışma Grubu'nu belirtiniz. Aklınızda bulunsun, bu "
-"parametre ayrıca security=domain ayarı ile beraber kullanılacak Etki Alanını "
-"da kontrol eder."
+"Lütfen bu sistem için çalışma grubu (Workgroup) belirtin. Bu ayar sistemin "
+"sunucu olarak kullanıldığı durumda hangi Çalışma Grubu'nda gözükeceğini "
+"kontrol eder, çeşitli noktalarda varsayılan çalışma grubu olarak ta "
+"kullanılacaktır. Etki alanı ismi \"security=domain\" ayarı ile beraber "
+"kullanılacaktır."
 
 #. Type: boolean
 #. Description
@@ -119,37 +115,28 @@ msgstr "Parola şifrelenmesi kullanılsın mı?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"Yeni Windows istemcileri SBM sunucularıyla şifrelenmiş parolalar kullanarak "
-"iletişim kurarlar. Eğer düz metin parolaları kullanmak istiyorsanız Windows "
-"registry içinde bir parametreyi değiştirmelisiniz."
+"Yeni Windows istemcileri SBM/CIFS sunucularıyla şifrelenmiş parolalar "
+"kullanarak iletişim kurarlar. Eğer düz metin parolaları kullanmak "
+"istiyorsanız Windows registry içinde bir parametreyi değiştirmelisiniz."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"Bu işlemi yapmanız şiddetle önerilir. Eğer yapacaksanız, geçerli bir /etc/"
-"samba/smbpasswd dosyanız olduğundan emin olun ve smbpasswd komutunu "
-"kullanarak bütün kullanıcılar için parola belirleyin."
+"Bu işlemi yapmanız şiddetle önerilir, düz metin parola desteği artık "
+"Microsoft Windows ürünlerinde bulunmamaktadır. Eğer işlem gerçekleştirilecek "
+"ise, geçerli bir /etc/samba/smbpasswd dosyanız olduğundan emin olun ve "
+"smbpasswd komutunu kullanarak bütün kullanıcılar için parola belirleyin."
 
 #. Type: boolean
 #. Description

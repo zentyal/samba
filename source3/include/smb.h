@@ -27,7 +27,7 @@
 #define _SMB_H
 
 /* logged when starting the various Samba daemons */
-#define COPYRIGHT_STARTUP_MESSAGE	"Copyright Andrew Tridgell and the Samba Team 1992-2009"
+#define COPYRIGHT_STARTUP_MESSAGE	"Copyright Andrew Tridgell and the Samba Team 1992-2010"
 
 
 #if defined(LARGE_SMB_OFF_T)
@@ -182,9 +182,8 @@ typedef union unid_t {
 #define LOOKUP_NAME_GROUP                0x00000004  /* (unused) This is a NASTY hack for 
 							valid users = @foo where foo also
 							exists in as user. */
-#define LOOKUP_NAME_EXPLICIT             0x00000008  /* Only include
-							explicitly mapped names and not 
-							the Unix {User,Group} domain */
+#define LOOKUP_NAME_NO_NSS		 0x00000008  /* no NSS calls to avoid
+							winbind recursions */
 #define LOOKUP_NAME_BUILTIN		0x00000010 /* builtin names */
 #define LOOKUP_NAME_WKN			0x00000020 /* well known names */
 #define LOOKUP_NAME_DOMAIN		0x00000040 /* only lookup own domain */
@@ -252,6 +251,9 @@ struct id_map {
 #include "librpc/gen_ndr/drsuapi.h"
 #include "librpc/gen_ndr/drsblobs.h"
 #include "librpc/gen_ndr/spoolss.h"
+#include "librpc/gen_ndr/dcerpc.h"
+#include "librpc/gen_ndr/ndr_dcerpc.h"
+#include "librpc/gen_ndr/ntlmssp.h"
 
 struct lsa_dom_info {
 	bool valid;
@@ -333,12 +335,6 @@ typedef struct write_cache {
 	char *data;
 } write_cache;
 
-typedef struct {
-	smb_ucs2_t *origname;
-	smb_ucs2_t *filename;
-	SMB_STRUCT_STAT *statinfo;
-} smb_filename;
-
 #include "fake_file.h"
 
 struct fd_handle {
@@ -363,6 +359,7 @@ struct named_mutex;
 struct pcap_cache;
 struct wb_context;
 struct rpc_cli_smbd_conn;
+struct fncall_context;
 
 struct vfs_fsp_data {
     struct vfs_fsp_data *next;
@@ -454,8 +451,9 @@ typedef struct files_struct {
 	bool aio_write_behind;
 	bool lockdb_clean;
 	bool initial_delete_on_close; /* Only set at NTCreateX if file was created. */
+	bool delete_on_close;
 	bool posix_open;
-	char *fsp_name;
+	struct smb_filename *fsp_name;
 
 	struct vfs_fsp_data *vfs_extension;
 	struct fake_file_handle *fake_file_handle;
@@ -463,6 +461,16 @@ typedef struct files_struct {
 	struct notify_change_buf *notify;
 
 	struct files_struct *base_fsp; /* placeholder for delete on close */
+
+	/*
+	 * Read-only cached brlock record, thrown away when the
+	 * brlock.tdb seqnum changes. This avoids fetching data from
+	 * the brlock.tdb on every read/write call.
+	 */
+	int brlock_seqnum;
+	struct byte_range_lock *brlock_rec;
+
+	struct dptr_struct *dptr;
 } files_struct;
 
 #include "ntquotas.h"
@@ -550,11 +558,11 @@ struct share_iterator {
 
 typedef struct connection_struct {
 	struct connection_struct *next, *prev;
+	struct smbd_server_connection *sconn; /* can be NULL */
 	unsigned cnum; /* an index passed over the wire */
 	struct share_params *params;
 	bool force_user;
 	struct vuid_cache vuid_cache;
-	struct dptr_struct *dirptr;
 	bool printer;
 	bool ipc;
 	bool read_only; /* Attributes for the current user of the share. */
@@ -563,12 +571,9 @@ typedef struct connection_struct {
 	   sub second timestamps on files
 	   and directories when setting time ? */
 	enum timestamp_set_resolution ts_res;
-	char *dirpath;
 	char *connectpath;
 	char *origpath;
 
-	struct vfs_ops vfs;                   /* Filesystem operations */
-	struct vfs_ops vfs_opaque;			/* OPAQUE Filesystem operations */
 	struct vfs_handle_struct *vfs_handles;		/* for the new plugins */
 
 	/*
@@ -602,6 +607,9 @@ typedef struct connection_struct {
 
 	/* Semantics provided by the underlying filesystem. */
 	int fs_capabilities;
+	/* Device number of the directory of the share mount.
+	   Used to ensure unique FileIndex returns. */
+	SMB_DEV_T base_share_dev;
 
 	name_compare_entry *hide_list; /* Per-share list of files to return as hidden. */
 	name_compare_entry *veto_list; /* Per-share list of files to veto (never show). */
@@ -625,6 +633,7 @@ struct smb_request {
 	uint16 flags2;
 	uint16 smbpid;
 	uint16 mid;
+	uint32_t seqnum;
 	uint16 vuid;
 	uint16 tid;
 	uint8  wct;
@@ -728,6 +737,7 @@ struct pending_message_list {
 	struct timeval request_time; /* When was this first issued? */
 	struct timed_event *te;
 	struct smb_perfcount_data pcd;
+	uint32_t seqnum;
 	bool encrypted;
 	bool processed;
 	DATA_BLOB buf;
@@ -782,7 +792,8 @@ Offset  Data			length.
 
 struct share_mode_lock {
 	const char *servicepath; /* canonicalized. */
-	const char *filename;
+	const char *base_name;
+	const char *stream_name;
 	struct file_id id;
 	int num_share_modes;
 	struct share_mode_entry *share_modes;
@@ -839,20 +850,6 @@ struct pipe_open_rec {
 #define SALTED_MD5_HASH_LEN 16
 #define PW_HISTORY_ENTRY_LEN (PW_HISTORY_SALT_LEN+SALTED_MD5_HASH_LEN)
 #define MAX_PW_HISTORY_LEN 24
-
-/*
- * Flags for account policy.
- */
-#define AP_MIN_PASSWORD_LEN 		1
-#define AP_PASSWORD_HISTORY		2
-#define AP_USER_MUST_LOGON_TO_CHG_PASS	3
-#define AP_MAX_PASSWORD_AGE		4
-#define AP_MIN_PASSWORD_AGE		5
-#define AP_LOCK_ACCOUNT_DURATION	6
-#define AP_RESET_COUNT_TIME		7
-#define AP_BAD_ATTEMPT_LOCKOUT		8
-#define AP_TIME_TO_LOGOUT		9
-#define AP_REFUSE_MACHINE_PW_CHANGE	10
 
 /*
  * Flags for local user manipulation.
@@ -1248,18 +1245,29 @@ struct bitmap {
 /* Mapping of generic access rights for files to specific rights. */
 
 /* This maps to 0x1F01FF */
-#define FILE_GENERIC_ALL (STANDARD_RIGHTS_REQUIRED_ACCESS| SYNCHRONIZE_ACCESS|FILE_ALL_ACCESS)
+#define FILE_GENERIC_ALL (STANDARD_RIGHTS_REQUIRED_ACCESS|\
+			  SYNCHRONIZE_ACCESS|\
+			  FILE_ALL_ACCESS)
 
 /* This maps to 0x120089 */
-#define FILE_GENERIC_READ (STANDARD_RIGHTS_READ_ACCESS|FILE_READ_DATA|FILE_READ_ATTRIBUTES|\
-							FILE_READ_EA|SYNCHRONIZE_ACCESS)
+#define FILE_GENERIC_READ (STANDARD_RIGHTS_READ_ACCESS|\
+			   FILE_READ_DATA|\
+			   FILE_READ_ATTRIBUTES|\
+			   FILE_READ_EA|\
+			   SYNCHRONIZE_ACCESS)
 
 /* This maps to 0x120116 */
-#define FILE_GENERIC_WRITE (STD_RIGHT_READ_CONTROL_ACCESS|FILE_WRITE_DATA|FILE_WRITE_ATTRIBUTES|\
-							FILE_WRITE_EA|FILE_APPEND_DATA|SYNCHRONIZE_ACCESS)
+#define FILE_GENERIC_WRITE (STD_RIGHT_READ_CONTROL_ACCESS|\
+			    FILE_WRITE_DATA|\
+			    FILE_WRITE_ATTRIBUTES|\
+			    FILE_WRITE_EA|\
+			    FILE_APPEND_DATA|\
+			    SYNCHRONIZE_ACCESS)
 
-#define FILE_GENERIC_EXECUTE (STANDARD_RIGHTS_EXECUTE_ACCESS|FILE_READ_ATTRIBUTES|\
-								FILE_EXECUTE|SYNCHRONIZE_ACCESS)
+#define FILE_GENERIC_EXECUTE (STANDARD_RIGHTS_EXECUTE_ACCESS|\
+			      FILE_READ_ATTRIBUTES|\
+			      FILE_EXECUTE|\
+			      SYNCHRONIZE_ACCESS)
 
 /* Share specific rights. */
 #define SHARE_ALL_ACCESS      FILE_GENERIC_ALL
@@ -1343,12 +1351,23 @@ struct bitmap {
 #define FILE_DIRECTORY_FILE       0x0001
 #define FILE_WRITE_THROUGH        0x0002
 #define FILE_SEQUENTIAL_ONLY      0x0004
+#define FILE_NO_INTERMEDIATE_BUFFERING 0x0008
+#define FILE_SYNCHRONOUS_IO_ALERT      0x0010	/* may be ignored */
+#define FILE_SYNCHRONOUS_IO_NONALERT   0x0020	/* may be ignored */
 #define FILE_NON_DIRECTORY_FILE   0x0040
+#define FILE_CREATE_TREE_CONNECTION    0x0080	/* ignore, should be zero */
+#define FILE_COMPLETE_IF_OPLOCKED      0x0100	/* ignore, should be zero */
 #define FILE_NO_EA_KNOWLEDGE      0x0200
-#define FILE_EIGHT_DOT_THREE_ONLY 0x0400
+#define FILE_EIGHT_DOT_THREE_ONLY 0x0400 /* aka OPEN_FOR_RECOVERY: ignore, should be zero */
 #define FILE_RANDOM_ACCESS        0x0800
 #define FILE_DELETE_ON_CLOSE      0x1000
 #define FILE_OPEN_BY_FILE_ID	  0x2000
+#define FILE_OPEN_FOR_BACKUP_INTENT    0x4000
+#define FILE_NO_COMPRESSION       0x8000
+#define FILE_RESERVER_OPFILTER    0x00100000	/* ignore, should be zero */
+#define FILE_OPEN_REPARSE_POINT   0x00200000
+#define FILE_OPEN_NO_RECALL       0x00400000
+#define FILE_OPEN_FOR_FREE_SPACE_QUERY 0x00800000 /* ignore should be zero */
 
 #define NTCREATEX_OPTIONS_MUST_IGNORE_MASK      (0x008F0480)
 
@@ -1505,6 +1524,15 @@ char *strdup(char *s);
 /* TCONX Flag (smb_vwv2). */
 #define TCONX_FLAG_EXTENDED_RESPONSE	0x8
 
+/* File Status Flags. See:
+
+http://msdn.microsoft.com/en-us/library/cc246334(PROT.13).aspx
+*/
+
+#define NO_EAS			0x1
+#define NO_SUBSTREAMS		0x2
+#define NO_REPARSETAG		0x4
+
 /* Capabilities.  see ftp.microsoft.com/developr/drg/cifs/cifs/cifs4.txt */
 
 #define CAP_RAW_MODE         0x0001
@@ -1526,7 +1554,15 @@ char *strdup(char *s);
 
 /* protocol types. It assumes that higher protocols include lower protocols
    as subsets */
-enum protocol_types {PROTOCOL_NONE,PROTOCOL_CORE,PROTOCOL_COREPLUS,PROTOCOL_LANMAN1,PROTOCOL_LANMAN2,PROTOCOL_NT1};
+enum protocol_types {
+	PROTOCOL_NONE,
+	PROTOCOL_CORE,
+	PROTOCOL_COREPLUS,
+	PROTOCOL_LANMAN1,
+	PROTOCOL_LANMAN2,
+	PROTOCOL_NT1,
+	PROTOCOL_SMB2
+};
 
 /* security levels */
 enum security_types {SEC_SHARE,SEC_USER,SEC_SERVER,SEC_DOMAIN,SEC_ADS};
@@ -1767,15 +1803,6 @@ struct node_status_extra {
 	/* There really is more here ... */ 
 };
 
-/* For split krb5 SPNEGO blobs. */
-struct pending_auth_data {
-	struct pending_auth_data *prev, *next;
-	uint16 vuid; /* Tag for this entry. */
-	uint16 smbpid; /* Alternate tag for this entry. */
-	size_t needed_len;
-	DATA_BLOB partial_data;
-};
-
 typedef struct user_struct {
 	struct user_struct *next, *prev;
 	uint16 vuid; /* Tag for this entry. */
@@ -1855,21 +1882,6 @@ struct ip_service {
 /* Special name type used to cause a _kerberos DNS lookup. */
 #define KDC_NAME_TYPE 0xDCDC
 
-/* Used by the SMB signing functions. */
-
-typedef struct smb_sign_info {
-	void (*sign_outgoing_message)(char *outbuf, struct smb_sign_info *si);
-	bool (*check_incoming_message)(const char *inbuf, struct smb_sign_info *si, bool must_be_ok);
-	void (*free_signing_context)(struct smb_sign_info *si);
-	void *signing_context;
-
-	bool negotiated_smb_signing;
-	bool allow_smb_signing;
-	bool doing_signing;
-	bool mandatory_signing;
-	bool seen_valid; /* Have I ever seen a validly signed packet? */
-} smb_sign_info;
-
 struct ea_struct {
 	uint8 flags;
 	char *name;
@@ -1887,6 +1899,8 @@ struct ea_list {
 #define SAMBA_XATTR_DOS_ATTRIB "user.DOSATTRIB"
 /* Prefix for DosStreams in the vfs_streams_xattr module */
 #define SAMBA_XATTR_DOSSTREAM_PREFIX "user.DosStream."
+/* Prefix for xattrs storing streams. */
+#define SAMBA_XATTR_MARKER "user.SAMBA_STREAMS"
 
 #define UUID_SIZE 16
 
@@ -1928,16 +1942,36 @@ struct smb_extended_info {
 	char   samba_version_string[SAMBA_EXTENDED_INFO_VERSION_STRING_LENGTH];
 };
 
-/*
- * create_file_flags
- */
-#define CFF_DOS_PATH		0x00000001
-
 /* time info */
 struct smb_file_time {
 	struct timespec mtime;
 	struct timespec atime;
+	struct timespec ctime;
 	struct timespec create_time;
+};
+
+/*
+ * unix_convert_flags
+ */
+#define UCF_SAVE_LCOMP			0x00000001
+#define UCF_ALWAYS_ALLOW_WCARD_LCOMP	0x00000002
+#define UCF_COND_ALLOW_WCARD_LCOMP	0x00000004
+#define UCF_POSIX_PATHNAMES		0x00000008
+
+/*
+ * smb_filename
+ */
+struct smb_filename {
+	char *base_name;
+	char *stream_name;
+	char *original_lcomp;
+	SMB_STRUCT_STAT st;
+};
+
+/* struct for maintaining the child processes that get spawned from smbd */
+struct child_pid {
+	struct child_pid *prev, *next;
+	pid_t pid;
 };
 
 #endif /* _SMB_H */

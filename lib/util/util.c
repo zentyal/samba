@@ -133,8 +133,13 @@ _PUBLIC_ bool directory_create_or_exist(const char *dname, uid_t uid,
 			umask(old_umask);
 			return false;
 		}
-		if ((st.st_uid != uid) || 
-		    ((st.st_mode & 0777) != dir_perms)) {
+		if (st.st_uid != uid && !uwrap_enabled()) {
+			DEBUG(0, ("invalid ownership on directory "
+				  "%s\n", dname));
+			umask(old_umask);
+			return false;
+		}
+		if ((st.st_mode & 0777) != dir_perms) {
 			DEBUG(0, ("invalid permissions on directory "
 				  "%s\n", dname));
 			umask(old_umask);
@@ -143,37 +148,6 @@ _PUBLIC_ bool directory_create_or_exist(const char *dname, uid_t uid,
 	}
 	return true;
 }       
-
-
-/**
- Set a fd into blocking/nonblocking mode. Uses POSIX O_NONBLOCK if available,
- else
-  if SYSV use O_NDELAY
-  if BSD use FNDELAY
-**/
-
-_PUBLIC_ int set_blocking(int fd, bool set)
-{
-	int val;
-#ifdef O_NONBLOCK
-#define FLAG_TO_SET O_NONBLOCK
-#else
-#ifdef SYSV
-#define FLAG_TO_SET O_NDELAY
-#else /* BSD */
-#define FLAG_TO_SET FNDELAY
-#endif
-#endif
-
-	if((val = fcntl(fd, F_GETFL, 0)) == -1)
-		return -1;
-	if(set) /* Turn blocking on - ie. clear nonblock flag */
-		val &= ~FLAG_TO_SET;
-	else
-		val |= FLAG_TO_SET;
-	return fcntl( fd, F_SETFL, val);
-#undef FLAG_TO_SET
-}
 
 
 /**
@@ -296,14 +270,12 @@ static void _dump_data(int level, const uint8_t *buf, int len,
 		       bool omit_zero_bytes)
 {
 	int i=0;
-	const uint8_t empty[16];
+	static const uint8_t empty[16] = { 0, };
 	bool skipped = false;
 
 	if (len<=0) return;
 
 	if (!DEBUGLVL(level)) return;
-
-	memset(&empty, '\0', 16);
 
 	for (i=0;i<len;) {
 
@@ -692,41 +664,6 @@ _PUBLIC_ char *hex_encode_talloc(TALLOC_CTX *mem_ctx, const unsigned char *buff_
 
 	talloc_set_name_const(hex_buffer, hex_buffer);
 	return hex_buffer;
-}
-
-/**
- Unescape a URL encoded string, in place.
-**/
-
-_PUBLIC_ void rfc1738_unescape(char *buf)
-{
-	char *p=buf;
-
-	while (p && *p && (p=strchr(p,'%'))) {
-		int c1 = p[1];
-		int c2 = p[2];
-
-		if (c1 >= '0' && c1 <= '9')
-			c1 = c1 - '0';
-		else if (c1 >= 'A' && c1 <= 'F')
-			c1 = 10 + c1 - 'A';
-		else if (c1 >= 'a' && c1 <= 'f')
-			c1 = 10 + c1 - 'a';
-		else {p++; continue;}
-
-		if (c2 >= '0' && c2 <= '9')
-			c2 = c2 - '0';
-		else if (c2 >= 'A' && c2 <= 'F')
-			c2 = 10 + c2 - 'A';
-		else if (c2 >= 'a' && c2 <= 'f')
-			c2 = 10 + c2 - 'a';
-		else {p++; continue;}
-			
-		*p = (c1<<4) | c2;
-
-		memmove(p+1, p+3, strlen(p+3)+1);
-		p++;
-	}
 }
 
 /**

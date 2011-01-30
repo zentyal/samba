@@ -63,6 +63,9 @@ struct smb2_request *smb2_request_init(struct smb2_transport *transport, uint16_
 {
 	struct smb2_request *req;
 	uint64_t seqnum;
+	uint32_t hdr_offset;
+	uint32_t flags = 0;
+	bool compound = false;
 
 	if (body_dynamic_present) {
 		if (body_dynamic_size == 0) {
@@ -75,9 +78,11 @@ struct smb2_request *smb2_request_init(struct smb2_transport *transport, uint16_
 	req = talloc(transport, struct smb2_request);
 	if (req == NULL) return NULL;
 
-	seqnum = transport->seqnum++;
-	if (seqnum == UINT64_MAX) {
-		seqnum = transport->seqnum++;
+	seqnum = transport->seqnum;
+	if (transport->credits.charge > 0) {
+		transport->seqnum += transport->credits.charge;
+	} else {
+		transport->seqnum += 1;
 	}
 
 	req->state     = SMB2_REQUEST_INIT;
@@ -92,16 +97,35 @@ struct smb2_request *smb2_request_init(struct smb2_transport *transport, uint16_
 	ZERO_STRUCT(req->cancel);
 	ZERO_STRUCT(req->in);
 
-	req->out.size      = SMB2_HDR_BODY+NBT_HDR_SIZE+body_fixed_size;
+	if (transport->compound.missing > 0) {
+		compound = true;
+		transport->compound.missing -= 1;
+		req->out = transport->compound.buffer;
+		ZERO_STRUCT(transport->compound.buffer);
+		if (transport->compound.related) {
+			flags |= SMB2_HDR_FLAG_CHAINED;
+		}
+	} else {
+		ZERO_STRUCT(req->out);
+	}
 
+	if (req->out.size > 0) {
+		hdr_offset = req->out.size;
+	} else {
+		hdr_offset = NBT_HDR_SIZE;
+	}
+
+	req->out.size      = hdr_offset + SMB2_HDR_BODY + body_fixed_size;
 	req->out.allocated = req->out.size + body_dynamic_size;
-	req->out.buffer    = talloc_array(req, uint8_t, req->out.allocated);
+
+	req->out.buffer = talloc_realloc(req, req->out.buffer,
+					 uint8_t, req->out.allocated);
 	if (req->out.buffer == NULL) {
 		talloc_free(req);
 		return NULL;
 	}
 
-	req->out.hdr       = req->out.buffer + NBT_HDR_SIZE;
+	req->out.hdr       = req->out.buffer + hdr_offset;
 	req->out.body      = req->out.hdr + SMB2_HDR_BODY;
 	req->out.body_fixed= body_fixed_size;
 	req->out.body_size = body_fixed_size;
@@ -109,13 +133,13 @@ struct smb2_request *smb2_request_init(struct smb2_transport *transport, uint16_
 
 	SIVAL(req->out.hdr, 0,				SMB2_MAGIC);
 	SSVAL(req->out.hdr, SMB2_HDR_LENGTH,		SMB2_HDR_BODY);
-	SSVAL(req->out.hdr, SMB2_HDR_EPOCH,		0);
+	SSVAL(req->out.hdr, SMB2_HDR_EPOCH,		transport->credits.charge);
 	SIVAL(req->out.hdr, SMB2_HDR_STATUS,		0);
 	SSVAL(req->out.hdr, SMB2_HDR_OPCODE,		opcode);
-	SSVAL(req->out.hdr, SMB2_HDR_CREDIT,		0);
-	SIVAL(req->out.hdr, SMB2_HDR_FLAGS,		0);
+	SSVAL(req->out.hdr, SMB2_HDR_CREDIT,		transport->credits.ask_num);
+	SIVAL(req->out.hdr, SMB2_HDR_FLAGS,		flags);
 	SIVAL(req->out.hdr, SMB2_HDR_NEXT_COMMAND,	0);
-	SBVAL(req->out.hdr, SMB2_HDR_MESSAGE_ID,		req->seqnum);
+	SBVAL(req->out.hdr, SMB2_HDR_MESSAGE_ID,	req->seqnum);
 	SIVAL(req->out.hdr, SMB2_HDR_PID,		0);
 	SIVAL(req->out.hdr, SMB2_HDR_TID,		0);
 	SBVAL(req->out.hdr, SMB2_HDR_SESSION_ID,		0);
@@ -128,7 +152,7 @@ struct smb2_request *smb2_request_init(struct smb2_transport *transport, uint16_
 	 * if we have a dynamic part, make sure the first byte
 	 * which is always be part of the packet is initialized
 	 */
-	if (body_dynamic_size) {
+	if (body_dynamic_size && !compound) {
 		req->out.size += 1;
 		SCVAL(req->out.dynamic, 0, 0);
 	}
@@ -237,7 +261,9 @@ size_t smb2_padding_size(uint32_t offset, size_t n)
 static size_t smb2_padding_fix(struct smb2_request_buffer *buf)
 {
 	if (buf->dynamic == (buf->body + buf->body_fixed)) {
-		return 1;
+		if (buf->dynamic != (buf->buffer + buf->size)) {
+			return 1;
+		}
 	}
 	return 0;
 }
@@ -245,8 +271,9 @@ static size_t smb2_padding_fix(struct smb2_request_buffer *buf)
 /*
   grow a SMB2 buffer by the specified amount
 */
-static NTSTATUS smb2_grow_buffer(struct smb2_request_buffer *buf, size_t increase)
+NTSTATUS smb2_grow_buffer(struct smb2_request_buffer *buf, size_t increase)
 {
+	size_t hdr_ofs;
 	size_t dynamic_ofs;
 	uint8_t *buffer_ptr;
 	uint32_t newsize = buf->size + increase;
@@ -256,13 +283,14 @@ static NTSTATUS smb2_grow_buffer(struct smb2_request_buffer *buf, size_t increas
 
 	if (newsize <= buf->allocated) return NT_STATUS_OK;
 
+	hdr_ofs = buf->hdr - buf->buffer;
 	dynamic_ofs = buf->dynamic - buf->buffer;
 
 	buffer_ptr = talloc_realloc(buf, buf->buffer, uint8_t, newsize);
 	NT_STATUS_HAVE_NO_MEMORY(buffer_ptr);
 
 	buf->buffer	= buffer_ptr;
-	buf->hdr	= buf->buffer + NBT_HDR_SIZE;
+	buf->hdr	= buf->buffer + hdr_ofs;
 	buf->body	= buf->hdr    + SMB2_HDR_BODY;
 	buf->dynamic	= buf->buffer + dynamic_ofs;
 	buf->allocated	= newsize;

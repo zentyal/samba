@@ -13,6 +13,7 @@
 
 #define PRINTER_STATUS_OK	( 0x00000000 )
 #define JOB_STATUS_QUEUED	( 0x0000 )
+#define MAXDEVICENAME	( 32 )
 #define PRINTER_ENUM_ICONMASK	( (PRINTER_ENUM_ICON1|PRINTER_ENUM_ICON2|PRINTER_ENUM_ICON3|PRINTER_ENUM_ICON4|PRINTER_ENUM_ICON5|PRINTER_ENUM_ICON6|PRINTER_ENUM_ICON7|PRINTER_ENUM_ICON8) )
 #define SPL_ARCH_WIN40	( "WIN40" )
 #define SPL_ARCH_W32X86	( "W32X86" )
@@ -21,9 +22,75 @@
 #define SPL_ARCH_W32PPC	( "W32PPC" )
 #define SPL_ARCH_IA64	( "IA64" )
 #define SPL_ARCH_X64	( "x64" )
-#define SPOOLSS_ARCHITECTURE_ALL	( "all" )
+#define SPOOLSS_ARCHITECTURE_ALL	( "All" )
+#define SPOOLSS_ARCHITECTURE_ALL_CLUSTER	( "AllCluster" )
 #define SPOOLSS_ARCHITECTURE_NT_X86	( "Windows NT x86" )
+#define SPOOLSS_ARCHITECTURE_IA_64	( "Windows IA64" )
+#define SPOOLSS_ARCHITECTURE_x64	( "Windows x64" )
+#define SPOOLSS_ARCHITECTURE_4_0	( "Windows 4.0" )
 #define SPOOLSS_DEFAULT_SERVER_PATH	( "C:\\WINDOWS\\system32\\spool" )
+#define SPOOL_PRINTERDATA_KEY	( "PrinterDriverData" )
+#define SPOOL_DSSPOOLER_KEY	( "DsSpooler" )
+#define SPOOL_DSDRIVER_KEY	( "DsDriver" )
+#define SPOOL_DSUSER_KEY	( "DsUser" )
+#define SPOOL_PNPDATA_KEY	( "PnPData" )
+#define SPOOL_OID_KEY	( "OID" )
+#define SPOOL_REG_ASSETNUMBER	( "assetNumber" )
+#define SPOOL_REG_BYTESPERMINUTE	( "bytesPerMinute" )
+#define SPOOL_REG_DEFAULTPRIORITY	( "defaultPriority" )
+#define SPOOL_REG_DESCRIPTION	( "description" )
+#define SPOOL_REG_DRIVERNAME	( "driverName" )
+#define SPOOL_REG_DRIVERVERSION	( "driverVersion" )
+#define SPOOL_REG_FLAGS	( "flags" )
+#define SPOOL_REG_LOCATION	( "location" )
+#define SPOOL_REG_OPERATINGSYSTEM	( "operatingSystem" )
+#define SPOOL_REG_OPERATINGSYSTEMHOTFIX	( "operatingSystemHotfix" )
+#define SPOOL_REG_OPERATINGSYSTEMSERVICEPACK	( "operatingSystemServicePack" )
+#define SPOOL_REG_OPERATINGSYSTEMVERSION	( "operatingSystemVersion" )
+#define SPOOL_REG_PORTNAME	( "portName" )
+#define SPOOL_REG_PRINTATTRIBUTES	( "printAttributes" )
+#define SPOOL_REG_PRINTBINNAMES	( "printBinNames" )
+#define SPOOL_REG_PRINTCOLLATE	( "printCollate" )
+#define SPOOL_REG_PRINTCOLOR	( "printColor" )
+#define SPOOL_REG_PRINTDUPLEXSUPPORTED	( "printDuplexSupported" )
+#define SPOOL_REG_PRINTENDTIME	( "printEndTime" )
+#define SPOOL_REG_PRINTERNAME	( "printerName" )
+#define SPOOL_REG_PRINTFORMNAME	( "printFormName" )
+#define SPOOL_REG_PRINTKEEPPRINTEDJOBS	( "printKeepPrintedJobs" )
+#define SPOOL_REG_PRINTLANGUAGE	( "printLanguage" )
+#define SPOOL_REG_PRINTMACADDRESS	( "printMACAddress" )
+#define SPOOL_REG_PRINTMAXCOPIES	( "printMaxCopies" )
+#define SPOOL_REG_PRINTMAXRESOLUTIONSUPPORTED	( "printMaxResolutionSupported" )
+#define SPOOL_REG_PRINTMAXXEXTENT	( "printMaxXExtent" )
+#define SPOOL_REG_PRINTMAXYEXTENT	( "printMaxYExtent" )
+#define SPOOL_REG_PRINTMEDIAREADY	( "printMediaReady" )
+#define SPOOL_REG_PRINTMEDIASUPPORTED	( "printMediaSupported" )
+#define SPOOL_REG_PRINTMEMORY	( "printMemory" )
+#define SPOOL_REG_PRINTMINXEXTENT	( "printMinXExtent" )
+#define SPOOL_REG_PRINTMINYEXTENT	( "printMinYExtent" )
+#define SPOOL_REG_PRINTNETWORKADDRESS	( "printNetworkAddress" )
+#define SPOOL_REG_PRINTNOTIFY	( "printNotify" )
+#define SPOOL_REG_PRINTNUMBERUP	( "printNumberUp" )
+#define SPOOL_REG_PRINTORIENTATIONSSUPPORTED	( "printOrientationsSupported" )
+#define SPOOL_REG_PRINTOWNER	( "printOwner" )
+#define SPOOL_REG_PRINTPAGESPERMINUTE	( "printPagesPerMinute" )
+#define SPOOL_REG_PRINTRATE	( "printRate" )
+#define SPOOL_REG_PRINTRATEUNIT	( "printRateUnit" )
+#define SPOOL_REG_PRINTSEPARATORFILE	( "printSeparatorFile" )
+#define SPOOL_REG_PRINTSHARENAME	( "printShareName" )
+#define SPOOL_REG_PRINTSPOOLING	( "printSpooling" )
+#define SPOOL_REGVAL_PRINTWHILESPOOLING	( "PrintWhileSpooling" )
+#define SPOOL_REGVAL_PRINTAFTERSPOOLED	( "PrintAfterSpooled" )
+#define SPOOL_REGVAL_PRINTDIRECT	( "PrintDirect" )
+#define SPOOL_REG_PRINTSTAPLINGSUPPORTED	( "printStaplingSupported" )
+#define SPOOL_REG_PRINTSTARTTIME	( "printStartTime" )
+#define SPOOL_REG_PRINTSTATUS	( "printStatus" )
+#define SPOOL_REG_PRIORITY	( "priority" )
+#define SPOOL_REG_SERVERNAME	( "serverName" )
+#define SPOOL_REG_SHORTSERVERNAME	( "shortServerName" )
+#define SPOOL_REG_UNCNAME	( "uNCName" )
+#define SPOOL_REG_URL	( "url" )
+#define SPOOL_REG_VERSIONNUMBER	( "versionNumber" )
 #define SPL_LOCAL_PORT	( "Local Port" )
 #define SPL_TCPIP_PORT	( "Standard TCP/IP Port" )
 #define SPL_XCV_MONITOR_LOCALMON	( ",XcvMonitor Local Port" )
@@ -69,9 +136,9 @@ struct spoolss_TimeCtr {
 enum spoolss_ProcessorArchitecture
 #ifndef USE_UINT_ENUMS
  {
-	PROCESSOR_ARCHITECTURE_INTEL=0x0000,
-	PROCESSOR_ARCHITECTURE_IA64=0x0006,
-	PROCESSOR_ARCHITECTURE_AMD64=0x0009
+	PROCESSOR_ARCHITECTURE_INTEL=(int)(0x0000),
+	PROCESSOR_ARCHITECTURE_IA64=(int)(0x0006),
+	PROCESSOR_ARCHITECTURE_AMD64=(int)(0x0009)
 }
 #else
  { __donnot_use_enum_spoolss_ProcessorArchitecture=0x7FFFFFFF}
@@ -84,11 +151,11 @@ enum spoolss_ProcessorArchitecture
 enum spoolss_ProcessorType
 #ifndef USE_UINT_ENUMS
  {
-	PROCESSOR_INTEL_386=0x00000182,
-	PROCESSOR_INTEL_486=0x000001E6,
-	PROCESSOR_INTEL_PENTIUM=0x0000024A,
-	PROCESSOR_INTEL_IA64=0x00000898,
-	PROCESSOR_AMD_X8664=0x000022A0
+	PROCESSOR_INTEL_386=(int)(0x00000182),
+	PROCESSOR_INTEL_486=(int)(0x000001E6),
+	PROCESSOR_INTEL_PENTIUM=(int)(0x0000024A),
+	PROCESSOR_INTEL_IA64=(int)(0x00000898),
+	PROCESSOR_AMD_X8664=(int)(0x000022A0)
 }
 #else
  { __donnot_use_enum_spoolss_ProcessorType=0x7FFFFFFF}
@@ -103,9 +170,9 @@ enum spoolss_ProcessorType
 enum spoolss_MajorVersion
 #ifndef USE_UINT_ENUMS
  {
-	SPOOLSS_MAJOR_VERSION_NT4_95_98_ME=0x00000004,
-	SPOOLSS_MAJOR_VERSION_2000_2003_XP=0x00000005,
-	SPOOLSS_MAJOR_VERSION_2008_VISTA=0x00000006
+	SPOOLSS_MAJOR_VERSION_NT4_95_98_ME=(int)(0x00000004),
+	SPOOLSS_MAJOR_VERSION_2000_2003_XP=(int)(0x00000005),
+	SPOOLSS_MAJOR_VERSION_2008_VISTA=(int)(0x00000006)
 }
 #else
  { __donnot_use_enum_spoolss_MajorVersion=0x7FFFFFFF}
@@ -118,11 +185,11 @@ enum spoolss_MajorVersion
 enum spoolss_MinorVersion
 #ifndef USE_UINT_ENUMS
  {
-	SPOOLSS_MINOR_VERSION_0=0x00000000,
-	SPOOLSS_MINOR_VERSION_XP=0x00000001,
-	SPOOLSS_MINOR_VERSION_2003_XP64=0x00000002,
-	SPOOLSS_MINOR_VERSION_98=0x0000000a,
-	SPOOLSS_MINOR_VERSION_ME=0x0000005a
+	SPOOLSS_MINOR_VERSION_0=(int)(0x00000000),
+	SPOOLSS_MINOR_VERSION_XP=(int)(0x00000001),
+	SPOOLSS_MINOR_VERSION_2003_XP64=(int)(0x00000002),
+	SPOOLSS_MINOR_VERSION_98=(int)(0x0000000a),
+	SPOOLSS_MINOR_VERSION_ME=(int)(0x0000005a)
 }
 #else
  { __donnot_use_enum_spoolss_MinorVersion=0x7FFFFFFF}
@@ -238,37 +305,457 @@ struct spoolss_PrinterInfo0 {
 #define DEVMODE_PANNINGWIDTH ( 0x08000000 )
 #define DEVMODE_PANNINGHEIGHT ( 0x10000000 )
 
+enum spoolss_DeviceModeSpecVersion
+#ifndef USE_UINT_ENUMS
+ {
+	DMSPEC_NT3=(int)(0x320),
+	DMSPEC_WIN95_98_ME=(int)(0x400),
+	DMSPEC_NT4_AND_ABOVE=(int)(0x401)
+}
+#else
+ { __donnot_use_enum_spoolss_DeviceModeSpecVersion=0x7FFFFFFF}
+#define DMSPEC_NT3 ( 0x320 )
+#define DMSPEC_WIN95_98_ME ( 0x400 )
+#define DMSPEC_NT4_AND_ABOVE ( 0x401 )
+#endif
+;
+
+enum spoolss_DeviceModeOrientation
+#ifndef USE_UINT_ENUMS
+ {
+	DMORIENT_PORTRAIT=(int)(0x0001),
+	DMORIENT_LANDSCAPE=(int)(0x0002)
+}
+#else
+ { __donnot_use_enum_spoolss_DeviceModeOrientation=0x7FFFFFFF}
+#define DMORIENT_PORTRAIT ( 0x0001 )
+#define DMORIENT_LANDSCAPE ( 0x0002 )
+#endif
+;
+
+enum spoolss_DeviceModePaperSize
+#ifndef USE_UINT_ENUMS
+ {
+	DMPAPER_LETTER=(int)(0x0001),
+	DMPAPER_LETTERSMALL=(int)(0x0002),
+	DMPAPER_TABLOID=(int)(0x0003),
+	DMPAPER_LEDGER=(int)(0x0004),
+	DMPAPER_LEGAL=(int)(0x0005),
+	DMPAPER_STATEMENT=(int)(0x0006),
+	DMPAPER_EXECUTIVE=(int)(0x0007),
+	DMPAPER_A3=(int)(0x0008),
+	DMPAPER_A4=(int)(0x0009),
+	DMPAPER_A4SMALL=(int)(0x000A),
+	DMPAPER_A5=(int)(0x000B),
+	DMPAPER_B4=(int)(0x000C),
+	DMPAPER_B5=(int)(0x000D),
+	DMPAPER_FOLIO=(int)(0x000E),
+	DMPAPER_QUARTO=(int)(0x000F),
+	DMPAPER_10X14=(int)(0x0010),
+	DMPAPER_11X17=(int)(0x0011),
+	DMPAPER_NOTE=(int)(0x0012),
+	DMPAPER_ENV_9=(int)(0x0013),
+	DMPAPER_ENV_10=(int)(0x0014),
+	DMPAPER_ENV_11=(int)(0x0015),
+	DMPAPER_ENV_12=(int)(0x0016),
+	DMPAPER_ENV_14=(int)(0x0017),
+	DMPAPER_CSHEET=(int)(0x0018),
+	DMPAPER_DSHEET=(int)(0x0019),
+	DMPAPER_ESHEET=(int)(0x001A),
+	DMPAPER_ENV_DL=(int)(0x001B),
+	DMPAPER_ENV_C5=(int)(0x001C),
+	DMPAPER_ENV_C3=(int)(0x001D),
+	DMPAPER_ENV_C4=(int)(0x001E),
+	DMPAPER_ENV_C6=(int)(0x001F),
+	DMPAPER_ENV_C65=(int)(0x0020),
+	DMPAPER_ENV_B4=(int)(0x0021),
+	DMPAPER_ENV_B5=(int)(0x0022),
+	DMPAPER_ENV_B6=(int)(0x0023),
+	DMPAPER_ENV_ITALY=(int)(0x0024),
+	DMPAPER_ENV_MONARCH=(int)(0x0025),
+	DMPAPER_ENV_PERSONAL=(int)(0x0026),
+	DMPAPER_FANFOLD_US=(int)(0x0027),
+	DMPAPER_FANFOLD_STD_GERMAN=(int)(0x0028),
+	DMPAPER_FANFOLD_LGL_GERMAN=(int)(0x0029),
+	DMPAPER_DBL_JAPANESE_POSTCARD=(int)(0x0045),
+	DMPAPER_A6=(int)(0x0046),
+	DMPAPER_JENV_KAKU2=(int)(0x0047),
+	DMPAPER_JENV_KAKU3=(int)(0x0048),
+	DMPAPER_JENV_CHOU3=(int)(0x0049),
+	DMPAPER_JENV_CHOU4=(int)(0x004A),
+	DMPAPER_LETTER_ROTATED=(int)(0x004B),
+	DMPAPER_A3_ROTATED=(int)(0x004C),
+	DMPAPER_A4_ROTATED=(int)(0x004D),
+	DMPAPER_A5_ROTATED=(int)(0x004E),
+	DMPAPER_B4_JIS_ROTATED=(int)(0x004F),
+	DMPAPER_B5_JIS_ROTATED=(int)(0x0050),
+	DMPAPER_JAPANESE_POSTCARD_ROTATED=(int)(0x0051),
+	DMPAPER_DBL_JAPANESE_POSTCARD_ROTATED=(int)(0x0052),
+	DMPAPER_A6_ROTATED=(int)(0x0053),
+	DMPAPER_JENV_KAKU2_ROTATED=(int)(0x0054),
+	DMPAPER_JENV_KAKU3_ROTATED=(int)(0x0055),
+	DMPAPER_JENV_CHOU3_ROTATED=(int)(0x0056),
+	DMPAPER_JENV_CHOU4_ROTATED=(int)(0x0057),
+	DMPAPER_B6_JIS=(int)(0x0058),
+	DMPAPER_B6_JIS_ROTATED=(int)(0x0059),
+	DMPAPER_12X11=(int)(0x005A),
+	DMPAPER_JENV_YOU4=(int)(0x005B),
+	DMPAPER_JENV_YOU4_ROTATED=(int)(0x005C),
+	DMPAPER_P16K=(int)(0x005D),
+	DMPAPER_P32K=(int)(0x005E),
+	DMPAPER_P32KBIG=(int)(0x005F),
+	DMPAPER_PENV_1=(int)(0x0060),
+	DMPAPER_PENV_2=(int)(0x0061),
+	DMPAPER_PENV_3=(int)(0x0062),
+	DMPAPER_PENV_4=(int)(0x0063),
+	DMPAPER_PENV_5=(int)(0x0064),
+	DMPAPER_PENV_6=(int)(0x0065),
+	DMPAPER_PENV_7=(int)(0x0066),
+	DMPAPER_PENV_8=(int)(0x0067),
+	DMPAPER_PENV_9=(int)(0x0068),
+	DMPAPER_PENV_10=(int)(0x0069),
+	DMPAPER_P16K_ROTATED=(int)(0x006A),
+	DMPAPER_P32K_ROTATED=(int)(0x006B),
+	DMPAPER_P32KBIG_ROTATED=(int)(0x006C),
+	DMPAPER_PENV_1_ROTATED=(int)(0x006D),
+	DMPAPER_PENV_2_ROTATED=(int)(0x006E),
+	DMPAPER_PENV_3_ROTATED=(int)(0x006F),
+	DMPAPER_PENV_4_ROTATED=(int)(0x0070),
+	DMPAPER_PENV_5_ROTATED=(int)(0x0071),
+	DMPAPER_PENV_6_ROTATED=(int)(0x0072),
+	DMPAPER_PENV_7_ROTATED=(int)(0x0073),
+	DMPAPER_PENV_8_ROTATED=(int)(0x0074),
+	DMPAPER_PENV_9_ROTATED=(int)(0x0075),
+	DMPAPER_PENV_10_ROTATED=(int)(0x0076)
+}
+#else
+ { __donnot_use_enum_spoolss_DeviceModePaperSize=0x7FFFFFFF}
+#define DMPAPER_LETTER ( 0x0001 )
+#define DMPAPER_LETTERSMALL ( 0x0002 )
+#define DMPAPER_TABLOID ( 0x0003 )
+#define DMPAPER_LEDGER ( 0x0004 )
+#define DMPAPER_LEGAL ( 0x0005 )
+#define DMPAPER_STATEMENT ( 0x0006 )
+#define DMPAPER_EXECUTIVE ( 0x0007 )
+#define DMPAPER_A3 ( 0x0008 )
+#define DMPAPER_A4 ( 0x0009 )
+#define DMPAPER_A4SMALL ( 0x000A )
+#define DMPAPER_A5 ( 0x000B )
+#define DMPAPER_B4 ( 0x000C )
+#define DMPAPER_B5 ( 0x000D )
+#define DMPAPER_FOLIO ( 0x000E )
+#define DMPAPER_QUARTO ( 0x000F )
+#define DMPAPER_10X14 ( 0x0010 )
+#define DMPAPER_11X17 ( 0x0011 )
+#define DMPAPER_NOTE ( 0x0012 )
+#define DMPAPER_ENV_9 ( 0x0013 )
+#define DMPAPER_ENV_10 ( 0x0014 )
+#define DMPAPER_ENV_11 ( 0x0015 )
+#define DMPAPER_ENV_12 ( 0x0016 )
+#define DMPAPER_ENV_14 ( 0x0017 )
+#define DMPAPER_CSHEET ( 0x0018 )
+#define DMPAPER_DSHEET ( 0x0019 )
+#define DMPAPER_ESHEET ( 0x001A )
+#define DMPAPER_ENV_DL ( 0x001B )
+#define DMPAPER_ENV_C5 ( 0x001C )
+#define DMPAPER_ENV_C3 ( 0x001D )
+#define DMPAPER_ENV_C4 ( 0x001E )
+#define DMPAPER_ENV_C6 ( 0x001F )
+#define DMPAPER_ENV_C65 ( 0x0020 )
+#define DMPAPER_ENV_B4 ( 0x0021 )
+#define DMPAPER_ENV_B5 ( 0x0022 )
+#define DMPAPER_ENV_B6 ( 0x0023 )
+#define DMPAPER_ENV_ITALY ( 0x0024 )
+#define DMPAPER_ENV_MONARCH ( 0x0025 )
+#define DMPAPER_ENV_PERSONAL ( 0x0026 )
+#define DMPAPER_FANFOLD_US ( 0x0027 )
+#define DMPAPER_FANFOLD_STD_GERMAN ( 0x0028 )
+#define DMPAPER_FANFOLD_LGL_GERMAN ( 0x0029 )
+#define DMPAPER_DBL_JAPANESE_POSTCARD ( 0x0045 )
+#define DMPAPER_A6 ( 0x0046 )
+#define DMPAPER_JENV_KAKU2 ( 0x0047 )
+#define DMPAPER_JENV_KAKU3 ( 0x0048 )
+#define DMPAPER_JENV_CHOU3 ( 0x0049 )
+#define DMPAPER_JENV_CHOU4 ( 0x004A )
+#define DMPAPER_LETTER_ROTATED ( 0x004B )
+#define DMPAPER_A3_ROTATED ( 0x004C )
+#define DMPAPER_A4_ROTATED ( 0x004D )
+#define DMPAPER_A5_ROTATED ( 0x004E )
+#define DMPAPER_B4_JIS_ROTATED ( 0x004F )
+#define DMPAPER_B5_JIS_ROTATED ( 0x0050 )
+#define DMPAPER_JAPANESE_POSTCARD_ROTATED ( 0x0051 )
+#define DMPAPER_DBL_JAPANESE_POSTCARD_ROTATED ( 0x0052 )
+#define DMPAPER_A6_ROTATED ( 0x0053 )
+#define DMPAPER_JENV_KAKU2_ROTATED ( 0x0054 )
+#define DMPAPER_JENV_KAKU3_ROTATED ( 0x0055 )
+#define DMPAPER_JENV_CHOU3_ROTATED ( 0x0056 )
+#define DMPAPER_JENV_CHOU4_ROTATED ( 0x0057 )
+#define DMPAPER_B6_JIS ( 0x0058 )
+#define DMPAPER_B6_JIS_ROTATED ( 0x0059 )
+#define DMPAPER_12X11 ( 0x005A )
+#define DMPAPER_JENV_YOU4 ( 0x005B )
+#define DMPAPER_JENV_YOU4_ROTATED ( 0x005C )
+#define DMPAPER_P16K ( 0x005D )
+#define DMPAPER_P32K ( 0x005E )
+#define DMPAPER_P32KBIG ( 0x005F )
+#define DMPAPER_PENV_1 ( 0x0060 )
+#define DMPAPER_PENV_2 ( 0x0061 )
+#define DMPAPER_PENV_3 ( 0x0062 )
+#define DMPAPER_PENV_4 ( 0x0063 )
+#define DMPAPER_PENV_5 ( 0x0064 )
+#define DMPAPER_PENV_6 ( 0x0065 )
+#define DMPAPER_PENV_7 ( 0x0066 )
+#define DMPAPER_PENV_8 ( 0x0067 )
+#define DMPAPER_PENV_9 ( 0x0068 )
+#define DMPAPER_PENV_10 ( 0x0069 )
+#define DMPAPER_P16K_ROTATED ( 0x006A )
+#define DMPAPER_P32K_ROTATED ( 0x006B )
+#define DMPAPER_P32KBIG_ROTATED ( 0x006C )
+#define DMPAPER_PENV_1_ROTATED ( 0x006D )
+#define DMPAPER_PENV_2_ROTATED ( 0x006E )
+#define DMPAPER_PENV_3_ROTATED ( 0x006F )
+#define DMPAPER_PENV_4_ROTATED ( 0x0070 )
+#define DMPAPER_PENV_5_ROTATED ( 0x0071 )
+#define DMPAPER_PENV_6_ROTATED ( 0x0072 )
+#define DMPAPER_PENV_7_ROTATED ( 0x0073 )
+#define DMPAPER_PENV_8_ROTATED ( 0x0074 )
+#define DMPAPER_PENV_9_ROTATED ( 0x0075 )
+#define DMPAPER_PENV_10_ROTATED ( 0x0076 )
+#endif
+;
+
+enum spoolss_DeviceModeDefaultSource
+#ifndef USE_UINT_ENUMS
+ {
+	DMBIN_UPPER=(int)(0x0001),
+	DMBIN_LOWER=(int)(0x0002),
+	DMBIN_MIDDLE=(int)(0x0003),
+	DMBIN_MANUAL=(int)(0x0004),
+	DMBIN_ENVELOPE=(int)(0x0005),
+	DMBIN_ENVMANUAL=(int)(0x0006),
+	DMBIN_AUTO=(int)(0x0007),
+	DMBIN_TRACTOR=(int)(0x0008),
+	DMBIN_SMALLFMT=(int)(0x0009),
+	DMBIN_LARGEFMT=(int)(0x000a),
+	DMBIN_LARGECAPACITY=(int)(0x000b),
+	DMBIN_CASSETTE=(int)(0x000e),
+	DMBIN_FORMSOURCE=(int)(0x000f)
+}
+#else
+ { __donnot_use_enum_spoolss_DeviceModeDefaultSource=0x7FFFFFFF}
+#define DMBIN_UPPER ( 0x0001 )
+#define DMBIN_LOWER ( 0x0002 )
+#define DMBIN_MIDDLE ( 0x0003 )
+#define DMBIN_MANUAL ( 0x0004 )
+#define DMBIN_ENVELOPE ( 0x0005 )
+#define DMBIN_ENVMANUAL ( 0x0006 )
+#define DMBIN_AUTO ( 0x0007 )
+#define DMBIN_TRACTOR ( 0x0008 )
+#define DMBIN_SMALLFMT ( 0x0009 )
+#define DMBIN_LARGEFMT ( 0x000a )
+#define DMBIN_LARGECAPACITY ( 0x000b )
+#define DMBIN_CASSETTE ( 0x000e )
+#define DMBIN_FORMSOURCE ( 0x000f )
+#endif
+;
+
+enum spoolss_DeviceModePrintQuality
+#ifndef USE_UINT_ENUMS
+ {
+	DMRES_HIGH=(int)(0xfffc),
+	DMRES_MEDIUM=(int)(0xfffd),
+	DMRES_LOW=(int)(0xfffe),
+	DMRES_DRAFT=(int)(0xffff)
+}
+#else
+ { __donnot_use_enum_spoolss_DeviceModePrintQuality=0x7FFFFFFF}
+#define DMRES_HIGH ( 0xfffc )
+#define DMRES_MEDIUM ( 0xfffd )
+#define DMRES_LOW ( 0xfffe )
+#define DMRES_DRAFT ( 0xffff )
+#endif
+;
+
+enum spoolss_DeviceModeColor
+#ifndef USE_UINT_ENUMS
+ {
+	DMRES_MONOCHROME=(int)(0x0001),
+	DMRES_COLOR=(int)(0x0002)
+}
+#else
+ { __donnot_use_enum_spoolss_DeviceModeColor=0x7FFFFFFF}
+#define DMRES_MONOCHROME ( 0x0001 )
+#define DMRES_COLOR ( 0x0002 )
+#endif
+;
+
+enum spoolss_DeviceModeDuplex
+#ifndef USE_UINT_ENUMS
+ {
+	DMDUP_SIMPLEX=(int)(0x0001),
+	DMDUP_VERTICAL=(int)(0x0002),
+	DMDUP_HORIZONTAL=(int)(0x0003)
+}
+#else
+ { __donnot_use_enum_spoolss_DeviceModeDuplex=0x7FFFFFFF}
+#define DMDUP_SIMPLEX ( 0x0001 )
+#define DMDUP_VERTICAL ( 0x0002 )
+#define DMDUP_HORIZONTAL ( 0x0003 )
+#endif
+;
+
+enum spoolss_DeviceModeTTOption
+#ifndef USE_UINT_ENUMS
+ {
+	DMTT_BITMAP=(int)(0x0001),
+	DMTT_DOWNLOAD=(int)(0x0002),
+	DMTT_SUBDEV=(int)(0x0003),
+	DMTT_DOWNLOAD_OUTLINE=(int)(0x0004)
+}
+#else
+ { __donnot_use_enum_spoolss_DeviceModeTTOption=0x7FFFFFFF}
+#define DMTT_BITMAP ( 0x0001 )
+#define DMTT_DOWNLOAD ( 0x0002 )
+#define DMTT_SUBDEV ( 0x0003 )
+#define DMTT_DOWNLOAD_OUTLINE ( 0x0004 )
+#endif
+;
+
+enum spoolss_DeviceModeCollate
+#ifndef USE_UINT_ENUMS
+ {
+	DMCOLLATE_FALSE=(int)(0x0000),
+	DMCOLLATE_TRUE=(int)(0x0001)
+}
+#else
+ { __donnot_use_enum_spoolss_DeviceModeCollate=0x7FFFFFFF}
+#define DMCOLLATE_FALSE ( 0x0000 )
+#define DMCOLLATE_TRUE ( 0x0001 )
+#endif
+;
+
+enum spoolss_DeviceModeNUp
+#ifndef USE_UINT_ENUMS
+ {
+	DMNUP_SYSTEM=(int)(0x00000001),
+	DMNUP_ONEUP=(int)(0x00000002)
+}
+#else
+ { __donnot_use_enum_spoolss_DeviceModeNUp=0x7FFFFFFF}
+#define DMNUP_SYSTEM ( 0x00000001 )
+#define DMNUP_ONEUP ( 0x00000002 )
+#endif
+;
+
+enum spoolss_DeviceModeICMMethod
+#ifndef USE_UINT_ENUMS
+ {
+	DMICMMETHOD_NONE=(int)(0x00000001),
+	DMICMMETHOD_SYSTEM=(int)(0x00000002),
+	DMICMMETHOD_DRIVER=(int)(0x00000003),
+	DMICMMETHOD_DEVICE=(int)(0x00000004)
+}
+#else
+ { __donnot_use_enum_spoolss_DeviceModeICMMethod=0x7FFFFFFF}
+#define DMICMMETHOD_NONE ( 0x00000001 )
+#define DMICMMETHOD_SYSTEM ( 0x00000002 )
+#define DMICMMETHOD_DRIVER ( 0x00000003 )
+#define DMICMMETHOD_DEVICE ( 0x00000004 )
+#endif
+;
+
+enum spoolss_DeviceModeICMIntent
+#ifndef USE_UINT_ENUMS
+ {
+	DMICM_SATURATE=(int)(0x00000001),
+	DMICM_CONTRAST=(int)(0x00000002),
+	DMICM_COLORIMETRIC=(int)(0x00000003),
+	DMICM_ABS_COLORIMETRIC=(int)(0x00000004)
+}
+#else
+ { __donnot_use_enum_spoolss_DeviceModeICMIntent=0x7FFFFFFF}
+#define DMICM_SATURATE ( 0x00000001 )
+#define DMICM_CONTRAST ( 0x00000002 )
+#define DMICM_COLORIMETRIC ( 0x00000003 )
+#define DMICM_ABS_COLORIMETRIC ( 0x00000004 )
+#endif
+;
+
+enum spoolss_DeviceModeMediaType
+#ifndef USE_UINT_ENUMS
+ {
+	DMMEDIA_STANDARD=(int)(0x00000001),
+	DMMEDIA_TRANSPARENCY=(int)(0x00000002),
+	DMMEDIA_GLOSSY=(int)(0x00000003)
+}
+#else
+ { __donnot_use_enum_spoolss_DeviceModeMediaType=0x7FFFFFFF}
+#define DMMEDIA_STANDARD ( 0x00000001 )
+#define DMMEDIA_TRANSPARENCY ( 0x00000002 )
+#define DMMEDIA_GLOSSY ( 0x00000003 )
+#endif
+;
+
+enum spoolss_DeviceModeDitherType
+#ifndef USE_UINT_ENUMS
+ {
+	DMDITHER_NONE=(int)(0x00000001),
+	DMDITHER_COARSE=(int)(0x00000002),
+	DMDITHER_FINE=(int)(0x00000003),
+	DMDITHER_LINEART=(int)(0x00000004),
+	DMDITHER_ERRORDIFFUSION=(int)(0x00000005),
+	DMDITHER_RESERVED6=(int)(0x00000006),
+	DMDITHER_RESERVED7=(int)(0x00000007),
+	DMDITHER_RESERVED8=(int)(0x00000008),
+	DMDITHER_RESERVED9=(int)(0x00000009),
+	DMDITHER_GRAYSCALE=(int)(0x0000000A)
+}
+#else
+ { __donnot_use_enum_spoolss_DeviceModeDitherType=0x7FFFFFFF}
+#define DMDITHER_NONE ( 0x00000001 )
+#define DMDITHER_COARSE ( 0x00000002 )
+#define DMDITHER_FINE ( 0x00000003 )
+#define DMDITHER_LINEART ( 0x00000004 )
+#define DMDITHER_ERRORDIFFUSION ( 0x00000005 )
+#define DMDITHER_RESERVED6 ( 0x00000006 )
+#define DMDITHER_RESERVED7 ( 0x00000007 )
+#define DMDITHER_RESERVED8 ( 0x00000008 )
+#define DMDITHER_RESERVED9 ( 0x00000009 )
+#define DMDITHER_GRAYSCALE ( 0x0000000A )
+#endif
+;
+
 struct spoolss_DeviceMode {
 	const char *devicename;/* [charset(UTF16)] */
-	uint16_t specversion;
+	enum spoolss_DeviceModeSpecVersion specversion;
 	uint16_t driverversion;
 	uint16_t size;
 	uint16_t __driverextra_length;/* [value(r->driverextra_data.length)] */
 	uint32_t fields;
-	uint16_t orientation;
-	uint16_t papersize;
+	enum spoolss_DeviceModeOrientation orientation;
+	enum spoolss_DeviceModePaperSize papersize;
 	uint16_t paperlength;
 	uint16_t paperwidth;
 	uint16_t scale;
 	uint16_t copies;
-	uint16_t defaultsource;
-	uint16_t printquality;
-	uint16_t color;
-	uint16_t duplex;
+	enum spoolss_DeviceModeDefaultSource defaultsource;
+	enum spoolss_DeviceModePrintQuality printquality;
+	enum spoolss_DeviceModeColor color;
+	enum spoolss_DeviceModeDuplex duplex;
 	uint16_t yresolution;
-	uint16_t ttoption;
-	uint16_t collate;
+	enum spoolss_DeviceModeTTOption ttoption;
+	enum spoolss_DeviceModeCollate collate;
 	const char *formname;/* [charset(UTF16)] */
 	uint16_t logpixels;
 	uint32_t bitsperpel;
 	uint32_t pelswidth;
 	uint32_t pelsheight;
-	uint32_t displayflags;
+	enum spoolss_DeviceModeNUp displayflags;
 	uint32_t displayfrequency;
-	uint32_t icmmethod;
-	uint32_t icmintent;
-	uint32_t mediatype;
-	uint32_t dithertype;
+	enum spoolss_DeviceModeICMMethod icmmethod;
+	enum spoolss_DeviceModeICMIntent icmintent;
+	enum spoolss_DeviceModeMediaType mediatype;
+	enum spoolss_DeviceModeDitherType dithertype;
 	uint32_t reserved1;
 	uint32_t reserved2;
 	uint32_t panningwidth;
@@ -297,13 +784,6 @@ struct spoolss_DeviceMode {
 #define PRINTER_ENUM_ICON8 ( 0x00800000 )
 #define PRINTER_ENUM_HIDE ( 0x01000000 )
 
-struct spoolss_PrinterInfo1 {
-	uint32_t flags;
-	const char * description;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
-	const char * name;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
-	const char * comment;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
-}/* [gensize,public] */;
-
 /* bitmap spoolss_PrinterAttributes */
 #define PRINTER_ATTRIBUTE_QUEUED ( 0x00000001 )
 #define PRINTER_ATTRIBUTE_DIRECT ( 0x00000002 )
@@ -321,6 +801,13 @@ struct spoolss_PrinterInfo1 {
 #define PRINTER_ATTRIBUTE_PUBLISHED ( 0x00002000 )
 #define PRINTER_ATTRIBUTE_FAX ( 0x00004000 )
 #define PRINTER_ATTRIBUTE_TS ( 0x00008000 )
+
+struct spoolss_PrinterInfo1 {
+	uint32_t flags;
+	const char * description;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
+	const char * name;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
+	const char * comment;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
+}/* [gensize,public] */;
 
 struct spoolss_PrinterInfo2 {
 	const char * servername;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
@@ -568,15 +1055,15 @@ struct spoolss_JobInfoContainer {
 enum spoolss_JobControl
 #ifndef USE_UINT_ENUMS
  {
-	SPOOLSS_JOB_CONTROL_PAUSE=1,
-	SPOOLSS_JOB_CONTROL_RESUME=2,
-	SPOOLSS_JOB_CONTROL_CANCEL=3,
-	SPOOLSS_JOB_CONTROL_RESTART=4,
-	SPOOLSS_JOB_CONTROL_DELETE=5,
-	SPOOLSS_JOB_CONTROL_SEND_TO_PRINTER=6,
-	SPOOLSS_JOB_CONTROL_LAST_PAGE_EJECTED=7,
-	SPOOLSS_JOB_CONTROL_RETAIN=8,
-	SPOOLSS_JOB_CONTROL_RELEASE=9
+	SPOOLSS_JOB_CONTROL_PAUSE=(int)(1),
+	SPOOLSS_JOB_CONTROL_RESUME=(int)(2),
+	SPOOLSS_JOB_CONTROL_CANCEL=(int)(3),
+	SPOOLSS_JOB_CONTROL_RESTART=(int)(4),
+	SPOOLSS_JOB_CONTROL_DELETE=(int)(5),
+	SPOOLSS_JOB_CONTROL_SEND_TO_PRINTER=(int)(6),
+	SPOOLSS_JOB_CONTROL_LAST_PAGE_EJECTED=(int)(7),
+	SPOOLSS_JOB_CONTROL_RETAIN=(int)(8),
+	SPOOLSS_JOB_CONTROL_RELEASE=(int)(9)
 }
 #else
  { __donnot_use_enum_spoolss_JobControl=0x7FFFFFFF}
@@ -595,11 +1082,11 @@ enum spoolss_JobControl
 enum spoolss_PrinterControl
 #ifndef USE_UINT_ENUMS
  {
-	SPOOLSS_PRINTER_CONTROL_UNPAUSE=0,
-	SPOOLSS_PRINTER_CONTROL_PAUSE=1,
-	SPOOLSS_PRINTER_CONTROL_RESUME=2,
-	SPOOLSS_PRINTER_CONTROL_PURGE=3,
-	SPOOLSS_PRINTER_CONTROL_SET_STATUS=4
+	SPOOLSS_PRINTER_CONTROL_UNPAUSE=(int)(0),
+	SPOOLSS_PRINTER_CONTROL_PAUSE=(int)(1),
+	SPOOLSS_PRINTER_CONTROL_RESUME=(int)(2),
+	SPOOLSS_PRINTER_CONTROL_PURGE=(int)(3),
+	SPOOLSS_PRINTER_CONTROL_SET_STATUS=(int)(4)
 }
 #else
  { __donnot_use_enum_spoolss_PrinterControl=0x7FFFFFFF}
@@ -739,10 +1226,10 @@ struct spoolss_AddDriverInfo1 {
 enum spoolss_DriverOSVersion
 #ifndef USE_UINT_ENUMS
  {
-	SPOOLSS_DRIVER_VERSION_9X=0,
-	SPOOLSS_DRIVER_VERSION_NT35=1,
-	SPOOLSS_DRIVER_VERSION_NT4=2,
-	SPOOLSS_DRIVER_VERSION_200X=3
+	SPOOLSS_DRIVER_VERSION_9X=(int)(0),
+	SPOOLSS_DRIVER_VERSION_NT35=(int)(1),
+	SPOOLSS_DRIVER_VERSION_NT4=(int)(2),
+	SPOOLSS_DRIVER_VERSION_200X=(int)(3)
 }
 #else
  { __donnot_use_enum_spoolss_DriverOSVersion=0x7FFFFFFF}
@@ -947,6 +1434,14 @@ struct spoolss_DriverInfo6 {
 	const char * provider;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
 }/* [gensize,public] */;
 
+struct spoolss_DriverInfo7 {
+	uint32_t size;
+	enum spoolss_DriverOSVersion version;
+	const char * driver_name;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
+	const char * inf_name;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
+	const char * install_source_root;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
+}/* [gensize,public] */;
+
 struct spoolss_DriverInfo8 {
 	enum spoolss_DriverOSVersion version;
 	const char * driver_name;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
@@ -955,9 +1450,9 @@ struct spoolss_DriverInfo8 {
 	const char * data_file;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
 	const char * config_file;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
 	const char * help_file;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
+	const char ** dependent_files;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
 	const char * monitor_name;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
 	const char * default_datatype;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
-	const char ** dependent_files;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
 	const char ** previous_names;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
 	NTTIME driver_date;
 	uint64_t driver_version;
@@ -978,11 +1473,11 @@ struct spoolss_DriverInfo8 {
 enum spoolss_DriverFileType
 #ifndef USE_UINT_ENUMS
  {
-	SPOOLSS_DRIVER_FILE_TYPE_RENDERING=0x00000000,
-	SPOOLSS_DRIVER_FILE_TYPE_CONFIGURATION=0x00000001,
-	SPOOLSS_DRIVER_FILE_TYPE_DATA=0x00000002,
-	SPOOLSS_DRIVER_FILE_TYPE_HELP=0x00000003,
-	SPOOLSS_DRIVER_FILE_TYPE_OTHER=0x00000004
+	SPOOLSS_DRIVER_FILE_TYPE_RENDERING=(int)(0x00000000),
+	SPOOLSS_DRIVER_FILE_TYPE_CONFIGURATION=(int)(0x00000001),
+	SPOOLSS_DRIVER_FILE_TYPE_DATA=(int)(0x00000002),
+	SPOOLSS_DRIVER_FILE_TYPE_HELP=(int)(0x00000003),
+	SPOOLSS_DRIVER_FILE_TYPE_OTHER=(int)(0x00000004)
 }
 #else
  { __donnot_use_enum_spoolss_DriverFileType=0x7FFFFFFF}
@@ -1024,6 +1519,7 @@ union spoolss_DriverInfo {
 	struct spoolss_DriverInfo4 info4;/* [case(4)] */
 	struct spoolss_DriverInfo5 info5;/* [case(5)] */
 	struct spoolss_DriverInfo6 info6;/* [case(6)] */
+	struct spoolss_DriverInfo7 info7;/* [case(7)] */
 	struct spoolss_DriverInfo8 info8;/* [case(8)] */
 	struct spoolss_DriverInfo101 info101;/* [case(101)] */
 }/* [gensize,relative_base,nodiscriminant,public,flag(LIBNDR_FLAG_RELATIVE_REVERSE)] */;
@@ -1067,7 +1563,7 @@ struct spoolss_OSVersion {
 	uint32_t major;
 	uint32_t minor;
 	uint32_t build;
-	uint32_t unknown;/* [value(2)] */
+	uint32_t platform_id;/* [value(2)] */
 	const char * extra_string;/* [subcontext_size(256),subcontext(0),flag(LIBNDR_FLAG_STR_NULLTERM)] */
 }/* [gensize,public] */;
 
@@ -1076,10 +1572,13 @@ struct spoolss_OSVersionEx {
 	uint32_t major;
 	uint32_t minor;
 	uint32_t build;
-	uint32_t unknown1;/* [value(2)] */
+	uint32_t platform_id;/* [value(2)] */
 	const char * extra_string;/* [subcontext_size(256),subcontext(0),flag(LIBNDR_FLAG_STR_NULLTERM)] */
-	uint32_t unknown2;
-	uint32_t unknown3;
+	uint16_t service_pack_major;
+	uint16_t service_pack_minor;
+	uint16_t suite_mask;
+	uint8_t product_type;
+	uint8_t reserved;
 }/* [gensize,public] */;
 
 union spoolss_PrinterData {
@@ -1088,14 +1587,14 @@ union spoolss_PrinterData {
 	uint32_t value;/* [case(REG_DWORD)] */
 	const char ** string_array;/* [flag(LIBNDR_FLAG_STR_NULLTERM),case(REG_MULTI_SZ)] */
 	DATA_BLOB data;/* [flag(LIBNDR_FLAG_REMAINING),default] */
-}/* [gensize,public,nodiscriminant] */;
+}/* [nodiscriminant,public] */;
 
 enum spoolss_FormFlags
 #ifndef USE_UINT_ENUMS
  {
-	SPOOLSS_FORM_USER=0,
-	SPOOLSS_FORM_BUILTIN=1,
-	SPOOLSS_FORM_PRINTER=2
+	SPOOLSS_FORM_USER=(int)(0),
+	SPOOLSS_FORM_BUILTIN=(int)(1),
+	SPOOLSS_FORM_PRINTER=(int)(2)
 }
 #else
  { __donnot_use_enum_spoolss_FormFlags=0x7FFFFFFF}
@@ -1139,7 +1638,8 @@ struct spoolss_FormInfo2 {
 	const char * mui_dll;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
 	uint32_t ressource_id;
 	const char * display_name;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
-	uint32_t lang_id;
+	uint16_t lang_id;
+	uint16_t unused;
 }/* [gensize,public] */;
 
 union spoolss_FormInfo {
@@ -1193,19 +1693,19 @@ struct spoolss_PortInfo2 {
 enum spoolss_PortStatus
 #ifndef USE_UINT_ENUMS
  {
-	PORT_STATUS_CLEAR=0x00000000,
-	PORT_STATUS_OFFLINE=0x00000001,
-	PORT_STATUS_PAPER_JAM=0x00000002,
-	PORT_STATUS_PAPER_OUT=0x00000003,
-	PORT_STATUS_OUTPUT_BIN_FULL=0x00000004,
-	PORT_STATUS_PAPER_PROBLEM=0x00000005,
-	PORT_STATUS_NO_TONER=0x00000006,
-	PORT_STATUS_DOOR_OPEN=0x00000007,
-	PORT_STATUS_USER_INTERVENTION=0x00000008,
-	PORT_STATUS_OUT_OF_MEMORY=0x00000009,
-	PORT_STATUS_TONER_LOW=0x0000000A,
-	PORT_STATUS_WARMING_UP=0x0000000B,
-	PORT_STATUS_POWER_SAVE=0x0000000C
+	PORT_STATUS_CLEAR=(int)(0x00000000),
+	PORT_STATUS_OFFLINE=(int)(0x00000001),
+	PORT_STATUS_PAPER_JAM=(int)(0x00000002),
+	PORT_STATUS_PAPER_OUT=(int)(0x00000003),
+	PORT_STATUS_OUTPUT_BIN_FULL=(int)(0x00000004),
+	PORT_STATUS_PAPER_PROBLEM=(int)(0x00000005),
+	PORT_STATUS_NO_TONER=(int)(0x00000006),
+	PORT_STATUS_DOOR_OPEN=(int)(0x00000007),
+	PORT_STATUS_USER_INTERVENTION=(int)(0x00000008),
+	PORT_STATUS_OUT_OF_MEMORY=(int)(0x00000009),
+	PORT_STATUS_TONER_LOW=(int)(0x0000000A),
+	PORT_STATUS_WARMING_UP=(int)(0x0000000B),
+	PORT_STATUS_POWER_SAVE=(int)(0x0000000C)
 }
 #else
  { __donnot_use_enum_spoolss_PortStatus=0x7FFFFFFF}
@@ -1228,9 +1728,9 @@ enum spoolss_PortStatus
 enum spoolss_PortSeverity
 #ifndef USE_UINT_ENUMS
  {
-	PORT_STATUS_TYPE_ERROR=0x00000001,
-	PORT_STATUS_TYPE_WARNING=0x00000002,
-	PORT_STATUS_TYPE_INFO=0x00000003
+	PORT_STATUS_TYPE_ERROR=(int)(0x00000001),
+	PORT_STATUS_TYPE_WARNING=(int)(0x00000002),
+	PORT_STATUS_TYPE_INFO=(int)(0x00000003)
 }
 #else
  { __donnot_use_enum_spoolss_PortSeverity=0x7FFFFFFF}
@@ -1307,30 +1807,30 @@ union spoolss_PrintProcDataTypesInfo {
 enum spoolss_JobNotifyField
 #ifndef USE_UINT_ENUMS
  {
-	JOB_NOTIFY_FIELD_PRINTER_NAME=0x00,
-	JOB_NOTIFY_FIELD_MACHINE_NAME=0x01,
-	JOB_NOTIFY_FIELD_PORT_NAME=0x02,
-	JOB_NOTIFY_FIELD_USER_NAME=0x03,
-	JOB_NOTIFY_FIELD_NOTIFY_NAME=0x04,
-	JOB_NOTIFY_FIELD_DATATYPE=0x05,
-	JOB_NOTIFY_FIELD_PRINT_PROCESSOR=0x06,
-	JOB_NOTIFY_FIELD_PARAMETERS=0x07,
-	JOB_NOTIFY_FIELD_DRIVER_NAME=0x08,
-	JOB_NOTIFY_FIELD_DEVMODE=0x09,
-	JOB_NOTIFY_FIELD_STATUS=0x0a,
-	JOB_NOTIFY_FIELD_STATUS_STRING=0x0b,
-	JOB_NOTIFY_FIELD_SECURITY_DESCRIPTOR=0x0c,
-	JOB_NOTIFY_FIELD_DOCUMENT=0x0d,
-	JOB_NOTIFY_FIELD_PRIORITY=0x0e,
-	JOB_NOTIFY_FIELD_POSITION=0x0f,
-	JOB_NOTIFY_FIELD_SUBMITTED=0x10,
-	JOB_NOTIFY_FIELD_START_TIME=0x11,
-	JOB_NOTIFY_FIELD_UNTIL_TIME=0x12,
-	JOB_NOTIFY_FIELD_TIME=0x13,
-	JOB_NOTIFY_FIELD_TOTAL_PAGES=0x14,
-	JOB_NOTIFY_FIELD_PAGES_PRINTED=0x15,
-	JOB_NOTIFY_FIELD_TOTAL_BYTES=0x16,
-	JOB_NOTIFY_FIELD_BYTES_PRINTED=0x17
+	JOB_NOTIFY_FIELD_PRINTER_NAME=(int)(0x00),
+	JOB_NOTIFY_FIELD_MACHINE_NAME=(int)(0x01),
+	JOB_NOTIFY_FIELD_PORT_NAME=(int)(0x02),
+	JOB_NOTIFY_FIELD_USER_NAME=(int)(0x03),
+	JOB_NOTIFY_FIELD_NOTIFY_NAME=(int)(0x04),
+	JOB_NOTIFY_FIELD_DATATYPE=(int)(0x05),
+	JOB_NOTIFY_FIELD_PRINT_PROCESSOR=(int)(0x06),
+	JOB_NOTIFY_FIELD_PARAMETERS=(int)(0x07),
+	JOB_NOTIFY_FIELD_DRIVER_NAME=(int)(0x08),
+	JOB_NOTIFY_FIELD_DEVMODE=(int)(0x09),
+	JOB_NOTIFY_FIELD_STATUS=(int)(0x0a),
+	JOB_NOTIFY_FIELD_STATUS_STRING=(int)(0x0b),
+	JOB_NOTIFY_FIELD_SECURITY_DESCRIPTOR=(int)(0x0c),
+	JOB_NOTIFY_FIELD_DOCUMENT=(int)(0x0d),
+	JOB_NOTIFY_FIELD_PRIORITY=(int)(0x0e),
+	JOB_NOTIFY_FIELD_POSITION=(int)(0x0f),
+	JOB_NOTIFY_FIELD_SUBMITTED=(int)(0x10),
+	JOB_NOTIFY_FIELD_START_TIME=(int)(0x11),
+	JOB_NOTIFY_FIELD_UNTIL_TIME=(int)(0x12),
+	JOB_NOTIFY_FIELD_TIME=(int)(0x13),
+	JOB_NOTIFY_FIELD_TOTAL_PAGES=(int)(0x14),
+	JOB_NOTIFY_FIELD_PAGES_PRINTED=(int)(0x15),
+	JOB_NOTIFY_FIELD_TOTAL_BYTES=(int)(0x16),
+	JOB_NOTIFY_FIELD_BYTES_PRINTED=(int)(0x17)
 }
 #else
  { __donnot_use_enum_spoolss_JobNotifyField=0x7FFFFFFF}
@@ -1364,34 +1864,34 @@ enum spoolss_JobNotifyField
 enum spoolss_PrintNotifyField
 #ifndef USE_UINT_ENUMS
  {
-	PRINTER_NOTIFY_FIELD_SERVER_NAME=0x00,
-	PRINTER_NOTIFY_FIELD_PRINTER_NAME=0x01,
-	PRINTER_NOTIFY_FIELD_SHARE_NAME=0x02,
-	PRINTER_NOTIFY_FIELD_PORT_NAME=0x03,
-	PRINTER_NOTIFY_FIELD_DRIVER_NAME=0x04,
-	PRINTER_NOTIFY_FIELD_COMMENT=0x05,
-	PRINTER_NOTIFY_FIELD_LOCATION=0x06,
-	PRINTER_NOTIFY_FIELD_DEVMODE=0x07,
-	PRINTER_NOTIFY_FIELD_SEPFILE=0x08,
-	PRINTER_NOTIFY_FIELD_PRINT_PROCESSOR=0x09,
-	PRINTER_NOTIFY_FIELD_PARAMETERS=0x0a,
-	PRINTER_NOTIFY_FIELD_DATATYPE=0x0b,
-	PRINTER_NOTIFY_FIELD_SECURITY_DESCRIPTOR=0x0c,
-	PRINTER_NOTIFY_FIELD_ATTRIBUTES=0x0d,
-	PRINTER_NOTIFY_FIELD_PRIORITY=0x0e,
-	PRINTER_NOTIFY_FIELD_DEFAULT_PRIORITY=0x0f,
-	PRINTER_NOTIFY_FIELD_START_TIME=0x10,
-	PRINTER_NOTIFY_FIELD_UNTIL_TIME=0x11,
-	PRINTER_NOTIFY_FIELD_STATUS=0x12,
-	PRINTER_NOTIFY_FIELD_STATUS_STRING=0x13,
-	PRINTER_NOTIFY_FIELD_CJOBS=0x14,
-	PRINTER_NOTIFY_FIELD_AVERAGE_PPM=0x15,
-	PRINTER_NOTIFY_FIELD_TOTAL_PAGES=0x16,
-	PRINTER_NOTIFY_FIELD_PAGES_PRINTED=0x17,
-	PRINTER_NOTIFY_FIELD_TOTAL_BYTES=0x18,
-	PRINTER_NOTIFY_FIELD_BYTES_PRINTED=0x19,
-	PRINTER_NOTIFY_FIELD_OBJECT_GUID=0x1a,
-	PRINTER_NOTIFY_FIELD_FRIENDLY_NAME=0x1b
+	PRINTER_NOTIFY_FIELD_SERVER_NAME=(int)(0x00),
+	PRINTER_NOTIFY_FIELD_PRINTER_NAME=(int)(0x01),
+	PRINTER_NOTIFY_FIELD_SHARE_NAME=(int)(0x02),
+	PRINTER_NOTIFY_FIELD_PORT_NAME=(int)(0x03),
+	PRINTER_NOTIFY_FIELD_DRIVER_NAME=(int)(0x04),
+	PRINTER_NOTIFY_FIELD_COMMENT=(int)(0x05),
+	PRINTER_NOTIFY_FIELD_LOCATION=(int)(0x06),
+	PRINTER_NOTIFY_FIELD_DEVMODE=(int)(0x07),
+	PRINTER_NOTIFY_FIELD_SEPFILE=(int)(0x08),
+	PRINTER_NOTIFY_FIELD_PRINT_PROCESSOR=(int)(0x09),
+	PRINTER_NOTIFY_FIELD_PARAMETERS=(int)(0x0a),
+	PRINTER_NOTIFY_FIELD_DATATYPE=(int)(0x0b),
+	PRINTER_NOTIFY_FIELD_SECURITY_DESCRIPTOR=(int)(0x0c),
+	PRINTER_NOTIFY_FIELD_ATTRIBUTES=(int)(0x0d),
+	PRINTER_NOTIFY_FIELD_PRIORITY=(int)(0x0e),
+	PRINTER_NOTIFY_FIELD_DEFAULT_PRIORITY=(int)(0x0f),
+	PRINTER_NOTIFY_FIELD_START_TIME=(int)(0x10),
+	PRINTER_NOTIFY_FIELD_UNTIL_TIME=(int)(0x11),
+	PRINTER_NOTIFY_FIELD_STATUS=(int)(0x12),
+	PRINTER_NOTIFY_FIELD_STATUS_STRING=(int)(0x13),
+	PRINTER_NOTIFY_FIELD_CJOBS=(int)(0x14),
+	PRINTER_NOTIFY_FIELD_AVERAGE_PPM=(int)(0x15),
+	PRINTER_NOTIFY_FIELD_TOTAL_PAGES=(int)(0x16),
+	PRINTER_NOTIFY_FIELD_PAGES_PRINTED=(int)(0x17),
+	PRINTER_NOTIFY_FIELD_TOTAL_BYTES=(int)(0x18),
+	PRINTER_NOTIFY_FIELD_BYTES_PRINTED=(int)(0x19),
+	PRINTER_NOTIFY_FIELD_OBJECT_GUID=(int)(0x1a),
+	PRINTER_NOTIFY_FIELD_FRIENDLY_NAME=(int)(0x1b)
 }
 #else
  { __donnot_use_enum_spoolss_PrintNotifyField=0x7FFFFFFF}
@@ -1429,8 +1929,8 @@ enum spoolss_PrintNotifyField
 enum spoolss_NotifyType
 #ifndef USE_UINT_ENUMS
  {
-	PRINTER_NOTIFY_TYPE=0x00,
-	JOB_NOTIFY_TYPE=0x01
+	PRINTER_NOTIFY_TYPE=(int)(0x00),
+	JOB_NOTIFY_TYPE=(int)(0x01)
 }
 #else
  { __donnot_use_enum_spoolss_NotifyType=0x7FFFFFFF}
@@ -1470,11 +1970,11 @@ struct spoolss_NotifyString {
 enum spoolss_NotifyTable
 #ifndef USE_UINT_ENUMS
  {
-	NOTIFY_TABLE_DWORD=0x0001,
-	NOTIFY_TABLE_STRING=0x0002,
-	NOTIFY_TABLE_DEVMODE=0x0003,
-	NOTIFY_TABLE_TIME=0x0004,
-	NOTIFY_TABLE_SECURITYDESCRIPTOR=0x0005
+	NOTIFY_TABLE_DWORD=(int)(0x0001),
+	NOTIFY_TABLE_STRING=(int)(0x0002),
+	NOTIFY_TABLE_DEVMODE=(int)(0x0003),
+	NOTIFY_TABLE_TIME=(int)(0x0004),
+	NOTIFY_TABLE_SECURITYDESCRIPTOR=(int)(0x0005)
 }
 #else
  { __donnot_use_enum_spoolss_NotifyTable=0x7FFFFFFF}
@@ -1584,8 +2084,8 @@ union spoolss_KeyNames {
 enum spoolss_PortProtocol
 #ifndef USE_UINT_ENUMS
  {
-	PROTOCOL_RAWTCP_TYPE=1,
-	PROTOCOL_LPR_TYPE=2
+	PROTOCOL_RAWTCP_TYPE=(int)(1),
+	PROTOCOL_LPR_TYPE=(int)(2)
 }
 #else
  { __donnot_use_enum_spoolss_PortProtocol=0x7FFFFFFF}
@@ -1642,6 +2142,13 @@ struct spoolss_MonitorUi {
 #define APD_DONT_COPY_FILES_TO_CLUSTER ( 0x00001000 )
 #define APD_COPY_TO_ALL_SPOOLERS ( 0x00002000 )
 #define APD_RETURN_BLOCKING_STATUS_CODE ( 0x00010000 )
+
+struct spoolss_CorePrinterDriver {
+	struct GUID core_driver_guid;
+	NTTIME driver_date;
+	uint64_t driver_version;
+	const char *formname;/* [charset(UTF8)] */
+};
 
 
 struct _spoolss_EnumPrinters {
@@ -1799,6 +2306,14 @@ struct spoolss_EnumJobs {
 
 struct spoolss_AddPrinter {
 	struct {
+		const char *server;/* [unique,charset(UTF16)] */
+		struct spoolss_SetPrinterInfoCtr *info_ctr;/* [ref] */
+		struct spoolss_DevmodeContainer *devmode_ctr;/* [ref] */
+		struct sec_desc_buf *secdesc_ctr;/* [ref] */
+	} in;
+
+	struct {
+		struct policy_handle *handle;/* [ref] */
 		WERROR result;
 	} out;
 
@@ -1916,6 +2431,16 @@ struct spoolss_EnumPrinterDrivers {
 
 struct spoolss_GetPrinterDriver {
 	struct {
+		struct policy_handle *handle;/* [ref] */
+		const char *architecture;/* [unique,charset(UTF16)] */
+		uint32_t level;
+		DATA_BLOB *buffer;/* [unique] */
+		uint32_t offered;
+	} in;
+
+	struct {
+		union spoolss_DriverInfo *info;/* [unique,subcontext_size(offered),subcontext(4),switch_is(level)] */
+		uint32_t *needed;/* [ref] */
 		WERROR result;
 	} out;
 
@@ -2454,6 +2979,12 @@ struct spoolss_DeletePort {
 
 struct spoolss_CreatePrinterIC {
 	struct {
+		struct policy_handle *handle;/* [ref] */
+		struct spoolss_DevmodeContainer *devmode_ctr;/* [ref] */
+	} in;
+
+	struct {
+		struct policy_handle *gdi_handle;/* [ref] */
 		WERROR result;
 	} out;
 
@@ -2470,6 +3001,11 @@ struct spoolss_PlayGDIScriptOnPrinterIC {
 
 struct spoolss_DeletePrinterIC {
 	struct {
+		struct policy_handle *gdi_handle;/* [ref] */
+	} in;
+
+	struct {
+		struct policy_handle *gdi_handle;/* [ref] */
 		WERROR result;
 	} out;
 
@@ -3145,6 +3681,138 @@ struct spoolss_5e {
 
 
 struct spoolss_5f {
+	struct {
+		WERROR result;
+	} out;
+
+};
+
+
+struct spoolss_60 {
+	struct {
+		WERROR result;
+	} out;
+
+};
+
+
+struct spoolss_61 {
+	struct {
+		WERROR result;
+	} out;
+
+};
+
+
+struct spoolss_62 {
+	struct {
+		WERROR result;
+	} out;
+
+};
+
+
+struct spoolss_63 {
+	struct {
+		WERROR result;
+	} out;
+
+};
+
+
+struct spoolss_64 {
+	struct {
+		WERROR result;
+	} out;
+
+};
+
+
+struct spoolss_65 {
+	struct {
+		WERROR result;
+	} out;
+
+};
+
+
+struct spoolss_GetCorePrinterDrivers {
+	struct {
+		const char *servername;/* [unique,charset(UTF16)] */
+		const char *architecture;/* [ref,charset(UTF16)] */
+		uint32_t core_driver_size;
+		const char *core_driver_dependencies;/* [ref,charset(UTF16),size_is(core_driver_size)] */
+		uint32_t core_printer_driver_count;
+	} in;
+
+	struct {
+		struct spoolss_CorePrinterDriver *core_printer_drivers;/* [ref,size_is(core_printer_driver_count)] */
+		WERROR result;
+	} out;
+
+};
+
+
+struct spoolss_67 {
+	struct {
+		WERROR result;
+	} out;
+
+};
+
+
+struct spoolss_GetPrinterDriverPackagePath {
+	struct {
+		const char *servername;/* [unique,charset(UTF16)] */
+		const char *architecture;/* [ref,charset(UTF16)] */
+		const char *language;/* [unique,charset(UTF16)] */
+		const char *package_id;/* [ref,charset(UTF16)] */
+		uint32_t driver_package_cab_size;
+		const char *driver_package_cab;/* [unique,charset(UTF16),size_is(driver_package_cab_size)] */
+	} in;
+
+	struct {
+		uint32_t *required;/* [ref] */
+		const char *driver_package_cab;/* [unique,charset(UTF16),size_is(driver_package_cab_size)] */
+		WERROR result;
+	} out;
+
+};
+
+
+struct spoolss_69 {
+	struct {
+		WERROR result;
+	} out;
+
+};
+
+
+struct spoolss_6a {
+	struct {
+		WERROR result;
+	} out;
+
+};
+
+
+struct spoolss_6b {
+	struct {
+		WERROR result;
+	} out;
+
+};
+
+
+struct spoolss_6c {
+	struct {
+		WERROR result;
+	} out;
+
+};
+
+
+struct spoolss_6d {
 	struct {
 		WERROR result;
 	} out;

@@ -4,7 +4,7 @@
    generalised event loop handling
 
    INTERNAL STRUCTS. THERE ARE NO API GUARANTEES.
-   External users should only ever have to include this header when
+   External users should only ever have to include this header when 
    implementing new tevent backends.
 
    Copyright (C) Stefan Metzmacher 2005-2009
@@ -142,7 +142,7 @@ struct tevent_req {
 		struct tevent_immediate *trigger;
 
 		/**
-		 * @brief the timer event if tevent_req_set_timeout was used
+		 * @brief the timer event if tevent_req_set_endtime was used
 		 *
 		 */
 		struct tevent_timer *timer;

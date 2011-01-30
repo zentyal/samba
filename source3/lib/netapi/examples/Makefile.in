@@ -22,6 +22,7 @@ PROGS = bin/getdc@EXEEXT@ \
 	bin/netdomjoin@EXEEXT@ \
 	bin/netdomjoin-gui@EXEEXT@ \
 	bin/getjoinableous@EXEEXT@ \
+	bin/getjoininformation@EXEEXT@ \
 	bin/rename_machine@EXEEXT@ \
 	bin/user_add@EXEEXT@ \
 	bin/user_del@EXEEXT@ \
@@ -64,7 +65,10 @@ PROGS = bin/getdc@EXEEXT@ \
 	bin/file_getinfo@EXEEXT@ \
 	bin/file_enum@EXEEXT@ \
 	bin/shutdown_init@EXEEXT@ \
-	bin/shutdown_abort@EXEEXT@
+	bin/shutdown_abort@EXEEXT@ \
+	bin/netlogon_control@EXEEXT@ \
+	bin/netlogon_control2@EXEEXT@ \
+	bin/nltest@EXEEXT@
 
 all: $(PROGS)
 
@@ -98,6 +102,7 @@ DSGETDC_OBJ = dsgetdc/dsgetdc.o $(CMDLINE_OBJ)
 NETDOMJOIN_OBJ = join/netdomjoin.o $(CMDLINE_OBJ)
 NETDOMJOIN_GUI_OBJ = netdomjoin-gui/netdomjoin-gui.o
 GETJOINABLEOUS_OBJ = join/getjoinableous.o $(CMDLINE_OBJ)
+GETJOININFORMATION_OBJ = join/getjoininformation.o $(CMDLINE_OBJ)
 RENAMEMACHINE_OBJ = join/rename_machine.o $(CMDLINE_OBJ)
 USERADD_OBJ = user/user_add.o $(CMDLINE_OBJ)
 USERDEL_OBJ = user/user_del.o $(CMDLINE_OBJ)
@@ -141,6 +146,9 @@ FILEGETINFO_OBJ = file/file_getinfo.o $(CMDLINE_OBJ)
 FILEENUM_OBJ = file/file_enum.o $(CMDLINE_OBJ)
 SHUTDOWNINIT_OBJ = shutdown/shutdown_init.o $(CMDLINE_OBJ)
 SHUTDOWNABORT_OBJ = shutdown/shutdown_abort.o $(CMDLINE_OBJ)
+NETLOGONCONTROL_OBJ = netlogon/netlogon_control.o $(CMDLINE_OBJ)
+NETLOGONCONTROL2_OBJ = netlogon/netlogon_control2.o $(CMDLINE_OBJ)
+NLTEST_OBJ = netlogon/nltest.o $(CMDLINE_OBJ)
 
 bin/getdc@EXEEXT@: $(BINARY_PREREQS) $(GETDC_OBJ)
 	@echo Linking $@
@@ -153,6 +161,10 @@ bin/dsgetdc@EXEEXT@: $(BINARY_PREREQS) $(DSGETDC_OBJ)
 bin/getjoinableous@EXEEXT@: $(BINARY_PREREQS) $(GETJOINABLEOUS_OBJ)
 	@echo Linking $@
 	@$(CC) $(CCFLAGS) -o $@ $(GETJOINABLEOUS_OBJ) $(LDFLAGS) $(DYNEXP) $(CMDLINE_LIBS)
+
+bin/getjoininformation@EXEEXT@: $(BINARY_PREREQS) $(GETJOININFORMATION_OBJ)
+	@echo Linking $@
+	@$(CC) $(CCFLAGS) -o $@ $(GETJOININFORMATION_OBJ) $(LDFLAGS) $(DYNEXP) $(CMDLINE_LIBS)
 
 bin/rename_machine@EXEEXT@: $(BINARY_PREREQS) $(RENAMEMACHINE_OBJ)
 	@echo Linking $@
@@ -333,6 +345,18 @@ bin/shutdown_init@EXEEXT@: $(BINARY_PREREQS) $(SHUTDOWNINIT_OBJ)
 bin/shutdown_abort@EXEEXT@: $(BINARY_PREREQS) $(SHUTDOWNABORT_OBJ)
 	@echo Linking $@
 	@$(CC) $(CCFLAGS) -o $@ $(SHUTDOWNABORT_OBJ) $(LDFLAGS) $(DYNEXP) $(CMDLINE_LIBS)
+
+bin/netlogon_control@EXEEXT@: $(BINARY_PREREQS) $(NETLOGONCONTROL_OBJ)
+	@echo Linking $@
+	@$(CC) $(CCFLAGS) -o $@ $(NETLOGONCONTROL_OBJ) $(LDFLAGS) $(DYNEXP) $(CMDLINE_LIBS)
+
+bin/netlogon_control2@EXEEXT@: $(BINARY_PREREQS) $(NETLOGONCONTROL2_OBJ)
+	@echo Linking $@
+	@$(CC) $(CCFLAGS) -o $@ $(NETLOGONCONTROL2_OBJ) $(LDFLAGS) $(DYNEXP) $(CMDLINE_LIBS)
+
+bin/nltest@EXEEXT@: $(BINARY_PREREQS) $(NLTEST_OBJ)
+	@echo Linking $@
+	@$(CC) $(CCFLAGS) -o $@ $(NLTEST_OBJ) $(LDFLAGS) $(DYNEXP) $(CMDLINE_LIBS)
 
 clean:
 	-rm -f $(PROGS)

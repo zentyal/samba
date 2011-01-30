@@ -205,6 +205,15 @@ bool asn1_write_Integer(struct asn1_data *data, int i)
 	return asn1_pop_tag(data);
 }
 
+/* write a BIT STRING */
+bool asn1_write_BitString(struct asn1_data *data, const void *p, size_t length, uint8_t padding)
+{
+	if (!asn1_push_tag(data, ASN1_BIT_STRING)) return false;
+	if (!asn1_write_uint8(data, padding)) return false;
+	if (!asn1_write(data, p, length)) return false;
+	return asn1_pop_tag(data);
+}
+
 bool ber_write_OID_String(DATA_BLOB *blob, const char *OID)
 {
 	uint_t v, v2;
@@ -262,6 +271,7 @@ bool asn1_write_OID(struct asn1_data *data, const char *OID)
 	}
 
 	if (!asn1_write(data, blob.data, blob.length)) {
+		data_blob_free(&blob);
 		data->has_error = true;
 		return false;
 	}
@@ -322,6 +332,29 @@ bool asn1_read_BOOLEAN(struct asn1_data *data, bool *v)
 {
 	uint8_t tmp = 0;
 	asn1_start_tag(data, ASN1_BOOLEAN);
+	asn1_read_uint8(data, &tmp);
+	if (tmp == 0xFF) {
+		*v = true;
+	} else {
+		*v = false;
+	}
+	asn1_end_tag(data);
+	return !data->has_error;
+}
+
+/* write a BOOLEAN in a simple context */
+bool asn1_write_BOOLEAN_context(struct asn1_data *data, bool v, int context)
+{
+	asn1_push_tag(data, ASN1_CONTEXT_SIMPLE(context));
+	asn1_write_uint8(data, v ? 0xFF : 0);
+	asn1_pop_tag(data);
+	return !data->has_error;
+}
+
+bool asn1_read_BOOLEAN_context(struct asn1_data *data, bool *v, int context)
+{
+	uint8_t tmp = 0;
+	asn1_start_tag(data, ASN1_CONTEXT_SIMPLE(context));
 	asn1_read_uint8(data, &tmp);
 	if (tmp == 0xFF) {
 		*v = true;
@@ -653,7 +686,7 @@ bool asn1_read_OctetString(struct asn1_data *data, TALLOC_CTX *mem_ctx, DATA_BLO
 	
 	if (data->has_error) {
 		data_blob_free(blob);
-		*blob = data_blob(NULL, 0);
+		*blob = data_blob_null;
 		return false;
 	}
 	return true;
@@ -703,6 +736,39 @@ bool asn1_read_Integer(struct asn1_data *data, int *i)
 	return asn1_end_tag(data);	
 }
 
+/* read a BIT STRING */
+bool asn1_read_BitString(struct asn1_data *data, TALLOC_CTX *mem_ctx, DATA_BLOB *blob, uint8_t *padding)
+{
+	int len;
+	ZERO_STRUCTP(blob);
+	if (!asn1_start_tag(data, ASN1_BIT_STRING)) return false;
+	len = asn1_tag_remaining(data);
+	if (len < 0) {
+		data->has_error = true;
+		return false;
+	}
+	if (!asn1_read_uint8(data, padding)) return false;
+
+	*blob = data_blob_talloc(mem_ctx, NULL, len);
+	if (!blob->data) {
+		data->has_error = true;
+		return false;
+	}
+	if (asn1_read(data, blob->data, len - 1)) {
+		blob->length--;
+		blob->data[len] = 0;
+		asn1_end_tag(data);
+	}
+
+	if (data->has_error) {
+		data_blob_free(blob);
+		*blob = data_blob_null;
+		*padding = 0;
+		return false;
+	}
+	return true;
+}
+
 /* read an integer */
 bool asn1_read_enumerated(struct asn1_data *data, int *v)
 {
@@ -738,6 +804,32 @@ bool asn1_write_enumerated(struct asn1_data *data, uint8_t v)
 	asn1_write_uint8(data, v);
 	asn1_pop_tag(data);
 	return !data->has_error;
+}
+
+/*
+  Get us the data just written without copying
+*/
+bool asn1_blob(const struct asn1_data *asn1, DATA_BLOB *blob)
+{
+	if (asn1->has_error) {
+		return false;
+	}
+	if (asn1->nesting != NULL) {
+		return false;
+	}
+	blob->data = asn1->data;
+	blob->length = asn1->length;
+	return true;
+}
+
+/*
+  Fill in an asn1 struct without making a copy
+*/
+void asn1_load_nocopy(struct asn1_data *data, uint8_t *buf, size_t len)
+{
+	ZERO_STRUCTP(data);
+	data->data = buf;
+	data->length = len;
 }
 
 /*

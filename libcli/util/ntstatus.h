@@ -60,8 +60,8 @@ typedef uint32_t NTSTATUS;
 #define ERROR_INSUFFICIENT_BUFFER	  NT_STATUS(0x007a)
 #define ERROR_INVALID_DATATYPE		  NT_STATUS(0x070c)
 
-/* XXX Win7 Status code: Name unknown. */
-#define NT_STATUS_WIN7_INVALID_RANGE NT_STATUS(0xC0000000 | 0x01a1)
+/* Win7 status codes. */
+#define NT_STATUS_INVALID_LOCK_RANGE      NT_STATUS(0xC0000000 | 0x01a1)
 
 /* Win32 Error codes extracted using a loop in smbclient then printing a
    netmon sniff to a file. */
@@ -595,8 +595,7 @@ typedef uint32_t NTSTATUS;
 #define NT_STATUS_TOO_MANY_LINKS NT_STATUS(0xC0000000 | 0x0265)
 #define NT_STATUS_QUOTA_LIST_INCONSISTENT NT_STATUS(0xC0000000 | 0x0266)
 #define NT_STATUS_FILE_IS_OFFLINE NT_STATUS(0xC0000000 | 0x0267)
-#define NT_STATUS_DS_BUSY NT_STATUS(0xC0000000 | 0x02a5)
-#define NT_STATUS_DS_NO_MORE_RIDS NT_STATUS(0xC0000000 | 0x02a8)
+#define NT_STATUS_DS_NO_MORE_RIDS NT_STATUS(0xC0000000 | 0x02A8)
 #define NT_STATUS_NOT_A_REPARSE_POINT NT_STATUS(0xC0000000 | 0x0275)
 #define NT_STATUS_CURRENT_DOMAIN_NOT_ALLOWED NT_STATUS(0xC0000000 | 0x02E9)
 #define NT_STATUS_OBJECTID_NOT_FOUND NT_STATUS(0xC0000000 | 0x02F0)
@@ -606,7 +605,10 @@ typedef uint32_t NTSTATUS;
 #define NT_STATUS_RPC_PROTSEQ_NOT_SUPPORTED NT_STATUS(0xC0000000 | 0x20004)
 #define NT_STATUS_RPC_UNSUPPORTED_NAME_SYNTAX NT_STATUS(0xC0000000 | 0x20026)
 #define NT_STATUS_RPC_NT_CALL_FAILED NT_STATUS(0xC0000000 | 0x2001B)
-
+#define NT_STATUS_RPC_NT_PROTOCOL_ERROR NT_STATUS(0xC0000000 | 0x2001D)
+#define NT_STATUS_RPC_NT_PROCNUM_OUT_OF_RANGE NT_STATUS(0xC0000000 | 0x2002E)
+#define NT_STATUS_ERROR_DS_OBJ_STRING_NAME_EXISTS NT_STATUS(0xC0000000 | 0x2071)
+#define NT_STATUS_ERROR_DS_INCOMPATIBLE_VERSION NT_STATUS(0xC0000000 | 0x00002177)
 
 /* I use NT_STATUS_FOOBAR when I have no idea what error code to use -
  * this means we need a torture test */
@@ -635,8 +637,8 @@ NTSTATUS nt_status_string_to_code(const char *nt_status_str);
 /** Used by ntstatus_dos_equal: */
 extern bool ntstatus_check_dos_mapping;
 
-#define NT_STATUS_IS_OK(x) (NT_STATUS_V(x) == 0)
-#define NT_STATUS_IS_ERR(x) ((NT_STATUS_V(x) & 0xc0000000) == 0xc0000000)
+#define NT_STATUS_IS_OK(x) (likely(NT_STATUS_V(x) == 0))
+#define NT_STATUS_IS_ERR(x) (unlikely((NT_STATUS_V(x) & 0xc0000000) == 0xc0000000))
 /* checking for DOS error mapping here is ugly, but unfortunately the
    alternative is a very intrusive rewrite of the torture code */
 #if _SAMBA_BUILD_ == 4
@@ -646,7 +648,16 @@ extern bool ntstatus_check_dos_mapping;
 #endif
 
 #define NT_STATUS_HAVE_NO_MEMORY(x) do { \
+	if (unlikely(!(x))) {		\
+		return NT_STATUS_NO_MEMORY;\
+	}\
+} while (0)
+
+/* This varient is for when you want to free a local
+   temporary memory context in the error path */
+#define NT_STATUS_HAVE_NO_MEMORY_AND_FREE(x, ctx) do {	\
 	if (!(x)) {\
+		talloc_free(ctx); \
 		return NT_STATUS_NO_MEMORY;\
 	}\
 } while (0)

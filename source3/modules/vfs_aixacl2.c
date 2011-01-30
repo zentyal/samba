@@ -162,7 +162,8 @@ static NTSTATUS aixjfs2_fget_nt_acl(vfs_handle_struct *handle,
 	bool	retryPosix = False;
 
 	*ppdesc = NULL;
-	result = aixjfs2_get_nfs4_acl(fsp->fsp_name, &pacl, &retryPosix);
+	result = aixjfs2_get_nfs4_acl(fsp->fsp_name->base_name, &pacl,
+				      &retryPosix);
 	if (retryPosix)
 	{
 		DEBUG(10, ("retrying with posix acl...\n"));
@@ -258,7 +259,7 @@ SMB_ACL_T aixjfs2_sys_acl_get_fd(vfs_handle_struct *handle,
         acl_type_t aixjfs2_type;
         aixjfs2_type.u64 = ACL_AIXC;
 
-	return aixjfs2_get_posix_acl(fsp->fsp_name, aixjfs2_type);
+	return aixjfs2_get_posix_acl(fsp->fsp_name->base_name, aixjfs2_type);
 }
 
 /*
@@ -304,7 +305,7 @@ static bool aixjfs2_process_smbacl(files_struct *fsp, SMB4ACL_T *smbacl)
 	int	rc;
 	acl_type_t	acltype;
 
-	DEBUG(10, ("jfs2_process_smbacl invoked on %s\n", fsp->fsp_name));
+	DEBUG(10, ("jfs2_process_smbacl invoked on %s\n", fsp_str_dbg(fsp)));
 
 	/* no need to be freed which is alloced with mem_ctx */
 	mem_ctx = talloc_tos();
@@ -353,7 +354,7 @@ static bool aixjfs2_process_smbacl(files_struct *fsp, SMB4ACL_T *smbacl)
 
 	/* won't set S_ISUID - the only one JFS2/NFS4 accepts */
 	rc = aclx_put(
-		fsp->fsp_name,
+		fsp->fsp_name->base_name,
 		SET_ACL, /* set only the ACL, not mode bits */
 		acltype, /* not a pointer !!! */
 		jfs2acl,
@@ -444,9 +445,10 @@ int aixjfs2_sys_acl_set_fd(vfs_handle_struct *handle,
 	acl_type_t	acl_type_info;
 	int	rc;
 
-	DEBUG(10, ("aixjfs2_sys_acl_set_fd invoked for %s", fsp->fsp_name));
+	DEBUG(10, ("aixjfs2_sys_acl_set_fd invoked for %s", fsp_str_dbg(fsp)));
 
-	rc = aixjfs2_query_acl_support(fsp->fsp_name, ACL_AIXC, &acl_type_info);
+	rc = aixjfs2_query_acl_support(fsp->fsp_name->base_name, ACL_AIXC,
+				       &acl_type_info);
 	if (rc) {
 		DEBUG(8, ("jfs2_set_nt_acl: AIXC support not found\n"));
 		return -1;
@@ -466,7 +468,7 @@ int aixjfs2_sys_acl_set_fd(vfs_handle_struct *handle,
 	);
 	if (rc) {
 		DEBUG(2, ("aclx_fput failed with %s for %s\n",
-			strerror(errno), fsp->fsp_name));
+			strerror(errno), fsp_str_dbg(fsp)));
 		return -1;
 	}
 
@@ -482,51 +484,20 @@ int aixjfs2_sys_acl_delete_def_file(vfs_handle_struct *handle,
 	return 0;
 }
 
-
-/* VFS operations structure */
-
-static vfs_op_tuple aixjfs2_ops[] =
-{
-	{SMB_VFS_OP(aixjfs2_fget_nt_acl),
-	SMB_VFS_OP_FGET_NT_ACL,
-	SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(aixjfs2_get_nt_acl),
-	SMB_VFS_OP_GET_NT_ACL,
-	SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(aixjfs2_fset_nt_acl),
-	SMB_VFS_OP_FSET_NT_ACL,
-	SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(aixjfs2_sys_acl_get_file),
-	SMB_VFS_OP_SYS_ACL_GET_FILE,
-	SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(aixjfs2_sys_acl_get_fd),
-	SMB_VFS_OP_SYS_ACL_GET_FD,
-	SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(aixjfs2_sys_acl_set_file),
-	SMB_VFS_OP_SYS_ACL_SET_FILE,
-	SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(aixjfs2_sys_acl_set_fd),
-	SMB_VFS_OP_SYS_ACL_SET_FD,
-	SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(aixjfs2_sys_acl_delete_def_file),
-	SMB_VFS_OP_SYS_ACL_DELETE_DEF_FILE,
-	SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(NULL),
-	SMB_VFS_OP_NOOP,
-	SMB_VFS_LAYER_NOOP}
+static struct vfs_fn_pointers vfs_aixacl2_fns = {
+	.fget_nt_acl = aixjfs2_fget_nt_acl,
+	.get_nt_acl = aixjfs2_get_nt_acl,
+	.fset_nt_acl = aixjfs2_fset_nt_acl,
+	.sys_acl_get_file = aixjfs2_sys_acl_get_file,
+	.sys_acl_get_fd = aixjfs2_sys_acl_get_fd,
+	.sys_acl_set_file = aixjfs2_sys_acl_set_file,
+	.sys_acl_set_fd = aixjfs2_sys_acl_set_fd,
+	.sys_acl_delete_def_file = aixjfs2_sys_acl_delete_def_file
 };
 
 NTSTATUS vfs_aixacl2_init(void);
 NTSTATUS vfs_aixacl2_init(void)
 {
         return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, AIXACL2_MODULE_NAME,
-                                aixjfs2_ops);
+				&vfs_aixacl2_fns);
 }

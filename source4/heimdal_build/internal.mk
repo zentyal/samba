@@ -36,8 +36,6 @@ HEIMDAL_KDC_OBJ_FILES = \
 	$(heimdalsrcdir)/kdc/pkinit.o \
 	$(heimdalsrcdir)/kdc/log.o \
 	$(heimdalsrcdir)/kdc/misc.o \
-	$(heimdalsrcdir)/kdc/524.o \
-	$(heimdalsrcdir)/kdc/kerberos4.o \
 	$(heimdalsrcdir)/kdc/kaserver.o \
 	$(heimdalsrcdir)/kdc/digest.o \
 	$(heimdalsrcdir)/kdc/process.o \
@@ -95,7 +93,8 @@ HEIMDAL_HDB_OBJ_FILES = \
 	$(heimdalsrcdir)/lib/hdb/keytab.o \
 	$(heimdalsrcdir)/lib/hdb/mkey.o \
 	$(heimdalsrcdir)/lib/hdb/ndbm.o \
-	$(heimdalsrcdir)/lib/hdb/hdb_err.o
+	$(heimdalsrcdir)/lib/hdb/hdb_err.o \
+	$(heimdalbuildsrcdir)/hdb-glue.o
 
 $(eval $(call heimdal_proto_header_template, \
   $(heimdalsrcdir)/lib/hdb/hdb-protos.h, \
@@ -115,7 +114,7 @@ $(eval $(call heimdal_proto_header_template, \
 # Start SUBSYSTEM HEIMDAL_GSSAPI
 [SUBSYSTEM::HEIMDAL_GSSAPI]
 CFLAGS = -I$(heimdalbuildsrcdir) -I$(heimdalsrcdir)/lib/gssapi -I$(heimdalsrcdir)/lib/gssapi/gssapi -I$(heimdalsrcdir)/lib/gssapi/spnego -I$(heimdalsrcdir)/lib/gssapi/krb5 -I$(heimdalsrcdir)/lib/gssapi/mech
-PRIVATE_DEPENDENCIES = HEIMDAL_HCRYPTO HEIMDAL_HEIM_ASN1 HEIMDAL_SPNEGO_ASN1 HEIMDAL_ROKEN HEIMDAL_KRB5
+PRIVATE_DEPENDENCIES = HEIMDAL_HCRYPTO HEIMDAL_HEIM_ASN1 HEIMDAL_SPNEGO_ASN1 HEIMDAL_GSSAPI_ASN1 HEIMDAL_ROKEN HEIMDAL_KRB5
 # End SUBSYSTEM HEIMDAL_GSSAPI
 #######################
 
@@ -171,15 +170,18 @@ HEIMDAL_GSSAPI_KRB5_OBJ_FILES = \
 	$(heimdalsrcdir)/lib/gssapi/krb5/release_buffer.o \
 	$(heimdalsrcdir)/lib/gssapi/krb5/external.o \
 	$(heimdalsrcdir)/lib/gssapi/krb5/compat.o \
+	$(heimdalsrcdir)/lib/gssapi/krb5/creds.o \
 	$(heimdalsrcdir)/lib/gssapi/krb5/acquire_cred.o \
 	$(heimdalsrcdir)/lib/gssapi/krb5/release_cred.o \
+	$(heimdalsrcdir)/lib/gssapi/krb5/store_cred.o \
 	$(heimdalsrcdir)/lib/gssapi/krb5/set_cred_option.o \
 	$(heimdalsrcdir)/lib/gssapi/krb5/decapsulate.o \
 	$(heimdalsrcdir)/lib/gssapi/krb5/verify_mic.o \
 	$(heimdalsrcdir)/lib/gssapi/krb5/accept_sec_context.o \
 	$(heimdalsrcdir)/lib/gssapi/krb5/set_sec_context_option.o \
 	$(heimdalsrcdir)/lib/gssapi/krb5/process_context_token.o \
-	$(heimdalsrcdir)/lib/gssapi/krb5/prf.o
+	$(heimdalsrcdir)/lib/gssapi/krb5/prf.o \
+	$(heimdalsrcdir)/lib/gssapi/krb5/aeap.o
 
 $(eval $(call heimdal_proto_header_template, \
   $(heimdalsrcdir)/lib/gssapi/krb5/gsskrb5-private.h, \
@@ -196,7 +198,9 @@ HEIMDAL_GSSAPI_OBJ_FILES = \
 	$(heimdalsrcdir)/lib/gssapi/mech/gss_mech_switch.o \
 	$(heimdalsrcdir)/lib/gssapi/mech/gss_process_context_token.o \
 	$(heimdalsrcdir)/lib/gssapi/mech/gss_buffer_set.o \
+	$(heimdalsrcdir)/lib/gssapi/mech/gss_aeap.o \
 	$(heimdalsrcdir)/lib/gssapi/mech/gss_add_cred.o \
+	$(heimdalsrcdir)/lib/gssapi/mech/gss_cred.o \
 	$(heimdalsrcdir)/lib/gssapi/mech/gss_add_oid_set_member.o \
 	$(heimdalsrcdir)/lib/gssapi/mech/gss_compare_name.o \
 	$(heimdalsrcdir)/lib/gssapi/mech/gss_release_oid_set.o \
@@ -246,7 +250,6 @@ HEIMDAL_GSSAPI_OBJ_FILES = \
 	$(heimdalsrcdir)/lib/gssapi/mech/gss_release_name.o \
 	$(heimdalsrcdir)/lib/gssapi/mech/gss_set_cred_option.o \
 	$(heimdalsrcdir)/lib/gssapi/mech/gss_pseudo_random.o \
-	$(heimdalsrcdir)/lib/gssapi/asn1_GSSAPIContextToken.o \
 	$(heimdalbuildsrcdir)/gssapi-glue.o
 
 #######################
@@ -273,7 +276,6 @@ HEIMDAL_KRB5_OBJ_FILES = \
 	$(heimdalsrcdir)/lib/krb5/changepw.o \
 	$(heimdalsrcdir)/lib/krb5/codec.o \
 	$(heimdalsrcdir)/lib/krb5/config_file.o \
-	$(heimdalsrcdir)/lib/krb5/config_file_netinfo.o \
 	$(heimdalsrcdir)/lib/krb5/constants.o \
 	$(heimdalsrcdir)/lib/krb5/context.o \
 	$(heimdalsrcdir)/lib/krb5/convert_creds.o \
@@ -297,7 +299,6 @@ HEIMDAL_KRB5_OBJ_FILES = \
 	$(heimdalsrcdir)/lib/krb5/get_for_creds.o \
 	$(heimdalsrcdir)/lib/krb5/get_host_realm.o \
 	$(heimdalsrcdir)/lib/krb5/get_in_tkt.o \
-	$(heimdalsrcdir)/lib/krb5/get_in_tkt_with_keytab.o \
 	$(heimdalsrcdir)/lib/krb5/get_port.o \
 	$(heimdalsrcdir)/lib/krb5/init_creds.o \
 	$(heimdalsrcdir)/lib/krb5/init_creds_pw.o \
@@ -348,7 +349,6 @@ HEIMDAL_KRB5_OBJ_FILES = \
 	$(heimdalsrcdir)/lib/krb5/heim_err.o \
 	$(heimdalsrcdir)/lib/krb5/k524_err.o \
 	$(heimdalsrcdir)/lib/krb5/krb_err.o \
-	$(heimdalsrcdir)/lib/hcrypto/evp-aes-cts.o \
 	$(heimdalbuildsrcdir)/krb5-glue.o
 
 $(eval $(call heimdal_proto_header_template, \
@@ -428,6 +428,7 @@ HEIMDAL_HCRYPTO_OBJ_FILES = \
 	$(heimdalsrcdir)/lib/hcrypto/ui.o \
 	$(heimdalsrcdir)/lib/hcrypto/evp.o \
 	$(heimdalsrcdir)/lib/hcrypto/evp-hcrypto.o \
+	$(heimdalsrcdir)/lib/hcrypto/evp-aes-cts.o \
 	$(heimdalsrcdir)/lib/hcrypto/pkcs5.o \
 	$(heimdalsrcdir)/lib/hcrypto/pkcs12.o \
 	$(heimdalsrcdir)/lib/hcrypto/rand.o \
@@ -595,12 +596,13 @@ $(HEIMDAL_ROKEN_CLOSEFROM_H_OBJ_FILES): CFLAGS+=-I$(heimdalbuildsrcdir) -I$(heim
 #######################
 # Start SUBSYSTEM HEIMDAL_ROKEN
 [SUBSYSTEM::HEIMDAL_ROKEN]
-CFLAGS =  -I$(heimdalbuildsrcdir) -I$(heimdalsrcdir)/lib/roken -I$(socketwrappersrcdir)
+CFLAGS =  -I$(heimdalbuildsrcdir) -I$(heimdalsrcdir)/lib/roken -I$(heimdalsrcdir)/include -I$(socketwrappersrcdir)
 PRIVATE_DEPENDENCIES = \
 			HEIMDAL_ROKEN_PROGNAME \
 			HEIMDAL_ROKEN_CLOSEFROM \
 			RESOLV \
-			LIBREPLACE_NETWORK
+			LIBREPLACE_NETWORK \
+			UID_WRAPPER
 # End SUBSYSTEM HEIMDAL_ROKEN
 #######################
 
@@ -613,6 +615,7 @@ HEIMDAL_ROKEN_OBJ_FILES = \
 	$(heimdalsrcdir)/lib/roken/ecalloc.o \
 	$(heimdalsrcdir)/lib/roken/getarg.o \
 	$(heimdalsrcdir)/lib/roken/get_window_size.o \
+	$(heimdalsrcdir)/lib/roken/getdtablesize.o \
 	$(heimdalsrcdir)/lib/roken/h_errno.o \
 	$(heimdalsrcdir)/lib/roken/issuid.o \
 	$(heimdalsrcdir)/lib/roken/net_read.o \
@@ -690,10 +693,10 @@ asn1_compile_ASN1_OBJ_FILES = \
 	$(heimdalsrcdir)/lib/asn1/gen_seq.ho \
 	$(heimdalsrcdir)/lib/asn1/hash.ho \
 	$(heimdalsrcdir)/lib/asn1/symbol.ho \
-	$(heimdalsrcdir)/lib/asn1/parse.ho \
+	$(heimdalsrcdir)/lib/asn1/asn1parse.ho \
 	$(heimdalsrcdir)/lib/asn1/lex.ho
 
-$(heimdalsrcdir)/lib/asn1/lex.c:: $(heimdalsrcdir)/lib/asn1/parse.c
+$(heimdalsrcdir)/lib/asn1/lex.c:: $(heimdalsrcdir)/lib/asn1/asn1parse.c
 dist:: $(heimdalsrcdir)/lib/asn1/lex.c
 
 asn1_compile_OBJ_FILES = \
@@ -735,14 +738,14 @@ dist:: $(heimdalsrcdir)/lib/com_err/lex.c
 mkinclude perl_path_wrapper.sh asn1_deps.pl lib/hdb/hdb.asn1 hdb_asn1 \$\(heimdalsrcdir\)/lib/hdb |
 mkinclude perl_path_wrapper.sh asn1_deps.pl lib/gssapi/spnego/spnego.asn1 spnego_asn1 \$\(heimdalsrcdir\)/lib/gssapi --sequence=MechTypeList |
 mkinclude perl_path_wrapper.sh asn1_deps.pl lib/gssapi/mech/gssapi.asn1 gssapi_asn1 \$\(heimdalsrcdir\)/lib/gssapi|
-mkinclude perl_path_wrapper.sh asn1_deps.pl lib/asn1/k5.asn1 krb5_asn1 \$\(heimdalsrcdir\)/lib/asn1 --encode-rfc1510-bit-string --sequence=KRB5SignedPathPrincipals --sequence=AuthorizationData --sequence=METHOD-DATA|
+mkinclude perl_path_wrapper.sh asn1_deps.pl lib/asn1/krb5.asn1 krb5_asn1 \$\(heimdalsrcdir\)/lib/asn1 --option-file=krb5.opt|
 mkinclude perl_path_wrapper.sh asn1_deps.pl lib/asn1/digest.asn1 digest_asn1 \$\(heimdalsrcdir\)/lib/asn1|
 mkinclude perl_path_wrapper.sh asn1_deps.pl lib/asn1/pkcs8.asn1 pkcs8_asn1 \$\(heimdalsrcdir\)/lib/asn1|
 mkinclude perl_path_wrapper.sh asn1_deps.pl lib/asn1/pkcs9.asn1 pkcs9_asn1 \$\(heimdalsrcdir\)/lib/asn1|
 mkinclude perl_path_wrapper.sh asn1_deps.pl lib/asn1/pkcs12.asn1 pkcs12_asn1 \$\(heimdalsrcdir\)/lib/asn1|
 mkinclude perl_path_wrapper.sh asn1_deps.pl lib/asn1/rfc2459.asn1 rfc2459_asn1 \$\(heimdalsrcdir\)/lib/asn1 --preserve-binary=TBSCertificate --preserve-binary=TBSCRLCertList --preserve-binary=Name --sequence=GeneralNames --sequence=Extensions --sequence=CRLDistributionPoints|
 mkinclude perl_path_wrapper.sh asn1_deps.pl lib/asn1/pkinit.asn1 pkinit_asn1 \$\(heimdalsrcdir\)/lib/asn1|
-mkinclude perl_path_wrapper.sh asn1_deps.pl lib/asn1/CMS.asn1 cms_asn1 \$\(heimdalsrcdir\)/lib/asn1|
+mkinclude perl_path_wrapper.sh asn1_deps.pl lib/asn1/cms.asn1 cms_asn1 \$\(heimdalsrcdir\)/lib/asn1 --option-file=cms.opt|
 mkinclude perl_path_wrapper.sh asn1_deps.pl lib/hx509/ocsp.asn1 ocsp_asn1 \$\(heimdalsrcdir\)/lib/hx509 --preserve-binary=OCSPTBSRequest --preserve-binary=OCSPResponseData|
 mkinclude perl_path_wrapper.sh asn1_deps.pl lib/asn1/kx509.asn1 kx509_asn1 \$\(heimdalsrcdir\)/lib/asn1|
 mkinclude perl_path_wrapper.sh asn1_deps.pl lib/hx509/pkcs10.asn1 pkcs10_asn1 \$\(heimdalsrcdir\)/lib/hx509 --preserve-binary=CertificationRequestInfo|

@@ -37,21 +37,27 @@ raw="$raw RAW-SAMBA3HIDE RAW-SAMBA3BADPATH RAW-SFILEINFO-RENAME"
 raw="$raw RAW-SAMBA3CASEINSENSITIVE RAW-SAMBA3POSIXTIMEDLOCK"
 raw="$raw RAW-SAMBA3ROOTDIRFID"
 
-rpc="RPC-AUTHCONTEXT RPC-BINDSAMBA3 RPC-SAMBA3-SRVSVC RPC-SAMBA3-SHARESEC"
-rpc="$rpc RPC-SAMBA3-SPOOLSS RPC-SAMBA3-WKSSVC"
-rpc="$rpc RPC-NETLOGSAMBA3 RPC-SAMBA3SESSIONKEY RPC-SAMBA3-GETUSERNAME"
-rpc="$rpc RPC-SVCCTL RPC-SPOOLSS RPC-SPOOLSS-WIN RPC-NTSVCS"
+rpc="RPC-AUTHCONTEXT RPC-SAMBA3-BIND RPC-SAMBA3-SRVSVC RPC-SAMBA3-SHARESEC"
+rpc="$rpc RPC-SAMBA3-SPOOLSS RPC-SAMBA3-WKSSVC RPC-SAMBA3-WINREG"
+rpc="$rpc RPC-SAMBA3-NETLOGON RPC-SAMBA3-SESSIONKEY RPC-SAMBA3-GETUSERNAME"
+rpc="$rpc RPC-SVCCTL RPC-SPOOLSS RPC-SPOOLSS-WIN RPC-NTSVCS RPC-WINREG"
 rpc="$rpc RPC-LSA-GETUSER RPC-LSA-LOOKUPSIDS RPC-LSA-LOOKUPNAMES"
-rpc="$rpc RPC-SAMR-USERS RPC-SAMR-USERS-PRIVILEGES RPC-SAMR-PASSWORDS"
+rpc="$rpc RPC-LSA-PRIVILEGES "
+rpc="$rpc RPC-SAMR RPC-SAMR-USERS RPC-SAMR-USERS-PRIVILEGES RPC-SAMR-PASSWORDS"
 rpc="$rpc RPC-SAMR-PASSWORDS-PWDLASTSET RPC-SAMR-LARGE-DC RPC-SAMR-MACHINE-AUTH"
+rpc="$rpc RPC-NETLOGON-S3 RPC-NETLOGON-ADMIN"
 rpc="$rpc RPC-SCHANNEL RPC-SCHANNEL2 RPC-BENCH-SCHANNEL1 RPC-JOIN"
+
+local="LOCAL-NSS-WRAPPER LOCAL-NDR"
+
+winbind="WINBIND-WBCLIENT"
 
 # NOTE: to enable the UNIX-WHOAMI test, we need to change the default share
 # config to allow guest access. I'm not sure whether this would break other
 # tests, so leaving it alone for now -- jpeach
 unix="UNIX-INFO2"
 
-tests="$base $raw $rpc $unix"
+tests="$base $raw $rpc $unix $local $winbind"
 
 if test "x$POSIX_SUBTESTS" != "x" ; then
 	tests="$POSIX_SUBTESTS"
@@ -66,7 +72,7 @@ skipped="$skipped RAW-SFILEINFO"
 echo "WARNING: Skipping tests $skipped"
 
 ADDARGS="$ADDARGS --option=torture:sharedelay=100000"
-ADDARGS="$ADDARGS --option=torture:writetimeupdatedelay=500000"
+#ADDARGS="$ADDARGS --option=torture:writetimeupdatedelay=500000"
 
 failed=0
 for t in $tests; do
@@ -85,7 +91,15 @@ for t in $tests; do
     fi
     start=""
     name="$t"
-    testit "$name" $VALGRIND $SMBTORTURE4 $TORTURE4_OPTIONS $ADDARGS $unc -U"$username"%"$password" $t || failed=`expr $failed + 1`
+    if [ "$t" = "BASE-DELAYWRITE" ]; then
+	    testit "$name" $VALGRIND $SMBTORTURE4 $TORTURE4_OPTIONS --maximum-runtime=900 $ADDARGS $unc -U"$username"%"$password" $t || failed=`expr $failed + 1`
+    else
+	    testit "$name" $VALGRIND $SMBTORTURE4 $TORTURE4_OPTIONS $ADDARGS $unc -U"$username"%"$password" $t || failed=`expr $failed + 1`
+    fi
+    if [ "$t" = "RAW-CHKPATH" ]; then
+	    echo "Testing with case sensitive"
+	    testit "$name" $VALGRIND $SMBTORTURE4 $TORTURE4_OPTIONS $ADDARGS "$unc"case -U"$username"%"$password" $t || failed=`expr $failed + 1`
+    fi
 done
 
 testok $0 $failed

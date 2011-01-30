@@ -23,6 +23,7 @@
 
 #include "includes.h"
 #include "winbindd.h"
+#include "../libcli/auth/libcli_auth.h"
 #include "smb_krb5.h"
 
 #undef DBGC_CLASS

@@ -1,12 +1,12 @@
 .\"     Title: winbindd
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 05/10/2010
+.\"      Date: 06/18/2010
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.4
+.\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "WINBINDD" "8" "05/10/2010" "Samba 3\&.4" "System Administration tools"
+.TH "WINBINDD" "8" "06/18/2010" "Samba 3\&.5" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -218,13 +218,6 @@ library has been correctly installed, or an alternate source of names configured
 .PP
 The following nsswitch databases are implemented by the winbindd service:
 .PP
-\-D
-.RS 4
-If specified, this parameter causes the server to operate as a daemon\&. That is, it detaches itself and runs in the background on the appropriate port\&. This switch is assumed if
-\FCwinbindd\F[]
-is executed on the command line of a shell\&.
-.RE
-.PP
 hosts
 .RS 4
 This feature is only available on IRIX\&. User information traditionally stored in the
@@ -320,6 +313,13 @@ hosts:		files wins
 .RE
 .\}
 .SH "OPTIONS"
+.PP
+\-D
+.RS 4
+If specified, this parameter causes the server to operate as a daemon\&. That is, it detaches itself and runs in the background on the appropriate port\&. This switch is assumed if
+\FCwinbindd\F[]
+is executed on the command line of a shell\&.
+.RE
 .PP
 \-F
 .RS 4

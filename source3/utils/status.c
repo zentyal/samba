@@ -2,17 +2,17 @@
    Unix SMB/CIFS implementation.
    status reporting
    Copyright (C) Andrew Tridgell 1994-1998
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -61,25 +61,25 @@ static unsigned int Ucrit_checkUid(uid_t uid)
 {
 	if ( !Ucrit_IsActive ) 
 		return 1;
-	
+
 	if ( uid == Ucrit_uid ) 
 		return 1;
-	
+
 	return 0;
 }
 
 static unsigned int Ucrit_checkPid(struct server_id pid)
 {
 	int i;
-	
+
 	if ( !Ucrit_IsActive ) 
 		return 1;
-	
+
 	for (i=0;i<Ucrit_MaxPid;i++) {
 		if (cluster_id_equal(&pid, &Ucrit_pid[i])) 
 			return 1;
 	}
-	
+
 	return 0;
 }
 
@@ -96,7 +96,7 @@ static bool Ucrit_addPid( struct server_id pid )
 	}
 
 	Ucrit_pid[Ucrit_MaxPid++] = pid;
-	
+
 	return True;
 }
 
@@ -191,7 +191,7 @@ static void print_brl(struct file_id id,
 	};
 	const char *desc="X";
 	const char *sharepath = "";
-	const char *fname = "";
+	char *fname = NULL;
 	struct share_mode_lock *share_mode;
 
 	if (count==0) {
@@ -201,10 +201,19 @@ static void print_brl(struct file_id id,
 	}
 	count++;
 
-	share_mode = fetch_share_mode_unlocked(NULL, id, "__unspecified__", "__unspecified__");
+	share_mode = fetch_share_mode_unlocked(NULL, id);
 	if (share_mode) {
-		sharepath = share_mode->servicepath;
-		fname = share_mode->filename;
+		bool has_stream = share_mode->stream_name != NULL;
+
+		fname = talloc_asprintf(NULL, "%s%s%s", share_mode->base_name,
+					has_stream ? ":" : "",
+					has_stream ? share_mode->stream_name :
+					"");
+	} else {
+		fname = talloc_strdup(NULL, "");
+		if (fname == NULL) {
+			return;
+		}
 	}
 
 	for (i=0;i<ARRAY_SIZE(lock_types);i++) {
@@ -219,6 +228,7 @@ static void print_brl(struct file_id id,
 		 (double)start, (double)size,
 		 sharepath, fname);
 
+	TALLOC_FREE(fname);
 	TALLOC_FREE(share_mode);
 }
 
@@ -266,7 +276,7 @@ static int traverse_sessionid(struct db_record *db, void *state)
 		 numeric_only ? uid_str : uidtoname(sessionid.uid),
 		 numeric_only ? gid_str : gidtoname(sessionid.gid), 
 		 sessionid.remote_machine, sessionid.hostname);
-	
+
 	return 0;
 }
 
@@ -302,9 +312,9 @@ static int traverse_sessionid(struct db_record *db, void *state)
 	load_case_tables();
 
 	setup_logging(argv[0],True);
-	
+
 	dbf = x_stderr;
-	
+
 	if (getuid() != geteuid()) {
 		d_printf("smbstatus should not be run setuid\n");
 		ret = 1;
@@ -313,7 +323,7 @@ static int traverse_sessionid(struct db_record *db, void *state)
 
 	pc = poptGetContext(NULL, argc, (const char **) argv, long_options, 
 			    POPT_CONTEXT_KEEP_FIRST);
-	
+
 	while ((c = poptGetNextOpt(pc)) != -1) {
 		switch (c) {
 		case 'p':
@@ -424,7 +434,7 @@ static int traverse_sessionid(struct db_record *db, void *state)
 			goto done;
 		}
 	}
-  
+
 	if ( show_shares ) {
 		if (verbose) {
 			d_printf("Opened %s\n", lock_path("connections.tdb"));
@@ -433,10 +443,10 @@ static int traverse_sessionid(struct db_record *db, void *state)
 		if (brief) {
 			goto done;
 		}
-		
+
 		d_printf("\nService      pid     machine       Connected at\n");
 		d_printf("-------------------------------------------------------\n");
-	
+
 		connections_forall(traverse_fn1, NULL);
 
 		d_printf("\n");
@@ -467,7 +477,7 @@ static int traverse_sessionid(struct db_record *db, void *state)
 			ret = 1;
 			goto done;
 		}
-		
+
 		result = share_mode_forall(print_share_mode, NULL);
 
 		if (result == 0) {
@@ -475,13 +485,13 @@ static int traverse_sessionid(struct db_record *db, void *state)
 		} else if (result == -1) {
 			d_printf("locked file list truncated\n");
 		}
-		
+
 		d_printf("\n");
 
 		if (show_brl) {
 			brl_forall(print_brl, NULL);
 		}
-		
+
 		locking_end();
 	}
 

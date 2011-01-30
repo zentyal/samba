@@ -7,7 +7,7 @@
 	<manvolnum>8</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">8</refmiscinfo>
-	<refmiscinfo class="version">3.4</refmiscinfo>
+	<refmiscinfo class="version">3.5</refmiscinfo>
 </refmeta>
 
 
@@ -62,7 +62,9 @@
 		file situated at
 		<filename>/etc/security/pam_winbind.conf</filename>. Options
 		from the PAM configuration file take precedence to those from
-		the configuration file.
+		the configuration file. See
+		<citerefentry><refentrytitle>pam_winbind.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>
+		for further details.
 
 		<variablelist>
 
@@ -221,7 +223,7 @@
 		<term>PAM_WINBIND_PROFILEPATH</term>
 		<listitem>
 			<para>
-				This is the profile path set in the profile tab in the user settings. Noramlly
+				This is the profile path set in the profile tab in the user settings. Normally
 				the home directory is synced with this directory on a share.
 			</para>
 		</listitem>
@@ -231,6 +233,8 @@
 <refsect1>
 	<title>SEE ALSO</title>
 	<para><citerefentry>
+	<refentrytitle>pam_winbind.conf</refentrytitle>
+	<manvolnum>5</manvolnum></citerefentry>, <citerefentry>
 	<refentrytitle>wbinfo</refentrytitle>
 	<manvolnum>1</manvolnum></citerefentry>, <citerefentry>
 	<refentrytitle>winbindd</refentrytitle>

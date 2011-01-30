@@ -22,18 +22,13 @@
 
 #include "includes.h"
 #include "rpc_server/dcerpc_server.h"
-#include "rpc_server/common/common.h"
 #include "rpc_server/samr/dcesrv_samr.h"
 #include "system/time.h"
 #include "../lib/crypto/crypto.h"
-#include "dsdb/common/flags.h"
-#include "libcli/ldap/ldap.h"
 #include "dsdb/samdb/samdb.h"
 #include "auth/auth.h"
-#include "rpc_server/samr/proto.h"
 #include "libcli/auth/libcli_auth.h"
 #include "../lib/util/util_ldb.h"
-#include "param/param.h"
 
 /* 
   samr_ChangePasswordUser 
@@ -88,17 +83,19 @@ NTSTATUS dcesrv_samr_ChangePasswordUser(struct dcesrv_call_state *dce_call,
 
 	status = samdb_result_passwords(mem_ctx, dce_call->conn->dce_ctx->lp_ctx,
 					msg, &lm_pwd, &nt_pwd);
-	if (!NT_STATUS_IS_OK(status) || !lm_pwd || !nt_pwd) {
+	if (!NT_STATUS_IS_OK(status) || !nt_pwd) {
 		ldb_transaction_cancel(sam_ctx);
 		return NT_STATUS_WRONG_PASSWORD;
 	}
 
 	/* decrypt and check the new lm hash */
-	D_P16(lm_pwd->hash, r->in.new_lm_crypted->hash, new_lmPwdHash.hash);
-	D_P16(new_lmPwdHash.hash, r->in.old_lm_crypted->hash, checkHash.hash);
-	if (memcmp(checkHash.hash, lm_pwd, 16) != 0) {
-		ldb_transaction_cancel(sam_ctx);
-		return NT_STATUS_WRONG_PASSWORD;
+	if (lm_pwd) {
+		D_P16(lm_pwd->hash, r->in.new_lm_crypted->hash, new_lmPwdHash.hash);
+		D_P16(new_lmPwdHash.hash, r->in.old_lm_crypted->hash, checkHash.hash);
+		if (memcmp(checkHash.hash, lm_pwd, 16) != 0) {
+			ldb_transaction_cancel(sam_ctx);
+			return NT_STATUS_WRONG_PASSWORD;
+		}
 	}
 
 	/* decrypt and check the new nt hash */
@@ -111,7 +108,7 @@ NTSTATUS dcesrv_samr_ChangePasswordUser(struct dcesrv_call_state *dce_call,
 	
 	/* The NT Cross is not required by Win2k3 R2, but if present
 	   check the nt cross hash */
-	if (r->in.cross1_present && r->in.nt_cross) {
+	if (r->in.cross1_present && r->in.nt_cross && lm_pwd) {
 		D_P16(lm_pwd->hash, r->in.nt_cross->hash, checkHash.hash);
 		if (memcmp(checkHash.hash, new_ntPwdHash.hash, 16) != 0) {
 			ldb_transaction_cancel(sam_ctx);
@@ -121,7 +118,7 @@ NTSTATUS dcesrv_samr_ChangePasswordUser(struct dcesrv_call_state *dce_call,
 
 	/* The LM Cross is not required by Win2k3 R2, but if present
 	   check the lm cross hash */
-	if (r->in.cross2_present && r->in.lm_cross) {
+	if (r->in.cross2_present && r->in.lm_cross && lm_pwd) {
 		D_P16(nt_pwd->hash, r->in.lm_cross->hash, checkHash.hash);
 		if (memcmp(checkHash.hash, new_lmPwdHash.hash, 16) != 0) {
 			ldb_transaction_cancel(sam_ctx);
@@ -204,6 +201,11 @@ NTSTATUS dcesrv_samr_OemChangePasswordUser2(struct dcesrv_call_state *dce_call, 
 
 	if (r->in.hash == NULL) {
 		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	/* this call can only work with lanman auth */
+	if (!lp_lanman_auth(dce_call->conn->dce_ctx->lp_ctx)) {
+		return NT_STATUS_NOT_SUPPORTED;
 	}
 
 	/* To change a password we need to open as system */

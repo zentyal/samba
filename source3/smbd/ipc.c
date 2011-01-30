@@ -93,6 +93,8 @@ void send_trans_reply(connection_struct *conn,
 
 	int ldata  = rdata  ? rdata_len : 0;
 	int lparam = rparam ? rparam_len : 0;
+	struct smbd_server_connection *sconn = smbd_server_conn;
+	int max_send = sconn->smb1.sessions.max_send;
 
 	if (buffer_too_large)
 		DEBUG(5,("send_trans_reply: buffer %d too large\n", ldata ));
@@ -134,6 +136,7 @@ void send_trans_reply(connection_struct *conn,
 
 	show_msg((char *)req->outbuf);
 	if (!srv_send_smb(smbd_server_fd(), (char *)req->outbuf,
+			  true, req->seqnum+1,
 			  IS_CONN_ENCRYPTED(conn), &req->pcd)) {
 		exit_server_cleanly("send_trans_reply: srv_send_smb failed.");
 	}
@@ -193,6 +196,7 @@ void send_trans_reply(connection_struct *conn,
 
 		show_msg((char *)req->outbuf);
 		if (!srv_send_smb(smbd_server_fd(), (char *)req->outbuf,
+				  true, req->seqnum+1,
 				  IS_CONN_ENCRYPTED(conn), &req->pcd))
 			exit_server_cleanly("send_trans_reply: srv_send_smb "
 					    "failed.");
@@ -299,6 +303,7 @@ static void api_dcerpc_cmd_write_done(struct tevent_req *subreq)
  send:
 	if (!srv_send_smb(
 		    smbd_server_fd(), (char *)req->outbuf,
+		    true, req->seqnum+1,
 		    IS_CONN_ENCRYPTED(req->conn) || req->encrypted,
 		    &req->pcd)) {
 		exit_server_cleanly("construct_reply: srv_send_smb failed.");
@@ -325,6 +330,7 @@ static void api_dcerpc_cmd_read_done(struct tevent_req *subreq)
 		reply_nterror(req, status);
 
 		if (!srv_send_smb(smbd_server_fd(), (char *)req->outbuf,
+				  true, req->seqnum+1,
 				  IS_CONN_ENCRYPTED(req->conn)
 				  ||req->encrypted, &req->pcd)) {
 			exit_server_cleanly("construct_reply: srv_send_smb "
@@ -451,7 +457,7 @@ static void api_fd_reply(connection_struct *conn, uint16 vuid,
 	}
 
 	DEBUG(3,("Got API command 0x%x on pipe \"%s\" (pnum %x)\n",
-		 subcommand, fsp->fsp_name, pnum));
+		 subcommand, fsp_str_dbg(fsp), pnum));
 
 	DEBUG(10, ("api_fd_reply: p:%p max_trans_reply: %d\n", fsp, mdrcnt));
 

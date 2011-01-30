@@ -22,6 +22,8 @@
 
 #include "includes.h"
 #include "rpcclient.h"
+#include "../libcli/auth/libcli_auth.h"
+#include "../librpc/gen_ndr/cli_lsa.h"
 
 /* useful function to allow entering a name instead of a SID and
  * looking it up automatically */
@@ -299,6 +301,57 @@ static NTSTATUS cmd_lsa_lookup_names_level(struct rpc_pipe_client *cli,
 	return result;
 }
 
+static NTSTATUS cmd_lsa_lookup_names4(struct rpc_pipe_client *cli,
+				      TALLOC_CTX *mem_ctx, int argc,
+				      const char **argv)
+{
+	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
+
+	uint32_t num_names;
+	struct lsa_String *names;
+	struct lsa_RefDomainList *domains;
+	struct lsa_TransSidArray3 sids;
+	uint32_t count = 0;
+	int i;
+
+	if (argc == 1) {
+		printf("Usage: %s [name1 [name2 [...]]]\n", argv[0]);
+		return NT_STATUS_OK;
+	}
+
+	ZERO_STRUCT(sids);
+
+	num_names = argc-1;
+	names = talloc_array(mem_ctx, struct lsa_String, num_names);
+	NT_STATUS_HAVE_NO_MEMORY(names);
+
+	for (i=0; i < num_names; i++) {
+		init_lsa_String(&names[i], argv[i+1]);
+	}
+
+	result = rpccli_lsa_LookupNames4(cli, mem_ctx,
+					 num_names,
+					 names,
+					 &domains,
+					 &sids,
+					 1,
+					 &count,
+					 0,
+					 0);
+	if (!NT_STATUS_IS_OK(result)) {
+		return result;
+	}
+
+	for (i = 0; i < sids.count; i++) {
+		fstring sid_str;
+		sid_to_fstring(sid_str, sids.sids[i].sid);
+		printf("%s %s (%s: %d)\n", argv[i+1], sid_str,
+		       sid_type_lookup(sids.sids[i].sid_type),
+		       sids.sids[i].sid_type);
+	}
+
+	return result;
+}
 
 /* Resolve a list of SIDs to a list of names */
 
@@ -367,6 +420,75 @@ static NTSTATUS cmd_lsa_lookup_sids(struct rpc_pipe_client *cli, TALLOC_CTX *mem
  done:
 	return result;
 }
+
+/* Resolve a list of SIDs to a list of names */
+
+static NTSTATUS cmd_lsa_lookup_sids3(struct rpc_pipe_client *cli,
+				     TALLOC_CTX *mem_ctx,
+				     int argc, const char **argv)
+{
+	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
+	int i;
+	struct lsa_SidArray sids;
+	struct lsa_RefDomainList *domains;
+	struct lsa_TransNameArray2 names;
+	uint32_t count = 0;
+
+	if (argc == 1) {
+		printf("Usage: %s [sid1 [sid2 [...]]]\n", argv[0]);
+		return NT_STATUS_OK;
+	}
+
+	ZERO_STRUCT(names);
+
+	/* Convert arguments to sids */
+
+	sids.num_sids = argc-1;
+	sids.sids = talloc_array(mem_ctx, struct lsa_SidPtr, sids.num_sids);
+	if (!sids.sids) {
+		printf("could not allocate memory for %d sids\n", sids.num_sids);
+		goto done;
+	}
+
+	for (i = 0; i < sids.num_sids; i++) {
+		sids.sids[0].sid = string_sid_talloc(sids.sids, argv[i + 1]);
+		if (!sids.sids[0].sid) {
+			result = NT_STATUS_INVALID_SID;
+			goto done;
+		}
+	}
+
+	/* Lookup the SIDs */
+	result = rpccli_lsa_LookupSids3(cli, mem_ctx,
+					&sids,
+					&domains,
+					&names,
+					1,
+					&count,
+					0,
+					0);
+
+	if (!NT_STATUS_IS_OK(result) && NT_STATUS_V(result) !=
+	    NT_STATUS_V(STATUS_SOME_UNMAPPED))
+		goto done;
+
+	result = NT_STATUS_OK;
+
+	/* Print results */
+
+	for (i = 0; i < count; i++) {
+		fstring sid_str;
+
+		sid_to_fstring(sid_str, sids.sids[i].sid);
+		printf("%s %s (%d)\n", sid_str,
+		       names.names[i].name.string,
+		       names.names[i].sid_type);
+	}
+
+ done:
+	return result;
+}
+
 
 /* Enumerate list of trusted domains */
 
@@ -947,27 +1069,22 @@ static NTSTATUS cmd_lsa_query_secobj(struct rpc_pipe_client *cli,
 }
 
 static void display_trust_dom_info_4(struct lsa_TrustDomainInfoPassword *p,
-				     uint8_t nt_hash[16])
+				     uint8_t session_key[16])
 {
 	char *pwd, *pwd_old;
 	
-	DATA_BLOB data 	   = data_blob(NULL, p->password->length);
-	DATA_BLOB data_old = data_blob(NULL, p->old_password->length);
+	DATA_BLOB data 	   = data_blob_const(p->password->data, p->password->length);
+	DATA_BLOB data_old = data_blob_const(p->old_password->data, p->old_password->length);
+	DATA_BLOB session_key_blob = data_blob_const(session_key, sizeof(session_key));
 
-	memcpy(data.data, p->password->data, p->password->length);
-	memcpy(data_old.data, p->old_password->data, p->old_password->length);
-	
-	pwd 	= decrypt_trustdom_secret(nt_hash, &data);
-	pwd_old = decrypt_trustdom_secret(nt_hash, &data_old);
+	pwd 	= sess_decrypt_string(talloc_tos(), &data, &session_key_blob);
+	pwd_old = sess_decrypt_string(talloc_tos(), &data_old, &session_key_blob);
 	
 	d_printf("Password:\t%s\n", pwd);
 	d_printf("Old Password:\t%s\n", pwd_old);
 
-	SAFE_FREE(pwd);
-	SAFE_FREE(pwd_old);
-	
-	data_blob_free(&data);
-	data_blob_free(&data_old);
+	talloc_free(pwd);
+	talloc_free(pwd_old);
 }
 
 static void display_trust_dom_info(TALLOC_CTX *mem_ctx,
@@ -1360,6 +1477,498 @@ static NTSTATUS cmd_lsa_del_priv(struct rpc_pipe_client *cli,
 	return result;
 }
 
+static NTSTATUS cmd_lsa_create_secret(struct rpc_pipe_client *cli,
+				      TALLOC_CTX *mem_ctx, int argc,
+				      const char **argv)
+{
+	NTSTATUS status;
+	struct policy_handle handle, sec_handle;
+	struct lsa_String name;
+
+	if (argc < 2) {
+		printf("Usage: %s name\n", argv[0]);
+		return NT_STATUS_OK;
+	}
+
+	status = rpccli_lsa_open_policy2(cli, mem_ctx,
+					 true,
+					 SEC_FLAG_MAXIMUM_ALLOWED,
+					 &handle);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	init_lsa_String(&name, argv[1]);
+
+	status = rpccli_lsa_CreateSecret(cli, mem_ctx,
+					 &handle,
+					 name,
+					 SEC_FLAG_MAXIMUM_ALLOWED,
+					 &sec_handle);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+ done:
+	if (is_valid_policy_hnd(&sec_handle)) {
+		rpccli_lsa_Close(cli, mem_ctx, &sec_handle);
+	}
+	if (is_valid_policy_hnd(&handle)) {
+		rpccli_lsa_Close(cli, mem_ctx, &handle);
+	}
+
+	return status;
+}
+
+static NTSTATUS cmd_lsa_delete_secret(struct rpc_pipe_client *cli,
+				      TALLOC_CTX *mem_ctx, int argc,
+				      const char **argv)
+{
+	NTSTATUS status;
+	struct policy_handle handle, sec_handle;
+	struct lsa_String name;
+
+	if (argc < 2) {
+		printf("Usage: %s name\n", argv[0]);
+		return NT_STATUS_OK;
+	}
+
+	status = rpccli_lsa_open_policy2(cli, mem_ctx,
+					 true,
+					 SEC_FLAG_MAXIMUM_ALLOWED,
+					 &handle);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	init_lsa_String(&name, argv[1]);
+
+	status = rpccli_lsa_OpenSecret(cli, mem_ctx,
+				       &handle,
+				       name,
+				       SEC_FLAG_MAXIMUM_ALLOWED,
+				       &sec_handle);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+	status = rpccli_lsa_DeleteObject(cli, mem_ctx,
+					 &sec_handle);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+ done:
+	if (is_valid_policy_hnd(&sec_handle)) {
+		rpccli_lsa_Close(cli, mem_ctx, &sec_handle);
+	}
+	if (is_valid_policy_hnd(&handle)) {
+		rpccli_lsa_Close(cli, mem_ctx, &handle);
+	}
+
+	return status;
+}
+
+static NTSTATUS cmd_lsa_query_secret(struct rpc_pipe_client *cli,
+				     TALLOC_CTX *mem_ctx, int argc,
+				     const char **argv)
+{
+	NTSTATUS status;
+	struct policy_handle handle, sec_handle;
+	struct lsa_String name;
+	struct lsa_DATA_BUF_PTR new_val;
+	NTTIME new_mtime = 0;
+	struct lsa_DATA_BUF_PTR old_val;
+	NTTIME old_mtime = 0;
+	DATA_BLOB session_key;
+	DATA_BLOB new_blob = data_blob_null;
+	DATA_BLOB old_blob = data_blob_null;
+	char *new_secret, *old_secret;
+
+	if (argc < 2) {
+		printf("Usage: %s name\n", argv[0]);
+		return NT_STATUS_OK;
+	}
+
+	status = rpccli_lsa_open_policy2(cli, mem_ctx,
+					 true,
+					 SEC_FLAG_MAXIMUM_ALLOWED,
+					 &handle);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	init_lsa_String(&name, argv[1]);
+
+	status = rpccli_lsa_OpenSecret(cli, mem_ctx,
+				       &handle,
+				       name,
+				       SEC_FLAG_MAXIMUM_ALLOWED,
+				       &sec_handle);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+	ZERO_STRUCT(new_val);
+	ZERO_STRUCT(old_val);
+
+	status = rpccli_lsa_QuerySecret(cli, mem_ctx,
+					&sec_handle,
+					&new_val,
+					&new_mtime,
+					&old_val,
+					&old_mtime);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+	status = cli_get_session_key(mem_ctx, cli, &session_key);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+	if (new_val.buf) {
+		new_blob = data_blob_const(new_val.buf->data, new_val.buf->length);
+	}
+	if (old_val.buf) {
+		old_blob = data_blob_const(old_val.buf->data, old_val.buf->length);
+	}
+
+	new_secret = sess_decrypt_string(mem_ctx, &new_blob, &session_key);
+	old_secret = sess_decrypt_string(mem_ctx, &old_blob, &session_key);
+	if (new_secret) {
+		d_printf("new secret: %s\n", new_secret);
+	}
+	if (old_secret) {
+		d_printf("old secret: %s\n", old_secret);
+	}
+
+ done:
+	if (is_valid_policy_hnd(&sec_handle)) {
+		rpccli_lsa_Close(cli, mem_ctx, &sec_handle);
+	}
+	if (is_valid_policy_hnd(&handle)) {
+		rpccli_lsa_Close(cli, mem_ctx, &handle);
+	}
+
+	return status;
+}
+
+static NTSTATUS cmd_lsa_set_secret(struct rpc_pipe_client *cli,
+				   TALLOC_CTX *mem_ctx, int argc,
+				   const char **argv)
+{
+	NTSTATUS status;
+	struct policy_handle handle, sec_handle;
+	struct lsa_String name;
+	struct lsa_DATA_BUF new_val;
+	struct lsa_DATA_BUF old_val;
+	DATA_BLOB enc_key;
+	DATA_BLOB session_key;
+
+	if (argc < 3) {
+		printf("Usage: %s name secret\n", argv[0]);
+		return NT_STATUS_OK;
+	}
+
+	status = rpccli_lsa_open_policy2(cli, mem_ctx,
+					 true,
+					 SEC_FLAG_MAXIMUM_ALLOWED,
+					 &handle);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	init_lsa_String(&name, argv[1]);
+
+	status = rpccli_lsa_OpenSecret(cli, mem_ctx,
+				       &handle,
+				       name,
+				       SEC_FLAG_MAXIMUM_ALLOWED,
+				       &sec_handle);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+	ZERO_STRUCT(new_val);
+	ZERO_STRUCT(old_val);
+
+	status = cli_get_session_key(mem_ctx, cli, &session_key);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+	enc_key = sess_encrypt_string(argv[2], &session_key);
+
+	new_val.length = enc_key.length;
+	new_val.size = enc_key.length;
+	new_val.data = enc_key.data;
+
+	status = rpccli_lsa_SetSecret(cli, mem_ctx,
+				      &sec_handle,
+				      &new_val,
+				      NULL);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+ done:
+	if (is_valid_policy_hnd(&sec_handle)) {
+		rpccli_lsa_Close(cli, mem_ctx, &sec_handle);
+	}
+	if (is_valid_policy_hnd(&handle)) {
+		rpccli_lsa_Close(cli, mem_ctx, &handle);
+	}
+
+	return status;
+}
+
+static NTSTATUS cmd_lsa_retrieve_private_data(struct rpc_pipe_client *cli,
+					      TALLOC_CTX *mem_ctx, int argc,
+					      const char **argv)
+{
+	NTSTATUS status;
+	struct policy_handle handle;
+	struct lsa_String name;
+	struct lsa_DATA_BUF *val;
+	DATA_BLOB session_key;
+	DATA_BLOB blob = data_blob_null;
+	char *secret;
+
+	if (argc < 2) {
+		printf("Usage: %s name\n", argv[0]);
+		return NT_STATUS_OK;
+	}
+
+	status = rpccli_lsa_open_policy2(cli, mem_ctx,
+					 true,
+					 SEC_FLAG_MAXIMUM_ALLOWED,
+					 &handle);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	init_lsa_String(&name, argv[1]);
+
+	ZERO_STRUCT(val);
+
+	status = rpccli_lsa_RetrievePrivateData(cli, mem_ctx,
+						&handle,
+						&name,
+						&val);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+	status = cli_get_session_key(mem_ctx, cli, &session_key);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+	if (val) {
+		blob = data_blob_const(val->data, val->length);
+	}
+
+	secret = sess_decrypt_string(mem_ctx, &blob, &session_key);
+	if (secret) {
+		d_printf("secret: %s\n", secret);
+	}
+
+ done:
+	if (is_valid_policy_hnd(&handle)) {
+		rpccli_lsa_Close(cli, mem_ctx, &handle);
+	}
+
+	return status;
+}
+
+static NTSTATUS cmd_lsa_store_private_data(struct rpc_pipe_client *cli,
+					   TALLOC_CTX *mem_ctx, int argc,
+					   const char **argv)
+{
+	NTSTATUS status;
+	struct policy_handle handle;
+	struct lsa_String name;
+	struct lsa_DATA_BUF val;
+	DATA_BLOB session_key;
+	DATA_BLOB enc_key;
+
+	if (argc < 3) {
+		printf("Usage: %s name secret\n", argv[0]);
+		return NT_STATUS_OK;
+	}
+
+	status = rpccli_lsa_open_policy2(cli, mem_ctx,
+					 true,
+					 SEC_FLAG_MAXIMUM_ALLOWED,
+					 &handle);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	init_lsa_String(&name, argv[1]);
+
+	ZERO_STRUCT(val);
+
+	status = cli_get_session_key(mem_ctx, cli, &session_key);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+	enc_key = sess_encrypt_string(argv[2], &session_key);
+
+	val.length = enc_key.length;
+	val.size = enc_key.length;
+	val.data = enc_key.data;
+
+	status = rpccli_lsa_StorePrivateData(cli, mem_ctx,
+					     &handle,
+					     &name,
+					     &val);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+ done:
+	if (is_valid_policy_hnd(&handle)) {
+		rpccli_lsa_Close(cli, mem_ctx, &handle);
+	}
+
+	return status;
+}
+
+static NTSTATUS cmd_lsa_create_trusted_domain(struct rpc_pipe_client *cli,
+					      TALLOC_CTX *mem_ctx, int argc,
+					      const char **argv)
+{
+	NTSTATUS status;
+	struct policy_handle handle, trustdom_handle;
+	struct lsa_DomainInfo info;
+
+	if (argc < 3) {
+		printf("Usage: %s name sid\n", argv[0]);
+		return NT_STATUS_OK;
+	}
+
+	status = rpccli_lsa_open_policy2(cli, mem_ctx,
+					 true,
+					 SEC_FLAG_MAXIMUM_ALLOWED,
+					 &handle);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	init_lsa_StringLarge(&info.name, argv[1]);
+	info.sid = string_sid_talloc(mem_ctx, argv[2]);
+
+	status = rpccli_lsa_CreateTrustedDomain(cli, mem_ctx,
+						&handle,
+						&info,
+						SEC_FLAG_MAXIMUM_ALLOWED,
+						&trustdom_handle);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+ done:
+	if (is_valid_policy_hnd(&trustdom_handle)) {
+		rpccli_lsa_Close(cli, mem_ctx, &trustdom_handle);
+	}
+
+	if (is_valid_policy_hnd(&handle)) {
+		rpccli_lsa_Close(cli, mem_ctx, &handle);
+	}
+
+	return status;
+}
+
+static NTSTATUS cmd_lsa_delete_trusted_domain(struct rpc_pipe_client *cli,
+					      TALLOC_CTX *mem_ctx, int argc,
+					      const char **argv)
+{
+	NTSTATUS status;
+	struct policy_handle handle, trustdom_handle;
+	struct lsa_String name;
+	struct dom_sid *sid = NULL;
+
+	if (argc < 2) {
+		printf("Usage: %s name\n", argv[0]);
+		return NT_STATUS_OK;
+	}
+
+	status = rpccli_lsa_open_policy2(cli, mem_ctx,
+					 true,
+					 SEC_FLAG_MAXIMUM_ALLOWED,
+					 &handle);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	init_lsa_String(&name, argv[1]);
+
+	status = rpccli_lsa_OpenTrustedDomainByName(cli, mem_ctx,
+						    &handle,
+						    name,
+						    SEC_FLAG_MAXIMUM_ALLOWED,
+						    &trustdom_handle);
+	if (NT_STATUS_IS_OK(status)) {
+		goto delete_object;
+	}
+
+	{
+		uint32_t resume_handle = 0;
+		struct lsa_DomainList domains;
+		int i;
+
+		status = rpccli_lsa_EnumTrustDom(cli, mem_ctx,
+						 &handle,
+						 &resume_handle,
+						 &domains,
+						 0xffff);
+		if (!NT_STATUS_IS_OK(status)) {
+			goto done;
+		}
+
+		for (i=0; i < domains.count; i++) {
+			if (strequal(domains.domains[i].name.string, argv[1])) {
+				sid = domains.domains[i].sid;
+				break;
+			}
+		}
+
+		if (!sid) {
+			return NT_STATUS_INVALID_SID;
+		}
+	}
+
+	status = rpccli_lsa_OpenTrustedDomain(cli, mem_ctx,
+					      &handle,
+					      sid,
+					      SEC_FLAG_MAXIMUM_ALLOWED,
+					      &trustdom_handle);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+ delete_object:
+	status = rpccli_lsa_DeleteObject(cli, mem_ctx,
+					 &trustdom_handle);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+ done:
+	if (is_valid_policy_hnd(&trustdom_handle)) {
+		rpccli_lsa_Close(cli, mem_ctx, &trustdom_handle);
+	}
+
+	if (is_valid_policy_hnd(&handle)) {
+		rpccli_lsa_Close(cli, mem_ctx, &handle);
+	}
+
+	return status;
+}
+
 
 /* List of commands exported by this module */
 
@@ -1369,7 +1978,9 @@ struct cmd_set lsarpc_commands[] = {
 
 	{ "lsaquery", 	         RPC_RTYPE_NTSTATUS, cmd_lsa_query_info_policy,  NULL, &ndr_table_lsarpc.syntax_id, NULL, "Query info policy",                    "" },
 	{ "lookupsids",          RPC_RTYPE_NTSTATUS, cmd_lsa_lookup_sids,        NULL, &ndr_table_lsarpc.syntax_id, NULL, "Convert SIDs to names",                "" },
+	{ "lookupsids3",         RPC_RTYPE_NTSTATUS, cmd_lsa_lookup_sids3,       NULL, &ndr_table_lsarpc.syntax_id, NULL, "Convert SIDs to names",                "" },
 	{ "lookupnames",         RPC_RTYPE_NTSTATUS, cmd_lsa_lookup_names,       NULL, &ndr_table_lsarpc.syntax_id, NULL, "Convert names to SIDs",                "" },
+	{ "lookupnames4",        RPC_RTYPE_NTSTATUS, cmd_lsa_lookup_names4,      NULL, &ndr_table_lsarpc.syntax_id, NULL, "Convert names to SIDs",                "" },
 	{ "lookupnames_level",   RPC_RTYPE_NTSTATUS, cmd_lsa_lookup_names_level, NULL, &ndr_table_lsarpc.syntax_id, NULL, "Convert names to SIDs",                "" },
 	{ "enumtrust", 	         RPC_RTYPE_NTSTATUS, cmd_lsa_enum_trust_dom,     NULL, &ndr_table_lsarpc.syntax_id, NULL, "Enumerate trusted domains",            "Usage: [preferred max number] [enum context (0)]" },
 	{ "enumprivs", 	         RPC_RTYPE_NTSTATUS, cmd_lsa_enum_privilege,     NULL, &ndr_table_lsarpc.syntax_id, NULL, "Enumerate privileges",                 "" },
@@ -1388,6 +1999,14 @@ struct cmd_set lsarpc_commands[] = {
 	{ "lsaquerytrustdominfobyname",RPC_RTYPE_NTSTATUS, cmd_lsa_query_trustdominfobyname, NULL, &ndr_table_lsarpc.syntax_id, NULL, "Query LSA trusted domains info (given a name), only works for Windows > 2k", "" },
 	{ "lsaquerytrustdominfobysid",RPC_RTYPE_NTSTATUS, cmd_lsa_query_trustdominfobysid, NULL, &ndr_table_lsarpc.syntax_id, NULL, "Query LSA trusted domains info (given a SID)", "" },
 	{ "getusername",          RPC_RTYPE_NTSTATUS, cmd_lsa_get_username, NULL, &ndr_table_lsarpc.syntax_id, NULL, "Get username", "" },
+	{ "createsecret",         RPC_RTYPE_NTSTATUS, cmd_lsa_create_secret, NULL, &ndr_table_lsarpc.syntax_id, NULL, "Create Secret", "" },
+	{ "deletesecret",         RPC_RTYPE_NTSTATUS, cmd_lsa_delete_secret, NULL, &ndr_table_lsarpc.syntax_id, NULL, "Delete Secret", "" },
+	{ "querysecret",          RPC_RTYPE_NTSTATUS, cmd_lsa_query_secret, NULL, &ndr_table_lsarpc.syntax_id, NULL, "Query Secret", "" },
+	{ "setsecret",            RPC_RTYPE_NTSTATUS, cmd_lsa_set_secret, NULL, &ndr_table_lsarpc.syntax_id, NULL, "Set Secret", "" },
+	{ "retrieveprivatedata",  RPC_RTYPE_NTSTATUS, cmd_lsa_retrieve_private_data, NULL, &ndr_table_lsarpc.syntax_id, NULL, "Retrieve Private Data", "" },
+	{ "storeprivatedata",     RPC_RTYPE_NTSTATUS, cmd_lsa_store_private_data, NULL, &ndr_table_lsarpc.syntax_id, NULL, "Store Private Data", "" },
+	{ "createtrustdom",       RPC_RTYPE_NTSTATUS, cmd_lsa_create_trusted_domain, NULL, &ndr_table_lsarpc.syntax_id, NULL, "Create Trusted Domain", "" },
+	{ "deletetrustdom",       RPC_RTYPE_NTSTATUS, cmd_lsa_delete_trusted_domain, NULL, &ndr_table_lsarpc.syntax_id, NULL, "Delete Trusted Domain", "" },
 
 	{ NULL }
 };

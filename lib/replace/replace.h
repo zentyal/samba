@@ -258,6 +258,10 @@ char *rep_realpath(const char *path, char *resolved_path);
 int rep_lchown(const char *fname,uid_t uid,gid_t gid);
 #endif
 
+#ifdef HAVE_UNIX_H
+#include <unix.h>
+#endif
+
 #ifndef HAVE_SETLINEBUF
 #define setlinebuf rep_setlinebuf
 void rep_setlinebuf(FILE *);
@@ -535,6 +539,18 @@ typedef int bool;
 #endif
 #endif
 
+#if !defined(HAVE_INTPTR_T)
+typedef long long intptr_t ;
+#endif
+
+#if !defined(HAVE_UINTPTR_T)
+typedef unsigned long long uintptr_t ;
+#endif
+
+#if !defined(HAVE_PTRDIFF_T)
+typedef unsigned long long ptrdiff_t ;
+#endif
+
 /*
  * to prevent <rpcsvc/yp_prot.h> from doing a redefine of 'bool'
  *
@@ -685,6 +701,25 @@ char *ufc_crypt(const char *key, const char *salt);
 #else
 #ifdef HAVE_CRYPT_H
 #include <crypt.h>
+#endif
+#endif
+
+/* these macros gain us a few percent of speed on gcc */
+#if (__GNUC__ >= 3)
+/* the strange !! is to ensure that __builtin_expect() takes either 0 or 1
+   as its first argument */
+#ifndef likely
+#define likely(x)   __builtin_expect(!!(x), 1)
+#endif
+#ifndef unlikely
+#define unlikely(x) __builtin_expect(!!(x), 0)
+#endif
+#else
+#ifndef likely
+#define likely(x) (x)
+#endif
+#ifndef unlikely
+#define unlikely(x) (x)
 #endif
 #endif
 

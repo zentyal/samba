@@ -31,9 +31,7 @@
  * SUCH DAMAGE.
  */
 
-#include "krb5/gsskrb5_locl.h"
-
-RCSID("$Id$");
+#include "gsskrb5_locl.h"
 
 static HEIMDAL_MUTEX context_mutex = HEIMDAL_MUTEX_INITIALIZER;
 static int created_key;

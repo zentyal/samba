@@ -69,14 +69,18 @@ AC_CONFIG_FILES(../source4/librpc/dcerpc_atsvc.pc)
 
 m4_include(../source4/min_versions.m4)
 
-SMB_EXT_LIB_FROM_PKGCONFIG(LIBTALLOC, talloc >= $TALLOC_MIN_VERSION,
+SMB_EXT_LIB_FROM_PKGCONFIG(LIBTALLOC, talloc >= TALLOC_MIN_VERSION,
 	[],
 	[
 		SMB_INCLUDE_MK(../lib/talloc/config.mk)
 	]
 )
+# Tallocdir isn't always set by the Samba3 c
+tallocdir=../lib/talloc
+AC_SUBST(tallocdir)
+CFLAGS="$CFLAGS -I../lib/talloc"
 
-SMB_EXT_LIB_FROM_PKGCONFIG(LIBTDB, tdb >= $TDB_MIN_VERSION,
+SMB_EXT_LIB_FROM_PKGCONFIG(LIBTDB, tdb >= TDB_MIN_VERSION,
 	[],
 	[
 		m4_include(../lib/tdb/libtdb.m4)
@@ -86,13 +90,11 @@ SMB_EXT_LIB_FROM_PKGCONFIG(LIBTDB, tdb >= $TDB_MIN_VERSION,
 
 SMB_INCLUDE_MK(../lib/tdb/python.mk) 
 
-SMB_EXT_LIB_FROM_PKGCONFIG(LIBTEVENT, tevent = $TEVENT_REQUIRED_VERSION,
+SMB_EXT_LIB_FROM_PKGCONFIG(LIBTEVENT, tevent = TEVENT_REQUIRED_VERSION,
 	[],[m4_include(../lib/tevent/samba.m4)]
 )
 
-SMB_INCLUDE_MK(../lib/tevent/python.mk) 
-
-SMB_EXT_LIB_FROM_PKGCONFIG(LIBLDB, ldb = $LDB_REQUIRED_VERSION,
+SMB_EXT_LIB_FROM_PKGCONFIG(LIBLDB, ldb = LDB_REQUIRED_VERSION,
 	[
 		SMB_INCLUDE_MK(lib/ldb/ldb_ildap/config.mk)
 		SMB_INCLUDE_MK(lib/ldb/tools/config.mk)
@@ -129,7 +131,11 @@ SMB_INCLUDE_MK(lib/ldb/python.mk)
 # Not sure why we need this..
 SMB_ENABLE(swig_ldb,YES)
 
+# Don't build wbinfo twice
+SMB_ENABLE(wbinfo, NO)
+
 m4_include(lib/tls/config.m4)
+m4_include(torture/libnetapi/config.m4)
 
 dnl m4_include(auth/kerberos/config.m4)
 m4_include(auth/gensec/config.m4)

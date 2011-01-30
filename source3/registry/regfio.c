@@ -45,7 +45,7 @@ static int write_block( REGF_FILE *file, prs_struct *ps, uint32 offset )
 
 	/* check for end of file */
 
-	if ( sys_fstat( file->fd, &sbuf ) ) {
+	if (sys_fstat(file->fd, &sbuf, false)) {
 		DEBUG(0,("write_block: stat() failed! (%s)\n", strerror(errno)));
 		return -1;
 	}
@@ -79,12 +79,12 @@ static int read_block( REGF_FILE *file, prs_struct *ps, uint32 file_offset, uint
 
 	/* check for end of file */
 
-	if ( sys_fstat( file->fd, &sbuf ) ) {
+	if (sys_fstat(file->fd, &sbuf, false)) {
 		DEBUG(0,("read_block: stat() failed! (%s)\n", strerror(errno)));
 		return -1;
 	}
 
-	if ( (size_t)file_offset >= sbuf.st_size )
+	if ( (size_t)file_offset >= sbuf.st_ex_size )
 		return -1;
 	
 	/* if block_size == 0, we are parsing HBIN records and need 
@@ -958,7 +958,7 @@ static REGF_SK_REC* find_sk_record_by_sec_desc( REGF_FILE *file, SEC_DESC *sd )
 	REGF_SK_REC *p;
 
 	for ( p=file->sec_desc_list; p; p=p->next ) {
-		if ( sec_desc_equal( p->sec_desc, sd ) )
+		if ( security_descriptor_equal( p->sec_desc, sd ) )
 			return p;
 	}
 
@@ -1429,12 +1429,12 @@ static REGF_HBIN* regf_hbin_allocate( REGF_FILE *file, uint32 block_size )
 	memcpy( hbin->header, "hbin", sizeof(HBIN_HDR_SIZE) );
 
 
-	if ( sys_fstat( file->fd, &sbuf ) ) {
+	if (sys_fstat(file->fd, &sbuf, false)) {
 		DEBUG(0,("regf_hbin_allocate: stat() failed! (%s)\n", strerror(errno)));
 		return NULL;
 	}
 
-	hbin->file_off       = sbuf.st_size;
+	hbin->file_off       = sbuf.st_ex_size;
 
 	hbin->free_off       = HBIN_HEADER_REC_SIZE;
 	hbin->free_size      = block_size - hbin->free_off + sizeof(uint32);;
@@ -1657,7 +1657,8 @@ static uint32 nk_record_data_size( REGF_NK_REC *nk )
 /*******************************************************************
 *******************************************************************/
 
-static bool create_vk_record( REGF_FILE *file, REGF_VK_REC *vk, REGISTRY_VALUE *value )
+static bool create_vk_record(REGF_FILE *file, REGF_VK_REC *vk,
+			     struct regval_blob *value)
 {
 	char *name = regval_name(value);
 	REGF_HBIN *data_hbin;
@@ -1714,8 +1715,8 @@ static int hashrec_cmp( REGF_HASH_REC *h1, REGF_HASH_REC *h2 )
 /*******************************************************************
 *******************************************************************/
 
- REGF_NK_REC* regfio_write_key( REGF_FILE *file, const char *name, 
-                               REGVAL_CTR *values, struct regsubkey_ctr *subkeys,
+ REGF_NK_REC* regfio_write_key( REGF_FILE *file, const char *name,
+                               struct regval_ctr *values, struct regsubkey_ctr *subkeys,
                                SEC_DESC *sec_desc, REGF_NK_REC *parent )
 {
 	REGF_NK_REC *nk;
@@ -1894,7 +1895,7 @@ static int hashrec_cmp( REGF_HASH_REC *h1, REGF_HASH_REC *h2 )
 
 		for ( i=0; i<nk->num_values; i++ ) {
 			uint32 vk_size, namelen, datalen;
-			REGISTRY_VALUE *r;
+			struct regval_blob *r;
 
 			r = regval_ctr_specific_value( values, i );
 			create_vk_record( file, &nk->values[i], r );

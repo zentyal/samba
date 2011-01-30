@@ -20,7 +20,6 @@
 */
 
 #include "includes.h"
-#include "smb.h"
 #include "libcli/raw/libcliraw.h"
 #include "libcli/raw/raw_proto.h"
 #include "librpc/gen_ndr/ndr_security.h"
@@ -796,6 +795,7 @@ _PUBLIC_ struct smbcli_request *smb_raw_close_send(struct smbcli_tree *tree, uni
 		break;
 
 	case RAW_CLOSE_SMB2:
+	case RAW_CLOSE_GENERIC:
 		return NULL;
 	}
 

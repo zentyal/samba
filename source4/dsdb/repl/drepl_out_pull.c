@@ -79,6 +79,22 @@ WERROR dreplsrv_schedule_pull_replication(struct dreplsrv_service *s, TALLOC_CTX
 	return WERR_OK;
 }
 
+
+/* force an immediate of the specified partition by GUID  */
+WERROR dreplsrv_schedule_partition_pull_by_guid(struct dreplsrv_service *s, TALLOC_CTX *mem_ctx,
+						struct GUID *guid)
+{
+	struct dreplsrv_partition *p;
+	
+	for (p = s->partitions; p; p = p->next) {
+		if (GUID_compare(&p->nc.guid, guid) == 0) {
+			return dreplsrv_schedule_partition_pull(s, p, mem_ctx);
+		}
+	}
+
+	return WERR_NOT_FOUND;
+}
+
 static void dreplsrv_pending_op_callback(struct dreplsrv_out_operation *op)
 {
 	struct repsFromTo1 *rf = op->source_dsa->repsFrom1;
@@ -93,7 +109,7 @@ static void dreplsrv_pending_op_callback(struct dreplsrv_out_operation *op)
 	if (W_ERROR_IS_OK(rf->result_last_attempt)) {
 		rf->consecutive_sync_failures	= 0;
 		rf->last_success		= now;
-		DEBUG(2,("dreplsrv_op_pull_source(%s)\n",
+		DEBUG(3,("dreplsrv_op_pull_source(%s)\n",
 			win_errstr(rf->result_last_attempt)));
 		goto done;
 	}
@@ -109,6 +125,7 @@ done:
 	talloc_free(op);
 	s->ops.current = NULL;
 	dreplsrv_run_pending_ops(s);
+	dreplsrv_notify_run_ops(s);
 }
 
 static void dreplsrv_pending_op_callback_creq(struct composite_context *creq)
@@ -124,7 +141,7 @@ void dreplsrv_run_pending_ops(struct dreplsrv_service *s)
 	time_t t;
 	NTTIME now;
 
-	if (s->ops.current) {
+	if (s->ops.current || s->ops.n_current) {
 		/* if there's still one running, we're done */
 		return;
 	}

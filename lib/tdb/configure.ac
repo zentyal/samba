@@ -2,11 +2,12 @@ AC_PREREQ(2.50)
 AC_DEFUN([SMB_MODULE_DEFAULT], [echo -n ""])
 AC_DEFUN([SMB_LIBRARY_ENABLE], [echo -n ""])
 AC_DEFUN([SMB_ENABLE], [echo -n ""])
-AC_INIT(tdb, 1.1.3)
+AC_INIT(tdb, 1.2.1)
 AC_CONFIG_SRCDIR([common/tdb.c])
 AC_CONFIG_HEADER(include/config.h)
 AC_LIBREPLACE_ALL_CHECKS
 AC_LD_SONAMEFLAG
+AC_LD_VERSIONSCRIPT
 AC_LD_PICFLAG
 AC_LD_SHLIBEXT
 AC_LIBREPLACE_SHLD
@@ -27,6 +28,22 @@ if test -z "$PYTHON_CONFIG"; then
 	PYTHON_INSTALL_TARGET=""
 	PYTHON_CHECK_TARGET=""
 fi
+
+AC_ARG_ENABLE(python,
+	AS_HELP_STRING([--enable-python], [Enables python binding]),
+		[ if test "x$enableval" = "xno" ; then
+			PYTHON_BUILD_TARGET=""
+			PYTHON_INSTALL_TARGET=""
+			PYTHON_CHECK_TARGET=""
+		  fi
+		])
+
+AC_PATH_PROG(XSLTPROC,xsltproc)
+DOC_TARGET=""
+if test -n "$XSLTPROC"; then
+	DOC_TARGET=doc
+fi
+AC_SUBST(DOC_TARGET)
 
 m4_include(build_macros.m4)
 BUILD_WITH_SHARED_BUILD_DIR

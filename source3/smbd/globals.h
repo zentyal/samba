@@ -42,17 +42,7 @@ struct smbd_dmapi_context;
 extern struct smbd_dmapi_context *dmapi_ctx;
 #endif
 
-extern connection_struct *Connections;
-/* number of open connections */
-extern struct bitmap *bmap;
-extern int num_open;
-
 extern bool dfree_broken;
-
-extern struct bitmap *dptr_bmap;
-//struct dptr_struct;
-extern struct dptr_struct *dirptrs;
-extern int dirhandles_open;
 
 /* how many write cache buffers have been allocated */
 extern unsigned int allocated_write_caches;
@@ -91,41 +81,9 @@ extern char *last_to;
 struct msg_state;
 extern struct msg_state *smbd_msg_state;
 
-extern bool global_encrypted_passwords_negotiated;
-extern bool global_spnego_negotiated;
-extern struct auth_context *negprot_global_auth_context;
-extern bool done_negprot;
-
 extern bool logged_ioctl_message;
 
-/* users from session setup */
-extern char *session_userlist;
-/* workgroup from session setup. */
-extern char *session_workgroup;
-/* this holds info on user ids that are already validated for this VC */
-extern user_struct *validated_users;
-extern uint16_t next_vuid;
-extern int num_validated_vuids;
-#ifdef HAVE_NETGROUP
-extern char *my_yp_domain;
-#endif
-
-extern bool already_got_session;
-
-/*
- * Size of data we can send to client. Set
- *  by the client for all protocols above CORE.
- *  Set by us for CORE protocol.
- */
-extern int max_send;
-/*
- * Size of the data we can receive. Set by us.
- * Can be modified by the max xmit parameter.
- */
-extern int max_recv;
-extern uint16 last_session_tag;
 extern int trans_num;
-extern char *orig_inbuf;
 
 extern pid_t mypid;
 extern time_t last_smb_conf_reload_time;
@@ -159,12 +117,6 @@ extern uint16_t last_flags;
 extern struct db_context *session_db_ctx_ptr;
 
 extern uint32_t global_client_caps;
-extern bool done_sesssetup;
-/****************************************************************************
- List to store partial SPNEGO auth fragments.
-****************************************************************************/
-struct pending_auth_data;
-extern struct pending_auth_data *pd_list;
 
 extern uint16_t fnf_handle;
 
@@ -187,8 +139,6 @@ extern int32_t level_II_oplocks_open;
 extern bool global_client_failed_oplock_break;
 extern struct kernel_oplocks *koplocks;
 
-extern struct notify_mid_map *notify_changes_by_mid;
-
 extern int am_parent;
 extern int server_fd;
 extern struct event_context *smbd_event_ctx;
@@ -199,10 +149,368 @@ struct child_pid;
 extern struct child_pid *children;
 extern int num_children;
 
-struct smbd_server_connection {
-	struct fd_event *fde;
-	uint64_t num_requests;
+struct tstream_context;
+struct smbd_smb2_request;
+struct smbd_smb2_session;
+struct smbd_smb2_tcon;
+
+DATA_BLOB negprot_spnego(void);
+
+NTSTATUS smb2_signing_sign_pdu(DATA_BLOB session_key,
+			       struct iovec *vector,
+			       int count);
+NTSTATUS smb2_signing_check_pdu(DATA_BLOB session_key,
+				const struct iovec *vector,
+				int count);
+
+struct smbd_lock_element {
+	uint32_t smbpid;
+	enum brl_type brltype;
+	uint64_t offset;
+	uint64_t count;
 };
+
+NTSTATUS smbd_do_locking(struct smb_request *req,
+			 files_struct *fsp,
+			 uint8_t type,
+			 int32_t timeout,
+			 uint16_t num_ulocks,
+			 struct smbd_lock_element *ulocks,
+			 uint16_t num_locks,
+			 struct smbd_lock_element *locks,
+			 bool *async);
+
+NTSTATUS smbd_do_qfilepathinfo(connection_struct *conn,
+			       TALLOC_CTX *mem_ctx,
+			       uint16_t info_level,
+			       files_struct *fsp,
+			       struct smb_filename *smb_fname,
+			       bool delete_pending,
+			       struct timespec write_time_ts,
+			       bool ms_dfs_link,
+			       struct ea_list *ea_list,
+			       int lock_data_count,
+			       char *lock_data,
+			       uint16_t flags2,
+			       unsigned int max_data_bytes,
+			       char **ppdata,
+			       unsigned int *pdata_size);
+
+NTSTATUS smbd_do_setfilepathinfo(connection_struct *conn,
+				struct smb_request *req,
+				TALLOC_CTX *mem_ctx,
+				uint16_t info_level,
+				files_struct *fsp,
+				struct smb_filename *smb_fname,
+				char **ppdata, int total_data,
+				int *ret_data_size);
+
+NTSTATUS smbd_do_qfsinfo(connection_struct *conn,
+			 TALLOC_CTX *mem_ctx,
+			 uint16_t info_level,
+			 uint16_t flags2,
+			 unsigned int max_data_bytes,
+			 char **ppdata,
+			 int *ret_data_len);
+
+bool smbd_dirptr_get_entry(TALLOC_CTX *ctx,
+			   struct dptr_struct *dirptr,
+			   const char *mask,
+			   uint32_t dirtype,
+			   bool dont_descend,
+			   bool ask_sharemode,
+			   bool (*match_fn)(TALLOC_CTX *ctx,
+					    void *private_data,
+					    const char *dname,
+					    const char *mask,
+					    char **_fname),
+			   bool (*mode_fn)(TALLOC_CTX *ctx,
+					   void *private_data,
+					   struct smb_filename *smb_fname,
+					   uint32_t *_mode),
+			   void *private_data,
+			   char **_fname,
+			   struct smb_filename **_smb_fname,
+			   uint32_t *_mode,
+			   long *_prev_offset);
+
+bool smbd_dirptr_lanman2_entry(TALLOC_CTX *ctx,
+			       connection_struct *conn,
+			       struct dptr_struct *dirptr,
+			       uint16 flags2,
+			       const char *path_mask,
+			       uint32 dirtype,
+			       int info_level,
+			       int requires_resume_key,
+			       bool dont_descend,
+			       bool ask_sharemode,
+			       uint8_t align,
+			       bool do_pad,
+			       char **ppdata,
+			       char *base_data,
+			       char *end_data,
+			       int space_remaining,
+			       bool *out_of_space,
+			       bool *got_exact_match,
+			       int *_last_entry_off,
+			       struct ea_list *name_list);
+
+NTSTATUS smbd_check_open_rights(struct connection_struct *conn,
+				const struct smb_filename *smb_fname,
+				uint32_t access_mask,
+				uint32_t *access_granted);
+
+void smbd_notify_cancel_by_smbreq(struct smbd_server_connection *sconn,
+				  const struct smb_request *smbreq);
+
+void smbd_server_connection_terminate_ex(struct smbd_server_connection *sconn,
+					 const char *reason,
+					 const char *location);
+#define smbd_server_connection_terminate(sconn, reason) \
+	smbd_server_connection_terminate_ex(sconn, reason, __location__)
+
+bool smbd_is_smb2_header(const uint8_t *inbuf, size_t size);
+
+void reply_smb2002(struct smb_request *req, uint16_t choice);
+void smbd_smb2_first_negprot(struct smbd_server_connection *sconn,
+			     const uint8_t *inbuf, size_t size);
+
+NTSTATUS smbd_smb2_request_error_ex(struct smbd_smb2_request *req,
+				    NTSTATUS status,
+				    DATA_BLOB *info,
+				    const char *location);
+#define smbd_smb2_request_error(req, status) \
+	smbd_smb2_request_error_ex(req, status, NULL, __location__)
+NTSTATUS smbd_smb2_request_done_ex(struct smbd_smb2_request *req,
+				   NTSTATUS status,
+				   DATA_BLOB body, DATA_BLOB *dyn,
+				   const char *location);
+#define smbd_smb2_request_done(req, body, dyn) \
+	smbd_smb2_request_done_ex(req, NT_STATUS_OK, body, dyn, __location__)
+
+NTSTATUS smbd_smb2_send_oplock_break(struct smbd_server_connection *sconn,
+				     uint64_t file_id_persistent,
+				     uint64_t file_id_volatile,
+				     uint8_t oplock_level);
+
+NTSTATUS smbd_smb2_request_pending_queue(struct smbd_smb2_request *req,
+					 struct tevent_req *subreq);
+
+NTSTATUS smbd_smb2_request_check_session(struct smbd_smb2_request *req);
+NTSTATUS smbd_smb2_request_check_tcon(struct smbd_smb2_request *req);
+
+struct smb_request *smbd_smb2_fake_smb_request(struct smbd_smb2_request *req);
+
+NTSTATUS smbd_smb2_request_process_negprot(struct smbd_smb2_request *req);
+NTSTATUS smbd_smb2_request_process_sesssetup(struct smbd_smb2_request *req);
+NTSTATUS smbd_smb2_request_process_logoff(struct smbd_smb2_request *req);
+NTSTATUS smbd_smb2_request_process_tcon(struct smbd_smb2_request *req);
+NTSTATUS smbd_smb2_request_process_tdis(struct smbd_smb2_request *req);
+NTSTATUS smbd_smb2_request_process_create(struct smbd_smb2_request *req);
+NTSTATUS smbd_smb2_request_process_close(struct smbd_smb2_request *req);
+NTSTATUS smbd_smb2_request_process_flush(struct smbd_smb2_request *req);
+NTSTATUS smbd_smb2_request_process_read(struct smbd_smb2_request *req);
+NTSTATUS smbd_smb2_request_process_write(struct smbd_smb2_request *req);
+NTSTATUS smbd_smb2_request_process_lock(struct smbd_smb2_request *req);
+NTSTATUS smbd_smb2_request_process_ioctl(struct smbd_smb2_request *req);
+NTSTATUS smbd_smb2_request_process_keepalive(struct smbd_smb2_request *req);
+NTSTATUS smbd_smb2_request_process_find(struct smbd_smb2_request *req);
+NTSTATUS smbd_smb2_request_process_notify(struct smbd_smb2_request *req);
+NTSTATUS smbd_smb2_request_process_getinfo(struct smbd_smb2_request *req);
+NTSTATUS smbd_smb2_request_process_setinfo(struct smbd_smb2_request *req);
+NTSTATUS smbd_smb2_request_process_break(struct smbd_smb2_request *req);
+
+struct smbd_smb2_request {
+	struct smbd_smb2_request *prev, *next;
+
+	TALLOC_CTX *mem_pool;
+	struct smbd_smb2_request **parent;
+
+	struct smbd_server_connection *sconn;
+
+	/* the session the request operates on, maybe NULL */
+	struct smbd_smb2_session *session;
+
+	/* the tcon the request operates on, maybe NULL */
+	struct smbd_smb2_tcon *tcon;
+
+	int current_idx;
+	bool do_signing;
+
+	struct files_struct *compat_chain_fsp;
+
+	NTSTATUS next_status;
+
+	/*
+	 * The sub request for async backend calls.
+	 * This is used for SMB2 Cancel.
+	 */
+	struct tevent_req *subreq;
+
+	struct {
+		/* the NBT header is not allocated */
+		uint8_t nbt_hdr[4];
+		/*
+		 * vector[0] NBT
+		 * .
+		 * vector[1] SMB2
+		 * vector[2] fixed body
+		 * vector[3] dynamic body
+		 * .
+		 * .
+		 * .
+		 * vector[4] SMB2
+		 * vector[5] fixed body
+		 * vector[6] dynamic body
+		 * .
+		 * .
+		 * .
+		 */
+		struct iovec *vector;
+		int vector_count;
+	} in;
+	struct {
+		/* the NBT header is not allocated */
+		uint8_t nbt_hdr[4];
+		/*
+		 * vector[0] NBT
+		 * .
+		 * vector[1] SMB2
+		 * vector[2] fixed body
+		 * vector[3] dynamic body
+		 * .
+		 * .
+		 * .
+		 * vector[4] SMB2
+		 * vector[5] fixed body
+		 * vector[6] dynamic body
+		 * .
+		 * .
+		 * .
+		 */
+		struct iovec *vector;
+		int vector_count;
+	} out;
+};
+
+struct smbd_server_connection;
+
+struct smbd_smb2_session {
+	struct smbd_smb2_session *prev, *next;
+	struct smbd_server_connection *sconn;
+	NTSTATUS status;
+	uint64_t vuid;
+	AUTH_NTLMSSP_STATE *auth_ntlmssp_state;
+	struct auth_serversupplied_info *server_info;
+	DATA_BLOB session_key;
+	bool do_signing;
+
+	user_struct *compat_vuser;
+
+	struct {
+		/* an id tree used to allocate tids */
+		struct idr_context *idtree;
+
+		/* this is the limit of tid values for this connection */
+		uint32_t limit;
+
+		struct smbd_smb2_tcon *list;
+	} tcons;
+};
+
+struct smbd_smb2_tcon {
+	struct smbd_smb2_tcon *prev, *next;
+	struct smbd_smb2_session *session;
+	uint32_t tid;
+	int snum;
+	connection_struct *compat_conn;
+};
+
+struct pending_auth_data;
+
+struct smbd_server_connection {
+	struct {
+		bool got_session;
+	} nbt;
+	bool allow_smb2;
+	struct {
+		struct fd_event *fde;
+		uint64_t num_requests;
+		struct {
+			bool encrypted_passwords;
+			bool spnego;
+			struct auth_context *auth_context;
+			bool done;
+			/*
+			 * Size of the data we can receive. Set by us.
+			 * Can be modified by the max xmit parameter.
+			 */
+			int max_recv;
+		} negprot;
+
+		struct {
+			bool done_sesssetup;
+			/*
+			 * Size of data we can send to client. Set
+			 *  by the client for all protocols above CORE.
+			 *  Set by us for CORE protocol.
+			 */
+			int max_send;
+			uint16_t last_session_tag;
+
+			/* users from session setup */
+			char *session_userlist;
+			/* workgroup from session setup. */
+			char *session_workgroup;
+			/*
+			 * this holds info on user ids that are already
+			 * validated for this VC
+			 */
+			user_struct *validated_users;
+			uint16_t next_vuid;
+			int num_validated_vuids;
+#ifdef HAVE_NETGROUP
+			char *my_yp_domain;
+#endif
+		} sessions;
+		struct {
+			connection_struct *Connections;
+			/* number of open connections */
+			struct bitmap *bmap;
+			int num_open;
+		} tcons;
+		struct smb_signing_state *signing_state;
+		/* List to store partial SPNEGO auth fragments. */
+		struct pending_auth_data *pd_list;
+
+		struct notify_mid_map *notify_mid_maps;
+
+		struct {
+			struct bitmap *dptr_bmap;
+			struct dptr_struct *dirptrs;
+			int dirhandles_open;
+		} searches;
+	} smb1;
+	struct {
+		struct tevent_context *event_ctx;
+		struct tevent_queue *recv_queue;
+		struct tevent_queue *send_queue;
+		struct tstream_context *stream;
+		struct {
+			/* an id tree used to allocate vuids */
+			/* this holds info on session vuids that are already
+			 * validated for this VC */
+			struct idr_context *idtree;
+
+			/* this is the limit of vuid values for this connection */
+			uint64_t limit;
+
+			struct smbd_smb2_session *list;
+		} sessions;
+		struct smbd_smb2_request *requests;
+	} smb2;
+};
+
 extern struct smbd_server_connection *smbd_server_conn;
 
 void smbd_init_globals(void);

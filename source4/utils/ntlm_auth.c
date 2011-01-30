@@ -30,7 +30,6 @@
 #include "auth/auth.h"
 #include "librpc/gen_ndr/ndr_netlogon.h"
 #include "auth/auth_sam.h"
-#include "auth/ntlm/ntlm_check.h"
 #include "libcli/auth/libcli_auth.h"
 #include "libcli/security/security.h"
 #include "lib/events/events.h"
@@ -466,6 +465,9 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 	if (!ev) {
 		exit(1);
 	}
+
+	mem_ctx = talloc_named(NULL, 0, "manage_gensec_request internal mem_ctx");
+
 	/* setup gensec */
 	if (!(state->gensec_state)) {
 		switch (stdio_helper_mode) {
@@ -476,6 +478,7 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 			nt_status = gensec_client_start(NULL, &state->gensec_state, ev, 
 							lp_gensec_settings(NULL, lp_ctx));
 			if (!NT_STATUS_IS_OK(nt_status)) {
+				talloc_free(mem_ctx);
 				exit(1);
 			}
 
@@ -489,6 +492,7 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 			msg = messaging_client_init(state, lp_messaging_path(state, lp_ctx), 
 						    lp_iconv_convenience(lp_ctx), ev);
 			if (!msg) {
+				talloc_free(mem_ctx);
 				exit(1);
 			}
 			nt_status = auth_context_create_methods(mem_ctx, 
@@ -499,17 +503,20 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 								&auth_context);
 	
 			if (!NT_STATUS_IS_OK(nt_status)) {
+				talloc_free(mem_ctx);
 				exit(1);
 			}
 			
 			if (!NT_STATUS_IS_OK(gensec_server_start(state, ev, 
 								 lp_gensec_settings(state, lp_ctx), 
 								 auth_context, &state->gensec_state))) {
+				talloc_free(mem_ctx);
 				exit(1);
 			}
 			break;
 		}
 		default:
+			talloc_free(mem_ctx);
 			abort();
 		}
 
@@ -560,20 +567,21 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 			nt_status = gensec_start_mech_by_oid(state->gensec_state, GENSEC_OID_NTLMSSP);
 			break;
 		default:
+			talloc_free(mem_ctx);
 			abort();
 		}
 
 		if (!NT_STATUS_IS_OK(nt_status)) {
 			DEBUG(1, ("GENSEC mech failed to start: %s\n", nt_errstr(nt_status)));
 			mux_printf(mux_id, "BH GENSEC mech failed to start\n");
+			talloc_free(mem_ctx);
 			return;
 		}
 
 	}
 
 	/* update */
-	mem_ctx = talloc_named(NULL, 0, "manage_gensec_request internal mem_ctx");
-	
+
 	if (strncmp(buf, "PW ", 3) == 0) {
 		state->set_password = talloc_strndup(state,
 						     (const char *)in.data, 

@@ -25,6 +25,25 @@
 #include "librpc/ndr/libndr.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 
+
+/**
+  build a GUID from a NDR data blob
+*/
+_PUBLIC_ NTSTATUS GUID_from_ndr_blob(const DATA_BLOB *b, struct GUID *guid)
+{
+	enum ndr_err_code ndr_err;
+	TALLOC_CTX *mem_ctx;
+
+	mem_ctx = talloc_new(NULL);
+	NT_STATUS_HAVE_NO_MEMORY(mem_ctx);
+
+	ndr_err = ndr_pull_struct_blob_all(b, mem_ctx, NULL, guid,
+					   (ndr_pull_flags_fn_t)ndr_pull_GUID);
+	talloc_free(mem_ctx);
+	return ndr_map_error2ntstatus(ndr_err);
+}
+
+
 /**
   build a GUID from a string
 */
@@ -81,29 +100,16 @@ _PUBLIC_ NTSTATUS GUID_from_data_blob(const DATA_BLOB *s, struct GUID *guid)
 	} else if (s->length == 32) {
 		size_t rlen = strhex_to_str((char *)blob16.data, blob16.length,
 					    (const char *)s->data, s->length);
-		if (rlen == blob16.length) {
-			/* goto the ndr_pull_struct_blob() path */
-			status = NT_STATUS_OK;
-			s = &blob16;
+		if (rlen != blob16.length) {
+			return NT_STATUS_INVALID_PARAMETER;
 		}
+
+		s = &blob16;
+		return GUID_from_ndr_blob(s, guid);
 	}
 
 	if (s->length == 16) {
-		enum ndr_err_code ndr_err;
-		struct GUID guid2;
-		TALLOC_CTX *mem_ctx;
-
-		mem_ctx = talloc_new(NULL);
-		NT_STATUS_HAVE_NO_MEMORY(mem_ctx);
-
-		ndr_err = ndr_pull_struct_blob(s, mem_ctx, NULL, &guid2,
-					       (ndr_pull_flags_fn_t)ndr_pull_GUID);
-		talloc_free(mem_ctx);
-		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-			return ndr_map_error2ntstatus(ndr_err);
-		}
-		*guid = guid2;
-		return NT_STATUS_OK;
+		return GUID_from_ndr_blob(s, guid);
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {

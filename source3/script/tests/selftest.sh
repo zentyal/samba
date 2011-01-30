@@ -57,7 +57,15 @@ export TORTURE_MAXTIME
 WORKGROUP=SAMBA-TEST
 SERVER=localhost2
 SERVER_IP=127.0.0.2
-USERNAME=`PATH=/usr/ucb:$PATH whoami`
+if [ ! "x$USER" = "x" ]; then
+    USERNAME=$USER
+else
+    if [ ! "x$LOGNAME" = "x" ]; then
+        USERNAME=$LOGNAME
+    else
+        USERNAME=`PATH=/usr/ucb:$PATH whoami || id -un`
+    fi
+fi
 USERID=`PATH=/usr/ucb:$PATH id | cut -d ' ' -f1 | sed -e 's/uid=\([0-9]*\).*/\1/g'`
 GROUPID=`PATH=/usr/ucb:$PATH id | cut -d ' ' -f2 | sed -e 's/gid=\([0-9]*\).*/\1/g'`
 PASSWORD=test
@@ -81,6 +89,7 @@ NSS_WRAPPER_PASSWD="$PRIVATEDIR/passwd"
 NSS_WRAPPER_GROUP="$PRIVATEDIR/group"
 WINBINDD_SOCKET_DIR=$PREFIX_ABS/winbindd
 WINBINDD_PRIV_PIPE_DIR=$LOCKDIR/winbindd_privileged
+TEST_DIRECTORY=$DIRECTORY
 
 export PREFIX PREFIX_ABS
 export CONFIGURATION CONFFILE SAMBA4CONFIGURATION SAMBA4CONFFILE
@@ -91,6 +100,7 @@ export USERNAME PASSWORD
 export WORKGROUP SERVER SERVER_IP
 export NSS_WRAPPER_PASSWD NSS_WRAPPER_GROUP
 export WINBINDD_SOCKET_DIR WINBINDD_PRIV_PIPE_DIR
+export TEST_DIRECTORY
 
 PATH=bin:$PATH
 export PATH
@@ -239,10 +249,13 @@ cat >$SERVERCONFFILE<<EOF
 
 	read only = no
 	smbd:sharedelay = 100000
-	smbd:writetimeupdatedelay = 500000
-	map hidden = yes
-	map system = yes
+#	smbd:writetimeupdatedelay = 500000
+	map hidden = no
+	map system = no
+	map readonly = no
+	store dos attributes = yes
 	create mask = 755
+	store create time = yes
 	vfs objects = $BINDIR/xattr_tdb.so $BINDIR/streams_depot.so
 
 	#Include user defined custom parameters if set
@@ -253,6 +266,9 @@ cat >$SERVERCONFFILE<<EOF
 [hideunread]
 	copy = tmp
 	hide unreadable = yes
+[tmpcase]
+	copy = tmp
+	case sensitive = yes
 [hideunwrite]
 	copy = tmp
 	hide unwriteable files = yes
@@ -289,6 +305,7 @@ EOF
 cat >$NSS_WRAPPER_GROUP<<EOF
 nobody:x:65533:
 nogroup:x:65534:nobody
+root:x:65532:
 $USERNAME-group:x:$GROUPID:
 EOF
 
@@ -296,7 +313,7 @@ MAKE_TEST_BINARY="bin/smbpasswd"
 export MAKE_TEST_BINARY
 
 (echo $PASSWORD; echo $PASSWORD) | \
-	bin/smbpasswd -c $CONFFILE -L -s -a $USERNAME >/dev/null || exit 1
+	bin/smbpasswd -c $SERVERCONFFILE -L -s -a $USERNAME >/dev/null || exit 1
 
 echo "DONE";
 

@@ -128,7 +128,7 @@ void nb_setup(struct cli_state *cli)
 
 void nb_unlink(const char *fname)
 {
-	if (!cli_unlink(c, fname)) {
+	if (!NT_STATUS_IS_OK(cli_unlink(c, fname, aSYSTEM | aHIDDEN))) {
 #if NBDEBUG
 		printf("(%d) unlink %s failed (%s)\n", 
 		       line_count, fname, cli_errstr(c));
@@ -140,7 +140,9 @@ void nb_unlink(const char *fname)
 void nb_createx(const char *fname, 
 		unsigned create_options, unsigned create_disposition, int handle)
 {
-	int fd, i;
+	uint16_t fd = (uint16_t)-1;
+	int i;
+	NTSTATUS status;
 	uint32 desired_access;
 
 	if (create_options & FILE_DIRECTORY_FILE) {
@@ -149,22 +151,22 @@ void nb_createx(const char *fname,
 		desired_access = FILE_READ_DATA | FILE_WRITE_DATA;
 	}
 
-	fd = cli_nt_create_full(c, fname, 0, 
+	status = cli_ntcreate(c, fname, 0, 
 				desired_access,
 				0x0,
 				FILE_SHARE_READ|FILE_SHARE_WRITE, 
 				create_disposition, 
-				create_options, 0);
-	if (fd == -1 && handle != -1) {
-		printf("ERROR: cli_nt_create_full failed for %s - %s\n",
+				create_options, 0, &fd);
+	if (!NT_STATUS_IS_OK(status) && handle != -1) {
+		printf("ERROR: cli_ntcreate failed for %s - %s\n",
 		       fname, cli_errstr(c));
 		exit(1);
 	}
-	if (fd != -1 && handle == -1) {
-		printf("ERROR: cli_nt_create_full succeeded for %s\n", fname);
+	if (NT_STATUS_IS_OK(status) && handle == -1) {
+		printf("ERROR: cli_ntcreate succeeded for %s\n", fname);
 		exit(1);
 	}
-	if (fd == -1) return;
+	if (fd == (uint16_t)-1) return;
 
 	for (i=0;i<MAX_FILES;i++) {
 		if (ftable[i].handle == 0) break;
@@ -211,7 +213,7 @@ void nb_close(int handle)
 {
 	int i;
 	i = find_handle(handle);
-	if (!cli_close(c, ftable[i].fd)) {
+	if (!NT_STATUS_IS_OK(cli_close(c, ftable[i].fd))) {
 		printf("(%d) close failed on handle %d\n", line_count, handle);
 		exit(1);
 	}
@@ -220,7 +222,7 @@ void nb_close(int handle)
 
 void nb_rmdir(const char *fname)
 {
-	if (!cli_rmdir(c, fname)) {
+	if (!NT_STATUS_IS_OK(cli_rmdir(c, fname))) {
 		printf("ERROR: rmdir %s failed (%s)\n", 
 		       fname, cli_errstr(c));
 		exit(1);
@@ -229,7 +231,7 @@ void nb_rmdir(const char *fname)
 
 void nb_rename(const char *oldname, const char *newname)
 {
-	if (!cli_rename(c, oldname, newname)) {
+	if (!NT_STATUS_IS_OK(cli_rename(c, oldname, newname))) {
 		printf("ERROR: rename %s %s failed (%s)\n", 
 		       oldname, newname, cli_errstr(c));
 		exit(1);

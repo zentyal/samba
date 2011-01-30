@@ -1,5 +1,0 @@
-winbind: no-shlibs-control-file lib/libnss_winbind.so.2
-winbind: no-shlibs-control-file lib/libnss_wins.so.2
-winbind: postinst-must-call-ldconfig lib/libnss_wins.so.2
-winbind: postrm-should-call-ldconfig lib/libnss_wins.so.2
-winbind: package-name-doesnt-match-sonames libnss-winbind2 libnss-wins2

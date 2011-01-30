@@ -7,11 +7,11 @@ Bug-Debian: http://bugs.debian.org/443230
 Bug-Ubuntu: https://bugs.launchpad.net/ubuntu/+source/samba/+bug/128548
 Forwarded: not-needed
 
-Index: b/docs/manpages/net.8
+Index: experimental/docs/manpages/net.8
 ===================================================================
---- a/docs/manpages/net.8	2009-11-08 15:54:27.000000000 +0100
-+++ b/docs/manpages/net.8	2009-11-08 15:55:35.000000000 +0100
-@@ -917,9 +917,9 @@
+--- experimental.orig/docs/manpages/net.8
++++ experimental/docs/manpages/net.8
+@@ -916,9 +916,9 @@
  Store a secret for the specified domain, used primarily for domains that use idmap_ldap as a backend\&. In this case the secret is used as the password for the user DN used to bind to the ldap server\&.
  .SS "USERSHARE"
  .PP
@@ -23,11 +23,11 @@ Index: b/docs/manpages/net.8
  .PP
  The usershare commands are:
  .RS 4
-Index: b/source3/param/loadparm.c
+Index: experimental/source3/param/loadparm.c
 ===================================================================
---- a/source3/param/loadparm.c	2009-11-08 15:54:27.000000000 +0100
-+++ b/source3/param/loadparm.c	2009-11-08 15:55:35.000000000 +0100
-@@ -5098,7 +5098,7 @@
+--- experimental.orig/source3/param/loadparm.c
++++ experimental/source3/param/loadparm.c
+@@ -5189,7 +5189,7 @@
  	string_set(&Globals.szUsersharePath, s);
  	SAFE_FREE(s);
  	string_set(&Globals.szUsershareTemplateShare, "");

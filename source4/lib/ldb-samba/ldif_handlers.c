@@ -3,6 +3,7 @@
 
    Copyright (C) Andrew Tridgell 2005
    Copyright (C) Andrew Bartlett 2006-2007
+   Copyright (C) Matthias Dieter Wallnöfer 2009
      ** NOTE! The following LGPL license applies to the ldb
      ** library. This does NOT imply that all of Samba is released
      ** under the LGPL
@@ -22,14 +23,49 @@
 */
 
 #include "includes.h"
-#include "ldb_private.h"
+#include "lib/ldb/include/ldb.h"
+#include "lib/ldb/include/ldb_module.h"
 #include "ldb_handlers.h"
 #include "dsdb/samdb/samdb.h"
 #include "librpc/gen_ndr/ndr_security.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "librpc/gen_ndr/ndr_drsblobs.h"
+#include "librpc/ndr/libndr.h"
 #include "libcli/security/security.h"
 #include "param/param.h"
+
+/*
+  use ndr_print_* to convert a NDR formatted blob to a ldif formatted blob
+*/
+static int ldif_write_NDR(struct ldb_context *ldb, void *mem_ctx,
+			  const struct ldb_val *in, struct ldb_val *out,
+			  size_t struct_size,
+			  ndr_pull_flags_fn_t pull_fn,
+			  ndr_print_fn_t print_fn)
+{
+	uint8_t *p;
+	enum ndr_err_code err;
+	if (!(ldb_get_flags(ldb) & LDB_FLG_SHOW_BINARY)) {
+		return ldb_handler_copy(ldb, mem_ctx, in, out);
+	}
+	p = talloc_size(mem_ctx, struct_size);
+	err = ndr_pull_struct_blob(in, mem_ctx, 
+				   lp_iconv_convenience(ldb_get_opaque(ldb, "loadparm")), 
+				   p, pull_fn);
+	if (err != NDR_ERR_SUCCESS) {
+		talloc_free(p);
+		out->data = (uint8_t *)talloc_strdup(mem_ctx, "<Unable to decode binary data>");
+		out->length = strlen((const char *)out->data);
+		return 0;
+	}
+	out->data = (uint8_t *)ndr_print_struct_string(mem_ctx, print_fn, "NDR", p);
+	talloc_free(p);
+	if (out->data == NULL) {
+		return ldb_handler_copy(ldb, mem_ctx, in, out);		
+	}
+	out->length = strlen((char *)out->data);
+	return 0;
+}
 
 /*
   convert a ldif formatted objectSid to a NDR formatted blob
@@ -79,7 +115,7 @@ static int ldif_write_objectSid(struct ldb_context *ldb, void *mem_ctx,
 	return 0;
 }
 
-static bool ldb_comparision_objectSid_isString(const struct ldb_val *v)
+static bool ldif_comparision_objectSid_isString(const struct ldb_val *v)
 {
 	if (v->length < 3) {
 		return false;
@@ -93,13 +129,13 @@ static bool ldb_comparision_objectSid_isString(const struct ldb_val *v)
 /*
   compare two objectSids
 */
-static int ldb_comparison_objectSid(struct ldb_context *ldb, void *mem_ctx,
+static int ldif_comparison_objectSid(struct ldb_context *ldb, void *mem_ctx,
 				    const struct ldb_val *v1, const struct ldb_val *v2)
 {
-	if (ldb_comparision_objectSid_isString(v1) && ldb_comparision_objectSid_isString(v2)) {
+	if (ldif_comparision_objectSid_isString(v1) && ldif_comparision_objectSid_isString(v2)) {
 		return ldb_comparison_binary(ldb, mem_ctx, v1, v2);
-	} else if (ldb_comparision_objectSid_isString(v1)
-		   && !ldb_comparision_objectSid_isString(v2)) {
+	} else if (ldif_comparision_objectSid_isString(v1)
+		   && !ldif_comparision_objectSid_isString(v2)) {
 		struct ldb_val v;
 		int ret;
 		if (ldif_read_objectSid(ldb, mem_ctx, v1, &v) != 0) {
@@ -109,8 +145,8 @@ static int ldb_comparison_objectSid(struct ldb_context *ldb, void *mem_ctx,
 		ret = ldb_comparison_binary(ldb, mem_ctx, &v, v2);
 		talloc_free(v.data);
 		return ret;
-	} else if (!ldb_comparision_objectSid_isString(v1)
-		   && ldb_comparision_objectSid_isString(v2)) {
+	} else if (!ldif_comparision_objectSid_isString(v1)
+		   && ldif_comparision_objectSid_isString(v2)) {
 		struct ldb_val v;
 		int ret;
 		if (ldif_read_objectSid(ldb, mem_ctx, v2, &v) != 0) {
@@ -127,10 +163,10 @@ static int ldb_comparison_objectSid(struct ldb_context *ldb, void *mem_ctx,
 /*
   canonicalise a objectSid
 */
-static int ldb_canonicalise_objectSid(struct ldb_context *ldb, void *mem_ctx,
+static int ldif_canonicalise_objectSid(struct ldb_context *ldb, void *mem_ctx,
 				      const struct ldb_val *in, struct ldb_val *out)
 {
-	if (ldb_comparision_objectSid_isString(in)) {
+	if (ldif_comparision_objectSid_isString(in)) {
 		if (ldif_read_objectSid(ldb, mem_ctx, in, out) != 0) {
 			/* Perhaps not a string after all */
 			return ldb_handler_copy(ldb, mem_ctx, in, out);
@@ -145,7 +181,7 @@ static int extended_dn_read_SID(struct ldb_context *ldb, void *mem_ctx,
 {
 	struct dom_sid sid;
 	enum ndr_err_code ndr_err;
-	if (ldb_comparision_objectSid_isString(in)) {
+	if (ldif_comparision_objectSid_isString(in)) {
 		if (ldif_read_objectSid(ldb, mem_ctx, in, out) == 0) {
 			return 0;
 		}
@@ -214,7 +250,7 @@ static int ldif_write_objectGUID(struct ldb_context *ldb, void *mem_ctx,
 	return 0;
 }
 
-static bool ldb_comparision_objectGUID_isString(const struct ldb_val *v)
+static bool ldif_comparision_objectGUID_isString(const struct ldb_val *v)
 {
 	if (v->length != 36 && v->length != 38) return false;
 
@@ -257,13 +293,13 @@ static int extended_dn_read_GUID(struct ldb_context *ldb, void *mem_ctx,
 /*
   compare two objectGUIDs
 */
-static int ldb_comparison_objectGUID(struct ldb_context *ldb, void *mem_ctx,
+static int ldif_comparison_objectGUID(struct ldb_context *ldb, void *mem_ctx,
 				     const struct ldb_val *v1, const struct ldb_val *v2)
 {
-	if (ldb_comparision_objectGUID_isString(v1) && ldb_comparision_objectGUID_isString(v2)) {
+	if (ldif_comparision_objectGUID_isString(v1) && ldif_comparision_objectGUID_isString(v2)) {
 		return ldb_comparison_binary(ldb, mem_ctx, v1, v2);
-	} else if (ldb_comparision_objectGUID_isString(v1)
-		   && !ldb_comparision_objectGUID_isString(v2)) {
+	} else if (ldif_comparision_objectGUID_isString(v1)
+		   && !ldif_comparision_objectGUID_isString(v2)) {
 		struct ldb_val v;
 		int ret;
 		if (ldif_read_objectGUID(ldb, mem_ctx, v1, &v) != 0) {
@@ -273,8 +309,8 @@ static int ldb_comparison_objectGUID(struct ldb_context *ldb, void *mem_ctx,
 		ret = ldb_comparison_binary(ldb, mem_ctx, &v, v2);
 		talloc_free(v.data);
 		return ret;
-	} else if (!ldb_comparision_objectGUID_isString(v1)
-		   && ldb_comparision_objectGUID_isString(v2)) {
+	} else if (!ldif_comparision_objectGUID_isString(v1)
+		   && ldif_comparision_objectGUID_isString(v2)) {
 		struct ldb_val v;
 		int ret;
 		if (ldif_read_objectGUID(ldb, mem_ctx, v2, &v) != 0) {
@@ -291,10 +327,10 @@ static int ldb_comparison_objectGUID(struct ldb_context *ldb, void *mem_ctx,
 /*
   canonicalise a objectGUID
 */
-static int ldb_canonicalise_objectGUID(struct ldb_context *ldb, void *mem_ctx,
+static int ldif_canonicalise_objectGUID(struct ldb_context *ldb, void *mem_ctx,
 				       const struct ldb_val *in, struct ldb_val *out)
 {
-	if (ldb_comparision_objectGUID_isString(in)) {
+	if (ldif_comparision_objectGUID_isString(in)) {
 		if (ldif_read_objectGUID(ldb, mem_ctx, in, out) != 0) {
 			/* Perhaps it wasn't a valid string after all */
 			return ldb_handler_copy(ldb, mem_ctx, in, out);
@@ -314,16 +350,31 @@ static int ldif_read_ntSecurityDescriptor(struct ldb_context *ldb, void *mem_ctx
 	struct security_descriptor *sd;
 	enum ndr_err_code ndr_err;
 
-	sd = sddl_decode(mem_ctx, (const char *)in->data, NULL);
+	sd = talloc(mem_ctx, struct security_descriptor);
 	if (sd == NULL) {
 		return -1;
 	}
+
+	ndr_err = ndr_pull_struct_blob(in, sd, NULL, sd,
+				       (ndr_pull_flags_fn_t)ndr_pull_security_descriptor);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		/* If this does not parse, then it is probably SDDL, and we should try it that way */
+		
+		const struct dom_sid *sid = samdb_domain_sid(ldb);
+		talloc_free(sd);
+		sd = sddl_decode(mem_ctx, (const char *)in->data, sid);
+		if (sd == NULL) {
+			return -1;
+		}
+	}
+
 	ndr_err = ndr_push_struct_blob(out, mem_ctx, NULL, sd,
 				       (ndr_push_flags_fn_t)ndr_push_security_descriptor);
 	talloc_free(sd);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		return -1;
 	}
+
 	return 0;
 }
 
@@ -335,6 +386,14 @@ static int ldif_write_ntSecurityDescriptor(struct ldb_context *ldb, void *mem_ct
 {
 	struct security_descriptor *sd;
 	enum ndr_err_code ndr_err;
+
+	if (ldb_get_flags(ldb) & LDB_FLG_SHOW_BINARY) {
+		return ldif_write_NDR(ldb, mem_ctx, in, out, 
+				      sizeof(struct security_descriptor),
+				      (ndr_pull_flags_fn_t)ndr_pull_security_descriptor,
+				      (ndr_print_fn_t)ndr_print_security_descriptor);
+				      
+	}
 
 	sd = talloc(mem_ctx, struct security_descriptor);
 	if (sd == NULL) {
@@ -373,6 +432,7 @@ static int ldif_canonicalise_objectCategory(struct ldb_context *ldb, void *mem_c
 	}
 
 	if (!schema) {
+		talloc_free(tmp_ctx);
 		*out = data_blob_talloc(mem_ctx, in->data, in->length);
 		if (in->data && !out->data) {
 			return LDB_ERR_OPERATIONS_ERROR;
@@ -538,6 +598,14 @@ static int ldif_write_prefixMap(struct ldb_context *ldb, void *mem_ctx,
 	char *string;
 	uint32_t i;
 
+	if (ldb_get_flags(ldb) & LDB_FLG_SHOW_BINARY) {
+		return ldif_write_NDR(ldb, mem_ctx, in, out, 
+				      sizeof(struct prefixMapBlob),
+				      (ndr_pull_flags_fn_t)ndr_pull_prefixMapBlob,
+				      (ndr_print_fn_t)ndr_print_prefixMapBlob);
+				      
+	}
+
 	blob = talloc(mem_ctx, struct prefixMapBlob);
 	if (blob == NULL) {
 		return -1;
@@ -626,6 +694,72 @@ static int ldif_comparison_prefixMap(struct ldb_context *ldb, void *mem_ctx,
 	return ret;
 }
 
+/* Canonicalisation of two 32-bit integers */
+static int ldif_canonicalise_int32(struct ldb_context *ldb, void *mem_ctx,
+			const struct ldb_val *in, struct ldb_val *out)
+{
+	char *end;
+	/* We've to use "strtoll" here to have the intended overflows.
+	 * Otherwise we may get "LONG_MAX" and the conversion is wrong. */
+	int32_t i = (int32_t) strtoll((char *)in->data, &end, 0);
+	if (*end != 0) {
+		return -1;
+	}
+	out->data = (uint8_t *) talloc_asprintf(mem_ctx, "%d", i);
+	if (out->data == NULL) {
+		return -1;
+	}
+	out->length = strlen((char *)out->data);
+	return 0;
+}
+
+/* Comparison of two 32-bit integers */
+static int ldif_comparison_int32(struct ldb_context *ldb, void *mem_ctx,
+			const struct ldb_val *v1, const struct ldb_val *v2)
+{
+	/* We've to use "strtoll" here to have the intended overflows.
+	 * Otherwise we may get "LONG_MAX" and the conversion is wrong. */
+	return (int32_t) strtoll((char *)v1->data, NULL, 0)
+	 - (int32_t) strtoll((char *)v2->data, NULL, 0);
+}
+
+/*
+  convert a NDR formatted blob to a ldif formatted repsFromTo
+*/
+static int ldif_write_repsFromTo(struct ldb_context *ldb, void *mem_ctx,
+				 const struct ldb_val *in, struct ldb_val *out)
+{
+	return ldif_write_NDR(ldb, mem_ctx, in, out, 
+			      sizeof(struct repsFromToBlob),
+			      (ndr_pull_flags_fn_t)ndr_pull_repsFromToBlob,
+			      (ndr_print_fn_t)ndr_print_repsFromToBlob);
+}
+
+/*
+  convert a NDR formatted blob to a ldif formatted replPropertyMetaData
+*/
+static int ldif_write_replPropertyMetaData(struct ldb_context *ldb, void *mem_ctx,
+					   const struct ldb_val *in, struct ldb_val *out)
+{
+	return ldif_write_NDR(ldb, mem_ctx, in, out, 
+			      sizeof(struct replPropertyMetaDataBlob),
+			      (ndr_pull_flags_fn_t)ndr_pull_replPropertyMetaDataBlob,
+			      (ndr_print_fn_t)ndr_print_replPropertyMetaDataBlob);
+}
+
+/*
+  convert a NDR formatted blob to a ldif formatted replUpToDateVector
+*/
+static int ldif_write_replUpToDateVector(struct ldb_context *ldb, void *mem_ctx,
+					 const struct ldb_val *in, struct ldb_val *out)
+{
+	return ldif_write_NDR(ldb, mem_ctx, in, out, 
+			      sizeof(struct replUpToDateVectorBlob),
+			      (ndr_pull_flags_fn_t)ndr_pull_replUpToDateVectorBlob,
+			      (ndr_print_fn_t)ndr_print_replPropertyMetaDataBlob);
+}
+
+
 static int extended_dn_write_hex(struct ldb_context *ldb, void *mem_ctx,
 				 const struct ldb_val *in, struct ldb_val *out)
 {
@@ -636,18 +770,13 @@ static int extended_dn_write_hex(struct ldb_context *ldb, void *mem_ctx,
 	return 0;
 }
 
-
-#define LDB_SYNTAX_SAMBA_GUID			"LDB_SYNTAX_SAMBA_GUID"
-#define LDB_SYNTAX_SAMBA_OBJECT_CATEGORY	"LDB_SYNTAX_SAMBA_OBJECT_CATEGORY"
-#define LDB_SYNTAX_SAMBA_PREFIX_MAP	"LDB_SYNTAX_SAMBA_PREFIX_MAP"
-
 static const struct ldb_schema_syntax samba_syntaxes[] = {
 	{
 		.name		  = LDB_SYNTAX_SAMBA_SID,
 		.ldif_read_fn	  = ldif_read_objectSid,
 		.ldif_write_fn	  = ldif_write_objectSid,
-		.canonicalise_fn  = ldb_canonicalise_objectSid,
-		.comparison_fn	  = ldb_comparison_objectSid
+		.canonicalise_fn  = ldif_canonicalise_objectSid,
+		.comparison_fn	  = ldif_comparison_objectSid
 	},{
 		.name		  = LDB_SYNTAX_SAMBA_SECURITY_DESCRIPTOR,
 		.ldif_read_fn	  = ldif_read_ntSecurityDescriptor,
@@ -658,8 +787,8 @@ static const struct ldb_schema_syntax samba_syntaxes[] = {
 		.name		  = LDB_SYNTAX_SAMBA_GUID,
 		.ldif_read_fn	  = ldif_read_objectGUID,
 		.ldif_write_fn	  = ldif_write_objectGUID,
-		.canonicalise_fn  = ldb_canonicalise_objectGUID,
-		.comparison_fn	  = ldb_comparison_objectGUID
+		.canonicalise_fn  = ldif_canonicalise_objectGUID,
+		.comparison_fn	  = ldif_comparison_objectGUID
 	},{
 		.name		  = LDB_SYNTAX_SAMBA_OBJECT_CATEGORY,
 		.ldif_read_fn	  = ldb_handler_copy,
@@ -672,7 +801,31 @@ static const struct ldb_schema_syntax samba_syntaxes[] = {
 		.ldif_write_fn	  = ldif_write_prefixMap,
 		.canonicalise_fn  = ldif_canonicalise_prefixMap,
 		.comparison_fn	  = ldif_comparison_prefixMap
-	}
+	},{
+		.name		  = LDB_SYNTAX_SAMBA_INT32,
+		.ldif_read_fn	  = ldb_handler_copy,
+		.ldif_write_fn	  = ldb_handler_copy,
+		.canonicalise_fn  = ldif_canonicalise_int32,
+		.comparison_fn	  = ldif_comparison_int32
+	},{
+		.name		  = LDB_SYNTAX_SAMBA_REPSFROMTO,
+		.ldif_read_fn	  = ldb_handler_copy,
+		.ldif_write_fn	  = ldif_write_repsFromTo,
+		.canonicalise_fn  = ldb_handler_copy,
+		.comparison_fn	  = ldb_comparison_binary
+	},{
+		.name		  = LDB_SYNTAX_SAMBA_REPLPROPERTYMETADATA,
+		.ldif_read_fn	  = ldb_handler_copy,
+		.ldif_write_fn	  = ldif_write_replPropertyMetaData,
+		.canonicalise_fn  = ldb_handler_copy,
+		.comparison_fn	  = ldb_comparison_binary
+	},{
+		.name		  = LDB_SYNTAX_SAMBA_REPLUPTODATEVECTOR,
+		.ldif_read_fn	  = ldb_handler_copy,
+		.ldif_write_fn	  = ldif_write_replUpToDateVector,
+		.canonicalise_fn  = ldb_handler_copy,
+		.comparison_fn	  = ldb_comparison_binary
+	},
 };
 
 static const struct ldb_dn_extended_syntax samba_dn_syntax[] = {
@@ -694,6 +847,7 @@ static const struct ldb_dn_extended_syntax samba_dn_syntax[] = {
 	}
 };
 
+/* TODO: Should be dynamic at some point */
 static const struct {
 	const char *name;
 	const char *syntax;
@@ -712,7 +866,11 @@ static const struct {
 	{ "fRSReplicaSetGUID",		LDB_SYNTAX_SAMBA_GUID },
 	{ "netbootGUID",		LDB_SYNTAX_SAMBA_GUID },
 	{ "objectCategory",		LDB_SYNTAX_SAMBA_OBJECT_CATEGORY },
-	{ "prefixMap",                  LDB_SYNTAX_SAMBA_PREFIX_MAP }
+	{ "prefixMap",                  LDB_SYNTAX_SAMBA_PREFIX_MAP },
+	{ "repsFrom",                   LDB_SYNTAX_SAMBA_REPSFROMTO },
+	{ "repsTo",                     LDB_SYNTAX_SAMBA_REPSFROMTO },
+	{ "replPropertyMetaData",       LDB_SYNTAX_SAMBA_REPLPROPERTYMETADATA },
+	{ "replUpToDateVector",         LDB_SYNTAX_SAMBA_REPLUPTODATEVECTOR },
 };
 
 const struct ldb_schema_syntax *ldb_samba_syntax_by_name(struct ldb_context *ldb, const char *name)
@@ -729,6 +887,20 @@ const struct ldb_schema_syntax *ldb_samba_syntax_by_name(struct ldb_context *ldb
 	return s;
 }
 
+const struct ldb_schema_syntax *ldb_samba_syntax_by_lDAPDisplayName(struct ldb_context *ldb, const char *name)
+{
+	uint32_t j;
+	const struct ldb_schema_syntax *s = NULL;
+
+	for (j=0; j < ARRAY_SIZE(samba_attributes); j++) {
+		if (strcmp(samba_attributes[j].name, name) == 0) {
+			s = ldb_samba_syntax_by_name(ldb, samba_attributes[j].syntax);
+			break;
+		}
+	}
+	
+	return s;
+}
 
 /*
   register the samba ldif handlers

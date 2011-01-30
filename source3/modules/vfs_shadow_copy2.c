@@ -76,19 +76,86 @@ static int vfs_shadow_copy2_debug_level = DBGC_VFS;
 /*
   make very sure it is one of our special names 
  */
-static inline bool shadow_copy2_match_name(const char *name)
+static inline bool shadow_copy2_match_name(const char *name, const char **gmt_start)
 {
 	unsigned year, month, day, hr, min, sec;
-	if (name[0] != '@') return False;
-	if (strncmp(name, "@GMT-", 5) != 0) return False;
-	if (sscanf(name, "@GMT-%04u.%02u.%02u-%02u.%02u.%02u", &year, &month,
+	const char *p;
+	if (gmt_start) {
+		(*gmt_start) = NULL;
+	}
+	p = strstr_m(name, "@GMT-");
+	if (p == NULL) return false;
+	if (p > name && p[-1] != '/') return False;
+	if (sscanf(p, "@GMT-%04u.%02u.%02u-%02u.%02u.%02u", &year, &month,
 		   &day, &hr, &min, &sec) != 6) {
 		return False;
 	}
-	if (name[24] != 0 && name[24] != '/') {
+	if (p[24] != 0 && p[24] != '/') {
 		return False;
 	}
+	if (gmt_start) {
+		(*gmt_start) = p;
+	}
 	return True;
+}
+
+/*
+  shadow copy paths can also come into the server in this form:
+
+    /foo/bar/@GMT-XXXXX/some/file
+
+  This function normalises the filename to be of the form:
+
+    @GMT-XXXX/foo/bar/some/file
+ */
+static const char *shadow_copy2_normalise_path(TALLOC_CTX *mem_ctx, const char *path, const char *gmt_start)
+{
+	char *pcopy;
+	char buf[GMT_NAME_LEN];
+	size_t prefix_len;
+
+	if (path == gmt_start) {
+		return path;
+	}
+
+	prefix_len = gmt_start - path - 1;
+
+	DEBUG(10, ("path=%s, gmt_start=%s, prefix_len=%d\n", path, gmt_start,
+		   (int)prefix_len));
+
+	/*
+	 * We've got a/b/c/@GMT-YYYY.MM.DD-HH.MM.SS/d/e. convert to
+	 * @GMT-YYYY.MM.DD-HH.MM.SS/a/b/c/d/e before further
+	 * processing. As many VFS calls provide a const char *,
+	 * unfortunately we have to make a copy.
+	 */
+
+	pcopy = talloc_strdup(talloc_tos(), path);
+	if (pcopy == NULL) {
+		return NULL;
+	}
+
+	gmt_start = pcopy + prefix_len;
+
+	/*
+	 * Copy away "@GMT-YYYY.MM.DD-HH.MM.SS"
+	 */
+	memcpy(buf, gmt_start+1, GMT_NAME_LEN);
+
+	/*
+	 * Make space for it including a trailing /
+	 */
+	memmove(pcopy + GMT_NAME_LEN + 1, pcopy, prefix_len);
+
+	/*
+	 * Move in "@GMT-YYYY.MM.DD-HH.MM.SS/" at the beginning again
+	 */
+	memcpy(pcopy, buf, GMT_NAME_LEN);
+	pcopy[GMT_NAME_LEN] = '/';
+
+	DEBUG(10, ("shadow_copy2_normalise_path: %s -> %s\n", path, pcopy));
+
+	return pcopy;
 }
 
 /*
@@ -97,10 +164,11 @@ static inline bool shadow_copy2_match_name(const char *name)
 
 #define _SHADOW2_NEXT(op, args, rtype, eret, extra) do { \
 	const char *name = fname; \
-	if (shadow_copy2_match_name(fname)) { \
+	const char *gmt_start; \
+	if (shadow_copy2_match_name(fname, &gmt_start)) {	\
 		char *name2; \
 		rtype ret; \
-		name2 = convert_shadow2_name(handle, fname); \
+		name2 = convert_shadow2_name(handle, fname, gmt_start);	\
 		if (name2 == NULL) { \
 			errno = EINVAL; \
 			return eret; \
@@ -115,16 +183,40 @@ static inline bool shadow_copy2_match_name(const char *name)
 	} \
 } while (0)
 
+#define _SHADOW2_NEXT_SMB_FNAME(op, args, rtype, eret, extra) do { \
+		const char *gmt_start; \
+		if (shadow_copy2_match_name(smb_fname->base_name, &gmt_start)) {	\
+		char *name2; \
+		char *smb_base_name_tmp = NULL; \
+		rtype ret; \
+		name2 = convert_shadow2_name(handle, smb_fname->base_name, gmt_start); \
+		if (name2 == NULL) { \
+			errno = EINVAL; \
+			return eret; \
+		} \
+		smb_base_name_tmp = smb_fname->base_name; \
+		smb_fname->base_name = name2; \
+		ret = SMB_VFS_NEXT_ ## op args; \
+		smb_fname->base_name = smb_base_name_tmp; \
+		talloc_free(name2); \
+		if (ret != eret) extra; \
+		return ret; \
+	} else { \
+		return SMB_VFS_NEXT_ ## op args; \
+	} \
+} while (0)
+
 /*
   convert a name to the shadow directory: NTSTATUS-specific handling
  */
 
 #define _SHADOW2_NTSTATUS_NEXT(op, args, eret, extra) do { \
         const char *name = fname; \
-        if (shadow_copy2_match_name(fname)) { \
+        const char *gmt_start; \
+        if (shadow_copy2_match_name(fname, &gmt_start)) {	\
                 char *name2; \
                 NTSTATUS ret; \
-                name2 = convert_shadow2_name(handle, fname); \
+                name2 = convert_shadow2_name(handle, fname, gmt_start);	\
                 if (name2 == NULL) { \
                         errno = EINVAL; \
                         return eret; \
@@ -143,8 +235,23 @@ static inline bool shadow_copy2_match_name(const char *name)
 
 #define SHADOW2_NEXT(op, args, rtype, eret) _SHADOW2_NEXT(op, args, rtype, eret, )
 
+#define SHADOW2_NEXT_SMB_FNAME(op, args, rtype, eret) _SHADOW2_NEXT_SMB_FNAME(op, args, rtype, eret, )
+
 #define SHADOW2_NEXT2(op, args) do { \
-	if (shadow_copy2_match_name(oldname) || shadow_copy2_match_name(newname)) { \
+	const char *gmt_start1, *gmt_start2; \
+	if (shadow_copy2_match_name(oldname, &gmt_start1) || \
+	    shadow_copy2_match_name(newname, &gmt_start2)) {	\
+		errno = EROFS; \
+		return -1; \
+	} else { \
+		return SMB_VFS_NEXT_ ## op args; \
+	} \
+} while (0)
+
+#define SHADOW2_NEXT2_SMB_FNAME(op, args) do { \
+	const char *gmt_start1, *gmt_start2; \
+	if (shadow_copy2_match_name(smb_fname_src->base_name, &gmt_start1) || \
+	    shadow_copy2_match_name(smb_fname_dst->base_name, &gmt_start2)) { \
 		errno = EROFS; \
 		return -1; \
 	} else { \
@@ -233,7 +340,7 @@ static const char *shadow_copy2_find_basedir(TALLOC_CTX *mem_ctx, vfs_handle_str
   convert a filename from a share relative path, to a path in the
   snapshot directory
  */
-static char *convert_shadow2_name(vfs_handle_struct *handle, const char *fname)
+static char *convert_shadow2_name(vfs_handle_struct *handle, const char *fname, const char *gmt_path)
 {
 	TALLOC_CTX *tmp_ctx = talloc_new(handle->data);
 	const char *snapdir, *relpath, *baseoffset, *basedir;
@@ -252,6 +359,14 @@ static char *convert_shadow2_name(vfs_handle_struct *handle, const char *fname)
 		DEBUG(2,("no basedir found for share at %s\n", handle->conn->connectpath));
 		talloc_free(tmp_ctx);
 		return NULL;
+	}
+
+	if (strncmp(fname, "@GMT-", 5) != 0) {
+		fname = shadow_copy2_normalise_path(tmp_ctx, fname, gmt_path);
+		if (fname == NULL) {
+			talloc_free(tmp_ctx);
+			return NULL;
+		}
 	}
 
 	relpath = fname + GMT_NAME_LEN;
@@ -314,14 +429,16 @@ static void convert_sbuf(vfs_handle_struct *handle, const char *fname, SMB_STRUC
 		if (shash == 0) {
 			shash = 1;
 		}
-		sbuf->st_ino ^= shash;
+		sbuf->st_ex_ino ^= shash;
 	}
 }
 
 static int shadow_copy2_rename(vfs_handle_struct *handle,
-			const char *oldname, const char *newname)
+			       const struct smb_filename *smb_fname_src,
+			       const struct smb_filename *smb_fname_dst)
 {
-	SHADOW2_NEXT2(RENAME, (handle, oldname, newname));
+	SHADOW2_NEXT2_SMB_FNAME(RENAME,
+				(handle, smb_fname_src, smb_fname_dst));
 }
 
 static int shadow_copy2_symlink(vfs_handle_struct *handle,
@@ -337,9 +454,12 @@ static int shadow_copy2_link(vfs_handle_struct *handle,
 }
 
 static int shadow_copy2_open(vfs_handle_struct *handle,
-			     const char *fname, files_struct *fsp, int flags, mode_t mode)
+			     struct smb_filename *smb_fname, files_struct *fsp,
+			     int flags, mode_t mode)
 {
-	SHADOW2_NEXT(OPEN, (handle, name, fsp, flags, mode), int, -1);
+	SHADOW2_NEXT_SMB_FNAME(OPEN,
+			       (handle, smb_fname, fsp, flags, mode),
+			       int, -1);
 }
 
 static SMB_STRUCT_DIR *shadow_copy2_opendir(vfs_handle_struct *handle,
@@ -349,29 +469,43 @@ static SMB_STRUCT_DIR *shadow_copy2_opendir(vfs_handle_struct *handle,
 }
 
 static int shadow_copy2_stat(vfs_handle_struct *handle,
-		      const char *fname, SMB_STRUCT_STAT *sbuf)
+			     struct smb_filename *smb_fname)
 {
-        _SHADOW2_NEXT(STAT, (handle, name, sbuf), int, -1, convert_sbuf(handle, fname, sbuf));
+        _SHADOW2_NEXT_SMB_FNAME(STAT, (handle, smb_fname), int, -1,
+				convert_sbuf(handle, smb_fname->base_name,
+					     &smb_fname->st));
 }
 
 static int shadow_copy2_lstat(vfs_handle_struct *handle,
-		       const char *fname, SMB_STRUCT_STAT *sbuf)
+			      struct smb_filename *smb_fname)
 {
-        _SHADOW2_NEXT(LSTAT, (handle, name, sbuf), int, -1, convert_sbuf(handle, fname, sbuf));
+        _SHADOW2_NEXT_SMB_FNAME(LSTAT, (handle, smb_fname), int, -1,
+				convert_sbuf(handle, smb_fname->base_name,
+					     &smb_fname->st));
 }
 
 static int shadow_copy2_fstat(vfs_handle_struct *handle, files_struct *fsp, SMB_STRUCT_STAT *sbuf)
 {
 	int ret = SMB_VFS_NEXT_FSTAT(handle, fsp, sbuf);
-	if (ret == 0 && shadow_copy2_match_name(fsp->fsp_name)) {
-		convert_sbuf(handle, fsp->fsp_name, sbuf);
+	if (ret == 0 && shadow_copy2_match_name(fsp->fsp_name->base_name, NULL)) {
+		convert_sbuf(handle, fsp->fsp_name->base_name, sbuf);
 	}
 	return ret;
 }
 
-static int shadow_copy2_unlink(vfs_handle_struct *handle, const char *fname)
+static int shadow_copy2_unlink(vfs_handle_struct *handle,
+			       const struct smb_filename *smb_fname_in)
 {
-        SHADOW2_NEXT(UNLINK, (handle, name), int, -1);
+	struct smb_filename *smb_fname = NULL;
+	NTSTATUS status;
+
+	status = copy_smb_filename(talloc_tos(), smb_fname_in, &smb_fname);
+	if (!NT_STATUS_IS_OK(status)) {
+		errno = map_errno_from_nt_status(status);
+		return -1;
+	}
+
+        SHADOW2_NEXT_SMB_FNAME(UNLINK, (handle, smb_fname), int, -1);
 }
 
 static int shadow_copy2_chmod(vfs_handle_struct *handle,
@@ -393,9 +527,19 @@ static int shadow_copy2_chdir(vfs_handle_struct *handle,
 }
 
 static int shadow_copy2_ntimes(vfs_handle_struct *handle,
-		       const char *fname, struct smb_file_time *ft)
+			       const struct smb_filename *smb_fname_in,
+			       struct smb_file_time *ft)
 {
-        SHADOW2_NEXT(NTIMES, (handle, name, ft), int, -1);
+	struct smb_filename *smb_fname = NULL;
+	NTSTATUS status;
+
+	status = copy_smb_filename(talloc_tos(), smb_fname_in, &smb_fname);
+	if (!NT_STATUS_IS_OK(status)) {
+		errno = map_errno_from_nt_status(status);
+		return -1;
+	}
+
+        SHADOW2_NEXT_SMB_FNAME(NTIMES, (handle, smb_fname, ft), int, -1);
 }
 
 static int shadow_copy2_readlink(vfs_handle_struct *handle,
@@ -413,7 +557,87 @@ static int shadow_copy2_mknod(vfs_handle_struct *handle,
 static char *shadow_copy2_realpath(vfs_handle_struct *handle,
 			    const char *fname, char *resolved_path)
 {
+	const char *gmt;
+
+	if (shadow_copy2_match_name(fname, &gmt)
+	    && (gmt[GMT_NAME_LEN] == '\0')) {
+		char *copy, *result;
+
+		copy = talloc_strdup(talloc_tos(), fname);
+		if (copy == NULL) {
+			errno = ENOMEM;
+			return NULL;
+		}
+
+		copy[gmt - fname] = '.';
+
+		DEBUG(10, ("calling NEXT_REALPATH with %s\n", copy));
+		result = SMB_VFS_NEXT_REALPATH(handle, copy, resolved_path);
+		TALLOC_FREE(copy);
+		return result;
+	}
         SHADOW2_NEXT(REALPATH, (handle, name, resolved_path), char *, NULL);
+}
+
+static const char *shadow_copy2_connectpath(struct vfs_handle_struct *handle,
+					    const char *fname)
+{
+	TALLOC_CTX *tmp_ctx = talloc_stackframe();
+	const char *snapdir, *baseoffset, *basedir, *gmt_start;
+	size_t baselen;
+	char *ret;
+
+	DEBUG(10, ("shadow_copy2_connectpath called with %s\n", fname));
+
+	if (!shadow_copy2_match_name(fname, &gmt_start)) {
+		return handle->conn->connectpath;
+	}
+
+	fname = shadow_copy2_normalise_path(talloc_tos(), fname, gmt_start);
+	if (fname == NULL) {
+		TALLOC_FREE(tmp_ctx);
+		return NULL;
+	}
+
+	snapdir = shadow_copy2_find_snapdir(tmp_ctx, handle);
+	if (snapdir == NULL) {
+		DEBUG(2,("no snapdir found for share at %s\n",
+			 handle->conn->connectpath));
+		TALLOC_FREE(tmp_ctx);
+		return NULL;
+	}
+
+	basedir = shadow_copy2_find_basedir(tmp_ctx, handle);
+	if (basedir == NULL) {
+		DEBUG(2,("no basedir found for share at %s\n",
+			 handle->conn->connectpath));
+		TALLOC_FREE(tmp_ctx);
+		return NULL;
+	}
+
+	baselen = strlen(basedir);
+	baseoffset = handle->conn->connectpath + baselen;
+
+	/* some sanity checks */
+	if (strncmp(basedir, handle->conn->connectpath, baselen) != 0 ||
+	    (handle->conn->connectpath[baselen] != 0
+	     && handle->conn->connectpath[baselen] != '/')) {
+		DEBUG(0,("shadow_copy2_connectpath: basedir %s is not a "
+			 "parent of %s\n", basedir,
+			 handle->conn->connectpath));
+		TALLOC_FREE(tmp_ctx);
+		return NULL;
+	}
+
+	if (*baseoffset == '/') baseoffset++;
+
+	ret = talloc_asprintf(talloc_tos(), "%s/%.*s/%s",
+			      snapdir,
+			      GMT_NAME_LEN, fname,
+			      baseoffset);
+	DEBUG(6,("shadow_copy2_connectpath: '%s' -> '%s'\n", fname, ret));
+	TALLOC_FREE(tmp_ctx);
+	return ret;
 }
 
 static NTSTATUS shadow_copy2_get_nt_acl(vfs_handle_struct *handle,
@@ -433,7 +657,8 @@ static int shadow_copy2_rmdir(vfs_handle_struct *handle,  const char *fname)
         SHADOW2_NEXT(RMDIR, (handle, name), int, -1);
 }
 
-static int shadow_copy2_chflags(vfs_handle_struct *handle, const char *fname, int flags)
+static int shadow_copy2_chflags(vfs_handle_struct *handle, const char *fname,
+				unsigned int flags)
 {
         SHADOW2_NEXT(CHFLAGS, (handle, name, flags), int, -1);
 }
@@ -483,11 +708,6 @@ static int shadow_copy2_lsetxattr(struct vfs_handle_struct *handle, const char *
 static int shadow_copy2_chmod_acl(vfs_handle_struct *handle,
 			   const char *fname, mode_t mode)
 {
-        /* If the underlying VFS doesn't have ACL support... */
-        if (!handle->vfs_next.ops.chmod_acl) {
-                errno = ENOSYS;
-                return -1;
-        }
         SHADOW2_NEXT(CHMOD_ACL, (handle, name, mode), int, -1);
 }
 
@@ -529,7 +749,7 @@ static int shadow_copy2_get_shadow_copy2_data(vfs_handle_struct *handle,
 		SHADOW_COPY_LABEL *tlabels;
 
 		/* ignore names not of the right form in the snapshot directory */
-		if (!shadow_copy2_match_name(d->d_name)) {
+		if (!shadow_copy2_match_name(d->d_name, NULL)) {
 			continue;
 		}
 
@@ -557,53 +777,37 @@ static int shadow_copy2_get_shadow_copy2_data(vfs_handle_struct *handle,
 	return 0;
 }
 
-/* VFS operations structure */
-
-static vfs_op_tuple shadow_copy2_ops[] = {
-        {SMB_VFS_OP(shadow_copy2_opendir),  SMB_VFS_OP_OPENDIR,  SMB_VFS_LAYER_TRANSPARENT},
-
-	/* directory operations */
-        {SMB_VFS_OP(shadow_copy2_mkdir),       SMB_VFS_OP_MKDIR,       SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_rmdir),       SMB_VFS_OP_RMDIR,       SMB_VFS_LAYER_TRANSPARENT},
-
-	/* xattr and flags operations */
-        {SMB_VFS_OP(shadow_copy2_chflags),     SMB_VFS_OP_CHFLAGS,     SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_getxattr),    SMB_VFS_OP_GETXATTR,    SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_lgetxattr),   SMB_VFS_OP_LGETXATTR,   SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_listxattr),   SMB_VFS_OP_LISTXATTR,   SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_removexattr), SMB_VFS_OP_REMOVEXATTR, SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_lremovexattr),SMB_VFS_OP_LREMOVEXATTR,SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_setxattr),    SMB_VFS_OP_SETXATTR,    SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_lsetxattr),   SMB_VFS_OP_LSETXATTR,   SMB_VFS_LAYER_TRANSPARENT},
-
-        /* File operations */
-        {SMB_VFS_OP(shadow_copy2_open),       SMB_VFS_OP_OPEN,     SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_rename),     SMB_VFS_OP_RENAME,   SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_stat),       SMB_VFS_OP_STAT,     SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_lstat),      SMB_VFS_OP_LSTAT,    SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_fstat),      SMB_VFS_OP_FSTAT,    SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_unlink),     SMB_VFS_OP_UNLINK,   SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_chmod),      SMB_VFS_OP_CHMOD,    SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_chown),      SMB_VFS_OP_CHOWN,    SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_chdir),      SMB_VFS_OP_CHDIR,    SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_ntimes),     SMB_VFS_OP_NTIMES,   SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_symlink),    SMB_VFS_OP_SYMLINK,  SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_readlink),   SMB_VFS_OP_READLINK, SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_link),       SMB_VFS_OP_LINK,     SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_mknod),      SMB_VFS_OP_MKNOD,    SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(shadow_copy2_realpath),   SMB_VFS_OP_REALPATH, SMB_VFS_LAYER_TRANSPARENT},
-
-        /* NT File ACL operations */
-        {SMB_VFS_OP(shadow_copy2_get_nt_acl), SMB_VFS_OP_GET_NT_ACL, SMB_VFS_LAYER_TRANSPARENT},
-
-        /* POSIX ACL operations */
-        {SMB_VFS_OP(shadow_copy2_chmod_acl), SMB_VFS_OP_CHMOD_ACL, SMB_VFS_LAYER_TRANSPARENT},
-
-	/* special shadown copy op */
-	{SMB_VFS_OP(shadow_copy2_get_shadow_copy2_data), 
-	 SMB_VFS_OP_GET_SHADOW_COPY_DATA,SMB_VFS_LAYER_OPAQUE},
-
-	{SMB_VFS_OP(NULL), SMB_VFS_OP_NOOP, SMB_VFS_LAYER_NOOP}
+static struct vfs_fn_pointers vfs_shadow_copy2_fns = {
+        .opendir = shadow_copy2_opendir,
+        .mkdir = shadow_copy2_mkdir,
+        .rmdir = shadow_copy2_rmdir,
+        .chflags = shadow_copy2_chflags,
+        .getxattr = shadow_copy2_getxattr,
+        .lgetxattr = shadow_copy2_lgetxattr,
+        .listxattr = shadow_copy2_listxattr,
+        .removexattr = shadow_copy2_removexattr,
+        .lremovexattr = shadow_copy2_lremovexattr,
+        .setxattr = shadow_copy2_setxattr,
+        .lsetxattr = shadow_copy2_lsetxattr,
+        .open = shadow_copy2_open,
+        .rename = shadow_copy2_rename,
+        .stat = shadow_copy2_stat,
+        .lstat = shadow_copy2_lstat,
+        .fstat = shadow_copy2_fstat,
+        .unlink = shadow_copy2_unlink,
+        .chmod = shadow_copy2_chmod,
+        .chown = shadow_copy2_chown,
+        .chdir = shadow_copy2_chdir,
+        .ntimes = shadow_copy2_ntimes,
+        .symlink = shadow_copy2_symlink,
+        .vfs_readlink = shadow_copy2_readlink,
+        .link = shadow_copy2_link,
+        .mknod = shadow_copy2_mknod,
+        .realpath = shadow_copy2_realpath,
+        .connectpath = shadow_copy2_connectpath,
+        .get_nt_acl = shadow_copy2_get_nt_acl,
+        .chmod_acl = shadow_copy2_chmod_acl,
+	.get_shadow_copy_data = shadow_copy2_get_shadow_copy2_data,
 };
 
 NTSTATUS vfs_shadow_copy2_init(void);
@@ -611,7 +815,8 @@ NTSTATUS vfs_shadow_copy2_init(void)
 {
 	NTSTATUS ret;
 
-	ret = smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "shadow_copy2", shadow_copy2_ops);
+	ret = smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "shadow_copy2",
+			       &vfs_shadow_copy2_fns);
 
 	if (!NT_STATUS_IS_OK(ret))
 		return ret;

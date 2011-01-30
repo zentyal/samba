@@ -4,5 +4,5 @@
 dn: ${CONFIGDN}
 objectClass: top
 objectClass: configuration
-${ACI}
 cn: Configuration
+nTSecurityDescriptor:: ${DESCRIPTOR}

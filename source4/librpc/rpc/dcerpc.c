@@ -67,7 +67,7 @@ static struct dcerpc_connection *dcerpc_connection_init(TALLOC_CTX *mem_ctx,
 
 	c->iconv_convenience = talloc_reference(c, ic);
 
-	c->event_ctx = talloc_reference(c, ev);
+	c->event_ctx = ev;
 
 	if (c->event_ctx == NULL) {
 		talloc_free(c);
@@ -113,6 +113,10 @@ _PUBLIC_ struct dcerpc_pipe *dcerpc_pipe_init(TALLOC_CTX *mem_ctx, struct tevent
 
 	ZERO_STRUCT(p->syntax);
 	ZERO_STRUCT(p->transfer_syntax);
+
+	if (DEBUGLVL(100)) {
+		p->conn->flags |= DCERPC_DEBUG_PRINT_BOTH;
+	}
 
 	return p;
 }
@@ -176,6 +180,10 @@ static struct ndr_pull *ndr_pull_init_flags(struct dcerpc_connection *c,
 
 	if (c->flags & DCERPC_NDR_REF_ALLOC) {
 		ndr->flags |= LIBNDR_FLAG_REF_ALLOC;
+	}
+
+	if (c->flags & DCERPC_NDR64) {
+		ndr->flags |= LIBNDR_FLAG_NDR64;
 	}
 
 	return ndr;
@@ -364,6 +372,10 @@ static NTSTATUS ncacn_push_request_sign(struct dcerpc_connection *c,
 		ndr->flags |= LIBNDR_FLAG_BIGENDIAN;
 	}
 
+	if (c->flags & DCERPC_NDR64) {
+		ndr->flags |= LIBNDR_FLAG_NDR64;
+	}
+
 	if (pkt->pfc_flags & DCERPC_PFC_FLAG_OBJECT_UUID) {
 		ndr->flags |= LIBNDR_FLAG_OBJECT_PRESENT;
 		hdr_size += 16;
@@ -444,7 +456,7 @@ static NTSTATUS ncacn_push_request_sign(struct dcerpc_connection *c,
 	}
 
 	if (creds2.length != sig_size) {
-		DEBUG(0,("dcesrv_auth_response: creds2.length[%u] != sig_size[%u] pad[%u] stub[%u]\n",
+		DEBUG(0,("ncacn_push_request_sign: creds2.length[%u] != sig_size[%u] pad[%u] stub[%u]\n",
 			creds2.length, (uint32_t)sig_size,
 			c->security_state.auth_info->auth_pad_length,
 			pkt->u.request.stub_and_verifier.length));
@@ -1058,6 +1070,7 @@ static void dcerpc_ship_next_request(struct dcerpc_connection *c)
 	while (remaining > 0 || first_packet) {
 		uint32_t chunk = MIN(chunk_size, remaining);
 		bool last_frag = false;
+		bool do_trans = false;
 
 		first_packet = false;
 		pkt.pfc_flags &= ~(DCERPC_PFC_FLAG_FIRST |DCERPC_PFC_FLAG_LAST);
@@ -1080,13 +1093,26 @@ static void dcerpc_ship_next_request(struct dcerpc_connection *c)
 			DLIST_REMOVE(p->conn->pending, req);
 			return;
 		}
-		
-		req->status = p->conn->transport.send_request(p->conn, &blob, last_frag);
+
+		if (last_frag && !req->async_call) {
+			do_trans = true;
+		}
+
+		req->status = p->conn->transport.send_request(p->conn, &blob, do_trans);
 		if (!NT_STATUS_IS_OK(req->status)) {
 			req->state = RPC_REQUEST_DONE;
 			DLIST_REMOVE(p->conn->pending, req);
 			return;
 		}		
+
+		if (last_frag && !do_trans) {
+			req->status = p->conn->transport.send_read(p->conn);
+			if (!NT_STATUS_IS_OK(req->status)) {
+				req->state = RPC_REQUEST_DONE;
+				DLIST_REMOVE(p->conn->pending, req);
+				return;
+			}
+		}
 
 		remaining -= chunk;
 	}
@@ -1126,7 +1152,7 @@ NTSTATUS dcerpc_request_recv(struct rpc_request *req,
 	if (NT_STATUS_EQUAL(status, NT_STATUS_NET_WRITE_FAULT)) {
 		req->p->last_fault_code = req->fault_code;
 	}
-	talloc_free(req);
+	talloc_unlink(talloc_parent(req), req);
 	return status;
 }
 
@@ -1136,14 +1162,13 @@ NTSTATUS dcerpc_request_recv(struct rpc_request *req,
 NTSTATUS dcerpc_request(struct dcerpc_pipe *p, 
 			struct GUID *object,
 			uint16_t opnum,
-			bool async,
 			TALLOC_CTX *mem_ctx,
 			DATA_BLOB *stub_data_in,
 			DATA_BLOB *stub_data_out)
 {
 	struct rpc_request *req;
 
-	req = dcerpc_request_send(p, object, opnum, async, stub_data_in);
+	req = dcerpc_request_send(p, object, opnum, false, stub_data_in);
 	if (req == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -1335,11 +1360,12 @@ static NTSTATUS dcerpc_ndr_validate_out(struct dcerpc_connection *c,
  send a rpc request given a dcerpc_call structure 
  */
 struct rpc_request *dcerpc_ndr_request_send(struct dcerpc_pipe *p,
-						const struct GUID *object,
-						const struct ndr_interface_table *table,
-						uint32_t opnum, 
-						TALLOC_CTX *mem_ctx, 
-						void *r)
+					    const struct GUID *object,
+					    const struct ndr_interface_table *table,
+					    uint32_t opnum,
+					    bool async,
+					    TALLOC_CTX *mem_ctx,
+					    void *r)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_push *push;
@@ -1358,6 +1384,10 @@ struct rpc_request *dcerpc_ndr_request_send(struct dcerpc_pipe *p,
 
 	if (p->conn->flags & DCERPC_PUSH_BIGENDIAN) {
 		push->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
+
+	if (p->conn->flags & DCERPC_NDR64) {
+		push->flags |= LIBNDR_FLAG_NDR64;
 	}
 
 	/* push the structure into a blob */
@@ -1388,8 +1418,7 @@ struct rpc_request *dcerpc_ndr_request_send(struct dcerpc_pipe *p,
 	dump_data(10, request.data, request.length);
 
 	/* make the actual dcerpc request */
-	req = dcerpc_request_send(p, object, opnum, table->calls[opnum].async,
-				  &request);
+	req = dcerpc_request_send(p, object, opnum, async, &request);
 
 	if (req != NULL) {
 		req->ndr.table = table;
@@ -1506,7 +1535,7 @@ _PUBLIC_ NTSTATUS dcerpc_ndr_request(struct dcerpc_pipe *p,
 {
 	struct rpc_request *req;
 
-	req = dcerpc_ndr_request_send(p, object, table, opnum, mem_ctx, r);
+	req = dcerpc_ndr_request_send(p, object, table, opnum, false, mem_ctx, r);
 	if (req == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}

@@ -196,7 +196,7 @@ static bool idmap_tdb_upgrade(struct db_context *db)
 	}
 
 	if (dbwrap_store_int32(db, "IDMAP_VERSION", IDMAP_VERSION) == -1) {
-		DEBUG(0, ("Unable to dtore idmap version in databse\n"));
+		DEBUG(0, ("Unable to store idmap version in databse\n"));
 		return False;
 	}
 
@@ -296,7 +296,7 @@ static NTSTATUS idmap_tdb_open_db(TALLOC_CTX *memctx,
 
 		if (!idmap_tdb_upgrade(db)) {
 			db->transaction_cancel(db);
-			DEBUG(0, ("Unable to open idmap database, it's in an old formati, and upgrade failed!\n"));
+			DEBUG(0, ("Unable to open idmap database, it's in an old format, and upgrade failed!\n"));
 			ret = NT_STATUS_INTERNAL_DB_ERROR;
 			goto done;
 		}
@@ -401,7 +401,7 @@ static NTSTATUS idmap_tdb_alloc_init( const char *params )
 
 static NTSTATUS idmap_tdb_allocate_id(struct unixid *xid)
 {
-	bool ret;
+	NTSTATUS ret;
 	const char *hwmkey;
 	const char *hwmtype;
 	uint32_t high_hwm;
@@ -449,10 +449,11 @@ static NTSTATUS idmap_tdb_allocate_id(struct unixid *xid)
 
 	/* fetch a new id and increment it */
 	ret = dbwrap_change_uint32_atomic(idmap_alloc_db, hwmkey, &hwm, 1);
-	if (ret != 0) {
-		DEBUG(0, ("Fatal error while fetching a new %s value\n!", hwmtype));
+	if (!NT_STATUS_IS_OK(ret)) {
+		DEBUG(0, ("Fatal error while fetching a new %s value: %s\n!",
+			  hwmtype, nt_errstr(ret)));
 		idmap_alloc_db->transaction_cancel(idmap_alloc_db);
-		return NT_STATUS_UNSUCCESSFUL;
+		return ret;
 	}
 
 	/* recheck it is in the range */
@@ -530,6 +531,7 @@ static NTSTATUS idmap_tdb_set_hwm(struct unixid *xid)
 	const char *hwmtype;
 	uint32_t hwm;
 	uint32_t high_hwm;
+	NTSTATUS ret;
 
 	/* Get current high water mark */
 	switch (xid->type) {
@@ -552,17 +554,15 @@ static NTSTATUS idmap_tdb_set_hwm(struct unixid *xid)
 
 	hwm = xid->id;
 
-	if ((hwm = dbwrap_store_uint32(idmap_alloc_db, hwmkey, hwm)) == -1) {
-		return NT_STATUS_INTERNAL_DB_ERROR;
-	}
-
 	/* Warn if it is out of range */
 	if (hwm >= high_hwm) {
 		DEBUG(0, ("Warning: %s range full!! (max: %lu)\n", 
 			  hwmtype, (unsigned long)high_hwm));
 	}
 
-	return NT_STATUS_OK;
+	ret = dbwrap_trans_store_uint32(idmap_alloc_db, hwmkey, hwm);
+
+	return ret;
 }
 
 /**********************************
@@ -593,6 +593,8 @@ static NTSTATUS idmap_tdb_db_init(struct idmap_domain *dom, const char *params)
 {
 	NTSTATUS ret;
 	struct idmap_tdb_context *ctx;
+
+	DEBUG(10, ("idmap_tdb_db_init called for domain '%s'\n", dom->name));
 
 	ctx = talloc(dom, struct idmap_tdb_context);
 	if ( ! ctx) {

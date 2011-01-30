@@ -24,6 +24,19 @@
 
 #include "lib/netapi/netapi.h"
 #include "libnet/libnet.h"
+#include "localedir.h"
+
+#ifdef HAVE_LIBINTL_H
+#include <libintl.h>
+#endif
+
+#if defined(HAVE_GETTEXT) && !defined(__LCLINT__)
+#define _(foo) gettext(foo)
+#else
+#define _(foo) foo
+#endif
+
+#define MODULE_NAME "net"
 
 struct net_context {
 	const char *opt_requester_name;
@@ -57,8 +70,9 @@ struct net_context {
 	const char *opt_exclude;
 	const char *opt_destination;
 	int opt_testmode;
-	bool opt_kerberos;
+	int opt_kerberos;
 	int opt_force_full_repl;
+	int opt_ccache;
 	int opt_single_obj_repl;
 	int opt_clean_old_entries;
 

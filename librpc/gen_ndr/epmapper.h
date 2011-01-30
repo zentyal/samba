@@ -14,32 +14,32 @@
 enum epm_protocol
 #ifndef USE_UINT_ENUMS
  {
-	EPM_PROTOCOL_DNET_NSP=0x04,
-	EPM_PROTOCOL_OSI_TP4=0x05,
-	EPM_PROTOCOL_OSI_CLNS=0x06,
-	EPM_PROTOCOL_TCP=0x07,
-	EPM_PROTOCOL_UDP=0x08,
-	EPM_PROTOCOL_IP=0x09,
-	EPM_PROTOCOL_NCADG=0x0a,
-	EPM_PROTOCOL_NCACN=0x0b,
-	EPM_PROTOCOL_NCALRPC=0x0c,
-	EPM_PROTOCOL_UUID=0x0d,
-	EPM_PROTOCOL_IPX=0x0e,
-	EPM_PROTOCOL_SMB=0x0f,
-	EPM_PROTOCOL_PIPE=0x10,
-	EPM_PROTOCOL_NETBIOS=0x11,
-	EPM_PROTOCOL_NETBEUI=0x12,
-	EPM_PROTOCOL_SPX=0x13,
-	EPM_PROTOCOL_NB_IPX=0x14,
-	EPM_PROTOCOL_DSP=0x16,
-	EPM_PROTOCOL_DDP=0x17,
-	EPM_PROTOCOL_APPLETALK=0x18,
-	EPM_PROTOCOL_VINES_SPP=0x1a,
-	EPM_PROTOCOL_VINES_IPC=0x1b,
-	EPM_PROTOCOL_STREETTALK=0x1c,
-	EPM_PROTOCOL_HTTP=0x1f,
-	EPM_PROTOCOL_UNIX_DS=0x20,
-	EPM_PROTOCOL_NULL=0x21
+	EPM_PROTOCOL_DNET_NSP=(int)(0x04),
+	EPM_PROTOCOL_OSI_TP4=(int)(0x05),
+	EPM_PROTOCOL_OSI_CLNS=(int)(0x06),
+	EPM_PROTOCOL_TCP=(int)(0x07),
+	EPM_PROTOCOL_UDP=(int)(0x08),
+	EPM_PROTOCOL_IP=(int)(0x09),
+	EPM_PROTOCOL_NCADG=(int)(0x0a),
+	EPM_PROTOCOL_NCACN=(int)(0x0b),
+	EPM_PROTOCOL_NCALRPC=(int)(0x0c),
+	EPM_PROTOCOL_UUID=(int)(0x0d),
+	EPM_PROTOCOL_IPX=(int)(0x0e),
+	EPM_PROTOCOL_SMB=(int)(0x0f),
+	EPM_PROTOCOL_NAMED_PIPE=(int)(0x10),
+	EPM_PROTOCOL_NETBIOS=(int)(0x11),
+	EPM_PROTOCOL_NETBEUI=(int)(0x12),
+	EPM_PROTOCOL_SPX=(int)(0x13),
+	EPM_PROTOCOL_NB_IPX=(int)(0x14),
+	EPM_PROTOCOL_DSP=(int)(0x16),
+	EPM_PROTOCOL_DDP=(int)(0x17),
+	EPM_PROTOCOL_APPLETALK=(int)(0x18),
+	EPM_PROTOCOL_VINES_SPP=(int)(0x1a),
+	EPM_PROTOCOL_VINES_IPC=(int)(0x1b),
+	EPM_PROTOCOL_STREETTALK=(int)(0x1c),
+	EPM_PROTOCOL_HTTP=(int)(0x1f),
+	EPM_PROTOCOL_UNIX_DS=(int)(0x20),
+	EPM_PROTOCOL_NULL=(int)(0x21)
 }
 #else
  { __donnot_use_enum_epm_protocol=0x7FFFFFFF}
@@ -55,7 +55,7 @@ enum epm_protocol
 #define EPM_PROTOCOL_UUID ( 0x0d )
 #define EPM_PROTOCOL_IPX ( 0x0e )
 #define EPM_PROTOCOL_SMB ( 0x0f )
-#define EPM_PROTOCOL_PIPE ( 0x10 )
+#define EPM_PROTOCOL_NAMED_PIPE ( 0x10 )
 #define EPM_PROTOCOL_NETBIOS ( 0x11 )
 #define EPM_PROTOCOL_NETBEUI ( 0x12 )
 #define EPM_PROTOCOL_SPX ( 0x13 )
@@ -116,7 +116,7 @@ struct epm_rhs_smb {
 	const char * unc;/* [flag(LIBNDR_FLAG_STR_ASCII|LIBNDR_FLAG_STR_NULLTERM)] */
 };
 
-struct epm_rhs_pipe {
+struct epm_rhs_named_pipe {
 	const char * path;/* [flag(LIBNDR_FLAG_STR_ASCII|LIBNDR_FLAG_STR_NULLTERM)] */
 };
 
@@ -189,7 +189,7 @@ union epm_rhs {
 	struct epm_rhs_uuid uuid;/* [case(EPM_PROTOCOL_UUID)] */
 	struct epm_rhs_ipx ipx;/* [case(EPM_PROTOCOL_IPX)] */
 	struct epm_rhs_smb smb;/* [case(EPM_PROTOCOL_SMB)] */
-	struct epm_rhs_pipe pipe;/* [case(EPM_PROTOCOL_PIPE)] */
+	struct epm_rhs_named_pipe named_pipe;/* [case(EPM_PROTOCOL_NAMED_PIPE)] */
 	struct epm_rhs_netbios netbios;/* [case(EPM_PROTOCOL_NETBIOS)] */
 	struct epm_rhs_netbeui netbeui;/* [case(EPM_PROTOCOL_NETBEUI)] */
 	struct epm_rhs_spx spx;/* [case(EPM_PROTOCOL_SPX)] */

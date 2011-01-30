@@ -104,16 +104,31 @@ static void syncops_name(const char *name)
 	}
 }
 
+/*
+  sync two meta data changes for 1 names
+ */
+static void syncops_smb_fname(const struct smb_filename *smb_fname)
+{
+	char *parent;
+	parent = parent_dir(NULL, smb_fname->base_name);
+	if (parent) {
+		syncops_sync_directory(parent);
+		talloc_free(parent);
+	}
+}
+
 
 /*
   rename needs special handling, as we may need to fsync two directories
  */
 static int syncops_rename(vfs_handle_struct *handle,
-			  const char *oldname, const char *newname)
+			  const struct smb_filename *smb_fname_src,
+			  const struct smb_filename *smb_fname_dst)
 {
-	int ret = SMB_VFS_NEXT_RENAME(handle, oldname, newname);
+	int ret = SMB_VFS_NEXT_RENAME(handle, smb_fname_src, smb_fname_dst);
 	if (ret == 0) {
-		syncops_two_names(oldname, newname);
+		syncops_two_names(smb_fname_src->base_name,
+				  smb_fname_dst->base_name);
 	}
 	return ret;
 }
@@ -122,6 +137,12 @@ static int syncops_rename(vfs_handle_struct *handle,
 #define SYNCOPS_NEXT(op, fname, args) do {   \
 	int ret = SMB_VFS_NEXT_ ## op args; \
 	if (ret == 0 && fname) syncops_name(fname); \
+	return ret; \
+} while (0)
+
+#define SYNCOPS_NEXT_SMB_FNAME(op, fname, args) do {   \
+	int ret = SMB_VFS_NEXT_ ## op args; \
+	if (ret == 0 && fname) syncops_smb_fname(fname); \
 	return ret; \
 } while (0)
 
@@ -138,14 +159,17 @@ static int syncops_link(vfs_handle_struct *handle,
 }
 
 static int syncops_open(vfs_handle_struct *handle,
-			const char *fname, files_struct *fsp, int flags, mode_t mode)
+			struct smb_filename *smb_fname, files_struct *fsp,
+			int flags, mode_t mode)
 {
-	SYNCOPS_NEXT(OPEN, (flags&O_CREAT?fname:NULL), (handle, fname, fsp, flags, mode));
+	SYNCOPS_NEXT_SMB_FNAME(OPEN, (flags&O_CREAT?smb_fname:NULL),
+			       (handle, smb_fname, fsp, flags, mode));
 }
 
-static int syncops_unlink(vfs_handle_struct *handle, const char *fname)
+static int syncops_unlink(vfs_handle_struct *handle,
+			  const struct smb_filename *smb_fname)
 {
-        SYNCOPS_NEXT(UNLINK, fname, (handle, fname));
+        SYNCOPS_NEXT_SMB_FNAME(UNLINK, smb_fname, (handle, smb_fname));
 }
 
 static int syncops_mknod(vfs_handle_struct *handle,
@@ -176,30 +200,24 @@ static int syncops_close(vfs_handle_struct *handle, files_struct *fsp)
 }
 
 
-/* VFS operations structure */
-
-static vfs_op_tuple syncops_ops[] = {
-	/* directory operations */
-        {SMB_VFS_OP(syncops_mkdir),       SMB_VFS_OP_MKDIR,       SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(syncops_rmdir),       SMB_VFS_OP_RMDIR,       SMB_VFS_LAYER_TRANSPARENT},
-
-        /* File operations */
-        {SMB_VFS_OP(syncops_open),       SMB_VFS_OP_OPEN,     SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(syncops_rename),     SMB_VFS_OP_RENAME,   SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(syncops_unlink),     SMB_VFS_OP_UNLINK,   SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(syncops_symlink),    SMB_VFS_OP_SYMLINK,  SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(syncops_link),       SMB_VFS_OP_LINK,     SMB_VFS_LAYER_TRANSPARENT},
-        {SMB_VFS_OP(syncops_mknod),      SMB_VFS_OP_MKNOD,    SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(syncops_close), 	 SMB_VFS_OP_CLOSE,    SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(NULL), SMB_VFS_OP_NOOP, SMB_VFS_LAYER_NOOP}
+static struct vfs_fn_pointers vfs_syncops_fns = {
+        .mkdir = syncops_mkdir,
+        .rmdir = syncops_rmdir,
+        .open = syncops_open,
+        .rename = syncops_rename,
+        .unlink = syncops_unlink,
+        .symlink = syncops_symlink,
+        .link = syncops_link,
+        .mknod = syncops_mknod,
+	.close_fn = syncops_close,
 };
 
 NTSTATUS vfs_syncops_init(void)
 {
 	NTSTATUS ret;
 
-	ret = smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "syncops", syncops_ops);
+	ret = smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "syncops",
+			       &vfs_syncops_fns);
 
 	if (!NT_STATUS_IS_OK(ret))
 		return ret;

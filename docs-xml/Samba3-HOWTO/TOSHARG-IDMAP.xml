@@ -36,7 +36,7 @@ This is followed by an overview of how the IDMAP facility may be implemented.
 The IDMAP facility is of concern where more than one Samba server (or Samba network client)
 is installed in a domain. Where there is a single Samba server, do not be too concerned regarding
 the IDMAP infrastructure &smbmdash; the default behavior of Samba is nearly always sufficient.
-Where mulitple Samba servers are used it is often necessary to move data off one server and onto
+Where multiple Samba servers are used it is often necessary to move data off one server and onto
 another, and that is where the fun begins!
 </para>
 
@@ -56,9 +56,9 @@ reduced. This works reasonably well if the servers belong to a single domain, an
 are not needed. On the other hand, if the Samba servers are NT4 domain members, or ADS  domain members,
 or if there is a need to keep the security name-space separate (i.e., the user
 <literal>DOMINICUS\FJones</literal> must not be given access to the account resources of the user 
-<literal>FRANCISCUS\FJones</literal><footnote>Samba local account mode results in both
+<literal>FRANCISCUS\FJones</literal><footnote><para>Samba local account mode results in both
 <literal>DOMINICUS\FJones</literal> and <literal>FRANCISCUS\FJones</literal> mapping to the UNIX user
-<literal>FJones</literal>.</footnote> free from inadvertent cross-over, close attention should be given
+<literal>FJones</literal>.</para></footnote> free from inadvertent cross-over, close attention should be given
 to the way that the IDMAP facility is configured.
 </para>
 
@@ -426,7 +426,7 @@ on Server Types and Security Modes</link>.
 	<indexterm><primary>passdb backend</primary></indexterm>
 	<indexterm><primary>BDC</primary></indexterm>
 	<indexterm><primary>LDAP backend</primary></indexterm>
-	Security identifiers used within a domain must be managed to avoid conflict and to preserve itegrity.
+	Security identifiers used within a domain must be managed to avoid conflict and to preserve integrity.
 	In an NT4 domain context, the PDC manages the distribution of all security credentials to the backup
 	domain controllers (BDCs). At this time the only passdb backend for a Samba domain controller that is suitable
 	for such information is an LDAP backend.

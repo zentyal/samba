@@ -10,7 +10,5 @@ adapt_machine_creation_script.patch
 usershare.patch
 smbtar-bashism.patch
 no-unnecessary-cups.patch
-codepages-location.patch
-external-talloc-support.patch
 autoconf.patch
-bug_586337_upstream_7139.patch
+bug_605728_upstream_7791.patch

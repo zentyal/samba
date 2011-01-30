@@ -32,12 +32,17 @@
 #include "ldb_module.h"
 #include "dlinklist.h"
 #include "dsdb/samdb/samdb.h"
+#include "librpc/gen_ndr/ndr_misc.h"
+
+struct la_private {
+	struct la_context *la_list;
+};
 
 struct la_op_store {
 	struct la_op_store *next;
 	struct la_op_store *prev;
 	enum la_op {LA_OP_ADD, LA_OP_DEL} op;
-	struct ldb_dn *dn;
+	struct GUID guid;
 	char *name;
 	char *value;
 };
@@ -49,9 +54,11 @@ struct replace_context {
 };
 
 struct la_context {
+	struct la_context *next, *prev;
 	const struct dsdb_schema *schema;
 	struct ldb_module *module;
 	struct ldb_request *req;
+	struct ldb_dn *partition_dn;
 	struct ldb_dn *add_dn;
 	struct ldb_dn *del_dn;
 	struct replace_context *rc;
@@ -65,6 +72,7 @@ static struct la_context *linked_attributes_init(struct ldb_module *module,
 {
 	struct ldb_context *ldb;
 	struct la_context *ac;
+	const struct ldb_control *partition_ctrl;
 
 	ldb = ldb_module_get_ctx(module);
 
@@ -78,18 +86,60 @@ static struct la_context *linked_attributes_init(struct ldb_module *module,
 	ac->module = module;
 	ac->req = req;
 
+	/* remember the partition DN that came in, if given */
+	partition_ctrl = ldb_request_get_control(req, DSDB_CONTROL_CURRENT_PARTITION_OID);
+	if (partition_ctrl) {
+		const struct dsdb_control_current_partition *partition;
+		partition = talloc_get_type(partition_ctrl->data,
+					    struct dsdb_control_current_partition);
+		SMB_ASSERT(partition && partition->version == DSDB_CONTROL_CURRENT_PARTITION_VERSION);
+	
+		ac->partition_dn = ldb_dn_copy(ac, partition->dn);
+	}
+
 	return ac;
 }
+
+/*
+  turn a DN into a GUID
+ */
+static int la_guid_from_dn(struct la_context *ac, struct ldb_dn *dn, struct GUID *guid)
+{
+	const struct ldb_val *guid_val;
+	int ret;
+
+	guid_val = ldb_dn_get_extended_component(dn, "GUID");
+	if (guid_val) {
+		/* there is a GUID embedded in the DN */
+		enum ndr_err_code ndr_err;
+		ndr_err = ndr_pull_struct_blob(guid_val, ac, NULL, guid,
+					       (ndr_pull_flags_fn_t)ndr_pull_GUID);
+		if (ndr_err != NDR_ERR_SUCCESS) {
+			DEBUG(0,(__location__ ": Failed to parse GUID\n"));
+			return LDB_ERR_OPERATIONS_ERROR;
+		}
+	} else {
+		ret = dsdb_find_guid_by_dn(ldb_module_get_ctx(ac->module), dn, guid);
+		if (ret != LDB_SUCCESS) {
+			DEBUG(4,(__location__ ": Failed to find GUID for dn %s\n",
+				 ldb_dn_get_linearized(dn)));
+			return ret;
+		}
+	}
+	return LDB_SUCCESS;
+}
+
 
 /* Common routine to handle reading the attributes and creating a
  * series of modify requests */
 static int la_store_op(struct la_context *ac,
 		       enum la_op op, struct ldb_val *dn,
-			const char *name)
+		       const char *name)
 {
 	struct ldb_context *ldb;
 	struct la_op_store *os;
 	struct ldb_dn *op_dn;
+	int ret;
 
 	ldb = ldb_module_get_ctx(ac->module);
 
@@ -108,7 +158,20 @@ static int la_store_op(struct la_context *ac,
 
 	os->op = op;
 
-	os->dn = talloc_steal(os, op_dn);
+	ret = la_guid_from_dn(ac, op_dn, &os->guid);
+	if (ret == LDB_ERR_NO_SUCH_OBJECT && ac->req->operation == LDB_DELETE) {
+		/* we are deleting an object, and we've found it has a
+		 * forward link to a target that no longer
+		 * exists. This is not an error in the delete, and we
+		 * should just not do the deferred delete of the
+		 * target attribute
+		 */
+		talloc_free(os);
+		return LDB_SUCCESS;
+	}
+	if (ret != LDB_SUCCESS) {
+		return ret;
+	}
 
 	os->name = talloc_strdup(os, name);
 	if (!os->name) {
@@ -130,9 +193,7 @@ static int la_store_op(struct la_context *ac,
 
 static int la_op_search_callback(struct ldb_request *req,
 				 struct ldb_reply *ares);
-static int la_do_mod_request(struct la_context *ac);
-static int la_mod_callback(struct ldb_request *req,
-			   struct ldb_reply *ares);
+static int la_queue_mod_request(struct la_context *ac);
 static int la_down_req(struct la_context *ac);
 
 
@@ -181,7 +242,7 @@ static int linked_attributes_add(struct ldb_module *module, struct ldb_request *
 		}
 		
 		if ((schema_attr->linkID & 1) == 1) {
-			/* Odd is for the target.  Illigal to modify */
+			/* Odd is for the target.  Illegal to modify */
 			ldb_asprintf_errstring(ldb, 
 					       "attribute %s must not be modified directly, it is a linked attribute", el->name);
 			return LDB_ERR_UNWILLING_TO_PERFORM;
@@ -328,7 +389,7 @@ static int la_mod_search_callback(struct ldb_request *req, struct ldb_reply *are
 
 		if (ac->req->operation == LDB_ADD) {
 			/* Start the modifies to the backlinks */
-			ret = la_do_mod_request(ac);
+			ret = la_queue_mod_request(ac);
 
 			if (ret != LDB_SUCCESS) {
 				return ldb_module_done(ac->req, NULL, NULL,
@@ -532,7 +593,7 @@ static int linked_attributes_modify(struct ldb_module *module, struct ldb_reques
 	return ret;
 }
 
-/* delete, rename */
+/* delete */
 static int linked_attributes_del(struct ldb_module *module, struct ldb_request *req)
 {
 	struct ldb_context *ldb;
@@ -584,7 +645,7 @@ static int linked_attributes_del(struct ldb_module *module, struct ldb_request *
 	return ldb_next_request(module, search_req);
 }
 
-/* delete, rename */
+/* rename */
 static int linked_attributes_rename(struct ldb_module *module, struct ldb_request *req)
 {
 	struct la_context *ac;
@@ -741,15 +802,15 @@ static int la_op_search_callback(struct ldb_request *req,
 			if (ret != LDB_SUCCESS) {
 				return ldb_module_done(ac->req, NULL, NULL, ret);
 			}
-			break;
-		case LDB_RENAME:
-			
-			ret = la_do_mod_request(ac);
+			return ret;
+
+		case LDB_RENAME:	
+			/* start the mod requests chain */
+			ret = la_queue_mod_request(ac);
 			if (ret != LDB_SUCCESS) {
 				return ldb_module_done(ac->req, NULL, NULL,
 						       ret);
-			}
-	
+			}	
 			return ret;
 			
 		default:
@@ -759,119 +820,29 @@ static int la_op_search_callback(struct ldb_request *req,
 			return ldb_module_done(ac->req, NULL, NULL,
 						LDB_ERR_OPERATIONS_ERROR);
 		}
-		return LDB_SUCCESS;
 	}
 
 	talloc_free(ares);
 	return LDB_SUCCESS;
 }
 
-/* do a linked attributes modify request */
-static int la_do_mod_request(struct la_context *ac)
+/* queue a linked attributes modify request in the la_private
+   structure */
+static int la_queue_mod_request(struct la_context *ac)
 {
-	struct ldb_message_element *ret_el;
-	struct ldb_request *mod_req;
-	struct ldb_message *new_msg;
-	struct ldb_context *ldb;
-	int ret;
+	struct la_private *la_private = 
+		talloc_get_type(ldb_module_get_private(ac->module), struct la_private);
 
-	/* If we have no modifies in the queue, we are done! */
-	if (!ac->ops) {
-		return ldb_module_done(ac->req, ac->op_controls,
-				       ac->op_response, LDB_SUCCESS);
-	}
-
-	ldb = ldb_module_get_ctx(ac->module);
-
-	/* Create the modify request */
-	new_msg = ldb_msg_new(ac);
-	if (!new_msg) {
-		ldb_oom(ldb);
+	if (la_private == NULL) {
+		ldb_debug(ldb_module_get_ctx(ac->module), LDB_DEBUG_ERROR, __location__ ": No la_private transaction setup\n");
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
-	new_msg->dn = ac->ops->dn;
 
-	if (ac->ops->op == LA_OP_ADD) {
-		ret = ldb_msg_add_empty(new_msg, ac->ops->name,
-					LDB_FLAG_MOD_ADD, &ret_el);
-	} else {
-		ret = ldb_msg_add_empty(new_msg, ac->ops->name,
-					LDB_FLAG_MOD_DELETE, &ret_el);
-	}
-	if (ret != LDB_SUCCESS) {
-		return ret;
-	}
-	ret_el->values = talloc_array(new_msg, struct ldb_val, 1);
-	if (!ret_el->values) {
-		ldb_oom(ldb);
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
-	ret_el->num_values = 1;
-	if (ac->ops->op == LA_OP_ADD) {
-		ret_el->values[0] = data_blob_string_const(ldb_dn_get_extended_linearized(new_msg, ac->add_dn, 1));
-	} else {
-		ret_el->values[0] = data_blob_string_const(ldb_dn_get_extended_linearized(new_msg, ac->del_dn, 1));
-	}
+	talloc_steal(la_private, ac);
+	DLIST_ADD(la_private->la_list, ac);
 
-#if 0
-	ldb_debug(ldb, LDB_DEBUG_WARNING,
-		  "link on %s %s: %s %s\n", 
-		  ldb_dn_get_linearized(new_msg->dn), ret_el->name, 
-		  ret_el->values[0].data, ac->ops->op == LA_OP_ADD ? "added" : "deleted");
-#endif	
-
-	/* use ac->ops as the mem_ctx so that the request will be freed
-	 * in the callback as soon as completed */
-	ret = ldb_build_mod_req(&mod_req, ldb, ac->ops,
-				new_msg,
-				NULL,
-				ac, la_mod_callback,
-				ac->req);
-	if (ret != LDB_SUCCESS) {
-		return ret;
-	}
-	talloc_steal(mod_req, new_msg);
-
-	/* Run the new request */
-	return ldb_next_request(ac->module, mod_req);
-}
-
-static int la_mod_callback(struct ldb_request *req, struct ldb_reply *ares)
-{
-	struct la_context *ac;
-	struct ldb_context *ldb;
-	struct la_op_store *os;
-
-	ac = talloc_get_type(req->context, struct la_context);
-	ldb = ldb_module_get_ctx(ac->module);
-
-	if (!ares) {
-		return ldb_module_done(ac->req, NULL, NULL,
-					LDB_ERR_OPERATIONS_ERROR);
-	}
-	if (ares->error != LDB_SUCCESS) {
-		return ldb_module_done(ac->req, ares->controls,
-					ares->response, ares->error);
-	}
-
-	if (ares->type != LDB_REPLY_DONE) {
-		ldb_set_errstring(ldb,
-				  "invalid ldb_reply_type in callback");
-		talloc_free(ares);
-		return ldb_module_done(ac->req, NULL, NULL,
-					LDB_ERR_OPERATIONS_ERROR);
-	}
-
-	talloc_free(ares);
-
-	os = ac->ops;
-	DLIST_REMOVE(ac->ops, os);
-
-	/* this frees the request too
-	 * DO NOT access 'req' after this point */
-	talloc_free(os);
-
-	return la_do_mod_request(ac);
+	return ldb_module_done(ac->req, ac->op_controls,
+			       ac->op_response, LDB_SUCCESS);
 }
 
 /* Having done the original operation, then try to fix up all the linked attributes for modify and delete */
@@ -905,14 +876,14 @@ static int la_mod_del_callback(struct ldb_request *req, struct ldb_reply *ares)
 	ac->op_response = talloc_steal(ac, ares->response);
 
 	/* If we have modfies to make, this is the time to do them for modify and delete */
-	ret = la_do_mod_request(ac);
+	ret = la_queue_mod_request(ac);
 	
 	if (ret != LDB_SUCCESS) {
 		return ldb_module_done(ac->req, NULL, NULL, ret);
 	}
 	talloc_free(ares);
 
-	/* la_do_mod_request has already sent the callbacks */
+	/* la_queue_mod_request has already sent the callbacks */
 	return LDB_SUCCESS;
 
 }
@@ -1095,6 +1066,184 @@ static int la_down_req(struct la_context *ac)
 	return ldb_next_request(ac->module, down_req);
 }
 
+/*
+  use the GUID part of an extended DN to find the target DN, in case
+  it has moved
+ */
+static int la_find_dn_target(struct ldb_module *module, struct la_context *ac, 
+			     struct GUID *guid, struct ldb_dn **dn)
+{
+	return dsdb_find_dn_by_guid(ldb_module_get_ctx(ac->module), ac, GUID_string(ac, guid), dn);
+}
+
+/* apply one la_context op change */
+static int la_do_op_request(struct ldb_module *module, struct la_context *ac, struct la_op_store *op)
+{
+	struct ldb_message_element *ret_el;
+	struct ldb_request *mod_req;
+	struct ldb_message *new_msg;
+	struct ldb_context *ldb;
+	int ret;
+
+	ldb = ldb_module_get_ctx(ac->module);
+
+	/* Create the modify request */
+	new_msg = ldb_msg_new(ac);
+	if (!new_msg) {
+		ldb_oom(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+
+	ret = la_find_dn_target(module, ac, &op->guid, &new_msg->dn);
+	if (ret != LDB_SUCCESS) {
+		return ret;
+	}
+
+	if (op->op == LA_OP_ADD) {
+		ret = ldb_msg_add_empty(new_msg, op->name,
+					LDB_FLAG_MOD_ADD, &ret_el);
+	} else {
+		ret = ldb_msg_add_empty(new_msg, op->name,
+					LDB_FLAG_MOD_DELETE, &ret_el);
+	}
+	if (ret != LDB_SUCCESS) {
+		return ret;
+	}
+	ret_el->values = talloc_array(new_msg, struct ldb_val, 1);
+	if (!ret_el->values) {
+		ldb_oom(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+	ret_el->num_values = 1;
+	if (op->op == LA_OP_ADD) {
+		ret_el->values[0] = data_blob_string_const(ldb_dn_get_extended_linearized(new_msg, ac->add_dn, 1));
+	} else {
+		ret_el->values[0] = data_blob_string_const(ldb_dn_get_extended_linearized(new_msg, ac->del_dn, 1));
+	}
+
+#if 0
+	ldb_debug(ldb, LDB_DEBUG_WARNING,
+		  "link on %s %s: %s %s\n", 
+		  ldb_dn_get_linearized(new_msg->dn), ret_el->name, 
+		  ret_el->values[0].data, ac->ops->op == LA_OP_ADD ? "added" : "deleted");
+#endif	
+
+	ret = ldb_build_mod_req(&mod_req, ldb, op,
+				new_msg,
+				NULL,
+				NULL, 
+				ldb_op_default_callback,
+				NULL);
+	if (ret != LDB_SUCCESS) {
+		return ret;
+	}
+	talloc_steal(mod_req, new_msg);
+
+	if (DEBUGLVL(4)) {
+		DEBUG(4,("Applying linked attribute change:\n%s\n",
+			 ldb_ldif_message_string(ldb, op, LDB_CHANGETYPE_MODIFY, new_msg)));
+	}
+
+	/* Run the new request */
+	ret = ldb_next_request(module, mod_req);
+
+	/* we need to wait for this to finish, as we are being called
+	   from the synchronous end_transaction hook of this module */
+	if (ret == LDB_SUCCESS) {
+		ret = ldb_wait(mod_req->handle, LDB_WAIT_ALL);
+	}
+
+	if (ret != LDB_SUCCESS) {
+		ldb_debug(ldb, LDB_DEBUG_WARNING, "Failed to apply linked attribute change '%s' %s\n",
+			  ldb_errstring(ldb),
+			  ldb_ldif_message_string(ldb, op, LDB_CHANGETYPE_MODIFY, new_msg));
+	}
+
+	return ret;
+}
+
+/* apply one set of la_context changes */
+static int la_do_mod_request(struct ldb_module *module, struct la_context *ac)
+{
+	struct la_op_store *op;
+
+	for (op = ac->ops; op; op=op->next) {
+		int ret = la_do_op_request(module, ac, op);
+		if (ret != LDB_SUCCESS) {
+			if (ret != LDB_ERR_NO_SUCH_OBJECT) {
+				return ret;
+			}
+		}
+	}
+
+	return LDB_SUCCESS;
+}
+
+
+/*
+  we hook into the transaction operations to allow us to 
+  perform the linked attribute updates at the end of the whole
+  transaction. This allows a forward linked attribute to be created
+  before the target is created, as long as the target is created
+  in the same transaction
+ */
+static int linked_attributes_start_transaction(struct ldb_module *module)
+{
+	/* create our private structure for this transaction */
+	struct la_private *la_private = talloc_get_type(ldb_module_get_private(module),
+							struct la_private);
+	talloc_free(la_private);
+	la_private = talloc(module, struct la_private);
+	if (la_private == NULL) {
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+	la_private->la_list = NULL;
+	ldb_module_set_private(module, la_private);
+	return ldb_next_start_trans(module);
+}
+
+/*
+  on prepare commit we loop over our queued la_context structures
+  and apply each of them
+ */
+static int linked_attributes_prepare_commit(struct ldb_module *module)
+{
+	struct la_private *la_private = 
+		talloc_get_type(ldb_module_get_private(module), struct la_private);
+	struct la_context *ac;
+
+	/* walk the list backwards, to do the first entry first, as we
+	 * added the entries with DLIST_ADD() which puts them at the
+	 * start of the list */
+	for (ac = la_private->la_list; ac && ac->next; ac=ac->next) ;
+
+	for (; ac; ac=ac->prev) {
+		int ret;
+		ac->req = NULL;
+		ret = la_do_mod_request(module, ac);
+		if (ret != LDB_SUCCESS) {
+			DEBUG(0,(__location__ ": Failed mod request ret=%d\n", ret));
+			talloc_free(la_private);
+			ldb_module_set_private(module, NULL);	
+			return ret;
+		}
+	}
+
+	talloc_free(la_private);
+	ldb_module_set_private(module, NULL);	
+
+	return ldb_next_prepare_commit(module);
+}
+
+static int linked_attributes_del_transaction(struct ldb_module *module)
+{
+	struct la_private *la_private = 
+		talloc_get_type(ldb_module_get_private(module), struct la_private);
+	talloc_free(la_private);
+	ldb_module_set_private(module, NULL);
+	return ldb_next_del_trans(module);
+}
+
 
 _PUBLIC_ const struct ldb_module_ops ldb_linked_attributes_module_ops = {
 	.name		   = "linked_attributes",
@@ -1102,4 +1251,7 @@ _PUBLIC_ const struct ldb_module_ops ldb_linked_attributes_module_ops = {
 	.modify            = linked_attributes_modify,
 	.del               = linked_attributes_del,
 	.rename            = linked_attributes_rename,
+	.start_transaction = linked_attributes_start_transaction,
+	.prepare_commit    = linked_attributes_prepare_commit,
+	.del_transaction   = linked_attributes_del_transaction,
 };

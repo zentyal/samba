@@ -1,4 +1,3 @@
-mkinclude auth/config.mk
 mkinclude ldap/config.mk
 mkinclude security/config.mk
 mkinclude wbclient/config.mk
@@ -38,49 +37,6 @@ LIBCLI_SMB_COMPOSITE_OBJ_FILES = $(addprefix $(libclisrcdir)/smb_composite/, \
 
 $(eval $(call proto_header_template,$(libclisrcdir)/smb_composite/proto.h,$(LIBCLI_SMB_COMPOSITE_OBJ_FILES:.o=.c)))
 
-[SUBSYSTEM::NDR_NBT_BUF]
-
-NDR_NBT_BUF_OBJ_FILES = $(libclinbtsrcdir)/nbtname.o
-
-$(eval $(call proto_header_template,$(libclinbtsrcdir)/nbtname.h,$(NDR_NBT_BUF_OBJ_FILES:.o=.c)))
-
-[SUBSYSTEM::LIBCLI_NBT]
-PUBLIC_DEPENDENCIES = LIBNDR NDR_NBT LIBCLI_COMPOSITE LIBEVENTS \
-	NDR_SECURITY samba_socket LIBSAMBA-UTIL
-
-LIBCLI_NBT_OBJ_FILES = $(addprefix $(libclinbtsrcdir)/, \
-	nbtsocket.o \
-	namequery.o \
-	nameregister.o \
-	namerefresh.o \
-	namerelease.o)
-
-[BINARY::nmblookup]
-INSTALLDIR = BINDIR
-PRIVATE_DEPENDENCIES = \
-		LIBSAMBA-HOSTCONFIG \
-		LIBSAMBA-UTIL \
-		LIBCLI_NBT \
-		LIBPOPT \
-		POPT_SAMBA \
-		LIBNETIF \
-		LIBCLI_RESOLVE
-
-nmblookup_OBJ_FILES = $(libclinbtsrcdir)/tools/nmblookup.o
-MANPAGES += $(libclinbtsrcdir)/man/nmblookup.1
-
-[SUBSYSTEM::LIBCLI_NDR_NETLOGON]
-PUBLIC_DEPENDENCIES = LIBNDR  \
-	NDR_SECURITY 	
-
-LIBCLI_NDR_NETLOGON_OBJ_FILES = $(addprefix $(libclinbtsrcdir)/../, ndr_netlogon.o)
-
-[SUBSYSTEM::LIBCLI_NETLOGON]
-PUBLIC_DEPENDENCIES = LIBSAMBA-UTIL LIBCLI_NDR_NETLOGON
-
-LIBCLI_NETLOGON_OBJ_FILES = $(addprefix $(libclinbtsrcdir)/, \
-	../netlogon.o)
-
 [PYTHON::python_netbios]
 LIBRARY_REALNAME = samba/netbios.$(SHLIBEXT)
 PUBLIC_DEPENDENCIES = LIBCLI_NBT DYNCONFIG LIBSAMBA-HOSTCONFIG
@@ -95,13 +51,6 @@ LIBCLI_DGRAM_OBJ_FILES = $(addprefix $(libclisrcdir)/dgram/, \
 	mailslot.o \
 	netlogon.o \
 	browse.o)
-
-[SUBSYSTEM::LIBCLI_CLDAP]
-PUBLIC_DEPENDENCIES = LIBCLI_LDAP
-PRIVATE_DEPENDENCIES = LIBSAMBA-UTIL LIBLDB LIBCLI_NETLOGON
-
-LIBCLI_CLDAP_OBJ_FILES = $(libclisrcdir)/cldap/cldap.o
-# PUBLIC_HEADERS += $(libclisrcdir)/cldap/cldap.h
 
 [SUBSYSTEM::LIBCLI_WREPL]
 PUBLIC_DEPENDENCIES = NDR_WINSREPL samba_socket LIBEVENTS LIBPACKET
@@ -155,7 +104,7 @@ $(eval $(call proto_header_template,$(libclisrcdir)/libcli_proto.h,$(LIBCLI_SMB_
 [SUBSYSTEM::LIBCLI_RAW]
 PRIVATE_DEPENDENCIES = LIBCLI_COMPOSITE LP_RESOLVE gensec LIBCLI_RESOLVE LIBSECURITY LIBNDR
 #LDFLAGS = $(LIBCLI_SMB_COMPOSITE_OUTPUT)
-PUBLIC_DEPENDENCIES = samba_socket LIBPACKET gensec LIBCRYPTO CREDENTIALS 
+PUBLIC_DEPENDENCIES = samba_socket LIBPACKET gensec LIBCRYPTO CREDENTIALS LIBCLI_SMB_COMMON
 
 LIBCLI_RAW_OBJ_FILES = $(addprefix $(libclisrcdir)/raw/, rawfile.o smb_signing.o clisocket.o \
 					  clitransport.o clisession.o clitree.o clierror.o rawrequest.o \

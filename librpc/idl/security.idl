@@ -144,6 +144,21 @@ interface security
 	const int SEC_RIGHTS_DIR_EXECUTE  = SEC_RIGHTS_FILE_EXECUTE;
 	const int SEC_RIGHTS_DIR_ALL      = SEC_RIGHTS_FILE_ALL;
 
+	/* rights granted by some specific privileges */
+	const int SEC_RIGHTS_PRIV_BACKUP  = SEC_STD_READ_CONTROL | 
+					    SEC_FLAG_SYSTEM_SECURITY |
+					    SEC_GENERIC_READ;
+	const int SEC_RIGHTS_DIR_PRIV_BACKUP  = SEC_RIGHTS_PRIV_BACKUP 
+					      | SEC_DIR_TRAVERSE;
+
+	const int SEC_RIGHTS_PRIV_RESTORE = SEC_STD_WRITE_DAC | 
+					    SEC_STD_WRITE_OWNER |
+					    SEC_FLAG_SYSTEM_SECURITY |
+					    SEC_STD_DELETE;
+	const int SEC_RIGHTS_DIR_PRIV_RESTORE = SEC_RIGHTS_PRIV_RESTORE | 
+					    SEC_DIR_ADD_FILE |
+					    SEC_DIR_ADD_SUBDIR;
+
 	/* combinations of standard masks. */
 	const int STANDARD_RIGHTS_ALL_ACCESS		= SEC_STD_ALL; /* 0x001f0000 */
 	const int STANDARD_RIGHTS_MODIFY_ACCESS		= SEC_STD_READ_CONTROL; /* 0x00020000 */
@@ -158,6 +173,32 @@ interface security
 		 SEC_STD_READ_CONTROL		|
 		 SEC_STD_WRITE_DAC		|
 		 SEC_STD_WRITE_OWNER);	/* 0x000f0000 */
+
+	/* generic->specific mappings for Directory Service objects */
+	/* directory specific part of GENERIC_ALL */
+	const int SEC_ADS_GENERIC_ALL_DS =
+		(SEC_STD_DELETE                 |
+		 SEC_STD_WRITE_DAC              |
+		 SEC_STD_WRITE_OWNER            |
+		 SEC_ADS_CREATE_CHILD           |
+		 SEC_ADS_DELETE_CHILD           |
+		 SEC_ADS_DELETE_TREE            |
+		 SEC_ADS_CONTROL_ACCESS);
+	const int SEC_ADS_GENERIC_EXECUTE = SEC_STD_READ_CONTROL | SEC_ADS_LIST;
+	const int SEC_ADS_GENERIC_WRITE   =
+		(SEC_STD_READ_CONTROL           |
+		 SEC_ADS_SELF_WRITE             |
+		 SEC_ADS_WRITE_PROP);
+	const int SEC_ADS_GENERIC_READ    =
+		(SEC_STD_READ_CONTROL           |
+		 SEC_ADS_LIST                   |
+		 SEC_ADS_READ_PROP              |
+		 SEC_ADS_LIST_OBJECT);
+	const int SEC_ADS_GENERIC_ALL     =
+		(SEC_ADS_GENERIC_EXECUTE        |
+		 SEC_ADS_GENERIC_WRITE          |
+		 SEC_ADS_GENERIC_READ           |
+		 SEC_ADS_GENERIC_ALL_DS);
 
 	/***************************************************************/
 	/* WELL KNOWN SIDS */
@@ -219,18 +260,23 @@ interface security
 	const string SID_BUILTIN_REPLICATOR        = "S-1-5-32-552";
 	const string SID_BUILTIN_RAS_SERVERS       = "S-1-5-32-553";
 	const string SID_BUILTIN_PREW2K            = "S-1-5-32-554";
+	const string SID_BUILTIN_REMOTE_DESKTOP_USERS   = "S-1-5-32-555";
+	const string SID_BUILTIN_NETWORK_CONF_OPERATORS = "S-1-5-32-556";
 
 	/* well-known domain RIDs */
 	const int DOMAIN_RID_LOGON                 = 9;
 	const int DOMAIN_RID_ADMINISTRATOR         = 500;
 	const int DOMAIN_RID_GUEST                 = 501;
+	const int DOMAIN_RID_KRBTGT                = 502;
 	const int DOMAIN_RID_ADMINS                = 512;
 	const int DOMAIN_RID_USERS                 = 513;
+	const int DOMAIN_RID_GUESTS                = 514;
 	const int DOMAIN_RID_DOMAIN_MEMBERS        = 515;
 	const int DOMAIN_RID_DCS                   = 516;
 	const int DOMAIN_RID_CERT_ADMINS           = 517;
 	const int DOMAIN_RID_SCHEMA_ADMINS         = 518;
 	const int DOMAIN_RID_ENTERPRISE_ADMINS     = 519;
+	const int DOMAIN_RID_POLICY_ADMINS         = 520;
 
 
 	/*
@@ -261,7 +307,8 @@ interface security
 		SEC_PRIV_ENABLE_DELEGATION         = 21,
 		SEC_PRIV_INTERACTIVE_LOGON         = 22,
 		SEC_PRIV_NETWORK_LOGON             = 23,
-		SEC_PRIV_REMOTE_INTERACTIVE_LOGON  = 24
+		SEC_PRIV_REMOTE_INTERACTIVE_LOGON  = 24,
+		SEC_PRIV_MACHINE_ACCOUNT           = 25
 	} sec_privilege;
 
 
@@ -391,6 +438,7 @@ interface security
 		uint32 num_sids;
 		[size_is(num_sids)] dom_sid *sids[*];
 		udlong privilege_mask;
+		security_acl *default_dacl;
 	} security_token;
 
 	/* bits that determine which parts of a security descriptor
@@ -414,4 +462,11 @@ interface security
 		KERB_ENCTYPE_AES256_CTS_HMAC_SHA1_96 = 0x00000010
 	} kerb_EncTypes;
 
+	typedef [public,bitmap32bit] bitmap {
+		SEC_DACL_AUTO_INHERIT                = 0x00000001,
+		SEC_SACL_AUTO_INHERIT                = 0x00000002,
+		SEC_DEFAULT_DESCRIPTOR               = 0x00000004,
+		SEC_OWNER_FROM_PARENT                = 0x00000008,
+		SEC_GROUP_FROM_PARENT                = 0x00000010
+	} security_autoinherit;
 }

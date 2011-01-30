@@ -187,8 +187,8 @@ bool set_current_service(connection_struct *conn, uint16 flags, bool do_chdir)
 	if (do_chdir &&
 	    vfs_ChDir(conn,conn->connectpath) != 0 &&
 	    vfs_ChDir(conn,conn->origpath) != 0) {
-		DEBUG(0,("chdir (%s) failed\n",
-			 conn->connectpath));
+                DEBUG(((errno!=EACCES)?0:3),("chdir (%s) failed, reason: %s\n",
+                         conn->connectpath, strerror(errno)));
 		return(False);
 	}
 
@@ -306,6 +306,7 @@ int add_home_service(const char *service, const char *username, const char *home
 int find_service(fstring service)
 {
 	int iService;
+	struct smbd_server_connection *sconn = smbd_server_conn;
 
 	all_string_sub(service,"\\","/",0);
 
@@ -320,7 +321,7 @@ int find_service(fstring service)
 			 * Try mapping the servicename, it may
 			 * be a Windows to unix mapped user name.
 			 */
-			if(map_username(service))
+			if(map_username(sconn, service))
 				phome_dir = get_user_home_dir(
 					talloc_tos(), service);
 		}
@@ -561,7 +562,8 @@ static NTSTATUS find_forced_group(bool force_user,
   Create an auth_serversupplied_info structure for a connection_struct
 ****************************************************************************/
 
-static NTSTATUS create_connection_server_info(TALLOC_CTX *mem_ctx, int snum,
+static NTSTATUS create_connection_server_info(struct smbd_server_connection *sconn,
+					      TALLOC_CTX *mem_ctx, int snum,
                                               struct auth_serversupplied_info *vuid_serverinfo,
 					      DATA_BLOB password,
                                               struct auth_serversupplied_info **presult)
@@ -615,11 +617,11 @@ static NTSTATUS create_connection_server_info(TALLOC_CTX *mem_ctx, int snum,
                 /* add the sharename as a possible user name if we
                    are in share mode security */
 
-                add_session_user(lp_servicename(snum));
+                add_session_user(sconn, lp_servicename(snum));
 
                 /* shall we let them in? */
 
-                if (!authorise_login(snum,user,password,&guest)) {
+                if (!authorise_login(sconn, snum,user,password,&guest)) {
                         DEBUG( 2, ( "Invalid username/password for [%s]\n",
                                     lp_servicename(snum)) );
 			return NT_STATUS_WRONG_PASSWORD;
@@ -639,26 +641,26 @@ static NTSTATUS create_connection_server_info(TALLOC_CTX *mem_ctx, int snum,
   connecting user if appropriate.
 ****************************************************************************/
 
-static connection_struct *make_connection_snum(int snum, user_struct *vuser,
-					       DATA_BLOB password, 
-					       const char *pdev,
-					       NTSTATUS *pstatus)
+connection_struct *make_connection_snum(struct smbd_server_connection *sconn,
+					int snum, user_struct *vuser,
+					DATA_BLOB password,
+					const char *pdev,
+					NTSTATUS *pstatus)
 {
 	connection_struct *conn;
-	SMB_STRUCT_STAT st;
+	struct smb_filename *smb_fname_cpath = NULL;
 	fstring dev;
 	int ret;
 	char addr[INET6_ADDRSTRLEN];
 	NTSTATUS status;
 
 	fstrcpy(dev, pdev);
-	SET_STAT_INVALID(st);
 
 	if (NT_STATUS_IS_ERR(*pstatus = share_sanity_checks(snum, dev))) {
 		return NULL;
 	}	
 
-	conn = conn_new();
+	conn = conn_new(sconn);
 	if (!conn) {
 		DEBUG(0,("Couldn't find free connection.\n"));
 		*pstatus = NT_STATUS_INSUFFICIENT_RESOURCES;
@@ -667,7 +669,7 @@ static connection_struct *make_connection_snum(int snum, user_struct *vuser,
 
 	conn->params->service = snum;
 
-	status = create_connection_server_info(
+	status = create_connection_server_info(sconn,
 		conn, snum, vuser ? vuser->server_info : NULL, password,
 		&conn->server_info);
 
@@ -683,7 +685,7 @@ static connection_struct *make_connection_snum(int snum, user_struct *vuser,
 		conn->force_user = true;
 	}
 
-	add_session_user(conn->server_info->unix_name);
+	add_session_user(sconn, conn->server_info->unix_name);
 
 	safe_strcpy(conn->client_address,
 			client_addr(get_client_fd(),addr,sizeof(addr)), 
@@ -694,7 +696,6 @@ static connection_struct *make_connection_snum(int snum, user_struct *vuser,
 	conn->printer = (strncmp(dev,"LPT",3) == 0);
 	conn->ipc = ( (strncmp(dev,"IPC",3) == 0) ||
 		      ( lp_enable_asu_support() && strequal(dev,"ADMIN$")) );
-	conn->dirptr = NULL;
 
 	/* Case options for the share. */
 	if (lp_casesensitive(snum) == Auto) {
@@ -714,7 +715,6 @@ static connection_struct *make_connection_snum(int snum, user_struct *vuser,
 	conn->hide_list = NULL;
 	conn->veto_oplock_list = NULL;
 	conn->aio_write_behind_list = NULL;
-	string_set(&conn->dirpath,"");
 
 	conn->read_only = lp_readonly(SNUM(conn));
 	conn->admin_user = False;
@@ -1006,15 +1006,21 @@ static connection_struct *make_connection_snum(int snum, user_struct *vuser,
 				lp_aio_write_behind(snum));
 	}
 	
+	status = create_synthetic_smb_fname(talloc_tos(), conn->connectpath,
+					    NULL, NULL, &smb_fname_cpath);
+	if (!NT_STATUS_IS_OK(status)) {
+		*pstatus = status;
+		goto err_root_exit;
+	}
 
 	/* win2000 does not check the permissions on the directory
 	   during the tree connect, instead relying on permission
 	   check during individual operations. To match this behaviour
 	   I have disabled this chdir check (tridge) */
 	/* the alternative is just to check the directory exists */
-	if ((ret = SMB_VFS_STAT(conn, conn->connectpath, &st)) != 0 ||
-	    !S_ISDIR(st.st_mode)) {
-		if (ret == 0 && !S_ISDIR(st.st_mode)) {
+	if ((ret = SMB_VFS_STAT(conn, smb_fname_cpath)) != 0 ||
+	    !S_ISDIR(smb_fname_cpath->st.st_ex_mode)) {
+		if (ret == 0 && !S_ISDIR(smb_fname_cpath->st.st_ex_mode)) {
 			DEBUG(0,("'%s' is not a directory, when connecting to "
 				 "[%s]\n", conn->connectpath,
 				 lp_servicename(snum)));
@@ -1027,6 +1033,7 @@ static connection_struct *make_connection_snum(int snum, user_struct *vuser,
 		*pstatus = NT_STATUS_BAD_NETWORK_NAME;
 		goto err_root_exit;
 	}
+	conn->base_share_dev = smb_fname_cpath->st.st_ex_dev;
 
 	string_set(&conn->origpath,conn->connectpath);
 
@@ -1052,7 +1059,7 @@ static connection_struct *make_connection_snum(int snum, user_struct *vuser,
 	 * the same characteristics, which is likely but not guaranteed.
 	 */
 
-	conn->fs_capabilities = SMB_VFS_FS_CAPABILITIES(conn);
+	conn->fs_capabilities = SMB_VFS_FS_CAPABILITIES(conn, &conn->ts_res);
 
 	/*
 	 * Print out the 'connected as' stuff here as we need
@@ -1063,7 +1070,7 @@ static connection_struct *make_connection_snum(int snum, user_struct *vuser,
 	if( DEBUGLVL( IS_IPC(conn) ? 3 : 1 ) ) {
 		dbgtext( "%s (%s) ", get_remote_machine_name(),
 			 conn->client_address );
-		dbgtext( "%s", srv_is_signing_active() ? "signed " : "");
+		dbgtext( "%s", srv_is_signing_active(smbd_server_conn) ? "signed " : "");
 		dbgtext( "connect to service %s ", lp_servicename(snum) );
 		dbgtext( "initially as user %s ",
 			 conn->server_info->unix_name );
@@ -1076,7 +1083,7 @@ static connection_struct *make_connection_snum(int snum, user_struct *vuser,
 	return(conn);
 
   err_root_exit:
-
+	TALLOC_FREE(smb_fname_cpath);
 	change_to_root_user();
 	/* Call VFS disconnect hook */
 	SMB_VFS_DISCONNECT(conn);
@@ -1091,7 +1098,8 @@ static connection_struct *make_connection_snum(int snum, user_struct *vuser,
  * @param service 
 ****************************************************************************/
 
-connection_struct *make_connection(const char *service_in, DATA_BLOB password, 
+connection_struct *make_connection(struct smbd_server_connection *sconn,
+				   const char *service_in, DATA_BLOB password,
 				   const char *pdev, uint16 vuid,
 				   NTSTATUS *status)
 {
@@ -1112,13 +1120,13 @@ connection_struct *make_connection(const char *service_in, DATA_BLOB password,
 		smb_panic("make_connection: PANIC ERROR. Called as nonroot\n");
 	}
 
-	if (conn_num_open() > 2047) {
+	if (conn_num_open(sconn) > 2047) {
 		*status = NT_STATUS_INSUFF_SERVER_RESOURCES;
 		return NULL;
 	}
 
 	if(lp_security() != SEC_SHARE) {
-		vuser = get_valid_user_struct(vuid);
+		vuser = get_valid_user_struct(sconn, vuid);
 		if (!vuser) {
 			DEBUG(1,("make_connection: refusing to connect with "
 				 "no session setup\n"));
@@ -1149,7 +1157,8 @@ connection_struct *make_connection(const char *service_in, DATA_BLOB password,
 			}
 			DEBUG(5, ("making a connection to [homes] service "
 				  "created at session setup time\n"));
-			return make_connection_snum(vuser->homes_snum,
+			return make_connection_snum(sconn,
+						    vuser->homes_snum,
 						    vuser, no_pw, 
 						    dev, status);
 		} else {
@@ -1159,14 +1168,15 @@ connection_struct *make_connection(const char *service_in, DATA_BLOB password,
 				fstring unix_username;
 				fstrcpy(unix_username,
 					current_user_info.smb_name);
-				map_username(unix_username);
+				map_username(sconn, unix_username);
 				snum = find_service(unix_username);
 			} 
 			if (snum != -1) {
 				DEBUG(5, ("making a connection to 'homes' "
 					  "service %s based on "
 					  "security=share\n", service_in));
-				return make_connection_snum(snum, NULL,
+				return make_connection_snum(sconn,
+							    snum, NULL,
 							    password,
 							    dev, status);
 			}
@@ -1177,7 +1187,8 @@ connection_struct *make_connection(const char *service_in, DATA_BLOB password,
 		DATA_BLOB no_pw = data_blob_null;
 		DEBUG(5, ("making a connection to 'homes' service [%s] "
 			  "created at session setup time\n", service_in));
-		return make_connection_snum(vuser->homes_snum,
+		return make_connection_snum(sconn,
+					    vuser->homes_snum,
 					    vuser, no_pw, 
 					    dev, status);
 	}
@@ -1196,7 +1207,7 @@ connection_struct *make_connection(const char *service_in, DATA_BLOB password,
 			return NULL;
 		}
 
-		DEBUG(0,("%s (%s) couldn't find service %s\n",
+		DEBUG(3,("%s (%s) couldn't find service %s\n",
 			get_remote_machine_name(),
 			client_addr(get_client_fd(),addr,sizeof(addr)),
 			service));
@@ -1215,7 +1226,7 @@ connection_struct *make_connection(const char *service_in, DATA_BLOB password,
 
 	DEBUG(5, ("making a connection to 'normal' service %s\n", service));
 
-	return make_connection_snum(snum, vuser,
+	return make_connection_snum(sconn, snum, vuser,
 				    password,
 				    dev, status);
 }

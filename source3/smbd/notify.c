@@ -28,6 +28,9 @@ struct notify_change_request {
 	struct smb_request *req;
 	uint32 filter;
 	uint32 max_param;
+	void (*reply_fn)(struct smb_request *req,
+			 NTSTATUS error_code,
+			 uint8_t *buf, size_t len);
 	struct notify_mid_map *mid_map;
 	void *backend_data;
 };
@@ -64,11 +67,16 @@ static bool notify_marshall_changes(int num_changes,
 	int i;
 	UNISTR uni_name;
 
+	if (num_changes == -1) {
+		return false;
+	}
+
 	uni_name.buffer = NULL;
 
 	for (i=0; i<num_changes; i++) {
 		struct notify_change *c;
 		size_t namelen;
+		int    rem = 0;
 		uint32 u32_tmp;	/* Temp arg to prs_uint32 to avoid
 				 * signed/unsigned issues */
 
@@ -81,7 +89,7 @@ static bool notify_marshall_changes(int num_changes,
 
 		c = &changes[i];
 
-		if (!convert_string_allocate(NULL, CH_UNIX, CH_UTF16LE,
+		if (!convert_string_talloc(talloc_tos(), CH_UNIX, CH_UTF16LE,
 			c->name, strlen(c->name)+1, &uni_name.buffer,
 			&namelen, True) || (uni_name.buffer == NULL)) {
 			goto fail;
@@ -94,6 +102,11 @@ static bool notify_marshall_changes(int num_changes,
 		 */
 
 		u32_tmp = (i == num_changes-1) ? 0 : namelen + 12;
+
+		/* Align on 4-byte boundary according to MS-CIFS 2.2.7.4.2 */
+		if ((rem = u32_tmp % 4 ) != 0)
+			u32_tmp += 4 - rem;
+
 		if (!prs_uint32("offset", ps, 1, &u32_tmp)) goto fail;
 
 		u32_tmp = c->action;
@@ -109,7 +122,11 @@ static bool notify_marshall_changes(int num_changes,
 		 */
 		prs_set_offset(ps, prs_offset(ps)-2);
 
-		SAFE_FREE(uni_name.buffer);
+		if (rem != 0) {
+			if (!prs_align_custom(ps, 4)) goto fail;
+		}
+
+		TALLOC_FREE(uni_name.buffer);
 
 		if (prs_offset(ps) > max_offset) {
 			/* Too much data for client. */
@@ -123,7 +140,7 @@ static bool notify_marshall_changes(int num_changes,
 	return True;
 
  fail:
-	SAFE_FREE(uni_name.buffer);
+	TALLOC_FREE(uni_name.buffer);
 	return False;
 }
 
@@ -131,35 +148,24 @@ static bool notify_marshall_changes(int num_changes,
  Setup the common parts of the return packet and send it.
 *****************************************************************************/
 
-static void change_notify_reply_packet(connection_struct *conn,
-				       struct smb_request *req,
-				       NTSTATUS error_code)
-{
-	reply_outbuf(req, 18, 0);
-
-	if (!NT_STATUS_IS_OK(error_code)) {
-		error_packet_set((char *)req->outbuf, 0, 0, error_code,
-				 __LINE__,__FILE__);
-	}
-
-	show_msg((char *)req->outbuf);
-	if (!srv_send_smb(smbd_server_fd(), (char *)req->outbuf,
-			  req->encrypted, &req->pcd)) {
-		exit_server_cleanly("change_notify_reply_packet: srv_send_smb "
-				    "failed.");
-	}
-	TALLOC_FREE(req->outbuf);
-}
-
 void change_notify_reply(connection_struct *conn,
-			 struct smb_request *req, uint32 max_param,
-			 struct notify_change_buf *notify_buf)
+			 struct smb_request *req,
+			 NTSTATUS error_code,
+			 uint32_t max_param,
+			 struct notify_change_buf *notify_buf,
+			 void (*reply_fn)(struct smb_request *req,
+				NTSTATUS error_code,
+				uint8_t *buf, size_t len))
 {
 	prs_struct ps;
 
-	if (notify_buf->num_changes == -1) {
-		change_notify_reply_packet(conn, req, NT_STATUS_OK);
-		notify_buf->num_changes = 0;
+	if (!NT_STATUS_IS_OK(error_code)) {
+		reply_fn(req, error_code, NULL, 0);
+		return;
+	}
+
+	if (max_param == 0 || notify_buf == NULL) {
+		reply_fn(req, NT_STATUS_OK, NULL, 0);
 		return;
 	}
 
@@ -171,14 +177,12 @@ void change_notify_reply(connection_struct *conn,
 		 * We exceed what the client is willing to accept. Send
 		 * nothing.
 		 */
-		change_notify_reply_packet(conn, req, NT_STATUS_OK);
-		goto done;
+		prs_mem_free(&ps);
+		prs_init_empty(&ps, NULL, MARSHALL);
 	}
 
-	send_nt_replies(conn, req, NT_STATUS_OK, prs_data_p(&ps),
-			prs_offset(&ps), NULL, 0);
+	reply_fn(req, NT_STATUS_OK, (uint8_t *)prs_data_p(&ps), prs_offset(&ps));
 
- done:
 	prs_mem_free(&ps);
 
 	TALLOC_FREE(notify_buf->changes);
@@ -188,7 +192,7 @@ void change_notify_reply(connection_struct *conn,
 static void notify_callback(void *private_data, const struct notify_event *e)
 {
 	files_struct *fsp = (files_struct *)private_data;
-	DEBUG(10, ("notify_callback called for %s\n", fsp->fsp_name));
+	DEBUG(10, ("notify_callback called for %s\n", fsp_str_dbg(fsp)));
 	notify_fsp(fsp, e->action, e->path);
 }
 
@@ -206,8 +210,9 @@ NTSTATUS change_notify_create(struct files_struct *fsp, uint32 filter,
 		return NT_STATUS_NO_MEMORY;
 	}
 
+	/* Do notify operations on the base_name. */
 	if (asprintf(&fullpath, "%s/%s", fsp->conn->connectpath,
-		     fsp->fsp_name) == -1) {
+		     fsp->fsp_name->base_name) == -1) {
 		DEBUG(0, ("asprintf failed\n"));
 		TALLOC_FREE(fsp->notify);
 		return NT_STATUS_NO_MEMORY;
@@ -232,13 +237,17 @@ NTSTATUS change_notify_create(struct files_struct *fsp, uint32 filter,
 NTSTATUS change_notify_add_request(struct smb_request *req,
 				uint32 max_param,
 				uint32 filter, bool recursive,
-				struct files_struct *fsp)
+				struct files_struct *fsp,
+				void (*reply_fn)(struct smb_request *req,
+					NTSTATUS error_code,
+					uint8_t *buf, size_t len))
 {
 	struct notify_change_request *request = NULL;
 	struct notify_mid_map *map = NULL;
+	struct smbd_server_connection *sconn = smbd_server_conn;
 
 	DEBUG(10, ("change_notify_add_request: Adding request for %s: "
-		   "max_param = %d\n", fsp->fsp_name, (int)max_param));
+		   "max_param = %d\n", fsp_str_dbg(fsp), (int)max_param));
 
 	if (!(request = talloc(NULL, struct notify_change_request))
 	    || !(map = talloc(request, struct notify_mid_map))) {
@@ -253,16 +262,14 @@ NTSTATUS change_notify_add_request(struct smb_request *req,
 	request->max_param = max_param;
 	request->filter = filter;
 	request->fsp = fsp;
+	request->reply_fn = reply_fn;
 	request->backend_data = NULL;
 
 	DLIST_ADD_END(fsp->notify->requests, request,
 		      struct notify_change_request *);
 
 	map->mid = request->req->mid;
-	DLIST_ADD(notify_changes_by_mid, map);
-
-	/* Push the MID of this packet on the signing queue. */
-	srv_defer_sign_response(request->req->mid);
+	DLIST_ADD(sconn->smb1.notify_mid_maps, map);
 
 	return NT_STATUS_OK;
 }
@@ -271,6 +278,7 @@ static void change_notify_remove_request(struct notify_change_request *remove_re
 {
 	files_struct *fsp;
 	struct notify_change_request *req;
+	struct smbd_server_connection *sconn = smbd_server_conn;
 
 	/*
 	 * Paranoia checks, the fsp referenced must must have the request in
@@ -291,7 +299,7 @@ static void change_notify_remove_request(struct notify_change_request *remove_re
 	}
 
 	DLIST_REMOVE(fsp->notify->requests, req);
-	DLIST_REMOVE(notify_changes_by_mid, req->mid_map);
+	DLIST_REMOVE(sconn->smb1.notify_mid_maps, req->mid_map);
 	TALLOC_FREE(req);
 }
 
@@ -302,8 +310,9 @@ static void change_notify_remove_request(struct notify_change_request *remove_re
 void remove_pending_change_notify_requests_by_mid(uint16 mid)
 {
 	struct notify_mid_map *map;
+	struct smbd_server_connection *sconn = smbd_server_conn;
 
-	for (map = notify_changes_by_mid; map; map = map->next) {
+	for (map = sconn->smb1.notify_mid_maps; map; map = map->next) {
 		if (map->mid == mid) {
 			break;
 		}
@@ -313,8 +322,28 @@ void remove_pending_change_notify_requests_by_mid(uint16 mid)
 		return;
 	}
 
-	change_notify_reply_packet(map->req->fsp->conn, map->req->req,
-				   NT_STATUS_CANCELLED);
+	change_notify_reply(map->req->fsp->conn, map->req->req,
+			    NT_STATUS_CANCELLED, 0, NULL, map->req->reply_fn);
+	change_notify_remove_request(map->req);
+}
+
+void smbd_notify_cancel_by_smbreq(struct smbd_server_connection *sconn,
+				  const struct smb_request *smbreq)
+{
+	struct notify_mid_map *map;
+
+	for (map = sconn->smb1.notify_mid_maps; map; map = map->next) {
+		if (map->req->req == smbreq) {
+			break;
+		}
+	}
+
+	if (map == NULL) {
+		return;
+	}
+
+	change_notify_reply(map->req->fsp->conn, map->req->req,
+			    NT_STATUS_CANCELLED, 0, NULL, map->req->reply_fn);
 	change_notify_remove_request(map->req);
 }
 
@@ -330,8 +359,9 @@ void remove_pending_change_notify_requests_by_fid(files_struct *fsp,
 	}
 
 	while (fsp->notify->requests != NULL) {
-		change_notify_reply_packet(
-			fsp->conn, fsp->notify->requests->req, status);
+		change_notify_reply(fsp->conn, fsp->notify->requests->req,
+				    status, 0, NULL,
+				    fsp->notify->requests->reply_fn);
 		change_notify_remove_request(fsp->notify->requests);
 	}
 }
@@ -340,17 +370,33 @@ void notify_fname(connection_struct *conn, uint32 action, uint32 filter,
 		  const char *path)
 {
 	char *fullpath;
+	char *parent;
+	const char *name;
 
 	if (path[0] == '.' && path[1] == '/') {
 		path += 2;
 	}
-	if (asprintf(&fullpath, "%s/%s", conn->connectpath, path) == -1) {
+	if (parent_dirname(talloc_tos(), path, &parent, &name)) {
+		struct smb_filename smb_fname_parent;
+
+		ZERO_STRUCT(smb_fname_parent);
+		smb_fname_parent.base_name = parent;
+
+		if (SMB_VFS_STAT(conn, &smb_fname_parent) != -1) {
+			notify_onelevel(conn->notify_ctx, action, filter,
+			    SMB_VFS_FILE_ID_CREATE(conn, &smb_fname_parent.st),
+			    name);
+		}
+	}
+
+	fullpath = talloc_asprintf(talloc_tos(), "%s/%s", conn->connectpath,
+				   path);
+	if (fullpath == NULL) {
 		DEBUG(0, ("asprintf failed\n"));
 		return;
 	}
-
 	notify_trigger(conn->notify_ctx, action, filter, fullpath);
-	SAFE_FREE(fullpath);
+	TALLOC_FREE(fullpath);
 }
 
 static void notify_fsp(files_struct *fsp, uint32 action, const char *name)
@@ -383,8 +429,10 @@ static void notify_fsp(files_struct *fsp, uint32 action, const char *name)
 		if (fsp->notify->requests != NULL) {
 			change_notify_reply(fsp->conn,
 					    fsp->notify->requests->req,
+					    NT_STATUS_OK,
 					    fsp->notify->requests->max_param,
-					    fsp->notify);
+					    fsp->notify,
+					    fsp->notify->requests->reply_fn);
 			change_notify_remove_request(fsp->notify->requests);
 		}
 		return;
@@ -442,8 +490,10 @@ static void notify_fsp(files_struct *fsp, uint32 action, const char *name)
 
 	change_notify_reply(fsp->conn,
 			    fsp->notify->requests->req,
+			    NT_STATUS_OK,
 			    fsp->notify->requests->max_param,
-			    fsp->notify);
+			    fsp->notify,
+			    fsp->notify->requests->reply_fn);
 
 	change_notify_remove_request(fsp->notify->requests);
 }

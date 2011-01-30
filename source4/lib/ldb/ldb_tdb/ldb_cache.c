@@ -32,6 +32,7 @@
  */
 
 #include "ldb_tdb.h"
+#include "ldb_private.h"
 
 #define LTDB_FLAG_CASE_INSENSITIVE (1<<0)
 #define LTDB_FLAG_INTEGER          (1<<1)
@@ -115,6 +116,12 @@ static int ltdb_attributes_load(struct ldb_module *module)
 
 	ldb = ldb_module_get_ctx(module);
 
+	if (ldb->schema.attribute_handler_override) {
+		/* we skip loading the @ATTRIBUTES record when a module is supplying
+		   its own attribute handling */
+		return LDB_SUCCESS;
+	}
+
 	dn = ldb_dn_new(module, ldb, LTDB_ATTRIBUTES);
 	if (dn == NULL) goto failed;
 
@@ -134,7 +141,7 @@ static int ltdb_attributes_load(struct ldb_module *module)
 		const struct ldb_schema_syntax *s;
 
 		if (ltdb_attributes_flags(&msg->elements[i], &flags) != 0) {
-			ldb_debug(ldb, LDB_DEBUG_ERROR, "Invalid @ATTRIBUTES element for '%s'\n", msg->elements[i].name);
+			ldb_debug(ldb, LDB_DEBUG_ERROR, "Invalid @ATTRIBUTES element for '%s'", msg->elements[i].name);
 			goto failed;
 		}
 		switch (flags & ~LTDB_FLAG_HIDDEN) {
@@ -149,7 +156,7 @@ static int ltdb_attributes_load(struct ldb_module *module)
 			break;
 		default:
 			ldb_debug(ldb, LDB_DEBUG_ERROR, 
-				  "Invalid flag combination 0x%x for '%s' in @ATTRIBUTES\n",
+				  "Invalid flag combination 0x%x for '%s' in @ATTRIBUTES",
 				  flags, msg->elements[i].name);
 			goto failed;
 		}
@@ -157,7 +164,7 @@ static int ltdb_attributes_load(struct ldb_module *module)
 		s = ldb_standard_syntax_by_name(ldb, syntax);
 		if (s == NULL) {
 			ldb_debug(ldb, LDB_DEBUG_ERROR, 
-				  "Invalid attribute syntax '%s' for '%s' in @ATTRIBUTES\n",
+				  "Invalid attribute syntax '%s' for '%s' in @ATTRIBUTES",
 				  syntax, msg->elements[i].name);
 			goto failed;
 		}

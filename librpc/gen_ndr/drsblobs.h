@@ -82,8 +82,35 @@ struct repsFromTo1 {
 	struct GUID transport_guid;
 }/* [gensize,public,flag(LIBNDR_PRINT_ARRAY_HEX)] */;
 
+struct repsFromTo2OtherInfo {
+	uint32_t __ndr_size;/* [value(ndr_size_repsFromTo2OtherInfo(this,ndr->iconv_convenience,ndr->flags))] */
+	const char * dns_name1;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
+	uint32_t unknown1;
+	const char * dns_name2;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
+	uint64_t unknown2;
+}/* [relative_base,gensize,public] */;
+
+struct repsFromTo2 {
+	uint32_t blobsize;/* [value(ndr_size_repsFromTo2(this,ndr->iconv_convenience,ndr->flags)+8)] */
+	uint32_t consecutive_sync_failures;
+	NTTIME last_success;
+	NTTIME last_attempt;
+	WERROR result_last_attempt;
+	struct repsFromTo2OtherInfo *other_info;/* [relative] */
+	uint32_t other_info_length;/* [value(ndr_size_repsFromTo2OtherInfo(other_info,ndr->iconv_convenience,ndr->flags))] */
+	uint32_t replica_flags;
+	uint8_t schedule[84];
+	uint32_t reserved;
+	struct drsuapi_DsReplicaHighWaterMark highwatermark;
+	struct GUID source_dsa_obj_guid;
+	struct GUID source_dsa_invocation_id;
+	struct GUID transport_guid;
+	uint64_t unknown1;
+}/* [gensize,public,flag(LIBNDR_PRINT_ARRAY_HEX)] */;
+
 union repsFromTo {
 	struct repsFromTo1 ctr1;/* [case] */
+	struct repsFromTo2 ctr2;/* [case(2)] */
 }/* [nodiscriminant] */;
 
 struct repsFromToBlob {
@@ -110,7 +137,7 @@ struct partialAttributeSetBlob {
 enum prefixMapVersion
 #ifndef USE_UINT_ENUMS
  {
-	PREFIX_MAP_VERSION_DSDB=0x44534442
+	PREFIX_MAP_VERSION_DSDB=(int)(0x44534442)
 }
 #else
  { __donnot_use_enum_prefixMapVersion=0x7FFFFFFF}
@@ -159,7 +186,7 @@ struct supplementalCredentialsPackage {
 enum supplementalCredentialsSignature
 #ifndef USE_UINT_ENUMS
  {
-	SUPPLEMENTAL_CREDENTIALS_SIGNATURE=0x0050
+	SUPPLEMENTAL_CREDENTIALS_SIGNATURE=(int)(0x0050)
 }
 #else
  { __donnot_use_enum_supplementalCredentialsSignature=0x7FFFFFFF}
@@ -344,8 +371,8 @@ struct ExtendedErrorBlob {
 enum ExtendedErrorComputerNamePresent
 #ifndef USE_UINT_ENUMS
  {
-	EXTENDED_ERROR_COMPUTER_NAME_PRESENT=1,
-	EXTENDED_ERROR_COMPUTER_NAME_NOT_PRESENT=2
+	EXTENDED_ERROR_COMPUTER_NAME_PRESENT=(int)(1),
+	EXTENDED_ERROR_COMPUTER_NAME_NOT_PRESENT=(int)(2)
 }
 #else
  { __donnot_use_enum_ExtendedErrorComputerNamePresent=0x7FFFFFFF}
@@ -366,13 +393,13 @@ struct ExtendedErrorComputerName {
 enum ExtendedErrorParamType
 #ifndef USE_UINT_ENUMS
  {
-	EXTENDED_ERROR_PARAM_TYPE_ASCII_STRING=1,
-	EXTENDED_ERROR_PARAM_TYPE_UNICODE_STRING=2,
-	EXTENDED_ERROR_PARAM_TYPE_UINT32=3,
-	EXTENDED_ERROR_PARAM_TYPE_UINT16=4,
-	EXTENDED_ERROR_PARAM_TYPE_UINT64=5,
-	EXTENDED_ERROR_PARAM_TYPE_NONE=6,
-	EXTENDED_ERROR_PARAM_TYPE_BLOB=7
+	EXTENDED_ERROR_PARAM_TYPE_ASCII_STRING=(int)(1),
+	EXTENDED_ERROR_PARAM_TYPE_UNICODE_STRING=(int)(2),
+	EXTENDED_ERROR_PARAM_TYPE_UINT32=(int)(3),
+	EXTENDED_ERROR_PARAM_TYPE_UINT16=(int)(4),
+	EXTENDED_ERROR_PARAM_TYPE_UINT64=(int)(5),
+	EXTENDED_ERROR_PARAM_TYPE_NONE=(int)(6),
+	EXTENDED_ERROR_PARAM_TYPE_BLOB=(int)(7)
 }
 #else
  { __donnot_use_enum_ExtendedErrorParamType=0x7FFFFFFF}

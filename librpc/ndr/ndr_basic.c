@@ -102,6 +102,24 @@ _PUBLIC_ enum ndr_err_code ndr_pull_uint16(struct ndr_pull *ndr, int ndr_flags, 
 }
 
 /*
+  parse a uint1632_t
+*/
+_PUBLIC_ enum ndr_err_code ndr_pull_uint1632(struct ndr_pull *ndr, int ndr_flags, uint16_t *v)
+{
+	if (unlikely(ndr->flags & LIBNDR_FLAG_NDR64)) {
+		uint32_t v32 = 0;
+		enum ndr_err_code err = ndr_pull_uint32(ndr, ndr_flags, &v32);
+		*v = v32;
+		if (unlikely(v32 != *v)) {
+			DEBUG(0,(__location__ ": non-zero upper 16 bits 0x%08x\n", (unsigned)v32));
+			return NDR_ERR_NDR64;
+		}
+		return err;
+	}
+	return ndr_pull_uint16(ndr, ndr_flags, v);
+}
+
+/*
   parse a int32_t
 */
 _PUBLIC_ enum ndr_err_code ndr_pull_int32(struct ndr_pull *ndr, int ndr_flags, int32_t *v)
@@ -126,11 +144,43 @@ _PUBLIC_ enum ndr_err_code ndr_pull_uint32(struct ndr_pull *ndr, int ndr_flags, 
 }
 
 /*
+  parse a arch dependent uint32/uint64
+*/
+_PUBLIC_ enum ndr_err_code ndr_pull_uint3264(struct ndr_pull *ndr, int ndr_flags, uint32_t *v)
+{
+	uint64_t v64;
+	enum ndr_err_code err;
+	if (likely(!(ndr->flags & LIBNDR_FLAG_NDR64))) {
+		return ndr_pull_uint32(ndr, ndr_flags, v);
+	}
+	err = ndr_pull_hyper(ndr, ndr_flags, &v64);
+	*v = (uint32_t)v64;
+	if (unlikely(v64 != *v)) {
+		DEBUG(0,(__location__ ": non-zero upper 32 bits 0x%016llx\n",
+			 (unsigned long long)v64));
+		return NDR_ERR_NDR64;
+	}
+	return err;
+}
+
+/*
+  parse a double
+*/
+_PUBLIC_ enum ndr_err_code ndr_pull_double(struct ndr_pull *ndr, int ndr_flags, double *v)
+{
+	NDR_PULL_ALIGN(ndr, 8);
+	NDR_PULL_NEED_BYTES(ndr, 8);
+	memcpy(v, ndr->data+ndr->offset, 8);
+	ndr->offset += 8;
+	return NDR_ERR_SUCCESS;
+}
+
+/*
   parse a pointer referent identifier
 */
 _PUBLIC_ enum ndr_err_code ndr_pull_generic_ptr(struct ndr_pull *ndr, uint32_t *v)
 {
-	NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, v));
+	NDR_CHECK(ndr_pull_uint3264(ndr, NDR_SCALARS, v));
 	if (*v != 0) {
 		ndr->ptr_count++;
 	}
@@ -142,7 +192,7 @@ _PUBLIC_ enum ndr_err_code ndr_pull_generic_ptr(struct ndr_pull *ndr, uint32_t *
 */
 _PUBLIC_ enum ndr_err_code ndr_pull_ref_ptr(struct ndr_pull *ndr, uint32_t *v)
 {
-	NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, v));
+	NDR_CHECK(ndr_pull_uint3264(ndr, NDR_SCALARS, v));
 	/* ref pointers always point to data */
 	*v = 1;
 	return NDR_ERR_SUCCESS;
@@ -240,6 +290,84 @@ _PUBLIC_ enum ndr_err_code ndr_pull_WERROR(struct ndr_pull *ndr, int ndr_flags, 
 	return NDR_ERR_SUCCESS;
 }
 
+
+/*
+  parse a uint8_t enum
+*/
+_PUBLIC_ enum ndr_err_code ndr_pull_enum_uint8(struct ndr_pull *ndr, int ndr_flags, uint8_t *v)
+{
+	return ndr_pull_uint8(ndr, ndr_flags, v);
+}
+
+/*
+  parse a uint16_t enum
+*/
+_PUBLIC_ enum ndr_err_code ndr_pull_enum_uint16(struct ndr_pull *ndr, int ndr_flags, uint16_t *v)
+{
+	return ndr_pull_uint16(ndr, ndr_flags, v);
+}
+
+/*
+  parse a uint1632_t enum (uint32_t on NDR64)
+*/
+_PUBLIC_ enum ndr_err_code ndr_pull_enum_uint1632(struct ndr_pull *ndr, int ndr_flags, uint16_t *v)
+{
+	if (unlikely(ndr->flags & LIBNDR_FLAG_NDR64)) {
+		uint32_t v32;
+		NDR_CHECK(ndr_pull_uint32(ndr, ndr_flags, &v32));
+		*v = v32;
+		if (v32 != *v) {
+			DEBUG(0,(__location__ ": non-zero upper 16 bits 0x%08x\n", (unsigned)v32));
+			return NDR_ERR_NDR64;
+		}
+		return NDR_ERR_SUCCESS;
+	}
+	return ndr_pull_uint16(ndr, ndr_flags, v);
+}
+
+/*
+  parse a uint32_t enum
+*/
+_PUBLIC_ enum ndr_err_code ndr_pull_enum_uint32(struct ndr_pull *ndr, int ndr_flags, uint32_t *v)
+{
+	return ndr_pull_uint32(ndr, ndr_flags, v);
+}
+
+/*
+  push a uint8_t enum
+*/
+_PUBLIC_ enum ndr_err_code ndr_push_enum_uint8(struct ndr_push *ndr, int ndr_flags, uint8_t v)
+{
+	return ndr_push_uint8(ndr, ndr_flags, v);
+}
+
+/*
+  push a uint16_t enum
+*/
+_PUBLIC_ enum ndr_err_code ndr_push_enum_uint16(struct ndr_push *ndr, int ndr_flags, uint16_t v)
+{
+	return ndr_push_uint16(ndr, ndr_flags, v);
+}
+
+/*
+  push a uint32_t enum
+*/
+_PUBLIC_ enum ndr_err_code ndr_push_enum_uint32(struct ndr_push *ndr, int ndr_flags, uint32_t v)
+{
+	return ndr_push_uint32(ndr, ndr_flags, v);
+}
+
+/*
+  push a uint1632_t enum
+*/
+_PUBLIC_ enum ndr_err_code ndr_push_enum_uint1632(struct ndr_push *ndr, int ndr_flags, uint16_t v)
+{
+	if (unlikely(ndr->flags & LIBNDR_FLAG_NDR64)) {
+		return ndr_push_uint32(ndr, ndr_flags, v);
+	}
+	return ndr_push_uint16(ndr, ndr_flags, v);
+}
+
 /*
   push a WERROR
 */
@@ -322,6 +450,17 @@ _PUBLIC_ enum ndr_err_code ndr_push_uint16(struct ndr_push *ndr, int ndr_flags, 
 }
 
 /*
+  push a uint1632
+*/
+_PUBLIC_ enum ndr_err_code ndr_push_uint1632(struct ndr_push *ndr, int ndr_flags, uint16_t v)
+{
+	if (unlikely(ndr->flags & LIBNDR_FLAG_NDR64)) {
+		return ndr_push_uint32(ndr, ndr_flags, v);
+	}
+	return ndr_push_uint16(ndr, ndr_flags, v);
+}
+
+/*
   push a int32_t
 */
 _PUBLIC_ enum ndr_err_code ndr_push_int32(struct ndr_push *ndr, int ndr_flags, int32_t v)
@@ -343,6 +482,17 @@ _PUBLIC_ enum ndr_err_code ndr_push_uint32(struct ndr_push *ndr, int ndr_flags, 
 	NDR_SIVAL(ndr, ndr->offset, v);
 	ndr->offset += 4;
 	return NDR_ERR_SUCCESS;
+}
+
+/*
+  push a uint3264
+*/
+_PUBLIC_ enum ndr_err_code ndr_push_uint3264(struct ndr_push *ndr, int ndr_flags, uint32_t v)
+{
+	if (unlikely(ndr->flags & LIBNDR_FLAG_NDR64)) {
+		return ndr_push_hyper(ndr, ndr_flags, v);
+	}
+	return ndr_push_uint32(ndr, ndr_flags, v);
 }
 
 /*
@@ -389,6 +539,18 @@ _PUBLIC_ enum ndr_err_code ndr_push_hyper(struct ndr_push *ndr, int ndr_flags, u
 }
 
 /*
+  push a double
+*/
+_PUBLIC_ enum ndr_err_code ndr_push_double(struct ndr_push *ndr, int ndr_flags, double v)
+{
+	NDR_PUSH_ALIGN(ndr, 8);
+	NDR_PUSH_NEED_BYTES(ndr, 8);
+	memcpy(ndr->data+ndr->offset, &v, 8);
+	ndr->offset += 8;
+	return NDR_ERR_SUCCESS;
+}
+
+/*
   push a pointer
 */
 _PUBLIC_ enum ndr_err_code ndr_push_pointer(struct ndr_push *ndr, int ndr_flags, void* v)
@@ -403,13 +565,77 @@ _PUBLIC_ enum ndr_err_code ndr_push_pointer(struct ndr_push *ndr, int ndr_flags,
 
 _PUBLIC_ enum ndr_err_code ndr_push_align(struct ndr_push *ndr, size_t size)
 {
+	/* this is a nasty hack to make pidl work with NDR64 */
+	if (size == 5) {
+		if (ndr->flags & LIBNDR_FLAG_NDR64) {
+			size = 8;
+		} else {
+			size = 4;
+		}
+	} else if (size == 3) {
+		if (ndr->flags & LIBNDR_FLAG_NDR64) {
+			size = 4;
+		} else {
+			size = 2;
+		}
+	}
 	NDR_PUSH_ALIGN(ndr, size);
 	return NDR_ERR_SUCCESS;
 }
 
 _PUBLIC_ enum ndr_err_code ndr_pull_align(struct ndr_pull *ndr, size_t size)
 {
+	/* this is a nasty hack to make pidl work with NDR64 */
+	if (size == 5) {
+		if (ndr->flags & LIBNDR_FLAG_NDR64) {
+			size = 8;
+		} else {
+			size = 4;
+		}
+	} else if (size == 3) {
+		if (ndr->flags & LIBNDR_FLAG_NDR64) {
+			size = 4;
+		} else {
+			size = 2;
+		}
+	}
 	NDR_PULL_ALIGN(ndr, size);
+	return NDR_ERR_SUCCESS;
+}
+
+_PUBLIC_ enum ndr_err_code ndr_push_union_align(struct ndr_push *ndr, size_t size)
+{
+	/* MS-RPCE section 2.2.5.3.4.4 */
+	if (ndr->flags & LIBNDR_FLAG_NDR64) {
+		return ndr_push_align(ndr, size);
+	}
+	return NDR_ERR_SUCCESS;
+}
+
+_PUBLIC_ enum ndr_err_code ndr_pull_union_align(struct ndr_pull *ndr, size_t size)
+{
+	/* MS-RPCE section 2.2.5.3.4.4 */
+	if (ndr->flags & LIBNDR_FLAG_NDR64) {
+		return ndr_pull_align(ndr, size);
+	}
+	return NDR_ERR_SUCCESS;
+}
+
+_PUBLIC_ enum ndr_err_code ndr_push_trailer_align(struct ndr_push *ndr, size_t size)
+{
+	/* MS-RPCE section 2.2.5.3.4.1 */
+	if (ndr->flags & LIBNDR_FLAG_NDR64) {
+		return ndr_push_align(ndr, size);
+	}
+	return NDR_ERR_SUCCESS;
+}
+
+_PUBLIC_ enum ndr_err_code ndr_pull_trailer_align(struct ndr_pull *ndr, size_t size)
+{
+	/* MS-RPCE section 2.2.5.3.4.1 */
+	if (ndr->flags & LIBNDR_FLAG_NDR64) {
+		return ndr_pull_align(ndr, size);
+	}
 	return NDR_ERR_SUCCESS;
 }
 
@@ -457,7 +683,7 @@ _PUBLIC_ enum ndr_err_code ndr_push_unique_ptr(struct ndr_push *ndr, const void 
 		ptr |= 0x00020000;
 		ndr->ptr_count++;
 	}
-	return ndr_push_uint32(ndr, NDR_SCALARS, ptr);
+	return ndr_push_uint3264(ndr, NDR_SCALARS, ptr);
 }
 
 /*
@@ -475,7 +701,7 @@ _PUBLIC_ enum ndr_err_code ndr_push_full_ptr(struct ndr_push *ndr, const void *p
 			ndr_token_store(ndr, &ndr->full_ptr_list, p, ptr);
 		}
 	}
-	return ndr_push_uint32(ndr, NDR_SCALARS, ptr);
+	return ndr_push_uint3264(ndr, NDR_SCALARS, ptr);
 }
 
 /*
@@ -483,7 +709,7 @@ _PUBLIC_ enum ndr_err_code ndr_push_full_ptr(struct ndr_push *ndr, const void *p
 */
 _PUBLIC_ enum ndr_err_code ndr_push_ref_ptr(struct ndr_push *ndr)
 {
-	return ndr_push_uint32(ndr, NDR_SCALARS, 0xAEF1AEF1);
+	return ndr_push_uint3264(ndr, NDR_SCALARS, 0xAEF1AEF1);
 }
 
 
@@ -506,7 +732,7 @@ _PUBLIC_ enum ndr_err_code ndr_pull_NTTIME(struct ndr_pull *ndr, int ndr_flags, 
 }
 
 /*
-  push a NTTIME
+  push a NTTIME_1sec
 */
 _PUBLIC_ enum ndr_err_code ndr_push_NTTIME_1sec(struct ndr_push *ndr, int ndr_flags, NTTIME t)
 {
@@ -568,9 +794,10 @@ _PUBLIC_ enum ndr_err_code ndr_pull_time_t(struct ndr_pull *ndr, int ndr_flags, 
 */
 _PUBLIC_ enum ndr_err_code ndr_pull_ipv4address(struct ndr_pull *ndr, int ndr_flags, const char **address)
 {
+	uint32_t addr;
 	struct in_addr in;
-	NDR_CHECK(ndr_pull_uint32(ndr, ndr_flags, &in.s_addr));
-	in.s_addr = htonl(in.s_addr);
+	NDR_CHECK(ndr_pull_uint32(ndr, ndr_flags, &addr));
+	in.s_addr = htonl(addr);
 	*address = talloc_strdup(ndr->current_mem_ctx, inet_ntoa(in));
 	NDR_ERR_HAVE_NO_MEMORY(*address);
 	return NDR_ERR_SUCCESS;
@@ -676,6 +903,11 @@ _PUBLIC_ void ndr_print_udlongr(struct ndr_print *ndr, const char *name, uint64_
 _PUBLIC_ void ndr_print_dlong(struct ndr_print *ndr, const char *name, int64_t v)
 {
 	ndr->print(ndr, "%-25s: 0x%016llx (%lld)", name, (unsigned long long)v, (long long)v);
+}
+
+_PUBLIC_ void ndr_print_double(struct ndr_print *ndr, const char *name, double v)
+{
+	ndr->print(ndr, "%-25s: %f", name, v);
 }
 
 _PUBLIC_ void ndr_print_hyper(struct ndr_print *ndr, const char *name, uint64_t v)

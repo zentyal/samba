@@ -59,7 +59,7 @@ static int wins_lookup_open_socket_in(void)
 
 	/* now we've got a socket - we need to bind it */
 
-	if (bind(res, (struct sockaddr * ) &sock,sizeof(sock)) < 0) {
+	if (bind(res, (struct sockaddr *)(void *)&sock, sizeof(sock)) < 0) {
 		close(res);
 		return(-1);
 	}
@@ -150,22 +150,22 @@ void winbindd_wins_byip(struct winbindd_cli_state *state)
 	NODE_STATUS_STRUCT *status;
 
 	/* Ensure null termination */
-	state->request.data.winsreq[sizeof(state->request.data.winsreq)-1]='\0';
+	state->request->data.winsreq[sizeof(state->request->data.winsreq)-1]='\0';
 
 	DEBUG(3, ("[%5lu]: wins_byip %s\n", (unsigned long)state->pid,
-		state->request.data.winsreq));
+		state->request->data.winsreq));
 
 	*response = '\0';
 	maxlen = sizeof(response) - 1;
 
-	if ((status = lookup_byaddr_backend(state->request.data.winsreq, &count))){
-	    size = strlen(state->request.data.winsreq);
+	if ((status = lookup_byaddr_backend(state->request->data.winsreq, &count))){
+	    size = strlen(state->request->data.winsreq);
 	    if (size > maxlen) {
 		SAFE_FREE(status);
 		request_error(state);
 		return;
 	    }
-	    fstrcat(response,state->request.data.winsreq);
+	    fstrcat(response,state->request->data.winsreq);
 	    fstrcat(response,"\t");
 	    for (i = 0; i < count; i++) {
 		/* ignore group names */
@@ -185,7 +185,7 @@ void winbindd_wins_byip(struct winbindd_cli_state *state)
 	    response[strlen(response)-1] = '\n';
 	    SAFE_FREE(status);
 	}
-	fstrcpy(state->response.data.winsresp,response);
+	fstrcpy(state->response->data.winsresp,response);
 	request_ok(state);
 }
 
@@ -199,15 +199,15 @@ void winbindd_wins_byname(struct winbindd_cli_state *state)
 	char addr[INET6_ADDRSTRLEN];
 
 	/* Ensure null termination */
-	state->request.data.winsreq[sizeof(state->request.data.winsreq)-1]='\0';
+	state->request->data.winsreq[sizeof(state->request->data.winsreq)-1]='\0';
 
 	DEBUG(3, ("[%5lu]: wins_byname %s\n", (unsigned long)state->pid,
-		state->request.data.winsreq));
+		state->request->data.winsreq));
 
 	*response = '\0';
 	maxlen = sizeof(response) - 1;
 
-	if ((ip_list = lookup_byname_backend(state->request.data.winsreq,&count))){
+	if ((ip_list = lookup_byname_backend(state->request->data.winsreq,&count))){
 		for (i = count; i ; i--) {
 			print_sockaddr(addr, sizeof(addr), &ip_list[i-1]);
 			size = strlen(addr);
@@ -227,13 +227,13 @@ void winbindd_wins_byname(struct winbindd_cli_state *state)
 			fstrcat(response,addr);
 			fstrcat(response,"\t");
 		}
-		size = strlen(state->request.data.winsreq) + strlen(response);
+		size = strlen(state->request->data.winsreq) + strlen(response);
 		if (size > maxlen) {
 		    SAFE_FREE(ip_list);
 		    request_error(state);
 		    return;
 		}
-		fstrcat(response,state->request.data.winsreq);
+		fstrcat(response,state->request->data.winsreq);
 		fstrcat(response,"\n");
 		SAFE_FREE(ip_list);
 	} else {
@@ -241,7 +241,7 @@ void winbindd_wins_byname(struct winbindd_cli_state *state)
 		return;
 	}
 
-	fstrcpy(state->response.data.winsresp,response);
+	fstrcpy(state->response->data.winsresp,response);
 
 	request_ok(state);
 }

@@ -134,9 +134,10 @@ static int objectclass_sort(struct ldb_module *module,
 			ldb_oom(ldb);
 			return LDB_ERR_OPERATIONS_ERROR;
 		}
-		current->objectclass = dsdb_class_by_lDAPDisplayName(schema, (const char *)objectclass_element->values[i].data);
+		current->objectclass = dsdb_class_by_lDAPDisplayName_ldb_val(schema, &objectclass_element->values[i]);
 		if (!current->objectclass) {
-			ldb_asprintf_errstring(ldb, "objectclass %s is not a valid objectClass in schema", (const char *)objectclass_element->values[i].data);
+			ldb_asprintf_errstring(ldb, "objectclass %.*s is not a valid objectClass in schema", 
+					       (int)objectclass_element->values[i].length, (const char *)objectclass_element->values[i].data);
 			return LDB_ERR_OBJECT_CLASS_VIOLATION;
 		}
 
@@ -230,49 +231,6 @@ static int objectclass_sort(struct ldb_module *module,
 	return LDB_ERR_OBJECT_CLASS_VIOLATION;
 }
 
-static DATA_BLOB *get_sd(struct ldb_module *module, TALLOC_CTX *mem_ctx, 
-			 const struct dsdb_class *objectclass) 
-{
-	struct ldb_context *ldb = ldb_module_get_ctx(module);
-	enum ndr_err_code ndr_err;
-	DATA_BLOB *linear_sd;
-	struct auth_session_info *session_info
-		= ldb_get_opaque(ldb, "sessionInfo");
-	struct security_descriptor *sd;
-	const struct dom_sid *domain_sid = samdb_domain_sid(ldb);
-
-	if (!objectclass->defaultSecurityDescriptor || !domain_sid) {
-		return NULL;
-	}
-	
-	sd = sddl_decode(mem_ctx, 
-			 objectclass->defaultSecurityDescriptor,
-			 domain_sid);
-
-	if (!sd || !session_info || !session_info->security_token) {
-		return NULL;
-	}
-	
-	sd->owner_sid = session_info->security_token->user_sid;
-	sd->group_sid = session_info->security_token->group_sid;
-	
-	linear_sd = talloc(mem_ctx, DATA_BLOB);
-	if (!linear_sd) {
-		return NULL;
-	}
-
-	ndr_err = ndr_push_struct_blob(linear_sd, mem_ctx, 
-					lp_iconv_convenience(ldb_get_opaque(ldb, "loadparm")),
-				       sd,
-				       (ndr_push_flags_fn_t)ndr_push_security_descriptor);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		return NULL;
-	}
-	
-	return linear_sd;
-
-}
-
 static int get_search_callback(struct ldb_request *req, struct ldb_reply *ares)
 {
 	struct ldb_context *ldb;
@@ -291,6 +249,8 @@ static int get_search_callback(struct ldb_request *req, struct ldb_reply *ares)
 		return ldb_module_done(ac->req, ares->controls,
 					ares->response, ares->error);
 	}
+
+	ldb_reset_err_string(ldb);
 
 	switch (ares->type) {
 	case LDB_REPLY_ENTRY:
@@ -414,6 +374,7 @@ static int objectclass_add(struct ldb_module *module, struct ldb_request *req)
 	struct oc_context *ac;
 	struct ldb_dn *parent_dn;
 	int ret;
+	static const char * const parent_attrs[] = { "objectGUID", NULL };
 
 	ldb = ldb_module_get_ctx(module);
 
@@ -449,7 +410,7 @@ static int objectclass_add(struct ldb_module *module, struct ldb_request *req)
 
 	ret = ldb_build_search_req(&search_req, ldb,
 				   ac, parent_dn, LDB_SCOPE_BASE,
-				   "(objectClass=*)", NULL,
+				   "(objectClass=*)", parent_attrs,
 				   NULL,
 				   ac, get_search_callback,
 				   req);
@@ -500,7 +461,8 @@ static int objectclass_do_add(struct oc_context *ac)
 			return LDB_ERR_UNWILLING_TO_PERFORM;
 		}
 	} else {
-		
+		const struct ldb_val *parent_guid;
+
 		/* Fix up the DN to be in the standard form, taking particular care to match the parent DN */
 		ret = fix_dn(msg, 
 			     ac->req->op.add.message->dn,
@@ -514,12 +476,25 @@ static int objectclass_do_add(struct oc_context *ac)
 			return ret;
 		}
 
+		parent_guid = ldb_msg_find_ldb_val(ac->search_res->message, "objectGUID");
+		if (parent_guid == NULL) {
+			ldb_asprintf_errstring(ldb, "objectclass: Cannot add %s, parent does not have an objectGUID!", 
+					       ldb_dn_get_linearized(msg->dn));
+			talloc_free(mem_ctx);
+			return LDB_ERR_UNWILLING_TO_PERFORM;			
+		}
+
 		/* TODO: Check this is a valid child to this parent,
 		 * by reading the allowedChildClasses and
 		 * allowedChildClasssesEffective attributes */
-
+		ret = ldb_msg_add_steal_value(msg, "parentGUID", discard_const(parent_guid));
+		if (ret != LDB_SUCCESS) {
+			ldb_asprintf_errstring(ldb, "objectclass: Cannot add %s, failed to add parentGUID", 
+					       ldb_dn_get_linearized(msg->dn));
+			talloc_free(mem_ctx);
+			return LDB_ERR_UNWILLING_TO_PERFORM;						
+		}
 	}
-
 	if (schema) {
 		ret = fix_attributes(ldb, schema, msg);
 		if (ret != LDB_SUCCESS) {
@@ -529,7 +504,7 @@ static int objectclass_do_add(struct oc_context *ac)
 
 		/* This is now the objectClass list from the database */
 		objectclass_element = ldb_msg_find_element(msg, "objectClass");
-		
+
 		if (!objectclass_element) {
 			/* Where did it go?  bail now... */
 			talloc_free(mem_ctx);
@@ -548,10 +523,10 @@ static int objectclass_do_add(struct oc_context *ac)
 			talloc_free(mem_ctx);
 			return ret;
 		}
-		
+
 		/* We must completely replace the existing objectClass entry,
 		 * because we need it sorted */
-		
+
 		/* Move from the linked list back into an ldb msg */
 		for (current = sorted; current; current = current->next) {
 			value = talloc_strdup(msg, current->objectclass->lDAPDisplayName);
@@ -562,7 +537,7 @@ static int objectclass_do_add(struct oc_context *ac)
 			}
 			ret = ldb_msg_add_string(msg, "objectClass", value);
 			if (ret != LDB_SUCCESS) {
-				ldb_set_errstring(ldb, 
+				ldb_set_errstring(ldb,
 						  "objectclass: could not re-add sorted "
 						  "objectclass to modify msg");
 				talloc_free(mem_ctx);
@@ -572,6 +547,7 @@ static int objectclass_do_add(struct oc_context *ac)
 			if (!current->next) {
 				struct ldb_message_element *el;
 				int32_t systemFlags = 0;
+				DATA_BLOB *sd;
 				if (!ldb_msg_find_element(msg, "objectCategory")) {
 					value = talloc_strdup(msg, current->objectclass->defaultObjectCategory);
 					if (value == NULL) {
@@ -582,14 +558,8 @@ static int objectclass_do_add(struct oc_context *ac)
 					ldb_msg_add_string(msg, "objectCategory", value);
 				}
 				if (!ldb_msg_find_element(msg, "showInAdvancedViewOnly") && (current->objectclass->defaultHidingValue == true)) {
-					ldb_msg_add_string(msg, "showInAdvancedViewOnly", 
+					ldb_msg_add_string(msg, "showInAdvancedViewOnly",
 							   "TRUE");
-				}
-				if (!ldb_msg_find_element(msg, "nTSecurityDescriptor")) {
-					DATA_BLOB *sd = get_sd(ac->module, mem_ctx, current->objectclass);
-					if (sd) {
-						ldb_msg_add_steal_value(msg, "nTSecurityDescriptor", sd);
-					}
 				}
 
 				/* There are very special rules for systemFlags, see MS-ADTS 3.1.1.5.2.4 */
@@ -602,7 +572,7 @@ static int objectclass_do_add(struct oc_context *ac)
 					/* systemFlags &= ( SYSTEM_FLAG_CONFIG_ALLOW_RENAME | SYSTEM_FLAG_CONFIG_ALLOW_MOVE | SYSTEM_FLAG_CONFIG_LIMITED_MOVE); */
 					ldb_msg_remove_element(msg, el);
 				}
-				
+
 				/* This flag is only allowed on attributeSchema objects */
 				if (ldb_attr_cmp(current->objectclass->lDAPDisplayName, "attributeSchema") == 0) {
 					systemFlags &= ~SYSTEM_FLAG_ATTR_IS_RDN;
@@ -615,7 +585,7 @@ static int objectclass_do_add(struct oc_context *ac)
 					   || ldb_attr_cmp(current->objectclass->lDAPDisplayName, "ntDSDSA") == 0) {
 					systemFlags |= (int32_t)(SYSTEM_FLAG_DISALLOW_MOVE_ON_DELETE);
 
-				} else if (ldb_attr_cmp(current->objectclass->lDAPDisplayName, "siteLink") == 0 
+				} else if (ldb_attr_cmp(current->objectclass->lDAPDisplayName, "siteLink") == 0
 					   || ldb_attr_cmp(current->objectclass->lDAPDisplayName, "siteLinkBridge") == 0
 					   || ldb_attr_cmp(current->objectclass->lDAPDisplayName, "nTDSConnection") == 0) {
 					systemFlags |= (int32_t)(SYSTEM_FLAG_CONFIG_ALLOW_RENAME);
@@ -974,7 +944,7 @@ static int objectclass_do_rename(struct oc_context *ac);
 
 static int objectclass_rename(struct ldb_module *module, struct ldb_request *req)
 {
-	static const char * const attrs[] = { NULL };
+	static const char * const attrs[] = { "objectGUID", NULL };
 	struct ldb_context *ldb;
 	struct ldb_request *search_req;
 	struct oc_context *ac;
@@ -1007,6 +977,9 @@ static int objectclass_rename(struct ldb_module *module, struct ldb_request *req
 		ldb_oom(ldb);
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
+
+	/* note that the results of this search are kept and used to
+	   update the parentGUID in objectclass_rename_callback() */
 	ret = ldb_build_search_req(&search_req, ldb,
 				   ac, parent_dn, LDB_SCOPE_BASE,
 				   "(objectClass=*)",
@@ -1017,9 +990,78 @@ static int objectclass_rename(struct ldb_module *module, struct ldb_request *req
 		return ret;
 	}
 
+	/* we have to add the show deleted control, as otherwise DRS
+	   deletes will be refused as we will think the target parent
+	   does not exist */
+	ret = ldb_request_add_control(search_req, LDB_CONTROL_SHOW_DELETED_OID, false, NULL);
+
+	if (ret != LDB_SUCCESS) {
+		return ret;
+	}
+
 	ac->step_fn = objectclass_do_rename;
 
 	return ldb_next_request(ac->module, search_req);
+}
+
+/* 
+   called after the rename happens. 
+   We now need to fix the parentGUID of the object to be the objectGUID of
+   the new parent 
+*/
+static int objectclass_rename_callback(struct ldb_request *req, struct ldb_reply *ares)
+{
+	struct ldb_context *ldb;
+	struct oc_context *ac;
+	const struct ldb_val *parent_guid;
+	struct ldb_request *mod_req = NULL;
+	int ret;
+	struct ldb_message *msg;
+	struct ldb_message_element *el = NULL;
+
+	ac = talloc_get_type(req->context, struct oc_context);
+	ldb = ldb_module_get_ctx(ac->module);
+
+	/* make sure the rename succeeded */
+	if (!ares) {
+		return ldb_module_done(ac->req, NULL, NULL,
+					LDB_ERR_OPERATIONS_ERROR);
+	}
+	if (ares->error != LDB_SUCCESS) {
+		return ldb_module_done(ac->req, ares->controls,
+					ares->response, ares->error);
+	}
+
+
+	/* the ac->search_res should contain the new parents objectGUID */
+	parent_guid = ldb_msg_find_ldb_val(ac->search_res->message, "objectGUID");
+	if (parent_guid == NULL) {
+		ldb_asprintf_errstring(ldb, "objectclass: Cannot rename %s, new parent does not have an objectGUID!", 
+				       ldb_dn_get_linearized(ac->req->op.rename.newdn));
+		return LDB_ERR_UNWILLING_TO_PERFORM;
+
+	}
+
+	/* construct the modify message */
+	msg = ldb_msg_new(ac);
+	if (msg == NULL) {
+		ldb_oom(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+
+	msg->dn = ac->req->op.rename.newdn;
+
+	ret = ldb_msg_add_value(msg, "parentGUID", parent_guid, &el);
+	if (ret != LDB_SUCCESS) {
+		return ret;
+	}
+
+	el->flags = LDB_FLAG_MOD_REPLACE;
+
+	ret = ldb_build_mod_req(&mod_req, ldb, ac, msg,
+				NULL, ac, oc_op_callback, req);
+
+	return ldb_next_request(ac->module, mod_req);
 }
 
 static int objectclass_do_rename(struct oc_context *ac)
@@ -1055,7 +1097,7 @@ static int objectclass_do_rename(struct oc_context *ac)
 	ret = ldb_build_rename_req(&rename_req, ldb, ac,
 				   ac->req->op.rename.olddn, fixed_dn,
 				   ac->req->controls,
-				   ac, oc_op_callback,
+				   ac, objectclass_rename_callback,
 				   ac->req);
 	if (ret != LDB_SUCCESS) {
 		return ret;

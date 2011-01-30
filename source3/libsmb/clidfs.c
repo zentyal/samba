@@ -32,16 +32,6 @@
    as a separator when looking at the pathname part.... JRA.
 ********************************************************************/
 
-static bool cli_check_msdfs_proxy(TALLOC_CTX *ctx,
-				struct cli_state *cli,
-				const char *sharename,
-				char **pp_newserver,
-				char **pp_newshare,
-				bool force_encrypt,
-				const char *username,
-				const char *password,
-				const char *domain);
-
 /********************************************************************
  Ensure a connection is encrypted.
 ********************************************************************/
@@ -164,6 +154,7 @@ static struct cli_state *do_connect(TALLOC_CTX *ctx,
 	c->use_kerberos = get_cmdline_auth_info_use_kerberos(auth_info);
 	c->fallback_after_kerberos =
 		get_cmdline_auth_info_fallback_after_kerberos(auth_info);
+	c->use_ccache = get_cmdline_auth_info_use_ccache(auth_info);
 
 	if (!cli_session_request(c, &calling, &called)) {
 		char *p;
@@ -241,7 +232,7 @@ static struct cli_state *do_connect(TALLOC_CTX *ctx,
 	/* here's the fun part....to support 'msdfs proxy' shares
 	   (on Samba or windows) we have to issues a TRANS_GET_DFS_REFERRAL
 	   here before trying to connect to the original share.
-	   check_dfs_proxy() will fail if it is a normal share. */
+	   cli_check_msdfs_proxy() will fail if it is a normal share. */
 
 	if ((c->capabilities & CAP_DFS) &&
 			cli_check_msdfs_proxy(ctx, c, sharename,
@@ -332,8 +323,10 @@ static struct cli_state *cli_cm_connect(TALLOC_CTX *ctx,
 	if (referring_cli && referring_cli->posix_capabilities) {
 		uint16 major, minor;
 		uint32 caplow, caphigh;
-		if (cli_unix_extensions_version(cli, &major,
-					&minor, &caplow, &caphigh)) {
+		NTSTATUS status;
+		status = cli_unix_extensions_version(cli, &major, &minor,
+						     &caplow, &caphigh);
+		if (NT_STATUS_IS_OK(status)) {
 			cli_set_unix_extensions_capabilities(cli,
 					major, minor,
 					caplow, caphigh);
@@ -984,7 +977,7 @@ bool cli_resolve_path(TALLOC_CTX *ctx,
 /********************************************************************
 ********************************************************************/
 
-static bool cli_check_msdfs_proxy(TALLOC_CTX *ctx,
+bool cli_check_msdfs_proxy(TALLOC_CTX *ctx,
 				struct cli_state *cli,
 				const char *sharename,
 				char **pp_newserver,

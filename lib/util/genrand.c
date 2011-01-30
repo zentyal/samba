@@ -294,6 +294,7 @@ _PUBLIC_ uint32_t generate_random(void)
 _PUBLIC_ bool check_password_quality(const char *s)
 {
 	int has_digit=0, has_capital=0, has_lower=0, has_special=0, has_high=0;
+	const char* reals = s;
 	while (*s) {
 		if (isdigit((unsigned char)*s)) {
 			has_digit |= 1;
@@ -310,7 +311,7 @@ _PUBLIC_ bool check_password_quality(const char *s)
 	}
 
 	return ((has_digit + has_lower + has_capital + has_special) >= 3
-		|| (has_high > strlen(s)/2));
+		|| (has_high > strlen(reals)/2));
 }
 
 /**
@@ -358,4 +359,54 @@ again:
 	}
 
 	return retstr;
+}
+
+/**
+ * Generate an array of unique text strings all of the same length.
+ * The returned string will be allocated.
+ * Returns NULL if the number of unique combinations cannot be created.
+ *
+ * Characters used are: abcdefghijklmnopqrstuvwxyz0123456789+_-#.,
+ */
+_PUBLIC_ char** generate_unique_strs(TALLOC_CTX *mem_ctx, size_t len,
+				     uint32_t num)
+{
+	const char *c_list = "abcdefghijklmnopqrstuvwxyz0123456789+_-#.,";
+	const unsigned c_size = 42;
+	int i, j;
+	unsigned rem;
+	char ** strs = NULL;
+
+	if (num == 0 || len == 0)
+		return NULL;
+
+	strs = talloc_array(mem_ctx, char *, num);
+	if (strs == NULL) return NULL;
+
+	for (i = 0; i < num; i++) {
+		char *retstr = (char *)talloc_size(strs, len + 1);
+		if (retstr == NULL) {
+			talloc_free(strs);
+			return NULL;
+		}
+		rem = i;
+		for (j = 0; j < len; j++) {
+			retstr[j] = c_list[rem % c_size];
+			rem = rem / c_size;
+		}
+		retstr[j] = 0;
+		strs[i] = retstr;
+		if (rem != 0) {
+			/* we were not able to fit the number of
+			 * combinations asked for in the length
+			 * specified */
+			DEBUG(0,(__location__ ": Too many combinations %u for length %u\n",
+				 num, (unsigned)len));
+				 
+			talloc_free(strs);
+			return NULL;			 
+		}
+	}
+
+	return strs;
 }

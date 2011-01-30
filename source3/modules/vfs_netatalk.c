@@ -29,8 +29,11 @@
 /* atalk functions */
 
 static int atalk_build_paths(TALLOC_CTX *ctx, const char *path,
-  const char *fname, char **adbl_path, char **orig_path, 
-  SMB_STRUCT_STAT *adbl_info, SMB_STRUCT_STAT *orig_info);
+			     const char *fname,
+			     char **adbl_path, char **orig_path,
+			     SMB_STRUCT_STAT *adbl_info,
+			     SMB_STRUCT_STAT *orig_info,
+			     bool fake_dir_create_times);
 
 static int atalk_unlink_file(const char *path);
 
@@ -52,9 +55,12 @@ static int atalk_get_path_ptr(char *path)
 	return ptr;
 }
 
-static int atalk_build_paths(TALLOC_CTX *ctx, const char *path, const char *fname,
-                              char **adbl_path, char **orig_path,
-                              SMB_STRUCT_STAT *adbl_info, SMB_STRUCT_STAT *orig_info)
+static int atalk_build_paths(TALLOC_CTX *ctx, const char *path,
+			     const char *fname,
+			     char **adbl_path, char **orig_path,
+			     SMB_STRUCT_STAT *adbl_info,
+			     SMB_STRUCT_STAT *orig_info,
+			     bool fake_dir_create_times)
 {
 	int ptr0 = 0;
 	int ptr1 = 0;
@@ -80,9 +86,9 @@ static int atalk_build_paths(TALLOC_CTX *ctx, const char *path, const char *fnam
 	/* get pointer to last '/' */
 	ptr1 = atalk_get_path_ptr(*orig_path);
 
-	sys_lstat(*orig_path, orig_info);
+	sys_lstat(*orig_path, orig_info, fake_dir_create_times);
 
-	if (S_ISDIR(orig_info->st_mode)) {
+	if (S_ISDIR(orig_info->st_ex_mode)) {
 		*adbl_path = talloc_asprintf(ctx, "%s/%s/%s/", 
 		  path, &fname[ptr0], APPLEDOUBLE);
 	} else {
@@ -95,7 +101,7 @@ static int atalk_build_paths(TALLOC_CTX *ctx, const char *path, const char *fnam
 #if 0
 	DEBUG(3, ("ATALK: DEBUG:\n%s\n%s\n", *orig_path, *adbl_path)); 
 #endif
-	sys_lstat(*adbl_path, adbl_info);
+	sys_lstat(*adbl_path, adbl_info, fake_dir_create_times);
 	return 0;
 }
 
@@ -222,27 +228,31 @@ exit_rmdir:
 
 /* File operations */
 
-static int atalk_rename(struct vfs_handle_struct *handle, const char *oldname, const char *newname)
+static int atalk_rename(struct vfs_handle_struct *handle,
+			const struct smb_filename *smb_fname_src,
+			const struct smb_filename *smb_fname_dst)
 {
 	int ret = 0;
-	char *adbl_path = 0;
-	char *orig_path = 0;
+	char *oldname = NULL;
+	char *adbl_path = NULL;
+	char *orig_path = NULL;
 	SMB_STRUCT_STAT adbl_info;
 	SMB_STRUCT_STAT orig_info;
-	TALLOC_CTX *ctx;
+	NTSTATUS status;
 
-	ret = SMB_VFS_NEXT_RENAME(handle, oldname, newname);
+	ret = SMB_VFS_NEXT_RENAME(handle, smb_fname_src, smb_fname_dst);
 
-	if (!oldname) return ret;
-
-	if (!(ctx = talloc_init("rename_file")))
+	status = get_full_smb_filename(talloc_tos(), smb_fname_src, &oldname);
+	if (!NT_STATUS_IS_OK(status)) {
 		return ret;
+	}
 
-	if (atalk_build_paths(ctx, handle->conn->origpath, oldname, &adbl_path, &orig_path,
-	  &adbl_info, &orig_info) != 0)
+	if (atalk_build_paths(talloc_tos(), handle->conn->origpath, oldname,
+			      &adbl_path, &orig_path, &adbl_info,
+			      &orig_info, false) != 0)
 		goto exit_rename;
 
-	if (S_ISDIR(orig_info.st_mode) || S_ISREG(orig_info.st_mode)) {
+	if (S_ISDIR(orig_info.st_ex_mode) || S_ISREG(orig_info.st_ex_mode)) {
 		DEBUG(3, ("ATALK: %s has passed..\n", adbl_path));		
 		goto exit_rename;
 	}
@@ -250,22 +260,29 @@ static int atalk_rename(struct vfs_handle_struct *handle, const char *oldname, c
 	atalk_unlink_file(adbl_path);
 
 exit_rename:
-	talloc_destroy(ctx);
+	TALLOC_FREE(oldname);
+	TALLOC_FREE(adbl_path);
+	TALLOC_FREE(orig_path);
 	return ret;
 }
 
-static int atalk_unlink(struct vfs_handle_struct *handle, const char *path)
+static int atalk_unlink(struct vfs_handle_struct *handle,
+			const struct smb_filename *smb_fname)
 {
 	int ret = 0, i;
-	char *adbl_path = 0;
-	char *orig_path = 0;
+	char *path = NULL;
+	char *adbl_path = NULL;
+	char *orig_path = NULL;
 	SMB_STRUCT_STAT adbl_info;
 	SMB_STRUCT_STAT orig_info;
-	TALLOC_CTX *ctx;
+	NTSTATUS status;
 
-	ret = SMB_VFS_NEXT_UNLINK(handle, path);
+	ret = SMB_VFS_NEXT_UNLINK(handle, smb_fname);
 
-	if (!path) return ret;
+	status = get_full_smb_filename(talloc_tos(), smb_fname, &path);
+	if (!NT_STATUS_IS_OK(status)) {
+		return ret;
+	}
 
 	/* no .AppleDouble sync if veto or hide list is empty,
 	 * otherwise "Cannot find the specified file" error will be caused
@@ -286,27 +303,27 @@ static int atalk_unlink(struct vfs_handle_struct *handle, const char *path)
 			else {
 				DEBUG(3, ("ATALK: %s is not hidden, skipped..\n",
 				  APPLEDOUBLE));		
-				return ret;
+				goto exit_unlink;
 			}
 		}
 	}
 
-	if (!(ctx = talloc_init("unlink_file")))
-		return ret;
-
-	if (atalk_build_paths(ctx, handle->conn->origpath, path, &adbl_path, &orig_path,
-	  &adbl_info, &orig_info) != 0)
+	if (atalk_build_paths(talloc_tos(), handle->conn->origpath, path,
+			      &adbl_path, &orig_path,
+			      &adbl_info, &orig_info, false) != 0)
 		goto exit_unlink;
 
-	if (S_ISDIR(orig_info.st_mode) || S_ISREG(orig_info.st_mode)) {
+	if (S_ISDIR(orig_info.st_ex_mode) || S_ISREG(orig_info.st_ex_mode)) {
 		DEBUG(3, ("ATALK: %s has passed..\n", adbl_path));
 		goto exit_unlink;
 	}
 
 	atalk_unlink_file(adbl_path);
 
-exit_unlink:	
-	talloc_destroy(ctx);
+exit_unlink:
+	TALLOC_FREE(path);
+	TALLOC_FREE(adbl_path);
+	TALLOC_FREE(orig_path);
 	return ret;
 }
 
@@ -326,11 +343,12 @@ static int atalk_chmod(struct vfs_handle_struct *handle, const char *path, mode_
 	if (!(ctx = talloc_init("chmod_file")))
 		return ret;
 
-	if (atalk_build_paths(ctx, handle->conn->origpath, path, &adbl_path, &orig_path,
-	  &adbl_info, &orig_info) != 0)
+	if (atalk_build_paths(ctx, handle->conn->origpath, path, &adbl_path,
+			      &orig_path, &adbl_info, &orig_info,
+			      false) != 0)
 		goto exit_chmod;
 
-	if (!S_ISDIR(orig_info.st_mode) && !S_ISREG(orig_info.st_mode)) {
+	if (!S_ISDIR(orig_info.st_ex_mode) && !S_ISREG(orig_info.st_ex_mode)) {
 		DEBUG(3, ("ATALK: %s has passed..\n", orig_path));		
 		goto exit_chmod;
 	}
@@ -358,11 +376,12 @@ static int atalk_chown(struct vfs_handle_struct *handle, const char *path, uid_t
 	if (!(ctx = talloc_init("chown_file")))
 		return ret;
 
-	if (atalk_build_paths(ctx, handle->conn->origpath, path, &adbl_path, &orig_path,
-	  &adbl_info, &orig_info) != 0)
+	if (atalk_build_paths(ctx, handle->conn->origpath, path,
+			      &adbl_path, &orig_path,
+			      &adbl_info, &orig_info, false) != 0)
 		goto exit_chown;
 
-	if (!S_ISDIR(orig_info.st_mode) && !S_ISREG(orig_info.st_mode)) {
+	if (!S_ISDIR(orig_info.st_ex_mode) && !S_ISREG(orig_info.st_ex_mode)) {
 		DEBUG(3, ("ATALK: %s has passed..\n", orig_path));		
 		goto exit_chown;
 	}
@@ -392,11 +411,12 @@ static int atalk_lchown(struct vfs_handle_struct *handle, const char *path, uid_
 	if (!(ctx = talloc_init("lchown_file")))
 		return ret;
 
-	if (atalk_build_paths(ctx, handle->conn->origpath, path, &adbl_path, &orig_path,
-	  &adbl_info, &orig_info) != 0)
+	if (atalk_build_paths(ctx, handle->conn->origpath, path,
+			      &adbl_path, &orig_path,
+			      &adbl_info, &orig_info, false) != 0)
 		goto exit_lchown;
 
-	if (!S_ISDIR(orig_info.st_mode) && !S_ISREG(orig_info.st_mode)) {
+	if (!S_ISDIR(orig_info.st_ex_mode) && !S_ISREG(orig_info.st_ex_mode)) {
 		DEBUG(3, ("ATALK: %s has passed..\n", orig_path));		
 		goto exit_lchown;
 	}
@@ -410,28 +430,19 @@ exit_lchown:
 	return ret;
 }
 
-static vfs_op_tuple atalk_ops[] = {
-    
-	/* Directory operations */
-
-	{SMB_VFS_OP(atalk_opendir),	 	SMB_VFS_OP_OPENDIR, 	SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(atalk_rmdir), 		SMB_VFS_OP_RMDIR, 	SMB_VFS_LAYER_TRANSPARENT},
-
-	/* File operations */
-
-	{SMB_VFS_OP(atalk_rename), 		SMB_VFS_OP_RENAME, 	SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(atalk_unlink), 		SMB_VFS_OP_UNLINK, 	SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(atalk_chmod), 		SMB_VFS_OP_CHMOD, 	SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(atalk_chown),		SMB_VFS_OP_CHOWN,	SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(atalk_lchown),		SMB_VFS_OP_LCHOWN,	SMB_VFS_LAYER_TRANSPARENT},
-	
-	/* Finish VFS operations definition */
-	
-	{SMB_VFS_OP(NULL), 			SMB_VFS_OP_NOOP, 	SMB_VFS_LAYER_NOOP}
+static struct vfs_fn_pointers vfs_netatalk_fns = {
+	.opendir = atalk_opendir,
+	.rmdir = atalk_rmdir,
+	.rename = atalk_rename,
+	.unlink = atalk_unlink,
+	.chmod = atalk_chmod,
+	.chown = atalk_chown,
+	.lchown = atalk_lchown,
 };
 
 NTSTATUS vfs_netatalk_init(void);
 NTSTATUS vfs_netatalk_init(void)
 {
-	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "netatalk", atalk_ops);
+	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "netatalk",
+				&vfs_netatalk_fns);
 }

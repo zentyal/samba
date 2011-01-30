@@ -1,7 +1,0 @@
-################################
-## Domain Naming Context
-################################
-dn: ${DOMAINDN}
-objectClass: top
-objectClass: ${DOMAIN_OC}
-

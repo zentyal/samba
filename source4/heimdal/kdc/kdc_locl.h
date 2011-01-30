@@ -39,9 +39,10 @@
 #define __KDC_LOCL_H__
 
 #include "headers.h"
-#include "kdc.h"
 
 typedef struct pk_client_params pk_client_params;
+struct DigestREQ;
+struct Kx509Request;
 #include <kdc-private.h>
 
 extern sig_atomic_t exit_flag;
@@ -52,9 +53,12 @@ extern krb5_addresses explicit_addresses;
 
 extern int enable_http;
 
+#ifdef SUPPORT_DETACH
+
 #define DETACH_IS_DEFAULT FALSE
 
 extern int detach_from_console;
+#endif
 
 extern const struct units _kdc_digestunits[];
 
@@ -62,6 +66,9 @@ extern const struct units _kdc_digestunits[];
 
 extern struct timeval _kdc_now;
 #define kdc_time (_kdc_now.tv_sec)
+
+extern char *runas_string;
+extern char *chroot_string;
 
 void
 loop(krb5_context context, krb5_kdc_configuration *config);

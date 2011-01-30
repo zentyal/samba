@@ -34,4 +34,32 @@ struct drsuapi_bind_state {
 	struct GUID remote_bind_guid;
 	struct drsuapi_DsBindInfo28 remote_info28;
 	struct drsuapi_DsBindInfo28 local_info28;
+	struct drsuapi_getncchanges_state *getncchanges_state;
 };
+
+
+/* prototypes of internal functions */
+WERROR dcesrv_drsuapi_DsReplicaUpdateRefs(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+					  struct drsuapi_DsReplicaUpdateRefs *r);
+WERROR dcesrv_drsuapi_DsGetNCChanges(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+				     struct drsuapi_DsGetNCChanges *r);
+WERROR dcesrv_drsuapi_DsAddEntry(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+				 struct drsuapi_DsAddEntry *r);
+
+char *drs_ObjectIdentifier_to_string(TALLOC_CTX *mem_ctx,
+				     struct drsuapi_DsReplicaObjectIdentifier *nc);
+
+int drsuapi_search_with_extended_dn(struct ldb_context *ldb,
+				    TALLOC_CTX *mem_ctx,
+				    struct ldb_result **_res,
+				    struct ldb_dn *basedn,
+				    enum ldb_scope scope,
+				    const char * const *attrs,
+				    const char *sort_attrib,
+				    const char *filter);
+
+WERROR drs_security_level_check(struct dcesrv_call_state *dce_call,
+				const char* call);
+
+void drsuapi_process_secret_attribute(struct drsuapi_DsReplicaAttribute *attr,
+				      struct drsuapi_DsReplicaMetaData *meta_data);

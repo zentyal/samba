@@ -8,7 +8,8 @@ PRIVATE_DEPENDENCIES = LIBLDB
 # End SUBSYSTEM DCERPC_COMMON
 ################################################
 
-DCERPC_COMMON_OBJ_FILES = $(addprefix $(rpc_serversrcdir)/common/, server_info.o share_info.o)
+DCERPC_COMMON_OBJ_FILES = $(addprefix $(rpc_serversrcdir)/common/, \
+	server_info.o share_info.o forward.o)
 
 $(eval $(call proto_header_template,$(rpc_serversrcdir)/common/proto.h,$(DCERPC_COMMON_OBJ_FILES:.o=.c)))
 
@@ -19,7 +20,7 @@ PUBLIC_HEADERS += $(rpc_serversrcdir)/common/common.h
 [MODULE::dcerpc_rpcecho]
 INIT_FUNCTION = dcerpc_server_rpcecho_init
 SUBSYSTEM = dcerpc_server
-PRIVATE_DEPENDENCIES = NDR_ECHO LIBEVENTS
+PRIVATE_DEPENDENCIES = NDR_STANDARD LIBEVENTS
 # End MODULE dcerpc_rpcecho
 ################################################
 
@@ -69,7 +70,7 @@ $(eval $(call proto_header_template,$(rpc_serversrcdir)/srvsvc/proto.h,$(dcerpc_
 INIT_FUNCTION = dcerpc_server_wkssvc_init
 SUBSYSTEM = dcerpc_server
 PRIVATE_DEPENDENCIES = \
-		DCERPC_COMMON NDR_WKSSVC
+		DCERPC_COMMON NDR_STANDARD
 # End MODULE dcerpc_wkssvc
 ################################################
 
@@ -85,7 +86,7 @@ PRIVATE_DEPENDENCIES = \
 		SAMDB \
 		NDR_UNIXINFO \
 		NSS_WRAPPER \
-		LIBWBCLIENT
+		LIBWBCLIENT_OLD
 # End MODULE dcerpc_unixinfo
 ################################################
 
@@ -99,7 +100,7 @@ SUBSYSTEM = dcerpc_server
 PRIVATE_DEPENDENCIES = \
 		SAMDB \
 		DCERPC_COMMON \
-		NDR_SAMR
+		NDR_STANDARD
 # End MODULE dcesrv_samr
 ################################################
 
@@ -114,7 +115,7 @@ INIT_FUNCTION = dcerpc_server_winreg_init
 SUBSYSTEM = dcerpc_server
 OUTPUT_TYPE = MERGED_OBJ
 PRIVATE_DEPENDENCIES = \
-		registry NDR_WINREG
+		registry NDR_STANDARD
 # End MODULE dcerpc_winreg
 ################################################
 
@@ -128,8 +129,9 @@ SUBSYSTEM = dcerpc_server
 PRIVATE_DEPENDENCIES = \
 		DCERPC_COMMON \
 		SCHANNELDB \
-		NDR_NETLOGON \
-		auth_sam
+		NDR_STANDARD \
+		auth_sam \
+		LIBSAMBA-HOSTCONFIG
 # End MODULE dcerpc_netlogon
 ################################################
 
@@ -143,7 +145,7 @@ SUBSYSTEM = dcerpc_server
 PRIVATE_DEPENDENCIES = \
 		SAMDB \
 		DCERPC_COMMON \
-		NDR_LSA \
+		NDR_STANDARD \
 		LIBCLI_AUTH \
 		NDR_DSSETUP
 # End MODULE dcerpc_lsa
@@ -182,7 +184,11 @@ PRIVATE_DEPENDENCIES = \
 # End MODULE dcerpc_drsuapi
 ################################################
 
-dcerpc_drsuapi_OBJ_FILES = $(rpc_serversrcdir)/drsuapi/dcesrv_drsuapi.o
+dcerpc_drsuapi_OBJ_FILES = $(rpc_serversrcdir)/drsuapi/dcesrv_drsuapi.o \
+	$(rpc_serversrcdir)/drsuapi/updaterefs.o \
+	$(rpc_serversrcdir)/drsuapi/getncchanges.o \
+	$(rpc_serversrcdir)/drsuapi/addentry.o \
+	$(rpc_serversrcdir)/drsuapi/drsutil.o
 
 ################################################
 # Start MODULE dcerpc_browser
@@ -224,3 +230,6 @@ SUBSYSTEM = service
 PRIVATE_DEPENDENCIES = dcerpc_server
 
 DCESRV_OBJ_FILES = $(rpc_serversrcdir)/service_rpc.o
+
+$(eval $(call proto_header_template,$(rpc_serversrcdir)/service_rpc.h,$(DCESRV_OBJ_FILES:.o=.c)))
+

@@ -1,12 +1,12 @@
 .\"     Title: smbget
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 05/10/2010
+.\"      Date: 06/18/2010
 .\"    Manual: User Commands
-.\"    Source: Samba 3.4
+.\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "SMBGET" "1" "05/10/2010" "Samba 3\&.4" "User Commands"
+.TH "SMBGET" "1" "06/18/2010" "Samba 3\&.5" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -171,7 +171,7 @@ smbget \- wget\-like utility for download files over SMB
 .SH "Synopsis"
 .fam C
 .HP \w'\ 'u
-\FCsmbget\F[] [\-a,\ \-\-guest] [\-r,\ \-\-resume] [\-R,\ \-\-recursive] [\-u,\ \-\-username=STRING] [\-p,\ \-\-password=STRING] [\-w,\ \-\-workgroup=STRING] [\-n,\ \-\-nonprompt] [\-d,\ \-\-debuglevel=INT] [\-D,\ \-\-dots] [\-P,\ \-\-keep\-permissions] [\-o,\ \-\-outputfile] [\-f,\ \-\-rcfile] [\-q,\ \-\-quiet] [\-v,\ \-\-verbose] [\-b,\ \-\-blocksize] [\-?,\ \-\-help] [\-\-usage] {smb://host/share/path/to/file} [smb://url2/] [\&.\&.\&.]
+\FCsmbget\F[] [\-a,\ \-\-guest] [\-r,\ \-\-resume] [\-R,\ \-\-recursive] [\-u,\ \-\-username=STRING] [\-p,\ \-\-password=STRING] [\-w,\ \-\-workgroup=STRING] [\-n,\ \-\-nonprompt] [\-d,\ \-\-debuglevel=INT] [\-D,\ \-\-dots] [\-P,\ \-\-keep\-permissions] [\-o,\ \-\-outputfile] [\-f,\ \-\-rcfile] [\-q,\ \-\-quiet] [\-v,\ \-\-verbose] [\-b,\ \-\-blocksize] [\-O,\ \-\-stdout] [\-?,\ \-\-help] [\-\-usage] {smb://host/share/path/to/file} [smb://url2/] [\&.\&.\&.]
 .fam
 .SH "DESCRIPTION"
 .PP
@@ -237,7 +237,12 @@ Set same permissions on local file as are set on remote file\&.
 .PP
 \-o, \-\-outputfile
 .RS 4
-Write the file that is being download to the specified file\&. Can not be used together with \-R\&.
+Write the file that is being downloaded to the specified file\&. Can not be used together with \-R\&.
+.RE
+.PP
+\-O, \-\-stdout
+.RS 4
+Write the file that is being downloaded to standard output\&.
 .RE
 .PP
 \-f, \-\-rcfile

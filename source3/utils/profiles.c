@@ -117,7 +117,7 @@ static bool copy_registry_tree( REGF_FILE *infile, REGF_NK_REC *nk,
 {
 	REGF_NK_REC *key, *subkey;
 	SEC_DESC *new_sd;
-	REGVAL_CTR *values;
+	struct regval_ctr *values;
 	struct regsubkey_ctr *subkeys;
 	int i;
 	char *path;
@@ -139,13 +139,13 @@ static bool copy_registry_tree( REGF_FILE *infile, REGF_NK_REC *nk,
 		return False;
 	}
 
-	if ( !(values = TALLOC_ZERO_P( subkeys, REGVAL_CTR )) ) {
+	if ( !(values = TALLOC_ZERO_P( subkeys, struct regval_ctr )) ) {
 		TALLOC_FREE( subkeys );
 		DEBUG(0,("copy_registry_tree: talloc() failure!\n"));
 		return False;
 	}
 
-	/* copy values into the REGVAL_CTR */
+	/* copy values into the struct regval_ctr */
 
 	for ( i=0; i<nk->num_values; i++ ) {
 		regval_ctr_addvalue( values, nk->values[i].valuename, nk->values[i].type,
@@ -275,7 +275,8 @@ int main( int argc, char *argv[] )
 		exit (1);
 	}
 
-	if ( !(outfile = regfio_open( new_filename, (O_RDWR|O_CREAT|O_TRUNC), (S_IREAD|S_IWRITE) )) ) {
+	if ( !(outfile = regfio_open( new_filename, (O_RDWR|O_CREAT|O_TRUNC),
+				      (S_IRUSR|S_IWUSR) )) ) {
 		fprintf( stderr, "Failed to open new file %s!\n", new_filename );
 		fprintf( stderr, "Error was (%s)\n", strerror(errno) );
 		exit (1);

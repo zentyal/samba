@@ -1,12 +1,12 @@
 .\"     Title: pdbedit
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 05/10/2010
+.\"      Date: 06/18/2010
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.4
+.\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "PDBEDIT" "8" "05/10/2010" "Samba 3\&.4" "System Administration tools"
+.TH "PDBEDIT" "8" "06/18/2010" "Samba 3\&.5" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -171,7 +171,7 @@ pdbedit \- manage the SAM database (Database of Samba Users)
 .SH "Synopsis"
 .fam C
 .HP \w'\ 'u
-\FCpdbedit\F[] [\-L] [\-v] [\-w] [\-u\ username] [\-f\ fullname] [\-h\ homedir] [\-D\ drive] [\-S\ script] [\-p\ profile] [\-K] [\-a] [\-t,\ \-\-password\-from\-stdin] [\-m] [\-r] [\-x] [\-i\ passdb\-backend] [\-e\ passdb\-backend] [\-b\ passdb\-backend] [\-g] [\-d\ debuglevel] [\-s\ configfile] [\-P\ account\-policy] [\-C\ value] [\-c\ account\-control] [\-y]
+\FCpdbedit\F[] [\-a] [\-b\ passdb\-backend] [\-c\ account\-control] [\-C\ value] [\-d\ debuglevel] [\-D\ drive] [\-e\ passdb\-backend] [\-f\ fullname] [\-\-force\-initialized\-passwords] [\-g] [\-h\ homedir] [\-i\ passdb\-backend] [\-I\ domain] [\-K] [\-L] [\-m] [\-M\ SID|RID] [\-N\ description] [\-P\ account\-policy] [\-p\ profile] [\-\-policies\-reset] [\-r] [\-s\ configfile] [\-S\ script] [\-t] [\-\-time\-format] [\-u\ username] [\-U\ SID|RID] [\-v] [\-V] [\-w] [\-x] [\-y] [\-z] [\-Z]
 .fam
 .SH "DESCRIPTION"
 .PP
@@ -186,7 +186,7 @@ The pdbedit tool uses the passdb modular interface and is independent from the k
 There are five main ways to use pdbedit: adding a user account, removing a user account, modifing a user account, listing user accounts, importing users accounts\&.
 .SH "OPTIONS"
 .PP
-\-L
+\-L|\-\-list
 .RS 4
 This option lists all the user accounts present in the users database\&. This option prints a list of user/uid pairs separated by the \':\' character\&.
 .sp
@@ -219,7 +219,7 @@ samba:45:Test User
 .\}
 .RE
 .PP
-\-v
+\-v|\-\-verbose
 .RS 4
 This option enables the verbose listing format\&. It causes pdbedit to list the users in the database, printing out the account fields in a descriptive format\&.
 .sp
@@ -268,7 +268,7 @@ Profile Path:   \e\eBERSERKER\eprofile
 .\}
 .RE
 .PP
-\-w
+\-w|\-\-smbpasswd\-style
 .RS 4
 This option sets the "smbpasswd" listing format\&. It will make pdbedit list the users in the database, printing out the account fields in a format compatible with the
 \FCsmbpasswd\F[]
@@ -309,7 +309,7 @@ samba:45:0F2B255F7B67A7A9AAD3B435B51404EE:
 .\}
 .RE
 .PP
-\-u username
+\-u|\-\-user username
 .RS 4
 This option specifies the username to be used for the operation requested (listing, adding, removing)\&. It is
 \fIrequired\fR
@@ -318,7 +318,7 @@ in add, remove and modify operations and
 in list operations\&.
 .RE
 .PP
-\-f fullname
+\-f|\-\-fullname fullname
 .RS 4
 This option can be used while adding or modifing a user account\&. It will specify the user\'s full name\&.
 .sp
@@ -326,7 +326,7 @@ Example:
 \FC\-f "Simo Sorce"\F[]
 .RE
 .PP
-\-h homedir
+\-h|\-\-homedir homedir
 .RS 4
 This option can be used while adding or modifing a user account\&. It will specify the user\'s home directory network path\&.
 .sp
@@ -334,7 +334,7 @@ Example:
 \FC\-h "\e\e\e\eBERSERKER\e\esorce"\F[]
 .RE
 .PP
-\-D drive
+\-D|\-\-drive drive
 .RS 4
 This option can be used while adding or modifing a user account\&. It will specify the windows drive letter to be used to map the home directory\&.
 .sp
@@ -342,7 +342,7 @@ Example:
 \FC\-D "H:"\F[]
 .RE
 .PP
-\-S script
+\-S|\-\-script script
 .RS 4
 This option can be used while adding or modifing a user account\&. It will specify the user\'s logon script path\&.
 .sp
@@ -350,7 +350,7 @@ Example:
 \FC\-S "\e\e\e\eBERSERKER\e\enetlogon\e\esorce\&.bat"\F[]
 .RE
 .PP
-\-p profile
+\-p|\-\-profile profile
 .RS 4
 This option can be used while adding or modifing a user account\&. It will specify the user\'s profile directory\&.
 .sp
@@ -358,23 +358,32 @@ Example:
 \FC\-p "\e\e\e\eBERSERKER\e\enetlogon"\F[]
 .RE
 .PP
-\-G SID|rid
+\-M|\'\-\-machine SID\' SID|rid
 .RS 4
-This option can be used while adding or modifying a user account\&. It will specify the users\' new primary group SID (Security Identifier) or rid\&.
+This option can be used while adding or modifying a machine account\&. It will specify the machines\' new primary group SID (Security Identifier) or rid\&.
 .sp
 Example:
-\FC\-G S\-1\-5\-21\-2447931902\-1787058256\-3961074038\-1201\F[]
+\FC\-M S\-1\-5\-21\-2447931902\-1787058256\-3961074038\-1201\F[]
 .RE
 .PP
-\-U SID|rid
+\-U|\'\-\-user SID\' SID|rid
 .RS 4
 This option can be used while adding or modifying a user account\&. It will specify the users\' new SID (Security Identifier) or rid\&.
 .sp
 Example:
 \FC\-U S\-1\-5\-21\-2447931902\-1787058256\-3961074038\-5004\F[]
+.sp
+Example:
+\FC\'\-\-user SID\' S\-1\-5\-21\-2447931902\-1787058256\-3961074038\-5004\F[]
+.sp
+Example:
+\FC\-U 5004\F[]
+.sp
+Example:
+\FC\'\-\-user SID\' 5004\F[]
 .RE
 .PP
-\-c account\-control
+\-c|\-\-account\-control account\-control
 .RS 4
 This option can be used while adding or modifying a user account\&. It will specify the users\' account control property\&. Possible flags are listed below\&.
 .sp
@@ -514,7 +523,7 @@ Example:
 \FCpdbedit \-K never user\F[]
 .RE
 .PP
-\-a
+\-a|\-\-create
 .RS 4
 This option is used to add a user into the database\&. This command needs a user name specified with the \-u switch\&. When adding a new user, pdbedit will also ask for the password to be used\&.
 .sp
@@ -564,19 +573,19 @@ option\&.
 .RE
 .RE
 .PP
-\-t, \-\-password\-from\-stdin
+\-t|\-\-password\-from\-stdin
 .RS 4
 This option causes pdbedit to read the password from standard input, rather than from /dev/tty (like the
 \FCpasswd(1)\F[]
 program does)\&. The password has to be submitted twice and terminated by a newline each\&.
 .RE
 .PP
-\-r
+\-r|\-\-modify
 .RS 4
 This option is used to modify an existing user in the database\&. This command needs a user name specified with the \-u switch\&. Other options can be specified to modify the properties of the specified user\&. This flag is kept for backwards compatibility, but it is no longer necessary to specify it\&.
 .RE
 .PP
-\-m
+\-m|\-\-machine
 .RS 4
 This option may only be used in conjunction with the
 \fI\-a\fR
@@ -586,7 +595,7 @@ Example:
 \FCpdbedit \-a \-m \-u w2k\-wks\F[]
 .RE
 .PP
-\-x
+\-x|\-\-delete
 .RS 4
 This option causes pdbedit to delete an account from the database\&. It needs a username specified with the \-u switch\&.
 .sp
@@ -594,7 +603,7 @@ Example:
 \FCpdbedit \-x \-u bob\F[]
 .RE
 .PP
-\-i passdb\-backend
+\-i|\-\-import passdb\-backend
 .RS 4
 Use a different passdb backend to retrieve users than the one specified in smb\&.conf\&. Can be used to import data into your local user database\&.
 .sp
@@ -604,7 +613,7 @@ Example:
 \FCpdbedit \-i smbpasswd:/etc/smbpasswd\&.old \F[]
 .RE
 .PP
-\-e passdb\-backend
+\-e|\-\-export passdb\-backend
 .RS 4
 Exports all currently available users to the specified password database backend\&.
 .sp
@@ -614,7 +623,7 @@ Example:
 \FCpdbedit \-e smbpasswd:/root/samba\-users\&.backup\F[]
 .RE
 .PP
-\-g
+\-g|\-\-group
 .RS 4
 If you specify
 \fI\-g\fR, then
@@ -624,7 +633,7 @@ applies to the group mapping instead of the user database\&.
 This option will ease migration from one passdb backend to another and will ease backing up\&.
 .RE
 .PP
-\-b passdb\-backend
+\-b|\-\-backend passdb\-backend
 .RS 4
 Use a different default passdb backend\&.
 .sp
@@ -632,7 +641,7 @@ Example:
 \FCpdbedit \-b xml:/root/pdb\-backup\&.xml \-l\F[]
 .RE
 .PP
-\-P account\-policy
+\-P|\-\-account\-policy account\-policy
 .RS 4
 Display an account policy
 .sp
@@ -666,7 +675,7 @@ account policy value for bad lockout attempt is 0
 .\}
 .RE
 .PP
-\-C account\-policy\-value
+\-C|\-\-value account\-policy\-value
 .RS 4
 Sets an account policy to a specified value\&. This option may only be used in conjunction with the
 \fI\-P\fR
@@ -701,7 +710,7 @@ account policy value for bad lockout attempt is now 3
 .\}
 .RE
 .PP
-\-y
+\-y|\-\-policies
 .RS 4
 If you specify
 \fI\-y\fR, then
@@ -712,6 +721,56 @@ This option will allow to migrate account policies from their default tdb\-store
 .sp
 Example:
 \FCpdbedit \-y \-i tdbsam: \-e ldapsam:ldap://my\&.ldap\&.host\F[]
+.RE
+.PP
+\-\-force\-initialized\-passwords
+.RS 4
+This option forces all users to change their password upon next login\&.
+.RE
+.PP
+\-N|\-\-account\-desc description
+.RS 4
+This option can be used while adding or modifing a user account\&. It will specify the user\'s description field\&.
+.sp
+Example:
+\FC\-N "test description"\F[]
+.RE
+.PP
+\-Z|\-\-logon\-hours\-reset
+.RS 4
+This option can be used while adding or modifing a user account\&. It will reset the user\'s allowed logon hours\&. A user may login at any time afterwards\&.
+.sp
+Example:
+\FC\-Z\F[]
+.RE
+.PP
+\-z|\-\-bad\-password\-count\-reset
+.RS 4
+This option can be used while adding or modifing a user account\&. It will reset the stored bad login counter from a specified user\&.
+.sp
+Example:
+\FC\-z\F[]
+.RE
+.PP
+\-\-policies\-reset
+.RS 4
+This option can be used to reset the general password policies stored for a domain to their default values\&.
+.sp
+Example:
+\FC\-\-policies\-reset\F[]
+.RE
+.PP
+\-I|\-\-domain
+.RS 4
+This option can be used while adding or modifing a user account\&. It will specify the user\'s domain field\&.
+.sp
+Example:
+\FC\-I "MYDOMAIN"\F[]
+.RE
+.PP
+\-\-time\-format
+.RS 4
+This option is currently not being used\&.
 .RE
 .PP
 \-h|\-\-help

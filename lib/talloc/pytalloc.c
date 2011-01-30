@@ -35,8 +35,28 @@ void py_talloc_dealloc(PyObject* self)
 /**
  * Import an existing talloc pointer into a Python object.
  */
-PyObject *py_talloc_import_ex(PyTypeObject *py_type, TALLOC_CTX *mem_ctx, 
+PyObject *py_talloc_steal_ex(PyTypeObject *py_type, TALLOC_CTX *mem_ctx, 
 						   void *ptr)
+{
+	py_talloc_Object *ret = (py_talloc_Object *)py_type->tp_alloc(py_type, 0);
+	ret->talloc_ctx = talloc_new(NULL);
+	if (ret->talloc_ctx == NULL) {
+		return NULL;
+	}
+	if (talloc_steal(ret->talloc_ctx, mem_ctx) == NULL) {
+		return NULL;
+	}
+	ret->ptr = ptr;
+	return (PyObject *)ret;
+}
+
+
+/**
+ * Import an existing talloc pointer into a Python object, leaving the
+ * original parent, and creating a reference to the object in the python
+ * object
+ */
+PyObject *py_talloc_reference_ex(PyTypeObject *py_type, TALLOC_CTX *mem_ctx, void *ptr)
 {
 	py_talloc_Object *ret = (py_talloc_Object *)py_type->tp_alloc(py_type, 0);
 	ret->talloc_ctx = talloc_new(NULL);
@@ -58,6 +78,16 @@ PyObject *py_talloc_default_repr(PyObject *obj)
 	py_talloc_Object *talloc_obj = (py_talloc_Object *)obj;
 	PyTypeObject *type = (PyTypeObject*)PyObject_Type(obj);
 
-	return PyString_FromFormat("<%s talloc object at 0x%x>", 
-				   type->tp_name, (intptr_t)talloc_obj->ptr);
+	return PyString_FromFormat("<%s talloc object at 0x%p>", 
+				   type->tp_name, talloc_obj->ptr);
+}
+
+static void py_cobject_talloc_free(void *ptr)
+{
+	talloc_free(ptr);
+}
+
+PyObject *PyCObject_FromTallocPtr(void *ptr)
+{
+	return PyCObject_FromVoidPtr(ptr, py_cobject_talloc_free);
 }

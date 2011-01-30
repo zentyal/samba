@@ -43,17 +43,8 @@ bool blocking_lock_cancel_state = false;
 struct smbd_dmapi_context *dmapi_ctx = NULL;
 #endif
 
-connection_struct *Connections = NULL;
-/* number of open connections */
-struct bitmap *bmap = 0;
-int num_open = 0;
-
 
 bool dfree_broken = false;
-
-struct bitmap *dptr_bmap = NULL;
-struct dptr_struct *dirptrs = NULL;
-int dirhandles_open = 0;
 
 /* how many write cache buffers have been allocated */
 unsigned int allocated_write_caches = 0;
@@ -93,41 +84,9 @@ char *last_to = NULL;
 
 struct msg_state *smbd_msg_state = NULL;
 
-bool global_encrypted_passwords_negotiated = false;
-bool global_spnego_negotiated = false;
-struct auth_context *negprot_global_auth_context = NULL;
-bool done_negprot = false;
-
 bool logged_ioctl_message = false;
 
-/* users from session setup */
-char *session_userlist = NULL;
-/* workgroup from session setup. */
-char *session_workgroup = NULL;
-/* this holds info on user ids that are already validated for this VC */
-user_struct *validated_users = NULL;
-uint16_t next_vuid = VUID_OFFSET;
-int num_validated_vuids = 0;
-#ifdef HAVE_NETGROUP
-char *my_yp_domain = NULL;
-#endif
-
-bool already_got_session = false;
-
-/*
- * Size of data we can send to client. Set
- *  by the client for all protocols above CORE.
- *  Set by us for CORE protocol.
- */
-int max_send = BUFFER_SIZE;
-/*
- * Size of the data we can receive. Set by us.
- * Can be modified by the max xmit parameter.
- */
-int max_recv = BUFFER_SIZE;
-uint16 last_session_tag = UID_FIELD_INVALID;
 int trans_num = 0;
-char *orig_inbuf = NULL;
 pid_t mypid = 0;
 time_t last_smb_conf_reload_time = 0;
 time_t last_printer_reload_time = 0;
@@ -136,7 +95,7 @@ time_t last_printer_reload_time = 0;
  for processing.
 ****************************************************************************/
 struct pending_message_list *deferred_open_queue = NULL;
-uint32_t common_flags2 = FLAGS2_LONG_PATH_COMPONENTS|FLAGS2_32_BIT_ERROR_CODES;
+uint32_t common_flags2 = FLAGS2_LONG_PATH_COMPONENTS|FLAGS2_32_BIT_ERROR_CODES|FLAGS2_EXTENDED_ATTRIBUTES;
 
 struct smb_srv_trans_enc_ctx *partial_srv_trans_enc_ctx = NULL;
 struct smb_srv_trans_enc_ctx *srv_trans_enc_ctx = NULL;
@@ -154,11 +113,6 @@ uint16_t last_flags = 0;
 struct db_context *session_db_ctx_ptr = NULL;
 
 uint32_t global_client_caps = 0;
-bool done_sesssetup = false;
-/****************************************************************************
- List to store partial SPNEGO auth fragments.
-****************************************************************************/
-struct pending_auth_data *pd_list = NULL;
 
 uint16_t fnf_handle = 257;
 
@@ -175,8 +129,6 @@ int32_t exclusive_oplocks_open = 0;
 int32_t level_II_oplocks_open = 0;
 bool global_client_failed_oplock_break = false;
 struct kernel_oplocks *koplocks = NULL;
-
-struct notify_mid_map *notify_changes_by_mid = NULL;
 
 int am_parent = 1;
 int server_fd = -1;
@@ -197,4 +149,9 @@ void smbd_init_globals(void)
 	ZERO_STRUCT(conn_ctx_stack);
 
 	ZERO_STRUCT(sec_ctx_stack);
+
+	smbd_server_conn = talloc_zero(smbd_event_context(), struct smbd_server_connection);
+	if (!smbd_server_conn) {
+		exit_server("failed to create smbd_server_connection");
+	}
 }

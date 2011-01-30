@@ -17,7 +17,8 @@ PRIVATE_DEPENDENCIES = \
 		TORTURE_LIBCRYPTO \
 		share \
 		torture_registry \
-		PROVISION
+		PROVISION \
+		NSS_WRAPPER
 # End SUBSYSTEM TORTURE_LOCAL
 #################################
 
@@ -34,8 +35,10 @@ TORTURE_LOCAL_OBJ_FILES = \
 		$(torturesrcdir)/../../lib/util/tests/idtree.o \
 		$(torturesrcdir)/../lib/socket/testsuite.o \
 		$(torturesrcdir)/../../lib/socket_wrapper/testsuite.o \
+		$(torturesrcdir)/../../lib/nss_wrapper/testsuite.o \
 		$(torturesrcdir)/../libcli/resolve/testsuite.o \
 		$(torturesrcdir)/../../lib/util/tests/strlist.o \
+		$(torturesrcdir)/../../lib/util/tests/parmlist.o \
 		$(torturesrcdir)/../../lib/util/tests/str.o \
 		$(torturesrcdir)/../../lib/util/tests/time.o \
 		$(torturesrcdir)/../../lib/util/tests/data_blob.o \
@@ -44,14 +47,14 @@ TORTURE_LOCAL_OBJ_FILES = \
 		$(torturesrcdir)/../../lib/compression/testsuite.o \
 		$(torturesrcdir)/../../lib/util/charset/tests/charset.o \
 		$(torturesrcdir)/../libcli/security/tests/sddl.o \
-		$(torturesrcdir)/../lib/tdr/testsuite.o \
+		$(libtdrsrcdir)/testsuite.o \
 		$(torturesrcdir)/../../lib/tevent/testsuite.o \
 		$(torturesrcdir)/../param/tests/share.o \
 		$(torturesrcdir)/../param/tests/loadparm.o \
 		$(torturesrcdir)/../auth/credentials/tests/simple.o \
 		$(torturesrcdir)/local/local.o \
 		$(torturesrcdir)/local/dbspeed.o \
-		$(torturesrcdir)/local/torture.o
-
+		$(torturesrcdir)/local/torture.o \
+		$(torturesrcdir)/ldb/ldb.o
 
 $(eval $(call proto_header_template,$(torturesrcdir)/local/proto.h,$(TORTURE_LOCAL_OBJ_FILES:.o=.c)))

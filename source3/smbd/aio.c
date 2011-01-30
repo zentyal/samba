@@ -25,9 +25,6 @@
 
 /* The signal we'll use to signify aio done. */
 #ifndef RT_SIGNAL_AIO
-#ifndef SIGRTMIN
-#define SIGRTMIN	NSIG
-#endif
 #define RT_SIGNAL_AIO	(SIGRTMIN+3)
 #endif
 
@@ -192,10 +189,9 @@ bool schedule_aio_read_and_X(connection_struct *conn,
 
 	DEBUG(10,("schedule_aio_read_and_X: scheduled aio_read for file %s, "
 		  "offset %.0f, len = %u (mid = %u)\n",
-		  fsp->fsp_name, (double)startpos, (unsigned int)smb_maxcnt,
+		  fsp_str_dbg(fsp), (double)startpos, (unsigned int)smb_maxcnt,
 		  (unsigned int)aio_ex->req->mid ));
 
-	srv_defer_sign_response(aio_ex->req->mid);
 	return True;
 }
 
@@ -245,7 +241,7 @@ bool schedule_aio_write_and_X(connection_struct *conn,
 		DEBUG(10,("schedule_aio_write_and_X: failed to schedule "
 			  "aio_write for file %s, offset %.0f, len = %u "
 			  "(mid = %u)\n",
-			  fsp->fsp_name, (double)startpos,
+			  fsp_str_dbg(fsp), (double)startpos,
 			  (unsigned int)numtowrite,
 			  (unsigned int)req->mid ));
 		return False;
@@ -298,21 +294,20 @@ bool schedule_aio_write_and_X(connection_struct *conn,
                 SSVAL(aio_ex->outbuf,smb_vwv4,(numtowrite>>16)&1);
 		show_msg(aio_ex->outbuf);
 		if (!srv_send_smb(smbd_server_fd(),aio_ex->outbuf,
+				true, aio_ex->req->seqnum+1,
 				IS_CONN_ENCRYPTED(fsp->conn),
 				&aio_ex->req->pcd)) {
 			exit_server_cleanly("handle_aio_write: srv_send_smb "
 					    "failed.");
 		}
 		DEBUG(10,("schedule_aio_write_and_X: scheduled aio_write "
-			  "behind for file %s\n", fsp->fsp_name ));
-	} else {
-		srv_defer_sign_response(aio_ex->req->mid);
+			  "behind for file %s\n", fsp_str_dbg(fsp)));
 	}
 
 	DEBUG(10,("schedule_aio_write_and_X: scheduled aio_write for file "
 		  "%s, offset %.0f, len = %u (mid = %u) "
 		  "outstanding_aio_calls = %d\n",
-		  fsp->fsp_name, (double)startpos, (unsigned int)numtowrite,
+		  fsp_str_dbg(fsp), (double)startpos, (unsigned int)numtowrite,
 		  (unsigned int)aio_ex->req->mid, outstanding_aio_calls ));
 
 	return True;
@@ -326,7 +321,6 @@ bool schedule_aio_write_and_X(connection_struct *conn,
 
 static int handle_aio_read_complete(struct aio_extra *aio_ex, int errcode)
 {
-	int ret = 0;
 	int outsize;
 	char *outbuf = aio_ex->outbuf;
 	char *data = smb_buf(outbuf);
@@ -338,12 +332,11 @@ static int handle_aio_read_complete(struct aio_extra *aio_ex, int errcode)
 		   will return an error. Hopefully this is
 		   true.... JRA. */
 
-		DEBUG( 3,( "handle_aio_read_complete: file %s nread == %d "
+		DEBUG( 3,( "handle_aio_read_complete: file %s nread == %d. "
 			   "Error = %s\n",
-			   aio_ex->fsp->fsp_name, (int)nread, strerror(errcode) ));
+			   fsp_str_dbg(aio_ex->fsp), (int)nread, strerror(errcode)));
 
-		ret = errcode;
-		ERROR_NT(map_nt_error_from_unix( ret));
+		ERROR_NT(map_nt_error_from_unix(errcode));
 		outsize = srv_set_message(outbuf,0,0,true);
 	} else {
 		outsize = srv_set_message(outbuf,12,nread,False);
@@ -358,13 +351,14 @@ static int handle_aio_read_complete(struct aio_extra *aio_ex, int errcode)
 
 		DEBUG( 3, ( "handle_aio_read_complete file %s max=%d "
 			    "nread=%d\n",
-			    aio_ex->fsp->fsp_name,
+			    fsp_str_dbg(aio_ex->fsp),
 			    (int)aio_ex->acb.aio_nbytes, (int)nread ) );
 
 	}
 	smb_setlen(outbuf,outsize - 4);
 	show_msg(outbuf);
 	if (!srv_send_smb(smbd_server_fd(),outbuf,
+			true, aio_ex->req->seqnum+1,
 			IS_CONN_ENCRYPTED(aio_ex->fsp->conn), NULL)) {
 		exit_server_cleanly("handle_aio_read_complete: srv_send_smb "
 				    "failed.");
@@ -372,10 +366,10 @@ static int handle_aio_read_complete(struct aio_extra *aio_ex, int errcode)
 
 	DEBUG(10,("handle_aio_read_complete: scheduled aio_read completed "
 		  "for file %s, offset %.0f, len = %u\n",
-		  aio_ex->fsp->fsp_name, (double)aio_ex->acb.aio_offset,
+		  fsp_str_dbg(aio_ex->fsp), (double)aio_ex->acb.aio_offset,
 		  (unsigned int)nread ));
 
-	return ret;
+	return errcode;
 }
 
 /****************************************************************************
@@ -385,7 +379,6 @@ static int handle_aio_read_complete(struct aio_extra *aio_ex, int errcode)
 
 static int handle_aio_write_complete(struct aio_extra *aio_ex, int errcode)
 {
-	int ret = 0;
 	files_struct *fsp = aio_ex->fsp;
 	char *outbuf = aio_ex->outbuf;
 	ssize_t numtowrite = aio_ex->acb.aio_nbytes;
@@ -397,21 +390,20 @@ static int handle_aio_write_complete(struct aio_extra *aio_ex, int errcode)
 				DEBUG(5,("handle_aio_write_complete: "
 					 "aio_write_behind failed ! File %s "
 					 "is corrupt ! Error %s\n",
-					 fsp->fsp_name, strerror(errcode) ));
-				ret = errcode;
+					 fsp_str_dbg(fsp), strerror(errcode)));
 			} else {
 				DEBUG(0,("handle_aio_write_complete: "
 					 "aio_write_behind failed ! File %s "
 					 "is corrupt ! Wanted %u bytes but "
-					 "only wrote %d\n", fsp->fsp_name,
+					 "only wrote %d\n", fsp_str_dbg(fsp),
 					 (unsigned int)numtowrite,
 					 (int)nwritten ));
-				ret = EIO;
+				errcode = EIO;
 			}
 		} else {
 			DEBUG(10,("handle_aio_write_complete: "
 				  "aio_write_behind completed for file %s\n",
-				  fsp->fsp_name ));
+				  fsp_str_dbg(fsp)));
 		}
 		/* TODO: should no return 0 in case of an error !!! */
 		return 0;
@@ -423,11 +415,10 @@ static int handle_aio_write_complete(struct aio_extra *aio_ex, int errcode)
 	if(nwritten == -1) {
 		DEBUG( 3,( "handle_aio_write: file %s wanted %u bytes. "
 			   "nwritten == %d. Error = %s\n",
-			   fsp->fsp_name, (unsigned int)numtowrite,
-			   (int)nwritten, strerror(errno) ));
+			   fsp_str_dbg(fsp), (unsigned int)numtowrite,
+			   (int)nwritten, strerror(errcode) ));
 
-		ret = errcode;
-		ERROR_NT(map_nt_error_from_unix(ret));
+		ERROR_NT(map_nt_error_from_unix(errcode));
 		srv_set_message(outbuf,0,0,true);
         } else {
 		bool write_through = BITSETW(aio_ex->req->vwv+7,0);
@@ -444,29 +435,31 @@ static int handle_aio_write_complete(struct aio_extra *aio_ex, int errcode)
 			 fsp->fnum, (int)numtowrite, (int)nwritten));
 		status = sync_file(fsp->conn,fsp, write_through);
 		if (!NT_STATUS_IS_OK(status)) {
-			ret = errno;
-			ERROR_BOTH(map_nt_error_from_unix(ret),
+			errcode = errno;
+			ERROR_BOTH(map_nt_error_from_unix(errcode),
 				   ERRHRD, ERRdiskfull);
 			srv_set_message(outbuf,0,0,true);
                 	DEBUG(5,("handle_aio_write: sync_file for %s returned %s\n",
-				fsp->fsp_name, nt_errstr(status) ));
+				 fsp_str_dbg(fsp), nt_errstr(status)));
 		}
 
 		aio_ex->fsp->fh->pos = aio_ex->acb.aio_offset + nwritten;
 	}
 
 	show_msg(outbuf);
-	if (!srv_send_smb(smbd_server_fd(),outbuf,IS_CONN_ENCRYPTED(fsp->conn),
+	if (!srv_send_smb(smbd_server_fd(),outbuf,
+			  true, aio_ex->req->seqnum+1,
+			  IS_CONN_ENCRYPTED(fsp->conn),
 			  NULL)) {
 		exit_server_cleanly("handle_aio_write: srv_send_smb failed.");
 	}
 
 	DEBUG(10,("handle_aio_write_complete: scheduled aio_write completed "
 		  "for file %s, offset %.0f, requested %u, written = %u\n",
-		  fsp->fsp_name, (double)aio_ex->acb.aio_offset,
+		  fsp_str_dbg(fsp), (double)aio_ex->acb.aio_offset,
 		  (unsigned int)numtowrite, (unsigned int)nwritten ));
 
-	return ret;
+	return errcode;
 }
 
 /****************************************************************************
@@ -488,14 +481,13 @@ static bool handle_aio_completed(struct aio_extra *aio_ex, int *perr)
 	if (err == EINPROGRESS) {
 		DEBUG(10,( "handle_aio_completed: operation mid %u still in "
 			   "process for file %s\n",
-			   aio_ex->req->mid, aio_ex->fsp->fsp_name ));
+			   aio_ex->req->mid, fsp_str_dbg(aio_ex->fsp)));
 		return False;
 	} else if (err == ECANCELED) {
 		/* If error is ECANCELED then don't return anything to the
 		 * client. */
 	        DEBUG(10,( "handle_aio_completed: operation mid %u"
                            " canceled\n", aio_ex->req->mid));
-                srv_cancel_sign_response(aio_ex->req->mid, false);
 		return True;
         }
 
@@ -524,7 +516,6 @@ void smbd_aio_complete_mid(unsigned int mid)
 	if (!aio_ex) {
 		DEBUG(3,("smbd_aio_complete_mid: Can't find record to "
 			 "match mid %u.\n", mid));
-		srv_cancel_sign_response(mid, false);
 		return;
 	}
 
@@ -534,7 +525,6 @@ void smbd_aio_complete_mid(unsigned int mid)
 		 * ignore. */
 		DEBUG( 3,( "smbd_aio_complete_mid: file closed whilst "
 			   "aio outstanding (mid[%u]).\n", mid));
-		srv_cancel_sign_response(mid, false);
 		return;
 	}
 

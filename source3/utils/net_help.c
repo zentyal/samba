@@ -33,14 +33,14 @@ static int net_usage(struct net_context *c, int argc, const char **argv)
 	struct functable *table = (struct functable*) c->private_data;
 	int i;
 
-	d_printf("Usage:\n");
+	d_printf(_("Usage:\n"));
 	for (i=0; table[i].funcname != NULL; i++) {
 		if (c->display_usage) {
-			d_printf("net %s usage:\n", table[i].funcname);
-			d_printf("\n%s\n\n", table[i].usage);
+			d_printf(_("net %s usage:\n"), table[i].funcname);
+			d_printf("\n%s\n\n", _(table[i].usage));
 		} else {
 			d_printf("%s %-15s %s\n", "net", table[i].funcname,
-				 table[i].description);
+				 _(table[i].description));
 		}
 
 	}

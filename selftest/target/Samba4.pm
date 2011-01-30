@@ -31,34 +31,27 @@ sub bindir_path($$) {
 }
 
 sub openldap_start($$$) {
-        my ($slapd_conf, $uri, $logs) = @_;
-  	my $oldpath = $ENV{PATH};
-	my $olroot = "";
-	my $olpath = "";
-	if (defined $ENV{OPENLDAP_ROOT}) {
-	    $olroot = "$ENV{OPENLDAP_ROOT}";
-	    $olpath = "$olroot/libexec:$olroot/sbin:";
-	}
-	$ENV{PATH} = "$olpath/usr/local/sbin:/usr/sbin:/sbin:$ENV{PATH}";
-        system("slapd -d0 -f $slapd_conf -h $uri > $logs 2>&1 &");
-        $ENV{PATH} = $oldpath;
 }
 
 sub slapd_start($$)
 {
 	my $count = 0;
 	my ($self, $env_vars) = @_;
+	my $ldbsearch = $self->bindir_path("ldbsearch");
 
 	my $uri = $env_vars->{LDAP_URI};
 
+	if (system("$ldbsearch -H $uri -s base -b \"\" supportedLDAPVersion > /dev/null") == 0) {
+	    print "A SLAPD is still listening to $uri before we started the LDAP backend.  Aborting!";
+	    return 1;
+	}
 	# running slapd in the background means it stays in the same process group, so it can be
 	# killed by timelimit
 	if ($self->{ldap} eq "fedora-ds") {
 	        system("$ENV{FEDORA_DS_ROOT}/sbin/ns-slapd -D $env_vars->{FEDORA_DS_DIR} -d0 -i $env_vars->{FEDORA_DS_PIDFILE}> $env_vars->{LDAPDIR}/logs 2>&1 &");
 	} elsif ($self->{ldap} eq "openldap") {
-	        openldap_start($env_vars->{SLAPD_CONF}, $uri, "$env_vars->{LDAPDIR}/logs");
+	        system("$ENV{OPENLDAP_SLAPD} -d0 -F $env_vars->{SLAPD_CONF_D} -h $uri > $env_vars->{LDAPDIR}/logs 2>&1 &");
 	}
-	my $ldbsearch = $self->bindir_path("ldbsearch");
 	while (system("$ldbsearch -H $uri -s base -b \"\" supportedLDAPVersion > /dev/null") != 0) {
 	        $count++;
 		if ($count > 40) {
@@ -97,36 +90,51 @@ sub check_or_start($$$)
 	my $pid = fork();
 	if ($pid == 0) {
 		open STDIN, $env_vars->{SAMBA_TEST_FIFO};
-		open STDOUT, ">$env_vars->{SAMBA_TEST_LOG}";
+		# we want out from samba to go to the log file, but also
+		# to the users terminal when running 'make test' on the command
+		# line. This puts it on stderr on the terminal
+		open STDOUT, "| tee $env_vars->{SAMBA_TEST_LOG} 1>&2";
 		open STDERR, '>&STDOUT';
-		
+
 		SocketWrapper::set_default_iface($env_vars->{SOCKET_WRAPPER_DEFAULT_IFACE});
 
 		my $valgrind = "";
-		if (defined($ENV{SMBD_VALGRIND})) {
-		    $valgrind = $ENV{SMBD_VALGRIND};
+		if (defined($ENV{SAMBA_VALGRIND})) {
+		    $valgrind = $ENV{SAMBA_VALGRIND};
 		} 
 
 		$ENV{KRB5_CONFIG} = $env_vars->{KRB5_CONFIG}; 
+		$ENV{WINBINDD_SOCKET_DIR} = $env_vars->{WINBINDD_SOCKET_DIR};
 
 		$ENV{NSS_WRAPPER_PASSWD} = $env_vars->{NSS_WRAPPER_PASSWD};
 		$ENV{NSS_WRAPPER_GROUP} = $env_vars->{NSS_WRAPPER_GROUP};
 
+		$ENV{UID_WRAPPER} = "1";
+
 		# Start slapd before samba, but with the fifo on stdin
 		if (defined($self->{ldap})) {
 		    $self->slapd_start($env_vars) or 
-			die("couldn't start slapd (2nd time)");
+			die("couldn't start slapd (main run)");
 		}
 
 		my $optarg = "";
 		if (defined($max_time)) {
 			$optarg = "--maximum-runtime=$max_time ";
 		}
-		if (defined($ENV{SMBD_OPTIONS})) {
-			$optarg.= " $ENV{SMBD_OPTIONS}";
+		if (defined($ENV{SAMBA_OPTIONS})) {
+			$optarg.= " $ENV{SAMBA_OPTIONS}";
 		}
 		my $samba = $self->bindir_path("samba");
-		my $ret = system("$valgrind $samba $optarg $env_vars->{CONFIGURATION} -M single -i --leak-report-full");
+
+		# allow selection of the process model using
+		# the environment varibale SAMBA_PROCESS_MODEL
+		# that allows us to change the process model for 
+		# individual machines in the build farm
+		my $model = "single";
+		if (defined($ENV{SAMBA_PROCESS_MODEL})) {
+			$model = $ENV{SAMBA_PROCESS_MODEL};
+		}
+		my $ret = system("$valgrind $samba $optarg $env_vars->{CONFIGURATION} -M $model -i");
 		if ($? == -1) {
 			print "Unable to start $samba: $ret: $!\n";
 			exit 1;
@@ -201,83 +209,26 @@ type: 0x3
 ");
 }
 
-sub mk_fedora_ds($$$)
+sub mk_fedora_ds($$)
 {
-	my ($self, $ldapdir, $configuration) = @_;
-
-	my $fedora_ds_inf = "$ldapdir/fedorads.inf";
-	my $fedora_ds_extra_ldif = "$ldapdir/fedorads-partitions.ldif";
+	my ($self, $ldapdir) = @_;
 
 	#Make the subdirectory be as fedora DS would expect
 	my $fedora_ds_dir = "$ldapdir/slapd-samba4";
 
 	my $pidfile = "$fedora_ds_dir/logs/slapd-samba4.pid";
 
-my $dir = getcwd();
-chdir "$ENV{FEDORA_DS_ROOT}/bin" || die;
-	if (system("perl $ENV{FEDORA_DS_ROOT}/sbin/setup-ds.pl --silent --file=$fedora_ds_inf >&2") != 0) {
-            chdir $dir;
-            die("perl $ENV{FEDORA_DS_ROOT}/sbin/setup-ds.pl --silent --file=$fedora_ds_inf FAILED: $?");
-        }
-        chdir $dir || die;
-
 	return ($fedora_ds_dir, $pidfile);
 }
 
-sub mk_openldap($$$)
+sub mk_openldap($$)
 {
-	my ($self, $ldapdir, $configuration) = @_;
+	my ($self, $ldapdir) = @_;
 
-	my $slapd_conf = "$ldapdir/slapd.conf";
+	my $slapd_conf_d = "$ldapdir/slapd.d";
 	my $pidfile = "$ldapdir/slapd.pid";
-	my $modconf = "$ldapdir/modules.conf";
 
-	my $oldpath = $ENV{PATH};
-	my $olpath = "";
-	my $olroot = "";
-	if (defined $ENV{OPENLDAP_ROOT}) {
-               $olroot = "$ENV{OPENLDAP_ROOT}";
-	       $olpath = "$olroot/libexec:$olroot/sbin:";
-	}
-	$ENV{PATH} = "$olpath/usr/local/sbin:/usr/sbin:/sbin:$ENV{PATH}";
-
-	unlink($modconf);
-
-	#This code tries to guess what modules we need to load (if any) by trying different combinations in the modules.conf
-
-	# Try without any slapd modules
-	open(CONF, ">$modconf"); close(CONF);
-
-	if (system("slaptest -u -f $slapd_conf >&2") != 0) {
-		open(CONF, ">$modconf"); 
-		# enable slapd modules
-		print CONF "
-moduleload	syncprov
-moduleload      memberof
-moduleload      refint
-moduleload      deref
-";
-		close(CONF);
-	}
-	if (system("slaptest -u -f $slapd_conf >&2") != 0) {
-		open(CONF, ">$modconf"); 
-		# enable slapd modules, and the module for back_hdb
-		print CONF "
-moduleload	back_hdb
-moduleload	syncprov
-moduleload      memberof
-moduleload      refint
-moduleload      deref
-";
-		close(CONF);
-	}
-
-	system("slaptest -u -f $slapd_conf") == 0 or die("slaptest still fails after adding modules");
-
-    
-	$ENV{PATH} = $oldpath;
-
-	return ($slapd_conf, $pidfile);
+	return ($slapd_conf_d, $pidfile);
 }
 
 sub mk_keyblobs($$)
@@ -294,6 +245,7 @@ sub mk_keyblobs($$)
 	my $adminkeyfile = "$tlsdir/adminkey.pem";
 	my $reqadmin = "$tlsdir/req-admin.der";
 	my $admincertfile = "$tlsdir/admincert.pem";
+	my $admincertupnfile = "$tlsdir/admincertupn.pem";
 
 	mkdir($tlsdir, 0777);
 
@@ -441,24 +393,51 @@ EOF
 	open(ADMINCERTFILE, ">$admincertfile");
 	print ADMINCERTFILE <<EOF;
 -----BEGIN CERTIFICATE-----
-MIIDHTCCAoagAwIBAgIUC0W5dW/N9kE+NgD0mKK34YgyqQ0wCwYJKoZIhvcNAQEFMFIxEzAR
+MIIDHTCCAoagAwIBAgIUUggzW4lLRkMKe1DAR2NKatkMDYwwCwYJKoZIhvcNAQELMFIxEzAR
 BgoJkiaJk/IsZAEZDANjb20xFzAVBgoJkiaJk/IsZAEZDAdleGFtcGxlMRUwEwYKCZImiZPy
-LGQBGQwFc2FtYmExCzAJBgNVBAMMAkNBMCIYDzIwMDgwMzAxMTMyMzAwWhgPMjAzMzAyMjQx
-MzIzMDBaMG0xEzARBgoJkiaJk/IsZAEZDANjb20xFzAVBgoJkiaJk/IsZAEZDAdleGFtcGxl
+LGQBGQwFc2FtYmExCzAJBgNVBAMMAkNBMCIYDzIwMDkwNzI3MDMzMjE1WhgPMjAzNDA3MjIw
+MzMyMTVaMG0xEzARBgoJkiaJk/IsZAEZDANjb20xFzAVBgoJkiaJk/IsZAEZDAdleGFtcGxl
 MRUwEwYKCZImiZPyLGQBGQwFc2FtYmExDjAMBgNVBAMMBXVzZXJzMRYwFAYDVQQDDA1BZG1p
 bmlzdHJhdG9yMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQD0+OL7TQBj0RejbIH1+g5G
 eRaWaM9xF43uE5y7jUHEsi5owhZF5iIoHZeeL6cpDF5y1BZRs0JlA1VqMry1jjKlzFYVEMMF
 xB6esnXhl0Jpip1JkUMMXLOP1m/0dqayuHBWozj9f/cdyCJr0wJIX1Z8Pr+EjYRGPn/MF0xd
 l3JRlwIDAQABo4HSMIHPMA4GA1UdDwEB/wQEAwIFoDAoBgNVHSUEITAfBgcrBgEFAgMEBggr
 BgEFBQcDAgYKKwYBBAGCNxQCAjBIBgNVHREEQTA/oD0GBisGAQUCAqAzMDGgExsRU0FNQkEu
-RVhBTVBMRS5DT02hGjAYoAMCAQGhETAPGw1hZG1pbmlzdHJhdG9yMB8GA1UdIwQYMBaAFMLZ
+RVhBTVBMRS5DT02hGjAYoAMCAQGhETAPGw1BZG1pbmlzdHJhdG9yMB8GA1UdIwQYMBaAFMLZ
 ufegDKLZs0VOyFXYK1L6M8oyMB0GA1UdDgQWBBQg81bLyfCA88C2B/BDjXlGuaFaxjAJBgNV
-HRMEAjAAMA0GCSqGSIb3DQEBBQUAA4GBAHsqSqul0hZCXn4t8Kfp3v/JLMiUMJihR1XOgzoa
-ufLOQ1HNzFUHKuo1JEQ1+i5gHT/arLu/ZBF4BfQol7vW27gKIEt0fkRV8EvoPxXvSokHq0Ku
-HCuPOhYNEP3wYiwB3g93NMCinWVlz0mh5aijEU7y/XrjlZxBKFFrTE+BJi1o
+HRMEAjAAMA0GCSqGSIb3DQEBCwUAA4GBAEf/OSHUDJaGdtWGNuJeqcVYVMwrfBAc0OSwVhz1
+7/xqKHWo8wIMPkYRtaRHKLNDsF8GkhQPCpVsa6mX/Nt7YQnNvwd+1SBP5E8GvwWw9ZzLJvma
+nk2n89emuayLpVtp00PymrDLRBcNaRjFReQU8f0o509kiVPHduAp3jOiy13l
 -----END CERTIFICATE-----
 EOF
 	close(ADMINCERTFILE);
+
+	# hxtool issue-certificate --ca-certificate=FILE:$CAFILE,$KEYFILE \
+	# --type="pkinit-client" \
+	# --ms-upn="administrator@samba.example.com" \
+	# --req="PKCS10:$ADMINREQFILE" --certificate="FILE:$ADMINCERTUPNFILE" \
+	# --lifetime="25 years"
+	
+	open(ADMINCERTUPNFILE, ">$admincertupnfile");
+	print ADMINCERTUPNFILE <<EOF;
+-----BEGIN CERTIFICATE-----
+MIIDDzCCAnigAwIBAgIUUp3CJMuNaEaAdPKp3QdNIwG7a4wwCwYJKoZIhvcNAQELMFIxEzAR
+BgoJkiaJk/IsZAEZDANjb20xFzAVBgoJkiaJk/IsZAEZDAdleGFtcGxlMRUwEwYKCZImiZPy
+LGQBGQwFc2FtYmExCzAJBgNVBAMMAkNBMCIYDzIwMDkwNzI3MDMzMzA1WhgPMjAzNDA3MjIw
+MzMzMDVaMG0xEzARBgoJkiaJk/IsZAEZDANjb20xFzAVBgoJkiaJk/IsZAEZDAdleGFtcGxl
+MRUwEwYKCZImiZPyLGQBGQwFc2FtYmExDjAMBgNVBAMMBXVzZXJzMRYwFAYDVQQDDA1BZG1p
+bmlzdHJhdG9yMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQD0+OL7TQBj0RejbIH1+g5G
+eRaWaM9xF43uE5y7jUHEsi5owhZF5iIoHZeeL6cpDF5y1BZRs0JlA1VqMry1jjKlzFYVEMMF
+xB6esnXhl0Jpip1JkUMMXLOP1m/0dqayuHBWozj9f/cdyCJr0wJIX1Z8Pr+EjYRGPn/MF0xd
+l3JRlwIDAQABo4HEMIHBMA4GA1UdDwEB/wQEAwIFoDAoBgNVHSUEITAfBgcrBgEFAgMEBggr
+BgEFBQcDAgYKKwYBBAGCNxQCAjA6BgNVHREEMzAxoC8GCisGAQQBgjcUAgOgIQwfYWRtaW5p
+c3RyYXRvckBzYW1iYS5leGFtcGxlLmNvbTAfBgNVHSMEGDAWgBTC2bn3oAyi2bNFTshV2CtS
++jPKMjAdBgNVHQ4EFgQUIPNWy8nwgPPAtgfwQ415RrmhWsYwCQYDVR0TBAIwADANBgkqhkiG
+9w0BAQsFAAOBgQBk42+egeUB3Ji2PC55fbt3FNKxvmm2xUUFkV9POK/YR9rajKOwk5jtYSeS
+Zd7J9s//rNFNa7waklFkDaY56+QWTFtdvxfE+KoHaqt6X8u6pqi7p3M4wDKQox+9Dx8yWFyq
+Wfz/8alZ5aMezCQzXJyIaJsCLeKABosSwHcpAFmxlQ==
+-----END CERTIFICATE-----
+EOF
 }
 
 #
@@ -487,7 +466,7 @@ sub provision_raw_prepare($$$$$$$)
 	$ctx->{kdc_ipv4} = $kdc_ipv4;
 
 	$ctx->{server_loglevel} = 1;
-	$ctx->{username} = "administrator";
+	$ctx->{username} = "Administrator";
 	$ctx->{domain} = "SAMBADOMAIN";
 	$ctx->{realm} = "SAMBA.EXAMPLE.COM";
 	$ctx->{dnsname} = "samba.example.com";
@@ -744,7 +723,6 @@ sub provision($$$$$$$)
 [tmp]
 	path = $ctx->{tmpdir}
 	read only = no
-	ntvfs handler = posix
 	posix:sharedelay = 100000
 	posix:eadb = $ctx->{lockdir}/eadb.tdb
 	posix:oplocktimeout = 3
@@ -753,7 +731,6 @@ sub provision($$$$$$$)
 [test1]
 	path = $ctx->{tmpdir}/test1
 	read only = no
-	ntvfs handler = posix
 	posix:sharedelay = 100000
 	posix:eadb = $ctx->{lockdir}/eadb.tdb
 	posix:oplocktimeout = 3
@@ -762,7 +739,6 @@ sub provision($$$$$$$)
 [test2]
 	path = $ctx->{tmpdir}/test2
 	read only = no
-	ntvfs handler = posix
 	posix:sharedelay = 100000
 	posix:eadb = $ctx->{lockdir}/eadb.tdb
 	posix:oplocktimeout = 3
@@ -807,36 +783,21 @@ sub provision($$$$$$$)
 	my $ret = $self->provision_raw_step1($ctx);
 
 	if (defined($self->{ldap})) {
-		my $configuration = "--configfile=$ctx->{smb_conf}";
-
-		$ret->{LDAP_URI} = $ctx->{ldap_uri};
-		push (@{$ctx->{provision_options}},"--ldap-backend=$ctx->{ldap_uri}");
-
-		system("$self->{setupdir}/provision-backend $configuration --ldap-admin-pass=$ctx->{password} --root=$ctx->{unix_name} --realm=$ctx->{realm} --domain=$ctx->{domain} --host-name=$ctx->{netbiosname} --ldap-backend-type=$self->{ldap}>&2") == 0 or die("backend provision failed");
-
-		push (@{$ctx->{provision_options}}, "--password=$ctx->{password}");
-
+                $ret->{LDAP_URI} = $ctx->{ldap_uri};
+		push (@{$ctx->{provision_options}}, "--ldap-backend-type=" . $self->{ldap});
 		if ($self->{ldap} eq "openldap") {
-			push (@{$ctx->{provision_options}}, "--username=samba-admin");
-			push (@{$ctx->{provision_options}}, "--ldap-backend-type=openldap");
+ 		        push (@{$ctx->{provision_options}}, "--slapd-path=" . $ENV{OPENLDAP_SLAPD});
+			($ret->{SLAPD_CONF_D}, $ret->{OPENLDAP_PIDFILE}) = $self->mk_openldap($ctx->{ldapdir}) or die("Unable to create openldap directories");
 
-			($ret->{SLAPD_CONF}, $ret->{OPENLDAP_PIDFILE}) = $self->mk_openldap($ctx->{ldapdir}, $configuration) or die("Unable to create openldap directories");
-
-		} elsif ($self->{ldap} eq "fedora-ds") {
-			push (@{$ctx->{provision_options}}, "--simple-bind-dn=cn=Manager,$ctx->{localbasedn}");
-			push (@{$ctx->{provision_options}}, "--ldap-backend-type=fedora-ds");
-
-			($ret->{FEDORA_DS_DIR}, $ret->{FEDORA_DS_PIDFILE}) = $self->mk_fedora_ds($ctx->{ldapdir}, $configuration) or die("Unable to create fedora ds directories");
+                } elsif ($self->{ldap} eq "fedora-ds") {
+ 		        push (@{$ctx->{provision_options}}, "--slapd-path=" . "$ENV{FEDORA_DS_ROOT}/sbin/ns-slapd");
+ 		        push (@{$ctx->{provision_options}}, "--setup-ds-path=" . "$ENV{FEDORA_DS_ROOT}/sbin/setup-ds.pl");
+			($ret->{FEDORA_DS_DIR}, $ret->{FEDORA_DS_PIDFILE}) = $self->mk_fedora_ds($ctx->{ldapdir}) or die("Unable to create fedora ds directories");
 		}
 
-		$self->slapd_start($ret) or die("couldn't start slapd");
 	}
 
 	$ret = $self->provision_raw_step2($ctx, $ret);
-
-	if (defined($self->{ldap})) {
-		$self->slapd_stop($ret) or die("couldn't stop slapd");
-	}
 
 	return $ret;
 }

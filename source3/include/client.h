@@ -48,14 +48,14 @@ struct print_job_info {
 
 struct cli_pipe_auth_data {
 	enum pipe_auth_type auth_type; /* switch for the union below. Defined in ntdomain.h */
-	enum pipe_auth_level auth_level; /* defined in ntdomain.h */
+	enum dcerpc_AuthLevel auth_level; /* defined in ntdomain.h */
 
 	char *domain;
 	char *user_name;
 	DATA_BLOB user_session_key;
 
 	union {
-		struct schannel_auth_struct *schannel_auth;
+		struct schannel_state *schannel_auth;
 		NTLMSSP_STATE *ntlmssp_state;
 		struct kerberos_auth_struct *kerberos_auth;
 	} a_u;
@@ -73,26 +73,26 @@ struct rpc_cli_transport {
 	/**
 	 * Trigger an async read from the server. May return a short read.
 	 */
-	struct async_req *(*read_send)(TALLOC_CTX *mem_ctx,
-				       struct event_context *ev,
-                                       uint8_t *data, size_t size,
-				       void *priv);
-	/**
-	 * Get the result from the read_send operation.
-	 */
-	NTSTATUS (*read_recv)(struct async_req *req, ssize_t *preceived);
-
-	/**
-	 * Trigger an async write to the server. May return a short write.
-	 */
-	struct async_req *(*write_send)(TALLOC_CTX *mem_ctx,
+	struct tevent_req *(*read_send)(TALLOC_CTX *mem_ctx,
 					struct event_context *ev,
-					const uint8_t *data, size_t size,
+					uint8_t *data, size_t size,
 					void *priv);
 	/**
 	 * Get the result from the read_send operation.
 	 */
-	NTSTATUS (*write_recv)(struct async_req *req, ssize_t *psent);
+	NTSTATUS (*read_recv)(struct tevent_req *req, ssize_t *preceived);
+
+	/**
+	 * Trigger an async write to the server. May return a short write.
+	 */
+	struct tevent_req *(*write_send)(TALLOC_CTX *mem_ctx,
+					 struct event_context *ev,
+					 const uint8_t *data, size_t size,
+					 void *priv);
+	/**
+	 * Get the result from the read_send operation.
+	 */
+	NTSTATUS (*write_recv)(struct tevent_req *req, ssize_t *psent);
 
 	/**
 	 * This is an optimization for the SMB transport. It models the
@@ -100,15 +100,15 @@ struct rpc_cli_transport {
 	 * trip. The transport implementation is free to set this to NULL,
 	 * cli_pipe.c will fall back to the explicit write/read routines.
 	 */
-	struct async_req *(*trans_send)(TALLOC_CTX *mem_ctx,
-					struct event_context *ev,
-					uint8_t *data, size_t data_len,
-					uint32_t max_rdata_len,
-					void *priv);
+	struct tevent_req *(*trans_send)(TALLOC_CTX *mem_ctx,
+					 struct event_context *ev,
+					 uint8_t *data, size_t data_len,
+					 uint32_t max_rdata_len,
+					 void *priv);
 	/**
 	 * Get the result from the trans_send operation.
 	 */
-	NTSTATUS (*trans_recv)(struct async_req *req, TALLOC_CTX *mem_ctx,
+	NTSTATUS (*trans_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx,
 			       uint8_t **prdata, uint32_t *prdata_len);
 
 	bool (*is_connected)(void *priv);
@@ -130,6 +130,17 @@ struct rpc_pipe_client {
 			const struct ndr_interface_table *table,
 			uint32_t opnum, void *r);
 
+	struct tevent_req *(*dispatch_send)(
+		TALLOC_CTX *mem_ctx,
+		struct tevent_context *ev,
+		struct rpc_pipe_client *cli,
+		const struct ndr_interface_table *table,
+		uint32_t opnum,
+		void *r);
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req,
+				  TALLOC_CTX *mem_ctx);
+
+
 	char *desthost;
 	char *srv_name_slash;
 
@@ -138,8 +149,8 @@ struct rpc_pipe_client {
 
 	struct cli_pipe_auth_data *auth;
 
-	/* The following is only non-null on a netlogon pipe. */
-	struct dcinfo *dc;
+	/* The following is only non-null on a netlogon client pipe. */
+	struct netlogon_creds_CredentialState *dc;
 
 	/* Used by internal rpc_pipe_client */
 	pipes_struct *pipes_struct;
@@ -170,6 +181,13 @@ struct smb_trans_enc_state {
                 struct smb_tran_enc_state_gss *gss_state;
 #endif
         } s;
+};
+
+struct cli_state_seqnum {
+	struct cli_state_seqnum *prev, *next;
+	uint16_t mid;
+	uint32_t seqnum;
+	bool persistent;
 };
 
 struct cli_state {
@@ -223,6 +241,7 @@ struct cli_state {
 	size_t max_xmit;
 	size_t max_mux;
 	char *outbuf;
+	struct cli_state_seqnum *seqnum;
 	char *inbuf;
 	unsigned int bufsize;
 	int initialised;
@@ -237,7 +256,7 @@ struct cli_state {
 	TALLOC_CTX *call_mem_ctx;
 #endif
 
-	smb_sign_info sign_info;
+	struct smb_signing_state *signing_state;
 
 	struct smb_trans_enc_state *trans_enc_state; /* Setup if we're encrypting SMB's. */
 
@@ -251,44 +270,23 @@ struct cli_state {
 	bool use_kerberos;
 	bool fallback_after_kerberos;
 	bool use_spnego;
+	bool use_ccache;
 	bool got_kerberos_mechanism; /* Server supports krb5 in SPNEGO. */
 
 	bool use_oplocks; /* should we use oplocks? */
 	bool use_level_II_oplocks; /* should we use level II oplocks? */
 
 	/* a oplock break request handler */
-	bool (*oplock_handler)(struct cli_state *cli, int fnum, unsigned char level);
+	NTSTATUS (*oplock_handler)(struct cli_state *cli, uint16_t fnum, unsigned char level);
 
 	bool force_dos_errors;
 	bool case_sensitive; /* False by default. */
 
-	/**
-	 * fd_event is around while we have async requests outstanding or are
-	 * building a chained request.
-	 *
-	 * (fd_event!=NULL) &&
-	 *  ((outstanding_request!=NULL)||(chain_accumulator!=NULL))
-	 *
-	 * should always be true, as well as the reverse: If both cli_request
-	 * pointers are NULL, no fd_event is around.
-	 */
-	struct fd_event *fd_event;
-	char *evt_inbuf;
-
-	/**
-	 * A linked list of requests that are waiting for a reply
-	 */
-	struct cli_request *outstanding_requests;
-
-	/**
-	 * The place to build up the list of chained requests. In CIFS, a
-	 * single cli_request corresponds to a MID and can serve more than one
-	 * chained async_req.
-	 */
-	struct cli_request *chain_accumulator;
-
 	/* Where (if anywhere) this is mounted under DFS. */
 	char *dfs_mountpoint;
+
+	struct tevent_queue *outgoing;
+	struct tevent_req **pending;
 };
 
 typedef struct file_info {
@@ -309,5 +307,8 @@ typedef struct file_info {
 #define CLI_FULL_CONNECTION_USE_KERBEROS 0x0002
 #define CLI_FULL_CONNECTION_ANONYMOUS_FALLBACK 0x0004
 #define CLI_FULL_CONNECTION_FALLBACK_AFTER_KERBEROS 0x0008
+#define CLI_FULL_CONNECTION_OPLOCKS 0x0010
+#define CLI_FULL_CONNECTION_LEVEL_II_OPLOCKS 0x0020
+#define CLI_FULL_CONNECTION_USE_CCACHE 0x0040
 
 #endif /* _CLIENT_H */

@@ -24,7 +24,6 @@
 #include "lib/ldb/include/ldb.h"
 #include "lib/ldb/include/ldb_errors.h"
 #include "lib/events/events.h"
-#include "lib/socket/socket.h"
 #include "smbd/service_task.h"
 #include "cldap_server/cldap_server.h"
 #include "librpc/gen_ndr/ndr_misc.h"
@@ -36,6 +35,8 @@
 #include "system/network.h"
 #include "lib/socket/netif.h"
 #include "param/param.h"
+#include "../lib/tsocket/tsocket.h"
+
 /*
   fill in the cldap netlogon union for a given version
 */
@@ -52,10 +53,9 @@ NTSTATUS fill_netlogon_samlogon_response(struct ldb_context *sam_ctx,
 					 struct loadparm_context *lp_ctx,
 					 struct netlogon_samlogon_response *netlogon)
 {
-	const char *ref_attrs[] = {"nETBIOSName", "dnsRoot", "ncName", NULL};
 	const char *dom_attrs[] = {"objectGUID", NULL};
 	const char *none_attrs[] = {NULL};
-	struct ldb_result *ref_res = NULL, *dom_res = NULL, *user_res = NULL;
+	struct ldb_result *dom_res = NULL, *user_res = NULL;
 	int ret;
 	const char **services = lp_server_services(lp_ctx);
 	uint32_t server_type;
@@ -68,94 +68,39 @@ NTSTATUS fill_netlogon_samlogon_response(struct ldb_context *sam_ctx,
 	const char *server_site;
 	const char *client_site;
 	const char *pdc_ip;
-	struct ldb_dn *partitions_basedn;
+	struct ldb_dn *domain_dn = NULL;
 	struct interface *ifaces;
 	bool user_known;
 	NTSTATUS status;
-
-	partitions_basedn = samdb_partitions_dn(sam_ctx, mem_ctx);
 
 	/* the domain has an optional trailing . */
 	if (domain && domain[strlen(domain)-1] == '.') {
 		domain = talloc_strndup(mem_ctx, domain, strlen(domain)-1);
 	}
 
-	if (domain) {
-		struct ldb_dn *dom_dn;
-		/* try and find the domain */
-
-		ret = ldb_search(sam_ctx, mem_ctx, &ref_res,
-				 partitions_basedn, LDB_SCOPE_ONELEVEL,
-				 ref_attrs,
-				 "(&(&(objectClass=crossRef)(dnsRoot=%s))(nETBIOSName=*))",
-				 ldb_binary_encode_string(mem_ctx, domain));
-	
-		if (ret != LDB_SUCCESS) {
-			DEBUG(2,("Unable to find referece to '%s' in sam: %s\n",
-				 domain, 
-				 ldb_errstring(sam_ctx)));
-			return NT_STATUS_NO_SUCH_DOMAIN;
-		} else if (ref_res->count == 1) {
-			dom_dn = ldb_msg_find_attr_as_dn(sam_ctx, mem_ctx, ref_res->msgs[0], "ncName");
-			if (!dom_dn) {
-				return NT_STATUS_NO_SUCH_DOMAIN;
-			}
-			ret = ldb_search(sam_ctx, mem_ctx, &dom_res,
-					 dom_dn, LDB_SCOPE_BASE, dom_attrs,
-					 "objectClass=domain");
-			if (ret != LDB_SUCCESS) {
-				DEBUG(2,("Error finding domain '%s'/'%s' in sam: %s\n", domain, ldb_dn_get_linearized(dom_dn), ldb_errstring(sam_ctx)));
-				return NT_STATUS_NO_SUCH_DOMAIN;
-			}
-			if (dom_res->count != 1) {
-				DEBUG(2,("Error finding domain '%s'/'%s' in sam\n", domain, ldb_dn_get_linearized(dom_dn)));
-				return NT_STATUS_NO_SUCH_DOMAIN;
-			}
-		} else if (ref_res->count > 1) {
-			talloc_free(ref_res);
-			return NT_STATUS_NO_SUCH_DOMAIN;
-		}
+	if (domain && strcasecmp_m(domain, lp_realm(lp_ctx)) == 0) {
+		domain_dn = ldb_get_default_basedn(sam_ctx);
 	}
 
-	if (netbios_domain) {
-		struct ldb_dn *dom_dn;
-		/* try and find the domain */
+	if (netbios_domain && strcasecmp_m(domain, lp_sam_name(lp_ctx))) {
+		domain_dn = ldb_get_default_basedn(sam_ctx);
+	}
 
-		ret = ldb_search(sam_ctx, mem_ctx, &ref_res,
-				 partitions_basedn, LDB_SCOPE_ONELEVEL,
-				 ref_attrs,
-				 "(&(objectClass=crossRef)(ncName=*)(nETBIOSName=%s))",
-				 ldb_binary_encode_string(mem_ctx, netbios_domain));
-	
+	if (domain_dn) {
+		ret = ldb_search(sam_ctx, mem_ctx, &dom_res,
+				 domain_dn, LDB_SCOPE_BASE, dom_attrs,
+				 "objectClass=domain");
 		if (ret != LDB_SUCCESS) {
-			DEBUG(2,("Unable to find referece to '%s' in sam: %s\n",
-				 netbios_domain, 
-				 ldb_errstring(sam_ctx)));
+			DEBUG(2,("Error finding domain '%s'/'%s' in sam: %s\n", domain, ldb_dn_get_linearized(domain_dn), ldb_errstring(sam_ctx)));
 			return NT_STATUS_NO_SUCH_DOMAIN;
-		} else if (ref_res->count == 1) {
-			dom_dn = ldb_msg_find_attr_as_dn(sam_ctx, mem_ctx, ref_res->msgs[0], "ncName");
-			if (!dom_dn) {
-				return NT_STATUS_NO_SUCH_DOMAIN;
-			}
-			ret = ldb_search(sam_ctx, mem_ctx, &dom_res,
-					 dom_dn, LDB_SCOPE_BASE, dom_attrs,
-					 "objectClass=domain");
-			if (ret != LDB_SUCCESS) {
-				DEBUG(2,("Error finding domain '%s'/'%s' in sam: %s\n", domain, ldb_dn_get_linearized(dom_dn), ldb_errstring(sam_ctx)));
-				return NT_STATUS_NO_SUCH_DOMAIN;
-			}
-			if (dom_res->count != 1) {
-				DEBUG(2,("Error finding domain '%s'/'%s' in sam\n", domain, ldb_dn_get_linearized(dom_dn)));
-				return NT_STATUS_NO_SUCH_DOMAIN;
-			}
-		} else if (ref_res->count > 1) {
-			talloc_free(ref_res);
+		}
+		if (dom_res->count != 1) {
+			DEBUG(2,("Error finding domain '%s'/'%s' in sam\n", domain, ldb_dn_get_linearized(domain_dn)));
 			return NT_STATUS_NO_SUCH_DOMAIN;
 		}
 	}
 
 	if ((dom_res == NULL || dom_res->count == 0) && (domain_guid || domain_sid)) {
-		ref_res = NULL;
 
 		if (domain_guid) {
 			struct GUID binary_guid;
@@ -205,35 +150,16 @@ NTSTATUS fill_netlogon_samlogon_response(struct ldb_context *sam_ctx,
 				 ldb_errstring(sam_ctx)));
 			return NT_STATUS_NO_SUCH_DOMAIN;
 		} else if (dom_res->count == 1) {
-			/* try and find the domain */
-			ret = ldb_search(sam_ctx, mem_ctx, &ref_res,
-						 partitions_basedn, LDB_SCOPE_ONELEVEL, 
-						 ref_attrs, 
-						 "(&(objectClass=crossRef)(ncName=%s))", 
-						 ldb_dn_get_linearized(dom_res->msgs[0]->dn));
+			/* Ok, now just check it is our domain */
 			
-			if (ret != LDB_SUCCESS) {
-				DEBUG(2,("Unable to find referece to '%s' in sam: %s\n",
-					 ldb_dn_get_linearized(dom_res->msgs[0]->dn), 
-					 ldb_errstring(sam_ctx)));
-				return NT_STATUS_NO_SUCH_DOMAIN;
-				
-			} else if (ref_res->count != 1) {
-				DEBUG(2,("Unable to find referece to '%s' in sam\n",
-					 ldb_dn_get_linearized(dom_res->msgs[0]->dn)));
+			if (ldb_dn_compare(ldb_get_default_basedn(sam_ctx), dom_res->msgs[0]->dn) != 0) {
 				return NT_STATUS_NO_SUCH_DOMAIN;
 			}
 		} else if (dom_res->count > 1) {
-			talloc_free(ref_res);
 			return NT_STATUS_NO_SUCH_DOMAIN;
 		}
 	}
 
-
-	if ((ref_res == NULL || ref_res->count == 0)) {
-		DEBUG(2,("Unable to find domain reference with name %s or GUID {%s}\n", domain, domain_guid));
-		return NT_STATUS_NO_SUCH_DOMAIN;
-	}
 
 	if ((dom_res == NULL || dom_res->count == 0)) {
 		DEBUG(2,("Unable to find domain with name %s or GUID {%s}\n", domain, domain_guid));
@@ -263,7 +189,7 @@ NTSTATUS fill_netlogon_samlogon_response(struct ldb_context *sam_ctx,
 					 "(!(userAccountControl:" LDB_OID_COMPARATOR_AND ":=%u))"
 					 "(userAccountControl:" LDB_OID_COMPARATOR_OR ":=%u))", 
 					 ldb_binary_encode_string(mem_ctx, user),
-					 UF_ACCOUNTDISABLE, samdb_acb2uf(acct_control));
+					 UF_ACCOUNTDISABLE, ds_acb2uf(acct_control));
 		if (ret != LDB_SUCCESS) {
 			DEBUG(2,("Unable to find referece to user '%s' with ACB 0x%8x under %s: %s\n",
 				 user, acct_control, ldb_dn_get_linearized(dom_res->msgs[0]->dn),
@@ -286,7 +212,12 @@ NTSTATUS fill_netlogon_samlogon_response(struct ldb_context *sam_ctx,
 		DS_DNS_DOMAIN;
 
 	if (samdb_is_pdc(sam_ctx)) {
+		int *domainFunctionality;
 		server_type |= NBT_SERVER_PDC;
+		domainFunctionality = talloc_get_type(ldb_get_opaque(sam_ctx, "domainFunctionality"), int);
+		if (domainFunctionality && *domainFunctionality >= DS_DOMAIN_FUNCTION_2008) {
+			server_type |= NBT_SERVER_FULL_SECRET_DOMAIN_6;
+		}
 	}
 
 	if (samdb_is_gc(sam_ctx)) {
@@ -307,15 +238,14 @@ NTSTATUS fill_netlogon_samlogon_response(struct ldb_context *sam_ctx,
 
 	pdc_name         = talloc_asprintf(mem_ctx, "\\\\%s", lp_netbios_name(lp_ctx));
 	domain_uuid      = samdb_result_guid(dom_res->msgs[0], "objectGUID");
-	realm            = samdb_result_string(ref_res->msgs[0], "dnsRoot", lp_realm(lp_ctx));
-	dns_domain       = samdb_result_string(ref_res->msgs[0], "dnsRoot", lp_realm(lp_ctx));
+	realm            = lp_realm(lp_ctx);
+	dns_domain       = lp_realm(lp_ctx);
 	pdc_dns_name     = talloc_asprintf(mem_ctx, "%s.%s", 
 					   strlower_talloc(mem_ctx, 
 							   lp_netbios_name(lp_ctx)), 
 					   dns_domain);
 
-	flatname         = samdb_result_string(ref_res->msgs[0], "nETBIOSName", 
-					       lp_workgroup(lp_ctx));
+	flatname         = lp_sam_name(lp_ctx);
 	/* FIXME: Hardcoded site names */
 	server_site      = "Default-First-Site-Name";
 	client_site      = "Default-First-Site-Name";
@@ -402,12 +332,13 @@ NTSTATUS fill_netlogon_samlogon_response(struct ldb_context *sam_ctx,
 /*
   handle incoming cldap requests
 */
-void cldapd_netlogon_request(struct cldap_socket *cldap, 
+void cldapd_netlogon_request(struct cldap_socket *cldap,
+			     struct cldapd_server *cldapd,
+			     TALLOC_CTX *tmp_ctx,
 			     uint32_t message_id,
 			     struct ldb_parse_tree *tree,
-			     struct socket_address *src)
+			     struct tsocket_address *src)
 {
-	struct cldapd_server *cldapd = talloc_get_type(cldap->incoming.private_data, struct cldapd_server);
 	int i;
 	const char *domain = NULL;
 	const char *host = NULL;
@@ -418,8 +349,6 @@ void cldapd_netlogon_request(struct cldap_socket *cldap,
 	int version = -1;
 	struct netlogon_samlogon_response netlogon;
 	NTSTATUS status = NT_STATUS_INVALID_PARAMETER;
-
-	TALLOC_CTX *tmp_ctx = talloc_new(cldap);
 
 	if (tree->operation != LDB_OP_AND) goto failed;
 
@@ -478,24 +407,25 @@ void cldapd_netlogon_request(struct cldap_socket *cldap,
 		 domain, host, user, version, domain_guid));
 
 	status = fill_netlogon_samlogon_response(cldapd->samctx, tmp_ctx, domain, NULL, NULL, domain_guid,
-						 user, acct_control, src->addr, 
+						 user, acct_control,
+						 tsocket_address_inet_addr_string(src, tmp_ctx),
 						 version, cldapd->task->lp_ctx, &netlogon);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto failed;
 	}
 
-	status = cldap_netlogon_reply(cldap, message_id, src, version,
+	status = cldap_netlogon_reply(cldap,
+				      lp_iconv_convenience(cldapd->task->lp_ctx),
+				      message_id, src, version,
 				      &netlogon);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto failed;
 	}
 
-	talloc_free(tmp_ctx);
 	return;
 	
 failed:
 	DEBUG(2,("cldap netlogon query failed domain=%s host=%s version=%d - %s\n",
 		 domain, host, version, nt_errstr(status)));
-	talloc_free(tmp_ctx);
-	cldap_empty_reply(cldap, message_id, src);	
+	cldap_empty_reply(cldap, message_id, src);
 }

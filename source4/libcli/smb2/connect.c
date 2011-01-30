@@ -105,9 +105,12 @@ static void continue_negprot(struct smb2_request *req)
 	c->status = smb2_negprot_recv(req, c, &state->negprot);
 	if (!composite_is_ok(c)) return;
 
+	transport->negotiate.secblob = state->negprot.out.secblob;
+	talloc_steal(transport, transport->negotiate.secblob.data);
 	transport->negotiate.system_time = state->negprot.out.system_time;
 	transport->negotiate.server_start_time = state->negprot.out.server_start_time;
 	transport->negotiate.security_mode = state->negprot.out.security_mode;
+	transport->negotiate.dialect_revision = state->negprot.out.dialect_revision;
 
 	switch (transport->options.signing) {
 	case SMB_SIGNING_OFF:
@@ -161,7 +164,11 @@ static void continue_socket(struct composite_context *creq)
 	struct smbcli_socket *sock;
 	struct smb2_transport *transport;
 	struct smb2_request *req;
-	uint16_t dialects[2];
+	uint16_t dialects[3] = {
+		SMB2_DIALECT_REVISION_000,
+		SMB2_DIALECT_REVISION_202,
+		SMB2_DIALECT_REVISION_210
+	};
 
 	c->status = smbcli_sock_connect_recv(creq, state, &sock);
 	if (!composite_is_ok(c)) return;
@@ -170,7 +177,7 @@ static void continue_socket(struct composite_context *creq)
 	if (composite_nomem(transport, c)) return;
 
 	ZERO_STRUCT(state->negprot);
-	state->negprot.in.dialect_count = 2;
+	state->negprot.in.dialect_count = sizeof(dialects) / sizeof(dialects[0]);
 	switch (transport->options.signing) {
 	case SMB_SIGNING_OFF:
 		state->negprot.in.security_mode = 0;
@@ -186,8 +193,6 @@ static void continue_socket(struct composite_context *creq)
 	}
 	state->negprot.in.capabilities  = 0;
 	unix_to_nt_time(&state->negprot.in.start_time, time(NULL));
-	dialects[0] = SMB2_DIALECT_REVISION;
-	dialects[1] = 0;
 	state->negprot.in.dialects = dialects;
 
 	req = smb2_negprot_send(transport, &state->negprot);
@@ -266,7 +271,7 @@ struct composite_context *smb2_connect_send(TALLOC_CTX *mem_ctx,
 	ZERO_STRUCT(name);
 	name.name = host;
 
-	creq = resolve_name_send(resolve_ctx, &name, c->event_ctx);
+	creq = resolve_name_send(resolve_ctx, state, &name, c->event_ctx);
 	composite_continue(c, creq, continue_resolve, c);
 	return c;
 }

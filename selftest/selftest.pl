@@ -1,8 +1,20 @@
 #!/usr/bin/perl
 # Bootstrap Samba and run a number of tests against it.
-# Copyright (C) 2005-2008 Jelmer Vernooij <jelmer@samba.org>
+# Copyright (C) 2005-2009 Jelmer Vernooij <jelmer@samba.org>
 # Copyright (C) 2007-2009 Stefan Metzmacher <metze@samba.org>
-# Published under the GNU GPL, v3 or later.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 =pod
 
@@ -14,7 +26,7 @@ selftest - Samba test runner
 
 selftest --help
 
-selftest [--srcdir=DIR] [--builddir=DIR] [--exeext=EXT][--target=samba4|samba3|win|kvm] [--socket-wrapper] [--quick] [--exclude=FILE] [--include=FILE] [--one] [--prefix=prefix] [--immediate] [--testlist=FILE] [TESTS]
+selftest [--srcdir=DIR] [--builddir=DIR] [--exeext=EXT][--target=samba4|samba3|win|kvm] [--socket-wrapper] [--quick] [--exclude=FILE] [--include=FILE] [--one] [--prefix=prefix] [--testlist=FILE] [TESTS]
 
 =head1 DESCRIPTION
 
@@ -44,10 +56,6 @@ Executable extention
 
 Change directory to run tests in. Default is 'st'.
 
-=item I<--immediate>
-
-Show errors as soon as they happen rather than at the end of the test run.
-		
 =item I<--target samba4|samba3|win|kvm>
 
 Specify test target against which to run. Default is 'samba4'.
@@ -65,23 +73,10 @@ when the server is running locally.
 Will prevent TCP and UDP ports being opened on the local host but 
 (transparently) redirects these calls to use unix domain sockets.
 
-=item I<--expected-failures>
-
-Specify a file containing a list of tests that are expected to fail. Failures for 
-these tests will be counted as successes, successes will be counted as failures.
-
-The format for the file is, one entry per line:
-
-TESTSUITE-NAME.TEST-NAME
-
-The reason for a test can also be specified, by adding a hash sign (#) and the reason 
-after the test name.
-
 =item I<--exclude>
 
 Specify a file containing a list of tests that should be skipped. Possible 
-candidates are tests that segfault the server, flip or don't end. The format of this file is the same as 
-for the --expected-failures flag.
+candidates are tests that segfault the server, flip or don't end. 
 
 =item I<--include>
 
@@ -135,6 +130,7 @@ use POSIX;
 use Cwd qw(abs_path);
 use lib "$RealBin";
 use Subunit qw(parse_results);
+use Subunit::Filter;
 use SocketWrapper;
 
 my $opt_help = 0;
@@ -144,8 +140,6 @@ my $opt_socket_wrapper = 0;
 my $opt_socket_wrapper_pcap = undef;
 my $opt_socket_wrapper_keep_pcap = undef;
 my $opt_one = 0;
-my $opt_immediate = 0;
-my $opt_expected_failures = undef;
 my @opt_exclude = ();
 my @opt_include = ();
 my $opt_verbose = 0;
@@ -156,7 +150,6 @@ my $opt_analyse_cmd = undef;
 my $opt_resetup_env = undef;
 my $opt_bindir = undef;
 my $opt_no_lazy_setup = undef;
-my $opt_format = "plain";
 my @testlists = ();
 
 my $srcdir = ".";
@@ -164,20 +157,8 @@ my $builddir = ".";
 my $exeext = "";
 my $prefix = "./st";
 
-my @expected_failures = ();
 my @includes = ();
 my @excludes = ();
-
-my $statistics = {
-	SUITES_FAIL => 0,
-
-	TESTS_UNEXPECTED_OK => 0,
-	TESTS_EXPECTED_OK => 0,
-	TESTS_UNEXPECTED_FAIL => 0,
-	TESTS_EXPECTED_FAIL => 0,
-	TESTS_ERROR => 0,
-	TESTS_SKIP => 0,
-};
 
 sub find_in_list($$)
 {
@@ -186,17 +167,11 @@ sub find_in_list($$)
 	foreach (@$list) {
 		if ($fullname =~ /$$_[0]/) {
 			 return ($$_[1]) if ($$_[1]);
-			 return "NO REASON SPECIFIED";
+			 return "";
 		}
 	}
 
 	return undef;
-}
-
-sub expecting_failure($)
-{
-	my ($name) = @_;
-	return find_in_list(\@expected_failures, $name);
 }
 
 sub skip($)
@@ -225,63 +200,82 @@ sub setup_pcap($)
 	return $pcap_file;
 }
 
-sub cleanup_pcap($$$)
+sub cleanup_pcap($$)
 {
-	my ($pcap_file, $expected_ret, $ret) = @_;
+	my ($pcap_file, $exitcode) = @_;
 
 	return unless ($opt_socket_wrapper_pcap);
 	return if ($opt_socket_wrapper_keep_pcap);
-	return unless ($expected_ret == $ret);
+	return unless ($exitcode == 0);
 	return unless defined($pcap_file);
 
 	unlink($pcap_file);
 }
 
-sub run_testsuite($$$$$$)
+sub run_testsuite($$$$$)
 {
-	my ($envname, $name, $cmd, $i, $totalsuites, $msg_ops) = @_;
+	my ($envname, $name, $cmd, $i, $totalsuites) = @_;
 	my $pcap_file = setup_pcap($name);
 
-	$msg_ops->start_test([], $name);
+	Subunit::start_testsuite($name);
+	Subunit::report_time(time());
 
-	unless (open(RESULT, "$cmd 2>&1|")) {
-		$statistics->{TESTS_ERROR}++;
-		$msg_ops->end_test([], $name, "error", 1, "Unable to run $cmd: $!");
-		$statistics->{SUITES_FAIL}++;
+	open(RESULTS, "$cmd 2>&1|");
+	my $statistics = {
+		TESTS_UNEXPECTED_OK => 0,
+		TESTS_EXPECTED_OK => 0,
+		TESTS_UNEXPECTED_FAIL => 0,
+		TESTS_EXPECTED_FAIL => 0,
+		TESTS_ERROR => 0,
+		TESTS_SKIP => 0,
+	};
+
+	my $msg_ops = new Subunit::Filter("$name\.", []);
+
+	parse_results($msg_ops, $statistics, *RESULTS);
+
+	my $ret = 0;
+
+	unless (close(RESULTS)) {
+		if ($!) {
+			Subunit::end_testsuite($name, "error", "Unable to run $cmd: $!");
+			return 0;
+		} else {
+			$ret = $?;
+		}
+	} 
+
+	if ($ret & 127) {
+		Subunit::end_testsuite($name, "error", sprintf("Testsuite died with signal %d, %s coredump", ($ret & 127), ($ret & 128) ? "with": "without"));
 		return 0;
 	}
-
-	my $expected_ret = parse_results(
-		$msg_ops, $statistics, *RESULT, \&expecting_failure, [$name]);
-
 	my $envlog = getlog_env($envname);
-	$msg_ops->output_msg("ENVLOG: $envlog\n") if ($envlog ne "");
-
-	$msg_ops->output_msg("CMD: $cmd\n");
-
-	my $ret = close(RESULT);
-	$ret = 0 unless $ret == 1;
-
-	my $exitcode = $? >> 8;
-
-	if ($ret == 1) {
-		$msg_ops->end_test([], $name, "success", $expected_ret != $ret, undef); 
-	} else {
-		$msg_ops->end_test([], $name, "failure", $expected_ret != $ret, "Exit code was $exitcode");
+	if ($envlog ne "") {
+		print "envlog: $envlog\n";
 	}
 
-	cleanup_pcap($pcap_file, $expected_ret, $ret);
+	print "command: $cmd\n";
+
+	my $exitcode = $ret >> 8;
+
+	Subunit::report_time(time());
+	if ($exitcode == 0) {
+		Subunit::end_testsuite($name, "success");
+	} else {
+		Subunit::end_testsuite($name, "failure", "Exit code was $exitcode");
+	}
+
+	cleanup_pcap($pcap_file, $exitcode);
 
 	if (not $opt_socket_wrapper_keep_pcap and defined($pcap_file)) {
-		$msg_ops->output_msg("PCAP FILE: $pcap_file\n");
+		print "PCAP FILE: $pcap_file\n";
 	}
 
-	if ($ret != $expected_ret) {
-		$statistics->{SUITES_FAIL}++;
+	if ($exitcode != 0) {
 		exit(1) if ($opt_one);
 	}
 
-	return ($ret == $expected_ret);
+	return $exitcode;
 }
 
 sub ShowHelp()
@@ -309,7 +303,6 @@ Target Specific:
                             failed
  --socket-wrapper           enable socket wrapper
  --bindir=PATH              path to target binaries
- --expected-failures=FILE   specify list of tests that is guaranteed to fail
 
 Samba4 Specific:
  --ldap=openldap|fedora-ds  back samba onto specified ldap server
@@ -320,7 +313,6 @@ Kvm Specific:
 Behaviour:
  --quick                    run quick overall test
  --one                      abort when the first test fails
- --immediate                print test output for failed tests during run
  --verbose                  be verbose
  --analyse-cmd CMD          command to run after each test
 ";
@@ -336,8 +328,6 @@ my $result = GetOptions (
 		'socket-wrapper-keep-pcap' => \$opt_socket_wrapper_keep_pcap,
 		'quick' => \$opt_quick,
 		'one' => \$opt_one,
-		'immediate' => \$opt_immediate,
-		'expected-failures=s' => \$opt_expected_failures,
 		'exclude=s' => \@opt_exclude,
 		'include=s' => \@opt_include,
 		'srcdir=s' => \$srcdir,
@@ -350,7 +340,6 @@ my $result = GetOptions (
 		'no-lazy-setup' => \$opt_no_lazy_setup,
 		'resetup-environment' => \$opt_resetup_env,
 		'bindir:s' => \$opt_bindir,
-		'format=s' => \$opt_format,
 		'image=s' => \$opt_image,
 		'testlist=s' => \@testlists
 	    );
@@ -359,7 +348,7 @@ exit(1) if (not $result);
 
 ShowHelp() if ($opt_help);
 
-my $tests = shift;
+my @tests = @ARGV;
 
 # quick hack to disable rpc validation when using valgrind - its way too slow
 unless (defined($ENV{VALGRIND})) {
@@ -409,11 +398,6 @@ $ENV{SRCDIR_ABS} = $srcdir_abs;
 $ENV{BUILDDIR} = $builddir;
 $ENV{BUILDDIR_ABS} = $builddir_abs;
 $ENV{EXEEXT} = $exeext;
-
-if (defined($ENV{RUN_FROM_BUILD_FARM}) and 
-	($ENV{RUN_FROM_BUILD_FARM} eq "yes")) {
-	$opt_format = "buildfarm";
-}
 
 my $tls_enabled = not $opt_quick;
 $ENV{TLS_ENABLED} = ($tls_enabled?"yes":"no");
@@ -523,10 +507,6 @@ sub read_test_regexes($)
 	return @ret;
 }
 
-if (defined($opt_expected_failures)) {
-	@expected_failures = read_test_regexes($opt_expected_failures);
-}
-
 foreach (@opt_exclude) {
 	push (@excludes, read_test_regexes($_));
 }
@@ -557,10 +537,16 @@ sub write_clientconf($$)
 	        mkdir("$prefix/client/private", 0777);
 	}
 
-	if ( -d "$prefix/client/lock" ) {
+	if ( -d "$prefix/client/lockdir" ) {
 	        unlink <$prefix/client/lockdir/*>;
 	} else {
 	        mkdir("$prefix/client/lockdir", 0777);
+	}
+
+	if ( -d "$prefix_abs/client/ncalrpcdir" ) {
+	        unlink <$prefix/client/ncalrpcdir/*>;
+	} else {
+	        mkdir("$prefix/client/ncalrpcdir", 0777);
 	}
 
 	open(CF, ">$conffile");
@@ -583,6 +569,7 @@ sub write_clientconf($$)
 	print CF "
 	private dir = $prefix_abs/client/private
 	lock dir = $prefix_abs/client/lockdir
+	ncalrpc dir = $prefix_abs/client/ncalrpcdir
 	name resolve order = bcast
 	panic action = $RealBin/gdb_backtrace \%PID\% \%PROG\%
 	max xmit = 32K
@@ -604,6 +591,20 @@ my $testsdir = "$srcdir/selftest";
 
 my %required_envs = ();
 
+sub should_run_test($)
+{
+	my $name = shift;
+	if ($#tests == -1) {
+		return 1;
+	}
+	for (my $i=0; $i <= $#tests; $i++) {
+		if ($name =~ /$tests[$i]/i) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
 sub read_testlist($)
 {
 	my ($filename) = @_;
@@ -619,7 +620,7 @@ sub read_testlist($)
 			$env =~ s/\n//g;
 			my $cmdline = <IN>;
 			$cmdline =~ s/\n//g;
-			if (not defined($tests) or $name =~ /$tests/) {
+			if (should_run_test($name) == 1) {
 				$required_envs{$env} = 1;
 				push (@ret, [$name, $env, $cmdline]);
 			}
@@ -658,32 +659,19 @@ my @available = ();
 foreach my $fn (@testlists) {
 	foreach (read_testlist($fn)) {
 		my $name = $$_[0];
-		next if (@includes and not find_in_list(\@includes, $name));
+		next if (@includes and not defined(find_in_list(\@includes, $name)));
 		push (@available, $_);
 	}
 }
 
-my $msg_ops;
-if ($opt_format eq "buildfarm") {
-	require output::buildfarm;
-	$msg_ops = new output::buildfarm($statistics);
-} elsif ($opt_format eq "plain") {
-	require output::plain;
-	$msg_ops = new output::plain("$prefix/summary", $opt_verbose, $opt_immediate, $statistics, $#available+1);
-} elsif ($opt_format eq "html") {
-	require output::html;
-	mkdir("test-results", 0777);
-	$msg_ops = new output::html("test-results", $statistics);
-} else {
-	die("Invalid output format '$opt_format'");
-}
-
+Subunit::testsuite_count($#available+1);
+Subunit::report_time(time());
 
 foreach (@available) {
 	my $name = $$_[0];
 	my $skipreason = skip($name);
-	if ($skipreason) {
-		$msg_ops->skip_testsuite($name, $skipreason);
+	if (defined($skipreason)) {
+		Subunit::skip_testsuite($name, $skipreason);
 	} else {
 		push(@todo, $_); 
 	}
@@ -871,12 +859,12 @@ $envvarstr
 		
 		my $envvars = setup_env($envname);
 		if (not defined($envvars)) {
-			$msg_ops->skip_testsuite($name, "unable to set up environment $envname");
+			Subunit::skip_testsuite($name, 
+				"unable to set up environment $envname");
 			next;
 		}
 
-		run_testsuite($envname, $name, $cmd, $i, $suitestotal, 
-		              $msg_ops);
+		run_testsuite($envname, $name, $cmd, $i, $suitestotal);
 
 		if (defined($opt_analyse_cmd)) {
 			system("$opt_analyse_cmd \"$name\"");
@@ -892,8 +880,6 @@ teardown_env($_) foreach (keys %running_envs);
 
 $target->stop();
 
-$msg_ops->summary();
-
 my $failed = 0;
 
 # if there were any valgrind failures, show them
@@ -906,9 +892,4 @@ foreach (<$prefix/valgrind.log*>) {
 	    system("cat $_");
 	}
 }
-
-if ($opt_format eq "buildfarm") {
-	print "TEST STATUS: $statistics->{SUITES_FAIL}\n";
-}
-
-exit $statistics->{SUITES_FAIL};
+exit 0;

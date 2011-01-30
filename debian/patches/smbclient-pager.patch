@@ -3,11 +3,11 @@ Author: Steve Langasek <vorlon@debian.org>
 Bug-Debian: http://bugs.debian.org/135603
 Forwarded: not-needed
 
-Index: b/source3/include/local.h
+Index: experimental/source3/include/local.h
 ===================================================================
---- a/source3/include/local.h	2009-11-08 15:54:27.000000000 +0100
-+++ b/source3/include/local.h	2009-11-08 15:55:34.000000000 +0100
-@@ -109,7 +109,7 @@
+--- experimental.orig/source3/include/local.h
++++ experimental/source3/include/local.h
+@@ -127,7 +127,7 @@
  /* the default pager to use for the client "more" command. Users can
     override this with the PAGER environment variable */
  #ifndef PAGER

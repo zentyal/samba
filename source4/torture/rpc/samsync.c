@@ -31,6 +31,7 @@
 #include "auth/gensec/schannel_proto.h"
 #include "auth/gensec/gensec.h"
 #include "libcli/auth/libcli_auth.h"
+#include "libcli/samsync/samsync.h"
 #include "libcli/security/security.h"
 #include "librpc/gen_ndr/ndr_netlogon.h"
 #include "librpc/gen_ndr/ndr_netlogon_c.h"
@@ -47,7 +48,7 @@
   try a netlogon SamLogon
 */
 static NTSTATUS test_SamLogon(struct dcerpc_pipe *p, TALLOC_CTX *mem_ctx, 
-			      struct creds_CredentialState *creds, 
+			      struct netlogon_creds_CredentialState *creds, 
 			      const char *domain, const char *account_name,
 			      const char *workstation, 
 			      struct samr_Password *lm_hash, 
@@ -100,13 +101,13 @@ static NTSTATUS test_SamLogon(struct dcerpc_pipe *p, TALLOC_CTX *mem_ctx,
 	r.out.authoritative = &authoritative;
 
 	ZERO_STRUCT(auth2);
-	creds_client_authenticator(creds, &auth);
+	netlogon_creds_client_authenticator(creds, &auth);
 	
 	r.in.validation_level = 3;
 	
 	status = dcerpc_netr_LogonSamLogon(p, mem_ctx, &r);
 
-	if (!creds_client_check(creds, &r.out.return_authenticator->cred)) {
+	if (!netlogon_creds_client_check(creds, &r.out.return_authenticator->cred)) {
 		printf("Credential chaining failed\n");
 	}
 
@@ -123,8 +124,8 @@ struct samsync_state {
 	const char *domain_name[2];
 	struct samsync_secret *secrets;
 	struct samsync_trusted_domain *trusted_domains;
-	struct creds_CredentialState *creds;
-	struct creds_CredentialState *creds_netlogon_wksta;
+	struct netlogon_creds_CredentialState *creds;
+	struct netlogon_creds_CredentialState *creds_netlogon_wksta;
 	struct policy_handle *connect_handle;
 	struct policy_handle *domain_handle[2];
 	struct dom_sid *sid[2];
@@ -176,7 +177,7 @@ static struct policy_handle *samsync_open_domain(TALLOC_CTX *mem_ctx,
 	o.in.sid = *l.out.sid;
 	o.out.domain_handle = domain_handle;
 	
-	if (sid) {
+	if (sid_p) {
 		*sid_p = *l.out.sid;
 	}
 
@@ -564,11 +565,9 @@ static bool samsync_handle_user(struct torture_context *tctx, TALLOC_CTX *mem_ct
 	TEST_STRING_EQUAL(info->info21.profile_path, user->profile_path);
 
 	if (user->lm_password_present) {
-		sam_rid_crypt(rid, user->lmpassword.hash, lm_hash.hash, 0);
 		lm_hash_p = &lm_hash;
 	}
 	if (user->nt_password_present) {
-		sam_rid_crypt(rid, user->ntpassword.hash, nt_hash.hash, 0);
 		nt_hash_p = &nt_hash;
 	}
 
@@ -578,15 +577,12 @@ static bool samsync_handle_user(struct torture_context *tctx, TALLOC_CTX *mem_ct
 		enum ndr_err_code ndr_err;
 		data.data = user->user_private_info.SensitiveData;
 		data.length = user->user_private_info.DataLength;
-		creds_arcfour_crypt(samsync_state->creds, data.data, data.length);
 		ndr_err = ndr_pull_struct_blob(&data, mem_ctx, lp_iconv_convenience(tctx->lp_ctx), &keys, (ndr_pull_flags_fn_t)ndr_pull_netr_USER_KEYS);
 		if (NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			if (keys.keys.keys2.lmpassword.length == 16) {
-				sam_rid_crypt(rid, keys.keys.keys2.lmpassword.pwd.hash, lm_hash.hash, 0);
 				lm_hash_p = &lm_hash;
 			}
 			if (keys.keys.keys2.ntpassword.length == 16) {
-				sam_rid_crypt(rid, keys.keys.keys2.ntpassword.pwd.hash, nt_hash.hash, 0);
 				nt_hash_p = &nt_hash;
 			}
 		} else {
@@ -842,12 +838,6 @@ static bool samsync_handle_secret(TALLOC_CTX *mem_ctx, struct samsync_state *sam
 	bool ret = true;
 	DATA_BLOB lsa_blob1, lsa_blob_out, session_key;
 	NTSTATUS status;
-
-	creds_arcfour_crypt(samsync_state->creds, secret->current_cipher.cipher_data, 
-			    secret->current_cipher.maxlen); 
-
-	creds_arcfour_crypt(samsync_state->creds, secret->old_cipher.cipher_data, 
-			    secret->old_cipher.maxlen); 
 
 	nsec->name = talloc_reference(nsec, name);
 	nsec->secret = data_blob_talloc(nsec, secret->current_cipher.cipher_data, secret->current_cipher.maxlen);
@@ -1133,7 +1123,7 @@ static bool samsync_handle_account(TALLOC_CTX *mem_ctx, struct samsync_state *sa
 	}
 	for (j=0;j<account->privilege_entries; j++) {
 		if (!found_priv_in_lsa[j]) {
-			printf("Privilage %s on account %s not found in LSA\n", account->privilege_name[j].string, 
+			printf("Privilege %s on account %s not found in LSA\n", account->privilege_name[j].string,
 			       dom_sid_string(mem_ctx, dom_sid));
 			ret = false;
 		}
@@ -1182,7 +1172,7 @@ static bool test_DatabaseSync(struct torture_context *tctx,
 
 		do {
 			loop_ctx = talloc_named(mem_ctx, 0, "DatabaseSync loop context");
-			creds_client_authenticator(samsync_state->creds, &credential);
+			netlogon_creds_client_authenticator(samsync_state->creds, &credential);
 
 			r.in.credential = &credential;
 
@@ -1194,7 +1184,7 @@ static bool test_DatabaseSync(struct torture_context *tctx,
 				break;
 			}
 
-			if (!creds_client_check(samsync_state->creds, &r.out.return_authenticator->cred)) {
+			if (!netlogon_creds_client_check(samsync_state->creds, &r.out.return_authenticator->cred)) {
 				printf("Credential chaining failed\n");
 			}
 
@@ -1202,6 +1192,14 @@ static bool test_DatabaseSync(struct torture_context *tctx,
 
 			for (d=0; d < delta_enum_array->num_deltas; d++) {
 				delta_ctx = talloc_named(loop_ctx, 0, "DatabaseSync delta context");
+
+				if (!NT_STATUS_IS_OK(samsync_fix_delta(delta_ctx, samsync_state->creds, 
+								       r.in.database_id, 
+								       &delta_enum_array->delta_enum[d]))) {
+					printf("Failed to decrypt delta\n");
+					ret = false;
+				}
+
 				switch (delta_enum_array->delta_enum[d].delta_type) {
 				case NETR_DELTA_DOMAIN:
 					if (!samsync_handle_domain(delta_ctx, samsync_state, 
@@ -1395,7 +1393,7 @@ static bool test_DatabaseDeltas(struct samsync_state *samsync_state, TALLOC_CTX 
 
 		do {
 			loop_ctx = talloc_named(mem_ctx, 0, "test_DatabaseDeltas loop context");
-			creds_client_authenticator(samsync_state->creds, &credential);
+			netlogon_creds_client_authenticator(samsync_state->creds, &credential);
 
 			status = dcerpc_netr_DatabaseDeltas(samsync_state->p, loop_ctx, &r);
 			if (!NT_STATUS_IS_OK(status) &&
@@ -1405,7 +1403,7 @@ static bool test_DatabaseDeltas(struct samsync_state *samsync_state, TALLOC_CTX 
 				ret = false;
 			}
 
-			if (!creds_client_check(samsync_state->creds, &return_authenticator.cred)) {
+			if (!netlogon_creds_client_check(samsync_state->creds, &return_authenticator.cred)) {
 				printf("Credential chaining failed\n");
 			}
 
@@ -1422,7 +1420,7 @@ static bool test_DatabaseDeltas(struct samsync_state *samsync_state, TALLOC_CTX 
   try a netlogon DatabaseSync2
 */
 static bool test_DatabaseSync2(struct dcerpc_pipe *p, TALLOC_CTX *mem_ctx, 
-			       struct creds_CredentialState *creds)
+			       struct netlogon_creds_CredentialState *creds)
 {
 	NTSTATUS status;
 	TALLOC_CTX *loop_ctx;
@@ -1455,7 +1453,7 @@ static bool test_DatabaseSync2(struct dcerpc_pipe *p, TALLOC_CTX *mem_ctx,
 
 		do {
 			loop_ctx = talloc_named(mem_ctx, 0, "test_DatabaseSync2 loop context");
-			creds_client_authenticator(creds, &credential);
+			netlogon_creds_client_authenticator(creds, &credential);
 
 			r.in.credential = &credential;
 
@@ -1466,7 +1464,7 @@ static bool test_DatabaseSync2(struct dcerpc_pipe *p, TALLOC_CTX *mem_ctx,
 				ret = false;
 			}
 
-			if (!creds_client_check(creds, &r.out.return_authenticator->cred)) {
+			if (!netlogon_creds_client_check(creds, &r.out.return_authenticator->cred)) {
 				printf("Credential chaining failed\n");
 			}
 

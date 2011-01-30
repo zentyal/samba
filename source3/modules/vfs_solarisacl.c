@@ -137,7 +137,7 @@ int solarisacl_sys_acl_set_file(vfs_handle_struct *handle,
 				SMB_ACL_T theacl)
 {
 	int ret = -1;
-	struct stat s;
+	struct stat_ex s;
 	SOLARIS_ACL_T solaris_acl = NULL;
 	int count;
 	
@@ -165,11 +165,11 @@ int solarisacl_sys_acl_set_file(vfs_handle_struct *handle,
 	 * that has not been specified in "type" from the file first 
 	 * and concatenate it with the acl provided.
 	 */
-	if (SMB_VFS_STAT(handle->conn, name, &s) != 0) {
+	if (vfs_stat_smb_fname(handle->conn, name, &s) != 0) {
 		DEBUG(10, ("Error in stat call: %s\n", strerror(errno)));
 		goto done;
 	}
-	if (S_ISDIR(s.st_mode)) {
+	if (S_ISDIR(s.st_ex_mode)) {
 		SOLARIS_ACL_T other_acl; 
 		int other_count;
 		SMB_ACL_TYPE_T other_type;
@@ -749,40 +749,19 @@ static bool solaris_acl_check(SOLARIS_ACL_T solaris_acl, int count)
 }
 #endif
 
-/* VFS operations structure */
-
-static vfs_op_tuple solarisacl_op_tuples[] = {
-	/* Disk operations */
-	{SMB_VFS_OP(solarisacl_sys_acl_get_file),
-	 SMB_VFS_OP_SYS_ACL_GET_FILE,
-	 SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(solarisacl_sys_acl_get_fd),
-	 SMB_VFS_OP_SYS_ACL_GET_FD,
-	 SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(solarisacl_sys_acl_set_file),
-	 SMB_VFS_OP_SYS_ACL_SET_FILE,
-	 SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(solarisacl_sys_acl_set_fd),
-	 SMB_VFS_OP_SYS_ACL_SET_FD,
-	 SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(solarisacl_sys_acl_delete_def_file),
-	 SMB_VFS_OP_SYS_ACL_DELETE_DEF_FILE,
-	 SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(NULL),
-	 SMB_VFS_OP_NOOP,
-	 SMB_VFS_LAYER_NOOP}
+static struct vfs_fn_pointers solarisacl_fns = {
+	.sys_acl_get_file = solarisacl_sys_acl_get_file,
+	.sys_acl_get_fd = solarisacl_sys_acl_get_fd,
+	.sys_acl_set_file = solarisacl_sys_acl_set_file,
+	.sys_acl_set_fd = solarisacl_sys_acl_set_fd,
+	.sys_acl_delete_def_file = solarisacl_sys_acl_delete_def_file,
 };
 
 NTSTATUS vfs_solarisacl_init(void);
 NTSTATUS vfs_solarisacl_init(void)
 {
 	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "solarisacl",
-				solarisacl_op_tuples);
+				&solarisacl_fns);
 }
 
 /* ENTE */

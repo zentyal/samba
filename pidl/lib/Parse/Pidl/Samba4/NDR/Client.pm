@@ -34,8 +34,9 @@ sub ParseFunctionSend($$$)
 	if (p->conn->flags & DCERPC_DEBUG_PRINT_IN) {
 		NDR_PRINT_IN_DEBUG($name, r);
 	}
-	
-	return dcerpc_ndr_request_send(p, NULL, &ndr_table_$interface->{NAME}, NDR_$uname, mem_ctx, r);
+
+	return dcerpc_ndr_request_send(p, NULL, &ndr_table_$interface->{NAME},
+				       NDR_$uname, true, mem_ctx, r);
 ";
 	}
 
@@ -45,6 +46,7 @@ sub ParseFunctionSend($$$)
 sub ParseFunctionSync($$$)
 {
 	my ($interface, $fn, $name) = @_;
+	my $uname = uc $name;
 
 	my $proto = "NTSTATUS dcerpc_$name(struct dcerpc_pipe *p, TALLOC_CTX *mem_ctx, struct $name *r)";
 
@@ -55,13 +57,14 @@ sub ParseFunctionSync($$$)
 		$res .= "\treturn NT_STATUS_NOT_IMPLEMENTED;\n";
 	} else {
 		$res .= "
-	struct rpc_request *req;
 	NTSTATUS status;
-	
-	req = dcerpc_$name\_send(p, mem_ctx, r);
-	if (req == NULL) return NT_STATUS_NO_MEMORY;
 
-	status = dcerpc_ndr_request_recv(req);
+	if (p->conn->flags & DCERPC_DEBUG_PRINT_IN) {
+		NDR_PRINT_IN_DEBUG($name, r);
+	}
+
+	status = dcerpc_ndr_request(p, NULL, &ndr_table_$interface->{NAME},
+				    NDR_$uname, mem_ctx, r);
 
 	if (NT_STATUS_IS_OK(status) && (p->conn->flags & DCERPC_DEBUG_PRINT_OUT)) {
 		NDR_PRINT_OUT_DEBUG($name, r);		

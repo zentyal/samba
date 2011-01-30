@@ -4,7 +4,7 @@
    Copyright (C) Andrew Tridgell 2001
    Copyright (C) Luke Howard 2002-2003
    Copyright (C) Andrew Bartlett <abartlet@samba.org> 2005
-   Copyright (C) Guenther Deschner 2005-2007
+   Copyright (C) Guenther Deschner 2005-2009
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -28,14 +28,16 @@
 
 #define GSSAPI_CHECKSUM      0x8003             /* Checksum type value for Kerberos */
 #define GSSAPI_BNDLENGTH     16                 /* Bind Length (rfc-1964 pg.3) */
-#define GSSAPI_CHECKSUM_SIZE (12+GSSAPI_BNDLENGTH)
+#define GSSAPI_CHECKSUM_SIZE (4+GSSAPI_BNDLENGTH+4) /* Length of bind length,
+							bind field, flags field. */
 
-#if defined(TKT_FLG_OK_AS_DELEGATE ) && defined(HAVE_KRB5_FWD_TGT_CREDS) && defined(HAVE_KRB5_AUTH_CON_SET_REQ_CKSUMTYPE) && defined(KRB5_AUTH_CONTEXT_USE_SUBKEY)
-static krb5_error_code ads_krb5_get_fwd_ticket( krb5_context context,
-                                         krb5_auth_context *auth_context,
-                                         krb5_creds *credsp,
-                                         krb5_ccache ccache,
-                                         krb5_data *authenticator);
+/* MIT krb5 1.7beta3 (in Ubuntu Karmic) is missing the prototype,
+   but still has the symbol */
+#if !HAVE_DECL_KRB5_AUTH_CON_SET_REQ_CKSUMTYPE
+krb5_error_code krb5_auth_con_set_req_cksumtype(  
+	krb5_context     context,
+	krb5_auth_context      auth_context,  
+	krb5_cksumtype     cksumtype);
 #endif
 
 /**************************************************************
@@ -345,7 +347,7 @@ bool unwrap_edata_ntstatus(TALLOC_CTX *mem_ctx,
 	}
 	
 	asn1_start_tag(data, ASN1_CONTEXT(2));
-	asn1_read_OctetString(data, NULL, &edata_contents);
+	asn1_read_OctetString(data, talloc_autofree_context(), &edata_contents);
 	asn1_end_tag(data);
 	asn1_end_tag(data);
 	asn1_end_tag(data);
@@ -388,7 +390,7 @@ bool unwrap_pac(TALLOC_CTX *mem_ctx, DATA_BLOB *auth_data, DATA_BLOB *unwrapped_
 	
 	asn1_end_tag(data);
 	asn1_start_tag(data, ASN1_CONTEXT(1));
-	asn1_read_OctetString(data, NULL, &pac_contents);
+	asn1_read_OctetString(data, talloc_autofree_context(), &pac_contents);
 	asn1_end_tag(data);
 	asn1_end_tag(data);
 	asn1_end_tag(data);
@@ -645,6 +647,92 @@ static bool ads_cleanup_expired_creds(krb5_context context,
 	return True;
 }
 
+/* Allocate and setup the auth context into the state we need. */
+
+static krb5_error_code setup_auth_context(krb5_context context,
+			krb5_auth_context *auth_context)
+{
+	krb5_error_code retval;
+
+	retval = krb5_auth_con_init(context, auth_context );
+	if (retval) {
+		DEBUG(1,("krb5_auth_con_init failed (%s)\n",
+			error_message(retval)));
+		return retval;
+	}
+
+	/* Ensure this is an addressless ticket. */
+	retval = krb5_auth_con_setaddrs(context, *auth_context, NULL, NULL);
+	if (retval) {
+		DEBUG(1,("krb5_auth_con_setaddrs failed (%s)\n",
+			error_message(retval)));
+	}
+
+	return retval;
+}
+
+static krb5_error_code create_gss_checksum(krb5_data *in_data, /* [inout] */
+						uint32_t gss_flags)
+{
+	unsigned int orig_length = in_data->length;
+	unsigned int base_cksum_size = GSSAPI_CHECKSUM_SIZE;
+	char *gss_cksum = NULL;
+
+	if (orig_length) {
+		/* Extra length field for delgated ticket. */
+		base_cksum_size += 4;
+	}
+
+	if ((unsigned int)base_cksum_size + orig_length <
+			(unsigned int)base_cksum_size) {
+                return EINVAL;
+        }
+
+	gss_cksum = (char *)SMB_MALLOC(base_cksum_size + orig_length);
+	if (gss_cksum == NULL) {
+		return ENOMEM;
+        }
+
+	memset(gss_cksum, '\0', base_cksum_size + orig_length);
+	SIVAL(gss_cksum, 0, GSSAPI_BNDLENGTH);
+
+	/* Precalculated MD5sum of NULL channel bindings (20 bytes) */
+	/* Channel bindings are: (all ints encoded as little endian)
+
+		[4 bytes] initiator_addrtype (255 for null bindings)
+		[4 bytes] initiator_address length
+			[n bytes] .. initiator_address data - not present
+				     in null bindings.
+		[4 bytes] acceptor_addrtype (255 for null bindings)
+		[4 bytes] acceptor_address length
+			[n bytes] .. acceptor_address data - not present
+				     in null bindings.
+		[4 bytes] application_data length
+			[n bytes] .. application_ data - not present
+				     in null bindings.
+		MD5 of this is ""\x14\x8f\x0c\xf7\xb1u\xdey*J\x9a%\xdfV\xc5\x18"
+	*/
+
+	memcpy(&gss_cksum[4],
+		"\x14\x8f\x0c\xf7\xb1u\xdey*J\x9a%\xdfV\xc5\x18",
+		GSSAPI_BNDLENGTH);
+
+	SIVAL(gss_cksum, 20, gss_flags);
+
+	if (orig_length) {
+		SSVAL(gss_cksum, 24, 1); /* The Delegation Option identifier */
+		SSVAL(gss_cksum, 26, orig_length);
+		/* Copy the kerberos KRB_CRED data */
+		memcpy(gss_cksum + 28, in_data->data, orig_length);
+		free(in_data->data);
+		in_data->data = NULL;
+		in_data->length = 0;
+	}
+	in_data->data = gss_cksum;
+	in_data->length = base_cksum_size + orig_length;
+	return 0;
+}
+
 /*
   we can't use krb5_mk_req because w2k wants the service to be in a particular format
 */
@@ -654,16 +742,19 @@ static krb5_error_code ads_krb5_mk_req(krb5_context context,
 				       const char *principal,
 				       krb5_ccache ccache, 
 				       krb5_data *outbuf, 
-				       time_t *expire_time)
+				       time_t *expire_time,
+				       const char *impersonate_princ_s)
 {
 	krb5_error_code 	  retval;
 	krb5_principal	  server;
+	krb5_principal impersonate_princ = NULL;
 	krb5_creds 		* credsp;
 	krb5_creds 		  creds;
 	krb5_data in_data;
 	bool creds_ready = False;
 	int i = 0, maxtries = 3;
-	
+	uint32_t gss_flags = 0;
+
 	ZERO_STRUCT(in_data);
 
 	retval = smb_krb5_parse_name(context, principal, &server);
@@ -671,7 +762,16 @@ static krb5_error_code ads_krb5_mk_req(krb5_context context,
 		DEBUG(1,("ads_krb5_mk_req: Failed to parse principal %s\n", principal));
 		return retval;
 	}
-	
+
+	if (impersonate_princ_s) {
+		retval = smb_krb5_parse_name(context, impersonate_princ_s,
+					     &impersonate_princ);
+		if (retval) {
+			DEBUG(1,("ads_krb5_mk_req: Failed to parse principal %s\n", impersonate_princ_s));
+			goto cleanup_princ;
+		}
+	}
+
 	/* obtain ticket & session key */
 	ZERO_STRUCT(creds);
 	if ((retval = krb5_copy_principal(context, server, &creds.server))) {
@@ -683,17 +783,20 @@ static krb5_error_code ads_krb5_mk_req(krb5_context context,
 	if ((retval = krb5_cc_get_principal(context, ccache, &creds.client))) {
 		/* This can commonly fail on smbd startup with no ticket in the cache.
 		 * Report at higher level than 1. */
-		DEBUG(3,("ads_krb5_mk_req: krb5_cc_get_principal failed (%s)\n", 
+		DEBUG(3,("ads_krb5_mk_req: krb5_cc_get_principal failed (%s)\n",
 			 error_message(retval)));
 		goto cleanup_creds;
 	}
 
 	while (!creds_ready && (i < maxtries)) {
 
-		if ((retval = krb5_get_credentials(context, 0, ccache, 
-						   &creds, &credsp))) {
-			DEBUG(1,("ads_krb5_mk_req: krb5_get_credentials failed for %s (%s)\n",
-				 principal, error_message(retval)));
+		if ((retval = smb_krb5_get_credentials(context, ccache,
+						       creds.client,
+						       creds.server,
+						       impersonate_princ,
+						       &credsp))) {
+			DEBUG(1,("ads_krb5_mk_req: smb_krb5_get_credentials failed for %s (%s)\n",
+				principal, error_message(retval)));
 			goto cleanup_creds;
 		}
 
@@ -721,45 +824,51 @@ static krb5_error_code ads_krb5_mk_req(krb5_context context,
 		*expire_time = (time_t)credsp->times.endtime;
 	}
 
-#if defined(TKT_FLG_OK_AS_DELEGATE ) && defined(HAVE_KRB5_FWD_TGT_CREDS) && defined(HAVE_KRB5_AUTH_CON_SET_REQ_CKSUMTYPE) && defined(KRB5_AUTH_CONTEXT_USE_SUBKEY)
+	/* Allocate the auth_context. */
+	retval = setup_auth_context(context, auth_context);
+	if (retval) {
+		DEBUG(1,("setup_auth_context failed (%s)\n",
+			error_message(retval)));
+		goto cleanup_creds;
+	}
+
+#if defined(TKT_FLG_OK_AS_DELEGATE ) && defined(HAVE_KRB5_FWD_TGT_CREDS) && defined(HAVE_KRB5_AUTH_CON_SETUSERUSERKEY) && defined(KRB5_AUTH_CONTEXT_USE_SUBKEY)
 	if( credsp->ticket_flags & TKT_FLG_OK_AS_DELEGATE ) {
 		/* Fetch a forwarded TGT from the KDC so that we can hand off a 2nd ticket
 		 as part of the kerberos exchange. */
 
 		DEBUG( 3, ("ads_krb5_mk_req: server marked as OK to delegate to, building forwardable TGT\n")  );
 
-		if( *auth_context == NULL ) {
-			/* Allocate if it has not yet been allocated. */
-			retval = krb5_auth_con_init( context, auth_context );
-			if (retval) {
-				DEBUG(1,("ads_krb5_mk_req: krb5_auth_con_init failed (%s)\n",
-					error_message(retval)));
-				goto cleanup_creds;
-			}
-		}
-
-		retval = krb5_auth_con_setuseruserkey( context, *auth_context, &credsp->keyblock );
+		retval = krb5_auth_con_setuseruserkey(context,
+					*auth_context,
+					&credsp->keyblock );
 		if (retval) {
-			DEBUG(1,("ads_krb5_mk_req: krb5_auth_con_setuseruserkey failed (%s)\n",
+			DEBUG(1,("krb5_auth_con_setuseruserkey failed (%s)\n",
 				error_message(retval)));
 			goto cleanup_creds;
 		}
 
 		/* Must use a subkey for forwarded tickets. */
-		retval = krb5_auth_con_setflags( context, *auth_context, KRB5_AUTH_CONTEXT_USE_SUBKEY);
+		retval = krb5_auth_con_setflags(context,
+				*auth_context,
+				KRB5_AUTH_CONTEXT_USE_SUBKEY);
 		if (retval) {
-			DEBUG(1,("ads_krb5_mk_req: krb5_auth_con_setflags failed (%s)\n",
+			DEBUG(1,("krb5_auth_con_setflags failed (%s)\n",
 				error_message(retval)));
 			goto cleanup_creds;
 		}
 
-		retval = ads_krb5_get_fwd_ticket( context,
-						auth_context,
-						credsp,
-						ccache,
-						&in_data );
+		retval = krb5_fwd_tgt_creds(context,/* Krb5 context [in] */
+				*auth_context,  /* Authentication context [in] */
+				CONST_DISCARD(char *, KRB5_TGS_NAME),  /* Ticket service name ("krbtgt") [in] */
+				credsp->client, /* Client principal for the tgt [in] */
+				credsp->server, /* Server principal for the tgt [in] */
+				ccache,         /* Credential cache to use for storage [in] */
+				1,              /* Turn on for "Forwardable ticket" [in] */
+				&in_data );     /* Resulting response [out] */
+
 		if (retval) {
-			DEBUG( 3, ("ads_krb5_get_fwd_ticket failed (%s)\n",
+			DEBUG( 3, ("krb5_fwd_tgt_creds failed (%s)\n",
 				   error_message( retval ) ) );
 
 			/*
@@ -774,7 +883,32 @@ static krb5_error_code ads_krb5_mk_req(krb5_context context,
 			}
 			krb5_auth_con_free(context, *auth_context);
 			*auth_context = NULL;
+			retval = setup_auth_context(context, auth_context);
+			if (retval) {
+				DEBUG(1,("setup_auth_context failed (%s)\n",
+					error_message(retval)));
+				goto cleanup_creds;
+			}
+		} else {
+			/* We got a delegated ticket. */
+			gss_flags |= GSS_C_DELEG_FLAG;
 		}
+	}
+#endif
+
+	/* Frees and reallocates in_data into a GSS checksum blob. */
+	retval = create_gss_checksum(&in_data, gss_flags);
+	if (retval) {
+		goto cleanup_data;
+	}
+
+#if defined(HAVE_KRB5_AUTH_CON_SET_REQ_CKSUMTYPE)
+	/* We always want GSS-checksum types. */
+	retval = krb5_auth_con_set_req_cksumtype(context, *auth_context, GSSAPI_CHECKSUM );
+	if (retval) {
+		DEBUG(1,("krb5_auth_con_set_req_cksumtype failed (%s)\n",
+			error_message(retval)));
+		goto cleanup_data;
 	}
 #endif
 
@@ -785,6 +919,7 @@ static krb5_error_code ads_krb5_mk_req(krb5_context context,
 			 error_message(retval)));
 	}
 
+cleanup_data:
 	if (in_data.data) {
 		free( in_data.data );
 		in_data.length = 0;
@@ -797,6 +932,9 @@ cleanup_creds:
 
 cleanup_princ:
 	krb5_free_principal(context, server);
+	if (impersonate_princ) {
+		krb5_free_principal(context, impersonate_princ);
+	}
 
 	return retval;
 }
@@ -807,7 +945,8 @@ cleanup_princ:
 int cli_krb5_get_ticket(const char *principal, time_t time_offset, 
 			DATA_BLOB *ticket, DATA_BLOB *session_key_krb5, 
 			uint32 extra_ap_opts, const char *ccname, 
-			time_t *tgs_expire)
+			time_t *tgs_expire,
+			const char *impersonate_princ_s)
 
 {
 	krb5_error_code retval;
@@ -853,7 +992,8 @@ int cli_krb5_get_ticket(const char *principal, time_t time_offset,
 					AP_OPTS_USE_SUBKEY | (krb5_flags)extra_ap_opts,
 					principal,
 					ccdef, &packet,
-					tgs_expire))) {
+					tgs_expire,
+					impersonate_princ_s))) {
 		goto failed;
 	}
 
@@ -1539,7 +1679,11 @@ done:
 		}
 
 		if (krberror->e_data.data == NULL) {
+#if defined(ERROR_TABLE_BASE_krb5)
 			ret = ERROR_TABLE_BASE_krb5 + (krb5_error_code) krberror->error;
+#else
+			ret = (krb5_error_code)krberror->error;
+#endif
 			got_error_code = True;
 		}
 		smb_krb5_free_error(context, krberror);
@@ -1823,127 +1967,274 @@ krb5_error_code smb_krb5_keytab_name(TALLOC_CTX *mem_ctx,
 	return ret;
 }
 
-#if defined(TKT_FLG_OK_AS_DELEGATE ) && defined(HAVE_KRB5_FWD_TGT_CREDS) && defined(HAVE_KRB5_AUTH_CON_SET_REQ_CKSUMTYPE) && defined(KRB5_AUTH_CONTEXT_USE_SUBKEY)
-/**************************************************************
-Routine: ads_krb5_get_fwd_ticket
- Description:
-    When a service ticket is flagged as trusted
-    for delegation we should provide a forwardable
-    ticket so that the remote host can act on our
-    behalf.  This is done by taking the 2nd forwardable
-    TGT and storing it in the GSS-API authenticator
-    "checksum".  This routine will populate
-    the krb5_data authenticator with this TGT.
- Parameters:
-    krb5_context context: The kerberos context for this authentication.
-    krb5_auth_context:    The authentication context.
-    krb5_creds *credsp:   The ticket credentials (AS-REP).
-    krb5_ccache ccache:   The credentials cache.
-    krb5_data &authenticator: The checksum field that will store the TGT, and
-     authenticator.data must be freed by the caller.
-
- Returns:
-    krb5_error_code: 0 if no errors, otherwise set.
-**************************************************************/
-
-static krb5_error_code ads_krb5_get_fwd_ticket( krb5_context context,
-					 krb5_auth_context *auth_context,
-					 krb5_creds *credsp,
-					 krb5_ccache ccache,
-					 krb5_data *authenticator)
+#if defined(HAVE_KRB5_GET_CREDS_OPT_SET_IMPERSONATE) && \
+    defined(HAVE_KRB5_GET_CREDS_OPT_ALLOC) && \
+    defined(HAVE_KRB5_GET_CREDS)
+static krb5_error_code smb_krb5_get_credentials_for_user_opt(krb5_context context,
+							     krb5_ccache ccache,
+							     krb5_principal me,
+							     krb5_principal server,
+							     krb5_principal impersonate_princ,
+							     krb5_creds **out_creds)
 {
-	krb5_data fwdData;
-	krb5_error_code retval = 0;
-	char *pChksum = NULL;
-	char *p = NULL;
+	krb5_error_code ret;
+	krb5_get_creds_opt opt;
 
-/* MIT krb5 1.7beta3 (in Ubuntu Karmic) is missing the prototype,
-   but still has the symbol */
-#if !HAVE_DECL_KRB5_AUTH_CON_SET_REQ_CKSUMTYPE
-krb5_error_code krb5_auth_con_set_req_cksumtype(  
-	krb5_context     context,
-	krb5_auth_context      auth_context,  
-	krb5_cksumtype     cksumtype);
-#endif
+	ret = krb5_get_creds_opt_alloc(context, &opt);
+	if (ret) {
+		goto done;
+	}
+	krb5_get_creds_opt_add_options(context, opt, KRB5_GC_FORWARDABLE);
 
-	ZERO_STRUCT(fwdData);
-	ZERO_STRUCTP(authenticator);
-
-	retval = krb5_fwd_tgt_creds(context,/* Krb5 context [in] */
-				*auth_context,  /* Authentication context [in] */
-				CONST_DISCARD(char *, KRB5_TGS_NAME),  /* Ticket service name ("krbtgt") [in] */
-				credsp->client, /* Client principal for the tgt [in] */
-				credsp->server, /* Server principal for the tgt [in] */
-				ccache,         /* Credential cache to use for storage [in] */
-				1,              /* Turn on for "Forwardable ticket" [in] */
-				&fwdData );     /* Resulting response [out] */
-
-
-	if (retval) {
-		DEBUG(1,("ads_krb5_get_fwd_ticket: krb5_fwd_tgt_creds failed (%s)\n", 
-			error_message(retval)));
-		goto out;
+	if (impersonate_princ) {
+		ret = krb5_get_creds_opt_set_impersonate(context, opt,
+							 impersonate_princ);
+		if (ret) {
+			goto done;
+		}
 	}
 
-	if ((unsigned int)GSSAPI_CHECKSUM_SIZE + (unsigned int)fwdData.length <
-		(unsigned int)GSSAPI_CHECKSUM_SIZE) {
-		retval = EINVAL;
-		goto out;
+	ret = krb5_get_creds(context, opt, ccache, server, out_creds);
+	if (ret) {
+		goto done;
 	}
 
-	/* We're going to allocate a gssChecksum structure with a little
-	   extra data the length of the kerberos credentials length
-	   (APPLICATION 22) so that we can pack it on the end of the structure.
-	*/
-
-	pChksum	= (char *)SMB_MALLOC(GSSAPI_CHECKSUM_SIZE + fwdData.length );
-	if (!pChksum) {
-		retval = ENOMEM;
-		goto out;
+ done:
+	if (opt) {
+		krb5_get_creds_opt_free(context, opt);
 	}
-
-	p = pChksum;
-
-	SIVAL(p, 0, GSSAPI_BNDLENGTH);
-	p += 4;
-
-	/* Zero out the bindings fields */
-	memset(p, '\0', GSSAPI_BNDLENGTH );
-	p += GSSAPI_BNDLENGTH;
-
-	SIVAL(p, 0, GSS_C_DELEG_FLAG );
-	p += 4;
-	SSVAL(p, 0, 1 );
-	p += 2;
-	SSVAL(p, 0, fwdData.length );
-	p += 2;
-
-	/* Migrate the kerberos KRB_CRED data to the checksum delegation */
-	memcpy(p, fwdData.data, fwdData.length );
-	p += fwdData.length;
-
-	/* We need to do this in order to allow our GSS-API  */
-	retval = krb5_auth_con_set_req_cksumtype( context, *auth_context, GSSAPI_CHECKSUM );
-	if (retval) {
-		goto out;
-	}
-
-	/* We now have a service ticket, now turn it into an AP-REQ. */
-	authenticator->length = fwdData.length + GSSAPI_CHECKSUM_SIZE;
-
-	/* Caller should call free() when they're done with this. */
-	authenticator->data = (char *)pChksum;
-
-  out:
-
- 	/* Remove that input data, we never needed it anyway. */
-   	if (fwdData.length > 0) {
-  		krb5_free_data_contents( context, &fwdData );
-   	}
-
-	return retval;
+	return ret;
 }
+#endif /* HAVE_KRB5_GET_CREDS_OPT_SET_IMPERSONATE */
+
+#ifdef HAVE_KRB5_GET_CREDENTIALS_FOR_USER
+static krb5_error_code smb_krb5_get_credentials_for_user(krb5_context context,
+							 krb5_ccache ccache,
+							 krb5_principal me,
+							 krb5_principal server,
+							 krb5_principal impersonate_princ,
+							 krb5_creds **out_creds)
+{
+	krb5_error_code ret;
+	krb5_creds in_creds;
+
+#if !HAVE_DECL_KRB5_GET_CREDENTIALS_FOR_USER
+krb5_error_code KRB5_CALLCONV
+krb5_get_credentials_for_user(krb5_context context, krb5_flags options,
+                              krb5_ccache ccache, krb5_creds *in_creds,
+                              krb5_data *subject_cert,
+                              krb5_creds **out_creds);
+#endif /* !HAVE_DECL_KRB5_GET_CREDENTIALS_FOR_USER */
+
+	ZERO_STRUCT(in_creds);
+
+	if (impersonate_princ) {
+
+		in_creds.server = me;
+		in_creds.client = impersonate_princ;
+
+		ret = krb5_get_credentials_for_user(context,
+						    0, /* krb5_flags options */
+						    ccache,
+						    &in_creds,
+						    NULL, /* krb5_data *subject_cert */
+						    out_creds);
+	} else {
+		in_creds.client = me;
+		in_creds.server = server;
+
+		ret = krb5_get_credentials(context, 0, ccache,
+					   &in_creds, out_creds);
+	}
+
+	return ret;
+}
+#endif /* HAVE_KRB5_GET_CREDENTIALS_FOR_USER */
+
+/*
+ * smb_krb5_get_credentials
+ *
+ * @brief Get krb5 credentials for a server
+ *
+ * @param[in] context		An initialized krb5_context
+ * @param[in] ccache		An initialized krb5_ccache
+ * @param[in] me		The krb5_principal of the caller
+ * @param[in] server		The krb5_principal of the requested service
+ * @param[in] impersonate_princ The krb5_principal of a user to impersonate as (optional)
+ * @param[out] out_creds	The returned krb5_creds structure
+ * @return krb5_error_code
+ *
+ */
+krb5_error_code smb_krb5_get_credentials(krb5_context context,
+					 krb5_ccache ccache,
+					 krb5_principal me,
+					 krb5_principal server,
+					 krb5_principal impersonate_princ,
+					 krb5_creds **out_creds)
+{
+	krb5_error_code ret;
+	krb5_creds *creds = NULL;
+
+	*out_creds = NULL;
+
+	if (impersonate_princ) {
+#ifdef HAVE_KRB5_GET_CREDS_OPT_SET_IMPERSONATE /* Heimdal */
+		ret = smb_krb5_get_credentials_for_user_opt(context, ccache, me, server, impersonate_princ, &creds);
+#elif defined(HAVE_KRB5_GET_CREDENTIALS_FOR_USER) /* MIT */
+		ret = smb_krb5_get_credentials_for_user(context, ccache, me, server, impersonate_princ, &creds);
+#else
+		ret = ENOTSUP;
 #endif
+	} else {
+		krb5_creds in_creds;
+
+		ZERO_STRUCT(in_creds);
+
+		in_creds.client = me;
+		in_creds.server = server;
+
+		ret = krb5_get_credentials(context, 0, ccache,
+					   &in_creds, &creds);
+	}
+	if (ret) {
+		goto done;
+	}
+
+	ret = krb5_cc_store_cred(context, ccache, creds);
+	if (ret) {
+		goto done;
+	}
+
+	if (out_creds) {
+		*out_creds = creds;
+	}
+
+ done:
+	if (creds && ret) {
+		krb5_free_creds(context, creds);
+	}
+
+	return ret;
+}
+
+/*
+ * smb_krb5_get_creds
+ *
+ * @brief Get krb5 credentials for a server
+ *
+ * @param[in] server_s		The string name of the service
+ * @param[in] time_offset	The offset to the KDCs time in seconds (optional)
+ * @param[in] cc		The krb5 credential cache string name (optional)
+ * @param[in] impersonate_princ_s The string principal name to impersonate (optional)
+ * @param[out] creds_p		The returned krb5_creds structure
+ * @return krb5_error_code
+ *
+ */
+krb5_error_code smb_krb5_get_creds(const char *server_s,
+				   time_t time_offset,
+				   const char *cc,
+				   const char *impersonate_princ_s,
+				   krb5_creds **creds_p)
+{
+	krb5_error_code ret;
+	krb5_context context = NULL;
+	krb5_principal me = NULL;
+	krb5_principal server = NULL;
+	krb5_principal impersonate_princ = NULL;
+	krb5_creds *creds = NULL;
+	krb5_ccache ccache = NULL;
+
+	*creds_p = NULL;
+
+	initialize_krb5_error_table();
+	ret = krb5_init_context(&context);
+	if (ret) {
+		goto done;
+	}
+
+	if (time_offset != 0) {
+		krb5_set_real_time(context, time(NULL) + time_offset, 0);
+	}
+
+	ret = krb5_cc_resolve(context, cc ? cc :
+		krb5_cc_default_name(context), &ccache);
+	if (ret) {
+		goto done;
+	}
+
+	ret = krb5_cc_get_principal(context, ccache, &me);
+	if (ret) {
+		goto done;
+	}
+
+	ret = smb_krb5_parse_name(context, server_s, &server);
+	if (ret) {
+		goto done;
+	}
+
+	if (impersonate_princ_s) {
+		ret = smb_krb5_parse_name(context, impersonate_princ_s,
+					  &impersonate_princ);
+		if (ret) {
+			goto done;
+		}
+	}
+
+	ret = smb_krb5_get_credentials(context, ccache,
+				       me, server, impersonate_princ,
+				       &creds);
+	if (ret) {
+		goto done;
+	}
+
+	ret = krb5_cc_store_cred(context, ccache, creds);
+	if (ret) {
+		goto done;
+	}
+
+	if (creds_p) {
+		*creds_p = creds;
+	}
+
+	DEBUG(1,("smb_krb5_get_creds: got ticket for %s\n",
+		server_s));
+
+	if (impersonate_princ_s) {
+		char *client = NULL;
+
+		ret = smb_krb5_unparse_name(talloc_tos(), context, creds->client, &client);
+		if (ret) {
+			goto done;
+		}
+		DEBUGADD(1,("smb_krb5_get_creds: using S4U2SELF impersonation as %s\n",
+			client));
+		TALLOC_FREE(client);
+	}
+
+ done:
+	if (!context) {
+		return ret;
+	}
+
+	if (creds && ret) {
+		krb5_free_creds(context, creds);
+	}
+	if (server) {
+		krb5_free_principal(context, server);
+	}
+	if (me) {
+		krb5_free_principal(context, me);
+	}
+	if (impersonate_princ) {
+		krb5_free_principal(context, impersonate_princ);
+	}
+	if (ccache) {
+		krb5_cc_close(context, ccache);
+	}
+	krb5_free_context(context);
+
+	return ret;
+}
 
 /*
  * smb_krb5_principal_get_realm
@@ -1974,7 +2265,8 @@ char *smb_krb5_principal_get_realm(krb5_context context,
  /* this saves a few linking headaches */
  int cli_krb5_get_ticket(const char *principal, time_t time_offset, 
 			DATA_BLOB *ticket, DATA_BLOB *session_key_krb5, uint32 extra_ap_opts,
-			const char *ccname, time_t *tgs_expire) 
+			const char *ccname, time_t *tgs_expire,
+			const char *impersonate_princ_s)
 {
 	 DEBUG(0,("NO KERBEROS SUPPORT\n"));
 	 return 1;

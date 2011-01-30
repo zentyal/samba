@@ -70,6 +70,11 @@ bool event_add_to_select_args(struct tevent_context *ev,
 		}
 	}
 
+	if (ev->immediate_events != NULL) {
+		*timeout = timeval_zero();
+		return true;
+	}
+
 	if (ev->timer_events == NULL) {
 		return ret;
 	}
@@ -100,12 +105,29 @@ bool run_events(struct tevent_context *ev,
 
 	if ((ev->timer_events != NULL)
 	    && (timeval_compare(&now, &ev->timer_events->next_event) >= 0)) {
+		/* this older events system did not auto-free timed
+		   events on running them, and had a race condition
+		   where the event could be called twice if the
+		   talloc_free of the te happened after the callback
+		   made a call which invoked the event loop. To avoid
+		   this while still allowing old code which frees the
+		   te, we need to create a temporary context which
+		   will be used to ensure the te is freed. We also
+		   remove the te from the timed event list before we
+		   call the handler, to ensure we can't loop */
+
+		struct tevent_timer *te = ev->timer_events;
+		TALLOC_CTX *tmp_ctx = talloc_new(ev);
 
 		DEBUG(10, ("Running timed event \"%s\" %p\n",
 			   ev->timer_events->handler_name, ev->timer_events));
 
-		ev->timer_events->handler(ev, ev->timer_events, now,
-					  ev->timer_events->private_data);
+		DLIST_REMOVE(ev->timer_events, te);
+		talloc_steal(tmp_ctx, te);
+
+		te->handler(ev, te, now, te->private_data);
+
+		talloc_free(tmp_ctx);
 		return true;
 	}
 
@@ -137,8 +159,12 @@ struct timeval *get_timed_events_timeout(struct tevent_context *ev,
 {
 	struct timeval now;
 
-	if (ev->timer_events == NULL) {
+	if ((ev->timer_events == NULL) && (ev->immediate_events == NULL)) {
 		return NULL;
+	}
+	if (ev->immediate_events != NULL) {
+		*to_ret = timeval_zero();
+		return to_ret;
 	}
 
 	now = timeval_current();
@@ -277,7 +303,7 @@ static void s3_event_debug(void *context, enum tevent_debug_level level,
 		samba_level = 2;
 		break;
 	case TEVENT_DEBUG_TRACE:
-		samba_level = 10;
+		samba_level = 11;
 		break;
 
 	};

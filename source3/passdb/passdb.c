@@ -23,6 +23,7 @@
 */
 
 #include "includes.h"
+#include "../libcli/auth/libcli_auth.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_PASSDB
@@ -239,7 +240,7 @@ static NTSTATUS samu_set_unix_internal(struct samu *user, const struct passwd *p
 	   initialized and will fill in these fields later (such as from a 
 	   netr_SamInfo3 structure) */
 
-	if ( create && !pdb_rid_algorithm() ) {
+	if ( create && (pdb_capabilities() & PDB_CAP_STORE_RIDS)) {
 		uint32 user_rid;
 		DOM_SID user_sid;
 
@@ -687,9 +688,6 @@ NTSTATUS local_password_change(const char *user_name,
 	*pp_msg_str = NULL;
 
 	tosctx = talloc_tos();
-	if (!tosctx) {
-		return NT_STATUS_NO_MEMORY;
-	}
 
 	sam_pass = samu_new(tosctx);
 	if (!sam_pass) {
@@ -1474,7 +1472,7 @@ static bool init_samu_from_buffer_v2(struct samu *sampass, uint8 *buf, uint32 bu
 	}
 
 	/* Change from V1 is addition of password history field. */
-	pdb_get_account_policy(AP_PASSWORD_HISTORY, &pwHistLen);
+	pdb_get_account_policy(PDB_POLICY_PASSWORD_HISTORY, &pwHistLen);
 	if (pwHistLen) {
 		uint8 *pw_hist = SMB_MALLOC_ARRAY(uint8, pwHistLen * PW_HISTORY_ENTRY_LEN);
 		if (!pw_hist) {
@@ -1554,7 +1552,7 @@ static bool init_samu_from_buffer_v3(struct samu *sampass, uint8 *buf, uint32 bu
 	char *domain = NULL;
 	char *nt_username = NULL;
 	char *dir_drive = NULL;
-	char *unknown_str = NULL;
+	char *comment = NULL;
 	char *munged_dial = NULL;
 	char *fullname = NULL;
 	char *homedir = NULL;
@@ -1563,7 +1561,7 @@ static bool init_samu_from_buffer_v3(struct samu *sampass, uint8 *buf, uint32 bu
 	char *acct_desc = NULL;
 	char *workstations = NULL;
 	uint32	username_len, domain_len, nt_username_len,
-		dir_drive_len, unknown_str_len, munged_dial_len,
+		dir_drive_len, comment_len, munged_dial_len,
 		fullname_len, homedir_len, logon_script_len,
 		profile_path_len, acct_desc_len, workstations_len;
 
@@ -1605,7 +1603,7 @@ static bool init_samu_from_buffer_v3(struct samu *sampass, uint8 *buf, uint32 bu
 		&profile_path_len, &profile_path,			/* B */
 		&acct_desc_len, &acct_desc,				/* B */
 		&workstations_len, &workstations,			/* B */
-		&unknown_str_len, &unknown_str,				/* B */
+		&comment_len, &comment,					/* B */
 		&munged_dial_len, &munged_dial,				/* B */
 		&user_rid,						/* d */
 		&group_rid,						/* d */
@@ -1691,6 +1689,7 @@ static bool init_samu_from_buffer_v3(struct samu *sampass, uint8 *buf, uint32 bu
 	}
 
 	pdb_set_acct_desc(sampass, acct_desc, PDB_SET);
+	pdb_set_comment(sampass, comment, PDB_SET);
 	pdb_set_workstations(sampass, workstations, PDB_SET);
 	pdb_set_munged_dial(sampass, munged_dial, PDB_SET);
 
@@ -1708,7 +1707,7 @@ static bool init_samu_from_buffer_v3(struct samu *sampass, uint8 *buf, uint32 bu
 		}
 	}
 
-	pdb_get_account_policy(AP_PASSWORD_HISTORY, &pwHistLen);
+	pdb_get_account_policy(PDB_POLICY_PASSWORD_HISTORY, &pwHistLen);
 	if (pwHistLen) {
 		uint8 *pw_hist = (uint8 *)SMB_MALLOC(pwHistLen * PW_HISTORY_ENTRY_LEN);
 		if (!pw_hist) {
@@ -1759,7 +1758,7 @@ done:
 	SAFE_FREE(acct_desc);
 	SAFE_FREE(workstations);
 	SAFE_FREE(munged_dial);
-	SAFE_FREE(unknown_str);
+	SAFE_FREE(comment);
 	SAFE_FREE(lm_pw_ptr);
 	SAFE_FREE(nt_pw_ptr);
 	SAFE_FREE(nt_pw_hist_ptr);
@@ -1792,7 +1791,7 @@ static uint32 init_buffer_from_samu_v3 (uint8 **buf, struct samu *sampass, bool 
 	const char *domain;
 	const char *nt_username;
 	const char *dir_drive;
-	const char *unknown_str;
+	const char *comment;
 	const char *munged_dial;
 	const char *fullname;
 	const char *homedir;
@@ -1801,7 +1800,7 @@ static uint32 init_buffer_from_samu_v3 (uint8 **buf, struct samu *sampass, bool 
 	const char *acct_desc;
 	const char *workstations;
 	uint32	username_len, domain_len, nt_username_len,
-		dir_drive_len, unknown_str_len, munged_dial_len,
+		dir_drive_len, comment_len, munged_dial_len,
 		fullname_len, homedir_len, logon_script_len,
 		profile_path_len, acct_desc_len, workstations_len;
 
@@ -1913,7 +1912,7 @@ static uint32 init_buffer_from_samu_v3 (uint8 **buf, struct samu *sampass, bool 
 		nt_pw_len = 0;
 	}
 
-	pdb_get_account_policy(AP_PASSWORD_HISTORY, &pwHistLen);
+	pdb_get_account_policy(PDB_POLICY_PASSWORD_HISTORY, &pwHistLen);
 	nt_pw_hist =  pdb_get_pw_history(sampass, &nt_pw_hist_len);
 	if (pwHistLen && nt_pw_hist && nt_pw_hist_len) {
 		nt_pw_hist_len *= PW_HISTORY_ENTRY_LEN;
@@ -1935,8 +1934,12 @@ static uint32 init_buffer_from_samu_v3 (uint8 **buf, struct samu *sampass, bool 
 		workstations_len = 0;
 	}
 
-	unknown_str = NULL;
-	unknown_str_len = 0;
+	comment = pdb_get_comment(sampass);
+	if (comment) {
+		comment_len = strlen(comment) +1;
+	} else {
+		comment_len = 0;
+	}
 
 	munged_dial = pdb_get_munged_dial(sampass);
 	if (munged_dial) {
@@ -1966,7 +1969,7 @@ static uint32 init_buffer_from_samu_v3 (uint8 **buf, struct samu *sampass, bool 
 		profile_path_len, profile_path,		/* B */
 		acct_desc_len, acct_desc,		/* B */
 		workstations_len, workstations,		/* B */
-		unknown_str_len, unknown_str,		/* B */
+		comment_len, comment,			/* B */
 		munged_dial_len, munged_dial,		/* B */
 		user_rid,				/* d */
 		group_rid,				/* d */
@@ -2010,7 +2013,7 @@ static uint32 init_buffer_from_samu_v3 (uint8 **buf, struct samu *sampass, bool 
 		profile_path_len, profile_path,		/* B */
 		acct_desc_len, acct_desc,		/* B */
 		workstations_len, workstations,		/* B */
-		unknown_str_len, unknown_str,		/* B */
+		comment_len, comment,			/* B */
 		munged_dial_len, munged_dial,		/* B */
 		user_rid,				/* d */
 		group_rid,				/* d */
@@ -2119,7 +2122,7 @@ bool pdb_copy_sam_account(struct samu *dst, struct samu *src )
 }
 
 /*********************************************************************
- Update the bad password count checking the AP_RESET_COUNT_TIME 
+ Update the bad password count checking the PDB_POLICY_RESET_COUNT_TIME
 *********************************************************************/
 
 bool pdb_update_bad_password_count(struct samu *sampass, bool *updated)
@@ -2136,7 +2139,7 @@ bool pdb_update_bad_password_count(struct samu *sampass, bool *updated)
 	}
 
 	become_root();
-	res = pdb_get_account_policy(AP_RESET_COUNT_TIME, &resettime);
+	res = pdb_get_account_policy(PDB_POLICY_RESET_COUNT_TIME, &resettime);
 	unbecome_root();
 
 	if (!res) {
@@ -2165,7 +2168,7 @@ bool pdb_update_bad_password_count(struct samu *sampass, bool *updated)
 }
 
 /*********************************************************************
- Update the ACB_AUTOLOCK flag checking the AP_LOCK_ACCOUNT_DURATION 
+ Update the ACB_AUTOLOCK flag checking the PDB_POLICY_LOCK_ACCOUNT_DURATION
 *********************************************************************/
 
 bool pdb_update_autolock_flag(struct samu *sampass, bool *updated)
@@ -2181,7 +2184,7 @@ bool pdb_update_autolock_flag(struct samu *sampass, bool *updated)
 	}
 
 	become_root();
-	res = pdb_get_account_policy(AP_LOCK_ACCOUNT_DURATION, &duration);
+	res = pdb_get_account_policy(PDB_POLICY_LOCK_ACCOUNT_DURATION, &duration);
 	unbecome_root();
 
 	if (!res) {
@@ -2233,7 +2236,7 @@ bool pdb_increment_bad_password_count(struct samu *sampass)
 
 	/* Retrieve the account lockout policy */
 	become_root();
-	ret = pdb_get_account_policy(AP_BAD_ATTEMPT_LOCKOUT, &account_policy_lockout);
+	ret = pdb_get_account_policy(PDB_POLICY_BAD_ATTEMPT_LOCKOUT, &account_policy_lockout);
 	unbecome_root();
 	if ( !ret ) {
 		DEBUG(0, ("pdb_increment_bad_password_count: pdb_get_account_policy failed.\n"));
@@ -2291,7 +2294,8 @@ bool is_dc_trusted_domain_situation(const char *domain_name)
 *******************************************************************/
 
 bool get_trust_pw_clear(const char *domain, char **ret_pwd,
-			const char **account_name, uint32 *channel)
+			const char **account_name,
+			enum netr_SchannelType *channel)
 {
 	char *pwd;
 	time_t last_set_time;
@@ -2363,7 +2367,8 @@ bool get_trust_pw_clear(const char *domain, char **ret_pwd,
 *******************************************************************/
 
 bool get_trust_pw_hash(const char *domain, uint8 ret_pwd[16],
-		       const char **account_name, uint32 *channel)
+		       const char **account_name,
+		       enum netr_SchannelType *channel)
 {
 	char *pwd = NULL;
 	time_t last_set_time;
@@ -2415,64 +2420,4 @@ struct samr_LogonHours get_logon_hours_from_pdb(TALLOC_CTX *mem_ctx,
 	}
 
 	return hours;
-}
-
-/****************************************************************
-****************************************************************/
-
-NTSTATUS smb_create_user(TALLOC_CTX *mem_ctx,
-			 uint32_t acct_flags,
-			 const char *account,
-			 struct passwd **passwd_p)
-{
-	struct passwd *passwd;
-	char *add_script = NULL;
-
-	passwd = Get_Pwnam_alloc(mem_ctx, account);
-	if (passwd) {
-		*passwd_p = passwd;
-		return NT_STATUS_OK;
-	}
-
-	/* Create appropriate user */
-	if (acct_flags & ACB_NORMAL) {
-		add_script = talloc_strdup(mem_ctx, lp_adduser_script());
-	} else if ( (acct_flags & ACB_WSTRUST) ||
-		    (acct_flags & ACB_SVRTRUST) ||
-		    (acct_flags & ACB_DOMTRUST) ) {
-		add_script = talloc_strdup(mem_ctx, lp_addmachine_script());
-	} else {
-		DEBUG(1, ("Unknown user type: %s\n",
-			  pdb_encode_acct_ctrl(acct_flags, NEW_PW_FORMAT_SPACE_PADDED_LEN)));
-		return NT_STATUS_UNSUCCESSFUL;
-	}
-
-	if (!add_script) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	if (*add_script) {
-		int add_ret;
-		add_script = talloc_all_string_sub(mem_ctx, add_script,
-						   "%u", account);
-		if (!add_script) {
-			return NT_STATUS_NO_MEMORY;
-		}
-		add_ret = smbrun(add_script, NULL);
-		DEBUG(add_ret ? 0 : 1,("fetch_account: Running the command `%s' "
-			 "gave %d\n", add_script, add_ret));
-		if (add_ret == 0) {
-			smb_nscd_flush_user_cache();
-		}
-	}
-
-	/* try and find the possible unix account again */
-	passwd = Get_Pwnam_alloc(mem_ctx, account);
-	if (!passwd) {
-		return NT_STATUS_NO_SUCH_USER;
-	}
-
-	*passwd_p = passwd;
-
-	return NT_STATUS_OK;
 }

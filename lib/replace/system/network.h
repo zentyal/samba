@@ -321,6 +321,22 @@ typedef unsigned short int sa_family_t;
 #endif
 #endif
 
+#ifndef IOV_MAX
+# ifdef UIO_MAXIOV
+#  define IOV_MAX UIO_MAXIOV
+# else
+#  ifdef __sgi
+    /*
+     * IRIX 6.5 has sysconf(_SC_IOV_MAX)
+     * which might return 512 or bigger
+     */
+#   define IOV_MAX 512
+#  else
+#   error IOV_MAX and UIO_MAXIOV undefined
+#  endif
+# endif
+#endif
+
 #ifndef HAVE_STRUCT_ADDRINFO
 #define HAVE_STRUCT_ADDRINFO
 struct addrinfo {
@@ -343,6 +359,13 @@ struct addrinfo {
 #ifndef ifr_netmask
 #define ifr_netmask ifr_addr
 #endif
+
+/* Some old Linux systems have broken header files */
+#ifdef HAVE_IPV6
+#ifdef HAVE_LINUX_IPV6_V6ONLY_26
+#define IPV6_V6ONLY 26
+#endif /* HAVE_LINUX_IPV6_V6ONLY_26 */
+#endif /* HAVE_IPV6 */
 
 #ifdef SOCKET_WRAPPER
 #ifndef SOCKET_WRAPPER_DISABLE

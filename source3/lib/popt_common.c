@@ -59,6 +59,11 @@ static void set_logfile(poptContext con, const char * arg)
 
 static bool PrintSambaVersionString;
 
+static void popt_s3_talloc_log_fn(const char *message)
+{
+	DEBUG(0,("%s", message));
+}
+
 static void popt_common_callback(poptContext con,
 			   enum poptCallbackReason reason,
 			   const struct poptOption *opt,
@@ -67,6 +72,8 @@ static void popt_common_callback(poptContext con,
 
 	if (reason == POPT_CALLBACK_REASON_PRE) {
 		set_logfile(con, get_dyn_LOGFILEBASE());
+		talloc_set_log_fn(popt_s3_talloc_log_fn);
+		talloc_set_abort_fn(smb_panic);
 		return;
 	}
 
@@ -466,6 +473,7 @@ static void get_credentials_file(struct user_auth_info *auth_info,
  *		-S,--signing
  *              -P --machine-pass
  * 		-e --encrypt
+ * 		-C --use-ccache
  */
 
 
@@ -566,7 +574,9 @@ static void popt_common_credentials_callback(poptContext con,
 	case 'e':
 		set_cmdline_auth_info_smb_encrypt(auth_info);
 		break;
-
+	case 'C':
+		set_cmdline_auth_info_use_ccache(auth_info, true);
+		break;
 	}
 }
 
@@ -588,5 +598,7 @@ struct poptOption popt_common_credentials[] = {
 	{ "signing", 'S', POPT_ARG_STRING, NULL, 'S', "Set the client signing state", "on|off|required" },
 	{"machine-pass", 'P', POPT_ARG_NONE, NULL, 'P', "Use stored machine account password" },
 	{"encrypt", 'e', POPT_ARG_NONE, NULL, 'e', "Encrypt SMB transport (UNIX extended servers only)" },
+	{"use-ccache", 'C', POPT_ARG_NONE, NULL, 'C',
+	 "Use the winbind ccache for authentication" },
 	POPT_TABLEEND
 };

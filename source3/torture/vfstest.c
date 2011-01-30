@@ -397,6 +397,10 @@ static void process_file(struct vfs_state *pvfs, char *filename) {
 	while (fgets(command, 3 * PATH_MAX, file) != NULL) {
 		process_cmd(pvfs, command);
 	}
+
+	if (file != stdin) {
+		fclose(file);
+	}
 }
 
 void exit_server(const char *reason)
@@ -561,8 +565,8 @@ int main(int argc, char *argv[])
 
 	/* some basic initialization stuff */
 	sec_init();
-	conn_init();
-	vfs.conn = conn_new();
+	vfs.conn = TALLOC_ZERO_P(NULL, connection_struct);
+	vfs.conn->params = TALLOC_P(vfs.conn, struct share_params);
 	for (i=0; i < 1024; i++)
 		vfs.files[i] = NULL;
 
@@ -605,7 +609,7 @@ int main(int argc, char *argv[])
 		SAFE_FREE(line);
 	}
 
-	conn_free(vfs.conn);
+	TALLOC_FREE(vfs.conn);
 	TALLOC_FREE(frame);
 	return 0;
 }

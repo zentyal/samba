@@ -31,10 +31,7 @@
  * SUCH DAMAGE.
  */
 
-#ifdef HAVE_CONFIG_H
 #include <config.h>
-RCSID("$Id$");
-#endif
 
 #include <stdarg.h>
 #include <stdlib.h>
@@ -103,7 +100,10 @@ rk_strpoolprintf(struct rk_strpool *p, const char *fmt, ...)
 char * ROKEN_LIB_FUNCTION
 rk_strpoolcollect(struct rk_strpool *p)
 {
-    char *str = p->str;
+    char *str;
+    if (p == NULL)
+	return strdup("");
+    str = p->str;
     p->str = NULL;
     free(p);
     return str;

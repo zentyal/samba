@@ -25,7 +25,7 @@
 #include "lib/ldb/include/ldb_errors.h"
 #include "lib/ldb_wrap.h"
 #include "dsdb/samdb/samdb.h"
-#include "dsdb/common/flags.h"
+#include "../libds/common/flags.h"
 #include "librpc/gen_ndr/ndr_drsuapi_c.h"
 #include "libcli/security/security.h"
 #include "librpc/gen_ndr/ndr_misc.h"
@@ -731,12 +731,12 @@ struct libnet_BecomeDC_state {
 	struct libnet_BecomeDC_Callbacks callbacks;
 };
 
-static void becomeDC_recv_cldap(struct cldap_request *req);
+static void becomeDC_recv_cldap(struct tevent_req *req);
 
 static void becomeDC_send_cldap(struct libnet_BecomeDC_state *s)
 {
 	struct composite_context *c = s->creq;
-	struct cldap_request *req;
+	struct tevent_req *req;
 
 	s->cldap.io.in.dest_address	= s->source_dsa.address;
 	s->cldap.io.in.dest_port	= lp_cldap_port(s->libnet->lp_ctx);
@@ -749,25 +749,27 @@ static void becomeDC_send_cldap(struct libnet_BecomeDC_state *s)
 	s->cldap.io.in.version		= NETLOGON_NT_VERSION_5 | NETLOGON_NT_VERSION_5EX;
 	s->cldap.io.in.map_response	= true;
 
-	s->cldap.sock = cldap_socket_init(s, s->libnet->event_ctx, 
-					  lp_iconv_convenience(s->libnet->lp_ctx));
-	if (composite_nomem(s->cldap.sock, c)) return;
+	c->status = cldap_socket_init(s, s->libnet->event_ctx,
+				      NULL, NULL, &s->cldap.sock);//TODO
+	if (!composite_is_ok(c)) return;
 
-	req = cldap_netlogon_send(s->cldap.sock, &s->cldap.io);
+	req = cldap_netlogon_send(s, s->cldap.sock, &s->cldap.io);
 	if (composite_nomem(req, c)) return;
-	req->async.fn		= becomeDC_recv_cldap;
-	req->async.private_data	= s;
+	tevent_req_set_callback(req, becomeDC_recv_cldap, s);
 }
 
 static void becomeDC_connect_ldap1(struct libnet_BecomeDC_state *s);
 
-static void becomeDC_recv_cldap(struct cldap_request *req)
+static void becomeDC_recv_cldap(struct tevent_req *req)
 {
-	struct libnet_BecomeDC_state *s = talloc_get_type(req->async.private_data,
+	struct libnet_BecomeDC_state *s = tevent_req_callback_data(req,
 					  struct libnet_BecomeDC_state);
 	struct composite_context *c = s->creq;
 
-	c->status = cldap_netlogon_recv(req, s, &s->cldap.io);
+	c->status = cldap_netlogon_recv(req,
+					lp_iconv_convenience(s->libnet->lp_ctx),
+					s, &s->cldap.io);
+	talloc_free(req);
 	if (!composite_is_ok(c)) return;
 
 	s->cldap.netlogon = s->cldap.io.out.netlogon.data.nt5_ex;
@@ -2099,7 +2101,8 @@ static void becomeDC_drsuapi1_add_entry_send(struct libnet_BecomeDC_state *s)
 		vd[0] = data_blob_talloc(vd, NULL, 4);
 		if (composite_nomem(vd[0].data, c)) return;
 
-		SIVAL(vd[0].data, 0, DS_BEHAVIOR_WIN2008);
+		SIVAL(vd[0].data, 0, 
+		      lp_parm_int(s->libnet->lp_ctx, NULL, "ads", "functional level", DS_DC_FUNCTION_2008));
 
 		vs[0].blob		= &vd[0];
 
@@ -2453,9 +2456,9 @@ static WERROR becomeDC_drsuapi_pull_partition_recv(struct libnet_BecomeDC_state 
 	uint32_t ctr_level = 0;
 	struct drsuapi_DsGetNCChangesCtr1 *ctr1 = NULL;
 	struct drsuapi_DsGetNCChangesCtr6 *ctr6 = NULL;
-	struct GUID *source_dsa_guid;
-	struct GUID *source_dsa_invocation_id;
-	struct drsuapi_DsReplicaHighWaterMark *new_highwatermark;
+	struct GUID *source_dsa_guid = NULL;
+	struct GUID *source_dsa_invocation_id = NULL;
+	struct drsuapi_DsReplicaHighWaterMark *new_highwatermark = NULL;
 	bool more_data = false;
 	NTSTATUS nt_status;
 
@@ -2765,8 +2768,12 @@ static void becomeDC_drsuapi_update_refs_send(struct libnet_BecomeDC_state *s,
 	r->in.req.req1.dest_dsa_dns_name= ntds_dns_name;
 	r->in.req.req1.dest_dsa_guid	= s->dest_dsa.ntds_guid;
 	r->in.req.req1.options		= DRSUAPI_DS_REPLICA_UPDATE_ADD_REFERENCE
-					| DRSUAPI_DS_REPLICA_UPDATE_DELETE_REFERENCE
-					| DRSUAPI_DS_REPLICA_UPDATE_0x00000010;
+					| DRSUAPI_DS_REPLICA_UPDATE_DELETE_REFERENCE;
+
+	/* I think this is how we mark ourselves as a RODC */
+	if (!lp_parm_bool(s->libnet->lp_ctx, NULL, "repl", "RODC", false)) {
+		r->in.req.req1.options |= DRSUAPI_DS_REPLICA_UPDATE_WRITEABLE;
+	}
 
 	req = dcerpc_drsuapi_DsReplicaUpdateRefs_send(drsuapi->pipe, r, r);
 	composite_continue_rpc(c, req, recv_fn, s);

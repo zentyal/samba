@@ -47,7 +47,8 @@ SMBC_open_ctx(SMBCCTX *context,
 	struct cli_state *targetcli = NULL;
 	SMBCSRV *srv   = NULL;
 	SMBCFILE *file = NULL;
-	int fd;
+	uint16_t fd;
+	NTSTATUS status = NT_STATUS_OBJECT_PATH_INVALID;
 	TALLOC_CTX *frame = talloc_stackframe();
         
 	if (!context || !context->internal->initialized) {
@@ -102,7 +103,7 @@ SMBC_open_ctx(SMBCCTX *context,
 	/* Hmmm, the test for a directory is suspect here ... FIXME */
         
 	if (strlen(path) > 0 && path[strlen(path) - 1] == '\\') {
-		fd = -1;
+		status = NT_STATUS_OBJECT_PATH_INVALID;
 	} else {
 		file = SMB_MALLOC_P(SMBCFILE);
                 
@@ -126,8 +127,9 @@ SMBC_open_ctx(SMBCCTX *context,
 		}
 		/*d_printf(">>>open: resolved %s as %s\n", path, targetpath);*/
                 
-		if ((fd = cli_open(targetcli, targetpath, flags,
-                                   context->internal->share_mode)) < 0) {
+		status = cli_open(targetcli, targetpath, flags,
+                                   context->internal->share_mode, &fd);
+		if (!NT_STATUS_IS_OK(status)) {
                         
 			/* Handle the error ... */
                         
@@ -186,7 +188,7 @@ SMBC_open_ctx(SMBCCTX *context,
         
 	/* Check if opendir needed ... */
         
-	if (fd == -1) {
+	if (!NT_STATUS_IS_OK(status)) {
 		int eno = 0;
                 
 		eno = SMBC_errno(context, srv->cli);
@@ -475,7 +477,7 @@ SMBC_close_ctx(SMBCCTX *context,
 	}
 	/*d_printf(">>>close: resolved path as %s\n", targetpath);*/
         
-	if (!cli_close(targetcli, file->cli_fd)) {
+	if (!NT_STATUS_IS_OK(cli_close(targetcli, file->cli_fd))) {
                 
 		DEBUG(3, ("cli_close failed on %s. purging server.\n", 
 			  file->fname));
@@ -576,7 +578,7 @@ SMBC_getatr(SMBCCTX * context,
                 return False;
         }
         
-	if (cli_getatr(targetcli, targetpath, mode, size, &write_time)) {
+	if (NT_STATUS_IS_OK(cli_getatr(targetcli, targetpath, mode, size, &write_time))) {
                 
                 struct timespec w_time_ts;
                 
@@ -627,7 +629,7 @@ SMBC_setatr(SMBCCTX * context, SMBCSRV *srv, char *path,
             time_t change_time,
             uint16 mode)
 {
-        int fd;
+        uint16_t fd;
         int ret;
 	TALLOC_CTX *frame = talloc_stackframe();
         
@@ -659,7 +661,7 @@ SMBC_setatr(SMBCCTX * context, SMBCSRV *srv, char *path,
                 srv->no_pathinfo = True;
                 
                 /* Open the file */
-                if ((fd = cli_open(srv->cli, path, O_RDWR, DENY_NONE)) < 0) {
+                if (!NT_STATUS_IS_OK(cli_open(srv->cli, path, O_RDWR, DENY_NONE, &fd))) {
                         
                         errno = SMBC_errno(context, srv->cli);
 			TALLOC_FREE(frame);
@@ -667,10 +669,10 @@ SMBC_setatr(SMBCCTX * context, SMBCSRV *srv, char *path,
                 }
                 
                 /* Set the new attributes */
-                ret = cli_setattrE(srv->cli, fd,
+                ret = NT_STATUS_IS_OK(cli_setattrE(srv->cli, fd,
                                    change_time,
                                    access_time,
-                                   write_time);
+                                   write_time));
                 
                 /* Close the file */
                 cli_close(srv->cli, fd);
@@ -682,7 +684,7 @@ SMBC_setatr(SMBCCTX * context, SMBCSRV *srv, char *path,
                  * seems to work on win98.
                  */
                 if (ret && mode != (uint16) -1) {
-                        ret = cli_setatr(srv->cli, path, mode, 0);
+                        ret = NT_STATUS_IS_OK(cli_setatr(srv->cli, path, mode, 0));
                 }
                 
                 if (! ret) {
@@ -777,9 +779,8 @@ SMBC_lseek_ctx(SMBCCTX *context,
                                    &size, NULL, NULL, NULL, NULL, NULL))
 		{
                         SMB_OFF_T b_size = size;
-			if (!cli_getattrE(targetcli, file->cli_fd,
-                                          NULL, &b_size, NULL, NULL, NULL))
-                        {
+			if (!NT_STATUS_IS_OK(cli_getattrE(targetcli, file->cli_fd,
+                                          NULL, &b_size, NULL, NULL, NULL))) {
                                 errno = EINVAL;
                                 TALLOC_FREE(frame);
                                 return -1;
@@ -866,7 +867,7 @@ SMBC_ftruncate_ctx(SMBCCTX *context,
 	}
 	/*d_printf(">>>fstat: resolved path as %s\n", targetpath);*/
         
-        if (!cli_ftruncate(targetcli, file->cli_fd, size)) {
+        if (!NT_STATUS_IS_OK(cli_ftruncate(targetcli, file->cli_fd, (uint64_t)size))) {
                 errno = EINVAL;
                 TALLOC_FREE(frame);
                 return -1;

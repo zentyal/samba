@@ -181,19 +181,33 @@ static void msg_inject_fault(struct messaging_context *msg,
 }
 #endif /* DEVELOPER */
 
-struct child_pid {
-	struct child_pid *prev, *next;
-	pid_t pid;
-};
+/*
+ * Parent smbd process sets its own debug level first and then
+ * sends a message to all the smbd children to adjust their debug
+ * level to that of the parent.
+ */
+
+static void smbd_msg_debug(struct messaging_context *msg_ctx,
+			   void *private_data,
+			   uint32_t msg_type,
+			   struct server_id server_id,
+			   DATA_BLOB *data)
+{
+	struct child_pid *child;
+
+	debug_message(msg_ctx, private_data, MSG_DEBUG, server_id, data);
+
+	for (child = children; child != NULL; child = child->next) {
+		messaging_send_buf(msg_ctx, pid_to_procid(child->pid),
+				   MSG_DEBUG,
+				   data->data,
+				   strlen((char *) data->data) + 1);
+	}
+}
 
 static void add_child_pid(pid_t pid)
 {
 	struct child_pid *child;
-
-	if (lp_max_smbd_processes() == 0) {
-		/* Don't bother with the child list if we don't care anyway */
-		return;
-	}
 
 	child = SMB_MALLOC_P(struct child_pid);
 	if (child == NULL) {
@@ -205,24 +219,53 @@ static void add_child_pid(pid_t pid)
 	num_children += 1;
 }
 
+/*
+  at most every smbd:cleanuptime seconds (default 20), we scan the BRL
+  and locking database for entries to cleanup. As a side effect this
+  also cleans up dead entries in the connections database (due to the
+  traversal in message_send_all()
+
+  Using a timer for this prevents a flood of traversals when a large
+  number of clients disconnect at the same time (perhaps due to a
+  network outage).  
+*/
+
+static void cleanup_timeout_fn(struct event_context *event_ctx,
+				struct timed_event *te,
+				struct timeval now,
+				void *private_data)
+{
+	struct timed_event **cleanup_te = (struct timed_event **)private_data;
+
+	DEBUG(1,("Cleaning up brl and lock database after unclean shutdown\n"));
+	message_send_all(smbd_messaging_context(), MSG_SMB_UNLOCK, NULL, 0, NULL);
+	messaging_send_buf(smbd_messaging_context(), procid_self(), 
+				MSG_SMB_BRL_VALIDATE, NULL, 0);
+	/* mark the cleanup as having been done */
+	(*cleanup_te) = NULL;
+}
+
 static void remove_child_pid(pid_t pid, bool unclean_shutdown)
 {
 	struct child_pid *child;
+	static struct timed_event *cleanup_te;
 
 	if (unclean_shutdown) {
-		/* a child terminated uncleanly so tickle all processes to see 
-		   if they can grab any of the pending locks
-		*/
-		DEBUG(3,(__location__ " Unclean shutdown of pid %u\n", (unsigned int)pid));
-		messaging_send_buf(smbd_messaging_context(), procid_self(), 
-				   MSG_SMB_BRL_VALIDATE, NULL, 0);
-		message_send_all(smbd_messaging_context(), 
-				 MSG_SMB_UNLOCK, NULL, 0, NULL);
-	}
-
-	if (lp_max_smbd_processes() == 0) {
-		/* Don't bother with the child list if we don't care anyway */
-		return;
+		/* a child terminated uncleanly so tickle all
+		   processes to see if they can grab any of the
+		   pending locks
+                */
+		DEBUG(3,(__location__ " Unclean shutdown of pid %u\n", 
+			(unsigned int)pid));
+		if (!cleanup_te) {
+			/* call the cleanup timer, but not too often */
+			int cleanup_time = lp_parm_int(-1, "smbd", "cleanuptime", 20);
+			cleanup_te = event_add_timed(smbd_event_context(), NULL,
+						timeval_current_ofs(cleanup_time, 0),
+						cleanup_timeout_fn, 
+						&cleanup_te);
+			DEBUG(1,("Scheduled cleanup of brl and lock database after unclean shutdown\n"));
+		}
 	}
 
 	for (child = children; child != NULL; child = child->next) {
@@ -637,6 +680,8 @@ static bool open_sockets_smbd(struct smbd_parent_context *parent,
 			   MSG_SMB_CONF_UPDATED, smb_conf_updated);
 	messaging_register(smbd_messaging_context(), NULL,
 			   MSG_SMB_STAT_CACHE_DELETE, smb_stat_cache_delete);
+	messaging_register(smbd_messaging_context(), NULL,
+			   MSG_DEBUG, smbd_msg_debug);
 	brl_register_msgs(smbd_messaging_context());
 
 #ifdef CLUSTER_SUPPORT
@@ -785,7 +830,8 @@ static void exit_server_common(enum server_exit_reason how,
 static void exit_server_common(enum server_exit_reason how,
 	const char *const reason)
 {
-	bool had_open_conn;
+	bool had_open_conn = false;
+	struct smbd_server_connection *sconn = smbd_server_conn;
 
 	if (!exit_firsttime)
 		exit(0);
@@ -793,13 +839,15 @@ static void exit_server_common(enum server_exit_reason how,
 
 	change_to_root_user();
 
-	if (negprot_global_auth_context) {
-		(negprot_global_auth_context->free)(&negprot_global_auth_context);
+	if (sconn && sconn->smb1.negprot.auth_context) {
+		struct auth_context *a = sconn->smb1.negprot.auth_context;
+		a->free(&sconn->smb1.negprot.auth_context);
 	}
 
-	had_open_conn = conn_close_all();
-
-	invalidate_all_vuids();
+	if (sconn) {
+		had_open_conn = conn_close_all(sconn);
+		invalidate_all_vuids(sconn);
+	}
 
 	/* 3 second timeout. */
 	print_notify_send_messages(smbd_messaging_context(), 3);
@@ -825,6 +873,15 @@ static void exit_server_common(enum server_exit_reason how,
 	locking_end();
 	printing_end();
 
+	/*
+	 * we need to force the order of freeing the following,
+	 * because smbd_msg_ctx is not a talloc child of smbd_server_conn.
+	 */
+	sconn = NULL;
+	TALLOC_FREE(smbd_server_conn);
+	TALLOC_FREE(smbd_msg_ctx);
+	TALLOC_FREE(smbd_event_ctx);
+
 	if (how != SERVER_EXIT_NORMAL) {
 		int oldlevel = DEBUGLEVEL;
 
@@ -846,6 +903,7 @@ static void exit_server_common(enum server_exit_reason how,
 		if (am_parent) {
 			pidfile_unlink();
 		}
+		gencache_stabilize();
 	}
 
 	/* if we had any open SMB connections when we exited then we
@@ -888,11 +946,7 @@ static bool init_structs(void )
 	if (!init_names())
 		return False;
 
-	conn_init();
-
 	file_init();
-
-	init_dptrs();
 
 	if (!secrets_init())
 		return False;
@@ -1198,6 +1252,15 @@ extern void build_options(bool screen);
 		return -1;
 	}
 
+	/* Open the share_info.tdb here, so we don't have to open
+	   after the fork on every single connection.  This is a small
+	   performance improvment and reduces the total number of system
+	   fds used. */
+	if (!share_info_db_init()) {
+		DEBUG(0,("ERROR: failed to load share info db.\n"));
+		exit(1);
+	}
+
 	/* only start the background queue daemon if we are 
 	   running as a daemon -- bad things will happen if
 	   smbd is launched via inetd and we fork a copy of 
@@ -1243,9 +1306,12 @@ extern void build_options(bool screen);
 		exit_server("open_sockets_smbd() failed");
 
 	TALLOC_FREE(frame);
+	/* make sure we always have a valid stackframe */
+	frame = talloc_stackframe();
 
 	smbd_parent_loop(parent);
 
 	exit_server_cleanly(NULL);
+	TALLOC_FREE(frame);
 	return(0);
 }

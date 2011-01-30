@@ -13,6 +13,13 @@ then
         mv /var/run/samba/idmap_cache.tdb /var/cache/samba/idmap_cache.tdb
 fi
 
+if dpkg --compare-versions "$2" lt-nl 2:3.5.4~dfsg-2 \
+   && [ -e /etc/samba/idmap2.tdb ] \
+   && ! [ -e /var/lib/samba/idmap2.tdb ]
+then
+	mv /etc/samba/idmap2.tdb /var/lib/samba/idmap2.tdb
+fi
+
 pam-auth-update --package
 
 #DEBHELPER#

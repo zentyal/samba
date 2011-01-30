@@ -126,9 +126,9 @@ static bool decode_server_sort_request(void *mem_ctx, DATA_BLOB in, void *_out)
 			}
 		}
 
-		if (asn1_peek_tag(data, ASN1_BOOLEAN)) {
+		if (asn1_peek_tag(data, ASN1_CONTEXT_SIMPLE(1))) {
 			bool reverse;
-			if (!asn1_read_BOOLEAN(data, &reverse)) {
+			if (!asn1_read_BOOLEAN_context(data, &reverse, 1)) {
 			return false;
 			}
 			lssc[num]->reverse = reverse;
@@ -454,6 +454,24 @@ static bool decode_show_deleted_request(void *mem_ctx, DATA_BLOB in, void *_out)
 	return true;
 }
 
+static bool decode_show_recycled_request(void *mem_ctx, DATA_BLOB in, void *_out)
+{
+	if (in.length != 0) {
+		return false;
+	}
+
+	return true;
+}
+
+static bool decode_show_deactivated_link_request(void *mem_ctx, DATA_BLOB in, void *_out)
+{
+	if (in.length != 0) {
+		return false;
+	}
+
+	return true;
+}
+
 static bool decode_permissive_modify_request(void *mem_ctx, DATA_BLOB in, void *_out)
 {
 	if (in.length != 0) {
@@ -688,6 +706,13 @@ static bool encode_server_sort_request(void *mem_ctx, void *in, DATA_BLOB *out)
 		return false;
 	}
 
+	/*
+	  RFC2891 section 1.1:
+	    SortKeyList ::= SEQUENCE OF SEQUENCE {
+	      attributeType   AttributeDescription,
+	      orderingRule    [0] MatchingRuleId OPTIONAL,
+	      reverseOrder    [1] BOOLEAN DEFAULT FALSE }
+	*/
 	for (num = 0; lssc[num]; num++) {
 		if (!asn1_push_tag(data, ASN1_SEQUENCE(0))) {
 			return false;
@@ -704,7 +729,7 @@ static bool encode_server_sort_request(void *mem_ctx, void *in, DATA_BLOB *out)
 		}
 
 		if (lssc[num]->reverse) {
-			if (!asn1_write_BOOLEAN(data, lssc[num]->reverse)) {
+			if (!asn1_write_BOOLEAN_context(data, lssc[num]->reverse, 1)) {
 				return false;
 			}
 		}
@@ -945,6 +970,26 @@ static bool encode_notification_request(void *mem_ctx, void *in, DATA_BLOB *out)
 }
 
 static bool encode_show_deleted_request(void *mem_ctx, void *in, DATA_BLOB *out)
+{
+	if (in) {
+		return false;
+	}
+
+	*out = data_blob(NULL, 0);
+	return true;
+}
+
+static bool encode_show_recycled_request(void *mem_ctx, void *in, DATA_BLOB *out)
+{
+	if (in) {
+		return false;
+	}
+
+	*out = data_blob(NULL, 0);
+	return true;
+}
+
+static bool encode_show_deactivated_link_request(void *mem_ctx, void *in, DATA_BLOB *out)
 {
 	if (in) {
 		return false;
@@ -1215,6 +1260,8 @@ static const struct ldap_control_handler ldap_known_controls[] = {
 	{ "1.2.840.113556.1.4.841", decode_dirsync_request, encode_dirsync_request },
 	{ "1.2.840.113556.1.4.528", decode_notification_request, encode_notification_request },
 	{ "1.2.840.113556.1.4.417", decode_show_deleted_request, encode_show_deleted_request },
+	{ "1.2.840.113556.1.4.2064", decode_show_recycled_request, encode_show_recycled_request },
+	{ "1.2.840.113556.1.4.2065", decode_show_deactivated_link_request, encode_show_deactivated_link_request },
 	{ "1.2.840.113556.1.4.1413", decode_permissive_modify_request, encode_permissive_modify_request },
 	{ "1.2.840.113556.1.4.801", decode_sd_flags_request, encode_sd_flags_request },
 	{ "1.2.840.113556.1.4.1339", decode_domain_scope_request, encode_domain_scope_request },

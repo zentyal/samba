@@ -94,8 +94,8 @@ struct ldb_dn;
 
 /**
  There are a number of flags that are used with ldap_modify() in
- ldb_message_element.flags fields. The LDA_FLAGS_MOD_ADD,
- LDA_FLAGS_MOD_DELETE and LDA_FLAGS_MOD_REPLACE flags are used in
+ ldb_message_element.flags fields. The LDB_FLAGS_MOD_ADD,
+ LDB_FLAGS_MOD_DELETE and LDB_FLAGS_MOD_REPLACE flags are used in
  ldap_modify() calls to specify whether attributes are being added,
  deleted or modified respectively.
 */
@@ -240,6 +240,17 @@ struct ldb_utf8_fns {
 */
 #define LDB_FLG_NOMMAP 8
 
+/**
+   Flag to tell ldif handlers not to force encoding of binary
+   structures in base64   
+*/
+#define LDB_FLG_SHOW_BINARY 16
+
+/**
+   Flags to enable ldb tracing
+*/
+#define LDB_FLG_ENABLE_TRACING 32
+
 /*
    structures for ldb_parse_tree handling code
 */
@@ -375,6 +386,17 @@ const struct ldb_dn_extended_syntax *ldb_dn_extended_syntax_by_name(struct ldb_c
 */
 #define LDB_ATTR_FLAG_FIXED        (1<<2) 
 
+/*
+  when this is set, attempts to create two records which have the same
+  value for this attribute will return LDB_ERR_ENTRY_ALREADY_EXISTS
+ */
+#define LDB_ATTR_FLAG_UNIQUE_INDEX (1<<3)
+
+/*
+  when this is set, attempts to create two attribute values for this attribute on a single DN will return LDB_ERR_CONSTRAINT_VIOLATION
+ */
+#define LDB_ATTR_FLAG_SINGLE_VALUE (1<<4)
+
 /**
   LDAP attribute syntax for a DN
 
@@ -401,6 +423,15 @@ const struct ldb_dn_extended_syntax *ldb_dn_extended_syntax_by_name(struct ldb_c
   See <a href="http://www.ietf.org/rfc/rfc2252.txt">RFC 2252</a>, Section 4.3.2 
 */
 #define LDB_SYNTAX_INTEGER              "1.3.6.1.4.1.1466.115.121.1.27"
+
+/**
+  LDAP attribute syntax for a boolean
+
+  This is the well-known LDAP attribute syntax for a boolean.
+
+  See <a href="http://www.ietf.org/rfc/rfc2252.txt">RFC 2252</a>, Section 4.3.2 
+*/
+#define LDB_SYNTAX_BOOLEAN              "1.3.6.1.4.1.1466.115.121.1.7"
 
 /**
   LDAP attribute syntax for an octet string
@@ -469,6 +500,20 @@ typedef int (*ldb_qsort_cmp_fn_t) (void *v1, void *v2, void *opaque);
    \sa <a href="http://msdn.microsoft.com/library/default.asp?url=/library/en-us/ldap/ldap/ldap_server_show_deleted_oid.asp">Microsoft documentation of this OID</a>
 */
 #define LDB_CONTROL_SHOW_DELETED_OID	"1.2.840.113556.1.4.417"
+
+/**
+   OID for getting recycled objects
+
+   \sa <a href="http://msdn.microsoft.com/en-us/library/dd304621(PROT.13).aspx">Microsoft documentation of this OID</a>
+*/
+#define LDB_CONTROL_SHOW_RECYCLED_OID         "1.2.840.113556.1.4.2064"
+
+/**
+   OID for getting deactivated linked attributes
+
+   \sa <a href="http://msdn.microsoft.com/en-us/library/dd302781(PROT.13).aspx">Microsoft documentation of this OID</a>
+*/
+#define LDB_CONTROL_SHOW_DEACTIVATED_LINK_OID "1.2.840.113556.1.4.2065"
 
 /**
    OID for extended DN
@@ -601,8 +646,8 @@ struct ldb_extended_dn_control {
 };
 
 struct ldb_server_sort_control {
-	char *attributeName;
-	char *orderingRule;
+	const char *attributeName;
+	const char *orderingRule;
 	int reverse;
 };
 
@@ -1249,6 +1294,11 @@ int ldb_sequence_number(struct ldb_context *ldb, enum ldb_sequence_type type, ui
 int ldb_transaction_start(struct ldb_context *ldb);
 
 /**
+   first phase of two phase commit
+ */
+int ldb_transaction_prepare_commit(struct ldb_context *ldb);
+
+/**
   commit a transaction
 */
 int ldb_transaction_commit(struct ldb_context *ldb);
@@ -1419,6 +1469,32 @@ struct ldb_ldif *ldb_ldif_read_string(struct ldb_context *ldb, const char **s);
    \sa ldb_ldif_read_file for the reader equivalent to this function.
 */
 int ldb_ldif_write_file(struct ldb_context *ldb, FILE *f, const struct ldb_ldif *msg);
+
+/**
+   Write an LDIF message to a string
+
+   \param ldb the ldb context (from ldb_init())
+   \param mem_ctx the talloc context on which to attach the string)
+   \param msg the message to write out
+
+   \return the string containing the LDIF, or NULL on error
+
+   \sa ldb_ldif_read_string for the reader equivalent to this function.
+*/
+char * ldb_ldif_write_string(struct ldb_context *ldb, TALLOC_CTX *mem_ctx, 
+			  const struct ldb_ldif *msg);
+
+
+/*
+   Produce a string form of an ldb message
+
+   convenient function to turn a ldb_message into a string. Useful for
+   debugging
+ */
+char *ldb_ldif_message_string(struct ldb_context *ldb, TALLOC_CTX *mem_ctx, 
+			      enum ldb_changetype changetype,
+			      const struct ldb_message *msg);
+
 
 /**
    Base64 encode a buffer
@@ -1769,6 +1845,12 @@ void ldb_parse_tree_attr_replace(struct ldb_parse_tree *tree,
 				 const char *attr, 
 				 const char *replace);
 
+/*
+  shallow copy a tree - copying only the elements array so that the caller
+  can safely add new elements without changing the message
+*/
+struct ldb_parse_tree *ldb_parse_tree_copy_shallow(TALLOC_CTX *mem_ctx,
+						   const struct ldb_parse_tree *ot);
 
 /**
    Convert a time structure to a string
@@ -1836,5 +1918,14 @@ void ldb_qsort (void *const pbase, size_t total_elems, size_t size, void *opaque
    \return array of ldb_control elements
 */
 struct ldb_control **ldb_parse_control_strings(struct ldb_context *ldb, TALLOC_CTX *mem_ctx, const char **control_strings);
+
+/**
+   return the ldb flags 
+*/
+unsigned int ldb_get_flags(struct ldb_context *ldb);
+
+/* set the ldb flags */
+void ldb_set_flags(struct ldb_context *ldb, unsigned flags);
+
 
 #endif

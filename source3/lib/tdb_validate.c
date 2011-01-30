@@ -44,6 +44,17 @@ static int tdb_validate_child(struct tdb_context *tdb,
 		goto out;
 	}
 
+	/*
+	 * we can simplify this by passing a check function,
+	 * but I don't want to change all the callers...
+	 */
+	ret = tdb_check(tdb, NULL, NULL);
+	if (ret == -1) {
+		v_status.tdb_error = True;
+		v_status.success = False;
+		goto out;
+	}
+
 	/* Check if the tdb's freelist is good. */
 	if (tdb_validate_freelist(tdb, &num_entries) == -1) {
 		v_status.bad_freelist = True;
@@ -181,7 +192,7 @@ int tdb_validate_open(const char *tdb_path, tdb_validate_data_func validate_fn)
 
 	DEBUG(5, ("tdb_validate_open called for tdb '%s'\n", tdb_path));
 
-	tdb = tdb_open_log(tdb_path, 0, TDB_DEFAULT, O_RDONLY, 0);
+	tdb = tdb_open_log(tdb_path, 0, TDB_DEFAULT, O_RDWR, 0);
 	if (!tdb) {
 		DEBUG(1, ("Error opening tdb %s\n", tdb_path));
 		return ret;

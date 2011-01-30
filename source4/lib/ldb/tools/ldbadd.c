@@ -38,13 +38,9 @@ static int failures;
 
 static void usage(void)
 {
-	printf("Usage: ldbadd <options> <ldif...>\n");
-	printf("Options:\n");
-	printf("  -H ldb_url       choose the database (or $LDB_URL)\n");
-	printf("  -o options       pass options like modules to activate\n");
-	printf("              e.g: -o modules:timestamps\n");
-	printf("\n");
+	printf("Usage: ldbadd <options> <ldif...>\n");	
 	printf("Adds records to a ldb, reading ldif the specified list of files\n\n");
+	ldb_cmdline_help("ldbadd", stdout);
 	exit(1);
 }
 
@@ -113,9 +109,13 @@ int main(int argc, const char **argv)
 		}
 	}
 
-	if (count != 0 && ldb_transaction_commit(ldb) != 0) {
-		printf("Failed to commit transaction: %s\n", ldb_errstring(ldb));
-		exit(1);
+	if (count != 0) {
+		if (ldb_transaction_commit(ldb) != 0) {
+			printf("Failed to commit transaction: %s\n", ldb_errstring(ldb));
+			exit(1);
+		}
+	} else {
+		ldb_transaction_cancel(ldb);
 	}
 
 	talloc_free(ldb);

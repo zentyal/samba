@@ -601,6 +601,8 @@ static struct packet_struct *copy_nmb_packet(struct packet_struct *packet)
 
 	/* Ensure this copy is not locked. */
 	pkt_copy->locked = False;
+	pkt_copy->recv_fd = -1;
+	pkt_copy->send_fd = -1;
 
 	/* Ensure this copy has no resource records. */
 	nmb = &packet->packet.nmb;
@@ -666,6 +668,8 @@ static struct packet_struct *copy_dgram_packet(struct packet_struct *packet)
 
 	/* Ensure this copy is not locked. */
 	pkt_copy->locked = False;
+	pkt_copy->recv_fd = -1;
+	pkt_copy->send_fd = -1;
 
 	/* There are no additional pointers in a dgram packet,
 		we are finished. */
@@ -791,7 +795,8 @@ struct packet_struct *read_packet(int fd,enum packet_type packet_type)
 	if (!packet)
 		return NULL;
 
-	packet->fd = fd;
+	packet->recv_fd = fd;
+	packet->send_fd = -1;
 
 	DEBUG(5,("Received a packet of len %d from (%s) port %d\n",
 		 length, inet_ntoa(packet->ip), packet->port ) );
@@ -1075,7 +1080,7 @@ bool send_packet(struct packet_struct *p)
 	if (!len)
 		return(False);
 
-	return(send_udp(p->fd,buf,len,p->ip,p->port));
+	return(send_udp(p->send_fd,buf,len,p->ip,p->port));
 }
 
 /****************************************************************************
@@ -1232,21 +1237,33 @@ void sort_query_replies(char *data, int n, struct in_addr ip)
 
 /****************************************************************************
  Interpret the weird netbios "name" into a unix fstring. Return the name type.
+ Returns -1 on error.
 ****************************************************************************/
 
-static int name_interpret(char *in, fstring name)
+static int name_interpret(unsigned char *buf, size_t buf_len,
+		unsigned char *in, fstring name)
 {
+	unsigned char *end_ptr = buf + buf_len;
 	int ret;
-	int len = (*in++) / 2;
+	unsigned int len;
 	fstring out_string;
-	char *out = out_string;
+	unsigned char *out = (unsigned char *)out_string;
 
 	*out=0;
 
-	if (len > 30 || len<1)
-		return(0);
+	if (in >= end_ptr) {
+		return -1;
+	}
+	len = (*in++) / 2;
+
+	if (len<1) {
+		return -1;
+	}
 
 	while (len--) {
+		if (&in[1] >= end_ptr) {
+			return -1;
+		}
 		if (in[0] < 'A' || in[0] > 'P' || in[1] < 'A' || in[1] > 'P') {
 			*out = 0;
 			return(0);
@@ -1254,21 +1271,13 @@ static int name_interpret(char *in, fstring name)
 		*out = ((in[0]-'A')<<4) + (in[1]-'A');
 		in += 2;
 		out++;
+		if (PTR_DIFF(out,out_string) >= sizeof(fstring)) {
+			return -1;
+		}
 	}
 	ret = out[-1];
 	out[-1] = 0;
 
-#ifdef NETBIOS_SCOPE
-	/* Handle any scope names */
-	while(*in) {
-		*out++ = '.'; /* Scope names are separated by periods */
-		len = *(unsigned char *)in++;
-		StrnCpy(out, in, len);
-		out += len;
-		*out=0;
-		in += len;
-	}
-#endif
 	pull_ascii_fstring(name, out_string);
 
 	return(ret);
@@ -1347,12 +1356,25 @@ char *name_mangle(TALLOC_CTX *mem_ctx, char *In, char name_type)
  Find a pointer to a netbios name.
 ****************************************************************************/
 
-static char *name_ptr(char *buf,int ofs)
+static unsigned char *name_ptr(unsigned char *buf, size_t buf_len, unsigned int ofs)
 {
-	unsigned char c = *(unsigned char *)(buf+ofs);
+	unsigned char c = 0;
 
+	if (ofs > buf_len || buf_len < 1) {
+		return NULL;
+	}
+
+	c = *(unsigned char *)(buf+ofs);
 	if ((c & 0xC0) == 0xC0) {
-		uint16 l = RSVAL(buf, ofs) & 0x3FFF;
+		uint16 l = 0;
+
+		if (ofs > buf_len - 1) {
+			return NULL;
+		}
+		l = RSVAL(buf, ofs) & 0x3FFF;
+		if (l > buf_len) {
+			return NULL;
+		}
 		DEBUG(5,("name ptr to pos %d from %d is %s\n",l,ofs,buf+l));
 		return(buf + l);
 	} else {
@@ -1362,37 +1384,48 @@ static char *name_ptr(char *buf,int ofs)
 
 /****************************************************************************
  Extract a netbios name from a buf (into a unix string) return name type.
+ Returns -1 on error.
 ****************************************************************************/
 
-int name_extract(char *buf,int ofs, fstring name)
+int name_extract(unsigned char *buf, size_t buf_len, unsigned int ofs, fstring name)
 {
-	char *p = name_ptr(buf,ofs);
-	int d = PTR_DIFF(p,buf+ofs);
+	unsigned char *p = name_ptr(buf,buf_len,ofs);
 
 	name[0] = '\0';
-	if (d < -50 || d > 50)
-		return(0);
-	return(name_interpret(p,name));
+	if (p == NULL) {
+		return -1;
+	}
+	return(name_interpret(buf,buf_len,p,name));
 }
 
 /****************************************************************************
  Return the total storage length of a mangled name.
+ Returns -1 on error.
 ****************************************************************************/
 
-int name_len(char *s1)
+int name_len(unsigned char *s1, size_t buf_len)
 {
 	/* NOTE: this argument _must_ be unsigned */
 	unsigned char *s = (unsigned char *)s1;
-	int len;
+	int len = 0;
 
+	if (buf_len < 1) {
+		return -1;
+	}
 	/* If the two high bits of the byte are set, return 2. */
-	if (0xC0 == (*s & 0xC0))
+	if (0xC0 == (*s & 0xC0)) {
+		if (buf_len < 2) {
+			return -1;
+		}
 		return(2);
+	}
 
 	/* Add up the length bytes. */
 	for (len = 1; (*s); s += (*s) + 1) {
 		len += *s + 1;
-		SMB_ASSERT(len < 80);
+		if (len > buf_len) {
+			return -1;
+		}
 	}
 
 	return(len);

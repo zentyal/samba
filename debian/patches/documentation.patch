@@ -2,10 +2,10 @@ Description: Remove documentation parts that do not apply to Debian
 Author: Christian Perrier <bubulle@debian.org>
 Forwarded: not-needed
 
-Index: samba/docs/manpages/swat.8
+Index: experimental/docs/manpages/swat.8
 ===================================================================
---- samba.orig/docs/manpages/swat.8
-+++ samba/docs/manpages/swat.8
+--- experimental.orig/docs/manpages/swat.8
++++ experimental/docs/manpages/swat.8
 @@ -261,85 +261,6 @@
  .RS 4
  Print a summary of command line options\&.
@@ -92,10 +92,27 @@ Index: samba/docs/manpages/swat.8
  .SH "LAUNCHING"
  .PP
  To launch SWAT just run your favorite web browser and point it at "http://localhost:901/"\&.
-Index: samba/docs/manpages/nmbd.8
+@@ -357,14 +278,11 @@
+ This file must contain a mapping of service name (e\&.g\&., swat) to service port (e\&.g\&., 901) and protocol type (e\&.g\&., tcp)\&.
+ .RE
+ .PP
+-\FC/usr/local/samba/lib/smb\&.conf\F[]
++\FC/etc/samba/smb\&.conf\F[]
+ .RS 4
+ This is the default location of the
+ \fBsmb.conf\fR(5)
+-server configuration file that swat edits\&. Other common places that systems install this file are
+-\FC /usr/samba/lib/smb\&.conf\F[]
+-and
+-\FC/etc/smb\&.conf \F[]\&. This file describes all the services the server is to make available to clients\&.
++server configuration file that swat edits\&. This file describes all the services the server is to make available to clients\&.
+ .RE
+ .SH "WARNINGS"
+ .PP
+Index: experimental/docs/manpages/nmbd.8
 ===================================================================
---- samba.orig/docs/manpages/nmbd.8
-+++ samba/docs/manpages/nmbd.8
+--- experimental.orig/docs/manpages/nmbd.8
++++ experimental/docs/manpages/nmbd.8
 @@ -265,10 +265,7 @@
  to answer any name queries\&. Adding a line to this file affects name NetBIOS resolution from this host
  \fIONLY\fR\&.
@@ -121,7 +138,7 @@ Index: samba/docs/manpages/nmbd.8
 -\FC/usr/samba/lib/smb\&.conf\F[]
 -and
 -\FC/etc/samba/smb\&.conf\F[]\&.
-+server configuration file\&.
+++server configuration file\&.
  .sp
  When run as a WINS server (see the
  \m[blue]\fBwins support\fR\m[]
@@ -133,15 +150,15 @@ Index: samba/docs/manpages/nmbd.8
 -directory (or the
 -\FCvar/locks\F[]
 -directory configured under wherever Samba was configured to install itself)\&. This will also cause
-+\FC/war/run/samba\F[]
++\FC/var/run/samba\F[]
 +directory\&. This will also cause
  \FCnmbd\F[]
  to dump out its server database in the
  \FClog\&.nmb\F[]
-Index: samba/docs/manpages/smbd.8
+Index: experimental/docs/manpages/smbd.8
 ===================================================================
---- samba.orig/docs/manpages/smbd.8
-+++ samba/docs/manpages/smbd.8
+--- experimental.orig/docs/manpages/smbd.8
++++ experimental/docs/manpages/smbd.8
 @@ -319,14 +319,11 @@
  \FCinetd\F[], this file must contain a mapping of service name (e\&.g\&., netbios\-ssn) to service port (e\&.g\&., 139) and protocol type (e\&.g\&., tcp)\&.
  .RE
@@ -155,29 +172,31 @@ Index: samba/docs/manpages/smbd.8
 -\FC/usr/samba/lib/smb\&.conf\F[]
 -and
 -\FC/etc/samba/smb\&.conf\F[]\&.
-+server configuration file\&.
+++server configuration file\&.
  .sp
  This file describes all the services the server is to make available to clients\&. See
  \fBsmb.conf\fR(5)
-Index: samba/docs/manpages/lmhosts.5
+Index: experimental/docs/manpages/lmhosts.5
 ===================================================================
---- samba.orig/docs/manpages/lmhosts.5
-+++ samba/docs/manpages/lmhosts.5
-@@ -258,9 +258,7 @@
+--- experimental.orig/docs/manpages/lmhosts.5
++++ experimental/docs/manpages/lmhosts.5
+@@ -257,10 +257,8 @@
+ file\&.
  .SH "FILES"
  .PP
- lmhosts is loaded from the configuration directory\&. This is usually
+-lmhosts is loaded from the configuration directory\&. This is usually
 -\FC/etc/samba\F[]
 -or
 -\FC/usr/local/samba/lib\F[]\&.
++lmhosts is loaded from the configuration directory\&. This is
 +\FC/etc/samba\F[]\&.
  .SH "VERSION"
  .PP
  This man page is correct for version 3 of the Samba suite\&.
-Index: samba/docs/manpages/ntlm_auth.1
+Index: experimental/docs/manpages/ntlm_auth.1
 ===================================================================
---- samba.orig/docs/manpages/ntlm_auth.1
-+++ samba/docs/manpages/ntlm_auth.1
+--- experimental.orig/docs/manpages/ntlm_auth.1
++++ experimental/docs/manpages/ntlm_auth.1
 @@ -193,7 +193,7 @@
  Some of these commands also require access to the directory
  \FCwinbindd_privileged\F[]
@@ -205,10 +224,10 @@ Index: samba/docs/manpages/ntlm_auth.1
  .RE
  .PP
  gss\-spnego\-client
-Index: samba/docs/manpages/tdbbackup.8
+Index: experimental/docs/manpages/tdbbackup.8
 ===================================================================
---- samba.orig/docs/manpages/tdbbackup.8
-+++ samba/docs/manpages/tdbbackup.8
+--- experimental.orig/docs/manpages/tdbbackup.8
++++ experimental/docs/manpages/tdbbackup.8
 @@ -227,7 +227,7 @@
  .\}
  
@@ -236,10 +255,10 @@ Index: samba/docs/manpages/tdbbackup.8
  .SH "VERSION"
  .PP
  This man page is correct for version 3 of the Samba suite\&.
-Index: samba/docs/manpages/winbindd.8
+Index: experimental/docs/manpages/winbindd.8
 ===================================================================
---- samba.orig/docs/manpages/winbindd.8
-+++ samba/docs/manpages/winbindd.8
+--- experimental.orig/docs/manpages/winbindd.8
++++ experimental/docs/manpages/winbindd.8
 @@ -771,16 +771,16 @@
  file are owned by root\&.
  .RE
@@ -253,7 +272,7 @@ Index: samba/docs/manpages/winbindd.8
  \FCntlm_auth\F[]
 -utility \- is restricted\&. By default, only users in the \'root\' group will get this access, however the administrator may change the group permissions on $LOCKDIR/winbindd_privileged to allow programs like \'squid\' to use ntlm_auth\&. Note that the winbind client will only attempt to connect to the winbindd daemon if both the
 -\FC$LOCKDIR/winbindd_privileged\F[]
-+utility \- is restricted\&. By default, only users in the \'root\' group will get this access, however the administrator may change the group permissions on /var/run/samba//winbindd_privileged to allow programs like \'squid\' to use ntlm_auth\&. Note that the winbind client will only attempt to connect to the winbindd daemon if both the
++utility \- is restricted\&. By default, only users in the \'root\' group will get this access, however the administrator may change the group permissions on /var/run/samba/winbindd_privileged to allow programs like \'squid\' to use ntlm_auth\&. Note that the winbind client will only attempt to connect to the winbindd daemon if both the
 +\FC/var/run/samba/winbindd_privileged\F[]
  directory and
 -\FC$LOCKDIR/winbindd_privileged/pipe\F[]

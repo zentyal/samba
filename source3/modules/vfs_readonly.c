@@ -62,6 +62,11 @@ static int readonly_connect(vfs_handle_struct *handle,
   const char **period = lp_parm_string_list(SNUM(handle->conn),
 					     (handle->param ? handle->param : MODULE_NAME),
 					     "period", period_def); 
+  int ret = SMB_VFS_NEXT_CONNECT(handle, service, user);
+
+  if (ret < 0) {
+    return ret;
+  }
 
   if (period && period[0] && period[1]) {
     int i;
@@ -85,26 +90,23 @@ static int readonly_connect(vfs_handle_struct *handle,
       conn->vuid_cache.next_entry = 0;
     }
 
-    return SMB_VFS_NEXT_CONNECT(handle, service, user);
+    return 0;
 
   } else {
     
-    return 1;
+    return 0;
     
   }
 }
 
 
-/* VFS operations structure */
-
-static vfs_op_tuple readonly_op_tuples[] = {
-	/* Disk operations */
-  {SMB_VFS_OP(readonly_connect),	SMB_VFS_OP_CONNECT, SMB_VFS_LAYER_TRANSPARENT},
-  {SMB_VFS_OP(NULL),   		SMB_VFS_OP_NOOP,    SMB_VFS_LAYER_NOOP}
+static struct vfs_fn_pointers vfs_readonly_fns = {
+	.connect_fn = readonly_connect
 };
 
 NTSTATUS vfs_readonly_init(void);
 NTSTATUS vfs_readonly_init(void)
 {
-  return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, MODULE_NAME, readonly_op_tuples);
+  return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, MODULE_NAME,
+			  &vfs_readonly_fns);
 }

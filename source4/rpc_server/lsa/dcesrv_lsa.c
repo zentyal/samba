@@ -23,8 +23,6 @@
 */
 
 #include "rpc_server/lsa/lsa.h"
-#include "../lib/util/util_ldb.h"
-#include "libcli/ldap/ldap_ndr.h"
 #include "system/kerberos.h"
 #include "auth/kerberos/kerberos.h"
 #include "librpc/gen_ndr/ndr_drsblobs.h"
@@ -65,6 +63,65 @@ struct lsa_trusted_domain_state {
 	struct ldb_dn *trusted_domain_dn;
 	struct ldb_dn *trusted_domain_user_dn;
 };
+
+/*
+  this is based on the samba3 function make_lsa_object_sd()
+  It uses the same logic, but with samba4 helper functions
+ */
+static NTSTATUS dcesrv_build_lsa_sd(TALLOC_CTX *mem_ctx, 
+				    struct security_descriptor **sd,
+				    struct dom_sid *sid, 
+				    uint32_t sid_access)
+{
+	NTSTATUS status;
+	uint32_t rid;
+	struct dom_sid *domain_sid, *domain_admins_sid;
+	const char *domain_admins_sid_str, *sidstr;
+	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
+
+	status = dom_sid_split_rid(tmp_ctx, sid, &domain_sid, &rid);
+	NT_STATUS_NOT_OK_RETURN(status);
+
+	domain_admins_sid = dom_sid_add_rid(tmp_ctx, domain_sid, DOMAIN_RID_ADMINS);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(domain_admins_sid, tmp_ctx);
+
+	domain_admins_sid_str = dom_sid_string(tmp_ctx, domain_admins_sid);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(domain_admins_sid_str, tmp_ctx);
+	
+	sidstr = dom_sid_string(tmp_ctx, sid);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(sidstr, tmp_ctx);
+						      
+	*sd = security_descriptor_dacl_create(mem_ctx,
+					      0, sidstr, NULL,
+
+					      SID_WORLD,
+					      SEC_ACE_TYPE_ACCESS_ALLOWED,
+					      SEC_GENERIC_EXECUTE | SEC_GENERIC_READ, 0,
+					      
+					      SID_BUILTIN_ADMINISTRATORS,
+					      SEC_ACE_TYPE_ACCESS_ALLOWED,
+					      SEC_GENERIC_ALL, 0,
+					      
+					      SID_BUILTIN_ACCOUNT_OPERATORS,
+					      SEC_ACE_TYPE_ACCESS_ALLOWED,
+					      SEC_GENERIC_ALL, 0,
+					      
+					      domain_admins_sid_str,
+					      SEC_ACE_TYPE_ACCESS_ALLOWED,
+					      SEC_GENERIC_ALL, 0,
+
+					      sidstr,
+					      SEC_ACE_TYPE_ACCESS_ALLOWED,
+					      sid_access, 0,
+
+					      NULL);
+	talloc_free(tmp_ctx);
+
+	NT_STATUS_HAVE_NO_MEMORY(*sd);
+
+	return NT_STATUS_OK;
+}
+
 
 static NTSTATUS dcesrv_lsa_EnumAccountRights(struct dcesrv_call_state *dce_call, 
 				      TALLOC_CTX *mem_ctx,
@@ -267,9 +324,33 @@ static NTSTATUS dcesrv_lsa_EnumPrivs(struct dcesrv_call_state *dce_call, TALLOC_
   lsa_QuerySecObj 
 */
 static NTSTATUS dcesrv_lsa_QuerySecurity(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
-				  struct lsa_QuerySecurity *r)
+					 struct lsa_QuerySecurity *r)
 {
-	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
+	struct dcesrv_handle *h;
+	struct security_descriptor *sd;
+	NTSTATUS status;
+	struct dom_sid *sid;
+
+	DCESRV_PULL_HANDLE(h, r->in.handle, DCESRV_HANDLE_ANY);
+
+	sid = dce_call->conn->auth_state.session_info->security_token->user_sid;
+
+	if (h->wire_handle.handle_type == LSA_HANDLE_POLICY) {
+		status = dcesrv_build_lsa_sd(mem_ctx, &sd, sid, 0);
+	} else 	if (h->wire_handle.handle_type == LSA_HANDLE_ACCOUNT) {
+		status = dcesrv_build_lsa_sd(mem_ctx, &sd, sid, 
+					     LSA_ACCOUNT_ALL_ACCESS);
+	} else {
+		return NT_STATUS_INVALID_HANDLE;
+	}
+	NT_STATUS_NOT_OK_RETURN(status);
+
+	(*r->out.sdbuf) = talloc(mem_ctx, struct sec_desc_buf);
+	NT_STATUS_HAVE_NO_MEMORY(*r->out.sdbuf);
+
+	(*r->out.sdbuf)->sd = sd;
+	
+	return NT_STATUS_OK;
 }
 
 
@@ -1378,7 +1459,7 @@ static NTSTATUS dcesrv_lsa_QueryTrustedDomainInfo(struct dcesrv_call_state *dce_
 			= samdb_result_uint(msg, "posixOffset", 0);					   
 		return fill_trust_domain_ex(mem_ctx, msg, &info->full_info2_internal.info.info_ex);
 		
-	case LSA_TRUSTED_DOMAIN_SUPPORTED_ENCRTYPION_TYPES:
+	case LSA_TRUSTED_DOMAIN_SUPPORTED_ENCRYPTION_TYPES:
 		info->enc_types.enc_types
 			= samdb_result_uint(msg, "msDs-supportedEncryptionTypes", KERB_ENCTYPE_RC4_HMAC_MD5);
 		break;
@@ -1578,6 +1659,15 @@ static NTSTATUS dcesrv_lsa_EnumTrustDom(struct dcesrv_call_state *dce_call, TALL
 		*r->out.resume_handle = *r->in.resume_handle + r->out.domains->count;
 		return STATUS_MORE_ENTRIES;
 	}
+
+	/* according to MS-LSAD 3.1.4.7.8 output resume handle MUST
+	 * always be larger than the previous input resume handle, in
+	 * particular when hitting the last query it is vital to set the
+	 * resume handle correctly to avoid infinite client loops, as
+	 * seen e.g. with Windows XP SP3 when resume handle is 0 and
+	 * status is NT_STATUS_OK - gd */
+
+	*r->out.resume_handle = (uint32_t)-1;
 
 	return NT_STATUS_OK;
 }
@@ -2129,7 +2219,6 @@ static NTSTATUS dcesrv_lsa_CreateSecret(struct dcesrv_call_state *dce_call, TALL
 	struct lsa_secret_state *secret_state;
 	struct dcesrv_handle *handle;
 	struct ldb_message **msgs, *msg;
-	const char *errstr;
 	const char *attrs[] = {
 		NULL
 	};
@@ -2232,15 +2321,6 @@ static NTSTATUS dcesrv_lsa_CreateSecret(struct dcesrv_call_state *dce_call, TALL
 		msg->dn = ldb_dn_new_fmt(mem_ctx, secret_state->sam_ldb, "cn=%s,cn=LSA Secrets", name);
 		samdb_msg_add_string(secret_state->sam_ldb, mem_ctx, msg, "cn", name);
 	} 
-
-	/* pull in all the template attributes.  Note this is always from the global samdb */
-	ret = samdb_copy_template(secret_state->policy->sam_ldb, msg, 
-				  "secret", &errstr);
-	if (ret != 0) {
-		DEBUG(0,("Failed to load TemplateSecret from samdb: %s\n",
-			 errstr));
-		return NT_STATUS_INTERNAL_DB_CORRUPTION;
-	}
 
 	samdb_msg_add_string(secret_state->sam_ldb, mem_ctx, msg, "objectClass", "secret");
 	

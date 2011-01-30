@@ -1,8 +1,0 @@
-###############################
-# Configuration Naming Context
-###############################
-dn: ${CONFIGDN}
-objectClass: top
-objectClass: configuration
-cn: Configuration
-nTSecurityDescriptor:: ${DESCRIPTOR}

@@ -1,3 +1,9 @@
+samba (2:3.5.6~dfsg-5) UNRELEASED; urgency=low
+
+  * Fix FTBFS on Hurd. Closes: #610678
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 05 Feb 2011 12:43:21 +0100
+
 samba (2:3.5.6~dfsg-4) unstable; urgency=low
 
   * Fix pam_winbind file descriptor leak with a patch

@@ -1,0 +1,18 @@
+Description: Fix FTBFS for Hurd
+Author: Samuel Thibault <sthibault@debian.org>
+Bug-Debian: http://bugs.debian.org/610678
+Forwarded: no
+
+Index: samba/lib/replace/system/network.h
+===================================================================
+--- samba.orig/lib/replace/system/network.h
++++ samba/lib/replace/system/network.h
+@@ -332,7 +332,7 @@
+      */
+ #   define IOV_MAX 512
+ #  else
+-#   error IOV_MAX and UIO_MAXIOV undefined
++#   warning IOV_MAX and UIO_MAXIOV undefined
+ #  endif
+ # endif
+ #endif

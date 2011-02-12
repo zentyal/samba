@@ -2,8 +2,7 @@ samba (2:3.5.6~dfsg-5) unstable; urgency=low
 
   * Fix FTBFS on Hurd. Closes: #610678
   * Only try parsing dhcpd.conf is it's not empty,
-    in dhclient-enter-hooks.d/samba
-    (partial fix for #594088) 
+    in dhclient-enter-hooks.d/samba.  Closes: #594088.
   * Use architecture wildcard "linux-any" in build dependencies
     Closes: #563372
 

@@ -12,3 +12,4 @@ smbtar-bashism.patch
 no-unnecessary-cups.patch
 autoconf.patch
 bug_605728_upstream_7791.patch
+bug_574468_upstream_7265.patch

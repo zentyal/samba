@@ -1,10 +1,11 @@
-samba (2:3.2.5-4lenny13) UNRELEASED; urgency=high
+samba (2:3.2.5-4lenny13) stable-security; urgency=high
 
+  [ Christian Perrier ]
   * Security update, fixing the following issue:
     - CVE-2019-3069: Buffer overrun vulnerability in sid_parse.
       Closes: #596891.
 
- -- Christian Perrier <bubulle@debian.org>  Tue, 14 Sep 2010 22:24:59 +0200
+ -- Stefan Fritsch <sf@debian.org>  Wed, 15 Sep 2010 18:41:36 +0200
 
 samba (2:3.2.5-4lenny12) stable-security; urgency=low
 

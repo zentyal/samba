@@ -1,3 +1,10 @@
+samba (2:3.5.6~dfsg-3squeeze2) stable-security; urgency=high
+
+  * Security update, fixing the following issue:
+    - CVE-2011-0719: denial of service by memory corruption
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 23 Feb 2011 20:14:40 +0100
+
 samba (2:3.5.6~dfsg-3squeeze1) stable-proposed-updates; urgency=low
 
   * Fix pam_winbind file descriptor leak with a patch

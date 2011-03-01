@@ -1,6 +1,9 @@
-samba (2:3.5.6~dfsg-6) UNRELEASED; urgency=low
+samba (2:3.5.7~dfsg-1) UNRELEASED; urgency=low
 
   [ Christian Perrier ]
+  * New upstream release
+  * Security update, fixing the following issue:
+    - CVE-2011-0719: denial of service by memory corruption
   * Use architecture wildcard "linux-any" in build dependencies
     Closes: #563372
 

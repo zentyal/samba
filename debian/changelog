@@ -1,10 +1,16 @@
+samba (2:3.5.6~dfsg-6) UNRELEASED; urgency=low
+
+  [ Christian Perrier ]
+  * Use architecture wildcard "linux-any" in build dependencies
+    Closes: #563372
+
+ -- Steve Langasek <vorlon@debian.org>  Tue, 01 Mar 2011 07:09:59 -0800
+
 samba (2:3.5.6~dfsg-5) unstable; urgency=low
 
   * Fix FTBFS on Hurd. Closes: #610678
   * Only try parsing dhcpd.conf is it's not empty,
     in dhclient-enter-hooks.d/samba.  Closes: #594088.
-  * Use architecture wildcard "linux-any" in build dependencies
-    Closes: #563372
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 05 Feb 2011 13:50:22 +0100
 

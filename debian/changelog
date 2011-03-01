@@ -1,3 +1,10 @@
+samba (2:3.2.5-4lenny14) oldstable-security; urgency=high
+
+  * Security update, fixing the following issue:
+    - CVE-2011-0719: denial of service by memory corruption
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 23 Feb 2011 20:44:00 +0100
+
 samba (2:3.2.5-4lenny13) stable-security; urgency=high
 
   [ Christian Perrier ]

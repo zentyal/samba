@@ -1,4 +1,4 @@
-samba (2:3.5.7~dfsg-1) UNRELEASED; urgency=low
+samba (2:3.5.7~dfsg-1) unstable; urgency=low
 
   [ Christian Perrier ]
   * New upstream release
@@ -7,7 +7,7 @@ samba (2:3.5.7~dfsg-1) UNRELEASED; urgency=low
   * Use architecture wildcard "linux-any" in build dependencies
     Closes: #563372
 
- -- Steve Langasek <vorlon@debian.org>  Tue, 01 Mar 2011 07:09:59 -0800
+ -- Christian Perrier <bubulle@debian.org>  Tue, 01 Mar 2011 20:59:34 +0100
 
 samba (2:3.5.6~dfsg-5) unstable; urgency=low
 

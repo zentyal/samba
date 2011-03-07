@@ -1382,3 +1382,62 @@ _PUBLIC_ enum ndr_err_code ndr_push_spoolss_PrinterInfo2(struct ndr_push *ndr, i
 	}
 	return NDR_ERR_SUCCESS;
 }
+
+_PUBLIC_ void ndr_print_spoolss_Time(struct ndr_print *ndr, const char *name, const struct spoolss_Time *r)
+{
+	struct tm tm;
+	time_t t;
+	char *str;
+
+	tm.tm_sec	= r->second;
+	tm.tm_min	= r->minute;
+	tm.tm_hour	= r->hour;
+	tm.tm_mday	= r->day;
+	tm.tm_mon	= r->month - 1;
+	tm.tm_year	= r->year - 1900;
+	tm.tm_wday	= r->day_of_week;
+	tm.tm_yday	= 0;
+	tm.tm_isdst	= -1;
+
+	t = mktime(&tm);
+
+	str = timestring(ndr, t);
+
+	ndr_print_struct(ndr, name, "spoolss_Time");
+	ndr->depth++;
+	ndr_print_string(ndr, "", str);
+	ndr->depth--;
+	talloc_free(str);
+}
+
+_PUBLIC_ uint32_t ndr_spoolss_PrinterEnumValues_align(enum winreg_Type type)
+{
+	switch(type) {
+	case REG_NONE:
+		return 0;
+	case REG_SZ:
+		return LIBNDR_FLAG_ALIGN2;
+	case REG_EXPAND_SZ:
+		return LIBNDR_FLAG_ALIGN2;
+	case REG_BINARY:
+		return 0;
+	case REG_DWORD:
+		return LIBNDR_FLAG_ALIGN4;
+	case REG_DWORD_BIG_ENDIAN:
+		return LIBNDR_FLAG_ALIGN4;
+	case REG_LINK:
+		return 0;
+	case REG_MULTI_SZ:
+		return LIBNDR_FLAG_ALIGN2;
+	case REG_RESOURCE_LIST:
+		return LIBNDR_FLAG_ALIGN2;
+	case REG_FULL_RESOURCE_DESCRIPTOR:
+		return LIBNDR_FLAG_ALIGN4;
+	case REG_RESOURCE_REQUIREMENTS_LIST:
+		return LIBNDR_FLAG_ALIGN2;
+	case REG_QWORD:
+		return LIBNDR_FLAG_ALIGN8;
+	}
+
+	return 0;
+}

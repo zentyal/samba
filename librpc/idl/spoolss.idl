@@ -17,7 +17,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 ] interface spoolss
 {
 	typedef [v1_enum] enum winreg_Type winreg_Type;
-	typedef [gensize] struct {
+	typedef [gensize,noprint] struct {
 		uint16 year;
 		uint16 month;
 		uint16 day_of_week;
@@ -1256,7 +1256,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		spoolss_DriverOSVersion version;
 		[relative] nstring *driver_name;
 		[relative] nstring *architecture;
-		[relative] [size_is(file_count)] spoolss_DriverFileInfo *file_info;
+		[relative,size_is(file_count),flag(NDR_ALIGN4)] spoolss_DriverFileInfo *file_info;
 		uint32 file_count;
 		[relative] nstring *monitor_name;
 		[relative] nstring *default_datatype;
@@ -2550,8 +2550,8 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		[relative] nstring *value_name;
 		[value(2*strlen_m_term(value_name))] uint32 value_name_len;
 		winreg_Type type;
-		[relative,subcontext(0),subcontext_size(data_length),flag(NDR_REMAINING)] DATA_BLOB *data;
-		[value(data->length)] uint32 data_length;
+		[relative,subcontext(0),subcontext_size(data_length),flag(NDR_REMAINING|ndr_spoolss_PrinterEnumValues_align(r->type))] DATA_BLOB *data;
+		[value(data ? data->length : 0)] uint32 data_length;
 	} spoolss_PrinterEnumValues;
 
 	[public,noopnum,noprint] WERROR _spoolss_EnumPrinterDataEx(

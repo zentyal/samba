@@ -3195,6 +3195,9 @@
 /* Whether telldir takes a const pointer */
 #undef TELLDIR_TAKES_CONST_DIR
 
+/* The maximum value of the 'time_t' type */
+#undef TIME_T_MAX
+
 /* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
 #undef TIME_WITH_SYS_TIME
 

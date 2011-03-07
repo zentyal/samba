@@ -1748,6 +1748,14 @@ static bool create_canon_ace_lists(files_struct *fsp,
 				continue;
 			}
 
+			if (lp_force_unknown_acl_user(SNUM(fsp->conn))) {
+				DEBUG(10, ("create_canon_ace_lists: ignoring "
+					"unknown or foreign SID %s\n",
+					sid_string_dbg(&psa->trustee)));
+					SAFE_FREE(current_ace);
+				continue;
+			}
+
 			free_canon_ace_list(file_ace);
 			free_canon_ace_list(dir_ace);
 			DEBUG(0, ("create_canon_ace_lists: unable to map SID "
@@ -3591,7 +3599,7 @@ int try_chown(connection_struct *conn, struct smb_filename *smb_fname,
 		return -1;
 	}
 
-	if (!NT_STATUS_IS_OK(open_file_fchmod(NULL, conn, smb_fname, &fsp))) {
+	if (!NT_STATUS_IS_OK(open_file_fchmod(conn, smb_fname, &fsp))) {
 		return -1;
 	}
 
@@ -3610,7 +3618,7 @@ int try_chown(connection_struct *conn, struct smb_filename *smb_fname,
 	}
 	unbecome_root();
 
-	close_file_fchmod(NULL, fsp);
+	close_file(NULL, fsp, NORMAL_CLOSE);
 
 	return ret;
 }
@@ -3822,7 +3830,7 @@ NTSTATUS append_parent_acl(files_struct *fsp,
  This should be the only external function needed for the UNIX style set ACL.
 ****************************************************************************/
 
-NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, const SEC_DESC *psd)
+NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, const SEC_DESC *psd_orig)
 {
 	connection_struct *conn = fsp->conn;
 	uid_t user = (uid_t)-1;
@@ -3837,6 +3845,7 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, const SEC_DESC
 	bool set_acl_as_root = false;
 	bool acl_set_support = false;
 	bool ret = false;
+	SEC_DESC *psd = NULL;
 
 	DEBUG(10,("set_nt_acl: called for file %s\n",
 		  fsp_str_dbg(fsp)));
@@ -3844,6 +3853,15 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, const SEC_DESC
 	if (!CAN_WRITE(conn)) {
 		DEBUG(10,("set acl rejected on read-only share\n"));
 		return NT_STATUS_MEDIA_WRITE_PROTECTED;
+	}
+
+	if (!psd_orig) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	psd = dup_sec_desc(talloc_tos(), psd_orig);
+	if (!psd) {
+		return NT_STATUS_NO_MEMORY;
 	}
 
 	/*
@@ -3861,6 +3879,14 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, const SEC_DESC
 	/*
 	 * Unpack the user/group/world id's.
 	 */
+
+	/* POSIX can't cope with missing owner/group. */
+	if ((security_info_sent & SECINFO_OWNER) && (psd->owner_sid == NULL)) {
+		security_info_sent &= ~SECINFO_OWNER;
+	}
+	if ((security_info_sent & SECINFO_GROUP) && (psd->group_sid == NULL)) {
+		security_info_sent &= ~SECINFO_GROUP;
+	}
 
 	status = unpack_nt_owners( SNUM(conn), &user, &grp, security_info_sent, psd);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -3911,6 +3937,39 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, const SEC_DESC
 	}
 
 	create_file_sids(&fsp->fsp_name->st, &file_owner_sid, &file_grp_sid);
+
+	if((security_info_sent & SECINFO_DACL) &&
+			(psd->type & SEC_DESC_DACL_PRESENT) &&
+			(psd->dacl == NULL)) {
+		SEC_ACE ace[3];
+
+		/* We can't have NULL DACL in POSIX.
+		   Use owner/group/Everyone -> full access. */
+
+		init_sec_ace(&ace[0],
+				&file_owner_sid,
+				SEC_ACE_TYPE_ACCESS_ALLOWED,
+				GENERIC_ALL_ACCESS,
+				0);
+		init_sec_ace(&ace[1],
+				&file_grp_sid,
+				SEC_ACE_TYPE_ACCESS_ALLOWED,
+				GENERIC_ALL_ACCESS,
+				0);
+		init_sec_ace(&ace[2],
+				&global_sid_World,
+				SEC_ACE_TYPE_ACCESS_ALLOWED,
+				GENERIC_ALL_ACCESS,
+				0);
+		psd->dacl = make_sec_acl(talloc_tos(),
+					NT4_ACL_REVISION,
+					3,
+					ace);
+		if (psd->dacl == NULL) {
+			return NT_STATUS_NO_MEMORY;
+		}
+		security_acl_map_generic(psd->dacl, &file_generic_mapping);
+	}
 
 	acl_perms = unpack_canon_ace(fsp, &fsp->fsp_name->st, &file_owner_sid,
 				     &file_grp_sid, &file_ace_list,
@@ -4755,4 +4814,114 @@ SEC_DESC *get_nt_acl_no_snum( TALLOC_CTX *ctx, const char *fname)
 	conn_free(conn);
 
 	return ret_sd;
+}
+
+/* Stolen shamelessly from pvfs_default_acl() in source4 :-). */
+
+NTSTATUS make_default_filesystem_acl(TALLOC_CTX *ctx,
+					const char *name,
+					SMB_STRUCT_STAT *psbuf,
+					SEC_DESC **ppdesc)
+{
+	struct dom_sid owner_sid, group_sid;
+	size_t size = 0;
+	SEC_ACE aces[4];
+	uint32_t access_mask = 0;
+	mode_t mode = psbuf->st_ex_mode;
+	SEC_ACL *new_dacl = NULL;
+	int idx = 0;
+
+	DEBUG(10,("make_default_filesystem_acl: file %s mode = 0%o\n",
+		name, (int)mode ));
+
+	uid_to_sid(&owner_sid, psbuf->st_ex_uid);
+	gid_to_sid(&group_sid, psbuf->st_ex_gid);
+
+	/*
+	 We provide up to 4 ACEs
+		- Owner
+		- Group
+		- Everyone
+		- NT System
+	*/
+
+	if (mode & S_IRUSR) {
+		if (mode & S_IWUSR) {
+			access_mask |= SEC_RIGHTS_FILE_ALL;
+		} else {
+			access_mask |= SEC_RIGHTS_FILE_READ | SEC_FILE_EXECUTE;
+		}
+	}
+	if (mode & S_IWUSR) {
+		access_mask |= SEC_RIGHTS_FILE_WRITE | SEC_STD_DELETE;
+	}
+
+	init_sec_ace(&aces[idx],
+			&owner_sid,
+			SEC_ACE_TYPE_ACCESS_ALLOWED,
+			access_mask,
+			0);
+	idx++;
+
+	access_mask = 0;
+	if (mode & S_IRGRP) {
+		access_mask |= SEC_RIGHTS_FILE_READ | SEC_FILE_EXECUTE;
+	}
+	if (mode & S_IWGRP) {
+		/* note that delete is not granted - this matches posix behaviour */
+		access_mask |= SEC_RIGHTS_FILE_WRITE;
+	}
+	if (access_mask) {
+		init_sec_ace(&aces[idx],
+			&group_sid,
+			SEC_ACE_TYPE_ACCESS_ALLOWED,
+			access_mask,
+			0);
+		idx++;
+	}
+
+	access_mask = 0;
+	if (mode & S_IROTH) {
+		access_mask |= SEC_RIGHTS_FILE_READ | SEC_FILE_EXECUTE;
+	}
+	if (mode & S_IWOTH) {
+		access_mask |= SEC_RIGHTS_FILE_WRITE;
+	}
+	if (access_mask) {
+		init_sec_ace(&aces[idx],
+			&global_sid_World,
+			SEC_ACE_TYPE_ACCESS_ALLOWED,
+			access_mask,
+			0);
+		idx++;
+	}
+
+	init_sec_ace(&aces[idx],
+			&global_sid_System,
+			SEC_ACE_TYPE_ACCESS_ALLOWED,
+			SEC_RIGHTS_FILE_ALL,
+			0);
+	idx++;
+
+	new_dacl = make_sec_acl(ctx,
+			NT4_ACL_REVISION,
+			idx,
+			aces);
+
+	if (!new_dacl) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	*ppdesc = make_sec_desc(ctx,
+			SECURITY_DESCRIPTOR_REVISION_1,
+			SEC_DESC_SELF_RELATIVE|SEC_DESC_DACL_PRESENT,
+			&owner_sid,
+			&group_sid,
+			NULL,
+			new_dacl,
+			&size);
+	if (!*ppdesc) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	return NT_STATUS_OK;
 }

@@ -22,6 +22,7 @@
 #include "includes.h"
 #include "smbd/globals.h"
 
+extern struct current_user current_user;
 extern const struct generic_mapping file_generic_mapping;
 
 struct deferred_open_record {
@@ -1478,6 +1479,12 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 
 	ZERO_STRUCT(id);
 
+	/* Windows allows a new file to be created and
+	   silently removes a FILE_ATTRIBUTE_DIRECTORY
+	   sent by the client. Do the same. */
+
+	new_dos_attributes &= ~FILE_ATTRIBUTE_DIRECTORY;
+
 	if (conn->printer) {
 		/*
 		 * Printers are handled completely differently.
@@ -1960,7 +1967,7 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 
         if ((flags2 & O_CREAT) && lp_inherit_acls(SNUM(conn)) &&
 	    (def_acl = directory_has_default_acl(conn, parent_dir))) {
-		unx_mode = 0777;
+		unx_mode = (0777 & lp_create_mask(SNUM(conn)));
 	}
 
 	DEBUG(4,("calling open_file with flags=0x%X flags2=0x%X mode=0%o, "
@@ -2264,23 +2271,15 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
  Open a file for for write to ensure that we can fchmod it.
 ****************************************************************************/
 
-NTSTATUS open_file_fchmod(struct smb_request *req, connection_struct *conn,
+NTSTATUS open_file_fchmod(connection_struct *conn,
 			  struct smb_filename *smb_fname,
 			  files_struct **result)
 {
-	files_struct *fsp = NULL;
-	NTSTATUS status;
-
 	if (!VALID_STAT(smb_fname->st)) {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	status = file_new(req, conn, &fsp);
-	if(!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-        status = SMB_VFS_CREATE_FILE(
+        return SMB_VFS_CREATE_FILE(
 		conn,					/* conn */
 		NULL,					/* req */
 		0,					/* root_dir_fid */
@@ -2291,36 +2290,12 @@ NTSTATUS open_file_fchmod(struct smb_request *req, connection_struct *conn,
 		FILE_OPEN,				/* create_disposition*/
 		0,					/* create_options */
 		0,					/* file_attributes */
-		0,					/* oplock_request */
+		INTERNAL_OPEN_ONLY,			/* oplock_request */
 		0,					/* allocation_size */
 		NULL,					/* sd */
 		NULL,					/* ea_list */
-		&fsp,					/* result */
+		result,					/* result */
 		NULL);					/* pinfo */
-
-	/*
-	 * This is not a user visible file open.
-	 * Don't set a share mode.
-	 */
-
-	if (!NT_STATUS_IS_OK(status)) {
-		file_free(req, fsp);
-		return status;
-	}
-
-	*result = fsp;
-	return NT_STATUS_OK;
-}
-
-/****************************************************************************
- Close the fchmod file fd - ensure no locks are lost.
-****************************************************************************/
-
-NTSTATUS close_file_fchmod(struct smb_request *req, files_struct *fsp)
-{
-	NTSTATUS status = fd_close(fsp);
-	file_free(req, fsp);
-	return status;
 }
 
 static NTSTATUS mkdir_internal(connection_struct *conn,
@@ -2439,6 +2414,9 @@ static NTSTATUS open_directory(connection_struct *conn,
 
 	SMB_ASSERT(!is_ntfs_stream_smb_fname(smb_dname));
 
+	/* Ensure we have a directory attribute. */
+	file_attributes |= FILE_ATTRIBUTE_DIRECTORY;
+
 	DEBUG(5,("open_directory: opening directory %s, access_mask = 0x%x, "
 		 "share_access = 0x%x create_options = 0x%x, "
 		 "create_disposition = 0x%x, file_attributes = 0x%x\n",
@@ -2467,8 +2445,8 @@ static NTSTATUS open_directory(connection_struct *conn,
 		return status;
 	}
 
-	/* We need to support SeSecurityPrivilege for this. */
-	if (access_mask & SEC_FLAG_SYSTEM_SECURITY) {
+	if ((access_mask & SEC_FLAG_SYSTEM_SECURITY) &&
+			!user_has_privileges(current_user.nt_user_token, &se_security)) {
 		DEBUG(10, ("open_directory: open on %s "
 			"failed - SEC_FLAG_SYSTEM_SECURITY denied.\n",
 			smb_fname_str_dbg(smb_dname)));
@@ -2977,29 +2955,14 @@ static NTSTATUS create_file_unixpath(connection_struct *conn,
 		goto fail;
 	}
 
-#if 0
-	/* We need to support SeSecurityPrivilege for this. */
 	if ((access_mask & SEC_FLAG_SYSTEM_SECURITY) &&
-	    !user_has_privileges(current_user.nt_user_token,
-				 &se_security)) {
+			!user_has_privileges(current_user.nt_user_token, &se_security)) {
+		DEBUG(10, ("create_file_unixpath:: open on %s "
+			"failed - SEC_FLAG_SYSTEM_SECURITY denied.\n",
+			smb_fname_str_dbg(smb_fname)));
 		status = NT_STATUS_PRIVILEGE_NOT_HELD;
 		goto fail;
 	}
-#else
-	/* We need to support SeSecurityPrivilege for this. */
-	if (access_mask & SEC_FLAG_SYSTEM_SECURITY) {
-		status = NT_STATUS_PRIVILEGE_NOT_HELD;
-		goto fail;
-	}
-	/* Don't allow a SACL set from an NTtrans create until we
-	 * support SeSecurityPrivilege. */
-	if (!VALID_STAT(smb_fname->st) &&
-			lp_nt_acl_support(SNUM(conn)) &&
-			sd && (sd->sacl != NULL)) {
-		status = NT_STATUS_PRIVILEGE_NOT_HELD;
-		goto fail;
-	}
-#endif
 
 	if ((conn->fs_capabilities & FILE_NAMED_STREAMS)
 	    && is_ntfs_stream_smb_fname(smb_fname)
@@ -3270,7 +3233,8 @@ static NTSTATUS create_file_unixpath(connection_struct *conn,
 NTSTATUS get_relative_fid_filename(connection_struct *conn,
 				   struct smb_request *req,
 				   uint16_t root_dir_fid,
-				   struct smb_filename *smb_fname)
+				   const struct smb_filename *smb_fname,
+				   struct smb_filename **smb_fname_out)
 {
 	files_struct *dir_fsp;
 	char *parent_fname = NULL;
@@ -3358,16 +3322,23 @@ NTSTATUS get_relative_fid_filename(connection_struct *conn,
 		}
 	}
 
-	new_base_name = talloc_asprintf(smb_fname, "%s%s", parent_fname,
+	new_base_name = talloc_asprintf(talloc_tos(), "%s%s", parent_fname,
 					smb_fname->base_name);
 	if (new_base_name == NULL) {
 		status = NT_STATUS_NO_MEMORY;
 		goto out;
 	}
 
-	TALLOC_FREE(smb_fname->base_name);
-	smb_fname->base_name = new_base_name;
-	status = NT_STATUS_OK;
+	status = filename_convert(req,
+				conn,
+				req->flags2 & FLAGS2_DFS_PATHNAMES,
+				new_base_name,
+				0,
+				NULL,
+				smb_fname_out);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto out;
+	}
 
  out:
 	TALLOC_FREE(parent_fname);
@@ -3414,11 +3385,13 @@ NTSTATUS create_file_default(connection_struct *conn,
 	 */
 
 	if (root_dir_fid != 0) {
+		struct smb_filename *smb_fname_out = NULL;
 		status = get_relative_fid_filename(conn, req, root_dir_fid,
-						   smb_fname);
+						   smb_fname, &smb_fname_out);
 		if (!NT_STATUS_IS_OK(status)) {
 			goto fail;
 		}
+		smb_fname = smb_fname_out;
 	}
 
 	/*

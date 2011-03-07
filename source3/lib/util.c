@@ -1407,7 +1407,7 @@ uid_t nametouid(const char *name)
 	char *p;
 	uid_t u;
 
-	pass = getpwnam_alloc(talloc_autofree_context(), name);
+	pass = Get_Pwnam_alloc(talloc_autofree_context(), name);
 	if (pass) {
 		u = pass->pw_uid;
 		TALLOC_FREE(pass);
@@ -3069,4 +3069,15 @@ const char *strip_hostname(const char *s)
 	if (s[0] == '\\') s++;
 
 	return s;
+}
+
+bool tevent_req_poll_ntstatus(struct tevent_req *req,
+			      struct tevent_context *ev,
+			      NTSTATUS *status)
+{
+	bool ret = tevent_req_poll(req, ev);
+	if (!ret) {
+		*status = map_nt_error_from_unix(errno);
+	}
+	return ret;
 }

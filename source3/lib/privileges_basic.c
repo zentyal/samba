@@ -46,6 +46,7 @@ const SE_PRIV se_disk_operators  = SE_DISK_OPERATOR;
 const SE_PRIV se_remote_shutdown = SE_REMOTE_SHUTDOWN;
 const SE_PRIV se_restore         = SE_RESTORE;
 const SE_PRIV se_take_ownership  = SE_TAKE_OWNERSHIP;
+const SE_PRIV se_security       = SE_SECURITY;
 
 /********************************************************************
  This is a list of privileges reported by a WIndows 2000 SP4 AD DC
@@ -98,6 +99,7 @@ PRIVS privs[] = {
 	{SE_SERVICE_LOGON,	"SeServiceLogonRight",		"Log on as a service",			   { 0x0, 0x0 }},
 #endif
 	{SE_MACHINE_ACCOUNT,	"SeMachineAccountPrivilege",	"Add machines to domain",		   { 0x0, 0x0006 }},
+	{SE_SECURITY,		"SeSecurityPrivilege",		"Manage auditing and security log",	   { 0x0, 0x0008 }},
 	{SE_TAKE_OWNERSHIP,     "SeTakeOwnershipPrivilege",     "Take ownership of files or other objects",{ 0x0, 0x0009 }},
         {SE_BACKUP,             "SeBackupPrivilege",            "Back up files and directories",	   { 0x0, 0x0011 }},
         {SE_RESTORE,            "SeRestorePrivilege",           "Restore files and directories",	   { 0x0, 0x0012 }},
@@ -106,6 +108,7 @@ PRIVS privs[] = {
 	{SE_PRINT_OPERATOR,	"SePrintOperatorPrivilege",	"Manage printers",			   { 0x0, 0x1001 }},
 	{SE_ADD_USERS,		"SeAddUsersPrivilege",		"Add users and groups to the domain",	   { 0x0, 0x1002 }},
 	{SE_DISK_OPERATOR,	"SeDiskOperatorPrivilege",	"Manage disk shares",			   { 0x0, 0x1003 }},
+
 
 	{SE_END, "", "", { 0x0, 0x0 }}
 };
@@ -189,6 +192,15 @@ static void se_priv_invert( SE_PRIV *new_mask, const SE_PRIV *mask )
 bool se_priv_equal( const SE_PRIV *mask1, const SE_PRIV *mask2 )
 {
 	return ( memcmp(mask1, mask2, sizeof(SE_PRIV)) == 0 );
+}
+
+/***************************************************************************
+ check if 2 LUID's are equal.
+****************************************************************************/
+
+static bool luid_equal( const LUID *luid1, const LUID *luid2 )
+{
+	return ( luid1->low == luid2->low && luid1->high == luid2->high);
 }
 
 /***************************************************************************
@@ -406,11 +418,8 @@ const char *luid_to_privilege_name(const LUID *set)
 {
 	int i;
 
-	if (set->high != 0)
-		return NULL;
-
 	for ( i=0; !se_priv_equal(&privs[i].se_priv, &se_priv_end); i++ ) {
-		if ( set->low == privs[i].luid.low ) {
+		if (luid_equal(set, &privs[i].luid)) {
 			return privs[i].name;
 		}
 	}
@@ -477,9 +486,13 @@ static bool luid_to_se_priv( struct lsa_LUID *luid, SE_PRIV *mask )
 {
 	int i;
 	uint32 num_privs = count_all_privileges();
+	LUID local_luid;
+
+	local_luid.low = luid->low;
+	local_luid.high = luid->high;
 
 	for ( i=0; i<num_privs; i++ ) {
-		if ( luid->low == privs[i].luid.low ) {
+		if (luid_equal(&local_luid, &privs[i].luid)) {
 			se_priv_copy( mask, &privs[i].se_priv );
 			return True;
 		}
@@ -499,12 +512,6 @@ bool privilege_set_to_se_priv( SE_PRIV *mask, struct lsa_PrivilegeSet *privset )
 
 	for ( i=0; i<privset->count; i++ ) {
 		SE_PRIV r;
-
-		/* sanity check for invalid privilege.  we really
-		   only care about the low 32 bits */
-
-		if ( privset->set[i].luid.high != 0 )
-			return False;
 
 		if ( luid_to_se_priv( &privset->set[i].luid, &r ) )
 			se_priv_add( mask, &r );

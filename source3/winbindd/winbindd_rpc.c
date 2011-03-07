@@ -84,6 +84,13 @@ static NTSTATUS query_user_list(struct winbindd_domain *domain,
 						      &total_size,
 						      &returned_size,
 						      &disp_info);
+
+		if (!NT_STATUS_IS_OK(result)) {
+		        if (!NT_STATUS_EQUAL(result, STATUS_MORE_ENTRIES)) {
+		                return result;
+		        }
+		}
+
 		num_dom_users = disp_info.info1.count;
 		start_idx += disp_info.info1.count;
 		loop_count++;
@@ -1230,6 +1237,18 @@ NTSTATUS winbindd_lookup_sids(TALLOC_CTX *mem_ctx,
 	/* And restore our original timeout. */
 	rpccli_set_timeout(cli, orig_timeout);
 
+	if (NT_STATUS_V(status) == DCERPC_FAULT_ACCESS_DENIED ||
+	    NT_STATUS_V(status) == DCERPC_FAULT_SEC_PKG_ERROR) {
+		/*
+		 * This can happen if the schannel key is not
+		 * valid anymore, we need to invalidate the
+		 * all connections to the dc and reestablish
+		 * a netlogon connection first.
+		 */
+		invalidate_cm_connection(&domain->conn);
+		status = NT_STATUS_ACCESS_DENIED;
+	}
+
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -1296,6 +1315,18 @@ NTSTATUS winbindd_lookup_names(TALLOC_CTX *mem_ctx,
 
 	/* And restore our original timeout. */
 	rpccli_set_timeout(cli, orig_timeout);
+
+	if (NT_STATUS_V(status) == DCERPC_FAULT_ACCESS_DENIED ||
+	    NT_STATUS_V(status) == DCERPC_FAULT_SEC_PKG_ERROR) {
+		/*
+		 * This can happen if the schannel key is not
+		 * valid anymore, we need to invalidate the
+		 * all connections to the dc and reestablish
+		 * a netlogon connection first.
+		 */
+		invalidate_cm_connection(&domain->conn);
+		status = NT_STATUS_ACCESS_DENIED;
+	}
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;

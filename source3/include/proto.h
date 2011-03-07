@@ -1238,6 +1238,9 @@ bool is_valid_policy_hnd(const struct policy_handle *hnd);
 bool policy_hnd_equal(const struct policy_handle *hnd1,
 		      const struct policy_handle *hnd2);
 const char *strip_hostname(const char *s);
+bool tevent_req_poll_ntstatus(struct tevent_req *req,
+			      struct tevent_context *ev,
+			      NTSTATUS *status);
 
 /* The following definitions come from lib/util_file.c  */
 
@@ -1539,6 +1542,8 @@ char *strnrchr_m(const char *s, char c, unsigned int n);
 char *strstr_m(const char *src, const char *findstr);
 void strlower_m(char *s);
 void strupper_m(char *s);
+size_t strlen_m_ext(const char *s, const charset_t dst_charset);
+size_t strlen_m_ext_term(const char *s, const charset_t dst_charset);
 size_t strlen_m(const char *s);
 size_t strlen_m_term(const char *s);
 size_t strlen_m_term_null(const char *s);
@@ -3190,7 +3195,7 @@ struct packet_struct *receive_dgram_packet(int fd, int t,
 bool match_mailslot_name(struct packet_struct *p, const char *mailslot_name);
 int matching_len_bits(unsigned char *p1, unsigned char *p2, size_t len);
 void sort_query_replies(char *data, int n, struct in_addr ip);
-char *name_mangle(TALLOC_CTX *mem_ctx, char *In, char name_type);
+char *name_mangle(TALLOC_CTX *mem_ctx, const char *In, char name_type);
 int name_extract(unsigned char *buf,size_t buf_len, unsigned int ofs, fstring name);
 int name_len(unsigned char *s1, size_t buf_len);
 
@@ -5255,6 +5260,7 @@ NTSTATUS rpccli_netlogon_sam_network_logon(struct rpc_pipe_client *cli,
 					   const char *domain,
 					   const char *workstation,
 					   const uint8 chal[8],
+					   uint16_t validation_level,
 					   DATA_BLOB lm_response,
 					   DATA_BLOB nt_response,
 					   struct netr_SamInfo3 **info3);
@@ -5266,6 +5272,7 @@ NTSTATUS rpccli_netlogon_sam_network_logon_ex(struct rpc_pipe_client *cli,
 					      const char *domain,
 					      const char *workstation,
 					      const uint8 chal[8],
+					      uint16_t validation_level,
 					      DATA_BLOB lm_response,
 					      DATA_BLOB nt_response,
 					      struct netr_SamInfo3 **info3);
@@ -6463,6 +6470,7 @@ bool is_msdfs_link(connection_struct *conn,
 		const char *path,
 		SMB_STRUCT_STAT *sbufp);
 NTSTATUS get_referred_path(TALLOC_CTX *ctx,
+			struct auth_serversupplied_info *server_info,
 			const char *dfs_path,
 			struct junction_map *jucn,
 			int *consumedcntp,
@@ -6624,10 +6632,9 @@ bool map_open_params_to_ntcreate(const struct smb_filename *smb_fname,
 				 uint32 *pshare_mode,
 				 uint32 *pcreate_disposition,
 				 uint32 *pcreate_options);
-NTSTATUS open_file_fchmod(struct smb_request *req, connection_struct *conn,
+NTSTATUS open_file_fchmod(connection_struct *conn,
 			  struct smb_filename *smb_fname,
 			  files_struct **result);
-NTSTATUS close_file_fchmod(struct smb_request *req, files_struct *fsp);
 NTSTATUS create_directory(connection_struct *conn, struct smb_request *req,
 			  struct smb_filename *smb_dname);
 void msg_file_was_renamed(struct messaging_context *msg,
@@ -6656,7 +6663,8 @@ NTSTATUS create_file_default(connection_struct *conn,
 NTSTATUS get_relative_fid_filename(connection_struct *conn,
 				   struct smb_request *req,
 				   uint16_t root_dir_fid,
-				   struct smb_filename *smb_fname);
+				   const struct smb_filename *smb_fname,
+				   struct smb_filename **smb_fname_out);
 
 /* The following definitions come from smbd/oplock.c  */
 
@@ -6764,6 +6772,10 @@ bool set_unix_posix_default_acl(connection_struct *conn, const char *fname,
 				uint16 num_def_acls, const char *pdata);
 bool set_unix_posix_acl(connection_struct *conn, files_struct *fsp, const char *fname, uint16 num_acls, const char *pdata);
 SEC_DESC *get_nt_acl_no_snum( TALLOC_CTX *ctx, const char *fname);
+NTSTATUS make_default_filesystem_acl(TALLOC_CTX *ctx,
+					const char *name,
+					SMB_STRUCT_STAT *psbuf,
+					SEC_DESC **ppdesc);
 
 /* The following definitions come from smbd/process.c  */
 
@@ -7296,6 +7308,28 @@ struct tevent_req *fncall_send(TALLOC_CTX *mem_ctx, struct tevent_context *ev,
 			       void (*fn)(void *private_data),
 			       void *private_data);
 int fncall_recv(struct tevent_req *req, int *perr);
+
+struct tevent_req *smbsock_connect_send(TALLOC_CTX *mem_ctx,
+					struct tevent_context *ev,
+					const struct sockaddr_storage *addr,
+					const char *called_name,
+					const char *calling_name);
+NTSTATUS smbsock_connect_recv(struct tevent_req *req, int *sock,
+			      uint16_t *port);
+NTSTATUS smbsock_connect(const struct sockaddr_storage *addr,
+			 const char *called_name, const char *calling_name,
+			 int *pfd, uint16_t *port);
+
+struct tevent_req *smbsock_any_connect_send(TALLOC_CTX *mem_ctx,
+					    struct tevent_context *ev,
+					    const struct sockaddr_storage *addrs,
+					    const char **called_names,
+					    size_t num_addrs);
+NTSTATUS smbsock_any_connect_recv(struct tevent_req *req, int *pfd,
+				  size_t *chosen_index, uint16_t *port);
+NTSTATUS smbsock_any_connect(const struct sockaddr_storage *addrs,
+			     const char **called_names, size_t num_addrs,
+			     int *pfd, size_t *chosen_index, uint16_t *port);
 
 /* The following definitions come from rpc_server/srv_samr_nt.c */
 NTSTATUS access_check_object( SEC_DESC *psd, NT_USER_TOKEN *token,

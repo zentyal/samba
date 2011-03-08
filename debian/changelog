@@ -1,6 +1,8 @@
 samba (2:3.5.8~dfsg-1) UNRELEASED; urgency=low
 
-  * New upstream release
+  * New upstream release. This fixes the following bugs:
+    - Winbind leaks gids with idmap ldap backend (upstrem #7777)
+      Closes: #613624
 
  -- Christian Perrier <bubulle@debian.org>  Mon, 07 Mar 2011 22:32:08 +0100
 

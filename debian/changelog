@@ -1,12 +1,14 @@
-samba (2:3.5.8~dfsg-1) UNRELEASED; urgency=low
+samba (2:3.5.8~dfsg-1) unstable; urgency=low
 
   * New upstream release. This fixes the following bugs:
     - Winbind leaks gids with idmap ldap backend (upstrem #7777)
       Closes: #613624
     - printing from Windows 7 fails with 0x000003e6
       Closes: #617429
+  * smb.conf(5) restored from samba 3.5.6 as a workaround to upstream
+    #7997
 
- -- Christian Perrier <bubulle@debian.org>  Mon, 07 Mar 2011 22:32:08 +0100
+ -- Christian Perrier <bubulle@debian.org>  Tue, 08 Mar 2011 22:38:32 +0100
 
 samba (2:3.5.7~dfsg-1) unstable; urgency=low
 

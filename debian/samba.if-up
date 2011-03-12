@@ -21,13 +21,13 @@ case $ADDRFAM in
 		;;
 esac
 
-status=$(/etc/init.d/samba status)
+status=$(invoke-rc.d samba status)
 
 # Really only necessary to do anything if nmbd is not already running
 if echo "$status" | grep -q 'smbd is running' \
    && ! echo "$status" | grep -q 'nmbd is running'
 then
-	/etc/init.d/samba start
+	invoke-rc.d samba start
 fi
 
 exit 0

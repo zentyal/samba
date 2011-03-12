@@ -1,3 +1,9 @@
+samba (2:3.5.8~dfsg-2) UNRELEASED; urgency=low
+
+  * Add libwbclient-dev package.
+
+ -- Jelmer Vernooij <jelmer@debian.org>  Sat, 12 Mar 2011 04:42:26 +0100
+
 samba (2:3.5.8~dfsg-1) unstable; urgency=low
 
   * New upstream release. This fixes the following bugs:

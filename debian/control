@@ -226,3 +226,18 @@ Description: Samba winbind client library
  .
  This package provides a library for client applications that interact
  via the winbind pipe protocol with a Samba winbind server.
+
+Package: libwbclient-dev
+Section: libdevel
+Priority: optional
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libwbclient0 (= ${binary:Version})
+Description: Samba winbind client library - development files
+ Samba is an implementation of the SMB/CIFS protocol for Unix systems,
+ providing support for cross-platform file and printer sharing with
+ Microsoft Windows, OS X, and other Unix systems.
+ .
+ This package provides the development files (static library and headers)
+ required for building applications against libwbclient, a library for client
+ applications that interact via the winbind pipe protocol with a Samba
+ winbind server.

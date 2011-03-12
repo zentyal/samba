@@ -8,6 +8,7 @@ Build-Depends: debhelper (>= 6.0.7~), libpam0g-dev, libreadline-dev,
 	libacl1-dev [linux-any],
 	libkrb5-dev, libldap2-dev, po-debconf, libpopt-dev, uuid-dev,
 	libtalloc-dev (>= 2.0.1-1~bpo50+1),
+	libtdb-dev (>= 1.2.1~),
 	libcap-dev [linux-any],
 	libkeyutils-dev [linux-any],
 	ctdb (>= 1.0.103) [linux-any],
@@ -21,7 +22,7 @@ Vcs-Svn: svn://svn.debian.org/svn/pkg-samba/trunk/samba
 Package: samba
 Architecture: any
 Depends: samba-common (= ${source:Version}), libwbclient0 (= ${binary:Version}),${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 1.0.1-11), libpam-modules, lsb-base (>= 3.2-13), procps, update-inetd, adduser
-Recommends: logrotate
+Recommends: logrotate, tdb-tools
 Suggests: openbsd-inetd | inet-superserver, smbldap-tools, ldb-tools, ctdb
 Replaces: samba-common (<= 2.0.5a-2)
 Conflicts: samba4 (<< 4.0.0~alpha6-2)

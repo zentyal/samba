@@ -7,6 +7,5 @@ usr/bin/nsstest
 usr/bin/vfstest
 usr/bin/pdbtest
 usr/bin/replacetort
-usr/bin/tdbtorture
 usr/bin/smbconftort
 

@@ -2,7 +2,6 @@ usr/bin/eventlogadm
 usr/bin/smbstatus.samba3
 usr/bin/smbcontrol
 usr/bin/profiles
-usr/bin/tdbbackup
 usr/bin/pdbedit
 usr/sbin/smbd
 usr/sbin/nmbd
@@ -15,6 +14,5 @@ usr/share/man/man8/nmbd.8
 usr/share/man/man8/pdbedit.8
 usr/share/man/man8/smbd.8
 usr/share/man/man8/mksmbpasswd.8
-usr/share/man/man8/tdbbackup.8
 usr/share/man/man8/eventlogadm.8
 etc/network/if-up.d/samba

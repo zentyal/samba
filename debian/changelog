@@ -3,9 +3,8 @@ samba (2:3.5.8~dfsg-2) UNRELEASED; urgency=low
   * Add libwbclient-dev package.
   * Build against external libtdb.
   * Bump standards version to 3.9.1 (no changes).
-  * debian/samba.if-up: Use invoke-rc.d.
 
- -- Jelmer Vernooij <jelmer@debian.org>  Sat, 12 Mar 2011 17:50:02 +0100
+ -- Jelmer Vernooij <jelmer@debian.org>  Sat, 12 Mar 2011 17:48:19 +0100
 
 samba (2:3.5.8~dfsg-1) unstable; urgency=low
 

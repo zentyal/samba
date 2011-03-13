@@ -1,0 +1,32 @@
+From a8637bb7b2e49274db3e66ce1b24d86952fe48ac Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?G=C3=BCnther=20Deschner?= <gd@samba.org>
+Date: Mon, 2 Aug 2010 15:52:09 +0200
+Subject: [PATCH 2/9] spoolss: fix potential crash bug in spoolss_PrinterEnumValues push path.
+
+Guenther
+(cherry picked from commit 45952b56797982d27731b20d97f5648c9414814a)
+(cherry picked from commit ad68e45b505331683a2510de20f113a7c20e68e1)
+
+Signed-off-by: Stefan Metzmacher <metze@samba.org>
+(cherry picked from commit 5a660f3f15e1e04d556b34b9e49e7177193df026)
+(cherry picked from commit cdcc2ba83c2e4a1f5ca5da870dc673e7e2507d23)
+---
+ librpc/idl/spoolss.idl |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/librpc/idl/spoolss.idl b/librpc/idl/spoolss.idl
+index bfaca4a..44839be 100644
+--- a/librpc/idl/spoolss.idl
++++ b/librpc/idl/spoolss.idl
+@@ -2551,7 +2551,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
+ 		[value(2*strlen_m_term(value_name))] uint32 value_name_len;
+ 		winreg_Type type;
+ 		[relative,subcontext(0),subcontext_size(data_length),flag(NDR_REMAINING)] DATA_BLOB *data;
+-		[value(data->length)] uint32 data_length;
++		[value(data ? data->length : 0)] uint32 data_length;
+ 	} spoolss_PrinterEnumValues;
+ 
+ 	[public,noopnum,noprint] WERROR _spoolss_EnumPrinterDataEx(
+-- 
+1.7.4.1
+

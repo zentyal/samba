@@ -14,3 +14,12 @@ autoconf.patch
 bug_605728_upstream_7791.patch
 bug_574468_upstream_7265.patch
 security-CVE-2011-0719.patch
+bug_611177-617429_upstream_7567_0001-rerun-make-samba3-idl.patch
+bug_611177-617429_upstream_7567_0002-spoolss-fix-potential-crash-bug-in-spoolss_PrinterEn.patch
+bug_611177-617429_upstream_7567_0003-spoolss-pretty-print-a-struct-spoolss_Time.patch
+bug_611177-617429_upstream_7567_0004-librpc-ndr-let-ndr_push-pull_DATA_BLOB-look-at-LIBND.patch
+bug_611177-617429_upstream_7567_0005-librpc-ndr-ndr-align-relative-pointers-based-on-the-.patch
+bug_611177-617429_upstream_7567_0006-librpc-align-nstring-and-nstring_array-to-2-byte.patch
+bug_611177-617429_upstream_7567_0007-librpc-ndr-remove-align2-hack-for-relative-pointers.patch
+bug_611177-617429_upstream_7567_0008-spoolss.idl-align-spoolss_PrinterEnumValues-data-bas.patch
+bug_611177-617429_upstream_7567_0009-spoolss.idl-align-spoolss_DriverFileInfo-relative-po.patch

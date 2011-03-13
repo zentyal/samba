@@ -1,0 +1,43 @@
+From 86333080a096052fe927e3d639b5f67f3156c1f6 Mon Sep 17 00:00:00 2001
+From: Stefan Metzmacher <metze@samba.org>
+Date: Tue, 22 Feb 2011 15:58:45 +0100
+Subject: [PATCH 7/9] librpc/ndr: remove align2 hack for relative pointers
+
+metze
+(cherry picked from commit 23f6f449792d889538e0d0028bb8fbd5c807b0da)
+(cherry picked from commit 9313b5d1da24406dd7d26afb2488fee0cbea44a9)
+
+Signed-off-by: Stefan Metzmacher <metze@samba.org>
+(cherry picked from commit 1757dee05942add03edb51163bead807d839fcf6)
+(cherry picked from commit 50f639635ceda021efd129d8ea1ecaba4c985f4c)
+---
+ librpc/ndr/ndr.c |    6 +-----
+ 1 files changed, 1 insertions(+), 5 deletions(-)
+
+diff --git a/librpc/ndr/ndr.c b/librpc/ndr/ndr.c
+index 42d0e81..9f2042d 100644
+--- a/librpc/ndr/ndr.c
++++ b/librpc/ndr/ndr.c
+@@ -1107,8 +1107,7 @@ _PUBLIC_ enum ndr_err_code ndr_push_relative_ptr2_start(struct ndr_push *ndr, co
+ 	if (!(ndr->flags & LIBNDR_FLAG_RELATIVE_REVERSE)) {
+ 		uint32_t relative_offset;
+ 		size_t pad;
+-		/* TODO: remove this hack and let the idl use FLAG_ALIGN2 explicit */
+-		size_t align = 2;
++		size_t align = 1;
+ 
+ 		if (ndr->offset < ndr->relative_base_offset) {
+ 			return ndr_push_error(ndr, NDR_ERR_BUFSIZE,
+@@ -1197,9 +1196,6 @@ _PUBLIC_ enum ndr_err_code ndr_push_relative_ptr2_end(struct ndr_push *ndr, cons
+ 	/* the reversed offset is at the end of the main buffer */
+ 	correct_offset = ndr->relative_end_offset - len;
+ 
+-	/* TODO: remove this hack and let the idl use FLAG_ALIGN2 explicit */
+-	align = 2;
+-
+ 	if (ndr->flags & LIBNDR_FLAG_ALIGN2) {
+ 		align = 2;
+ 	} else if (ndr->flags & LIBNDR_FLAG_ALIGN4) {
+-- 
+1.7.4.1
+

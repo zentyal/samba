@@ -1,0 +1,121 @@
+From 7a83d0428a097c5b35019a262dad1b22e3ff4b26 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?G=C3=BCnther=20Deschner?= <gd@samba.org>
+Date: Thu, 22 Apr 2010 11:42:45 +0200
+Subject: [PATCH 3/9] spoolss: pretty-print a struct spoolss_Time.
+
+Guenther
+(cherry picked from commit 440075247d11a7852d8567753f426fa67f41d875)
+
+Signed-off-by: Stefan Metzmacher <metze@samba.org>
+(cherry picked from commit 0396087c36652b6c3d2bf4206212c2823352f9e0)
+(cherry picked from commit 2fd1b7cb9d7908dcb02e7405a8e532fd9a9738b0)
+---
+ librpc/gen_ndr/ndr_spoolss.c |   15 ---------------
+ librpc/gen_ndr/spoolss.h     |    2 +-
+ librpc/idl/spoolss.idl       |    2 +-
+ librpc/ndr/ndr_spoolss_buf.c |   27 +++++++++++++++++++++++++++
+ librpc/ndr/ndr_spoolss_buf.h |    1 +
+ 5 files changed, 30 insertions(+), 17 deletions(-)
+
+diff --git a/librpc/gen_ndr/ndr_spoolss.c b/librpc/gen_ndr/ndr_spoolss.c
+index 41f994b..c94edef 100644
+--- a/librpc/gen_ndr/ndr_spoolss.c
++++ b/librpc/gen_ndr/ndr_spoolss.c
+@@ -44,21 +44,6 @@ static enum ndr_err_code ndr_pull_spoolss_Time(struct ndr_pull *ndr, int ndr_fla
+ 	return NDR_ERR_SUCCESS;
+ }
+ 
+-_PUBLIC_ void ndr_print_spoolss_Time(struct ndr_print *ndr, const char *name, const struct spoolss_Time *r)
+-{
+-	ndr_print_struct(ndr, name, "spoolss_Time");
+-	ndr->depth++;
+-	ndr_print_uint16(ndr, "year", r->year);
+-	ndr_print_uint16(ndr, "month", r->month);
+-	ndr_print_uint16(ndr, "day_of_week", r->day_of_week);
+-	ndr_print_uint16(ndr, "day", r->day);
+-	ndr_print_uint16(ndr, "hour", r->hour);
+-	ndr_print_uint16(ndr, "minute", r->minute);
+-	ndr_print_uint16(ndr, "second", r->second);
+-	ndr_print_uint16(ndr, "millisecond", r->millisecond);
+-	ndr->depth--;
+-}
+-
+ static size_t ndr_size_spoolss_Time(const struct spoolss_Time *r, struct smb_iconv_convenience *ic, int flags)
+ {
+ 	return ndr_size_struct(r, flags, (ndr_push_flags_fn_t)ndr_push_spoolss_Time, ic);
+diff --git a/librpc/gen_ndr/spoolss.h b/librpc/gen_ndr/spoolss.h
+index ef8c63e..855e701 100644
+--- a/librpc/gen_ndr/spoolss.h
++++ b/librpc/gen_ndr/spoolss.h
+@@ -126,7 +126,7 @@ struct spoolss_Time {
+ 	uint16_t minute;
+ 	uint16_t second;
+ 	uint16_t millisecond;
+-}/* [gensize] */;
++}/* [noprint,gensize] */;
+ 
+ struct spoolss_TimeCtr {
+ 	uint32_t size;/* [value(ndr_size_spoolss_Time(time,ndr->iconv_convenience,ndr->flags))] */
+diff --git a/librpc/idl/spoolss.idl b/librpc/idl/spoolss.idl
+index 44839be..e0d9d2f 100644
+--- a/librpc/idl/spoolss.idl
++++ b/librpc/idl/spoolss.idl
+@@ -17,7 +17,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
+ ] interface spoolss
+ {
+ 	typedef [v1_enum] enum winreg_Type winreg_Type;
+-	typedef [gensize] struct {
++	typedef [gensize,noprint] struct {
+ 		uint16 year;
+ 		uint16 month;
+ 		uint16 day_of_week;
+diff --git a/librpc/ndr/ndr_spoolss_buf.c b/librpc/ndr/ndr_spoolss_buf.c
+index 5aa89e4..811a8e2 100644
+--- a/librpc/ndr/ndr_spoolss_buf.c
++++ b/librpc/ndr/ndr_spoolss_buf.c
+@@ -1382,3 +1382,30 @@ _PUBLIC_ enum ndr_err_code ndr_push_spoolss_PrinterInfo2(struct ndr_push *ndr, i
+ 	}
+ 	return NDR_ERR_SUCCESS;
+ }
++
++_PUBLIC_ void ndr_print_spoolss_Time(struct ndr_print *ndr, const char *name, const struct spoolss_Time *r)
++{
++	struct tm tm;
++	time_t t;
++	char *str;
++
++	tm.tm_sec	= r->second;
++	tm.tm_min	= r->minute;
++	tm.tm_hour	= r->hour;
++	tm.tm_mday	= r->day;
++	tm.tm_mon	= r->month - 1;
++	tm.tm_year	= r->year - 1900;
++	tm.tm_wday	= r->day_of_week;
++	tm.tm_yday	= 0;
++	tm.tm_isdst	= -1;
++
++	t = mktime(&tm);
++
++	str = timestring(ndr, t);
++
++	ndr_print_struct(ndr, name, "spoolss_Time");
++	ndr->depth++;
++	ndr_print_string(ndr, "", str);
++	ndr->depth--;
++	talloc_free(str);
++}
+diff --git a/librpc/ndr/ndr_spoolss_buf.h b/librpc/ndr/ndr_spoolss_buf.h
+index 2766abb..89dcb46 100644
+--- a/librpc/ndr/ndr_spoolss_buf.h
++++ b/librpc/ndr/ndr_spoolss_buf.h
+@@ -51,6 +51,7 @@ size_t ndr_size_spoolss_PrinterData(const union spoolss_PrinterData *r, uint32_t
+ void ndr_print_spoolss_security_descriptor(struct ndr_print *ndr, const char *name, const struct security_descriptor *r);
+ enum ndr_err_code ndr_pull_spoolss_security_descriptor(struct ndr_pull *ndr, int ndr_flags, struct security_descriptor *r);
+ enum ndr_err_code ndr_push_spoolss_security_descriptor(struct ndr_push *ndr, int ndr_flags, const struct security_descriptor *r);
++_PUBLIC_ void ndr_print_spoolss_Time(struct ndr_print *ndr, const char *name, const struct spoolss_Time *r);
+ 
+ #undef _PRINTF_ATTRIBUTE
+ #define _PRINTF_ATTRIBUTE(a1, a2)
+-- 
+1.7.4.1
+

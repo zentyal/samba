@@ -1,0 +1,32 @@
+From 0b7f09814edc15166f72095fa95827be2b81e7bb Mon Sep 17 00:00:00 2001
+From: Stefan Metzmacher <metze@samba.org>
+Date: Tue, 22 Feb 2011 15:56:30 +0100
+Subject: [PATCH 9/9] spoolss.idl: align spoolss_DriverFileInfo relative pointer to 4 byte
+
+metze
+(cherry picked from commit b6ece01c7922adeb3c9e718bc8cc610cae7c543c)
+(cherry picked from commit ba1a72cb153892e491af91a6bb61e1820135fa12)
+
+Signed-off-by: Stefan Metzmacher <metze@samba.org>
+(cherry picked from commit 25f93fe17a396f9c0372dd5d1f4210ecfce7ded9)
+(cherry picked from commit b8fbc4eff64d4ec5dec0bbfd055f8b3a6851b9f0)
+---
+ librpc/idl/spoolss.idl |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/librpc/idl/spoolss.idl b/librpc/idl/spoolss.idl
+index 4b277f8..d17b0b4 100644
+--- a/librpc/idl/spoolss.idl
++++ b/librpc/idl/spoolss.idl
+@@ -1256,7 +1256,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
+ 		spoolss_DriverOSVersion version;
+ 		[relative] nstring *driver_name;
+ 		[relative] nstring *architecture;
+-		[relative] [size_is(file_count)] spoolss_DriverFileInfo *file_info;
++		[relative,size_is(file_count),flag(NDR_ALIGN4)] spoolss_DriverFileInfo *file_info;
+ 		uint32 file_count;
+ 		[relative] nstring *monitor_name;
+ 		[relative] nstring *default_datatype;
+-- 
+1.7.4.1
+

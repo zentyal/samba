@@ -1,0 +1,53 @@
+From bdd325a1d2c101f065047af9b710b14d24c2cf6f Mon Sep 17 00:00:00 2001
+From: Stefan Metzmacher <metze@samba.org>
+Date: Tue, 22 Feb 2011 18:19:13 +0100
+Subject: [PATCH 4/9] librpc/ndr: let ndr_push/pull_DATA_BLOB() look at LIBNDR_FLAG_REMAINING before LIBNDR_ALIGN_FLAGS
+
+metze
+(cherry picked from commit 6c3a49ced333988b21d86e47b2b1dd1a5957e15c)
+(cherry picked from commit 5f8b7f95e9ce5946f048b242dbbaa14897aea919)
+
+Signed-off-by: Stefan Metzmacher <metze@samba.org>
+(cherry picked from commit eab30c15b2528d92e09b774be453e657020e5aa7)
+(cherry picked from commit 3047e20d3b0ac89afdad3fda741f948b03e2ffdc)
+---
+ librpc/ndr/ndr_basic.c |    9 +++++----
+ 1 files changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/librpc/ndr/ndr_basic.c b/librpc/ndr/ndr_basic.c
+index 50a8922..f913eff 100644
+--- a/librpc/ndr/ndr_basic.c
++++ b/librpc/ndr/ndr_basic.c
+@@ -1011,7 +1011,8 @@ _PUBLIC_ void ndr_print_DATA_BLOB(struct ndr_print *ndr, const char *name, DATA_
+ */
+ _PUBLIC_ enum ndr_err_code ndr_push_DATA_BLOB(struct ndr_push *ndr, int ndr_flags, DATA_BLOB blob)
+ {
+-	if (ndr->flags & LIBNDR_ALIGN_FLAGS) {
++	if (ndr->flags & LIBNDR_FLAG_REMAINING) {
++	} else if (ndr->flags & LIBNDR_ALIGN_FLAGS) {
+ 		if (ndr->flags & LIBNDR_FLAG_ALIGN2) {
+ 			blob.length = NDR_ALIGN(ndr, 2);
+ 		} else if (ndr->flags & LIBNDR_FLAG_ALIGN4) {
+@@ -1035,7 +1036,9 @@ _PUBLIC_ enum ndr_err_code ndr_pull_DATA_BLOB(struct ndr_pull *ndr, int ndr_flag
+ {
+ 	uint32_t length = 0;
+ 
+-	if (ndr->flags & LIBNDR_ALIGN_FLAGS) {
++	if (ndr->flags & LIBNDR_FLAG_REMAINING) {
++		length = ndr->data_size - ndr->offset;
++	} else if (ndr->flags & LIBNDR_ALIGN_FLAGS) {
+ 		if (ndr->flags & LIBNDR_FLAG_ALIGN2) {
+ 			length = NDR_ALIGN(ndr, 2);
+ 		} else if (ndr->flags & LIBNDR_FLAG_ALIGN4) {
+@@ -1046,8 +1049,6 @@ _PUBLIC_ enum ndr_err_code ndr_pull_DATA_BLOB(struct ndr_pull *ndr, int ndr_flag
+ 		if (ndr->data_size - ndr->offset < length) {
+ 			length = ndr->data_size - ndr->offset;
+ 		}
+-	} else if (ndr->flags & LIBNDR_FLAG_REMAINING) {
+-		length = ndr->data_size - ndr->offset;
+ 	} else {
+ 		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &length));
+ 	}
+-- 
+1.7.4.1
+

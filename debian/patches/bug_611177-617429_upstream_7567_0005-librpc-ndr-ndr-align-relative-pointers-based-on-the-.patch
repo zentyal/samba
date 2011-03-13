@@ -1,0 +1,59 @@
+From a51c67c7b6f471a59ef3c88ca24ad9ea0a4c9196 Mon Sep 17 00:00:00 2001
+From: Stefan Metzmacher <metze@samba.org>
+Date: Tue, 22 Feb 2011 15:45:44 +0100
+Subject: [PATCH 5/9] librpc/ndr: ndr align relative pointers based on the given flags
+
+We used to do this only for the reverse relative pointers
+and now we always do it.
+
+metze
+(cherry picked from commit 84b884eb4bec38b721d6c38704f12d1d2c601bcb)
+(cherry picked from commit 6648ce8990a97da739d4be69657e9ace6198068c)
+
+Signed-off-by: Stefan Metzmacher <metze@samba.org>
+(cherry picked from commit 490d1553714ffc5afe0e49c3473e19697bdfbd53)
+(cherry picked from commit 8c61ff6c55fef5f5b2c256503bbde07c6365a805)
+---
+ librpc/ndr/ndr.c |   26 ++++++++++++++++++++++++++
+ 1 files changed, 26 insertions(+), 0 deletions(-)
+
+diff --git a/librpc/ndr/ndr.c b/librpc/ndr/ndr.c
+index 5030443..42d0e81 100644
+--- a/librpc/ndr/ndr.c
++++ b/librpc/ndr/ndr.c
+@@ -1105,6 +1105,32 @@ _PUBLIC_ enum ndr_err_code ndr_push_relative_ptr2_start(struct ndr_push *ndr, co
+ 		return NDR_ERR_SUCCESS;
+ 	}
+ 	if (!(ndr->flags & LIBNDR_FLAG_RELATIVE_REVERSE)) {
++		uint32_t relative_offset;
++		size_t pad;
++		/* TODO: remove this hack and let the idl use FLAG_ALIGN2 explicit */
++		size_t align = 2;
++
++		if (ndr->offset < ndr->relative_base_offset) {
++			return ndr_push_error(ndr, NDR_ERR_BUFSIZE,
++				      "ndr_push_relative_ptr2_start ndr->offset(%u) < ndr->relative_base_offset(%u)",
++				      ndr->offset, ndr->relative_base_offset);
++		}
++
++		relative_offset = ndr->offset - ndr->relative_base_offset;
++
++		if (ndr->flags & LIBNDR_FLAG_ALIGN2) {
++			align = 2;
++		} else if (ndr->flags & LIBNDR_FLAG_ALIGN4) {
++			align = 4;
++		} else if (ndr->flags & LIBNDR_FLAG_ALIGN8) {
++			align = 8;
++		}
++
++		pad = ndr_align_size(relative_offset, align);
++		if (pad) {
++			NDR_CHECK(ndr_push_zero(ndr, pad));
++		}
++
+ 		return ndr_push_relative_ptr2(ndr, p);
+ 	}
+ 	if (ndr->relative_end_offset == -1) {
+-- 
+1.7.4.1
+

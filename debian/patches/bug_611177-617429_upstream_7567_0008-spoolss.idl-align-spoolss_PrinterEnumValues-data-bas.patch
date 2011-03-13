@@ -1,0 +1,86 @@
+From 26e85b0d623191b994f81ce0516871cdc870cb45 Mon Sep 17 00:00:00 2001
+From: Stefan Metzmacher <metze@samba.org>
+Date: Tue, 22 Feb 2011 19:23:33 +0100
+Subject: [PATCH 8/9] spoolss.idl: align spoolss_PrinterEnumValues 'data' based on the type
+
+metze
+(cherry picked from commit 341330600aebcec92fba64ea343888c15a0c3d44)
+(cherry picked from commit 757471a5fcd4f95da28402bae6c9ceccff7d6548)
+
+Signed-off-by: Stefan Metzmacher <metze@samba.org>
+(cherry picked from commit 3cb71012a2cf26037323cded8cfd9ec5d12223c6)
+(cherry picked from commit 380c40986d029d21e9965f582a0ba3085262466c)
+---
+ librpc/idl/spoolss.idl       |    2 +-
+ librpc/ndr/ndr_spoolss_buf.c |   32 ++++++++++++++++++++++++++++++++
+ librpc/ndr/ndr_spoolss_buf.h |    1 +
+ 3 files changed, 34 insertions(+), 1 deletions(-)
+
+diff --git a/librpc/idl/spoolss.idl b/librpc/idl/spoolss.idl
+index e0d9d2f..4b277f8 100644
+--- a/librpc/idl/spoolss.idl
++++ b/librpc/idl/spoolss.idl
+@@ -2550,7 +2550,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
+ 		[relative] nstring *value_name;
+ 		[value(2*strlen_m_term(value_name))] uint32 value_name_len;
+ 		winreg_Type type;
+-		[relative,subcontext(0),subcontext_size(data_length),flag(NDR_REMAINING)] DATA_BLOB *data;
++		[relative,subcontext(0),subcontext_size(data_length),flag(NDR_REMAINING|ndr_spoolss_PrinterEnumValues_align(r->type))] DATA_BLOB *data;
+ 		[value(data ? data->length : 0)] uint32 data_length;
+ 	} spoolss_PrinterEnumValues;
+ 
+diff --git a/librpc/ndr/ndr_spoolss_buf.c b/librpc/ndr/ndr_spoolss_buf.c
+index 811a8e2..e132e70 100644
+--- a/librpc/ndr/ndr_spoolss_buf.c
++++ b/librpc/ndr/ndr_spoolss_buf.c
+@@ -1409,3 +1409,35 @@ _PUBLIC_ void ndr_print_spoolss_Time(struct ndr_print *ndr, const char *name, co
+ 	ndr->depth--;
+ 	talloc_free(str);
+ }
++
++_PUBLIC_ uint32_t ndr_spoolss_PrinterEnumValues_align(enum winreg_Type type)
++{
++	switch(type) {
++	case REG_NONE:
++		return 0;
++	case REG_SZ:
++		return LIBNDR_FLAG_ALIGN2;
++	case REG_EXPAND_SZ:
++		return LIBNDR_FLAG_ALIGN2;
++	case REG_BINARY:
++		return 0;
++	case REG_DWORD:
++		return LIBNDR_FLAG_ALIGN4;
++	case REG_DWORD_BIG_ENDIAN:
++		return LIBNDR_FLAG_ALIGN4;
++	case REG_LINK:
++		return 0;
++	case REG_MULTI_SZ:
++		return LIBNDR_FLAG_ALIGN2;
++	case REG_RESOURCE_LIST:
++		return LIBNDR_FLAG_ALIGN2;
++	case REG_FULL_RESOURCE_DESCRIPTOR:
++		return LIBNDR_FLAG_ALIGN4;
++	case REG_RESOURCE_REQUIREMENTS_LIST:
++		return LIBNDR_FLAG_ALIGN2;
++	case REG_QWORD:
++		return LIBNDR_FLAG_ALIGN8;
++	}
++
++	return 0;
++}
+diff --git a/librpc/ndr/ndr_spoolss_buf.h b/librpc/ndr/ndr_spoolss_buf.h
+index 89dcb46..0b75de0 100644
+--- a/librpc/ndr/ndr_spoolss_buf.h
++++ b/librpc/ndr/ndr_spoolss_buf.h
+@@ -52,6 +52,7 @@ void ndr_print_spoolss_security_descriptor(struct ndr_print *ndr, const char *na
+ enum ndr_err_code ndr_pull_spoolss_security_descriptor(struct ndr_pull *ndr, int ndr_flags, struct security_descriptor *r);
+ enum ndr_err_code ndr_push_spoolss_security_descriptor(struct ndr_push *ndr, int ndr_flags, const struct security_descriptor *r);
+ _PUBLIC_ void ndr_print_spoolss_Time(struct ndr_print *ndr, const char *name, const struct spoolss_Time *r);
++_PUBLIC_ uint32_t ndr_spoolss_PrinterEnumValues_align(enum winreg_Type type);
+ 
+ #undef _PRINTF_ATTRIBUTE
+ #define _PRINTF_ATTRIBUTE(a1, a2)
+-- 
+1.7.4.1
+

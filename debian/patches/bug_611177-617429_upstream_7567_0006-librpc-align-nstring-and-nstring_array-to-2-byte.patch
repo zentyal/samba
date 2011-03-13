@@ -1,0 +1,41 @@
+From 04d7a47653ef04d14673bb647cad7ae41e47e429 Mon Sep 17 00:00:00 2001
+From: Stefan Metzmacher <metze@samba.org>
+Date: Tue, 22 Feb 2011 15:57:21 +0100
+Subject: [PATCH 6/9] librpc: align nstring and nstring_array to 2 byte
+
+metze
+(cherry picked from commit 712ef2590d0ee59a4a659926cdf8aac6e968dfa8)
+(cherry picked from commit 0fb64a26b3b35b75f2f548d882bed41aa0386c6b)
+
+Signed-off-by: Stefan Metzmacher <metze@samba.org>
+(cherry picked from commit c26be77576e13582c7d51fe84f4c69f1c1abf28d)
+(cherry picked from commit c13d11b336141800db85667e53877ae689583417)
+---
+ librpc/idl/idl_types.h |    4 ++--
+ 1 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/librpc/idl/idl_types.h b/librpc/idl/idl_types.h
+index 3c6c12c..88ece20 100644
+--- a/librpc/idl/idl_types.h
++++ b/librpc/idl/idl_types.h
+@@ -12,7 +12,7 @@
+ /*
+   a null terminated UCS2 string
+ */
+-#define nstring		[flag(STR_NULLTERM)] string
++#define nstring		[flag(STR_NULLTERM|NDR_ALIGN2)] string
+ 
+ /*
+   an ascii string prefixed with [offset] [length], both 32 bits
+@@ -50,7 +50,7 @@
+ /*
+   a null terminated UCS2 string
+ */
+-#define nstring_array	[flag(STR_NULLTERM)] string_array
++#define nstring_array	[flag(STR_NULLTERM|NDR_ALIGN2)] string_array
+ 
+ #define NDR_NOALIGN       LIBNDR_FLAG_NOALIGN
+ #define NDR_REMAINING     LIBNDR_FLAG_REMAINING
+-- 
+1.7.4.1
+

@@ -1,0 +1,85 @@
+From ca2d4b62f951b1bb03d288ddc8c193579a83f03f Mon Sep 17 00:00:00 2001
+From: Stefan Metzmacher <metze@samba.org>
+Date: Tue, 1 Mar 2011 14:20:32 +0100
+Subject: [PATCH 12/12] librpc/ndr: handle NOALIGN flag for relative pointers and alignment DATA_BLOBs
+
+metze
+
+Autobuild-User: Stefan Metzmacher <metze@samba.org>
+Autobuild-Date: Tue Mar  1 17:11:03 CET 2011 on sn-devel-104
+(cherry picked from commit ef224aa004d5f1726d8dca020e0ef96d8c58565e)
+(cherry picked from commit 1ea17bacdb09d28a12a8b6ddeba3ac285cd9f905)
+
+Signed-off-by: Stefan Metzmacher <metze@samba.org>
+(cherry picked from commit 7c6bc031b3af3643027865e444fb16f7bb7c7152)
+---
+ librpc/ndr/ndr.c       |    8 ++++++--
+ librpc/ndr/ndr_basic.c |   11 ++++++++---
+ 2 files changed, 14 insertions(+), 5 deletions(-)
+
+diff --git a/librpc/ndr/ndr.c b/librpc/ndr/ndr.c
+index 9f2042d..2439374 100644
+--- a/librpc/ndr/ndr.c
++++ b/librpc/ndr/ndr.c
+@@ -1117,7 +1117,9 @@ _PUBLIC_ enum ndr_err_code ndr_push_relative_ptr2_start(struct ndr_push *ndr, co
+ 
+ 		relative_offset = ndr->offset - ndr->relative_base_offset;
+ 
+-		if (ndr->flags & LIBNDR_FLAG_ALIGN2) {
++		if (ndr->flags & LIBNDR_FLAG_NOALIGN) {
++			align = 1;
++		} else if (ndr->flags & LIBNDR_FLAG_ALIGN2) {
+ 			align = 2;
+ 		} else if (ndr->flags & LIBNDR_FLAG_ALIGN4) {
+ 			align = 4;
+@@ -1196,7 +1198,9 @@ _PUBLIC_ enum ndr_err_code ndr_push_relative_ptr2_end(struct ndr_push *ndr, cons
+ 	/* the reversed offset is at the end of the main buffer */
+ 	correct_offset = ndr->relative_end_offset - len;
+ 
+-	if (ndr->flags & LIBNDR_FLAG_ALIGN2) {
++	if (ndr->flags & LIBNDR_FLAG_NOALIGN) {
++		align = 1;
++	} else if (ndr->flags & LIBNDR_FLAG_ALIGN2) {
+ 		align = 2;
+ 	} else if (ndr->flags & LIBNDR_FLAG_ALIGN4) {
+ 		align = 4;
+diff --git a/librpc/ndr/ndr_basic.c b/librpc/ndr/ndr_basic.c
+index f913eff..64ea6d7 100644
+--- a/librpc/ndr/ndr_basic.c
++++ b/librpc/ndr/ndr_basic.c
+@@ -1012,8 +1012,11 @@ _PUBLIC_ void ndr_print_DATA_BLOB(struct ndr_print *ndr, const char *name, DATA_
+ _PUBLIC_ enum ndr_err_code ndr_push_DATA_BLOB(struct ndr_push *ndr, int ndr_flags, DATA_BLOB blob)
+ {
+ 	if (ndr->flags & LIBNDR_FLAG_REMAINING) {
++		/* nothing to do */
+ 	} else if (ndr->flags & LIBNDR_ALIGN_FLAGS) {
+-		if (ndr->flags & LIBNDR_FLAG_ALIGN2) {
++		if (ndr->flags & LIBNDR_FLAG_NOALIGN) {
++			blob.length = 0;
++		} else if (ndr->flags & LIBNDR_FLAG_ALIGN2) {
+ 			blob.length = NDR_ALIGN(ndr, 2);
+ 		} else if (ndr->flags & LIBNDR_FLAG_ALIGN4) {
+ 			blob.length = NDR_ALIGN(ndr, 4);
+@@ -1022,7 +1025,7 @@ _PUBLIC_ enum ndr_err_code ndr_push_DATA_BLOB(struct ndr_push *ndr, int ndr_flag
+ 		}
+ 		NDR_PUSH_ALLOC_SIZE(ndr, blob.data, blob.length);
+ 		data_blob_clear(&blob);
+-	} else if (!(ndr->flags & LIBNDR_FLAG_REMAINING)) {
++	} else {
+ 		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, blob.length));
+ 	}
+ 	NDR_CHECK(ndr_push_bytes(ndr, blob.data, blob.length));
+@@ -1039,7 +1042,9 @@ _PUBLIC_ enum ndr_err_code ndr_pull_DATA_BLOB(struct ndr_pull *ndr, int ndr_flag
+ 	if (ndr->flags & LIBNDR_FLAG_REMAINING) {
+ 		length = ndr->data_size - ndr->offset;
+ 	} else if (ndr->flags & LIBNDR_ALIGN_FLAGS) {
+-		if (ndr->flags & LIBNDR_FLAG_ALIGN2) {
++		if (ndr->flags & LIBNDR_FLAG_NOALIGN) {
++			length = 0;
++		} else if (ndr->flags & LIBNDR_FLAG_ALIGN2) {
+ 			length = NDR_ALIGN(ndr, 2);
+ 		} else if (ndr->flags & LIBNDR_FLAG_ALIGN4) {
+ 			length = NDR_ALIGN(ndr, 4);
+-- 
+1.7.4.1
+

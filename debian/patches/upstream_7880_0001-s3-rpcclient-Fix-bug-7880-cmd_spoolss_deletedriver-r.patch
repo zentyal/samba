@@ -1,0 +1,44 @@
+From a36085eceb70a28cb2f3e69677f9f3d874bd2336 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bj=C3=B6rn=20Baumbach?= <bb@sernet.de>
+Date: Wed, 22 Dec 2010 15:20:29 +0100
+Subject: [PATCH 13/13] s3-rpcclient: Fix bug #7880: cmd_spoolss_deletedriver() returned without checking all architectures.
+
+Continues now with next architecture if no driver is available.
+
+Because of the broken behavior of the rpccli_*() functions,
+we need special error code handling.
+
+Signed-off-by: Stefan Metzmacher <metze@samba.org>
+(cherry picked from commit f5af66e67d7c6d62315671c0cf57f47973316226)
+(cherry picked from commit dc63f45b523deb5c3d0c4be4239507e5fc4f6a40)
+---
+ source3/rpcclient/cmd_spoolss.c |    6 +++++-
+ 1 files changed, 5 insertions(+), 1 deletions(-)
+
+diff --git a/source3/rpcclient/cmd_spoolss.c b/source3/rpcclient/cmd_spoolss.c
+index 2d79b11..f83474e 100644
+--- a/source3/rpcclient/cmd_spoolss.c
++++ b/source3/rpcclient/cmd_spoolss.c
+@@ -1893,6 +1893,8 @@ static WERROR cmd_spoolss_deletedriver(struct rpc_pipe_client *cli,
+ 
+ 	/* delete the driver for all architectures */
+ 	for (i=0; archi_table[i].long_archi; i++) {
++		result = WERR_OK;
++
+ 		/* make the call to remove the driver */
+ 		status = rpccli_spoolss_DeletePrinterDriver(cli, mem_ctx,
+ 							    cli->srv_name_slash,
+@@ -1900,7 +1902,9 @@ static WERROR cmd_spoolss_deletedriver(struct rpc_pipe_client *cli,
+ 							    argv[1],
+ 							    &result);
+ 		if (!NT_STATUS_IS_OK(status)) {
+-			return result;
++			if (W_ERROR_IS_OK(result)) {
++				result = ntstatus_to_werror(status);
++			}
+ 		}
+ 		if ( !W_ERROR_IS_OK(result) ) {
+ 			if ( !W_ERROR_EQUAL(result, WERR_UNKNOWN_PRINTER_DRIVER) ) {
+-- 
+1.7.4.1
+

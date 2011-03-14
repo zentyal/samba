@@ -7,6 +7,8 @@ samba (2:3.5.6~dfsg-3squeeze3) UNRELEASED; urgency=low
       domain users. Closes: #611177	  
     - Upstream bug 7777: winbind leaks gids with idmap ldap backend
       Closes: #613624
+    - Upstream bug 7880: rpcclient deldriver does not remove drivers
+      from all architectures.
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 13 Mar 2011 08:07:42 +0100
 

@@ -1,0 +1,39 @@
+From 667ce0018a64c9fb0b44b55aae8b3cd4a2bd3bbf Mon Sep 17 00:00:00 2001
+From: Jeremy Allison <jra@samba.org>
+Date: Fri, 5 Nov 2010 12:11:53 -0700
+Subject: [PATCH 1/2] First part of fix for bug #7777 - When requesting lookups for BUILTIN sids, winbindd allocates new uids/gids in error.
+
+Ensure idmap_init_passdb_domain() correctly initialized the default
+domain first.
+
+Jeremy.
+(cherry picked from commit 32a5aa62cb54e90947bd027e72871ffc07c3dbcf)
+(cherry picked from commit 5cbd0958eaf25952055c08e3fdc065b815634a3e)
+---
+ source3/winbindd/idmap.c |   10 ++++++++++
+ 1 files changed, 10 insertions(+), 0 deletions(-)
+
+diff --git a/source3/winbindd/idmap.c b/source3/winbindd/idmap.c
+index 4aa229c..7aa2853 100644
+--- a/source3/winbindd/idmap.c
++++ b/source3/winbindd/idmap.c
+@@ -428,6 +428,16 @@ fail:
+ 
+ static struct idmap_domain *idmap_init_passdb_domain(TALLOC_CTX *mem_ctx)
+ {
++	/*
++	 * Always init the default domain, we can't go without one
++	 */
++	if (default_idmap_domain == NULL) {
++		default_idmap_domain = idmap_init_default_domain(NULL);
++	}
++	if (default_idmap_domain == NULL) {
++		return NULL;
++	}
++
+ 	if (passdb_idmap_domain != NULL) {
+ 		return passdb_idmap_domain;
+ 	}
+-- 
+1.7.4.1
+

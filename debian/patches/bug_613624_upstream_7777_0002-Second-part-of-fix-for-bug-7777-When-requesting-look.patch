@@ -1,0 +1,76 @@
+From 52f375dea6c88a54571b101e40e9df8d0825550d Mon Sep 17 00:00:00 2001
+From: Jeremy Allison <jra@samba.org>
+Date: Fri, 5 Nov 2010 12:13:38 -0700
+Subject: [PATCH 2/2] Second part of fix for bug #7777 - When requesting lookups for BUILTIN sids, winbindd allocates new uids/gids in error.
+
+Ensure we return after calling passdb for SID lookups for which we are
+authoritative.
+
+Jeremy.
+(cherry picked from commit b5c8b1bbb53caa0ceabb4a5180ff7deb1e58b538)
+(cherry picked from commit 8af876432a83292db672c5f7a1fb7e0ec9c1cf65)
+---
+ source3/winbindd/idmap_util.c |   31 +++++++++++++++++++++++++------
+ 1 files changed, 25 insertions(+), 6 deletions(-)
+
+diff --git a/source3/winbindd/idmap_util.c b/source3/winbindd/idmap_util.c
+index 37b7ecb..ba5e637 100644
+--- a/source3/winbindd/idmap_util.c
++++ b/source3/winbindd/idmap_util.c
+@@ -25,6 +25,23 @@
+ #define DBGC_CLASS DBGC_IDMAP
+ 
+ /*****************************************************************
++ Returns true if the request was for a specific domain, or
++ for a sid we are authoritative for - BUILTIN, or our own domain.
++*****************************************************************/
++
++static bool is_specific_domain_request(const char *dom_name, DOM_SID *sid)
++{
++	if (dom_name && dom_name[0] != '\0') {
++		return true;
++	}
++	if (sid_check_is_in_builtin(sid) ||
++			sid_check_is_in_our_domain(sid)) {
++		return true;
++	}
++	return false;
++}
++
++/*****************************************************************
+  Returns the SID mapped to the given UID.
+  If mapping is not possible returns an error.
+ *****************************************************************/  
+@@ -194,10 +211,11 @@ backend:
+ 		goto done;
+ 	}
+ 
+-	if (dom_name[0] != '\0') {
++	if (is_specific_domain_request(dom_name, sid)) {
+ 		/*
+-		 * We had the task to go to a specific domain which
+-		 * could not answer our request. Fail.
++		 * We had the task to go to a specific domain or
++		 * a domain for which we are authoritative for and
++		 * it could not answer our request. Fail.
+ 		 */
+ 		if (winbindd_use_idmap_cache()) {
+ 			idmap_cache_set_sid2uid(sid, -1);
+@@ -275,10 +293,11 @@ backend:
+ 		goto done;
+ 	}
+ 
+-	if (domname[0] != '\0') {
++	if (is_specific_domain_request(domname, sid)) {
+ 		/*
+-		 * We had the task to go to a specific domain which
+-		 * could not answer our request. Fail.
++		 * We had the task to go to a specific domain or
++		 * a domain for which we are authoritative for and
++		 * it could not answer our request. Fail.
+ 		 */
+ 		if (winbindd_use_idmap_cache()) {
+ 			idmap_cache_set_sid2uid(sid, -1);
+-- 
+1.7.4.1
+

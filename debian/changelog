@@ -1,10 +1,14 @@
 samba (2:3.5.8~dfsg-2) UNRELEASED; urgency=low
 
+  [ Jelmer Vernooij ]
   * Add libwbclient-dev package.
   * Build against external libtdb.
   * Bump standards version to 3.9.1 (no changes).
 
- -- Jelmer Vernooij <jelmer@debian.org>  Sat, 12 Mar 2011 17:48:19 +0100
+  [ Mathieu Parent ]
+  * Builddep on ctdb-dev or ctdb < 1.10 
+
+ -- Mathieu Parent <sathieu@debian.org>  Sat, 26 Mar 2011 19:48:00 +0100
 
 samba (2:3.5.8~dfsg-1) unstable; urgency=low
 

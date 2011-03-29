@@ -6,9 +6,9 @@ samba (2:3.5.8~dfsg-2) UNRELEASED; urgency=low
   * Bump standards version to 3.9.1 (no changes).
 
   [ Mathieu Parent ]
-  * Builddep on ctdb-dev or ctdb < 1.10 
+  * Builddep on libctdb-dev or ctdb < 1.10 
 
- -- Mathieu Parent <sathieu@debian.org>  Sat, 26 Mar 2011 19:48:00 +0100
+ -- Mathieu Parent <sathieu@debian.org>  Tue, 29 Mar 2011 21:28:42 +0200
 
 samba (2:3.5.8~dfsg-1) unstable; urgency=low
 

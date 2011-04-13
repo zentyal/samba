@@ -269,9 +269,8 @@ bool run_init_functions(init_module_fn *fns)
 static char *modules_path(TALLOC_CTX* mem_ctx, struct loadparm_context *lp_ctx,
 			  const char *name)
 {
-	const char *env_moduledir = getenv("LD_SAMBA_MODULE_PATH");
 	return talloc_asprintf(mem_ctx, "%s/%s", 
-			       env_moduledir?env_moduledir:lpcfg_modulesdir(lp_ctx),
+			       lpcfg_modulesdir(lp_ctx),
 			       name);
 }
 
@@ -296,7 +295,7 @@ init_module_fn *load_samba_modules(TALLOC_CTX *mem_ctx, struct loadparm_context 
 const char *lpcfg_messaging_path(TALLOC_CTX *mem_ctx,
 				       struct loadparm_context *lp_ctx)
 {
-	return smbd_tmp_path(mem_ctx, lp_ctx, "messaging");
+	return smbd_tmp_path(mem_ctx, lp_ctx, "msg");
 }
 
 struct smb_iconv_convenience *smb_iconv_convenience_reinit_lp(TALLOC_CTX *mem_ctx,
@@ -305,6 +304,7 @@ struct smb_iconv_convenience *smb_iconv_convenience_reinit_lp(TALLOC_CTX *mem_ct
 {
 	return smb_iconv_convenience_reinit(mem_ctx, lpcfg_dos_charset(lp_ctx),
 					    lpcfg_unix_charset(lp_ctx),
+					    lpcfg_display_charset(lp_ctx),
 					    lpcfg_parm_bool(lp_ctx, NULL, "iconv", "native", true),
 					    old_ic);
 }

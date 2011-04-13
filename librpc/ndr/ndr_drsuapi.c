@@ -76,12 +76,119 @@ _PUBLIC_ void ndr_print_drsuapi_DsReplicaOID(struct ndr_print *ndr, const char *
 		char *partial_oid = NULL;
 		DATA_BLOB oid_blob = data_blob_const(r->binary_oid, r->length);
 		char *hex_str = data_blob_hex_string_upper(ndr, &oid_blob);
-		ber_read_partial_OID_String(ndr, oid_blob, (const char **)&partial_oid);
+		ber_read_partial_OID_String(ndr, oid_blob, &partial_oid);
 		ndr->depth++;
 		ndr->print(ndr, "%-25s: 0x%s (%s)", "binary_oid", hex_str, partial_oid);
 		ndr->depth--;
 		talloc_free(hex_str);
 		talloc_free(partial_oid);
+	}
+	ndr->depth--;
+}
+
+static void _print_drsuapi_DsAttributeValue_attid(struct ndr_print *ndr, const char *name,
+						  const struct drsuapi_DsAttributeValue *r)
+{
+	uint32_t v;
+
+	ndr_print_struct(ndr, name, "drsuapi_DsAttributeValue");
+	ndr->depth++;
+	v = IVAL(r->blob->data, 0);
+	ndr_print_uint32(ndr, "attid", v);
+	ndr->depth--;
+}
+
+static void _print_drsuapi_DsAttributeValue_str(struct ndr_print *ndr, const char *name,
+						const struct drsuapi_DsAttributeValue *r)
+{
+	char *str;
+
+	ndr_print_struct(ndr, name, "drsuapi_DsAttributeValue");
+	ndr->depth++;
+	if (!convert_string_talloc(ndr,
+	                           CH_UTF16, CH_UNIX,
+	                           r->blob->data,
+	                           r->blob->length,
+	                           (void **)&str, NULL, false)) {
+		ndr_print_string(ndr, "string", "INVALID CONVERSION");
+	} else {
+		ndr_print_string(ndr, "string", str);
+		talloc_free(str);
+	}
+	ndr->depth--;
+}
+
+static void _print_drsuapi_DsAttributeValueCtr(struct ndr_print *ndr,
+					       const char *name,
+					       const struct drsuapi_DsAttributeValueCtr *r,
+					       void (*print_val_fn)(struct ndr_print *ndr, const char *name, const struct drsuapi_DsAttributeValue *r))
+{
+	uint32_t cntr_values_1;
+	ndr_print_struct(ndr, name, "drsuapi_DsAttributeValueCtr");
+	ndr->depth++;
+	ndr_print_uint32(ndr, "num_values", r->num_values);
+	ndr_print_ptr(ndr, "values", r->values);
+	ndr->depth++;
+	if (r->values) {
+		ndr->print(ndr, "%s: ARRAY(%d)", "values", (int)r->num_values);
+		ndr->depth++;
+		for (cntr_values_1=0;cntr_values_1<r->num_values;cntr_values_1++) {
+			char *idx_1=NULL;
+			if (asprintf(&idx_1, "[%d]", cntr_values_1) != -1) {
+				//ndr_print_drsuapi_DsAttributeValue(ndr, "values", &r->values[cntr_values_1]);
+				print_val_fn(ndr, "values", &r->values[cntr_values_1]);
+				free(idx_1);
+			}
+		}
+		ndr->depth--;
+	}
+	ndr->depth--;
+	ndr->depth--;
+}
+
+_PUBLIC_ void ndr_print_drsuapi_DsReplicaAttribute(struct ndr_print *ndr,
+						   const char *name,
+						   const struct drsuapi_DsReplicaAttribute *r)
+{
+	ndr_print_struct(ndr, name, "drsuapi_DsReplicaAttribute");
+	ndr->depth++;
+	ndr_print_drsuapi_DsAttributeId(ndr, "attid", r->attid);
+	switch (r->attid) {
+	case DRSUAPI_ATTID_objectClass:
+	case DRSUAPI_ATTID_possSuperiors:
+	case DRSUAPI_ATTID_subClassOf:
+	case DRSUAPI_ATTID_governsID:
+	case DRSUAPI_ATTID_mustContain:
+	case DRSUAPI_ATTID_mayContain:
+	case DRSUAPI_ATTID_rDNAttId:
+	case DRSUAPI_ATTID_attributeID:
+	case DRSUAPI_ATTID_attributeSyntax:
+	case DRSUAPI_ATTID_auxiliaryClass:
+	case DRSUAPI_ATTID_systemPossSuperiors:
+	case DRSUAPI_ATTID_systemMayContain:
+	case DRSUAPI_ATTID_systemMustContain:
+	case DRSUAPI_ATTID_systemAuxiliaryClass:
+	case DRSUAPI_ATTID_transportAddressAttribute:
+		/* ATTIDs for classSchema and attributeSchema */
+		_print_drsuapi_DsAttributeValueCtr(ndr, "value_ctr", &r->value_ctr,
+		                                   _print_drsuapi_DsAttributeValue_attid);
+		break;
+	case DRSUAPI_ATTID_cn:
+	case DRSUAPI_ATTID_ou:
+	case DRSUAPI_ATTID_description:
+	case DRSUAPI_ATTID_displayName:
+	case DRSUAPI_ATTID_dMDLocation:
+	case DRSUAPI_ATTID_adminDisplayName:
+	case DRSUAPI_ATTID_adminDescription:
+	case DRSUAPI_ATTID_lDAPDisplayName:
+	case DRSUAPI_ATTID_name:
+		_print_drsuapi_DsAttributeValueCtr(ndr, "value_ctr", &r->value_ctr,
+		                                   _print_drsuapi_DsAttributeValue_str);
+		break;
+	default:
+		_print_drsuapi_DsAttributeValueCtr(ndr, "value_ctr", &r->value_ctr,
+		                                   ndr_print_drsuapi_DsAttributeValue);
+		break;
 	}
 	ndr->depth--;
 }

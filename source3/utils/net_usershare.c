@@ -19,7 +19,10 @@
 */
 
 #include "includes.h"
+#include "system/passwd.h"
+#include "system/filesys.h"
 #include "utils/net.h"
+#include "../libcli/security/security.h"
 
 struct {
 	const char *us_errstr;
@@ -906,6 +909,7 @@ static int net_usershare_add(struct net_context *c, int argc, const char **argv)
 			  _("net usershare add: cannot lstat tmp file %s\n"),
 			  full_path_tmp );
 		TALLOC_FREE(ctx);
+		close(tmpfd);
 		return -1;
 	}
 
@@ -915,6 +919,7 @@ static int net_usershare_add(struct net_context *c, int argc, const char **argv)
 			  _("net usershare add: cannot fstat tmp file %s\n"),
 			  full_path_tmp );
 		TALLOC_FREE(ctx);
+		close(tmpfd);
 		return -1;
 	}
 
@@ -924,6 +929,7 @@ static int net_usershare_add(struct net_context *c, int argc, const char **argv)
 			    "file ?\n"),
 			  full_path_tmp );
 		TALLOC_FREE(ctx);
+		close(tmpfd);
 		return -1;
 	}
 
@@ -933,6 +939,7 @@ static int net_usershare_add(struct net_context *c, int argc, const char **argv)
 			    "to 0644n"),
 			  full_path_tmp );
 		TALLOC_FREE(ctx);
+		close(tmpfd);
 		return -1;
 	}
 
@@ -956,6 +963,7 @@ static int net_usershare_add(struct net_context *c, int argc, const char **argv)
 			(unsigned int)to_write, full_path_tmp, strerror(errno));
 		unlink(full_path_tmp);
 		TALLOC_FREE(ctx);
+		close(tmpfd);
 		return -1;
 	}
 

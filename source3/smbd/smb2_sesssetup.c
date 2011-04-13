@@ -20,11 +20,16 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
 #include "../libcli/smb/smb_common.h"
 #include "../libcli/auth/spnego.h"
 #include "../libcli/auth/ntlmssp.h"
 #include "ntlmssp_wrap.h"
+#include "../librpc/gen_ndr/krb5pac.h"
+#include "libads/kerberos_proto.h"
+#include "../lib/util/asn1.h"
+#include "auth.h"
 
 static NTSTATUS smbd_smb2_session_setup(struct smbd_smb2_request *smb2req,
 					uint64_t in_session_id,
@@ -144,20 +149,20 @@ static int smbd_smb2_session_destructor(struct smbd_smb2_session *session)
 	return 0;
 }
 
-static NTSTATUS setup_ntlmssp_server_info(struct smbd_smb2_session *session,
+static NTSTATUS setup_ntlmssp_session_info(struct smbd_smb2_session *session,
 				NTSTATUS status)
 {
 	if (NT_STATUS_IS_OK(status)) {
-		status = auth_ntlmssp_steal_server_info(session,
+		status = auth_ntlmssp_steal_session_info(session,
 				session->auth_ntlmssp_state,
-				&session->server_info);
+				&session->session_info);
 	} else {
-		/* Note that this server_info won't have a session
+		/* Note that this session_info won't have a session
 		 * key.  But for map to guest, that's exactly the right
 		 * thing - we can't reasonably guess the key the
 		 * client wants, as the password was wrong */
 		status = do_map_to_guest(status,
-			&session->server_info,
+			&session->session_info,
 			auth_ntlmssp_get_username(session->auth_ntlmssp_state),
 			auth_ntlmssp_get_domain(session->auth_ntlmssp_state));
 	}
@@ -181,13 +186,12 @@ static NTSTATUS smbd_smb2_session_setup_krb5(struct smbd_smb2_session *session,
 	DATA_BLOB secblob_out = data_blob_null;
 	uint8 tok_id[2];
 	struct PAC_LOGON_INFO *logon_info = NULL;
-	char *client = NULL;
-	char *p = NULL;
+	char *principal = NULL;
+	char *user = NULL;
 	char *domain = NULL;
 	struct passwd *pw = NULL;
 	NTSTATUS status;
-	fstring user;
-	fstring real_username;
+	char *real_username;
 	fstring tmp;
 	bool username_was_mapped = false;
 	bool map_domainuser_to_guest = false;
@@ -198,8 +202,8 @@ static NTSTATUS smbd_smb2_session_setup_krb5(struct smbd_smb2_session *session,
 	}
 
 	status = ads_verify_ticket(smb2req, lp_realm(), 0, &ticket,
-				&client, &logon_info, &ap_rep,
-				&session_key, true);
+				   &principal, &logon_info, &ap_rep,
+				   &session_key, true);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(1,("smb2: Failed to verify incoming ticket with error %s!\n",
@@ -210,202 +214,45 @@ static NTSTATUS smbd_smb2_session_setup_krb5(struct smbd_smb2_session *session,
 		goto fail;
 	}
 
-	DEBUG(3,("smb2: Ticket name is [%s]\n", client));
-
-	p = strchr_m(client, '@');
-	if (!p) {
-		DEBUG(3,("smb2: %s Doesn't look like a valid principal\n",
-			client));
-		status = NT_STATUS_LOGON_FAILURE;
+	status = get_user_from_kerberos_info(talloc_tos(),
+					     smb2req->sconn->client_id.name,
+					     principal, logon_info,
+					     &username_was_mapped,
+					     &map_domainuser_to_guest,
+					     &user, &domain,
+					     &real_username, &pw);
+	if (!NT_STATUS_IS_OK(status)) {
 		goto fail;
 	}
 
-	*p = 0;
-
 	/* save the PAC data if we have it */
-
 	if (logon_info) {
-		netsamlogon_cache_store(client, &logon_info->info3);
-	}
-
-	if (!strequal(p+1, lp_realm())) {
-		DEBUG(3,("smb2: Ticket for foreign realm %s@%s\n", client, p+1));
-		if (!lp_allow_trusted_domains()) {
-			status = NT_STATUS_LOGON_FAILURE;
-			goto fail;
-		}
-	}
-
-	/* this gives a fully qualified user name (ie. with full realm).
-	   that leads to very long usernames, but what else can we do? */
-
-	domain = p+1;
-
-	if (logon_info && logon_info->info3.base.domain.string) {
-		domain = talloc_strdup(talloc_tos(),
-					logon_info->info3.base.domain.string);
-		if (!domain) {
-			status = NT_STATUS_NO_MEMORY;
-			goto fail;
-		}
-		DEBUG(10, ("smb2: Mapped to [%s] (using PAC)\n", domain));
-	} else {
-
-		/* If we have winbind running, we can (and must) shorten the
-		   username by using the short netbios name. Otherwise we will
-		   have inconsistent user names. With Kerberos, we get the
-		   fully qualified realm, with ntlmssp we get the short
-		   name. And even w2k3 does use ntlmssp if you for example
-		   connect to an ip address. */
-
-		wbcErr wbc_status;
-		struct wbcDomainInfo *info = NULL;
-
-		DEBUG(10, ("smb2: Mapping [%s] to short name\n", domain));
-
-		wbc_status = wbcDomainInfo(domain, &info);
-
-		if (WBC_ERROR_IS_OK(wbc_status)) {
-			domain = talloc_strdup(talloc_tos(), info->short_name);
-
-			wbcFreeMemory(info);
-			if (!domain) {
-				status = NT_STATUS_NO_MEMORY;
-				goto fail;
-			}
-			DEBUG(10, ("smb2: Mapped to [%s] (using Winbind)\n", domain));
-		} else {
-			DEBUG(3, ("smb2: Could not find short name: %s\n",
-				wbcErrorString(wbc_status)));
-		}
-	}
-
-	/* We have to use fstring for this - map_username requires it. */
-	fstr_sprintf(user, "%s%c%s", domain, *lp_winbind_separator(), client);
-
-	/* lookup the passwd struct, create a new user if necessary */
-
-	username_was_mapped = map_username(user);
-
-	pw = smb_getpwnam(talloc_tos(), user, real_username, true );
-	if (pw) {
-		/* if a real user check pam account restrictions */
-		/* only really perfomed if "obey pam restriction" is true */
-		/* do this before an eventual mapping to guest occurs */
-		status = smb_pam_accountcheck(pw->pw_name);
-		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(1,("smb2: PAM account restriction "
-				"prevents user login\n"));
-			goto fail;
-		}
-	}
-
-	if (!pw) {
-
-		/* this was originally the behavior of Samba 2.2, if a user
-		   did not have a local uid but has been authenticated, then
-		   map them to a guest account */
-
-		if (lp_map_to_guest() == MAP_TO_GUEST_ON_BAD_UID){
-			map_domainuser_to_guest = true;
-			fstrcpy(user,lp_guestaccount());
-			pw = smb_getpwnam(talloc_tos(), user, real_username, true );
-		}
-
-		/* extra sanity check that the guest account is valid */
-
-		if (!pw) {
-			DEBUG(1,("smb2: Username %s is invalid on this system\n",
-				user));
-			status = NT_STATUS_LOGON_FAILURE;
-			goto fail;
-		}
+		netsamlogon_cache_store(user, &logon_info->info3);
 	}
 
 	/* setup the string used by %U */
-
 	sub_set_smb_name(real_username);
-	reload_services(true);
 
-	if (map_domainuser_to_guest) {
-		make_server_info_guest(session, &session->server_info);
-	} else if (logon_info) {
-		/* pass the unmapped username here since map_username()
-		   will be called again from inside make_server_info_info3() */
+	/* reload services so that the new %U is taken into account */
+	reload_services(smb2req->sconn->msg_ctx, smb2req->sconn->sock, true);
 
-		status = make_server_info_info3(session,
-						client,
-						domain,
-						&session->server_info,
-						&logon_info->info3);
-		if (!NT_STATUS_IS_OK(status) ) {
-			DEBUG(1,("smb2: make_server_info_info3 failed: %s!\n",
-				nt_errstr(status)));
-			goto fail;
-		}
-
-	} else {
-		/*
-		 * We didn't get a PAC, we have to make up the user
-		 * ourselves. Try to ask the pdb backend to provide
-		 * SID consistency with ntlmssp session setup
-		 */
-		struct samu *sampass;
-		/* The stupid make_server_info_XX functions here
-		   don't take a talloc context. */
-		struct auth_serversupplied_info *tmp_server_info = NULL;
-
-		sampass = samu_new(talloc_tos());
-		if (sampass == NULL) {
-			status = NT_STATUS_NO_MEMORY;
-			goto fail;
-		}
-
-		if (pdb_getsampwnam(sampass, real_username)) {
-			DEBUG(10, ("smb2: found user %s in passdb, calling "
-				"make_server_info_sam\n", real_username));
-			status = make_server_info_sam(&tmp_server_info, sampass);
-			TALLOC_FREE(sampass);
-		} else {
-			/*
-			 * User not in passdb, make it up artificially
-			 */
-			TALLOC_FREE(sampass);
-			DEBUG(10, ("smb2: didn't find user %s in passdb, calling "
-				"make_server_info_pw\n", real_username));
-			status = make_server_info_pw(&tmp_server_info,
-					real_username,
-					pw);
-		}
-
-		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(1,("smb2: make_server_info_[sam|pw] failed: %s!\n",
-				nt_errstr(status)));
-			goto fail;
-                }
-
-		/* Steal tmp_server_info into the session->server_info
-		   pointer. */
-		session->server_info = talloc_move(session, &tmp_server_info);
-
-		/* make_server_info_pw does not set the domain. Without this
-		 * we end up with the local netbios name in substitutions for
-		 * %D. */
-
-		if (session->server_info->info3 != NULL) {
-			session->server_info->info3->base.domain.string =
-				talloc_strdup(session->server_info->info3, domain);
-		}
-
+	status = make_server_info_krb5(session,
+					user, domain, real_username, pw,
+					logon_info, map_domainuser_to_guest,
+					&session->session_info);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("smb2: make_server_info_krb5 failed\n"));
+		goto fail;
 	}
 
-	session->server_info->nss_token |= username_was_mapped;
 
-	/* we need to build the token for the user. make_server_info_guest()
+	session->session_info->nss_token |= username_was_mapped;
+
+	/* we need to build the token for the user. make_session_info_guest()
 	   already does this */
 
-	if (!session->server_info->ptok ) {
-		status = create_local_token(session->server_info);
+	if (!session->session_info->security_token ) {
+		status = create_local_token(session->session_info);
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(10,("smb2: failed to create local token: %s\n",
 				nt_errstr(status)));
@@ -418,7 +265,7 @@ static NTSTATUS smbd_smb2_session_setup_krb5(struct smbd_smb2_session *session,
 		session->do_signing = true;
 	}
 
-	if (session->server_info->guest) {
+	if (session->session_info->guest) {
 		/* we map anonymous to guest internally */
 		*out_session_flags |= SMB2_SESSION_FLAG_IS_GUEST;
 		*out_session_flags |= SMB2_SESSION_FLAG_IS_NULL;
@@ -426,19 +273,19 @@ static NTSTATUS smbd_smb2_session_setup_krb5(struct smbd_smb2_session *session,
 		session->do_signing = false;
 	}
 
-	data_blob_free(&session->server_info->user_session_key);
-	session->server_info->user_session_key =
+	data_blob_free(&session->session_info->user_session_key);
+	session->session_info->user_session_key =
 			data_blob_talloc(
-				session->server_info,
+				session->session_info,
 				session_key.data,
 				session_key.length);
         if (session_key.length > 0) {
-		if (session->server_info->user_session_key.data == NULL) {
+		if (session->session_info->user_session_key.data == NULL) {
 			status = NT_STATUS_NO_MEMORY;
 			goto fail;
 		}
 	}
-	session->session_key = session->server_info->user_session_key;
+	session->session_key = session->session_info->user_session_key;
 
 	session->compat_vuser = talloc_zero(session, user_struct);
 	if (session->compat_vuser == NULL) {
@@ -447,26 +294,22 @@ static NTSTATUS smbd_smb2_session_setup_krb5(struct smbd_smb2_session *session,
 	}
 	session->compat_vuser->auth_ntlmssp_state = NULL;
 	session->compat_vuser->homes_snum = -1;
-	session->compat_vuser->server_info = session->server_info;
+	session->compat_vuser->session_info = session->session_info;
 	session->compat_vuser->session_keystr = NULL;
 	session->compat_vuser->vuid = session->vuid;
 	DLIST_ADD(session->sconn->smb1.sessions.validated_users, session->compat_vuser);
 
 	/* This is a potentially untrusted username */
-	alpha_strcpy(tmp,
-		client,
-		". _-$",
-		sizeof(tmp));
-	session->server_info->sanitized_username = talloc_strdup(
-			session->server_info, tmp);
+	alpha_strcpy(tmp, user, ". _-$", sizeof(tmp));
+	session->session_info->sanitized_username =
+				talloc_strdup(session->session_info, tmp);
 
-	if (!session->server_info->guest) {
+	if (!session->session_info->guest) {
 		session->compat_vuser->homes_snum =
-			register_homes_share(session->server_info->unix_name);
+			register_homes_share(session->session_info->unix_name);
 	}
 
-	if (!session_claim(sconn_server_id(session->sconn),
-			   session->compat_vuser)) {
+	if (!session_claim(session->sconn, session->compat_vuser)) {
 		DEBUG(1, ("smb2: Failed to claim session "
 			"for vuid=%d\n",
 			session->compat_vuser->vuid));
@@ -640,7 +483,7 @@ static NTSTATUS smbd_smb2_common_ntlmssp_auth_return(struct smbd_smb2_session *s
 		session->do_signing = true;
 	}
 
-	if (session->server_info->guest) {
+	if (session->session_info->guest) {
 		/* we map anonymous to guest internally */
 		*out_session_flags |= SMB2_SESSION_FLAG_IS_GUEST;
 		*out_session_flags |= SMB2_SESSION_FLAG_IS_NULL;
@@ -648,7 +491,7 @@ static NTSTATUS smbd_smb2_common_ntlmssp_auth_return(struct smbd_smb2_session *s
 		session->do_signing = false;
 	}
 
-	session->session_key = session->server_info->user_session_key;
+	session->session_key = session->session_info->user_session_key;
 
 	session->compat_vuser = talloc_zero(session, user_struct);
 	if (session->compat_vuser == NULL) {
@@ -658,7 +501,7 @@ static NTSTATUS smbd_smb2_common_ntlmssp_auth_return(struct smbd_smb2_session *s
 	}
 	session->compat_vuser->auth_ntlmssp_state = session->auth_ntlmssp_state;
 	session->compat_vuser->homes_snum = -1;
-	session->compat_vuser->server_info = session->server_info;
+	session->compat_vuser->session_info = session->session_info;
 	session->compat_vuser->session_keystr = NULL;
 	session->compat_vuser->vuid = session->vuid;
 	DLIST_ADD(session->sconn->smb1.sessions.validated_users, session->compat_vuser);
@@ -668,16 +511,15 @@ static NTSTATUS smbd_smb2_common_ntlmssp_auth_return(struct smbd_smb2_session *s
 		     auth_ntlmssp_get_username(session->auth_ntlmssp_state),
 		     ". _-$",
 		     sizeof(tmp));
-	session->server_info->sanitized_username = talloc_strdup(
-		session->server_info, tmp);
+	session->session_info->sanitized_username = talloc_strdup(
+		session->session_info, tmp);
 
-	if (!session->compat_vuser->server_info->guest) {
+	if (!session->compat_vuser->session_info->guest) {
 		session->compat_vuser->homes_snum =
-			register_homes_share(session->server_info->unix_name);
+			register_homes_share(session->session_info->unix_name);
 	}
 
-	if (!session_claim(sconn_server_id(session->sconn),
-			   session->compat_vuser)) {
+	if (!session_claim(session->sconn, session->compat_vuser)) {
 		DEBUG(1, ("smb2: Failed to claim session "
 			"for vuid=%d\n",
 			session->compat_vuser->vuid));
@@ -785,9 +627,11 @@ static NTSTATUS smbd_smb2_spnego_auth(struct smbd_smb2_session *session,
 	status = auth_ntlmssp_update(session->auth_ntlmssp_state,
 				     auth,
 				     &auth_out);
-	if (!NT_STATUS_IS_OK(status) &&
-			!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
-		status = setup_ntlmssp_server_info(session, status);
+	/* We need to call setup_ntlmssp_session_info() if status==NT_STATUS_OK,
+	   or if status is anything except NT_STATUS_MORE_PROCESSING_REQUIRED,
+	   as this can trigger map to guest. */
+	if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
+		status = setup_ntlmssp_session_info(session, status);
 	}
 
 	if (!NT_STATUS_IS_OK(status) &&
@@ -865,7 +709,7 @@ static NTSTATUS smbd_smb2_raw_ntlmssp_auth(struct smbd_smb2_session *session,
 		return status;
 	}
 
-	status = setup_ntlmssp_server_info(session, status);
+	status = setup_ntlmssp_session_info(session, status);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		TALLOC_FREE(session->auth_ntlmssp_state);
@@ -1016,9 +860,9 @@ NTSTATUS smbd_smb2_request_check_session(struct smbd_smb2_request *req)
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
-	set_current_user_info(session->server_info->sanitized_username,
-			      session->server_info->unix_name,
-			      session->server_info->info3->base.domain.string);
+	set_current_user_info(session->session_info->sanitized_username,
+			      session->session_info->unix_name,
+			      session->session_info->info3->base.domain.string);
 
 	req->session = session;
 

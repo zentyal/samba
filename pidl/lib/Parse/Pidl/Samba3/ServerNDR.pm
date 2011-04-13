@@ -171,7 +171,7 @@ sub ParseFunction($$)
 	pidl "}";
 	pidl "";
 	pidl "if (DEBUGLEVEL >= 10) {";
-	pidl "\tNDR_PRINT_IN_DEBUG($fn->{NAME}, r);";
+	pidl "\tNDR_PRINT_FUNCTION_DEBUG($fn->{NAME}, NDR_IN, r);";
 	pidl "}";
 	pidl "";
 
@@ -190,7 +190,7 @@ sub ParseFunction($$)
 	pidl "}";
 	pidl "";
 	pidl "if (DEBUGLEVEL >= 10) {";
-	pidl "\tNDR_PRINT_OUT_DEBUG($fn->{NAME}, r);";
+	pidl "\tNDR_PRINT_FUNCTION_DEBUG($fn->{NAME}, NDR_OUT | NDR_SET_VALUES, r);";
 	pidl "}";
 	pidl "";
 	pidl "push = ndr_push_init_ctx(r);";
@@ -198,6 +198,12 @@ sub ParseFunction($$)
 	pidl "\ttalloc_free(r);";
 	pidl "\treturn false;";
 	pidl "}";
+	pidl "";
+	pidl "/*";
+	pidl " * carry over the pointer count to the reply in case we are";
+	pidl " * using full pointer. See NDR specification for full pointers";
+	pidl " */";
+	pidl "push->ptr_count = pull->ptr_count;";
 	pidl "";
 	pidl "ndr_err = call->ndr_push(push, NDR_OUT, r);";
 	pidl "if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {";
@@ -288,6 +294,7 @@ sub Parse($$$)
 	pidl " */";
 	pidl "";
 	pidl "#include \"includes.h\"";
+	pidl "#include \"ntdomain.h\"";
 	pidl "#include \"$header\"";
 	pidl_hdr "#include \"$ndr_header\"";
 	pidl "";

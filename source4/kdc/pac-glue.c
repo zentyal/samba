@@ -23,18 +23,16 @@
 
 #include "includes.h"
 #include "../libds/common/flags.h"
-#include "lib/ldb/include/ldb.h"
-#include "librpc/gen_ndr/ndr_krb5pac.h"
-#include "librpc/gen_ndr/krb5pac.h"
+#include <ldb.h>
 #include "auth/auth.h"
-#include "auth/auth_sam.h"
 #include "auth/auth_sam_reply.h"
-#include "kdc/kdc.h"
+#include "kdc/kdc-glue.h"
 #include "param/param.h"
+#include "librpc/gen_ndr/ndr_krb5pac.h"
 
 static
 NTSTATUS samba_get_logon_info_pac_blob(TALLOC_CTX *mem_ctx,
-				       struct auth_serversupplied_info *info,
+				       struct auth_user_info_dc *info,
 				       DATA_BLOB *pac_data)
 {
 	struct netr_SamInfo3 *info3;
@@ -44,7 +42,7 @@ NTSTATUS samba_get_logon_info_pac_blob(TALLOC_CTX *mem_ctx,
 
 	ZERO_STRUCT(pac_info);
 
-	nt_status = auth_convert_server_info_saminfo3(mem_ctx, info, &info3);
+	nt_status = auth_convert_user_info_dc_saminfo3(mem_ctx, info, &info3);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(1, ("Getting Samba info failed: %s\n",
 			  nt_errstr(nt_status)));
@@ -107,7 +105,7 @@ bool samba_princ_needs_pac(struct hdb_entry_ex *princ)
 {
 
 	struct samba_kdc_entry *p = talloc_get_type(princ->ctx, struct samba_kdc_entry);
-	unsigned int userAccountControl;
+	uint32_t userAccountControl;
 
 
 	/* The service account may be set not to want the PAC */
@@ -119,12 +117,30 @@ bool samba_princ_needs_pac(struct hdb_entry_ex *princ)
 	return true;
 }
 
+/* Was the krbtgt an RODC (and we are not) */
+bool samba_krbtgt_was_untrusted_rodc(struct hdb_entry_ex *princ)
+{
+
+	struct samba_kdc_entry *p = talloc_get_type(princ->ctx, struct samba_kdc_entry);
+	int rodc_krbtgt_number;
+
+	/* Determine if this was printed by an RODC */
+	rodc_krbtgt_number = ldb_msg_find_attr_as_int(p->msg, "msDS-SecondaryKrbTgtNumber", -1);
+	if (rodc_krbtgt_number == -1) {
+		return false;
+	} else if (rodc_krbtgt_number != p->kdc_db_ctx->my_krbtgt_number) {
+		return true;
+	}
+
+	return false;
+}
+
 NTSTATUS samba_kdc_get_pac_blob(TALLOC_CTX *mem_ctx,
 				struct hdb_entry_ex *client,
 				DATA_BLOB **_pac_blob)
 {
 	struct samba_kdc_entry *p = talloc_get_type(client->ctx, struct samba_kdc_entry);
-	struct auth_serversupplied_info *server_info;
+	struct auth_user_info_dc *user_info_dc;
 	DATA_BLOB *pac_blob;
 	NTSTATUS nt_status;
 
@@ -139,21 +155,21 @@ NTSTATUS samba_kdc_get_pac_blob(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	nt_status = authsam_make_server_info(mem_ctx, p->kdc_db_ctx->samdb,
+	nt_status = authsam_make_user_info_dc(mem_ctx, p->kdc_db_ctx->samdb,
 					     lpcfg_netbios_name(p->kdc_db_ctx->lp_ctx),
 					     lpcfg_sam_name(p->kdc_db_ctx->lp_ctx),
 					     p->realm_dn,
 					     p->msg,
 					     data_blob(NULL, 0),
 					     data_blob(NULL, 0),
-					     &server_info);
+					     &user_info_dc);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0, ("Getting user info for PAC failed: %s\n",
 			  nt_errstr(nt_status)));
 		return nt_status;
 	}
 
-	nt_status = samba_get_logon_info_pac_blob(mem_ctx, server_info, pac_blob);
+	nt_status = samba_get_logon_info_pac_blob(mem_ctx, user_info_dc, pac_blob);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0, ("Building PAC failed: %s\n",
 			  nt_errstr(nt_status)));
@@ -168,18 +184,18 @@ NTSTATUS samba_kdc_update_pac_blob(TALLOC_CTX *mem_ctx,
 				   krb5_context context,
 				   krb5_pac *pac, DATA_BLOB *pac_blob)
 {
-	struct auth_serversupplied_info *server_info;
+	struct auth_user_info_dc *user_info_dc;
 	krb5_error_code ret;
 	NTSTATUS nt_status;
 
-	ret = kerberos_pac_to_server_info(mem_ctx, *pac,
-					  context, &server_info);
+	ret = kerberos_pac_to_user_info_dc(mem_ctx, *pac,
+					   context, &user_info_dc, NULL, NULL);
 	if (ret) {
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
 	nt_status = samba_get_logon_info_pac_blob(mem_ctx, 
-						  server_info, pac_blob);
+						  user_info_dc, pac_blob);
 
 	return nt_status;
 }

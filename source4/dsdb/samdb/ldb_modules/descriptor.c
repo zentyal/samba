@@ -39,6 +39,7 @@
 #include "librpc/ndr/libndr.h"
 #include "librpc/gen_ndr/ndr_security.h"
 #include "libcli/security/security.h"
+#include "dsdb/samdb/ldb_modules/schema.h"
 #include "auth/auth.h"
 #include "param/param.h"
 #include "util.h"
@@ -50,9 +51,11 @@ struct descriptor_data {
 struct descriptor_context {
 	struct ldb_module *module;
 	struct ldb_request *req;
+	struct ldb_message *msg;
 	struct ldb_reply *search_res;
 	struct ldb_reply *search_oc_res;
 	struct ldb_val *parentsd_val;
+	struct ldb_message_element *sd_element;
 	struct ldb_val *sd_val;
 	int (*step_fn)(struct descriptor_context *);
 };
@@ -63,46 +66,49 @@ struct dom_sid *get_default_ag(TALLOC_CTX *mem_ctx,
 			       struct ldb_context *ldb)
 {
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
-	struct ldb_dn *root_base_dn = ldb_get_root_basedn(ldb);
-	struct ldb_dn *schema_base_dn = ldb_get_schema_basedn(ldb);
-	struct ldb_dn *config_base_dn = ldb_get_config_basedn(ldb);
 	const struct dom_sid *domain_sid = samdb_domain_sid(ldb);
 	struct dom_sid *da_sid = dom_sid_add_rid(tmp_ctx, domain_sid, DOMAIN_RID_ADMINS);
 	struct dom_sid *ea_sid = dom_sid_add_rid(tmp_ctx, domain_sid, DOMAIN_RID_ENTERPRISE_ADMINS);
 	struct dom_sid *sa_sid = dom_sid_add_rid(tmp_ctx, domain_sid, DOMAIN_RID_SCHEMA_ADMINS);
 	struct dom_sid *dag_sid;
+	struct ldb_dn *nc_root;
+	int ret;
 
-	/* FIXME: this has to be fixed regarding the forest DN (root DN) and
-	 * the domain DN (default DN) - they aren't always the same. */
+	ret = dsdb_find_nc_root(ldb, tmp_ctx, dn, &nc_root);
+	if (ret != LDB_SUCCESS) {
+		talloc_free(tmp_ctx);
+		return NULL;
+	}
 
-	if (ldb_dn_compare_base(schema_base_dn, dn) == 0){
-		if (security_token_has_sid(token, sa_sid))
+	if (ldb_dn_compare(nc_root, ldb_get_schema_basedn(ldb)) == 0) {
+		if (security_token_has_sid(token, sa_sid)) {
 			dag_sid = dom_sid_dup(mem_ctx, sa_sid);
-		else if (security_token_has_sid(token, ea_sid))
+		} else if (security_token_has_sid(token, ea_sid)) {
 			dag_sid = dom_sid_dup(mem_ctx, ea_sid);
-		else if (security_token_has_sid(token, da_sid))
+		} else if (security_token_has_sid(token, da_sid)) {
 			dag_sid = dom_sid_dup(mem_ctx, da_sid);
-		else
+		} else {
 			dag_sid = NULL;
-	}
-	else if (ldb_dn_compare_base(config_base_dn, dn) == 0){
-		if (security_token_has_sid(token, ea_sid))
+		}
+	} else if (ldb_dn_compare(nc_root, ldb_get_config_basedn(ldb)) == 0) {
+		if (security_token_has_sid(token, ea_sid)) {
 			dag_sid = dom_sid_dup(mem_ctx, ea_sid);
-		else if (security_token_has_sid(token, da_sid))
+		} else if (security_token_has_sid(token, da_sid)) {
 			dag_sid = dom_sid_dup(mem_ctx, da_sid);
-		else
+		} else {
 			dag_sid = NULL;
-	}
-	else if (ldb_dn_compare_base(root_base_dn, dn) == 0){
-		if (security_token_has_sid(token, da_sid))
+		}
+	} else if (ldb_dn_compare(nc_root, ldb_get_default_basedn(ldb)) == 0) {
+		if (security_token_has_sid(token, da_sid)) {
 			dag_sid = dom_sid_dup(mem_ctx, da_sid);
-		else if (security_token_has_sid(token, ea_sid))
+		} else if (security_token_has_sid(token, ea_sid)) {
 				dag_sid = dom_sid_dup(mem_ctx, ea_sid);
-		else
+		} else {
 			dag_sid = NULL;
-	}
-	else
+		}
+	} else {
 		dag_sid = NULL;
+	}
 
 	talloc_free(tmp_ctx);
 	return dag_sid;
@@ -208,8 +214,8 @@ static DATA_BLOB *get_new_descriptor(struct ldb_module *module,
 				     TALLOC_CTX *mem_ctx,
 				     const struct dsdb_class *objectclass,
 				     const struct ldb_val *parent,
-				     struct ldb_val *object,
-				     struct ldb_val *old_sd,
+				     const struct ldb_val *object,
+				     const struct ldb_val *old_sd,
 				     uint32_t sd_flags)
 {
 	struct security_descriptor *user_descriptor = NULL, *parent_descriptor = NULL;
@@ -376,137 +382,6 @@ static struct descriptor_context *descriptor_init_context(struct ldb_module *mod
 	return ac;
 }
 
-static int get_search_callback(struct ldb_request *req, struct ldb_reply *ares)
-{
-	struct ldb_context *ldb;
-	struct descriptor_context *ac;
-	int ret;
-
-	ac = talloc_get_type(req->context, struct descriptor_context);
-	ldb = ldb_module_get_ctx(ac->module);
-
-	if (!ares) {
-		return ldb_module_done(ac->req, NULL, NULL,
-					LDB_ERR_OPERATIONS_ERROR);
-	}
-	if (ares->error != LDB_SUCCESS &&
-	    ares->error != LDB_ERR_NO_SUCH_OBJECT) {
-		return ldb_module_done(ac->req, ares->controls,
-					ares->response, ares->error);
-	}
-
-	ldb_reset_err_string(ldb);
-
-	switch (ares->type) {
-	case LDB_REPLY_ENTRY:
-		if (ac->search_res != NULL) {
-			ldb_set_errstring(ldb, "Too many results");
-			talloc_free(ares);
-			return ldb_module_done(ac->req, NULL, NULL,
-						LDB_ERR_OPERATIONS_ERROR);
-		}
-
-		ac->search_res = talloc_steal(ac, ares);
-		break;
-
-	case LDB_REPLY_REFERRAL:
-		/* ignore */
-		talloc_free(ares);
-		break;
-
-	case LDB_REPLY_DONE:
-		talloc_free(ares);
-		ret = ac->step_fn(ac);
-		if (ret != LDB_SUCCESS) {
-			return ldb_module_done(ac->req, NULL, NULL, ret);
-		}
-		break;
-	}
-
-	return LDB_SUCCESS;
-}
-
-static int get_search_oc_callback(struct ldb_request *req, struct ldb_reply *ares)
-{
-	struct ldb_context *ldb;
-	struct descriptor_context *ac;
-	int ret;
-
-	ac = talloc_get_type(req->context, struct descriptor_context);
-	ldb = ldb_module_get_ctx(ac->module);
-
-	if (!ares) {
-		return ldb_module_done(ac->req, NULL, NULL,
-					LDB_ERR_OPERATIONS_ERROR);
-	}
-	if (ares->error != LDB_SUCCESS &&
-	    ares->error != LDB_ERR_NO_SUCH_OBJECT) {
-		return ldb_module_done(ac->req, ares->controls,
-					ares->response, ares->error);
-	}
-
-	ldb_reset_err_string(ldb);
-
-	switch (ares->type) {
-	case LDB_REPLY_ENTRY:
-		if (ac->search_oc_res != NULL) {
-			ldb_set_errstring(ldb, "Too many results");
-			talloc_free(ares);
-			return ldb_module_done(ac->req, NULL, NULL,
-						LDB_ERR_OPERATIONS_ERROR);
-		}
-
-		ac->search_oc_res = talloc_steal(ac, ares);
-		break;
-
-	case LDB_REPLY_REFERRAL:
-		/* ignore */
-		talloc_free(ares);
-		break;
-
-	case LDB_REPLY_DONE:
-		talloc_free(ares);
-		ret = ac->step_fn(ac);
-		if (ret != LDB_SUCCESS) {
-			return ldb_module_done(ac->req, NULL, NULL, ret);
-		}
-		break;
-	}
-
-	return LDB_SUCCESS;
-}
-
-
-static int descriptor_op_callback(struct ldb_request *req, struct ldb_reply *ares)
-{
-	struct descriptor_context *ac;
-
-	ac = talloc_get_type(req->context, struct descriptor_context);
-
-	if (!ares) {
-		return ldb_module_done(ac->req, NULL, NULL,
-					LDB_ERR_OPERATIONS_ERROR);
-	}
-
-	if (ares->type == LDB_REPLY_REFERRAL) {
-		return ldb_module_send_referral(ac->req, ares->referral);
-	}
-
-	if (ares->error != LDB_SUCCESS) {
-		return ldb_module_done(ac->req, ares->controls,
-					ares->response, ares->error);
-	}
-
-	if (ares->type != LDB_REPLY_DONE) {
-		talloc_free(ares);
-		return ldb_module_done(ac->req, NULL, NULL,
-					LDB_ERR_OPERATIONS_ERROR);
-	}
-
-	return ldb_module_done(ac->req, ares->controls,
-				ares->response, ares->error);
-}
-
 static int descriptor_search_callback(struct ldb_request *req, struct ldb_reply *ares)
 {
 	struct descriptor_context *ac;
@@ -565,270 +440,270 @@ static int descriptor_search_callback(struct ldb_request *req, struct ldb_reply 
 		return ldb_module_send_entry(ac->req, ares->message, ares->controls);
 
 	case LDB_REPLY_REFERRAL:
-		/* ignore referrals */
-		break;
+		return ldb_module_send_referral(ac->req, ares->referral);
 
 	case LDB_REPLY_DONE:
 		return ldb_module_done(ac->req, ares->controls,
 					ares->response, ares->error);
 	}
 
-	talloc_free(ares);
-	return LDB_SUCCESS;
 fail:
+	talloc_free(ares);
 	return ldb_module_done(ac->req, NULL, NULL, ret);
 }
 
-static int descriptor_do_mod(struct descriptor_context *ac)
+static int descriptor_add(struct ldb_module *module, struct ldb_request *req)
 {
 	struct ldb_context *ldb;
-	const struct dsdb_schema *schema;
-	struct ldb_request *mod_req;
-	struct ldb_message_element *objectclass_element, *tmp_element, *oldsd_el;
-	struct ldb_val *oldsd_val = NULL;
+	struct ldb_request *add_req;
+	struct ldb_message *msg;
+	struct ldb_result *parent_res;
+	const struct ldb_val *parent_sd = NULL;
+	const struct ldb_val *user_sd;
+	struct ldb_dn *parent_dn, *dn, *nc_root;
+	struct ldb_message_element *objectclass_element, *sd_element;
 	int ret;
+	const struct dsdb_schema *schema;
 	DATA_BLOB *sd;
 	const struct dsdb_class *objectclass;
-	struct ldb_message *msg;
-	struct ldb_control *sd_control;
-	struct ldb_control *sd_control2;
-	int flags = 0;
-	uint32_t sd_flags = 0;
+	static const char * const parent_attrs[] = { "nTSecurityDescriptor", NULL };
 
-	ldb = ldb_module_get_ctx(ac->module);
-	schema = dsdb_get_schema(ldb, ac);
-	msg = ldb_msg_copy_shallow(ac, ac->req->op.mod.message);
-	objectclass_element = ldb_msg_find_element(ac->search_oc_res->message, "objectClass");
-	objectclass = get_last_structural_class(schema, objectclass_element);
-
-	if (!objectclass) {
-		ldb_asprintf_errstring(ldb, "No last structural objectclass found on %s",
-				       ldb_dn_get_linearized(ac->search_oc_res->message->dn));
-		return LDB_ERR_OPERATIONS_ERROR;
+	ldb = ldb_module_get_ctx(module);
+	dn = req->op.add.message->dn;
+	user_sd = ldb_msg_find_ldb_val(req->op.add.message, "nTSecurityDescriptor");
+	sd_element = ldb_msg_find_element(req->op.add.message, "nTSecurityDescriptor");
+	/* nTSecurityDescriptor without a value is an error, letting through so it is handled */
+	if (user_sd == NULL && sd_element) {
+		return ldb_next_request(module, req);
 	}
-	sd_control = ldb_request_get_control(ac->req, LDB_CONTROL_SD_FLAGS_OID);
-	sd_control2 = ldb_request_get_control(ac->req, LDB_CONTROL_RECALCULATE_SD_OID);
-	if (sd_control) {
-		struct ldb_sd_flags_control *sdctr = (struct ldb_sd_flags_control *)sd_control->data;
+
+	ldb_debug(ldb, LDB_DEBUG_TRACE,"descriptor_add: %s\n", ldb_dn_get_linearized(dn));
+
+	/* do not manipulate our control entries */
+	if (ldb_dn_is_special(dn)) {
+		return ldb_next_request(module, req);
+	}
+
+	/* if the object has a parent, retrieve its SD to
+	 * use for calculation. Unfortunately we do not yet have
+	 * instanceType, so we use dsdb_find_nc_root. */
+	parent_dn = ldb_dn_get_parent(req, dn);
+	if (parent_dn == NULL) {
+		return ldb_oom(ldb);
+	}
+
+	ret = dsdb_find_nc_root(ldb, req, dn, &nc_root);
+	if (ret != LDB_SUCCESS) {
+		ldb_debug(ldb, LDB_DEBUG_TRACE,"descriptor_add: Could not find NC root for %s\n",
+			  ldb_dn_get_linearized(dn));
+		return ret;
+	}
+
+	if (ldb_dn_compare(dn, nc_root) != 0) {
+		/* we aren't any NC */
+		ret = dsdb_module_search_dn(module, req, &parent_res, parent_dn,
+					    parent_attrs,
+					    DSDB_FLAG_NEXT_MODULE,
+					    req);
+		if (ret != LDB_SUCCESS) {
+			ldb_debug(ldb, LDB_DEBUG_TRACE,"descriptor_add: Could not find SD for %s\n",
+				  ldb_dn_get_linearized(parent_dn));
+			return ret;
+		}
+		if (parent_res->count != 1) {
+			return ldb_operr(ldb);
+		}
+		parent_sd = ldb_msg_find_ldb_val(parent_res->msgs[0], "nTSecurityDescriptor");
+	}
+
+	schema = dsdb_get_schema(ldb, req);
+
+	objectclass_element = ldb_msg_find_element(req->op.add.message, "objectClass");
+	if (objectclass_element == NULL) {
+		return ldb_operr(ldb);
+	}
+
+	objectclass = get_last_structural_class(schema, objectclass_element, req);
+	if (objectclass == NULL) {
+		return ldb_operr(ldb);
+	}
+
+	sd = get_new_descriptor(module, dn, req,
+				objectclass, parent_sd,
+				user_sd, NULL, 0);
+	msg = ldb_msg_copy_shallow(req, req->op.add.message);
+	if (sd != NULL) {
+		if (sd_element != NULL) {
+			sd_element->values[0] = *sd;
+		} else {
+			ret = ldb_msg_add_steal_value(msg,
+						      "nTSecurityDescriptor",
+						      sd);
+			if (ret != LDB_SUCCESS) {
+				return ret;
+			}
+		}
+	}
+
+	ret = ldb_build_add_req(&add_req, ldb, req,
+				msg,
+				req->controls,
+				req, dsdb_next_callback,
+				req);
+	LDB_REQ_SET_LOCATION(add_req);
+	if (ret != LDB_SUCCESS) {
+		return ldb_error(ldb, ret,
+				 "descriptor_add: Error creating new add request.");
+	}
+
+	return ldb_next_request(module, add_req);
+}
+
+static int descriptor_modify(struct ldb_module *module, struct ldb_request *req)
+{
+	struct ldb_context *ldb;
+	struct ldb_control *sd_recalculate_control, *sd_flags_control;
+	struct ldb_request *mod_req;
+	struct ldb_message *msg;
+	struct ldb_result *current_res, *parent_res;
+	const struct ldb_val *old_sd = NULL;
+	const struct ldb_val *parent_sd = NULL;
+	const struct ldb_val *user_sd;
+	struct ldb_dn *parent_dn, *dn;
+	struct ldb_message_element *objectclass_element;
+	int ret;
+	uint32_t instanceType, sd_flags = 0;
+	const struct dsdb_schema *schema;
+	DATA_BLOB *sd;
+	const struct dsdb_class *objectclass;
+	static const char * const parent_attrs[] = { "nTSecurityDescriptor", NULL };
+	static const char * const current_attrs[] = { "nTSecurityDescriptor",
+						      "instanceType",
+						      "objectClass", NULL };
+	ldb = ldb_module_get_ctx(module);
+	dn = req->op.mod.message->dn;
+	user_sd = ldb_msg_find_ldb_val(req->op.mod.message, "nTSecurityDescriptor");
+	/* This control forces the recalculation of the SD also when
+	 * no modification is performed. */
+	sd_recalculate_control = ldb_request_get_control(req,
+					     LDB_CONTROL_RECALCULATE_SD_OID);
+	if (!user_sd && !sd_recalculate_control) {
+		return ldb_next_request(module, req);
+	}
+
+	ldb_debug(ldb, LDB_DEBUG_TRACE,"descriptor_modify: %s\n", ldb_dn_get_linearized(dn));
+
+	/* do not manipulate our control entries */
+	if (ldb_dn_is_special(dn)) {
+		return ldb_next_request(module, req);
+	}
+
+	ret = dsdb_module_search_dn(module, req, &current_res, dn,
+				    current_attrs,
+				    DSDB_FLAG_NEXT_MODULE,
+				    req);
+	if (ret != LDB_SUCCESS) {
+		ldb_debug(ldb, LDB_DEBUG_ERROR,"descriptor_modify: Could not find %s\n",
+			  ldb_dn_get_linearized(dn));
+		return ret;
+	}
+
+	instanceType = ldb_msg_find_attr_as_uint(current_res->msgs[0],
+						 "instanceType", 0);
+	/* if the object has a parent, retrieve its SD to
+	 * use for calculation */
+	if (!ldb_dn_is_null(current_res->msgs[0]->dn) &&
+	    !(instanceType & INSTANCE_TYPE_IS_NC_HEAD)) {
+		parent_dn = ldb_dn_get_parent(req, dn);
+		if (parent_dn == NULL) {
+			return ldb_oom(ldb);
+		}
+		ret = dsdb_module_search_dn(module, req, &parent_res, parent_dn,
+					    parent_attrs,
+					    DSDB_FLAG_NEXT_MODULE,
+					    req);
+		if (ret != LDB_SUCCESS) {
+			ldb_debug(ldb, LDB_DEBUG_ERROR, "descriptor_modify: Could not find SD for %s\n",
+				  ldb_dn_get_linearized(parent_dn));
+			return ret;
+		}
+		if (parent_res->count != 1) {
+			return ldb_operr(ldb);
+		}
+		parent_sd = ldb_msg_find_ldb_val(parent_res->msgs[0], "nTSecurityDescriptor");
+	}
+	sd_flags_control = ldb_request_get_control(req, LDB_CONTROL_SD_FLAGS_OID);
+
+	schema = dsdb_get_schema(ldb, req);
+
+	objectclass_element = ldb_msg_find_element(current_res->msgs[0], "objectClass");
+	if (objectclass_element == NULL) {
+		return ldb_operr(ldb);
+	}
+
+	objectclass = get_last_structural_class(schema, objectclass_element, req);
+	if (objectclass == NULL) {
+		return ldb_operr(ldb);
+	}
+
+	if (sd_flags_control) {
+		struct ldb_sd_flags_control *sdctr = (struct ldb_sd_flags_control *)sd_flags_control->data;
 		sd_flags = sdctr->secinfo_flags;
 		/* we only care for the last 4 bits */
 		sd_flags = sd_flags & 0x0000000F;
 	}
 	if (sd_flags != 0) {
-		oldsd_el = ldb_msg_find_element(ac->search_oc_res->message, "nTSecurityDescriptor");
-		if (oldsd_el) {
-			oldsd_val = oldsd_el->values;
-		}
-	}
-	sd = get_new_descriptor(ac->module, msg->dn, ac, objectclass,
-				ac->parentsd_val, ac->sd_val, oldsd_val, sd_flags);
-	if (ac->sd_val) {
-		tmp_element = ldb_msg_find_element(msg, "ntSecurityDescriptor");
-		flags = tmp_element->flags;
-		ldb_msg_remove_attr(msg, "nTSecurityDescriptor");
+		old_sd = ldb_msg_find_ldb_val(current_res->msgs[0], "nTSecurityDescriptor");
 	}
 
-	if (sd) {
-		ret = ldb_msg_add_steal_value(msg, "nTSecurityDescriptor", sd);
-		if (ret != LDB_SUCCESS) {
-			return ret;
-		}
-		tmp_element = ldb_msg_find_element(msg, "ntSecurityDescriptor");
-		if (sd_control2) {
-			tmp_element->flags = LDB_FLAG_MOD_REPLACE;
-		} else {
-			tmp_element->flags = flags;
-		}
-	}
-	ret = ldb_build_mod_req(&mod_req, ldb, ac,
-				msg,
-				ac->req->controls,
-				ac, descriptor_op_callback,
-				ac->req);
-	if (ret != LDB_SUCCESS) {
-		return ret;
-	}
-	/* mark it non-critical, so we don't get an error from the
-	   backend, but mark that we've handled it */
-	if (sd_control) {
-		sd_control->critical = 0;
-	}
-
-	return ldb_next_request(ac->module, mod_req);
-}
-
-static int descriptor_do_add(struct descriptor_context *ac)
-{
-	struct ldb_context *ldb;
-	const struct dsdb_schema *schema;
-	struct ldb_request *add_req;
-	struct ldb_message_element *objectclass_element, *sd_element = NULL;
-	struct ldb_message *msg;
-	TALLOC_CTX *mem_ctx;
-	int ret;
-	DATA_BLOB *sd;
-	const struct dsdb_class *objectclass;
-	static const char *const attrs[] = { "objectClass", "nTSecurityDescriptor", NULL };
-	struct ldb_request *search_req;
-
-	ldb = ldb_module_get_ctx(ac->module);
-	schema = dsdb_get_schema(ldb, ac);
-	mem_ctx = talloc_new(ac);
-	if (mem_ctx == NULL) {
-		return ldb_oom(ldb);
-	}
-	switch (ac->req->operation) {
-	case LDB_ADD:
-		msg = ldb_msg_copy_shallow(ac, ac->req->op.add.message);
-		objectclass_element = ldb_msg_find_element(msg, "objectClass");
-		objectclass = get_last_structural_class(schema, objectclass_element);
-
-		if (!objectclass) {
-			ldb_asprintf_errstring(ldb, "No last structural objectclass found on %s", ldb_dn_get_linearized(msg->dn));
-			return LDB_ERR_OPERATIONS_ERROR;
-		}
-		break;
-	case LDB_MODIFY:
-		msg = ldb_msg_copy_shallow(ac, ac->req->op.mod.message);
-		break;
-	default:
-		return ldb_operr(ldb);
-	}
-
-
-	/* get the security descriptor values*/
-	sd_element = ldb_msg_find_element(msg, "nTSecurityDescriptor");
-	if (sd_element) {
-		ac->sd_val = talloc_memdup(ac, &sd_element->values[0], sizeof(struct ldb_val));
-	}
-	/* NC's have no parent */
-	/* FIXME: this has to be made dynamic at some point */
-	if ((ldb_dn_compare(msg->dn, (ldb_get_schema_basedn(ldb))) == 0) ||
-	    (ldb_dn_compare(msg->dn, (ldb_get_config_basedn(ldb))) == 0) ||
-	    (ldb_dn_compare(msg->dn, (ldb_get_default_basedn(ldb))) == 0) ||
-	    (ldb_dn_compare(msg->dn, (ldb_get_root_basedn(ldb))) == 0)) {
-		ac->parentsd_val = NULL;
-	} else if (ac->search_res != NULL) {
-		struct ldb_message_element *parent_element = ldb_msg_find_element(ac->search_res->message, "nTSecurityDescriptor");
-		if (parent_element) {
-			ac->parentsd_val = talloc_memdup(ac, &parent_element->values[0], sizeof(struct ldb_val));
-		}
-	}
-
-	if (ac->req->operation == LDB_ADD) {
-	/* get the parent descriptor and the one provided. If not provided, get the default.*/
-	/* convert to security descriptor and calculate */
-		sd = get_new_descriptor(ac->module, msg->dn, mem_ctx, objectclass,
-					ac->parentsd_val, ac->sd_val, NULL, 0);
-		if (ac->sd_val) {
+	sd = get_new_descriptor(module, dn, req,
+				objectclass, parent_sd,
+				user_sd, old_sd, sd_flags);
+	msg = ldb_msg_copy_shallow(req, req->op.mod.message);
+	if (sd != NULL) {
+		struct ldb_message_element *sd_element;
+		if (user_sd != NULL) {
+			sd_element = ldb_msg_find_element(msg,
+							  "nTSecurityDescriptor");
+			sd_element->values[0] = *sd;
+		} else if (sd_recalculate_control != NULL) {
+			/* In this branch we really do force the recalculation
+			 * of the SD */
 			ldb_msg_remove_attr(msg, "nTSecurityDescriptor");
-		}
 
-		if (sd) {
-			ret = ldb_msg_add_steal_value(msg, "nTSecurityDescriptor", sd);
+			ret = ldb_msg_add_steal_value(msg,
+						      "nTSecurityDescriptor",
+						      sd);
 			if (ret != LDB_SUCCESS) {
-				return ret;
+				return ldb_error(ldb, ret,
+					 "descriptor_modify: Could not replace SD value in message.");
 			}
+			sd_element = ldb_msg_find_element(msg,
+							  "nTSecurityDescriptor");
+			sd_element->flags = LDB_FLAG_MOD_REPLACE;
 		}
-
-		talloc_free(mem_ctx);
-		ret = ldb_msg_sanity_check(ldb, msg);
-
-		if (ret != LDB_SUCCESS) {
-			ldb_asprintf_errstring(ldb, "No last structural objectclass found on %s",
-					       ldb_dn_get_linearized(msg->dn));
-			return ret;
-		}
-
-		ret = ldb_build_add_req(&add_req, ldb, ac,
-					msg,
-					ac->req->controls,
-					ac, descriptor_op_callback,
-					ac->req);
-		if (ret != LDB_SUCCESS) {
-			return ret;
-		}
-		return ldb_next_request(ac->module, add_req);
-	} else {
-		ret = ldb_build_search_req(&search_req, ldb,
-				   ac, msg->dn, LDB_SCOPE_BASE,
-				   "(objectClass=*)", attrs,
-				   NULL,
-				   ac, get_search_oc_callback,
-				   ac->req);
-		if (ret != LDB_SUCCESS) {
-			return ret;
-		}
-		ac->step_fn = descriptor_do_mod;
-		return ldb_next_request(ac->module, search_req);
-	}
-}
-
-static int descriptor_change(struct ldb_module *module, struct ldb_request *req)
-{
-	struct ldb_context *ldb;
-	struct ldb_control *sd_control;
-	struct ldb_request *search_req;
-	struct descriptor_context *ac;
-	struct ldb_dn *parent_dn, *dn;
-	struct ldb_message_element *sd_element;
-	int ret;
-	static const char * const descr_attrs[] = { "nTSecurityDescriptor", NULL };
-
-	ldb = ldb_module_get_ctx(module);
-
-	switch (req->operation) {
-	case LDB_ADD:
-		dn = req->op.add.message->dn;
-		break;
-	case LDB_MODIFY:
-		dn = req->op.mod.message->dn;
-		sd_element = ldb_msg_find_element(req->op.mod.message, "nTSecurityDescriptor");
-		/* This control allow forcing the recalculation of the SD */
-		sd_control = ldb_request_get_control(req, LDB_CONTROL_RECALCULATE_SD_OID);
-		if (!sd_element && !sd_control) {
-			return ldb_next_request(module, req);
-		}
-		break;
-	default:
-		return ldb_operr(ldb);
-	}
-	ldb_debug(ldb, LDB_DEBUG_TRACE,"descriptor_change: %s\n", ldb_dn_get_linearized(dn));
-
-	if (ldb_dn_is_special(dn)) {
-		return ldb_next_request(module, req);
 	}
 
-	ac = descriptor_init_context(module, req);
-	if (ac == NULL) {
-		return ldb_operr(ldb);
+	/* mark the controls as non-critical since we've handled them */
+	if (sd_flags_control != NULL) {
+		sd_flags_control->critical = 0;
+	}
+	if (sd_recalculate_control != NULL) {
+		sd_recalculate_control->critical = 0;
 	}
 
-	/* If there isn't a parent, just go on to the add processing */
-	if (ldb_dn_get_comp_num(dn) == 1) {
-		return descriptor_do_add(ac);
-	}
-
-	/* get copy of parent DN */
-	parent_dn = ldb_dn_get_parent(ac, dn);
-	if (parent_dn == NULL) {
-		return ldb_oom(ldb);
-	}
-
-	ret = ldb_build_search_req(&search_req, ldb,
-				   ac, parent_dn, LDB_SCOPE_BASE,
-				   "(objectClass=*)", descr_attrs,
-				   NULL,
-				   ac, get_search_callback,
-				   req);
+	ret = ldb_build_mod_req(&mod_req, ldb, req,
+				msg,
+				req->controls,
+				req,
+				dsdb_next_callback,
+				req);
+	LDB_REQ_SET_LOCATION(mod_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
-	talloc_steal(search_req, parent_dn);
 
-	ac->step_fn = descriptor_do_add;
-
-	return ldb_next_request(ac->module, search_req);
+	return ldb_next_request(module, mod_req);
 }
 
 static int descriptor_search(struct ldb_module *module, struct ldb_request *req)
@@ -858,6 +733,7 @@ static int descriptor_search(struct ldb_module *module, struct ldb_request *req)
 				      req->controls,
 				      ac, descriptor_search_callback,
 				      ac->req);
+	LDB_REQ_SET_LOCATION(down_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -873,6 +749,12 @@ static int descriptor_rename(struct ldb_module *module, struct ldb_request *req)
 {
 	struct ldb_context *ldb = ldb_module_get_ctx(module);
 	ldb_debug(ldb, LDB_DEBUG_TRACE,"descriptor_rename: %s\n", ldb_dn_get_linearized(req->op.rename.olddn));
+
+	/* do not manipulate our control entries */
+	if (ldb_dn_is_special(req->op.rename.olddn)) {
+		return ldb_next_request(module, req);
+	}
+
 	return ldb_next_request(module, req);
 }
 
@@ -889,11 +771,17 @@ static int descriptor_init(struct ldb_module *module)
 }
 
 
-_PUBLIC_ const struct ldb_module_ops ldb_descriptor_module_ops = {
+static const struct ldb_module_ops ldb_descriptor_module_ops = {
 	.name	       = "descriptor",
 	.search        = descriptor_search,
-	.add           = descriptor_change,
-	.modify        = descriptor_change,
+	.add           = descriptor_add,
+	.modify        = descriptor_modify,
 	.rename        = descriptor_rename,
 	.init_context  = descriptor_init
 };
+
+int ldb_descriptor_module_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_descriptor_module_ops);
+}

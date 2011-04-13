@@ -22,6 +22,7 @@
 
 #include "includes.h"
 #include "../librpc/gen_ndr/ndr_security.h"
+#include "../libcli/security/security.h"
 
 #define ALL_SECURITY_INFORMATION (SECINFO_OWNER|SECINFO_GROUP|\
 					SECINFO_DACL|SECINFO_SACL|\
@@ -190,10 +191,10 @@ struct security_descriptor *make_sec_desc(TALLOC_CTX *ctx,
 	dst->sacl      = NULL;
 	dst->dacl      = NULL;
 
-	if(owner_sid && ((dst->owner_sid = sid_dup_talloc(dst,owner_sid)) == NULL))
+	if(owner_sid && ((dst->owner_sid = dom_sid_dup(dst,owner_sid)) == NULL))
 		goto error_exit;
 
-	if(grp_sid && ((dst->group_sid = sid_dup_talloc(dst,grp_sid)) == NULL))
+	if(grp_sid && ((dst->group_sid = dom_sid_dup(dst,grp_sid)) == NULL))
 		goto error_exit;
 
 	if(sacl && ((dst->sacl = dup_sec_acl(dst, sacl)) == NULL))
@@ -265,7 +266,7 @@ NTSTATUS marshall_sec_desc(TALLOC_CTX *mem_ctx,
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		DEBUG(0, ("ndr_push_security_descriptor failed: %s\n",
 			  ndr_errstr(ndr_err)));
-		return ndr_map_error2ntstatus(ndr_err);;
+		return ndr_map_error2ntstatus(ndr_err);
 	}
 
 	*data = blob.data;
@@ -291,7 +292,7 @@ NTSTATUS marshall_sec_desc_buf(TALLOC_CTX *mem_ctx,
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		DEBUG(0, ("ndr_push_sec_desc_buf failed: %s\n",
 			  ndr_errstr(ndr_err)));
-		return ndr_map_error2ntstatus(ndr_err);;
+		return ndr_map_error2ntstatus(ndr_err);
 	}
 
 	*data = blob.data;
@@ -327,7 +328,7 @@ NTSTATUS unmarshall_sec_desc(TALLOC_CTX *mem_ctx, uint8 *data, size_t len,
 		DEBUG(0, ("ndr_pull_security_descriptor failed: %s\n",
 			  ndr_errstr(ndr_err)));
 		TALLOC_FREE(result);
-		return ndr_map_error2ntstatus(ndr_err);;
+		return ndr_map_error2ntstatus(ndr_err);
 	}
 
 	*psecdesc = result;
@@ -363,7 +364,7 @@ NTSTATUS unmarshall_sec_desc_buf(TALLOC_CTX *mem_ctx, uint8_t *data, size_t len,
 		DEBUG(0, ("ndr_pull_sec_desc_buf failed: %s\n",
 			  ndr_errstr(ndr_err)));
 		TALLOC_FREE(result);
-		return ndr_map_error2ntstatus(ndr_err);;
+		return ndr_map_error2ntstatus(ndr_err);
 	}
 
 	*psecdesc_buf = result;
@@ -419,7 +420,7 @@ struct sec_desc_buf *dup_sec_desc_buf(TALLOC_CTX *ctx, struct sec_desc_buf *src)
  Add a new SID with its permissions to struct security_descriptor.
 ********************************************************************/
 
-NTSTATUS sec_desc_add_sid(TALLOC_CTX *ctx, struct security_descriptor **psd, struct dom_sid *sid, uint32 mask, size_t *sd_size)
+NTSTATUS sec_desc_add_sid(TALLOC_CTX *ctx, struct security_descriptor **psd, const struct dom_sid *sid, uint32 mask, size_t *sd_size)
 {
 	struct security_descriptor *sd   = 0;
 	struct security_acl  *dacl = 0;
@@ -607,10 +608,10 @@ NTSTATUS se_create_child_secdesc(TALLOC_CTX *ctx,
 		}
 
 		/* The CREATOR sids are special when inherited */
-		if (sid_equal(ptrustee, &global_sid_Creator_Owner)) {
+		if (dom_sid_equal(ptrustee, &global_sid_Creator_Owner)) {
 			creator = &global_sid_Creator_Owner;
 			ptrustee = owner_sid;
-		} else if (sid_equal(ptrustee, &global_sid_Creator_Group)) {
+		} else if (dom_sid_equal(ptrustee, &global_sid_Creator_Group)) {
 			creator = &global_sid_Creator_Group;
 			ptrustee = group_sid;
 		}

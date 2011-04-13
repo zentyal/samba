@@ -22,9 +22,11 @@
 #include "../libgpo/gpext/gpext.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "lib/util/dlinklist.h"
+#include "../libcli/registry/util_reg.h"
 #if _SAMBA_BUILD_ == 3
 #include "libgpo/gpo_proto.h"
 #include "registry.h"
+#include "registry/reg_api.h"
 #endif
 
 static struct gp_extension *extensions = NULL;
@@ -594,7 +596,7 @@ NTSTATUS init_gp_extensions(TALLOC_CTX *mem_ctx)
 			}
 
 			if (!reg_ctx) {
-				NT_USER_TOKEN *token;
+				struct security_token *token;
 
 				token = registry_create_system_token(mem_ctx);
 				NT_STATUS_HAVE_NO_MEMORY(token);
@@ -678,7 +680,7 @@ void debug_gpext_header(int lvl,
 NTSTATUS process_gpo_list_with_extension(ADS_STRUCT *ads,
 			   TALLOC_CTX *mem_ctx,
 			   uint32_t flags,
-			   const NT_USER_TOKEN *token,
+			   const struct security_token *token,
 			   struct GROUP_POLICY_OBJECT *gpo_list,
 			   const char *extension_guid,
 			   const char *snapin_guid)
@@ -692,7 +694,7 @@ NTSTATUS process_gpo_list_with_extension(ADS_STRUCT *ads,
 NTSTATUS gpext_process_extension(ADS_STRUCT *ads,
 				 TALLOC_CTX *mem_ctx,
 				 uint32_t flags,
-				 const NT_USER_TOKEN *token,
+				 const struct security_token *token,
 				 struct registry_key *root_key,
 				 struct GROUP_POLICY_OBJECT *gpo,
 				 const char *extension_guid,

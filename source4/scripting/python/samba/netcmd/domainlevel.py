@@ -67,7 +67,7 @@ class cmd_domainlevel(Command):
     def run(self, subcommand, H=None, forest=None, domain=None, quiet=False,
             credopts=None, sambaopts=None, versionopts=None):
         lp = sambaopts.get_loadparm()
-        creds = credopts.get_credentials(lp)
+        creds = credopts.get_credentials(lp, fallback_machine=True)
 
         samdb = SamDB(url=H, session_info=system_session(),
             credentials=creds, lp=lp)
@@ -195,8 +195,8 @@ class cmd_domainlevel(Command):
                       ldb.FLAG_MOD_REPLACE, "nTMixedDomain")
                     try:
                         samdb.modify(m)
-                    except LdbError, (num, _):
-                        if num != ldb.ERR_UNWILLING_TO_PERFORM:
+                    except ldb.LdbError, (enum, emsg):
+                        if enum != ldb.ERR_UNWILLING_TO_PERFORM:
                             raise
 
                 # Directly on the base DN
@@ -215,8 +215,8 @@ class cmd_domainlevel(Command):
                           "msDS-Behavior-Version")
                 try:
                     samdb.modify(m)
-                except LdbError, (num, _):
-                    if num != ldb.ERR_UNWILLING_TO_PERFORM:
+                except ldb.LdbError, (enum, emsg):
+                    if enum != ldb.ERR_UNWILLING_TO_PERFORM:
                         raise
 
                 level_domain = new_level_domain

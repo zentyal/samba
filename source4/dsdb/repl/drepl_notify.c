@@ -26,9 +26,8 @@
 #include "dsdb/samdb/samdb.h"
 #include "auth/auth.h"
 #include "smbd/service.h"
-#include "lib/messaging/irpc.h"
 #include "dsdb/repl/drepl_service.h"
-#include "lib/ldb/include/ldb_errors.h"
+#include <ldb_errors.h>
 #include "../lib/util/dlinklist.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "librpc/gen_ndr/ndr_drsuapi.h"
@@ -120,10 +119,6 @@ static void dreplsrv_op_notify_replica_sync_trigger(struct tevent_req *req)
 		DRSUAPI_DRS_ASYNC_OP |
 		DRSUAPI_DRS_UPDATE_NOTIFICATION |
 		DRSUAPI_DRS_WRIT_REP;
-	if (state->op->service->syncall_workaround) {
-		DEBUG(3,("sending DsReplicaSync with SYNC_ALL workaround\n"));
-		r->in.req->req1.options |= DRSUAPI_DRS_SYNC_ALL;
-	}
 
 	if (state->op->is_urgent) {
 		r->in.req->req1.options |= DRSUAPI_DRS_SYNC_URGENT;
@@ -189,46 +184,29 @@ static void dreplsrv_notify_op_callback(struct tevent_req *subreq)
 		struct dreplsrv_notify_operation);
 	NTSTATUS status;
 	struct dreplsrv_service *s = op->service;
+	WERROR werr;
 
 	status = dreplsrv_op_notify_recv(subreq);
+	werr = ntstatus_to_werror(status);
 	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
-		WERROR werr;
-		unsigned int msg_debug_level = 0;
-		werr = ntstatus_to_werror(status);
-		if (W_ERROR_EQUAL(werr, WERR_BADFILE)) {
-			/*
-			 * TODO:
-			 *
-			 * we should better fix the bug regarding
-			 * non-linked attribute handling, instead
-			 * of just hiding the failures.
-			 *
-			 * we should also remove the dc from our repsTo
-			 * if it failed to often, instead of retrying
-			 * every few seconds
-			 */
-			msg_debug_level = 2;
-		}
-
-		DEBUG(msg_debug_level,
-			("dreplsrv_notify: Failed to send DsReplicaSync to %s for %s - %s : %s\n",
+		DEBUG(4,("dreplsrv_notify: Failed to send DsReplicaSync to %s for %s - %s : %s\n",
 			 op->source_dsa->repsFrom1->other_info->dns_name,
 			 ldb_dn_get_linearized(op->source_dsa->partition->dn),
 			 nt_errstr(status), win_errstr(werr)));
-		if (W_ERROR_EQUAL(werr, WERR_DS_DRA_NO_REPLICA)) {
-			DEBUG(0,("Enabling SYNC_ALL workaround\n"));
-			op->service->syncall_workaround = true;
-		}
 	} else {
 		DEBUG(2,("dreplsrv_notify: DsReplicaSync OK for %s\n",
 			 op->source_dsa->repsFrom1->other_info->dns_name));
 		op->source_dsa->notify_uSN = op->uSN;
 	}
 
+	drepl_reps_update(s, "repsTo", op->source_dsa->partition->dn,
+			  &op->source_dsa->repsFrom1->source_dsa_obj_guid,
+			  werr);
+
 	talloc_free(op);
 	s->ops.n_current = NULL;
-	dreplsrv_notify_run_ops(s);
+	dreplsrv_run_pending_ops(s);
 }
 
 /*
@@ -270,12 +248,20 @@ void dreplsrv_notify_run_ops(struct dreplsrv_service *s)
 /*
   find a source_dsa for a given guid
  */
-static struct dreplsrv_partition_source_dsa *dreplsrv_find_source_dsa(struct dreplsrv_partition *p,
+static struct dreplsrv_partition_source_dsa *dreplsrv_find_notify_dsa(struct dreplsrv_partition *p,
 								      struct GUID *guid)
 {
 	struct dreplsrv_partition_source_dsa *s;
 
+	/* first check the sources list */
 	for (s=p->sources; s; s=s->next) {
+		if (GUID_compare(&s->repsFrom1->source_dsa_obj_guid, guid) == 0) {
+			return s;
+		}
+	}
+
+	/* then the notifies list */
+	for (s=p->notifies; s; s=s->next) {
 		if (GUID_compare(&s->repsFrom1->source_dsa_obj_guid, guid) == 0) {
 			return s;
 		}
@@ -292,25 +278,50 @@ static WERROR dreplsrv_schedule_notify_sync(struct dreplsrv_service *service,
 					    struct repsFromToBlob *reps,
 					    TALLOC_CTX *mem_ctx,
 					    uint64_t uSN,
-					    bool is_urgent)
+					    bool is_urgent,
+					    uint32_t replica_flags)
 {
 	struct dreplsrv_notify_operation *op;
 	struct dreplsrv_partition_source_dsa *s;
 
-	s = dreplsrv_find_source_dsa(p, &reps->ctr.ctr1.source_dsa_obj_guid);
+	s = dreplsrv_find_notify_dsa(p, &reps->ctr.ctr1.source_dsa_obj_guid);
 	if (s == NULL) {
 		DEBUG(0,(__location__ ": Unable to find source_dsa for %s\n",
 			 GUID_string(mem_ctx, &reps->ctr.ctr1.source_dsa_obj_guid)));
 		return WERR_DS_UNAVAILABLE;
 	}
 
+	/* first try to find an existing notify operation */
+	for (op = service->ops.notifies; op; op = op->next) {
+		if (op->source_dsa != s) {
+			continue;
+		}
+
+		if (op->is_urgent != is_urgent) {
+			continue;
+		}
+
+		if (op->replica_flags != replica_flags) {
+			continue;
+		}
+
+		if (op->uSN < uSN) {
+			op->uSN = uSN;
+		}
+
+		/* reuse the notify operation, as it's not yet started */
+		return WERR_OK;
+	}
+
 	op = talloc_zero(mem_ctx, struct dreplsrv_notify_operation);
 	W_ERROR_HAVE_NO_MEMORY(op);
 
-	op->service	= service;
-	op->source_dsa	= s;
-	op->uSN         = uSN;
-	op->is_urgent	= is_urgent;
+	op->service	  = service;
+	op->source_dsa	  = s;
+	op->uSN           = uSN;
+	op->is_urgent	  = is_urgent;
+	op->replica_flags = replica_flags;
+	op->schedule_time = time(NULL);
 
 	DLIST_ADD_END(service->ops.notifies, op, struct dreplsrv_notify_operation *);
 	talloc_steal(service, op);
@@ -350,7 +361,9 @@ static WERROR dreplsrv_notify_check(struct dreplsrv_service *s,
 	/* see if any of our partners need some of our objects */
 	for (i=0; i<count; i++) {
 		struct dreplsrv_partition_source_dsa *sdsa;
-		sdsa = dreplsrv_find_source_dsa(p, &reps[i].ctr.ctr1.source_dsa_obj_guid);
+		uint32_t replica_flags;
+		sdsa = dreplsrv_find_notify_dsa(p, &reps[i].ctr.ctr1.source_dsa_obj_guid);
+		replica_flags = reps[i].ctr.ctr1.replica_flags;
 		if (sdsa == NULL) continue;
 		if (sdsa->notify_uSN < uSNHighest) {
 			/* we need to tell this partner to replicate
@@ -359,7 +372,7 @@ static WERROR dreplsrv_notify_check(struct dreplsrv_service *s,
 
 			/* check if urgent replication is needed */
 			werr = dreplsrv_schedule_notify_sync(s, p, &reps[i], mem_ctx,
-							     uSNHighest, is_urgent);
+							     uSNHighest, is_urgent, replica_flags);
 			if (!W_ERROR_IS_OK(werr)) {
 				DEBUG(0,(__location__ ": Failed to setup notify to %s for %s\n",
 					 reps[i].ctr.ctr1.other_info->dns_name,
@@ -465,5 +478,4 @@ static void dreplsrv_notify_run(struct dreplsrv_service *service)
 	talloc_free(mem_ctx);
 
 	dreplsrv_run_pending_ops(service);
-	dreplsrv_notify_run_ops(service);
 }

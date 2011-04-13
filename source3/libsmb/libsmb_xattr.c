@@ -27,7 +27,7 @@
 #include "libsmb_internal.h"
 #include "../librpc/gen_ndr/ndr_lsa.h"
 #include "rpc_client/cli_lsarpc.h"
-
+#include "../libcli/security/security.h"
 
 /*
  * Find an lsa pipe handle associated with a cli struct.
@@ -121,8 +121,8 @@ ace_compare(struct security_ace *ace1,
 		return ace2->type - ace1->type;
         }
 
-	if (sid_compare(&ace1->trustee, &ace2->trustee)) {
-		return sid_compare(&ace1->trustee, &ace2->trustee);
+	if (dom_sid_compare(&ace1->trustee, &ace2->trustee)) {
+		return dom_sid_compare(&ace1->trustee, &ace2->trustee);
         }
 
 	if (ace1->flags != ace2->flags) {
@@ -1513,6 +1513,7 @@ cacl_set(SMBCCTX *context,
         bool numeric = True;
 	char *targetpath = NULL;
 	struct cli_state *targetcli = NULL;
+	NTSTATUS status;
 
         /* the_acl will be null for REMOVE_ALL operations */
         if (the_acl) {
@@ -1608,7 +1609,7 @@ cacl_set(SMBCCTX *context,
 			bool found = False;
 
 			for (j=0;old->dacl && j<old->dacl->num_aces;j++) {
-				if (sid_equal(&sd->dacl->aces[i].trustee,
+				if (dom_sid_equal(&sd->dacl->aces[i].trustee,
 					      &old->dacl->aces[j].trustee)) {
                                         if (!(flags & SMBC_XATTR_FLAG_CREATE)) {
                                                 err = EEXIST;
@@ -1666,9 +1667,10 @@ cacl_set(SMBCCTX *context,
 		return -1;
 	}
 
-	if (!cli_set_secdesc(targetcli, fnum, sd)) {
+	status = cli_set_secdesc(targetcli, fnum, sd);
+	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(5, ("ERROR: secdesc set failed: %s\n",
-			cli_errstr(targetcli)));
+			  nt_errstr(status)));
 		ret = -1;
 	}
 

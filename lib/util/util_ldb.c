@@ -21,18 +21,19 @@
 */
 
 #include "includes.h"
-#include "lib/ldb/include/ldb.h"
+#include <ldb.h>
 #include "../lib/util/util_ldb.h"
+
 /*
-  search the sam for the specified attributes - va_list variant
-*/
+ * search the LDB for the specified attributes - va_list variant
+ */
 int gendb_search_v(struct ldb_context *ldb,
 		   TALLOC_CTX *mem_ctx,
 		   struct ldb_dn *basedn,
 		   struct ldb_message ***msgs,
 		   const char * const *attrs,
 		   const char *format,
-		   va_list ap) 
+		   va_list ap)
 {
 	enum ldb_scope scope = LDB_SCOPE_SUBTREE;
 	struct ldb_result *res;
@@ -54,22 +55,23 @@ int gendb_search_v(struct ldb_context *ldb,
 			 expr?"%s":NULL, expr);
 
 	if (ret == LDB_SUCCESS) {
-		talloc_steal(mem_ctx, res->msgs);
-
 		DEBUG(6,("gendb_search_v: %s %s -> %d\n",
 			 basedn?ldb_dn_get_linearized(basedn):"NULL",
 			 expr?expr:"NULL", res->count));
 
 		ret = res->count;
-		*msgs = res->msgs;
+		if (msgs != NULL) {
+			*msgs = talloc_steal(mem_ctx, res->msgs);
+		}
 		talloc_free(res);
 	} else if (scope == LDB_SCOPE_BASE && ret == LDB_ERR_NO_SUCH_OBJECT) {
 		ret = 0;
-		*msgs = NULL;
+		if (msgs != NULL) *msgs = NULL;
 	} else {
 		DEBUG(4,("gendb_search_v: search failed: %s\n",
 					ldb_errstring(ldb)));
 		ret = -1;
+		if (msgs != NULL) *msgs = NULL;
 	}
 
 	talloc_free(expr);
@@ -78,14 +80,14 @@ int gendb_search_v(struct ldb_context *ldb,
 }
 
 /*
-  search the LDB for the specified attributes - varargs variant
-*/
+ * search the LDB for the specified attributes - varargs variant
+ */
 int gendb_search(struct ldb_context *ldb,
 		 TALLOC_CTX *mem_ctx,
 		 struct ldb_dn *basedn,
 		 struct ldb_message ***res,
 		 const char * const *attrs,
-		 const char *format, ...) 
+		 const char *format, ...)
 {
 	va_list ap;
 	int count;
@@ -98,9 +100,8 @@ int gendb_search(struct ldb_context *ldb,
 }
 
 /*
-  search the LDB for a specified record (by DN)
-*/
-
+ * search the LDB for a specified record (by DN)
+ */
 int gendb_search_dn(struct ldb_context *ldb,
 		 TALLOC_CTX *mem_ctx,
 		 struct ldb_dn *dn,
@@ -108,27 +109,5 @@ int gendb_search_dn(struct ldb_context *ldb,
 		 const char * const *attrs)
 {
 	return gendb_search(ldb, mem_ctx, dn, res, attrs, NULL);
-}
-
-/*
-  setup some initial ldif in a ldb
-*/
-int gendb_add_ldif(struct ldb_context *ldb, const char *ldif_string)
-{
-	struct ldb_ldif *ldif;
-	const char *s = ldif_string;
-	int ret;
-	while (s && *s != '\0') {
-		ldif = ldb_ldif_read_string(ldb, &s);
-		if (ldif == NULL) return -1;
-		ret = ldb_add(ldb, ldif->msg);
-		talloc_free(ldif);
-	}
-	return ret;
-}
-
-char *wrap_casefold(void *context, void *mem_ctx, const char *s, size_t n)
-{
-	return strupper_talloc_n(mem_ctx, s, n);
 }
 

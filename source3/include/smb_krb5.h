@@ -14,6 +14,18 @@
 #include <krb5.h>
 #endif
 
+#if HAVE_GSSAPI_GSSAPI_H
+#include <gssapi/gssapi.h>
+#elif HAVE_GSSAPI_GSSAPI_GENERIC_H
+#include <gssapi/gssapi_generic.h>
+#elif HAVE_GSSAPI_H
+#include <gssapi.h>
+#endif
+
+#if HAVE_COM_ERR_H
+#include <com_err.h>
+#endif
+
 #ifndef KRB5_ADDR_NETBIOS
 #define KRB5_ADDR_NETBIOS 0x14
 #endif
@@ -23,7 +35,7 @@
 #endif
 
 /* Heimdal uses a slightly different name */
-#if defined(HAVE_ENCTYPE_ARCFOUR_HMAC_MD5)
+#if defined(HAVE_ENCTYPE_ARCFOUR_HMAC_MD5) && !defined(HAVE_ENCTYPE_ARCFOUR_HMAC)
 #define ENCTYPE_ARCFOUR_HMAC ENCTYPE_ARCFOUR_HMAC_MD5
 #endif
 

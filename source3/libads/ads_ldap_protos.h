@@ -4,7 +4,6 @@
 
 void ads_msgfree(ADS_STRUCT *ads, LDAPMessage *msg);
 char *ads_get_dn(ADS_STRUCT *ads, TALLOC_CTX *mem_ctx, LDAPMessage *msg);
-char *ads_get_dn_canonical(ADS_STRUCT *ads, LDAPMessage *msg);
 
 char *ads_pull_string(ADS_STRUCT *ads, TALLOC_CTX *mem_ctx, LDAPMessage *msg,
 		      const char *field);
@@ -63,19 +62,11 @@ ADS_STATUS ads_do_search_retry(ADS_STRUCT *ads, const char *bind_path,
 			       int scope,
 			       const char *expr,
 			       const char **attrs, LDAPMessage **res);
-ADS_STATUS ads_do_search_retry_args(ADS_STRUCT *ads, const char *bind_path,
-				    int scope, const char *expr,
-				    const char **attrs, void *args,
-				    LDAPMessage **res);
 ADS_STATUS ads_search_retry(ADS_STRUCT *ads, LDAPMessage **res,
 			    const char *expr, const char **attrs);
 ADS_STATUS ads_search_retry_dn(ADS_STRUCT *ads, LDAPMessage **res,
 			       const char *dn,
 			       const char **attrs);
-ADS_STATUS ads_search_retry_extended_dn(ADS_STRUCT *ads, LDAPMessage **res,
-					const char *dn,
-					const char **attrs,
-					enum ads_extended_dn_flags flags);
 ADS_STATUS ads_search_retry_extended_dn_ranged(ADS_STRUCT *ads, TALLOC_CTX *mem_ctx,
 						const char *dn,
 						const char **attrs,

@@ -100,13 +100,6 @@ static bool test_openprinter_handle(struct torture_context *tctx,
 	return true;
 }
 
-static bool is_valid_policy_hnd(const struct policy_handle *hnd)
-{
-	struct policy_handle tmp;
-	ZERO_STRUCT(tmp);
-	return (memcmp(&tmp, hnd, sizeof(tmp)) != 0);
-}
-
 static bool test_openprinter_access(struct torture_context *tctx,
 				    struct dcerpc_pipe *p,
 				    const char *name,
@@ -143,6 +136,13 @@ static bool spoolss_access_setup_membership(struct torture_context *tctx,
 	struct dcerpc_binding_handle *b = p->binding_handle;
 	struct policy_handle connect_handle, domain_handle;
 	int i;
+
+	torture_comment(tctx,
+		"Setting up BUILTIN membership for %s\n",
+		dom_sid_string(tctx, user_sid));
+	for (i=0; i < num_members; i++) {
+		torture_comment(tctx, "adding user to S-1-5-32-%d\n", members[i]);
+	}
 
 	{
 		struct samr_Connect2 r;
@@ -314,7 +314,7 @@ static bool test_SetPrinter(struct torture_context *tctx,
 static bool spoolss_access_setup_sd(struct torture_context *tctx,
 				    struct dcerpc_pipe *p,
 				    const char *printername,
-				    struct dom_sid *user_sid,
+				    const struct dom_sid *user_sid,
 				    struct security_descriptor **sd_orig)
 {
 	struct dcerpc_binding_handle *b = p->binding_handle;
@@ -392,7 +392,7 @@ static bool test_EnumPrinters_findone(struct torture_context *tctx,
 	*printername = NULL;
 
 	r.in.flags = PRINTER_ENUM_LOCAL;
-	r.in.server = talloc_asprintf(tctx, "\\\\%s", dcerpc_server_name(p));
+	r.in.server = NULL;
 	r.in.level = 1;
 	r.in.buffer = NULL;
 	r.in.offered = 0;
@@ -418,6 +418,13 @@ static bool test_EnumPrinters_findone(struct torture_context *tctx,
 		"failed to enum printers");
 
 	for (i=0; i < count; i++) {
+
+		if (count > 1 && strequal(info[i].info1.name, "Microsoft XPS Document Writer")) {
+			continue;
+		}
+
+		torture_comment(tctx, "testing printer: %s\n",
+			info[i].info1.name);
 
 		*printername = talloc_strdup(tctx, info[i].info1.name);
 
@@ -453,7 +460,8 @@ static bool torture_rpc_spoolss_access_setup_common(struct torture_context *tctx
 				   CRED_SPECIFIED);
 	cli_credentials_set_username(test_credentials, t->user.username, CRED_SPECIFIED);
 	cli_credentials_set_password(test_credentials, testuser_passwd, CRED_SPECIFIED);
-	test_sid = torture_join_user_sid(testuser);
+	test_sid = discard_const_p(struct dom_sid,
+				   torture_join_user_sid(testuser));
 
 	if (t->user.num_builtin_memberships) {
 		struct dcerpc_pipe *samr_pipe = torture_join_samr_pipe(testuser);
@@ -842,7 +850,7 @@ static bool test_openprinter_wrap(struct torture_context *tctx,
 
 struct torture_suite *torture_rpc_spoolss_access(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "SPOOLSS-ACCESS");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "spoolss.access");
 	struct torture_tcase *tcase;
 	struct torture_rpc_tcase *rpc_tcase;
 

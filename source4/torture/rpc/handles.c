@@ -287,7 +287,7 @@ static bool test_handles_lsa_shared(struct torture_context *torture)
 	/* close first connection */
 	torture_comment(torture, "disconnect p1\n");
 	talloc_free(p1);
-	msleep(5);
+	smb_msleep(5);
 
 	/*
 	 * and it's still available on p2,p3
@@ -327,7 +327,7 @@ static bool test_handles_lsa_shared(struct torture_context *torture)
 	talloc_free(p2);
 	talloc_free(p3);
 	talloc_free(p4);
-	msleep(10);
+	smb_msleep(10);
 
 	/*
 	 * now open p5
@@ -455,7 +455,7 @@ static bool test_handles_mixed_shared(struct torture_context *torture)
 
 	talloc_free(p1);
 	talloc_free(p2);
-	msleep(10);
+	smb_msleep(10);
 
 	torture_comment(torture, "connect samr pipe3 - should fail\n");
 	status = torture_rpc_connection_transport(torture, &p3, &ndr_table_samr,
@@ -587,7 +587,7 @@ struct torture_suite *torture_rpc_handles(TALLOC_CTX *mem_ctx)
 {
 	struct torture_suite *suite;
 
-	suite = torture_suite_create(mem_ctx, "HANDLES");
+	suite = torture_suite_create(mem_ctx, "handles");
 	torture_suite_add_simple_test(suite, "lsarpc", test_handles_lsa);
 	torture_suite_add_simple_test(suite, "lsarpc-shared", test_handles_lsa_shared);
 	torture_suite_add_simple_test(suite, "samr", test_handles_samr);

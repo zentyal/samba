@@ -27,28 +27,31 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
+#include "dbwrap.h"
+#include "session.h"
+#include "auth.h"
 
 /********************************************************************
  called when a session is created
 ********************************************************************/
 
-bool session_claim(struct server_id pid, user_struct *vuser)
+bool session_claim(struct smbd_server_connection *sconn, user_struct *vuser)
 {
+	struct server_id pid = sconn_server_id(sconn);
 	TDB_DATA data;
 	int i = 0;
 	struct sessionid sessionid;
 	fstring keystr;
-	const char * hostname;
 	struct db_record *rec;
 	NTSTATUS status;
-	char addr[INET6_ADDRSTRLEN];
 
 	vuser->session_keystr = NULL;
 
 	/* don't register sessions for the guest user - its just too
 	   expensive to go through pam session code for browsing etc */
-	if (vuser->server_info->guest) {
+	if (vuser->session_info->guest) {
 		return True;
 	}
 
@@ -131,20 +134,14 @@ bool session_claim(struct server_id pid, user_struct *vuser)
 	   client_name() handles this case internally.
 	*/
 
-	hostname = client_name(get_client_fd());
-	if (strcmp(hostname, "UNKNOWN") == 0) {
-		hostname = client_addr(get_client_fd(),addr,sizeof(addr));
-	}
-
-	fstrcpy(sessionid.username, vuser->server_info->unix_name);
-	fstrcpy(sessionid.hostname, hostname);
+	fstrcpy(sessionid.username, vuser->session_info->unix_name);
+	fstrcpy(sessionid.hostname, sconn->client_id.name);
 	sessionid.id_num = i;  /* Only valid for utmp sessions */
 	sessionid.pid = pid;
-	sessionid.uid = vuser->server_info->utok.uid;
-	sessionid.gid = vuser->server_info->utok.gid;
+	sessionid.uid = vuser->session_info->utok.uid;
+	sessionid.gid = vuser->session_info->utok.gid;
 	fstrcpy(sessionid.remote_machine, get_remote_machine_name());
-	fstrcpy(sessionid.ip_addr_str,
-		client_addr(get_client_fd(),addr,sizeof(addr)));
+	fstrcpy(sessionid.ip_addr_str, sconn->client_id.addr);
 	sessionid.connect_start = time(NULL);
 
 	if (!smb_pam_claim_session(sessionid.username, sessionid.id_str,

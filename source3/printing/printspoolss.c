@@ -19,7 +19,11 @@
 
 #include "includes.h"
 #include "printing.h"
-#include "../librpc/gen_ndr/cli_spoolss.h"
+#include "../librpc/gen_ndr/ndr_spoolss_c.h"
+#include "rpc_server/rpc_ncacn_np.h"
+#include "smbd/smbd.h"
+#include "smbd/globals.h"
+#include "../libcli/security/security.h"
 
 void print_spool_terminate(struct connection_struct *conn,
 			   struct print_file_data *print_file);
@@ -40,7 +44,7 @@ NTSTATUS print_spool_open(files_struct *fsp,
 	NTSTATUS status;
 	TALLOC_CTX *tmp_ctx;
 	struct print_file_data *pf;
-	struct rpc_pipe_client *cli;
+	struct dcerpc_binding_handle *b = NULL;
 	struct spoolss_DevmodeContainer devmode_ctr;
 	union spoolss_DocumentInfo info;
 	int fd = -1;
@@ -120,14 +124,20 @@ NTSTATUS print_spool_open(files_struct *fsp,
 	 * all printer verification, and eventually assigns
 	 * a job id */
 
-	status = rpc_connect_spoolss_pipe(fsp->conn, &cli);
+	status = rpc_pipe_open_interface(fsp->conn,
+					 &ndr_table_spoolss.syntax_id,
+					 fsp->conn->session_info,
+					 &fsp->conn->sconn->client_id,
+					 fsp->conn->sconn->msg_ctx,
+					 &fsp->conn->spoolss_pipe);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
+	b = fsp->conn->spoolss_pipe->binding_handle;
 
 	ZERO_STRUCT(devmode_ctr);
 
-	status = rpccli_spoolss_OpenPrinter(cli, pf, pf->svcname,
+	status = dcerpc_spoolss_OpenPrinter(b, pf, pf->svcname,
 					    "RAW", devmode_ctr,
 					    SEC_FLAG_MAXIMUM_ALLOWED,
 					    &pf->handle, &werr);
@@ -148,7 +158,7 @@ NTSTATUS print_spool_open(files_struct *fsp,
 	info.info1->output_file = pf->filename;
 	info.info1->datatype = "RAW";
 
-	status = rpccli_spoolss_StartDocPrinter(cli, tmp_ctx, &pf->handle,
+	status = dcerpc_spoolss_StartDocPrinter(b, tmp_ctx, &pf->handle,
 						1, info, &pf->jobid, &werr);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
@@ -199,7 +209,9 @@ done:
 	if (!NT_STATUS_IS_OK(status)) {
 		if (fd != -1) {
 			close(fd);
-			unlink(fsp->print_file->filename);
+			if (fsp->print_file) {
+				unlink(fsp->print_file->filename);
+			}
 		}
 		/* We need to delete the job from spoolss too */
 		if (pf->jobid) {
@@ -261,23 +273,17 @@ int print_spool_write(files_struct *fsp,
 
 void print_spool_end(files_struct *fsp, enum file_close_type close_type)
 {
-	struct rpc_pipe_client *cli;
 	NTSTATUS status;
 	WERROR werr;
+	struct dcerpc_binding_handle *b = NULL;
 
-	status = rpc_connect_spoolss_pipe(fsp->conn, &cli);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("print_spool_end: "
-			  "Failed to get spoolss pipe [%s]\n",
-			  nt_errstr(status)));
-		return;
-	}
+	b = fsp->conn->spoolss_pipe->binding_handle;
 
 	switch (close_type) {
 	case NORMAL_CLOSE:
 	case SHUTDOWN_CLOSE:
 		/* this also automatically calls spoolss_EndDocPrinter */
-		status = rpccli_spoolss_ClosePrinter(cli, fsp->print_file,
+		status = dcerpc_spoolss_ClosePrinter(b, fsp->print_file,
 						&fsp->print_file->handle,
 						&werr);
 		if (!NT_STATUS_IS_OK(status) ||
@@ -296,21 +302,27 @@ void print_spool_end(files_struct *fsp, enum file_close_type close_type)
 void print_spool_terminate(struct connection_struct *conn,
 			   struct print_file_data *print_file)
 {
-	struct rpc_pipe_client *cli;
 	NTSTATUS status;
 	WERROR werr;
+	struct dcerpc_binding_handle *b = NULL;
 
 	rap_jobid_delete(print_file->svcname, print_file->jobid);
 
-	status = rpc_connect_spoolss_pipe(conn, &cli);
+	status = rpc_pipe_open_interface(conn,
+					 &ndr_table_spoolss.syntax_id,
+					 conn->session_info,
+					 &conn->sconn->client_id,
+					 conn->sconn->msg_ctx,
+					 &conn->spoolss_pipe);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("print_spool_terminate: "
 			  "Failed to get spoolss pipe [%s]\n",
 			  nt_errstr(status)));
 		return;
 	}
+	b = conn->spoolss_pipe->binding_handle;
 
-	status = rpccli_spoolss_SetJob(cli, print_file,
+	status = dcerpc_spoolss_SetJob(b, print_file,
 					&print_file->handle,
 					print_file->jobid,
 					NULL, SPOOLSS_JOB_CONTROL_DELETE,
@@ -321,7 +333,7 @@ void print_spool_terminate(struct connection_struct *conn,
 			  print_file->jobid, nt_errstr(status)));
 		return;
 	}
-	status = rpccli_spoolss_ClosePrinter(cli, print_file,
+	status = dcerpc_spoolss_ClosePrinter(b, print_file,
 					     &print_file->handle,
 					     &werr);
 	if (!NT_STATUS_IS_OK(status) ||

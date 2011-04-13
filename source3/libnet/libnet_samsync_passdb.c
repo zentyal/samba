@@ -24,7 +24,10 @@
 */
 
 #include "includes.h"
+#include "system/passwd.h"
 #include "libnet/libnet_samsync.h"
+#include "../libcli/security/security.h"
+#include "passdb.h"
 
 /* Convert a struct samu_DELTA to a struct samu. */
 #define STRING_CHANGED (old_string && !new_string) ||\
@@ -178,7 +181,8 @@ static NTSTATUS sam_account_from_delta(struct samu *account,
 		pdb_sethexhours(oldstr, pdb_get_hours(account));
 		pdb_sethexhours(newstr, r->logon_hours.bits);
 		if (!strequal(oldstr, newstr))
-			pdb_set_hours(account, r->logon_hours.bits, PDB_CHANGED);
+			pdb_set_hours(account, r->logon_hours.bits,
+				      pdb_get_hours_len(account), PDB_CHANGED);
 	}
 
 	if (pdb_get_bad_password_count(account) != r->bad_password_count)
@@ -608,7 +612,7 @@ static NTSTATUS fetch_alias_info(TALLOC_CTX *mem_ctx,
 	map.gid = grp->gr_gid;
 	map.sid = alias_sid;
 
-	if (sid_equal(dom_sid, &global_sid_Builtin))
+	if (dom_sid_equal(dom_sid, &global_sid_Builtin))
 		map.sid_name_use = SID_NAME_WKN_GRP;
 	else
 		map.sid_name_use = SID_NAME_ALIAS;

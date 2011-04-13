@@ -88,7 +88,7 @@ bool tevent_register_backend(const char *name, const struct tevent_ops *ops)
 		}
 	}
 
-	e = talloc(talloc_autofree_context(), struct tevent_ops_list);
+	e = talloc(NULL, struct tevent_ops_list);
 	if (e == NULL) return false;
 
 	e->name = name;
@@ -104,8 +104,7 @@ bool tevent_register_backend(const char *name, const struct tevent_ops *ops)
 void tevent_set_default_backend(const char *backend)
 {
 	talloc_free(tevent_default_backend);
-	tevent_default_backend = talloc_strdup(talloc_autofree_context(),
-					       backend);
+	tevent_default_backend = talloc_strdup(NULL, backend);
 }
 
 /*
@@ -114,6 +113,7 @@ void tevent_set_default_backend(const char *backend)
 static void tevent_backend_init(void)
 {
 	tevent_select_init();
+	tevent_poll_init();
 	tevent_standard_init();
 #ifdef HAVE_EPOLL
 	tevent_epoll_init();

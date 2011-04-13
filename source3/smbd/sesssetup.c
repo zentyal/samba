@@ -23,11 +23,16 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
 #include "../libcli/auth/spnego.h"
 #include "../libcli/auth/ntlmssp.h"
 #include "ntlmssp_wrap.h"
-#include "librpc/gen_ndr/messaging.h"
+#include "../librpc/gen_ndr/krb5pac.h"
+#include "libads/kerberos_proto.h"
+#include "../lib/util/asn1.h"
+#include "auth.h"
+#include "messages.h"
 
 /* For split krb5 SPNEGO blobs. */
 struct pending_auth_data {
@@ -139,14 +144,12 @@ static NTSTATUS check_guest_password(struct auth_serversupplied_info **server_in
 	struct auth_usersupplied_info *user_info = NULL;
 
 	NTSTATUS nt_status;
-	unsigned char chal[8];
-
-	ZERO_STRUCT(chal);
+	static unsigned char chal[8] = { 0, };
 
 	DEBUG(3,("Got anonymous request\n"));
 
-	if (!NT_STATUS_IS_OK(nt_status = make_auth_context_fixed(&auth_context,
-					chal))) {
+	nt_status = make_auth_context_fixed(talloc_tos(), &auth_context, chal);
+	if (!NT_STATUS_IS_OK(nt_status)) {
 		return nt_status;
 	}
 
@@ -241,10 +244,7 @@ static void reply_spnego_kerberos(struct smb_request *req,
 {
 	TALLOC_CTX *mem_ctx;
 	DATA_BLOB ticket;
-	char *client, *p, *domain;
-	fstring netbios_domain_name;
 	struct passwd *pw;
-	fstring user;
 	int sess_vuid = req->vuid;
 	NTSTATUS ret = NT_STATUS_OK;
 	DATA_BLOB ap_rep, ap_rep_wrapped, response;
@@ -252,11 +252,14 @@ static void reply_spnego_kerberos(struct smb_request *req,
 	DATA_BLOB session_key = data_blob_null;
 	uint8 tok_id[2];
 	DATA_BLOB nullblob = data_blob_null;
-	fstring real_username;
 	bool map_domainuser_to_guest = False;
 	bool username_was_mapped;
 	struct PAC_LOGON_INFO *logon_info = NULL;
 	struct smbd_server_connection *sconn = req->sconn;
+	char *principal;
+	char *user;
+	char *domain;
+	char *real_username;
 
 	ZERO_STRUCT(ticket);
 	ZERO_STRUCT(ap_rep);
@@ -279,7 +282,7 @@ static void reply_spnego_kerberos(struct smb_request *req,
 	}
 
 	ret = ads_verify_ticket(mem_ctx, lp_realm(), 0, &ticket,
-				&client, &logon_info, &ap_rep,
+				&principal, &logon_info, &ap_rep,
 				&session_key, True);
 
 	data_blob_free(&ticket);
@@ -340,11 +343,14 @@ static void reply_spnego_kerberos(struct smb_request *req,
 		return;
 	}
 
-	DEBUG(3,("Ticket name is [%s]\n", client));
-
-	p = strchr_m(client, '@');
-	if (!p) {
-		DEBUG(3,("Doesn't look like a valid principal\n"));
+	ret = get_user_from_kerberos_info(talloc_tos(),
+					  sconn->client_id.name,
+					  principal, logon_info,
+					  &username_was_mapped,
+					  &map_domainuser_to_guest,
+					  &user, &domain,
+					  &real_username, &pw);
+	if (!NT_STATUS_IS_OK(ret)) {
 		data_blob_free(&ap_rep);
 		data_blob_free(&session_key);
 		talloc_destroy(mem_ctx);
@@ -352,192 +358,28 @@ static void reply_spnego_kerberos(struct smb_request *req,
 		return;
 	}
 
-	*p = 0;
-
 	/* save the PAC data if we have it */
-
 	if (logon_info) {
-		netsamlogon_cache_store( client, &logon_info->info3 );
-	}
-
-	if (!strequal(p+1, lp_realm())) {
-		DEBUG(3,("Ticket for foreign realm %s@%s\n", client, p+1));
-		if (!lp_allow_trusted_domains()) {
-			data_blob_free(&ap_rep);
-			data_blob_free(&session_key);
-			talloc_destroy(mem_ctx);
-			reply_nterror(req, nt_status_squash(
-					      NT_STATUS_LOGON_FAILURE));
-			return;
-		}
-	}
-
-	/* this gives a fully qualified user name (ie. with full realm).
-	   that leads to very long usernames, but what else can we do? */
-
-	domain = p+1;
-
-	if (logon_info && logon_info->info3.base.domain.string) {
-		fstrcpy(netbios_domain_name,
-			logon_info->info3.base.domain.string);
-		domain = netbios_domain_name;
-		DEBUG(10, ("Mapped to [%s] (using PAC)\n", domain));
-
-	} else {
-
-		/* If we have winbind running, we can (and must) shorten the
-		   username by using the short netbios name. Otherwise we will
-		   have inconsistent user names. With Kerberos, we get the
-		   fully qualified realm, with ntlmssp we get the short
-		   name. And even w2k3 does use ntlmssp if you for example
-		   connect to an ip address. */
-
-		wbcErr wbc_status;
-		struct wbcDomainInfo *info = NULL;
-
-		DEBUG(10, ("Mapping [%s] to short name\n", domain));
-
-		wbc_status = wbcDomainInfo(domain, &info);
-
-		if (WBC_ERROR_IS_OK(wbc_status)) {
-
-			fstrcpy(netbios_domain_name,
-				info->short_name);
-
-			wbcFreeMemory(info);
-			domain = netbios_domain_name;
-			DEBUG(10, ("Mapped to [%s] (using Winbind)\n", domain));
-		} else {
-			DEBUG(3, ("Could not find short name: %s\n",
-				wbcErrorString(wbc_status)));
-		}
-	}
-
-	fstr_sprintf(user, "%s%c%s", domain, *lp_winbind_separator(), client);
-
-	/* lookup the passwd struct, create a new user if necessary */
-
-	username_was_mapped = map_username(user);
-
-	pw = smb_getpwnam( mem_ctx, user, real_username, True );
-
-	if (pw) {
-		/* if a real user check pam account restrictions */
-		/* only really perfomed if "obey pam restriction" is true */
-		/* do this before an eventual mapping to guest occurs */
-		ret = smb_pam_accountcheck(pw->pw_name);
-		if (  !NT_STATUS_IS_OK(ret)) {
-			DEBUG(1,("PAM account restriction "
-				"prevents user login\n"));
-			data_blob_free(&ap_rep);
-			data_blob_free(&session_key);
-			TALLOC_FREE(mem_ctx);
-			reply_nterror(req, nt_status_squash(ret));
-			return;
-		}
-	}
-
-	if (!pw) {
-
-		/* this was originally the behavior of Samba 2.2, if a user
-		   did not have a local uid but has been authenticated, then
-		   map them to a guest account */
-
-		if (lp_map_to_guest() == MAP_TO_GUEST_ON_BAD_UID){
-			map_domainuser_to_guest = True;
-			fstrcpy(user,lp_guestaccount());
-			pw = smb_getpwnam( mem_ctx, user, real_username, True );
-		}
-
-		/* extra sanity check that the guest account is valid */
-
-		if ( !pw ) {
-			DEBUG(1,("Username %s is invalid on this system\n",
-				user));
-			data_blob_free(&ap_rep);
-			data_blob_free(&session_key);
-			TALLOC_FREE(mem_ctx);
-			reply_nterror(req, nt_status_squash(
-					      NT_STATUS_LOGON_FAILURE));
-			return;
-		}
+		netsamlogon_cache_store(user, &logon_info->info3);
 	}
 
 	/* setup the string used by %U */
+	sub_set_smb_name(real_username);
 
-	sub_set_smb_name( real_username );
-	reload_services(True);
+	/* reload services so that the new %U is taken into account */
+	reload_services(sconn->msg_ctx, sconn->sock, True);
 
-	if ( map_domainuser_to_guest ) {
-		make_server_info_guest(NULL, &server_info);
-	} else if (logon_info) {
-		/* pass the unmapped username here since map_username()
-		   will be called again from inside make_server_info_info3() */
-
-		ret = make_server_info_info3(mem_ctx, client, domain,
-					     &server_info, &logon_info->info3);
-		if ( !NT_STATUS_IS_OK(ret) ) {
-			DEBUG(1,("make_server_info_info3 failed: %s!\n",
-				 nt_errstr(ret)));
-			data_blob_free(&ap_rep);
-			data_blob_free(&session_key);
-			TALLOC_FREE(mem_ctx);
-			reply_nterror(req, nt_status_squash(ret));
-			return;
-		}
-
-	} else {
-		/*
-		 * We didn't get a PAC, we have to make up the user
-		 * ourselves. Try to ask the pdb backend to provide
-		 * SID consistency with ntlmssp session setup
-		 */
-		struct samu *sampass;
-
-		sampass = samu_new(talloc_tos());
-		if (sampass == NULL) {
-			ret = NT_STATUS_NO_MEMORY;
-			data_blob_free(&ap_rep);
-			data_blob_free(&session_key);
-			TALLOC_FREE(mem_ctx);
-			reply_nterror(req, nt_status_squash(ret));
-			return;
-		}
-
-		if (pdb_getsampwnam(sampass, real_username)) {
-			DEBUG(10, ("found user %s in passdb, calling "
-				   "make_server_info_sam\n", real_username));
-			ret = make_server_info_sam(&server_info, sampass);
-			TALLOC_FREE(sampass);
-		} else {
-			/*
-			 * User not in passdb, make it up artificially
-			 */
-			TALLOC_FREE(sampass);
-			DEBUG(10, ("didn't find user %s in passdb, calling "
-				   "make_server_info_pw\n", real_username));
-			ret = make_server_info_pw(&server_info, real_username,
-						  pw);
-		}
-
-		if ( !NT_STATUS_IS_OK(ret) ) {
-			DEBUG(1,("make_server_info_[sam|pw] failed: %s!\n",
-				 nt_errstr(ret)));
-			data_blob_free(&ap_rep);
-			data_blob_free(&session_key);
-			TALLOC_FREE(mem_ctx);
-			reply_nterror(req, nt_status_squash(ret));
-			return;
-		}
-
-	        /* make_server_info_pw does not set the domain. Without this
-		 * we end up with the local netbios name in substitutions for
-		 * %D. */
-
-		if (server_info->info3 != NULL) {
-			server_info->info3->base.domain.string =
-				talloc_strdup(server_info->info3, domain);
-		}
+	ret = make_server_info_krb5(mem_ctx,
+				    user, domain, real_username, pw,
+				    logon_info, map_domainuser_to_guest,
+				    &server_info);
+	if (!NT_STATUS_IS_OK(ret)) {
+		DEBUG(1, ("make_server_info_krb5 failed!\n"));
+		data_blob_free(&ap_rep);
+		data_blob_free(&session_key);
+		TALLOC_FREE(mem_ctx);
+		reply_nterror(req, nt_status_squash(ret));
+		return;
 	}
 
 	server_info->nss_token |= username_was_mapped;
@@ -545,7 +387,7 @@ static void reply_spnego_kerberos(struct smb_request *req,
 	/* we need to build the token for the user. make_server_info_guest()
 	   already does this */
 
-	if ( !server_info->ptok ) {
+	if ( !server_info->security_token ) {
 		ret = create_local_token( server_info );
 		if ( !NT_STATUS_IS_OK(ret) ) {
 			DEBUG(10,("failed to create local token: %s\n",
@@ -564,6 +406,7 @@ static void reply_spnego_kerberos(struct smb_request *req,
 	}
 
 	data_blob_free(&server_info->user_session_key);
+	/* Set the kerberos-derived session key onto the server_info */
 	server_info->user_session_key = session_key;
 	talloc_steal(server_info, session_key.data);
 
@@ -574,11 +417,8 @@ static void reply_spnego_kerberos(struct smb_request *req,
 	 * no need to free after this on success. A better interface would copy
 	 * it.... */
 
-	sess_vuid = register_existing_vuid(sconn,
-					sess_vuid,
-					server_info,
-					nullblob,
-					client);
+	sess_vuid = register_existing_vuid(sconn, sess_vuid,
+					   server_info, nullblob, user);
 
 	reply_outbuf(req, 4, 0);
 	SSVAL(req->outbuf,smb_uid,sess_vuid);
@@ -587,7 +427,7 @@ static void reply_spnego_kerberos(struct smb_request *req,
 		ret = NT_STATUS_LOGON_FAILURE;
 	} else {
 		/* current_user_info is changed on new vuid */
-		reload_services( True );
+		reload_services(sconn->msg_ctx, sconn->sock, True);
 
 		SSVAL(req->outbuf, smb_vwv3, 0);
 
@@ -637,19 +477,19 @@ static void reply_spnego_ntlmssp(struct smb_request *req,
 {
 	bool do_invalidate = true;
 	DATA_BLOB response;
-	struct auth_serversupplied_info *server_info = NULL;
+	struct auth_serversupplied_info *session_info = NULL;
 	struct smbd_server_connection *sconn = req->sconn;
 
 	if (NT_STATUS_IS_OK(nt_status)) {
-		nt_status = auth_ntlmssp_steal_server_info(talloc_tos(),
-					(*auth_ntlmssp_state), &server_info);
+		nt_status = auth_ntlmssp_steal_session_info(talloc_tos(),
+					(*auth_ntlmssp_state), &session_info);
 	} else {
-		/* Note that this server_info won't have a session
+		/* Note that this session_info won't have a session
 		 * key.  But for map to guest, that's exactly the right
 		 * thing - we can't reasonably guess the key the
 		 * client wants, as the password was wrong */
 		nt_status = do_map_to_guest(nt_status,
-					    &server_info,
+					    &session_info,
 					    auth_ntlmssp_get_username(*auth_ntlmssp_state),
 					    auth_ntlmssp_get_domain(*auth_ntlmssp_state));
 	}
@@ -668,7 +508,7 @@ static void reply_spnego_ntlmssp(struct smb_request *req,
 
 		/* register_existing_vuid keeps the server info */
 		if (register_existing_vuid(sconn, vuid,
-					   server_info, nullblob,
+					   session_info, nullblob,
 					   auth_ntlmssp_get_username(*auth_ntlmssp_state)) !=
 					   vuid) {
 			/* The problem is, *auth_ntlmssp_state points
@@ -681,11 +521,11 @@ static void reply_spnego_ntlmssp(struct smb_request *req,
 		}
 
 		/* current_user_info is changed on new vuid */
-		reload_services( True );
+		reload_services(sconn->msg_ctx, sconn->sock, True);
 
 		SSVAL(req->outbuf, smb_vwv3, 0);
 
-		if (server_info->guest) {
+		if (session_info->guest) {
 			SSVAL(req->outbuf,smb_vwv2,1);
 		}
 	}
@@ -736,7 +576,8 @@ NTSTATUS parse_spnego_mechanisms(TALLOC_CTX *ctx,
 	*kerb_mechOID = NULL;
 
 	/* parse out the OIDs and the first sec blob */
-	if (!spnego_parse_negTokenInit(ctx, blob_in, OIDs, NULL, pblob_out)) {
+	if (!spnego_parse_negTokenInit(ctx, blob_in, OIDs, NULL, pblob_out) ||
+			(OIDs[0] == NULL)) {
 		return NT_STATUS_LOGON_FAILURE;
 	}
 
@@ -832,9 +673,7 @@ static void reply_spnego_negotiate(struct smb_request *req,
 	}
 #endif
 
-	if (*auth_ntlmssp_state) {
-		TALLOC_FREE(*auth_ntlmssp_state);
-	}
+	TALLOC_FREE(*auth_ntlmssp_state);
 
 	if (kerb_mech) {
 		data_blob_free(&secblob);
@@ -1257,6 +1096,10 @@ static void reply_sesssetup_and_X_spnego(struct smb_request *req)
 		} else {
 			ra_lanman_string( native_lanman );
 		}
+	} else if ( ra_type == RA_VISTA ) {
+		if ( strncmp(native_os, "Mac OS X", 8) == 0 ) {
+			set_remote_arch(RA_OSX);
+		}
 	}
 
 	/* Did we get a valid vuid ? */
@@ -1379,28 +1222,34 @@ static int shutdown_other_smbds(const struct connections_key *key,
 {
 	struct shutdown_state *state = (struct shutdown_state *)private_data;
 
+	DEBUG(10, ("shutdown_other_smbds: %s, %s\n",
+		   procid_str(talloc_tos(), &crec->pid), crec->addr));
+
 	if (!process_exists(crec->pid)) {
+		DEBUG(10, ("process does not exist\n"));
 		return 0;
 	}
 
 	if (procid_is_me(&crec->pid)) {
+		DEBUG(10, ("It's me\n"));
 		return 0;
 	}
 
 	if (strcmp(state->ip, crec->addr) != 0) {
+		DEBUG(10, ("%s does not match %s\n", state->ip, crec->addr));
 		return 0;
 	}
 
-	DEBUG(0,("shutdown_other_smbds: shutting down pid %u "
-		 "(IP %s)\n", (unsigned int)procid_to_pid(&crec->pid),
-		 state->ip));
+	DEBUG(1, ("shutdown_other_smbds: shutting down pid %u "
+		  "(IP %s)\n", (unsigned int)procid_to_pid(&crec->pid),
+		  state->ip));
 
 	messaging_send(state->msg_ctx, crec->pid, MSG_SHUTDOWN,
 		       &data_blob_null);
 	return 0;
 }
 
-static void setup_new_vc_session(struct messaging_context *msg_ctx)
+static void setup_new_vc_session(struct smbd_server_connection *sconn)
 {
 	DEBUG(2,("setup_new_vc_session: New VC == 0, if NT4.x "
 		"compatible we would close all old resources.\n"));
@@ -1409,12 +1258,18 @@ static void setup_new_vc_session(struct messaging_context *msg_ctx)
 	invalidate_all_vuids();
 #endif
 	if (lp_reset_on_zero_vc()) {
-		char addr[INET6_ADDRSTRLEN];
+		char *addr;
 		struct shutdown_state state;
 
-		state.ip = client_addr(get_client_fd(),addr,sizeof(addr));
-		state.msg_ctx = msg_ctx;
+		addr = tsocket_address_inet_addr_string(
+			sconn->remote_address, talloc_tos());
+		if (addr == NULL) {
+			return;
+		}
+		state.ip = addr;
+		state.msg_ctx = sconn->msg_ctx;
 		connections_forall_read(shutdown_other_smbds, &state);
+		TALLOC_FREE(addr);
 	}
 }
 
@@ -1469,7 +1324,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 		}
 
 		if (SVAL(req->vwv+4, 0) == 0) {
-			setup_new_vc_session(req->sconn->msg_ctx);
+			setup_new_vc_session(req->sconn);
 		}
 
 		reply_sesssetup_and_X_spnego(req);
@@ -1666,7 +1521,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 	}
 
 	if (SVAL(req->vwv+4, 0) == 0) {
-		setup_new_vc_session(req->sconn->msg_ctx);
+		setup_new_vc_session(req->sconn);
 	}
 
 	DEBUG(3,("sesssetupX:name=[%s]\\[%s]@[%s]\n",
@@ -1693,16 +1548,23 @@ void reply_sesssetup_and_X(struct smb_request *req)
 
 	sub_set_smb_name(sub_user);
 
-	reload_services(True);
+	reload_services(sconn->msg_ctx, sconn->sock, True);
 
 	if (lp_security() == SEC_SHARE) {
+		char *sub_user_mapped = NULL;
 		/* In share level we should ignore any passwords */
 
 		data_blob_free(&lm_resp);
 		data_blob_free(&nt_resp);
 		data_blob_clear_free(&plaintext_password);
 
-		map_username(sub_user);
+		(void)map_username(talloc_tos(), sub_user, &sub_user_mapped);
+		if (!sub_user_mapped) {
+			reply_nterror(req, NT_STATUS_NO_MEMORY);
+			END_PROFILE(SMBsesssetupX);
+			return;
+		}
+		fstrcpy(sub_user, sub_user_mapped);
 		add_session_user(sconn, sub_user);
 		add_session_workgroup(sconn, domain);
 		/* Then force it to null for the benfit of the code below */
@@ -1737,7 +1599,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 		struct auth_context *plaintext_auth_context = NULL;
 
 		nt_status = make_auth_context_subsystem(
-				&plaintext_auth_context);
+			talloc_tos(), &plaintext_auth_context);
 
 		if (NT_STATUS_IS_OK(nt_status)) {
 			uint8_t chal[8];
@@ -1786,7 +1648,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 		return;
 	}
 
-	if (!server_info->ptok) {
+	if (!server_info->security_token) {
 		nt_status = create_local_token(server_info);
 
 		if (!NT_STATUS_IS_OK(nt_status)) {
@@ -1846,7 +1708,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 		}
 
 		/* current_user_info is changed on new vuid */
-		reload_services( True );
+		reload_services(sconn->msg_ctx, sconn->sock, True);
 	}
 
 	data_blob_free(&nt_resp);

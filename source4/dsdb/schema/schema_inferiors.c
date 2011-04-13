@@ -1,5 +1,5 @@
 /* 
-   Unix SMB/CIFS mplementation.
+   Unix SMB/CIFS implementation.
 
    implement possibleInferiors calculation
    
@@ -49,7 +49,7 @@ static const char **schema_supclasses(const struct dsdb_schema *schema,
 		return NULL;
 	}
 
-	/* Cope with 'top SUP top', ie top is subClassOf top */ 
+	/* Cope with 'top SUP top', i.e. top is subClassOf top */
 	if (schema_class->subClassOf &&
 	    strcmp(schema_class->lDAPDisplayName, schema_class->subClassOf) == 0) {
 		schema_class->supclasses = list;
@@ -163,7 +163,9 @@ static int schema_create_subclasses(const struct dsdb_schema *schema)
 		struct dsdb_class *schema_class2 = discard_const_p(struct dsdb_class,
 			dsdb_class_by_lDAPDisplayName(schema, schema_class->subClassOf));
 		if (schema_class2 == NULL) {
-			DEBUG(0,("ERROR: no subClassOf for '%s'\n", schema_class->lDAPDisplayName));
+			DEBUG(0,("ERROR: no subClassOf '%s' for '%s'\n",
+				 schema_class->subClassOf,
+				 schema_class->lDAPDisplayName));
 			return LDB_ERR_OPERATIONS_ERROR;
 		}
 		if (schema_class2 && schema_class != schema_class2) {
@@ -181,7 +183,7 @@ static int schema_create_subclasses(const struct dsdb_schema *schema)
 	for (schema_class=schema->classes; schema_class; schema_class=schema_class->next) {
 		schema_class->subclasses = str_list_unique(schema_subclasses_recurse(schema, schema_class));
 
-		/* Initilise the subClass order, to ensure we can't have uninitilised sort on the subClass hirarchy */
+		/* Initialize the subClass order, to ensure we can't have uninitialized sort on the subClass hierarchy */
 		schema_class->subClass_order = 0;
 	}
 

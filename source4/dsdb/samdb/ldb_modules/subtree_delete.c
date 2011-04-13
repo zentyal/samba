@@ -35,6 +35,7 @@
 #include <ldb.h>
 #include <ldb_module.h>
 #include "dsdb/samdb/ldb_modules/util.h"
+#include "dsdb/common/util.h"
 
 
 static int subtree_delete(struct ldb_module *module, struct ldb_request *req)
@@ -53,8 +54,8 @@ static int subtree_delete(struct ldb_module *module, struct ldb_request *req)
 	/* see if we have any children */
 	ret = dsdb_module_search(module, req, &res, req->op.del.dn,
 				 LDB_SCOPE_ONELEVEL, attrs,
-				 DSDB_FLAG_NEXT_MODULE |
-				 DSDB_SEARCH_SHOW_DELETED,
+				 DSDB_FLAG_NEXT_MODULE,
+				 req,
 				 "(objectClass=*)");
 	if (ret != LDB_SUCCESS) {
 		talloc_free(res);
@@ -62,10 +63,13 @@ static int subtree_delete(struct ldb_module *module, struct ldb_request *req)
 	}
 	if (res->count > 0) {
 		if (ldb_request_get_control(req, LDB_CONTROL_TREE_DELETE_OID) == NULL) {
+			/* Do not add any DN outputs to this error string!
+			 * Some MMC consoles (eg release 2000) have a strange
+			 * bug and prevent subtree deletes afterwards. */
 			ldb_asprintf_errstring(ldb_module_get_ctx(module),
-					       "Cannot delete %s, not a leaf node "
-					       "(has %d children)\n",
-					       ldb_dn_get_linearized(req->op.del.dn),
+					       "subtree_delete: Unable to "
+					       "delete a non-leaf node "
+					       "(it has %u children)!",
 					       res->count);
 			talloc_free(res);
 			return LDB_ERR_NOT_ALLOWED_ON_NON_LEAF;
@@ -79,7 +83,7 @@ static int subtree_delete(struct ldb_module *module, struct ldb_request *req)
 		}
 
 		for (i = 0; i < res->count; i++) {
-			ret = dsdb_module_del(module, res->msgs[i]->dn, flags);
+			ret = dsdb_module_del(module, res->msgs[i]->dn, flags, req);
 			if (ret != LDB_SUCCESS) {
 				return ret;
 			}
@@ -107,8 +111,14 @@ static int subtree_delete_init(struct ldb_module *module)
 	return ldb_next_init(module);
 }
 
-_PUBLIC_ const struct ldb_module_ops ldb_subtree_delete_module_ops = {
+static const struct ldb_module_ops ldb_subtree_delete_module_ops = {
 	.name		   = "subtree_delete",
 	.init_context      = subtree_delete_init,
 	.del               = subtree_delete
 };
+
+int ldb_subtree_delete_module_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_subtree_delete_module_ops);
+}

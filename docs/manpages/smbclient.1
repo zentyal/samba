@@ -2,12 +2,12 @@
 .\"     Title: smbclient
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 07/28/2010
+.\"      Date: 04/01/2011
 .\"    Manual: User Commands
 .\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "SMBCLIENT" "1" "07/28/2010" "Samba 3\&.6" "User Commands"
+.TH "SMBCLIENT" "1" "04/01/2011" "Samba 3\&.6" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -132,6 +132,7 @@ parameter\&. If no WINS server has been specified this method will be ignored\&.
 \fBbcast\fR: Do a broadcast on each of the known local interfaces listed in the
 \fIinterfaces\fR
 parameter\&. This is the least reliable of the name resolution methods as it depends on the target host being on a locally connected subnet\&.
+.RE
 .sp
 .RE
 If this parameter is not set then the name resolve order defined in the
@@ -190,7 +191,7 @@ easy parseable output that allows processing with utilities such as grep and cut
 This parameter sets the maximum protocol version announced by the client\&.
 .RE
 .PP
-\-P
+\-P|\-\-machine\-pass
 .RS 4
 Make queries to the external server using the machine account of the local server\&.
 .RE
@@ -233,7 +234,7 @@ option may be useful if your NetBIOS names don\'t match your TCP/IP DNS host nam
 This option changes the transmit/send buffer size when getting or putting a file from/to the server\&. The default is 65520 bytes\&. Setting this value smaller (to 1200 bytes) has been observed to speed up file transfers to and from a Win9x server\&.
 .RE
 .PP
-\-e
+\-e|\-\-encrypt
 .RS 4
 This command line parameter requires the remote server support the UNIX extensions\&. Request that the connection be encrypted\&. This is new for Samba 3\&.2 and will only work with Samba 3\&.2 or above servers\&. Negotiates SMB encryption using GSSAPI\&. Uses the given credentials for the encryption negotiaion (either kerberos or NTLMv1/v2 if given domain/username/password triple\&. Fails the connection if encryption cannot be negotiated\&.
 .RE
@@ -521,6 +522,7 @@ flag\&.
 and
 \fIc\fR
 flags\&.
+.RE
 .sp
 .RE
 \fITar Long File Names\fR
@@ -569,7 +571,7 @@ smbclient //mypc/myshare "" \-N \-Tc backup\&.tar *
 Change to initial directory before starting\&. Probably only of any use with the tar \-T option\&.
 .RE
 .PP
-\-c|\-\-comand command string
+\-c|\-\-command command string
 .RS 4
 command string is a semicolon\-separated list of commands to be executed instead of prompting from stdin\&.
 \fI \-N\fR

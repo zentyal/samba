@@ -31,6 +31,8 @@ enum brl_flavour {WINDOWS_LOCK = 0, POSIX_LOCK = 1};
 
 #define IS_PENDING_LOCK(type) ((type) == PENDING_READ_LOCK || (type) == PENDING_WRITE_LOCK)
 
+#include "librpc/gen_ndr/server_id.h"
+
 /* This contains elements that differentiate locks. The smbpid is a
    client supplied pid, and is essentially the locking context for
    this client */
@@ -43,14 +45,7 @@ struct lock_context {
 
 struct files_struct;
 
-struct file_id {
-	/* we don't use SMB_DEV_T and SMB_INO_T as we want a fixed size here,
-	   and we may be using file system specific code to fill in something
-	   other than a dev_t for the device */
-	uint64_t devid;
-	uint64_t inode;
-	uint64_t extid; /* Support systems that use an extended id (e.g. snapshots). */
-};
+#include "../librpc/gen_ndr/file_id.h"
 
 struct byte_range_lock {
 	struct files_struct *fsp;

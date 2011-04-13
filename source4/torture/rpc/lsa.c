@@ -148,23 +148,6 @@ bool test_lsa_OpenPolicy2(struct dcerpc_binding_handle *b,
 	return test_lsa_OpenPolicy2_ex(b, tctx, handle, NT_STATUS_OK);
 }
 
-static const char *sid_type_lookup(enum lsa_SidType r)
-{
-	switch (r) {
-		case SID_NAME_USE_NONE: return "SID_NAME_USE_NONE"; break;
-		case SID_NAME_USER: return "SID_NAME_USER"; break;
-		case SID_NAME_DOM_GRP: return "SID_NAME_DOM_GRP"; break;
-		case SID_NAME_DOMAIN: return "SID_NAME_DOMAIN"; break;
-		case SID_NAME_ALIAS: return "SID_NAME_ALIAS"; break;
-		case SID_NAME_WKN_GRP: return "SID_NAME_WKN_GRP"; break;
-		case SID_NAME_DELETED: return "SID_NAME_DELETED"; break;
-		case SID_NAME_INVALID: return "SID_NAME_INVALID"; break;
-		case SID_NAME_UNKNOWN: return "SID_NAME_UNKNOWN"; break;
-		case SID_NAME_COMPUTER: return "SID_NAME_COMPUTER"; break;
-	}
-	return "Invalid sid type\n";
-}
-
 static bool test_LookupNames(struct dcerpc_binding_handle *b,
 			     struct torture_context *tctx,
 			     struct policy_handle *handle,
@@ -176,19 +159,28 @@ static bool test_LookupNames(struct dcerpc_binding_handle *b,
 	struct lsa_String *names;
 	uint32_t count = 0;
 	int i;
+	uint32_t *input_idx;
 
 	torture_comment(tctx, "\nTesting LookupNames with %d names\n", tnames->count);
 
 	sids.count = 0;
 	sids.sids = NULL;
 
+
+	r.in.num_names = 0;
+
+	input_idx = talloc_array(tctx, uint32_t, tnames->count);
 	names = talloc_array(tctx, struct lsa_String, tnames->count);
+
 	for (i=0;i<tnames->count;i++) {
-		init_lsa_String(&names[i], tnames->names[i].name.string);
+		if (tnames->names[i].sid_type != SID_NAME_UNKNOWN) {
+			init_lsa_String(&names[r.in.num_names], tnames->names[i].name.string);
+			input_idx[r.in.num_names] = i;
+			r.in.num_names++;
+		}
 	}
 
 	r.in.handle = handle;
-	r.in.num_names = tnames->count;
 	r.in.names = names;
 	r.in.sids = &sids;
 	r.in.level = 1;
@@ -201,7 +193,7 @@ static bool test_LookupNames(struct dcerpc_binding_handle *b,
 				   "LookupNames failed");
 	if (NT_STATUS_EQUAL(r.out.result, STATUS_SOME_UNMAPPED) ||
 	    NT_STATUS_EQUAL(r.out.result, NT_STATUS_NONE_MAPPED)) {
-		for (i=0;i< tnames->count;i++) {
+		for (i=0;i< r.in.num_names;i++) {
 			if (i < count && sids.sids[i].sid_type == SID_NAME_UNKNOWN) {
 				torture_comment(tctx, "LookupName of %s was unmapped\n",
 				       tnames->names[i].name.string);
@@ -219,22 +211,23 @@ static bool test_LookupNames(struct dcerpc_binding_handle *b,
 		return false;
 	}
 
-	for (i=0;i< tnames->count;i++) {
+	for (i=0;i< r.in.num_names;i++) {
 		if (i < count) {
-			if (sids.sids[i].sid_type != tnames->names[i].sid_type) {
+			if (sids.sids[i].sid_type != tnames->names[input_idx[i]].sid_type) {
 				torture_comment(tctx, "LookupName of %s got unexpected name type: %s\n",
-				       tnames->names[i].name.string, sid_type_lookup(sids.sids[i].sid_type));
+						tnames->names[input_idx[i]].name.string,
+						sid_type_lookup(sids.sids[i].sid_type));
 				return false;
 			}
 			if ((sids.sids[i].sid_type == SID_NAME_DOMAIN) &&
 			    (sids.sids[i].rid != (uint32_t)-1)) {
 				torture_comment(tctx, "LookupName of %s got unexpected rid: %d\n",
-					tnames->names[i].name.string, sids.sids[i].rid);
+					tnames->names[input_idx[i]].name.string, sids.sids[i].rid);
 				return false;
 			}
 		} else if (i >=count) {
 			torture_comment(tctx, "LookupName of %s failed to return a result\n",
-			       tnames->names[i].name.string);
+			       tnames->names[input_idx[i]].name.string);
 			return false;
 		}
 	}
@@ -394,14 +387,22 @@ static bool test_LookupNames2(struct dcerpc_binding_handle *b,
 
 	sids.count = 0;
 	sids.sids = NULL;
+	uint32_t *input_idx;
 
+	r.in.num_names = 0;
+
+	input_idx = talloc_array(tctx, uint32_t, tnames->count);
 	names = talloc_array(tctx, struct lsa_String, tnames->count);
+
 	for (i=0;i<tnames->count;i++) {
-		init_lsa_String(&names[i], tnames->names[i].name.string);
+		if (tnames->names[i].sid_type != SID_NAME_UNKNOWN) {
+			init_lsa_String(&names[r.in.num_names], tnames->names[i].name.string);
+			input_idx[r.in.num_names] = i;
+			r.in.num_names++;
+		}
 	}
 
 	r.in.handle = handle;
-	r.in.num_names = tnames->count;
 	r.in.names = names;
 	r.in.sids = &sids;
 	r.in.level = 1;
@@ -446,19 +447,26 @@ static bool test_LookupNames3(struct dcerpc_binding_handle *b,
 	struct lsa_String *names;
 	uint32_t count = 0;
 	int i;
+	uint32_t *input_idx;
 
 	torture_comment(tctx, "\nTesting LookupNames3 with %d names\n", tnames->count);
 
 	sids.count = 0;
 	sids.sids = NULL;
 
+	r.in.num_names = 0;
+
+	input_idx = talloc_array(tctx, uint32_t, tnames->count);
 	names = talloc_array(tctx, struct lsa_String, tnames->count);
 	for (i=0;i<tnames->count;i++) {
-		init_lsa_String(&names[i], tnames->names[i].name.string);
+		if (tnames->names[i].sid_type != SID_NAME_UNKNOWN) {
+			init_lsa_String(&names[r.in.num_names], tnames->names[i].name.string);
+			input_idx[r.in.num_names] = i;
+			r.in.num_names++;
+		}
 	}
 
 	r.in.handle = handle;
-	r.in.num_names = tnames->count;
 	r.in.names = names;
 	r.in.sids = &sids;
 	r.in.level = 1;
@@ -501,15 +509,23 @@ static bool test_LookupNames4(struct dcerpc_binding_handle *b,
 	struct lsa_String *names;
 	uint32_t count = 0;
 	int i;
+	uint32_t *input_idx;
 
 	torture_comment(tctx, "\nTesting LookupNames4 with %d names\n", tnames->count);
 
 	sids.count = 0;
 	sids.sids = NULL;
 
+	r.in.num_names = 0;
+
+	input_idx = talloc_array(tctx, uint32_t, tnames->count);
 	names = talloc_array(tctx, struct lsa_String, tnames->count);
 	for (i=0;i<tnames->count;i++) {
-		init_lsa_String(&names[i], tnames->names[i].name.string);
+		if (tnames->names[i].sid_type != SID_NAME_UNKNOWN) {
+			init_lsa_String(&names[r.in.num_names], tnames->names[i].name.string);
+			input_idx[r.in.num_names] = i;
+			r.in.num_names++;
+		}
 	}
 
 	r.in.num_names = tnames->count;
@@ -571,7 +587,8 @@ static bool test_LookupSids(struct dcerpc_binding_handle *b,
 
 	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupSids_r(b, tctx, &r),
 		"LookupSids failed");
-	if (!NT_STATUS_IS_OK(r.out.result)) {
+	if (!NT_STATUS_IS_OK(r.out.result) &&
+	    !NT_STATUS_EQUAL(r.out.result, STATUS_SOME_UNMAPPED)) {
 		torture_comment(tctx, "LookupSids failed - %s\n",
 				nt_errstr(r.out.result));
 		return false;
@@ -615,7 +632,8 @@ static bool test_LookupSids2(struct dcerpc_binding_handle *b,
 
 	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupSids2_r(b, tctx, &r),
 		"LookupSids2 failed");
-	if (!NT_STATUS_IS_OK(r.out.result)) {
+	if (!NT_STATUS_IS_OK(r.out.result) &&
+	    !NT_STATUS_EQUAL(r.out.result, STATUS_SOME_UNMAPPED)) {
 		torture_comment(tctx, "LookupSids2 failed - %s\n",
 				nt_errstr(r.out.result));
 		return false;
@@ -1400,7 +1418,7 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 		r5.in.new_val->size = enc_key.length;
 
 
-		msleep(200);
+		smb_msleep(200);
 		torture_comment(tctx, "Testing SetSecret (existing value should move to old)\n");
 
 		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_SetSecret_r(b, tctx, &r5),
@@ -2335,7 +2353,7 @@ static bool test_CreateTrustedDomain(struct dcerpc_binding_handle *b,
 				ret = false;
 			} else {
 				if (strcmp(info->info_ex.netbios_name.string, trustinfo.name.string) != 0) {
-					torture_comment(tctx, "QueryTrustedDomainInfo returned inconsistant short name: %s != %s\n",
+					torture_comment(tctx, "QueryTrustedDomainInfo returned inconsistent short name: %s != %s\n",
 					       info->info_ex.netbios_name.string, trustinfo.name.string);
 					ret = false;
 				}
@@ -2436,7 +2454,17 @@ static bool test_CreateTrustedDomainEx2(struct dcerpc_pipe *p,
 		generate_random_buffer(auth_struct.confounder, sizeof(auth_struct.confounder));
 
 		auth_struct.outgoing.count = 0;
+		auth_struct.outgoing.current.count = 0;
+		auth_struct.outgoing.current.array = NULL;
+		auth_struct.outgoing.previous.count = 0;
+		auth_struct.outgoing.previous.array = NULL;
+
 		auth_struct.incoming.count = 0;
+		auth_struct.incoming.current.count = 0;
+		auth_struct.incoming.current.array = NULL;
+		auth_struct.incoming.previous.count = 0;
+		auth_struct.incoming.previous.array = NULL;
+
 
 		ndr_err = ndr_push_struct_blob(&auth_blob, tctx, &auth_struct,
 					       (ndr_push_flags_fn_t)ndr_push_trustDomainPasswords);
@@ -2481,7 +2509,7 @@ static bool test_CreateTrustedDomainEx2(struct dcerpc_pipe *p,
 				ret = false;
 			} else {
 				if (strcmp(info->info_ex.netbios_name.string, trustinfo.netbios_name.string) != 0) {
-					torture_comment(tctx, "QueryTrustedDomainInfo returned inconsistant short name: %s != %s\n",
+					torture_comment(tctx, "QueryTrustedDomainInfo returned inconsistent short name: %s != %s\n",
 					       info->info_ex.netbios_name.string, trustinfo.netbios_name.string);
 					ret = false;
 				}
@@ -2938,7 +2966,7 @@ struct torture_suite *torture_rpc_lsa_lookup_names(TALLOC_CTX *mem_ctx)
 	struct torture_suite *suite;
 	struct torture_rpc_tcase *tcase;
 
-	suite = torture_suite_create(mem_ctx, "LSA-LOOKUPNAMES");
+	suite = torture_suite_create(mem_ctx, "lsa.lookupnames");
 
 	tcase = torture_suite_add_rpc_iface_tcase(suite, "lsa",
 						  &ndr_table_lsarpc);
@@ -3001,7 +3029,7 @@ struct torture_suite *torture_rpc_lsa_trusted_domains(TALLOC_CTX *mem_ctx)
 
 	state->num_trusts = 12;
 
-	suite = torture_suite_create(mem_ctx, "LSA-TRUSTED-DOMAINS");
+	suite = torture_suite_create(mem_ctx, "lsa.trusted.domains");
 
 	tcase = torture_suite_add_rpc_iface_tcase(suite, "lsa",
 						  &ndr_table_lsarpc);
@@ -3056,7 +3084,7 @@ struct torture_suite *torture_rpc_lsa_privileges(TALLOC_CTX *mem_ctx)
 	struct torture_suite *suite;
 	struct torture_rpc_tcase *tcase;
 
-	suite = torture_suite_create(mem_ctx, "LSA-PRIVILEGES");
+	suite = torture_suite_create(mem_ctx, "lsa.privileges");
 
 	tcase = torture_suite_add_rpc_iface_tcase(suite, "lsa",
 						  &ndr_table_lsarpc);

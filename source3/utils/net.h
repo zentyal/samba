@@ -22,9 +22,10 @@
  * include
  */
 
-#include "lib/netapi/netapi.h"
 #include "localedir.h"
+#include "../librpc/gen_ndr/lsa.h"
 
+#include "intl.h"
 #ifdef HAVE_LIBINTL_H
 #include <libintl.h>
 #endif
@@ -74,11 +75,16 @@ struct net_context {
 	int opt_ccache;
 	int opt_single_obj_repl;
 	int opt_clean_old_entries;
+	const char *opt_db;
+	int opt_lock;
+	int opt_auto;
+	int opt_repair;
 
 	int opt_have_ip;
 	struct sockaddr_storage opt_dest_ip;
 	bool smb_encrypt;
 	struct libnetapi_ctx *netapi_ctx;
+	struct messaging_context *msg_ctx;
 
 	bool display_usage;
 	void *private_data;

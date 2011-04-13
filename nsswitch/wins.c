@@ -19,6 +19,8 @@
 */
 
 #include "includes.h"
+#include "nsswitch/winbind_nss.h"
+
 #ifdef HAVE_NS_API_H
 
 #include <ns_daemon.h>
@@ -38,76 +40,28 @@ static pthread_mutex_t wins_nss_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int initialised;
 
-extern bool AllowDebugChange;
-
 NSS_STATUS _nss_wins_gethostbyname_r(const char *hostname, struct hostent *he,
 			  char *buffer, size_t buflen, int *h_errnop);
 NSS_STATUS _nss_wins_gethostbyname2_r(const char *name, int af, struct hostent *he,
 			   char *buffer, size_t buflen, int *h_errnop);
 
-/* Use our own create socket code so we don't recurse.... */
-
-static int wins_lookup_open_socket_in(void)
-{
-	struct sockaddr_in sock;
-	int val=1;
-	int res;
-
-	memset((char *)&sock,'\0',sizeof(sock));
-
-#ifdef HAVE_SOCK_SIN_LEN
-	sock.sin_len = sizeof(sock);
-#endif
-	sock.sin_port = 0;
-	sock.sin_family = AF_INET;
-	sock.sin_addr.s_addr = interpret_addr("0.0.0.0");
-	res = socket(AF_INET, SOCK_DGRAM, 0);
-	if (res == -1)
-		return -1;
-
-	if (setsockopt(res,SOL_SOCKET,SO_REUSEADDR,(char *)&val,sizeof(val)) != 0) {
-		close(res);
-		return -1;
-	}
-#ifdef SO_REUSEPORT
-	if (setsockopt(res,SOL_SOCKET,SO_REUSEPORT,(char *)&val,sizeof(val)) != 0) {
-		close(res);
-		return -1;
-	}
-#endif /* SO_REUSEPORT */
-
-	/* now we've got a socket - we need to bind it */
-
-	if (bind(res, (struct sockaddr * ) &sock,sizeof(sock)) < 0) {
-		close(res);
-		return(-1);
-	}
-
-	set_socket_options(res,"SO_BROADCAST");
-
-	return res;
-}
-
-
 static void nss_wins_init(void)
 {
 	initialised = 1;
-	DEBUGLEVEL = 0;
-	AllowDebugChange = False;
+	load_case_tables_library();
+	lp_set_cmdline("log level", "0");
 
 	TimeInit();
 	setup_logging("nss_wins",False);
-	load_case_tables();
 	lp_load(get_dyn_CONFIGFILE(),True,False,False,True);
 	load_interfaces();
 }
 
 static struct in_addr *lookup_byname_backend(const char *name, int *count)
 {
-	int fd = -1;
 	struct ip_service *address = NULL;
 	struct in_addr *ret = NULL;
-	int j, flags = 0;
+	int j;
 
 	if (!initialised) {
 		nss_wins_init();
@@ -126,14 +80,10 @@ static struct in_addr *lookup_byname_backend(const char *name, int *count)
 			free(ret);
 			return NULL;
 		}
-		*ret = ((struct sockaddr_in *)&address[0].ss)->sin_addr;
+		*ret = ((struct sockaddr_in *)(void *)&address[0].ss)
+			->sin_addr;
 		free( address );
 		return ret;
-	}
-
-	fd = wins_lookup_open_socket_in();
-	if (fd == -1) {
-		return NULL;
 	}
 
 	/* uggh, we have to broadcast to each interface in turn */
@@ -141,49 +91,50 @@ static struct in_addr *lookup_byname_backend(const char *name, int *count)
 		const struct in_addr *bcast = iface_n_bcast_v4(j);
 		struct sockaddr_storage ss;
 		struct sockaddr_storage *pss;
+		NTSTATUS status;
+
 		if (!bcast) {
 			continue;
 		}
 		in_addr_to_sockaddr_storage(&ss, *bcast);
-		pss = name_query(fd,name,0x00,True,True,&ss,count, &flags, NULL);
+		status = name_query(name, 0x00, True, True, &ss,
+				    NULL, &pss, count, NULL);
 		if (pss) {
 			if ((ret = SMB_MALLOC_P(struct in_addr)) == NULL) {
 				return NULL;
 			}
 			*ret = ((struct sockaddr_in *)pss)->sin_addr;
+			TALLOC_FREE(pss);
 			break;
 		}
 	}
 
-	close(fd);
 	return ret;
 }
 
 #ifdef HAVE_NS_API_H
 
-static NODE_STATUS_STRUCT *lookup_byaddr_backend(char *addr, int *count)
+static struct node_status *lookup_byaddr_backend(char *addr, int *count)
 {
-	int fd;
 	struct sockaddr_storage ss;
 	struct nmb_name nname;
-	NODE_STATUS_STRUCT *status;
+	struct node_status *result;
+	NTSTATUS status;
 
 	if (!initialised) {
 		nss_wins_init();
 	}
 
-	fd = wins_lookup_open_socket_in();
-	if (fd == -1)
-		return NULL;
-
 	make_nmb_name(&nname, "*", 0);
 	if (!interpret_string_addr(&ss, addr, AI_NUMERICHOST)) {
 		return NULL;
 	}
-	status = node_status_query(fd, &nname, &ss, count, NULL);
+	status = node_status_query(NULL, &nname, &ss, &result, count, NULL);
+	if (!NT_STATUS_IS_OK(status)) {
+		return NULL;
+	}
 
-	close(fd);
-	return status;
+	return result;
 }
 
 /* IRIX version */
@@ -201,7 +152,7 @@ int lookup(nsd_file_t *rq)
 	char *key;
 	char *addr;
 	struct in_addr *ip_list;
-	NODE_STATUS_STRUCT *status;
+	struct node_status *status;
 	int i, count, len, size;
 	char response[1024];
 	bool found = False;
@@ -233,7 +184,7 @@ int lookup(nsd_file_t *rq)
 		if ( status = lookup_byaddr_backend(key, &count)) {
 		    size = strlen(key) + 1;
 		    if (size > len) {
-			free(status);
+			talloc_free(status);
 			return NSD_ERROR;
 		    }
 		    len -= size;
@@ -245,7 +196,7 @@ int lookup(nsd_file_t *rq)
 			if (status[i].type == 0x20) {
 				size = sizeof(status[i].name) + 1;
 				if (size > len) {
-				    free(status);
+				    talloc_free(status);
 				    return NSD_ERROR;
 				}
 				len -= size;
@@ -255,7 +206,7 @@ int lookup(nsd_file_t *rq)
 			}
 		    }
 		    response[strlen(response)-1] = '\n';
-		    free(status);
+		    talloc_free(status);
 		}
 	} else if (StrCaseCmp(map,"hosts.byname") == 0) {
 	    if (ip_list = lookup_byname_backend(key, &count)) {

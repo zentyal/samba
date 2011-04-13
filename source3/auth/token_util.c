@@ -25,27 +25,29 @@
 /* functions moved from auth/auth_util.c to minimize linker deps */
 
 #include "includes.h"
+#include "auth.h"
+#include "secrets.h"
+#include "memcache.h"
+#include "../librpc/gen_ndr/netlogon.h"
+#include "../libcli/security/security.h"
+#include "../lib/util/util_pw.h"
+#include "lib/winbind_util.h"
+#include "passdb.h"
+#include "lib/privileges.h"
 
 /****************************************************************************
- Check for a SID in an NT_USER_TOKEN
+ Check for a SID in an struct security_token
 ****************************************************************************/
 
-bool nt_token_check_sid ( const struct dom_sid *sid, const NT_USER_TOKEN *token )
+bool nt_token_check_sid ( const struct dom_sid *sid, const struct security_token *token )
 {
-	int i;
-
 	if ( !sid || !token )
 		return False;
 
-	for ( i=0; i<token->num_sids; i++ ) {
-		if ( sid_equal( sid, &token->user_sids[i] ) )
-			return True;
-	}
-
-	return False;
+	return security_token_has_sid(token, sid);
 }
 
-bool nt_token_check_domain_rid( NT_USER_TOKEN *token, uint32 rid )
+bool nt_token_check_domain_rid( struct security_token *token, uint32 rid )
 {
 	struct dom_sid domain_sid;
 
@@ -72,12 +74,12 @@ bool nt_token_check_domain_rid( NT_USER_TOKEN *token, uint32 rid )
  Create a token for the root user to be used internally by smbd.
  This is similar to running under the context of the LOCAL_SYSTEM account
  in Windows.  This is a read-only token.  Do not modify it or free() it.
- Create a copy if your need to change it.
+ Create a copy if you need to change it.
 ******************************************************************************/
 
-NT_USER_TOKEN *get_root_nt_token( void )
+struct security_token *get_root_nt_token( void )
 {
-	struct nt_user_token *token, *for_cache;
+	struct security_token *token, *for_cache;
 	struct dom_sid u_sid, g_sid;
 	struct passwd *pw;
 	void *cache_data;
@@ -88,7 +90,7 @@ NT_USER_TOKEN *get_root_nt_token( void )
 
 	if (cache_data != NULL) {
 		return talloc_get_type_abort(
-			cache_data, struct nt_user_token);
+			cache_data, struct security_token);
 	}
 
 	if ( !(pw = sys_getpwuid(0)) ) {
@@ -105,10 +107,10 @@ NT_USER_TOKEN *get_root_nt_token( void )
 	uid_to_sid(&u_sid, pw->pw_uid);
 	gid_to_sid(&g_sid, pw->pw_gid);
 
-	token = create_local_nt_token(talloc_autofree_context(), &u_sid, False,
+	token = create_local_nt_token(talloc_tos(), &u_sid, False,
 				      1, &global_sid_Builtin_Administrators);
 
-	token->privileges = se_disk_operators;
+	security_token_set_privilege(token, SEC_PRIV_DISK_OPERATOR);
 
 	for_cache = token;
 
@@ -125,7 +127,7 @@ NT_USER_TOKEN *get_root_nt_token( void )
  */
 
 NTSTATUS add_aliases(const struct dom_sid *domain_sid,
-		     struct nt_user_token *token)
+		     struct security_token *token)
 {
 	uint32 *aliases;
 	size_t i, num_aliases;
@@ -140,7 +142,7 @@ NTSTATUS add_aliases(const struct dom_sid *domain_sid,
 	num_aliases = 0;
 
 	status = pdb_enum_alias_memberships(tmp_ctx, domain_sid,
-					    token->user_sids,
+					    token->sids,
 					    token->num_sids,
 					    &aliases, &num_aliases);
 
@@ -154,7 +156,7 @@ NTSTATUS add_aliases(const struct dom_sid *domain_sid,
 		struct dom_sid alias_sid;
 		sid_compose(&alias_sid, domain_sid, aliases[i]);
 		status = add_sid_to_array_unique(token, &alias_sid,
-						 &token->user_sids,
+						 &token->sids,
 						 &token->num_sids);
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(0, ("add_sid_to_array failed\n"));
@@ -170,7 +172,7 @@ done:
 /*******************************************************************
 *******************************************************************/
 
-static NTSTATUS add_builtin_administrators(struct nt_user_token *token,
+static NTSTATUS add_builtin_administrators(struct security_token *token,
 					   const struct dom_sid *dom_sid)
 {
 	struct dom_sid domadm;
@@ -196,7 +198,7 @@ static NTSTATUS add_builtin_administrators(struct nt_user_token *token,
 	if ( nt_token_check_sid( &domadm, token ) ) {
 		status = add_sid_to_array(token,
 					  &global_sid_Builtin_Administrators,
-					  &token->user_sids, &token->num_sids);
+					  &token->sids, &token->num_sids);
 	if (!NT_STATUS_IS_OK(status)) {
 			return status;
 		}
@@ -205,153 +207,23 @@ static NTSTATUS add_builtin_administrators(struct nt_user_token *token,
 	return NT_STATUS_OK;
 }
 
-/**
- * Create the requested BUILTIN if it doesn't already exist.  This requires
- * winbindd to be running.
- *
- * @param[in] rid BUILTIN rid to create
- * @return Normal NTSTATUS return.
- */
-static NTSTATUS create_builtin(uint32 rid)
-{
-	NTSTATUS status = NT_STATUS_OK;
-	struct dom_sid sid;
-	gid_t gid;
-
-	if (!sid_compose(&sid, &global_sid_Builtin, rid)) {
-		return NT_STATUS_NO_SUCH_ALIAS;
-	}
-
-	if (!sid_to_gid(&sid, &gid)) {
-		if (!lp_winbind_nested_groups() || !winbind_ping()) {
-			return NT_STATUS_PROTOCOL_UNREACHABLE;
-		}
-		status = pdb_create_builtin_alias(rid);
-	}
-	return status;
-}
-
-/**
- * Add sid as a member of builtin_sid.
- *
- * @param[in] builtin_sid	An existing builtin group.
- * @param[in] dom_sid		sid to add as a member of builtin_sid.
- * @return Normal NTSTATUS return
- */
-static NTSTATUS add_sid_to_builtin(const struct dom_sid *builtin_sid,
-				   const struct dom_sid *dom_sid)
-{
-	NTSTATUS status = NT_STATUS_OK;
-
-	if (!dom_sid || !builtin_sid) {
-		return NT_STATUS_INVALID_PARAMETER;
-	}
-
-	status = pdb_add_aliasmem(builtin_sid, dom_sid);
-
-	if (NT_STATUS_EQUAL(status, NT_STATUS_MEMBER_IN_ALIAS)) {
-		DEBUG(5, ("add_sid_to_builtin %s is already a member of %s\n",
-			  sid_string_dbg(dom_sid),
-			  sid_string_dbg(builtin_sid)));
-		return NT_STATUS_OK;
-	}
-
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(4, ("add_sid_to_builtin %s could not be added to %s: "
-			  "%s\n", sid_string_dbg(dom_sid),
-			  sid_string_dbg(builtin_sid), nt_errstr(status)));
-	}
-	return status;
-}
-
-/*******************************************************************
-*******************************************************************/
-
-NTSTATUS create_builtin_users(const struct dom_sid *dom_sid)
-{
-	NTSTATUS status;
-	struct dom_sid dom_users;
-
-	status = create_builtin(BUILTIN_RID_USERS);
-	if ( !NT_STATUS_IS_OK(status) ) {
-		DEBUG(5,("create_builtin_users: Failed to create Users\n"));
-		return status;
-	}
-
-	/* add domain users */
-	if ((IS_DC || (lp_server_role() == ROLE_DOMAIN_MEMBER))
-		&& sid_compose(&dom_users, dom_sid, DOMAIN_RID_USERS))
-	{
-		status = add_sid_to_builtin(&global_sid_Builtin_Users,
-					    &dom_users);
-	}
-
-	return status;
-}
-
-/*******************************************************************
-*******************************************************************/
-
-NTSTATUS create_builtin_administrators(const struct dom_sid *dom_sid)
-{
-	NTSTATUS status;
-	struct dom_sid dom_admins, root_sid;
-	fstring root_name;
-	enum lsa_SidType type;
-	TALLOC_CTX *ctx;
-	bool ret;
-
-	status = create_builtin(BUILTIN_RID_ADMINISTRATORS);
-	if ( !NT_STATUS_IS_OK(status) ) {
-		DEBUG(5,("create_builtin_administrators: Failed to create Administrators\n"));
-		return status;
-	}
-
-	/* add domain admins */
-	if ((IS_DC || (lp_server_role() == ROLE_DOMAIN_MEMBER))
-		&& sid_compose(&dom_admins, dom_sid, DOMAIN_RID_ADMINS))
-	{
-		status = add_sid_to_builtin(&global_sid_Builtin_Administrators,
-					    &dom_admins);
-		if (!NT_STATUS_IS_OK(status)) {
-			return status;
-		}
-	}
-
-	/* add root */
-	if ( (ctx = talloc_init("create_builtin_administrators")) == NULL ) {
-		return NT_STATUS_NO_MEMORY;
-	}
-	fstr_sprintf( root_name, "%s\\root", get_global_sam_name() );
-	ret = lookup_name(ctx, root_name, LOOKUP_NAME_DOMAIN, NULL, NULL,
-			  &root_sid, &type);
-	TALLOC_FREE( ctx );
-
-	if ( ret ) {
-		status = add_sid_to_builtin(&global_sid_Builtin_Administrators,
-					    &root_sid);
-	}
-
-	return status;
-}
-
-static NTSTATUS finalize_local_nt_token(struct nt_user_token *result,
+static NTSTATUS finalize_local_nt_token(struct security_token *result,
 					bool is_guest);
 
 NTSTATUS create_local_nt_token_from_info3(TALLOC_CTX *mem_ctx,
 					  bool is_guest,
 					  struct netr_SamInfo3 *info3,
 					  struct extra_auth_info *extra,
-					  struct nt_user_token **ntok)
+					  struct security_token **ntok)
 {
-	struct nt_user_token *usrtok = NULL;
+	struct security_token *usrtok = NULL;
 	NTSTATUS status;
 	int i;
 
 	DEBUG(10, ("Create local NT token for %s\n",
 		   info3->base.account_name.string));
 
-	usrtok = talloc_zero(mem_ctx, struct nt_user_token);
+	usrtok = talloc_zero(mem_ctx, struct security_token);
 	if (!usrtok) {
 		DEBUG(0, ("talloc failed\n"));
 		return NT_STATUS_NO_MEMORY;
@@ -361,8 +233,8 @@ NTSTATUS create_local_nt_token_from_info3(TALLOC_CTX *mem_ctx,
 	/* check if the user rid is the special "Domain Guests" rid.
 	 * If so pick the first sid for the extra sids instead as it
 	 * is a local fake account */
-	usrtok->user_sids = talloc_array(usrtok, struct dom_sid, 2);
-	if (!usrtok->user_sids) {
+	usrtok->sids = talloc_array(usrtok, struct dom_sid, 2);
+	if (!usrtok->sids) {
 		TALLOC_FREE(usrtok);
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -379,10 +251,10 @@ NTSTATUS create_local_nt_token_from_info3(TALLOC_CTX *mem_ctx,
 			TALLOC_FREE(usrtok);
 			return NT_STATUS_UNSUCCESSFUL;
 		}
-		sid_copy(&usrtok->user_sids[0], &extra->user_sid);
+		sid_copy(&usrtok->sids[0], &extra->user_sid);
 	} else {
-		sid_copy(&usrtok->user_sids[0], info3->base.domain_sid);
-		sid_append_rid(&usrtok->user_sids[0], info3->base.rid);
+		sid_copy(&usrtok->sids[0], info3->base.domain_sid);
+		sid_append_rid(&usrtok->sids[0], info3->base.rid);
 	}
 
 	/* GROUP SID */
@@ -396,10 +268,10 @@ NTSTATUS create_local_nt_token_from_info3(TALLOC_CTX *mem_ctx,
 			TALLOC_FREE(usrtok);
 			return NT_STATUS_UNSUCCESSFUL;
 		}
-		sid_copy(&usrtok->user_sids[1], &extra->pgid_sid);
+		sid_copy(&usrtok->sids[1], &extra->pgid_sid);
 	} else {
-		sid_copy(&usrtok->user_sids[1], info3->base.domain_sid);
-		sid_append_rid(&usrtok->user_sids[1],
+		sid_copy(&usrtok->sids[1], info3->base.domain_sid);
+		sid_append_rid(&usrtok->sids[1],
 				info3->base.primary_gid);
 	}
 
@@ -416,7 +288,7 @@ NTSTATUS create_local_nt_token_from_info3(TALLOC_CTX *mem_ctx,
 		sid_append_rid(&tmp_sid, info3->base.groups.rids[i].rid);
 
 		status = add_sid_to_array_unique(usrtok, &tmp_sid,
-						 &usrtok->user_sids,
+						 &usrtok->sids,
 						 &usrtok->num_sids);
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(3, ("Failed to add SID to nt token\n"));
@@ -430,7 +302,7 @@ NTSTATUS create_local_nt_token_from_info3(TALLOC_CTX *mem_ctx,
 	for (i = 0; i < info3->sidcount; i++) {
 		status = add_sid_to_array_unique(usrtok,
 						 info3->sids[i].sid,
-						 &usrtok->user_sids,
+						 &usrtok->sids,
 						 &usrtok->num_sids);
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(3, ("Failed to add SID to nt token\n"));
@@ -454,20 +326,20 @@ NTSTATUS create_local_nt_token_from_info3(TALLOC_CTX *mem_ctx,
  Create a NT token for the user, expanding local aliases
 *******************************************************************/
 
-struct nt_user_token *create_local_nt_token(TALLOC_CTX *mem_ctx,
+struct security_token *create_local_nt_token(TALLOC_CTX *mem_ctx,
 					    const struct dom_sid *user_sid,
 					    bool is_guest,
 					    int num_groupsids,
 					    const struct dom_sid *groupsids)
 {
-	struct nt_user_token *result = NULL;
+	struct security_token *result = NULL;
 	int i;
 	NTSTATUS status;
 
 	DEBUG(10, ("Create local NT token for %s\n",
 		   sid_string_dbg(user_sid)));
 
-	if (!(result = TALLOC_ZERO_P(mem_ctx, struct nt_user_token))) {
+	if (!(result = TALLOC_ZERO_P(mem_ctx, struct security_token))) {
 		DEBUG(0, ("talloc failed\n"));
 		return NULL;
 	}
@@ -475,7 +347,7 @@ struct nt_user_token *create_local_nt_token(TALLOC_CTX *mem_ctx,
 	/* Add the user and primary group sid */
 
 	status = add_sid_to_array(result, user_sid,
-				  &result->user_sids, &result->num_sids);
+				  &result->sids, &result->num_sids);
 	if (!NT_STATUS_IS_OK(status)) {
 		TALLOC_FREE(result);
 		return NULL;
@@ -484,7 +356,7 @@ struct nt_user_token *create_local_nt_token(TALLOC_CTX *mem_ctx,
 	/* For guest, num_groupsids may be zero. */
 	if (num_groupsids) {
 		status = add_sid_to_array(result, &groupsids[0],
-					  &result->user_sids,
+					  &result->sids,
 					  &result->num_sids);
 		if (!NT_STATUS_IS_OK(status)) {
 			TALLOC_FREE(result);
@@ -500,7 +372,7 @@ struct nt_user_token *create_local_nt_token(TALLOC_CTX *mem_ctx,
 
 	for (i=1; i<num_groupsids; i++) {
 		status = add_sid_to_array_unique(result, &groupsids[i],
-						 &result->user_sids,
+						 &result->sids,
 						 &result->num_sids);
 		if (!NT_STATUS_IS_OK(status)) {
 			TALLOC_FREE(result);
@@ -517,7 +389,7 @@ struct nt_user_token *create_local_nt_token(TALLOC_CTX *mem_ctx,
 	return result;
 }
 
-static NTSTATUS finalize_local_nt_token(struct nt_user_token *result,
+static NTSTATUS finalize_local_nt_token(struct security_token *result,
 					bool is_guest)
 {
 	struct dom_sid dom_sid;
@@ -527,19 +399,19 @@ static NTSTATUS finalize_local_nt_token(struct nt_user_token *result,
 	/* Add in BUILTIN sids */
 
 	status = add_sid_to_array(result, &global_sid_World,
-				  &result->user_sids, &result->num_sids);
+				  &result->sids, &result->num_sids);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
 	status = add_sid_to_array(result, &global_sid_Network,
-				  &result->user_sids, &result->num_sids);
+				  &result->sids, &result->num_sids);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
 
 	if (is_guest) {
 		status = add_sid_to_array(result, &global_sid_Builtin_Guests,
-					  &result->user_sids,
+					  &result->sids,
 					  &result->num_sids);
 		if (!NT_STATUS_IS_OK(status)) {
 			return status;
@@ -547,7 +419,7 @@ static NTSTATUS finalize_local_nt_token(struct nt_user_token *result,
 	} else {
 		status = add_sid_to_array(result,
 					  &global_sid_Authenticated_Users,
-					  &result->user_sids,
+					  &result->sids,
 					  &result->num_sids);
 		if (!NT_STATUS_IS_OK(status)) {
 			return status;
@@ -638,36 +510,10 @@ static NTSTATUS finalize_local_nt_token(struct nt_user_token *result,
 
 	/* Add privileges based on current user sids */
 
-	get_privileges_for_sids(&result->privileges, result->user_sids,
+	get_privileges_for_sids(&result->privilege_mask, result->sids,
 				result->num_sids);
 
 	return NT_STATUS_OK;
-}
-
-/****************************************************************************
- prints a NT_USER_TOKEN to debug output.
-****************************************************************************/
-
-void debug_nt_user_token(int dbg_class, int dbg_lev, NT_USER_TOKEN *token)
-{
-	size_t     i;
-
-	if (!token) {
-		DEBUGC(dbg_class, dbg_lev, ("NT user token: (NULL)\n"));
-		return;
-	}
-
-	DEBUGC(dbg_class, dbg_lev,
-	       ("NT user token of user %s\n",
-		sid_string_dbg(&token->user_sids[0]) ));
-	DEBUGADDC(dbg_class, dbg_lev,
-		  ("contains %lu SIDs\n", (unsigned long)token->num_sids));
-	for (i = 0; i < token->num_sids; i++)
-		DEBUGADDC(dbg_class, dbg_lev,
-			  ("SID[%3lu]: %s\n", (unsigned long)i,
-			   sid_string_dbg(&token->user_sids[i])));
-
-	dump_se_priv( dbg_class, dbg_lev, &token->privileges );
 }
 
 /****************************************************************************
@@ -712,7 +558,7 @@ NTSTATUS create_token_from_username(TALLOC_CTX *mem_ctx, const char *username,
 				    bool is_guest,
 				    uid_t *uid, gid_t *gid,
 				    char **found_username,
-				    struct nt_user_token **token)
+				    struct security_token **token)
 {
 	NTSTATUS result = NT_STATUS_NO_SUCH_USER;
 	TALLOC_CTX *tmp_ctx = talloc_stackframe();
@@ -721,9 +567,9 @@ NTSTATUS create_token_from_username(TALLOC_CTX *mem_ctx, const char *username,
 	gid_t *gids;
 	struct dom_sid *group_sids;
 	struct dom_sid unix_group_sid;
-	size_t num_group_sids;
-	size_t num_gids;
-	size_t i;
+	uint32_t num_group_sids;
+	uint32_t num_gids;
+	uint32_t i;
 
 	if (!lookup_name_smbconf(tmp_ctx, username, LOOKUP_NAME_ALL,
 			 NULL, NULL, &user_sid, &type)) {
@@ -739,7 +585,7 @@ NTSTATUS create_token_from_username(TALLOC_CTX *mem_ctx, const char *username,
 
 	if (sid_check_is_in_our_domain(&user_sid)) {
 		bool ret;
-
+		uint32_t pdb_num_group_sids;
 		/* This is a passdb user, so ask passdb */
 
 		struct samu *sam_acct = NULL;
@@ -762,7 +608,7 @@ NTSTATUS create_token_from_username(TALLOC_CTX *mem_ctx, const char *username,
 
 		result = pdb_enum_group_memberships(tmp_ctx, sam_acct,
 						    &group_sids, &gids,
-						    &num_group_sids);
+						    &pdb_num_group_sids);
 		if (!NT_STATUS_IS_OK(result)) {
 			DEBUG(1, ("enum_group_memberships failed for %s (%s): "
 				  "%s\n", username, sid_string_dbg(&user_sid),
@@ -770,6 +616,7 @@ NTSTATUS create_token_from_username(TALLOC_CTX *mem_ctx, const char *username,
 			DEBUGADD(1, ("Fall back to unix user %s\n", username));
 			goto unix_user;
 		}
+		num_group_sids = pdb_num_group_sids;
 
 		/* see the smb_panic() in pdb_default_enum_group_memberships */
 		SMB_ASSERT(num_group_sids > 0);
@@ -785,14 +632,14 @@ NTSTATUS create_token_from_username(TALLOC_CTX *mem_ctx, const char *username,
 		 * about the mapping of guest sid to lp_guestaccount()
 		 * username and will return the unix_pw info for a guest
 		 * user. Use it if it's there, else lookup the *uid details
-		 * using getpwnam_alloc(). See bug #6291 for details. JRA.
+		 * using Get_Pwnam_alloc(). See bug #6291 for details. JRA.
 		 */
 
 		/* We must always assign the *uid. */
 		if (sam_acct->unix_pw == NULL) {
-			struct passwd *pwd = getpwnam_alloc(sam_acct, *found_username );
+			struct passwd *pwd = Get_Pwnam_alloc(sam_acct, *found_username );
 			if (!pwd) {
-				DEBUG(10, ("getpwnam_alloc failed for %s\n",
+				DEBUG(10, ("Get_Pwnam_alloc failed for %s\n",
 					*found_username));
 				result = NT_STATUS_NO_SUCH_USER;
 				goto done;
@@ -808,7 +655,7 @@ NTSTATUS create_token_from_username(TALLOC_CTX *mem_ctx, const char *username,
 		*uid = sam_acct->unix_pw->pw_uid;
 
 	} else 	if (sid_check_is_in_unix_users(&user_sid)) {
-
+		uint32_t getgroups_num_group_sids;
 		/* This is a unix user not in passdb. We need to ask nss
 		 * directly, without consulting passdb */
 
@@ -839,11 +686,12 @@ NTSTATUS create_token_from_username(TALLOC_CTX *mem_ctx, const char *username,
 		}
 
 		if (!getgroups_unix_user(tmp_ctx, username, pass->pw_gid,
-					 &gids, &num_group_sids)) {
+					 &gids, &getgroups_num_group_sids)) {
 			DEBUG(1, ("getgroups_unix_user for user %s failed\n",
 				  username));
 			goto done;
 		}
+		num_group_sids = getgroups_num_group_sids;
 
 		if (num_group_sids) {
 			group_sids = TALLOC_ARRAY(tmp_ctx, struct dom_sid, num_group_sids);
@@ -876,8 +724,6 @@ NTSTATUS create_token_from_username(TALLOC_CTX *mem_ctx, const char *username,
 		 * correct info. AD might prohibit winbind looking up that
 		 * information. */
 
-		uint32 dummy;
-
 		/* We must always assign the *uid. */
 		if (!sid_to_uid(&user_sid, uid)) {
 			DEBUG(1, ("winbindd case, sid_to_uid for %s (%s) failed\n",
@@ -895,7 +741,7 @@ NTSTATUS create_token_from_username(TALLOC_CTX *mem_ctx, const char *username,
 		}
 
 		sid_copy(&group_sids[0], &user_sid);
-		sid_split_rid(&group_sids[0], &dummy);
+		sid_split_rid(&group_sids[0], NULL);
 		sid_append_rid(&group_sids[0], DOMAIN_RID_USERS);
 
 		if (!sid_to_gid(&group_sids[0], gid)) {
@@ -963,7 +809,7 @@ bool user_in_group_sid(const char *username, const struct dom_sid *group_sid)
 	uid_t uid;
 	gid_t gid;
 	char *found_username;
-	struct nt_user_token *token;
+	struct security_token *token;
 	bool result;
 	TALLOC_CTX *mem_ctx = talloc_stackframe();
 
@@ -977,7 +823,7 @@ bool user_in_group_sid(const char *username, const struct dom_sid *group_sid)
 		return False;
 	}
 
-	result = nt_token_check_sid(group_sid, token);
+	result = security_token_has_sid(token, group_sid);
 
 	TALLOC_FREE(mem_ctx);
 	return result;

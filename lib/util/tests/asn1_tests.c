@@ -29,7 +29,7 @@ struct oid_data {
 };
 
 /* Data for successful OIDs conversions */
-struct oid_data oid_data_ok[] = {
+static const struct oid_data oid_data_ok[] = {
 	{
 		.oid = "2.5.4.0",
 		.bin_oid = "550400"
@@ -64,8 +64,19 @@ struct oid_data oid_data_ok[] = {
 	},
 };
 
+/* Data for successful OIDs conversions */
+static const char *oid_data_err[] = {
+		"",		/* empty OID */
+		".2.5.4.130",	/* first sub-identifier is empty */
+		"2.5.4.130.",	/* last sub-identifier is empty */
+		"2..5.4.130",	/* second sub-identifier is empty */
+		"2.5..4.130",	/* third sub-identifier is empty */
+		"2.abc.4.130", 	/* invalid sub-identifier */
+		"2.5abc.4.130", /* invalid sub-identifier (alpha-numeric)*/
+};
+
 /* Data for successful Partial OIDs conversions */
-struct oid_data partial_oid_data_ok[] = {
+static const struct oid_data partial_oid_data_ok[] = {
 	{
 		.oid = "2.5.4.130:0x81",
 		.bin_oid = "5504810281"
@@ -100,10 +111,11 @@ static bool test_ber_write_OID_String(struct torture_context *tctx)
 	char *hex_str;
 	DATA_BLOB blob;
 	TALLOC_CTX *mem_ctx;
-	struct oid_data *data = oid_data_ok;
+	const struct oid_data *data = oid_data_ok;
 
 	mem_ctx = talloc_new(tctx);
 
+	/* check for valid OIDs */
 	for (i = 0; i < ARRAY_SIZE(oid_data_ok); i++) {
 		torture_assert(tctx, ber_write_OID_String(mem_ctx, &blob, data[i].oid),
 				"ber_write_OID_String failed");
@@ -117,6 +129,16 @@ static bool test_ber_write_OID_String(struct torture_context *tctx)
 						data[i].oid, data[i].bin_oid));
 	}
 
+	/* check for invalid OIDs */
+	for (i = 0; i < ARRAY_SIZE(oid_data_err); i++) {
+		torture_assert(tctx,
+			       !ber_write_OID_String(mem_ctx, &blob, oid_data_err[i]),
+			       talloc_asprintf(mem_ctx,
+					       "Should fail for [%s] -> %s",
+					       oid_data_err[i],
+					       hex_encode_talloc(mem_ctx, blob.data, blob.length)));
+	}
+
 	talloc_free(mem_ctx);
 
 	return true;
@@ -126,10 +148,10 @@ static bool test_ber_write_OID_String(struct torture_context *tctx)
 static bool test_ber_read_OID_String(struct torture_context *tctx)
 {
 	int i;
-	const char *oid;
+	char *oid;
 	DATA_BLOB oid_blob;
 	TALLOC_CTX *mem_ctx;
-	struct oid_data *data = oid_data_ok;
+	const struct oid_data *data = oid_data_ok;
 
 	mem_ctx = talloc_new(tctx);
 
@@ -157,7 +179,7 @@ static bool test_ber_write_partial_OID_String(struct torture_context *tctx)
 	char *hex_str;
 	DATA_BLOB blob;
 	TALLOC_CTX *mem_ctx;
-	struct oid_data *data = oid_data_ok;
+	const struct oid_data *data = oid_data_ok;
 
 	mem_ctx = talloc_new(tctx);
 
@@ -199,10 +221,10 @@ static bool test_ber_write_partial_OID_String(struct torture_context *tctx)
 static bool test_ber_read_partial_OID_String(struct torture_context *tctx)
 {
 	int i;
-	const char *oid;
+	char *oid;
 	DATA_BLOB oid_blob;
 	TALLOC_CTX *mem_ctx;
-	struct oid_data *data = oid_data_ok;
+	const struct oid_data *data = oid_data_ok;
 
 	mem_ctx = talloc_new(tctx);
 
@@ -242,7 +264,7 @@ static bool test_ber_read_partial_OID_String(struct torture_context *tctx)
 /* LOCAL-ASN1 test suite creation */
 struct torture_suite *torture_local_util_asn1(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "ASN1");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "asn1");
 
 	torture_suite_add_simple_test(suite, "ber_write_OID_String",
 				      test_ber_write_OID_String);

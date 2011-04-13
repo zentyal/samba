@@ -363,7 +363,8 @@ DATA_BLOB NTLMv2_generate_names_blob(TALLOC_CTX *mem_ctx,
 {
 	DATA_BLOB names_blob = data_blob_talloc(mem_ctx, NULL, 0);
 
-	msrpc_gen(mem_ctx, &names_blob,
+	/* Deliberately ignore return here.. */
+	(void)msrpc_gen(mem_ctx, &names_blob,
 		  "aaa",
 		  MsvAvNbDomainName, domain,
 		  MsvAvNbComputerName, hostname,
@@ -386,7 +387,8 @@ static DATA_BLOB NTLMv2_generate_client_data(TALLOC_CTX *mem_ctx, const DATA_BLO
 
 	/* See http://www.ubiqx.org/cifs/SMB.html#SMB.8.5 */
 
-	msrpc_gen(mem_ctx, &response, "ddbbdb",
+	/* Deliberately ignore return here.. */
+	(void)msrpc_gen(mem_ctx, &response, "ddbbdb",
 		  0x00000101,     /* Header  */
 		  0,              /* 'Reserved'  */
 		  long_date, 8,	  /* Timestamp */
@@ -529,7 +531,7 @@ bool SMBNTLMv2encrypt(TALLOC_CTX *mem_ctx,
 bool encode_pw_buffer(uint8_t buffer[516], const char *password, int string_flags)
 {
 	uint8_t new_pw[512];
-	size_t new_pw_len;
+	ssize_t new_pw_len;
 
 	/* the incoming buffer can be any alignment. */
 	string_flags |= STR_NOALIGN;
@@ -537,6 +539,9 @@ bool encode_pw_buffer(uint8_t buffer[516], const char *password, int string_flag
 	new_pw_len = push_string(new_pw,
 				 password,
 				 sizeof(new_pw), string_flags);
+	if (new_pw_len == -1) {
+		return false;
+	}
 
 	memcpy(&buffer[512 - new_pw_len], new_pw, new_pw_len);
 

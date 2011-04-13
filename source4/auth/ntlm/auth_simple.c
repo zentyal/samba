@@ -35,11 +35,12 @@ _PUBLIC_ NTSTATUS authenticate_username_pw(TALLOC_CTX *mem_ctx,
 					   const char *nt4_domain,
 					   const char *nt4_username,
 					   const char *password,
+					   const uint32_t logon_parameters,
 					   struct auth_session_info **session_info) 
 {
 	struct auth_context *auth_context;
 	struct auth_usersupplied_info *user_info;
-	struct auth_serversupplied_info *server_info;
+	struct auth_user_info_dc *user_info_dc;
 	NTSTATUS nt_status;
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 
@@ -56,7 +57,7 @@ _PUBLIC_ NTSTATUS authenticate_username_pw(TALLOC_CTX *mem_ctx,
 		return nt_status;
 	}
 
-	user_info = talloc(tmp_ctx, struct auth_usersupplied_info);
+	user_info = talloc_zero(tmp_ctx, struct auth_usersupplied_info);
 	if (!user_info) {
 		talloc_free(tmp_ctx);
 		return NT_STATUS_NO_MEMORY;
@@ -78,9 +79,11 @@ _PUBLIC_ NTSTATUS authenticate_username_pw(TALLOC_CTX *mem_ctx,
 	user_info->flags = USER_INFO_CASE_INSENSITIVE_USERNAME |
 		USER_INFO_DONT_CHECK_UNIX_ACCOUNT;
 
-	user_info->logon_parameters = 0;
+	user_info->logon_parameters = logon_parameters |
+		MSV1_0_CLEARTEXT_PASSWORD_ALLOWED |
+		MSV1_0_CLEARTEXT_PASSWORD_SUPPLIED;
 
-	nt_status = auth_check_password(auth_context, tmp_ctx, user_info, &server_info);
+	nt_status = auth_check_password(auth_context, tmp_ctx, user_info, &user_info_dc);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		talloc_free(tmp_ctx);
 		return nt_status;
@@ -88,11 +91,11 @@ _PUBLIC_ NTSTATUS authenticate_username_pw(TALLOC_CTX *mem_ctx,
 
 	if (session_info) {
 		uint32_t flags = AUTH_SESSION_INFO_DEFAULT_GROUPS;
-		if (server_info->authenticated) {
+		if (user_info_dc->info->authenticated) {
 			flags |= AUTH_SESSION_INFO_AUTHENTICATED;
 		}
 		nt_status = auth_context->generate_session_info(tmp_ctx, auth_context,
-								server_info,
+								user_info_dc,
 								flags,
 								session_info);
 

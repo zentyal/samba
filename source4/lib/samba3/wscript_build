@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
 
-bld.SAMBA_SUBSYSTEM('SMBPASSWD',
-	source='smbpasswd.c',
-	deps='CHARSET LIBSAMBA-UTIL'
-	)
+bld.SAMBA_LIBRARY('smbpasswdparser',
+                  source='smbpasswd.c',
+                  deps='samba-util',
+                  private_library=True
+                  )
 

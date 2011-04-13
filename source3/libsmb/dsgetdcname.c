@@ -27,7 +27,6 @@
 #include "libads/dns.h"
 #include "libsmb/clidgram.h"
 
-#define DSGETDCNAME_FMT	"DSGETDCNAME/DOMAIN/%s"
 /* 15 minutes */
 #define DSGETDCNAME_CACHE_TTL	60*15
 
@@ -127,7 +126,8 @@ static char *dsgetdcname_cache_key(TALLOC_CTX *mem_ctx, const char *domain)
 		return NULL;
 	}
 
-	return talloc_asprintf_strupper_m(mem_ctx, DSGETDCNAME_FMT, domain);
+	return talloc_asprintf_strupper_m(mem_ctx, "DSGETDCNAME/DOMAIN/%s",
+					  domain);
 }
 
 /****************************************************************
@@ -629,7 +629,7 @@ static NTSTATUS discover_dc_dns(TALLOC_CTX *mem_ctx,
 		 * back to netbios lookups is that our DNS server doesn't know
 		 * anything about the DC's   -- jerry */
 
-		if (!is_zero_addr((struct sockaddr *)(void *)&r->ss)) {
+		if (!is_zero_addr(&r->ss)) {
 			count++;
 			continue;
 		}
@@ -900,30 +900,6 @@ static NTSTATUS process_dc_dns(TALLOC_CTX *mem_ctx,
 /****************************************************************
 ****************************************************************/
 
-static struct event_context *ev_context(void)
-{
-	static struct event_context *ctx;
-
-	if (!ctx && !(ctx = event_context_init(NULL))) {
-		smb_panic("Could not init event context");
-	}
-	return ctx;
-}
-
-/****************************************************************
-****************************************************************/
-
-static struct messaging_context *msg_context(TALLOC_CTX *mem_ctx)
-{
-	static struct messaging_context *ctx;
-
-	if (!ctx && !(ctx = messaging_init(mem_ctx, procid_self(),
-					   ev_context()))) {
-		smb_panic("Could not init messaging context");
-	}
-	return ctx;
-}
-
 /****************************************************************
 ****************************************************************/
 
@@ -948,8 +924,8 @@ static NTSTATUS process_dc_netbios(TALLOC_CTX *mem_ctx,
 			      NETLOGON_NT_VERSION_5 |
 			      NETLOGON_NT_VERSION_5EX_WITH_IP;
 
-	if (!msg_ctx) {
-		msg_ctx = msg_context(mem_ctx);
+	if (msg_ctx == NULL) {
+		return NT_STATUS_INVALID_PARAMETER;
 	}
 
 	if (flags & DS_PDC_REQUIRED) {
@@ -961,6 +937,11 @@ static NTSTATUS process_dc_netbios(TALLOC_CTX *mem_ctx,
 	DEBUG(10,("process_dc_netbios\n"));
 
 	for (i=0; i<num_dcs; i++) {
+		uint16_t val;
+		int dgm_id;
+
+		generate_random_buffer((uint8_t *)&val, 2);
+		dgm_id = val;
 
 		ip_list.ss = dclist[i].ss;
 		ip_list.port = 0;
@@ -969,25 +950,13 @@ static NTSTATUS process_dc_netbios(TALLOC_CTX *mem_ctx,
 			return NT_STATUS_UNSUCCESSFUL;
 		}
 
-		if (send_getdc_request(mem_ctx, msg_ctx,
-				       &dclist[i].ss, domain_name,
-				       NULL, nt_version))
-		{
-			int k;
-			smb_msleep(300);
-			for (k=0; k<5; k++) {
-				if (receive_getdc_response(mem_ctx,
-							   &dclist[i].ss,
-							   domain_name,
-							   &nt_version,
-							   &dc_name,
-							   &r)) {
-					store_cache = true;
-					namecache_store(dc_name, NBT_NAME_SERVER, 1, &ip_list);
-					goto make_reply;
-				}
-				smb_msleep(1500);
-			}
+		status = nbt_getdc(msg_ctx, &dclist[i].ss, domain_name,
+				   NULL, nt_version,
+				   mem_ctx, &nt_version, &dc_name, &r);
+		if (NT_STATUS_IS_OK(status)) {
+			store_cache = true;
+			namecache_store(dc_name, NBT_NAME_SERVER, 1, &ip_list);
+			goto make_reply;
 		}
 
 		if (name_status_find(domain_name,

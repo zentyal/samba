@@ -1,9 +1,23 @@
 #!/bin/sh
-
-# Tests for the "net registry" and "net rpc registry" commands.
+#
+# Blackbox tests for the "net registry" and "net rpc registry" commands.
+#
+# Copyright (C) 2010-2011 Michael Adam <obnox@samba.org>
+# Copyright (C) 2010 Gregor Beck <gbeck@sernet.de>
+#
 # rpc tests are chose by specifying "rpc" as commandline parameter.
 
-RPC="$1"
+if [ $# -lt 3 ]; then
+cat <<EOF
+Usage: test_net_registry.sh SCRIPTDIR SERVERCONFFILE CONFIGURATION RPC
+EOF
+exit 1;
+fi
+
+SCRIPTDIR="$1"
+SERVERCONFFILE="$2"
+CONFIGURATION="$3"
+RPC="$4"
 
 NET="$VALGRIND ${NET:-$BINDIR/net} $CONFIGURATION"
 
@@ -14,8 +28,8 @@ else
 fi
 
 test x"$TEST_FUNCTIONS_SH" != x"INCLUDED" && {
-incdir=`dirname $0`
-. $incdir/test_functions.sh
+incdir=`dirname $0`/../../../testprogs/blackbox
+. $incdir/subunit.sh
 }
 
 failed=0
@@ -144,7 +158,7 @@ test_deletekey()
 	fi
 
 	UNEXPECTED="Keyname = ${SUBKEY}"
-	printf "%s\n" "$OUTPUT" | 'grep ^Keyname' | grep ${SUBKEY}
+	printf "%s\n" "$OUTPUT" | grep '^Keyname' | grep ${SUBKEY}
 	if test "x$?" = "x0" ; then
 		echo "ERROR: found '$UNEXPECTED' after delete in output"
 		echo "output:"
@@ -316,43 +330,6 @@ test_setvalue_twice()
 	${NETREG} setvalue ${KEY} "${VALNAME}" ${VALTYPE2} ${VALVALUE2}
 }
 
-give_administrative_rights()
-{
-	bin/net -s $SERVERCONFFILE sam createbuiltingroup Administrators
-	if test "x$?" != "x0" ; then
-		echo "ERROR: creating builtin group Administrators"
-		false
-		return
-	fi
-
-	bin/net -s $SERVERCONFFILE sam addmem BUILTIN\\Administrators $USERNAME
-	if test "x$?" != "x0" ; then
-		echo "ERROR: adding user $USERNAME to BUILTIN\\Administrators"
-		false
-	else
-		true
-	fi
-}
-
-take_administrative_rights()
-{
-	bin/net -s $SERVERCONFFILE sam delmem BUILTIN\\Administrators $USERNAME
-	if test "x$?" != "x0" ; then
-		echo "ERROR: removing user $USERNAME from BUILTIN\\Administrators"
-		false
-	else
-		true
-	fi
-}
-
-if test "x${RPC}" = "xrpc" ; then
-testit "giving user ${USERNAME} administrative rights" \
-	give_administrative_rights
-	if [ "x$?" != "x0" ] ; then
-		failed=`expr $failed + 1`
-		testok $0 $failed
-	fi
-fi
 
 testit "enumerate HKLM" \
 	test_enumerate HKLM || \
@@ -433,11 +410,6 @@ testit "delete key with value" \
 	test_deletekey HKLM/testkey || \
 	failed=`expr $failed + 1`
 
-if test "x${RPC}" = "xrpc" ; then
-testit "taking administrative rights from user ${USERNAME}" \
-	take_administrative_rights || \
-	failed=`expr $failed + 1`
-fi
 
 testok $0 $failed
 

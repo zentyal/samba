@@ -21,26 +21,31 @@
 #include "../libgpo/gpo.h"
 #include "libgpo/gpo_proto.h"
 #include "registry.h"
+#include "registry/reg_api.h"
 #include "registry/reg_backend_db.h"
+#include "registry/reg_api_util.h"
+#include "registry/reg_init_basic.h"
+#include "../libcli/security/security.h"
+#include "../libcli/registry/util_reg.h"
 
 
 /****************************************************************
 ****************************************************************/
 
-struct nt_user_token *registry_create_system_token(TALLOC_CTX *mem_ctx)
+struct security_token *registry_create_system_token(TALLOC_CTX *mem_ctx)
 {
-	struct nt_user_token *token = NULL;
+	struct security_token *token = NULL;
 
-	token = TALLOC_ZERO_P(mem_ctx, struct nt_user_token);
+	token = TALLOC_ZERO_P(mem_ctx, struct security_token);
 	if (!token) {
 		DEBUG(1,("talloc failed\n"));
 		return NULL;
 	}
 
-	token->privileges = se_priv_all;
+	token->privilege_mask = SE_ALL_PRIVS;
 
 	if (!NT_STATUS_IS_OK(add_sid_to_array(token, &global_sid_System,
-			 &token->user_sids, &token->num_sids))) {
+			 &token->sids, &token->num_sids))) {
 		DEBUG(1,("Error adding nt-authority system sid to token\n"));
 		return NULL;
 	}
@@ -54,7 +59,7 @@ struct nt_user_token *registry_create_system_token(TALLOC_CTX *mem_ctx)
 WERROR gp_init_reg_ctx(TALLOC_CTX *mem_ctx,
 		       const char *initial_path,
 		       uint32_t desired_access,
-		       const struct nt_user_token *token,
+		       const struct security_token *token,
 		       struct gp_registry_context **reg_ctx)
 {
 	struct gp_registry_context *tmp_ctx;
@@ -314,16 +319,16 @@ static const char *gp_reg_groupmembership_path(TALLOC_CTX *mem_ctx,
 
 static WERROR gp_reg_del_groupmembership(TALLOC_CTX *mem_ctx,
 					 struct registry_key *key,
-					 const struct nt_user_token *token,
+					 const struct security_token *token,
 					 uint32_t flags)
 {
 	const char *path = NULL;
 
-	path = gp_reg_groupmembership_path(mem_ctx, &token->user_sids[0],
+	path = gp_reg_groupmembership_path(mem_ctx, &token->sids[0],
 					   flags);
 	W_ERROR_HAVE_NO_MEMORY(path);
 
-	return reg_deletekey_recursive(mem_ctx, key, path);
+	return reg_deletekey_recursive(key, path);
 
 }
 
@@ -332,7 +337,7 @@ static WERROR gp_reg_del_groupmembership(TALLOC_CTX *mem_ctx,
 
 static WERROR gp_reg_store_groupmembership(TALLOC_CTX *mem_ctx,
 					   struct gp_registry_context *reg_ctx,
-					   const struct nt_user_token *token,
+					   const struct security_token *token,
 					   uint32_t flags)
 {
 	struct registry_key *key = NULL;
@@ -343,7 +348,7 @@ static WERROR gp_reg_store_groupmembership(TALLOC_CTX *mem_ctx,
 	const char *val = NULL;
 	int count = 0;
 
-	path = gp_reg_groupmembership_path(mem_ctx, &token->user_sids[0],
+	path = gp_reg_groupmembership_path(mem_ctx, &token->sids[0],
 					   flags);
 	W_ERROR_HAVE_NO_MEMORY(path);
 
@@ -358,7 +363,7 @@ static WERROR gp_reg_store_groupmembership(TALLOC_CTX *mem_ctx,
 		valname = talloc_asprintf(mem_ctx, "Group%d", count++);
 		W_ERROR_HAVE_NO_MEMORY(valname);
 
-		val = sid_string_talloc(mem_ctx, &token->user_sids[i]);
+		val = sid_string_talloc(mem_ctx, &token->sids[i]);
 		W_ERROR_HAVE_NO_MEMORY(val);
 		werr = gp_store_reg_val_sz(mem_ctx, key, valname, val);
 		W_ERROR_NOT_OK_RETURN(werr);
@@ -377,7 +382,7 @@ static WERROR gp_reg_store_groupmembership(TALLOC_CTX *mem_ctx,
 static WERROR gp_reg_read_groupmembership(TALLOC_CTX *mem_ctx,
 					  struct gp_registry_context *reg_ctx,
 					  const struct dom_sid *object_sid,
-					  struct nt_user_token **token,
+					  struct security_token **token,
 					  uint32_t flags)
 {
 	struct registry_key *key = NULL;
@@ -388,9 +393,9 @@ static WERROR gp_reg_read_groupmembership(TALLOC_CTX *mem_ctx,
 	const char *path = NULL;
 	uint32_t count = 0;
 	int num_token_sids = 0;
-	struct nt_user_token *tmp_token = NULL;
+	struct security_token *tmp_token = NULL;
 
-	tmp_token = TALLOC_ZERO_P(mem_ctx, struct nt_user_token);
+	tmp_token = TALLOC_ZERO_P(mem_ctx, struct security_token);
 	W_ERROR_HAVE_NO_MEMORY(tmp_token);
 
 	path = gp_reg_groupmembership_path(mem_ctx, object_sid, flags);
@@ -410,7 +415,7 @@ static WERROR gp_reg_read_groupmembership(TALLOC_CTX *mem_ctx,
 		werr = gp_read_reg_val_sz(mem_ctx, key, valname, &val);
 		W_ERROR_NOT_OK_RETURN(werr);
 
-		if (!string_to_sid(&tmp_token->user_sids[num_token_sids++],
+		if (!string_to_sid(&tmp_token->sids[num_token_sids++],
 				   val)) {
 			return WERR_INSUFFICIENT_BUFFER;
 		}
@@ -444,7 +449,7 @@ static WERROR gp_del_reg_state(TALLOC_CTX *mem_ctx,
 			       struct registry_key *key,
 			       const char *path)
 {
-	return reg_deletesubkeys_recursive(mem_ctx, key, path);
+	return reg_deletesubkeys_recursive(key, path);
 }
 
 /****************************************************************
@@ -453,7 +458,7 @@ static WERROR gp_del_reg_state(TALLOC_CTX *mem_ctx,
 WERROR gp_reg_state_store(TALLOC_CTX *mem_ctx,
 			  uint32_t flags,
 			  const char *dn,
-			  const struct nt_user_token *token,
+			  const struct security_token *token,
 			  struct GROUP_POLICY_OBJECT *gpo_list)
 {
 	struct gp_registry_context *reg_ctx = NULL;
@@ -468,7 +473,7 @@ WERROR gp_reg_state_store(TALLOC_CTX *mem_ctx,
 	W_ERROR_NOT_OK_RETURN(werr);
 
 	werr = gp_secure_key(mem_ctx, flags, reg_ctx->curr_key,
-			     &token->user_sids[0]);
+			     &token->sids[0]);
 	if (!W_ERROR_IS_OK(werr)) {
 		DEBUG(0,("failed to secure key: %s\n", win_errstr(werr)));
 		goto done;
@@ -480,7 +485,7 @@ WERROR gp_reg_state_store(TALLOC_CTX *mem_ctx,
 		goto done;
 	}
 
-	subkeyname = gp_req_state_path(mem_ctx, &token->user_sids[0], flags);
+	subkeyname = gp_req_state_path(mem_ctx, &token->sids[0], flags);
 	if (!subkeyname) {
 		werr = WERR_NOMEM;
 		goto done;
@@ -950,7 +955,7 @@ WERROR reg_apply_registry_entry(TALLOC_CTX *mem_ctx,
 				struct registry_key *root_key,
 				struct gp_registry_context *reg_ctx,
 				struct gp_registry_entry *entry,
-				const struct nt_user_token *token,
+				const struct security_token *token,
 				uint32_t flags)
 {
 	WERROR werr;
@@ -979,7 +984,7 @@ WERROR reg_apply_registry_entry(TALLOC_CTX *mem_ctx,
 		case GP_REG_ACTION_SEC_KEY_SET:
 			werr = gp_secure_key(mem_ctx, flags,
 					     key,
-					     &token->user_sids[0]);
+					     &token->sids[0]);
 			if (!W_ERROR_IS_OK(werr)) {
 				DEBUG(0,("reg_apply_registry_entry: "
 					"gp_secure_key failed: %s\n",

@@ -21,7 +21,11 @@
  */
 
 #include "includes.h"
+#include "ads.h"
+#include "idmap.h"
 #include "idmap_adex.h"
+#include "../libcli/ldap/ldap_ndr.h"
+#include "../libcli/security/dom_sid.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_IDMAP
@@ -483,7 +487,7 @@ static NTSTATUS search_forest(struct likewise_cell *forest_cell,
 
 		switch (fdata->ftype) {
 		case SidFilter:
-			sid_binstr = sid_binstring(frame, &fdata->filter.sid);
+			sid_binstr = ldap_encode_ndr_dom_sid(frame, &fdata->filter.sid);
 			BAIL_ON_PTR_ERROR(sid_binstr, nt_status);
 
 			filter = talloc_asprintf(frame, "(objectSid=%s)", sid_binstr);

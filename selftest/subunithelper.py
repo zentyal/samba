@@ -20,13 +20,21 @@ __all__ = ['parse_results']
 import re
 import sys
 import subunit
-import time
+import subunit.iso8601
+import testtools
 
 VALID_RESULTS = ['success', 'successful', 'failure', 'fail', 'skip', 'knownfail', 'error', 'xfail', 'skip-testsuite', 'testsuite-failure', 'testsuite-xfail', 'testsuite-success', 'testsuite-error']
 
+class TestsuiteEnabledTestResult(testtools.testresult.TestResult):
+
+    def start_testsuite(self, name):
+        raise NotImplementedError(self.start_testsuite)
+
+
 def parse_results(msg_ops, statistics, fh):
+    exitcode = 0
     expected_fail = 0
-    open_tests = []
+    open_tests = {}
 
     while fh:
         l = fh.readline()
@@ -34,18 +42,26 @@ def parse_results(msg_ops, statistics, fh):
             break
         parts = l.split(None, 1)
         if not len(parts) == 2 or not l.startswith(parts[0]):
+            msg_ops.output_msg(l)
             continue
         command = parts[0].rstrip(":")
         arg = parts[1]
         if command in ("test", "testing"):
             msg_ops.control_msg(l)
-            msg_ops.start_test(arg.rstrip())
-            open_tests.append(arg.rstrip())
+            name = arg.rstrip()
+            test = subunit.RemotedTestCase(name)
+            if name in open_tests:
+                msg_ops.addError(open_tests.pop(name), subunit.RemoteError(u"Test already running"))
+            msg_ops.startTest(test)
+            open_tests[name] = test
         elif command == "time":
             msg_ops.control_msg(l)
-            grp = re.match(
-                "(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)\n", arg)
-            msg_ops.report_time(time.mktime((int(grp.group(1)), int(grp.group(2)), int(grp.group(3)), int(grp.group(4)), int(grp.group(5)), int(grp.group(6)), 0, 0, 0)))
+            try:
+                dt = subunit.iso8601.parse_date(arg.rstrip("\n"))
+            except TypeError, e:
+                print "Unable to parse time line: %s" % arg.rstrip("\n")
+            else:
+                msg_ops.time(dt)
         elif command in VALID_RESULTS:
             msg_ops.control_msg(l)
             result = command
@@ -65,69 +81,79 @@ def parse_results(msg_ops, statistics, fh):
                         break
                     else:
                         reason += l
-                
+
+                remote_error = subunit.RemoteError(reason.decode("utf-8"))
+
                 if not terminated:
                     statistics['TESTS_ERROR']+=1
-                    msg_ops.end_test(testname, "error", True, 
-                                       "reason (%s) interrupted" % result)
+                    msg_ops.addError(subunit.RemotedTestCase(testname), subunit.RemoteError(u"reason (%s) interrupted" % result))
                     return 1
             else:
                 reason = None
+                remote_error = subunit.RemoteError(u"No reason specified")
             if result in ("success", "successful"):
                 try:
-                    open_tests.remove(testname)
-                except ValueError:
+                    test = open_tests.pop(testname)
+                except KeyError:
                     statistics['TESTS_ERROR']+=1
-                    msg_ops.end_test(testname, "error", True, 
-                            "Test was never started")
+                    exitcode = 1
+                    msg_ops.addError(subunit.RemotedTestCase(testname), subunit.RemoteError(u"Test was never started"))
                 else:
                     statistics['TESTS_EXPECTED_OK']+=1
-                    msg_ops.end_test(testname, "success", False, reason)
+                    msg_ops.addSuccess(test)
             elif result in ("xfail", "knownfail"):
                 try:
-                    open_tests.remove(testname)
-                except ValueError:
+                    test = open_tests.pop(testname)
+                except KeyError:
                     statistics['TESTS_ERROR']+=1
-                    msg_ops.end_test(testname, "error", True, 
-                            "Test was never started")
+                    exitcode = 1
+                    msg_ops.addError(subunit.RemotedTestCase(testname), subunit.RemoteError(u"Test was never started"))
                 else:
                     statistics['TESTS_EXPECTED_FAIL']+=1
-                    msg_ops.end_test(testname, "xfail", False, reason)
+                    msg_ops.addExpectedFailure(test, remote_error)
                     expected_fail+=1
             elif result in ("failure", "fail"):
                 try:
-                    open_tests.remove(testname)
-                except ValueError:
+                    test = open_tests.pop(testname)
+                except KeyError:
                     statistics['TESTS_ERROR']+=1
-                    msg_ops.end_test(testname, "error", True, 
-                            "Test was never started")
+                    exitcode = 1
+                    msg_ops.addError(subunit.RemotedTestCase(testname), subunit.RemoteError(u"Test was never started"))
                 else:
                     statistics['TESTS_UNEXPECTED_FAIL']+=1
-                    msg_ops.end_test(testname, "failure", True, reason)
+                    exitcode = 1
+                    msg_ops.addFailure(test, remote_error)
             elif result == "skip":
                 statistics['TESTS_SKIP']+=1
                 # Allow tests to be skipped without prior announcement of test
-                last = open_tests.pop()
-                if last is not None and last != testname:
-                    open_tests.append(testname)
-                msg_ops.end_test(testname, "skip", False, reason)
+                try:
+                    test = open_tests.pop(testname)
+                except KeyError:
+                    test = subunit.RemotedTestCase(testname)
+                msg_ops.addSkip(test, reason)
             elif result == "error":
                 statistics['TESTS_ERROR']+=1
+                exitcode = 1
                 try:
-                    open_tests.remove(testname)
-                except ValueError:
-                    pass
-                msg_ops.end_test(testname, "error", True, reason)
+                    test = open_tests.pop(testname)
+                except KeyError:
+                    test = subunit.RemotedTestCase(testname)
+                msg_ops.addError(test, remote_error)
             elif result == "skip-testsuite":
                 msg_ops.skip_testsuite(testname)
             elif result == "testsuite-success":
                 msg_ops.end_testsuite(testname, "success", reason)
             elif result == "testsuite-failure":
                 msg_ops.end_testsuite(testname, "failure", reason)
+                exitcode = 1
             elif result == "testsuite-xfail":
                 msg_ops.end_testsuite(testname, "xfail", reason)
             elif result == "testsuite-error":
                 msg_ops.end_testsuite(testname, "error", reason)
+                exitcode = 1
+            else:
+                raise AssertionError("Recognized but unhandled result %r" %
+                    result)
         elif command == "testsuite":
             msg_ops.start_testsuite(arg.strip())
         elif command == "progress":
@@ -144,76 +170,34 @@ def parse_results(msg_ops, statistics, fh):
             msg_ops.output_msg(l)
 
     while open_tests:
-        msg_ops.end_test(open_tests.pop(), "error", True,
-                   "was started but never finished!")
+        test = subunit.RemotedTestCase(open_tests.popitem()[1])
+        msg_ops.addError(test, subunit.RemoteError(u"was started but never finished!"))
         statistics['TESTS_ERROR']+=1
+        exitcode = 1
 
-    if statistics['TESTS_ERROR'] > 0:
-        return 1
-    if statistics['TESTS_UNEXPECTED_FAIL'] > 0:
-        return 1 
-    return 0
+    return exitcode
 
 
-class SubunitOps(object):
-
-    def start_test(self, testname):
-        print "test: %s" % testname
-
-    def end_test(self, name, result, reason=None):
-        if reason:
-            print "%s: %s [" % (result, name)
-            print "%s" % reason
-            print "]"
-        else:
-            print "%s: %s" % (result, name)
-
-    def skip_test(self, name, reason=None):
-        self.end_test(name, "skip", reason)
-
-    def fail_test(self, name, reason=None):
-        self.end_test(name, "fail", reason)
-
-    def success_test(self, name, reason=None):
-        self.end_test(name, "success", reason)
-
-    def xfail_test(self, name, reason=None):
-        self.end_test(name, "xfail", reason)
-
-    def report_time(self, t):
-        (year, mon, mday, hour, min, sec, wday, yday, isdst) = time.localtime(t)
-        print "time: %04d-%02d-%02d %02d:%02d:%02d" % (year, mon, mday, hour, min, sec)
-
-    def progress(self, offset, whence):
-        if whence == subunit.PROGRESS_CUR and offset > -1:
-            prefix = "+"
-        elif whence == subunit.PROGRESS_PUSH:
-            prefix = ""
-            offset = "push"
-        elif whence == subunit.PROGRESS_POP:
-            prefix = ""
-            offset = "pop"
-        else:
-            prefix = ""
-        print "progress: %s%s" % (prefix, offset)
+class SubunitOps(subunit.TestProtocolClient,TestsuiteEnabledTestResult):
 
     # The following are Samba extensions:
     def start_testsuite(self, name):
-        print "testsuite: %s" % name
+        self._stream.write("testsuite: %s\n" % name)
 
     def skip_testsuite(self, name, reason=None):
         if reason:
-            print "skip-testsuite: %s [\n%s\n]" % (name, reason)
+            self._stream.write("skip-testsuite: %s [\n%s\n]\n" % (name, reason))
         else:
-            print "skip-testsuite: %s" % name
+            self._stream.write("skip-testsuite: %s\n" % name)
 
     def end_testsuite(self, name, result, reason=None):
         if reason:
-            print "testsuite-%s: %s [" % (result, name)
-            print "%s" % reason
-            print "]"
+            self._stream.write("testsuite-%s: %s [\n%s\n]\n" % (result, name, reason))
         else:
-            print "testsuite-%s: %s" % (result, name)
+            self._stream.write("testsuite-%s: %s\n" % (result, name))
+
+    def output_msg(self, msg):
+        self._stream.write(msg)
 
 
 def read_test_regexes(name):
@@ -243,13 +227,20 @@ def find_in_list(regexes, fullname):
     return None
 
 
-class FilterOps(object):
+class ImmediateFail(Exception):
+    """Raised to abort immediately."""
+
+    def __init__(self):
+        super(ImmediateFail, self).__init__("test failed and fail_immediately set")
+
+
+class FilterOps(testtools.testresult.TestResult):
 
     def control_msg(self, msg):
         pass # We regenerate control messages, so ignore this
 
-    def report_time(self, time):
-        self._ops.report_time(time)
+    def time(self, time):
+        self._ops.time(time)
 
     def progress(self, delta, whence):
         self._ops.progress(delta, whence)
@@ -260,51 +251,71 @@ class FilterOps(object):
         else:
             self.output+=msg
 
-    def start_test(self, testname):
-        if self.prefix is not None:
-            testname = self.prefix + testname
-
+    def startTest(self, test):
+        self.seen_output = True
+        test = self._add_prefix(test)
         if self.strip_ok_output:
            self.output = ""
 
-        self._ops.start_test(testname)
+        self._ops.startTest(test)
 
-    def end_test(self, testname, result, unexpected, reason):
+    def _add_prefix(self, test):
         if self.prefix is not None:
-            testname = self.prefix + testname
+            return subunit.RemotedTestCase(self.prefix + test.id())
+        else:
+            return test
 
-        if result in ("fail", "failure") and not unexpected:
-            result = "xfail"
-            self.xfail_added+=1
-            self.total_xfail+=1
-        xfail_reason = find_in_list(self.expected_failures, testname)
-        if xfail_reason is not None and result in ("fail", "failure"):
-            result = "xfail"
-            self.xfail_added+=1
-            self.total_xfail+=1
-            reason += xfail_reason
+    def addError(self, test, details=None):
+        test = self._add_prefix(test)
+        self.error_added+=1
+        self.total_error+=1
+        self._ops.addError(test, details)
+        self.output = None
+        if self.fail_immediately:
+            raise ImmediateFail()
 
-        if result in ("fail", "failure"):
-            self.fail_added+=1
-            self.total_fail+=1
-
-        if result == "error":
-            self.error_added+=1
-            self.total_error+=1
-
-        if self.strip_ok_output:
-            if result not in ("success", "xfail", "skip"):
-                print self.output
+    def addSkip(self, test, details=None):
+        self.seen_output = True
+        test = self._add_prefix(test)
+        self._ops.addSkip(test, details)
         self.output = None
 
-        self._ops.end_test(testname, result, reason)
+    def addExpectedFailure(self, test, details=None):
+        test = self._add_prefix(test)
+        self._ops.addExpectedFailure(test, details)
+        self.output = None
+
+    def addFailure(self, test, details=None):
+        test = self._add_prefix(test)
+        xfail_reason = find_in_list(self.expected_failures, test.id())
+        if xfail_reason is not None:
+            self.xfail_added+=1
+            self.total_xfail+=1
+            if details is not None:
+                details = subunit.RemoteError(unicode(details[1]) + xfail_reason.decode("utf-8"))
+            else:
+                details = subunit.RemoteError(xfail_reason.decode("utf-8"))
+            self._ops.addExpectedFailure(test, details)
+        else:
+            self.fail_added+=1
+            self.total_fail+=1
+            self._ops.addFailure(test, details)
+            if self.output:
+                self._ops.output_msg(self.output)
+            if self.fail_immediately:
+                raise ImmediateFail()
+        self.output = None
+
+    def addSuccess(self, test, details=None):
+        test = self._add_prefix(test)
+        self._ops.addSuccess(test, details)
+        self.output = None
 
     def skip_testsuite(self, name, reason=None):
         self._ops.skip_testsuite(name, reason)
 
     def start_testsuite(self, name):
         self._ops.start_testsuite(name)
-
         self.error_added = 0
         self.fail_added = 0
         self.xfail_added = 0
@@ -334,13 +345,218 @@ class FilterOps(object):
 
         self._ops.end_testsuite(name, result, reason)
 
-    def __init__(self, prefix, expected_failures, strip_ok_output):
-        self._ops = SubunitOps()
+    def __init__(self, out, prefix=None, expected_failures=None,
+                 strip_ok_output=False, fail_immediately=False):
+        self._ops = out
+        self.seen_output = False
         self.output = None
         self.prefix = prefix
-        self.expected_failures = expected_failures
+        if expected_failures is not None:
+            self.expected_failures = expected_failures
+        else:
+            self.expected_failures = {}
         self.strip_ok_output = strip_ok_output
         self.xfail_added = 0
+        self.fail_added = 0
         self.total_xfail = 0
         self.total_error = 0
         self.total_fail = 0
+        self.error_added = 0
+        self.fail_immediately = fail_immediately
+
+
+class PlainFormatter(TestsuiteEnabledTestResult):
+
+    def __init__(self, verbose, immediate, statistics,
+            totaltests=None):
+        super(PlainFormatter, self).__init__()
+        self.verbose = verbose
+        self.immediate = immediate
+        self.statistics = statistics
+        self.start_time = None
+        self.test_output = {}
+        self.suitesfailed = []
+        self.suites_ok = 0
+        self.skips = {}
+        self.index = 0
+        self.name = None
+        self._progress_level = 0
+        self.totalsuites = totaltests
+        self.last_time = None
+
+    @staticmethod
+    def _format_time(delta):
+        minutes, seconds = divmod(delta.seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        ret = ""
+        if hours:
+            ret += "%dh" % hours
+        if minutes:
+            ret += "%dm" % minutes
+        ret += "%ds" % seconds
+        return ret
+
+    def progress(self, offset, whence):
+        if whence == subunit.PROGRESS_POP:
+            self._progress_level -= 1
+        elif whence == subunit.PROGRESS_PUSH:
+            self._progress_level += 1
+        elif whence == subunit.PROGRESS_SET:
+            if self._progress_level == 0:
+                self.totalsuites = offset
+        elif whence == subunit.PROGRESS_CUR:
+            raise NotImplementedError
+
+    def time(self, dt):
+        if self.start_time is None:
+            self.start_time = dt
+        self.last_time = dt
+
+    def start_testsuite(self, name):
+        self.index += 1
+        self.name = name
+
+        if not self.verbose:
+            self.test_output[name] = ""
+
+        out = "[%d" % self.index
+        if self.totalsuites is not None:
+            out += "/%d" % self.totalsuites
+        if self.start_time is not None:
+            out += " in " + self._format_time(self.last_time - self.start_time)
+        if self.suitesfailed:
+            out += ", %d errors" % (len(self.suitesfailed),)
+        out += "] %s" % name
+        if self.immediate:
+            sys.stdout.write(out + "\n")
+        else:
+            sys.stdout.write(out + ": ")
+
+    def output_msg(self, output):
+        if self.verbose:
+            sys.stdout.write(output)
+        elif self.name is not None:
+            self.test_output[self.name] += output
+        else:
+            sys.stdout.write(output)
+
+    def control_msg(self, output):
+        pass
+
+    def end_testsuite(self, name, result, reason):
+        out = ""
+        unexpected = False
+
+        if not name in self.test_output:
+            print "no output for name[%s]" % name
+
+        if result in ("success", "xfail"):
+            self.suites_ok+=1
+        else:
+            self.output_msg("ERROR: Testsuite[%s]\n" % name)
+            if reason is not None:
+                self.output_msg("REASON: %s\n" % (reason,))
+            self.suitesfailed.append(name)
+            if self.immediate and not self.verbose and name in self.test_output:
+                out += self.test_output[name]
+            unexpected = True
+
+        if not self.immediate:
+            if not unexpected:
+                out += " ok\n"
+            else:
+                out += " " + result.upper() + "\n"
+
+        sys.stdout.write(out)
+
+    def startTest(self, test):
+        pass
+
+    def addSuccess(self, test):
+        self.end_test(test.id(), "success", False)
+
+    def addError(self, test, details=None):
+        self.end_test(test.id(), "error", True, details)
+
+    def addFailure(self, test, details=None):
+        self.end_test(test.id(), "failure", True, details)
+
+    def addSkip(self, test, details=None):
+        self.end_test(test.id(), "skip", False, details)
+
+    def addExpectedFail(self, test, details=None):
+        self.end_test(test.id(), "xfail", False, details)
+
+    def end_test(self, testname, result, unexpected, reason=None):
+        if not unexpected:
+            self.test_output[self.name] = ""
+            if not self.immediate:
+                sys.stdout.write({
+                    'failure': 'f',
+                    'xfail': 'X',
+                    'skip': 's',
+                    'success': '.'}.get(result, "?(%s)" % result))
+            return
+
+        if not self.name in self.test_output:
+            self.test_output[self.name] = ""
+
+        self.test_output[self.name] += "UNEXPECTED(%s): %s\n" % (result, testname)
+        if reason is not None:
+            self.test_output[self.name] += "REASON: %s\n" % (unicode(reason[1]).encode("utf-8").strip(),)
+
+        if self.immediate and not self.verbose:
+            print self.test_output[self.name]
+            self.test_output[self.name] = ""
+
+        if not self.immediate:
+            sys.stdout.write({
+               'error': 'E',
+               'failure': 'F',
+               'success': 'S'}.get(result, "?"))
+
+    def write_summary(self, path):
+        f = open(path, 'w+')
+
+        if self.suitesfailed:
+            f.write("= Failed tests =\n")
+
+            for suite in self.suitesfailed:
+                f.write("== %s ==\n" % suite)
+                if suite in self.test_output:
+                    f.write(self.test_output[suite]+"\n\n")
+
+            f.write("\n")
+
+        if not self.immediate and not self.verbose:
+            for suite in self.suitesfailed:
+                print "=" * 78
+                print "FAIL: %s" % suite
+                if suite in self.test_output:
+                    print self.test_output[suite]
+                print ""
+
+        f.write("= Skipped tests =\n")
+        for reason in self.skips.keys():
+            f.write(reason + "\n")
+            for name in self.skips[reason]:
+                f.write("\t%s\n" % name)
+            f.write("\n")
+        f.close()
+
+        if (not self.suitesfailed and
+            not self.statistics['TESTS_UNEXPECTED_FAIL'] and
+            not self.statistics['TESTS_ERROR']):
+            ok = (self.statistics['TESTS_EXPECTED_OK'] +
+                  self.statistics['TESTS_EXPECTED_FAIL'])
+            print "\nALL OK (%d tests in %d testsuites)" % (ok, self.suites_ok)
+        else:
+            print "\nFAILED (%d failures and %d errors in %d testsuites)" % (
+                self.statistics['TESTS_UNEXPECTED_FAIL'],
+                self.statistics['TESTS_ERROR'],
+                len(self.suitesfailed))
+
+    def skip_testsuite(self, name, reason="UNKNOWN"):
+        self.skips.setdefault(reason, []).append(name)
+        if self.totalsuites:
+            self.totalsuites-=1

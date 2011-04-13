@@ -22,6 +22,8 @@
  */
 
 #include "includes.h"
+#include "smbd/smbd.h"
+#include "system/filesys.h"
 #include "../lib/crypto/md5.h"
 
 #undef DBGC_CLASS
@@ -1023,6 +1025,32 @@ static int streams_xattr_ftruncate(struct vfs_handle_struct *handle,
 	return 0;
 }
 
+static int streams_xattr_fallocate(struct vfs_handle_struct *handle,
+					struct files_struct *fsp,
+					enum vfs_fallocate_mode mode,
+					SMB_OFF_T offset,
+					SMB_OFF_T len)
+{
+        struct stream_io *sio =
+		(struct stream_io *)VFS_FETCH_FSP_EXTENSION(handle, fsp);
+
+	DEBUG(10, ("streams_xattr_fallocate called for file %s offset %.0f"
+		"len = %.0f\n",
+		fsp_str_dbg(fsp), (double)offset, (double)len));
+
+	if (sio == NULL) {
+		return SMB_VFS_NEXT_FALLOCATE(handle, fsp, mode, offset, len);
+	}
+
+	if (!streams_xattr_recheck(sio)) {
+		return errno;
+	}
+
+	/* Let the pwrite code path handle it. */
+	return ENOSYS;
+}
+
+
 static struct vfs_fn_pointers vfs_streams_xattr_fns = {
 	.fs_capabilities = streams_xattr_fs_capabilities,
 	.open = streams_xattr_open,
@@ -1034,6 +1062,7 @@ static struct vfs_fn_pointers vfs_streams_xattr_fns = {
 	.unlink = streams_xattr_unlink,
 	.rename = streams_xattr_rename,
         .ftruncate = streams_xattr_ftruncate,
+        .fallocate = streams_xattr_fallocate,
 	.streaminfo = streams_xattr_streaminfo,
 };
 

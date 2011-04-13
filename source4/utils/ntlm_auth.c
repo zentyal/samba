@@ -24,7 +24,7 @@
 #include "includes.h"
 #include "system/filesys.h"
 #include "lib/cmdline/popt_common.h"
-#include "lib/ldb/include/ldb.h"
+#include <ldb.h>
 #include "auth/credentials/credentials.h"
 #include "auth/gensec/gensec.h"
 #include "auth/auth.h"
@@ -617,7 +617,7 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 		for (i=0; i<session_info->security_token->num_sids; i++) {
 			struct security_token *token = session_info->security_token; 
 			const char *sidstr = dom_sid_string(session_info, 
-							    token->sids[i]);
+							    &token->sids[i]);
 			grouplist = talloc_asprintf_append_buffer(grouplist, "%s,", sidstr);
 		}
 
@@ -662,7 +662,7 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 	nt_status = gensec_update(state->gensec_state, mem_ctx, in, &out);
 	
 	/* don't leak 'bad password'/'no such user' info to the network client */
-	nt_status = auth_nt_status_squash(nt_status);
+	nt_status = nt_status_squash(nt_status);
 
 	if (out.length) {
 		out_base64 = base64_encode_data_blob(mem_ctx, out);
@@ -707,8 +707,8 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 
 			reply_code = "AF";
 			reply_arg = talloc_asprintf(state->gensec_state, 
-						    "%s%s%s", session_info->server_info->domain_name, 
-						    lpcfg_winbind_separator(lp_ctx), session_info->server_info->account_name);
+						    "%s%s%s", session_info->info->domain_name,
+						    lpcfg_winbind_separator(lp_ctx), session_info->info->account_name);
 			talloc_free(session_info);
 		}
 	} else if (state->gensec_state->gensec_role == GENSEC_CLIENT) {

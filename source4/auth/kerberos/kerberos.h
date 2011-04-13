@@ -23,7 +23,7 @@
 #include "auth/kerberos/krb5_init_context.h"
 #include "librpc/gen_ndr/krb5pac.h"
 
-struct auth_serversupplied_info;
+struct auth_user_info_dc;
 struct cli_credentials;
 
 struct ccache_container {
@@ -94,11 +94,13 @@ bool get_auth_data_from_tkt(TALLOC_CTX *mem_ctx, DATA_BLOB *auth_data, krb5_tick
 krb5_error_code kerberos_kinit_password_cc(krb5_context ctx, krb5_ccache cc,
 					   krb5_principal principal, const char *password,
 					   krb5_principal impersonate_principal, const char *target_service,
+					   krb5_get_init_creds_opt *krb_options,
 					   time_t *expire_time, time_t *kdc_time);
 krb5_error_code kerberos_kinit_keyblock_cc(krb5_context ctx, krb5_ccache cc,
-			       krb5_principal principal, krb5_keyblock *keyblock,
-			       const char *target_service,
-			       time_t *expire_time, time_t *kdc_time);
+					   krb5_principal principal, krb5_keyblock *keyblock,
+					   const char *target_service,
+					   krb5_get_init_creds_opt *krb_options,
+					   time_t *expire_time, time_t *kdc_time);
 krb5_principal kerberos_fetch_salt_princ_for_host_princ(krb5_context context,
 							krb5_principal host_princ,
 							int enctype);
@@ -132,7 +134,7 @@ NTSTATUS kerberos_decode_pac(TALLOC_CTX *mem_ctx,
 				    const krb5_keyblock *service_keyblock,
 				    DATA_BLOB *pac);
  krb5_error_code kerberos_create_pac(TALLOC_CTX *mem_ctx,
-				     struct auth_serversupplied_info *server_info,
+				     struct auth_user_info_dc *user_info_dc,
 				     krb5_context context,
 				     const krb5_keyblock *krbtgt_keyblock,
 				     const krb5_keyblock *service_keyblock,
@@ -140,9 +142,17 @@ NTSTATUS kerberos_decode_pac(TALLOC_CTX *mem_ctx,
 				     time_t tgs_authtime,
 				     DATA_BLOB *pac);
 struct loadparm_context;
+struct ldb_message;
+struct ldb_context;
 uint32_t kerberos_enctype_to_bitmap(krb5_enctype enc_type_enum);
 /* Translate between the Microsoft msDS-SupportedEncryptionTypes values and the IETF encryption type values */
 krb5_enctype kerberos_enctype_bitmap_to_enctype(uint32_t enctype_bitmap);
+krb5_error_code smb_krb5_update_keytab(TALLOC_CTX *parent_ctx,
+				       struct smb_krb5_context *smb_krb5_context,
+				       struct ldb_context *ldb, 
+				       struct ldb_message *msg,
+				       bool delete_all_kvno,
+				       const char **error_string);
 
 #include "auth/kerberos/proto.h"
 

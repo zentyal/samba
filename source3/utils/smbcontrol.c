@@ -8,23 +8,29 @@
    Copyright (C) Martin Pool 2001-2002
    Copyright (C) Simo Sorce 2002
    Copyright (C) James Peach 2006
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
-#include "librpc/gen_ndr/messaging.h"
+#include "system/filesys.h"
+#include "popt_common.h"
+#include "librpc/gen_ndr/spoolss.h"
+#include "nt_printing.h"
+#include "printing/notify.h"
+#include "libsmb/nmblib.h"
+#include "messages.h"
 
 #if HAVE_LIBUNWIND_H
 #include <libunwind.h>
@@ -62,7 +68,7 @@ static bool send_message(struct messaging_context *msg_ctx,
 	ret = message_send_all(msg_ctx, msg_type, buf, len, &n_sent);
 	DEBUG(10,("smbcontrol/send_message: broadcast message to "
 		  "%d processes\n", n_sent));
-	
+
 	return ret;
 }
 
@@ -162,6 +168,54 @@ static bool do_debug(struct messaging_context *msg_ctx,
 	return send_message(msg_ctx, pid, MSG_DEBUG, argv[1],
 			    strlen(argv[1]) + 1);
 }
+
+
+static bool do_idmap(struct messaging_context *msg_ctx,
+		     const struct server_id pid,
+		     const int argc, const char **argv)
+{
+	static const char* usage = "Usage: "
+		"smbcontrol <dest> idmap <cmd> [arg]\n"
+		"\tcmd:\tflush [gid|uid]\n"
+		"\t\tdelete \"UID <uid>\"|\"GID <gid>\"|<sid>\n"
+		"\t\tkill \"UID <uid>\"|\"GID <gid>\"|<sid>\n";
+	const char* arg = NULL;
+	int arglen = 0;
+	int msg_type;
+
+	switch (argc) {
+	case 2:
+		break;
+	case 3:
+		arg = argv[2];
+		arglen = strlen(arg) + 1;
+		break;
+	default:
+		fprintf(stderr, "%s", usage);
+		return false;
+	}
+
+	if (strcmp(argv[1], "flush") == 0) {
+		msg_type = MSG_IDMAP_FLUSH;
+	}
+	else if (strcmp(argv[1], "delete") == 0) {
+		msg_type = MSG_IDMAP_DELETE;
+	}
+	else if (strcmp(argv[1], "kill") == 0) {
+		msg_type = MSG_IDMAP_KILL;
+	}
+	else if (strcmp(argv[1], "help") == 0) {
+		fprintf(stdout, "%s", usage);
+		return true;
+	}
+	else {
+		fprintf(stderr, "%s", usage);
+		return false;
+	}
+
+	return send_message(msg_ctx, pid, msg_type, arg, arglen);
+}
+
 
 #if defined(HAVE_LIBUNWIND_PTRACE) && defined(HAVE_LINUX_PTRACE)
 
@@ -480,7 +534,7 @@ static void profilelevel_cb(struct messaging_context *msg_ctx,
 		s = "BOGUS";
 		break;
 	}
-	
+
 	printf("Profiling %s on pid %u\n",s,(unsigned int)procid_to_pid(&pid));
 }
 
@@ -576,7 +630,7 @@ static bool do_printnotify(struct messaging_context *msg_ctx,
 		fprintf(stderr, "\tjobdelete <printername> <unix jobid>\n");
 		fprintf(stderr, "\tprinter <printername> <comment|port|"
 			"driver> <value>\n");
-		
+
 		return False;
 	}
 
@@ -589,8 +643,10 @@ static bool do_printnotify(struct messaging_context *msg_ctx,
 				" queuepause <printername>\n");
 			return False;
 		}
-		
-		notify_printer_status_byname(argv[2], PRINTER_STATUS_PAUSED);
+
+		notify_printer_status_byname(messaging_event_context(msg_ctx),
+					     msg_ctx, argv[2],
+					     PRINTER_STATUS_PAUSED);
 
 		goto send;
 
@@ -601,8 +657,10 @@ static bool do_printnotify(struct messaging_context *msg_ctx,
 				" queuereume <printername>\n");
 			return False;
 		}
-		
-		notify_printer_status_byname(argv[2], PRINTER_STATUS_OK);
+
+		notify_printer_status_byname(messaging_event_context(msg_ctx),
+					     msg_ctx, argv[2],
+					     PRINTER_STATUS_OK);
 
 		goto send;
 
@@ -618,7 +676,8 @@ static bool do_printnotify(struct messaging_context *msg_ctx,
 		jobid = atoi(argv[3]);
 
 		notify_job_status_byname(
-			argv[2], jobid, JOB_STATUS_PAUSED, 
+			messaging_event_context(msg_ctx), msg_ctx,
+			argv[2], jobid, JOB_STATUS_PAUSED,
 			SPOOLSS_NOTIFY_MSG_UNIX_JOBID);
 
 		goto send;
@@ -635,6 +694,7 @@ static bool do_printnotify(struct messaging_context *msg_ctx,
 		jobid = atoi(argv[3]);
 
 		notify_job_status_byname(
+			messaging_event_context(msg_ctx), msg_ctx,
 			argv[2], jobid, JOB_STATUS_QUEUED, 
 			SPOOLSS_NOTIFY_MSG_UNIX_JOBID);
 
@@ -652,10 +712,12 @@ static bool do_printnotify(struct messaging_context *msg_ctx,
 		jobid = atoi(argv[3]);
 
 		notify_job_status_byname(
+			messaging_event_context(msg_ctx), msg_ctx,
 			argv[2], jobid, JOB_STATUS_DELETING,
 			SPOOLSS_NOTIFY_MSG_UNIX_JOBID);
-		
+
 		notify_job_status_byname(
+			messaging_event_context(msg_ctx), msg_ctx,
 			argv[2], jobid, JOB_STATUS_DELETING|
 			JOB_STATUS_DELETED,
 			SPOOLSS_NOTIFY_MSG_UNIX_JOBID);
@@ -664,7 +726,7 @@ static bool do_printnotify(struct messaging_context *msg_ctx,
 
 	} else if (strcmp(cmd, "printer") == 0) {
 		uint32 attribute;
-		
+
 		if (argc != 5) {
 			fprintf(stderr, "Usage: smbcontrol <dest> printnotify "
 				"printer <printername> <comment|port|driver> "
@@ -684,7 +746,8 @@ static bool do_printnotify(struct messaging_context *msg_ctx,
 			return False;
 		}
 
-		notify_printer_byname(argv[2], attribute,
+		notify_printer_byname(messaging_event_context(msg_ctx),
+				      msg_ctx, argv[2], attribute,
 				      CONST_DISCARD(char *, argv[4]));
 
 		goto send;
@@ -711,6 +774,22 @@ static bool do_closeshare(struct messaging_context *msg_ctx,
 	}
 
 	return send_message(msg_ctx, pid, MSG_SMB_FORCE_TDIS, argv[1],
+			    strlen(argv[1]) + 1);
+}
+
+/* Tell winbindd an IP got dropped */
+
+static bool do_ip_dropped(struct messaging_context *msg_ctx,
+			  const struct server_id pid,
+			  const int argc, const char **argv)
+{
+	if (argc != 2) {
+		fprintf(stderr, "Usage: smbcontrol <dest> ip-dropped "
+			"<ip-address>\n");
+		return False;
+	}
+
+	return send_message(msg_ctx, pid, MSG_WINBIND_IP_DROPPED, argv[1],
 			    strlen(argv[1]) + 1);
 }
 
@@ -906,7 +985,8 @@ static bool do_winbind_offline(struct messaging_context *msg_ctx,
 
 	tdb = tdb_open_log(cache_path("winbindd_cache.tdb"),
 				WINBINDD_CACHE_TDB_DEFAULT_HASH_SIZE,
-				TDB_DEFAULT /* TDB_CLEAR_IF_FIRST */, O_RDWR|O_CREAT, 0600);
+				TDB_DEFAULT|TDB_INCOMPATIBLE_HASH /* TDB_CLEAR_IF_FIRST */,
+				O_RDWR|O_CREAT, 0600);
 
 	if (!tdb) {
 		fprintf(stderr, "Cannot open the tdb %s for writing.\n",
@@ -938,7 +1018,7 @@ static bool do_winbind_offline(struct messaging_context *msg_ctx,
 
 		/* Check that the entry "WINBINDD_OFFLINE" still exists. */
 		d = tdb_fetch_bystring( tdb, "WINBINDD_OFFLINE" );
-	
+
 		if (!d.dptr || d.dsize != 4) {
 			SAFE_FREE(d.dptr);
 			DEBUG(10,("do_winbind_offline: offline state not set - retrying.\n"));
@@ -958,7 +1038,7 @@ static bool do_winbind_onlinestatus(struct messaging_context *msg_ctx,
 {
 	struct server_id myid;
 
-	myid = procid_self();
+	myid = messaging_server_id(msg_ctx);
 
 	if (argc != 1) {
 		fprintf(stderr, "Usage: smbcontrol winbindd onlinestatus\n");
@@ -990,7 +1070,7 @@ static bool do_dump_event_list(struct messaging_context *msg_ctx,
 {
 	struct server_id myid;
 
-	myid = procid_self();
+	myid = messaging_server_id(msg_ctx);
 
 	if (argc != 1) {
 		fprintf(stderr, "Usage: smbcontrol <dest> dump-event-list\n");
@@ -1010,10 +1090,10 @@ static bool do_winbind_dump_domain_list(struct messaging_context *msg_ctx,
 	uint8_t *buf = NULL;
 	int buf_len = 0;
 
-	myid = procid_self();
+	myid = messaging_server_id(msg_ctx);
 
 	if (argc < 1 || argc > 2) {
-		fprintf(stderr, "Usage: smbcontrol <dest> dump_domain_list "
+		fprintf(stderr, "Usage: smbcontrol <dest> dump-domain-list "
 			"<domain>\n");
 		return false;
 	}
@@ -1073,7 +1153,9 @@ static bool do_winbind_validate_cache(struct messaging_context *msg_ctx,
 				      const struct server_id pid,
 				      const int argc, const char **argv)
 {
-	struct server_id myid = procid_self();
+	struct server_id myid;
+
+	myid = messaging_server_id(msg_ctx);
 
 	if (argc != 1) {
 		fprintf(stderr, "Usage: smbcontrol winbindd validate-cache\n");
@@ -1169,6 +1251,7 @@ static const struct {
 	const char *help;	/* Short help text */
 } msg_types[] = {
 	{ "debug", do_debug, "Set debuglevel"  },
+	{ "idmap", do_idmap, "Manipulate idmap cache" },
 	{ "force-election", do_election,
 	  "Force a browse election" },
 	{ "ping", do_ping, "Elicit a response" },
@@ -1181,6 +1264,7 @@ static const struct {
 	{ "debuglevel", do_debuglevel, "Display current debuglevels" },
 	{ "printnotify", do_printnotify, "Send a print notify message" },
 	{ "close-share", do_closeshare, "Forcibly disconnect a share" },
+	{ "ip-dropped", do_ip_dropped, "Tell winbind that an IP got dropped" },
 	{ "lockretry", do_lockretry, "Force a blocking lock retry" },
 	{ "brl-revalidate", do_brl_revalidate, "Revalidate all brl entries" },
         { "samsync", do_samsync, "Initiate SAM synchronisation" },
@@ -1229,7 +1313,8 @@ static void usage(poptContext pc)
 
 /* Return the pid number for a string destination */
 
-static struct server_id parse_dest(const char *dest)
+static struct server_id parse_dest(struct messaging_context *msg,
+				   const char *dest)
 {
 	struct server_id result = {-1};
 	pid_t pid;
@@ -1243,7 +1328,7 @@ static struct server_id parse_dest(const char *dest)
 	/* Try self - useful for testing */
 
 	if (strequal(dest, "self")) {
-		return procid_self();
+		return messaging_server_id(msg);
 	}
 
 	/* Fix winbind typo. */
@@ -1281,7 +1366,7 @@ static bool do_command(struct messaging_context *msg_ctx,
 
 	/* Check destination */
 
-	pid = parse_dest(dest);
+	pid = parse_dest(msg_ctx, dest);
 	if (!procid_valid(&pid)) {
 		return False;
 	}
@@ -1346,8 +1431,8 @@ int main(int argc, const char **argv)
 
 	load_case_tables();
 
-	setup_logging(argv[0],True);
-	
+	setup_logging(argv[0], DEBUG_STDOUT);
+
 	/* Parse command line arguments using popt */
 
 	pc = poptGetContext(
@@ -1390,14 +1475,14 @@ int main(int argc, const char **argv)
 	/* Need to invert sense of return code -- samba
          * routines mostly return True==1 for success, but
          * shell needs 0. */ 
-	
+
 	if (!(evt_ctx = tevent_context_init(NULL)) ||
 	    !(msg_ctx = messaging_init(NULL, procid_self(), evt_ctx))) {
 		fprintf(stderr, "could not init messaging context\n");
 		TALLOC_FREE(frame);
 		exit(1);
 	}
-	
+
 	ret = !do_command(msg_ctx, argc, argv);
 	TALLOC_FREE(frame);
 	return ret;

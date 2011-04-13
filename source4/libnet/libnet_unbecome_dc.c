@@ -21,8 +21,8 @@
 #include "libnet/libnet.h"
 #include "libcli/composite/composite.h"
 #include "libcli/cldap/cldap.h"
-#include "lib/ldb/include/ldb.h"
-#include "lib/ldb/include/ldb_errors.h"
+#include <ldb.h>
+#include <ldb_errors.h>
 #include "ldb_wrap.h"
 #include "dsdb/samdb/samdb.h"
 #include "../libds/common/flags.h"
@@ -403,11 +403,11 @@ static NTSTATUS unbecomeDC_ldap_computer_object(struct libnet_UnbecomeDC_state *
 		return NT_STATUS_INVALID_NETWORK_RESPONSE;
 	}
 
-	s->dest_dsa.computer_dn_str	= samdb_result_string(r->msgs[0], "distinguishedName", NULL);
+	s->dest_dsa.computer_dn_str	= ldb_msg_find_attr_as_string(r->msgs[0], "distinguishedName", NULL);
 	if (!s->dest_dsa.computer_dn_str) return NT_STATUS_INVALID_NETWORK_RESPONSE;
 	talloc_steal(s, s->dest_dsa.computer_dn_str);
 
-	s->dest_dsa.user_account_control = samdb_result_uint(r->msgs[0], "userAccountControl", 0);
+	s->dest_dsa.user_account_control = ldb_msg_find_attr_as_uint(r->msgs[0], "userAccountControl", 0);
 
 	talloc_free(r);
 	return NT_STATUS_OK;
@@ -431,8 +431,9 @@ static NTSTATUS unbecomeDC_ldap_modify_computer(struct libnet_UnbecomeDC_state *
 	msg->dn = ldb_dn_new(msg, s->ldap.ldb, s->dest_dsa.computer_dn_str);
 	NT_STATUS_HAVE_NO_MEMORY(msg->dn);
 
-	ret = ldb_msg_add_fmt(msg, "userAccountControl", "%u", user_account_control);
-	if (ret != 0) {
+	ret = samdb_msg_add_uint(s->ldap.ldb, msg, msg, "userAccountControl",
+				 user_account_control);
+	if (ret != LDB_SUCCESS) {
 		talloc_free(msg);
 		return NT_STATUS_NO_MEMORY;
 	}

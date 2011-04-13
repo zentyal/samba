@@ -43,6 +43,8 @@ struct oc_context {
 	struct ldb_request *req;
 	const struct dsdb_schema *schema;
 
+	struct ldb_message *msg;
+
 	struct ldb_reply *search_res;
 	struct ldb_reply *mod_ares;
 };
@@ -70,6 +72,22 @@ static struct oc_context *oc_init_context(struct ldb_module *module,
 
 static int oc_op_callback(struct ldb_request *req, struct ldb_reply *ares);
 
+/* checks correctness of dSHeuristics attribute
+ * as described in MS-ADTS 7.1.1.2.4.1.2 dSHeuristics */
+static int oc_validate_dsheuristics(struct ldb_message_element *el)
+{
+	if (el->num_values > 0) {
+		if (el->values[0].length > DS_HR_LDAP_BYPASS_UPPER_LIMIT_BOUNDS) {
+			return LDB_ERR_CONSTRAINT_VIOLATION;
+		} else if (el->values[0].length >= DS_HR_TENTH_CHAR
+			   && el->values[0].data[DS_HR_TENTH_CHAR-1] != '1') {
+			return LDB_ERR_CONSTRAINT_VIOLATION;
+		}
+	}
+
+	return LDB_SUCCESS;
+}
+
 static int attr_handler(struct oc_context *ac)
 {
 	struct ldb_context *ldb;
@@ -79,6 +97,7 @@ static int attr_handler(struct oc_context *ac)
 	unsigned int i;
 	int ret;
 	WERROR werr;
+	struct dsdb_syntax_ctx syntax_ctx;
 
 	ldb = ldb_module_get_ctx(ac->module);
 
@@ -90,6 +109,10 @@ static int attr_handler(struct oc_context *ac)
 	if (msg == NULL) {
 		return ldb_oom(ldb);
 	}
+	ac->msg = msg;
+
+	/* initialize syntax checking context */
+	dsdb_syntax_ctx_init(&syntax_ctx, ldb, ac->schema);
 
 	/* Check if attributes exist in the schema, if the values match,
 	 * if they're not operational and fix the names to the match the schema
@@ -113,13 +136,15 @@ static int attr_handler(struct oc_context *ac)
 			return LDB_ERR_UNWILLING_TO_PERFORM;
 		}
 		
-		werr = attr->syntax->validate_ldb(ldb, ac->schema, attr,
-						  &msg->elements[i]);
-		if (!W_ERROR_IS_OK(werr)) {
-			ldb_asprintf_errstring(ldb, "objectclass_attrs: attribute '%s' on entry '%s' contains at least one invalid value!",
-					       msg->elements[i].name,
-					       ldb_dn_get_linearized(msg->dn));
-			return LDB_ERR_INVALID_ATTRIBUTE_SYNTAX;
+		if (!(msg->elements[i].flags & LDB_FLAG_INTERNAL_DISABLE_VALIDATION)) {
+			werr = attr->syntax->validate_ldb(&syntax_ctx, attr,
+							  &msg->elements[i]);
+			if (!W_ERROR_IS_OK(werr)) {
+				ldb_asprintf_errstring(ldb, "objectclass_attrs: attribute '%s' on entry '%s' contains at least one invalid value!",
+						       msg->elements[i].name,
+						       ldb_dn_get_linearized(msg->dn));
+				return LDB_ERR_INVALID_ATTRIBUTE_SYNTAX;
+			}
 		}
 
 		if ((attr->systemFlags & DS_FLAG_ATTR_IS_CONSTRUCTED) != 0) {
@@ -133,7 +158,15 @@ static int attr_handler(struct oc_context *ac)
 			}
 		}
 
-		/* subsitute the attribute name to match in case */
+		/* "dSHeuristics" syntax check */
+		if (ldb_attr_cmp(attr->lDAPDisplayName, "dSHeuristics") == 0) {
+			ret = oc_validate_dsheuristics(&(msg->elements[i]));
+			if (ret != LDB_SUCCESS) {
+				return ret;
+			}
+		}
+
+		/* Substitute the attribute name to match in case */
 		msg->elements[i].name = attr->lDAPDisplayName;
 	}
 
@@ -141,10 +174,12 @@ static int attr_handler(struct oc_context *ac)
 		ret = ldb_build_add_req(&child_req, ldb, ac,
 					msg, ac->req->controls,
 					ac, oc_op_callback, ac->req);
+		LDB_REQ_SET_LOCATION(child_req);
 	} else {
 		ret = ldb_build_mod_req(&child_req, ldb, ac,
 					msg, ac->req->controls,
 					ac, oc_op_callback, ac->req);
+		LDB_REQ_SET_LOCATION(child_req);
 	}
 	if (ret != LDB_SUCCESS) {
 		return ret;
@@ -165,6 +200,13 @@ static int attr_handler2(struct oc_context *ac)
 	struct ldb_message_element *oc_element;
 	struct ldb_message *msg;
 	const char **must_contain, **may_contain, **found_must_contain;
+	/* There exists a hardcoded delete-protected attributes list in AD */
+	const char *del_prot_attributes[] = { "nTSecurityDescriptor",
+		"objectSid", "sAMAccountType", "sAMAccountName", "groupType",
+		"primaryGroupID", "userAccountControl", "accountExpires",
+		"badPasswordTime", "badPwdCount", "codePage", "countryCode",
+		"lastLogoff", "lastLogon", "logonCount", "pwdLastSet", NULL },
+		**l;
 	const struct dsdb_attribute *attr;
 	unsigned int i;
 	bool found;
@@ -183,6 +225,34 @@ static int attr_handler2(struct oc_context *ac)
 		return ldb_operr(ldb);
 	}
 
+	/* LSA-specific object classes are not allowed to be created over LDAP,
+	 * so we need to tell if this connection is internal (trusted) or not
+	 * (untrusted).
+	 *
+	 * Hongwei Sun from Microsoft explains:
+	 * The constraint in 3.1.1.5.2.2 MS-ADTS means that LSA objects cannot
+	 * be added or modified through the LDAP interface, instead they can
+	 * only be handled through LSA Policy API.  This is also explained in
+	 * 7.1.6.9.7 MS-ADTS as follows:
+	 * "Despite being replicated normally between peer DCs in a domain,
+	 * the process of creating or manipulating TDOs is specifically
+	 * restricted to the LSA Policy APIs, as detailed in [MS-LSAD] section
+	 * 3.1.1.5. Unlike other objects in the DS, TDOs may not be created or
+	 *  manipulated by client machines over the LDAPv3 transport."
+	 */
+	if (ldb_req_is_untrusted(ac->req)) {
+		for (i = 0; i < oc_element->num_values; i++) {
+			if ((strcmp((char *)oc_element->values[i].data,
+				    "secret") == 0) ||
+			    (strcmp((char *)oc_element->values[i].data,
+				    "trustedDomain") == 0)) {
+				ldb_asprintf_errstring(ldb, "objectclass_attrs: LSA objectclasses (entry '%s') cannot be created or changed over LDAP!",
+						       ldb_dn_get_linearized(ac->search_res->message->dn));
+				return LDB_ERR_UNWILLING_TO_PERFORM;
+			}
+		}
+	}
+
 	must_contain = dsdb_full_attribute_list(ac, ac->schema, oc_element,
 						DSDB_SCHEMA_ALL_MUST);
 	may_contain =  dsdb_full_attribute_list(ac, ac->schema, oc_element,
@@ -193,9 +263,34 @@ static int attr_handler2(struct oc_context *ac)
 		return ldb_operr(ldb);
 	}
 
+	/* Check the delete-protected attributes list */
+	msg = ac->search_res->message;
+	for (l = del_prot_attributes; *l != NULL; l++) {
+		struct ldb_message_element *el;
+
+		el = ldb_msg_find_element(ac->msg, *l);
+		if (el == NULL) {
+			/*
+			 * It was not specified in the add or modify,
+			 * so it doesn't need to be in the stored record
+			 */
+			continue;
+		}
+
+		found = str_list_check_ci(must_contain, *l);
+		if (!found) {
+			found = str_list_check_ci(may_contain, *l);
+		}
+		if (found && (ldb_msg_find_element(msg, *l) == NULL)) {
+			ldb_asprintf_errstring(ldb, "objectclass_attrs: delete protected attribute '%s' on entry '%s' missing!",
+					       *l,
+					       ldb_dn_get_linearized(msg->dn));
+			return LDB_ERR_UNWILLING_TO_PERFORM;
+		}
+	}
+
 	/* Check if all specified attributes are valid in the given
 	 * objectclasses and if they meet additional schema restrictions. */
-	msg = ac->search_res->message;
 	for (i = 0; i < msg->num_elements; i++) {
 		attr = dsdb_attribute_by_lDAPDisplayName(ac->schema,
 							 msg->elements[i].name);
@@ -203,20 +298,8 @@ static int attr_handler2(struct oc_context *ac)
 			return ldb_operr(ldb);
 		}
 
-		/* Check if they're single-valued if this is requested */
-		if ((msg->elements[i].num_values > 1) && (attr->isSingleValued)) {
-			ldb_asprintf_errstring(ldb, "objectclass_attrs: attribute '%s' on entry '%s' is single-valued!",
-					       msg->elements[i].name,
-					       ldb_dn_get_linearized(msg->dn));
-			if (ac->req->operation == LDB_ADD) {
-				return LDB_ERR_CONSTRAINT_VIOLATION;
-			} else {
-				return LDB_ERR_ATTRIBUTE_OR_VALUE_EXISTS;
-			}
-		}
-
 		/* We can use "str_list_check" with "strcmp" here since the
-		 * attribute informations from the schema are always equal
+		 * attribute information from the schema are always equal
 		 * up-down-cased. */
 		found = str_list_check(must_contain, attr->lDAPDisplayName);
 		if (found) {
@@ -336,11 +419,12 @@ static int oc_op_callback(struct ldb_request *req, struct ldb_reply *ares)
 				   LDB_SCOPE_BASE, "(objectClass=*)",
 				   NULL, NULL, ac,
 				   get_search_callback, ac->req);
+	LDB_REQ_SET_LOCATION(search_req);
 	if (ret != LDB_SUCCESS) {
 		return ldb_module_done(ac->req, NULL, NULL, ret);
 	}
 
-	ret = ldb_request_add_control(search_req, LDB_CONTROL_SHOW_DELETED_OID,
+	ret = ldb_request_add_control(search_req, LDB_CONTROL_SHOW_RECYCLED_OID,
 				      true, NULL);
 	if (ret != LDB_SUCCESS) {
 		return ldb_module_done(ac->req, NULL, NULL, ret);
@@ -414,8 +498,14 @@ static int objectclass_attrs_modify(struct ldb_module *module,
 	return attr_handler(ac);
 }
 
-_PUBLIC_ const struct ldb_module_ops ldb_objectclass_attrs_module_ops = {
+static const struct ldb_module_ops ldb_objectclass_attrs_module_ops = {
 	.name		   = "objectclass_attrs",
 	.add               = objectclass_attrs_add,
 	.modify            = objectclass_attrs_modify
 };
+
+int ldb_objectclass_attrs_module_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_objectclass_attrs_module_ops);
+}

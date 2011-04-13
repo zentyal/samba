@@ -32,10 +32,10 @@
  */
 
 #include "includes.h"
-#include "ldb/include/ldb.h"
-#include "ldb/include/ldb_errors.h"
-#include "ldb/include/ldb_module.h"
-#include "libcli/security/dom_sid.h"
+#include <ldb.h>
+#include <ldb_errors.h>
+#include <ldb_module.h>
+#include "libcli/security/security.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "librpc/gen_ndr/ndr_security.h"
 #include "librpc/ndr/libndr.h"
@@ -46,7 +46,57 @@ struct extended_dn_out_private {
 	bool dereference;
 	bool normalise;
 	struct dsdb_openldap_dereference_control *dereference_control;
+	const char **attrs;
 };
+
+/* Do the lazy init of the derererence control */
+
+static int extended_dn_out_dereference_setup_control(struct ldb_context *ldb, struct extended_dn_out_private *p)
+{
+	const struct dsdb_schema *schema;
+	struct dsdb_openldap_dereference_control *dereference_control;
+	struct dsdb_attribute *cur;
+
+	unsigned int i = 0;
+	if (p->dereference_control) {
+		return LDB_SUCCESS;
+	}
+
+	schema = dsdb_get_schema(ldb, p);
+	if (!schema) {
+		/* No schema on this DB (yet) */
+		return LDB_SUCCESS;
+	}
+
+	p->dereference_control = dereference_control
+		= talloc_zero(p, struct dsdb_openldap_dereference_control);
+
+	if (!p->dereference_control) {
+		return ldb_oom(ldb);
+	}
+
+	for (cur = schema->attributes; cur; cur = cur->next) {
+		if (dsdb_dn_oid_to_format(cur->syntax->ldap_oid) != DSDB_NORMAL_DN) {
+			continue;
+		}
+		dereference_control->dereference
+			= talloc_realloc(p, dereference_control->dereference,
+					 struct dsdb_openldap_dereference *, i + 2);
+		if (!dereference_control) {
+			return ldb_oom(ldb);
+		}
+		dereference_control->dereference[i] = talloc(dereference_control->dereference,
+					 struct dsdb_openldap_dereference);
+		if (!dereference_control->dereference[i]) {
+			return ldb_oom(ldb);
+		}
+		dereference_control->dereference[i]->source_attribute = cur->lDAPDisplayName;
+		dereference_control->dereference[i]->dereference_attribute = p->attrs;
+		i++;
+		dereference_control->dereference[i] = NULL;
+	}
+	return LDB_SUCCESS;
+}
 
 static char **copy_attrs(void *mem_ctx, const char * const * attrs)
 {
@@ -134,7 +184,7 @@ static int inject_extended_dn_out(struct ldb_reply *ares,
 	const DATA_BLOB *sid_blob;
 
 	guid_blob = ldb_msg_find_ldb_val(ares->message, "objectGUID");
-	sid_blob = ldb_msg_find_ldb_val(ares->message, "objectSID");
+	sid_blob = ldb_msg_find_ldb_val(ares->message, "objectSid");
 
 	if (!guid_blob) {
 		ldb_set_errstring(ldb, "Did not find objectGUID to inject into extended DN");
@@ -157,7 +207,7 @@ static int inject_extended_dn_out(struct ldb_reply *ares,
 	}
 
 	if (sid_blob && remove_sid) {
-		ldb_msg_remove_attr(ares->message, "objectSID");
+		ldb_msg_remove_attr(ares->message, "objectSid");
 	}
 
 	return LDB_SUCCESS;
@@ -207,9 +257,9 @@ static int handle_dereference_openldap(struct ldb_dn *dn,
 		ldb_dn_set_extended_component(dn, "GUID", &guid_blob);
 	}
 	
-	sid_blob = ldb_msg_find_ldb_val(&fake_msg, "objectSID");
+	sid_blob = ldb_msg_find_ldb_val(&fake_msg, "objectSid");
 	
-	/* Look for the objectSID */
+	/* Look for the objectSid */
 	if (sid_blob) {
 		ldb_dn_set_extended_component(dn, "SID", sid_blob);
 	}
@@ -261,7 +311,7 @@ static int handle_dereference_fds(struct ldb_dn *dn,
 		ldb_dn_set_extended_component(dn, "GUID", &guid_blob);
 	}
 	
-	/* Look for the objectSID */
+	/* Look for the objectSid */
 
 	sidBlob = ldb_msg_find_ldb_val(&fake_msg, "sambaSID");
 	if (sidBlob) {
@@ -309,10 +359,10 @@ static int extended_callback(struct ldb_request *req, struct ldb_reply *ares,
 	struct dsdb_openldap_dereference_result_control *dereference_control = NULL;
 	int ret;
 	unsigned int i, j;
-	struct ldb_message *msg = ares->message;
+	struct ldb_message *msg;
 	struct extended_dn_out_private *p;
 	struct ldb_context *ldb;
-	bool have_reveal_control, checked_reveal_control=false;
+	bool have_reveal_control=false, checked_reveal_control=false;
 
 	ac = talloc_get_type(req->context, struct extended_search_context);
 	p = talloc_get_type(ldb_module_get_private(ac->module), struct extended_dn_out_private);
@@ -325,6 +375,8 @@ static int extended_callback(struct ldb_request *req, struct ldb_reply *ares,
 		return ldb_module_done(ac->req, ares->controls,
 					ares->response, ares->error);
 	}
+
+	msg = ares->message;
 
 	switch (ares->type) {
 	case LDB_REPLY_REFERRAL:
@@ -549,6 +601,7 @@ static int extended_dn_out_search(struct ldb_module *module, struct ldb_request 
 	const char * const *const_attrs;
 	struct ldb_context *ldb = ldb_module_get_ctx(module);
 	int ret;
+	bool critical;
 
 	struct extended_dn_out_private *p = talloc_get_type(ldb_module_get_private(module), struct extended_dn_out_private);
 
@@ -609,7 +662,7 @@ static int extended_dn_out_search(struct ldb_module *module, struct ldb_request 
 			if (! is_attr_in_list(req->op.search.attrs, "objectGUID")) {
 				ac->remove_guid = true;
 			}
-			if (! is_attr_in_list(req->op.search.attrs, "objectSID")) {
+			if (! is_attr_in_list(req->op.search.attrs, "objectSid")) {
 				ac->remove_sid = true;
 			}
 			if (ac->remove_guid || ac->remove_sid) {
@@ -623,7 +676,7 @@ static int extended_dn_out_search(struct ldb_module *module, struct ldb_request 
 						return ldb_operr(ldb);
 				}
 				if (ac->remove_sid) {
-					if (!add_attrs(ac, &new_attrs, "objectSID"))
+					if (!add_attrs(ac, &new_attrs, "objectSid"))
 						return ldb_operr(ldb);
 				}
 				const_attrs = (const char * const *)new_attrs;
@@ -640,12 +693,14 @@ static int extended_dn_out_search(struct ldb_module *module, struct ldb_request 
 				      req->controls,
 				      ac, callback,
 				      req);
+	LDB_REQ_SET_LOCATION(down_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
 
 	/* mark extended DN and storage format controls as done */
 	if (control) {
+		critical = control->critical;
 		control->critical = 0;
 	}
 
@@ -656,12 +711,28 @@ static int extended_dn_out_search(struct ldb_module *module, struct ldb_request 
 	/* Add in dereference control, if we were asked to, we are
 	 * using the 'dereference' mode (such as with an OpenLDAP
 	 * backend) and have the control prepared */
-	if (control && p && p->dereference && p->dereference_control) {
-		ret = ldb_request_add_control(down_req,
-					      DSDB_OPENLDAP_DEREFERENCE_CONTROL,
-					      false, p->dereference_control);
+	if (control && p && p->dereference) {
+		ret = extended_dn_out_dereference_setup_control(ldb, p);
 		if (ret != LDB_SUCCESS) {
 			return ret;
+		}
+
+		/* We should always have this, but before the schema
+		 * is with us, things get tricky */
+		if (p->dereference_control) {
+
+			/* This control must *not* be critical,
+			 * because if this particular request did not
+			 * return any dereferencable attributes in the
+			 * end, then OpenLDAP will reply with
+			 * unavailableCriticalExtension, rather than
+			 * just an empty return control */
+			ret = ldb_request_add_control(down_req,
+						      DSDB_OPENLDAP_DEREFERENCE_CONTROL,
+						      false, p->dereference_control);
+			if (ret != LDB_SUCCESS) {
+				return ret;
+			}
 		}
 	}
 
@@ -726,24 +797,19 @@ static int extended_dn_out_ldb_init(struct ldb_module *module)
 static int extended_dn_out_dereference_init(struct ldb_module *module, const char *attrs[])
 {
 	int ret;
-	unsigned int i = 0;
 	struct extended_dn_out_private *p = talloc_zero(module, struct extended_dn_out_private);
 	struct dsdb_extended_dn_store_format *dn_format;
-	struct dsdb_openldap_dereference_control *dereference_control;
-	struct dsdb_attribute *cur;
-	struct ldb_context *ldb = ldb_module_get_ctx(module);
-	const struct dsdb_schema *schema;
 
 	ldb_module_set_private(module, p);
 
 	if (!p) {
-		return ldb_oom(ldb);
+		return ldb_module_oom(module);
 	}
 
 	dn_format = talloc(p, struct dsdb_extended_dn_store_format);
 	if (!dn_format) {
 		talloc_free(p);
-		return ldb_oom(ldb_module_get_ctx(module));
+		return ldb_module_oom(module);
 	}
 
 	dn_format->store_extended_dn_in_ldb = false;
@@ -756,64 +822,26 @@ static int extended_dn_out_dereference_init(struct ldb_module *module, const cha
 
 	p->dereference = true;
 
+	p->attrs = attrs;
 	/* At the moment, servers that need dereference also need the
 	 * DN and attribute names to be normalised */
 	p->normalise = true;
 
 	ret = ldb_mod_register_control(module, LDB_CONTROL_EXTENDED_DN_OID);
 	if (ret != LDB_SUCCESS) {
-		ldb_debug(ldb, LDB_DEBUG_ERROR,
-			"extended_dn_out: Unable to register control with rootdse!\n");
-		return ldb_operr(ldb);
+		ldb_debug(ldb_module_get_ctx(module), LDB_DEBUG_ERROR,
+			  "extended_dn_out: Unable to register control with rootdse!\n");
+		return ldb_operr(ldb_module_get_ctx(module));
 	}
 
-	ret = ldb_next_init(module);
-
-	if (ret != LDB_SUCCESS) {
-		return ret;
-	}
-
-	schema = dsdb_get_schema(ldb, p);
-	if (!schema) {
-		/* No schema on this DB (yet) */
-		return LDB_SUCCESS;
-	}
-
-	p->dereference_control = dereference_control
-		= talloc_zero(p, struct dsdb_openldap_dereference_control);
-
-	if (!p->dereference_control) {
-		return ldb_oom(ldb);
-	}
-	
-	for (cur = schema->attributes; cur; cur = cur->next) {
-		if (dsdb_dn_oid_to_format(cur->syntax->ldap_oid) == DSDB_INVALID_DN) {
-			continue;
-		}
-		dereference_control->dereference
-			= talloc_realloc(p, dereference_control->dereference,
-					 struct dsdb_openldap_dereference *, i + 2);
-		if (!dereference_control) {
-			return ldb_oom(ldb);
-		}
-		dereference_control->dereference[i] = talloc(dereference_control->dereference,  
-					 struct dsdb_openldap_dereference);
-		if (!dereference_control->dereference[i]) {
-			return ldb_oom(ldb);
-		}
-		dereference_control->dereference[i]->source_attribute = cur->lDAPDisplayName;
-		dereference_control->dereference[i]->dereference_attribute = attrs;
-		i++;
-		dereference_control->dereference[i] = NULL;
-	}
-	return LDB_SUCCESS;
+	return ldb_next_init(module);
 }
 
 static int extended_dn_out_openldap_init(struct ldb_module *module)
 {
 	static const char *attrs[] = {
 		"entryUUID",
-		"objectSID",
+		"objectSid",
 		NULL
 	};
 
@@ -824,27 +852,49 @@ static int extended_dn_out_fds_init(struct ldb_module *module)
 {
 	static const char *attrs[] = {
 		"nsUniqueId",
-		"objectSID",
+		"sambaSID",
 		NULL
 	};
 
 	return extended_dn_out_dereference_init(module, attrs);
 }
 
-_PUBLIC_ const struct ldb_module_ops ldb_extended_dn_out_ldb_module_ops = {
+static const struct ldb_module_ops ldb_extended_dn_out_ldb_module_ops = {
 	.name		   = "extended_dn_out_ldb",
 	.search            = extended_dn_out_ldb_search,
 	.init_context	   = extended_dn_out_ldb_init,
 };
 
-_PUBLIC_ const struct ldb_module_ops ldb_extended_dn_out_openldap_module_ops = {
+static const struct ldb_module_ops ldb_extended_dn_out_openldap_module_ops = {
 	.name		   = "extended_dn_out_openldap",
 	.search            = extended_dn_out_openldap_search,
 	.init_context	   = extended_dn_out_openldap_init,
 };
 
-_PUBLIC_ const struct ldb_module_ops ldb_extended_dn_out_fds_module_ops = {
+static const struct ldb_module_ops ldb_extended_dn_out_fds_module_ops = {
 	.name		   = "extended_dn_out_fds",
 	.search            = extended_dn_out_fds_search,
 	.init_context	   = extended_dn_out_fds_init,
 };
+
+/*
+  initialise the module
+ */
+_PUBLIC_ int ldb_extended_dn_out_module_init(const char *version)
+{
+	int ret;
+	LDB_MODULE_CHECK_VERSION(version);
+	ret = ldb_register_module(&ldb_extended_dn_out_ldb_module_ops);
+	if (ret != LDB_SUCCESS) {
+		return ret;
+	}
+	ret = ldb_register_module(&ldb_extended_dn_out_openldap_module_ops);
+	if (ret != LDB_SUCCESS) {
+		return ret;
+	}
+	ret = ldb_register_module(&ldb_extended_dn_out_fds_module_ops);
+	if (ret != LDB_SUCCESS) {
+		return ret;
+	}
+	return LDB_SUCCESS;
+}

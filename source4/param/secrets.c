@@ -27,14 +27,10 @@
 #include "system/filesys.h"
 #include "tdb_wrap.h"
 #include "lib/ldb-samba/ldb_wrap.h"
-#include "lib/ldb/include/ldb.h"
-#include "../tdb/include/tdb.h"
+#include <ldb.h>
 #include "../lib/util/util_tdb.h"
-#include "../lib/util/util_ldb.h"
 #include "librpc/gen_ndr/ndr_security.h"
 #include "dsdb/samdb/samdb.h"
-#include "dsdb/common/util.h"
-#include "dsdb/common/proto.h"
 
 /**
  * Use a TDB to store an incrementing random seed.
@@ -90,10 +86,9 @@ struct tdb_wrap *secrets_init(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_c
   connect to the secrets ldb
 */
 struct ldb_context *secrets_db_connect(TALLOC_CTX *mem_ctx,
-					struct tevent_context *ev_ctx,
 					struct loadparm_context *lp_ctx)
 {
-	return ldb_wrap_connect(mem_ctx, ev_ctx, lp_ctx, lpcfg_secrets_url(lp_ctx),
+	return ldb_wrap_connect(mem_ctx, NULL, lp_ctx, lpcfg_secrets_url(lp_ctx),
 			       NULL, NULL, 0);
 }
 
@@ -102,21 +97,22 @@ struct ldb_context *secrets_db_connect(TALLOC_CTX *mem_ctx,
  * @return pointer to a SID object if the SID could be obtained, NULL otherwise
  */
 struct dom_sid *secrets_get_domain_sid(TALLOC_CTX *mem_ctx,
-				       struct tevent_context *ev_ctx,
 				       struct loadparm_context *lp_ctx,
 				       const char *domain,
+				       enum netr_SchannelType *sec_channel_type,
 				       char **errstring)
 {
 	struct ldb_context *ldb;
 	struct ldb_message *msg;
 	int ldb_ret;
-	const char *attrs[] = { "objectSid", NULL };
+	const char *attrs[] = { "objectSid", "secureChannelType", NULL };
 	struct dom_sid *result = NULL;
 	const struct ldb_val *v;
 	enum ndr_err_code ndr_err;
+
 	*errstring = NULL;
 
-	ldb = secrets_db_connect(mem_ctx, ev_ctx, lp_ctx);
+	ldb = secrets_db_connect(mem_ctx, lp_ctx);
 	if (ldb == NULL) {
 		DEBUG(5, ("secrets_db_connect failed\n"));
 		return NULL;
@@ -139,6 +135,18 @@ struct dom_sid *secrets_get_domain_sid(TALLOC_CTX *mem_ctx,
 					     domain, (char *) ldb_get_opaque(ldb, "ldb_url"));
 		return NULL;
 	}
+
+	if (sec_channel_type) {
+		int t;
+		t = ldb_msg_find_attr_as_int(msg, "secureChannelType", -1);
+		if (t == -1) {
+			*errstring = talloc_asprintf(mem_ctx, "Failed to find secureChannelType for %s in %s",
+						     domain, (char *) ldb_get_opaque(ldb, "ldb_url"));
+			return NULL;
+		}
+		*sec_channel_type = t;
+	}
+
 	result = talloc(mem_ctx, struct dom_sid);
 	if (result == NULL) {
 		talloc_free(ldb);
@@ -157,3 +165,28 @@ struct dom_sid *secrets_get_domain_sid(TALLOC_CTX *mem_ctx,
 
 	return result;
 }
+
+char *keytab_name_from_msg(TALLOC_CTX *mem_ctx, struct ldb_context *ldb, struct ldb_message *msg) 
+{
+	const char *krb5keytab = ldb_msg_find_attr_as_string(msg, "krb5Keytab", NULL);
+	if (krb5keytab) {
+		return talloc_strdup(mem_ctx, krb5keytab);
+	} else {
+		char *file_keytab;
+		char *relative_path;
+		const char *privateKeytab = ldb_msg_find_attr_as_string(msg, "privateKeytab", NULL);
+		if (!privateKeytab) {
+			return NULL;
+		}
+
+		relative_path = ldb_relative_path(ldb, mem_ctx, privateKeytab);
+		if (!relative_path) {
+			return NULL;
+		}
+		file_keytab = talloc_asprintf(mem_ctx, "FILE:%s", relative_path);
+		talloc_free(relative_path);
+		return file_keytab;
+	}
+	return NULL;
+}
+

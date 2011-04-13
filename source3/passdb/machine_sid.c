@@ -21,6 +21,10 @@
 */
 
 #include "includes.h"
+#include "passdb.h"
+#include "secrets.h"
+#include "dbwrap.h"
+#include "../libcli/security/security.h"
 
 /* NOTE! the global_sam_sid is the SID of our local SAM. This is only
    equal to the domain SID when we are a DC, otherwise its our
@@ -111,7 +115,7 @@ static struct dom_sid *pdb_generate_sam_sid(void)
 			return sam_sid;
 		}
 
-		if (!sid_equal(&domain_sid, sam_sid)) {
+		if (!dom_sid_equal(&domain_sid, sam_sid)) {
 
 			/* Domain name sid doesn't match global sam sid. Re-store domain sid as 'local' sid. */
 
@@ -230,7 +234,7 @@ void reset_global_sam_sid(void)
 
 bool sid_check_is_domain(const struct dom_sid *sid)
 {
-	return sid_equal(sid, get_global_sam_sid());
+	return dom_sid_equal(sid, get_global_sam_sid());
 }
 
 /*****************************************************************
@@ -240,9 +244,8 @@ bool sid_check_is_domain(const struct dom_sid *sid)
 bool sid_check_is_in_our_domain(const struct dom_sid *sid)
 {
 	struct dom_sid dom_sid;
-	uint32 rid;
 
 	sid_copy(&dom_sid, sid);
-	sid_split_rid(&dom_sid, &rid);
+	sid_split_rid(&dom_sid, NULL);
 	return sid_check_is_domain(&dom_sid);
 }

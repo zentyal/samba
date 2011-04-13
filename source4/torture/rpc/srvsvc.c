@@ -306,7 +306,7 @@ static bool test_NetConnEnum(struct torture_context *tctx,
 	ZERO_STRUCT(info_ctr);
 
 	r.in.server_unc = talloc_asprintf(tctx,"\\\\%s",dcerpc_server_name(p));
-	r.in.path = talloc_asprintf(tctx,"%s","ADMIN$");
+	r.in.path = talloc_asprintf(tctx,"%s","IPC$");
 	r.in.info_ctr = &info_ctr;
 	r.in.max_buffer = (uint32_t)-1;
 	r.in.resume_handle = NULL;
@@ -534,13 +534,13 @@ static bool test_NetShareGetInfo(struct torture_context *tctx,
 static bool test_NetShareGetInfoAdminFull(struct torture_context *tctx, 
 					  struct dcerpc_pipe *p)
 {
-	return test_NetShareGetInfo(tctx, p, "ADMIN$", true);
+	return test_NetShareGetInfo(tctx, p, "IPC$", true);
 }
 
 static bool test_NetShareGetInfoAdminAnon(struct torture_context *tctx, 
 					  struct dcerpc_pipe *p)
 {
-	return test_NetShareGetInfo(tctx, p, "ADMIN$", false);
+	return test_NetShareGetInfo(tctx, p, "IPC$", false);
 }
 
 static bool test_NetShareAddSetDel(struct torture_context *tctx, 
@@ -1160,7 +1160,7 @@ again:
 
 struct torture_suite *torture_rpc_srvsvc(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "SRVSVC");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "srvsvc");
 	struct torture_rpc_tcase *tcase;
 	struct torture_test *test;
 

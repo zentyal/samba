@@ -28,8 +28,8 @@
  Compare the auth portion of two sids.
 *****************************************************************/
 
-static int dom_sid_compare_auth(const struct dom_sid *sid1,
-				const struct dom_sid *sid2)
+int dom_sid_compare_auth(const struct dom_sid *sid1,
+			 const struct dom_sid *sid2)
 {
 	int i;
 
@@ -85,60 +85,128 @@ bool dom_sid_equal(const struct dom_sid *sid1, const struct dom_sid *sid2)
 	return dom_sid_compare(sid1, sid2) == 0;
 }
 
-/* Yes, I did think about multibyte issues here, and for all I can see there's
- * none of those for parsing a SID. */
-#undef strncasecmp
+/*****************************************************************
+ Add a rid to the end of a sid
+*****************************************************************/
+
+bool sid_append_rid(struct dom_sid *sid, uint32_t rid)
+{
+	if (sid->num_auths < ARRAY_SIZE(sid->sub_auths)) {
+		sid->sub_auths[sid->num_auths++] = rid;
+		return true;
+	}
+	return false;
+}
+
+/*
+  See if 2 SIDs are in the same domain
+  this just compares the leading sub-auths
+*/
+int dom_sid_compare_domain(const struct dom_sid *sid1,
+			   const struct dom_sid *sid2)
+{
+	int n, i;
+
+	n = MIN(sid1->num_auths, sid2->num_auths);
+
+	for (i = n-1; i >= 0; --i)
+		if (sid1->sub_auths[i] != sid2->sub_auths[i])
+			return sid1->sub_auths[i] - sid2->sub_auths[i];
+
+	return dom_sid_compare_auth(sid1, sid2);
+}
+
+/*****************************************************************
+ Convert a string to a SID. Returns True on success, False on fail.
+*****************************************************************/
+
+bool string_to_sid(struct dom_sid *sidout, const char *sidstr)
+{
+	const char *p;
+	char *q;
+	/* BIG NOTE: this function only does SIDS where the identauth is not >= 2^32 */
+	uint32_t conv;
+
+	ZERO_STRUCTP(sidout);
+
+	if ((sidstr[0] != 'S' && sidstr[0] != 's') || sidstr[1] != '-') {
+		goto format_error;
+	}
+
+	/* Get the revision number. */
+	p = sidstr + 2;
+
+	if (!isdigit(*p)) {
+		goto format_error;
+	}
+
+	conv = (uint32_t) strtoul(p, &q, 10);
+	if (!q || (*q != '-')) {
+		goto format_error;
+	}
+	sidout->sid_rev_num = (uint8_t) conv;
+	q++;
+
+	if (!isdigit(*q)) {
+		goto format_error;
+	}
+
+	/* get identauth */
+	conv = (uint32_t) strtoul(q, &q, 10);
+	if (!q) {
+		goto format_error;
+	}
+
+	/* identauth in decimal should be <  2^32 */
+	/* NOTE - the conv value is in big-endian format. */
+	sidout->id_auth[0] = 0;
+	sidout->id_auth[1] = 0;
+	sidout->id_auth[2] = (conv & 0xff000000) >> 24;
+	sidout->id_auth[3] = (conv & 0x00ff0000) >> 16;
+	sidout->id_auth[4] = (conv & 0x0000ff00) >> 8;
+	sidout->id_auth[5] = (conv & 0x000000ff);
+
+	sidout->num_auths = 0;
+	if (*q != '-') {
+		/* Just id_auth, no subauths */
+		return true;
+	}
+
+	q++;
+
+	while (true) {
+		char *end;
+
+		if (!isdigit(*q)) {
+			goto format_error;
+		}
+
+		conv = strtoul(q, &end, 10);
+		if (end == q) {
+			goto format_error;
+		}
+
+		if (!sid_append_rid(sidout, conv)) {
+			DEBUG(3, ("Too many sid auths in %s\n", sidstr));
+			return false;
+		}
+
+		q = end;
+		if (*q != '-') {
+			break;
+		}
+		q += 1;
+	}
+	return true;
+
+format_error:
+	DEBUG(3, ("string_to_sid: SID %s is not in a valid format\n", sidstr));
+	return false;
+}
 
 bool dom_sid_parse(const char *sidstr, struct dom_sid *ret)
 {
-	unsigned int rev, ia, num_sub_auths, i;
-	char *p;
-
-	if (strncasecmp(sidstr, "S-", 2)) {
-		return false;
-	}
-
-	sidstr += 2;
-
-	rev = strtol(sidstr, &p, 10);
-	if (*p != '-') {
-		return false;
-	}
-	sidstr = p+1;
-
-	ia = strtol(sidstr, &p, 10);
-	if (p == sidstr) {
-		return false;
-	}
-	sidstr = p;
-
-	num_sub_auths = 0;
-	for (i=0;sidstr[i];i++) {
-		if (sidstr[i] == '-') num_sub_auths++;
-	}
-
-	ret->sid_rev_num = rev;
-	ret->id_auth[0] = 0;
-	ret->id_auth[1] = 0;
-	ret->id_auth[2] = ia >> 24;
-	ret->id_auth[3] = ia >> 16;
-	ret->id_auth[4] = ia >> 8;
-	ret->id_auth[5] = ia;
-	ret->num_auths = num_sub_auths;
-
-	for (i=0;i<num_sub_auths;i++) {
-		if (sidstr[0] != '-') {
-			return false;
-		}
-		sidstr++;
-		ret->sub_auths[i] = strtoul(sidstr, &p, 10);
-		if (p == sidstr) {
-			return false;
-		}
-		sidstr = p;
-	}
-
-	return true;
+	return string_to_sid(ret, sidstr);
 }
 
 /*
@@ -217,13 +285,13 @@ struct dom_sid *dom_sid_add_rid(TALLOC_CTX *mem_ctx,
 {
 	struct dom_sid *sid;
 
-	sid = talloc(mem_ctx, struct dom_sid);
+	sid = dom_sid_dup(mem_ctx, domain_sid);
 	if (!sid) return NULL;
 
-	*sid = *domain_sid;
-
-	sid->sub_auths[sid->num_auths] = rid;
-	sid->num_auths++;
+	if (!sid_append_rid(sid, rid)) {
+		talloc_free(sid);
+		return NULL;
+	}
 
 	return sid;
 }
@@ -279,34 +347,59 @@ bool dom_sid_in_domain(const struct dom_sid *domain_sid,
 }
 
 /*
-  convert a dom_sid to a string
+  Convert a dom_sid to a string, printing into a buffer. Return the
+  string length. If it overflows, return the string length that would
+  result (buflen needs to be +1 for the terminating 0).
 */
-char *dom_sid_string(TALLOC_CTX *mem_ctx, const struct dom_sid *sid)
+int dom_sid_string_buf(const struct dom_sid *sid, char *buf, int buflen)
 {
-	int i, ofs, maxlen;
+	int i, ofs;
 	uint32_t ia;
-	char *ret;
 
 	if (!sid) {
-		return talloc_strdup(mem_ctx, "(NULL SID)");
+		strlcpy(buf, "(NULL SID)", buflen);
+		return 10;	/* strlen("(NULL SID)") */
 	}
-
-	maxlen = sid->num_auths * 11 + 25;
-	ret = talloc_array(mem_ctx, char, maxlen);
-	if (!ret) return talloc_strdup(mem_ctx, "(SID ERR)");
 
 	ia = (sid->id_auth[5]) +
 		(sid->id_auth[4] << 8 ) +
 		(sid->id_auth[3] << 16) +
 		(sid->id_auth[2] << 24);
 
-	ofs = snprintf(ret, maxlen, "S-%u-%lu",
+	ofs = snprintf(buf, buflen, "S-%u-%lu",
 		       (unsigned int)sid->sid_rev_num, (unsigned long)ia);
 
 	for (i = 0; i < sid->num_auths; i++) {
-		ofs += snprintf(ret + ofs, maxlen - ofs, "-%lu",
+		ofs += snprintf(buf + ofs, MAX(buflen - ofs, 0), "-%lu",
 				(unsigned long)sid->sub_auths[i]);
 	}
+	return ofs;
+}
 
-	return ret;
+/*
+  convert a dom_sid to a string
+*/
+char *dom_sid_string(TALLOC_CTX *mem_ctx, const struct dom_sid *sid)
+{
+	char buf[DOM_SID_STR_BUFLEN];
+	char *result;
+	int len;
+
+	len = dom_sid_string_buf(sid, buf, sizeof(buf));
+
+	if (len+1 > sizeof(buf)) {
+		return talloc_strdup(mem_ctx, "(SID ERR)");
+	}
+
+	/*
+	 * Avoid calling strlen (via talloc_strdup), we already have
+	 * the length
+	 */
+	result = (char *)talloc_memdup(mem_ctx, buf, len+1);
+
+	/*
+	 * beautify the talloc_report output
+	 */
+	talloc_set_name_const(result, result);
+	return result;
 }

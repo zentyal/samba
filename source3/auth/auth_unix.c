@@ -18,63 +18,13 @@
 */
 
 #include "includes.h"
+#include "auth.h"
+#include "system/passwd.h"
+#include "../librpc/gen_ndr/samr.h"
+#include "smbd/globals.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
-
-/**
- * update the encrypted smbpasswd file from the plaintext username and password
- *  
- *  this ugly hack needs to die, but not quite yet, I think people still use it...
- **/
-static bool update_smbpassword_file(const char *user, const char *password)
-{
-	struct samu 	*sampass;
-	bool            ret;
-
-	if ( !(sampass = samu_new( NULL )) ) {
-		return False;
-	}
-
-	become_root();
-	ret = pdb_getsampwnam(sampass, user);
-	unbecome_root();
-
-	if(ret == False) {
-		DEBUG(0,("pdb_getsampwnam returned NULL\n"));
-		TALLOC_FREE(sampass);
-		return False;
-	}
-
-	/*
-	 * Remove the account disabled flag - we are updating the
-	 * users password from a login.
-	 */
-	if (!pdb_set_acct_ctrl(sampass, pdb_get_acct_ctrl(sampass) & ~ACB_DISABLED, PDB_CHANGED)) {
-		TALLOC_FREE(sampass);
-		return False;
-	}
-
-	if (!pdb_set_plaintext_passwd (sampass, password)) {
-		TALLOC_FREE(sampass);
-		return False;
-	}
-
-	/* Now write it into the file. */
-	become_root();
-
-	ret = NT_STATUS_IS_OK(pdb_update_sam_account (sampass));
-
-	unbecome_root();
-
-	if (ret) {
-		DEBUG(3,("pdb_update_sam_account returned %d\n",ret));
-	}
-
-	TALLOC_FREE(sampass);
-	return ret;
-}
-
 
 /** Check a plaintext username/password
  *
@@ -100,24 +50,15 @@ static NTSTATUS check_unix_security(const struct auth_context *auth_context,
 	    done.  We may need to revisit this **/
 	nt_status = pass_check(pass,
 				pass ? pass->pw_name : user_info->mapped.account_name,
-				(char *)user_info->plaintext_password.data,
-				user_info->plaintext_password.length-1,
-				lp_update_encrypted() ? 
-				update_smbpassword_file : NULL,
-				True);
+			       smbd_server_conn->client_id.name,
+				user_info->password.plaintext,
+				true);
 
 	unbecome_root();
 
 	if (NT_STATUS_IS_OK(nt_status)) {
 		if (pass) {
-			/* if a real user check pam account restrictions */
-			/* only really perfomed if "obey pam restriction" is true */
-			nt_status = smb_pam_accountcheck(pass->pw_name);
-			if (  !NT_STATUS_IS_OK(nt_status)) {
-				DEBUG(1, ("PAM account restriction prevents user login\n"));
-			} else {
-				make_server_info_pw(server_info, pass->pw_name, pass);
-			}
+			make_server_info_pw(server_info, pass->pw_name, pass);
 		} else {
 			/* we need to do somthing more useful here */
 			nt_status = NT_STATUS_NO_SUCH_USER;

@@ -4,22 +4,24 @@
    idmap PASSDB backend
 
    Copyright (C) Simo Sorce 2006
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
+#include "idmap.h"
+#include "passdb.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_IDMAP
@@ -28,7 +30,7 @@
  Initialise idmap database. 
 *****************************/
 
-static NTSTATUS idmap_pdb_init(struct idmap_domain *dom, const char *params)
+static NTSTATUS idmap_pdb_init(struct idmap_domain *dom)
 {	
 	return NT_STATUS_OK;
 }
@@ -76,7 +78,7 @@ static NTSTATUS idmap_pdb_sids_to_unixids(struct idmap_domain *dom, struct id_ma
 	for (i = 0; ids[i]; i++) {
 		enum lsa_SidType type;
 		union unid_t id;
-		
+
 		if (pdb_sid_to_id(ids[i]->sid, &id, &type)) {
 			switch (type) {
 			case SID_NAME_USER:
@@ -111,17 +113,11 @@ static NTSTATUS idmap_pdb_sids_to_unixids(struct idmap_domain *dom, struct id_ma
  Close the idmap tdb instance
 **********************************/
 
-static NTSTATUS idmap_pdb_close(struct idmap_domain *dom)
-{
-	return NT_STATUS_OK;
-}
-
 static struct idmap_methods passdb_methods = {
 
 	.init = idmap_pdb_init,
 	.unixids_to_sids = idmap_pdb_unixids_to_sids,
 	.sids_to_unixids = idmap_pdb_sids_to_unixids,
-	.close_fn =idmap_pdb_close
 };
 
 NTSTATUS idmap_passdb_init(void)

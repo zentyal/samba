@@ -18,10 +18,12 @@
 */
 
 #include "includes.h"
-#include "../librpc/gen_ndr/cli_spoolss.h"
+#include "ads.h"
+#include "../librpc/gen_ndr/ndr_spoolss_c.h"
 #include "rpc_client/cli_spoolss.h"
 #include "registry.h"
 #include "registry/reg_objects.h"
+#include "nt_printing.h"
 
 #ifdef HAVE_ADS
 
@@ -45,33 +47,25 @@
 		return status;
 	}
 	if (ads_count_replies(ads, *res) != 1) {
-		if (res) {
-			ads_msgfree(ads, *res);
-			*res = NULL;
-		}
+		ads_msgfree(ads, *res);
+		*res = NULL;
 		return ADS_ERROR(LDAP_NO_SUCH_OBJECT);
 	}
 	srv_dn = ldap_get_dn(ads->ldap.ld, *res);
 	if (srv_dn == NULL) {
-		if (res) {
-			ads_msgfree(ads, *res);
-			*res = NULL;
-		}
+		ads_msgfree(ads, *res);
+		*res = NULL;
 		return ADS_ERROR(LDAP_NO_MEMORY);
 	}
 	srv_cn = ldap_explode_dn(srv_dn, 1);
 	if (srv_cn == NULL) {
 		ldap_memfree(srv_dn);
-		if (res) {
-			ads_msgfree(ads, *res);
-			*res = NULL;
-		}
-		return ADS_ERROR(LDAP_INVALID_DN_SYNTAX);
-	}
-	if (res) {
 		ads_msgfree(ads, *res);
 		*res = NULL;
+		return ADS_ERROR(LDAP_INVALID_DN_SYNTAX);
 	}
+	ads_msgfree(ads, *res);
+	*res = NULL;
 
 	if (asprintf(&s, "(cn=%s-%s)", srv_cn[0], printer) == -1) {
 		ldap_memfree(srv_dn);
@@ -313,12 +307,14 @@ WERROR get_remote_printer_publishing_data(struct rpc_pipe_client *cli,
 					  ADS_MODLIST *mods,
 					  const char *printer)
 {
+	struct dcerpc_binding_handle *b = cli->binding_handle;
 	WERROR result;
 	char *printername;
 	struct spoolss_PrinterEnumValues *info;
 	uint32_t count;
 	uint32 i;
 	struct policy_handle pol;
+	WERROR werr;
 
 	if ((asprintf(&printername, "%s\\%s", cli->srv_name_slash, printer) == -1)) {
 		DEBUG(3, ("Insufficient memory\n"));
@@ -390,24 +386,10 @@ WERROR get_remote_printer_publishing_data(struct rpc_pipe_client *cli,
 
 	ads_mod_str(mem_ctx, mods, SPOOL_REG_PRINTERNAME, printer);
 
-	rpccli_spoolss_ClosePrinter(cli, mem_ctx, &pol, NULL);
+	dcerpc_spoolss_ClosePrinter(b, mem_ctx, &pol, &werr);
 	SAFE_FREE(printername);
 
 	return result;
-}
-
-bool get_local_printer_publishing_data(TALLOC_CTX *mem_ctx,
-				       ADS_MODLIST *mods,
-				       NT_PRINTER_DATA *data)
-{
-	uint32 key,val;
-
-	for (key=0; key < data->num_keys; key++) {
-		struct regval_ctr *ctr = data->keys[key].values;
-		for (val=0; val < regval_ctr_numvals(ctr); val++)
-			map_regval_to_ads(mem_ctx, mods, regval_ctr_specific_value(ctr, val));
-	}
-	return True;
 }
 
 #endif

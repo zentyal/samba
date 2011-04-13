@@ -129,69 +129,6 @@ int set_server_zone_offset(time_t t)
 	return server_zone_offset;
 }
 
-/****************************************************************************
- Return the date and time as a string
-****************************************************************************/
-
-char *timeval_string(TALLOC_CTX *ctx, const struct timeval *tp, bool hires)
-{
-	fstring TimeBuf;
-	time_t t;
-	struct tm *tm;
-
-	t = (time_t)tp->tv_sec;
-	tm = localtime(&t);
-	if (!tm) {
-		if (hires) {
-			slprintf(TimeBuf,
-				 sizeof(TimeBuf)-1,
-				 "%ld.%06ld seconds since the Epoch",
-				 (long)tp->tv_sec,
-				 (long)tp->tv_usec);
-		} else {
-			slprintf(TimeBuf,
-				 sizeof(TimeBuf)-1,
-				 "%ld seconds since the Epoch",
-				 (long)t);
-		}
-	} else {
-#ifdef HAVE_STRFTIME
-		if (hires) {
-			strftime(TimeBuf,sizeof(TimeBuf)-1,"%Y/%m/%d %H:%M:%S",tm);
-			slprintf(TimeBuf+strlen(TimeBuf),
-				 sizeof(TimeBuf)-1 - strlen(TimeBuf), 
-				 ".%06ld", 
-				 (long)tp->tv_usec);
-		} else {
-			strftime(TimeBuf,sizeof(TimeBuf)-1,"%Y/%m/%d %H:%M:%S",tm);
-		}
-#else
-		if (hires) {
-			const char *asct = asctime(tm);
-			slprintf(TimeBuf, 
-				 sizeof(TimeBuf)-1, 
-				 "%s.%06ld", 
-				 asct ? asct : "unknown", 
-				 (long)tp->tv_usec);
-		} else {
-			const char *asct = asctime(tm);
-			fstrcpy(TimeBuf, asct ? asct : "unknown");
-		}
-#endif
-	}
-	return talloc_strdup(ctx, TimeBuf);
-}
-
-char *current_timestring(TALLOC_CTX *ctx, bool hires)
-{
-	struct timeval tv;
-
-	GetTimeOfDay(&tv);
-	return timeval_string(ctx, &tv, hires);
-}
-
-
-
 /***************************************************************************
  Server versions of the above functions.
 ***************************************************************************/
@@ -259,7 +196,7 @@ void dos_filetime_timespec(struct timespec *tsp)
  localtime).
 ********************************************************************/
 
-static time_t make_unix_date(const void *date_ptr, int zone_offset)
+time_t make_unix_date(const void *date_ptr, int zone_offset)
 {
 	uint32_t dos_date=0;
 	struct tm t;
@@ -356,11 +293,8 @@ struct timeval convert_timespec_to_timeval(const struct timespec ts)
 
 struct timespec timespec_current(void)
 {
-	struct timeval tv;
 	struct timespec ts;
-	GetTimeOfDay(&tv);
-	ts.tv_sec = tv.tv_sec;
-	ts.tv_nsec = tv.tv_usec * 1000;
+	clock_gettime(CLOCK_REALTIME, &ts);
 	return ts;
 }
 
@@ -412,6 +346,10 @@ void round_timespec_to_usec(struct timespec *ts)
 {
 	struct timeval tv = convert_timespec_to_timeval(*ts);
 	*ts = convert_timeval_to_timespec(tv);
+	while (ts->tv_nsec > 1000000000) {
+		ts->tv_sec += 1;
+		ts->tv_nsec -= 1000000000;
+	}
 }
 
 /****************************************************************************
@@ -432,41 +370,6 @@ struct timespec interpret_long_date(const char *p)
 	}
 	return nt_time_to_unix_timespec(&nt);
 }
-
-/***************************************************************************
- Client versions of the above functions.
-***************************************************************************/
-
-void cli_put_dos_date(struct cli_state *cli, char *buf, int offset, time_t unixdate)
-{
-	push_dos_date((uint8_t *)buf, offset, unixdate, cli->serverzone);
-}
-
-void cli_put_dos_date2(struct cli_state *cli, char *buf, int offset, time_t unixdate)
-{
-	push_dos_date2((uint8_t *)buf, offset, unixdate, cli->serverzone);
-}
-
-void cli_put_dos_date3(struct cli_state *cli, char *buf, int offset, time_t unixdate)
-{
-	push_dos_date3((uint8_t *)buf, offset, unixdate, cli->serverzone);
-}
-
-time_t cli_make_unix_date(struct cli_state *cli, const void *date_ptr)
-{
-	return make_unix_date(date_ptr, cli->serverzone);
-}
-
-time_t cli_make_unix_date2(struct cli_state *cli, const void *date_ptr)
-{
-	return make_unix_date2(date_ptr, cli->serverzone);
-}
-
-time_t cli_make_unix_date3(struct cli_state *cli, const void *date_ptr)
-{
-	return make_unix_date3(date_ptr, cli->serverzone);
-}
-
 
 /*******************************************************************
  Re-read the smb serverzone value.

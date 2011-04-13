@@ -603,12 +603,12 @@ SMBC_setatr(SMBCCTX * context, SMBCSRV *srv, char *path,
          * attributes manipulated.
          */
         if (srv->no_pathinfo ||
-            ! cli_setpathinfo(srv->cli, path,
-                              create_time,
-                              access_time,
-                              write_time,
-                              change_time,
-                              mode)) {
+            !NT_STATUS_IS_OK(cli_setpathinfo_basic(srv->cli, path,
+						   create_time,
+						   access_time,
+						   write_time,
+						   change_time,
+						   mode))) {
 
                 /*
                  * setpathinfo is not supported; go to plan B. 
@@ -730,9 +730,10 @@ SMBC_lseek_ctx(SMBCCTX *context,
 		}
 
 		/*d_printf(">>>lseek: resolved path as %s\n", targetpath);*/
-		if (!cli_qfileinfo(targetcli, file->cli_fd, NULL,
-                                   &size, NULL, NULL, NULL, NULL, NULL))
-		{
+		if (!NT_STATUS_IS_OK(cli_qfileinfo_basic(
+					     targetcli, file->cli_fd, NULL,
+					     &size, NULL, NULL, NULL, NULL,
+					     NULL))) {
                         SMB_OFF_T b_size = size;
 			if (!NT_STATUS_IS_OK(cli_getattrE(targetcli, file->cli_fd,
                                           NULL, &b_size, NULL, NULL, NULL))) {

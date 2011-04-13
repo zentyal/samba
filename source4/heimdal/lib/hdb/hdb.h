@@ -36,6 +36,8 @@
 #ifndef __HDB_H__
 #define __HDB_H__
 
+#include <krb5.h>
+
 #include <hdb_err.h>
 
 #include <heim_asn1.h>
@@ -54,6 +56,7 @@ enum hdb_lockop{ HDB_RLOCK, HDB_WLOCK };
 #define HDB_F_GET_ANY		28	/* fetch any of client,server,krbtgt */
 #define HDB_F_CANON		32	/* want canonicalition */
 #define HDB_F_ADMIN_DATA	64	/* want data that kdc don't use  */
+#define HDB_F_KVNO_SPECIFIED	128	/* we want a particular KVNO */
 
 /* hdb_capability_flags */
 #define HDB_CAP_F_HANDLE_ENTERPRISE_PRINCIPAL 1
@@ -69,6 +72,13 @@ enum hdb_lockop{ HDB_RLOCK, HDB_WLOCK };
 #define HDB_KU_MKEY	0x484442
 
 typedef struct hdb_master_key_data *hdb_master_key;
+
+/**
+ * hdb_entry_ex is a wrapper structure around the hdb_entry structure
+ * that allows backends to keep a pointer to the backing store, ie in
+ * ->hdb_fetch_kvno(), so that we the kadmin/kpasswd backend gets around to
+ * ->hdb_store(), the backend doesn't need to lookup the entry again.
+ */
 
 typedef struct hdb_entry_ex {
     void *ctx;
@@ -120,10 +130,11 @@ typedef struct HDB{
      *
      * Fetch an entry from the backend, flags are what type of entry
      * should be fetch: client, server, krbtgt.
+     * knvo (if specified and flags HDB_F_KVNO_SPECIFIED set) is the kvno to get
      */
-    krb5_error_code (*hdb_fetch)(krb5_context, struct HDB*,
-				 krb5_const_principal, unsigned,
-				 hdb_entry_ex*);
+    krb5_error_code (*hdb_fetch_kvno)(krb5_context, struct HDB*,
+				      krb5_const_principal, unsigned, krb5_kvno,
+				      hdb_entry_ex*);
     /**
      * Store an entry to database
      */
@@ -211,7 +222,7 @@ typedef struct HDB{
      * all other operations, increasing the kvno, and update
      * modification timestamp.
      * 
-     * The backen need to call _kadm5_set_keys() and perform password
+     * The backend needs to call _kadm5_set_keys() and perform password
      * quality checks.
      */
     krb5_error_code (*hdb_password)(krb5_context, struct HDB*, hdb_entry_ex*, const char *, int);
@@ -227,7 +238,7 @@ typedef struct HDB{
      */
     krb5_error_code (*hdb_auth_status)(krb5_context, struct HDB *, hdb_entry_ex *, int);
     /**
-     * Check is delegation is allowed.
+     * Check if delegation is allowed.
      */
     krb5_error_code (*hdb_check_constrained_delegation)(krb5_context, struct HDB *, hdb_entry_ex *, krb5_const_principal);
 

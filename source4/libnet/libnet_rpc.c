@@ -111,6 +111,10 @@ static struct composite_context* libnet_RpcConnectSrv_send(struct libnet_context
 		b->flags = r->in.dcerpc_flags;
 	}
 
+	if (DEBUGLEVEL >= 10) {
+		b->flags |= DCERPC_DEBUG_PRINT_BOTH;
+	}
+
 	if (r->level == LIBNET_RPC_CONNECT_SERVER_ADDRESS) {
 		b->target_hostname = talloc_strdup(b, r->in.name);
 		if (composite_nomem(b->target_hostname, c)) {
@@ -223,7 +227,7 @@ struct rpc_connect_dc_state {
 };
 
 
-static void continue_lookup_dc(struct composite_context *ctx);
+static void continue_lookup_dc(struct tevent_req *req);
 static void continue_rpc_connect(struct composite_context *ctx);
 
 
@@ -243,7 +247,7 @@ static struct composite_context* libnet_RpcConnectDC_send(struct libnet_context 
 {
 	struct composite_context *c;
 	struct rpc_connect_dc_state *s;
-	struct composite_context *lookup_dc_req;
+	struct tevent_req *lookup_dc_req;
 
 	/* composite context allocation and setup */
 	c = composite_create(ctx, ctx->event_ctx);
@@ -280,7 +284,7 @@ static struct composite_context* libnet_RpcConnectDC_send(struct libnet_context 
 	lookup_dc_req = libnet_LookupDCs_send(ctx, c, &s->f);
 	if (composite_nomem(lookup_dc_req, c)) return c;
 
-	composite_continue(c, lookup_dc_req, continue_lookup_dc, c);
+	tevent_req_set_callback(lookup_dc_req, continue_lookup_dc, c);
 	return c;
 }
 
@@ -289,19 +293,19 @@ static struct composite_context* libnet_RpcConnectDC_send(struct libnet_context 
   Step 2 of RpcConnectDC: get domain controller name and
   initiate RpcConnect to it
 */
-static void continue_lookup_dc(struct composite_context *ctx)
+static void continue_lookup_dc(struct tevent_req *req)
 {
 	struct composite_context *c;
 	struct rpc_connect_dc_state *s;
 	struct composite_context *rpc_connect_req;
 	struct monitor_msg msg;
 	struct msg_net_lookup_dc data;
-	
-	c = talloc_get_type(ctx->async.private_data, struct composite_context);
-	s = talloc_get_type(c->private_data, struct rpc_connect_dc_state);
+
+	c = tevent_req_callback_data(req, struct composite_context);
+	s = talloc_get_type_abort(c->private_data, struct rpc_connect_dc_state);
 	
 	/* receive result of domain controller lookup */
-	c->status = libnet_LookupDCs_recv(ctx, c, &s->f);
+	c->status = libnet_LookupDCs_recv(req, c, &s->f);
 	if (!composite_is_ok(c)) return;
 
 	/* decide on preferred address type depending on DC type */
@@ -768,7 +772,7 @@ static void continue_epm_map_binding_send(struct composite_context *c)
 	s = talloc_get_type(c->private_data, struct rpc_connect_dci_state);
 
 	/* prepare to get endpoint mapping for the requested interface */
-	s->final_binding = talloc(s, struct dcerpc_binding);
+	s->final_binding = talloc_zero(s, struct dcerpc_binding);
 	if (composite_nomem(s->final_binding, c)) return;
 	
 	*s->final_binding = *s->lsa_pipe->binding;

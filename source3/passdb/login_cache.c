@@ -18,6 +18,8 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "passdb.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_PASSDB

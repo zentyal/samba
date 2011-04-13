@@ -1,6 +1,6 @@
 #include "config.h"
 
-#line 3 "heimdal/lib/com_err/lex.c"
+#line 3 "lex.c"
 
 #define  YY_INT_ALIGNED short int
 
@@ -54,7 +54,6 @@ typedef int flex_int32_t;
 typedef unsigned char flex_uint8_t; 
 typedef unsigned short int flex_uint16_t;
 typedef unsigned int flex_uint32_t;
-#endif /* ! C99 */
 
 /* Limits of integral types. */
 #ifndef INT8_MIN
@@ -84,6 +83,8 @@ typedef unsigned int flex_uint32_t;
 #ifndef UINT32_MAX
 #define UINT32_MAX             (4294967295U)
 #endif
+
+#endif /* ! C99 */
 
 #endif /* ! FLEXINT_H */
 
@@ -141,7 +142,15 @@ typedef unsigned int flex_uint32_t;
 
 /* Size of default input buffer. */
 #ifndef YY_BUF_SIZE
+#ifdef __ia64__
+/* On IA-64, the buffer size is 16k, not 8k.
+ * Moreover, YY_BUF_SIZE is 2*YY_READ_BUF_SIZE in the general case.
+ * Ditto for the __ia64__ case accordingly.
+ */
+#define YY_BUF_SIZE 32768
+#else
 #define YY_BUF_SIZE 16384
+#endif /* __ia64__ */
 #endif
 
 /* The state buf must be large enough to hold one state per character in the main buffer.
@@ -527,7 +536,7 @@ static int getstring(void);
 
 #undef ECHO
 
-#line 530 "heimdal/lib/com_err/lex.c"
+#line 539 "lex.c"
 
 #define INITIAL 0
 
@@ -586,8 +595,6 @@ extern int yywrap (void );
 #endif
 #endif
 
-    static void yyunput (int c,char *buf_ptr  );
-    
 #ifndef yytext_ptr
 static void yy_flex_strncpy (char *,yyconst char *,int );
 #endif
@@ -608,7 +615,12 @@ static int input (void );
 
 /* Amount of stuff to slurp up with each read. */
 #ifndef YY_READ_BUF_SIZE
+#ifdef __ia64__
+/* On IA-64, the buffer size is 16k, not 8k */
+#define YY_READ_BUF_SIZE 16384
+#else
 #define YY_READ_BUF_SIZE 8192
+#endif /* __ia64__ */
 #endif
 
 /* Copy whatever the last rule matched to the standard output. */
@@ -627,7 +639,7 @@ static int input (void );
 	if ( YY_CURRENT_BUFFER_LVALUE->yy_is_interactive ) \
 		{ \
 		int c = '*'; \
-		unsigned n; \
+		size_t n; \
 		for ( n = 0; n < max_size && \
 			     (c = getc( yyin )) != EOF && c != '\n'; ++n ) \
 			buf[n] = (char) c; \
@@ -709,9 +721,9 @@ YY_DECL
 	register char *yy_cp, *yy_bp;
 	register int yy_act;
     
-#line 57 "lex.l"
+#line 58 "lex.l"
 
-#line 714 "heimdal/lib/com_err/lex.c"
+#line 726 "lex.c"
 
 	if ( !(yy_init) )
 		{
@@ -796,86 +808,86 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 58 "lex.l"
+#line 59 "lex.l"
 { return ET; }
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 59 "lex.l"
+#line 60 "lex.l"
 { return ET; }
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 60 "lex.l"
+#line 61 "lex.l"
 { return EC; }
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 61 "lex.l"
+#line 62 "lex.l"
 { return EC; }
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 62 "lex.l"
+#line 63 "lex.l"
 { return PREFIX; }
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 63 "lex.l"
+#line 64 "lex.l"
 { return INDEX; }
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 64 "lex.l"
+#line 65 "lex.l"
 { return ID; }
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 65 "lex.l"
+#line 66 "lex.l"
 { return END; }
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 66 "lex.l"
+#line 67 "lex.l"
 { yylval.number = atoi(yytext); return NUMBER; }
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 67 "lex.l"
+#line 68 "lex.l"
 ;
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 68 "lex.l"
+#line 69 "lex.l"
 ;
 	YY_BREAK
 case 12:
 /* rule 12 can match eol */
 YY_RULE_SETUP
-#line 69 "lex.l"
+#line 70 "lex.l"
 { lineno++; }
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 70 "lex.l"
+#line 71 "lex.l"
 { return getstring(); }
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 71 "lex.l"
+#line 72 "lex.l"
 { yylval.string = strdup(yytext); return STRING; }
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 72 "lex.l"
+#line 73 "lex.l"
 { return *yytext; }
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 73 "lex.l"
+#line 74 "lex.l"
 ECHO;
 	YY_BREAK
-#line 878 "heimdal/lib/com_err/lex.c"
+#line 890 "lex.c"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -1202,43 +1214,6 @@ static int yy_get_next_buffer (void)
 	yy_is_jam = (yy_current_state == 45);
 
 	return yy_is_jam ? 0 : yy_current_state;
-}
-
-    static void yyunput (int c, register char * yy_bp )
-{
-	register char *yy_cp;
-    
-    yy_cp = (yy_c_buf_p);
-
-	/* undo effects of setting up yytext */
-	*yy_cp = (yy_hold_char);
-
-	if ( yy_cp < YY_CURRENT_BUFFER_LVALUE->yy_ch_buf + 2 )
-		{ /* need to shift things up to make room */
-		/* +2 for EOB chars. */
-		register int number_to_move = (yy_n_chars) + 2;
-		register char *dest = &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[
-					YY_CURRENT_BUFFER_LVALUE->yy_buf_size + 2];
-		register char *source =
-				&YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[number_to_move];
-
-		while ( source > YY_CURRENT_BUFFER_LVALUE->yy_ch_buf )
-			*--dest = *--source;
-
-		yy_cp += (int) (dest - source);
-		yy_bp += (int) (dest - source);
-		YY_CURRENT_BUFFER_LVALUE->yy_n_chars =
-			(yy_n_chars) = YY_CURRENT_BUFFER_LVALUE->yy_buf_size;
-
-		if ( yy_cp < YY_CURRENT_BUFFER_LVALUE->yy_ch_buf + 2 )
-			YY_FATAL_ERROR( "flex scanner push-back overflow" );
-		}
-
-	*--yy_cp = (char) c;
-
-	(yytext_ptr) = yy_bp;
-	(yy_hold_char) = *yy_cp;
-	(yy_c_buf_p) = yy_cp;
 }
 
 #ifndef YY_NO_INPUT
@@ -1633,8 +1608,8 @@ YY_BUFFER_STATE yy_scan_string (yyconst char * yystr )
 
 /** Setup the input buffer state to scan the given bytes. The next call to yylex() will
  * scan from a @e copy of @a bytes.
- * @param bytes the byte buffer to scan
- * @param len the number of bytes in the buffer pointed to by @a bytes.
+ * @param yybytes the byte buffer to scan
+ * @param _yybytes_len the number of bytes in the buffer pointed to by @a bytes.
  * 
  * @return the newly allocated buffer state object.
  */
@@ -1873,7 +1848,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 73 "lex.l"
+#line 74 "lex.l"
 
 
 
@@ -1899,7 +1874,7 @@ getstring(void)
 	    continue;
 	}
 	if(c == '\n'){
-	    error_message("unterminated string");
+	    _lex_error_message("unterminated string");
 	    lineno++;
 	    break;
 	}
@@ -1919,7 +1894,7 @@ getstring(void)
 }
 
 void
-error_message (const char *format, ...)
+_lex_error_message (const char *format, ...)
 {
      va_list args;
 

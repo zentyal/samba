@@ -87,7 +87,7 @@ static wbcErr wbc_create_auth_info(const struct winbindd_response *resp,
 	uint32_t j;
 
 	i = (struct wbcAuthUserInfo *)wbcAllocateMemory(
-		sizeof(struct wbcAuthUserInfo), 1,
+		1, sizeof(struct wbcAuthUserInfo),
 		wbcAuthUserInfoDestructor);
 	BAIL_ON_PTR_ERROR(i, wbc_status);
 
@@ -248,7 +248,7 @@ static wbcErr wbc_create_error_info(const struct winbindd_response *resp,
 	struct wbcAuthErrorInfo *e;
 
 	e = (struct wbcAuthErrorInfo *)wbcAllocateMemory(
-		sizeof(struct wbcAuthErrorInfo), 1,
+		1, sizeof(struct wbcAuthErrorInfo),
 		wbcAuthErrorInfoDestructor);
 	BAIL_ON_PTR_ERROR(e, wbc_status);
 
@@ -275,7 +275,7 @@ static wbcErr wbc_create_password_policy_info(const struct winbindd_response *re
 	struct wbcUserPasswordPolicyInfo *i;
 
 	i = (struct wbcUserPasswordPolicyInfo *)wbcAllocateMemory(
-		sizeof(struct wbcUserPasswordPolicyInfo), 1, NULL);
+		1, sizeof(struct wbcUserPasswordPolicyInfo), NULL);
 	BAIL_ON_PTR_ERROR(i, wbc_status);
 
 	i->min_passwordage	= resp->data.auth.policy.min_passwordage;
@@ -306,15 +306,14 @@ static wbcErr wbc_create_logon_info(struct winbindd_response *resp,
 	struct wbcLogonUserInfo *i;
 
 	i = (struct wbcLogonUserInfo *)wbcAllocateMemory(
-		sizeof(struct wbcLogonUserInfo), 1,
+		1, sizeof(struct wbcLogonUserInfo),
 		wbcLogonUserInfoDestructor);
 	BAIL_ON_PTR_ERROR(i, wbc_status);
 
 	wbc_status = wbc_create_auth_info(resp, &i->info);
 	BAIL_ON_WBC_ERROR(wbc_status);
 
-	if (resp->data.auth.krb5ccname &&
-	    strlen(resp->data.auth.krb5ccname)) {
+	if (resp->data.auth.krb5ccname[0] != '\0') {
 		wbc_status = wbcAddNamedBlob(&i->num_blobs,
 					     &i->blobs,
 					     "krb5ccname",
@@ -324,8 +323,7 @@ static wbcErr wbc_create_logon_info(struct winbindd_response *resp,
 		BAIL_ON_WBC_ERROR(wbc_status);
 	}
 
-	if (resp->data.auth.unix_username &&
-	    strlen(resp->data.auth.unix_username)) {
+	if (resp->data.auth.unix_username[0] != '\0') {
 		wbc_status = wbcAddNamedBlob(&i->num_blobs,
 					     &i->blobs,
 					     "unix_username",
@@ -1243,7 +1241,7 @@ wbcErr wbcCredentialCache(struct wbcCredentialCacheParams *params,
 	}
 
 	result = (struct wbcCredentialCacheInfo *)wbcAllocateMemory(
-		sizeof(struct wbcCredentialCacheInfo), 1,
+		1, sizeof(struct wbcCredentialCacheInfo),
 		wbcCredentialCacheInfoDestructor);
 	if (result == NULL) {
 		status = WBC_ERR_NO_MEMORY;

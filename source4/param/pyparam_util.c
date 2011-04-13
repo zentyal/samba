@@ -27,36 +27,50 @@
 
 _PUBLIC_ struct loadparm_context *lpcfg_from_py_object(TALLOC_CTX *mem_ctx, PyObject *py_obj)
 {
-    struct loadparm_context *lp_ctx;
+	struct loadparm_context *lp_ctx;
+	PyObject *param_mod;
+	PyTypeObject *lp_type;
+	bool is_lpobj;
 
-    if (PyString_Check(py_obj)) {
-        lp_ctx = loadparm_init(mem_ctx);
-        if (!lpcfg_load(lp_ctx, PyString_AsString(py_obj))) {
-            talloc_free(lp_ctx);
+	if (PyString_Check(py_obj)) {
+		lp_ctx = loadparm_init_global(false);
+		if (!lpcfg_load(lp_ctx, PyString_AsString(py_obj))) {
 			PyErr_Format(PyExc_RuntimeError, "Unable to load %s", 
-						 PyString_AsString(py_obj));
-            return NULL;
-        }
-        return lp_ctx;
-    }
+				     PyString_AsString(py_obj));
+			return NULL;
+		}
+		return lp_ctx;
+	}
 
-    if (py_obj == Py_None) {
-        lp_ctx = loadparm_init(mem_ctx);
-		/* We're not checking that loading the file succeeded *on purpose */
-        lpcfg_load_default(lp_ctx);
-        return lp_ctx;
-    }
+	if (py_obj == Py_None) {
+		return loadparm_init_global(true);
+	}
 
-    return PyLoadparmContext_AsLoadparmContext(py_obj);
+	param_mod = PyImport_ImportModule("samba.param");
+	if (param_mod == NULL) {
+		return NULL;
+	}
+
+	lp_type = (PyTypeObject *)PyObject_GetAttrString(param_mod, "LoadParm");
+	Py_DECREF(param_mod);
+	if (lp_type == NULL) {
+		PyErr_SetString(PyExc_RuntimeError, "Unable to import LoadParm");
+		return NULL;
+	}
+
+	is_lpobj = PyObject_TypeCheck(py_obj, lp_type);
+	Py_DECREF(lp_type);
+	if (is_lpobj) {
+		return talloc_reference(mem_ctx, PyLoadparmContext_AsLoadparmContext(py_obj));
+	}
+
+	PyErr_SetNone(PyExc_TypeError);
+	return NULL;
 }
 
 struct loadparm_context *py_default_loadparm_context(TALLOC_CTX *mem_ctx)
 {
-    struct loadparm_context *ret;
-    ret = loadparm_init(mem_ctx);
-    if (!lpcfg_load_default(ret))
-        return NULL;
-    return ret;
+	return loadparm_init_global(true);
 }
 
 

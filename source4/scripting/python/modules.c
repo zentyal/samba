@@ -31,9 +31,8 @@ static bool PySys_PathPrepend(PyObject *list, const char *path)
 	return (PyList_Insert(list, 0, py_path) == 0);
 }
 
-bool py_update_path(const char *bindir)
+bool py_update_path(void)
 {
-	char *newpath;
 	PyObject *mod_sys, *py_path;
 
 	mod_sys = PyImport_ImportModule("sys");
@@ -54,23 +53,11 @@ bool py_update_path(const char *bindir)
 		return false;
 	}
 
-	if (asprintf(&newpath, "%s/../scripting/python", bindir) < 0) {
-		return false;
+	if (strcmp(dyn_PYTHONARCHDIR, dyn_PYTHONDIR) != 0) {
+		if (!PySys_PathPrepend(py_path, dyn_PYTHONARCHDIR)) {
+			return false;
+		}
 	}
-	if (!PySys_PathPrepend(py_path, newpath)) {
-		free(newpath);
-		return false;
-	}
-	free(newpath);
-
-	if (asprintf(&newpath, "%s/python", bindir) < 0) {
-		return false;
-	}
-	if (!PySys_PathPrepend(py_path, newpath)) {
-		free(newpath);
-		return false;
-	}
-	free(newpath);
 
 	return true;
 }

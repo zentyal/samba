@@ -28,7 +28,7 @@
 #include "lib/messaging/irpc.h"
 #include "dsdb/kcc/kcc_connection.h"
 #include "dsdb/kcc/kcc_service.h"
-#include "lib/ldb/include/ldb_errors.h"
+#include <ldb_errors.h>
 #include "../lib/util/dlinklist.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "librpc/gen_ndr/ndr_drsuapi.h"
@@ -71,7 +71,7 @@ NTSTATUS kccsrv_check_deleted(struct kccsrv_service *s, TALLOC_CTX *mem_ctx)
 			continue;
 		}
 		ret = dsdb_search(s->samdb, do_dn, &res, do_dn, LDB_SCOPE_ONELEVEL, attrs,
-				  DSDB_SEARCH_SHOW_DELETED, NULL);
+				  DSDB_SEARCH_SHOW_RECYCLED, NULL);
 
 		if (ret != LDB_SUCCESS) {
 			DEBUG(1,(__location__ ": Failed to search for deleted objects in %s\n",
@@ -84,7 +84,7 @@ NTSTATUS kccsrv_check_deleted(struct kccsrv_service *s, TALLOC_CTX *mem_ctx)
 			const char *tstring;
 			time_t whenChanged = 0;
 
-			tstring = samdb_result_string(res->msgs[i], "whenChanged", NULL);
+			tstring = ldb_msg_find_attr_as_string(res->msgs[i], "whenChanged", NULL);
 			if (tstring) {
 				whenChanged = ldb_string_to_time(tstring);
 			}

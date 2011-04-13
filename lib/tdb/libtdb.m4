@@ -13,12 +13,18 @@ if test x"$tdbdir" = "x"; then
    AC_MSG_ERROR([cannot find tdb source in $tdbpaths])
 fi
 TDB_OBJ="common/tdb.o common/dump.o common/transaction.o common/error.o common/traverse.o"
-TDB_OBJ="$TDB_OBJ common/freelist.o common/freelistcheck.o common/io.o common/lock.o common/open.o common/check.o"
+TDB_OBJ="$TDB_OBJ common/freelist.o common/freelistcheck.o common/io.o common/lock.o common/open.o common/check.o common/hash.o common/summary.o"
 AC_SUBST(TDB_OBJ)
 AC_SUBST(LIBREPLACEOBJ)
 
 TDB_LIBS=""
 AC_SUBST(TDB_LIBS)
+
+TDB_DEPS=""
+if test x$libreplace_cv_HAVE_FDATASYNC_IN_LIBRT = xyes ; then
+	TDB_DEPS="$TDB_DEPS -lrt"
+fi
+AC_SUBST(TDB_DEPS)
 
 TDB_CFLAGS="-I$tdbdir/include"
 AC_SUBST(TDB_CFLAGS)

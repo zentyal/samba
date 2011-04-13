@@ -22,9 +22,11 @@
 #include "includes.h"
 #include "rpc_server/dcerpc_server.h"
 #include "dsdb/samdb/samdb.h"
-#include "rpc_server/drsuapi/dcesrv_drsuapi.h"
 #include "libcli/security/security.h"
+#include "libcli/security/session.h"
+#include "rpc_server/drsuapi/dcesrv_drsuapi.h"
 #include "auth/session.h"
+#include "librpc/gen_ndr/ndr_drsuapi.h"
 
 struct repsTo {
 	uint32_t count;
@@ -65,6 +67,8 @@ static WERROR uref_add_dest(struct ldb_context *sam_ctx, TALLOC_CTX *mem_ctx,
 	ZERO_STRUCT(reps.r[reps.count]);
 	reps.r[reps.count].version = 1;
 	reps.r[reps.count].ctr.ctr1 = *dest;
+	/* add the GCSPN flag if the client asked for it */
+	reps.r[reps.count].ctr.ctr1.replica_flags |= (options & DRSUAPI_DRS_REF_GCSPN);
 	reps.count++;
 
 	werr = dsdb_savereps(sam_ctx, mem_ctx, dn, "repsTo", reps.r, reps.count);
@@ -124,27 +128,30 @@ WERROR drsuapi_UpdateRefs(struct drsuapi_bind_state *b_state, TALLOC_CTX *mem_ct
 {
 	WERROR werr;
 	struct ldb_dn *dn;
+	struct ldb_context *sam_ctx = b_state->sam_ctx_system?b_state->sam_ctx_system:b_state->sam_ctx;
 
 	DEBUG(4,("DsReplicaUpdateRefs for host '%s' with GUID %s options 0x%08x nc=%s\n",
 		 req->dest_dsa_dns_name, GUID_string(mem_ctx, &req->dest_dsa_guid),
 		 req->options,
 		 drs_ObjectIdentifier_to_string(mem_ctx, req->naming_context)));
 
-	dn = ldb_dn_new(mem_ctx, b_state->sam_ctx, req->naming_context->dn);
+	dn = ldb_dn_new(mem_ctx, sam_ctx, req->naming_context->dn);
 	if (dn == NULL) {
 		return WERR_DS_INVALID_DN_SYNTAX;
 	}
 
-	if (ldb_transaction_start(b_state->sam_ctx) != LDB_SUCCESS) {
-		DEBUG(0,(__location__ ": Failed to start transaction on samdb\n"));
+	if (ldb_transaction_start(sam_ctx) != LDB_SUCCESS) {
+		DEBUG(0,(__location__ ": Failed to start transaction on samdb: %s\n",
+			 ldb_errstring(sam_ctx)));
 		return WERR_DS_DRA_INTERNAL_ERROR;		
 	}
 
 	if (req->options & DRSUAPI_DRS_DEL_REF) {
-		werr = uref_del_dest(b_state->sam_ctx, mem_ctx, dn, &req->dest_dsa_guid, req->options);
+		werr = uref_del_dest(sam_ctx, mem_ctx, dn, &req->dest_dsa_guid, req->options);
 		if (!W_ERROR_IS_OK(werr)) {
-			DEBUG(0,("Failed to delete repsTo for %s\n",
-				 GUID_string(mem_ctx, &req->dest_dsa_guid)));
+			DEBUG(0,("Failed to delete repsTo for %s: %s\n",
+				 GUID_string(mem_ctx, &req->dest_dsa_guid),
+				 win_errstr(werr)));
 			goto failed;
 		}
 	}
@@ -161,23 +168,25 @@ WERROR drsuapi_UpdateRefs(struct drsuapi_bind_state *b_state, TALLOC_CTX *mem_ct
 		dest.source_dsa_obj_guid = req->dest_dsa_guid;
 		dest.replica_flags       = req->options;
 
-		werr = uref_add_dest(b_state->sam_ctx, mem_ctx, dn, &dest, req->options);
+		werr = uref_add_dest(sam_ctx, mem_ctx, dn, &dest, req->options);
 		if (!W_ERROR_IS_OK(werr)) {
-			DEBUG(0,("Failed to add repsTo for %s\n",
-				 GUID_string(mem_ctx, &dest.source_dsa_obj_guid)));
+			DEBUG(0,("Failed to add repsTo for %s: %s\n",
+				 GUID_string(mem_ctx, &dest.source_dsa_obj_guid),
+				 win_errstr(werr)));
 			goto failed;
 		}
 	}
 
-	if (ldb_transaction_commit(b_state->sam_ctx) != LDB_SUCCESS) {
-		DEBUG(0,(__location__ ": Failed to commit transaction on samdb\n"));
+	if (ldb_transaction_commit(sam_ctx) != LDB_SUCCESS) {
+		DEBUG(0,(__location__ ": Failed to commit transaction on samdb: %s\n",
+			 ldb_errstring(sam_ctx)));
 		return WERR_DS_DRA_INTERNAL_ERROR;		
 	}
 
 	return WERR_OK;
 
 failed:
-	ldb_transaction_cancel(b_state->sam_ctx);
+	ldb_transaction_cancel(sam_ctx);
 	return werr;
 }
 
@@ -197,32 +206,41 @@ WERROR dcesrv_drsuapi_DsReplicaUpdateRefs(struct dcesrv_call_state *dce_call, TA
 	DCESRV_PULL_HANDLE_WERR(h, r->in.bind_handle, DRSUAPI_BIND_HANDLE);
 	b_state = h->data;
 
-	werr = drs_security_level_check(dce_call, "DsReplicaUpdateRefs", SECURITY_RO_DOMAIN_CONTROLLER);
-	if (!W_ERROR_IS_OK(werr)) {
-		return werr;
-	}
-
 	if (r->in.level != 1) {
 		DEBUG(0,("DrReplicUpdateRefs - unsupported level %u\n", r->in.level));
 		return WERR_DS_DRA_INVALID_PARAMETER;
 	}
-
 	req = &r->in.req.req1;
+	werr = drs_security_access_check(b_state->sam_ctx,
+					 mem_ctx,
+					 dce_call->conn->auth_state.session_info->security_token,
+					 req->naming_context,
+					 GUID_DRS_MANAGE_TOPOLOGY);
+
+	if (!W_ERROR_IS_OK(werr)) {
+		return werr;
+	}
 
 	security_level = security_session_user_level(dce_call->conn->auth_state.session_info, NULL);
 	if (security_level < SECURITY_ADMINISTRATOR) {
 		/* check that they are using an DSA objectGUID that they own */
 		ret = dsdb_validate_dsa_guid(b_state->sam_ctx,
 		                             &req->dest_dsa_guid,
-		                             dce_call->conn->auth_state.session_info->security_token->user_sid);
+		                             &dce_call->conn->auth_state.session_info->security_token->sids[PRIMARY_USER_SID_INDEX]);
 		if (ret != LDB_SUCCESS) {
 			DEBUG(0,(__location__ ": Refusing DsReplicaUpdateRefs for sid %s with GUID %s\n",
 				 dom_sid_string(mem_ctx,
-						dce_call->conn->auth_state.session_info->security_token->user_sid),
+						&dce_call->conn->auth_state.session_info->security_token->sids[PRIMARY_USER_SID_INDEX]),
 				 GUID_string(mem_ctx, &req->dest_dsa_guid)));
 			return WERR_DS_DRA_ACCESS_DENIED;
 		}
 	}
 
-	return drsuapi_UpdateRefs(b_state, mem_ctx, req);
+	werr = drsuapi_UpdateRefs(b_state, mem_ctx, req);
+
+#if 0
+	NDR_PRINT_FUNCTION_DEBUG(drsuapi_DsReplicaUpdateRefs, NDR_BOTH, r);
+#endif
+
+	return werr;
 }

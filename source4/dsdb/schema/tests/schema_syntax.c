@@ -21,8 +21,8 @@
 
 #include "includes.h"
 #include "lib/events/events.h"
-#include "lib/ldb/include/ldb.h"
-#include "lib/ldb/include/ldb_errors.h"
+#include <ldb.h>
+#include <ldb_errors.h>
 #include "lib/ldb-samba/ldif_handlers.h"
 #include "ldb_wrap.h"
 #include "dsdb/samdb/samdb.h"
@@ -101,6 +101,10 @@ static bool torture_test_syntax(struct torture_context *torture,
 	struct ldb_message_element el;
 	struct ldb_context *ldb = priv->ldb;
 	struct dsdb_schema *schema = priv->schema;
+	struct dsdb_syntax_ctx syntax_ctx;
+
+	/* use default syntax conversion context */
+	dsdb_syntax_ctx_init(&syntax_ctx, ldb, schema);
 
 	drs.value_ctr.num_values = 1;
 	drs.value_ctr.values = &val;
@@ -111,11 +115,11 @@ static bool torture_test_syntax(struct torture_context *torture,
 	torture_assert_str_equal(torture, attr->syntax->name, syntax->name, "Syntax from schema not as expected");
 	
 
-	torture_assert_werr_ok(torture, syntax->drsuapi_to_ldb(ldb, schema, attr, &drs, tmp_ctx, &el), "Failed to convert from DRS to ldb format");
+	torture_assert_werr_ok(torture, syntax->drsuapi_to_ldb(&syntax_ctx, attr, &drs, tmp_ctx, &el), "Failed to convert from DRS to ldb format");
 
 	torture_assert_data_blob_equal(torture, el.values[0], ldb_blob, "Incorrect conversion from DRS to ldb format");
 
-	torture_assert_werr_ok(torture, syntax->ldb_to_drsuapi(ldb, schema, attr, &el, tmp_ctx, &drs2), "Failed to convert from ldb to DRS format");
+	torture_assert_werr_ok(torture, syntax->ldb_to_drsuapi(&syntax_ctx, attr, &el, tmp_ctx, &drs2), "Failed to convert from ldb to DRS format");
 	
 	torture_assert(torture, drs2.value_ctr.values[0].blob, "No blob returned from conversion");
 
@@ -234,7 +238,7 @@ struct torture_suite *torture_dsdb_syntax(TALLOC_CTX *mem_ctx)
 	typedef bool (*pfn_run)(struct torture_context *, void *);
 
 	struct torture_tcase *tc;
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "DSDB-SYNTAX");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "dsdb.syntax");
 
 	if (suite == NULL) {
 		return NULL;

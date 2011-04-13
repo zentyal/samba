@@ -17,8 +17,11 @@
  * this program; if not, see <http://www.gnu.org/licenses/>.  */
 
 #include "includes.h"
-
-extern bool AllowDebugChange;
+#include "system/passwd.h"
+#include "secrets.h"
+#include "../librpc/gen_ndr/samr.h"
+#include "../lib/util/util_pw.h"
+#include "passdb.h"
 
 /*
  * Next two lines needed for SunOS and don't
@@ -152,7 +155,7 @@ static int process_options(int argc, char **argv, int local_flags)
 			lp_set_name_resolve_order(optarg);
 			break;
 		case 'D':
-			DEBUGLEVEL = atoi(optarg);
+			lp_set_cmdline("log level", optarg);
 			break;
 		case 'U': {
 			got_username = True;
@@ -340,7 +343,7 @@ static int process_root(int local_flags)
 		load_interfaces();
 	}
 
-	if (!user_name[0] && (pwd = getpwuid_alloc(talloc_autofree_context(), geteuid()))) {
+	if (!user_name[0] && (pwd = getpwuid_alloc(talloc_tos(), geteuid()))) {
 		fstrcpy(user_name, pwd->pw_name);
 		TALLOC_FREE(pwd);
 	} 
@@ -505,7 +508,7 @@ static int process_nonroot(int local_flags)
 	}
 
 	if (!user_name[0]) {
-		pwd = getpwuid_alloc(talloc_autofree_context(), getuid());
+		pwd = getpwuid_alloc(talloc_tos(), getuid());
 		if (pwd) {
 			fstrcpy(user_name,pwd->pw_name);
 			TALLOC_FREE(pwd);
@@ -568,8 +571,6 @@ int main(int argc, char **argv)
 	int local_flags = 0;
 	int ret;
 
-	AllowDebugChange = False;
-
 #if defined(HAVE_SET_AUTH_PARAMETERS)
 	set_auth_parameters(argc, argv);
 #endif /* HAVE_SET_AUTH_PARAMETERS */
@@ -582,7 +583,7 @@ int main(int argc, char **argv)
 
 	local_flags = process_options(argc, argv, local_flags);
 
-	setup_logging("smbpasswd", True);
+	setup_logging("smbpasswd", DEBUG_STDERR);
 
 	/*
 	 * Set the machine NETBIOS name if not already

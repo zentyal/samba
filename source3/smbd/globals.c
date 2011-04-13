@@ -18,7 +18,10 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
+#include "memcache.h"
+#include "messages.h"
 
 #if defined(WITH_AIO)
 struct aio_extra *aio_list_head = NULL;
@@ -37,42 +40,22 @@ bool dfree_broken = false;
 /* how many write cache buffers have been allocated */
 unsigned int allocated_write_caches = 0;
 
-int real_max_open_files = 0;
-struct bitmap *file_bmap = NULL;
-files_struct *Files = NULL;
-int files_used = 0;
-struct fsp_singleton_cache fsp_fi_cache = {
-	.fsp = NULL,
-	.id = {
-		.devid = 0,
-		.inode = 0,
-		.extid = 0
-	}
-};
-unsigned long file_gen_counter = 0;
-int first_file = 0;
-
 const struct mangle_fns *mangle_fns = NULL;
 
 unsigned char *chartest = NULL;
 TDB_CONTEXT *tdb_mangled_cache = NULL;
 
-/* these tables are used to provide fast tests for characters */
-unsigned char char_flags[256];
 /*
   this determines how many characters are used from the original filename
   in the 8.3 mangled name. A larger value leads to a weaker hash and more collisions.
   The largest possible value is 6.
 */
 unsigned mangle_prefix = 0;
-unsigned char base_reverse[256];
 
 struct msg_state *smbd_msg_state = NULL;
 
 bool logged_ioctl_message = false;
 
-int trans_num = 0;
-pid_t mypid = 0;
 time_t last_smb_conf_reload_time = 0;
 time_t last_printer_reload_time = 0;
 /****************************************************************************
@@ -113,7 +96,6 @@ int32_t level_II_oplocks_open = 0;
 struct kernel_oplocks *koplocks = NULL;
 
 int am_parent = 1;
-int server_fd = -1;
 struct memcache *smbd_memcache_ctx = NULL;
 bool exit_firsttime = true;
 struct child_pid *children = 0;
@@ -121,9 +103,27 @@ int num_children = 0;
 
 struct smbd_server_connection *smbd_server_conn = NULL;
 
+struct smbd_server_connection *msg_ctx_to_sconn(struct messaging_context *msg_ctx)
+{
+	struct server_id my_id, msg_id;
+
+	my_id = messaging_server_id(smbd_server_conn->msg_ctx);
+	msg_id = messaging_server_id(msg_ctx);
+
+	if (!procid_equal(&my_id, &msg_id)) {
+		return NULL;
+	}
+	return smbd_server_conn;
+}
+
 struct messaging_context *smbd_messaging_context(void)
 {
-	return server_messaging_context();
+	struct messaging_context *msg_ctx = server_messaging_context();
+	if (likely(msg_ctx != NULL)) {
+		return msg_ctx;
+	}
+	smb_panic("Could not init smbd's messaging context.\n");
+	return NULL;
 }
 
 struct memcache *smbd_memcache(void)
@@ -147,9 +147,6 @@ struct memcache *smbd_memcache(void)
 
 void smbd_init_globals(void)
 {
-	ZERO_STRUCT(char_flags);
-	ZERO_STRUCT(base_reverse);
-
 	ZERO_STRUCT(conn_ctx_stack);
 
 	ZERO_STRUCT(sec_ctx_stack);

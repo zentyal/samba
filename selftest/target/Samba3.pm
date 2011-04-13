@@ -24,8 +24,10 @@ sub binpath($$)
 }
 
 sub new($$) {
-	my ($classname, $bindir) = @_;
-	my $self = { bindir => $bindir };
+	my ($classname, $bindir, $srcdir) = @_;
+	my $self = { bindir => $bindir,
+		     srcdir => $srcdir
+	};
 	bless $self;
 	return $self;
 }
@@ -98,6 +100,13 @@ sub setup_env($$$)
 	
 	if ($envname eq "dc") {
 		return $self->setup_dc("$path/dc");
+	} elsif ($envname eq "secshare") {
+		return $self->setup_secshare("$path/secshare");
+	} elsif ($envname eq "secserver") {
+		if (not defined($self->{vars}->{dc})) {
+			$self->setup_dc("$path/dc");
+		}
+		return $self->setup_secserver("$path/secserver", $self->{vars}->{dc});
 	} elsif ($envname eq "member") {
 		if (not defined($self->{vars}->{dc})) {
 			$self->setup_dc("$path/dc");
@@ -131,6 +140,12 @@ sub setup_dc($$)
 			       "yes", "yes", "yes");
 
 	$self->wait_for_start($vars);
+
+	$vars->{DC_SERVER} = $vars->{SERVER};
+	$vars->{DC_SERVER_IP} = $vars->{SERVER_IP};
+	$vars->{DC_NETBIOSNAME} = $vars->{NETBIOSNAME};
+	$vars->{DC_USERNAME} = $vars->{USERNAME};
+	$vars->{DC_PASSWORD} = $vars->{PASSWORD};
 
 	$self->{vars}->{dc} = $vars;
 
@@ -178,9 +193,66 @@ sub setup_member($$$)
 	return $ret;
 }
 
-sub stop($)
+sub setup_secshare($$)
 {
-	my ($self) = @_;
+	my ($self, $path) = @_;
+
+	print "PROVISIONING server with security=share...";
+
+	my $secshare_options = "
+	security = share
+	lanman auth = yes
+";
+
+	my $vars = $self->provision($path,
+				    "LOCALSHARE4",
+				    4,
+				    "local4pass",
+				    $secshare_options);
+
+	$self->check_or_start($vars,
+			      ($ENV{SMBD_MAXTIME} or 2700),
+			       "yes", "no", "yes");
+
+	$self->wait_for_start($vars);
+
+	$self->{vars}->{secshare} = $vars;
+
+	return $vars;
+}
+
+sub setup_secserver($$$)
+{
+	my ($self, $prefix, $dcvars) = @_;
+
+	print "PROVISIONING server with security=server...";
+
+	my $secserver_options = "
+	security = server
+        password server = $dcvars->{SERVER_IP}
+";
+
+	my $ret = $self->provision($prefix,
+				   "LOCALSERVER5",
+				   5,
+				   "localserver5pass",
+				   $secserver_options);
+
+	$ret or die("Unable to provision");
+
+	$self->check_or_start($ret,
+			      ($ENV{SMBD_MAXTIME} or 2700),
+			       "yes", "no", "yes");
+
+	$self->wait_for_start($ret);
+
+	$ret->{DC_SERVER} = $dcvars->{SERVER};
+	$ret->{DC_SERVER_IP} = $dcvars->{SERVER_IP};
+	$ret->{DC_NETBIOSNAME} = $dcvars->{NETBIOSNAME};
+	$ret->{DC_USERNAME} = $dcvars->{USERNAME};
+	$ret->{DC_PASSWORD} = $dcvars->{PASSWORD};
+
+	return $ret;
 }
 
 sub stop_sig_term($$) {
@@ -225,6 +297,7 @@ sub check_or_start($$$$$) {
 		SocketWrapper::set_default_iface($env_vars->{SOCKET_WRAPPER_DEFAULT_IFACE});
 
 		$ENV{WINBINDD_SOCKET_DIR} = $env_vars->{WINBINDD_SOCKET_DIR};
+		$ENV{NMBD_SOCKET_DIR} = $env_vars->{NMBD_SOCKET_DIR};
 
 		$ENV{NSS_WRAPPER_PASSWD} = $env_vars->{NSS_WRAPPER_PASSWD};
 		$ENV{NSS_WRAPPER_GROUP} = $env_vars->{NSS_WRAPPER_GROUP};
@@ -252,7 +325,7 @@ sub check_or_start($$$$$) {
 			@preargs = split(/ /, $ENV{NMBD_VALGRIND});
 		}
 
-		exec(@preargs, $self->binpath("nmbd"), "-F", "--no-process-group", "-s", $env_vars->{SERVERCONFFILE}, @optargs) or die("Unable to start nmbd: $!");
+		exec(@preargs, $self->binpath("nmbd"), "-F", "--no-process-group", "-S", "-s", $env_vars->{SERVERCONFFILE}, @optargs) or die("Unable to start nmbd: $!");
 	}
 	write_pid($env_vars, "nmbd", $pid);
 	print "DONE\n";
@@ -267,6 +340,7 @@ sub check_or_start($$$$$) {
 		SocketWrapper::set_default_iface($env_vars->{SOCKET_WRAPPER_DEFAULT_IFACE});
 
 		$ENV{WINBINDD_SOCKET_DIR} = $env_vars->{WINBINDD_SOCKET_DIR};
+		$ENV{NMBD_SOCKET_DIR} = $env_vars->{NMBD_SOCKET_DIR};
 
 		$ENV{NSS_WRAPPER_PASSWD} = $env_vars->{NSS_WRAPPER_PASSWD};
 		$ENV{NSS_WRAPPER_GROUP} = $env_vars->{NSS_WRAPPER_GROUP};
@@ -309,6 +383,7 @@ sub check_or_start($$$$$) {
 		SocketWrapper::set_default_iface($env_vars->{SOCKET_WRAPPER_DEFAULT_IFACE});
 
 		$ENV{WINBINDD_SOCKET_DIR} = $env_vars->{WINBINDD_SOCKET_DIR};
+		$ENV{NMBD_SOCKET_DIR} = $env_vars->{NMBD_SOCKET_DIR};
 
 		$ENV{NSS_WRAPPER_PASSWD} = $env_vars->{NSS_WRAPPER_PASSWD};
 		$ENV{NSS_WRAPPER_GROUP} = $env_vars->{NSS_WRAPPER_GROUP};
@@ -361,6 +436,7 @@ sub provision($$$$$$)
 
 	my $prefix_abs = abs_path($prefix);
 	my $bindir_abs = abs_path($self->{bindir});
+	my $vfs_modulesdir_abs = ($ENV{VFSLIBDIR} or $bindir_abs);
 
 	my @dirs = ();
 
@@ -391,6 +467,9 @@ sub provision($$$$$$)
 	my $driver64dir="$shrdir/x64";
 	push(@dirs,$driver64dir);
 
+	my $driver40dir="$shrdir/WIN40";
+	push(@dirs,$driver40dir);
+
 	my $ro_shrdir="$shrdir/root-tmp";
 	push(@dirs,$ro_shrdir);
 
@@ -403,6 +482,9 @@ sub provision($$$$$$)
 	# this gets autocreated by winbindd
 	my $wbsockdir="$prefix_abs/winbindd";
 	my $wbsockprivdir="$lockdir/winbindd_privileged";
+
+	my $nmbdsockdir="$prefix_abs/nmbd";
+	unlink($nmbdsockdir);
 
 	## 
 	## create the test directory layout
@@ -434,11 +516,11 @@ sub provision($$$$$$)
 
 	my $conffile="$libdir/server.conf";
 
-	my $nss_wrapper_pl = "$ENV{PERL} $RealBin/../lib/nss_wrapper/nss_wrapper.pl";
+	my $nss_wrapper_pl = "$ENV{PERL} $self->{srcdir}/lib/nss_wrapper/nss_wrapper.pl";
 	my $nss_wrapper_passwd = "$privatedir/passwd";
 	my $nss_wrapper_group = "$privatedir/group";
 
-	my $mod_printer_pl = "$ENV{PERL} $RealBin/../source3/script/tests/printing/modprinter.pl";
+	my $mod_printer_pl = "$ENV{PERL} $self->{srcdir}/source3/script/tests/printing/modprinter.pl";
 
 	my @eventlog_list = ("dns server", "application");
 
@@ -448,7 +530,7 @@ sub provision($$$$$$)
 
 	my ($max_uid, $max_gid);
 	my ($uid_nobody, $uid_root);
-	my ($gid_nobody, $gid_nogroup, $gid_root);
+	my ($gid_nobody, $gid_nogroup, $gid_root, $gid_domusers);
 
 	if ($unix_uid < 0xffff - 2) {
 		$max_uid = 0xffff;
@@ -468,6 +550,7 @@ sub provision($$$$$$)
 	$gid_nobody = $max_gid - 1;
 	$gid_nogroup = $max_gid - 2;
 	$gid_root = $max_gid - 3;
+	$gid_domusers = $max_gid - 4;
 
 	##
 	## create conffile
@@ -479,7 +562,7 @@ sub provision($$$$$$)
 	netbios name = $server
 	interfaces = $server_ip/8
 	bind interfaces only = yes
-	panic action = $RealBin/gdb_backtrace %d %\$(MAKE_TEST_BINARY)
+	panic action = $self->{srcdir}/selftest/gdb_backtrace %d %\$(MAKE_TEST_BINARY)
 
 	workgroup = $domain
 
@@ -488,6 +571,7 @@ sub provision($$$$$$)
 	lock directory = $lockdir
 	log file = $logdir/log.\%m
 	log level = 0
+	debug pid = yes
 
 	name resolve order = bcast
 
@@ -519,14 +603,17 @@ sub provision($$$$$$)
 	printcap name = /dev/null
 
 	winbindd:socket dir = $wbsockdir
-	idmap uid = 100000-200000
-	idmap gid = 100000-200000
+	nmbd:socket dir = $nmbdsockdir
+	idmap config * : range = 100000-200000
 	winbind enum users = yes
 	winbind enum groups = yes
 
 #	min receivefile size = 4000
 
+	max protocol = SMB2
 	read only = no
+	server signing = auto
+
 	smbd:sharedelay = 100000
 #	smbd:writetimeupdatedelay = 500000
 	map hidden = no
@@ -534,7 +621,7 @@ sub provision($$$$$$)
 	map readonly = no
 	store dos attributes = yes
 	create mask = 755
-	vfs objects = $bindir_abs/xattr_tdb.so $bindir_abs/streams_depot.so
+	vfs objects = $vfs_modulesdir_abs/xattr_tdb.so $vfs_modulesdir_abs/streams_depot.so
 
 	printing = vlp
 	print command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb print %p %s
@@ -545,6 +632,9 @@ sub provision($$$$$$)
 	queue pause command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb queuepause %p
 	queue resume command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb queueresume %p
 	lpq cache time = 0
+
+	ncalrpc dir = $lockdir/ncalrpc
+	rpc_server:epmapper = embedded
 
 	# Begin extra options
 	$extra_options
@@ -560,6 +650,21 @@ sub provision($$$$$$)
 	print CONF "
 [tmp]
 	path = $shrdir
+[tmpguest]
+	path = $shrdir
+        guest ok = yes
+[guestonly]
+	path = $shrdir
+        guest only = yes
+        guest ok = yes
+[forceuser]
+	path = $shrdir
+        force user = $unix_name
+        guest ok = yes
+[forcegroup]
+	path = $shrdir
+        force group = nogroup
+        guest ok = yes
 [ro-tmp]
 	path = $ro_shrdir
 	guest ok = yes
@@ -584,7 +689,7 @@ sub provision($$$$$$)
 	copy = print1
 [print3]
 	copy = print1
-[print4]
+[lp]
 	copy = print1
 [print\$]
 	copy = tmp
@@ -608,6 +713,7 @@ $unix_name:x:$unix_uid:$unix_gids[0]:$unix_name gecos:$prefix_abs:/bin/false
 	print GROUP "nobody:x:$gid_nobody:
 nogroup:x:$gid_nogroup:nobody
 $unix_name-group:x:$unix_gids[0]:
+domusers:X:$gid_domusers:
 ";
 	if ($unix_gids[0] != 0) {
 		print GROUP "root:x:$gid_root:";
@@ -627,9 +733,6 @@ $unix_name-group:x:$unix_gids[0]:
 	open(PWD, "|".$self->binpath("smbpasswd")." -c $conffile -L -s -a $unix_name >/dev/null");
 	print PWD "$password\n$password\n";
 	close(PWD) or die("Unable to set password for test account");
-
-	delete $ENV{NSS_WRAPPER_PASSWD};
-	delete $ENV{NSS_WRAPPER_GROUP};
 
 	print "DONE\n";
 
@@ -651,6 +754,7 @@ $unix_name-group:x:$unix_gids[0]:
 	$ret{PIDDIR} = $piddir;
 	$ret{WINBINDD_SOCKET_DIR} = $wbsockdir;
 	$ret{WINBINDD_PRIV_PIPE_DIR} = $wbsockprivdir;
+	$ret{NMBD_SOCKET_DIR} = $nmbdsockdir;
 	$ret{SOCKET_WRAPPER_DEFAULT_IFACE} = $swiface;
 	$ret{NSS_WRAPPER_PASSWD} = $nss_wrapper_passwd;
 	$ret{NSS_WRAPPER_GROUP} = $nss_wrapper_group;
@@ -677,6 +781,9 @@ sub wait_for_start($$)
 	print "wait for smbd\n";
 	system($self->binpath("smbclient") ." $envvars->{CONFIGURATION} -L $envvars->{SERVER_IP} -U% -p 139 | head -2");
 	system($self->binpath("smbclient") ." $envvars->{CONFIGURATION} -L $envvars->{SERVER_IP} -U% -p 139 | head -2");
+
+	# Ensure we have domain users mapped.
+	system($self->binpath("net") ." $envvars->{CONFIGURATION} groupmap add rid=513 unixgroup=domusers type=domain");
 
 	print $self->getlog_env($envvars);
 }

@@ -25,6 +25,7 @@
 #include "includes.h"
 #include "printing.h"
 #include "printing/pcap.h"
+#include "librpc/gen_ndr/ndr_printcap.h"
 
 #ifdef HAVE_CUPS
 #include <cups/cups.h>
@@ -112,60 +113,153 @@ static http_t *cups_connect(TALLOC_CTX *frame)
 	return http;
 }
 
-static void send_pcap_info(const char *name, const char *info, void *pd)
+static bool send_pcap_blob(DATA_BLOB *pcap_blob, int fd)
 {
-	int fd = *(int *)pd;
-	size_t namelen = name ? strlen(name)+1 : 0;
-	size_t infolen = info ? strlen(info)+1 : 0;
+	size_t ret;
 
-	DEBUG(11,("send_pcap_info: writing namelen %u\n", (unsigned int)namelen));
-	if (sys_write(fd, &namelen, sizeof(namelen)) != sizeof(namelen)) {
-		DEBUG(10,("send_pcap_info: namelen write failed %s\n",
-			strerror(errno)));
-		return;
+	ret = sys_write(fd, &pcap_blob->length, sizeof(pcap_blob->length));
+	if (ret != sizeof(pcap_blob->length)) {
+		return false;
 	}
-	DEBUG(11,("send_pcap_info: writing infolen %u\n", (unsigned int)infolen));
-	if (sys_write(fd, &infolen, sizeof(infolen)) != sizeof(infolen)) {
-		DEBUG(10,("send_pcap_info: infolen write failed %s\n",
-			strerror(errno)));
-		return;
+
+	ret = sys_write(fd, pcap_blob->data, pcap_blob->length);
+	if (ret != pcap_blob->length) {
+		return false;
 	}
-	if (namelen) {
-		DEBUG(11,("send_pcap_info: writing name %s\n", name));
-		if (sys_write(fd, name, namelen) != namelen) {
-			DEBUG(10,("send_pcap_info: name write failed %s\n",
-				strerror(errno)));
-			return;
-		}
-	}
-	if (infolen) {
-		DEBUG(11,("send_pcap_info: writing info %s\n", info));
-		if (sys_write(fd, info, infolen) != infolen) {
-			DEBUG(10,("send_pcap_info: info write failed %s\n",
-				strerror(errno)));
-			return;
-		}
-	}
+
+	DEBUG(10, ("successfully sent blob of len %ld\n", (int64_t)ret));
+	return true;
 }
 
+static bool recv_pcap_blob(TALLOC_CTX *mem_ctx, int fd, DATA_BLOB *pcap_blob)
+{
+	size_t blob_len;
+	size_t ret;
+
+	ret = sys_read(fd, &blob_len, sizeof(blob_len));
+	if (ret != sizeof(blob_len)) {
+		return false;
+	}
+
+	*pcap_blob = data_blob_talloc_named(mem_ctx, NULL, blob_len,
+					   "cups pcap");
+	if (pcap_blob->length != blob_len) {
+		return false;
+	}
+	ret = sys_read(fd, pcap_blob->data, blob_len);
+	if (ret != blob_len) {
+		talloc_free(pcap_blob->data);
+		return false;
+	}
+
+	DEBUG(10, ("successfully recvd blob of len %ld\n", (int64_t)ret));
+	return true;
+}
+
+static bool process_cups_printers_response(TALLOC_CTX *mem_ctx,
+					   ipp_t *response,
+					   struct pcap_data *pcap_data)
+{
+	ipp_attribute_t	*attr;
+	char *name;
+	char *info;
+	struct pcap_printer *printer;
+	bool ret_ok = false;
+
+	for (attr = response->attrs; attr != NULL;) {
+	       /*
+		* Skip leading attributes until we hit a printer...
+		*/
+
+		while (attr != NULL && attr->group_tag != IPP_TAG_PRINTER)
+			attr = attr->next;
+
+		if (attr == NULL)
+			break;
+
+	       /*
+		* Pull the needed attributes from this printer...
+		*/
+
+		name       = NULL;
+		info       = NULL;
+
+		while (attr != NULL && attr->group_tag == IPP_TAG_PRINTER) {
+			size_t size;
+			if (strcmp(attr->name, "printer-name") == 0 &&
+			    attr->value_tag == IPP_TAG_NAME) {
+				if (!pull_utf8_talloc(mem_ctx,
+						&name,
+						attr->values[0].string.text,
+						&size)) {
+					goto err_out;
+				}
+			}
+
+			if (strcmp(attr->name, "printer-info") == 0 &&
+			    attr->value_tag == IPP_TAG_TEXT) {
+				if (!pull_utf8_talloc(mem_ctx,
+						&info,
+						attr->values[0].string.text,
+						&size)) {
+					goto err_out;
+				}
+			}
+
+			attr = attr->next;
+		}
+
+	       /*
+		* See if we have everything needed...
+		*/
+
+		if (name == NULL)
+			break;
+
+		if (pcap_data->count == 0) {
+			printer = talloc_array(mem_ctx, struct pcap_printer, 1);
+		} else {
+			printer = talloc_realloc(mem_ctx, pcap_data->printers,
+						 struct pcap_printer,
+						 pcap_data->count + 1);
+		}
+		if (printer == NULL) {
+			goto err_out;
+		}
+		pcap_data->printers = printer;
+		pcap_data->printers[pcap_data->count].name = name;
+		pcap_data->printers[pcap_data->count].info = info;
+		pcap_data->count++;
+	}
+
+	ret_ok = true;
+err_out:
+	return ret_ok;
+}
+
+/*
+ * request printer list from cups, send result back to up parent via fd.
+ * returns true if the (possibly failed) result was successfuly sent to parent.
+ */
 static bool cups_cache_reload_async(int fd)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
-	struct pcap_cache *tmp_pcap_cache = NULL;
+	struct pcap_data pcap_data;
 	http_t		*http = NULL;		/* HTTP connection to server */
 	ipp_t		*request = NULL,	/* IPP Request */
 			*response = NULL;	/* IPP Response */
-	ipp_attribute_t	*attr;		/* Current attribute */
 	cups_lang_t	*language = NULL;	/* Default language */
-	char		*name,		/* printer-name attribute */
-			*info;		/* printer-info attribute */
 	static const char *requested[] =/* Requested attributes */
 			{
 			  "printer-name",
 			  "printer-info"
 			};
 	bool ret = False;
-	size_t size;
+	enum ndr_err_code ndr_ret;
+	DATA_BLOB pcap_blob;
+
+	ZERO_STRUCT(pcap_data);
+	pcap_data.status = NT_STATUS_UNSUCCESSFUL;
 
 	DEBUG(5, ("reloading cups printcap cache\n"));
 
@@ -174,10 +268,6 @@ static bool cups_cache_reload_async(int fd)
 	*/
 
         cupsSetPasswordCB(cups_passwd_cb);
-
-       /*
-	* Try to connect to the server...
-	*/
 
 	if ((http = cups_connect(frame)) == NULL) {
 		goto out;
@@ -210,68 +300,16 @@ static bool cups_cache_reload_async(int fd)
 		      (sizeof(requested) / sizeof(requested[0])),
 		      NULL, requested);
 
-       /*
-	* Do the request and get back a response...
-	*/
-
 	if ((response = cupsDoRequest(http, request, "/")) == NULL) {
 		DEBUG(0,("Unable to get printer list - %s\n",
 			 ippErrorString(cupsLastError())));
 		goto out;
 	}
 
-	for (attr = response->attrs; attr != NULL;) {
-	       /*
-		* Skip leading attributes until we hit a printer...
-		*/
-
-		while (attr != NULL && attr->group_tag != IPP_TAG_PRINTER)
-			attr = attr->next;
-
-		if (attr == NULL)
-        		break;
-
-	       /*
-		* Pull the needed attributes from this printer...
-		*/
-
-		name       = NULL;
-		info       = NULL;
-
-		while (attr != NULL && attr->group_tag == IPP_TAG_PRINTER) {
-        		if (strcmp(attr->name, "printer-name") == 0 &&
-			    attr->value_tag == IPP_TAG_NAME) {
-				if (!pull_utf8_talloc(frame,
-						&name,
-						attr->values[0].string.text,
-						&size)) {
-					goto out;
-				}
-			}
-
-        		if (strcmp(attr->name, "printer-info") == 0 &&
-			    attr->value_tag == IPP_TAG_TEXT) {
-				if (!pull_utf8_talloc(frame,
-						&info,
-						attr->values[0].string.text,
-						&size)) {
-					goto out;
-				}
-			}
-
-        		attr = attr->next;
-		}
-
-	       /*
-		* See if we have everything needed...
-		*/
-
-		if (name == NULL)
-			break;
-
-		if (!pcap_cache_add_specific(&tmp_pcap_cache, name, info)) {
-			goto out;
-		}
+	ret = process_cups_printers_response(frame, response, &pcap_data);
+	if (!ret) {
+		DEBUG(0,("failed to process cups response\n"));
+		goto out;
 	}
 
 	ippDelete(response);
@@ -302,72 +340,19 @@ static bool cups_cache_reload_async(int fd)
 		      (sizeof(requested) / sizeof(requested[0])),
 		      NULL, requested);
 
-       /*
-	* Do the request and get back a response...
-	*/
-
 	if ((response = cupsDoRequest(http, request, "/")) == NULL) {
 		DEBUG(0,("Unable to get printer list - %s\n",
 			 ippErrorString(cupsLastError())));
 		goto out;
 	}
 
-	for (attr = response->attrs; attr != NULL;) {
-	       /*
-		* Skip leading attributes until we hit a printer...
-		*/
-
-		while (attr != NULL && attr->group_tag != IPP_TAG_PRINTER)
-			attr = attr->next;
-
-		if (attr == NULL)
-        		break;
-
-	       /*
-		* Pull the needed attributes from this printer...
-		*/
-
-		name       = NULL;
-		info       = NULL;
-
-		while (attr != NULL && attr->group_tag == IPP_TAG_PRINTER) {
-        		if (strcmp(attr->name, "printer-name") == 0 &&
-			    attr->value_tag == IPP_TAG_NAME) {
-				if (!pull_utf8_talloc(frame,
-						&name,
-						attr->values[0].string.text,
-						&size)) {
-					goto out;
-				}
-			}
-
-        		if (strcmp(attr->name, "printer-info") == 0 &&
-			    attr->value_tag == IPP_TAG_TEXT) {
-				if (!pull_utf8_talloc(frame,
-						&info,
-						attr->values[0].string.text,
-						&size)) {
-					goto out;
-				}
-			}
-
-        		attr = attr->next;
-		}
-
-	       /*
-		* See if we have everything needed...
-		*/
-
-		if (name == NULL)
-			break;
-
-		if (!pcap_cache_add_specific(&tmp_pcap_cache, name, info)) {
-			goto out;
-		}
+	ret = process_cups_printers_response(frame, response, &pcap_data);
+	if (!ret) {
+		DEBUG(0,("failed to process cups response\n"));
+		goto out;
 	}
 
-	ret = True;
-
+	pcap_data.status = NT_STATUS_OK;
  out:
 	if (response)
 		ippDelete(response);
@@ -378,22 +363,22 @@ static bool cups_cache_reload_async(int fd)
 	if (http)
 		httpClose(http);
 
-	/* Send all the entries up the pipe. */
-	if (tmp_pcap_cache) {
-		pcap_printer_fn_specific(tmp_pcap_cache,
-				send_pcap_info,
-				(void *)&fd);
-
-		pcap_cache_destroy_specific(&tmp_pcap_cache);
+	ret = false;
+	ndr_ret = ndr_push_struct_blob(&pcap_blob, frame, &pcap_data,
+				       (ndr_push_flags_fn_t)ndr_push_pcap_data);
+	if (ndr_ret == NDR_ERR_SUCCESS) {
+		ret = send_pcap_blob(&pcap_blob, fd);
 	}
+
 	TALLOC_FREE(frame);
 	return ret;
 }
 
-static struct pcap_cache *local_pcap_copy;
-struct fd_event *cache_fd_event;
+static struct fd_event *cache_fd_event;
 
-static bool cups_pcap_load_async(int *pfd)
+static bool cups_pcap_load_async(struct tevent_context *ev,
+				 struct messaging_context *msg_ctx,
+				 int *pfd)
 {
 	int fds[2];
 	pid_t pid;
@@ -435,9 +420,7 @@ static bool cups_pcap_load_async(int *pfd)
 
 	close_all_print_db();
 
-	status = reinit_after_fork(server_messaging_context(),
-				   server_event_context(), procid_self(),
-				   true);
+	status = reinit_after_fork(msg_ctx, ev, procid_self(), true);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("cups_pcap_load_async: reinit_after_fork() failed\n"));
 		smb_panic("cups_pcap_load_async: reinit_after_fork() failed");
@@ -449,163 +432,116 @@ static bool cups_pcap_load_async(int *pfd)
 	_exit(0);
 }
 
+struct cups_async_cb_args {
+	int pipe_fd;
+	struct event_context *event_ctx;
+	struct messaging_context *msg_ctx;
+	void (*post_cache_fill_fn)(struct event_context *,
+				   struct messaging_context *);
+};
+
 static void cups_async_callback(struct event_context *event_ctx,
 				struct fd_event *event,
 				uint16 flags,
 				void *p)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
-	int fd = *(int *)p;
+	struct cups_async_cb_args *cb_args = (struct cups_async_cb_args *)p;
 	struct pcap_cache *tmp_pcap_cache = NULL;
+	bool ret_ok;
+	struct pcap_data pcap_data;
+	DATA_BLOB pcap_blob;
+	enum ndr_err_code ndr_ret;
+	int i;
 
 	DEBUG(5,("cups_async_callback: callback received for printer data. "
-		"fd = %d\n", fd));
+		"fd = %d\n", cb_args->pipe_fd));
 
-	while (1) {
-		char *name = NULL, *info = NULL;
-		size_t namelen = 0, infolen = 0;
-		ssize_t ret = -1;
-
-		ret = sys_read(fd, &namelen, sizeof(namelen));
-		if (ret == 0) {
-			/* EOF */
-			break;
-		}
-		if (ret != sizeof(namelen)) {
-			DEBUG(10,("cups_async_callback: namelen read failed %d %s\n",
-				errno, strerror(errno)));
-			break;
-		}
-
-		DEBUG(11,("cups_async_callback: read namelen %u\n",
-			(unsigned int)namelen));
-
-		ret = sys_read(fd, &infolen, sizeof(infolen));
-		if (ret == 0) {
-			/* EOF */
-			break;
-		}
-		if (ret != sizeof(infolen)) {
-			DEBUG(10,("cups_async_callback: infolen read failed %s\n",
-				strerror(errno)));
-			break;
-		}
-
-		DEBUG(11,("cups_async_callback: read infolen %u\n",
-			(unsigned int)infolen));
-
-		if (namelen) {
-			name = TALLOC_ARRAY(frame, char, namelen);
-			if (!name) {
-				break;
-			}
-			ret = sys_read(fd, name, namelen);
-			if (ret == 0) {
-				/* EOF */
-				break;
-			}
-			if (ret != namelen) {
-				DEBUG(10,("cups_async_callback: name read failed %s\n",
-					strerror(errno)));
-				break;
-			}
-			DEBUG(11,("cups_async_callback: read name %s\n",
-				name));
-		} else {
-			name = NULL;
-		}
-		if (infolen) {
-			info = TALLOC_ARRAY(frame, char, infolen);
-			if (!info) {
-				break;
-			}
-			ret = sys_read(fd, info, infolen);
-			if (ret == 0) {
-				/* EOF */
-				break;
-			}
-			if (ret != infolen) {
-				DEBUG(10,("cups_async_callback: info read failed %s\n",
-					strerror(errno)));
-				break;
-			}
-			DEBUG(11,("cups_async_callback: read info %s\n",
-				info));
-		} else {
-			info = NULL;
-		}
-
-		/* Add to our local pcap cache. */
-		pcap_cache_add_specific(&tmp_pcap_cache, name, info);
-		TALLOC_FREE(name);
-		TALLOC_FREE(info);
+	ret_ok = recv_pcap_blob(frame, cb_args->pipe_fd, &pcap_blob);
+	if (!ret_ok) {
+		DEBUG(0,("failed to recv pcap blob\n"));
+		goto err_out;
 	}
 
+	ndr_ret = ndr_pull_struct_blob(&pcap_blob, frame, &pcap_data,
+				       (ndr_pull_flags_fn_t)ndr_pull_pcap_data);
+	if (ndr_ret != NDR_ERR_SUCCESS) {
+		goto err_out;
+	}
+
+	if (!NT_STATUS_IS_OK(pcap_data.status)) {
+		DEBUG(0,("failed to retrieve printer list: %s\n",
+			 nt_errstr(pcap_data.status)));
+		goto err_out;
+	}
+
+	for (i = 0; i < pcap_data.count; i++) {
+		ret_ok = pcap_cache_add_specific(&tmp_pcap_cache,
+						 pcap_data.printers[i].name,
+						 pcap_data.printers[i].info);
+		if (!ret_ok) {
+			DEBUG(0, ("failed to add to tmp pcap cache\n"));
+			goto err_out;
+		}
+	}
+
+	/* replace the system-wide pcap cache with a (possibly empty) new one */
+	ret_ok = pcap_cache_replace(tmp_pcap_cache);
+	if (!ret_ok) {
+		DEBUG(0, ("failed to replace pcap cache\n"));
+	} else if (cb_args->post_cache_fill_fn != NULL) {
+		/* Caller requested post cache fill callback */
+		cb_args->post_cache_fill_fn(cb_args->event_ctx,
+					    cb_args->msg_ctx);
+	}
+err_out:
+	pcap_cache_destroy_specific(&tmp_pcap_cache);
 	TALLOC_FREE(frame);
-	if (tmp_pcap_cache) {
-		/* We got a namelist, replace our local cache. */
-		pcap_cache_destroy_specific(&local_pcap_copy);
-		local_pcap_copy = tmp_pcap_cache;
-
-		/* And the systemwide pcap cache. */
-		pcap_cache_replace(local_pcap_copy);
-	} else {
-		DEBUG(2,("cups_async_callback: failed to read a new "
-			"printer list\n"));
-	}
-	close(fd);
-	TALLOC_FREE(p);
+	close(cb_args->pipe_fd);
+	TALLOC_FREE(cb_args);
 	TALLOC_FREE(cache_fd_event);
 }
 
-bool cups_cache_reload(void)
+bool cups_cache_reload(struct tevent_context *ev,
+		       struct messaging_context *msg_ctx,
+		       void (*post_cache_fill_fn)(struct tevent_context *,
+						  struct messaging_context *))
 {
-	int *p_pipe_fd = TALLOC_P(NULL, int);
+	struct cups_async_cb_args *cb_args;
+	int *p_pipe_fd;
 
-	if (!p_pipe_fd) {
+	cb_args = TALLOC_P(NULL, struct cups_async_cb_args);
+	if (cb_args == NULL) {
 		return false;
 	}
 
+	cb_args->post_cache_fill_fn = post_cache_fill_fn;
+	cb_args->event_ctx = ev;
+	cb_args->msg_ctx = msg_ctx;
+	p_pipe_fd = &cb_args->pipe_fd;
 	*p_pipe_fd = -1;
 
 	/* Set up an async refresh. */
-	if (!cups_pcap_load_async(p_pipe_fd)) {
+	if (!cups_pcap_load_async(ev, msg_ctx, p_pipe_fd)) {
+		talloc_free(cb_args);
 		return false;
 	}
-	if (!local_pcap_copy) {
-		/* We have no local cache, wait directly for
-		 * async refresh to complete.
-		 */
-		DEBUG(10,("cups_cache_reload: sync read on fd %d\n",
-			*p_pipe_fd ));
 
-		cups_async_callback(server_event_context(),
-					NULL,
-					EVENT_FD_READ,
-					(void *)p_pipe_fd);
-		if (!local_pcap_copy) {
-			return false;
-		}
-	} else {
-		/* Replace the system cache with our
-		 * local copy. */
-		pcap_cache_replace(local_pcap_copy);
+	DEBUG(10,("cups_cache_reload: async read on fd %d\n",
+		*p_pipe_fd ));
 
-		DEBUG(10,("cups_cache_reload: async read on fd %d\n",
-			*p_pipe_fd ));
-
-		/* Trigger an event when the pipe can be read. */
-		cache_fd_event = event_add_fd(server_event_context(),
-					NULL, *p_pipe_fd,
-					EVENT_FD_READ,
-					cups_async_callback,
-					(void *)p_pipe_fd);
-		if (!cache_fd_event) {
-			close(*p_pipe_fd);
-			TALLOC_FREE(p_pipe_fd);
-			return false;
-		}
+	/* Trigger an event when the pipe can be read. */
+	cache_fd_event = event_add_fd(ev,
+				NULL, *p_pipe_fd,
+				EVENT_FD_READ,
+				cups_async_callback,
+				(void *)cb_args);
+	if (!cache_fd_event) {
+		close(*p_pipe_fd);
+		TALLOC_FREE(cb_args);
+		return false;
 	}
+
 	return true;
 }
 
@@ -912,7 +848,6 @@ static int cups_job_submit(int snum, struct printjob *pjob)
 	ipp_attribute_t *attr_job_id = NULL;	/* IPP Attribute "job-id" */
 	cups_lang_t	*language = NULL;	/* Default language */
 	char		uri[HTTP_MAX_URI]; /* printer-uri attribute */
-	const char 	*clientname = NULL; 	/* hostname of client for job-originating-host attribute */
 	char *new_jobname = NULL;
 	int		num_options = 0;
 	cups_option_t 	*options = NULL;
@@ -923,7 +858,6 @@ static int cups_job_submit(int snum, struct printjob *pjob)
 	char *filename = NULL;
 	size_t size;
 	uint32_t jobid = (uint32_t)-1;
-	char addr[INET6_ADDRSTRLEN];
 
 	DEBUG(5,("cups_job_submit(%d, %p)\n", snum, pjob));
 
@@ -981,14 +915,9 @@ static int cups_job_submit(int snum, struct printjob *pjob)
 	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "requesting-user-name",
         	     NULL, user);
 
-	clientname = client_name(get_client_fd());
-	if (strcmp(clientname, "UNKNOWN") == 0) {
-		clientname = client_addr(get_client_fd(),addr,sizeof(addr));
-	}
-
 	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME,
 	             "job-originating-host-name", NULL,
-		      clientname);
+		     pjob->clientmachine);
 
 	/* Get the jobid from the filename. */
 	jobid = print_parse_jobid(pjob->filename);

@@ -104,7 +104,7 @@ static void wreplsrv_accept(struct stream_connection *conn)
 	struct tsocket_address *peer_addr;
 	char *peer_ip;
 	struct tevent_req *subreq;
-	int rc, fd;
+	int rc;
 
 	wrepl_conn = talloc_zero(conn, struct wreplsrv_in_connection);
 	if (wrepl_conn == NULL) {
@@ -122,30 +122,15 @@ static void wreplsrv_accept(struct stream_connection *conn)
 
 	TALLOC_FREE(conn->event.fde);
 
-	/*
-	 * Clone the fd that the connection isn't closed if we create a client
-	 * connection.
-	 */
-	fd = dup(socket_get_fd(conn->socket));
-	if (fd == -1) {
-		char *reason;
-
-		reason = talloc_asprintf(conn,
-					 "wrepl_accept: failed to duplicate the file descriptor - %s",
-					 strerror(errno));
-		if (reason == NULL) {
-			reason = strerror(errno);
-		}
-		stream_terminate_connection(conn, reason);
-	}
 	rc = tstream_bsd_existing_socket(wrepl_conn,
-					 fd,
+					 socket_get_fd(conn->socket),
 					 &wrepl_conn->tstream);
 	if (rc < 0) {
 		stream_terminate_connection(conn,
 					    "wrepl_accept: out of memory");
 		return;
 	}
+	socket_set_flags(conn->socket, SOCKET_FLAG_NOCLOSE);
 
 	wrepl_conn->conn = conn;
 	wrepl_conn->service = service;
@@ -256,7 +241,7 @@ static void wreplsrv_call_loop(struct tevent_req *subreq)
 		goto noreply;
 	}
 
-	call->out_iov[0].iov_base = call->out.data;
+	call->out_iov[0].iov_base = (char *) call->out.data;
 	call->out_iov[0].iov_len = call->out.length;
 
 	subreq = tstream_writev_queue_send(call,
@@ -372,7 +357,7 @@ NTSTATUS wreplsrv_in_connection_merge(struct wreplsrv_partner *partner,
 	/* within the wrepl task we want to be a single process, so
 	   ask for the single process model ops and pass these to the
 	   stream_setup_socket() call. */
-	model_ops = process_model_startup(service->task->event_ctx, "single");
+	model_ops = process_model_startup("single");
 	if (!model_ops) {
 		DEBUG(0,("Can't find 'single' process model_ops"));
 		return NT_STATUS_INTERNAL_ERROR;
@@ -445,7 +430,7 @@ NTSTATUS wreplsrv_setup_sockets(struct wreplsrv_service *service, struct loadpar
 	/* within the wrepl task we want to be a single process, so
 	   ask for the single process model ops and pass these to the
 	   stream_setup_socket() call. */
-	model_ops = process_model_startup(task->event_ctx, "single");
+	model_ops = process_model_startup("single");
 	if (!model_ops) {
 		DEBUG(0,("Can't find 'single' process model_ops"));
 		return NT_STATUS_INTERNAL_ERROR;
@@ -466,7 +451,7 @@ NTSTATUS wreplsrv_setup_sockets(struct wreplsrv_service *service, struct loadpar
 		*/
 		for(i = 0; i < num_interfaces; i++) {
 			address = iface_n_ip(ifaces, i);
-			status = stream_setup_socket(task->event_ctx, 
+			status = stream_setup_socket(task, task->event_ctx,
 						     task->lp_ctx, model_ops,
 						     &wreplsrv_stream_ops,
 						     "ipv4", address, &port, 
@@ -480,7 +465,7 @@ NTSTATUS wreplsrv_setup_sockets(struct wreplsrv_service *service, struct loadpar
 		}
 	} else {
 		address = lpcfg_socket_address(lp_ctx);
-		status = stream_setup_socket(task->event_ctx, task->lp_ctx,
+		status = stream_setup_socket(task, task->event_ctx, task->lp_ctx,
 					     model_ops, &wreplsrv_stream_ops,
 					     "ipv4", address, &port, lpcfg_socket_options(task->lp_ctx),
 					     service);

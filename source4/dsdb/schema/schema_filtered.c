@@ -21,24 +21,20 @@
 #include "includes.h"
 #include "dsdb/samdb/samdb.h"
 #include "dsdb/common/util.h"
-#include "lib/ldb/include/ldb_errors.h"
+#include <ldb_errors.h>
 #include "../lib/util/dlinklist.h"
 #include "param/param.h"
 
-const char *never_in_filtered_attrs[] = { "accountExpires",
+static const char * const never_in_filtered_attrs[] = {
+				     "accountExpires",
 				     "codePage",
 				     "creationTime",
-				     "currentValue",
-				     "dBCSPwd",
 				     "dNSHostName",
 				     "displayName",
 				     "domainReplica",
 				     "fSMORoleOwner",
 				     "flatName",
-				     "initialAuthIncoming",
-				     "initialAuthOutgoing",
 				     "isCriticalSystemObject",
-				     "lmPwdHistory",
 				     "lockOutObservationWindow",
 				     "lockoutDuration",
 				     "lockoutTime",
@@ -58,11 +54,9 @@ const char *never_in_filtered_attrs[] = { "accountExpires",
 				     "nETBIOSName",
 				     "nTMixedDomain",
 				     "notFiltlockoutThreshold",
-				     "ntPwdHistory",
 				     "operatingSystem",
 				     "operatingSystemServicePack",
 				     "operatingSystemVersion",
-				     "priorValue",
 				     "pwdHistoryLength",
 				     "pwdLastSet",
 				     "pwdProperties",
@@ -70,16 +64,13 @@ const char *never_in_filtered_attrs[] = { "accountExpires",
 				     "sIDHistory",
 				     "securityIdentifier",
 				     "servicePrincipalName",
-				     "supplementalCredentials",
 				     "trustAttributes",
-				     "trustAuthIncoming",
-				     "trustAuthOutgoing",
 				     "trustDirection",
 				     "trustParent",
 				     "trustPartner",
 				     "trustPosixOffset",
 				     "trustType",
-				     "unicodePwd"
+				     DSDB_SECRET_ATTRIBUTES
 };
 
 /* returns true if the attribute can be in a filtered replica */

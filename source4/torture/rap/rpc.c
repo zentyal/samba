@@ -21,7 +21,7 @@
 #include "libcli/libcli.h"
 #include "torture/smbtorture.h"
 #include "torture/util.h"
-#include "../librpc/gen_ndr/rap.h"
+#include "libcli/rap/rap.h"
 #include "torture/rap/proto.h"
 #include "param/param.h"
 #include "torture/rpc/torture_rpc.h"
@@ -88,7 +88,7 @@ static bool test_rpc_netservergetinfo(struct torture_context *tctx,
 
 struct torture_suite *torture_rap_rpc(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "RPC");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "rpc");
 
 	torture_suite_add_1smb_test(suite, "netservergetinfo",
 				    test_rpc_netservergetinfo);

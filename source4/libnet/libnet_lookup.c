@@ -22,18 +22,13 @@
 */
 
 #include "includes.h"
-#include "lib/events/events.h"
 #include "libnet/libnet.h"
 #include "libcli/composite/composite.h"
 #include "auth/credentials/credentials.h"
-#include "lib/messaging/messaging.h"
-#include "lib/messaging/irpc.h"
 #include "libcli/resolve/resolve.h"
-#include "libcli/finddcs.h"
+#include "libcli/finddc.h"
 #include "libcli/security/security.h"
-#include "librpc/gen_ndr/lsa.h"
 #include "librpc/gen_ndr/ndr_lsa_c.h"
-
 #include "param/param.h"
 
 struct lookup_state {
@@ -186,21 +181,25 @@ NTSTATUS libnet_LookupHost(struct libnet_context *ctx, TALLOC_CTX *mem_ctx,
 /**
  * Sends asynchronous LookupDCs request
  */
-struct composite_context* libnet_LookupDCs_send(struct libnet_context *ctx,
-						TALLOC_CTX *mem_ctx,
-						struct libnet_LookupDCs *io)
+struct tevent_req *libnet_LookupDCs_send(struct libnet_context *ctx,
+					 TALLOC_CTX *mem_ctx,
+					 struct libnet_LookupDCs *io)
 {
-	struct composite_context *c;
-	struct messaging_context *msg_ctx = 
-		messaging_client_init(mem_ctx,
-							  lpcfg_messaging_path(mem_ctx, ctx->lp_ctx),
-							  ctx->event_ctx);
+	struct tevent_req *req;
+	struct finddcs finddcs_io;
 
-	c = finddcs_send(mem_ctx, lpcfg_netbios_name(ctx->lp_ctx),
-					 lpcfg_nbt_port(ctx->lp_ctx), io->in.domain_name,
-					 io->in.name_type, NULL, ctx->resolve_ctx,
-					 ctx->event_ctx, msg_ctx);
-	return c;
+	ZERO_STRUCT(finddcs_io);
+
+	if (strcasecmp_m(io->in.domain_name, lpcfg_workgroup(ctx->lp_ctx)) == 0) {
+		finddcs_io.in.domain_name = lpcfg_dnsdomain(ctx->lp_ctx);
+	} else {
+		finddcs_io.in.domain_name = io->in.domain_name;
+	}
+	finddcs_io.in.minimum_dc_flags = NBT_SERVER_LDAP | NBT_SERVER_DS | NBT_SERVER_WRITABLE;
+	finddcs_io.in.server_address = ctx->server_address;
+
+	req = finddcs_cldap_send(mem_ctx, &finddcs_io, ctx->resolve_ctx, ctx->event_ctx);
+	return req;
 }
 
 /**
@@ -212,12 +211,18 @@ struct composite_context* libnet_LookupDCs_send(struct libnet_context *ctx,
  * @return nt status code of execution
  */
 
-NTSTATUS libnet_LookupDCs_recv(struct composite_context *c, TALLOC_CTX *mem_ctx,
+NTSTATUS libnet_LookupDCs_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx,
 			       struct libnet_LookupDCs *io)
 {
 	NTSTATUS status;
-	status = finddcs_recv(c, mem_ctx, &io->out.num_dcs, &io->out.dcs);
-	/* "c" already freed here */
+	struct finddcs finddcs_io;
+	status = finddcs_cldap_recv(req, mem_ctx, &finddcs_io);
+	talloc_free(req);
+	io->out.num_dcs = 1;
+	io->out.dcs = talloc(mem_ctx, struct nbt_dc_name);
+	NT_STATUS_HAVE_NO_MEMORY(io->out.dcs);
+	io->out.dcs[0].address = finddcs_io.out.address;
+	io->out.dcs[0].name = finddcs_io.out.netlogon.data.nt5_ex.pdc_dns_name;
 	return status;
 }
 
@@ -228,8 +233,8 @@ NTSTATUS libnet_LookupDCs_recv(struct composite_context *c, TALLOC_CTX *mem_ctx,
 NTSTATUS libnet_LookupDCs(struct libnet_context *ctx, TALLOC_CTX *mem_ctx,
 			  struct libnet_LookupDCs *io)
 {
-	struct composite_context *c = libnet_LookupDCs_send(ctx, mem_ctx, io);
-	return libnet_LookupDCs_recv(c, mem_ctx, io);
+	struct tevent_req *req = libnet_LookupDCs_send(ctx, mem_ctx, io);
+	return libnet_LookupDCs_recv(req, mem_ctx, io);
 }
 
 

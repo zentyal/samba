@@ -19,6 +19,9 @@
 
 #include "includes.h"
 #include "tldap.h"
+#include "../lib/util/asn1.h"
+
+static int tldap_simple_recv(struct tevent_req *req);
 
 bool tevent_req_is_ldap_error(struct tevent_req *req, int *perr)
 {
@@ -506,7 +509,7 @@ static bool tldap_msg_set_pending(struct tevent_req *req)
 	}
 
 	/*
-	 * We're the first ones, add the read_ldap request that waits for the
+	 * We're the first one, add the read_ldap request that waits for the
 	 * answer from the server
 	 */
 	subreq = read_ldap_send(ld->pending, state->ev, ld->conn);
@@ -734,6 +737,11 @@ static void tldap_save_msg(struct tldap_context *ld, struct tevent_req *req)
 static char *blob2string_talloc(TALLOC_CTX *mem_ctx, DATA_BLOB blob)
 {
 	char *result = talloc_array(mem_ctx, char, blob.length+1);
+
+	if (result == NULL) {
+		return NULL;
+	}
+
 	memcpy(result, blob.data, blob.length);
 	result[blob.length] = '\0';
 	return result;
@@ -741,13 +749,21 @@ static char *blob2string_talloc(TALLOC_CTX *mem_ctx, DATA_BLOB blob)
 
 static bool asn1_read_OctetString_talloc(TALLOC_CTX *mem_ctx,
 					 struct asn1_data *data,
-					 char **result)
+					 char **presult)
 {
 	DATA_BLOB string;
+	char *result;
 	if (!asn1_read_OctetString(data, mem_ctx, &string))
 		return false;
-	*result = blob2string_talloc(mem_ctx, string);
+
+	result = blob2string_talloc(mem_ctx, string);
+
 	data_blob_free(&string);
+
+	if (result == NULL) {
+		return false;
+	}
+	*presult = result;
 	return true;
 }
 
@@ -869,12 +885,7 @@ static void tldap_sasl_bind_done(struct tevent_req *subreq)
 
 int tldap_sasl_bind_recv(struct tevent_req *req)
 {
-	int err;
-
-	if (tevent_req_is_ldap_error(req, &err)) {
-		return err;
-	}
-	return TLDAP_SUCCESS;
+	return tldap_simple_recv(req);
 }
 
 int tldap_sasl_bind(struct tldap_context *ld,
@@ -1948,8 +1959,9 @@ bool tldap_entry_dn(struct tldap_message *msg, char **dn)
 	return true;
 }
 
-bool tldap_entry_attributes(struct tldap_message *msg, int *num_attributes,
-			    struct tldap_attribute **attributes)
+bool tldap_entry_attributes(struct tldap_message *msg,
+			    struct tldap_attribute **attributes,
+			    int *num_attributes)
 {
 	if ((msg->dn == NULL) && (!tldap_parse_search_entry(msg))) {
 		return false;
@@ -2121,7 +2133,7 @@ int tldap_add_recv(struct tevent_req *req)
 }
 
 int tldap_add(struct tldap_context *ld, const char *dn,
-	      int num_attributes, struct tldap_mod *attributes,
+	      struct tldap_mod *attributes, int num_attributes,
 	      struct tldap_control *sctrls, int num_sctrls,
 	      struct tldap_control *cctrls, int num_cctrls)
 {
@@ -2161,7 +2173,7 @@ struct tevent_req *tldap_modify_send(TALLOC_CTX *mem_ctx,
 				     struct tevent_context *ev,
 				     struct tldap_context *ld,
 				     const char *dn,
-				     int num_mods, struct tldap_mod *mods,
+				     struct tldap_mod *mods, int num_mods,
 				     struct tldap_control *sctrls,
 				     int num_sctrls,
 				     struct tldap_control *cctrls,
@@ -2221,7 +2233,7 @@ int tldap_modify_recv(struct tevent_req *req)
 }
 
 int tldap_modify(struct tldap_context *ld, const char *dn,
-		 int num_mods, struct tldap_mod *mods,
+		 struct tldap_mod *mods, int num_mods,
 		 struct tldap_control *sctrls, int num_sctrls,
 		 struct tldap_control *cctrls, int num_cctrls)
  {
@@ -2236,7 +2248,7 @@ int tldap_modify(struct tldap_context *ld, const char *dn,
 		goto fail;
 	}
 
-	req = tldap_modify_send(frame, ev, ld, dn, num_mods, mods,
+	req = tldap_modify_send(frame, ev, ld, dn, mods, num_mods,
 				sctrls, num_sctrls, cctrls, num_cctrls);
 	if (req == NULL) {
 		result = TLDAP_NO_MEMORY;
@@ -2371,6 +2383,7 @@ void tldap_msg_sctrls(struct tldap_message *msg, int *num_sctrls,
 	if (msg == NULL) {
 		*sctrls = NULL;
 		*num_sctrls = 0;
+		return;
 	}
 	*sctrls = msg->res_sctrls;
 	*num_sctrls = talloc_array_length(msg->res_sctrls);

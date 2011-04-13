@@ -17,6 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+"""Tests for samba.dceprc.rpcecho."""
+
 from samba.dcerpc import echo
 from samba.ndr import ndr_pack, ndr_unpack
 from samba.tests import RpcInterfaceTestCase, TestCase
@@ -33,7 +35,7 @@ class RpcEchoTests(RpcInterfaceTestCase):
         self.assertEquals(3, self.conn2.AddOne(2))
 
     def test_abstract_syntax(self):
-        self.assertEquals(("60a15ec5-4de8-11d7-a637-005056a20182", 1), 
+        self.assertEquals(("60a15ec5-4de8-11d7-a637-005056a20182", 1),
                           self.conn.abstract_syntax)
 
     def test_addone(self):

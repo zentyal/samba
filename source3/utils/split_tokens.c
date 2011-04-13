@@ -24,8 +24,7 @@
  */
 
 #include "includes.h"
-
-extern bool AllowDebugChange;
+#include "popt_common.h"
 
 int main(int argc, const char *argv[])
 {
@@ -49,7 +48,7 @@ int main(int argc, const char *argv[])
 
 	while(poptGetNextOpt(pc) != -1);
 
-	setup_logging(poptGetArg(pc), true);
+	setup_logging(poptGetArg(pc), DEBUG_STDERR);
 
 	sequence = poptGetArg(pc);
 
@@ -57,10 +56,8 @@ int main(int argc, const char *argv[])
 		fprintf(stderr, "ERROR: missing sequence string\n");
 		return 1;
 	}
-
-	dbf = x_stderr;
-	DEBUGLEVEL = 0;
-	AllowDebugChange = false;
+	
+	lp_set_cmdline("log level", "0");
 
 	if (!lp_load(config_file,false,true,false,true)) {
 		fprintf(stderr,"Error loading services.\n");

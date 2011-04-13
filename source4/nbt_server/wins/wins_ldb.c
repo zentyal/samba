@@ -31,7 +31,7 @@
 #include "lib/events/events.h"
 #include "nbt_server/nbt_server.h"
 #include "nbt_server/wins/winsdb.h"
-#include "lib/ldb/include/ldb_module.h"
+#include <ldb_module.h>
 #include "system/network.h"
 #include "lib/socket/netif.h"
 #include "param/param.h"
@@ -113,9 +113,15 @@ failed:
 	return LDB_ERR_OTHER;
 }
 
-_PUBLIC_ const struct ldb_module_ops ldb_wins_ldb_module_ops = {
+static const struct ldb_module_ops ldb_wins_ldb_module_ops = {
 	.name          = "wins_ldb",
 	.add           = wins_ldb_verify,
 	.modify        = wins_ldb_verify,
 	.init_context  = wins_ldb_init
 };
+
+int ldb_wins_ldb_module_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_wins_ldb_module_ops);
+}

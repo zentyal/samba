@@ -58,6 +58,12 @@
 
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "system/syslog.h"
+#include "smbd/smbd.h"
+#include "../librpc/gen_ndr/ndr_netlogon.h"
+#include "auth.h"
+#include "ntioctl.h"
 
 static int vfs_full_audit_debug_level = DBGC_VFS;
 
@@ -86,6 +92,7 @@ typedef enum _vfs_op_type {
 	/* Directory operations */
 
 	SMB_VFS_OP_OPENDIR,
+	SMB_VFS_OP_FDOPENDIR,
 	SMB_VFS_OP_READDIR,
 	SMB_VFS_OP_SEEKDIR,
 	SMB_VFS_OP_TELLDIR,
@@ -123,6 +130,7 @@ typedef enum _vfs_op_type {
 	SMB_VFS_OP_GETWD,
 	SMB_VFS_OP_NTIMES,
 	SMB_VFS_OP_FTRUNCATE,
+	SMB_VFS_OP_FALLOCATE,
 	SMB_VFS_OP_LOCK,
 	SMB_VFS_OP_KERNEL_FLOCK,
 	SMB_VFS_OP_LINUX_SETLEASE,
@@ -227,6 +235,7 @@ static struct {
 	{ SMB_VFS_OP_STATVFS,	"statvfs" },
 	{ SMB_VFS_OP_FS_CAPABILITIES,	"fs_capabilities" },
 	{ SMB_VFS_OP_OPENDIR,	"opendir" },
+	{ SMB_VFS_OP_FDOPENDIR,	"fdopendir" },
 	{ SMB_VFS_OP_READDIR,	"readdir" },
 	{ SMB_VFS_OP_SEEKDIR,   "seekdir" },
 	{ SMB_VFS_OP_TELLDIR,   "telldir" },
@@ -261,6 +270,7 @@ static struct {
 	{ SMB_VFS_OP_GETWD,	"getwd" },
 	{ SMB_VFS_OP_NTIMES,	"ntimes" },
 	{ SMB_VFS_OP_FTRUNCATE,	"ftruncate" },
+	{ SMB_VFS_OP_FALLOCATE,"fallocate" },
 	{ SMB_VFS_OP_LOCK,	"lock" },
 	{ SMB_VFS_OP_KERNEL_FLOCK,	"kernel_flock" },
 	{ SMB_VFS_OP_LINUX_SETLEASE, "linux_setlease" },
@@ -329,8 +339,8 @@ static struct {
 	{ SMB_VFS_OP_AIO_FSYNC,	"aio_fsync" },
 	{ SMB_VFS_OP_AIO_SUSPEND,"aio_suspend" },
 	{ SMB_VFS_OP_AIO_FORCE, "aio_force" },
-	{ SMB_VFS_OP_IS_OFFLINE, "aio_is_offline" },
-	{ SMB_VFS_OP_SET_OFFLINE, "aio_set_offline" },
+	{ SMB_VFS_OP_IS_OFFLINE, "is_offline" },
+	{ SMB_VFS_OP_SET_OFFLINE, "set_offline" },
 	{ SMB_VFS_OP_LAST, NULL }
 };
 
@@ -392,11 +402,11 @@ static char *audit_prefix(TALLOC_CTX *ctx, connection_struct *conn)
 	}
 	result = talloc_sub_advanced(ctx,
 			lp_servicename(SNUM(conn)),
-			conn->server_info->unix_name,
+			conn->session_info->unix_name,
 			conn->connectpath,
-			conn->server_info->utok.gid,
-			conn->server_info->sanitized_username,
-			conn->server_info->info3->base.domain.string,
+			conn->session_info->utok.gid,
+			conn->session_info->sanitized_username,
+			conn->session_info->info3->base.domain.string,
 			prefix);
 	TALLOC_FREE(prefix);
 	return result;
@@ -728,6 +738,19 @@ static SMB_STRUCT_DIR *smb_full_audit_opendir(vfs_handle_struct *handle,
 	result = SMB_VFS_NEXT_OPENDIR(handle, fname, mask, attr);
 
 	do_log(SMB_VFS_OP_OPENDIR, (result != NULL), handle, "%s", fname);
+
+	return result;
+}
+
+static SMB_STRUCT_DIR *smb_full_audit_fdopendir(vfs_handle_struct *handle,
+			  files_struct *fsp, const char *mask, uint32 attr)
+{
+	SMB_STRUCT_DIR *result;
+
+	result = SMB_VFS_NEXT_FDOPENDIR(handle, fsp, mask, attr);
+
+	do_log(SMB_VFS_OP_FDOPENDIR, (result != NULL), handle, "%s",
+			fsp_str_do_log(fsp));
 
 	return result;
 }
@@ -1221,6 +1244,21 @@ static int smb_full_audit_ftruncate(vfs_handle_struct *handle, files_struct *fsp
 	return result;
 }
 
+static int smb_full_audit_fallocate(vfs_handle_struct *handle, files_struct *fsp,
+			   enum vfs_fallocate_mode mode,
+			   SMB_OFF_T offset,
+			   SMB_OFF_T len)
+{
+	int result;
+
+	result = SMB_VFS_NEXT_FALLOCATE(handle, fsp, mode, offset, len);
+
+	do_log(SMB_VFS_OP_FALLOCATE, (result >= 0), handle,
+	       "%s", fsp_str_do_log(fsp));
+
+	return result;
+}
+
 static bool smb_full_audit_lock(vfs_handle_struct *handle, files_struct *fsp,
 		       int op, SMB_OFF_T offset, SMB_OFF_T count, int type)
 {
@@ -1323,11 +1361,11 @@ static int smb_full_audit_mknod(vfs_handle_struct *handle,
 }
 
 static char *smb_full_audit_realpath(vfs_handle_struct *handle,
-			    const char *path, char *resolved_path)
+			    const char *path)
 {
 	char *result;
 
-	result = SMB_VFS_NEXT_REALPATH(handle, path, resolved_path);
+	result = SMB_VFS_NEXT_REALPATH(handle, path);
 
 	do_log(SMB_VFS_OP_REALPATH, (result != NULL), handle, "%s", path);
 
@@ -2170,6 +2208,29 @@ static bool smb_full_audit_aio_force(struct vfs_handle_struct *handle,
 	return result;
 }
 
+static bool smb_full_audit_is_offline(struct vfs_handle_struct *handle,
+				      const struct smb_filename *fname,
+				      SMB_STRUCT_STAT *sbuf)
+{
+	bool result;
+
+	result = SMB_VFS_NEXT_IS_OFFLINE(handle, fname, sbuf);
+	do_log(SMB_VFS_OP_IS_OFFLINE, result, handle, "%s",
+	       smb_fname_str_do_log(fname));
+	return result;
+}
+
+static int smb_full_audit_set_offline(struct vfs_handle_struct *handle,
+				      const struct smb_filename *fname)
+{
+	int result;
+
+	result = SMB_VFS_NEXT_SET_OFFLINE(handle, fname);
+	do_log(SMB_VFS_OP_SET_OFFLINE, result >= 0, handle, "%s",
+	       smb_fname_str_do_log(fname));
+	return result;
+}
+
 static struct vfs_fn_pointers vfs_full_audit_fns = {
 
 	/* Disk operations */
@@ -2183,6 +2244,7 @@ static struct vfs_fn_pointers vfs_full_audit_fns = {
 	.statvfs = smb_full_audit_statvfs,
 	.fs_capabilities = smb_full_audit_fs_capabilities,
 	.opendir = smb_full_audit_opendir,
+	.fdopendir = smb_full_audit_fdopendir,
 	.readdir = smb_full_audit_readdir,
 	.seekdir = smb_full_audit_seekdir,
 	.telldir = smb_full_audit_telldir,
@@ -2217,6 +2279,7 @@ static struct vfs_fn_pointers vfs_full_audit_fns = {
 	.getwd = smb_full_audit_getwd,
 	.ntimes = smb_full_audit_ntimes,
 	.ftruncate = smb_full_audit_ftruncate,
+	.fallocate = smb_full_audit_fallocate,
 	.lock = smb_full_audit_lock,
 	.kernel_flock = smb_full_audit_kernel_flock,
 	.linux_setlease = smb_full_audit_linux_setlease,
@@ -2285,6 +2348,8 @@ static struct vfs_fn_pointers vfs_full_audit_fns = {
 	.aio_fsync = smb_full_audit_aio_fsync,
 	.aio_suspend = smb_full_audit_aio_suspend,
 	.aio_force = smb_full_audit_aio_force,
+	.is_offline = smb_full_audit_is_offline,
+	.set_offline = smb_full_audit_set_offline,
 };
 
 NTSTATUS vfs_full_audit_init(void)

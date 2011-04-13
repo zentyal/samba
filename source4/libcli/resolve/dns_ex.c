@@ -92,6 +92,15 @@ static void run_child_dns_lookup(struct dns_ex_state *state, int fd)
 	uint32_t i;
 	bool do_srv = (state->flags & RESOLVE_NAME_FLAG_DNS_SRV);
 
+	if (strchr(state->name.name, '.') && state->name.name[strlen(state->name.name)-1] != '.') {
+		/* we are asking for a fully qualified name, but the
+		   name doesn't end in a '.'. We need to prevent the
+		   DNS library trying the search domains configured in
+		   resolv.conf */
+		state->name.name = talloc_strdup_append(discard_const_p(char, state->name.name),
+							".");
+	}
+
 	/* this is the blocking call we are going to lots of trouble
 	   to avoid in the parent */
 	reply = rk_dns_lookup(state->name.name, do_srv?"SRV":"A");
@@ -167,7 +176,7 @@ static void run_child_dns_lookup(struct dns_ex_state *state, int fd)
 
 		if (do_srv) {
 			/* we are only interested in SRV records */
-			if (rr->type != rk_ns_c_in) {
+			if (rr->type != rk_ns_t_srv) {
 				continue;
 			}
 
@@ -207,7 +216,7 @@ static void run_child_dns_lookup(struct dns_ex_state *state, int fd)
 				continue;
 			}
 
-			/* we are only interested in SRV records */
+			/* we are only interested in A records */
 			if (rr->type != rk_ns_t_a) {
 				continue;
 			}

@@ -46,11 +46,11 @@ static int resolve_oids_need_value(struct ldb_context *ldb,
 	}
 
 	switch (a->attributeID_id) {
-	case DRSUAPI_ATTRIBUTE_objectClass:
-	case DRSUAPI_ATTRIBUTE_subClassOf:
-	case DRSUAPI_ATTRIBUTE_auxiliaryClass:
-	case DRSUAPI_ATTRIBUTE_systemPossSuperiors:
-	case DRSUAPI_ATTRIBUTE_possSuperiors:
+	case DRSUAPI_ATTID_objectClass:
+	case DRSUAPI_ATTID_subClassOf:
+	case DRSUAPI_ATTID_auxiliaryClass:
+	case DRSUAPI_ATTID_systemPossSuperiors:
+	case DRSUAPI_ATTID_possSuperiors:
 		str = talloc_strndup(ldb, (char *)valp->data, valp->length);
 		if (!str) {
 			return ldb_oom(ldb);
@@ -61,10 +61,10 @@ static int resolve_oids_need_value(struct ldb_context *ldb,
 			return LDB_ERR_COMPARE_FALSE;
 		}
 		return LDB_ERR_COMPARE_TRUE;
-	case DRSUAPI_ATTRIBUTE_systemMustContain:
-	case DRSUAPI_ATTRIBUTE_systemMayContain:
-	case DRSUAPI_ATTRIBUTE_mustContain:
-	case DRSUAPI_ATTRIBUTE_mayContain:
+	case DRSUAPI_ATTID_systemMustContain:
+	case DRSUAPI_ATTID_systemMayContain:
+	case DRSUAPI_ATTID_mustContain:
+	case DRSUAPI_ATTID_mayContain:
 		str = talloc_strndup(ldb, (char *)valp->data, valp->length);
 		if (!str) {
 			return ldb_oom(ldb);
@@ -75,9 +75,9 @@ static int resolve_oids_need_value(struct ldb_context *ldb,
 			return LDB_ERR_COMPARE_FALSE;
 		}
 		return LDB_ERR_COMPARE_TRUE;
-	case DRSUAPI_ATTRIBUTE_governsID:
-	case DRSUAPI_ATTRIBUTE_attributeID:
-	case DRSUAPI_ATTRIBUTE_attributeSyntax:
+	case DRSUAPI_ATTID_governsID:
+	case DRSUAPI_ATTID_attributeID:
+	case DRSUAPI_ATTID_attributeSyntax:
 		return LDB_ERR_COMPARE_FALSE;
 	}
 
@@ -156,10 +156,6 @@ static int resolve_oids_parse_tree_need(struct ldb_context *ldb,
 		return LDB_ERR_COMPARE_FALSE;
 	}
 
-	if (a->syntax->oMSyntax != 6) {
-		return LDB_ERR_COMPARE_FALSE;
-	}
-
 	return resolve_oids_need_value(ldb, schema, a, valp);
 }
 
@@ -198,7 +194,7 @@ static int resolve_oids_message_need(struct ldb_context *ldb,
 				     struct dsdb_schema *schema,
 				     const struct ldb_message *msg)
 {
-	int i;
+	unsigned int i;
 
 	for (i=0; i < msg->num_elements; i++) {
 		int ret;
@@ -237,11 +233,11 @@ static int resolve_oids_replace_value(struct ldb_context *ldb,
 	}
 
 	switch (a->attributeID_id) {
-	case DRSUAPI_ATTRIBUTE_objectClass:
-	case DRSUAPI_ATTRIBUTE_subClassOf:
-	case DRSUAPI_ATTRIBUTE_auxiliaryClass:
-	case DRSUAPI_ATTRIBUTE_systemPossSuperiors:
-	case DRSUAPI_ATTRIBUTE_possSuperiors:
+	case DRSUAPI_ATTID_objectClass:
+	case DRSUAPI_ATTID_subClassOf:
+	case DRSUAPI_ATTID_auxiliaryClass:
+	case DRSUAPI_ATTID_systemPossSuperiors:
+	case DRSUAPI_ATTID_possSuperiors:
 		str = talloc_strndup(schema, (char *)valp->data, valp->length);
 		if (!str) {
 			return ldb_oom(ldb);
@@ -253,10 +249,10 @@ static int resolve_oids_replace_value(struct ldb_context *ldb,
 		}
 		*valp = data_blob_string_const(vo->lDAPDisplayName);
 		return LDB_SUCCESS;
-	case DRSUAPI_ATTRIBUTE_systemMustContain:
-	case DRSUAPI_ATTRIBUTE_systemMayContain:
-	case DRSUAPI_ATTRIBUTE_mustContain:
-	case DRSUAPI_ATTRIBUTE_mayContain:
+	case DRSUAPI_ATTID_systemMustContain:
+	case DRSUAPI_ATTID_systemMayContain:
+	case DRSUAPI_ATTID_mustContain:
+	case DRSUAPI_ATTID_mayContain:
 		str = talloc_strndup(schema, (char *)valp->data, valp->length);
 		if (!str) {
 			return ldb_oom(ldb);
@@ -268,9 +264,9 @@ static int resolve_oids_replace_value(struct ldb_context *ldb,
 		}
 		*valp = data_blob_string_const(va->lDAPDisplayName);
 		return LDB_SUCCESS;
-	case DRSUAPI_ATTRIBUTE_governsID:
-	case DRSUAPI_ATTRIBUTE_attributeID:
-	case DRSUAPI_ATTRIBUTE_attributeSyntax:
+	case DRSUAPI_ATTID_governsID:
+	case DRSUAPI_ATTID_attributeID:
+	case DRSUAPI_ATTID_attributeSyntax:
 		return LDB_SUCCESS;
 	}
 
@@ -457,7 +453,7 @@ static int resolve_oids_search(struct ldb_module *module, struct ldb_request *re
 	bool needed = false;
 	const char * const *attrs1;
 	const char **attrs2;
-	uint32_t i;
+	unsigned int i;
 
 	ldb = ldb_module_get_ctx(module);
 	schema = dsdb_get_schema(ldb, NULL);
@@ -557,6 +553,7 @@ static int resolve_oids_search(struct ldb_module *module, struct ldb_request *re
 				      req->controls,
 				      ac, resolve_oids_callback,
 				      req);
+	LDB_REQ_SET_LOCATION(down_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -620,6 +617,7 @@ static int resolve_oids_add(struct ldb_module *module, struct ldb_request *req)
 				req->controls,
 				ac, resolve_oids_callback,
 				req);
+	LDB_REQ_SET_LOCATION(down_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -684,6 +682,7 @@ static int resolve_oids_modify(struct ldb_module *module, struct ldb_request *re
 				req->controls,
 				ac, resolve_oids_callback,
 				req);
+	LDB_REQ_SET_LOCATION(down_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -692,10 +691,16 @@ static int resolve_oids_modify(struct ldb_module *module, struct ldb_request *re
 	return ldb_next_request(module, down_req);
 }
 
-_PUBLIC_ const struct ldb_module_ops ldb_resolve_oids_module_ops = {
+static const struct ldb_module_ops ldb_resolve_oids_module_ops = {
 	.name		= "resolve_oids",
 	.search		= resolve_oids_search,
 	.add		= resolve_oids_add,
 	.modify		= resolve_oids_modify,
 };
 
+
+int ldb_resolve_oids_module_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_resolve_oids_module_ops);
+}

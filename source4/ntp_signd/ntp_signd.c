@@ -34,8 +34,9 @@
 #include "dsdb/samdb/samdb.h"
 #include "auth/auth.h"
 #include "libcli/security/security.h"
-#include "lib/ldb/include/ldb.h"
-#include "lib/ldb/include/ldb_errors.h"
+#include "libcli/ldap/ldap_ndr.h"
+#include <ldb.h>
+#include <ldb_errors.h>
 #include "../lib/crypto/md5.h"
 #include "system/network.h"
 #include "system/passwd.h"
@@ -164,7 +165,7 @@ static NTSTATUS ntp_signd_process(struct ntp_signd_connection *ntp_signd_conn,
 				 LDB_SCOPE_SUBTREE,
 				 attrs,
 				 "(&(objectSid=%s)(objectClass=user))",
-				 dom_sid_string(mem_ctx, sid));
+				 ldap_encode_ndr_dom_sid(mem_ctx, sid));
 	if (ret != LDB_SUCCESS) {
 		DEBUG(2, ("Failed to search for SID %s in SAM for NTP signing: "
 			  "%s\n",
@@ -502,7 +503,7 @@ static void ntp_signd_task_init(struct task_server *task)
 	/* within the ntp_signd task we want to be a single process, so
 	   ask for the single process model ops and pass these to the
 	   stream_setup_socket() call. */
-	model_ops = process_model_startup(task->event_ctx, "single");
+	model_ops = process_model_startup("single");
 	if (!model_ops) {
 		DEBUG(0,("Can't find 'single' process model_ops\n"));
 		return;
@@ -519,7 +520,7 @@ static void ntp_signd_task_init(struct task_server *task)
 	ntp_signd->task = task;
 
 	/* Must be system to get at the password hashes */
-	ntp_signd->samdb = samdb_connect(ntp_signd, task->event_ctx, task->lp_ctx, system_session(task->lp_ctx));
+	ntp_signd->samdb = samdb_connect(ntp_signd, task->event_ctx, task->lp_ctx, system_session(task->lp_ctx), 0);
 	if (ntp_signd->samdb == NULL) {
 		task_server_terminate(task, "ntp_signd failed to open samdb", true);
 		return;
@@ -527,7 +528,8 @@ static void ntp_signd_task_init(struct task_server *task)
 
 	address = talloc_asprintf(ntp_signd, "%s/socket", lpcfg_ntp_signd_socket_directory(task->lp_ctx));
 
-	status = stream_setup_socket(ntp_signd->task->event_ctx, 
+	status = stream_setup_socket(ntp_signd->task,
+				     ntp_signd->task->event_ctx,
 				     ntp_signd->task->lp_ctx,
 				     model_ops, 
 				     &ntp_signd_stream_ops, 

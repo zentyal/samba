@@ -23,6 +23,8 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "system/passwd.h"
 
 /*
  * Starting with CUPS 1.3, Kerberos support is provided by cupsd including
@@ -240,7 +242,7 @@ main(int argc,			/* I - Number of command-line arguments */
          * Setup the SAMBA server state...
          */
 
-	setup_logging("smbspool", True);
+	setup_logging("smbspool", DEBUG_STDOUT);
 
 	lp_set_in_client(True);	/* Make sure that we tell lp_load we are */
 
@@ -401,7 +403,7 @@ smb_complete_connection(const char *myname,
 	/* Start the SMB connection */
 	*need_auth = false;
 	nt_status = cli_start_connection(&cli, myname, server, NULL, port,
-					 Undefined, flags, NULL);
+					 Undefined, flags);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		fprintf(stderr, "ERROR: Connection failed: %s\n", nt_errstr(nt_status));
 		return NULL;
@@ -558,6 +560,7 @@ smb_print(struct cli_state * cli,	/* I - SMB connection */
 	                tbytes;	/* Total bytes read */
 	char            buffer[8192],	/* Buffer for copy */
 	               *ptr;	/* Pointer into title */
+	NTSTATUS nt_status;
 
 
 	/*
@@ -574,10 +577,12 @@ smb_print(struct cli_state * cli,	/* I - SMB connection */
          * Open the printer device...
          */
 
-	if (!NT_STATUS_IS_OK(cli_open(cli, title, O_RDWR | O_CREAT | O_TRUNC, DENY_NONE, &fnum))) {
+	nt_status = cli_open(cli, title, O_RDWR | O_CREAT | O_TRUNC, DENY_NONE,
+			  &fnum);
+	if (!NT_STATUS_IS_OK(nt_status)) {
 		fprintf(stderr, "ERROR: %s opening remote spool %s\n",
-			cli_errstr(cli), title);
-		return (get_exit_code(cli, cli_nt_error(cli)));
+			nt_errstr(nt_status), title);
+		return get_exit_code(cli, nt_status);
 	}
 
 	/*
@@ -602,10 +607,11 @@ smb_print(struct cli_state * cli,	/* I - SMB connection */
 		tbytes += nbytes;
 	}
 
-	if (!NT_STATUS_IS_OK(cli_close(cli, fnum))) {
+	nt_status = cli_close(cli, fnum);
+	if (!NT_STATUS_IS_OK(nt_status)) {
 		fprintf(stderr, "ERROR: %s closing remote spool %s\n",
-			cli_errstr(cli), title);
-		return (get_exit_code(cli, cli_nt_error(cli)));
+			nt_errstr(nt_status), title);
+		return get_exit_code(cli, nt_status);
 	} else {
 		return (0);
 	}

@@ -22,6 +22,9 @@
 
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "system/syslog.h"
+#include "smbd/smbd.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_VFS

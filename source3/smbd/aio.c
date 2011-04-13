@@ -19,6 +19,7 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
 
 #if defined(WITH_AIO)
@@ -357,12 +358,13 @@ NTSTATUS schedule_aio_write_and_X(connection_struct *conn,
 	        SSVAL(aio_ex->outbuf.data,smb_vwv2,numtowrite);
                 SSVAL(aio_ex->outbuf.data,smb_vwv4,(numtowrite>>16)&1);
 		show_msg((char *)aio_ex->outbuf.data);
-		if (!srv_send_smb(smbd_server_fd(),(char *)aio_ex->outbuf.data,
+		if (!srv_send_smb(aio_ex->smbreq->sconn,
+				(char *)aio_ex->outbuf.data,
 				true, aio_ex->smbreq->seqnum+1,
 				IS_CONN_ENCRYPTED(fsp->conn),
 				&aio_ex->smbreq->pcd)) {
-			exit_server_cleanly("handle_aio_write: srv_send_smb "
-					    "failed.");
+			exit_server_cleanly("schedule_aio_write_and_X: "
+					    "srv_send_smb failed.");
 		}
 		DEBUG(10,("schedule_aio_write_and_X: scheduled aio_write "
 			  "behind for file %s\n", fsp_str_dbg(fsp)));
@@ -384,7 +386,8 @@ NTSTATUS schedule_aio_write_and_X(connection_struct *conn,
 NTSTATUS schedule_smb2_aio_read(connection_struct *conn,
 				struct smb_request *smbreq,
 				files_struct *fsp,
-				char *inbuf,
+				TALLOC_CTX *ctx,
+				DATA_BLOB *preadbuf,
 				SMB_OFF_T startpos,
 				size_t smb_maxcnt)
 {
@@ -426,6 +429,12 @@ NTSTATUS schedule_smb2_aio_read(connection_struct *conn,
 		return NT_STATUS_RETRY;
 	}
 
+	/* Create the out buffer. */
+	*preadbuf = data_blob_talloc(ctx, NULL, smb_maxcnt);
+	if (preadbuf->data == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
 	if (!(aio_ex = create_aio_extra(smbreq->smb2req, fsp, 0))) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -446,7 +455,7 @@ NTSTATUS schedule_smb2_aio_read(connection_struct *conn,
 	/* Now set up the aio record for the read call. */
 
 	a->aio_fildes = fsp->fh->fd;
-	a->aio_buf = inbuf;
+	a->aio_buf = preadbuf->data;
 	a->aio_nbytes = smb_maxcnt;
 	a->aio_offset = startpos;
 	a->aio_sigevent.sigev_notify = SIGEV_SIGNAL;
@@ -632,7 +641,7 @@ static int handle_aio_read_complete(struct aio_extra *aio_ex, int errcode)
 	}
 	smb_setlen(outbuf,outsize - 4);
 	show_msg(outbuf);
-	if (!srv_send_smb(smbd_server_fd(),outbuf,
+	if (!srv_send_smb(aio_ex->smbreq->sconn, outbuf,
 			true, aio_ex->smbreq->seqnum+1,
 			IS_CONN_ENCRYPTED(aio_ex->fsp->conn), NULL)) {
 		exit_server_cleanly("handle_aio_read_complete: srv_send_smb "
@@ -721,11 +730,12 @@ static int handle_aio_write_complete(struct aio_extra *aio_ex, int errcode)
 	}
 
 	show_msg(outbuf);
-	if (!srv_send_smb(smbd_server_fd(),outbuf,
+	if (!srv_send_smb(aio_ex->smbreq->sconn, outbuf,
 			  true, aio_ex->smbreq->seqnum+1,
 			  IS_CONN_ENCRYPTED(fsp->conn),
 			  NULL)) {
-		exit_server_cleanly("handle_aio_write: srv_send_smb failed.");
+		exit_server_cleanly("handle_aio_write_complete: "
+				    "srv_send_smb failed.");
 	}
 
 	DEBUG(10,("handle_aio_write_complete: scheduled aio_write completed "
@@ -898,7 +908,7 @@ int wait_for_aio_completion(files_struct *fsp)
 	struct aio_extra *aio_ex;
 	const SMB_STRUCT_AIOCB **aiocb_list;
 	int aio_completion_count = 0;
-	time_t start_time = time(NULL);
+	time_t start_time = time_mono(NULL);
 	int seconds_left;
 
 	for (seconds_left = SMB_TIME_FOR_AIO_COMPLETE_WAIT;
@@ -973,7 +983,7 @@ int wait_for_aio_completion(files_struct *fsp)
 
 		SAFE_FREE(aiocb_list);
 		seconds_left = SMB_TIME_FOR_AIO_COMPLETE_WAIT
-			- (time(NULL) - start_time);
+			- (time_mono(NULL) - start_time);
 	}
 
 	/* We timed out - we don't know why. Return ret if already an error,
@@ -1029,7 +1039,8 @@ NTSTATUS schedule_aio_write_and_X(connection_struct *conn,
 NTSTATUS schedule_smb2_aio_read(connection_struct *conn,
                                 struct smb_request *smbreq,
                                 files_struct *fsp,
-                                char *inbuf,
+				TALLOC_CTX *ctx,
+				DATA_BLOB *preadbuf,
                                 SMB_OFF_T startpos,
                                 size_t smb_maxcnt)
 {

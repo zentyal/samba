@@ -54,10 +54,13 @@ struct libnet_context {
 	struct tevent_context *event_ctx;
 
 	struct loadparm_context *lp_ctx;
+
+	/* if non-null then override the server address */
+	const char *server_address;
 };
 
 
-#include "lib/ldb/include/ldb.h"
+#include <ldb.h>
 #include "libnet/composite.h"
 #include "libnet/userman.h"
 #include "libnet/userinfo.h"

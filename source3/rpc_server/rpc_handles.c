@@ -22,6 +22,8 @@
 #include "includes.h"
 #include "../librpc/gen_ndr/ndr_lsa.h"
 #include "../librpc/gen_ndr/ndr_samr.h"
+#include "auth.h"
+#include "ntdomain.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_RPC_SRV
@@ -321,11 +323,12 @@ bool pipe_access_check(struct pipes_struct *p)
 	if (lp_restrict_anonymous() > 0) {
 
 		/* schannel, so we must be ok */
-		if (p->pipe_bound && (p->auth.auth_type == PIPE_AUTH_TYPE_SCHANNEL)) {
+		if (p->pipe_bound &&
+		    (p->auth.auth_type == DCERPC_AUTH_TYPE_SCHANNEL)) {
 			return True;
 		}
 
-		if (p->server_info->guest) {
+		if (p->session_info->guest) {
 			return False;
 		}
 	}

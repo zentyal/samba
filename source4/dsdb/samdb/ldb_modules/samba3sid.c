@@ -19,7 +19,7 @@
 */
 
 /*
-  add objectSID to users and groups using samba3 nextRid method
+  add objectSid to users and groups using samba3 nextRid method
  */
 
 #include "includes.h"
@@ -29,7 +29,6 @@
 #include "dsdb/samdb/ldb_modules/util.h"
 #include "libcli/security/security.h"
 #include "librpc/gen_ndr/ndr_security.h"
-#include "../lib/util/util_ldb.h"
 #include "ldb_wrap.h"
 #include "param/param.h"
 
@@ -38,7 +37,8 @@
   (loosely based on Volkers code)
  */
 static int samba3sid_next_sid(struct ldb_module *module,
-			      TALLOC_CTX *mem_ctx, char **sid)
+			      TALLOC_CTX *mem_ctx, char **sid,
+			      struct ldb_request *parent)
 {
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 	struct ldb_result *res;
@@ -46,15 +46,15 @@ static int samba3sid_next_sid(struct ldb_module *module,
 				"sambaNextGroupRid", "sambaSID", NULL };
 	int ret;
 	struct ldb_context *ldb = ldb_module_get_ctx(module);
-	int sambaNextRid, sambaNextGroupRid, sambaNextUserRid;
 	struct ldb_message *msg;
-	int rid;
+	uint32_t sambaNextRid, sambaNextGroupRid, sambaNextUserRid, rid;
 	const char *sambaSID;
 
 	ret = dsdb_module_search(module, tmp_ctx, &res, NULL, LDB_SCOPE_SUBTREE,
 				 attrs,
 				 DSDB_FLAG_NEXT_MODULE |
 				 DSDB_SEARCH_SEARCH_ALL_PARTITIONS,
+				 parent,
 				 "(&(objectClass=sambaDomain)(sambaDomainName=%s))",
 				 lpcfg_sam_name(ldb_get_opaque(ldb, "loadparm")));
 	if (ret != LDB_SUCCESS) {
@@ -75,9 +75,12 @@ static int samba3sid_next_sid(struct ldb_module *module,
 	}
 	msg = res->msgs[0];
 
-	sambaNextRid = ldb_msg_find_attr_as_uint(msg, "sambaNextRid", -1);
-	sambaNextUserRid = ldb_msg_find_attr_as_uint(msg, "sambaNextUserRid", -1);
-	sambaNextGroupRid = ldb_msg_find_attr_as_uint(msg, "sambaNextGroupRid", -1);
+	sambaNextRid = ldb_msg_find_attr_as_uint(msg, "sambaNextRid",
+						 (uint32_t) -1);
+	sambaNextUserRid = ldb_msg_find_attr_as_uint(msg, "sambaNextUserRid",
+						     (uint32_t) -1);
+	sambaNextGroupRid = ldb_msg_find_attr_as_uint(msg, "sambaNextGroupRid",
+						      (uint32_t) -1);
 	sambaSID = ldb_msg_find_attr_as_string(msg, "sambaSID", NULL);
 
 	if (sambaSID == NULL) {
@@ -90,15 +93,15 @@ static int samba3sid_next_sid(struct ldb_module *module,
 	}
 
 	/* choose the highest of the 3 - see pdb_ldap.c for an
-	 * explanation */
+	 * explaination */
 	rid = sambaNextRid;
-	if (sambaNextUserRid > rid) {
+	if ((sambaNextUserRid != (uint32_t) -1) && (sambaNextUserRid > rid)) {
 		rid = sambaNextUserRid;
 	}
-	if (sambaNextGroupRid > rid) {
+	if ((sambaNextGroupRid != (uint32_t) -1) && (sambaNextGroupRid > rid)) {
 		rid = sambaNextGroupRid;
 	}
-	if (rid == -1) {
+	if (rid == (uint32_t) -1) {
 		ldb_asprintf_errstring(ldb,
 				       __location__
 				       ": No sambaNextRid in %s",
@@ -110,15 +113,15 @@ static int samba3sid_next_sid(struct ldb_module *module,
 	/* sambaNextRid is actually the previous RID .... */
 	rid += 1;
 
-	(*sid) = talloc_asprintf(tmp_ctx, "%s-%d", sambaSID, rid);
+	(*sid) = talloc_asprintf(tmp_ctx, "%s-%u", sambaSID, rid);
 	if (!*sid) {
 		talloc_free(tmp_ctx);
 		return ldb_module_oom(module);
 	}
 
-	ret = dsdb_module_constrainted_update_integer(module, msg->dn,
-						      "sambaNextRid",
-						      sambaNextRid, rid);
+	ret = dsdb_module_constrainted_update_uint32(module, msg->dn,
+						     "sambaNextRid",
+						     &sambaNextRid, &rid, parent);
 	if (ret != LDB_SUCCESS) {
 		ldb_asprintf_errstring(ldb,
 				       __location__
@@ -168,7 +171,7 @@ static int samba3sid_add(struct ldb_module *module, struct ldb_request *req)
 		return ldb_module_oom(module);
 	}
 
-	ret = samba3sid_next_sid(module, new_msg, &sid);
+	ret = samba3sid_next_sid(module, new_msg, &sid, req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -183,6 +186,7 @@ static int samba3sid_add(struct ldb_module *module, struct ldb_request *req)
 				req->controls,
 				req, dsdb_next_callback,
 				req);
+	LDB_REQ_SET_LOCATION(new_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -190,8 +194,14 @@ static int samba3sid_add(struct ldb_module *module, struct ldb_request *req)
 	return ldb_next_request(module, new_req);
 }
 
-_PUBLIC_ const struct ldb_module_ops ldb_samba3sid_module_ops = {
+static const struct ldb_module_ops ldb_samba3sid_module_ops = {
 	.name          = "samba3sid",
 	.add           = samba3sid_add,
 };
 
+
+int ldb_samba3sid_module_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_samba3sid_module_ops);
+}

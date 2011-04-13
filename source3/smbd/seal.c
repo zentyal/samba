@@ -18,10 +18,14 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
 #include "../libcli/auth/spnego.h"
 #include "../libcli/auth/ntlmssp.h"
 #include "ntlmssp_wrap.h"
+#include "smb_crypt.h"
+#include "../lib/util/asn1.h"
+#include "auth.h"
 
 /******************************************************************************
  Server side encryption.
@@ -55,7 +59,9 @@ bool is_encrypted_packet(const uint8_t *inbuf)
 	uint16_t enc_num;
 
 	/* Ignore non-session messages or non 0xFF'E' messages. */
-	if(CVAL(inbuf,0) || !(inbuf[4] == 0xFF && inbuf[5] == 'E')) {
+	if(CVAL(inbuf,0)
+	   || (smb_len(inbuf) < 8)
+	   || !(inbuf[4] == 0xFF && inbuf[5] == 'E')) {
 		return false;
 	}
 

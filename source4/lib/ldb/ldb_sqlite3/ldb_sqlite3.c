@@ -1520,7 +1520,7 @@ static void lsql_callback(struct tevent_context *ev,
  */
 	default:
 		/* no other op supported */
-		ret = LDB_ERR_UNWILLING_TO_PERFORM;
+		ret = LDB_ERR_PROTOCOL_ERROR;
 	}
 
 	if (!ctx->callback_failed) {
@@ -1538,7 +1538,7 @@ static int lsql_handle_request(struct ldb_module *module, struct ldb_request *re
 	struct tevent_timer *te;
 	struct timeval tv;
 
-	if (check_critical_controls(req->controls)) {
+	if (ldb_check_critical_controls(req->controls)) {
 		return LDB_ERR_UNSUPPORTED_CRITICAL_EXTENSION;
 	}
 
@@ -1932,7 +1932,8 @@ failed:
 	return LDB_ERR_OPERATIONS_ERROR;
 }
 
-const struct ldb_backend_ops ldb_sqlite3_backend_ops = {
-	.name = "sqlite3",
-	.connect_fn = lsqlite3_connect
-};
+int ldb_sqlite3_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_backend("sqlite3", lsqlite3_connect, false);
+}

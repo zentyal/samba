@@ -20,6 +20,9 @@
 
 
 #include "includes.h"
+#include "system/passwd.h"
+#include "secrets.h"
+#include "auth.h"
 
 static char *alloc_sub_basic(const char *smb_name, const char *domain_name,
 			     const char *str);
@@ -44,32 +47,17 @@ bool set_local_machine_name(const char *local_name, bool perm)
 {
 	static bool already_perm = false;
 	char *tmp_local_machine = NULL;
-	char addr[INET6_ADDRSTRLEN];
 	size_t len;
+
+	if (already_perm) {
+		return true;
+	}
 
 	tmp_local_machine = SMB_STRDUP(local_name);
 	if (!tmp_local_machine) {
 		return false;
 	}
 	trim_char(tmp_local_machine,' ',' ');
-
-	/*
-	 * Windows NT/2k uses "*SMBSERVER" and XP uses "*SMBSERV"
-	 * arrggg!!!
-	 */
-
-	if (strequal(tmp_local_machine, "*SMBSERVER") ||
-			strequal(tmp_local_machine, "*SMBSERV") )  {
-		SAFE_FREE(local_machine);
-		local_machine = SMB_STRDUP(client_socket_addr(get_client_fd(),
-					addr, sizeof(addr)) );
-		SAFE_FREE(tmp_local_machine);
-		return local_machine ? true : false;
-	}
-
-	if (already_perm) {
-		return true;
-	}
 
 	SAFE_FREE(local_machine);
 	len = strlen(tmp_local_machine);
@@ -204,6 +192,33 @@ void sub_set_smb_name(const char *name)
 		len = strlen(smb_user_name);
 		smb_user_name[len-1] = '$';
 	}
+}
+
+static char sub_peeraddr[INET6_ADDRSTRLEN];
+static const char *sub_peername = "";
+static char sub_sockaddr[INET6_ADDRSTRLEN];
+
+void sub_set_socket_ids(const char *peeraddr, const char *peername,
+			const char *sockaddr)
+{
+	const char *addr = peeraddr;
+
+	if (strnequal(addr, "::ffff:", 7)) {
+		addr += 7;
+	}
+	strlcpy(sub_peeraddr, addr, sizeof(sub_peeraddr));
+
+	sub_peername = SMB_STRDUP(peername);
+	if (sub_peername == NULL) {
+		sub_peername = sub_peeraddr;
+	}
+
+	/*
+	 * Shouldn't we do the ::ffff: cancellation here as well? The
+	 * original code in alloc_sub_basic() did not do it, so I'm
+	 * leaving it out here as well for compatibility.
+	 */
+	strlcpy(sub_sockaddr, sockaddr, sizeof(sub_sockaddr));
 }
 
 static const char *get_smb_user_name(void)
@@ -552,7 +567,6 @@ static char *alloc_sub_basic(const char *smb_name, const char *domain_name,
 {
 	char *b, *p, *s, *r, *a_string;
 	fstring pidstr, vnnstr;
-	char addr[INET6_ADDRSTRLEN];
 	const char *local_machine_name = get_local_machine_name();
 	TALLOC_CTX *tmp_ctx = NULL;
 
@@ -607,18 +621,15 @@ static char *alloc_sub_basic(const char *smb_name, const char *domain_name,
 			a_string = realloc_string_sub(a_string, "%D", r);
 			break;
 		case 'I' : {
-			int offset = 0;
-			client_addr(get_client_fd(), addr, sizeof(addr));
-			if (strnequal(addr,"::ffff:",7)) {
-				offset = 7;
-			}
-			a_string = realloc_string_sub(a_string, "%I",
-						      addr + offset);
+			a_string = realloc_string_sub(
+				a_string, "%I",
+				sub_peeraddr[0] ? sub_peeraddr : "0.0.0.0");
 			break;
 		}
 		case 'i': 
-			a_string = realloc_string_sub( a_string, "%i",
-					client_socket_addr(get_client_fd(), addr, sizeof(addr)) );
+			a_string = realloc_string_sub(
+				a_string, "%i",
+				sub_sockaddr[0] ? sub_sockaddr : "0.0.0.0");
 			break;
 		case 'L' : 
 			if ( StrnCaseCmp(p, "%LOGONSERVER%", strlen("%LOGONSERVER%")) == 0 ) {
@@ -634,7 +645,8 @@ static char *alloc_sub_basic(const char *smb_name, const char *domain_name,
 			a_string = realloc_string_sub(a_string, "%N", automount_server(smb_name));
 			break;
 		case 'M' :
-			a_string = realloc_string_sub(a_string, "%M", client_name(get_client_fd()));
+			a_string = realloc_string_sub(a_string, "%M",
+						      sub_peername);
 			break;
 		case 'R' :
 			a_string = realloc_string_sub(a_string, "%R", remote_proto);
@@ -907,9 +919,9 @@ char *standard_sub_conn(TALLOC_CTX *ctx, connection_struct *conn, const char *st
 {
 	return talloc_sub_advanced(ctx,
 				lp_servicename(SNUM(conn)),
-				conn->server_info->unix_name,
+				conn->session_info->unix_name,
 				conn->connectpath,
-				conn->server_info->utok.gid,
+				conn->session_info->utok.gid,
 				get_smb_user_name(),
 				"",
 				str);

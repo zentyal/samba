@@ -25,8 +25,12 @@
    used. This allows us to provide the same semantics as NT */
 
 #include "includes.h"
-#include "librpc/gen_ndr/messaging.h"
+#include "system/filesys.h"
+#include "locking/proto.h"
 #include "smbd/globals.h"
+#include "dbwrap.h"
+#include "serverid.h"
+#include "messages.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_LOCKING
@@ -272,7 +276,7 @@ void brl_init(bool read_only)
 		return;
 	}
 
-	tdb_flags = TDB_DEFAULT|TDB_VOLATILE|TDB_CLEAR_IF_FIRST;
+	tdb_flags = TDB_DEFAULT|TDB_VOLATILE|TDB_CLEAR_IF_FIRST|TDB_INCOMPATIBLE_HASH;
 
 	if (!lp_clustering()) {
 		/*
@@ -1761,7 +1765,7 @@ int brl_forall(void (*fn)(struct file_id id, struct server_id pid,
  Unlock the record.
 ********************************************************************/
 
-static int byte_range_lock_destructor(struct byte_range_lock *br_lck)
+static void byte_range_lock_flush(struct byte_range_lock *br_lck)
 {
 	if (br_lck->read_only) {
 		SMB_ASSERT(!br_lck->modified);
@@ -1796,8 +1800,16 @@ static int byte_range_lock_destructor(struct byte_range_lock *br_lck)
 
  done:
 
-	SAFE_FREE(br_lck->lock_data);
+	br_lck->read_only = true;
+	br_lck->modified = false;
+
 	TALLOC_FREE(br_lck->record);
+}
+
+static int byte_range_lock_destructor(struct byte_range_lock *br_lck)
+{
+	byte_range_lock_flush(br_lck);
+	SAFE_FREE(br_lck->lock_data);
 	return 0;
 }
 
@@ -1812,6 +1824,7 @@ static struct byte_range_lock *brl_get_locks_internal(TALLOC_CTX *mem_ctx,
 {
 	TDB_DATA key, data;
 	struct byte_range_lock *br_lck = TALLOC_P(mem_ctx, struct byte_range_lock);
+	bool do_read_only = read_only;
 
 	if (br_lck == NULL) {
 		return NULL;
@@ -1828,18 +1841,17 @@ static struct byte_range_lock *brl_get_locks_internal(TALLOC_CTX *mem_ctx,
 	if (!fsp->lockdb_clean) {
 		/* We must be read/write to clean
 		   the dead entries. */
-		read_only = False;
+		do_read_only = false;
 	}
 
-	if (read_only) {
+	if (do_read_only) {
 		if (brlock_db->fetch(brlock_db, br_lck, key, &data) == -1) {
 			DEBUG(3, ("Could not fetch byte range lock record\n"));
 			TALLOC_FREE(br_lck);
 			return NULL;
 		}
 		br_lck->record = NULL;
-	}
-	else {
+	} else {
 		br_lck->record = brlock_db->fetch_locked(brlock_db, br_lck, key);
 
 		if (br_lck->record == NULL) {
@@ -1851,7 +1863,7 @@ static struct byte_range_lock *brl_get_locks_internal(TALLOC_CTX *mem_ctx,
 		data = br_lck->record->value;
 	}
 
-	br_lck->read_only = read_only;
+	br_lck->read_only = do_read_only;
 	br_lck->lock_data = NULL;
 
 	talloc_set_destructor(br_lck, byte_range_lock_destructor);
@@ -1903,6 +1915,15 @@ static struct byte_range_lock *brl_get_locks_internal(TALLOC_CTX *mem_ctx,
 			print_lock_struct(i, &locks[i]);
 		}
 	}
+
+	if (do_read_only != read_only) {
+		/*
+		 * this stores the record and gets rid of
+		 * the write lock that is needed for a cleanup
+		 */
+		byte_range_lock_flush(br_lck);
+	}
+
 	return br_lck;
 }
 
@@ -1927,34 +1948,15 @@ struct byte_range_lock *brl_get_locks_readonly(files_struct *fsp)
 
 	TALLOC_FREE(fsp->brlock_rec);
 
-	br_lock = brl_get_locks_internal(talloc_tos(), fsp, false);
+	br_lock = brl_get_locks_internal(talloc_tos(), fsp, true);
 	if (br_lock == NULL) {
 		return NULL;
 	}
 	fsp->brlock_seqnum = brlock_db->get_seqnum(brlock_db);
 
-	fsp->brlock_rec = talloc_zero(fsp, struct byte_range_lock);
-	if (fsp->brlock_rec == NULL) {
-		goto fail;
-	}
-	fsp->brlock_rec->fsp = fsp;
-	fsp->brlock_rec->num_locks = br_lock->num_locks;
-	fsp->brlock_rec->read_only = true;
-	fsp->brlock_rec->key = br_lock->key;
+	fsp->brlock_rec = talloc_move(fsp, &br_lock);
 
-	fsp->brlock_rec->lock_data = (struct lock_struct *)
-		talloc_memdup(fsp->brlock_rec, br_lock->lock_data,
-			      sizeof(struct lock_struct) * br_lock->num_locks);
-	if (fsp->brlock_rec->lock_data == NULL) {
-		goto fail;
-	}
-
-	TALLOC_FREE(br_lock);
 	return fsp->brlock_rec;
-fail:
-	TALLOC_FREE(br_lock);
-	TALLOC_FREE(fsp->brlock_rec);
-	return NULL;
 }
 
 struct brl_revalidate_state {

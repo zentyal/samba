@@ -22,9 +22,8 @@
 #include "includes.h"
 #include "libcli/raw/libcliraw.h"
 #include "libcli/raw/raw_proto.h"
-#include "../librpc/gen_ndr/rap.h"
 #include "torture/util.h"
-#include "torture/rap/proto.h"
+#include "libcli/rap/rap.h"
 #include "librpc/gen_ndr/ndr_lsa_c.h"
 #include "librpc/gen_ndr/ndr_samr_c.h"
 #include "librpc/gen_ndr/ndr_netlogon_c.h"
@@ -42,6 +41,7 @@
 #include "param/param.h"
 #include "lib/registry/registry.h"
 #include "libcli/resolve/resolve.h"
+#include "torture/ndr/ndr.h"
 
 /*
  * This tests a RPC call using an invalid vuid
@@ -1296,9 +1296,7 @@ static bool leave(struct torture_context *tctx,
 
 static bool torture_netlogon_samba3(struct torture_context *torture)
 {
-	TALLOC_CTX *mem_ctx;
 	NTSTATUS status;
-	bool ret = false;
 	struct smbcli_state *cli;
 	struct cli_credentials *anon_creds;
 	struct cli_credentials *wks_creds;
@@ -1312,22 +1310,14 @@ static bool torture_netlogon_samba3(struct torture_context *torture)
 		wks_name = get_myname(torture);
 	}
 
-	mem_ctx = talloc_init("torture_netlogon_samba3");
-
-	if (mem_ctx == NULL) {
-		torture_comment(torture, "talloc_init failed\n");
-		return false;
-	}
-
-	if (!(anon_creds = cli_credentials_init_anon(mem_ctx))) {
-		torture_comment(torture, "create_anon_creds failed\n");
-		goto done;
+	if (!(anon_creds = cli_credentials_init_anon(torture))) {
+		torture_fail(torture, "create_anon_creds failed\n");
 	}
 
 	lpcfg_smbcli_options(torture->lp_ctx, &options);
 	lpcfg_smbcli_session_options(torture->lp_ctx, &session_options);
 
-	status = smbcli_full_connection(mem_ctx, &cli,
+	status = smbcli_full_connection(torture, &cli,
 					torture_setting_string(torture, "host", NULL),
 					lpcfg_smb_ports(torture->lp_ctx),
 					"IPC$", NULL,
@@ -1336,16 +1326,11 @@ static bool torture_netlogon_samba3(struct torture_context *torture)
 					lpcfg_resolve_context(torture->lp_ctx),
 					torture->ev, &options, &session_options,
 					lpcfg_gensec_settings(torture, torture->lp_ctx));
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_comment(torture, "smbcli_full_connection failed: %s\n",
-			 nt_errstr(status));
-		goto done;
-	}
+	torture_assert_ntstatus_ok(torture, status, "smbcli_full_connection failed\n");
 
-	wks_creds = cli_credentials_init(mem_ctx);
+	wks_creds = cli_credentials_init(torture);
 	if (wks_creds == NULL) {
-		torture_comment(torture, "cli_credentials_init failed\n");
-		goto done;
+		torture_fail(torture, "cli_credentials_init failed\n");
 	}
 
 	cli_credentials_set_conf(wks_creds, torture->lp_ctx);
@@ -1356,10 +1341,9 @@ static bool torture_netlogon_samba3(struct torture_context *torture)
 				     generate_random_password(wks_creds, 8, 255),
 				     CRED_SPECIFIED);
 
-	if (!join3(torture, cli, false, cmdline_credentials, wks_creds)) {
-		torture_comment(torture, "join failed\n");
-		goto done;
-	}
+	torture_assert(torture,
+		join3(torture, cli, false, cmdline_credentials, wks_creds),
+		"join failed");
 
 	cli_credentials_set_domain(
 		cmdline_credentials, cli_credentials_get_domain(wks_creds),
@@ -1373,29 +1357,22 @@ static bool torture_netlogon_samba3(struct torture_context *torture)
 
 		int j;
 
-		if (!auth2(torture, cli, wks_creds)) {
-			torture_comment(torture, "auth2 failed\n");
-			goto done;
-		}
+		torture_assert(torture,
+			auth2(torture, cli, wks_creds),
+			"auth2 failed");
 
 		for (j=0; j<2; j++) {
-			if (!schan(torture, cli, wks_creds, cmdline_credentials)) {
-				torture_comment(torture, "schan failed\n");
-				goto done;
-			}
+			torture_assert(torture,
+				schan(torture, cli, wks_creds, cmdline_credentials),
+				"schan failed");
 		}
 	}
 
-	if (!leave(torture, cli, cmdline_credentials, wks_creds)) {
-		torture_comment(torture, "leave failed\n");
-		goto done;
-	}
+	torture_assert(torture,
+		leave(torture, cli, cmdline_credentials, wks_creds),
+		"leave failed");
 
-	ret = true;
-
- done:
-	talloc_free(mem_ctx);
-	return ret;
+	return true;
 }
 
 /*
@@ -1778,7 +1755,6 @@ static bool torture_samba3_rpc_getusername(struct torture_context *torture)
 {
 	NTSTATUS status;
 	struct smbcli_state *cli;
-	TALLOC_CTX *mem_ctx;
 	bool ret = true;
 	struct dom_sid *user_sid;
 	struct dom_sid *created_sid;
@@ -1788,71 +1764,45 @@ static bool torture_samba3_rpc_getusername(struct torture_context *torture)
 	struct smbcli_options options;
 	struct smbcli_session_options session_options;
 
-	if (!(mem_ctx = talloc_new(torture))) {
-		return false;
-	}
-
 	lpcfg_smbcli_options(torture->lp_ctx, &options);
 	lpcfg_smbcli_session_options(torture->lp_ctx, &session_options);
 
 	status = smbcli_full_connection(
-		mem_ctx, &cli, torture_setting_string(torture, "host", NULL),
+		torture, &cli, torture_setting_string(torture, "host", NULL),
 		lpcfg_smb_ports(torture->lp_ctx),
 		"IPC$", NULL, lpcfg_socket_options(torture->lp_ctx), cmdline_credentials,
 		lpcfg_resolve_context(torture->lp_ctx), torture->ev, &options,
 		&session_options, lpcfg_gensec_settings(torture, torture->lp_ctx));
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_warning(torture, "smbcli_full_connection failed: %s\n",
-			 nt_errstr(status));
-		ret = false;
-		goto done;
-	}
+	torture_assert_ntstatus_ok(torture, status, "smbcli_full_connection failed\n");
 
-	if (!(user_sid = whoami(torture, mem_ctx, cli->tree))) {
-		torture_warning(torture, "whoami on auth'ed connection failed\n");
-		ret = false;
+	if (!(user_sid = whoami(torture, torture, cli->tree))) {
+		torture_fail(torture, "whoami on auth'ed connection failed\n");
 	}
 
 	talloc_free(cli);
 
-	if (!(anon_creds = cli_credentials_init_anon(mem_ctx))) {
-		torture_warning(torture, "create_anon_creds failed\n");
-		ret = false;
-		goto done;
+	if (!(anon_creds = cli_credentials_init_anon(torture))) {
+		torture_fail(torture, "create_anon_creds failed\n");
 	}
 
 	status = smbcli_full_connection(
-		mem_ctx, &cli, torture_setting_string(torture, "host", NULL),
+		torture, &cli, torture_setting_string(torture, "host", NULL),
 		lpcfg_smb_ports(torture->lp_ctx), "IPC$", NULL,
 		lpcfg_socket_options(torture->lp_ctx), anon_creds,
 		lpcfg_resolve_context(torture->lp_ctx),
 		torture->ev, &options, &session_options,
 		lpcfg_gensec_settings(torture, torture->lp_ctx));
-	if (!NT_STATUS_IS_OK(status)) {
-		torture_warning(torture, "anon smbcli_full_connection failed: %s\n",
-			 nt_errstr(status));
-		ret = false;
-		goto done;
+	torture_assert_ntstatus_ok(torture, status, "anon smbcli_full_connection failed\n");
+
+	if (!(user_sid = whoami(torture, torture, cli->tree))) {
+		torture_fail(torture, "whoami on anon connection failed\n");
 	}
 
-	if (!(user_sid = whoami(torture, mem_ctx, cli->tree))) {
-		torture_warning(torture, "whoami on anon connection failed\n");
-		ret = false;
-		goto done;
-	}
+	torture_assert_sid_equal(torture, user_sid, dom_sid_parse_talloc(torture, "s-1-5-7"),
+		"Anon lsa_GetUserName returned unexpected SID");
 
-	if (!dom_sid_equal(user_sid,
-			   dom_sid_parse_talloc(mem_ctx, "s-1-5-7"))) {
-		torture_warning(torture, "Anon lsa_GetUserName returned %s, expected "
-			 "S-1-5-7",
-			 dom_sid_string(mem_ctx, user_sid));
-		ret = false;
-	}
-
-	if (!(user_creds = cli_credentials_init(mem_ctx))) {
-		torture_warning(torture, "cli_credentials_init failed\n");
-		ret = false;
-		goto done;
+	if (!(user_creds = cli_credentials_init(torture))) {
+		torture_fail(torture, "cli_credentials_init failed\n");
 	}
 
 	cli_credentials_set_conf(user_creds, torture->lp_ctx);
@@ -1862,13 +1812,11 @@ static bool torture_samba3_rpc_getusername(struct torture_context *torture)
 				     generate_random_password(user_creds, 8, 255),
 				     CRED_SPECIFIED);
 
-	if (!create_user(torture, mem_ctx, cli, cmdline_credentials,
+	if (!create_user(torture, torture, cli, cmdline_credentials,
 			 cli_credentials_get_username(user_creds),
 			 cli_credentials_get_password(user_creds),
 			 &domain_name, &created_sid)) {
-		torture_warning(torture, "create_user failed\n");
-		ret = false;
-		goto done;
+		torture_fail(torture, "create_user failed\n");
 	}
 
 	cli_credentials_set_domain(user_creds, domain_name,
@@ -1879,10 +1827,9 @@ static bool torture_samba3_rpc_getusername(struct torture_context *torture)
 		struct smb_composite_sesssetup setup;
 		struct smbcli_tree *tree;
 
-		session2 = smbcli_session_init(cli->transport, mem_ctx, false, session_options);
+		session2 = smbcli_session_init(cli->transport, torture, false, session_options);
 		if (session2 == NULL) {
-			torture_warning(torture, "smbcli_session_init failed\n");
-			goto done;
+			torture_fail(torture, "smbcli_session_init failed\n");
 		}
 
 		setup.in.sesskey = cli->transport->negotiate.sesskey;
@@ -1892,23 +1839,17 @@ static bool torture_samba3_rpc_getusername(struct torture_context *torture)
 		setup.in.gensec_settings = lpcfg_gensec_settings(torture, torture->lp_ctx);
 
 		status = smb_composite_sesssetup(session2, &setup);
-		if (!NT_STATUS_IS_OK(status)) {
-			torture_warning(torture, "session setup with new user failed: "
-				 "%s\n", nt_errstr(status));
-			ret = false;
-			goto done;
-		}
+		torture_assert_ntstatus_ok(torture, status, "session setup with new user failed");
+
 		session2->vuid = setup.out.vuid;
 
-		if (!NT_STATUS_IS_OK(secondary_tcon(torture, mem_ctx, session2,
+		if (!NT_STATUS_IS_OK(secondary_tcon(torture, torture, session2,
 						    "IPC$", &tree))) {
-			torture_warning(torture, "secondary_tcon failed\n");
-			ret = false;
-			goto done;
+			torture_fail(torture, "secondary_tcon failed\n");
 		}
 
-		if (!(user_sid = whoami(torture, mem_ctx, tree))) {
-			torture_warning(torture, "whoami on user connection failed\n");
+		if (!(user_sid = whoami(torture, torture, tree))) {
+			torture_fail_goto(torture, del, "whoami on user connection failed\n");
 			ret = false;
 			goto del;
 		}
@@ -1917,8 +1858,8 @@ static bool torture_samba3_rpc_getusername(struct torture_context *torture)
 	}
 
 	torture_comment(torture, "Created %s, found %s\n",
-		 dom_sid_string(mem_ctx, created_sid),
-		 dom_sid_string(mem_ctx, user_sid));
+		 dom_sid_string(torture, created_sid),
+		 dom_sid_string(torture, user_sid));
 
 	if (!dom_sid_equal(created_sid, user_sid)) {
 		ret = false;
@@ -1928,12 +1869,9 @@ static bool torture_samba3_rpc_getusername(struct torture_context *torture)
 	if (!delete_user(torture, cli,
 			 cmdline_credentials,
 			 cli_credentials_get_username(user_creds))) {
-		torture_warning(torture, "delete_user failed\n");
-		ret = false;
+		torture_fail(torture, "delete_user failed\n");
 	}
 
- done:
-	talloc_free(mem_ctx);
 	return ret;
 }
 
@@ -2446,48 +2384,43 @@ bool try_tcon(struct torture_context *tctx,
 
 static bool torture_samba3_rpc_sharesec(struct torture_context *torture)
 {
-	TALLOC_CTX *mem_ctx;
-	bool ret = true;
 	struct smbcli_state *cli;
 	struct security_descriptor *sd;
 	struct dom_sid *user_sid;
 
-	if (!(mem_ctx = talloc_new(torture))) {
-		return false;
-	}
-
 	if (!(torture_open_connection_share(
-		      mem_ctx, &cli, torture, torture_setting_string(torture, "host", NULL),
+		      torture, &cli, torture, torture_setting_string(torture, "host", NULL),
 		      "IPC$", torture->ev))) {
-		torture_comment(torture, "IPC$ connection failed\n");
-		talloc_free(mem_ctx);
-		return false;
+		torture_fail(torture, "IPC$ connection failed\n");
 	}
 
-	if (!(user_sid = whoami(torture, mem_ctx, cli->tree))) {
-		torture_comment(torture, "whoami failed\n");
-		talloc_free(mem_ctx);
-		return false;
+	if (!(user_sid = whoami(torture, torture, cli->tree))) {
+		torture_fail(torture, "whoami failed\n");
 	}
 
-	sd = get_sharesec(torture, mem_ctx, cli->session,
+	sd = get_sharesec(torture, torture, cli->session,
 			  torture_setting_string(torture, "share", NULL));
 
-	ret &= try_tcon(torture, mem_ctx, sd, cli->session,
+	torture_assert(torture, try_tcon(
+			torture, torture, sd, cli->session,
 			torture_setting_string(torture, "share", NULL),
-			user_sid, 0, NT_STATUS_ACCESS_DENIED, NT_STATUS_OK);
+			user_sid, 0, NT_STATUS_ACCESS_DENIED, NT_STATUS_OK),
+			"failed to test tcon with 0 access_mask");
 
-	ret &= try_tcon(torture, mem_ctx, sd, cli->session,
+	torture_assert(torture, try_tcon(
+			torture, torture, sd, cli->session,
 			torture_setting_string(torture, "share", NULL),
 			user_sid, SEC_FILE_READ_DATA, NT_STATUS_OK,
-			NT_STATUS_MEDIA_WRITE_PROTECTED);
+			NT_STATUS_MEDIA_WRITE_PROTECTED),
+			"failed to test tcon with SEC_FILE_READ_DATA access_mask");
 
-	ret &= try_tcon(torture, mem_ctx, sd, cli->session,
+	torture_assert(torture, try_tcon(
+			torture, torture, sd, cli->session,
 			torture_setting_string(torture, "share", NULL),
-			user_sid, SEC_FILE_ALL, NT_STATUS_OK, NT_STATUS_OK);
+			user_sid, SEC_FILE_ALL, NT_STATUS_OK, NT_STATUS_OK),
+			"failed to test tcon with SEC_FILE_ALL access_mask")
 
-	talloc_free(mem_ctx);
-	return ret;
+	return true;
 }
 
 static bool torture_samba3_rpc_lsa(struct torture_context *torture)
@@ -3346,21 +3279,21 @@ bool torture_samba3_getaliasmembership_0(struct torture_context *torture)
 
 struct torture_suite *torture_rpc_samba3(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "SAMBA3");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "samba3");
 
-	torture_suite_add_simple_test(suite, "BIND", torture_bind_samba3);
-	torture_suite_add_simple_test(suite, "NETLOGON", torture_netlogon_samba3);
-	torture_suite_add_simple_test(suite, "SESSIONKEY", torture_samba3_sessionkey);
-	torture_suite_add_simple_test(suite, "SRVSVC", torture_samba3_rpc_srvsvc);
-	torture_suite_add_simple_test(suite, "SHARESEC", torture_samba3_rpc_sharesec);
-	torture_suite_add_simple_test(suite, "GETUSERNAME", torture_samba3_rpc_getusername);
-	torture_suite_add_simple_test(suite, "RANDOMAUTH2", torture_samba3_rpc_randomauth2);
-	torture_suite_add_simple_test(suite, "LSA", torture_samba3_rpc_lsa);
-	torture_suite_add_simple_test(suite, "SPOOLSS", torture_samba3_rpc_spoolss);
-	torture_suite_add_simple_test(suite, "WKSSVC", torture_samba3_rpc_wkssvc);
-	torture_suite_add_simple_test(suite, "WINREG", torture_samba3_rpc_winreg);
-	torture_suite_add_simple_test(suite, "GETALIASMEMBERSHIP-0", torture_samba3_getaliasmembership_0);
-	torture_suite_add_simple_test(suite, "REGCONFIG", torture_samba3_regconfig);
+	torture_suite_add_simple_test(suite, "bind", torture_bind_samba3);
+	torture_suite_add_simple_test(suite, "netlogon", torture_netlogon_samba3);
+	torture_suite_add_simple_test(suite, "sessionkey", torture_samba3_sessionkey);
+	torture_suite_add_simple_test(suite, "srvsvc", torture_samba3_rpc_srvsvc);
+	torture_suite_add_simple_test(suite, "sharesec", torture_samba3_rpc_sharesec);
+	torture_suite_add_simple_test(suite, "getusername", torture_samba3_rpc_getusername);
+	torture_suite_add_simple_test(suite, "randomauth2", torture_samba3_rpc_randomauth2);
+	torture_suite_add_simple_test(suite, "lsa", torture_samba3_rpc_lsa);
+	torture_suite_add_simple_test(suite, "spoolss", torture_samba3_rpc_spoolss);
+	torture_suite_add_simple_test(suite, "wkssvc", torture_samba3_rpc_wkssvc);
+	torture_suite_add_simple_test(suite, "winreg", torture_samba3_rpc_winreg);
+	torture_suite_add_simple_test(suite, "getaliasmembership-0", torture_samba3_getaliasmembership_0);
+	torture_suite_add_simple_test(suite, "regconfig", torture_samba3_regconfig);
 
 	suite->description = talloc_strdup(suite, "samba3 DCERPC interface tests");
 

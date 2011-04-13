@@ -27,18 +27,23 @@ __docformat__ = "restructuredText"
 import os
 import sys
 
-def _in_source_tree():
-    """Check whether the script is being run from the source dir. """
-    return os.path.exists("%s/../../../selftest/skip" % os.path.dirname(__file__))
+def source_tree_topdir():
+    '''return the top level directory (the one containing the source4 directory)'''
+    paths = [ "../../..", "../../../.." ]
+    for p in paths:
+        topdir = os.path.normpath(os.path.join(os.path.dirname(__file__), p))
+        if os.path.exists(os.path.join(topdir, 'source4')):
+            return topdir
+    raise RuntimeError("unable to find top level source directory")
 
+def in_source_tree():
+    '''return True if we are running from within the samba source tree'''
+    try:
+        topdir = source_tree_topdir()
+    except RuntimeError:
+        return False
+    return True
 
-# When running, in-tree, make sure bin/python is in the PYTHONPATH
-if _in_source_tree():
-    srcdir = "%s/../../.." % os.path.dirname(__file__)
-    sys.path.append("%s/bin/python" % srcdir)
-    default_ldb_modules_dir = "%s/bin/modules/ldb" % srcdir
-else:
-    default_ldb_modules_dir = None
 
 
 import ldb
@@ -52,6 +57,7 @@ class Ldb(_Ldb):
     not necessarily the Sam database. For Sam-specific helper
     functions see samdb.py.
     """
+
     def __init__(self, url=None, lp=None, modules_dir=None, session_info=None,
                  credentials=None, flags=0, options=None):
         """Opens a Samba Ldb file.
@@ -71,8 +77,6 @@ class Ldb(_Ldb):
 
         if modules_dir is not None:
             self.set_modules_dir(modules_dir)
-        elif default_ldb_modules_dir is not None:
-            self.set_modules_dir(default_ldb_modules_dir)
         elif lp is not None:
             self.set_modules_dir(os.path.join(lp.get("modules dir"), "ldb"))
 
@@ -91,7 +95,7 @@ class Ldb(_Ldb):
         self.register_samba_handlers()
 
         # TODO set debug
-        def msg(l,text):
+        def msg(l, text):
             print text
         #self.set_debug(msg)
 
@@ -127,7 +131,7 @@ class Ldb(_Ldb):
 
     def erase_users_computers(self, dn):
         """Erases user and computer objects from our AD.
-        
+
         This is needed since the 'samldb' module denies the deletion of primary
         groups. Therefore all groups shouldn't be primary somewhere anymore.
         """
@@ -152,7 +156,7 @@ class Ldb(_Ldb):
 
     def erase_except_schema_controlled(self):
         """Erase this ldb.
-        
+
         :note: Removes all records, except those that are controlled by
             Samba4's schema.
         """
@@ -165,7 +169,7 @@ class Ldb(_Ldb):
         # Delete the 'visible' records, and the invisble 'deleted' records (if this DB supports it)
         for msg in self.search(basedn, ldb.SCOPE_SUBTREE,
                        "(&(|(objectclass=*)(distinguishedName=*))(!(distinguishedName=@BASEINFO)))",
-                       [], controls=["show_deleted:0"]):
+                       [], controls=["show_deleted:0", "show_recycled:0"]):
             try:
                 self.delete(msg.dn, ["relax:0"])
             except ldb.LdbError, (errno, _):
@@ -174,7 +178,7 @@ class Ldb(_Ldb):
                     raise
 
         res = self.search(basedn, ldb.SCOPE_SUBTREE,
-            "(&(|(objectclass=*)(distinguishedName=*))(!(distinguishedName=@BASEINFO)))", [], controls=["show_deleted:0"])
+            "(&(|(objectclass=*)(distinguishedName=*))(!(distinguishedName=@BASEINFO)))", [], controls=["show_deleted:0", "show_recycled:0"])
         assert len(res) == 0
 
         # delete the specials
@@ -214,7 +218,7 @@ class Ldb(_Ldb):
         """
         for changetype, msg in self.parse_ldif(ldif):
             assert changetype == ldb.CHANGETYPE_NONE
-            self.add(msg,controls)
+            self.add(msg, controls)
 
     def modify_ldif(self, ldif, controls=None):
         """Modify database based on a LDIF string.
@@ -245,7 +249,8 @@ def substitute_var(text, values):
 
 
 def check_all_substituted(text):
-    """Make sure that all substitution variables in a string have been replaced.
+    """Check that all substitution variables in a string have been replaced.
+
     If not, raise an exception.
 
     :param text: The text to search for substitution variables
@@ -256,16 +261,17 @@ def check_all_substituted(text):
     var_start = text.find("${")
     var_end = text.find("}", var_start)
 
-    raise Exception("Not all variables substituted: %s" % text[var_start:var_end+1])
+    raise Exception("Not all variables substituted: %s" %
+        text[var_start:var_end+1])
 
 
-def read_and_sub_file(file, subst_vars):
+def read_and_sub_file(file_name, subst_vars):
     """Read a file and sub in variables found in it
 
-    :param file: File to be read (typically from setup directory)
+    :param file_name: File to be read (typically from setup directory)
      param subst_vars: Optional variables to subsitute in the file.
     """
-    data = open(file, 'r').read()
+    data = open(file_name, 'r').read()
     if subst_vars is not None:
         data = substitute_var(data, subst_vars)
         check_all_substituted(data)
@@ -301,29 +307,44 @@ def valid_netbios_name(name):
     return True
 
 
+def import_bundled_package(modulename, location):
+    """Import the bundled version of a package.
+
+    :note: This should only be called if the system version of the package
+        is not adequate.
+
+    :param modulename: Module name to import
+    :param location: Location to add to sys.path (can be relative to
+        ${srcdir}/lib)
+    """
+    if in_source_tree():
+        sys.path.insert(0, os.path.join(source_tree_topdir(), "lib", location))
+        sys.modules[modulename] = __import__(modulename)
+    else:
+        sys.modules[modulename] = __import__(
+            "samba.external.%s" % modulename, fromlist=["samba.external"])
+
+
 def ensure_external_module(modulename, location):
     """Add a location to sys.path if an external dependency can't be found.
 
     :param modulename: Module name to import
-    :param location: Location to add to sys.path (can be relative to 
-        ${srcdir}/lib
+    :param location: Location to add to sys.path (can be relative to
+        ${srcdir}/lib)
     """
     try:
         __import__(modulename)
     except ImportError:
-        import sys
-        if _in_source_tree():
-            sys.path.insert(0, 
-                os.path.join(os.path.dirname(__file__),
-                             "../../../../lib", location))
-            __import__(modulename)
-        else:
-            sys.modules[modulename] = __import__(
-                "samba.external.%s" % modulename, fromlist=["samba.external"])
+        import_bundled_package(modulename, location)
 
-import _glue
+
+from samba import _glue
 version = _glue.version
 interface_ips = _glue.interface_ips
 set_debug_level = _glue.set_debug_level
+get_debug_level = _glue.get_debug_level
+unix2nttime = _glue.unix2nttime
+nttime2string = _glue.nttime2string
+nttime2unix = _glue.nttime2unix
 unix2nttime = _glue.unix2nttime
 generate_random_password = _glue.generate_random_password

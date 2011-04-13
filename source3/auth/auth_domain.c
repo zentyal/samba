@@ -19,9 +19,13 @@
 */
 
 #include "includes.h"
+#include "auth.h"
 #include "../libcli/auth/libcli_auth.h"
 #include "../librpc/gen_ndr/ndr_netlogon.h"
+#include "rpc_client/cli_pipe.h"
 #include "rpc_client/cli_netlogon.h"
+#include "secrets.h"
+#include "passdb.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
@@ -112,8 +116,7 @@ static NTSTATUS connect_to_domain_password_server(struct cli_state **cli,
 						const char *domain,
 						const char *dc_name,
 						struct sockaddr_storage *dc_ss, 
-						struct rpc_pipe_client **pipe_ret,
-						bool *retry)
+						struct rpc_pipe_client **pipe_ret)
 {
         NTSTATUS result;
 	struct rpc_pipe_client *netlogon_pipe = NULL;
@@ -142,9 +145,8 @@ static NTSTATUS connect_to_domain_password_server(struct cli_state **cli,
 	}
 
 	/* Attempt connection */
-	*retry = True;
 	result = cli_full_connection(cli, global_myname(), dc_name, dc_ss, 0, 
-		"IPC$", "IPC", "", "", "", 0, Undefined, retry);
+		"IPC$", "IPC", "", "", "", 0, Undefined);
 
 	if (!NT_STATUS_IS_OK(result)) {
 		/* map to something more useful */
@@ -266,7 +268,6 @@ static NTSTATUS domain_client_validate(TALLOC_CTX *mem_ctx,
 	struct rpc_pipe_client *netlogon_pipe = NULL;
 	NTSTATUS nt_status = NT_STATUS_NO_LOGON_SERVERS;
 	int i;
-	bool retry = True;
 
 	/*
 	 * At this point, smb_apasswd points to the lanman response to
@@ -278,13 +279,12 @@ static NTSTATUS domain_client_validate(TALLOC_CTX *mem_ctx,
 
 	/* rety loop for robustness */
 
-	for (i = 0; !NT_STATUS_IS_OK(nt_status) && retry && (i < 3); i++) {
+	for (i = 0; !NT_STATUS_IS_OK(nt_status) && (i < 3); i++) {
 		nt_status = connect_to_domain_password_server(&cli,
 							domain,
 							dc_name,
 							dc_ss,
-							&netlogon_pipe,
-							&retry);
+							&netlogon_pipe);
 	}
 
 	if ( !NT_STATUS_IS_OK(nt_status) ) {
@@ -306,15 +306,16 @@ static NTSTATUS domain_client_validate(TALLOC_CTX *mem_ctx,
 
 	nt_status = rpccli_netlogon_sam_network_logon(netlogon_pipe,
 						      mem_ctx,
-						      user_info->logon_parameters,/* flags such as 'allow workstation logon' */ 
-						      dc_name,                    /* server name */
-						      user_info->client.account_name,        /* user name logging on. */
-						      user_info->client.domain_name,   /* domain name */
-						      user_info->workstation_name,/* workstation name */
-						      chal,                       /* 8 byte challenge. */
-						      user_info->lm_resp,         /* lanman 24 byte response */
-						      user_info->nt_resp,         /* nt 24 byte response */
-						      &info3);                    /* info3 out */
+						      user_info->logon_parameters,         /* flags such as 'allow workstation logon' */
+						      dc_name,                             /* server name */
+						      user_info->client.account_name,      /* user name logging on. */
+						      user_info->client.domain_name,       /* domain name */
+						      user_info->workstation_name,         /* workstation name */
+						      chal,                                /* 8 byte challenge. */
+						      3,				   /* validation level */
+						      user_info->password.response.lanman, /* lanman 24 byte response */
+						      user_info->password.response.nt,     /* nt 24 byte response */
+						      &info3);                             /* info3 out */
 
 	/* Let go as soon as possible so we avoid any potential deadlocks
 	   with winbind lookup up users or groups. */
@@ -334,29 +335,16 @@ static NTSTATUS domain_client_validate(TALLOC_CTX *mem_ctx,
 		}
 	} else {
 		nt_status = make_server_info_info3(mem_ctx,
-						user_info->client.account_name,
-						domain,
-						server_info,
-						info3);
+						   user_info->client.account_name,
+						   domain,
+						   server_info,
+						   info3);
 
 		if (NT_STATUS_IS_OK(nt_status)) {
 			(*server_info)->nss_token |= user_info->was_mapped;
-
-			if ( ! (*server_info)->guest) {
-				/* if a real user check pam account restrictions */
-				/* only really perfomed if "obey pam restriction" is true */
-				nt_status = smb_pam_accountcheck((*server_info)->unix_name);
-				if (  !NT_STATUS_IS_OK(nt_status)) {
-					DEBUG(1, ("PAM account restriction prevents user login\n"));
-					cli_shutdown(cli);
-					TALLOC_FREE(info3);
-					return nt_status;
-				}
-			}
+			netsamlogon_cache_store(user_info->client.account_name, info3);
+			TALLOC_FREE(info3);
 		}
-
-		netsamlogon_cache_store(user_info->client.account_name, info3);
-		TALLOC_FREE(info3);
 	}
 
 	/* Note - once the cli stream is shutdown the mem_ctx used
@@ -521,12 +509,12 @@ static NTSTATUS check_trustdomain_security(const struct auth_context *auth_conte
 	}
 
 	nt_status = domain_client_validate(mem_ctx,
-					user_info,
-					user_info->mapped.domain_name,
-					(uchar *)auth_context->challenge.data,
-					server_info,
-					dc_name,
-					&dc_ss);
+					   user_info,
+					   user_info->mapped.domain_name,
+					   (uchar *)auth_context->challenge.data,
+					   server_info,
+					   dc_name,
+					   &dc_ss);
 
 	return nt_status;
 }

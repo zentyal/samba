@@ -16,6 +16,9 @@
  */
 
 #include "includes.h"
+#include "smbd/smbd.h"
+#include "system/filesys.h"
+#include "transfer_file.h"
 
 
 #define MODULE "crossrename"
@@ -80,7 +83,7 @@ static int copy_reg(const char *source, const char *dest)
 #endif
 		goto err;
 
-	if (transfer_file(ifd, ofd, (size_t)-1) == -1)
+	if (transfer_file(ifd, ofd, source_stats.st_ex_size) == -1)
 		goto err;
 
 	/*

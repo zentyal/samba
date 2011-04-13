@@ -1373,10 +1373,10 @@ static bool test_zerobytelength(struct torture_context *torture,
 	for (i = 0; i < ARRAY_SIZE(zero_byte_tests); i++) {
 		torture_comment(torture,
 		    "  ... {%llu, %llu} + {%llu, %llu} = %s\n",
-		    zero_byte_tests[i].lock1.offset,
-		    zero_byte_tests[i].lock1.length,
-		    zero_byte_tests[i].lock2.offset,
-		    zero_byte_tests[i].lock2.length,
+		    (unsigned long long) zero_byte_tests[i].lock1.offset,
+		    (unsigned long long) zero_byte_tests[i].lock1.length,
+		    (unsigned long long) zero_byte_tests[i].lock2.offset,
+		    (unsigned long long) zero_byte_tests[i].lock2.length,
 		    nt_errstr(zero_byte_tests[i].status));
 
 		/* Lock both locks. */
@@ -1410,10 +1410,10 @@ static bool test_zerobytelength(struct torture_context *torture,
 	for (i = 0; i < ARRAY_SIZE(zero_byte_tests); i++) {
 		torture_comment(torture,
 		    "  ... {%llu, %llu} + {%llu, %llu} = %s\n",
-		    zero_byte_tests[i].lock1.offset,
-		    zero_byte_tests[i].lock1.length,
-		    zero_byte_tests[i].lock2.offset,
-		    zero_byte_tests[i].lock2.length,
+		    (unsigned long long) zero_byte_tests[i].lock1.offset,
+		    (unsigned long long) zero_byte_tests[i].lock1.length,
+		    (unsigned long long) zero_byte_tests[i].lock2.offset,
+		    (unsigned long long) zero_byte_tests[i].lock2.length,
 		    nt_errstr(zero_byte_tests[i].status));
 
 		/* Lock both locks. */
@@ -2524,7 +2524,7 @@ static bool test_range(struct torture_context *torture,
 		CHECK_STATUS_CMT(status, NT_STATUS_OK,
 				 talloc_asprintf(torture,
 				     "lock h failed at offset %#llx ",
-				     el[0].offset));
+				     (unsigned long long) el[0].offset));
 
 		lck.in.file.handle	= h2;
 		el[0].offset		= offset - 2;
@@ -2532,7 +2532,7 @@ static bool test_range(struct torture_context *torture,
 		CHECK_STATUS_CMT(status, NT_STATUS_OK,
 				 talloc_asprintf(torture,
 				     "lock h2 failed at offset %#llx ",
-				     el[0].offset));
+				     (unsigned long long) el[0].offset));
 	}
 
 	torture_comment(torture, "  testing %d locks\n", torture_numops);
@@ -2546,7 +2546,8 @@ static bool test_range(struct torture_context *torture,
 		CHECK_STATUS_CMT(status, NT_STATUS_LOCK_NOT_GRANTED,
 				 talloc_asprintf(torture,
 				     "lock h at offset %#llx should not have "
-				     "succeeded ", el[0].offset));
+				     "succeeded ",
+				     (unsigned long long) el[0].offset));
 
 		lck.in.file.handle	= h;
 		el[0].offset		= offset - 2;
@@ -2554,7 +2555,8 @@ static bool test_range(struct torture_context *torture,
 		CHECK_STATUS_CMT(status, NT_STATUS_LOCK_NOT_GRANTED,
 				 talloc_asprintf(torture,
 				     "lock h2 at offset %#llx should not have "
-				     "succeeded ", el[0].offset));
+				     "succeeded ",
+				     (unsigned long long) el[0].offset));
 
 		lck.in.file.handle	= h2;
 		el[0].offset		= offset - 1;
@@ -2562,7 +2564,8 @@ static bool test_range(struct torture_context *torture,
 		CHECK_STATUS_CMT(status, NT_STATUS_LOCK_NOT_GRANTED,
 				 talloc_asprintf(torture,
 				     "lock h at offset %#llx should not have "
-				     "succeeded ", el[0].offset));
+				     "succeeded ",
+				     (unsigned long long) el[0].offset));
 
 		lck.in.file.handle	= h2;
 		el[0].offset		= offset - 2;
@@ -2570,7 +2573,8 @@ static bool test_range(struct torture_context *torture,
 		CHECK_STATUS_CMT(status, NT_STATUS_LOCK_NOT_GRANTED,
 				 talloc_asprintf(torture,
 				     "lock h2 at offset %#llx should not have "
-				     "succeeded ", el[0].offset));
+				     "succeeded ",
+				     (unsigned long long) el[0].offset));
 	}
 
 	torture_comment(torture, "  removing %d locks\n", torture_numops);
@@ -2586,7 +2590,7 @@ static bool test_range(struct torture_context *torture,
 		CHECK_STATUS_CMT(status, NT_STATUS_OK,
 				 talloc_asprintf(torture,
 				     "unlock from h failed at offset %#llx ",
-				     el[0].offset));
+				     (unsigned long long) el[0].offset));
 
 		lck.in.file.handle	= h2;
 		el[0].offset		= offset - 2;
@@ -2594,7 +2598,7 @@ static bool test_range(struct torture_context *torture,
 		CHECK_STATUS_CMT(status, NT_STATUS_OK,
 				 talloc_asprintf(torture,
 				     "unlock from h2 failed at offset %#llx ",
-				     el[0].offset));
+				     (unsigned long long) el[0].offset));
 	}
 
 done:
@@ -2849,36 +2853,36 @@ done:
 struct torture_suite *torture_smb2_lock_init(void)
 {
 	struct torture_suite *suite =
-	    torture_suite_create(talloc_autofree_context(), "LOCK");
+	    torture_suite_create(talloc_autofree_context(), "lock");
 
-	torture_suite_add_1smb2_test(suite, "VALID-REQUEST",
+	torture_suite_add_1smb2_test(suite, "valid-request",
 	    test_valid_request);
-	torture_suite_add_1smb2_test(suite, "RW-NONE", test_lock_rw_none);
-	torture_suite_add_1smb2_test(suite, "RW-SHARED", test_lock_rw_shared);
-	torture_suite_add_1smb2_test(suite, "RW-EXCLUSIVE",
+	torture_suite_add_1smb2_test(suite, "rw-none", test_lock_rw_none);
+	torture_suite_add_1smb2_test(suite, "rw-shared", test_lock_rw_shared);
+	torture_suite_add_1smb2_test(suite, "rw-exclusive",
 	    test_lock_rw_exclusive);
-	torture_suite_add_1smb2_test(suite, "AUTO-UNLOCK",
+	torture_suite_add_1smb2_test(suite, "auto-unlock",
 	    test_lock_auto_unlock);
-	torture_suite_add_1smb2_test(suite, "LOCK", test_lock);
-	torture_suite_add_1smb2_test(suite, "ASYNC", test_async);
-	torture_suite_add_1smb2_test(suite, "CANCEL", test_cancel);
-	torture_suite_add_1smb2_test(suite, "CANCEL-TDIS", test_cancel_tdis);
-	torture_suite_add_1smb2_test(suite, "CANCEL-LOGOFF",
+	torture_suite_add_1smb2_test(suite, "lock", test_lock);
+	torture_suite_add_1smb2_test(suite, "async", test_async);
+	torture_suite_add_1smb2_test(suite, "cancel", test_cancel);
+	torture_suite_add_1smb2_test(suite, "cancel-tdis", test_cancel_tdis);
+	torture_suite_add_1smb2_test(suite, "cancel-logoff",
 	    test_cancel_logoff);
-	torture_suite_add_1smb2_test(suite, "ERRORCODE", test_errorcode);
-	torture_suite_add_1smb2_test(suite, "ZEROBYTELENGTH",
+	torture_suite_add_1smb2_test(suite, "errorcode", test_errorcode);
+	torture_suite_add_1smb2_test(suite, "zerobytelength",
 	    test_zerobytelength);
-	torture_suite_add_1smb2_test(suite, "ZEROBYTEREAD",
+	torture_suite_add_1smb2_test(suite, "zerobyteread",
 	    test_zerobyteread);
-	torture_suite_add_1smb2_test(suite, "UNLOCK", test_unlock);
-	torture_suite_add_1smb2_test(suite, "MULTIPLE-UNLOCK",
+	torture_suite_add_1smb2_test(suite, "unlock", test_unlock);
+	torture_suite_add_1smb2_test(suite, "multiple-unlock",
 	    test_multiple_unlock);
-	torture_suite_add_1smb2_test(suite, "STACKING", test_stacking);
-	torture_suite_add_1smb2_test(suite, "CONTEND", test_contend);
-	torture_suite_add_1smb2_test(suite, "CONTEXT", test_context);
-	torture_suite_add_1smb2_test(suite, "RANGE", test_range);
-	torture_suite_add_2smb2_test(suite, "OVERLAP", test_overlap);
-	torture_suite_add_1smb2_test(suite, "TRUNCATE", test_truncate);
+	torture_suite_add_1smb2_test(suite, "stacking", test_stacking);
+	torture_suite_add_1smb2_test(suite, "contend", test_contend);
+	torture_suite_add_1smb2_test(suite, "context", test_context);
+	torture_suite_add_1smb2_test(suite, "range", test_range);
+	torture_suite_add_2smb2_test(suite, "overlap", test_overlap);
+	torture_suite_add_1smb2_test(suite, "truncate", test_truncate);
 
 	suite->description = talloc_strdup(suite, "SMB2-LOCK tests");
 

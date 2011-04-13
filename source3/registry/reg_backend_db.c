@@ -21,12 +21,14 @@
 /* Implementation of internal registry database functions. */
 
 #include "includes.h"
-
+#include "system/filesys.h"
 #include "registry.h"
 #include "reg_db.h"
 #include "reg_util_internal.h"
 #include "reg_backend_db.h"
 #include "reg_objects.h"
+#include "nt_printing.h"
+#include "dbwrap.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
@@ -102,7 +104,7 @@ static struct builtin_regkey_value builtin_registry_values[] = {
 	{ KEY_PRINTING_2K,
 		"DefaultSpoolDirectory", REG_SZ, { "C:\\Windows\\System32\\Spool\\Printers" } },
 	{ KEY_EVENTLOG,
-		"DisplayName", REG_SZ, { "Event Log" } }, 
+		"DisplayName", REG_SZ, { "Event Log" } },
 	{ KEY_EVENTLOG,
 		"ErrorControl", REG_DWORD, { (char*)0x00000001 } },
 	{ NULL, NULL, 0, { NULL } }
@@ -415,10 +417,8 @@ static int regdb_normalize_keynames_fn(struct db_record *rec,
 			  (const char *) rec->key.dptr,
 			  keyname));
 
-		new_rec.value.dptr = rec->value.dptr;
-		new_rec.value.dsize = rec->value.dsize;
-		new_rec.key.dptr = (unsigned char *) keyname;
-		new_rec.key.dsize = strlen(keyname);
+		new_rec.value = rec->value;
+		new_rec.key = string_term_tdb_data(keyname);
 		new_rec.private_data = rec->private_data;
 
 		/* Delete the original record and store the normalized key */
@@ -453,11 +453,11 @@ static WERROR regdb_store_regdb_version(uint32_t version)
 
 	status = dbwrap_trans_store_int32(regdb, version_keyname, version);
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(1, ("regdb_init: error storing %s = %d: %s\n",
+		DEBUG(1, ("regdb_store_regdb_version: error storing %s = %d: %s\n",
 			  version_keyname, version, nt_errstr(status)));
 		return ntstatus_to_werror(status);
 	} else {
-		DEBUG(10, ("regdb_init: stored %s = %d\n",
+		DEBUG(10, ("regdb_store_regdb_version: stored %s = %d\n",
 			  version_keyname, version));
 		return WERR_OK;
 	}
@@ -497,8 +497,8 @@ WERROR regdb_init(void)
 	WERROR werr;
 
 	if (regdb) {
-		DEBUG(10, ("regdb_init: incrementing refcount (%d)\n",
-			  regdb_refcount));
+		DEBUG(10, ("regdb_init: incrementing refcount (%d->%d)\n",
+			   regdb_refcount, regdb_refcount+1));
 		regdb_refcount++;
 		return WERR_OK;
 	}
@@ -514,11 +514,13 @@ WERROR regdb_init(void)
 				state_path("registry.tdb"), strerror(errno) ));
 			return werr;
 		}
-		
+
 		DEBUG(10,("regdb_init: Successfully created registry tdb\n"));
 	}
 
 	regdb_refcount = 1;
+	DEBUG(10, ("regdb_init: registry db openend. refcount reset (%d)\n",
+		   regdb_refcount));
 
 	expected_version = REGVER_V2;
 
@@ -574,25 +576,27 @@ WERROR regdb_open( void )
 	WERROR result = WERR_OK;
 
 	if ( regdb ) {
-		DEBUG(10,("regdb_open: incrementing refcount (%d)\n", regdb_refcount));
+		DEBUG(10, ("regdb_open: incrementing refcount (%d->%d)\n",
+			   regdb_refcount, regdb_refcount+1));
 		regdb_refcount++;
 		return WERR_OK;
 	}
-	
+
 	become_root();
 
 	regdb = db_open(NULL, state_path("registry.tdb"), 0,
 			      REG_TDB_FLAGS, O_RDWR, 0600);
 	if ( !regdb ) {
 		result = ntstatus_to_werror( map_nt_error_from_unix( errno ) );
-		DEBUG(0,("regdb_open: Failed to open %s! (%s)\n", 
+		DEBUG(0,("regdb_open: Failed to open %s! (%s)\n",
 			state_path("registry.tdb"), strerror(errno) ));
 	}
 
 	unbecome_root();
 
 	regdb_refcount = 1;
-	DEBUG(10,("regdb_open: refcount reset (%d)\n", regdb_refcount));
+	DEBUG(10, ("regdb_open: registry db opened. refcount reset (%d)\n",
+		   regdb_refcount));
 
 	return result;
 }
@@ -608,7 +612,8 @@ int regdb_close( void )
 
 	regdb_refcount--;
 
-	DEBUG(10,("regdb_close: decrementing refcount (%d)\n", regdb_refcount));
+	DEBUG(10, ("regdb_close: decrementing refcount (%d->%d)\n",
+		   regdb_refcount+1, regdb_refcount));
 
 	if ( regdb_refcount > 0 )
 		return 0;
@@ -1940,10 +1945,10 @@ bool regdb_values_need_update(struct regval_ctr *values)
 	return (regdb_get_seqnum() != regval_ctr_get_seqnum(values));
 }
 
-/* 
+/*
  * Table of function pointers for default access
  */
- 
+
 struct registry_ops regdb_ops = {
 	.fetch_subkeys = regdb_fetch_keys,
 	.fetch_values = regdb_fetch_values,

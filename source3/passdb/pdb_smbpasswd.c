@@ -21,6 +21,11 @@
  */
 
 #include "includes.h"
+#include "passdb.h"
+#include "system/passwd.h"
+#include "system/filesys.h"
+#include "../librpc/gen_ndr/samr.h"
+#include "../libcli/security/security.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_PASSDB
@@ -223,6 +228,9 @@ creating file %s\n", pfile));
 				lock_type = F_WRLCK;
 				break;
 			}
+		default:
+			DEBUG(10, ("Invalid open mode: %d\n", type));
+			return NULL;
 	}
 
 	for(race_loop = 0; race_loop < 5; race_loop++) {
@@ -1196,9 +1204,9 @@ static bool build_smb_pass (struct smb_passwd *smb_pw, const struct samu *sampas
 
 		/* If the user specified a RID, make sure its able to be both stored and retreived */
 		if (rid == DOMAIN_RID_GUEST) {
-			struct passwd *passwd = getpwnam_alloc(NULL, lp_guestaccount());
+			struct passwd *passwd = Get_Pwnam_alloc(NULL, lp_guestaccount());
 			if (!passwd) {
-				DEBUG(0, ("Could not find guest account via getpwnam()! (%s)\n", lp_guestaccount()));
+				DEBUG(0, ("Could not find guest account via Get_Pwnam_alloc()! (%s)\n", lp_guestaccount()));
 				return False;
 			}
 			smb_pw->smb_userid=passwd->pw_uid;
@@ -1371,7 +1379,7 @@ static NTSTATUS smbpasswd_getsampwsid(struct pdb_methods *my_methods, struct sam
 		return nt_status;
 
 	/* build_sam_account might change the SID on us, if the name was for the guest account */
-	if (NT_STATUS_IS_OK(nt_status) && !sid_equal(pdb_get_user_sid(sam_acct), sid)) {
+	if (NT_STATUS_IS_OK(nt_status) && !dom_sid_equal(pdb_get_user_sid(sam_acct), sid)) {
 		DEBUG(1, ("looking for user with sid %s instead returned %s "
 			  "for account %s!?!\n", sid_string_dbg(sid),
 			  sid_string_dbg(pdb_get_user_sid(sam_acct)),

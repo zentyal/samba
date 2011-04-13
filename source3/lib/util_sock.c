@@ -20,6 +20,11 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "memcache.h"
+#include "../lib/async_req/async_sock.h"
+#include "../lib/util/select.h"
+#include "interfaces.h"
 
 /****************************************************************************
  Get a port number in host byte order from a sockaddr_storage.
@@ -108,7 +113,7 @@ char *print_canonical_sockaddr(TALLOC_CTX *ctx,
 	} else {
 		dest = talloc_asprintf(ctx, "%s", addr);
 	}
-	
+
 	return dest;
 }
 
@@ -156,7 +161,7 @@ int get_socket_port(int fd)
 
 	if (getsockname(fd, (struct sockaddr *)&sa, &length) < 0) {
 		int level = (errno == ENOTCONN) ? 2 : 0;
-		DEBUG(level, ("getpeername failed. Error was %s\n",
+		DEBUG(level, ("getsockname failed. Error was %s\n",
 			       strerror(errno)));
 		return -1;
 	}
@@ -285,6 +290,12 @@ static const smb_socket_option socket_options[] = {
 #endif
 #ifdef TCP_QUICKACK
   {"TCP_QUICKACK", IPPROTO_TCP, TCP_QUICKACK, 0, OPT_BOOL},
+#endif
+#ifdef TCP_KEEPALIVE_THRESHOLD
+  {"TCP_KEEPALIVE_THRESHOLD", IPPROTO_TCP, TCP_KEEPALIVE_THRESHOLD, 0, OPT_INT},
+#endif
+#ifdef TCP_KEEPALIVE_ABORT_THRESHOLD
+  {"TCP_KEEPALIVE_ABORT_THRESHOLD", IPPROTO_TCP, TCP_KEEPALIVE_ABORT_THRESHOLD, 0, OPT_INT},
 #endif
   {NULL,0,0,0,0}};
 
@@ -437,13 +448,9 @@ NTSTATUS read_fd_with_timeout(int fd, char *buf,
 				  unsigned int time_out,
 				  size_t *size_ret)
 {
-	fd_set fds;
-	int selrtn;
+	int pollrtn;
 	ssize_t readret;
 	size_t nread = 0;
-	struct timeval timeout;
-	char addr[INET6_ADDRSTRLEN];
-	int save_errno;
 
 	/* just checking .... */
 	if (maxcnt <= 0)
@@ -465,20 +472,7 @@ NTSTATUS read_fd_with_timeout(int fd, char *buf,
 			}
 
 			if (readret == -1) {
-				save_errno = errno;
-				if (fd == get_client_fd()) {
-					/* Try and give an error message
-					 * saying what client failed. */
-					DEBUG(0,("read_fd_with_timeout: "
-						"client %s read error = %s.\n",
-						get_peer_addr(fd,addr,sizeof(addr)),
-						strerror(save_errno) ));
-				} else {
-					DEBUG(0,("read_fd_with_timeout: "
-						"read error = %s.\n",
-						strerror(save_errno) ));
-				}
-				return map_nt_error_from_unix(save_errno);
+				return map_nt_error_from_unix(errno);
 			}
 			nread += readret;
 		}
@@ -491,37 +485,20 @@ NTSTATUS read_fd_with_timeout(int fd, char *buf,
 	   system performance will suffer severely as
 	   select always returns true on disk files */
 
-	/* Set initial timeout */
-	timeout.tv_sec = (time_t)(time_out / 1000);
-	timeout.tv_usec = (long)(1000 * (time_out % 1000));
-
 	for (nread=0; nread < mincnt; ) {
-		FD_ZERO(&fds);
-		FD_SET(fd,&fds);
+		int revents;
 
-		selrtn = sys_select_intr(fd+1,&fds,NULL,NULL,&timeout);
+		pollrtn = poll_intr_one_fd(fd, POLLIN|POLLHUP, time_out,
+					   &revents);
 
 		/* Check if error */
-		if (selrtn == -1) {
-			save_errno = errno;
-			/* something is wrong. Maybe the socket is dead? */
-			if (fd == get_client_fd()) {
-				/* Try and give an error message saying
-				 * what client failed. */
-				DEBUG(0,("read_fd_with_timeout: timeout "
-				"read for client %s. select error = %s.\n",
-				get_peer_addr(fd,addr,sizeof(addr)),
-				strerror(save_errno) ));
-			} else {
-				DEBUG(0,("read_fd_with_timeout: timeout "
-				"read. select error = %s.\n",
-				strerror(save_errno) ));
-			}
-			return map_nt_error_from_unix(save_errno);
+		if (pollrtn == -1) {
+			return map_nt_error_from_unix(errno);
 		}
 
 		/* Did we timeout ? */
-		if (selrtn == 0) {
+		if ((pollrtn == 0) ||
+		    ((revents & (POLLIN|POLLHUP|POLLERR)) == 0)) {
 			DEBUG(10,("read_fd_with_timeout: timeout read. "
 				"select timed out.\n"));
 			return NT_STATUS_IO_TIMEOUT;
@@ -537,20 +514,6 @@ NTSTATUS read_fd_with_timeout(int fd, char *buf,
 		}
 
 		if (readret == -1) {
-			save_errno = errno;
-			/* the descriptor is probably dead */
-			if (fd == get_client_fd()) {
-				/* Try and give an error message
-				 * saying what client failed. */
-				DEBUG(0,("read_fd_with_timeout: timeout "
-					"read to client %s. read error = %s.\n",
-					get_peer_addr(fd,addr,sizeof(addr)),
-					strerror(save_errno) ));
-			} else {
-				DEBUG(0,("read_fd_with_timeout: timeout "
-					"read. read error = %s.\n",
-					strerror(save_errno) ));
-			}
 			return map_nt_error_from_unix(errno);
 		}
 
@@ -655,31 +618,11 @@ ssize_t write_data_iov(int fd, const struct iovec *orig_iov, int iovcnt)
 
 ssize_t write_data(int fd, const char *buffer, size_t N)
 {
-	ssize_t ret;
 	struct iovec iov;
 
 	iov.iov_base = CONST_DISCARD(void *, buffer);
 	iov.iov_len = N;
-
-	ret = write_data_iov(fd, &iov, 1);
-	if (ret >= 0) {
-		return ret;
-	}
-
-	if (fd == get_client_fd()) {
-		char addr[INET6_ADDRSTRLEN];
-		/*
-		 * Try and give an error message saying what client failed.
-		 */
-		DEBUG(0, ("write_data: write failure in writing to client %s. "
-			  "Error %s\n", get_peer_addr(fd,addr,sizeof(addr)),
-			  strerror(errno)));
-	} else {
-		DEBUG(0,("write_data: write failure. Error = %s\n",
-			 strerror(errno) ));
-	}
-
-	return -1;
+	return write_data_iov(fd, &iov, 1);
 }
 
 /****************************************************************************
@@ -730,36 +673,6 @@ NTSTATUS read_smb_length_return_keepalive(int fd, char *inbuf,
 }
 
 /****************************************************************************
- Read 4 bytes of a smb packet and return the smb length of the packet.
- Store the result in the buffer. This version of the function will
- never return a session keepalive (length of zero).
- Timeout is in milliseconds.
-****************************************************************************/
-
-NTSTATUS read_smb_length(int fd, char *inbuf, unsigned int timeout,
-			 size_t *len)
-{
-	uint8_t msgtype = SMBkeepalive;
-
-	while (msgtype == SMBkeepalive) {
-		NTSTATUS status;
-
-		status = read_smb_length_return_keepalive(fd, inbuf, timeout,
-							  len);
-		if (!NT_STATUS_IS_OK(status)) {
-			return status;
-		}
-
-		msgtype = CVAL(inbuf, 0);
-	}
-
-	DEBUG(10,("read_smb_length: got smb length of %lu\n",
-		  (unsigned long)len));
-
-	return NT_STATUS_OK;
-}
-
-/****************************************************************************
  Read an smb from a fd.
  The timeout is in milliseconds.
  This function will return on receipt of a session keepalive packet.
@@ -777,7 +690,8 @@ NTSTATUS receive_smb_raw(int fd, char *buffer, size_t buflen, unsigned int timeo
 	status = read_smb_length_return_keepalive(fd,buffer,timeout,&len);
 
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(10, ("receive_smb_raw: %s!\n", nt_errstr(status)));
+		DEBUG(0, ("read_fd_with_timeout failed, read "
+			  "error = %s.\n", nt_errstr(status)));
 		return status;
 	}
 
@@ -796,6 +710,8 @@ NTSTATUS receive_smb_raw(int fd, char *buffer, size_t buflen, unsigned int timeo
 			fd, buffer+4, len, len, timeout, &len);
 
 		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(0, ("read_fd_with_timeout failed, read error = "
+				  "%s.\n", nt_errstr(status)));
 			return status;
 		}
 
@@ -1192,171 +1108,6 @@ NTSTATUS open_socket_out_defer_recv(struct tevent_req *req, int *pfd)
 	return NT_STATUS_OK;
 }
 
-/*******************************************************************
- Create an outgoing TCP socket to the first addr that connects.
-
- This is for simultaneous connection attempts to port 445 and 139 of a host
- or for simultatneous connection attempts to multiple DCs at once.  We return
- a socket fd of the first successful connection.
-
- @param[in] addrs list of Internet addresses and ports to connect to
- @param[in] num_addrs number of address/port pairs in the addrs list
- @param[in] timeout time after which we stop waiting for a socket connection
-            to succeed, given in milliseconds
- @param[out] fd_index the entry in addrs which we successfully connected to
- @param[out] fd fd of the open and connected socket
- @return true on a successful connection, false if all connection attempts
-         failed or we timed out
-*******************************************************************/
-
-bool open_any_socket_out(struct sockaddr_storage *addrs, int num_addrs,
-			 int timeout, int *fd_index, int *fd)
-{
-	int i, resulting_index, res;
-	int *sockets;
-	bool good_connect;
-
-	fd_set r_fds, wr_fds;
-	struct timeval tv;
-	int maxfd;
-
-	int connect_loop = 10000; /* 10 milliseconds */
-
-	timeout *= 1000; 	/* convert to microseconds */
-
-	sockets = SMB_MALLOC_ARRAY(int, num_addrs);
-
-	if (sockets == NULL)
-		return false;
-
-	resulting_index = -1;
-
-	for (i=0; i<num_addrs; i++)
-		sockets[i] = -1;
-
-	for (i=0; i<num_addrs; i++) {
-		sockets[i] = socket(addrs[i].ss_family, SOCK_STREAM, 0);
-		if (sockets[i] < 0)
-			goto done;
-		set_blocking(sockets[i], false);
-	}
-
- connect_again:
-	good_connect = false;
-
-	for (i=0; i<num_addrs; i++) {
-		const struct sockaddr * a = 
-		    (const struct sockaddr *)&(addrs[i]);
-
-		if (sockets[i] == -1)
-			continue;
-
-		if (sys_connect(sockets[i], a) == 0) {
-			/* Rather unlikely as we are non-blocking, but it
-			 * might actually happen. */
-			resulting_index = i;
-			goto done;
-		}
-
-		if (errno == EINPROGRESS || errno == EALREADY ||
-#ifdef EISCONN
-			errno == EISCONN ||
-#endif
-		    errno == EAGAIN || errno == EINTR) {
-			/* These are the error messages that something is
-			   progressing. */
-			good_connect = true;
-		} else if (errno != 0) {
-			/* There was a direct error */
-			close(sockets[i]);
-			sockets[i] = -1;
-		}
-	}
-
-	if (!good_connect) {
-		/* All of the connect's resulted in real error conditions */
-		goto done;
-	}
-
-	/* Lets see if any of the connect attempts succeeded */
-
-	maxfd = 0;
-	FD_ZERO(&wr_fds);
-	FD_ZERO(&r_fds);
-
-	for (i=0; i<num_addrs; i++) {
-		if (sockets[i] == -1)
-			continue;
-		FD_SET(sockets[i], &wr_fds);
-		FD_SET(sockets[i], &r_fds);
-		if (sockets[i]>maxfd)
-			maxfd = sockets[i];
-	}
-
-	tv.tv_sec = 0;
-	tv.tv_usec = connect_loop;
-
-	res = sys_select_intr(maxfd+1, &r_fds, &wr_fds, NULL, &tv);
-
-	if (res < 0)
-		goto done;
-
-	if (res == 0)
-		goto next_round;
-
-	for (i=0; i<num_addrs; i++) {
-
-		if (sockets[i] == -1)
-			continue;
-
-		/* Stevens, Network Programming says that if there's a
-		 * successful connect, the socket is only writable. Upon an
-		 * error, it's both readable and writable. */
-
-		if (FD_ISSET(sockets[i], &r_fds) &&
-		    FD_ISSET(sockets[i], &wr_fds)) {
-			/* readable and writable, so it's an error */
-			close(sockets[i]);
-			sockets[i] = -1;
-			continue;
-		}
-
-		if (!FD_ISSET(sockets[i], &r_fds) &&
-		    FD_ISSET(sockets[i], &wr_fds)) {
-			/* Only writable, so it's connected */
-			resulting_index = i;
-			goto done;
-		}
-	}
-
- next_round:
-
-	timeout -= connect_loop;
-	if (timeout <= 0)
-		goto done;
-	connect_loop *= 1.5;
-	if (connect_loop > timeout)
-		connect_loop = timeout;
-	goto connect_again;
-
- done:
-	for (i=0; i<num_addrs; i++) {
-		if (i == resulting_index)
-			continue;
-		if (sockets[i] >= 0)
-			close(sockets[i]);
-	}
-
-	if (resulting_index >= 0) {
-		*fd_index = resulting_index;
-		*fd = sockets[*fd_index];
-		set_blocking(*fd, true);
-	}
-
-	free(sockets);
-
-	return (resulting_index >= 0);
-}
 /****************************************************************************
  Open a connected UDP socket to host on port
 **************************************************************************/
@@ -1832,13 +1583,46 @@ const char *get_mydnsfullname(void)
 }
 
 /************************************************************
+ Is this my ip address ?
+************************************************************/
+
+static bool is_my_ipaddr(const char *ipaddr_str)
+{
+	struct sockaddr_storage ss;
+	struct iface_struct *nics;
+	int i, n;
+
+	if (!interpret_string_addr(&ss, ipaddr_str, AI_NUMERICHOST)) {
+		return false;
+	}
+
+	if (ismyaddr((struct sockaddr *)&ss)) {
+		return true;
+	}
+
+	if (is_zero_addr(&ss) ||
+		is_loopback_addr((struct sockaddr *)&ss)) {
+		return false;
+	}
+
+	n = get_interfaces(talloc_tos(), &nics);
+	for (i=0; i<n; i++) {
+		if (sockaddr_equal((struct sockaddr *)&nics[i].ip, (struct sockaddr *)&ss)) {
+			TALLOC_FREE(nics);
+			return true;
+		}
+	}
+	TALLOC_FREE(nics);
+	return false;
+}
+
+/************************************************************
  Is this my name ?
 ************************************************************/
 
 bool is_myname_or_ipaddr(const char *s)
 {
 	TALLOC_CTX *ctx = talloc_tos();
-	char addr[INET6_ADDRSTRLEN];
 	char *name = NULL;
 	const char *dnsname;
 	char *servername = NULL;
@@ -1886,45 +1670,38 @@ bool is_myname_or_ipaddr(const char *s)
 		return true;
 	}
 
-	/* Handle possible CNAME records - convert to an IP addr. */
-	if (!is_ipaddress(servername)) {
-		/* Use DNS to resolve the name, but only the first address */
-		struct sockaddr_storage ss;
-		if (interpret_string_addr(&ss, servername, 0)) {
+	/* Maybe its an IP address? */
+	if (is_ipaddress(servername)) {
+		return is_my_ipaddr(servername);
+	}
+
+	/* Handle possible CNAME records - convert to an IP addr. list. */
+	{
+		/* Use DNS to resolve the name, check all addresses. */
+		struct addrinfo *p = NULL;
+		struct addrinfo *res = NULL;
+
+		if (!interpret_string_addr_internal(&res,
+				servername,
+				AI_ADDRCONFIG)) {
+			return false;
+		}
+
+		for (p = res; p; p = p->ai_next) {
+			char addr[INET6_ADDRSTRLEN];
+			struct sockaddr_storage ss;
+
+			ZERO_STRUCT(ss);
+			memcpy(&ss, p->ai_addr, p->ai_addrlen);
 			print_sockaddr(addr,
 					sizeof(addr),
 					&ss);
-			servername = addr;
-		}
-	}
-
-	/* Maybe its an IP address? */
-	if (is_ipaddress(servername)) {
-		struct sockaddr_storage ss;
-		struct iface_struct *nics;
-		int i, n;
-
-		if (!interpret_string_addr(&ss, servername, AI_NUMERICHOST)) {
-			return false;
-		}
-
-		if (ismyaddr((struct sockaddr *)&ss)) {
-			return true;
-		}
-
-		if (is_zero_addr((struct sockaddr *)&ss) || 
-			is_loopback_addr((struct sockaddr *)&ss)) {
-			return false;
-		}
-
-		n = get_interfaces(talloc_tos(), &nics);
-		for (i=0; i<n; i++) {
-			if (sockaddr_equal((struct sockaddr *)&nics[i].ip, (struct sockaddr *)&ss)) {
-				TALLOC_FREE(nics);
+			if (is_my_ipaddr(addr)) {
+				freeaddrinfo(res);
 				return true;
 			}
 		}
-		TALLOC_FREE(nics);
+		freeaddrinfo(res);
 	}
 
 	/* No match */
@@ -2011,4 +1788,48 @@ int getaddrinfo_recv(struct tevent_req *req, struct addrinfo **res)
 		*res = state->res;
 	}
 	return state->ret;
+}
+
+int poll_one_fd(int fd, int events, int timeout, int *revents)
+{
+	struct pollfd *fds;
+	int ret;
+	int saved_errno;
+
+	fds = TALLOC_ZERO_ARRAY(talloc_tos(), struct pollfd, 2);
+	if (fds == NULL) {
+		errno = ENOMEM;
+		return -1;
+	}
+	fds[0].fd = fd;
+	fds[0].events = events;
+
+	ret = sys_poll(fds, 1, timeout);
+
+	/*
+	 * Assign whatever poll did, even in the ret<=0 case.
+	 */
+	*revents = fds[0].revents;
+	saved_errno = errno;
+	TALLOC_FREE(fds);
+	errno = saved_errno;
+
+	return ret;
+}
+
+int poll_intr_one_fd(int fd, int events, int timeout, int *revents)
+{
+	struct pollfd pfd;
+	int ret;
+
+	pfd.fd = fd;
+	pfd.events = events;
+
+	ret = sys_poll_intr(&pfd, 1, timeout);
+	if (ret <= 0) {
+		*revents = 0;
+		return ret;
+	}
+	*revents = pfd.revents;
+	return 1;
 }

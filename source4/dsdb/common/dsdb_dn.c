@@ -21,7 +21,9 @@
 
 #include "includes.h"
 #include "dsdb/samdb/samdb.h"
-#include "lib/ldb/include/ldb_module.h"
+#include <ldb_module.h>
+#include "librpc/ndr/libndr.h"
+#include "libcli/security/dom_sid.h"
 
 enum dsdb_dn_format dsdb_dn_oid_to_format(const char *oid) 
 {
@@ -326,71 +328,41 @@ int dsdb_dn_string_comparison(struct ldb_context *ldb, void *mem_ctx,
 	return ldb_any_comparison(ldb, mem_ctx, dsdb_dn_string_canonicalise, v1, v2);
 }
 
-
 /*
-   convert a dsdb_dn to a linked attribute data blob
-*/
-WERROR dsdb_dn_la_to_blob(struct ldb_context *sam_ctx,
-			  const struct dsdb_attribute *schema_attrib,
-			  const struct dsdb_schema *schema,
-			  TALLOC_CTX *mem_ctx,
-			  struct dsdb_dn *dsdb_dn, DATA_BLOB **blob)
+  format a drsuapi_DsReplicaObjectIdentifier naming context as a string
+ */
+char *drs_ObjectIdentifier_to_string(TALLOC_CTX *mem_ctx,
+				     struct drsuapi_DsReplicaObjectIdentifier *nc)
 {
-	struct ldb_val v;
-	WERROR werr;
-	struct ldb_message_element val_el;
-	struct drsuapi_DsReplicaAttribute drs;
-
-	/* we need a message_element with just one value in it */
-	v = data_blob_string_const(dsdb_dn_get_extended_linearized(mem_ctx, dsdb_dn, 1));
-
-	val_el.name = schema_attrib->lDAPDisplayName;
-	val_el.values = &v;
-	val_el.num_values = 1;
-
-	werr = schema_attrib->syntax->ldb_to_drsuapi(sam_ctx, schema, schema_attrib, &val_el, mem_ctx, &drs);
-	W_ERROR_NOT_OK_RETURN(werr);
-
-	if (drs.value_ctr.num_values != 1) {
-		DEBUG(1,(__location__ ": Failed to build DRS blob for linked attribute %s\n",
-			 schema_attrib->lDAPDisplayName));
-		return WERR_DS_DRA_INTERNAL_ERROR;
+	char *ret = NULL;
+	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
+	if (!GUID_all_zero(&nc->guid)) {
+		char *guid = GUID_string(tmp_ctx, &nc->guid);
+		if (guid) {
+			ret = talloc_asprintf_append(ret, "<GUID=%s>;", guid);
+		}
 	}
-
-	*blob = drs.value_ctr.values[0].blob;
-	return WERR_OK;
+	if (nc->__ndr_size_sid != 0 && nc->sid.sid_rev_num != 0) {
+		const char *sid = dom_sid_string(tmp_ctx, &nc->sid);
+		if (sid) {
+			ret = talloc_asprintf_append(ret, "<SID=%s>;", sid);
+		}
+	}
+	if (nc->__ndr_size_dn != 0 && nc->dn) {
+		ret = talloc_asprintf_append(ret, "%s", nc->dn);
+	}
+	talloc_free(tmp_ctx);
+	talloc_steal(mem_ctx, ret);
+	return ret;
 }
 
-/*
-  convert a data blob to a dsdb_dn
- */
-WERROR dsdb_dn_la_from_blob(struct ldb_context *sam_ctx,
-			    const struct dsdb_attribute *schema_attrib,
-			    const struct dsdb_schema *schema,
-			    TALLOC_CTX *mem_ctx,
-			    DATA_BLOB *blob,
-			    struct dsdb_dn **dsdb_dn)
+struct ldb_dn *drs_ObjectIdentifier_to_dn(TALLOC_CTX *mem_ctx,
+					  struct ldb_context *ldb,
+					  struct drsuapi_DsReplicaObjectIdentifier *nc)
 {
-	WERROR werr;
-	struct ldb_message_element new_el;
-	struct drsuapi_DsReplicaAttribute drs;
-	struct drsuapi_DsAttributeValue val;
-
-	drs.value_ctr.num_values = 1;
-	drs.value_ctr.values = &val;
-	val.blob = blob;
-
-	werr = schema_attrib->syntax->drsuapi_to_ldb(sam_ctx, schema, schema_attrib, &drs, mem_ctx, &new_el);
-	W_ERROR_NOT_OK_RETURN(werr);
-
-	if (new_el.num_values != 1) {
-		return WERR_INTERNAL_ERROR;
-	}
-
-	*dsdb_dn = dsdb_dn_parse(mem_ctx, sam_ctx, &new_el.values[0], schema_attrib->syntax->ldap_oid);
-	if (!*dsdb_dn) {
-		return WERR_INTERNAL_ERROR;
-	}
-
-	return WERR_OK;
+	char *dn_string = drs_ObjectIdentifier_to_string(mem_ctx, nc);
+	struct ldb_dn *new_dn;
+	new_dn = ldb_dn_new(mem_ctx, ldb, dn_string);
+	talloc_free(dn_string);
+	return new_dn;
 }

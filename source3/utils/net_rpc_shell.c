@@ -19,8 +19,13 @@
 
 
 #include "includes.h"
+#include "popt_common.h"
 #include "utils/net.h"
+#include "rpc_client/cli_pipe.h"
 #include "../librpc/gen_ndr/ndr_samr.h"
+#include "lib/netapi/netapi.h"
+#include "lib/netapi/netapi_net.h"
+#include "../libcli/smbreadline/smbreadline.h"
 
 static NTSTATUS rpc_sh_info(struct net_context *c,
 			    TALLOC_CTX *mem_ctx, struct rpc_sh_ctx *ctx,
@@ -219,7 +224,7 @@ int net_rpc_shell(struct net_context *c, int argc, const char **argv)
 		return -1;
 	}
 
-	if (libnetapi_init(&c->netapi_ctx) != 0) {
+	if (libnetapi_net_init(&c->netapi_ctx) != 0) {
 		return -1;
 	}
 	libnetapi_set_username(c->netapi_ctx, c->opt_user_name);

@@ -22,6 +22,7 @@
 */
 
 #include "includes.h"
+#include "popt_common.h"
 #include "winbind_client.h"
 #include "libwbclient/wbclient.h"
 #include "lib/popt/popt.h"
@@ -186,6 +187,8 @@ static bool wbinfo_get_userinfo(char *user)
 		 pwd->pw_dir,
 		 pwd->pw_shell);
 
+	wbcFreeMemory(pwd);
+
 	return true;
 }
 
@@ -210,6 +213,8 @@ static bool wbinfo_get_uidinfo(int uid)
 		 pwd->pw_gecos,
 		 pwd->pw_dir,
 		 pwd->pw_shell);
+
+	wbcFreeMemory(pwd);
 
 	return true;
 }
@@ -356,16 +361,9 @@ static bool wbinfo_get_usersids(const char *user_sid_str)
 	}
 
 	for (i = 0; i < num_sids; i++) {
-		char *str = NULL;
-		wbc_status = wbcSidToString(&sids[i], &str);
-		if (!WBC_ERROR_IS_OK(wbc_status)) {
-			d_fprintf(stderr, "failed to call wbcSidToString: "
-				  "%s\n", wbcErrorString(wbc_status));
-			wbcFreeMemory(sids);
-			return false;
-		}
+		char str[WBC_SID_STRING_BUFLEN];
+		wbcSidToStringBuf(&sids[i], str, sizeof(str));
 		d_printf("%s\n", str);
-		wbcFreeMemory(str);
 	}
 
 	wbcFreeMemory(sids);
@@ -384,7 +382,7 @@ static bool wbinfo_get_userdomgroups(const char *user_sid_str)
 
 	wbc_status = wbcStringToSid(user_sid_str, &user_sid);
 	if (!WBC_ERROR_IS_OK(wbc_status)) {
-		d_fprintf(stderr, "failed to call wbcSidToString: %s\n",
+		d_fprintf(stderr, "failed to call wbcStringToSid: %s\n",
 			  wbcErrorString(wbc_status));
 		return false;
 	}
@@ -397,16 +395,9 @@ static bool wbinfo_get_userdomgroups(const char *user_sid_str)
 	}
 
 	for (i = 0; i < num_sids; i++) {
-		char *str = NULL;
-		wbc_status = wbcSidToString(&sids[i], &str);
-		if (!WBC_ERROR_IS_OK(wbc_status)) {
-			d_fprintf(stderr, "failed to call wbcSidToString: "
-				  "%s\n", wbcErrorString(wbc_status));
-			wbcFreeMemory(sids);
-			return false;
-		}
+		char str[WBC_SID_STRING_BUFLEN];
+		wbcSidToStringBuf(&sids[i], str, sizeof(str));
 		d_printf("%s\n", str);
-		wbcFreeMemory(str);
 	}
 
 	wbcFreeMemory(sids);
@@ -423,7 +414,7 @@ static bool wbinfo_get_sidaliases(const char *domain,
 	struct wbcDomainSid user_sid;
 	uint32_t *alias_rids = NULL;
 	uint32_t num_alias_rids;
-	char *domain_sid_str = NULL;
+	char domain_sid_str[WBC_SID_STRING_BUFLEN];
 
 	/* Send request */
 	if ((domain == NULL) || (strequal(domain, ".")) ||
@@ -450,10 +441,7 @@ static bool wbinfo_get_sidaliases(const char *domain,
 		goto done;
 	}
 
-	wbc_status = wbcSidToString(&dinfo->sid, &domain_sid_str);
-	if (!WBC_ERROR_IS_OK(wbc_status)) {
-		goto done;
-	}
+	wbcSidToStringBuf(&dinfo->sid, domain_sid_str, sizeof(domain_sid_str));
 
 	for (i = 0; i < num_alias_rids; i++) {
 		d_printf("%s-%d\n", domain_sid_str, alias_rids[i]);
@@ -462,12 +450,7 @@ static bool wbinfo_get_sidaliases(const char *domain,
 	wbcFreeMemory(alias_rids);
 
 done:
-	if (domain_sid_str) {
-		wbcFreeMemory(domain_sid_str);
-	}
-	if (dinfo) {
-		wbcFreeMemory(dinfo);
-	}
+	wbcFreeMemory(dinfo);
 	return (WBC_ERR_SUCCESS == wbc_status);
 }
 
@@ -588,6 +571,8 @@ static bool wbinfo_list_domains(bool list_all_domains, bool verbose)
 		d_printf("\n");
 	}
 
+	wbcFreeMemory(domain_list);
+
 	return true;
 }
 
@@ -640,6 +625,8 @@ static bool wbinfo_show_onlinestatus(const char *domain)
 			 is_offline ? "offline" : "online" );
 	}
 
+	wbcFreeMemory(domain_list);
+
 	return true;
 }
 
@@ -650,7 +637,7 @@ static bool wbinfo_domain_info(const char *domain)
 {
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 	struct wbcDomainInfo *dinfo = NULL;
-	char *sid_str = NULL;
+	char sid_str[WBC_SID_STRING_BUFLEN];
 
 	if ((domain == NULL) || (strequal(domain, ".")) || (domain[0] == '\0')){
 		domain = get_winbind_domain();
@@ -665,13 +652,7 @@ static bool wbinfo_domain_info(const char *domain)
 		return false;
 	}
 
-	wbc_status = wbcSidToString(&dinfo->sid, &sid_str);
-	if (!WBC_ERROR_IS_OK(wbc_status)) {
-		d_fprintf(stderr, "failed to call wbcSidToString: %s\n",
-			  wbcErrorString(wbc_status));
-		wbcFreeMemory(dinfo);
-		return false;
-	}
+	wbcSidToStringBuf(&dinfo->sid, sid_str, sizeof(sid_str));
 
 	/* Display response */
 
@@ -690,7 +671,6 @@ static bool wbinfo_domain_info(const char *domain)
 		 (dinfo->domain_flags & WBC_DOMINFO_DOMAIN_PRIMARY) ?
 		 "Yes" : "No");
 
-	wbcFreeMemory(sid_str);
 	wbcFreeMemory(dinfo);
 
 	return true;
@@ -786,6 +766,31 @@ static bool wbinfo_check_secret(const char *domain)
 	return true;
 }
 
+/* Find the currently connected DCs */
+
+static bool wbinfo_dc_info(const char *domain_name)
+{
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	size_t i, num_dcs;
+	const char **dc_names, **dc_ips;
+
+	wbc_status = wbcDcInfo(domain_name, &num_dcs,
+			       &dc_names, &dc_ips);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		printf("Could not find dc info %s\n",
+		       domain_name ? domain_name : "our domain");
+		return false;
+	}
+
+	for (i=0; i<num_dcs; i++) {
+		printf("%s (%s)\n", dc_names[i], dc_ips[i]);
+	}
+	wbcFreeMemory(dc_names);
+	wbcFreeMemory(dc_ips);
+
+	return true;
+}
+
 /* Change trust account password */
 
 static bool wbinfo_change_secret(const char *domain)
@@ -852,7 +857,7 @@ static bool wbinfo_uid_to_sid(uid_t uid)
 {
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 	struct wbcDomainSid sid;
-	char *sid_str = NULL;
+	char sid_str[WBC_SID_STRING_BUFLEN];
 
 	/* Send request */
 
@@ -863,18 +868,11 @@ static bool wbinfo_uid_to_sid(uid_t uid)
 		return false;
 	}
 
-	wbc_status = wbcSidToString(&sid, &sid_str);
-	if (!WBC_ERROR_IS_OK(wbc_status)) {
-		d_fprintf(stderr, "failed to call wbcSidToString: %s\n",
-			  wbcErrorString(wbc_status));
-		return false;
-	}
+	wbcSidToStringBuf(&sid, sid_str, sizeof(sid_str));
 
 	/* Display response */
 
 	d_printf("%s\n", sid_str);
-
-	wbcFreeMemory(sid_str);
 
 	return true;
 }
@@ -885,7 +883,7 @@ static bool wbinfo_gid_to_sid(gid_t gid)
 {
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 	struct wbcDomainSid sid;
-	char *sid_str = NULL;
+	char sid_str[WBC_SID_STRING_BUFLEN];
 
 	/* Send request */
 
@@ -896,18 +894,11 @@ static bool wbinfo_gid_to_sid(gid_t gid)
 		return false;
 	}
 
-	wbc_status = wbcSidToString(&sid, &sid_str);
-	if (!WBC_ERROR_IS_OK(wbc_status)) {
-		d_fprintf(stderr, "failed to call wbcSidToString: %s\n",
-			  wbcErrorString(wbc_status));
-		return false;
-	}
+	wbcSidToStringBuf(&sid, sid_str, sizeof(sid_str));
 
 	/* Display response */
 
 	d_printf("%s\n", sid_str);
-
-	wbcFreeMemory(sid_str);
 
 	return true;
 }
@@ -1270,18 +1261,10 @@ static bool wbinfo_lookuprids(const char *domain, const char *arg)
 
 	ret = true;
 done:
-	if (dinfo) {
-		wbcFreeMemory(dinfo);
-	}
-	if (domain_name) {
-		wbcFreeMemory(domain_name);
-	}
-	if (names) {
-		wbcFreeMemory(names);
-	}
-	if (types) {
-		wbcFreeMemory(types);
-	}
+	wbcFreeMemory(dinfo);
+	wbcFreeMemory(domain_name);
+	wbcFreeMemory(names);
+	wbcFreeMemory(types);
 	TALLOC_FREE(mem_ctx);
 	return ret;
 }
@@ -1292,7 +1275,7 @@ static bool wbinfo_lookupname(const char *full_name)
 {
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 	struct wbcDomainSid sid;
-	char *sid_str;
+	char sid_str[WBC_SID_STRING_BUFLEN];
 	enum wbcSidType type;
 	fstring domain_name;
 	fstring account_name;
@@ -1310,18 +1293,11 @@ static bool wbinfo_lookupname(const char *full_name)
 		return false;
 	}
 
-	wbc_status = wbcSidToString(&sid, &sid_str);
-	if (!WBC_ERROR_IS_OK(wbc_status)) {
-		d_fprintf(stderr, "failed to call wbcSidToString: %s\n",
-			  wbcErrorString(wbc_status));
-		return false;
-	}
+	wbcSidToStringBuf(&sid, sid_str, sizeof(sid_str));
 
 	/* Display response */
 
 	d_printf("%s %s (%d)\n", sid_str, wbcSidTypeString(type), type);
-
-	wbcFreeMemory(sid_str);
 
 	return true;
 }
@@ -1439,7 +1415,7 @@ static bool wbinfo_auth_krb5(char *username, const char *cctype, uint32_t flags)
 
 	if (error) {
 		d_fprintf(stderr,
-			 "error code was %s (0x%x)\nerror messsage was: %s\n",
+			 "error code was %s (0x%x)\nerror message was: %s\n",
 			 error->nt_string,
 			 error->nt_status,
 			 error->display_string);
@@ -1510,7 +1486,7 @@ static bool wbinfo_auth(char *username)
 #if 0
 	if (response.data.auth.nt_status)
 		d_fprintf(stderr,
-			 "error code was %s (0x%x)\nerror messsage was: %s\n",
+			 "error code was %s (0x%x)\nerror message was: %s\n",
 			 response.data.auth.nt_status_string,
 			 response.data.auth.nt_status,
 			 response.data.auth.error_string);
@@ -1611,7 +1587,7 @@ static bool wbinfo_auth_crap(char *username, bool use_ntlmv2, bool use_lanman)
 
 	if (wbc_status == WBC_ERR_AUTH_ERROR) {
 		d_fprintf(stderr,
-			 "error code was %s (0x%x)\nerror messsage was: %s\n",
+			 "error code was %s (0x%x)\nerror message was: %s\n",
 			 err->nt_string,
 			 err->nt_status,
 			 err->display_string);
@@ -1685,7 +1661,7 @@ static bool wbinfo_pam_logon(char *username)
 
 	if (!WBC_ERROR_IS_OK(wbc_status)) {
 		d_fprintf(stderr,
-			  "error code was %s (0x%x)\nerror messsage was: %s\n",
+			  "error code was %s (0x%x)\nerror message was: %s\n",
 			  error->nt_string,
 			  (int)error->nt_status,
 			  error->display_string);
@@ -1771,7 +1747,7 @@ static bool wbinfo_klog(char *username)
 
 	if (response.data.auth.nt_status)
 		d_fprintf(stderr,
-			 "error code was %s (0x%x)\nerror messsage was: %s\n",
+			 "error code was %s (0x%x)\nerror message was: %s\n",
 			 response.data.auth.nt_status_string,
 			 response.data.auth.nt_status,
 			 response.data.auth.error_string);
@@ -1920,6 +1896,7 @@ enum {
 	OPT_SEQUENCE,
 	OPT_GETDCNAME,
 	OPT_DSGETDCNAME,
+	OPT_DC_INFO,
 	OPT_USERDOMGROUPS,
 	OPT_SIDALIASES,
 	OPT_USERSIDS,
@@ -1939,7 +1916,6 @@ enum {
 	OPT_VERBOSE,
 	OPT_ONLINESTATUS,
 	OPT_CHANGE_USER_PASSWORD,
-	OPT_PING_DC,
 	OPT_CCACHE_SAVE,
 	OPT_SID_TO_FULLNAME,
 	OPT_NTLMV2,
@@ -1996,7 +1972,7 @@ int main(int argc, char **argv, char **envp)
 		{ "remove-gid-mapping", 0, POPT_ARG_STRING, &string_arg, OPT_REMOVE_GID_MAPPING, "Remove gid to sid mapping in idmap", "GID,SID" },
 		{ "check-secret", 't', POPT_ARG_NONE, 0, 't', "Check shared secret" },
 		{ "change-secret", 'c', POPT_ARG_NONE, 0, 'c', "Change shared secret" },
-		{ "ping-dc", 0, POPT_ARG_NONE, 0, OPT_PING_DC,
+		{ "ping-dc", 'P', POPT_ARG_NONE, 0, 'P',
 		  "Check the NETLOGON connection" },
 		{ "trusted-domains", 'm', POPT_ARG_NONE, 0, 'm', "List trusted domains" },
 		{ "all-domains", 0, POPT_ARG_NONE, 0, OPT_LIST_ALL_DOMAINS, "List all domains (trusted and own domain)" },
@@ -2015,7 +1991,7 @@ int main(int argc, char **argv, char **envp)
 		{ "sid-aliases", 0, POPT_ARG_STRING, &string_arg, OPT_SIDALIASES, "Get sid aliases", "SID" },
 		{ "user-sids", 0, POPT_ARG_STRING, &string_arg, OPT_USERSIDS, "Get user group sids for user SID", "SID" },
 		{ "authenticate", 'a', POPT_ARG_STRING, &string_arg, 'a', "authenticate user", "user%password" },
-		{ "pam-logon", 0, POPT_ARG_STRING, string_arg, OPT_PAM_LOGON,
+		{ "pam-logon", 0, POPT_ARG_STRING, &string_arg, OPT_PAM_LOGON,
 		  "do a pam logon equivalent", "user%password" },
 		{ "logoff", 0, POPT_ARG_NONE, NULL, OPT_LOGOFF,
 		  "log off user", "uid" },
@@ -2030,6 +2006,8 @@ int main(int argc, char **argv, char **envp)
 		{ "getdcname", 0, POPT_ARG_STRING, &string_arg, OPT_GETDCNAME,
 		  "Get a DC name for a foreign domain", "domainname" },
 		{ "dsgetdcname", 0, POPT_ARG_STRING, &string_arg, OPT_DSGETDCNAME, "Find a DC for a domain", "domainname" },
+		{ "dc-info", 0, POPT_ARG_STRING, &string_arg, OPT_DC_INFO,
+		  "Find the currently known DCs", "domainname" },
 		{ "get-auth-user", 0, POPT_ARG_NONE, NULL, OPT_GET_AUTH_USER, "Retrieve user and password used by winbindd (root only)", NULL },
 		{ "ping", 'p', POPT_ARG_NONE, 0, 'p', "Ping winbindd to see if it is alive" },
 		{ "domain", 0, POPT_ARG_STRING, &opt_domain_name, OPT_DOMAIN_NAME, "Define to the domain to restrict operation", "domain" },
@@ -2245,7 +2223,7 @@ int main(int argc, char **argv, char **envp)
 				goto done;
 			}
 			break;
-		case OPT_PING_DC:
+		case 'P':
 			if (!wbinfo_ping_dc()) {
 				d_fprintf(stderr, "Could not ping our DC\n");
 				goto done;
@@ -2378,6 +2356,7 @@ int main(int argc, char **argv, char **envp)
 					  string_arg);
 				goto done;
 			}
+			break;
 		case OPT_LOGOFF:
 		{
 			wbcErr wbc_status;
@@ -2439,6 +2418,11 @@ int main(int argc, char **argv, char **envp)
 			break;
 		case OPT_DSGETDCNAME:
 			if (!wbinfo_dsgetdcname(string_arg, 0)) {
+				goto done;
+			}
+			break;
+		case OPT_DC_INFO:
+			if (!wbinfo_dc_info(string_arg)) {
 				goto done;
 			}
 			break;

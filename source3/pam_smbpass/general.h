@@ -1,3 +1,7 @@
+#include "../librpc/gen_ndr/samr.h"
+#include "../libcli/auth/pam_errors.h"
+#include "passdb.h"
+
 #ifndef LINUX
 /* This is only needed by modules in the Sun implementation. */
 #if defined(HAVE_SECURITY_PAM_APPL_H)
@@ -116,7 +120,6 @@ static const SMB_Ctrls smb_args[SMB_CTRLS_] = {
  * to authenticate themself.
  */
 
-#define FAIL_PREFIX			"-SMB-FAIL-"
 #define SMB_MAX_RETRIES			3
 
 struct _pam_failed_auth {

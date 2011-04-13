@@ -23,12 +23,14 @@
 #include "includes.h"
 #include "rpc_server/dcerpc_server.h"
 #include "rpc_server/dcerpc_server_proto.h"
+#include "rpc_server/common/proto.h"
 #include "librpc/rpc/dcerpc_proto.h"
 #include "librpc/gen_ndr/ndr_dcerpc.h"
 #include "auth/credentials/credentials.h"
 #include "auth/gensec/gensec.h"
 #include "auth/auth.h"
 #include "param/param.h"
+#include "librpc/rpc/rpc_common.h"
 
 /*
   parse any auth information from a dcerpc bind request
@@ -83,7 +85,7 @@ bool dcesrv_auth_bind(struct dcesrv_call_state *call)
 					       auth->auth_info->auth_level);
 
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(1, ("Failed to start GENSEC mechanism for DCERPC server: auth_type=%d, auth_level=%d: %s\n", 
+		DEBUG(3, ("Failed to start GENSEC mechanism for DCERPC server: auth_type=%d, auth_level=%d: %s\n",
 			  (int)auth->auth_info->auth_type,
 			  (int)auth->auth_info->auth_level,
 			  nt_errstr(status)));
@@ -136,7 +138,8 @@ NTSTATUS dcesrv_auth_bind_ack(struct dcesrv_call_state *call, struct ncacn_packe
 		dce_conn->auth_state.auth_info->auth_reserved = 0;
 		return NT_STATUS_OK;
 	} else {
-		DEBUG(2, ("Failed to start dcesrv auth negotiate: %s\n", nt_errstr(status)));
+		DEBUG(4, ("GENSEC mech rejected the incoming authentication at bind_ack: %s\n",
+			  nt_errstr(status)));
 		return status;
 	}
 }
@@ -181,7 +184,7 @@ bool dcesrv_auth_auth3(struct dcesrv_call_state *call)
 		dce_conn->auth_state.session_key = dcesrv_generic_session_key;
 		return true;
 	} else {
-		DEBUG(4, ("dcesrv_auth_auth3: failed to authenticate: %s\n", 
+		DEBUG(4, ("GENSEC mech rejected the incoming authentication at bind_auth3: %s\n",
 			  nt_errstr(status)));
 		return false;
 	}
@@ -266,7 +269,8 @@ NTSTATUS dcesrv_auth_alter_ack(struct dcesrv_call_state *call, struct ncacn_pack
 		return NT_STATUS_OK;
 	}
 
-	DEBUG(2, ("Failed to finish dcesrv auth alter_ack: %s\n", nt_errstr(status)));
+	DEBUG(4, ("GENSEC mech rejected the incoming authentication at auth alter_ack: %s\n",
+		  nt_errstr(status)));
 	return status;
 }
 
@@ -392,8 +396,8 @@ bool dcesrv_auth_response(struct dcesrv_call_state *call,
 
 	case DCERPC_AUTH_LEVEL_CONNECT:
 		/*
-		 * TODO: let the gensec mech decide if it wants to generate a signature
-		 *       that might be needed for schannel...
+		 * TODO: let the gensec mech decide if it wants to generate a
+		 *       signature that might be needed for schannel...
 		 */
 		status = ncacn_push_auth(blob, call, pkt, NULL);
 		return NT_STATUS_IS_OK(status);
@@ -427,7 +431,8 @@ bool dcesrv_auth_response(struct dcesrv_call_state *call,
 	   of the stub */
 	dce_conn->auth_state.auth_info->auth_pad_length =
 		(16 - (pkt->u.response.stub_and_verifier.length & 15)) & 15;
-	ndr_err = ndr_push_zero(ndr, dce_conn->auth_state.auth_info->auth_pad_length);
+	ndr_err = ndr_push_zero(ndr,
+				dce_conn->auth_state.auth_info->auth_pad_length);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		return false;
 	}
@@ -440,7 +445,7 @@ bool dcesrv_auth_response(struct dcesrv_call_state *call,
 
 	/* add the auth verifier */
 	ndr_err = ndr_push_dcerpc_auth(ndr, NDR_SCALARS|NDR_BUFFERS,
-				      dce_conn->auth_state.auth_info);
+				       dce_conn->auth_state.auth_info);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		return false;
 	}

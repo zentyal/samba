@@ -19,6 +19,9 @@
 */
 
 #include "includes.h"
+#include "auth.h"
+#include "system/passwd.h"
+#include "smbd/smbd.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
@@ -135,11 +138,11 @@ static struct cli_state *server_cryptkey(TALLOC_CTX *mem_ctx)
 	   this one...
 	*/
 
-	if (!NT_STATUS_IS_OK(cli_session_setup(cli, "", "", 0, "", 0,
-					       ""))) {
+	status = cli_session_setup(cli, "", "", 0, "", 0, "");
+	if (!NT_STATUS_IS_OK(status)) {
 		TALLOC_FREE(mutex);
 		DEBUG(0,("%s rejected the initial session setup (%s)\n",
-			 desthost, cli_errstr(cli)));
+			 desthost, nt_errstr(status)));
 		cli_shutdown(cli);
 		return NULL;
 	}
@@ -297,7 +300,7 @@ static NTSTATUS check_smbserver_security(const struct auth_context *auth_context
 	}  
 
 	if ((cli->sec_mode & NEGOTIATE_SECURITY_CHALLENGE_RESPONSE) == 0) {
-		if (user_info->encrypted) {
+		if (user_info->password_state != AUTH_PASSWORD_PLAIN) {
 			DEBUG(1,("password server %s is plaintext, but we are encrypted. This just can't work :-(\n", cli->desthost));
 			return NT_STATUS_LOGON_FAILURE;		
 		}
@@ -326,8 +329,8 @@ static NTSTATUS check_smbserver_security(const struct auth_context *auth_context
 
 		memset(badpass, 0x1f, sizeof(badpass));
 
-		if((user_info->nt_resp.length == sizeof(badpass)) && 
-		   !memcmp(badpass, user_info->nt_resp.data, sizeof(badpass))) {
+		if((user_info->password.response.nt.length == sizeof(badpass)) &&
+		   !memcmp(badpass, user_info->password.response.nt.data, sizeof(badpass))) {
 			/* 
 			 * Very unlikely, our random bad password is the same as the users
 			 * password.
@@ -391,23 +394,30 @@ use this machine as the password server.\n"));
 	 * Now we know the password server will correctly set the guest bit, or is
 	 * not guest enabled, we can try with the real password.
 	 */
-
-	if (!user_info->encrypted) {
+	switch (user_info->password_state) {
+	case AUTH_PASSWORD_PLAIN:
 		/* Plaintext available */
 		nt_status = cli_session_setup(
 			cli, user_info->client.account_name,
-			(char *)user_info->plaintext_password.data,
-			user_info->plaintext_password.length,
+			user_info->password.plaintext,
+			strlen(user_info->password.plaintext),
 			NULL, 0, user_info->mapped.domain_name);
+		break;
 
-	} else {
+	/* currently the hash values include a challenge-response as well */
+	case AUTH_PASSWORD_HASH:
+	case AUTH_PASSWORD_RESPONSE:
 		nt_status = cli_session_setup(
 			cli, user_info->client.account_name,
-			(char *)user_info->lm_resp.data, 
-			user_info->lm_resp.length, 
-			(char *)user_info->nt_resp.data, 
-			user_info->nt_resp.length, 
+			(char *)user_info->password.response.lanman.data,
+			user_info->password.response.lanman.length,
+			(char *)user_info->password.response.nt.data,
+			user_info->password.response.nt.length,
 			user_info->mapped.domain_name);
+		break;
+	default:
+		DEBUG(0,("user_info constructed for user '%s' was invalid - password_state=%u invalid.\n",user_info->mapped.account_name, user_info->password_state));
+		nt_status = NT_STATUS_INTERNAL_ERROR;
 	}
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
@@ -424,22 +434,15 @@ use this machine as the password server.\n"));
 	cli_ulogoff(cli);
 
 	if (NT_STATUS_IS_OK(nt_status)) {
-		fstring real_username;
-		struct passwd *pass;
+		char *real_username = NULL;
+		struct passwd *pass = NULL;
 
-		if ( (pass = smb_getpwnam( NULL, user_info->mapped.account_name,
-			real_username, True )) != NULL ) 
+		if ( (pass = smb_getpwnam(talloc_tos(), user_info->mapped.account_name,
+			&real_username, True )) != NULL )
 		{
-			/* if a real user check pam account restrictions */
-			/* only really perfomed if "obey pam restriction" is true */
-			nt_status = smb_pam_accountcheck(pass->pw_name);
-			if (  !NT_STATUS_IS_OK(nt_status)) {
-				DEBUG(1, ("PAM account restriction prevents user login\n"));
-			} else {
-
-				nt_status = make_server_info_pw(server_info, pass->pw_name, pass);
-			}
+			nt_status = make_server_info_pw(server_info, pass->pw_name, pass);
 			TALLOC_FREE(pass);
+			TALLOC_FREE(real_username);
 		}
 		else
 		{

@@ -19,17 +19,23 @@
 
 """Support for parsing Samba-related command-line options."""
 
-import optparse, os
-from credentials import Credentials, DONT_USE_KERBEROS, MUST_USE_KERBEROS
-from hostconfig import Hostconfig
-import samba
-
 __docformat__ = "restructuredText"
+
+import optparse, os
+from samba.credentials import (
+    Credentials,
+    DONT_USE_KERBEROS,
+    MUST_USE_KERBEROS,
+    )
+from samba.hostconfig import Hostconfig
+import sys
+
 
 class SambaOptions(optparse.OptionGroup):
     """General Samba-related command line options."""
+
     def __init__(self, parser):
-        import os, param
+        from samba.param import LoadParm
         optparse.OptionGroup.__init__(self, parser, "Samba Common Options")
         self.add_option("-s", "--configfile", action="callback",
                         type=str, metavar="FILE", help="Configuration file",
@@ -44,7 +50,7 @@ class SambaOptions(optparse.OptionGroup):
                         type=str, metavar="REALM", help="set the realm name",
                         callback=self._set_realm)
         self._configfile = None
-        self._lp = param.LoadParm()
+        self._lp = LoadParm()
 
     def get_loadparm_path(self):
         """Return the path to the smb.conf file specified on the command line.  """
@@ -85,11 +91,11 @@ class VersionOptions(optparse.OptionGroup):
     def __init__(self, parser):
         optparse.OptionGroup.__init__(self, parser, "Version Options")
         self.add_option("--version", action="callback",
-                callback=self._display_version, 
+                callback=self._display_version,
                 help="Display version number")
 
     def _display_version(self, option, opt_str, arg, parser):
-        import samba, sys
+        import samba
         print samba.version
         sys.exit(0)
 
@@ -98,6 +104,7 @@ class CredentialsOptions(optparse.OptionGroup):
     """Command line options for specifying credentials."""
     def __init__(self, parser):
         self.no_pass = True
+        self.ipaddress = None
         optparse.OptionGroup.__init__(self, parser, "Credentials Options")
         self.add_option("--simple-bind-dn", metavar="DN", action="callback",
                         callback=self._set_simple_bind_dn, type=str,
@@ -115,6 +122,9 @@ class CredentialsOptions(optparse.OptionGroup):
         self.add_option("-k", "--kerberos", metavar="KERBEROS",
                         action="callback", type=str,
                         help="Use Kerberos", callback=self._set_kerberos)
+        self.add_option("", "--ipaddress", metavar="IPADDRESS",
+                        action="callback", type=str,
+                        help="IP address of server", callback=self._set_ipaddress)
         self.creds = Credentials()
 
     def _parse_username(self, option, opt_str, arg, parser):
@@ -127,16 +137,21 @@ class CredentialsOptions(optparse.OptionGroup):
         self.creds.set_password(arg)
         self.no_pass = False
 
+    def _set_ipaddress(self, option, opt_str, arg, parser):
+        self.ipaddress = arg
+
     def _set_kerberos(self, option, opt_str, arg, parser):
-        if bool(arg) or arg.lower() == "yes":
+        if arg.lower() in ["yes", 'true', '1']:
             self.creds.set_kerberos_state(MUST_USE_KERBEROS)
-        else:
+        elif arg.lower() in ["no", 'false', '0']:
             self.creds.set_kerberos_state(DONT_USE_KERBEROS)
+        else:
+            raise optparse.BadOptionErr("invalid kerberos option: %s" % arg)
 
     def _set_simple_bind_dn(self, option, opt_str, arg, parser):
         self.creds.set_bind_dn(arg)
 
-    def get_credentials(self, lp):
+    def get_credentials(self, lp, fallback_machine=False):
         """Obtain the credentials set on the command-line.
 
         :param lp: Loadparm object to use.
@@ -145,6 +160,15 @@ class CredentialsOptions(optparse.OptionGroup):
         self.creds.guess(lp)
         if self.no_pass:
             self.creds.set_cmdline_callbacks()
+
+        # possibly fallback to using the machine account, if we have
+        # access to the secrets db
+        if fallback_machine and not self.creds.authentication_requested():
+            try:
+                self.creds.set_machine_account(lp)
+            except Exception:
+                pass
+
         return self.creds
 
 class CredentialsOptionsDouble(CredentialsOptions):
@@ -189,13 +213,18 @@ class CredentialsOptionsDouble(CredentialsOptions):
     def _set_simple_bind_dn2(self, option, opt_str, arg, parser):
         self.creds2.set_bind_dn(arg)
 
-    def get_credentials2(self, lp):
+    def get_credentials2(self, lp, guess=True):
         """Obtain the credentials set on the command-line.
 
         :param lp: Loadparm object to use.
+        :param guess: Try guess Credentials from environment
         :return: Credentials object
         """
-        self.creds2.guess(lp)
+        if guess:
+            self.creds2.guess(lp)
+        elif not self.creds2.get_username():
+                self.creds2.set_anonymous()
+
         if self.no_pass2:
             self.creds2.set_cmdline_callbacks()
         return self.creds2

@@ -93,34 +93,23 @@ typedef struct pipe_rpc_fns {
  * Can't keep in sync with wire values as spnego wraps different auth methods.
  */
 
-enum pipe_auth_type { PIPE_AUTH_TYPE_NONE = 0, PIPE_AUTH_TYPE_NTLMSSP, PIPE_AUTH_TYPE_SCHANNEL,
-			PIPE_AUTH_TYPE_SPNEGO_NTLMSSP, PIPE_AUTH_TYPE_KRB5, PIPE_AUTH_TYPE_SPNEGO_KRB5 };
-
-/* auth state for krb5. */
-struct kerberos_auth_struct {
-	const char *service_principal;
-	DATA_BLOB session_key;
-};
+struct gse_context;
 
 /* auth state for all bind types. */
 
 struct pipe_auth_data {
-	enum pipe_auth_type auth_type; /* switch for union below. */
+	enum dcerpc_AuthType auth_type;
 	enum dcerpc_AuthLevel auth_level;
 
-	union {
-		struct schannel_state *schannel_auth;
-		struct auth_ntlmssp_state *auth_ntlmssp_state;
-		struct kerberos_auth_struct *kerberos_auth; /* Client only for now */
-	} a_u;
+	void *auth_ctx;
 
 	/* Only the client code uses these 3 for now */
 	char *domain;
 	char *user_name;
 	DATA_BLOB user_session_key;
-
-	void (*auth_data_free_func)(struct pipe_auth_data *);
 };
+
+struct dcesrv_ep_entry_list;
 
 /*
  * DCE/RPC-specific samba-internal-specific handling of data on
@@ -130,11 +119,16 @@ struct pipe_auth_data {
 struct pipes_struct {
 	struct pipes_struct *next, *prev;
 
-	char client_address[INET6_ADDRSTRLEN];
+	struct client_address *client_id;
+	struct client_address *server_id;
 
-	struct auth_serversupplied_info *server_info;
+	enum dcerpc_transport_t transport;
+
+	struct auth_serversupplied_info *session_info;
+	struct messaging_context *msg_ctx;
 
 	struct ndr_syntax_id syntax;
+	struct dcesrv_ep_entry_list *ep_entries;
 
 	/* linked list of rpc dispatch tables associated 
 	   with the open rpc contexts */
@@ -142,6 +136,8 @@ struct pipes_struct {
 	PIPE_RPC_FNS *contexts;
 
 	struct pipe_auth_data auth;
+
+	bool ncalrpc_as_system;
 
 	/*
 	 * Set to true when an RPC bind has been done on this pipe.

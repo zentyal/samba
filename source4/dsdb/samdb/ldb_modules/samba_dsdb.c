@@ -31,17 +31,15 @@
  */
 
 #include "includes.h"
-#include "lib/ldb/include/ldb.h"
-#include "lib/ldb/include/ldb_errors.h"
-#include "lib/ldb/include/ldb_module.h"
-#include "lib/ldb/include/ldb_private.h"
-
+#include <ldb.h>
+#include <ldb_errors.h>
+#include <ldb_module.h>
 #include "dsdb/samdb/ldb_modules/util.h"
 #include "dsdb/samdb/samdb.h"
 #include "librpc/ndr/libndr.h"
 
 static int read_at_rootdse_record(struct ldb_context *ldb, struct ldb_module *module, TALLOC_CTX *mem_ctx,
-				  struct ldb_message **msg)
+				  struct ldb_message **msg, struct ldb_request *parent)
 {
 	int ret;
 	static const char *rootdse_attrs[] = { "defaultNamingContext", "configurationNamingContext", "schemaNamingContext", NULL };
@@ -59,7 +57,7 @@ static int read_at_rootdse_record(struct ldb_context *ldb, struct ldb_module *mo
 	}
 
 	ret = dsdb_module_search_dn(module, tmp_ctx, &rootdse_res, rootdse_dn,
-	                            rootdse_attrs, DSDB_FLAG_NEXT_MODULE);
+	                            rootdse_attrs, DSDB_FLAG_NEXT_MODULE, parent);
 	if (ret != LDB_SUCCESS) {
 		talloc_free(tmp_ctx);
 		return ret;
@@ -175,10 +173,10 @@ static int samba_dsdb_init(struct ldb_module *module)
 					     "objectclass",
 					     "descriptor",
 					     "acl",
+					     "aclread",
 					     "samldb",
 					     "password_hash",
 					     "operational",
-					     "kludge_acl",
 					     "schema_load",
 					     "instancetype",
 					     "objectclass_attrs",
@@ -209,15 +207,21 @@ static int samba_dsdb_init(struct ldb_module *module)
 
 	const char **backend_modules;
 	static const char *fedora_ds_backend_modules[] = {
-		"nsuniqueid", "paged_searches", NULL };
+		"nsuniqueid", "paged_searches", "simple_dn", NULL };
 	static const char *openldap_backend_modules[] = {
-		"entryuuid", "paged_searches", NULL };
+		"entryuuid", "paged_searches", "simple_dn", NULL };
 
 	static const char *samba_dsdb_attrs[] = { "backendType", "serverRole", NULL };
 	const char *backendType, *serverRole;
 
 	if (!tmp_ctx) {
 		return ldb_oom(ldb);
+	}
+
+	ret = ldb_register_samba_handlers(ldb);
+	if (ret != LDB_SUCCESS) {
+		talloc_free(tmp_ctx);
+		return ret;
 	}
 
 	samba_dsdb_dn = ldb_dn_new(tmp_ctx, ldb, "@SAMBA_DSDB");
@@ -235,7 +239,7 @@ static int samba_dsdb_init(struct ldb_module *module)
 	} while (0)
 
 	ret = dsdb_module_search_dn(module, tmp_ctx, &res, samba_dsdb_dn,
-	                            samba_dsdb_attrs, DSDB_FLAG_NEXT_MODULE);
+	                            samba_dsdb_attrs, DSDB_FLAG_NEXT_MODULE, NULL);
 	if (ret == LDB_ERR_NO_SUCH_OBJECT) {
 		backendType = "ldb";
 		serverRole = "domain controller";
@@ -260,6 +264,12 @@ static int samba_dsdb_init(struct ldb_module *module)
 			link_modules = openldap_modules;
 			backend_modules = openldap_backend_modules;
 			extended_dn_module = extended_dn_module_openldap;
+		} else {
+			return ldb_error(ldb, LDB_ERR_OPERATIONS_ERROR, "invalid backend type");
+		}
+		ret = ldb_set_opaque(ldb, "readOnlySchema", (void*)1);
+		if (ret != LDB_SUCCESS) {
+			ldb_set_errstring(ldb, "Failed to set readOnlySchema opaque");
 		}
 	}
 
@@ -284,7 +294,7 @@ static int samba_dsdb_init(struct ldb_module *module)
 	CHECK_MODULE_LIST;
 
 
-	ret = read_at_rootdse_record(ldb, module, tmp_ctx, &rootdse_msg);
+	ret = read_at_rootdse_record(ldb, module, tmp_ctx, &rootdse_msg, NULL);
 	CHECK_LDB_RET(ret);
 
 	partition_msg = ldb_msg_new(tmp_ctx);
@@ -335,18 +345,24 @@ static int samba_dsdb_init(struct ldb_module *module)
 	/* The backend (at least until the partitions module
 	 * reconfigures things) is the next module in the currently
 	 * loaded chain */
-	backend_module = module->next;
-	ret = ldb_load_modules_list(ldb, reverse_module_list, backend_module, &module_chain);
+	backend_module = ldb_module_next(module);
+	ret = ldb_module_load_list(ldb, reverse_module_list, backend_module, &module_chain);
 	CHECK_LDB_RET(ret);
 
 	talloc_free(tmp_ctx);
 	/* Set this as the 'next' module, so that we effectivly append it to module chain */
-	module->next = module_chain;
+	ldb_module_set_next(module, module_chain);
 
 	return ldb_next_init(module);
 }
 
-_PUBLIC_ const struct ldb_module_ops ldb_samba_dsdb_module_ops = {
+static const struct ldb_module_ops ldb_samba_dsdb_module_ops = {
 	.name		   = "samba_dsdb",
 	.init_context	   = samba_dsdb_init,
 };
+
+int ldb_samba_dsdb_module_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_samba_dsdb_module_ops);
+}

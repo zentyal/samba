@@ -23,8 +23,8 @@
 #include "includes.h"
 #include "nbt_server/nbt_server.h"
 #include "nbt_server/wins/winsdb.h"
-#include "lib/ldb/include/ldb.h"
-#include "lib/ldb/include/ldb_errors.h"
+#include <ldb.h>
+#include <ldb_errors.h>
 #include "librpc/gen_ndr/ndr_nbt.h"
 #include "system/time.h"
 #include "ldb_wrap.h"
@@ -855,7 +855,7 @@ uint8_t winsdb_modify(struct winsdb_handle *h, struct winsdb_record *rec, uint32
 	TALLOC_CTX *tmp_ctx = talloc_new(wins_db);
 	int trans;
 	int ret;
-	int i;
+	unsigned int i;
 
 	trans = ldb_transaction_start(wins_db);
 	if (trans != LDB_SUCCESS) goto failed;
@@ -1013,7 +1013,7 @@ struct winsdb_handle *winsdb_connect(TALLOC_CTX *mem_ctx,
 
 	h->ldb = ldb_wrap_connect(h, ev_ctx, lp_ctx, lock_path(h, lp_ctx, lpcfg_wins_url(lp_ctx)),
 				  NULL, NULL, flags);
-	if (!h->ldb) goto failed;	
+	if (!h->ldb) goto failed;
 
 	h->caller = caller;
 	h->hook_script = lpcfg_wins_hook(lp_ctx);

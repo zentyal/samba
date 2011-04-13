@@ -29,6 +29,10 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @defgroup talloc The talloc API
  *
@@ -158,16 +162,25 @@ void *talloc_init(const char *fmt, ...) PRINTF_ATTRIBUTE(1,2);
 /**
  * @brief Free a chunk of talloc memory.
  *
- * This function frees a piece of talloc memory, and all its children. It
- * operates recursively on its children. You can call talloc_free() on any
- * pointer returned by talloc().
+ * The talloc_free() function frees a piece of talloc memory, and all its
+ * children. You can call talloc_free() on any pointer returned by
+ * talloc().
  *
- * If this pointer has an additional parent when talloc_free() is called then
- * the memory is not actually released, but instead the most recently
- * established parent is destroyed. See talloc_reference() for details on
- * establishing additional parents.
+ * The return value of talloc_free() indicates success or failure, with 0
+ * returned for success and -1 for failure. A possible failure condition
+ * is if the pointer had a destructor attached to it and the destructor
+ * returned -1. See talloc_set_destructor() for details on
+ * destructors. Likewise, if "ptr" is NULL, then the function will make
+ * no modifications and return -1.
  *
- * For more control on which parent is removed, see talloc_unlink().
+ * If this pointer has an additional parent when talloc_free() is called
+ * then the memory is not actually released, but instead the most
+ * recently established parent is destroyed. See talloc_reference() for
+ * details on establishing additional parents.
+ *
+ * For more control on which parent is removed, see talloc_unlink()
+ *
+ * talloc_free() operates recursively on its children.
  *
  * From the 2.0 version of talloc, as a special case, talloc_free() is
  * refused on pointers that have more than one parent, as talloc would
@@ -190,9 +203,11 @@ void *talloc_init(const char *fmt, ...) PRINTF_ATTRIBUTE(1,2);
  *
  * @param[in]  ptr      The chunk to be freed.
  *
- * @return              Returns 0 on success and -1 on error. The only possible
+ * @return              Returns 0 on success and -1 on error. A possible
  *                      failure condition is if the pointer had a destructor
- *                      attached to it and the destructor returned -1.
+ *                      attached to it and the destructor returned -1. Likewise,
+ *                      if "ptr" is NULL, then the function will make no
+ *                      modifications and returns -1.
  *
  * Example:
  * @code
@@ -961,6 +976,15 @@ int talloc_unlink(const void *context, void *ptr);
  * which will be automatically freed on program exit. This can be used
  * to reduce the noise in memory leak reports.
  *
+ * Never use this in code that might be used in objects loaded with
+ * dlopen and unloaded with dlclose. talloc_autofree_context()
+ * internally uses atexit(3). Some platforms like modern Linux handles
+ * this fine, but for example FreeBSD does not deal well with dlopen()
+ * and atexit() used simultaneously: dlclose() does not clean up the
+ * list of atexit-handlers, so when the program exits the code that
+ * was registered from within talloc_autofree_context() is gone, the
+ * program crashes at exit.
+ *
  * @return              A talloc context, NULL on error.
  */
 void *talloc_autofree_context(void);
@@ -1061,7 +1085,7 @@ void *talloc_reparent(const void *old_parent, const void *new_parent, const void
  * @endcode
  *
  * @see talloc()
- * @see talloc_array_zero()
+ * @see talloc_zero_array()
  */
 void *talloc_array(const void *ctx, #type, unsigned count);
 #else
@@ -1679,6 +1703,10 @@ void talloc_set_log_stderr(void);
 
 #ifndef TALLOC_MAX_DEPTH
 #define TALLOC_MAX_DEPTH 10000
+#endif
+
+#ifdef __cplusplus
+} /* end of extern "C" */
 #endif
 
 #endif

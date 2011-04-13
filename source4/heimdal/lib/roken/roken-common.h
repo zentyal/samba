@@ -221,6 +221,10 @@
 #define AI_NUMERICHOST	0x04
 #endif
 
+#ifndef AI_NUMERICSERV
+#define AI_NUMERICSERV  0x08
+#endif
+
 /* flags for getnameinfo() */
 
 #ifndef NI_DGRAM
@@ -485,6 +489,9 @@ rk_cloexec_dir(DIR *);
 
 ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
 ct_memcmp(const void *, const void *, size_t);
+
+void ROKEN_LIB_FUNCTION
+rk_random_init(void);
 
 ROKEN_CPP_END
 

@@ -79,6 +79,7 @@ struct dsdb_schema *dsdb_schema_refresh(struct ldb_module *module, struct dsdb_s
 				     res,
 				     ldb_extended_default_callback,
 				     NULL);
+	LDB_REQ_SET_LOCATION(treq);
 	if (ret != LDB_SUCCESS) {
 		talloc_free(res);
 		return NULL;
@@ -120,7 +121,7 @@ struct dsdb_schema *dsdb_schema_refresh(struct ldb_module *module, struct dsdb_s
 	schema->reload_seq_number = tseqr->seq_num;
 	talloc_free(res);
 		
-	ret = dsdb_module_load_partition_usn(module, schema->base_dn, &current_usn, NULL);
+	ret = dsdb_module_load_partition_usn(module, schema->base_dn, &current_usn, NULL, NULL);
 	if (ret != LDB_SUCCESS || current_usn == schema->loaded_usn) {
 		return schema;
 	}
@@ -173,7 +174,7 @@ static int dsdb_schema_from_db(struct ldb_module *module, struct ldb_dn *schema_
 	 */
 	ret = dsdb_module_search_dn(module, tmp_ctx, &schema_res,
 				    schema_dn, schema_attrs,
-				    DSDB_FLAG_NEXT_MODULE);
+				    DSDB_FLAG_NEXT_MODULE, NULL);
 	if (ret == LDB_ERR_NO_SUCH_OBJECT) {
 		ldb_reset_err_string(ldb);
 		ldb_debug(ldb, LDB_DEBUG_WARNING,
@@ -192,6 +193,7 @@ static int dsdb_schema_from_db(struct ldb_module *module, struct ldb_dn *schema_
 	ret = dsdb_module_search(module, tmp_ctx, &a_res,
 				 schema_dn, LDB_SCOPE_ONELEVEL, NULL,
 				 DSDB_FLAG_NEXT_MODULE,
+				 NULL,
 				 "(objectClass=attributeSchema)");
 	if (ret != LDB_SUCCESS) {
 		ldb_asprintf_errstring(ldb, 
@@ -207,6 +209,7 @@ static int dsdb_schema_from_db(struct ldb_module *module, struct ldb_dn *schema_
 				 schema_dn, LDB_SCOPE_ONELEVEL, NULL,
 				 DSDB_FLAG_NEXT_MODULE |
 				 DSDB_SEARCH_SHOW_DN_IN_STORAGE_FORMAT,
+				 NULL,
 				 "(objectClass=classSchema)");
 	if (ret != LDB_SUCCESS) {
 		ldb_asprintf_errstring(ldb, 
@@ -225,16 +228,20 @@ static int dsdb_schema_from_db(struct ldb_module *module, struct ldb_dn *schema_
 	}
 
 	(*schema)->refresh_in_progress = true;
-	(*schema)->refresh_fn = dsdb_schema_refresh;
-	(*schema)->loaded_from_module = module;
-	(*schema)->loaded_usn = current_usn;
+
+	/* If we have the readOnlySchema opaque, then don't check for
+	 * runtime schema updates, as they are not permitted (we would
+	 * have to update the backend server schema too */
+	if (!ldb_get_opaque(ldb, "readOnlySchema")) {
+		(*schema)->refresh_fn = dsdb_schema_refresh;
+		(*schema)->loaded_from_module = module;
+		(*schema)->loaded_usn = current_usn;
+	}
 
 	/* "dsdb_set_schema()" steals schema into the ldb_context */
 	ret = dsdb_set_schema(ldb, (*schema));
 
-	if (*schema != NULL) {
-		(*schema)->refresh_in_progress = false;
-	}
+	(*schema)->refresh_in_progress = false;
 
 	if (ret != LDB_SUCCESS) {
 		ldb_debug_set(ldb, LDB_DEBUG_FATAL,
@@ -292,7 +299,7 @@ static int schema_load_init(struct ldb_module *module)
 		return LDB_SUCCESS;
 	}
 
-	ret = dsdb_module_load_partition_usn(module, schema_dn, &current_usn, NULL);
+	ret = dsdb_module_load_partition_usn(module, schema_dn, &current_usn, NULL, NULL);
 	if (ret != LDB_SUCCESS) {
 		/* Ignore the error and just reload the DB more often */
 		current_usn = 0;
@@ -311,6 +318,16 @@ static int schema_load_start_transaction(struct ldb_module *module)
 	return ldb_next_start_trans(module);
 }
 
+static int schema_load_end_transaction(struct ldb_module *module)
+{
+	struct schema_load_private_data *private_data =
+		talloc_get_type(ldb_module_get_private(module), struct schema_load_private_data);
+
+	private_data->in_transaction = false;
+
+	return ldb_next_end_trans(module);
+}
+
 static int schema_load_del_transaction(struct ldb_module *module)
 {
 	struct schema_load_private_data *private_data =
@@ -319,17 +336,6 @@ static int schema_load_del_transaction(struct ldb_module *module)
 	private_data->in_transaction = false;
 
 	return ldb_next_del_trans(module);
-}
-
-static int schema_load_prepare_commit(struct ldb_module *module)
-{
-	int ret;
-	struct schema_load_private_data *private_data =
-		talloc_get_type(ldb_module_get_private(module), struct schema_load_private_data);
-
-	ret = ldb_next_prepare_commit(module);
-	private_data->in_transaction = false;
-	return ret;
 }
 
 static int schema_load_extended(struct ldb_module *module, struct ldb_request *req)
@@ -347,11 +353,17 @@ static int schema_load_extended(struct ldb_module *module, struct ldb_request *r
 }
 
 
-_PUBLIC_ const struct ldb_module_ops ldb_schema_load_module_ops = {
+static const struct ldb_module_ops ldb_schema_load_module_ops = {
 	.name		= "schema_load",
 	.init_context	= schema_load_init,
 	.extended	= schema_load_extended,
 	.start_transaction = schema_load_start_transaction,
-	.prepare_commit    = schema_load_prepare_commit,
+	.end_transaction   = schema_load_end_transaction,
 	.del_transaction   = schema_load_del_transaction,
 };
+
+int ldb_schema_load_module_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_schema_load_module_ops);
+}

@@ -22,7 +22,9 @@
 */
 
 #include "includes.h"
+#include "passdb.h"
 #include "../libcli/auth/libcli_auth.h"
+#include "../libcli/security/security.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_PASSDB
@@ -304,6 +306,16 @@ uint16_t pdb_get_logon_count(const struct samu *sampass)
 	return sampass->logon_count;
 }
 
+uint16_t pdb_get_country_code(const struct samu *sampass)
+{
+	return sampass->country_code;
+}
+
+uint16_t pdb_get_code_page(const struct samu *sampass)
+{
+	return sampass->code_page;
+}
+
 uint32_t pdb_get_unknown_6(const struct samu *sampass)
 {
 	return sampass->unknown_6;
@@ -509,7 +521,7 @@ bool pdb_set_group_sid(struct samu *sampass, const struct dom_sid *g_sid, enum p
 
 	sid_compose(&dug_sid, get_global_sam_sid(), DOMAIN_RID_USERS);
 
-	if (sid_equal(&dug_sid, g_sid)) {
+	if (dom_sid_equal(&dug_sid, g_sid)) {
 		sid_copy(sampass->group_sid, &dug_sid);
 	} else if (sid_to_gid( g_sid, &gid ) ) {
 		sid_copy(sampass->group_sid, g_sid);
@@ -887,18 +899,37 @@ bool pdb_set_logon_count(struct samu *sampass, uint16_t logon_count, enum pdb_va
 	return pdb_set_init_flags(sampass, PDB_LOGON_COUNT, flag);
 }
 
+bool pdb_set_country_code(struct samu *sampass, uint16_t country_code,
+			  enum pdb_value_state flag)
+{
+	sampass->country_code = country_code;
+	return pdb_set_init_flags(sampass, PDB_COUNTRY_CODE, flag);
+}
+
+bool pdb_set_code_page(struct samu *sampass, uint16_t code_page,
+		       enum pdb_value_state flag)
+{
+	sampass->code_page = code_page;
+	return pdb_set_init_flags(sampass, PDB_CODE_PAGE, flag);
+}
+
 bool pdb_set_unknown_6(struct samu *sampass, uint32_t unkn, enum pdb_value_state flag)
 {
 	sampass->unknown_6 = unkn;
 	return pdb_set_init_flags(sampass, PDB_UNKNOWN6, flag);
 }
 
-bool pdb_set_hours(struct samu *sampass, const uint8 *hours, enum pdb_value_state flag)
+bool pdb_set_hours(struct samu *sampass, const uint8 *hours, int hours_len,
+		   enum pdb_value_state flag)
 {
+	if (hours_len > sizeof(sampass->hours)) {
+		return false;
+	}
+
 	if (!hours) {
-		memset ((char *)sampass->hours, 0, MAX_HOURS_LEN);
+		memset ((char *)sampass->hours, 0, hours_len);
 	} else {
-		memcpy (sampass->hours, hours, MAX_HOURS_LEN);
+		memcpy (sampass->hours, hours, hours_len);
 	}
 
 	return pdb_set_init_flags(sampass, PDB_HOURS, flag);

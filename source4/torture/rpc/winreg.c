@@ -1461,7 +1461,10 @@ static bool test_DeleteKey(struct dcerpc_binding_handle *b,
 
 static bool test_QueryInfoKey(struct dcerpc_binding_handle *b,
 			      struct torture_context *tctx,
-			      struct policy_handle *handle, char *kclass)
+			      struct policy_handle *handle,
+			      char *kclass,
+			      uint32_t *pmax_valnamelen,
+			      uint32_t *pmax_valbufsize)
 {
 	struct winreg_QueryInfoKey r;
 	uint32_t num_subkeys, max_subkeylen, max_classlen,
@@ -1490,6 +1493,14 @@ static bool test_QueryInfoKey(struct dcerpc_binding_handle *b,
 				   "QueryInfoKey failed");
 
 	torture_assert_werr_ok(tctx, r.out.result, "QueryInfoKey failed");
+
+	if (pmax_valnamelen) {
+		*pmax_valnamelen = max_valnamelen;
+	}
+
+	if (pmax_valbufsize) {
+		*pmax_valbufsize = max_valbufsize;
+	}
 
 	return true;
 }
@@ -1649,7 +1660,7 @@ static bool test_QueryMultipleValues_full(struct dcerpc_binding_handle *b,
 					  struct torture_context *tctx,
 					  struct policy_handle *handle,
 					  uint32_t num_values,
-					  const char **valuenames,
+					  const char * const *valuenames,
 					  bool existing_value)
 {
 	struct winreg_QueryMultipleValues r;
@@ -1719,7 +1730,7 @@ static bool test_QueryMultipleValues2_full(struct dcerpc_binding_handle *b,
 					   struct torture_context *tctx,
 					   struct policy_handle *handle,
 					   uint32_t num_values,
-					   const char **valuenames,
+					   const char * const *valuenames,
 					   bool existing_value)
 {
 	struct winreg_QueryMultipleValues2 r;
@@ -1966,11 +1977,9 @@ static bool test_EnumValue(struct dcerpc_binding_handle *b,
 	enum winreg_Type type = 0;
 	uint32_t size = max_valbufsize, zero = 0;
 	bool ret = true;
-	uint8_t buf8;
+	uint8_t *data = NULL;
 	struct winreg_ValNameBuf name;
-
-	name.name   = "";
-	name.size   = 1024;
+	char n = '\0';
 
 	ZERO_STRUCT(r);
 	r.in.handle = handle;
@@ -1978,11 +1987,20 @@ static bool test_EnumValue(struct dcerpc_binding_handle *b,
 	r.in.name = &name;
 	r.out.name = &name;
 	r.in.type = &type;
-	r.in.value = &buf8;
 	r.in.length = &zero;
 	r.in.size = &size;
 
 	do {
+		name.name = &n;
+		name.size = max_valnamelen + 2;
+		name.length = 0;
+
+		data = NULL;
+		if (size) {
+			data = (uint8_t *) talloc_array(tctx, uint8_t *, size);
+		}
+		r.in.value = data;
+
 		torture_assert_ntstatus_ok(tctx,
 					   dcerpc_winreg_EnumValue_r(b, tctx, &r),
 					   "EnumValue failed");
@@ -1995,6 +2013,8 @@ static bool test_EnumValue(struct dcerpc_binding_handle *b,
 			ret &= test_QueryMultipleValues2(b, tctx, handle,
 							 r.out.name->name);
 		}
+
+		talloc_free(data);
 
 		r.in.enum_index++;
 	} while (W_ERROR_IS_OK(r.out.result));
@@ -2082,11 +2102,14 @@ static bool test_key(struct dcerpc_pipe *p, struct torture_context *tctx,
 		     bool test_security)
 {
 	struct dcerpc_binding_handle *b = p->binding_handle;
+	uint32_t max_valnamelen = 0;
+	uint32_t max_valbufsize = 0;
 
 	if (depth == MAX_DEPTH)
 		return true;
 
-	if (!test_QueryInfoKey(b, tctx, handle, NULL)) {
+	if (!test_QueryInfoKey(b, tctx, handle, NULL,
+			       &max_valnamelen, &max_valbufsize)) {
 	}
 
 	if (!test_NotifyChangeKeyValue(b, tctx, handle)) {
@@ -2098,7 +2121,10 @@ static bool test_key(struct dcerpc_pipe *p, struct torture_context *tctx,
 	if (!test_EnumKey(p, tctx, handle, depth, test_security)) {
 	}
 
-	if (!test_EnumValue(b, tctx, handle, 0xFF, 0xFFFF)) {
+	if (!test_EnumValue(b, tctx, handle, max_valnamelen, max_valbufsize)) {
+	}
+
+	if (!test_EnumValue(b, tctx, handle, max_valnamelen, 0xFFFF)) {
 	}
 
 	test_CloseKey(b, tctx, handle);
@@ -2379,74 +2405,67 @@ static bool test_create_keynames(struct dcerpc_binding_handle *b,
 #define VALUE_CURRENT_VERSION "CurrentVersion"
 #define VALUE_SYSTEM_ROOT "SystemRoot"
 
+static const struct {
+	const char *values[3];
+	uint32_t num_values;
+	bool existing_value;
+	const char *error_message;
+} multiple_values_tests[] = {
+	{
+		.values = { VALUE_CURRENT_VERSION, NULL, NULL },
+		.num_values = 1,
+		.existing_value = true,
+		.error_message = NULL
+	},{
+		.values = { VALUE_SYSTEM_ROOT, NULL, NULL },
+		.num_values = 1,
+		.existing_value = true,
+		.error_message = NULL
+	},{
+		.values = { VALUE_CURRENT_VERSION, VALUE_SYSTEM_ROOT, NULL },
+		.num_values = 2,
+		.existing_value = true,
+		.error_message = NULL
+	},{
+		.values = { VALUE_CURRENT_VERSION, VALUE_SYSTEM_ROOT,
+			    VALUE_CURRENT_VERSION },
+		.num_values = 3,
+		.existing_value = true,
+		.error_message = NULL
+	},{
+		.values = { VALUE_CURRENT_VERSION, NULL, VALUE_SYSTEM_ROOT },
+		.num_values = 3,
+		.existing_value = false,
+		.error_message = NULL
+	},{
+		.values = { VALUE_CURRENT_VERSION, "", VALUE_SYSTEM_ROOT },
+		.num_values = 3,
+		.existing_value = false,
+		.error_message = NULL
+	},{
+		.values = { "IDoNotExist", NULL, NULL },
+		.num_values = 1,
+		.existing_value = false,
+		.error_message = NULL
+	},{
+		.values = { "IDoNotExist", VALUE_CURRENT_VERSION, NULL },
+		.num_values = 2,
+		.existing_value = false,
+		.error_message = NULL
+	},{
+		.values = { VALUE_CURRENT_VERSION, "IDoNotExist", NULL },
+		.num_values = 2,
+		.existing_value = false,
+		.error_message = NULL
+	}
+};
+
 static bool test_HKLM_wellknown(struct torture_context *tctx,
 				struct dcerpc_binding_handle *b,
 				struct policy_handle *handle)
 {
 	struct policy_handle newhandle;
 	int i;
-	struct {
-		const char *values[3];
-		uint32_t num_values;
-		bool existing_value;
-		const char *error_message;
-	} multiple_values_tests[] = {
-		{
-			.values[0] = VALUE_CURRENT_VERSION,
-			.values[1] = NULL,
-			.values[2] = NULL,
-			.num_values = 1,
-			.existing_value = true
-		},{
-			.values[0] = VALUE_SYSTEM_ROOT,
-			.values[1] = NULL,
-			.values[2] = NULL,
-			.num_values = 1,
-			.existing_value = true
-		},{
-			.values[0] = VALUE_CURRENT_VERSION,
-			.values[1] = VALUE_SYSTEM_ROOT,
-			.values[2] = NULL,
-			.num_values = 2,
-			.existing_value = true
-		},{
-			.values[0] = VALUE_CURRENT_VERSION,
-			.values[1] = VALUE_SYSTEM_ROOT,
-			.values[2] = VALUE_CURRENT_VERSION,
-			.num_values = 3,
-			.existing_value = true
-		},{
-			.values[0] = VALUE_CURRENT_VERSION,
-			.values[1] = NULL,
-			.values[2] = VALUE_SYSTEM_ROOT,
-			.num_values = 3,
-			.existing_value = false
-		},{
-			.values[0] = VALUE_CURRENT_VERSION,
-			.values[1] = "",
-			.values[2] = VALUE_SYSTEM_ROOT,
-			.num_values = 3,
-			.existing_value = false
-		},{
-			.values[0] = "IDoNotExist",
-			.values[1] = NULL,
-			.values[2] = NULL,
-			.num_values = 1,
-			.existing_value = false
-		},{
-			.values[0] = "IDoNotExist",
-			.values[1] = VALUE_CURRENT_VERSION,
-			.values[2] = NULL,
-			.num_values = 2,
-			.existing_value = false
-		},{
-			.values[0] = VALUE_CURRENT_VERSION,
-			.values[1] = "IDoNotExist",
-			.values[2] = NULL,
-			.num_values = 2,
-			.existing_value = false
-		}
-	};
 
 	/* FIXME: s3 does not support SEC_FLAG_MAXIMUM_ALLOWED yet */
 	if (torture_setting_bool(tctx, "samba3", false)) {
@@ -2525,21 +2544,21 @@ static bool test_OpenHive(struct torture_context *tctx,
 		break;
 	case HKEY_CURRENT_USER:
 		torture_assert_ntstatus_ok(tctx,
-			dcerpc_winreg_OpenHKCU_r(b, tctx, (struct winreg_OpenHKCU *)&r),
+			dcerpc_winreg_OpenHKCU_r(b, tctx, (struct winreg_OpenHKCU *)(void *)&r),
 			"failed to open HKCU");
 		torture_assert_werr_ok(tctx, r.out.result,
 			"failed to open HKCU");
 		break;
 	case HKEY_USERS:
 		torture_assert_ntstatus_ok(tctx,
-			dcerpc_winreg_OpenHKU_r(b, tctx, (struct winreg_OpenHKU *)&r),
+			dcerpc_winreg_OpenHKU_r(b, tctx, (struct winreg_OpenHKU *)(void *)&r),
 			"failed to open HKU");
 		torture_assert_werr_ok(tctx, r.out.result,
 			"failed to open HKU");
 		break;
 	case HKEY_CLASSES_ROOT:
 		torture_assert_ntstatus_ok(tctx,
-			dcerpc_winreg_OpenHKCR_r(b, tctx, (struct winreg_OpenHKCR *)&r),
+			dcerpc_winreg_OpenHKCR_r(b, tctx, (struct winreg_OpenHKCR *)(void *)&r),
 			"failed to open HKCR");
 		torture_assert_werr_ok(tctx, r.out.result,
 			"failed to open HKCR");
@@ -2557,7 +2576,7 @@ static bool test_volatile_keys(struct torture_context *tctx,
 			       struct policy_handle *handle,
 			       int hkey)
 {
-	struct policy_handle new_handle;
+	struct policy_handle new_handle, hive_handle;
 	enum winreg_CreateAction action_taken;
 
 	torture_comment(tctx, "Testing VOLATILE key\n");
@@ -2631,15 +2650,11 @@ static bool test_volatile_keys(struct torture_context *tctx,
 		"failed to close");
 
 	torture_assert(tctx,
-		test_CloseKey(b, tctx, handle),
-		"failed to close");
-
-	torture_assert(tctx,
-		test_OpenHive(tctx, b, handle, hkey),
+		test_OpenHive(tctx, b, &hive_handle, hkey),
 		"failed top open hive");
 
 	torture_assert(tctx,
-		test_OpenKey_opts(tctx, b, handle, TEST_KEY_VOLATILE,
+		test_OpenKey_opts(tctx, b, &hive_handle, TEST_KEY_VOLATILE,
 				  REG_OPTION_VOLATILE,
 				  SEC_FLAG_MAXIMUM_ALLOWED,
 				  &new_handle,
@@ -2647,12 +2662,21 @@ static bool test_volatile_keys(struct torture_context *tctx,
 		"failed to open volatile key");
 
 	torture_assert(tctx,
-		test_OpenKey_opts(tctx, b, handle, TEST_KEY_VOLATILE,
+		test_OpenKey_opts(tctx, b, &hive_handle, TEST_KEY_VOLATILE,
 				  REG_OPTION_NON_VOLATILE,
 				  SEC_FLAG_MAXIMUM_ALLOWED,
 				  &new_handle,
 				  WERR_BADFILE),
 		"failed to open volatile key");
+
+	torture_assert(tctx,
+		test_CloseKey(b, tctx, &hive_handle),
+		"failed to close");
+
+	torture_assert(tctx,
+		test_DeleteKey(b, tctx, handle, TEST_KEY_VOLATILE),
+		"failed to delete key");
+
 
 	torture_comment(tctx, "Testing VOLATILE key succeeded\n");
 
@@ -2677,8 +2701,6 @@ static const char *kernel_mode_registry_path(struct torture_context *tctx,
 		torture_warning(tctx, "unsupported hkey: 0x%08x\n", hkey);
 		return NULL;
 	}
-
-	return NULL;
 }
 
 static bool test_symlink_keys(struct torture_context *tctx,
@@ -2893,7 +2915,8 @@ static bool test_key_base(struct torture_context *tctx,
 		}
 
 		if (!test_DeleteKey(b, tctx, handle, test_key1)) {
-			torture_comment(tctx, "DeleteKey failed\n");
+			torture_comment(tctx, "DeleteKey(%s) failed\n",
+					      test_key1);
 			ret = false;
 		} else {
 			deleted = true;
@@ -2928,13 +2951,13 @@ static bool test_key_base(struct torture_context *tctx,
 		if (created3) {
 			if (test_CreateKey(b, tctx, handle, test_subkey, NULL)) {
 				if (!test_DeleteKey(b, tctx, handle, test_subkey)) {
-					torture_comment(tctx, "DeleteKey failed\n");
+					torture_comment(tctx, "DeleteKey(%s) failed\n", test_subkey);
 					ret = false;
 				}
 			}
 
 			if (!test_DeleteKey(b, tctx, handle, test_key3)) {
-				torture_comment(tctx, "DeleteKey failed\n");
+				torture_comment(tctx, "DeleteKey(%s) failed\n", test_key3);
 				ret = false;
 			}
 		}
@@ -2998,12 +3021,12 @@ static bool test_key_base_sd(struct torture_context *tctx,
 	}
 
 	if (created4 && !test_DeleteKey(b, tctx, handle, test_key4)) {
-		torture_comment(tctx, "DeleteKey failed\n");
+		torture_comment(tctx, "DeleteKey(%s) failed\n", test_key4);
 		ret = false;
 	}
 
 	if (created2 && !test_DeleteKey(b, tctx, handle, test_key4)) {
-		torture_comment(tctx, "DeleteKey failed\n");
+		torture_comment(tctx, "DeleteKey(%s) failed\n", test_key4);
 		ret = false;
 	}
 
@@ -3089,7 +3112,7 @@ static bool test_Open(struct torture_context *tctx, struct dcerpc_pipe *p,
 struct torture_suite *torture_rpc_winreg(TALLOC_CTX *mem_ctx)
 {
 	struct torture_rpc_tcase *tcase;
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "WINREG");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "winreg");
 	struct torture_test *test;
 
 	tcase = torture_suite_add_rpc_iface_tcase(suite, "winreg",
@@ -3105,16 +3128,16 @@ struct torture_suite *torture_rpc_winreg(TALLOC_CTX *mem_ctx)
 
 	torture_rpc_tcase_add_test_ex(tcase, "HKLM",
 				      test_Open,
-				      (winreg_open_fn)dcerpc_winreg_OpenHKLM_r);
+				      (void *)dcerpc_winreg_OpenHKLM_r);
 	torture_rpc_tcase_add_test_ex(tcase, "HKU",
 				      test_Open,
-				      (winreg_open_fn)dcerpc_winreg_OpenHKU_r);
+				      (void *)dcerpc_winreg_OpenHKU_r);
 	torture_rpc_tcase_add_test_ex(tcase, "HKCR",
 				      test_Open,
-				      (winreg_open_fn)dcerpc_winreg_OpenHKCR_r);
+				      (void *)dcerpc_winreg_OpenHKCR_r);
 	torture_rpc_tcase_add_test_ex(tcase, "HKCU",
 				      test_Open,
-				      (winreg_open_fn)dcerpc_winreg_OpenHKCU_r);
+				      (void *)dcerpc_winreg_OpenHKCU_r);
 
 	return suite;
 }

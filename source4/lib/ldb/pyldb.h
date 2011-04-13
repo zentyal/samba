@@ -1,7 +1,7 @@
 /*
    Unix SMB/CIFS implementation.
 
-   Swig interface to ldb.
+   Python interface to ldb.
 
    Copyright (C) 2007-2008 Jelmer Vernooij <jelmer@samba.org>
 
@@ -26,7 +26,6 @@
 #ifndef _PYLDB_H_
 #define _PYLDB_H_
 
-#include <Python.h>
 #include <talloc.h>
 
 typedef struct {
@@ -62,17 +61,13 @@ typedef struct {
 	TALLOC_CTX *mem_ctx;
 	struct ldb_module *mod;
 } PyLdbModuleObject;
-PyObject *PyLdbMessage_FromMessage(struct ldb_message *message);
-PyObject *PyLdbModule_FromModule(struct ldb_module *mod);
 #define PyLdbModule_AsModule(pyobj) ((PyLdbModuleObject *)pyobj)->mod
 
 typedef struct {
-	PyObject_HEAD	
+	PyObject_HEAD
 	TALLOC_CTX *mem_ctx;
 	struct ldb_message_element *el;
 } PyLdbMessageElementObject;
-struct ldb_message_element *PyObject_AsMessageElement(TALLOC_CTX *mem_ctx, PyObject *obj, int flags, const char *name);
-PyObject *PyLdbMessageElement_FromMessageElement(struct ldb_message_element *, TALLOC_CTX *mem_ctx);
 #define PyLdbMessageElement_AsMessageElement(pyobj) ((PyLdbMessageElementObject *)pyobj)->el
 #define PyLdbMessageElement_Check(ob) PyObject_TypeCheck(ob, &PyLdbMessageElement)
 
@@ -81,8 +76,21 @@ typedef struct {
 	TALLOC_CTX *mem_ctx;
 	struct ldb_parse_tree *tree;
 } PyLdbTreeObject;
-PyObject *PyLdbTree_FromTree(struct ldb_parse_tree *);
 #define PyLdbTree_AsTree(pyobj) ((PyLdbTreeObject *)pyobj)->tree
+
+typedef struct {
+	PyObject_HEAD
+	TALLOC_CTX *mem_ctx;
+	PyObject *msgs;
+	PyObject *referals;
+	PyObject *controls;
+} PyLdbResultObject;
+
+typedef struct {
+	PyObject_HEAD
+	TALLOC_CTX *mem_ctx;
+	struct ldb_control *data;
+} PyLdbControlObject;
 
 #define PyErr_LDB_ERROR_IS_ERR_RAISE(err,ret,ldb) \
 	if (ret != LDB_SUCCESS) { \

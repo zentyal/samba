@@ -12,7 +12,7 @@ my $debug = 0;
 my $oproto = 1;
 my $private_func_re = "^_";
 
-do Getopts('x:m:o:p:dqE:R:P:') || die "foo";
+Getopts('x:m:o:p:dqE:R:P:') || die "foo";
 
 if($opt_d) {
     $debug = 1;
@@ -180,6 +180,7 @@ sub foo {
     local ($arg) = @_;
     $_ = $arg;
     s/.*\/([^\/]*)/$1/;
+    s/.*\\([^\\]*)/$1/;
     s/[^a-zA-Z0-9]/_/g;
     "__" . $_ . "__";
 }

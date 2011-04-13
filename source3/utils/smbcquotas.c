@@ -1,29 +1,33 @@
 /* 
    Unix SMB/CIFS implementation.
    QUOTA get/set utility
-   
+
    Copyright (C) Andrew Tridgell		2000
    Copyright (C) Tim Potter			2000
    Copyright (C) Jeremy Allison			2000
    Copyright (C) Stefan (metze) Metzmacher	2003
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
+#include "popt_common.h"
+#include "rpc_client/cli_pipe.h"
 #include "../librpc/gen_ndr/ndr_lsa.h"
 #include "rpc_client/cli_lsarpc.h"
+#include "fake_file.h"
+#include "../libcli/security/security.h"
 
 static char *server;
 
@@ -74,7 +78,7 @@ static bool cli_open_policy_hnd(void)
 
 		got_policy_hnd = True;
 	}
-	
+
 	return True;
 }
 
@@ -104,7 +108,6 @@ static void SidToString(fstring str, struct dom_sid *sid, bool _numeric)
 	slprintf(str, sizeof(fstring) - 1, "%s%s%s",
 		 domains[0], lp_winbind_separator(),
 		 names[0]);
-	
 }
 
 /* convert a string to a SID, either numeric or username/group */
@@ -114,8 +117,8 @@ static bool StringToSid(struct dom_sid *sid, const char *str)
 	struct dom_sid *sids = NULL;
 	bool result = True;
 
-	if (strncmp(str, "S-", 2) == 0) {
-		return string_to_sid(sid, str);
+	if (string_to_sid(sid, str)) {
+		return true;
 	}
 
 	if (!cli_open_policy_hnd() ||
@@ -225,6 +228,105 @@ static int parse_quota_set(TALLOC_CTX *ctx,
 	return 0;
 }
 
+
+static const char *quota_str_static(uint64_t val, bool special, bool _numeric)
+{
+	const char *result;
+
+	if (!_numeric&&special&&(val == SMB_NTQUOTAS_NO_LIMIT)) {
+		return "NO LIMIT";
+	}
+	result = talloc_asprintf(talloc_tos(), "%"PRIu64, val);
+	SMB_ASSERT(result != NULL);
+	return result;
+}
+
+static void dump_ntquota(SMB_NTQUOTA_STRUCT *qt, bool _verbose,
+			 bool _numeric,
+			 void (*_sidtostring)(fstring str,
+					      struct dom_sid *sid,
+					      bool _numeric))
+{
+	TALLOC_CTX *frame = talloc_stackframe();
+
+	if (!qt) {
+		smb_panic("dump_ntquota() called with NULL pointer");
+	}
+
+	switch (qt->qtype) {
+	case SMB_USER_FS_QUOTA_TYPE:
+	{
+		d_printf("File System QUOTAS:\n");
+		d_printf("Limits:\n");
+		d_printf(" Default Soft Limit: %15s\n",
+			 quota_str_static(qt->softlim,True,_numeric));
+		d_printf(" Default Hard Limit: %15s\n",
+			 quota_str_static(qt->hardlim,True,_numeric));
+		d_printf("Quota Flags:\n");
+		d_printf(" Quotas Enabled: %s\n",
+			 ((qt->qflags&QUOTAS_ENABLED)
+			  ||(qt->qflags&QUOTAS_DENY_DISK))?"On":"Off");
+		d_printf(" Deny Disk:      %s\n",
+			 (qt->qflags&QUOTAS_DENY_DISK)?"On":"Off");
+		d_printf(" Log Soft Limit: %s\n",
+			 (qt->qflags&QUOTAS_LOG_THRESHOLD)?"On":"Off");
+		d_printf(" Log Hard Limit: %s\n",
+			 (qt->qflags&QUOTAS_LOG_LIMIT)?"On":"Off");
+	}
+	break;
+	case SMB_USER_QUOTA_TYPE:
+	{
+		fstring username_str = {0};
+
+		if (_sidtostring) {
+			_sidtostring(username_str,&qt->sid,_numeric);
+		} else {
+			sid_to_fstring(username_str, &qt->sid);
+		}
+
+		if (_verbose) {
+			d_printf("Quotas for User: %s\n",username_str);
+			d_printf("Used Space: %15s\n",
+				 quota_str_static(qt->usedspace,False,
+						  _numeric));
+			d_printf("Soft Limit: %15s\n",
+				 quota_str_static(qt->softlim,True,
+						  _numeric));
+			d_printf("Hard Limit: %15s\n",
+				 quota_str_static(qt->hardlim,True,_numeric));
+		} else {
+			d_printf("%-30s: ",username_str);
+			d_printf("%15s/",quota_str_static(
+					 qt->usedspace,False,_numeric));
+			d_printf("%15s/",quota_str_static(
+					 qt->softlim,True,_numeric));
+			d_printf("%15s\n",quota_str_static(
+					 qt->hardlim,True,_numeric));
+		}
+	}
+	break;
+	default:
+		d_printf("dump_ntquota() invalid qtype(%d)\n",qt->qtype);
+	}
+	TALLOC_FREE(frame);
+	return;
+}
+
+static void dump_ntquota_list(SMB_NTQUOTA_LIST **qtl, bool _verbose,
+			      bool _numeric,
+			      void (*_sidtostring)(fstring str,
+						   struct dom_sid *sid,
+						   bool _numeric))
+{
+	SMB_NTQUOTA_LIST *cur;
+
+	for (cur = *qtl;cur;cur = cur->next) {
+		if (cur->quotas)
+			dump_ntquota(cur->quotas,_verbose,_numeric,
+				     _sidtostring);
+	}
+}
+
 static int do_quota(struct cli_state *cli,
 		enum SMB_QUOTA_TYPE qtype,
 		uint16 cmd,
@@ -235,11 +337,14 @@ static int do_quota(struct cli_state *cli,
 	uint16_t quota_fnum = 0;
 	SMB_NTQUOTA_LIST *qtl = NULL;
 	SMB_NTQUOTA_STRUCT qt;
+	NTSTATUS status;
+
 	ZERO_STRUCT(qt);
 
-	if (!NT_STATUS_IS_OK(cli_get_fs_attr_info(cli, &fs_attrs))) {
+	status = cli_get_fs_attr_info(cli, &fs_attrs);
+	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("Failed to get the filesystem attributes %s.\n",
-			cli_errstr(cli));
+			 nt_errstr(status));
 		return -1;
 	}
 
@@ -248,10 +353,12 @@ static int do_quota(struct cli_state *cli,
 		return 0;
 	}
 
-	if (!NT_STATUS_IS_OK(cli_get_quota_handle(cli, &quota_fnum))) {
+	status = cli_get_quota_handle(cli, &quota_fnum);
+	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("Quotas are not enabled on this share.\n");
 		d_printf("Failed to open %s  %s.\n",
-			FAKE_FILE_NAME_QUOTA_WIN32,cli_errstr(cli));
+			 FAKE_FILE_NAME_QUOTA_WIN32,
+			 nt_errstr(status));
 		return -1;
 	}
 
@@ -264,31 +371,43 @@ static int do_quota(struct cli_state *cli,
 
 			switch(cmd) {
 				case QUOTA_GET:
-					if (!cli_get_user_quota(cli, quota_fnum, &qt)) {
+					status = cli_get_user_quota(
+						cli, quota_fnum, &qt);
+					if (!NT_STATUS_IS_OK(status)) {
 						d_printf("%s cli_get_user_quota %s\n",
-							 cli_errstr(cli),username_str);
+							 nt_errstr(status),
+							 username_str);
 						return -1;
 					}
 					dump_ntquota(&qt,verbose,numeric,SidToString);
 					break;
 				case QUOTA_SETLIM:
 					pqt->sid = qt.sid;
-					if (!cli_set_user_quota(cli, quota_fnum, pqt)) {
+					status = cli_set_user_quota(
+						cli, quota_fnum, pqt);
+					if (!NT_STATUS_IS_OK(status)) {
 						d_printf("%s cli_set_user_quota %s\n",
-							 cli_errstr(cli),username_str);
+							 nt_errstr(status),
+							 username_str);
 						return -1;
 					}
-					if (!cli_get_user_quota(cli, quota_fnum, &qt)) {
+					status = cli_get_user_quota(
+						cli, quota_fnum, &qt);
+					if (!NT_STATUS_IS_OK(status)) {
 						d_printf("%s cli_get_user_quota %s\n",
-							 cli_errstr(cli),username_str);
+							 nt_errstr(status),
+							 username_str);
 						return -1;
 					}
 					dump_ntquota(&qt,verbose,numeric,SidToString);
 					break;
 				case QUOTA_LIST:
-					if (!cli_list_user_quota(cli, quota_fnum, &qtl)) {
+					status = cli_list_user_quota(
+						cli, quota_fnum, &qtl);
+					if (!NT_STATUS_IS_OK(status)) {
 						d_printf("%s cli_set_user_quota %s\n",
-							 cli_errstr(cli),username_str);
+							 nt_errstr(status),
+							 username_str);
 						return -1;
 					}
 					dump_ntquota_list(&qtl,verbose,numeric,SidToString);
@@ -302,48 +421,62 @@ static int do_quota(struct cli_state *cli,
 		case SMB_USER_FS_QUOTA_TYPE:
 			switch(cmd) {
 				case QUOTA_GET:
-					if (!cli_get_fs_quota_info(cli, quota_fnum, &qt)) {
+					status = cli_get_fs_quota_info(
+						cli, quota_fnum, &qt);
+					if (!NT_STATUS_IS_OK(status)) {
 						d_printf("%s cli_get_fs_quota_info\n",
-							 cli_errstr(cli));
+							 nt_errstr(status));
 						return -1;
 					}
 					dump_ntquota(&qt,True,numeric,NULL);
 					break;
 				case QUOTA_SETLIM:
-					if (!cli_get_fs_quota_info(cli, quota_fnum, &qt)) {
+					status = cli_get_fs_quota_info(
+						cli, quota_fnum, &qt);
+					if (!NT_STATUS_IS_OK(status)) {
 						d_printf("%s cli_get_fs_quota_info\n",
-							 cli_errstr(cli));
+							 nt_errstr(status));
 						return -1;
 					}
 					qt.softlim = pqt->softlim;
 					qt.hardlim = pqt->hardlim;
-					if (!cli_set_fs_quota_info(cli, quota_fnum, &qt)) {
+					status = cli_set_fs_quota_info(
+						cli, quota_fnum, &qt);
+					if (!NT_STATUS_IS_OK(status)) {
 						d_printf("%s cli_set_fs_quota_info\n",
-							 cli_errstr(cli));
+							 nt_errstr(status));
 						return -1;
 					}
-					if (!cli_get_fs_quota_info(cli, quota_fnum, &qt)) {
+					status = cli_get_fs_quota_info(
+						cli, quota_fnum, &qt);
+					if (!NT_STATUS_IS_OK(status)) {
 						d_printf("%s cli_get_fs_quota_info\n",
-							 cli_errstr(cli));
+							 nt_errstr(status));
 						return -1;
 					}
 					dump_ntquota(&qt,True,numeric,NULL);
 					break;
 				case QUOTA_SETFLAGS:
-					if (!cli_get_fs_quota_info(cli, quota_fnum, &qt)) {
+					status = cli_get_fs_quota_info(
+						cli, quota_fnum, &qt);
+					if (!NT_STATUS_IS_OK(status)) {
 						d_printf("%s cli_get_fs_quota_info\n",
-							 cli_errstr(cli));
+							 nt_errstr(status));
 						return -1;
 					}
 					qt.qflags = pqt->qflags;
-					if (!cli_set_fs_quota_info(cli, quota_fnum, &qt)) {
+					status = cli_set_fs_quota_info(
+						cli, quota_fnum, &qt);
+					if (!NT_STATUS_IS_OK(status)) {
 						d_printf("%s cli_set_fs_quota_info\n",
-							 cli_errstr(cli));
+							 nt_errstr(status));
 						return -1;
 					}
-					if (!cli_get_fs_quota_info(cli, quota_fnum, &qt)) {
+					status = cli_get_fs_quota_info(
+						cli, quota_fnum, &qt);
+					if (!NT_STATUS_IS_OK(status)) {
 						d_printf("%s cli_get_fs_quota_info\n",
-							 cli_errstr(cli));
+							 nt_errstr(status));
 						return -1;
 					}
 					dump_ntquota(&qt,True,numeric,NULL);
@@ -396,8 +529,7 @@ static struct cli_state *connect_one(const char *share)
 					    lp_workgroup(),
 					    get_cmdline_auth_info_password(smbcquotas_auth_info),
 					    flags,
-					    get_cmdline_auth_info_signing_state(smbcquotas_auth_info),
-					    NULL);
+					    get_cmdline_auth_info_signing_state(smbcquotas_auth_info));
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0,("cli_full_connection failed! (%s)\n", nt_errstr(nt_status)));
 		return NULL;
@@ -461,10 +593,8 @@ FSQFLAGS:QUOTA_ENABLED/DENY_DISK/LOG_SOFTLIMIT/LOG_HARD_LIMIT", "SETSTRING" },
 	ZERO_STRUCT(qt);
 
 	/* set default debug level to 1 regardless of what smb.conf sets */
-	setup_logging( "smbcquotas", True );
-	DEBUGLEVEL_CLASS[DBGC_ALL] = 1;
-	dbf = x_stderr;
-	x_setbuf( x_stderr, NULL );
+	setup_logging( "smbcquotas", DEBUG_STDERR);
+	lp_set_cmdline("log level", "1");
 
 	setlinebuf(stdout);
 
@@ -609,7 +739,6 @@ FSQFLAGS:QUOTA_ENABLED/DENY_DISK/LOG_SOFTLIMIT/LOG_HARD_LIMIT", "SETSTRING" },
 			result = do_quota(cli, qtype, cmd, username_str, &qt);
 			break;
 		default: 
-			
 			result = EXIT_FAILED;
 			break;
 	}

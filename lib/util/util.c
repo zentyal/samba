@@ -165,15 +165,50 @@ _PUBLIC_ bool directory_create_or_exist(const char *dname, uid_t uid,
  Sleep for a specified number of milliseconds.
 **/
 
-_PUBLIC_ void msleep(unsigned int t)
+_PUBLIC_ void smb_msleep(unsigned int t)
 {
-	struct timeval tval;  
+#if defined(HAVE_NANOSLEEP)
+	struct timespec ts;
+	int ret;
 
-	tval.tv_sec = t/1000;
-	tval.tv_usec = 1000*(t%1000);
-	/* this should be the real select - do NOT replace
-	   with sys_select() */
-	select(0,NULL,NULL,NULL,&tval);
+	ts.tv_sec = t/1000;
+	ts.tv_nsec = 1000000*(t%1000);
+
+	do {
+		errno = 0;
+		ret = nanosleep(&ts, &ts);
+	} while (ret < 0 && errno == EINTR && (ts.tv_sec > 0 || ts.tv_nsec > 0));
+#else
+	unsigned int tdiff=0;
+	struct timeval tval,t1,t2;
+	fd_set fds;
+
+	GetTimeOfDay(&t1);
+	t2 = t1;
+
+	while (tdiff < t) {
+		tval.tv_sec = (t-tdiff)/1000;
+		tval.tv_usec = 1000*((t-tdiff)%1000);
+
+		/* Never wait for more than 1 sec. */
+		if (tval.tv_sec > 1) {
+			tval.tv_sec = 1;
+			tval.tv_usec = 0;
+		}
+
+		FD_ZERO(&fds);
+		errno = 0;
+		select(0,&fds,NULL,NULL,&tval);
+
+		GetTimeOfDay(&t2);
+		if (t2.tv_sec < t1.tv_sec) {
+			/* Someone adjusted time... */
+			t1 = t2;
+		}
+
+		tdiff = usec_time_diff(&t2,&t1)/1000;
+	}
+#endif
 }
 
 /**
@@ -265,28 +300,45 @@ _PUBLIC_ bool fcntl_lock(int fd, int op, off_t offset, off_t count, int type)
 	return true;
 }
 
-void print_asc(int level, const uint8_t *buf,int len)
+static void debugadd_cb(const char *buf, void *private_data)
+{
+	int *plevel = (int *)private_data;
+	DEBUGADD(*plevel, ("%s", buf));
+}
+
+void print_asc_cb(const uint8_t *buf, int len,
+		  void (*cb)(const char *buf, void *private_data),
+		  void *private_data)
 {
 	int i;
-	for (i=0;i<len;i++)
-		DEBUGADD(level,("%c", isprint(buf[i])?buf[i]:'.'));
+	char s[2];
+	s[1] = 0;
+
+	for (i=0; i<len; i++) {
+		s[0] = isprint(buf[i]) ? buf[i] : '.';
+		cb(s, private_data);
+	}
+}
+
+void print_asc(int level, const uint8_t *buf,int len)
+{
+	print_asc_cb(buf, len, debugadd_cb, &level);
 }
 
 /**
- * Write dump of binary data to the log file.
- *
- * The data is only written if the log level is at least level.
+ * Write dump of binary data to a callback
  */
-static void _dump_data(int level, const uint8_t *buf, int len,
-		       bool omit_zero_bytes)
+void dump_data_cb(const uint8_t *buf, int len,
+		  bool omit_zero_bytes,
+		  void (*cb)(const char *buf, void *private_data),
+		  void *private_data)
 {
 	int i=0;
 	static const uint8_t empty[16] = { 0, };
 	bool skipped = false;
+	char tmp[16];
 
 	if (len<=0) return;
-
-	if (!DEBUGLVL(level)) return;
 
 	for (i=0;i<len;) {
 
@@ -301,23 +353,30 @@ static void _dump_data(int level, const uint8_t *buf, int len,
 			}
 
 			if (i<len)  {
-				DEBUGADD(level,("[%04X] ",i));
+				snprintf(tmp, sizeof(tmp), "[%04X] ", i);
+				cb(tmp, private_data);
 			}
 		}
 
-		DEBUGADD(level,("%02X ",(int)buf[i]));
+		snprintf(tmp, sizeof(tmp), "%02X ", (int)buf[i]);
+		cb(tmp, private_data);
 		i++;
-		if (i%8 == 0) DEBUGADD(level,("  "));
+		if (i%8 == 0) {
+			cb("  ", private_data);
+		}
 		if (i%16 == 0) {
 
-			print_asc(level,&buf[i-16],8); DEBUGADD(level,(" "));
-			print_asc(level,&buf[i-8],8); DEBUGADD(level,("\n"));
+			print_asc_cb(&buf[i-16], 8, cb, private_data);
+			cb(" ", private_data);
+			print_asc_cb(&buf[i-8], 8, cb, private_data);
+			cb("\n", private_data);
 
 			if ((omit_zero_bytes == true) &&
 			    (len > i+16) &&
 			    (memcmp(&buf[i], &empty, 16) == 0)) {
 				if (!skipped) {
-					DEBUGADD(level,("skipping zero buffer bytes\n"));
+					cb("skipping zero buffer bytes\n",
+					   private_data);
 					skipped = true;
 				}
 			}
@@ -327,14 +386,21 @@ static void _dump_data(int level, const uint8_t *buf, int len,
 	if (i%16) {
 		int n;
 		n = 16 - (i%16);
-		DEBUGADD(level,(" "));
-		if (n>8) DEBUGADD(level,(" "));
-		while (n--) DEBUGADD(level,("   "));
+		cb(" ", private_data);
+		if (n>8) {
+			cb(" ", private_data);
+		}
+		while (n--) {
+			cb("   ", private_data);
+		}
 		n = MIN(8,i%16);
-		print_asc(level,&buf[i-(i%16)],n); DEBUGADD(level,( " " ));
+		print_asc_cb(&buf[i-(i%16)], n, cb, private_data);
+		cb(" ", private_data);
 		n = (i%16) - n;
-		if (n>0) print_asc(level,&buf[i-n],n);
-		DEBUGADD(level,("\n"));
+		if (n>0) {
+			print_asc_cb(&buf[i-n], n, cb, private_data);
+		}
+		cb("\n", private_data);
 	}
 
 }
@@ -346,7 +412,10 @@ static void _dump_data(int level, const uint8_t *buf, int len,
  */
 _PUBLIC_ void dump_data(int level, const uint8_t *buf, int len)
 {
-	_dump_data(level, buf, len, false);
+	if (!DEBUGLVL(level)) {
+		return;
+	}
+	dump_data_cb(buf, len, false, debugadd_cb, &level);
 }
 
 /**
@@ -357,7 +426,10 @@ _PUBLIC_ void dump_data(int level, const uint8_t *buf, int len)
  */
 _PUBLIC_ void dump_data_skip_zeros(int level, const uint8_t *buf, int len)
 {
-	_dump_data(level, buf, len, true);
+	if (!DEBUGLVL(level)) {
+		return;
+	}
+	dump_data_cb(buf, len, true, debugadd_cb, &level);
 }
 
 
@@ -864,14 +936,36 @@ bool next_token_no_ltrim_talloc(TALLOC_CTX *ctx,
 	return next_token_internal_talloc(ctx, ptr, pp_buff, sep, false);
 }
 
+struct anonymous_shared_header {
+	union {
+		size_t length;
+		uint8_t pad[16];
+	} u;
+};
+
 /* Map a shared memory buffer of at least nelem counters. */
-void *allocate_anonymous_shared(size_t bufsz)
+void *anonymous_shared_allocate(size_t orig_bufsz)
 {
+	void *ptr;
 	void *buf;
 	size_t pagesz = getpagesize();
+	size_t pagecnt;
+	size_t bufsz = orig_bufsz;
+	struct anonymous_shared_header *hdr;
 
+	bufsz += sizeof(*hdr);
+
+	/* round up to full pages */
+	pagecnt = bufsz / pagesz;
 	if (bufsz % pagesz) {
-		bufsz = (bufsz + pagesz) % pagesz; /* round up to pagesz */
+		pagecnt += 1;
+	}
+	bufsz = pagesz * pagecnt;
+
+	if (orig_bufsz >= bufsz) {
+		/* integer wrap */
+		errno = ENOMEM;
+		return NULL;
 	}
 
 #ifdef MAP_ANON
@@ -887,7 +981,45 @@ void *allocate_anonymous_shared(size_t bufsz)
 		return NULL;
 	}
 
-	return buf;
+	hdr = (struct anonymous_shared_header *)buf;
+	hdr->u.length = bufsz;
 
+	ptr = (void *)(&hdr[1]);
+
+	return ptr;
 }
 
+void anonymous_shared_free(void *ptr)
+{
+	struct anonymous_shared_header *hdr;
+
+	if (ptr == NULL) {
+		return;
+	}
+
+	hdr = (struct anonymous_shared_header *)ptr;
+
+	hdr--;
+
+	munmap(hdr, hdr->u.length);
+}
+
+#ifdef DEVELOPER
+/* used when you want a debugger started at a particular point in the
+   code. Mostly useful in code that runs as a child process, where
+   normal gdb attach is harder to organise.
+*/
+void samba_start_debugger(void)
+{
+	char *cmd = NULL;
+	if (asprintf(&cmd, "xterm -e \"gdb --pid %u\"&", getpid()) == -1) {
+		return;
+	}
+	if (system(cmd) == -1) {
+		free(cmd);
+		return;
+	}
+	free(cmd);
+	sleep(2);
+}
+#endif

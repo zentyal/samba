@@ -2,6 +2,7 @@
  * ensure meta data operations are performed synchronously
  *
  * Copyright (C) Andrew Tridgell     2007
+ * Copyright (C) Christian Ambach, 2010-2011
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +20,8 @@
  */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "smbd/smbd.h"
 
 /*
 
@@ -31,13 +34,27 @@
 
   On those filesystems this module provides a way to perform those
   operations safely.  
+
+  most of the performance loss with this module is in fsync on close(). 
+  You can disable that with
+     syncops:onclose = no
+  that can be set either globally or per share.
+
+  On certain filesystems that only require the last data written to be
+  fsync()'ed, you can disable the metadata synchronization of this module with
+     syncops:onmeta = no
+  This option can be set either globally or per share.
+
+  you can also disable the module completely for a share with
+     syncops:disable = true
+
  */
 
-/*
-  most of the performance loss with this module is in fsync on close(). 
-  You can disable that with syncops:onclose = no
- */
-static bool sync_onclose;
+struct syncops_config_data {
+	bool onclose;
+	bool onmeta;
+	bool disable;
+};
 
 /*
   given a filename, find the parent directory
@@ -125,8 +142,16 @@ static int syncops_rename(vfs_handle_struct *handle,
 			  const struct smb_filename *smb_fname_src,
 			  const struct smb_filename *smb_fname_dst)
 {
-	int ret = SMB_VFS_NEXT_RENAME(handle, smb_fname_src, smb_fname_dst);
-	if (ret == 0) {
+
+	int ret;
+	struct syncops_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct syncops_config_data,
+				return -1);
+
+	ret = SMB_VFS_NEXT_RENAME(handle, smb_fname_src, smb_fname_dst);
+	if (ret == 0 && config->onmeta && !config->disable) {
 		syncops_two_names(smb_fname_src->base_name,
 				  smb_fname_dst->base_name);
 	}
@@ -135,14 +160,28 @@ static int syncops_rename(vfs_handle_struct *handle,
 
 /* handle the rest with a macro */
 #define SYNCOPS_NEXT(op, fname, args) do {   \
-	int ret = SMB_VFS_NEXT_ ## op args; \
-	if (ret == 0 && fname) syncops_name(fname); \
+	int ret; \
+	struct syncops_config_data *config; \
+	SMB_VFS_HANDLE_GET_DATA(handle, config, \
+				struct syncops_config_data, \
+				return -1); \
+	ret = SMB_VFS_NEXT_ ## op args; \
+	if (ret == 0 \
+		&& config->onmeta && !config->disable  \
+		&& fname) syncops_name(fname); \
 	return ret; \
 } while (0)
 
 #define SYNCOPS_NEXT_SMB_FNAME(op, fname, args) do {   \
-	int ret = SMB_VFS_NEXT_ ## op args; \
-	if (ret == 0 && fname) syncops_smb_fname(fname); \
+	int ret; \
+	struct syncops_config_data *config; \
+	SMB_VFS_HANDLE_GET_DATA(handle, config, \
+				struct syncops_config_data, \
+				return -1); \
+	ret = SMB_VFS_NEXT_ ## op args; \
+	if (ret == 0 \
+	&& config->onmeta && !config->disable \
+	&& fname) syncops_smb_fname(fname); \
 	return ret; \
 } while (0)
 
@@ -191,7 +230,13 @@ static int syncops_rmdir(vfs_handle_struct *handle,  const char *fname)
 /* close needs to be handled specially */
 static int syncops_close(vfs_handle_struct *handle, files_struct *fsp)
 {
-	if (fsp->can_write && sync_onclose) {
+	struct syncops_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct syncops_config_data,
+				return -1);
+
+	if (fsp->can_write && config->onclose) {
 		/* ideally we'd only do this if we have written some
 		 data, but there is no flag for that in fsp yet. */
 		fsync(fsp->fh->fd);
@@ -199,8 +244,42 @@ static int syncops_close(vfs_handle_struct *handle, files_struct *fsp)
 	return SMB_VFS_NEXT_CLOSE(handle, fsp);
 }
 
+static int syncops_connect(struct vfs_handle_struct *handle, const char *service,
+			   const char *user)
+{
+
+	struct syncops_config_data *config;
+	int ret = SMB_VFS_NEXT_CONNECT(handle, service, user);
+	if (ret < 0) {
+		return ret;
+	}
+
+	config = talloc_zero(handle->conn, struct syncops_config_data);
+	if (!config) {
+		SMB_VFS_NEXT_DISCONNECT(handle);
+		DEBUG(0, ("talloc_zero() failed\n"));
+		return -1;
+	}
+
+	config->onclose = lp_parm_bool(SNUM(handle->conn), "syncops",
+					"onclose", true);
+
+	config->onmeta = lp_parm_bool(SNUM(handle->conn), "syncops",
+					"onmeta", true);
+
+	config->disable = lp_parm_bool(SNUM(handle->conn), "syncops",
+					"disable", false);
+
+	SMB_VFS_HANDLE_SET_DATA(handle, config,
+				NULL, struct syncops_config_data,
+				return -1);
+
+	return 0;
+
+}
 
 static struct vfs_fn_pointers vfs_syncops_fns = {
+	.connect_fn = syncops_connect,
         .mkdir = syncops_mkdir,
         .rmdir = syncops_rmdir,
         .open = syncops_open,
@@ -222,7 +301,5 @@ NTSTATUS vfs_syncops_init(void)
 	if (!NT_STATUS_IS_OK(ret))
 		return ret;
 
-	sync_onclose = lp_parm_bool(-1, "syncops", "onclose", true);
-	
 	return ret;
 }

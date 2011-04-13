@@ -36,7 +36,7 @@
 /*
   create a new ldb_message in a given memory context (NULL for top level)
 */
-struct ldb_message *ldb_msg_new(void *mem_ctx)
+struct ldb_message *ldb_msg_new(TALLOC_CTX *mem_ctx)
 {
 	return talloc_zero(mem_ctx, struct ldb_message);
 }
@@ -92,7 +92,7 @@ struct ldb_val *ldb_msg_find_val(const struct ldb_message_element *el,
 /*
   duplicate a ldb_val structure
 */
-struct ldb_val ldb_val_dup(void *mem_ctx, const struct ldb_val *v)
+struct ldb_val ldb_val_dup(TALLOC_CTX *mem_ctx, const struct ldb_val *v)
 {
 	struct ldb_val v2;
 	v2.length = v->length;
@@ -226,7 +226,8 @@ int ldb_msg_add_value(struct ldb_message *msg,
 		}
 	}
 
-	vals = talloc_realloc(msg, el->values, struct ldb_val, el->num_values+1);
+	vals = talloc_realloc(msg->elements, el->values, struct ldb_val,
+			      el->num_values+1);
 	if (!vals) {
 		errno = ENOMEM;
 		return LDB_ERR_OPERATIONS_ERROR;
@@ -307,8 +308,14 @@ int ldb_msg_add_steal_string(struct ldb_message *msg,
 int ldb_msg_add_linearized_dn(struct ldb_message *msg, const char *attr_name,
 			      struct ldb_dn *dn)
 {
-	return ldb_msg_add_steal_string(msg, attr_name,
-					ldb_dn_alloc_linearized(msg, dn));
+	char *str = ldb_dn_alloc_linearized(msg, dn);
+
+	if (str == NULL) {
+		/* we don't want to have unknown DNs added */
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+
+	return ldb_msg_add_steal_string(msg, attr_name, str);
 }
 
 /*
@@ -481,7 +488,7 @@ const char *ldb_msg_find_attr_as_string(const struct ldb_message *msg,
 }
 
 struct ldb_dn *ldb_msg_find_attr_as_dn(struct ldb_context *ldb,
-				       void *mem_ctx,
+				       TALLOC_CTX *mem_ctx,
 				       const struct ldb_message *msg,
 				       const char *attr_name)
 {
@@ -883,11 +890,14 @@ int ldb_msg_rename_attr(struct ldb_message *msg, const char *attr, const char *r
 int ldb_msg_copy_attr(struct ldb_message *msg, const char *attr, const char *replace)
 {
 	struct ldb_message_element *el = ldb_msg_find_element(msg, attr);
+	int ret;
+
 	if (el == NULL) {
 		return LDB_SUCCESS;
 	}
-	if (ldb_msg_add(msg, el, 0) != 0) {
-		return LDB_ERR_OPERATIONS_ERROR;
+	ret = ldb_msg_add(msg, el, 0);
+	if (ret != LDB_SUCCESS) {
+		return ret;
 	}
 	return ldb_msg_rename_attr(msg, attr, replace);
 }

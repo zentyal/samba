@@ -74,6 +74,19 @@ without proper synchronization ;
 shouldn't be used by several threads simultaneously without  
 synchronization.
 
+talloc and shared objects
+-------------------------
+
+talloc can be used in shared objects. Special care needs to be taken
+to never use talloc_autofree_context() in code that might be loaded
+with dlopen() and unloaded with dlclose(), as talloc_autofree_context()
+internally uses atexit(3). Some platforms like modern Linux handles
+this fine, but for example FreeBSD does not deal well with dlopen()
+and atexit() used simultaneously: dlclose() does not clean up the list
+of atexit-handlers, so when the program exits the code that was
+registered from within talloc_autofree_context() is gone, the program
+crashes at exit.
+
 
 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 (type *)talloc(const void *context, type);
@@ -117,10 +130,11 @@ children. You can call talloc_free() on any pointer returned by
 talloc().
 
 The return value of talloc_free() indicates success or failure, with 0
-returned for success and -1 for failure. The only possible failure
-condition is if the pointer had a destructor attached to it and the
-destructor returned -1. See talloc_set_destructor() for details on
-destructors.
+returned for success and -1 for failure. A possible failure condition
+is if the pointer had a destructor attached to it and the destructor
+returned -1. See talloc_set_destructor() for details on
+destructors. Likewise, if "ptr" is NULL, then the function will make
+no modifications and returns -1.
 
 If this pointer has an additional parent when talloc_free() is called
 then the memory is not actually released, but instead the most

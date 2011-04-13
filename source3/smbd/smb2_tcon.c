@@ -19,8 +19,11 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
 #include "../libcli/smb/smb_common.h"
+#include "../libcli/security/security.h"
+#include "auth.h"
 
 static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
 				       const char *in_path,
@@ -43,11 +46,11 @@ NTSTATUS smbd_smb2_request_process_tcon(struct smbd_smb2_request *req)
 	DATA_BLOB in_path_buffer;
 	char *in_path_string;
 	size_t in_path_string_size;
-	uint8_t out_share_type;
-	uint32_t out_share_flags;
-	uint32_t out_capabilities;
-	uint32_t out_maximal_access;
-	uint32_t out_tree_id;
+	uint8_t out_share_type = 0;
+	uint32_t out_share_flags = 0;
+	uint32_t out_capabilities = 0;
+	uint32_t out_maximal_access = 0;
+	uint32_t out_tree_id = 0;
 	NTSTATUS status;
 	bool ok;
 
@@ -126,6 +129,8 @@ static int smbd_smb2_tcon_destructor(struct smbd_smb2_tcon *tcon)
 
 	idr_remove(tcon->session->tcons.idtree, tcon->tid);
 	DLIST_REMOVE(tcon->session->tcons.list, tcon);
+	SMB_ASSERT(tcon->session->sconn->num_tcons_open > 0);
+	tcon->session->sconn->num_tcons_open--;
 
 	if (tcon->compat_conn) {
 		set_current_service(tcon->compat_conn, 0, true);
@@ -148,7 +153,7 @@ static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
 				       uint32_t *out_tree_id)
 {
 	const char *share = in_path;
-	fstring service;
+	char *service = NULL;
 	int snum = -1;
 	struct smbd_smb2_tcon *tcon;
 	connection_struct *compat_conn = NULL;
@@ -166,7 +171,10 @@ static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
 	DEBUG(10,("smbd_smb2_tree_connect: path[%s] share[%s]\n",
 		  in_path, share));
 
-	fstrcpy(service, share);
+	service = talloc_strdup(talloc_tos(), share);
+	if(!service) {
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	strlower_m(service);
 
@@ -177,7 +185,7 @@ static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
 				"user %s because it was not found "
 				"or created at session setup "
 				"time\n",
-				compat_vuser->server_info->unix_name));
+				compat_vuser->session_info->unix_name));
 			return NT_STATUS_BAD_NETWORK_NAME;
 		}
 		snum = compat_vuser->homes_snum;
@@ -186,7 +194,10 @@ static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
 			lp_servicename(compat_vuser->homes_snum))) {
 		snum = compat_vuser->homes_snum;
 	} else {
-		snum = find_service(service);
+		snum = find_service(talloc_tos(), service, &service);
+		if (!service) {
+			return NT_STATUS_NO_MEMORY;
+		}
 	}
 
 	if (snum < 0) {
@@ -213,6 +224,7 @@ static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
 	DLIST_ADD_END(req->session->tcons.list, tcon,
 		      struct smbd_smb2_tcon *);
 	tcon->session = req->session;
+	tcon->session->sconn->num_tcons_open++;
 	talloc_set_destructor(tcon, smbd_smb2_tcon_destructor);
 
 	compat_conn = make_connection_snum(req->sconn,

@@ -26,10 +26,11 @@
 #include "winbindd.h"
 #include "winbindd_rpc.h"
 
-#include "../librpc/gen_ndr/cli_samr.h"
+#include "../librpc/gen_ndr/ndr_samr_c.h"
+#include "rpc_client/cli_pipe.h"
 #include "rpc_client/cli_samr.h"
-#include "../librpc/gen_ndr/cli_lsa.h"
 #include "rpc_client/cli_lsarpc.h"
+#include "../libcli/security/security.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
@@ -100,11 +101,11 @@ done:
 static NTSTATUS msrpc_enum_dom_groups(struct winbindd_domain *domain,
 				      TALLOC_CTX *mem_ctx,
 				      uint32_t *pnum_info,
-				      struct acct_info **pinfo)
+				      struct wb_acct_info **pinfo)
 {
 	struct rpc_pipe_client *samr_pipe;
 	struct policy_handle dom_pol;
-	struct acct_info *info = NULL;
+	struct wb_acct_info *info = NULL;
 	uint32_t num_info = 0;
 	TALLOC_CTX *tmp_ctx;
 	NTSTATUS status;
@@ -159,11 +160,11 @@ done:
 static NTSTATUS msrpc_enum_local_groups(struct winbindd_domain *domain,
 					TALLOC_CTX *mem_ctx,
 					uint32_t *pnum_info,
-					struct acct_info **pinfo)
+					struct wb_acct_info **pinfo)
 {
 	struct rpc_pipe_client *samr_pipe;
 	struct policy_handle dom_pol;
-	struct acct_info *info = NULL;
+	struct wb_acct_info *info = NULL;
 	uint32_t num_info = 0;
 	TALLOC_CTX *tmp_ctx;
 	NTSTATUS status;
@@ -521,9 +522,7 @@ static NTSTATUS msrpc_lookup_usergroups(struct winbindd_domain *domain,
 	}
 
 cached:
-	if (pnum_groups) {
-		*pnum_groups = num_groups;
-	}
+	*pnum_groups = num_groups;
 
 	if (puser_grpsids) {
 		*puser_grpsids = talloc_move(mem_ctx, &user_grpsids);
@@ -609,7 +608,7 @@ static NTSTATUS msrpc_lookup_groupmem(struct winbindd_domain *domain,
 				      char ***names,
 				      uint32_t **name_types)
 {
-        NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
+	NTSTATUS status, result;
         uint32 i, total_names = 0;
         struct policy_handle dom_pol, group_pol;
         uint32 des_access = SEC_FLAG_MAXIMUM_ALLOWED;
@@ -618,7 +617,8 @@ static NTSTATUS msrpc_lookup_groupmem(struct winbindd_domain *domain,
 	unsigned int j, r;
 	struct rpc_pipe_client *cli;
 	unsigned int orig_timeout;
-	struct samr_RidTypeArray *rids = NULL;
+	struct samr_RidAttrArray *rids = NULL;
+	struct dcerpc_binding_handle *b;
 
 	DEBUG(3,("msrpc_lookup_groupmem: %s sid=%s\n", domain->name,
 		  sid_string_dbg(group_sid)));
@@ -638,14 +638,20 @@ static NTSTATUS msrpc_lookup_groupmem(struct winbindd_domain *domain,
 	if (!NT_STATUS_IS_OK(result))
 		return result;
 
-        result = rpccli_samr_OpenGroup(cli, mem_ctx,
+	b = cli->binding_handle;
+
+	status = dcerpc_samr_OpenGroup(b, mem_ctx,
 				       &dom_pol,
 				       des_access,
 				       group_rid,
-				       &group_pol);
-
-        if (!NT_STATUS_IS_OK(result))
+				       &group_pol,
+				       &result);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
 		return result;
+	}
 
         /* Step #1: Get a list of user rids that are the members of the
            group. */
@@ -655,17 +661,26 @@ static NTSTATUS msrpc_lookup_groupmem(struct winbindd_domain *domain,
 
 	orig_timeout = rpccli_set_timeout(cli, 35000);
 
-        result = rpccli_samr_QueryGroupMember(cli, mem_ctx,
+	status = dcerpc_samr_QueryGroupMember(b, mem_ctx,
 					      &group_pol,
-					      &rids);
+					      &rids,
+					      &result);
 
 	/* And restore our original timeout. */
 	rpccli_set_timeout(cli, orig_timeout);
 
-	rpccli_samr_Close(cli, mem_ctx, &group_pol);
+	{
+		NTSTATUS _result;
+		dcerpc_samr_Close(b, mem_ctx, &group_pol, &_result);
+	}
 
-        if (!NT_STATUS_IS_OK(result))
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	if (!NT_STATUS_IS_OK(result)) {
 		return result;
+	}
 
 	if (!rids || !rids->count) {
 		names = NULL;
@@ -701,12 +716,16 @@ static NTSTATUS msrpc_lookup_groupmem(struct winbindd_domain *domain,
 
 		/* Lookup a chunk of rids */
 
-		result = rpccli_samr_LookupRids(cli, mem_ctx,
+		status = dcerpc_samr_LookupRids(b, mem_ctx,
 						&dom_pol,
 						num_lookup_rids,
 						&rid_mem[i],
 						&tmp_names,
-						&tmp_types);
+						&tmp_types,
+						&result);
+		if (!NT_STATUS_IS_OK(status)) {
+			return status;
+		}
 
 		/* see if we have a real error (and yes the
 		   STATUS_SOME_UNMAPPED is the one returned from 2k) */
@@ -945,10 +964,11 @@ static NTSTATUS msrpc_lockout_policy(struct winbindd_domain *domain,
 				     TALLOC_CTX *mem_ctx,
 				     struct samr_DomInfo12 *lockout_policy)
 {
-	NTSTATUS result;
+	NTSTATUS status, result;
 	struct rpc_pipe_client *cli;
 	struct policy_handle dom_pol;
 	union samr_DomainInfo *info = NULL;
+	struct dcerpc_binding_handle *b;
 
 	DEBUG(3, ("msrpc_lockout_policy: fetch lockout policy for %s\n", domain->name));
 
@@ -958,16 +978,23 @@ static NTSTATUS msrpc_lockout_policy(struct winbindd_domain *domain,
 		return NT_STATUS_NOT_SUPPORTED;
 	}
 
-	result = cm_connect_sam(domain, mem_ctx, &cli, &dom_pol);
-	if (!NT_STATUS_IS_OK(result)) {
+	status = cm_connect_sam(domain, mem_ctx, &cli, &dom_pol);
+	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
 
-	result = rpccli_samr_QueryDomainInfo(cli, mem_ctx,
+	b = cli->binding_handle;
+
+	status = dcerpc_samr_QueryDomainInfo(b, mem_ctx,
 					     &dom_pol,
-					     12,
-					     &info);
+					     DomainLockoutInformation,
+					     &info,
+					     &result);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
 	if (!NT_STATUS_IS_OK(result)) {
+		status = result;
 		goto done;
 	}
 
@@ -978,7 +1005,7 @@ static NTSTATUS msrpc_lockout_policy(struct winbindd_domain *domain,
 
   done:
 
-	return result;
+	return status;
 }
 
 /* find the password policy for a domain */
@@ -986,10 +1013,11 @@ static NTSTATUS msrpc_password_policy(struct winbindd_domain *domain,
 				      TALLOC_CTX *mem_ctx,
 				      struct samr_DomInfo1 *password_policy)
 {
-	NTSTATUS result;
+	NTSTATUS status, result;
 	struct rpc_pipe_client *cli;
 	struct policy_handle dom_pol;
 	union samr_DomainInfo *info = NULL;
+	struct dcerpc_binding_handle *b;
 
 	DEBUG(3, ("msrpc_password_policy: fetch password policy for %s\n",
 		  domain->name));
@@ -1000,15 +1028,21 @@ static NTSTATUS msrpc_password_policy(struct winbindd_domain *domain,
 		return NT_STATUS_NOT_SUPPORTED;
 	}
 
-	result = cm_connect_sam(domain, mem_ctx, &cli, &dom_pol);
-	if (!NT_STATUS_IS_OK(result)) {
+	status = cm_connect_sam(domain, mem_ctx, &cli, &dom_pol);
+	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
 
-	result = rpccli_samr_QueryDomainInfo(cli, mem_ctx,
+	b = cli->binding_handle;
+
+	status = dcerpc_samr_QueryDomainInfo(b, mem_ctx,
 					     &dom_pol,
-					     1,
-					     &info);
+					     DomainPasswordInformation,
+					     &info,
+					     &result);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
 	if (!NT_STATUS_IS_OK(result)) {
 		goto done;
 	}
@@ -1020,7 +1054,7 @@ static NTSTATUS msrpc_password_policy(struct winbindd_domain *domain,
 
   done:
 
-	return result;
+	return status;
 }
 
 typedef NTSTATUS (*lookup_sids_fn_t)(struct rpc_pipe_client *cli,
@@ -1079,6 +1113,18 @@ NTSTATUS winbindd_lookup_sids(TALLOC_CTX *mem_ctx,
 
 	/* And restore our original timeout. */
 	rpccli_set_timeout(cli, orig_timeout);
+
+	if (NT_STATUS_V(status) == DCERPC_FAULT_ACCESS_DENIED ||
+	    NT_STATUS_V(status) == DCERPC_FAULT_SEC_PKG_ERROR) {
+		/*
+		 * This can happen if the schannel key is not
+		 * valid anymore, we need to invalidate the
+		 * all connections to the dc and reestablish
+		 * a netlogon connection first.
+		 */
+		invalidate_cm_connection(&domain->conn);
+		status = NT_STATUS_ACCESS_DENIED;
+	}
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
@@ -1146,6 +1192,18 @@ NTSTATUS winbindd_lookup_names(TALLOC_CTX *mem_ctx,
 
 	/* And restore our original timeout. */
 	rpccli_set_timeout(cli, orig_timeout);
+
+	if (NT_STATUS_V(status) == DCERPC_FAULT_ACCESS_DENIED ||
+	    NT_STATUS_V(status) == DCERPC_FAULT_SEC_PKG_ERROR) {
+		/*
+		 * This can happen if the schannel key is not
+		 * valid anymore, we need to invalidate the
+		 * all connections to the dc and reestablish
+		 * a netlogon connection first.
+		 */
+		invalidate_cm_connection(&domain->conn);
+		status = NT_STATUS_ACCESS_DENIED;
+	}
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;

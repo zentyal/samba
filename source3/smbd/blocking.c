@@ -18,8 +18,9 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
-#include "librpc/gen_ndr/messaging.h"
+#include "messages.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_LOCKING
@@ -312,7 +313,7 @@ static void generic_blocking_lock_error(struct blocking_lock_record *blr, NTSTAT
 	}
 
 	reply_nterror(blr->req, status);
-	if (!srv_send_smb(smbd_server_fd(), (char *)blr->req->outbuf,
+	if (!srv_send_smb(blr->req->sconn, (char *)blr->req->outbuf,
 			  true, blr->req->seqnum+1,
 			  blr->req->encrypted, NULL)) {
 		exit_server_cleanly("generic_blocking_lock_error: srv_send_smb failed.");
@@ -395,7 +396,7 @@ static void blocking_lock_reply_error(struct blocking_lock_record *blr, NTSTATUS
 		 */
 		SCVAL(blr->req->outbuf,smb_com,SMBtrans2);
 
-		if (!srv_send_smb(smbd_server_fd(),
+		if (!srv_send_smb(blr->req->sconn,
 				  (char *)blr->req->outbuf,
 				  true, blr->req->seqnum+1,
 				  IS_CONN_ENCRYPTED(blr->fsp->conn),
@@ -702,8 +703,16 @@ static void received_unlock_msg(struct messaging_context *msg,
 				struct server_id server_id,
 				DATA_BLOB *data)
 {
+	struct smbd_server_connection *sconn;
+
+	sconn = msg_ctx_to_sconn(msg);
+	if (sconn == NULL) {
+		DEBUG(1, ("could not find sconn\n"));
+		return;
+	}
+
 	DEBUG(10,("received_unlock_msg\n"));
-	process_blocking_lock_queue(smbd_server_conn);
+	process_blocking_lock_queue(sconn);
 }
 
 /****************************************************************************
@@ -820,7 +829,7 @@ static void process_blocking_lock_cancel_message(struct messaging_context *ctx,
 						 struct server_id server_id,
 						 DATA_BLOB *data)
 {
-	struct smbd_server_connection *sconn = smbd_server_conn;
+	struct smbd_server_connection *sconn;
 	NTSTATUS err;
 	const char *msg = (const char *)data->data;
 	struct blocking_lock_record *blr;
@@ -834,6 +843,12 @@ static void process_blocking_lock_cancel_message(struct messaging_context *ctx,
 			  "Got invalid msg len %d\n", (int)data->length));
 		smb_panic("process_blocking_lock_cancel_message: bad msg");
         }
+
+	sconn = msg_ctx_to_sconn(ctx);
+	if (sconn == NULL) {
+		DEBUG(1, ("could not find sconn\n"));
+		return;
+	}
 
 	memcpy(&blr, msg, sizeof(blr));
 	memcpy(&err, &msg[sizeof(blr)], sizeof(NTSTATUS));

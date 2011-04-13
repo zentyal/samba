@@ -456,7 +456,8 @@ _PUBLIC_ enum ndr_err_code ndr_pull_string_array(struct ndr_pull *ndr, int ndr_f
 	case LIBNDR_FLAG_STR_NULLTERM:
 		/* 
 		 * here the strings are null terminated
-		 * but also the array is null terminated
+		 * but also the array is null terminated if LIBNDR_FLAG_REMAINING
+		 * is specified
 		 */
 		for (count = 0;; count++) {
 			TALLOC_CTX *tmp_ctx;
@@ -469,6 +470,11 @@ _PUBLIC_ enum ndr_err_code ndr_pull_string_array(struct ndr_pull *ndr, int ndr_f
 			tmp_ctx = ndr->current_mem_ctx;
 			ndr->current_mem_ctx = a;
 			NDR_CHECK(ndr_pull_string(ndr, ndr_flags, &s));
+			if ((ndr->data_size - ndr->offset) == 0 && ndr->flags & LIBNDR_FLAG_REMAINING)
+			{
+				a[count] = s;
+				break;
+			}
 			ndr->current_mem_ctx = tmp_ctx;
 			if (strcmp("", s)==0) {
 				a[count] = NULL;
@@ -491,11 +497,14 @@ _PUBLIC_ enum ndr_err_code ndr_pull_string_array(struct ndr_pull *ndr, int ndr_f
 		 * but serarated by a null terminator
 		 *
 		 * which means the same as:
-		 * very string is null terminated exept the last
+		 * Every string is null terminated exept the last
 		 * string is terminated by the end of the buffer
 		 *
 		 * as LIBNDR_FLAG_STR_NULLTERM also end at the end
 		 * of the buffer, we can pull each string with this flag
+		 *
+		 * The big difference with the case LIBNDR_FLAG_STR_NOTERM +
+		 * LIBNDR_FLAG_REMAINING is that the last string will not be null terminated
 		 */
 		ndr->flags &= ~(LIBNDR_FLAG_STR_NOTERM|LIBNDR_FLAG_REMAINING);
 		ndr->flags |= LIBNDR_FLAG_STR_NULLTERM;
@@ -545,8 +554,11 @@ _PUBLIC_ enum ndr_err_code ndr_push_string_array(struct ndr_push *ndr, int ndr_f
 		for (count = 0; a && a[count]; count++) {
 			NDR_CHECK(ndr_push_string(ndr, ndr_flags, a[count]));
 		}
-
-		NDR_CHECK(ndr_push_string(ndr, ndr_flags, ""));
+		/* If LIBNDR_FLAG_REMAINING then we do not add a null terminator to the array */
+		if (!(flags & LIBNDR_FLAG_REMAINING))
+		{
+			NDR_CHECK(ndr_push_string(ndr, ndr_flags, ""));
+		}
 		break;
 
 	case LIBNDR_FLAG_STR_NOTERM:
@@ -693,17 +705,20 @@ _PUBLIC_ enum ndr_err_code ndr_push_charset(struct ndr_push *ndr, int ndr_flags,
 	required = byte_mul * length;
 	
 	NDR_PUSH_NEED_BYTES(ndr, required);
-	ret = convert_string(CH_UNIX, chset, 
+
+	if (required) {
+		ret = convert_string(CH_UNIX, chset,
 			     var, strlen(var),
 			     ndr->data+ndr->offset, required, false);
-	if (ret == -1) {
-		return ndr_push_error(ndr, NDR_ERR_CHARCNV, 
-				      "Bad character conversion");
-	}
+		if (ret == -1) {
+			return ndr_push_error(ndr, NDR_ERR_CHARCNV,
+					      "Bad character conversion");
+		}
 
-	/* Make sure the remaining part of the string is filled with zeroes */
-	if (ret < required) {
-		memset(ndr->data+ndr->offset+ret, 0, required-ret);
+		/* Make sure the remaining part of the string is filled with zeroes */
+		if (ret < required) {
+			memset(ndr->data+ndr->offset+ret, 0, required-ret);
+		}
 	}
 
 	ndr->offset += required;
@@ -714,7 +729,19 @@ _PUBLIC_ enum ndr_err_code ndr_push_charset(struct ndr_push *ndr, int ndr_flags,
 /* Return number of elements in a string in the specified charset */
 _PUBLIC_ uint32_t ndr_charset_length(const void *var, charset_t chset)
 {
-	/* FIXME: Treat special chars special here, taking chset into account */
-	/* Also include 0 byte */
+	switch (chset) {
+	/* case CH_UTF16: this has the same value as CH_UTF16LE */
+	case CH_UTF16LE:
+	case CH_UTF16BE:
+	case CH_UTF16MUNGED:
+	case CH_UTF8:
+		return strlen_m_ext_term((const char *)var, CH_UNIX, chset);
+	case CH_DISPLAY:
+	case CH_DOS:
+	case CH_UNIX:
+		return strlen((const char *)var)+1;
+	}
+
+	/* Fallback, this should never happen */
 	return strlen((const char *)var)+1;
 }

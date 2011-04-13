@@ -223,7 +223,7 @@ arg_printusage_i18n (struct getargs *args,
 		     const char *usage,
 		     const char *progname,
 		     const char *extra_string,
-		     char *(i18n)(const char *))
+		     char *(*i18n)(const char *))
 {
     size_t i, max_len = 0;
     char buf[128];
@@ -435,11 +435,7 @@ arg_match_long(struct getargs *args, size_t num_args,
 	    *flag = !negate;
 	    return 0;
 	} else if (*goptarg && strcmp(goptarg + 1, "maybe") == 0) {
-#ifdef HAVE_RANDOM
-	    *flag = random() & 1;
-#else
-	    *flag = rand() & 1;
-#endif
+	    *flag = rk_random() & 1;
 	} else {
 	    *flag = negate;
 	    return 0;
@@ -475,9 +471,6 @@ arg_match_long(struct getargs *args, size_t num_args,
 	abort ();
 	UNREACHABLE(return 0);
     }
-
-    /* not reached */
-    return ARG_ERR_NO_MATCH;
 }
 
 static int
@@ -557,13 +550,7 @@ getarg(struct getargs *args, size_t num_args,
     int i;
     int ret = 0;
 
-#if defined(HAVE_SRANDOMDEV)
-    srandomdev();
-#elif defined(HAVE_RANDOM)
-    srandom(time(NULL));
-#else
-    srand ((int) time(NULL));
-#endif
+    rk_random_init();
     (*goptind)++;
     for(i = *goptind; i < argc; i++) {
 	if(argv[i][0] != '-')

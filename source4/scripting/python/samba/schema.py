@@ -10,12 +10,12 @@
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 3 of the License, or
 # (at your option) any later version.
-#   
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-#   
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
@@ -33,43 +33,53 @@ from ldb import SCOPE_SUBTREE, SCOPE_ONELEVEL
 import os
 
 def get_schema_descriptor(domain_sid):
-    sddl = "O:SAG:SAD:AI(OA;;CR;89e95b76-444d-4c62-991a-0facbeda640c" \
-           ";;ER)(OA;;CR;1131f6aa-9c07-11d1-f79f-00c04fc2dcd2;;ER)(OA;;CR;1131f6ad-9c07-1" \
-           "1d1-f79f-00c04fc2dcd2;;ER)(OA;;CR;e12b56b6-0a95-11d1-adbb-00c04fd8d5cd;;SA)(O" \
-           "A;;CR;89e95b76-444d-4c62-991a-0facbeda640c;;BA)(OA;;CR;1131f6aa-9c07-11d1-f79" \
-           "f-00c04fc2dcd2;;BA)(OA;;CR;1131f6ab-9c07-11d1-f79f-00c04fc2dcd2;;BA)(OA;;CR;1" \
-           "131f6ac-9c07-11d1-f79f-00c04fc2dcd2;;BA)(OA;;CR;1131f6ad-9c07-11d1-f79f-00c04" \
-           "fc2dcd2;;BA)(OA;;CR;89e95b76-444d-4c62-991a-0facbeda640c;;ED)(OA;;CR;1131f6aa" \
-           "-9c07-11d1-f79f-00c04fc2dcd2;;ED)(OA;;CR;1131f6ab-9c07-11d1-f79f-00c04fc2dcd2" \
-           ";;ED)(OA;;CR;1131f6ac-9c07-11d1-f79f-00c04fc2dcd2;;ED)(OA;;CR;1131f6ad-9c07-1" \
-           "1d1-f79f-00c04fc2dcd2;;ED)(A;;RPWPCCDCLCLORCWOWDSDDTSW;;;LA)(A;CI;RPWPCRCCLCL" \
-           "ORCWOWDSW;;;SA)(A;CI;RPLCLORC;;;AU)(A;CI;RPWPCRCCDCLCLORCWOWDSDDTSW;;;SY)S:(O" \
-           "U;SA;CR;45ec5156-db7e-47bb-b53f-dbeb2d03c40f;;WD)(OU;SA;CR;e12b56b6-0a95-11d1" \
-           "-adbb-00c04fd8d5cd;;WD)(AU;SA;CR;;;DU)(AU;SA;CR;;;BA)(AU;SA;WPCCDCWOWDSDDTSW;" \
-           ";;WD)(AU;CISA;WP;;;WD)"
+    sddl = "O:SAG:SAD:AI(OA;;CR;e12b56b6-0a95-11d1-adbb-00c04fd8d5cd;;SA)" \
+           "(OA;;CR;1131f6aa-9c07-11d1-f79f-00c04fc2dcd2;;ED)" \
+           "(OA;;CR;1131f6ab-9c07-11d1-f79f-00c04fc2dcd2;;ED)" \
+           "(OA;;CR;1131f6ac-9c07-11d1-f79f-00c04fc2dcd2;;ED)" \
+           "(OA;;CR;1131f6aa-9c07-11d1-f79f-00c04fc2dcd2;;BA)" \
+           "(OA;;CR;1131f6ab-9c07-11d1-f79f-00c04fc2dcd2;;BA)" \
+           "(OA;;CR;1131f6ac-9c07-11d1-f79f-00c04fc2dcd2;;BA)" \
+           "(A;CI;RPLCLORC;;;AU)" \
+           "(A;CI;RPWPCRCCLCLORCWOWDSW;;;SA)" \
+           "(A;CI;RPWPCRCCDCLCLORCWOWDSDDTSW;;;SY)" \
+           "(OA;;CR;1131f6ad-9c07-11d1-f79f-00c04fc2dcd2;;ED)" \
+           "(OA;;CR;89e95b76-444d-4c62-991a-0facbeda640c;;ED)" \
+           "(OA;;CR;1131f6ad-9c07-11d1-f79f-00c04fc2dcd2;;BA)" \
+           "(OA;;CR;89e95b76-444d-4c62-991a-0facbeda640c;;BA)" \
+           "(OA;;CR;1131f6aa-9c07-11d1-f79f-00c04fc2dcd2;;ER)" \
+           "(OA;;CR;1131f6ad-9c07-11d1-f79f-00c04fc2dcd2;;ER)" \
+           "(OA;;CR;89e95b76-444d-4c62-991a-0facbeda640c;;ER)" \
+           "S:(AU;SA;WPCCDCWOWDSDDTSW;;;WD)" \
+           "(AU;CISA;WP;;;WD)" \
+           "(AU;SA;CR;;;BA)" \
+           "(AU;SA;CR;;;DU)" \
+           "(OU;SA;CR;e12b56b6-0a95-11d1-adbb-00c04fd8d5cd;;WD)" \
+           "(OU;SA;CR;45ec5156-db7e-47bb-b53f-dbeb2d03c40f;;WD)"
     sec = security.descriptor.from_sddl(sddl, domain_sid)
     return ndr_pack(sec)
 
-   
+
 class Schema(object):
 
-    def __init__(self, setup_path, domain_sid, invocationid=None, schemadn=None,
-                 serverdn=None, files=None, override_prefixmap=None, additional_prefixmap=None):
-        """Load schema for the SamDB from the AD schema files and samba4_schema.ldif
-        
+    def __init__(self, domain_sid, invocationid=None, schemadn=None,
+                 files=None, override_prefixmap=None, additional_prefixmap=None):
+        from samba.provision import setup_path
+
+        """Load schema for the SamDB from the AD schema files and
+        samba4_schema.ldif
+
         :param samdb: Load a schema into a SamDB.
-        :param setup_path: Setup path function.
         :param schemadn: DN of the schema
-        :param serverdn: DN of the server
-        
-        Returns the schema data loaded, to avoid double-parsing when then needing to add it to the db
+
+        Returns the schema data loaded, to avoid double-parsing when then
+        needing to add it to the db
         """
 
         self.schemadn = schemadn
-        # We need to have the am_rodc=False just to keep some warnings quiet - this isn't a real SAM, so it's meaningless.
+        # We need to have the am_rodc=False just to keep some warnings quiet -
+        # this isn't a real SAM, so it's meaningless.
         self.ldb = SamDB(global_schema=False, am_rodc=False)
-        if serverdn is not None:
-            self.ldb.set_ntds_settings_dn("CN=NTDS Settings,%s" % serverdn)
         if invocationid is not None:
             self.ldb.set_invocation_id(invocationid)
 
@@ -87,7 +97,7 @@ class Schema(object):
 
         self.schema_dn_modify = read_and_sub_file(
             setup_path("provision_schema_basedn_modify.ldif"),
-            {"SCHEMADN": schemadn, "SERVERDN": serverdn})
+            {"SCHEMADN": schemadn})
 
         descr = b64encode(get_schema_descriptor(domain_sid))
         self.schema_dn_add = read_and_sub_file(
@@ -127,13 +137,14 @@ dn: @INDEXLIST
             self.ldb.add_ldif(self.schema_dn_add)
             self.ldb.modify_ldif(self.schema_dn_modify)
             self.ldb.add_ldif(self.schema_data)
-        except:
+        except Exception:
             self.ldb.transaction_cancel()
             raise
         else:
             self.ldb.transaction_commit()
 
-    # Return a hash with the forward attribute as a key and the back as the value 
+    # Return a hash with the forward attribute as a key and the back as the
+    # value
     def linked_attributes(self):
         return get_linked_attributes(self.schemadn, self.ldb)
 
@@ -157,7 +168,7 @@ def get_linked_attributes(schemadn,schemaldb):
                                      scope=SCOPE_SUBTREE)
         if target is not None:
             attributes[str(res[i]["lDAPDisplayName"])]=str(target)
-            
+
     return attributes
 
 
@@ -172,27 +183,22 @@ def get_dnsyntax_attributes(schemadn,schemaldb):
     return attributes
 
 
-def ldb_with_schema(setup_dir=None,
-        schemadn="cn=schema,cn=configuration,dc=example,dc=com", 
-        serverdn="cn=server,cn=servers,cn=default-first-site-name,cn=sites,cn=cn=configuration,dc=example,dc=com",
-        domainsid=None,
-        override_prefixmap=None):
+def ldb_with_schema(schemadn="cn=schema,cn=configuration,dc=example,dc=com",
+                    domainsid=None,
+                    override_prefixmap=None):
     """Load schema for the SamDB from the AD schema files and samba4_schema.ldif
-    
-    :param setup_dir: Setup path
+
     :param schemadn: DN of the schema
     :param serverdn: DN of the server
-    
+
     Returns the schema data loaded as an object, with .ldb being a
     new ldb with the schema loaded.  This allows certain tests to
     operate without a remote or local schema.
     """
-    
-    def setup_path(file):
-        return os.path.join(setup_dir, file)
 
     if domainsid is None:
         domainsid = security.random_sid()
     else:
         domainsid = security.dom_sid(domainsid)
-    return Schema(setup_path, domainsid, schemadn=schemadn, serverdn=serverdn, override_prefixmap=override_prefixmap)
+    return Schema(domainsid, schemadn=schemadn,
+        override_prefixmap=override_prefixmap)

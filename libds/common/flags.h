@@ -48,9 +48,10 @@
 #define UF_USE_DES_KEY_ONLY			0x00200000
 #define UF_DONT_REQUIRE_PREAUTH			0x00400000
 #define UF_PASSWORD_EXPIRED			0x00800000
-
 #define UF_TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION 0x01000000
 #define UF_NO_AUTH_DATA_REQUIRED		0x02000000
+#define UF_PARTIAL_SECRETS_ACCOUNT		0x04000000
+#define UF_USE_AES_KEYS                         0x08000000
 
 #define UF_MACHINE_ACCOUNT_MASK (\
 		UF_INTERDOMAIN_TRUST_ACCOUNT |\
@@ -172,7 +173,7 @@
 
 /* "domainFunctionality", "forestFunctionality" and "domainControllerFunctionality" in the rootDSE */
 #define DS_DOMAIN_FUNCTION_2000		0
-#define DS_DOMAIN_FUNCTION_2003_MIXED	1 /* Not a valid/meaningfulxs
+#define DS_DOMAIN_FUNCTION_2003_MIXED	1 /* Not a valid/meaningful
 					   * domainControllerFunctionality
 					   * Level */
 #define DS_DOMAIN_FUNCTION_2003		2
@@ -206,3 +207,36 @@
 
 /* wellknown GUIDs for optional directory features */
 #define DS_GUID_FEATURE_RECYCLE_BIN		      "766ddcd8-acd0-445e-f3b9-a7f9b6744f2a"
+
+/* dsHeuristics character indexes see MS-ADTS 7.1.1.2.4.1.2 */
+
+#define DS_HR_SUPFIRSTLASTANR                     0x00000001
+#define DS_HR_SUPLASTFIRSTANR                     0x00000002
+#define DS_HR_DOLISTOBJECT                        0x00000003
+#define DS_HR_DONICKRES                           0x00000004
+#define DS_HR_LDAP_USEPERMMOD                     0x00000005
+#define DS_HR_HIDEDSID                            0x00000006
+#define DS_HR_BLOCK_ANONYMOUS_OPS                 0x00000007
+#define DS_HR_ALLOW_ANON_NSPI                     0x00000008
+#define DS_HR_USER_PASSWORD_SUPPORT               0x00000009
+#define DS_HR_TENTH_CHAR                          0x0000000A
+#define DS_HR_SPECIFY_GUID_ON_ADD                 0x0000000B
+#define DS_HR_NO_STANDARD_SD                      0x0000000C
+#define DS_HR_ALLOW_NONSECURE_PWD_OPS             0x0000000D
+#define DS_HR_NO_PROPAGATE_ON_NOCHANGE            0x0000000E
+#define DS_HR_COMPUTE_ANR_STATS                   0x0000000F
+#define DS_HR_ADMINSDEXMASK                       0x00000010
+#define DS_HR_KVNOEMUW2K                          0x00000011
+#define DS_HR_LDAP_BYPASS_UPPER_LIMIT_BOUNDS      0x00000012
+
+/* mS-DS-ReplicatesNCReason */
+#define NTDSCONN_KCC_GC_TOPOLOGY		     0x00000001
+#define NTDSCONN_KCC_RING_TOPOLOGY		     0x00000002
+#define NTDSCONN_KCC_MINIMIZE_HOPS_TOPOLOGY          0x00000004
+#define NTDSCONN_KCC_STALE_SERVERS_TOPOLOGY          0x00000008
+#define NTDSCONN_KCC_OSCILLATING_CONNECTION_TOPOLOGY 0x00000010
+#define NTDSCONN_KCC_INTERSITE_GC_TOPOLOGY	     0x00000020
+#define NTDSCONN_KCC_INTERSITE_TOPOLOGY              0x00000040
+#define NTDSCONN_KCC_SERVER_FAILOVER_TOPOLOGY        0x00000080
+#define NTDSCONN_KCC_SITE_FAILOVER_TOPOLOGY          0x00000100
+#define NTDSCONN_KCC_REDUNDANT_SERVER_TOPOLOGY       0x00000200

@@ -18,15 +18,29 @@
 */
 
 #include "includes.h"
+#include "auth.h"
+#include "librpc/gen_ndr/samr.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
+
+static int clear_samr_Password(struct samr_Password *password)
+{
+	memset(password->hash, '\0', sizeof(password->hash));
+	return 0;
+}
+
+static int clear_string(char *password)
+{
+	memset(password, '\0', strlen(password));
+	return 0;
+}
 
 /****************************************************************************
  Create an auth_usersupplied_data structure
 ****************************************************************************/
 
-NTSTATUS make_user_info(struct auth_usersupplied_info **user_info,
+NTSTATUS make_user_info(struct auth_usersupplied_info **ret_user_info,
 			const char *smb_name,
 			const char *internal_username,
 			const char *client_domain,
@@ -34,74 +48,80 @@ NTSTATUS make_user_info(struct auth_usersupplied_info **user_info,
 			const char *workstation_name,
 			const DATA_BLOB *lm_pwd,
 			const DATA_BLOB *nt_pwd,
-			const DATA_BLOB *lm_interactive_pwd,
-			const DATA_BLOB *nt_interactive_pwd,
-			const DATA_BLOB *plaintext,
-			bool encrypted)
+			const struct samr_Password *lm_interactive_pwd,
+			const struct samr_Password *nt_interactive_pwd,
+			const char *plaintext_password,
+			enum auth_password_state password_state)
 {
+	struct auth_usersupplied_info *user_info;
+	*ret_user_info = NULL;
 
 	DEBUG(5,("attempting to make a user_info for %s (%s)\n", internal_username, smb_name));
 
-	*user_info = SMB_MALLOC_P(struct auth_usersupplied_info);
-	if (*user_info == NULL) {
-		DEBUG(0,("malloc failed for user_info (size %lu)\n", (unsigned long)sizeof(*user_info)));
+	/* FIXME: Have the caller provide a talloc context of the
+	 * correct lifetime (possibly talloc_tos(), but it depends on
+	 * the caller) */
+	user_info = talloc_zero(NULL, struct auth_usersupplied_info);
+	if (user_info == NULL) {
+		DEBUG(0,("talloc failed for user_info\n"));
 		return NT_STATUS_NO_MEMORY;
 	}
-
-	ZERO_STRUCTP(*user_info);
 
 	DEBUG(5,("making strings for %s's user_info struct\n", internal_username));
 
-	(*user_info)->client.account_name = SMB_STRDUP(smb_name);
-	if ((*user_info)->client.account_name == NULL) {
-		free_user_info(user_info);
-		return NT_STATUS_NO_MEMORY;
-	}
+	user_info->client.account_name = talloc_strdup(user_info, smb_name);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(user_info->client.account_name, user_info);
 
-	(*user_info)->mapped.account_name = SMB_STRDUP(internal_username);
-	if ((*user_info)->mapped.account_name == NULL) {
-		free_user_info(user_info);
-		return NT_STATUS_NO_MEMORY;
-	}
+	user_info->mapped.account_name = talloc_strdup(user_info, internal_username);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(user_info->mapped.account_name, user_info);
 
-	(*user_info)->mapped.domain_name = SMB_STRDUP(domain);
-	if ((*user_info)->mapped.domain_name == NULL) {
-		free_user_info(user_info);
-		return NT_STATUS_NO_MEMORY;
-	}
+	user_info->mapped.domain_name = talloc_strdup(user_info, domain);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(user_info->mapped.domain_name, user_info);
 
-	(*user_info)->client.domain_name = SMB_STRDUP(client_domain);
-	if ((*user_info)->client.domain_name == NULL) {
-		free_user_info(user_info);
-		return NT_STATUS_NO_MEMORY;
-	}
+	user_info->client.domain_name = talloc_strdup(user_info, client_domain);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(user_info->client.domain_name, user_info);
 
-	(*user_info)->workstation_name = SMB_STRDUP(workstation_name);
-	if ((*user_info)->workstation_name == NULL) {
-		free_user_info(user_info);
-		return NT_STATUS_NO_MEMORY;
-	}
+	user_info->workstation_name = talloc_strdup(user_info, workstation_name);
+	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(user_info->workstation_name, user_info);
 
 	DEBUG(5,("making blobs for %s's user_info struct\n", internal_username));
 
-	if (lm_pwd)
-		(*user_info)->lm_resp = data_blob(lm_pwd->data, lm_pwd->length);
-	if (nt_pwd)
-		(*user_info)->nt_resp = data_blob(nt_pwd->data, nt_pwd->length);
-	if (lm_interactive_pwd)
-		(*user_info)->lm_interactive_pwd = data_blob(lm_interactive_pwd->data, lm_interactive_pwd->length);
-	if (nt_interactive_pwd)
-		(*user_info)->nt_interactive_pwd = data_blob(nt_interactive_pwd->data, nt_interactive_pwd->length);
+	if (lm_pwd && lm_pwd->data) {
+		user_info->password.response.lanman = data_blob_talloc(user_info, lm_pwd->data, lm_pwd->length);
+		NT_STATUS_HAVE_NO_MEMORY_AND_FREE(user_info->password.response.lanman.data, user_info);
+	}
+	if (nt_pwd && nt_pwd->data) {
+		user_info->password.response.nt = data_blob_talloc(user_info, nt_pwd->data, nt_pwd->length);
+		NT_STATUS_HAVE_NO_MEMORY_AND_FREE(user_info->password.response.nt.data, user_info);
+	}
+	if (lm_interactive_pwd) {
+		user_info->password.hash.lanman = talloc(user_info, struct samr_Password);
+		NT_STATUS_HAVE_NO_MEMORY_AND_FREE(user_info->password.hash.lanman, user_info);
+		memcpy(user_info->password.hash.lanman->hash, lm_interactive_pwd->hash,
+		       sizeof(user_info->password.hash.lanman->hash));
+		talloc_set_destructor(user_info->password.hash.lanman, clear_samr_Password);
+	}
 
-	if (plaintext)
-		(*user_info)->plaintext_password = data_blob(plaintext->data, plaintext->length);
+	if (nt_interactive_pwd) {
+		user_info->password.hash.nt = talloc(user_info, struct samr_Password);
+		NT_STATUS_HAVE_NO_MEMORY_AND_FREE(user_info->password.hash.nt, user_info);
+		memcpy(user_info->password.hash.nt->hash, nt_interactive_pwd->hash,
+		       sizeof(user_info->password.hash.nt->hash));
+		talloc_set_destructor(user_info->password.hash.nt, clear_samr_Password);
+	}
 
-	(*user_info)->encrypted = encrypted;
+	if (plaintext_password) {
+		user_info->password.plaintext = talloc_strdup(user_info, plaintext_password);
+		NT_STATUS_HAVE_NO_MEMORY_AND_FREE(user_info->password.plaintext, user_info);
+		talloc_set_destructor(user_info->password.plaintext, clear_string);
+	}
 
-	(*user_info)->logon_parameters = 0;
+	user_info->password_state = password_state;
 
-	DEBUG(10,("made an %sencrypted user_info for %s (%s)\n", encrypted ? "":"un" , internal_username, smb_name));
+	user_info->logon_parameters = 0;
 
+	DEBUG(10,("made a user_info for %s (%s)\n", internal_username, smb_name));
+	*ret_user_info = user_info;
 	return NT_STATUS_OK;
 }
 
@@ -111,23 +131,5 @@ NTSTATUS make_user_info(struct auth_usersupplied_info **user_info,
 
 void free_user_info(struct auth_usersupplied_info **user_info)
 {
-	DEBUG(5,("attempting to free (and zero) a user_info structure\n"));
-	if (*user_info != NULL) {
-		if ((*user_info)->client.account_name) {
-			DEBUG(10,("structure was created for %s\n",
-				  (*user_info)->client.account_name));
-		}
-		SAFE_FREE((*user_info)->client.account_name);
-		SAFE_FREE((*user_info)->mapped.account_name);
-		SAFE_FREE((*user_info)->client.domain_name);
-		SAFE_FREE((*user_info)->mapped.domain_name);
-		SAFE_FREE((*user_info)->workstation_name);
-		data_blob_free(&(*user_info)->lm_resp);
-		data_blob_free(&(*user_info)->nt_resp);
-		data_blob_clear_free(&(*user_info)->lm_interactive_pwd);
-		data_blob_clear_free(&(*user_info)->nt_interactive_pwd);
-		data_blob_clear_free(&(*user_info)->plaintext_password);
-		ZERO_STRUCT(**user_info);
-	}
-	SAFE_FREE(*user_info);
+	TALLOC_FREE(*user_info);
 }

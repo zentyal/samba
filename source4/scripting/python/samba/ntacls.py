@@ -18,6 +18,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+"""NT Acls."""
+
+
 import os
 import samba.xattr_native, samba.xattr_tdb
 from samba.dcerpc import security, xattr
@@ -28,26 +31,27 @@ class XattrBackendError(Exception):
 
 
 def checkset_backend(lp, backend, eadbfile):
-    if backend is not None:
-        if backend == "native":
-            lp.set("posix:eadb", "")
-        elif backend == "tdb":
-            if eadbfile is not None:
-                lp.set("posix:eadb", eadbfile)
-            else:
-                os.path.abspath(os.path.join(lp.get("private dir"), "eadb.tdb"))
+    '''return the path to the eadb, or None'''
+    if backend is None:
+        return lp.get("posix:eadb")
+    elif backend == "native":
+        return None
+    elif backend == "tdb":
+        if eadbfile is not None:
+            return eadbfile
         else:
-            raise XattrBackendError("Invalid xattr backend choice %s"%backend)
+            return os.path.abspath(os.path.join(lp.get("private dir"), "eadb.tdb"))
+    else:
+        raise XattrBackendError("Invalid xattr backend choice %s"%backend)
 
 
 def getntacl(lp, file, backend=None, eadbfile=None):
-    checkset_backend(lp, backend, eadbfile)
-    eadbname = lp.get("posix:eadb")
-    if eadbname is not None and eadbname != "":
+    eadbname = checkset_backend(lp, backend, eadbfile)
+    if eadbname is not None:
         try:
             attribute = samba.xattr_tdb.wrap_getxattr(eadbname, file, 
                 xattr.XATTR_NTACL_NAME)
-        except:
+        except Exception:
             # FIXME: Don't catch all exceptions, just those related to opening 
             # xattrdb
             print "Fail to open %s" % eadbname
@@ -61,18 +65,17 @@ def getntacl(lp, file, backend=None, eadbfile=None):
 
 
 def setntacl(lp, file, sddl, domsid, backend=None, eadbfile=None):
-    checkset_backend(lp, backend, eadbfile)
+    eadbname = checkset_backend(lp, backend, eadbfile)
     ntacl = xattr.NTACL()
     ntacl.version = 1
     sid = security.dom_sid(domsid)
     sd = security.descriptor.from_sddl(sddl, sid)
     ntacl.info = sd
-    eadbname = lp.get("posix:eadb")
-    if eadbname is not None and eadbname != "":
+    if eadbname is not None:
         try:
             samba.xattr_tdb.wrap_setxattr(eadbname,
                 file, xattr.XATTR_NTACL_NAME, ndr_pack(ntacl))
-        except:
+        except Exception:
             # FIXME: Don't catch all exceptions, just those related to opening 
             # xattrdb
             print "Fail to open %s" % eadbname

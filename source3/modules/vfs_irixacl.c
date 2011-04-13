@@ -18,6 +18,8 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "smbd/smbd.h"
 
 /* prototypes for private functions first - for clarity */
 

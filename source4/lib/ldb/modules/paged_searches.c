@@ -33,7 +33,9 @@
  *  Author: Simo Sorce
  */
 
-#include "includes.h"
+#include "replace.h"
+#include "system/filesys.h"
+#include "system/time.h"
 #include "ldb_module.h"
 
 #define PS_DEFAULT_PAGE_SIZE 500
@@ -270,6 +272,7 @@ static int ps_search(struct ldb_module *module, struct ldb_request *req)
 					ac,
 					ps_callback,
 					ac->req);
+	LDB_REQ_SET_LOCATION(ac->down_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -351,6 +354,7 @@ static int ps_init(struct ldb_module *module)
 				   attrs, NULL,
 				   data, check_supported_paged,
 				   NULL);
+	LDB_REQ_SET_LOCATION(req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -369,8 +373,14 @@ static int ps_init(struct ldb_module *module)
 	return ldb_next_init(module);
 }
 
-_PUBLIC_ const struct ldb_module_ops ldb_paged_searches_module_ops = {
+static const struct ldb_module_ops ldb_paged_searches_module_ops = {
 	.name           = "paged_searches",
 	.search         = ps_search,
 	.init_context 	= ps_init
 };
+
+int ldb_paged_searches_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_paged_searches_module_ops);
+}

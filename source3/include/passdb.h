@@ -23,6 +23,10 @@
 #ifndef _PASSDB_H
 #define _PASSDB_H
 
+#include "../librpc/gen_ndr/lsa.h"
+
+#include "mapping.h"
+
 /**********************************************************************
  * Masks for mappings between unix uid and gid types and
  * NT RIDS.
@@ -35,6 +39,35 @@
 /* The two common types. */
 #define USER_RID_TYPE 		0
 #define GROUP_RID_TYPE 		1
+
+/*
+ * Flags for local user manipulation.
+ */
+
+#define LOCAL_ADD_USER 0x1
+#define LOCAL_DELETE_USER 0x2
+#define LOCAL_DISABLE_USER 0x4
+#define LOCAL_ENABLE_USER 0x8
+#define LOCAL_TRUST_ACCOUNT 0x10
+#define LOCAL_SET_NO_PASSWORD 0x20
+#define LOCAL_SET_PASSWORD 0x40
+#define LOCAL_SET_LDAP_ADMIN_PW 0x80
+#define LOCAL_INTERDOM_ACCOUNT 0x100
+#define LOCAL_AM_ROOT 0x200  /* Act as root */
+
+/*
+ * Size of new password account encoding string.  This is enough space to
+ * hold 11 ACB characters, plus the surrounding [] and a terminating null.
+ * Do not change unless you are adding new ACB bits!
+ */
+
+#define NEW_PW_FORMAT_SPACE_PADDED_LEN 14
+
+/* Password history contants. */
+#define PW_HISTORY_SALT_LEN 16
+#define SALTED_MD5_HASH_LEN 16
+#define PW_HISTORY_ENTRY_LEN (PW_HISTORY_SALT_LEN+SALTED_MD5_HASH_LEN)
+#define MAX_PW_HISTORY_LEN 24
 
 /*
  * bit flags representing initialized fields in struct samu
@@ -70,6 +103,8 @@ enum pdb_elements {
 	PDB_FIELDS_PRESENT,
 	PDB_BAD_PASSWORD_COUNT,
 	PDB_LOGON_COUNT,
+	PDB_COUNTRY_CODE,
+	PDB_CODE_PAGE,
 	PDB_UNKNOWN6,
 	PDB_LMPASSWD,
 	PDB_NTPASSWD,
@@ -117,6 +152,8 @@ struct login_cache {
 #define SAMU_BUFFER_V4		4
 #define SAMU_BUFFER_LATEST	SAMU_BUFFER_V4
 
+#define MAX_HOURS_LEN 32
+
 struct samu {
 	struct pdb_methods *methods;
 
@@ -163,6 +200,9 @@ struct samu {
 	/* Was unknown_5. */
 	uint16_t bad_password_count;
 	uint16_t logon_count;
+
+	uint16_t country_code;
+	uint16_t code_page;
 
 	uint32_t unknown_6; /* 0x0000 04ec */
 
@@ -218,6 +258,27 @@ struct pdb_domain_info {
 	struct GUID guid;
 };
 
+struct pdb_trusted_domain {
+	char *domain_name;
+	char *netbios_name;
+	struct dom_sid security_identifier;
+	DATA_BLOB trust_auth_incoming;
+	DATA_BLOB trust_auth_outgoing;
+	uint32_t trust_direction;
+	uint32_t trust_type;
+	uint32_t trust_attributes;
+	DATA_BLOB trust_forest_trust_info;
+};
+
+/*
+ * trusted domain entry/entries returned by secrets_get_trusted_domains
+ * (used in _lsa_enum_trust_dom call)
+ */
+struct trustdom_info {
+	char *name;
+	struct dom_sid sid;
+};
+
 /*
  * Types of account policy.
  */
@@ -234,8 +295,9 @@ enum pdb_policy_type {
 	PDB_POLICY_REFUSE_MACHINE_PW_CHANGE = 10
 };
 
-#define PDB_CAP_STORE_RIDS	0x0001
-#define PDB_CAP_ADS		0x0002
+#define PDB_CAP_STORE_RIDS		0x0001
+#define PDB_CAP_ADS			0x0002
+#define PDB_CAP_TRUSTED_DOMAINS_EX	0x0004
 
 /*****************************************************************
  Functions to be implemented by the new (v2) passdb API 
@@ -323,7 +385,7 @@ struct pdb_methods
 					   TALLOC_CTX *mem_ctx,
 					   struct samu *user,
 					   struct dom_sid **pp_sids, gid_t **pp_gids,
-					   size_t *p_num_groups);
+					   uint32_t *p_num_groups);
 
 	NTSTATUS (*set_unix_primary_group)(struct pdb_methods *methods,
 					   TALLOC_CTX *mem_ctx,
@@ -422,6 +484,25 @@ struct pdb_methods
 				     TALLOC_CTX *mem_ctx, uint32_t *num_domains,
 				     struct trustdom_info ***domains);
 
+
+	NTSTATUS (*get_trusted_domain)(struct pdb_methods *methods,
+				       TALLOC_CTX *mem_ctx,
+				       const char *domain,
+				       struct pdb_trusted_domain **td);
+	NTSTATUS (*get_trusted_domain_by_sid)(struct pdb_methods *methods,
+					      TALLOC_CTX *mem_ctx,
+					      struct dom_sid *sid,
+					      struct pdb_trusted_domain **td);
+	NTSTATUS (*set_trusted_domain)(struct pdb_methods *methods,
+				       const char* domain,
+				       const struct pdb_trusted_domain *td);
+	NTSTATUS (*del_trusted_domain)(struct pdb_methods *methods,
+				       const char *domain);
+	NTSTATUS (*enum_trusted_domains)(struct pdb_methods *methods,
+					 TALLOC_CTX *mem_ctx,
+					 uint32_t *num_domains,
+					 struct pdb_trusted_domain ***domains);
+
 	void *private_data;  /* Private data of some kind */
 
 	void (*free_private_data)(void **);
@@ -437,5 +518,9 @@ struct pdb_init_function_entry {
 
 	struct pdb_init_function_entry *prev, *next;
 };
+
+#include "passdb/proto.h"
+#include "passdb/machine_sid.h"
+#include "passdb/lookup_sid.h"
 
 #endif /* _PASSDB_H */

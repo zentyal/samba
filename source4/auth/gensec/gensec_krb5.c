@@ -119,7 +119,6 @@ static NTSTATUS gensec_krb5_start(struct gensec_security *gensec_security, bool 
 	talloc_set_destructor(gensec_krb5_state, gensec_krb5_destroy); 
 
 	if (cli_credentials_get_krb5_context(creds, 
-					     gensec_security->event_ctx, 
 					     gensec_security->settings->lp_ctx, &gensec_krb5_state->smb_krb5_context)) {
 		talloc_free(gensec_krb5_state);
 		return NT_STATUS_INTERNAL_ERROR;
@@ -154,6 +153,7 @@ static NTSTATUS gensec_krb5_start(struct gensec_security *gensec_security, bool 
 				(struct sockaddr *) &ss,
 				sizeof(struct sockaddr_storage));
 		if (socklen < 0) {
+			talloc_free(gensec_krb5_state);
 			return NT_STATUS_INTERNAL_ERROR;
 		}
 		ret = krb5_sockaddr2address(gensec_krb5_state->smb_krb5_context->krb5_context,
@@ -176,6 +176,7 @@ static NTSTATUS gensec_krb5_start(struct gensec_security *gensec_security, bool 
 				(struct sockaddr *) &ss,
 				sizeof(struct sockaddr_storage));
 		if (socklen < 0) {
+			talloc_free(gensec_krb5_state);
 			return NT_STATUS_INTERNAL_ERROR;
 		}
 		ret = krb5_sockaddr2address(gensec_krb5_state->smb_krb5_context->krb5_context,
@@ -240,6 +241,7 @@ static NTSTATUS gensec_krb5_common_client_start(struct gensec_security *gensec_s
 	const char *error_string;
 	const char *principal;
 	krb5_data in_data;
+	struct tevent_context *previous_ev;
 
 	hostname = gensec_get_target_hostname(gensec_security);
 	if (!hostname) {
@@ -285,6 +287,7 @@ static NTSTATUS gensec_krb5_common_client_start(struct gensec_security *gensec_s
 	case 0:
 		break;
 	case KRB5KDC_ERR_PREAUTH_FAILED:
+	case KRB5KDC_ERR_C_PRINCIPAL_UNKNOWN:
 		return NT_STATUS_LOGON_FAILURE;
 	case KRB5_KDC_UNREACH:
 		DEBUG(3, ("Cannot reach a KDC we require to contact %s: %s\n", principal, error_string));
@@ -299,6 +302,12 @@ static NTSTATUS gensec_krb5_common_client_start(struct gensec_security *gensec_s
 	}
 	in_data.length = 0;
 	
+	/* Do this every time, in case we have weird recursive issues here */
+	ret = smb_krb5_context_set_event_ctx(gensec_krb5_state->smb_krb5_context, gensec_security->event_ctx, &previous_ev);
+	if (ret != 0) {
+		DEBUG(1, ("gensec_krb5_start: Setting event context failed\n"));
+		return NT_STATUS_NO_MEMORY;
+	}
 	if (principal) {
 		krb5_principal target_principal;
 		ret = krb5_parse_name(gensec_krb5_state->smb_krb5_context->krb5_context, principal,
@@ -322,6 +331,9 @@ static NTSTATUS gensec_krb5_common_client_start(struct gensec_security *gensec_s
 				  &in_data, ccache_container->ccache, 
 				  &gensec_krb5_state->enc_ticket);
 	}
+
+	smb_krb5_context_remove_event_ctx(gensec_krb5_state->smb_krb5_context, previous_ev, gensec_security->event_ctx);
+
 	switch (ret) {
 	case 0:
 		return NT_STATUS_OK;
@@ -488,7 +500,6 @@ static NTSTATUS gensec_krb5_update(struct gensec_security *gensec_security,
 
 		/* Grab the keytab, however generated */
 		ret = cli_credentials_get_keytab(gensec_get_credentials(gensec_security), 
-					         gensec_security->event_ctx, 
 						 gensec_security->settings->lp_ctx, &keytab);
 		if (ret) {
 			return NT_STATUS_CANT_ACCESS_DOMAIN_INFO;
@@ -592,7 +603,7 @@ static NTSTATUS gensec_krb5_session_info(struct gensec_security *gensec_security
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
 	struct gensec_krb5_state *gensec_krb5_state = (struct gensec_krb5_state *)gensec_security->private_data;
 	krb5_context context = gensec_krb5_state->smb_krb5_context->krb5_context;
-	struct auth_serversupplied_info *server_info = NULL;
+	struct auth_user_info_dc *user_info_dc = NULL;
 	struct auth_session_info *session_info = NULL;
 	struct PAC_LOGON_INFO *logon_info;
 
@@ -624,6 +635,7 @@ static NTSTATUS gensec_krb5_session_info(struct gensec_security *gensec_security
 		DEBUG(1, ("Unable to parse client principal: %s\n",
 			  smb_get_krb5_error_message(context, 
 						     ret, mem_ctx)));
+		krb5_free_principal(context, client_principal);
 		talloc_free(mem_ctx);
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -637,8 +649,9 @@ static NTSTATUS gensec_krb5_session_info(struct gensec_security *gensec_security
 			  principal_string,
 			  smb_get_krb5_error_message(context, 
 						     ret, mem_ctx)));
-		krb5_free_principal(context, client_principal);
 		free(principal_string);
+		krb5_free_principal(context, client_principal);
+		talloc_free(mem_ctx);
 		return NT_STATUS_ACCESS_DENIED;
 	} else if (ret) {
 		/* NO pac */
@@ -650,34 +663,31 @@ static NTSTATUS gensec_krb5_session_info(struct gensec_security *gensec_security
 			DEBUG(1, ("Unable to find PAC for %s, resorting to local user lookup: %s",
 				  principal_string, smb_get_krb5_error_message(context, 
 						     ret, mem_ctx)));
-			nt_status = gensec_security->auth_context->get_server_info_principal(mem_ctx, 
+			nt_status = gensec_security->auth_context->get_user_info_dc_principal(mem_ctx,
 											     gensec_security->auth_context, 
 											     principal_string,
-											     NULL, &server_info);
+											     NULL, &user_info_dc);
 			if (!NT_STATUS_IS_OK(nt_status)) {
+				free(principal_string);
+				krb5_free_principal(context, client_principal);
 				talloc_free(mem_ctx);
 				return nt_status;
 			}
 		} else {
 			DEBUG(1, ("Unable to find PAC in ticket from %s, failing to allow access\n",
 				  principal_string));
-			return NT_STATUS_ACCESS_DENIED;
-		}
-
-		krb5_free_principal(context, client_principal);
-		free(principal_string);
-		
-		if (!NT_STATUS_IS_OK(nt_status)) {
+			free(principal_string);
+			krb5_free_principal(context, client_principal);
 			talloc_free(mem_ctx);
-			return nt_status;
+			return NT_STATUS_ACCESS_DENIED;
 		}
 	} else {
 		/* Found pac */
 		union netr_Validation validation;
-		free(principal_string);
 
 		pac = data_blob_talloc(mem_ctx, pac_data.data, pac_data.length);
 		if (!pac.data) {
+			free(principal_string);
 			krb5_free_principal(context, client_principal);
 			talloc_free(mem_ctx);
 			return NT_STATUS_NO_MEMORY;
@@ -690,26 +700,32 @@ static NTSTATUS gensec_krb5_session_info(struct gensec_security *gensec_security
 						    NULL, gensec_krb5_state->keyblock,
 						    client_principal,
 						    gensec_krb5_state->ticket->ticket.authtime, NULL);
-		krb5_free_principal(context, client_principal);
 
 		if (!NT_STATUS_IS_OK(nt_status)) {
+			free(principal_string);
+			krb5_free_principal(context, client_principal);
 			talloc_free(mem_ctx);
 			return nt_status;
 		}
 
 		validation.sam3 = &logon_info->info3;
-		nt_status = make_server_info_netlogon_validation(mem_ctx, 
+		nt_status = make_user_info_dc_netlogon_validation(mem_ctx,
 								 NULL,
 								 3, &validation,
-								 &server_info); 
+								 &user_info_dc);
 		if (!NT_STATUS_IS_OK(nt_status)) {
+			free(principal_string);
+			krb5_free_principal(context, client_principal);
 			talloc_free(mem_ctx);
 			return nt_status;
 		}
 	}
 
-	/* references the server_info into the session_info */
-	nt_status = gensec_generate_session_info(mem_ctx, gensec_security, server_info, &session_info);
+	free(principal_string);
+	krb5_free_principal(context, client_principal);
+
+	/* references the user_info_dc into the session_info */
+	nt_status = gensec_generate_session_info(mem_ctx, gensec_security, user_info_dc, &session_info);
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		talloc_free(mem_ctx);

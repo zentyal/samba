@@ -167,6 +167,12 @@ static bool ldap_encode_control(void *mem_ctx, struct asn1_data *data,
 	}
 
 	for (i = 0; handlers[i].oid != NULL; i++) {
+		if (!ctrl->oid) {
+			/* not encoding this control, the OID has been
+			 * set to NULL indicating it isn't really
+			 * here */
+			return true;
+		}
 		if (strcmp(handlers[i].oid, ctrl->oid) == 0) {
 			if (!handlers[i].encode) {
 				if (ctrl->critical) {
@@ -434,6 +440,8 @@ _PUBLIC_ bool ldap_encode(struct ldap_message *msg,
 	}
 	case LDAP_TAG_UnbindRequest: {
 /*		struct ldap_UnbindRequest *r = &msg->r.UnbindRequest; */
+		asn1_push_tag(data, ASN1_APPLICATION_SIMPLE(msg->type));
+		asn1_pop_tag(data);
 		break;
 	}
 	case LDAP_TAG_SearchRequest: {
@@ -1609,5 +1617,12 @@ _PUBLIC_ NTSTATUS ldap_decode(struct asn1_data *data,
 */
 NTSTATUS ldap_full_packet(void *private_data, DATA_BLOB blob, size_t *packet_size)
 {
-	return asn1_full_tag(blob, ASN1_SEQUENCE(0), packet_size);
+	if (blob.length < 6) {
+		/*
+		 * We need at least 6 bytes to workout the length
+		 * of the pdu.
+		 */
+		return STATUS_MORE_ENTRIES;
+	}
+	return asn1_peek_full_tag(blob, ASN1_SEQUENCE(0), packet_size);
 }

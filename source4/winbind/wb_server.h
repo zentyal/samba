@@ -29,6 +29,7 @@ struct wbsrv_service {
 	struct task_server *task;
 
 	const struct dom_sid *primary_sid;
+	enum netr_SchannelType sec_channel_type;
 	struct wbsrv_domain *domains;
 	struct idmap_context *idmap_ctx;
 	const char *priv_pipe_dir;
@@ -47,9 +48,7 @@ struct wb_dom_info {
 	const char *name;
 	const char *dns_name;
 	const struct dom_sid *sid;
-
-	int num_dcs;
-	struct nbt_dc_name *dcs;
+	struct nbt_dc_name *dc;
 };
 
 struct wbsrv_domain {
@@ -177,6 +176,7 @@ struct wbsrv_samba3_call {
 struct netr_LMSessionKey;
 struct netr_UserSessionKey;
 struct winbind_SamLogon;
+struct winbind_DsrUpdateReadOnlyServerDnsRecords;
 
 #include "winbind/wb_async_helpers.h"
 #include "winbind/wb_proto.h"

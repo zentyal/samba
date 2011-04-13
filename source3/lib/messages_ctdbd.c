@@ -18,10 +18,10 @@
 */
 
 #include "includes.h"
+#include "messages.h"
 
 #ifdef CLUSTER_SUPPORT
 
-#include "librpc/gen_ndr/messaging.h"
 #include "ctdb.h"
 #include "ctdb_private.h"
 #include "ctdbd_conn.h"
@@ -38,7 +38,7 @@ struct messaging_ctdbd_context {
 static struct ctdbd_connection *global_ctdbd_connection;
 static int global_ctdb_connection_pid;
 
-struct ctdbd_connection *messaging_ctdbd_connection(struct server_id id)
+struct ctdbd_connection *messaging_ctdbd_connection(void)
 {
 	if (global_ctdb_connection_pid == 0 &&
 	    global_ctdbd_connection == NULL) {
@@ -50,7 +50,7 @@ struct ctdbd_connection *messaging_ctdbd_connection(struct server_id id)
 			DEBUG(0,("event_context_init failed\n"));
 		}
 
-		msg = messaging_init(NULL, id, ev);
+		msg = messaging_init(NULL, procid_self(), ev);
 		if (!msg) {
 			DEBUG(0,("messaging_init failed\n"));
 			return NULL;

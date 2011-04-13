@@ -23,13 +23,13 @@
 #include "includes.h"
 #include "dsdb/samdb/samdb.h"
 #include "dsdb/common/util.h"
-#include "lib/ldb/include/ldb_errors.h"
+#include <ldb_errors.h>
 #include "../lib/util/dlinklist.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "librpc/gen_ndr/ndr_drsuapi.h"
 #include "librpc/gen_ndr/ndr_drsblobs.h"
 #include "param/param.h"
-#include "lib/ldb/include/ldb_module.h"
+#include <ldb_module.h>
 #include "../lib/util/asn1.h"
 
 
@@ -41,6 +41,73 @@ struct dsdb_schema *dsdb_new_schema(TALLOC_CTX *mem_ctx)
 	}
 
 	return schema;
+}
+
+struct dsdb_schema *dsdb_schema_copy_shallow(TALLOC_CTX *mem_ctx,
+					     struct ldb_context *ldb,
+					     const struct dsdb_schema *schema)
+{
+	int ret;
+	struct dsdb_class *cls;
+	struct dsdb_attribute *attr;
+	struct dsdb_schema *schema_copy;
+
+	schema_copy = dsdb_new_schema(mem_ctx);
+	if (!schema_copy) {
+		return NULL;
+	}
+
+	/* schema base_dn */
+	schema_copy->base_dn = ldb_dn_copy(schema_copy, schema->base_dn);
+	if (!schema_copy->base_dn) {
+		goto failed;
+	}
+
+	/* copy prexiMap & schemaInfo */
+	schema_copy->prefixmap = dsdb_schema_pfm_copy_shallow(schema_copy,
+							      schema->prefixmap);
+	if (!schema_copy->prefixmap) {
+		goto failed;
+	}
+
+	schema_copy->schema_info = talloc_strdup(schema_copy, schema->schema_info);
+
+	/* copy classes and attributes*/
+	for (cls = schema->classes; cls; cls = cls->next) {
+		struct dsdb_class *class_copy = talloc_memdup(schema_copy,
+							      cls, sizeof(*cls));
+		if (!class_copy) {
+			goto failed;
+		}
+		DLIST_ADD(schema_copy->classes, class_copy);
+	}
+	schema_copy->num_classes = schema->num_classes;
+
+	for (attr = schema->attributes; attr; attr = attr->next) {
+		struct dsdb_attribute *a_copy = talloc_memdup(schema_copy,
+							      attr, sizeof(*attr));
+		if (!a_copy) {
+			goto failed;
+		}
+		DLIST_ADD(schema_copy->attributes, a_copy);
+	}
+	schema_copy->num_attributes = schema->num_attributes;
+
+	/* rebuild indexes */
+	ret = dsdb_setup_sorted_accessors(ldb, schema_copy);
+	if (ret != LDB_SUCCESS) {
+		goto failed;
+	}
+
+	/* leave reload_seq_number = 0 so it will be refresh ASAP */
+	schema_copy->refresh_fn = schema->refresh_fn;
+	schema_copy->loaded_from_module = schema->loaded_from_module;
+
+	return schema_copy;
+
+failed:
+	talloc_free(schema_copy);
+	return NULL;
 }
 
 
@@ -80,7 +147,6 @@ static WERROR _dsdb_prefixmap_from_ldb_val(const struct ldb_val *pfm_ldb_val,
 				(ndr_pull_flags_fn_t)ndr_pull_prefixMapBlob);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		NTSTATUS nt_status = ndr_map_error2ntstatus(ndr_err);
-		talloc_free(temp_ctx);
 		DEBUG(0,("_dsdb_prefixmap_from_ldb_val: Failed to parse prefixmap of length %u: %s\n",
 			 (unsigned int)pfm_ldb_val->length, ndr_map_error2string(ndr_err)));
 		talloc_free(temp_ctx);
@@ -113,19 +179,16 @@ WERROR dsdb_load_oid_mappings_ldb(struct dsdb_schema *schema,
 	WERROR werr;
 	const char *schema_info;
 	struct dsdb_schema_prefixmap *pfm;
-	struct dsdb_schema_info *schi;
 	TALLOC_CTX *mem_ctx;
+
+	/* verify schemaInfo blob is valid one */
+	if (!dsdb_schema_info_blob_is_valid(schemaInfo)) {
+		DEBUG(0,(__location__": dsdb_schema_info_blob_is_valid() failed.\n"));
+	        return WERR_INVALID_PARAMETER;
+	}
 
 	mem_ctx = talloc_new(schema);
 	W_ERROR_HAVE_NO_MEMORY(mem_ctx);
-
-	/* parse schemaInfo blob to verify it is valid */
-	werr = dsdb_schema_info_from_blob(schemaInfo, mem_ctx, &schi);
-	if (!W_ERROR_IS_OK(werr)) {
-		DEBUG(0, (__location__ " dsdb_schema_info_from_blob failed: %s\n", win_errstr(werr)));
-		talloc_free(mem_ctx);
-		return werr;
-	}
 
 	/* fetch prefixMap */
 	werr = _dsdb_prefixmap_from_ldb_val(prefixMap,
@@ -237,7 +300,7 @@ WERROR dsdb_create_prefix_mapping(struct ldb_context *ldb, struct dsdb_schema *s
 		/* prefix found*/
 		talloc_free(mem_ctx);
 		return status;
-	} else if (!W_ERROR_EQUAL(WERR_DS_NO_MSDS_INTID, status)) {
+	} else if (!W_ERROR_EQUAL(status, WERR_NOT_FOUND)) {
 		/* error */
 		DEBUG(0,("dsdb_create_prefix_mapping: dsdb_find_prefix_for_oid: %s\n",
 			win_errstr(status)));
@@ -392,7 +455,7 @@ WERROR dsdb_read_prefixes_from_ldb(struct ldb_context *ldb, TALLOC_CTX *mem_ctx,
  */
 static bool dsdb_schema_unique_attribute(const char *attr)
 {
-	const char *attrs[] = { "objectGUID", "objectSID" , NULL };
+	const char *attrs[] = { "objectGUID", "objectSid" , NULL };
 	unsigned int i;
 	for (i=0;attrs[i];i++) {
 		if (strcasecmp(attr, attrs[i]) == 0) {
@@ -454,7 +517,7 @@ static int dsdb_schema_setup_ldb_schema_attribute(struct ldb_context *ldb,
 	const struct ldb_val *get_string_val = ldb_msg_find_ldb_val(msg, attr); \
 	if (get_string_val == NULL) { \
 		if (strict) {					  \
-			d_printf("%s: %s == NULL\n", __location__, attr); \
+			d_printf("%s: %s == NULL in %s\n", __location__, attr, ldb_dn_get_linearized(msg->dn)); \
 			return WERR_INVALID_PARAM;			\
 		} else {						\
 			(p)->elem = NULL;				\
@@ -496,7 +559,7 @@ static int dsdb_schema_setup_ldb_schema_attribute(struct ldb_context *ldb,
 
 #define GET_BOOL_LDB(msg, attr, p, elem, strict) do { \
 	const char *str; \
-	str = samdb_result_string(msg, attr, NULL);\
+	str = ldb_msg_find_attr_as_string(msg, attr, NULL);\
 	if (str == NULL) { \
 		if (strict) { \
 			d_printf("%s: %s == NULL\n", __location__, attr); \
@@ -515,11 +578,11 @@ static int dsdb_schema_setup_ldb_schema_attribute(struct ldb_context *ldb,
 } while (0)
 
 #define GET_UINT32_LDB(msg, attr, p, elem) do { \
-	(p)->elem = samdb_result_uint(msg, attr, 0);\
+	(p)->elem = ldb_msg_find_attr_as_uint(msg, attr, 0);\
 } while (0)
 
 #define GET_UINT32_PTR_LDB(msg, attr, mem_ctx, p, elem) do {		\
-	uint64_t _v = samdb_result_uint64(msg, attr, UINT64_MAX);\
+	uint64_t _v = ldb_msg_find_attr_as_uint64(msg, attr, UINT64_MAX);\
 	if (_v == UINT64_MAX) { \
 		(p)->elem = NULL; \
 	} else if (_v > UINT32_MAX) { \
@@ -566,7 +629,7 @@ WERROR dsdb_attribute_from_ldb(struct ldb_context *ldb,
 	GET_STRING_LDB(msg, "attributeID", attr, attr, attributeID_oid, true);
 	if (!schema->prefixmap || schema->prefixmap->length == 0) {
 		/* set an invalid value */
-		attr->attributeID_id = 0xFFFFFFFF;
+		attr->attributeID_id = DRSUAPI_ATTID_INVALID;
 	} else {
 		status = dsdb_schema_pfm_make_attid(schema->prefixmap,
 						    attr->attributeID_oid,
@@ -596,11 +659,11 @@ WERROR dsdb_attribute_from_ldb(struct ldb_context *ldb,
 	GET_STRING_LDB(msg, "attributeSyntax", attr, attr, attributeSyntax_oid, true);
 	if (!schema->prefixmap || schema->prefixmap->length == 0) {
 		/* set an invalid value */
-		attr->attributeSyntax_id = 0xFFFFFFFF;
+		attr->attributeSyntax_id = DRSUAPI_ATTID_INVALID;
 	} else {
-		status = dsdb_schema_pfm_make_attid(schema->prefixmap,
-						    attr->attributeSyntax_oid,
-						    &attr->attributeSyntax_id);
+		status = dsdb_schema_pfm_attid_from_oid(schema->prefixmap,
+							attr->attributeSyntax_oid,
+							&attr->attributeSyntax_id);
 		if (!W_ERROR_IS_OK(status)) {
 			DEBUG(0,("%s: '%s': unable to map attributeSyntax_ %s: %s\n",
 				__location__, attr->lDAPDisplayName, attr->attributeSyntax_oid,
@@ -635,8 +698,10 @@ WERROR dsdb_attribute_from_ldb(struct ldb_context *ldb,
 	}
 
 	if (dsdb_schema_setup_ldb_schema_attribute(ldb, attr) != LDB_SUCCESS) {
-		DEBUG(0,(__location__ ": Unknown schema syntax for %s\n",
-			 attr->lDAPDisplayName));
+		DEBUG(0,(__location__ ": Unknown schema syntax for %s - ldb_syntax: %s, ldap_oid: %s\n",
+			 attr->lDAPDisplayName,
+			 attr->syntax->ldb_syntax,
+			 attr->syntax->ldap_oid));
 		return WERR_DS_ATT_SCHEMA_REQ_SYNTAX;
 	}
 
@@ -657,7 +722,7 @@ WERROR dsdb_class_from_ldb(struct dsdb_schema *schema,
 	GET_STRING_LDB(msg, "governsID", obj, obj, governsID_oid, true);
 	if (!schema->prefixmap || schema->prefixmap->length == 0) {
 		/* set an invalid value */
-		obj->governsID_id = 0xFFFFFFFF;
+		obj->governsID_id = DRSUAPI_ATTID_INVALID;
 	} else {
 		status = dsdb_schema_pfm_make_attid(schema->prefixmap,
 						    obj->governsID_oid,

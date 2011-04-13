@@ -10,7 +10,9 @@
 
 import "misc.idl", "security.idl", "svcctl.idl", "samr.idl";
 [
-	helper("../libcli/netlogon.h", "../libcli/nbt/libnbt.h")
+	helper("../libcli/netlogon/netlogon.h", "../libcli/nbt/libnbt.h"),
+	helpstring("NBT messages"),
+	uuid("6def41b6-86e4-4c32-997c-ed33af7bcd8e")
 ]
 interface nbt
 {
@@ -23,7 +25,7 @@ interface nbt
 		NBT_FLAG_RECURSION_AVAIL    = 0x0080,
 		NBT_FLAG_RECURSION_DESIRED  = 0x0100,
 		NBT_FLAG_TRUNCATION         = 0x0200,
-		NBT_FLAG_AUTHORITIVE        = 0x0400,
+		NBT_FLAG_AUTHORITATIVE      = 0x0400,
 		NBT_OPCODE                  = 0x7800,
 		NBT_FLAG_REPLY              = 0x8000
 	} nbt_operation;
@@ -369,7 +371,7 @@ interface nbt
 		NETLOGON_NT_VERSION_5EX			= 0x00000004,
 		NETLOGON_NT_VERSION_5EX_WITH_IP		= 0x00000008,
 		NETLOGON_NT_VERSION_WITH_CLOSEST_SITE	= 0x00000010,
-		NETLOGON_NT_VERSION_AVIOD_NT4EMUL	= 0x01000000,
+		NETLOGON_NT_VERSION_AVOID_NT4EMUL	= 0x01000000,
 		NETLOGON_NT_VERSION_PDC			= 0x10000000,
 		NETLOGON_NT_VERSION_IP			= 0x20000000,
 		NETLOGON_NT_VERSION_LOCAL		= 0x40000000,
@@ -377,6 +379,8 @@ interface nbt
 	} netlogon_nt_version_flags;
 
 	typedef [enum16bit,public] enum {
+		LOGON_REQUEST			  = 0,
+		LOGON_RESPONSE2			  = 6,
 		LOGON_PRIMARY_QUERY               = 7,	/* Was also NETLOGON_QUERY_FOR_PDC */
 		NETLOGON_ANNOUNCE_UAS             = 10,
 		NETLOGON_RESPONSE_FROM_PDC        = 12,
@@ -412,6 +416,15 @@ interface nbt
 		uint16               lmnt_token;
 		uint16               lm20_token;
 	} NETLOGON_SAM_LOGON_REQUEST;
+
+	typedef struct {
+		astring              computer_name;
+		astring              user_name;
+		astring              mailslot_name;
+		uint8                request_count;
+		uint16               lmnt_token;
+		uint16               lm20_token;
+	} NETLOGON_LOGON_REQUEST;
 
 	typedef [flag(NDR_NOALIGN),public] struct {
 		netlogon_command command;
@@ -492,6 +505,12 @@ interface nbt
 		uint16               lm20_token;
 	} nbt_netlogon_response_from_pdc;
 
+	typedef [flag(NDR_NOALIGN),public] struct {
+		netlogon_command command;
+		astring pdc_name;
+		uint16 lm20_token;
+	} nbt_netlogon_response2;
+
 	typedef enum netr_SamDatabaseID netr_SamDatabaseID;
 
 	/* used to announce SAM changes - MS-NRPC 2.2.1.5.1 */
@@ -520,6 +539,7 @@ interface nbt
 	} NETLOGON_DB_CHANGE;
 
 	typedef [nodiscriminant] union {
+		[case(LOGON_REQUEST)]  NETLOGON_LOGON_REQUEST logon0;
 		[case(LOGON_SAM_LOGON_REQUEST)]       NETLOGON_SAM_LOGON_REQUEST logon;
 		[case(LOGON_PRIMARY_QUERY)] nbt_netlogon_query_for_pdc pdc;
 		[case(NETLOGON_ANNOUNCE_UAS)] NETLOGON_DB_CHANGE uas;
@@ -541,6 +561,10 @@ interface nbt
 		netlogon_command command;
 		[switch_is(command)] nbt_netlogon_request req;
 	} nbt_netlogon_packet;
+
+	void decode_nbt_netlogon_packet(
+		[in] nbt_netlogon_packet packet
+		);
 
 	/********************************************************/
 	/* \MAILSLOT\BROWSE mailslot requests			*/

@@ -22,7 +22,11 @@
 #define _LIBCLI_LDAP_MESSAGE_H_
 
 #include "../libcli/ldap/ldap_errors.h"
-#include "lib/ldb/include/ldb.h"
+#if _SAMBA_BUILD_ == 3
+#include "lib/ldb_compat.h"
+#else
+#include <ldb.h>
+#endif
 
 enum ldap_request_tag {
 	LDAP_TAG_BindRequest = 0,

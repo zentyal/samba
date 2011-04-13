@@ -26,7 +26,9 @@
 #include "dsdb/samdb/samdb.h"
 #include "dsdb/common/util.h"
 #include "../libds/common/flags.h"
-#include "libcli/security/dom_sid.h"
+#include "libcli/security/security.h"
+
+#include "libds/common/flag_mapping.h"
 
 /* Add a user, SAMR style, including the correct transaction
  * semantics.  Used by the SAMR server and by pdb_samba4 */
@@ -115,8 +117,6 @@ NTSTATUS dsdb_add_user(struct ldb_context *ldb,
 		cn_name[cn_name_len - 1] = '\0';
 		container = "CN=Computers";
 		obj_class = "computer";
-		samdb_msg_add_int(ldb, tmp_ctx, msg,
-			"primaryGroupID", DOMAIN_RID_DOMAIN_MEMBERS);
 
 	} else if (acct_flags == ACB_SVRTRUST) {
 		if (cn_name[cn_name_len - 1] != '$') {
@@ -126,8 +126,6 @@ NTSTATUS dsdb_add_user(struct ldb_context *ldb,
 		cn_name[cn_name_len - 1] = '\0';
 		container = "OU=Domain Controllers";
 		obj_class = "computer";
-		samdb_msg_add_int(ldb, tmp_ctx, msg,
-			"primaryGroupID", DOMAIN_RID_DCS);
 	} else {
 		ldb_transaction_cancel(ldb);
 		talloc_free(tmp_ctx);
@@ -142,10 +140,8 @@ NTSTATUS dsdb_add_user(struct ldb_context *ldb,
 		return NT_STATUS_FOOBAR;
 	}
 
-	samdb_msg_add_string(ldb, tmp_ctx, msg, "sAMAccountName",
-		account_name);
-	samdb_msg_add_string(ldb, tmp_ctx, msg, "objectClass",
-		obj_class);
+	ldb_msg_add_string(msg, "sAMAccountName", account_name);
+	ldb_msg_add_string(msg, "objectClass", obj_class);
 
 	/* create the user */
 	ret = ldb_add(ldb, msg);
@@ -200,7 +196,7 @@ NTSTATUS dsdb_add_user(struct ldb_context *ldb,
 
 	/* Change the account control to be the correct account type.
 	 * The default is for a workstation account */
-	user_account_control = samdb_result_uint(msg, "userAccountControl", 0);
+	user_account_control = ldb_msg_find_attr_as_uint(msg, "userAccountControl", 0);
 	user_account_control = (user_account_control &
 				~(UF_NORMAL_ACCOUNT |
 				  UF_INTERDOMAIN_TRUST_ACCOUNT |
@@ -220,7 +216,7 @@ NTSTATUS dsdb_add_user(struct ldb_context *ldb,
 
 	if (samdb_msg_add_uint(ldb, tmp_ctx, msg,
 			       "userAccountControl",
-			       user_account_control) != 0) {
+			       user_account_control) != LDB_SUCCESS) {
 		ldb_transaction_cancel(ldb);
 		talloc_free(tmp_ctx);
 		return NT_STATUS_NO_MEMORY;
@@ -291,8 +287,8 @@ NTSTATUS dsdb_add_domain_group(struct ldb_context *ldb,
 		talloc_free(tmp_ctx);
 		return NT_STATUS_NO_MEMORY;
 	}
-	samdb_msg_add_string(ldb, tmp_ctx, msg, "sAMAccountName", groupname);
-	samdb_msg_add_string(ldb, tmp_ctx, msg, "objectClass", "group");
+	ldb_msg_add_string(msg, "sAMAccountName", groupname);
+	ldb_msg_add_string(msg, "objectClass", "group");
 
 	/* create the group */
 	ret = ldb_add(ldb, msg);
@@ -371,8 +367,8 @@ NTSTATUS dsdb_add_domain_alias(struct ldb_context *ldb,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	samdb_msg_add_string(ldb, mem_ctx, msg, "sAMAccountName", alias_name);
-	samdb_msg_add_string(ldb, mem_ctx, msg, "objectClass", "group");
+	ldb_msg_add_string(msg, "sAMAccountName", alias_name);
+	ldb_msg_add_string(msg, "objectClass", "group");
 	samdb_msg_add_int(ldb, mem_ctx, msg, "groupType", GTYPE_SECURITY_DOMAIN_LOCAL_GROUP);
 
 	/* create the alias */
@@ -413,7 +409,7 @@ NTSTATUS dsdb_enum_group_mem(struct ldb_context *ldb,
 			     unsigned int *pnum_members)
 {
 	struct ldb_message *msg;
-	unsigned int i;
+	unsigned int i, j;
 	int ret;
 	struct dom_sid *members;
 	struct ldb_message_element *member_el;
@@ -447,6 +443,7 @@ NTSTATUS dsdb_enum_group_mem(struct ldb_context *ldb,
 		return NT_STATUS_NO_MEMORY;
 	}
 
+	j = 0;
 	for (i=0; i <member_el->num_values; i++) {
 		struct ldb_dn *member_dn = ldb_dn_from_ldb_val(tmp_ctx, ldb,
 							       &member_el->values[i]);
@@ -459,17 +456,25 @@ NTSTATUS dsdb_enum_group_mem(struct ldb_context *ldb,
 			return NT_STATUS_INTERNAL_DB_CORRUPTION;
 		}
 
-		status = dsdb_get_extended_dn_sid(member_dn, &members[i], "SID");
-		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(1, ("Could find SID attribute on extended DN %s\n",
-				  ldb_dn_get_extended_linearized(tmp_ctx, dn, 1)));
+		status = dsdb_get_extended_dn_sid(member_dn, &members[j],
+						  "SID");
+		if (NT_STATUS_EQUAL(status, NT_STATUS_OBJECT_NAME_NOT_FOUND)) {
+			/* If we fail finding a SID then this is no error since
+			 * it could be a non SAM object - e.g. a contact */
+			continue;
+		} else if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(1, ("When parsing DN '%s' we failed to parse it's SID component, so we cannot fetch the membership: %s\n",
+				  ldb_dn_get_extended_linearized(tmp_ctx, member_dn, 1),
+				  nt_errstr(status)));
 			talloc_free(tmp_ctx);
-			return NT_STATUS_INTERNAL_DB_CORRUPTION;
+			return status;
 		}
+
+		++j;
 	}
 
 	*members_out = talloc_steal(mem_ctx, members);
-	*pnum_members = member_el->num_values;
+	*pnum_members = j;
 	talloc_free(tmp_ctx);
 	return NT_STATUS_OK;
 }
@@ -502,7 +507,7 @@ NTSTATUS dsdb_lookup_rids(struct ldb_context *ldb,
 				    dom_sid_string(tmp_ctx,
 						   dom_sid_add_rid(tmp_ctx, domain_sid,
 								   rids[i])));
-		if (!dn || !ldb_dn_validate(dn)) {
+		if (dn == NULL) {
 			talloc_free(tmp_ctx);
 			return NT_STATUS_NO_MEMORY;
 		}

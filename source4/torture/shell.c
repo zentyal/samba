@@ -21,7 +21,7 @@
 
 #include "includes.h"
 #include "system/readline.h"
-#include "lib/smbreadline/smbreadline.h"
+#include "../libcli/smbreadline/smbreadline.h"
 #include "lib/cmdline/popt_common.h"
 #include "auth/credentials/credentials.h"
 #include "torture/smbtorture.h"
@@ -215,7 +215,7 @@ static void shell_list(const struct shell_command * command,
 	return;
     }
 
-    torture_print_tests(true);
+    torture_print_testsuites(true);
 }
 
 static void shell_auth(const struct shell_command * command,

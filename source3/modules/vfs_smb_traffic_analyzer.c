@@ -20,9 +20,14 @@
  */
 
 #include "includes.h"
+#include "smbd/smbd.h"
+#include "../smbd/globals.h"
 #include "../lib/crypto/crypto.h"
 #include "vfs_smb_traffic_analyzer.h"
-#include "../libcli/security/dom_sid.h"
+#include "../libcli/security/security.h"
+#include "secrets.h"
+#include "../librpc/gen_ndr/ndr_netlogon.h"
+#include "auth.h"
 
 /* abstraction for the send_over_network function */
 enum sock_type {INTERNET_SOCKET = 0, UNIX_DOMAIN_SOCKET};
@@ -311,6 +316,7 @@ static char *smb_traffic_analyzer_create_string( TALLOC_CTX *ctx,
 	 * 4.affected share
 	 * 5.domain
 	 * 6.timestamp
+	 * 7.IP Addresss of client
 	 */
 
 	/*
@@ -328,7 +334,7 @@ static char *smb_traffic_analyzer_create_string( TALLOC_CTX *ctx,
 	 * anonymized if needed, by the calling function.
 	 */
 	usersid = dom_sid_string( common_data_count_str,
-		&handle->conn->server_info->ptok->user_sids[0]);
+		&handle->conn->session_info->security_token->sids[0]);
 
 	sidstr = smb_traffic_analyzer_anonymize(
 		common_data_count_str,
@@ -346,10 +352,9 @@ static char *smb_traffic_analyzer_create_string( TALLOC_CTX *ctx,
 		tm->tm_sec, \
 		(int)seconds);
 	len = strlen( timestr );
-
 	/* create the string of common data */
 	buf = talloc_asprintf(ctx,
-		"%s%04u%s%04u%s%04u%s%04u%s%04u%s%04u%s",
+		"%s%04u%s%04u%s%04u%s%04u%s%04u%s%04u%s%04u%s",
 		common_data_count_str,
 		(unsigned int) strlen(vfs_operation_str),
 		vfs_operation_str,
@@ -360,10 +365,12 @@ static char *smb_traffic_analyzer_create_string( TALLOC_CTX *ctx,
 		(unsigned int) strlen(service_name),
 		service_name,
 		(unsigned int)
-		strlen(handle->conn->server_info->info3->base.domain.string),
-		handle->conn->server_info->info3->base.domain.string,
+		strlen(handle->conn->session_info->info3->base.domain.string),
+		handle->conn->session_info->info3->base.domain.string,
 		(unsigned int) strlen(timestr),
-		timestr);
+		timestr,
+		(unsigned int) strlen(handle->conn->sconn->client_id.addr),
+		handle->conn->sconn->client_id.addr);
 
 	talloc_free(common_data_count_str);
 
@@ -419,7 +426,7 @@ static void smb_traffic_analyzer_send_data(vfs_handle_struct *handle,
 	}
 
 	GetTimeOfDay(&tv);
-	tv_sec = convert_timespec_to_time_t(convert_timeval_to_timespec(tv));
+	tv_sec = tv.tv_sec;
 	tm = localtime(&tv_sec);
 	if (!tm) {
 		return;
@@ -433,7 +440,7 @@ static void smb_traffic_analyzer_send_data(vfs_handle_struct *handle,
 	 * function.
 	 */
 	username = smb_traffic_analyzer_anonymize( talloc_tos(),
-			handle->conn->server_info->sanitized_username,
+			handle->conn->session_info->sanitized_username,
 			handle);
 
 	if (!username) {
@@ -464,7 +471,7 @@ static void smb_traffic_analyzer_send_data(vfs_handle_struct *handle,
 			"\"%04d-%02d-%02d %02d:%02d:%02d.%03d\"\n",
 			(unsigned int) s_data->len,
 			username,
-			handle->conn->server_info->info3->base.domain.string,
+			handle->conn->session_info->info3->base.domain.string,
 			Write ? 'W' : 'R',
 			handle->conn->connectpath,
 			s_data->filename,
@@ -552,7 +559,7 @@ static void smb_traffic_analyzer_send_data(vfs_handle_struct *handle,
 
 	} else {
 		DEBUG(1, ("smb_traffic_analyzer_send_data_socket: "
-			"error, unkown protocol given!\n"));
+			"error, unknown protocol given!\n"));
 		return;
 	}
 
@@ -576,6 +583,7 @@ static void smb_traffic_analyzer_send_data(vfs_handle_struct *handle,
 			" found, encrypting data!\n"));
 		output = smb_traffic_analyzer_encrypt( talloc_tos(),
 						akey, str, &len);
+		SAFE_FREE(akey);
 		header = smb_traffic_analyzer_create_header( talloc_tos(),
 						state_flags, len);
 
@@ -740,6 +748,44 @@ static int smb_traffic_analyzer_mkdir(vfs_handle_struct *handle, \
 	return s_data.result;
 }
 
+static ssize_t smb_traffic_analyzer_sendfile(vfs_handle_struct *handle,
+				int tofd,
+				files_struct *fromfsp,
+				const DATA_BLOB *hdr,
+				SMB_OFF_T offset,
+				size_t n)
+{
+	struct rw_data s_data;
+	s_data.len = SMB_VFS_NEXT_SENDFILE(handle,
+			tofd, fromfsp, hdr, offset, n);
+	s_data.filename = fromfsp->fsp_name->base_name;
+	DEBUG(10, ("smb_traffic_analyzer_sendfile: sendfile(r): %s\n",
+		fsp_str_dbg(fromfsp)));
+	smb_traffic_analyzer_send_data(handle,
+		&s_data,
+		vfs_id_read);
+	return s_data.len;
+}
+
+static ssize_t smb_traffic_analyzer_recvfile(vfs_handle_struct *handle,
+				int fromfd,
+				files_struct *tofsp,
+				SMB_OFF_T offset,
+				size_t n)
+{
+	struct rw_data s_data;
+	s_data.len = SMB_VFS_NEXT_RECVFILE(handle,
+			fromfd, tofsp, offset, n);
+	s_data.filename = tofsp->fsp_name->base_name;
+	DEBUG(10, ("smb_traffic_analyzer_recvfile: recvfile(w): %s\n",
+		fsp_str_dbg(tofsp)));
+	smb_traffic_analyzer_send_data(handle,
+		&s_data,
+		vfs_id_write);
+	return s_data.len;
+}
+
+
 static ssize_t smb_traffic_analyzer_read(vfs_handle_struct *handle, \
 				files_struct *fsp, void *data, size_t n)
 {
@@ -849,7 +895,9 @@ static struct vfs_fn_pointers vfs_smb_traffic_analyzer_fns = {
 	.chdir = smb_traffic_analyzer_chdir,
 	.open = smb_traffic_analyzer_open,
 	.rmdir = smb_traffic_analyzer_rmdir,
-	.close_fn = smb_traffic_analyzer_close
+	.close_fn = smb_traffic_analyzer_close,
+	.sendfile = smb_traffic_analyzer_sendfile,
+	.recvfile = smb_traffic_analyzer_recvfile
 };
 
 /* Module initialization */

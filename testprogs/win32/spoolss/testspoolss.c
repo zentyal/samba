@@ -135,7 +135,8 @@ static BOOL test_EnumDrivers(struct torture_context *tctx,
 		DWORD err = 0;
 		char tmp[1024];
 
-		torture_comment(tctx, "Testing EnumPrinterDrivers level %d", levels[i]);
+		torture_comment(tctx, "Testing EnumPrinterDrivers(%s) level %d",
+			architecture, levels[i]);
 
 		EnumPrinterDrivers(servername, architecture, levels[i], NULL, 0, &needed, &returned);
 		err = GetLastError();
@@ -398,7 +399,7 @@ static BOOL test_EnumPrintProcessors(struct torture_context *tctx,
 		DWORD err = 0;
 		char tmp[1024];
 
-		torture_comment(tctx, "Testing EnumPrintProcessors level %d", levels[i]);
+		torture_comment(tctx, "Testing EnumPrintProcessors(%s) level %d", architecture, levels[i]);
 
 		EnumPrintProcessors(servername, architecture, levels[i], NULL, 0, &needed, &returned);
 		err = GetLastError();
@@ -588,7 +589,8 @@ static BOOL test_GetPrinterDriver(struct torture_context *tctx,
 		DWORD err = 0;
 		char tmp[1024];
 
-		torture_comment(tctx, "Testing GetPrinterDriver level %d", levels[i]);
+		torture_comment(tctx, "Testing GetPrinterDriver(%s) level %d",
+			architecture, levels[i]);
 
 		GetPrinterDriver(handle, architecture, levels[i], NULL, 0, &needed);
 		err = GetLastError();
@@ -1052,8 +1054,12 @@ static BOOL test_OnePrinter(struct torture_context *tctx,
 	ret &= test_EnumPrinterData(tctx, printername, handle);
 	ret &= test_EnumPrinterDataEx(tctx, printername, "PrinterDriverData", handle, NULL, NULL);
 	ret &= test_DeviceModes(tctx, printername, handle);
+#if 0
+	/* dont run these at the moment, behaviour is PrinterData API calls (not
+	 * dcerpc calls) is almost unpredictable - gd */
 	ret &= test_PrinterData(tctx, printername, handle);
 	ret &= test_PrinterDataW(tctx, printername, handle);
+#endif
 	ret &= test_ClosePrinter(tctx, handle);
 
 	return ret;
@@ -1121,7 +1127,8 @@ static BOOL test_GetPrintProcessorDirectory(struct torture_context *tctx,
 		DWORD err = 0;
 		char tmp[1024];
 
-		torture_comment(tctx, "Testing GetPrintProcessorDirectory level %d", levels[i]);
+		torture_comment(tctx, "Testing GetPrintProcessorDirectory(%s) level %d",
+			architecture, levels[i]);
 
 		GetPrintProcessorDirectory(servername, architecture, levels[i], NULL, 0, &needed);
 		err = GetLastError();
@@ -1172,7 +1179,8 @@ static BOOL test_GetPrinterDriverDirectory(struct torture_context *tctx,
 		DWORD err = 0;
 		char tmp[1024];
 
-		torture_comment(tctx, "Testing GetPrinterDriverDirectory level %d", levels[i]);
+		torture_comment(tctx, "Testing GetPrinterDriverDirectory(%s) level %d",
+			architecture, levels[i]);
 
 		GetPrinterDriverDirectory(servername, architecture, levels[i], NULL, 0, &needed);
 		err = GetLastError();

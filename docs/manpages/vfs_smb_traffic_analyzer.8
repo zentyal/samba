@@ -2,12 +2,12 @@
 .\"     Title: smb_traffic_analyzer
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 07/28/2010
+.\"      Date: 04/01/2011
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "SMB_TRAFFIC_ANALYZER" "8" "07/28/2010" "Samba 3\&.6" "System Administration tools"
+.TH "SMB_TRAFFIC_ANALYZER" "8" "04/01/2011" "Samba 3\&.6" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -147,6 +147,7 @@ FILENAME
 .\}
 TIMESTAMP
 \- a timestamp, formatted as "yyyy\-mm\-dd hh\-mm\-ss\&.ms" indicating when the VFS operation occured
+.RE
 .sp
 .RE
 .PP
@@ -205,6 +206,7 @@ Protocol version 1 supports only four VFS operations\&.
 
 No subreleases of the protocol \-
 Protocol version 1 is fixed on it\'s version, making it unable to introduce new features or bugfixes through compatible sub\-releases\&.
+.RE
 .SH "VERSION 2 OF THE PROTOCOL"
 .PP
 Protocol version 2 is an approach to solve the problems introduced with protcol v1\&. From the users perspective, the following changes are most prominent among other enhancements:
@@ -251,6 +253,7 @@ The parsing problems of protocol V1 can no longer happen, because V2 is marshall
 .IP \(bu 2.3
 .\}
 The module now potientially has the ability to create data on every VFS function\&. As of protocol V2\&.0, there is support for 8 VFS functions, namely write,read,pread,pwrite, rename,chdir,mkdir and rmdir\&. Supporting more VFS functions is one of the targets for the upcoming sub\-releases\&.
+.RE
 .sp
 .RE
 .PP

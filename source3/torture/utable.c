@@ -18,7 +18,10 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
 #include "torture/proto.h"
+#include "../libcli/security/security.h"
+#include "libsmb/clirap.h"
 
 bool torture_utable(int dummy)
 {
@@ -158,8 +161,11 @@ bool torture_casetable(int dummy)
 
 		size = 0;
 
-		if (!cli_qfileinfo(cli, fnum, NULL, &size, 
-				   NULL, NULL, NULL, NULL, NULL)) continue;
+		if (!NT_STATUS_IS_OK(cli_qfileinfo_basic(
+					     cli, fnum, NULL, &size,
+					     NULL, NULL, NULL, NULL, NULL))) {
+			continue;
+		}
 
 		if (size > 0) {
 			/* found a character equivalence! */

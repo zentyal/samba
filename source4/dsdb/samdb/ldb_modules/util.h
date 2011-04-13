@@ -21,10 +21,12 @@
 
 /* predeclare some structures used by utility functions */
 struct dsdb_schema;
-struct GUID;
 struct dsdb_attribute;
 struct dsdb_fsmo_extended_op;
+struct security_descriptor;
+struct dom_sid;
 
+#include "librpc/gen_ndr/misc.h"
 #include "dsdb/samdb/ldb_modules/util_proto.h"
 #include "dsdb/common/util.h"
 
@@ -33,4 +35,4 @@ struct dsdb_fsmo_extended_op;
 #define DSDB_FLAG_NEXT_MODULE		      0x00100000
 #define DSDB_FLAG_OWN_MODULE		      0x00400000
 #define DSDB_FLAG_TOP_MODULE		      0x00800000
-
+#define DSDB_FLAG_TRUSTED		      0x01000000

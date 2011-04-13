@@ -23,8 +23,13 @@
    such as the local SID and machine trust password */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "passdb.h"
 #include "../libcli/auth/libcli_auth.h"
 #include "librpc/gen_ndr/ndr_secrets.h"
+#include "secrets.h"
+#include "dbwrap.h"
+#include "../libcli/security/security.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_PASSDB
@@ -166,31 +171,6 @@ bool secrets_delete(const char *key)
 	return NT_STATUS_IS_OK(status);
 }
 
-bool secrets_store_local_schannel_key(uint8_t schannel_key[16])
-{
-	return secrets_store(SECRETS_LOCAL_SCHANNEL_KEY, schannel_key, 16);
-}
-
-bool secrets_fetch_local_schannel_key(uint8_t schannel_key[16])
-{
-	size_t size = 0;
-	uint8_t *key;
-
-	key = (uint8_t *)secrets_fetch(SECRETS_LOCAL_SCHANNEL_KEY, &size);
-	if (key == NULL) {
-		return false;
-	}
-
-	if (size != 16) {
-		SAFE_FREE(key);
-		return false;
-	}
-
-	memcpy(schannel_key, key, 16);
-	SAFE_FREE(key);
-	return true;
-}
-
 /**
  * Form a key for fetching a trusted domain password
  *
@@ -232,11 +212,13 @@ bool secrets_fetch_trusted_domain_password(const char *domain, char** pwd,
 	/* unpack trusted domain password */
 	ndr_err = ndr_pull_struct_blob(&blob, talloc_tos(), &pass,
 			(ndr_pull_flags_fn_t)ndr_pull_TRUSTED_DOM_PASS);
+
+	SAFE_FREE(blob.data);
+
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		return false;
 	}
 
-	SAFE_FREE(blob.data);
 
 	/* the trust's password */
 	if (pwd) {
@@ -465,9 +447,7 @@ NTSTATUS secrets_trusted_domains(TALLOC_CTX *mem_ctx, uint32 *num_domains,
 {
 	struct list_trusted_domains_state state;
 
-	secrets_init();
-
-	if (db_ctx == NULL) {
+	if (!secrets_init()) {
 		return NT_STATUS_ACCESS_DENIED;
 	}
 

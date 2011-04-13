@@ -22,6 +22,8 @@
 #define _SAMBA_AUTH_H
 
 #include "librpc/gen_ndr/ndr_krb5pac.h"
+#include "librpc/gen_ndr/auth.h"
+#include "../auth/common_auth.h"
 
 extern const char *krbtgt_attrs[];
 extern const char *server_attrs[];
@@ -43,89 +45,9 @@ struct loadparm_context;
 /* version 0 - till samba4 is stable - metze */
 #define AUTH_INTERFACE_VERSION 0
 
-#define USER_INFO_CASE_INSENSITIVE_USERNAME 0x01 /* username may be in any case */
-#define USER_INFO_CASE_INSENSITIVE_PASSWORD 0x02 /* password may be in any case */
-#define USER_INFO_DONT_CHECK_UNIX_ACCOUNT   0x04 /* don't check unix account status */
-#define USER_INFO_INTERACTIVE_LOGON         0x08 /* don't check unix account status */
-
-#define AUTH_SESSION_INFO_DEFAULT_GROUPS 0x01 /* Add the user to the default world and network groups */
-#define AUTH_SESSION_INFO_AUTHENTICATED  0x02 /* Add the user to the 'authenticated users' group */
-#define AUTH_SESSION_INFO_ENTERPRISE_DC  0x04 /* Add the user to the 'enterprise DC' group */
-
-enum auth_password_state {
-	AUTH_PASSWORD_RESPONSE,
-	AUTH_PASSWORD_HASH,
-	AUTH_PASSWORD_PLAIN
-};
-
-struct auth_usersupplied_info
-{
-	const char *workstation_name;
-	const struct tsocket_address *remote_host;
-
-	uint32_t logon_parameters;
-
-	bool mapped_state;
-	/* the values the client gives us */
-	struct {
-		const char *account_name;
-		const char *domain_name;
-	} client, mapped;
-
-	enum auth_password_state password_state;
-
-	union {
-		struct {
-			DATA_BLOB lanman;
-			DATA_BLOB nt;
-		} response;
-		struct {
-			struct samr_Password *lanman;
-			struct samr_Password *nt;
-		} hash;
-
-		char *plaintext;
-	} password;
-	uint32_t flags;
-};
-
-struct auth_serversupplied_info
-{
-	struct dom_sid *account_sid;
-	struct dom_sid *primary_group_sid;
-
-	size_t n_domain_groups;
-	struct dom_sid **domain_groups;
-
-	DATA_BLOB user_session_key;
-	DATA_BLOB lm_session_key;
-
-	const char *account_name;
-	const char *domain_name;
-
-	const char *full_name;
-	const char *logon_script;
-	const char *profile_path;
-	const char *home_directory;
-	const char *home_drive;
-	const char *logon_server;
-
-	NTTIME last_logon;
-	NTTIME last_logoff;
-	NTTIME acct_expiry;
-	NTTIME last_password_change;
-	NTTIME allow_password_change;
-	NTTIME force_password_change;
-
-	uint16_t logon_count;
-	uint16_t bad_password_count;
-
-	uint32_t acct_flags;
-
-	bool authenticated;
-
-	struct PAC_SIGNATURE_DATA pac_srv_sig, pac_kdc_sig;
-};
+#define AUTH_SESSION_INFO_DEFAULT_GROUPS     0x01 /* Add the user to the default world and network groups */
+#define AUTH_SESSION_INFO_AUTHENTICATED      0x02 /* Add the user to the 'authenticated users' group */
+#define AUTH_SESSION_INFO_SIMPLE_PRIVILEGES  0x04 /* Use a trivial map between users and privilages, rather than a DB */
 
 struct auth_method_context;
 struct auth_check_password_request;
@@ -152,14 +74,14 @@ struct auth_operations {
 
 	NTSTATUS (*check_password)(struct auth_method_context *ctx, TALLOC_CTX *mem_ctx,
 				   const struct auth_usersupplied_info *user_info,
-				   struct auth_serversupplied_info **server_info);
+				   struct auth_user_info_dc **interim_info);
 
-	/* Lookup a 'server info' return based only on the principal */
-	NTSTATUS (*get_server_info_principal)(TALLOC_CTX *mem_ctx,
-					      struct auth_context *auth_context,
-					      const char *principal,
-					      struct ldb_dn *user_dn,
-					      struct auth_serversupplied_info **server_info);
+	/* Lookup a 'session info interim' return based only on the principal or DN */
+	NTSTATUS (*get_user_info_dc_principal)(TALLOC_CTX *mem_ctx,
+						       struct auth_context *auth_context,
+						       const char *principal,
+						       struct ldb_dn *user_dn,
+						       struct auth_user_info_dc **interim_info);
 };
 
 struct auth_method_context {
@@ -198,7 +120,7 @@ struct auth_context {
 	NTSTATUS (*check_password)(struct auth_context *auth_ctx,
 				   TALLOC_CTX *mem_ctx,
 				   const struct auth_usersupplied_info *user_info,
-				   struct auth_serversupplied_info **server_info);
+				   struct auth_user_info_dc **user_info_dc);
 
 	NTSTATUS (*get_challenge)(struct auth_context *auth_ctx, uint8_t chal[8]);
 
@@ -206,15 +128,15 @@ struct auth_context {
 
 	NTSTATUS (*set_challenge)(struct auth_context *auth_ctx, const uint8_t chal[8], const char *set_by);
 
-	NTSTATUS (*get_server_info_principal)(TALLOC_CTX *mem_ctx,
-						 struct auth_context *auth_ctx,
-						 const char *principal,
-						 struct ldb_dn *user_dn,
-						 struct auth_serversupplied_info **server_info);
+	NTSTATUS (*get_user_info_dc_principal)(TALLOC_CTX *mem_ctx,
+						       struct auth_context *auth_ctx,
+						       const char *principal,
+						       struct ldb_dn *user_dn,
+						       struct auth_user_info_dc **user_info_dc);
 
 	NTSTATUS (*generate_session_info)(TALLOC_CTX *mem_ctx,
 					  struct auth_context *auth_context,
-					  struct auth_serversupplied_info *server_info,
+					  struct auth_user_info_dc *user_info_dc,
 					  uint32_t session_info_flags,
 					  struct auth_session_info **session_info);
 };
@@ -226,7 +148,7 @@ struct auth_critical_sizes {
 	int sizeof_auth_methods;
 	int sizeof_auth_context;
 	int sizeof_auth_usersupplied_info;
-	int sizeof_auth_serversupplied_info;
+	int sizeof_auth_user_info_dc;
 };
 
  NTSTATUS encrypt_user_info(TALLOC_CTX *mem_ctx, struct auth_context *auth_context,
@@ -236,10 +158,12 @@ struct auth_critical_sizes {
 
 #include "auth/session.h"
 #include "auth/system_session_proto.h"
+#include "libcli/security/security.h"
 
 struct ldb_message;
 struct ldb_context;
 struct gensec_security;
+struct cli_credentials;
 
 NTSTATUS auth_get_challenge(struct auth_context *auth_ctx, uint8_t chal[8]);
 NTSTATUS authsam_account_ok(TALLOC_CTX *mem_ctx,
@@ -256,17 +180,16 @@ NTSTATUS authsam_expand_nested_groups(struct ldb_context *sam_ctx,
 				      TALLOC_CTX *res_sids_ctx, struct dom_sid ***res_sids,
 				      unsigned int *num_res_sids);
 struct auth_session_info *system_session(struct loadparm_context *lp_ctx);
-NTSTATUS authsam_make_server_info(TALLOC_CTX *mem_ctx, struct ldb_context *sam_ctx,
+NTSTATUS authsam_make_user_info_dc(TALLOC_CTX *mem_ctx, struct ldb_context *sam_ctx,
 					   const char *netbios_name,
 					   const char *domain_name,
 					   struct ldb_dn *domain_dn,
 					   struct ldb_message *msg,
 					   DATA_BLOB user_sess_key, DATA_BLOB lm_sess_key,
-				  struct auth_serversupplied_info **_server_info);
+				  struct auth_user_info_dc **_user_info_dc);
 NTSTATUS auth_system_session_info(TALLOC_CTX *parent_ctx,
 					   struct loadparm_context *lp_ctx,
 					   struct auth_session_info **_session_info) ;
-NTSTATUS auth_nt_status_squash(NTSTATUS nt_status);
 
 NTSTATUS auth_context_create_methods(TALLOC_CTX *mem_ctx, const char **methods,
 				     struct tevent_context *ev,
@@ -274,6 +197,7 @@ NTSTATUS auth_context_create_methods(TALLOC_CTX *mem_ctx, const char **methods,
 				     struct loadparm_context *lp_ctx,
 				     struct ldb_context *sam_ctx,
 				     struct auth_context **auth_ctx);
+const char **auth_methods_from_lp(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx);
 
 NTSTATUS auth_context_create(TALLOC_CTX *mem_ctx,
 			     struct tevent_context *ev,
@@ -285,18 +209,19 @@ NTSTATUS auth_context_create_from_ldb(TALLOC_CTX *mem_ctx, struct ldb_context *l
 NTSTATUS auth_check_password(struct auth_context *auth_ctx,
 			     TALLOC_CTX *mem_ctx,
 			     const struct auth_usersupplied_info *user_info,
-			     struct auth_serversupplied_info **server_info);
-NTSTATUS auth_init(void);
+			     struct auth_user_info_dc **user_info_dc);
+NTSTATUS auth4_init(void);
 NTSTATUS auth_register(const struct auth_operations *ops);
 NTSTATUS server_service_auth_init(void);
 NTSTATUS authenticate_username_pw(TALLOC_CTX *mem_ctx,
-					   struct tevent_context *ev,
-					   struct messaging_context *msg,
-					   struct loadparm_context *lp_ctx,
-					   const char *nt4_domain,
-					   const char *nt4_username,
-					   const char *password,
-					   struct auth_session_info **session_info);
+				  struct tevent_context *ev,
+				  struct messaging_context *msg,
+				  struct loadparm_context *lp_ctx,
+				  const char *nt4_domain,
+				  const char *nt4_username,
+				  const char *password,
+				  const uint32_t logon_parameters,
+				  struct auth_session_info **session_info);
 
 struct tevent_req *auth_check_password_send(TALLOC_CTX *mem_ctx,
 					    struct tevent_context *ev,
@@ -304,16 +229,16 @@ struct tevent_req *auth_check_password_send(TALLOC_CTX *mem_ctx,
 					    const struct auth_usersupplied_info *user_info);
 NTSTATUS auth_check_password_recv(struct tevent_req *req,
 				  TALLOC_CTX *mem_ctx,
-				  struct auth_serversupplied_info **server_info);
+				  struct auth_user_info_dc **user_info_dc);
 
 bool auth_challenge_may_be_modified(struct auth_context *auth_ctx);
 NTSTATUS auth_context_set_challenge(struct auth_context *auth_ctx, const uint8_t chal[8], const char *set_by);
 
-NTSTATUS auth_get_server_info_principal(TALLOC_CTX *mem_ctx,
+NTSTATUS auth_get_user_info_dc_principal(TALLOC_CTX *mem_ctx,
 					struct auth_context *auth_ctx,
 					const char *principal,
 					struct ldb_dn *user_dn,
-					struct auth_serversupplied_info **server_info);
+					struct auth_user_info_dc **user_info_dc);
 
 NTSTATUS samba_server_gensec_start(TALLOC_CTX *mem_ctx,
 				   struct tevent_context *event_ctx,

@@ -1,4 +1,6 @@
-#include "ldb_includes.h"
+#include "replace.h"
+#include "system/filesys.h"
+#include "system/time.h"
 #include "tdb.h"
 #include "ldb_module.h"
 
@@ -32,6 +34,8 @@ struct ltdb_private {
 	struct ltdb_idxptr *idxptr;
 	bool prepared_commit;
 	int read_lock_count;
+
+	bool warn_unindexed;
 };
 
 /*

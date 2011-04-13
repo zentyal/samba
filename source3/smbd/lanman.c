@@ -1,4 +1,4 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
    Inter-process communication and named pipe handling
    Copyright (C) Andrew Tridgell 1992-1998
@@ -26,17 +26,24 @@
    */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
-#include "../librpc/gen_ndr/cli_samr.h"
-#include "../librpc/gen_ndr/cli_spoolss.h"
+#include "../librpc/gen_ndr/ndr_samr_c.h"
+#include "../librpc/gen_ndr/ndr_spoolss_c.h"
 #include "rpc_client/cli_spoolss.h"
 #include "rpc_client/init_spoolss.h"
-#include "../librpc/gen_ndr/cli_srvsvc.h"
+#include "../librpc/gen_ndr/ndr_srvsvc_c.h"
 #include "../librpc/gen_ndr/srv_samr.h"
 #include "../librpc/gen_ndr/srv_srvsvc.h"
 #include "../librpc/gen_ndr/rap.h"
 #include "../lib/util/binsearch.h"
 #include "../libcli/auth/libcli_auth.h"
+#include "rpc_client/init_lsa.h"
+#include "rpc_server/rpc_ncacn_np.h"
+#include "../libcli/security/security.h"
+#include "printing.h"
+#include "passdb/machine_sid.h"
+#include "auth.h"
 
 #ifdef CHECK_TYPES
 #undef CHECK_TYPES
@@ -111,11 +118,11 @@ static int CopyExpanded(connection_struct *conn,
 	}
 	buf = talloc_sub_advanced(ctx,
 				lp_servicename(SNUM(conn)),
-				conn->server_info->unix_name,
+				conn->session_info->unix_name,
 				conn->connectpath,
-				conn->server_info->utok.gid,
-				conn->server_info->sanitized_username,
-				conn->server_info->info3->base.domain.string,
+				conn->session_info->utok.gid,
+				conn->session_info->sanitized_username,
+				conn->session_info->info3->base.domain.string,
 				buf);
 	if (!buf) {
 		*p_space_remaining = 0;
@@ -162,11 +169,11 @@ static int StrlenExpanded(connection_struct *conn, int snum, char *s)
 	}
 	buf = talloc_sub_advanced(ctx,
 				lp_servicename(SNUM(conn)),
-				conn->server_info->unix_name,
+				conn->session_info->unix_name,
 				conn->connectpath,
-				conn->server_info->utok.gid,
-				conn->server_info->sanitized_username,
-				conn->server_info->info3->base.domain.string,
+				conn->session_info->utok.gid,
+				conn->session_info->sanitized_username,
+				conn->session_info->info3->base.domain.string,
 				buf);
 	if (!buf) {
 		return 0;
@@ -190,7 +197,7 @@ struct pack_desc {
 	int buflen;	   /* remaining size for fixed part; on init: length of base */
 	int subcount;	    /* count of substructures */
 	char *structbuf;  /* pointer into buffer for remaining fixed part */
-	int stringlen;    /* remaining size for variable part */		
+	int stringlen;    /* remaining size for variable part */
 	char *stringbuf;  /* pointer into buffer for remaining variable part */
 	int neededlen;    /* total needed size */
 	int usedlen;	    /* total used size (usedlen <= neededlen and usedlen <= buflen) */
@@ -511,7 +518,7 @@ static int check_printq_info(struct pack_desc* desc,
 #define RAP_QUEUE_STATUS_PAUSED 1
 #define RAP_QUEUE_STATUS_ERROR 2
 
-/* turn a print job status into a on the wire status 
+/* turn a print job status into a on the wire status
 */
 static int printj_spoolss_status(int v)
 {
@@ -526,7 +533,7 @@ static int printj_spoolss_status(int v)
 	return 0;
 }
 
-/* turn a print queue status into a on the wire status 
+/* turn a print queue status into a on the wire status
 */
 static int printq_spoolss_status(int v)
 {
@@ -771,6 +778,7 @@ static bool api_DosPrintQGetInfo(struct smbd_server_connection *sconn,
 	TALLOC_CTX *mem_ctx = talloc_tos();
 	NTSTATUS status;
 	struct rpc_pipe_client *cli = NULL;
+	struct dcerpc_binding_handle *b = NULL;
 	struct policy_handle handle;
 	struct spoolss_DevmodeContainer devmode_ctr;
 	union spoolss_DriverInfo driver_info;
@@ -824,17 +832,23 @@ static bool api_DosPrintQGetInfo(struct smbd_server_connection *sconn,
 		goto out;
 	}
 
-	status = rpc_connect_spoolss_pipe(conn, &cli);
+	status = rpc_pipe_open_interface(conn,
+					 &ndr_table_spoolss.syntax_id,
+					 conn->session_info,
+					 &conn->sconn->client_id,
+					 conn->sconn->msg_ctx,
+					 &cli);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("api_DosPrintQGetInfo: could not connect to spoolss: %s\n",
 			  nt_errstr(status)));
 		desc.errcode = W_ERROR_V(ntstatus_to_werror(status));
 		goto out;
 	}
+	b = cli->binding_handle;
 
 	ZERO_STRUCT(devmode_ctr);
 
-	status = rpccli_spoolss_OpenPrinter(cli, mem_ctx,
+	status = dcerpc_spoolss_OpenPrinter(b, mem_ctx,
 					    QueueName,
 					    "RAW",
 					    devmode_ctr,
@@ -931,8 +945,8 @@ static bool api_DosPrintQGetInfo(struct smbd_server_connection *sconn,
 		desc.errcode = ERRbuftoosmall;
 
  out:
-	if (cli && is_valid_policy_hnd(&handle)) {
-		rpccli_spoolss_ClosePrinter(cli, mem_ctx, &handle, NULL);
+	if (b && is_valid_policy_hnd(&handle)) {
+		dcerpc_spoolss_ClosePrinter(b, mem_ctx, &handle, &werr);
 	}
 
 	*rdata_len = desc.usedlen;
@@ -979,6 +993,7 @@ static bool api_DosPrintQEnum(struct smbd_server_connection *sconn,
 	TALLOC_CTX *mem_ctx = talloc_tos();
 	NTSTATUS status;
 	struct rpc_pipe_client *cli = NULL;
+	struct dcerpc_binding_handle *b = NULL;
 	struct spoolss_DevmodeContainer devmode_ctr;
 	uint32_t num_printers;
 	union spoolss_PrinterInfo *printer_info;
@@ -1014,13 +1029,19 @@ static bool api_DosPrintQEnum(struct smbd_server_connection *sconn,
 		return(True);
 	}
 
-	status = rpc_connect_spoolss_pipe(conn, &cli);
+	status = rpc_pipe_open_interface(conn,
+					 &ndr_table_spoolss.syntax_id,
+					 conn->session_info,
+					 &conn->sconn->client_id,
+					 conn->sconn->msg_ctx,
+					 &cli);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("api_DosPrintQEnum: could not connect to spoolss: %s\n",
 			  nt_errstr(status)));
 		desc.errcode = W_ERROR_V(ntstatus_to_werror(status));
 		goto out;
 	}
+	b = cli->binding_handle;
 
 	werr = rpccli_spoolss_enumprinters(cli, mem_ctx,
 					   PRINTER_ENUM_LOCAL,
@@ -1075,7 +1096,7 @@ static bool api_DosPrintQEnum(struct smbd_server_connection *sconn,
 		ZERO_STRUCT(handle);
 		ZERO_STRUCT(devmode_ctr);
 
-		status = rpccli_spoolss_OpenPrinter(cli, mem_ctx,
+		status = dcerpc_spoolss_OpenPrinter(b, mem_ctx,
 						    printername,
 						    "RAW",
 						    devmode_ctr,
@@ -1127,9 +1148,7 @@ static bool api_DosPrintQEnum(struct smbd_server_connection *sconn,
 		subcntarr[i] = num_jobs;
 		subcnt += subcntarr[i];
 
-		if (cli && is_valid_policy_hnd(&handle)) {
-			rpccli_spoolss_ClosePrinter(cli, mem_ctx, &handle, NULL);
-		}
+		dcerpc_spoolss_ClosePrinter(b, mem_ctx, &handle, &werr);
 	}
 
 	if (init_package(&desc,queuecnt,subcnt)) {
@@ -1167,7 +1186,7 @@ static bool api_DosPrintQEnum(struct smbd_server_connection *sconn,
  Get info level for a server list query.
 ****************************************************************************/
 
-static bool check_server_info(int uLevel, char* id)
+static bool check_session_info(int uLevel, char* id)
 {
 	switch( uLevel ) {
 		case 0:
@@ -1180,7 +1199,7 @@ static bool check_server_info(int uLevel, char* id)
 				return False;
 			}
 			break;
-		default: 
+		default:
 			return False;
 	}
 	return True;
@@ -1199,7 +1218,7 @@ struct srv_info_struct {
  number of entries.
 ******************************************************************/
 
-static int get_server_info(uint32 servertype, 
+static int get_session_info(uint32 servertype,
 			   struct srv_info_struct **servers,
 			   const char *domain)
 {
@@ -1240,7 +1259,7 @@ static int get_server_info(uint32 servertype,
 			alloced += 10;
 			*servers = SMB_REALLOC_ARRAY(*servers,struct srv_info_struct, alloced);
 			if (!*servers) {
-				DEBUG(0,("get_server_info: failed to enlarge servers info struct!\n"));
+				DEBUG(0,("get_session_info: failed to enlarge servers info struct!\n"));
 				TALLOC_FREE(lines);
 				return 0;
 			}
@@ -1299,7 +1318,7 @@ static int get_server_info(uint32 servertype,
 			ok = False;
 		}
 
-		if ((servertype & SV_TYPE_DOMAIN_ENUM) != 
+		if ((servertype & SV_TYPE_DOMAIN_ENUM) !=
 				(s->type & SV_TYPE_DOMAIN_ENUM)) {
 			DEBUG(4,("s: dom mismatch "));
 			ok = False;
@@ -1331,8 +1350,8 @@ static int get_server_info(uint32 servertype,
  Fill in a server info structure.
 ******************************************************************/
 
-static int fill_srv_info(struct srv_info_struct *service, 
-			 int uLevel, char **buf, int *buflen, 
+static int fill_srv_info(struct srv_info_struct *service,
+			 int uLevel, char **buf, int *buflen,
 			 char **stringbuf, int *stringspace, char *baseaddr)
 {
 	int struct_len;
@@ -1421,7 +1440,7 @@ static bool api_RNetServerEnum2(struct smbd_server_connection *sconn,
 				connection_struct *conn, uint16 vuid,
 				char *param, int tpscnt,
 				char *data, int tdscnt,
-				int mdrcnt, int mprcnt, char **rdata, 
+				int mdrcnt, int mprcnt, char **rdata,
 				char **rparam, int *rdata_len, int *rparam_len)
 {
 	char *str1 = get_safe_str_ptr(param, tpscnt, param, 2);
@@ -1453,9 +1472,9 @@ static bool api_RNetServerEnum2(struct smbd_server_connection *sconn,
 	}
 
 	/* If someone sets SV_TYPE_LOCAL_LIST_ONLY but hasn't set
-	   any other bit (they may just set this bit on its own) they 
-	   want all the locally seen servers. However this bit can be 
-	   set on its own so set the requested servers to be 
+	   any other bit (they may just set this bit on its own) they
+	   want all the locally seen servers. However this bit can be
+	   set on its own so set the requested servers to be
 	   ALL - DOMAIN_ENUM. */
 
 	if ((servertype & SV_TYPE_LOCAL_LIST_ONLY) && !(servertype & SV_TYPE_DOMAIN_ENUM)) {
@@ -1470,7 +1489,7 @@ static bool api_RNetServerEnum2(struct smbd_server_connection *sconn,
 	if (!prefix_ok(str1,"WrLehD")) {
 		return False;
 	}
-	if (!check_server_info(uLevel,str2)) {
+	if (!check_session_info(uLevel,str2)) {
 		return False;
 	}
 
@@ -1490,7 +1509,7 @@ static bool api_RNetServerEnum2(struct smbd_server_connection *sconn,
 	DEBUG(4, ("domain [%s]\n", domain));
 
 	if (lp_browse_list()) {
-		total = get_server_info(servertype,&servers,domain);
+		total = get_session_info(servertype,&servers,domain);
 	}
 
 	data_len = fixed_len = string_len = 0;
@@ -1641,7 +1660,7 @@ static bool api_RNetServerEnum3(struct smbd_server_connection *sconn,
 	if (strcmp(str1, "WrLehDzz") != 0) {
 		return false;
 	}
-	if (!check_server_info(uLevel,str2)) {
+	if (!check_session_info(uLevel,str2)) {
 		return False;
 	}
 
@@ -1666,7 +1685,7 @@ static bool api_RNetServerEnum3(struct smbd_server_connection *sconn,
 		  domain, first_name));
 
 	if (lp_browse_list()) {
-		total = get_server_info(servertype,&servers,domain);
+		total = get_session_info(servertype,&servers,domain);
 	}
 
 	data_len = fixed_len = string_len = 0;
@@ -1784,7 +1803,7 @@ static bool api_RNetGroupGetUsers(struct smbd_server_connection *sconn,
 				  connection_struct *conn, uint16 vuid,
 				char *param, int tpscnt,
 				char *data, int tdscnt,
-				int mdrcnt, int mprcnt, char **rdata, 
+				int mdrcnt, int mprcnt, char **rdata,
 				char **rparam, int *rdata_len, int *rparam_len)
 {
 	char *str1 = get_safe_str_ptr(param,tpscnt,param,2);
@@ -1981,7 +2000,8 @@ static bool api_RNetShareGetInfo(struct smbd_server_connection *sconn,
 {
 	char *str1 = get_safe_str_ptr(param,tpscnt,param,2);
 	char *str2 = skip_string(param,tpscnt,str1);
-	char *netname = skip_string(param,tpscnt,str2);
+	char *netname_in = skip_string(param,tpscnt,str2);
+	char *netname = NULL;
 	char *p = skip_string(param,tpscnt,netname);
 	int uLevel = get_safe_SVAL(param,tpscnt,p,0,-1);
 	int snum;
@@ -1990,8 +2010,8 @@ static bool api_RNetShareGetInfo(struct smbd_server_connection *sconn,
 		return False;
 	}
 
-	snum = find_service(netname);
-	if (snum < 0) {
+	snum = find_service(talloc_tos(), netname_in, &netname);
+	if (snum < 0 || !netname) {
 		return False;
 	}
 
@@ -2168,6 +2188,7 @@ static bool api_RNetShareAdd(struct smbd_server_connection *sconn,
 	struct rpc_pipe_client *cli = NULL;
 	union srvsvc_NetShareInfo info;
 	struct srvsvc_NetShareInfo2 info2;
+	struct dcerpc_binding_handle *b;
 
 	if (!str1 || !str2 || !p) {
 		return False;
@@ -2235,7 +2256,9 @@ static bool api_RNetShareAdd(struct smbd_server_connection *sconn,
 	}
 
 	status = rpc_pipe_open_internal(mem_ctx, &ndr_table_srvsvc.syntax_id,
-					conn->server_info,
+					conn->session_info,
+					&conn->sconn->client_id,
+					conn->sconn->msg_ctx,
 					&cli);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("api_RNetShareAdd: could not connect to srvsvc: %s\n",
@@ -2243,6 +2266,8 @@ static bool api_RNetShareAdd(struct smbd_server_connection *sconn,
 		res = W_ERROR_V(ntstatus_to_werror(status));
 		goto out;
 	}
+
+	b = cli->binding_handle;
 
 	info2.name		= sharename;
 	info2.type		= STYPE_DISKTREE;
@@ -2255,7 +2280,7 @@ static bool api_RNetShareAdd(struct smbd_server_connection *sconn,
 
 	info.info2 = &info2;
 
-	status = rpccli_srvsvc_NetShareAdd(cli, mem_ctx,
+	status = dcerpc_srvsvc_NetShareAdd(b, mem_ctx,
 					   cli->srv_name_slash,
 					   2,
 					   &info,
@@ -2318,7 +2343,8 @@ static bool api_RNetGroupEnum(struct smbd_server_connection *sconn,
 	uint32_t resume_handle;
 	struct rpc_pipe_client *samr_pipe;
 	struct policy_handle samr_handle, domain_handle;
-	NTSTATUS status;
+	NTSTATUS status, result;
+	struct dcerpc_binding_handle *b;
 
 	if (!str1 || !str2 || !p) {
 		return False;
@@ -2328,9 +2354,9 @@ static bool api_RNetGroupEnum(struct smbd_server_connection *sconn,
 		return False;
 	}
 
-	/* parameters  
+	/* parameters
 	 * W-> resume context (number of users to skip)
-	 * r -> return parameter pointer to receive buffer 
+	 * r -> return parameter pointer to receive buffer
 	 * L -> length of receive buffer
 	 * e -> return parameter number of entries
 	 * h -> return parameter total number of users
@@ -2342,28 +2368,44 @@ static bool api_RNetGroupEnum(struct smbd_server_connection *sconn,
 
 	status = rpc_pipe_open_internal(
 		talloc_tos(), &ndr_table_samr.syntax_id,
-		conn->server_info, &samr_pipe);
+		conn->session_info, &conn->sconn->client_id,
+		conn->sconn->msg_ctx, &samr_pipe);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("api_RNetUserEnum: Could not connect to samr: %s\n",
 			  nt_errstr(status)));
 		return false;
 	}
 
-	status = rpccli_samr_Connect2(samr_pipe, talloc_tos(), global_myname(),
-				      SAMR_ACCESS_LOOKUP_DOMAIN, &samr_handle);
+	b = samr_pipe->binding_handle;
+
+	status = dcerpc_samr_Connect2(b, talloc_tos(), global_myname(),
+				      SAMR_ACCESS_LOOKUP_DOMAIN, &samr_handle,
+				      &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("api_RNetUserEnum: samr_Connect2 failed: %s\n",
 			  nt_errstr(status)));
 		return false;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		DEBUG(0, ("api_RNetUserEnum: samr_Connect2 failed: %s\n",
+			  nt_errstr(result)));
+		return false;
+	}
 
-	status = rpccli_samr_OpenDomain(samr_pipe, talloc_tos(), &samr_handle,
+	status = dcerpc_samr_OpenDomain(b, talloc_tos(), &samr_handle,
 					SAMR_DOMAIN_ACCESS_ENUM_ACCOUNTS,
-					get_global_sam_sid(), &domain_handle);
+					get_global_sam_sid(), &domain_handle,
+					&result);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("api_RNetUserEnum: samr_OpenDomain failed: %s\n",
 			  nt_errstr(status)));
-		rpccli_samr_Close(samr_pipe, talloc_tos(), &samr_handle);
+		dcerpc_samr_Close(b, talloc_tos(), &samr_handle, &result);
+		return false;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		DEBUG(0, ("api_RNetUserEnum: samr_OpenDomain failed: %s\n",
+			  nt_errstr(result)));
+		dcerpc_samr_Close(b, talloc_tos(), &samr_handle, &result);
 		return false;
 	}
 
@@ -2388,19 +2430,26 @@ static bool api_RNetGroupEnum(struct smbd_server_connection *sconn,
 		struct samr_SamArray *sam_entries;
 		uint32_t num_entries;
 
-		status = rpccli_samr_EnumDomainGroups(samr_pipe, talloc_tos(),
+		status = dcerpc_samr_EnumDomainGroups(b, talloc_tos(),
 						      &domain_handle,
 						      &resume_handle,
 						      &sam_entries, 1,
-						      &num_entries);
+						      &num_entries,
+						      &result);
 		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(10, ("rpccli_samr_EnumDomainGroups returned "
+			DEBUG(10, ("dcerpc_samr_EnumDomainGroups returned "
 				   "%s\n", nt_errstr(status)));
+			break;
+		}
+		if (!NT_STATUS_IS_OK(result)) {
+			status = result;
+			DEBUG(10, ("dcerpc_samr_EnumDomainGroups returned "
+				   "%s\n", nt_errstr(result)));
 			break;
 		}
 
 		if (num_entries == 0) {
-			DEBUG(10, ("rpccli_samr_EnumDomainGroups returned "
+			DEBUG(10, ("dcerpc_samr_EnumDomainGroups returned "
 				   "no entries -- done\n"));
 			break;
 		}
@@ -2435,8 +2484,8 @@ static bool api_RNetGroupEnum(struct smbd_server_connection *sconn,
 		TALLOC_FREE(sam_entries);
 	}
 
-	rpccli_samr_Close(samr_pipe, talloc_tos(), &domain_handle);
-	rpccli_samr_Close(samr_pipe, talloc_tos(), &samr_handle);
+	dcerpc_samr_Close(b, talloc_tos(), &domain_handle, &result);
+	dcerpc_samr_Close(b, talloc_tos(), &samr_handle, &result);
 
 	*rdata_len = PTR_DIFF(p,*rdata);
 
@@ -2482,7 +2531,8 @@ static bool api_NetUserGetGroups(struct smbd_server_connection *sconn,
 	struct lsa_Strings names;
 	struct samr_Ids type, rid;
 	struct samr_RidWithAttributeArray *rids;
-	NTSTATUS status;
+	NTSTATUS status, result;
+	struct dcerpc_binding_handle *b;
 
 	if (!str1 || !str2 || !UserName || !p) {
 		return False;
@@ -2524,38 +2574,59 @@ static bool api_NetUserGetGroups(struct smbd_server_connection *sconn,
 
 	status = rpc_pipe_open_internal(
 		talloc_tos(), &ndr_table_samr.syntax_id,
-		conn->server_info, &samr_pipe);
+		conn->session_info, &conn->sconn->client_id,
+		conn->sconn->msg_ctx, &samr_pipe);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("api_RNetUserEnum: Could not connect to samr: %s\n",
 			  nt_errstr(status)));
 		return false;
 	}
 
-	status = rpccli_samr_Connect2(samr_pipe, talloc_tos(), global_myname(),
-				      SAMR_ACCESS_LOOKUP_DOMAIN, &samr_handle);
+	b = samr_pipe->binding_handle;
+
+	status = dcerpc_samr_Connect2(b, talloc_tos(), global_myname(),
+				      SAMR_ACCESS_LOOKUP_DOMAIN, &samr_handle,
+				      &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("api_RNetUserEnum: samr_Connect2 failed: %s\n",
 			  nt_errstr(status)));
 		return false;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		DEBUG(0, ("api_RNetUserEnum: samr_Connect2 failed: %s\n",
+			  nt_errstr(result)));
+		return false;
+	}
 
-	status = rpccli_samr_OpenDomain(samr_pipe, talloc_tos(), &samr_handle,
+	status = dcerpc_samr_OpenDomain(b, talloc_tos(), &samr_handle,
 					SAMR_DOMAIN_ACCESS_OPEN_ACCOUNT,
-					get_global_sam_sid(), &domain_handle);
+					get_global_sam_sid(), &domain_handle,
+					&result);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("api_RNetUserEnum: samr_OpenDomain failed: %s\n",
 			  nt_errstr(status)));
 		goto close_sam;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		DEBUG(0, ("api_RNetUserEnum: samr_OpenDomain failed: %s\n",
+			  nt_errstr(result)));
+		goto close_sam;
+	}
 
 	name.string = UserName;
 
-	status = rpccli_samr_LookupNames(samr_pipe, talloc_tos(),
+	status = dcerpc_samr_LookupNames(b, talloc_tos(),
 					 &domain_handle, 1, &name,
-					 &rid, &type);
+					 &rid, &type,
+					 &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("api_RNetUserEnum: samr_LookupNames failed: %s\n",
 			  nt_errstr(status)));
+		goto close_domain;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		DEBUG(0, ("api_RNetUserEnum: samr_LookupNames failed: %s\n",
+			  nt_errstr(result)));
 		goto close_domain;
 	}
 
@@ -2565,31 +2636,44 @@ static bool api_NetUserGetGroups(struct smbd_server_connection *sconn,
 		goto close_domain;
 	}
 
-	status = rpccli_samr_OpenUser(samr_pipe, talloc_tos(),
+	status = dcerpc_samr_OpenUser(b, talloc_tos(),
 				      &domain_handle,
 				      SAMR_USER_ACCESS_GET_GROUPS,
-				      rid.ids[0], &user_handle);
+				      rid.ids[0], &user_handle,
+				      &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("api_RNetUserEnum: samr_LookupNames failed: %s\n",
 			  nt_errstr(status)));
 		goto close_domain;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		DEBUG(0, ("api_RNetUserEnum: samr_LookupNames failed: %s\n",
+			  nt_errstr(result)));
+		goto close_domain;
+	}
 
-	status = rpccli_samr_GetGroupsForUser(samr_pipe, talloc_tos(),
-					      &user_handle, &rids);
+	status = dcerpc_samr_GetGroupsForUser(b, talloc_tos(),
+					      &user_handle, &rids,
+					      &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("api_RNetUserEnum: samr_LookupNames failed: %s\n",
 			  nt_errstr(status)));
 		goto close_user;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		DEBUG(0, ("api_RNetUserEnum: samr_LookupNames failed: %s\n",
+			  nt_errstr(result)));
+		goto close_user;
+	}
 
 	for (i=0; i<rids->count; i++) {
 
-		status = rpccli_samr_LookupRids(samr_pipe, talloc_tos(),
+		status = dcerpc_samr_LookupRids(b, talloc_tos(),
 						&domain_handle,
 						1, &rids->rids[i].rid,
-						&names, &type);
-		if (NT_STATUS_IS_OK(status) && (names.count == 1)) {
+						&names, &type,
+						&result);
+		if (NT_STATUS_IS_OK(status) && NT_STATUS_IS_OK(result) && (names.count == 1)) {
 			strlcpy(p, names.names[0].string, PTR_DIFF(endp,p));
 			p += 21;
 			count++;
@@ -2604,11 +2688,11 @@ static bool api_NetUserGetGroups(struct smbd_server_connection *sconn,
 	ret = True;
 
  close_user:
-	rpccli_samr_Close(samr_pipe, talloc_tos(), &user_handle);
+	dcerpc_samr_Close(b, talloc_tos(), &user_handle, &result);
  close_domain:
-	rpccli_samr_Close(samr_pipe, talloc_tos(), &domain_handle);
+	dcerpc_samr_Close(b, talloc_tos(), &domain_handle, &result);
  close_sam:
-	rpccli_samr_Close(samr_pipe, talloc_tos(), &samr_handle);
+	dcerpc_samr_Close(b, talloc_tos(), &samr_handle, &result);
 
 	return ret;
 }
@@ -2633,12 +2717,14 @@ static bool api_RNetUserEnum(struct smbd_server_connection *sconn,
 
 	struct rpc_pipe_client *samr_pipe;
 	struct policy_handle samr_handle, domain_handle;
-	NTSTATUS status;
+	NTSTATUS status, result;
 
 	char *str1 = get_safe_str_ptr(param,tpscnt,param,2);
 	char *str2 = skip_string(param,tpscnt,str1);
 	char *p = skip_string(param,tpscnt,str2);
 	char *endp = NULL;
+
+	struct dcerpc_binding_handle *b;
 
 	if (!str1 || !str2 || !p) {
 		return False;
@@ -2680,28 +2766,44 @@ static bool api_RNetUserEnum(struct smbd_server_connection *sconn,
 
 	status = rpc_pipe_open_internal(
 		talloc_tos(), &ndr_table_samr.syntax_id,
-		conn->server_info, &samr_pipe);
+		conn->session_info, &conn->sconn->client_id,
+		conn->sconn->msg_ctx, &samr_pipe);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("api_RNetUserEnum: Could not connect to samr: %s\n",
 			  nt_errstr(status)));
 		return false;
 	}
 
-	status = rpccli_samr_Connect2(samr_pipe, talloc_tos(), global_myname(),
-				      SAMR_ACCESS_LOOKUP_DOMAIN, &samr_handle);
+	b = samr_pipe->binding_handle;
+
+	status = dcerpc_samr_Connect2(b, talloc_tos(), global_myname(),
+				      SAMR_ACCESS_LOOKUP_DOMAIN, &samr_handle,
+				      &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("api_RNetUserEnum: samr_Connect2 failed: %s\n",
 			  nt_errstr(status)));
 		return false;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		DEBUG(0, ("api_RNetUserEnum: samr_Connect2 failed: %s\n",
+			  nt_errstr(result)));
+		return false;
+	}
 
-	status = rpccli_samr_OpenDomain(samr_pipe, talloc_tos(), &samr_handle,
+	status = dcerpc_samr_OpenDomain(b, talloc_tos(), &samr_handle,
 					SAMR_DOMAIN_ACCESS_ENUM_ACCOUNTS,
-					get_global_sam_sid(), &domain_handle);
+					get_global_sam_sid(), &domain_handle,
+					&result);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("api_RNetUserEnum: samr_OpenDomain failed: %s\n",
 			  nt_errstr(status)));
-		rpccli_samr_Close(samr_pipe, talloc_tos(), &samr_handle);
+		dcerpc_samr_Close(b, talloc_tos(), &samr_handle, &result);
+		return false;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		DEBUG(0, ("api_RNetUserEnum: samr_OpenDomain failed: %s\n",
+			  nt_errstr(result)));
+		dcerpc_samr_Close(b, talloc_tos(), &samr_handle, &result);
 		return false;
 	}
 
@@ -2713,20 +2815,26 @@ static bool api_RNetUserEnum(struct smbd_server_connection *sconn,
 		struct samr_SamArray *sam_entries;
 		uint32_t num_entries;
 
-		status = rpccli_samr_EnumDomainUsers(samr_pipe, talloc_tos(),
+		status = dcerpc_samr_EnumDomainUsers(b, talloc_tos(),
 						     &domain_handle,
 						     &resume_handle,
 						     0, &sam_entries, 1,
-						     &num_entries);
+						     &num_entries,
+						     &result);
 
 		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(10, ("rpccli_samr_EnumDomainUsers returned "
+			DEBUG(10, ("dcerpc_samr_EnumDomainUsers returned "
 				   "%s\n", nt_errstr(status)));
+			break;
+		}
+		if (!NT_STATUS_IS_OK(result)) {
+			DEBUG(10, ("dcerpc_samr_EnumDomainUsers returned "
+				   "%s\n", nt_errstr(result)));
 			break;
 		}
 
 		if (num_entries == 0) {
-			DEBUG(10, ("rpccli_samr_EnumDomainUsers returned "
+			DEBUG(10, ("dcerpc_samr_EnumDomainUsers returned "
 				   "no entries -- done\n"));
 			break;
 		}
@@ -2759,8 +2867,8 @@ static bool api_RNetUserEnum(struct smbd_server_connection *sconn,
 		TALLOC_FREE(sam_entries);
 	}
 
-	rpccli_samr_Close(samr_pipe, talloc_tos(), &domain_handle);
-	rpccli_samr_Close(samr_pipe, talloc_tos(), &samr_handle);
+	dcerpc_samr_Close(b, talloc_tos(), &domain_handle, &result);
+	dcerpc_samr_Close(b, talloc_tos(), &samr_handle, &result);
 
 	*rdata_len = PTR_DIFF(p,*rdata);
 
@@ -2809,7 +2917,7 @@ static bool api_NetRemoteTOD(struct smbd_server_connection *sconn,
 					    by NT in a "net time" operation,
 					    it seems to ignore the one below */
 
-	/* the client expects to get localtime, not GMT, in this bit 
+	/* the client expects to get localtime, not GMT, in this bit
 		(I think, this needs testing) */
 	t = localtime(&unixdate);
 	if (!t) {
@@ -2848,7 +2956,7 @@ static bool api_SetUserPassword(struct smbd_server_connection *sconn,
 	fstring user;
 	fstring pass1,pass2;
 	TALLOC_CTX *mem_ctx = talloc_tos();
-	NTSTATUS status;
+	NTSTATUS status, result;
 	struct rpc_pipe_client *cli = NULL;
 	struct policy_handle connect_handle, domain_handle, user_handle;
 	struct lsa_String domain_name;
@@ -2862,6 +2970,7 @@ static bool api_SetUserPassword(struct smbd_server_connection *sconn,
 	uint32_t rid;
 	int encrypted;
 	int min_pwd_length;
+	struct dcerpc_binding_handle *b = NULL;
 
 	/* Skip 2 strings. */
 	p = skip_string(param,tpscnt,np);
@@ -2922,7 +3031,9 @@ static bool api_SetUserPassword(struct smbd_server_connection *sconn,
 	ZERO_STRUCT(user_handle);
 
 	status = rpc_pipe_open_internal(mem_ctx, &ndr_table_samr.syntax_id,
-					conn->server_info,
+					conn->session_info,
+					&conn->sconn->client_id,
+					conn->sconn->msg_ctx,
 					&cli);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("api_SetUserPassword: could not connect to samr: %s\n",
@@ -2931,48 +3042,70 @@ static bool api_SetUserPassword(struct smbd_server_connection *sconn,
 		goto out;
 	}
 
-	status = rpccli_samr_Connect2(cli, mem_ctx,
+	b = cli->binding_handle;
+
+	status = dcerpc_samr_Connect2(b, mem_ctx,
 				      global_myname(),
 				      SAMR_ACCESS_CONNECT_TO_SERVER |
 				      SAMR_ACCESS_ENUM_DOMAINS |
 				      SAMR_ACCESS_LOOKUP_DOMAIN,
-				      &connect_handle);
+				      &connect_handle,
+				      &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		errcode = W_ERROR_V(ntstatus_to_werror(status));
+		goto out;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		errcode = W_ERROR_V(ntstatus_to_werror(result));
 		goto out;
 	}
 
 	init_lsa_String(&domain_name, get_global_sam_name());
 
-	status = rpccli_samr_LookupDomain(cli, mem_ctx,
+	status = dcerpc_samr_LookupDomain(b, mem_ctx,
 					  &connect_handle,
 					  &domain_name,
-					  &domain_sid);
+					  &domain_sid,
+					  &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		errcode = W_ERROR_V(ntstatus_to_werror(status));
 		goto out;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		errcode = W_ERROR_V(ntstatus_to_werror(result));
+		goto out;
+	}
 
-	status = rpccli_samr_OpenDomain(cli, mem_ctx,
+	status = dcerpc_samr_OpenDomain(b, mem_ctx,
 					&connect_handle,
 					SAMR_DOMAIN_ACCESS_OPEN_ACCOUNT,
 					domain_sid,
-					&domain_handle);
+					&domain_handle,
+					&result);
 	if (!NT_STATUS_IS_OK(status)) {
 		errcode = W_ERROR_V(ntstatus_to_werror(status));
+		goto out;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		errcode = W_ERROR_V(ntstatus_to_werror(result));
 		goto out;
 	}
 
 	init_lsa_String(&names, user);
 
-	status = rpccli_samr_LookupNames(cli, mem_ctx,
+	status = dcerpc_samr_LookupNames(b, mem_ctx,
 					 &domain_handle,
 					 1,
 					 &names,
 					 &rids,
-					 &types);
+					 &types,
+					 &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		errcode = W_ERROR_V(ntstatus_to_werror(status));
+		goto out;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		errcode = W_ERROR_V(ntstatus_to_werror(result));
 		goto out;
 	}
 
@@ -2991,13 +3124,18 @@ static bool api_SetUserPassword(struct smbd_server_connection *sconn,
 
 	rid = rids.ids[0];
 
-	status = rpccli_samr_OpenUser(cli, mem_ctx,
+	status = dcerpc_samr_OpenUser(b, mem_ctx,
 				      &domain_handle,
 				      SAMR_USER_ACCESS_CHANGE_PASSWORD,
 				      rid,
-				      &user_handle);
+				      &user_handle,
+				      &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		errcode = W_ERROR_V(ntstatus_to_werror(status));
+		goto out;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		errcode = W_ERROR_V(ntstatus_to_werror(result));
 		goto out;
 	}
 
@@ -3011,7 +3149,7 @@ static bool api_SetUserPassword(struct smbd_server_connection *sconn,
 		memcpy(new_lm_hash.hash, pass1, MIN(strlen(pass2), 16));
 	}
 
-	status = rpccli_samr_ChangePasswordUser(cli, mem_ctx,
+	status = dcerpc_samr_ChangePasswordUser(b, mem_ctx,
 						&user_handle,
 						true, /* lm_present */
 						&old_lm_hash,
@@ -3022,27 +3160,32 @@ static bool api_SetUserPassword(struct smbd_server_connection *sconn,
 						false, /* cross1_present */
 						NULL, /* nt_cross */
 						false, /* cross2_present */
-						NULL); /* lm_cross */
+						NULL, /* lm_cross */
+						&result);
 	if (!NT_STATUS_IS_OK(status)) {
 		errcode = W_ERROR_V(ntstatus_to_werror(status));
+		goto out;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		errcode = W_ERROR_V(ntstatus_to_werror(result));
 		goto out;
 	}
 
 	errcode = NERR_Success;
  out:
 
-	if (cli && is_valid_policy_hnd(&user_handle)) {
-		rpccli_samr_Close(cli, mem_ctx, &user_handle);
+	if (b && is_valid_policy_hnd(&user_handle)) {
+		dcerpc_samr_Close(b, mem_ctx, &user_handle, &result);
 	}
-	if (cli && is_valid_policy_hnd(&domain_handle)) {
-		rpccli_samr_Close(cli, mem_ctx, &domain_handle);
+	if (b && is_valid_policy_hnd(&domain_handle)) {
+		dcerpc_samr_Close(b, mem_ctx, &domain_handle, &result);
 	}
-	if (cli && is_valid_policy_hnd(&connect_handle)) {
-		rpccli_samr_Close(cli, mem_ctx, &connect_handle);
+	if (b && is_valid_policy_hnd(&connect_handle)) {
+		dcerpc_samr_Close(b, mem_ctx, &connect_handle, &result);
 	}
 
 	memset((char *)pass1,'\0',sizeof(fstring));
-	memset((char *)pass2,'\0',sizeof(fstring));	 
+	memset((char *)pass2,'\0',sizeof(fstring));
 
 	SSVAL(*rparam,0,errcode);
 	SSVAL(*rparam,2,0);		/* converter word */
@@ -3065,13 +3208,14 @@ static bool api_SamOEMChangePassword(struct smbd_server_connection *sconn,
 	char *p = get_safe_str_ptr(param,tpscnt,param,2);
 
 	TALLOC_CTX *mem_ctx = talloc_tos();
-	NTSTATUS status;
+	NTSTATUS status, result;
 	struct rpc_pipe_client *cli = NULL;
 	struct lsa_AsciiString server, account;
 	struct samr_CryptPassword password;
 	struct samr_Password hash;
 	int errcode = NERR_badpass;
 	int bufsize;
+	struct dcerpc_binding_handle *b;
 
 	*rparam_len = 4;
 	*rparam = smb_realloc_limit(*rparam,*rparam_len);
@@ -3138,7 +3282,9 @@ static bool api_SamOEMChangePassword(struct smbd_server_connection *sconn,
 	memcpy(hash.hash, data+516, 16);
 
 	status = rpc_pipe_open_internal(mem_ctx, &ndr_table_samr.syntax_id,
-					conn->server_info,
+					conn->session_info,
+					&conn->sconn->client_id,
+					conn->sconn->msg_ctx,
 					&cli);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("api_SamOEMChangePassword: could not connect to samr: %s\n",
@@ -3147,16 +3293,23 @@ static bool api_SamOEMChangePassword(struct smbd_server_connection *sconn,
 		goto out;
 	}
 
+	b = cli->binding_handle;
+
 	init_lsa_AsciiString(&server, global_myname());
 	init_lsa_AsciiString(&account, user);
 
-	status = rpccli_samr_OemChangePasswordUser2(cli, mem_ctx,
+	status = dcerpc_samr_OemChangePasswordUser2(b, mem_ctx,
 						    &server,
 						    &account,
 						    &password,
-						    &hash);
+						    &hash,
+						    &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		errcode = W_ERROR_V(ntstatus_to_werror(status));
+		goto out;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		errcode = W_ERROR_V(ntstatus_to_werror(result));
 		goto out;
 	}
 
@@ -3170,7 +3323,7 @@ static bool api_SamOEMChangePassword(struct smbd_server_connection *sconn,
 
 /****************************************************************************
   delete a print job
-  Form: <W> <> 
+  Form: <W> <>
   ****************************************************************************/
 
 static bool api_RDosPrintJobDel(struct smbd_server_connection *sconn,
@@ -3193,6 +3346,7 @@ static bool api_RDosPrintJobDel(struct smbd_server_connection *sconn,
 	TALLOC_CTX *mem_ctx = talloc_tos();
 	NTSTATUS status;
 	struct rpc_pipe_client *cli = NULL;
+	struct dcerpc_binding_handle *b = NULL;
 	struct policy_handle handle;
 	struct spoolss_DevmodeContainer devmode_ctr;
 	enum spoolss_JobControl command;
@@ -3223,17 +3377,23 @@ static bool api_RDosPrintJobDel(struct smbd_server_connection *sconn,
 
 	ZERO_STRUCT(handle);
 
-	status = rpc_connect_spoolss_pipe(conn, &cli);
+	status = rpc_pipe_open_interface(conn,
+					 &ndr_table_spoolss.syntax_id,
+					 conn->session_info,
+					 &conn->sconn->client_id,
+					 conn->sconn->msg_ctx,
+					 &cli);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("api_RDosPrintJobDel: could not connect to spoolss: %s\n",
 			  nt_errstr(status)));
 		errcode = W_ERROR_V(ntstatus_to_werror(status));
 		goto out;
 	}
+	b = cli->binding_handle;
 
 	ZERO_STRUCT(devmode_ctr);
 
-	status = rpccli_spoolss_OpenPrinter(cli, mem_ctx,
+	status = dcerpc_spoolss_OpenPrinter(b, mem_ctx,
 					    sharename,
 					    "RAW",
 					    devmode_ctr,
@@ -3269,7 +3429,7 @@ static bool api_RDosPrintJobDel(struct smbd_server_connection *sconn,
 		goto out;
 	}
 
-	status = rpccli_spoolss_SetJob(cli, mem_ctx,
+	status = dcerpc_spoolss_SetJob(b, mem_ctx,
 				       &handle,
 				       jobid,
 				       NULL, /* unique ptr ctr */
@@ -3285,11 +3445,11 @@ static bool api_RDosPrintJobDel(struct smbd_server_connection *sconn,
 	}
 
  out:
-	if (cli && is_valid_policy_hnd(&handle)) {
-		rpccli_spoolss_ClosePrinter(cli, mem_ctx, &handle, NULL);
+	if (b && is_valid_policy_hnd(&handle)) {
+		dcerpc_spoolss_ClosePrinter(b, mem_ctx, &handle, &werr);
 	}
 
-	SSVAL(*rparam,0,errcode);	
+	SSVAL(*rparam,0,errcode);
 	SSVAL(*rparam,2,0);		/* converter word */
 
 	return(True);
@@ -3317,6 +3477,7 @@ static bool api_WPrintQueueCtrl(struct smbd_server_connection *sconn,
 
 	TALLOC_CTX *mem_ctx = talloc_tos();
 	struct rpc_pipe_client *cli = NULL;
+	struct dcerpc_binding_handle *b = NULL;
 	struct policy_handle handle;
 	struct spoolss_SetPrinterInfoCtr info_ctr;
 	struct spoolss_DevmodeContainer devmode_ctr;
@@ -3344,17 +3505,23 @@ static bool api_WPrintQueueCtrl(struct smbd_server_connection *sconn,
 
 	ZERO_STRUCT(handle);
 
-	status = rpc_connect_spoolss_pipe(conn, &cli);
+	status = rpc_pipe_open_interface(conn,
+					 &ndr_table_spoolss.syntax_id,
+					 conn->session_info,
+					 &conn->sconn->client_id,
+					 conn->sconn->msg_ctx,
+					 &cli);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("api_WPrintQueueCtrl: could not connect to spoolss: %s\n",
 			  nt_errstr(status)));
 		errcode = W_ERROR_V(ntstatus_to_werror(status));
 		goto out;
 	}
+	b = cli->binding_handle;
 
 	ZERO_STRUCT(devmode_ctr);
 
-	status = rpccli_spoolss_OpenPrinter(cli, mem_ctx,
+	status = dcerpc_spoolss_OpenPrinter(b, mem_ctx,
 					    QueueName,
 					    NULL,
 					    devmode_ctr,
@@ -3393,7 +3560,7 @@ static bool api_WPrintQueueCtrl(struct smbd_server_connection *sconn,
 	ZERO_STRUCT(info_ctr);
 	ZERO_STRUCT(secdesc_ctr);
 
-	status = rpccli_spoolss_SetPrinter(cli, mem_ctx,
+	status = dcerpc_spoolss_SetPrinter(b, mem_ctx,
 					   &handle,
 					   &info_ctr,
 					   &devmode_ctr,
@@ -3413,8 +3580,8 @@ static bool api_WPrintQueueCtrl(struct smbd_server_connection *sconn,
 
  out:
 
-	if (cli && is_valid_policy_hnd(&handle)) {
-		rpccli_spoolss_ClosePrinter(cli, mem_ctx, &handle, NULL);
+	if (b && is_valid_policy_hnd(&handle)) {
+		dcerpc_spoolss_ClosePrinter(b, mem_ctx, &handle, &werr);
 	}
 
 	SSVAL(*rparam,0,errcode);
@@ -3427,8 +3594,8 @@ static bool api_WPrintQueueCtrl(struct smbd_server_connection *sconn,
   set the property of a print job (undocumented?)
   ? function = 0xb -> set name of print job
   ? function = 0x6 -> move print job up/down
-  Form: <WWsTP> <WWzWWDDzzzzzzzzzzlz> 
-  or   <WWsTP> <WB21BB16B10zWWzDDz> 
+  Form: <WWsTP> <WWzWWDDzzzzzzzzzzlz>
+  or   <WWsTP> <WB21BB16B10zWWzDDz>
 ****************************************************************************/
 
 static int check_printjob_info(struct pack_desc* desc,
@@ -3476,6 +3643,7 @@ static bool api_PrintJobInfo(struct smbd_server_connection *sconn,
 	WERROR werr;
 	NTSTATUS status;
 	struct rpc_pipe_client *cli = NULL;
+	struct dcerpc_binding_handle *b = NULL;
 	struct policy_handle handle;
 	struct spoolss_DevmodeContainer devmode_ctr;
 	struct spoolss_JobInfoContainer ctr;
@@ -3519,17 +3687,23 @@ static bool api_PrintJobInfo(struct smbd_server_connection *sconn,
 
 	ZERO_STRUCT(handle);
 
-	status = rpc_connect_spoolss_pipe(conn, &cli);
+	status = rpc_pipe_open_interface(conn,
+					 &ndr_table_spoolss.syntax_id,
+					 conn->session_info,
+					 &conn->sconn->client_id,
+					 conn->sconn->msg_ctx,
+					 &cli);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("api_PrintJobInfo: could not connect to spoolss: %s\n",
 			  nt_errstr(status)));
 		errcode = W_ERROR_V(ntstatus_to_werror(status));
 		goto out;
 	}
+	b = cli->binding_handle;
 
 	ZERO_STRUCT(devmode_ctr);
 
-	status = rpccli_spoolss_OpenPrinter(cli, mem_ctx,
+	status = dcerpc_spoolss_OpenPrinter(b, mem_ctx,
 					    sharename,
 					    "RAW",
 					    devmode_ctr,
@@ -3574,7 +3748,7 @@ static bool api_PrintJobInfo(struct smbd_server_connection *sconn,
 	ctr.level = 1;
 	ctr.info.info1 = &info1;
 
-	status = rpccli_spoolss_SetJob(cli, mem_ctx,
+	status = dcerpc_spoolss_SetJob(b, mem_ctx,
 				       &handle,
 				       jobid,
 				       &ctr,
@@ -3592,8 +3766,8 @@ static bool api_PrintJobInfo(struct smbd_server_connection *sconn,
 	errcode = NERR_Success;
  out:
 
-	if (cli && is_valid_policy_hnd(&handle)) {
-		rpccli_spoolss_ClosePrinter(cli, mem_ctx, &handle, NULL);
+	if (b && is_valid_policy_hnd(&handle)) {
+		dcerpc_spoolss_ClosePrinter(b, mem_ctx, &handle, &werr);
 	}
 
 	SSVALS(*rparam,0,errcode);
@@ -3628,6 +3802,7 @@ static bool api_RNetServerGetInfo(struct smbd_server_connection *sconn,
 	struct rpc_pipe_client *cli = NULL;
 	union srvsvc_NetSrvInfo info;
 	int errcode;
+	struct dcerpc_binding_handle *b;
 
 	if (!str1 || !str2 || !p) {
 		return False;
@@ -3691,7 +3866,9 @@ static bool api_RNetServerGetInfo(struct smbd_server_connection *sconn,
 	p2 = p + struct_len;
 
 	status = rpc_pipe_open_internal(mem_ctx, &ndr_table_srvsvc.syntax_id,
-					conn->server_info,
+					conn->session_info,
+					&conn->sconn->client_id,
+					conn->sconn->msg_ctx,
 					&cli);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("api_RNetServerGetInfo: could not connect to srvsvc: %s\n",
@@ -3700,7 +3877,9 @@ static bool api_RNetServerGetInfo(struct smbd_server_connection *sconn,
 		goto out;
 	}
 
-	status = rpccli_srvsvc_NetSrvGetInfo(cli, mem_ctx,
+	b = cli->binding_handle;
+
+	status = dcerpc_srvsvc_NetSrvGetInfo(b, mem_ctx,
 					     NULL,
 					     101,
 					     &info,
@@ -3833,7 +4012,7 @@ static bool api_NetWkstaGetInfo(struct smbd_server_connection *sconn,
 	p += 4;
 
 	SIVAL(p,0,PTR_DIFF(p2,*rdata));
-	strlcpy(p2,conn->server_info->sanitized_username,PTR_DIFF(endp,p2));
+	strlcpy(p2,conn->session_info->sanitized_username,PTR_DIFF(endp,p2));
 	p2 = skip_string(*rdata,*rdata_len,p2);
 	if (!p2) {
 		return False;
@@ -3880,9 +4059,9 @@ static bool api_NetWkstaGetInfo(struct smbd_server_connection *sconn,
   get info about a user
 
     struct user_info_11 {
-        char                usri11_name[21];  0-20 
-        char                usri11_pad;       21 
-        char                *usri11_comment;  22-25 
+        char                usri11_name[21];  0-20
+        char                usri11_pad;       21
+        char                *usri11_comment;  22-25
         char            *usri11_usr_comment;  26-29
         unsigned short      usri11_priv;      30-31
         unsigned long       usri11_auth_flags; 32-35
@@ -4013,7 +4192,7 @@ There is no auxiliary data in the response.
 
   ****************************************************************************/
 
-#define usri11_name           0 
+#define usri11_name           0
 #define usri11_pad            21
 #define usri11_comment        22
 #define usri11_usr_comment    26
@@ -4054,7 +4233,7 @@ static bool api_RNetUserGetInfo(struct smbd_server_connection *sconn,
 	const char *level_string;
 
 	TALLOC_CTX *mem_ctx = talloc_tos();
-	NTSTATUS status;
+	NTSTATUS status, result;
 	struct rpc_pipe_client *cli = NULL;
 	struct policy_handle connect_handle, domain_handle, user_handle;
 	struct lsa_String domain_name;
@@ -4065,6 +4244,7 @@ static bool api_RNetUserGetInfo(struct smbd_server_connection *sconn,
 	int errcode = W_ERROR_V(WERR_USER_NOT_FOUND);
 	uint32_t rid;
 	union samr_UserInfo *info;
+	struct dcerpc_binding_handle *b = NULL;
 
 	if (!str1 || !str2 || !UserName || !p) {
 		return False;
@@ -4113,7 +4293,9 @@ static bool api_RNetUserGetInfo(struct smbd_server_connection *sconn,
 	ZERO_STRUCT(user_handle);
 
 	status = rpc_pipe_open_internal(mem_ctx, &ndr_table_samr.syntax_id,
-					conn->server_info,
+					conn->session_info,
+					&conn->sconn->client_id,
+					conn->sconn->msg_ctx,
 					&cli);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("api_RNetUserGetInfo: could not connect to samr: %s\n",
@@ -4122,48 +4304,70 @@ static bool api_RNetUserGetInfo(struct smbd_server_connection *sconn,
 		goto out;
 	}
 
-	status = rpccli_samr_Connect2(cli, mem_ctx,
+	b = cli->binding_handle;
+
+	status = dcerpc_samr_Connect2(b, mem_ctx,
 				      global_myname(),
 				      SAMR_ACCESS_CONNECT_TO_SERVER |
 				      SAMR_ACCESS_ENUM_DOMAINS |
 				      SAMR_ACCESS_LOOKUP_DOMAIN,
-				      &connect_handle);
+				      &connect_handle,
+				      &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		errcode = W_ERROR_V(ntstatus_to_werror(status));
+		goto out;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		errcode = W_ERROR_V(ntstatus_to_werror(result));
 		goto out;
 	}
 
 	init_lsa_String(&domain_name, get_global_sam_name());
 
-	status = rpccli_samr_LookupDomain(cli, mem_ctx,
+	status = dcerpc_samr_LookupDomain(b, mem_ctx,
 					  &connect_handle,
 					  &domain_name,
-					  &domain_sid);
+					  &domain_sid,
+					  &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		errcode = W_ERROR_V(ntstatus_to_werror(status));
 		goto out;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		errcode = W_ERROR_V(ntstatus_to_werror(result));
+		goto out;
+	}
 
-	status = rpccli_samr_OpenDomain(cli, mem_ctx,
+	status = dcerpc_samr_OpenDomain(b, mem_ctx,
 					&connect_handle,
 					SAMR_DOMAIN_ACCESS_OPEN_ACCOUNT,
 					domain_sid,
-					&domain_handle);
+					&domain_handle,
+					&result);
 	if (!NT_STATUS_IS_OK(status)) {
 		errcode = W_ERROR_V(ntstatus_to_werror(status));
+		goto out;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		errcode = W_ERROR_V(ntstatus_to_werror(result));
 		goto out;
 	}
 
 	init_lsa_String(&names, UserName);
 
-	status = rpccli_samr_LookupNames(cli, mem_ctx,
+	status = dcerpc_samr_LookupNames(b, mem_ctx,
 					 &domain_handle,
 					 1,
 					 &names,
 					 &rids,
-					 &types);
+					 &types,
+					 &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		errcode = W_ERROR_V(ntstatus_to_werror(status));
+		goto out;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		errcode = W_ERROR_V(ntstatus_to_werror(result));
 		goto out;
 	}
 
@@ -4182,7 +4386,7 @@ static bool api_RNetUserGetInfo(struct smbd_server_connection *sconn,
 
 	rid = rids.ids[0];
 
-	status = rpccli_samr_OpenUser(cli, mem_ctx,
+	status = dcerpc_samr_OpenUser(b, mem_ctx,
 				      &domain_handle,
 				      SAMR_USER_ACCESS_GET_LOCALE |
 				      SAMR_USER_ACCESS_GET_LOGONINFO |
@@ -4191,18 +4395,28 @@ static bool api_RNetUserGetInfo(struct smbd_server_connection *sconn,
 				      SAMR_USER_ACCESS_GET_GROUP_MEMBERSHIP |
 				      SEC_STD_READ_CONTROL,
 				      rid,
-				      &user_handle);
+				      &user_handle,
+				      &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		errcode = W_ERROR_V(ntstatus_to_werror(status));
 		goto out;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		errcode = W_ERROR_V(ntstatus_to_werror(result));
+		goto out;
+	}
 
-	status = rpccli_samr_QueryUserInfo2(cli, mem_ctx,
+	status = dcerpc_samr_QueryUserInfo2(b, mem_ctx,
 					    &user_handle,
 					    UserAllInformation,
-					    &info);
+					    &info,
+					    &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		errcode = W_ERROR_V(ntstatus_to_werror(status));
+		goto out;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		errcode = W_ERROR_V(ntstatus_to_werror(result));
 		goto out;
 	}
 
@@ -4381,14 +4595,14 @@ static bool api_RNetUserGetInfo(struct smbd_server_connection *sconn,
  out:
 	*rdata_len = PTR_DIFF(p2,*rdata);
 
-	if (cli && is_valid_policy_hnd(&user_handle)) {
-		rpccli_samr_Close(cli, mem_ctx, &user_handle);
+	if (b && is_valid_policy_hnd(&user_handle)) {
+		dcerpc_samr_Close(b, mem_ctx, &user_handle, &result);
 	}
-	if (cli && is_valid_policy_hnd(&domain_handle)) {
-		rpccli_samr_Close(cli, mem_ctx, &domain_handle);
+	if (b && is_valid_policy_hnd(&domain_handle)) {
+		dcerpc_samr_Close(b, mem_ctx, &domain_handle, &result);
 	}
-	if (cli && is_valid_policy_hnd(&connect_handle)) {
-		rpccli_samr_Close(cli, mem_ctx, &connect_handle);
+	if (b && is_valid_policy_hnd(&connect_handle)) {
+		dcerpc_samr_Close(b, mem_ctx, &connect_handle, &result);
 	}
 
 	SSVAL(*rparam,0,errcode);
@@ -4422,8 +4636,8 @@ static bool api_WWkstaUserLogon(struct smbd_server_connection *sconn,
 
 	if(vuser != NULL) {
 		DEBUG(3,("  Username of UID %d is %s\n",
-			 (int)vuser->server_info->utok.uid,
-			 vuser->server_info->unix_name));
+			 (int)vuser->session_info->utok.uid,
+			 vuser->session_info->unix_name));
 	}
 
 	uLevel = get_safe_SVAL(param,tpscnt,p,0,-1);
@@ -4483,7 +4697,7 @@ static bool api_WWkstaUserLogon(struct smbd_server_connection *sconn,
 
 		PACKS(&desc,"z",lp_workgroup());/* domain */
 		PACKS(&desc,"z", vuser ?
-			vuser->server_info->info3->base.logon_script.string
+			vuser->session_info->info3->base.logon_script.string
 			: ""); /* script path */
 		PACKI(&desc,"D",0x00000000);		/* reserved */
 	}
@@ -4574,6 +4788,7 @@ static bool api_WPrintJobGetInfo(struct smbd_server_connection *sconn,
 	WERROR werr;
 	NTSTATUS status;
 	struct rpc_pipe_client *cli = NULL;
+	struct dcerpc_binding_handle *b = NULL;
 	struct policy_handle handle;
 	struct spoolss_DevmodeContainer devmode_ctr;
 	union spoolss_JobInfo info;
@@ -4603,17 +4818,23 @@ static bool api_WPrintJobGetInfo(struct smbd_server_connection *sconn,
 
 	ZERO_STRUCT(handle);
 
-	status = rpc_connect_spoolss_pipe(conn, &cli);
+	status = rpc_pipe_open_interface(conn,
+					 &ndr_table_spoolss.syntax_id,
+					 conn->session_info,
+					 &conn->sconn->client_id,
+					 conn->sconn->msg_ctx,
+					 &cli);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("api_WPrintJobGetInfo: could not connect to spoolss: %s\n",
 			  nt_errstr(status)));
 		desc.errcode = W_ERROR_V(ntstatus_to_werror(status));
 		goto out;
 	}
+	b = cli->binding_handle;
 
 	ZERO_STRUCT(devmode_ctr);
 
-	status = rpccli_spoolss_OpenPrinter(cli, mem_ctx,
+	status = dcerpc_spoolss_OpenPrinter(b, mem_ctx,
 					    sharename,
 					    "RAW",
 					    devmode_ctr,
@@ -4664,8 +4885,8 @@ static bool api_WPrintJobGetInfo(struct smbd_server_connection *sconn,
 		*rdata_len = 0;
 	}
  out:
-	if (cli && is_valid_policy_hnd(&handle)) {
-		rpccli_spoolss_ClosePrinter(cli, mem_ctx, &handle, NULL);
+	if (b && is_valid_policy_hnd(&handle)) {
+		dcerpc_spoolss_ClosePrinter(b, mem_ctx, &handle, &werr);
 	}
 
 	*rparam_len = 6;
@@ -4704,6 +4925,7 @@ static bool api_WPrintJobEnumerate(struct smbd_server_connection *sconn,
 	WERROR werr;
 	NTSTATUS status;
 	struct rpc_pipe_client *cli = NULL;
+	struct dcerpc_binding_handle *b = NULL;
 	struct policy_handle handle;
 	struct spoolss_DevmodeContainer devmode_ctr;
 	uint32_t count = 0;
@@ -4732,23 +4954,29 @@ static bool api_WPrintJobEnumerate(struct smbd_server_connection *sconn,
 		return False;	/* defined only for uLevel 0,1,2 */
 	}
 
-	if (!check_printjob_info(&desc,uLevel,str2)) { 
+	if (!check_printjob_info(&desc,uLevel,str2)) {
 		return False;
 	}
 
 	ZERO_STRUCT(handle);
 
-	status = rpc_connect_spoolss_pipe(conn, &cli);
+	status = rpc_pipe_open_interface(conn,
+					 &ndr_table_spoolss.syntax_id,
+					 conn->session_info,
+					 &conn->sconn->client_id,
+					 conn->sconn->msg_ctx,
+					 &cli);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("api_WPrintJobEnumerate: could not connect to spoolss: %s\n",
 			  nt_errstr(status)));
 		desc.errcode = W_ERROR_V(ntstatus_to_werror(status));
 		goto out;
 	}
+	b = cli->binding_handle;
 
 	ZERO_STRUCT(devmode_ctr);
 
-	status = rpccli_spoolss_OpenPrinter(cli, mem_ctx,
+	status = dcerpc_spoolss_OpenPrinter(b, mem_ctx,
 					    name,
 					    NULL,
 					    devmode_ctr,
@@ -4796,8 +5024,8 @@ static bool api_WPrintJobEnumerate(struct smbd_server_connection *sconn,
 		}
 	}
  out:
-	if (cli && is_valid_policy_hnd(&handle)) {
-		rpccli_spoolss_ClosePrinter(cli, mem_ctx, &handle, NULL);
+	if (b && is_valid_policy_hnd(&handle)) {
+		dcerpc_spoolss_ClosePrinter(b, mem_ctx, &handle, &werr);
 	}
 
 	*rdata_len = desc.usedlen;
@@ -4840,7 +5068,7 @@ static int check_printdest_info(struct pack_desc* desc,
 			return False;
 	}
 	if (id == NULL || strcmp(desc->format,id) != 0) {
-		DEBUG(0,("check_printdest_info: invalid string %s\n", 
+		DEBUG(0,("check_printdest_info: invalid string %s\n",
 			id ? id : "<NULL>" ));
 		return False;
 	}
@@ -4903,6 +5131,7 @@ static bool api_WPrintDestGetInfo(struct smbd_server_connection *sconn,
 	WERROR werr;
 	NTSTATUS status;
 	struct rpc_pipe_client *cli = NULL;
+	struct dcerpc_binding_handle *b = NULL;
 	struct policy_handle handle;
 	struct spoolss_DevmodeContainer devmode_ctr;
 	union spoolss_PrinterInfo info;
@@ -4931,17 +5160,23 @@ static bool api_WPrintDestGetInfo(struct smbd_server_connection *sconn,
 
 	ZERO_STRUCT(handle);
 
-	status = rpc_connect_spoolss_pipe(conn, &cli);
+	status = rpc_pipe_open_interface(conn,
+					 &ndr_table_spoolss.syntax_id,
+					 conn->session_info,
+					 &conn->sconn->client_id,
+					 conn->sconn->msg_ctx,
+					 &cli);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("api_WPrintDestGetInfo: could not connect to spoolss: %s\n",
 			  nt_errstr(status)));
 		desc.errcode = W_ERROR_V(ntstatus_to_werror(status));
 		goto out;
 	}
+	b = cli->binding_handle;
 
 	ZERO_STRUCT(devmode_ctr);
 
-	status = rpccli_spoolss_OpenPrinter(cli, mem_ctx,
+	status = dcerpc_spoolss_OpenPrinter(b, mem_ctx,
 					    PrinterName,
 					    NULL,
 					    devmode_ctr,
@@ -4993,8 +5228,8 @@ static bool api_WPrintDestGetInfo(struct smbd_server_connection *sconn,
 	}
 
  out:
-	if (cli && is_valid_policy_hnd(&handle)) {
-		rpccli_spoolss_ClosePrinter(cli, mem_ctx, &handle, NULL);
+	if (b && is_valid_policy_hnd(&handle)) {
+		dcerpc_spoolss_ClosePrinter(b, mem_ctx, &handle, &werr);
 	}
 
 	*rdata_len = desc.usedlen;
@@ -5057,7 +5292,12 @@ static bool api_WPrintDestEnum(struct smbd_server_connection *sconn,
 
 	queuecnt = 0;
 
-	status = rpc_connect_spoolss_pipe(conn, &cli);
+	status = rpc_pipe_open_interface(conn,
+					 &ndr_table_spoolss.syntax_id,
+					 conn->session_info,
+					 &conn->sconn->client_id,
+					 conn->sconn->msg_ctx,
+					 &cli);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("api_WPrintDestEnum: could not connect to spoolss: %s\n",
 			  nt_errstr(status)));
@@ -5091,7 +5331,7 @@ static bool api_WPrintDestEnum(struct smbd_server_connection *sconn,
 
 	desc.base = *rdata;
 	desc.buflen = mdrcnt;
-	if (init_package(&desc,queuecnt,0)) {    
+	if (init_package(&desc,queuecnt,0)) {
 		succnt = 0;
 		n = 0;
 		for (i = 0; i < count; i++) {
@@ -5332,14 +5572,22 @@ static bool api_RNetSessionEnum(struct smbd_server_connection *sconn,
 	char *p = skip_string(param,tpscnt,str2);
 	int uLevel;
 	struct pack_desc desc;
-	struct sessionid *session_list;
-	int i, num_sessions;
+	int i;
+
+	TALLOC_CTX *mem_ctx = talloc_tos();
+	WERROR werr;
+	NTSTATUS status;
+	struct rpc_pipe_client *cli = NULL;
+	struct dcerpc_binding_handle *b = NULL;
+	struct srvsvc_NetSessInfoCtr info_ctr;
+	uint32_t totalentries, resume_handle = 0;
+	uint32_t count = 0;
 
 	if (!str1 || !str2 || !p) {
 		return False;
 	}
 
-	memset((char *)&desc,'\0',sizeof(desc));
+	ZERO_STRUCT(desc);
 
 	uLevel = get_safe_SVAL(param,tpscnt,p,0,-1);
 
@@ -5355,27 +5603,72 @@ static bool api_RNetSessionEnum(struct smbd_server_connection *sconn,
 		return False;
 	}
 
-	num_sessions = list_sessions(talloc_tos(), &session_list);
+	status = rpc_pipe_open_interface(conn,
+					 &ndr_table_srvsvc.syntax_id,
+					 conn->session_info,
+					 &conn->sconn->client_id,
+					 conn->sconn->msg_ctx,
+					 &cli);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0,("RNetSessionEnum: could not connect to srvsvc: %s\n",
+			  nt_errstr(status)));
+		desc.errcode = W_ERROR_V(ntstatus_to_werror(status));
+		goto out;
+	}
+	b = cli->binding_handle;
 
+	info_ctr.level = 1;
+	info_ctr.ctr.ctr1 = talloc_zero(talloc_tos(), struct srvsvc_NetSessCtr1);
+	if (info_ctr.ctr.ctr1 == NULL) {
+		desc.errcode = W_ERROR_V(WERR_NOMEM);
+		goto out;
+	}
+
+	status = dcerpc_srvsvc_NetSessEnum(b, mem_ctx,
+					   cli->srv_name_slash,
+					   NULL, /* client */
+					   NULL, /* user */
+					   &info_ctr,
+					   (uint32_t)-1, /* max_buffer */
+					   &totalentries,
+					   &resume_handle,
+					   &werr);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0,("RNetSessionEnum: dcerpc_srvsvc_NetSessEnum failed: %s\n",
+			  nt_errstr(status)));
+		desc.errcode = W_ERROR_V(ntstatus_to_werror(status));
+		goto out;
+	}
+
+	if (!W_ERROR_IS_OK(werr)) {
+		DEBUG(0,("RNetSessionEnum: dcerpc_srvsvc_NetSessEnum failed: %s\n",
+			  win_errstr(werr)));
+		desc.errcode = W_ERROR_V(werr);
+		goto out;
+	}
+
+	count = info_ctr.ctr.ctr1->count;
+
+ out:
 	if (mdrcnt > 0) {
 		*rdata = smb_realloc_limit(*rdata,mdrcnt);
 		if (!*rdata) {
 			return False;
 		}
 	}
-	memset((char *)&desc,'\0',sizeof(desc));
+
 	desc.base = *rdata;
 	desc.buflen = mdrcnt;
 	desc.format = str2;
-	if (!init_package(&desc,num_sessions,0)) {
+	if (!init_package(&desc, count,0)) {
 		return False;
 	}
 
-	for(i=0; i<num_sessions; i++) {
-		PACKS(&desc, "z", session_list[i].remote_machine);
-		PACKS(&desc, "z", session_list[i].username);
+	for(i=0; i < count; i++) {
+		PACKS(&desc, "z", info_ctr.ctr.ctr1->array[i].client);
+		PACKS(&desc, "z", info_ctr.ctr.ctr1->array[i].user);
 		PACKI(&desc, "W", 1); /* num conns */
-		PACKI(&desc, "W", 0); /* num opens */
+		PACKI(&desc, "W", info_ctr.ctr.ctr1->array[i].num_open);
 		PACKI(&desc, "W", 1); /* num users */
 		PACKI(&desc, "D", 0); /* session time */
 		PACKI(&desc, "D", 0); /* idle time */
@@ -5392,7 +5685,7 @@ static bool api_RNetSessionEnum(struct smbd_server_connection *sconn,
 	}
 	SSVALS(*rparam,0,desc.errcode);
 	SSVAL(*rparam,2,0); /* converter */
-	SSVAL(*rparam,4,num_sessions); /* count */
+	SSVAL(*rparam,4, count); /* count */
 
 	DEBUG(4,("RNetSessionEnum: errorcode %d\n",desc.errcode));
 
@@ -5500,7 +5793,7 @@ static const struct {
 	{NULL,		-1,	api_Unsupported}
 	/*  The following RAP calls are not implemented by Samba:
 
-	RAP_WFileEnum2 - anon not OK 
+	RAP_WFileEnum2 - anon not OK
 	*/
 };
 
@@ -5565,7 +5858,7 @@ void api_reply(connection_struct *conn, uint16 vuid,
 	if (api_commands[i].auth_user && lp_restrict_anonymous()) {
 		user_struct *user = get_valid_user_struct(req->sconn, vuid);
 
-		if (!user || user->server_info->guest) {
+		if (!user || user->session_info->guest) {
 			reply_nterror(req, NT_STATUS_ACCESS_DENIED);
 			return;
 		}

@@ -1,3 +1,6 @@
+struct PAC_DATA;
+struct PAC_SIGNATURE_DATA;
+
 /* work around broken krb5.h on sles9 */
 #ifdef SIZEOF_LONG
 #undef SIZEOF_LONG
@@ -71,8 +74,6 @@ krb5_error_code smb_krb5_verify_checksum(krb5_context context,
 					 uint8 *data,
 					 size_t length);
 time_t get_authtime_from_tkt(krb5_ticket *tkt);
-void smb_krb5_free_ap_req(krb5_context context,
-			  krb5_ap_req *ap_req);
 krb5_error_code smb_krb5_get_keyinfo_from_ap_req(krb5_context context,
 						 const krb5_data *inbuf,
 						 krb5_kvno *kvno,
@@ -121,14 +122,6 @@ krb5_error_code smb_krb5_keytab_name(TALLOC_CTX *mem_ctx,
 				     krb5_context context,
 				     krb5_keytab keytab,
 				     const char **keytab_name);
-int smb_krb5_kt_add_entry_ext(krb5_context context,
-			      krb5_keytab keytab,
-			      krb5_kvno kvno,
-			      const char *princ_s,
-			      krb5_enctype *enctypes,
-			      krb5_data password,
-			      bool no_salt,
-			      bool keep_old_entries);
 krb5_error_code smb_krb5_get_credentials(krb5_context context,
 					 krb5_ccache ccache,
 					 krb5_principal me,
@@ -142,6 +135,8 @@ krb5_error_code smb_krb5_get_creds(const char *server_s,
 				   krb5_creds **creds_p);
 char *smb_krb5_principal_get_realm(krb5_context context,
 				   krb5_principal principal);
+
+
 #endif /* HAVE_KRB5 */
 
 int cli_krb5_get_ticket(TALLOC_CTX *mem_ctx,

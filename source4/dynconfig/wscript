@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import string, Utils, Options, sys
-from samba_utils import EXPAND_VARIABLES
+import string, Utils, Options, sys, Build, os, intltool
+from samba_utils import EXPAND_VARIABLES, os_path_relpath
 
 # list of directory options to offer in configure
 dir_options = {
@@ -17,6 +17,7 @@ dir_options = {
 dyn_cflags = {
     'BINDIR'                         : '${BINDIR}',
     'SBINDIR'                        : '${SBINDIR}',
+    'SCRIPTSBINDIR'                  : '${SBINDIR}',
     'CONFIGDIR'                      : '${SYSCONFDIR}',
     'CONFIGFILE'                     : '${SYSCONFDIR}/smb.conf',
     'LMHOSTSFILE'                    : '${SYSCONFDIR}/lmhosts',
@@ -25,27 +26,32 @@ dyn_cflags = {
     'LOCKDIR'                        : '${LOCALSTATEDIR}/locks',
     'PIDDIR'                         : '${LOCALSTATEDIR}/run',
     'DATADIR'                        : '${DATADIR}',
+    'LOCALEDIR'                      : '${LOCALEDIR}',
     'SETUPDIR'                       : '${DATADIR}/setup',
     'WINBINDD_SOCKET_DIR'            : '${WINBINDD_SOCKET_DIR}',
     'WINBINDD_PRIVILEGED_SOCKET_DIR' : '${WINBINDD_PRIVILEGED_SOCKET_DIR}',
     'NTP_SIGND_SOCKET_DIR'           : '${NTP_SIGND_SOCKET_DIR}',
     'NCALRPCDIR'                     : '${LOCALSTATEDIR}/ncalrpc',
     'PYTHONDIR'                      : '${PYTHONDIR}',
+    'PYTHONARCHDIR'                  : '${PYTHONARCHDIR}',
     'MODULESDIR'                     : '${PREFIX}/modules',
     'INCLUDEDIR'                     : '${PREFIX}/include',
     'PKGCONFIGDIR'                   : '${LIBDIR}/pkgconfig',
     'SWATDIR'                        : '${DATADIR}/swat',
     'CODEPAGEDIR'                    : '${LIBDIR}/samba',
     'LIBDIR'                         : '${LIBDIR}',
+    'LIBEXECDIR'                     : '${MODULESDIR}',
     'STATEDIR'                       : '${LOCALSTATEDIR}',
     'CACHEDIR'                       : '${LOCKDIR}',
     'SMB_PASSWD_FILE'                : '${PRIVATEDIR}/smbpasswd',
+    'NMBDSOCKETDIR'                  : '${LOCALSTATEDIR}/nmbd',
     }
 
 # changes for when FHS is enabled
 dyn_cflags_fhs = {
     'BINDIR'                         : '${BINDIR}',
     'SBINDIR'                        : '${SBINDIR}',
+    'SCRIPTSBINDIR'                  : '${SBINDIR}',
     'CONFIGDIR'                      : '${SYSCONFDIR}/samba',
     'CONFIGFILE'                     : '${SYSCONFDIR}/samba/smb.conf',
     'LMHOSTSFILE'                    : '${SYSCONFDIR}/samba/lmhosts',
@@ -53,17 +59,19 @@ dyn_cflags_fhs = {
     'LOGFILEBASE'                    : '${LOCALSTATEDIR}/log/samba',
     'LOCKDIR'                        : '${LOCALSTATEDIR}/lib/samba',
     'PIDDIR'                         : '${LOCALSTATEDIR}/run/samba',
-    'DATADIR'                        : '${DATADIR}/samba',
     'SETUPDIR'                       : '${DATADIR}/samba/setup',
     'WINBINDD_SOCKET_DIR'            : '${LOCALSTATEDIR}/run/samba/winbindd',
     'WINBINDD_PRIVILEGED_SOCKET_DIR' : '${LOCALSTATEDIR}/run/samba/winbindd_privileged',
     'NTP_SIGND_SOCKET_DIR'           : '${LOCALSTATEDIR}/run/samba/ntp_signd',
-    'NCALRPCDIR'                     : '${LOCALSTATEDIR}/ncalrpc',
-    'PYTHONDIR'                      : '${PYTHONDIR}',
+    'NCALRPCDIR'                     : '${LOCALSTATEDIR}/run/samba/ncalrpc',
+    'PYTHONARCHDIR'                  : '${PYTHONARCHDIR}',
     'MODULESDIR'                     : '${LIBDIR}/samba',
+    'LIBEXECDIR'                     : '${MODULESDIR}',
     'INCLUDEDIR'                     : '${INCLUDEDIR}/samba-4.0',
     'PKGCONFIGDIR'                   : '${LIBDIR}/pkgconfig',
     'SWATDIR'                        : '${DATADIR}/swat',
+    'CODEPAGEDIR'                    : '${DATADIR}/samba',
+    'NMBDSOCKETDIR'                  : '${LOCALSTATEDIR}/run/samba/nmbd',
     }
 
 def get_varname(v):
@@ -114,19 +122,32 @@ def configure(conf):
         sys.exit(1)
 
 
-def dynconfig_cflags(bld):
+def dynconfig_cflags(bld, list=None):
     '''work out the extra CFLAGS for dynconfig.c'''
     cflags = []
+    # override some paths when running from the build directory
+    override = { 'MODULESDIR'    : 'bin/modules',
+                 'PYTHONDIR'     : 'bin/python',
+                 'PYTHONARCHDIR' : 'bin/python',
+                 'CODEPAGEDIR'   : os.path.join(bld.env.srcdir, 'codepages'),
+                 'SCRIPTSBINDIR' : os.path.join(bld.env.srcdir, 'source4/scripting/bin'),
+                 'SETUPDIR'      : os.path.join(bld.env.srcdir, 'source4/setup') }
     for f in dyn_cflags.keys():
-        cflags.append('-D%s="%s"' % (f, bld.env[f]))
+        if list and not f in list:
+            continue
+        value = bld.env[f]
+        if not Options.is_install:
+            if f in override:
+                value = os.path.join(os.getcwd(), override[f])
+        cflags.append('-D%s="%s"' % (f, value))
     return cflags
+Build.BuildContext.dynconfig_cflags = dynconfig_cflags
 
 def build(bld):
-    cflags = dynconfig_cflags(bld)
+    cflags = bld.dynconfig_cflags()
     bld.SAMBA_SUBSYSTEM('DYNCONFIG',
                         'dynconfig.c',
                         deps='replace talloc',
-                        public_headers='../version.h',
+                        public_headers=os_path_relpath(os.path.join(Options.launch_dir, 'version.h'), bld.curdir),
                         header_path='samba',
                         cflags=cflags)
-

@@ -22,18 +22,18 @@
 #include "includes.h"
 #include "libnet/libnet.h"
 #include "librpc/gen_ndr/ndr_drsuapi_c.h"
-#include "lib/ldb/include/ldb.h"
-#include "lib/ldb/include/ldb_errors.h"
-#include "param/secrets.h"
+#include <ldb.h>
+#include <ldb_errors.h>
 #include "dsdb/samdb/samdb.h"
 #include "ldb_wrap.h"
-#include "../lib/util/util_ldb.h"
 #include "libcli/security/security.h"
 #include "auth/credentials/credentials.h"
 #include "auth/credentials/credentials_krb5.h"
 #include "librpc/gen_ndr/ndr_samr_c.h"
 #include "param/param.h"
 #include "param/provision.h"
+#include "system/kerberos.h"
+#include "auth/kerberos/kerberos.h"
 
 /*
  * complete a domain join, when joining to a AD domain:
@@ -94,7 +94,7 @@ static NTSTATUS libnet_JoinADSDomain(struct libnet_context *ctx, struct libnet_J
 		return NT_STATUS_NO_MEMORY;
 	}
 	                                           
-	drsuapi_binding = talloc(tmp_ctx, struct dcerpc_binding);
+	drsuapi_binding = talloc_zero(tmp_ctx, struct dcerpc_binding);
 	if (!drsuapi_binding) {
 		r->out.error_string = NULL;
 		talloc_free(tmp_ctx);
@@ -236,7 +236,7 @@ static NTSTATUS libnet_JoinADSDomain(struct libnet_context *ctx, struct libnet_J
 	}
 
 	account_dn = ldb_dn_new(tmp_ctx, remote_ldb, account_dn_str);
-	if (! ldb_dn_validate(account_dn)) {
+	if (account_dn == NULL) {
 		r->out.error_string = talloc_asprintf(r, "Invalid account dn: %s",
 						      account_dn_str);
 		talloc_free(tmp_ctx);
@@ -271,9 +271,9 @@ static NTSTATUS libnet_JoinADSDomain(struct libnet_context *ctx, struct libnet_J
 
 	{
 		unsigned int i;
-		const char *service_principal_name[6];
-		const char *dns_host_name = strlower_talloc(tmp_ctx, 
-							    talloc_asprintf(tmp_ctx, 
+		const char *service_principal_name[2];
+		const char *dns_host_name = strlower_talloc(msg,
+							    talloc_asprintf(msg, 
 									    "%s.%s", 
 									    r->in.netbios_name, 
 									    realm));
@@ -284,12 +284,10 @@ static NTSTATUS libnet_JoinADSDomain(struct libnet_context *ctx, struct libnet_J
 			return NT_STATUS_NO_MEMORY;
 		}
 
-		service_principal_name[0] = talloc_asprintf(tmp_ctx, "host/%s", dns_host_name);
-		service_principal_name[1] = talloc_asprintf(tmp_ctx, "host/%s", strlower_talloc(tmp_ctx, r->in.netbios_name));
-		service_principal_name[2] = talloc_asprintf(tmp_ctx, "host/%s/%s", dns_host_name, realm);
-		service_principal_name[3] = talloc_asprintf(tmp_ctx, "host/%s/%s", strlower_talloc(tmp_ctx, r->in.netbios_name), realm);
-		service_principal_name[4] = talloc_asprintf(tmp_ctx, "host/%s/%s", dns_host_name, r->out.domain_name);
-		service_principal_name[5] = talloc_asprintf(tmp_ctx, "host/%s/%s", strlower_talloc(tmp_ctx, r->in.netbios_name), r->out.domain_name);
+		service_principal_name[0] = talloc_asprintf(msg, "HOST/%s",
+							    dns_host_name);
+		service_principal_name[1] = talloc_asprintf(msg, "HOST/%s",
+							    r->in.netbios_name);
 		
 		for (i=0; i < ARRAY_SIZE(service_principal_name); i++) {
 			if (!service_principal_name[i]) {
@@ -297,7 +295,8 @@ static NTSTATUS libnet_JoinADSDomain(struct libnet_context *ctx, struct libnet_J
 				talloc_free(tmp_ctx);
 				return NT_STATUS_NO_MEMORY;
 			}
-			rtn = samdb_msg_add_string(remote_ldb, tmp_ctx, msg, "servicePrincipalName", service_principal_name[i]);
+			rtn = ldb_msg_add_string(msg, "servicePrincipalName",
+						 service_principal_name[i]);
 			if (rtn != LDB_SUCCESS) {
 				r->out.error_string = NULL;
 				talloc_free(tmp_ctx);
@@ -305,7 +304,7 @@ static NTSTATUS libnet_JoinADSDomain(struct libnet_context *ctx, struct libnet_J
 			}
 		}
 
-		rtn = samdb_msg_add_string(remote_ldb, tmp_ctx, msg, "dNSHostName", dns_host_name);
+		rtn = ldb_msg_add_string(msg, "dNSHostName", dns_host_name);
 		if (rtn != LDB_SUCCESS) {
 			r->out.error_string = NULL;
 			talloc_free(tmp_ctx);
@@ -331,12 +330,8 @@ static NTSTATUS libnet_JoinADSDomain(struct libnet_context *ctx, struct libnet_J
 	}
 	msg->dn = res->msgs[0]->dn;
 
-	rtn = ldb_msg_add_fmt(msg, "msDS-SupportedEncryptionTypes",
-			      "%lu",
-			      (long unsigned int)(ENC_CRC32 | ENC_RSA_MD5 |
-						  ENC_RC4_HMAC_MD5 |
-						  ENC_HMAC_SHA1_96_AES128 |
-						  ENC_HMAC_SHA1_96_AES256));
+	rtn = samdb_msg_add_uint(remote_ldb, msg, msg,
+				 "msDS-SupportedEncryptionTypes", ENC_ALL_TYPES);
 	if (rtn != LDB_SUCCESS) {
 		r->out.error_string = NULL;
 		talloc_free(tmp_ctx);

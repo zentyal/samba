@@ -21,7 +21,10 @@
 
 #include "includes.h"
 #include "printing.h"
-#include "librpc/gen_ndr/messaging.h"
+#include "../librpc/gen_ndr/spoolss.h"
+#include "nt_printing.h"
+#include "printing/notify.h"
+#include "messages.h"
 
 static TALLOC_CTX *send_ctx;
 
@@ -228,11 +231,13 @@ static void print_notify_event_send_messages(struct tevent_context *event_ctx,
 					     struct timeval now,
 					     void *private_data)
 {
+	struct messaging_context *msg_ctx = talloc_get_type_abort(
+		private_data, struct messaging_context);
 	/* Remove this timed event handler. */
 	TALLOC_FREE(notify_event);
 
 	change_to_root_user();
-	print_notify_send_messages(server_messaging_context(), 0);
+	print_notify_send_messages(msg_ctx, 0);
 }
 
 /**********************************************************************
@@ -263,7 +268,9 @@ static bool copy_notify2_msg( SPOOLSS_NOTIFY_MSG *to, SPOOLSS_NOTIFY_MSG *from )
  Batch up print notify messages.
 *******************************************************************/
 
-static void send_spoolss_notify2_msg(SPOOLSS_NOTIFY_MSG *msg)
+static void send_spoolss_notify2_msg(struct tevent_context *ev,
+				     struct messaging_context *msg_ctx,
+				     SPOOLSS_NOTIFY_MSG *msg)
 {
 	struct notify_queue *pnqueue, *tmp_ptr;
 
@@ -326,16 +333,18 @@ to notify_queue_head\n", msg->type, msg->field, msg->printer));
 	DLIST_ADD_END(notify_queue_head, pnqueue, struct notify_queue *);
 	num_messages++;
 
-	if ((notify_event == NULL) && (server_event_context() != NULL)) {
+	if ((notify_event == NULL) && (ev != NULL)) {
 		/* Add an event for 1 second's time to send this queue. */
-		notify_event = tevent_add_timer(server_event_context(), NULL,
-					timeval_current_ofs(1,0),
-					print_notify_event_send_messages, NULL);
+		notify_event = tevent_add_timer(
+			ev, NULL, timeval_current_ofs(1,0),
+			print_notify_event_send_messages, msg_ctx);
 	}
 
 }
 
-static void send_notify_field_values(const char *sharename, uint32 type,
+static void send_notify_field_values(struct tevent_context *ev,
+				     struct messaging_context *msg_ctx,
+				     const char *sharename, uint32 type,
 				     uint32 field, uint32 id, uint32 value1, 
 				     uint32 value2, uint32 flags)
 {
@@ -361,10 +370,12 @@ static void send_notify_field_values(const char *sharename, uint32 type,
 	msg->notify.value[1] = value2;
 	msg->flags = flags;
 
-	send_spoolss_notify2_msg(msg);
+	send_spoolss_notify2_msg(ev, msg_ctx, msg);
 }
 
-static void send_notify_field_buffer(const char *sharename, uint32 type,
+static void send_notify_field_buffer(struct tevent_context *ev,
+				     struct messaging_context *msg_ctx,
+				     const char *sharename, uint32 type,
 				     uint32 field, uint32 id, uint32 len,
 				     const char *buffer)
 {
@@ -389,142 +400,201 @@ static void send_notify_field_buffer(const char *sharename, uint32 type,
 	msg->len = len;
 	msg->notify.data = CONST_DISCARD(char *,buffer);
 
-	send_spoolss_notify2_msg(msg);
+	send_spoolss_notify2_msg(ev, msg_ctx, msg);
 }
 
 /* Send a message that the printer status has changed */
 
-void notify_printer_status_byname(const char *sharename, uint32 status)
+void notify_printer_status_byname(struct tevent_context *ev,
+				  struct messaging_context *msg_ctx,
+				  const char *sharename, uint32 status)
 {
 	/* Printer status stored in value1 */
 
 	int snum = print_queue_snum(sharename);
 
-	send_notify_field_values(sharename, PRINTER_NOTIFY_TYPE, 
+	send_notify_field_values(ev, msg_ctx, sharename, PRINTER_NOTIFY_TYPE,
 				 PRINTER_NOTIFY_FIELD_STATUS, snum,
 				 status, 0, 0);
 }
 
-void notify_printer_status(int snum, uint32 status)
+void notify_printer_status(struct tevent_context *ev,
+			   struct messaging_context *msg_ctx,
+			   int snum, uint32 status)
 {
 	const char *sharename = lp_servicename(snum);
 
 	if (sharename)
-		notify_printer_status_byname(sharename, status);
+		notify_printer_status_byname(ev, msg_ctx, sharename, status);
 }
 
-void notify_job_status_byname(const char *sharename, uint32 jobid, uint32 status,
+void notify_job_status_byname(struct tevent_context *ev,
+			      struct messaging_context *msg_ctx,
+			      const char *sharename, uint32 jobid,
+			      uint32 status,
 			      uint32 flags)
 {
 	/* Job id stored in id field, status in value1 */
 
-	send_notify_field_values(sharename, JOB_NOTIFY_TYPE,
+	send_notify_field_values(ev, msg_ctx,
+				 sharename, JOB_NOTIFY_TYPE,
 				 JOB_NOTIFY_FIELD_STATUS, jobid,
 				 status, 0, flags);
 }
 
-void notify_job_status(const char *sharename, uint32 jobid, uint32 status)
+void notify_job_status(struct tevent_context *ev,
+		       struct messaging_context *msg_ctx,
+		       const char *sharename, uint32 jobid, uint32 status)
 {
-	notify_job_status_byname(sharename, jobid, status, 0);
+	notify_job_status_byname(ev, msg_ctx, sharename, jobid, status, 0);
 }
 
-void notify_job_total_bytes(const char *sharename, uint32 jobid,
+void notify_job_total_bytes(struct tevent_context *ev,
+			    struct messaging_context *msg_ctx,
+			    const char *sharename, uint32 jobid,
 			    uint32 size)
 {
 	/* Job id stored in id field, status in value1 */
 
-	send_notify_field_values(sharename, JOB_NOTIFY_TYPE,
+	send_notify_field_values(ev, msg_ctx,
+				 sharename, JOB_NOTIFY_TYPE,
 				 JOB_NOTIFY_FIELD_TOTAL_BYTES, jobid,
 				 size, 0, 0);
 }
 
-void notify_job_total_pages(const char *sharename, uint32 jobid,
+void notify_job_total_pages(struct tevent_context *ev,
+			    struct messaging_context *msg_ctx,
+			    const char *sharename, uint32 jobid,
 			    uint32 pages)
 {
 	/* Job id stored in id field, status in value1 */
 
-	send_notify_field_values(sharename, JOB_NOTIFY_TYPE,
+	send_notify_field_values(ev, msg_ctx,
+				 sharename, JOB_NOTIFY_TYPE,
 				 JOB_NOTIFY_FIELD_TOTAL_PAGES, jobid,
 				 pages, 0, 0);
 }
 
-void notify_job_username(const char *sharename, uint32 jobid, char *name)
+void notify_job_username(struct tevent_context *ev,
+			 struct messaging_context *msg_ctx,
+			 const char *sharename, uint32 jobid, char *name)
 {
 	send_notify_field_buffer(
+		ev, msg_ctx,
 		sharename, JOB_NOTIFY_TYPE, JOB_NOTIFY_FIELD_USER_NAME,
 		jobid, strlen(name) + 1, name);
 }
 
-void notify_job_name(const char *sharename, uint32 jobid, char *name)
+void notify_job_name(struct tevent_context *ev,
+		     struct messaging_context *msg_ctx,
+		     const char *sharename, uint32 jobid, char *name)
 {
 	send_notify_field_buffer(
+		ev, msg_ctx,
 		sharename, JOB_NOTIFY_TYPE, JOB_NOTIFY_FIELD_DOCUMENT,
 		jobid, strlen(name) + 1, name);
 }
 
-void notify_job_submitted(const char *sharename, uint32 jobid,
+void notify_job_submitted(struct tevent_context *ev,
+			  struct messaging_context *msg_ctx,
+			  const char *sharename, uint32 jobid,
 			  time_t submitted)
 {
 	send_notify_field_buffer(
+		ev, msg_ctx,
 		sharename, JOB_NOTIFY_TYPE, JOB_NOTIFY_FIELD_SUBMITTED,
 		jobid, sizeof(submitted), (char *)&submitted);
 }
 
-void notify_printer_driver(int snum, const char *driver_name)
+void notify_printer_driver(struct tevent_context *ev,
+			   struct messaging_context *msg_ctx,
+			   int snum, const char *driver_name)
 {
 	const char *sharename = lp_servicename(snum);
 
 	send_notify_field_buffer(
+		ev, msg_ctx,
 		sharename, PRINTER_NOTIFY_TYPE, PRINTER_NOTIFY_FIELD_DRIVER_NAME,
 		snum, strlen(driver_name) + 1, driver_name);
 }
 
-void notify_printer_comment(int snum, const char *comment)
+void notify_printer_comment(struct tevent_context *ev,
+			    struct messaging_context *msg_ctx,
+			    int snum, const char *comment)
 {
 	const char *sharename = lp_servicename(snum);
 
 	send_notify_field_buffer(
+		ev, msg_ctx,
 		sharename, PRINTER_NOTIFY_TYPE, PRINTER_NOTIFY_FIELD_COMMENT,
 		snum, strlen(comment) + 1, comment);
 }
 
-void notify_printer_sharename(int snum, const char *share_name)
+void notify_printer_sharename(struct tevent_context *ev,
+			      struct messaging_context *msg_ctx,
+			      int snum, const char *share_name)
 {
 	const char *sharename = lp_servicename(snum);
 
 	send_notify_field_buffer(
+		ev, msg_ctx,
 		sharename, PRINTER_NOTIFY_TYPE, PRINTER_NOTIFY_FIELD_SHARE_NAME,
 		snum, strlen(share_name) + 1, share_name);
 }
 
-void notify_printer_printername(int snum, const char *printername)
+void notify_printer_printername(struct tevent_context *ev,
+				struct messaging_context *msg_ctx,
+				int snum, const char *printername)
 {
 	const char *sharename = lp_servicename(snum);
 
 	send_notify_field_buffer(
+		ev, msg_ctx,
 		sharename, PRINTER_NOTIFY_TYPE, PRINTER_NOTIFY_FIELD_PRINTER_NAME,
 		snum, strlen(printername) + 1, printername);
 }
 
-void notify_printer_port(int snum, const char *port_name)
+void notify_printer_port(struct tevent_context *ev,
+			 struct messaging_context *msg_ctx,
+			 int snum, const char *port_name)
 {
 	const char *sharename = lp_servicename(snum);
 
 	send_notify_field_buffer(
+		ev, msg_ctx,
 		sharename, PRINTER_NOTIFY_TYPE, PRINTER_NOTIFY_FIELD_PORT_NAME,
 		snum, strlen(port_name) + 1, port_name);
 }
 
-void notify_printer_location(int snum, const char *location)
+void notify_printer_location(struct tevent_context *ev,
+			     struct messaging_context *msg_ctx,
+			     int snum, const char *location)
 {
 	const char *sharename = lp_servicename(snum);
 
 	send_notify_field_buffer(
+		ev, msg_ctx,
 		sharename, PRINTER_NOTIFY_TYPE, PRINTER_NOTIFY_FIELD_LOCATION,
 		snum, strlen(location) + 1, location);
 }
 
-void notify_printer_byname( const char *printername, uint32 change, const char *value )
+void notify_printer_sepfile(struct tevent_context *ev,
+			    struct messaging_context *msg_ctx,
+			    int snum, const char *sepfile)
+{
+	const char *sharename = lp_servicename(snum);
+
+	send_notify_field_buffer(
+		ev, msg_ctx,
+		sharename, PRINTER_NOTIFY_TYPE, PRINTER_NOTIFY_FIELD_SEPFILE,
+		snum, strlen(sepfile) + 1, sepfile);
+}
+
+
+void notify_printer_byname(struct tevent_context *ev,
+			   struct messaging_context *msg_ctx,
+			   const char *printername, uint32 change,
+			   const char *value)
 {
 	int snum = print_queue_snum(printername);
 	int type = PRINTER_NOTIFY_TYPE;
@@ -532,7 +602,9 @@ void notify_printer_byname( const char *printername, uint32 change, const char *
 	if ( snum == -1 )
 		return;
 		
-	send_notify_field_buffer( printername, type, change, snum, strlen(value)+1, value );
+	send_notify_field_buffer(
+		ev, msg_ctx,
+		printername, type, change, snum, strlen(value)+1, value );
 } 
 
 

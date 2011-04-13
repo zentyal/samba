@@ -74,7 +74,7 @@ wbcErr wbcInterfaceDetails(struct wbcInterfaceDetails **_details)
 	ZERO_STRUCT(response);
 
 	info = (struct wbcInterfaceDetails *)wbcAllocateMemory(
-		sizeof(struct wbcInterfaceDetails), 1,
+		1, sizeof(struct wbcInterfaceDetails),
 		wbcInterfaceDetailsDestructor);
 	BAIL_ON_PTR_ERROR(info, wbc_status);
 
@@ -173,7 +173,7 @@ wbcErr wbcDomainInfo(const char *domain, struct wbcDomainInfo **dinfo)
 	BAIL_ON_WBC_ERROR(wbc_status);
 
 	info = (struct wbcDomainInfo *)wbcAllocateMemory(
-		sizeof(struct wbcDomainInfo), 1, wbcDomainInfoDestructor);
+		1, sizeof(struct wbcDomainInfo), wbcDomainInfoDestructor);
 	BAIL_ON_PTR_ERROR(info, wbc_status);
 
 	info->short_name = strdup(response.data.domain_info.name);
@@ -203,6 +203,92 @@ wbcErr wbcDomainInfo(const char *domain, struct wbcDomainInfo **dinfo)
 	return wbc_status;
 }
 
+/* Get the list of current DCs */
+wbcErr wbcDcInfo(const char *domain, size_t *num_dcs,
+		 const char ***dc_names, const char ***dc_ips)
+{
+	struct winbindd_request request;
+	struct winbindd_response response;
+	const char **names = NULL;
+	const char **ips = NULL;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	size_t extra_len;
+	int i;
+	char *p;
+
+	/* Initialise request */
+
+	ZERO_STRUCT(request);
+	ZERO_STRUCT(response);
+
+	if (domain != NULL) {
+		strncpy(request.domain_name, domain,
+			sizeof(request.domain_name) - 1);
+	}
+
+	wbc_status = wbcRequestResponse(WINBINDD_DC_INFO,
+					&request, &response);
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+	names = wbcAllocateStringArray(response.data.num_entries);
+	BAIL_ON_PTR_ERROR(names, wbc_status);
+
+	ips = wbcAllocateStringArray(response.data.num_entries);
+	BAIL_ON_PTR_ERROR(ips, wbc_status);
+
+	wbc_status = WBC_ERR_INVALID_RESPONSE;
+
+	p = (char *)response.extra_data.data;
+
+	if (response.length < (sizeof(struct winbindd_response)+1)) {
+		goto done;
+	}
+
+	extra_len = response.length - sizeof(struct winbindd_response);
+
+	if (p[extra_len-1] != '\0') {
+		goto done;
+	}
+
+	for (i=0; i<response.data.num_entries; i++) {
+		char *q;
+
+		q = strchr(p, '\n');
+		if (q == NULL) {
+			goto done;
+		}
+		names[i] = strndup(p, q-p);
+		BAIL_ON_PTR_ERROR(names[i], wbc_status);
+		p = q+1;
+
+		q = strchr(p, '\n');
+		if (q == NULL) {
+			goto done;
+		}
+		ips[i] = strndup(p, q-p);
+		BAIL_ON_PTR_ERROR(ips[i], wbc_status);
+		p = q+1;
+	}
+	if (p[0] != '\0') {
+		goto done;
+	}
+
+        wbc_status = WBC_ERR_SUCCESS;
+done:
+	if (response.extra_data.data)
+		free(response.extra_data.data);
+
+	if (WBC_ERROR_IS_OK(wbc_status)) {
+		*num_dcs = response.data.num_entries;
+		*dc_names = names;
+		names = NULL;
+		*dc_ips = ips;
+		ips = NULL;
+	}
+	wbcFreeMemory(names);
+	wbcFreeMemory(ips);
+	return wbc_status;
+}
 
 /* Resolve a NetbiosName via WINS */
 wbcErr wbcResolveWinsByName(const char *name, char **ip)
@@ -442,7 +528,7 @@ wbcErr wbcListTrusts(struct wbcDomainInfo **domains, size_t *num_domains)
 	}
 
 	d_list = (struct wbcDomainInfo *)wbcAllocateMemory(
-		sizeof(struct wbcDomainInfo), response.data.num_entries + 1,
+		response.data.num_entries + 1,sizeof(struct wbcDomainInfo),
 		wbcDomainInfoListDestructor);
 	BAIL_ON_PTR_ERROR(d_list, wbc_status);
 
@@ -511,7 +597,7 @@ wbcErr wbcLookupDomainController(const char *domain,
 	request.flags = flags;
 
 	dc = (struct wbcDomainControllerInfo *)wbcAllocateMemory(
-		sizeof(struct wbcDomainControllerInfo), 1,
+		 1, sizeof(struct wbcDomainControllerInfo),
 		wbcDomainControllerInfoDestructor);
 	BAIL_ON_PTR_ERROR(dc, wbc_status);
 
@@ -554,7 +640,7 @@ static wbcErr wbc_create_domain_controller_info_ex(const struct winbindd_respons
 	struct wbcGuid guid;
 
 	i = (struct wbcDomainControllerInfoEx *)wbcAllocateMemory(
-		sizeof(struct wbcDomainControllerInfoEx), 1,
+		1, sizeof(struct wbcDomainControllerInfoEx),
 		wbcDomainControllerInfoExDestructor);
 	BAIL_ON_PTR_ERROR(i, wbc_status);
 
@@ -698,8 +784,12 @@ wbcErr wbcAddNamedBlob(size_t *num_blobs,
 	 * wbcNamedBlobDestructor
 	 */
 	blobs = (struct wbcNamedBlob *)wbcAllocateMemory(
-		sizeof(struct wbcNamedBlob), *num_blobs + 2,
+		*num_blobs + 2, sizeof(struct wbcNamedBlob),
 		wbcNamedBlobDestructor);
+
+	if (blobs == NULL) {
+		return WBC_ERR_NO_MEMORY;
+	}
 
 	if (*pblobs != NULL) {
 		struct wbcNamedBlob *old = *pblobs;

@@ -27,7 +27,10 @@
 #include "libsmbclient.h"
 #include "libsmb_internal.h"
 #include "../librpc/gen_ndr/ndr_lsa.h"
+#include "rpc_client/cli_pipe.h"
 #include "rpc_client/cli_lsarpc.h"
+#include "libcli/security/security.h"
+#include "libsmb/nmblib.h"
 
 /* 
  * Check a server for being alive and well.
@@ -776,7 +779,7 @@ SMBC_attr_server(TALLOC_CTX *ctx,
 						*pp_workgroup,
 						*pp_password,
 						flags,
-						Undefined, NULL);
+						Undefined);
                 if (! NT_STATUS_IS_OK(nt_status)) {
                         DEBUG(1,("cli_full_connection failed! (%s)\n",
                                  nt_errstr(nt_status)));

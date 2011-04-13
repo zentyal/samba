@@ -30,14 +30,6 @@ AC_DEFUN(SMB_MODULE,
 		AC_MSG_RESULT([shared])
 		[$6]
 		string_shared_modules="$string_shared_modules $1"
-	elif test x"$DEST" = xSTATIC && test x"$4" = xRPC; then
-		[init_static_modules_]translit([$4], [A-Z], [a-z])="$[init_static_modules_]translit([$4], [A-Z], [a-z])  $1_init(NULL);"
-		[decl_static_modules_]translit([$4], [A-Z], [a-z])="$[decl_static_modules_]translit([$4], [A-Z], [a-z]) extern NTSTATUS $1_init(const struct rpc_srv_callbacks *rpc_srv_cb);"
-		string_static_modules="$string_static_modules $1"
-		$4_STATIC="$$4_STATIC $2"
-		AC_SUBST($4_STATIC)
-		[$5]
-		AC_MSG_RESULT([static])
 	elif test x"$DEST" = xSTATIC; then
 		[init_static_modules_]translit([$4], [A-Z], [a-z])="$[init_static_modules_]translit([$4], [A-Z], [a-z])  $1_init();"
 		[decl_static_modules_]translit([$4], [A-Z], [a-z])="$[decl_static_modules_]translit([$4], [A-Z], [a-z]) extern NTSTATUS $1_init(void);"
@@ -797,37 +789,6 @@ AC_DEFUN([SMB_CHECK_DMAPI],
 	# DMAPI detection success actions end
     fi
 
-])
-
-dnl SMB_CHECK_CLOCK_ID(clockid)
-dnl Test whether the specified clock_gettime clock ID is available. If it
-dnl is, we define HAVE_clockid
-AC_DEFUN([SMB_CHECK_CLOCK_ID],
-[
-    AC_MSG_CHECKING(for $1)
-    AC_TRY_LINK([
-#if TIME_WITH_SYS_TIME
-# include <sys/time.h>
-# include <time.h>
-#else
-# if HAVE_SYS_TIME_H
-#  include <sys/time.h>
-# else
-#  include <time.h>
-# endif
-#endif
-    ],
-    [
-clockid_t clk = $1;
-    ],
-    [
-	AC_MSG_RESULT(yes)
-	AC_DEFINE(HAVE_$1, 1,
-	    [Whether the clock_gettime clock ID $1 is available])
-    ],
-    [
-	AC_MSG_RESULT(no)
-    ])
 ])
 
 dnl SMB_IF_RTSIGNAL_BUG([actions if true],

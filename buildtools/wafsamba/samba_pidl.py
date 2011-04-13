@@ -1,7 +1,7 @@
 # waf build tool for building IDL files with pidl
 
 from TaskGen import before
-import Build, os
+import Build, os, sys, Logs
 from samba_utils import *
 
 def SAMBA_PIDL(bld, pname, source,
@@ -58,7 +58,25 @@ def SAMBA_PIDL(bld, pname, source,
         pidl_src_nodes = bld.pidl_files_cache
 
     # the cd .. is needed because pidl currently is sensitive to the directory it is run in
-    t = bld(rule='cd .. && ${PERL} ${PIDL} --quiet ${OPTIONS} --outputdir ${OUTPUTDIR} -- ${SRC[0].abspath(env)}',
+    cpp = ""
+    cc = ""
+    if bld.CONFIG_SET("CPP"):
+        if isinstance(bld.CONFIG_GET("CPP"), list):
+            cpp = 'CPP="%s"' % bld.CONFIG_GET("CPP")[0]
+        else:
+            cpp = 'CPP="%s"' % bld.CONFIG_GET("CPP")
+
+    if cpp == "CPP=xlc_r":
+        cpp = ""
+
+
+    if bld.CONFIG_SET("CC"):
+        if isinstance(bld.CONFIG_GET("CC"), list):
+            cc = 'CC="%s"' % bld.CONFIG_GET("CC")[0]
+        else:
+            cc = 'CC="%s"' % bld.CONFIG_GET("CC")
+
+    t = bld(rule='cd .. && %s %s ${PERL} "${PIDL}" --quiet ${OPTIONS} --outputdir ${OUTPUTDIR} -- "${SRC[0].abspath(env)}"' % (cpp, cc),
             ext_out    = '.c',
             before     = 'cc',
             on_results = True,

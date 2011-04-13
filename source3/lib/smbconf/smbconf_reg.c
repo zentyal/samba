@@ -20,10 +20,14 @@
 #include "includes.h"
 #include "lib/smbconf/smbconf_private.h"
 #include "registry.h"
+#include "registry/reg_api.h"
 #include "registry/reg_backend_db.h"
 #include "registry/reg_util_token.h"
+#include "registry/reg_api_util.h"
+#include "registry/reg_init_smbconf.h"
 #include "lib/smbconf/smbconf_init.h"
 #include "lib/smbconf/smbconf_reg.h"
+#include "../libcli/registry/util_reg.h"
 
 #define INCLUDES_VALNAME "includes"
 
@@ -568,7 +572,7 @@ done:
 static WERROR smbconf_reg_init(struct smbconf_ctx *ctx, const char *path)
 {
 	WERROR werr = WERR_OK;
-	struct nt_user_token *token;
+	struct security_token *token;
 
 	if (path == NULL) {
 		path = KEY_SMBCONF;
@@ -696,7 +700,7 @@ static WERROR smbconf_reg_drop(struct smbconf_ctx *ctx)
 	struct registry_key *new_key = NULL;
 	TALLOC_CTX* mem_ctx = talloc_stackframe();
 	enum winreg_CreateAction action;
-	struct nt_user_token *token;
+	struct security_token *token;
 
 	werr = ntstatus_to_werror(registry_create_admin_token(ctx, &token));
 	if (!W_ERROR_IS_OK(werr)) {
@@ -718,7 +722,7 @@ static WERROR smbconf_reg_drop(struct smbconf_ctx *ctx)
 		goto done;
 	}
 
-	werr = reg_deletekey_recursive(mem_ctx, parent_key, p+1);
+	werr = reg_deletekey_recursive(parent_key, p+1);
 
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
@@ -910,8 +914,7 @@ static WERROR smbconf_reg_delete_share(struct smbconf_ctx *ctx,
 	TALLOC_CTX *mem_ctx = talloc_stackframe();
 
 	if (servicename != NULL) {
-		werr = reg_deletekey_recursive(mem_ctx, rpd(ctx)->base_key,
-					       servicename);
+		werr = reg_deletekey_recursive(rpd(ctx)->base_key, servicename);
 	} else {
 		werr = smbconf_reg_delete_values(rpd(ctx)->base_key);
 	}

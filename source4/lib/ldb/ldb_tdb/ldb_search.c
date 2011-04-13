@@ -78,6 +78,7 @@ static int msg_add_element(struct ldb_message *ret,
 	}
 
 	elnew->num_values = el->num_values;
+	elnew->flags = el->flags;
 
 	ret->num_elements++;
 
@@ -97,6 +98,7 @@ static int msg_add_distinguished_name(struct ldb_message *msg)
 	el.name = "distinguishedName";
 	el.num_values = 1;
 	el.values = &val;
+	el.flags = 0;
 	val.data = (uint8_t *)ldb_dn_alloc_linearized(msg, msg->dn);
 	val.length = strlen((char *)val.data);
 	
@@ -327,6 +329,8 @@ int ltdb_filter_attrs(struct ldb_message *msg, const char * const *attrs)
 {
 	unsigned int i;
 	int keep_all = 0;
+	struct ldb_message_element *el2;
+	uint32_t num_elements;
 
 	if (attrs) {
 		/* check for special attrs */
@@ -353,6 +357,12 @@ int ltdb_filter_attrs(struct ldb_message *msg, const char * const *attrs)
 		return 0;
 	}
 
+	el2 = talloc_array(msg, struct ldb_message_element, msg->num_elements);
+	if (el2 == NULL) {
+		return -1;
+	}
+	num_elements = 0;
+
 	for (i = 0; i < msg->num_elements; i++) {
 		unsigned int j;
 		int found = 0;
@@ -364,11 +374,20 @@ int ltdb_filter_attrs(struct ldb_message *msg, const char * const *attrs)
 			}
 		}
 
-		if (!found) {
-			ldb_msg_remove_attr(msg, msg->elements[i].name);
-			i--;
+		if (found) {
+			el2[num_elements] = msg->elements[i];
+			talloc_steal(el2, el2[num_elements].name);
+			talloc_steal(el2, el2[num_elements].values);
+			num_elements++;
 		}
 	}
+
+	talloc_free(msg->elements);
+	msg->elements = talloc_realloc(msg, el2, struct ldb_message_element, msg->num_elements);
+	if (msg->elements == NULL) {
+		return -1;
+	}
+	msg->num_elements = num_elements;
 
 	return 0;
 }
@@ -382,6 +401,7 @@ static int search_func(struct tdb_context *tdb, TDB_DATA key, TDB_DATA data, voi
 	struct ltdb_context *ac;
 	struct ldb_message *msg;
 	int ret;
+	bool matched;
 
 	ac = talloc_get_type(state, struct ltdb_context);
 	ldb = ldb_module_get_ctx(ac->module);
@@ -413,8 +433,13 @@ static int search_func(struct tdb_context *tdb, TDB_DATA key, TDB_DATA data, voi
 	}
 
 	/* see if it matches the given expression */
-	if (!ldb_match_msg(ldb, msg,
-			   ac->tree, ac->base, ac->scope)) {
+	ret = ldb_match_msg_error(ldb, msg,
+				  ac->tree, ac->base, ac->scope, &matched);
+	if (ret != LDB_SUCCESS) {
+		talloc_free(msg);
+		return -1;
+	}
+	if (!matched) {
 		talloc_free(msg);
 		return 0;
 	}
@@ -553,13 +578,19 @@ int ltdb_search(struct ltdb_context *ctx)
 		 * callback error */
 		if ( ! ctx->request_terminated && ret != LDB_SUCCESS) {
 			/* Not indexed, so we need to do a full scan */
-#if 0
-			/* useful for debugging when slow performance
-			 * is caused by unindexed searches */
-			char *expression = ldb_filter_from_tree(ctx, ctx->tree);
-			printf("FULL SEARCH: %s\n", expression);
-			talloc_free(expression);
-#endif
+			if (ltdb->warn_unindexed) {
+				/* useful for debugging when slow performance
+				 * is caused by unindexed searches */
+				char *expression = ldb_filter_from_tree(ctx, ctx->tree);
+				ldb_debug(ldb, LDB_DEBUG_WARNING, "ldb FULL SEARCH: %s SCOPE: %s DN: %s\n",
+							expression,
+							req->op.search.scope==LDB_SCOPE_BASE?"base":
+							req->op.search.scope==LDB_SCOPE_ONELEVEL?"one":
+							req->op.search.scope==LDB_SCOPE_SUBTREE?"sub":"UNKNOWN",
+							ldb_dn_get_linearized(req->op.search.base));
+
+				talloc_free(expression);
+			}
 			if (match_count != 0) {
 				/* the indexing code gave an error
 				 * after having returned at least one

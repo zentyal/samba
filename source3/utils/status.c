@@ -31,6 +31,13 @@
  */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "popt_common.h"
+#include "dbwrap.h"
+#include "../libcli/security/security.h"
+#include "session.h"
+#include "locking/proto.h"
+#include "messages.h"
 
 #define SMB_MAXPIDS		2048
 static uid_t 		Ucrit_uid = 0;               /* added by OH */
@@ -306,9 +313,7 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 	sec_init();
 	load_case_tables();
 
-	setup_logging(argv[0],True);
-
-	dbf = x_stderr;
+	setup_logging(argv[0], DEBUG_STDERR);
 
 	if (getuid() != geteuid()) {
 		d_printf("smbstatus should not be run setuid\n");
@@ -447,7 +452,7 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 		int result;
 		struct db_context *db;
 		db = db_open(NULL, lock_path("locking.tdb"), 0,
-			     TDB_CLEAR_IF_FIRST, O_RDONLY, 0);
+			     TDB_CLEAR_IF_FIRST|TDB_INCOMPATIBLE_HASH, O_RDONLY, 0);
 
 		if (!db) {
 			d_printf("%s not initialised\n",

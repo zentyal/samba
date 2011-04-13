@@ -31,6 +31,7 @@ enum drsuapi_handle {
 */
 struct drsuapi_bind_state {
 	struct ldb_context *sam_ctx;
+	struct ldb_context *sam_ctx_system;
 	struct GUID remote_bind_guid;
 	struct drsuapi_DsBindInfo28 remote_info28;
 	struct drsuapi_DsBindInfo28 local_info28;
@@ -61,9 +62,21 @@ int drsuapi_search_with_extended_dn(struct ldb_context *ldb,
 				    const char * const *attrs,
 				    const char *filter);
 
-enum security_user_level;
 WERROR drs_security_level_check(struct dcesrv_call_state *dce_call,
-				const char* call, enum security_user_level minimum_level);
+				const char* call, enum security_user_level minimum_level,
+				const struct dom_sid *domain_sid);
 
 void drsuapi_process_secret_attribute(struct drsuapi_DsReplicaAttribute *attr,
 				      struct drsuapi_DsReplicaMetaData *meta_data);
+
+WERROR drs_security_access_check(struct ldb_context *sam_ctx,
+				 TALLOC_CTX *mem_ctx,
+				 struct security_token *token,
+				 struct drsuapi_DsReplicaObjectIdentifier *nc,
+				 const char *ext_right);
+
+WERROR drs_security_access_check_nc_root(struct ldb_context *sam_ctx,
+					 TALLOC_CTX *mem_ctx,
+					 struct security_token *token,
+					 struct drsuapi_DsReplicaObjectIdentifier *nc,
+					 const char *ext_right);

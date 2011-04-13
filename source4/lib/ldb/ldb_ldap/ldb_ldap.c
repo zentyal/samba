@@ -38,7 +38,9 @@
  *    author: Simo Sorce
  */
 
-#include "ldb_includes.h"
+#include "replace.h"
+#include "system/filesys.h"
+#include "system/time.h"
 #include "ldb_module.h"
 #include "ldb_private.h"
 
@@ -118,7 +120,7 @@ static LDAPMod **lldb_msg_to_mods(void *mem_ctx, const struct ldb_message *msg, 
 			if (!mods[num_mods]->mod_vals.modv_bvals[j]) {
 				goto failed;
 			}
-			mods[num_mods]->mod_vals.modv_bvals[j]->bv_val = el->values[j].data;
+			mods[num_mods]->mod_vals.modv_bvals[j]->bv_val = (char *)el->values[j].data;
 			mods[num_mods]->mod_vals.modv_bvals[j]->bv_len = el->values[j].length;
 		}
 		mods[num_mods]->mod_vals.modv_bvals[j] = NULL;
@@ -387,6 +389,8 @@ static int lldb_rename(struct lldb_context *lldb_ac)
 	struct lldb_private *lldb = lldb_ac->lldb;
 	struct ldb_module *module = lldb_ac->module;
 	struct ldb_request *req = lldb_ac->req;
+	const char *rdn_name;
+	const struct ldb_val *rdn_val;
 	char *old_dn;
 	char *newrdn;
 	char *parentdn;
@@ -401,9 +405,15 @@ static int lldb_rename(struct lldb_context *lldb_ac)
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
-	newrdn = talloc_asprintf(lldb_ac, "%s=%s",
-				 ldb_dn_get_rdn_name(req->op.rename.newdn),
-				 ldb_dn_escape_value(lldb, *(ldb_dn_get_rdn_val(req->op.rename.newdn))));
+	rdn_name = ldb_dn_get_rdn_name(req->op.rename.newdn);
+	rdn_val = ldb_dn_get_rdn_val(req->op.rename.newdn);
+
+	if ((rdn_name != NULL) && (rdn_val != NULL)) {
+		newrdn = talloc_asprintf(lldb_ac, "%s=%s", rdn_name,
+					 rdn_val->length > 0 ? ldb_dn_escape_value(lldb, *rdn_val) : "");
+	} else {
+		newrdn = talloc_strdup(lldb_ac, "");
+	}
 	if (!newrdn) {
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
@@ -445,7 +455,7 @@ static int lldb_del_trans(struct ldb_module *module)
 	return LDB_SUCCESS;
 }
 
-void lldb_request_done(struct lldb_context *ac,
+static void lldb_request_done(struct lldb_context *ac,
 			struct ldb_control **ctrls, int error)
 {
 	struct ldb_request *req;
@@ -810,7 +820,7 @@ static int lldb_handle_request(struct ldb_module *module, struct ldb_request *re
 		break;
 	default:
 		/* no other op supported */
-		ret = LDB_ERR_OPERATIONS_ERROR;
+		ret = LDB_ERR_PROTOCOL_ERROR;
 		break;
 	}
 
@@ -954,17 +964,19 @@ failed:
 	return LDB_ERR_OPERATIONS_ERROR;
 }
 
-const struct ldb_backend_ops ldb_ldap_backend_ops = {
-	.name = "ldap",
-	.connect_fn = lldb_connect
-};
-
-const struct ldb_backend_ops ldb_ldapi_backend_ops = {
-	.name = "ldapi",
-	.connect_fn = lldb_connect
-};
-
-const struct ldb_backend_ops ldb_ldaps_backend_ops = {
-	.name = "ldaps",
-	.connect_fn = lldb_connect
-};
+/*
+  initialise the module
+ */
+int ldb_ldap_init(const char *version)
+{
+	int ret, i;
+	const char *names[] = { "ldap", "ldaps", "ldapi", NULL };
+	LDB_MODULE_CHECK_VERSION(version);
+	for (i=0; names[i]; i++) {
+		ret = ldb_register_backend(names[i], lldb_connect, false);
+		if (ret != LDB_SUCCESS) {
+			return ret;
+		}
+	}
+	return LDB_SUCCESS;
+}

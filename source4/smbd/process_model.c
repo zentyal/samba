@@ -22,31 +22,51 @@
 #include "smbd/process_model.h"
 #include "param/param.h"
 
-static const struct model_ops *process_model_byname(const char *name);
+/* the list of currently registered process models */
+static struct process_model {
+	const struct model_ops *ops;
+	bool initialised;
+} *models = NULL;
+static int num_models;
+
+
+/*
+  return the operations structure for a named backend of the specified type
+*/
+static struct process_model *process_model_byname(const char *name)
+{
+	int i;
+
+	for (i=0;i<num_models;i++) {
+		if (strcmp(models[i].ops->name, name) == 0) {
+			return &models[i];
+		}
+	}
+
+	return NULL;
+}
+
 
 /*
   setup the events for the chosen process model
 */
-_PUBLIC_ const struct model_ops *process_model_startup(struct tevent_context *ev, const char *model)
+_PUBLIC_ const struct model_ops *process_model_startup(const char *model)
 {
-	const struct model_ops *ops;
+	struct process_model *m;
 
-	ops = process_model_byname(model);
-	if (!ops) {
+	m = process_model_byname(model);
+	if (m == NULL) {
 		DEBUG(0,("Unknown process model '%s'\n", model));
 		exit(-1);
 	}
 
-	ops->model_init(ev);
+	if (!m->initialised) {
+		m->initialised = true;
+		m->ops->model_init();
+	}
 
-	return ops;
+	return m->ops;
 }
-
-/* the list of currently registered process models */
-static struct process_model {
-	struct model_ops *ops;
-} *models = NULL;
-static int num_models;
 
 /*
   register a process model. 
@@ -54,10 +74,8 @@ static int num_models;
   The 'name' can be later used by other backends to find the operations
   structure for this backend.  
 */
-_PUBLIC_ NTSTATUS register_process_model(const void *_ops)
+_PUBLIC_ NTSTATUS register_process_model(const struct model_ops *ops)
 {
-	const struct model_ops *ops = _ops;
-
 	if (process_model_byname(ops->name) != NULL) {
 		/* its already registered! */
 		DEBUG(0,("PROCESS_MODEL '%s' already registered\n", 
@@ -65,54 +83,42 @@ _PUBLIC_ NTSTATUS register_process_model(const void *_ops)
 		return NT_STATUS_OBJECT_NAME_COLLISION;
 	}
 
-	models = realloc_p(models, struct process_model, num_models+1);
+	models = talloc_realloc(NULL, models, struct process_model, num_models+1);
 	if (!models) {
 		smb_panic("out of memory in register_process_model");
 	}
 
-	models[num_models].ops = smb_xmemdup(ops, sizeof(*ops));
-	models[num_models].ops->name = smb_xstrdup(ops->name);
+	models[num_models].ops = ops;
+	models[num_models].initialised = false;
 
 	num_models++;
 
-	DEBUG(3,("PROCESS_MODEL '%s' registered\n", 
-		 ops->name));
+	DEBUG(3,("PROCESS_MODEL '%s' registered\n", ops->name));
 
 	return NT_STATUS_OK;
 }
 
 _PUBLIC_ NTSTATUS process_model_init(struct loadparm_context *lp_ctx)
 {
-	extern NTSTATUS process_model_thread_init(void);
-	extern NTSTATUS process_model_standard_init(void);
-	extern NTSTATUS process_model_prefork_init(void);
-	extern NTSTATUS process_model_onefork_init(void);
-	extern NTSTATUS process_model_single_init(void);
+#define _MODULE_PROTO(init) extern NTSTATUS init(void);
+	STATIC_process_model_MODULES_PROTO;
 	init_module_fn static_init[] = { STATIC_process_model_MODULES };
-	init_module_fn *shared_init = load_samba_modules(NULL, lp_ctx, "process_model");
+	init_module_fn *shared_init;
+	static bool initialised;
 
+	if (initialised) {
+		return NT_STATUS_OK;
+	}
+	initialised = true;
+
+	shared_init = load_samba_modules(NULL, lp_ctx, "process_model");
+	
 	run_init_functions(static_init);
 	run_init_functions(shared_init);
 
 	talloc_free(shared_init);
-	
+
 	return NT_STATUS_OK;
-}
-
-/*
-  return the operations structure for a named backend of the specified type
-*/
-static const struct model_ops *process_model_byname(const char *name)
-{
-	int i;
-
-	for (i=0;i<num_models;i++) {
-		if (strcmp(models[i].ops->name, name) == 0) {
-			return models[i].ops;
-		}
-	}
-
-	return NULL;
 }
 
 /*

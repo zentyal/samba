@@ -22,43 +22,67 @@
 */
 
 #include "includes.h"
-#include "smbd/service_task.h"
-#include "smbd/service.h"
-#include "smbd/service_stream.h"
 #include "smbd/process_model.h"
-#include "lib/events/events.h"
-#include "lib/socket/socket.h"
 #include "lib/tsocket/tsocket.h"
 #include "libcli/util/tstream.h"
-#include "system/network.h"
-#include "../lib/util/dlinklist.h"
 #include "lib/messaging/irpc.h"
-#include "lib/stream/packet.h"
-#include "librpc/gen_ndr/samr.h"
 #include "librpc/gen_ndr/ndr_irpc.h"
 #include "librpc/gen_ndr/ndr_krb5pac.h"
+#include "lib/stream/packet.h"
 #include "lib/socket/netif.h"
 #include "param/param.h"
-#include "kdc/kdc.h"
-#include "librpc/gen_ndr/ndr_misc.h"
-
+#include "kdc/kdc-glue.h"
+#include "dsdb/samdb/samdb.h"
+#include "auth/session.h"
 
 extern struct krb5plugin_windc_ftable windc_plugin_table;
 extern struct hdb_method hdb_samba4;
 
-typedef bool (*kdc_process_fn_t)(struct kdc_server *kdc,
-				 TALLOC_CTX *mem_ctx,
-				 DATA_BLOB *input,
-				 DATA_BLOB *reply,
-				 struct tsocket_address *peer_addr,
-				 struct tsocket_address *my_addr,
-				 int datagram);
+static NTSTATUS kdc_proxy_unavailable_error(struct kdc_server *kdc,
+					    TALLOC_CTX *mem_ctx,
+					    DATA_BLOB *out)
+{
+	int kret;
+	krb5_data k5_error_blob;
+
+	kret = krb5_mk_error(kdc->smb_krb5_context->krb5_context,
+			     KRB5KDC_ERR_SVC_UNAVAILABLE, NULL, NULL,
+			     NULL, NULL, NULL, NULL, &k5_error_blob);
+	if (kret != 0) {
+		DEBUG(2,(__location__ ": Unable to form krb5 error reply\n"));
+		return NT_STATUS_INTERNAL_ERROR;
+	}
+
+	*out = data_blob_talloc(mem_ctx, k5_error_blob.data, k5_error_blob.length);
+	krb5_data_free(&k5_error_blob);
+	if (!out->data) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	return NT_STATUS_OK;
+}
+
+typedef enum kdc_process_ret (*kdc_process_fn_t)(struct kdc_server *kdc,
+						 TALLOC_CTX *mem_ctx,
+						 DATA_BLOB *input,
+						 DATA_BLOB *reply,
+						 struct tsocket_address *peer_addr,
+						 struct tsocket_address *my_addr,
+						 int datagram);
 
 /* hold information about one kdc socket */
 struct kdc_socket {
 	struct kdc_server *kdc;
 	struct tsocket_address *local_address;
 	kdc_process_fn_t process;
+};
+
+struct kdc_tcp_call {
+	struct kdc_tcp_connection *kdc_conn;
+	DATA_BLOB in;
+	DATA_BLOB out;
+	uint8_t out_hdr[4];
+	struct iovec out_iov[2];
 };
 
 /*
@@ -75,6 +99,7 @@ struct kdc_tcp_connection {
 
 	struct tevent_queue *send_queue;
 };
+
 
 static void kdc_tcp_terminate_connection(struct kdc_tcp_connection *kdcconn, const char *reason)
 {
@@ -102,13 +127,13 @@ static void kdc_tcp_send(struct stream_connection *conn, uint16_t flags)
    calling conventions
 */
 
-static bool kdc_process(struct kdc_server *kdc,
-			TALLOC_CTX *mem_ctx,
-			DATA_BLOB *input,
-			DATA_BLOB *reply,
-			struct tsocket_address *peer_addr,
-			struct tsocket_address *my_addr,
-			int datagram_reply)
+static enum kdc_process_ret kdc_process(struct kdc_server *kdc,
+					TALLOC_CTX *mem_ctx,
+					DATA_BLOB *input,
+					DATA_BLOB *reply,
+					struct tsocket_address *peer_addr,
+					struct tsocket_address *my_addr,
+					int datagram_reply)
 {
 	int ret;
 	char *pa;
@@ -121,11 +146,11 @@ static bool kdc_process(struct kdc_server *kdc,
 	ret = tsocket_address_bsd_sockaddr(peer_addr, (struct sockaddr *) &ss,
 				sizeof(struct sockaddr_storage));
 	if (ret < 0) {
-		return false;
+		return KDC_PROCESS_FAILED;
 	}
 	pa = tsocket_address_string(peer_addr, mem_ctx);
 	if (pa == NULL) {
-		return false;
+		return KDC_PROCESS_FAILED;
 	}
 
 	DEBUG(10,("Received KDC packet of length %lu from %s\n",
@@ -140,25 +165,24 @@ static bool kdc_process(struct kdc_server *kdc,
 					    datagram_reply);
 	if (ret == -1) {
 		*reply = data_blob(NULL, 0);
-		return false;
+		return KDC_PROCESS_FAILED;
 	}
+
+	if (ret == HDB_ERR_NOT_FOUND_HERE) {
+		*reply = data_blob(NULL, 0);
+		return KDC_PROCESS_PROXY;
+	}
+
 	if (k5_reply.length) {
 		*reply = data_blob_talloc(mem_ctx, k5_reply.data, k5_reply.length);
 		krb5_data_free(&k5_reply);
 	} else {
 		*reply = data_blob(NULL, 0);
 	}
-	return true;
+	return KDC_PROCESS_OK;
 }
 
-struct kdc_tcp_call {
-	struct kdc_tcp_connection *kdc_conn;
-	DATA_BLOB in;
-	DATA_BLOB out;
-	uint8_t out_hdr[4];
-	struct iovec out_iov[2];
-};
-
+static void kdc_tcp_call_proxy_done(struct tevent_req *subreq);
 static void kdc_tcp_call_writev_done(struct tevent_req *subreq);
 
 static void kdc_tcp_call_loop(struct tevent_req *subreq)
@@ -167,7 +191,7 @@ static void kdc_tcp_call_loop(struct tevent_req *subreq)
 				      struct kdc_tcp_connection);
 	struct kdc_tcp_call *call;
 	NTSTATUS status;
-	bool ok;
+	enum kdc_process_ret ret;
 
 	call = talloc(kdc_conn, struct kdc_tcp_call);
 	if (call == NULL) {
@@ -204,16 +228,107 @@ static void kdc_tcp_call_loop(struct tevent_req *subreq)
 	call->in.length -= 4;
 
 	/* Call krb5 */
-	ok = kdc_conn->kdc_socket->process(kdc_conn->kdc_socket->kdc,
+	ret = kdc_conn->kdc_socket->process(kdc_conn->kdc_socket->kdc,
 					   call,
 					   &call->in,
 					   &call->out,
 					   kdc_conn->conn->remote_address,
 					   kdc_conn->conn->local_address,
 					   0 /* Stream */);
-	if (!ok) {
+	if (ret == KDC_PROCESS_FAILED) {
 		kdc_tcp_terminate_connection(kdc_conn,
 				"kdc_tcp_call_loop: process function failed");
+		return;
+	}
+
+	if (ret == KDC_PROCESS_PROXY) {
+		uint16_t port;
+
+		if (!kdc_conn->kdc_socket->kdc->am_rodc) {
+			kdc_tcp_terminate_connection(kdc_conn,
+						     "kdc_tcp_call_loop: proxying requested when not RODC");
+			return;
+		}
+		port = tsocket_address_inet_port(kdc_conn->conn->local_address);
+
+		subreq = kdc_tcp_proxy_send(call,
+					    kdc_conn->conn->event.ctx,
+					    kdc_conn->kdc_socket->kdc,
+					    port,
+					    call->in);
+		if (subreq == NULL) {
+			kdc_tcp_terminate_connection(kdc_conn,
+				"kdc_tcp_call_loop: kdc_tcp_proxy_send failed");
+			return;
+		}
+		tevent_req_set_callback(subreq, kdc_tcp_call_proxy_done, call);
+		return;
+	}
+
+	/* First add the length of the out buffer */
+	RSIVAL(call->out_hdr, 0, call->out.length);
+	call->out_iov[0].iov_base = (char *) call->out_hdr;
+	call->out_iov[0].iov_len = 4;
+
+	call->out_iov[1].iov_base = (char *) call->out.data;
+	call->out_iov[1].iov_len = call->out.length;
+
+	subreq = tstream_writev_queue_send(call,
+					   kdc_conn->conn->event.ctx,
+					   kdc_conn->tstream,
+					   kdc_conn->send_queue,
+					   call->out_iov, 2);
+	if (subreq == NULL) {
+		kdc_tcp_terminate_connection(kdc_conn, "kdc_tcp_call_loop: "
+				"no memory for tstream_writev_queue_send");
+		return;
+	}
+	tevent_req_set_callback(subreq, kdc_tcp_call_writev_done, call);
+
+	/*
+	 * The krb5 tcp pdu's has the length as 4 byte (initial_read_size),
+	 * packet_full_request_u32 provides the pdu length then.
+	 */
+	subreq = tstream_read_pdu_blob_send(kdc_conn,
+					    kdc_conn->conn->event.ctx,
+					    kdc_conn->tstream,
+					    4, /* initial_read_size */
+					    packet_full_request_u32,
+					    kdc_conn);
+	if (subreq == NULL) {
+		kdc_tcp_terminate_connection(kdc_conn, "kdc_tcp_call_loop: "
+				"no memory for tstream_read_pdu_blob_send");
+		return;
+	}
+	tevent_req_set_callback(subreq, kdc_tcp_call_loop, kdc_conn);
+}
+
+static void kdc_tcp_call_proxy_done(struct tevent_req *subreq)
+{
+	struct kdc_tcp_call *call = tevent_req_callback_data(subreq,
+			struct kdc_tcp_call);
+	struct kdc_tcp_connection *kdc_conn = call->kdc_conn;
+	NTSTATUS status;
+
+	status = kdc_tcp_proxy_recv(subreq, call, &call->out);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		/* generate an error packet */
+		status = kdc_proxy_unavailable_error(kdc_conn->kdc_socket->kdc,
+						     call, &call->out);
+	}
+
+	if (!NT_STATUS_IS_OK(status)) {
+		const char *reason;
+
+		reason = talloc_asprintf(call, "kdc_tcp_call_proxy_done: "
+					 "kdc_proxy_unavailable_error - %s",
+					 nt_errstr(status));
+		if (!reason) {
+			reason = "kdc_tcp_call_proxy_done: kdc_proxy_unavailable_error() failed";
+		}
+
+		kdc_tcp_terminate_connection(call->kdc_conn, reason);
 		return;
 	}
 
@@ -357,11 +472,13 @@ struct kdc_udp_socket {
 };
 
 struct kdc_udp_call {
+	struct kdc_udp_socket *sock;
 	struct tsocket_address *src;
 	DATA_BLOB in;
 	DATA_BLOB out;
 };
 
+static void kdc_udp_call_proxy_done(struct tevent_req *subreq);
 static void kdc_udp_call_sendto_done(struct tevent_req *subreq);
 
 static void kdc_udp_call_loop(struct tevent_req *subreq)
@@ -372,13 +489,14 @@ static void kdc_udp_call_loop(struct tevent_req *subreq)
 	uint8_t *buf;
 	ssize_t len;
 	int sys_errno;
-	bool ok;
+	enum kdc_process_ret ret;
 
 	call = talloc(sock, struct kdc_udp_call);
 	if (call == NULL) {
 		talloc_free(call);
 		goto done;
 	}
+	call->sock = sock;
 
 	len = tdgram_recvfrom_recv(subreq, &sys_errno,
 				   call, &buf, &call->src);
@@ -396,15 +514,39 @@ static void kdc_udp_call_loop(struct tevent_req *subreq)
 		 tsocket_address_string(call->src, call)));
 
 	/* Call krb5 */
-	ok = sock->kdc_socket->process(sock->kdc_socket->kdc,
+	ret = sock->kdc_socket->process(sock->kdc_socket->kdc,
 				       call,
 				       &call->in,
 				       &call->out,
 				       call->src,
 				       sock->kdc_socket->local_address,
 				       1 /* Datagram */);
-	if (!ok) {
+	if (ret == KDC_PROCESS_FAILED) {
 		talloc_free(call);
+		goto done;
+	}
+
+	if (ret == KDC_PROCESS_PROXY) {
+		uint16_t port;
+
+		if (!sock->kdc_socket->kdc->am_rodc) {
+			DEBUG(0,("kdc_udp_call_loop: proxying requested when not RODC"));
+			talloc_free(call);
+			goto done;
+		}
+
+		port = tsocket_address_inet_port(sock->kdc_socket->local_address);
+
+		subreq = kdc_udp_proxy_send(call,
+					    sock->kdc_socket->kdc->task->event_ctx,
+					    sock->kdc_socket->kdc,
+					    port,
+					    call->in);
+		if (subreq == NULL) {
+			talloc_free(call);
+			goto done;
+		}
+		tevent_req_set_callback(subreq, kdc_udp_call_proxy_done, call);
 		goto done;
 	}
 
@@ -434,6 +576,41 @@ done:
 	tevent_req_set_callback(subreq, kdc_udp_call_loop, sock);
 }
 
+static void kdc_udp_call_proxy_done(struct tevent_req *subreq)
+{
+	struct kdc_udp_call *call =
+		tevent_req_callback_data(subreq,
+		struct kdc_udp_call);
+	NTSTATUS status;
+
+	status = kdc_udp_proxy_recv(subreq, call, &call->out);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		/* generate an error packet */
+		status = kdc_proxy_unavailable_error(call->sock->kdc_socket->kdc,
+						     call, &call->out);
+	}
+
+	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(call);
+		return;
+	}
+
+	subreq = tdgram_sendto_queue_send(call,
+					  call->sock->kdc_socket->kdc->task->event_ctx,
+					  call->sock->dgram,
+					  call->sock->send_queue,
+					  call->out.data,
+					  call->out.length,
+					  call->src);
+	if (subreq == NULL) {
+		talloc_free(call);
+		return;
+	}
+
+	tevent_req_set_callback(subreq, kdc_udp_call_sendto_done, call);
+}
+
 static void kdc_udp_call_sendto_done(struct tevent_req *subreq)
 {
 	struct kdc_udp_call *call = tevent_req_callback_data(subreq,
@@ -456,7 +633,8 @@ static NTSTATUS kdc_add_socket(struct kdc_server *kdc,
 			       const char *name,
 			       const char *address,
 			       uint16_t port,
-			       kdc_process_fn_t process)
+			       kdc_process_fn_t process,
+			       bool udp_only)
 {
 	struct kdc_socket *kdc_socket;
 	struct kdc_udp_socket *kdc_udp_socket;
@@ -478,18 +656,21 @@ static NTSTATUS kdc_add_socket(struct kdc_server *kdc,
 		return status;
 	}
 
-	status = stream_setup_socket(kdc->task->event_ctx,
-				     kdc->task->lp_ctx,
-				     model_ops,
-				     &kdc_tcp_stream_ops,
-				     "ip", address, &port,
-				     lpcfg_socket_options(kdc->task->lp_ctx),
-				     kdc_socket);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0,("Failed to bind to %s:%u TCP - %s\n",
-			 address, port, nt_errstr(status)));
-		talloc_free(kdc_socket);
-		return status;
+	if (!udp_only) {
+		status = stream_setup_socket(kdc->task,
+					     kdc->task->event_ctx,
+					     kdc->task->lp_ctx,
+					     model_ops,
+					     &kdc_tcp_stream_ops,
+					     "ip", address, &port,
+					     lpcfg_socket_options(kdc->task->lp_ctx),
+					     kdc_socket);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(0,("Failed to bind to %s:%u TCP - %s\n",
+				 address, port, nt_errstr(status)));
+			talloc_free(kdc_socket);
+			return status;
+		}
 	}
 
 	kdc_udp_socket = talloc(kdc_socket, struct kdc_udp_socket);
@@ -533,11 +714,14 @@ static NTSTATUS kdc_startup_interfaces(struct kdc_server *kdc, struct loadparm_c
 	TALLOC_CTX *tmp_ctx = talloc_new(kdc);
 	NTSTATUS status;
 	int i;
+	uint16_t kdc_port = lpcfg_krb5_port(lp_ctx);
+	uint16_t kpasswd_port = lpcfg_kpasswd_port(lp_ctx);
+	bool done_wildcard = false;
 
 	/* within the kdc task we want to be a single process, so
 	   ask for the single process model ops and pass these to the
 	   stream_setup_socket() call. */
-	model_ops = process_model_startup(kdc->task->event_ctx, "single");
+	model_ops = process_model_startup("single");
 	if (!model_ops) {
 		DEBUG(0,("Can't find 'single' process model_ops\n"));
 		return NT_STATUS_INTERNAL_ERROR;
@@ -545,22 +729,39 @@ static NTSTATUS kdc_startup_interfaces(struct kdc_server *kdc, struct loadparm_c
 
 	num_interfaces = iface_count(ifaces);
 
-	for (i=0; i<num_interfaces; i++) {
-		const char *address = talloc_strdup(tmp_ctx, iface_n_ip(ifaces, i));
-		uint16_t kdc_port = lpcfg_krb5_port(lp_ctx);
-		uint16_t kpasswd_port = lpcfg_kpasswd_port(lp_ctx);
-
+	/* if we are allowing incoming packets from any address, then
+	   we need to bind to the wildcard address */
+	if (!lpcfg_bind_interfaces_only(lp_ctx)) {
 		if (kdc_port) {
 			status = kdc_add_socket(kdc, model_ops,
-					"kdc", address, kdc_port,
-					kdc_process);
+						"kdc", "0.0.0.0", kdc_port,
+						kdc_process, false);
 			NT_STATUS_NOT_OK_RETURN(status);
 		}
 
 		if (kpasswd_port) {
 			status = kdc_add_socket(kdc, model_ops,
-					"kpasswd", address, kpasswd_port,
-					kpasswdd_process);
+						"kpasswd", "0.0.0.0", kpasswd_port,
+						kpasswdd_process, false);
+			NT_STATUS_NOT_OK_RETURN(status);
+		}
+		done_wildcard = true;
+	}
+
+	for (i=0; i<num_interfaces; i++) {
+		const char *address = talloc_strdup(tmp_ctx, iface_n_ip(ifaces, i));
+
+		if (kdc_port) {
+			status = kdc_add_socket(kdc, model_ops,
+						"kdc", address, kdc_port,
+						kdc_process, done_wildcard);
+			NT_STATUS_NOT_OK_RETURN(status);
+		}
+
+		if (kpasswd_port) {
+			status = kdc_add_socket(kdc, model_ops,
+						"kpasswd", address, kpasswd_port,
+						kpasswdd_process, done_wildcard);
 			NT_STATUS_NOT_OK_RETURN(status);
 		}
 	}
@@ -628,12 +829,13 @@ static NTSTATUS kdc_check_generic_kerberos(struct irpc_message *msg,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	ret = kdc->config->db[0]->hdb_fetch(kdc->smb_krb5_context->krb5_context,
-					    kdc->config->db[0],
-					    principal,
-					    HDB_F_GET_KRBTGT | HDB_F_DECRYPT,
-					    &ent);
-
+	ret = kdc->config->db[0]->hdb_fetch_kvno(kdc->smb_krb5_context->krb5_context,
+						 kdc->config->db[0],
+						 principal,
+						 HDB_F_GET_KRBTGT | HDB_F_DECRYPT,
+						 0,
+						 &ent);
+	
 	if (ret != 0) {
 		hdb_free_entry(kdc->smb_krb5_context->krb5_context, &ent);
 		krb5_free_principal(kdc->smb_krb5_context->krb5_context, principal);
@@ -677,6 +879,7 @@ static void kdc_task_init(struct task_server *task)
 	NTSTATUS status;
 	krb5_error_code ret;
 	struct interface *ifaces;
+	int ldb_ret;
 
 	switch (lpcfg_server_role(task->lp_ctx)) {
 	case ROLE_STANDALONE:
@@ -699,13 +902,33 @@ static void kdc_task_init(struct task_server *task)
 
 	task_server_set_title(task, "task[kdc]");
 
-	kdc = talloc(task, struct kdc_server);
+	kdc = talloc_zero(task, struct kdc_server);
 	if (kdc == NULL) {
 		task_server_terminate(task, "kdc: out of memory", true);
 		return;
 	}
 
 	kdc->task = task;
+
+
+	/* get a samdb connection */
+	kdc->samdb = samdb_connect(kdc, kdc->task->event_ctx, kdc->task->lp_ctx,
+				   system_session(kdc->task->lp_ctx), 0);
+	if (!kdc->samdb) {
+		DEBUG(1,("kdc_task_init: unable to connect to samdb\n"));
+		task_server_terminate(task, "kdc: krb5_init_context samdb connect failed", true);
+		return;
+	}
+
+	ldb_ret = samdb_rodc(kdc->samdb, &kdc->am_rodc);
+	if (ldb_ret != LDB_SUCCESS) {
+		DEBUG(1, ("kdc_task_init: Cannot determine if we are an RODC: %s\n",
+			  ldb_errstring(kdc->samdb)));
+		task_server_terminate(task, "kdc: krb5_init_context samdb RODC connect failed", true);
+		return;
+	}
+
+	kdc->proxy_timeout = lpcfg_parm_int(kdc->task->lp_ctx, NULL, "kdc", "proxy timeout", 5);
 
 	initialize_krb5_error_table();
 
@@ -776,7 +999,19 @@ static void kdc_task_init(struct task_server *task)
 		return;
 	}
 
-	krb5_kdc_windc_init(kdc->smb_krb5_context->krb5_context);
+	ret = krb5_kdc_windc_init(kdc->smb_krb5_context->krb5_context);
+
+	if(ret) {
+		task_server_terminate(task, "kdc: failed to init windc plugin", true);
+		return;
+	}
+
+	ret = krb5_kdc_pkinit_config(kdc->smb_krb5_context->krb5_context, kdc->config);
+
+	if(ret) {
+		task_server_terminate(task, "kdc: failed to init kdc pkinit subsystem", true);
+		return;
+	}
 
 	/* start listening on the configured network interfaces */
 	status = kdc_startup_interfaces(kdc, task->lp_ctx, ifaces);
@@ -788,7 +1023,7 @@ static void kdc_task_init(struct task_server *task)
 	status = IRPC_REGISTER(task->msg_ctx, irpc, KDC_CHECK_GENERIC_KERBEROS,
 			       kdc_check_generic_kerberos, kdc);
 	if (!NT_STATUS_IS_OK(status)) {
-		task_server_terminate(task, "nbtd failed to setup monitoring", true);
+		task_server_terminate(task, "kdc failed to setup monitoring", true);
 		return;
 	}
 

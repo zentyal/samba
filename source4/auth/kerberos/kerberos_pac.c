@@ -28,7 +28,7 @@
 #include "auth/auth.h"
 #include "auth/kerberos/kerberos.h"
 #include "librpc/gen_ndr/ndr_krb5pac.h"
-#include "lib/ldb/include/ldb.h"
+#include <ldb.h>
 #include "auth/auth_sam_reply.h"
 
 krb5_error_code check_pac_checksum(TALLOC_CTX *mem_ctx,
@@ -93,7 +93,7 @@ krb5_error_code check_pac_checksum(TALLOC_CTX *mem_ctx,
 	DATA_BLOB modified_pac_blob;
 	NTTIME tgs_authtime_nttime;
 	krb5_principal client_principal_pac;
-	int i;
+	uint32_t i;
 
 	krb5_clear_error_message(context);
 
@@ -316,8 +316,11 @@ krb5_error_code check_pac_checksum(TALLOC_CTX *mem_ctx,
 	if (!krb5_principal_compare_any_realm(context, client_principal, client_principal_pac)) {
 		DEBUG(2, ("Name in PAC [%s] does not match principal name in ticket\n",
 			  logon_name->account_name));
+		krb5_free_principal(context, client_principal_pac);
 		return NT_STATUS_ACCESS_DENIED;
 	}
+
+	krb5_free_principal(context, client_principal_pac);
 
 #if 0
 	if (strcasecmp(logon_info->info3.base.account_name.string,
@@ -521,7 +524,7 @@ static krb5_error_code make_pac_checksum(TALLOC_CTX *mem_ctx,
 
 
  krb5_error_code kerberos_create_pac(TALLOC_CTX *mem_ctx,
-				     struct auth_serversupplied_info *server_info,
+				     struct auth_user_info_dc *user_info_dc,
 				     krb5_context context,
 				     const krb5_keyblock *krbtgt_keyblock,
 				     const krb5_keyblock *service_keyblock,
@@ -609,7 +612,7 @@ static krb5_error_code make_pac_checksum(TALLOC_CTX *mem_ctx,
 		talloc_free(pac_data);
 		return ENOMEM;
 	}
-	nt_status = auth_convert_server_info_saminfo3(LOGON_INFO, server_info, &sam3);
+	nt_status = auth_convert_user_info_dc_saminfo3(LOGON_INFO, user_info_dc, &sam3);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(1, ("Getting Samba info failed: %s\n", nt_errstr(nt_status)));
 		talloc_free(pac_data);
@@ -642,10 +645,12 @@ static krb5_error_code make_pac_checksum(TALLOC_CTX *mem_ctx,
 	return ret;
 }
 
-krb5_error_code kerberos_pac_to_server_info(TALLOC_CTX *mem_ctx,
-						krb5_pac pac,
-						krb5_context context,
-						struct auth_serversupplied_info **server_info)
+krb5_error_code kerberos_pac_to_user_info_dc(TALLOC_CTX *mem_ctx,
+					     krb5_pac pac,
+					     krb5_context context,
+					     struct auth_user_info_dc **user_info_dc,
+					     struct PAC_SIGNATURE_DATA *pac_srv_sig,
+					     struct PAC_SIGNATURE_DATA *pac_kdc_sig)
 {
 	NTSTATUS nt_status;
 	enum ndr_err_code ndr_err;
@@ -655,8 +660,7 @@ krb5_error_code kerberos_pac_to_server_info(TALLOC_CTX *mem_ctx,
 	krb5_data k5pac_logon_info_in, k5pac_srv_checksum_in, k5pac_kdc_checksum_in;
 
 	union PAC_INFO info;
-	union netr_Validation validation;
-	struct auth_serversupplied_info *server_info_out;
+	struct auth_user_info_dc *user_info_dc_out;
 
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 
@@ -684,64 +688,67 @@ krb5_error_code kerberos_pac_to_server_info(TALLOC_CTX *mem_ctx,
 	}
 
 	/* Pull this right into the normal auth sysstem structures */
-	validation.sam3 = &info.logon_info.info->info3;
-	nt_status = make_server_info_netlogon_validation(mem_ctx,
-							 "",
-							 3, &validation,
-							 &server_info_out);
+	nt_status = make_user_info_dc_pac(mem_ctx,
+					 info.logon_info.info,
+					 &user_info_dc_out);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		talloc_free(tmp_ctx);
 		return EINVAL;
 	}
 
-	ret = krb5_pac_get_buffer(context, pac, PAC_TYPE_SRV_CHECKSUM, &k5pac_srv_checksum_in);
-	if (ret != 0) {
-		talloc_free(tmp_ctx);
-		return ret;
+	if (pac_srv_sig) {
+		ret = krb5_pac_get_buffer(context, pac, PAC_TYPE_SRV_CHECKSUM, &k5pac_srv_checksum_in);
+		if (ret != 0) {
+			talloc_free(tmp_ctx);
+			return ret;
+		}
+
+		pac_srv_checksum_in = data_blob_const(k5pac_srv_checksum_in.data, k5pac_srv_checksum_in.length);
+
+		ndr_err = ndr_pull_struct_blob(&pac_srv_checksum_in, pac_srv_sig,
+					       pac_srv_sig,
+					       (ndr_pull_flags_fn_t)ndr_pull_PAC_SIGNATURE_DATA);
+		krb5_data_free(&k5pac_srv_checksum_in);
+		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+			nt_status = ndr_map_error2ntstatus(ndr_err);
+			DEBUG(0,("can't parse the KDC signature: %s\n",
+				 nt_errstr(nt_status)));
+			return EINVAL;
+		}
 	}
 
-	pac_srv_checksum_in = data_blob_const(k5pac_srv_checksum_in.data, k5pac_srv_checksum_in.length);
+	if (pac_kdc_sig) {
+		ret = krb5_pac_get_buffer(context, pac, PAC_TYPE_KDC_CHECKSUM, &k5pac_kdc_checksum_in);
+		if (ret != 0) {
+			talloc_free(tmp_ctx);
+			return ret;
+		}
 
-	ndr_err = ndr_pull_struct_blob(&pac_srv_checksum_in, server_info_out,
-				       &server_info_out->pac_srv_sig,
-				       (ndr_pull_flags_fn_t)ndr_pull_PAC_SIGNATURE_DATA);
-	krb5_data_free(&k5pac_srv_checksum_in);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		nt_status = ndr_map_error2ntstatus(ndr_err);
-		DEBUG(0,("can't parse the KDC signature: %s\n",
-			nt_errstr(nt_status)));
-		return EINVAL;
+		pac_kdc_checksum_in = data_blob_const(k5pac_kdc_checksum_in.data, k5pac_kdc_checksum_in.length);
+
+		ndr_err = ndr_pull_struct_blob(&pac_kdc_checksum_in, pac_kdc_sig,
+					       pac_kdc_sig,
+					       (ndr_pull_flags_fn_t)ndr_pull_PAC_SIGNATURE_DATA);
+		krb5_data_free(&k5pac_kdc_checksum_in);
+		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+			nt_status = ndr_map_error2ntstatus(ndr_err);
+			DEBUG(0,("can't parse the KDC signature: %s\n",
+				 nt_errstr(nt_status)));
+			return EINVAL;
+		}
 	}
-
-	ret = krb5_pac_get_buffer(context, pac, PAC_TYPE_KDC_CHECKSUM, &k5pac_kdc_checksum_in);
-	if (ret != 0) {
-		talloc_free(tmp_ctx);
-		return ret;
-	}
-
-	pac_kdc_checksum_in = data_blob_const(k5pac_kdc_checksum_in.data, k5pac_kdc_checksum_in.length);
-
-	ndr_err = ndr_pull_struct_blob(&pac_kdc_checksum_in, server_info_out,
-				       &server_info_out->pac_kdc_sig,
-				       (ndr_pull_flags_fn_t)ndr_pull_PAC_SIGNATURE_DATA);
-	krb5_data_free(&k5pac_kdc_checksum_in);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		nt_status = ndr_map_error2ntstatus(ndr_err);
-		DEBUG(0,("can't parse the KDC signature: %s\n",
-			nt_errstr(nt_status)));
-		return EINVAL;
-	}
-
-	*server_info = server_info_out;
+	*user_info_dc = user_info_dc_out;
 
 	return 0;
 }
 
 
-NTSTATUS kerberos_pac_blob_to_server_info(TALLOC_CTX *mem_ctx,
-						     DATA_BLOB pac_blob,
-						     krb5_context context,
-						     struct auth_serversupplied_info **server_info)
+NTSTATUS kerberos_pac_blob_to_user_info_dc(TALLOC_CTX *mem_ctx,
+					   DATA_BLOB pac_blob,
+					   krb5_context context,
+					   struct auth_user_info_dc **user_info_dc,
+					   struct PAC_SIGNATURE_DATA *pac_srv_sig,
+					   struct PAC_SIGNATURE_DATA *pac_kdc_sig)
 {
 	krb5_error_code ret;
 	krb5_pac pac;
@@ -753,7 +760,7 @@ NTSTATUS kerberos_pac_blob_to_server_info(TALLOC_CTX *mem_ctx,
 	}
 
 
-	ret = kerberos_pac_to_server_info(mem_ctx, pac, context, server_info);
+	ret = kerberos_pac_to_user_info_dc(mem_ctx, pac, context, user_info_dc, pac_srv_sig, pac_kdc_sig);
 	krb5_pac_free(context, pac);
 	if (ret) {
 		return map_nt_error_from_unix(ret);

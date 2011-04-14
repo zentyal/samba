@@ -37,6 +37,8 @@
  */
 
 #include "includes.h"
+#include "passdb.h"
+#include "lib/winbind_util.h"
 
 /***************************************************************************
   Default implementations of some functions.
@@ -50,7 +52,7 @@ static NTSTATUS _pdb_wbc_sam_getsampw(struct pdb_methods *methods,
 	if (pwd == NULL)
 		return NT_STATUS_NO_SUCH_USER;
 
-	memset(user, 0, sizeof(user));
+	ZERO_STRUCTP(user);
 
         /* Can we really get away with this little of information */
 	user->methods = methods;
@@ -95,7 +97,7 @@ static NTSTATUS pdb_wbc_sam_enum_group_memberships(struct pdb_methods *methods,
 						   struct samu *user,
 						   struct dom_sid **pp_sids,
 						   gid_t **pp_gids,
-						   size_t *p_num_groups)
+						   uint32_t *p_num_groups)
 {
 	size_t i;
 	const char *username = pdb_get_username(user);

@@ -28,7 +28,13 @@
  **/
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "popt_common.h"
 #include "web/swat_proto.h"
+#include "printing/pcap.h"
+#include "printing/load.h"
+#include "passdb.h"
+#include "intl/lang_tdb.h"
 
 static int demo_mode = False;
 static int passwd_only = False;
@@ -490,7 +496,10 @@ static int save_reload(int snum)
                 return 0;
         }
 	iNumNonAutoPrintServices = lp_numservices();
-	load_printers();
+	if (pcap_cache_loaded()) {
+		load_printers(server_event_context(),
+			      server_messaging_context());
+	}
 
 	return 1;
 }
@@ -1412,13 +1421,15 @@ const char *lang_msg_rotate(TALLOC_CTX *ctx, const char *msgid)
 	/* we don't want any SIGPIPE messages */
 	BlockSignals(True,SIGPIPE);
 
-	dbf = x_fopen("/dev/null", O_WRONLY, 0);
-	if (!dbf) dbf = x_stderr;
+	debug_set_logfile("/dev/null");
 
 	/* we don't want stderr screwing us up */
 	close(2);
 	open("/dev/null", O_WRONLY);
+	setup_logging("swat", DEBUG_FILE);
 
+	load_case_tables();
+	
 	pc = poptGetContext("swat", argc, (const char **) argv, long_options, 0);
 
 	/* Parse command line options */
@@ -1427,13 +1438,15 @@ const char *lang_msg_rotate(TALLOC_CTX *ctx, const char *msgid)
 
 	poptFreeContext(pc);
 
-	load_case_tables();
-
-	setup_logging(argv[0],False);
+	/* This should set a more apporiate log file */
 	load_config(True);
+	reopen_logs();
 	load_interfaces();
 	iNumNonAutoPrintServices = lp_numservices();
-	load_printers();
+	if (pcap_cache_loaded()) {
+		load_printers(server_event_context(),
+			      server_messaging_context());
+	}
 
 	cgi_setup(get_dyn_SWATDIR(), !demo_mode);
 

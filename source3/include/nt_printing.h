@@ -25,66 +25,6 @@
 #include "client.h"
 #include "../librpc/gen_ndr/srv_spoolss.h"
 
-/* container for a single registry key */
-
-typedef struct {
-	char			*name;
-	struct regval_ctr	*values;
-} NT_PRINTER_KEY;
-
-/* container for all printer data */
-
-typedef struct {
-	int		num_keys;
-	NT_PRINTER_KEY	*keys;
-} NT_PRINTER_DATA;
-
-typedef struct nt_printer_info_level_2
-{
-	uint32 attributes;
-	uint32 priority;
-	uint32 default_priority;
-	uint32 starttime;
-	uint32 untiltime;
-	uint32 status;
-	uint32 cjobs;
-	uint32 averageppm;
-	fstring servername;
-	fstring printername;
-	fstring sharename;
-	fstring portname;
-	fstring drivername;
-	char comment[1024];
-	fstring location;
-	struct spoolss_DeviceMode *devmode;
-	fstring sepfile;
-	fstring printprocessor;
-	fstring datatype;
-	fstring parameters;
-	NT_PRINTER_DATA *data;
-	struct sec_desc_buf *secdesc_buf;
-	uint32 changeid;
-	uint32 c_setprinter;
-	uint32 setuptime;	
-} NT_PRINTER_INFO_LEVEL_2;
-
-typedef struct nt_printer_info_level
-{
-	NT_PRINTER_INFO_LEVEL_2 *info_2;
-} NT_PRINTER_INFO_LEVEL;
-
-typedef struct
-{
-	fstring name;
-	uint32 flag;
-	uint32 width;
-	uint32 length;
-	uint32 left;
-	uint32 top;
-	uint32 right;
-	uint32 bottom;
-} nt_forms_struct;
-
 #ifndef SAMBA_PRINTER_PORT_NAME
 #define SAMBA_PRINTER_PORT_NAME "Samba Printer Port"
 #endif
@@ -162,45 +102,6 @@ typedef struct {
 #define SPLHND_PORTMON_TCP	3
 #define SPLHND_PORTMON_LOCAL	4
 
-/* structure to store the printer handles */
-/* and a reference to what it's pointing to */
-/* and the notify info asked about */
-/* that's the central struct */
-typedef struct _Printer{
-	struct _Printer *prev, *next;
-	bool document_started;
-	bool page_started;
-	uint32 jobid; /* jobid in printing backend */
-	int printer_type;
-	fstring servername;
-	fstring sharename;
-	uint32 type;
-	uint32 access_granted;
-	struct {
-		uint32 flags;
-		uint32 options;
-		fstring localmachine;
-		uint32 printerlocal;
-		struct spoolss_NotifyOption *option;
-		struct policy_handle client_hnd;
-		bool client_connected;
-		uint32 change;
-		/* are we in a FindNextPrinterChangeNotify() call? */
-		bool fnpcn;
-	} notify;
-	struct {
-		fstring machine;
-		fstring user;
-	} client;
-
-	/* devmode sent in the OpenPrinter() call */
-	struct spoolss_DeviceMode *devmode;
-
-	/* TODO cache the printer info2 structure */
-	struct spoolss_PrinterInfo2 *info2;
-	
-} Printer_entry;
-
 /*
  * The printer attributes.
  * I #defined all of them (grabbed form MSDN)
@@ -236,40 +137,40 @@ WERROR spoolss_map_to_os2_driver(TALLOC_CTX *mem_ctx, const char **pdrivername);
 
 const char *get_short_archi(const char *long_archi);
 
-bool add_printer_hook(TALLOC_CTX *ctx, NT_USER_TOKEN *token,
-		      struct spoolss_SetPrinterInfo2 *info2,
-		      const char *remote_machine);
-
-bool print_access_check(struct auth_serversupplied_info *server_info, int snum,
+bool print_access_check(const struct auth_serversupplied_info *server_info,
+			struct messaging_context *msg_ctx, int snum,
 			int access_type);
 
 WERROR nt_printer_publish(TALLOC_CTX *mem_ctx,
-			  struct auth_serversupplied_info *server_info,
+			  const struct auth_serversupplied_info *server_info,
+			  struct messaging_context *msg_ctx,
 			  struct spoolss_PrinterInfo2 *pinfo2,
 			  int action);
 
 bool is_printer_published(TALLOC_CTX *mem_ctx,
-			  struct auth_serversupplied_info *server_info,
-			  char *servername, char *printer, struct GUID *guid,
+			  const struct auth_serversupplied_info *server_info,
+			  struct messaging_context *msg_ctx,
+			  const char *servername, char *printer, struct GUID *guid,
 			  struct spoolss_PrinterInfo2 **info2);
 
-WERROR check_published_printers(void);
+WERROR check_published_printers(struct messaging_context *msg_ctx);
 
 bool driver_info_ctr_to_info8(struct spoolss_AddDriverInfoCtr *r,
 			      struct spoolss_DriverInfo8 *_info8);
 
 bool printer_driver_in_use(TALLOC_CTX *mem_ctx,
-			   struct auth_serversupplied_info *server_info,
+			   const struct auth_serversupplied_info *server_info,
+			   struct messaging_context *msg_ctx,
 			   const struct spoolss_DriverInfo8 *r);
 bool printer_driver_files_in_use(TALLOC_CTX *mem_ctx,
-				 struct auth_serversupplied_info *server_info,
+				 const struct auth_serversupplied_info *server_info,
+				 struct messaging_context *msg_ctx,
 				 struct spoolss_DriverInfo8 *r);
-bool delete_driver_files(struct auth_serversupplied_info *server_info,
+bool delete_driver_files(const struct auth_serversupplied_info *server_info,
 			 const struct spoolss_DriverInfo8 *r);
 
 WERROR move_driver_to_download_area(struct pipes_struct *p,
-				    struct spoolss_AddDriverInfoCtr *r,
-				    WERROR *perr);
+				    struct spoolss_AddDriverInfoCtr *r);
 
 WERROR clean_up_driver_struct(TALLOC_CTX *mem_ctx,
 			      struct pipes_struct *rpc_pipe,
@@ -279,11 +180,13 @@ void map_printer_permissions(struct security_descriptor *sd);
 
 void map_job_permissions(struct security_descriptor *sd);
 
-bool print_time_access_check(struct auth_serversupplied_info *server_info,
+bool print_time_access_check(const struct auth_serversupplied_info *server_info,
+			     struct messaging_context *msg_ctx,
 			     const char *servicename);
 
 void nt_printer_remove(TALLOC_CTX *mem_ctx,
-			struct auth_serversupplied_info *server_info,
+			const struct auth_serversupplied_info *server_info,
+			struct messaging_context *msg_ctx,
 			const char *printer);
 
 #endif /* NT_PRINTING_H_ */

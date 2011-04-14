@@ -26,6 +26,8 @@
 #include "../lib/util/data_blob.h"
 #include "libcli/util/ntstatus.h"
 
+#define GENSEC_SASL_NAME_NTLMSSP "NTLM"
+
 #define GENSEC_OID_NTLMSSP "1.3.6.1.4.1.311.2.2.10"
 #define GENSEC_OID_SPNEGO "1.3.6.1.5.5.2"
 #define GENSEC_OID_KERBEROS5 "1.2.840.113554.1.2.2"
@@ -178,7 +180,7 @@ struct gensec_critical_sizes {
 struct gensec_security;
 struct socket_context;
 struct auth_context;
-struct auth_serversupplied_info;
+struct auth_user_info_dc;
 
 NTSTATUS gensec_socket_init(struct gensec_security *gensec_security,
 			    TALLOC_CTX *mem_ctx, 
@@ -272,7 +274,7 @@ NTSTATUS gensec_server_start(TALLOC_CTX *mem_ctx,
 			     struct gensec_security **gensec_security);
 NTSTATUS gensec_session_info(struct gensec_security *gensec_security, 
 			     struct auth_session_info **session_info);
-NTSTATUS auth_nt_status_squash(NTSTATUS nt_status);
+NTSTATUS nt_status_squash(NTSTATUS nt_status);
 struct netlogon_creds_CredentialState;
 NTSTATUS dcerpc_schannel_creds(struct gensec_security *gensec_security,
 			       TALLOC_CTX *mem_ctx,

@@ -26,24 +26,27 @@
 #include "param/param.h"
 #include "smbd/service_stream.h"
 #include "dsdb/samdb/samdb.h"
-#include "lib/ldb/include/ldb_errors.h"
+#include <ldb_errors.h>
+#include <ldb_module.h>
 #include "ldb_wrap.h"
-
-#define VALID_DN_SYNTAX(dn) do {\
-	if (!(dn)) {\
-		return NT_STATUS_NO_MEMORY;\
-	} else if ( ! ldb_dn_validate(dn)) {\
-		result = LDAP_INVALID_DN_SYNTAX;\
-		map_ldb_error(local_ctx, LDB_ERR_INVALID_DN_SYNTAX, NULL,\
-			      &errstr);\
-		goto reply;\
-	}\
-} while(0)
 
 static int map_ldb_error(TALLOC_CTX *mem_ctx, int ldb_err,
 	const char *add_err_string, const char **errstring)
 {
 	WERROR err;
+
+	/* Certain LDB modules need to return very special WERROR codes. Proof
+	 * for them here and if they exist skip the rest of the mapping. */
+	if (add_err_string != NULL) {
+		char *endptr;
+		strtol(add_err_string, &endptr, 16);
+		if (endptr != add_err_string) {
+			*errstring = add_err_string;
+			return ldb_err;
+		}
+	}
+
+	/* Otherwise we calculate here a generic, but appropriate WERROR. */
 
 	switch (ldb_err) {
 	case LDB_SUCCESS:
@@ -59,7 +62,7 @@ static int map_ldb_error(TALLOC_CTX *mem_ctx, int ldb_err,
 		err = WERR_DS_TIMELIMIT_EXCEEDED;
 	break;
 	case LDB_ERR_SIZE_LIMIT_EXCEEDED:
-		err = WERR_DS_SIZE_LIMIT_EXCEEDED;
+		err = WERR_DS_SIZELIMIT_EXCEEDED;
 	break;
 	case LDB_ERR_COMPARE_FALSE:
 		err = WERR_DS_COMPARE_FALSE;
@@ -165,7 +168,7 @@ static int map_ldb_error(TALLOC_CTX *mem_ctx, int ldb_err,
 	break;
 	}
 
-	*errstring = talloc_asprintf(mem_ctx, "%08x: %s", W_ERROR_V(err),
+	*errstring = talloc_asprintf(mem_ctx, "%08X: %s", W_ERROR_V(err),
 		ldb_strerror(ldb_err));
 	if (add_err_string != NULL) {
 		*errstring = talloc_asprintf(mem_ctx, "%s - %s", *errstring,
@@ -181,12 +184,10 @@ static int map_ldb_error(TALLOC_CTX *mem_ctx, int ldb_err,
 */
 NTSTATUS ldapsrv_backend_Init(struct ldapsrv_connection *conn) 
 {
-	conn->ldb = ldb_wrap_connect(conn, 
+	conn->ldb = samdb_connect(conn, 
 				     conn->connection->event.ctx,
 				     conn->lp_ctx,
-				     lpcfg_sam_url(conn->lp_ctx),
 				     conn->session_info,
-				     samdb_credentials(conn->connection->event.ctx, conn->lp_ctx),
 				     conn->global_catalog ? LDB_FLG_RDONLY : 0);
 	if (conn->ldb == NULL) {
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
@@ -281,10 +282,12 @@ static NTSTATUS ldapsrv_unwilling(struct ldapsrv_call *call, int error)
 	return NT_STATUS_OK;
 }
 
-static int ldb_add_with_context(struct ldb_context *ldb,
-				const struct ldb_message *message,
-				void *context)
+static int ldapsrv_add_with_controls(struct ldapsrv_call *call,
+				     const struct ldb_message *message,
+				     struct ldb_control **controls,
+				     void *context)
 {
+	struct ldb_context *ldb = call->conn->ldb;
 	struct ldb_request *req;
 	int ret;
 
@@ -295,7 +298,7 @@ static int ldb_add_with_context(struct ldb_context *ldb,
 
 	ret = ldb_build_add_req(&req, ldb, ldb,
 					message,
-					NULL,
+					controls,
 					context,
 					ldb_modify_default_callback,
 					NULL);
@@ -306,6 +309,12 @@ static int ldb_add_with_context(struct ldb_context *ldb,
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
+
+	if (!call->conn->is_privileged) {
+		ldb_req_mark_untrusted(req);
+	}
+
+	LDB_REQ_SET_LOCATION(req);
 
 	ret = ldb_request(ldb, req);
 	if (ret == LDB_SUCCESS) {
@@ -324,11 +333,12 @@ static int ldb_add_with_context(struct ldb_context *ldb,
 }
 
 /* create and execute a modify request */
-static int ldb_mod_req_with_controls(struct ldb_context *ldb,
+static int ldapsrv_mod_with_controls(struct ldapsrv_call *call,
 				     const struct ldb_message *message,
 				     struct ldb_control **controls,
 				     void *context)
 {
+	struct ldb_context *ldb = call->conn->ldb;
 	struct ldb_request *req;
 	int ret;
 
@@ -353,6 +363,12 @@ static int ldb_mod_req_with_controls(struct ldb_context *ldb,
 		return ret;
 	}
 
+	if (!call->conn->is_privileged) {
+		ldb_req_mark_untrusted(req);
+	}
+
+	LDB_REQ_SET_LOCATION(req);
+
 	ret = ldb_request(ldb, req);
 	if (ret == LDB_SUCCESS) {
 		ret = ldb_wait(req->handle, LDB_WAIT_ALL);
@@ -370,11 +386,12 @@ static int ldb_mod_req_with_controls(struct ldb_context *ldb,
 }
 
 /* create and execute a delete request */
-static int ldb_del_req_with_controls(struct ldb_context *ldb,
+static int ldapsrv_del_with_controls(struct ldapsrv_call *call,
 				     struct ldb_dn *dn,
 				     struct ldb_control **controls,
 				     void *context)
 {
+	struct ldb_context *ldb = call->conn->ldb;
 	struct ldb_request *req;
 	int ret;
 
@@ -392,6 +409,12 @@ static int ldb_del_req_with_controls(struct ldb_context *ldb,
 		return ret;
 	}
 
+	if (!call->conn->is_privileged) {
+		ldb_req_mark_untrusted(req);
+	}
+
+	LDB_REQ_SET_LOCATION(req);
+
 	ret = ldb_request(ldb, req);
 	if (ret == LDB_SUCCESS) {
 		ret = ldb_wait(req->handle, LDB_WAIT_ALL);
@@ -408,11 +431,13 @@ static int ldb_del_req_with_controls(struct ldb_context *ldb,
 	return ret;
 }
 
-int ldb_rename_with_context(struct ldb_context *ldb,
-	       struct ldb_dn *olddn,
-	       struct ldb_dn *newdn,
-	       void *context)
+static int ldapsrv_rename_with_controls(struct ldapsrv_call *call,
+					struct ldb_dn *olddn,
+					struct ldb_dn *newdn,
+					struct ldb_control **controls,
+					void *context)
 {
+	struct ldb_context *ldb = call->conn->ldb;
 	struct ldb_request *req;
 	int ret;
 
@@ -430,6 +455,12 @@ int ldb_rename_with_context(struct ldb_context *ldb,
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
+
+	if (!call->conn->is_privileged) {
+		ldb_req_mark_untrusted(req);
+	}
+
+	LDB_REQ_SET_LOCATION(req);
 
 	ret = ldb_request(ldb, req);
 	if (ret == LDB_SUCCESS) {
@@ -479,7 +510,7 @@ static NTSTATUS ldapsrv_SearchRequest(struct ldapsrv_call *call)
 	NT_STATUS_HAVE_NO_MEMORY(local_ctx);
 
 	basedn = ldb_dn_new(local_ctx, samdb, req->basedn);
-	VALID_DN_SYNTAX(basedn);
+	NT_STATUS_HAVE_NO_MEMORY(basedn);
 
 	DEBUG(10, ("SearchRequest: basedn: [%s]\n", req->basedn));
 	DEBUG(10, ("SearchRequest: filter: [%s]\n", ldb_filter_from_tree(call, req->tree)));
@@ -565,6 +596,12 @@ static NTSTATUS ldapsrv_SearchRequest(struct ldapsrv_call *call)
 	}
 
 	ldb_set_timeout(samdb, lreq, req->timelimit);
+
+	if (!call->conn->is_privileged) {
+		ldb_req_mark_untrusted(lreq);
+	}
+
+	LDB_REQ_SET_LOCATION(lreq);
 
 	ldb_ret = ldb_request(samdb, lreq);
 
@@ -687,7 +724,7 @@ static NTSTATUS ldapsrv_ModifyRequest(struct ldapsrv_call *call)
 	NT_STATUS_HAVE_NO_MEMORY(local_ctx);
 
 	dn = ldb_dn_new(local_ctx, samdb, req->dn);
-	VALID_DN_SYNTAX(dn);
+	NT_STATUS_HAVE_NO_MEMORY(dn);
 
 	DEBUG(10, ("ModifyRequest: dn: [%s]\n", req->dn));
 
@@ -748,7 +785,7 @@ reply:
 	if (result == LDAP_SUCCESS) {
 		res = talloc_zero(local_ctx, struct ldb_result);
 		NT_STATUS_HAVE_NO_MEMORY(res);
-		ldb_ret = ldb_mod_req_with_controls(samdb, msg, call->request->controls, res);
+		ldb_ret = ldapsrv_mod_with_controls(call, msg, call->request->controls, res);
 		result = map_ldb_error(local_ctx, ldb_ret, ldb_errstring(samdb),
 				       &errstr);
 	}
@@ -795,7 +832,7 @@ static NTSTATUS ldapsrv_AddRequest(struct ldapsrv_call *call)
 	NT_STATUS_HAVE_NO_MEMORY(local_ctx);
 
 	dn = ldb_dn_new(local_ctx, samdb, req->dn);
-	VALID_DN_SYNTAX(dn);
+	NT_STATUS_HAVE_NO_MEMORY(dn);
 
 	DEBUG(10, ("AddRequest: dn: [%s]\n", req->dn));
 
@@ -831,14 +868,13 @@ static NTSTATUS ldapsrv_AddRequest(struct ldapsrv_call *call)
 		}
 	}
 
-reply:
 	add_reply = ldapsrv_init_reply(call, LDAP_TAG_AddResponse);
 	NT_STATUS_HAVE_NO_MEMORY(add_reply);
 
 	if (result == LDAP_SUCCESS) {
 		res = talloc_zero(local_ctx, struct ldb_result);
 		NT_STATUS_HAVE_NO_MEMORY(res);
-		ldb_ret = ldb_add_with_context(samdb, msg, res);
+		ldb_ret = ldapsrv_add_with_controls(call, msg, call->request->controls, res);
 		result = map_ldb_error(local_ctx, ldb_ret, ldb_errstring(samdb),
 				       &errstr);
 	}
@@ -883,18 +919,17 @@ static NTSTATUS ldapsrv_DelRequest(struct ldapsrv_call *call)
 	NT_STATUS_HAVE_NO_MEMORY(local_ctx);
 
 	dn = ldb_dn_new(local_ctx, samdb, req->dn);
-	VALID_DN_SYNTAX(dn);
+	NT_STATUS_HAVE_NO_MEMORY(dn);
 
 	DEBUG(10, ("DelRequest: dn: [%s]\n", req->dn));
 
-reply:
 	del_reply = ldapsrv_init_reply(call, LDAP_TAG_DelResponse);
 	NT_STATUS_HAVE_NO_MEMORY(del_reply);
 
 	if (result == LDAP_SUCCESS) {
 		res = talloc_zero(local_ctx, struct ldb_result);
 		NT_STATUS_HAVE_NO_MEMORY(res);
-		ldb_ret = ldb_del_req_with_controls(samdb, dn, call->request->controls, res);
+		ldb_ret = ldapsrv_del_with_controls(call, dn, call->request->controls, res);
 		result = map_ldb_error(local_ctx, ldb_ret, ldb_errstring(samdb),
 				       &errstr);
 	}
@@ -941,10 +976,10 @@ static NTSTATUS ldapsrv_ModifyDNRequest(struct ldapsrv_call *call)
 	NT_STATUS_HAVE_NO_MEMORY(local_ctx);
 
 	olddn = ldb_dn_new(local_ctx, samdb, req->dn);
-	VALID_DN_SYNTAX(olddn);
+	NT_STATUS_HAVE_NO_MEMORY(olddn);
 
 	newrdn = ldb_dn_new(local_ctx, samdb, req->newrdn);
-	VALID_DN_SYNTAX(newrdn);
+	NT_STATUS_HAVE_NO_MEMORY(newrdn);
 
 	DEBUG(10, ("ModifyDNRequest: olddn: [%s]\n", req->dn));
 	DEBUG(10, ("ModifyDNRequest: newrdn: [%s]\n", req->newrdn));
@@ -974,9 +1009,8 @@ static NTSTATUS ldapsrv_ModifyDNRequest(struct ldapsrv_call *call)
 	}
 
 	if (req->newsuperior) {
-		parentdn = ldb_dn_new(local_ctx, samdb, req->newsuperior);
-		VALID_DN_SYNTAX(parentdn);
 		DEBUG(10, ("ModifyDNRequest: newsuperior: [%s]\n", req->newsuperior));
+		parentdn = ldb_dn_new(local_ctx, samdb, req->newsuperior);
 	}
 
 	if (!parentdn) {
@@ -1002,7 +1036,7 @@ reply:
 	if (result == LDAP_SUCCESS) {
 		res = talloc_zero(local_ctx, struct ldb_result);
 		NT_STATUS_HAVE_NO_MEMORY(res);
-		ldb_ret = ldb_rename_with_context(samdb, olddn, newdn, res);
+		ldb_ret = ldapsrv_rename_with_controls(call, olddn, newdn, call->request->controls, res);
 		result = map_ldb_error(local_ctx, ldb_ret, ldb_errstring(samdb),
 				       &errstr);
 	}
@@ -1049,7 +1083,7 @@ static NTSTATUS ldapsrv_CompareRequest(struct ldapsrv_call *call)
 	NT_STATUS_HAVE_NO_MEMORY(local_ctx);
 
 	dn = ldb_dn_new(local_ctx, samdb, req->dn);
-	VALID_DN_SYNTAX(dn);
+	NT_STATUS_HAVE_NO_MEMORY(dn);
 
 	DEBUG(10, ("CompareRequest: dn: [%s]\n", req->dn));
 	filter = talloc_asprintf(local_ctx, "(%s=%*s)", req->attribute, 
@@ -1060,7 +1094,6 @@ static NTSTATUS ldapsrv_CompareRequest(struct ldapsrv_call *call)
 
 	attrs[0] = NULL;
 
-reply:
 	compare_r = ldapsrv_init_reply(call, LDAP_TAG_CompareResponse);
 	NT_STATUS_HAVE_NO_MEMORY(compare_r);
 
@@ -1143,6 +1176,6 @@ NTSTATUS ldapsrv_do_call(struct ldapsrv_call *call)
 	case LDAP_TAG_ExtendedRequest:
 		return ldapsrv_ExtendedRequest(call);
 	default:
-		return ldapsrv_unwilling(call, 2);
+		return ldapsrv_unwilling(call, LDAP_PROTOCOL_ERROR);
 	}
 }

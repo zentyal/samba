@@ -20,8 +20,8 @@ def configure(conf):
         return
 
     conf.check_cfg(package='gnutls',
-                   args='"gnutls >= 1.4.0" --cflags --libs',
-                   msg='Checking for gnutls >= 1.4.0', mandatory=False)
+                   args='"gnutls >= 1.4.0 gnutls != 2.2.4 gnutls != 2.8.0 gnutls != 2.8.1" --cflags --libs',
+                   msg='Checking for gnutls >= 1.4.0 and broken versions', mandatory=False)
 
     if 'HAVE_GNUTLS' in conf.env:
         conf.DEFINE('ENABLE_GNUTLS', 1)
@@ -48,6 +48,6 @@ def configure(conf):
 
 def build(bld):
     bld.SAMBA_SUBSYSTEM('LIBTLS',
-                        source='tls.c tlscert.c',
-                        public_deps='talloc gnutls gcrypt LIBSAMBA-HOSTCONFIG samba_socket'
+                        source='tls.c tlscert.c tls_tstream.c',
+                        public_deps='talloc gnutls gcrypt samba-hostconfig samba_socket LIBTSOCKET tevent UTIL_TEVENT'
                         )

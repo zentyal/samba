@@ -41,13 +41,13 @@ static bool forest_trust_info_check_out(struct torture_context *tctx,
 	torture_assert_int_equal(tctx, r->count, 2, "count");
 	torture_assert_int_equal(tctx, r->records[0].record_size, 0x00000018, "record size");
 	torture_assert_int_equal(tctx, r->records[0].record.flags, 0, "record flags");
-	torture_assert_u64_equal(tctx, r->records[0].record.timestamp, INT64_C(0x9BD5AF0001CACA3E), "record timestamp");
+	torture_assert_u64_equal(tctx, r->records[0].record.timestamp, 0x9BD5AF0001CACA3EULL, "record timestamp");
 	torture_assert_int_equal(tctx, r->records[0].record.type, FOREST_TRUST_TOP_LEVEL_NAME, "record type");
 	torture_assert_int_equal(tctx, r->records[0].record.data.name.size, 7, "record name size");
 	torture_assert_str_equal(tctx, r->records[0].record.data.name.string, "f2.test", "record name string");
 	torture_assert_int_equal(tctx, r->records[1].record_size, 0x0000003a, "record size");
 	torture_assert_int_equal(tctx, r->records[1].record.flags, 0, "record flags");
-	torture_assert_u64_equal(tctx, r->records[1].record.timestamp, INT64_C(0x9BD5AF0001CACA3E), "record timestamp");
+	torture_assert_u64_equal(tctx, r->records[1].record.timestamp, 0x9BD5AF0001CACA3EULL, "record timestamp");
 	torture_assert_int_equal(tctx, r->records[1].record.type, FOREST_TRUST_DOMAIN_INFO, "record type");
 	torture_assert_int_equal(tctx, r->records[1].record.data.info.sid_size, 0x00000018, "record info sid_size");
 	torture_assert_sid_equal(tctx, &r->records[1].record.data.info.sid, dom_sid_parse_talloc(tctx, "S-1-5-21-677661288-1956808876-2402106903"), "record info sid");
@@ -56,13 +56,6 @@ static bool forest_trust_info_check_out(struct torture_context *tctx,
 	torture_assert_int_equal(tctx, r->records[1].record.data.info.netbios_name.size, 2, "record info netbios_name size");
 	torture_assert_str_equal(tctx, r->records[1].record.data.info.netbios_name.string, "F2", "record info netbios_name string");
 
-	return true;
-}
-
-static bool trust_domain_passwords_check_in(struct torture_context *tctx,
-					    struct trustDomainPasswords *r)
-{
-	/* FIXME: fill in, once we have working and correct IDL - gd */
 	return true;
 }
 
@@ -121,6 +114,41 @@ static const uint8_t trust_domain_passwords_in[] = {
 	0x4d, 0xc1, 0x58, 0xaf, 0x5f, 0x06, 0x5c, 0xe9, 0x4c, 0x5a, 0x02, 0xfd,
 	0x38, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00, 0x00
 };
+
+static bool trust_domain_passwords_check_in(struct torture_context *tctx,
+					    struct trustDomainPasswords *r)
+{
+	/* torture_assert_mem_equal(tctx, r->confounder, trust_domain_passwords_in, 512, "confounder mismatch"); */
+
+	torture_assert_int_equal(tctx, r->outgoing.count, 1, "outgoing count mismatch");
+	torture_assert_int_equal(tctx, r->outgoing.current_offset, 0x0000000c, "outgoing current offset mismatch");
+	torture_assert_int_equal(tctx, r->outgoing.previous_offset, 0x00000038, "outgoing previous offset mismatch");
+
+	torture_assert_int_equal(tctx, r->outgoing.current.count, 1, "outgoing current count mismatch");
+	torture_assert_int_equal(tctx, r->outgoing.current.array[0].LastUpdateTime, 0xB6416B4C, "outgoing current last update time mismatch");
+	torture_assert_int_equal(tctx, r->outgoing.current.array[0].AuthType, TRUST_AUTH_TYPE_CLEAR, "outgoing current auth type mismatch");
+	torture_assert_int_equal(tctx, r->outgoing.current.array[0].AuthInfo.clear.size, 0x0000001c, "outgoing current auth info size mismatch");
+	/* torture_assert_mem_equal(tctx, r->outgoing.current.array[0].AuthInfo.clear.password, trust_domain_passwords_in+512+12+8+4+4, 0x0000001c, "outgoing current auth info password mismatch"); */
+
+	torture_assert_int_equal(tctx, r->outgoing.previous.count, 0, "outgoing previous count mismatch");
+
+	torture_assert_int_equal(tctx, r->incoming.count, 1, "incoming count mismatch");
+	torture_assert_int_equal(tctx, r->incoming.current_offset, 0x0000000c, "incoming current offset mismatch");
+	torture_assert_int_equal(tctx, r->incoming.previous_offset, 0x00000038, "incoming previous offset mismatch");
+
+	torture_assert_int_equal(tctx, r->incoming.current.count, 1, "incoming current count mismatch");
+	torture_assert_int_equal(tctx, r->incoming.current.array[0].LastUpdateTime, 0xB6416B4C, "incoming current last update time mismatch");
+	torture_assert_int_equal(tctx, r->incoming.current.array[0].AuthType, TRUST_AUTH_TYPE_CLEAR, "incoming current auth type mismatch");
+	torture_assert_int_equal(tctx, r->incoming.current.array[0].AuthInfo.clear.size, 0x0000001c, "incoming current auth info size mismatch");
+/*	torture_assert_mem_equal(tctx, r->incoming.current.array[0].AuthInfo.clear.password, trust_domain_passwords_in+512+12+8+4+4+0x0000001c+12+8+4+4, 0x0000001c, "incoming current auth info password mismatch"); */
+
+	torture_assert_int_equal(tctx, r->incoming.previous.count, 0, "incoming previous count mismatch");
+
+	torture_assert_int_equal(tctx, r->outgoing_size, 0x00000038, "outgoing size mismatch");
+	torture_assert_int_equal(tctx, r->incoming_size, 0x00000038, "incoming size mismatch");
+
+	return true;
+}
 
 struct torture_suite *ndr_drsblobs_suite(TALLOC_CTX *ctx)
 {

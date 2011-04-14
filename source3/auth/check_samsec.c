@@ -21,7 +21,9 @@
 */
 
 #include "includes.h"
+#include "auth.h"
 #include "../libcli/auth/libcli_auth.h"
+#include "passdb.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
@@ -41,11 +43,10 @@ static NTSTATUS sam_password_ok(TALLOC_CTX *mem_ctx,
 				DATA_BLOB *user_sess_key,
 				DATA_BLOB *lm_sess_key)
 {
-	struct samr_Password _lm_hash, _nt_hash, _client_lm_hash, _client_nt_hash;
+	NTSTATUS status;
+	struct samr_Password _lm_hash, _nt_hash;
 	struct samr_Password *lm_hash = NULL;
 	struct samr_Password *nt_hash = NULL;
-	struct samr_Password *client_lm_hash = NULL;
-	struct samr_Password *client_nt_hash = NULL;
 
 	*user_sess_key = data_blob_null;
 	*lm_sess_key = data_blob_null;
@@ -68,42 +69,44 @@ static NTSTATUS sam_password_ok(TALLOC_CTX *mem_ctx,
 		memcpy(_nt_hash.hash, nt_pw, sizeof(_nt_hash.hash));
 		nt_hash = &_nt_hash;
 	}
-	if (user_info->lm_interactive_pwd.data && sizeof(_client_lm_hash.hash) == user_info->lm_interactive_pwd.length) {
-		memcpy(_client_lm_hash.hash, user_info->lm_interactive_pwd.data, sizeof(_lm_hash.hash));
-		client_lm_hash = &_client_lm_hash;
-	}
-	if (user_info->nt_interactive_pwd.data && sizeof(_client_nt_hash.hash) == user_info->nt_interactive_pwd.length) {
-		memcpy(_client_nt_hash.hash, user_info->nt_interactive_pwd.data, sizeof(_nt_hash.hash));
-		client_nt_hash = &_client_nt_hash;
-	}
+	switch (user_info->password_state) {
+	case AUTH_PASSWORD_HASH:
+		status = hash_password_check(mem_ctx, lp_lanman_auth(),
+					     user_info->password.hash.lanman,
+					     user_info->password.hash.nt,
+					     username,
+					     lm_hash,
+					     nt_hash);
+		if (NT_STATUS_IS_OK(status)) {
+			if (nt_pw) {
+				*user_sess_key = data_blob_talloc(mem_ctx, NULL, 16);
+				if (!user_sess_key->data) {
+					return NT_STATUS_NO_MEMORY;
+				}
+				SMBsesskeygen_ntv1(nt_pw, user_sess_key->data);
+			}
+		}
+		return status;
 
-	if (client_lm_hash || client_nt_hash) {
-		if (!nt_pw) {
-			return NT_STATUS_WRONG_PASSWORD;
-		}
-		*user_sess_key = data_blob_talloc(mem_ctx, NULL, 16);
-		if (!user_sess_key->data) {
-			return NT_STATUS_NO_MEMORY;
-		}
-		SMBsesskeygen_ntv1(nt_pw, user_sess_key->data);
-		return hash_password_check(mem_ctx, lp_lanman_auth(),
-					   client_lm_hash,
-					   client_nt_hash,
-					   username,
-					   lm_hash,
-					   nt_hash);
-	} else {
+	/* Eventually we should test plaintext passwords in their own
+	 * function, not assuming the caller has done a
+	 * mapping */
+	case AUTH_PASSWORD_PLAIN:
+	case AUTH_PASSWORD_RESPONSE:
 		return ntlm_password_check(mem_ctx, lp_lanman_auth(),
 					   lp_ntlm_auth(),
 					   user_info->logon_parameters,
 					   challenge,
-					   &user_info->lm_resp, &user_info->nt_resp,
+					   &user_info->password.response.lanman, &user_info->password.response.nt,
 					   username,
 					   user_info->client.account_name,
 					   user_info->client.domain_name,
 					   lm_hash,
 					   nt_hash,
 					   user_sess_key, lm_sess_key);
+	default:
+		DEBUG(0,("user_info constructed for user '%s' was invalid - password_state=%u invalid.\n", username, user_info->password_state));
+		return NT_STATUS_INTERNAL_ERROR;
 	}
 }
 
@@ -372,7 +375,7 @@ NTSTATUS check_sam_security(const DATA_BLOB *challenge,
 	NTSTATUS update_login_attempts_status;
 	DATA_BLOB user_sess_key = data_blob_null;
 	DATA_BLOB lm_sess_key = data_blob_null;
-	bool updated_autolock = False, updated_badpw = False;
+	bool updated_badpw = False;
 	const char *username;
 	const uint8_t *nt_pw;
 	const uint8_t *lm_pw;
@@ -402,9 +405,6 @@ NTSTATUS check_sam_security(const DATA_BLOB *challenge,
 	nt_pw = pdb_get_nt_passwd(sampass);
 	lm_pw = pdb_get_lanman_passwd(sampass);
 
-	/* see if autolock flag needs to be updated */
-	if (pdb_get_acct_ctrl(sampass) & ACB_NORMAL)
-		pdb_update_autolock_flag(sampass, &updated_autolock);
 	/* Quit if the account was locked out. */
 	if (pdb_get_acct_ctrl(sampass) & ACB_AUTOLOCK) {
 		DEBUG(3,("check_sam_security: Account for user %s was locked out.\n", username));
@@ -440,7 +440,7 @@ NTSTATUS check_sam_security(const DATA_BLOB *challenge,
 			pdb_update_bad_password_count(sampass,
 						      &updated_badpw);
 		}
-		if (updated_autolock || updated_badpw){
+		if (updated_badpw){
 			NTSTATUS status;
 
 			become_root();
@@ -462,7 +462,7 @@ NTSTATUS check_sam_security(const DATA_BLOB *challenge,
 		updated_badpw = True;
 	}
 
-	if (updated_autolock || updated_badpw){
+	if (updated_badpw){
 		NTSTATUS status;
 
 		become_root();
@@ -509,4 +509,43 @@ done:
 	data_blob_free(&user_sess_key);
 	data_blob_free(&lm_sess_key);
 	return nt_status;
+}
+
+/* This helper function for winbindd returns a very similar value to
+ * what a NETLOGON call would give, without the indirection */
+NTSTATUS check_sam_security_info3(const DATA_BLOB *challenge,
+				  TALLOC_CTX *mem_ctx,
+				  const struct auth_usersupplied_info *user_info,
+				  struct netr_SamInfo3 **pinfo3)
+{
+	struct auth_serversupplied_info *server_info = NULL;
+	struct netr_SamInfo3 *info3;
+	NTSTATUS status;
+	TALLOC_CTX *frame = talloc_stackframe();
+
+	status = check_sam_security(challenge, talloc_tos(), user_info,
+				    &server_info);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(10, ("check_sam_security failed: %s\n",
+			   nt_errstr(status)));
+		goto done;
+	}
+
+	info3 = TALLOC_ZERO_P(mem_ctx, struct netr_SamInfo3);
+	if (info3 == NULL) {
+		status = NT_STATUS_NO_MEMORY;
+		goto done;
+	}
+
+	status = serverinfo_to_SamInfo3(server_info, NULL, 0, info3);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(10, ("serverinfo_to_SamInfo3 failed: %s\n",
+			   nt_errstr(status)));
+		goto done;
+	}
+	*pinfo3 = info3;
+	status =  NT_STATUS_OK;
+done:
+	TALLOC_FREE(frame);
+	return status;
 }

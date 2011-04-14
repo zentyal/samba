@@ -43,8 +43,8 @@
 */
 
 #include "includes.h"
-#include "librpc/gen_ndr/messaging.h"
-#include "librpc/gen_ndr/ndr_messaging.h"
+#include "system/filesys.h"
+#include "messages.h"
 
 struct messaging_tdb_context {
 	struct messaging_context *msg_ctx;
@@ -103,12 +103,12 @@ NTSTATUS messaging_tdb_init(struct messaging_context *msg_ctx,
 	ctx->msg_ctx = msg_ctx;
 
 	ctx->tdb = tdb_wrap_open(ctx, lock_path("messages.tdb"), 0,
-				 TDB_CLEAR_IF_FIRST|TDB_DEFAULT|TDB_VOLATILE,
+				 TDB_CLEAR_IF_FIRST|TDB_DEFAULT|TDB_VOLATILE|TDB_INCOMPATIBLE_HASH,
 				 O_RDWR|O_CREAT,0600);
 
 	if (!ctx->tdb) {
 		NTSTATUS status = map_nt_error_from_unix(errno);
-		DEBUG(0, ("ERROR: Failed to initialise messages database: "
+		DEBUG(2, ("ERROR: Failed to initialise messages database: "
 			  "%s\n", strerror(errno)));
 		TALLOC_FREE(result);
 		return status;
@@ -133,7 +133,7 @@ NTSTATUS messaging_tdb_init(struct messaging_context *msg_ctx,
 	return NT_STATUS_OK;
 }
 
-bool messaging_tdb_parent_init(void)
+bool messaging_tdb_parent_init(TALLOC_CTX *mem_ctx)
 {
 	struct tdb_wrap *db;
 
@@ -143,9 +143,8 @@ bool messaging_tdb_parent_init(void)
 	 * work.
 	 */
 
-	db = tdb_wrap_open(talloc_autofree_context(),
-			   lock_path("messages.tdb"), 0,
-			   TDB_CLEAR_IF_FIRST|TDB_DEFAULT|TDB_VOLATILE,
+	db = tdb_wrap_open(mem_ctx, lock_path("messages.tdb"), 0,
+			   TDB_CLEAR_IF_FIRST|TDB_DEFAULT|TDB_VOLATILE|TDB_INCOMPATIBLE_HASH,
 			   O_RDWR|O_CREAT,0600);
 	if (db == NULL) {
 		DEBUG(1, ("could not open messaging.tdb: %s\n",

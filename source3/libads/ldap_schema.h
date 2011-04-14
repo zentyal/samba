@@ -46,15 +46,10 @@ enum wb_posix_mapping {
 
 /* The following definitions come from libads/ldap_schema.c  */
 
-ADS_STATUS ads_get_attrnames_by_oids(ADS_STRUCT *ads, TALLOC_CTX *mem_ctx,
-				     const char *schema_path,
-				     const char **OIDs, size_t num_OIDs,
-				     char ***OIDs_out, char ***names, size_t *count);
 const char *ads_get_attrname_by_guid(ADS_STRUCT *ads,
 				     const char *schema_path,
 				     TALLOC_CTX *mem_ctx,
 				     const struct GUID *schema_guid);
-const char *ads_get_attrname_by_oid(ADS_STRUCT *ads, const char *schema_path, TALLOC_CTX *mem_ctx, const char * OID);
 ADS_STATUS ads_schema_path(ADS_STRUCT *ads, TALLOC_CTX *mem_ctx, char **schema_path);
 ADS_STATUS ads_check_posix_schema_mapping(TALLOC_CTX *mem_ctx,
 					  ADS_STRUCT *ads,

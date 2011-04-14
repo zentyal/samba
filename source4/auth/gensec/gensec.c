@@ -507,7 +507,7 @@ const char **gensec_security_oids(struct gensec_security *gensec_security,
   @param mem_ctx The parent TALLOC memory context.
   @param gensec_security Returned GENSEC context pointer.
   @note  The mem_ctx is only a parent and may be NULL.
-  @note, the auth context is moved to be a child of the
+  @note, the auth context is moved to be a referenced pointer of the
   @ gensec_security return 
 */
 static NTSTATUS gensec_start(TALLOC_CTX *mem_ctx, 
@@ -521,23 +521,17 @@ static NTSTATUS gensec_start(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_INTERNAL_ERROR;
 	}
 
-	(*gensec_security) = talloc(mem_ctx, struct gensec_security);
+	(*gensec_security) = talloc_zero(mem_ctx, struct gensec_security);
 	NT_STATUS_HAVE_NO_MEMORY(*gensec_security);
-
-	(*gensec_security)->ops = NULL;
-	(*gensec_security)->local_addr = NULL;
-	(*gensec_security)->remote_addr = NULL;
-	(*gensec_security)->private_data = NULL;
-
-	ZERO_STRUCT((*gensec_security)->target);
-
-	(*gensec_security)->subcontext = false;
-	(*gensec_security)->want_features = 0;
 
 	(*gensec_security)->event_ctx = ev;
 	SMB_ASSERT(settings->lp_ctx != NULL);
 	(*gensec_security)->settings = talloc_reference(*gensec_security, settings);
-	(*gensec_security)->auth_context = talloc_steal(*gensec_security, auth_context);
+
+	/* We need to reference this, not steal, as the caller may be
+	 * python, which won't like it if we steal it's object away
+	 * from it */
+	(*gensec_security)->auth_context = talloc_reference(*gensec_security, auth_context);
 
 	return NT_STATUS_OK;
 }
@@ -554,7 +548,7 @@ _PUBLIC_ NTSTATUS gensec_subcontext_start(TALLOC_CTX *mem_ctx,
 				 struct gensec_security *parent, 
 				 struct gensec_security **gensec_security)
 {
-	(*gensec_security) = talloc(mem_ctx, struct gensec_security);
+	(*gensec_security) = talloc_zero(mem_ctx, struct gensec_security);
 	NT_STATUS_HAVE_NO_MEMORY(*gensec_security);
 
 	(**gensec_security) = *parent;
@@ -718,10 +712,9 @@ _PUBLIC_ const char *gensec_get_name_by_oid(struct gensec_security *gensec_secur
 	}
 	return oid_string;
 }
-	
 
-/** 
- * Start a GENSEC sub-mechanism with a specifed mechansim structure, used in SPNEGO
+/**
+ * Start a GENSEC sub-mechanism with a specified mechansim structure, used in SPNEGO
  *
  */
 
@@ -1322,22 +1315,26 @@ const char *gensec_get_target_principal(struct gensec_security *gensec_security)
 
 NTSTATUS gensec_generate_session_info(TALLOC_CTX *mem_ctx,
 				      struct gensec_security *gensec_security,
-				      struct auth_serversupplied_info *server_info,
+				      struct auth_user_info_dc *user_info_dc,
 				      struct auth_session_info **session_info)
 {
 	NTSTATUS nt_status;
+	uint32_t flags = AUTH_SESSION_INFO_DEFAULT_GROUPS;
+	if (user_info_dc->info->authenticated) {
+		flags |= AUTH_SESSION_INFO_AUTHENTICATED;
+	}
 	if (gensec_security->auth_context) {
-		uint32_t flags = AUTH_SESSION_INFO_DEFAULT_GROUPS;
-		if (server_info->authenticated) {
-			flags |= AUTH_SESSION_INFO_AUTHENTICATED;
-		}
 		nt_status = gensec_security->auth_context->generate_session_info(mem_ctx, gensec_security->auth_context,
-										 server_info,
+										 user_info_dc,
 										 flags,
 										 session_info);
 	} else {
-		nt_status = auth_generate_simple_session_info(mem_ctx,
-							      server_info, session_info);
+		flags |= AUTH_SESSION_INFO_SIMPLE_PRIVILEGES;
+		nt_status = auth_generate_session_info(mem_ctx,
+						       NULL,
+						       NULL,
+						       user_info_dc, flags,
+						       session_info);
 	}
 	return nt_status;
 }
@@ -1411,13 +1408,8 @@ bool gensec_setting_bool(struct gensec_settings *settings, const char *mechanism
 _PUBLIC_ NTSTATUS gensec_init(struct loadparm_context *lp_ctx)
 {
 	static bool initialized = false;
-	extern NTSTATUS gensec_sasl_init(void);
-	extern NTSTATUS gensec_krb5_init(void);
-	extern NTSTATUS gensec_schannel_init(void);
-	extern NTSTATUS gensec_spnego_init(void);
-	extern NTSTATUS gensec_gssapi_init(void);
-	extern NTSTATUS gensec_ntlmssp_init(void);
-
+#define _MODULE_PROTO(init) extern NTSTATUS init(void);
+	STATIC_gensec_MODULES_PROTO;
 	init_module_fn static_init[] = { STATIC_gensec_MODULES };
 	init_module_fn *shared_init;
 

@@ -248,7 +248,7 @@ static void wrepl_connect_done(struct tevent_req *subreq)
 	int sys_errno;
 
 	ret = tstream_inet_tcp_connect_recv(subreq, &sys_errno,
-					    state, &state->stream);
+					    state, &state->stream, NULL);
 	if (ret != 0) {
 		NTSTATUS status = map_nt_error_from_unix(sys_errno);
 		tevent_req_nterror(req, status);
@@ -373,7 +373,7 @@ struct tevent_req *wrepl_request_send(TALLOC_CTX *mem_ctx,
 		return tevent_req_post(req, ev);
 	}
 
-	state->req.iov.iov_base = state->req.blob.data;
+	state->req.iov.iov_base = (char *) state->req.blob.data;
 	state->req.iov.iov_len = state->req.blob.length;
 
 	ok = tevent_queue_add(wrepl_socket->request_queue,

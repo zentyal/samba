@@ -18,8 +18,14 @@
  */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "nfs4_acls.h"
 #include "librpc/gen_ndr/ndr_security.h"
+#include "../libcli/security/dom_sid.h"
+#include "../libcli/security/security.h"
+#include "include/dbwrap.h"
+#include "system/filesys.h"
+#include "passdb/lookup_sid.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_ACLS
@@ -183,7 +189,7 @@ static int smbacl4_fGetFileOwner(files_struct *fsp, SMB_STRUCT_STAT *psbuf)
 {
 	memset(psbuf, 0, sizeof(SMB_STRUCT_STAT));
 
-	if (fsp->is_directory || fsp->fh->fd == -1) {
+	if (fsp->fh->fd == -1) {
 		return smbacl4_GetFileOwner(fsp->conn,
 					    fsp->fsp_name->base_name, psbuf);
 	}
@@ -277,7 +283,9 @@ static bool smbacl4_nfs42win(TALLOC_CTX *mem_ctx, SMB4ACL_T *theacl, /* in */
 		DEBUG(10, ("mapped ace flags: 0x%x => 0x%x\n",
 		      ace->aceFlags, mapped_ace_flags));
 
-		mask = ace->aceMask;
+		/* Windows clients expect SYNC on acls to
+		   correctly allow rename. See bug #7909. */
+		mask = ace->aceMask | SMB_ACE4_SYNCHRONIZE;
 		init_sec_ace(&nt_ace_list[good_aces++], &sid,
 			ace->aceType, mask,
 			mapped_ace_flags);
@@ -566,7 +574,7 @@ static bool smbacl4_fill_ace4(
 		DEBUG(9, ("ace_v4->aceMask(0x%x)!=ace_nt->access_mask(0x%x)\n",
 			ace_v4->aceMask, ace_nt->access_mask));
 
-	if (sid_equal(&ace_nt->trustee, &global_sid_World)) {
+	if (dom_sid_equal(&ace_nt->trustee, &global_sid_World)) {
 		ace_v4->who.special_id = SMB_ACE4_WHO_EVERYONE;
 		ace_v4->flags |= SMB_ACE4_ID_SPECIAL;
 	} else {
@@ -760,14 +768,14 @@ NTSTATUS smb_set_nt_acl_nfs4(files_struct *fsp,
 		if (((newUID != (uid_t)-1) && (sbuf.st_ex_uid != newUID)) ||
 		    ((newGID != (gid_t)-1) && (sbuf.st_ex_gid != newGID))) {
 
-			if(try_chown(fsp->conn, fsp->fsp_name, newUID,
-				     newGID)) {
+			status = try_chown(fsp, newUID, newGID);
+			if (!NT_STATUS_IS_OK(status)) {
 				DEBUG(3,("chown %s, %u, %u failed. Error = "
 					 "%s.\n", fsp_str_dbg(fsp),
 					 (unsigned int)newUID,
 					 (unsigned int)newGID,
-					 strerror(errno)));
-				return map_nt_error_from_unix(errno);
+					 nt_errstr(status)));
+				return status;
 			}
 
 			DEBUG(10,("chown %s, %u, %u succeeded.\n",

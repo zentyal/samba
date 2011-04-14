@@ -22,82 +22,39 @@
 
 #include "includes.h"
 #include "winbindd.h"
+#include "libsmb/nmblib.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
 
-/* Use our own create socket code so we don't recurse.... */
-
-static int wins_lookup_open_socket_in(void)
+static struct node_status *lookup_byaddr_backend(TALLOC_CTX *mem_ctx,
+						 const char *addr, int *count)
 {
-	struct sockaddr_in sock;
-	int val=1;
-	int res;
-
-	memset((char *)&sock,'\0',sizeof(sock));
-
-#ifdef HAVE_SOCK_SIN_LEN
-	sock.sin_len = sizeof(sock);
-#endif
-	sock.sin_port = 0;
-	sock.sin_family = AF_INET;
-	sock.sin_addr.s_addr = interpret_addr("0.0.0.0");
-	res = socket(AF_INET, SOCK_DGRAM, 0);
-	if (res == -1)
-		return -1;
-
-	if (setsockopt(res,SOL_SOCKET,SO_REUSEADDR,(char *)&val,sizeof(val))) {
-		close(res);
-		return -1;
-	}
-#ifdef SO_REUSEPORT
-	if (setsockopt(res,SOL_SOCKET,SO_REUSEPORT,(char *)&val,sizeof(val))) {
-		close(res);
-		return -1;
-	}
-#endif /* SO_REUSEPORT */
-
-	/* now we've got a socket - we need to bind it */
-
-	if (bind(res, (struct sockaddr *)(void *)&sock, sizeof(sock)) < 0) {
-		close(res);
-		return(-1);
-	}
-
-	set_socket_options(res,"SO_BROADCAST");
-
-	return res;
-}
-
-
-static NODE_STATUS_STRUCT *lookup_byaddr_backend(const char *addr, int *count)
-{
-	int fd;
 	struct sockaddr_storage ss;
 	struct nmb_name nname;
-	NODE_STATUS_STRUCT *status;
-
-	fd = wins_lookup_open_socket_in();
-	if (fd == -1)
-		return NULL;
+	struct node_status *result;
+	NTSTATUS status;
 
 	make_nmb_name(&nname, "*", 0);
 	if (!interpret_string_addr(&ss, addr, AI_NUMERICHOST)) {
 		return NULL;
 	}
-	status = node_status_query(fd, &nname, &ss, count, NULL);
-
-	close(fd);
-	return status;
+	status = node_status_query(mem_ctx, &nname, &ss,
+				   &result, count, NULL);
+	if (!NT_STATUS_IS_OK(status)) {
+		return NULL;
+	}
+	return result;
 }
 
-static struct sockaddr_storage *lookup_byname_backend(const char *name,
-					int *count)
+static struct sockaddr_storage *lookup_byname_backend(TALLOC_CTX *mem_ctx,
+						      const char *name,
+						      int *count)
 {
-	int fd;
 	struct ip_service *ret = NULL;
 	struct sockaddr_storage *return_ss = NULL;
-	int j, i, flags = 0;
+	int j, i;
+	NTSTATUS status;
 
 	*count = 0;
 
@@ -105,7 +62,9 @@ static struct sockaddr_storage *lookup_byname_backend(const char *name,
 	if (NT_STATUS_IS_OK(resolve_wins(name,0x20,&ret,count))) {
 		if ( *count == 0 )
 			return NULL;
-		if ( (return_ss = SMB_MALLOC_ARRAY(struct sockaddr_storage, *count)) == NULL ) {
+		return_ss = TALLOC_ARRAY(mem_ctx, struct sockaddr_storage,
+					 *count);
+		if (return_ss == NULL ) {
 			free( ret );
 			return NULL;
 		}
@@ -118,11 +77,6 @@ static struct sockaddr_storage *lookup_byname_backend(const char *name,
 		return return_ss;
 	}
 
-	fd = wins_lookup_open_socket_in();
-	if (fd == -1) {
-		return NULL;
-	}
-
 	/* uggh, we have to broadcast to each interface in turn */
 	for (j=iface_count() - 1;
 	     j >= 0;
@@ -131,13 +85,13 @@ static struct sockaddr_storage *lookup_byname_backend(const char *name,
 		if (!bcast_ss) {
 			continue;
 		}
-		return_ss = name_query(fd,name,0x20,True,True,bcast_ss,count, &flags, NULL);
-		if (return_ss) {
+		status = name_query(name, 0x20, True, True,bcast_ss,
+				    mem_ctx, &return_ss, count, NULL);
+		if (NT_STATUS_IS_OK(status)) {
 			break;
 		}
 	}
 
-	close(fd);
 	return return_ss;
 }
 
@@ -147,7 +101,7 @@ void winbindd_wins_byip(struct winbindd_cli_state *state)
 {
 	fstring response;
 	int i, count, maxlen, size;
-	NODE_STATUS_STRUCT *status;
+	struct node_status *status;
 
 	/* Ensure null termination */
 	state->request->data.winsreq[sizeof(state->request->data.winsreq)-1]='\0';
@@ -158,10 +112,11 @@ void winbindd_wins_byip(struct winbindd_cli_state *state)
 	*response = '\0';
 	maxlen = sizeof(response) - 1;
 
-	if ((status = lookup_byaddr_backend(state->request->data.winsreq, &count))){
+	if ((status = lookup_byaddr_backend(
+		     state->mem_ctx, state->request->data.winsreq, &count))) {
 	    size = strlen(state->request->data.winsreq);
 	    if (size > maxlen) {
-		SAFE_FREE(status);
+		TALLOC_FREE(status);
 		request_error(state);
 		return;
 	    }
@@ -173,7 +128,7 @@ void winbindd_wins_byip(struct winbindd_cli_state *state)
 		if (status[i].type == 0x20) {
 			size = sizeof(status[i].name) + strlen(response);
 			if (size > maxlen) {
-			    SAFE_FREE(status);
+			    TALLOC_FREE(status);
 			    request_error(state);
 			    return;
 			}
@@ -183,7 +138,7 @@ void winbindd_wins_byip(struct winbindd_cli_state *state)
 	    }
 	    /* make last character a newline */
 	    response[strlen(response)-1] = '\n';
-	    SAFE_FREE(status);
+	    TALLOC_FREE(status);
 	}
 	fstrcpy(state->response->data.winsresp,response);
 	request_ok(state);
@@ -207,12 +162,14 @@ void winbindd_wins_byname(struct winbindd_cli_state *state)
 	*response = '\0';
 	maxlen = sizeof(response) - 1;
 
-	if ((ip_list = lookup_byname_backend(state->request->data.winsreq,&count))){
+	ip_list = lookup_byname_backend(
+		state->mem_ctx, state->request->data.winsreq, &count);
+	if (ip_list != NULL){
 		for (i = count; i ; i--) {
 			print_sockaddr(addr, sizeof(addr), &ip_list[i-1]);
 			size = strlen(addr);
 			if (size > maxlen) {
-				SAFE_FREE(ip_list);
+				TALLOC_FREE(ip_list);
 				request_error(state);
 				return;
 			}
@@ -229,13 +186,13 @@ void winbindd_wins_byname(struct winbindd_cli_state *state)
 		}
 		size = strlen(state->request->data.winsreq) + strlen(response);
 		if (size > maxlen) {
-		    SAFE_FREE(ip_list);
+		    TALLOC_FREE(ip_list);
 		    request_error(state);
 		    return;
 		}
 		fstrcat(response,state->request->data.winsreq);
 		fstrcat(response,"\n");
-		SAFE_FREE(ip_list);
+		TALLOC_FREE(ip_list);
 	} else {
 		request_error(state);
 		return;

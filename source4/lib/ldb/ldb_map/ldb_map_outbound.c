@@ -25,7 +25,9 @@
 
 */
 
-#include "ldb_includes.h"
+#include "replace.h"
+#include "system/filesys.h"
+#include "system/time.h"
 #include "ldb_map.h"
 #include "ldb_map_private.h"
 
@@ -1070,14 +1072,19 @@ int map_return_entry(struct map_context *ac, struct ldb_reply *ares)
 	const char * const *attrs;
 	struct ldb_context *ldb;
 	unsigned int i;
+	int ret;
+	bool matched;
 
 	ldb = ldb_module_get_ctx(ac->module);
 
 	/* Merged result doesn't match original query, skip */
-	if (!ldb_match_msg(ldb, ares->message,
-			   ac->req->op.search.tree,
-			   ac->req->op.search.base,
-			   ac->req->op.search.scope)) {
+	ret = ldb_match_msg_error(ldb, ares->message,
+				  ac->req->op.search.tree,
+				  ac->req->op.search.base,
+				  ac->req->op.search.scope,
+				  &matched);
+	if (ret != LDB_SUCCESS) return ret;
+	if (!matched) {
 		ldb_debug(ldb, LDB_DEBUG_TRACE, "ldb_map: "
 			  "Skipping record '%s': "
 			  "doesn't match original search",
@@ -1107,7 +1114,7 @@ int map_return_entry(struct map_context *ac, struct ldb_reply *ares)
 }
 
 /* Search a record. */
-int map_search(struct ldb_module *module, struct ldb_request *req)
+int ldb_map_search(struct ldb_module *module, struct ldb_request *req)
 {
 	struct ldb_parse_tree *remote_tree;
 	struct ldb_parse_tree *local_tree;
@@ -1203,6 +1210,7 @@ int map_search(struct ldb_module *module, struct ldb_request *req)
 				      req->controls,
 				      ac, map_remote_search_callback,
 				      req);
+	LDB_REQ_SET_LOCATION(remote_req);
 	if (ret != LDB_SUCCESS) {
 		return LDB_ERR_OPERATIONS_ERROR;
 	}

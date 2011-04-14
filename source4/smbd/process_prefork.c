@@ -27,7 +27,6 @@
 #include "lib/events/events.h"
 #include "lib/socket/socket.h"
 #include "smbd/process_model.h"
-#include "param/secrets.h"
 #include "system/filesys.h"
 #include "cluster/cluster.h"
 #include "param/param.h"
@@ -49,7 +48,7 @@ static int none_setproctitle(const char *fmt, ...)
 /*
   called when the process model is selected
 */
-static void prefork_model_init(struct tevent_context *ev)
+static void prefork_model_init(void)
 {
 	signal(SIGCHLD, SIG_IGN);
 }
@@ -114,9 +113,6 @@ static void prefork_new_task(struct tevent_context *ev,
 	/* This is now the child code. We need a completely new event_context to work with */
 	ev2 = s4_event_context_init(NULL);
 
-	/* setup this as the default context */
-	s4_event_context_set_default(ev2);
-
 	/* the service has given us a private pointer that
 	   encapsulates the context it needs for this new connection -
 	   everything else will be freed */
@@ -126,7 +122,7 @@ static void prefork_new_task(struct tevent_context *ev,
 	   is not associated with this new connection */
 	talloc_free(ev);
 
-	setproctitle("task %s server_id[%d]", service_name, pid);
+	setproctitle("task %s server_id[%d]", service_name, (int)pid);
 
 	prefork_reload_after_fork();
 
@@ -155,7 +151,7 @@ static void prefork_new_task(struct tevent_context *ev,
 			return;
 		} else {
 			pid = getpid();
-			setproctitle("task %s server_id[%d]", service_name, pid);
+			setproctitle("task %s server_id[%d]", service_name, (int)pid);
 
 			prefork_reload_after_fork();
 
@@ -174,9 +170,6 @@ static void prefork_new_task(struct tevent_context *ev,
 	
 	/* But we need a events system to handle reaping children */
 	ev_parent = s4_event_context_init(NULL);
-
-	/* setup this as the default context */
-	s4_event_context_set_default(ev_parent);
 
 	/* TODO: Handle some events... */
 	

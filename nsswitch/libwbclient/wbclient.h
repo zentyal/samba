@@ -66,9 +66,10 @@ const char *wbcErrorString(wbcErr error);
  *  0.4: Added wbcSidTypeString()
  *  0.5: Added wbcChangeTrustCredentials()
  *  0.6: Made struct wbcInterfaceDetails char* members non-const
+ *  0.7: Added wbcSidToStringBuf()
  **/
 #define WBCLIENT_MAJOR_VERSION 0
-#define WBCLIENT_MINOR_VERSION 6
+#define WBCLIENT_MINOR_VERSION 7
 #define WBCLIENT_VENDOR_VERSION "Samba libwbclient"
 struct wbcLibraryDetails {
 	uint16_t major_version;
@@ -191,7 +192,6 @@ struct wbcDomainInfo {
 #define WBC_DOMINFO_TRUSTTYPE_FOREST     0x00000001
 #define WBC_DOMINFO_TRUSTTYPE_IN_FOREST  0x00000002
 #define WBC_DOMINFO_TRUSTTYPE_EXTERNAL   0x00000003
-
 
 /**
  * @brief Auth User Parameters
@@ -530,6 +530,19 @@ void wbcFreeMemory(void*);
  */
 const char* wbcSidTypeString(enum wbcSidType type);
 
+#define WBC_SID_STRING_BUFLEN (15*11+25)
+
+/*
+ * @brief Print a sid into a buffer
+ *
+ * @param sid		Binary Security Identifier
+ * @param buf		Target buffer
+ * @param buflen	Target buffer length
+ *
+ * @return Resulting string length.
+ */
+int wbcSidToStringBuf(const struct wbcDomainSid *sid, char *buf, int buflen);
+
 /**
  * @brief Convert a binary SID to a character string
  *
@@ -794,6 +807,9 @@ wbcErr wbcAllocateGid(gid_t *pgid);
  * @param *sid      Pointer to the sid of the diresired mapping.
  *
  * @return #wbcErr
+ *
+ * @deprecated      This method is not impemented any more and should
+ *                  be removed in the next major version change.
  **/
 wbcErr wbcSetUidMapping(uid_t uid, const struct wbcDomainSid *sid);
 
@@ -804,6 +820,9 @@ wbcErr wbcSetUidMapping(uid_t uid, const struct wbcDomainSid *sid);
  * @param *sid      Pointer to the sid of the diresired mapping.
  *
  * @return #wbcErr
+ *
+ * @deprecated      This method is not impemented any more and should
+ *                  be removed in the next major version change.
  **/
 wbcErr wbcSetGidMapping(gid_t gid, const struct wbcDomainSid *sid);
 
@@ -814,6 +833,9 @@ wbcErr wbcSetGidMapping(gid_t gid, const struct wbcDomainSid *sid);
  * @param *sid      Pointer to the sid of the mapping to remove.
  *
  * @return #wbcErr
+ *
+ * @deprecated      This method is not impemented any more and should
+ *                  be removed in the next major version change.
  **/
 wbcErr wbcRemoveUidMapping(uid_t uid, const struct wbcDomainSid *sid);
 
@@ -824,6 +846,9 @@ wbcErr wbcRemoveUidMapping(uid_t uid, const struct wbcDomainSid *sid);
  * @param *sid      Pointer to the sid of the mapping to remove.
  *
  * @return #wbcErr
+ *
+ * @deprecated      This method is not impemented any more and should
+ *                  be removed in the next major version change.
  **/
 wbcErr wbcRemoveGidMapping(gid_t gid, const struct wbcDomainSid *sid);
 
@@ -833,6 +858,9 @@ wbcErr wbcRemoveGidMapping(gid_t gid, const struct wbcDomainSid *sid);
  * @param uid_hwm      The new uid highwater mark value
  *
  * @return #wbcErr
+ *
+ * @deprecated      This method is not impemented any more and should
+ *                  be removed in the next major version change.
  **/
 wbcErr wbcSetUidHwm(uid_t uid_hwm);
 
@@ -842,6 +870,9 @@ wbcErr wbcSetUidHwm(uid_t uid_hwm);
  * @param gid_hwm      The new gid highwater mark value
  *
  * @return #wbcErr
+ *
+ * @deprecated      This method is not impemented any more and should
+ *                  be removed in the next major version change.
  **/
 wbcErr wbcSetGidHwm(gid_t gid_hwm);
 
@@ -990,6 +1021,20 @@ wbcErr wbcGetGroups(const char *account,
  **/
 wbcErr wbcDomainInfo(const char *domain,
 		     struct wbcDomainInfo **dinfo);
+
+/**
+ * @brief Lookup the currently contacted DCs
+ *
+ * @param domain        The domain to query
+ *
+ * @param num_dcs       Number of DCs currently known
+ * @param dc_names      Names of the currently known DCs
+ * @param dc_ips        IP addresses of the currently known DCs
+ *
+ * @return #wbcErr
+ **/
+wbcErr wbcDcInfo(const char *domain, size_t *num_dcs,
+		 const char ***dc_names, const char ***dc_ips);
 
 /**
  * @brief Enumerate the domain trusts known by Winbind

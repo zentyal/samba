@@ -33,30 +33,30 @@
  * (print_cache_entry) and to flush it (delete_cache_entry).
  * Both of them are defined by first arg of gencache_iterate() routine.
  */
-static void print_cache_entry(const char* keystr, const char* datastr,
+static void print_cache_entry(const char* keystr, DATA_BLOB value,
                               const time_t timeout, void* dptr)
 {
 	char *timeout_str;
 	char *alloc_str = NULL;
+	const char *datastr;
+	char *datastr_free = NULL;
 	time_t now_t = time(NULL);
-	struct tm timeout_tm, *now_tm;
-	/* localtime returns statically allocated pointer, so timeout_tm
-	   has to be copied somewhere else */
+	struct tm timeout_tm, now_tm;
+	struct tm *ptimeout_tm, *pnow_tm;
 
-	now_tm = localtime(&timeout);
-	if (!now_tm) {
+	ptimeout_tm = localtime_r(&timeout, &timeout_tm);
+	if (ptimeout_tm == NULL) {
 		return;
 	}
-	memcpy(&timeout_tm, now_tm, sizeof(struct tm));
-	now_tm = localtime(&now_t);
-	if (!now_tm) {
+	pnow_tm = localtime_r(&now_t, &now_tm);
+	if (pnow_tm == NULL) {
 		return;
 	}
 
 	/* form up timeout string depending whether it's today's date or not */
-	if (timeout_tm.tm_year != now_tm->tm_year ||
-			timeout_tm.tm_mon != now_tm->tm_mon ||
-			timeout_tm.tm_mday != now_tm->tm_mday) {
+	if (timeout_tm.tm_year != now_tm.tm_year ||
+			timeout_tm.tm_mon != now_tm.tm_mon ||
+			timeout_tm.tm_mday != now_tm.tm_mday) {
 
 		timeout_str = asctime(&timeout_tm);
 		if (!timeout_str) {
@@ -69,6 +69,18 @@ static void print_cache_entry(const char* keystr, const char* datastr,
 			return;
 		}
 		timeout_str = alloc_str;
+	}
+
+	datastr = (char *)value.data;
+
+	if ((value.length > 0) && (value.data[value.length-1] != '\0')) {
+		datastr_free = talloc_asprintf(
+			talloc_tos(), "<binary length %d>",
+			(int)value.length);
+		datastr = datastr_free;
+		if (datastr == NULL) {
+			datastr = "<binary>";
+		}
 	}
 
 	d_printf(_("Key: %s\t Timeout: %s\t Value: %s  %s\n"), keystr,
@@ -220,7 +232,7 @@ static int net_cache_del(struct net_context *c, int argc, const char **argv)
 static int net_cache_get(struct net_context *c, int argc, const char **argv)
 {
 	const char* keystr = argv[0];
-	char* valuestr = NULL;
+	DATA_BLOB value;
 	time_t timeout;
 
 	if (argc < 1 || c->display_usage) {
@@ -230,9 +242,9 @@ static int net_cache_get(struct net_context *c, int argc, const char **argv)
 		return -1;
 	}
 
-	if (gencache_get(keystr, &valuestr, &timeout)) {
-		print_cache_entry(keystr, valuestr, timeout, NULL);
-		SAFE_FREE(valuestr);
+	if (gencache_get_data_blob(keystr, &value, &timeout, NULL)) {
+		print_cache_entry(keystr, value, timeout, NULL);
+		SAFE_FREE(value.data);
 		return 0;
 	}
 
@@ -260,7 +272,7 @@ static int net_cache_search(struct net_context *c, int argc, const char **argv)
 	}
 
 	pattern = argv[0];
-	gencache_iterate(print_cache_entry, NULL, pattern);
+	gencache_iterate_blobs(print_cache_entry, NULL, pattern);
 	return 0;
 }
 
@@ -284,7 +296,7 @@ static int net_cache_list(struct net_context *c, int argc, const char **argv)
 			 _("List all cache entries."));
 		return 0;
 	}
-	gencache_iterate(print_cache_entry, NULL, pattern);
+	gencache_iterate_blobs(print_cache_entry, NULL, pattern);
 	return 0;
 }
 

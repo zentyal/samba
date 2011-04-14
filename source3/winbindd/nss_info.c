@@ -20,6 +20,7 @@
 */
 
 #include "includes.h"
+#include "ads.h"
 #include "nss_info.h"
 
 static struct nss_function_entry *backends = NULL;
@@ -87,8 +88,6 @@ static struct nss_function_entry *nss_get_backend(const char *name )
 static bool parse_nss_parm( const char *config, char **backend, char **domain )
 {
 	char *p;
-	char *q;
-	int len;
 
 	*backend = *domain = NULL;
 
@@ -110,17 +109,8 @@ static bool parse_nss_parm( const char *config, char **backend, char **domain )
 		*domain = SMB_STRDUP( p+1 );
 	}
 
-	len = PTR_DIFF(p,config)+1;
-	if ( (q = SMB_MALLOC_ARRAY( char, len )) == NULL ) {
-		SAFE_FREE( *backend );
-		return False;
-	}
-
-	StrnCpy( q, config, len-1);
-	q[len-1] = '\0';
-	*backend = q;
-
-	return True;
+	*backend = SMB_STRNDUP(config, PTR_DIFF(p, config));
+	return (*backend != NULL);
 }
 
 static NTSTATUS nss_domain_list_add_domain(const char *domain,
@@ -201,6 +191,19 @@ static NTSTATUS nss_init(const char **nss_list)
 			   backend, domain));
 
 		/* validate the backend */
+
+		nss_backend = nss_get_backend(backend);
+		if (nss_backend == NULL) {
+			/*
+			 * This is a freaking hack. We don't have proper
+			 * modules for nss_info backends. Right now we have
+			 * our standard nss_info backends in the ad backend.
+			 */
+			status = smb_probe_module("idmap", "ad");
+			if ( !NT_STATUS_IS_OK(status) ) {
+				continue;
+			}
+		}
 
 		nss_backend = nss_get_backend(backend);
 		if (nss_backend == NULL) {
@@ -305,7 +308,6 @@ static struct nss_domain_entry *find_nss_domain( const char *domain )
 
 NTSTATUS nss_get_info( const char *domain, const struct dom_sid *user_sid,
 		       TALLOC_CTX *ctx,
-		       ADS_STRUCT *ads, LDAPMessage *msg,
 		       const char **homedir, const char **shell,
 		       const char **gecos, gid_t *p_gid)
 {
@@ -323,7 +325,7 @@ NTSTATUS nss_get_info( const char *domain, const struct dom_sid *user_sid,
 
 	m = p->backend->methods;
 
-	return m->get_nss_info( p, user_sid, ctx, ads, msg,
+	return m->get_nss_info( p, user_sid, ctx,
 				homedir, shell, gecos, p_gid );
 }
 

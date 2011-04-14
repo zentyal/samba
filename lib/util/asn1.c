@@ -221,10 +221,12 @@ bool ber_write_OID_String(TALLOC_CTX *mem_ctx, DATA_BLOB *blob, const char *OID)
 	char *newp;
 	int i;
 
+	if (!isdigit(*p)) return false;
 	v = strtoul(p, &newp, 10);
 	if (newp[0] != '.') return false;
 	p = newp + 1;
 
+	if (!isdigit(*p)) return false;
 	v2 = strtoul(p, &newp, 10);
 	if (newp[0] != '.') return false;
 	p = newp + 1;
@@ -237,9 +239,12 @@ bool ber_write_OID_String(TALLOC_CTX *mem_ctx, DATA_BLOB *blob, const char *OID)
 
 	i = 1;
 	while (*p) {
+		if (!isdigit(*p)) return false;
 		v = strtoul(p, &newp, 10);
 		if (newp[0] == '.') {
 			p = newp + 1;
+			/* check for empty last component */
+			if (!*p) return false;
 		} else if (newp[0] == '\0') {
 			p = newp;
 		} else {
@@ -282,7 +287,7 @@ bool ber_write_partial_OID_String(TALLOC_CTX *mem_ctx, DATA_BLOB *blob, const ch
 		return false;
 	}
 
-	/* Add partially endcoded subidentifier */
+	/* Add partially encoded sub-identifier */
 	if (p) {
 		DATA_BLOB tmp_blob = strhex_to_data_blob(tmp_ctx, p);
 		data_blob_append(mem_ctx, blob, tmp_blob.data, tmp_blob.length);
@@ -489,6 +494,77 @@ bool asn1_peek_tag(struct asn1_data *data, uint8_t tag)
 	return (b == tag);
 }
 
+/*
+ * just get the needed size the tag would consume
+ */
+bool asn1_peek_tag_needed_size(struct asn1_data *data, uint8_t tag, size_t *size)
+{
+	off_t start_ofs = data->ofs;
+	uint8_t b;
+	size_t taglen = 0;
+
+	if (data->has_error) {
+		return false;
+	}
+
+	if (!asn1_read_uint8(data, &b)) {
+		data->ofs = start_ofs;
+		data->has_error = false;
+		return false;
+	}
+
+	if (b != tag) {
+		data->ofs = start_ofs;
+		data->has_error = false;
+		return false;
+	}
+
+	if (!asn1_read_uint8(data, &b)) {
+		data->ofs = start_ofs;
+		data->has_error = false;
+		return false;
+	}
+
+	if (b & 0x80) {
+		int n = b & 0x7f;
+		if (!asn1_read_uint8(data, &b)) {
+			data->ofs = start_ofs;
+			data->has_error = false;
+			return false;
+		}
+		if (n > 4) {
+			/*
+			 * We should not allow more than 4 bytes
+			 * for the encoding of the tag length.
+			 *
+			 * Otherwise we'd overflow the taglen
+			 * variable on 32 bit systems.
+			 */
+			data->ofs = start_ofs;
+			data->has_error = false;
+			return false;
+		}
+		taglen = b;
+		while (n > 1) {
+			if (!asn1_read_uint8(data, &b)) {
+				data->ofs = start_ofs;
+				data->has_error = false;
+				return false;
+			}
+			taglen = (taglen << 8) | b;
+			n--;
+		}
+	} else {
+		taglen = b;
+	}
+
+	*size = (data->ofs - start_ofs) + taglen;
+
+	data->ofs = start_ofs;
+	data->has_error = false;
+	return true;
+}
+
 /* start reading a nested asn1 structure */
 bool asn1_start_tag(struct asn1_data *data, uint8_t tag)
 {
@@ -584,7 +660,7 @@ int asn1_tag_remaining(struct asn1_data *data)
  * till buffer ends or not valid sub-identifier is found.
  */
 static bool _ber_read_OID_String_impl(TALLOC_CTX *mem_ctx, DATA_BLOB blob,
-					const char **OID, size_t *bytes_eaten)
+				      char **OID, size_t *bytes_eaten)
 {
 	int i;
 	uint8_t *b;
@@ -623,7 +699,7 @@ nomem:
 }
 
 /* read an object ID from a data blob */
-bool ber_read_OID_String(TALLOC_CTX *mem_ctx, DATA_BLOB blob, const char **OID)
+bool ber_read_OID_String(TALLOC_CTX *mem_ctx, DATA_BLOB blob, char **OID)
 {
 	size_t bytes_eaten;
 
@@ -639,14 +715,15 @@ bool ber_read_OID_String(TALLOC_CTX *mem_ctx, DATA_BLOB blob, const char **OID)
  *   1:2.5.6:0x81
  *   1:2.5.6:0x8182
  */
-bool ber_read_partial_OID_String(TALLOC_CTX *mem_ctx, DATA_BLOB blob, const char **partial_oid)
+bool ber_read_partial_OID_String(TALLOC_CTX *mem_ctx, DATA_BLOB blob,
+				 char **partial_oid)
 {
 	size_t bytes_left;
 	size_t bytes_eaten;
 	char *identifier = NULL;
 	char *tmp_oid = NULL;
 
-	if (!_ber_read_OID_String_impl(mem_ctx, blob, (const char **)&tmp_oid, &bytes_eaten))
+	if (!_ber_read_OID_String_impl(mem_ctx, blob, &tmp_oid, &bytes_eaten))
 		return false;
 
 	if (bytes_eaten < blob.length) {
@@ -670,7 +747,7 @@ nomem:
 }
 
 /* read an object ID from a ASN1 buffer */
-bool asn1_read_OID(struct asn1_data *data, TALLOC_CTX *mem_ctx, const char **OID)
+bool asn1_read_OID(struct asn1_data *data, TALLOC_CTX *mem_ctx, char **OID)
 {
 	DATA_BLOB blob;
 	int len;
@@ -709,16 +786,16 @@ bool asn1_read_OID(struct asn1_data *data, TALLOC_CTX *mem_ctx, const char **OID
 /* check that the next object ID is correct */
 bool asn1_check_OID(struct asn1_data *data, const char *OID)
 {
-	const char *id;
+	char *id;
 
 	if (!asn1_read_OID(data, data, &id)) return false;
 
 	if (strcmp(id, OID) != 0) {
-		talloc_free(discard_const(id));
+		talloc_free(id);
 		data->has_error = true;
 		return false;
 	}
-	talloc_free(discard_const(id));
+	talloc_free(id);
 	return true;
 }
 
@@ -942,6 +1019,30 @@ NTSTATUS asn1_full_tag(DATA_BLOB blob, uint8_t tag, size_t *packet_size)
 	talloc_free(asn1);
 
 	if (size > blob.length) {
+		return STATUS_MORE_ENTRIES;
+	}
+
+	*packet_size = size;
+	return NT_STATUS_OK;
+}
+
+NTSTATUS asn1_peek_full_tag(DATA_BLOB blob, uint8_t tag, size_t *packet_size)
+{
+	struct asn1_data asn1;
+	size_t size;
+	bool ok;
+
+	ZERO_STRUCT(asn1);
+	asn1.data = blob.data;
+	asn1.length = blob.length;
+
+	ok = asn1_peek_tag_needed_size(&asn1, tag, &size);
+	if (!ok) {
+		return NT_STATUS_INVALID_BUFFER_SIZE;
+	}
+
+	if (size > blob.length) {
+		*packet_size = size;
 		return STATUS_MORE_ENTRIES;
 	}		
 

@@ -22,22 +22,56 @@
 
 
 #include "includes.h"
+#include "lib/privileges.h"
+#include "dbwrap.h"
+#include "libcli/security/privileges_private.h"
+#include "../libcli/security/security.h"
+#include "passdb.h"
 
 #define PRIVPREFIX              "PRIV_"
 
 typedef struct {
-	size_t count;
+	uint32_t count;
 	struct dom_sid *list;
 } SID_LIST;
 
 typedef struct {
 	TALLOC_CTX *mem_ctx;
-	SE_PRIV privilege;
+	uint64_t privilege;
 	SID_LIST sids;
 } PRIV_SID_LIST;
 
+/*
+  interpret an old style SE_PRIV structure
+ */
+static uint64_t map_old_SE_PRIV(unsigned char *dptr)
+{
+	uint32_t *old_masks = (uint32_t *)dptr;
+	/*
+	 * the old privileges code only ever used up to 0x800, except
+	 * for a special case of 'SE_ALL_PRIVS' which was 0xFFFFFFFF
+	 */
+	if (old_masks[0] == 0xFFFFFFFF) {
+		/* they set all privileges */
+		return SE_ALL_PRIVS;
+	}
 
-static bool get_privileges( const struct dom_sid *sid, SE_PRIV *mask )
+	/* the old code used the machine byte order, but we don't know
+	 * the byte order of the machine that wrote it. However we can
+	 * tell what byte order it was by taking advantage of the fact
+	 * that it only ever use up to 0x800
+	 */
+	if (dptr[0] || dptr[1]) {
+		/* it was little endian */
+		return IVAL(dptr, 0);
+	}
+
+	/* it was either zero or big-endian */
+	return RIVAL(dptr, 0);
+}
+
+
+static bool get_privileges( const struct dom_sid *sid, uint64_t *mask )
 {
 	struct db_context *db = get_account_pol_db();
 	fstring tmp, keystr;
@@ -59,14 +93,24 @@ static bool get_privileges( const struct dom_sid *sid, SE_PRIV *mask )
 	data = dbwrap_fetch_bystring( db, talloc_tos(), keystr );
 
 	if ( !data.dptr ) {
-		DEBUG(3, ("get_privileges: No privileges assigned to SID "
+		DEBUG(4, ("get_privileges: No privileges assigned to SID "
 			  "[%s]\n", sid_string_dbg(sid)));
 		return False;
 	}
 
-	SMB_ASSERT( data.dsize == sizeof( SE_PRIV ) );
+	if (data.dsize == 4*4) {
+		/* it's an old style SE_PRIV structure. */
+		*mask = map_old_SE_PRIV(data.dptr);
+	} else {
+		if (data.dsize != sizeof( uint64_t ) ) {
+			DEBUG(3, ("get_privileges: Invalid privileges record assigned to SID "
+				  "[%s]\n", sid_string_dbg(sid)));
+			return False;
+		}
 
-	se_priv_copy( mask, (SE_PRIV*)data.dptr );
+		*mask = BVAL(data.dptr, 0);
+	}
+
 	TALLOC_FREE(data.dptr);
 
 	return True;
@@ -76,9 +120,10 @@ static bool get_privileges( const struct dom_sid *sid, SE_PRIV *mask )
  Store the privilege mask (set) for a given SID
 ****************************************************************************/
 
-static bool set_privileges( const struct dom_sid *sid, SE_PRIV *mask )
+static bool set_privileges( const struct dom_sid *sid, uint64_t mask )
 {
 	struct db_context *db = get_account_pol_db();
+	uint8_t privbuf[8];
 	fstring tmp, keystr;
 	TDB_DATA data;
 
@@ -97,10 +142,11 @@ static bool set_privileges( const struct dom_sid *sid, SE_PRIV *mask )
 
 	fstr_sprintf(keystr, "%s%s", PRIVPREFIX, sid_to_fstring(tmp, sid));
 
-	/* no packing.  static size structure, just write it out */
+	/* This writes the 64 bit bitmask out in little endian format */
+	SBVAL(privbuf,0,mask);
 
-	data.dptr  = (uint8 *)mask;
-	data.dsize = sizeof(SE_PRIV);
+	data.dptr  = privbuf;
+	data.dsize = sizeof(privbuf);
 
 	return NT_STATUS_IS_OK(dbwrap_store_bystring(db, keystr, data,
 						     TDB_REPLACE));
@@ -110,13 +156,13 @@ static bool set_privileges( const struct dom_sid *sid, SE_PRIV *mask )
  get a list of all privileges for all sids in the list
 *********************************************************************/
 
-bool get_privileges_for_sids(SE_PRIV *privileges, struct dom_sid *slist, int scount)
+bool get_privileges_for_sids(uint64_t *privileges, struct dom_sid *slist, int scount)
 {
-	SE_PRIV mask;
+	uint64_t mask;
 	int i;
 	bool found = False;
 
-	se_priv_copy( privileges, &se_priv_none );
+	*privileges = 0;
 
 	for ( i=0; i<scount; i++ ) {
 		/* don't add unless we actually have a privilege assigned */
@@ -125,16 +171,33 @@ bool get_privileges_for_sids(SE_PRIV *privileges, struct dom_sid *slist, int sco
 			continue;
 
 		DEBUG(5,("get_privileges_for_sids: sid = %s\nPrivilege "
-			 "set:\n", sid_string_dbg(&slist[i])));
-		dump_se_priv( DBGC_ALL, 5, &mask );
+			 "set: 0x%llx\n", sid_string_dbg(&slist[i]),
+			 (unsigned long long)mask));
 
-		se_priv_add( privileges, &mask );
+		*privileges |= mask;
 		found = True;
 	}
 
 	return found;
 }
 
+NTSTATUS get_privileges_for_sid_as_set(TALLOC_CTX *mem_ctx, PRIVILEGE_SET **privileges, struct dom_sid *sid)
+{
+	uint64_t mask;
+	if (!get_privileges(sid, &mask)) {
+		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
+	}
+
+	*privileges = talloc_zero(mem_ctx, PRIVILEGE_SET);
+	if (!*privileges) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	if (!se_priv_to_privilege_set(*privileges, mask)) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	return NT_STATUS_OK;
+}
 
 /*********************************************************************
  traversal functions for privilege_enumerate_accounts
@@ -147,11 +210,6 @@ static int priv_traverse_fn(struct db_record *rec, void *state)
 	struct dom_sid sid;
 	fstring sid_string;
 
-	/* easy check first */
-
-	if (rec->value.dsize != sizeof(SE_PRIV) )
-		return 0;
-
 	/* check we have a PRIV_+SID entry */
 
 	if ( strncmp((char *)rec->key.dptr, PRIVPREFIX, prefixlen) != 0)
@@ -159,19 +217,29 @@ static int priv_traverse_fn(struct db_record *rec, void *state)
 
 	/* check to see if we are looking for a particular privilege */
 
-	if ( !se_priv_equal(&priv->privilege, &se_priv_none) ) {
-		SE_PRIV mask;
+	fstrcpy( sid_string, (char *)&(rec->key.dptr[strlen(PRIVPREFIX)]) );
 
-		se_priv_copy( &mask, (SE_PRIV*)rec->value.dptr );
+	if (priv->privilege != 0) {
+		uint64_t mask;
+
+		if (rec->value.dsize == 4*4) {
+			mask = map_old_SE_PRIV(rec->value.dptr);
+		} else {
+			if (rec->value.dsize != sizeof( uint64_t ) ) {
+				DEBUG(3, ("get_privileges: Invalid privileges record assigned to SID "
+					  "[%s]\n", sid_string));
+				return 0;
+			}
+			mask = BVAL(rec->value.dptr, 0);
+		}
 
 		/* if the SID does not have the specified privilege
 		   then just return */
 
-		if ( !is_privilege_assigned( &mask, &priv->privilege) )
+		if ((mask & priv->privilege) == 0) {
 			return 0;
+		}
 	}
-
-	fstrcpy( sid_string, (char *)&(rec->key.dptr[strlen(PRIVPREFIX)]) );
 
 	/* this is a last ditch safety check to preventing returning
 	   and invalid SID (i've somehow run into this on development branches) */
@@ -210,8 +278,6 @@ NTSTATUS privilege_enumerate_accounts(struct dom_sid **sids, int *num_sids)
 
 	ZERO_STRUCT(priv);
 
-	se_priv_copy( &priv.privilege, &se_priv_none );
-
 	db->traverse_read(db, priv_traverse_fn, &priv);
 
 	/* give the memory away; caller will free */
@@ -226,7 +292,7 @@ NTSTATUS privilege_enumerate_accounts(struct dom_sid **sids, int *num_sids)
  Retrieve list of SIDs granted a particular privilege
 *********************************************************************/
 
-NTSTATUS privilege_enum_sids(const SE_PRIV *mask, TALLOC_CTX *mem_ctx,
+NTSTATUS privilege_enum_sids(enum sec_privilege privilege, TALLOC_CTX *mem_ctx,
 			     struct dom_sid **sids, int *num_sids)
 {
 	struct db_context *db = get_account_pol_db();
@@ -238,7 +304,7 @@ NTSTATUS privilege_enum_sids(const SE_PRIV *mask, TALLOC_CTX *mem_ctx,
 
 	ZERO_STRUCT(priv);
 
-	se_priv_copy(&priv.privilege, mask);
+	priv.privilege = sec_privilege_mask(privilege);
 	priv.mem_ctx = mem_ctx;
 
 	db->traverse_read(db, priv_traverse_fn, &priv);
@@ -255,38 +321,36 @@ NTSTATUS privilege_enum_sids(const SE_PRIV *mask, TALLOC_CTX *mem_ctx,
  Add privilege to sid
 ****************************************************************************/
 
-bool grant_privilege(const struct dom_sid *sid, const SE_PRIV *priv_mask)
+static bool grant_privilege_bitmap(const struct dom_sid *sid, const uint64_t priv_mask)
 {
-	SE_PRIV old_mask, new_mask;
+	uint64_t old_mask, new_mask;
 
 	ZERO_STRUCT( old_mask );
 	ZERO_STRUCT( new_mask );
 
 	if ( get_privileges( sid, &old_mask ) )
-		se_priv_copy( &new_mask, &old_mask );
+		new_mask = old_mask;
 	else
-		se_priv_copy( &new_mask, &se_priv_none );
+		new_mask = 0;
 
-	se_priv_add( &new_mask, priv_mask );
+	new_mask |= priv_mask;
 
 	DEBUG(10,("grant_privilege: %s\n", sid_string_dbg(sid)));
 
-	DEBUGADD( 10, ("original privilege mask:\n"));
-	dump_se_priv( DBGC_ALL, 10, &old_mask );
+	DEBUGADD( 10, ("original privilege mask: 0x%llx\n", (unsigned long long)new_mask));
 
-	DEBUGADD( 10, ("new privilege mask:\n"));
-	dump_se_priv( DBGC_ALL, 10, &new_mask );
+	DEBUGADD( 10, ("new privilege mask:      0x%llx\n", (unsigned long long)new_mask));
 
-	return set_privileges( sid, &new_mask );
+	return set_privileges( sid, new_mask );
 }
 
 /*********************************************************************
  Add a privilege based on its name
 *********************************************************************/
 
-bool grant_privilege_by_name(struct dom_sid *sid, const char *name)
+bool grant_privilege_by_name(const struct dom_sid *sid, const char *name)
 {
-	SE_PRIV mask;
+	uint64_t mask;
 
 	if (! se_priv_from_name(name, &mask)) {
         	DEBUG(3, ("grant_privilege_by_name: "
@@ -294,16 +358,29 @@ bool grant_privilege_by_name(struct dom_sid *sid, const char *name)
 		return False;
 	}
 
-	return grant_privilege( sid, &mask );
+	return grant_privilege_bitmap( sid, mask );
+}
+
+/***************************************************************************
+ Grant a privilege set (list of LUID values) from a sid
+****************************************************************************/
+
+bool grant_privilege_set(const struct dom_sid *sid, struct lsa_PrivilegeSet *set)
+{
+	uint64_t privilege_mask;
+	if (!privilege_set_to_se_priv(&privilege_mask, set)) {
+		return false;
+	}
+	return grant_privilege_bitmap(sid, privilege_mask);
 }
 
 /***************************************************************************
  Remove privilege from sid
 ****************************************************************************/
 
-bool revoke_privilege(const struct dom_sid *sid, const SE_PRIV *priv_mask)
+static bool revoke_privilege_bitmap(const struct dom_sid *sid, const uint64_t priv_mask)
 {
-	SE_PRIV mask;
+	uint64_t mask;
 
 	/* if the user has no privileges, then we can't revoke any */
 
@@ -312,33 +389,44 @@ bool revoke_privilege(const struct dom_sid *sid, const SE_PRIV *priv_mask)
 
 	DEBUG(10,("revoke_privilege: %s\n", sid_string_dbg(sid)));
 
-	DEBUGADD( 10, ("original privilege mask:\n"));
-	dump_se_priv( DBGC_ALL, 10, &mask );
+	DEBUGADD( 10, ("original privilege mask: 0x%llx\n", (unsigned long long)mask));
 
-	se_priv_remove( &mask, priv_mask );
+	mask &= ~priv_mask;
 
-	DEBUGADD( 10, ("new privilege mask:\n"));
-	dump_se_priv( DBGC_ALL, 10, &mask );
+	DEBUGADD( 10, ("new privilege mask:      0x%llx\n", (unsigned long long)mask));
 
-	return set_privileges( sid, &mask );
+	return set_privileges( sid, mask );
+}
+
+/***************************************************************************
+ Remove a privilege set (list of LUID values) from a sid
+****************************************************************************/
+
+bool revoke_privilege_set(const struct dom_sid *sid, struct lsa_PrivilegeSet *set)
+{
+	uint64_t privilege_mask;
+	if (!privilege_set_to_se_priv(&privilege_mask, set)) {
+		return false;
+	}
+	return revoke_privilege_bitmap(sid, privilege_mask);
 }
 
 /*********************************************************************
  Revoke all privileges
 *********************************************************************/
 
-bool revoke_all_privileges( struct dom_sid *sid )
+bool revoke_all_privileges( const struct dom_sid *sid )
 {
-	return revoke_privilege( sid, &se_priv_all );
+	return revoke_privilege_bitmap( sid, SE_ALL_PRIVS);
 }
 
 /*********************************************************************
  Add a privilege based on its name
 *********************************************************************/
 
-bool revoke_privilege_by_name(struct dom_sid *sid, const char *name)
+bool revoke_privilege_by_name(const struct dom_sid *sid, const char *name)
 {
-	SE_PRIV mask;
+	uint64_t mask;
 
 	if (! se_priv_from_name(name, &mask)) {
         	DEBUG(3, ("revoke_privilege_by_name: "
@@ -346,7 +434,7 @@ bool revoke_privilege_by_name(struct dom_sid *sid, const char *name)
         	return False;
 	}
 
-	return revoke_privilege(sid, &mask);
+	return revoke_privilege_bitmap(sid, mask);
 
 }
 
@@ -356,7 +444,7 @@ bool revoke_privilege_by_name(struct dom_sid *sid, const char *name)
 
 NTSTATUS privilege_create_account(const struct dom_sid *sid )
 {
-	return ( grant_privilege(sid, &se_priv_none) ? NT_STATUS_OK : NT_STATUS_UNSUCCESSFUL);
+	return ( grant_privilege_bitmap(sid, 0) ? NT_STATUS_OK : NT_STATUS_UNSUCCESSFUL);
 }
 
 /***************************************************************************
@@ -387,92 +475,12 @@ NTSTATUS privilege_delete_account(const struct dom_sid *sid)
 	return dbwrap_delete_bystring(db, keystr);
 }
 
-/****************************************************************************
- initialise a privilege list and set the talloc context
- ****************************************************************************/
-
-NTSTATUS privilege_set_init(PRIVILEGE_SET *priv_set)
-{
-	TALLOC_CTX *mem_ctx;
-
-	ZERO_STRUCTP( priv_set );
-
-	mem_ctx = talloc_init("privilege set");
-	if ( !mem_ctx ) {
-		DEBUG(0,("privilege_set_init: failed to initialize talloc ctx!\n"));
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	priv_set->mem_ctx = mem_ctx;
-
-	return NT_STATUS_OK;
-}
-
-/****************************************************************************
-  initialise a privilege list and with someone else's talloc context
-****************************************************************************/
-
-NTSTATUS privilege_set_init_by_ctx(TALLOC_CTX *mem_ctx, PRIVILEGE_SET *priv_set)
-{
-	ZERO_STRUCTP( priv_set );
-
-	priv_set->mem_ctx = mem_ctx;
-	priv_set->ext_ctx = True;
-
-	return NT_STATUS_OK;
-}
-
-/****************************************************************************
- Free all memory used by a PRIVILEGE_SET
-****************************************************************************/
-
-void privilege_set_free(PRIVILEGE_SET *priv_set)
-{
-	if ( !priv_set )
-		return;
-
-	if ( !( priv_set->ext_ctx ) )
-		talloc_destroy( priv_set->mem_ctx );
-
-	ZERO_STRUCTP( priv_set );
-}
-
-/****************************************************************************
- duplicate alloc luid_attr
- ****************************************************************************/
-
-NTSTATUS dup_luid_attr(TALLOC_CTX *mem_ctx, struct lsa_LUIDAttribute **new_la, struct lsa_LUIDAttribute *old_la, int count)
-{
-	int i;
-
-	if ( !old_la )
-		return NT_STATUS_OK;
-
-	if (count) {
-		*new_la = TALLOC_ARRAY(mem_ctx, struct lsa_LUIDAttribute, count);
-		if ( !*new_la ) {
-			DEBUG(0,("dup_luid_attr: failed to alloc new struct lsa_LUIDAttribute array [%d]\n", count));
-			return NT_STATUS_NO_MEMORY;
-		}
-	} else {
-		*new_la = NULL;
-	}
-
-	for (i=0; i<count; i++) {
-		(*new_la)[i].luid.high = old_la[i].luid.high;
-		(*new_la)[i].luid.low = old_la[i].luid.low;
-		(*new_la)[i].attribute = old_la[i].attribute;
-	}
-
-	return NT_STATUS_OK;
-}
-
 /*******************************************************************
 *******************************************************************/
 
 bool is_privileged_sid( const struct dom_sid *sid )
 {
-	SE_PRIV mask;
+	uint64_t mask;
 
 	return get_privileges( sid, &mask );
 }
@@ -482,11 +490,9 @@ bool is_privileged_sid( const struct dom_sid *sid )
 
 bool grant_all_privileges( const struct dom_sid *sid )
 {
-	SE_PRIV mask;
+	uint64_t mask;
 
-	if (!se_priv_put_all_privileges(&mask)) {
-		return False;
-	}
+	se_priv_put_all_privileges(&mask);
 
-	return grant_privilege( sid, &mask );
+	return grant_privilege_bitmap( sid, mask );
 }

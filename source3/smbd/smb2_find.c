@@ -19,8 +19,10 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
 #include "../libcli/smb/smb_common.h"
+#include "trans2.h"
 
 static struct tevent_req *smbd_smb2_find_send(TALLOC_CTX *mem_ctx,
 					      struct tevent_context *ev,
@@ -227,7 +229,6 @@ static struct tevent_req *smbd_smb2_find_send(TALLOC_CTX *mem_ctx,
 	int off = 0;
 	uint32_t num = 0;
 	uint32_t dirtype = aHIDDEN | aSYSTEM | aDIR;
-	const char *directory;
 	bool dont_descend = false;
 	bool ask_sharemode = true;
 
@@ -265,8 +266,6 @@ static struct tevent_req *smbd_smb2_find_send(TALLOC_CTX *mem_ctx,
 		tevent_req_nterror(req, NT_STATUS_NOT_SUPPORTED);
 		return tevent_req_post(req, ev);
 	}
-
-	directory = fsp->fsp_name->base_name;
 
 	if (strcmp(in_file_name, "") == 0) {
 		tevent_req_nterror(req, NT_STATUS_OBJECT_NAME_INVALID);
@@ -317,10 +316,7 @@ static struct tevent_req *smbd_smb2_find_send(TALLOC_CTX *mem_ctx,
 	}
 
 	if (in_flags & SMB2_CONTINUE_FLAG_REOPEN) {
-		if (fsp->dptr) {
-			dptr_CloseDir(fsp->dptr);
-			fsp->dptr = NULL;
-		}
+		dptr_CloseDir(fsp);
 	}
 
 	if (fsp->dptr == NULL) {
@@ -334,7 +330,8 @@ static struct tevent_req *smbd_smb2_find_send(TALLOC_CTX *mem_ctx,
 		wcard_has_wild = ms_has_wild(in_file_name);
 
 		status = dptr_create(conn,
-				     directory,
+				     fsp,
+				     fsp->fsp_name->base_name,
 				     false, /* old_handle */
 				     false, /* expect_close */
 				     0, /* spid */
@@ -384,9 +381,10 @@ static struct tevent_req *smbd_smb2_find_send(TALLOC_CTX *mem_ctx,
 
 	DEBUG(8,("smbd_smb2_find_send: dirpath=<%s> dontdescend=<%s>, "
 		"in_output_buffer_length = %u\n",
-		directory, lp_dontdescend(SNUM(conn)),
+		fsp->fsp_name->base_name, lp_dontdescend(SNUM(conn)),
 		(unsigned int)in_output_buffer_length ));
-	if (in_list(directory,lp_dontdescend(SNUM(conn)),conn->case_sensitive)) {
+	if (in_list(fsp->fsp_name->base_name,lp_dontdescend(SNUM(conn)),
+			conn->case_sensitive)) {
 		dont_descend = true;
 	}
 

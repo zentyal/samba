@@ -17,15 +17,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+"""Tests for samba.provision."""
+
 import os
-from samba.provision import setup_secretsdb, findnss
+from samba.provision import setup_secretsdb, findnss, ProvisionPaths
 import samba.tests
 from samba.tests import env_loadparm, TestCase
-
-setup_dir = "setup"
-def setup_path(file):
-    return os.path.join(setup_dir, file)
-
 
 def create_dummy_secretsdb(path, lp=None):
     """Create a dummy secrets database for use in tests.
@@ -36,7 +33,12 @@ def create_dummy_secretsdb(path, lp=None):
     """
     if lp is None:
         lp = env_loadparm()
-    secrets_ldb = setup_secretsdb(path, setup_path, None, None, lp=lp)
+    paths = ProvisionPaths()
+    paths.secrets = path
+    paths.private_dir = os.path.dirname(path)
+    paths.keytab = "no.keytab"
+    paths.dns_keytab = "no.dns.keytab"
+    secrets_ldb = setup_secretsdb(paths, None, None, lp=lp)
     secrets_ldb.transaction_commit()
     return secrets_ldb
 
@@ -47,7 +49,12 @@ class ProvisionTestCase(samba.tests.TestCaseInTempDir):
 
     def test_setup_secretsdb(self):
         path = os.path.join(self.tempdir, "secrets.ldb")
-        ldb = setup_secretsdb(path, setup_path, None, None, lp=env_loadparm())
+        paths = ProvisionPaths()
+        paths.secrets = path
+        paths.private_dir = os.path.dirname(path)
+        paths.keytab = "no.keytab"
+        paths.dns_keytab = "no.dns.keytab"
+        ldb = setup_secretsdb(paths, None, None, lp=env_loadparm())
         try:
             self.assertEquals("LSA Secrets",
                  ldb.searchone(basedn="CN=LSA Secrets", attribute="CN"))

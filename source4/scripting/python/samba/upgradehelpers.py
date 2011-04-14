@@ -21,6 +21,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""Helers used for upgrading between different database formats."""
 
 import os
 import string
@@ -33,7 +34,7 @@ from samba.dsdb import DS_DOMAIN_FUNCTION_2000
 from ldb import SCOPE_SUBTREE, SCOPE_ONELEVEL, SCOPE_BASE
 import ldb
 from samba.provision import (ProvisionNames, provision_paths_from_lp,
-                            getpolicypath, set_gpo_acl, create_gpo_struct,
+                            getpolicypath, set_gpos_acl, create_gpo_struct,
                             FILL_FULL, provision, ProvisioningError,
                             setsysvolacl, secretsdb_self_join)
 from samba.dcerpc import misc, security, xattr
@@ -41,9 +42,10 @@ from samba.dcerpc.misc import SEC_CHAN_BDC
 from samba.ndr import ndr_unpack
 from samba.samdb import SamDB
 
-# All the ldb related to registry are commented because the path for them is relative
-# in the provisionPath object
-# And so opening them create a file in the current directory which is not what we want
+# All the ldb related to registry are commented because the path for them is
+# relative in the provisionPath object
+# And so opening them create a file in the current directory which is not what
+# we want
 # I still keep them commented because I plan soon to make more cleaner
 ERROR =     -1
 SIMPLE =     0x00
@@ -53,19 +55,15 @@ GUESS =     0x04
 PROVISION =    0x08
 CHANGEALL =    0xff
 
-hashAttrNotCopied = {   "dn": 1, "whenCreated": 1, "whenChanged": 1,
-                        "objectGUID": 1, "uSNCreated": 1,
-                        "replPropertyMetaData": 1, "uSNChanged": 1,
-                        "parentGUID": 1, "objectCategory": 1,
-                        "distinguishedName": 1, "nTMixedDomain": 1,
-                        "showInAdvancedViewOnly": 1, "instanceType": 1,
-                        "msDS-Behavior-Version":1, "nextRid":1, "cn": 1,
-                        "versionNumber":1, "lmPwdHistory":1, "pwdLastSet": 1,
-                        "ntPwdHistory":1, "unicodePwd":1,"dBCSPwd":1,
-                        "supplementalCredentials":1, "gPCUserExtensionNames":1,
-                        "gPCMachineExtensionNames":1,"maxPwdAge":1, "secret":1,
-                        "possibleInferiors":1, "privilege":1,
-                        "sAMAccountType":1 }
+hashAttrNotCopied = set(["dn", "whenCreated", "whenChanged", "objectGUID",
+    "uSNCreated", "replPropertyMetaData", "uSNChanged", "parentGUID",
+    "objectCategory", "distinguishedName", "nTMixedDomain",
+    "showInAdvancedViewOnly", "instanceType", "msDS-Behavior-Version",
+    "nextRid", "cn", "versionNumber", "lmPwdHistory", "pwdLastSet",
+    "ntPwdHistory", "unicodePwd","dBCSPwd", "supplementalCredentials",
+    "gPCUserExtensionNames", "gPCMachineExtensionNames","maxPwdAge", "secret",
+    "possibleInferiors", "privilege", "sAMAccountType"])
+
 
 class ProvisionLDB(object):
 
@@ -94,22 +92,22 @@ class ProvisionLDB(object):
         ok = True
         try:
             self.sam.transaction_cancel()
-        except:
+        except Exception:
             ok = False
 
         try:
             self.secrets.transaction_cancel()
-        except:
+        except Exception:
             ok = False
 
         try:
             self.idmap.transaction_cancel()
-        except:
+        except Exception:
             ok = False
 
         try:
             self.privilege.transaction_cancel()
-        except:
+        except Exception:
             ok = False
 
         return ok
@@ -125,7 +123,7 @@ class ProvisionLDB(object):
             self.secrets.transaction_prepare_commit()
             self.idmap.transaction_prepare_commit()
             self.privilege.transaction_prepare_commit()
-        except:
+        except Exception:
             return self.groupedRollback()
 # TO BE DONE
 #        self.hkcr.transaction_prepare_commit()
@@ -137,9 +135,9 @@ class ProvisionLDB(object):
             self.secrets.transaction_commit()
             self.idmap.transaction_commit()
             self.privilege.transaction_commit()
-        except:
+        except Exception:
             return self.groupedRollback()
-        
+
 # TO BE DONE
 #        self.hkcr.transaction_commit()
 #        self.hkcu.transaction_commit()
@@ -234,7 +232,7 @@ def update_policyids(names, samdb):
                         scope=SCOPE_ONELEVEL, attrs=["cn","displayName"])
     names.policyid = str(res[0]["cn"]).replace("{","").replace("}","")
     # dc policy guid
-    res2 = samdb.search(expression="(displayName=Default Domain Controllers" \
+    res2 = samdb.search(expression="(displayName=Default Domain Controllers"
                                    " Policy)",
                             base="CN=Policies,CN=System," + str(names.rootdn),
                             scope=SCOPE_ONELEVEL, attrs=["cn","displayName"])
@@ -266,7 +264,7 @@ def find_provision_key_parameters(samdb, secretsdb, idmapdb, paths, smbconf, lp)
     names.realm = string.upper(names.realm)
     # netbiosname
     # Get the netbiosname first (could be obtained from smb.conf in theory)
-    res = secretsdb.search(expression="(flatname=%s)" % \
+    res = secretsdb.search(expression="(flatname=%s)" %
                             names.domain,base="CN=Primary Domains",
                             scope=SCOPE_SUBTREE, attrs=["sAMAccountName"])
     names.netbiosname = str(res[0]["sAMAccountName"]).replace("$","")
@@ -332,7 +330,7 @@ def find_provision_key_parameters(samdb, secretsdb, idmapdb, paths, smbconf, lp)
                         scope=SCOPE_ONELEVEL, attrs=["cn","displayName"])
     names.policyid = str(res7[0]["cn"]).replace("{","").replace("}","")
     # dc policy guid
-    res8 = samdb.search(expression="(displayName=Default Domain Controllers" \
+    res8 = samdb.search(expression="(displayName=Default Domain Controllers"
                                    " Policy)",
                             base="CN=Policies,CN=System," + basedn,
                             scope=SCOPE_ONELEVEL, attrs=["cn","displayName"])
@@ -340,7 +338,7 @@ def find_provision_key_parameters(samdb, secretsdb, idmapdb, paths, smbconf, lp)
         names.policyid_dc = str(res8[0]["cn"]).replace("{","").replace("}","")
     else:
         names.policyid_dc = None
-    res9 = idmapdb.search(expression="(cn=%s)" % \
+    res9 = idmapdb.search(expression="(cn=%s)" %
                             (security.SID_BUILTIN_ADMINISTRATORS),
                             attrs=["xidNumber"])
     if len(res9) == 1:
@@ -350,31 +348,29 @@ def find_provision_key_parameters(samdb, secretsdb, idmapdb, paths, smbconf, lp)
     return names
 
 
-def newprovision(names, setup_dir, creds, session, smbconf, provdir, logger):
+def newprovision(names, creds, session, smbconf, provdir, logger):
     """Create a new provision.
 
     This provision will be the reference for knowing what has changed in the
     since the latest upgrade in the current provision
 
     :param names: List of provision parameters
-    :param setup_dis: Directory where the setup files are stored
     :param creds: Credentials for the authentification
     :param session: Session object
     :param smbconf: Path to the smb.conf file
     :param provdir: Directory where the provision will be stored
-    :param logger: A `Logger`
+    :param logger: A Logger
     """
     if os.path.isdir(provdir):
         shutil.rmtree(provdir)
-    os.chdir(os.path.join(setup_dir,".."))
     os.mkdir(provdir)
     logger.info("Provision stored in %s", provdir)
-    provision(setup_dir, logger, session, creds, smbconf=smbconf,
+    provision(logger, session, creds, smbconf=smbconf,
             targetdir=provdir, samdb_fill=FILL_FULL, realm=names.realm,
             domain=names.domain, domainguid=names.domainguid,
             domainsid=str(names.domainsid), ntdsguid=names.ntdsguid,
             policyguid=names.policyid, policyguid_dc=names.policyid_dc,
-            hostname=names.netbiosname, hostip=None, hostip6=None,
+            hostname=names.netbiosname.lower(), hostip=None, hostip6=None,
             invocationid=names.invocation, adminpass=names.adminpass,
             krbtgtpass=None, machinepass=None, dnspass=None, root=None,
             nobody=None, wheel=None, users=None,
@@ -424,8 +420,9 @@ def identic_rename(ldbobj, dn):
     :param dn: DN of the object to manipulate
     """
     (before, after) = str(dn).split('=', 1)
-    ldbobj.rename(dn, ldb.Dn(ldbobj, "%s=foo%s" % (before, after)))
-    ldbobj.rename(ldb.Dn(ldbobj, "%s=foo%s" % (before, after)), dn)
+    # we need to use relax to avoid the subtree_rename constraints
+    ldbobj.rename(dn, ldb.Dn(ldbobj, "%s=foo%s" % (before, after)), ["relax:0"])
+    ldbobj.rename(ldb.Dn(ldbobj, "%s=foo%s" % (before, after)), dn, ["relax:0"])
 
 
 def chunck_acl(acl):
@@ -471,14 +468,17 @@ def chunck_sddl(sddl):
 
     return hash
 
+
 def get_diff_sddls(refsddl, cursddl):
     """Get the difference between 2 sddl
-       This function split the textual representation of ACL into smaller
-       chunck in order to not to report a simple permutation as a difference
 
-       :param refsddl: First sddl to compare
-       :param cursddl: Second sddl to compare
-       :return: A string that explain difference between sddls"""
+    This function split the textual representation of ACL into smaller
+    chunck in order to not to report a simple permutation as a difference
+
+    :param refsddl: First sddl to compare
+    :param cursddl: Second sddl to compare
+    :return: A string that explain difference between sddls
+    """
 
     txt = ""
     hash_new = chunck_sddl(cursddl)
@@ -536,9 +536,9 @@ def update_secrets(newsecrets_ldb, secrets_ldb, messagefunc):
     """Update secrets.ldb
 
     :param newsecrets_ldb: An LDB object that is connected to the secrets.ldb
-                            of the reference provision
+        of the reference provision
     :param secrets_ldb: An LDB object that is connected to the secrets.ldb
-                            of the updated provision
+        of the updated provision
     """
 
     messagefunc(SIMPLE, "update secrets.ldb")
@@ -587,9 +587,9 @@ def update_secrets(newsecrets_ldb, secrets_ldb, messagefunc):
         current = secrets_ldb.search(expression="dn=%s" % entry,
                                             base="", scope=SCOPE_SUBTREE)
         delta = secrets_ldb.msg_diff(empty, reference[0])
-        for att in hashAttrNotCopied.keys():
+        for att in hashAttrNotCopied:
             delta.remove(att)
-        messagefunc(CHANGE, "Entry %s is missing from secrets.ldb" % \
+        messagefunc(CHANGE, "Entry %s is missing from secrets.ldb" %
                     reference[0].dn)
         for att in delta:
             messagefunc(CHANGE, " Adding attribute %s" % att)
@@ -602,11 +602,11 @@ def update_secrets(newsecrets_ldb, secrets_ldb, messagefunc):
         current = secrets_ldb.search(expression="dn=%s" % entry, base="",
                                             scope=SCOPE_SUBTREE)
         delta = secrets_ldb.msg_diff(current[0], reference[0])
-        for att in hashAttrNotCopied.keys():
+        for att in hashAttrNotCopied:
             delta.remove(att)
         for att in delta:
             if att == "name":
-                messagefunc(CHANGE, "Found attribute name on  %s," \
+                messagefunc(CHANGE, "Found attribute name on  %s,"
                                     " must rename the DN" % (current[0].dn))
                 identic_rename(secrets_ldb, reference[0].dn)
             else:
@@ -618,26 +618,35 @@ def update_secrets(newsecrets_ldb, secrets_ldb, messagefunc):
         current = secrets_ldb.search(expression="dn=%s" % entry, base="",
                                             scope=SCOPE_SUBTREE)
         delta = secrets_ldb.msg_diff(current[0], reference[0])
-        for att in hashAttrNotCopied.keys():
+        for att in hashAttrNotCopied:
             delta.remove(att)
         for att in delta:
             if att == "msDS-KeyVersionNumber":
                 delta.remove(att)
             if att != "dn":
                 messagefunc(CHANGE,
-                            "Adding/Changing attribute %s to %s" % \
+                            "Adding/Changing attribute %s to %s" %
                             (att, current[0].dn))
 
         delta.dn = current[0].dn
         secrets_ldb.modify(delta)
 
+    res2 = secrets_ldb.search(expression="(samaccountname=dns)",
+                                scope=SCOPE_SUBTREE, attrs=["dn"])
+
+    if (len(res2) == 1):
+            messagefunc(SIMPLE, "Remove old dns account")
+            secrets_ldb.delete(res2[0]["dn"])
+
+
 def getOEMInfo(samdb, rootdn):
-    """Return OEM Information on the top level
-    Samba4 use to store version info in this field
+    """Return OEM Information on the top level Samba4 use to store version
+    info in this field
 
     :param samdb: An LDB object connect to sam.ldb
     :param rootdn: Root DN of the domain
-    :return: The content of the field oEMInformation (if any)"""
+    :return: The content of the field oEMInformation (if any)
+    """
     res = samdb.search(expression="(objectClass=*)", base=str(rootdn),
                             scope=SCOPE_BASE, attrs=["dn", "oEMInformation"])
     if len(res) > 0:
@@ -646,11 +655,13 @@ def getOEMInfo(samdb, rootdn):
     else:
         return ""
 
+
 def updateOEMInfo(samdb, rootdn):
     """Update the OEMinfo field to add information about upgrade
-       :param samdb: an LDB object connected to the sam DB
-       :param rootdn: The string representation of the root DN of
-                      the provision (ie. DC=...,DC=...)
+
+    :param samdb: an LDB object connected to the sam DB
+    :param rootdn: The string representation of the root DN of
+        the provision (ie. DC=...,DC=...)
     """
     res = samdb.search(expression="(objectClass=*)", base=rootdn,
                             scope=SCOPE_BASE, attrs=["dn", "oEMInformation"])
@@ -677,13 +688,13 @@ def update_gpo(paths, samdb, names, lp, message, force=0):
             try:
                 attribute = samba.xattr_tdb.wrap_getxattr(eadbname,
                                 paths.sysvol, xattr.XATTR_NTACL_NAME)
-            except:
+            except Exception:
                 attribute = samba.xattr_native.wrap_getxattr(paths.sysvol,
                                 xattr.XATTR_NTACL_NAME)
         else:
             attribute = samba.xattr_native.wrap_getxattr(paths.sysvol,
                                 xattr.XATTR_NTACL_NAME)
-    except:
+    except Exception:
        resetacls = True
 
     if force:
@@ -701,7 +712,7 @@ def update_gpo(paths, samdb, names, lp, message, force=0):
     # We always reinforce acls on GPO folder because they have to be in sync
     # with the one in DS
     try:
-        set_gpo_acl(paths.sysvol, names.dnsdomain, names.domainsid,
+        set_gpos_acl(paths.sysvol, names.dnsdomain, names.domainsid,
             names.domaindn, samdb, lp)
     except TypeError, e:
         message(ERROR, "Unable to set ACLs on policies related objects,"
@@ -732,40 +743,43 @@ def increment_calculated_keyversion_number(samdb, rootdn, hashDns):
                          scope=SCOPE_SUBTREE, attrs=["msDs-KeyVersionNumber"],
                          controls=["search_options:1:2"])
     done = 0
+    hashDone = {}
     if len(entry) == 0:
         raise ProvisioningError("Unable to find msDs-KeyVersionNumber")
     else:
         for e in entry:
             if hashDns.has_key(str(e.dn).lower()):
-                done = done + 1
                 val = e.get("msDs-KeyVersionNumber")
                 if not val:
-                    continue
+                    val = "0"
                 version = int(str(hashDns[str(e.dn).lower()]))
                 if int(str(val)) < version:
+                    done = done + 1
                     samdb.set_attribute_replmetadata_version(str(e.dn),
                                                               "unicodePwd",
-                                                              version)
-
-def delta_update_basesamdb(refsam, sam, creds, session, lp, message):
+                                                              version, True)
+def delta_update_basesamdb(refsampath, sampath, creds, session, lp, message):
     """Update the provision container db: sam.ldb
     This function is aimed for alpha9 and newer;
 
-    :param refsam: Path to the samdb in the reference provision
-    :param sam: Path to the samdb in the upgraded provision
+    :param refsampath: Path to the samdb in the reference provision
+    :param sampath: Path to the samdb in the upgraded provision
     :param creds: Credential used for openning LDB files
     :param session: Session to use for openning LDB files
-    :param lp: A loadparam object"""
+    :param lp: A loadparam object
+    :return: A msg_diff object with the difference between the @ATTRIBUTES
+             of the current provision and the reference provision
+    """
 
     message(SIMPLE,
             "Update base samdb by searching difference with reference one")
-    refsam = Ldb(refsam, session_info=session, credentials=creds,
+    refsam = Ldb(refsampath, session_info=session, credentials=creds,
                     lp=lp, options=["modules:"])
-    sam = Ldb(sam, session_info=session, credentials=creds, lp=lp,
+    sam = Ldb(sampath, session_info=session, credentials=creds, lp=lp,
                 options=["modules:"])
 
     empty = ldb.Message()
-
+    deltaattr = None
     reference = refsam.search(expression="")
 
     for refentry in reference:
@@ -781,6 +795,8 @@ def delta_update_basesamdb(refsam, sam, creds, session, lp, message):
             sam.add(delta)
         else:
             delta = sam.msg_diff(entry[0], refentry)
+            if str(refentry.dn) == "@ATTRIBUTES":
+                deltaattr = sam.msg_diff(refentry, entry[0])
             if str(refentry.dn) == "@PROVISION" and\
                 delta.get(samba.provision.LAST_PROVISION_USN_ATTRIBUTE):
                 delta.remove(samba.provision.LAST_PROVISION_USN_ATTRIBUTE)
@@ -788,15 +804,17 @@ def delta_update_basesamdb(refsam, sam, creds, session, lp, message):
                 delta.dn = refentry.dn
                 sam.modify(delta)
 
+    return deltaattr
+
 
 def construct_existor_expr(attrs):
     """Construct a exists or LDAP search expression.
-    ie (|(foo=*)(bar=*)
 
     :param attrs: List of attribute on which we want to create the search
-                  expression.
+        expression.
     :return: A string representing the expression, if attrs is empty an
-             empty string is returned"""
+        empty string is returned
+    """
     expr = ""
     if len(attrs) > 0:
         expr = "(|"
@@ -823,9 +841,10 @@ def update_machine_account_password(samdb, secrets_ldb, names):
 
         msg = ldb.Message(res[0].dn)
         machinepass = samba.generate_random_password(128, 255)
-        msg["userPassword"] = ldb.MessageElement(machinepass,
+        mputf16 = machinepass.encode('utf-16-le')
+        msg["clearTextPassword"] = ldb.MessageElement(mputf16,
                                                 ldb.FLAG_MOD_REPLACE,
-                                                "userPassword")
+                                                "clearTextPassword")
         samdb.modify(msg)
 
         res = samdb.search(expression=("samAccountName=%s$" % names.netbiosname),
@@ -846,6 +865,47 @@ def update_machine_account_password(samdb, secrets_ldb, names):
         raise ProvisioningError("Unable to find a Secure Channel"
                                 "of type SEC_CHAN_BDC")
 
+def update_dns_account_password(samdb, secrets_ldb, names):
+    """Update (change) the password of the dns both in the SAM db and in
+       secret one
+
+    :param samdb: An LDB object related to the sam.ldb file of a given provision
+    :param secrets_ldb: An LDB object related to the secrets.ldb file of a given
+                        provision
+    :param names: List of key provision parameters"""
+
+    expression = "samAccountName=dns-%s" % names.netbiosname
+    secrets_msg = secrets_ldb.search(expression=expression)
+    if len(secrets_msg) == 1:
+        res = samdb.search(expression=expression, attrs=[])
+        assert(len(res) == 1)
+
+        msg = ldb.Message(res[0].dn)
+        machinepass = samba.generate_random_password(128, 255)
+        mputf16 = machinepass.encode('utf-16-le')
+        msg["clearTextPassword"] = ldb.MessageElement(mputf16,
+                                                ldb.FLAG_MOD_REPLACE,
+                                                "clearTextPassword")
+
+        samdb.modify(msg)
+
+        res = samdb.search(expression=expression,
+                     attrs=["msDs-keyVersionNumber"])
+        assert(len(res) == 1)
+        kvno = str(res[0]["msDs-keyVersionNumber"])
+
+        msg = ldb.Message(secrets_msg[0].dn)
+        msg["secret"] = ldb.MessageElement(machinepass,
+                                                ldb.FLAG_MOD_REPLACE,
+                                                "secret")
+        msg["msDS-KeyVersionNumber"] = ldb.MessageElement(kvno,
+                                                ldb.FLAG_MOD_REPLACE,
+                                                "msDS-KeyVersionNumber")
+
+        secrets_ldb.modify(msg)
+    else:
+        raise ProvisioningError("Unable to find an object"
+                                " with %s" % expression )
 
 def search_constructed_attrs_stored(samdb, rootdn, attrs):
     """Search a given sam DB for calculated attributes that are
@@ -880,3 +940,14 @@ def search_constructed_attrs_stored(samdb, rootdn, attrs):
                     hashAtt[att][str(ent.dn).lower()] = str(ent[att])
 
     return hashAtt
+
+def int64range2str(value):
+    """Display the int64 range stored in value as xxx-yyy
+
+    :param value: The int64 range
+    :return: A string of the representation of the range
+    """
+
+    lvalue = long(value)
+    str = "%d-%d" % (lvalue&0xFFFFFFFF, lvalue>>32)
+    return str

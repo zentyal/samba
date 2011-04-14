@@ -18,6 +18,9 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "smbd/globals.h"
+#include "dbwrap.h"
 
 static struct db_context *connections_db_ctx(bool rw)
 {
@@ -31,7 +34,7 @@ static struct db_context *connections_db_ctx(bool rw)
 	open_flags = rw ? (O_RDWR|O_CREAT) : O_RDONLY;
 
 	db_ctx = db_open(NULL, lock_path("connections.tdb"), 0,
-			 TDB_CLEAR_IF_FIRST|TDB_DEFAULT, open_flags, 0644);
+			 TDB_CLEAR_IF_FIRST|TDB_INCOMPATIBLE_HASH|TDB_DEFAULT, open_flags, 0644);
 	return db_ctx;
 }
 
@@ -55,8 +58,8 @@ struct db_record *connections_fetch_entry(TALLOC_CTX *mem_ctx,
 	TDB_DATA key;
 
 	ZERO_STRUCT(ckey);
-	ckey.pid = procid_self();
-	ckey.cnum = conn ? conn->cnum : -1;
+	ckey.pid = sconn_server_id(conn->sconn);
+	ckey.cnum = conn->cnum;
 	strlcpy(ckey.name, name, sizeof(ckey.name));
 
 	key.dsize = sizeof(ckey);

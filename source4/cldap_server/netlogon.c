@@ -21,8 +21,8 @@
 */
 
 #include "includes.h"
-#include "lib/ldb/include/ldb.h"
-#include "lib/ldb/include/ldb_errors.h"
+#include <ldb.h>
+#include <ldb_errors.h>
 #include "lib/events/events.h"
 #include "smbd/service_task.h"
 #include "cldap_server/cldap_server.h"
@@ -36,6 +36,7 @@
 #include "lib/socket/netif.h"
 #include "param/param.h"
 #include "../lib/tsocket/tsocket.h"
+#include "libds/common/flag_mapping.h"
 
 /*
   fill in the cldap netlogon union for a given version
@@ -71,7 +72,7 @@ NTSTATUS fill_netlogon_samlogon_response(struct ldb_context *sam_ctx,
 	const char *pdc_ip;
 	struct ldb_dn *domain_dn = NULL;
 	struct interface *ifaces;
-	bool user_known;
+	bool user_known, am_rodc;
 	NTSTATUS status;
 
 	/* the domain parameter could have an optional trailing "." */
@@ -146,7 +147,7 @@ NTSTATUS fill_netlogon_samlogon_response(struct ldb_context *sam_ctx,
 			ret = ldb_search(sam_ctx, mem_ctx, &dom_res,
 						 NULL, LDB_SCOPE_SUBTREE, 
 						 dom_attrs, 
-						 "(&(objectCategory=DomainDNS)(objectSID=%s))", 
+						 "(&(objectCategory=DomainDNS)(objectSid=%s))",
 						 ldb_binary_encode(mem_ctx, sid_val));
 		}
 		
@@ -188,7 +189,7 @@ NTSTATUS fill_netlogon_samlogon_response(struct ldb_context *sam_ctx,
 	}
 
         if (dom_res == NULL) {
-		DEBUG(2,(__location__ ": Unable to get domain informations with no inputs\n"));
+		DEBUG(2,(__location__ ": Unable to get domain information with no inputs\n"));
 		return NT_STATUS_NO_SUCH_DOMAIN;
 	}
 
@@ -233,7 +234,7 @@ NTSTATUS fill_netlogon_samlogon_response(struct ldb_context *sam_ctx,
 		
 	server_type      = 
 		DS_SERVER_DS | DS_SERVER_TIMESERV |
-		DS_SERVER_CLOSEST | DS_SERVER_WRITABLE | 
+		DS_SERVER_CLOSEST |
 		DS_SERVER_GOOD_TIMESERV;
 
 #if 0
@@ -259,6 +260,10 @@ NTSTATUS fill_netlogon_samlogon_response(struct ldb_context *sam_ctx,
 
 	if (str_list_check(services, "kdc")) {
 		server_type |= DS_SERVER_KDC;
+	}
+
+	if (samdb_rodc(sam_ctx, &am_rodc) == LDB_SUCCESS && !am_rodc) {
+		server_type |= DS_SERVER_WRITABLE;
 	}
 
 #if 0

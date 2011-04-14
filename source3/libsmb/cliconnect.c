@@ -19,10 +19,15 @@
 */
 
 #include "includes.h"
+#include "popt_common.h"
 #include "../libcli/auth/libcli_auth.h"
 #include "../libcli/auth/spnego.h"
 #include "smb_krb5.h"
 #include "../libcli/auth/ntlmssp.h"
+#include "libads/kerberos_proto.h"
+#include "krb5_env.h"
+#include "async_smb.h"
+#include "libsmb/nmblib.h"
 
 static const struct {
 	int prot;
@@ -661,7 +666,7 @@ static struct tevent_req *cli_sesssetup_blob_send(TALLOC_CTX *mem_ctx,
 		MIN(cli->max_xmit - BASE_SESSSETUP_BLOB_PACKET_SIZE, 0xFFFF);
 
 	if (!cli_sesssetup_blob_next(state, &subreq)) {
-		tevent_req_nomem(NULL, req);
+		tevent_req_nterror(req, NT_STATUS_NO_MEMORY);
 		return tevent_req_post(req, ev);
 	}
 	tevent_req_set_callback(subreq, cli_sesssetup_blob_done, req);
@@ -1225,7 +1230,8 @@ ADS_STATUS cli_session_setup_spnego(struct cli_state *cli, const char *user,
 	 * negprot reply. It is WRONG to depend on the principal sent in the
 	 * negprot reply, but right now we do it. If we don't receive one,
 	 * we try to best guess, then fall back to NTLM.  */
-	if (!spnego_parse_negTokenInit(talloc_tos(), blob, OIDs, &principal, NULL)) {
+	if (!spnego_parse_negTokenInit(talloc_tos(), blob, OIDs, &principal, NULL) ||
+			OIDs[0] == NULL) {
 		data_blob_free(&blob);
 		return ADS_ERROR_NT(NT_STATUS_INVALID_PARAMETER);
 	}
@@ -1274,10 +1280,9 @@ ADS_STATUS cli_session_setup_spnego(struct cli_state *cli, const char *user,
 			}
 		}
 
-		/* If we get a bad principal, try to guess it if
-		   we have a valid host NetBIOS name.
+		/* We may not be allowed to use the server-supplied SPNEGO principal, or it may not have been supplied to us
 		 */
-		if (strequal(principal, ADS_IGNORE_PRINCIPAL)) {
+		if (!lp_client_use_spnego_principal() || strequal(principal, ADS_IGNORE_PRINCIPAL)) {
 			TALLOC_FREE(principal);
 		}
 
@@ -1286,24 +1291,11 @@ ADS_STATUS cli_session_setup_spnego(struct cli_state *cli, const char *user,
 			!strequal(STAR_SMBSERVER,
 				cli->desthost)) {
 			char *realm = NULL;
-			char *machine = NULL;
 			char *host = NULL;
-			DEBUG(3,("cli_session_setup_spnego: got a "
-				"bad server principal, trying to guess ...\n"));
+			DEBUG(3,("cli_session_setup_spnego: using target "
+				 "hostname not SPNEGO principal\n"));
 
 			host = strchr_m(cli->desthost, '.');
-			if (host) {
-				/* We had a '.' in the name. */
-				machine = SMB_STRNDUP(cli->desthost,
-					host - cli->desthost);
-			} else {
-				machine = SMB_STRDUP(cli->desthost);
-			}
-			if (machine == NULL) {
-				TALLOC_FREE(principal);
-				return ADS_ERROR_NT(NT_STATUS_NO_MEMORY);
-			}
-
 			if (dest_realm) {
 				realm = SMB_STRDUP(dest_realm);
 				strupper_m(realm);
@@ -1318,21 +1310,11 @@ ADS_STATUS cli_session_setup_spnego(struct cli_state *cli, const char *user,
 			}
 
 			if (realm && *realm) {
-				if (host) {
-					/* DNS name. */
-					principal = talloc_asprintf(talloc_tos(),
-							"cifs/%s@%s",
-							cli->desthost,
-							realm);
-				} else {
-					/* NetBIOS name, use machine account. */
-					principal = talloc_asprintf(talloc_tos(),
-							"%s$@%s",
-							machine,
-							realm);
-				}
+				principal = talloc_asprintf(talloc_tos(),
+							    "cifs/%s@%s",
+							    cli->desthost,
+							    realm);
 				if (!principal) {
-					SAFE_FREE(machine);
 					SAFE_FREE(realm);
 					return ADS_ERROR_NT(NT_STATUS_NO_MEMORY);
 				}
@@ -1340,7 +1322,6 @@ ADS_STATUS cli_session_setup_spnego(struct cli_state *cli, const char *user,
 					"server principal=%s\n",
 					principal ? principal : "<null>"));
 			}
-			SAFE_FREE(machine);
 			SAFE_FREE(realm);
 		}
 
@@ -1419,15 +1400,15 @@ NTSTATUS cli_session_setup(struct cli_state *cli,
 
 	if (cli->protocol < PROTOCOL_NT1) {
 		if (!lp_client_lanman_auth() && passlen != 24 && (*pass)) {
-			DEBUG(1, ("Server requested LM password but 'client lanman auth'"
-				  " is disabled\n"));
+			DEBUG(1, ("Server requested LM password but 'client lanman auth = no'"
+				  " or 'client ntlmv2 auth = yes'\n"));
 			return NT_STATUS_ACCESS_DENIED;
 		}
 
 		if ((cli->sec_mode & NEGOTIATE_SECURITY_CHALLENGE_RESPONSE) == 0 &&
 		    !lp_client_plaintext_auth() && (*pass)) {
-			DEBUG(1, ("Server requested plaintext password but "
-				  "'client plaintext auth' is disabled\n"));
+			DEBUG(1, ("Server requested LM password but 'client plaintext auth = no'"
+				  " or 'client ntlmv2 auth = yes'\n"));
 			return NT_STATUS_ACCESS_DENIED;
 		}
 
@@ -1453,8 +1434,8 @@ NTSTATUS cli_session_setup(struct cli_state *cli,
 
 	if ((cli->sec_mode & NEGOTIATE_SECURITY_CHALLENGE_RESPONSE) == 0) {
 		if (!lp_client_plaintext_auth() && (*pass)) {
-			DEBUG(1, ("Server requested plaintext password but "
-				  "'client plaintext auth' is disabled\n"));
+			DEBUG(1, ("Server requested LM password but 'client plaintext auth = no'"
+				  " or 'client ntlmv2 auth = yes'\n"));
 			return NT_STATUS_ACCESS_DENIED;
 		}
 		return cli_session_setup_plaintext(cli, user, pass, workgroup);
@@ -1495,7 +1476,7 @@ NTSTATUS cli_session_setup(struct cli_state *cli,
 
 struct cli_ulogoff_state {
 	struct cli_state *cli;
-	uint16_t vwv[2];
+	uint16_t vwv[3];
 };
 
 static void cli_ulogoff_done(struct tevent_req *subreq);
@@ -1629,7 +1610,7 @@ struct tevent_req *cli_tcon_andx_create(TALLOC_CTX *mem_ctx,
 		if (!lp_client_lanman_auth()) {
 			DEBUG(1, ("Server requested LANMAN password "
 				  "(share-level security) but "
-				  "'client lanman auth' is disabled\n"));
+				  "'client lanman auth = no' or 'client ntlmv2 auth = yes'\n"));
 			goto access_denied;
 		}
 
@@ -1645,8 +1626,8 @@ struct tevent_req *cli_tcon_andx_create(TALLOC_CTX *mem_ctx,
 		   == 0) {
 			if (!lp_client_plaintext_auth() && (*pass)) {
 				DEBUG(1, ("Server requested plaintext "
-					  "password but 'client plaintext "
-					  "auth' is disabled\n"));
+					  "password but "
+					  "'client lanman auth = no' or 'client ntlmv2 auth = yes'\n"));
 				goto access_denied;
 			}
 
@@ -1933,41 +1914,6 @@ fail:
  Send a negprot command.
 ****************************************************************************/
 
-void cli_negprot_sendsync(struct cli_state *cli)
-{
-	char *p;
-	int numprots;
-
-	if (cli->protocol < PROTOCOL_NT1)
-		cli->use_spnego = False;
-
-	memset(cli->outbuf,'\0',smb_size);
-
-	/* setup the protocol strings */
-	cli_set_message(cli->outbuf,0,0,True);
-
-	p = smb_buf(cli->outbuf);
-	for (numprots=0; numprots < ARRAY_SIZE(prots); numprots++) {
-		if (prots[numprots].prot > cli->protocol) {
-			break;
-		}
-		*p++ = 2;
-		p += clistr_push(cli, p, prots[numprots].name, -1, STR_TERMINATE);
-	}
-
-	SCVAL(cli->outbuf,smb_com,SMBnegprot);
-	cli_setup_bcc(cli, p);
-	cli_setup_packet(cli);
-
-	SCVAL(smb_buf(cli->outbuf),0,2);
-
-	cli_send_smb(cli);
-}
-
-/****************************************************************************
- Send a negprot command.
-****************************************************************************/
-
 struct cli_negprot_state {
 	struct cli_state *cli;
 };
@@ -2132,6 +2078,11 @@ static void cli_negprot_done(struct tevent_req *subreq)
 			SAFE_FREE(cli->inbuf);
 			cli->outbuf = (char *)SMB_MALLOC(CLI_SAMBA_MAX_LARGE_READX_SIZE+LARGE_WRITEX_HDR_SIZE+SAFETY_MARGIN);
 			cli->inbuf = (char *)SMB_MALLOC(CLI_SAMBA_MAX_LARGE_READX_SIZE+LARGE_WRITEX_HDR_SIZE+SAFETY_MARGIN);
+			if (!cli->outbuf || !cli->inbuf) {
+				tevent_req_nterror(req,
+						NT_STATUS_NO_MEMORY);
+				return;
+			}
 			cli->bufsize = CLI_SAMBA_MAX_LARGE_READX_SIZE + LARGE_WRITEX_HDR_SIZE;
 		}
 
@@ -2144,8 +2095,8 @@ static void cli_negprot_done(struct tevent_req *subreq)
 		cli->serverzone = SVALS(vwv + 10, 0);
 		cli->serverzone *= 60;
 		/* this time is converted to GMT by make_unix_date */
-		cli->servertime = cli_make_unix_date(
-			cli, (char *)(vwv + 8));
+		cli->servertime = make_unix_date(
+			(char *)(vwv + 8), cli->serverzone);
 		cli->readbraw_supported = ((SVAL(vwv + 5, 0) & 0x1) != 0);
 		cli->writebraw_supported = ((SVAL(vwv + 5, 0) & 0x2) != 0);
 		cli->secblob = data_blob(bytes, num_bytes);
@@ -2220,6 +2171,7 @@ bool cli_session_request(struct cli_state *cli,
 {
 	char *p;
 	int len = 4;
+	int namelen = 0;
 	char *tmp;
 
 	/* 445 doesn't have session request */
@@ -2238,8 +2190,11 @@ bool cli_session_request(struct cli_state *cli,
 	}
 
 	p = cli->outbuf+len;
-	memcpy(p, tmp, name_len(tmp));
-	len += name_len(tmp);
+	namelen = name_len((unsigned char *)tmp, talloc_get_size(tmp));
+	if (namelen > 0) {
+		memcpy(p, tmp, namelen);
+		len += namelen;
+	}
 	TALLOC_FREE(tmp);
 
 	/* and my name */
@@ -2251,8 +2206,11 @@ bool cli_session_request(struct cli_state *cli,
 	}
 
 	p = cli->outbuf+len;
-	memcpy(p, tmp, name_len(tmp));
-	len += name_len(tmp);
+	namelen = name_len((unsigned char *)tmp, talloc_get_size(tmp));
+	if (namelen > 0) {
+		memcpy(p, tmp, namelen);
+		len += namelen;
+	}
 	TALLOC_FREE(tmp);
 
 	/* send a session request (RFC 1002) */
@@ -2441,7 +2399,7 @@ NTSTATUS cli_connect(struct cli_state *cli,
 		*p = 0;
 	}
 
-	if (!dest_ss || is_zero_addr((struct sockaddr *)dest_ss)) {
+	if (!dest_ss || is_zero_addr(dest_ss)) {
 		NTSTATUS status =resolve_name_list(frame,
 					cli->desthost,
 					name_type,
@@ -2506,24 +2464,18 @@ NTSTATUS cli_connect(struct cli_state *cli,
    @param dest_host The netbios name of the remote host
    @param dest_ss (optional) The the destination IP, NULL for name based lookup
    @param port (optional) The destination port (0 for default)
-   @param retry bool. Did this connection fail with a retryable error ?
-
 */
 NTSTATUS cli_start_connection(struct cli_state **output_cli, 
 			      const char *my_name, 
 			      const char *dest_host, 
 			      struct sockaddr_storage *dest_ss, int port,
-			      int signing_state, int flags,
-			      bool *retry) 
+			      int signing_state, int flags)
 {
 	NTSTATUS nt_status;
 	struct nmb_name calling;
 	struct nmb_name called;
 	struct cli_state *cli;
 	struct sockaddr_storage ss;
-
-	if (retry)
-		*retry = False;
 
 	if (!my_name) 
 		my_name = global_myname();
@@ -2557,9 +2509,6 @@ again:
 		cli_shutdown(cli);
 		return nt_status;
 	}
-
-	if (retry)
-		*retry = True;
 
 	if (!cli_session_request(cli, &calling, &called)) {
 		char *p;
@@ -2612,7 +2561,6 @@ again:
    @param user Username, unix string
    @param domain User's domain
    @param password User's password, unencrypted unix string.
-   @param retry bool. Did this connection fail with a retryable error ?
 */
 
 NTSTATUS cli_full_connection(struct cli_state **output_cli, 
@@ -2622,8 +2570,7 @@ NTSTATUS cli_full_connection(struct cli_state **output_cli,
 			     const char *service, const char *service_type,
 			     const char *user, const char *domain, 
 			     const char *password, int flags,
-			     int signing_state,
-			     bool *retry) 
+			     int signing_state)
 {
 	NTSTATUS nt_status;
 	struct cli_state *cli = NULL;
@@ -2637,7 +2584,7 @@ NTSTATUS cli_full_connection(struct cli_state **output_cli,
 
 	nt_status = cli_start_connection(&cli, my_name, dest_host,
 					 dest_ss, port, signing_state,
-					 flags, retry);
+					 flags);
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		return nt_status;
@@ -2762,7 +2709,10 @@ NTSTATUS cli_raw_tcon(struct cli_state *cli,
 		      const char *service, const char *pass, const char *dev,
 		      uint16 *max_xmit, uint16 *tid)
 {
-	char *p;
+	struct tevent_req *req;
+	uint16_t *ret_vwv;
+	uint8_t *bytes;
+	NTSTATUS status;
 
 	if (!lp_client_plaintext_auth() && (*pass)) {
 		DEBUG(1, ("Server requested plaintext password but 'client "
@@ -2770,31 +2720,26 @@ NTSTATUS cli_raw_tcon(struct cli_state *cli,
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
-	memset(cli->outbuf,'\0',smb_size);
-	memset(cli->inbuf,'\0',smb_size);
+	bytes = talloc_array(talloc_tos(), uint8_t, 0);
+	bytes = smb_bytes_push_bytes(bytes, 4, NULL, 0);
+	bytes = smb_bytes_push_str(bytes, cli_ucs2(cli),
+				   service, strlen(service)+1, NULL);
+	bytes = smb_bytes_push_bytes(bytes, 4, NULL, 0);
+	bytes = smb_bytes_push_str(bytes, cli_ucs2(cli),
+				   pass, strlen(pass)+1, NULL);
+	bytes = smb_bytes_push_bytes(bytes, 4, NULL, 0);
+	bytes = smb_bytes_push_str(bytes, cli_ucs2(cli),
+				   dev, strlen(dev)+1, NULL);
 
-	cli_set_message(cli->outbuf, 0, 0, True);
-	SCVAL(cli->outbuf,smb_com,SMBtcon);
-	cli_setup_packet(cli);
-
-	p = smb_buf(cli->outbuf);
-	*p++ = 4; p += clistr_push(cli, p, service, -1, STR_TERMINATE | STR_NOALIGN);
-	*p++ = 4; p += clistr_push(cli, p, pass, -1, STR_TERMINATE | STR_NOALIGN);
-	*p++ = 4; p += clistr_push(cli, p, dev, -1, STR_TERMINATE | STR_NOALIGN);
-
-	cli_setup_bcc(cli, p);
-
-	cli_send_smb(cli);
-	if (!cli_receive_smb(cli)) {
-		return NT_STATUS_UNEXPECTED_NETWORK_ERROR;
+	status = cli_smb(talloc_tos(), cli, SMBtcon, 0, 0, NULL,
+			 talloc_get_size(bytes), bytes, &req,
+			 2, NULL, &ret_vwv, NULL, NULL);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
 	}
 
-	if (cli_is_error(cli)) {
-		return cli_nt_error(cli);
-	}
-
-	*max_xmit = SVAL(cli->inbuf, smb_vwv0);
-	*tid = SVAL(cli->inbuf, smb_vwv1);
+	*max_xmit = SVAL(ret_vwv + 0, 0);
+	*tid = SVAL(ret_vwv + 1, 0);
 
 	return NT_STATUS_OK;
 }
@@ -2818,7 +2763,7 @@ struct cli_state *get_ipc_connect(char *server,
 					lp_workgroup(),
 					user_info->password ? user_info->password : "",
 					flags,
-					Undefined, NULL);
+					Undefined);
 
 	if (NT_STATUS_IS_OK(nt_status)) {
 		return cli;

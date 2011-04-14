@@ -24,9 +24,8 @@
 */
 
 #include <Python.h>
-#include "replace.h"
+#include "ldb.h"
 #include "pyldb.h"
-#include <ldb.h>
 
 static PyObject *ldb_module = NULL;
 
@@ -41,6 +40,26 @@ typedef intargfunc ssizeargfunc;
 #define Py_RETURN_NONE return Py_INCREF(Py_None), Py_None
 #endif
 
+
+/**
+ * Find out PyTypeObject in ldb module for a given typename
+ */
+static PyTypeObject * PyLdb_GetPyType(const char *typename)
+{
+	PyObject *py_obj = NULL;
+
+	if (ldb_module == NULL) {
+		ldb_module = PyImport_ImportModule("ldb");
+		if (ldb_module == NULL) {
+			return NULL;
+		}
+	}
+
+	py_obj = PyObject_GetAttrString(ldb_module, typename);
+
+	return (PyTypeObject*)py_obj;
+}
+
 /**
  * Obtain a ldb DN from a Python object.
  *
@@ -53,7 +72,7 @@ bool PyObject_AsDn(TALLOC_CTX *mem_ctx, PyObject *object,
 		   struct ldb_context *ldb_ctx, struct ldb_dn **dn)
 {
 	struct ldb_dn *odn;
-	PyObject *PyLdb_Dn_Type;
+	PyTypeObject *PyLdb_Dn_Type;
 
 	if (ldb_ctx != NULL && PyString_Check(object)) {
 		odn = ldb_dn_new(mem_ctx, ldb_ctx, PyString_AsString(object));
@@ -61,21 +80,40 @@ bool PyObject_AsDn(TALLOC_CTX *mem_ctx, PyObject *object,
 		return true;
 	}
 
-	if (ldb_module == NULL) {
-		ldb_module = PyImport_ImportModule("ldb");
-		if (ldb_module == NULL)
-			return false;
+	PyLdb_Dn_Type = PyLdb_GetPyType("Dn");
+	if (PyLdb_Dn_Type == NULL) {
+		return false;
 	}
 
-	PyLdb_Dn_Type = PyObject_GetAttrString(ldb_module, "Dn");
-	if (PyLdb_Dn_Type == NULL)
-		return false;
-
-	if (PyObject_TypeCheck(object, (PyTypeObject *) PyLdb_Dn_Type)) {
+	if (PyObject_TypeCheck(object, PyLdb_Dn_Type)) {
 		*dn = PyLdbDn_AsDn(object);
 		return true;
 	}
 
 	PyErr_SetString(PyExc_TypeError, "Expected DN");
 	return false;
+}
+
+PyObject *PyLdbDn_FromDn(struct ldb_dn *dn)
+{
+	PyLdbDnObject *py_ret;
+	PyTypeObject *PyLdb_Dn_Type;
+
+	if (dn == NULL) {
+		Py_RETURN_NONE;
+	}
+
+	PyLdb_Dn_Type = PyLdb_GetPyType("Dn");
+	if (PyLdb_Dn_Type == NULL) {
+		return NULL;
+	}
+
+	py_ret = (PyLdbDnObject *)PyLdb_Dn_Type->tp_alloc(PyLdb_Dn_Type, 0);
+	if (py_ret == NULL) {
+		PyErr_NoMemory();
+		return NULL;
+	}
+	py_ret->mem_ctx = talloc_new(NULL);
+	py_ret->dn = talloc_reference(py_ret->mem_ctx, dn);
+	return (PyObject *)py_ret;
 }

@@ -103,31 +103,29 @@ PAC isn't available, and for tokenGroups in the DSDB stack.
 
  Supply either a principal or a DN
 ****************************************************************************/
-_PUBLIC_ NTSTATUS auth_get_server_info_principal(TALLOC_CTX *mem_ctx, 
+_PUBLIC_ NTSTATUS auth_get_user_info_dc_principal(TALLOC_CTX *mem_ctx,
 						 struct auth_context *auth_ctx,
 						 const char *principal,
 						 struct ldb_dn *user_dn,
-						 struct auth_serversupplied_info **server_info)
+						 struct auth_user_info_dc **user_info_dc)
 {
 	NTSTATUS nt_status;
 	struct auth_method_context *method;
 
 	for (method = auth_ctx->methods; method; method = method->next) {
-		if (!method->ops->get_server_info_principal) {
+		if (!method->ops->get_user_info_dc_principal) {
 			continue;
 		}
 
-		nt_status = method->ops->get_server_info_principal(mem_ctx, auth_ctx, principal, user_dn, server_info);
+		nt_status = method->ops->get_user_info_dc_principal(mem_ctx, auth_ctx, principal, user_dn, user_info_dc);
 		if (NT_STATUS_EQUAL(nt_status, NT_STATUS_NOT_IMPLEMENTED)) {
 			continue;
 		}
 
-		NT_STATUS_NOT_OK_RETURN(nt_status);
-
-		break;
+		return nt_status;
 	}
 
-	return NT_STATUS_OK;
+	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
 /**
@@ -135,9 +133,9 @@ _PUBLIC_ NTSTATUS auth_get_server_info_principal(TALLOC_CTX *mem_ctx,
  * (sync version)
  *
  * Check a user's password, as given in the user_info struct and return various
- * interesting details in the server_info struct.
+ * interesting details in the user_info_dc struct.
  *
- * The return value takes precedence over the contents of the server_info 
+ * The return value takes precedence over the contents of the user_info_dc
  * struct.  When the return is other than NT_STATUS_OK the contents 
  * of that structure is undefined.
  *
@@ -148,9 +146,9 @@ _PUBLIC_ NTSTATUS auth_get_server_info_principal(TALLOC_CTX *mem_ctx,
  *
  * @param user_info Contains the user supplied components, including the passwords.
  *
- * @param mem_ctx The parent memory context for the server_info structure
+ * @param mem_ctx The parent memory context for the user_info_dc structure
  *
- * @param server_info If successful, contains information about the authentication, 
+ * @param user_info_dc If successful, contains information about the authentication,
  *                    including a SAM_ACCOUNT struct describing the user.
  *
  * @return An NTSTATUS with NT_STATUS_OK or an appropriate error.
@@ -160,7 +158,7 @@ _PUBLIC_ NTSTATUS auth_get_server_info_principal(TALLOC_CTX *mem_ctx,
 _PUBLIC_ NTSTATUS auth_check_password(struct auth_context *auth_ctx,
 			     TALLOC_CTX *mem_ctx,
 			     const struct auth_usersupplied_info *user_info, 
-			     struct auth_serversupplied_info **server_info)
+			     struct auth_user_info_dc **user_info_dc)
 {
 	struct tevent_req *subreq;
 	struct tevent_context *ev;
@@ -183,7 +181,7 @@ _PUBLIC_ NTSTATUS auth_check_password(struct auth_context *auth_ctx,
 		return NT_STATUS_INTERNAL_ERROR;
 	}
 
-	status = auth_check_password_recv(subreq, mem_ctx, server_info);
+	status = auth_check_password_recv(subreq, mem_ctx, user_info_dc);
 	TALLOC_FREE(subreq);
 
 	return status;
@@ -192,7 +190,7 @@ _PUBLIC_ NTSTATUS auth_check_password(struct auth_context *auth_ctx,
 struct auth_check_password_state {
 	struct auth_context *auth_ctx;
 	const struct auth_usersupplied_info *user_info;
-	struct auth_serversupplied_info *server_info;
+	struct auth_user_info_dc *user_info_dc;
 	struct auth_method_context *method;
 };
 
@@ -204,9 +202,9 @@ static void auth_check_password_async_trigger(struct tevent_context *ev,
  * async send hook
  *
  * Check a user's password, as given in the user_info struct and return various
- * interesting details in the server_info struct.
+ * interesting details in the user_info_dc struct.
  *
- * The return value takes precedence over the contents of the server_info 
+ * The return value takes precedence over the contents of the user_info_dc
  * struct.  When the return is other than NT_STATUS_OK the contents 
  * of that structure is undefined.
  *
@@ -234,7 +232,6 @@ _PUBLIC_ struct tevent_req *auth_check_password_send(TALLOC_CTX *mem_ctx,
 	struct auth_check_password_state *state;
 	/* if all the modules say 'not for me' this is reasonable */
 	NTSTATUS nt_status;
-	struct auth_method_context *method;
 	uint8_t chal[8];
 	struct auth_usersupplied_info *user_info_tmp;
 	struct tevent_immediate *im;
@@ -252,7 +249,6 @@ _PUBLIC_ struct tevent_req *auth_check_password_send(TALLOC_CTX *mem_ctx,
 
 	state->auth_ctx		= auth_ctx;
 	state->user_info	= user_info;
-	state->method		= NULL;
 
 	if (!user_info->mapped_state) {
 		nt_status = map_user_info(req, lpcfg_workgroup(auth_ctx->lp_ctx),
@@ -296,35 +292,11 @@ _PUBLIC_ struct tevent_req *auth_check_password_send(TALLOC_CTX *mem_ctx,
 		return tevent_req_post(req, ev);
 	}
 
-	for (method = auth_ctx->methods; method; method = method->next) {
-		NTSTATUS result;
-
-		/* check if the module wants to chek the password */
-		result = method->ops->want_check(method, req, user_info);
-		if (NT_STATUS_EQUAL(result, NT_STATUS_NOT_IMPLEMENTED)) {
-			DEBUG(11,("auth_check_password_send: "
-				  "%s had nothing to say\n",
-				  method->ops->name));
-			continue;
-		}
-
-		state->method = method;
-
-		if (tevent_req_nterror(req, result)) {
-			return tevent_req_post(req, ev);
-		}
-
-		tevent_schedule_immediate(im,
-					  auth_ctx->event_ctx,
-					  auth_check_password_async_trigger,
-					  req);
-
-		return req;
-	}
-
-	/* If all the modules say 'not for me', then this is reasonable */
-	tevent_req_nterror(req, NT_STATUS_NO_SUCH_USER);
-	return tevent_req_post(req, ev);
+	tevent_schedule_immediate(im,
+				  auth_ctx->event_ctx,
+				  auth_check_password_async_trigger,
+				  req);
+	return req;
 }
 
 static void auth_check_password_async_trigger(struct tevent_context *ev,
@@ -336,11 +308,45 @@ static void auth_check_password_async_trigger(struct tevent_context *ev,
 	struct auth_check_password_state *state =
 		tevent_req_data(req, struct auth_check_password_state);
 	NTSTATUS status;
+	struct auth_method_context *method;
 
-	status = state->method->ops->check_password(state->method,
-						    state,
-						    state->user_info,
-						    &state->server_info);
+	status = NT_STATUS_OK;
+
+	for (method=state->auth_ctx->methods; method; method = method->next) {
+
+		/* we fill in state->method here so debug messages in
+		   the callers know which method failed */
+		state->method = method;
+
+		/* check if the module wants to check the password */
+		status = method->ops->want_check(method, req, state->user_info);
+		if (NT_STATUS_EQUAL(status, NT_STATUS_NOT_IMPLEMENTED)) {
+			DEBUG(11,("auth_check_password_send: "
+				  "%s had nothing to say\n",
+				  method->ops->name));
+			continue;
+		}
+
+		if (tevent_req_nterror(req, status)) {
+			return;
+		}
+
+		status = method->ops->check_password(method,
+						     state,
+						     state->user_info,
+						     &state->user_info_dc);
+		if (!NT_STATUS_EQUAL(status, NT_STATUS_NOT_IMPLEMENTED)) {
+			/* the backend has handled the request */
+			break;
+		}
+	}
+
+	if (NT_STATUS_EQUAL(status, NT_STATUS_NOT_IMPLEMENTED)) {
+		/* don't expose the NT_STATUS_NOT_IMPLEMENTED
+		   internals */
+		status = NT_STATUS_NO_SUCH_USER;
+	}
+
 	if (tevent_req_nterror(req, status)) {
 		return;
 	}
@@ -352,16 +358,16 @@ static void auth_check_password_async_trigger(struct tevent_context *ev,
  * Check a user's Plaintext, LM or NTLM password.
  * async receive function
  *
- * The return value takes precedence over the contents of the server_info 
+ * The return value takes precedence over the contents of the user_info_dc
  * struct.  When the return is other than NT_STATUS_OK the contents 
  * of that structure is undefined.
  *
  *
  * @param req The async request state
  *
- * @param mem_ctx The parent memory context for the server_info structure
+ * @param mem_ctx The parent memory context for the user_info_dc structure
  *
- * @param server_info If successful, contains information about the authentication, 
+ * @param user_info_dc If successful, contains information about the authentication,
  *                    including a SAM_ACCOUNT struct describing the user.
  *
  * @return An NTSTATUS with NT_STATUS_OK or an appropriate error.
@@ -370,7 +376,7 @@ static void auth_check_password_async_trigger(struct tevent_context *ev,
 
 _PUBLIC_ NTSTATUS auth_check_password_recv(struct tevent_req *req,
 				  TALLOC_CTX *mem_ctx,
-				  struct auth_serversupplied_info **server_info)
+				  struct auth_user_info_dc **user_info_dc)
 {
 	struct auth_check_password_state *state =
 		tevent_req_data(req, struct auth_check_password_state);
@@ -378,7 +384,7 @@ _PUBLIC_ NTSTATUS auth_check_password_recv(struct tevent_req *req,
 
 	if (tevent_req_is_nterror(req, &status)) {
 		DEBUG(2,("auth_check_password_recv: "
-			 "%s authentication for user [%s\\%s]"
+			 "%s authentication for user [%s\\%s] "
 			 "FAILED with error %s\n",
 			 (state->method ? state->method->ops->name : "NO_METHOD"),
 			 state->user_info->mapped.domain_name,
@@ -391,13 +397,26 @@ _PUBLIC_ NTSTATUS auth_check_password_recv(struct tevent_req *req,
 	DEBUG(5,("auth_check_password_recv: "
 		 "%s authentication for user [%s\\%s] succeeded\n",
 		 state->method->ops->name,
-		 state->server_info->domain_name,
-		 state->server_info->account_name));
+		 state->user_info_dc->info->domain_name,
+		 state->user_info_dc->info->account_name));
 
-	*server_info = talloc_move(mem_ctx, &state->server_info);
+	*user_info_dc = talloc_move(mem_ctx, &state->user_info_dc);
 
 	tevent_req_received(req);
 	return NT_STATUS_OK;
+}
+
+/* Wrapper because we don't want to expose all callers to needing to
+ * know that session_info is generated from the main ldb */
+static NTSTATUS auth_generate_session_info_wrapper(TALLOC_CTX *mem_ctx,
+						   struct auth_context *auth_context,
+						   struct auth_user_info_dc *user_info_dc,
+						   uint32_t session_info_flags,
+						   struct auth_session_info **session_info)
+{
+	return auth_generate_session_info(mem_ctx, auth_context->lp_ctx,
+					  auth_context->sam_ctx, user_info_dc,
+					  session_info_flags, session_info);
 }
 
 /***************************************************************************
@@ -414,12 +433,7 @@ _PUBLIC_ NTSTATUS auth_context_create_methods(TALLOC_CTX *mem_ctx, const char **
 	int i;
 	struct auth_context *ctx;
 
-	auth_init();
-
-	if (!methods) {
-		DEBUG(0,("auth_context_create: No auth method list!?\n"));
-		return NT_STATUS_INTERNAL_ERROR;
-	}
+	auth4_init();
 
 	if (!ev) {
 		DEBUG(0,("auth_context_create: called with out event context\n"));
@@ -439,10 +453,10 @@ _PUBLIC_ NTSTATUS auth_context_create_methods(TALLOC_CTX *mem_ctx, const char **
 	if (sam_ctx) {
 		ctx->sam_ctx = sam_ctx;
 	} else {
-		ctx->sam_ctx = samdb_connect(ctx, ctx->event_ctx, ctx->lp_ctx, system_session(ctx->lp_ctx));
+		ctx->sam_ctx = samdb_connect(ctx, ctx->event_ctx, ctx->lp_ctx, system_session(ctx->lp_ctx), 0);
 	}
 
-	for (i=0; methods[i] ; i++) {
+	for (i=0; methods && methods[i] ; i++) {
 		struct auth_method_context *method;
 
 		method = talloc(ctx, struct auth_method_context);
@@ -459,23 +473,19 @@ _PUBLIC_ NTSTATUS auth_context_create_methods(TALLOC_CTX *mem_ctx, const char **
 		DLIST_ADD_END(ctx->methods, method, struct auth_method_context *);
 	}
 
-	if (!ctx->methods) {
-		return NT_STATUS_INTERNAL_ERROR;
-	}
-
 	ctx->check_password = auth_check_password;
 	ctx->get_challenge = auth_get_challenge;
 	ctx->set_challenge = auth_context_set_challenge;
 	ctx->challenge_may_be_modified = auth_challenge_may_be_modified;
-	ctx->get_server_info_principal = auth_get_server_info_principal;
-	ctx->generate_session_info = auth_generate_session_info;
+	ctx->get_user_info_dc_principal = auth_get_user_info_dc_principal;
+	ctx->generate_session_info = auth_generate_session_info_wrapper;
 
 	*auth_ctx = ctx;
 
 	return NT_STATUS_OK;
 }
 
-static const char **auth_methods_from_lp(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx)
+const char **auth_methods_from_lp(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx)
 {
 	const char **auth_methods = NULL;
 	switch (lpcfg_server_role(lp_ctx)) {
@@ -615,23 +625,18 @@ const struct auth_critical_sizes *auth_interface_version(void)
 		sizeof(struct auth_method_context),
 		sizeof(struct auth_context),
 		sizeof(struct auth_usersupplied_info),
-		sizeof(struct auth_serversupplied_info)
+		sizeof(struct auth_user_info_dc)
 	};
 
 	return &critical_sizes;
 }
 
-_PUBLIC_ NTSTATUS auth_init(void)
+_PUBLIC_ NTSTATUS auth4_init(void)
 {
 	static bool initialized = false;
-	extern NTSTATUS auth_developer_init(void);
-	extern NTSTATUS auth_winbind_init(void);
-	extern NTSTATUS auth_anonymous_init(void);
-	extern NTSTATUS auth_unix_init(void);
-	extern NTSTATUS auth_sam_init(void);
-	extern NTSTATUS auth_server_init(void);
-
-	init_module_fn static_init[] = { STATIC_auth_MODULES };
+#define _MODULE_PROTO(init) extern NTSTATUS init(void);
+	STATIC_auth4_MODULES_PROTO;
+	init_module_fn static_init[] = { STATIC_auth4_MODULES };
 	
 	if (initialized) return NT_STATUS_OK;
 	initialized = true;

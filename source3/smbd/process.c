@@ -3,39 +3,34 @@
    process incoming packets - main loop
    Copyright (C) Andrew Tridgell 1992-1998
    Copyright (C) Volker Lendecke 2005-2007
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
-#include "../librpc/gen_ndr/srv_dfs.h"
-#include "../librpc/gen_ndr/srv_dssetup.h"
-#include "../librpc/gen_ndr/srv_echo.h"
-#include "../librpc/gen_ndr/srv_eventlog.h"
-#include "../librpc/gen_ndr/srv_initshutdown.h"
-#include "../librpc/gen_ndr/srv_lsa.h"
-#include "../librpc/gen_ndr/srv_netlogon.h"
-#include "../librpc/gen_ndr/srv_ntsvcs.h"
-#include "../librpc/gen_ndr/srv_samr.h"
-#include "../librpc/gen_ndr/srv_spoolss.h"
-#include "../librpc/gen_ndr/srv_srvsvc.h"
-#include "../librpc/gen_ndr/srv_svcctl.h"
-#include "../librpc/gen_ndr/srv_winreg.h"
-#include "../librpc/gen_ndr/srv_wkssvc.h"
-#include "librpc/gen_ndr/messaging.h"
-#include "printing/nt_printing_migrate.h"
+#include "librpc/gen_ndr/netlogon.h"
+#include "../lib/async_req/async_sock.h"
+#include "ctdbd_conn.h"
+#include "../lib/util/select.h"
+#include "printing/pcap.h"
+#include "system/select.h"
+#include "passdb.h"
+#include "auth.h"
+#include "messages.h"
 
 extern bool global_machine_password_needs_changing;
 
@@ -59,9 +54,14 @@ static bool smbd_lock_socket_internal(struct smbd_server_connection *sconn)
 
 	DEBUG(10,("pid[%d] wait for socket lock\n", (int)sys_getpid()));
 
-	ok = fcntl_lock(sconn->smb1.echo_handler.socket_lock_fd,
+	do {
+		ok = fcntl_lock(
+			sconn->smb1.echo_handler.socket_lock_fd,
 			SMB_F_SETLKW, 0, 0, F_WRLCK);
+	} while (!ok && (errno == EINTR));
+
 	if (!ok) {
+		DEBUG(1, ("fcntl_lock failed: %s\n", strerror(errno)));
 		return false;
 	}
 
@@ -91,9 +91,14 @@ static bool smbd_unlock_socket_internal(struct smbd_server_connection *sconn)
 		return true;
 	}
 
-	ok = fcntl_lock(sconn->smb1.echo_handler.socket_lock_fd,
+	do {
+		ok = fcntl_lock(
+			sconn->smb1.echo_handler.socket_lock_fd,
 			SMB_F_SETLKW, 0, 0, F_UNLCK);
+	} while (!ok && (errno == EINTR));
+
 	if (!ok) {
+		DEBUG(1, ("fcntl_lock failed: %s\n", strerror(errno)));
 		return false;
 	}
 
@@ -115,7 +120,7 @@ void smbd_unlock_socket(struct smbd_server_connection *sconn)
  Send an smb to a fd.
 ****************************************************************************/
 
-bool srv_send_smb(int fd, char *buffer,
+bool srv_send_smb(struct smbd_server_connection *sconn, char *buffer,
 		  bool do_signing, uint32_t seqnum,
 		  bool do_encrypt,
 		  struct smb_perfcount_data *pcd)
@@ -125,11 +130,11 @@ bool srv_send_smb(int fd, char *buffer,
 	ssize_t ret;
 	char *buf_out = buffer;
 
-	smbd_lock_socket(smbd_server_conn);
+	smbd_lock_socket(sconn);
 
 	if (do_signing) {
 		/* Sign the outgoing packet if required. */
-		srv_calculate_sign_mac(smbd_server_conn, buf_out, seqnum);
+		srv_calculate_sign_mac(sconn, buf_out, seqnum);
 	}
 
 	if (do_encrypt) {
@@ -144,10 +149,19 @@ bool srv_send_smb(int fd, char *buffer,
 
 	len = smb_len(buf_out) + 4;
 
-	ret = write_data(fd,buf_out+nwritten,len - nwritten);
+	ret = write_data(sconn->sock, buf_out+nwritten, len - nwritten);
 	if (ret <= 0) {
-		DEBUG(0,("pid[%d] Error writing %d bytes to client. %d. (%s)\n",
-			(int)sys_getpid(), (int)len,(int)ret, strerror(errno) ));
+
+		char addr[INET6_ADDRSTRLEN];
+		/*
+		 * Try and give an error message saying what
+		 * client failed.
+		 */
+		DEBUG(1,("pid[%d] Error writing %d bytes to client %s. %d. (%s)\n",
+			 (int)sys_getpid(), (int)len,
+			 get_peer_addr(sconn->sock, addr, sizeof(addr)),
+			 (int)ret, strerror(errno) ));
+
 		srv_free_enc_buffer(buf_out);
 		goto out;
 	}
@@ -157,7 +171,7 @@ bool srv_send_smb(int fd, char *buffer,
 out:
 	SMB_PERFCOUNT_END(pcd);
 
-	smbd_unlock_socket(smbd_server_conn);
+	smbd_unlock_socket(sconn);
 	return true;
 }
 
@@ -211,11 +225,21 @@ static bool valid_packet_size(size_t len)
 static NTSTATUS read_packet_remainder(int fd, char *buffer,
 				      unsigned int timeout, ssize_t len)
 {
+	NTSTATUS status;
+
 	if (len <= 0) {
 		return NT_STATUS_OK;
 	}
 
-	return read_fd_with_timeout(fd, buffer, len, len, timeout, NULL);
+	status = read_fd_with_timeout(fd, buffer, len, len, timeout, NULL);
+	if (!NT_STATUS_IS_OK(status)) {
+		char addr[INET6_ADDRSTRLEN];
+		DEBUG(0, ("read_fd_with_timeout failed for client %s read "
+			  "error = %s.\n",
+			  get_peer_addr(fd, addr, sizeof(addr)),
+			  nt_errstr(status)));
+	}
+	return status;
 }
 
 /****************************************************************************
@@ -236,7 +260,8 @@ static NTSTATUS read_packet_remainder(int fd, char *buffer,
 
 static NTSTATUS receive_smb_raw_talloc_partial_read(TALLOC_CTX *mem_ctx,
 						    const char lenbuf[4],
-						    int fd, char **buffer,
+						    struct smbd_server_connection *sconn,
+						    char **buffer,
 						    unsigned int timeout,
 						    size_t *p_unread,
 						    size_t *len_ret)
@@ -250,12 +275,15 @@ static NTSTATUS receive_smb_raw_talloc_partial_read(TALLOC_CTX *mem_ctx,
 	memcpy(writeX_header, lenbuf, 4);
 
 	status = read_fd_with_timeout(
-		fd, writeX_header + 4,
+		sconn->sock, writeX_header + 4,
 		STANDARD_WRITE_AND_X_HEADER_SIZE,
 		STANDARD_WRITE_AND_X_HEADER_SIZE,
 		timeout, NULL);
 
 	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("read_fd_with_timeout failed for client %s read "
+			  "error = %s.\n", sconn->client_id.addr,
+			  nt_errstr(status)));
 		return status;
 	}
 
@@ -264,8 +292,7 @@ static NTSTATUS receive_smb_raw_talloc_partial_read(TALLOC_CTX *mem_ctx,
 	 * valid writeX call.
 	 */
 
-	if (is_valid_writeX_buffer(smbd_server_conn,
-				   (uint8_t *)writeX_header)) {
+	if (is_valid_writeX_buffer(sconn, (uint8_t *)writeX_header)) {
 		/*
 		 * If the data offset is beyond what
 		 * we've read, drain the extra bytes.
@@ -275,7 +302,7 @@ static NTSTATUS receive_smb_raw_talloc_partial_read(TALLOC_CTX *mem_ctx,
 
 		if (doff > STANDARD_WRITE_AND_X_HEADER_SIZE) {
 			size_t drain = doff - STANDARD_WRITE_AND_X_HEADER_SIZE;
-			if (drain_socket(smbd_server_fd(), drain) != drain) {
+			if (drain_socket(sconn->sock, drain) != drain) {
 	                        smb_panic("receive_smb_raw_talloc_partial_read:"
 					" failed to drain pending bytes");
 	                }
@@ -330,7 +357,8 @@ static NTSTATUS receive_smb_raw_talloc_partial_read(TALLOC_CTX *mem_ctx,
 
 	if(toread > 0) {
 		status = read_packet_remainder(
-			fd, (*buffer) + 4 + STANDARD_WRITE_AND_X_HEADER_SIZE,
+			sconn->sock,
+			(*buffer) + 4 + STANDARD_WRITE_AND_X_HEADER_SIZE,
 			timeout, toread);
 
 		if (!NT_STATUS_IS_OK(status)) {
@@ -344,7 +372,8 @@ static NTSTATUS receive_smb_raw_talloc_partial_read(TALLOC_CTX *mem_ctx,
 	return NT_STATUS_OK;
 }
 
-static NTSTATUS receive_smb_raw_talloc(TALLOC_CTX *mem_ctx, int fd,
+static NTSTATUS receive_smb_raw_talloc(TALLOC_CTX *mem_ctx,
+				       struct smbd_server_connection *sconn,
 				       char **buffer, unsigned int timeout,
 				       size_t *p_unread, size_t *plen)
 {
@@ -355,20 +384,21 @@ static NTSTATUS receive_smb_raw_talloc(TALLOC_CTX *mem_ctx, int fd,
 
 	*p_unread = 0;
 
-	status = read_smb_length_return_keepalive(fd, lenbuf, timeout, &len);
+	status = read_smb_length_return_keepalive(sconn->sock, lenbuf, timeout,
+						  &len);
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(10, ("receive_smb_raw: %s\n", nt_errstr(status)));
 		return status;
 	}
 
 	if (CVAL(lenbuf,0) == 0 && min_recv_size &&
 	    (smb_len_large(lenbuf) > /* Could be a UNIX large writeX. */
 		(min_recv_size + STANDARD_WRITE_AND_X_HEADER_SIZE)) &&
-	    !srv_is_signing_active(smbd_server_conn) &&
-	    smbd_server_conn->smb1.echo_handler.trusted_fde == NULL) {
+	    !srv_is_signing_active(sconn) &&
+	    sconn->smb1.echo_handler.trusted_fde == NULL) {
 
 		return receive_smb_raw_talloc_partial_read(
-			mem_ctx, lenbuf, fd, buffer, timeout, p_unread, plen);
+			mem_ctx, lenbuf, sconn, buffer, timeout,
+			p_unread, plen);
 	}
 
 	if (!valid_packet_size(len)) {
@@ -389,7 +419,7 @@ static NTSTATUS receive_smb_raw_talloc(TALLOC_CTX *mem_ctx, int fd,
 
 	memcpy(*buffer, lenbuf, sizeof(lenbuf));
 
-	status = read_packet_remainder(fd, (*buffer)+4, timeout, len);
+	status = read_packet_remainder(sconn->sock, (*buffer)+4, timeout, len);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -398,7 +428,8 @@ static NTSTATUS receive_smb_raw_talloc(TALLOC_CTX *mem_ctx, int fd,
 	return NT_STATUS_OK;
 }
 
-static NTSTATUS receive_smb_talloc(TALLOC_CTX *mem_ctx,	int fd,
+static NTSTATUS receive_smb_talloc(TALLOC_CTX *mem_ctx,
+				   struct smbd_server_connection *sconn,
 				   char **buffer, unsigned int timeout,
 				   size_t *p_unread, bool *p_encrypted,
 				   size_t *p_len,
@@ -410,9 +441,12 @@ static NTSTATUS receive_smb_talloc(TALLOC_CTX *mem_ctx,	int fd,
 
 	*p_encrypted = false;
 
-	status = receive_smb_raw_talloc(mem_ctx, fd, buffer, timeout,
+	status = receive_smb_raw_talloc(mem_ctx, sconn, buffer, timeout,
 					p_unread, &len);
 	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("read_smb_length_return_keepalive failed for "
+			  "client %s read error = %s.\n",
+			  sconn->client_id.addr, nt_errstr(status)));
 		return status;
 	}
 
@@ -428,7 +462,7 @@ static NTSTATUS receive_smb_talloc(TALLOC_CTX *mem_ctx,	int fd,
 	}
 
 	/* Check the incoming SMB signature. */
-	if (!srv_check_sign_mac(smbd_server_conn, *buffer, seqnum, trusted_channel)) {
+	if (!srv_check_sign_mac(sconn, *buffer, seqnum, trusted_channel)) {
 		DEBUG(0, ("receive_smb: SMB Signature verification failed on "
 			  "incoming packet!\n"));
 		return NT_STATUS_INVALID_NETWORK_RESPONSE;
@@ -910,20 +944,23 @@ static void smbd_sig_hup_handler(struct tevent_context *ev,
 				  void *siginfo,
 				  void *private_data)
 {
+	struct messaging_context *msg_ctx = talloc_get_type_abort(
+		private_data, struct messaging_context);
 	change_to_root_user();
 	DEBUG(1,("Reloading services after SIGHUP\n"));
-	reload_services(False);
+	reload_services(msg_ctx, smbd_server_conn->sock, False);
+	if (am_parent) {
+		pcap_cache_reload(ev, msg_ctx, &reload_pcap_change_notify);
+	}
 }
 
-void smbd_setup_sig_hup_handler(void)
+void smbd_setup_sig_hup_handler(struct tevent_context *ev,
+				struct messaging_context *msg_ctx)
 {
 	struct tevent_signal *se;
 
-	se = tevent_add_signal(smbd_event_context(),
-			       smbd_event_context(),
-			       SIGHUP, 0,
-			       smbd_sig_hup_handler,
-			       NULL);
+	se = tevent_add_signal(ev, ev, SIGHUP, 0, smbd_sig_hup_handler,
+			       msg_ctx);
 	if (!se) {
 		exit_server("failed to setup SIGHUP handler");
 	}
@@ -931,36 +968,23 @@ void smbd_setup_sig_hup_handler(void)
 
 static NTSTATUS smbd_server_connection_loop_once(struct smbd_server_connection *conn)
 {
-	fd_set r_fds, w_fds;
-	int selrtn;
-	struct timeval to;
-	int maxfd = 0;
+	int timeout;
+	int num_pfds = 0;
+	int ret;
+	bool retry;
 
-	to.tv_sec = SMBD_SELECT_TIMEOUT;
-	to.tv_usec = 0;
-
-	/*
-	 * Setup the select fd sets.
-	 */
-
-	FD_ZERO(&r_fds);
-	FD_ZERO(&w_fds);
+	timeout = SMBD_SELECT_TIMEOUT * 1000;
 
 	/*
 	 * Are there any timed events waiting ? If so, ensure we don't
 	 * select for longer than it would take to wait for them.
 	 */
 
-	{
-		struct timeval now;
-		GetTimeOfDay(&now);
-
-		event_add_to_select_args(smbd_event_context(), &now,
-					 &r_fds, &w_fds, &to, &maxfd);
-	}
+	event_add_to_poll_args(smbd_event_context(), conn,
+			       &conn->pfds, &num_pfds, &timeout);
 
 	/* Process a signal and timed events now... */
-	if (run_events(smbd_event_context(), 0, NULL, NULL)) {
+	if (run_events_poll(smbd_event_context(), 0, NULL, 0)) {
 		return NT_STATUS_RETRY;
 	}
 
@@ -968,36 +992,25 @@ static NTSTATUS smbd_server_connection_loop_once(struct smbd_server_connection *
 		int sav;
 		START_PROFILE(smbd_idle);
 
-		selrtn = sys_select(maxfd+1,&r_fds,&w_fds,NULL,&to);
+		ret = sys_poll(conn->pfds, num_pfds, timeout);
 		sav = errno;
 
 		END_PROFILE(smbd_idle);
 		errno = sav;
 	}
 
-        if ((conn->smb1.echo_handler.trusted_fd != -1)
-	    && FD_ISSET(smbd_server_fd(), &r_fds)
-	    && FD_ISSET(conn->smb1.echo_handler.trusted_fd, &r_fds)) {
-		/*
-		 * Prefer to read pending requests from the echo handler. To
-		 * quote Jeremy (da70f8ab1): This is a hack of monstrous
-		 * proportions...
-		 */
-		FD_CLR(smbd_server_fd(), &r_fds);
-        }
-
-	if (run_events(smbd_event_context(), selrtn, &r_fds, &w_fds)) {
-		return NT_STATUS_RETRY;
-	}
-
-	/* Check if error */
-	if (selrtn == -1) {
-		/* something is wrong. Maybe the socket is dead? */
+	if (ret == -1 && errno != EINTR) {
 		return map_nt_error_from_unix(errno);
 	}
 
+	retry = run_events_poll(smbd_event_context(), ret, conn->pfds,
+				num_pfds);
+	if (retry) {
+		return NT_STATUS_RETRY;
+	}
+
 	/* Did we timeout ? */
-	if (selrtn == 0) {
+	if (ret == 0) {
 		return NT_STATUS_RETRY;
 	}
 
@@ -1464,9 +1477,9 @@ static connection_struct *switch_message(uint8 type, struct smb_request *req, in
 			vuser = get_valid_user_struct(sconn, session_tag);
 			if (vuser) {
 				set_current_user_info(
-					vuser->server_info->sanitized_username,
-					vuser->server_info->unix_name,
-					vuser->server_info->info3->base.domain.string);
+					vuser->session_info->sanitized_username,
+					vuser->session_info->unix_name,
+					vuser->session_info->info3->base.domain.string);
 			}
 		}
 	}
@@ -1540,8 +1553,9 @@ static connection_struct *switch_message(uint8 type, struct smb_request *req, in
 	/* does this protocol need to be run as guest? */
 	if ((flags & AS_GUEST)
 	    && (!change_to_guest() ||
-		!check_access(smbd_server_fd(), lp_hostsallow(-1),
-			      lp_hostsdeny(-1)))) {
+		!allow_access(lp_hostsdeny(-1), lp_hostsallow(-1),
+			      sconn->client_id.name,
+			      sconn->client_id.addr))) {
 		reply_nterror(req, NT_STATUS_ACCESS_DENIED);
 		return conn;
 	}
@@ -1554,7 +1568,8 @@ static connection_struct *switch_message(uint8 type, struct smb_request *req, in
  Construct a reply to the incoming packet.
 ****************************************************************************/
 
-static void construct_reply(char *inbuf, int size, size_t unread_bytes,
+static void construct_reply(struct smbd_server_connection *sconn,
+			    char *inbuf, int size, size_t unread_bytes,
 			    uint32_t seqnum, bool encrypted,
 			    struct smb_perfcount_data *deferred_pcd)
 {
@@ -1565,8 +1580,8 @@ static void construct_reply(char *inbuf, int size, size_t unread_bytes,
 		smb_panic("could not allocate smb_request");
 	}
 
-	if (!init_smb_request(req, smbd_server_conn, (uint8 *)inbuf,
-			      unread_bytes, encrypted, seqnum)) {
+	if (!init_smb_request(req, sconn, (uint8 *)inbuf, unread_bytes,
+			      encrypted, seqnum)) {
 		exit_server_cleanly("Invalid SMB request");
 	}
 
@@ -1585,7 +1600,7 @@ static void construct_reply(char *inbuf, int size, size_t unread_bytes,
 
 	if (req->unread_bytes) {
 		/* writeX failed. drain socket. */
-		if (drain_socket(smbd_server_fd(), req->unread_bytes) !=
+		if (drain_socket(req->sconn->sock, req->unread_bytes) !=
 				req->unread_bytes) {
 			smb_panic("failed to drain pending bytes");
 		}
@@ -1605,7 +1620,7 @@ static void construct_reply(char *inbuf, int size, size_t unread_bytes,
 		show_msg((char *)req->outbuf);
 	}
 
-	if (!srv_send_smb(smbd_server_fd(),
+	if (!srv_send_smb(req->sconn,
 			(char *)req->outbuf,
 			true, req->seqnum+1,
 			IS_CONN_ENCRYPTED(conn)||req->encrypted,
@@ -1621,7 +1636,7 @@ static void construct_reply(char *inbuf, int size, size_t unread_bytes,
 /****************************************************************************
  Process an smb from the client
 ****************************************************************************/
-static void process_smb(struct smbd_server_connection *conn,
+static void process_smb(struct smbd_server_connection *sconn,
 			uint8_t *inbuf, size_t nread, size_t unread_bytes,
 			uint32_t seqnum, bool encrypted,
 			struct smb_perfcount_data *deferred_pcd)
@@ -1632,39 +1647,39 @@ static void process_smb(struct smbd_server_connection *conn,
 
 	DEBUG( 6, ( "got message type 0x%x of len 0x%x\n", msg_type,
 		    smb_len(inbuf) ) );
-	DEBUG( 3, ( "Transaction %d of length %d (%u toread)\n", trans_num,
-				(int)nread,
-				(unsigned int)unread_bytes ));
+	DEBUG(3, ("Transaction %d of length %d (%u toread)\n",
+		  sconn->trans_num, (int)nread, (unsigned int)unread_bytes));
 
 	if (msg_type != 0) {
 		/*
 		 * NetBIOS session request, keepalive, etc.
 		 */
-		reply_special(conn, (char *)inbuf);
+		reply_special(sconn, (char *)inbuf, nread);
 		goto done;
 	}
 
-	if (smbd_server_conn->using_smb2) {
+	if (sconn->using_smb2) {
 		/* At this point we're not really using smb2,
 		 * we make the decision here.. */
 		if (smbd_is_smb2_header(inbuf, nread)) {
-			smbd_smb2_first_negprot(smbd_server_conn, inbuf, nread);
+			smbd_smb2_first_negprot(sconn, inbuf, nread);
 			return;
 		} else if (nread >= smb_size && valid_smb_header(inbuf)
 				&& CVAL(inbuf, smb_com) != 0x72) {
 			/* This is a non-negprot SMB1 packet.
 			   Disable SMB2 from now on. */
-			smbd_server_conn->using_smb2 = false;
+			sconn->using_smb2 = false;
 		}
 	}
 
 	show_msg((char *)inbuf);
 
-	construct_reply((char *)inbuf,nread,unread_bytes,seqnum,encrypted,deferred_pcd);
-	trans_num++;
+	construct_reply(sconn, (char *)inbuf, nread, unread_bytes, seqnum,
+			encrypted, deferred_pcd);
+	sconn->trans_num++;
 
 done:
-	conn->smb1.num_requests++;
+	sconn->smb1.num_requests++;
 
 	/* The timeout_processing function isn't run nearly
 	   often enough to implement 'max log size' without
@@ -1673,7 +1688,7 @@ done:
 	   level 10.  Checking every 50 SMBs is a nice
 	   tradeoff of performance vs log file size overrun. */
 
-	if ((conn->smb1.num_requests % 50) == 0 &&
+	if ((sconn->smb1.num_requests % 50) == 0 &&
 	    need_to_check_log_size()) {
 		change_to_root_user();
 		check_log_size();
@@ -2014,8 +2029,8 @@ void chain_reply(struct smb_request *req)
 		 * Update smb headers where subsequent chained commands
 		 * may have updated them.
 		 */
-		SCVAL(req->chain_outbuf, smb_tid, CVAL(req->outbuf, smb_tid));
-		SCVAL(req->chain_outbuf, smb_uid, CVAL(req->outbuf, smb_uid));
+		SSVAL(req->chain_outbuf, smb_tid, SVAL(req->outbuf, smb_tid));
+		SSVAL(req->chain_outbuf, smb_uid, SVAL(req->outbuf, smb_uid));
 
 		if (!smb_splice_chain(&req->chain_outbuf,
 				      CVAL(req->outbuf, smb_com),
@@ -2044,7 +2059,7 @@ void chain_reply(struct smb_request *req)
 		smb_setlen((char *)(req->chain_outbuf),
 			   talloc_get_size(req->chain_outbuf) - 4);
 
-		if (!srv_send_smb(smbd_server_fd(), (char *)req->chain_outbuf,
+		if (!srv_send_smb(req->sconn, (char *)req->chain_outbuf,
 				  true, req->seqnum+1,
 				  IS_CONN_ENCRYPTED(req->conn)
 				  ||req->encrypted,
@@ -2184,11 +2199,11 @@ void chain_reply(struct smb_request *req)
 
 	show_msg((char *)(req->chain_outbuf));
 
-	if (!srv_send_smb(smbd_server_fd(), (char *)req->chain_outbuf,
+	if (!srv_send_smb(req->sconn, (char *)req->chain_outbuf,
 			  true, req->seqnum+1,
 			  IS_CONN_ENCRYPTED(req->conn)||req->encrypted,
 			  &req->pcd)) {
-		exit_server_cleanly("construct_reply: srv_send_smb failed.");
+		exit_server_cleanly("chain_reply: srv_send_smb failed.");
 	}
 	TALLOC_FREE(req->chain_outbuf);
 	req->done = true;
@@ -2198,65 +2213,27 @@ void chain_reply(struct smb_request *req)
  Check if services need reloading.
 ****************************************************************************/
 
-void check_reload(time_t t)
+static void check_reload(struct smbd_server_connection *sconn, time_t t)
 {
-	time_t printcap_cache_time = (time_t)lp_printcap_cache_time();
 
-	if(last_smb_conf_reload_time == 0) {
+	if (last_smb_conf_reload_time == 0) {
 		last_smb_conf_reload_time = t;
-		/* Our printing subsystem might not be ready at smbd start up.
-		   Then no printer is available till the first printers check
-		   is performed.  A lower initial interval circumvents this. */
-		if ( printcap_cache_time > 60 )
-			last_printer_reload_time = t - printcap_cache_time + 60;
-		else
-			last_printer_reload_time = t;
-	}
-
-	if (mypid != getpid()) { /* First time or fork happened meanwhile */
-		/* randomize over 60 second the printcap reload to avoid all
-		 * process hitting cupsd at the same time */
-		int time_range = 60;
-
-		last_printer_reload_time += random() % time_range;
-		mypid = getpid();
 	}
 
 	if (t >= last_smb_conf_reload_time+SMBD_RELOAD_CHECK) {
-		reload_services(True);
+		reload_services(sconn->msg_ctx, sconn->sock, True);
 		last_smb_conf_reload_time = t;
-	}
-
-	/* 'printcap cache time = 0' disable the feature */
-
-	if ( printcap_cache_time != 0 )
-	{ 
-		/* see if it's time to reload or if the clock has been set back */
-
-		if ( (t >= last_printer_reload_time+printcap_cache_time) 
-			|| (t-last_printer_reload_time  < 0) ) 
-		{
-			DEBUG( 3,( "Printcap cache time expired.\n"));
-			reload_printers();
-			last_printer_reload_time = t;
-		}
 	}
 }
 
 static bool fd_is_readable(int fd)
 {
-	fd_set fds;
-	struct timeval timeout = {0, };
-	int ret;
+	int ret, revents;
 
-	FD_ZERO(&fds);
-	FD_SET(fd, &fds);
+	ret = poll_one_fd(fd, POLLIN|POLLHUP, 0, &revents);
 
-	ret = sys_select(fd+1, &fds, NULL, NULL, &timeout);
-	if (ret == -1) {
-		return false;
-	}
-	return FD_ISSET(fd, &fds);
+	return ((ret > 0) && ((revents & (POLLIN|POLLHUP|POLLERR)) != 0));
+
 }
 
 static void smbd_server_connection_write_handler(struct smbd_server_connection *conn)
@@ -2275,19 +2252,19 @@ static void smbd_server_connection_read_handler(
 	NTSTATUS status;
 	uint32_t seqnum;
 
-	bool from_client = (smbd_server_fd() == fd)?true:false;
+	bool from_client = (conn->sock == fd);
 
 	if (from_client) {
 		smbd_lock_socket(conn);
 
-		if (!fd_is_readable(smbd_server_fd())) {
+		if (lp_async_smb_echo_handler() && !fd_is_readable(fd)) {
 			DEBUG(10,("the echo listener was faster\n"));
 			smbd_unlock_socket(conn);
 			return;
 		}
 
 		/* TODO: make this completely nonblocking */
-		status = receive_smb_talloc(mem_ctx, fd,
+		status = receive_smb_talloc(mem_ctx, conn,
 					    (char **)(void *)&inbuf,
 					    0, /* timeout */
 					    &unread_bytes,
@@ -2297,7 +2274,7 @@ static void smbd_server_connection_read_handler(
 		smbd_unlock_socket(conn);
 	} else {
 		/* TODO: make this completely nonblocking */
-		status = receive_smb_talloc(mem_ctx, fd,
+		status = receive_smb_talloc(mem_ctx, conn,
 					    (char **)(void *)&inbuf,
 					    0, /* timeout */
 					    &unread_bytes,
@@ -2331,8 +2308,11 @@ static void smbd_server_connection_handler(struct event_context *ev,
 
 	if (flags & EVENT_FD_WRITE) {
 		smbd_server_connection_write_handler(conn);
-	} else if (flags & EVENT_FD_READ) {
-		smbd_server_connection_read_handler(conn, smbd_server_fd());
+		return;
+	}
+	if (flags & EVENT_FD_READ) {
+		smbd_server_connection_read_handler(conn, conn->sock);
+		return;
 	}
 }
 
@@ -2346,9 +2326,12 @@ static void smbd_server_echo_handler(struct event_context *ev,
 
 	if (flags & EVENT_FD_WRITE) {
 		smbd_server_connection_write_handler(conn);
-	} else if (flags & EVENT_FD_READ) {
+		return;
+	}
+	if (flags & EVENT_FD_READ) {
 		smbd_server_connection_read_handler(
 			conn, conn->smb1.echo_handler.trusted_fd);
+		return;
 	}
 }
 
@@ -2357,10 +2340,8 @@ received when we should release a specific IP
 ****************************************************************************/
 static void release_ip(const char *ip, void *priv)
 {
-	char addr[INET6_ADDRSTRLEN];
-	char *p = addr;
-
-	client_socket_addr(get_client_fd(),addr,sizeof(addr));
+	const char *addr = (const char *)priv;
+	const char *p = addr;
 
 	if (strncmp("::ffff:", addr, 7) == 0) {
 		p = addr + 7;
@@ -2383,23 +2364,23 @@ static void release_ip(const char *ip, void *priv)
 static void msg_release_ip(struct messaging_context *msg_ctx, void *private_data,
 			   uint32_t msg_type, struct server_id server_id, DATA_BLOB *data)
 {
-	release_ip((char *)data->data, NULL);
+	struct smbd_server_connection *sconn = talloc_get_type_abort(
+		private_data, struct smbd_server_connection);
+
+	release_ip((char *)data->data, sconn->client_id.addr);
 }
 
 #ifdef CLUSTER_SUPPORT
-static int client_get_tcp_info(struct sockaddr_storage *server,
+static int client_get_tcp_info(int sock, struct sockaddr_storage *server,
 			       struct sockaddr_storage *client)
 {
 	socklen_t length;
-	if (server_fd == -1) {
-		return -1;
-	}
 	length = sizeof(*server);
-	if (getsockname(server_fd, (struct sockaddr *)server, &length) != 0) {
+	if (getsockname(sock, (struct sockaddr *)server, &length) != 0) {
 		return -1;
 	}
 	length = sizeof(*client);
-	if (getpeername(server_fd, (struct sockaddr *)client, &length) != 0) {
+	if (getpeername(sock, (struct sockaddr *)client, &length) != 0) {
 		return -1;
 	}
 	return 0;
@@ -2420,11 +2401,19 @@ static bool keepalive_fn(const struct timeval *now, void *private_data)
 	}
 
 	smbd_lock_socket(smbd_server_conn);
-	ret = send_keepalive(smbd_server_fd());
+	ret = send_keepalive(sconn->sock);
 	smbd_unlock_socket(smbd_server_conn);
 
 	if (!ret) {
-		DEBUG( 2, ( "Keepalive failed - exiting.\n" ) );
+		char addr[INET6_ADDRSTRLEN];
+		/*
+		 * Try and give an error message saying what
+		 * client failed.
+		 */
+		DEBUG(0, ("send_keepalive failed for client %s. "
+			  "Error %s - exiting\n",
+			  get_peer_addr(sconn->sock, addr, sizeof(addr)),
+			  strerror(errno)));
 		return False;
 	}
 	return True;
@@ -2435,23 +2424,14 @@ static bool keepalive_fn(const struct timeval *now, void *private_data)
  */
 static bool deadtime_fn(const struct timeval *now, void *private_data)
 {
-	struct smbd_server_connection *sconn = smbd_server_conn;
-
-	if (sconn->using_smb2) {
-		/* TODO: implement real idle check */
-		if (sconn->smb2.sessions.list) {
-			return true;
-		}
-		DEBUG( 2, ( "Closing idle SMB2 connection\n" ) );
-		messaging_send(smbd_messaging_context(), procid_self(),
-			       MSG_SHUTDOWN, &data_blob_null);
-		return false;
-	}
+	struct smbd_server_connection *sconn =
+		(struct smbd_server_connection *)private_data;
 
 	if ((conn_num_open(sconn) == 0)
 	    || (conn_idle_all(sconn, now->tv_sec))) {
-		DEBUG( 2, ( "Closing idle SMB1 connection\n" ) );
-		messaging_send(smbd_messaging_context(), procid_self(),
+		DEBUG( 2, ( "Closing idle connection\n" ) );
+		messaging_send(sconn->msg_ctx,
+			       messaging_server_id(sconn->msg_ctx),
 			       MSG_SHUTDOWN, &data_blob_null);
 		return False;
 	}
@@ -2465,13 +2445,18 @@ static bool deadtime_fn(const struct timeval *now, void *private_data)
 
 static bool housekeeping_fn(const struct timeval *now, void *private_data)
 {
+	struct smbd_server_connection *sconn = talloc_get_type_abort(
+		private_data, struct smbd_server_connection);
+
+	DEBUG(5, ("housekeeping\n"));
+
 	change_to_root_user();
 
 	/* update printer queue caches if necessary */
-	update_monitored_printq_cache();
+	update_monitored_printq_cache(sconn->msg_ctx);
 
 	/* check if we need to reload services */
-	check_reload(time(NULL));
+	check_reload(sconn, time_mono(NULL));
 
 	/* Change machine password if neccessary. */
 	attempt_machine_password_change();
@@ -2570,8 +2555,7 @@ static void smbd_echo_writer_done(struct tevent_req *req)
 	smbd_echo_activate_writer(state);
 }
 
-static bool smbd_echo_reply(int fd,
-			    uint8_t *inbuf, size_t inbuf_len,
+static bool smbd_echo_reply(uint8_t *inbuf, size_t inbuf_len,
 			    uint32_t seqnum)
 {
 	struct smb_request req;
@@ -2579,6 +2563,14 @@ static bool smbd_echo_reply(int fd,
 	size_t out_len;
 	char *outbuf;
 	bool ok;
+
+	if ((inbuf_len == 4) && (CVAL(inbuf, 0) == SMBkeepalive)) {
+		DEBUG(10, ("Got netbios keepalive\n"));
+		/*
+		 * Just swallow it
+		 */
+		return true;
+	}
 
 	if (inbuf_len < smb_size) {
 		DEBUG(10, ("Got short packet: %d bytes\n", (int)inbuf_len));
@@ -2627,7 +2619,7 @@ static bool smbd_echo_reply(int fd,
 
 	out_len = smb_len(req.outbuf) + 4;
 
-	ok = srv_send_smb(smbd_server_fd(),
+	ok = srv_send_smb(req.sconn,
 			  (char *)outbuf,
 			  true, seqnum+1,
 			  false, &req.pcd);
@@ -2657,10 +2649,13 @@ static void smbd_echo_reader(struct tevent_context *ev,
 	size_t unread, num_pending;
 	NTSTATUS status;
 	struct iovec *tmp;
+	size_t iov_len;
 	uint32_t seqnum = 0;
 	bool reply;
 	bool ok;
 	bool encrypted = false;
+
+	smb_msleep(1000);
 
 	ok = smbd_lock_socket_internal(sconn);
 	if (!ok) {
@@ -2669,7 +2664,7 @@ static void smbd_echo_reader(struct tevent_context *ev,
 		exit(1);
 	}
 
-	if (!fd_is_readable(smbd_server_fd())) {
+	if (!fd_is_readable(sconn->sock)) {
 		DEBUG(10,("echo_handler[%d] the parent smbd was faster\n",
 			  (int)sys_getpid()));
 		ok = smbd_unlock_socket_internal(sconn);
@@ -2692,12 +2687,12 @@ static void smbd_echo_reader(struct tevent_context *ev,
 
 	DEBUG(10,("echo_handler[%d]: reading pdu\n", (int)sys_getpid()));
 
-	status = receive_smb_talloc(state->pending, smbd_server_fd(),
+	status = receive_smb_talloc(state->pending, sconn,
 				    (char **)(void *)&state->pending[num_pending].iov_base,
 				    0 /* timeout */,
 				    &unread,
 				    &encrypted,
-				    &state->pending[num_pending].iov_len,
+				    &iov_len,
 				    &seqnum,
 				    false /* trusted_channel*/);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -2705,6 +2700,7 @@ static void smbd_echo_reader(struct tevent_context *ev,
 			  (int)sys_getpid(), nt_errstr(status)));
 		exit(1);
 	}
+	state->pending[num_pending].iov_len = iov_len;
 
 	ok = smbd_unlock_socket_internal(sconn);
 	if (!ok) {
@@ -2713,15 +2709,7 @@ static void smbd_echo_reader(struct tevent_context *ev,
 		exit(1);
 	}
 
-	/*
-	 * place the seqnum in the packet so that the main process can reply
-	 * with signing
-	 */
-	SIVAL((uint8_t *)state->pending[num_pending].iov_base, smb_ss_field, seqnum);
-	SIVAL((uint8_t *)state->pending[num_pending].iov_base, smb_ss_field+4, NT_STATUS_V(NT_STATUS_OK));
-
-	reply = smbd_echo_reply(smbd_server_fd(),
-				(uint8_t *)state->pending[num_pending].iov_base,
+	reply = smbd_echo_reply((uint8_t *)state->pending[num_pending].iov_base,
 				state->pending[num_pending].iov_len,
 				seqnum);
 	if (reply) {
@@ -2730,10 +2718,22 @@ static void smbd_echo_reader(struct tevent_context *ev,
 		state->pending = talloc_realloc(state, state->pending,
 						struct iovec,
 						num_pending);
-	} else {
-		DEBUG(10,("echo_handler[%d]: forward to main\n", (int)sys_getpid()));
-		smbd_echo_activate_writer(state);
+		return;
 	}
+
+	if (state->pending[num_pending].iov_len >= smb_size) {
+		/*
+		 * place the seqnum in the packet so that the main process
+		 * can reply with signing
+		 */
+		SIVAL((uint8_t *)state->pending[num_pending].iov_base,
+		      smb_ss_field, seqnum);
+		SIVAL((uint8_t *)state->pending[num_pending].iov_base,
+		      smb_ss_field+4, NT_STATUS_V(NT_STATUS_OK));
+	}
+
+	DEBUG(10,("echo_handler[%d]: forward to main\n", (int)sys_getpid()));
+	smbd_echo_activate_writer(state);
 }
 
 static void smbd_echo_loop(struct smbd_server_connection *sconn,
@@ -2762,7 +2762,7 @@ static void smbd_echo_loop(struct smbd_server_connection *sconn,
 		TALLOC_FREE(state);
 		return;
 	}
-	state->read_fde = tevent_add_fd(state->ev, state, smbd_server_fd(),
+	state->read_fde = tevent_add_fd(state->ev, state, sconn->sock,
 					TEVENT_FD_READ, smbd_echo_reader,
 					state);
 	if (state->read_fde == NULL) {
@@ -2806,8 +2806,9 @@ static bool fork_echo_handler(struct smbd_server_connection *sconn)
 		NTSTATUS status;
 
 		close(listener_pipe[0]);
+		set_blocking(listener_pipe[1], false);
 
-		status = reinit_after_fork(smbd_messaging_context(),
+		status = reinit_after_fork(sconn->msg_ctx,
 					   smbd_event_context(),
 					   procid_self(), false);
 		if (!NT_STATUS_IS_OK(status)) {
@@ -2857,29 +2858,47 @@ fail:
 	return false;
 }
 
-static bool spoolss_init_cb(void)
+#if CLUSTER_SUPPORT
+
+static NTSTATUS smbd_register_ips(struct smbd_server_connection *sconn,
+				  struct sockaddr_storage *srv,
+				  struct sockaddr_storage *clnt)
 {
-	return nt_printing_tdb_migrate();
+	struct ctdbd_connection *cconn;
+	char tmp_addr[INET6_ADDRSTRLEN];
+	char *addr;
+
+	cconn = messaging_ctdbd_connection();
+	if (cconn == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	client_socket_addr(sconn->sock, tmp_addr, sizeof(tmp_addr));
+	addr = talloc_strdup(cconn, tmp_addr);
+	if (addr == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	return ctdbd_register_ips(cconn, srv, clnt, release_ip, addr);
 }
+
+#endif
 
 /****************************************************************************
  Process commands from the client
 ****************************************************************************/
 
-void smbd_process(void)
+void smbd_process(struct smbd_server_connection *sconn)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
 	struct sockaddr_storage ss;
 	struct sockaddr *sa = NULL;
-	socklen_t sa_len;
+	socklen_t sa_socklen;
 	struct tsocket_address *local_address = NULL;
 	struct tsocket_address *remote_address = NULL;
 	const char *remaddr = NULL;
 	int ret;
-	struct rpc_srv_callbacks spoolss_cb;
 
 	if (lp_maxprotocol() == PROTOCOL_SMB2 &&
-	    lp_security() != SEC_SHARE &&
 	    !lp_async_smb_echo_handler()) {
 		/*
 		 * We're not making the desion here,
@@ -2888,25 +2907,25 @@ void smbd_process(void)
 		 * with the first negprot
 		 * packet.
 		 */
-		smbd_server_conn->using_smb2 = true;
+		sconn->using_smb2 = true;
 	}
 
 	/* Ensure child is set to blocking mode */
-	set_blocking(smbd_server_fd(),True);
+	set_blocking(sconn->sock,True);
 
-	set_socket_options(smbd_server_fd(),"SO_KEEPALIVE");
-	set_socket_options(smbd_server_fd(), lp_socket_options());
+	set_socket_options(sconn->sock, "SO_KEEPALIVE");
+	set_socket_options(sconn->sock, lp_socket_options());
 
 	sa = (struct sockaddr *)(void *)&ss;
-	sa_len = sizeof(ss);
-	ret = getpeername(smbd_server_fd(), sa, &sa_len);
+	sa_socklen = sizeof(ss);
+	ret = getpeername(sconn->sock, sa, &sa_socklen);
 	if (ret != 0) {
 		int level = (errno == ENOTCONN)?2:0;
 		DEBUG(level,("getpeername() failed - %s\n", strerror(errno)));
 		exit_server_cleanly("getpeername() failed.\n");
 	}
-	ret = tsocket_address_bsd_from_sockaddr(smbd_server_conn,
-						sa, sa_len,
+	ret = tsocket_address_bsd_from_sockaddr(sconn,
+						sa, sa_socklen,
 						&remote_address);
 	if (ret != 0) {
 		DEBUG(0,("%s: tsocket_address_bsd_from_sockaddr remote failed - %s\n",
@@ -2915,15 +2934,15 @@ void smbd_process(void)
 	}
 
 	sa = (struct sockaddr *)(void *)&ss;
-	sa_len = sizeof(ss);
-	ret = getsockname(smbd_server_fd(), sa, &sa_len);
+	sa_socklen = sizeof(ss);
+	ret = getsockname(sconn->sock, sa, &sa_socklen);
 	if (ret != 0) {
 		int level = (errno == ENOTCONN)?2:0;
 		DEBUG(level,("getsockname() failed - %s\n", strerror(errno)));
 		exit_server_cleanly("getsockname() failed.\n");
 	}
-	ret = tsocket_address_bsd_from_sockaddr(smbd_server_conn,
-						sa, sa_len,
+	ret = tsocket_address_bsd_from_sockaddr(sconn,
+						sa, sa_socklen,
 						&local_address);
 	if (ret != 0) {
 		DEBUG(0,("%s: tsocket_address_bsd_from_sockaddr remote failed - %s\n",
@@ -2931,12 +2950,12 @@ void smbd_process(void)
 		exit_server_cleanly("tsocket_address_bsd_from_sockaddr remote failed.\n");
 	}
 
-	smbd_server_conn->local_address = local_address;
-	smbd_server_conn->remote_address = remote_address;
+	sconn->local_address = local_address;
+	sconn->remote_address = remote_address;
 
 	if (tsocket_address_is_inet(remote_address, "ip")) {
 		remaddr = tsocket_address_inet_addr_string(
-				smbd_server_conn->remote_address,
+				sconn->remote_address,
 				talloc_tos());
 		if (remaddr == NULL) {
 
@@ -2948,7 +2967,7 @@ void smbd_process(void)
 	/* this is needed so that we get decent entries
 	   in smbstatus for port 445 connects */
 	set_remote_machine_name(remaddr, false);
-	reload_services(true);
+	reload_services(sconn->msg_ctx, sconn->sock, true);
 
 	/*
 	 * Before the first packet, check the global hosts allow/ hosts deny
@@ -2957,8 +2976,9 @@ void smbd_process(void)
 	 * the hosts allow list.
 	 */
 
-	if (!check_access(smbd_server_fd(), lp_hostsallow(-1),
-			  lp_hostsdeny(-1))) {
+	if (!allow_access(lp_hostsdeny(-1), lp_hostsallow(-1),
+			  sconn->client_id.name,
+			  sconn->client_id.addr)) {
 		/*
 		 * send a negative session response "not listening on calling
 		 * name"
@@ -2967,7 +2987,7 @@ void smbd_process(void)
 		DEBUG( 1, ("Connection denied from %s to %s\n",
 			   tsocket_address_string(remote_address, talloc_tos()),
 			   tsocket_address_string(local_address, talloc_tos())));
-		(void)srv_send_smb(smbd_server_fd(),(char *)buf, false,
+		(void)srv_send_smb(sconn,(char *)buf, false,
 				   0, false, NULL);
 		exit_server_cleanly("connection denied");
 	}
@@ -2996,33 +3016,33 @@ void smbd_process(void)
 		DEBUG(0,("Changed root to %s\n", lp_rootdir()));
 	}
 
-	if (!srv_init_signing(smbd_server_conn)) {
+	if (!srv_init_signing(sconn)) {
 		exit_server("Failed to init smb_signing");
 	}
 
-	if (lp_async_smb_echo_handler() && !fork_echo_handler(smbd_server_conn)) {
+	if (lp_async_smb_echo_handler() && !fork_echo_handler(sconn)) {
 		exit_server("Failed to fork echo handler");
 	}
 
 	/* Setup oplocks */
-	if (!init_oplocks(smbd_messaging_context()))
+	if (!init_oplocks(sconn->msg_ctx))
 		exit_server("Failed to init oplocks");
 
 	/* register our message handlers */
-	messaging_register(smbd_messaging_context(), NULL,
+	messaging_register(sconn->msg_ctx, NULL,
 			   MSG_SMB_FORCE_TDIS, msg_force_tdis);
-	messaging_register(smbd_messaging_context(), NULL,
+	messaging_register(sconn->msg_ctx, sconn,
 			   MSG_SMB_RELEASE_IP, msg_release_ip);
-	messaging_register(smbd_messaging_context(), NULL,
+	messaging_register(sconn->msg_ctx, NULL,
 			   MSG_SMB_CLOSE_FILE, msg_close_file);
 
 	/*
 	 * Use the default MSG_DEBUG handler to avoid rebroadcasting
 	 * MSGs to all child processes
 	 */
-	messaging_deregister(smbd_messaging_context(),
+	messaging_deregister(sconn->msg_ctx,
 			     MSG_DEBUG, NULL);
-	messaging_register(smbd_messaging_context(), NULL,
+	messaging_register(sconn->msg_ctx, NULL,
 			   MSG_DEBUG, debug_message);
 
 	if ((lp_keepalive() != 0)
@@ -3036,14 +3056,14 @@ void smbd_process(void)
 
 	if (!(event_add_idle(smbd_event_context(), NULL,
 			     timeval_set(IDLE_CLOSED_TIMEOUT, 0),
-			     "deadtime", deadtime_fn, NULL))) {
+			     "deadtime", deadtime_fn, sconn))) {
 		DEBUG(0, ("Could not add deadtime event\n"));
 		exit(1);
 	}
 
 	if (!(event_add_idle(smbd_event_context(), NULL,
-			     timeval_set(SMBD_SELECT_TIMEOUT, 0),
-			     "housekeeping", housekeeping_fn, NULL))) {
+			     timeval_set(SMBD_HOUSEKEEPING_INTERVAL, 0),
+			     "housekeeping", housekeeping_fn, sconn))) {
 		DEBUG(0, ("Could not add housekeeping event\n"));
 		exit(1);
 	}
@@ -3060,14 +3080,9 @@ void smbd_process(void)
 
 		struct sockaddr_storage srv, clnt;
 
-		if (client_get_tcp_info(&srv, &clnt) == 0) {
-
+		if (client_get_tcp_info(sconn->sock, &srv, &clnt) == 0) {
 			NTSTATUS status;
-
-			status = ctdbd_register_ips(
-				messaging_ctdbd_connection(procid_self()),
-				&srv, &clnt, release_ip, NULL);
-
+			status = smbd_register_ips(sconn, &srv, &clnt);
 			if (!NT_STATUS_IS_OK(status)) {
 				DEBUG(0, ("ctdbd_register_ips failed: %s\n",
 					  nt_errstr(status)));
@@ -3082,55 +3097,36 @@ void smbd_process(void)
 
 #endif
 
-	smbd_server_conn->nbt.got_session = false;
+	sconn->nbt.got_session = false;
 
-	smbd_server_conn->smb1.negprot.max_recv = MIN(lp_maxxmit(),BUFFER_SIZE);
+	sconn->smb1.negprot.max_recv = MIN(lp_maxxmit(),BUFFER_SIZE);
 
-	smbd_server_conn->smb1.sessions.done_sesssetup = false;
-	smbd_server_conn->smb1.sessions.max_send = BUFFER_SIZE;
-	smbd_server_conn->smb1.sessions.last_session_tag = UID_FIELD_INVALID;
+	sconn->smb1.sessions.done_sesssetup = false;
+	sconn->smb1.sessions.max_send = BUFFER_SIZE;
+	sconn->smb1.sessions.last_session_tag = UID_FIELD_INVALID;
 	/* users from session setup */
-	smbd_server_conn->smb1.sessions.session_userlist = NULL;
+	sconn->smb1.sessions.session_userlist = NULL;
 	/* workgroup from session setup. */
-	smbd_server_conn->smb1.sessions.session_workgroup = NULL;
+	sconn->smb1.sessions.session_workgroup = NULL;
 	/* this holds info on user ids that are already validated for this VC */
-	smbd_server_conn->smb1.sessions.validated_users = NULL;
-	smbd_server_conn->smb1.sessions.next_vuid = VUID_OFFSET;
-	smbd_server_conn->smb1.sessions.num_validated_vuids = 0;
+	sconn->smb1.sessions.validated_users = NULL;
+	sconn->smb1.sessions.next_vuid = VUID_OFFSET;
+	sconn->smb1.sessions.num_validated_vuids = 0;
 
-	conn_init(smbd_server_conn);
-	if (!init_dptrs(smbd_server_conn)) {
+	conn_init(sconn);
+	if (!init_dptrs(sconn)) {
 		exit_server("init_dptrs() failed");
 	}
 
-	smbd_server_conn->smb1.fde = event_add_fd(smbd_event_context(),
-						  smbd_server_conn,
-						  smbd_server_fd(),
+	sconn->smb1.fde = event_add_fd(smbd_event_context(),
+						  sconn,
+						  sconn->sock,
 						  EVENT_FD_READ,
 						  smbd_server_connection_handler,
-						  smbd_server_conn);
-	if (!smbd_server_conn->smb1.fde) {
+						  sconn);
+	if (!sconn->smb1.fde) {
 		exit_server("failed to create smbd_server_connection fde");
 	}
-
-	/*
-	 * Initialize spoolss with an init function to convert printers first.
-	 * static_init_rpc will try to initialize the spoolss server too but you
-	 * can't register it twice.
-	 */
-	spoolss_cb.init = spoolss_init_cb;
-	spoolss_cb.shutdown = NULL;
-
-
-	if (!NT_STATUS_IS_OK(rpc_winreg_init(NULL))) {
-		exit(1);
-	}
-
-	if (!NT_STATUS_IS_OK(rpc_spoolss_init(&spoolss_cb))) {
-		exit(1);
-	}
-
-	static_init_rpc;
 
 	TALLOC_FREE(frame);
 
@@ -3141,7 +3137,7 @@ void smbd_process(void)
 
 		errno = 0;
 
-		status = smbd_server_connection_loop_once(smbd_server_conn);
+		status = smbd_server_connection_loop_once(sconn);
 		if (!NT_STATUS_EQUAL(status, NT_STATUS_RETRY) &&
 		    !NT_STATUS_IS_OK(status)) {
 			DEBUG(3, ("smbd_server_connection_loop_once failed: %s,"

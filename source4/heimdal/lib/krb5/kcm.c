@@ -97,7 +97,7 @@ kcm_send_request(krb5_context context,
     return ret;
 }
 
-krb5_error_code
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kcm_storage_request(krb5_context context,
 			 uint16_t opcode,
 			 krb5_storage **storage_p)
@@ -164,7 +164,7 @@ kcm_alloc(krb5_context context, const char *name, krb5_ccache *id)
     return 0;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kcm_call(krb5_context context,
 	      krb5_storage *request,
 	      krb5_storage **response_p,
@@ -1194,94 +1194,6 @@ _krb5_kcm_noop(krb5_context context,
     ret = krb5_kcm_storage_request(context, KCM_OP_NOOP, &request);
     if (ret)
 	return ret;
-
-    ret = krb5_kcm_call(context, request, NULL, NULL);
-
-    krb5_storage_free(request);
-    return ret;
-}
-
-
-/*
- * Request:
- *      NameZ
- *      Mode
- *
- * Response:
- *
- */
-krb5_error_code
-_krb5_kcm_chmod(krb5_context context,
-		krb5_ccache id,
-		uint16_t mode)
-{
-    krb5_error_code ret;
-    krb5_kcmcache *k = KCMCACHE(id);
-    krb5_storage *request;
-
-    ret = krb5_kcm_storage_request(context, KCM_OP_CHMOD, &request);
-    if (ret)
-	return ret;
-
-    ret = krb5_store_stringz(request, k->name);
-    if (ret) {
-	krb5_storage_free(request);
-	return ret;
-    }
-
-    ret = krb5_store_int16(request, mode);
-    if (ret) {
-	krb5_storage_free(request);
-	return ret;
-    }
-
-    ret = krb5_kcm_call(context, request, NULL, NULL);
-
-    krb5_storage_free(request);
-    return ret;
-}
-
-
-/*
- * Request:
- *      NameZ
- *      UID
- *      GID
- *
- * Response:
- *
- */
-krb5_error_code
-_krb5_kcm_chown(krb5_context context,
-		krb5_ccache id,
-		uint32_t uid,
-		uint32_t gid)
-{
-    krb5_error_code ret;
-    krb5_kcmcache *k = KCMCACHE(id);
-    krb5_storage *request;
-
-    ret = krb5_kcm_storage_request(context, KCM_OP_CHOWN, &request);
-    if (ret)
-	return ret;
-
-    ret = krb5_store_stringz(request, k->name);
-    if (ret) {
-	krb5_storage_free(request);
-	return ret;
-    }
-
-    ret = krb5_store_int32(request, uid);
-    if (ret) {
-	krb5_storage_free(request);
-	return ret;
-    }
-
-    ret = krb5_store_int32(request, gid);
-    if (ret) {
-	krb5_storage_free(request);
-	return ret;
-    }
 
     ret = krb5_kcm_call(context, request, NULL, NULL);
 

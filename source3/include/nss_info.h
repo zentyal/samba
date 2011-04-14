@@ -64,7 +64,6 @@ struct nss_info_methods {
 	NTSTATUS (*get_nss_info)( struct nss_domain_entry *e, 
 				  const struct dom_sid *sid,
 				  TALLOC_CTX *ctx, 
-				  ADS_STRUCT *ads, LDAPMessage *msg,
 				  const char **homedir, const char **shell,
 				  const char **gecos, gid_t *p_gid);
 	NTSTATUS (*map_to_alias)(TALLOC_CTX *mem_ctx,
@@ -85,7 +84,6 @@ NTSTATUS smb_register_idmap_nss(int version,
 
 NTSTATUS nss_get_info( const char *domain, const struct dom_sid *user_sid,
 		       TALLOC_CTX *ctx,
-		       ADS_STRUCT *ads, LDAPMessage *msg,
 		       const char **homedir, const char **shell,
 		       const char **gecos, gid_t *p_gid);
 

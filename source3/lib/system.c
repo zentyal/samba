@@ -21,6 +21,10 @@
 */
 
 #include "includes.h"
+#include "system/syslog.h"
+#include "system/capability.h"
+#include "system/passwd.h"
+#include "system/filesys.h"
 
 #ifdef HAVE_SYS_PRCTL_H
 #include <sys/prctl.h>
@@ -123,7 +127,11 @@ ssize_t sys_read(int fd, void *buf, size_t count)
 
 	do {
 		ret = read(fd, buf, count);
-	} while (ret == -1 && errno == EINTR);
+#if defined(EWOULDBLOCK)
+	} while (ret == -1 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK));
+#else
+	} while (ret == -1 && (errno == EINTR || errno == EAGAIN));
+#endif
 	return ret;
 }
 
@@ -137,7 +145,11 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 
 	do {
 		ret = write(fd, buf, count);
-	} while (ret == -1 && errno == EINTR);
+#if defined(EWOULDBLOCK)
+	} while (ret == -1 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK));
+#else
+	} while (ret == -1 && (errno == EINTR || errno == EAGAIN));
+#endif
 	return ret;
 }
 
@@ -162,7 +174,11 @@ ssize_t sys_writev(int fd, const struct iovec *iov, int iovcnt)
 
 	do {
 		ret = writev(fd, iov, iovcnt);
-	} while (ret == -1 && errno == EINTR);
+#if defined(EWOULDBLOCK)
+	} while (ret == -1 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK));
+#else
+	} while (ret == -1 && (errno == EINTR || errno == EAGAIN));
+#endif
 	return ret;
 }
 
@@ -207,7 +223,7 @@ ssize_t sys_pwrite(int fd, const void *buf, size_t count, SMB_OFF_T off)
 #endif
 
 /*******************************************************************
-A send wrapper that will deal with EINTR.
+A send wrapper that will deal with EINTR or EAGAIN or EWOULDBLOCK.
 ********************************************************************/
 
 ssize_t sys_send(int s, const void *msg, size_t len, int flags)
@@ -216,12 +232,16 @@ ssize_t sys_send(int s, const void *msg, size_t len, int flags)
 
 	do {
 		ret = send(s, msg, len, flags);
-	} while (ret == -1 && errno == EINTR);
+#if defined(EWOULDBLOCK)
+	} while (ret == -1 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK));
+#else
+	} while (ret == -1 && (errno == EINTR || errno == EAGAIN));
+#endif
 	return ret;
 }
 
 /*******************************************************************
-A sendto wrapper that will deal with EINTR.
+A sendto wrapper that will deal with EINTR or EAGAIN or EWOULDBLOCK.
 ********************************************************************/
 
 ssize_t sys_sendto(int s,  const void *msg, size_t len, int flags, const struct sockaddr *to, socklen_t tolen)
@@ -230,12 +250,16 @@ ssize_t sys_sendto(int s,  const void *msg, size_t len, int flags, const struct 
 
 	do {
 		ret = sendto(s, msg, len, flags, to, tolen);
-	} while (ret == -1 && errno == EINTR);
+#if defined(EWOULDBLOCK)
+	} while (ret == -1 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK));
+#else
+	} while (ret == -1 && (errno == EINTR || errno == EAGAIN));
+#endif
 	return ret;
 }
 
 /*******************************************************************
-A recv wrapper that will deal with EINTR.
+A recv wrapper that will deal with EINTR or EAGAIN or EWOULDBLOCK.
 ********************************************************************/
 
 ssize_t sys_recv(int fd, void *buf, size_t count, int flags)
@@ -244,7 +268,11 @@ ssize_t sys_recv(int fd, void *buf, size_t count, int flags)
 
 	do {
 		ret = recv(fd, buf, count, flags);
-	} while (ret == -1 && errno == EINTR);
+#if defined(EWOULDBLOCK)
+	} while (ret == -1 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK));
+#else
+	} while (ret == -1 && (errno == EINTR || errno == EAGAIN));
+#endif
 	return ret;
 }
 
@@ -258,7 +286,11 @@ ssize_t sys_recvfrom(int s, void *buf, size_t len, int flags, struct sockaddr *f
 
 	do {
 		ret = recvfrom(s, buf, len, flags, from, fromlen);
-	} while (ret == -1 && errno == EINTR);
+#if defined(EWOULDBLOCK)
+	} while (ret == -1 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK));
+#else
+	} while (ret == -1 && (errno == EINTR || errno == EAGAIN));
+#endif
 	return ret;
 }
 
@@ -667,6 +699,41 @@ int sys_posix_fallocate(int fd, SMB_OFF_T offset, SMB_OFF_T len)
 }
 
 /*******************************************************************
+ An fallocate() function that matches the semantics of the Linux one.
+********************************************************************/
+
+#ifdef HAVE_LINUX_FALLOC_H
+#include <linux/falloc.h>
+#endif
+
+int sys_fallocate(int fd, enum vfs_fallocate_mode mode, SMB_OFF_T offset, SMB_OFF_T len)
+{
+#if defined(HAVE_LINUX_FALLOCATE64) || defined(HAVE_LINUX_FALLOCATE)
+	int lmode;
+	switch (mode) {
+	case VFS_FALLOCATE_EXTEND_SIZE:
+		lmode = 0;
+		break;
+	case VFS_FALLOCATE_KEEP_SIZE:
+		lmode = FALLOC_FL_KEEP_SIZE;
+		break;
+	default:
+		errno = EINVAL;
+		return -1;
+	}
+#if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_OFF64_T) && defined(HAVE_LINUX_FALLOCATE64)
+	return fallocate64(fd, lmode, offset, len);
+#elif defined(HAVE_LINUX_FALLOCATE)
+	return fallocate(fd, lmode, offset, len);
+#endif
+#else
+	/* TODO - plumb in fallocate from other filesysetms like VXFS etc. JRA. */
+	errno = ENOSYS;
+	return -1;
+#endif
+}
+
+/*******************************************************************
  An ftruncate() wrapper that will deal with 64 bit filesizes.
 ********************************************************************/
 
@@ -800,6 +867,24 @@ SMB_STRUCT_DIR *sys_opendir(const char *name)
 	return opendir64(name);
 #else
 	return opendir(name);
+#endif
+}
+
+/*******************************************************************
+ An fdopendir wrapper that will deal with 64 bit filesizes.
+ Ugly hack - we need dirfd for this to work correctly in the
+ calling code.. JRA.
+********************************************************************/
+
+SMB_STRUCT_DIR *sys_fdopendir(int fd)
+{
+#if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_FDOPENDIR64) && defined(HAVE_DIRFD)
+	return fdopendir64(fd);
+#elif defined(HAVE_FDOPENDIR) && defined(HAVE_DIRFD)
+	return fdopendir(fd);
+#else
+	errno = ENOSYS;
+	return NULL;
 #endif
 }
 
@@ -1055,6 +1140,10 @@ void sys_srandom(unsigned int seed)
 #endif
 }
 
+#ifndef NGROUPS_MAX
+#define NGROUPS_MAX 32 /* Guess... */
+#endif
+
 /**************************************************************************
  Returns equivalent to NGROUPS_MAX - using sysconf if needed.
 ****************************************************************************/
@@ -1075,6 +1164,13 @@ int groups_max(void)
 ****************************************************************************/
 
 #if defined(HAVE_BROKEN_GETGROUPS)
+
+#ifdef HAVE_BROKEN_GETGROUPS
+#define GID_T int
+#else
+#define GID_T gid_t
+#endif
+
 static int sys_broken_getgroups(int setlen, gid_t *gidset)
 {
 	GID_T gid;
@@ -1254,50 +1350,6 @@ int sys_setgroups(gid_t UNUSED(primary_gid), int setlen, gid_t *gidset)
 }
 
 /**************************************************************************
- Wrappers for setpwent(), getpwent() and endpwent()
-****************************************************************************/
-
-void sys_setpwent(void)
-{
-	setpwent();
-}
-
-struct passwd *sys_getpwent(void)
-{
-	return getpwent();
-}
-
-void sys_endpwent(void)
-{
-	endpwent();
-}
-
-/**************************************************************************
- Wrappers for getpwnam(), getpwuid(), getgrnam(), getgrgid()
-****************************************************************************/
-
-
-struct passwd *sys_getpwnam(const char *name)
-{
-	return getpwnam(name);
-}
-
-struct passwd *sys_getpwuid(uid_t uid)
-{
-	return getpwuid(uid);
-}
-
-struct group *sys_getgrnam(const char *name)
-{
-	return getgrnam(name);
-}
-
-struct group *sys_getgrgid(gid_t gid)
-{
-	return getgrgid(gid);
-}
-
-/**************************************************************************
  Extract a command into an arg list.
 ****************************************************************************/
 
@@ -1464,7 +1516,7 @@ int sys_popen(const char *command)
 err_exit:
 
 	SAFE_FREE(entry);
-	SAFE_FREE(argl);
+	TALLOC_FREE(argl);
 	close(pipe_fds[0]);
 	close(pipe_fds[1]);
 	return -1;
@@ -1790,7 +1842,7 @@ static ssize_t bsd_attr_list (int type, extattr_arg arg, char *list, size_t size
 			return -1;
 		}
 		/* Shift results back, so we can prepend prefixes */
-		buf = memmove(list + len, list, list_size);
+		buf = (char *)memmove(list + len, list, list_size);
 
 		for(i = 0; i < list_size; i += len + 1) {
 			len = buf[i];
@@ -2602,6 +2654,10 @@ int sys_getpeereid( int s, uid_t *uid)
 	*uid = cred.uid;
 	return 0;
 #else
+#if defined(HAVE_GETPEEREID)
+	gid_t gid;
+	return getpeereid(s, uid, &gid);
+#endif
 	errno = ENOSYS;
 	return -1;
 #endif
@@ -2633,7 +2689,7 @@ int sys_getnameinfo(const struct sockaddr *psa,
 
 int sys_connect(int fd, const struct sockaddr * addr)
 {
-	socklen_t salen = -1;
+	socklen_t salen = (socklen_t)-1;
 
 	if (addr->sa_family == AF_INET) {
 	    salen = sizeof(struct sockaddr_in);

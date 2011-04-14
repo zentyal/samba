@@ -1,18 +1,18 @@
-/* 
+/*
  *  Unix SMB/CIFS implementation.
  *  RPC Pipe client / server routines
  *  Copyright (C) Luke Kenneth Casson Leighton 1997-2001.
- *  
+ *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
- *  
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
- *  
+ *
  *  You should have received a copy of the GNU General Public License
  *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
@@ -20,6 +20,8 @@
 /* NT error codes.  please read nterr.h */
 
 #include "includes.h"
+#include "smb_ldap.h"
+#undef strcasecmp
 
 #if !defined(N_)
 #define N_(string) string
@@ -34,6 +36,11 @@ typedef struct
 static const nt_err_code_struct nt_errs[] =
 {
 	{ "NT_STATUS_OK", NT_STATUS_OK },
+	{ "STATUS_NO_MORE_FILES", STATUS_NO_MORE_FILES },
+	{ "STATUS_NO_MORE_EAS", STATUS_NO_MORE_EAS },
+	{ "STATUS_INVALID_EA_NAME", STATUS_INVALID_EA_NAME },
+	{ "STATUS_EA_LIST_INCONSISTENT", STATUS_EA_LIST_INCONSISTENT },
+	{ "STATUS_INVALID_EA_FLAG", STATUS_INVALID_EA_FLAG },
 	{ "NT_STATUS_UNSUCCESSFUL", NT_STATUS_UNSUCCESSFUL },
 	{ "NT_STATUS_NOT_IMPLEMENTED", NT_STATUS_NOT_IMPLEMENTED },
 	{ "NT_STATUS_INVALID_INFO_CLASS", NT_STATUS_INVALID_INFO_CLASS },
@@ -538,11 +545,7 @@ static const nt_err_code_struct nt_errs[] =
 	{ "NT_STATUS_FILE_IS_OFFLINE", NT_STATUS_FILE_IS_OFFLINE },
 	{ "NT_STATUS_DS_NO_MORE_RIDS", NT_STATUS_DS_NO_MORE_RIDS },
 	{ "NT_STATUS_NOT_A_REPARSE_POINT", NT_STATUS_NOT_A_REPARSE_POINT },
-	{ "NT_STATUS_DOWNGRADE_DETECTED", NT_STATUS_DOWNGRADE_DETECTED },
-        { "NT_STATUS_NO_MORE_ENTRIES", NT_STATUS_NO_MORE_ENTRIES },
-	{ "STATUS_MORE_ENTRIES", STATUS_MORE_ENTRIES },
-	{ "STATUS_SOME_UNMAPPED", STATUS_SOME_UNMAPPED },
-	{ "STATUS_NO_MORE_FILES", STATUS_NO_MORE_FILES },
+	{ "NT_STATUS_NO_MORE_ENTRIES", NT_STATUS_NO_MORE_ENTRIES },
 	{ "NT_STATUS_RPC_PROTSEQ_NOT_SUPPORTED", NT_STATUS_RPC_PROTSEQ_NOT_SUPPORTED },
 	{ "NT_STATUS_RPC_UNSUPPORTED_NAME_SYNTAX", NT_STATUS_RPC_UNSUPPORTED_NAME_SYNTAX },
 	{ "NT_STATUS_RPC_UNKNOWN_IF", NT_STATUS_RPC_UNKNOWN_IF },
@@ -550,15 +553,33 @@ static const nt_err_code_struct nt_errs[] =
 	{ "NT_STATUS_RPC_PROTOCOL_ERROR", NT_STATUS_RPC_PROTOCOL_ERROR },
 	{ "NT_STATUS_RPC_PROCNUM_OUT_OF_RANGE", NT_STATUS_RPC_PROCNUM_OUT_OF_RANGE },
 	{ "NT_STATUS_RPC_CANNOT_SUPPORT", NT_STATUS_RPC_CANNOT_SUPPORT },
+	{ "NT_STATUS_RPC_SEC_PKG_ERROR", NT_STATUS_RPC_SEC_PKG_ERROR },
 	{ "NT_STATUS_RPC_SS_CONTEXT_MISMATCH", NT_STATUS_RPC_SS_CONTEXT_MISMATCH },
 	{ "NT_STATUS_RPC_ENUM_VALUE_OUT_OF_RANGE", NT_STATUS_RPC_ENUM_VALUE_OUT_OF_RANGE },
 	{ "NT_STATUS_RPC_BAD_STUB_DATA", NT_STATUS_RPC_BAD_STUB_DATA },
+	{ "NT_STATUS_RPC_INVALID_PIPE_OBJECT", NT_STATUS_RPC_INVALID_PIPE_OBJECT },
+	{ "NT_STATUS_RPC_INVALID_PIPE_OPERATION", NT_STATUS_RPC_INVALID_PIPE_OPERATION },
+	{ "NT_STATUS_RPC_WRONG_PIPE_VERSION", NT_STATUS_RPC_WRONG_PIPE_VERSION },
+	{ "NT_STATUS_RPC_PIPE_CLOSED", NT_STATUS_RPC_PIPE_CLOSED },
+	{ "NT_STATUS_RPC_PIPE_DISCIPLINE_ERROR", NT_STATUS_RPC_PIPE_DISCIPLINE_ERROR },
+	{ "NT_STATUS_RPC_PIPE_EMPTY", NT_STATUS_RPC_PIPE_EMPTY },
+	{ "NT_STATUS_CURRENT_DOMAIN_NOT_ALLOWED", NT_STATUS_CURRENT_DOMAIN_NOT_ALLOWED },
+	{ "NT_STATUS_OBJECTID_NOT_FOUND", NT_STATUS_OBJECTID_NOT_FOUND },
+	{ "NT_STATUS_DOWNGRADE_DETECTED", NT_STATUS_DOWNGRADE_DETECTED },
+	{ "NT_STATUS_INVALID_LOCK_RANGE", NT_STATUS_INVALID_LOCK_RANGE },
+	{ "NT_STATUS_ERROR_DS_OBJ_STRING_NAME_EXISTS", NT_STATUS_ERROR_DS_OBJ_STRING_NAME_EXISTS },
+	{ "NT_STATUS_ERROR_DS_INCOMPATIBLE_VERSION", NT_STATUS_ERROR_DS_INCOMPATIBLE_VERSION },
+	{ "STATUS_MORE_ENTRIES", STATUS_MORE_ENTRIES },
+	{ "STATUS_SOME_UNMAPPED", STATUS_SOME_UNMAPPED },
+	{ "STATUS_NOTIFY_CLEANUP", STATUS_NOTIFY_CLEANUP },
+	{ "STATUS_NOTIFY_ENUM_DIR", STATUS_NOTIFY_ENUM_DIR },
+
 	{ NULL, NT_STATUS(0) }
 };
 
 /* These need sorting..... */
 
-nt_err_code_struct nt_err_desc[] =
+static const nt_err_code_struct nt_err_desc[] =
 {
 	{ N_("Success"), 				NT_STATUS_OK },
 	{ N_("Undetermined error"), 		NT_STATUS_UNSUCCESSFUL },
@@ -584,8 +605,10 @@ nt_err_code_struct nt_err_desc[] =
 	{ N_("Invalid workstation"), 		NT_STATUS_INVALID_WORKSTATION },
 	{ N_("Password expired"), 			NT_STATUS_PASSWORD_EXPIRED },
 	{ N_("Account disabled"), 			NT_STATUS_ACCOUNT_DISABLED },
+	{ N_("Unexpected information received"), 	NT_STATUS_INVALID_PARAMETER },
 	{ N_("Memory allocation error"), 		NT_STATUS_NO_MEMORY },
 	{ N_("No domain controllers located"), 	NT_STATUS_DOMAIN_CONTROLLER_NOT_FOUND },
+	{ N_("Account locked out"), 		NT_STATUS_ACCOUNT_LOCKED_OUT },
 	{ N_("Named pipe not available"), 		NT_STATUS_PIPE_NOT_AVAILABLE },
 	{ N_("Not implemented"), 			NT_STATUS_NOT_IMPLEMENTED },
 	{ N_("Invalid information class"), 		NT_STATUS_INVALID_INFO_CLASS },
@@ -596,6 +619,7 @@ nt_err_code_struct nt_err_desc[] =
 	{ N_("No memory"), 				NT_STATUS_NO_MEMORY },
 	{ N_("Buffer too small"), 			NT_STATUS_BUFFER_TOO_SMALL },
 	{ N_("Revision mismatch"), 			NT_STATUS_REVISION_MISMATCH },
+	{ N_("No logon servers"), 			NT_STATUS_NO_LOGON_SERVERS },
 	{ N_("No such logon session"), 		NT_STATUS_NO_SUCH_LOGON_SESSION },
 	{ N_("No such privilege"), 			NT_STATUS_NO_SUCH_PRIVILEGE },
 	{ N_("Procedure not found"), 		NT_STATUS_PROCEDURE_NOT_FOUND },
@@ -623,7 +647,7 @@ nt_err_code_struct nt_err_desc[] =
 	{ N_("Logon session collision"), 		NT_STATUS_LOGON_SESSION_COLLISION },
 	{ N_("Invalid logon type"), 		NT_STATUS_INVALID_LOGON_TYPE },
 	{ N_("Cancelled"), 				NT_STATUS_CANCELLED },
-	{ N_("Invalid computer name"), 		NT_STATUS_INVALID_COMPUTER_NAME },	
+	{ N_("Invalid computer name"), 		NT_STATUS_INVALID_COMPUTER_NAME },
 	{ N_("Logon server conflict"), 		NT_STATUS_LOGON_SERVER_CONFLICT },
 	{ N_("Time difference at domain controller"), NT_STATUS_TIME_DIFFERENCE_AT_DC },
 	{ N_("Pipe broken"), 			NT_STATUS_PIPE_BROKEN },
@@ -649,7 +673,7 @@ nt_err_code_struct nt_err_desc[] =
 	{ N_("User session deleted"), 		NT_STATUS_USER_SESSION_DELETED },
 	{ N_("Insufficient server resources"), 	NT_STATUS_INSUFF_SERVER_RESOURCES },
 	{ N_("Insufficient logon information"), 	NT_STATUS_INSUFFICIENT_LOGON_INFO },
-	
+
 	{ N_("License quota exceeded"), 		NT_STATUS_LICENSE_QUOTA_EXCEEDED },
 	{ N_("No more files"),			STATUS_NO_MORE_FILES },
 
@@ -662,12 +686,12 @@ nt_err_code_struct nt_err_desc[] =
 
 const char *nt_errstr(NTSTATUS nt_code)
 {
-        int idx = 0;
+	int idx = 0;
 	char *result;
 
 #ifdef HAVE_LDAP
-        if (NT_STATUS_IS_LDAP(nt_code)) {
-                return ldap_err2string(NT_STATUS_LDAP_CODE(nt_code));
+	if (NT_STATUS_IS_LDAP(nt_code)) {
+		return ldap_err2string(NT_STATUS_LDAP_CODE(nt_code));
 	}
 #endif
 
@@ -677,8 +701,9 @@ const char *nt_errstr(NTSTATUS nt_code)
 	}
 
 	while (nt_errs[idx].nt_errstr != NULL) {
-		if (NT_STATUS_EQUAL(nt_errs[idx].nt_errcode, nt_code)) {
-                        return nt_errs[idx].nt_errstr;
+		if (NT_STATUS_V(nt_errs[idx].nt_errcode) ==
+		    NT_STATUS_V(nt_code)) {
+			return nt_errs[idx].nt_errstr;
 		}
 		idx++;
 	}
@@ -692,20 +717,20 @@ const char *nt_errstr(NTSTATUS nt_code)
 /************************************************************************
  Print friendler version fo NT error code
  ***********************************************************************/
- 
+
 const char *get_friendly_nt_error_msg(NTSTATUS nt_code)
 {
-        int idx = 0;
+	int idx = 0;
 
 	while (nt_err_desc[idx].nt_errstr != NULL) {
 		if (NT_STATUS_V(nt_err_desc[idx].nt_errcode) == NT_STATUS_V(nt_code)) {
-                        return nt_err_desc[idx].nt_errstr;
+			return nt_err_desc[idx].nt_errstr;
 		}
 		idx++;
 	}
-	
+
 	/* fall back to NT_STATUS_XXX string */
-	
+
 	return nt_errstr(nt_code);
 }
 
@@ -716,12 +741,12 @@ const char *get_friendly_nt_error_msg(NTSTATUS nt_code)
 const char *get_nt_error_c_code(NTSTATUS nt_code)
 {
 	char *result;
-        int idx = 0;
+	int idx = 0;
 
 	while (nt_errs[idx].nt_errstr != NULL) {
-		if (NT_STATUS_V(nt_errs[idx].nt_errcode) == 
-                    NT_STATUS_V(nt_code)) {
-                        return nt_errs[idx].nt_errstr;
+		if (NT_STATUS_V(nt_errs[idx].nt_errcode) ==
+		    NT_STATUS_V(nt_code)) {
+			return nt_errs[idx].nt_errstr;
 		}
 		idx++;
 	}
@@ -738,11 +763,11 @@ const char *get_nt_error_c_code(NTSTATUS nt_code)
 
 NTSTATUS nt_status_string_to_code(const char *nt_status_str)
 {
-        int idx = 0;
+	int idx = 0;
 
 	while (nt_errs[idx].nt_errstr != NULL) {
-		if (strcmp(nt_errs[idx].nt_errstr, nt_status_str) == 0) {
-                        return nt_errs[idx].nt_errcode;
+		if (strcasecmp(nt_errs[idx].nt_errstr, nt_status_str) == 0) {
+			return nt_errs[idx].nt_errcode;
 		}
 		idx++;
 	}
@@ -752,8 +777,8 @@ NTSTATUS nt_status_string_to_code(const char *nt_status_str)
 /**
  * Squash an NT_STATUS in line with security requirements.
  * In an attempt to avoid giving the whole game away when users
- * are authenticating, NT replaces both NT_STATUS_NO_SUCH_USER and 
- * NT_STATUS_WRONG_PASSWORD with NT_STATUS_LOGON_FAILURE in certain situations 
+ * are authenticating, NT replaces both NT_STATUS_NO_SUCH_USER and
+ * NT_STATUS_WRONG_PASSWORD with NT_STATUS_LOGON_FAILURE in certain situations
  * (session setups in particular).
  *
  * @param nt_status NTSTATUS input for squashing.
@@ -763,15 +788,15 @@ NTSTATUS nt_status_string_to_code(const char *nt_status_str)
 NTSTATUS nt_status_squash(NTSTATUS nt_status)
 {
 	if NT_STATUS_IS_OK(nt_status) {
-		return nt_status;		
+		return nt_status;
 	} else if NT_STATUS_EQUAL(nt_status, NT_STATUS_NO_SUCH_USER) {
 		/* Match WinXP and don't give the game away */
 		return NT_STATUS_LOGON_FAILURE;
-		
+
 	} else if NT_STATUS_EQUAL(nt_status, NT_STATUS_WRONG_PASSWORD) {
 		/* Match WinXP and don't give the game away */
 		return NT_STATUS_LOGON_FAILURE;
 	} else {
 		return nt_status;
-	}  
+	}
 }

@@ -90,7 +90,6 @@ struct loadparm_global
 	char *szLockDir;
 	char *szModulesDir;
 	char *szPidDir;
-	char *szSetupDir;
 	char *szServerString;
 	char *szAutoServices;
 	char *szPasswdChat;
@@ -134,6 +133,7 @@ struct loadparm_global
 	char *tls_crlfile;
 	char *tls_dhpfile;
 	char *logfile;
+	char *loglevel;
 	char *panic_action;
 	int max_mux;
 	int debuglevel;
@@ -188,7 +188,7 @@ struct loadparm_global
 	const char **szRNDCCommand;
 	const char **szDNSUpdateCommand;
 	const char **szSPNUpdateCommand;
-	char *szNSUpdateCommand;
+	const char **szNSUpdateCommand;
 	struct parmlist_entry *param_opt;
 };
 
@@ -397,8 +397,8 @@ static struct parm_struct parm_table[] = {
 	{"hosts allow", P_LIST, P_LOCAL, LOCAL_VAR(szHostsallow), NULL, NULL},
 	{"hosts deny", P_LIST, P_LOCAL, LOCAL_VAR(szHostsdeny), NULL, NULL},
 
-	{"log level", P_INTEGER, P_GLOBAL, GLOBAL_VAR(debuglevel), handle_debuglevel, NULL},
-	{"debuglevel", P_INTEGER, P_GLOBAL, GLOBAL_VAR(debuglevel), handle_debuglevel, NULL},
+	{"log level", P_STRING, P_GLOBAL, GLOBAL_VAR(loglevel), handle_debuglevel, NULL},
+	{"debuglevel", P_STRING, P_GLOBAL, GLOBAL_VAR(loglevel), handle_debuglevel, NULL},
 	{"log file", P_STRING, P_GLOBAL, GLOBAL_VAR(logfile), handle_logfile, NULL},
 
 	{"smb ports", P_LIST, P_GLOBAL, GLOBAL_VAR(smb_ports), NULL, NULL},
@@ -482,7 +482,6 @@ static struct parm_struct parm_table[] = {
 	{"lock directory", P_STRING, P_GLOBAL, GLOBAL_VAR(szLockDir), NULL, NULL},
 	{"modules dir", P_STRING, P_GLOBAL, GLOBAL_VAR(szModulesDir), NULL, NULL},
 	{"pid directory", P_STRING, P_GLOBAL, GLOBAL_VAR(szPidDir), NULL, NULL}, 
-	{"setup directory", P_STRING, P_GLOBAL, GLOBAL_VAR(szSetupDir), NULL, NULL},
 
 	{"socket address", P_STRING, P_GLOBAL, GLOBAL_VAR(szSocketAddress), NULL, NULL},
 	{"copy", P_STRING, P_LOCAL, LOCAL_VAR(szCopy), handle_copy, NULL},
@@ -505,10 +504,10 @@ static struct parm_struct parm_table[] = {
 	{"idmap trusted only", P_BOOL, P_GLOBAL, GLOBAL_VAR(bIdmapTrustedOnly), NULL, NULL},
 
 	{"ntp signd socket directory", P_STRING, P_GLOBAL, GLOBAL_VAR(szNTPSignDSocketDirectory), NULL, NULL },
-	{"rndc command", P_LIST, P_GLOBAL, GLOBAL_VAR(szRNDCCommand), NULL, NULL },
-	{"dns update command", P_LIST, P_GLOBAL, GLOBAL_VAR(szDNSUpdateCommand), NULL, NULL },
-	{"spn update command", P_LIST, P_GLOBAL, GLOBAL_VAR(szSPNUpdateCommand), NULL, NULL },
-	{"nsupdate command", P_STRING, P_GLOBAL, GLOBAL_VAR(szNSUpdateCommand), NULL, NULL },
+	{"rndc command", P_CMDLIST, P_GLOBAL, GLOBAL_VAR(szRNDCCommand), NULL, NULL },
+	{"dns update command", P_CMDLIST, P_GLOBAL, GLOBAL_VAR(szDNSUpdateCommand), NULL, NULL },
+	{"spn update command", P_CMDLIST, P_GLOBAL, GLOBAL_VAR(szSPNUpdateCommand), NULL, NULL },
+	{"nsupdate command", P_CMDLIST, P_GLOBAL, GLOBAL_VAR(szNSUpdateCommand), NULL, NULL },
 
 	{NULL, P_BOOL, P_NONE, 0, NULL, NULL}
 };
@@ -531,6 +530,8 @@ struct loadparm_context {
 		time_t modtime;
 	} *file_lists;
 	unsigned int flags[NUMPARAMETERS];
+	bool loaded;
+	bool refuse_free;
 };
 
 
@@ -613,40 +614,31 @@ static struct loadparm_context *global_loadparm_context;
 #define lpcfg_global_service(i) global_loadparm_context->services[i]
 
 #define FN_GLOBAL_STRING(fn_name,var_name) \
- _PUBLIC_ const char *lpcfg_ ## fn_name(struct loadparm_context *lp_ctx) {if (lp_ctx == NULL) return NULL; return lp_ctx->globals->var_name ? lp_string(lp_ctx->globals->var_name) : "";} \
- _PUBLIC_ const char *lp_ ## fn_name(void) { return lpcfg_ ## fn_name(global_loadparm_context); }
+ _PUBLIC_ const char *lpcfg_ ## fn_name(struct loadparm_context *lp_ctx) {if (lp_ctx == NULL) return NULL; return lp_ctx->globals->var_name ? lp_string(lp_ctx->globals->var_name) : "";}
 
 #define FN_GLOBAL_CONST_STRING(fn_name,var_name) \
- _PUBLIC_ const char *lpcfg_ ## fn_name(struct loadparm_context *lp_ctx) {if (lp_ctx == NULL) return NULL; return lp_ctx->globals->var_name ? lp_ctx->globals->var_name : "";} \
- _PUBLIC_ const char *lp_ ## fn_name(void) { return lpcfg_ ## fn_name(global_loadparm_context); }
+ _PUBLIC_ const char *lpcfg_ ## fn_name(struct loadparm_context *lp_ctx) {if (lp_ctx == NULL) return NULL; return lp_ctx->globals->var_name ? lp_ctx->globals->var_name : "";}
 
 #define FN_GLOBAL_LIST(fn_name,var_name) \
- _PUBLIC_ const char **lpcfg_ ## fn_name(struct loadparm_context *lp_ctx) {if (lp_ctx == NULL) return NULL; return lp_ctx->globals->var_name;} \
- _PUBLIC_ const char **lp_ ## fn_name(void) { return lpcfg_ ## fn_name(global_loadparm_context); }
+ _PUBLIC_ const char **lpcfg_ ## fn_name(struct loadparm_context *lp_ctx) {if (lp_ctx == NULL) return NULL; return lp_ctx->globals->var_name;}
 
 #define FN_GLOBAL_BOOL(fn_name,var_name) \
- _PUBLIC_ bool lpcfg_ ## fn_name(struct loadparm_context *lp_ctx) {if (lp_ctx == NULL) return false; return lp_ctx->globals->var_name;} \
- _PUBLIC_ bool lp_ ## fn_name(void) { return lpcfg_ ## fn_name(global_loadparm_context); }
+ _PUBLIC_ bool lpcfg_ ## fn_name(struct loadparm_context *lp_ctx) {if (lp_ctx == NULL) return false; return lp_ctx->globals->var_name;}
 
 #define FN_GLOBAL_INTEGER(fn_name,var_name) \
- _PUBLIC_ int lpcfg_ ## fn_name(struct loadparm_context *lp_ctx) {return lp_ctx->globals->var_name;} \
- _PUBLIC_ int lp_ ## fn_name(void) { return lpcfg_ ## fn_name(global_loadparm_context); }
+ _PUBLIC_ int lpcfg_ ## fn_name(struct loadparm_context *lp_ctx) {return lp_ctx->globals->var_name;}
 
 #define FN_LOCAL_STRING(fn_name,val) \
- _PUBLIC_ const char *lpcfg_ ## fn_name(struct loadparm_service *service, struct loadparm_service *sDefault) {return(lp_string((const char *)((service != NULL && service->val != NULL) ? service->val : sDefault->val)));} \
- _PUBLIC_ const char *lp_ ## fn_name(int i) { return lpcfg_ ## fn_name(lpcfg_global_service(i), lpcfg_default_service); }
+ _PUBLIC_ const char *lpcfg_ ## fn_name(struct loadparm_service *service, struct loadparm_service *sDefault) {return(lp_string((const char *)((service != NULL && service->val != NULL) ? service->val : sDefault->val)));}
 
 #define FN_LOCAL_LIST(fn_name,val) \
- _PUBLIC_ const char **lpcfg_ ## fn_name(struct loadparm_service *service, struct loadparm_service *sDefault) {return(const char **)(service != NULL && service->val != NULL? service->val : sDefault->val);} \
- _PUBLIC_ const char **lp_ ## fn_name(int i) { return lpcfg_ ## fn_name(lpcfg_global_service(i), lpcfg_default_service); }
+ _PUBLIC_ const char **lpcfg_ ## fn_name(struct loadparm_service *service, struct loadparm_service *sDefault) {return(const char **)(service != NULL && service->val != NULL? service->val : sDefault->val);}
 
 #define FN_LOCAL_BOOL(fn_name,val) \
- _PUBLIC_ bool lpcfg_ ## fn_name(struct loadparm_service *service, struct loadparm_service *sDefault) {return((service != NULL)? service->val : sDefault->val);} \
- _PUBLIC_ bool lp_ ## fn_name(int i) { return lpcfg_ ## fn_name(lpcfg_global_service(i), lpcfg_default_service); }
+ _PUBLIC_ bool lpcfg_ ## fn_name(struct loadparm_service *service, struct loadparm_service *sDefault) {return((service != NULL)? service->val : sDefault->val);}
 
 #define FN_LOCAL_INTEGER(fn_name,val) \
- _PUBLIC_ int lpcfg_ ## fn_name(struct loadparm_service *service, struct loadparm_service *sDefault) {return((service != NULL)? service->val : sDefault->val);} \
- _PUBLIC_ int lp_ ## fn_name(int i) { return lpcfg_ ## fn_name(lpcfg_global_service(i), lpcfg_default_service); }
+ _PUBLIC_ int lpcfg_ ## fn_name(struct loadparm_service *service, struct loadparm_service *sDefault) {return((service != NULL)? service->val : sDefault->val);}
 
 FN_GLOBAL_INTEGER(server_role, server_role)
 FN_GLOBAL_INTEGER(sid_generator, sid_generator)
@@ -676,7 +668,6 @@ FN_GLOBAL_STRING(private_dir, szPrivateDir)
 FN_GLOBAL_STRING(serverstring, szServerString)
 FN_GLOBAL_STRING(lockdir, szLockDir)
 FN_GLOBAL_STRING(modulesdir, szModulesDir)
-FN_GLOBAL_STRING(setupdir, szSetupDir)
 FN_GLOBAL_STRING(ncalrpc_dir, ncalrpc_dir)
 FN_GLOBAL_STRING(dos_charset, dos_charset)
 FN_GLOBAL_STRING(unix_charset, unix_charset)
@@ -685,7 +676,7 @@ FN_GLOBAL_STRING(piddir, szPidDir)
 FN_GLOBAL_LIST(rndc_command, szRNDCCommand)
 FN_GLOBAL_LIST(dns_update_command, szDNSUpdateCommand)
 FN_GLOBAL_LIST(spn_update_command, szSPNUpdateCommand)
-FN_GLOBAL_STRING(nsupdate_command, szNSUpdateCommand)
+FN_GLOBAL_LIST(nsupdate_command, szNSUpdateCommand)
 FN_GLOBAL_LIST(dcerpc_endpoint_servers, dcerpc_ep_servers)
 FN_GLOBAL_LIST(server_services, server_services)
 FN_GLOBAL_STRING(ntptr_providor, ntptr_providor)
@@ -1062,6 +1053,10 @@ struct loadparm_service *lpcfg_add_service(struct loadparm_context *lp_ctx,
 	int num_to_alloc = lp_ctx->iNumServices + 1;
 	struct parmlist_entry *data, *pdata;
 
+	if (pservice == NULL) {
+		pservice = lp_ctx->sDefault;
+	}
+
 	tservice = *pservice;
 
 	/* it might already exist */
@@ -1147,39 +1142,6 @@ bool lpcfg_add_home(struct loadparm_context *lp_ctx,
 
 	DEBUG(3, ("adding home's share [%s] for user '%s' at '%s'\n",
 		  pszHomename, user, service->szPath));
-
-	return true;
-}
-
-/**
- * Add the IPC service.
- */
-
-static bool lpcfg_add_hidden(struct loadparm_context *lp_ctx, const char *name,
-			     const char *fstype)
-{
-	struct loadparm_service *service = lpcfg_add_service(lp_ctx, lp_ctx->sDefault, name);
-
-	if (service == NULL)
-		return false;
-
-	string_set(service, &service->szPath, tmpdir());
-
-	service->comment = talloc_asprintf(service, "%s Service (%s)",
-				fstype, lp_ctx->globals->szServerString);
-	string_set(service, &service->fstype, fstype);
-	service->iMaxConnections = -1;
-	service->bAvailable = true;
-	service->bRead_only = true;
-	service->bPrint_ok = false;
-	service->bBrowseable = false;
-
-	if (strcasecmp(fstype, "IPC") == 0) {
-		lpcfg_do_service_parameter(lp_ctx, service, "ntvfs handler",
-					"default");
-	}
-
-	DEBUG(3, ("adding hidden service %s\n", name));
 
 	return true;
 }
@@ -1368,7 +1330,7 @@ static void copy_service(struct loadparm_service *pserviceDest,
 			pdata = pdata->next;
 		}
 		if (not_added) {
-			paramo = talloc(pserviceDest, struct parmlist_entry);
+			paramo = talloc_zero(pserviceDest, struct parmlist_entry);
 			if (paramo == NULL)
 				smb_panic("OOM");
 			paramo->key = talloc_reference(paramo, data->key);
@@ -1496,6 +1458,9 @@ static bool handle_realm(struct loadparm_context *lp_ctx,
 {
 	string_set(lp_ctx, ptr, pszParmValue);
 
+	talloc_free(lp_ctx->globals->szRealm_upper);
+	talloc_free(lp_ctx->globals->szRealm_lower);
+
 	lp_ctx->globals->szRealm_upper = strupper_talloc(lp_ctx, pszParmValue);
 	lp_ctx->globals->szRealm_lower = strlower_talloc(lp_ctx, pszParmValue);
 
@@ -1560,18 +1525,16 @@ static bool handle_copy(struct loadparm_context *lp_ctx,
 static bool handle_debuglevel(struct loadparm_context *lp_ctx,
 			const char *pszParmValue, char **ptr)
 {
-	DEBUGLEVEL = atoi(pszParmValue);
 
-	return true;
+	string_set(lp_ctx, ptr, pszParmValue);
+	return debug_parse_levels(pszParmValue);
 }
 
 static bool handle_logfile(struct loadparm_context *lp_ctx,
 			const char *pszParmValue, char **ptr)
 {
-	if (logfile != NULL) {
-		free(discard_const_p(char, logfile));
-	}
-	logfile = strdup(pszParmValue);
+	debug_set_logfile(pszParmValue);
+	string_set(lp_ctx, ptr, pszParmValue);
 	return true;
 }
 
@@ -1641,7 +1604,7 @@ static bool lp_do_parameter_parametric(struct loadparm_context *lp_ctx,
 		}
 	}
 
-	paramo = talloc(mem_ctx, struct parmlist_entry);
+	paramo = talloc_zero(mem_ctx, struct parmlist_entry);
 	if (!paramo)
 		smb_panic("OOM");
 	paramo->key = talloc_strdup(paramo, name);
@@ -1660,14 +1623,18 @@ static bool lp_do_parameter_parametric(struct loadparm_context *lp_ctx,
 
 static bool set_variable(TALLOC_CTX *mem_ctx, int parmnum, void *parm_ptr,
 			 const char *pszParmName, const char *pszParmValue,
-			 struct loadparm_context *lp_ctx)
+			 struct loadparm_context *lp_ctx, bool on_globals)
 {
 	int i;
 	/* if it is a special case then go ahead */
 	if (parm_table[parmnum].special) {
-		parm_table[parmnum].special(lp_ctx, pszParmValue,
-					    (char **)parm_ptr);
-		return true;
+		bool ret;
+		ret = parm_table[parmnum].special(lp_ctx, pszParmValue,
+						  (char **)parm_ptr);
+		if (!ret) {
+			return false;
+		}
+		goto mark_non_default;
 	}
 
 	/* now switch on the type of variable it is */
@@ -1706,11 +1673,40 @@ static bool set_variable(TALLOC_CTX *mem_ctx, int parmnum, void *parm_ptr,
 			return false;
 		}
 
-		case P_LIST:
+		case P_CMDLIST:
 			*(const char ***)parm_ptr = (const char **)str_list_make(mem_ctx,
 								  pszParmValue, NULL);
 			break;
+		case P_LIST:
+		{
+			char **new_list = str_list_make(mem_ctx,
+							pszParmValue, NULL);
+			for (i=0; new_list[i]; i++) {
+				if (new_list[i][0] == '+' && new_list[i][1]) {
+					*(const char ***)parm_ptr = str_list_add(*(const char ***)parm_ptr,
+										 &new_list[i][1]);
+				} else if (new_list[i][0] == '-' && new_list[i][1]) {
+					if (!str_list_check(*(const char ***)parm_ptr,
+							    &new_list[i][1])) {
+						DEBUG(0, ("Unsupported value for: %s = %s, %s is not in the original list\n",
+							  pszParmName, pszParmValue, new_list[i]));
+						return false;
 
+					}
+					str_list_remove(*(const char ***)parm_ptr,
+							&new_list[i][1]);
+				} else {
+					if (i != 0) {
+						DEBUG(0, ("Unsupported list syntax for: %s = %s\n",
+							  pszParmName, pszParmValue));
+						return false;
+					}
+					*(const char ***)parm_ptr = (const char **) new_list;
+					break;
+				}
+			}
+			break;
+		}
 		case P_STRING:
 			string_set(mem_ctx, (char **)parm_ptr, pszParmValue);
 			break;
@@ -1739,7 +1735,8 @@ static bool set_variable(TALLOC_CTX *mem_ctx, int parmnum, void *parm_ptr,
 			break;
 	}
 
-	if (lp_ctx->flags[parmnum] & FLAG_DEFAULT) {
+mark_non_default:
+	if (on_globals && (lp_ctx->flags[parmnum] & FLAG_DEFAULT)) {
 		lp_ctx->flags[parmnum] &= ~FLAG_DEFAULT;
 		/* we have to also unset FLAG_DEFAULT on aliases */
 		for (i=parmnum-1;i>=0 && parm_table[i].offset == parm_table[parmnum].offset;i--) {
@@ -1775,8 +1772,8 @@ bool lpcfg_do_global_parameter(struct loadparm_context *lp_ctx,
 
 	parm_ptr = lpcfg_parm_ptr(lp_ctx, NULL, &parm_table[parmnum]);
 
-	return set_variable(lp_ctx, parmnum, parm_ptr,
-			    pszParmName, pszParmValue, lp_ctx);
+	return set_variable(lp_ctx->globals, parmnum, parm_ptr,
+			    pszParmName, pszParmValue, lp_ctx, true);
 }
 
 bool lpcfg_do_service_parameter(struct loadparm_context *lp_ctx,
@@ -1820,7 +1817,7 @@ bool lpcfg_do_service_parameter(struct loadparm_context *lp_ctx,
 			service->copymap[i] = false;
 
 	return set_variable(service, parmnum, parm_ptr, pszParmName,
-			    pszParmValue, lp_ctx);
+			    pszParmValue, lp_ctx, false);
 }
 
 /**
@@ -1941,6 +1938,7 @@ bool lpcfg_set_option(struct loadparm_context *lp_ctx, const char *option)
 static void print_parameter(struct parm_struct *p, void *ptr, FILE * f)
 {
 	int i;
+	const char *list_sep = ", "; /* For the seperation of lists values that we print below */
 	switch (p->type)
 	{
 		case P_ENUM:
@@ -1966,13 +1964,20 @@ static void print_parameter(struct parm_struct *p, void *ptr, FILE * f)
 			fprintf(f, "0%o", *(int *)ptr);
 			break;
 
+		case P_CMDLIST:
+			list_sep = " ";
+			/* fall through */
 		case P_LIST:
 			if ((char ***)ptr && *(char ***)ptr) {
 				char **list = *(char ***)ptr;
 
-				for (; *list; list++)
-					fprintf(f, "%s%s", *list,
-						((*(list+1))?", ":""));
+				for (; *list; list++) {
+					if (*(list+1) == NULL) {
+						/* last item, print no extra seperator after */
+						list_sep = "";
+					}
+					fprintf(f, "%s%s", *list, list_sep);
+				}
 			}
 			break;
 
@@ -2001,6 +2006,7 @@ static bool equal_parameter(parm_type type, void *ptr1, void *ptr2)
 		case P_ENUM:
 			return (*((int *)ptr1) == *((int *)ptr2));
 
+		case P_CMDLIST:
 		case P_LIST:
 			return str_list_equal((const char **)(*(char ***)ptr1),
 					      (const char **)(*(char ***)ptr2));
@@ -2078,6 +2084,7 @@ static bool is_default(struct loadparm_service *sDefault, int i)
 	if (!defaults_saved)
 		return false;
 	switch (parm_table[i].type) {
+		case P_CMDLIST:
 		case P_LIST:
 			return str_list_equal((const char **)parm_table[i].def.lvalue, 
 					      (const char **)def_ptr);
@@ -2123,6 +2130,9 @@ static void dump_globals(struct loadparm_context *lp_ctx, FILE *f,
 	if (lp_ctx->globals->param_opt != NULL) {
 		for (data = lp_ctx->globals->param_opt; data;
 		     data = data->next) {
+			if (!show_defaults && (data->priority & FLAG_DEFAULT)) {
+				continue;
+			}
 			fprintf(f, "\t%s = %s\n", data->key, data->value);
 		}
         }
@@ -2133,7 +2143,8 @@ static void dump_globals(struct loadparm_context *lp_ctx, FILE *f,
  * Display the contents of a single services record.
  */
 
-static void dump_a_service(struct loadparm_service * pService, struct loadparm_service *sDefault, FILE * f)
+static void dump_a_service(struct loadparm_service * pService, struct loadparm_service *sDefault, FILE * f,
+			   unsigned int *flags)
 {
 	int i;
 	struct parmlist_entry *data;
@@ -2148,8 +2159,14 @@ static void dump_a_service(struct loadparm_service * pService, struct loadparm_s
 		    (i == 0 || (parm_table[i].offset != parm_table[i - 1].offset)))
 		{
 			if (pService == sDefault) {
-				if (defaults_saved && is_default(sDefault, i))
+				if (flags && (flags[i] & FLAG_DEFAULT)) {
 					continue;
+				}
+				if (defaults_saved) {
+					if (is_default(sDefault, i)) {
+						continue;
+					}
+				}
 			} else {
 				if (equal_parameter(parm_table[i].type,
 						    ((char *)pService) +
@@ -2278,6 +2295,13 @@ static int lp_destructor(struct loadparm_context *lp_ctx)
 {
 	struct parmlist_entry *data;
 
+	if (lp_ctx->refuse_free) {
+		/* someone is trying to free the
+		   global_loadparm_context.
+		   We can't allow that. */
+		return -1;
+	}
+
 	if (lp_ctx->globals->param_opt != NULL) {
 		struct parmlist_entry *next;
 		for (data = lp_ctx->globals->param_opt; data; data=next) {
@@ -2293,12 +2317,15 @@ static int lp_destructor(struct loadparm_context *lp_ctx)
 
 /**
  * Initialise the global parameter structure.
+ *
+ * Note that most callers should use loadparm_init_global() instead
  */
 struct loadparm_context *loadparm_init(TALLOC_CTX *mem_ctx)
 {
 	int i;
 	char *myname;
 	struct loadparm_context *lp_ctx;
+	struct parmlist_entry *parm;
 
 	lp_ctx = talloc_zero(mem_ctx, struct loadparm_context);
 	if (lp_ctx == NULL)
@@ -2338,6 +2365,11 @@ struct loadparm_context *loadparm_init(TALLOC_CTX *mem_ctx)
 		}
 	}
 
+
+	lpcfg_do_global_parameter(lp_ctx, "log level", "0");
+
+	lpcfg_do_global_parameter(lp_ctx, "share backend", "classic");
+
 	lpcfg_do_global_parameter(lp_ctx, "share backend", "classic");
 
 	lpcfg_do_global_parameter(lp_ctx, "server role", "standalone");
@@ -2358,10 +2390,12 @@ struct loadparm_context *loadparm_init(TALLOC_CTX *mem_ctx)
 	lpcfg_do_global_parameter(lp_ctx, "ntvfs handler", "unixuid default");
 	lpcfg_do_global_parameter(lp_ctx, "max connections", "-1");
 
-	lpcfg_do_global_parameter(lp_ctx, "dcerpc endpoint servers", "epmapper srvsvc wkssvc rpcecho samr netlogon lsarpc spoolss drsuapi winreg dssetup unixinfo browser");
-	lpcfg_do_global_parameter(lp_ctx, "server services", "smb rpc nbt wrepl ldap cldap kdc drepl winbind ntp_signd kcc dnsupdate");
+	lpcfg_do_global_parameter(lp_ctx, "dcerpc endpoint servers", "epmapper srvsvc wkssvc rpcecho samr netlogon lsarpc spoolss drsuapi winreg dssetup unixinfo browser eventlog6 backupkey");
+	lpcfg_do_global_parameter(lp_ctx, "server services", "smb rpc nbt wrepl ldap cldap kdc drepl winbind ntp_signd kcc dnsupdate web");
 	lpcfg_do_global_parameter(lp_ctx, "ntptr providor", "simple_ldb");
-	lpcfg_do_global_parameter(lp_ctx, "auth methods:domain controller", "anonymous sam_ignoredomain");
+	/* the winbind method for domain controllers is for both RODC
+	   auth forwarding and for trusted domains */
+	lpcfg_do_global_parameter(lp_ctx, "auth methods:domain controller", "anonymous sam_ignoredomain winbind");
 	lpcfg_do_global_parameter(lp_ctx, "auth methods:member server", "anonymous sam winbind");
 	lpcfg_do_global_parameter(lp_ctx, "auth methods:standalone", "anonymous sam_ignoredomain");
 	lpcfg_do_global_parameter(lp_ctx, "private dir", dyn_PRIVATE_DIR);
@@ -2425,6 +2459,7 @@ struct loadparm_context *loadparm_init(TALLOC_CTX *mem_ctx)
 	lpcfg_do_global_parameter(lp_ctx, "BindInterfacesOnly", "False");
 	lpcfg_do_global_parameter(lp_ctx, "Unicode", "True");
 	lpcfg_do_global_parameter(lp_ctx, "ClientLanManAuth", "False");
+	lpcfg_do_global_parameter(lp_ctx, "ClientNTLMv2Auth", "True");
 	lpcfg_do_global_parameter(lp_ctx, "LanmanAuth", "False");
 	lpcfg_do_global_parameter(lp_ctx, "NTLMAuth", "True");
 	lpcfg_do_global_parameter(lp_ctx, "client use spnego principal", "False");
@@ -2467,15 +2502,12 @@ struct loadparm_context *loadparm_init(TALLOC_CTX *mem_ctx)
 	lpcfg_do_global_parameter(lp_ctx, "tls keyfile", "tls/key.pem");
 	lpcfg_do_global_parameter(lp_ctx, "tls certfile", "tls/cert.pem");
 	lpcfg_do_global_parameter(lp_ctx, "tls cafile", "tls/ca.pem");
-	lpcfg_do_global_parameter_var(lp_ctx, "setup directory", "%s",
-				   dyn_SETUPDIR);
-
 	lpcfg_do_global_parameter(lp_ctx, "prefork children:smb", "4");
 
 	lpcfg_do_global_parameter(lp_ctx, "ntp signd socket directory", dyn_NTP_SIGND_SOCKET_DIR);
 	lpcfg_do_global_parameter(lp_ctx, "rndc command", "/usr/sbin/rndc");
-	lpcfg_do_global_parameter_var(lp_ctx, "dns update command", "%s/samba_dnsupdate", dyn_SBINDIR);
-	lpcfg_do_global_parameter_var(lp_ctx, "spn update command", "%s/samba_spnupdate", dyn_SBINDIR);
+	lpcfg_do_global_parameter_var(lp_ctx, "dns update command", "%s/samba_dnsupdate", dyn_SCRIPTSBINDIR);
+	lpcfg_do_global_parameter_var(lp_ctx, "spn update command", "%s/samba_spnupdate", dyn_SCRIPTSBINDIR);
 	lpcfg_do_global_parameter(lp_ctx, "nsupdate command", "/usr/bin/nsupdate -g");
 
 	for (i = 0; parm_table[i].label; i++) {
@@ -2484,7 +2516,28 @@ struct loadparm_context *loadparm_init(TALLOC_CTX *mem_ctx)
 		}
 	}
 
+	for (parm=lp_ctx->globals->param_opt; parm; parm=parm->next) {
+		if (!(parm->priority & FLAG_CMDLINE)) {
+			parm->priority |= FLAG_DEFAULT;
+		}
+	}
+
 	return lp_ctx;
+}
+
+/**
+ * Initialise the global parameter structure.
+ */
+struct loadparm_context *loadparm_init_global(bool load_default)
+{
+	if (global_loadparm_context == NULL) {
+		global_loadparm_context = loadparm_init(NULL);
+	}
+	if (load_default && !global_loadparm_context->loaded) {
+		lpcfg_load_default(global_loadparm_context);
+	}
+	global_loadparm_context->refuse_free = true;
+	return global_loadparm_context;
 }
 
 const char *lpcfg_configfile(struct loadparm_context *lp_ctx)
@@ -2506,10 +2559,8 @@ const char *lp_default_path(void)
  */
 static bool lpcfg_update(struct loadparm_context *lp_ctx)
 {
+	struct debug_settings settings;
 	lpcfg_add_auto_services(lp_ctx, lpcfg_auto_services(lp_ctx));
-
-	lpcfg_add_hidden(lp_ctx, "IPC$", "IPC");
-	lpcfg_add_hidden(lp_ctx, "ADMIN$", "DISK");
 
 	if (!lp_ctx->globals->szWINSservers && lp_ctx->globals->bWINSsupport) {
 		lpcfg_do_global_parameter(lp_ctx, "wins server", "127.0.0.1");
@@ -2518,6 +2569,12 @@ static bool lpcfg_update(struct loadparm_context *lp_ctx)
 	panic_action = lp_ctx->globals->panic_action;
 
 	reload_charcnv(lp_ctx);
+
+	ZERO_STRUCT(settings);
+	/* Add any more debug-related smb.conf parameters created in
+	 * future here */
+	settings.timestamp_logs = true;
+	debug_set_settings(&settings);
 
 	/* FIXME: ntstatus_check_dos_mapping = lpcfg_nt_status_support(lp_ctx); */
 
@@ -2597,6 +2654,7 @@ bool lpcfg_load(struct loadparm_context *lp_ctx, const char *filename)
 		/* set the context used by the lp_*() function
 		   varients */
 		global_loadparm_context = lp_ctx;
+		lp_ctx->loaded = true;
 	}
 
 	return bRetval;
@@ -2620,12 +2678,11 @@ void lpcfg_dump(struct loadparm_context *lp_ctx, FILE *f, bool show_defaults,
 {
 	int iService;
 
-	if (show_defaults)
-		defaults_saved = false;
+	defaults_saved = !show_defaults;
 
 	dump_globals(lp_ctx, f, show_defaults);
 
-	dump_a_service(lp_ctx->sDefault, lp_ctx->sDefault, f);
+	dump_a_service(lp_ctx->sDefault, lp_ctx->sDefault, f, lp_ctx->flags);
 
 	for (iService = 0; iService < maxtoprint; iService++)
 		lpcfg_dump_one(f, show_defaults, lp_ctx->services[iService], lp_ctx->sDefault);
@@ -2639,7 +2696,7 @@ void lpcfg_dump_one(FILE *f, bool show_defaults, struct loadparm_service *servic
 	if (service != NULL) {
 		if (service->szService[0] == '\0')
 			return;
-		dump_a_service(service, sDefault, f);
+		dump_a_service(service, sDefault, f, NULL);
 	}
 }
 
@@ -2725,11 +2782,7 @@ int lpcfg_maxprintjobs(struct loadparm_service *service, struct loadparm_service
 struct smb_iconv_convenience *lpcfg_iconv_convenience(struct loadparm_context *lp_ctx)
 {
 	if (lp_ctx == NULL) {
-		static struct smb_iconv_convenience *fallback_ic = NULL;
-		if (fallback_ic == NULL)
-			fallback_ic = smb_iconv_convenience_reinit(talloc_autofree_context(),
-								   "CP850", "UTF8", true, NULL);
-		return fallback_ic;
+		return get_iconv_convenience();
 	}
 	return lp_ctx->iconv_convenience;
 }

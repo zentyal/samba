@@ -19,6 +19,8 @@
  */
 
 #include "includes.h"
+#include "ads.h"
+#include "idmap.h"
 #include "idmap_adex.h"
 
 #undef DBGC_CLASS

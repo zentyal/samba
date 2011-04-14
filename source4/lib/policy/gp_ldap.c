@@ -19,15 +19,15 @@
  */
 #include "includes.h"
 #include "param/param.h"
-#include "lib/ldb/include/ldb.h"
+#include <ldb.h>
 #include "lib/ldb-samba/ldb_wrap.h"
 #include "auth/credentials/credentials.h"
 #include "../librpc/gen_ndr/nbt.h"
 #include "libcli/libcli.h"
 #include "libnet/libnet.h"
 #include "../librpc/gen_ndr/ndr_security.h"
-#include "../libcli/security/dom_sid.h"
-#include "libcli/security/security.h"
+#include "../libcli/security/security.h"
+#include "libcli/ldap/ldap_ndr.h"
 #include "../lib/talloc/talloc.h"
 #include "lib/policy/policy.h"
 
@@ -425,7 +425,7 @@ NTSTATUS gp_list_gpos(struct gp_context *gp_ctx, struct security_token *token, c
 	TALLOC_CTX *mem_ctx;
 	const char **gpos;
 	struct ldb_result *result;
-	const char *sid;
+	char *sid;
 	struct ldb_dn *dn;
 	struct ldb_message_element *element;
 	bool inherit;
@@ -443,7 +443,9 @@ NTSTATUS gp_list_gpos(struct gp_context *gp_ctx, struct security_token *token, c
 	mem_ctx = talloc_new(gp_ctx);
 	NT_STATUS_HAVE_NO_MEMORY(mem_ctx);
 
-	sid = dom_sid_string(mem_ctx, token->user_sid);
+	sid = ldap_encode_ndr_dom_sid(mem_ctx,
+				      &token->sids[PRIMARY_USER_SID_INDEX]);
+	NT_STATUS_HAVE_NO_MEMORY(sid);
 
 	/* Find the user DN and objectclass via the sid from the security token */
 	rv = ldb_search(gp_ctx->ldb_ctx,
@@ -538,7 +540,7 @@ NTSTATUS gp_list_gpos(struct gp_context *gp_ctx, struct security_token *token, c
 
 			/* If the account does not have read access, this GPO does not apply
 			 * to this account */
-			status = sec_access_check(gpo->security_descriptor,
+			status = se_access_check(gpo->security_descriptor,
 					token,
 					(SEC_STD_READ_CONTROL | SEC_ADS_LIST | SEC_ADS_READ_PROP),
 					&access_granted);

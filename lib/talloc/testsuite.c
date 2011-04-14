@@ -27,6 +27,8 @@
 #include "system/time.h"
 #include <talloc.h>
 
+#include "talloc_testsuite.h"
+
 static struct timeval timeval_current(void)
 {
 	struct timeval tv;
@@ -101,6 +103,7 @@ static double timeval_elapsed(struct timeval *tv)
 
 static unsigned int test_abort_count;
 
+#if 0
 static void test_abort_fn(const char *reason)
 {
 	printf("# test_abort_fn(%s)\n", reason);
@@ -112,6 +115,7 @@ static void test_abort_start(void)
 	test_abort_count = 0;
 	talloc_set_abort_fn(test_abort_fn);
 }
+#endif
 
 static void test_abort_stop(void)
 {
@@ -1119,6 +1123,7 @@ static bool test_pool(void)
 {
 	void *pool;
 	void *p1, *p2, *p3, *p4;
+	void *p2_2;
 
 	pool = talloc_pool(NULL, 1024);
 
@@ -1126,6 +1131,60 @@ static bool test_pool(void)
 	p2 = talloc_size(pool, 20);
 	p3 = talloc_size(p1, 50);
 	p4 = talloc_size(p3, 1000);
+
+#if 1 /* this relies on ALWAYS_REALLOC == 0 in talloc.c */
+	p2_2 = talloc_realloc_size(pool, p2, 20+1);
+	torture_assert("pool realloc 20+1", p2_2 == p2, "failed: pointer changed");
+	p2_2 = talloc_realloc_size(pool, p2, 20-1);
+	torture_assert("pool realloc 20-1", p2_2 == p2, "failed: pointer changed");
+	p2_2 = talloc_realloc_size(pool, p2, 20-1);
+	torture_assert("pool realloc 20-1", p2_2 == p2, "failed: pointer changed");
+
+	talloc_free(p3);
+
+	/* this should reclaim the memory of p4 and p3 */
+	p2_2 = talloc_realloc_size(pool, p2, 400);
+	torture_assert("pool realloc 400", p2_2 == p2, "failed: pointer changed");
+
+	talloc_free(p1);
+
+	/* this should reclaim the memory of p1 */
+	p2_2 = talloc_realloc_size(pool, p2, 800);
+	torture_assert("pool realloc 800", p2_2 == p1, "failed: pointer not changed");
+	p2 = p2_2;
+
+	/* this should do a malloc */
+	p2_2 = talloc_realloc_size(pool, p2, 1800);
+	torture_assert("pool realloc 1800", p2_2 != p2, "failed: pointer not changed");
+	p2 = p2_2;
+
+	/* this should reclaim the memory from the pool */
+	p3 = talloc_size(pool, 80);
+	torture_assert("pool alloc 80", p3 == p1, "failed: pointer changed");
+
+	talloc_free(p2);
+	talloc_free(p3);
+
+	p1 = talloc_size(pool, 80);
+	p2 = talloc_size(pool, 20);
+
+	talloc_free(p1);
+
+	p2_2 = talloc_realloc_size(pool, p2, 20-1);
+	torture_assert("pool realloc 20-1", p2_2 == p2, "failed: pointer changed");
+	p2_2 = talloc_realloc_size(pool, p2, 20-1);
+	torture_assert("pool realloc 20-1", p2_2 == p2, "failed: pointer changed");
+
+	/* this should do a malloc */
+	p2_2 = talloc_realloc_size(pool, p2, 1800);
+	torture_assert("pool realloc 1800", p2_2 != p2, "failed: pointer not changed");
+	p2 = p2_2;
+
+	/* this should reclaim the memory from the pool */
+	p3 = talloc_size(pool, 800);
+	torture_assert("pool alloc 800", p3 == p1, "failed: pointer changed");
+
+#endif /* this relies on ALWAYS_REALLOC == 0 in talloc.c */
 
 	talloc_free(pool);
 
@@ -1163,6 +1222,21 @@ static bool test_free_ref_null_context(void)
 	return true;
 }
 
+static bool test_rusty(void)
+{
+	void *root;
+	const char *p1;
+
+	talloc_enable_null_tracking();
+	root = talloc_new(NULL);
+	p1 = talloc_strdup(root, "foo");
+	talloc_increase_ref_count(p1);
+	talloc_report_full(root, stdout);
+	talloc_free(root);
+	return true;
+}
+
+
 static void test_reset(void)
 {
 	talloc_set_log_fn(test_log_stdout);
@@ -1171,7 +1245,6 @@ static void test_reset(void)
 	talloc_enable_null_tracking_no_autofree();
 }
 
-struct torture_context;
 bool torture_local_talloc(struct torture_context *tctx)
 {
 	bool ret = true;
@@ -1218,6 +1291,8 @@ bool torture_local_talloc(struct torture_context *tctx)
 	ret &= test_pool();
 	test_reset();
 	ret &= test_free_ref_null_context();
+	test_reset();
+	ret &= test_rusty();
 
 	if (ret) {
 		test_reset();
@@ -1227,6 +1302,6 @@ bool torture_local_talloc(struct torture_context *tctx)
 	ret &= test_autofree();
 
 	test_reset();
-
+	talloc_disable_null_tracking();
 	return ret;
 }

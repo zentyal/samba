@@ -17,6 +17,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "includes.h"
+#include "popt_common.h"
 #include "libsmbclient.h"
 
 #if _FILE_OFFSET_BITS==64
@@ -275,7 +276,7 @@ static int smb_download_file(const char *base, const char *name, int recursive,
 			     int resume, int toplevel, char *outfile)
 {
 	int remotehandle, localhandle;
-	time_t start_time = time(NULL);
+	time_t start_time = time_mono(NULL);
 	const char *newpath;
 	char path[SMB_MAXPATHLEN];
 	char checkbuf[2][RESUME_CHECK_SIZE];
@@ -410,6 +411,7 @@ static int smb_download_file(const char *base, const char *name, int recursive,
 				fprintf(stderr, "Offset in local and remote files is different (local: "OFF_T_FORMAT", remote: "OFF_T_FORMAT")\n",
 					(OFF_T_FORMAT_CAST)off1,
 					(OFF_T_FORMAT_CAST)off2);
+				smbc_close(remotehandle); close(localhandle);
 				return 1;
 			}
 
@@ -441,6 +443,9 @@ static int smb_download_file(const char *base, const char *name, int recursive,
 	}
 
 	readbuf = (char *)SMB_MALLOC(blocksize);
+	if (!readbuf) {
+		return 1;
+	}
 
 	/* Now, download all bytes from offset_download to the end */
 	for(curpos = offset_download; curpos < remotestat.st_size; curpos+=blocksize) {
@@ -465,7 +470,8 @@ static int smb_download_file(const char *base, const char *name, int recursive,
 
 		if(dots)fputc('.', stderr);
 		else if(!quiet) {
-			print_progress(newpath, start_time, time(NULL), start_offset, curpos, remotestat.st_size);
+			print_progress(newpath, start_time, time_mono(NULL),
+					start_offset, curpos, remotestat.st_size);
 		}
 	}
 
@@ -505,7 +511,7 @@ static void clean_exit(void)
 	char bs[100];
 	human_readable(total_bytes, bs, sizeof(bs));
 	if(!quiet)fprintf(stderr, "Downloaded %s in %lu seconds\n", bs,
-		(unsigned long)(time(NULL) - total_start_time));
+		(unsigned long)(time_mono(NULL) - total_start_time));
 	exit(0);
 }
 
@@ -664,7 +670,7 @@ int main(int argc, const char **argv)
 
 	columns = get_num_cols();
 
-	total_start_time = time(NULL);
+	total_start_time = time_mono(NULL);
 
 	while ( (file = poptGetArg(pc)) ) {
 		if (!recursive) 

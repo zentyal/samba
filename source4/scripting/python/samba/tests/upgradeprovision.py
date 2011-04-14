@@ -17,6 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+"""Tests for samba.upgradeprovision."""
+
 import os
 from samba.upgradehelpers import  (usn_in_range, dn_sort,
                                   get_diff_sddls, update_secrets,
@@ -125,7 +127,7 @@ class UpdateSecretsTests(samba.tests.TestCaseInTempDir):
             expression="dn=@MODULES", base="", scope=SCOPE_SUBTREE)
         refmodules = self.referencedb.search(
             expression="dn=@MODULES", base="", scope=SCOPE_SUBTREE)
-        self.assertEquals(newmodules, refmodules)
+        self.assertEquals(newmodules.msgs, refmodules.msgs)
 
     def tearDown(self):
         for name in ["ref.ldb", "secrets.ldb"]:

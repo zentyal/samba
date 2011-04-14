@@ -74,7 +74,7 @@ static bool test_notify_dir(struct smbcli_state *cli, struct smbcli_state *cli2,
 	struct smbcli_request *req, *req2;
 	extern int torture_numops;
 
-	printf("TESTING CHANGE NOTIFY ON DIRECTRIES\n");
+	printf("TESTING CHANGE NOTIFY ON DIRECTORIES\n");
 		
 	/*
 	  get a handle on the directory
@@ -144,7 +144,7 @@ static bool test_notify_dir(struct smbcli_state *cli, struct smbcli_state *cli2,
 	smbcli_rmdir(cli2->tree, BASEDIR "\\subdir-name");
 	smbcli_mkdir(cli2->tree, BASEDIR "\\subdir-name");
 	smbcli_rmdir(cli2->tree, BASEDIR "\\subdir-name");
-	msleep(200);
+	smb_msleep(200);
 	req = smb_raw_changenotify_send(cli->tree, &notify);
 	status = smb_raw_changenotify_recv(req, mem_ctx, &notify);
 	CHECK_STATUS(status, NT_STATUS_OK);
@@ -365,7 +365,7 @@ static bool test_notify_recursive(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 
 	notify.nttrans.in.completion_filter = 0;
 	notify.nttrans.in.recursive = true;
-	msleep(200);
+	smb_msleep(200);
 	req1 = smb_raw_changenotify_send(cli->tree, &notify);
 
 	smbcli_rmdir(cli->tree, BASEDIR "\\subdir-name\\subname1-r");
@@ -602,7 +602,7 @@ static bool test_notify_mask(struct smbcli_state *cli, struct torture_context *t
 		notify.nttrans.in.completion_filter = (1<<i); \
 		req = smb_raw_changenotify_send(cli->tree, &notify); \
 		op \
-		msleep(200); smb_raw_ntcancel(req); \
+		smb_msleep(200); smb_raw_ntcancel(req); \
 		status = smb_raw_changenotify_recv(req, tctx, &notify); \
 		cleanup \
 		smbcli_close(cli->tree, fnum); \
@@ -1420,7 +1420,7 @@ static bool test_notify_basedir(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 
 	/* set attribute on a file to assure we receive a notification */
 	smbcli_setatr(cli->tree, BASEDIR "\\tname1", FILE_ATTRIBUTE_HIDDEN, 0);
-	msleep(200);
+	smb_msleep(200);
 
 	/* check how many responses were given, expect only 1 for the file */
 	status = smb_raw_changenotify_recv(req1, mem_ctx, &notify);
@@ -1619,7 +1619,7 @@ static bool test_notify_alignment(struct smbcli_state *cli,
 				 "abc",
 				 "abcd" };
 	int num_names = ARRAY_SIZE(fnames);
-	const char *fpath = NULL;
+	char *fpath = NULL;
 
 	torture_comment(tctx, "TESTING CHANGE NOTIFY REPLY ALIGNMENT\n");
 

@@ -17,6 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+"""Tests for samba.upgradeprovision that need a DC."""
+
 import os
 import re
 import shutil
@@ -29,6 +31,7 @@ from samba.upgradehelpers import (get_paths, get_ldbs,
                                  find_provision_key_parameters, identic_rename,
                                  updateOEMInfo, getOEMInfo, update_gpo,
                                  delta_update_basesamdb,
+                                 update_dns_account_password,
                                  search_constructed_attrs_stored,
                                  increment_calculated_keyversion_number)
 from samba.tests import env_loadparm, TestCaseInTempDir
@@ -156,6 +159,9 @@ class UpgradeProvisionWithLdbTestCase(TestCaseInTempDir):
         basedn = "DC=%s" % realm.replace(".", ", DC=")
         oem = getOEMInfo(self.ldbs.sam, basedn)
         self.assertNotEquals(oem, "")
+
+    def test_update_dns_account(self):
+        update_dns_account_password(self.ldbs.sam, self.ldbs.secrets, self.names)
 
     def test_updateOEMInfo(self):
         realm = self.lp.get("realm")

@@ -142,6 +142,7 @@ interface wbint
 
     NTSTATUS wbint_LookupRids(
 	[in] wbint_RidArray *rids,
+	[out,string,charset(UTF8)] char **domain_name,
 	[out] wbint_Principals *names
 	);
 
@@ -152,28 +153,5 @@ interface wbint
 	);
 
     NTSTATUS wbint_PingDc(
-	);
-
-    typedef [public] enum {
-	WBINT_ID_TYPE_NOT_SPECIFIED,
-	WBINT_ID_TYPE_UID,
-	WBINT_ID_TYPE_GID
-    } wbint_IdType;
-
-    NTSTATUS wbint_SetMapping(
-	[in] dom_sid *sid,
-	[in] wbint_IdType type,
-	[in] hyper id
-	);
-
-    NTSTATUS wbint_RemoveMapping(
-	[in] dom_sid *sid,
-	[in] wbint_IdType type,
-	[in] hyper id
-	);
-
-    NTSTATUS wbint_SetHWM(
-	[in] wbint_IdType type,
-	[in] hyper id
 	);
 }

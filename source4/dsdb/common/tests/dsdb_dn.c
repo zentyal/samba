@@ -21,8 +21,8 @@
 
 #include "includes.h"
 #include "lib/events/events.h"
-#include "lib/ldb/include/ldb.h"
-#include "lib/ldb/include/ldb_errors.h"
+#include <ldb.h>
+#include <ldb_errors.h>
 #include "lib/ldb-samba/ldif_handlers.h"
 #include "ldb_wrap.h"
 #include "dsdb/samdb/samdb.h"
@@ -44,7 +44,7 @@ static bool torture_dsdb_dn_attrs(struct torture_context *torture)
 		       "Failed to init ldb");
 
 	torture_assert_int_equal(torture, 
-				 ldb_register_samba_handlers(ldb), 0, 
+				 ldb_register_samba_handlers(ldb), LDB_SUCCESS,
 				 "Failed to register Samba handlers");
 
 	ldb_set_utf8_fns(ldb, NULL, wrap_casefold);
@@ -127,7 +127,7 @@ static bool torture_dsdb_dn_valid(struct torture_context *torture)
 		       "Failed to init ldb");
 
 	torture_assert_int_equal(torture, 
-				 ldb_register_samba_handlers(ldb), 0, 
+				 ldb_register_samba_handlers(ldb), LDB_SUCCESS,
 				 "Failed to register Samba handlers");
 
 	ldb_set_utf8_fns(ldb, NULL, wrap_casefold);
@@ -249,7 +249,7 @@ static bool torture_dsdb_dn_invalid(struct torture_context *torture)
 		       "Failed to init ldb");
 
 	torture_assert_int_equal(torture, 
-				 ldb_register_samba_handlers(ldb), 0, 
+				 ldb_register_samba_handlers(ldb), LDB_SUCCESS,
 				 "Failed to register Samba handlers");
 
 	ldb_set_utf8_fns(ldb, NULL, wrap_casefold);
@@ -344,15 +344,15 @@ static bool torture_dsdb_dn_invalid(struct torture_context *torture)
 
 struct torture_suite *torture_dsdb_dn(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "DSDB-DN");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "dsdb.dn");
 
 	if (suite == NULL) {
 		return NULL;
 	}
 
-	torture_suite_add_simple_test(suite, "VALID", torture_dsdb_dn_valid);
-	torture_suite_add_simple_test(suite, "INVALID", torture_dsdb_dn_invalid);
-	torture_suite_add_simple_test(suite, "ATTRS", torture_dsdb_dn_attrs);
+	torture_suite_add_simple_test(suite, "valid", torture_dsdb_dn_valid);
+	torture_suite_add_simple_test(suite, "invalid", torture_dsdb_dn_invalid);
+	torture_suite_add_simple_test(suite, "attrs", torture_dsdb_dn_attrs);
 
 	suite->description = talloc_strdup(suite, "DSDB DN tests");
 

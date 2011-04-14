@@ -21,7 +21,11 @@
  */
 
 #include "includes.h"
+#include "system/passwd.h"
+#include "passdb.h"
 #include "groupdb/mapping.h"
+#include "../libcli/security/security.h"
+#include "lib/winbind_util.h"
 
 static const struct mapping_backend *backend;
 
@@ -137,7 +141,7 @@ bool get_domain_group_from_sid(struct dom_sid sid, GROUP_MAP *map)
 		return False;
 	}
 
-	DEBUG(10, ("get_domain_group_from_sid: SID found in the TDB\n"));
+	DEBUG(10, ("get_domain_group_from_sid: SID found in passdb\n"));
 
 	/* if it's not a domain group, continue */
 	if (map->sid_name_use!=SID_NAME_DOM_GRP) {
@@ -323,8 +327,8 @@ int smb_add_user_group(const char *unix_group, const char *unix_user)
 		if (!add_script) {
 			return -1;
 		}
-		add_script = talloc_string_sub(ctx,
-				add_script, "%u", unix_user);
+		add_script = talloc_string_sub2(ctx,
+				add_script, "%u", unix_user, true, false, true);
 		if (!add_script) {
 			return -1;
 		}
@@ -363,8 +367,8 @@ int smb_delete_user_group(const char *unix_group, const char *unix_user)
 		if (!del_script) {
 			return -1;
 		}
-		del_script = talloc_string_sub(ctx,
-				del_script, "%u", unix_user);
+		del_script = talloc_string_sub2(ctx,
+				del_script, "%u", unix_user, true, false, true);
 		if (!del_script) {
 			return -1;
 		}
@@ -486,20 +490,21 @@ NTSTATUS pdb_default_create_alias(struct pdb_methods *methods,
 		return NT_STATUS_ALIAS_EXISTS;
 	}
 
-	if (!winbind_allocate_gid(&gid)) {
-		DEBUG(3, ("Could not get a gid out of winbind\n"));
+	if (!pdb_new_rid(&new_rid)) {
+		DEBUG(0, ("Could not allocate a RID.\n"));
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
-	if (!pdb_new_rid(&new_rid)) {
-		DEBUG(0, ("Could not allocate a RID -- wasted a gid :-(\n"));
+	sid_compose(&sid, get_global_sam_sid(), new_rid);
+
+	if (!winbind_allocate_gid(&gid)) {
+		DEBUG(3, ("Could not get a gid out of winbind - "
+			  "wasted a rid :-(\n"));
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
 	DEBUG(10, ("Creating alias %s with gid %u and rid %u\n",
 		   name, (unsigned int)gid, (unsigned int)new_rid));
-
-	sid_compose(&sid, get_global_sam_sid(), new_rid);
 
 	map.gid = gid;
 	sid_copy(&map.sid, &sid);

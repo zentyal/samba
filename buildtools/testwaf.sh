@@ -21,7 +21,6 @@ for d in $tests; do
     pushd $d
     rm -rf bin
     type waf
-    ./autogen-waf.sh
     waf dist
     ./configure -C --enable-developer --prefix=$PREFIX
     time make
@@ -49,7 +48,7 @@ pushd lib/talloc
 versions="python2.4 python2.5 python2.6 python3.0 python3.1"
 for p in $versions; do
     ret=$(which $p || echo "failed")
-    if [ $ret == "failed" ]; then
+    if [ $ret = "failed" ]; then
         echo "$p not found, skipping"
         continue
     fi

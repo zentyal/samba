@@ -39,11 +39,6 @@ typedef enum {CH_UTF16LE=0, CH_UTF16=0, CH_UNIX, CH_DISPLAY, CH_DOS, CH_UTF8, CH
 
 typedef uint16_t smb_ucs2_t;
 
-/*
- * SMB UCS2 (16-bit unicode) internal type.
- * smb_ucs2_t is *always* in little endian format.
- */
-
 #ifdef WORDS_BIGENDIAN
 #define UCS2_SHIFT 8
 #else
@@ -125,6 +120,9 @@ struct smb_iconv_convenience;
 #define strupper(s) strupper_m(s)
 
 char *strchr_m(const char *s, char c);
+size_t strlen_m_ext(const char *s, charset_t src_charset, charset_t dst_charset);
+size_t strlen_m_ext_term(const char *s, charset_t src_charset,
+			 charset_t dst_charset);
 size_t strlen_m_term(const char *s);
 size_t strlen_m_term_null(const char *s);
 size_t strlen_m(const char *s);
@@ -172,23 +170,36 @@ ssize_t iconv_talloc(TALLOC_CTX *mem_ctx,
 				       void *dest);
 
 extern struct smb_iconv_convenience *global_iconv_convenience;
+struct smb_iconv_convenience *get_iconv_convenience(void);
+smb_iconv_t get_conv_handle(struct smb_iconv_convenience *ic,
+			    charset_t from, charset_t to);
+const char *charset_name(struct smb_iconv_convenience *ic, charset_t ch);
 
+codepoint_t next_codepoint_ext(const char *str, charset_t src_charset,
+			       size_t *size);
 codepoint_t next_codepoint(const char *str, size_t *size);
 ssize_t push_codepoint(char *str, codepoint_t c);
 
 /* codepoints */
+codepoint_t next_codepoint_convenience_ext(struct smb_iconv_convenience *ic,
+			    const char *str, charset_t src_charset,
+			    size_t *size);
 codepoint_t next_codepoint_convenience(struct smb_iconv_convenience *ic, 
 			    const char *str, size_t *size);
 ssize_t push_codepoint_convenience(struct smb_iconv_convenience *ic, 
 				char *str, codepoint_t c);
+
 codepoint_t toupper_m(codepoint_t val);
 codepoint_t tolower_m(codepoint_t val);
+bool islower_m(codepoint_t val);
+bool isupper_m(codepoint_t val);
 int codepoint_cmpi(codepoint_t c1, codepoint_t c2);
 
 /* Iconv convenience functions */
 struct smb_iconv_convenience *smb_iconv_convenience_reinit(TALLOC_CTX *mem_ctx,
 							   const char *dos_charset,
 							   const char *unix_charset,
+							   const char *display_charset,
 							   bool native_iconv,
 							   struct smb_iconv_convenience *old_ic);
 
@@ -212,7 +223,8 @@ smb_iconv_t smb_iconv_open_ex(TALLOC_CTX *mem_ctx, const char *tocode,
 			      const char *fromcode, bool native_iconv);
 
 void load_case_tables(void);
-bool charset_register_backend(const void *_funcs);
+void load_case_tables_library(void);
+bool smb_register_charset(const struct charset_functions *funcs_in);
 
 /*
  *   Define stub for charset module which implements 8-bit encoding with gaps.
@@ -266,7 +278,7 @@ static size_t CHARSETNAME ## _pull(void *cd, const char **inbuf, size_t *inbytes
 			 char **outbuf, size_t *outbytesleft)					\
 {												\
 	while (*inbytesleft >= 1 && *outbytesleft >= 2) {					\
-		*(uint16*)(*outbuf) = to_ucs2[((unsigned char*)(*inbuf))[0]];			\
+		SSVAL(*outbuf, 0, to_ucs2[((unsigned char*)(*inbuf))[0]]);			\
 		(*inbytesleft)  -= 1;								\
 		(*outbytesleft) -= 2;								\
 		(*inbuf)  += 1;									\
@@ -287,8 +299,11 @@ struct charset_functions CHARSETNAME ## _functions = 						\
 NTSTATUS charset_ ## CHARSETNAME ## _init(void);							\
 NTSTATUS charset_ ## CHARSETNAME ## _init(void)							\
 {												\
-	return smb_register_charset(& CHARSETNAME ## _functions);				\
-}												\
+	if (!smb_register_charset(& CHARSETNAME ## _functions)) {	\
+	        return NT_STATUS_INTERNAL_ERROR;			\
+	}								\
+	return NT_STATUS_OK; \
+}						\
 
 
 #endif /* __CHARSET_H__ */

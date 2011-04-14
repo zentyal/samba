@@ -24,18 +24,16 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
+#include "popt_common.h"
 #include "vfstest.h"
+#include "../libcli/smbreadline/smbreadline.h"
 
 /* List to hold groups of commands */
 static struct cmd_list {
 	struct cmd_list *prev, *next;
 	struct cmd_set *cmd_set;
 } *cmd_list;
-
-int get_client_fd(void)
-{
-	return -1;
-}
 
 /****************************************************************************
 handle completion of commands for readline
@@ -191,7 +189,7 @@ static NTSTATUS cmd_debuglevel(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int a
 	}
 
 	if (argc == 2) {
-		DEBUGLEVEL = atoi(argv[1]);
+		lp_set_cmdline("log level", argv[1]);
 	}
 
 	printf("debuglevel is %d\n", DEBUGLEVEL);
@@ -414,13 +412,7 @@ void exit_server_cleanly(const char *const reason)
 	exit_server("normal exit");
 }
 
-static int server_fd = -1;
 int last_message = -1;
-
-int smbd_server_fd(void)
-{
-		return server_fd;
-}
 
 struct event_context *smbd_event_context(void)
 {
@@ -466,12 +458,14 @@ int main(int argc, char *argv[])
 
 	poptFreeContext(pc);
 
+	lp_load_initial_only(get_dyn_CONFIGFILE());
+
 	/* TODO: check output */
-	reload_services(False);
+	reload_services(smbd_messaging_context(), -1, False);
 
 	/* the following functions are part of the Samba debugging
 	   facilities.  See lib/debug.c */
-	setup_logging("vfstest", True);
+	setup_logging("vfstest", DEBUG_STDOUT);
 	
 	/* Load command lists */
 

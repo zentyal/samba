@@ -19,6 +19,7 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
 #include "../libcli/smb/smb_common.h"
 
@@ -61,7 +62,7 @@ struct smb_request *smbd_smb2_fake_smb_request(struct smbd_smb2_request *req)
 
 void remove_smb2_chained_fsp(files_struct *fsp)
 {
-	struct smbd_server_connection *sconn = smbd_server_conn;
+	struct smbd_server_connection *sconn = fsp->conn->sconn;
 	struct smbd_smb2_request *smb2req;
 
 	for (smb2req = sconn->smb2.requests; smb2req; smb2req = smb2req->next) {

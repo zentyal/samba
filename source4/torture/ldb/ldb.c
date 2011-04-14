@@ -21,8 +21,8 @@
 
 #include "includes.h"
 #include "lib/events/events.h"
-#include "lib/ldb/include/ldb.h"
-#include "lib/ldb/include/ldb_errors.h"
+#include <ldb.h>
+#include <ldb_errors.h>
 #include "lib/ldb-samba/ldif_handlers.h"
 #include "ldb_wrap.h"
 #include "dsdb/samdb/samdb.h"
@@ -57,7 +57,7 @@ static bool torture_ldb_attrs(struct torture_context *torture)
 		       "Failed to init ldb");
 
 	torture_assert_int_equal(torture, 
-				 ldb_register_samba_handlers(ldb), 0, 
+				 ldb_register_samba_handlers(ldb), LDB_SUCCESS,
 				 "Failed to register Samba handlers");
 
 	ldb_set_utf8_fns(ldb, NULL, wrap_casefold);
@@ -216,7 +216,7 @@ static bool torture_ldb_dn_attrs(struct torture_context *torture)
 		       "Failed to init ldb");
 
 	torture_assert_int_equal(torture, 
-				 ldb_register_samba_handlers(ldb), 0, 
+				 ldb_register_samba_handlers(ldb), LDB_SUCCESS,
 				 "Failed to register Samba handlers");
 
 	ldb_set_utf8_fns(ldb, NULL, wrap_casefold);
@@ -334,7 +334,7 @@ static bool torture_ldb_dn_extended(struct torture_context *torture)
 		       "Failed to init ldb");
 
 	torture_assert_int_equal(torture, 
-				 ldb_register_samba_handlers(ldb), 0, 
+				 ldb_register_samba_handlers(ldb), LDB_SUCCESS,
 				 "Failed to register Samba handlers");
 
 	ldb_set_utf8_fns(ldb, NULL, wrap_casefold);
@@ -595,7 +595,7 @@ static bool torture_ldb_dn(struct torture_context *torture)
 		       "Failed to init ldb");
 
 	torture_assert_int_equal(torture, 
-				 ldb_register_samba_handlers(ldb), 0, 
+				 ldb_register_samba_handlers(ldb), LDB_SUCCESS,
 				 "Failed to register Samba handlers");
 
 	ldb_set_utf8_fns(ldb, NULL, wrap_casefold);
@@ -685,6 +685,12 @@ static bool torture_ldb_dn(struct torture_context *torture)
 				"should have failed to validate a DN with 0xA in it");
 	}
 
+	/* Escaped comma */
+	torture_assert(torture,
+		       dn = ldb_dn_new(mem_ctx, ldb, "CN=A\\,comma,DC=SAMBA,DC=org"),
+		       "Failed to create a DN with an escaped comma in it");
+
+
 	val = data_blob_const("CN=Zer\0,DC=SAMBA,DC=org", 23);
 	torture_assert(torture,
 		       NULL == ldb_dn_from_ldb_val(mem_ctx, ldb, &val),
@@ -707,7 +713,7 @@ static bool torture_ldb_dn_invalid_extended(struct torture_context *torture)
 		       "Failed to init ldb");
 
 	torture_assert_int_equal(torture, 
-				 ldb_register_samba_handlers(ldb), 0, 
+				 ldb_register_samba_handlers(ldb), LDB_SUCCESS,
 				 "Failed to register Samba handlers");
 
 	ldb_set_utf8_fns(ldb, NULL, wrap_casefold);
@@ -789,17 +795,17 @@ static bool torture_ldb_dn_invalid_extended(struct torture_context *torture)
 
 struct torture_suite *torture_ldb(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "LDB");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "ldb");
 
 	if (suite == NULL) {
 		return NULL;
 	}
 
-	torture_suite_add_simple_test(suite, "ATTRS", torture_ldb_attrs);
-	torture_suite_add_simple_test(suite, "DN-ATTRS", torture_ldb_dn_attrs);
-	torture_suite_add_simple_test(suite, "DN-EXTENDED", torture_ldb_dn_extended);
-	torture_suite_add_simple_test(suite, "DN-INVALID-EXTENDED", torture_ldb_dn_invalid_extended);
-	torture_suite_add_simple_test(suite, "DN", torture_ldb_dn);
+	torture_suite_add_simple_test(suite, "attrs", torture_ldb_attrs);
+	torture_suite_add_simple_test(suite, "dn-attrs", torture_ldb_dn_attrs);
+	torture_suite_add_simple_test(suite, "dn-extended", torture_ldb_dn_extended);
+	torture_suite_add_simple_test(suite, "dn-invalid-extended", torture_ldb_dn_invalid_extended);
+	torture_suite_add_simple_test(suite, "dn", torture_ldb_dn);
 
 	suite->description = talloc_strdup(suite, "LDB (samba-specific behaviour) tests");
 

@@ -308,7 +308,7 @@ static bool torture_smb2_notify_dir(struct torture_context *torture,
 	smb2_util_rmdir(tree2, fname);
 	smb2_util_mkdir(tree2, fname);
 	smb2_util_rmdir(tree2, fname);
-	msleep(200);
+	smb_msleep(200);
 	req = smb2_notify_send(tree1, &(notify.smb2));
 	status = smb2_notify_recv(req, torture, &(notify.smb2));
 	CHECK_STATUS(status, NT_STATUS_OK);
@@ -603,7 +603,7 @@ static bool torture_smb2_notify_recursive(struct torture_context *torture,
 
 	notify.smb2.in.completion_filter = 0;
 	notify.smb2.in.recursive = true;
-	msleep(200);
+	smb_msleep(200);
 	req1 = smb2_notify_send(tree1, &(notify.smb2));
 
 	status = smb2_util_rmdir(tree2, BASEDIR "\\subdir-name\\subname1-r");
@@ -898,7 +898,7 @@ static bool torture_smb2_notify_mask(struct torture_context *torture,
 		/* send the change notify request */ \
 		req = smb2_notify_send(tree1, &(notify.smb2)); \
 		op \
-		msleep(200); smb2_cancel(req); \
+		smb_msleep(200); smb2_cancel(req); \
 		status = smb2_notify_recv(req, torture, &(notify.smb2)); \
 		cleanup \
 		smb2_util_close(tree1, h1); \
@@ -1775,7 +1775,7 @@ static bool torture_smb2_notify_basedir(struct torture_context *torture,
 
 	/* set attribute on a file to assure we receive a notification */
 	smb2_util_setatr(tree2, BASEDIR "\\tname1", FILE_ATTRIBUTE_HIDDEN);
-	msleep(200);
+	smb_msleep(200);
 
 	/* check how many responses were given, expect only 1 for the file */
 	status = smb2_notify_recv(req1, torture, &(notify.smb2));
@@ -1974,22 +1974,22 @@ done:
 */
 struct torture_suite *torture_smb2_notify_init(void)
 {
-	struct torture_suite *suite = torture_suite_create(talloc_autofree_context(), "NOTIFY");
+	struct torture_suite *suite = torture_suite_create(talloc_autofree_context(), "notify");
 
-	torture_suite_add_1smb2_test(suite, "VALID-REQ", test_valid_request);
-	torture_suite_add_1smb2_test(suite, "TCON", torture_smb2_notify_tcon);
-	torture_suite_add_2smb2_test(suite, "DIR", torture_smb2_notify_dir);
-	torture_suite_add_2smb2_test(suite, "MASK", torture_smb2_notify_mask);
-	torture_suite_add_1smb2_test(suite, "TDIS", torture_smb2_notify_tree_disconnect);
-	torture_suite_add_2smb2_test(suite, "MASK-CHANGE", torture_smb2_notify_mask_change);
-	torture_suite_add_2smb2_test(suite, "LOGOFF", torture_smb2_notify_ulogoff);
-	torture_suite_add_1smb2_test(suite, "TREE", torture_smb2_notify_tree);
-	torture_suite_add_2smb2_test(suite, "BASEDIR", torture_smb2_notify_basedir);
-	torture_suite_add_2smb2_test(suite, "DOUBLE", torture_smb2_notify_double);
-	torture_suite_add_1smb2_test(suite, "FILE", torture_smb2_notify_file);
-	torture_suite_add_1smb2_test(suite, "TCP", torture_smb2_notify_tcp_disconnect);
-	torture_suite_add_2smb2_test(suite, "REC", torture_smb2_notify_recursive);
-	torture_suite_add_1smb2_test(suite, "OVERFLOW", torture_smb2_notify_overflow);
+	torture_suite_add_1smb2_test(suite, "valid-req", test_valid_request);
+	torture_suite_add_1smb2_test(suite, "tcon", torture_smb2_notify_tcon);
+	torture_suite_add_2smb2_test(suite, "dir", torture_smb2_notify_dir);
+	torture_suite_add_2smb2_test(suite, "mask", torture_smb2_notify_mask);
+	torture_suite_add_1smb2_test(suite, "tdis", torture_smb2_notify_tree_disconnect);
+	torture_suite_add_2smb2_test(suite, "mask-change", torture_smb2_notify_mask_change);
+	torture_suite_add_2smb2_test(suite, "logoff", torture_smb2_notify_ulogoff);
+	torture_suite_add_1smb2_test(suite, "tree", torture_smb2_notify_tree);
+	torture_suite_add_2smb2_test(suite, "basedir", torture_smb2_notify_basedir);
+	torture_suite_add_2smb2_test(suite, "double", torture_smb2_notify_double);
+	torture_suite_add_1smb2_test(suite, "file", torture_smb2_notify_file);
+	torture_suite_add_1smb2_test(suite, "tcp", torture_smb2_notify_tcp_disconnect);
+	torture_suite_add_2smb2_test(suite, "rec", torture_smb2_notify_recursive);
+	torture_suite_add_1smb2_test(suite, "overflow", torture_smb2_notify_overflow);
 
 	suite->description = talloc_strdup(suite, "SMB2-NOTIFY tests");
 

@@ -19,6 +19,7 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
 
 #undef DBGC_CLASS
@@ -188,8 +189,7 @@ const void *dmapi_get_current_session(void)
 bool dmapi_have_session(void)
 {
 	if (!dmapi_ctx) {
-		dmapi_ctx = talloc(talloc_autofree_context(),
-				   struct smbd_dmapi_context);
+		dmapi_ctx = talloc(NULL, struct smbd_dmapi_context);
 		if (!dmapi_ctx) {
 			exit_server("unable to allocate smbd_dmapi_context");
 		}

@@ -22,6 +22,7 @@
  */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "onefs_shadow_copy.h"
 
 static int vfs_onefs_shadow_copy_debug_level = DBGC_VFS;
@@ -471,11 +472,10 @@ onefs_shadow_copy_mknod(vfs_handle_struct *handle, const char *path,
 }
 
 static char *
-onefs_shadow_copy_realpath(vfs_handle_struct *handle, const char *path,
-			   char *resolved_path)
+onefs_shadow_copy_realpath(vfs_handle_struct *handle, const char *path)
 {
 	SHADOW_NEXT(REALPATH,
-		    (handle, cpath ?: path, resolved_path),
+		    (handle, cpath ?: path),
 		    char *);
 }
 
@@ -635,8 +635,10 @@ onefs_shadow_copy_lsetxattr(vfs_handle_struct *handle, const char *path,
 
 static bool
 onefs_shadow_copy_is_offline(struct vfs_handle_struct *handle,
-			     const char *path, SMB_STRUCT_STAT *sbuf)
+			     const struct smb_fname *fname,
+			     SMB_STRUCT_STAT *sbuf)
 {
+#error Isilon, please convert "char *path" to "struct smb_fname *fname"
 	SHADOW_NEXT(IS_OFFLINE,
 		    (handle, cpath ?: path, sbuf),
 		    bool);
@@ -644,8 +646,9 @@ onefs_shadow_copy_is_offline(struct vfs_handle_struct *handle,
 
 static int
 onefs_shadow_copy_set_offline(struct vfs_handle_struct *handle,
-			      const char *path)
+			       const struct smb_filename *fname)
 {
+#error Isilon, please convert "char *path" to "struct smb_fname *fname"
 	SHADOW_NEXT(SET_OFFLINE,
 		    (handle, cpath ?: path),
 		    int);

@@ -25,6 +25,7 @@
 
 #include "includes.h"
 #include "libnet/libnet_samsync.h"
+#include "passdb.h"
 
 static void display_group_mem_info(uint32_t rid,
 				   struct netr_DELTA_GROUP_MEMBER *r)
@@ -206,29 +207,32 @@ static NTSTATUS display_sam_entry(TALLOC_CTX *mem_ctx,
 		display_alias_mem(id.rid, u.alias_member);
 		break;
 	case NETR_DELTA_POLICY:
-		printf("Policy\n");
+		printf("Policy: %s\n",
+			sid_string_dbg(id.sid));
 		break;
 	case NETR_DELTA_TRUSTED_DOMAIN:
 		printf("Trusted Domain: %s\n",
 			u.trusted_domain->domain_name.string);
 		break;
 	case NETR_DELTA_DELETE_TRUST:
-		printf("Delete Trust: %d\n",
-			u.delete_trust.unknown);
+		printf("Delete Trust: %s\n",
+			sid_string_dbg(id.sid));
 		break;
 	case NETR_DELTA_ACCOUNT:
-		printf("Account\n");
+		printf("Account: %s\n",
+			sid_string_dbg(id.sid));
 		break;
 	case NETR_DELTA_DELETE_ACCOUNT:
-		printf("Delete Account: %d\n",
-			u.delete_account.unknown);
+		printf("Delete Account: %s\n",
+			sid_string_dbg(id.sid));
 		break;
 	case NETR_DELTA_SECRET:
-		printf("Secret\n");
+		printf("Secret: %s\n",
+			id.name);
 		break;
 	case NETR_DELTA_DELETE_SECRET:
-		printf("Delete Secret: %d\n",
-			u.delete_secret.unknown);
+		printf("Delete Secret: %s\n",
+			id.name);
 		break;
 	case NETR_DELTA_DELETE_GROUP2:
 		printf("Delete Group2: %s\n",

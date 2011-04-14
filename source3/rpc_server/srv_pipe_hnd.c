@@ -24,6 +24,11 @@
 #include "librpc/gen_ndr/ndr_named_pipe_auth.h"
 #include "../libcli/named_pipe_auth/npa_tstream.h"
 #include "rpc_server.h"
+#include "smbd/globals.h"
+#include "fake_file.h"
+#include "rpc_dce.h"
+#include "rpc_server/rpc_ncacn_np.h"
+#include "ntdomain.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_RPC_SRV
@@ -121,7 +126,7 @@ static void free_pipe_context(struct pipes_struct *p)
  Accepts incoming data on an rpc pipe. Processes the data in pdu sized units.
 ****************************************************************************/
 
-static ssize_t process_incoming_data(struct pipes_struct *p, char *data, size_t n)
+ssize_t process_incoming_data(struct pipes_struct *p, char *data, size_t n)
 {
 	size_t data_to_copy = MIN(n, RPC_MAX_PDU_FRAG_LEN
 					- p->in_data.pdu.length);
@@ -403,144 +408,18 @@ bool fsp_is_np(struct files_struct *fsp)
 		|| (type == FAKE_FILE_TYPE_NAMED_PIPE_PROXY));
 }
 
-struct np_proxy_state {
-	uint16_t file_type;
-	uint16_t device_state;
-	uint64_t allocation_size;
-	struct tstream_context *npipe;
-	struct tevent_queue *read_queue;
-	struct tevent_queue *write_queue;
-};
-
-static struct np_proxy_state *make_external_rpc_pipe_p(TALLOC_CTX *mem_ctx,
-				const char *pipe_name,
-				const struct tsocket_address *local_address,
-				const struct tsocket_address *remote_address,
-				struct auth_serversupplied_info *server_info)
-{
-	struct np_proxy_state *result;
-	char *socket_np_dir;
-	const char *socket_dir;
-	struct tevent_context *ev;
-	struct tevent_req *subreq;
-	struct netr_SamInfo3 *info3;
-	NTSTATUS status;
-	bool ok;
-	int ret;
-	int sys_errno;
-
-	result = talloc(mem_ctx, struct np_proxy_state);
-	if (result == NULL) {
-		DEBUG(0, ("talloc failed\n"));
-		return NULL;
-	}
-
-	result->read_queue = tevent_queue_create(result, "np_read");
-	if (result->read_queue == NULL) {
-		DEBUG(0, ("tevent_queue_create failed\n"));
-		goto fail;
-	}
-
-	result->write_queue = tevent_queue_create(result, "np_write");
-	if (result->write_queue == NULL) {
-		DEBUG(0, ("tevent_queue_create failed\n"));
-		goto fail;
-	}
-
-	ev = s3_tevent_context_init(talloc_tos());
-	if (ev == NULL) {
-		DEBUG(0, ("s3_tevent_context_init failed\n"));
-		goto fail;
-	}
-
-	socket_dir = lp_parm_const_string(
-		GLOBAL_SECTION_SNUM, "external_rpc_pipe", "socket_dir",
-		get_dyn_NCALRPCDIR());
-	if (socket_dir == NULL) {
-		DEBUG(0, ("externan_rpc_pipe:socket_dir not set\n"));
-		goto fail;
-	}
-	socket_np_dir = talloc_asprintf(talloc_tos(), "%s/np", socket_dir);
-	if (socket_np_dir == NULL) {
-		DEBUG(0, ("talloc_asprintf failed\n"));
-		goto fail;
-	}
-
-	info3 = talloc_zero(talloc_tos(), struct netr_SamInfo3);
-	if (info3 == NULL) {
-		DEBUG(0, ("talloc failed\n"));
-		goto fail;
-	}
-
-	status = serverinfo_to_SamInfo3(server_info, NULL, 0, info3);
-	if (!NT_STATUS_IS_OK(status)) {
-		TALLOC_FREE(info3);
-		DEBUG(0, ("serverinfo_to_SamInfo3 failed: %s\n",
-			  nt_errstr(status)));
-		goto fail;
-	}
-
-	become_root();
-	subreq = tstream_npa_connect_send(talloc_tos(), ev,
-					  socket_np_dir,
-					  pipe_name,
-					  remote_address, /* client_addr */
-					  NULL, /* client_name */
-					  local_address, /* server_addr */
-					  NULL, /* server_name */
-					  info3,
-					  server_info->user_session_key,
-					  data_blob_null /* delegated_creds */);
-	if (subreq == NULL) {
-		unbecome_root();
-		DEBUG(0, ("tstream_npa_connect_send to %s for pipe %s and "
-			  "user %s\\%s failed\n",
-			  socket_np_dir, pipe_name, info3->base.domain.string,
-			  info3->base.account_name.string));
-		goto fail;
-	}
-	ok = tevent_req_poll(subreq, ev);
-	unbecome_root();
-	if (!ok) {
-		DEBUG(0, ("tevent_req_poll to %s for pipe %s and user %s\\%s "
-			  "failed for tstream_npa_connect: %s\n",
-			  socket_np_dir, pipe_name, info3->base.domain.string,
-			  info3->base.account_name.string,
-			  strerror(errno)));
-		goto fail;
-
-	}
-	ret = tstream_npa_connect_recv(subreq, &sys_errno,
-				       result,
-				       &result->npipe,
-				       &result->file_type,
-				       &result->device_state,
-				       &result->allocation_size);
-	TALLOC_FREE(subreq);
-	if (ret != 0) {
-		DEBUG(0, ("tstream_npa_connect_recv  to %s for pipe %s and "
-			  "user %s\\%s failed: %s\n",
-			  socket_np_dir, pipe_name, info3->base.domain.string,
-			  info3->base.account_name.string,
-			  strerror(sys_errno)));
-		goto fail;
-	}
-
-	return result;
-
- fail:
-	TALLOC_FREE(result);
-	return NULL;
-}
-
 NTSTATUS np_open(TALLOC_CTX *mem_ctx, const char *name,
 		 const struct tsocket_address *local_address,
 		 const struct tsocket_address *remote_address,
-		 struct auth_serversupplied_info *server_info,
+		 struct client_address *client_id,
+		 struct auth_serversupplied_info *session_info,
+		 struct messaging_context *msg_ctx,
 		 struct fake_file_handle **phandle)
 {
+	const char *rpcsrv_type;
 	const char **proxy_list;
 	struct fake_file_handle *handle;
+	bool external = false;
 
 	proxy_list = lp_parm_string_list(-1, "np", "proxy", NULL);
 
@@ -549,40 +428,41 @@ NTSTATUS np_open(TALLOC_CTX *mem_ctx, const char *name,
 		return NT_STATUS_NO_MEMORY;
 	}
 
+	/* Check what is the server type for this pipe.
+	   Defaults to "embedded" */
+	rpcsrv_type = lp_parm_const_string(GLOBAL_SECTION_SNUM,
+					   "rpc_server", name,
+					   "embedded");
+	if (StrCaseCmp(rpcsrv_type, "embedded") != 0) {
+		external = true;
+	}
+
+	/* Still support the old method for defining external servers */
 	if ((proxy_list != NULL) && str_list_check_ci(proxy_list, name)) {
+		external = true;
+	}
+
+	if (external) {
 		struct np_proxy_state *p;
 
 		p = make_external_rpc_pipe_p(handle, name,
 					     local_address,
 					     remote_address,
-					     server_info);
+					     session_info);
 
 		handle->type = FAKE_FILE_TYPE_NAMED_PIPE_PROXY;
 		handle->private_data = p;
 	} else {
 		struct pipes_struct *p;
 		struct ndr_syntax_id syntax;
-		const char *client_address;
 
 		if (!is_known_pipename(name, &syntax)) {
 			TALLOC_FREE(handle);
 			return NT_STATUS_OBJECT_NAME_NOT_FOUND;
 		}
 
-		if (tsocket_address_is_inet(remote_address, "ip")) {
-			client_address = tsocket_address_inet_addr_string(
-						remote_address,
-						talloc_tos());
-			if (client_address == NULL) {
-				TALLOC_FREE(handle);
-				return NT_STATUS_NO_MEMORY;
-			}
-		} else {
-			client_address = "";
-		}
-
-		p = make_internal_rpc_pipe_p(handle, &syntax, client_address,
-					     server_info);
+		p = make_internal_rpc_pipe_p(handle, &syntax, client_id,
+					     session_info, msg_ctx);
 
 		handle->type = FAKE_FILE_TYPE_NAMED_PIPE;
 		handle->private_data = p;
@@ -853,7 +733,8 @@ struct tevent_req *np_read_send(TALLOC_CTX *mem_ctx, struct event_context *ev,
 						      np_ipc_readv_next_vector,
 						      &state->next_vector);
 		if (subreq == NULL) {
-
+			status = NT_STATUS_NO_MEMORY;
+			goto post_status;
 		}
 		tevent_req_set_callback(subreq, np_read_done, req);
 		return req;
@@ -902,38 +783,11 @@ NTSTATUS np_read_recv(struct tevent_req *req, ssize_t *nread,
 	if (tevent_req_is_nterror(req, &status)) {
 		return status;
 	}
+
+	DEBUG(10, ("Received %d bytes. There is %smore data outstanding\n",
+		   (int)state->nread, state->is_data_outstanding?"":"no "));
+
 	*nread = state->nread;
 	*is_data_outstanding = state->is_data_outstanding;
-	return NT_STATUS_OK;
-}
-
-/**
- * @brief Create a new RPC client context which uses a local dispatch function.
- *
- * @param[in]  conn  The connection struct that will hold the pipe
- *
- * @param[out] spoolss_pipe  A pointer to the connected rpc client pipe.
- *
- * @return              NT_STATUS_OK on success, a corresponding NT status if an
- *                      error occured.
- */
-NTSTATUS rpc_connect_spoolss_pipe(connection_struct *conn,
-				  struct rpc_pipe_client **spoolss_pipe)
-{
-	NTSTATUS status;
-
-	/* TODO: check and handle disconnections */
-
-	if (!conn->spoolss_pipe) {
-		status = rpc_pipe_open_internal(conn,
-						&ndr_table_spoolss.syntax_id,
-						conn->server_info,
-						&conn->spoolss_pipe);
-		if (!NT_STATUS_IS_OK(status)) {
-			return status;
-		}
-	}
-
-	*spoolss_pipe = conn->spoolss_pipe;
 	return NT_STATUS_OK;
 }

@@ -1,31 +1,34 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
    ACL get/set utility
-   
+
    Copyright (C) Andrew Tridgell 2000
    Copyright (C) Tim Potter      2000
    Copyright (C) Jeremy Allison  2000
    Copyright (C) Jelmer Vernooij 2003
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
+#include "popt_common.h"
+#include "rpc_client/cli_pipe.h"
 #include "../librpc/gen_ndr/ndr_lsa.h"
 #include "rpc_client/cli_lsarpc.h"
-
-extern bool AllowDebugChange;
+#include "../libcli/security/security.h"
+#include "libsmb/clirap.h"
+#include "passdb/machine_sid.h"
 
 static int test_args;
 
@@ -200,8 +203,8 @@ static bool StringToSid(struct cli_state *cli, struct dom_sid *sid, const char *
 {
 	enum lsa_SidType type;
 
-	if (strncmp(str, "S-", 2) == 0) {
-		return string_to_sid(sid, str);
+	if (string_to_sid(sid, str)) {
+		return true;
 	}
 
 	return NT_STATUS_IS_OK(cli_lsa_lookup_name(cli, str, &type, sid));
@@ -667,21 +670,25 @@ get fileinfo for filename
 static uint16 get_fileinfo(struct cli_state *cli, const char *filename)
 {
 	uint16_t fnum = (uint16_t)-1;
-	uint16 mode;
+	uint16 mode = 0;
+	NTSTATUS status;
 
 	/* The desired access below is the only one I could find that works
 	   with NT4, W2KP and Samba */
 
-	if (!NT_STATUS_IS_OK(cli_ntcreate(cli, filename, 0, CREATE_ACCESS_READ,
-                                          0, FILE_SHARE_READ|FILE_SHARE_WRITE,
-                                          FILE_OPEN, 0x0, 0x0, &fnum))) {
-		printf("Failed to open %s: %s\n", filename, cli_errstr(cli));
+	status = cli_ntcreate(cli, filename, 0, CREATE_ACCESS_READ,
+			      0, FILE_SHARE_READ|FILE_SHARE_WRITE,
+			      FILE_OPEN, 0x0, 0x0, &fnum);
+	if (!NT_STATUS_IS_OK(status)) {
+		printf("Failed to open %s: %s\n", filename, nt_errstr(status));
+		return 0;
 	}
 
-	if (!cli_qfileinfo(cli, fnum, &mode, NULL, NULL, NULL,
-                                             NULL, NULL, NULL)) {
+	status = cli_qfileinfo_basic(cli, fnum, &mode, NULL, NULL, NULL,
+				     NULL, NULL, NULL);
+	if (!NT_STATUS_IS_OK(status)) {
 		printf("Failed to file info %s: %s\n", filename,
-                                                       cli_errstr(cli));
+		       nt_errstr(status));
         }
 
 	cli_close(cli, fnum);
@@ -696,14 +703,16 @@ static struct security_descriptor *get_secdesc(struct cli_state *cli, const char
 {
 	uint16_t fnum = (uint16_t)-1;
 	struct security_descriptor *sd;
+	NTSTATUS status;
 
 	/* The desired access below is the only one I could find that works
 	   with NT4, W2KP and Samba */
 
-	if (!NT_STATUS_IS_OK(cli_ntcreate(cli, filename, 0, CREATE_ACCESS_READ,
-                                          0, FILE_SHARE_READ|FILE_SHARE_WRITE,
-                                          FILE_OPEN, 0x0, 0x0, &fnum))) {
-		printf("Failed to open %s: %s\n", filename, cli_errstr(cli));
+	status = cli_ntcreate(cli, filename, 0, CREATE_ACCESS_READ,
+			      0, FILE_SHARE_READ|FILE_SHARE_WRITE,
+			      FILE_OPEN, 0x0, 0x0, &fnum);
+	if (!NT_STATUS_IS_OK(status)) {
+		printf("Failed to open %s: %s\n", filename, nt_errstr(status));
 		return NULL;
 	}
 
@@ -726,21 +735,24 @@ static bool set_secdesc(struct cli_state *cli, const char *filename,
 {
 	uint16_t fnum = (uint16_t)-1;
         bool result=true;
+	NTSTATUS status;
 
 	/* The desired access below is the only one I could find that works
 	   with NT4, W2KP and Samba */
 
-	if (!NT_STATUS_IS_OK(cli_ntcreate(cli, filename, 0,
-                                          WRITE_DAC_ACCESS|WRITE_OWNER_ACCESS,
-                                          0, FILE_SHARE_READ|FILE_SHARE_WRITE,
-                                          FILE_OPEN, 0x0, 0x0, &fnum))) {
-		printf("Failed to open %s: %s\n", filename, cli_errstr(cli));
+	status = cli_ntcreate(cli, filename, 0,
+			      WRITE_DAC_ACCESS|WRITE_OWNER_ACCESS,
+			      0, FILE_SHARE_READ|FILE_SHARE_WRITE,
+			      FILE_OPEN, 0x0, 0x0, &fnum);
+	if (!NT_STATUS_IS_OK(status)) {
+		printf("Failed to open %s: %s\n", filename, nt_errstr(status));
 		return false;
 	}
 
-	if (!cli_set_secdesc(cli, fnum, sd)) {
+	status = cli_set_secdesc(cli, fnum, sd);
+	if (!NT_STATUS_IS_OK(status)) {
 		printf("ERROR: security description set failed: %s\n",
-                       cli_errstr(cli));
+                       nt_errstr(status));
 		result=false;
 	}
 
@@ -834,8 +846,8 @@ static int ace_compare(struct security_ace *ace1, struct security_ace *ace2)
 	if (ace1->type != ace2->type)
 		return ace2->type - ace1->type;
 
-	if (sid_compare(&ace1->trustee, &ace2->trustee))
-		return sid_compare(&ace1->trustee, &ace2->trustee);
+	if (dom_sid_compare(&ace1->trustee, &ace2->trustee))
+		return dom_sid_compare(&ace1->trustee, &ace2->trustee);
 
 	if (ace1->flags != ace2->flags)
 		return ace1->flags - ace2->flags;
@@ -928,7 +940,7 @@ static int cacl_set(struct cli_state *cli, const char *filename,
 			bool found = False;
 
 			for (j=0;old->dacl && j<old->dacl->num_aces;j++) {
-				if (sid_equal(&sd->dacl->aces[i].trustee,
+				if (dom_sid_equal(&sd->dacl->aces[i].trustee,
 					      &old->dacl->aces[j].trustee)) {
 					old->dacl->aces[j] = sd->dacl->aces[i];
 					found = True;
@@ -1024,6 +1036,9 @@ static int inherit(struct cli_state *cli, const char *filename,
 			}
 			string_replace(parentname, '/', '\\');
 			parent = get_secdesc(cli,parentname);
+			if (parent == NULL) {
+				return EXIT_FAILED;
+			}
 			for (i=0;i<parent->dacl->num_aces;i++) {
 				struct security_ace *ace=&parent->dacl->aces[i];
 				/* Add inherited flag to all aces */
@@ -1136,8 +1151,7 @@ static struct cli_state *connect_one(struct user_auth_info *auth_info,
 				lp_workgroup(),
 				get_cmdline_auth_info_password(auth_info),
 				flags,
-				get_cmdline_auth_info_signing_state(auth_info),
-				NULL);
+				get_cmdline_auth_info_signing_state(auth_info));
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0,("cli_full_connection failed! (%s)\n", nt_errstr(nt_status)));
 		return NULL;
@@ -1198,13 +1212,9 @@ static struct cli_state *connect_one(struct user_auth_info *auth_info,
 
 	load_case_tables();
 
-
 	/* set default debug level to 1 regardless of what smb.conf sets */
-	setup_logging( "smbcacls", True );
-	DEBUGLEVEL_CLASS[DBGC_ALL] = 1;
-	dbf = x_stderr;
-	x_setbuf( x_stderr, NULL );
-	AllowDebugChange = false;
+	setup_logging( "smbcacls", DEBUG_STDERR);
+	lp_set_cmdline("log level", "1");
 
 	setlinebuf(stdout);
 

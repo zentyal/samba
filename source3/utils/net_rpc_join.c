@@ -20,27 +20,54 @@
 
 #include "includes.h"
 #include "utils/net.h"
+#include "rpc_client/cli_pipe.h"
 #include "../libcli/auth/libcli_auth.h"
-#include "../librpc/gen_ndr/cli_lsa.h"
+#include "../librpc/gen_ndr/ndr_lsa_c.h"
 #include "rpc_client/cli_lsarpc.h"
-#include "../librpc/gen_ndr/cli_samr.h"
+#include "../librpc/gen_ndr/ndr_samr_c.h"
 #include "rpc_client/init_samr.h"
 #include "../librpc/gen_ndr/ndr_netlogon.h"
 #include "rpc_client/cli_netlogon.h"
+#include "secrets.h"
+#include "rpc_client/init_lsa.h"
 
 /* Macro for checking RPC error codes to make things more readable */
 
 #define CHECK_RPC_ERR(rpc, msg) \
-        if (!NT_STATUS_IS_OK(result = rpc)) { \
-                DEBUG(0, (msg ": %s\n", nt_errstr(result))); \
+        if (!NT_STATUS_IS_OK(status = rpc)) { \
+                DEBUG(0, (msg ": %s\n", nt_errstr(status))); \
                 goto done; \
         }
 
+#define CHECK_DCERPC_ERR(rpc, msg) \
+	if (!NT_STATUS_IS_OK(status = rpc)) { \
+		DEBUG(0, (msg ": %s\n", nt_errstr(status))); \
+		goto done; \
+	} \
+	if (!NT_STATUS_IS_OK(result)) { \
+		status = result; \
+		DEBUG(0, (msg ": %s\n", nt_errstr(result))); \
+		goto done; \
+	}
+
+
 #define CHECK_RPC_ERR_DEBUG(rpc, debug_args) \
-        if (!NT_STATUS_IS_OK(result = rpc)) { \
+        if (!NT_STATUS_IS_OK(status = rpc)) { \
                 DEBUG(0, debug_args); \
                 goto done; \
         }
+
+#define CHECK_DCERPC_ERR_DEBUG(rpc, debug_args) \
+	if (!NT_STATUS_IS_OK(status = rpc)) { \
+		DEBUG(0, debug_args); \
+		goto done; \
+	} \
+	if (!NT_STATUS_IS_OK(result)) { \
+		status = result; \
+		DEBUG(0, debug_args); \
+		goto done; \
+	}
+
 
 /**
  * confirm that a domain join is still valid
@@ -146,6 +173,7 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 	uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS;
 	enum netr_SchannelType sec_channel_type;
 	struct rpc_pipe_client *pipe_hnd = NULL;
+	struct dcerpc_binding_handle *b = NULL;
 
 	/* rpc variables */
 
@@ -162,7 +190,7 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 
 	/* Misc */
 
-	NTSTATUS result;
+	NTSTATUS status, result;
 	int retval = 1;
 	const char *domain = NULL;
 	char *acct_name;
@@ -172,6 +200,7 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 	union lsa_PolicyInformation *info = NULL;
 	struct samr_Ids user_rids;
 	struct samr_Ids name_types;
+
 
 	/* check what type of join */
 	if (argc >= 0) {
@@ -200,8 +229,8 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 
 	/* Make authenticated connection to remote machine */
 
-	result = net_make_ipc_connection(c, NET_FLAGS_PDC, &cli);
-	if (!NT_STATUS_IS_OK(result)) {
+	status = net_make_ipc_connection(c, NET_FLAGS_PDC, &cli);
+	if (!NT_STATUS_IS_OK(status)) {
 		return 1;
 	}
 
@@ -212,30 +241,32 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 
 	/* Fetch domain sid */
 
-	result = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc.syntax_id,
+	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc.syntax_id,
 					  &pipe_hnd);
-	if (!NT_STATUS_IS_OK(result)) {
+	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("Error connecting to LSA pipe. Error was %s\n",
-			nt_errstr(result) ));
+			nt_errstr(status) ));
 		goto done;
 	}
 
+	b = pipe_hnd->binding_handle;
 
 	CHECK_RPC_ERR(rpccli_lsa_open_policy(pipe_hnd, mem_ctx, true,
 					  SEC_FLAG_MAXIMUM_ALLOWED,
 					  &lsa_pol),
 		      "error opening lsa policy handle");
 
-	CHECK_RPC_ERR(rpccli_lsa_QueryInfoPolicy(pipe_hnd, mem_ctx,
-						 &lsa_pol,
-						 LSA_POLICY_INFO_ACCOUNT_DOMAIN,
-						 &info),
+	CHECK_DCERPC_ERR(dcerpc_lsa_QueryInfoPolicy(b, mem_ctx,
+						    &lsa_pol,
+						    LSA_POLICY_INFO_ACCOUNT_DOMAIN,
+						    &info,
+						    &result),
 		      "error querying info policy");
 
 	domain = info->account_domain.name.string;
 	domain_sid = info->account_domain.sid;
 
-	rpccli_lsa_Close(pipe_hnd, mem_ctx, &lsa_pol);
+	dcerpc_lsa_Close(b, mem_ctx, &lsa_pol, &result);
 	TALLOC_FREE(pipe_hnd); /* Done with this pipe */
 
 	/* Bail out if domain didn't get set. */
@@ -245,34 +276,38 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 	}
 
 	/* Create domain user */
-	result = cli_rpc_pipe_open_noauth(cli, &ndr_table_samr.syntax_id,
+	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_samr.syntax_id,
 					  &pipe_hnd);
-	if (!NT_STATUS_IS_OK(result)) {
+	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("Error connecting to SAM pipe. Error was %s\n",
-			nt_errstr(result) ));
+			nt_errstr(status) ));
 		goto done;
 	}
 
-	CHECK_RPC_ERR(rpccli_samr_Connect2(pipe_hnd, mem_ctx,
-					   pipe_hnd->desthost,
-					   SAMR_ACCESS_ENUM_DOMAINS
-					   | SAMR_ACCESS_LOOKUP_DOMAIN,
-					   &sam_pol),
+	b = pipe_hnd->binding_handle;
+
+	CHECK_DCERPC_ERR(dcerpc_samr_Connect2(b, mem_ctx,
+					      pipe_hnd->desthost,
+					      SAMR_ACCESS_ENUM_DOMAINS
+					      | SAMR_ACCESS_LOOKUP_DOMAIN,
+					      &sam_pol,
+					      &result),
 		      "could not connect to SAM database");
 
 
-	CHECK_RPC_ERR(rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
-					     &sam_pol,
-					     SAMR_DOMAIN_ACCESS_LOOKUP_INFO_1
-					     | SAMR_DOMAIN_ACCESS_CREATE_USER
-					     | SAMR_DOMAIN_ACCESS_OPEN_ACCOUNT,
-					     domain_sid,
-					     &domain_pol),
+	CHECK_DCERPC_ERR(dcerpc_samr_OpenDomain(b, mem_ctx,
+						&sam_pol,
+						SAMR_DOMAIN_ACCESS_LOOKUP_INFO_1
+						| SAMR_DOMAIN_ACCESS_CREATE_USER
+						| SAMR_DOMAIN_ACCESS_OPEN_ACCOUNT,
+						domain_sid,
+						&domain_pol,
+						&result),
 		      "could not open domain");
 
 	/* Create domain user */
 	if ((acct_name = talloc_asprintf(mem_ctx, "%s$", global_myname())) == NULL) {
-		result = NT_STATUS_NO_MEMORY;
+		status = NT_STATUS_NO_MEMORY;
 		goto done;
 	}
 	strlower_m(acct_name);
@@ -287,17 +322,21 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 
 	DEBUG(10, ("Creating account with flags: %d\n",acct_flags));
 
-	result = rpccli_samr_CreateUser2(pipe_hnd, mem_ctx,
+	status = dcerpc_samr_CreateUser2(b, mem_ctx,
 					 &domain_pol,
 					 &lsa_acct_name,
 					 acb_info,
 					 acct_flags,
 					 &user_pol,
 					 &access_granted,
-					 &user_rid);
-
+					 &user_rid,
+					 &result);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
 	if (!NT_STATUS_IS_OK(result) &&
 	    !NT_STATUS_EQUAL(result, NT_STATUS_USER_EXISTS)) {
+		status = result;
 		d_fprintf(stderr,_("Creation of workstation account failed\n"));
 
 		/* If NT_STATUS_ACCESS_DENIED then we have a valid
@@ -314,17 +353,18 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 	/* We *must* do this.... don't ask... */
 
 	if (NT_STATUS_IS_OK(result)) {
-		rpccli_samr_Close(pipe_hnd, mem_ctx, &user_pol);
+		dcerpc_samr_Close(b, mem_ctx, &user_pol, &result);
 	}
 
-	CHECK_RPC_ERR_DEBUG(rpccli_samr_LookupNames(pipe_hnd, mem_ctx,
-						    &domain_pol,
-						    1,
-						    &lsa_acct_name,
-						    &user_rids,
-						    &name_types),
-			    ("error looking up rid for user %s: %s\n",
-			     acct_name, nt_errstr(result)));
+	CHECK_DCERPC_ERR_DEBUG(dcerpc_samr_LookupNames(b, mem_ctx,
+						       &domain_pol,
+						       1,
+						       &lsa_acct_name,
+						       &user_rids,
+						       &name_types,
+						       &result),
+			    ("error looking up rid for user %s: %s/%s\n",
+			     acct_name, nt_errstr(status), nt_errstr(result)));
 
 	if (name_types.ids[0] != SID_NAME_USER) {
 		DEBUG(0, ("%s is not a user account (type=%d)\n", acct_name, name_types.ids[0]));
@@ -335,14 +375,15 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 
 	/* Open handle on user */
 
-	CHECK_RPC_ERR_DEBUG(
-		rpccli_samr_OpenUser(pipe_hnd, mem_ctx,
+	CHECK_DCERPC_ERR_DEBUG(
+		dcerpc_samr_OpenUser(b, mem_ctx,
 				     &domain_pol,
 				     SEC_FLAG_MAXIMUM_ALLOWED,
 				     user_rid,
-				     &user_pol),
-		("could not re-open existing user %s: %s\n",
-		 acct_name, nt_errstr(result)));
+				     &user_pol,
+				     &result),
+		("could not re-open existing user %s: %s/%s\n",
+		 acct_name, nt_errstr(status), nt_errstr(result)));
 	
 	/* Create a random machine account password */
 
@@ -358,10 +399,11 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 	set_info.info24.password = crypt_pwd;
 	set_info.info24.password_expired = PASS_DONT_CHANGE_AT_NEXT_LOGON;
 
-	CHECK_RPC_ERR(rpccli_samr_SetUserInfo2(pipe_hnd, mem_ctx,
-					       &user_pol,
-					       24,
-					       &set_info),
+	CHECK_DCERPC_ERR(dcerpc_samr_SetUserInfo2(b, mem_ctx,
+						  &user_pol,
+						  24,
+						  &set_info,
+						  &result),
 		      "error setting trust account password");
 
 	/* Why do we have to try to (re-)set the ACB to be the same as what
@@ -378,25 +420,26 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 	/* Ignoring the return value is necessary for joining a domain
 	   as a normal user with "Add workstation to domain" privilege. */
 
-	result = rpccli_samr_SetUserInfo(pipe_hnd, mem_ctx,
+	status = dcerpc_samr_SetUserInfo(b, mem_ctx,
 					 &user_pol,
 					 16,
-					 &set_info);
+					 &set_info,
+					 &result);
 
-	rpccli_samr_Close(pipe_hnd, mem_ctx, &user_pol);
+	dcerpc_samr_Close(b, mem_ctx, &user_pol, &result);
 	TALLOC_FREE(pipe_hnd); /* Done with this pipe */
 
 	/* Now check the whole process from top-to-bottom */
 
-	result = cli_rpc_pipe_open_noauth(cli, &ndr_table_netlogon.syntax_id,
+	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_netlogon.syntax_id,
 					  &pipe_hnd);
-	if (!NT_STATUS_IS_OK(result)) {
+	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("Error connecting to NETLOGON pipe. Error was %s\n",
-			nt_errstr(result) ));
+			nt_errstr(status) ));
 		goto done;
 	}
 
-	result = rpccli_netlogon_setup_creds(pipe_hnd,
+	status = rpccli_netlogon_setup_creds(pipe_hnd,
 					cli->desthost, /* server name */
 					domain,        /* domain */
 					global_myname(), /* client name */
@@ -405,11 +448,11 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
                                         sec_channel_type,
                                         &neg_flags);
 
-	if (!NT_STATUS_IS_OK(result)) {
+	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("Error in domain join verification (credential setup failed): %s\n\n",
-			  nt_errstr(result)));
+			  nt_errstr(status)));
 
-		if ( NT_STATUS_EQUAL(result, NT_STATUS_ACCESS_DENIED) &&
+		if ( NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED) &&
 		     (sec_channel_type == SEC_CHAN_BDC) ) {
 			d_fprintf(stderr, _("Please make sure that no computer "
 					    "account\nnamed like this machine "
@@ -428,16 +471,16 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 	if (lp_client_schannel() && (neg_flags & NETLOGON_NEG_SCHANNEL)) {
 		struct rpc_pipe_client *netlogon_schannel_pipe;
 
-		result = cli_rpc_pipe_open_schannel_with_key(
+		status = cli_rpc_pipe_open_schannel_with_key(
 			cli, &ndr_table_netlogon.syntax_id, NCACN_NP,
 			DCERPC_AUTH_LEVEL_PRIVACY, domain, &pipe_hnd->dc,
 			&netlogon_schannel_pipe);
 
-		if (!NT_STATUS_IS_OK(result)) {
+		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(0, ("Error in domain join verification (schannel setup failed): %s\n\n",
-				  nt_errstr(result)));
+				  nt_errstr(status)));
 
-			if ( NT_STATUS_EQUAL(result, NT_STATUS_ACCESS_DENIED) &&
+			if ( NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED) &&
 			     (sec_channel_type == SEC_CHAN_BDC) ) {
 				d_fprintf(stderr, _("Please make sure that no "
 						    "computer account\nnamed "
@@ -467,8 +510,8 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 	}
 
 	/* double-check, connection from scratch */
-	result = net_rpc_join_ok(c, domain, cli->desthost, &cli->dest_ss);
-	retval = NT_STATUS_IS_OK(result) ? 0 : -1;
+	status = net_rpc_join_ok(c, domain, cli->desthost, &cli->dest_ss);
+	retval = NT_STATUS_IS_OK(status) ? 0 : -1;
 
 done:
 

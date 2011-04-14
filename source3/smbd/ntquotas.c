@@ -18,6 +18,10 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
+#include "../lib/util/util_pw.h"
+#include "system/passwd.h"
+#include "passdb/lookup_sid.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_QUOTA

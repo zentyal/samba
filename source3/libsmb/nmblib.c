@@ -20,6 +20,7 @@
 */
 
 #include "includes.h"
+#include "libsmb/nmblib.h"
 
 static const struct opcode_names {
 	const char *nmb_opcode_name;
@@ -725,6 +726,22 @@ void free_packet(struct packet_struct *packet)
 	SAFE_FREE(packet);
 }
 
+int packet_trn_id(struct packet_struct *p)
+{
+	int result;
+	switch (p->packet_type) {
+	case NMB_PACKET:
+		result = p->packet.nmb.header.name_trn_id;
+		break;
+	case DGRAM_PACKET:
+		result = p->packet.dgram.header.dgm_id;
+		break;
+	default:
+		result = -1;
+	}
+	return result;
+}
+
 /*******************************************************************
  Parse a packet buffer into a packet structure.
 ******************************************************************/
@@ -1084,82 +1101,10 @@ bool send_packet(struct packet_struct *p)
 }
 
 /****************************************************************************
- Receive a packet with timeout on a open UDP filedescriptor.
- The timeout is in milliseconds
-***************************************************************************/
-
-struct packet_struct *receive_packet(int fd,enum packet_type type,int t)
-{
-	fd_set fds;
-	struct timeval timeout;
-	int ret;
-
-	FD_ZERO(&fds);
-	FD_SET(fd,&fds);
-	timeout.tv_sec = t/1000;
-	timeout.tv_usec = 1000*(t%1000);
-
-	if ((ret = sys_select_intr(fd+1,&fds,NULL,NULL,&timeout)) == -1) {
-		/* errno should be EBADF or EINVAL. */
-		DEBUG(0,("select returned -1, errno = %s (%d)\n",
-					strerror(errno), errno));
-		return NULL;
-	}
-
-	if (ret == 0) /* timeout */
-		return NULL;
-
-	if (FD_ISSET(fd,&fds))
-		return(read_packet(fd,type));
-
-	return(NULL);
-}
-
-/****************************************************************************
- Receive a UDP/137 packet either via UDP or from the unexpected packet
- queue. The packet must be a reply packet and have the specified trn_id.
- The timeout is in milliseconds.
-***************************************************************************/
-
-struct packet_struct *receive_nmb_packet(int fd, int t, int trn_id)
-{
-	struct packet_struct *p;
-
-	p = receive_packet(fd, NMB_PACKET, t);
-
-	if (p && p->packet.nmb.header.response &&
-			p->packet.nmb.header.name_trn_id == trn_id) {
-		return p;
-	}
-	if (p)
-		free_packet(p);
-
-	/* try the unexpected packet queue */
-	return receive_unexpected(NMB_PACKET, trn_id, NULL);
-}
-
-/****************************************************************************
  Receive a UDP/138 packet either via UDP or from the unexpected packet
  queue. The packet must be a reply packet and have the specified mailslot name
  The timeout is in milliseconds.
 ***************************************************************************/
-
-struct packet_struct *receive_dgram_packet(int fd, int t,
-		const char *mailslot_name)
-{
-	struct packet_struct *p;
-
-	p = receive_packet(fd, DGRAM_PACKET, t);
-
-	if (p && match_mailslot_name(p, mailslot_name)) {
-		return p;
-	}
-	if (p)
-		free_packet(p);
-
-	/* try the unexpected packet queue */
-	return receive_unexpected(DGRAM_PACKET, 0, mailslot_name);
-}
 
 /****************************************************************************
  See if a datagram has the right mailslot name.
@@ -1241,21 +1186,33 @@ void sort_query_replies(char *data, int n, struct in_addr ip)
 
 /****************************************************************************
  Interpret the weird netbios "name" into a unix fstring. Return the name type.
+ Returns -1 on error.
 ****************************************************************************/
 
-static int name_interpret(char *in, fstring name)
+static int name_interpret(unsigned char *buf, size_t buf_len,
+		unsigned char *in, fstring name)
 {
+	unsigned char *end_ptr = buf + buf_len;
 	int ret;
-	int len = (*in++) / 2;
+	unsigned int len;
 	fstring out_string;
-	char *out = out_string;
+	unsigned char *out = (unsigned char *)out_string;
 
 	*out=0;
 
-	if (len > 30 || len<1)
-		return(0);
+	if (in >= end_ptr) {
+		return -1;
+	}
+	len = (*in++) / 2;
+
+	if (len<1) {
+		return -1;
+	}
 
 	while (len--) {
+		if (&in[1] >= end_ptr) {
+			return -1;
+		}
 		if (in[0] < 'A' || in[0] > 'P' || in[1] < 'A' || in[1] > 'P') {
 			*out = 0;
 			return(0);
@@ -1263,21 +1220,13 @@ static int name_interpret(char *in, fstring name)
 		*out = ((in[0]-'A')<<4) + (in[1]-'A');
 		in += 2;
 		out++;
+		if (PTR_DIFF(out,out_string) >= sizeof(fstring)) {
+			return -1;
+		}
 	}
 	ret = out[-1];
 	out[-1] = 0;
 
-#ifdef NETBIOS_SCOPE
-	/* Handle any scope names */
-	while(*in) {
-		*out++ = '.'; /* Scope names are separated by periods */
-		len = *(unsigned char *)in++;
-		StrnCpy(out, in, len);
-		out += len;
-		*out=0;
-		in += len;
-	}
-#endif
 	pull_ascii_fstring(name, out_string);
 
 	return(ret);
@@ -1288,7 +1237,7 @@ static int name_interpret(char *in, fstring name)
  Note:  <Out> must be (33 + strlen(scope) + 2) bytes long, at minimum.
 ****************************************************************************/
 
-char *name_mangle(TALLOC_CTX *mem_ctx, char *In, char name_type)
+char *name_mangle(TALLOC_CTX *mem_ctx, const char *In, char name_type)
 {
 	int   i;
 	int   len;
@@ -1356,12 +1305,25 @@ char *name_mangle(TALLOC_CTX *mem_ctx, char *In, char name_type)
  Find a pointer to a netbios name.
 ****************************************************************************/
 
-static char *name_ptr(char *buf,int ofs)
+static unsigned char *name_ptr(unsigned char *buf, size_t buf_len, unsigned int ofs)
 {
-	unsigned char c = *(unsigned char *)(buf+ofs);
+	unsigned char c = 0;
 
+	if (ofs > buf_len || buf_len < 1) {
+		return NULL;
+	}
+
+	c = *(unsigned char *)(buf+ofs);
 	if ((c & 0xC0) == 0xC0) {
-		uint16 l = RSVAL(buf, ofs) & 0x3FFF;
+		uint16 l = 0;
+
+		if (ofs > buf_len - 1) {
+			return NULL;
+		}
+		l = RSVAL(buf, ofs) & 0x3FFF;
+		if (l > buf_len) {
+			return NULL;
+		}
 		DEBUG(5,("name ptr to pos %d from %d is %s\n",l,ofs,buf+l));
 		return(buf + l);
 	} else {
@@ -1371,37 +1333,48 @@ static char *name_ptr(char *buf,int ofs)
 
 /****************************************************************************
  Extract a netbios name from a buf (into a unix string) return name type.
+ Returns -1 on error.
 ****************************************************************************/
 
-int name_extract(char *buf,int ofs, fstring name)
+int name_extract(unsigned char *buf, size_t buf_len, unsigned int ofs, fstring name)
 {
-	char *p = name_ptr(buf,ofs);
-	int d = PTR_DIFF(p,buf+ofs);
+	unsigned char *p = name_ptr(buf,buf_len,ofs);
 
 	name[0] = '\0';
-	if (d < -50 || d > 50)
-		return(0);
-	return(name_interpret(p,name));
+	if (p == NULL) {
+		return -1;
+	}
+	return(name_interpret(buf,buf_len,p,name));
 }
 
 /****************************************************************************
  Return the total storage length of a mangled name.
+ Returns -1 on error.
 ****************************************************************************/
 
-int name_len(char *s1)
+int name_len(unsigned char *s1, size_t buf_len)
 {
 	/* NOTE: this argument _must_ be unsigned */
 	unsigned char *s = (unsigned char *)s1;
-	int len;
+	int len = 0;
 
+	if (buf_len < 1) {
+		return -1;
+	}
 	/* If the two high bits of the byte are set, return 2. */
-	if (0xC0 == (*s & 0xC0))
+	if (0xC0 == (*s & 0xC0)) {
+		if (buf_len < 2) {
+			return -1;
+		}
 		return(2);
+	}
 
 	/* Add up the length bytes. */
 	for (len = 1; (*s); s += (*s) + 1) {
 		len += *s + 1;
-		SMB_ASSERT(len < 80);
+		if (len > buf_len) {
+			return -1;
+		}
 	}
 
 	return(len);

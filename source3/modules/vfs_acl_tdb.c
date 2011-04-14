@@ -21,13 +21,18 @@
 /* NOTE: This is an experimental module, not yet finished. JRA. */
 
 #include "includes.h"
+#include "smbd/smbd.h"
+#include "system/filesys.h"
 #include "librpc/gen_ndr/xattr.h"
 #include "librpc/gen_ndr/ndr_xattr.h"
 #include "../lib/crypto/crypto.h"
+#include "dbwrap.h"
+#include "auth.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_VFS
 
+#define ACL_MODULE_NAME "acl_tdb"
 #include "modules/vfs_acl_common.c"
 
 static unsigned int ref_count;
@@ -314,13 +319,16 @@ static int connect_acl_tdb(struct vfs_handle_struct *handle,
 		return -1;
 	}
 
-	/* Ensure we have "inherit acls = yes" if we're
+	/* Ensure we have the parameters correct if we're
 	 * using this module. */
 	DEBUG(2,("connect_acl_tdb: setting 'inherit acls = true' "
-		"and 'dos filemode = true' for service %s\n",
+		"'dos filemode = true' and "
+		"'force unknown acl user = true' for service %s\n",
 		service ));
+
 	lp_do_parameter(SNUM(handle->conn), "inherit acls", "true");
 	lp_do_parameter(SNUM(handle->conn), "dos filemode", "true");
+	lp_do_parameter(SNUM(handle->conn), "force unknown acl user", "true");
 
 	return 0;
 }
@@ -393,13 +401,17 @@ static struct vfs_fn_pointers vfs_acl_tdb_fns = {
 	.disconnect = disconnect_acl_tdb,
 	.opendir = opendir_acl_common,
 	.mkdir = mkdir_acl_common,
+	.rmdir = rmdir_acl_tdb,
 	.open = open_acl_common,
 	.create_file = create_file_acl_common,
 	.unlink = unlink_acl_tdb,
-	.rmdir = rmdir_acl_tdb,
+	.chmod = chmod_acl_module_common,
+	.fchmod = fchmod_acl_module_common,
 	.fget_nt_acl = fget_nt_acl_common,
 	.get_nt_acl = get_nt_acl_common,
 	.fset_nt_acl = fset_nt_acl_common,
+	.chmod_acl = chmod_acl_acl_module_common,
+	.fchmod_acl = fchmod_acl_acl_module_common,
 	.sys_acl_set_file = sys_acl_set_file_tdb,
 	.sys_acl_set_fd = sys_acl_set_fd_tdb
 };

@@ -276,6 +276,7 @@ static NTSTATUS dcerpc_pipe_connect_ncacn_np_smb2_recv(struct composite_context 
 
 struct pipe_ip_tcp_state {
 	struct dcerpc_pipe_connect io;
+	const char *localaddr;
 	const char *host;
 	const char *target_hostname;
 	uint32_t port;
@@ -319,13 +320,14 @@ static struct composite_context* dcerpc_pipe_connect_ncacn_ip_tcp_send(TALLOC_CT
 
 	/* store input parameters in state structure */
 	s->io               = *io;
+	s->localaddr        = talloc_reference(c, io->binding->localaddress);
 	s->host             = talloc_reference(c, io->binding->host);
 	s->target_hostname  = talloc_reference(c, io->binding->target_hostname);
                              /* port number is a binding endpoint here */
 	s->port             = atoi(io->binding->endpoint);   
 
 	/* send pipe open request on tcp/ip */
-	pipe_req = dcerpc_pipe_open_tcp_send(s->io.pipe->conn, s->host, s->target_hostname, 
+	pipe_req = dcerpc_pipe_open_tcp_send(s->io.pipe->conn, s->localaddr, s->host, s->target_hostname,
 					     s->port, io->resolve_ctx);
 	composite_continue(c, pipe_req, continue_pipe_open_ncacn_ip_tcp, c);
 	return c;
@@ -514,7 +516,7 @@ static void continue_map_binding(struct composite_context *ctx)
 	c->status = dcerpc_epm_map_binding_recv(ctx);
 	if (!composite_is_ok(c)) return;
 
-	DEBUG(2,("Mapped to DCERPC endpoint %s\n", s->binding->endpoint));
+	DEBUG(4,("Mapped to DCERPC endpoint %s\n", s->binding->endpoint));
 	
 	continue_connect(c, s);
 }
@@ -537,6 +539,7 @@ static void continue_connect(struct composite_context *c, struct pipe_connect_st
 	/* dcerpc pipe connect input parameters */
 	pc.pipe         = s->pipe;
 	pc.binding      = s->binding;
+	pc.pipe_name    = NULL;
 	pc.interface    = s->table;
 	pc.creds        = s->credentials;
 	pc.resolve_ctx  = lpcfg_resolve_context(s->lp_ctx);

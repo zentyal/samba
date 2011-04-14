@@ -18,7 +18,10 @@
  */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "../libcli/security/security.h"
 #include "../librpc/gen_ndr/ndr_security.h"
+#include "dbwrap.h"
 
 /*******************************************************************
  Create the share security tdb.
@@ -406,7 +409,7 @@ bool delete_share_security(const char *servicename)
  Can this user access with share with the required permissions ?
 ********************************************************************/
 
-bool share_access_check(const NT_USER_TOKEN *token, const char *sharename,
+bool share_access_check(const struct security_token *token, const char *sharename,
 			uint32 desired_access)
 {
 	uint32 granted;

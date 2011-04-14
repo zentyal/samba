@@ -38,12 +38,12 @@
 static unsigned int failures;
 static struct ldb_cmdline *options;
 
-static void usage(void)
+static void usage(struct ldb_context *ldb)
 {
 	printf("Usage: ldbadd <options> <ldif...>\n");
 	printf("Adds records to a ldb, reading ldif the specified list of files\n\n");
-	ldb_cmdline_help("ldbadd", stdout);
-	exit(1);
+	ldb_cmdline_help(ldb, "ldbadd", stdout);
+	exit(LDB_ERR_OPERATIONS_ERROR);
 }
 
 
@@ -57,7 +57,7 @@ static int process_file(struct ldb_context *ldb, FILE *f, unsigned int *count)
         struct ldb_control **req_ctrls = ldb_parse_control_strings(ldb, ldb, (const char **)options->controls);
 	if (options->controls != NULL &&  req_ctrls== NULL) {
 		printf("parsing controls failed: %s\n", ldb_errstring(ldb));
-		return -1;
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
 
@@ -102,16 +102,20 @@ int main(int argc, const char **argv)
 {
 	struct ldb_context *ldb;
 	unsigned int i, count = 0;
-	int ret=0;
+	int ret = LDB_SUCCESS;
 	TALLOC_CTX *mem_ctx = talloc_new(NULL);
 
 	ldb = ldb_init(mem_ctx, NULL);
+	if (ldb == NULL) {
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
 
 	options = ldb_cmdline_process(ldb, argc, argv, usage);
 
-	if (ldb_transaction_start(ldb) != 0) {
+	ret = ldb_transaction_start(ldb);
+	if (ret != LDB_SUCCESS) {
 		printf("Failed to start transaction: %s\n", ldb_errstring(ldb));
-		exit(1);
+		return ret;
 	}
 
 	if (options->argc == 0) {
@@ -123,7 +127,7 @@ int main(int argc, const char **argv)
 			f = fopen(fname, "r");
 			if (!f) {
 				perror(fname);
-				exit(1);
+				return LDB_ERR_OPERATIONS_ERROR;
 			}
 			ret = process_file(ldb, f, &count);
 			fclose(f);
@@ -131,9 +135,10 @@ int main(int argc, const char **argv)
 	}
 
 	if (count != 0) {
-		if (ldb_transaction_commit(ldb) != 0) {
+		ret = ldb_transaction_commit(ldb);
+		if (ret != LDB_SUCCESS) {
 			printf("Failed to commit transaction: %s\n", ldb_errstring(ldb));
-			exit(1);
+			return ret;
 		}
 	} else {
 		ldb_transaction_cancel(ldb);
@@ -141,7 +146,7 @@ int main(int argc, const char **argv)
 
 	talloc_free(mem_ctx);
 
-	printf("Added %d records with %d failures\n", count, failures);
+	printf("Added %u records with %u failures\n", count, failures);
 
 	return ret;
 }

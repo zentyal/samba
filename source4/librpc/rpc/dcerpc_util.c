@@ -31,6 +31,7 @@
 #include "librpc/rpc/dcerpc_proto.h"
 #include "auth/credentials/credentials.h"
 #include "param/param.h"
+#include "librpc/rpc/rpc_common.h"
 
 /*
   find a dcerpc call on an interface by name
@@ -118,6 +119,7 @@ struct epm_map_binding_state {
 	struct GUID guid;
 	struct epm_twr_t twr;
 	struct epm_twr_t *twr_r;
+	uint32_t num_towers;
 	struct epm_Map r;
 };
 
@@ -142,8 +144,6 @@ static void continue_epm_recv_binding(struct composite_context *ctx)
 	c->status = dcerpc_pipe_connect_b_recv(ctx, c, &s->pipe);
 	if (!composite_is_ok(c)) return;
 
-	s->pipe->conn->flags |= DCERPC_NDR_REF_ALLOC;
-
 	/* prepare requested binding parameters */
 	s->binding->object         = s->table->syntax_id;
 
@@ -156,6 +156,7 @@ static void continue_epm_recv_binding(struct composite_context *ctx)
 	s->r.in.entry_handle  = &s->handle;
 	s->r.in.max_towers    = 1;
 	s->r.out.entry_handle = &s->handle;
+	s->r.out.num_towers   = &s->num_towers;
 
 	/* send request for an endpoint mapping - a rpc request on connected pipe */
 	subreq = dcerpc_epm_Map_r_send(s, c->event_ctx,
@@ -285,6 +286,7 @@ struct composite_context *dcerpc_epm_map_binding_send(TALLOC_CTX *mem_ctx,
 	epmapper_binding->host			= talloc_reference(epmapper_binding, binding->host);
 	epmapper_binding->target_hostname       = epmapper_binding->host;
 	epmapper_binding->options		= NULL;
+	epmapper_binding->localaddress          = talloc_reference(epmapper_binding, binding->localaddress);
 	epmapper_binding->flags			= 0;
 	epmapper_binding->assoc_group_id	= 0;
 	epmapper_binding->endpoint		= NULL;
@@ -531,7 +533,7 @@ struct composite_context *dcerpc_pipe_auth_send(struct dcerpc_pipe *p,
 	struct composite_context *auth_schannel_req;
 	struct composite_context *auth_req;
 	struct composite_context *auth_none_req;
-	struct dcerpc_connection *conn;
+	struct dcecli_connection *conn;
 	uint8_t auth_type;
 
 	/* composite context allocation and setup */
@@ -685,7 +687,7 @@ _PUBLIC_ NTSTATUS dcerpc_pipe_auth(TALLOC_CTX *mem_ctx,
 }
 
 
-NTSTATUS dcerpc_generic_session_key(struct dcerpc_connection *c,
+NTSTATUS dcerpc_generic_session_key(struct dcecli_connection *c,
 				    DATA_BLOB *session_key)
 {
 	/* this took quite a few CPU cycles to find ... */
@@ -721,9 +723,9 @@ _PUBLIC_ NTSTATUS dcerpc_fetch_session_key(struct dcerpc_pipe *p,
   this triggers on a debug level of >= 10
 */
 _PUBLIC_ void dcerpc_log_packet(const char *lockdir,
-								const struct ndr_interface_table *ndr,
-		       uint32_t opnum, uint32_t flags, 
-		       DATA_BLOB *pkt)
+				const struct ndr_interface_table *ndr,
+				uint32_t opnum, uint32_t flags,
+				const DATA_BLOB *pkt)
 {
 	const int num_examples = 20;
 	int i;
@@ -778,12 +780,11 @@ _PUBLIC_ NTSTATUS dcerpc_secondary_context(struct dcerpc_pipe *p,
 
 	p2->binding = talloc_reference(p2, p->binding);
 
-	p2->binding_handle = talloc(p2, struct dcerpc_binding_handle);
+	p2->binding_handle = dcerpc_pipe_binding_handle(p2);
 	if (p2->binding_handle == NULL) {
 		talloc_free(p2);
 		return NT_STATUS_NO_MEMORY;
 	}
-	p2->binding_handle->private_data = p2;
 
 	status = dcerpc_alter_context(p2, p2, &p2->syntax, &p2->transfer_syntax);
 	if (!NT_STATUS_IS_OK(status)) {

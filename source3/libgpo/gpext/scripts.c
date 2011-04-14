@@ -22,6 +22,8 @@
 #include "../libgpo/gpo.h"
 #include "libgpo/gpo_proto.h"
 #include "registry.h"
+#include "registry/reg_api.h"
+#include "../libcli/registry/util_reg.h"
 
 #define GP_EXT_NAME "scripts"
 
@@ -260,7 +262,7 @@ static WERROR scripts_store_reg_gpovals(TALLOC_CTX *mem_ctx,
 ****************************************************************/
 
 static WERROR scripts_apply(TALLOC_CTX *mem_ctx,
-			    const struct nt_user_token *token,
+			    const struct security_token *token,
 			    struct registry_key *root_key,
 			    uint32_t flags,
 			    const char *section,
@@ -280,7 +282,7 @@ static WERROR scripts_apply(TALLOC_CTX *mem_ctx,
 
 #if 0
 	if (flags & GPO_INFO_FLAG_MACHINE) {
-		struct nt_user_token *tmp_token;
+		struct security_token *tmp_token;
 
 		tmp_token = registry_create_system_token(mem_ctx);
 		W_ERROR_HAVE_NO_MEMORY(tmp_token);
@@ -300,7 +302,7 @@ static WERROR scripts_apply(TALLOC_CTX *mem_ctx,
 				 section, count++);
 	W_ERROR_HAVE_NO_MEMORY(keystr);
 
-	reg_deletekey_recursive(mem_ctx, root_key, keystr);
+	reg_deletekey_recursive(root_key, keystr);
 
 	werr = gp_store_reg_subkey(mem_ctx, keystr,
 				   root_key, &root_key);
@@ -337,7 +339,7 @@ static NTSTATUS scripts_process_group_policy(ADS_STRUCT *ads,
 					     TALLOC_CTX *mem_ctx,
 					     uint32_t flags,
 					     struct registry_key *root_key,
-					     const struct nt_user_token *token,
+					     const struct security_token *token,
 					     struct GROUP_POLICY_OBJECT *gpo,
 					     const char *extension_guid,
 					     const char *snapin_guid)

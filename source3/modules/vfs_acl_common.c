@@ -19,6 +19,9 @@
  * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "smbd/smbd.h"
+#include "system/filesys.h"
+#include "../libcli/security/security.h"
 #include "../librpc/gen_ndr/ndr_security.h"
 
 static NTSTATUS create_acl_blob(const struct security_descriptor *psd,
@@ -85,7 +88,7 @@ static NTSTATUS parse_acl_blob(const DATA_BLOB *pblob,
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		DEBUG(5, ("parse_acl_blob: ndr_pull_xattr_NTACL failed: %s\n",
 			ndr_errstr(ndr_err)));
-		return ndr_map_error2ntstatus(ndr_err);;
+		return ndr_map_error2ntstatus(ndr_err);
 	}
 
 	switch (xacl.version) {
@@ -152,7 +155,7 @@ static NTSTATUS create_acl_blob(const struct security_descriptor *psd,
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		DEBUG(5, ("create_acl_blob: ndr_push_xattr_NTACL failed: %s\n",
 			ndr_errstr(ndr_err)));
-		return ndr_map_error2ntstatus(ndr_err);;
+		return ndr_map_error2ntstatus(ndr_err);
 	}
 
 	return NT_STATUS_OK;
@@ -251,11 +254,15 @@ static NTSTATUS get_nt_acl_internal(vfs_handle_struct *handle,
 {
 	DATA_BLOB blob;
 	NTSTATUS status;
-	uint16_t hash_type;
+	uint16_t hash_type = XATTR_SD_HASH_TYPE_NONE;
 	uint8_t hash[XATTR_SD_HASH_SIZE];
 	uint8_t hash_tmp[XATTR_SD_HASH_SIZE];
 	struct security_descriptor *psd = NULL;
 	struct security_descriptor *pdesc_next = NULL;
+	bool ignore_file_system_acl = lp_parm_bool(SNUM(handle->conn),
+						ACL_MODULE_NAME,
+						"ignore system acls",
+						false);
 
 	if (fsp && name == NULL) {
 		name = fsp->fsp_name->base_name;
@@ -319,6 +326,9 @@ static NTSTATUS get_nt_acl_internal(vfs_handle_struct *handle,
 			goto out;
 	}
 
+	if (ignore_file_system_acl) {
+		goto out;
+	}
 
 	status = hash_sd_sha256(pdesc_next, hash_tmp);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -329,6 +339,9 @@ static NTSTATUS get_nt_acl_internal(vfs_handle_struct *handle,
 
 	if (memcmp(&hash[0], &hash_tmp[0], XATTR_SD_HASH_SIZE) == 0) {
 		/* Hash matches, return blob sd. */
+		DEBUG(10, ("get_nt_acl_internal: blob hash "
+			"matches for file %s\n",
+			name ));
 		goto out;
 	}
 
@@ -352,22 +365,44 @@ static NTSTATUS get_nt_acl_internal(vfs_handle_struct *handle,
 		 * inheritable ACE entries we have to fake them.
 		 */
 		if (fsp) {
-			is_directory = fsp->is_directory;
+			status = vfs_stat_fsp(fsp);
+			if (!NT_STATUS_IS_OK(status)) {
+				return status;
+			}
 			psbuf = &fsp->fsp_name->st;
 		} else {
-			if (vfs_stat_smb_fname(handle->conn,
+			int ret = vfs_stat_smb_fname(handle->conn,
 						name,
-						&sbuf) == 0) {
-				is_directory = S_ISDIR(sbuf.st_ex_mode);
+						&sbuf);
+			if (ret == -1) {
+				return map_nt_error_from_unix(errno);
 			}
 		}
-		if (is_directory &&
+		is_directory = S_ISDIR(sbuf.st_ex_mode);
+
+		if (ignore_file_system_acl) {
+			TALLOC_FREE(pdesc_next);
+			status = make_default_filesystem_acl(talloc_tos(),
+						name,
+						psbuf,
+						&psd);
+			if (!NT_STATUS_IS_OK(status)) {
+				return status;
+			}
+		} else {
+			if (is_directory &&
 				!sd_has_inheritable_components(psd,
 							true)) {
-			add_directory_inheritable_components(handle,
+				add_directory_inheritable_components(handle,
 							name,
 							psbuf,
 							psd);
+			}
+			/* The underlying POSIX module always sets
+			   the ~SEC_DESC_DACL_PROTECTED bit, as ACLs
+			   can't be inherited in this way under POSIX.
+			   Remove it for Windows-style ACLs. */
+			psd->type &= ~SEC_DESC_DACL_PROTECTED;
 		}
 	}
 
@@ -386,6 +421,13 @@ static NTSTATUS get_nt_acl_internal(vfs_handle_struct *handle,
 
 	TALLOC_FREE(blob.data);
 	*ppdesc = psd;
+
+	if (DEBUGLEVEL >= 10) {
+		DEBUG(10,("get_nt_acl_internal: returning acl for %s is:\n",
+			name ));
+		NDR_PRINT_DEBUG(security_descriptor, psd);
+	}
+
 	return NT_STATUS_OK;
 }
 
@@ -422,8 +464,8 @@ static NTSTATUS inherit_new_acl(vfs_handle_struct *handle,
 			&psd,
 			&size,
 			parent_desc,
-			&handle->conn->server_info->ptok->user_sids[PRIMARY_USER_SID_INDEX],
-			&handle->conn->server_info->ptok->user_sids[PRIMARY_GROUP_SID_INDEX],
+			&handle->conn->session_info->security_token->sids[PRIMARY_USER_SID_INDEX],
+			&handle->conn->session_info->security_token->sids[PRIMARY_GROUP_SID_INDEX],
 			is_directory);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
@@ -432,7 +474,7 @@ static NTSTATUS inherit_new_acl(vfs_handle_struct *handle,
 	if (DEBUGLEVEL >= 10) {
 		DEBUG(10,("inherit_new_acl: child acl for %s is:\n",
 			fsp_str_dbg(fsp) ));
-		NDR_PRINT_DEBUG(security_descriptor, parent_desc);
+		NDR_PRINT_DEBUG(security_descriptor, psd);
 	}
 
 	return SMB_VFS_FSET_NT_ACL(fsp,
@@ -442,14 +484,11 @@ static NTSTATUS inherit_new_acl(vfs_handle_struct *handle,
 				psd);
 }
 
-static NTSTATUS check_parent_acl_common(vfs_handle_struct *handle,
+static NTSTATUS get_parent_acl_common(vfs_handle_struct *handle,
 				const char *path,
-				uint32_t access_mask,
 				struct security_descriptor **pp_parent_desc)
 {
 	char *parent_name = NULL;
-	struct security_descriptor *parent_desc = NULL;
-	uint32_t access_granted = 0;
 	NTSTATUS status;
 
 	if (!parent_dirname(talloc_tos(), path, &parent_name, NULL)) {
@@ -462,15 +501,31 @@ static NTSTATUS check_parent_acl_common(vfs_handle_struct *handle,
 					(SECINFO_OWNER |
 					 SECINFO_GROUP |
 					 SECINFO_DACL),
-					&parent_desc);
+					pp_parent_desc);
 
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(10,("check_parent_acl_common: get_nt_acl_internal "
+		DEBUG(10,("get_parent_acl_common: get_nt_acl_internal "
 			"on directory %s for "
 			"path %s returned %s\n",
 			parent_name,
 			path,
 			nt_errstr(status) ));
+	}
+	return status;
+}
+
+static NTSTATUS check_parent_acl_common(vfs_handle_struct *handle,
+				const char *path,
+				uint32_t access_mask,
+				struct security_descriptor **pp_parent_desc)
+{
+	char *parent_name = NULL;
+	struct security_descriptor *parent_desc = NULL;
+	uint32_t access_granted = 0;
+	NTSTATUS status;
+
+	status = get_parent_acl_common(handle, path, &parent_desc);
+	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
 	if (pp_parent_desc) {
@@ -494,11 +549,6 @@ static NTSTATUS check_parent_acl_common(vfs_handle_struct *handle,
 	return NT_STATUS_OK;
 }
 
-static void free_sd_common(void **ptr)
-{
-	TALLOC_FREE(*ptr);
-}
-
 /*********************************************************************
  Check ACL on open. For new files inherit from parent directory.
 *********************************************************************/
@@ -511,7 +561,6 @@ static int open_acl_common(vfs_handle_struct *handle,
 {
 	uint32_t access_granted = 0;
 	struct security_descriptor *pdesc = NULL;
-	struct security_descriptor *parent_desc = NULL;
 	bool file_existed = true;
 	char *fname = NULL;
 	NTSTATUS status;
@@ -557,29 +606,28 @@ static int open_acl_common(vfs_handle_struct *handle,
 		 * Check the parent directory ACL will allow this.
 		 */
 		if (flags & O_CREAT) {
-			struct security_descriptor *psd = NULL;
+			struct security_descriptor *parent_desc = NULL;
+			struct security_descriptor **pp_psd = NULL;
 
 			status = check_parent_acl_common(handle, fname,
 					SEC_DIR_ADD_FILE, &parent_desc);
 			if (!NT_STATUS_IS_OK(status)) {
 				goto err;
 			}
+
 			/* Cache the parent security descriptor for
-			 * later use. We do have an fsp here, but to
-			 * keep the code consistent with the directory
-			 * case which doesn't, use the handle. */
+			 * later use. */
 
-			/* Attach this to the conn, move from talloc_tos(). */
-			psd = (struct security_descriptor *)talloc_move(handle->conn,
-				&parent_desc);
-
-			if (!psd) {
+			pp_psd = VFS_ADD_FSP_EXTENSION(handle,
+					fsp,
+					struct security_descriptor *,
+					NULL);
+			if (!pp_psd) {
 				status = NT_STATUS_NO_MEMORY;
 				goto err;
 			}
-			status = NT_STATUS_NO_MEMORY;
-			SMB_VFS_HANDLE_SET_DATA(handle, psd, free_sd_common,
-				struct security_descriptor *, goto err);
+
+			*pp_psd = parent_desc;
 			status = NT_STATUS_OK;
 		}
 	}
@@ -606,30 +654,13 @@ static int mkdir_acl_common(vfs_handle_struct *handle, const char *path, mode_t 
 
 	ret = vfs_stat_smb_fname(handle->conn, path, &sbuf);
 	if (ret == -1 && errno == ENOENT) {
-		struct security_descriptor *parent_desc = NULL;
-		struct security_descriptor *psd = NULL;
-
 		/* We're creating a new directory. */
 		status = check_parent_acl_common(handle, path,
-				SEC_DIR_ADD_SUBDIR, &parent_desc);
+				SEC_DIR_ADD_SUBDIR, NULL);
 		if (!NT_STATUS_IS_OK(status)) {
 			errno = map_errno_from_nt_status(status);
 			return -1;
 		}
-
-		/* Cache the parent security descriptor for
-		 * later use. We don't have an fsp here so
-		 * use the handle. */
-
-		/* Attach this to the conn, move from talloc_tos(). */
-		psd = (struct security_descriptor *)talloc_move(handle->conn,
-				&parent_desc);
-
-		if (!psd) {
-			return -1;
-		}
-		SMB_VFS_HANDLE_SET_DATA(handle, psd, free_sd_common,
-			struct security_descriptor *, return -1);
 	}
 
 	return SMB_VFS_NEXT_MKDIR(handle, path, mode);
@@ -662,61 +693,47 @@ static NTSTATUS get_nt_acl_common(vfs_handle_struct *handle,
 *********************************************************************/
 
 static NTSTATUS fset_nt_acl_common(vfs_handle_struct *handle, files_struct *fsp,
-        uint32_t security_info_sent, const struct security_descriptor *psd)
+        uint32_t security_info_sent, const struct security_descriptor *orig_psd)
 {
 	NTSTATUS status;
 	DATA_BLOB blob;
 	struct security_descriptor *pdesc_next = NULL;
+	struct security_descriptor *psd = NULL;
 	uint8_t hash[XATTR_SD_HASH_SIZE];
 
 	if (DEBUGLEVEL >= 10) {
 		DEBUG(10,("fset_nt_acl_xattr: incoming sd for file %s\n",
 			  fsp_str_dbg(fsp)));
 		NDR_PRINT_DEBUG(security_descriptor,
-			CONST_DISCARD(struct security_descriptor *,psd));
+			CONST_DISCARD(struct security_descriptor *,orig_psd));
 	}
 
-        /* Ensure we have OWNER/GROUP/DACL set. */
+	status = get_nt_acl_internal(handle, fsp,
+			NULL,
+			SECINFO_OWNER|SECINFO_GROUP|SECINFO_DACL|SECINFO_SACL,
+			&psd);
 
-	if ((security_info_sent & (SECINFO_OWNER|
-				SECINFO_GROUP|
-				SECINFO_DACL)) !=
-				(SECINFO_OWNER|
-				 SECINFO_GROUP|
-				 SECINFO_DACL)) {
-		/* No we don't - read from the existing SD. */
-		struct security_descriptor *nc_psd = NULL;
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
 
-		status = get_nt_acl_internal(handle, fsp,
-				NULL,
-				(SECINFO_OWNER|
-				 SECINFO_GROUP|
-				 SECINFO_DACL),
-				&nc_psd);
+	psd->revision = orig_psd->revision;
+	/* All our SD's are self relative. */
+	psd->type = orig_psd->type | SEC_DESC_SELF_RELATIVE;
 
-		if (!NT_STATUS_IS_OK(status)) {
-			return status;
-		}
-
-		/* This is safe as nc_psd is discarded at fn exit. */
-		if (security_info_sent & SECINFO_OWNER) {
-			nc_psd->owner_sid = psd->owner_sid;
-		}
-		security_info_sent |= SECINFO_OWNER;
-
-		if (security_info_sent & SECINFO_GROUP) {
-			nc_psd->group_sid = psd->group_sid;
-		}
-		security_info_sent |= SECINFO_GROUP;
-
-		if (security_info_sent & SECINFO_DACL) {
-			nc_psd->dacl = dup_sec_acl(talloc_tos(), psd->dacl);
-			if (nc_psd->dacl == NULL) {
-				return NT_STATUS_NO_MEMORY;
-			}
-		}
-		security_info_sent |= SECINFO_DACL;
-		psd = nc_psd;
+	if ((security_info_sent & SECINFO_OWNER) && (orig_psd->owner_sid != NULL)) {
+		psd->owner_sid = orig_psd->owner_sid;
+	}
+	if ((security_info_sent & SECINFO_GROUP) && (orig_psd->group_sid != NULL)) {
+		psd->group_sid = orig_psd->group_sid;
+	}
+	if (security_info_sent & SECINFO_DACL) {
+		psd->dacl = orig_psd->dacl;
+		psd->type |= SEC_DESC_DACL_PRESENT;
+	}
+	if (security_info_sent & SECINFO_SACL) {
+		psd->sacl = orig_psd->sacl;
+		psd->type |= SEC_DESC_SACL_PRESENT;
 	}
 
 	status = SMB_VFS_NEXT_FSET_NT_ACL(handle, fsp, security_info_sent, psd);
@@ -806,7 +823,8 @@ static int acl_common_remove_object(vfs_handle_struct *handle,
 
 	/* Ensure we have this file open with DELETE access. */
 	id = vfs_file_id_from_sbuf(conn, &local_fname.st);
-	for (fsp = file_find_di_first(id); fsp; file_find_di_next(fsp)) {
+	for (fsp = file_find_di_first(conn->sconn, id); fsp;
+	     file_find_di_next(fsp)) {
 		if (fsp->access_mask & DELETE_ACCESS &&
 				fsp->delete_on_close) {
 			/* We did open this for delete,
@@ -887,6 +905,7 @@ static NTSTATUS create_file_acl_common(struct vfs_handle_struct *handle,
 	files_struct *fsp = NULL;
 	int info;
 	struct security_descriptor *parent_sd = NULL;
+	struct security_descriptor **pp_parent_sd = NULL;
 
 	status = SMB_VFS_NEXT_CREATE_FILE(handle,
 					req,
@@ -905,6 +924,10 @@ static NTSTATUS create_file_acl_common(struct vfs_handle_struct *handle,
 					result,
 					&info);
 
+	if (!NT_STATUS_IS_OK(status)) {
+		goto out;
+	}
+
 	if (info != FILE_WAS_CREATED) {
 		/* File/directory was opened, not created. */
 		goto out;
@@ -912,7 +935,7 @@ static NTSTATUS create_file_acl_common(struct vfs_handle_struct *handle,
 
 	fsp = *result;
 
-	if (!NT_STATUS_IS_OK(status) || fsp == NULL) {
+	if (fsp == NULL) {
 		/* Only handle success. */
 		goto out;
 	}
@@ -927,13 +950,19 @@ static NTSTATUS create_file_acl_common(struct vfs_handle_struct *handle,
 		goto out;
 	}
 
-
-	/* We must have a cached parent sd in this case.
-	 * attached to the handle. */
-
-	SMB_VFS_HANDLE_GET_DATA(handle, parent_sd,
-		struct security_descriptor,
-		goto err);
+	/* See if we have a cached parent sd, if so, use it. */
+	pp_parent_sd = (struct security_descriptor **)VFS_FETCH_FSP_EXTENSION(handle, fsp);
+	if (!pp_parent_sd) {
+		/* Must be a directory, fetch again (sigh). */
+		status = get_parent_acl_common(handle,
+				fsp->fsp_name->base_name,
+				&parent_sd);
+		if (!NT_STATUS_IS_OK(status)) {
+			goto out;
+		}
+	} else {
+		parent_sd = *pp_parent_sd;
+	}
 
 	if (!parent_sd) {
 		goto err;
@@ -951,8 +980,9 @@ static NTSTATUS create_file_acl_common(struct vfs_handle_struct *handle,
 
   out:
 
-	/* Ensure we never leave attached data around. */
-	SMB_VFS_HANDLE_FREE_DATA(handle);
+	if (fsp) {
+		VFS_REMOVE_FSP_EXTENSION(handle, fsp);
+	}
 
 	if (NT_STATUS_IS_OK(status) && pinfo) {
 		*pinfo = info;
@@ -986,4 +1016,44 @@ static int unlink_acl_common(struct vfs_handle_struct *handle,
 	return acl_common_remove_object(handle,
 					smb_fname->base_name,
 					false);
+}
+
+static int chmod_acl_module_common(struct vfs_handle_struct *handle,
+			const char *path, mode_t mode)
+{
+	if (lp_posix_pathnames()) {
+		/* Only allow this on POSIX pathnames. */
+		return SMB_VFS_NEXT_CHMOD(handle, path, mode);
+	}
+	return 0;
+}
+
+static int fchmod_acl_module_common(struct vfs_handle_struct *handle,
+			struct files_struct *fsp, mode_t mode)
+{
+	if (fsp->posix_open) {
+		/* Only allow this on POSIX opens. */
+		return SMB_VFS_NEXT_FCHMOD(handle, fsp, mode);
+	}
+	return 0;
+}
+
+static int chmod_acl_acl_module_common(struct vfs_handle_struct *handle,
+			const char *name, mode_t mode)
+{
+	if (lp_posix_pathnames()) {
+		/* Only allow this on POSIX pathnames. */
+		return SMB_VFS_NEXT_CHMOD_ACL(handle, name, mode);
+	}
+	return 0;
+}
+
+static int fchmod_acl_acl_module_common(struct vfs_handle_struct *handle,
+			struct files_struct *fsp, mode_t mode)
+{
+	if (fsp->posix_open) {
+		/* Only allow this on POSIX opens. */
+		return SMB_VFS_NEXT_FCHMOD_ACL(handle, fsp, mode);
+	}
+	return 0;
 }

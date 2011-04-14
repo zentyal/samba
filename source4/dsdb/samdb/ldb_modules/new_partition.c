@@ -23,9 +23,9 @@
 /*
  *  Name: ldb
  *
- *  Component: ldb instancetype module
+ *  Component: ldb new partition module
  *
- *  Description: add an instanceType onto every new record
+ *  Description: Handle the add of new partitions
  *
  *  Author: Andrew Bartlett
  */
@@ -123,6 +123,7 @@ static int np_part_search_callback(struct ldb_request *req, struct ldb_reply *ar
 				     ldb, ac, DSDB_EXTENDED_CREATE_PARTITION_OID, ex_op, 
 				     NULL, ac, np_part_mod_callback, req);
 	
+	LDB_REQ_SET_LOCATION(ac->part_add);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -139,7 +140,7 @@ static int new_partition_add(struct ldb_module *module, struct ldb_request *req)
 
 	ldb = ldb_module_get_ctx(module);
 
-	ldb_debug(ldb, LDB_DEBUG_TRACE, "instancetype_add_record\n");
+	ldb_debug(ldb, LDB_DEBUG_TRACE, "new_partition_add\n");
 
 	/* do not manipulate our control entries */
 	if (ldb_dn_is_special(req->op.add.message->dn)) {
@@ -149,9 +150,9 @@ static int new_partition_add(struct ldb_module *module, struct ldb_request *req)
 	if (ldb_msg_find_element(req->op.add.message, "instanceType")) {
 		/* This needs to be 'static' to ensure it does not move, and is not on the stack */
 		static const char *no_attrs[] = { NULL };
-		unsigned int instanceType = ldb_msg_find_attr_as_uint(req->op.add.message, "instanceType", 0);
-		if (!(instanceType & INSTANCE_TYPE_IS_NC_HEAD) ||
-		    (instanceType & INSTANCE_TYPE_UNINSTANT)) {
+		uint32_t instanceType = ldb_msg_find_attr_as_uint(req->op.add.message, "instanceType", 0);
+
+		if (!(instanceType & INSTANCE_TYPE_IS_NC_HEAD)) {
 			return ldb_next_request(module, req);
 		}
 
@@ -182,6 +183,7 @@ static int new_partition_add(struct ldb_module *module, struct ldb_request *req)
 					   LDB_SCOPE_BASE, NULL, no_attrs, req->controls, ac, 
 					   np_part_search_callback,
 					   req);
+		LDB_REQ_SET_LOCATION(ac->search_req);
 		if (ret != LDB_SUCCESS) {
 			return ret;
 		}
@@ -193,7 +195,13 @@ static int new_partition_add(struct ldb_module *module, struct ldb_request *req)
 	return ldb_next_request(module, req);
 }
 
-_PUBLIC_ const struct ldb_module_ops ldb_new_partition_module_ops = {
+static const struct ldb_module_ops ldb_new_partition_module_ops = {
 	.name          = "new_partition",
 	.add           = new_partition_add,
 };
+
+int ldb_new_partition_module_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_new_partition_module_ops);
+}

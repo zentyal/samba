@@ -356,28 +356,66 @@ make_hints(struct addrinfo *hints, int proto)
     }
 }
 
-/*
- * return an `struct addrinfo *' in `ai' corresponding to the information
- * in `host'.  free:ing is handled by krb5_krbhst_free.
+/**
+ * Return an `struct addrinfo *' for a KDC host.
+ *
+ * Returns an the struct addrinfo in in that corresponds to the
+ * information in `host'.  free:ing is handled by krb5_krbhst_free, so
+ * the returned ai must not be released.
+ *
+ * @ingroup krb5
  */
 
 KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_krbhst_get_addrinfo(krb5_context context, krb5_krbhst_info *host,
 			 struct addrinfo **ai)
 {
-    struct addrinfo hints;
-    char portstr[NI_MAXSERV];
-    int ret;
+    int ret = 0;
 
     if (host->ai == NULL) {
-	make_hints(&hints, host->proto);
+	struct addrinfo hints;
+	char portstr[NI_MAXSERV];
+	char *hostname = host->hostname;
+
 	snprintf (portstr, sizeof(portstr), "%d", host->port);
+	make_hints(&hints, host->proto);
+
+	/**
+	 * First try this as an IP address, this allows us to add a
+	 * dot at the end to stop using the search domains.
+	 */
+
+	hints.ai_flags |= AI_NUMERICHOST | AI_NUMERICSERV;
+
 	ret = getaddrinfo(host->hostname, portstr, &hints, &host->ai);
-	if (ret)
-	    return krb5_eai_to_heim_errno(ret, errno);
+	if (ret == 0)
+	    goto out;
+
+	/**
+	 * If the hostname contains a dot, assumes it's a FQDN and
+	 * don't use search domains since that might be painfully slow
+	 * when machine is disconnected from that network.
+	 */
+
+	hints.ai_flags &= ~(AI_NUMERICHOST);
+
+	if (strchr(hostname, '.') && hostname[strlen(hostname) - 1] != '.') {
+	    ret = asprintf(&hostname, "%s.", host->hostname);
+	    if (ret < 0 || hostname == NULL)
+		return ENOMEM;
+	}
+
+	ret = getaddrinfo(hostname, portstr, &hints, &host->ai);
+	if (hostname != host->hostname)
+	    free(hostname);
+	if (ret) {
+	    ret = krb5_eai_to_heim_errno(ret, errno);
+	    goto out;
+	}
     }
+ out:
     *ai = host->ai;
-    return 0;
+    return ret;
 }
 
 static krb5_boolean
@@ -448,7 +486,7 @@ static krb5_error_code
 fallback_get_hosts(krb5_context context, struct krb5_krbhst_data *kd,
 		   const char *serv_string, int port, int proto)
 {
-    char *host;
+    char *host = NULL;
     int ret;
     struct addrinfo *ai;
     struct addrinfo hints;
@@ -467,12 +505,12 @@ fallback_get_hosts(krb5_context context, struct krb5_krbhst_data *kd,
     }
 
     if(kd->fallback_count == 0)
-	asprintf(&host, "%s.%s.", serv_string, kd->realm);
+	ret = asprintf(&host, "%s.%s.", serv_string, kd->realm);
     else
-	asprintf(&host, "%s-%d.%s.",
-		 serv_string, kd->fallback_count, kd->realm);	
+	ret = asprintf(&host, "%s-%d.%s.",
+		       serv_string, kd->fallback_count, kd->realm);	
 
-    if (host == NULL)
+    if (ret < 0 || host == NULL)
 	return ENOMEM;
 
     make_hints(&hints, proto);

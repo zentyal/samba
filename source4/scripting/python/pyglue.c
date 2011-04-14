@@ -19,12 +19,11 @@
 
 #include <Python.h>
 #include "includes.h"
-#include "param/param.h"
 #include "version.h"
-#include "libcli/util/pyerrors.h"
 #include "param/pyparam.h"
 #include "lib/socket/netif.h"
-#include "lib/socket/netif_proto.h"
+
+void init_glue(void);
 
 static PyObject *py_generate_random_str(PyObject *self, PyObject *args)
 {
@@ -91,6 +90,10 @@ static PyObject *py_nttime2string(PyObject *self, PyObject *args)
 		return NULL;
 
 	tmp_ctx = talloc_new(NULL);
+	if (tmp_ctx == NULL) {
+		PyErr_NoMemory();
+		return NULL;
+	}
 
 	string = nt_time_string(tmp_ctx, nt);
 	ret =  PyString_FromString(string);
@@ -109,7 +112,10 @@ static PyObject *py_set_debug_level(PyObject *self, PyObject *args)
 	Py_RETURN_NONE;
 }
 
-
+static PyObject *py_get_debug_level(PyObject *self)
+{
+	return PyInt_FromLong(DEBUGLEVEL);
+}
 
 /*
   return the list of interface IPs we have configured
@@ -132,10 +138,13 @@ static PyObject *py_interface_ips(PyObject *self, PyObject *args)
 		return NULL;
 
 	tmp_ctx = talloc_new(NULL);
+	if (tmp_ctx == NULL) {
+		PyErr_NoMemory();
+		return NULL;
+	}
 
-	lp_ctx = lpcfg_from_py_object(NULL, py_lp_ctx); /* FIXME: leaky */
+	lp_ctx = lpcfg_from_py_object(tmp_ctx, py_lp_ctx);
 	if (lp_ctx == NULL) {
-		PyErr_SetString(PyExc_TypeError, "Expected loadparm object");
 		talloc_free(tmp_ctx);
 		return NULL;
 	}
@@ -164,7 +173,6 @@ static PyObject *py_interface_ips(PyObject *self, PyObject *args)
 	return pylist;
 }
 
-
 static PyMethodDef py_misc_methods[] = {
 	{ "generate_random_str", (PyCFunction)py_generate_random_str, METH_VARARGS,
 		"generate_random_str(len) -> string\n"
@@ -180,6 +188,8 @@ static PyMethodDef py_misc_methods[] = {
 		"nttime2string(nttime) -> string" },
 	{ "set_debug_level", (PyCFunction)py_set_debug_level, METH_VARARGS,
 		"set debug level" },
+	{ "get_debug_level", (PyCFunction)py_get_debug_level, METH_NOARGS,
+		"get debug level" },
 	{ "interface_ips", (PyCFunction)py_interface_ips, METH_VARARGS,
 		"get interface IP address list"},
 	{ NULL }

@@ -18,7 +18,13 @@
 */
 
 #include "includes.h"
+#include "auth.h"
 #include "../lib/crypto/arcfour.h"
+#include "../librpc/gen_ndr/netlogon.h"
+#include "../libcli/security/security.h"
+#include "rpc_client/util_netlogon.h"
+#include "nsswitch/libwbclient/wbclient.h"
+#include "passdb.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
@@ -105,7 +111,7 @@ NTSTATUS serverinfo_to_SamInfo2(struct auth_serversupplied_info *server_info,
  already be initialized and is used as the talloc parent for its members.
 *****************************************************************************/
 
-NTSTATUS serverinfo_to_SamInfo3(struct auth_serversupplied_info *server_info,
+NTSTATUS serverinfo_to_SamInfo3(const struct auth_serversupplied_info *server_info,
 				uint8_t *pipe_session_key,
 				size_t pipe_session_key_len,
 				struct netr_SamInfo3 *sam3)
@@ -228,7 +234,7 @@ static NTSTATUS append_netr_SidAttr(TALLOC_CTX *mem_ctx,
 	if (*sids == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
-	(*sids)[t].sid = sid_dup_talloc(*sids, asid);
+	(*sids)[t].sid = dom_sid_dup(*sids, asid);
 	if ((*sids)[t].sid == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -238,7 +244,7 @@ static NTSTATUS append_netr_SidAttr(TALLOC_CTX *mem_ctx,
 	return NT_STATUS_OK;
 }
 
-/* Fils the samr_RidWithAttributeArray with the provided sids.
+/* Fills the samr_RidWithAttributeArray with the provided sids.
  * If it happens that we have additional groups that do not belong
  * to the domain, add their sids as extra sids */
 static NTSTATUS group_sids_to_info3(struct netr_SamInfo3 *info3,
@@ -308,7 +314,7 @@ NTSTATUS samu_to_SamInfo3(TALLOC_CTX *mem_ctx,
 	const struct dom_sid *group_sid;
 	struct dom_sid domain_sid;
 	struct dom_sid *group_sids;
-	size_t num_group_sids = 0;
+	uint32_t num_group_sids = 0;
 	const char *tmp;
 	gid_t *gids;
 	NTSTATUS status;
@@ -331,7 +337,7 @@ NTSTATUS samu_to_SamInfo3(TALLOC_CTX *mem_ctx,
 
 	/* check if this is a "Unix Users" domain user,
 	 * we need to handle it in a special way if that's the case */
-	if (sid_compare_domain(user_sid, &global_sid_Unix_Users) == 0) {
+	if (sid_check_is_in_unix_users(user_sid)) {
 		/* in info3 you can only set rids for the user and the
 		 * primary group, and the domain sid must be that of
 		 * the sam domain.
@@ -357,7 +363,7 @@ NTSTATUS samu_to_SamInfo3(TALLOC_CTX *mem_ctx,
 
 	/* check if this is a "Unix Groups" domain group,
 	 * if so we need special handling */
-	if (sid_compare_domain(group_sid, &global_sid_Unix_Groups) == 0) {
+	if (sid_check_is_in_unix_groups(group_sid)) {
 		/* in info3 you can only set rids for the user and the
 		 * primary group, and the domain sid must be that of
 		 * the sam domain.
@@ -466,7 +472,7 @@ NTSTATUS samu_to_SamInfo3(TALLOC_CTX *mem_ctx,
 						  pdb_get_domain(samu));
 	RET_NOMEM(info3->base.domain.string);
 
-	info3->base.domain_sid = sid_dup_talloc(info3, &domain_sid);
+	info3->base.domain_sid = dom_sid_dup(info3, &domain_sid);
 	RET_NOMEM(info3->base.domain_sid);
 
 	info3->base.acct_flags = pdb_get_acct_ctrl(samu);
@@ -488,66 +494,15 @@ struct netr_SamInfo3 *copy_netr_SamInfo3(TALLOC_CTX *mem_ctx,
 {
 	struct netr_SamInfo3 *info3;
 	unsigned int i;
+	NTSTATUS status;
 
 	info3 = talloc_zero(mem_ctx, struct netr_SamInfo3);
 	if (!info3) return NULL;
 
-	/* first copy all, then realloc pointers */
-	info3->base = orig->base;
-
-	if (orig->base.account_name.string) {
-		info3->base.account_name.string	=
-			talloc_strdup(info3, orig->base.account_name.string);
-		RET_NOMEM(info3->base.account_name.string);
-	}
-	if (orig->base.full_name.string) {
-		info3->base.full_name.string =
-			talloc_strdup(info3, orig->base.full_name.string);
-		RET_NOMEM(info3->base.full_name.string);
-	}
-	if (orig->base.logon_script.string) {
-		info3->base.logon_script.string =
-			talloc_strdup(info3, orig->base.logon_script.string);
-		RET_NOMEM(info3->base.logon_script.string);
-	}
-	if (orig->base.profile_path.string) {
-		info3->base.profile_path.string	=
-			talloc_strdup(info3, orig->base.profile_path.string);
-		RET_NOMEM(info3->base.profile_path.string);
-	}
-	if (orig->base.home_directory.string) {
-		info3->base.home_directory.string =
-			talloc_strdup(info3, orig->base.home_directory.string);
-		RET_NOMEM(info3->base.home_directory.string);
-	}
-	if (orig->base.home_drive.string) {
-		info3->base.home_drive.string =
-			talloc_strdup(info3, orig->base.home_drive.string);
-		RET_NOMEM(info3->base.home_drive.string);
-	}
-
-	if (orig->base.groups.count) {
-		info3->base.groups.rids = (struct samr_RidWithAttribute *)
-			talloc_memdup(info3, orig->base.groups.rids,
-				(sizeof(struct samr_RidWithAttribute) *
-					orig->base.groups.count));
-		RET_NOMEM(info3->base.groups.rids);
-	}
-
-	if (orig->base.logon_server.string) {
-		info3->base.logon_server.string =
-			talloc_strdup(info3, orig->base.logon_server.string);
-		RET_NOMEM(info3->base.logon_server.string);
-	}
-	if (orig->base.domain.string) {
-		info3->base.domain.string =
-			talloc_strdup(info3, orig->base.domain.string);
-		RET_NOMEM(info3->base.domain.string);
-	}
-
-	if (orig->base.domain_sid) {
-		info3->base.domain_sid = sid_dup_talloc(info3, orig->base.domain_sid);
-		RET_NOMEM(info3->base.domain_sid);
+	status = copy_netr_SamBaseInfo(info3, &orig->base, &info3->base);
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(info3);
+		return NULL;
 	}
 
 	if (orig->sidcount) {
@@ -556,7 +511,7 @@ struct netr_SamInfo3 *copy_netr_SamInfo3(TALLOC_CTX *mem_ctx,
 					   orig->sidcount);
 		RET_NOMEM(info3->sids);
 		for (i = 0; i < orig->sidcount; i++) {
-			info3->sids[i].sid = sid_dup_talloc(info3->sids,
+			info3->sids[i].sid = dom_sid_dup(info3->sids,
 							    orig->sids[i].sid);
 			RET_NOMEM(info3->sids[i].sid);
 			info3->sids[i].attributes =
@@ -618,9 +573,11 @@ struct netr_SamInfo3 *wbcAuthUserInfo_to_netr_SamInfo3(TALLOC_CTX *mem_ctx,
 	info3->base.last_logon = info->logon_time;
 	info3->base.last_logoff = info->logoff_time;
 	info3->base.acct_expiry = info->kickoff_time;
-	info3->base.last_password_change = info->pass_last_set_time;
-	info3->base.allow_password_change = info->pass_can_change_time;
-	info3->base.force_password_change = info->pass_must_change_time;
+	unix_to_nt_time(&info3->base.last_password_change, info->pass_last_set_time);
+	unix_to_nt_time(&info3->base.allow_password_change,
+			info->pass_can_change_time);
+	unix_to_nt_time(&info3->base.force_password_change,
+			info->pass_must_change_time);
 
 	if (info->account_name) {
 		info3->base.account_name.string	=
@@ -693,7 +650,7 @@ struct netr_SamInfo3 *wbcAuthUserInfo_to_netr_SamInfo3(TALLOC_CTX *mem_ctx,
 		RET_NOMEM(info3->base.domain.string);
 	}
 
-	info3->base.domain_sid = sid_dup_talloc(info3, &domain_sid);
+	info3->base.domain_sid = dom_sid_dup(info3, &domain_sid);
 	RET_NOMEM(info3->base.domain_sid);
 
 	memcpy(info3->base.LMSessKey.key, info->lm_session_key, 8);

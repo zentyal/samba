@@ -1,6 +1,6 @@
 # a waf tool to add autoconf-like macros to the configure section
 
-import Build, os, Options, preproc, Logs
+import Build, os, sys, Options, preproc, Logs
 import string
 from Configure import conf
 from samba_utils import *
@@ -80,7 +80,7 @@ def nolink(self):
 
 def CHECK_HEADER(conf, h, add_headers=False, lib=None):
     '''check for a header'''
-    if h in missing_headers:
+    if h in missing_headers and lib is None:
         return False
     d = h.upper().replace('/', '_')
     d = d.replace('.', '_')
@@ -356,8 +356,10 @@ def CHECK_CODE(conf, code, define,
     if msg is None:
         msg="Checking for %s" % define
 
+    cflags = TO_LIST(cflags)
+
     if local_include:
-        cflags += ' -I%s' % conf.curdir
+        cflags.append('-I%s' % conf.curdir)
 
     if not link:
         type='nolink'
@@ -368,7 +370,6 @@ def CHECK_CODE(conf, code, define,
 
     (ccflags, ldflags) = library_flags(conf, uselib)
 
-    cflags = TO_LIST(cflags)
     cflags.extend(ccflags)
 
     if on_target:
@@ -436,54 +437,94 @@ def CHECK_CFLAGS(conf, cflags):
                       ccflags=cflags,
                       msg="Checking compiler accepts %s" % cflags)
 
+@conf
+def CHECK_LDFLAGS(conf, ldflags):
+    '''check if the given ldflags are accepted by the linker
+    '''
+    return conf.check(fragment='int main(void) { return 0; }\n',
+                      execute=0,
+                      ldflags=ldflags,
+                      msg="Checking linker accepts %s" % ldflags)
+
+
+@conf
+def CONFIG_GET(conf, option):
+    '''return True if a configuration option was found'''
+    if (option in conf.env):
+        return conf.env[option]
+    else:
+        return None
 
 @conf
 def CONFIG_SET(conf, option):
     '''return True if a configuration option was found'''
     return (option in conf.env) and (conf.env[option] != ())
 Build.BuildContext.CONFIG_SET = CONFIG_SET
+Build.BuildContext.CONFIG_GET = CONFIG_GET
 
 
-def library_flags(conf, libs):
+def library_flags(self, libs):
     '''work out flags from pkg_config'''
     ccflags = []
     ldflags = []
     for lib in TO_LIST(libs):
-        inc_path = getattr(conf.env, 'CPPPATH_%s' % lib.upper(), [])
-        lib_path = getattr(conf.env, 'LIBPATH_%s' % lib.upper(), [])
+        inc_path = getattr(self.env, 'CPPPATH_%s' % lib.upper(), [])
+        lib_path = getattr(self.env, 'LIBPATH_%s' % lib.upper(), [])
         ccflags.extend(['-I%s' % i for i in inc_path])
         ldflags.extend(['-L%s' % l for l in lib_path])
-        extra_ccflags = TO_LIST(getattr(conf.env, 'CCFLAGS_%s' % lib.upper(), []))
-        extra_ldflags = TO_LIST(getattr(conf.env, 'LDFLAGS_%s' % lib.upper(), []))
+        extra_ccflags = TO_LIST(getattr(self.env, 'CCFLAGS_%s' % lib.upper(), []))
+        extra_ldflags = TO_LIST(getattr(self.env, 'LDFLAGS_%s' % lib.upper(), []))
         ccflags.extend(extra_ccflags)
         ldflags.extend(extra_ldflags)
+    if 'EXTRA_LDFLAGS' in self.env:
+        ldflags.extend(self.env['EXTRA_LDFLAGS'])
+
+    ccflags = unique_list(ccflags)
+    ldflags = unique_list(ldflags)
     return (ccflags, ldflags)
 
 
 @conf
-def CHECK_LIB(conf, libs, mandatory=False, empty_decl=True):
-    '''check if a set of libraries exist'''
+def CHECK_LIB(conf, libs, mandatory=False, empty_decl=True, set_target=True, shlib=False):
+    '''check if a set of libraries exist as system libraries
 
+    returns the sublist of libs that do exist as a syslib or []
+    '''
+
+    fragment= '''
+int foo()
+{
+    int v = 2;
+    return v*2;
+}
+'''
+    ret = []
     liblist  = TO_LIST(libs)
-    ret = True
     for lib in liblist[:]:
         if GET_TARGET_TYPE(conf, lib) == 'SYSLIB':
+            ret.append(lib)
             continue
 
         (ccflags, ldflags) = library_flags(conf, lib)
+        if shlib:
+            res = conf.check(features='cc cshlib', fragment=fragment, lib=lib, uselib_store=lib, ccflags=ccflags, ldflags=ldflags)
+        else:
+            res = conf.check(lib=lib, uselib_store=lib, ccflags=ccflags, ldflags=ldflags)
 
-        if not conf.check(lib=lib, uselib_store=lib, ccflags=ccflags, ldflags=ldflags):
+        if not res:
             if mandatory:
                 Logs.error("Mandatory library '%s' not found for functions '%s'" % (lib, list))
                 sys.exit(1)
             if empty_decl:
                 # if it isn't a mandatory library, then remove it from dependency lists
-                SET_TARGET_TYPE(conf, lib, 'EMPTY')
-            ret = False
+                if set_target:
+                    SET_TARGET_TYPE(conf, lib, 'EMPTY')
         else:
             conf.define('HAVE_LIB%s' % lib.upper().replace('-','_'), 1)
             conf.env['LIB_' + lib.upper()] = lib
-            LOCAL_CACHE_SET(conf, 'TARGET_TYPE', lib, 'SYSLIB')
+            if set_target:
+                conf.SET_TARGET_TYPE(lib, 'SYSLIB')
+            ret.append(lib)
 
     return ret
 
@@ -491,7 +532,7 @@ def CHECK_LIB(conf, libs, mandatory=False, empty_decl=True):
 
 @conf
 def CHECK_FUNCS_IN(conf, list, library, mandatory=False, checklibc=False,
-                   headers=None, link=True, empty_decl=True):
+                   headers=None, link=True, empty_decl=True, set_target=True):
     """
     check that the functions in 'list' are available in 'library'
     if they are, then make that library available as a dependency
@@ -525,19 +566,15 @@ def CHECK_FUNCS_IN(conf, list, library, mandatory=False, checklibc=False,
                 SET_TARGET_TYPE(conf, lib, 'EMPTY')
         return True
 
-    conf.CHECK_LIB(liblist, empty_decl=empty_decl)
+    checklist = conf.CHECK_LIB(liblist, empty_decl=empty_decl, set_target=set_target)
     for lib in liblist[:]:
-        if not GET_TARGET_TYPE(conf, lib) == 'SYSLIB':
-            if mandatory:
-                Logs.error("Mandatory library '%s' not found for functions '%s'" % (lib, list))
-                sys.exit(1)
-            # if it isn't a mandatory library, then remove it from dependency lists
-            liblist.remove(lib)
-            continue
+        if not lib in checklist and mandatory:
+            Logs.error("Mandatory library '%s' not found for functions '%s'" % (lib, list))
+            sys.exit(1)
 
     ret = True
     for f in remaining:
-        if not CHECK_FUNC(conf, f, lib=' '.join(liblist), headers=headers, link=link):
+        if not CHECK_FUNC(conf, f, lib=' '.join(checklist), headers=headers, link=link):
             ret = False
 
     return ret
@@ -560,8 +597,11 @@ def SAMBA_CONFIG_H(conf, path=None):
 
     if Options.options.developer:
         # we add these here to ensure that -Wstrict-prototypes is not set during configure
-        conf.ADD_CFLAGS('-Wall -g -Wshadow -Wstrict-prototypes -Wpointer-arith -Wcast-qual -Wcast-align -Wwrite-strings -Werror-implicit-function-declaration -Wformat=2 -Wno-format-y2k',
+        conf.ADD_CFLAGS('-Wall -g -Wshadow -Wstrict-prototypes -Wpointer-arith -Wcast-align -Wwrite-strings -Werror-implicit-function-declaration -Wformat=2 -Wno-format-y2k -Wmissing-prototypes',
                         testflags=True)
+        if os.getenv('TOPLEVEL_BUILD'):
+            conf.ADD_CFLAGS('-Wcast-qual', testflags=True)
+        conf.env.DEVELOPER_MODE = True
 
     if Options.options.picky_developer:
         conf.ADD_CFLAGS('-Werror', testflags=True)
@@ -603,6 +643,23 @@ def ADD_CFLAGS(conf, flags, testflags=False):
         conf.env['EXTRA_CFLAGS'] = []
     conf.env['EXTRA_CFLAGS'].extend(TO_LIST(flags))
 
+@conf
+def ADD_LDFLAGS(conf, flags, testflags=False):
+    '''add some LDFLAGS to the command line
+       optionally set testflags to ensure all the flags work
+
+       this will return the flags that are added, if any
+    '''
+    if testflags:
+        ok_flags=[]
+        for f in flags.split():
+            if CHECK_LDFLAGS(conf, f):
+                ok_flags.append(f)
+        flags = ok_flags
+    if not 'EXTRA_LDFLAGS' in conf.env:
+        conf.env['EXTRA_LDFLAGS'] = []
+    conf.env['EXTRA_LDFLAGS'].extend(TO_LIST(flags))
+    return flags
 
 
 @conf

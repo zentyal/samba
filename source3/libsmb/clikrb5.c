@@ -22,6 +22,9 @@
 
 #include "includes.h"
 #include "smb_krb5.h"
+#include "../librpc/gen_ndr/krb5pac.h"
+#include "../lib/util/asn1.h"
+#include "libsmb/nmblib.h"
 
 #ifndef KRB5_AUTHDATA_WIN2K_PAC
 #define KRB5_AUTHDATA_WIN2K_PAC 128
@@ -354,7 +357,7 @@ bool unwrap_edata_ntstatus(TALLOC_CTX *mem_ctx,
 	}
 	
 	asn1_start_tag(data, ASN1_CONTEXT(2));
-	asn1_read_OctetString(data, talloc_autofree_context(), &edata_contents);
+	asn1_read_OctetString(data, talloc_tos(), &edata_contents);
 	asn1_end_tag(data);
 	asn1_end_tag(data);
 	asn1_end_tag(data);
@@ -397,7 +400,7 @@ bool unwrap_pac(TALLOC_CTX *mem_ctx, DATA_BLOB *auth_data, DATA_BLOB *unwrapped_
 	
 	asn1_end_tag(data);
 	asn1_start_tag(data, ASN1_CONTEXT(1));
-	asn1_read_OctetString(data, talloc_autofree_context(), &pac_contents);
+	asn1_read_OctetString(data, talloc_tos(), &pac_contents);
 	asn1_end_tag(data);
 	asn1_end_tag(data);
 	asn1_end_tag(data);
@@ -703,26 +706,16 @@ static krb5_error_code create_gss_checksum(krb5_data *in_data, /* [inout] */
 	memset(gss_cksum, '\0', base_cksum_size + orig_length);
 	SIVAL(gss_cksum, 0, GSSAPI_BNDLENGTH);
 
-	/* Precalculated MD5sum of NULL channel bindings (20 bytes) */
-	/* Channel bindings are: (all ints encoded as little endian)
-
-		[4 bytes] initiator_addrtype (255 for null bindings)
-		[4 bytes] initiator_address length
-			[n bytes] .. initiator_address data - not present
-				     in null bindings.
-		[4 bytes] acceptor_addrtype (255 for null bindings)
-		[4 bytes] acceptor_address length
-			[n bytes] .. acceptor_address data - not present
-				     in null bindings.
-		[4 bytes] application_data length
-			[n bytes] .. application_ data - not present
-				     in null bindings.
-		MD5 of this is ""\x14\x8f\x0c\xf7\xb1u\xdey*J\x9a%\xdfV\xc5\x18"
-	*/
-
-	memcpy(&gss_cksum[4],
-		"\x14\x8f\x0c\xf7\xb1u\xdey*J\x9a%\xdfV\xc5\x18",
-		GSSAPI_BNDLENGTH);
+	/*
+	 * GSS_C_NO_CHANNEL_BINDINGS means 16 zero bytes.
+	 * This matches the behavior of heimdal and mit.
+	 *
+	 * And it is needed to work against some closed source
+	 * SMB servers.
+	 *
+	 * See bug #7883
+	 */
+	memset(&gss_cksum[4], 0x00, GSSAPI_BNDLENGTH);
 
 	SIVAL(gss_cksum, 20, gss_flags);
 
@@ -839,7 +832,7 @@ static krb5_error_code ads_krb5_mk_req(krb5_context context,
 		goto cleanup_creds;
 	}
 
-#if defined(TKT_FLG_OK_AS_DELEGATE ) && defined(HAVE_KRB5_FWD_TGT_CREDS) && defined(HAVE_KRB5_AUTH_CON_SETUSERUSERKEY) && defined(KRB5_AUTH_CONTEXT_USE_SUBKEY)
+#if defined(TKT_FLG_OK_AS_DELEGATE ) && defined(HAVE_KRB5_FWD_TGT_CREDS) && defined(HAVE_KRB5_AUTH_CON_SETUSERUSERKEY) && defined(KRB5_AUTH_CONTEXT_USE_SUBKEY) && defined(HAVE_KRB5_AUTH_CON_SET_REQ_CKSUMTYPE)
 	if( credsp->ticket_flags & TKT_FLG_OK_AS_DELEGATE ) {
 		/* Fetch a forwarded TGT from the KDC so that we can hand off a 2nd ticket
 		 as part of the kerberos exchange. */
@@ -901,7 +894,6 @@ static krb5_error_code ads_krb5_mk_req(krb5_context context,
 			gss_flags |= GSS_C_DELEG_FLAG;
 		}
 	}
-#endif
 
 	/* Frees and reallocates in_data into a GSS checksum blob. */
 	retval = create_gss_checksum(&in_data, gss_flags);
@@ -909,7 +901,6 @@ static krb5_error_code ads_krb5_mk_req(krb5_context context,
 		goto cleanup_data;
 	}
 
-#if defined(HAVE_KRB5_AUTH_CON_SET_REQ_CKSUMTYPE)
 	/* We always want GSS-checksum types. */
 	retval = krb5_auth_con_set_req_cksumtype(context, *auth_context, GSSAPI_CHECKSUM );
 	if (retval) {
@@ -963,9 +954,7 @@ int cli_krb5_get_ticket(TALLOC_CTX *mem_ctx,
 	krb5_ccache ccdef = NULL;
 	krb5_auth_context auth_context = NULL;
 	krb5_enctype enc_types[] = {
-#ifdef ENCTYPE_ARCFOUR_HMAC
 		ENCTYPE_ARCFOUR_HMAC,
-#endif
 		ENCTYPE_DES_CBC_MD5,
 		ENCTYPE_DES_CBC_CRC,
 		ENCTYPE_NULL};
@@ -2292,4 +2281,10 @@ char *smb_krb5_principal_get_realm(krb5_context context,
 	 return 1;
 }
 
-#endif
+bool unwrap_pac(TALLOC_CTX *mem_ctx, DATA_BLOB *auth_data, DATA_BLOB *unwrapped_pac_data)
+{
+	DEBUG(0,("NO KERBEROS SUPPORT\n"));
+	return false;
+}
+
+#endif /* HAVE_KRB5 */

@@ -31,6 +31,9 @@
  *  Author: Simo Sorce
  */
 
+#include "replace.h"
+#include "system/filesys.h"
+#include "system/time.h"
 #include "ldb_module.h"
 
 struct opaque {
@@ -320,7 +323,7 @@ static int server_sort_search(struct ldb_module *module, struct ldb_request *req
 	/* save it locally and remove it from the list */
 	/* we do not need to replace them later as we
 	 * are keeping the original req intact */
-	if (!save_controls(control, down_req, &saved_controls)) {
+	if (!ldb_save_controls(control, down_req, &saved_controls)) {
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
@@ -344,8 +347,14 @@ static int server_sort_init(struct ldb_module *module)
 	return ldb_next_init(module);
 }
 
-const struct ldb_module_ops ldb_server_sort_module_ops = {
+static const struct ldb_module_ops ldb_server_sort_module_ops = {
 	.name		   = "server_sort",
 	.search            = server_sort_search,
 	.init_context	   = server_sort_init
 };
+
+int ldb_server_sort_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_server_sort_module_ops);
+}

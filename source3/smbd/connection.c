@@ -18,7 +18,10 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
+#include "dbwrap.h"
+#include "auth.h"
 
 /****************************************************************************
  Delete a connection record.
@@ -127,7 +130,6 @@ bool claim_connection(connection_struct *conn, const char *name)
 	struct connections_data crec;
 	TDB_DATA dbuf;
 	NTSTATUS status;
-	char addr[INET6_ADDRSTRLEN];
 
 	DEBUG(5,("claiming [%s]\n", name));
 
@@ -141,16 +143,14 @@ bool claim_connection(connection_struct *conn, const char *name)
 	crec.magic = 0x280267;
 	crec.pid = sconn_server_id(conn->sconn);
 	crec.cnum = conn->cnum;
-	crec.uid = conn->server_info->utok.uid;
-	crec.gid = conn->server_info->utok.gid;
+	crec.uid = conn->session_info->utok.uid;
+	crec.gid = conn->session_info->utok.gid;
 	strlcpy(crec.servicename, lp_servicename(SNUM(conn)),
 		sizeof(crec.servicename));
 	crec.start = time(NULL);
 
 	strlcpy(crec.machine,get_remote_machine_name(),sizeof(crec.machine));
-	strlcpy(crec.addr,conn?conn->client_address:
-			client_addr(get_client_fd(),addr,sizeof(addr)),
-		sizeof(crec.addr));
+	strlcpy(crec.addr, conn->sconn->client_id.addr, sizeof(crec.addr));
 
 	dbuf.dptr = (uint8 *)&crec;
 	dbuf.dsize = sizeof(crec);

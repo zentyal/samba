@@ -22,6 +22,9 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "locking/proto.h"
+#include "dbwrap.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_LOCKING

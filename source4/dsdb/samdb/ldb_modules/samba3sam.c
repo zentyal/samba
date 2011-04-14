@@ -14,7 +14,6 @@
 #include "librpc/gen_ndr/ndr_samr.h"
 #include "librpc/ndr/libndr.h"
 #include "libcli/security/security.h"
-#include "libcli/security/proto.h"
 #include "lib/samba3/samba3.h"
 
 /*
@@ -107,7 +106,8 @@ static void generate_sambaPrimaryGroupSID(struct ldb_module *module, const char 
 
 	sidstring = dom_sid_string(remote_mp, sid);
 	talloc_free(sid);
-	ldb_msg_add_fmt(remote_mp, "sambaPrimaryGroupSID", "%s-%d", sidstring, ldb_msg_find_attr_as_uint(local, "primaryGroupID", 0));
+	ldb_msg_add_fmt(remote_mp, "sambaPrimaryGroupSID", "%s-%u", sidstring,
+			ldb_msg_find_attr_as_uint(local, "primaryGroupID", 0));
 	talloc_free(sidstring);
 }
 
@@ -152,7 +152,9 @@ static struct ldb_val lookup_gid(struct ldb_module *module, TALLOC_CTX *ctx, con
 		return *talloc_zero(ctx, struct ldb_val);
 	}
 
-	retval.data = (uint8_t *)talloc_asprintf(ctx, "%ld", (unsigned long)pwd->pw_gid);
+	/* "pw_gid" is per POSIX definition "unsigned".
+	 * But write it out as "signed" for LDAP compliance. */
+	retval.data = (uint8_t *)talloc_asprintf(ctx, "%d", (int) pwd->pw_gid);
 	retval.length = strlen((char *)retval.data);
 
 	return retval;
@@ -169,7 +171,9 @@ static struct ldb_val lookup_uid(struct ldb_module *module, TALLOC_CTX *ctx, con
 		return *talloc_zero(ctx, struct ldb_val);
 	}
 
-	retval.data = (uint8_t *)talloc_asprintf(ctx, "%ld", (unsigned long)pwd->pw_uid);
+	/* "pw_uid" is per POSIX definition "unsigned".
+	 * But write it out as "signed" for LDAP compliance. */
+	retval.data = (uint8_t *)talloc_asprintf(ctx, "%d", (int) pwd->pw_uid);
 	retval.length = strlen((char *)retval.data);
 
 	return retval;
@@ -924,8 +928,14 @@ static int samba3sam_init(struct ldb_module *module)
 	return ldb_next_init(module);
 }
 
-_PUBLIC_ const struct ldb_module_ops ldb_samba3sam_module_ops = {
+static const struct ldb_module_ops ldb_samba3sam_module_ops = {
 	LDB_MAP_OPS
 	.name		   = "samba3sam",
 	.init_context	   = samba3sam_init,
 };
+
+int ldb_samba3sam_module_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_samba3sam_module_ops);
+}

@@ -24,7 +24,7 @@
 #include "system/wait.h"
 #include "system/filesys.h"
 #include "system/readline.h"
-#include "lib/smbreadline/smbreadline.h"
+#include "../libcli/smbreadline/smbreadline.h"
 #include "libcli/libcli.h"
 #include "lib/events/events.h"
 
@@ -36,6 +36,37 @@
 #if HAVE_READLINE_HISTORY_H
 #include <readline/history.h>
 #endif
+
+static char *prefix_name(TALLOC_CTX *mem_ctx, const char *prefix, const char *name)
+{
+	if (prefix == NULL)
+		return talloc_strdup(mem_ctx, name);
+	else
+		return talloc_asprintf(mem_ctx, "%s.%s", prefix, name);
+}
+
+static void print_test_list(const struct torture_suite *suite, const char *prefix, const char *expr)
+{
+	struct torture_suite *o;
+	struct torture_tcase *t;
+	struct torture_test *p;
+
+	for (o = suite->children; o; o = o->next) {
+		char *name = prefix_name(NULL, prefix, o->name);
+		print_test_list(o, name, expr);
+		talloc_free(name);
+	}
+
+	for (t = suite->testcases; t; t = t->next) {
+		for (p = t->tests; p; p = p->next) {
+			char *name = talloc_asprintf(NULL, "%s.%s.%s", prefix, t->name, p->name);
+			if (strncmp(name, expr, strlen(expr)) == 0) {
+				printf("%s\n", name);
+			}
+			talloc_free(name);
+		}
+	}
+}
 
 static bool run_matching(struct torture_context *torture,
 						 const char *prefix, 
@@ -51,14 +82,10 @@ static bool run_matching(struct torture_context *torture,
 
 	for (o = suite->children; o; o = o->next) {
 		char *name = NULL;
-		if (prefix == NULL)
-			name = talloc_strdup(torture, o->name);
-		else
-			name = talloc_asprintf(torture, "%s-%s", prefix, o->name);
+		name = prefix_name(torture, prefix, o->name);
 		if (gen_fnmatch(expr, name) == 0) {
 			*matched = true;
 			reload_charcnv(torture->lp_ctx);
-			torture->active_testname = name;
 			if (restricted != NULL)
 				ret &= torture_run_suite_restricted(torture, o, restricted);
 			else
@@ -68,20 +95,18 @@ static bool run_matching(struct torture_context *torture,
 	}
 
 	for (t = suite->testcases; t; t = t->next) {
-		char *name = talloc_asprintf(torture, "%s-%s", prefix, t->name);
+		char *name = talloc_asprintf(torture, "%s.%s", prefix, t->name);
 		if (gen_fnmatch(expr, name) == 0) {
 			*matched = true;
 			reload_charcnv(torture->lp_ctx);
-			torture->active_testname = name;
-			ret &= torture_run_tcase(torture, t);
+			ret &= torture_run_tcase_restricted(torture, t, restricted);
 		}
 		for (p = t->tests; p; p = p->next) {
-			name = talloc_asprintf(torture, "%s-%s-%s", prefix, t->name, p->name);
+			name = talloc_asprintf(torture, "%s.%s.%s", prefix, t->name, p->name);
 			if (gen_fnmatch(expr, name) == 0) {
 				*matched = true;
 				reload_charcnv(torture->lp_ctx);
-				torture->active_testname = name;
-				ret &= torture_run_test(torture, t, p);
+				ret &= torture_run_test_restricted(torture, t, p, restricted);
 			}
 		}
 	}
@@ -100,6 +125,8 @@ bool torture_run_named_tests(struct torture_context *torture, const char *name,
 	bool ret = true;
 	bool matched = false;
 	struct torture_suite *o;
+
+	torture_ui_report_time(torture);
 
 	if (strequal(name, "ALL")) {
 		if (restricted != NULL) {
@@ -191,7 +218,7 @@ static void parse_dns(struct loadparm_context *lp_ctx, const char *dns)
 /* Print the full test list, formatted into separate labelled test
  * groups.
  */
-static void print_structured_test_list(void)
+static void print_structured_testsuite_list(void)
 {
 	struct torture_suite *o;
 	struct torture_suite *s;
@@ -212,7 +239,7 @@ static void print_structured_test_list(void)
 				printf("\n  ");
 				i = 0;
 			}
-			i+=printf("%s-%s ", o->name, s->name);
+			i+=printf("%s.%s ", o->name, s->name);
 		}
 
 		for (t = o->testcases; t; t = t->next) {
@@ -220,7 +247,7 @@ static void print_structured_test_list(void)
 				printf("\n  ");
 				i = 0;
 			}
-			i+=printf("%s-%s ", o->name, t->name);
+			i+=printf("%s.%s ", o->name, t->name);
 		}
 
 		if (i) printf("\n");
@@ -229,7 +256,7 @@ static void print_structured_test_list(void)
 	printf("\nThe default test is ALL.\n");
 }
 
-static void print_test_list(void)
+static void print_testsuite_list(void)
 {
 	struct torture_suite *o;
 	struct torture_suite *s;
@@ -240,25 +267,25 @@ static void print_test_list(void)
 
 	for (o = torture_root->children; o; o = o->next) {
 		for (s = o->children; s; s = s->next) {
-			printf("%s-%s\n", o->name, s->name);
+			printf("%s.%s\n", o->name, s->name);
 		}
 
 		for (t = o->testcases; t; t = t->next) {
-			printf("%s-%s\n", o->name, t->name);
+			printf("%s.%s\n", o->name, t->name);
 		}
 	}
 }
 
-void torture_print_tests(bool structured)
+void torture_print_testsuites(bool structured)
 {
 	if (structured) {
-		print_structured_test_list();
+		print_structured_testsuite_list();
 	} else {
-		print_test_list();
+		print_testsuite_list();
 	}
 }
 
-_NORETURN_ static void usage(poptContext pc)
+static void usage(poptContext pc)
 {
 	poptPrintUsage(pc, stdout, 0);
 	printf("\n");
@@ -312,9 +339,8 @@ _NORETURN_ static void usage(poptContext pc)
 
 	printf("Tests are:");
 
-	print_structured_test_list();
+	print_structured_testsuite_list();
 
-	exit(1);
 }
 
 _NORETURN_ static void max_runtime_handler(int sig)
@@ -405,8 +431,9 @@ int main(int argc,char *argv[])
 	int shell = false;
 	static const char *ui_ops_name = "subunit";
 	const char *basedir = NULL;
+	char *outputdir;
 	const char *extra_module = NULL;
-	static int list_tests = 0;
+	static int list_tests = 0, list_testsuites = 0;
 	int num_extra_users = 0;
 	char **restricted = NULL;
 	int num_restricted = -1;
@@ -425,7 +452,8 @@ int main(int argc,char *argv[])
 		{"num-ops",	  0, POPT_ARG_INT,  &torture_numops, 	0, 	"num ops",	NULL},
 		{"entries",	  0, POPT_ARG_INT,  &torture_entries, 	0,	"entries",	NULL},
 		{"loadfile",	  0, POPT_ARG_STRING,	NULL, 	OPT_LOADFILE,	"NBench load file to use", 	NULL},
-		{"list", 	  0, POPT_ARG_NONE, &list_tests, 0, "List available tests and exit", NULL },
+		{"list-suites", 	  0, POPT_ARG_NONE, &list_testsuites, 0, "List available testsuites and exit", NULL },
+		{"list", 	  0, POPT_ARG_NONE, &list_tests, 0, "List available tests in specified suites and exit", NULL },
 		{"unclist",	  0, POPT_ARG_STRING,	NULL, 	OPT_UNCLIST,	"unclist", 	NULL},
 		{"timelimit",	't', POPT_ARG_INT,	NULL, 	OPT_TIMELIMIT,	"Set time limit (in seconds)", 	NULL},
 		{"failures",	'f', POPT_ARG_INT,  &torture_failures, 	0,	"failures", 	NULL},
@@ -588,16 +616,10 @@ int main(int argc,char *argv[])
 		torture_init();
 	}
 
-	if (list_tests) {
-		print_test_list();
+	if (list_testsuites) {
+		print_testsuite_list();
 		return 0;
 	}
-
-	if (torture_seed == 0) {
-		torture_seed = time(NULL);
-	} 
-	printf("Using seed %d\n", torture_seed);
-	srandom(torture_seed);
 
 	argv_new = discard_const_p(char *, poptGetArgs(pc));
 
@@ -608,6 +630,23 @@ int main(int argc,char *argv[])
 			break;
 		}
 	}
+
+	if (list_tests) {
+		if (argc_new == 1) {
+			print_test_list(torture_root, NULL, "");
+		} else {
+			for (i=1;i<argc_new;i++) {
+				print_test_list(torture_root, NULL, argv_new[i]);
+			}
+		}
+		return 0;
+	}
+
+	if (torture_seed == 0) {
+		torture_seed = time(NULL);
+	} 
+	printf("Using seed %d\n", torture_seed);
+	srandom(torture_seed);
 
 	if (!strcmp(ui_ops_name, "simple")) {
 		ui_ops = &std_ui_ops;
@@ -627,14 +666,22 @@ int main(int argc,char *argv[])
 			fprintf(stderr, "Please specify an absolute path to --basedir\n");
 			return 1;
 		}
-		torture->outputdir = basedir;
+		outputdir = talloc_asprintf(torture, "%s/smbtortureXXXXXX", basedir);
 	} else {
 		char *pwd = talloc_size(torture, PATH_MAX);
 		if (!getcwd(pwd, PATH_MAX)) {
 			fprintf(stderr, "Unable to determine current working directory\n");
 			return 1;
 		}
-		torture->outputdir = pwd;
+		outputdir = talloc_asprintf(torture, "%s/smbtortureXXXXXX", pwd);
+	}
+	if (!outputdir) {
+		fprintf(stderr, "Could not allocate per-run output dir\n");
+		return 1;
+	}
+	torture->outputdir = mkdtemp(outputdir);
+	if (!torture->outputdir) {
+		perror("Failed to make temp output dir");
 	}
 
 	torture->lp_ctx = cmdline_lp_ctx;
@@ -654,22 +701,23 @@ int main(int argc,char *argv[])
 		if (argc_new < 3) {
 			printf("You must specify a test to run, or 'ALL'\n");
 			usage(pc);
-			exit(1);
-		}
-
+			torture->results->returncode = 1;
+		} else if (!torture_parse_target(cmdline_lp_ctx, argv_new[1])) {
 		/* Take the target name or binding. */
-		if (!torture_parse_target(cmdline_lp_ctx, argv_new[1])) {
 			usage(pc);
-			exit(1);
-		}
-
-		for (i=2;i<argc_new;i++) {
-			if (!torture_run_named_tests(torture, argv_new[i],
-				    (const char **)restricted)) {
-				correct = false;
+			torture->results->returncode = 1;
+		} else {
+			for (i=2;i<argc_new;i++) {
+				if (!torture_run_named_tests(torture, argv_new[i],
+					    (const char **)restricted)) {
+					correct = false;
+				}
 			}
 		}
 	}
+
+	/* Now delete the temp dir we created */
+	torture_deltree_outputdir(torture);
 
 	if (torture->results->returncode && correct) {
 		return(0);

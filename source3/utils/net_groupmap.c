@@ -22,7 +22,10 @@
 
 
 #include "includes.h"
+#include "system/passwd.h"
 #include "utils/net.h"
+#include "../libcli/security/security.h"
+#include "passdb.h"
 
 /*********************************************************
  Figure out if the input was an NT group or a SID string.

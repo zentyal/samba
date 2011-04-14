@@ -26,7 +26,9 @@
 
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
+#include "libcli/security/security.h"
 
 #define	PIPE		"\\PIPE\\"
 #define	PIPELEN		strlen(PIPE)
@@ -69,7 +71,10 @@ NTSTATUS open_np_file(struct smb_request *smb_req, const char *name,
 	status = np_open(fsp, name,
 			 conn->sconn->local_address,
 			 conn->sconn->remote_address,
-			 conn->server_info, &fsp->fake_file_handle);
+			 &conn->sconn->client_id,
+			 conn->session_info,
+			 conn->sconn->msg_ctx,
+			 &fsp->fake_file_handle);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10, ("np_open(%s) returned %s\n", name,
 			   nt_errstr(status)));
@@ -237,7 +242,7 @@ static void pipe_write_done(struct tevent_req *subreq)
 	DEBUG(3,("write-IPC nwritten=%d\n", (int)nwritten));
 
  send:
-	if (!srv_send_smb(smbd_server_fd(), (char *)req->outbuf,
+	if (!srv_send_smb(req->sconn, (char *)req->outbuf,
 			  true, req->seqnum+1,
 			  IS_CONN_ENCRYPTED(req->conn)||req->encrypted,
 			  &req->pcd)) {

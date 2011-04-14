@@ -4,14 +4,14 @@ bld.SAMBA_MODULE('sys_notify_inotify',
                  source='inotify.c',
                  subsystem='sys_notify',
                  init_function='sys_notify_inotify_init',
-                 deps='LIBEVENTS',
+                 deps='events',
                  enabled = bld.CONFIG_SET('HAVE_LINUX_INOTIFY')
                  )
 
 
 bld.SAMBA_SUBSYSTEM('sys_notify',
                     source='sys_notify.c',
-                    deps='talloc'
+                    deps='talloc tevent'
                     )
 
 

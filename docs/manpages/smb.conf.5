@@ -2,12 +2,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 07/28/2010
+.\"      Date: 04/01/2011
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "07/28/2010" "Samba 3\&.6" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "04/01/2011" "Samba 3\&.6" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -148,6 +148,7 @@ The share name is changed from homes to the located username\&.
 .IP \(bu 2.3
 .\}
 If no path was given, the path is set to the user\'s home directory\&.
+.RE
 .sp
 .RE
 .PP
@@ -235,6 +236,7 @@ If no printer name was given, the printer name is set to the located printer nam
 .IP \(bu 2.3
 .\}
 If the share does not permit guest access and no username was given, the username is set to the located printer name\&.
+.RE
 .sp
 .RE
 .PP
@@ -455,7 +457,7 @@ the process id of the current server process\&.
 .PP
 %a
 .RS 4
-The architecture of the remote machine\&. It currently recognizes Samba (\fBSamba\fR), the Linux CIFS file system (\fBCIFSFS\fR), OS/2, (\fBOS2\fR), Windows for Workgroups (\fBWfWg\fR), Windows 9x/ME (\fBWin95\fR), Windows NT (\fBWinNT\fR), Windows 2000 (\fBWin2K\fR), Windows XP (\fBWinXP\fR), Windows XP 64\-bit(\fBWinXP64\fR), Windows 2003 including 2003R2 (\fBWin2K3\fR), and Windows Vista (\fBVista\fR)\&. Anything else will be known as
+The architecture of the remote machine\&. It currently recognizes Samba (\fBSamba\fR), the Linux CIFS file system (\fBCIFSFS\fR), OS/2, (\fBOS2\fR), Mac OS X (\fBOSX\fR), Windows for Workgroups (\fBWfWg\fR), Windows 9x/ME (\fBWin95\fR), Windows NT (\fBWinNT\fR), Windows 2000 (\fBWin2K\fR), Windows XP (\fBWinXP\fR), Windows XP 64\-bit(\fBWinXP64\fR), Windows 2003 including 2003R2 (\fBWin2K3\fR), and Windows Vista (\fBVista\fR)\&. Anything else will be known as
 \fBUNKNOWN\fR\&.
 .RE
 .PP
@@ -908,9 +910,10 @@ Samba 3\&.0\&.23 introduced support for adding printer ports remotely using the 
 .IP \(bu 2.3
 .\}
 \fIdevice URI\fR
+.RE
 .sp
 .RE
-The deviceURI is in the for of socket://<hostname>[:<portnumber>] or lpd://<hostname>/<queuename>\&.
+The deviceURI is in the format of socket://<hostname>[:<portnumber>] or lpd://<hostname>/<queuename>\&.
 .sp
 Default:
 \fI\fIadd port command\fR\fR\fI = \fR\fI\fR\fI \fR
@@ -1000,6 +1003,7 @@ is automatically invoked with the following parameter (in order):
 .IP \(bu 2.3
 .\}
 \fIWindows 9x driver location\fR
+.RE
 .sp
 .RE
 All parameters are filled in from the PRINTER_INFO_2 structure sent by the Windows NT/2000 client with one exception\&. The "Windows 9x driver location" parameter is included for backwards compatibility only\&. The remaining fields in the structure are generated from answers to the APW questions\&.
@@ -1108,6 +1112,7 @@ file\&.
 .\}
 \fImax connections\fR
 Number of maximum simultaneous connections to this share\&.
+.RE
 .sp
 .RE
 This parameter is only used to add file shares\&. To add printer shares, see the
@@ -1741,6 +1746,7 @@ file\&.
 .\}
 \fImax connections\fR
 Number of maximum simultaneous connections to this share\&.
+.RE
 .sp
 .RE
 This parameter is only used to modify existing file share definitions\&. To modify printer shares, use the "Printers\&.\&.\&." folder as seen when browsing the Samba host\&.
@@ -1838,7 +1844,7 @@ This parameter determines whether or not
 \fBsmbclient\fR(8)
 will attempt to authenticate itself to servers using the NTLMv2 encrypted password response\&.
 .sp
-If enabled, only an NTLMv2 and LMv2 response (both much more secure than earlier versions) will be sent\&. Many servers (including NT4 < SP4, Win9x and Samba 2\&.2) are not compatible with NTLMv2\&.
+If enabled, only an NTLMv2 and LMv2 response (both much more secure than earlier versions) will be sent\&. Older servers (including NT4 < SP4, Win9x and Samba 2\&.2) are not compatible with NTLMv2 when not in an NTLMv2 supporting domain
 .sp
 Similarly, if enabled, NTLMv1,
 client lanman auth
@@ -1849,10 +1855,10 @@ authentication will be disabled\&. This also disables share\-level authenticatio
 If disabled, an NTLM response (and possibly a LANMAN response) will be sent by the client, depending on the value of
 client lanman auth\&.
 .sp
-Note that some sites (particularly those following \'best practice\' security polices) only allow NTLMv2 responses, and not the weaker LM or NTLM\&.
+Note that Windows Vista and later versions already use NTLMv2 by default, and some sites (particularly those following \'best practice\' security polices) only allow NTLMv2 responses, and not the weaker LM or NTLM\&.
 .sp
 Default:
-\fI\fIclient ntlmv2 auth\fR\fR\fI = \fR\fIno\fR\fI \fR
+\fI\fIclient ntlmv2 auth\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 client plaintext auth (G)
@@ -1898,6 +1904,24 @@ When set to auto, SMB signing is offered, but not enforced\&. When set to mandat
 .sp
 Default:
 \fI\fIclient signing\fR\fR\fI = \fR\fIauto\fR\fI \fR
+.RE
+
+client use spnego principal (G)
+.\" client use spnego principal
+.PP
+.RS 4
+This parameter determines whether or not
+\fBsmbclient\fR(8)
+and other samba components acting as a client will attempt to use the server\-supplied principal sometimes given in the SPNEGO exchange\&.
+.sp
+If enabled, Samba can attempt to use Kerberos to contact servers known only by IP address\&. Kerberos relies on names, so ordinarily cannot function in this situation\&.
+.sp
+If disabled, Samba will use the name used to look up the server when asking the KDC for a ticket\&. This avoids situations where a server may impersonate another, soliciting authentication as one principal while being known on the network as another\&.
+.sp
+Note that Windows XP SP2 and later versions already follow this behaviour, and Windows Vista and later servers no longer supply this \'rfc4178 hint\' principal on the server side\&.
+.sp
+Default:
+\fI\fIclient use spnego principal\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 client use spnego (G)
@@ -2540,6 +2564,7 @@ file\&.
 .\}
 \fIshareName\fR
 \- the name of the existing service\&.
+.RE
 .sp
 .RE
 This parameter is only used to remove file shares\&. To delete printer shares, see the
@@ -3410,6 +3435,7 @@ type of query
 .IP \(bu 2.3
 .\}
 uid of user or gid of group
+.RE
 .sp
 .RE
 The type of query can be one of :
@@ -3456,6 +3482,7 @@ The type of query can be one of :
 .IP \(bu 2.3
 .\}
 4 \- group default quotas (gid = \-1)
+.RE
 .sp
 .RE
 This script should print one line as output with spaces between the arguments\&. The arguments are:
@@ -3546,6 +3573,7 @@ Arg 7 \- the hardlimit number of inodes
 .IP \(bu 2.3
 .\}
 Arg 8(optional) \- the number of bytes in a block(default is 1024)
+.RE
 .sp
 .RE
 Default:
@@ -3609,7 +3637,7 @@ If this parameter is
 for a service, then no password is required to connect to the service\&. Privileges will be those of the
 \m[blue]\fBguest account\fR\m[]\&.
 .sp
-This paramater nullifies the benifits of setting
+This parameter nullifies the benefits of setting
 \m[blue]\fBrestrict anonymous = 2\fR\m[]
 .sp
 See the section below on
@@ -3901,26 +3929,6 @@ Default:
 .sp
 Example:
 \fI\fIhosts deny\fR\fR\fI = \fR\fI150\&.203\&.4\&. badhost\&.mynet\&.edu\&.au\fR\fI \fR
-.RE
-
-idmap alloc backend (G)
-.\" idmap alloc backend
-.PP
-.RS 4
-The idmap alloc backend provides a plugin interface for Winbind to use when allocating Unix uids/gids for Windows SIDs\&. This option refers to the name of the idmap module which will provide the id allocation functionality\&. Please refer to the man page for each idmap plugin to determine whether or not the module implements the allocation feature\&. The most common plugins are the tdb (\fBidmap_tdb\fR(8)) and ldap (\fBidmap_ldap\fR(8)) libraries\&.
-.sp
-This parameter defaults to the value
-\m[blue]\fBidmap backend\fR\m[]
-was set to, so by default winbind will allocate Unix IDs from the default backend\&. You will only need to set this parameter explicitly if you have an external source for Unix IDs, like a central database service somewhere in your company\&.
-.sp
-Also refer to the
-\m[blue]\fBidmap alloc config\fR\m[]
-option\&.
-.sp
-\fINo default\fR
-.sp
-Example:
-\fI\fIidmap alloc backend\fR\fR\fI = \fR\fItdb\fR\fI \fR
 .RE
 
 idmap alloc config (G)
@@ -4242,6 +4250,7 @@ an IP/mask pair\&.
 .IP \(bu 2.3
 .\}
 a broadcast/mask pair\&.
+.RE
 .sp
 .RE
 The "mask" parameters can either be a bit length (such as 24 for a C class network) or a full netmask in dotted decimal form\&.
@@ -4372,6 +4381,7 @@ dedicated keytab \- use a dedicated keytab for ticket verification
 .IP \(bu 2.3
 .\}
 secrets and keytab \- use the secrets\&.tdb first, then the system keytab
+.RE
 .sp
 .RE
 The major difference between "system keytab" and "dedicated keytab" is that the latter method relies on kerberos to find the correct keytab entry instead of filtering based on expected principals\&.
@@ -4689,6 +4699,7 @@ can be set to one of three values:
 .\}
 \fIOnly\fR
 = Only update the LDAP password and let the LDAP server do the rest\&.
+.RE
 .sp
 .RE
 Default:
@@ -4885,6 +4896,7 @@ can be set to one of two values:
 .\}
 \fIstart tls\fR
 = Use the LDAPv3 StartTLS extended operation (RFC2830) for communicating with the directory server\&.
+.RE
 .sp
 .RE
 Please note that this parameter does only affect
@@ -5387,6 +5399,7 @@ This parameter has been extended since the 2\&.2\&.x series, now it allows to sp
 .IP \(bu 2.3
 .\}
 \fIregistry\fR
+.RE
 .sp
 .RE
 Default:
@@ -5877,6 +5890,7 @@ option, if you don\'t like \'~\'\&.
 .IP \(bu 2.3
 .\}
 Files whose UNIX name begins with a dot will be presented as DOS hidden files\&. The mangled name will be created as for other filenames, but with the leading dot removed and "___" as its extension regardless of actual original extension (that\'s three underscores)\&.
+.RE
 .sp
 .RE
 The two\-digit hash value consists of upper case alphanumeric characters\&.
@@ -6037,6 +6051,7 @@ by reading the unix permissions and POSIX ACL (if present)\&. If the connecting 
 \- The read only DOS attribute is unaffected by permissions, and can only be set by the
 \m[blue]\fBstore dos attributes\fR\m[]
 method\&. This may be useful for exporting mounted CDs\&.
+.RE
 .sp
 .RE
 Default:
@@ -6131,6 +6146,7 @@ parameter this way :\-)\&.
 .\}
 \fBBad Uid\fR
 \- Is only applicable when Samba is configured in some type of domain mode security (security = {domain|ads}) and means that user logins which are successfully authenticated but which have no valid Unix user account (and smbd is unable to create one) should be mapped to the defined guest account\&. This was the default behavior of Samba 2\&.x releases\&. Note that if a member server is running winbindd, this option should never be required because the nss_winbind library will export the Windows domain users and groups to the underlying OS via the Name Service Switch interface\&.
+.RE
 .sp
 .RE
 Note that this parameter is needed to set up "Guest" share services when using
@@ -6347,6 +6363,7 @@ version of the protocol\&. Long filename support\&.
 .IP \(bu 2.3
 .\}
 \fBSMB2\fR: Re\-implementation of the SMB protocol\&. Used by Windows Vista and newer\&. The Samba implementation of SMB2 is currently marked experimental!
+.RE
 .sp
 .RE
 Normally this option should not be set as the automatic negotiation phase in the SMB protocol takes care of choosing the appropriate protocol\&.
@@ -6509,6 +6526,7 @@ Apart from the standard substitutions, some additional ones apply\&. In particul
 .\}
 \fI%f\fR
 = who the message is from\&.
+.RE
 .sp
 .RE
 You could make this command send mail, or whatever else takes your fancy\&. Please let us know of any really interesting ideas you have\&.
@@ -6641,6 +6659,18 @@ Default:
 \fI\fImsdfs root\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
+multicast dns register (G)
+.\" multicast dns register
+.PP
+.RS 4
+If compiled with proper support for it, Samba will announce itself with multicast DNS services like for example provided by the Avahi daemon\&.
+.sp
+This parameter allows disabling Samba to register itself\&.
+.sp
+Default:
+\fI\fImulticast dns register\fR\fR\fI = \fR\fIyes\fR\fI \fR
+.RE
+
 name cache timeout (G)
 .\" name cache timeout
 .PP
@@ -6717,6 +6747,7 @@ parameter\&. If no WINS server has been specified this method will be ignored\&.
 : Do a broadcast on each of the known local interfaces listed in the
 \m[blue]\fBinterfaces\fR\m[]
 parameter\&. This is the least reliable of the name resolution methods as it depends on the target host being on a locally connected subnet\&.
+.RE
 .sp
 .RE
 The example below will cause the local lmhosts file to be examined first, followed by a broadcast attempt, followed by a normal system hostname lookup\&.
@@ -7121,6 +7152,7 @@ LDAP connections should be secured where possible\&. This may be done using eith
 in the URL argument\&.
 .sp
 Multiple servers may also be specified in double\-quotes\&. Whether multiple servers are supported or not and the exact syntax depends on the LDAP library you use\&.
+.RE
 .sp
 .RE
 
@@ -7407,6 +7439,7 @@ mode and cannot be fixed in Samba\&.
 If you are using a Windows NT server as your password server then you will have to ensure that your users are able to login from the Samba server, as when in
 security = server
 mode the network logon will appear to come from there rather than from the users workstation\&.
+.RE
 .sp
 .RE
 Default:
@@ -7480,7 +7513,7 @@ posix locking (S)
 .RS 4
 The
 \fBsmbd\fR(8)
-daemon maintains an database of file locks obtained by SMB clients\&. The default behavior is to map this internal database to POSIX locks\&. This means that file locks obtained by SMB clients are consistent with those seen by POSIX compliant applications accessing the files via a non\-SMB method (e\&.g\&. NFS or local file access)\&. You should never need to disable this parameter\&.
+daemon maintains an database of file locks obtained by SMB clients\&. The default behavior is to map this internal database to POSIX locks\&. This means that file locks obtained by SMB clients are consistent with those seen by POSIX compliant applications accessing the files via a non\-SMB method (e\&.g\&. NFS or local file access)\&. It is very unlikely that you need to set this parameter to "no", unless you are sharing from an NFS mount, which is not a good idea in the first place\&.
 .sp
 Default:
 \fI\fIposix locking\fR\fR\fI = \fR\fIyes\fR\fI \fR
@@ -7658,7 +7691,7 @@ printcap cache time (G)
 .\" printcap cache time
 .PP
 .RS 4
-This option specifies the number of seconds before the printing subsystem is again asked for the known printers\&. If the value is greater than 60 the initial waiting time is set to 60 seconds to allow an earlier first rescan of the printing subsystem\&.
+This option specifies the number of seconds before the printing subsystem is again asked for the known printers\&.
 .sp
 Setting this parameter to 0 disables any rescanning for new or removed printers after the initial startup\&.
 .sp
@@ -7920,6 +7953,20 @@ Default:
 .sp
 Example:
 \fI\fIprintjob username\fR\fR\fI = \fR\fI%D\e%U\fR\fI \fR
+.RE
+
+print notify backchannel (S)
+.\" print notify backchannel
+.PP
+.RS 4
+Windows print clients can update print queue status by expecting the server to open a backchannel SMB connection to them\&. Due to client firewall settings this can cause considerable timeouts and will often fail, as there is no guarantee the client is even running an SMB server\&. By setting this parameter to
+\fBno\fR
+the Samba print server will not try to connect back to clients and treat corresponding requests as if the connection back to the client failed\&. The default setting of
+\fByes\fR
+causes smbd to attempt this connection\&.
+.sp
+Default:
+\fI\fIprint notify backchannel\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 private dir (G)
@@ -8321,6 +8368,48 @@ Default:
 \fI\fIroot preexec\fR\fR\fI = \fR\fI\fR\fI \fR
 .RE
 
+rpc_server (G)
+.\" rpc_server
+.PP
+.RS 4
+Defines what kind of rpc server to use for a named pipe\&. The rpc_server prefix must be followed by the pipe name, and a value\&.
+.sp
+Three possible values are currently supported:
+embedded
+daemon
+external
+.sp
+The classic method is to run every pipe as an internal function
+\fIembedded\fR
+in smbd\&.
+.sp
+An alternative method is to fork a
+\fIdaemon\fR
+early on at smbd startup time\&. This is supported only for selected pipes\&.
+.sp
+Choosing the
+\fIexternal\fR
+option allows to run a completely independent (3rd party) server capable of interfacing with samba via the MS\-RPC interface over named pipes\&.
+.sp
+Currently only the spoolss pipe can be configured in
+\fIdaemon\fR
+mode like this:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+	rpc_server:spoolss = daemon
+	
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+Default:
+\fI\fIrpc_server\fR\fR\fI = \fR\fInone\fR\fI \fR
+.RE
+
 security mask (S)
 .\" security mask
 .PP
@@ -8484,6 +8573,7 @@ The NetBIOS name of the client is added to the list as a potential username\&.
 Any users on the
 \m[blue]\fBuser\fR\m[]
 list are added as potential usernames\&.
+.RE
 .sp
 .RE
 If the
@@ -8632,6 +8722,24 @@ Default:
 .sp
 Example:
 \fI\fIsecurity\fR\fR\fI = \fR\fIDOMAIN\fR\fI \fR
+.RE
+
+send spnego principal (G)
+.\" send spnego principal
+.PP
+.RS 4
+This parameter determines whether or not
+\fBsmbd\fR(8)
+will send the server\-supplied principal sometimes given in the SPNEGO exchange\&.
+.sp
+If enabled, Samba can attempt to help clients to use Kerberos to contact it, even when known only by IP address or a name not registered with our KDC as a service principal name\&. Kerberos relies on names, so ordinarily cannot function in this situation\&.
+.sp
+If disabled, Samba will send the string not_defined_in_RFC4178@please_ignore as the \'rfc4178 hint\', following the updated RFC and Windows 2008 behaviour in this area\&.
+.sp
+Note that Windows XP SP2 and later versions already ignored this value in all circumstances\&.
+.sp
+Default:
+\fI\fIsend spnego principal\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 server schannel (G)
@@ -8801,6 +8909,7 @@ The specified script should take the following arguments:
 .IP \(bu 2.3
 .\}
 4 \- group default quotas (gid = \-1)
+.RE
 .sp
 .RE
 .RE
@@ -8880,6 +8989,7 @@ The specified script should take the following arguments:
 .IP \(bu 2.3
 .\}
 8(optional) \- block size, defaults to 1024
+.RE
 .sp
 .RE
 The script should output at least one line of data on success\&. And nothing on failure\&.
@@ -9036,6 +9146,7 @@ will be substituted with the switch
 \fI%f\fR
 will be substituted with the switch
 \fI\-f\fR\&. It means force the shutdown even if applications do not respond for NT\&.
+.RE
 .sp
 .RE
 Shutdown script example:
@@ -9064,6 +9175,20 @@ Default:
 .sp
 Example:
 \fI\fIshutdown script\fR\fR\fI = \fR\fI/usr/local/samba/sbin/shutdown %m %t %r %f\fR\fI \fR
+.RE
+
+smb2 max credits (G)
+.\" smb2 max credits
+.PP
+.RS 4
+This option controls the maximum number of outstanding simultaneous SMB2 operations that Samba tells the client it will allow\&. This is similar to the
+\m[blue]\fBmax mux\fR\m[]
+parameter for SMB1\&. You should never need to set this parameter\&.
+.sp
+The default is 128 credits, which is the same as a Windows SMB2 server\&.
+.sp
+Default:
+\fI\fIsmb2 max credits\fR\fR\fI = \fR\fI128\fR\fI \fR
 .RE
 
 smb2 max read (G)
@@ -9308,6 +9433,7 @@ SO_SNDLOWAT *
 .IP \(bu 2.3
 .\}
 SO_RCVLOWAT *
+.RE
 .sp
 .RE
 Those marked with a
@@ -9393,14 +9519,14 @@ strict allocate (S)
 .RS 4
 This is a boolean that controls the handling of disk space allocation in the server\&. When this is set to
 \fByes\fR
-the server will change from UNIX behaviour of not committing real disk storage blocks when a file is extended to the Windows behaviour of actually forcing the disk system to allocate real storage blocks when a file is created or extended to be a given size\&. In UNIX terminology this means that Samba will stop creating sparse files\&. This can be slow on some systems\&. When you work with large files like >100MB or so you may even run into problems with clients running into timeouts\&.
+the server will change from UNIX behaviour of not committing real disk storage blocks when a file is extended to the Windows behaviour of actually forcing the disk system to allocate real storage blocks when a file is created or extended to be a given size\&. In UNIX terminology this means that Samba will stop creating sparse files\&. Modern UNIX filesystems now support extents and so in Samba 3\&.6\&.0 we have changed this parameter to default to "yes"\&. On older filesystems without extents you might want to turn this parameter to "no"\&.
 .sp
 When you have an extent based filesystem it\'s likely that we can make use of unwritten extents which allows Samba to allocate even large amounts of space very fast and you will not see any timeout problems caused by strict allocate\&. With strict allocate in use you will also get much better out of quota messages in case you use quotas\&. Another advantage of activating this setting is that it will help to reduce file fragmentation\&.
 .sp
-To give you an idea on which filesystems this setting might currently be a good option for you: XFS, ext4, btrfs, ocfs2 on Linux and JFS2 on AIX support unwritten extents\&. On Filesystems that do not support it, preallocation is probably an expensive operation where you will see reduced performance and risk to let clients run into timeouts when creating large files\&. Examples are ext3, ZFS, HFS+ and most others, so be aware if you activate this setting on those filesystems\&.
+To give you an idea on which filesystems this setting might currently be a good option for you: XFS, ext4, btrfs, ocfs2 on Linux and JFS2 on AIX support unwritten extents\&. On Filesystems that do not support it, preallocation is probably an expensive operation where you will see reduced performance and risk to let clients run into timeouts when creating large files\&. Examples are ext3, ZFS, HFS+ and most others, so be aware if you leave the default setting on those filesystems\&.
 .sp
 Default:
-\fI\fIstrict allocate\fR\fR\fI = \fR\fIno\fR\fI \fR
+\fI\fIstrict allocate\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 strict locking (S)
@@ -9602,31 +9728,6 @@ parameter is called
 .sp
 Default:
 \fI\fIunix password sync\fR\fR\fI = \fR\fIno\fR\fI \fR
-.RE
-
-update encrypted (G)
-.\" update encrypted
-.PP
-.RS 4
-This boolean parameter allows a user logging on with a plaintext password to have their encrypted (hashed) password in the smbpasswd file to be updated automatically as they log on\&. This option allows a site to migrate from plaintext password authentication (users authenticate with plaintext password over the wire, and are checked against a UNIX account database) to encrypted password authentication (the SMB challenge/response authentication mechanism) without forcing all users to re\-enter their passwords via smbpasswd at the time the change is made\&. This is a convenience option to allow the change over to encrypted passwords to be made over a longer period\&. Once all users have encrypted representations of their passwords in the smbpasswd file this parameter should be set to
-\fBno\fR\&.
-.sp
-In order for this parameter to be operative the
-\m[blue]\fBencrypt passwords\fR\m[]
-parameter must be set to
-\fBno\fR\&. The default value of
-\m[blue]\fBencrypt passwords = Yes\fR\m[]\&. Note: This must be set to
-\fBno\fR
-for this
-\m[blue]\fBupdate encrypted\fR\m[]
-to work\&.
-.sp
-Note that even when this parameter is set, a user authenticating to
-smbd
-must still enter a valid password in order to connect correctly, and to update their hashed (smbpasswd) passwords\&.
-.sp
-Default:
-\fI\fIupdate encrypted\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 use client driver (S)
@@ -10310,6 +10411,38 @@ Default:
 \fI\fIwinbind expand groups\fR\fR\fI = \fR\fI1\fR\fI \fR
 .RE
 
+winbind max clients (G)
+.\" winbind max clients
+.PP
+.RS 4
+This parameter specifies the maximum number of clients the
+\fBwinbindd\fR(8)
+daemon can connect with\&.
+.sp
+Default:
+\fI\fIwinbind max clients\fR\fR\fI = \fR\fI200\fR\fI \fR
+.RE
+
+winbind max domain connections (G)
+.\" winbind max domain connections
+.PP
+.RS 4
+This parameter specifies the maximum number of simultaneous connections that the
+\fBwinbindd\fR(8)
+daemon should open to the domain controller of one domain\&. Setting this parameter to a value greater than 1 can improve scalability with many simultaneous winbind requests, some of which might be slow\&.
+.sp
+Note that if
+\m[blue]\fBwinbind offline logon\fR\m[]
+is set to
+\fBYes\fR, then only one DC connection is allowed per domain, regardless of this setting\&.
+.sp
+Default:
+\fI\fIwinbind max domain connections\fR\fR\fI = \fR\fI1\fR\fI \fR
+.sp
+Example:
+\fI\fIwinbind max domain connections\fR\fR\fI = \fR\fI10\fR\fI \fR
+.RE
+
 winbind nested groups (G)
 .\" winbind nested groups
 .PP
@@ -10368,6 +10501,7 @@ and
 \- When Samba is running in security = ads and your Active Directory Domain Controller does support the Microsoft "Services for Unix" (SFU) LDAP schema, winbind can retrieve the login shell and the home directory attributes directly from your Directory Server\&. Note that retrieving UID and GID from your ADS\-Server requires to use
 \fIidmap config DOMAIN:backend\fR
 = ad as well\&.
+.RE
 .sp
 .RE
 .sp
@@ -10474,7 +10608,9 @@ winbind use default domain (G)
 .RS 4
 This parameter specifies whether the
 \fBwinbindd\fR(8)
-daemon should operate on users without domain component in their username\&. Users without a domain component are treated as is part of the winbindd server\'s own domain\&. While this does not benifit Windows users, it makes SSH, FTP and e\-mail function in a way much closer to the way they would in a native unix system\&.
+daemon should operate on users without domain component in their username\&. Users without a domain component are treated as is part of the winbindd server\'s own domain\&. While this does not benefit Windows users, it makes SSH, FTP and e\-mail function in a way much closer to the way they would in a native unix system\&.
+.sp
+This option should be avoided if possible\&. It can cause confusion about responsibilities for a user or group\&. In many situations it is not clear whether winbind or /etc/passwd should be seen as authoritative for a user, likewise for groups\&.
 .sp
 Default:
 \fI\fIwinbind use default domain\fR\fR\fI = \fR\fIno\fR\fI \fR
@@ -10546,6 +10682,7 @@ The fourth argument is the TTL (time to live) for the name in seconds\&.
 .IP \(bu 2.3
 .\}
 The fifth and subsequent arguments are the IP addresses currently registered for that name\&. If this list is empty then the name should be deleted\&.
+.RE
 .sp
 .RE
 An example script that calls the BIND dynamic DNS update program

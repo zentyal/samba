@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
 bld.SAMBA_MODULE('TORTURE_DRS',
-	source='drs_init.c drs_util.c unit/prefixmap_tests.c unit/schemainfo_tests.c',
+	source='drs_init.c drs_util.c unit/prefixmap_tests.c unit/schemainfo_tests.c rpc/dssync.c rpc/msds_intid.c',
 	autoproto='proto.h',
 	subsystem='smbtorture',
 	init_function='torture_drs_init',
-	deps='NDR_TABLE RPC_NDR_UNIXINFO dcerpc_samr RPC_NDR_WINREG RPC_NDR_INITSHUTDOWN RPC_NDR_OXIDRESOLVER RPC_NDR_EVENTLOG RPC_NDR_ECHO RPC_NDR_SVCCTL RPC_NDR_NETLOGON dcerpc_atsvc dcerpc_mgmt RPC_NDR_DRSUAPI RPC_NDR_LSA RPC_NDR_EPMAPPER RPC_NDR_DFS RPC_NDR_FRSAPI RPC_NDR_SPOOLSS RPC_NDR_SRVSVC RPC_NDR_WKSSVC RPC_NDR_ROT RPC_NDR_DSSETUP RPC_NDR_REMACT RPC_NDR_OXIDRESOLVER RPC_NDR_NTSVCS WB_HELPER LIBSAMBA-NET LIBCLI_AUTH POPT_CREDENTIALS TORTURE_LDAP TORTURE_UTIL TORTURE_RAP dcerpc_server service process_model ntvfs SERVICE_SMB RPC_NDR_BROWSER LIBCLI_DRSUAPI TORTURE_LDB_MODULE',
+	deps='samba-util ldb POPT_SAMBA errors torture ldbsamba talloc dcerpc ndr NDR_DRSUAPI gensec samba-hostconfig RPC_NDR_DRSUAPI DSDB_MODULE_HELPERS ASN1_UTIL samdb NDR_DRSBLOBS credentials samdb-common LIBCLI_RESOLVE LP_RESOLVE torturemain',
 	internal_module=True
 	)
 

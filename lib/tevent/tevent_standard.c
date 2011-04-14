@@ -457,6 +457,10 @@ static int std_event_loop_select(struct std_event_context *std_ev, struct timeva
 
 	/* setup any fd events */
 	for (fde = std_ev->ev->fd_events; fde; fde = fde->next) {
+		if (fde->fd < 0 || fde->fd >= FD_SETSIZE) {
+			std_ev->exit_code = EBADF;
+			return -1;
+		}
 		if (fde->flags & TEVENT_FD_READ) {
 			FD_SET(fde->fd, &r_fds);
 		}
@@ -505,7 +509,7 @@ static int std_event_loop_select(struct std_event_context *std_ev, struct timeva
 
 			if (FD_ISSET(fde->fd, &r_fds)) flags |= TEVENT_FD_READ;
 			if (FD_ISSET(fde->fd, &w_fds)) flags |= TEVENT_FD_WRITE;
-			if (flags) {
+			if (flags & fde->flags) {
 				fde->handler(std_ev->ev, fde, flags, fde->private_data);
 				break;
 			}

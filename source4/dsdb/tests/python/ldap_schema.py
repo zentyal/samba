@@ -8,10 +8,10 @@ import time
 import random
 import os
 
-sys.path.append("bin/python")
+sys.path.insert(0, "bin/python")
 import samba
-samba.ensure_external_module("subunit", "subunit/python")
 samba.ensure_external_module("testtools", "testtools")
+samba.ensure_external_module("subunit", "subunit/python")
 
 import samba.getopt as options
 
@@ -22,13 +22,14 @@ from ldb import ERR_UNWILLING_TO_PERFORM
 from ldb import ERR_CONSTRAINT_VIOLATION
 from ldb import Message, MessageElement, Dn
 from ldb import FLAG_MOD_REPLACE
-from samba import Ldb
+from samba.samdb import SamDB
 from samba.dsdb import DS_DOMAIN_FUNCTION_2003
+from samba.tests import delete_force
 
 from subunit.run import SubunitTestRunner
 import unittest
 
-parser = optparse.OptionParser("ldap [options] <host>")
+parser = optparse.OptionParser("ldap_schema.py [options] <host>")
 sambaopts = options.SambaOptions(parser)
 parser.add_option_group(sambaopts)
 parser.add_option_group(options.VersionOptions(parser))
@@ -49,28 +50,11 @@ creds = credopts.get_credentials(lp)
 
 class SchemaTests(unittest.TestCase):
 
-    def delete_force(self, ldb, dn):
-        try:
-            ldb.delete(dn)
-        except LdbError, (num, _):
-            self.assertEquals(num, ERR_NO_SUCH_OBJECT)
-
-    def find_schemadn(self, ldb):
-        res = ldb.search(base="", expression="", scope=SCOPE_BASE, attrs=["schemaNamingContext"])
-        self.assertEquals(len(res), 1)
-        return res[0]["schemaNamingContext"][0]
-
-    def find_basedn(self, ldb):
-        res = ldb.search(base="", expression="", scope=SCOPE_BASE,
-                         attrs=["defaultNamingContext"])
-        self.assertEquals(len(res), 1)
-        return res[0]["defaultNamingContext"][0]
-
     def setUp(self):
         super(SchemaTests, self).setUp()
         self.ldb = ldb
-        self.schema_dn = self.find_schemadn(ldb)
-        self.base_dn = self.find_basedn(ldb)
+        self.base_dn = ldb.domain_dn()
+        self.schema_dn = ldb.get_schema_basedn().get_linearized()
 
     def test_generated_schema(self):
         """Testing we can read the generated schema via LDAP"""
@@ -203,7 +187,63 @@ name: """ + object_name + """
         res = self.ldb.search("cn=%s,cn=Users,%s" % (object_name, self.base_dn), scope=SCOPE_BASE, attrs=["*"])
         self.assertEquals(len(res), 1)
         # Delete the object
-        self.delete_force(self.ldb, "cn=%s,cn=Users,%s" % (object_name, self.base_dn))
+        delete_force(self.ldb, "cn=%s,cn=Users,%s" % (object_name, self.base_dn))
+
+    def test_subClassOf(self):
+        """ Testing usage of custom child schamaClass
+        """
+
+        class_name = "my-Class" + time.strftime("%s", time.gmtime())
+        class_ldap_display_name = class_name.replace("-", "")
+
+        ldif = """
+dn: CN=%s,%s""" % (class_name, self.schema_dn) + """
+objectClass: top
+objectClass: classSchema
+adminDescription: """ + class_name + """
+adminDisplayName: """ + class_name + """
+cn: """ + class_name + """
+governsId: 1.2.840.""" + str(random.randint(1,100000)) + """.1.5.9939
+instanceType: 4
+objectClassCategory: 1
+subClassOf: organizationalUnit
+systemFlags: 16
+systemOnly: FALSE
+"""
+        self.ldb.add_ldif(ldif)
+
+        # Search for created objectclass
+        res = []
+        res = self.ldb.search("cn=%s,%s" % (class_name, self.schema_dn), scope=SCOPE_BASE, attrs=["*"])
+        self.assertEquals(len(res), 1)
+        self.assertEquals(res[0]["lDAPDisplayName"][0], class_ldap_display_name)
+        self.assertEquals(res[0]["defaultObjectCategory"][0], res[0]["distinguishedName"][0])
+        self.assertTrue("schemaIDGUID" in res[0])
+
+        ldif = """
+dn:
+changetype: modify
+add: schemaUpdateNow
+schemaUpdateNow: 1
+"""
+        self.ldb.modify_ldif(ldif)
+
+        object_name = "org" + time.strftime("%s", time.gmtime())
+
+        ldif = """
+dn: OU=%s,%s""" % (object_name, self.base_dn) + """
+objectClass: """ + class_ldap_display_name + """
+ou: """ + object_name + """
+instanceType: 4
+"""
+        self.ldb.add_ldif(ldif)
+
+        # Search for created object
+        res = []
+        res = self.ldb.search("ou=%s,%s" % (object_name, self.base_dn), scope=SCOPE_BASE, attrs=["*"])
+        self.assertEquals(len(res), 1)
+        # Delete the object
+        delete_force(self.ldb, "ou=%s,%s" % (object_name, self.base_dn))
 
 
 class SchemaTests_msDS_IntId(unittest.TestCase):
@@ -527,12 +567,7 @@ if host.startswith("ldap://"):
     # user 'paged_search' module when connecting remotely
     ldb_options = ["modules:paged_searches"]
 
-ldb = Ldb(host, credentials=creds, session_info=system_session(), lp=lp, options=ldb_options)
-if not "tdb://" in host:
-    gc_ldb = Ldb("%s:3268" % host, credentials=creds,
-                 session_info=system_session(), lp=lp)
-else:
-    gc_ldb = None
+ldb = SamDB(host, credentials=creds, session_info=system_session(lp), lp=lp, options=ldb_options)
 
 runner = SubunitTestRunner()
 rc = 0

@@ -64,7 +64,6 @@ bool torture_nttrans_scan(int dummy);
 void *shm_setup(int size);
 bool smbcli_parse_unc(const char *unc_name, TALLOC_CTX *mem_ctx,
 		      char **hostname, char **sharename);
-void torture_open_connection_free_unclist(char **unc_list);
 bool torture_open_connection(struct cli_state **c, int conn_index);
 bool torture_cli_session_setup2(struct cli_state *cli, uint16 *new_vuid);
 bool torture_close_connection(struct cli_state *c);
@@ -84,5 +83,8 @@ bool torture_casetable(int dummy);
 bool run_posix_append(int dummy);
 
 bool run_nbench2(int dummy);
+bool run_async_echo(int dummy);
+bool run_smb_any_connect(int dummy);
+bool run_addrchange(int dummy);
 
 #endif /* __TORTURE_H__ */

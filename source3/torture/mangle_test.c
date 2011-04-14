@@ -18,7 +18,9 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
 #include "torture/proto.h"
+#include "libsmb/clirap.h"
 
 extern int torture_numops;
 

@@ -21,6 +21,7 @@
 
 #include "includes.h"
 #include "librpc/rpc/dcerpc.h"
+#include "rpc_common.h"
 
 struct dcerpc_fault_table {
 	const char *errstr;
@@ -114,6 +115,8 @@ _PUBLIC_ NTSTATUS dcerpc_fault_to_nt_status(uint32_t fault_code)
 		return NT_STATUS_RPC_CALL_FAILED;
 	case DCERPC_FAULT_ACCESS_DENIED:
 		return NT_STATUS_ACCESS_DENIED;
+	case DCERPC_FAULT_SEC_PKG_ERROR:
+		return NT_STATUS_RPC_SEC_PKG_ERROR;
 	}
 
 	return NT_STATUS_RPC_PROTOCOL_ERROR;

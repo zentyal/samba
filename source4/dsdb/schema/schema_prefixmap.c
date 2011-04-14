@@ -32,16 +32,16 @@
 enum dsdb_attid_type dsdb_pfm_get_attid_type(uint32_t attid)
 {
 	if (attid <= 0x7FFFFFFF) {
-		return dsdb_attid_type_pfm;
+		return DSDB_ATTID_TYPE_PFM;
 	}
 	else if (attid <= 0xBFFFFFFF) {
-		return dsdb_attid_type_intid;
+		return DSDB_ATTID_TYPE_INTID;
 	}
 	else if (attid <= 0xFFFEFFFF) {
-		return dsdb_attid_type_reserved;
+		return DSDB_ATTID_TYPE_RESERVED;
 	}
 	else {
-		return dsdb_attid_type_internal;
+		return DSDB_ATTID_TYPE_INTERNAL;
 	}
 }
 
@@ -121,6 +121,23 @@ WERROR dsdb_schema_pfm_new(TALLOC_CTX *mem_ctx, struct dsdb_schema_prefixmap **_
 }
 
 
+struct dsdb_schema_prefixmap *dsdb_schema_pfm_copy_shallow(TALLOC_CTX *mem_ctx,
+							   const struct dsdb_schema_prefixmap *pfm)
+{
+	uint32_t i;
+	struct dsdb_schema_prefixmap *pfm_copy;
+
+	pfm_copy = _dsdb_schema_prefixmap_talloc(mem_ctx, pfm->length);
+	if (!pfm_copy) {
+		return NULL;
+	}
+	for (i = 0; i < pfm_copy->length; i++) {
+		pfm_copy->prefixes[i] = pfm->prefixes[i];
+	}
+
+	return pfm_copy;
+}
+
 /**
  * Adds oid to prefix map.
  * On success returns ID for newly added index
@@ -188,6 +205,7 @@ static WERROR _dsdb_pfm_make_binary_oid(const char *full_oid, TALLOC_CTX *mem_ct
 
 	/* encode oid in BER format */
 	if (!ber_write_OID_String(mem_ctx, _bin_oid, full_oid)) {
+		DEBUG(0,("ber_write_OID_String() failed for %s\n", full_oid));
 		return WERR_INTERNAL_ERROR;
 	}
 
@@ -228,7 +246,7 @@ WERROR dsdb_schema_pfm_find_binary_oid(const struct dsdb_schema_prefixmap *pfm,
 		}
 	}
 
-	return WERR_DS_NO_MSDS_INTID;
+	return WERR_NOT_FOUND;
 }
 
 /**
@@ -258,9 +276,14 @@ WERROR dsdb_schema_pfm_find_oid(const struct dsdb_schema_prefixmap *pfm,
 
 /**
  * Make ATTID for given OID
+ * If OID is not in prefixMap, new prefix
+ * may be added depending on 'can_change_pfm' flag
  * Reference: [MS-DRSR] section 5.12.2
  */
-WERROR dsdb_schema_pfm_make_attid(struct dsdb_schema_prefixmap *pfm, const char *oid, uint32_t *attid)
+static WERROR dsdb_schema_pfm_make_attid_impl(struct dsdb_schema_prefixmap *pfm,
+					      const char *oid,
+					      bool can_change_pfm,
+					      uint32_t *attid)
 {
 	WERROR werr;
 	uint32_t idx;
@@ -286,6 +309,11 @@ WERROR dsdb_schema_pfm_make_attid(struct dsdb_schema_prefixmap *pfm, const char 
 		/* free memory allocated for bin_oid */
 		data_blob_free(&bin_oid);
 	} else {
+		/* return error in read-only mode */
+		if (!can_change_pfm) {
+			return werr;
+		}
+
 		/* entry does not exists, add it */
 		werr = _dsdb_schema_pfm_add_entry(pfm, bin_oid, &idx);
 		W_ERROR_NOT_OK_RETURN(werr);
@@ -308,22 +336,51 @@ WERROR dsdb_schema_pfm_make_attid(struct dsdb_schema_prefixmap *pfm, const char 
 	return WERR_OK;
 }
 
+/**
+ * Make ATTID for given OID
+ * Reference: [MS-DRSR] section 5.12.2
+ *
+ * Note: This function may change prefixMap if prefix
+ * for supplied 'oid' doesn't exists yet.
+ * It is recommended to be used mostly when caller
+ * want to add new prefixes.
+ * Otherwise dsdb_schema_pfm_attid_from_oid() should be used.
+ */
+WERROR dsdb_schema_pfm_make_attid(struct dsdb_schema_prefixmap *pfm,
+				  const char *oid,
+				  uint32_t *attid)
+{
+	return dsdb_schema_pfm_make_attid_impl(pfm, oid, true, attid);
+}
+
+/**
+ * Make ATTID for given OID
+ * Reference: [MS-DRSR] section 5.12.2
+ */
+WERROR dsdb_schema_pfm_attid_from_oid(struct dsdb_schema_prefixmap *pfm,
+				      const char *oid,
+				      uint32_t *attid)
+{
+	return dsdb_schema_pfm_make_attid_impl(pfm, oid, false, attid);
+}
 
 /**
  * Make OID for given ATTID.
  * Reference: [MS-DRSR] section 5.12.2
  */
-WERROR dsdb_schema_pfm_oid_from_attid(struct dsdb_schema_prefixmap *pfm, uint32_t attid,
+WERROR dsdb_schema_pfm_oid_from_attid(const struct dsdb_schema_prefixmap *pfm,
+				      uint32_t attid,
 				      TALLOC_CTX *mem_ctx, const char **_oid)
 {
 	uint32_t i;
 	uint32_t hi_word, lo_word;
 	DATA_BLOB bin_oid = {NULL, 0};
+	char *oid;
 	struct dsdb_schema_prefixmap_oid *pfm_entry;
 	WERROR werr = WERR_OK;
 
 	/* sanity check for attid requested */
-	if (dsdb_pfm_get_attid_type(attid) != dsdb_attid_type_pfm) {
+	if (dsdb_pfm_get_attid_type(attid) != DSDB_ATTID_TYPE_PFM) {
 		return WERR_INVALID_PARAMETER;
 	}
 
@@ -341,7 +398,9 @@ WERROR dsdb_schema_pfm_oid_from_attid(struct dsdb_schema_prefixmap *pfm, uint32_
 	}
 
 	if (!pfm_entry) {
-		return WERR_INTERNAL_ERROR;
+		DEBUG(1,("Failed to find prefixMap entry for ATTID = 0x%08X (%d)\n",
+			 attid, attid));
+		return WERR_DS_NO_ATTRIBUTE_OR_VALUE;
 	}
 
 	/* copy oid prefix making enough room */
@@ -362,12 +421,16 @@ WERROR dsdb_schema_pfm_oid_from_attid(struct dsdb_schema_prefixmap *pfm, uint32_
 		bin_oid.data[bin_oid.length-1] = lo_word & 0x7f;
 	}
 
-	if (!ber_read_OID_String(mem_ctx, bin_oid, _oid)) {
+	if (!ber_read_OID_String(mem_ctx, bin_oid, &oid)) {
+		DEBUG(0,("ber_read_OID_String() failed for %s\n",
+			 hex_encode_talloc(bin_oid.data, bin_oid.data, bin_oid.length)));
 		werr = WERR_INTERNAL_ERROR;
 	}
 
 	/* free locally allocated memory */
 	talloc_free(bin_oid.data);
+
+	*_oid = oid;
 
 	return werr;
 }
@@ -394,7 +457,6 @@ static WERROR _dsdb_drsuapi_pfm_verify(const struct drsuapi_DsReplicaOIDMapping_
 
 	if (have_schema_info) {
 		DATA_BLOB blob;
-		struct dsdb_schema_info *schi = NULL;
 
 		if (ctr->num_mappings < 2) {
 			return WERR_INVALID_PARAMETER;
@@ -406,10 +468,9 @@ static WERROR _dsdb_drsuapi_pfm_verify(const struct drsuapi_DsReplicaOIDMapping_
 			return WERR_INVALID_PARAMETER;
 		}
 
-		/* parse schemaInfo blob to verify it is valid */
+		/* verify schemaInfo blob is valid one */
 		blob = data_blob_const(mapping->oid.binary_oid, mapping->oid.length);
-		if (!W_ERROR_IS_OK(dsdb_schema_info_from_blob(&blob, talloc_autofree_context(), &schi))) {
-			talloc_free(schi);
+		if (!dsdb_schema_info_blob_is_valid(&blob)) {
 			return WERR_INVALID_PARAMETER;
 		}
 

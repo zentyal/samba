@@ -48,85 +48,18 @@ struct print_job_info {
 	time_t t;
 };
 
-/**
- * rpc_cli_transport defines a transport mechanism to ship rpc requests
- * asynchronously to a server and receive replies
- */
+#include "rpc_client/rpc_transport.h"
 
-struct rpc_cli_transport {
-
-	enum dcerpc_transport_t transport;
-
-	/**
-	 * Trigger an async read from the server. May return a short read.
-	 */
-	struct tevent_req *(*read_send)(TALLOC_CTX *mem_ctx,
-					struct event_context *ev,
-					uint8_t *data, size_t size,
-					void *priv);
-	/**
-	 * Get the result from the read_send operation.
-	 */
-	NTSTATUS (*read_recv)(struct tevent_req *req, ssize_t *preceived);
-
-	/**
-	 * Trigger an async write to the server. May return a short write.
-	 */
-	struct tevent_req *(*write_send)(TALLOC_CTX *mem_ctx,
-					 struct event_context *ev,
-					 const uint8_t *data, size_t size,
-					 void *priv);
-	/**
-	 * Get the result from the read_send operation.
-	 */
-	NTSTATUS (*write_recv)(struct tevent_req *req, ssize_t *psent);
-
-	/**
-	 * This is an optimization for the SMB transport. It models the
-	 * TransactNamedPipe API call: Send and receive data in one round
-	 * trip. The transport implementation is free to set this to NULL,
-	 * cli_pipe.c will fall back to the explicit write/read routines.
-	 */
-	struct tevent_req *(*trans_send)(TALLOC_CTX *mem_ctx,
-					 struct event_context *ev,
-					 uint8_t *data, size_t data_len,
-					 uint32_t max_rdata_len,
-					 void *priv);
-	/**
-	 * Get the result from the trans_send operation.
-	 */
-	NTSTATUS (*trans_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx,
-			       uint8_t **prdata, uint32_t *prdata_len);
-
-	bool (*is_connected)(void *priv);
-	unsigned int (*set_timeout)(void *priv, unsigned int timeout);
-
-	void *priv;
-};
+struct dcerpc_binding_handle;
 
 struct rpc_pipe_client {
 	struct rpc_pipe_client *prev, *next;
 
 	struct rpc_cli_transport *transport;
+	struct dcerpc_binding_handle *binding_handle;
 
 	struct ndr_syntax_id abstract_syntax;
 	struct ndr_syntax_id transfer_syntax;
-
-	NTSTATUS (*dispatch) (struct rpc_pipe_client *cli,
-			TALLOC_CTX *mem_ctx,
-			const struct ndr_interface_table *table,
-			uint32_t opnum, void *r);
-
-	struct tevent_req *(*dispatch_send)(
-		TALLOC_CTX *mem_ctx,
-		struct tevent_context *ev,
-		struct rpc_pipe_client *cli,
-		const struct ndr_interface_table *table,
-		uint32_t opnum,
-		void *r);
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req,
-				  TALLOC_CTX *mem_ctx);
-
 
 	char *desthost;
 	char *srv_name_slash;
@@ -138,36 +71,6 @@ struct rpc_pipe_client {
 
 	/* The following is only non-null on a netlogon client pipe. */
 	struct netlogon_creds_CredentialState *dc;
-
-	/* Used by internal rpc_pipe_client */
-	struct pipes_struct *pipes_struct;
-};
-
-/* Transport encryption state. */
-enum smb_trans_enc_type {
-		SMB_TRANS_ENC_NTLM
-#if defined(HAVE_GSSAPI) && defined(HAVE_KRB5)
-		, SMB_TRANS_ENC_GSS
-#endif
-};
-
-#if defined(HAVE_GSSAPI) && defined(HAVE_KRB5)
-struct smb_tran_enc_state_gss {
-        gss_ctx_id_t gss_ctx;
-        gss_cred_id_t creds;
-};
-#endif
-
-struct smb_trans_enc_state {
-        enum smb_trans_enc_type smb_enc_type;
-        uint16 enc_ctx_num;
-        bool enc_on;
-        union {
-                struct ntlmssp_state *ntlmssp_state;
-#if defined(HAVE_GSSAPI) && defined(HAVE_KRB5)
-                struct smb_tran_enc_state_gss *gss_state;
-#endif
-        } s;
 };
 
 struct cli_state_seqnum {
@@ -215,7 +118,6 @@ struct cli_state {
 	fstring dev;
 	struct nmb_name called;
 	struct nmb_name calling;
-	fstring full_dest_host_name;
 	struct sockaddr_storage dest_ss;
 
 	DATA_BLOB secblob; /* cryptkey or negTokenInit */
@@ -240,11 +142,6 @@ struct cli_state {
 	/* What the client requested. */
 	uint32_t requested_posix_capabilities;
 	bool dfsroot;
-
-#if 0
-	TALLOC_CTX *longterm_mem_ctx;
-	TALLOC_CTX *call_mem_ctx;
-#endif
 
 	struct smb_signing_state *signing_state;
 
@@ -280,7 +177,6 @@ struct cli_state {
 };
 
 struct file_info {
-	struct cli_state *cli;
 	uint64_t size;
 	uint16 mode;
 	uid_t uid;

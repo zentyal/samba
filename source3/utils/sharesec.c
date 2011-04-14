@@ -23,6 +23,9 @@
 
 
 #include "includes.h"
+#include "popt_common.h"
+#include "../libcli/security/security.h"
+#include "passdb/machine_sid.h"
 
 static TALLOC_CTX *ctx;
 
@@ -369,8 +372,8 @@ static int ace_compare(struct security_ace *ace1, struct security_ace *ace2)
 	if (ace1->type != ace2->type)
 		return ace2->type - ace1->type;
 
-	if (sid_compare(&ace1->trustee, &ace2->trustee))
-		return sid_compare(&ace1->trustee, &ace2->trustee);
+	if (dom_sid_compare(&ace1->trustee, &ace2->trustee))
+		return dom_sid_compare(&ace1->trustee, &ace2->trustee);
 
 	if (ace1->flags != ace2->flags)
 		return ace1->flags - ace2->flags;
@@ -458,7 +461,7 @@ static int change_share_sec(TALLOC_CTX *mem_ctx, const char *sharename, char *th
 		bool found = False;
 
 		for (j=0;old->dacl && j<old->dacl->num_aces;j++) {
-		    if (sid_equal(&sd->dacl->aces[i].trustee,
+		    if (dom_sid_equal(&sd->dacl->aces[i].trustee,
 			&old->dacl->aces[j].trustee)) {
 			old->dacl->aces[j] = sd->dacl->aces[i];
 			found = True;
@@ -541,10 +544,11 @@ int main(int argc, const char *argv[])
 	}
 
 	/* set default debug level to 1 regardless of what smb.conf sets */
-	setup_logging( "sharesec", True );
-	DEBUGLEVEL_CLASS[DBGC_ALL] = 1;
-	dbf = x_stderr;
-	x_setbuf( x_stderr, NULL );
+	setup_logging( "sharesec", DEBUG_STDERR);
+
+	load_case_tables();
+
+	lp_set_cmdline("log level", "1");
 
 	pc = poptGetContext("sharesec", argc, argv, long_options, 0);
 
@@ -592,9 +596,8 @@ int main(int argc, const char *argv[])
 
 	setlinebuf(stdout);
 
-	load_case_tables();
-
-	lp_load( get_dyn_CONFIGFILE(), False, False, False, True );
+	lp_load_with_registry_shares( get_dyn_CONFIGFILE(), False, False, False,
+				      True );
 
 	/* check for initializing secrets.tdb first */
 

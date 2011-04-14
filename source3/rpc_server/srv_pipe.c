@@ -28,13 +28,19 @@
  */
 
 #include "includes.h"
+#include "system/filesys.h"
 #include "srv_pipe_internal.h"
 #include "../librpc/gen_ndr/ndr_schannel.h"
 #include "../libcli/auth/schannel.h"
 #include "../libcli/auth/spnego.h"
-#include "../libcli/auth/ntlmssp.h"
-#include "ntlmssp_wrap.h"
+#include "dcesrv_ntlmssp.h"
+#include "dcesrv_gssapi.h"
+#include "dcesrv_spnego.h"
 #include "rpc_server.h"
+#include "rpc_dce.h"
+#include "smbd/smbd.h"
+#include "auth.h"
+#include "ntdomain.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_RPC_SRV
@@ -84,312 +90,101 @@ static void dump_pdu_region(const char *name, int v,
 	TALLOC_FREE(fname);
 }
 
-static void free_pipe_ntlmssp_auth_data(struct pipe_auth_data *auth)
-{
-	TALLOC_FREE(auth->a_u.auth_ntlmssp_state);
-}
-
-static void free_pipe_schannel_auth_data(struct pipe_auth_data *auth)
-{
-	TALLOC_FREE(auth->a_u.schannel_auth);
-}
-
-static void free_pipe_auth_data(struct pipe_auth_data *auth)
-{
-	if (auth->auth_data_free_func) {
-		(*auth->auth_data_free_func)(auth);
-		auth->auth_data_free_func = NULL;
-	}
-}
-
 static DATA_BLOB generic_session_key(void)
 {
-	return data_blob("SystemLibraryDTC", 16);
-}
-
-/*******************************************************************
- Handle NTLMSSP.
- ********************************************************************/
-
-static bool add_ntlmssp_auth(struct pipes_struct *p)
-{
-	enum dcerpc_AuthLevel auth_level = p->auth.auth_level;
-	DATA_BLOB auth_blob = data_blob_null;
-	NTSTATUS status;
-
-	/* FIXME: Is this right ?
-	 * Keeping only to avoid changing semantics during refactoring
-	 * --simo
-	 */
-	if (auth_level != DCERPC_AUTH_LEVEL_PRIVACY) {
-		auth_level = DCERPC_AUTH_LEVEL_INTEGRITY;
-	}
-
-	/* Generate the auth blob. */
-	switch (auth_level) {
-	case DCERPC_AUTH_LEVEL_PRIVACY:
-		/* Data portion is encrypted. */
-		status = auth_ntlmssp_seal_packet(
-				p->auth.a_u.auth_ntlmssp_state,
-				(TALLOC_CTX *)p->out_data.frag.data,
-				&p->out_data.frag.data[DCERPC_RESPONSE_LENGTH],
-				p->out_data.frag.length
-					- DCERPC_RESPONSE_LENGTH
-					- DCERPC_AUTH_TRAILER_LENGTH,
-				p->out_data.frag.data,
-				p->out_data.frag.length,
-				&auth_blob);
-		break;
-
-	case DCERPC_AUTH_LEVEL_INTEGRITY:
-		/* Data is signed. */
-		status = auth_ntlmssp_sign_packet(
-				p->auth.a_u.auth_ntlmssp_state,
-				(TALLOC_CTX *)p->out_data.frag.data,
-				&p->out_data.frag.data[DCERPC_RESPONSE_LENGTH],
-				p->out_data.frag.length
-					- DCERPC_RESPONSE_LENGTH
-					- DCERPC_AUTH_TRAILER_LENGTH,
-				p->out_data.frag.data,
-				p->out_data.frag.length,
-				&auth_blob);
-		break;
-
-	default:
-		status = NT_STATUS_INTERNAL_ERROR;
-		return false;
-	}
-
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("Failed to add NTLMSSP auth blob: %s\n",
-			nt_errstr(status)));
-		data_blob_free(&p->out_data.frag);
-		return false;
-	}
-
-	/* Finally append the auth blob. */
-	if (!data_blob_append(p->mem_ctx, &p->out_data.frag,
-				auth_blob.data, auth_blob.length)) {
-		DEBUG(0, ("Failed to add %u bytes auth blob.\n",
-			  (unsigned int)auth_blob.length));
-		data_blob_free(&p->out_data.frag);
-		return False;
-	}
-	data_blob_free(&auth_blob);
-
-	return true;
-}
-
-/*******************************************************************
- Append a schannel authenticated fragment.
- ********************************************************************/
-
-static bool add_schannel_auth(struct pipes_struct *p)
-{
-	DATA_BLOB auth_blob = data_blob_null;
-	NTSTATUS status;
-
-	/* Schannel processing. */
-	switch (p->auth.auth_level) {
-	case DCERPC_AUTH_LEVEL_PRIVACY:
-		status = netsec_outgoing_packet(
-				p->auth.a_u.schannel_auth,
-				(TALLOC_CTX *)p->out_data.frag.data,
-				true,
-				&p->out_data.frag.data[DCERPC_RESPONSE_LENGTH],
-				p->out_data.frag.length
-					- DCERPC_RESPONSE_LENGTH
-					- DCERPC_AUTH_TRAILER_LENGTH,
-				&auth_blob);
-		break;
-
-	case DCERPC_AUTH_LEVEL_INTEGRITY:
-		status = netsec_outgoing_packet(
-				p->auth.a_u.schannel_auth,
-				(TALLOC_CTX *)p->out_data.frag.data,
-				false,
-				&p->out_data.frag.data[DCERPC_RESPONSE_LENGTH],
-				p->out_data.frag.length
-					- DCERPC_RESPONSE_LENGTH
-					- DCERPC_AUTH_TRAILER_LENGTH,
-				&auth_blob);
-		break;
-
-	default:
-		status = NT_STATUS_INTERNAL_ERROR;
-		break;
-	}
-
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("Failed to add SCHANNEL auth blob: %s\n",
-			nt_errstr(status)));
-		data_blob_free(&p->out_data.frag);
-		return false;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		dump_NL_AUTH_SIGNATURE(talloc_tos(), &auth_blob);
-	}
-
-	if (!data_blob_append(p->mem_ctx, &p->out_data.frag,
-				auth_blob.data, auth_blob.length)) {
-		DEBUG(0, ("Failed to add %u bytes auth blob.\n",
-			  (unsigned int)auth_blob.length));
-		data_blob_free(&p->out_data.frag);
-		return false;
-	}
-	data_blob_free(&auth_blob);
-
-	return true;
+	return data_blob_const("SystemLibraryDTC", 16);
 }
 
 /*******************************************************************
  Generate the next PDU to be returned from the data.
 ********************************************************************/
 
-static bool create_next_packet(struct pipes_struct *p,
-				enum dcerpc_AuthType auth_type,
-				enum dcerpc_AuthLevel auth_level,
-				size_t auth_length)
+static NTSTATUS create_next_packet(TALLOC_CTX *mem_ctx,
+				   struct pipe_auth_data *auth,
+				   uint32_t call_id,
+				   DATA_BLOB *rdata,
+				   size_t data_sent_length,
+				   DATA_BLOB *frag,
+				   size_t *pdu_size)
 {
 	union dcerpc_payload u;
 	uint8_t pfc_flags;
-	size_t data_len_left;
-	size_t data_len;
-	size_t max_len;
+	size_t data_left;
+	size_t data_to_send;
+	size_t frag_len;
 	size_t pad_len = 0;
+	size_t auth_len = 0;
 	NTSTATUS status;
 
 	ZERO_STRUCT(u.response);
 
 	/* Set up rpc packet pfc flags. */
-	if (p->out_data.data_sent_length == 0) {
+	if (data_sent_length == 0) {
 		pfc_flags = DCERPC_PFC_FLAG_FIRST;
 	} else {
 		pfc_flags = 0;
 	}
 
 	/* Work out how much we can fit in a single PDU. */
-	data_len_left = p->out_data.rdata.length -
-				p->out_data.data_sent_length;
+	data_left = rdata->length - data_sent_length;
 
 	/* Ensure there really is data left to send. */
-	if (!data_len_left) {
+	if (!data_left) {
 		DEBUG(0, ("No data left to send !\n"));
-		return false;
+		return NT_STATUS_BUFFER_TOO_SMALL;
 	}
 
-	/* Max space available - not including padding. */
-	if (auth_length) {
-		max_len = RPC_MAX_PDU_FRAG_LEN
-				- DCERPC_RESPONSE_LENGTH
-				- DCERPC_AUTH_TRAILER_LENGTH
-				- auth_length;
-	} else {
-		max_len = RPC_MAX_PDU_FRAG_LEN - DCERPC_RESPONSE_LENGTH;
-	}
-
-	/*
-	 * The amount we send is the minimum of the max_len
-	 * and the amount left to send.
-	 */
-	data_len = MIN(data_len_left, max_len);
-
-	if (auth_length) {
-		/* Work out any padding alignment requirements. */
-		pad_len = (DCERPC_RESPONSE_LENGTH + data_len) %
-						SERVER_NDR_PADDING_SIZE;
-		if (pad_len) {
-			pad_len = SERVER_NDR_PADDING_SIZE - pad_len;
-			DEBUG(10, ("Padding size is: %d\n", (int)pad_len));
-			/* If we're over filling the packet, we need to make
-			 * space for the padding at the end of the data. */
-			if (data_len + pad_len > max_len) {
-				data_len -= SERVER_NDR_PADDING_SIZE;
-			}
-		}
+	status = dcerpc_guess_sizes(auth,
+				    DCERPC_RESPONSE_LENGTH,
+				    data_left,
+				    RPC_MAX_PDU_FRAG_LEN,
+				    SERVER_NDR_PADDING_SIZE,
+				    &data_to_send, &frag_len,
+				    &auth_len, &pad_len);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
 	}
 
 	/* Set up the alloc hint. This should be the data left to send. */
-	u.response.alloc_hint = data_len_left;
+	u.response.alloc_hint = data_left;
 
 	/* Work out if this PDU will be the last. */
-	if (p->out_data.data_sent_length
-				+ data_len >= p->out_data.rdata.length) {
+	if (data_sent_length + data_to_send >= rdata->length) {
 		pfc_flags |= DCERPC_PFC_FLAG_LAST;
 	}
 
 	/* Prepare data to be NDR encoded. */
 	u.response.stub_and_verifier =
-		data_blob_const(p->out_data.rdata.data +
-				p->out_data.data_sent_length, data_len);
+		data_blob_const(rdata->data + data_sent_length, data_to_send);
 
 	/* Store the packet in the data stream. */
-	status = dcerpc_push_ncacn_packet(p->mem_ctx,
-					  DCERPC_PKT_RESPONSE,
-					  pfc_flags,
-					  auth_length,
-					  p->call_id,
-					  &u,
-					  &p->out_data.frag);
+	status = dcerpc_push_ncacn_packet(mem_ctx, DCERPC_PKT_RESPONSE,
+					  pfc_flags, auth_len, call_id,
+					  &u, frag);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("Failed to marshall RPC Packet.\n"));
-		return false;
+		return status;
 	}
 
-	if (auth_length) {
-		DATA_BLOB empty = data_blob_null;
-		DATA_BLOB auth_hdr;
-
+	if (auth_len) {
 		/* Set the proper length on the pdu, including padding.
 		 * Only needed if an auth trailer will be appended. */
-		dcerpc_set_frag_length(&p->out_data.frag,
-					p->out_data.frag.length
+		dcerpc_set_frag_length(frag, frag->length
 						+ pad_len
 						+ DCERPC_AUTH_TRAILER_LENGTH
-						+ auth_length);
-
-		if (pad_len) {
-			size_t offset = p->out_data.frag.length;
-
-			if (!data_blob_realloc(p->mem_ctx,
-						&p->out_data.frag,
-						offset + pad_len)) {
-				DEBUG(0, ("Failed to add padding!\n"));
-				data_blob_free(&p->out_data.frag);
-				return false;
-			}
-			memset(&p->out_data.frag.data[offset], '\0', pad_len);
-		}
-
-		/* auth blob is intentionally empty,
-		 * it will be appended later */
-		status = dcerpc_push_dcerpc_auth(p->out_data.frag.data,
-						 auth_type,
-						 auth_level,
-						 pad_len,
-						 1, /* context id. */
-						 &empty,
-						 &auth_hdr);
-		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(0, ("Failed to marshall RPC Auth.\n"));
-			return false;
-		}
-
-		/* Store auth header in the data stream. */
-		if (!data_blob_append(p->mem_ctx, &p->out_data.frag,
-					auth_hdr.data, auth_hdr.length)) {
-			DEBUG(0, ("Out of memory.\n"));
-			data_blob_free(&p->out_data.frag);
-			return false;
-		}
-		data_blob_free(&auth_hdr);
+						+ auth_len);
 	}
 
-	/* Setup the counts for this PDU. */
-	p->out_data.data_sent_length += data_len;
-	p->out_data.current_pdu_sent = 0;
-	return true;
+	if (auth_len) {
+		status = dcerpc_add_auth_footer(auth, pad_len, frag);
+		if (!NT_STATUS_IS_OK(status)) {
+			data_blob_free(frag);
+			return status;
+		}
+	}
+
+	*pdu_size = data_to_send;
+	return NT_STATUS_OK;
 }
 
 /*******************************************************************
@@ -398,8 +193,8 @@ static bool create_next_packet(struct pipes_struct *p,
 
 bool create_next_pdu(struct pipes_struct *p)
 {
-	enum dcerpc_AuthType auth_type =
-		map_pipe_auth_type_to_rpc_auth_type(p->auth.auth_type);
+	size_t pdu_size = 0;
+	NTSTATUS status;
 
 	/*
 	 * If we're in the fault state, keep returning fault PDU's until
@@ -410,211 +205,25 @@ bool create_next_pdu(struct pipes_struct *p)
 		return true;
 	}
 
-	switch (p->auth.auth_level) {
-	case DCERPC_AUTH_LEVEL_NONE:
-	case DCERPC_AUTH_LEVEL_CONNECT:
-		/* This is incorrect for auth level connect. Fixme. JRA */
-
-		/* No authentication done. */
-		return create_next_packet(p, auth_type,
-					  p->auth.auth_level, 0);
-
-	case DCERPC_AUTH_LEVEL_CALL:
-	case DCERPC_AUTH_LEVEL_PACKET:
-	case DCERPC_AUTH_LEVEL_INTEGRITY:
-	case DCERPC_AUTH_LEVEL_PRIVACY:
-
-		switch(p->auth.auth_type) {
-		case PIPE_AUTH_TYPE_NTLMSSP:
-		case PIPE_AUTH_TYPE_SPNEGO_NTLMSSP:
-			if (!create_next_packet(p, auth_type,
-						p->auth.auth_level,
-						NTLMSSP_SIG_SIZE)) {
-				return false;
-			}
-			return add_ntlmssp_auth(p);
-
-		case PIPE_AUTH_TYPE_SCHANNEL:
-			if (!create_next_packet(p, auth_type,
-						p->auth.auth_level,
-						NL_AUTH_SIGNATURE_SIZE)) {
-				return false;
-			}
-			return add_schannel_auth(p);
-		default:
-			break;
-		}
-	default:
-		break;
-	}
-
-	DEBUG(0, ("Invalid internal auth level %u / type %u\n",
-		  (unsigned int)p->auth.auth_level,
-		  (unsigned int)p->auth.auth_type));
-	return false;
-}
-
-/*******************************************************************
- Process an NTLMSSP authentication response.
- If this function succeeds, the user has been authenticated
- and their domain, name and calling workstation stored in
- the pipe struct.
-*******************************************************************/
-
-static bool pipe_ntlmssp_verify_final(struct pipes_struct *p,
-				      DATA_BLOB *p_resp_blob)
-{
-	DATA_BLOB session_key, reply;
-	NTSTATUS status;
-	struct auth_ntlmssp_state *a = p->auth.a_u.auth_ntlmssp_state;
-	bool ret;
-
-	DEBUG(5,("pipe_ntlmssp_verify_final: pipe %s checking user details\n",
-		 get_pipe_name_from_syntax(talloc_tos(), &p->syntax)));
-
-	ZERO_STRUCT(reply);
-
-	/* this has to be done as root in order to verify the password */
-	become_root();
-	status = auth_ntlmssp_update(a, *p_resp_blob, &reply);
-	unbecome_root();
-
-	/* Don't generate a reply. */
-	data_blob_free(&reply);
-
+	status = create_next_packet(p->mem_ctx, &p->auth,
+				    p->call_id, &p->out_data.rdata,
+				    p->out_data.data_sent_length,
+				    &p->out_data.frag, &pdu_size);
 	if (!NT_STATUS_IS_OK(status)) {
-		return False;
-	}
-
-	/* Finally - if the pipe negotiated integrity (sign) or privacy (seal)
-	   ensure the underlying NTLMSSP flags are also set. If not we should
-	   refuse the bind. */
-
-	if (p->auth.auth_level == DCERPC_AUTH_LEVEL_INTEGRITY) {
-		if (!auth_ntlmssp_negotiated_sign(a)) {
-			DEBUG(0,("pipe_ntlmssp_verify_final: pipe %s : packet integrity requested "
-				"but client declined signing.\n",
-				 get_pipe_name_from_syntax(talloc_tos(),
-							   &p->syntax)));
-			return False;
-		}
-	}
-	if (p->auth.auth_level == DCERPC_AUTH_LEVEL_PRIVACY) {
-		if (!auth_ntlmssp_negotiated_seal(a)) {
-			DEBUG(0,("pipe_ntlmssp_verify_final: pipe %s : packet privacy requested "
-				"but client declined sealing.\n",
-				 get_pipe_name_from_syntax(talloc_tos(),
-							   &p->syntax)));
-			return False;
-		}
-	}
-
-	DEBUG(5, ("pipe_ntlmssp_verify_final: OK: user: %s domain: %s "
-		  "workstation: %s\n",
-		  auth_ntlmssp_get_username(a),
-		  auth_ntlmssp_get_domain(a),
-		  auth_ntlmssp_get_client(a)));
-
-	TALLOC_FREE(p->server_info);
-
-	status = auth_ntlmssp_steal_server_info(p, a, &p->server_info);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("auth_ntlmssp_server_info failed to obtain the server info for authenticated user: %s\n",
-			  nt_errstr(status)));
+		DEBUG(0, ("Failed to create packet with error %s, "
+			  "(auth level %u / type %u)\n",
+			  nt_errstr(status),
+			  (unsigned int)p->auth.auth_level,
+			  (unsigned int)p->auth.auth_type));
 		return false;
 	}
 
-	if (p->server_info->ptok == NULL) {
-		DEBUG(1,("Error: Authmodule failed to provide nt_user_token\n"));
-		return False;
-	}
-
-	/*
-	 * We're an authenticated bind over smb, so the session key needs to
-	 * be set to "SystemLibraryDTC". Weird, but this is what Windows
-	 * does. See the RPC-SAMBA3SESSIONKEY.
-	 */
-
-	session_key = generic_session_key();
-	if (session_key.data == NULL) {
-		return False;
-	}
-
-	ret = server_info_set_session_key(p->server_info, session_key);
-
-	data_blob_free(&session_key);
-
-	return True;
+	/* Setup the counts for this PDU. */
+	p->out_data.data_sent_length += pdu_size;
+	p->out_data.current_pdu_sent = 0;
+	return true;
 }
 
-/*******************************************************************
- This is the "stage3" NTLMSSP response after a bind request and reply.
-*******************************************************************/
-
-bool api_pipe_bind_auth3(struct pipes_struct *p, struct ncacn_packet *pkt)
-{
-	struct dcerpc_auth auth_info;
-	NTSTATUS status;
-
-	DEBUG(5, ("api_pipe_bind_auth3: decode request. %d\n", __LINE__));
-
-	if (pkt->auth_length == 0) {
-		DEBUG(0, ("No auth field sent for bind request!\n"));
-		goto err;
-	}
-
-	/* Ensure there's enough data for an authenticated request. */
-	if (pkt->frag_length < RPC_HEADER_LEN
-				+ DCERPC_AUTH_TRAILER_LENGTH
-				+ pkt->auth_length) {
-			DEBUG(0,("api_pipe_ntlmssp_auth_process: auth_len "
-				"%u is too large.\n",
-                        (unsigned int)pkt->auth_length));
-		goto err;
-	}
-
-	/*
-	 * Decode the authentication verifier response.
-	 */
-
-	status = dcerpc_pull_dcerpc_auth(pkt,
-					 &pkt->u.auth3.auth_info,
-					 &auth_info, p->endian);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("Failed to unmarshall dcerpc_auth.\n"));
-		goto err;
-	}
-
-	/* We must NEVER look at auth_info->auth_pad_len here,
-	 * as old Samba client code gets it wrong and sends it
-	 * as zero. JRA.
- 	 */
-
-	if (auth_info.auth_type != DCERPC_AUTH_TYPE_NTLMSSP) {
-		DEBUG(0,("api_pipe_bind_auth3: incorrect auth type (%u).\n",
-			(unsigned int)auth_info.auth_type ));
-		return False;
-	}
-
-	/*
-	 * The following call actually checks the challenge/response data.
-	 * for correctness against the given DOMAIN\user name.
-	 */
-
-	if (!pipe_ntlmssp_verify_final(p, &auth_info.credentials)) {
-		goto err;
-	}
-
-	p->pipe_bound = True;
-
-	return True;
-
- err:
-
-	free_pipe_auth_data(&p->auth);
-
-	return False;
-}
 
 static bool pipe_init_outgoing_data(struct pipes_struct *p);
 
@@ -659,9 +268,9 @@ static bool setup_bind_nak(struct pipes_struct *p, struct ncacn_packet *pkt)
 	p->out_data.data_sent_length = 0;
 	p->out_data.current_pdu_sent = 0;
 
-	free_pipe_auth_data(&p->auth);
+	TALLOC_FREE(p->auth.auth_ctx);
 	p->auth.auth_level = DCERPC_AUTH_LEVEL_NONE;
-	p->auth.auth_type = PIPE_AUTH_TYPE_NONE;
+	p->auth.auth_type = DCERPC_AUTH_TYPE_NONE;
 	p->pipe_bound = False;
 
 	return True;
@@ -744,6 +353,7 @@ static bool check_bind_req(struct pipes_struct *p,
 		return False;
 	}
 
+	context_fns->next = context_fns->prev = NULL;
 	context_fns->n_cmds = rpc_srv_get_pipe_num_cmds(abstract);
 	context_fns->cmds = rpc_srv_get_pipe_cmds(abstract);
 	context_fns->context_id = context_id;
@@ -803,200 +413,41 @@ bool is_known_pipename(const char *cli_filename, struct ndr_syntax_id *syntax)
 }
 
 /*******************************************************************
- Handle a SPNEGO krb5 bind auth.
-*******************************************************************/
-
-static bool pipe_spnego_auth_bind_kerberos(struct pipes_struct *p,
-					   TALLOC_CTX *mem_ctx,
-					   struct dcerpc_auth *pauth_info,
-					   DATA_BLOB *psecblob,
-					   DATA_BLOB *response)
-{
-	return False;
-}
-
-/*******************************************************************
  Handle the first part of a SPNEGO bind auth.
 *******************************************************************/
 
-static bool pipe_spnego_auth_bind_negotiate(struct pipes_struct *p,
-					    TALLOC_CTX *mem_ctx,
-					    struct dcerpc_auth *pauth_info,
-					    DATA_BLOB *response)
+static bool pipe_spnego_auth_bind(struct pipes_struct *p,
+				  TALLOC_CTX *mem_ctx,
+				  struct dcerpc_auth *auth_info,
+				  DATA_BLOB *response)
 {
-	DATA_BLOB secblob;
-	DATA_BLOB chal;
-	char *OIDs[ASN1_MAX_OIDS];
-        int i;
+	struct spnego_context *spnego_ctx;
 	NTSTATUS status;
-        bool got_kerberos_mechanism = false;
-	struct auth_ntlmssp_state *a = NULL;
 
-	ZERO_STRUCT(secblob);
-	ZERO_STRUCT(chal);
-
-	if (pauth_info->credentials.data[0] != ASN1_APPLICATION(0)) {
-		goto err;
+	status = spnego_server_auth_start(p,
+					  (auth_info->auth_level ==
+						DCERPC_AUTH_LEVEL_INTEGRITY),
+					  (auth_info->auth_level ==
+						DCERPC_AUTH_LEVEL_PRIVACY),
+					  true,
+					  &auth_info->credentials,
+					  response,
+					  &spnego_ctx);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("Failed SPNEGO negotiate (%s)\n",
+			  nt_errstr(status)));
+		return false;
 	}
 
-	/* parse out the OIDs and the first sec blob */
-	if (!spnego_parse_negTokenInit(talloc_tos(),
-			pauth_info->credentials, OIDs, NULL, &secblob)) {
-		DEBUG(0,("pipe_spnego_auth_bind_negotiate: Failed to parse the security blob.\n"));
-		goto err;
-        }
+	/* Make sure data is bound to the memctx, to be freed the caller */
+	talloc_steal(mem_ctx, response->data);
 
-	if (strcmp(OID_KERBEROS5, OIDs[0]) == 0 || strcmp(OID_KERBEROS5_OLD, OIDs[0]) == 0) {
-		got_kerberos_mechanism = true;
-	}
+	p->auth.auth_ctx = spnego_ctx;
+	p->auth.auth_type = DCERPC_AUTH_TYPE_SPNEGO;
 
-	for (i=0;OIDs[i];i++) {
-		DEBUG(3,("pipe_spnego_auth_bind_negotiate: Got OID %s\n", OIDs[i]));
-		TALLOC_FREE(OIDs[i]);
-	}
-	DEBUG(3,("pipe_spnego_auth_bind_negotiate: Got secblob of size %lu\n", (unsigned long)secblob.length));
+	DEBUG(10, ("SPNEGO auth started\n"));
 
-	if ( got_kerberos_mechanism && ((lp_security()==SEC_ADS) || USE_KERBEROS_KEYTAB) ) {
-		bool ret;
-		ret = pipe_spnego_auth_bind_kerberos(p, mem_ctx, pauth_info,
-						     &secblob, response);
-		data_blob_free(&secblob);
-		return ret;
-	}
-
-	if (p->auth.auth_type == PIPE_AUTH_TYPE_SPNEGO_NTLMSSP && p->auth.a_u.auth_ntlmssp_state) {
-		/* Free any previous auth type. */
-		free_pipe_auth_data(&p->auth);
-	}
-
-	if (!got_kerberos_mechanism) {
-		/* Initialize the NTLM engine. */
-		status = auth_ntlmssp_start(&a);
-		if (!NT_STATUS_IS_OK(status)) {
-			goto err;
-		}
-
-		switch (pauth_info->auth_level) {
-			case DCERPC_AUTH_LEVEL_INTEGRITY:
-				auth_ntlmssp_want_sign(a);
-				break;
-			case DCERPC_AUTH_LEVEL_PRIVACY:
-				auth_ntlmssp_want_seal(a);
-				break;
-			default:
-				break;
-		}
-		/*
-		 * Pass the first security blob of data to it.
-		 * This can return an error or NT_STATUS_MORE_PROCESSING_REQUIRED
-		 * which means we need another packet to complete the bind.
-		 */
-
-		status = auth_ntlmssp_update(a, secblob, &chal);
-
-		if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
-			DEBUG(3,("pipe_spnego_auth_bind_negotiate: auth_ntlmssp_update failed.\n"));
-			goto err;
-		}
-
-		/* Generate the response blob we need for step 2 of the bind. */
-		*response = spnego_gen_auth_response(mem_ctx, &chal, status, OID_NTLMSSP);
-	} else {
-		/*
-		 * SPNEGO negotiate down to NTLMSSP. The subsequent
-		 * code to process follow-up packets is not complete
-		 * yet. JRA.
-		 */
-		*response = spnego_gen_auth_response(mem_ctx, NULL,
-					NT_STATUS_MORE_PROCESSING_REQUIRED,
-					OID_NTLMSSP);
-	}
-
-	/* auth_pad_len will be handled by the caller */
-
-	p->auth.a_u.auth_ntlmssp_state = a;
-	p->auth.auth_data_free_func = &free_pipe_ntlmssp_auth_data;
-	p->auth.auth_type = PIPE_AUTH_TYPE_SPNEGO_NTLMSSP;
-
-	data_blob_free(&secblob);
-	data_blob_free(&chal);
-
-	/* We can't set pipe_bound True yet - we need an RPC_ALTER_CONTEXT response packet... */
-	return True;
-
- err:
-
-	data_blob_free(&secblob);
-	data_blob_free(&chal);
-
-	p->auth.a_u.auth_ntlmssp_state = NULL;
-
-	return False;
-}
-
-/*******************************************************************
- Handle the second part of a SPNEGO bind auth.
-*******************************************************************/
-
-static bool pipe_spnego_auth_bind_continue(struct pipes_struct *p,
-					   TALLOC_CTX *mem_ctx,
-					   struct dcerpc_auth *pauth_info,
-					   DATA_BLOB *response)
-{
-	DATA_BLOB auth_blob;
-	DATA_BLOB auth_reply;
-	struct auth_ntlmssp_state *a = p->auth.a_u.auth_ntlmssp_state;
-
-	ZERO_STRUCT(auth_blob);
-	ZERO_STRUCT(auth_reply);
-
-	/*
-	 * NB. If we've negotiated down from krb5 to NTLMSSP we'll currently
-	 * fail here as 'a' == NULL.
-	 */
-	if (p->auth.auth_type != PIPE_AUTH_TYPE_SPNEGO_NTLMSSP || !a) {
-		DEBUG(0,("pipe_spnego_auth_bind_continue: not in NTLMSSP auth state.\n"));
-		goto err;
-	}
-
-	if (pauth_info->credentials.data[0] != ASN1_CONTEXT(1)) {
-		DEBUG(0,("pipe_spnego_auth_bind_continue: invalid SPNEGO blob type.\n"));
-		goto err;
-	}
-
-	if (!spnego_parse_auth(talloc_tos(), pauth_info->credentials, &auth_blob)) {
-		DEBUG(0,("pipe_spnego_auth_bind_continue: invalid SPNEGO blob.\n"));
-		goto err;
-	}
-
-	/*
-	 * The following call actually checks the challenge/response data.
-	 * for correctness against the given DOMAIN\user name.
-	 */
-
-	if (!pipe_ntlmssp_verify_final(p, &auth_blob)) {
-		goto err;
-	}
-
-	data_blob_free(&auth_blob);
-
-	/* Generate the spnego "accept completed" blob - no incoming data. */
-	*response = spnego_gen_auth_response(mem_ctx, &auth_reply, NT_STATUS_OK, OID_NTLMSSP);
-
-	data_blob_free(&auth_reply);
-
-	p->pipe_bound = True;
-
-	return True;
-
- err:
-
-	data_blob_free(&auth_blob);
-	data_blob_free(&auth_reply);
-
-	free_pipe_auth_data(&p->auth);
-
-	return False;
+	return true;
 }
 
 /*******************************************************************
@@ -1013,8 +464,8 @@ static bool pipe_schannel_auth_bind(struct pipes_struct *p,
 	bool ret;
 	NTSTATUS status;
 	struct netlogon_creds_CredentialState *creds;
-	DATA_BLOB session_key;
 	enum ndr_err_code ndr_err;
+	struct schannel_state *schannel_auth;
 
 	ndr_err = ndr_pull_struct_blob(
 			&auth_info->credentials, mem_ctx, &neg,
@@ -1049,16 +500,16 @@ static bool pipe_schannel_auth_bind(struct pipes_struct *p,
 		return False;
 	}
 
-	p->auth.a_u.schannel_auth = talloc(p, struct schannel_state);
-	if (!p->auth.a_u.schannel_auth) {
+	schannel_auth = talloc(p, struct schannel_state);
+	if (!schannel_auth) {
 		TALLOC_FREE(creds);
 		return False;
 	}
 
-	p->auth.a_u.schannel_auth->state = SCHANNEL_STATE_START;
-	p->auth.a_u.schannel_auth->seq_num = 0;
-	p->auth.a_u.schannel_auth->initiator = false;
-	p->auth.a_u.schannel_auth->creds = creds;
+	schannel_auth->state = SCHANNEL_STATE_START;
+	schannel_auth->seq_num = 0;
+	schannel_auth->initiator = false;
+	schannel_auth->creds = creds;
 
 	/*
 	 * JRA. Should we also copy the schannel session key into the pipe session key p->session_key
@@ -1071,19 +522,10 @@ static bool pipe_schannel_auth_bind(struct pipes_struct *p,
 	 * anymore.
 	 */
 
-	session_key = generic_session_key();
-	if (session_key.data == NULL) {
-		DEBUG(0, ("pipe_schannel_auth_bind: Could not alloc session"
-			  " key\n"));
-		return false;
-	}
-
-	ret = server_info_set_session_key(p->server_info, session_key);
-
-	data_blob_free(&session_key);
+	ret = session_info_set_session_key(p->session_info, generic_session_key());
 
 	if (!ret) {
-		DEBUG(0, ("server_info_set_session_key failed\n"));
+		DEBUG(0, ("session_info_set_session_key failed\n"));
 		return false;
 	}
 
@@ -1110,8 +552,8 @@ static bool pipe_schannel_auth_bind(struct pipes_struct *p,
 		neg.oem_netbios_domain.a, neg.oem_netbios_computer.a));
 
 	/* We're finished with this bind - no more packets. */
-	p->auth.auth_data_free_func = &free_pipe_schannel_auth_data;
-	p->auth.auth_type = PIPE_AUTH_TYPE_SCHANNEL;
+	p->auth.auth_ctx = schannel_auth;
+	p->auth.auth_type = DCERPC_AUTH_TYPE_SCHANNEL;
 
 	p->pipe_bound = True;
 
@@ -1127,63 +569,290 @@ static bool pipe_ntlmssp_auth_bind(struct pipes_struct *p,
 				   struct dcerpc_auth *auth_info,
 				   DATA_BLOB *response)
 {
+	struct auth_ntlmssp_state *ntlmssp_state = NULL;
         NTSTATUS status;
-	struct auth_ntlmssp_state *a = NULL;
 
 	if (strncmp((char *)auth_info->credentials.data, "NTLMSSP", 7) != 0) {
 		DEBUG(0, ("Failed to read NTLMSSP in blob\n"));
-                goto err;
+                return false;
         }
 
 	/* We have an NTLMSSP blob. */
-	status = auth_ntlmssp_start(&a);
+	status = ntlmssp_server_auth_start(p,
+					   (auth_info->auth_level ==
+						DCERPC_AUTH_LEVEL_INTEGRITY),
+					   (auth_info->auth_level ==
+						DCERPC_AUTH_LEVEL_PRIVACY),
+					   true,
+					   &auth_info->credentials,
+					   response,
+					   &ntlmssp_state);
+	if (!NT_STATUS_EQUAL(status, NT_STATUS_OK)) {
+		DEBUG(0, (__location__ ": auth_ntlmssp_start failed: %s\n",
+			  nt_errstr(status)));
+		return false;
+	}
+
+	/* Make sure data is bound to the memctx, to be freed the caller */
+	talloc_steal(mem_ctx, response->data);
+
+	p->auth.auth_ctx = ntlmssp_state;
+	p->auth.auth_type = DCERPC_AUTH_TYPE_NTLMSSP;
+
+	DEBUG(10, (__location__ ": NTLMSSP auth started\n"));
+
+	return true;
+}
+
+/*******************************************************************
+ Process an NTLMSSP authentication response.
+ If this function succeeds, the user has been authenticated
+ and their domain, name and calling workstation stored in
+ the pipe struct.
+*******************************************************************/
+
+static bool pipe_ntlmssp_verify_final(TALLOC_CTX *mem_ctx,
+				struct auth_ntlmssp_state *ntlmssp_ctx,
+				enum dcerpc_AuthLevel auth_level,
+				struct client_address *client_id,
+				struct ndr_syntax_id *syntax,
+				struct auth_serversupplied_info **session_info)
+{
+	NTSTATUS status;
+	bool ret;
+
+	DEBUG(5, (__location__ ": pipe %s checking user details\n",
+		 get_pipe_name_from_syntax(talloc_tos(), syntax)));
+
+	/* Finally - if the pipe negotiated integrity (sign) or privacy (seal)
+	   ensure the underlying NTLMSSP flags are also set. If not we should
+	   refuse the bind. */
+
+	status = ntlmssp_server_check_flags(ntlmssp_ctx,
+					    (auth_level ==
+						DCERPC_AUTH_LEVEL_INTEGRITY),
+					    (auth_level ==
+						DCERPC_AUTH_LEVEL_PRIVACY));
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0,("pipe_ntlmssp_auth_bind: auth_ntlmssp_start failed: %s\n",
-			nt_errstr(status) ));
-		goto err;
+		DEBUG(0, (__location__ ": Client failed to negotatie proper "
+			  "security for pipe %s\n",
+			  get_pipe_name_from_syntax(talloc_tos(), syntax)));
+		return false;
 	}
 
-	switch (auth_info->auth_level) {
-	case DCERPC_AUTH_LEVEL_INTEGRITY:
-		auth_ntlmssp_want_sign(a);
-		break;
-	case DCERPC_AUTH_LEVEL_PRIVACY:
-		auth_ntlmssp_want_seal(a);
-		break;
-	default:
-		break;
+	TALLOC_FREE(*session_info);
+
+	status = ntlmssp_server_get_user_info(ntlmssp_ctx,
+						mem_ctx, session_info);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, (__location__ ": failed to obtain the server info "
+			  "for authenticated user: %s\n", nt_errstr(status)));
+		return false;
 	}
 
-	status = auth_ntlmssp_update(a, auth_info->credentials, response);
-	if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
-		DEBUG(0,("pipe_ntlmssp_auth_bind: auth_ntlmssp_update failed: %s\n",
-			nt_errstr(status) ));
+	if ((*session_info)->security_token == NULL) {
+		DEBUG(1, ("Auth module failed to provide nt_user_token\n"));
+		return false;
+	}
+
+	/*
+	 * We're an authenticated bind over smb, so the session key needs to
+	 * be set to "SystemLibraryDTC". Weird, but this is what Windows
+	 * does. See the RPC-SAMBA3SESSIONKEY.
+	 */
+
+	ret = session_info_set_session_key((*session_info), generic_session_key());
+	if (!ret) {
+		DEBUG(0, ("Failed to set session key!\n"));
+		return false;
+	}
+
+	return true;
+}
+
+/*******************************************************************
+ Handle a GSSAPI bind auth.
+*******************************************************************/
+
+static bool pipe_gssapi_auth_bind(struct pipes_struct *p,
+				  TALLOC_CTX *mem_ctx,
+				  struct dcerpc_auth *auth_info,
+				  DATA_BLOB *response)
+{
+        NTSTATUS status;
+	struct gse_context *gse_ctx = NULL;
+
+	status = gssapi_server_auth_start(p,
+					  (auth_info->auth_level ==
+						DCERPC_AUTH_LEVEL_INTEGRITY),
+					  (auth_info->auth_level ==
+						DCERPC_AUTH_LEVEL_PRIVACY),
+					  true,
+					  &auth_info->credentials,
+					  response,
+					  &gse_ctx);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("Failed to init dcerpc gssapi server (%s)\n",
+			  nt_errstr(status)));
 		goto err;
 	}
 
 	/* Make sure data is bound to the memctx, to be freed the caller */
 	talloc_steal(mem_ctx, response->data);
 
-	p->auth.a_u.auth_ntlmssp_state = a;
-	p->auth.auth_data_free_func = &free_pipe_ntlmssp_auth_data;
-	p->auth.auth_type = PIPE_AUTH_TYPE_NTLMSSP;
+	p->auth.auth_ctx = gse_ctx;
+	p->auth.auth_type = DCERPC_AUTH_TYPE_KRB5;
 
-	DEBUG(10,("pipe_ntlmssp_auth_bind: NTLMSSP auth started\n"));
+	DEBUG(10, ("KRB5 auth started\n"));
 
-	/* We can't set pipe_bound True yet - we need an DCERPC_PKT_AUTH3 response packet... */
-	return True;
+	return true;
 
-  err:
+err:
+	TALLOC_FREE(gse_ctx);
+	return false;
+}
 
-	TALLOC_FREE(a);
-	return False;
+static NTSTATUS pipe_gssapi_verify_final(TALLOC_CTX *mem_ctx,
+					 struct gse_context *gse_ctx,
+					 struct client_address *client_id,
+					 struct auth_serversupplied_info **session_info)
+{
+	NTSTATUS status;
+	bool bret;
+
+	/* Finally - if the pipe negotiated integrity (sign) or privacy (seal)
+	   ensure the underlying flags are also set. If not we should
+	   refuse the bind. */
+
+	status = gssapi_server_check_flags(gse_ctx);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("Requested Security Layers not honored!\n"));
+		return status;
+	}
+
+	status = gssapi_server_get_user_info(gse_ctx, mem_ctx,
+					     client_id, session_info);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, (__location__ ": failed to obtain the server info "
+			  "for authenticated user: %s\n", nt_errstr(status)));
+		return status;
+	}
+
+	if ((*session_info)->security_token == NULL) {
+		status = create_local_token(*session_info);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(1, ("Failed to create local user token (%s)\n",
+				  nt_errstr(status)));
+			status = NT_STATUS_ACCESS_DENIED;
+			return status;
+		}
+	}
+
+	/* TODO: this is what the ntlmssp code does with the session_key, check
+	 * it is ok with gssapi too */
+	/*
+	 * We're an authenticated bind over smb, so the session key needs to
+	 * be set to "SystemLibraryDTC". Weird, but this is what Windows
+	 * does. See the RPC-SAMBA3SESSIONKEY.
+	 */
+
+	bret = session_info_set_session_key((*session_info), generic_session_key());
+	if (!bret) {
+		return NT_STATUS_ACCESS_DENIED;
+	}
+
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS pipe_auth_verify_final(struct pipes_struct *p)
+{
+	enum spnego_mech auth_type;
+	struct auth_ntlmssp_state *ntlmssp_ctx;
+	struct spnego_context *spnego_ctx;
+	struct gse_context *gse_ctx;
+	void *mech_ctx;
+	NTSTATUS status;
+
+	switch (p->auth.auth_type) {
+	case DCERPC_AUTH_TYPE_NTLMSSP:
+		ntlmssp_ctx = talloc_get_type_abort(p->auth.auth_ctx,
+						    struct auth_ntlmssp_state);
+		if (!pipe_ntlmssp_verify_final(p, ntlmssp_ctx,
+						p->auth.auth_level,
+						p->client_id, &p->syntax,
+						&p->session_info)) {
+			return NT_STATUS_ACCESS_DENIED;
+		}
+		break;
+	case DCERPC_AUTH_TYPE_KRB5:
+		gse_ctx = talloc_get_type_abort(p->auth.auth_ctx,
+						struct gse_context);
+		status = pipe_gssapi_verify_final(p, gse_ctx,
+						  p->client_id,
+						  &p->session_info);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(1, ("gssapi bind failed with: %s",
+				  nt_errstr(status)));
+			return status;
+		}
+		break;
+	case DCERPC_AUTH_TYPE_SPNEGO:
+		spnego_ctx = talloc_get_type_abort(p->auth.auth_ctx,
+						   struct spnego_context);
+		status = spnego_get_negotiated_mech(spnego_ctx,
+						    &auth_type, &mech_ctx);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(0, ("Bad SPNEGO state (%s)\n",
+				  nt_errstr(status)));
+			return status;
+		}
+		switch(auth_type) {
+		case SPNEGO_KRB5:
+			gse_ctx = talloc_get_type_abort(mech_ctx,
+							struct gse_context);
+			status = pipe_gssapi_verify_final(p, gse_ctx,
+							  p->client_id,
+							  &p->session_info);
+			if (!NT_STATUS_IS_OK(status)) {
+				DEBUG(1, ("gssapi bind failed with: %s",
+					  nt_errstr(status)));
+				return status;
+			}
+			break;
+		case SPNEGO_NTLMSSP:
+			ntlmssp_ctx = talloc_get_type_abort(mech_ctx,
+						struct auth_ntlmssp_state);
+			if (!pipe_ntlmssp_verify_final(p, ntlmssp_ctx,
+							p->auth.auth_level,
+							p->client_id,
+							&p->syntax,
+							&p->session_info)) {
+				return NT_STATUS_ACCESS_DENIED;
+			}
+			break;
+		default:
+			DEBUG(0, (__location__ ": incorrect spnego type "
+				  "(%d).\n", auth_type));
+			return NT_STATUS_ACCESS_DENIED;
+		}
+		break;
+	default:
+		DEBUG(0, (__location__ ": incorrect auth type (%u).\n",
+			  (unsigned int)p->auth.auth_type));
+		return NT_STATUS_ACCESS_DENIED;
+	}
+
+	p->pipe_bound = true;
+
+	return NT_STATUS_OK;
 }
 
 /*******************************************************************
  Respond to a pipe bind request.
 *******************************************************************/
 
-bool api_pipe_bind_req(struct pipes_struct *p, struct ncacn_packet *pkt)
+static bool api_pipe_bind_req(struct pipes_struct *p,
+				struct ncacn_packet *pkt)
 {
 	struct dcerpc_auth auth_info;
 	uint16 assoc_gid;
@@ -1322,6 +991,9 @@ bool api_pipe_bind_req(struct pipes_struct *p, struct ncacn_packet *pkt)
 		case DCERPC_AUTH_LEVEL_PRIVACY:
 			p->auth.auth_level = DCERPC_AUTH_LEVEL_PRIVACY;
 			break;
+		case DCERPC_AUTH_LEVEL_CONNECT:
+			p->auth.auth_level = DCERPC_AUTH_LEVEL_CONNECT;
+			break;
 		default:
 			DEBUG(0, ("Unexpected auth level (%u).\n",
 				(unsigned int)auth_info.auth_level ));
@@ -1345,8 +1017,36 @@ bool api_pipe_bind_req(struct pipes_struct *p, struct ncacn_packet *pkt)
 			break;
 
 		case DCERPC_AUTH_TYPE_SPNEGO:
-			if (!pipe_spnego_auth_bind_negotiate(p, pkt,
+			if (!pipe_spnego_auth_bind(p, pkt,
 						&auth_info, &auth_resp)) {
+				goto err_exit;
+			}
+			break;
+
+		case DCERPC_AUTH_TYPE_KRB5:
+			if (!pipe_gssapi_auth_bind(p, pkt,
+						&auth_info, &auth_resp)) {
+				goto err_exit;
+			}
+			break;
+
+		case DCERPC_AUTH_TYPE_NCALRPC_AS_SYSTEM:
+			if (p->transport == NCALRPC && p->ncalrpc_as_system) {
+				TALLOC_FREE(p->session_info);
+
+				status = make_session_info_system(p,
+								  &p->session_info);
+				if (!NT_STATUS_IS_OK(status)) {
+					goto err_exit;
+				}
+
+				auth_resp = data_blob_talloc(pkt,
+							     "NCALRPC_AUTH_OK",
+							     15);
+
+				p->auth.auth_type = DCERPC_AUTH_TYPE_NCALRPC_AS_SYSTEM;
+				p->pipe_bound = true;
+			} else {
 				goto err_exit;
 			}
 			break;
@@ -1363,7 +1063,7 @@ bool api_pipe_bind_req(struct pipes_struct *p, struct ncacn_packet *pkt)
 	if (auth_type == DCERPC_AUTH_TYPE_NONE) {
 		/* Unauthenticated bind request. */
 		/* We're finished - no more packets. */
-		p->auth.auth_type = PIPE_AUTH_TYPE_NONE;
+		p->auth.auth_type = DCERPC_AUTH_TYPE_NONE;
 		/* We must set the pipe auth_level here also. */
 		p->auth.auth_level = DCERPC_AUTH_LEVEL_NONE;
 		p->pipe_bound = True;
@@ -1458,12 +1158,124 @@ bool api_pipe_bind_req(struct pipes_struct *p, struct ncacn_packet *pkt)
 	return setup_bind_nak(p, pkt);
 }
 
+/*******************************************************************
+ This is the "stage3" response after a bind request and reply.
+*******************************************************************/
+
+bool api_pipe_bind_auth3(struct pipes_struct *p, struct ncacn_packet *pkt)
+{
+	struct dcerpc_auth auth_info;
+	DATA_BLOB response = data_blob_null;
+	struct auth_ntlmssp_state *ntlmssp_ctx;
+	struct spnego_context *spnego_ctx;
+	struct gse_context *gse_ctx;
+	NTSTATUS status;
+
+	DEBUG(5, ("api_pipe_bind_auth3: decode request. %d\n", __LINE__));
+
+	if (pkt->auth_length == 0) {
+		DEBUG(0, ("No auth field sent for bind request!\n"));
+		goto err;
+	}
+
+	/* Ensure there's enough data for an authenticated request. */
+	if (pkt->frag_length < RPC_HEADER_LEN
+				+ DCERPC_AUTH_TRAILER_LENGTH
+				+ pkt->auth_length) {
+			DEBUG(0,("api_pipe_ntlmssp_auth_process: auth_len "
+				"%u is too large.\n",
+                        (unsigned int)pkt->auth_length));
+		goto err;
+	}
+
+	/*
+	 * Decode the authentication verifier response.
+	 */
+
+	status = dcerpc_pull_dcerpc_auth(pkt,
+					 &pkt->u.auth3.auth_info,
+					 &auth_info, p->endian);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("Failed to unmarshall dcerpc_auth.\n"));
+		goto err;
+	}
+
+	/* We must NEVER look at auth_info->auth_pad_len here,
+	 * as old Samba client code gets it wrong and sends it
+	 * as zero. JRA.
+	 */
+
+	if (auth_info.auth_type != p->auth.auth_type) {
+		DEBUG(0, ("Auth type mismatch! Client sent %d, "
+			  "but auth was started as type %d!\n",
+			  auth_info.auth_type, p->auth.auth_type));
+		goto err;
+	}
+
+	switch (auth_info.auth_type) {
+	case DCERPC_AUTH_TYPE_NTLMSSP:
+		ntlmssp_ctx = talloc_get_type_abort(p->auth.auth_ctx,
+						    struct auth_ntlmssp_state);
+		status = ntlmssp_server_step(ntlmssp_ctx,
+					     pkt, &auth_info.credentials,
+					     &response);
+		break;
+	case DCERPC_AUTH_TYPE_KRB5:
+		gse_ctx = talloc_get_type_abort(p->auth.auth_ctx,
+						struct gse_context);
+		status = gssapi_server_step(gse_ctx,
+					    pkt, &auth_info.credentials,
+					    &response);
+		break;
+	case DCERPC_AUTH_TYPE_SPNEGO:
+		spnego_ctx = talloc_get_type_abort(p->auth.auth_ctx,
+						   struct spnego_context);
+		status = spnego_server_step(spnego_ctx,
+					    pkt, &auth_info.credentials,
+					    &response);
+		break;
+	default:
+		DEBUG(0, (__location__ ": incorrect auth type (%u).\n",
+			  (unsigned int)auth_info.auth_type));
+		return false;
+	}
+
+	if (NT_STATUS_EQUAL(status,
+			    NT_STATUS_MORE_PROCESSING_REQUIRED) ||
+	    response.length) {
+		DEBUG(0, (__location__ ": This was supposed to be the final "
+			  "leg, but crypto machinery claims a response is "
+			  "needed, aborting auth!\n"));
+		data_blob_free(&response);
+		goto err;
+	}
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("Auth failed (%s)\n", nt_errstr(status)));
+		goto err;
+	}
+
+	/* Now verify auth was indeed successful and extract server info */
+	status = pipe_auth_verify_final(p);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("Auth Verify failed (%s)\n", nt_errstr(status)));
+		goto err;
+	}
+
+	return true;
+
+err:
+
+	TALLOC_FREE(p->auth.auth_ctx);
+	return false;
+}
+
 /****************************************************************************
  Deal with an alter context call. Can be third part of 3 leg auth request for
  SPNEGO calls.
 ****************************************************************************/
 
-bool api_pipe_alter_context(struct pipes_struct *p, struct ncacn_packet *pkt)
+static bool api_pipe_alter_context(struct pipes_struct *p,
+					struct ncacn_packet *pkt)
 {
 	struct dcerpc_auth auth_info;
 	uint16 assoc_gid;
@@ -1473,6 +1285,9 @@ bool api_pipe_alter_context(struct pipes_struct *p, struct ncacn_packet *pkt)
 	DATA_BLOB auth_resp = data_blob_null;
 	DATA_BLOB auth_blob = data_blob_null;
 	int pad_len = 0;
+	struct auth_ntlmssp_state *ntlmssp_ctx;
+	struct spnego_context *spnego_ctx;
+	struct gse_context *gse_ctx;
 
 	DEBUG(5,("api_pipe_alter_context: make response. %d\n", __LINE__));
 
@@ -1533,23 +1348,70 @@ bool api_pipe_alter_context(struct pipes_struct *p, struct ncacn_packet *pkt)
 			goto err_exit;
 		}
 
+		/* We can only finish if the pipe is unbound for now */
+		if (p->pipe_bound) {
+			DEBUG(0, (__location__ ": Pipe already bound, "
+				  "Altering Context not yet supported!\n"));
+			goto err_exit;
+		}
 
-		/*
-		 * Currently only the SPNEGO auth type uses the alter ctx
-		 * response in place of the NTLMSSP auth3 type.
-		 */
+		if (auth_info.auth_type != p->auth.auth_type) {
+			DEBUG(0, ("Auth type mismatch! Client sent %d, "
+				  "but auth was started as type %d!\n",
+				  auth_info.auth_type, p->auth.auth_type));
+			goto err_exit;
+		}
 
-		if (auth_info.auth_type == DCERPC_AUTH_TYPE_SPNEGO) {
-			/* We can only finish if the pipe is unbound. */
-			if (!p->pipe_bound) {
-				if (!pipe_spnego_auth_bind_continue(p, pkt,
-						&auth_info, &auth_resp)) {
-					goto err_exit;
-				}
 
-			} else {
+		switch (auth_info.auth_type) {
+		case DCERPC_AUTH_TYPE_SPNEGO:
+			spnego_ctx = talloc_get_type_abort(p->auth.auth_ctx,
+							struct spnego_context);
+			status = spnego_server_step(spnego_ctx,
+						    pkt,
+						    &auth_info.credentials,
+						    &auth_resp);
+			break;
+
+		case DCERPC_AUTH_TYPE_KRB5:
+			gse_ctx = talloc_get_type_abort(p->auth.auth_ctx,
+							struct gse_context);
+			status = gssapi_server_step(gse_ctx,
+						    pkt,
+						    &auth_info.credentials,
+						    &auth_resp);
+			break;
+		case DCERPC_AUTH_TYPE_NTLMSSP:
+			ntlmssp_ctx = talloc_get_type_abort(p->auth.auth_ctx,
+						    struct auth_ntlmssp_state);
+			status = ntlmssp_server_step(ntlmssp_ctx,
+						     pkt,
+						     &auth_info.credentials,
+						     &auth_resp);
+			break;
+
+		default:
+			DEBUG(3, (__location__ ": Usupported auth type (%d) "
+				  "in alter-context call\n",
+				  auth_info.auth_type));
+			goto err_exit;
+		}
+
+		if (NT_STATUS_IS_OK(status)) {
+			/* third leg of auth, verify auth info */
+			status = pipe_auth_verify_final(p);
+			if (!NT_STATUS_IS_OK(status)) {
+				DEBUG(0, ("Auth Verify failed (%s)\n",
+					  nt_errstr(status)));
 				goto err_exit;
 			}
+		} else if (NT_STATUS_EQUAL(status,
+					NT_STATUS_MORE_PROCESSING_REQUIRED)) {
+			DEBUG(10, ("More auth legs required.\n"));
+		} else {
+			DEBUG(0, ("Auth step returned an error (%s)\n",
+				  nt_errstr(status)));
+			goto err_exit;
 		}
 	}
 
@@ -1677,24 +1539,6 @@ static PIPE_RPC_FNS* find_pipe_fns_by_context( PIPE_RPC_FNS *list, uint32 contex
 	return NULL;
 }
 
-/****************************************************************************
- Memory cleanup.
-****************************************************************************/
-
-void free_pipe_rpc_context( PIPE_RPC_FNS *list )
-{
-	PIPE_RPC_FNS *tmp = list;
-	PIPE_RPC_FNS *tmp2;
-
-	while (tmp) {
-		tmp2 = tmp->next;
-		SAFE_FREE(tmp);
-		tmp = tmp2;
-	}
-
-	return;	
-}
-
 static bool api_rpcTNP(struct pipes_struct *p, struct ncacn_packet *pkt,
 		       const struct api_struct *api_rpc_cmds, int n_cmds);
 
@@ -1704,15 +1548,17 @@ static bool api_rpcTNP(struct pipes_struct *p, struct ncacn_packet *pkt,
  before doing the call.
 ****************************************************************************/
 
-bool api_pipe_request(struct pipes_struct *p, struct ncacn_packet *pkt)
+static bool api_pipe_request(struct pipes_struct *p,
+				struct ncacn_packet *pkt)
 {
 	bool ret = False;
 	bool changed_user = False;
 	PIPE_RPC_FNS *pipe_fns;
 
 	if (p->pipe_bound &&
-			((p->auth.auth_type == PIPE_AUTH_TYPE_NTLMSSP) ||
-			 (p->auth.auth_type == PIPE_AUTH_TYPE_SPNEGO_NTLMSSP))) {
+	    ((p->auth.auth_type == DCERPC_AUTH_TYPE_NTLMSSP) ||
+	     (p->auth.auth_type == DCERPC_AUTH_TYPE_KRB5) ||
+	     (p->auth.auth_type == DCERPC_AUTH_TYPE_SPNEGO))) {
 		if(!become_authenticated_pipe_user(p)) {
 			data_blob_free(&p->out_data.rdata);
 			return False;
@@ -1876,14 +1722,13 @@ void set_incoming_fault(struct pipes_struct *p)
 		   get_pipe_name_from_syntax(talloc_tos(), &p->syntax)));
 }
 
-static bool dcesrv_auth_request(struct pipes_struct *p, struct ncacn_packet *pkt)
+static NTSTATUS dcesrv_auth_request(struct pipe_auth_data *auth,
+				    struct ncacn_packet *pkt,
+				    DATA_BLOB *raw_pkt)
 {
 	NTSTATUS status;
 	size_t hdr_size = DCERPC_REQUEST_LENGTH;
-	struct dcerpc_auth auth;
-	uint32_t auth_length;
-	DATA_BLOB data;
-	DATA_BLOB full_pkt;
+	size_t pad_len;
 
 	DEBUG(10, ("Checking request auth.\n"));
 
@@ -1891,142 +1736,29 @@ static bool dcesrv_auth_request(struct pipes_struct *p, struct ncacn_packet *pkt
 		hdr_size += 16;
 	}
 
-	switch (p->auth.auth_level) {
-	case DCERPC_AUTH_LEVEL_PRIVACY:
-		DEBUG(10, ("Requested Privacy.\n"));
-		break;
-
-	case DCERPC_AUTH_LEVEL_INTEGRITY:
-		DEBUG(10, ("Requested Integrity.\n"));
-		break;
-
-	case DCERPC_AUTH_LEVEL_CONNECT:
-		if (pkt->auth_length != 0) {
-			break;
-		}
-		return true;
-	case DCERPC_AUTH_LEVEL_NONE:
-		if (pkt->auth_length != 0) {
-			return false;
-		}
-		return true;
-
-	default:
-		return false;
-	}
-
-	status = dcerpc_pull_auth_trailer(pkt, pkt,
-					  &pkt->u.request.stub_and_verifier,
-					  &auth, &auth_length, false);
+	/* in case of sealing this function will unseal the data in place */
+	status = dcerpc_check_auth(auth, pkt,
+				   &pkt->u.request.stub_and_verifier,
+				   hdr_size, raw_pkt,
+				   &pad_len);
 	if (!NT_STATUS_IS_OK(status)) {
-		return false;
+		return status;
 	}
 
-	pkt->u.request.stub_and_verifier.length -= auth_length;
 
-	data.data = p->in_data.pdu.data + hdr_size;
-	data.length = pkt->u.request.stub_and_verifier.length;
-	full_pkt.data = p->in_data.pdu.data;
-	full_pkt.length = p->in_data.pdu.length - auth.credentials.length;
-
-	switch (p->auth.auth_type) {
-	case PIPE_AUTH_TYPE_NONE:
-		return true;
-
-	case PIPE_AUTH_TYPE_SPNEGO_NTLMSSP:
-	case PIPE_AUTH_TYPE_NTLMSSP:
-
-		DEBUG(10, ("NTLMSSP auth\n"));
-
-		if (!p->auth.a_u.auth_ntlmssp_state) {
-			DEBUG(0, ("Invalid auth level, "
-				  "failed to process packet auth.\n"));
-			return false;
+	/* remove padding and auth trailer,
+	 * this way the caller will get just the data */
+	if (pkt->auth_length) {
+		size_t trail_len = pad_len
+					+ DCERPC_AUTH_TRAILER_LENGTH
+					+ pkt->auth_length;
+		if (pkt->u.request.stub_and_verifier.length < trail_len) {
+			return NT_STATUS_INFO_LENGTH_MISMATCH;
 		}
-
-		switch (p->auth.auth_level) {
-		case DCERPC_AUTH_LEVEL_PRIVACY:
-			status = auth_ntlmssp_unseal_packet(
-					p->auth.a_u.auth_ntlmssp_state,
-					data.data, data.length,
-					full_pkt.data, full_pkt.length,
-					&auth.credentials);
-			if (!NT_STATUS_IS_OK(status)) {
-				return false;
-			}
-			memcpy(pkt->u.request.stub_and_verifier.data,
-				data.data, data.length);
-			break;
-
-		case DCERPC_AUTH_LEVEL_INTEGRITY:
-			status = auth_ntlmssp_check_packet(
-					p->auth.a_u.auth_ntlmssp_state,
-					data.data, data.length,
-					full_pkt.data, full_pkt.length,
-					&auth.credentials);
-			if (!NT_STATUS_IS_OK(status)) {
-				return false;
-			}
-			break;
-
-		default:
-			DEBUG(0, ("Invalid auth level, "
-				  "failed to process packet auth.\n"));
-			return false;
-		}
-		break;
-
-	case PIPE_AUTH_TYPE_SCHANNEL:
-
-		DEBUG(10, ("SCHANNEL auth\n"));
-
-		switch (p->auth.auth_level) {
-		case DCERPC_AUTH_LEVEL_PRIVACY:
-			status = netsec_incoming_packet(
-					p->auth.a_u.schannel_auth,
-					pkt, true,
-					data.data, data.length,
-					&auth.credentials);
-			if (!NT_STATUS_IS_OK(status)) {
-				return false;
-			}
-			memcpy(pkt->u.request.stub_and_verifier.data,
-				data.data, data.length);
-			break;
-
-		case DCERPC_AUTH_LEVEL_INTEGRITY:
-			status = netsec_incoming_packet(
-					p->auth.a_u.schannel_auth,
-					pkt, false,
-					data.data, data.length,
-					&auth.credentials);
-			if (!NT_STATUS_IS_OK(status)) {
-				return false;
-			}
-			break;
-
-		default:
-			DEBUG(0, ("Invalid auth level, "
-				  "failed to process packet auth.\n"));
-			return false;
-		}
-		break;
-
-	default:
-		DEBUG(0, ("process_request_pdu: "
-			  "unknown auth type %u set.\n",
-			  (unsigned int)p->auth.auth_type));
-		set_incoming_fault(p);
-		return false;
+		pkt->u.request.stub_and_verifier.length -= trail_len;
 	}
 
-	/* remove the indicated amount of padding */
-	if (pkt->u.request.stub_and_verifier.length < auth.auth_pad_length) {
-		return false;
-	}
-	pkt->u.request.stub_and_verifier.length -= auth.auth_pad_length;
-
-	return true;
+	return NT_STATUS_OK;
 }
 
 /****************************************************************************
@@ -2036,6 +1768,7 @@ static bool dcesrv_auth_request(struct pipes_struct *p, struct ncacn_packet *pkt
 
 static bool process_request_pdu(struct pipes_struct *p, struct ncacn_packet *pkt)
 {
+	NTSTATUS status;
 	DATA_BLOB data;
 
 	if (!p->pipe_bound) {
@@ -2047,8 +1780,10 @@ static bool process_request_pdu(struct pipes_struct *p, struct ncacn_packet *pkt
 	/* Store the opnum */
 	p->opnum = pkt->u.request.opnum;
 
-	if (!dcesrv_auth_request(p, pkt)) {
-		DEBUG(0,("Failed to check packet auth.\n"));
+	status = dcesrv_auth_request(&p->auth, pkt, &p->in_data.pdu);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("Failed to check packet auth. (%s)\n",
+			  nt_errstr(status)));
 		set_incoming_fault(p);
 		return false;
 	}
@@ -2230,7 +1965,7 @@ void process_complete_pdu(struct pipes_struct *p)
 
 	case DCERPC_PKT_AUTH3:
 		/*
-		 * The third packet in an NTLMSSP auth exchange.
+		 * The third packet in an auth exchange.
 		 */
 		if (pipe_init_outgoing_data(p)) {
 			reply = api_pipe_bind_auth3(p, pkt);

@@ -120,6 +120,8 @@ struct sockaddr_dl;
 
 #include <com_err.h>
 
+#include <heimbase.h>
+
 #define HEIMDAL_TEXTDOMAIN "heimdal_krb5"
 
 #ifdef LIBINTL
@@ -176,12 +178,19 @@ struct _krb5_krb_auth_data;
 #ifdef PKINIT
 #include <hx509.h>
 #endif
+
+#include "crypto.h"
+
 #include <krb5-private.h>
 
 #include "heim_threads.h"
 
 #define ALLOC(X, N) (X) = calloc((N), sizeof(*(X)))
 #define ALLOC_SEQ(X, N) do { (X)->len = (N); ALLOC((X)->val, (N)); } while(0)
+
+#ifndef PATH_SEP
+#define PATH_SEP ":"
+#endif
 
 /* should this be public? */
 #define KEYTAB_DEFAULT "FILE:" SYSCONFDIR "/krb5.keytab"
@@ -203,7 +212,7 @@ struct _krb5_krb_auth_data;
 #endif
 
 
-#define KRB5_BUFSIZ 1024
+#define KRB5_BUFSIZ 2048
 
 typedef enum {
     KRB5_INIT_CREDS_TRISTATE_UNSET = 0,
@@ -274,6 +283,7 @@ typedef struct krb5_context_data {
 #define KRB5_CTX_F_CHECK_PAC			2
 #define KRB5_CTX_F_HOMEDIR_ACCESS		4
 #define KRB5_CTX_F_SOCKETS_INITIALIZED          8
+#define KRB5_CTX_F_RD_REQ_IGNORE		16
     struct send_to_kdc *send_to_kdc;
 #ifdef PKINIT
     hx509_context hx509ctx;

@@ -4,6 +4,8 @@
 #ifndef _ROKEN_H_
 #define _ROKEN_H_
 
+#include "config.h"
+
 /* Support 'weak' keys for now, it can't be worse than NTLM and we don't want to hard-code the behaviour at this point */
 #define HEIM_WEAK_CRYPTO 1
 
@@ -12,9 +14,6 @@
 
 #define rk_PATH_DELIM '/'
 
-/* HDB module dir - set to Samba LIBDIR/hdb ? */
-#define HDBDIR "/usr/heimdal/lib"
-#define LIBDIR "/usr/heimdal/lib"
 #define HEIMDAL_LOCALEDIR "/usr/heimdal/locale"
 
 /* Maximum values on all known systems */
@@ -24,12 +23,9 @@
 /* We want PKINIT */
 #define PKINIT 1
 
-#define VERSIONLIST {"Lorikeet-Heimdal, Modified for Samba4 0.8pre"}
-
-#define VERSION "Samba"
-
 #define ROKEN_LIB_FUNCTION
 #define ROKEN_LIB_CALL
+#define ROKEN_LIB_VARIABLE
 #define GETHOSTBYADDR_PROTO_COMPATIBLE
 #define GETSERVBYNAME_PROTO_COMPATIBLE
 #define OPENLOG_PROTO_COMPATIBLE

@@ -2,23 +2,26 @@
    Unix SMB/CIFS implementation.
    uid/user handling
    Copyright (C) Tim Potter 2000
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
+#include "libcli/security/security_token.h"
+#include "auth.h"
 
 extern struct current_user current_user;
 
@@ -26,7 +29,7 @@ extern struct current_user current_user;
  Are two UNIX tokens equal ?
 ****************************************************************************/
 
-bool unix_token_equal(const UNIX_USER_TOKEN *t1, const UNIX_USER_TOKEN *t2)
+bool unix_token_equal(const struct security_unix_token *t1, const struct security_unix_token *t2)
 {
 	if (t1->uid != t2->uid || t1->gid != t2->gid ||
 			t1->ngroups != t2->ngroups) {
@@ -80,7 +83,7 @@ static bool become_gid(gid_t gid)
 			become_gid_done = true;
 		}
 	}
-  
+
 	/* Set effective group id */
 
 	set_effective_gid(gid);
@@ -131,7 +134,7 @@ static void gain_root(void)
  Get the list of current groups.
 ****************************************************************************/
 
-static int get_current_groups(gid_t gid, size_t *p_ngroups, gid_t **p_groups)
+static int get_current_groups(gid_t gid, uint32_t *p_ngroups, gid_t **p_groups)
 {
 	int i;
 	gid_t grp;
@@ -167,11 +170,11 @@ static int get_current_groups(gid_t gid, size_t *p_ngroups, gid_t **p_groups)
 	(*p_ngroups) = ngroups;
 	(*p_groups) = groups;
 
-	DEBUG( 3, ( "get_current_groups: user is in %u groups: ", ngroups));
+	DEBUG( 4, ( "get_current_groups: user is in %u groups: ", ngroups));
 	for (i = 0; i < ngroups; i++ ) {
-		DEBUG( 3, ( "%s%d", (i ? ", " : ""), (int)groups[i] ) );
+		DEBUG( 4, ( "%s%d", (i ? ", " : ""), (int)groups[i] ) );
 	}
-	DEBUG( 3, ( "\n" ) );
+	DEBUG( 4, ( "\n" ) );
 
 	return ngroups;
 
@@ -206,7 +209,7 @@ bool push_sec_ctx(void)
 	ctx_p->ut.uid = geteuid();
 	ctx_p->ut.gid = getegid();
 
- 	DEBUG(3, ("push_sec_ctx(%u, %u) : sec_ctx_stack_ndx = %d\n", 
+ 	DEBUG(4, ("push_sec_ctx(%u, %u) : sec_ctx_stack_ndx = %d\n", 
  		  (unsigned int)ctx_p->ut.uid, (unsigned int)ctx_p->ut.gid, sec_ctx_stack_ndx ));
 
 	ctx_p->token = dup_nt_token(NULL,
@@ -300,16 +303,16 @@ static void set_unix_security_ctx(uid_t uid, gid_t gid, int ngroups, gid_t *grou
  Set the current security context to a given user.
 ****************************************************************************/
 
-void set_sec_ctx(uid_t uid, gid_t gid, int ngroups, gid_t *groups, NT_USER_TOKEN *token)
+void set_sec_ctx(uid_t uid, gid_t gid, int ngroups, gid_t *groups, struct security_token *token)
 {
 	struct sec_ctx *ctx_p = &sec_ctx_stack[sec_ctx_stack_ndx];
-	
+
 	/* Set the security context */
 
-	DEBUG(3, ("setting sec ctx (%u, %u) - sec_ctx_stack_ndx = %d\n", 
+	DEBUG(4, ("setting sec ctx (%u, %u) - sec_ctx_stack_ndx = %d\n", 
 		(unsigned int)uid, (unsigned int)gid, sec_ctx_stack_ndx));
 
-	debug_nt_user_token(DBGC_CLASS, 5, token);
+	security_token_debug(DBGC_CLASS, 5, token);
 	debug_unix_user_token(DBGC_CLASS, 5, uid, gid, ngroups, groups);
 
 	/* Change uid, gid and supplementary group list. */
@@ -323,7 +326,7 @@ void set_sec_ctx(uid_t uid, gid_t gid, int ngroups, gid_t *groups, NT_USER_TOKEN
 	}
 
 	TALLOC_FREE(ctx_p->token);
-	
+
 	if (ngroups) {
 		ctx_p->ut.groups = (gid_t *)memdup(groups,
 						   sizeof(gid_t) * ngroups);
@@ -414,7 +417,7 @@ bool pop_sec_ctx(void)
 	current_user.ut.groups = prev_ctx_p->ut.groups;
 	current_user.nt_user_token = prev_ctx_p->token;
 
-	DEBUG(3, ("pop_sec_ctx (%u, %u) - sec_ctx_stack_ndx = %d\n", 
+	DEBUG(4, ("pop_sec_ctx (%u, %u) - sec_ctx_stack_ndx = %d\n", 
 		(unsigned int)geteuid(), (unsigned int)getegid(), sec_ctx_stack_ndx));
 
 	return True;

@@ -22,6 +22,11 @@
 
 #include "../replace/replace.h"
 
+#if _SAMBA_BUILD_ == 4
+# undef _SAMBA_BUILD_
+# define _SAMBA_BUILD_ 3
+#endif
+
 /* make sure we have included the correct config.h */
 #ifndef NO_CONFIG_H /* for some tests */
 #ifndef CONFIG_H_IS_FROM_SAMBA
@@ -34,7 +39,7 @@
    to include --with-developer since too many systems
    still have comflicts with their header files (e.g. IRIX 6.4) */
 
-#if !defined(__cplusplus) && defined(DEVELOPER)
+#if !defined(__cplusplus) && defined(DEVELOPER) && defined(__linux__)
 #define class #error DONT_USE_CPLUSPLUS_RESERVED_NAMES
 #define private #error DONT_USE_CPLUSPLUS_RESERVED_NAMES
 #define public #error DONT_USE_CPLUSPLUS_RESERVED_NAMES
@@ -47,19 +52,6 @@
 #endif
 
 #include "local.h"
-
-#ifdef AIX
-#define DEFAULT_PRINTING PRINT_AIX
-#define PRINTCAP_NAME "/etc/qconfig"
-#endif
-
-#ifdef HPUX
-#define DEFAULT_PRINTING PRINT_HPUX
-#endif
-
-#ifdef QNX
-#define DEFAULT_PRINTING PRINT_QNX
-#endif
 
 #ifdef SUNOS4
 /* on SUNOS4 termios.h conflicts with sys/ioctl.h */
@@ -76,19 +68,8 @@
 #endif
 #endif /* RELIANTUNIX */
 
-#include "system/capability.h"
 #include "system/dir.h"
-#include "system/filesys.h"
-#include "system/glob.h"
-#include "system/iconv.h"
 #include "system/locale.h"
-#include "system/network.h"
-#include "system/passwd.h"
-#include "system/readline.h"
-#include "system/select.h"
-#include "system/shmem.h"
-#include "system/syslog.h"
-#include "system/terminal.h"
 #include "system/time.h"
 #include "system/wait.h"
 
@@ -145,54 +126,8 @@
 #undef HAVE_KRB5
 #endif
 
-#if HAVE_LBER_H
-#include <lber.h>
-#if defined(HPUX) && !defined(_LBER_TYPES_H)
-/* Define ber_tag_t and ber_int_t for using
- * HP LDAP-UX Integration products' LDAP libraries.
-*/
-#ifndef ber_tag_t
-typedef unsigned long ber_tag_t;
-typedef int ber_int_t;
-#endif
-#endif /* defined(HPUX) && !defined(_LBER_TYPES_H) */
-#ifndef LBER_USE_DER
-#define LBER_USE_DER 0x01
-#endif
-#endif
-
-#if HAVE_LDAP_H
-#include <ldap.h>
-#ifndef LDAP_CONST
-#define LDAP_CONST const
-#endif
-#ifndef LDAP_OPT_SUCCESS
-#define LDAP_OPT_SUCCESS 0
-#endif
-/* Solaris 8 and maybe other LDAP implementations spell this "..._INPROGRESS": */
-#if defined(LDAP_SASL_BIND_INPROGRESS) && !defined(LDAP_SASL_BIND_IN_PROGRESS)
-#define LDAP_SASL_BIND_IN_PROGRESS LDAP_SASL_BIND_INPROGRESS
-#endif
-/* Solaris 8 defines SSL_LDAP_PORT, not LDAPS_PORT and it only does so if
-   LDAP_SSL is defined - but SSL is not working. We just want the
-   port number! Let's just define LDAPS_PORT correct. */
-#if !defined(LDAPS_PORT)
-#define LDAPS_PORT 636
-#endif
-#else
+#ifndef HAVE_LDAP_H
 #undef HAVE_LDAP
-#endif
-
-#if HAVE_GSSAPI_GSSAPI_H
-#include <gssapi/gssapi.h>
-#elif HAVE_GSSAPI_GSSAPI_GENERIC_H
-#include <gssapi/gssapi_generic.h>
-#elif HAVE_GSSAPI_H
-#include <gssapi.h>
-#endif
-
-#if HAVE_COM_ERR_H
-#include <com_err.h>
 #endif
 
 #if HAVE_SYS_ATTRIBUTES_H
@@ -250,16 +185,6 @@ typedef int ber_int_t;
 #elif HAVE_VALGRIND_H
 #include <valgrind.h>
 #endif
-
-/* If we have --enable-developer and the valgrind header is present,
- * then we're OK to use it.  Set a macro so this logic can be done only
- * once. */
-#if defined(DEVELOPER)
-#if (HAVE_VALGRIND_H || HAVE_VALGRIND_VALGRIND_H)
-#define VALGRIND
-#endif
-#endif
-
 
 /* we support ADS if we want it and have krb5 and ldap libs */
 #if defined(WITH_ADS) && defined(HAVE_KRB5) && defined(HAVE_LDAP)
@@ -440,14 +365,6 @@ typedef long blksize_t;
 typedef long blkcnt_t;
 #endif
 
-#ifndef HAVE_STRUCT_TIMESPEC
-struct timespec {
-	time_t tv_sec;            /* Seconds.  */
-	long tv_nsec;           /* Nanoseconds.  */
-};
-#endif
-
-
 /*
  * Type for stat structure.
  */
@@ -566,16 +483,6 @@ enum timestamp_set_resolution {
 	TIMESTAMP_SET_NT_OR_BETTER
 };
 
-#ifdef HAVE_BROKEN_GETGROUPS
-#define GID_T int
-#else
-#define GID_T gid_t
-#endif
-
-#ifndef NGROUPS_MAX
-#define NGROUPS_MAX 32 /* Guess... */
-#endif
-
 /* Our own fstrings */
 
 /*
@@ -600,9 +507,6 @@ enum timestamp_set_resolution {
 typedef char fstring[FSTRING_LEN];
 #endif
 
-/* Samba 3 doesn't use iconv_convenience: */
-extern void *cmdline_lp_ctx;
-
 /* Lists, trees, caching, database... */
 #include "../lib/util/util.h"
 #include "../lib/util/util_net.h"
@@ -610,7 +514,6 @@ extern void *cmdline_lp_ctx;
 #include "../lib/util/memory.h"
 #include "../lib/util/attr.h"
 #include "../lib/util/tsort.h"
-#include "intl.h"
 #include "../lib/util/dlinklist.h"
 #include "tdb.h"
 #include "util_tdb.h"
@@ -624,70 +527,24 @@ extern void *cmdline_lp_ctx;
 
 #include "../lib/util/data_blob.h"
 #include "../lib/util/time.h"
-#include "../lib/util/asn1.h"
 
-#include "krb5_env.h"
 #include "libads/ads_status.h"
-#include "ads.h"
-#include "interfaces.h"
-#include "trans2.h"
 #include "../libcli/util/error.h"
-#include "ntioctl.h"
 #include "../lib/util/charset/charset.h"
 #include "dynconfig.h"
 #include "debugparse.h"
-#include "privileges.h"
-#include "messages.h"
 #include "locking.h"
 #include "smb_perfcount.h"
-#include "smb_signing.h"
 #include "smb.h"
-#include "nameserv.h"
-#include "secrets.h"
 #include "../lib/util/byteorder.h"
-#include "privileges.h"
-#include "rpc_misc.h"
-#include "rpc_dce.h"
-#include "mapping.h"
-#include "passdb.h"
-#include "msdfs.h"
 
-struct ntlmssp_state;
-
-#include "auth.h"
-#include "ntdomain.h"
 #include "librpc/rpc/dcerpc.h"
-#include "nt_printing.h"
-#include "idmap.h"
 #include "client.h"
 
-#include "session.h"
-#include "popt.h"
-#include "mangle.h"
 #include "module.h"
-#include "nsswitch/winbind_client.h"
-#include "dbwrap.h"
-#include "packet.h"
-#include "ctdbd_conn.h"
 #include "../lib/util/talloc_stack.h"
-#include "memcache.h"
-#include "serverid.h"
-#include "async_smb.h"
-#include "../lib/async_req/async_sock.h"
-#include "talloc_dict.h"
 #include "../lib/util/smb_threads.h"
 #include "../lib/util/smb_threads_internal.h"
-
-#include "nsswitch/winbind_nss.h"
-
-/* forward declaration from printing.h to get around 
-   header file dependencies */
-
-struct printjob;
-
-/* forward declarations from smbldap.c */
-
-#include "smbldap.h"
 
 /*
  * Reasons for cache flush.
@@ -706,16 +563,11 @@ enum flush_reason_enum {
     NUM_FLUSH_REASONS};
 
 #include "modules/nfs4_acls.h"
-#include "nsswitch/libwbclient/wbclient.h"
 
 /***** prototypes *****/
 #ifndef NO_PROTO_H
 #include "proto.h"
 #endif
-#include "libcli/security/secace.h"
-#include "libcli/security/secacl.h"
-#include "libcli/security/security_descriptor.h"
-#include "libcli/security/sddl.h"
 
 #if defined(HAVE_POSIX_ACLS)
 #include "modules/vfs_posixacl.h"
@@ -737,10 +589,6 @@ enum flush_reason_enum {
 #include "modules/vfs_irixacl.h"
 #endif
 
-#ifdef HAVE_LDAP
-#include "libads/ads_ldap_protos.h"
-#endif
-
 /* We need this after proto.h to reference GetTimeOfDay(). */
 #include "smbprofile.h"
 
@@ -748,26 +596,6 @@ enum flush_reason_enum {
 
 #include "srvstr.h"
 #include "safe_string.h"
-
-/* prototypes from lib/util_transfer_file.c */
-#include "transfer_file.h"
-
-#ifndef DEFAULT_PRINTING
-#ifdef HAVE_CUPS
-#define DEFAULT_PRINTING PRINT_CUPS
-#define PRINTCAP_NAME "cups"
-#elif defined(SYSV)
-#define DEFAULT_PRINTING PRINT_SYSV
-#define PRINTCAP_NAME "lpstat"
-#else
-#define DEFAULT_PRINTING PRINT_BSD
-#define PRINTCAP_NAME "/etc/printcap"
-#endif
-#endif
-
-#ifndef PRINTCAP_NAME
-#define PRINTCAP_NAME "/etc/printcap"
-#endif
 
 #ifndef SIGCLD
 #define SIGCLD SIGCHLD
@@ -783,22 +611,6 @@ enum flush_reason_enum {
 
 #if defined(HAVE_PUTPRPWNAM) && defined(AUTH_CLEARTEXT_SEG_CHARS)
 #define OSF1_ENH_SEC 1
-#endif
-
-#ifndef ALLOW_CHANGE_PASSWORD
-#if (defined(HAVE_TERMIOS_H) && defined(HAVE_DUP2) && defined(HAVE_SETSID))
-#define ALLOW_CHANGE_PASSWORD 1
-#endif
-#endif
-
-/* what is the longest significant password available on your system? 
- Knowing this speeds up password searches a lot */
-#ifndef PASSWORD_LENGTH
-#define PASSWORD_LENGTH 8
-#endif
-
-#ifndef HAVE_PIPE
-#define SYNC_DNS 1
 #endif
 
 #if defined(HAVE_CRYPT16) && defined(HAVE_GETAUTHUID)
@@ -832,8 +644,6 @@ enum flush_reason_enum {
 #endif
 #endif
 
-extern int DEBUGLEVEL;
-
 #define MAX_SEC_CTX_DEPTH 8    /* Maximum number of security contexts */
 
 
@@ -849,12 +659,6 @@ extern int DEBUGLEVEL;
 #define F_SETLKW 14
 #endif
 
-
-/* needed for some systems without iconv. Doesn't really matter
-   what error code we use */
-#ifndef EILSEQ
-#define EILSEQ EIO
-#endif
 
 /* add varargs prototypes with printf checking */
 /*PRINTFLIKE2 */
@@ -893,13 +697,6 @@ char *talloc_asprintf_strupper_m(TALLOC_CTX *t, const char *fmt, ...) PRINTF_ATT
 #define XATTR_REPLACE 0x2       /* set value, fail if attr does not exist */
 #endif
 
-#ifdef HAVE_LDAP
-
-/* function declarations not included in proto.h */
-LDAP *ldap_open_with_timeout(const char *server, int port, unsigned int to);
-
-#endif	/* HAVE_LDAP */
-
 #if defined(HAVE_LINUX_READAHEAD) && ! defined(HAVE_READAHEAD_DECL)
 ssize_t readahead(int fd, off64_t offset, size_t count);
 #endif
@@ -930,10 +727,6 @@ void dump_core(void) _NORETURN_;
 void exit_server(const char *const reason) _NORETURN_;
 void exit_server_cleanly(const char *const reason) _NORETURN_;
 void exit_server_fault(void) _NORETURN_;
-
-#ifdef HAVE_LIBNSCD
-#include "libnscd.h"
-#endif
 
 #if defined(HAVE_IPV6)
 void in6_addr_to_sockaddr_storage(struct sockaddr_storage *ss,

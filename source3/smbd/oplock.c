@@ -21,8 +21,9 @@
 
 #define DBGC_CLASS DBGC_LOCKING
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
-#include "librpc/gen_ndr/messaging.h"
+#include "messages.h"
 
 /****************************************************************************
  Get the number of current exclusive oplocks.
@@ -53,18 +54,22 @@ void break_kernel_oplock(struct messaging_context *msg_ctx, files_struct *fsp)
 }
 
 /****************************************************************************
- Attempt to set an oplock on a file. Always succeeds if kernel oplocks are
- disabled (just sets flags). Returns True if oplock set.
+ Attempt to set an oplock on a file. Succeeds if kernel oplocks are
+ disabled (just sets flags) and no byte-range locks in the file. Returns True
+ if oplock set.
 ****************************************************************************/
 
 bool set_file_oplock(files_struct *fsp, int oplock_type)
 {
-	if ((fsp->oplock_type == LEVEL_II_OPLOCK)
-	    && koplocks && !(koplocks->flags & KOPLOCKS_LEVEL2_SUPPORTED)) {
-		DEBUG(10, ("Refusing level2 oplock, kernel oplocks don't "
-			   "support them\n"));
-		return false;
+	if (fsp->oplock_type == LEVEL_II_OPLOCK) {
+		if (koplocks &&
+		    !(koplocks->flags & KOPLOCKS_LEVEL2_SUPPORTED)) {
+			DEBUG(10, ("Refusing level2 oplock, kernel oplocks "
+				   "don't support them\n"));
+			return false;
+		}
 	}
+
 	if ((fsp->oplock_type != NO_OPLOCK) &&
 	    (fsp->oplock_type != FAKE_LEVEL_II_OPLOCK) &&
 	    koplocks &&
@@ -119,6 +124,7 @@ void release_file_oplock(files_struct *fsp)
 	fsp->sent_oplock_break = NO_BREAK_SENT;
 
 	flush_write_cache(fsp, OPLOCK_RELEASE_FLUSH);
+	delete_write_cache(fsp);
 
 	TALLOC_FREE(fsp->oplock_timeout);
 }
@@ -256,7 +262,9 @@ static void wait_before_sending_break(void)
  Ensure that we have a valid oplock.
 ****************************************************************************/
 
-static files_struct *initial_break_processing(struct file_id id, unsigned long file_id)
+static files_struct *initial_break_processing(
+	struct smbd_server_connection *sconn, struct file_id id,
+	unsigned long file_id)
 {
 	files_struct *fsp = NULL;
 
@@ -273,7 +281,7 @@ static files_struct *initial_break_processing(struct file_id id, unsigned long f
 	 * we have an oplock on it.
 	 */
 
-	fsp = file_find_dif(id, file_id);
+	fsp = file_find_dif(sconn, id, file_id);
 
 	if(fsp == NULL) {
 		/* The file could have been closed in the meantime - return success. */
@@ -364,7 +372,7 @@ static void send_break_message_smb1(files_struct *fsp, int level)
 	}
 
 	show_msg(break_msg);
-	if (!srv_send_smb(smbd_server_fd(),
+	if (!srv_send_smb(fsp->conn->sconn,
 			break_msg, false, 0,
 			IS_CONN_ENCRYPTED(fsp->conn),
 			NULL)) {
@@ -427,11 +435,18 @@ void process_oplock_async_level2_break_message(struct messaging_context *msg_ctx
 						      struct server_id src,
 						      DATA_BLOB *data)
 {
+	struct smbd_server_connection *sconn;
 	struct share_mode_entry msg;
 	files_struct *fsp;
 
 	if (data->data == NULL) {
 		DEBUG(0, ("Got NULL buffer\n"));
+		return;
+	}
+
+	sconn = msg_ctx_to_sconn(msg_ctx);
+	if (sconn == NULL) {
+		DEBUG(1, ("could not find sconn\n"));
 		return;
 	}
 
@@ -447,7 +462,7 @@ void process_oplock_async_level2_break_message(struct messaging_context *msg_ctx
 		   "%s/%lu\n", procid_str(talloc_tos(), &src),
 		   file_id_string_tos(&msg.id), msg.share_file_id));
 
-	fsp = initial_break_processing(msg.id, msg.share_file_id);
+	fsp = initial_break_processing(sconn, msg.id, msg.share_file_id);
 
 	if (fsp == NULL) {
 		/* We hit a race here. Break messages are sent, and before we
@@ -470,13 +485,19 @@ static void process_oplock_break_message(struct messaging_context *msg_ctx,
 					 struct server_id src,
 					 DATA_BLOB *data)
 {
-	struct smbd_server_connection *sconn = smbd_server_conn;
+	struct smbd_server_connection *sconn;
 	struct share_mode_entry msg;
 	files_struct *fsp;
 	bool break_to_level2 = False;
 
 	if (data->data == NULL) {
 		DEBUG(0, ("Got NULL buffer\n"));
+		return;
+	}
+
+	sconn = msg_ctx_to_sconn(msg_ctx);
+	if (sconn == NULL) {
+		DEBUG(1, ("could not find sconn\n"));
 		return;
 	}
 
@@ -492,7 +513,7 @@ static void process_oplock_break_message(struct messaging_context *msg_ctx,
 		   procid_str(talloc_tos(), &src), file_id_string_tos(&msg.id),
 		   msg.share_file_id));
 
-	fsp = initial_break_processing(msg.id, msg.share_file_id);
+	fsp = initial_break_processing(sconn, msg.id, msg.share_file_id);
 
 	if (fsp == NULL) {
 		/* We hit a race here. Break messages are sent, and before we
@@ -570,7 +591,7 @@ static void process_kernel_oplock_break(struct messaging_context *msg_ctx,
 					struct server_id src,
 					DATA_BLOB *data)
 {
-	struct smbd_server_connection *sconn = smbd_server_conn;
+	struct smbd_server_connection *sconn;
 	struct file_id id;
 	unsigned long file_id;
 	files_struct *fsp;
@@ -585,6 +606,12 @@ static void process_kernel_oplock_break(struct messaging_context *msg_ctx,
 		return;
 	}
 
+	sconn = msg_ctx_to_sconn(msg_ctx);
+	if (sconn == NULL) {
+		DEBUG(1, ("could not find sconn\n"));
+		return;
+	}
+
 	/* Pull the data from the message. */
 	pull_file_id_24((char *)data->data, &id);
 	file_id = (unsigned long)IVAL(data->data, 24);
@@ -593,7 +620,7 @@ static void process_kernel_oplock_break(struct messaging_context *msg_ctx,
 		   procid_str(talloc_tos(), &src), file_id_string_tos(&id),
 		   (unsigned int)file_id));
 
-	fsp = initial_break_processing(id, file_id);
+	fsp = initial_break_processing(sconn, id, file_id);
 
 	if (fsp == NULL) {
 		DEBUG(3, ("Got a kernel oplock break message for a file "
@@ -796,8 +823,17 @@ static void contend_level2_oplocks_begin_default(files_struct *fsp,
  		 */
 
 		if (procid_is_me(&share_entry->pid)) {
+			struct files_struct *cur_fsp =
+				initial_break_processing(fsp->conn->sconn,
+					share_entry->id,
+					share_entry->share_file_id);
 			wait_before_sending_break();
-			break_level2_to_none_async(fsp);
+			if (cur_fsp != NULL) {
+				break_level2_to_none_async(cur_fsp);
+			} else {
+				DEBUG(3, ("release_level_2_oplocks_on_change: "
+				"Did not find fsp, ignoring\n"));
+			}
 		} else {
 			messaging_send_buf(fsp->conn->sconn->msg_ctx,
 					share_entry->pid,
@@ -851,9 +887,8 @@ void share_mode_entry_to_message(char *msg, const struct share_mode_entry *e)
 	SIVAL(msg,OP_BREAK_MSG_FILE_ID_OFFSET,e->share_file_id);
 	SIVAL(msg,OP_BREAK_MSG_UID_OFFSET,e->uid);
 	SSVAL(msg,OP_BREAK_MSG_FLAGS_OFFSET,e->flags);
-#ifdef CLUSTER_SUPPORT
+	SIVAL(msg,OP_BREAK_MSG_NAME_HASH_OFFSET,e->name_hash);
 	SIVAL(msg,OP_BREAK_MSG_VNN_OFFSET,e->pid.vnn);
-#endif
 }
 
 /****************************************************************************
@@ -874,9 +909,8 @@ void message_to_share_mode_entry(struct share_mode_entry *e, char *msg)
 	e->share_file_id = (unsigned long)IVAL(msg,OP_BREAK_MSG_FILE_ID_OFFSET);
 	e->uid = (uint32)IVAL(msg,OP_BREAK_MSG_UID_OFFSET);
 	e->flags = (uint16)SVAL(msg,OP_BREAK_MSG_FLAGS_OFFSET);
-#ifdef CLUSTER_SUPPORT
+	e->name_hash = IVAL(msg,OP_BREAK_MSG_NAME_HASH_OFFSET);
 	e->pid.vnn = IVAL(msg,OP_BREAK_MSG_VNN_OFFSET);
-#endif
 }
 
 /****************************************************************************
@@ -900,11 +934,12 @@ bool init_oplocks(struct messaging_context *msg_ctx)
 
 	if (lp_kernel_oplocks()) {
 #if HAVE_KERNEL_OPLOCKS_IRIX
-		koplocks = irix_init_kernel_oplocks(talloc_autofree_context());
+		koplocks = irix_init_kernel_oplocks(NULL);
 #elif HAVE_KERNEL_OPLOCKS_LINUX
-		koplocks = linux_init_kernel_oplocks(talloc_autofree_context());
+		koplocks = linux_init_kernel_oplocks(NULL);
 #elif HAVE_ONEFS
-		koplocks = onefs_init_kernel_oplocks(talloc_autofree_context());
+#error Isilon, please check if the NULL context is okay here. Thanks!
+		koplocks = onefs_init_kernel_oplocks(NULL);
 #endif
 	}
 

@@ -24,7 +24,7 @@
 #if _SAMBA_BUILD_ == 3
 #include "lib/ldb_compat.h"
 #else
-#include "lib/ldb/include/ldb.h"
+#include <ldb.h>
 #endif
 #include "librpc/gen_ndr/ndr_security.h"
 #include "librpc/gen_ndr/ndr_misc.h"
@@ -65,7 +65,7 @@ char *ldap_encode_ndr_dom_sid(TALLOC_CTX *mem_ctx, const struct dom_sid *sid)
 /*
   encode a NDR GUID as a ldap filter element
 */
-char *ldap_encode_ndr_GUID(TALLOC_CTX *mem_ctx, struct GUID *guid)
+char *ldap_encode_ndr_GUID(TALLOC_CTX *mem_ctx, const struct GUID *guid)
 {
 	DATA_BLOB blob;
 	NTSTATUS status;

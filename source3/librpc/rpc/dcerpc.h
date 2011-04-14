@@ -23,95 +23,17 @@
  * If you remove any functions or change their signature, update 
  * the so version number. */
 
-#ifndef __DCERPC_H__
-#define __DCERPC_H__
+#ifndef _S3_DCERPC_H__
+#define _S3_DCERPC_H__
 
-enum dcerpc_transport_t {
-	NCA_UNKNOWN, NCACN_NP, NCACN_IP_TCP, NCACN_IP_UDP, NCACN_VNS_IPC, 
-	NCACN_VNS_SPP, NCACN_AT_DSP, NCADG_AT_DDP, NCALRPC, NCACN_UNIX_STREAM, 
-	NCADG_UNIX_DGRAM, NCACN_HTTP, NCADG_IPX, NCACN_SPX, NCACN_INTERNAL };
+#include "librpc/gen_ndr/dcerpc.h"
+#include "../librpc/ndr/libndr.h"
+#include "../librpc/rpc/rpc_common.h"
 
-/** this describes a binding to a particular transport/pipe */
-struct dcerpc_binding {
-	enum dcerpc_transport_t transport;
-	struct ndr_syntax_id object;
-	const char *host;
-	const char *target_hostname;
-	const char *endpoint;
-	const char **options;
-	uint32_t flags;
-	uint32_t assoc_group_id;
-};
-
-
-/* dcerpc pipe flags */
-#define DCERPC_DEBUG_PRINT_IN          (1<<0)
-#define DCERPC_DEBUG_PRINT_OUT         (1<<1)
-#define DCERPC_DEBUG_PRINT_BOTH (DCERPC_DEBUG_PRINT_IN | DCERPC_DEBUG_PRINT_OUT)
-
-#define DCERPC_DEBUG_VALIDATE_IN       (1<<2)
-#define DCERPC_DEBUG_VALIDATE_OUT      (1<<3)
-#define DCERPC_DEBUG_VALIDATE_BOTH (DCERPC_DEBUG_VALIDATE_IN | DCERPC_DEBUG_VALIDATE_OUT)
-
-#define DCERPC_CONNECT                 (1<<4)
-#define DCERPC_SIGN                    (1<<5)
-#define DCERPC_SEAL                    (1<<6)
-
-#define DCERPC_PUSH_BIGENDIAN          (1<<7)
-#define DCERPC_PULL_BIGENDIAN          (1<<8)
-
-#define DCERPC_SCHANNEL                (1<<9)
-
-/* use a 128 bit session key */
-#define DCERPC_SCHANNEL_128            (1<<12)
-
-/* check incoming pad bytes */
-#define DCERPC_DEBUG_PAD_CHECK         (1<<13)
-
-/* set LIBNDR_FLAG_REF_ALLOC flag when decoding NDR */
-#define DCERPC_NDR_REF_ALLOC           (1<<14)
-
-#define DCERPC_AUTH_OPTIONS    (DCERPC_SEAL|DCERPC_SIGN|DCERPC_SCHANNEL|DCERPC_AUTH_SPNEGO|DCERPC_AUTH_KRB5|DCERPC_AUTH_NTLM)
-
-/* select spnego auth */
-#define DCERPC_AUTH_SPNEGO             (1<<15)
-
-/* select krb5 auth */
-#define DCERPC_AUTH_KRB5               (1<<16)
-
-#define DCERPC_SMB2                    (1<<17)
-
-/* select NTLM auth */
-#define DCERPC_AUTH_NTLM               (1<<18)
-
-/* this triggers the DCERPC_PFC_FLAG_CONC_MPX flag in the bind request */
-#define DCERPC_CONCURRENT_MULTIPLEX     (1<<19)
-
-/* this triggers the DCERPC_PFC_FLAG_SUPPORT_HEADER_SIGN flag in the bind request */
-#define DCERPC_HEADER_SIGNING          (1<<20)
-
-/* use NDR64 transport */
-#define DCERPC_NDR64                   (1<<21)
-
-/* The following definitions come from librpc/rpc/binding.c  */
-
-const char *epm_floor_string(TALLOC_CTX *mem_ctx, struct epm_floor *epm_floor);
-_PUBLIC_ char *dcerpc_binding_string(TALLOC_CTX *mem_ctx, const struct dcerpc_binding *b);
-_PUBLIC_ NTSTATUS dcerpc_parse_binding(TALLOC_CTX *mem_ctx, const char *s, struct dcerpc_binding **b_out);
-_PUBLIC_ NTSTATUS dcerpc_floor_get_lhs_data(const struct epm_floor *epm_floor,
-					    struct ndr_syntax_id *syntax);
-const char *dcerpc_floor_get_rhs_data(TALLOC_CTX *mem_ctx, struct epm_floor *epm_floor);
-enum dcerpc_transport_t dcerpc_transport_by_endpoint_protocol(int prot);
-_PUBLIC_ enum dcerpc_transport_t dcerpc_transport_by_tower(const struct epm_tower *tower);
-_PUBLIC_ const char *derpc_transport_string_by_transport(enum dcerpc_transport_t t);
-_PUBLIC_ NTSTATUS dcerpc_binding_from_tower(TALLOC_CTX *mem_ctx,
-				   struct epm_tower *tower,
-				   struct dcerpc_binding **b_out);
-_PUBLIC_ NTSTATUS dcerpc_binding_build_tower(TALLOC_CTX *mem_ctx,
-					     const struct dcerpc_binding *binding,
-					     struct epm_tower *tower);
+#define SMB_RPC_INTERFACE_VERSION 1
 
 struct NL_AUTH_MESSAGE;
+struct pipe_auth_data;
 
 /* The following definitions come from librpc/rpc/dcerpc_helpers.c  */
 NTSTATUS dcerpc_push_ncacn_packet(TALLOC_CTX *mem_ctx,
@@ -139,5 +61,18 @@ NTSTATUS dcerpc_pull_dcerpc_auth(TALLOC_CTX *mem_ctx,
 				 const DATA_BLOB *blob,
 				 struct dcerpc_auth *r,
 				 bool bigendian);
+NTSTATUS dcerpc_guess_sizes(struct pipe_auth_data *auth,
+			    size_t header_len, size_t data_left,
+			    size_t max_xmit_frag, size_t pad_alignment,
+			    size_t *data_to_send, size_t *frag_len,
+			    size_t *auth_len, size_t *pad_len);
+NTSTATUS dcerpc_add_auth_footer(struct pipe_auth_data *auth,
+				size_t pad_len, DATA_BLOB *rpc_out);
+NTSTATUS dcerpc_check_auth(struct pipe_auth_data *auth,
+			   struct ncacn_packet *pkt,
+			   DATA_BLOB *pkt_trailer,
+			   size_t header_size,
+			   DATA_BLOB *raw_pkt,
+			   size_t *pad_len);
 
-#endif /* __DCERPC_H__ */
+#endif /* __S3_DCERPC_H__ */

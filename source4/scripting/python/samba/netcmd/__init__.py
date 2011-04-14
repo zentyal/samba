@@ -17,9 +17,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-import optparse
+import optparse, samba
 from samba import getopt as options
-import sys
+from ldb import LdbError
+import sys, traceback
 
 
 class Option(optparse.Option):
@@ -51,6 +52,40 @@ class Command(object):
         if self.takes_args:
             ret += " " + " ".join([x.upper() for x in self.takes_args])
         return ret
+
+    def show_command_error(self, e):
+        '''display a command error'''
+        if isinstance(e, CommandError):
+            (etype, evalue, etraceback) = e.exception_info
+            inner_exception = e.inner_exception
+            message = e.message
+            force_traceback = False
+        else:
+            (etype, evalue, etraceback) = sys.exc_info()
+            inner_exception = e
+            message = "uncaught exception"
+            force_traceback = True
+
+        if isinstance(inner_exception, LdbError):
+            (ldb_ecode, ldb_emsg) = inner_exception
+            print >>sys.stderr, "ERROR(ldb): %s - %s" % (message, ldb_emsg)
+        elif isinstance(inner_exception, AssertionError):
+            print >>sys.stderr, "ERROR(assert): %s" % message
+            force_traceback = True
+        elif isinstance(inner_exception, RuntimeError):
+            print >>sys.stderr, "ERROR(runtime): %s - %s" % (message, evalue)
+        elif type(inner_exception) is Exception:
+            print >>sys.stderr, "ERROR(exception): %s - %s" % (message, evalue)
+            force_traceback = True
+        elif inner_exception is None:
+            print >>sys.stderr, "ERROR: %s" % (message)
+        else:
+            print >>sys.stderr, "ERROR(%s): %s - %s" % (str(etype), message, evalue)
+            force_traceback = True
+
+        if force_traceback or samba.get_debug_level() >= 3:
+            traceback.print_tb(etraceback)
+
 
     synopsis = property(_get_synopsis)
 
@@ -97,8 +132,8 @@ class Command(object):
             return -1
         try:
             return self.run(*args, **kwargs)
-        except CommandError, e:
-            print >>sys.stderr, "ERROR: %s" % e
+        except Exception, e:
+            self.show_command_error(e)
             return -1
 
     def run(self):
@@ -112,14 +147,14 @@ class SuperCommand(Command):
     subcommands = {}
 
     def _run(self, myname, subcommand=None, *args):
-        if subcommand is None:
-            print "Available subcommands:"
-            for subcommand in self.subcommands:
-                print "\t%s" % subcommand
+        if subcommand in self.subcommands:
+            return self.subcommands[subcommand]._run(subcommand, *args)
+        print "Available subcommands:"
+        for cmd in self.subcommands:
+            print "\t%-20s - %s" % (cmd, self.subcommands[cmd].description)
+        if subcommand in [None, 'help', '-h', '--help' ]:
             return 0
-        if not subcommand in self.subcommands:
-            raise CommandError("No such subcommand '%s'" % subcommand)
-        return self.subcommands[subcommand]._run(subcommand, *args)
+        raise CommandError("No such subcommand '%s'" % subcommand)
 
     def usage(self, myname, subcommand=None, *args):
         if subcommand is None or not subcommand in self.subcommands:
@@ -130,7 +165,11 @@ class SuperCommand(Command):
 
 
 class CommandError(Exception):
-    pass
+    '''an exception class for netcmd errors'''
+    def __init__(self, message, inner_exception=None):
+        self.message = message
+        self.inner_exception = inner_exception
+        self.exception_info = sys.exc_info()
 
 
 commands = {}
@@ -164,3 +203,13 @@ from samba.netcmd.spn import cmd_spn
 commands["spn"] = cmd_spn()
 from samba.netcmd.group import cmd_group
 commands["group"] = cmd_group()
+from samba.netcmd.join import cmd_join
+commands["join"] = cmd_join()
+from samba.netcmd.rodc import cmd_rodc
+commands["rodc"] = cmd_rodc()
+from samba.netcmd.drs import cmd_drs
+commands["drs"] = cmd_drs()
+from samba.netcmd.gpo import cmd_gpo
+commands["gpo2"] = cmd_gpo()
+from samba.netcmd.ldapcmp import cmd_ldapcmp
+commands["ldapcmp"] = cmd_ldapcmp()

@@ -20,6 +20,9 @@
  */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "system/shmem.h"
+#include "smbd/smbd.h"
 
 struct mmap_area {
 	size_t size;
@@ -246,6 +249,7 @@ static void aio_child_cleanup(struct event_context *event_ctx,
 			   "deleting\n", (int)child->pid));
 
 		TALLOC_FREE(child);
+		child = next;
 	}
 
 	if (list->children != NULL) {
@@ -388,6 +392,7 @@ static void handle_aio_completion(struct event_context *event_ctx,
 {
 	struct aio_extra *aio_ex = NULL;
 	struct aio_child *child = (struct aio_child *)p;
+	NTSTATUS status;
 
 	DEBUG(10, ("handle_aio_completion called with flags=%d\n", flags));
 
@@ -395,12 +400,20 @@ static void handle_aio_completion(struct event_context *event_ctx,
 		return;
 	}
 
-	if (!NT_STATUS_IS_OK(read_data(child->sockfd,
-				       (char *)&child->retval,
-				       sizeof(child->retval)))) {
-		DEBUG(0, ("aio child %d died\n", (int)child->pid));
+	status = read_data(child->sockfd, (char *)&child->retval,
+			   sizeof(child->retval));
+
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("aio child %d died: %s\n", (int)child->pid,
+			  nt_errstr(status)));
 		child->retval.size = -1;
 		child->retval.ret_errno = EIO;
+	}
+
+	if (child->aiocb == NULL) {
+		DEBUG(1, ("Inactive child died\n"));
+		TALLOC_FREE(child);
+		return;
 	}
 
 	if (child->cancelled) {
@@ -421,7 +434,18 @@ static void handle_aio_completion(struct event_context *event_ctx,
 
 static int aio_child_destructor(struct aio_child *child)
 {
+	char c=0;
+
 	SMB_ASSERT((child->aiocb == NULL) || child->cancelled);
+
+	DEBUG(10, ("aio_child_destructor: removing child %d on fd %d\n",
+			child->pid, child->sockfd));
+
+	/*
+	 * closing the sockfd makes the child not return from recvmsg() on RHEL
+	 * 5.5 so instead force the child to exit by writing bad data to it
+	 */
+	write(child->sockfd, &c, sizeof(c));
 	close(child->sockfd);
 	DLIST_REMOVE(child->list->children, child);
 	return 0;
@@ -442,7 +466,8 @@ static struct files_struct *close_fsp_fd(struct files_struct *fsp,
 	return NULL;
 }
 
-static NTSTATUS create_aio_child(struct aio_child_list *children,
+static NTSTATUS create_aio_child(struct smbd_server_connection *sconn,
+				 struct aio_child_list *children,
 				 size_t map_size,
 				 struct aio_child **presult)
 {
@@ -480,11 +505,12 @@ static NTSTATUS create_aio_child(struct aio_child_list *children,
 	if (result->pid == 0) {
 		close(fdpair[0]);
 		result->sockfd = fdpair[1];
-		files_forall(close_fsp_fd, NULL);
+		files_forall(sconn, close_fsp_fd, NULL);
 		aio_child_loop(result->sockfd, result->map);
 	}
 
-	DEBUG(10, ("Child %d created\n", result->pid));
+	DEBUG(10, ("Child %d created with sockfd %d\n",
+			result->pid, fdpair[0]));
 
 	result->sockfd = fdpair[0];
 	close(fdpair[1]);
@@ -538,7 +564,8 @@ static NTSTATUS get_idle_child(struct vfs_handle_struct *handle,
 	if (child == NULL) {
 		DEBUG(10, ("no idle child found, creating new one\n"));
 
-		status = create_aio_child(children, 128*1024, &child);
+		status = create_aio_child(handle->conn->sconn, children,
+					  128*1024, &child);
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(10, ("create_aio_child failed: %s\n",
 				   nt_errstr(status)));

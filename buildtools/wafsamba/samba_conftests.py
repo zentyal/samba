@@ -93,12 +93,92 @@ def find_config_dir(conf):
         conf.fatal('cannot use the configuration test folder %r' % dir)
     return dir
 
+@conf
+def CHECK_SHLIB_INTRASINC_NAME_FLAGS(conf, msg):
+    '''
+        check if the waf default flags for setting the name of lib
+        are ok
+    '''
+
+    snip = '''
+int foo(int v) {
+    return v * 2;
+}
+'''
+    return conf.check(features='cc cshlib',vnum="1",fragment=snip,msg=msg)
+
+@conf
+def CHECK_NEED_LC(conf, msg):
+    '''check if we need -lc'''
+
+    dir = find_config_dir(conf)
+
+    env = conf.env
+
+    bdir = os.path.join(dir, 'testbuild2')
+    if not os.path.exists(bdir):
+        os.makedirs(bdir)
+
+
+    subdir = os.path.join(dir, "liblctest")
+
+    os.makedirs(subdir)
+
+    dest = open(os.path.join(subdir, 'liblc1.c'), 'w')
+    dest.write('#include <stdio.h>\nint lib_func(void) { FILE *f = fopen("foo", "r");}\n')
+    dest.close()
+
+    bld = Build.BuildContext()
+    bld.log = conf.log
+    bld.all_envs.update(conf.all_envs)
+    bld.all_envs['default'] = env
+    bld.lst_variants = bld.all_envs.keys()
+    bld.load_dirs(dir, bdir)
+
+    bld.rescan(bld.srcnode)
+
+    bld(features='cc cshlib',
+        source='liblctest/liblc1.c',
+        ldflags=conf.env['EXTRA_LDFLAGS'],
+        target='liblc',
+        name='liblc')
+
+    try:
+        bld.compile()
+        conf.check_message(msg, '', True)
+        return True
+    except:
+        conf.check_message(msg, '', False)
+        return False
+
+
+@conf
+def CHECK_SHLIB_W_PYTHON(conf, msg):
+    '''check if we need -undefined dynamic_lookup'''
+
+    dir = find_config_dir(conf)
+
+    env = conf.env
+
+    snip = '''
+#include <Python.h>
+#include <crt_externs.h>
+#define environ (*_NSGetEnviron())
+
+static PyObject *ldb_module = NULL;
+int foo(int v) {
+    extern char **environ;
+    environ[0] = 1;
+    ldb_module = PyImport_ImportModule("ldb");
+    return v * 2;
+}'''
+    return conf.check(features='cc cshlib',uselib='PYEMBED',fragment=snip,msg=msg)
 
 # this one is quite complex, and should probably be broken up
 # into several parts. I'd quite like to create a set of CHECK_COMPOUND()
 # functions that make writing complex compound tests like this much easier
 @conf
-def CHECK_LIBRARY_SUPPORT(conf, rpath=False, msg=None):
+def CHECK_LIBRARY_SUPPORT(conf, rpath=False, version_script=False, msg=None):
     '''see if the platform supports building libraries'''
 
     if msg is None:
@@ -136,9 +216,17 @@ def CHECK_LIBRARY_SUPPORT(conf, rpath=False, msg=None):
 
     bld.rescan(bld.srcnode)
 
+    ldflags = []
+    if version_script:
+        ldflags.append("-Wl,--version-script=%s/vscript" % bld.path.abspath())
+        dest = open(os.path.join(dir,'vscript'), 'w')
+        dest.write('TEST_1.0A2 { global: *; };\n')
+        dest.close()
+
     bld(features='cc cshlib',
         source='libdir/lib1.c',
         target='libdir/lib1',
+        ldflags=ldflags,
         name='lib1')
 
     o = bld(features='cc cprogram',
@@ -313,21 +401,14 @@ def CHECK_INLINE(conf):
 def CHECK_XSLTPROC_MANPAGES(conf):
     '''check if xsltproc can run with the given stylesheets'''
 
-    stylesheets='http://docbook.sourceforge.net/release/xsl/current/manpages/docbook.xsl'
 
     if not conf.CONFIG_SET('XSLTPROC'):
         conf.find_program('xsltproc', var='XSLTPROC')
     if not conf.CONFIG_SET('XSLTPROC'):
         return False
 
-    for s in TO_LIST(stylesheets):
-        if not conf.CONFIG_SET('XSLTPROC_%s' % s):
-            ret = conf.CHECK_COMMAND('%s --nonet %s 2> /dev/null' % (conf.env.XSLTPROC, s),
-                                     msg='Checking for stylesheet %s' % s,
-                                     define=None, on_target=False,
-                                     boolean=True)
-            if not ret:
-                return False
-            conf.env['XSLTPROC_%s' % s] = True
-    conf.env['XSLTPROC_MANPAGES'] = True
-    return True
+    s='http://docbook.sourceforge.net/release/xsl/current/manpages/docbook.xsl'
+    conf.CHECK_COMMAND('%s --nonet %s 2> /dev/null' % (conf.env.XSLTPROC, s),
+                             msg='Checking for stylesheet %s' % s,
+                             define='XSLTPROC_MANPAGES', on_target=False,
+                             boolean=True)

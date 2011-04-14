@@ -43,6 +43,10 @@ enum profile_stats_values
 #define syscall_opendir_count __profile_stats_value(PR_VALUE_SYSCALL_OPENDIR, count)
 #define syscall_opendir_time __profile_stats_value(PR_VALUE_SYSCALL_OPENDIR, time)
 
+	PR_VALUE_SYSCALL_FDOPENDIR,
+#define syscall_fdopendir_count __profile_stats_value(PR_VALUE_SYSCALL_FDOPENDIR, count)
+#define syscall_fdopendir_time __profile_stats_value(PR_VALUE_SYSCALL_FDOPENDIR, time)
+
 	PR_VALUE_SYSCALL_READDIR,
 #define syscall_readdir_count __profile_stats_value(PR_VALUE_SYSCALL_READDIR, count)
 #define syscall_readdir_time __profile_stats_value(PR_VALUE_SYSCALL_READDIR, time)
@@ -178,6 +182,10 @@ enum profile_stats_values
 	PR_VALUE_SYSCALL_FTRUNCATE,
 #define syscall_ftruncate_count __profile_stats_value(PR_VALUE_SYSCALL_FTRUNCATE, count)
 #define syscall_ftruncate_time __profile_stats_value(PR_VALUE_SYSCALL_FTRUNCATE, time)
+
+	PR_VALUE_SYSCALL_FALLOCATE,
+#define syscall_fallocate_count __profile_stats_value(PR_VALUE_SYSCALL_FALLOCATE, count)
+#define syscall_fallocate_time __profile_stats_value(PR_VALUE_SYSCALL_FALLOCATE, time)
 
 	PR_VALUE_SYSCALL_FCNTL_LOCK,
 #define syscall_fcntl_lock_count __profile_stats_value(PR_VALUE_SYSCALL_FCNTL_LOCK, count)
@@ -894,33 +902,15 @@ extern bool do_profile_times;
 #define DEC_PROFILE_COUNT(x) profile_p->x--
 #define ADD_PROFILE_COUNT(x,y) profile_p->x += (y)
 
-#if defined(HAVE_CLOCK_GETTIME)
-
-extern clockid_t __profile_clock;
-
 static inline uint64_t profile_timestamp(void)
 {
 	struct timespec ts;
 
-	/* FIXME: On a single-CPU system, or a system where we have bound
-	 * daemon threads to single CPUs (eg. using cpusets or processor
-	 * affinity), it might be preferable to use CLOCK_PROCESS_CPUTIME_ID.
-	 */
-
-	clock_gettime(__profile_clock, &ts);
+	/* we might prefer to use the _COARSE clock variant of CLOCK_MONOTONIC
+	   that one is faster but cached and "just" tick-wise precise */
+	clock_gettime_mono(&ts);
 	return (ts.tv_sec * 1000000) + (ts.tv_nsec / 1000); /* usec */
 }
-
-#else
-
-static inline uint64_t profile_timestamp(void)
-{
-	struct timeval tv;
-	GetTimeOfDay(&tv);
-	return (tv.tv_sec * 1000000) + tv.tv_usec;
-}
-
-#endif
 
 /* end of helper macros */
 

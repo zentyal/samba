@@ -39,10 +39,6 @@ static const struct winbindd_child_dispatch_table domain_dispatch_table[] = {
 		.struct_cmd	= WINBINDD_INIT_CONNECTION,
 		.struct_fn	= winbindd_dual_init_connection,
 	},{
-		.name		= "SHOW_SEQUENCE",
-		.struct_cmd	= WINBINDD_SHOW_SEQUENCE,
-		.struct_fn	= winbindd_dual_show_sequence,
-	},{
 		.name		= "PAM_AUTH",
 		.struct_cmd	= WINBINDD_PAM_AUTH,
 		.struct_fn	= winbindd_dual_pam_auth,
@@ -73,6 +69,12 @@ static const struct winbindd_child_dispatch_table domain_dispatch_table[] = {
 
 void setup_domain_child(struct winbindd_domain *domain)
 {
-	setup_child(domain, &domain->child, domain_dispatch_table,
-		    "log.wb", domain->name);
+	int i;
+
+        for (i=0; i<lp_winbind_max_domain_connections(); i++) {
+                setup_child(domain, &domain->children[i],
+			    domain_dispatch_table,
+                            "log.wb", domain->name);
+		domain->children[i].domain = domain;
+	}
 }

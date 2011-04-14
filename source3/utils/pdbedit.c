@@ -21,6 +21,10 @@
 */
 
 #include "includes.h"
+#include "popt_common.h"
+#include "../librpc/gen_ndr/samr.h"
+#include "../libcli/security/security.h"
+#include "passdb.h"
 
 #define BIT_BACKEND	0x00000004
 #define BIT_VERBOSE	0x00000008
@@ -523,7 +527,7 @@ static int set_user_info(const char *username, const char *fullname,
 		hours_len = pdb_get_hours_len(sam_pwent);
 		memset(hours_array, 0xff, hours_len);
 
-		pdb_set_hours(sam_pwent, hours_array, PDB_CHANGED);
+		pdb_set_hours(sam_pwent, hours_array, hours_len, PDB_CHANGED);
 	}
 
 	if (!pdb_update_autolock_flag(sam_pwent, &updated_autolock)) {
@@ -1055,7 +1059,7 @@ int main (int argc, char **argv)
 
 	load_case_tables();
 
-	setup_logging("pdbedit", True);
+	setup_logging("pdbedit", DEBUG_STDOUT);
 
 	pc = poptGetContext(NULL, argc, (const char **) argv, long_options,
 			    POPT_CONTEXT_KEEP_FIRST);

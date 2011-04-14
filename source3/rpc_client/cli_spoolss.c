@@ -23,8 +23,9 @@
 */
 
 #include "includes.h"
-#include "../librpc/gen_ndr/cli_spoolss.h"
+#include "../librpc/gen_ndr/ndr_spoolss_c.h"
 #include "rpc_client/cli_spoolss.h"
+#include "ntdomain.h"
 
 /**********************************************************************
  convencience wrapper around rpccli_spoolss_OpenPrinterEx
@@ -41,6 +42,7 @@ WERROR rpccli_spoolss_openprinter_ex(struct rpc_pipe_client *cli,
 	struct spoolss_DevmodeContainer devmode_ctr;
 	union spoolss_UserLevel userlevel;
 	struct spoolss_UserLevel1 level1;
+	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	ZERO_STRUCT(devmode_ctr);
 
@@ -55,7 +57,7 @@ WERROR rpccli_spoolss_openprinter_ex(struct rpc_pipe_client *cli,
 
 	userlevel.level1 = &level1;
 
-	status = rpccli_spoolss_OpenPrinterEx(cli, mem_ctx,
+	status = dcerpc_spoolss_OpenPrinterEx(b, mem_ctx,
 					      printername,
 					      NULL,
 					      devmode_ctr,
@@ -65,12 +67,12 @@ WERROR rpccli_spoolss_openprinter_ex(struct rpc_pipe_client *cli,
 					      handle,
 					      &werror);
 
-	if (!W_ERROR_IS_OK(werror)) {
-		return werror;
-	}
-
 	if (!NT_STATUS_IS_OK(status)) {
 		return ntstatus_to_werror(status);
+	}
+
+	if (!W_ERROR_IS_OK(werror)) {
+		return werror;
 	}
 
 	return WERR_OK;
@@ -92,13 +94,14 @@ WERROR rpccli_spoolss_getprinterdriver(struct rpc_pipe_client *cli,
 	WERROR werror;
 	uint32_t needed;
 	DATA_BLOB buffer;
+	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	if (offered > 0) {
 		buffer = data_blob_talloc_zero(mem_ctx, offered);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 	}
 
-	status = rpccli_spoolss_GetPrinterDriver(cli, mem_ctx,
+	status = dcerpc_spoolss_GetPrinterDriver(b, mem_ctx,
 						 handle,
 						 architecture,
 						 level,
@@ -107,12 +110,15 @@ WERROR rpccli_spoolss_getprinterdriver(struct rpc_pipe_client *cli,
 						 info,
 						 &needed,
 						 &werror);
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
+	}
 	if (W_ERROR_EQUAL(werror, WERR_INSUFFICIENT_BUFFER)) {
 		offered = needed;
 		buffer = data_blob_talloc_zero(mem_ctx, needed);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 
-		status = rpccli_spoolss_GetPrinterDriver(cli, mem_ctx,
+		status = dcerpc_spoolss_GetPrinterDriver(b, mem_ctx,
 							 handle,
 							 architecture,
 							 level,
@@ -121,6 +127,9 @@ WERROR rpccli_spoolss_getprinterdriver(struct rpc_pipe_client *cli,
 							 info,
 							 &needed,
 							 &werror);
+	}
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
 	}
 
 	return werror;
@@ -146,13 +155,14 @@ WERROR rpccli_spoolss_getprinterdriver2(struct rpc_pipe_client *cli,
 	WERROR werror;
 	uint32_t needed;
 	DATA_BLOB buffer;
+	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	if (offered > 0) {
 		buffer = data_blob_talloc_zero(mem_ctx, offered);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 	}
 
-	status = rpccli_spoolss_GetPrinterDriver2(cli, mem_ctx,
+	status = dcerpc_spoolss_GetPrinterDriver2(b, mem_ctx,
 						  handle,
 						  architecture,
 						  level,
@@ -165,12 +175,16 @@ WERROR rpccli_spoolss_getprinterdriver2(struct rpc_pipe_client *cli,
 						  server_major_version,
 						  server_minor_version,
 						  &werror);
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
+	}
+
 	if (W_ERROR_EQUAL(werror, WERR_INSUFFICIENT_BUFFER)) {
 		offered = needed;
 		buffer = data_blob_talloc_zero(mem_ctx, needed);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 
-		status = rpccli_spoolss_GetPrinterDriver2(cli, mem_ctx,
+		status = dcerpc_spoolss_GetPrinterDriver2(b, mem_ctx,
 							  handle,
 							  architecture,
 							  level,
@@ -183,6 +197,9 @@ WERROR rpccli_spoolss_getprinterdriver2(struct rpc_pipe_client *cli,
 							  server_major_version,
 							  server_minor_version,
 							  &werror);
+	}
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
 	}
 
 	return werror;
@@ -203,6 +220,7 @@ WERROR rpccli_spoolss_addprinterex(struct rpc_pipe_client *cli,
 	struct spoolss_UserLevelCtr userlevel_ctr;
 	struct spoolss_UserLevel1 level1;
 	struct policy_handle handle;
+	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	ZERO_STRUCT(devmode_ctr);
 	ZERO_STRUCT(secdesc_ctr);
@@ -219,7 +237,7 @@ WERROR rpccli_spoolss_addprinterex(struct rpc_pipe_client *cli,
 	userlevel_ctr.level = 1;
 	userlevel_ctr.user_info.level1 = &level1;
 
-	status = rpccli_spoolss_AddPrinterEx(cli, mem_ctx,
+	status = dcerpc_spoolss_AddPrinterEx(b, mem_ctx,
 					     cli->srv_name_slash,
 					     info_ctr,
 					     &devmode_ctr,
@@ -227,6 +245,10 @@ WERROR rpccli_spoolss_addprinterex(struct rpc_pipe_client *cli,
 					     &userlevel_ctr,
 					     &handle,
 					     &result);
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
+	}
+
 	return result;
 }
 
@@ -245,13 +267,14 @@ WERROR rpccli_spoolss_getprinter(struct rpc_pipe_client *cli,
 	WERROR werror;
 	DATA_BLOB buffer;
 	uint32_t needed;
+	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	if (offered > 0) {
 		buffer = data_blob_talloc_zero(mem_ctx, offered);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 	}
 
-	status = rpccli_spoolss_GetPrinter(cli, mem_ctx,
+	status = dcerpc_spoolss_GetPrinter(b, mem_ctx,
 					   handle,
 					   level,
 					   (offered > 0) ? &buffer : NULL,
@@ -259,6 +282,9 @@ WERROR rpccli_spoolss_getprinter(struct rpc_pipe_client *cli,
 					   info,
 					   &needed,
 					   &werror);
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
+	}
 
 	if (W_ERROR_EQUAL(werror, WERR_INSUFFICIENT_BUFFER)) {
 
@@ -266,7 +292,7 @@ WERROR rpccli_spoolss_getprinter(struct rpc_pipe_client *cli,
 		buffer = data_blob_talloc_zero(mem_ctx, offered);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 
-		status = rpccli_spoolss_GetPrinter(cli, mem_ctx,
+		status = dcerpc_spoolss_GetPrinter(b, mem_ctx,
 						   handle,
 						   level,
 						   &buffer,
@@ -274,6 +300,9 @@ WERROR rpccli_spoolss_getprinter(struct rpc_pipe_client *cli,
 						   info,
 						   &needed,
 						   &werror);
+	}
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
 	}
 
 	return werror;
@@ -295,13 +324,14 @@ WERROR rpccli_spoolss_getjob(struct rpc_pipe_client *cli,
 	WERROR werror;
 	uint32_t needed;
 	DATA_BLOB buffer;
+	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	if (offered > 0) {
 		buffer = data_blob_talloc_zero(mem_ctx, offered);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 	}
 
-	status = rpccli_spoolss_GetJob(cli, mem_ctx,
+	status = dcerpc_spoolss_GetJob(b, mem_ctx,
 				       handle,
 				       job_id,
 				       level,
@@ -310,13 +340,16 @@ WERROR rpccli_spoolss_getjob(struct rpc_pipe_client *cli,
 				       info,
 				       &needed,
 				       &werror);
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
+	}
 
 	if (W_ERROR_EQUAL(werror, WERR_INSUFFICIENT_BUFFER)) {
 		offered = needed;
 		buffer = data_blob_talloc_zero(mem_ctx, needed);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 
-		status = rpccli_spoolss_GetJob(cli, mem_ctx,
+		status = dcerpc_spoolss_GetJob(b, mem_ctx,
 					       handle,
 					       job_id,
 					       level,
@@ -325,6 +358,9 @@ WERROR rpccli_spoolss_getjob(struct rpc_pipe_client *cli,
 					       info,
 					       &needed,
 					       &werror);
+	}
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
 	}
 
 	return werror;
@@ -346,13 +382,14 @@ WERROR rpccli_spoolss_enumforms(struct rpc_pipe_client *cli,
 	WERROR werror;
 	uint32_t needed;
 	DATA_BLOB buffer;
+	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	if (offered > 0) {
 		buffer = data_blob_talloc_zero(mem_ctx, offered);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 	}
 
-	status = rpccli_spoolss_EnumForms(cli, mem_ctx,
+	status = dcerpc_spoolss_EnumForms(b, mem_ctx,
 					  handle,
 					  level,
 					  (offered > 0) ? &buffer : NULL,
@@ -361,13 +398,16 @@ WERROR rpccli_spoolss_enumforms(struct rpc_pipe_client *cli,
 					  info,
 					  &needed,
 					  &werror);
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
+	}
 
 	if (W_ERROR_EQUAL(werror, WERR_INSUFFICIENT_BUFFER)) {
 		offered = needed;
 		buffer = data_blob_talloc_zero(mem_ctx, needed);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 
-		status = rpccli_spoolss_EnumForms(cli, mem_ctx,
+		status = dcerpc_spoolss_EnumForms(b, mem_ctx,
 						  handle,
 						  level,
 						  (offered > 0) ? &buffer : NULL,
@@ -376,6 +416,9 @@ WERROR rpccli_spoolss_enumforms(struct rpc_pipe_client *cli,
 						  info,
 						  &needed,
 						  &werror);
+	}
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
 	}
 
 	return werror;
@@ -398,13 +441,14 @@ WERROR rpccli_spoolss_enumprintprocessors(struct rpc_pipe_client *cli,
 	WERROR werror;
 	uint32_t needed;
 	DATA_BLOB buffer;
+	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	if (offered > 0) {
 		buffer = data_blob_talloc_zero(mem_ctx, offered);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 	}
 
-	status = rpccli_spoolss_EnumPrintProcessors(cli, mem_ctx,
+	status = dcerpc_spoolss_EnumPrintProcessors(b, mem_ctx,
 						    servername,
 						    environment,
 						    level,
@@ -414,13 +458,16 @@ WERROR rpccli_spoolss_enumprintprocessors(struct rpc_pipe_client *cli,
 						    info,
 						    &needed,
 						    &werror);
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
+	}
 
 	if (W_ERROR_EQUAL(werror, WERR_INSUFFICIENT_BUFFER)) {
 		offered = needed;
 		buffer = data_blob_talloc_zero(mem_ctx, needed);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 
-		status = rpccli_spoolss_EnumPrintProcessors(cli, mem_ctx,
+		status = dcerpc_spoolss_EnumPrintProcessors(b, mem_ctx,
 							    servername,
 							    environment,
 							    level,
@@ -430,6 +477,9 @@ WERROR rpccli_spoolss_enumprintprocessors(struct rpc_pipe_client *cli,
 							    info,
 							    &needed,
 							    &werror);
+	}
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
 	}
 
 	return werror;
@@ -452,13 +502,14 @@ WERROR rpccli_spoolss_enumprintprocessordatatypes(struct rpc_pipe_client *cli,
 	WERROR werror;
 	uint32_t needed;
 	DATA_BLOB buffer;
+	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	if (offered > 0) {
 		buffer = data_blob_talloc_zero(mem_ctx, offered);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 	}
 
-	status = rpccli_spoolss_EnumPrintProcDataTypes(cli, mem_ctx,
+	status = dcerpc_spoolss_EnumPrintProcDataTypes(b, mem_ctx,
 						       servername,
 						       print_processor_name,
 						       level,
@@ -468,13 +519,16 @@ WERROR rpccli_spoolss_enumprintprocessordatatypes(struct rpc_pipe_client *cli,
 						       info,
 						       &needed,
 						       &werror);
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
+	}
 
 	if (W_ERROR_EQUAL(werror, WERR_INSUFFICIENT_BUFFER)) {
 		offered = needed;
 		buffer = data_blob_talloc_zero(mem_ctx, needed);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 
-		status = rpccli_spoolss_EnumPrintProcDataTypes(cli, mem_ctx,
+		status = dcerpc_spoolss_EnumPrintProcDataTypes(b, mem_ctx,
 							       servername,
 							       print_processor_name,
 							       level,
@@ -484,6 +538,9 @@ WERROR rpccli_spoolss_enumprintprocessordatatypes(struct rpc_pipe_client *cli,
 							       info,
 							       &needed,
 							       &werror);
+	}
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
 	}
 
 	return werror;
@@ -505,13 +562,14 @@ WERROR rpccli_spoolss_enumports(struct rpc_pipe_client *cli,
 	WERROR werror;
 	uint32_t needed;
 	DATA_BLOB buffer;
+	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	if (offered > 0) {
 		buffer = data_blob_talloc_zero(mem_ctx, offered);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 	}
 
-	status = rpccli_spoolss_EnumPorts(cli, mem_ctx,
+	status = dcerpc_spoolss_EnumPorts(b, mem_ctx,
 					  servername,
 					  level,
 					  (offered > 0) ? &buffer : NULL,
@@ -520,13 +578,16 @@ WERROR rpccli_spoolss_enumports(struct rpc_pipe_client *cli,
 					  info,
 					  &needed,
 					  &werror);
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
+	}
 
 	if (W_ERROR_EQUAL(werror, WERR_INSUFFICIENT_BUFFER)) {
 		offered = needed;
 		buffer = data_blob_talloc_zero(mem_ctx, needed);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 
-		status = rpccli_spoolss_EnumPorts(cli, mem_ctx,
+		status = dcerpc_spoolss_EnumPorts(b, mem_ctx,
 						  servername,
 						  level,
 						  (offered > 0) ? &buffer : NULL,
@@ -535,6 +596,9 @@ WERROR rpccli_spoolss_enumports(struct rpc_pipe_client *cli,
 						  info,
 						  &needed,
 						  &werror);
+	}
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
 	}
 
 	return werror;
@@ -556,13 +620,14 @@ WERROR rpccli_spoolss_enummonitors(struct rpc_pipe_client *cli,
 	WERROR werror;
 	uint32_t needed;
 	DATA_BLOB buffer;
+	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	if (offered > 0) {
 		buffer = data_blob_talloc_zero(mem_ctx, offered);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 	}
 
-	status = rpccli_spoolss_EnumMonitors(cli, mem_ctx,
+	status = dcerpc_spoolss_EnumMonitors(b, mem_ctx,
 					     servername,
 					     level,
 					     (offered > 0) ? &buffer : NULL,
@@ -571,13 +636,16 @@ WERROR rpccli_spoolss_enummonitors(struct rpc_pipe_client *cli,
 					     info,
 					     &needed,
 					     &werror);
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
+	}
 
 	if (W_ERROR_EQUAL(werror, WERR_INSUFFICIENT_BUFFER)) {
 		offered = needed;
 		buffer = data_blob_talloc_zero(mem_ctx, needed);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 
-		status = rpccli_spoolss_EnumMonitors(cli, mem_ctx,
+		status = dcerpc_spoolss_EnumMonitors(b, mem_ctx,
 						     servername,
 						     level,
 						     (offered > 0) ? &buffer : NULL,
@@ -586,6 +654,9 @@ WERROR rpccli_spoolss_enummonitors(struct rpc_pipe_client *cli,
 						     info,
 						     &needed,
 						     &werror);
+	}
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
 	}
 
 	return werror;
@@ -609,13 +680,14 @@ WERROR rpccli_spoolss_enumjobs(struct rpc_pipe_client *cli,
 	WERROR werror;
 	uint32_t needed;
 	DATA_BLOB buffer;
+	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	if (offered > 0) {
 		buffer = data_blob_talloc_zero(mem_ctx, offered);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 	}
 
-	status = rpccli_spoolss_EnumJobs(cli, mem_ctx,
+	status = dcerpc_spoolss_EnumJobs(b, mem_ctx,
 					 handle,
 					 firstjob,
 					 numjobs,
@@ -626,13 +698,16 @@ WERROR rpccli_spoolss_enumjobs(struct rpc_pipe_client *cli,
 					 info,
 					 &needed,
 					 &werror);
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
+	}
 
 	if (W_ERROR_EQUAL(werror, WERR_INSUFFICIENT_BUFFER)) {
 		offered = needed;
 		buffer = data_blob_talloc_zero(mem_ctx, needed);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 
-		status = rpccli_spoolss_EnumJobs(cli, mem_ctx,
+		status = dcerpc_spoolss_EnumJobs(b, mem_ctx,
 						 handle,
 						 firstjob,
 						 numjobs,
@@ -643,6 +718,9 @@ WERROR rpccli_spoolss_enumjobs(struct rpc_pipe_client *cli,
 						 info,
 						 &needed,
 						 &werror);
+	}
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
 	}
 
 	return werror;
@@ -665,13 +743,14 @@ WERROR rpccli_spoolss_enumprinterdrivers(struct rpc_pipe_client *cli,
 	WERROR werror;
 	uint32_t needed;
 	DATA_BLOB buffer;
+	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	if (offered > 0) {
 		buffer = data_blob_talloc_zero(mem_ctx, offered);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 	}
 
-	status = rpccli_spoolss_EnumPrinterDrivers(cli, mem_ctx,
+	status = dcerpc_spoolss_EnumPrinterDrivers(b, mem_ctx,
 						   server,
 						   environment,
 						   level,
@@ -681,13 +760,16 @@ WERROR rpccli_spoolss_enumprinterdrivers(struct rpc_pipe_client *cli,
 						   info,
 						   &needed,
 						   &werror);
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
+	}
 
 	if (W_ERROR_EQUAL(werror, WERR_INSUFFICIENT_BUFFER)) {
 		offered = needed;
 		buffer = data_blob_talloc_zero(mem_ctx, needed);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 
-		status = rpccli_spoolss_EnumPrinterDrivers(cli, mem_ctx,
+		status = dcerpc_spoolss_EnumPrinterDrivers(b, mem_ctx,
 						   server,
 						   environment,
 						   level,
@@ -697,6 +779,9 @@ WERROR rpccli_spoolss_enumprinterdrivers(struct rpc_pipe_client *cli,
 						   info,
 						   &needed,
 						   &werror);
+	}
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
 	}
 
 	return werror;
@@ -719,13 +804,14 @@ WERROR rpccli_spoolss_enumprinters(struct rpc_pipe_client *cli,
 	WERROR werror;
 	uint32_t needed;
 	DATA_BLOB buffer;
+	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	if (offered > 0) {
 		buffer = data_blob_talloc_zero(mem_ctx, offered);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 	}
 
-	status = rpccli_spoolss_EnumPrinters(cli, mem_ctx,
+	status = dcerpc_spoolss_EnumPrinters(b, mem_ctx,
 					     flags,
 					     server,
 					     level,
@@ -735,13 +821,16 @@ WERROR rpccli_spoolss_enumprinters(struct rpc_pipe_client *cli,
 					     info,
 					     &needed,
 					     &werror);
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
+	}
 
 	if (W_ERROR_EQUAL(werror, WERR_INSUFFICIENT_BUFFER)) {
 		offered = needed;
 		buffer = data_blob_talloc_zero(mem_ctx, needed);
 		W_ERROR_HAVE_NO_MEMORY(buffer.data);
 
-		status = rpccli_spoolss_EnumPrinters(cli, mem_ctx,
+		status = dcerpc_spoolss_EnumPrinters(b, mem_ctx,
 						     flags,
 						     server,
 						     level,
@@ -751,6 +840,9 @@ WERROR rpccli_spoolss_enumprinters(struct rpc_pipe_client *cli,
 						     info,
 						     &needed,
 						     &werror);
+	}
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
 	}
 
 	return werror;
@@ -773,11 +865,12 @@ WERROR rpccli_spoolss_getprinterdata(struct rpc_pipe_client *cli,
 	WERROR werror;
 	uint32_t needed;
 	uint8_t *data;
+	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	data = talloc_zero_array(mem_ctx, uint8_t, offered);
 	W_ERROR_HAVE_NO_MEMORY(data);
 
-	status = rpccli_spoolss_GetPrinterData(cli, mem_ctx,
+	status = dcerpc_spoolss_GetPrinterData(b, mem_ctx,
 					       handle,
 					       value_name,
 					       type,
@@ -785,13 +878,16 @@ WERROR rpccli_spoolss_getprinterdata(struct rpc_pipe_client *cli,
 					       offered,
 					       &needed,
 					       &werror);
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
+	}
 
 	if (W_ERROR_EQUAL(werror, WERR_MORE_DATA)) {
 		offered = needed;
 		data = talloc_zero_array(mem_ctx, uint8_t, offered);
 		W_ERROR_HAVE_NO_MEMORY(data);
 
-		status = rpccli_spoolss_GetPrinterData(cli, mem_ctx,
+		status = dcerpc_spoolss_GetPrinterData(b, mem_ctx,
 						       handle,
 						       value_name,
 						       type,
@@ -799,6 +895,9 @@ WERROR rpccli_spoolss_getprinterdata(struct rpc_pipe_client *cli,
 						       offered,
 						       &needed,
 						       &werror);
+	}
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
 	}
 
 	*data_p = data;
@@ -823,8 +922,9 @@ WERROR rpccli_spoolss_enumprinterkey(struct rpc_pipe_client *cli,
 	uint32_t needed;
 	union spoolss_KeyNames _key_buffer;
 	uint32_t _ndr_size;
+	struct dcerpc_binding_handle *b = cli->binding_handle;
 
-	status = rpccli_spoolss_EnumPrinterKey(cli, mem_ctx,
+	status = dcerpc_spoolss_EnumPrinterKey(b, mem_ctx,
 					       handle,
 					       key_name,
 					       &_ndr_size,
@@ -832,10 +932,13 @@ WERROR rpccli_spoolss_enumprinterkey(struct rpc_pipe_client *cli,
 					       offered,
 					       &needed,
 					       &werror);
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
+	}
 
 	if (W_ERROR_EQUAL(werror, WERR_MORE_DATA)) {
 		offered = needed;
-		status = rpccli_spoolss_EnumPrinterKey(cli, mem_ctx,
+		status = dcerpc_spoolss_EnumPrinterKey(b, mem_ctx,
 						       handle,
 						       key_name,
 						       &_ndr_size,
@@ -843,6 +946,9 @@ WERROR rpccli_spoolss_enumprinterkey(struct rpc_pipe_client *cli,
 						       offered,
 						       &needed,
 						       &werror);
+	}
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
 	}
 
 	*key_buffer = _key_buffer.string_array;
@@ -865,8 +971,9 @@ WERROR rpccli_spoolss_enumprinterdataex(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 	WERROR werror;
 	uint32_t needed;
+	struct dcerpc_binding_handle *b = cli->binding_handle;
 
-	status = rpccli_spoolss_EnumPrinterDataEx(cli, mem_ctx,
+	status = dcerpc_spoolss_EnumPrinterDataEx(b, mem_ctx,
 						  handle,
 						  key_name,
 						  offered,
@@ -874,11 +981,14 @@ WERROR rpccli_spoolss_enumprinterdataex(struct rpc_pipe_client *cli,
 						  info,
 						  &needed,
 						  &werror);
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
+	}
 
 	if (W_ERROR_EQUAL(werror, WERR_MORE_DATA)) {
 		offered = needed;
 
-		status = rpccli_spoolss_EnumPrinterDataEx(cli, mem_ctx,
+		status = dcerpc_spoolss_EnumPrinterDataEx(b, mem_ctx,
 							  handle,
 							  key_name,
 							  offered,
@@ -886,6 +996,9 @@ WERROR rpccli_spoolss_enumprinterdataex(struct rpc_pipe_client *cli,
 							  info,
 							  &needed,
 							  &werror);
+	}
+	if (!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
 	}
 
 	return werror;

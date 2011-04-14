@@ -105,7 +105,9 @@ const struct unix_error_map unix_dos_nt_errmap[] = {
 #ifdef ECANCELED
 	{ ECANCELED, ERRDOS, ERRbadfid, NT_STATUS_CANCELLED},
 #endif
-
+#ifdef ENOTSUP
+        { ENOTSUP, ERRSRV, ERRnosupport, NT_STATUS_NOT_SUPPORTED},
+#endif
 	{ 0, 0, 0, NT_STATUS_OK }
 };
 
@@ -137,6 +139,12 @@ NTSTATUS map_nt_error_from_unix(int unix_error)
 
 	/* Default return */
 	return NT_STATUS_ACCESS_DENIED;
+}
+
+/* Convert a Unix error code to a WERROR. */
+WERROR unix_to_werror(int unix_error)
+{
+	return ntstatus_to_werror(map_nt_error_from_unix(unix_error));
 }
 
 /* Return a UNIX errno from a NT status code */

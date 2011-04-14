@@ -28,7 +28,8 @@
 
 #include "mech_locl.h"
 
-OM_uint32 gss_duplicate_name(OM_uint32 *minor_status,
+GSSAPI_LIB_FUNCTION OM_uint32 GSSAPI_LIB_CALL
+gss_duplicate_name(OM_uint32 *minor_status,
     const gss_name_t src_name,
     gss_name_t *dest_name)
 {
@@ -52,7 +53,7 @@ OM_uint32 gss_duplicate_name(OM_uint32 *minor_status,
 			return (major_status);
 		new_name = (struct _gss_name *) *dest_name;
 		
-		SLIST_FOREACH(mn, &name->gn_mn, gmn_link) {
+		HEIM_SLIST_FOREACH(mn, &name->gn_mn, gmn_link) {
 		    struct _gss_mechanism_name *mn2;
 		    _gss_find_mn(minor_status, new_name,
 				 mn->gmn_mech_oid, &mn2);
@@ -64,10 +65,10 @@ OM_uint32 gss_duplicate_name(OM_uint32 *minor_status,
 			return (GSS_S_FAILURE);
 		}
 		memset(new_name, 0, sizeof(struct _gss_name));
-		SLIST_INIT(&new_name->gn_mn);
+		HEIM_SLIST_INIT(&new_name->gn_mn);
 		*dest_name = (gss_name_t) new_name;
 		
-		SLIST_FOREACH(mn, &name->gn_mn, gmn_link) {
+		HEIM_SLIST_FOREACH(mn, &name->gn_mn, gmn_link) {
 			struct _gss_mechanism_name *new_mn;
 			
 			new_mn = malloc(sizeof(*new_mn));
@@ -85,7 +86,7 @@ OM_uint32 gss_duplicate_name(OM_uint32 *minor_status,
 				free(new_mn);
 				continue;
 			}
-			SLIST_INSERT_HEAD(&new_name->gn_mn, new_mn, gmn_link);
+			HEIM_SLIST_INSERT_HEAD(&new_name->gn_mn, new_mn, gmn_link);
 		}
 
 	}

@@ -766,7 +766,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 	} spoolss_PrinterAttributes;
 
 	typedef [public,gensize] struct {
-		spoolss_PrinterAttributes flags;
+		spoolss_EnumPrinterFlags flags;
 		[relative] nstring *description;
 		[relative] nstring *name;
 		[relative] nstring *comment;
@@ -1560,7 +1560,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		spoolss_DriverOSVersion version;
 		[relative] nstring *driver_name;
 		[relative] nstring *architecture;
-		[relative] [size_is(file_count)] spoolss_DriverFileInfo *file_info;
+		[relative,size_is(file_count),flag(NDR_ALIGN4)] spoolss_DriverFileInfo *file_info;
 		uint32 file_count;
 		[relative] nstring *monitor_name;
 		[relative] nstring *default_datatype;
@@ -1925,7 +1925,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 	const string SPOOL_REG_URL			= "url";
 	const string SPOOL_REG_VERSIONNUMBER		= "versionNumber";
 
-	WERROR spoolss_GetPrinterData(
+	[public] WERROR spoolss_GetPrinterData(
 		[in,ref] policy_handle *handle,
 		[in] 	 [string,charset(UTF16)] uint16 value_name[],
 		[out,ref] winreg_Type *type,
@@ -2233,6 +2233,42 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 
 	/******************/
 	/* Function: 0x25 */
+
+	typedef [public,gensize] struct {
+		[string,charset(UTF16)] uint16 *port_name;
+	} spoolss_SetPortInfo1;
+
+	typedef [public,gensize] struct {
+		[string,charset(UTF16)] uint16 *port_name;
+		[string,charset(UTF16)] uint16 *monitor_name;
+		[string,charset(UTF16)] uint16 *description;
+		spoolss_PortType port_type;
+		uint32 reserved;
+	} spoolss_SetPortInfo2;
+
+	typedef [public,gensize] struct {
+		spoolss_PortStatus status;
+		[string,charset(UTF16)] uint16 *status_string;
+		spoolss_PortSeverity severity;
+	} spoolss_SetPortInfo3;
+
+	typedef [public,gensize] struct {
+		[string,charset(UTF16)] uint16 *port_name;
+		DATA_BLOB monitor_data; /* relative ?? */
+	} spoolss_SetPortInfoFF;
+
+	typedef [switch_type(uint32)] union {
+		[case(1)] spoolss_SetPortInfo1 *info1;
+		[case(2)] spoolss_SetPortInfo2 *info2;
+		[case(3)] spoolss_SetPortInfo3 *info3;
+		[case(0xff)] spoolss_SetPortInfoFF *infoFF;
+	} spoolss_SetPortInfo;
+
+	typedef struct {
+		uint32 level;
+		[switch_is(level)] spoolss_SetPrinterInfo info;
+	} spoolss_SetPortInfoContainer;
+
 	WERROR spoolss_AddPort(
 	       [in,unique] [string,charset(UTF16)] uint16 *server_name,
 	       [in] uint32 unknown,
@@ -2246,7 +2282,10 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 
 	/******************/
 	/* Function: 0x27 */
-	[todo] WERROR spoolss_DeletePort(
+	WERROR spoolss_DeletePort(
+	       [in,unique] [string,charset(UTF16)] uint16 *server_name,
+	       [in] uint32 ptr,
+	       [in,ref] [string,charset(UTF16)] uint16 *port_name
 	);
 
 	/******************/
@@ -2358,7 +2397,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 
 	/******************/
 	/* Function: 0x35 */
-	WERROR spoolss_GetPrinterDriver2(
+	[public] WERROR spoolss_GetPrinterDriver2(
 		[in,ref] policy_handle *handle,
 		[in,unique] [string,charset(UTF16)] uint16 *architecture,
 		[in] 	 uint32 level,
@@ -2470,7 +2509,17 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 
 	/******************/
 	/* Function: 0x3d */
-	[todo] WERROR spoolss_AddPortEx(
+
+	typedef struct {
+		uint32 monitor_data_size;
+		[size_is(monitor_data_size),unique] uint8 *monitor_data;
+	} spoolss_PortVarContainer;
+
+	WERROR spoolss_AddPortEx(
+		[in,unique] [string,charset(UTF16)] uint16 *servername,
+		[in,ref] spoolss_SetPortInfoContainer *port_ctr,
+		[in,ref] spoolss_PortVarContainer *port_var_ctr,
+		[in,unique] [string,charset(UTF16)] uint16 *monitor_name
 	);
 
 	/******************/
@@ -2785,7 +2834,10 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 
 	/******************/
 	/* Function: 0x47 */
-	[todo] WERROR spoolss_47(
+	WERROR spoolss_SetPort(
+		[in,unique] [string,charset(UTF16)] uint16 *servername,
+		[in,unique] [string,charset(UTF16)] uint16 *port_name,
+		[in,ref] spoolss_SetPortInfoContainer *port_ctr
 	);
 
 	/******************/
@@ -2854,8 +2906,8 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		[relative] nstring *value_name;
 		[value(2*strlen_m_term(value_name))] uint32 value_name_len;
 		winreg_Type type;
-		[relative,subcontext(0),subcontext_size(data_length),flag(NDR_REMAINING)] DATA_BLOB *data;
-		[value(data->length)] uint32 data_length;
+		[relative,subcontext(0),subcontext_size(data_length),flag(NDR_REMAINING|ndr_spoolss_PrinterEnumValues_align(r->type))] DATA_BLOB *data;
+		[value(data ? data->length : 0)] uint32 data_length;
 	} spoolss_PrinterEnumValues;
 
 	[public,noopnum,noprint] WERROR _spoolss_EnumPrinterDataEx(
@@ -2934,17 +2986,23 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 
 	/******************/
 	/* Function: 0x55 */
-	[todo] WERROR spoolss_55(
+	WERROR spoolss_AddPerMachineConnection(
+		[in,unique] [string,charset(UTF16)] uint16 *server,
+		[in,ref] [string,charset(UTF16)] uint16 *printername,
+		[in,ref] [string,charset(UTF16)] uint16 *printserver,
+		[in,ref] [string,charset(UTF16)] uint16 *provider
 	);
 
 	/******************/
 	/* Function: 0x56 */
-	[todo] WERROR spoolss_56(
+	WERROR spoolss_DeletePerMachineConnection(
+		[in,unique] [string,charset(UTF16)] uint16 *server,
+		[in,ref] [string,charset(UTF16)] uint16 *printername
 	);
 
 	/******************/
 	/* Function: 0x57 */
-	[todo] WERROR spoolss_57(
+	[todo] WERROR spoolss_EnumPerMachineConnections(
 	);
 
 	/******************/

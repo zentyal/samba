@@ -36,16 +36,18 @@ sys.path.insert(0, "bin/python")
 import ldb
 import samba
 import samba.getopt as options
+
+from base64 import b64encode
 from samba.credentials import DONT_USE_KERBEROS
 from samba.auth import system_session, admin_session
 from ldb import (SCOPE_SUBTREE, SCOPE_BASE,
                 FLAG_MOD_REPLACE, FLAG_MOD_ADD, FLAG_MOD_DELETE,
                 MessageElement, Message, Dn)
-from samba import param
-from samba.provision import (find_setup_dir, get_domain_descriptor,
+from samba import param, dsdb, Ldb
+from samba.provision import (get_domain_descriptor,
                             get_config_descriptor,
                             ProvisioningError, get_last_provision_usn,
-                            get_max_usn, update_provision_usn)
+                            get_max_usn, update_provision_usn, setup_path)
 from samba.schema import get_linked_attributes, Schema, get_schema_descriptor
 from samba.dcerpc import security, drsblobs, xattr
 from samba.ndr import ndr_unpack
@@ -58,6 +60,7 @@ from samba.upgradehelpers import (dn_sort, get_paths, newprovision,
                                  delta_update_basesamdb, update_policyids,
                                  update_machine_account_password,
                                  search_constructed_attrs_stored,
+                                 int64range2str, update_dns_account_password,
                                  increment_calculated_keyversion_number)
 
 replace=2**FLAG_MOD_REPLACE
@@ -85,7 +88,7 @@ hashAttrNotCopied = {   "dn": 1, "whenCreated": 1, "whenChanged": 1,
                         "distinguishedName": 1, "nTMixedDomain": 1,
                         "showInAdvancedViewOnly": 1, "instanceType": 1,
                         "msDS-Behavior-Version":1, "nextRid":1, "cn": 1,
-                        "versionNumber":1, "lmPwdHistory":1, "pwdLastSet": 1,
+                        "lmPwdHistory":1, "pwdLastSet": 1,
                         "ntPwdHistory":1, "unicodePwd":1,"dBCSPwd":1,
                         "supplementalCredentials":1, "gPCUserExtensionNames":1,
                         "gPCMachineExtensionNames":1,"maxPwdAge":1, "secret":1,
@@ -105,10 +108,11 @@ hashOverwrittenAtt = {  "prefixMap": replace, "systemMayContain": replace,
                         "wellKnownObjects":replace, "privilege":never,
                         "defaultSecurityDescriptor": replace,
                         "rIDAvailablePool": never,
+                        "rIDNextRID": add, "rIDUsedPool": never,
                         "defaultSecurityDescriptor": replace + add,
                         "isMemberOfPartialAttributeSet": delete,
-                        "attributeDisplayNames": replace + add}
-
+                        "attributeDisplayNames": replace + add,
+                        "versionNumber": add}
 
 backlinked = []
 forwardlinked = set()
@@ -138,11 +142,11 @@ parser.add_option("--setupdir", type="string", metavar="DIR",
                   help="directory with setup files")
 parser.add_option("--debugprovision", help="Debug provision", action="store_true")
 parser.add_option("--debugguess", action="store_true",
-                  help="Print information on what is different but won't be changed")
+                  help="Print information on which values are guessed")
 parser.add_option("--debugchange", action="store_true",
                   help="Print information on what is different but won't be changed")
 parser.add_option("--debugchangesd", action="store_true",
-                  help="Print information security descriptors differences")
+                  help="Print security descriptor differences")
 parser.add_option("--debugall", action="store_true",
                   help="Print all available information (very verbose)")
 parser.add_option("--resetfileacl", action="store_true",
@@ -178,9 +182,6 @@ smbconf = lp.configfile
 
 creds = credopts.get_credentials(lp)
 creds.set_kerberos_state(DONT_USE_KERBEROS)
-setup_dir = opts.setupdir
-if setup_dir is None:
-    setup_dir = find_setup_dir()
 
 
 
@@ -193,6 +194,7 @@ def check_for_DNS(refprivate, private):
                     provision"""
 
     spnfile = "%s/spn_update_list" % private
+    dnsfile = "%s/dns_update_list" % private
     namedfile = lp.get("dnsupdate:path")
 
     if not namedfile:
@@ -200,6 +202,9 @@ def check_for_DNS(refprivate, private):
 
     if not os.path.exists(spnfile):
         shutil.copy("%s/spn_update_list" % refprivate, "%s" % spnfile)
+
+    if not os.path.exists(dnsfile):
+        shutil.copy("%s/dns_update_list" % refprivate, "%s" % dnsfile)
 
     destdir = "%s/new_dns" % private
     dnsdir = "%s/dns" % private
@@ -211,11 +216,11 @@ def check_for_DNS(refprivate, private):
             os.mkdir(dnsdir)
         shutil.copy("%s/named.conf" % refprivate, "%s/named.conf" % destdir)
         shutil.copy("%s/named.txt" % refprivate, "%s/named.txt" % destdir)
-        message(SIMPLE, "It seems that you provision didn't integrate new rules "
-                "for dynamic dns update of domain related entries")
+        message(SIMPLE, "It seems that your provision did not integrate "
+                "new rules for dynamic dns update of domain related entries")
         message(SIMPLE, "A copy of the new bind configuration files and "
-                "template as been put in %s, you should read them and configure dynamic "
-                " dns update" % destdir)
+                "template has been put in %s, you should read them and "
+                "configure dynamic dns updates" % destdir)
 
 
 def populate_links(samdb, schemadn):
@@ -255,12 +260,13 @@ def sanitychecks(samdb, names):
                          scope=SCOPE_SUBTREE, attrs=["dn"],
                          controls=["search_options:1:2"])
     if len(res) == 0:
-        print "No DC found, your provision is most probably hardly broken !"
+        print "No DC found. Your provision is most probably broken!"
         return False
     elif len(res) != 1:
-        print "Found %d domain controllers, for the moment upgradeprovision" \
-              "is not able to handle upgrade on domain with more than one DC, please demote" \
-              " the other(s) DC(s) before upgrading" % len(res)
+        print "Found %d domain controllers. For the moment " \
+              "upgradeprovision is not able to handle an upgrade on a " \
+              "domain with more than one DC. Please demote the other " \
+              "DC(s) before upgrading" % len(res)
         return False
     else:
         return True
@@ -370,7 +376,10 @@ def handle_special_case(att, delta, new, old, usn, basedn, aldb):
         if (str(old[0].dn) == "%s" % (str(names.rootdn))
                 and att == "subRefs" and flag == FLAG_MOD_REPLACE):
             return True
-
+        #Allow to change revision of ForestUpdates objects
+        if (att == "revision" or att == "objectVersion"):
+            if str(delta.dn).lower().find("domainupdates") and str(delta.dn).lower().find("forestupdates") > 0:
+                return True
         if str(delta.dn).endswith("CN=DisplaySpecifiers, %s" % names.configdn):
             return True
 
@@ -398,7 +407,7 @@ def handle_special_case(att, delta, new, old, usn, basedn, aldb):
     return False
 
 def dump_denied_change(dn, att, flagtxt, current, reference):
-    """Print detailed information about why a changed is denied
+    """Print detailed information about why a change is denied
 
     :param dn: DN of the object which attribute is denied
     :param att: Attribute that was supposed to be upgraded
@@ -408,8 +417,14 @@ def dump_denied_change(dn, att, flagtxt, current, reference):
     :param reference: Value(s) of the reference attribute"""
 
     message(CHANGE, "dn= " + str(dn)+" " + att+" with flag " + flagtxt
-                +" is not allowed to be changed/removed, I discard this change")
-    if att != "objectSid" :
+                + " must not be changed/removed. Discarding the change")
+    if att == "objectSid" :
+        message(CHANGE, "old : %s" % ndr_unpack(security.dom_sid, current[0]))
+        message(CHANGE, "new : %s" % ndr_unpack(security.dom_sid, reference[0]))
+    elif att == "rIDPreviousAllocationPool" or att == "rIDAllocationPool":
+        message(CHANGE, "old : %s" % int64range2str(current[0]))
+        message(CHANGE, "new : %s" % int64range2str(reference[0]))
+    else:
         i = 0
         for e in range(0, len(current)):
             message(CHANGE, "old %d : %s" % (i, str(current[e])))
@@ -419,10 +434,6 @@ def dump_denied_change(dn, att, flagtxt, current, reference):
             for e in range(0, len(reference)):
                 message(CHANGE, "new %d : %s" % (i, str(reference[e])))
                 i+=1
-    else:
-        message(CHANGE, "old : %s" % ndr_unpack(security.dom_sid, current[0]))
-        message(CHANGE, "new : %s" % ndr_unpack(security.dom_sid, reference[0]))
-
 
 def handle_special_add(samdb, dn, names):
     """Handle special operation (like remove) on some object needed during
@@ -446,7 +457,6 @@ def handle_special_add(samdb, dn, names):
         #This entry was misplaced lets remove it if it exists
         dntoremove = "CN=Certificate Service DCOM Access,"\
                      "CN=Users, %s" % names.rootdn
-        print dntoremove
 
     objDn = Dn(samdb, "CN=Cryptographic Operators, CN=Builtin, %s" % names.rootdn)
     if dn == objDn:
@@ -469,23 +479,38 @@ def handle_special_add(samdb, dn, names):
                             base=str(names.rootdn),
                             scope=SCOPE_SUBTREE, attrs=["dn"],
                             controls=["search_options:1:2"])
-        if len(res) > 0:
-            message(CHANGE, "Existing object %s must be replaced by %s,"
-                            "Renaming old object" % (str(oldDn), str(dn)))
-            samdb.rename(oldDn, objDn)
 
-        return 1
+        res2 = samdb.search(expression="(dn=%s)" % dn,
+                            base=str(names.rootdn),
+                            scope=SCOPE_SUBTREE, attrs=["dn"],
+                            controls=["search_options:1:2"])
+
+        if len(res) > 0 and len(res2) == 0:
+            message(CHANGE, "Existing object %s must be replaced by %s. "
+                            "Renaming old object" % (str(oldDn), str(dn)))
+            samdb.rename(oldDn, objDn, ["relax:0", "provision:0"])
+
+        return 0
 
     if dntoremove is not None:
+        res = samdb.search(expression="(cn=RID Set)",
+                            base=str(names.rootdn),
+                            scope=SCOPE_SUBTREE, attrs=["dn"],
+                            controls=["search_options:1:2"])
+
+        if len(res) == 0:
+            return 2
         res = samdb.search(expression="(dn=%s)" % dntoremove,
                             base=str(names.rootdn),
                             scope=SCOPE_SUBTREE, attrs=["dn"],
                             controls=["search_options:1:2"])
         if len(res) > 0:
-            message(CHANGE, "Existing object %s must be replaced by %s,"
-                            "removing old object" % (dntoremove, str(dn)))
+            message(CHANGE, "Existing object %s must be replaced by %s. "
+                            "Removing old object" % (dntoremove, str(dn)))
             samdb.delete(res[0]["dn"])
-    return 0
+            return 0
+
+    return 1
 
 
 def check_dn_nottobecreated(hash, index, listdn):
@@ -532,8 +557,15 @@ def add_missing_object(ref_samdb, samdb, dn, names, basedn, hash, index):
     :param index: Current creation order
     :return: True if the object was created False otherwise"""
 
-    if handle_special_add(samdb, dn, names):
-        return
+    ret = handle_special_add(samdb, dn, names)
+
+    if ret == 2:
+        return False
+
+    if ret == 0:
+        return True
+
+
     reference = ref_samdb.search(expression="dn=%s" % (str(dn)), base=basedn,
                     scope=SCOPE_SUBTREE, controls=["search_options:1:2"])
     empty = Message()
@@ -543,7 +575,7 @@ def add_missing_object(ref_samdb, samdb, dn, names, basedn, hash, index):
     try:
         if str(reference[0].get("cn"))  == "RID Set":
             for klass in reference[0].get("objectClass"):
-                if str(klass).lower == "ridset":
+                if str(klass).lower() == "ridset":
                     skip = True
     finally:
         if delta.get("objectSid"):
@@ -560,15 +592,15 @@ def add_missing_object(ref_samdb, samdb, dn, names, basedn, hash, index):
             depend_on_yet_tobecreated = check_dn_nottobecreated(hash, index,
                                                                 delta.get(str(att)))
             if depend_on_yet_tobecreated is not None:
-                message(CHANGE, "Object %s depends on %s in attribute %s,"
-                                "delaying the creation" % (dn,
+                message(CHANGE, "Object %s depends on %s in attribute %s. "
+                                "Delaying the creation" % (dn,
                                           depend_on_yet_tobecreated, att))
                 return False
 
         delta.dn = dn
         if not skip:
             message(CHANGE,"Object %s will be added" % dn)
-            samdb.add(delta, ["relax:0"])
+            samdb.add(delta, ["relax:0", "provision:0"])
         else:
             message(CHANGE,"Object %s was skipped" % dn)
 
@@ -602,22 +634,27 @@ def add_deletedobj_containers(ref_samdb, samdb, names):
         ref_delObjCnt = ref_samdb.search(expression="(cn=Deleted Objects)",
                                             base=part, scope=SCOPE_SUBTREE,
                                             attrs=["dn"],
-                                            controls=["show_deleted:0"])
+                                            controls=["show_deleted:0",
+                                                      "show_recycled:0"])
         delObjCnt = samdb.search(expression="(cn=Deleted Objects)",
                                     base=part, scope=SCOPE_SUBTREE,
                                     attrs=["dn"],
-                                    controls=["show_deleted:0"])
+                                    controls=["show_deleted:0",
+                                              "show_recycled:0"])
         if len(ref_delObjCnt) > len(delObjCnt):
             reference = ref_samdb.search(expression="cn=Deleted Objects",
                                             base=part, scope=SCOPE_SUBTREE,
-                                            controls=["show_deleted:0"])
+                                            controls=["show_deleted:0",
+                                                      "show_recycled:0"])
             empty = Message()
             delta = samdb.msg_diff(empty, reference[0])
 
             delta.dn = Dn(samdb, str(reference[0]["dn"]))
             for att in hashAttrNotCopied.keys():
                 delta.remove(att)
-            samdb.add(delta)
+
+            modcontrols = ["relax:0", "provision:0"]
+            samdb.add(delta, modcontrols)
 
             listwko = []
             res = samdb.search(expression="(objectClass=*)", base=part,
@@ -677,8 +714,9 @@ def add_missing_entries(ref_samdb, samdb, names, basedn, list):
                 # DN can't be created because it depends on some
                 # other DN in the list
                 listDefered.append(dn)
+
     if len(listDefered) != 0:
-        raise ProvisioningError("Unable to insert missing elements:" \
+        raise ProvisioningError("Unable to insert missing elements: "
                                 "circular references")
 
 def handle_links(samdb, att, basedn, dn, value, ref_value, delta):
@@ -775,13 +813,13 @@ def update_present(ref_samdb, samdb, basedn, listPresent, usns, invocationid):
              (str(current[0].dn) != str(reference[0].dn)) and
              (str(current[0].dn).upper() == str(reference[0].dn).upper())
            ):
-            message(CHANGE, "Name are the same but case change,"\
-                            "let's rename %s to %s" % (str(current[0].dn),
-                                                       str(reference[0].dn)))
+            message(CHANGE, "Names are the same except for the case. "
+                            "Renaming %s to %s" % (str(current[0].dn),
+                                                   str(reference[0].dn)))
             identic_rename(samdb, reference[0].dn)
             current = samdb.search(expression="dn=%s" % (str(dn)), base=basedn,
                                     scope=SCOPE_SUBTREE,
-                                    controls=["search_options:1:2"])
+                                    controls=controls)
 
         delta = samdb.msg_diff(current[0], reference[0])
 
@@ -815,13 +853,16 @@ def update_present(ref_samdb, samdb, basedn, listPresent, usns, invocationid):
         isFirst = 0
         txt = ""
 
-        for att in delta:
+        for att in list(delta):
             if usns is not None:
                 # We have updated by provision usn information so let's exploit
                 # replMetadataProperties
                 if att in forwardlinked:
+                    curval = current[0].get(att, ())
+                    refval = reference[0].get(att, ())
                     handle_links(samdb, att, basedn, current[0]["dn"],
-                                    current[0][att], reference[0][att], delta)
+                                    curval, refval, delta)
+                    continue
 
                 if isFirst == 0 and len(delta.items())>1:
                     isFirst = 1
@@ -856,21 +897,33 @@ def update_present(ref_samdb, samdb, basedn, listPresent, usns, invocationid):
                 if  attrUSN is None:
                     delta.remove(att)
                     continue
+                if att == "nTSecurityDescriptor":
+                    cursd = ndr_unpack(security.descriptor,
+                        str(current[0]["nTSecurityDescriptor"]))
+                    cursddl = cursd.as_sddl(names.domainsid)
+                    refsd = ndr_unpack(security.descriptor,
+                        str(reference[0]["nTSecurityDescriptor"]))
+                    refsddl = cursd.as_sddl(names.domainsid)
 
+                    if get_diff_sddls(refsddl, cursddl) == "":
+                       message(CHANGE, "sd are identical")
+                    else:
+                       message(CHANGE, "sd are not identical")
                 if attrUSN == -1:
                     # This attribute was last modified by another DC forget
                     # about it
-                    message(CHANGE, "%sAttribute: %s has been"
-                            "created/modified/deleted  by another DC,"
-                            " do nothing" % (txt, att ))
+                    message(CHANGE, "%sAttribute: %s has been "
+                            "created/modified/deleted by another DC. "
+                            "Doing nothing" % (txt, att))
                     txt = ""
                     delta.remove(att)
                     continue
                 elif not usn_in_range(int(attrUSN), usns):
-                    message(CHANGE, "%sAttribute: %s has been"
-                                    "created/modified/deleted not during a"
-                                    " provision or upgradeprovision: current"
-                                    " usn %d , do nothing" % (txt, att, attrUSN))
+                    message(CHANGE, "%sAttribute: %s was not "
+                                    "created/modified/deleted during a "
+                                    "provision or upgradeprovision. Current "
+                                    "usn: %d. Doing nothing" % (txt, att,
+                                                                attrUSN))
                     txt = ""
                     delta.remove(att)
                     continue
@@ -879,13 +932,13 @@ def update_present(ref_samdb, samdb, basedn, listPresent, usns, invocationid):
                         defSDmodified = True
                     if attrUSN:
                         message(CHANGE, "%sAttribute: %s will be modified"
-                                        "/deleted it was last modified"
-                                        "during a provision, current usn:"
-                                        "%d" % (txt, att,  attrUSN))
+                                        "/deleted it was last modified "
+                                        "during a provision. Current usn: "
+                                        "%d" % (txt, att, attrUSN))
                         txt = ""
                     else:
-                        message(CHANGE, "%sAttribute: %s will be added because"
-                                        " it hasn't existed before " % (txt, att))
+                        message(CHANGE, "%sAttribute: %s will be added because "
+                                        "it did not exist before" % (txt, att))
                         txt = ""
                     continue
 
@@ -926,14 +979,46 @@ def update_present(ref_samdb, samdb, basedn, listPresent, usns, invocationid):
         delta.dn = dn
         if len(delta.items()) >1:
             attributes=", ".join(delta.keys())
+            modcontrols = []
+            relaxedatt = ['iscriticalsystemobject', 'grouptype']
+            # Let's try to reduce as much as possible the use of relax control
+            #for checkedatt in relaxedatt:
+            for attr in delta.keys():
+                if attr.lower() in relaxedatt:
+                    modcontrols = ["relax:0", "provision:0"]
             message(CHANGE, "%s is different from the reference one, changed"
                             " attributes: %s\n" % (dn, attributes))
             changed += 1
-            samdb.modify(delta)
+            samdb.modify(delta, modcontrols)
     return changed
 
+def reload_full_schema(samdb, names):
+    """Load the updated schema with all the new and existing classes
+       and attributes.
 
-def update_partition(ref_samdb, samdb, basedn, names, schema, provisionUSNs):
+    :param samdb: An LDB object connected to the sam.ldb of the update
+                  provision
+    :param names: List of key provision parameters
+    """
+
+    current = samdb.search(expression="objectClass=*", base=str(names.schemadn),
+                                scope=SCOPE_SUBTREE)
+    schema_ldif = ""
+    prefixmap_data = ""
+
+    for ent in current:
+        schema_ldif += samdb.write_ldif(ent, ldb.CHANGETYPE_NONE)
+
+    prefixmap_data = open(setup_path("prefixMap.txt"), 'r').read()
+    prefixmap_data = b64encode(prefixmap_data)
+
+    # We don't actually add this ldif, just parse it
+    prefixmap_ldif = "dn: cn=schema\nprefixMap:: %s\n\n" % prefixmap_data
+
+    dsdb._dsdb_set_schema_from_ldif(samdb, prefixmap_ldif, schema_ldif)
+
+
+def update_partition(ref_samdb, samdb, basedn, names, schema, provisionUSNs, prereloadfunc):
     """Check differences between the reference provision and the upgraded one.
 
     It looks for all objects which base DN is name.
@@ -949,7 +1034,10 @@ def update_partition(ref_samdb, samdb, basedn, names, schema, provisionUSNs):
     :param names: List of key provision parameters
     :param schema: A Schema object
     :param provisionUSNs:  The USNs modified by provision/upgradeprovision
-                           last time"""
+                           last time
+    :param prereloadfunc: A function that must be executed just before the reload
+                  of the schema
+    """
 
     hash_new = {}
     hash = {}
@@ -1000,6 +1088,13 @@ def update_partition(ref_samdb, samdb, basedn, names, schema, provisionUSNs):
         add_deletedobj_containers(ref_samdb, samdb, names)
 
         add_missing_entries(ref_samdb, samdb, names, basedn, listMissing)
+
+        prereloadfunc()
+        message(SIMPLE, "Reloading a merged schema, which might trigger "
+                        "reindexing so please be patient")
+        reload_full_schema(samdb, names)
+        message(SIMPLE, "Schema reloaded!")
+
         changed = update_present(ref_samdb, samdb, basedn, listPresent,
                                     provisionUSNs, names.invocation)
         message(SIMPLE, "There are %d changed objects" % (changed))
@@ -1066,7 +1161,7 @@ def fix_partition_sd(samdb, names):
     descr = get_domain_descriptor(names.domainsid)
     delta["nTSecurityDescriptor"] = MessageElement(descr, FLAG_MOD_REPLACE,
                                                     "nTSecurityDescriptor")
-    samdb.modify(delta, ["recalculate_sd:0"])
+    samdb.modify(delta)
     # Then the config dn
     res = samdb.search(expression="objectClass=*", base=str(names.configdn),
                         scope=SCOPE_BASE, attrs=["dn", "whenCreated"],
@@ -1076,7 +1171,7 @@ def fix_partition_sd(samdb, names):
     descr = get_config_descriptor(names.domainsid)
     delta["nTSecurityDescriptor"] = MessageElement(descr, FLAG_MOD_REPLACE,
                                                     "nTSecurityDescriptor" )
-    samdb.modify(delta, ["recalculate_sd:0"])
+    samdb.modify(delta)
     # Then the schema dn
     res = samdb.search(expression="objectClass=*", base=str(names.schemadn),
                         scope=SCOPE_BASE, attrs=["dn", "whenCreated"],
@@ -1087,7 +1182,7 @@ def fix_partition_sd(samdb, names):
     descr = get_schema_descriptor(names.domainsid)
     delta["nTSecurityDescriptor"] = MessageElement(descr, FLAG_MOD_REPLACE,
                                                     "nTSecurityDescriptor" )
-    samdb.modify(delta, ["recalculate_sd:0"])
+    samdb.modify(delta)
 
 def rebuild_sd(samdb, names):
     """Rebuild security descriptor of the current provision from scratch
@@ -1208,7 +1303,7 @@ def update_privilege(ref_private_path, cur_private_path):
                 os.path.join(cur_private_path, "privilege.ldb"))
 
 
-def update_samdb(ref_samdb, samdb, names, highestUSN, schema):
+def update_samdb(ref_samdb, samdb, names, highestUSN, schema, prereloadfunc):
     """Upgrade the SAM DB contents for all the provision partitions
 
     :param ref_sambdb: An LDB object conntected to the sam.ldb of the reference
@@ -1218,11 +1313,14 @@ def update_samdb(ref_samdb, samdb, names, highestUSN, schema):
     :param names: List of key provision parameters
     :param highestUSN:  The highest USN modified by provision/upgradeprovision
                         last time
-    :param schema: A Schema object that represent the schema of the provision"""
+    :param schema: A Schema object that represent the schema of the provision
+    :param prereloadfunc: A function that must be executed just before the reload
+                  of the schema
+    """
 
     message(SIMPLE, "Starting update of samdb")
     ret = update_partition(ref_samdb, samdb, str(names.rootdn), names,
-                            schema, highestUSN)
+                            schema, highestUSN, prereloadfunc)
     if ret:
         message(SIMPLE, "Update of samdb finished")
         return 1
@@ -1335,12 +1433,11 @@ def sync_calculated_attributes(samdb, names):
       :param samdb: An LDB object attached to the currently upgraded samdb
       :param names: Various key parameter about current provision.
    """
-   listAttrs = ["msDs-KeyVersionAttribute"]
+   listAttrs = ["msDs-KeyVersionNumber"]
    hash = search_constructed_attrs_stored(samdb, names.rootdn, listAttrs)
-   increment_calculated_keyversion_number(samdb, names.rootdn, hash)
-
-def setup_path(file):
-    return os.path.join(setup_dir, file)
+   if hash.has_key("msDs-KeyVersionNumber"):
+       increment_calculated_keyversion_number(samdb, names.rootdn,
+                                            hash["msDs-KeyVersionNumber"])
 
 # Synopsis for updateprovision
 # 1) get path related to provision to be update (called current)
@@ -1483,7 +1580,6 @@ if __name__ == '__main__':
     # From here start the big steps of the program
     # 1) First get files paths
     paths = get_paths(param, smbconf=smbconf)
-    paths.setup = setup_dir
     # Get ldbs with the system session, it is needed for searching
     # provision parameters
     session = system_session()
@@ -1515,8 +1611,9 @@ if __name__ == '__main__':
         # ldbs = get_ldbs(paths, creds, adm_session, lp)
 
         if not sanitychecks(ldbs.sam, names):
-            message(SIMPLE, "Sanity checks for the upgrade fails, checks messages"
-                            " and correct them before rerunning upgradeprovision")
+            message(SIMPLE, "Sanity checks for the upgrade have failed. "
+                            "Check the messages and correct the errors "
+                            "before rerunning upgradeprovision")
             sys.exit(1)
 
         # Let's see provision parameters
@@ -1527,7 +1624,7 @@ if __name__ == '__main__':
         message(SIMPLE, "Creating a reference provision")
         provisiondir = tempfile.mkdtemp(dir=paths.private_dir,
                                         prefix="referenceprovision")
-        newprovision(names, setup_dir, creds, session, smbconf, provisiondir,
+        newprovision(names, creds, session, smbconf, provisiondir,
                         provision_logger)
 
         # TODO
@@ -1553,13 +1650,18 @@ if __name__ == '__main__':
         # Do some modification on sam.ldb
         ldbs.groupedCommit()
         new_ldbs.groupedCommit()
-
-        # 11)
+        deltaattr = None
+# 11)
         if re.match(".*alpha((9)|(\d\d+)).*", str(oem)):
             # 11) A
             # Starting from alpha9 we can consider that the structure is quite ok
             # and that we should do only dela
-            delta_update_basesamdb(newpaths.samdb, paths.samdb, creds, session, lp, message)
+            deltaattr = delta_update_basesamdb(newpaths.samdb,
+                                                paths.samdb,
+                                                creds,
+                                                session,
+                                                lp,
+                                                message)
         else:
             # 11) B
             simple_update_basesamdb(newpaths, paths, names)
@@ -1571,25 +1673,76 @@ if __name__ == '__main__':
         new_ldbs.startTransactions()
 
         # 12)
-        schema = Schema(setup_path, names.domainsid, schemadn=str(names.schemadn),
-                         serverdn=str(names.serverdn))
-
+        schema = Schema(names.domainsid, schemadn=str(names.schemadn))
+        # We create a closure that will be invoked just before schema reload
+        def schemareloadclosure():
+            basesam = Ldb(paths.samdb, session_info=session, credentials=creds, lp=lp,
+                            options=["modules:"])
+            doit = False
+            if deltaattr is not None and len(deltaattr) > 1:
+                doit = True
+            if doit:
+                deltaattr.remove("dn")
+                for att in deltaattr:
+                    if att.lower() == "dn":
+                        continue
+                    if (deltaattr.get(att) is not None
+                        and deltaattr.get(att).flags() != FLAG_MOD_ADD):
+                        doit = False
+                    elif deltaattr.get(att) is None:
+                        doit = False
+            if doit:
+                message(CHANGE, "Applying delta to @ATTRIBUTES")
+                deltaattr.dn = ldb.Dn(basesam, "@ATTRIBUTES")
+                basesam.modify(deltaattr)
+            else:
+                message(CHANGE, "Not applying delta to @ATTRIBUTES because "
+                                "there is not only add")
         # 13)
         if opts.full:
             if not update_samdb(new_ldbs.sam, ldbs.sam, names, lastProvisionUSNs,
-                                schema):
-                message(SIMPLE, "Rollbacking every changes. Check the reason"
+                                schema, schemareloadclosure):
+                message(SIMPLE, "Rolling back all changes. Check the cause"
                                 " of the problem")
-                message(SIMPLE, "In any case your system as it was before"
-                                " the upgrade")
+                message(SIMPLE, "Your system is as it was before the upgrade")
                 ldbs.groupedRollback()
                 new_ldbs.groupedRollback()
                 shutil.rmtree(provisiondir)
                 sys.exit(1)
-            else:
-                sync_calculated_attributes(ldbs.sam, names)
+        else:
+            # Try to reapply the change also when we do not change the sam
+            # as the delta_upgrade
+            schemareloadclosure()
+            sync_calculated_attributes(ldbs.sam, names)
+            res = ldbs.sam.search(expression="(samaccountname=dns)",
+                                scope=SCOPE_SUBTREE, attrs=["dn"],
+                                controls=["search_options:1:2"])
+            if len(res) > 0:
+                message(SIMPLE, "You still have the old DNS object for managing "
+                                "dynamic DNS, but you didn't supply --full so "
+                                "a correct update can't be done")
+                ldbs.groupedRollback()
+                new_ldbs.groupedRollback()
+                shutil.rmtree(provisiondir)
+                sys.exit(1)
         # 14)
         update_secrets(new_ldbs.secrets, ldbs.secrets, message)
+        # 14bis)
+        res = ldbs.sam.search(expression="(samaccountname=dns)",
+                                  scope=SCOPE_SUBTREE, attrs=["dn"],
+                                  controls=["search_options:1:2"])
+
+        if (len(res) == 1):
+            ldbs.sam.delete(res[0]["dn"])
+            res2 = ldbs.secrets.search(expression="(samaccountname=dns)",
+                                  scope=SCOPE_SUBTREE, attrs=["dn"])
+            update_dns_account_password(ldbs.sam, ldbs.secrets, names)
+            message(SIMPLE, "IMPORTANT!!! "
+                            "If you were using Dynamic DNS before you need "
+                            "to update your configuration, so that the "
+                            "tkey-gssapi-credential has the following value: "
+                            "DNS/%s.%s" % (names.netbiosname.lower(),
+                                           names.realm.lower()))
         # 15)
         message(SIMPLE, "Update machine account")
         update_machine_account_password(ldbs.sam, ldbs.secrets, names)
@@ -1642,22 +1795,35 @@ if __name__ == '__main__':
             try:
                 update_gpo(paths, ldbs.sam, names, lp, message, 1)
             except ProvisioningError, e:
-                message(ERROR, "The policy for domain controller is missing,"
-                               " you should restart upgradeprovision with --full")
+                message(ERROR, "The policy for domain controller is missing. "
+                               "You should restart upgradeprovision with --full")
+            except IOError, e:
+                message(ERROR, "Setting ACL not supported on your filesystem")
         else:
             try:
                 update_gpo(paths, ldbs.sam, names, lp, message, 0)
             except ProvisioningError, e:
-                message(ERROR, "The policy for domain controller is missing,"
-                               " you should restart upgradeprovision with --full")
+                message(ERROR, "The policy for domain controller is missing. "
+                               "You should restart upgradeprovision with --full")
         ldbs.groupedCommit()
         new_ldbs.groupedCommit()
-        message(SIMPLE, "Upgrade finished !")
+        message(SIMPLE, "Upgrade finished!")
         # remove reference provision now that everything is done !
+        # So we have reindexed first if need when the merged schema was reloaded
+        # (as new attributes could have quick in)
+        # But the second part of the update (when we update existing objects
+        # can also have an influence on indexing as some attribute might have their
+        # searchflag modificated
+        message(SIMPLE, "Reopenning samdb to trigger reindexing if needed "
+                        "after modification")
+        samdb = Ldb(paths.samdb, session_info=session, credentials=creds, lp=lp)
+        message(SIMPLE, "Reindexing finished")
+
         shutil.rmtree(provisiondir)
     except StandardError, err:
-        message(ERROR,"A problem has occured when trying to upgrade your provision,"
-                      " a full backup is located at %s" % backupdir)
-        if opts.changeall:
+        message(ERROR, "A problem occurred while trying to upgrade your "
+                       "provision. A full backup is located at %s" % backupdir)
+        if opts.debugall or opts.debugchange:
             (typ, val, tb) = sys.exc_info()
             traceback.print_exception(typ, val, tb)
+        sys.exit(1)

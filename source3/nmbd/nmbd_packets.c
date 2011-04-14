@@ -4,23 +4,25 @@
    Copyright (C) Andrew Tridgell 1994-1998
    Copyright (C) Luke Kenneth Casson Leighton 1994-1998
    Copyright (C) Jeremy Allison 1994-2003
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-   
 */
 
 #include "includes.h"
+#include "nmbd/nmbd.h"
+#include "../lib/util/select.h"
+#include "system/select.h"
 
 extern int ClientNMB;
 extern int ClientDGRAM;
@@ -29,6 +31,24 @@ extern int global_nmb_port;
 extern int num_response_packets;
 
 bool rescan_listen_set = False;
+
+static struct nb_packet_server *packet_server;
+
+bool nmbd_init_packet_server(void)
+{
+	NTSTATUS status;
+
+	status = nb_packet_server_create(
+		NULL, nmbd_event_context(),
+		lp_parm_int(-1, "nmbd", "unexpected_clients", 200),
+		&packet_server);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("ERROR: nb_packet_server_create failed: %s\n",
+			  nt_errstr(status)));
+		return false;
+	}
+	return true;
+}
 
 
 /*******************************************************************
@@ -104,7 +124,7 @@ static void debug_browse_data(char *outbuf, int len)
 			x = outbuf[i+j];
 			if (x < 32 || x > 127) 
 				x = '.';
-	    
+
 			DEBUGADD( 4, ( "%c", x ) );
 		}
 
@@ -158,7 +178,7 @@ static bool send_netbios_packet(struct packet_struct *p)
 			inet_ntoa(p->ip),p->port));
 		return False;
 	}
-  
+
 	return True;
 } 
 
@@ -183,7 +203,7 @@ static struct packet_struct *create_and_init_netbios_packet(struct nmb_name *nmb
 		DEBUG(0,("create_and_init_netbios_packet: malloc fail (1) for packet struct.\n"));
 		return NULL;
 	}
-    
+
 	memset((char *)packet,'\0',sizeof(*packet));
 
 	nmb = &packet->packet.nmb;
@@ -195,7 +215,7 @@ static struct packet_struct *create_and_init_netbios_packet(struct nmb_name *nmb
 	nmb->header.nm_flags.trunc = False;
 	nmb->header.nm_flags.authoritative = False;
 	nmb->header.nm_flags.bcast = bcast;
-  
+
 	nmb->header.rcode = 0;
 	nmb->header.qdcount = 1;
 	nmb->header.ancount = 0;
@@ -212,7 +232,7 @@ static struct packet_struct *create_and_init_netbios_packet(struct nmb_name *nmb
 	packet->timestamp = time(NULL);
 	packet->packet_type = NMB_PACKET;
 	packet->locked = False;
-  
+
 	return packet; /* Caller must free. */
 }
 
@@ -236,20 +256,20 @@ static bool create_and_init_additional_record(struct packet_struct *packet,
 	nmb->additional->rr_name  = nmb->question.question_name;
 	nmb->additional->rr_type  = RR_TYPE_NB;
 	nmb->additional->rr_class = RR_CLASS_IN;
-	
+
 	/* See RFC 1002, sections 5.1.1.1, 5.1.1.2 and 5.1.1.3 */
 	if (nmb->header.nm_flags.bcast)
 		nmb->additional->ttl = PERMANENT_TTL;
 	else
 		nmb->additional->ttl = lp_max_ttl();
-	
+
 	nmb->additional->rdlength = 6;
-	
+
 	set_nb_flags(nmb->additional->rdata,nb_flags);
-	
+
 	/* Set the address for the name we are registering. */
 	putip(&nmb->additional->rdata[2], register_ip);
-	
+
 	/* 
 	   it turns out that Jeremys code was correct, we are supposed
 	   to send registrations from the IP we are registering. The
@@ -294,18 +314,18 @@ static bool initiate_name_query_packet( struct packet_struct *packet)
 static bool initiate_name_query_packet_from_wins_server( struct packet_struct *packet)
 {   
 	struct nmb_packet *nmb = NULL;
-  
+
 	nmb = &packet->packet.nmb;
 
 	nmb->header.opcode = NMB_NAME_QUERY_OPCODE;
 	nmb->header.arcount = 0;
-    
+
 	nmb->header.nm_flags.recursion_desired = False;
-  
+
 	DEBUG(4,("initiate_name_query_packet_from_wins_server: sending query for name %s (bcast=%s) to IP %s\n",
 		nmb_namestr(&nmb->question.question_name),
 		BOOLSTR(nmb->header.nm_flags.bcast), inet_ntoa(packet->ip)));
-    
+
 	return send_netbios_packet( packet );
 } 
 
@@ -349,10 +369,10 @@ static bool initiate_multihomed_name_register_packet(struct packet_struct *packe
 	nmb->header.arcount = 1;
 
 	nmb->header.nm_flags.recursion_desired = True;
-	
+
 	if(create_and_init_additional_record(packet, nb_flags, register_ip) == False)
 		return False;
-	
+
 	DEBUG(4,("initiate_multihomed_name_register_packet: sending registration \
 for name %s IP %s (bcast=%s) to IP %s\n",
 		 nmb_namestr(&nmb->additional->rr_name), inet_ntoa(*register_ip),
@@ -478,7 +498,7 @@ struct response_record *queue_register_name( struct subnet_record *subrec,
 		return NULL;
 
 	in_addr_to_sockaddr_storage(&ss, subrec->bcast_ip);
-	pss = iface_ip((struct sockaddr *)&ss);
+	pss = iface_ip((struct sockaddr *)(void *)&ss);
 	if (!pss || pss->ss_family != AF_INET) {
 		p->locked = False;
 		free_packet(p);
@@ -588,7 +608,7 @@ struct response_record *queue_register_multihomed_name( struct subnet_record *su
 	struct packet_struct *p;
 	struct response_record *rrec;
 	bool ret;
-	
+
 	/* Sanity check. */
 	if(subrec != unicast_subnet) {
 		DEBUG(0,("queue_register_multihomed_name: should only be done on \
@@ -598,7 +618,7 @@ unicast subnet. subnet is %s\n.", subrec->subnet_name ));
 
 	if(assert_check_subnet(subrec))
 		return NULL;
-     
+
 	if ((p = create_and_init_netbios_packet(nmbname, False, True, wins_ip)) == NULL)
 		return NULL;
 
@@ -612,7 +632,7 @@ unicast subnet. subnet is %s\n.", subrec->subnet_name ));
 		free_packet(p);
 		return NULL;
 	}  
-  
+
 	if ((rrec = make_response_record(subrec,    /* subnet record. */
 					 p,                     /* packet we sent. */
 					 resp_fn,               /* function to call on response. */
@@ -624,7 +644,7 @@ unicast subnet. subnet is %s\n.", subrec->subnet_name ));
 		free_packet(p);
 		return NULL;
 	}  
-	
+
 	return rrec;
 }
 
@@ -686,7 +706,7 @@ struct response_record *queue_release_name( struct subnet_record *subrec,
 /****************************************************************************
  Queue a query name packet to the broadcast address of a subnet.
 ****************************************************************************/
- 
+
 struct response_record *queue_query_name( struct subnet_record *subrec,
                           response_function resp_fn,
                           timeout_response_function timeout_fn,
@@ -703,7 +723,7 @@ struct response_record *queue_query_name( struct subnet_record *subrec,
 		return NULL;
 
 	to_ip = subrec->bcast_ip;
-  
+
 	/* queries to the WINS server turn up here as queries to IP 0.0.0.0 
 			These need to be handled a bit differently */
 	if (subrec->type == UNICAST_SUBNET && is_zero_ip_v4(to_ip)) {
@@ -1203,14 +1223,14 @@ static void process_dgram(struct packet_struct *p)
 
 	/* If we aren't listening to the destination name then ignore the packet */
 	if (!listening(p,&dgram->dest_name)) {
-			unexpected_packet(p);
+			nb_packet_dispatch(packet_server, p);
 			DEBUG(5,("process_dgram: ignoring dgram packet sent to name %s from %s\n",
 				nmb_namestr(&dgram->dest_name), inet_ntoa(p->ip)));
 			return;
 	}
 
 	if (dgram->header.msg_type != 0x10 && dgram->header.msg_type != 0x11 && dgram->header.msg_type != 0x12) {
-		unexpected_packet(p);
+		nb_packet_dispatch(packet_server, p);
 		/* Don't process error packets etc yet */
 		DEBUG(5,("process_dgram: ignoring dgram packet sent to name %s from IP %s as it is \
 an error packet of type %x\n", nmb_namestr(&dgram->dest_name), inet_ntoa(p->ip), dgram->header.msg_type));
@@ -1296,7 +1316,7 @@ packet sent to name %s from IP %s\n",
 		return;
 	}
 
-	unexpected_packet(p);
+	nb_packet_dispatch(packet_server, p);
 }
 
 /****************************************************************************
@@ -1416,7 +1436,7 @@ static struct subnet_record *find_subnet_for_nmb_packet( struct packet_struct *p
 		if(rrec == NULL) {
 			DEBUG(3,("find_subnet_for_nmb_packet: response record not found for response id %hu\n",
 				nmb->header.name_trn_id));
-			unexpected_packet(p);
+			nb_packet_dispatch(packet_server, p);
 			return NULL;
 		}
 
@@ -1655,93 +1675,98 @@ on subnet %s\n", rrec->response_id, inet_ntoa(rrec->packet->ip), subrec->subnet_
   plus the broadcast sockets.
 ***************************************************************************/
 
-static bool create_listen_fdset(fd_set **ppset, int **psock_array, int *listen_number, int *maxfd)
+struct socket_attributes {
+	enum packet_type type;
+	bool broadcast;
+};
+
+static bool create_listen_pollfds(struct pollfd **pfds,
+				  struct socket_attributes **pattrs,
+				  int *pnum_sockets)
 {
-	int *sock_array = NULL;
 	struct subnet_record *subrec = NULL;
 	int count = 0;
 	int num = 0;
-	fd_set *pset = SMB_MALLOC_P(fd_set);
+	struct pollfd *fds;
+	struct socket_attributes *attrs;
 
-	if(pset == NULL) {
-		DEBUG(0,("create_listen_fdset: malloc fail !\n"));
-		return True;
-	}
-
-	/* The Client* sockets */
-	count++;
+	/* The ClientNMB and ClientDGRAM sockets */
+	count = 2;
 
 	/* Check that we can add all the fd's we need. */
-	for (subrec = FIRST_SUBNET; subrec; subrec = NEXT_SUBNET_EXCLUDING_UNICAST(subrec))
-		count++;
-
-	/* each interface gets 4 sockets */
-	count *= 4;
-
-	if(count > FD_SETSIZE) {
-		DEBUG(0,("create_listen_fdset: Too many file descriptors needed (%d). We can \
-only use %d.\n", count, FD_SETSIZE));
-		SAFE_FREE(pset);
-		return True;
-	}
-
-	if((sock_array = SMB_MALLOC_ARRAY(int, count)) == NULL) {
-		DEBUG(0,("create_listen_fdset: malloc fail for socket array. size %d\n", count));
-		SAFE_FREE(pset);
-		return True;
-	}
-
-	FD_ZERO(pset);
-
-	/* Add in the lp_socket_address() interface on 137. */
-	FD_SET(ClientNMB,pset);
-	sock_array[num++] = ClientNMB;
-	*maxfd = MAX( *maxfd, ClientNMB);
-
-	/* the lp_socket_address() interface has only one socket */
-	sock_array[num++] = -1;
-
-	/* Add in the 137 sockets on all the interfaces. */
-	for (subrec = FIRST_SUBNET; subrec; subrec = NEXT_SUBNET_EXCLUDING_UNICAST(subrec)) {
-		FD_SET(subrec->nmb_sock,pset);
-		sock_array[num++] = subrec->nmb_sock;
-		*maxfd = MAX( *maxfd, subrec->nmb_sock);
-
-		sock_array[num++] = subrec->nmb_bcast;
+	for (subrec = FIRST_SUBNET;
+	     subrec != NULL;
+	     subrec = NEXT_SUBNET_EXCLUDING_UNICAST(subrec)) {
+		count += 2;	/* nmb_sock and dgram_sock */
 		if (subrec->nmb_bcast != -1) {
-			FD_SET(subrec->nmb_bcast,pset);
-			*maxfd = MAX( *maxfd, subrec->nmb_bcast);
+			count += 1;
 		}
-	}
-
-	/* Add in the lp_socket_address() interface on 138. */
-	FD_SET(ClientDGRAM,pset);
-	sock_array[num++] = ClientDGRAM;
-	*maxfd = MAX( *maxfd, ClientDGRAM);
-
-	/* the lp_socket_address() interface has only one socket */
-	sock_array[num++] = -1;
-
-	/* Add in the 138 sockets on all the interfaces. */
-	for (subrec = FIRST_SUBNET; subrec; subrec = NEXT_SUBNET_EXCLUDING_UNICAST(subrec)) {
-		FD_SET(subrec->dgram_sock,pset);
-		sock_array[num++] = subrec->dgram_sock;
-		*maxfd = MAX( *maxfd, subrec->dgram_sock);
-
-		sock_array[num++] = subrec->dgram_bcast;
 		if (subrec->dgram_bcast != -1) {
-			FD_SET(subrec->dgram_bcast,pset);
-			*maxfd = MAX( *maxfd, subrec->dgram_bcast);
+			count += 1;
 		}
 	}
 
-	*listen_number = count;
+	fds = TALLOC_ZERO_ARRAY(NULL, struct pollfd, count);
+	if (fds == NULL) {
+		DEBUG(1, ("create_listen_pollfds: malloc fail for fds. "
+			  "size %d\n", count));
+		return true;
+	}
 
-	SAFE_FREE(*ppset);
-	SAFE_FREE(*psock_array);
+	attrs = TALLOC_ARRAY(NULL, struct socket_attributes, count);
+	if (fds == NULL) {
+		DEBUG(1, ("create_listen_pollfds: malloc fail for attrs. "
+			  "size %d\n", count));
+		SAFE_FREE(fds);
+		return true;
+	}
 
-	*ppset = pset;
-	*psock_array = sock_array;
+	num = 0;
+
+	fds[num].fd = ClientNMB;
+	attrs[num].type = NMB_PACKET;
+	attrs[num].broadcast = false;
+	num += 1;
+
+	fds[num].fd = ClientDGRAM;
+	attrs[num].type = DGRAM_PACKET;
+	attrs[num].broadcast = false;
+	num += 1;
+
+	for (subrec = FIRST_SUBNET; subrec; subrec = NEXT_SUBNET_EXCLUDING_UNICAST(subrec)) {
+
+		fds[num].fd = subrec->nmb_sock;
+		attrs[num].type = NMB_PACKET;
+		attrs[num].broadcast = false;
+		num += 1;
+
+		if (subrec->nmb_bcast != -1) {
+			fds[num].fd = subrec->nmb_bcast;
+			attrs[num].type = NMB_PACKET;
+			attrs[num].broadcast = true;
+			num += 1;
+		}
+
+		fds[num].fd = subrec->dgram_sock;
+		attrs[num].type = DGRAM_PACKET;
+		attrs[num].broadcast = false;
+		num += 1;
+
+		if (subrec->dgram_bcast != -1) {
+			fds[num].fd = subrec->dgram_bcast;
+			attrs[num].type = DGRAM_PACKET;
+			attrs[num].broadcast = true;
+			num += 1;
+		}
+	}
+
+	TALLOC_FREE(*pfds);
+	*pfds = fds;
+
+	TALLOC_FREE(*pattrs);
+	*pattrs = attrs;
+
+	*pnum_sockets = count;
 
 	return False;
 }
@@ -1801,6 +1826,7 @@ static bool store_processed_packet(struct processed_packet **pp_processed_packet
 	} else if (packet->packet_type == DGRAM_PACKET) {
 		p->packet_id = packet->packet.dgram.header.dgm_id;
 	} else {
+		SAFE_FREE(p);
 		return false;
 	}
 
@@ -1830,42 +1856,59 @@ static void free_processed_packet_list(struct processed_packet **pp_processed_pa
 
 bool listen_for_packets(bool run_election)
 {
-	static fd_set *listen_set = NULL;
+	static struct pollfd *fds = NULL;
+	static struct socket_attributes *attrs = NULL;
 	static int listen_number = 0;
-	static int *sock_array = NULL;
+	int num_sockets;
 	int i;
-	static int maxfd = 0;
 
-	fd_set r_fds;
-	fd_set w_fds;
-	int selrtn;
-	struct timeval timeout;
+	int pollrtn;
+	int timeout;
 #ifndef SYNC_DNS
 	int dns_fd;
+	int dns_pollidx = -1;
 #endif
 	struct processed_packet *processed_packet_list = NULL;
 
-	if(listen_set == NULL || rescan_listen_set) {
-		if(create_listen_fdset(&listen_set, &sock_array, &listen_number, &maxfd)) {
+	if ((fds == NULL) || rescan_listen_set) {
+		if (create_listen_pollfds(&fds, &attrs, &listen_number)) {
 			DEBUG(0,("listen_for_packets: Fatal error. unable to create listen set. Exiting.\n"));
 			return True;
 		}
 		rescan_listen_set = False;
 	}
 
-	memcpy((char *)&r_fds, (char *)listen_set, sizeof(fd_set));
-	FD_ZERO(&w_fds);
+	/*
+	 * "fds" can be enlarged by event_add_to_poll_args
+	 * below. Shrink it again to what was given to us by
+	 * create_listen_pollfds.
+	 */
+
+	fds = TALLOC_REALLOC_ARRAY(NULL, fds, struct pollfd, listen_number);
+	if (fds == NULL) {
+		return true;
+	}
+	num_sockets = listen_number;
 
 #ifndef SYNC_DNS
 	dns_fd = asyncdns_fd();
 	if (dns_fd != -1) {
-		FD_SET(dns_fd, &r_fds);
-		maxfd = MAX( maxfd, dns_fd);
+		fds = TALLOC_REALLOC_ARRAY(NULL, fds, struct pollfd, num_sockets+1);
+		if (fds == NULL) {
+			return true;
+		}
+		dns_pollidx = num_sockets;
+		fds[num_sockets].fd = dns_fd;
+		num_sockets += 1;
 	}
 #endif
 
+	for (i=0; i<num_sockets; i++) {
+		fds[i].events = POLLIN|POLLHUP;
+	}
+
 	/* Process a signal and timer events now... */
-	if (run_events(nmbd_event_context(), 0, NULL, NULL)) {
+	if (run_events_poll(nmbd_event_context(), 0, NULL, 0)) {
 		return False;
 	}
 
@@ -1876,27 +1919,25 @@ bool listen_for_packets(bool run_election)
 	 * the time we are expecting the next netbios packet.
 	 */
 
-	timeout.tv_sec = (run_election||num_response_packets) ? 1 : NMBD_SELECT_LOOP;
-	timeout.tv_usec = 0;
+	timeout = ((run_election||num_response_packets)
+		   ? 1 : NMBD_SELECT_LOOP) * 1000;
 
-	{
-		struct timeval now = timeval_current();
-		event_add_to_select_args(nmbd_event_context(), &now,
-					 &r_fds, &w_fds, &timeout, &maxfd);
-	}
+	event_add_to_poll_args(nmbd_event_context(), NULL,
+			       &fds, &num_sockets, &timeout);
 
-	selrtn = sys_select(maxfd+1,&r_fds,&w_fds,NULL,&timeout);
+	pollrtn = sys_poll(fds, num_sockets, timeout);
 
-	if (run_events(nmbd_event_context(), selrtn, &r_fds, &w_fds)) {
+	if (run_events_poll(nmbd_event_context(), pollrtn, fds, num_sockets)) {
 		return False;
 	}
 
-	if (selrtn == -1) {
+	if (pollrtn == -1) {
 		return False;
 	}
 
 #ifndef SYNC_DNS
-	if (dns_fd != -1 && FD_ISSET(dns_fd,&r_fds)) {
+	if ((dns_fd != -1) && (dns_pollidx != -1) &&
+	    (fds[dns_pollidx].revents & (POLLIN|POLLHUP|POLLERR))) {
 		run_dns_queue();
 	}
 #endif
@@ -1908,15 +1949,11 @@ bool listen_for_packets(bool run_election)
 		int client_fd;
 		int client_port;
 
-		if (sock_array[i] == -1) {
+		if ((fds[i].revents & (POLLIN|POLLHUP|POLLERR)) == 0) {
 			continue;
 		}
 
-		if (!FD_ISSET(sock_array[i],&r_fds)) {
-			continue;
-		}
-
-		if (i < (listen_number/2)) {
+		if (attrs[i].type == NMB_PACKET) {
 			/* Port 137 */
 			packet_type = NMB_PACKET;
 			packet_name = "nmb";
@@ -1930,7 +1967,7 @@ bool listen_for_packets(bool run_election)
 			client_port = DGRAM_PORT;
 		}
 
-		packet = read_packet(sock_array[i], packet_type);
+		packet = read_packet(fds[i].fd, packet_type);
 		if (!packet) {
 			continue;
 		}
@@ -1940,7 +1977,7 @@ bool listen_for_packets(bool run_election)
 		 * only is set then check it came from one of our local nets.
 		 */
 		if (lp_bind_interfaces_only() &&
-		    (sock_array[i] == client_fd) &&
+		    (fds[i].fd == client_fd) &&
 		    (!is_local_net_v4(packet->ip))) {
 			DEBUG(7,("discarding %s packet sent to broadcast socket from %s:%d\n",
 				packet_name, inet_ntoa(packet->ip), packet->port));
@@ -1966,7 +2003,6 @@ bool listen_for_packets(bool run_election)
 			}
 		}
 
-
 		if (is_processed_packet(processed_packet_list, packet)) {
 			DEBUG(7,("discarding duplicate packet from %s:%d\n",
 				inet_ntoa(packet->ip),packet->port));
@@ -1976,21 +2012,12 @@ bool listen_for_packets(bool run_election)
 
 		store_processed_packet(&processed_packet_list, packet);
 
-		/*
-		 * 0,2,4,... are unicast sockets
-		 * 1,3,5,... are broadcast sockets
-		 *
-		 * on broadcast socket we only receive packets
-		 * and send replies via the unicast socket.
-		 *
-		 * 0,1 and 2,3 and ... belong together.
-		 */
-		if ((i % 2) != 0) {
+		if (attrs[i].broadcast) {
 			/* this is a broadcast socket */
-			packet->send_fd = sock_array[i-1];
+			packet->send_fd = fds[i-1].fd;
 		} else {
 			/* this is already a unicast socket */
-			packet->send_fd = sock_array[i];
+			packet->send_fd = fds[i].fd;
 		}
 
 		queue_packet(packet);

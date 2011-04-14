@@ -52,6 +52,9 @@ struct dreplsrv_out_connection {
 
 	/* the out going connection to the source dsa */
 	struct dreplsrv_drsuapi_connection *drsuapi;
+
+	/* used to force the GC principal name */
+	const char *principal_name;
 };
 
 struct dreplsrv_partition_source_dsa {
@@ -99,33 +102,48 @@ struct dreplsrv_partition {
 	 * a linked list of all source dsa's we replicate from
 	 */
 	struct dreplsrv_partition_source_dsa *sources;
+
+	/*
+	 * a linked list of all source dsa's we will notify,
+	 * that are not also in sources
+	 */
+	struct dreplsrv_partition_source_dsa *notifies;
+
+	bool incoming_only;
 };
 
-typedef void (*dreplsrv_fsmo_callback_t)(struct dreplsrv_service *,
-					 WERROR,
-					 enum drsuapi_DsExtendedError);
+typedef void (*dreplsrv_extended_callback_t)(struct dreplsrv_service *,
+					     WERROR,
+					     enum drsuapi_DsExtendedError,
+					     void *cb_data);
 
 struct dreplsrv_out_operation {
 	struct dreplsrv_out_operation *prev, *next;
+	time_t schedule_time;
 
 	struct dreplsrv_service *service;
 
 	struct dreplsrv_partition_source_dsa *source_dsa;
 
+	/* replication options - currently used by DsReplicaSync */
+	uint32_t options;
 	enum drsuapi_DsExtendedOperation extended_op;
 	uint64_t fsmo_info;
-	dreplsrv_fsmo_callback_t callback;
 	enum drsuapi_DsExtendedError extended_ret;
+	dreplsrv_extended_callback_t callback;
+	void *cb_data;
 };
 
 struct dreplsrv_notify_operation {
 	struct dreplsrv_notify_operation *prev, *next;
+	time_t schedule_time;
 
 	struct dreplsrv_service *service;
 	uint64_t uSN;
 
 	struct dreplsrv_partition_source_dsa *source_dsa;
 	bool is_urgent;
+	uint32_t replica_flags;
 };
 
 struct dreplsrv_service {
@@ -212,14 +230,12 @@ struct dreplsrv_service {
 		struct dreplsrv_notify_operation *n_current;
 	} ops;
 
-	struct {
-		bool in_progress;
-		struct dreplsrv_partition_source_dsa *rid_manager_source_dsa;
-	} ridalloc;
+	bool rid_alloc_in_progress;
 
-	bool syncall_workaround;
+	bool am_rodc;
 };
 
+#include "lib/messaging/irpc.h"
 #include "dsdb/repl/drepl_out_helpers.h"
 #include "dsdb/repl/drepl_service_proto.h"
 

@@ -21,6 +21,7 @@
 */
 
 #include "rpc_server/lsa/lsa.h"
+#include "libds/common/flag_mapping.h"
 
 static const struct {
 	const char *domain;
@@ -412,7 +413,7 @@ static NTSTATUS dcesrv_lsa_lookup_name(struct tevent_context *ev_ctx,
 			continue;
 		}
 
-		atype = samdb_result_uint(res[i], "sAMAccountType", 0);
+		atype = ldb_msg_find_attr_as_uint(res[i], "sAMAccountType", 0);
 			
 		*rtype = ds_atype_map(atype);
 		if (*rtype == SID_NAME_UNKNOWN) {
@@ -530,7 +531,7 @@ static NTSTATUS dcesrv_lsa_lookup_sid(struct lsa_policy_state *state, TALLOC_CTX
 		}
 	}
 
-	atype = samdb_result_uint(res[0], "sAMAccountType", 0);
+	atype = ldb_msg_find_attr_as_uint(res[0], "sAMAccountType", 0);
 	*rtype = ds_atype_map(atype);
 
 	return NT_STATUS_OK;

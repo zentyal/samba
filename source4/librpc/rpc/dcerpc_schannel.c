@@ -243,6 +243,7 @@ struct composite_context *dcerpc_schannel_key_send(TALLOC_CTX *mem_ctx,
 	struct composite_context *c;
 	struct schannel_key_state *s;
 	struct composite_context *epm_map_req;
+	enum netr_SchannelType schannel_type = cli_credentials_get_secure_channel_type(credentials);
 	
 	/* composite context allocation and setup */
 	c = composite_create(mem_ctx, p->conn->event_ctx);
@@ -258,14 +259,16 @@ struct composite_context *dcerpc_schannel_key_send(TALLOC_CTX *mem_ctx,
 
 	/* allocate credentials */
 	/* type of authentication depends on schannel type */
-	if (s->pipe->conn->flags & DCERPC_SCHANNEL_128) {
+	if (schannel_type == SEC_CHAN_RODC) {
+		s->negotiate_flags = NETLOGON_NEG_AUTH2_RODC_FLAGS;
+	} else if (s->pipe->conn->flags & DCERPC_SCHANNEL_128) {
 		s->negotiate_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS;
 	} else {
 		s->negotiate_flags = NETLOGON_NEG_AUTH2_FLAGS;
 	}
 
 	/* allocate binding structure */
-	s->binding = talloc(c, struct dcerpc_binding);
+	s->binding = talloc_zero(c, struct dcerpc_binding);
 	if (composite_nomem(s->binding, c)) return c;
 
 	*s->binding = *s->pipe->binding;
@@ -317,11 +320,12 @@ static void continue_schannel_key(struct composite_context *ctx)
 						      struct composite_context);
 	struct auth_schannel_state *s = talloc_get_type(c->private_data,
 							struct auth_schannel_state);
+	NTSTATUS status;
 
 	/* receive schannel key */
-	c->status = dcerpc_schannel_key_recv(ctx);
+	status = c->status = dcerpc_schannel_key_recv(ctx);
 	if (!composite_is_ok(c)) {
-		DEBUG(1, ("Failed to setup credentials: %s\n", nt_errstr(c->status)));
+		DEBUG(1, ("Failed to setup credentials: %s\n", nt_errstr(status)));
 		return;
 	}
 

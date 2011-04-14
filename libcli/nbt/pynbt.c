@@ -24,11 +24,13 @@
 #include "../libcli/nbt/libnbt.h"
 #include "lib/events/events.h"
 
+void initnetbios(void);
+
 #ifndef Py_RETURN_NONE
 #define Py_RETURN_NONE return Py_INCREF(Py_None), Py_None
 #endif
 
-PyAPI_DATA(PyTypeObject) nbt_node_Type;
+extern PyTypeObject nbt_node_Type;
 
 typedef struct {
 	PyObject_HEAD
@@ -36,10 +38,10 @@ typedef struct {
 	struct nbt_name_socket *socket;
 } nbt_node_Object;
 
-static void py_nbt_node_dealloc(PyObject *obj)
+static void py_nbt_node_dealloc(nbt_node_Object *self)
 {
-	talloc_free(((nbt_node_Object *)obj)->mem_ctx);
-	PyObject_Del(obj);
+	talloc_free(self->mem_ctx);
+	self->ob_type->tp_free(self);
 }
 
 static PyObject *py_nbt_node_init(PyTypeObject *self, PyObject *args, PyObject *kwargs)
@@ -393,7 +395,7 @@ PyTypeObject nbt_node_Type = {
 	.tp_basicsize = sizeof(nbt_node_Object),
 	.tp_flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE,
 	.tp_new = py_nbt_node_init,
-	.tp_dealloc = py_nbt_node_dealloc,
+	.tp_dealloc = (destructor)py_nbt_node_dealloc,
 	.tp_methods = py_nbt_methods,
 	.tp_doc = "Node()\n"
 		  "Create a new NetBIOS node\n"

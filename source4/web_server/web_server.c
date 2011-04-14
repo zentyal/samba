@@ -21,16 +21,11 @@
 */
 
 #include "includes.h"
-#include "smbd/service_task.h"
-#include "smbd/service_stream.h"
-#include "smbd/service.h"
 #include "web_server/web_server.h"
-#include "lib/events/events.h"
-#include "system/filesys.h"
-#include "system/network.h"
-#include "lib/socket/netif.h"
-#include "lib/tls/tls.h"
 #include "../lib/util/dlinklist.h"
+#include "lib/tls/tls.h"
+#include "lib/events/events.h"
+#include "lib/socket/netif.h"
 #include "param/param.h"
 
 /* don't allow connections to hang around forever */
@@ -307,8 +302,15 @@ static void websrv_task_init(struct task_server *task)
 	task_server_set_title(task, "task[websrv]");
 
 	/* run the web server as a single process */
-	model_ops = process_model_startup(task->event_ctx, "single");
+	model_ops = process_model_startup("single");
 	if (!model_ops) goto failed;
+
+	/* startup the Python processor - unfortunately we can't do this
+	   per connection as that wouldn't allow for session variables */
+	wdata = talloc_zero(task, struct web_server_data);
+	if (wdata == NULL) goto failed;
+
+	task->private_data = wdata;
 
 	if (lpcfg_interfaces(task->lp_ctx) && lpcfg_bind_interfaces_only(task->lp_ctx)) {
 		int num_interfaces;
@@ -320,7 +322,8 @@ static void websrv_task_init(struct task_server *task)
 		num_interfaces = iface_count(ifaces);
 		for(i = 0; i < num_interfaces; i++) {
 			const char *address = iface_n_ip(ifaces, i);
-			status = stream_setup_socket(task->event_ctx, 
+			status = stream_setup_socket(task,
+						     task->event_ctx,
 						     task->lp_ctx, model_ops,
 						     &web_stream_ops, 
 						     "ipv4", address, 
@@ -331,24 +334,20 @@ static void websrv_task_init(struct task_server *task)
 
 		talloc_free(ifaces);
 	} else {
-		status = stream_setup_socket(task->event_ctx, task->lp_ctx,
-					     model_ops, &web_stream_ops, 
+		status = stream_setup_socket(task, task->event_ctx,
+					     task->lp_ctx, model_ops,
+					     &web_stream_ops,
 					     "ipv4", lpcfg_socket_address(task->lp_ctx),
-					     &port, lpcfg_socket_options(task->lp_ctx), task);
+					     &port, lpcfg_socket_options(task->lp_ctx),
+					     task);
 		if (!NT_STATUS_IS_OK(status)) goto failed;
 	}
 
-	/* startup the esp processor - unfortunately we can't do this
-	   per connection as that wouldn't allow for session variables */
-	wdata = talloc_zero(task, struct web_server_data);
-	if (wdata == NULL)goto failed;
-
-	task->private_data = wdata;
-	
 	wdata->tls_params = tls_initialise(wdata, task->lp_ctx);
 	if (wdata->tls_params == NULL) goto failed;
 
 	if (!wsgi_initialize(wdata)) goto failed;
+
 
 	return;
 

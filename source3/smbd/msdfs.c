@@ -22,7 +22,11 @@
 
 #define DBGC_CLASS DBGC_MSDFS
 #include "includes.h"
+#include "system/filesys.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
+#include "msdfs.h"
+#include "auth.h"
 
 /**********************************************************************
  Parse a DFS pathname of the form \hostname\service\reqpath
@@ -212,19 +216,20 @@ static NTSTATUS parse_dfs_path(connection_struct *conn,
 
 /********************************************************
  Fake up a connection struct for the VFS layer.
- Note this CHANGES CWD !!!! JRA.
+ Note: this performs a vfs connect and CHANGES CWD !!!! JRA.
 *********************************************************/
 
 NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
 				connection_struct **pconn,
 				int snum,
 				const char *path,
-				struct auth_serversupplied_info *server_info,
+				const struct auth_serversupplied_info *session_info,
 				char **poldcwd)
 {
 	connection_struct *conn;
 	char *connpath;
 	char *oldcwd;
+	const char *vfs_user;
 
 	conn = TALLOC_ZERO_P(ctx, connection_struct);
 	if (conn == NULL) {
@@ -256,15 +261,19 @@ NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
 	conn->params->service = snum;
 
 	conn->sconn = smbd_server_conn;
-	conn->sconn->smb1.tcons.num_open += 1;
+	conn->sconn->num_tcons_open++;
 
-	if (server_info != NULL) {
-		conn->server_info = copy_serverinfo(conn, server_info);
-		if (conn->server_info == NULL) {
+	if (session_info != NULL) {
+		conn->session_info = copy_serverinfo(conn, session_info);
+		if (conn->session_info == NULL) {
 			DEBUG(0, ("copy_serverinfo failed\n"));
 			TALLOC_FREE(conn);
 			return NT_STATUS_NO_MEMORY;
 		}
+		vfs_user = conn->session_info->unix_name;
+	} else {
+		/* use current authenticated user in absence of session_info */
+		vfs_user = get_current_username();
 	}
 
 	set_conn_connectpath(conn, connpath);
@@ -274,6 +283,13 @@ NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
 		DEBUG(0,("create_conn_struct: smbd_vfs_init failed.\n"));
 		conn_free(conn);
 		return status;
+	}
+
+	/* this must be the first filesystem operation that we do */
+	if (SMB_VFS_CONNECT(conn, lp_servicename(snum), vfs_user) < 0) {
+		DEBUG(0,("VFS connect failed!\n"));
+		conn_free(conn);
+		return NT_STATUS_UNSUCCESSFUL;
 	}
 
 	conn->fs_capabilities = SMB_VFS_FS_CAPABILITIES(conn, &conn->ts_res);
@@ -726,7 +742,7 @@ static NTSTATUS dfs_redirect(TALLOC_CTX *ctx,
 	if (!( strequal(pdp->servicename, lp_servicename(SNUM(conn)))
 			|| (strequal(pdp->servicename, HOMES_NAME)
 			&& strequal(lp_servicename(SNUM(conn)),
-				conn->server_info->sanitized_username) )) ) {
+				conn->session_info->sanitized_username) )) ) {
 
 		/* The given sharename doesn't match this connection. */
 		TALLOC_FREE(pdp);
@@ -833,10 +849,12 @@ NTSTATUS get_referred_path(TALLOC_CTX *ctx,
 	/* Verify the share is a dfs root */
 	snum = lp_servicenumber(jucn->service_name);
 	if(snum < 0) {
-		fstring service_name;
-		fstrcpy(service_name, jucn->service_name);
-		if ((snum = find_service(service_name)) < 0) {
+		char *service_name = NULL;
+		if ((snum = find_service(ctx, jucn->service_name, &service_name)) < 0) {
 			return NT_STATUS_NOT_FOUND;
+		}
+		if (!service_name) {
+			return NT_STATUS_NO_MEMORY;
 		}
 		TALLOC_FREE(jucn->service_name);
 		jucn->service_name = talloc_strdup(ctx, service_name);
@@ -935,10 +953,7 @@ NTSTATUS get_referred_path(TALLOC_CTX *ctx,
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_PATH_NOT_COVERED)) {
 		DEBUG(3,("get_referred_path: No valid referrals for path %s\n",
 			dfs_path));
-		vfs_ChDir(conn, oldpath);
-		conn_free(conn);
-		TALLOC_FREE(pdp);
-		return status;
+		goto err_exit;
 	}
 
 	/* We know this is a valid dfs link. Parse the targetpath. */
@@ -947,16 +962,17 @@ NTSTATUS get_referred_path(TALLOC_CTX *ctx,
 				&jucn->referral_count)) {
 		DEBUG(3,("get_referred_path: failed to parse symlink "
 			"target %s\n", targetpath ));
-		vfs_ChDir(conn, oldpath);
-		conn_free(conn);
-		TALLOC_FREE(pdp);
-		return NT_STATUS_NOT_FOUND;
+		status = NT_STATUS_NOT_FOUND;
+		goto err_exit;
 	}
 
+	status = NT_STATUS_OK;
+ err_exit:
 	vfs_ChDir(conn, oldpath);
+	SMB_VFS_DISCONNECT(conn);
 	conn_free(conn);
 	TALLOC_FREE(pdp);
-	return NT_STATUS_OK;
+	return status;
 }
 
 static int setup_ver2_dfs_referral(const char *pathname,
@@ -1371,6 +1387,7 @@ static bool junction_to_local_path(const struct junction_map *jucn,
 			jucn->volume_name);
 	if (!*pp_path_out) {
 		vfs_ChDir(*conn_out, *oldpath);
+		SMB_VFS_DISCONNECT(*conn_out);
 		conn_free(*conn_out);
 		return False;
 	}
@@ -1459,6 +1476,7 @@ bool create_msdfs_link(const struct junction_map *jucn)
 
 out:
 	vfs_ChDir(conn, cwd);
+	SMB_VFS_DISCONNECT(conn);
 	conn_free(conn);
 	return ret;
 }
@@ -1490,6 +1508,7 @@ bool remove_msdfs_link(const struct junction_map *jucn)
 
 	TALLOC_FREE(smb_fname);
 	vfs_ChDir(conn, cwd);
+	SMB_VFS_DISCONNECT(conn);
 	conn_free(conn);
 	return ret;
 }
@@ -1554,6 +1573,7 @@ static int count_dfs_links(TALLOC_CTX *ctx, int snum)
 
 out:
 	vfs_ChDir(conn, cwd);
+	SMB_VFS_DISCONNECT(conn);
 	conn_free(conn);
 	return cnt;
 }

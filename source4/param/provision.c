@@ -19,20 +19,14 @@
 */
 
 #include <Python.h>
+#include <ldb.h>
+#include <pyldb.h>
 #include "includes.h"
-#include "auth/auth.h"
-#include "ldb/include/ldb.h"
-#include "ldb_errors.h"
-#include "libcli/raw/libcliraw.h"
 #include "librpc/ndr/libndr.h"
-
-#include "param/param.h"
 #include "param/provision.h"
 #include "param/secrets.h"
 #include "lib/talloc/pytalloc.h"
-#include "librpc/rpc/pyrpc.h"
 #include "scripting/python/modules.h"
-#include "lib/ldb/pyldb.h"
 #include "param/pyparam.h"
 #include "dynconfig/dynconfig.h"
 
@@ -85,12 +79,12 @@ NTSTATUS provision_bare(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx,
 			struct provision_result *result)
 {
 	const char *configfile;
-	PyObject *provision_mod, *provision_dict, *provision_fn, *py_result, *parameters;
+	PyObject *provision_mod, *provision_dict, *provision_fn, *py_result, *parameters, *py_lp_ctx;
 	
 	DEBUG(0,("Provision for Become-DC test using python\n"));
 
 	Py_Initialize();
-	py_update_path("bin"); /* FIXME: Can't assume this is always the case */
+	py_update_path(); /* Put the samba path at the start of sys.path */
 
 	provision_mod = provision_module();
 
@@ -137,13 +131,6 @@ NTSTATUS provision_bare(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx,
 	if (settings->targetdir != NULL)
 		PyDict_SetItemString(parameters, "targetdir", 
 							 PyString_FromString(settings->targetdir));
-	if (file_exist("setup/provision.smb.conf.dc")) {
-		PyDict_SetItemString(parameters, "setup_dir",
-				     PyString_FromString("setup"));
-	} else {
-		PyDict_SetItemString(parameters, "setup_dir",
-				     PyString_FromString(dyn_SETUPDIR));
-	}
 	PyDict_SetItemString(parameters, "hostname", 
 						 PyString_FromString(settings->netbios_name));
 	PyDict_SetItemString(parameters, "domain", 
@@ -193,7 +180,12 @@ NTSTATUS provision_bare(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx,
 	result->domaindn = talloc_strdup(mem_ctx, PyString_AsString(PyObject_GetAttrString(py_result, "domaindn")));
 
 	/* FIXME paths */
-	result->lp_ctx = lpcfg_from_py_object(result, PyObject_GetAttrString(py_result, "lp"));
+	py_lp_ctx = PyObject_GetAttrString(py_result, "lp");
+	if (py_lp_ctx == NULL) {
+		DEBUG(0, ("Missing 'lp' attribute"));
+		return NT_STATUS_UNSUCCESSFUL;
+	}
+	result->lp_ctx = lpcfg_from_py_object(mem_ctx, py_lp_ctx);
 	result->samdb = PyLdb_AsLdbContext(PyObject_GetAttrString(py_result, "samdb"));
 
 	return NT_STATUS_OK;
@@ -228,7 +220,7 @@ NTSTATUS provision_store_self_join(TALLOC_CTX *mem_ctx, struct loadparm_context 
 	}
 
 	/* Open the secrets database */
-	ldb = secrets_db_connect(tmp_mem, event_ctx, lp_ctx);
+	ldb = secrets_db_connect(tmp_mem, lp_ctx);
 	if (!ldb) {
 		*error_string
 			= talloc_asprintf(mem_ctx, 
@@ -248,7 +240,7 @@ NTSTATUS provision_store_self_join(TALLOC_CTX *mem_ctx, struct loadparm_context 
 	}
 
 	Py_Initialize();
-	py_update_path("bin"); /* FIXME: Can't assume this is always the case */
+	py_update_path(); /* Put the samba path at the start of sys.path */
 	provision_mod = provision_module();
 
 	if (provision_mod == NULL) {
@@ -341,13 +333,10 @@ failure:
 struct ldb_context *provision_get_schema(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx,
 					 DATA_BLOB *override_prefixmap)
 {
-	const char *setupdir;
 	PyObject *schema_mod, *schema_dict, *schema_fn, *py_result, *parameters;
 	
-	DEBUG(0,("Schema for DRS tests using python\n"));
-
 	Py_Initialize();
-	py_update_path("bin"); /* FIXME: Can't assume this is always the case */
+	py_update_path(); /* Put the samba path at the start of sys.path */
 
 	schema_mod = schema_module();
 
@@ -373,9 +362,6 @@ struct ldb_context *provision_get_schema(TALLOC_CTX *mem_ctx, struct loadparm_co
 	
 	parameters = PyDict_New();
 
-	setupdir = lpcfg_setupdir(lp_ctx);
-	PyDict_SetItemString(parameters, "setup_dir", 
-			     PyString_FromString(setupdir));
 	if (override_prefixmap) {
 		PyDict_SetItemString(parameters, "override_prefixmap",
 				     PyString_FromStringAndSize((const char *)override_prefixmap->data,

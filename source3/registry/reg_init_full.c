@@ -24,8 +24,8 @@
 #include "registry.h"
 #include "reg_cachehook.h"
 #include "reg_backend_db.h"
-#include "reg_perfcount.h"
-#include "reg_eventlog.h"
+#include "reg_init_basic.h"
+#include "reg_init_full.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
@@ -93,12 +93,6 @@ WERROR registry_init_full(void)
 
 	if ( DEBUGLEVEL >= 20 )
 		reghook_dump_cache(20);
-
-	/* add any keys for other services */
-
-	svcctl_init_keys();
-	eventlog_init_keys();
-	perfcount_init_keys();
 
 fail:
 	/* close and let each smbd open up as necessary */

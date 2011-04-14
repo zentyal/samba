@@ -18,6 +18,8 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "system/select.h"
+
 #if defined(WITH_AIO)
 struct aio_extra;
 extern struct aio_extra *aio_list_head;
@@ -36,33 +38,23 @@ extern bool dfree_broken;
 /* how many write cache buffers have been allocated */
 extern unsigned int allocated_write_caches;
 
-extern int real_max_open_files;
-extern struct bitmap *file_bmap;
-extern files_struct *Files;
-extern int files_used;
 /* A singleton cache to speed up searching by dev/inode. */
 struct fsp_singleton_cache {
 	files_struct *fsp;
 	struct file_id id;
 };
-extern struct fsp_singleton_cache fsp_fi_cache;
-extern unsigned long file_gen_counter;
-extern int first_file;
 
 extern const struct mangle_fns *mangle_fns;
 
 extern unsigned char *chartest;
 extern TDB_CONTEXT *tdb_mangled_cache;
 
-/* these tables are used to provide fast tests for characters */
-extern unsigned char char_flags[256];
 /*
   this determines how many characters are used from the original filename
   in the 8.3 mangled name. A larger value leads to a weaker hash and more collisions.
   The largest possible value is 6.
 */
 extern unsigned mangle_prefix;
-extern unsigned char base_reverse[256];
 
 struct msg_state;
 extern struct msg_state *smbd_msg_state;
@@ -71,7 +63,6 @@ extern bool logged_ioctl_message;
 
 extern int trans_num;
 
-extern pid_t mypid;
 extern time_t last_smb_conf_reload_time;
 extern time_t last_printer_reload_time;
 /****************************************************************************
@@ -87,8 +78,8 @@ extern struct smb_srv_trans_enc_ctx *partial_srv_trans_enc_ctx;
 extern struct smb_srv_trans_enc_ctx *srv_trans_enc_ctx;
 
 struct sec_ctx {
-	UNIX_USER_TOKEN ut;
-	NT_USER_TOKEN *token;
+	struct security_unix_token ut;
+	struct security_token *token;
 };
 /* A stack of security contexts.  We include the current context as being
    the first one, so there is room for another MAX_SEC_CTX_DEPTH more. */
@@ -123,7 +114,6 @@ extern int32_t level_II_oplocks_open;
 extern struct kernel_oplocks *koplocks;
 
 extern int am_parent;
-extern int server_fd;
 extern struct event_context *smbd_event_ctx;
 extern struct messaging_context *smbd_msg_ctx;
 extern struct memcache *smbd_memcache_ctx;
@@ -429,7 +419,7 @@ struct smbd_smb2_session {
 	NTSTATUS status;
 	uint64_t vuid;
 	struct auth_ntlmssp_state *auth_ntlmssp_state;
-	struct auth_serversupplied_info *server_info;
+	struct auth_serversupplied_info *session_info;
 	DATA_BLOB session_key;
 	bool do_signing;
 
@@ -457,6 +447,8 @@ struct smbd_smb2_tcon {
 struct pending_auth_data;
 
 struct smbd_server_connection {
+	int sock;
+	struct client_address client_id;
 	const struct tsocket_address *local_address;
 	const struct tsocket_address *remote_address;
 	struct messaging_context *msg_ctx;
@@ -464,12 +456,38 @@ struct smbd_server_connection {
 		bool got_session;
 	} nbt;
 	bool using_smb2;
+	int trans_num;
+
+	/*
+	 * Cache for calling poll(2) to avoid allocations in our
+	 * central event loop
+	 */
+	struct pollfd *pfds;
+
+	struct files_struct *files;
+	struct bitmap *file_bmap;
+	int real_max_open_files;
+	int files_used;
+	struct fsp_singleton_cache fsp_fi_cache;
+	unsigned long file_gen_counter;
+	int first_file;
+
+	/* number of open connections (tcons) */
+	int num_tcons_open;
+
+	/* open directory handles. */
+	struct {
+		struct bitmap *dptr_bmap;
+		struct dptr_struct *dirptrs;
+		int dirhandles_open;
+	} searches;
+
 	struct {
 		struct fd_event *fde;
 
 		struct {
 			/*
-			 * fd for the fcntl lock mutexing access to smbd_server_fd
+			 * fd for the fcntl lock mutexing access to our sock
 			 */
 			int socket_lock_fd;
 
@@ -530,7 +548,6 @@ struct smbd_server_connection {
 			connection_struct *Connections;
 			/* number of open connections */
 			struct bitmap *bmap;
-			int num_open;
 		} tcons;
 		struct smb_signing_state *signing_state;
 		/* List to store partial SPNEGO auth fragments. */
@@ -538,11 +555,6 @@ struct smbd_server_connection {
 
 		struct notify_mid_map *notify_mid_maps;
 
-		struct {
-			struct bitmap *dptr_bmap;
-			struct dptr_struct *dirptrs;
-			int dirhandles_open;
-		} searches;
 		struct {
 			/* dlink list we store pending lock records on. */
 			struct blocking_lock_record *blocking_lock_queue;
@@ -578,10 +590,15 @@ struct smbd_server_connection {
 			bool blocking_lock_unlock_state;
 		} locks;
 		struct smbd_smb2_request *requests;
-		uint64_t credits_granted;
+		uint64_t seqnum_low;
+		uint32_t credits_granted;
+		uint32_t max_credits;
+		struct bitmap *credits_bitmap;
 	} smb2;
 };
 
 extern struct smbd_server_connection *smbd_server_conn;
+
+struct smbd_server_connection *msg_ctx_to_sconn(struct messaging_context *msg_ctx);
 
 void smbd_init_globals(void);

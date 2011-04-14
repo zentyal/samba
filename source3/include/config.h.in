@@ -276,7 +276,7 @@
 /* Define to 1 if you have the `chsize' function. */
 #undef HAVE_CHSIZE
 
-/* Whether clock_gettime is available */
+/* Define to 1 if there is support for clock_gettime */
 #undef HAVE_CLOCK_GETTIME
 
 /* Whether the clock_gettime clock ID CLOCK_MONOTONIC is available */
@@ -324,6 +324,9 @@
 
 /* Define to 1 if you have the <crypt.h> header file. */
 #undef HAVE_CRYPT_H
+
+/* Whether CTDB_CONTROL_SCHEDULE_FOR_DELETION() is available */
+#undef HAVE_CTDB_CONTROL_SCHEDULE_FOR_DELETION_DECL
 
 /* Whether CTDB_CONTROL_TRANS3_COMMIT() is available */
 #undef HAVE_CTDB_CONTROL_TRANS3_COMMIT_DECL
@@ -453,7 +456,10 @@
 /* Define to 1 if you have the `dup2' function. */
 #undef HAVE_DUP2
 
-/* Whether the ENCTYPE_ARCFOUR_HMAC_MD5 key type is available */
+/* Whether the ENCTYPE_ARCFOUR_HMAC key type definition is available */
+#undef HAVE_ENCTYPE_ARCFOUR_HMAC
+
+/* Whether the ENCTYPE_ARCFOUR_HMAC_MD5 key type definition is available */
 #undef HAVE_ENCTYPE_ARCFOUR_HMAC_MD5
 
 /* Define to 1 if you have the `endmntent' function. */
@@ -528,6 +534,12 @@
 /* Whether the krb5_error struct has a e_data pointer */
 #undef HAVE_E_DATA_POINTER_IN_KRB5_ERROR
 
+/* Define to 1 if you have the `fallocate' function. */
+#undef HAVE_FALLOCATE
+
+/* Define to 1 if you have the `fallocate64' function. */
+#undef HAVE_FALLOCATE64
+
 /* Define to 1 if there is support for FAMNoExists */
 #undef HAVE_FAMNOEXISTS
 
@@ -561,8 +573,17 @@
 /* Define to 1 if you have the `fdatasync' function. */
 #undef HAVE_FDATASYNC
 
+/* Whether fdatasync() is available */
+#undef HAVE_FDATASYNC_DECL
+
 /* Define to 1 if you have the `fdelproplist' function. */
 #undef HAVE_FDELPROPLIST
+
+/* Define to 1 if you have the `fdopendir' function. */
+#undef HAVE_FDOPENDIR
+
+/* Define to 1 if you have the `fdopendir64' function. */
+#undef HAVE_FDOPENDIR64
 
 /* Define to 1 if you have the `fgetea' function. */
 #undef HAVE_FGETEA
@@ -590,6 +611,9 @@
 
 /* Whether the system has freeaddrinfo */
 #undef HAVE_FREEADDRINFO
+
+/* Whether we have FreeBSD sunacl around */
+#undef HAVE_FREEBSD_SUNACL_H
 
 /* Whether the system has freeifaddrs */
 #undef HAVE_FREEIFADDRS
@@ -702,6 +726,9 @@
 /* Define to 1 if you have the `getgrouplist' function. */
 #undef HAVE_GETGROUPLIST
 
+/* Define to 1 if you have the `getgrset' function. */
+#undef HAVE_GETGRSET
+
 /* Whether the system has gethostbyname() */
 #undef HAVE_GETHOSTBYNAME
 
@@ -725,6 +752,9 @@
 
 /* Define to 1 if you have the `getpagesize' function. */
 #undef HAVE_GETPAGESIZE
+
+/* Whether we have getpeereid to get socket credentials */
+#undef HAVE_GETPEEREID
 
 /* Define to 1 if you have the `getpgrp' function. */
 #undef HAVE_GETPGRP
@@ -801,6 +831,9 @@
 /* Whether GSSAPI is available */
 #undef HAVE_GSSAPI
 
+/* Define to 1 if you have the <gssapi/gssapi_ext.h> header file. */
+#undef HAVE_GSSAPI_GSSAPI_EXT_H
+
 /* Define to 1 if you have the <gssapi/gssapi_generic.h> header file. */
 #undef HAVE_GSSAPI_GSSAPI_GENERIC_H
 
@@ -813,6 +846,9 @@
 /* Define to 1 if you have the `gss_display_status' function. */
 #undef HAVE_GSS_DISPLAY_STATUS
 
+/* Define to 1 if you have the `gss_wrap_iov' function. */
+#undef HAVE_GSS_WRAP_IOV
+
 /* Define to 1 if you have the <history.h> header file. */
 #undef HAVE_HISTORY_H
 
@@ -824,6 +860,9 @@
 
 /* Define to 1 if you have the `hstrerror' function. */
 #undef HAVE_HSTRERROR
+
+/* Define to 1 if you have the `httpConnect' function. */
+#undef HAVE_HTTPCONNECT
 
 /* Define to 1 if you have the `httpConnectEncrypt' function. */
 #undef HAVE_HTTPCONNECTENCRYPT
@@ -1284,11 +1323,23 @@
 /* Define to 1 if you have the <linux/dqblk_xfs.h> header file. */
 #undef HAVE_LINUX_DQBLK_XFS_H
 
+/* Whether the Linux 'fallocate' function is available */
+#undef HAVE_LINUX_FALLOCATE
+
+/* Whether the Linux 'fallocate64' function is available */
+#undef HAVE_LINUX_FALLOCATE64
+
+/* Define to 1 if you have the <linux/falloc.h> header file. */
+#undef HAVE_LINUX_FALLOC_H
+
 /* Define to 1 if you have the <linux/inotify.h> header file. */
 #undef HAVE_LINUX_INOTIFY_H
 
 /* Whether the system has IPV6_V6ONLY in linux/in6.h */
 #undef HAVE_LINUX_IPV6_V6ONLY_26
+
+/* Define to 1 if you have the <linux/netlink.h> header file. */
+#undef HAVE_LINUX_NETLINK_H
 
 /* Whether the Linux ptrace(2) interface is available. */
 #undef HAVE_LINUX_PTRACE
@@ -1296,8 +1347,14 @@
 /* Whether Linux readahead is available */
 #undef HAVE_LINUX_READAHEAD
 
+/* Define to 1 if you have the <linux/rtnetlink.h> header file. */
+#undef HAVE_LINUX_RTNETLINK_H
+
 /* Whether Linux splice is available */
 #undef HAVE_LINUX_SPLICE
+
+/* Define to 1 if you have the <linux/types.h> header file. */
+#undef HAVE_LINUX_TYPES_H
 
 /* Whether Linux xfs quota support is available */
 #undef HAVE_LINUX_XFS_QUOTAS
@@ -1449,6 +1506,9 @@
 /* Do we have rl_completion_matches? */
 #undef HAVE_NEW_LIBREADLINE
 
+/* Whether nfs quota support is available */
+#undef HAVE_NFS_QUOTAS
+
 /* Define to 1 if you have the `nl_langinfo' function. */
 #undef HAVE_NL_LANGINFO
 
@@ -1506,6 +1566,12 @@
 /* Define to 1 if PAM_RADIO_TYPE is available */
 #undef HAVE_PAM_RADIO_TYPE
 
+/* Define to 1 if PAM_RHOST is available */
+#undef HAVE_PAM_RHOST
+
+/* Define to 1 if PAM_TTY is available */
+#undef HAVE_PAM_TTY
+
 /* Define to 1 if you have the `pam_vsyslog' function. */
 #undef HAVE_PAM_VSYSLOG
 
@@ -1529,6 +1595,9 @@
 
 /* Define to 1 if you have the `poll' function. */
 #undef HAVE_POLL
+
+/* Define to 1 if you have the <poll.h> header file. */
+#undef HAVE_POLL_H
 
 /* Whether POSIX ACLs are available */
 #undef HAVE_POSIX_ACLS
@@ -1983,19 +2052,21 @@
 /* Whether struct ifaddrs is available */
 #undef HAVE_STRUCT_IFADDRS
 
-/* Define to 1 if `method_attrlist' is member of `struct secmethod_table'. */
+/* Define to 1 if `method_attrlist' is a member of `struct secmethod_table'.
+   */
 #undef HAVE_STRUCT_SECMETHOD_TABLE_METHOD_ATTRLIST
 
-/* Define to 1 if `method_version' is member of `struct secmethod_table'. */
+/* Define to 1 if `method_version' is a member of `struct secmethod_table'. */
 #undef HAVE_STRUCT_SECMETHOD_TABLE_METHOD_VERSION
 
 /* Whether we have the struct sigevent */
 #undef HAVE_STRUCT_SIGEVENT
 
-/* Define to 1 if `sigev_value.sigval_ptr' is member of `struct sigevent'. */
+/* Define to 1 if `sigev_value.sigval_ptr' is a member of `struct sigevent'.
+   */
 #undef HAVE_STRUCT_SIGEVENT_SIGEV_VALUE_SIGVAL_PTR
 
-/* Define to 1 if `sigev_value.sival_ptr' is member of `struct sigevent'. */
+/* Define to 1 if `sigev_value.sival_ptr' is a member of `struct sigevent'. */
 #undef HAVE_STRUCT_SIGEVENT_SIGEV_VALUE_SIVAL_PTR
 
 /* Define to 1 if the system has the type `struct sockaddr'. */
@@ -2004,37 +2075,37 @@
 /* Define to 1 if the system has the type `struct sockaddr_in6'. */
 #undef HAVE_STRUCT_SOCKADDR_IN6
 
-/* Define to 1 if `sa_len' is member of `struct sockaddr'. */
+/* Define to 1 if `sa_len' is a member of `struct sockaddr'. */
 #undef HAVE_STRUCT_SOCKADDR_SA_LEN
 
 /* Define to 1 if the system has the type `struct sockaddr_storage'. */
 #undef HAVE_STRUCT_SOCKADDR_STORAGE
 
-/* Define to 1 if `st_birthtime' is member of `struct stat'. */
+/* Define to 1 if `st_birthtime' is a member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_BIRTHTIME
 
-/* Define to 1 if `st_birthtimensec' is member of `struct stat'. */
+/* Define to 1 if `st_birthtimensec' is a member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_BIRTHTIMENSEC
 
-/* Define to 1 if `st_birthtimespec.tv_nsec' is member of `struct stat'. */
+/* Define to 1 if `st_birthtimespec.tv_nsec' is a member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_BIRTHTIMESPEC_TV_NSEC
 
-/* Define to 1 if `st_mtimensec' is member of `struct stat'. */
+/* Define to 1 if `st_mtimensec' is a member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_MTIMENSEC
 
-/* Define to 1 if `st_mtimespec.tv_nsec' is member of `struct stat'. */
+/* Define to 1 if `st_mtimespec.tv_nsec' is a member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC
 
-/* Define to 1 if `st_mtime_n' is member of `struct stat'. */
+/* Define to 1 if `st_mtime_n' is a member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_MTIME_N
 
-/* Define to 1 if `st_mtim.tv_nsec' is member of `struct stat'. */
+/* Define to 1 if `st_mtim.tv_nsec' is a member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC
 
-/* Define to 1 if `st_rdev' is member of `struct stat'. */
+/* Define to 1 if `st_rdev' is a member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_RDEV
 
-/* Define to 1 if `st_umtime' is member of `struct stat'. */
+/* Define to 1 if `st_umtime' is a member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_UMTIME
 
 /* Whether we have struct timespec */
@@ -2730,6 +2801,9 @@
 /* Define to the one symbol short name of this package. */
 #undef PACKAGE_TARNAME
 
+/* Define to the home page for this package. */
+#undef PACKAGE_URL
+
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
 
@@ -2890,6 +2964,9 @@
 /* Whether telldir takes a const pointer */
 #undef TELLDIR_TAKES_CONST_DIR
 
+/* The maximum value of the 'time_t' type */
+#undef TIME_T_MAX
+
 /* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
 #undef TIME_WITH_SYS_TIME
 
@@ -2935,6 +3012,9 @@
 # undef __EXTENSIONS__
 #endif
 
+
+/* Whether we have valgrind headers */
+#undef VALGRIND
 
 /* Whether to include Active Directory support */
 #undef WITH_ADS
@@ -3122,6 +3202,9 @@
 /* Whether to build idmap_adex as shared module */
 #undef idmap_adex_init
 
+/* Whether to build idmap_autorid as shared module */
+#undef idmap_autorid_init
+
 /* Whether to build idmap_hash as shared module */
 #undef idmap_hash_init
 
@@ -3206,48 +3289,6 @@
 /* Define to `int' if <sys/types.h> does not define. */
 #undef pid_t
 
-/* Whether to build rpc_dssetup as shared module */
-#undef rpc_dssetup_init
-
-/* Whether to build rpc_eventlog as shared module */
-#undef rpc_eventlog_init
-
-/* Whether to build rpc_initshutdown as shared module */
-#undef rpc_initshutdown_init
-
-/* Whether to build rpc_lsarpc as shared module */
-#undef rpc_lsarpc_init
-
-/* Whether to build rpc_netdfs as shared module */
-#undef rpc_netdfs_init
-
-/* Whether to build rpc_netlogon as shared module */
-#undef rpc_netlogon_init
-
-/* Whether to build rpc_ntsvcs as shared module */
-#undef rpc_ntsvcs_init
-
-/* Whether to build rpc_rpcecho as shared module */
-#undef rpc_rpcecho_init
-
-/* Whether to build rpc_samr as shared module */
-#undef rpc_samr_init
-
-/* Whether to build rpc_spoolss as shared module */
-#undef rpc_spoolss_init
-
-/* Whether to build rpc_srvsvc as shared module */
-#undef rpc_srvsvc_init
-
-/* Whether to build rpc_svcctl as shared module */
-#undef rpc_svcctl_init
-
-/* Whether to build rpc_winreg as shared module */
-#undef rpc_winreg_init
-
-/* Whether to build rpc_wkssvc as shared module */
-#undef rpc_wkssvc_init
-
 /* Define to `unsigned int' if <sys/types.h> does not define. */
 #undef size_t
 
@@ -3276,9 +3317,6 @@
 #undef static_decl_perfcount
 
 /* Decl of Static init functions */
-#undef static_decl_rpc
-
-/* Decl of Static init functions */
 #undef static_decl_vfs
 
 /* Static init functions */
@@ -3301,9 +3339,6 @@
 
 /* Static init functions */
 #undef static_init_perfcount
-
-/* Static init functions */
-#undef static_init_rpc
 
 /* Static init functions */
 #undef static_init_vfs
@@ -3448,6 +3483,9 @@
 
 /* Whether to build vfs_syncops as shared module */
 #undef vfs_syncops_init
+
+/* Whether to build vfs_time_audit as shared module */
+#undef vfs_time_audit_init
 
 /* Whether to build vfs_tru64acl as shared module */
 #undef vfs_tru64acl_init

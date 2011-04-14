@@ -19,12 +19,16 @@
 
 #include "includes.h"
 #include "winbindd.h"
+#include "../libcli/security/security.h"
 
 struct winbindd_getsidaliases_state {
 	struct dom_sid sid;
 	uint32_t num_aliases;
 	uint32_t *aliases;
 };
+
+static bool parse_sidlist(TALLOC_CTX *mem_ctx, const char *sidstr,
+			  struct dom_sid **sids, uint32_t *num_sids);
 
 static void winbindd_getsidaliases_done(struct tevent_req *subreq);
 
@@ -36,7 +40,7 @@ struct tevent_req *winbindd_getsidaliases_send(TALLOC_CTX *mem_ctx,
 	struct tevent_req *req, *subreq;
 	struct winbindd_getsidaliases_state *state;
 	struct winbindd_domain *domain;
-	size_t num_sids;
+	uint32_t num_sids;
 	struct dom_sid *sids;
 
 	req = tevent_req_create(mem_ctx, &state,
@@ -150,4 +154,43 @@ NTSTATUS winbindd_getsidaliases_recv(struct tevent_req *req,
 	response->length += talloc_get_size(sidlist);
 	response->data.num_entries = state->num_aliases;
 	return NT_STATUS_OK;
+}
+
+static bool parse_sidlist(TALLOC_CTX *mem_ctx, const char *sidstr,
+			  struct dom_sid **sids, uint32_t *num_sids)
+{
+	const char *p, *q;
+
+	p = sidstr;
+	if (p == NULL)
+		return False;
+
+	while (p[0] != '\0') {
+		fstring tmp;
+		size_t sidlen;
+		struct dom_sid sid;
+		q = strchr(p, '\n');
+		if (q == NULL) {
+			DEBUG(0, ("Got invalid sidstr: %s\n", p));
+			return False;
+		}
+		sidlen = PTR_DIFF(q, p);
+		if (sidlen >= sizeof(tmp)-1) {
+			return false;
+		}
+		memcpy(tmp, p, sidlen);
+		tmp[sidlen] = '\0';
+		q += 1;
+		if (!string_to_sid(&sid, tmp)) {
+			DEBUG(0, ("Could not parse sid %s\n", p));
+			return False;
+		}
+		if (!NT_STATUS_IS_OK(add_sid_to_array(mem_ctx, &sid, sids,
+						      num_sids)))
+		{
+			return False;
+		}
+		p = q;
+	}
+	return True;
 }

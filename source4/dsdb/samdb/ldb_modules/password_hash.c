@@ -33,19 +33,13 @@
  */
 
 #include "includes.h"
-#include "libcli/ldap/ldap_ndr.h"
 #include "ldb_module.h"
-#include "librpc/gen_ndr/misc.h"
-#include "librpc/gen_ndr/samr.h"
 #include "libcli/auth/libcli_auth.h"
-#include "libcli/security/security.h"
 #include "system/kerberos.h"
 #include "auth/kerberos/kerberos.h"
-#include "system/time.h"
 #include "dsdb/samdb/samdb.h"
-#include "../libds/common/flags.h"
+#include "dsdb/samdb/ldb_modules/util.h"
 #include "dsdb/samdb/ldb_modules/password_modules.h"
-#include "librpc/ndr/libndr.h"
 #include "librpc/gen_ndr/ndr_drsblobs.h"
 #include "../lib/crypto/crypto.h"
 #include "param/param.h"
@@ -95,12 +89,12 @@ struct ph_context {
 	struct ldb_reply *search_res;
 
 	struct dsdb_control_password_change_status *status;
+	struct dsdb_control_password_change *change;
 
 	bool pwd_reset;
-
 	bool change_status;
 	bool hash_values;
-	bool change_old_pw_checked;
+	bool userPassword;
 };
 
 
@@ -156,6 +150,399 @@ struct setup_password_fields_io {
 		NTTIME last_set;
 	} g;
 };
+
+static int password_hash_bypass(struct ldb_module *module, struct ldb_request *request)
+{
+	struct ldb_context *ldb = ldb_module_get_ctx(module);
+	const struct ldb_message *msg;
+	struct ldb_message_element *nte;
+	struct ldb_message_element *lme;
+	struct ldb_message_element *nthe;
+	struct ldb_message_element *lmhe;
+	struct ldb_message_element *sce;
+
+	switch (request->operation) {
+	case LDB_ADD:
+		msg = request->op.add.message;
+		break;
+	case LDB_MODIFY:
+		msg = request->op.mod.message;
+		break;
+	default:
+		return ldb_next_request(module, request);
+	}
+
+	/* nobody must touch password histories and 'supplementalCredentials' */
+	nte = dsdb_get_single_valued_attr(msg, "unicodePwd",
+					  request->operation);
+	lme = dsdb_get_single_valued_attr(msg, "dBCSPwd",
+					  request->operation);
+	nthe = dsdb_get_single_valued_attr(msg, "ntPwdHistory",
+					   request->operation);
+	lmhe = dsdb_get_single_valued_attr(msg, "lmPwdHistory",
+					   request->operation);
+	sce = dsdb_get_single_valued_attr(msg, "supplementalCredentials",
+					  request->operation);
+
+#define CHECK_HASH_ELEMENT(e, min, max) do {\
+	if (e && e->num_values) { \
+		unsigned int _count; \
+		if (e->num_values != 1) { \
+			return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION, \
+					 "num_values != 1"); \
+		} \
+		if ((e->values[0].length % 16) != 0) { \
+			return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION, \
+					 "length % 16 != 0"); \
+		} \
+		_count = e->values[0].length / 16; \
+		if (_count < min) { \
+			return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION, \
+					 "count < min"); \
+		} \
+		if (_count > max) { \
+			return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION, \
+					 "count > max"); \
+		} \
+	} \
+} while (0)
+
+	CHECK_HASH_ELEMENT(nte, 1, 1);
+	CHECK_HASH_ELEMENT(lme, 1, 1);
+	CHECK_HASH_ELEMENT(nthe, 1, INT32_MAX);
+	CHECK_HASH_ELEMENT(lmhe, 1, INT32_MAX);
+
+	if (sce && sce->num_values) {
+		enum ndr_err_code ndr_err;
+		struct supplementalCredentialsBlob *scb;
+		struct supplementalCredentialsPackage *scpp = NULL;
+		struct supplementalCredentialsPackage *scpk = NULL;
+		struct supplementalCredentialsPackage *scpkn = NULL;
+		struct supplementalCredentialsPackage *scpct = NULL;
+		DATA_BLOB scpbp = data_blob_null;
+		DATA_BLOB scpbk = data_blob_null;
+		DATA_BLOB scpbkn = data_blob_null;
+		DATA_BLOB scpbct = data_blob_null;
+		DATA_BLOB blob;
+		uint32_t i;
+
+		if (sce->num_values != 1) {
+			return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+					 "num_values != 1");
+		}
+
+		scb = talloc_zero(request, struct supplementalCredentialsBlob);
+		if (!scb) {
+			return ldb_module_oom(module);
+		}
+
+		ndr_err = ndr_pull_struct_blob_all(&sce->values[0], scb, scb,
+				(ndr_pull_flags_fn_t)ndr_pull_supplementalCredentialsBlob);
+		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+			return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+					 "ndr_pull_struct_blob_all");
+		}
+
+		if (scb->sub.num_packages < 2) {
+			return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+					 "num_packages < 2");
+		}
+
+		for (i=0; i < scb->sub.num_packages; i++) {
+			DATA_BLOB subblob;
+
+			subblob = strhex_to_data_blob(scb, scb->sub.packages[i].data);
+			if (subblob.data == NULL) {
+				return ldb_module_oom(module);
+			}
+
+			if (strcmp(scb->sub.packages[i].name, "Packages") == 0) {
+				if (scpp) {
+					return ldb_error(ldb,
+							 LDB_ERR_CONSTRAINT_VIOLATION,
+							 "Packages twice");
+				}
+				scpp = &scb->sub.packages[i];
+				scpbp = subblob;
+				continue;
+			}
+			if (strcmp(scb->sub.packages[i].name, "Primary:Kerberos") == 0) {
+				if (scpk) {
+					return ldb_error(ldb,
+							 LDB_ERR_CONSTRAINT_VIOLATION,
+							 "Primary:Kerberos twice");
+				}
+				scpk = &scb->sub.packages[i];
+				scpbk = subblob;
+				continue;
+			}
+			if (strcmp(scb->sub.packages[i].name, "Primary:Kerberos-Newer-Keys") == 0) {
+				if (scpkn) {
+					return ldb_error(ldb,
+							 LDB_ERR_CONSTRAINT_VIOLATION,
+							 "Primary:Kerberos-Newer-Keys twice");
+				}
+				scpkn = &scb->sub.packages[i];
+				scpbkn = subblob;
+				continue;
+			}
+			if (strcmp(scb->sub.packages[i].name, "Primary:CLEARTEXT") == 0) {
+				if (scpct) {
+					return ldb_error(ldb,
+							 LDB_ERR_CONSTRAINT_VIOLATION,
+							 "Primary:CLEARTEXT twice");
+				}
+				scpct = &scb->sub.packages[i];
+				scpbct = subblob;
+				continue;
+			}
+
+			data_blob_free(&subblob);
+		}
+
+		if (scpp) {
+			struct package_PackagesBlob *p;
+			uint32_t n;
+
+			p = talloc_zero(scb, struct package_PackagesBlob);
+			if (p == NULL) {
+				return ldb_module_oom(module);
+			}
+
+			ndr_err = ndr_pull_struct_blob(&scpbp, p, p,
+					(ndr_pull_flags_fn_t)ndr_pull_package_PackagesBlob);
+			if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "ndr_pull_struct_blob Packages");
+			}
+
+			if (p->names == NULL) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "Packages names == NULL");
+			}
+
+			for (n = 0; p->names[n]; n++) {
+				/* noop */
+			}
+
+			if (scb->sub.num_packages != (n + 1)) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "Packages num_packages != num_names + 1");
+			}
+
+			talloc_free(p);
+		}
+
+		if (scpk) {
+			struct package_PrimaryKerberosBlob *k;
+
+			k = talloc_zero(scb, struct package_PrimaryKerberosBlob);
+			if (k == NULL) {
+				return ldb_module_oom(module);
+			}
+
+			ndr_err = ndr_pull_struct_blob(&scpbk, k, k,
+					(ndr_pull_flags_fn_t)ndr_pull_package_PrimaryKerberosBlob);
+			if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "ndr_pull_struct_blob PrimaryKerberos");
+			}
+
+			if (k->version != 3) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "PrimaryKerberos version != 3");
+			}
+
+			if (k->ctr.ctr3.salt.string == NULL) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "PrimaryKerberos salt == NULL");
+			}
+
+			if (strlen(k->ctr.ctr3.salt.string) == 0) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "PrimaryKerberos strlen(salt) == 0");
+			}
+
+			if (k->ctr.ctr3.num_keys != 2) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "PrimaryKerberos num_keys != 2");
+			}
+
+			if (k->ctr.ctr3.num_old_keys > k->ctr.ctr3.num_keys) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "PrimaryKerberos num_old_keys > num_keys");
+			}
+
+			if (k->ctr.ctr3.keys[0].keytype != ENCTYPE_DES_CBC_MD5) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "PrimaryKerberos key[0] != DES_CBC_MD5");
+			}
+			if (k->ctr.ctr3.keys[1].keytype != ENCTYPE_DES_CBC_CRC) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "PrimaryKerberos key[1] != DES_CBC_CRC");
+			}
+
+			if (k->ctr.ctr3.keys[0].value_len != 8) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "PrimaryKerberos key[0] value_len != 8");
+			}
+			if (k->ctr.ctr3.keys[1].value_len != 8) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "PrimaryKerberos key[1] value_len != 8");
+			}
+
+			for (i = 0; i < k->ctr.ctr3.num_old_keys; i++) {
+				if (k->ctr.ctr3.old_keys[i].keytype ==
+				    k->ctr.ctr3.keys[i].keytype &&
+				    k->ctr.ctr3.old_keys[i].value_len ==
+				    k->ctr.ctr3.keys[i].value_len) {
+					continue;
+				}
+
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "PrimaryKerberos old_keys type/value_len doesn't match");
+			}
+
+			talloc_free(k);
+		}
+
+		if (scpkn) {
+			struct package_PrimaryKerberosBlob *k;
+
+			k = talloc_zero(scb, struct package_PrimaryKerberosBlob);
+			if (k == NULL) {
+				return ldb_module_oom(module);
+			}
+
+			ndr_err = ndr_pull_struct_blob(&scpbkn, k, k,
+					(ndr_pull_flags_fn_t)ndr_pull_package_PrimaryKerberosBlob);
+			if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "ndr_pull_struct_blob PrimaryKerberosNeverKeys");
+			}
+
+			if (k->version != 4) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "KerberosNerverKeys version != 4");
+			}
+
+			if (k->ctr.ctr4.salt.string == NULL) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "KerberosNewerKeys salt == NULL");
+			}
+
+			if (strlen(k->ctr.ctr4.salt.string) == 0) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "KerberosNewerKeys strlen(salt) == 0");
+			}
+
+			if (k->ctr.ctr4.num_keys != 4) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "KerberosNewerKeys num_keys != 2");
+			}
+
+			if (k->ctr.ctr4.num_old_keys > k->ctr.ctr4.num_keys) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "KerberosNewerKeys num_old_keys > num_keys");
+			}
+
+			if (k->ctr.ctr4.num_older_keys > k->ctr.ctr4.num_old_keys) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "KerberosNewerKeys num_older_keys > num_old_keys");
+			}
+
+			if (k->ctr.ctr4.keys[0].keytype != ENCTYPE_AES256_CTS_HMAC_SHA1_96) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "KerberosNewerKeys key[0] != AES256");
+			}
+			if (k->ctr.ctr4.keys[1].keytype != ENCTYPE_AES128_CTS_HMAC_SHA1_96) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "KerberosNewerKeys key[1] != AES128");
+			}
+			if (k->ctr.ctr4.keys[2].keytype != ENCTYPE_DES_CBC_MD5) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "KerberosNewerKeys key[2] != DES_CBC_MD5");
+			}
+			if (k->ctr.ctr4.keys[3].keytype != ENCTYPE_DES_CBC_CRC) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "KerberosNewerKeys key[3] != DES_CBC_CRC");
+			}
+
+			if (k->ctr.ctr4.keys[0].value_len != 32) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "KerberosNewerKeys key[0] value_len != 32");
+			}
+			if (k->ctr.ctr4.keys[1].value_len != 16) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "KerberosNewerKeys key[1] value_len != 16");
+			}
+			if (k->ctr.ctr4.keys[2].value_len != 8) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "KerberosNewerKeys key[2] value_len != 8");
+			}
+			if (k->ctr.ctr4.keys[3].value_len != 8) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "KerberosNewerKeys key[3] value_len != 8");
+			}
+
+			/*
+			 * TODO:
+			 * Maybe we can check old and older keys here.
+			 * But we need to do some tests, if the old keys
+			 * can be taken from the PrimaryKerberos blob
+			 * (with only des keys), when the domain was upgraded
+			 * from w2k3 to w2k8.
+			 */
+
+			talloc_free(k);
+		}
+
+		if (scpct) {
+			struct package_PrimaryCLEARTEXTBlob *ct;
+
+			ct = talloc_zero(scb, struct package_PrimaryCLEARTEXTBlob);
+			if (ct == NULL) {
+				return ldb_module_oom(module);
+			}
+
+			ndr_err = ndr_pull_struct_blob(&scpbct, ct, ct,
+					(ndr_pull_flags_fn_t)ndr_pull_package_PrimaryCLEARTEXTBlob);
+			if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "ndr_pull_struct_blob PrimaryCLEARTEXT");
+			}
+
+			if ((ct->cleartext.length % 2) != 0) {
+				return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+						 "PrimaryCLEARTEXT length % 2 != 0");
+			}
+
+			talloc_free(ct);
+		}
+
+		ndr_err = ndr_push_struct_blob(&blob, scb, scb,
+				(ndr_push_flags_fn_t)ndr_push_supplementalCredentialsBlob);
+		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+			return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+					 "ndr_pull_struct_blob_all");
+		}
+
+		if (sce->values[0].length != blob.length) {
+			return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+					 "supplementalCredentialsBlob length differ");
+		}
+
+		if (memcmp(sce->values[0].data, blob.data, blob.length) != 0) {
+			return ldb_error(ldb, LDB_ERR_CONSTRAINT_VIOLATION,
+					 "supplementalCredentialsBlob memcmp differ");
+		}
+
+		talloc_free(scb);
+	}
+
+	ldb_debug(ldb, LDB_DEBUG_TRACE, "password_hash_bypass - validated\n");
+	return ldb_next_request(module, request);
+}
 
 /* Get the NT hash, and fill it in as an entry in the password history, 
    and specify it into io->g.nt_hash */
@@ -1291,50 +1678,63 @@ static int setup_given_passwords(struct setup_password_fields_io *io,
 	ldb = ldb_module_get_ctx(io->ac->module);
 
 	if (g->cleartext_utf8) {
-		char **cleartext_utf16_str;
 		struct ldb_val *cleartext_utf16_blob;
-		size_t converted_pw_len;
 
 		cleartext_utf16_blob = talloc(io->ac, struct ldb_val);
 		if (!cleartext_utf16_blob) {
 			return ldb_oom(ldb);
 		}
 		if (!convert_string_talloc(io->ac,
-						       CH_UTF8, CH_UTF16,
-						       g->cleartext_utf8->data,
-						       g->cleartext_utf8->length,
-						       (void *)&cleartext_utf16_str,
-						       &converted_pw_len, false)) {
-			ldb_asprintf_errstring(ldb,
-				"setup_password_fields: "
-				"failed to generate UTF16 password from cleartext UTF8 password");
-			return LDB_ERR_OPERATIONS_ERROR;
+					   CH_UTF8, CH_UTF16,
+					   g->cleartext_utf8->data,
+					   g->cleartext_utf8->length,
+					   (void *)&cleartext_utf16_blob->data,
+					   &cleartext_utf16_blob->length,
+					   false)) {
+			if (g->cleartext_utf8->length != 0) {
+				talloc_free(cleartext_utf16_blob);
+				ldb_asprintf_errstring(ldb,
+						       "setup_password_fields: "
+						       "failed to generate UTF16 password from cleartext UTF8 one for user '%s'!",
+						       io->u.sAMAccountName);
+				return LDB_ERR_CONSTRAINT_VIOLATION;
+			} else {
+				/* passwords with length "0" are valid! */
+				cleartext_utf16_blob->data = NULL;
+				cleartext_utf16_blob->length = 0;
+			}
 		}
-		*cleartext_utf16_blob = data_blob_const(cleartext_utf16_str,
-							converted_pw_len);
 		g->cleartext_utf16 = cleartext_utf16_blob;
 	} else if (g->cleartext_utf16) {
-		char *cleartext_utf8_str;
 		struct ldb_val *cleartext_utf8_blob;
-		size_t converted_pw_len;
 
 		cleartext_utf8_blob = talloc(io->ac, struct ldb_val);
 		if (!cleartext_utf8_blob) {
 			return ldb_oom(ldb);
 		}
 		if (!convert_string_talloc(io->ac,
-						       CH_UTF16MUNGED, CH_UTF8,
-						       g->cleartext_utf16->data,
-						       g->cleartext_utf16->length,
-						       (void *)&cleartext_utf8_str,
-						       &converted_pw_len, false)) {
-			/* We can't bail out entirely, as these unconvertable passwords are frustratingly valid */
-			talloc_free(cleartext_utf8_blob);
-		} else {
-			*cleartext_utf8_blob = data_blob_const(cleartext_utf8_str,
-							       converted_pw_len);
-			g->cleartext_utf8 = cleartext_utf8_blob;
+					   CH_UTF16MUNGED, CH_UTF8,
+					   g->cleartext_utf16->data,
+					   g->cleartext_utf16->length,
+					   (void *)&cleartext_utf8_blob->data,
+					   &cleartext_utf8_blob->length,
+					   false)) {
+			if (g->cleartext_utf16->length != 0) {
+				/* We must bail out here, the input wasn't even
+				 * a multiple of 2 bytes */
+				talloc_free(cleartext_utf8_blob);
+				ldb_asprintf_errstring(ldb,
+						       "setup_password_fields: "
+						       "failed to generate UTF8 password from cleartext UTF 16 one for user '%s' - the latter had odd length (length must be a multiple of 2)!",
+						       io->u.sAMAccountName);
+				return LDB_ERR_CONSTRAINT_VIOLATION;
+			} else {
+				/* passwords with length "0" are valid! */
+				cleartext_utf8_blob->data = NULL;
+				cleartext_utf8_blob->length = 0;
+			}
 		}
+		g->cleartext_utf8 = cleartext_utf8_blob;
 	}
 
 	if (g->cleartext_utf16) {
@@ -1436,47 +1836,70 @@ static int check_password_restrictions(struct setup_password_fields_io *io)
 	ldb = ldb_module_get_ctx(io->ac->module);
 
 	/* First check the old password is correct, for password changes */
-	if (!io->ac->pwd_reset && !io->ac->change_old_pw_checked) {
-		/* we need to old nt or lm hash given by the client */
+	if (!io->ac->pwd_reset) {
+		bool nt_hash_checked = false;
+
+		/* we need the old nt or lm hash given by the client */
 		if (!io->og.nt_hash && !io->og.lm_hash) {
 			ldb_asprintf_errstring(ldb,
 				"check_password_restrictions: "
-				"You need to provide the old password "
-				"in order to change your password!");
+				"You need to provide the old password in order "
+				"to change it!");
 			return LDB_ERR_UNWILLING_TO_PERFORM;
 		}
 
+		/* The password modify through the NT hash is encouraged and
+		   has no problems at all */
 		if (io->og.nt_hash) {
 			if (!io->o.nt_hash) {
+				ret = LDB_ERR_CONSTRAINT_VIOLATION;
 				ldb_asprintf_errstring(ldb,
-					"check_password_restrictions: "
+					"%08X: %s - check_password_restrictions: "
 					"There's no old nt_hash, which is needed "
-					"in order to change your password!");
-				return LDB_ERR_UNWILLING_TO_PERFORM;
+					"in order to change your password!",
+					W_ERROR_V(WERR_INVALID_PASSWORD),
+					ldb_strerror(ret));
+				return ret;
 			}
 
-			/* The password modify through the NT hash is encouraged
-			   and has no problems at all */
 			if (memcmp(io->og.nt_hash->hash, io->o.nt_hash->hash, 16) != 0) {
+				ret = LDB_ERR_CONSTRAINT_VIOLATION;
 				ldb_asprintf_errstring(ldb,
-					"check_password_restrictions: "
-					"The old password specified doesn't match!");
-				return LDB_ERR_UNWILLING_TO_PERFORM;
-			}
-		} else if (io->og.lm_hash) {
-			if (!io->o.lm_hash) {
-				ldb_asprintf_errstring(ldb,
-					"check_password_restrictions: "
-					"There's no old lm_hash, which is needed "
-					"in order to change your password!");
-				return LDB_ERR_UNWILLING_TO_PERFORM;
+					"%08X: %s - check_password_restrictions: "
+					"The old password specified doesn't match!",
+					W_ERROR_V(WERR_INVALID_PASSWORD),
+					ldb_strerror(ret));
+				return ret;
 			}
 
-			if (memcmp(io->og.lm_hash->hash, io->o.lm_hash->hash, 16) != 0) {
+			nt_hash_checked = true;
+		}
+
+		/* But it is also possible to change a password by the LM hash
+		 * alone for compatibility reasons. This check is optional if
+		 * the NT hash was already checked - otherwise it's mandatory.
+		 * (as the SAMR operations request it). */
+		if (io->og.lm_hash) {
+			if (!io->o.lm_hash && !nt_hash_checked) {
+				ret = LDB_ERR_CONSTRAINT_VIOLATION;
 				ldb_asprintf_errstring(ldb,
-					"check_password_restrictions: "
-					"The old password specified doesn't match!");
-				return LDB_ERR_UNWILLING_TO_PERFORM;
+					"%08X: %s - check_password_restrictions: "
+					"There's no old lm_hash, which is needed "
+					"in order to change your password!",
+					W_ERROR_V(WERR_INVALID_PASSWORD),
+					ldb_strerror(ret));
+				return ret;
+			}
+
+			if (io->o.lm_hash &&
+			    memcmp(io->og.lm_hash->hash, io->o.lm_hash->hash, 16) != 0) {
+				ret = LDB_ERR_CONSTRAINT_VIOLATION;
+				ldb_asprintf_errstring(ldb,
+					"%08X: %s - check_password_restrictions: "
+					"The old password specified doesn't match!",
+					W_ERROR_V(WERR_INVALID_PASSWORD),
+					ldb_strerror(ret));
+				return ret;
 			}
 		}
 	}
@@ -1501,28 +1924,34 @@ static int check_password_restrictions(struct setup_password_fields_io *io)
 			break;
 
 		case SAMR_VALIDATION_STATUS_PWD_TOO_SHORT:
+			ret = LDB_ERR_CONSTRAINT_VIOLATION;
 			ldb_asprintf_errstring(ldb,
-				"check_password_restrictions: "
-				"the password is too short. It should be equal or longer than %i characters!",
+				"%08X: %s - check_password_restrictions: "
+				"the password is too short. It should be equal or longer than %u characters!",
+				W_ERROR_V(WERR_PASSWORD_RESTRICTION),
+				ldb_strerror(ret),
 				io->ac->status->domain_data.minPwdLength);
-
 			io->ac->status->reject_reason = SAM_PWD_CHANGE_PASSWORD_TOO_SHORT;
-			return LDB_ERR_CONSTRAINT_VIOLATION;
+			return ret;
 
 		case SAMR_VALIDATION_STATUS_NOT_COMPLEX_ENOUGH:
+			ret = LDB_ERR_CONSTRAINT_VIOLATION;
 			ldb_asprintf_errstring(ldb,
-				"check_password_restrictions: "
-				"the password does not meet the complexity criterias!");
+				"%08X: %s - check_password_restrictions: "
+				"the password does not meet the complexity criteria!",
+				W_ERROR_V(WERR_PASSWORD_RESTRICTION),
+				ldb_strerror(ret));
 			io->ac->status->reject_reason = SAM_PWD_CHANGE_NOT_COMPLEX;
-
-			return LDB_ERR_CONSTRAINT_VIOLATION;
+			return ret;
 
 		default:
+			ret = LDB_ERR_CONSTRAINT_VIOLATION;
 			ldb_asprintf_errstring(ldb,
-				"check_password_restrictions: "
-				"the password doesn't fit by a certain reason!");
-
-			return LDB_ERR_CONSTRAINT_VIOLATION;
+				"%08X: %s - check_password_restrictions: "
+				"the password doesn't fit by a certain reason!",
+				W_ERROR_V(WERR_PASSWORD_RESTRICTION),
+				ldb_strerror(ret));
+			return ret;
 		}
 	}
 
@@ -1537,13 +1966,14 @@ static int check_password_restrictions(struct setup_password_fields_io *io)
 		for (i = 0; i < io->o.nt_history_len; i++) {
 			ret = memcmp(io->n.nt_hash, io->o.nt_history[i].hash, 16);
 			if (ret == 0) {
+				ret = LDB_ERR_CONSTRAINT_VIOLATION;
 				ldb_asprintf_errstring(ldb,
-					"check_password_restrictions: "
-					"the password was already used (in history)!");
-
+					"%08X: %s - check_password_restrictions: "
+					"the password was already used (in history)!",
+					W_ERROR_V(WERR_PASSWORD_RESTRICTION),
+					ldb_strerror(ret));
 				io->ac->status->reject_reason = SAM_PWD_CHANGE_PWD_IN_HISTORY;
-
-				return LDB_ERR_CONSTRAINT_VIOLATION;
+				return ret;
 			}
 		}
 	}
@@ -1555,39 +1985,111 @@ static int check_password_restrictions(struct setup_password_fields_io *io)
 		for (i = 0; i < io->o.lm_history_len; i++) {
 			ret = memcmp(io->n.nt_hash, io->o.lm_history[i].hash, 16);
 			if (ret == 0) {
+				ret = LDB_ERR_CONSTRAINT_VIOLATION;
 				ldb_asprintf_errstring(ldb,
-					"check_password_restrictions: "
-					"the password was already used (in history)!");
-
+					"%08X: %s - check_password_restrictions: "
+					"the password was already used (in history)!",
+					W_ERROR_V(WERR_PASSWORD_RESTRICTION),
+					ldb_strerror(ret));
 				io->ac->status->reject_reason = SAM_PWD_CHANGE_PWD_IN_HISTORY;
-
-				return LDB_ERR_CONSTRAINT_VIOLATION;
+				return ret;
 			}
 		}
 	}
 
 	/* are all password changes disallowed? */
 	if (io->ac->status->domain_data.pwdProperties & DOMAIN_REFUSE_PASSWORD_CHANGE) {
+		ret = LDB_ERR_CONSTRAINT_VIOLATION;
 		ldb_asprintf_errstring(ldb,
-			"check_password_restrictions: "
-			"password changes disabled!");
-		return LDB_ERR_CONSTRAINT_VIOLATION;
+			"%08X: %s - check_password_restrictions: "
+			"password changes disabled!",
+			W_ERROR_V(WERR_PASSWORD_RESTRICTION),
+			ldb_strerror(ret));
+		return ret;
 	}
 
 	/* can this user change the password? */
 	if (io->u.userAccountControl & UF_PASSWD_CANT_CHANGE) {
+		ret = LDB_ERR_CONSTRAINT_VIOLATION;
 		ldb_asprintf_errstring(ldb,
-			"check_password_restrictions: "
-			"password can't be changed on this account!");
-		return LDB_ERR_CONSTRAINT_VIOLATION;
+			"%08X: %s - check_password_restrictions: "
+			"password can't be changed on this account!",
+			W_ERROR_V(WERR_PASSWORD_RESTRICTION),
+			ldb_strerror(ret));
+		return ret;
 	}
 
 	/* Password minimum age: yes, this is a minus. The ages are in negative 100nsec units! */
 	if (io->u.pwdLastSet - io->ac->status->domain_data.minPwdAge > io->g.last_set) {
+		ret = LDB_ERR_CONSTRAINT_VIOLATION;
 		ldb_asprintf_errstring(ldb,
-			"check_password_restrictions: "
-			"password is too young to change!");
-		return LDB_ERR_CONSTRAINT_VIOLATION;
+			"%08X: %s - check_password_restrictions: "
+			"password is too young to change!",
+			W_ERROR_V(WERR_PASSWORD_RESTRICTION),
+			ldb_strerror(ret));
+		return ret;
+	}
+
+	return LDB_SUCCESS;
+}
+
+/*
+ * This is intended for use by the "password_hash" module since there
+ * password changes can be specified through one message element with the
+ * new password (to set) and another one with the old password (to unset).
+ *
+ * The first which sets a password (new value) can have flags
+ * (LDB_FLAG_MOD_ADD, LDB_FLAG_MOD_REPLACE) but also none (on "add" operations
+ * for entries). The latter (old value) has always specified
+ * LDB_FLAG_MOD_DELETE.
+ *
+ * Returns LDB_ERR_CONSTRAINT_VIOLATION and LDB_ERR_UNWILLING_TO_PERFORM if
+ * matching message elements are malformed in respect to the set/change rules.
+ * Otherwise it returns LDB_SUCCESS.
+ */
+static int msg_find_old_and_new_pwd_val(const struct ldb_message *msg,
+					const char *name,
+					enum ldb_request_type operation,
+					const struct ldb_val **new_val,
+					const struct ldb_val **old_val)
+{
+	unsigned int i;
+
+	*new_val = NULL;
+	*old_val = NULL;
+
+	if (msg == NULL) {
+		return LDB_SUCCESS;
+	}
+
+	for (i = 0; i < msg->num_elements; i++) {
+		if (ldb_attr_cmp(msg->elements[i].name, name) != 0) {
+			continue;
+		}
+
+		if ((operation == LDB_MODIFY) &&
+		    (LDB_FLAG_MOD_TYPE(msg->elements[i].flags) == LDB_FLAG_MOD_DELETE)) {
+			/* 0 values are allowed */
+			if (msg->elements[i].num_values == 1) {
+				*old_val = &msg->elements[i].values[0];
+			} else if (msg->elements[i].num_values > 1) {
+				return LDB_ERR_CONSTRAINT_VIOLATION;
+			}
+		} else if ((operation == LDB_MODIFY) &&
+			   (LDB_FLAG_MOD_TYPE(msg->elements[i].flags) == LDB_FLAG_MOD_REPLACE)) {
+			if (msg->elements[i].num_values > 0) {
+				*new_val = &msg->elements[i].values[msg->elements[i].num_values - 1];
+			} else {
+				return LDB_ERR_UNWILLING_TO_PERFORM;
+			}
+		} else {
+			/* Add operations and LDB_FLAG_MOD_ADD */
+			if (msg->elements[i].num_values > 0) {
+				*new_val = &msg->elements[i].values[msg->elements[i].num_values - 1];
+			} else {
+				return LDB_ERR_CONSTRAINT_VIOLATION;
+			}
+		}
 	}
 
 	return LDB_SUCCESS;
@@ -1618,10 +2120,13 @@ static int setup_io(struct ph_context *ac,
 
 	io->ac				= ac;
 
-	io->u.userAccountControl	= samdb_result_uint(searched_msg, "userAccountControl", 0);
+	io->u.userAccountControl	= ldb_msg_find_attr_as_uint(searched_msg,
+								    "userAccountControl", 0);
 	io->u.pwdLastSet		= samdb_result_nttime(searched_msg, "pwdLastSet", 0);
-	io->u.sAMAccountName		= samdb_result_string(searched_msg, "sAMAccountName", NULL);
-	io->u.user_principal_name	= samdb_result_string(searched_msg, "userPrincipalName", NULL);
+	io->u.sAMAccountName		= ldb_msg_find_attr_as_string(searched_msg,
+								      "sAMAccountName", NULL);
+	io->u.user_principal_name	= ldb_msg_find_attr_as_string(searched_msg,
+								      "userPrincipalName", NULL);
 	io->u.is_computer		= ldb_msg_check_string_attribute(searched_msg, "objectClass", "computer");
 
 	if (io->u.sAMAccountName == NULL) {
@@ -1643,17 +2148,23 @@ static int setup_io(struct ph_context *ac,
 		io->u.restrictions = 0;
 	}
 
-	ret = samdb_msg_find_old_and_new_ldb_val(orig_msg, "userPassword",
-		&io->n.cleartext_utf8, &io->og.cleartext_utf8);
-	if (ret != LDB_SUCCESS) {
-		ldb_asprintf_errstring(ldb,
-			"setup_io: "
-			"it's only allowed to set the old password once!");
-		return ret;
+	if (ac->userPassword) {
+		ret = msg_find_old_and_new_pwd_val(orig_msg, "userPassword",
+						   ac->req->operation,
+						   &io->n.cleartext_utf8,
+						   &io->og.cleartext_utf8);
+		if (ret != LDB_SUCCESS) {
+			ldb_asprintf_errstring(ldb,
+				"setup_io: "
+				"it's only allowed to set the old password once!");
+			return ret;
+		}
 	}
 
-	ret = samdb_msg_find_old_and_new_ldb_val(orig_msg, "clearTextPassword",
-		&io->n.cleartext_utf16, &io->og.cleartext_utf16);
+	ret = msg_find_old_and_new_pwd_val(orig_msg, "clearTextPassword",
+					   ac->req->operation,
+					   &io->n.cleartext_utf16,
+					   &io->og.cleartext_utf16);
 	if (ret != LDB_SUCCESS) {
 		ldb_asprintf_errstring(ldb,
 			"setup_io: "
@@ -1674,8 +2185,10 @@ static int setup_io(struct ph_context *ac,
 	   that would then be treated as a UTF16 password rather than
 	   a nthash */
 
-	ret = samdb_msg_find_old_and_new_ldb_val(orig_msg, "unicodePwd",
-		&quoted_utf16, &old_quoted_utf16);
+	ret = msg_find_old_and_new_pwd_val(orig_msg, "unicodePwd",
+					   ac->req->operation,
+					   &quoted_utf16,
+					   &old_quoted_utf16);
 	if (ret != LDB_SUCCESS) {
 		ldb_asprintf_errstring(ldb,
 			"setup_io: "
@@ -1789,8 +2302,9 @@ static int setup_io(struct ph_context *ac,
 
 	/* Handles the "dBCSPwd" attribute (LM hash) */
 	io->n.lm_hash = NULL; io->og.lm_hash = NULL;
-	ret = samdb_msg_find_old_and_new_ldb_val(orig_msg, "dBCSPwd",
-		&lm_hash, &old_lm_hash);
+	ret = msg_find_old_and_new_pwd_val(orig_msg, "dBCSPwd",
+					   ac->req->operation,
+					   &lm_hash, &old_lm_hash);
 	if (ret != LDB_SUCCESS) {
 		ldb_asprintf_errstring(ldb,
 			"setup_io: "
@@ -1816,6 +2330,27 @@ static int setup_io(struct ph_context *ac,
 		io->og.lm_hash = talloc(io->ac, struct samr_Password);
 		memcpy(io->og.lm_hash->hash, old_lm_hash->data, MIN(old_lm_hash->length,
 		       sizeof(io->og.lm_hash->hash)));
+	}
+
+	/*
+	 * Handles the password change control if it's specified. It has the
+	 * precedance and overrides already specified old password values of
+	 * change requests (but that shouldn't happen since the control is
+	 * fully internal and only used in conjunction with replace requests!).
+	 */
+	if (ac->change != NULL) {
+		io->og.nt_hash = NULL;
+		if (ac->change->old_nt_pwd_hash != NULL) {
+			io->og.nt_hash = talloc_memdup(io->ac,
+						       ac->change->old_nt_pwd_hash,
+						       sizeof(struct samr_Password));
+		}
+		io->og.lm_hash = NULL;
+		if (lpcfg_lanman_auth(lp_ctx) && (ac->change->old_lm_pwd_hash != NULL)) {
+			io->og.lm_hash = talloc_memdup(io->ac,
+						       ac->change->old_lm_pwd_hash,
+						       sizeof(struct samr_Password));
+		}
 	}
 
 	/* refuse the change if someone wants to change the clear-
@@ -1844,7 +2379,13 @@ static int setup_io(struct ph_context *ac,
 	    && (!io->n.nt_hash) && (!io->n.lm_hash)) {
 		ldb_asprintf_errstring(ldb,
 			"setup_io: "
-			"The password change/set operations performed using the LAN Manager hash alone are deactivated!");
+			"It' not possible to delete the password (changes using the LAN Manager hash alone could be deactivated)!");
+		/* on "userPassword" and "clearTextPassword" we've to return
+		 * something different, since these are virtual attributes */
+		if ((ldb_msg_find_element(orig_msg, "userPassword") != NULL) ||
+		    (ldb_msg_find_element(orig_msg, "clearTextPassword") != NULL)) {
+			return LDB_ERR_CONSTRAINT_VIOLATION;
+		}
 		return LDB_ERR_UNWILLING_TO_PERFORM;
 	}
 
@@ -1867,25 +2408,14 @@ static int setup_io(struct ph_context *ac,
 		return LDB_ERR_UNWILLING_TO_PERFORM;
 	}
 
-	/* refuse the change if someone wants to compare against both
-	 * hashes at the same time for a "password modify" operation... */
-	if (io->og.nt_hash && io->og.lm_hash) {
-		ldb_asprintf_errstring(ldb,
-			"setup_io: "
-			"it's only allowed to provide the old password in hash format as 'unicodePwd' or as 'dBCSPwd'");
-		return LDB_ERR_UNWILLING_TO_PERFORM;
-	}
-
 	/* Decides if we have a password modify or password reset operation */
 	if (ac->req->operation == LDB_ADD) {
 		/* On "add" we have only "password reset" */
 		ac->pwd_reset = true;
 	} else if (ac->req->operation == LDB_MODIFY) {
 		if (io->og.cleartext_utf8 || io->og.cleartext_utf16
-		    || io->og.nt_hash || io->og.lm_hash
-		    || ac->change_old_pw_checked) {
-			/* If we have an old password or the "change old
-			 * password checked" control specified then for sure it
+		    || io->og.nt_hash || io->og.lm_hash) {
+			/* If we have an old password specified then for sure it
 			 * is a user "password change" */
 			ac->pwd_reset = false;
 		} else {
@@ -1901,7 +2431,8 @@ static int setup_io(struct ph_context *ac,
 }
 
 static struct ph_context *ph_init_context(struct ldb_module *module,
-					  struct ldb_request *req)
+					  struct ldb_request *req,
+					  bool userPassword)
 {
 	struct ldb_context *ldb;
 	struct ph_context *ac;
@@ -1916,6 +2447,7 @@ static struct ph_context *ph_init_context(struct ldb_module *module,
 
 	ac->module = module;
 	ac->req = req;
+	ac->userPassword = userPassword;
 
 	return ac;
 }
@@ -1944,14 +2476,12 @@ static void ph_apply_controls(struct ph_context *ac)
 		ctrl->critical = false;
 	}
 
-	ac->change_old_pw_checked = false;
 	ctrl = ldb_request_get_control(ac->req,
-				       DSDB_CONTROL_PASSWORD_CHANGE_OLD_PW_CHECKED_OID);
+				       DSDB_CONTROL_PASSWORD_CHANGE_OID);
 	if (ctrl != NULL) {
-		ac->change_old_pw_checked = true;
+		ac->change = (struct dsdb_control_password_change *) ctrl->data;
 
-		/* Mark the "change old password checked" control as uncritical
-		 * (done) */
+		/* Mark the "change" control as uncritical (done) */
 		ctrl->critical = false;
 	}
 }
@@ -2043,11 +2573,16 @@ static int get_domain_data_callback(struct ldb_request *req,
 		}
 
 		/* Setup the "domain data" structure */
-		ac->status->domain_data.pwdProperties = samdb_result_uint(ares->message, "pwdProperties", -1);
-		ac->status->domain_data.pwdHistoryLength = samdb_result_uint(ares->message, "pwdHistoryLength", -1);
-		ac->status->domain_data.maxPwdAge = samdb_result_int64(ares->message, "maxPwdAge", -1);
-		ac->status->domain_data.minPwdAge = samdb_result_int64(ares->message, "minPwdAge", -1);
-		ac->status->domain_data.minPwdLength = samdb_result_uint(ares->message, "minPwdLength", -1);
+		ac->status->domain_data.pwdProperties =
+			ldb_msg_find_attr_as_uint(ares->message, "pwdProperties", -1);
+		ac->status->domain_data.pwdHistoryLength =
+			ldb_msg_find_attr_as_uint(ares->message, "pwdHistoryLength", -1);
+		ac->status->domain_data.maxPwdAge =
+			ldb_msg_find_attr_as_int64(ares->message, "maxPwdAge", -1);
+		ac->status->domain_data.minPwdAge =
+			ldb_msg_find_attr_as_int64(ares->message, "minPwdAge", -1);
+		ac->status->domain_data.minPwdLength =
+			ldb_msg_find_attr_as_uint(ares->message, "minPwdLength", -1);
 		ac->status->domain_data.store_cleartext =
 			ac->status->domain_data.pwdProperties & DOMAIN_PASSWORD_STORE_CLEARTEXT;
 
@@ -2135,16 +2670,19 @@ static int build_domain_data_request(struct ph_context *ac)
 					      "minPwdAge",
 					      "minPwdLength",
 					      NULL };
+	int ret;
 
 	ldb = ldb_module_get_ctx(ac->module);
 
-	return ldb_build_search_req(&ac->dom_req, ldb, ac,
-				    ldb_get_default_basedn(ldb),
-				    LDB_SCOPE_BASE,
-				    NULL, attrs,
-				    NULL,
-				    ac, get_domain_data_callback,
-				    ac->req);
+	ret = ldb_build_search_req(&ac->dom_req, ldb, ac,
+				   ldb_get_default_basedn(ldb),
+				   LDB_SCOPE_BASE,
+				   NULL, attrs,
+				   NULL,
+				   ac, get_domain_data_callback,
+				   ac->req);
+	LDB_REQ_SET_LOCATION(ac->dom_req);
+	return ret;
 }
 
 static int password_hash_add(struct ldb_module *module, struct ldb_request *req)
@@ -2155,6 +2693,7 @@ static int password_hash_add(struct ldb_module *module, struct ldb_request *req)
 		*ntAttr, *lmAttr;
 	int ret;
 	struct ldb_control *bypass = NULL;
+	bool userPassword = dsdb_user_password_support(module, req, req);
 
 	ldb = ldb_module_get_ctx(module);
 
@@ -2176,7 +2715,7 @@ static int password_hash_add(struct ldb_module *module, struct ldb_request *req)
 		/* Mark the "bypass" control as uncritical (done) */
 		bypass->critical = false;
 		ldb_debug(ldb, LDB_DEBUG_TRACE, "password_hash_add (bypassing)\n");
-		return ldb_next_request(module, req);
+		return password_hash_bypass(module, req);
 	}
 
 	/* nobody must touch password histories and 'supplementalCredentials' */
@@ -2193,7 +2732,16 @@ static int password_hash_add(struct ldb_module *module, struct ldb_request *req)
 	/* If no part of this touches the 'userPassword' OR 'clearTextPassword'
 	 * OR 'unicodePwd' OR 'dBCSPwd' we don't need to make any changes. */
 
-	userPasswordAttr = ldb_msg_find_element(req->op.add.message, "userPassword");
+	userPasswordAttr = NULL;
+	if (userPassword) {
+		userPasswordAttr = ldb_msg_find_element(req->op.add.message,
+							"userPassword");
+		/* MS-ADTS 3.1.1.3.1.5.2 */
+		if ((userPasswordAttr != NULL) &&
+		    (dsdb_functional_level(ldb) < DS_DOMAIN_FUNCTION_2003)) {
+			return LDB_ERR_CONSTRAINT_VIOLATION;
+		}
+	}
 	clearTextPasswordAttr = ldb_msg_find_element(req->op.add.message, "clearTextPassword");
 	ntAttr = ldb_msg_find_element(req->op.add.message, "unicodePwd");
 	lmAttr = ldb_msg_find_element(req->op.add.message, "dBCSPwd");
@@ -2217,7 +2765,7 @@ static int password_hash_add(struct ldb_module *module, struct ldb_request *req)
 		return ldb_next_request(module, req);
 	}
 
-	ac = ph_init_context(module, req);
+	ac = ph_init_context(module, req, userPassword);
 	if (ac == NULL) {
 		DEBUG(0,(__location__ ": %s\n", ldb_errstring(ldb)));
 		return ldb_operr(ldb);
@@ -2255,7 +2803,9 @@ static int password_hash_add_do_add(struct ph_context *ac)
 	}
 
 	/* remove attributes that we just read into 'io' */
-	ldb_msg_remove_attr(msg, "userPassword");
+	if (ac->userPassword) {
+		ldb_msg_remove_attr(msg, "userPassword");
+	}
 	ldb_msg_remove_attr(msg, "clearTextPassword");
 	ldb_msg_remove_attr(msg, "unicodePwd");
 	ldb_msg_remove_attr(msg, "dBCSPwd");
@@ -2322,6 +2872,7 @@ static int password_hash_add_do_add(struct ph_context *ac)
 				ac->req->controls,
 				ac, ph_op_callback,
 				ac->req);
+	LDB_REQ_SET_LOCATION(down_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -2341,6 +2892,7 @@ static int password_hash_modify(struct ldb_module *module, struct ldb_request *r
 	struct ldb_request *down_req;
 	int ret;
 	struct ldb_control *bypass = NULL;
+	bool userPassword = dsdb_user_password_support(module, req, req);
 
 	ldb = ldb_module_get_ctx(module);
 
@@ -2362,7 +2914,7 @@ static int password_hash_modify(struct ldb_module *module, struct ldb_request *r
 		/* Mark the "bypass" control as uncritical (done) */
 		bypass->critical = false;
 		ldb_debug(ldb, LDB_DEBUG_TRACE, "password_hash_modify (bypassing)\n");
-		return ldb_next_request(module, req);
+		return password_hash_bypass(module, req);
 	}
 
 	/* nobody must touch password histories and 'supplementalCredentials' */
@@ -2382,7 +2934,17 @@ static int password_hash_modify(struct ldb_module *module, struct ldb_request *r
 	 * on these attributes. */
 	attr_cnt = 0;
 	for (l = passwordAttrs; *l != NULL; l++) {
+		if ((!userPassword) && (ldb_attr_cmp(*l, "userPassword") == 0)) {
+			continue;
+		}
+
 		if (ldb_msg_find_element(req->op.mod.message, *l) != NULL) {
+			/* MS-ADTS 3.1.1.3.1.5.2 */
+			if ((ldb_attr_cmp(*l, "userPassword") == 0) &&
+			    (dsdb_functional_level(ldb) < DS_DOMAIN_FUNCTION_2003)) {
+				return LDB_ERR_CONSTRAINT_VIOLATION;
+			}
+
 			++attr_cnt;
 		}
 	}
@@ -2390,7 +2952,7 @@ static int password_hash_modify(struct ldb_module *module, struct ldb_request *r
 		return ldb_next_request(module, req);
 	}
 
-	ac = ph_init_context(module, req);
+	ac = ph_init_context(module, req, userPassword);
 	if (!ac) {
 		DEBUG(0,(__location__ ": %s\n", ldb_errstring(ldb)));
 		return ldb_operr(ldb);
@@ -2418,32 +2980,39 @@ static int password_hash_modify(struct ldb_module *module, struct ldb_request *r
 	add_attr_cnt = 0;
 	rep_attr_cnt = 0;
 	for (l = passwordAttrs; *l != NULL; l++) {
+		if ((!ac->userPassword) &&
+		    (ldb_attr_cmp(*l, "userPassword") == 0)) {
+			continue;
+		}
+
 		while ((passwordAttr = ldb_msg_find_element(msg, *l)) != NULL) {
-			if (passwordAttr->flags == LDB_FLAG_MOD_DELETE) {
+			if (LDB_FLAG_MOD_TYPE(passwordAttr->flags) == LDB_FLAG_MOD_DELETE) {
 				++del_attr_cnt;
 			}
-			if (passwordAttr->flags == LDB_FLAG_MOD_ADD) {
+			if (LDB_FLAG_MOD_TYPE(passwordAttr->flags) == LDB_FLAG_MOD_ADD) {
 				++add_attr_cnt;
 			}
-			if (passwordAttr->flags == LDB_FLAG_MOD_REPLACE) {
+			if (LDB_FLAG_MOD_TYPE(passwordAttr->flags) == LDB_FLAG_MOD_REPLACE) {
 				++rep_attr_cnt;
 			}
 			if ((passwordAttr->num_values != 1) &&
-			    (passwordAttr->flags != LDB_FLAG_MOD_REPLACE)) {
+			    (LDB_FLAG_MOD_TYPE(passwordAttr->flags) == LDB_FLAG_MOD_ADD)) {
 				talloc_free(ac);
 				ldb_asprintf_errstring(ldb,
-						       "'%s' attributes must have exactly one value!",
+						       "'%s' attribute must have exactly one value on add operations!",
+						       *l);
+				return LDB_ERR_CONSTRAINT_VIOLATION;
+			}
+			if ((passwordAttr->num_values > 1) &&
+			    (LDB_FLAG_MOD_TYPE(passwordAttr->flags) == LDB_FLAG_MOD_DELETE)) {
+				talloc_free(ac);
+				ldb_asprintf_errstring(ldb,
+						       "'%s' attribute must have zero or one value(s) on delete operations!",
 						       *l);
 				return LDB_ERR_CONSTRAINT_VIOLATION;
 			}
 			ldb_msg_remove_element(msg, passwordAttr);
 		}
-	}
-	if ((del_attr_cnt > 0) && (add_attr_cnt == 0)) {
-		talloc_free(ac);
-		ldb_set_errstring(ldb,
-				  "Only the delete action for a password change specified!");
-		return LDB_ERR_CONSTRAINT_VIOLATION;
 	}
 	if ((del_attr_cnt == 0) && (add_attr_cnt > 0)) {
 		talloc_free(ac);
@@ -2474,6 +3043,7 @@ static int password_hash_modify(struct ldb_module *module, struct ldb_request *r
 				req->controls,
 				ac, ph_modify_callback,
 				req);
+	LDB_REQ_SET_LOCATION(down_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -2619,7 +3189,7 @@ static int password_hash_mod_search_self(struct ph_context *ac)
 				   NULL,
 				   ac, ph_mod_search_callback,
 				   ac->req);
-
+	LDB_REQ_SET_LOCATION(search_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -2631,8 +3201,8 @@ static int password_hash_mod_do_mod(struct ph_context *ac)
 {
 	struct ldb_context *ldb = ldb_module_get_ctx(ac->module);
 	struct loadparm_context *lp_ctx =
-		lp_ctx = talloc_get_type(ldb_get_opaque(ldb, "loadparm"),
-					 struct loadparm_context);
+				talloc_get_type(ldb_get_opaque(ldb, "loadparm"),
+						struct loadparm_context);
 	struct ldb_request *mod_req;
 	struct ldb_message *msg;
 	const struct ldb_message *orig_msg, *searched_msg;
@@ -2740,6 +3310,7 @@ static int password_hash_mod_do_mod(struct ph_context *ac)
 				ac->req->controls,
 				ac, ph_op_callback,
 				ac->req);
+	LDB_REQ_SET_LOCATION(mod_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -2747,8 +3318,14 @@ static int password_hash_mod_do_mod(struct ph_context *ac)
 	return ldb_next_request(ac->module, mod_req);
 }
 
-_PUBLIC_ const struct ldb_module_ops ldb_password_hash_module_ops = {
+static const struct ldb_module_ops ldb_password_hash_module_ops = {
 	.name          = "password_hash",
 	.add           = password_hash_add,
 	.modify        = password_hash_modify
 };
+
+int ldb_password_hash_module_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_password_hash_module_ops);
+}

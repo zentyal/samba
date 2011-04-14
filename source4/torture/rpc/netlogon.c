@@ -32,7 +32,7 @@
 #include "librpc/gen_ndr/ndr_lsa_c.h"
 #include "param/param.h"
 #include "libcli/security/security.h"
-#include "lib/ldb/include/ldb.h"
+#include <ldb.h>
 #include "lib/util/util_ldb.h"
 #include "ldb_wrap.h"
 #include "lib/replace/system/network.h"
@@ -207,7 +207,7 @@ bool test_SetupCredentials2(struct dcerpc_pipe *p, struct torture_context *tctx,
 }
 
 
-static bool test_SetupCredentials3(struct dcerpc_pipe *p, struct torture_context *tctx,
+bool test_SetupCredentials3(struct dcerpc_pipe *p, struct torture_context *tctx,
 			    uint32_t negotiate_flags,
 			    struct cli_credentials *machine_credentials,
 			    struct netlogon_creds_CredentialState **creds_out)
@@ -590,7 +590,7 @@ static bool test_SetPassword2(struct torture_context *tctx,
 	new_password.length = IVAL(password_buf.data, 512);
 
 	torture_comment(tctx, 
-		"Testing a third ServerPasswordSet2 on machine account, with a compleatly random password\n");
+		"Testing a third ServerPasswordSet2 on machine account, with a completely random password\n");
 
 	netlogon_creds_client_authenticator(creds, &credential);
 
@@ -690,6 +690,7 @@ static bool test_netlogon_ops_args(struct dcerpc_pipe *p, struct torture_context
 	NTSTATUS status;
 	struct netr_LogonSamLogon r;
 	struct netr_Authenticator auth, auth2;
+	static const struct netr_Authenticator auth_zero;
 	union netr_LogonLevel logon;
 	union netr_Validation validation;
 	uint8_t authoritative;
@@ -702,7 +703,7 @@ static bool test_netlogon_ops_args(struct dcerpc_pipe *p, struct torture_context
 		flags |= CLI_CRED_LANMAN_AUTH;
 	}
 
-	if (lpcfg_client_ntlmv2_auth(tctx->lp_ctx)) {
+	if (lpcfg_client_ntlmv2_auth(tctx->lp_ctx) && !null_domain) {
 		flags |= CLI_CRED_NTLMv2_AUTH;
 	}
 
@@ -754,7 +755,7 @@ static bool test_netlogon_ops_args(struct dcerpc_pipe *p, struct torture_context
 
 	d_printf("Testing LogonSamLogon with name %s\n", ninfo.identity_info.account_name.string);
 	
-	for (i=2;i<3;i++) {
+	for (i=2;i<=3;i++) {
 		ZERO_STRUCT(auth2);
 		netlogon_creds_client_authenticator(creds, &auth);
 		
@@ -767,11 +768,54 @@ static bool test_netlogon_ops_args(struct dcerpc_pipe *p, struct torture_context
 		torture_assert(tctx, netlogon_creds_client_check(creds, 
 								 &r.out.return_authenticator->cred), 
 			"Credential chaining failed");
+		torture_assert_int_equal(tctx, *r.out.authoritative, 1,
+					 "LogonSamLogon invalid  *r.out.authoritative");
 	}
 
-	r.in.credential = NULL;
+	/* this makes sure we get the unmarshalling right for invalid levels */
+	for (i=52;i<53;i++) {
+		ZERO_STRUCT(auth2);
+		/* the authenticator should be ignored by the server */
+		generate_random_buffer((uint8_t *) &auth, sizeof(auth));
+
+		r.in.validation_level = i;
+
+		torture_assert_ntstatus_ok(tctx, dcerpc_netr_LogonSamLogon_r(b, tctx, &r),
+					   "LogonSamLogon failed");
+		torture_assert_ntstatus_equal(tctx, r.out.result,
+					      NT_STATUS_INVALID_INFO_CLASS,
+					      "LogonSamLogon failed");
+
+		torture_assert_int_equal(tctx, *r.out.authoritative, 1,
+					 "LogonSamLogon invalid  *r.out.authoritative");
+		torture_assert(tctx,
+			       memcmp(&auth2, &auth_zero, sizeof(auth2)) == 0,
+			       "Return authenticator non zero");
+	}
 
 	for (i=2;i<=3;i++) {
+		ZERO_STRUCT(auth2);
+		netlogon_creds_client_authenticator(creds, &auth);
+
+		r.in.validation_level = i;
+
+		torture_assert_ntstatus_ok(tctx, dcerpc_netr_LogonSamLogon_r(b, tctx, &r),
+			"LogonSamLogon failed");
+		torture_assert_ntstatus_ok(tctx, r.out.result, "LogonSamLogon failed");
+
+		torture_assert(tctx, netlogon_creds_client_check(creds,
+								 &r.out.return_authenticator->cred),
+			"Credential chaining failed");
+		torture_assert_int_equal(tctx, *r.out.authoritative, 1,
+					 "LogonSamLogon invalid  *r.out.authoritative");
+	}
+
+	r.in.logon_level = 52;
+
+	for (i=2;i<=3;i++) {
+		ZERO_STRUCT(auth2);
+		/* the authenticator should be ignored by the server */
+		generate_random_buffer((uint8_t *) &auth, sizeof(auth));
 
 		r.in.validation_level = i;
 
@@ -782,6 +826,52 @@ static bool test_netlogon_ops_args(struct dcerpc_pipe *p, struct torture_context
 		torture_assert_ntstatus_equal(tctx, r.out.result, NT_STATUS_INVALID_PARAMETER,
 			"LogonSamLogon expected INVALID_PARAMETER");
 
+		torture_assert(tctx,
+			       memcmp(&auth2, &auth_zero, sizeof(auth2)) == 0,
+			       "Return authenticator non zero");
+		torture_assert_int_equal(tctx, *r.out.authoritative, 1,
+					 "LogonSamLogon invalid  *r.out.authoritative");
+	}
+
+	r.in.credential = NULL;
+
+	for (i=2;i<=3;i++) {
+		ZERO_STRUCT(auth2);
+
+		r.in.validation_level = i;
+
+		torture_comment(tctx, "Testing SamLogon with validation level %d and a NULL credential\n", i);
+
+		torture_assert_ntstatus_ok(tctx, dcerpc_netr_LogonSamLogon_r(b, tctx, &r),
+			"LogonSamLogon failed");
+		torture_assert_ntstatus_equal(tctx, r.out.result, NT_STATUS_INVALID_PARAMETER,
+			"LogonSamLogon expected INVALID_PARAMETER");
+
+		torture_assert(tctx,
+			       memcmp(&auth2, &auth_zero, sizeof(auth2)) == 0,
+			       "Return authenticator non zero");
+		torture_assert_int_equal(tctx, *r.out.authoritative, 1,
+					 "LogonSamLogon invalid  *r.out.authoritative");
+	}
+
+	r.in.logon_level = 2;
+	r.in.credential = &auth;
+
+	for (i=2;i<=3;i++) {
+		ZERO_STRUCT(auth2);
+		netlogon_creds_client_authenticator(creds, &auth);
+
+		r.in.validation_level = i;
+
+		torture_assert_ntstatus_ok(tctx, dcerpc_netr_LogonSamLogon_r(b, tctx, &r),
+			"LogonSamLogon failed");
+		torture_assert_ntstatus_ok(tctx, r.out.result, "LogonSamLogon failed");
+
+		torture_assert(tctx, netlogon_creds_client_check(creds,
+								 &r.out.return_authenticator->cred),
+			"Credential chaining failed");
+		torture_assert_int_equal(tctx, *r.out.authoritative, 1,
+					 "LogonSamLogon invalid  *r.out.authoritative");
 	}
 
 	return true;
@@ -1772,6 +1862,13 @@ static bool test_LogonControl(struct torture_context *tctx,
 	}
 	}
 
+	r.in.level = 52;
+	torture_comment(tctx, "Testing LogonControl function code %s (%d) level %d\n",
+			function_code_str(tctx, r.in.function_code), r.in.function_code, r.in.level);
+	status = dcerpc_netr_LogonControl_r(b, tctx, &r);
+	torture_assert_ntstatus_ok(tctx, status, "LogonControl");
+	torture_assert_werr_equal(tctx, r.out.result, WERR_INVALID_LEVEL, "LogonControl");
+
 	return true;
 }
 
@@ -1850,11 +1947,11 @@ static bool test_LogonControl2(struct torture_context *tctx,
 	for (i=1;i<4;i++) {
 		r.in.level = i;
 
-		torture_comment(tctx, "Testing LogonControl2 level %d function %d\n", 
-		       i, r.in.function_code);
+		torture_comment(tctx, "Testing LogonControl2 function code %s (%d) level %d\n",
+			function_code_str(tctx, r.in.function_code), r.in.function_code, r.in.level);
 
 		status = dcerpc_netr_LogonControl2_r(b, tctx, &r);
-		torture_assert_ntstatus_ok(tctx, status, "LogonControl");
+		torture_assert_ntstatus_ok(tctx, status, "LogonControl2");
 	}
 
 	data.domain = lpcfg_workgroup(tctx->lp_ctx);
@@ -1865,11 +1962,11 @@ static bool test_LogonControl2(struct torture_context *tctx,
 	for (i=1;i<4;i++) {
 		r.in.level = i;
 
-		torture_comment(tctx, "Testing LogonControl2 level %d function %d\n", 
-		       i, r.in.function_code);
+		torture_comment(tctx, "Testing LogonControl2 function code %s (%d) level %d\n",
+			function_code_str(tctx, r.in.function_code), r.in.function_code, r.in.level);
 
 		status = dcerpc_netr_LogonControl2_r(b, tctx, &r);
-		torture_assert_ntstatus_ok(tctx, status, "LogonControl");
+		torture_assert_ntstatus_ok(tctx, status, "LogonControl2");
 	}
 
 	data.domain = lpcfg_workgroup(tctx->lp_ctx);
@@ -1880,11 +1977,11 @@ static bool test_LogonControl2(struct torture_context *tctx,
 	for (i=1;i<4;i++) {
 		r.in.level = i;
 
-		torture_comment(tctx, "Testing LogonControl2 level %d function %d\n", 
-		       i, r.in.function_code);
+		torture_comment(tctx, "Testing LogonControl2 function code %s (%d) level %d\n",
+			function_code_str(tctx, r.in.function_code), r.in.function_code, r.in.level);
 
 		status = dcerpc_netr_LogonControl2_r(b, tctx, &r);
-		torture_assert_ntstatus_ok(tctx, status, "LogonControl");
+		torture_assert_ntstatus_ok(tctx, status, "LogonControl2");
 	}
 
 	data.debug_level = ~0;
@@ -1895,12 +1992,36 @@ static bool test_LogonControl2(struct torture_context *tctx,
 	for (i=1;i<4;i++) {
 		r.in.level = i;
 
-		torture_comment(tctx, "Testing LogonControl2 level %d function %d\n", 
-		       i, r.in.function_code);
+		torture_comment(tctx, "Testing LogonControl2 function code %s (%d) level %d\n",
+			function_code_str(tctx, r.in.function_code), r.in.function_code, r.in.level);
 
 		status = dcerpc_netr_LogonControl2_r(b, tctx, &r);
-		torture_assert_ntstatus_ok(tctx, status, "LogonControl");
+		torture_assert_ntstatus_ok(tctx, status, "LogonControl2");
 	}
+
+	ZERO_STRUCT(data);
+	r.in.function_code = 52;
+	r.in.data = &data;
+
+	torture_comment(tctx, "Testing LogonControl2 function code %s (%d) level %d\n",
+			function_code_str(tctx, r.in.function_code), r.in.function_code, r.in.level);
+
+	status = dcerpc_netr_LogonControl2_r(b, tctx, &r);
+	torture_assert_ntstatus_ok(tctx, status, "LogonControl2");
+	torture_assert_werr_equal(tctx, r.out.result, WERR_UNKNOWN_LEVEL, "LogonControl2");
+
+	data.debug_level = ~0;
+
+	r.in.function_code = NETLOGON_CONTROL_SET_DBFLAG;
+	r.in.data = &data;
+
+	r.in.level = 52;
+	torture_comment(tctx, "Testing LogonControl2 function code %s (%d) level %d\n",
+			function_code_str(tctx, r.in.function_code), r.in.function_code, r.in.level);
+
+	status = dcerpc_netr_LogonControl2_r(b, tctx, &r);
+	torture_assert_ntstatus_ok(tctx, status, "LogonControl2");
+	torture_assert_werr_equal(tctx, r.out.result, WERR_UNKNOWN_LEVEL, "LogonControl2");
 
 	return true;
 }
@@ -2357,6 +2478,55 @@ static bool test_netr_DsRGetDCNameEx2(struct torture_context *tctx,
 					info->dc_site_name);
 }
 
+/* This is a substitution for "samdb_server_site_name" which relies on the
+ * correct "lp_ctx" and therefore can't be used here. */
+static const char *server_site_name(struct torture_context *tctx,
+				    struct ldb_context *ldb)
+{
+	TALLOC_CTX *tmp_ctx;
+	struct ldb_dn *dn, *server_dn;
+	const struct ldb_val *site_name_val;
+	const char *server_dn_str, *site_name;
+
+	tmp_ctx = talloc_new(ldb);
+	if (tmp_ctx == NULL) {
+		goto failed;
+	}
+
+	dn = ldb_dn_new(tmp_ctx, ldb, "");
+	if (dn == NULL) {
+		goto failed;
+	}
+
+	server_dn_str = samdb_search_string(ldb, tmp_ctx, dn, "serverName",
+					    NULL);
+	if (server_dn_str == NULL) {
+		goto failed;
+	}
+
+	server_dn = ldb_dn_new(tmp_ctx, ldb, server_dn_str);
+	if (server_dn == NULL) {
+		goto failed;
+	}
+
+	/* CN=<Server name>, CN=Servers, CN=<Site name>, CN=Sites, ... */
+	site_name_val = ldb_dn_get_component_val(server_dn, 2);
+	if (site_name_val == NULL) {
+		goto failed;
+	}
+
+	site_name = (const char *) site_name_val->data;
+
+	talloc_steal(tctx, site_name);
+	talloc_free(tmp_ctx);
+
+	return site_name;
+
+failed:
+	talloc_free(tmp_ctx);
+	return NULL;
+}
+
 static bool test_netr_DsrGetDcSiteCoverageW(struct torture_context *tctx, 
 					    struct dcerpc_pipe *p)
 {
@@ -2392,7 +2562,7 @@ static bool test_netr_DsrGetDcSiteCoverageW(struct torture_context *tctx,
 		       "we should per default only get the default site");
 	if (sam_ctx != NULL) {
 		torture_assert_casestr_equal(tctx, ctr->sites[0].string,
-					     samdb_server_site_name(sam_ctx, tctx),
+					     server_site_name(tctx, sam_ctx),
 					     "didn't return default site");
 	}
 
@@ -2514,7 +2684,7 @@ static bool test_netr_DsRAddressToSitenamesW(struct torture_context *tctx,
 		for (i = 0; i < 3; i++) {
 			torture_assert_casestr_equal(tctx,
 						     ctr->sitename[i].string,
-						     samdb_server_site_name(sam_ctx, tctx),
+						     server_site_name(tctx, sam_ctx),
 						     "didn't return default site");
 		}
 		for (i = 3; i < 6; i++) {
@@ -2523,7 +2693,7 @@ static bool test_netr_DsRAddressToSitenamesW(struct torture_context *tctx,
 			if (torture_setting_bool(tctx, "samba4", false)) {
 				torture_assert_casestr_equal(tctx,
 							     ctr->sitename[i].string,
-							     samdb_server_site_name(sam_ctx, tctx),
+							     server_site_name(tctx, sam_ctx),
 							     "didn't return default site");
 			}
 		}
@@ -2691,7 +2861,7 @@ static bool test_netr_DsRAddressToSitenamesExW(struct torture_context *tctx,
 		for (i = 0; i < 3; i++) {
 			torture_assert_casestr_equal(tctx,
 						     ctr->sitename[i].string,
-						     samdb_server_site_name(sam_ctx, tctx),
+						     server_site_name(tctx, sam_ctx),
 						     "didn't return default site");
 			torture_assert(tctx, ctr->subnetname[i].string == NULL,
 				       "subnet should be null");
@@ -2702,7 +2872,7 @@ static bool test_netr_DsRAddressToSitenamesExW(struct torture_context *tctx,
 			if (torture_setting_bool(tctx, "samba4", false)) {
 				torture_assert_casestr_equal(tctx,
 							     ctr->sitename[i].string,
-							     samdb_server_site_name(sam_ctx, tctx),
+							     server_site_name(tctx, sam_ctx),
 							     "didn't return default site");
 			}
 			torture_assert(tctx, ctr->subnetname[i].string == NULL,
@@ -2911,7 +3081,7 @@ static bool test_GetDomainInfo(struct torture_context *tctx,
 	torture_assert_ntstatus_ok(tctx, r.out.result, "LogonGetDomainInfo failed");
 	torture_assert(tctx, netlogon_creds_client_check(creds, &a.cred), "Credential chaining failed");
 
-	msleep(250);
+	smb_msleep(250);
 
 	if (sam_ctx) {
 		/* AD workstation infos entry check */
@@ -3000,7 +3170,7 @@ static bool test_GetDomainInfo(struct torture_context *tctx,
 
 	torture_assert(tctx, netlogon_creds_client_check(creds, &a.cred), "Credential chaining failed");
 
-	msleep(250);
+	smb_msleep(250);
 
 	if (sam_ctx) {
 		/* AD workstation infos entry check */
@@ -3076,7 +3246,7 @@ static bool test_GetDomainInfo(struct torture_context *tctx,
 	torture_assert_ntstatus_ok(tctx, r.out.result, "LogonGetDomainInfo failed");
 	torture_assert(tctx, netlogon_creds_client_check(creds, &a.cred), "Credential chaining failed");
 
-	msleep(250);
+	smb_msleep(250);
 
 	if (sam_ctx) {
 		/* AD workstation infos entry check */
@@ -3147,13 +3317,14 @@ static bool test_GetDomainInfo(struct torture_context *tctx,
 	torture_assert_ntstatus_ok(tctx, r.out.result, "LogonGetDomainInfo failed");
 	torture_assert(tctx, netlogon_creds_client_check(creds, &a.cred), "Credential chaining failed");
 
-	msleep(250);
+	smb_msleep(250);
 
 	/* Now the in/out DNS hostnames should be the same */
 	torture_assert_str_equal(tctx,
 		info.domain_info->dns_hostname.string,
 		query.workstation_info->dns_hostname,
 		"In/Out 'DNS hostnames' don't match!");
+	old_dnsname = info.domain_info->dns_hostname.string;
 
 	/* Checks "workstation flags" */
 	torture_assert(tctx,
@@ -3181,7 +3352,7 @@ static bool test_GetDomainInfo(struct torture_context *tctx,
 	torture_assert_ntstatus_ok(tctx, r.out.result, "LogonGetDomainInfo failed");
 	torture_assert(tctx, netlogon_creds_client_check(creds, &a.cred), "Credential chaining failed");
 
-	msleep(250);
+	smb_msleep(250);
 
 	/* Checks "workstation flags" */
 	torture_assert(tctx,
@@ -3197,12 +3368,29 @@ static bool test_GetDomainInfo(struct torture_context *tctx,
 		"Trusted domains have been requested!");
 
 
+	torture_comment(tctx, "Testing netr_LogonGetDomainInfo 6th call (no DNS hostname)\n");
+	netlogon_creds_client_authenticator(creds, &a);
+
+	query.workstation_info->dns_hostname = NULL;
+
+	torture_assert_ntstatus_ok(tctx, dcerpc_netr_LogonGetDomainInfo_r(b, tctx, &r),
+		"LogonGetDomainInfo failed");
+	torture_assert_ntstatus_ok(tctx, r.out.result, "LogonGetDomainInfo failed");
+	torture_assert(tctx, netlogon_creds_client_check(creds, &a.cred), "Credential chaining failed");
+
+	/* The old DNS hostname should stick */
+	torture_assert_str_equal(tctx,
+		info.domain_info->dns_hostname.string,
+		old_dnsname,
+		"'DNS hostname' changed!");
+
+
 	if (!torture_setting_bool(tctx, "dangerous", false)) {
-		torture_comment(tctx, "Not testing netr_LogonGetDomainInfo 6th call (no workstation info) - enable dangerous tests in order to do so\n");
+		torture_comment(tctx, "Not testing netr_LogonGetDomainInfo 7th call (no workstation info) - enable dangerous tests in order to do so\n");
 	} else {
 		/* Try a call without the workstation information structure */
 
-		torture_comment(tctx, "Testing netr_LogonGetDomainInfo 6th call (no workstation info)\n");
+		torture_comment(tctx, "Testing netr_LogonGetDomainInfo 7th call (no workstation info)\n");
 		netlogon_creds_client_authenticator(creds, &a);
 
 		query.workstation_info = NULL;
@@ -3403,7 +3591,7 @@ static bool test_SetPassword_with_flags(struct torture_context *tctx,
 
 struct torture_suite *torture_rpc_netlogon(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "NETLOGON");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "netlogon");
 	struct torture_rpc_tcase *tcase;
 	struct torture_test *test;
 
@@ -3446,7 +3634,7 @@ struct torture_suite *torture_rpc_netlogon(TALLOC_CTX *mem_ctx)
 
 struct torture_suite *torture_rpc_netlogon_s3(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "NETLOGON-S3");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "netlogon-s3");
 	struct torture_rpc_tcase *tcase;
 
 	tcase = torture_suite_add_machine_bdc_rpc_iface_tcase(suite, "netlogon",
@@ -3464,7 +3652,7 @@ struct torture_suite *torture_rpc_netlogon_s3(TALLOC_CTX *mem_ctx)
 
 struct torture_suite *torture_rpc_netlogon_admin(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "NETLOGON-ADMIN");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "netlogon.admin");
 	struct torture_rpc_tcase *tcase;
 
 	tcase = torture_suite_add_machine_bdc_rpc_iface_tcase(suite, "netlogon",

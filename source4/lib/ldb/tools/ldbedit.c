@@ -31,13 +31,10 @@
  *  Author: Andrew Tridgell
  */
 
-#ifdef _SAMBA_BUILD_
-#include "includes.h"
-#include <system/filesys.h>
-#else
-#include "ldb_includes.h"
-#endif
-
+#include "replace.h"
+#include "system/filesys.h"
+#include "system/time.h"
+#include "system/filesys.h"
 #include "ldb.h"
 #include "tools/cmdline.h"
 #include "tools/ldbutil.h"
@@ -84,7 +81,7 @@ static int modify_record(struct ldb_context *ldb,
 		ldif_write_msg(ldb, stdout, LDB_CHANGETYPE_MODIFY, mod);
 	}
 
-	if (ldb_modify_ctrl(ldb, mod, req_ctrls) != 0) {
+	if (ldb_modify_ctrl(ldb, mod, req_ctrls) != LDB_SUCCESS) {
 		fprintf(stderr, "failed to modify %s - %s\n",
 			ldb_dn_get_linearized(msg1->dn), ldb_errstring(ldb));
 		ret = -1;
@@ -122,15 +119,15 @@ static int merge_edits(struct ldb_context *ldb,
 {
 	unsigned int i;
 	struct ldb_message *msg;
-	int ret = 0;
-	int adds=0, modifies=0, deletes=0;
+	int ret;
+	unsigned int adds=0, modifies=0, deletes=0;
 	struct ldb_control **req_ctrls = ldb_parse_control_strings(ldb, ldb, (const char **)options->controls);
 	if (options->controls != NULL && req_ctrls == NULL) {
 		fprintf(stderr, "parsing controls failed: %s\n", ldb_errstring(ldb));
 		return -1;
 	}
 
-	if (ldb_transaction_start(ldb) != 0) {
+	if (ldb_transaction_start(ldb) != LDB_SUCCESS) {
 		fprintf(stderr, "Failed to start transaction: %s\n", ldb_errstring(ldb));
 		return -1;
 	}
@@ -142,7 +139,7 @@ static int merge_edits(struct ldb_context *ldb,
 			if (options->verbose > 0) {
 				ldif_write_msg(ldb, stdout, LDB_CHANGETYPE_ADD, msgs2[i]);
 			}
-			if (ldb_add_ctrl(ldb, msgs2[i], req_ctrls) != 0) {
+			if (ldb_add_ctrl(ldb, msgs2[i], req_ctrls) != LDB_SUCCESS) {
 				fprintf(stderr, "failed to add %s - %s\n",
 					ldb_dn_get_linearized(msgs2[i]->dn),
 					ldb_errstring(ldb));
@@ -151,8 +148,11 @@ static int merge_edits(struct ldb_context *ldb,
 			}
 			adds++;
 		} else {
-			if (modify_record(ldb, msg, msgs2[i], req_ctrls) > 0) {
-				modifies++;
+			ret = modify_record(ldb, msg, msgs2[i], req_ctrls);
+			if (ret != -1) {
+				modifies += (unsigned int) ret;
+			} else {
+				return -1;
 			}
 		}
 	}
@@ -164,7 +164,7 @@ static int merge_edits(struct ldb_context *ldb,
 			if (options->verbose > 0) {
 				ldif_write_msg(ldb, stdout, LDB_CHANGETYPE_DELETE, msgs1[i]);
 			}
-			if (ldb_delete_ctrl(ldb, msgs1[i]->dn, req_ctrls) != 0) {
+			if (ldb_delete_ctrl(ldb, msgs1[i]->dn, req_ctrls) != LDB_SUCCESS) {
 				fprintf(stderr, "failed to delete %s - %s\n",
 					ldb_dn_get_linearized(msgs1[i]->dn),
 					ldb_errstring(ldb));
@@ -175,14 +175,14 @@ static int merge_edits(struct ldb_context *ldb,
 		}
 	}
 
-	if (ldb_transaction_commit(ldb) != 0) {
+	if (ldb_transaction_commit(ldb) != LDB_SUCCESS) {
 		fprintf(stderr, "Failed to commit transaction: %s\n", ldb_errstring(ldb));
 		return -1;
 	}
 
-	printf("# %d adds  %d modifies  %d deletes\n", adds, modifies, deletes);
+	printf("# %u adds  %u modifies  %u deletes\n", adds, modifies, deletes);
 
-	return ret;
+	return 0;
 }
 
 /*
@@ -193,11 +193,11 @@ static int save_ldif(struct ldb_context *ldb,
 {
 	unsigned int i;
 
-	fprintf(f, "# editing %d records\n", count);
+	fprintf(f, "# editing %u records\n", count);
 
 	for (i=0;i<count;i++) {
 		struct ldb_ldif ldif;
-		fprintf(f, "# record %d\n", i+1);
+		fprintf(f, "# record %u\n", i+1);
 
 		ldif.changetype = LDB_CHANGETYPE_NONE;
 		ldif.msg = msgs[i];
@@ -287,11 +287,11 @@ static int do_edit(struct ldb_context *ldb, struct ldb_message **msgs1,
 	return merge_edits(ldb, msgs1, count1, msgs2, count2);
 }
 
-static void usage(void)
+static void usage(struct ldb_context *ldb)
 {
 	printf("Usage: ldbedit <options> <expression> <attributes ...>\n");
-	ldb_cmdline_help("ldbedit", stdout);
-	exit(1);
+	ldb_cmdline_help(ldb, "ldbedit", stdout);
+	exit(LDB_ERR_OPERATIONS_ERROR);
 }
 
 int main(int argc, const char **argv)
@@ -303,8 +303,12 @@ int main(int argc, const char **argv)
 	const char *expression = "(|(objectClass=*)(distinguishedName=*))";
 	const char * const * attrs = NULL;
 	TALLOC_CTX *mem_ctx = talloc_new(NULL);
+	struct ldb_control **req_ctrls;
 
 	ldb = ldb_init(mem_ctx, NULL);
+	if (ldb == NULL) {
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
 
 	options = ldb_cmdline_process(ldb, argc, argv, usage);
 
@@ -322,34 +326,32 @@ int main(int argc, const char **argv)
 
 	if (options->basedn != NULL) {
 		basedn = ldb_dn_new(ldb, ldb, options->basedn);
-		if ( ! ldb_dn_validate(basedn)) {
-			printf("Invalid Base DN format\n");
-			exit(1);
+		if (basedn == NULL) {
+			return LDB_ERR_OPERATIONS_ERROR;
 		}
 	}
 
-	ret = ldb_search(ldb, ldb, &result, basedn, options->scope, attrs, "%s", expression);
+	req_ctrls = ldb_parse_control_strings(ldb, ldb, (const char **)options->controls);
+	if (options->controls != NULL &&  req_ctrls== NULL) {
+		printf("parsing controls failed: %s\n", ldb_errstring(ldb));
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+
+	ret = ldb_search_ctrl(ldb, ldb, &result, basedn, options->scope, attrs, req_ctrls, "%s", expression);
 	if (ret != LDB_SUCCESS) {
 		printf("search failed - %s\n", ldb_errstring(ldb));
-		exit(1);
+		return ret;
 	}
 
 	if (result->count == 0) {
 		printf("no matching records - cannot edit\n");
-		return 0;
+		talloc_free(mem_ctx);
+		return LDB_SUCCESS;
 	}
 
-	do_edit(ldb, result->msgs, result->count, options->editor);
-
-	if (result) {
-		ret = talloc_free(result);
-		if (ret == -1) {
-			fprintf(stderr, "talloc_free failed\n");
-			exit(1);
-		}
-	}
+	ret = do_edit(ldb, result->msgs, result->count, options->editor);
 
 	talloc_free(mem_ctx);
 
-	return 0;
+	return ret == 0 ? LDB_SUCCESS : LDB_ERR_OPERATIONS_ERROR;
 }

@@ -20,7 +20,7 @@
 */
 
 #include "includes.h"
-#include "libcli/security/dom_sid.h"
+#include "libcli/security/security.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "system/locale.h"
 
@@ -566,7 +566,7 @@ static char *sddl_encode_acl(TALLOC_CTX *mem_ctx, const struct security_acl *acl
 			     uint32_t flags, const struct dom_sid *domain_sid)
 {
 	char *sddl;
-	int i;
+	uint32_t i;
 
 	/* add any ACL flags */
 	sddl = sddl_flags_to_string(mem_ctx, acl_flags, flags, false);

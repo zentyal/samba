@@ -16,6 +16,8 @@
  */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "smbd/smbd.h"
 
 struct readahead_data {
 	SMB_OFF_T off_bound;

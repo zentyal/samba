@@ -18,6 +18,8 @@
 */
 
 #include "includes.h"
+#include "async_smb.h"
+#include "trans2.h"
 
 /****************************************************************************
   Calculate the recommended read buffer size
@@ -702,8 +704,7 @@ static bool cli_issue_write(struct cli_state *cli,
 				off_t offset,
 				uint16 mode,
 				const char *buf,
-				size_t size,
-				int i)
+				size_t size)
 {
 	char *p;
 	bool large_writex = false;
@@ -777,8 +778,6 @@ static bool cli_issue_write(struct cli_state *cli,
 		cli_setup_bcc(cli, p+size);
 	}
 
-	SSVAL(cli->outbuf,smb_mid,cli->mid + i);
-
 	show_msg(cli->outbuf);
 	if (direct_writes) {
 		/* For direct writes we now need to write the data
@@ -827,7 +826,7 @@ ssize_t cli_write(struct cli_state *cli,
 			if (!cli_issue_write(cli, fnum, offset + bsent,
 			                write_mode,
 			                buf + bsent,
-					size1, issued))
+					size1))
 				return -1;
 			issued++;
 		}
@@ -858,56 +857,67 @@ ssize_t cli_write(struct cli_state *cli,
   write to a file using a SMBwrite and not bypassing 0 byte writes
 ****************************************************************************/
 
-ssize_t cli_smbwrite(struct cli_state *cli,
-		     uint16_t fnum, char *buf, off_t offset, size_t size1)
+NTSTATUS cli_smbwrite(struct cli_state *cli, uint16_t fnum, char *buf,
+		      off_t offset, size_t size1, size_t *ptotal)
 {
-	char *p;
+	uint8_t *bytes;
 	ssize_t total = 0;
+
+	/*
+	 * 3 bytes prefix
+	 */
+
+	bytes = TALLOC_ARRAY(talloc_tos(), uint8_t, 3);
+	if (bytes == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	bytes[0] = 1;
 
 	do {
 		size_t size = MIN(size1, cli->max_xmit - 48);
+		struct tevent_req *req;
+		uint16_t vwv[5];
+		uint16_t *ret_vwv;
+		NTSTATUS status;
 
-		memset(cli->outbuf,'\0',smb_size);
-		memset(cli->inbuf,'\0',smb_size);
+		SSVAL(vwv+0, 0, fnum);
+		SSVAL(vwv+1, 0, size);
+		SIVAL(vwv+2, 0, offset);
+		SSVAL(vwv+4, 0, 0);
 
-		cli_set_message(cli->outbuf,5, 0,True);
+		bytes = TALLOC_REALLOC_ARRAY(talloc_tos(), bytes, uint8_t,
+					     size+3);
+		if (bytes == NULL) {
+			return NT_STATUS_NO_MEMORY;
+		}
+		SSVAL(bytes, 1, size);
+		memcpy(bytes + 3, buf + total, size);
 
-		SCVAL(cli->outbuf,smb_com,SMBwrite);
-		SSVAL(cli->outbuf,smb_tid,cli->cnum);
-		cli_setup_packet(cli);
+		status = cli_smb(talloc_tos(), cli, SMBwrite, 0, 5, vwv,
+				 size+3, bytes, &req, 1, NULL, &ret_vwv,
+				 NULL, NULL);
+		if (!NT_STATUS_IS_OK(status)) {
+			TALLOC_FREE(bytes);
+			return status;
+		}
 
-		SSVAL(cli->outbuf,smb_vwv0,fnum);
-		SSVAL(cli->outbuf,smb_vwv1,size);
-		SIVAL(cli->outbuf,smb_vwv2,offset);
-		SSVAL(cli->outbuf,smb_vwv4,0);
-
-		p = smb_buf(cli->outbuf);
-		*p++ = 1;
-		SSVAL(p, 0, size); p += 2;
-		memcpy(p, buf + total, size); p += size;
-
-		cli_setup_bcc(cli, p);
-
-		if (!cli_send_smb(cli))
-			return -1;
-
-		if (!cli_receive_smb(cli))
-			return -1;
-
-		if (cli_is_error(cli))
-			return -1;
-
-		size = SVAL(cli->inbuf,smb_vwv0);
-		if (size == 0)
+		size = SVAL(ret_vwv+0, 0);
+		TALLOC_FREE(req);
+		if (size == 0) {
 			break;
-
+		}
 		size1 -= size;
 		total += size;
 		offset += size;
 
 	} while (size1);
 
-	return total;
+	TALLOC_FREE(bytes);
+
+	if (ptotal != NULL) {
+		*ptotal = total;
+	}
+	return NT_STATUS_OK;
 }
 
 /*

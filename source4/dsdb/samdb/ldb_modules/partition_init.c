@@ -31,6 +31,8 @@
 
 #include "dsdb/samdb/ldb_modules/partition.h"
 #include "lib/util/tsort.h"
+#include "lib/ldb-samba/ldb_wrap.h"
+#include "system/filesys.h"
 
 static int partition_sort_compare(const void *v1, const void *v2)
 {
@@ -44,7 +46,9 @@ static int partition_sort_compare(const void *v1, const void *v2)
 }
 
 /* Load the list of DNs that we must replicate to all partitions */
-static int partition_load_replicate_dns(struct ldb_context *ldb, struct partition_private_data *data, struct ldb_message *msg) 
+static int partition_load_replicate_dns(struct ldb_context *ldb,
+					struct partition_private_data *data,
+					struct ldb_message *msg)
 {
 	struct ldb_message_element *replicate_attributes = ldb_msg_find_element(msg, "replicateEntries");
 
@@ -52,7 +56,7 @@ static int partition_load_replicate_dns(struct ldb_context *ldb, struct partitio
 	if (!replicate_attributes) {
 		data->replicate = NULL;
 	} else {
-		int i;
+		unsigned int i;
 		data->replicate = talloc_array(data, struct ldb_dn *, replicate_attributes->num_values + 1);
 		if (!data->replicate) {
 			return ldb_oom(ldb);
@@ -126,7 +130,9 @@ static int partition_load_modules(struct ldb_context *ldb,
 	return LDB_SUCCESS;
 }
 
-static int partition_reload_metadata(struct ldb_module *module, struct partition_private_data *data, TALLOC_CTX *mem_ctx, struct ldb_message **_msg) 
+static int partition_reload_metadata(struct ldb_module *module, struct partition_private_data *data,
+				     TALLOC_CTX *mem_ctx, struct ldb_message **_msg,
+				     struct ldb_request *parent)
 {
 	int ret;
 	struct ldb_message *msg, *module_msg;
@@ -137,7 +143,7 @@ static int partition_reload_metadata(struct ldb_module *module, struct partition
 	ret = dsdb_module_search_dn(module, mem_ctx, &res, 
 				    ldb_dn_new(mem_ctx, ldb, DSDB_PARTITION_DN),
 				    attrs,
-				    DSDB_FLAG_NEXT_MODULE);
+				    DSDB_FLAG_NEXT_MODULE, parent);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -218,7 +224,7 @@ static int new_partition_from_dn(struct ldb_context *ldb, struct partition_priva
 		(*partition)->backend_url = data->ldapBackend;
 	} else {
 		/* the backend LDB is the DN (base64 encoded if not 'plain') followed by .ldb */
-		backend_url = samdb_relative_path(ldb, 
+		backend_url = ldb_relative_path(ldb, 
 						  *partition, 
 						  filename);
 		if (!backend_url) {
@@ -229,7 +235,7 @@ static int new_partition_from_dn(struct ldb_context *ldb, struct partition_priva
 		}
 		(*partition)->backend_url = talloc_steal((*partition), backend_url);
 
-		if (!(ldb->flags & LDB_FLG_RDONLY)) {
+		if (!(ldb_module_flags(ldb) & LDB_FLG_RDONLY)) {
 			char *p;
 			char *backend_dir = talloc_strdup(*partition, backend_url);
 			
@@ -248,7 +254,7 @@ static int new_partition_from_dn(struct ldb_context *ldb, struct partition_priva
 	ctrl->version = DSDB_CONTROL_CURRENT_PARTITION_VERSION;
 	ctrl->dn = talloc_steal(ctrl, dn);
 	
-	ret = ldb_connect_backend(ldb, (*partition)->backend_url, NULL, &backend_module);
+	ret = ldb_module_connect_backend(ldb, (*partition)->backend_url, NULL, &backend_module);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -261,7 +267,7 @@ static int new_partition_from_dn(struct ldb_context *ldb, struct partition_priva
 		talloc_free(*partition);
 		return LDB_ERR_CONSTRAINT_VIOLATION;
 	}
-	ret = ldb_load_modules_list(ldb, modules, backend_module, &module_chain);
+	ret = ldb_module_load_list(ldb, modules, backend_module, &module_chain);
 	if (ret != LDB_SUCCESS) {
 		ldb_asprintf_errstring(ldb, 
 				       "partition_init: "
@@ -270,7 +276,7 @@ static int new_partition_from_dn(struct ldb_context *ldb, struct partition_priva
 		talloc_free(*partition);
 		return ret;
 	}
-	ret = ldb_init_module_chain(ldb, module_chain);
+	ret = ldb_module_init_chain(ldb, module_chain);
 	if (ret != LDB_SUCCESS) {
 		ldb_asprintf_errstring(ldb,
 				       "partition_init: "
@@ -286,13 +292,13 @@ static int new_partition_from_dn(struct ldb_context *ldb, struct partition_priva
 		talloc_free(*partition);
 		return ldb_oom(ldb);
 	}
-	(*partition)->module->next = talloc_steal((*partition)->module, module_chain);
+	ldb_module_set_next((*partition)->module, talloc_steal((*partition)->module, module_chain));
 
 	/* if we were in a transaction then we need to start a
 	   transaction on this new partition, otherwise we'll get a
 	   transaction mismatch when we end the transaction */
 	if (data->in_transaction) {
-		if (ldb->flags & LDB_FLG_ENABLE_TRACING) {
+		if (ldb_module_flags(ldb) & LDB_FLG_ENABLE_TRACING) {
 			ldb_debug(ldb, LDB_DEBUG_TRACE, "partition_start_trans() -> %s (new partition)", 
 				  ldb_dn_get_linearized((*partition)->ctrl->dn));
 		}
@@ -368,7 +374,8 @@ static int add_partition_to_data(struct ldb_context *ldb, struct partition_priva
 }
 
 int partition_reload_if_required(struct ldb_module *module, 
-				 struct partition_private_data *data)
+				 struct partition_private_data *data,
+				 struct ldb_request *parent)
 {
 	uint64_t seq;
 	int ret;
@@ -379,7 +386,7 @@ int partition_reload_if_required(struct ldb_module *module,
 	TALLOC_CTX *mem_ctx;
 
 	if (!data) {
-		/* Not initilised yet */
+		/* Not initialised yet */
 		return LDB_SUCCESS;
 	}
 
@@ -398,7 +405,7 @@ int partition_reload_if_required(struct ldb_module *module,
 		return LDB_SUCCESS;
 	}
 
-	ret = partition_reload_metadata(module, data, mem_ctx, &msg);
+	ret = partition_reload_metadata(module, data, mem_ctx, &msg, parent);
 	if (ret != LDB_SUCCESS) {
 		talloc_free(mem_ctx);
 		return ret;
@@ -501,7 +508,7 @@ int partition_reload_if_required(struct ldb_module *module,
 		/* Get the 'correct' case of the partition DNs from the database */
 		ret = dsdb_module_search_dn(partition->module, data, &dn_res, 
 					    dn, no_attrs,
-					    DSDB_FLAG_NEXT_MODULE);
+					    DSDB_FLAG_NEXT_MODULE, parent);
 		if (ret == LDB_SUCCESS) {
 			talloc_free(partition->ctrl->dn);
 			partition->ctrl->dn = talloc_steal(partition->ctrl, dn_res->msgs[0]->dn);
@@ -543,7 +550,7 @@ static int new_partition_set_replicated_metadata(struct ldb_context *ldb,
 		ret = dsdb_module_search_dn(module, last_req, &replicate_res, 
 					    data->replicate[i],
 					    NULL,
-					    DSDB_FLAG_NEXT_MODULE);
+					    DSDB_FLAG_NEXT_MODULE, NULL);
 		if (ret == LDB_ERR_NO_SUCH_OBJECT) {
 			continue;
 		}
@@ -562,6 +569,7 @@ static int new_partition_set_replicated_metadata(struct ldb_context *ldb,
 		ret = ldb_build_add_req(&add_req, ldb, replicate_res, 
 					replicate_res->msgs[0], NULL, NULL, 
 					ldb_op_default_callback, last_req);
+		LDB_REQ_SET_LOCATION(add_req);
 		last_req = add_req;
 		if (ret != LDB_SUCCESS) {
 			/* return directly, this is a very unlikely error */
@@ -589,6 +597,7 @@ static int new_partition_set_replicated_metadata(struct ldb_context *ldb,
 			/* Build del request */
 			ret = ldb_build_del_req(&del_req, ldb, replicate_res, replicate_res->msgs[0]->dn, NULL, NULL, 
 						ldb_op_default_callback, last_req);
+			LDB_REQ_SET_LOCATION(del_req);
 			last_req = del_req;
 			if (ret != LDB_SUCCESS) {
 				/* return directly, this is a very unlikely error */
@@ -615,6 +624,7 @@ static int new_partition_set_replicated_metadata(struct ldb_context *ldb,
 			/* Build add request */
 			ret = ldb_build_add_req(&add_req, ldb, replicate_res, replicate_res->msgs[0], NULL, NULL, 
 						ldb_op_default_callback, last_req);
+			LDB_REQ_SET_LOCATION(add_req);
 			last_req = add_req;
 			if (ret != LDB_SUCCESS) {
 				/* return directly, this is a very unlikely error */
@@ -679,7 +689,7 @@ int partition_create(struct ldb_module *module, struct ldb_request *req)
 	struct dsdb_create_partition_exop *ex_op = talloc_get_type(req->op.extended.data, struct dsdb_create_partition_exop);
 	struct ldb_dn *dn = ex_op->new_dn;
 
-	data = talloc_get_type(module->private_data, struct partition_private_data);
+	data = talloc_get_type(ldb_module_get_private(module), struct partition_private_data);
 	if (!data) {
 		/* We are not going to create a partition before we are even set up */
 		return LDB_ERR_UNWILLING_TO_PERFORM;
@@ -752,7 +762,7 @@ int partition_create(struct ldb_module *module, struct ldb_request *req)
 		/* Perform modify on @PARTITION record */
 		ret = ldb_build_mod_req(&mod_req, ldb, req, mod_msg, NULL, NULL, 
 					ldb_op_default_callback, req);
-		
+		LDB_REQ_SET_LOCATION(mod_req);
 		if (ret != LDB_SUCCESS) {
 			return ret;
 		}
@@ -819,12 +829,12 @@ int partition_init(struct ldb_module *module)
 		struct ldb_message);
 
 	/* This loads the partitions */
-	ret = partition_reload_if_required(module, data);
+	ret = partition_reload_if_required(module, data, NULL);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
 
-	module->private_data = talloc_steal(module, data);
+	ldb_module_set_private(module, talloc_steal(module, data));
 	talloc_free(mem_ctx);
 
 	ret = ldb_mod_register_control(module, LDB_CONTROL_DOMAIN_SCOPE_OID);

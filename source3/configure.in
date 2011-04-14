@@ -37,7 +37,6 @@ LIBS="${LIBS} ${TEVENT_LIBS}"
 SAMBA_CPPFLAGS="-Iinclude -I${srcdir-.}/include  -I. -I${srcdir-.}"
 SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} -I${srcdir-.}/../lib/replace"
 SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} ${TEVENT_CFLAGS}"
-SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} -I${srcdir-.}/libaddns"
 SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} -I${srcdir-.}/librpc"
 SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} -I${srcdir-.}/.."
 
@@ -121,7 +120,6 @@ fi
 
 m4_include(../lib/socket_wrapper/config.m4)
 m4_include(../lib/nss_wrapper/config.m4)
-m4_include(../lib/util/time.m4)
 
 m4_include(m4/swat.m4)
 
@@ -198,7 +196,7 @@ AC_ARG_WITH(profiling-data,
 )
 
 dnl Checks for programs.
-merged_build_possible=yes
+smbtorture4_possible=yes
 
 AC_PROG_INSTALL
 AC_PROG_AWK
@@ -208,7 +206,11 @@ AC_SAMBA_GNU_MAKE([true], [true])
 
 # Check for perl
 m4_include(../m4/check_perl.m4)
-AC_SAMBA_PERL([true], [merged_build_possible=no])
+AC_SAMBA_PERL([true], [smbtorture4_possible=no])
+
+# Check for python
+m4_include(../m4/check_python.m4)
+AC_SAMBA_PYTHON_DEVEL([true], [smbtorture4_possible=no])
 
 AC_CHECK_TOOL(AR, ar)
 
@@ -219,7 +221,7 @@ dnl Certain versions of GNU ld the default is not to have the
 dnl --allow-shlib-undefined flag defined.  This causes a stackload of
 dnl warnings when building modules.
 if test "$ac_cv_prog_gnu_ld" = "yes"; then
-	ac_cv_gnu_ld_version=`$CC -Wl,-v /dev/null 2>/dev/null | head -1`
+	ac_cv_gnu_ld_version=`$CC -Wl,-v /dev/null 2>&1 < /dev/null | grep "GNU ld"`
 	AC_MSG_CHECKING(GNU ld release date)
 	changequote(,)dnl
 	ac_cv_gnu_ld_date=`echo $ac_cv_gnu_ld_version | sed -n 's,^.*\([2-9][0-9][0-9][0-9]\)[-]*\([01][0-9]\)[-]*\([0-3][0-9]\).*$,\1\2\3,p'`
@@ -339,7 +341,7 @@ AC_CACHE_CHECK([that the C compiler understands negative enum values],samba_cv_C
 		return 0;
 	}
 ],
-	samba_cv_CC_NEGATIVE_ENUM_VALUES=yes,samba_cv__CC_NEGATIVE_ENUM_VALUES=no)])
+	samba_cv_CC_NEGATIVE_ENUM_VALUES=yes,samba_cv_CC_NEGATIVE_ENUM_VALUES=no)])
 if test x"$samba_cv_CC_NEGATIVE_ENUM_VALUES" != x"yes"; then
 	AC_MSG_WARN([using --uint-enums for pidl])
 	PIDL_ARGS="$PIDL_ARGS --uint-enums"
@@ -423,7 +425,6 @@ default_static_modules="$default_static_modules auth_wbc"
 default_static_modules="$default_static_modules auth_server"
 default_static_modules="$default_static_modules auth_domain"
 default_static_modules="$default_static_modules auth_builtin"
-default_static_modules="$default_static_modules auth_netlogond"
 default_static_modules="$default_static_modules vfs_default"
 default_static_modules="$default_static_modules nss_info_template"
 
@@ -456,9 +457,12 @@ default_shared_modules="$default_shared_modules vfs_catia"
 default_shared_modules="$default_shared_modules vfs_scannedonly"
 default_shared_modules="$default_shared_modules vfs_crossrename"
 default_shared_modules="$default_shared_modules vfs_linux_xfs_sgid"
+default_shared_modules="$default_shared_modules vfs_time_audit"
+default_shared_modules="$default_shared_modules idmap_autorid"
 
 if test "x$developer" = xyes; then
    default_static_modules="$default_static_modules rpc_rpcecho pdb_ads"
+   default_static_modules="$default_static_modules auth_netlogond"
    default_shared_modules="$default_shared_modules charset_weird perfcount_test"
 fi
 
@@ -736,6 +740,7 @@ AC_CHECK_HEADERS(sys/syslog.h syslog.h)
 AC_CHECK_HEADERS(langinfo.h locale.h)
 AC_CHECK_HEADERS(xfs/libxfs.h)
 AC_CHECK_HEADERS(netgroup.h)
+AC_CHECK_HEADERS(linux/falloc.h)
 
 AC_CHECK_HEADERS(rpcsvc/yp_prot.h,,,[[
 #if HAVE_RPC_RPC_H
@@ -755,6 +760,13 @@ CPPFLAGS="$old_CPPFLAGS"
 # In valgrind 1.0.x, it's just valgrind.h.  In 1.9.x+ there's a
 # subdirectory of headers.
 AC_CHECK_HEADERS(valgrind.h valgrind/valgrind.h valgrind/memcheck.h)
+
+if test x"$enable_developer" = x"yes" ; then
+   if test x"$ac_cv_header_valgrind_h" = xyes -o \
+           x"$ac_cv_header_valgrind_valgrind_h" = xyes ; then
+      AC_DEFINE(VALGRIND,1,[Whether we have valgrind headers])
+   fi
+fi
 
 #
 # HPUX has a bug in that including shadow.h causes a re-definition of MAXINT.
@@ -813,15 +825,21 @@ if test x$enable_cups != xno; then
 
         if test "x$CUPS_CONFIG" != x; then
 
-		ac_save_CFLAGS=$CFLAGS
 		ac_save_LDFLAGS=$LDFLAGS
 		ac_save_PRINT_LIBS=$PRINT_LIBS
-		CFLAGS="$CFLAGS `$CUPS_CONFIG --cflags`"
-		LDFLAGS="$LDFLAGS `$CUPS_CONFIG --ldflags`"
-		PRINT_LIBS="$PRINT_LIBS -lcups"
 		AC_CHECK_HEADERS(cups/cups.h cups/language.h)
+
 		if test x"$ac_cv_header_cups_cups_h" = xyes -a \
 		        x"$ac_cv_header_cups_language_h" = xyes; then
+			# try linking with -lcups alone first. That should work unless libcups is
+			# underlinked. With cups-config --libs we pull in unwanted and unneeded
+			# dendencies including thread libraries - use cups-config only if really
+			# required. 
+			AC_CHECK_LIB_EXT(cups, ac_save_PRINT_LIBS , httpConnect,
+				[PRINT_LIBS="$ac_save_PRINT_LIBS -lcups"],
+				[AC_MSG_WARN([your cups library doesn't link with -lcups alone, it might be underlinked.]) ;
+				 PRINT_LIBS="$ac_save_PRINT_LIBS `$CUPS_CONFIG --libs`"])
+
 			AC_DEFINE(HAVE_CUPS,1,[Whether we have CUPS])
 			samba_cv_HAVE_CUPS=yes
 			AC_CHECK_LIB_EXT(cups, PRINT_LIBS, httpConnectEncrypt)
@@ -930,29 +948,6 @@ if test x"$samba_cv_struct_sigevent" = x"yes"; then
    AC_DEFINE(HAVE_STRUCT_SIGEVENT,1,[Whether we have the struct sigevent])
    AC_CHECK_MEMBERS([struct sigevent.sigev_value.sival_ptr,struct sigevent.sigev_value.sigval_ptr], , ,
 	[#include <signal.h>])
-fi
-
-AC_CACHE_CHECK([for struct timespec type],samba_cv_struct_timespec, [
-    AC_TRY_COMPILE([
-#include <sys/types.h>
-#if STDC_HEADERS
-#include <stdlib.h>
-#include <stddef.h>
-#endif
-#if TIME_WITH_SYS_TIME
-# include <sys/time.h>
-# include <time.h>
-#else
-# if HAVE_SYS_TIME_H
-#  include <sys/time.h>
-# else
-#  include <time.h>
-# endif
-#endif
-],[struct timespec ts;],
-	samba_cv_struct_timespec=yes,samba_cv_struct_timespec=no)])
-if test x"$samba_cv_struct_timespec" = x"yes"; then
-   AC_DEFINE(HAVE_STRUCT_TIMESPEC,1,[Whether we have struct timespec])
 fi
 
 # and glibc has setresuid under linux but the function does
@@ -1074,11 +1069,14 @@ AC_CHECK_FUNCS(getrlimit fsync setpgid)
 AC_CHECK_FUNCS(fdatasync,,[AC_CHECK_LIB_EXT(rt, LIBS, fdatasync)])
 AC_CHECK_FUNCS(setsid glob strpbrk crypt16 getauthuid)
 AC_CHECK_FUNCS(sigprocmask sigblock sigaction sigset innetgr setnetgrent getnetgrent endnetgrent)
-AC_CHECK_FUNCS(initgroups select poll rdchk getgrnam getgrent pathconf)
+AC_CHECK_FUNCS(initgroups select rdchk getgrnam getgrent pathconf)
+AC_CHECK_FUNCS(getgrset)
 AC_CHECK_FUNCS(setpriv setgidx setuidx setgroups sysconf stat64 fstat64)
 AC_CHECK_FUNCS(lstat64 fopen64 atexit grantpt lseek64 ftruncate64 posix_fallocate posix_fallocate64)
+AC_CHECK_FUNCS(fallocate fallocate64)
 AC_CHECK_FUNCS(fseek64 fseeko64 ftell64 ftello64 setluid getpwanam)
 AC_CHECK_FUNCS(opendir64 readdir64 seekdir64 telldir64 rewinddir64 closedir64)
+AC_CHECK_FUNCS(fdopendir fdopendir64)
 AC_CHECK_FUNCS(getpwent_r)
 AC_CHECK_FUNCS(getdents64)
 AC_CHECK_FUNCS(setenv strcasecmp fcvt fcvtl)
@@ -1718,7 +1716,9 @@ DSO_EXPORTS=""
 			BLDSHARED="true"
 			LDSHFLAGS="-shared"
 			SONAMEFLAG="-Wl,-soname,"
-			PICFLAG="-fPIC"
+			if test "${GCC}" = "yes"; then
+				PICFLAG="-fPIC"
+			fi
 			AC_DEFINE(STAT_ST_BLOCKSIZE,512)
 			AC_DEFINE(BROKEN_GETGRNAM,1,[Does getgrnam work correctly])
 			for flags in "-expect_unresolved '*'" "-Wl,-expect_unresolved,'*'" ; do
@@ -1968,7 +1968,7 @@ if test x"$BLDSHARED" != x"true"; then
 	SHLD="shared-libraries-disabled"
 	PICFLAG="${PIE_CFLAGS}"
 	SHLIBEXT="shared_libraries_disabled"
-	merged_build_possible=no
+	smbtorture4_possible=no
 fi
 
 AC_MSG_CHECKING([used PICFLAG])
@@ -2113,7 +2113,7 @@ AC_ARG_ENABLE(external_libtdb,
 
 if test "x$enable_external_libtdb" != xno
 then
-	PKG_CHECK_MODULES(LIBTDB, tdb >= 1.2.2,
+	PKG_CHECK_MODULES(LIBTDB, tdb >= 1.2.6,
 		[ enable_external_libtdb=yes ],
 		[
 		if test x$enable_external_libtdb = xyes; then
@@ -2131,6 +2131,7 @@ then
 	LINK_LIBTDB=STATIC
 	SMB_LIBRARY(tdb, 1)
 	LIBTDB_OBJ0=""
+	LIBTDB_LIBS="$LIBTDB_LIBS $TDB_DEPS"
 	for obj in ${TDB_OBJ}; do
 		LIBTDB_OBJ0="${LIBTDB_OBJ0} ${tdbdir}/${obj}"
 	done
@@ -2142,6 +2143,8 @@ then
 	AC_SUBST(TDBBACKUP)
 	TDBDUMP="bin/tdbdump\$(EXEEXT)"
 	AC_SUBST(TDBDUMP)
+	TDBRESTORE="bin/tdbrestore\$(EXEEXT)"
+	AC_SUBST(TDBRESTORE)
 	TDBTOOL="bin/tdbtool\$(EXEEXT)"
 	AC_SUBST(TDBTOOL)
 	TDBTORTURE="bin/tdbtorture\$(EXEEXT)"
@@ -2197,6 +2200,31 @@ samba_cv_SIZEOF_TIME_T=yes,samba_cv_SIZEOF_TIME_T=no,samba_cv_SIZEOF_TIME_T=cros
 if test x"$samba_cv_SIZEOF_TIME_T" = x"yes"; then
     AC_DEFINE(SIZEOF_TIME_T,8,[The size of the 'time_t' type])
 fi
+
+AC_CACHE_CHECK([for TIME_T_MAX],samba_cv_TIME_T_MAX,[
+AC_TRY_RUN([#include <time.h>
+main() {
+	struct tm *tm;
+	if (sizeof(time_t) == 8) {
+		time_t max_time = 0x7fffffffffffffffll;
+		tm = gmtime(&max_time);
+		/* This should fail with 32-bit tm_year. */
+		if (tm == NULL) {
+			/* Max time_t that works with 32-bit int tm_year in struct tm. */
+			max_time = 67768036191676799ll;
+			tm = gmtime(&max_time);
+			if (tm) {
+				exit(0);
+			}
+		}
+	}
+	exit(1);
+}],
+samba_cv_TIME_T_MAX=yes,samba_cv_TIME_T_MAX=no,samba_cv_TIME_T_MAX=cross)])
+if test x"$samba_cv_TIME_T_MAX" = x"yes"; then
+    AC_DEFINE(TIME_T_MAX,67768036191676799ll,[The maximum value of the 'time_t' type])
+fi
+
 
 AC_CACHE_CHECK([for 64 bit off_t],samba_cv_SIZEOF_OFF_T,[
 AC_TRY_RUN([#include <stdio.h>
@@ -2358,23 +2386,8 @@ if test x"$samba_cv_HAVE_FUNCTION_MACRO" = x"yes"; then
     AC_DEFINE(HAVE_FUNCTION_MACRO,1,[Whether there is a __FUNCTION__ macro])
 fi
 
-
-if test x"$samba_cv_WITH_PROFILE" = x"yes"; then
-
-    # On some systems (eg. Linux) librt can pull in libpthread. We
-    # don't want this to happen because libpthreads changes signal delivery
-    # semantics in ways we are not prepared for. This breaks Linux oplocks
-    # which rely on signals.
-
-    AC_LIBTESTFUNC(rt, clock_gettime,
-	    [
-			    AC_DEFINE(HAVE_CLOCK_GETTIME, 1,
-				[Whether clock_gettime is available])
-			    SMB_CHECK_CLOCK_ID(CLOCK_MONOTONIC)
-			    SMB_CHECK_CLOCK_ID(CLOCK_PROCESS_CPUTIME_ID)
-			    SMB_CHECK_CLOCK_ID(CLOCK_REALTIME)
-			])
-
+if test x"$libreplace_cv_HAVE_CLOCK_GETTIME_IN_LIBRT" = xyes ; then
+	LIBS="$LIBS -lrt"
 fi
 
 AC_CACHE_CHECK([for broken readdir name],samba_cv_HAVE_BROKEN_READDIR_NAME,[
@@ -2530,6 +2543,39 @@ fi
 fi
 # end utmp details
 
+AC_CACHE_CHECK([for linux fallocate],samba_cv_HAVE_LINUX_FALLOCATE,[
+AC_TRY_COMPILE([
+#if defined(HAVE_UNISTD_H)
+#include <unistd.h>
+#endif
+#include <sys/types.h>
+#define _GNU_SOURCE
+#include <fcntl.h>
+#if defined(HAVE_LINUX_FALLOC_H)
+#include <linux/falloc.h>
+#endif],
+[int ret = fallocate(0, FALLOC_FL_KEEP_SIZE, 0, 10);],
+samba_cv_HAVE_LINUX_FALLOCATE=yes,samba_cv_HAVE_LINUX_FALLOCATE=no)])
+if test x"$samba_cv_HAVE_LINUX_FALLOCATE" = x"yes" && test x"$ac_cv_func_fallocate" = x"yes"; then
+    AC_DEFINE(HAVE_LINUX_FALLOCATE,1,[Whether the Linux 'fallocate' function is available])
+fi
+
+AC_CACHE_CHECK([for linux fallocate64],samba_cv_HAVE_LINUX_FALLOCATE64,[
+AC_TRY_COMPILE([
+#if defined(HAVE_UNISTD_H)
+#include <unistd.h>
+#endif
+#include <sys/types.h>
+#define _GNU_SOURCE
+#include <fcntl.h>
+#if defined(HAVE_LINUX_FALLOC_H)
+#include <linux/falloc.h>
+#endif],
+[int ret = fallocate64(0, FALLOC_FL_KEEP_SIZE, 0, 10);],
+samba_cv_HAVE_LINUX_FALLOCATE64=yes,samba_cv_HAVE_LINUX_FALLOCATE64=no)])
+if test x"$samba_cv_HAVE_LINUX_FALLOCATE64" = x"yes" && test x"$ac_cv_func_fallocate64" = x"yes"; then
+    AC_DEFINE(HAVE_LINUX_FALLOCATE64,1,[Whether the Linux 'fallocate64' function is available])
+fi
 
 ICONV_LOOK_DIRS="/usr /usr/local /sw /opt"
 AC_ARG_WITH(libiconv,
@@ -3710,18 +3756,6 @@ if test x"$with_ads_support" != x"no"; then
     CPPFLAGS=$ac_save_CPPFLAGS
     LDFLAGS=$ac_save_LDFLAGS
   fi
-  AC_CHECK_HEADERS([krb5/locate_plugin.h], [], [],
-[[#ifdef HAVE_KRB5_H
- #include <krb5.h>
- #endif
-]])
-
-  if test x"$ac_cv_header_krb5_locate_plugin_h" = x"yes"; then
-	WINBIND_KRB5_LOCATOR="bin/winbind_krb5_locator.$SHLIBEXT"
-	if test x"$BLDSHARED" = x"true" ; then
-		EXTRA_ALL_TARGETS="$EXTRA_ALL_TARGETS $WINBIND_KRB5_LOCATOR"
-	fi
-  fi
 
   # check for new heimdal KRB5_DEPRECATED handling
 
@@ -3749,7 +3783,7 @@ if test x"$with_ads_support" != x"no"; then
 
   # now check for gssapi headers.  This is also done here to allow for
   # different kerberos include paths
-  AC_CHECK_HEADERS(gssapi.h gssapi/gssapi_generic.h gssapi/gssapi.h com_err.h)
+  AC_CHECK_HEADERS(gssapi.h gssapi/gssapi_generic.h gssapi/gssapi.h gssapi/gssapi_ext.h com_err.h)
 
   ##################################################################
   # we might need the k5crypto and com_err libraries on some systems
@@ -3774,6 +3808,7 @@ if test x"$with_ads_support" != x"no"; then
   # now see if we can find the gssapi libs in standard paths
   if test x"$have_gssapi" != x"yes"; then
      AC_CHECK_LIB_EXT(gssapi_krb5, KRB5_LIBS,gss_display_status,[],[],have_gssapi=yes)
+     AC_CHECK_FUNC_EXT(gss_wrap_iov, $KRB5_LIBS)
   fi
 
   AC_CHECK_FUNC_EXT(krb5_set_real_time, $KRB5_LIBS)
@@ -4032,6 +4067,7 @@ if test x"$with_ads_support" != x"no"; then
               [Whether the krb5_keyblock struct has a keyvalue property])
   fi
 
+  found_arcfour_hmac=no
   AC_CACHE_CHECK([for ENCTYPE_ARCFOUR_HMAC_MD5],
                  samba_cv_HAVE_ENCTYPE_ARCFOUR_HMAC_MD5,[
     AC_TRY_COMPILE([#include <krb5.h>],
@@ -4049,7 +4085,19 @@ if test x"$with_ads_support" != x"no"; then
   if test x"$samba_cv_HAVE_ENCTYPE_ARCFOUR_HMAC_MD5" = x"yes" -a\
           x"$samba_cv_HAVE_KEYTYPE_ARCFOUR_56" = x"yes"; then
     AC_DEFINE(HAVE_ENCTYPE_ARCFOUR_HMAC_MD5,1,
-              [Whether the ENCTYPE_ARCFOUR_HMAC_MD5 key type is available])
+              [Whether the ENCTYPE_ARCFOUR_HMAC_MD5 key type definition is available])
+    found_arcfour_hmac=yes
+  fi
+  AC_CACHE_CHECK([for ENCTYPE_ARCFOUR_HMAC],
+                 samba_cv_HAVE_ENCTYPE_ARCFOUR_HMAC,[
+    AC_TRY_COMPILE([#include <krb5.h>],
+      [krb5_enctype enctype; enctype = ENCTYPE_ARCFOUR_HMAC;],
+      samba_cv_HAVE_ENCTYPE_ARCFOUR_HMAC=yes,
+      samba_cv_HAVE_ENCTYPE_ARCFOUR_HMAC=no)])
+  if test x"$samba_cv_HAVE_ENCTYPE_ARCFOUR_HMAC" = x"yes"; then
+    AC_DEFINE(HAVE_ENCTYPE_ARCFOUR_HMAC,1,
+              [Whether the ENCTYPE_ARCFOUR_HMAC key type definition is available])
+    found_arcfour_hmac=yes
   fi
 
   AC_CACHE_CHECK([for AP_OPTS_USE_SUBKEY],
@@ -4292,6 +4340,11 @@ if test x"$with_ads_support" != x"no"; then
   # NOTE: all tests should be done before this block!
   #
   #
+  if test x"$found_arcfour_hmac" != x"yes"; then
+    AC_MSG_WARN(arcfour-hmac-md5 encryption type not found in -lkrb5)
+    use_ads=no
+  fi
+
   if test x"$ac_cv_lib_ext_krb5_krb5_mk_req_extended" != x"yes"; then
     AC_MSG_WARN(krb5_mk_req_extended not found in -lkrb5)
     use_ads=no
@@ -4370,7 +4423,7 @@ LIBS="$ac_save_LIBS"
 fi
 
 if test x"$use_ads" != xyes; then
-	merged_build_possible=no
+	smbtorture4_possible=no
 fi
 
 AC_CHECK_LIB_EXT(nscd, NSCD_LIBS, nscd_flush_cache)
@@ -4556,6 +4609,29 @@ if test x"${try_pam}" != x"no";then
 
 	AC_MSG_CHECKING(whether to have PAM MODULES support)
 	AC_MSG_RESULT([$create_pam_modules])
+
+	AC_TRY_COMPILE([
+		#if defined(HAVE_SECURITY_PAM_APPL_H)
+		#include <security/pam_appl.h>
+		#elif defined(HAVE_PAM_PAM_APPL_H)
+		#include <pam/pam_appl.h>
+		#endif],[
+		pam_set_item(0, PAM_RHOST, 0);
+		],
+		AC_DEFINE(HAVE_PAM_RHOST, 1,
+			  [Define to 1 if PAM_RHOST is available]),[])
+
+	AC_TRY_COMPILE([
+		#if defined(HAVE_SECURITY_PAM_APPL_H)
+		#include <security/pam_appl.h>
+		#elif defined(HAVE_PAM_PAM_APPL_H)
+		#include <pam/pam_appl.h>
+		#endif],[
+		pam_set_item(0, PAM_TTY, 0);
+		],
+		AC_DEFINE(HAVE_PAM_TTY, 1,
+			  [Define to 1 if PAM_TTY is available]),[])
+
 fi # try_pam != no
 
 #################################################
@@ -4972,6 +5048,27 @@ AC_MSG_CHECKING(whether to use the new lib/sysquotas.c interface)
 fi
 fi
 
+if test x"$samba_cv_SYSQUOTA_FOUND" != x"no"; then
+AC_CACHE_CHECK([whether the sys_quota interface works with NFS],samba_cv_SYSQUOTA_WORKS_NFS,[
+SAVE_CPPFLAGS="$CPPFLAGS"
+CPPFLAGS="$CPPFLAGS ${SAMBA_CONFIGURE_CPPFLAGS}"
+AC_TRY_COMPILE([
+#include "confdefs.h"
+#define NO_PROTO_H 1
+#define NO_CONFIG_H 1
+#define HAVE_SYS_QUOTAS 1
+#define HAVE_NFS_QUOTAS 1
+#include "${srcdir-.}/lib/sysquotas_nfs.c"
+],[],samba_cv_SYSQUOTA_WORKS_NFS=yes,samba_cv_SYSQUOTA_WORKS_NFS=no)
+CPPFLAGS="$SAVE_CPPFLAGS"
+])
+if test x"$samba_cv_SYSQUOTA_WORKS_NFS" = x"yes"; then
+    if test x"$samba_cv_WE_USE_SYS_QUOTAS" = x"yes"; then
+	AC_DEFINE(HAVE_NFS_QUOTAS,1,[Whether nfs quota support is available])
+    fi
+fi
+fi
+
 if test x"$samba_cv_SYSQUOTA_FOUND" != x"no" -a x"$samba_cv_found_xfs_header" = x"yes"; then
 AC_CACHE_CHECK([whether the sys_quota interface works with XFS],samba_cv_SYSQUOTA_WORKS_XFS,[
 SAVE_CPPFLAGS="$CPPFLAGS"
@@ -5302,11 +5399,20 @@ if test x"$samba_cv_HAVE_EXPLICIT_LARGEFILE_SUPPORT" = x"yes"; then
 fi
 AC_MSG_RESULT([$samba_cv_HAVE_EXPLICIT_LARGEFILE_SUPPORT])
 
+
 #################################################
 # check for cluster extensions
 
-CTDB_CFLAGS=""
-AC_SUBST(CTDB_CFLAGS)
+AC_MSG_CHECKING(cluster support)
+AC_ARG_WITH(cluster-support,
+[AS_HELP_STRING([--with-cluster-support], [Enable cluster extensions (default=auto)])])
+
+if test x"$with_cluster_support" = x ; then
+	with_cluster_support="auto"
+fi
+
+AC_MSG_RESULT($with_cluster_support)
+
 AC_ARG_WITH(ctdb,
 [AS_HELP_STRING([--with-ctdb=DIR], [Where to find ctdb sources])],
 [ case "$withval" in
@@ -5318,9 +5424,21 @@ AC_ARG_WITH(ctdb,
     ;;
   esac])
 
+AC_ARG_ENABLE(old-ctdb,
+	[AS_HELP_STRING([--enable-old-ctdb],
+		[Enable build against (too) old ctdb version (default=no)])],,
+		[enable_old_ctdb=no])
+
+
+if test "$with_cluster_support" != "no" ; then
+
+AC_MSG_NOTICE(checking whether cluster support is available)
+
+have_cluster_support="yes"
+ctdb_broken="no"
+
 SAVED_CPPFLAGS="$CPPFLAGS"
 CPPFLAGS="$CPPFLAGS ${SAMBA_CONFIGURE_CPPFLAGS} $CTDB_CPPFLAGS"
-ctdb_broken="missing or broken headers"
 
 AC_CHECK_HEADERS(ctdb.h ctdb_private.h,,,[
 #include "confdefs.h"
@@ -5334,98 +5452,149 @@ AC_CHECK_HEADERS(ctdb.h ctdb_private.h,,,[
 #include <ctdb.h>
 ])
 
-AC_HAVE_DECL(CTDB_CONTROL_TRANS3_COMMIT,[
-#include "confdefs.h"
-#define NO_CONFIG_H
-#include "replace.h"
-#include "system/wait.h"
-#include "system/network.h"
-#include <talloc.h>
-#include <tdb.h>
-#include <ctdb.h>
-#include <ctdb_private.h>
-])
-if test x"$ac_cv_have_CTDB_CONTROL_TRANS3_COMMIT_decl" = x"yes"; then
-	ctdb_broken=no
-else
-	ctdb_broken="ctdb transaction support missing or too old"
+if test "x$have_cluster_support" = "xyes" -a \
+	"x$ac_cv_header_ctdb_h" != "xyes"
+then
+	have_cluster_support=no
+	ctdb_broken="ctdb.h is required for cluster support"
 fi
 
-# in ctdb 1.0.57 ctdb_control_tcp was temparary renamed to ctdb_tcp_client
-AC_CHECK_TYPE(struct ctdb_tcp_client,[
-	AC_DEFINE([ctdb_control_tcp],[ctdb_tcp_client],[ctdb ipv4 support])
-],,[
-#include "confdefs.h"
-#define NO_CONFIG_H
-#include "replace.h"
-#include "system/wait.h"
-#include "system/network.h"
-#include <talloc.h>
-#include <tdb.h>
-#include <ctdb.h>
-#include <ctdb_private.h>
-])
+if test "x$have_cluster_support" = "xyes" -a \
+	"x$ac_cv_header_ctdb_h" != "xyes"
+then
+	have_cluster_support=no
+	ctdb_broken="ctdb_private.h is required for cluster support"
+fi
 
-AC_CHECK_TYPE(struct ctdb_control_tcp,[
-	AC_DEFINE([HAVE_STRUCT_CTDB_CONTROL_TCP],[1],[ctdb ipv4 support])
-],[
-	ctdb_broken="missing struct ctdb_control_tcp"
-],[
-#include "confdefs.h"
-#define NO_CONFIG_H
-#include "replace.h"
-#include "system/wait.h"
-#include "system/network.h"
-#include <talloc.h>
-#include <tdb.h>
-#include <ctdb.h>
-#include <ctdb_private.h>
-])
 
-AC_CHECK_TYPE(struct ctdb_control_tcp_addr,[
-	AC_DEFINE([HAVE_STRUCT_CTDB_CONTROL_TCP_ADDR],[1],[ctdb ipv6 support])
-],,[
-#include "confdefs.h"
-#define NO_CONFIG_H
-#include "replace.h"
-#include "system/wait.h"
-#include "system/network.h"
-#include <talloc.h>
-#include <tdb.h>
-#include <ctdb.h>
-#include <ctdb_private.h>
-])
+if test "x$have_cluster_support" = "xyes" ; then
+	AC_HAVE_DECL(CTDB_CONTROL_TRANS3_COMMIT,[
+	#include "confdefs.h"
+	#define NO_CONFIG_H
+	#include "replace.h"
+	#include "system/wait.h"
+	#include "system/network.h"
+	#include <talloc.h>
+	#include <tdb.h>
+	#include <ctdb.h>
+	#include <ctdb_private.h>
+	])
+	if test x"$ac_cv_have_CTDB_CONTROL_TRANS3_COMMIT_decl" != x"yes"; then
+		ctdb_broken="ctdb transaction support missing or too old"
+		have_cluster_support=no
+	fi
+fi
+
+if test "x$have_cluster_support" = "xyes" ; then
+	AC_HAVE_DECL(CTDB_CONTROL_SCHEDULE_FOR_DELETION,[
+	#include "confdefs.h"
+	#define NO_CONFIG_H
+	#include "replace.h"
+	#include "system/wait.h"
+	#include "system/network.h"
+	#include <talloc.h>
+	#include <tdb.h>
+	#include <ctdb.h>
+	#include <ctdb_private.h>
+	])
+	if test x"$ac_cv_have_CTDB_CONTROL_SCHEDULE_FOR_DELETION_decl" != x"yes"
+	then
+		if test "x$enable_old_ctdb" = "xyes" ; then
+			AC_MSG_WARN([ignoring missing SCHEDULE_FOR_DELETION (--enable-old-ctdb)])
+		else
+			ctdb_broken="support for SCHEDULE_FOR_DELETION control missing"
+			have_cluster_support=no
+		fi
+	fi
+fi
+
+if test "x$have_cluster_support" = "xyes" ; then
+	# In ctdb 1.0.57, ctdb_control_tcp was temporarily renamed
+	# to ctdb_tcp_client.
+	AC_CHECK_TYPE(struct ctdb_tcp_client,[
+		AC_DEFINE([ctdb_control_tcp],[ctdb_tcp_client],[ctdb ipv4 support])
+	],,[
+	#include "confdefs.h"
+	#define NO_CONFIG_H
+	#include "replace.h"
+	#include "system/wait.h"
+	#include "system/network.h"
+	#include <talloc.h>
+	#include <tdb.h>
+	#include <ctdb.h>
+	#include <ctdb_private.h>
+	])
+fi
+
+if test "x$have_cluster_support" = "xyes" ; then
+	AC_CHECK_TYPE(struct ctdb_control_tcp,[
+		AC_DEFINE([HAVE_STRUCT_CTDB_CONTROL_TCP],[1],[ctdb ipv4 support])
+	],[
+		ctdb_broken="missing struct ctdb_control_tcp"
+		have_cluster_support=no
+	],[
+	#include "confdefs.h"
+	#define NO_CONFIG_H
+	#include "replace.h"
+	#include "system/wait.h"
+	#include "system/network.h"
+	#include <talloc.h>
+	#include <tdb.h>
+	#include <ctdb.h>
+	#include <ctdb_private.h>
+	])
+fi
+
+# test for optional ipv6 support in ctdb:
+if test "x$have_cluster_support" = "xyes" ; then
+	AC_CHECK_TYPE(struct ctdb_control_tcp_addr,[
+		AC_DEFINE([HAVE_STRUCT_CTDB_CONTROL_TCP_ADDR],[1],[ctdb ipv6 support])
+	],,[
+	#include "confdefs.h"
+	#define NO_CONFIG_H
+	#include "replace.h"
+	#include "system/wait.h"
+	#include "system/network.h"
+	#include <talloc.h>
+	#include <tdb.h>
+	#include <ctdb.h>
+	#include <ctdb_private.h>
+	])
+fi
+
 CPPFLAGS="$SAVED_CPPFLAGS"
 
-AC_MSG_CHECKING(cluster support)
-AC_ARG_WITH(cluster-support,
-[AS_HELP_STRING([--with-cluster-support], [Enable cluster extensions (default=auto)])])
+fi # (if test "$with_cluster_support" != "no")
 
-if test x"$with_cluster_support" = x ; then
-	with_cluster_support="auto"
-fi
-
-if test x"$ac_cv_header_ctdb_private_h" != x"yes"; then
-	if test "x$with_cluster_support" = "xyes"; then
-		AC_MSG_ERROR("ctdb_private.h is required for cluster support")
-	fi
-	with_cluster_support=no
-fi
-
-if test x"$ctdb_broken" != x"no"; then
-	if test "x$with_cluster_support" = "xyes"; then
-		AC_MSG_ERROR(["cluster support: $ctdb_broken"])
-	fi
+if test x"$have_cluster_support" = "xno" ; then
+	case "$with_cluster_support" in
+	yes)
+		AC_MSG_ERROR(["cluster support not available: $ctdb_broken"])
+		;;
+	auto)
+		AC_MSG_WARN(["cluster support not available: $ctdb_broken"])
+		;;
+	esac
 	with_cluster_support=no
 fi
 
 if test "x$with_cluster_support" != "xno"; then
     AC_DEFINE(CLUSTER_SUPPORT,1,[Whether to enable cluster extensions])
     SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} ${CTDB_CPPFLAGS}"
-    AC_MSG_RESULT(yes)
+    AC_MSG_NOTICE(Building with cluster support)
 else
-    AC_MSG_RESULT(no)
+    AC_MSG_NOTICE(Building without cluster support)
 fi
+
+
+#################################################
+# check for rtnetlink
+
+AC_CHECK_HEADERS([linux/netlink.h],
+  AC_CHECK_HEADERS([linux/rtnetlink.h],[],[],
+                   [#include <bits/sockaddr.h>
+                    #include <linux/netlink.h>]),
+  [],[#include <bits/sockaddr.h>])
 
 #################################################
 # check for ACL support
@@ -5540,7 +5709,19 @@ else
         esac
 fi # with_acl_support
 
-
+#################################################
+# check if we have FreeBSD sunacl
+case "$host_os" in
+*freebsd*)
+    AC_CHECK_HEADER(sunacl.h)
+    if test x"$ac_cv_header_sunacl_h" = xyes ; then
+       AC_DEFINE(HAVE_FREEBSD_SUNACL_H,1,[Whether we have FreeBSD sunacl around])
+       ZFSACL_LIBS=-lsunacl
+       AC_SUBST(ZFSACL_LIBS)
+       default_shared_modules="$default_shared_modules vfs_zfsacl"
+    fi
+    ;;
+esac
 
 #################################################
 # check for AIO support
@@ -6208,6 +6389,20 @@ if test x"$HAVE_WINBIND" = x"yes"; then
 		INSTALL_PAM_MODULES="installpammodules"
 		UNINSTALL_PAM_MODULES="uninstallpammodules"
 	fi
+
+	# we use winbind, check for krb5 locate_plugin support:
+	AC_CHECK_HEADERS([krb5/locate_plugin.h], [], [],
+		[[#ifdef HAVE_KRB5_H
+		 #include <krb5.h>
+		 #endif
+	]])
+	if test x"$ac_cv_header_krb5_locate_plugin_h" = x"yes"; then
+		WINBIND_KRB5_LOCATOR="bin/winbind_krb5_locator.$SHLIBEXT"
+		if test x"$BLDSHARED" = x"true" ; then
+			EXTRA_ALL_TARGETS="$EXTRA_ALL_TARGETS $WINBIND_KRB5_LOCATOR"
+		fi
+	fi
+	# end of krb5 locate_plugin check
 else
         AC_MSG_RESULT(no$winbind_no_reason)
 fi
@@ -6253,6 +6448,18 @@ AC_TRY_COMPILE([#include <sys/types.h>
 samba_cv_HAVE_PEERCRED=yes,samba_cv_HAVE_PEERCRED=no,samba_cv_HAVE_PEERCRED=cross)])
 if test x"$samba_cv_HAVE_PEERCRED" = x"yes"; then
     AC_DEFINE(HAVE_PEERCRED,1,[Whether we can use SO_PEERCRED to get socket credentials])
+fi
+
+AC_CACHE_CHECK([for getpeereid],samba_cv_HAVE_GETPEEREID,[
+AC_TRY_LINK([#include <sys/types.h>
+#include <unistd.h>],
+[uid_t uid; gid_t gid; int ret;
+ ret = getpeereid(0, &uid, &gid);
+],
+samba_cv_HAVE_GETPEEREID=yes,samba_cv_HAVE_GETPEEREID=no)])
+if test x"$samba_cv_HAVE_GETPEEREID" = xyes; then
+   AC_DEFINE(HAVE_GETPEEREID,1,
+	     [Whether we have getpeereid to get socket credentials])
 fi
 
 
@@ -6480,7 +6687,9 @@ AC_SUBST(FLAGS1)
 ###################################################
 # Check for different/missing (set|get|end)netgrent prototypes
 CFLAGS_SAVE=$CFLAGS
-CFLAGS="$CFLAGS -Werror-implicit-function-declaration"
+if test x"$samba_cv_HAVE_Wdeclaration_after_statement" = x"yes"; then
+	CFLAGS="$CFLAGS -Werror-implicit-function-declaration"
+fi
 AC_CACHE_CHECK([for setnetgrent prototype],samba_cv_setnetgrent_prototype, [
     AC_TRY_COMPILE([#include<netdb.h>
                     #ifdef HAVE_NETGROUP_H
@@ -6590,7 +6799,8 @@ if test x"$MODULE_DEFAULT_vfs_notify_fam" = xSTATIC -o \
 	AC_SUBST(SMBD_FAM_LIBS)
 fi
 
-SMB_MODULE(pdb_ldap, passdb/pdb_ldap.o passdb/pdb_nds.o, "bin/ldapsam.$SHLIBEXT", PDB,
+SMB_MODULE(pdb_ldap, passdb/pdb_ldap.o passdb/pdb_nds.o passdb/pdb_ipa.o,
+		   "bin/ldapsam.$SHLIBEXT", PDB,
 		   [ PASSDB_LIBS="$PASSDB_LIBS $LDAP_LIBS" ] )
 SMB_MODULE(pdb_ads, passdb/pdb_ads.o \$(TLDAP_OBJ), "bin/ads.$SHLIBEXT", PDB)
 SMB_MODULE(pdb_smbpasswd, passdb/pdb_smbpasswd.o, "bin/smbpasswd.$SHLIBEXT", PDB)
@@ -6598,29 +6808,13 @@ SMB_MODULE(pdb_tdbsam, passdb/pdb_tdb.o, "bin/tdbsam.$SHLIBEXT", PDB)
 SMB_MODULE(pdb_wbc_sam, passdb/pdb_wbc_sam.o, "bin/wbc_sam.$SHLIBEXT", PDB)
 SMB_SUBSYSTEM(PDB,passdb/pdb_interface.o)
 
-
-SMB_MODULE(rpc_lsarpc, \$(RPC_LSA_OBJ), "bin/librpc_lsarpc.$SHLIBEXT", RPC)
-SMB_MODULE(rpc_winreg, \$(RPC_REG_OBJ), "bin/librpc_winreg.$SHLIBEXT", RPC)
-SMB_MODULE(rpc_initshutdown, \$(RPC_INITSHUTDOWN_OBJ), "bin/librpc_initshutdown.$SHLIBEXT", RPC)
-SMB_MODULE(rpc_dssetup, \$(RPC_DSSETUP_OBJ), "bin/librpc_dssetup.$SHLIBEXT", RPC)
-SMB_MODULE(rpc_wkssvc, \$(RPC_WKS_OBJ), "bin/librpc_wkssvc.$SHLIBEXT", RPC)
-SMB_MODULE(rpc_svcctl, \$(RPC_SVCCTL_OBJ), "bin/librpc_svcctl.$SHLIBEXT", RPC)
-SMB_MODULE(rpc_ntsvcs, \$(RPC_NTSVCS_OBJ), "bin/librpc_ntsvcs.$SHLIBEXT", RPC)
-SMB_MODULE(rpc_netlogon, \$(RPC_NETLOG_OBJ), "bin/librpc_NETLOGON.$SHLIBEXT", RPC)
-SMB_MODULE(rpc_netdfs, \$(RPC_DFS_OBJ), "bin/librpc_netdfs.$SHLIBEXT", RPC)
-SMB_MODULE(rpc_srvsvc, \$(RPC_SVC_OBJ), "bin/librpc_svcsvc.$SHLIBEXT", RPC)
-SMB_MODULE(rpc_spoolss, \$(RPC_SPOOLSS_OBJ), "bin/librpc_spoolss.$SHLIBEXT", RPC)
-SMB_MODULE(rpc_eventlog, \$(RPC_EVENTLOG_OBJ), "bin/librpc_eventlog.$SHLIBEXT", RPC)
-SMB_MODULE(rpc_samr, \$(RPC_SAMR_OBJ), "bin/librpc_samr.$SHLIBEXT", RPC)
-SMB_MODULE(rpc_rpcecho, \$(RPC_ECHO_OBJ), "bin/librpc_rpcecho.$SHLIBEXT", RPC)
-SMB_SUBSYSTEM(RPC,smbd/process.o)
-
 SMB_MODULE(idmap_ldap, winbindd/idmap_ldap.o, "bin/ldap.$SHLIBEXT", IDMAP)
 SMB_MODULE(idmap_tdb, winbindd/idmap_tdb.o, "bin/tdb.$SHLIBEXT", IDMAP)
 SMB_MODULE(idmap_tdb2, winbindd/idmap_tdb2.o, "bin/tdb2.$SHLIBEXT", IDMAP)
 SMB_MODULE(idmap_passdb, winbindd/idmap_passdb.o, "bin/passdb.$SHLIBEXT", IDMAP)
 SMB_MODULE(idmap_nss, winbindd/idmap_nss.o, "bin/nss.$SHLIBEXT", IDMAP)
 SMB_MODULE(idmap_rid, winbindd/idmap_rid.o, "bin/rid.$SHLIBEXT", IDMAP)
+SMB_MODULE(idmap_autorid, winbindd/idmap_autorid.o, "bin/autorid.$SHLIBEXT", IDMAP)
 SMB_MODULE(idmap_ad, winbindd/idmap_ad.o, "bin/ad.$SHLIBEXT", IDMAP)
 SMB_MODULE(idmap_hash, \$(IDMAP_HASH_OBJ), "bin/hash.$SHLIBEXT", IDMAP)
 SMB_MODULE(idmap_adex, \$(IDMAP_ADEX_OBJ), "bin/adex.$SHLIBEXT", IDMAP)
@@ -6692,6 +6886,7 @@ SMB_MODULE(vfs_dirsort, \$(VFS_DIRSORT_OBJ), "bin/dirsort.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_scannedonly, \$(VFS_SCANNEDONLY_OBJ), "bin/scannedonly.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_crossrename, \$(VFS_CROSSRENAME_OBJ), "bin/crossrename.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_linux_xfs_sgid, \$(VFS_LINUX_XFS_SGID_OBJ), "bin/linux_xfs_sgid.$SHLIBEXT", VFS)
+SMB_MODULE(vfs_time_audit, \$(VFS_TIME_AUDIT_OBJ), "bin/time_audit.$SHLIBEXT", VFS)
 
 SMB_SUBSYSTEM(VFS,smbd/vfs.o)
 
@@ -6796,34 +6991,9 @@ MSG
 
 fi
 
-AC_ARG_ENABLE(merged-build, 
-[AS_HELP_STRING([--enable-merged-build], [Build Samba 4 as well])], 
-[ enable_merged_build=$enableval ], [ enable_merged_build=auto ])
-
-if test x"$enable_merged_build" = x"yes" -a \
-	x"$merged_build_possible" = x"no" ; then
-	AC_MSG_ERROR(Merged build required but not possible)
-fi
-
 m4_include(../lib/zlib/zlib.m4)
 
-if test x$enable_merged_build = xauto; then
-	# Check for python
-	m4_include(../m4/check_python.m4)
-	AC_SAMBA_PYTHON_DEVEL([true], [merged_build_possible=no])
-
-	AC_MSG_CHECKING([whether it would be possible to do a merged build])
-	AC_MSG_RESULT([$merged_build_possible])
-
-	# Enable merged build automatically if possible, when in developer mode
-	# Don't enable merged build automatically in 3.6.0.
-	#if test "x$developer" = xyes; then
-	#	enable_merged_build=$merged_build_possible
-	#fi
-fi
-
-if test x$enable_merged_build = xyes; then
-	MERGED_BUILD=1
+if test x$smbtorture4_possible = xyes; then
 	saved_USESHARED="$USESHARED"
 	USESHARED="false"
 	smbtorture4_path="bin/smbtorture4"

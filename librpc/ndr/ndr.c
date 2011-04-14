@@ -46,6 +46,11 @@ const struct ndr_syntax_id ndr64_transfer_syntax = {
   1
 };
 
+const struct ndr_syntax_id null_ndr_syntax_id = {
+  { 0, 0, 0, { 0, 0 }, { 0, 0, 0, 0, 0, 0 } },
+  0
+};
+
 /*
   work out the number of bytes needed to align on a n byte boundary
 */
@@ -166,13 +171,20 @@ _PUBLIC_ void ndr_print_debug_helper(struct ndr_print *ndr, const char *format, 
 {
 	va_list ap;
 	char *s = NULL;
-	int i, ret;
+	uint32_t i;
+	int ret;
 
 	va_start(ap, format);
 	ret = vasprintf(&s, format, ap);
 	va_end(ap);
 
 	if (ret == -1) {
+		return;
+	}
+
+	if (ndr->no_newline) {
+		DEBUGADD(1,("%s", s));
+		free(s);
 		return;
 	}
 
@@ -184,22 +196,45 @@ _PUBLIC_ void ndr_print_debug_helper(struct ndr_print *ndr, const char *format, 
 	free(s);
 }
 
+_PUBLIC_ void ndr_print_printf_helper(struct ndr_print *ndr, const char *format, ...) 
+{
+	va_list ap;
+	uint32_t i;
+
+	if (!ndr->no_newline) {
+		for (i=0;i<ndr->depth;i++) {
+			printf("    ");
+		}
+	}
+
+	va_start(ap, format);
+	vprintf(format, ap);
+	va_end(ap);
+	if (!ndr->no_newline) {
+		printf("\n");
+	}
+}
+
 _PUBLIC_ void ndr_print_string_helper(struct ndr_print *ndr, const char *format, ...)
 {
 	va_list ap;
-	int i;
+	uint32_t i;
 
-	for (i=0;i<ndr->depth;i++) {
-		ndr->private_data = talloc_asprintf_append_buffer(
-					(char *)ndr->private_data, "    ");
+	if (!ndr->no_newline) {
+		for (i=0;i<ndr->depth;i++) {
+			ndr->private_data = talloc_asprintf_append_buffer(
+				(char *)ndr->private_data, "    ");
+		}
 	}
 
 	va_start(ap, format);
 	ndr->private_data = talloc_vasprintf_append_buffer((char *)ndr->private_data, 
 						    format, ap);
 	va_end(ap);
-	ndr->private_data = talloc_asprintf_append_buffer((char *)ndr->private_data, 
-						   "\n");
+	if (!ndr->no_newline) {
+		ndr->private_data = talloc_asprintf_append_buffer((char *)ndr->private_data,
+								  "\n");
+	}
 }
 
 /*
@@ -794,6 +829,40 @@ _PUBLIC_ enum ndr_err_code ndr_check_array_length(struct ndr_pull *ndr, void *p,
 	return NDR_ERR_SUCCESS;
 }
 
+_PUBLIC_ enum ndr_err_code ndr_push_pipe_chunk_trailer(struct ndr_push *ndr, int ndr_flags, uint32_t count)
+{
+	if (ndr->flags & LIBNDR_FLAG_NDR64) {
+		int64_t tmp = 0 - (int64_t)count;
+		uint64_t ncount = tmp;
+
+		NDR_CHECK(ndr_push_hyper(ndr, ndr_flags, ncount));
+	}
+
+	return NDR_ERR_SUCCESS;
+}
+
+_PUBLIC_ enum ndr_err_code ndr_check_pipe_chunk_trailer(struct ndr_pull *ndr, int ndr_flags, uint32_t count)
+{
+	if (ndr->flags & LIBNDR_FLAG_NDR64) {
+		int64_t tmp = 0 - (int64_t)count;
+		uint64_t ncount1 = tmp;
+		uint64_t ncount2;
+
+		NDR_CHECK(ndr_pull_hyper(ndr, ndr_flags, &ncount2));
+		if (ncount1 == ncount2) {
+			return NDR_ERR_SUCCESS;
+		}
+
+		return ndr_pull_error(ndr, NDR_ERR_ARRAY_SIZE,
+			"Bad pipe trailer[%lld should be %lld] size was %lu\"",
+			(unsigned long long)ncount2,
+			(unsigned long long)ncount1,
+			(unsigned long)count);
+	}
+
+	return NDR_ERR_SUCCESS;
+}
+
 /*
   store a switch value
  */
@@ -1144,6 +1213,33 @@ _PUBLIC_ enum ndr_err_code ndr_push_relative_ptr2_start(struct ndr_push *ndr, co
 		return NDR_ERR_SUCCESS;
 	}
 	if (!(ndr->flags & LIBNDR_FLAG_RELATIVE_REVERSE)) {
+		uint32_t relative_offset;
+		size_t pad;
+		size_t align = 1;
+
+		if (ndr->offset < ndr->relative_base_offset) {
+			return ndr_push_error(ndr, NDR_ERR_BUFSIZE,
+				      "ndr_push_relative_ptr2_start ndr->offset(%u) < ndr->relative_base_offset(%u)",
+				      ndr->offset, ndr->relative_base_offset);
+		}
+
+		relative_offset = ndr->offset - ndr->relative_base_offset;
+
+		if (ndr->flags & LIBNDR_FLAG_NOALIGN) {
+			align = 1;
+		} else if (ndr->flags & LIBNDR_FLAG_ALIGN2) {
+			align = 2;
+		} else if (ndr->flags & LIBNDR_FLAG_ALIGN4) {
+			align = 4;
+		} else if (ndr->flags & LIBNDR_FLAG_ALIGN8) {
+			align = 8;
+		}
+
+		pad = ndr_align_size(relative_offset, align);
+		if (pad) {
+			NDR_CHECK(ndr_push_zero(ndr, pad));
+		}
+
 		return ndr_push_relative_ptr2(ndr, p);
 	}
 	if (ndr->relative_end_offset == -1) {
@@ -1210,10 +1306,9 @@ _PUBLIC_ enum ndr_err_code ndr_push_relative_ptr2_end(struct ndr_push *ndr, cons
 	/* the reversed offset is at the end of the main buffer */
 	correct_offset = ndr->relative_end_offset - len;
 
-	/* TODO: remove this hack and let the idl use FLAG_ALIGN2 explicit */
-	align = 2;
-
-	if (ndr->flags & LIBNDR_FLAG_ALIGN2) {
+	if (ndr->flags & LIBNDR_FLAG_NOALIGN) {
+		align = 1;
+	} else if (ndr->flags & LIBNDR_FLAG_ALIGN2) {
 		align = 2;
 	} else if (ndr->flags & LIBNDR_FLAG_ALIGN4) {
 		align = 4;

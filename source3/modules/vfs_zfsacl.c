@@ -23,7 +23,13 @@
  */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "smbd/smbd.h"
 #include "nfs4_acls.h"
+
+#if HAVE_FREEBSD_SUNACL_H
+#include "sunacl.h"
+#endif
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_VFS
@@ -124,6 +130,9 @@ static bool zfs_process_smbacl(files_struct *fsp, SMB4ACL_T *smbacl)
 		acebuf[i].a_type        = aceprop->aceType;
 		acebuf[i].a_flags       = aceprop->aceFlags;
 		acebuf[i].a_access_mask = aceprop->aceMask;
+		/* SYNC on acls is a no-op on ZFS.
+		   See bug #7909. */
+		acebuf[i].a_access_mask &= ~SMB_ACE4_SYNCHRONIZE;
 		acebuf[i].a_who         = aceprop->who.id;
 		if(aceprop->flags & SMB_ACE4_ID_SPECIAL) {
 			switch(aceprop->who.special_id) {
@@ -254,36 +263,36 @@ static NTSTATUS zfsacl_fset_nt_acl(vfs_handle_struct *handle,
    Function declarations taken from vfs_solarisacl
 */
 
-SMB_ACL_T zfsacl_fail__sys_acl_get_file(vfs_handle_struct *handle,
-					const char *path_p,
-					SMB_ACL_TYPE_T type)
-{
-	return (SMB_ACL_T)NULL;
-}
-SMB_ACL_T zfsacl_fail__sys_acl_get_fd(vfs_handle_struct *handle,
-				      files_struct *fsp,
-				      int fd)
+static SMB_ACL_T zfsacl_fail__sys_acl_get_file(vfs_handle_struct *handle,
+					       const char *path_p,
+					       SMB_ACL_TYPE_T type)
 {
 	return (SMB_ACL_T)NULL;
 }
 
-int zfsacl_fail__sys_acl_set_file(vfs_handle_struct *handle,
-				  const char *name,
-				  SMB_ACL_TYPE_T type,
-				  SMB_ACL_T theacl)
+static SMB_ACL_T zfsacl_fail__sys_acl_get_fd(vfs_handle_struct *handle,
+					     files_struct *fsp)
+{
+	return (SMB_ACL_T)NULL;
+}
+
+static int zfsacl_fail__sys_acl_set_file(vfs_handle_struct *handle,
+					 const char *name,
+					 SMB_ACL_TYPE_T type,
+					 SMB_ACL_T theacl)
 {
 	return -1;
 }
 
-int zfsacl_fail__sys_acl_set_fd(vfs_handle_struct *handle,
-				files_struct *fsp,
-				int fd, SMB_ACL_T theacl)
+static int zfsacl_fail__sys_acl_set_fd(vfs_handle_struct *handle,
+				       files_struct *fsp,
+				       SMB_ACL_T theacl)
 {
 	return -1;
 }
 
-int zfsacl_fail__sys_acl_delete_def_file(vfs_handle_struct *handle,
-					 const char *path)
+static int zfsacl_fail__sys_acl_delete_def_file(vfs_handle_struct *handle,
+						const char *path)
 {
 	return -1;
 }

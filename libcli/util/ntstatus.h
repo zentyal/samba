@@ -5,17 +5,17 @@
    Copyright (C) John H Terpstra              1996-2000
    Copyright (C) Luke Kenneth Casson Leighton 1996-2000
    Copyright (C) Paul Ashton                  1998-2000
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -609,9 +609,16 @@ typedef uint32_t NTSTATUS;
 #define NT_STATUS_RPC_PROTOCOL_ERROR NT_STATUS(0xC0000000 | 0x2001D)
 #define NT_STATUS_RPC_PROCNUM_OUT_OF_RANGE NT_STATUS(0xC0000000 | 0x2002E)
 #define NT_STATUS_RPC_CANNOT_SUPPORT NT_STATUS(0xC0000000 | 0x20041)
+#define NT_STATUS_RPC_SEC_PKG_ERROR NT_STATUS(0xC0000000 | 0x20057)
 #define NT_STATUS_RPC_SS_CONTEXT_MISMATCH NT_STATUS(0xC0000000 | 0x30005)
 #define NT_STATUS_RPC_ENUM_VALUE_OUT_OF_RANGE NT_STATUS(0xC000000 | 0x3000A)
 #define NT_STATUS_RPC_BAD_STUB_DATA NT_STATUS(0xC0000000 | 0x3000C)
+#define NT_STATUS_RPC_INVALID_PIPE_OBJECT NT_STATUS(0xC0000000 | 0x3005C)
+#define NT_STATUS_RPC_INVALID_PIPE_OPERATION NT_STATUS(0xC0000000 | 0x3005D)
+#define NT_STATUS_RPC_WRONG_PIPE_VERSION NT_STATUS(0xC0000000 | 0x3005E)
+#define NT_STATUS_RPC_PIPE_CLOSED NT_STATUS(0xC0000000 | 0x3005F)
+#define NT_STATUS_RPC_PIPE_DISCIPLINE_ERROR NT_STATUS(0xC0000000 | 0x30060)
+#define NT_STATUS_RPC_PIPE_EMPTY NT_STATUS(0xC0000000 | 0x30061)
 #define NT_STATUS_ERROR_DS_OBJ_STRING_NAME_EXISTS NT_STATUS(0xC0000000 | 0x2071)
 #define NT_STATUS_ERROR_DS_INCOMPATIBLE_VERSION NT_STATUS(0xC0000000 | 0x00002177)
 

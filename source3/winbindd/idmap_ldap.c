@@ -7,6 +7,7 @@
    Copyright (C) Jim McDonough <jmcd@us.ibm.com>	2003
    Copyright (C) Gerald Carter 		2003
    Copyright (C) Simo Sorce 		2003-2007
+   Copyright (C) Michael Adam		2010
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -24,6 +25,10 @@
 
 #include "includes.h"
 #include "winbindd.h"
+#include "secrets.h"
+#include "idmap.h"
+#include "idmap_rw.h"
+#include "../libcli/security/security.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_IDMAP
@@ -33,17 +38,13 @@
 
 #include "smbldap.h"
 
-static char *idmap_fetch_secret(const char *backend, bool alloc,
+static char *idmap_fetch_secret(const char *backend,
 				const char *domain, const char *identity)
 {
 	char *tmp, *ret;
 	int r;
 
-	if (alloc) {
-		r = asprintf(&tmp, "IDMAP_ALLOC_%s", backend);
-	} else {
-		r = asprintf(&tmp, "IDMAP_%s_%s", backend, domain);
-	}
+	r = asprintf(&tmp, "IDMAP_%s_%s", backend, domain);
 
 	if (r < 0)
 		return NULL;
@@ -61,18 +62,8 @@ struct idmap_ldap_context {
 	char *url;
 	char *suffix;
 	char *user_dn;
-	uint32_t filter_low_id, filter_high_id;		/* Filter range */
 	bool anon;
-};
-
-struct idmap_ldap_alloc_context {
-	struct smbldap_state *smbldap_state;
-	char *url;
-	char *suffix;
-	char *user_dn;
-	uid_t low_uid, high_uid;      /* Range of uids */
-	gid_t low_gid, high_gid;      /* Range of gids */
-
+	struct idmap_rw_ops *rw_ops;
 };
 
 #define CHECK_ALLOC_DONE(mem) do { \
@@ -85,8 +76,6 @@ struct idmap_ldap_alloc_context {
 /**********************************************************************
  IDMAP ALLOC TDB BACKEND
 **********************************************************************/
-
-static struct idmap_ldap_alloc_context *idmap_alloc_ldap;
 
 /*********************************************************************
  ********************************************************************/
@@ -109,12 +98,13 @@ static NTSTATUS get_credentials( TALLOC_CTX *mem_ctx,
 
 	if ( tmp ) {
 		if (!dom) {
-			/* only the alloc backend can pass in a NULL dom */
-			secret = idmap_fetch_secret("ldap", True,
-						    NULL, tmp);
+			DEBUG(0, ("get_credentials: Invalid domain 'NULL' "
+				  "encountered for user DN %s\n",
+				  tmp));
+			ret = NT_STATUS_UNSUCCESSFUL;
+			goto done;
 		} else {
-			secret = idmap_fetch_secret("ldap", False,
-						    dom->name, tmp);
+			secret = idmap_fetch_secret("ldap", dom->name, tmp);
 		}
 
 		if (!secret) {
@@ -153,35 +143,34 @@ done:
  Verify the sambaUnixIdPool entry in the directory.
 **********************************************************************/
 
-static NTSTATUS verify_idpool(void)
+static NTSTATUS verify_idpool(struct idmap_domain *dom)
 {
 	NTSTATUS ret;
-	TALLOC_CTX *ctx;
+	TALLOC_CTX *mem_ctx;
 	LDAPMessage *result = NULL;
 	LDAPMod **mods = NULL;
 	const char **attr_list;
 	char *filter;
 	int count;
 	int rc;
+	struct idmap_ldap_context *ctx;
 
-	if ( ! idmap_alloc_ldap) {
-		return NT_STATUS_UNSUCCESSFUL;
-	}
+	ctx = talloc_get_type(dom->private_data, struct idmap_ldap_context);
 
-	ctx = talloc_new(idmap_alloc_ldap);
-	if ( ! ctx) {
+	mem_ctx = talloc_new(ctx);
+	if (mem_ctx == NULL) {
 		DEBUG(0, ("Out of memory!\n"));
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	filter = talloc_asprintf(ctx, "(objectclass=%s)", LDAP_OBJ_IDPOOL);
+	filter = talloc_asprintf(mem_ctx, "(objectclass=%s)", LDAP_OBJ_IDPOOL);
 	CHECK_ALLOC_DONE(filter);
 
-	attr_list = get_attr_list(ctx, idpool_attr_list);
+	attr_list = get_attr_list(mem_ctx, idpool_attr_list);
 	CHECK_ALLOC_DONE(attr_list);
 
-	rc = smbldap_search(idmap_alloc_ldap->smbldap_state,
-				idmap_alloc_ldap->suffix,
+	rc = smbldap_search(ctx->smbldap_state,
+				ctx->suffix,
 				LDAP_SCOPE_SUBTREE,
 				filter,
 				attr_list,
@@ -194,24 +183,23 @@ static NTSTATUS verify_idpool(void)
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
-	count = ldap_count_entries(idmap_alloc_ldap->smbldap_state->ldap_struct,
-				   result);
+	count = ldap_count_entries(ctx->smbldap_state->ldap_struct, result);
 
 	ldap_msgfree(result);
 
 	if ( count > 1 ) {
 		DEBUG(0,("Multiple entries returned from %s (base == %s)\n",
-			filter, idmap_alloc_ldap->suffix));
+			filter, ctx->suffix));
 		ret = NT_STATUS_UNSUCCESSFUL;
 		goto done;
 	}
 	else if (count == 0) {
 		char *uid_str, *gid_str;
 
-		uid_str = talloc_asprintf(ctx, "%lu",
-				(unsigned long)idmap_alloc_ldap->low_uid);
-		gid_str = talloc_asprintf(ctx, "%lu",
-				(unsigned long)idmap_alloc_ldap->low_gid);
+		uid_str = talloc_asprintf(mem_ctx, "%lu",
+				(unsigned long)dom->low_id);
+		gid_str = talloc_asprintf(mem_ctx, "%lu",
+				(unsigned long)dom->low_id);
 
 		smbldap_set_mod(&mods, LDAP_MOD_ADD,
 				"objectClass", LDAP_OBJ_IDPOOL);
@@ -224,8 +212,8 @@ static NTSTATUS verify_idpool(void)
 						    LDAP_ATTR_GIDNUMBER),
 				gid_str);
 		if (mods) {
-			rc = smbldap_modify(idmap_alloc_ldap->smbldap_state,
-						idmap_alloc_ldap->suffix,
+			rc = smbldap_modify(ctx->smbldap_state,
+						ctx->suffix,
 						mods);
 			ldap_mods_free(mods, True);
 		} else {
@@ -236,119 +224,7 @@ static NTSTATUS verify_idpool(void)
 
 	ret = (rc == LDAP_SUCCESS)?NT_STATUS_OK:NT_STATUS_UNSUCCESSFUL;
 done:
-	talloc_free(ctx);
-	return ret;
-}
-
-/*****************************************************************************
- Initialise idmap database.
-*****************************************************************************/
-
-static NTSTATUS idmap_ldap_alloc_init(const char *params)
-{
-	NTSTATUS ret = NT_STATUS_UNSUCCESSFUL;
-	const char *tmp;
-	uid_t low_uid = 0;
-	uid_t high_uid = 0;
-	gid_t low_gid = 0;
-	gid_t high_gid = 0;
-
-	/* Only do init if we are online */
-	if (idmap_is_offline())	{
-		return NT_STATUS_FILE_IS_OFFLINE;
-	}
-
-	idmap_alloc_ldap = TALLOC_ZERO_P(NULL, struct idmap_ldap_alloc_context);
-        CHECK_ALLOC_DONE( idmap_alloc_ldap );
-
-	/* load ranges */
-
-	if (!lp_idmap_uid(&low_uid, &high_uid)
-	    || !lp_idmap_gid(&low_gid, &high_gid)) {
-		DEBUG(1, ("idmap uid or idmap gid missing\n"));
-		ret = NT_STATUS_UNSUCCESSFUL;
-		goto done;
-	}
-
-	idmap_alloc_ldap->low_uid = low_uid;
-	idmap_alloc_ldap->high_uid = high_uid;
-	idmap_alloc_ldap->low_gid = low_gid;
-	idmap_alloc_ldap->high_gid= high_gid;
-
-	if (idmap_alloc_ldap->high_uid <= idmap_alloc_ldap->low_uid) {
-		DEBUG(1, ("idmap uid range invalid\n"));
-		DEBUGADD(1, ("idmap will be unable to map foreign SIDs\n"));
-		ret = NT_STATUS_UNSUCCESSFUL;
-		goto done;
-	}
-
-	if (idmap_alloc_ldap->high_gid <= idmap_alloc_ldap->low_gid) {
-		DEBUG(1, ("idmap gid range invalid\n"));
-		DEBUGADD(1, ("idmap will be unable to map foreign SIDs\n"));
-		ret = NT_STATUS_UNSUCCESSFUL;
-		goto done;
-	}
-
-	if (params && *params) {
-		/* assume location is the only parameter */
-		idmap_alloc_ldap->url = talloc_strdup(idmap_alloc_ldap, params);
-	} else {
-		tmp = lp_parm_const_string(-1, "idmap alloc config",
-					   "ldap_url", NULL);
-
-		if ( ! tmp) {
-			DEBUG(1, ("ERROR: missing idmap ldap url\n"));
-			ret = NT_STATUS_UNSUCCESSFUL;
-			goto done;
-		}
-
-		idmap_alloc_ldap->url = talloc_strdup(idmap_alloc_ldap, tmp);
-	}
-	CHECK_ALLOC_DONE( idmap_alloc_ldap->url );
-
-	trim_char(idmap_alloc_ldap->url, '\"', '\"');
-
-	tmp = lp_parm_const_string(-1, "idmap alloc config",
-				   "ldap_base_dn", NULL);
-	if ( ! tmp || ! *tmp) {
-		tmp = lp_ldap_idmap_suffix();
-		if ( ! tmp) {
-			DEBUG(1, ("ERROR: missing idmap ldap suffix\n"));
-			ret = NT_STATUS_UNSUCCESSFUL;
-			goto done;
-		}
-	}
-
-	idmap_alloc_ldap->suffix = talloc_strdup(idmap_alloc_ldap, tmp);
-	CHECK_ALLOC_DONE( idmap_alloc_ldap->suffix );
-
-	ret = smbldap_init(idmap_alloc_ldap, winbind_event_context(),
-			   idmap_alloc_ldap->url,
-			   &idmap_alloc_ldap->smbldap_state);
-	if (!NT_STATUS_IS_OK(ret)) {
-		DEBUG(1, ("ERROR: smbldap_init (%s) failed!\n",
-			  idmap_alloc_ldap->url));
-		goto done;
-	}
-
-        ret = get_credentials( idmap_alloc_ldap,
-			       idmap_alloc_ldap->smbldap_state,
-			       "idmap alloc config", NULL,
-			       &idmap_alloc_ldap->user_dn );
-	if ( !NT_STATUS_IS_OK(ret) ) {
-		DEBUG(1,("idmap_ldap_alloc_init: Failed to get connection "
-			 "credentials (%s)\n", nt_errstr(ret)));
-		goto done;
-	}
-
-	/* see if the idmap suffix and sub entries exists */
-
-	ret = verify_idpool();
-
- done:
-	if ( !NT_STATUS_IS_OK( ret ) )
-		TALLOC_FREE( idmap_alloc_ldap );
-
+	talloc_free(mem_ctx);
 	return ret;
 }
 
@@ -356,9 +232,10 @@ static NTSTATUS idmap_ldap_alloc_init(const char *params)
  Allocate a new uid or gid
 ********************************/
 
-static NTSTATUS idmap_ldap_allocate_id(struct unixid *xid)
+static NTSTATUS idmap_ldap_allocate_id(struct idmap_domain *dom,
+				       struct unixid *xid)
 {
-	TALLOC_CTX *ctx;
+	TALLOC_CTX *mem_ctx;
 	NTSTATUS ret = NT_STATUS_UNSUCCESSFUL;
 	int rc = LDAP_SERVER_DOWN;
 	int count = 0;
@@ -371,18 +248,17 @@ static NTSTATUS idmap_ldap_allocate_id(struct unixid *xid)
 	const char *dn = NULL;
 	const char **attr_list;
 	const char *type;
+	struct idmap_ldap_context *ctx;
 
 	/* Only do query if we are online */
 	if (idmap_is_offline())	{
 		return NT_STATUS_FILE_IS_OFFLINE;
 	}
 
-	if ( ! idmap_alloc_ldap) {
-		return NT_STATUS_UNSUCCESSFUL;
-	}
+	ctx = talloc_get_type(dom->private_data, struct idmap_ldap_context);
 
-	ctx = talloc_new(idmap_alloc_ldap);
-	if ( ! ctx) {
+	mem_ctx = talloc_new(ctx);
+	if (!mem_ctx) {
 		DEBUG(0, ("Out of memory!\n"));
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -405,45 +281,45 @@ static NTSTATUS idmap_ldap_allocate_id(struct unixid *xid)
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	filter = talloc_asprintf(ctx, "(objectClass=%s)", LDAP_OBJ_IDPOOL);
+	filter = talloc_asprintf(mem_ctx, "(objectClass=%s)", LDAP_OBJ_IDPOOL);
 	CHECK_ALLOC_DONE(filter);
 
-	attr_list = get_attr_list(ctx, idpool_attr_list);
+	attr_list = get_attr_list(mem_ctx, idpool_attr_list);
 	CHECK_ALLOC_DONE(attr_list);
 
 	DEBUG(10, ("Search of the id pool (filter: %s)\n", filter));
 
-	rc = smbldap_search(idmap_alloc_ldap->smbldap_state,
-				idmap_alloc_ldap->suffix,
-			       LDAP_SCOPE_SUBTREE, filter,
-			       attr_list, 0, &result);
+	rc = smbldap_search(ctx->smbldap_state,
+			   ctx->suffix,
+			   LDAP_SCOPE_SUBTREE, filter,
+			   attr_list, 0, &result);
 
 	if (rc != LDAP_SUCCESS) {
 		DEBUG(0,("%s object not found\n", LDAP_OBJ_IDPOOL));
 		goto done;
 	}
 
-	talloc_autofree_ldapmsg(ctx, result);
+	talloc_autofree_ldapmsg(mem_ctx, result);
 
-	count = ldap_count_entries(idmap_alloc_ldap->smbldap_state->ldap_struct,
-				   result);
+	count = ldap_count_entries(ctx->smbldap_state->ldap_struct, result);
 	if (count != 1) {
 		DEBUG(0,("Single %s object not found\n", LDAP_OBJ_IDPOOL));
 		goto done;
 	}
 
-	entry = ldap_first_entry(idmap_alloc_ldap->smbldap_state->ldap_struct,
-				 result);
+	entry = ldap_first_entry(ctx->smbldap_state->ldap_struct, result);
 
-	dn = smbldap_talloc_dn(ctx,
-			       idmap_alloc_ldap->smbldap_state->ldap_struct,
+	dn = smbldap_talloc_dn(mem_ctx,
+			       ctx->smbldap_state->ldap_struct,
 			       entry);
 	if ( ! dn) {
 		goto done;
 	}
 
-	if ( ! (id_str = smbldap_talloc_single_attribute(idmap_alloc_ldap->smbldap_state->ldap_struct,
-				entry, type, ctx))) {
+	id_str = smbldap_talloc_single_attribute(
+				ctx->smbldap_state->ldap_struct,
+				entry, type, mem_ctx);
+	if (id_str == NULL) {
 		DEBUG(0,("%s attribute not found\n", type));
 		ret = NT_STATUS_UNSUCCESSFUL;
 		goto done;
@@ -455,17 +331,17 @@ static NTSTATUS idmap_ldap_allocate_id(struct unixid *xid)
 
 	switch (xid->type) {
 	case ID_TYPE_UID:
-		if (xid->id > idmap_alloc_ldap->high_uid) {
+		if (xid->id > dom->high_id) {
 			DEBUG(0,("Cannot allocate uid above %lu!\n",
-				 (unsigned long)idmap_alloc_ldap->high_uid));
+				 (unsigned long)dom->high_id));
 			goto done;
 		}
 		break;
 
 	case ID_TYPE_GID:
-		if (xid->id > idmap_alloc_ldap->high_gid) {
+		if (xid->id > dom->high_id) {
 			DEBUG(0,("Cannot allocate gid above %lu!\n",
-				 (unsigned long)idmap_alloc_ldap->high_uid));
+				 (unsigned long)dom->high_id));
 			goto done;
 		}
 		break;
@@ -475,7 +351,7 @@ static NTSTATUS idmap_ldap_allocate_id(struct unixid *xid)
 		goto done;
 	}
 
-	new_id_str = talloc_asprintf(ctx, "%lu", (unsigned long)xid->id + 1);
+	new_id_str = talloc_asprintf(mem_ctx, "%lu", (unsigned long)xid->id + 1);
 	if ( ! new_id_str) {
 		DEBUG(0,("Out of memory\n"));
 		ret = NT_STATUS_NO_MEMORY;
@@ -493,7 +369,7 @@ static NTSTATUS idmap_ldap_allocate_id(struct unixid *xid)
 	DEBUG(10, ("Try to atomically increment the id (%s -> %s)\n",
 		   id_str, new_id_str));
 
-	rc = smbldap_modify(idmap_alloc_ldap->smbldap_state, dn, mods);
+	rc = smbldap_modify(ctx->smbldap_state, dn, mods);
 
 	ldap_mods_free(mods, True);
 
@@ -506,238 +382,32 @@ static NTSTATUS idmap_ldap_allocate_id(struct unixid *xid)
 	ret = NT_STATUS_OK;
 
 done:
-	talloc_free(ctx);
+	talloc_free(mem_ctx);
 	return ret;
 }
 
-/**********************************
- Get current highest id.
-**********************************/
-
-static NTSTATUS idmap_ldap_get_hwm(struct unixid *xid)
+/**
+ * Allocate a new unix-ID.
+ * For now this is for the default idmap domain only.
+ * Should be extended later on.
+ */
+static NTSTATUS idmap_ldap_get_new_id(struct idmap_domain *dom,
+				      struct unixid *id)
 {
-	TALLOC_CTX *memctx;
-	NTSTATUS ret = NT_STATUS_UNSUCCESSFUL;
-	int rc = LDAP_SERVER_DOWN;
-	int count = 0;
-	LDAPMessage *result = NULL;
-	LDAPMessage *entry = NULL;
-	char *id_str;
-	char *filter = NULL;
-	const char **attr_list;
-	const char *type;
+	NTSTATUS ret;
 
-	/* Only do query if we are online */
-	if (idmap_is_offline())	{
-		return NT_STATUS_FILE_IS_OFFLINE;
+	if (!strequal(dom->name, "*")) {
+		DEBUG(3, ("idmap_ldap_get_new_id: "
+			  "Refusing allocation of a new unixid for domain'%s'. "
+			  "Currently only supported for the default "
+			  "domain \"*\".\n",
+			   dom->name));
+		return NT_STATUS_NOT_IMPLEMENTED;
 	}
 
-	if ( ! idmap_alloc_ldap) {
-		return NT_STATUS_UNSUCCESSFUL;
-	}
+	ret = idmap_ldap_allocate_id(dom, id);
 
-	memctx = talloc_new(idmap_alloc_ldap);
-	if ( ! memctx) {
-		DEBUG(0, ("Out of memory!\n"));
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	/* get type */
-	switch (xid->type) {
-
-	case ID_TYPE_UID:
-		type = get_attr_key2string(idpool_attr_list,
-					   LDAP_ATTR_UIDNUMBER);
-	       	break;
-
-	case ID_TYPE_GID:
-		type = get_attr_key2string(idpool_attr_list,
-					   LDAP_ATTR_GIDNUMBER);
-		break;
-
-	default:
-		DEBUG(2, ("Invalid ID type (0x%x)\n", xid->type));
-		return NT_STATUS_INVALID_PARAMETER;
-	}
-
-	filter = talloc_asprintf(memctx, "(objectClass=%s)", LDAP_OBJ_IDPOOL);
-	CHECK_ALLOC_DONE(filter);
-
-	attr_list = get_attr_list(memctx, idpool_attr_list);
-	CHECK_ALLOC_DONE(attr_list);
-
-	rc = smbldap_search(idmap_alloc_ldap->smbldap_state,
-			    idmap_alloc_ldap->suffix,
-			    LDAP_SCOPE_SUBTREE, filter,
-			    attr_list, 0, &result);
-
-	if (rc != LDAP_SUCCESS) {
-		DEBUG(0,("%s object not found\n", LDAP_OBJ_IDPOOL));
-		goto done;
-	}
-
-	talloc_autofree_ldapmsg(memctx, result);
-
-	count = ldap_count_entries(idmap_alloc_ldap->smbldap_state->ldap_struct,
-				   result);
-	if (count != 1) {
-		DEBUG(0,("Single %s object not found\n", LDAP_OBJ_IDPOOL));
-		goto done;
-	}
-
-	entry = ldap_first_entry(idmap_alloc_ldap->smbldap_state->ldap_struct,
-				 result);
-
-	id_str = smbldap_talloc_single_attribute(idmap_alloc_ldap->smbldap_state->ldap_struct,
-			entry, type, memctx);
-	if ( ! id_str) {
-		DEBUG(0,("%s attribute not found\n", type));
-		goto done;
-	}
-	if ( ! id_str) {
-		DEBUG(0,("Out of memory\n"));
-		ret = NT_STATUS_NO_MEMORY;
-		goto done;
-	}
-
-	xid->id	= strtoul(id_str, NULL, 10);
-
-	ret = NT_STATUS_OK;
-done:
-	talloc_free(memctx);
 	return ret;
-}
-/**********************************
- Set highest id.
-**********************************/
-
-static NTSTATUS idmap_ldap_set_hwm(struct unixid *xid)
-{
-	TALLOC_CTX *ctx;
-	NTSTATUS ret = NT_STATUS_UNSUCCESSFUL;
-	int rc = LDAP_SERVER_DOWN;
-	int count = 0;
-	LDAPMessage *result = NULL;
-	LDAPMessage *entry = NULL;
-	LDAPMod **mods = NULL;
-	char *new_id_str;
-	char *filter = NULL;
-	const char *dn = NULL;
-	const char **attr_list;
-	const char *type;
-
-	/* Only do query if we are online */
-	if (idmap_is_offline())	{
-		return NT_STATUS_FILE_IS_OFFLINE;
-	}
-
-	if ( ! idmap_alloc_ldap) {
-		return NT_STATUS_UNSUCCESSFUL;
-	}
-
-	ctx = talloc_new(idmap_alloc_ldap);
-	if ( ! ctx) {
-		DEBUG(0, ("Out of memory!\n"));
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	/* get type */
-	switch (xid->type) {
-
-	case ID_TYPE_UID:
-		type = get_attr_key2string(idpool_attr_list,
-					   LDAP_ATTR_UIDNUMBER);
-	       	break;
-
-	case ID_TYPE_GID:
-		type = get_attr_key2string(idpool_attr_list,
-					   LDAP_ATTR_GIDNUMBER);
-		break;
-
-	default:
-		DEBUG(2, ("Invalid ID type (0x%x)\n", xid->type));
-		return NT_STATUS_INVALID_PARAMETER;
-	}
-
-	filter = talloc_asprintf(ctx, "(objectClass=%s)", LDAP_OBJ_IDPOOL);
-	CHECK_ALLOC_DONE(filter);
-
-	attr_list = get_attr_list(ctx, idpool_attr_list);
-	CHECK_ALLOC_DONE(attr_list);
-
-	rc = smbldap_search(idmap_alloc_ldap->smbldap_state,
-				idmap_alloc_ldap->suffix,
-			       LDAP_SCOPE_SUBTREE, filter,
-			       attr_list, 0, &result);
-
-	if (rc != LDAP_SUCCESS) {
-		DEBUG(0,("%s object not found\n", LDAP_OBJ_IDPOOL));
-		goto done;
-	}
-
-	talloc_autofree_ldapmsg(ctx, result);
-
-	count = ldap_count_entries(idmap_alloc_ldap->smbldap_state->ldap_struct,
-				   result);
-	if (count != 1) {
-		DEBUG(0,("Single %s object not found\n", LDAP_OBJ_IDPOOL));
-		goto done;
-	}
-
-	entry = ldap_first_entry(idmap_alloc_ldap->smbldap_state->ldap_struct,
-				 result);
-
-	dn = smbldap_talloc_dn(ctx,
-				idmap_alloc_ldap->smbldap_state->ldap_struct,
-				entry);
-	if ( ! dn) {
-		goto done;
-	}
-
-	new_id_str = talloc_asprintf(ctx, "%lu", (unsigned long)xid->id);
-	if ( ! new_id_str) {
-		DEBUG(0,("Out of memory\n"));
-		ret = NT_STATUS_NO_MEMORY;
-		goto done;
-	}
-
-	smbldap_set_mod(&mods, LDAP_MOD_REPLACE, type, new_id_str);
-
-	if (mods == NULL) {
-		DEBUG(0,("smbldap_set_mod() failed.\n"));
-		goto done;
-	}
-
-	rc = smbldap_modify(idmap_alloc_ldap->smbldap_state, dn, mods);
-
-	ldap_mods_free(mods, True);
-
-	if (rc != LDAP_SUCCESS) {
-		DEBUG(1,("Failed to allocate new %s. "
-			 "smbldap_modify() failed.\n", type));
-		goto done;
-	}
-
-	ret = NT_STATUS_OK;
-
-done:
-	talloc_free(ctx);
-	return ret;
-}
-
-/**********************************
- Close idmap ldap alloc
-**********************************/
-
-static NTSTATUS idmap_ldap_alloc_close(void)
-{
-	if (idmap_alloc_ldap) {
-		smbldap_free_struct(&idmap_alloc_ldap->smbldap_state);
-		DEBUG(5,("The connection to the LDAP server was closed\n"));
-		/* maybe free the results here --metze */
-		TALLOC_FREE(idmap_alloc_ldap);
-	}
-	return NT_STATUS_OK;
 }
 
 
@@ -758,8 +428,10 @@ static int idmap_ldap_close_destructor(struct idmap_ldap_context *ctx)
  Initialise idmap database.
 ********************************/
 
-static NTSTATUS idmap_ldap_db_init(struct idmap_domain *dom,
-				   const char *params)
+static NTSTATUS idmap_ldap_set_mapping(struct idmap_domain *dom,
+				       const struct id_map *map);
+
+static NTSTATUS idmap_ldap_db_init(struct idmap_domain *dom)
 {
 	NTSTATUS ret;
 	struct idmap_ldap_context *ctx = NULL;
@@ -777,80 +449,22 @@ static NTSTATUS idmap_ldap_db_init(struct idmap_domain *dom,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	if (strequal(dom->name, "*")) {
-		uid_t low_uid = 0;
-		uid_t high_uid = 0;
-		gid_t low_gid = 0;
-		gid_t high_gid = 0;
-
-		ctx->filter_low_id = 0;
-		ctx->filter_high_id = 0;
-
-		if (lp_idmap_uid(&low_uid, &high_uid)) {
-			ctx->filter_low_id = low_uid;
-			ctx->filter_high_id = high_uid;
-		} else {
-			DEBUG(3, ("Warning: 'idmap uid' not set!\n"));
-		}
-
-		if (lp_idmap_gid(&low_gid, &high_gid)) {
-			if ((low_gid != low_uid) || (high_gid != high_uid)) {
-				DEBUG(1, ("Warning: 'idmap uid' and 'idmap gid'"
-				      " ranges do not agree -- building "
-				      "intersection\n"));
-				ctx->filter_low_id = MAX(ctx->filter_low_id,
-							 low_gid);
-				ctx->filter_high_id = MIN(ctx->filter_high_id,
-							  high_gid);
-			}
-		} else {
-			DEBUG(3, ("Warning: 'idmap gid' not set!\n"));
-		}
-	} else {
-		const char *range = NULL;
-
-		config_option = talloc_asprintf(ctx, "idmap config %s", dom->name);
-		if ( ! config_option) {
-			DEBUG(0, ("Out of memory!\n"));
-			ret = NT_STATUS_NO_MEMORY;
-			goto done;
-		}
-
-		/* load ranges */
-		range = lp_parm_const_string(-1, config_option, "range", NULL);
-		if (range && range[0]) {
-			if ((sscanf(range, "%u - %u", &ctx->filter_low_id,
-							&ctx->filter_high_id) != 2))
-			{
-				DEBUG(1, ("ERROR: invalid filter range [%s]", range));
-				ctx->filter_low_id = 0;
-				ctx->filter_high_id = 0;
-			}
-		}
+	config_option = talloc_asprintf(ctx, "idmap config %s", dom->name);
+	if (!config_option) {
+		DEBUG(0, ("Out of memory!\n"));
+		ret = NT_STATUS_NO_MEMORY;
+		goto done;
 	}
 
-	if (ctx->filter_low_id > ctx->filter_high_id) {
-		DEBUG(1, ("ERROR: invalid filter range [%u-%u]",
-		      ctx->filter_low_id, ctx->filter_high_id));
-		ctx->filter_low_id = 0;
-		ctx->filter_high_id = 0;
+	tmp = lp_parm_const_string(-1, config_option, "ldap_url", NULL);
+
+	if ( ! tmp) {
+		DEBUG(1, ("ERROR: missing idmap ldap url\n"));
+		ret = NT_STATUS_UNSUCCESSFUL;
+		goto done;
 	}
 
-	if (params != NULL) {
-		/* assume location is the only parameter */
-		ctx->url = talloc_strdup(ctx, params);
-	} else {
-		tmp = lp_parm_const_string(-1, config_option, "ldap_url", NULL);
-
-		if ( ! tmp) {
-			DEBUG(1, ("ERROR: missing idmap ldap url\n"));
-			ret = NT_STATUS_UNSUCCESSFUL;
-			goto done;
-		}
-
-		ctx->url = talloc_strdup(ctx, tmp);
-	}
-	CHECK_ALLOC_DONE(ctx->url);
+	ctx->url = talloc_strdup(ctx, tmp);
 
 	trim_char(ctx->url, '\"', '\"');
 
@@ -867,6 +481,12 @@ static NTSTATUS idmap_ldap_db_init(struct idmap_domain *dom,
 	ctx->suffix = talloc_strdup(ctx, tmp);
 	CHECK_ALLOC_DONE(ctx->suffix);
 
+	ctx->rw_ops = talloc_zero(ctx, struct idmap_rw_ops);
+	CHECK_ALLOC_DONE(ctx->rw_ops);
+
+	ctx->rw_ops->get_new_id = idmap_ldap_get_new_id;
+	ctx->rw_ops->set_mapping = idmap_ldap_set_mapping;
+
 	ret = smbldap_init(ctx, winbind_event_context(), ctx->url,
 			   &ctx->smbldap_state);
 	if (!NT_STATUS_IS_OK(ret)) {
@@ -882,12 +502,20 @@ static NTSTATUS idmap_ldap_db_init(struct idmap_domain *dom,
 		goto done;
 	}
 
-	/* set the destructor on the context, so that resource are properly
-	   freed if the contexts is released */
-
+	/*
+	 * Set the destructor on the context, so that resources are
+	 * properly freed when the context is released.
+	 */
 	talloc_set_destructor(ctx, idmap_ldap_close_destructor);
 
 	dom->private_data = ctx;
+
+	ret = verify_idpool(dom);
+	if (!NT_STATUS_IS_OK(ret)) {
+		DEBUG(1, ("idmap_ldap_db_init: failed to verify ID pool (%s)\n",
+			 nt_errstr(ret)));
+		goto done;
+	}
 
 	talloc_free(config_option);
 	return NT_STATUS_OK;
@@ -897,6 +525,136 @@ done:
 	talloc_free(ctx);
 	return ret;
 }
+
+/**
+ * set a mapping.
+ */
+
+/* TODO: change this:  This function cannot be called to modify a mapping,
+ * only set a new one */
+
+static NTSTATUS idmap_ldap_set_mapping(struct idmap_domain *dom,
+				       const struct id_map *map)
+{
+	NTSTATUS ret;
+	TALLOC_CTX *memctx;
+	struct idmap_ldap_context *ctx;
+	LDAPMessage *entry = NULL;
+	LDAPMod **mods = NULL;
+	const char *type;
+	char *id_str;
+	char *sid;
+	char *dn;
+	int rc = -1;
+
+	/* Only do query if we are online */
+	if (idmap_is_offline())	{
+		return NT_STATUS_FILE_IS_OFFLINE;
+	}
+
+	ctx = talloc_get_type(dom->private_data, struct idmap_ldap_context);
+
+	switch(map->xid.type) {
+	case ID_TYPE_UID:
+		type = get_attr_key2string(sidmap_attr_list,
+					   LDAP_ATTR_UIDNUMBER);
+		break;
+
+	case ID_TYPE_GID:
+		type = get_attr_key2string(sidmap_attr_list,
+					   LDAP_ATTR_GIDNUMBER);
+		break;
+
+	default:
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	memctx = talloc_new(ctx);
+	if ( ! memctx) {
+		DEBUG(0, ("Out of memory!\n"));
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	id_str = talloc_asprintf(memctx, "%lu", (unsigned long)map->xid.id);
+	CHECK_ALLOC_DONE(id_str);
+
+	sid = talloc_strdup(memctx, sid_string_talloc(memctx, map->sid));
+	CHECK_ALLOC_DONE(sid);
+
+	dn = talloc_asprintf(memctx, "%s=%s,%s",
+			get_attr_key2string(sidmap_attr_list, LDAP_ATTR_SID),
+			sid,
+			ctx->suffix);
+	CHECK_ALLOC_DONE(dn);
+
+	smbldap_set_mod(&mods, LDAP_MOD_ADD,
+			"objectClass", LDAP_OBJ_IDMAP_ENTRY);
+
+	smbldap_make_mod(ctx->smbldap_state->ldap_struct,
+			 entry, &mods, type, id_str);
+
+	smbldap_make_mod(ctx->smbldap_state->ldap_struct, entry, &mods,
+			 get_attr_key2string(sidmap_attr_list, LDAP_ATTR_SID),
+			 sid);
+
+	if ( ! mods) {
+		DEBUG(2, ("ERROR: No mods?\n"));
+		ret = NT_STATUS_UNSUCCESSFUL;
+		goto done;
+	}
+
+	/* TODO: remove conflicting mappings! */
+
+	smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_SID_ENTRY);
+
+	DEBUG(10, ("Set DN %s (%s -> %s)\n", dn, sid, id_str));
+
+	rc = smbldap_add(ctx->smbldap_state, dn, mods);
+	ldap_mods_free(mods, True);
+
+	if (rc != LDAP_SUCCESS) {
+		char *ld_error = NULL;
+		ldap_get_option(ctx->smbldap_state->ldap_struct,
+				LDAP_OPT_ERROR_STRING, &ld_error);
+		DEBUG(0,("ldap_set_mapping_internals: Failed to add %s to %lu "
+			 "mapping [%s]\n", sid,
+			 (unsigned long)map->xid.id, type));
+		DEBUG(0, ("ldap_set_mapping_internals: Error was: %s (%s)\n",
+			ld_error ? ld_error : "(NULL)", ldap_err2string (rc)));
+		if (ld_error) {
+			ldap_memfree(ld_error);
+		}
+		ret = NT_STATUS_UNSUCCESSFUL;
+		goto done;
+	}
+
+	DEBUG(10,("ldap_set_mapping: Successfully created mapping from %s to "
+		  "%lu [%s]\n",	sid, (unsigned long)map->xid.id, type));
+
+	ret = NT_STATUS_OK;
+
+done:
+	talloc_free(memctx);
+	return ret;
+}
+
+/**
+ * Create a new mapping for an unmapped SID, also allocating a new ID.
+ * If possible, this should be run inside a transaction to make the
+ * action atomic.
+ */
+static NTSTATUS idmap_ldap_new_mapping(struct idmap_domain *dom, struct id_map *map)
+{
+	NTSTATUS ret;
+	struct idmap_ldap_context *ctx;
+
+	ctx = talloc_get_type(dom->private_data, struct idmap_ldap_context);
+
+	ret = idmap_rw_new_mapping(dom, ctx->rw_ops, map);
+
+	return ret;
+}
+
 
 /* max number of ids requested per batch query */
 #define IDMAP_LDAP_MAX_IDS 30
@@ -1070,12 +828,10 @@ again:
 		}
 
 		id = strtoul(tmp, NULL, 10);
-		if ((id == 0) ||
-		    (ctx->filter_low_id && (id < ctx->filter_low_id)) ||
-		    (ctx->filter_high_id && (id > ctx->filter_high_id))) {
+		if (!idmap_unix_id_is_in_range(id, dom)) {
 			DEBUG(5, ("Requested id (%u) out of range (%u - %u). "
 				  "Filtered!\n", id,
-				  ctx->filter_low_id, ctx->filter_high_id));
+				  dom->low_id, dom->high_id));
 			TALLOC_FREE(sidstr);
 			TALLOC_FREE(tmp);
 			continue;
@@ -1149,7 +905,7 @@ static struct id_map *find_map_by_sid(struct id_map **maps, struct dom_sid *sid)
 		if (maps[i] == NULL) { /* end of the run */
 			return NULL;
 		}
-		if (sid_equal(maps[i]->sid, sid)) {
+		if (dom_sid_equal(maps[i]->sid, sid)) {
 			return maps[i];
 		}
 	}
@@ -1319,12 +1075,10 @@ again:
 		}
 
 		id = strtoul(tmp, NULL, 10);
-		if ((id == 0) ||
-		    (ctx->filter_low_id && (id < ctx->filter_low_id)) ||
-		    (ctx->filter_high_id && (id > ctx->filter_high_id))) {
+		if (!idmap_unix_id_is_in_range(id, dom)) {
 			DEBUG(5, ("Requested id (%u) out of range (%u - %u). "
 				  "Filtered!\n", id,
-				  ctx->filter_low_id, ctx->filter_high_id));
+				  dom->low_id, dom->high_id));
 			TALLOC_FREE(sidstr);
 			TALLOC_FREE(tmp);
 			continue;
@@ -1359,123 +1113,20 @@ again:
 		goto again;
 	}
 
-	ret = NT_STATUS_OK;
-
-	/* mark all unknwon/expired ones as unmapped */
+	/*
+	 *  try to create new mappings for unmapped sids
+	 */
 	for (i = 0; ids[i]; i++) {
-		if (ids[i]->status != ID_MAPPED)
+		if (ids[i]->status != ID_MAPPED) {
 			ids[i]->status = ID_UNMAPPED;
-	}
-
-done:
-	talloc_free(memctx);
-	return ret;
-}
-
-/**********************************
- set a mapping.
-**********************************/
-
-/* TODO: change this:  This function cannot be called to modify a mapping,
- * only set a new one */
-
-static NTSTATUS idmap_ldap_set_mapping(struct idmap_domain *dom,
-				       const struct id_map *map)
-{
-	NTSTATUS ret;
-	TALLOC_CTX *memctx;
-	struct idmap_ldap_context *ctx;
-	LDAPMessage *entry = NULL;
-	LDAPMod **mods = NULL;
-	const char *type;
-	char *id_str;
-	char *sid;
-	char *dn;
-	int rc = -1;
-
-	/* Only do query if we are online */
-	if (idmap_is_offline())	{
-		return NT_STATUS_FILE_IS_OFFLINE;
-	}
-
-	ctx = talloc_get_type(dom->private_data, struct idmap_ldap_context);
-
-	switch(map->xid.type) {
-	case ID_TYPE_UID:
-		type = get_attr_key2string(sidmap_attr_list,
-					   LDAP_ATTR_UIDNUMBER);
-		break;
-
-	case ID_TYPE_GID:
-		type = get_attr_key2string(sidmap_attr_list,
-					   LDAP_ATTR_GIDNUMBER);
-		break;
-
-	default:
-		return NT_STATUS_INVALID_PARAMETER;
-	}
-
-	memctx = talloc_new(ctx);
-	if ( ! memctx) {
-		DEBUG(0, ("Out of memory!\n"));
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	id_str = talloc_asprintf(memctx, "%lu", (unsigned long)map->xid.id);
-	CHECK_ALLOC_DONE(id_str);
-
-	sid = talloc_strdup(memctx, sid_string_talloc(memctx, map->sid));
-	CHECK_ALLOC_DONE(sid);
-
-	dn = talloc_asprintf(memctx, "%s=%s,%s",
-			get_attr_key2string(sidmap_attr_list, LDAP_ATTR_SID),
-			sid,
-			ctx->suffix);
-	CHECK_ALLOC_DONE(dn);
-
-	smbldap_set_mod(&mods, LDAP_MOD_ADD,
-			"objectClass", LDAP_OBJ_IDMAP_ENTRY);
-
-	smbldap_make_mod(ctx->smbldap_state->ldap_struct,
-			 entry, &mods, type, id_str);
-
-	smbldap_make_mod(ctx->smbldap_state->ldap_struct, entry, &mods,
-			 get_attr_key2string(sidmap_attr_list, LDAP_ATTR_SID),
-			 sid);
-
-	if ( ! mods) {
-		DEBUG(2, ("ERROR: No mods?\n"));
-		ret = NT_STATUS_UNSUCCESSFUL;
-		goto done;
-	}
-
-	/* TODO: remove conflicting mappings! */
-
-	smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_SID_ENTRY);
-
-	DEBUG(10, ("Set DN %s (%s -> %s)\n", dn, sid, id_str));
-
-	rc = smbldap_add(ctx->smbldap_state, dn, mods);
-	ldap_mods_free(mods, True);
-
-	if (rc != LDAP_SUCCESS) {
-		char *ld_error = NULL;
-		ldap_get_option(ctx->smbldap_state->ldap_struct,
-				LDAP_OPT_ERROR_STRING, &ld_error);
-		DEBUG(0,("ldap_set_mapping_internals: Failed to add %s to %lu "
-			 "mapping [%s]\n", sid,
-			 (unsigned long)map->xid.id, type));
-		DEBUG(0, ("ldap_set_mapping_internals: Error was: %s (%s)\n",
-			ld_error ? ld_error : "(NULL)", ldap_err2string (rc)));
-		if (ld_error) {
-			ldap_memfree(ld_error);
+			if (ids[i]->sid != NULL) {
+				ret = idmap_ldap_new_mapping(dom, ids[i]);
+				if (!NT_STATUS_IS_OK(ret)) {
+					goto done;
+				}
+			}
 		}
-		ret = NT_STATUS_UNSUCCESSFUL;
-		goto done;
 	}
-
-	DEBUG(10,("ldap_set_mapping: Successfully created mapping from %s to "
-		  "%lu [%s]\n",	sid, (unsigned long)map->xid.id, type));
 
 	ret = NT_STATUS_OK;
 
@@ -1488,57 +1139,17 @@ done:
  Close the idmap ldap instance
 **********************************/
 
-static NTSTATUS idmap_ldap_close(struct idmap_domain *dom)
-{
-	struct idmap_ldap_context *ctx;
-
-	if (dom->private_data) {
-		ctx = talloc_get_type(dom->private_data,
-				      struct idmap_ldap_context);
-
-		talloc_free(ctx);
-		dom->private_data = NULL;
-	}
-
-	return NT_STATUS_OK;
-}
-
 static struct idmap_methods idmap_ldap_methods = {
 
 	.init = idmap_ldap_db_init,
 	.unixids_to_sids = idmap_ldap_unixids_to_sids,
 	.sids_to_unixids = idmap_ldap_sids_to_unixids,
-	.set_mapping = idmap_ldap_set_mapping,
-	.close_fn = idmap_ldap_close
+	.allocate_id = idmap_ldap_get_new_id,
 };
-
-static struct idmap_alloc_methods idmap_ldap_alloc_methods = {
-
-	.init = idmap_ldap_alloc_init,
-	.allocate_id = idmap_ldap_allocate_id,
-	.get_id_hwm = idmap_ldap_get_hwm,
-	.set_id_hwm = idmap_ldap_set_hwm,
-	.close_fn = idmap_ldap_alloc_close,
-	/* .dump_data = TODO */
-};
-
-static NTSTATUS idmap_alloc_ldap_init(void)
-{
-	return smb_register_idmap_alloc(SMB_IDMAP_INTERFACE_VERSION, "ldap",
-					&idmap_ldap_alloc_methods);
-}
 
 NTSTATUS idmap_ldap_init(void);
 NTSTATUS idmap_ldap_init(void)
 {
-	NTSTATUS ret;
-
-	/* FIXME: bad hack to actually register also the alloc_ldap module
-	 * without changining configure.in */
-	ret = idmap_alloc_ldap_init();
-	if (! NT_STATUS_IS_OK(ret)) {
-		return ret;
-	}
 	return smb_register_idmap(SMB_IDMAP_INTERFACE_VERSION, "ldap",
 				  &idmap_ldap_methods);
 }

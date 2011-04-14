@@ -23,9 +23,12 @@
 */
 
 #include "includes.h"
+#include "popt_common.h"
 #include "libsmbclient.h"
 #include "libsmb_internal.h"
-#include "../librpc/gen_ndr/cli_srvsvc.h"
+#include "rpc_client/cli_pipe.h"
+#include "../librpc/gen_ndr/ndr_srvsvc_c.h"
+#include "libsmb/nmblib.h"
 
 /*
  * Routine to open a directory
@@ -146,9 +149,10 @@ list_unique_wg_fn(const char *name,
 	dirent_type = dir->dir_type;
 
 	if (add_dirent(dir, name, comment, dirent_type) < 0) {
-
 		/* An error occurred, what do we do? */
 		/* FIXME: Add some code here */
+		/* Change cli_NetServerEnum to take a fn
+		   returning NTSTATUS... JRA. */
 	}
 
         /* Point to the one just added */
@@ -226,14 +230,14 @@ list_fn(const char *name,
         }
 
 	if (add_dirent(dir, name, comment, dirent_type) < 0) {
-
 		/* An error occurred, what do we do? */
 		/* FIXME: Add some code here */
-
+		/* Change cli_NetServerEnum to take a fn
+		   returning NTSTATUS... JRA. */
 	}
 }
 
-static void
+static NTSTATUS
 dir_list_fn(const char *mnt,
             struct file_info *finfo,
             const char *mask,
@@ -242,13 +246,10 @@ dir_list_fn(const char *mnt,
 
 	if (add_dirent((SMBCFILE *)state, finfo->name, "",
 		       (finfo->mode&aDIR?SMBC_DIR:SMBC_FILE)) < 0) {
-
-		/* Handle an error ... */
-
-		/* FIXME: Add some code ... */
-
+		SMBCFILE *dir = (SMBCFILE *)state;
+		return map_nt_error_from_unix(dir->dir_error);
 	}
-
+	return NT_STATUS_OK;
 }
 
 static int
@@ -271,6 +272,7 @@ net_share_enum_rpc(struct cli_state *cli,
         NTSTATUS nt_status;
 	uint32_t resume_handle = 0;
 	uint32_t total_entries = 0;
+	struct dcerpc_binding_handle *b;
 
         /* Open the server service pipe */
         nt_status = cli_rpc_pipe_open_noauth(cli, &ndr_table_srvsvc.syntax_id,
@@ -286,8 +288,10 @@ net_share_enum_rpc(struct cli_state *cli,
 	info_ctr.level = 1;
 	info_ctr.ctr.ctr1 = &ctr1;
 
+	b = pipe_hnd->binding_handle;
+
         /* Issue the NetShareEnum RPC call and retrieve the response */
-	nt_status = rpccli_srvsvc_NetShareEnumAll(pipe_hnd, talloc_tos(),
+	nt_status = dcerpc_srvsvc_NetShareEnumAll(b, talloc_tos(),
 						  pipe_hnd->desthost,
 						  &info_ctr,
 						  preferred_len,
@@ -296,11 +300,22 @@ net_share_enum_rpc(struct cli_state *cli,
 						  &result);
 
         /* Was it successful? */
-	if (!NT_STATUS_IS_OK(nt_status) || !W_ERROR_IS_OK(result) ||
-	    total_entries == 0) {
+	if (!NT_STATUS_IS_OK(nt_status)) {
+                /*  Nope.  Go clean up. */
+		result = ntstatus_to_werror(nt_status);
+		goto done;
+	}
+
+	if (!W_ERROR_IS_OK(result)) {
                 /*  Nope.  Go clean up. */
 		goto done;
         }
+
+	if (total_entries == 0) {
+                /*  Nope.  Go clean up. */
+		result = WERR_GENERAL_FAILURE;
+		goto done;
+	}
 
         /* For each returned entry... */
         for (i = 0; i < info_ctr.ctr.ctr1->count; i++) {
@@ -369,16 +384,16 @@ SMBC_opendir_ctx(SMBCCTX *context,
 
 	if (!context || !context->internal->initialized) {
 	        DEBUG(4, ("no valid context\n"));
-		errno = EINVAL + 8192;
 		TALLOC_FREE(frame);
+		errno = EINVAL + 8192;
 		return NULL;
 
 	}
 
 	if (!fname) {
 		DEBUG(4, ("no valid fname\n"));
-		errno = EINVAL + 8193;
 		TALLOC_FREE(frame);
+		errno = EINVAL + 8193;
 		return NULL;
 	}
 
@@ -393,8 +408,8 @@ SMBC_opendir_ctx(SMBCCTX *context,
                             &password,
                             &options)) {
 	        DEBUG(4, ("no valid path\n"));
-		errno = EINVAL + 8194;
 		TALLOC_FREE(frame);
+		errno = EINVAL + 8194;
 		return NULL;
 	}
 
@@ -405,16 +420,16 @@ SMBC_opendir_ctx(SMBCCTX *context,
         /* Ensure the options are valid */
         if (SMBC_check_options(server, share, path, options)) {
                 DEBUG(4, ("unacceptable options (%s)\n", options));
-                errno = EINVAL + 8195;
 		TALLOC_FREE(frame);
+                errno = EINVAL + 8195;
                 return NULL;
         }
 
 	if (!user || user[0] == (char)0) {
 		user = talloc_strdup(frame, smbc_getUser(context));
 		if (!user) {
-			errno = ENOMEM;
 			TALLOC_FREE(frame);
+			errno = ENOMEM;
 			return NULL;
 		}
 	}
@@ -422,8 +437,8 @@ SMBC_opendir_ctx(SMBCCTX *context,
 	dir = SMB_MALLOC_P(SMBCFILE);
 
 	if (!dir) {
-		errno = ENOMEM;
 		TALLOC_FREE(frame);
+		errno = ENOMEM;
 		return NULL;
 	}
 
@@ -447,12 +462,12 @@ SMBC_opendir_ctx(SMBCCTX *context,
 
 		if (share[0] != (char)0 || path[0] != (char)0) {
 
-			errno = EINVAL + 8196;
 			if (dir) {
 				SAFE_FREE(dir->fname);
 				SAFE_FREE(dir);
 			}
 			TALLOC_FREE(frame);
+			errno = EINVAL + 8196;
 			return NULL;
 		}
 
@@ -495,16 +510,16 @@ SMBC_opendir_ctx(SMBCCTX *context,
 					SAFE_FREE(dir->fname);
 					SAFE_FREE(dir);
 				}
-                                errno = ENOENT;
 				TALLOC_FREE(frame);
+                                errno = ENOENT;
                                 return NULL;
                         }
 
 			ip_list = (struct ip_service *)memdup(
 				&server_addr, sizeof(server_addr));
 			if (ip_list == NULL) {
-				errno = ENOMEM;
 				TALLOC_FREE(frame);
+				errno = ENOMEM;
 				return NULL;
 			}
                         count = 1;
@@ -536,8 +551,12 @@ SMBC_opendir_ctx(SMBCCTX *context,
                         cli_shutdown(cli);
 
 			if (!workgroup || !server) {
-				errno = ENOMEM;
+				if (dir) {
+					SAFE_FREE(dir->fname);
+					SAFE_FREE(dir);
+				}
 				TALLOC_FREE(frame);
+				errno = ENOMEM;
 				return NULL;
 			}
 
@@ -581,12 +600,12 @@ SMBC_opendir_ctx(SMBCCTX *context,
 			if (*path != '\0') {
 
                                 /* Should not have empty share with path */
-				errno = EINVAL + 8197;
 				if (dir) {
 					SAFE_FREE(dir->fname);
 					SAFE_FREE(dir);
 				}
 				TALLOC_FREE(frame);
+				errno = EINVAL + 8197;
 				return NULL;
 
 			}
@@ -644,8 +663,8 @@ SMBC_opendir_ctx(SMBCCTX *context,
 						SAFE_FREE(dir->fname);
 						SAFE_FREE(dir);
 					}
-					errno = EPERM;
 					TALLOC_FREE(frame);
+					errno = EPERM;
 					return NULL;
 
 				}
@@ -748,6 +767,7 @@ SMBC_opendir_ctx(SMBCCTX *context,
                          */
 			char *targetpath;
 			struct cli_state *targetcli;
+			NTSTATUS status;
 
 			/* We connect to the server and list the directory */
 			dir->dir_type = SMBC_FILE_SHARE;
@@ -791,10 +811,10 @@ SMBC_opendir_ctx(SMBCCTX *context,
 				return NULL;
 			}
 
-			if (cli_list(targetcli, targetpath,
-                                     aDIR | aSYSTEM | aHIDDEN,
-                                     dir_list_fn, (void *)dir) < 0) {
-
+			status = cli_list(targetcli, targetpath,
+					  aDIR | aSYSTEM | aHIDDEN,
+					  dir_list_fn, (void *)dir);
+			if (!NT_STATUS_IS_OK(status)) {
 				if (dir) {
 					SAFE_FREE(dir->fname);
 					SAFE_FREE(dir);
@@ -844,8 +864,8 @@ SMBC_opendir_ctx(SMBCCTX *context,
                                         }
                                 }
 
-                                errno = saved_errno;
 				TALLOC_FREE(frame);
+                                errno = saved_errno;
 				return NULL;
 			}
 		}
@@ -1048,6 +1068,7 @@ SMBC_getdents_ctx(SMBCCTX *context,
 
 	while ((dirlist = dir->dir_next)) {
 		struct smbc_dirent *dirent;
+		struct smbc_dirent *currentEntry = (struct smbc_dirent *)ndir;
 
 		if (!dirlist->dirent) {
 
@@ -1084,16 +1105,22 @@ SMBC_getdents_ctx(SMBCCTX *context,
 
 		}
 
-		memcpy(ndir, dirent, reqd); /* Copy the data in ... */
+		memcpy(currentEntry, dirent, reqd); /* Copy the data in ... */
 
-		((struct smbc_dirent *)ndir)->comment =
-			(char *)(&((struct smbc_dirent *)ndir)->name +
-                                 dirent->namelen +
-                                 1);
+		currentEntry->comment = &currentEntry->name[0] +
+						dirent->namelen + 1;
 
 		ndir += reqd;
-
 		rem -= reqd;
+
+		/* Try and align the struct for the next entry
+		   on a valid pointer boundary by appending zeros */
+		while((rem > 0) && ((unsigned long long)ndir & (sizeof(void*) - 1))) {
+			*ndir = '\0';
+			rem--;
+			ndir++;
+			currentEntry->dirlen++;
+		}
 
 		dir->dir_next = dirlist = dirlist -> next;
 	}
@@ -1202,7 +1229,7 @@ SMBC_mkdir_ctx(SMBCCTX *context,
  * Our list function simply checks to see if a directory is not empty
  */
 
-static void
+static NTSTATUS
 rmdir_list_fn(const char *mnt,
               struct file_info *finfo,
               const char *mask,
@@ -1213,6 +1240,7 @@ rmdir_list_fn(const char *mnt,
 		bool *smbc_rmdir_dirempty = (bool *)state;
 		*smbc_rmdir_dirempty = false;
         }
+	return NT_STATUS_OK;
 }
 
 /*
@@ -1302,6 +1330,7 @@ SMBC_rmdir_ctx(SMBCCTX *context,
                         /* Local storage to avoid buffer overflows */
 			char *lpath;
 			bool smbc_rmdir_dirempty = true;
+			NTSTATUS status;
 
 			lpath = talloc_asprintf(frame, "%s\\*",
 						targetpath);
@@ -1311,11 +1340,12 @@ SMBC_rmdir_ctx(SMBCCTX *context,
 				return -1;
 			}
 
-			if (cli_list(targetcli, lpath,
-                                     aDIR | aSYSTEM | aHIDDEN,
-                                     rmdir_list_fn,
-				     &smbc_rmdir_dirempty) < 0) {
+			status = cli_list(targetcli, lpath,
+					  aDIR | aSYSTEM | aHIDDEN,
+					  rmdir_list_fn,
+					  &smbc_rmdir_dirempty);
 
+			if (!NT_STATUS_IS_OK(status)) {
 				/* Fix errno to ignore latest error ... */
 				DEBUG(5, ("smbc_rmdir: "
                                           "cli_list returned an error: %d\n",

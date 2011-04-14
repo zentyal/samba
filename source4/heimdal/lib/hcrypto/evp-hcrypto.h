@@ -42,11 +42,16 @@
 #define EVP_hcrypto_md5 hc_EVP_hcrypto_md5
 #define EVP_hcrypto_sha1 hc_EVP_hcrypto_sha1
 #define EVP_hcrypto_sha256 hc_EVP_hcrypto_sha256
+#define EVP_hcrypto_sha384 hc_EVP_hcrypto_sha384
+#define EVP_hcrypto_sha512 hc_EVP_hcrypto_sha512
 #define EVP_hcrypto_des_cbc hc_EVP_hcrypto_des_cbc
 #define EVP_hcrypto_des_ede3_cbc hc_EVP_hcrypto_des_ede3_cbc
 #define EVP_hcrypto_aes_128_cbc hc_EVP_hcrypto_aes_128_cbc
 #define EVP_hcrypto_aes_192_cbc hc_EVP_hcrypto_aes_192_cbc
 #define EVP_hcrypto_aes_256_cbc hc_EVP_hcrypto_aes_256_cbc
+#define EVP_hcrypto_aes_128_cfb8 hc_EVP_hcrypto_aes_128_cfb8
+#define EVP_hcrypto_aes_192_cfb8 hc_EVP_hcrypto_aes_192_cfb8
+#define EVP_hcrypto_aes_256_cfb8 hc_EVP_hcrypto_aes_256_cfb8
 #define EVP_hcrypto_rc4 hc_EVP_hcrypto_rc4
 #define EVP_hcrypto_rc4_40 hc_EVP_hcrypto_rc4_40
 #define EVP_hcrypto_rc2_40_cbc hc_EVP_hcrypto_rc2_40_cbc
@@ -67,6 +72,8 @@ const EVP_MD * EVP_hcrypto_md4(void);
 const EVP_MD * EVP_hcrypto_md5(void);
 const EVP_MD * EVP_hcrypto_sha1(void);
 const EVP_MD * EVP_hcrypto_sha256(void);
+const EVP_MD * EVP_hcrypto_sha384(void);
+const EVP_MD * EVP_hcrypto_sha512(void);
 
 const EVP_CIPHER * EVP_hcrypto_rc4(void);
 const EVP_CIPHER * EVP_hcrypto_rc4_40(void);
@@ -81,6 +88,10 @@ const EVP_CIPHER * EVP_hcrypto_des_ede3_cbc(void);
 const EVP_CIPHER * EVP_hcrypto_aes_128_cbc(void);
 const EVP_CIPHER * EVP_hcrypto_aes_192_cbc(void);
 const EVP_CIPHER * EVP_hcrypto_aes_256_cbc(void);
+
+const EVP_CIPHER * EVP_hcrypto_aes_128_cfb8(void);
+const EVP_CIPHER * EVP_hcrypto_aes_192_cfb8(void);
+const EVP_CIPHER * EVP_hcrypto_aes_256_cfb8(void);
 
 const EVP_CIPHER * EVP_hcrypto_camellia_128_cbc(void);
 const EVP_CIPHER * EVP_hcrypto_camellia_192_cbc(void);

@@ -223,7 +223,9 @@ static int linked_attributes_add(struct ldb_module *module, struct ldb_request *
 			= dsdb_attribute_by_lDAPDisplayName(ac->schema, el->name);
 		if (!schema_attr) {
 			ldb_asprintf_errstring(ldb,
-					       "attribute %s is not a valid attribute in schema", el->name);
+					       "%s: attribute %s is not a valid attribute in schema",
+					       __FUNCTION__,
+					       el->name);
 			return LDB_ERR_OBJECT_CLASS_VIOLATION;
 		}
 		/* We have a valid attribute, now find out if it is a forward link */
@@ -325,7 +327,8 @@ static int la_mod_search_callback(struct ldb_request *req, struct ldb_reply *are
 			schema_attr = dsdb_attribute_by_lDAPDisplayName(ac->schema, rc->el[i].name);
 			if (!schema_attr) {
 				ldb_asprintf_errstring(ldb,
-					"attribute %s is not a valid attribute in schema",
+					"%s: attribute %s is not a valid attribute in schema",
+					__FUNCTION__,
 					rc->el[i].name);
 				talloc_free(ares);
 				return ldb_module_done(ac->req, NULL, NULL,
@@ -454,7 +457,9 @@ static int linked_attributes_modify(struct ldb_module *module, struct ldb_reques
 			= dsdb_attribute_by_lDAPDisplayName(ac->schema, el->name);
 		if (!schema_attr) {
 			ldb_asprintf_errstring(ldb,
-					       "attribute %s is not a valid attribute in schema", el->name);
+					       "%s: attribute %s is not a valid attribute in schema",
+					       __FUNCTION__,
+					       el->name);
 			return LDB_ERR_OBJECT_CLASS_VIOLATION;
 		}
 		/* We have a valid attribute, now find out if it is a forward link
@@ -563,6 +568,7 @@ static int linked_attributes_modify(struct ldb_module *module, struct ldb_reques
 					   NULL,
 					   ac, la_mod_search_callback,
 					   req);
+		LDB_REQ_SET_LOCATION(search_req);
 
 		/* We need to figure out our own extended DN, to fill in as the backlink target */
 		if (ret == LDB_SUCCESS) {
@@ -588,7 +594,8 @@ static int linked_attributes_modify(struct ldb_module *module, struct ldb_reques
 static int linked_attributes_fix_links(struct ldb_module *module,
 				       struct ldb_dn *old_dn, struct ldb_dn *new_dn,
 				       struct ldb_message_element *el, struct dsdb_schema *schema,
-				       const struct dsdb_attribute *schema_attr)
+				       const struct dsdb_attribute *schema_attr,
+				       struct ldb_request *parent)
 {
 	unsigned int i, j;
 	TALLOC_CTX *tmp_ctx = talloc_new(module);
@@ -621,9 +628,9 @@ static int linked_attributes_fix_links(struct ldb_module *module,
 		ret = dsdb_module_search_dn(module, tmp_ctx, &res, dsdb_dn->dn,
 					    attrs,
 					    DSDB_FLAG_NEXT_MODULE |
-					    DSDB_SEARCH_SHOW_DELETED |
+					    DSDB_SEARCH_SHOW_RECYCLED |
 					    DSDB_SEARCH_SHOW_DN_IN_STORAGE_FORMAT |
-					    DSDB_SEARCH_REVEAL_INTERNALS);
+					    DSDB_SEARCH_REVEAL_INTERNALS, parent);
 		if (ret != LDB_SUCCESS) {
 			ldb_asprintf_errstring(ldb, "Linked attribute %s->%s between %s and %s - remote not found - %s",
 					       el->name, target->lDAPDisplayName,
@@ -680,7 +687,11 @@ static int linked_attributes_fix_links(struct ldb_module *module,
 			return ret;
 		}
 
-		ret = dsdb_module_modify(module, msg, DSDB_FLAG_NEXT_MODULE | DSDB_MODIFY_RELAX);
+		/* we may be putting multiple values in an attribute -
+		   disable checking for this attribute */
+		el2->flags |= LDB_FLAG_INTERNAL_DISABLE_SINGLE_VALUE_CHECK;
+
+		ret = dsdb_module_modify(module, msg, DSDB_FLAG_NEXT_MODULE, parent);
 		if (ret != LDB_SUCCESS) {
 			ldb_asprintf_errstring(ldb, "Linked attribute %s->%s between %s and %s - update failed - %s",
 					       el->name, target->lDAPDisplayName,
@@ -715,7 +726,7 @@ static int linked_attributes_rename(struct ldb_module *module, struct ldb_reques
 	ret = dsdb_module_search_dn(module, req, &res, req->op.rename.olddn,
 				    NULL,
 				    DSDB_FLAG_NEXT_MODULE |
-				    DSDB_SEARCH_SHOW_DELETED);
+				    DSDB_SEARCH_SHOW_RECYCLED, req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -735,7 +746,7 @@ static int linked_attributes_rename(struct ldb_module *module, struct ldb_reques
 			continue;
 		}
 		ret = linked_attributes_fix_links(module, msg->dn, req->op.rename.newdn, el,
-						  schema, schema_attr);
+						  schema, schema_attr, req);
 		if (ret != LDB_SUCCESS) {
 			talloc_free(res);
 			return ret;
@@ -853,6 +864,7 @@ static int la_add_callback(struct ldb_request *req, struct ldb_reply *ares)
 					   NULL,
 					   ac, la_mod_search_callback,
 					   ac->req);
+		LDB_REQ_SET_LOCATION(search_req);
 
 		if (ret == LDB_SUCCESS) {
 			ret = ldb_request_add_control(search_req,
@@ -891,6 +903,7 @@ static int la_down_req(struct la_context *ac)
 					ac->req->controls,
 					ac, la_add_callback,
 					ac->req);
+		LDB_REQ_SET_LOCATION(down_req);
 		break;
 	case LDB_MODIFY:
 		ret = ldb_build_mod_req(&down_req, ldb, ac,
@@ -898,6 +911,7 @@ static int la_down_req(struct la_context *ac)
 					ac->req->controls,
 					ac, la_mod_del_callback,
 					ac->req);
+		LDB_REQ_SET_LOCATION(down_req);
 		break;
 	default:
 		ret = LDB_ERR_OPERATIONS_ERROR;
@@ -961,6 +975,13 @@ static int la_do_op_request(struct ldb_module *module, struct la_context *ac, st
 		ret_el->values[0] = data_blob_string_const(ldb_dn_get_extended_linearized(new_msg, ac->del_dn, 1));
 	}
 
+	/* a backlink should never be single valued. Unfortunately the
+	   exchange schema has a attribute
+	   msExchBridgeheadedLocalConnectorsDNBL which is single
+	   valued and a backlink. We need to cope with that by
+	   ignoring the single value flag */
+	ret_el->flags |= LDB_FLAG_INTERNAL_DISABLE_SINGLE_VALUE_CHECK;
+
 #if 0
 	ldb_debug(ldb, LDB_DEBUG_WARNING,
 		  "link on %s %s: %s %s\n",
@@ -973,7 +994,7 @@ static int la_do_op_request(struct ldb_module *module, struct la_context *ac, st
 			 ldb_ldif_message_string(ldb, op, LDB_CHANGETYPE_MODIFY, new_msg)));
 	}
 
-	ret = dsdb_module_modify(module, new_msg, DSDB_FLAG_NEXT_MODULE);
+	ret = dsdb_module_modify(module, new_msg, DSDB_FLAG_NEXT_MODULE, ac->req);
 	if (ret != LDB_SUCCESS) {
 		ldb_debug(ldb, LDB_DEBUG_WARNING, "Failed to apply linked attribute change '%s'\n%s\n",
 			  ldb_errstring(ldb),
@@ -1074,7 +1095,7 @@ static int linked_attributes_del_transaction(struct ldb_module *module)
 }
 
 
-_PUBLIC_ const struct ldb_module_ops ldb_linked_attributes_module_ops = {
+static const struct ldb_module_ops ldb_linked_attributes_module_ops = {
 	.name		   = "linked_attributes",
 	.add               = linked_attributes_add,
 	.modify            = linked_attributes_modify,
@@ -1083,3 +1104,9 @@ _PUBLIC_ const struct ldb_module_ops ldb_linked_attributes_module_ops = {
 	.prepare_commit    = linked_attributes_prepare_commit,
 	.del_transaction   = linked_attributes_del_transaction,
 };
+
+int ldb_linked_attributes_module_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_linked_attributes_module_ops);
+}

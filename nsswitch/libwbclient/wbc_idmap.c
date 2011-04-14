@@ -29,7 +29,6 @@ wbcErr wbcSidToUid(const struct wbcDomainSid *sid, uid_t *puid)
 {
 	struct winbindd_request request;
 	struct winbindd_response response;
-	char *sid_string = NULL;
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 
 	if (!sid || !puid) {
@@ -42,11 +41,7 @@ wbcErr wbcSidToUid(const struct wbcDomainSid *sid, uid_t *puid)
 	ZERO_STRUCT(request);
 	ZERO_STRUCT(response);
 
-	wbc_status = wbcSidToString(sid, &sid_string);
-	BAIL_ON_WBC_ERROR(wbc_status);
-
-	strncpy(request.data.sid, sid_string, sizeof(request.data.sid)-1);
-	wbcFreeMemory(sid_string);
+	wbcSidToStringBuf(sid, request.data.sid, sizeof(request.data.sid));
 
 	/* Make request */
 
@@ -124,7 +119,6 @@ wbcErr wbcSidToGid(const struct wbcDomainSid *sid, gid_t *pgid)
 	struct winbindd_request request;
 	struct winbindd_response response;
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
-	char *sid_string = NULL;
 
 	if (!sid || !pgid) {
 		wbc_status = WBC_ERR_INVALID_PARAM;
@@ -136,11 +130,7 @@ wbcErr wbcSidToGid(const struct wbcDomainSid *sid, gid_t *pgid)
 	ZERO_STRUCT(request);
 	ZERO_STRUCT(response);
 
-	wbc_status = wbcSidToString(sid, &sid_string);
-	BAIL_ON_WBC_ERROR(wbc_status);
-
-	strncpy(request.data.sid, sid_string, sizeof(request.data.sid)-1);
-	wbcFreeMemory(sid_string);
+        wbcSidToStringBuf(sid, request.data.sid, sizeof(request.data.sid));
 
 	/* Make request */
 
@@ -271,200 +261,38 @@ wbcErr wbcAllocateGid(gid_t *pgid)
 #define _ID_TYPE_UID 1
 #define _ID_TYPE_GID 2
 
-/* Set an user id mapping */
+/* Set an user id mapping - not implemented any more */
 wbcErr wbcSetUidMapping(uid_t uid, const struct wbcDomainSid *sid)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
-	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
-	char *sid_string = NULL;
-
-	if (!sid) {
-		return WBC_ERR_INVALID_PARAM;
-	}
-
-	/* Initialise request */
-
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
-
-	/* Make request */
-
-	request.data.dual_idmapset.id = uid;
-	request.data.dual_idmapset.type = _ID_TYPE_UID;
-
-	wbc_status = wbcSidToString(sid, &sid_string);
-	BAIL_ON_WBC_ERROR(wbc_status);
-
-	strncpy(request.data.dual_idmapset.sid, sid_string,
-		sizeof(request.data.dual_idmapset.sid)-1);
-	wbcFreeMemory(sid_string);
-
-	wbc_status = wbcRequestResponsePriv(WINBINDD_SET_MAPPING,
-					    &request, &response);
-	BAIL_ON_WBC_ERROR(wbc_status);
-
- done:
-	return wbc_status;
+	return WBC_ERR_NOT_IMPLEMENTED;
 }
 
-/* Set a group id mapping */
+/* Set a group id mapping - not implemented any more */
 wbcErr wbcSetGidMapping(gid_t gid, const struct wbcDomainSid *sid)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
-	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
-	char *sid_string = NULL;
-
-	if (!sid) {
-		return WBC_ERR_INVALID_PARAM;
-	}
-
-	/* Initialise request */
-
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
-
-	/* Make request */
-
-	request.data.dual_idmapset.id = gid;
-	request.data.dual_idmapset.type = _ID_TYPE_GID;
-
-	wbc_status = wbcSidToString(sid, &sid_string);
-	BAIL_ON_WBC_ERROR(wbc_status);
-
-	strncpy(request.data.dual_idmapset.sid, sid_string,
-		sizeof(request.data.dual_idmapset.sid)-1);
-	wbcFreeMemory(sid_string);
-
-	wbc_status = wbcRequestResponsePriv(WINBINDD_SET_MAPPING,
-					    &request, &response);
-	BAIL_ON_WBC_ERROR(wbc_status);
-
- done:
-	return wbc_status;
+	return WBC_ERR_NOT_IMPLEMENTED;
 }
 
-/* Remove a user id mapping */
+/* Remove a user id mapping - not implemented any more */
 wbcErr wbcRemoveUidMapping(uid_t uid, const struct wbcDomainSid *sid)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
-	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
-	char *sid_string = NULL;
-
-	if (!sid) {
-		return WBC_ERR_INVALID_PARAM;
-	}
-
-	/* Initialise request */
-
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
-
-	/* Make request */
-
-	request.data.dual_idmapset.id = uid;
-	request.data.dual_idmapset.type = _ID_TYPE_UID;
-
-	wbc_status = wbcSidToString(sid, &sid_string);
-	BAIL_ON_WBC_ERROR(wbc_status);
-
-	strncpy(request.data.dual_idmapset.sid, sid_string,
-		sizeof(request.data.dual_idmapset.sid)-1);
-	wbcFreeMemory(sid_string);
-
-	wbc_status = wbcRequestResponsePriv(WINBINDD_REMOVE_MAPPING,
-					    &request, &response);
-	BAIL_ON_WBC_ERROR(wbc_status);
-
- done:
-	return wbc_status;
+	return WBC_ERR_NOT_IMPLEMENTED;
 }
 
-/* Remove a group id mapping */
+/* Remove a group id mapping - not implemented any more */
 wbcErr wbcRemoveGidMapping(gid_t gid, const struct wbcDomainSid *sid)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
-	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
-	char *sid_string = NULL;
-
-	if (!sid) {
-		return WBC_ERR_INVALID_PARAM;
-	}
-
-	/* Initialise request */
-
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
-
-	/* Make request */
-
-	request.data.dual_idmapset.id = gid;
-	request.data.dual_idmapset.type = _ID_TYPE_GID;
-
-	wbc_status = wbcSidToString(sid, &sid_string);
-	BAIL_ON_WBC_ERROR(wbc_status);
-
-	strncpy(request.data.dual_idmapset.sid, sid_string,
-		sizeof(request.data.dual_idmapset.sid)-1);
-	wbcFreeMemory(sid_string);
-
-	wbc_status = wbcRequestResponsePriv(WINBINDD_REMOVE_MAPPING,
-					    &request, &response);
-	BAIL_ON_WBC_ERROR(wbc_status);
-
- done:
-	return wbc_status;
+	return WBC_ERR_NOT_IMPLEMENTED;
 }
 
-/* Set the highwater mark for allocated uids. */
+/* Set the highwater mark for allocated uids - not implemented any more */
 wbcErr wbcSetUidHwm(uid_t uid_hwm)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
-	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
-
-	/* Initialise request */
-
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
-
-	/* Make request */
-
-	request.data.dual_idmapset.id = uid_hwm;
-	request.data.dual_idmapset.type = _ID_TYPE_UID;
-
-	wbc_status = wbcRequestResponsePriv(WINBINDD_SET_HWM,
-					    &request, &response);
-	BAIL_ON_WBC_ERROR(wbc_status);
-
- done:
-	return wbc_status;
+	return WBC_ERR_NOT_IMPLEMENTED;
 }
 
-/* Set the highwater mark for allocated gids. */
+/* Set the highwater mark for allocated gids - not implemented any more */
 wbcErr wbcSetGidHwm(gid_t gid_hwm)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
-	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
-
-	/* Initialise request */
-
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
-
-	/* Make request */
-
-	request.data.dual_idmapset.id = gid_hwm;
-	request.data.dual_idmapset.type = _ID_TYPE_GID;
-
-	wbc_status = wbcRequestResponsePriv(WINBINDD_SET_HWM,
-					    &request, &response);
-	BAIL_ON_WBC_ERROR(wbc_status);
-
- done:
-	return wbc_status;
+	return WBC_ERR_NOT_IMPLEMENTED;
 }

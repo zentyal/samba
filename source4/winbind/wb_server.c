@@ -205,7 +205,7 @@ static void winbind_task_init(struct task_server *task)
 	/* within the winbind task we want to be a single process, so
 	   ask for the single process model ops and pass these to the
 	   stream_setup_socket() call. */
-	model_ops = process_model_startup(task->event_ctx, "single");
+	model_ops = process_model_startup("single");
 	if (!model_ops) {
 		task_server_terminate(task,
 				      "Can't find 'single' process model_ops", true);
@@ -237,9 +237,10 @@ static void winbind_task_init(struct task_server *task)
 	switch (lpcfg_server_role(service->task->lp_ctx)) {
 	case ROLE_STANDALONE:
 		primary_sid = secrets_get_domain_sid(service,
-						     service->task->event_ctx,
 						     service->task->lp_ctx,
-						     lpcfg_netbios_name(service->task->lp_ctx), &errstring);
+						     lpcfg_netbios_name(service->task->lp_ctx),
+						     &service->sec_channel_type,
+						     &errstring);
 		if (!primary_sid) {
 			char *message = talloc_asprintf(task, 
 							"Cannot start Winbind (standalone configuration): %s: "
@@ -251,9 +252,10 @@ static void winbind_task_init(struct task_server *task)
 		break;
 	case ROLE_DOMAIN_MEMBER:
 		primary_sid = secrets_get_domain_sid(service,
-						     service->task->event_ctx,
 						     service->task->lp_ctx,
-						     lpcfg_workgroup(service->task->lp_ctx), &errstring);
+						     lpcfg_workgroup(service->task->lp_ctx),
+						     &service->sec_channel_type,
+						     &errstring);
 		if (!primary_sid) {
 			char *message = talloc_asprintf(task, "Cannot start Winbind (domain member): %s: "
 							"Have you joined the %s domain?", 
@@ -264,9 +266,10 @@ static void winbind_task_init(struct task_server *task)
 		break;
 	case ROLE_DOMAIN_CONTROLLER:
 		primary_sid = secrets_get_domain_sid(service,
-						     service->task->event_ctx,
 						     service->task->lp_ctx,
-						     lpcfg_workgroup(service->task->lp_ctx), &errstring);
+						     lpcfg_workgroup(service->task->lp_ctx),
+						     &service->sec_channel_type,
+						     &errstring);
 		if (!primary_sid) {
 			char *message = talloc_asprintf(task, "Cannot start Winbind (domain controller): %s: "
 							"Have you provisioned the %s domain?", 
@@ -296,7 +299,7 @@ static void winbind_task_init(struct task_server *task)
 	if (!listen_socket->socket_path) goto nomem;
 	listen_socket->service		= service;
 	listen_socket->privileged	= false;
-	status = stream_setup_socket(task->event_ctx, task->lp_ctx, model_ops,
+	status = stream_setup_socket(task, task->event_ctx, task->lp_ctx, model_ops,
 				     &wbsrv_ops, "unix",
 				     listen_socket->socket_path, &port,
 				     lpcfg_socket_options(task->lp_ctx),
@@ -313,7 +316,7 @@ static void winbind_task_init(struct task_server *task)
 	if (!listen_socket->socket_path) goto nomem;
 	listen_socket->service		= service;
 	listen_socket->privileged	= true;
-	status = stream_setup_socket(task->event_ctx, task->lp_ctx, model_ops,
+	status = stream_setup_socket(task, task->event_ctx, task->lp_ctx, model_ops,
 				     &wbsrv_ops, "unix",
 				     listen_socket->socket_path, &port,
 				     lpcfg_socket_options(task->lp_ctx),

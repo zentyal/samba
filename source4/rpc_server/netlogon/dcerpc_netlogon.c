@@ -5,7 +5,7 @@
 
    Copyright (C) Andrew Bartlett <abartlet@samba.org> 2004-2008
    Copyright (C) Stefan Metzmacher <metze@samba.org>  2005
-   Copyright (C) Matthias Dieter Wallnöfer            2009
+   Copyright (C) Matthias Dieter Wallnöfer            2009-2010
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -31,9 +31,12 @@
 #include "libcli/security/security.h"
 #include "param/param.h"
 #include "lib/messaging/irpc.h"
-#include "librpc/gen_ndr/ndr_irpc.h"
+#include "librpc/gen_ndr/ndr_irpc_c.h"
+#include "../libcli/ldap/ldap_ndr.h"
 #include "cldap_server/cldap_server.h"
 #include "lib/tsocket/tsocket.h"
+#include "librpc/gen_ndr/ndr_netlogon.h"
+#include "librpc/gen_ndr/ndr_irpc.h"
 
 struct netlogon_server_pipe_state {
 	struct netr_Credential client_challenge;
@@ -122,13 +125,21 @@ static NTSTATUS dcesrv_netr_ServerAuthenticate3(struct dcesrv_call_state *dce_ca
 				  NETLOGON_NEG_AUTHENTICATED_RPC_LSASS |
 				  NETLOGON_NEG_AUTHENTICATED_RPC;
 
-	if (!pipe_state) {
-		DEBUG(1, ("No challenge requested by client, cannot authenticate\n"));
-		return NT_STATUS_ACCESS_DENIED;
+	switch (r->in.secure_channel_type) {
+	case SEC_CHAN_WKSTA:
+	case SEC_CHAN_DNS_DOMAIN:
+	case SEC_CHAN_DOMAIN:
+	case SEC_CHAN_BDC:
+	case SEC_CHAN_RODC:
+		break;
+	default:
+		DEBUG(1, ("Client asked for an invalid secure channel type: %d\n",
+			  r->in.secure_channel_type));
+		return NT_STATUS_INVALID_PARAMETER;
 	}
 
 	sam_ctx = samdb_connect(mem_ctx, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx,
-				system_session(dce_call->conn->dce_ctx->lp_ctx));
+				system_session(dce_call->conn->dce_ctx->lp_ctx), 0);
 	if (sam_ctx == NULL) {
 		return NT_STATUS_INVALID_SYSTEM_SERVICE;
 	}
@@ -154,7 +165,7 @@ static NTSTATUS dcesrv_netr_ServerAuthenticate3(struct dcesrv_call_state *dce_ca
 		if (num_records == 0) {
 			DEBUG(3,("Couldn't find trust [%s] in samdb.\n",
 				 encoded_account));
-			return NT_STATUS_ACCESS_DENIED;
+			return NT_STATUS_NO_TRUST_SAM_ACCOUNT;
 		}
 
 		if (num_records > 1) {
@@ -165,7 +176,7 @@ static NTSTATUS dcesrv_netr_ServerAuthenticate3(struct dcesrv_call_state *dce_ca
 		flatname = ldb_msg_find_attr_as_string(msgs[0], "flatname", NULL);
 		if (!flatname) {
 			/* No flatname for this trust - we can't proceed */
-			return NT_STATUS_ACCESS_DENIED;
+			return NT_STATUS_NO_TRUST_SAM_ACCOUNT;
 		}
 		account_name = talloc_asprintf(mem_ctx, "%s$", flatname);
 
@@ -185,7 +196,7 @@ static NTSTATUS dcesrv_netr_ServerAuthenticate3(struct dcesrv_call_state *dce_ca
 	if (num_records == 0) {
 		DEBUG(3,("Couldn't find user [%s] in samdb.\n",
 			 r->in.account_name));
-		return NT_STATUS_ACCESS_DENIED;
+		return NT_STATUS_NO_TRUST_SAM_ACCOUNT;
 	}
 
 	if (num_records > 1) {
@@ -197,30 +208,34 @@ static NTSTATUS dcesrv_netr_ServerAuthenticate3(struct dcesrv_call_state *dce_ca
 
 	if (user_account_control & UF_ACCOUNTDISABLE) {
 		DEBUG(1, ("Account [%s] is disabled\n", r->in.account_name));
-		return NT_STATUS_ACCESS_DENIED;
+		return NT_STATUS_NO_TRUST_SAM_ACCOUNT;
 	}
 
 	if (r->in.secure_channel_type == SEC_CHAN_WKSTA) {
 		if (!(user_account_control & UF_WORKSTATION_TRUST_ACCOUNT)) {
 			DEBUG(1, ("Client asked for a workstation secure channel, but is not a workstation (member server) acb flags: 0x%x\n", user_account_control));
-			return NT_STATUS_ACCESS_DENIED;
+			return NT_STATUS_NO_TRUST_SAM_ACCOUNT;
 		}
 	} else if (r->in.secure_channel_type == SEC_CHAN_DOMAIN ||
 		   r->in.secure_channel_type == SEC_CHAN_DNS_DOMAIN) {
 		if (!(user_account_control & UF_INTERDOMAIN_TRUST_ACCOUNT)) {
 			DEBUG(1, ("Client asked for a trusted domain secure channel, but is not a trusted domain: acb flags: 0x%x\n", user_account_control));
 
-			return NT_STATUS_ACCESS_DENIED;
+			return NT_STATUS_NO_TRUST_SAM_ACCOUNT;
 		}
 	} else if (r->in.secure_channel_type == SEC_CHAN_BDC) {
 		if (!(user_account_control & UF_SERVER_TRUST_ACCOUNT)) {
 			DEBUG(1, ("Client asked for a server secure channel, but is not a server (domain controller): acb flags: 0x%x\n", user_account_control));
-			return NT_STATUS_ACCESS_DENIED;
+			return NT_STATUS_NO_TRUST_SAM_ACCOUNT;
+		}
+	} else if (r->in.secure_channel_type == SEC_CHAN_RODC) {
+		if (!(user_account_control & UF_PARTIAL_SECRETS_ACCOUNT)) {
+			DEBUG(1, ("Client asked for a RODC secure channel, but is not a RODC: acb flags: 0x%x\n", user_account_control));
+			return NT_STATUS_NO_TRUST_SAM_ACCOUNT;
 		}
 	} else {
-		DEBUG(1, ("Client asked for an invalid secure channel type: %d\n",
-			  r->in.secure_channel_type));
-		return NT_STATUS_ACCESS_DENIED;
+		/* we should never reach this */
+		return NT_STATUS_INTERNAL_ERROR;
 	}
 
 	*r->out.rid = samdb_result_rid_from_sid(mem_ctx, msgs[0],
@@ -228,6 +243,11 @@ static NTSTATUS dcesrv_netr_ServerAuthenticate3(struct dcesrv_call_state *dce_ca
 
 	mach_pwd = samdb_result_hash(mem_ctx, msgs[0], "unicodePwd");
 	if (mach_pwd == NULL) {
+		return NT_STATUS_ACCESS_DENIED;
+	}
+
+	if (!pipe_state) {
+		DEBUG(1, ("No challenge requested by client, cannot authenticate\n"));
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
@@ -379,7 +399,11 @@ static NTSTATUS dcesrv_netr_ServerPasswordSet(struct dcesrv_call_state *dce_call
 {
 	struct netlogon_creds_CredentialState *creds;
 	struct ldb_context *sam_ctx;
+	const char * const attrs[] = { "unicodePwd", NULL };
+	struct ldb_message **res;
+	struct samr_Password *oldNtHash;
 	NTSTATUS nt_status;
+	int ret;
 
 	nt_status = dcesrv_netr_creds_server_step_check(dce_call,
 							mem_ctx,
@@ -388,19 +412,35 @@ static NTSTATUS dcesrv_netr_ServerPasswordSet(struct dcesrv_call_state *dce_call
 							&creds);
 	NT_STATUS_NOT_OK_RETURN(nt_status);
 
-	sam_ctx = samdb_connect(mem_ctx, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx, system_session(dce_call->conn->dce_ctx->lp_ctx));
+	sam_ctx = samdb_connect(mem_ctx, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx, system_session(dce_call->conn->dce_ctx->lp_ctx), 0);
 	if (sam_ctx == NULL) {
 		return NT_STATUS_INVALID_SYSTEM_SERVICE;
 	}
 
 	netlogon_creds_des_decrypt(creds, r->in.new_password);
 
+	/* fetch the old password hashes (the NT hash has to exist) */
+
+	ret = gendb_search(sam_ctx, mem_ctx, NULL, &res, attrs,
+			   "(&(objectClass=user)(objectSid=%s))",
+			   ldap_encode_ndr_dom_sid(mem_ctx, creds->sid));
+	if (ret != 1) {
+		return NT_STATUS_WRONG_PASSWORD;
+	}
+
+	nt_status = samdb_result_passwords(mem_ctx,
+					   dce_call->conn->dce_ctx->lp_ctx,
+					   res[0], NULL, &oldNtHash);
+	if (!NT_STATUS_IS_OK(nt_status) || !oldNtHash) {
+		return NT_STATUS_WRONG_PASSWORD;
+	}
+
 	/* Using the sid for the account as the key, set the password */
 	nt_status = samdb_set_password_sid(sam_ctx, mem_ctx,
 					   creds->sid,
 					   NULL, /* Don't have plaintext */
 					   NULL, r->in.new_password,
-					   true, /* Password change */
+					   NULL, oldNtHash, /* Password change */
 					   NULL, NULL);
 	return nt_status;
 }
@@ -414,8 +454,12 @@ static NTSTATUS dcesrv_netr_ServerPasswordSet2(struct dcesrv_call_state *dce_cal
 {
 	struct netlogon_creds_CredentialState *creds;
 	struct ldb_context *sam_ctx;
+	const char * const attrs[] = { "dBCSPwd", "unicodePwd", NULL };
+	struct ldb_message **res;
+	struct samr_Password *oldLmHash, *oldNtHash;
 	NTSTATUS nt_status;
 	DATA_BLOB new_password;
+	int ret;
 
 	struct samr_CryptPassword password_buf;
 
@@ -426,7 +470,7 @@ static NTSTATUS dcesrv_netr_ServerPasswordSet2(struct dcesrv_call_state *dce_cal
 							&creds);
 	NT_STATUS_NOT_OK_RETURN(nt_status);
 
-	sam_ctx = samdb_connect(mem_ctx, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx, system_session(dce_call->conn->dce_ctx->lp_ctx));
+	sam_ctx = samdb_connect(mem_ctx, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx, system_session(dce_call->conn->dce_ctx->lp_ctx), 0);
 	if (sam_ctx == NULL) {
 		return NT_STATUS_INVALID_SYSTEM_SERVICE;
 	}
@@ -440,12 +484,28 @@ static NTSTATUS dcesrv_netr_ServerPasswordSet2(struct dcesrv_call_state *dce_cal
 		return NT_STATUS_WRONG_PASSWORD;
 	}
 
+	/* fetch the old password hashes (at least one of both has to exist) */
+
+	ret = gendb_search(sam_ctx, mem_ctx, NULL, &res, attrs,
+			   "(&(objectClass=user)(objectSid=%s))",
+			   ldap_encode_ndr_dom_sid(mem_ctx, creds->sid));
+	if (ret != 1) {
+		return NT_STATUS_WRONG_PASSWORD;
+	}
+
+	nt_status = samdb_result_passwords(mem_ctx,
+					   dce_call->conn->dce_ctx->lp_ctx,
+					   res[0], &oldLmHash, &oldNtHash);
+	if (!NT_STATUS_IS_OK(nt_status) || (!oldLmHash && !oldNtHash)) {
+		return NT_STATUS_WRONG_PASSWORD;
+	}
+
 	/* Using the sid for the account as the key, set the password */
 	nt_status = samdb_set_password_sid(sam_ctx, mem_ctx,
 					   creds->sid,
 					   &new_password, /* we have plaintext */
 					   NULL, NULL,
-					   true, /* Password change */
+					   oldLmHash, oldNtHash, /* Password change */
 					   NULL, NULL);
 	return nt_status;
 }
@@ -471,6 +531,65 @@ static WERROR dcesrv_netr_LogonUasLogoff(struct dcesrv_call_state *dce_call, TAL
 }
 
 
+static NTSTATUS dcesrv_netr_LogonSamLogon_check(const struct netr_LogonSamLogonEx *r)
+{
+	switch (r->in.logon_level) {
+	case NetlogonInteractiveInformation:
+	case NetlogonServiceInformation:
+	case NetlogonInteractiveTransitiveInformation:
+	case NetlogonServiceTransitiveInformation:
+		if (r->in.logon->password == NULL) {
+			return NT_STATUS_INVALID_PARAMETER;
+		}
+
+		switch (r->in.validation_level) {
+		case NetlogonValidationSamInfo:  /* 2 */
+		case NetlogonValidationSamInfo2: /* 3 */
+		case NetlogonValidationSamInfo4: /* 6 */
+			break;
+		default:
+			return NT_STATUS_INVALID_INFO_CLASS;
+		}
+
+		break;
+	case NetlogonNetworkInformation:
+	case NetlogonNetworkTransitiveInformation:
+		if (r->in.logon->network == NULL) {
+			return NT_STATUS_INVALID_PARAMETER;
+		}
+
+		switch (r->in.validation_level) {
+		case NetlogonValidationSamInfo:  /* 2 */
+		case NetlogonValidationSamInfo2: /* 3 */
+		case NetlogonValidationSamInfo4: /* 6 */
+			break;
+		default:
+			return NT_STATUS_INVALID_INFO_CLASS;
+		}
+
+		break;
+
+	case NetlogonGenericInformation:
+		if (r->in.logon->generic == NULL) {
+			return NT_STATUS_INVALID_PARAMETER;
+		}
+
+		switch (r->in.validation_level) {
+		/* TODO: case NetlogonValidationGenericInfo: 4 */
+		case NetlogonValidationGenericInfo2: /* 5 */
+			break;
+		default:
+			return NT_STATUS_INVALID_INFO_CLASS;
+		}
+
+		break;
+	default:
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	return NT_STATUS_OK;
+}
+
 /*
   netr_LogonSamLogon_base
 
@@ -483,7 +602,7 @@ static NTSTATUS dcesrv_netr_LogonSamLogon_base(struct dcesrv_call_state *dce_cal
 {
 	struct auth_context *auth_context;
 	struct auth_usersupplied_info *user_info;
-	struct auth_serversupplied_info *server_info;
+	struct auth_user_info_dc *user_info_dc;
 	NTSTATUS nt_status;
 	static const char zeros[16];
 	struct netr_SamBaseInfo *sam;
@@ -491,12 +610,10 @@ static NTSTATUS dcesrv_netr_LogonSamLogon_base(struct dcesrv_call_state *dce_cal
 	struct netr_SamInfo3 *sam3;
 	struct netr_SamInfo6 *sam6;
 
-	user_info = talloc(mem_ctx, struct auth_usersupplied_info);
-	NT_STATUS_HAVE_NO_MEMORY(user_info);
+	*r->out.authoritative = 1;
 
-	user_info->flags = 0;
-	user_info->mapped_state = false;
-	user_info->remote_host = NULL;
+	user_info = talloc_zero(mem_ctx, struct auth_usersupplied_info);
+	NT_STATUS_HAVE_NO_MEMORY(user_info);
 
 	switch (r->in.logon_level) {
 	case NetlogonInteractiveInformation:
@@ -576,7 +693,7 @@ static NTSTATUS dcesrv_netr_LogonSamLogon_base(struct dcesrv_call_state *dce_cal
 
 		if (strcmp(r->in.logon->generic->package_name.string, "Kerberos") == 0) {
 			NTSTATUS status;
-			struct server_id *kdc;
+			struct dcerpc_binding_handle *irpc_handle;
 			struct kdc_check_generic_kerberos check;
 			struct netr_GenericInfo2 *generic = talloc_zero(mem_ctx, struct netr_GenericInfo2);
 			NT_STATUS_HAVE_NO_MEMORY(generic);
@@ -587,8 +704,11 @@ static NTSTATUS dcesrv_netr_LogonSamLogon_base(struct dcesrv_call_state *dce_cal
 
 			r->out.validation->generic = generic;
 
-			kdc = irpc_servers_byname(dce_call->msg_ctx, mem_ctx, "kdc_server");
-			if ((kdc == NULL) || (kdc[0].id == 0)) {
+			irpc_handle = irpc_binding_handle_by_name(mem_ctx,
+								  dce_call->msg_ctx,
+								  "kdc_server",
+								  &ndr_table_irpc);
+			if (irpc_handle == NULL) {
 				return NT_STATUS_NO_LOGON_SERVERS;
 			}
 
@@ -596,9 +716,9 @@ static NTSTATUS dcesrv_netr_LogonSamLogon_base(struct dcesrv_call_state *dce_cal
 				data_blob_const(r->in.logon->generic->data,
 						r->in.logon->generic->length);
 
-			status = irpc_call(dce_call->msg_ctx, kdc[0],
-					   &ndr_table_irpc, NDR_KDC_CHECK_GENERIC_KERBEROS,
-					   &check, mem_ctx);
+			status = dcerpc_kdc_check_generic_kerberos_r(irpc_handle,
+								     mem_ctx,
+								     &check);
 			if (!NT_STATUS_IS_OK(status)) {
 				return status;
 			}
@@ -614,12 +734,13 @@ static NTSTATUS dcesrv_netr_LogonSamLogon_base(struct dcesrv_call_state *dce_cal
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	nt_status = auth_check_password(auth_context, mem_ctx, user_info, &server_info);
+	nt_status = auth_check_password(auth_context, mem_ctx, user_info, &user_info_dc);
+	/* TODO: set *r->out.authoritative = 0 on specific errors */
 	NT_STATUS_NOT_OK_RETURN(nt_status);
 
 	switch (r->in.validation_level) {
 	case 2:
-		nt_status = auth_convert_server_info_sambaseinfo(mem_ctx, server_info, &sam);
+		nt_status = auth_convert_user_info_dc_sambaseinfo(mem_ctx, user_info_dc, &sam);
 		NT_STATUS_NOT_OK_RETURN(nt_status);
 
 		sam2 = talloc_zero(mem_ctx, struct netr_SamInfo2);
@@ -634,8 +755,8 @@ static NTSTATUS dcesrv_netr_LogonSamLogon_base(struct dcesrv_call_state *dce_cal
 		break;
 
 	case 3:
-		nt_status = auth_convert_server_info_saminfo3(mem_ctx,
-							      server_info,
+		nt_status = auth_convert_user_info_dc_saminfo3(mem_ctx,
+							      user_info_dc,
 							      &sam3);
 		NT_STATUS_NOT_OK_RETURN(nt_status);
 
@@ -645,8 +766,8 @@ static NTSTATUS dcesrv_netr_LogonSamLogon_base(struct dcesrv_call_state *dce_cal
 		break;
 
 	case 6:
-		nt_status = auth_convert_server_info_saminfo3(mem_ctx,
-							   server_info,
+		nt_status = auth_convert_user_info_dc_saminfo3(mem_ctx,
+							   user_info_dc,
 							   &sam3);
 		NT_STATUS_NOT_OK_RETURN(nt_status);
 
@@ -668,7 +789,7 @@ static NTSTATUS dcesrv_netr_LogonSamLogon_base(struct dcesrv_call_state *dce_cal
 		break;
 
 	default:
-		break;
+		return NT_STATUS_INVALID_INFO_CLASS;
 	}
 
 	/* Don't crypt an all-zero key, it would give away the NETLOGON pipe session key */
@@ -697,8 +818,6 @@ static NTSTATUS dcesrv_netr_LogonSamLogon_base(struct dcesrv_call_state *dce_cal
 		}
 	}
 
-	*r->out.authoritative = 1;
-
 	/* TODO: Describe and deal with these flags */
 	*r->out.flags = 0;
 
@@ -710,6 +829,13 @@ static NTSTATUS dcesrv_netr_LogonSamLogonEx(struct dcesrv_call_state *dce_call, 
 {
 	NTSTATUS nt_status;
 	struct netlogon_creds_CredentialState *creds;
+
+	*r->out.authoritative = 1;
+
+	nt_status = dcesrv_netr_LogonSamLogon_check(r);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		return nt_status;
+	}
 
 	nt_status = schannel_get_creds_state(mem_ctx,
 					     lpcfg_private_dir(dce_call->conn->dce_ctx->lp_ctx),
@@ -738,16 +864,6 @@ static NTSTATUS dcesrv_netr_LogonSamLogonWithFlags(struct dcesrv_call_state *dce
 
 	struct netr_Authenticator *return_authenticator;
 
-	return_authenticator = talloc(mem_ctx, struct netr_Authenticator);
-	NT_STATUS_HAVE_NO_MEMORY(return_authenticator);
-
-	nt_status = dcesrv_netr_creds_server_step_check(dce_call,
-							mem_ctx,
-							r->in.computer_name,
-							r->in.credential, return_authenticator,
-							&creds);
-	NT_STATUS_NOT_OK_RETURN(nt_status);
-
 	ZERO_STRUCT(r2);
 
 	r2.in.server_name	= r->in.server_name;
@@ -759,6 +875,23 @@ static NTSTATUS dcesrv_netr_LogonSamLogonWithFlags(struct dcesrv_call_state *dce
 	r2.out.validation	= r->out.validation;
 	r2.out.authoritative	= r->out.authoritative;
 	r2.out.flags		= r->out.flags;
+
+	*r->out.authoritative = 1;
+
+	nt_status = dcesrv_netr_LogonSamLogon_check(&r2);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		return nt_status;
+	}
+
+	return_authenticator = talloc(mem_ctx, struct netr_Authenticator);
+	NT_STATUS_HAVE_NO_MEMORY(return_authenticator);
+
+	nt_status = dcesrv_netr_creds_server_step_check(dce_call,
+							mem_ctx,
+							r->in.computer_name,
+							r->in.credential, return_authenticator,
+							&creds);
+	NT_STATUS_NOT_OK_RETURN(nt_status);
 
 	nt_status = dcesrv_netr_LogonSamLogon_base(dce_call, mem_ctx, &r2, creds);
 
@@ -893,9 +1026,28 @@ static WERROR dcesrv_netr_GetDcName(struct dcesrv_call_state *dce_call, TALLOC_C
 	int ret;
 	const char *dcname;
 
+	/*
+	 * [MS-NRPC] 3.5.5.3.4 NetrGetDCName says
+	 * that the domainname needs to be a valid netbios domain
+	 * name, if it is not NULL.
+	 */
+	if (r->in.domainname) {
+		const char *dot = strchr(r->in.domainname, '.');
+		size_t len = strlen(r->in.domainname);
+
+		if (dot || len > 15) {
+			return WERR_DCNOTFOUND;
+		}
+
+		/*
+		 * TODO: Should we also varify that only valid
+		 *       netbios name characters are used?
+		 */
+	}
+
 	sam_ctx = samdb_connect(mem_ctx, dce_call->event_ctx,
 				dce_call->conn->dce_ctx->lp_ctx,
-				dce_call->conn->auth_state.session_info);
+				dce_call->conn->auth_state.session_info, 0);
 	if (sam_ctx == NULL) {
 		return WERR_DS_UNAVAILABLE;
 	}
@@ -1010,7 +1162,7 @@ static WERROR dcesrv_netr_GetAnyDCName(struct dcesrv_call_state *dce_call, TALLO
 	}
 
 	sam_ctx = samdb_connect(mem_ctx, dce_call->event_ctx, lp_ctx,
-				dce_call->conn->auth_state.session_info);
+				dce_call->conn->auth_state.session_info, 0);
 	if (sam_ctx == NULL) {
 		return WERR_DS_UNAVAILABLE;
 	}
@@ -1137,7 +1289,7 @@ static WERROR dcesrv_netr_DsRGetSiteName(struct dcesrv_call_state *dce_call, TAL
 	struct loadparm_context *lp_ctx = dce_call->conn->dce_ctx->lp_ctx;
 
 	sam_ctx = samdb_connect(mem_ctx, dce_call->event_ctx, lp_ctx,
-				dce_call->conn->auth_state.session_info);
+				dce_call->conn->auth_state.session_info, 0);
 	if (sam_ctx == NULL) {
 		return WERR_DS_UNAVAILABLE;
 	}
@@ -1193,8 +1345,8 @@ static NTSTATUS fill_one_domain_info(TALLOC_CTX *mem_ctx,
 		info->domain_guid = samdb_result_guid(res, "objectGUID");
 		info->domain_sid = samdb_result_dom_sid(mem_ctx, res, "objectSid");
 	} else {
-		info->domainname.string = samdb_result_string(res, "flatName", NULL);
-		info->dns_domainname.string = samdb_result_string(res, "trustPartner", NULL);
+		info->domainname.string = ldb_msg_find_attr_as_string(res, "flatName", NULL);
+		info->dns_domainname.string = ldb_msg_find_attr_as_string(res, "trustPartner", NULL);
 		info->domain_guid = samdb_result_guid(res, "objectGUID");
 		info->domain_sid = samdb_result_dom_sid(mem_ctx, res, "securityIdentifier");
 	}
@@ -1218,16 +1370,14 @@ static NTSTATUS dcesrv_netr_LogonGetDomainInfo(struct dcesrv_call_state *dce_cal
 	struct netlogon_creds_CredentialState *creds;
 	const char * const attrs[] = { "objectSid", "objectGUID", "flatName",
 		"securityIdentifier", "trustPartner", NULL };
-	const char * const attrs2[] = { "dNSHostName",
+	const char * const attrs2[] = { "sAMAccountName", "dNSHostName",
 		"msDS-SupportedEncryptionTypes", NULL };
-	const char *temp_str, *temp_str2;
-	const char *old_dns_hostname;
+	const char *sam_account_name, *old_dns_hostname, *prefix1, *prefix2;
 	struct ldb_context *sam_ctx;
 	struct ldb_message **res1, **res2, **res3, *new_msg;
 	struct ldb_dn *workstation_dn;
 	struct netr_DomainInformation *domain_info;
 	struct netr_LsaPolicyInformation *lsa_policy_info;
-	struct netr_OsVersionInfoEx *os_version;
 	uint32_t default_supported_enc_types = 0xFFFFFFFF;
 	bool update_dns_hostname = true;
 	int ret, ret3, i;
@@ -1246,7 +1396,7 @@ static NTSTATUS dcesrv_netr_LogonGetDomainInfo(struct dcesrv_call_state *dce_cal
 
 	sam_ctx = samdb_connect(mem_ctx, dce_call->event_ctx,
 				dce_call->conn->dce_ctx->lp_ctx,
-				system_session(dce_call->conn->dce_ctx->lp_ctx));
+				system_session(dce_call->conn->dce_ctx->lp_ctx), 0);
 	if (sam_ctx == NULL) {
 		return NT_STATUS_INVALID_SYSTEM_SERVICE;
 	}
@@ -1258,38 +1408,52 @@ static NTSTATUS dcesrv_netr_LogonGetDomainInfo(struct dcesrv_call_state *dce_cal
 			return NT_STATUS_INVALID_PARAMETER;
 		}
 
-		/*
-		 * Checks that the computer name parameter without possible "$"
-		 * matches as prefix with the DNS hostname in the workstation
-		 * info structure.
-		 */
-		temp_str = talloc_strndup(mem_ctx,
-					  r->in.computer_name,
-					  strcspn(r->in.computer_name, "$"));
-		NT_STATUS_HAVE_NO_MEMORY(temp_str);
-		temp_str2 = talloc_strndup(mem_ctx,
-					   r->in.query->workstation_info->dns_hostname,
-					   strcspn(r->in.query->workstation_info->dns_hostname, "."));
-		NT_STATUS_HAVE_NO_MEMORY(temp_str2);
-		if (strcasecmp(temp_str, temp_str2) != 0) {
-			update_dns_hostname = false;
-		}
-
-		/* Prepare the workstation DN */
+		/* Prepares the workstation DN */
 		workstation_dn = ldb_dn_new_fmt(mem_ctx, sam_ctx, "<SID=%s>",
-			dom_sid_string(mem_ctx, creds->sid));
+						dom_sid_string(mem_ctx, creds->sid));
 		NT_STATUS_HAVE_NO_MEMORY(workstation_dn);
 
 		/* Lookup for attributes in workstation object */
-		ret = gendb_search_dn(sam_ctx, mem_ctx, workstation_dn,
-			&res1, attrs2);
+		ret = gendb_search_dn(sam_ctx, mem_ctx, workstation_dn, &res1,
+				      attrs2);
 		if (ret != 1) {
 			return NT_STATUS_INTERNAL_DB_CORRUPTION;
 		}
 
+		/* Gets the sam account name which is checked against the DNS
+		 * hostname parameter. */
+		sam_account_name = ldb_msg_find_attr_as_string(res1[0],
+							       "sAMAccountName",
+							       NULL);
+		if (sam_account_name == NULL) {
+			return NT_STATUS_INTERNAL_DB_CORRUPTION;
+		}
+
+		/*
+		 * Checks that the sam account name without a possible "$"
+		 * matches as prefix with the DNS hostname in the workstation
+		 * info structure.
+		 */
+		prefix1 = talloc_strndup(mem_ctx, sam_account_name,
+					 strcspn(sam_account_name, "$"));
+		NT_STATUS_HAVE_NO_MEMORY(prefix1);
+		if (r->in.query->workstation_info->dns_hostname != NULL) {
+			prefix2 = talloc_strndup(mem_ctx,
+						 r->in.query->workstation_info->dns_hostname,
+						 strcspn(r->in.query->workstation_info->dns_hostname, "."));
+			NT_STATUS_HAVE_NO_MEMORY(prefix2);
+
+			if (strcasecmp(prefix1, prefix2) != 0) {
+				update_dns_hostname = false;
+			}
+		} else {
+			update_dns_hostname = false;
+		}
+
 		/* Gets the old DNS hostname */
-		old_dns_hostname = samdb_result_string(res1[0], "dNSHostName",
-			NULL);
+		old_dns_hostname = ldb_msg_find_attr_as_string(res1[0],
+							       "dNSHostName",
+							       NULL);
 
 		/*
 		 * Updates the DNS hostname when the client wishes that the
@@ -1305,24 +1469,7 @@ static NTSTATUS dcesrv_netr_LogonGetDomainInfo(struct dcesrv_call_state *dce_cal
 			update_dns_hostname = false;
 		}
 
-		/* Gets host informations and put them in our directory */
-		new_msg = ldb_msg_new(mem_ctx);
-		NT_STATUS_HAVE_NO_MEMORY(new_msg);
-
-		new_msg->dn = workstation_dn;
-
-		/* Deletes old OS version values */
-		samdb_msg_add_delete(sam_ctx, mem_ctx, new_msg,
-			"operatingSystemServicePack");
-		samdb_msg_add_delete(sam_ctx, mem_ctx, new_msg,
-			"operatingSystemVersion");
-
-		if (dsdb_replace(sam_ctx, new_msg, 0) != LDB_SUCCESS) {
-			DEBUG(3,("Impossible to update samdb: %s\n",
-				ldb_errstring(sam_ctx)));
-		}
-
-		talloc_free(new_msg);
+		/* Gets host information and put them into our directory */
 
 		new_msg = ldb_msg_new(mem_ctx);
 		NT_STATUS_HAVE_NO_MEMORY(new_msg);
@@ -1330,29 +1477,62 @@ static NTSTATUS dcesrv_netr_LogonGetDomainInfo(struct dcesrv_call_state *dce_cal
 		new_msg->dn = workstation_dn;
 
 		/* Sets the OS name */
-		samdb_msg_set_string(sam_ctx, mem_ctx, new_msg,
-			"operatingSystem",
-			r->in.query->workstation_info->os_name.string);
+
+		if (r->in.query->workstation_info->os_name.string == NULL) {
+			return NT_STATUS_INVALID_PARAMETER;
+		}
+
+		ret = ldb_msg_add_string(new_msg, "operatingSystem",
+					 r->in.query->workstation_info->os_name.string);
+		if (ret != LDB_SUCCESS) {
+			return NT_STATUS_NO_MEMORY;
+		}
 
 		/*
-		 * Sets informations from "os_version". On a empty structure
+		 * Sets information from "os_version". On an empty structure
 		 * the values are cleared.
 		 */
 		if (r->in.query->workstation_info->os_version.os != NULL) {
+			struct netr_OsVersionInfoEx *os_version;
+			const char *os_version_str;
+
 			os_version = &r->in.query->workstation_info->os_version.os->os;
 
-			samdb_msg_set_string(sam_ctx, mem_ctx, new_msg,
-					     "operatingSystemServicePack",
-					     os_version->CSDVersion);
+			if (os_version->CSDVersion == NULL) {
+				return NT_STATUS_INVALID_PARAMETER;
+			}
 
-			samdb_msg_set_string(sam_ctx, mem_ctx, new_msg,
-				"operatingSystemVersion",
-				talloc_asprintf(mem_ctx, "%d.%d (%d)",
-					os_version->MajorVersion,
-					os_version->MinorVersion,
-					os_version->BuildNumber
-				)
-			);
+			os_version_str = talloc_asprintf(new_msg, "%u.%u (%u)",
+							 os_version->MajorVersion,
+							 os_version->MinorVersion,
+							 os_version->BuildNumber);
+			NT_STATUS_HAVE_NO_MEMORY(os_version_str);
+
+			ret = ldb_msg_add_string(new_msg,
+						 "operatingSystemServicePack",
+						 os_version->CSDVersion);
+			if (ret != LDB_SUCCESS) {
+				return NT_STATUS_NO_MEMORY;
+			}
+
+			ret = ldb_msg_add_string(new_msg,
+						 "operatingSystemVersion",
+						 os_version_str);
+			if (ret != LDB_SUCCESS) {
+				return NT_STATUS_NO_MEMORY;
+			}
+		} else {
+			ret = samdb_msg_add_delete(sam_ctx, mem_ctx, new_msg,
+						   "operatingSystemServicePack");
+			if (ret != LDB_SUCCESS) {
+				return NT_STATUS_NO_MEMORY;
+			}
+
+			ret = samdb_msg_add_delete(sam_ctx, mem_ctx, new_msg,
+						   "operatingSystemVersion");
+			if (ret != LDB_SUCCESS) {
+				return NT_STATUS_NO_MEMORY;
+			}
 		}
 
 		/*
@@ -1360,20 +1540,32 @@ static NTSTATUS dcesrv_netr_LogonGetDomainInfo(struct dcesrv_call_state *dce_cal
 		 * are fine to start the update.
 		 */
 		if (update_dns_hostname) {
-			samdb_msg_set_string(sam_ctx, mem_ctx, new_msg,
-				"dNSHostname",
-			r->in.query->workstation_info->dns_hostname);
+			ret = ldb_msg_add_string(new_msg,
+						 "dNSHostname",
+						 r->in.query->workstation_info->dns_hostname);
+			if (ret != LDB_SUCCESS) {
+				return NT_STATUS_NO_MEMORY;
+			}
 
-			samdb_msg_add_string(sam_ctx, mem_ctx, new_msg,
-				"servicePrincipalName",
-				talloc_asprintf(mem_ctx, "HOST/%s",
-				r->in.computer_name)
-			);
-			samdb_msg_add_string(sam_ctx, mem_ctx, new_msg,
-				"servicePrincipalName",
-				talloc_asprintf(mem_ctx, "HOST/%s",
-				r->in.query->workstation_info->dns_hostname)
-			);
+			/* This manual "servicePrincipalName" generation is
+			 * still needed! Since the update in the samldb LDB
+			 * module does only work if the entries already exist
+			 * which isn't always the case. */
+			ret = ldb_msg_add_string(new_msg,
+						 "servicePrincipalName",
+						 talloc_asprintf(new_msg, "HOST/%s",
+						 r->in.computer_name));
+			if (ret != LDB_SUCCESS) {
+				return NT_STATUS_NO_MEMORY;
+			}
+
+			ret = ldb_msg_add_string(new_msg,
+						 "servicePrincipalName",
+						 talloc_asprintf(new_msg, "HOST/%s",
+						 r->in.query->workstation_info->dns_hostname));
+			if (ret != LDB_SUCCESS) {
+				return NT_STATUS_NO_MEMORY;
+			}
 		}
 
 		if (dsdb_replace(sam_ctx, new_msg, 0) != LDB_SUCCESS) {
@@ -1436,11 +1628,11 @@ static NTSTATUS dcesrv_netr_LogonGetDomainInfo(struct dcesrv_call_state *dce_cal
 		NT_STATUS_NOT_OK_RETURN(status);
 
 		/* Sets the supported encryption types */
-		domain_info->supported_enc_types = samdb_result_uint(res1[0],
+		domain_info->supported_enc_types = ldb_msg_find_attr_as_uint(res1[0],
 			"msDS-SupportedEncryptionTypes",
 			default_supported_enc_types);
 
-		/* Other host domain informations */
+		/* Other host domain information */
 
 		lsa_policy_info = talloc(mem_ctx,
 			struct netr_LsaPolicyInformation);
@@ -1480,7 +1672,6 @@ static NTSTATUS dcesrv_netr_LogonGetDomainInfo(struct dcesrv_call_state *dce_cal
 }
 
 
-
 /*
   netr_ServerPasswordGet
 */
@@ -1517,11 +1708,13 @@ static WERROR dcesrv_netr_DsRGetDCNameEx2(struct dcesrv_call_state *dce_call,
 	char *guid_str;
 	struct netlogon_samlogon_response response;
 	NTSTATUS status;
+	const char *dc_name = NULL;
+	const char *domain_name = NULL;
 
 	ZERO_STRUCTP(r->out.info);
 
 	sam_ctx = samdb_connect(mem_ctx, dce_call->event_ctx, lp_ctx,
-				dce_call->conn->auth_state.session_info);
+				dce_call->conn->auth_state.session_info, 0);
 	if (sam_ctx == NULL) {
 		return WERR_DS_UNAVAILABLE;
 	}
@@ -1534,6 +1727,43 @@ static WERROR dcesrv_netr_DsRGetDCNameEx2(struct dcesrv_call_state *dce_call,
 
 	/* "server_unc" is ignored by w2k3 */
 
+	if (r->in.flags & ~(DSGETDC_VALID_FLAGS)) {
+		return WERR_INVALID_FLAGS;
+	}
+
+	if (r->in.flags & DS_GC_SERVER_REQUIRED &&
+	    r->in.flags & DS_PDC_REQUIRED &&
+	    r->in.flags & DS_KDC_REQUIRED) {
+		return WERR_INVALID_FLAGS;
+	}
+	if (r->in.flags & DS_IS_FLAT_NAME &&
+	    r->in.flags & DS_IS_DNS_NAME) {
+		return WERR_INVALID_FLAGS;
+	}
+	if (r->in.flags & DS_RETURN_DNS_NAME &&
+	    r->in.flags & DS_RETURN_FLAT_NAME) {
+		return WERR_INVALID_FLAGS;
+	}
+	if (r->in.flags & DS_DIRECTORY_SERVICE_REQUIRED &&
+	    r->in.flags & DS_DIRECTORY_SERVICE_6_REQUIRED) {
+		return WERR_INVALID_FLAGS;
+	}
+
+	if (r->in.flags & DS_GOOD_TIMESERV_PREFERRED &&
+	    r->in.flags &
+	    (DS_DIRECTORY_SERVICE_REQUIRED |
+	     DS_DIRECTORY_SERVICE_PREFERRED |
+	     DS_GC_SERVER_REQUIRED |
+	     DS_PDC_REQUIRED |
+	     DS_KDC_REQUIRED)) {
+		return WERR_INVALID_FLAGS;
+	}
+
+	if (r->in.flags & DS_TRY_NEXTCLOSEST_SITE &&
+	    r->in.site_name) {
+		return WERR_INVALID_FLAGS;
+	}
+
 	/* Proof server site parameter "site_name" if it was specified */
 	server_site_name = samdb_server_site_name(sam_ctx, mem_ctx);
 	W_ERROR_HAVE_NO_MEMORY(server_site_name);
@@ -1541,8 +1771,6 @@ static WERROR dcesrv_netr_DsRGetDCNameEx2(struct dcesrv_call_state *dce_call,
 						     server_site_name) != 0)) {
 		return WERR_NO_SUCH_DOMAIN;
 	}
-
-	/* TODO: the flags are ignored for now */
 
 	guid_str = r->in.domain_guid != NULL ?
 		 GUID_string(mem_ctx, r->in.domain_guid) : NULL;
@@ -1559,17 +1787,40 @@ static WERROR dcesrv_netr_DsRGetDCNameEx2(struct dcesrv_call_state *dce_call,
 		return ntstatus_to_werror(status);
 	}
 
+	if (r->in.flags & DS_RETURN_DNS_NAME) {
+		dc_name = response.data.nt5_ex.pdc_dns_name;
+		domain_name = response.data.nt5_ex.dns_domain;
+	} else if (r->in.flags & DS_RETURN_FLAT_NAME) {
+		dc_name = response.data.nt5_ex.pdc_name;
+		domain_name = response.data.nt5_ex.domain_name;
+	} else {
+
+		/*
+		 * TODO: autodetect what we need to return
+		 * based on the given arguments
+		 */
+		dc_name = response.data.nt5_ex.pdc_name;
+		domain_name = response.data.nt5_ex.domain_name;
+	}
+
+	if (!dc_name || !dc_name[0]) {
+		return WERR_NO_SUCH_DOMAIN;
+	}
+
+	if (!domain_name || !domain_name[0]) {
+		return WERR_NO_SUCH_DOMAIN;
+	}
+
 	info = talloc(mem_ctx, struct netr_DsRGetDCNameInfo);
 	W_ERROR_HAVE_NO_MEMORY(info);
-	info->dc_unc           = talloc_asprintf(mem_ctx, "\\\\%s",
-						 response.data.nt5_ex.pdc_dns_name);
+	info->dc_unc           = talloc_asprintf(mem_ctx, "\\\\%s", dc_name);
 	W_ERROR_HAVE_NO_MEMORY(info->dc_unc);
 	info->dc_address = talloc_asprintf(mem_ctx, "\\\\%s",
 					   response.data.nt5_ex.sockaddr.pdc_ip);
 	W_ERROR_HAVE_NO_MEMORY(info->dc_address);
 	info->dc_address_type  = DS_ADDRESS_TYPE_INET; /* TODO: make this dynamic? for ipv6 */
 	info->domain_guid      = response.data.nt5_ex.domain_uuid;
-	info->domain_name      = response.data.nt5_ex.dns_domain;
+	info->domain_name      = domain_name;
 	info->forest_name      = response.data.nt5_ex.forest;
 	info->dc_flags         = response.data.nt5_ex.server_type;
 	info->dc_site_name     = response.data.nt5_ex.server_site;
@@ -1622,7 +1873,7 @@ static WERROR dcesrv_netr_DsRGetDCName(struct dcesrv_call_state *dce_call, TALLO
 	r2.in.domain_name = r->in.domain_name;
 	r2.in.domain_guid = r->in.domain_guid;
 
-	r2.in.site_name = NULL; /* should fill in from site GUID */
+	r2.in.site_name = NULL; /* this is correct, we should ignore site GUID */
 	r2.in.flags = r->in.flags;
 	r2.out.info = r->out.info;
 
@@ -1672,7 +1923,7 @@ static WERROR dcesrv_netr_DsRAddressToSitenamesExW(struct dcesrv_call_state *dce
 	uint32_t i;
 
 	sam_ctx = samdb_connect(mem_ctx, dce_call->event_ctx, lp_ctx,
-				dce_call->conn->auth_state.session_info);
+				dce_call->conn->auth_state.session_info, 0);
 	if (sam_ctx == NULL) {
 		return WERR_DS_UNAVAILABLE;
 	}
@@ -1788,7 +2039,7 @@ static WERROR dcesrv_netr_DsrGetDcSiteCoverageW(struct dcesrv_call_state *dce_ca
 	struct loadparm_context *lp_ctx = dce_call->conn->dce_ctx->lp_ctx;
 
 	sam_ctx = samdb_connect(mem_ctx, dce_call->event_ctx, lp_ctx,
-				dce_call->conn->auth_state.session_info);
+				dce_call->conn->auth_state.session_info, 0);
 	if (sam_ctx == NULL) {
 		return WERR_DS_UNAVAILABLE;
 	}
@@ -1812,7 +2063,7 @@ static WERROR dcesrv_netr_DsrGetDcSiteCoverageW(struct dcesrv_call_state *dce_ca
 #define GET_CHECK_STR(dest, mem, msg, attr) \
 do {\
 	const char *s; \
-	s = samdb_result_string(msg, attr, NULL); \
+	s = ldb_msg_find_attr_as_string(msg, attr, NULL); \
 	if (!s) { \
 		DEBUG(0, ("DB Error, TustedDomain entry (%s) " \
 			  "without flatname\n", \
@@ -1858,8 +2109,8 @@ static WERROR fill_trusted_domains_array(TALLOC_CTX *mem_ctx,
 		unsigned int trust_dir;
 		uint32_t flags = 0;
 
-		trust_dir = samdb_result_uint(dom_res[i],
-					      "trustDirection", 0);
+		trust_dir = ldb_msg_find_attr_as_uint(dom_res[i],
+						      "trustDirection", 0);
 
 		if (trust_dir & LSA_TRUST_DIRECTION_INBOUND) {
 			flags |= NETR_TRUST_FLAG_INBOUND;
@@ -1892,10 +2143,10 @@ static WERROR fill_trusted_domains_array(TALLOC_CTX *mem_ctx,
 		}
 
 		trusts->array[n].trust_type =
-				samdb_result_uint(dom_res[i],
+				ldb_msg_find_attr_as_uint(dom_res[i],
 						  "trustType", 0);
 		trusts->array[n].trust_attributes =
-				samdb_result_uint(dom_res[i],
+				ldb_msg_find_attr_as_uint(dom_res[i],
 						  "trustAttributes", 0);
 
 		if ((trusts->array[n].trust_type == NETR_TRUST_TYPE_MIT) ||
@@ -1967,7 +2218,7 @@ static WERROR dcesrv_netr_DsrEnumerateDomainTrusts(struct dcesrv_call_state *dce
 	r->out.trusts = trusts;
 
 	sam_ctx = samdb_connect(mem_ctx, dce_call->event_ctx, lp_ctx,
-				dce_call->conn->auth_state.session_info);
+				dce_call->conn->auth_state.session_info, 0);
 	if (sam_ctx == NULL) {
 		return WERR_GENERAL_FAILURE;
 	}
@@ -2117,7 +2368,7 @@ static WERROR dcesrv_netr_DsRGetForestTrustInformation(struct dcesrv_call_state 
 	}
 
 	sam_ctx = samdb_connect(mem_ctx, dce_call->event_ctx, lp_ctx,
-				dce_call->conn->auth_state.session_info);
+				dce_call->conn->auth_state.session_info, 0);
 	if (sam_ctx == NULL) {
 		return WERR_GENERAL_FAILURE;
 	}
@@ -2187,7 +2438,7 @@ static NTSTATUS dcesrv_netr_GetForestTrustInformation(struct dcesrv_call_state *
 	}
 
 	sam_ctx = samdb_connect(mem_ctx, dce_call->event_ctx, lp_ctx,
-				dce_call->conn->auth_state.session_info);
+				dce_call->conn->auth_state.session_info, 0);
 	if (sam_ctx == NULL) {
 		return NT_STATUS_UNSUCCESSFUL;
 	}
@@ -2222,6 +2473,107 @@ static NTSTATUS dcesrv_netr_ServerGetTrustInfo(struct dcesrv_call_state *dce_cal
 		       struct netr_ServerGetTrustInfo *r)
 {
 	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
+}
+
+/*
+  netr_Unused47
+*/
+static NTSTATUS dcesrv_netr_Unused47(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+				     struct netr_Unused47 *r)
+{
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
+}
+
+
+struct netr_dnsupdate_RODC_state {
+	struct dcesrv_call_state *dce_call;
+	struct netr_DsrUpdateReadOnlyServerDnsRecords *r;
+	struct dnsupdate_RODC *r2;
+};
+
+/*
+  called when the forwarded RODC dns update request is finished
+ */
+static void netr_dnsupdate_RODC_callback(struct tevent_req *subreq)
+{
+	struct netr_dnsupdate_RODC_state *st =
+		tevent_req_callback_data(subreq,
+					 struct netr_dnsupdate_RODC_state);
+	NTSTATUS status;
+
+	status = dcerpc_dnsupdate_RODC_r_recv(subreq, st->dce_call);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0,(__location__ ": IRPC callback failed %s\n", nt_errstr(status)));
+		st->dce_call->fault_code = DCERPC_FAULT_CANT_PERFORM;
+	}
+
+	st->r->out.dns_names = talloc_steal(st->dce_call, st->r2->out.dns_names);
+
+	status = dcesrv_reply(st->dce_call);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0,(__location__ ": dcesrv_reply() failed - %s\n", nt_errstr(status)));
+	}
+}
+
+/*
+  netr_DsrUpdateReadOnlyServerDnsRecords
+*/
+static NTSTATUS dcesrv_netr_DsrUpdateReadOnlyServerDnsRecords(struct dcesrv_call_state *dce_call,
+							      TALLOC_CTX *mem_ctx,
+							      struct netr_DsrUpdateReadOnlyServerDnsRecords *r)
+{
+	struct netlogon_creds_CredentialState *creds;
+	NTSTATUS nt_status;
+	struct dcerpc_binding_handle *binding_handle;
+	struct netr_dnsupdate_RODC_state *st;
+	struct tevent_req *subreq;
+
+	nt_status = dcesrv_netr_creds_server_step_check(dce_call,
+							mem_ctx,
+							r->in.computer_name,
+							r->in.credential,
+							r->out.return_authenticator,
+							&creds);
+	NT_STATUS_NOT_OK_RETURN(nt_status);
+
+	if (creds->secure_channel_type != SEC_CHAN_RODC) {
+		return NT_STATUS_ACCESS_DENIED;
+	}
+
+	st = talloc_zero(mem_ctx, struct netr_dnsupdate_RODC_state);
+	NT_STATUS_HAVE_NO_MEMORY(st);
+
+	st->dce_call = dce_call;
+	st->r = r;
+	st->r2 = talloc_zero(st, struct dnsupdate_RODC);
+	NT_STATUS_HAVE_NO_MEMORY(st->r2);
+
+	st->r2->in.dom_sid = creds->sid;
+	st->r2->in.site_name = r->in.site_name;
+	st->r2->in.dns_ttl = r->in.dns_ttl;
+	st->r2->in.dns_names = r->in.dns_names;
+	st->r2->out.dns_names = r->out.dns_names;
+
+	binding_handle = irpc_binding_handle_by_name(st, dce_call->msg_ctx,
+						     "dnsupdate", &ndr_table_irpc);
+	if (binding_handle == NULL) {
+		DEBUG(0,("Failed to get binding_handle for dnsupdate task\n"));
+		dce_call->fault_code = DCERPC_FAULT_CANT_PERFORM;
+		return NT_STATUS_INTERNAL_DB_CORRUPTION;
+	}
+
+	/* forward the call */
+	subreq = dcerpc_dnsupdate_RODC_r_send(st, dce_call->event_ctx,
+					      binding_handle, st->r2);
+	NT_STATUS_HAVE_NO_MEMORY(subreq);
+
+	dce_call->state_flags |= DCESRV_CALL_STATE_FLAG_ASYNC;
+
+	/* setup the callback */
+	tevent_req_set_callback(subreq, netr_dnsupdate_RODC_callback, st);
+
+	return NT_STATUS_OK;
 }
 
 

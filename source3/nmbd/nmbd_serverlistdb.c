@@ -21,6 +21,9 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "../librpc/gen_ndr/svcctl.h"
+#include "nmbd/nmbd.h"
 
 int updatecount = 0;
 

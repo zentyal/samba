@@ -6,6 +6,8 @@
   basically this is a wrapper around ldap
 */
 
+#include "smb_ldap.h"
+
 struct ads_struct;
 
 struct ads_saslwrap_ops {
@@ -65,7 +67,7 @@ typedef struct ads_struct {
 	struct {
 		LDAP *ld;
 		struct sockaddr_storage ss; /* the ip of the active connection, if any */
-		time_t last_attempt; /* last attempt to reconnect */
+		time_t last_attempt; /* last attempt to reconnect, monotonic clock */
 		int port;
 
 		enum ads_saslwrap_type wrap_type;
@@ -148,6 +150,12 @@ typedef struct {
 	int critical;
 } ads_control;
 
-#define ADS_IGNORE_PRINCIPAL "not_defined_in_RFC4178@please_ignore"
+#include "libads/ads_proto.h"
+
+#ifdef HAVE_LDAP
+#include "libads/ads_ldap_protos.h"
+#endif
+
+#include "libads/kerberos_proto.h"
 
 #endif	/* _INCLUDE_ADS_H_ */

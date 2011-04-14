@@ -27,7 +27,10 @@
 #include "librpc/gen_ndr/ndr_epmapper.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "librpc/rpc/dcerpc.h"
+#include "rpc_common.h"
+
 #undef strcasecmp
+#undef strncasecmp
 
 #define MAX_PROTSEQ		10
 
@@ -86,7 +89,8 @@ static const struct {
 	{"bigendian", DCERPC_PUSH_BIGENDIAN},
 	{"smb2", DCERPC_SMB2},
 	{"hdrsign", DCERPC_HEADER_SIGNING},
-	{"ndr64", DCERPC_NDR64}
+	{"ndr64", DCERPC_NDR64},
+	{"localaddress", DCERPC_LOCALADDRESS}
 };
 
 const char *epm_floor_string(TALLOC_CTX *mem_ctx, struct epm_floor *epm_floor)
@@ -220,7 +224,12 @@ _PUBLIC_ char *dcerpc_binding_string(TALLOC_CTX *mem_ctx, const struct dcerpc_bi
 
 	for (i=0;i<ARRAY_SIZE(ncacn_options);i++) {
 		if (b->flags & ncacn_options[i].flag) {
-			s = talloc_asprintf_append_buffer(s, ",%s", ncacn_options[i].name);
+			if (ncacn_options[i].flag == DCERPC_LOCALADDRESS && b->localaddress) {
+				s = talloc_asprintf_append_buffer(s, ",%s=%s", ncacn_options[i].name,
+								  b->localaddress);
+			} else {
+				s = talloc_asprintf_append_buffer(s, ",%s", ncacn_options[i].name);
+			}
 			if (!s) return NULL;
 		}
 	}
@@ -240,7 +249,7 @@ _PUBLIC_ NTSTATUS dcerpc_parse_binding(TALLOC_CTX *mem_ctx, const char *s, struc
 	char *p;
 	int i, j, comma_count;
 
-	b = talloc(mem_ctx, struct dcerpc_binding);
+	b = talloc_zero(mem_ctx, struct dcerpc_binding);
 	if (!b) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -313,6 +322,7 @@ _PUBLIC_ NTSTATUS dcerpc_parse_binding(TALLOC_CTX *mem_ctx, const char *s, struc
 	b->flags = 0;
 	b->assoc_group_id = 0;
 	b->endpoint = NULL;
+	b->localaddress = NULL;
 
 	if (!options) {
 		*b_out = b;
@@ -339,8 +349,17 @@ _PUBLIC_ NTSTATUS dcerpc_parse_binding(TALLOC_CTX *mem_ctx, const char *s, struc
 	/* some options are pre-parsed for convenience */
 	for (i=0;b->options[i];i++) {
 		for (j=0;j<ARRAY_SIZE(ncacn_options);j++) {
-			if (strcasecmp(ncacn_options[j].name, b->options[i]) == 0) {
+			size_t opt_len = strlen(ncacn_options[j].name);
+			if (strncasecmp(ncacn_options[j].name, b->options[i], opt_len) == 0) {
 				int k;
+				char c = b->options[i][opt_len];
+
+				if (ncacn_options[j].flag == DCERPC_LOCALADDRESS && c == '=') {
+					b->localaddress = talloc_strdup(b, &b->options[i][opt_len+1]);
+				} else if (c != 0) {
+					continue;
+				}
+
 				b->flags |= ncacn_options[j].flag;
 				for (k=i;b->options[k];k++) {
 					b->options[k] = b->options[k+1];
@@ -418,19 +437,30 @@ static DATA_BLOB dcerpc_floor_pack_lhs_data(TALLOC_CTX *mem_ctx, const struct nd
 	return blob;
 }
 
-static DATA_BLOB dcerpc_floor_pack_rhs_if_version_data(TALLOC_CTX *mem_ctx, const struct ndr_syntax_id *syntax)
+static bool dcerpc_floor_pack_rhs_if_version_data(
+	TALLOC_CTX *mem_ctx, const struct ndr_syntax_id *syntax,
+	DATA_BLOB *pblob)
 {
 	DATA_BLOB blob;
 	struct ndr_push *ndr = ndr_push_init_ctx(mem_ctx);
+	enum ndr_err_code ndr_err;
+
+	if (ndr == NULL) {
+		return false;
+	}
 
 	ndr->flags |= LIBNDR_FLAG_NOALIGN;
 
-	ndr_push_uint16(ndr, NDR_SCALARS, syntax->if_version >> 16);
+	ndr_err = ndr_push_uint16(ndr, NDR_SCALARS, syntax->if_version >> 16);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		return false;
+	}
 
 	blob = ndr_push_blob(ndr);
 	talloc_steal(mem_ctx, blob.data);
 	talloc_free(ndr);
-	return blob;
+	*pblob = blob;
+	return true;
 }
 
 const char *dcerpc_floor_get_rhs_data(TALLOC_CTX *mem_ctx, struct epm_floor *epm_floor)
@@ -627,14 +657,23 @@ _PUBLIC_ const char *derpc_transport_string_by_transport(enum dcerpc_transport_t
 	return NULL;
 }
 
-_PUBLIC_ NTSTATUS dcerpc_binding_from_tower(TALLOC_CTX *mem_ctx, 
-				   struct epm_tower *tower, 
-				   struct dcerpc_binding **b_out)
+_PUBLIC_ NTSTATUS dcerpc_binding_from_tower(TALLOC_CTX *mem_ctx,
+					    struct epm_tower *tower,
+					    struct dcerpc_binding **b_out)
 {
 	NTSTATUS status;
 	struct dcerpc_binding *binding;
 
-	binding = talloc(mem_ctx, struct dcerpc_binding);
+	/*
+	 * A tower needs to have at least 4 floors to carry useful
+	 * information. Floor 3 is the transport identifier which defines
+	 * how many floors are required at least.
+	 */
+	if (tower->num_floors < 4) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	binding = talloc_zero(mem_ctx, struct dcerpc_binding);
 	NT_STATUS_HAVE_NO_MEMORY(binding);
 
 	ZERO_STRUCT(binding->object);
@@ -650,15 +689,11 @@ _PUBLIC_ NTSTATUS dcerpc_binding_from_tower(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_NOT_SUPPORTED;
 	}
 
-	if (tower->num_floors < 1) {
-		return NT_STATUS_OK;
-	}
-
 	/* Set object uuid */
 	status = dcerpc_floor_get_lhs_data(&tower->floors[0], &binding->object);
 
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(1, ("Error pulling object uuid and version: %s", nt_errstr(status)));	
+		DEBUG(1, ("Error pulling object uuid and version: %s", nt_errstr(status)));
 		return status;
 	}
 
@@ -668,19 +703,99 @@ _PUBLIC_ NTSTATUS dcerpc_binding_from_tower(TALLOC_CTX *mem_ctx,
 
 	/* Set endpoint */
 	if (tower->num_floors >= 4) {
-		binding->endpoint = dcerpc_floor_get_rhs_data(mem_ctx, &tower->floors[3]);
+		binding->endpoint = dcerpc_floor_get_rhs_data(binding, &tower->floors[3]);
 	} else {
 		binding->endpoint = NULL;
 	}
 
 	/* Set network address */
 	if (tower->num_floors >= 5) {
-		binding->host = dcerpc_floor_get_rhs_data(mem_ctx, &tower->floors[4]);
+		binding->host = dcerpc_floor_get_rhs_data(binding, &tower->floors[4]);
 		NT_STATUS_HAVE_NO_MEMORY(binding->host);
 		binding->target_hostname = binding->host;
 	}
 	*b_out = binding;
 	return NT_STATUS_OK;
+}
+
+_PUBLIC_ struct dcerpc_binding *dcerpc_binding_dup(TALLOC_CTX *mem_ctx,
+						   const struct dcerpc_binding *b)
+{
+	struct dcerpc_binding *n;
+	uint32_t count;
+
+	n = talloc_zero(mem_ctx, struct dcerpc_binding);
+	if (n == NULL) {
+		return NULL;
+	}
+
+	n->transport = b->transport;
+	n->object = b->object;
+	n->flags = b->flags;
+	n->assoc_group_id = b->assoc_group_id;
+
+	if (b->host != NULL) {
+		n->host = talloc_strdup(n, b->host);
+		if (n->host == NULL) {
+			talloc_free(n);
+			return NULL;
+		}
+	}
+
+	if (b->target_hostname != NULL) {
+		n->target_hostname = talloc_strdup(n, b->target_hostname);
+		if (n->target_hostname == NULL) {
+			talloc_free(n);
+			return NULL;
+		}
+	}
+
+	if (b->target_principal != NULL) {
+		n->target_principal = talloc_strdup(n, b->target_principal);
+		if (n->target_principal == NULL) {
+			talloc_free(n);
+			return NULL;
+		}
+	}
+
+	if (b->localaddress != NULL) {
+		n->localaddress = talloc_strdup(n, b->localaddress);
+		if (n->localaddress == NULL) {
+			talloc_free(n);
+			return NULL;
+		}
+	}
+
+	if (b->endpoint != NULL) {
+		n->endpoint = talloc_strdup(n, b->endpoint);
+		if (n->endpoint == NULL) {
+			talloc_free(n);
+			return NULL;
+		}
+	}
+
+	for (count = 0; b->options && b->options[count]; count++);
+
+	if (count > 0) {
+		uint32_t i;
+
+		n->options = talloc_array(n, const char *, count + 1);
+		if (n->options == NULL) {
+			talloc_free(n);
+			return NULL;
+		}
+
+		for (i = 0; i < count; i++) {
+			n->options[i] = talloc_strdup(n->options, b->options[i]);
+			if (n->options[i] == NULL) {
+				talloc_free(n);
+				return NULL;
+			}
+		}
+		n->options[count] = NULL;
+	}
+
+	return n;
 }
 
 _PUBLIC_ NTSTATUS dcerpc_binding_build_tower(TALLOC_CTX *mem_ctx,
@@ -713,7 +828,11 @@ _PUBLIC_ NTSTATUS dcerpc_binding_build_tower(TALLOC_CTX *mem_ctx,
 
 	tower->floors[0].lhs.lhs_data = dcerpc_floor_pack_lhs_data(tower->floors, &binding->object);
 
-	tower->floors[0].rhs.uuid.unknown = dcerpc_floor_pack_rhs_if_version_data(tower->floors, &binding->object);
+	if (!dcerpc_floor_pack_rhs_if_version_data(
+		    tower->floors, &binding->object,
+		    &tower->floors[0].rhs.uuid.unknown)) {
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	/* Floor 1 */
 	tower->floors[1].lhs.protocol = EPM_PROTOCOL_UUID;
@@ -741,7 +860,8 @@ _PUBLIC_ NTSTATUS dcerpc_binding_build_tower(TALLOC_CTX *mem_ctx,
 
 	/* The 5th contains the network address */
 	if (num_protocols >= 3 && binding->host) {
-		if (is_ipaddress(binding->host)) {
+		if (is_ipaddress(binding->host) ||
+		    (binding->host[0] == '\\' && binding->host[1] == '\\')) {
 			status = dcerpc_floor_set_rhs_data(tower->floors, &tower->floors[4], 
 							   binding->host);
 		} else {

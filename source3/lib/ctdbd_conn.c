@@ -22,8 +22,9 @@
 
 #ifdef CLUSTER_SUPPORT
 
-#include "librpc/gen_ndr/messaging.h"
-#include "librpc/gen_ndr/ndr_messaging.h"
+#include "ctdbd_conn.h"
+#include "packet.h"
+#include "messages.h"
 
 /* paths to these include files come from --with-ctdb= in configure */
 #include "ctdb.h"
@@ -57,7 +58,7 @@ static void cluster_fatal(const char *why)
 	   a core file. We need to release this process id immediately
 	   so that someone else can take over without getting sharing
 	   violations */
-	_exit(0);
+	_exit(1);
 }
 
 /*
@@ -102,6 +103,59 @@ static NTSTATUS get_cluster_vnn(struct ctdbd_connection *conn, uint32 *vnn)
 	}
 	*vnn = (uint32_t)cstatus;
 	return status;
+}
+
+/*
+ * Are we active (i.e. not banned or stopped?)
+ */
+static bool ctdbd_working(struct ctdbd_connection *conn, uint32_t vnn)
+{
+	int32_t cstatus=-1;
+	NTSTATUS status;
+	TDB_DATA outdata;
+	struct ctdb_node_map *m;
+	uint32_t failure_flags;
+	bool ret = false;
+	int i;
+
+	status = ctdbd_control(conn, CTDB_CURRENT_NODE,
+			       CTDB_CONTROL_GET_NODEMAP, 0, 0,
+			       tdb_null, talloc_tos(), &outdata, &cstatus);
+	if (!NT_STATUS_IS_OK(status)) {
+		cluster_fatal("ctdbd_control failed\n");
+	}
+	if ((cstatus != 0) || (outdata.dptr == NULL)) {
+		DEBUG(2, ("Received invalid ctdb data\n"));
+		return false;
+	}
+
+	m = (struct ctdb_node_map *)outdata.dptr;
+
+	for (i=0; i<m->num; i++) {
+		if (vnn == m->nodes[i].pnn) {
+			break;
+		}
+	}
+
+	if (i == m->num) {
+		DEBUG(2, ("Did not find ourselves (node %d) in nodemap\n",
+			  (int)vnn));
+		goto fail;
+	}
+
+	failure_flags = NODE_FLAGS_BANNED | NODE_FLAGS_DISCONNECTED
+		| NODE_FLAGS_PERMANENTLY_DISABLED | NODE_FLAGS_STOPPED;
+
+	if ((m->nodes[i].flags & failure_flags) != 0) {
+		DEBUG(2, ("Node has status %x, not active\n",
+			  (int)m->nodes[i].flags));
+		goto fail;
+	}
+
+	ret = true;
+fail:
+	TALLOC_FREE(outdata.dptr);
+	return ret;
 }
 
 uint32 ctdbd_vnn(const struct ctdbd_connection *conn)
@@ -277,13 +331,12 @@ static struct messaging_rec *ctdb_pull_messaging_rec(TALLOC_CTX *mem_ctx,
 
 static NTSTATUS ctdb_packet_fd_read_sync(struct packet_context *ctx)
 {
-	struct timeval timeout;
-	struct timeval *ptimeout;
+	int timeout = lp_ctdb_timeout();
 
-	timeout = timeval_set(lp_ctdb_timeout(), 0);
-	ptimeout = (timeout.tv_sec != 0) ? &timeout : NULL;
-
-	return packet_fd_read_sync(ctx, ptimeout);
+	if (timeout == 0) {
+		timeout = -1;
+	}
+	return packet_fd_read_sync(ctx, timeout);
 }
 
 /*
@@ -379,7 +432,8 @@ static NTSTATUS ctdb_read_req(struct ctdbd_connection *conn, uint32 reqid,
 			goto next_pkt;
 		}
 
-		if (!(msg_state = TALLOC_P(talloc_autofree_context(), struct deferred_msg_state))) {
+		msg_state = TALLOC_P(NULL, struct deferred_msg_state);
+		if (msg_state == NULL) {
 			DEBUG(0, ("talloc failed\n"));
 			TALLOC_FREE(hdr);
 			goto next_pkt;
@@ -433,8 +487,8 @@ static NTSTATUS ctdb_read_req(struct ctdbd_connection *conn, uint32 reqid,
  * Get us a ctdbd connection
  */
 
-NTSTATUS ctdbd_init_connection(TALLOC_CTX *mem_ctx,
-			       struct ctdbd_connection **pconn)
+static NTSTATUS ctdbd_init_connection(TALLOC_CTX *mem_ctx,
+				      struct ctdbd_connection **pconn)
 {
 	struct ctdbd_connection *conn;
 	NTSTATUS status;
@@ -455,6 +509,12 @@ NTSTATUS ctdbd_init_connection(TALLOC_CTX *mem_ctx,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10, ("get_cluster_vnn failed: %s\n", nt_errstr(status)));
+		goto fail;
+	}
+
+	if (!ctdbd_working(conn, conn->our_vnn)) {
+		DEBUG(2, ("Node is not working, can not connect\n"));
+		status = NT_STATUS_INTERNAL_DB_ERROR;
 		goto fail;
 	}
 
@@ -761,6 +821,7 @@ static NTSTATUS ctdbd_control(struct ctdbd_connection *conn,
 	req.opcode           = opcode;
 	req.srvid            = srvid;
 	req.datalen          = data.dsize;
+	req.flags            = flags;
 
 	DEBUG(10, ("ctdbd_control: Sending ctdb packet\n"));
 	ctdb_packet_dump(&req.hdr);
@@ -784,6 +845,9 @@ static NTSTATUS ctdbd_control(struct ctdbd_connection *conn,
 
 	if (flags & CTDB_CTRL_FLAG_NOREPLY) {
 		TALLOC_FREE(new_conn);
+		if (cstatus) {
+			*cstatus = 0;
+		}
 		return NT_STATUS_OK;
 	}
 
@@ -884,7 +948,7 @@ NTSTATUS ctdbd_db_attach(struct ctdbd_connection *conn,
 			       persistent
 			       ? CTDB_CONTROL_DB_ATTACH_PERSISTENT
 			       : CTDB_CONTROL_DB_ATTACH,
-			       0, 0, data, NULL, &data, &cstatus);
+			       tdb_flags, 0, data, NULL, &data, &cstatus);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, (__location__ " ctdb_control for db_attach "
 			  "failed: %s\n", nt_errstr(status)));
@@ -1377,14 +1441,6 @@ NTSTATUS ctdb_unwatch(struct ctdbd_connection *conn)
 			  nt_errstr(status)));
 	}
 	return status;
-}
-
-#else
-
-NTSTATUS ctdbd_init_connection(TALLOC_CTX *mem_ctx,
-			       struct ctdbd_connection **pconn)
-{
-	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
 #endif

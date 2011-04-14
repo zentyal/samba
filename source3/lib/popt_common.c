@@ -21,6 +21,8 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "popt_common.h"
 
 /* Handle command line options:
  *		-d,--debuglevel 
@@ -33,7 +35,8 @@
  *		-i,--scope
  */
 
-extern bool AllowDebugChange;
+enum {OPT_OPTION=1};
+
 extern bool override_logfile;
 
 static void set_logfile(poptContext con, const char * arg)
@@ -95,10 +98,16 @@ static void popt_common_callback(poptContext con,
 	}
 
 	switch(opt->val) {
+	case OPT_OPTION:
+		if (!lp_set_option(arg)) {
+			fprintf(stderr, "Error setting option '%s'\n", arg);
+			exit(1);
+		}
+		break;
+
 	case 'd':
 		if (arg) {
-			debug_parse_levels(arg);
-			AllowDebugChange = False;
+			lp_set_cmdline("log level", arg);
 		}
 		break;
 
@@ -163,6 +172,7 @@ struct poptOption popt_common_samba[] = {
 	{ "configfile", 's', POPT_ARG_STRING, NULL, 's', "Use alternate configuration file", "CONFIGFILE" },
 	{ "log-basename", 'l', POPT_ARG_STRING, NULL, 'l', "Base name for log files", "LOGFILEBASE" },
 	{ "version", 'V', POPT_ARG_NONE, NULL, 'V', "Print version" },
+	{ "option",         0, POPT_ARG_STRING, NULL, OPT_OPTION, "Set smb.conf option from command line", "name=value" },
 	POPT_TABLEEND
 };
 
@@ -184,6 +194,11 @@ struct poptOption popt_common_debuglevel[] = {
 	POPT_TABLEEND
 };
 
+struct poptOption popt_common_option[] = {
+	{ NULL, 0, POPT_ARG_CALLBACK|POPT_CBFLAG_POST, (void *)popt_common_callback },
+	{ "option",         0, POPT_ARG_STRING, NULL, OPT_OPTION, "Set smb.conf option from command line", "name=value" },
+	POPT_TABLEEND
+};
 
 /* Handle command line options:
  *		--sbindir

@@ -21,9 +21,9 @@
 
 #include "includes.h"
 #include "system/filesys.h"
-#include "../tdb/include/tdb.h"
-#include "lib/ldb/include/ldb.h"
-#include "lib/ldb/include/ldb_errors.h"
+#include <tdb.h>
+#include <ldb.h>
+#include <ldb_errors.h>
 #include "ldb_wrap.h"
 #include "lib/tdb_wrap.h"
 #include "torture/smbtorture.h"
@@ -145,7 +145,8 @@ static bool ldb_add_record(struct ldb_context *ldb, unsigned rid)
 		return false;
 	}
 
-	if (ldb_msg_add_fmt(msg, "UID", "%u", rid) != 0) {
+	ret = ldb_msg_add_fmt(msg, "UID", "%u", rid);
+	if (ret != LDB_SUCCESS) {
 		talloc_free(msg);
 		return false;
 	}
@@ -256,7 +257,7 @@ failed:
 
 struct torture_suite *torture_local_dbspeed(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *s = torture_suite_create(mem_ctx, "DBSPEED");
+	struct torture_suite *s = torture_suite_create(mem_ctx, "dbspeed");
 	torture_suite_add_simple_tcase_const(s, "tdb_speed", test_tdb_speed,
 			NULL);
 	torture_suite_add_simple_tcase_const(s, "ldb_speed", test_ldb_speed,

@@ -23,8 +23,12 @@
 #include "includes.h"
 #include "winbindd/winbindd.h"
 #include "winbindd/winbindd_proto.h"
+#include "rpc_client/cli_pipe.h"
 #include "librpc/gen_ndr/srv_wbint.h"
-#include "../librpc/gen_ndr/cli_netlogon.h"
+#include "../librpc/gen_ndr/ndr_netlogon_c.h"
+#include "idmap.h"
+#include "../libcli/security/security.h"
+#include "ntdomain.h"
 
 void _wbint_Ping(struct pipes_struct *p, struct wbint_Ping *r)
 {
@@ -243,7 +247,7 @@ NTSTATUS _wbint_QueryGroupList(struct pipes_struct *p,
 {
 	struct winbindd_domain *domain = wb_child_domain();
 	uint32_t i, num_groups;
-	struct acct_info *groups;
+	struct wb_acct_info *groups;
 	struct wbint_Principal *result;
 	NTSTATUS status;
 
@@ -289,6 +293,7 @@ NTSTATUS _wbint_DsGetDcName(struct pipes_struct *p, struct wbint_DsGetDcName *r)
 	NTSTATUS status;
 	WERROR werr;
 	unsigned int orig_timeout;
+	struct dcerpc_binding_handle *b;
 
 	if (domain == NULL) {
 		return dsgetdcname(p->mem_ctx, winbind_messaging_context(),
@@ -305,14 +310,16 @@ NTSTATUS _wbint_DsGetDcName(struct pipes_struct *p, struct wbint_DsGetDcName *r)
 		return status;
 	}
 
+	b = netlogon_pipe->binding_handle;
+
 	/* This call can take a long time - allow the server to time out.
 	   35 seconds should do it. */
 
 	orig_timeout = rpccli_set_timeout(netlogon_pipe, 35000);
 
 	if (domain->active_directory) {
-		status = rpccli_netr_DsRGetDCName(
-			netlogon_pipe, p->mem_ctx, domain->dcname,
+		status = dcerpc_netr_DsRGetDCName(b,
+			p->mem_ctx, domain->dcname,
 			r->in.domain_name, NULL, r->in.domain_guid,
 			r->in.flags, r->out.dc_info, &werr);
 		if (NT_STATUS_IS_OK(status) && W_ERROR_IS_OK(werr)) {
@@ -331,22 +338,22 @@ NTSTATUS _wbint_DsGetDcName(struct pipes_struct *p, struct wbint_DsGetDcName *r)
 	}
 
 	if (r->in.flags & DS_PDC_REQUIRED) {
-		status = rpccli_netr_GetDcName(
-			netlogon_pipe, p->mem_ctx, domain->dcname,
+		status = dcerpc_netr_GetDcName(b,
+			p->mem_ctx, domain->dcname,
 			r->in.domain_name, &dc_info->dc_unc, &werr);
 	} else {
-		status = rpccli_netr_GetAnyDCName(
-			netlogon_pipe, p->mem_ctx, domain->dcname,
+		status = dcerpc_netr_GetAnyDCName(b,
+			p->mem_ctx, domain->dcname,
 			r->in.domain_name, &dc_info->dc_unc, &werr);
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(10, ("rpccli_netr_Get[Any]DCName failed: %s\n",
+		DEBUG(10, ("dcerpc_netr_Get[Any]DCName failed: %s\n",
 			   nt_errstr(status)));
 		goto done;
 	}
 	if (!W_ERROR_IS_OK(werr)) {
-		DEBUG(10, ("rpccli_netr_Get[Any]DCName failed: %s\n",
+		DEBUG(10, ("dcerpc_netr_Get[Any]DCName failed: %s\n",
 			   win_errstr(werr)));
 		status = werror_to_ntstatus(werr);
 		goto done;
@@ -382,6 +389,8 @@ NTSTATUS _wbint_LookupRids(struct pipes_struct *p, struct wbint_LookupRids *r)
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
+
+	*r->out.domain_name = talloc_move(r->out.domain_name, &domain_name);
 
 	result = talloc_array(p->mem_ctx, struct wbint_Principal,
 			      r->in.rids->num_rids);
@@ -522,6 +531,7 @@ NTSTATUS _wbint_PingDc(struct pipes_struct *p, struct wbint_PingDc *r)
 	union netr_CONTROL_QUERY_INFORMATION info;
 	WERROR werr;
 	fstring logon_server;
+	struct dcerpc_binding_handle *b;
 
 	domain = wb_child_domain();
 	if (domain == NULL) {
@@ -534,6 +544,8 @@ NTSTATUS _wbint_PingDc(struct pipes_struct *p, struct wbint_PingDc *r)
 		return status;
         }
 
+	b = netlogon_pipe->binding_handle;
+
 	fstr_sprintf(logon_server, "\\\\%s", domain->dcname);
 
 	/*
@@ -542,91 +554,29 @@ NTSTATUS _wbint_PingDc(struct pipes_struct *p, struct wbint_PingDc *r)
 	 * call to work, but the main point here is testing that the
 	 * netlogon pipe works.
 	 */
-	status = rpccli_netr_LogonControl(netlogon_pipe, p->mem_ctx,
+	status = dcerpc_netr_LogonControl(b, p->mem_ctx,
 					  logon_server, NETLOGON_CONTROL_QUERY,
 					  2, &info, &werr);
 
 	if (NT_STATUS_EQUAL(status, NT_STATUS_IO_TIMEOUT)) {
-		DEBUG(2, ("rpccli_netr_LogonControl timed out\n"));
+		DEBUG(2, ("dcerpc_netr_LogonControl timed out\n"));
 		invalidate_cm_connection(&domain->conn);
 		return status;
 	}
 
-	if (!NT_STATUS_EQUAL(status, NT_STATUS_CTL_FILE_NOT_SUPPORTED)) {
-		DEBUG(2, ("rpccli_netr_LogonControl returned %s, expected "
-			  "NT_STATUS_CTL_FILE_NOT_SUPPORTED\n",
-			  nt_errstr(status)));
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(2, ("dcerpc_netr_LogonControl failed: %s\n",
+			nt_errstr(status)));
 		return status;
+	}
+
+	if (!W_ERROR_EQUAL(werr, WERR_NOT_SUPPORTED)) {
+		DEBUG(2, ("dcerpc_netr_LogonControl returned %s, expected "
+			  "WERR_NOT_SUPPORTED\n",
+			  win_errstr(werr)));
+		return werror_to_ntstatus(werr);
 	}
 
 	DEBUG(5, ("winbindd_dual_ping_dc succeeded\n"));
 	return NT_STATUS_OK;
-}
-
-NTSTATUS _wbint_SetMapping(struct pipes_struct *p, struct wbint_SetMapping *r)
-{
-	struct id_map map;
-
-	map.sid = r->in.sid;
-	map.xid.id = r->in.id;
-	map.status = ID_MAPPED;
-
-	switch (r->in.type) {
-	case WBINT_ID_TYPE_UID:
-		map.xid.type = ID_TYPE_UID;
-		break;
-	case WBINT_ID_TYPE_GID:
-		map.xid.type = ID_TYPE_GID;
-		break;
-	default:
-		return NT_STATUS_INVALID_PARAMETER;
-	}
-
-	return idmap_set_mapping(&map);
-}
-
-NTSTATUS _wbint_RemoveMapping(struct pipes_struct *p,
-			      struct wbint_RemoveMapping *r)
-{
-	struct id_map map;
-
-	map.sid = r->in.sid;
-	map.xid.id = r->in.id;
-	map.status = ID_MAPPED;
-
-	switch (r->in.type) {
-	case WBINT_ID_TYPE_UID:
-		map.xid.type = ID_TYPE_UID;
-		break;
-	case WBINT_ID_TYPE_GID:
-		map.xid.type = ID_TYPE_GID;
-		break;
-	default:
-		return NT_STATUS_INVALID_PARAMETER;
-	}
-
-	return idmap_remove_mapping(&map);
-}
-
-NTSTATUS _wbint_SetHWM(struct pipes_struct *p, struct wbint_SetHWM *r)
-{
-	struct unixid id;
-	NTSTATUS status;
-
-	id.id = r->in.id;
-
-	switch (r->in.type) {
-	case WBINT_ID_TYPE_UID:
-		id.type = ID_TYPE_UID;
-		status = idmap_set_uid_hwm(&id);
-		break;
-	case WBINT_ID_TYPE_GID:
-		id.type = ID_TYPE_GID;
-		status = idmap_set_gid_hwm(&id);
-		break;
-	default:
-		status = NT_STATUS_INVALID_PARAMETER;
-		break;
-	}
-	return status;
 }

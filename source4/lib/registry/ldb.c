@@ -20,8 +20,8 @@
 
 #include "includes.h"
 #include "registry.h"
-#include "lib/ldb/include/ldb.h"
-#include "lib/ldb/include/ldb_errors.h"
+#include <ldb.h>
+#include <ldb_errors.h>
 #include "ldb_wrap.h"
 #include "librpc/gen_ndr/winreg.h"
 #include "param/param.h"
@@ -201,7 +201,7 @@ static struct ldb_message *reg_ldb_pack_value(struct ldb_context *ctx,
 				char *conv_str;
 
 				conv_str = talloc_asprintf(msg, "0x%16.16llx",
-							   BVAL(data.data, 0));
+							   (unsigned long long)BVAL(data.data, 0));
 				if (conv_str == NULL) {
 					talloc_free(msg);
 					return NULL;
@@ -830,7 +830,7 @@ static WERROR ldb_set_value(struct hive_key *parent,
 	if (ret == LDB_ERR_NO_SUCH_OBJECT) {
 		i = 0;
 		while (i < msg->num_elements) {
-			if (msg->elements[i].flags == LDB_FLAG_MOD_DELETE) {
+			if (LDB_FLAG_MOD_TYPE(msg->elements[i].flags) == LDB_FLAG_MOD_DELETE) {
 				ldb_msg_remove_element(msg, &msg->elements[i]);
 			} else {
 				++i;

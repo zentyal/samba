@@ -117,7 +117,7 @@ static void sig_term(int sig)
 	}
 #endif
 	DEBUG(0,("Exiting pid %d on SIGTERM\n", (int)getpid()));
-	exit(0);
+	exit(127);
 }
 
 /*
@@ -178,7 +178,13 @@ _NORETURN_ static void max_runtime_handler(struct tevent_context *ev,
 					   struct timeval t, void *private_data)
 {
 	const char *binary_name = (const char *)private_data;
-	DEBUG(0,("%s: maximum runtime exceeded - terminating\n", binary_name));
+	struct timeval tv;
+	struct timezone tz;
+	if (gettimeofday(&tv, &tz) == 0) {
+		DEBUG(0,("%s: maximum runtime exceeded - terminating, current ts: %d\n", binary_name, (int)tv.tv_sec));
+	} else {
+		DEBUG(0,("%s: maximum runtime exceeded - terminating\n", binary_name));
+	}
 	exit(0);
 }
 
@@ -191,8 +197,8 @@ static void prime_ldb_databases(struct tevent_context *event_ctx)
 	TALLOC_CTX *db_context;
 	db_context = talloc_new(event_ctx);
 
-	samdb_connect(db_context, event_ctx, cmdline_lp_ctx, system_session(cmdline_lp_ctx));
-	privilege_connect(db_context, event_ctx, cmdline_lp_ctx);
+	samdb_connect(db_context, event_ctx, cmdline_lp_ctx, system_session(cmdline_lp_ctx), 0);
+	privilege_connect(db_context, cmdline_lp_ctx);
 
 	/* we deliberately leave these open, which allows them to be
 	 * re-used in ldb_wrap_connect() */
@@ -254,6 +260,7 @@ static void show_build(void)
 		CONFIG_OPTION(PIDDIR),
 		CONFIG_OPTION(PRIVATE_DIR),
 		CONFIG_OPTION(SWATDIR),
+		CONFIG_OPTION(CODEPAGEDIR),
 		CONFIG_OPTION(SETUPDIR),
 		CONFIG_OPTION(WINBINDD_SOCKET_DIR),
 		CONFIG_OPTION(WINBINDD_PRIVILEGED_SOCKET_DIR),
@@ -262,6 +269,7 @@ static void show_build(void)
 	};
 	int i;
 
+	printf("Samba version: %s\n", SAMBA_VERSION_STRING);
 	printf("Build environment:\n");
 #ifdef BUILD_SYSTEM
 	printf("   Build host:  %s\n", BUILD_SYSTEM);
@@ -284,22 +292,8 @@ static int binary_smbd_main(const char *binary_name, int argc, const char *argv[
 	bool opt_interactive = false;
 	int opt;
 	poptContext pc;
-	extern NTSTATUS server_service_wrepl_init(void);
-	extern NTSTATUS server_service_kdc_init(void);
-	extern NTSTATUS server_service_ldap_init(void);
-	extern NTSTATUS server_service_web_init(void);
-	extern NTSTATUS server_service_ldap_init(void);
-	extern NTSTATUS server_service_winbind_init(void);
-	extern NTSTATUS server_service_nbtd_init(void);
-	extern NTSTATUS server_service_auth_init(void);
-	extern NTSTATUS server_service_cldapd_init(void);
-	extern NTSTATUS server_service_smb_init(void);
-	extern NTSTATUS server_service_drepl_init(void);
-	extern NTSTATUS server_service_kcc_init(void);
-	extern NTSTATUS server_service_dnsupdate_init(void);
-	extern NTSTATUS server_service_rpc_init(void);
-	extern NTSTATUS server_service_ntp_signd_init(void);
-	extern NTSTATUS server_service_samba3_smb_init(void);
+#define _MODULE_PROTO(init) extern NTSTATUS init(void);
+	STATIC_service_MODULES_PROTO;
 	init_module_fn static_init[] = { STATIC_service_MODULES };
 	init_module_fn *shared_init;
 	struct tevent_context *event_ctx;
@@ -372,7 +366,7 @@ static int binary_smbd_main(const char *binary_name, int argc, const char *argv[
 	umask(0);
 
 	DEBUG(0,("%s version %s started.\n", binary_name, SAMBA_VERSION_STRING));
-	DEBUGADD(0,("Copyright Andrew Tridgell and the Samba Team 1992-2010\n"));
+	DEBUGADD(0,("Copyright Andrew Tridgell and the Samba Team 1992-2011\n"));
 
 	if (sizeof(uint16_t) < 2 || sizeof(uint32_t) < 4 || sizeof(uint64_t) < 8) {
 		DEBUG(0,("ERROR: Samba is not configured correctly for the word size on your machine\n"));
@@ -429,9 +423,6 @@ static int binary_smbd_main(const char *binary_name, int argc, const char *argv[
 	   should hang off that */
 	event_ctx = s4_event_context_init(talloc_autofree_context());
 
-	/* setup this as the default context */
-	s4_event_context_set_default(event_ctx);
-
 	if (event_ctx == NULL) {
 		DEBUG(0,("Initializing event context failed\n"));
 		return 1;
@@ -454,6 +445,14 @@ static int binary_smbd_main(const char *binary_name, int argc, const char *argv[
 		      discard_const(binary_name));
 
 	if (max_runtime) {
+		struct timeval tv;
+		struct timezone tz;
+
+		if (gettimeofday(&tv, &tz) == 0) {
+			DEBUG(0,("Called with maxruntime %d - current ts %d\n", max_runtime, (int)tv.tv_sec));
+		} else {
+			DEBUG(0,("Called with maxruntime %d\n", max_runtime));
+		}
 		tevent_add_timer(event_ctx, event_ctx,
 				 timeval_current_ofs(max_runtime, 0),
 				 max_runtime_handler,

@@ -27,7 +27,6 @@
 #include "lib/events/events.h"
 #include "lib/socket/socket.h"
 #include "smbd/process_model.h"
-#include "param/secrets.h"
 #include "system/filesys.h"
 #include "cluster/cluster.h"
 #include "param/param.h"
@@ -49,7 +48,7 @@ static int none_setproctitle(const char *fmt, ...)
 /*
   called when the process model is selected
 */
-static void onefork_model_init(struct tevent_context *ev)
+static void onefork_model_init(void)
 {
 	signal(SIGCHLD, SIG_IGN);
 }
@@ -112,7 +111,7 @@ static void onefork_new_task(struct tevent_context *ev,
 		smb_panic("Failed to re-initialise tevent after fork");
 	}
 
-	setproctitle("task %s server_id[%d]", service_name, pid);
+	setproctitle("task %s server_id[%d]", service_name, (int)pid);
 
 	onefork_reload_after_fork();
 

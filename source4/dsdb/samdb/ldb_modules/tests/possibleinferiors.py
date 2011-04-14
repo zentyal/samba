@@ -7,12 +7,12 @@
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 3 of the License, or
 # (at your option) any later version.
-#   
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-#   
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
@@ -26,7 +26,6 @@ import sys
 # Find right directory when running from source tree
 sys.path.insert(0, "bin/python")
 
-import samba
 from samba import getopt as options, Ldb
 import ldb
 
@@ -59,7 +58,13 @@ def uniq_list(alist):
 lp_ctx = sambaopts.get_loadparm()
 
 creds = credopts.get_credentials(lp_ctx)
-db = Ldb(url, credentials=creds, lp=lp_ctx, options=["modules:paged_searches"])
+
+ldb_options = []
+# use 'paged_search' module when connecting remotely
+if url.lower().startswith("ldap://"):
+    ldb_options = ["modules:paged_searches"]
+
+db = Ldb(url, credentials=creds, lp=lp_ctx, options=ldb_options)
 
 # get the rootDSE
 res = db.search(base="", expression="",
@@ -82,7 +87,7 @@ def possible_inferiors_search(db, oc):
         poss.append(str(item))
     poss = uniq_list(poss)
     poss.sort()
-    return poss;
+    return poss
 
 
 
@@ -93,20 +98,20 @@ def possible_inferiors_search(db, oc):
 # !objectClassCategory=2
 # !objectClassCategory=3
 
-def SUPCLASSES(classinfo, oc):
+def supclasses(classinfo, oc):
     list = []
     if oc == "top":
         return list
     if classinfo[oc].get("SUPCLASSES") is not None:
         return classinfo[oc]["SUPCLASSES"]
-    res = classinfo[oc]["subClassOf"];
+    res = classinfo[oc]["subClassOf"]
     for r in res:
         list.append(r)
-        list.extend(SUPCLASSES(classinfo,r))
+        list.extend(supclasses(classinfo,r))
     classinfo[oc]["SUPCLASSES"] = list
     return list
 
-def AUXCLASSES(classinfo, oclist):
+def auxclasses(classinfo, oclist):
     list = []
     if oclist == []:
         return list
@@ -116,21 +121,21 @@ def AUXCLASSES(classinfo, oclist):
         else:
             list2 = []
             list2.extend(classinfo[oc]["systemAuxiliaryClass"])
-            list2.extend(AUXCLASSES(classinfo, classinfo[oc]["systemAuxiliaryClass"]))
+            list2.extend(auxclasses(classinfo, classinfo[oc]["systemAuxiliaryClass"]))
             list2.extend(classinfo[oc]["auxiliaryClass"])
-            list2.extend(AUXCLASSES(classinfo, classinfo[oc]["auxiliaryClass"]))
-            list2.extend(AUXCLASSES(classinfo, SUPCLASSES(classinfo, oc)))
+            list2.extend(auxclasses(classinfo, classinfo[oc]["auxiliaryClass"]))
+            list2.extend(auxclasses(classinfo, supclasses(classinfo, oc)))
             classinfo[oc]["AUXCLASSES"] = list2
             list.extend(list2)
     return list
 
-def SUBCLASSES(classinfo, oclist):
+def subclasses(classinfo, oclist):
     list = []
     for oc in oclist:
         list.extend(classinfo[oc]["SUBCLASSES"])
     return list
 
-def POSSSUPERIORS(classinfo, oclist):
+def posssuperiors(classinfo, oclist):
     list = []
     for oc in oclist:
         if classinfo[oc].get("POSSSUPERIORS") is not None:
@@ -139,13 +144,13 @@ def POSSSUPERIORS(classinfo, oclist):
             list2 = []
             list2.extend(classinfo[oc]["systemPossSuperiors"])
             list2.extend(classinfo[oc]["possSuperiors"])
-            list2.extend(POSSSUPERIORS(classinfo, SUPCLASSES(classinfo, oc)))
+            list2.extend(posssuperiors(classinfo, supclasses(classinfo, oc)))
             if opts.wspp:
                 # the WSPP docs suggest we should do this:
-                list2.extend(POSSSUPERIORS(classinfo, AUXCLASSES(classinfo, [oc])))
+                list2.extend(posssuperiors(classinfo, auxclasses(classinfo, [oc])))
             else:
                 # but testing against w2k3 and w2k8 shows that we need to do this instead
-                list2.extend(SUBCLASSES(classinfo, list2))
+                list2.extend(subclasses(classinfo, list2))
             classinfo[oc]["POSSSUPERIORS"] = list2
             list.extend(list2)
     return list
@@ -205,7 +210,7 @@ def is_in_list(list, c):
 def possible_inferiors_constructed(db, classinfo, c):
     list = []
     for oc in classinfo:
-        superiors = POSSSUPERIORS(classinfo, [oc])
+        superiors = posssuperiors(classinfo, [oc])
         if (is_in_list(superiors, c) and
             classinfo[oc]["systemOnly"] == False and
             classinfo[oc]["objectClassCategory"] != 2 and
@@ -217,16 +222,20 @@ def possible_inferiors_constructed(db, classinfo, c):
 
 def test_class(db, classinfo, oc):
     """test to see if one objectclass returns the correct possibleInferiors"""
-    print "Testing objectClass %s" % oc
+    print "test: objectClass.%s" % oc
     poss1 = possible_inferiors_search(db, oc)
     poss2 = possible_inferiors_constructed(db, classinfo, oc)
     if poss1 != poss2:
+        print "failure: objectClass.%s [" % oc
         print "Returned incorrect list for objectclass %s" % oc
         print "search:      %s" % poss1
         print "constructed: %s" % poss2
         for i in range(0,min(len(poss1),len(poss2))):
             print "%30s %30s" % (poss1[i], poss2[i])
-        exit(1)
+        print "]"
+        sys.exit(1)
+    else:
+        print "success: objectClass.%s" % oc
 
 def get_object_classes(db):
     """return a list of all object classes"""

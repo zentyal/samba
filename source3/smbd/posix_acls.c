@@ -20,6 +20,12 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
+#include "system/filesys.h"
+#include "../libcli/security/security.h"
+#include "trans2.h"
+#include "passdb/lookup_sid.h"
+#include "auth.h"
 
 extern const struct generic_mapping file_generic_mapping;
 
@@ -441,6 +447,7 @@ static const char *create_pai_v1_entries(struct pai_val *paiv,
 
 		paie->ace_flags = SEC_ACE_FLAG_INHERITED_ACE;
 		if (!get_pai_owner_type(paie, entry_offset)) {
+			SAFE_FREE(paie);
 			return NULL;
 		}
 
@@ -519,6 +526,7 @@ static const char *create_pai_v2_entries(struct pai_val *paiv,
 		paie->ace_flags = CVAL(entry_offset,0);
 
 		if (!get_pai_owner_type(paie, entry_offset+1)) {
+			SAFE_FREE(paie);
 			return NULL;
 		}
 		if (!def_entry) {
@@ -944,10 +952,10 @@ static void merge_aces( canon_ace **pp_list_head, bool dir_acl)
 			 * ensure the POSIX ACL types are the same. */
 
 			if (!dir_acl) {
-				can_merge = (sid_equal(&curr_ace->trustee, &curr_ace_outer->trustee) &&
+				can_merge = (dom_sid_equal(&curr_ace->trustee, &curr_ace_outer->trustee) &&
 						(curr_ace->attr == curr_ace_outer->attr));
 			} else {
-				can_merge = (sid_equal(&curr_ace->trustee, &curr_ace_outer->trustee) &&
+				can_merge = (dom_sid_equal(&curr_ace->trustee, &curr_ace_outer->trustee) &&
 						(curr_ace->type == curr_ace_outer->type) &&
 						(curr_ace->attr == curr_ace_outer->attr));
 			}
@@ -996,7 +1004,7 @@ static void merge_aces( canon_ace **pp_list_head, bool dir_acl)
 			 * we've put on the ACL, we know the deny must be the first one.
 			 */
 
-			if (sid_equal(&curr_ace->trustee, &curr_ace_outer->trustee) &&
+			if (dom_sid_equal(&curr_ace->trustee, &curr_ace_outer->trustee) &&
 				(curr_ace_outer->attr == DENY_ACE) && (curr_ace->attr == ALLOW_ACE)) {
 
 				if( DEBUGLVL( 10 )) {
@@ -1297,7 +1305,7 @@ static bool uid_entry_in_group(connection_struct *conn, canon_ace *uid_ace, cano
 
 	/* "Everyone" always matches every uid. */
 
-	if (sid_equal(&group_ace->trustee, &global_sid_World))
+	if (dom_sid_equal(&group_ace->trustee, &global_sid_World))
 		return True;
 
 	/*
@@ -1305,7 +1313,7 @@ static bool uid_entry_in_group(connection_struct *conn, canon_ace *uid_ace, cano
 	 * and don't need to do the complex user_in_group_sid() call
 	 */
 	if (uid_ace->unix_ug.uid == get_current_uid(conn)) {
-		const UNIX_USER_TOKEN *curr_utok = NULL;
+		const struct security_unix_token *curr_utok = NULL;
 		size_t i;
 
 		if (group_ace->unix_ug.gid == get_current_gid(conn)) {
@@ -1513,12 +1521,12 @@ static void check_owning_objs(canon_ace *ace, struct dom_sid *pfile_owner_sid, s
 
 	for (i=0, current_ace = ace; i < entries; i++, current_ace = current_ace->next) {
 		if (!got_user_obj && current_ace->owner_type == UID_ACE &&
-				sid_equal(&current_ace->trustee, pfile_owner_sid)) {
+				dom_sid_equal(&current_ace->trustee, pfile_owner_sid)) {
 			current_ace->type = SMB_ACL_USER_OBJ;
 			got_user_obj = True;
 		}
 		if (!got_group_obj && current_ace->owner_type == GID_ACE &&
-				sid_equal(&current_ace->trustee, pfile_grp_sid)) {
+				dom_sid_equal(&current_ace->trustee, pfile_grp_sid)) {
 			current_ace->type = SMB_ACL_GROUP_OBJ;
 			got_group_obj = True;
 		}
@@ -1549,7 +1557,7 @@ static bool dup_owning_ace(canon_ace *dir_ace, canon_ace *ace)
 	*/
 
 	if (ace->type == SMB_ACL_USER_OBJ &&
-			!(sid_equal(&ace->trustee, &global_sid_Creator_Owner))) {
+			!(dom_sid_equal(&ace->trustee, &global_sid_Creator_Owner))) {
 		canon_ace *dup_ace = dup_canon_ace(ace);
 
 		if (dup_ace == NULL) {
@@ -1560,7 +1568,7 @@ static bool dup_owning_ace(canon_ace *dir_ace, canon_ace *ace)
 	}
 
 	if (ace->type == SMB_ACL_GROUP_OBJ &&
-			!(sid_equal(&ace->trustee, &global_sid_Creator_Group))) {
+			!(dom_sid_equal(&ace->trustee, &global_sid_Creator_Group))) {
 		canon_ace *dup_ace = dup_canon_ace(ace);
 
 		if (dup_ace == NULL) {
@@ -1646,7 +1654,7 @@ static bool create_canon_ace_lists(files_struct *fsp,
 			if (psa1->access_mask != psa2->access_mask)
 				continue;
 
-			if (!sid_equal(&psa1->trustee, &psa2->trustee))
+			if (!dom_sid_equal(&psa1->trustee, &psa2->trustee))
 				continue;
 
 			/*
@@ -1692,11 +1700,11 @@ static bool create_canon_ace_lists(files_struct *fsp,
 		 * Note what kind of a POSIX ACL this should map to.
 		 */
 
-		if( sid_equal(&current_ace->trustee, &global_sid_World)) {
+		if( dom_sid_equal(&current_ace->trustee, &global_sid_World)) {
 			current_ace->owner_type = WORLD_ACE;
 			current_ace->unix_ug.world = -1;
 			current_ace->type = SMB_ACL_OTHER;
-		} else if (sid_equal(&current_ace->trustee, &global_sid_Creator_Owner)) {
+		} else if (dom_sid_equal(&current_ace->trustee, &global_sid_Creator_Owner)) {
 			current_ace->owner_type = UID_ACE;
 			current_ace->unix_ug.uid = pst->st_ex_uid;
 			current_ace->type = SMB_ACL_USER_OBJ;
@@ -1709,7 +1717,7 @@ static bool create_canon_ace_lists(files_struct *fsp,
 
 			psa->flags |= SEC_ACE_FLAG_INHERIT_ONLY;
 
-		} else if (sid_equal(&current_ace->trustee, &global_sid_Creator_Group)) {
+		} else if (dom_sid_equal(&current_ace->trustee, &global_sid_Creator_Group)) {
 			current_ace->owner_type = GID_ACE;
 			current_ace->unix_ug.gid = pst->st_ex_gid;
 			current_ace->type = SMB_ACL_GROUP_OBJ;
@@ -1748,6 +1756,14 @@ static bool create_canon_ace_lists(files_struct *fsp,
 				DEBUG(10, ("create_canon_ace_lists: ignoring "
 					   "non-mappable SID %s\n",
 					   sid_string_dbg(&psa->trustee)));
+				SAFE_FREE(current_ace);
+				continue;
+			}
+
+			if (lp_force_unknown_acl_user(SNUM(fsp->conn))) {
+				DEBUG(10, ("create_canon_ace_lists: ignoring "
+					"unknown or foreign SID %s\n",
+					sid_string_dbg(&psa->trustee)));
 				SAFE_FREE(current_ace);
 				continue;
 			}
@@ -2085,7 +2101,7 @@ static void process_deny_list(connection_struct *conn, canon_ace **pp_ace_list )
 			continue;
 		}
 
-		if (!sid_equal(&curr_ace->trustee, &global_sid_World))
+		if (!dom_sid_equal(&curr_ace->trustee, &global_sid_World))
 			continue;
 
 		/* JRATEST - assert. */
@@ -2640,10 +2656,10 @@ static canon_ace *canonicalise_acl(struct connection_struct *conn,
  Check if the current user group list contains a given group.
 ****************************************************************************/
 
-static bool current_user_in_group(connection_struct *conn, gid_t gid)
+bool current_user_in_group(connection_struct *conn, gid_t gid)
 {
 	int i;
-	const UNIX_USER_TOKEN *utok = get_current_utok(conn);
+	const struct security_unix_token *utok = get_current_utok(conn);
 
 	for (i = 0; i < utok->ngroups; i++) {
 		if (utok->groups[i] == gid) {
@@ -3080,7 +3096,7 @@ static size_t merge_default_aces( struct security_ace *nt_ace_list, size_t num_a
 			if ((nt_ace_list[i].type == nt_ace_list[j].type) &&
 				(nt_ace_list[i].size == nt_ace_list[j].size) &&
 				(nt_ace_list[i].access_mask == nt_ace_list[j].access_mask) &&
-				sid_equal(&nt_ace_list[i].trustee, &nt_ace_list[j].trustee) &&
+				dom_sid_equal(&nt_ace_list[i].trustee, &nt_ace_list[j].trustee) &&
 				(i_inh == j_inh) &&
 				(i_flags_ni == 0) &&
 				(j_flags_ni == (SEC_ACE_FLAG_OBJECT_INHERIT|
@@ -3144,7 +3160,7 @@ static void add_or_replace_ace(struct security_ace *nt_ace_list, size_t *num_ace
 
 	/* first search for a duplicate */
 	for (i = 0; i < *num_aces; i++) {
-		if (sid_equal(&nt_ace_list[i].trustee, sid) &&
+		if (dom_sid_equal(&nt_ace_list[i].trustee, sid) &&
 		    (nt_ace_list[i].flags == flags)) break;
 	}
 
@@ -3367,7 +3383,7 @@ static NTSTATUS posix_get_nt_acl_common(struct connection_struct *conn,
 
 			if (lp_profile_acls(SNUM(conn))) {
 				for (i = 0; i < num_aces; i++) {
-					if (sid_equal(&nt_ace_list[i].trustee, &owner_sid)) {
+					if (dom_sid_equal(&nt_ace_list[i].trustee, &owner_sid)) {
 						add_or_replace_ace(nt_ace_list, &num_aces,
 	    							   &orig_owner_sid,
 			    					   nt_ace_list[i].type,
@@ -3517,107 +3533,73 @@ NTSTATUS posix_get_nt_acl(struct connection_struct *conn, const char *name,
  Try to chown a file. We will be able to chown it under the following conditions.
 
   1) If we have root privileges, then it will just work.
-  2) If we have SeTakeOwnershipPrivilege we can change the user to the current user.
-  3) If we have SeRestorePrivilege we can change the user to any other user. 
+  2) If we have SeRestorePrivilege we can change the user + group to any other user. 
+  3) If we have SeTakeOwnershipPrivilege we can change the user to the current user.
   4) If we have write permission to the file and dos_filemodes is set
      then allow chown to the currently authenticated user.
 ****************************************************************************/
 
-int try_chown(connection_struct *conn, struct smb_filename *smb_fname,
-	      uid_t uid, gid_t gid)
+NTSTATUS try_chown(files_struct *fsp, uid_t uid, gid_t gid)
 {
-	int ret;
-	files_struct *fsp;
+	NTSTATUS status;
 
-	if(!CAN_WRITE(conn)) {
-		return -1;
+	if(!CAN_WRITE(fsp->conn)) {
+		return NT_STATUS_MEDIA_WRITE_PROTECTED;
 	}
 
 	/* Case (1). */
-	/* try the direct way first */
-	if (lp_posix_pathnames()) {
-		ret = SMB_VFS_LCHOWN(conn, smb_fname->base_name, uid, gid);
-	} else {
-		ret = SMB_VFS_CHOWN(conn, smb_fname->base_name, uid, gid);
+	status = vfs_chown_fsp(fsp, uid, gid);
+	if (NT_STATUS_IS_OK(status)) {
+		return status;
 	}
-
-	if (ret == 0)
-		return 0;
 
 	/* Case (2) / (3) */
 	if (lp_enable_privileges()) {
+		bool has_take_ownership_priv = security_token_has_privilege(
+						get_current_nttok(fsp->conn),
+						SEC_PRIV_TAKE_OWNERSHIP);
+		bool has_restore_priv = security_token_has_privilege(
+						get_current_nttok(fsp->conn),
+						SEC_PRIV_RESTORE);
 
-		bool has_take_ownership_priv = user_has_privileges(get_current_nttok(conn),
-							      &se_take_ownership);
-		bool has_restore_priv = user_has_privileges(get_current_nttok(conn),
-						       &se_restore);
-
-		/* Case (2) */
-		if ( ( has_take_ownership_priv && ( uid == get_current_uid(conn) ) ) ||
-		/* Case (3) */
-		     ( has_restore_priv ) ) {
-
-			become_root();
-			/* Keep the current file gid the same - take ownership doesn't imply group change. */
-			if (lp_posix_pathnames()) {
-				ret = SMB_VFS_LCHOWN(conn, smb_fname->base_name, uid,
-						    (gid_t)-1);
+		if (has_restore_priv) {
+			; /* Case (2) */
+		} else if (has_take_ownership_priv) {
+			/* Case (3) */
+			if (uid == get_current_uid(fsp->conn)) {
+				gid = (gid_t)-1;
 			} else {
-				ret = SMB_VFS_CHOWN(conn, smb_fname->base_name, uid,
-						    (gid_t)-1);
+				has_take_ownership_priv = false;
 			}
+		}
+
+		if (has_take_ownership_priv || has_restore_priv) {
+			become_root();
+			status = vfs_chown_fsp(fsp, uid, gid);
 			unbecome_root();
-			return ret;
+			return status;
 		}
 	}
 
 	/* Case (4). */
-	if (!lp_dos_filemode(SNUM(conn))) {
-		errno = EPERM;
-		return -1;
+	if (!lp_dos_filemode(SNUM(fsp->conn))) {
+		return NT_STATUS_ACCESS_DENIED;
 	}
 
 	/* only allow chown to the current user. This is more secure,
 	   and also copes with the case where the SID in a take ownership ACL is
 	   a local SID on the users workstation
 	*/
-	if (uid != get_current_uid(conn)) {
-		errno = EPERM;
-		return -1;
-	}
-
-	if (lp_posix_pathnames()) {
-		ret = SMB_VFS_LSTAT(conn, smb_fname);
-	} else {
-		ret = SMB_VFS_STAT(conn, smb_fname);
-	}
-
-	if (ret == -1) {
-		return -1;
-	}
-
-	if (!NT_STATUS_IS_OK(open_file_fchmod(NULL, conn, smb_fname, &fsp))) {
-		return -1;
+	if (uid != get_current_uid(fsp->conn)) {
+		return NT_STATUS_ACCESS_DENIED;
 	}
 
 	become_root();
 	/* Keep the current file gid the same. */
-	if (fsp->fh->fd == -1) {
-		if (lp_posix_pathnames()) {
-			ret = SMB_VFS_LCHOWN(conn, smb_fname->base_name, uid,
-					    (gid_t)-1);
-		} else {
-			ret = SMB_VFS_CHOWN(conn, smb_fname->base_name, uid,
-					    (gid_t)-1);
-		}
-	} else {
-		ret = SMB_VFS_FCHOWN(fsp, uid, (gid_t)-1);
-	}
+	status = vfs_chown_fsp(fsp, uid, (gid_t)-1);
 	unbecome_root();
 
-	close_file_fchmod(NULL, fsp);
-
-	return ret;
+	return status;
 }
 
 #if 0
@@ -3758,7 +3740,7 @@ NTSTATUS append_parent_acl(files_struct *fsp,
 			 * same SID. This is order N^2. Ouch :-(. JRA. */
 			unsigned int k;
 			for (k = 0; k < psd->dacl->num_aces; k++) {
-				if (sid_equal(&psd->dacl->aces[k].trustee,
+				if (dom_sid_equal(&psd->dacl->aces[k].trustee,
 						&se->trustee)) {
 					break;
 				}
@@ -3825,9 +3807,11 @@ NTSTATUS append_parent_acl(files_struct *fsp,
  Reply to set a security descriptor on an fsp. security_info_sent is the
  description of the following NT ACL.
  This should be the only external function needed for the UNIX style set ACL.
+ We make a copy of psd_orig as internal functions modify the elements inside
+ it, even though it's a const pointer.
 ****************************************************************************/
 
-NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, const struct security_descriptor *psd)
+NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, const struct security_descriptor *psd_orig)
 {
 	connection_struct *conn = fsp->conn;
 	uid_t user = (uid_t)-1;
@@ -3842,6 +3826,7 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, const struct s
 	bool set_acl_as_root = false;
 	bool acl_set_support = false;
 	bool ret = false;
+	struct security_descriptor *psd = NULL;
 
 	DEBUG(10,("set_nt_acl: called for file %s\n",
 		  fsp_str_dbg(fsp)));
@@ -3849,6 +3834,15 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, const struct s
 	if (!CAN_WRITE(conn)) {
 		DEBUG(10,("set acl rejected on read-only share\n"));
 		return NT_STATUS_MEDIA_WRITE_PROTECTED;
+	}
+
+	if (!psd_orig) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	psd = dup_sec_desc(talloc_tos(), psd_orig);
+	if (!psd) {
+		return NT_STATUS_NO_MEMORY;
 	}
 
 	/*
@@ -3866,6 +3860,14 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, const struct s
 	/*
 	 * Unpack the user/group/world id's.
 	 */
+
+	/* POSIX can't cope with missing owner/group. */
+	if ((security_info_sent & SECINFO_OWNER) && (psd->owner_sid == NULL)) {
+		security_info_sent &= ~SECINFO_OWNER;
+	}
+	if ((security_info_sent & SECINFO_GROUP) && (psd->group_sid == NULL)) {
+		security_info_sent &= ~SECINFO_GROUP;
+	}
 
 	status = unpack_nt_owners( conn, &user, &grp, security_info_sent, psd);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -3885,15 +3887,14 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, const struct s
 			 fsp_str_dbg(fsp), (unsigned int)user,
 			 (unsigned int)grp));
 
-		if(try_chown(fsp->conn, fsp->fsp_name, user, grp) == -1) {
+		status = try_chown(fsp, user, grp);
+		if(!NT_STATUS_IS_OK(status)) {
 			DEBUG(3,("set_nt_acl: chown %s, %u, %u failed. Error "
-				 "= %s.\n", fsp_str_dbg(fsp),
-				 (unsigned int)user, (unsigned int)grp,
-				 strerror(errno)));
-			if (errno == EPERM) {
-				return NT_STATUS_INVALID_OWNER;
-			}
-			return map_nt_error_from_unix(errno);
+				"= %s.\n", fsp_str_dbg(fsp),
+				(unsigned int)user,
+				(unsigned int)grp,
+				nt_errstr(status)));
+			return status;
 		}
 
 		/*
@@ -3916,6 +3917,39 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, const struct s
 	}
 
 	create_file_sids(&fsp->fsp_name->st, &file_owner_sid, &file_grp_sid);
+
+	if((security_info_sent & SECINFO_DACL) &&
+			(psd->type & SEC_DESC_DACL_PRESENT) &&
+			(psd->dacl == NULL)) {
+		struct security_ace ace[3];
+
+		/* We can't have NULL DACL in POSIX.
+		   Use owner/group/Everyone -> full access. */
+
+		init_sec_ace(&ace[0],
+				&file_owner_sid,
+				SEC_ACE_TYPE_ACCESS_ALLOWED,
+				GENERIC_ALL_ACCESS,
+				0);
+		init_sec_ace(&ace[1],
+				&file_grp_sid,
+				SEC_ACE_TYPE_ACCESS_ALLOWED,
+				GENERIC_ALL_ACCESS,
+				0);
+		init_sec_ace(&ace[2],
+				&global_sid_World,
+				SEC_ACE_TYPE_ACCESS_ALLOWED,
+				GENERIC_ALL_ACCESS,
+				0);
+		psd->dacl = make_sec_acl(talloc_tos(),
+					NT4_ACL_REVISION,
+					3,
+					ace);
+		if (psd->dacl == NULL) {
+			return NT_STATUS_NO_MEMORY;
+		}
+		security_acl_map_generic(psd->dacl, &file_generic_mapping);
+	}
 
 	acl_perms = unpack_canon_ace(fsp, &fsp->fsp_name->st, &file_owner_sid,
 				     &file_grp_sid, &file_ace_list,
@@ -4760,4 +4794,114 @@ struct security_descriptor *get_nt_acl_no_snum( TALLOC_CTX *ctx, const char *fna
 	conn_free(conn);
 
 	return ret_sd;
+}
+
+/* Stolen shamelessly from pvfs_default_acl() in source4 :-). */
+
+NTSTATUS make_default_filesystem_acl(TALLOC_CTX *ctx,
+					const char *name,
+					SMB_STRUCT_STAT *psbuf,
+					struct security_descriptor **ppdesc)
+{
+	struct dom_sid owner_sid, group_sid;
+	size_t size = 0;
+	struct security_ace aces[4];
+	uint32_t access_mask = 0;
+	mode_t mode = psbuf->st_ex_mode;
+	struct security_acl *new_dacl = NULL;
+	int idx = 0;
+
+	DEBUG(10,("make_default_filesystem_acl: file %s mode = 0%o\n",
+		name, (int)mode ));
+
+	uid_to_sid(&owner_sid, psbuf->st_ex_uid);
+	gid_to_sid(&group_sid, psbuf->st_ex_gid);
+
+	/*
+	 We provide up to 4 ACEs
+		- Owner
+		- Group
+		- Everyone
+		- NT System
+	*/
+
+	if (mode & S_IRUSR) {
+		if (mode & S_IWUSR) {
+			access_mask |= SEC_RIGHTS_FILE_ALL;
+		} else {
+			access_mask |= SEC_RIGHTS_FILE_READ | SEC_FILE_EXECUTE;
+		}
+	}
+	if (mode & S_IWUSR) {
+		access_mask |= SEC_RIGHTS_FILE_WRITE | SEC_STD_DELETE;
+	}
+
+	init_sec_ace(&aces[idx],
+			&owner_sid,
+			SEC_ACE_TYPE_ACCESS_ALLOWED,
+			access_mask,
+			0);
+	idx++;
+
+	access_mask = 0;
+	if (mode & S_IRGRP) {
+		access_mask |= SEC_RIGHTS_FILE_READ | SEC_FILE_EXECUTE;
+	}
+	if (mode & S_IWGRP) {
+		/* note that delete is not granted - this matches posix behaviour */
+		access_mask |= SEC_RIGHTS_FILE_WRITE;
+	}
+	if (access_mask) {
+		init_sec_ace(&aces[idx],
+			&group_sid,
+			SEC_ACE_TYPE_ACCESS_ALLOWED,
+			access_mask,
+			0);
+		idx++;
+	}
+
+	access_mask = 0;
+	if (mode & S_IROTH) {
+		access_mask |= SEC_RIGHTS_FILE_READ | SEC_FILE_EXECUTE;
+	}
+	if (mode & S_IWOTH) {
+		access_mask |= SEC_RIGHTS_FILE_WRITE;
+	}
+	if (access_mask) {
+		init_sec_ace(&aces[idx],
+			&global_sid_World,
+			SEC_ACE_TYPE_ACCESS_ALLOWED,
+			access_mask,
+			0);
+		idx++;
+	}
+
+	init_sec_ace(&aces[idx],
+			&global_sid_System,
+			SEC_ACE_TYPE_ACCESS_ALLOWED,
+			SEC_RIGHTS_FILE_ALL,
+			0);
+	idx++;
+
+	new_dacl = make_sec_acl(ctx,
+			NT4_ACL_REVISION,
+			idx,
+			aces);
+
+	if (!new_dacl) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	*ppdesc = make_sec_desc(ctx,
+			SECURITY_DESCRIPTOR_REVISION_1,
+			SEC_DESC_SELF_RELATIVE|SEC_DESC_DACL_PRESENT,
+			&owner_sid,
+			&group_sid,
+			NULL,
+			new_dacl,
+			&size);
+	if (!*ppdesc) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	return NT_STATUS_OK;
 }

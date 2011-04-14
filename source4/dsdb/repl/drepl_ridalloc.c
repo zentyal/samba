@@ -30,79 +30,13 @@
 #include "dsdb/repl/drepl_service.h"
 #include "param/param.h"
 
-
-/*
-  create the RID manager source dsa structure
- */
-static WERROR drepl_create_rid_manager_source_dsa(struct dreplsrv_service *service,
-						  struct ldb_dn *rid_manager_dn, struct ldb_dn *fsmo_role_dn)
-{
-	struct dreplsrv_partition_source_dsa *sdsa;
-	struct ldb_context *ldb = service->samdb;
-	int ret;
-	WERROR werr;
-
-	sdsa = talloc_zero(service, struct dreplsrv_partition_source_dsa);
-	W_ERROR_HAVE_NO_MEMORY(sdsa);
-
-	sdsa->partition = talloc_zero(sdsa, struct dreplsrv_partition);
-	if (!sdsa->partition) {
-		talloc_free(sdsa);
-		return WERR_NOMEM;
-	}
-
-	sdsa->partition->dn = ldb_get_default_basedn(ldb);
-	sdsa->partition->nc.dn = ldb_dn_alloc_linearized(sdsa->partition, rid_manager_dn);
-	ret = dsdb_find_guid_by_dn(ldb, rid_manager_dn, &sdsa->partition->nc.guid);
-	if (ret != LDB_SUCCESS) {
-		DEBUG(0,(__location__ ": Failed to find GUID for %s\n",
-			 ldb_dn_get_linearized(rid_manager_dn)));
-		talloc_free(sdsa);
-		return WERR_DS_DRA_INTERNAL_ERROR;
-	}
-
-	sdsa->repsFrom1 = &sdsa->_repsFromBlob.ctr.ctr1;
-	ret = dsdb_find_guid_attr_by_dn(ldb, fsmo_role_dn, "objectGUID", &sdsa->repsFrom1->source_dsa_obj_guid);
-	if (ret != LDB_SUCCESS) {
-		DEBUG(0,(__location__ ": Failed to find objectGUID for %s\n",
-			 ldb_dn_get_linearized(fsmo_role_dn)));
-		talloc_free(sdsa);
-		return WERR_DS_DRA_INTERNAL_ERROR;
-	}
-
-	sdsa->repsFrom1->other_info = talloc_zero(sdsa, struct repsFromTo1OtherInfo);
-	if (!sdsa->repsFrom1->other_info) {
-		talloc_free(sdsa);
-		return WERR_NOMEM;
-	}
-
-	sdsa->repsFrom1->other_info->dns_name =
-		talloc_asprintf(sdsa->repsFrom1->other_info, "%s._msdcs.%s",
-				GUID_string(sdsa->repsFrom1->other_info, &sdsa->repsFrom1->source_dsa_obj_guid),
-				lpcfg_dnsdomain(service->task->lp_ctx));
-	if (!sdsa->repsFrom1->other_info->dns_name) {
-		talloc_free(sdsa);
-		return WERR_NOMEM;
-	}
-
-
-	werr = dreplsrv_out_connection_attach(service, sdsa->repsFrom1, &sdsa->conn);
-	if (!W_ERROR_IS_OK(werr)) {
-		DEBUG(0,(__location__ ": Failed to attach to RID manager connection\n"));
-		talloc_free(sdsa);
-		return werr;
-	}
-
-	service->ridalloc.rid_manager_source_dsa = sdsa;
-	return WERR_OK;
-}
-
 /*
   called when a rid allocation request has completed
  */
 static void drepl_new_rid_pool_callback(struct dreplsrv_service *service,
 					WERROR werr,
-					enum drsuapi_DsExtendedError ext_err)
+					enum drsuapi_DsExtendedError ext_err,
+					void *cb_data)
 {
 	if (!W_ERROR_IS_OK(werr)) {
 		DEBUG(0,(__location__ ": RID Manager failed RID allocation - %s - extended_ret[0x%X]\n",
@@ -111,11 +45,7 @@ static void drepl_new_rid_pool_callback(struct dreplsrv_service *service,
 		DEBUG(3,(__location__ ": RID Manager completed RID allocation OK\n"));
 	}
 
-	/* don't keep the connection open to the RID Manager */
-	talloc_free(service->ridalloc.rid_manager_source_dsa);
-	service->ridalloc.rid_manager_source_dsa = NULL;
-
-	service->ridalloc.in_progress = false;
+	service->rid_alloc_in_progress = false;
 }
 
 /*
@@ -126,20 +56,16 @@ static WERROR drepl_request_new_rid_pool(struct dreplsrv_service *service,
 					 struct ldb_dn *rid_manager_dn, struct ldb_dn *fsmo_role_dn,
 					 uint64_t alloc_pool)
 {
-	WERROR werr;
-
-	if (service->ridalloc.rid_manager_source_dsa == NULL) {
-		/* we need to establish a connection to the RID
-		   Manager */
-		werr = drepl_create_rid_manager_source_dsa(service, rid_manager_dn, fsmo_role_dn);
-		W_ERROR_NOT_OK_RETURN(werr);
+	WERROR werr = drepl_request_extended_op(service,
+						rid_manager_dn,
+						fsmo_role_dn,
+						DRSUAPI_EXOP_FSMO_RID_ALLOC,
+						alloc_pool,
+						0,
+						drepl_new_rid_pool_callback, NULL);
+	if (W_ERROR_IS_OK(werr)) {
+		service->rid_alloc_in_progress = true;
 	}
-
-	service->ridalloc.in_progress = true;
-
-	werr = dreplsrv_schedule_partition_pull_source(service, service->ridalloc.rid_manager_source_dsa,
-						       DRSUAPI_EXOP_FSMO_RID_ALLOC, alloc_pool,
-						       drepl_new_rid_pool_callback);
 	return werr;
 }
 
@@ -243,7 +169,12 @@ WERROR dreplsrv_ridalloc_check_rid_pool(struct dreplsrv_service *service)
 	int ret;
 	uint64_t alloc_pool;
 
-	if (service->ridalloc.in_progress) {
+	if (service->am_rodc) {
+		talloc_free(tmp_ctx);
+		return WERR_OK;
+	}
+
+	if (service->rid_alloc_in_progress) {
 		talloc_free(tmp_ctx);
 		return WERR_OK;
 	}

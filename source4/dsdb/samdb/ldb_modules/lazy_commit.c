@@ -27,6 +27,7 @@
  *  Author: Andrew Bartlett
  */
 
+#include "includes.h"
 #include "ldb_module.h"
 #include "dsdb/samdb/ldb_modules/util.h"
 
@@ -50,6 +51,7 @@ static int unlazy_op(struct ldb_module *module, struct ldb_request *req)
 					      req->controls,
 					      req, dsdb_next_callback,
 					      req);
+		LDB_REQ_SET_LOCATION(new_req);
 		break;
 	case LDB_ADD:
 		ret = ldb_build_add_req(&new_req, ldb_module_get_ctx(module), req,
@@ -57,6 +59,7 @@ static int unlazy_op(struct ldb_module *module, struct ldb_request *req)
 					req->controls,
 					req, dsdb_next_callback,
 					req);
+		LDB_REQ_SET_LOCATION(new_req);
 		break;
 	case LDB_MODIFY:
 		ret = ldb_build_mod_req(&new_req, ldb_module_get_ctx(module), req,
@@ -64,6 +67,7 @@ static int unlazy_op(struct ldb_module *module, struct ldb_request *req)
 					req->controls,
 					req, dsdb_next_callback,
 					req);
+		LDB_REQ_SET_LOCATION(new_req);
 		break;
 	case LDB_DELETE:
 		ret = ldb_build_del_req(&new_req, ldb_module_get_ctx(module), req,
@@ -71,6 +75,7 @@ static int unlazy_op(struct ldb_module *module, struct ldb_request *req)
 					req->controls,
 					req, dsdb_next_callback,
 					req);
+		LDB_REQ_SET_LOCATION(new_req);
 		break;
 	case LDB_RENAME:
 		ret = ldb_build_rename_req(&new_req, ldb_module_get_ctx(module), req,
@@ -79,6 +84,7 @@ static int unlazy_op(struct ldb_module *module, struct ldb_request *req)
 					   req->controls,
 					   req, dsdb_next_callback,
 					   req);
+		LDB_REQ_SET_LOCATION(new_req);
 		break;
 	case LDB_EXTENDED:
 		ret = ldb_build_extended_req(&new_req, ldb_module_get_ctx(module),
@@ -88,6 +94,7 @@ static int unlazy_op(struct ldb_module *module, struct ldb_request *req)
 					     req->controls,
 					     req, dsdb_next_callback,
 					     req);
+		LDB_REQ_SET_LOCATION(new_req);
 		break;
 	default:
 		ldb_set_errstring(ldb_module_get_ctx(module),
@@ -103,23 +110,7 @@ static int unlazy_op(struct ldb_module *module, struct ldb_request *req)
 	return ldb_next_request(module, new_req);
 }
 
-static int unlazy_init(struct ldb_module *module)
-{
-	int ret;
-	struct ldb_context *ldb;
-	ldb = ldb_module_get_ctx(module);
-
-	ret = ldb_mod_register_control(module, LDB_CONTROL_SHOW_DELETED_OID);
-	if (ret != LDB_SUCCESS) {
-		ldb_debug(ldb, LDB_DEBUG_ERROR,
-			"lazy_commit: Unable to register control with rootdse!\n");
-		return ldb_operr(ldb);
-	}
-
-	return ldb_next_init(module);
-}
-
-const struct ldb_module_ops ldb_lazy_commit_module_ops = {
+static const struct ldb_module_ops ldb_lazy_commit_module_ops = {
 	.name		   = "lazy_commit",
 	.search            = unlazy_op,
 	.add               = unlazy_op,
@@ -128,5 +119,10 @@ const struct ldb_module_ops ldb_lazy_commit_module_ops = {
 	.rename            = unlazy_op,
 	.request      	   = unlazy_op,
 	.extended          = unlazy_op,
-	.init_context      = unlazy_init,
 };
+
+int ldb_lazy_commit_module_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_lazy_commit_module_ops);
+}

@@ -27,6 +27,9 @@
 #include "nsswitch/libwbclient/wbclient.h"
 #include "librpc/gen_ndr/wbint.h"
 
+#include "talloc_dict.h"
+#include "smb_ldap.h"
+
 #ifdef HAVE_LIBNSCD
 #include <libnscd.h>
 #endif
@@ -131,7 +134,7 @@ struct winbindd_child {
 
 	int sock;
 	struct tevent_queue *queue;
-	struct rpc_pipe_client *rpccli;
+	struct dcerpc_binding_handle *binding_handle;
 
 	struct timed_event *lockout_policy_event;
 	struct timed_event *machine_password_change_event;
@@ -155,7 +158,7 @@ struct winbindd_domain {
 	bool primary;                          /* is this our primary domain ? */
 	bool internal;                         /* BUILTIN and member SAM */
 	bool online;			       /* is this domain available ? */
-	time_t startup_time;		       /* When we set "startup" true. */
+	time_t startup_time;		       /* When we set "startup" true. monotonic clock */
 	bool startup;                          /* are we in the first 30 seconds after startup_time ? */
 
 	bool can_do_samlogon_ex; /* Due to the lack of finer control what type
@@ -167,6 +170,7 @@ struct winbindd_domain {
 				  * we don't have to try _ex every time. */
 
 	bool can_do_ncacn_ip_tcp;
+	bool can_do_validation6;
 
 	/* Lookup methods for this domain (LDAP or RPC) */
 	struct winbindd_methods *methods;
@@ -203,7 +207,7 @@ struct winbindd_domain {
 
 	/* The child pid we're talking to */
 
-	struct winbindd_child child;
+	struct winbindd_child *children;
 
 	/* Callback we use to try put us back online. */
 
@@ -213,6 +217,12 @@ struct winbindd_domain {
 	/* Linked list info */
 
 	struct winbindd_domain *prev, *next;
+};
+
+struct wb_acct_info {
+	fstring acct_name; /* account name */
+	fstring acct_desc; /* account name */
+	uint32_t rid; /* domain-relative RID */
 };
 
 /* per-domain methods. This is how LDAP vs RPC is selected
@@ -232,13 +242,13 @@ struct winbindd_methods {
 	NTSTATUS (*enum_dom_groups)(struct winbindd_domain *domain,
 				    TALLOC_CTX *mem_ctx,
 				    uint32 *num_entries, 
-				    struct acct_info **info);
+				    struct wb_acct_info **info);
 
 	/* get a list of domain local groups */
 	NTSTATUS (*enum_local_groups)(struct winbindd_domain *domain,
 				    TALLOC_CTX *mem_ctx,
 				    uint32 *num_entries, 
-				    struct acct_info **info);
+				    struct wb_acct_info **info);
 
 	/* convert one user or group name to a sid */
 	NTSTATUS (*name_to_sid)(struct winbindd_domain *domain,
@@ -386,6 +396,5 @@ struct WINBINDD_CCACHE_ENTRY {
 #define DOM_SEQUENCE_NONE ((uint32)-1)
 
 #define winbind_event_context server_event_context
-#define winbind_messaging_context server_messaging_context
 
 #endif /* _WINBINDD_H */

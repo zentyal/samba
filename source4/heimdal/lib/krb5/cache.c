@@ -83,7 +83,7 @@ main (int argc, char **argv)
     while((ret = krb5_cc_next_cred(context, id, &cursor, &creds)) == 0){
         char *principal;
 
-	krb5_unparse_name_short(context, creds.server, &principal);
+	krb5_unparse_name(context, creds.server, &principal);
 	printf("principal: %s\\n", principal);
 	free(principal);
 	krb5_free_cred_contents (context, &creds);
@@ -134,7 +134,7 @@ krb5_cc_register(krb5_context context,
 	}
     }
     if(i == context->num_cc_ops) {
-	const krb5_cc_ops **o = realloc(context->cc_ops,
+	const krb5_cc_ops **o = realloc(rk_UNCONST(context->cc_ops),
 					(context->num_cc_ops + 1) *
 					sizeof(context->cc_ops[0]));
 	if(o == NULL) {
@@ -206,8 +206,10 @@ allocate_ccache (krb5_context context,
     }
 
     ret = (*id)->ops->resolve(context, id, residual);
-    if(ret)
+    if(ret) {
 	free(*id);
+        *id = NULL;
+    }
 
 #ifdef KRB5_USE_PATH_TOKENS
     if (exp_residual)
@@ -215,6 +217,25 @@ allocate_ccache (krb5_context context,
 #endif
 
     return ret;
+}
+
+static int
+is_possible_path_name(const char * name)
+{
+    const char * colon;
+
+    if ((colon = strchr(name, ':')) == NULL)
+        return TRUE;
+
+#ifdef _WIN32
+    /* <drive letter>:\path\to\cache ? */
+
+    if (colon == name + 1 &&
+        strchr(colon + 1, ':') == NULL)
+        return TRUE;
+#endif
+
+    return FALSE;
 }
 
 /**
@@ -251,7 +272,7 @@ krb5_cc_resolve(krb5_context context,
 				    id);
 	}
     }
-    if (strchr (name, ':') == NULL)
+    if (is_possible_path_name(name))
 	return allocate_ccache (context, &krb5_fcc_ops, name, id);
     else {
 	krb5_set_error_message(context, KRB5_CC_UNKNOWN_TYPE,
@@ -376,7 +397,7 @@ krb5_cc_get_full_name(krb5_context context,
  */
 
 
-const krb5_cc_ops *
+KRB5_LIB_FUNCTION const krb5_cc_ops * KRB5_LIB_CALL
 krb5_cc_get_ops(krb5_context context, krb5_ccache id)
 {
     return id->ops;
@@ -389,84 +410,7 @@ krb5_cc_get_ops(krb5_context context, krb5_ccache id)
 krb5_error_code
 _krb5_expand_default_cc_name(krb5_context context, const char *str, char **res)
 {
-#ifndef KRB5_USE_PATH_TOKENS
-    size_t tlen, len = 0;
-    char *tmp, *tmp2, *append;
-
-    *res = NULL;
-
-    while (str && *str) {
-	tmp = strstr(str, "%{");
-	if (tmp && tmp != str) {
-	    append = malloc((tmp - str) + 1);
-	    if (append) {
-		memcpy(append, str, tmp - str);
-		append[tmp - str] = '\0';
-	    }
-	    str = tmp;
-	} else if (tmp) {
-	    tmp2 = strchr(tmp, '}');
-	    if (tmp2 == NULL) {
-		if (*res)
-		    free(*res);
-		*res = NULL;
-		krb5_set_error_message(context, KRB5_CONFIG_BADFORMAT,
-				       "variable missing }");
-		return KRB5_CONFIG_BADFORMAT;
-	    }
-	    if (strncasecmp(tmp, "%{uid}", 6) == 0)
-		asprintf(&append, "%u", (unsigned)getuid());
-	    else if (strncasecmp(tmp, "%{null}", 7) == 0)
-		append = strdup("");
-	    else {
-		if (*res)
-		    free(*res);
-		*res = NULL;
-		krb5_set_error_message(context,
-				       KRB5_CONFIG_BADFORMAT,
-				       "expand default cache unknown "
-				       "variable \"%.*s\"",
-				       (int)(tmp2 - tmp) - 2, tmp + 2);
-		return KRB5_CONFIG_BADFORMAT;
-	    }
-	    str = tmp2 + 1;
-	} else {
-	    append = strdup(str);
-	    str = NULL;
-	}
-	if (append == NULL) {
-	    if (*res)
-		free(*res);
-	    *res = NULL;
-	    krb5_set_error_message(context, ENOMEM,
-				   N_("malloc: out of memory", ""));
-	    return ENOMEM;
-	}
-	
-	tlen = strlen(append);
-	tmp = realloc(*res, len + tlen + 1);
-	if (tmp == NULL) {
-	    free(append);
-	    if (*res)
-		free(*res);
-	    *res = NULL;
-	    krb5_set_error_message(context, ENOMEM,
-				   N_("malloc: out of memory", ""));
-	    return ENOMEM;
-	}
-	*res = tmp;
-	memcpy(*res + len, append, tlen + 1);
-	len = len + tlen;
-	free(append);
-    }
-    return 0;
-#else  /* _WIN32 */
-    /* On Windows, we use the more generic _krb5_expand_path_tokens()
-       function which also handles path tokens in addition to %{uid}
-       and %{null} */
-
     return _krb5_expand_path_tokens(context, str, res);
-#endif
 }
 
 /*
@@ -517,7 +461,7 @@ environment_changed(krb5_context context)
  * @ingroup krb5_ccache
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_switch(krb5_context context, krb5_ccache id)
 {
 
@@ -533,7 +477,7 @@ krb5_cc_switch(krb5_context context, krb5_ccache id)
  * @ingroup krb5_ccache
  */
 
-krb5_boolean KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_boolean KRB5_LIB_CALL
 krb5_cc_support_switch(krb5_context context, const char *type)
 {
     const krb5_cc_ops *ops;
@@ -554,7 +498,7 @@ KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_set_default_name(krb5_context context, const char *name)
 {
     krb5_error_code ret = 0;
-    char *p;
+    char *p = NULL, *exp_p = NULL;
 
     if (name == NULL) {
 	const char *e = NULL;
@@ -568,6 +512,12 @@ krb5_cc_set_default_name(krb5_context context, const char *name)
 		context->default_cc_name_env = strdup(e);
 	    }
 	}
+
+#ifdef _WIN32
+        if (e == NULL) {
+            e = p = _krb5_get_default_cc_name_from_registry();
+        }
+#endif
 	if (e == NULL) {
 	    e = krb5_config_get_string(context, NULL, "libdefaults",
 				       "default_cc_name", NULL);
@@ -606,26 +556,17 @@ krb5_cc_set_default_name(krb5_context context, const char *name)
 	return ENOMEM;
     }
 
-#ifdef KRB5_USE_PATH_TOKENS
-    {
-	char * exp_p = NULL;
-
-	if (_krb5_expand_path_tokens(context, p, &exp_p) == 0) {
-	    free (p);
-	    p = exp_p;
-	} else {
-	    free (p);
-	    return EINVAL;
-	}
-    }
-#endif
+    ret = _krb5_expand_path_tokens(context, p, &exp_p);
+    free(p);
+    if (ret)
+	return ret;
 
     if (context->default_cc_name)
 	free(context->default_cc_name);
 
-    context->default_cc_name = p;
+    context->default_cc_name = exp_p;
 
-    return ret;
+    return 0;
 }
 
 /**
@@ -1032,7 +973,7 @@ krb5_cc_clear_mcred(krb5_creds *mcred)
  */
 
 
-const krb5_cc_ops *
+KRB5_LIB_FUNCTION const krb5_cc_ops * KRB5_LIB_CALL
 krb5_cc_get_prefix_ops(krb5_context context, const char *prefix)
 {
     char *p, *p1;
@@ -1248,7 +1189,7 @@ krb5_cc_cache_match (krb5_context context,
  * @ingroup krb5_ccache
  */
 
-krb5_error_code
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_move(krb5_context context, krb5_ccache from, krb5_ccache to)
 {
     krb5_error_code ret;
@@ -1499,7 +1440,7 @@ krb5_cccol_cursor_next(krb5_context context, krb5_cccol_cursor cursor,
 	cursor->cursor = NULL;
 	if (ret != KRB5_CC_END)
 	    break;
-	
+
 	cursor->idx++;
     }
     if (cursor->idx >= context->num_cc_ops) {
@@ -1723,7 +1664,7 @@ krb5_cc_get_lifetime(krb5_context context, krb5_ccache id, time_t *t)
  * @ingroup krb5_ccache
  */
 
-krb5_error_code
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_set_kdc_offset(krb5_context context, krb5_ccache id, krb5_deltat offset)
 {
     if (id->ops->set_kdc_offset == NULL) {
@@ -1748,7 +1689,7 @@ krb5_cc_set_kdc_offset(krb5_context context, krb5_ccache id, krb5_deltat offset)
  * @ingroup krb5_ccache
  */
 
-krb5_error_code
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_get_kdc_offset(krb5_context context, krb5_ccache id, krb5_deltat *offset)
 {
     if (id->ops->get_kdc_offset == NULL) {
@@ -1757,3 +1698,30 @@ krb5_cc_get_kdc_offset(krb5_context context, krb5_ccache id, krb5_deltat *offset
     }
     return (*id->ops->get_kdc_offset)(context, id, offset);
 }
+
+
+#ifdef _WIN32
+
+char *
+_krb5_get_default_cc_name_from_registry()
+{
+    HKEY hk_k5 = 0;
+    LONG code;
+    char * ccname = NULL;
+
+    code = RegOpenKeyEx(HKEY_CURRENT_USER,
+                        "Software\\MIT\\Kerberos5",
+                        0, KEY_READ, &hk_k5);
+
+    if (code != ERROR_SUCCESS)
+        return NULL;
+
+    ccname = _krb5_parse_reg_value_as_string(NULL, hk_k5, "ccname",
+                                             REG_NONE, 0);
+
+    RegCloseKey(hk_k5);
+
+    return ccname;
+}
+
+#endif

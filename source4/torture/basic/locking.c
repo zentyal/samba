@@ -106,14 +106,14 @@ static bool torture_locktest1(struct torture_context *tctx,
 	lock_timeout = (6 + (random() % 20));
 	torture_comment(tctx, "Testing lock timeout with timeout=%u\n", 
 					lock_timeout);
-	t1 = time(NULL);
+	t1 = time_mono(NULL);
 	torture_assert(tctx, 
 		!NT_STATUS_IS_OK(smbcli_lock(cli2->tree, fnum3, 0, 4, lock_timeout * 1000, WRITE_LOCK)),
 		"lock3 succeeded! This is a locking bug\n");
 
 	if (!check_error(__location__, cli2, ERRDOS, ERRlock, 
 				 NT_STATUS_FILE_LOCK_CONFLICT)) return false;
-	t2 = time(NULL);
+	t2 = time_mono(NULL);
 
 	if (t2 - t1 < 5) {
 		torture_fail(tctx, 
@@ -802,7 +802,7 @@ fail:
 
 struct torture_suite *torture_base_locktest(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "LOCK");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "lock");
 	torture_suite_add_2smb_test(suite, "LOCK1", torture_locktest1);
 	torture_suite_add_1smb_test(suite, "LOCK2", torture_locktest2);
 	torture_suite_add_2smb_test(suite, "LOCK3", torture_locktest3);

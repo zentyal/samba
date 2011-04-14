@@ -36,9 +36,9 @@
  */
 
 #include "includes.h"
-#include "ldb/include/ldb.h"
-#include "ldb/include/ldb_errors.h"
-#include "ldb/include/ldb_module.h"
+#include <ldb.h>
+#include <ldb_errors.h>
+#include <ldb_module.h>
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "dsdb/samdb/samdb.h"
 #include "libcli/security/security.h"
@@ -269,14 +269,14 @@ static int extended_store_replace(struct extended_dn_context *ac,
 				   ac->ldb, os, os->dsdb_dn->dn, LDB_SCOPE_BASE, NULL, 
 				   attrs, NULL, os, extended_replace_dn,
 				   ac->req);
-
+	LDB_REQ_SET_LOCATION(os->search_req);
 	if (ret != LDB_SUCCESS) {
 		talloc_free(os);
 		return ret;
 	}
 
 	ret = dsdb_request_add_controls(os->search_req,
-					DSDB_SEARCH_SHOW_DELETED|DSDB_SEARCH_SHOW_DN_IN_STORAGE_FORMAT);
+					DSDB_SEARCH_SHOW_RECYCLED|DSDB_SEARCH_SHOW_DN_IN_STORAGE_FORMAT);
 	if (ret != LDB_SUCCESS) {
 		talloc_free(os);
 		return ret;
@@ -298,7 +298,7 @@ static int extended_dn_add(struct ldb_module *module, struct ldb_request *req)
 {
 	struct extended_dn_context *ac;
 	int ret;
-	int i, j;
+	unsigned int i, j;
 
 	if (ldb_dn_is_special(req->op.add.message->dn)) {
 		/* do not manipulate our control entries */
@@ -337,6 +337,7 @@ static int extended_dn_add(struct ldb_module *module, struct ldb_request *req)
 			}
 		   
 			ret = ldb_build_add_req(&ac->new_req, ac->ldb, ac, msg, req->controls, ac, extended_final_callback, req);
+			LDB_REQ_SET_LOCATION(ac->new_req);
 			if (ret != LDB_SUCCESS) {
 				return ret;
 			}
@@ -344,7 +345,7 @@ static int extended_dn_add(struct ldb_module *module, struct ldb_request *req)
 		/* Re-calculate el */
 		el = &ac->new_req->op.add.message->elements[i];
 		for (j = 0; j < el->num_values; j++) {
-			ret = extended_store_replace(ac, ac->new_req->op.add.message->elements, &el->values[j],
+			ret = extended_store_replace(ac, ac->new_req, &el->values[j],
 						     false, schema_attr->syntax->ldap_oid);
 			if (ret != LDB_SUCCESS) {
 				return ret;
@@ -370,7 +371,7 @@ static int extended_dn_modify(struct ldb_module *module, struct ldb_request *req
 	/* Determine the effect of the modification */
 	/* Apply the modify to the linked entry */
 
-	int i, j;
+	unsigned int i, j;
 	struct extended_dn_context *ac;
 	int ret;
 
@@ -412,6 +413,7 @@ static int extended_dn_modify(struct ldb_module *module, struct ldb_request *req
 			}
 		   
 			ret = ldb_build_mod_req(&ac->new_req, ac->ldb, ac, msg, req->controls, ac, extended_final_callback, req);
+			LDB_REQ_SET_LOCATION(ac->new_req);
 			if (ret != LDB_SUCCESS) {
 				talloc_free(ac);
 				return ret;
@@ -425,9 +427,9 @@ static int extended_dn_modify(struct ldb_module *module, struct ldb_request *req
 			 * element, only do a lookup if
 			 * extended_store_replace determines it's an
 			 * input of an extended DN */
-			bool is_delete = ((el->flags & LDB_FLAG_MOD_MASK) == LDB_FLAG_MOD_DELETE);
+			bool is_delete = (LDB_FLAG_MOD_TYPE(el->flags) == LDB_FLAG_MOD_DELETE);
 
-			ret = extended_store_replace(ac, req->op.mod.message->elements, &el->values[j],
+			ret = extended_store_replace(ac, ac->new_req, &el->values[j],
 						     is_delete, schema_attr->syntax->ldap_oid);
 			if (ret != LDB_SUCCESS) {
 				talloc_free(ac);
@@ -446,8 +448,14 @@ static int extended_dn_modify(struct ldb_module *module, struct ldb_request *req
 	return ldb_next_request(module, ac->ops->search_req);
 }
 
-_PUBLIC_ const struct ldb_module_ops ldb_extended_dn_store_module_ops = {
+static const struct ldb_module_ops ldb_extended_dn_store_module_ops = {
 	.name		   = "extended_dn_store",
 	.add               = extended_dn_add,
 	.modify            = extended_dn_modify,
 };
+
+int ldb_extended_dn_store_module_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_extended_dn_store_module_ops);
+}

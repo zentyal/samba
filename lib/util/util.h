@@ -21,10 +21,8 @@
 #ifndef _SAMBA_UTIL_H_
 #define _SAMBA_UTIL_H_
 
-#if _SAMBA_BUILD_ == 4
-#include "../lib/util/charset/charset.h"
-#endif
-#include "../lib/util/attr.h"
+#include "lib/util/charset/charset.h"
+#include "lib/util/attr.h"
 
 /* for TALLOC_CTX */
 #include <talloc.h>
@@ -39,12 +37,11 @@ struct smbsrv_tcon;
 extern const char *logfile;
 extern const char *panic_action;
 
-#include "../lib/util/time.h"
-#include "../lib/util/data_blob.h"
-#include "../lib/util/xfile.h"
-#include "../lib/util/mutex.h"
-#include "../lib/util/byteorder.h"
-#include "../lib/util/talloc_stack.h"
+#include "lib/util/time.h"
+#include "lib/util/data_blob.h"
+#include "lib/util/xfile.h"
+#include "lib/util/byteorder.h"
+#include "lib/util/talloc_stack.h"
 
 /**
  * assert macros 
@@ -60,18 +57,11 @@ extern const char *panic_action;
 	    __FILE__, __LINE__, #b)); }} while (0)
 #endif
 
-#if _SAMBA_BUILD_ == 4
-#ifdef VALGRIND
-#define strlen(x) valgrind_strlen(x)
-size_t valgrind_strlen(const char *s);
-#endif
-#endif
-
 #ifndef ABS
 #define ABS(a) ((a)>0?(a):(-(a)))
 #endif
 
-#include "../lib/util/memory.h"
+#include "lib/util/memory.h"
 
 /**
  * Write backtrace to debug log
@@ -88,6 +78,7 @@ _PUBLIC_ _NORETURN_ void smb_panic(const char *why);
 setup our fault handlers
 **/
 _PUBLIC_ void fault_setup(const char *pname);
+_PUBLIC_ void fault_setup_disable(void);
 #endif
 
 /**
@@ -655,7 +646,7 @@ _PUBLIC_ int set_blocking(int fd, bool set);
 /**
  Sleep for a specified number of milliseconds.
 **/
-_PUBLIC_ void msleep(unsigned int t);
+_PUBLIC_ void smb_msleep(unsigned int t);
 
 /**
  Get my own name, return in talloc'ed storage.
@@ -672,6 +663,14 @@ _PUBLIC_ bool process_exists_by_pid(pid_t pid);
  is dealt with in posix.c
 **/
 _PUBLIC_ bool fcntl_lock(int fd, int op, off_t offset, off_t count, int type);
+
+/**
+ * Write dump of binary data to a callback
+ */
+void dump_data_cb(const uint8_t *buf, int len,
+		  bool omit_zero_bytes,
+		  void (*cb)(const char *buf, void *private_data),
+		  void *private_data);
 
 /**
  * Write dump of binary data to the log file.
@@ -771,15 +770,6 @@ int ms_fnmatch(const char *pattern, const char *string, enum protocol_types prot
 int gen_fnmatch(const char *pattern, const char *string);
 #endif
 
-/* The following definitions come from lib/util/mutex.c  */
-
-
-/**
-  register a set of mutex/rwlock handlers. 
-  Should only be called once in the execution of smbd.
-*/
-_PUBLIC_ bool register_mutex_handlers(const char *name, struct mutex_ops *ops);
-
 /* The following definitions come from lib/util/idtree.c  */
 
 
@@ -840,6 +830,9 @@ bool pm_process( const char *fileName,
 bool unmap_file(void *start, size_t size);
 
 void print_asc(int level, const uint8_t *buf,int len);
+void print_asc_cb(const uint8_t *buf, int len,
+		  void (*cb)(const char *buf, void *private_data),
+		  void *private_data);
 
 /**
  * Add an id to an array of ids.
@@ -849,14 +842,15 @@ void print_asc(int level, const uint8_t *buf,int len);
  */
 
 bool add_uid_to_array_unique(TALLOC_CTX *mem_ctx, uid_t uid,
-			     uid_t **uids, size_t *num_uids);
+			     uid_t **uids, uint32_t *num_uids);
 bool add_gid_to_array_unique(TALLOC_CTX *mem_ctx, gid_t gid,
-			     gid_t **gids, size_t *num_gids);
+			     gid_t **gids, uint32_t *num_gids);
 
 /**
  * Allocate anonymous shared memory of the given size
  */
-void *allocate_anonymous_shared(size_t bufsz);
+void *anonymous_shared_allocate(size_t bufsz);
+void anonymous_shared_free(void *ptr);
 
 /*
   run a command as a child process, with a timeout.
@@ -876,5 +870,9 @@ struct tevent_req *samba_runcmd_send(TALLOC_CTX *mem_ctx,
 				     int stderr_log_level,
 				     const char * const *argv0, ...);
 int samba_runcmd_recv(struct tevent_req *req, int *perrno);
+
+#ifdef DEVELOPER
+void samba_start_debugger(void);
+#endif
 
 #endif /* _SAMBA_UTIL_H_ */

@@ -61,6 +61,10 @@ class NoRootSOA(dns.exception.DNSException):
     This should never happen!"""
     pass
 
+class NoMetaqueries(dns.exception.DNSException):
+    """Metaqueries are not allowed."""
+    pass
+
 
 class Answer(object):
     """DNS stub resolver answer
@@ -569,10 +573,14 @@ class Resolver(object):
 
         if isinstance(qname, (str, unicode)):
             qname = dns.name.from_text(qname, None)
-        if isinstance(rdtype, str):
+        if isinstance(rdtype, (str, unicode)):
             rdtype = dns.rdatatype.from_text(rdtype)
-        if isinstance(rdclass, str):
+        if dns.rdatatype.is_metatype(rdtype):
+            raise NoMetaqueries
+        if isinstance(rdclass, (str, unicode)):
             rdclass = dns.rdataclass.from_text(rdclass)
+        if dns.rdataclass.is_metaclass(rdclass):
+            raise NoMetaqueries
         qnames_to_try = []
         if qname.is_absolute():
             qnames_to_try.append(qname)
@@ -593,7 +601,8 @@ class Resolver(object):
                     return answer
             request = dns.message.make_query(qname, rdtype, rdclass)
             if not self.keyname is None:
-                request.use_tsig(self.keyring, self.keyname, self.keyalgorithm)
+                request.use_tsig(self.keyring, self.keyname,
+                                 algorithm=self.keyalgorithm)
             request.use_edns(self.edns, self.ednsflags, self.payload)
             response = None
             #
@@ -753,9 +762,12 @@ def zone_for_name(name, rdclass=dns.rdataclass.IN, tcp=False, resolver=None):
     while 1:
         try:
             answer = resolver.query(name, dns.rdatatype.SOA, rdclass, tcp)
-            return name
+            if answer.rrset.name == name:
+                return name
+            # otherwise we were CNAMEd or DNAMEd and need to look higher
         except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
-            try:
-                name = name.parent()
-            except dns.name.NoParent:
-                raise NoRootSOA
+            pass
+        try:
+            name = name.parent()
+        except dns.name.NoParent:
+            raise NoRootSOA

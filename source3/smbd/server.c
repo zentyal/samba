@@ -22,30 +22,62 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "popt_common.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
-#include "librpc/gen_ndr/messaging.h"
 #include "registry.h"
+#include "registry/reg_init_full.h"
 #include "libcli/auth/schannel.h"
+#include "secrets.h"
+#include "memcache.h"
+#include "ctdbd_conn.h"
+#include "printing/printer_list.h"
+#include "rpc_server/rpc_ep_setup.h"
+#include "printing/pcap.h"
+#include "printing.h"
+#include "serverid.h"
+#include "passdb.h"
+#include "auth.h"
+#include "messages.h"
 
-static_decl_rpc;
+extern void start_epmd(struct tevent_context *ev_ctx,
+		       struct messaging_context *msg_ctx);
+
+extern void start_spoolssd(struct event_context *ev_ctx,
+			   struct messaging_context *msg_ctx);
 
 #ifdef WITH_DFS
 extern int dcelogin_atmost_once;
 #endif /* WITH_DFS */
 
-int smbd_server_fd(void)
-{
-	return server_fd;
-}
-
 static void smbd_set_server_fd(int fd)
 {
-	server_fd = fd;
-}
+	struct smbd_server_connection *sconn = smbd_server_conn;
+	char addr[INET6_ADDRSTRLEN];
+	const char *name;
 
-int get_client_fd(void)
-{
-	return server_fd;
+	sconn->sock = fd;
+
+	/*
+	 * Initialize sconn->client_id: If we can't find the client's
+	 * name, default to its address.
+	 */
+
+	client_addr(fd, sconn->client_id.addr, sizeof(sconn->client_id.addr));
+
+	name = client_name(sconn->sock);
+	if (strcmp(name, "UNKNOWN") != 0) {
+		name = talloc_strdup(sconn, name);
+	} else {
+		name = NULL;
+	}
+	sconn->client_id.name =
+		(name != NULL) ? name : sconn->client_id.addr;
+
+	sub_set_socket_ids(sconn->client_id.addr, sconn->client_id.name,
+			   client_socket_addr(sconn->sock, addr,
+					      sizeof(addr)));
 }
 
 struct event_context *smbd_event_context(void)
@@ -63,12 +95,36 @@ static void smb_conf_updated(struct messaging_context *msg,
 			     struct server_id server_id,
 			     DATA_BLOB *data)
 {
+	struct tevent_context *ev_ctx =
+		talloc_get_type_abort(private_data, struct tevent_context);
+
 	DEBUG(10,("smb_conf_updated: Got message saying smb.conf was "
 		  "updated. Reloading.\n"));
 	change_to_root_user();
-	reload_services(False);
+	reload_services(msg, smbd_server_conn->sock, False);
+	if (am_parent) {
+		pcap_cache_reload(ev_ctx, msg,
+				  &reload_pcap_change_notify);
+	}
 }
 
+/*******************************************************************
+ What to do when printcap is updated.
+ ********************************************************************/
+
+static void smb_pcap_updated(struct messaging_context *msg,
+			     void *private_data,
+			     uint32_t msg_type,
+			     struct server_id server_id,
+			     DATA_BLOB *data)
+{
+	struct tevent_context *ev_ctx =
+		talloc_get_type_abort(private_data, struct tevent_context);
+
+	DEBUG(10,("Got message saying pcap was updated. Reloading.\n"));
+	change_to_root_user();
+	reload_printers(ev_ctx, msg);
+}
 
 /*******************************************************************
  Delete a statcache entry.
@@ -257,7 +313,8 @@ static void remove_child_pid(pid_t pid, bool unclean_shutdown)
 		}
 	}
 
-	DEBUG(0, ("Could not find child %d -- ignoring\n", (int)pid));
+	/* not all forked child processes are added to the children list */
+	DEBUG(1, ("Could not find child %d -- ignoring\n", (int)pid));
 }
 
 /****************************************************************************
@@ -352,28 +409,30 @@ static void smbd_accept_connection(struct tevent_context *ev,
 				     struct smbd_open_socket);
 	struct sockaddr_storage addr;
 	socklen_t in_addrlen = sizeof(addr);
+	int fd;
 	pid_t pid = 0;
 	uint64_t unique_id;
 
-	smbd_set_server_fd(accept(s->fd, (struct sockaddr *)(void *)&addr,&in_addrlen));
+	fd = accept(s->fd, (struct sockaddr *)(void *)&addr,&in_addrlen);
+	smbd_set_server_fd(fd);
 
-	if (smbd_server_fd() == -1 && errno == EINTR)
+	if (fd == -1 && errno == EINTR)
 		return;
 
-	if (smbd_server_fd() == -1) {
+	if (fd == -1) {
 		DEBUG(0,("open_sockets_smbd: accept: %s\n",
 			 strerror(errno)));
 		return;
 	}
 
 	if (s->parent->interactive) {
-		smbd_process();
+		smbd_process(smbd_server_conn);
 		exit_server_cleanly("end of interactive mode");
 		return;
 	}
 
 	if (!allowable_number_of_smbd_processes()) {
-		close(smbd_server_fd());
+		close(fd);
 		smbd_set_server_fd(-1);
 		return;
 	}
@@ -423,7 +482,8 @@ static void smbd_accept_connection(struct tevent_context *ev,
 		}
 
 		smbd_setup_sig_term_handler();
-		smbd_setup_sig_hup_handler();
+		smbd_setup_sig_hup_handler(server_event_context(),
+					   server_messaging_context());
 
 		if (!serverid_register(procid_self(),
 				       FLAG_MSG_GENERAL|FLAG_MSG_SMBD
@@ -433,17 +493,19 @@ static void smbd_accept_connection(struct tevent_context *ev,
 					    "serverid.tdb");
 		}
 
-		smbd_process();
+		smbd_process(smbd_server_conn);
 	 exit:
 		exit_server_cleanly("end of child");
 		return;
-	} else if (pid < 0) {
+	}
+
+	if (pid < 0) {
 		DEBUG(0,("smbd_accept_connection: sys_fork() failed: %s\n",
 			 strerror(errno)));
 	}
 
 	/* The parent doesn't need this socket */
-	close(smbd_server_fd());
+	close(fd);
 
 	/* Sun May 6 18:56:14 2001 ackley@cs.unm.edu:
 		Clear the closed fd info out of server_fd --
@@ -539,11 +601,32 @@ static bool smbd_open_one_socket(struct smbd_parent_context *parent,
 	return true;
 }
 
+static bool smbd_parent_housekeeping(const struct timeval *now, void *private_data)
+{
+	time_t printcap_cache_time = (time_t)lp_printcap_cache_time();
+	time_t t = time_mono(NULL);
+
+	DEBUG(5, ("parent housekeeping\n"));
+
+	/* if periodic printcap rescan is enabled, see if it's time to reload */
+	if ((printcap_cache_time != 0)
+	 && (t >= (last_printer_reload_time + printcap_cache_time))) {
+		DEBUG( 3,( "Printcap cache time expired.\n"));
+		pcap_cache_reload(server_event_context(),
+				  smbd_messaging_context(),
+				  &reload_pcap_change_notify);
+		last_printer_reload_time = t;
+	}
+
+	return true;
+}
+
 /****************************************************************************
  Open the socket communication.
 ****************************************************************************/
 
 static bool open_sockets_smbd(struct smbd_parent_context *parent,
+			      struct messaging_context *msg_ctx,
 			      const char *smb_ports)
 {
 	int num_interfaces = iface_count();
@@ -596,6 +679,13 @@ static bool open_sockets_smbd(struct smbd_parent_context *parent,
 				unsigned port = atoi(tok);
 				if (port == 0 || port > 0xffff) {
 					continue;
+				}
+
+				/* Keep the first port for mDNS service
+				 * registration.
+				 */
+				if (dns_port == 0) {
+					dns_port = port;
 				}
 
 				if (!smbd_open_one_socket(parent, ifss, port)) {
@@ -672,35 +762,43 @@ static bool open_sockets_smbd(struct smbd_parent_context *parent,
 		return false;
 	}
 
+	if (!(event_add_idle(smbd_event_context(), NULL,
+			     timeval_set(SMBD_HOUSEKEEPING_INTERVAL, 0),
+			     "parent_housekeeping", smbd_parent_housekeeping,
+			     NULL))) {
+		DEBUG(0, ("Could not add parent_housekeeping event\n"));
+		return false;
+	}
+
         /* Listen to messages */
 
-	messaging_register(smbd_messaging_context(), NULL,
-			   MSG_SMB_SAM_SYNC, msg_sam_sync);
-	messaging_register(smbd_messaging_context(), NULL,
-			   MSG_SHUTDOWN, msg_exit_server);
-	messaging_register(smbd_messaging_context(), NULL,
-			   MSG_SMB_FILE_RENAME, msg_file_was_renamed);
-	messaging_register(smbd_messaging_context(), NULL,
-			   MSG_SMB_CONF_UPDATED, smb_conf_updated);
-	messaging_register(smbd_messaging_context(), NULL,
-			   MSG_SMB_STAT_CACHE_DELETE, smb_stat_cache_delete);
-	messaging_register(smbd_messaging_context(), NULL,
-			   MSG_DEBUG, smbd_msg_debug);
-	brl_register_msgs(smbd_messaging_context());
+	messaging_register(msg_ctx, NULL, MSG_SMB_SAM_SYNC, msg_sam_sync);
+	messaging_register(msg_ctx, NULL, MSG_SHUTDOWN, msg_exit_server);
+	messaging_register(msg_ctx, NULL, MSG_SMB_FILE_RENAME,
+			   msg_file_was_renamed);
+	messaging_register(msg_ctx, server_event_context(), MSG_SMB_CONF_UPDATED,
+			   smb_conf_updated);
+	messaging_register(msg_ctx, NULL, MSG_SMB_STAT_CACHE_DELETE,
+			   smb_stat_cache_delete);
+	messaging_register(msg_ctx, NULL, MSG_DEBUG, smbd_msg_debug);
+	messaging_register(msg_ctx, server_event_context(), MSG_PRINTER_PCAP,
+			   smb_pcap_updated);
+	brl_register_msgs(msg_ctx);
+
+	msg_idmap_register_msgs(msg_ctx);
 
 #ifdef CLUSTER_SUPPORT
 	if (lp_clustering()) {
-		ctdbd_register_reconfigure(
-			messaging_ctdbd_connection(procid_self()));
+		ctdbd_register_reconfigure(messaging_ctdbd_connection());
 	}
 #endif
 
 #ifdef DEVELOPER
-	messaging_register(smbd_messaging_context(), NULL,
-			   MSG_SMB_INJECT_FAULT, msg_inject_fault);
+	messaging_register(msg_ctx, NULL, MSG_SMB_INJECT_FAULT,
+			   msg_inject_fault);
 #endif
 
-	if (dns_port != 0) {
+	if (lp_multicast_dns_register() && (dns_port != 0)) {
 #ifdef WITH_DNSSD_SUPPORT
 		smbd_setup_mdns_registration(smbd_event_context(),
 					     parent, dns_port);
@@ -754,8 +852,6 @@ static bool init_structs(void )
 	if (!init_names())
 		return False;
 
-	file_init();
-
 	if (!secrets_init())
 		return False;
 
@@ -807,9 +903,20 @@ extern void build_options(bool screen);
 	POPT_TABLEEND
 	};
 	struct smbd_parent_context *parent = NULL;
-	TALLOC_CTX *frame = talloc_stackframe(); /* Setup tos. */
+	TALLOC_CTX *frame;
 	NTSTATUS status;
 	uint64_t unique_id;
+
+	/*
+	 * Do this before any other talloc operation
+	 */
+	talloc_enable_null_tracking();
+	frame = talloc_stackframe();
+
+	load_case_tables();
+
+	/* Initialize the event context, it will panic on error */
+	smbd_event_context();
 
 	smbd_init_globals();
 
@@ -854,21 +961,21 @@ extern void build_options(bool screen);
 		log_stdout = True;
 	}
 
-	setup_logging(argv[0],log_stdout);
+	if (log_stdout) {
+		setup_logging(argv[0], DEBUG_STDOUT);
+	} else {
+		setup_logging(argv[0], DEBUG_FILE);
+	}
 
 	if (print_build_options) {
 		build_options(True); /* Display output to screen as well as debug */
 		exit(0);
 	}
 
-	load_case_tables();
-
 #ifdef HAVE_SETLUID
 	/* needed for SecureWare on SCO */
 	setluid(0);
 #endif
-
-	sec_init();
 
 	set_remote_machine_name("smbd", False);
 
@@ -885,9 +992,11 @@ extern void build_options(bool screen);
            client problems at a later date. (tridge) */
 	generate_random_buffer(NULL, 0);
 
+	/* get initial effective uid and gid */
+	sec_init();
+
 	/* make absolutely sure we run as root - to handle cases where people
 	   are crazy enough to have it setuid */
-
 	gain_root_privilege();
 	gain_root_group_privilege();
 
@@ -922,8 +1031,6 @@ extern void build_options(bool screen);
 	   so set our umask to 0 */
 	umask(0);
 
-	init_sec_ctx();
-
 	reopen_logs();
 
 	DEBUG(0,("smbd version %s started.\n", samba_version_string()));
@@ -945,11 +1052,23 @@ extern void build_options(bool screen);
 		exit(1);
 	}
 
+	/* Init the security context and global current_user */
+	init_sec_ctx();
+
 	if (smbd_messaging_context() == NULL)
 		exit(1);
 
-	if (!reload_services(False))
-		return(-1);	
+	/*
+	 * Reloading of the printers will not work here as we don't have a
+	 * server info and rpc services set up. It will be called later.
+	 */
+	if (!reload_services(smbd_messaging_context(), -1, False)) {
+		exit(1);
+	}
+
+	/* ...NOTE... Log files are working from this point! */
+
+	DEBUG(3,("loaded services\n"));
 
 	init_structs();
 
@@ -967,8 +1086,6 @@ extern void build_options(bool screen);
 		set_profile_level(pl, src);
 	}
 #endif
-
-	DEBUG(3,( "loaded services\n"));
 
 	if (!is_daemon && !is_a_socket(0)) {
 		if (!interactive)
@@ -1016,7 +1133,8 @@ extern void build_options(bool screen);
 	smbd_server_conn->msg_ctx = smbd_messaging_context();
 
 	smbd_setup_sig_term_handler();
-	smbd_setup_sig_hup_handler();
+	smbd_setup_sig_hup_handler(smbd_event_context(),
+				   smbd_server_conn->msg_ctx);
 
 	/* Setup all the TDB's - including CLEAR_IF_FIRST tdb's. */
 
@@ -1059,38 +1177,27 @@ extern void build_options(bool screen);
 	if (!locking_init())
 		exit(1);
 
-	if (!messaging_tdb_parent_init()) {
+	if (!messaging_tdb_parent_init(smbd_event_context())) {
 		exit(1);
 	}
 
-	if (!notify_internal_parent_init()) {
+	if (!notify_internal_parent_init(smbd_event_context())) {
 		exit(1);
 	}
 
-	if (!serverid_parent_init()) {
+	if (!serverid_parent_init(smbd_event_context())) {
+		exit(1);
+	}
+
+	if (!printer_list_parent_init()) {
 		exit(1);
 	}
 
 	if (!W_ERROR_IS_OK(registry_init_full()))
 		exit(1);
 
-#if 0
-	if (!init_svcctl_db())
-                exit(1);
-#endif
-
-	if (!init_system_info()) {
-		DEBUG(0,("ERROR: failed to setup system user info.\n"));
-		return -1;
-	}
-
 	if (!print_backend_init(smbd_messaging_context()))
 		exit(1);
-
-	if (!init_guest_info()) {
-		DEBUG(0,("ERROR: failed to setup guest info.\n"));
-		return -1;
-	}
 
 	/* Open the share_info.tdb here, so we don't have to open
 	   after the fork on every single connection.  This is a small
@@ -1101,6 +1208,43 @@ extern void build_options(bool screen);
 		exit(1);
 	}
 
+	status = init_system_info();
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("ERROR: failed to setup system user info: %s.\n",
+			  nt_errstr(status)));
+		return -1;
+	}
+
+	if (!init_guest_info()) {
+		DEBUG(0,("ERROR: failed to setup guest info.\n"));
+		return -1;
+	}
+
+	if (!file_init(smbd_server_conn)) {
+		DEBUG(0, ("ERROR: file_init failed\n"));
+		return -1;
+	}
+
+	if (is_daemon && !interactive) {
+		const char *rpcsrv_type;
+
+		rpcsrv_type = lp_parm_const_string(GLOBAL_SECTION_SNUM,
+						   "rpc_server", "epmapper",
+						   "none");
+		if (StrCaseCmp(rpcsrv_type, "daemon") == 0) {
+			start_epmd(smbd_event_context(),
+				   smbd_server_conn->msg_ctx);
+		}
+	}
+
+	if (!dcesrv_ep_setup(smbd_event_context(), smbd_server_conn->msg_ctx)) {
+		exit(1);
+	}
+
+	/* Publish nt printers, this requires a working winreg pipe */
+	pcap_cache_reload(server_event_context(), smbd_messaging_context(),
+			  &reload_printers);
+
 	/* only start the background queue daemon if we are 
 	   running as a daemon -- bad things will happen if
 	   smbd is launched via inetd and we fork a copy of 
@@ -1108,7 +1252,22 @@ extern void build_options(bool screen);
 
 	if (is_daemon && !interactive
 	    && lp_parm_bool(-1, "smbd", "backgroundqueue", true)) {
-		start_background_queue();
+		start_background_queue(smbd_event_context(),
+				       smbd_messaging_context());
+	}
+
+	if (is_daemon && !_lp_disable_spoolss()) {
+		const char *rpcsrv_type;
+
+		/* start spoolss daemon */
+		/* start as a separate daemon only if enabled */
+		rpcsrv_type = lp_parm_const_string(GLOBAL_SECTION_SNUM,
+						   "rpc_server", "spoolss",
+						   "embedded");
+		if (StrCaseCmp(rpcsrv_type, "daemon") == 0) {
+			start_spoolssd(smbd_event_context(),
+				       smbd_messaging_context());
+		}
 	}
 
 	if (!is_daemon) {
@@ -1130,7 +1289,7 @@ extern void build_options(bool screen);
 	        /* Stop zombies */
 		smbd_setup_sig_chld_handler();
 
-		smbd_process();
+		smbd_process(smbd_server_conn);
 
 		exit_server_cleanly(NULL);
 		return(0);
@@ -1142,7 +1301,7 @@ extern void build_options(bool screen);
 	}
 	parent->interactive = interactive;
 
-	if (!open_sockets_smbd(parent, ports))
+	if (!open_sockets_smbd(parent, smbd_messaging_context(), ports))
 		exit_server("open_sockets_smbd() failed");
 
 	TALLOC_FREE(frame);

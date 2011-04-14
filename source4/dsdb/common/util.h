@@ -33,3 +33,23 @@
 #define DSDB_FLAG_AS_SYSTEM		      0x0080
 #define DSDB_TREE_DELETE		      0x0100
 #define DSDB_SEARCH_ONE_ONLY		      0x0200 /* give an error unless 1 record */
+#define DSDB_SEARCH_SHOW_RECYCLED	      0x0400
+#define DSDB_PROVISION			      0x0800
+
+bool is_attr_in_list(const char * const * attrs, const char *attr);
+
+#define DSDB_SECRET_ATTRIBUTES_EX(sep) \
+	"currentValue" sep \
+	"dBCSPwd" sep \
+	"initialAuthIncoming" sep \
+	"initialAuthOutgoing" sep \
+	"lmPwdHistory" sep \
+	"ntPwdHistory" sep \
+	"priorValue" sep \
+	"supplementalCredentials" sep \
+	"trustAuthIncoming" sep \
+	"trustAuthOutgoing" sep \
+	"unicodePwd"
+
+#define DSDB_SECRET_ATTRIBUTES_COMMA ,
+#define DSDB_SECRET_ATTRIBUTES DSDB_SECRET_ATTRIBUTES_EX(DSDB_SECRET_ATTRIBUTES_COMMA)

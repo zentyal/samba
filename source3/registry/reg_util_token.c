@@ -19,6 +19,7 @@
 
 #include "includes.h"
 #include "reg_util_token.h"
+#include "../libcli/security/security.h"
 
 /*
  * create a fake token just with enough rights to
@@ -28,24 +29,25 @@
  * - disk operators privilege
  */
 NTSTATUS registry_create_admin_token(TALLOC_CTX *mem_ctx,
-				     NT_USER_TOKEN **ptoken)
+				     struct security_token **ptoken)
 {
 	NTSTATUS status;
-	NT_USER_TOKEN *token = NULL;
+	struct security_token *token = NULL;
 
 	if (ptoken == NULL) {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	token = TALLOC_ZERO_P(mem_ctx, NT_USER_TOKEN);
+	token = TALLOC_ZERO_P(mem_ctx, struct security_token);
 	if (token == NULL) {
 		DEBUG(1, ("talloc failed\n"));
 		status = NT_STATUS_NO_MEMORY;
 		goto done;
 	}
-	token->privileges = se_disk_operators;
+	security_token_set_privilege(token, SEC_PRIV_DISK_OPERATOR);
+
 	status = add_sid_to_array(token, &global_sid_Builtin_Administrators,
-				  &token->user_sids, &token->num_sids);
+				  &token->sids, &token->num_sids);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(1, ("Error adding builtin administrators sid "
 			  "to fake token.\n"));

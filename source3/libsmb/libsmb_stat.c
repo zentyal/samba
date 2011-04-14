@@ -250,8 +250,8 @@ SMBC_fstat_ctx(SMBCCTX *context,
 
 	/*d_printf(">>>fstat: resolving %s\n", path);*/
 	if (!cli_resolve_path(frame, "", context->internal->auth_info,
-			file->srv->cli, path,
-			&targetcli, &targetpath)) {
+			      file->srv->cli, path,
+			      &targetcli, &targetpath)) {
 		d_printf("Could not resolve %s\n", path);
                 errno = ENOENT;
 		TALLOC_FREE(frame);
@@ -259,12 +259,13 @@ SMBC_fstat_ctx(SMBCCTX *context,
 	}
 	/*d_printf(">>>fstat: resolved path as %s\n", targetpath);*/
 
-	if (!cli_qfileinfo(targetcli, file->cli_fd, &mode, &size,
-                           NULL,
-                           &access_time_ts,
-                           &write_time_ts,
-                           &change_time_ts,
-                           &ino)) {
+	if (!NT_STATUS_IS_OK(cli_qfileinfo_basic(
+				     targetcli, file->cli_fd, &mode, &size,
+				     NULL,
+				     &access_time_ts,
+				     &write_time_ts,
+				     &change_time_ts,
+				     &ino))) {
 		time_t change_time, access_time, write_time;
 
 		if (!NT_STATUS_IS_OK(cli_getattrE(targetcli, file->cli_fd, &mode, &size,
@@ -376,14 +377,16 @@ SMBC_fstatvfs_ctx(SMBCCTX *context,
                 uint64_t actual_allocation_units;
                 uint64_t sectors_per_allocation_unit;
                 uint64_t bytes_per_sector;
+		NTSTATUS status;
 
                 /* Nope. If size data is available... */
-                if (cli_get_fs_full_size_info(cli,
-                                              &total_allocation_units,
-                                              &caller_allocation_units,
-                                              &actual_allocation_units,
-                                              &sectors_per_allocation_unit,
-                                              &bytes_per_sector)) {
+		status = cli_get_fs_full_size_info(cli,
+						   &total_allocation_units,
+						   &caller_allocation_units,
+						   &actual_allocation_units,
+						   &sectors_per_allocation_unit,
+						   &bytes_per_sector);
+		if (NT_STATUS_IS_OK(status)) {
 
                         /* ... then provide it */
                         st->f_bsize =
@@ -408,17 +411,19 @@ SMBC_fstatvfs_ctx(SMBCCTX *context,
                 uint64_t total_file_nodes;
                 uint64_t free_file_nodes;
                 uint64_t fs_identifier;
+		NTSTATUS status;
 
                 /* Has UNIXCIFS. If POSIX filesystem info is available... */
-                if (cli_get_posix_fs_info(cli,
-                                          &optimal_transfer_size,
-                                          &block_size,
-                                          &total_blocks,
-                                          &blocks_available,
-                                          &user_blocks_available,
-                                          &total_file_nodes,
-                                          &free_file_nodes,
-                                          &fs_identifier)) {
+		status = cli_get_posix_fs_info(cli,
+					       &optimal_transfer_size,
+					       &block_size,
+					       &total_blocks,
+					       &blocks_available,
+					       &user_blocks_available,
+					       &total_file_nodes,
+					       &free_file_nodes,
+					       &fs_identifier);
+		if (NT_STATUS_IS_OK(status)) {
 
                         /* ... then what's provided here takes precedence. */
                         st->f_bsize =

@@ -20,20 +20,24 @@ samba_dist.DIST_DIRS('lib/replace buildtools:buildtools')
 
 def set_options(opt):
     opt.BUILTIN_DEFAULT('NONE')
-    opt.BUNDLED_EXTENSION_DEFAULT('')
+    opt.PRIVATE_EXTENSION_DEFAULT('')
     opt.RECURSE('buildtools/wafsamba')
 
 @wafsamba.runonce
 def configure(conf):
     conf.RECURSE('buildtools/wafsamba')
 
+    conf.env.standalone_replace = conf.IN_LAUNCH_DIR()
+
     conf.DEFINE('LIBREPLACE_NETWORK_CHECKS', 1)
 
-    # on Tru64 certain features are only available with _OSF_SOURCE
+    # on Tru64 certain features are only available with _OSF_SOURCE set to 1
+    # and _XOPEN_SOURCE set to 600
     if conf.env['SYSTEM_UNAME_SYSNAME'] == 'OSF1':
         conf.DEFINE('_OSF_SOURCE', 1, add_to_cflags=True)
+        conf.DEFINE('_XOPEN_SOURCE', 600, add_to_cflags=True)
 
-    conf.CHECK_HEADERS('crypt.h locale.h acl/libacl.h compat.h')
+    conf.CHECK_HEADERS('linux/types.h crypt.h locale.h acl/libacl.h compat.h')
     conf.CHECK_HEADERS('acl/libacl.h attr/xattr.h compat.h ctype.h dustat.h')
     conf.CHECK_HEADERS('fcntl.h fnmatch.h glob.h history.h krb5.h langinfo.h')
     conf.CHECK_HEADERS('libaio.h locale.h ndir.h pwd.h')
@@ -67,11 +71,12 @@ def configure(conf):
     conf.CHECK_HEADERS('utmp.h utmpx.h lastlog.h')
     conf.CHECK_HEADERS('syscall.h sys/syscall.h inttypes.h')
 
-    conf.CHECK_TYPES('"long long" intptr_t uintptr_t ptrdiff_t')
-    conf.CHECK_TYPES('comparison_fn_t bool')
+    conf.CHECK_TYPES('"long long" intptr_t uintptr_t ptrdiff_t comparison_fn_t')
     conf.CHECK_TYPE('_Bool', define='HAVE__Bool')
+    conf.CHECK_TYPE('bool', define='HAVE_BOOL')
 
     conf.CHECK_TYPE('int8_t', 'char')
+    conf.CHECK_TYPE('uint8_t', 'unsigned char')
     conf.CHECK_TYPE('int16_t', 'short')
     conf.CHECK_TYPE('uint16_t', 'unsigned short')
     conf.CHECK_TYPE('int32_t', 'int')
@@ -82,10 +87,14 @@ def configure(conf):
     conf.CHECK_TYPE('ssize_t', 'int')
     conf.CHECK_TYPE('ino_t', 'unsigned')
     conf.CHECK_TYPE('loff_t', 'off_t')
-    conf.CHECK_TYPE('bool', 'off_t')
     conf.CHECK_TYPE('offset_t', 'loff_t')
     conf.CHECK_TYPE('volatile int', define='HAVE_VOLATILE')
     conf.CHECK_TYPE('uint_t', 'unsigned int')
+
+    conf.CHECK_SIZEOF('bool char int "long long" long short size_t ssize_t')
+    conf.CHECK_SIZEOF('int8_t uint8_t int16_t uint16_t int32_t uint32_t int64_t uint64_t')
+    conf.CHECK_SIZEOF('void*', define='SIZEOF_VOID_P')
+    conf.CHECK_SIZEOF('off_t dev_t ino_t time_t')
 
     conf.CHECK_TYPES('socklen_t', headers='sys/socket.h')
     conf.CHECK_TYPE_IN('struct ifaddrs', 'ifaddrs.h')
@@ -130,7 +139,7 @@ def configure(conf):
                        int s = socket(AF_INET6, SOCK_STREAM, 0);
                        int ret = getaddrinfo(NULL, NULL, NULL, &ai);
                        if (ret != 0) {
-			  const char *es = gai_strerror(ret);
+                           const char *es = gai_strerror(ret);
                        }
                        freeaddrinfo(ai);
                        {
@@ -159,6 +168,23 @@ def configure(conf):
     conf.CHECK_FUNCS('link readlink symlink realpath snprintf vsnprintf')
     conf.CHECK_FUNCS('asprintf vasprintf setenv unsetenv strnlen strtoull __strtoull')
     conf.CHECK_FUNCS('strtouq strtoll __strtoll strtoq')
+    #Some OS (ie. freebsd) return EINVAL if the convertion could not be done, it's not what we expect
+    #Let's detect those cases
+    if conf.CONFIG_SET('HAVE_STRTOLL'):
+        conf.CHECK_CODE('''
+                        long long nb = strtoll("Text", NULL, 0);
+                        if (errno == EINVAL) {
+                            return 0;
+                        } else {
+                            return 1;
+                        }
+                        ''',
+                        msg="Checking correct behavior of strtoll",
+                        headers = 'errno.h',
+                        execute = True,
+                        define_ret = True,
+                        define = 'HAVE_BSD_STRTOLL',
+                        )
     conf.CHECK_FUNCS('if_nametoindex strerror_r')
     conf.CHECK_FUNCS('getdirentries getdents syslog')
     conf.CHECK_FUNCS('gai_strerror get_current_dir_name')
@@ -172,7 +198,28 @@ def configure(conf):
     conf.CHECK_C_PROTOTYPE('dlopen', 'void *dlopen(const char* filename, unsigned int flags)',
                            define='DLOPEN_TAKES_UNSIGNED_FLAGS', headers='dlfcn.h dl.h')
 
-    conf.CHECK_FUNCS_IN('fdatasync', 'rt', checklibc=True)
+    if conf.CHECK_FUNCS_IN('fdatasync', 'rt', checklibc=True):
+        # some systems are missing the declaration
+        conf.CHECK_DECLS('fdatasync')
+
+    if conf.CHECK_FUNCS_IN('clock_gettime', 'rt', checklibc=True):
+        for c in ['CLOCK_MONOTONIC', 'CLOCK_PROCESS_CPUTIME_ID', 'CLOCK_REALTIME']:
+            conf.CHECK_CODE('''
+			    #if TIME_WITH_SYS_TIME
+			    # include <sys/time.h>
+			    # include <time.h>
+			    #else
+			    # if HAVE_SYS_TIME_H
+			    #  include <sys/time.h>
+			    # else
+			    #  include <time.h>
+			    # endif
+			    #endif
+			    clockid_t clk = %s''' % c,
+			    'HAVE_%s' % c,
+			    msg='Checking whether the clock_gettime clock ID %s is available' % c)
+
+    conf.CHECK_TYPE('struct timespec', headers='sys/time.h time.h')
 
     # these headers need to be tested as a group on freebsd
     conf.CHECK_HEADERS(headers='sys/socket.h net/if.h', together=True)
@@ -180,7 +227,18 @@ def configure(conf):
     conf.CHECK_FUNCS_IN('res_search', 'resolv', checklibc=True,
                         headers='netinet/in.h arpa/nameser.h resolv.h')
 
-    conf.CHECK_FUNCS_IN('gettext', 'intl', checklibc=True, headers='libintl.h')
+
+    if not conf.CHECK_FUNCS_IN('gettext', 'intl', checklibc=True, headers='libintl.h'):
+    # Some hosts need lib iconv for linking with lib intl
+    # So we try with flags just in case it helps.
+        oldflags = conf.env['LDFLAGS_INTL']
+        conf.env['LDFLAGS_INTL'] = "-liconv"
+        if not conf.CHECK_LIB('intl'):
+            conf.env['LDFLAGS_INTL'] = oldflags
+        else:
+            conf.CHECK_FUNCS_IN('gettext', 'intl', checklibc=True, headers='libintl.h')
+
+    conf.CHECK_FUNCS_IN('dgettext gettext', 'intl', headers='libintl.h')
     conf.CHECK_FUNCS_IN('pthread_create', 'pthread', checklibc=True, headers='pthread.h')
 
     conf.CHECK_FUNCS_IN('crypt', 'crypt', checklibc=True)
@@ -194,26 +252,37 @@ def configure(conf):
     conf.CHECK_DECLS('environ getgrent_r getpwent_r', reverse=True, headers='pwd.h grp.h')
     conf.CHECK_DECLS('pread pwrite setenv setresgid setresuid', reverse=True)
 
-    conf.CHECK_SIZEOF('char int "long long" long off_t short size_t ssize_t')
-    conf.CHECK_SIZEOF('dev_t ino_t time_t')
-    conf.CHECK_SIZEOF('void*', define='SIZEOF_VOID_P')
-
     if conf.CONFIG_SET('HAVE_EPOLL_CREATE') and conf.CONFIG_SET('HAVE_SYS_EPOLL_H'):
         conf.DEFINE('HAVE_EPOLL', 1)
 
+    conf.CHECK_HEADERS('poll.h')
+    conf.CHECK_FUNCS('poll')
+
     if not conf.CHECK_CODE('''#define LIBREPLACE_CONFIGURE_TEST_STRPTIME
-		       #include "$libreplacedir/test/strptime.c"''',
+                           #include "test/strptime.c"''',
                            define='HAVE_STRPTIME',
+                           addmain=False,
                            msg='Checking for working strptime'):
         conf.DEFINE('REPLACE_STRPTIME', 1)
-
-    if conf.CONFIG_SET('HAVE_KRB5_H'):
-        # Check for KRB5_DEPRECATED handling
-        conf.CHECK_CODE('''#define KRB5_DEPRECATED 1
-#include <krb5.h>''',
-                        'HAVE_KRB5_DEPRECATED_WITH_IDENTIFIER', addmain=False,
-                        link=False,
-                        msg="Checking for KRB5_DEPRECATED define taking an identifier")
+    else:
+       conf.CHECK_CODE('''
+                        const char *s = "20070414101546Z";
+                        char *ret;
+                        struct tm t;
+                        memset(&t, 0, sizeof(t));
+                        ret = strptime(s, "%Y%m%d%H%M%S", &t);
+                        if (ret == NULL || t.tm_wday != 6) {
+                            return 0;
+                        } else {
+                            return 1;
+                        }
+                        ''',
+                        msg="Checking correct behavior of strptime",
+                        headers = 'time.h',
+                        execute = True,
+                        define_ret = True,
+                        define = 'REPLACE_STRPTIME',
+                        )
 
     conf.CHECK_CODE('gettimeofday(NULL, NULL)', 'HAVE_GETTIMEOFDAY_TZ', execute=False)
 
@@ -226,7 +295,7 @@ def configure(conf):
     conf.SAMBA_BUILD_ENV()
 
     conf.CHECK_CODE('''
-		    typedef struct {unsigned x;} FOOBAR;
+                    typedef struct {unsigned x;} FOOBAR;
                     #define X_FOOBAR(x) ((FOOBAR) { x })
                     #define FOO_ONE X_FOOBAR(1)
                     FOOBAR f = FOO_ONE;
@@ -250,6 +319,8 @@ def configure(conf):
     conf.CHECK_STRUCTURE_MEMBER('struct stat', 'st_rdev', define='HAVE_ST_RDEV',
                                 headers='sys/stat.h')
     conf.CHECK_STRUCTURE_MEMBER('struct sockaddr_storage', 'ss_family',
+                                headers='sys/socket.h netinet/in.h')
+    conf.CHECK_STRUCTURE_MEMBER('struct sockaddr_storage', '__ss_family',
                                 headers='sys/socket.h netinet/in.h')
 
 
@@ -287,13 +358,6 @@ def configure(conf):
                            __attribute__((visibility("default"))) void vis_foo2(void) {}''',
                         cflags=conf.env.VISIBILITY_CFLAGS,
                         define='HAVE_VISIBILITY_ATTR')
-
-    if not conf.CHECK_CODE('''#define LIBREPLACE_CONFIGURE_TEST_STRPTIME
-		       #include "$libreplacedir/test/strptime.c"''',
-                           define='HAVE_STRPTIME',
-                           msg='Checking for working strptime'):
-        conf.DEFINE('REPLACE_STRPTIME', 1)
-
 
     # look for a method of finding the list of network interfaces
     for method in ['HAVE_IFACE_GETIFADDRS', 'HAVE_IFACE_AIX', 'HAVE_IFACE_IFCONF', 'HAVE_IFACE_IFREQ']:
@@ -351,6 +415,7 @@ def build(bld):
     if bld.CONFIG_SET('REPLACE_GETPASS'):        REPLACE_SOURCE += ' getpass.c'
     if not bld.CONFIG_SET('HAVE_CRYPT'):         REPLACE_SOURCE += ' crypt.c'
     if not bld.CONFIG_SET('HAVE_DLOPEN'):        REPLACE_SOURCE += ' dlfcn.c'
+    if not bld.CONFIG_SET('HAVE_POLL'):          REPLACE_SOURCE += ' poll.c'
 
     if not bld.CONFIG_SET('HAVE_SOCKETPAIR'):    REPLACE_SOURCE += ' socketpair.c'
     if not bld.CONFIG_SET('HAVE_CONNECT'):       REPLACE_SOURCE += ' socket.c'
@@ -364,21 +429,24 @@ def build(bld):
     bld.SAMBA_LIBRARY('replace',
                       source=REPLACE_SOURCE,
                       group='base_libraries',
-					  # FIXME: Ideally symbols should be hidden here so they 
-					  # don't appear in the global namespace when Samba 
-					  # libraries are loaded, but this doesn't appear to work 
-					  # at the moment:
-					  # hide_symbols=bld.BUILTIN_LIBRARY('replace'),
-                      deps='crypt dl nsl socket')
+                      # FIXME: Ideally symbols should be hidden here so they 
+                      # don't appear in the global namespace when Samba 
+                      # libraries are loaded, but this doesn't appear to work 
+                      # at the moment:
+                      # hide_symbols=bld.BUILTIN_LIBRARY('replace'),
+                      private_library=True,
+                      deps='crypt dl nsl socket rt')
 
-    TEST_SOURCES = '''test/testsuite.c test/main.c test/strptime.c
-                      test/os2_delete.c test/getifaddrs.c'''
+    bld.SAMBA_SUBSYSTEM('replace-test',
+                      source='''test/testsuite.c test/strptime.c
+                      test/os2_delete.c test/getifaddrs.c''',
+                      deps='replace')
 
-
-    bld.SAMBA_BINARY('replace_testsuite',
-                     TEST_SOURCES,
-                     deps='replace',
-                     install=False)
+    if bld.env.standalone_replace:
+        bld.SAMBA_BINARY('replace_testsuite',
+                         source='test/main.c',
+                         deps='replace replace-test',
+                         install=False)
 
     # build replacements for stdint.h and stdbool.h if needed
     bld.SAMBA_GENERATOR('replace_stdint_h',

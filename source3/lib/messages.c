@@ -46,8 +46,9 @@
 */
 
 #include "includes.h"
-#include "librpc/gen_ndr/messaging.h"
-#include "librpc/gen_ndr/ndr_messaging.h"
+#include "dbwrap.h"
+#include "serverid.h"
+#include "messages.h"
 
 struct messaging_callback {
 	struct messaging_callback *prev, *next;
@@ -193,7 +194,7 @@ struct messaging_context *messaging_init(TALLOC_CTX *mem_ctx,
 	status = messaging_tdb_init(ctx, ctx, &ctx->local);
 
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("messaging_tdb_init failed: %s\n",
+		DEBUG(2, ("messaging_tdb_init failed: %s\n",
 			  nt_errstr(status)));
 		TALLOC_FREE(ctx);
 		return NULL;
@@ -204,12 +205,13 @@ struct messaging_context *messaging_init(TALLOC_CTX *mem_ctx,
 		status = messaging_ctdbd_init(ctx, ctx, &ctx->remote);
 
 		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(1, ("messaging_ctdb_init failed: %s\n",
+			DEBUG(2, ("messaging_ctdb_init failed: %s\n",
 				  nt_errstr(status)));
 			TALLOC_FREE(ctx);
 			return NULL;
 		}
 	}
+	ctx->id.vnn = get_my_vnn();
 #endif
 
 	messaging_register(ctx, NULL, MSG_PING, ping_message);
@@ -361,7 +363,7 @@ NTSTATUS messaging_send_buf(struct messaging_context *msg_ctx,
 }
 
 /*
-  Dispatch one messsaging_rec
+  Dispatch one messaging_rec
 */
 void messaging_dispatch_rec(struct messaging_context *msg_ctx,
 			    struct messaging_rec *rec)

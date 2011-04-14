@@ -19,6 +19,7 @@
 */
 
 #include "includes.h"
+#include "messages.h"
 
 struct tevent_context *server_event_ctx = NULL;
 
@@ -56,9 +57,6 @@ struct messaging_context *server_messaging_context(void)
 		server_msg_ctx = messaging_init(NULL,
 					        procid_self(),
 					        server_event_context());
-	}
-	if (server_msg_ctx == NULL) {
-		DEBUG(0, ("Could not init server's messaging context.\n"));
 	}
 	return server_msg_ctx;
 }

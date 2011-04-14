@@ -32,6 +32,8 @@ cpp_quote("#define dom_sid0 dom_sid")
 interface security
 {
 
+	typedef bitmap lsa_SystemAccessModeFlags lsa_SystemAccessModeFlags;
+
 	typedef [public,gensize,noprint,nosize,nopull,nopush] struct {
 		uint8  sid_rev_num;             /**< SID revision number */
 		[range(0,15)] int8  num_auths;  /**< Number of sub-authorities */
@@ -292,6 +294,8 @@ interface security
 	const int DOMAIN_RID_POLICY_ADMINS           = 520;
 	const int DOMAIN_RID_READONLY_DCS            = 521;
 	const int DOMAIN_RID_RAS_SERVERS             = 553;
+	const int DOMAIN_RID_RODC_ALLOW              = 571;
+	const int DOMAIN_RID_RODC_DENY               = 572;
 
 	/* well-known builtin RIDs */
 	const int BUILTIN_RID_ADMINISTRATORS		= 544;
@@ -313,38 +317,137 @@ interface security
 	const int BUILTIN_RID_AUTH_ACCESS		= 560;
 	const int BUILTIN_RID_TS_LICENSE_SERVERS	= 561;
 
-	/*
-	  privilege IDs. Please keep the IDs below 64. If we get more
-	  than 64 then we need to change security_token
-	*/
+/********************************************************************
+ This is a list of privileges reported by a WIndows 2008 R2 DC
+ just for reference purposes (and I know the LUID is not guaranteed
+ across reboots):
+
+0x00000002          SeCreateTokenPrivilege "Create a token object"
+0x00000003   SeAssignPrimaryTokenPrivilege "Replace a process level token"
+0x00000004           SeLockMemoryPrivilege "Lock pages in memory"
+0x00000005        SeIncreaseQuotaPrivilege "Adjust memory quotas for a process"
+0x00000006       SeMachineAccountPrivilege "Add workstations to domain"
+0x00000007                  SeTcbPrivilege "Act as part of the operating system"
+0x00000008             SeSecurityPrivilege "Manage auditing and security log"
+0x00000009        SeTakeOwnershipPrivilege "Take ownership of files or other objects"
+0x0000000a           SeLoadDriverPrivilege "Load and unload device drivers"
+0x0000000b        SeSystemProfilePrivilege "Profile system performance"
+0x0000000c           SeSystemtimePrivilege "Change the system time"
+0x0000000d SeProfileSingleProcessPrivilege "Profile single process"
+0x0000000e SeIncreaseBasePriorityPrivilege "Increase scheduling priority"
+0x0000000f       SeCreatePagefilePrivilege "Create a pagefile"
+0x00000010      SeCreatePermanentPrivilege "Create permanent shared objects"
+0x00000011               SeBackupPrivilege "Back up files and directories"
+0x00000012              SeRestorePrivilege "Restore files and directories"
+0x00000013             SeShutdownPrivilege "Shut down the system"
+0x00000014                SeDebugPrivilege "Debug programs"
+0x00000015                SeAuditPrivilege "Generate security audits"
+0x00000016    SeSystemEnvironmentPrivilege "Modify firmware environment values"
+0x00000017         SeChangeNotifyPrivilege "Bypass traverse checking"
+0x00000018       SeRemoteShutdownPrivilege "Force shutdown from a remote system"
+0x00000019               SeUndockPrivilege "Remove computer from docking station"
+0x0000001a            SeSyncAgentPrivilege "Synchronize directory service data"
+0x0000001b     SeEnableDelegationPrivilege "Enable computer and user accounts to be trusted for delegation"
+0x0000001c         SeManageVolumePrivilege "Perform volume maintenance tasks"
+0x0000001d          SeImpersonatePrivilege "Impersonate a client after authentication"
+0x0000001e         SeCreateGlobalPrivilege "Create global objects"
+0x0000001f SeTrustedCredManAccessPrivilege "Access Credential Manager as a trusted caller"
+0x00000020              SeRelabelPrivilege "Modify an object label"
+0x00000021   SeIncreaseWorkingSetPrivilege "Increase a process working set"
+0x00000022             SeTimeZonePrivilege "Change the time zone"
+0x00000023   SeCreateSymbolicLinkPrivilege "Create symbolic links"
+
+ ********************************************************************/
+
+	/* LUID values for privileges known about by Samba (bottom 32 bits of enum, top bits are 0) */
+
+	/* we have to define the LUID here due to a horrible check by printmig.exe
+	   that requires the SeBackupPrivilege match what is in Windows.  So match
+	   those that we implement and start Samba privileges at 0x1001 */
+
 	typedef enum {
-		SEC_PRIV_SECURITY                  = 1,
-		SEC_PRIV_BACKUP                    = 2,
-		SEC_PRIV_RESTORE                   = 3,
-		SEC_PRIV_SYSTEMTIME                = 4,
-		SEC_PRIV_SHUTDOWN                  = 5,
-		SEC_PRIV_REMOTE_SHUTDOWN           = 6,
-		SEC_PRIV_TAKE_OWNERSHIP            = 7,
-		SEC_PRIV_DEBUG                     = 8,
-		SEC_PRIV_SYSTEM_ENVIRONMENT        = 9,
-		SEC_PRIV_SYSTEM_PROFILE            = 10,
-		SEC_PRIV_PROFILE_SINGLE_PROCESS    = 11,
-		SEC_PRIV_INCREASE_BASE_PRIORITY    = 12,
-		SEC_PRIV_LOAD_DRIVER               = 13,
-		SEC_PRIV_CREATE_PAGEFILE           = 14,
-		SEC_PRIV_INCREASE_QUOTA            = 15,
-		SEC_PRIV_CHANGE_NOTIFY             = 16,
-		SEC_PRIV_UNDOCK                    = 17,
-		SEC_PRIV_MANAGE_VOLUME             = 18,
-		SEC_PRIV_IMPERSONATE               = 19,
-		SEC_PRIV_CREATE_GLOBAL             = 20,
-		SEC_PRIV_ENABLE_DELEGATION         = 21,
-		SEC_PRIV_INTERACTIVE_LOGON         = 22,
-		SEC_PRIV_NETWORK_LOGON             = 23,
-		SEC_PRIV_REMOTE_INTERACTIVE_LOGON  = 24,
-		SEC_PRIV_MACHINE_ACCOUNT           = 25
+		SEC_PRIV_INVALID                   = 0x0,
+		SEC_PRIV_INCREASE_QUOTA            = 0x5,
+		SEC_PRIV_MACHINE_ACCOUNT           = 0x6,
+		SEC_PRIV_SECURITY                  = 0x8,
+		SEC_PRIV_TAKE_OWNERSHIP            = 0x09,
+		SEC_PRIV_LOAD_DRIVER               = 0x0a,
+		SEC_PRIV_SYSTEM_PROFILE            = 0x0b,
+		SEC_PRIV_SYSTEMTIME                = 0x0c,
+		SEC_PRIV_PROFILE_SINGLE_PROCESS    = 0x0d,
+		SEC_PRIV_INCREASE_BASE_PRIORITY    = 0x0e,
+		SEC_PRIV_CREATE_PAGEFILE           = 0x0f,
+		SEC_PRIV_BACKUP                    = 0x11,
+		SEC_PRIV_RESTORE                   = 0x12,
+		SEC_PRIV_SHUTDOWN                  = 0x13,
+		SEC_PRIV_DEBUG                     = 0x14,
+		SEC_PRIV_SYSTEM_ENVIRONMENT        = 0x16,
+		SEC_PRIV_CHANGE_NOTIFY             = 0x17,
+		SEC_PRIV_REMOTE_SHUTDOWN           = 0x18,
+		SEC_PRIV_UNDOCK                    = 0x19,
+		SEC_PRIV_ENABLE_DELEGATION         = 0x1b,
+		SEC_PRIV_MANAGE_VOLUME             = 0x1c,
+		SEC_PRIV_IMPERSONATE               = 0x1d,
+		SEC_PRIV_CREATE_GLOBAL             = 0x1e,
+		/* Samba-specific privs */
+		SEC_PRIV_PRINT_OPERATOR            = 0x1001,
+		SEC_PRIV_ADD_USERS                 = 0x1002,
+		SEC_PRIV_DISK_OPERATOR             = 0x1003
 	} sec_privilege;
 
+
+	/* Bitmap of privilege values for internal use only.  We need
+	 * our own bitmap here as privilages.tdb records these values
+	 * as a bitmap (privilages.ldb uses the string forms).
+	 */
+	typedef [bitmap64bit] bitmap {
+		SEC_PRIV_MACHINE_ACCOUNT_BIT		= 0x00000010,
+
+		/* Samba-specific privs */
+		SEC_PRIV_PRINT_OPERATOR_BIT		= 0x00000020,
+		SEC_PRIV_ADD_USERS_BIT			= 0x00000040,
+		SEC_PRIV_DISK_OPERATOR_BIT		= 0x00000080,
+
+		SEC_PRIV_REMOTE_SHUTDOWN_BIT		= 0x00000100,
+		SEC_PRIV_BACKUP_BIT			= 0x00000200,
+		SEC_PRIV_RESTORE_BIT			= 0x00000400,
+		SEC_PRIV_TAKE_OWNERSHIP_BIT		= 0x00000800,
+		/* End of privilages implemented before merge to common code */
+
+		SEC_PRIV_INCREASE_QUOTA_BIT               = 0x00001000,
+		SEC_PRIV_SECURITY_BIT                     = 0x00002000,
+		SEC_PRIV_LOAD_DRIVER_BIT                  = 0x00004000,
+		SEC_PRIV_SYSTEM_PROFILE_BIT               = 0x00008000,
+		SEC_PRIV_SYSTEMTIME_BIT                   = 0x00010000,
+		SEC_PRIV_PROFILE_SINGLE_PROCESS_BIT       = 0x00020000,
+		SEC_PRIV_INCREASE_BASE_PRIORITY_BIT       = 0x00040000,
+		SEC_PRIV_CREATE_PAGEFILE_BIT              = 0x00080000,
+		SEC_PRIV_SHUTDOWN_BIT                     = 0x00100000,
+		SEC_PRIV_DEBUG_BIT                        = 0x00200000,
+		SEC_PRIV_SYSTEM_ENVIRONMENT_BIT           = 0x00400000,
+		SEC_PRIV_CHANGE_NOTIFY_BIT                = 0x00800000,
+		SEC_PRIV_UNDOCK_BIT                       = 0x01000000,
+		SEC_PRIV_ENABLE_DELEGATION_BIT            = 0x02000000,
+		SEC_PRIV_MANAGE_VOLUME_BIT                = 0x04000000,
+		SEC_PRIV_IMPERSONATE_BIT                  = 0x08000000,
+		SEC_PRIV_CREATE_GLOBAL_BIT                = 0x10000000
+	} se_privilege;
+
+	typedef [bitmap32bit] bitmap {
+		LSA_POLICY_MODE_INTERACTIVE             = 0x00000001,
+		LSA_POLICY_MODE_NETWORK                 = 0x00000002,
+		LSA_POLICY_MODE_BATCH                   = 0x00000004,
+		LSA_POLICY_MODE_SERVICE                 = 0x00000010,
+		LSA_POLICY_MODE_PROXY			= 0x00000020,
+		LSA_POLICY_MODE_DENY_INTERACTIVE        = 0x00000040,
+		LSA_POLICY_MODE_DENY_NETWORK            = 0x00000080,
+		LSA_POLICY_MODE_DENY_BATCH              = 0x00000100,
+		LSA_POLICY_MODE_DENY_SERVICE            = 0x00000200,
+		LSA_POLICY_MODE_REMOTE_INTERACTIVE      = 0x00000400,
+		LSA_POLICY_MODE_DENY_REMOTE_INTERACTIVE = 0x00000800,
+		LSA_POLICY_MODE_ALL			= 0x00000FF7,
+		LSA_POLICY_MODE_ALL_NT4			= 0x00000037
+	} lsa_SystemAccessModeFlags;
 
 	typedef [public,bitmap8bit] bitmap {
 		SEC_ACE_FLAG_OBJECT_INHERIT		= 0x01,
@@ -466,13 +569,21 @@ interface security
 		[subcontext(4)] security_descriptor *sd;
 	} sec_desc_buf;
 
+	/* This is not yet sent over the network, but is simply defined in IDL */
 	typedef [public] struct {
-		dom_sid *user_sid;
-		dom_sid *group_sid;
 		uint32 num_sids;
-		[size_is(num_sids)] dom_sid *sids[*];
-		udlong privilege_mask;
+		[size_is(num_sids)] dom_sid sids[*];
+		se_privilege privilege_mask;
+		lsa_SystemAccessModeFlags rights_mask;
 	} security_token;
+
+	/* This is not yet sent over the network, but is simply defined in IDL */
+	typedef [public] struct {
+		uid_t uid;
+		uid_t gid;
+		uint32 ngroups;
+		[size_is(ngroups)] gid_t groups[*];
+	} security_unix_token;
 
 	/* bits that determine which parts of a security descriptor
 	   are being queried/set */

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 APPNAME = 'tdb'
-VERSION = '1.2.2'
+VERSION = '1.2.9'
 
 blddir = 'bin'
 
@@ -19,7 +19,7 @@ samba_dist.DIST_DIRS('lib/tdb:. lib/replace:lib/replace buildtools:buildtools')
 
 def set_options(opt):
     opt.BUILTIN_DEFAULT('replace')
-    opt.BUNDLED_EXTENSION_DEFAULT('tdb', noextension='tdb')
+    opt.PRIVATE_EXTENSION_DEFAULT('tdb', noextension='tdb')
     opt.RECURSE('lib/replace')
     if opt.IN_LAUNCH_DIR():
         opt.add_option('--disable-python',
@@ -36,6 +36,8 @@ def configure(conf):
         if conf.CHECK_BUNDLED_SYSTEM('tdb', minversion=VERSION,
                                      implied_deps='replace'):
             conf.define('USING_SYSTEM_TDB', 1)
+            if conf.CHECK_BUNDLED_SYSTEM_PYTHON('pytdb', 'tdb', minversion=VERSION):
+                conf.define('USING_SYSTEM_PYTDB', 1)
 
     conf.env.disable_python = getattr(Options.options, 'disable_python', False)
 
@@ -45,7 +47,7 @@ def configure(conf):
         # also disable if we don't have the python libs installed
         conf.check_tool('python')
         conf.check_python_version((2,4,2))
-        conf.check_python_headers(mandatory=False)
+        conf.SAMBA_CHECK_PYTHON_HEADERS(mandatory=False)
         if not conf.env.HAVE_PYTHON_H:
             Logs.warn('Disabling pytdb as python devel libs not found')
             conf.env.disable_python = True
@@ -58,22 +60,36 @@ def build(bld):
     COMMON_SRC = bld.SUBDIR('common',
                             '''check.c error.c tdb.c traverse.c
                             freelistcheck.c lock.c dump.c freelist.c
-                            io.c open.c transaction.c''')
+                            io.c open.c transaction.c hash.c summary.c''')
+
+    if bld.env.standalone_tdb:
+        bld.env.PKGCONFIGDIR = '${LIBDIR}/pkgconfig'
+        bld.PKG_CONFIG_FILES('tdb.pc', vnum=VERSION)
+        private_library = False
+    else:
+        private_library = True
 
     if not bld.CONFIG_SET('USING_SYSTEM_TDB'):
         bld.SAMBA_LIBRARY('tdb',
                           COMMON_SRC,
-                          deps='replace rt',
+                          deps='replace',
                           includes='include',
-                          abi_file='ABI/tdb-%s.sigs' % VERSION,
+                          abi_directory='ABI',
                           abi_match='tdb_*',
                           hide_symbols=True,
-                          vnum=VERSION, is_bundled=not bld.env.standalone_tdb)
+                          vnum=VERSION,
+                          public_headers='include/tdb.h',
+                          public_headers_install=not private_library,
+                          private_library=private_library)
 
         bld.SAMBA_BINARY('tdbtorture',
                          'tools/tdbtorture.c',
                          'tdb',
                          install=False)
+
+        bld.SAMBA_BINARY('tdbrestore',
+                         'tools/tdbrestore.c',
+                         'tdb', manpages='manpages/tdbrestore.8')
 
         bld.SAMBA_BINARY('tdbdump',
                          'tools/tdbdump.c',
@@ -88,26 +104,33 @@ def build(bld):
                          'tools/tdbtool.c',
                          'tdb', manpages='manpages/tdbtool.8')
 
-    s4_build = getattr(bld.env, '_SAMBA_BUILD_', 0) == 4
+    if not bld.CONFIG_SET('USING_SYSTEM_PYTDB'):
+        bld.SAMBA_PYTHON('pytdb',
+                         'pytdb.c',
+                         deps='tdb',
+                         enabled=not bld.env.disable_python,
+                         realname='tdb.so',
+                         cflags='-DPACKAGE_VERSION=\"%s\"' % VERSION)
 
-    bld.SAMBA_PYTHON('pytdb',
-                     'pytdb.c',
-                     deps='tdb',
-                     enabled=not bld.env.disable_python,
-                     realname='tdb.so')
-
-    if bld.env.standalone_tdb:
-        bld.env.PKGCONFIGDIR = '${LIBDIR}/pkgconfig'
-        bld.PKG_CONFIG_FILES('tdb.pc', vnum=VERSION)
-        bld.INSTALL_FILES('${INCLUDEDIR}', 'include/tdb.h', flat=True)
 
 
 def test(ctx):
     '''run tdb testsuite'''
-    import Utils
+    import Utils, samba_utils, shutil
+    test_prefix = "%s/st" % (Utils.g_module.blddir)
+    shutil.rmtree(test_prefix, ignore_errors=True)
+    os.makedirs(test_prefix)
+    os.environ['TEST_DATA_PREFIX'] = test_prefix
     cmd = os.path.join(Utils.g_module.blddir, 'tdbtorture')
-    os.system(cmd)
+    ret = samba_utils.RUN_COMMAND(cmd)
+    print("testsuite returned %d" % ret)
+    sys.exit(ret)
 
 def dist():
     '''makes a tarball for distribution'''
     samba_dist.dist()
+
+def reconfigure(ctx):
+    '''reconfigure if config scripts have changed'''
+    import samba_utils
+    samba_utils.reconfigure(ctx)

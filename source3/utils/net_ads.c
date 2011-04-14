@@ -22,16 +22,20 @@
 
 #include "includes.h"
 #include "utils/net.h"
+#include "rpc_client/cli_pipe.h"
 #include "librpc/gen_ndr/ndr_krb5pac.h"
-#include "../librpc/gen_ndr/cli_spoolss.h"
+#include "../librpc/gen_ndr/ndr_spoolss.h"
 #include "nsswitch/libwbclient/wbclient.h"
+#include "ads.h"
 #include "libads/cldap.h"
 #include "libads/dns.h"
 #include "../libds/common/flags.h"
-#include "ads.h"
 #include "librpc/gen_ndr/libnet_join.h"
 #include "libnet/libnet_join.h"
 #include "smb_krb5.h"
+#include "secrets.h"
+#include "krb5_env.h"
+#include "../libcli/security/security.h"
 
 #ifdef HAVE_ADS
 
@@ -965,6 +969,12 @@ static int net_ads_leave(struct net_context *c, int argc, const char **argv)
 		use_in_memory_ccache();
 	}
 
+	if (!c->msg_ctx) {
+		d_fprintf(stderr, _("Could not initialise message context. "
+			"Try running as root\n"));
+		return -1;
+	}
+
 	werr = libnet_init_UnjoinCtx(ctx, &r);
 	if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, _("Could not initialise unjoin context.\n"));
@@ -984,6 +994,7 @@ static int net_ads_leave(struct net_context *c, int argc, const char **argv)
 	r->in.unjoin_flags	= WKSSVC_JOIN_FLAGS_JOIN_TYPE |
 				  WKSSVC_JOIN_FLAGS_ACCOUNT_DELETE;
 	r->in.delete_machine_account = true;
+	r->in.msg_ctx		= c->msg_ctx;
 
 	werr = libnet_Unjoin(ctx, r);
 	if (!W_ERROR_IS_OK(werr)) {
@@ -1110,7 +1121,7 @@ static WERROR check_ads_config( void )
 *******************************************************************/
 
 #if defined(WITH_DNS_UPDATES)
-#include "dns.h"
+#include "../lib/addns/dns.h"
 DNS_ERROR DoDNSUpdate(char *pszServerName,
 		      const char *pszDomainName, const char *pszHostName,
 		      const struct sockaddr_storage *sslist,
@@ -1122,7 +1133,7 @@ static NTSTATUS net_update_dns_internal(TALLOC_CTX *ctx, ADS_STRUCT *ads,
 					int num_addrs)
 {
 	struct dns_rr_ns *nameservers = NULL;
-	int ns_count = 0;
+	int ns_count = 0, i;
 	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
 	DNS_ERROR dns_err;
 	fstring dns_server;
@@ -1187,14 +1198,31 @@ static NTSTATUS net_update_dns_internal(TALLOC_CTX *ctx, ADS_STRUCT *ads,
 
 	}
 
-	/* Now perform the dns update - we'll try non-secure and if we fail,
-	   we'll follow it up with a secure update */
+	for (i=0; i < ns_count; i++) {
 
-	fstrcpy( dns_server, nameservers[0].hostname );
+		/* Now perform the dns update - we'll try non-secure and if we fail,
+		   we'll follow it up with a secure update */
 
-	dns_err = DoDNSUpdate(dns_server, dnsdomain, machine_name, addrs, num_addrs);
-	if (!ERR_DNS_IS_OK(dns_err)) {
+		fstrcpy( dns_server, nameservers[i].hostname );
+
+		dns_err = DoDNSUpdate(dns_server, dnsdomain, machine_name, addrs, num_addrs);
+		if (ERR_DNS_IS_OK(dns_err)) {
+			status = NT_STATUS_OK;
+			goto done;
+		}
+
+		if (ERR_DNS_EQUAL(dns_err, ERROR_DNS_INVALID_NAME_SERVER) ||
+		    ERR_DNS_EQUAL(dns_err, ERROR_DNS_CONNECTION_FAILED) ||
+		    ERR_DNS_EQUAL(dns_err, ERROR_DNS_SOCKET_ERROR)) {
+			DEBUG(1,("retrying DNS update with next nameserver after receiving %s\n",
+				dns_errstr(dns_err)));
+			continue;
+		}
+
+		d_printf(_("DNS Update for %s failed: %s\n"),
+			machine_name, dns_errstr(dns_err));
 		status = NT_STATUS_UNSUCCESSFUL;
+		goto done;
 	}
 
 done:
@@ -1204,29 +1232,48 @@ done:
 	return status;
 }
 
-static NTSTATUS net_update_dns(TALLOC_CTX *mem_ctx, ADS_STRUCT *ads)
+static NTSTATUS net_update_dns_ext(TALLOC_CTX *mem_ctx, ADS_STRUCT *ads,
+				   const char *hostname,
+				   struct sockaddr_storage *iplist,
+				   int num_addrs)
 {
-	int num_addrs;
-	struct sockaddr_storage *iplist = NULL;
+	struct sockaddr_storage *iplist_alloc = NULL;
 	fstring machine_name;
 	NTSTATUS status;
 
-	name_to_fqdn( machine_name, global_myname() );
+	if (hostname) {
+		fstrcpy(machine_name, hostname);
+	} else {
+		name_to_fqdn( machine_name, global_myname() );
+	}
 	strlower_m( machine_name );
 
-	/* Get our ip address (not the 127.0.0.x address but a real ip
-	 * address) */
-
-	num_addrs = get_my_ip_address( &iplist );
-	if ( num_addrs <= 0 ) {
-		DEBUG(4,("net_update_dns: Failed to find my non-loopback IP "
-			 "addresses!\n"));
-		return NT_STATUS_INVALID_PARAMETER;
+	if (num_addrs == 0 || iplist == NULL) {
+		/*
+		 * Get our ip address
+		 * (not the 127.0.0.x address but a real ip address)
+		 */
+		num_addrs = get_my_ip_address(&iplist_alloc);
+		if ( num_addrs <= 0 ) {
+			DEBUG(4, ("net_update_dns_ext: Failed to find my "
+				  "non-loopback IP addresses!\n"));
+			return NT_STATUS_INVALID_PARAMETER;
+		}
+		iplist = iplist_alloc;
 	}
 
 	status = net_update_dns_internal(mem_ctx, ads, machine_name,
 					 iplist, num_addrs);
-	SAFE_FREE( iplist );
+
+	SAFE_FREE(iplist_alloc);
+	return status;
+}
+
+static NTSTATUS net_update_dns(TALLOC_CTX *mem_ctx, ADS_STRUCT *ads, const char *hostname)
+{
+	NTSTATUS status;
+
+	status = net_update_dns_ext(mem_ctx, ads, hostname, NULL, 0);
 	return status;
 }
 #endif
@@ -1338,6 +1385,13 @@ int net_ads_join(struct net_context *c, int argc, const char **argv)
 		goto fail;
 	}
 
+	if (!c->msg_ctx) {
+		d_fprintf(stderr, _("Could not initialise message context. "
+			"Try running as root\n"));
+		werr = WERR_ACCESS_DENIED;
+		goto fail;
+	}
+
 	/* Do the domain join here */
 
 	r->in.domain_name	= domain;
@@ -1355,8 +1409,14 @@ int net_ads_join(struct net_context *c, int argc, const char **argv)
 	r->in.join_flags	= WKSSVC_JOIN_FLAGS_JOIN_TYPE |
 				  WKSSVC_JOIN_FLAGS_ACCOUNT_CREATE |
 				  WKSSVC_JOIN_FLAGS_DOMAIN_JOIN_IF_JOINED;
+	r->in.msg_ctx		= c->msg_ctx;
 
 	werr = libnet_Join(ctx, r);
+	if (W_ERROR_EQUAL(werr, WERR_DCNOTFOUND) &&
+	    strequal(domain, lp_realm())) {
+		r->in.domain_name = lp_workgroup();
+		werr = libnet_Join(ctx, r);
+	}
 	if (!W_ERROR_IS_OK(werr)) {
 		goto fail;
 	}
@@ -1383,6 +1443,23 @@ int net_ads_join(struct net_context *c, int argc, const char **argv)
 	}
 
 #if defined(WITH_DNS_UPDATES)
+	/*
+	 * In a clustered environment, don't do dynamic dns updates:
+	 * Registering the set of ip addresses that are assigned to
+	 * the interfaces of the node that performs the join does usually
+	 * not have the desired effect, since the local interfaces do not
+	 * carry the complete set of the cluster's public IP addresses.
+	 * And it can also contain internal addresses that should not
+	 * be visible to the outside at all.
+	 * In order to do dns updates in a clustererd setup, use
+	 * net ads dns register.
+	 */
+	if (lp_clustering()) {
+		d_fprintf(stderr, _("Not doing automatic DNS update in a"
+				    "clustered setup.\n"));
+		goto done;
+	}
+
 	if (r->out.domain_is_ad) {
 		/* We enter this block with user creds */
 		ADS_STRUCT *ads_dns = NULL;
@@ -1401,14 +1478,17 @@ int net_ads_join(struct net_context *c, int argc, const char **argv)
 			ads_kinit_password( ads_dns );
 		}
 
-		if ( !ads_dns || !NT_STATUS_IS_OK(net_update_dns( ctx, ads_dns )) ) {
+		if ( !ads_dns || !NT_STATUS_IS_OK(net_update_dns( ctx, ads_dns, NULL)) ) {
 			d_fprintf( stderr, _("DNS update failed!\n") );
 		}
 
 		/* exit from this block using machine creds */
 		ads_destroy(&ads_dns);
 	}
+
+done:
 #endif
+
 	TALLOC_FREE(r);
 	TALLOC_FREE( ctx );
 
@@ -1432,15 +1512,28 @@ static int net_ads_dns_register(struct net_context *c, int argc, const char **ar
 #if defined(WITH_DNS_UPDATES)
 	ADS_STRUCT *ads;
 	ADS_STATUS status;
+	NTSTATUS ntstatus;
 	TALLOC_CTX *ctx;
+	const char *hostname = NULL;
+	const char **addrs_list = NULL;
+	struct sockaddr_storage *addrs = NULL;
+	int num_addrs = 0;
+	int count;
 
 #ifdef DEVELOPER
 	talloc_enable_leak_report();
 #endif
 
-	if (argc > 0 || c->display_usage) {
+	if (argc <= 1 && lp_clustering() && lp_cluster_addresses() == NULL) {
+		d_fprintf(stderr, _("Refusing DNS updates with automatic "
+				    "detection of addresses in a clustered "
+				    "setup.\n"));
+		c->display_usage = true;
+	}
+
+	if (c->display_usage) {
 		d_printf(  "%s\n"
-			   "net ads dns register\n"
+			   "net ads dns register [hostname [IP [IP...]]]\n"
 			   "    %s\n",
 			 _("Usage:"),
 			 _("Register hostname with DNS\n"));
@@ -1452,6 +1545,37 @@ static int net_ads_dns_register(struct net_context *c, int argc, const char **ar
 		return -1;
 	}
 
+	if (argc >= 1) {
+		hostname = argv[0];
+	}
+
+	if (argc > 1) {
+		num_addrs = argc - 1;
+		addrs_list = &argv[1];
+	} else if (lp_clustering()) {
+		addrs_list = lp_cluster_addresses();
+		num_addrs = str_list_length(addrs_list);
+	}
+
+	if (num_addrs > 0) {
+		addrs = talloc_zero_array(ctx, struct sockaddr_storage, num_addrs);
+		if (addrs == NULL) {
+			d_fprintf(stderr, _("Error allocating memory!\n"));
+			talloc_free(ctx);
+			return -1;
+		}
+	}
+
+	for (count = 0; count < num_addrs; count++) {
+		if (!interpret_string_addr(&addrs[count], addrs_list[count], 0)) {
+			d_fprintf(stderr, "%s '%s'.\n",
+					  _("Cannot interpret address"),
+					  addrs_list[count]);
+			talloc_free(ctx);
+			return -1;
+		}
+	}
+
 	status = ads_startup(c, true, &ads);
 	if ( !ADS_ERR_OK(status) ) {
 		DEBUG(1, ("error on ads_startup: %s\n", ads_errstr(status)));
@@ -1459,7 +1583,8 @@ static int net_ads_dns_register(struct net_context *c, int argc, const char **ar
 		return -1;
 	}
 
-	if ( !NT_STATUS_IS_OK(net_update_dns(ctx, ads)) ) {
+	ntstatus = net_update_dns_ext(ctx, ads, hostname, addrs, num_addrs);
+	if (!NT_STATUS_IS_OK(ntstatus)) {
 		d_fprintf( stderr, _("DNS update failed!\n") );
 		ads_destroy( &ads );
 		TALLOC_FREE( ctx );
@@ -1506,7 +1631,8 @@ static int net_ads_dns_gethostbyname(struct net_context *c, int argc, const char
 
 	err = do_gethostbyname(argv[0], argv[1]);
 
-	d_printf(_("do_gethostbyname returned %d\n"), ERROR_DNS_V(err));
+	d_printf(_("do_gethostbyname returned %s (%d)\n"),
+		dns_errstr(err), ERROR_DNS_V(err));
 #endif
 	return 0;
 }
@@ -1706,10 +1832,10 @@ static int net_ads_printer_publish(struct net_context *c, int argc, const char *
 					c->opt_user_name, c->opt_workgroup,
 					c->opt_password ? c->opt_password : "",
 					CLI_FULL_CONNECTION_USE_KERBEROS,
-					Undefined, NULL);
+					Undefined);
 
 	if (NT_STATUS_IS_ERR(nt_status)) {
-		d_fprintf(stderr, _("Unable to open a connnection to %s to "
+		d_fprintf(stderr, _("Unable to open a connection to %s to "
 			            "obtain data for %s\n"),
 			  servername, printername);
 		ads_destroy(&ads);
@@ -1758,7 +1884,7 @@ static int net_ads_printer_publish(struct net_context *c, int argc, const char *
 
 	nt_status = cli_rpc_pipe_open_noauth(cli, &ndr_table_spoolss.syntax_id, &pipe_hnd);
 	if (!NT_STATUS_IS_OK(nt_status)) {
-		d_fprintf(stderr, _("Unable to open a connnection to the spoolss pipe on %s\n"),
+		d_fprintf(stderr, _("Unable to open a connection to the spoolss pipe on %s\n"),
 			 servername);
 		SAFE_FREE(prt_dn);
 		ads_destroy(&ads);

@@ -3856,50 +3856,145 @@ done:
 }
 
 /*
+ * Open a file with an exclusive oplock from the 1st client and acquire a
+ * brl. Then open the same file from the 2nd client that should give oplock
+ * break with level2 to the 1st and return no oplock to the 2nd.
+ */
+static bool test_raw_oplock_brl4(struct torture_context *tctx,
+				 struct smbcli_state *cli1,
+				 struct smbcli_state *cli2)
+{
+	const char *fname = BASEDIR "\\test_batch_brl.dat";
+	bool ret = true;
+	uint8_t buf[1000];
+	bool correct = true;
+	union smb_open io;
+	NTSTATUS status;
+	uint16_t fnum = 0;
+	uint16_t fnum2 = 0;
+
+	if (!torture_setup_dir(cli1, BASEDIR)) {
+		return false;
+	}
+
+	/* cleanup */
+	smbcli_unlink(cli1->tree, fname);
+
+	smbcli_oplock_handler(cli1->transport, oplock_handler_ack_to_given,
+			      cli1->tree);
+
+	/*
+	  base ntcreatex parms
+	*/
+	io.generic.level = RAW_OPEN_NTCREATEX;
+	io.ntcreatex.in.root_fid.fnum = 0;
+	io.ntcreatex.in.access_mask = SEC_RIGHTS_FILE_READ |
+				      SEC_RIGHTS_FILE_WRITE;
+	io.ntcreatex.in.alloc_size = 0;
+	io.ntcreatex.in.file_attr = FILE_ATTRIBUTE_NORMAL;
+	io.ntcreatex.in.share_access = NTCREATEX_SHARE_ACCESS_READ |
+				       NTCREATEX_SHARE_ACCESS_WRITE;
+	io.ntcreatex.in.open_disposition = NTCREATEX_DISP_OPEN_IF;
+	io.ntcreatex.in.create_options = 0;
+	io.ntcreatex.in.impersonation = NTCREATEX_IMPERSONATION_ANONYMOUS;
+	io.ntcreatex.in.security_flags = 0;
+	io.ntcreatex.in.fname = fname;
+
+	torture_comment(tctx, "open with exclusive oplock\n");
+	io.ntcreatex.in.flags = NTCREATEX_FLAGS_EXTENDED |
+		NTCREATEX_FLAGS_REQUEST_OPLOCK;
+
+	status = smb_raw_open(cli1->tree, tctx, &io);
+
+	CHECK_STATUS(tctx, status, NT_STATUS_OK);
+	fnum = io.ntcreatex.out.file.fnum;
+	CHECK_VAL(io.ntcreatex.out.oplock_level, EXCLUSIVE_OPLOCK_RETURN);
+
+	/* create a file with bogus data */
+	memset(buf, 0, sizeof(buf));
+
+	if (smbcli_write(cli1->tree, fnum, 0, buf, 0, sizeof(buf)) !=
+			 sizeof(buf))
+	{
+		torture_comment(tctx, "Failed to create file\n");
+		correct = false;
+		goto done;
+	}
+
+	status = smbcli_lock(cli1->tree, fnum, 0, 1, 0, WRITE_LOCK);
+	CHECK_STATUS(tctx, status, NT_STATUS_OK);
+
+	torture_comment(tctx, "a 2nd open should give a break to the 1st\n");
+	ZERO_STRUCT(break_info);
+
+	status = smb_raw_open(cli2->tree, tctx, &io);
+
+	CHECK_STATUS(tctx, status, NT_STATUS_OK);
+	CHECK_VAL(break_info.count, 1);
+	CHECK_VAL(break_info.level, OPLOCK_BREAK_TO_LEVEL_II);
+	CHECK_VAL(break_info.failures, 0);
+	CHECK_VAL(break_info.fnum, fnum);
+
+	torture_comment(tctx, "and return no oplock to the 2nd\n");
+	fnum2 = io.ntcreatex.out.file.fnum;
+	CHECK_VAL(io.ntcreatex.out.oplock_level, NO_OPLOCK_RETURN);
+
+	smbcli_close(cli1->tree, fnum);
+	smbcli_close(cli2->tree, fnum2);
+
+done:
+	smb_raw_exit(cli1->session);
+	smb_raw_exit(cli2->session);
+	smbcli_deltree(cli1->tree, BASEDIR);
+	return ret;
+}
+
+/*
    basic testing of oplocks
 */
 struct torture_suite *torture_raw_oplock(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "OPLOCK");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "oplock");
 
-	torture_suite_add_2smb_test(suite, "EXCLUSIVE1", test_raw_oplock_exclusive1);
-	torture_suite_add_2smb_test(suite, "EXCLUSIVE2", test_raw_oplock_exclusive2);
-	torture_suite_add_2smb_test(suite, "EXCLUSIVE3", test_raw_oplock_exclusive3);
-	torture_suite_add_2smb_test(suite, "EXCLUSIVE4", test_raw_oplock_exclusive4);
-	torture_suite_add_2smb_test(suite, "EXCLUSIVE5", test_raw_oplock_exclusive5);
-	torture_suite_add_2smb_test(suite, "EXCLUSIVE6", test_raw_oplock_exclusive6);
-	torture_suite_add_2smb_test(suite, "EXCLUSIVE7", test_raw_oplock_exclusive7);
-	torture_suite_add_2smb_test(suite, "BATCH1", test_raw_oplock_batch1);
-	torture_suite_add_2smb_test(suite, "BATCH2", test_raw_oplock_batch2);
-	torture_suite_add_2smb_test(suite, "BATCH3", test_raw_oplock_batch3);
-	torture_suite_add_2smb_test(suite, "BATCH4", test_raw_oplock_batch4);
-	torture_suite_add_2smb_test(suite, "BATCH5", test_raw_oplock_batch5);
-	torture_suite_add_2smb_test(suite, "BATCH6", test_raw_oplock_batch6);
-	torture_suite_add_2smb_test(suite, "BATCH7", test_raw_oplock_batch7);
-	torture_suite_add_2smb_test(suite, "BATCH8", test_raw_oplock_batch8);
-	torture_suite_add_2smb_test(suite, "BATCH9", test_raw_oplock_batch9);
-	torture_suite_add_2smb_test(suite, "BATCH10", test_raw_oplock_batch10);
-	torture_suite_add_2smb_test(suite, "BATCH11", test_raw_oplock_batch11);
-	torture_suite_add_2smb_test(suite, "BATCH12", test_raw_oplock_batch12);
-	torture_suite_add_2smb_test(suite, "BATCH13", test_raw_oplock_batch13);
-	torture_suite_add_2smb_test(suite, "BATCH14", test_raw_oplock_batch14);
-	torture_suite_add_2smb_test(suite, "BATCH15", test_raw_oplock_batch15);
-	torture_suite_add_2smb_test(suite, "BATCH16", test_raw_oplock_batch16);
-	torture_suite_add_2smb_test(suite, "BATCH17", test_raw_oplock_batch17);
-	torture_suite_add_2smb_test(suite, "BATCH18", test_raw_oplock_batch18);
-	torture_suite_add_2smb_test(suite, "BATCH19", test_raw_oplock_batch19);
-	torture_suite_add_2smb_test(suite, "BATCH20", test_raw_oplock_batch20);
-	torture_suite_add_2smb_test(suite, "BATCH21", test_raw_oplock_batch21);
-	torture_suite_add_2smb_test(suite, "BATCH22", test_raw_oplock_batch22);
-	torture_suite_add_2smb_test(suite, "BATCH23", test_raw_oplock_batch23);
-	torture_suite_add_2smb_test(suite, "BATCH24", test_raw_oplock_batch24);
-	torture_suite_add_2smb_test(suite, "BATCH25", test_raw_oplock_batch25);
-	torture_suite_add_2smb_test(suite, "BATCH26", test_raw_oplock_batch26);
-	torture_suite_add_2smb_test(suite, "STREAM1", test_raw_oplock_stream1);
-	torture_suite_add_1smb_test(suite, "DOC1", test_raw_oplock_doc);
-	torture_suite_add_2smb_test(suite, "BRL1", test_raw_oplock_brl1);
-	torture_suite_add_1smb_test(suite, "BRL2", test_raw_oplock_brl2);
-	torture_suite_add_1smb_test(suite, "BRL3", test_raw_oplock_brl3);
+	torture_suite_add_2smb_test(suite, "exclusive1", test_raw_oplock_exclusive1);
+	torture_suite_add_2smb_test(suite, "exclusive2", test_raw_oplock_exclusive2);
+	torture_suite_add_2smb_test(suite, "exclusive3", test_raw_oplock_exclusive3);
+	torture_suite_add_2smb_test(suite, "exclusive4", test_raw_oplock_exclusive4);
+	torture_suite_add_2smb_test(suite, "exclusive5", test_raw_oplock_exclusive5);
+	torture_suite_add_2smb_test(suite, "exclusive6", test_raw_oplock_exclusive6);
+	torture_suite_add_2smb_test(suite, "exclusive7", test_raw_oplock_exclusive7);
+	torture_suite_add_2smb_test(suite, "batch1", test_raw_oplock_batch1);
+	torture_suite_add_2smb_test(suite, "batch2", test_raw_oplock_batch2);
+	torture_suite_add_2smb_test(suite, "batch3", test_raw_oplock_batch3);
+	torture_suite_add_2smb_test(suite, "batch4", test_raw_oplock_batch4);
+	torture_suite_add_2smb_test(suite, "batch5", test_raw_oplock_batch5);
+	torture_suite_add_2smb_test(suite, "batch6", test_raw_oplock_batch6);
+	torture_suite_add_2smb_test(suite, "batch7", test_raw_oplock_batch7);
+	torture_suite_add_2smb_test(suite, "batch8", test_raw_oplock_batch8);
+	torture_suite_add_2smb_test(suite, "batch9", test_raw_oplock_batch9);
+	torture_suite_add_2smb_test(suite, "batch10", test_raw_oplock_batch10);
+	torture_suite_add_2smb_test(suite, "batch11", test_raw_oplock_batch11);
+	torture_suite_add_2smb_test(suite, "batch12", test_raw_oplock_batch12);
+	torture_suite_add_2smb_test(suite, "batch13", test_raw_oplock_batch13);
+	torture_suite_add_2smb_test(suite, "batch14", test_raw_oplock_batch14);
+	torture_suite_add_2smb_test(suite, "batch15", test_raw_oplock_batch15);
+	torture_suite_add_2smb_test(suite, "batch16", test_raw_oplock_batch16);
+	torture_suite_add_2smb_test(suite, "batch17", test_raw_oplock_batch17);
+	torture_suite_add_2smb_test(suite, "batch18", test_raw_oplock_batch18);
+	torture_suite_add_2smb_test(suite, "batch19", test_raw_oplock_batch19);
+	torture_suite_add_2smb_test(suite, "batch20", test_raw_oplock_batch20);
+	torture_suite_add_2smb_test(suite, "batch21", test_raw_oplock_batch21);
+	torture_suite_add_2smb_test(suite, "batch22", test_raw_oplock_batch22);
+	torture_suite_add_2smb_test(suite, "batch23", test_raw_oplock_batch23);
+	torture_suite_add_2smb_test(suite, "batch24", test_raw_oplock_batch24);
+	torture_suite_add_2smb_test(suite, "batch25", test_raw_oplock_batch25);
+	torture_suite_add_2smb_test(suite, "batch26", test_raw_oplock_batch26);
+	torture_suite_add_2smb_test(suite, "stream1", test_raw_oplock_stream1);
+	torture_suite_add_1smb_test(suite, "doc1", test_raw_oplock_doc);
+	torture_suite_add_2smb_test(suite, "brl1", test_raw_oplock_brl1);
+	torture_suite_add_1smb_test(suite, "brl2", test_raw_oplock_brl2);
+	torture_suite_add_1smb_test(suite, "brl3", test_raw_oplock_brl3);
+	torture_suite_add_2smb_test(suite, "brl4", test_raw_oplock_brl4);
 
 	return suite;
 }

@@ -45,7 +45,7 @@
 #include "system/time.h" /* needed by some systems for asctime() */
 #include "libcli/resolve/resolve.h"
 #include "libcli/security/security.h"
-#include "lib/smbreadline/smbreadline.h"
+#include "../libcli/smbreadline/smbreadline.h"
 #include "librpc/gen_ndr/ndr_nbt.h"
 #include "param/param.h"
 #include "libcli/raw/raw_proto.h"
@@ -2251,7 +2251,7 @@ static int cmd_chmod(struct smbclient_context *ctx, const char **args)
 
 	if (NT_STATUS_IS_ERR(smbcli_unix_chmod(ctx->cli->tree, src, mode))) {
 		d_printf("%s chmod file %s 0%o\n",
-			smbcli_errstr(ctx->cli->tree), src, (mode_t)mode);
+			smbcli_errstr(ctx->cli->tree), src, (unsigned)mode);
 		return 1;
 	} 
 
@@ -3088,10 +3088,10 @@ static bool do_connect(struct smbclient_context *ctx,
 		d_printf("Connection to \\\\%s\\%s failed - %s\n", 
 			 server, share, nt_errstr(status));
 		talloc_free(ctx);
-		return NULL;
+		return false;
 	}
 
-	return ctx;
+	return true;
 }
 
 /****************************************************************************

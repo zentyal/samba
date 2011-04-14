@@ -666,8 +666,6 @@ static bool test_owner_bits(struct torture_context *tctx, struct smb2_tree *tree
 	union smb_setfileinfo set;
 	struct security_descriptor *sd, *sd_orig;
 	const char *owner_sid;
-	bool has_restore_privilege = false;
-	bool has_take_ownership_privilege = false;
 	uint32_t expected_bits;
 
 	if (!smb2_util_setup_dir(tctx, tree, BASEDIR))
@@ -1857,7 +1855,7 @@ done:
 */
 struct torture_suite *torture_smb2_acls_init(void)
 {
-	struct torture_suite *suite = torture_suite_create(talloc_autofree_context(), "ACLS");
+	struct torture_suite *suite = torture_suite_create(talloc_autofree_context(), "acls");
 
 	torture_suite_add_1smb2_test(suite, "CREATOR", test_creator_sid);
 	torture_suite_add_1smb2_test(suite, "GENERIC", test_generic_bits);

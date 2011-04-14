@@ -191,7 +191,7 @@ static int schema_data_add(struct ldb_module *module, struct ldb_request *req)
 	status = dsdb_schema_pfm_find_oid(schema->prefixmap, oid, NULL);
 	if (!W_ERROR_IS_OK(status)) {
 		/* check for internal errors */
-		if (!W_ERROR_EQUAL(WERR_DS_NO_MSDS_INTID, status)) {
+		if (!W_ERROR_EQUAL(status, WERR_NOT_FOUND)) {
 			ldb_debug_set(ldb, LDB_DEBUG_ERROR,
 			              "schema_data_add: failed to map %s[%s]: %s\n",
 			              oid_attr, oid, win_errstr(status));
@@ -467,6 +467,7 @@ static int schema_data_search(struct ldb_module *module, struct ldb_request *req
 					req->controls,
 					search_context, schema_data_search_callback,
 					req);
+	LDB_REQ_SET_LOCATION(down_req);
 	if (ret != LDB_SUCCESS) {
 		return ldb_operr(ldb);
 	}
@@ -475,9 +476,15 @@ static int schema_data_search(struct ldb_module *module, struct ldb_request *req
 }
 
 
-_PUBLIC_ const struct ldb_module_ops ldb_schema_data_module_ops = {
+static const struct ldb_module_ops ldb_schema_data_module_ops = {
 	.name		= "schema_data",
 	.init_context	= schema_data_init,
 	.add		= schema_data_add,
 	.search         = schema_data_search
 };
+
+int ldb_schema_data_module_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_schema_data_module_ops);
+}

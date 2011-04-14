@@ -19,27 +19,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-struct auth_usersupplied_info {
- 	DATA_BLOB lm_resp;
-	DATA_BLOB nt_resp;
- 	DATA_BLOB lm_interactive_pwd;
-	DATA_BLOB nt_interactive_pwd;
- 	DATA_BLOB plaintext_password;
-
-	bool encrypted;
-	struct {
-		char *account_name;   /* username before/after mapping */
-		char *domain_name;    /* username before/after mapping */
-	} client, mapped;
-
-	bool was_mapped;	      /* Did the username map actually match? */
-	char *internal_username;      /* username after mapping */
-	const char *workstation_name; /* workstation name (netbios calling
-				       * name) unicode string */
-
-	uint32 logon_parameters;
-
-};
+#include "../auth/common_auth.h"
 
 struct extra_auth_info {
 	struct dom_sid user_sid;
@@ -50,11 +30,11 @@ struct auth_serversupplied_info {
 	bool guest;
 	bool system;
 
-	struct unix_user_token utok;
+	struct security_unix_token utok;
 
 	/* NT group information taken from the info3 structure */
 
-	NT_USER_TOKEN *ptok;
+	struct security_token *security_token;
 
 	/* This is the final session key, as used by SMB signing, and
 	 * (truncated to 16 bytes) encryption on the SAMR and LSA pipes
@@ -63,7 +43,7 @@ struct auth_serversupplied_info {
 	 * and is  set from the Kerberos session key using
 	 * krb5_auth_con_getremotesubkey().
 	 *
-	 * Bootom line, it is not the same as the session keys in info3.
+	 * Bottom line, it is not the same as the session keys in info3.
 	 */
 
 	DATA_BLOB user_session_key;
@@ -77,8 +57,6 @@ struct auth_serversupplied_info {
 	 * This is checked only when info3.rid and/or info3.primary_gid are set
 	 * to the special invalid value of 0xFFFFFFFF */
 	struct extra_auth_info extra;
-
-	void *pam_handle;
 
 	/*
 	 * This is a token from /etc/passwd and /etc/group
@@ -155,6 +133,9 @@ struct auth_init_function_entry {
 struct auth_ntlmssp_state;
 
 /* Changed from 1 -> 2 to add the logon_parameters field. */
-#define AUTH_INTERFACE_VERSION 2
+/* Changed from 2 -> 3 when we reworked many auth structures to use IDL or be in common with Samba4 */
+#define AUTH_INTERFACE_VERSION 3
+
+#include "auth/proto.h"
 
 #endif /* _SMBAUTH_H_ */

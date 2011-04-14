@@ -28,7 +28,7 @@
 #include "lib/events/events.h"
 #include "lib/messaging/irpc.h"
 #include "dsdb/kcc/kcc_service.h"
-#include "lib/ldb/include/ldb_errors.h"
+#include <ldb_errors.h>
 #include "../lib/util/dlinklist.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "librpc/gen_ndr/ndr_drsuapi.h"
@@ -418,13 +418,9 @@ static WERROR get_master_ncs(TALLOC_CTX *mem_ctx, struct ldb_context *samdb,
 		}
 
 		for (k = 0; k < msg_elem->num_values; k++) {
-			int len = msg_elem->values[k].length;
-
 			/* copy the string on msg_elem->values[k]->data to nc_str */
-			nc_str = talloc_array(mem_ctx, char, len);
+			nc_str = talloc_strndup(mem_ctx, (char *)msg_elem->values[k].data, msg_elem->values[k].length);
 			W_ERROR_HAVE_NO_MEMORY(nc_str);
-			memcpy(nc_str, msg_elem->values[k].data, len);
-			nc_str[len] = '\0';
 
 			nc_list_elem = talloc_zero(mem_ctx, struct ncList);
 			W_ERROR_HAVE_NO_MEMORY(nc_list_elem);
@@ -494,6 +490,7 @@ static WERROR copy_repsfrom_1_to_2(TALLOC_CTX *mem_ctx,
 	reps->consecutive_sync_failures = reps1->consecutive_sync_failures;
 	reps->last_attempt = reps1->last_attempt;
 	reps->last_success = reps1->last_success;
+	reps->result_last_attempt = reps1->result_last_attempt;
 	reps->other_info = talloc_zero(mem_ctx, struct repsFromTo2OtherInfo);
 	W_ERROR_HAVE_NO_MEMORY(reps->other_info);
 	reps->other_info->dns_name1 = reps1->other_info->dns_name;
@@ -583,7 +580,6 @@ static WERROR kccdrs_replica_get_info_neighbours(TALLOC_CTX *mem_ctx,
 	struct repsFromTo2 *reps_from = NULL;
 	uint32_t c_reps_from;
 	uint32_t i_rep;
-	struct drsuapi_DsReplicaNeighbour neigh;
 	struct ncList *nc_list = NULL;
 
 	status = get_ncs_list(mem_ctx, samdb, service, object_dn_str, &nc_list);
@@ -623,6 +619,8 @@ static WERROR kccdrs_replica_get_info_neighbours(TALLOC_CTX *mem_ctx,
 			{
 
 				if (i >= base_index) {
+					struct drsuapi_DsReplicaNeighbour neigh;
+					ZERO_STRUCT(neigh);
 					status = fill_neighbor_from_repsFrom(mem_ctx, samdb,
 									     nc_dn, &neigh,
 									     reps_from);
@@ -630,10 +628,11 @@ static WERROR kccdrs_replica_get_info_neighbours(TALLOC_CTX *mem_ctx,
 
 					/* append the neighbour to the neighbours array */
 					reply->neighbours->array = talloc_realloc(mem_ctx,
-										    reply->neighbours->array,
-										    struct drsuapi_DsReplicaNeighbour,
-										    reply->neighbours->count + 1);
-					reply->neighbours->array[reply->neighbours->count++] = neigh;
+										  reply->neighbours->array,
+										  struct drsuapi_DsReplicaNeighbour,
+										  reply->neighbours->count + 1);
+					reply->neighbours->array[reply->neighbours->count] = neigh;
+					reply->neighbours->count++;
 					j++;
 				}
 
@@ -700,7 +699,6 @@ static WERROR kccdrs_replica_get_info_repsto(TALLOC_CTX *mem_ctx,
 	struct repsFromTo2 *reps_to;
 	uint32_t c_reps_to;
 	uint32_t i_rep;
-	struct drsuapi_DsReplicaNeighbour neigh;
 	struct ncList *nc_list = NULL;
 
 	status = get_ncs_list(mem_ctx, samdb, service, object_dn_str, &nc_list);
@@ -724,6 +722,8 @@ static WERROR kccdrs_replica_get_info_repsto(TALLOC_CTX *mem_ctx,
 
 		/* foreach r in nc!repsTo */
 		for (i_rep = 0; i_rep < c_reps_to; i_rep++) {
+			struct drsuapi_DsReplicaNeighbour neigh;
+			ZERO_STRUCT(neigh);
 
 			/* put all info on reps_to */
 			if (reps_to_blob[i_rep].version == 1) {
@@ -778,7 +778,9 @@ NTSTATUS kccdrs_replica_get_info(struct irpc_message *msg,
 	mem_ctx = talloc_new(msg);
 	NT_STATUS_HAVE_NO_MEMORY(mem_ctx);
 
+#if 0
 	NDR_PRINT_IN_DEBUG(drsuapi_DsReplicaGetInfo, req);
+#endif
 
 	/* check request version */
 	if (req->in.level != DRSUAPI_DS_REPLICA_GET_INFO &&
@@ -813,12 +815,7 @@ NTSTATUS kccdrs_replica_get_info(struct irpc_message *msg,
 		value_dn = req2->value_dn_str;
 	}
 
-	/* allocate the reply and fill in some fields */
-	reply = talloc_zero(mem_ctx, union drsuapi_DsReplicaInfo);
-	NT_STATUS_HAVE_NO_MEMORY(reply);
-	req->out.info = reply;
-	req->out.info_type = talloc(mem_ctx, enum drsuapi_DsReplicaInfoType);
-	NT_STATUS_HAVE_NO_MEMORY(req->out.info_type);
+	reply = req->out.info;
 	*req->out.info_type = info_type;
 
 	/* Based on the infoType requested, retrieve the corresponding
@@ -888,6 +885,8 @@ NTSTATUS kccdrs_replica_get_info(struct irpc_message *msg,
 done:
 	/* put the status on the result field of the reply */
 	req->out.result = status;
+#if 0
 	NDR_PRINT_OUT_DEBUG(drsuapi_DsReplicaGetInfo, req);
+#endif
 	return NT_STATUS_OK;
 }

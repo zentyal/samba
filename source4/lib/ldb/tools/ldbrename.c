@@ -36,12 +36,12 @@
 #include "ldb.h"
 #include "tools/cmdline.h"
 
-static void usage(void)
+static void usage(struct ldb_context *ldb)
 {
 	printf("Usage: ldbrename [<options>] <olddn> <newdn>\n");
 	printf("Renames records in a ldb\n\n");
-	ldb_cmdline_help("ldbmodify", stdout);
-	exit(1);
+	ldb_cmdline_help(ldb, "ldbmodify", stdout);
+	exit(LDB_ERR_OPERATIONS_ERROR);
 }
 
 
@@ -54,18 +54,24 @@ int main(int argc, const char **argv)
 	TALLOC_CTX *mem_ctx = talloc_new(NULL);
 
 	ldb = ldb_init(mem_ctx, NULL);
+	if (ldb == NULL) {
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
 
 	options = ldb_cmdline_process(ldb, argc, argv, usage);
 
 	if (options->argc < 2) {
-		usage();
+		usage(ldb);
 	}
 
 	dn1 = ldb_dn_new(ldb, ldb, options->argv[0]);
 	dn2 = ldb_dn_new(ldb, ldb, options->argv[1]);
+	if ((dn1 == NULL) || (dn2 == NULL)) {
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
 
 	ret = ldb_rename(ldb, dn1, dn2);
-	if (ret == 0) {
+	if (ret == LDB_SUCCESS) {
 		printf("Renamed 1 record\n");
 	} else  {
 		printf("rename of '%s' to '%s' failed - %s\n", 

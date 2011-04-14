@@ -129,11 +129,13 @@ struct ntlmssp_state
 	 *
 	 * The callback must reads the feilds of this structure for the information it needs on the user
 	 * @param ntlmssp_state This structure
+	 * @param mem_ctx Talloc context for LM and NT session key to be returned on
 	 * @param nt_session_key If an NT session key is returned by the authentication process, return it here
 	 * @param lm_session_key If an LM session key is returned by the authentication process, return it here
 	 *
 	 */
-	NTSTATUS (*check_password)(struct ntlmssp_state *ntlmssp_state, DATA_BLOB *nt_session_key, DATA_BLOB *lm_session_key);
+	NTSTATUS (*check_password)(struct ntlmssp_state *ntlmssp_state, TALLOC_CTX *mem_ctx,
+				   DATA_BLOB *nt_session_key, DATA_BLOB *lm_session_key);
 
 	union ntlmssp_crypt_state *crypt;
 };
@@ -158,4 +160,12 @@ NTSTATUS ntlmssp_unseal_packet(struct ntlmssp_state *ntlmssp_state,
 			       uint8_t *data, size_t length,
 			       const uint8_t *whole_pdu, size_t pdu_length,
 			       const DATA_BLOB *sig);
+NTSTATUS ntlmssp_wrap(struct ntlmssp_state *ntlmssp_state,
+		      TALLOC_CTX *out_mem_ctx,
+		      const DATA_BLOB *in,
+		      DATA_BLOB *out);
+NTSTATUS ntlmssp_unwrap(struct ntlmssp_state *ntlmssp_stae,
+			TALLOC_CTX *out_mem_ctx,
+			const DATA_BLOB *in,
+			DATA_BLOB *out);
 NTSTATUS ntlmssp_sign_init(struct ntlmssp_state *ntlmssp_state);

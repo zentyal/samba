@@ -25,9 +25,9 @@
 #include "auth/auth.h"
 #include "smbd/service.h"
 #include "lib/messaging/irpc.h"
-#include "dsdb/kcc/kcc_connection.h"
 #include "dsdb/kcc/kcc_service.h"
-#include "lib/ldb/include/ldb_errors.h"
+#include "dsdb/kcc/kcc_connection.h"
+#include <ldb_errors.h>
 #include "../lib/util/dlinklist.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "librpc/gen_ndr/ndr_drsuapi.h"
@@ -80,7 +80,7 @@ static int kccsrv_add_connection(struct kccsrv_service *s,
 	ldb_msg_add_string(msg, "enabledConnection", "TRUE");
 	ldb_msg_add_linearized_dn(msg, "fromServer", server_dn);
 	/* ldb_msg_add_value(msg, "schedule", &schedule_val, NULL); */
-	ldb_msg_add_string(msg, "options", "1");
+	samdb_msg_add_uint(s->samdb, msg, msg, "options", 1);
 
 	ret = ldb_add(s->samdb, msg);
 	if (ret == LDB_SUCCESS) {
@@ -177,7 +177,7 @@ struct kcc_connection_list *kccsrv_find_connections(struct kccsrv_service *s,
 	const char *attrs[] = { "objectGUID", "fromServer", NULL };
 	struct kcc_connection_list *list;
 
-	kcctpl_test(s->samdb);
+	kcctpl_test(s);
 
 	base_dn = samdb_ntds_settings_dn(s->samdb);
 	if (!base_dn) {
@@ -216,8 +216,8 @@ struct kcc_connection_list *kccsrv_find_connections(struct kccsrv_service *s,
 		ret = dsdb_find_guid_by_dn(s->samdb, server_dn,
 					   &list->servers[i].dsa_guid);
 		if (ret != LDB_SUCCESS) {
-			DEBUG(0, ("failed to find connection server's GUID"
-				  "by DN=%s: %s\n",
+			DEBUG(0, ("Failed to find connection server's GUID by "
+				  "DN=%s: %s\n",
 				  ldb_dn_get_linearized(server_dn),
 				  ldb_strerror(ret)));
 			continue;

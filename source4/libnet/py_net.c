@@ -20,12 +20,19 @@
 
 #include <Python.h>
 #include "includes.h"
+#include <ldb.h>
+#include <pyldb.h>
 #include "libnet.h"
 #include "auth/credentials/pycredentials.h"
 #include "libcli/security/security.h"
 #include "lib/events/events.h"
-#include "param/param.h"
 #include "param/pyparam.h"
+#include "auth/gensec/gensec.h"
+#include "librpc/rpc/pyrpc_util.h"
+#include "libcli/finddc.h"
+#include "libcli/resolve/resolve.h"
+
+void initnet(void);
 
 typedef struct {
 	PyObject_HEAD
@@ -48,6 +55,10 @@ static PyObject *py_net_join(py_net_Object *self, PyObject *args, PyObject *kwar
 		return NULL;
 
 	mem_ctx = talloc_new(self->mem_ctx);
+	if (mem_ctx == NULL) {
+		PyErr_NoMemory();
+		return NULL;
+	}
 
 	status = libnet_Join(self->libnet_ctx, mem_ctx, &r);
 	if (NT_STATUS_IS_ERR(status)) {
@@ -88,7 +99,12 @@ static PyObject *py_net_set_password(py_net_Object *self, PyObject *args, PyObje
 	/* FIXME: we really need to get a context from the caller or we may end
 	 * up with 2 event contexts */
 	ev = s4_event_context_init(NULL);
+
 	mem_ctx = talloc_new(ev);
+	if (mem_ctx == NULL) {
+		PyErr_NoMemory();
+		return NULL;
+	}
 
 	status = libnet_SetPassword(self->libnet_ctx, mem_ctx, &r);
 	if (NT_STATUS_IS_ERR(status)) {
@@ -124,6 +140,10 @@ static PyObject *py_net_export_keytab(py_net_Object *self, PyObject *args, PyObj
 	}
 
 	mem_ctx = talloc_new(self->mem_ctx);
+	if (mem_ctx == NULL) {
+		PyErr_NoMemory();
+		return NULL;
+	}
 
 	status = libnet_export_keytab(self->libnet_ctx, mem_ctx, &r);
 	if (NT_STATUS_IS_ERR(status)) {
@@ -306,8 +326,204 @@ static PyObject *py_net_vampire(py_net_Object *self, PyObject *args, PyObject *k
 	return ret;
 }
 
+struct replicate_state {
+	void *vampire_state;
+	dcerpc_InterfaceObject *drs_pipe;
+	struct libnet_BecomeDC_StoreChunk chunk;
+	DATA_BLOB gensec_skey;
+	struct libnet_BecomeDC_Partition partition;
+	struct libnet_BecomeDC_Forest forest;
+	struct libnet_BecomeDC_DestDSA dest_dsa;
+};
+
+/*
+  setup for replicate_chunk() calls
+ */
+static PyObject *py_net_replicate_init(py_net_Object *self, PyObject *args, PyObject *kwargs)
+{
+	const char *kwnames[] = { "samdb", "lp", "drspipe", NULL };
+	PyObject *py_ldb, *py_lp, *py_drspipe;
+	struct ldb_context *samdb;
+	struct loadparm_context *lp;
+	struct replicate_state *s;
+	NTSTATUS status;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OOO",
+					 discard_const_p(char *, kwnames),
+	                                 &py_ldb, &py_lp, &py_drspipe)) {
+		return NULL;
+	}
+
+	s = talloc_zero(NULL, struct replicate_state);
+	if (!s) return NULL;
+
+	lp = lpcfg_from_py_object(s, py_lp);
+	if (lp == NULL) {
+		PyErr_SetString(PyExc_TypeError, "Expected lp object");
+		talloc_free(s);
+		return NULL;
+	}
+
+	samdb = PyLdb_AsLdbContext(py_ldb);
+	if (samdb == NULL) {
+		PyErr_SetString(PyExc_TypeError, "Expected ldb object");
+		talloc_free(s);
+		return NULL;
+	}
+
+	s->drs_pipe = (dcerpc_InterfaceObject *)(py_drspipe);
+
+	s->vampire_state = libnet_vampire_replicate_init(s, samdb, lp);
+	if (s->vampire_state == NULL) {
+		PyErr_SetString(PyExc_TypeError, "Failed to initialise vampire_state");
+		talloc_free(s);
+		return NULL;
+	}
+
+	status = gensec_session_key(s->drs_pipe->pipe->conn->security_state.generic_state,
+				    &s->gensec_skey);
+	if (!NT_STATUS_IS_OK(status)) {
+		PyErr_Format(PyExc_RuntimeError, "Unable to get session key from drspipe: %s",
+			     nt_errstr(status));
+		talloc_free(s);
+		return NULL;
+	}
+
+	s->forest.dns_name = lpcfg_dnsdomain(lp);
+
+	s->chunk.gensec_skey = &s->gensec_skey;
+	s->chunk.partition = &s->partition;
+	s->chunk.forest = &s->forest;
+	s->chunk.dest_dsa = &s->dest_dsa;
+
+	return PyCObject_FromTallocPtr(s);
+}
+
+
+/*
+  process one replication chunk
+ */
+static PyObject *py_net_replicate_chunk(py_net_Object *self, PyObject *args, PyObject *kwargs)
+{
+	const char *kwnames[] = { "state", "level", "ctr", "schema", NULL };
+	PyObject *py_state, *py_ctr, *py_schema;
+	struct replicate_state *s;
+	unsigned level;
+	NTSTATUS (*chunk_handler)(void *private_data, const struct libnet_BecomeDC_StoreChunk *c);
+	NTSTATUS status;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OIO|O",
+					 discard_const_p(char *, kwnames),
+	                                 &py_state, &level, &py_ctr, &py_schema)) {
+		return NULL;
+	}
+
+	s = talloc_get_type(PyCObject_AsVoidPtr(py_state), struct replicate_state);
+	if (!s) {
+		PyErr_SetString(PyExc_TypeError, "Expected replication_state");
+		return NULL;
+	}
+
+	switch (level) {
+	case 1:
+		if (!py_check_dcerpc_type(py_ctr, "samba.dcerpc.drsuapi", "DsGetNCChangesCtr1")) {
+			return NULL;
+		}
+		s->chunk.ctr1                         = py_talloc_get_ptr(py_ctr);
+		s->partition.nc                       = *s->chunk.ctr1->naming_context;
+		s->partition.more_data                = s->chunk.ctr1->more_data;
+		s->partition.source_dsa_guid          = s->chunk.ctr1->source_dsa_guid;
+		s->partition.source_dsa_invocation_id = s->chunk.ctr1->source_dsa_invocation_id;
+		s->partition.highwatermark            = s->chunk.ctr1->new_highwatermark;
+		break;
+	case 6:
+		if (!py_check_dcerpc_type(py_ctr, "samba.dcerpc.drsuapi", "DsGetNCChangesCtr6")) {
+			return NULL;
+		}
+		s->chunk.ctr6                         = py_talloc_get_ptr(py_ctr);
+		s->partition.nc                       = *s->chunk.ctr6->naming_context;
+		s->partition.more_data                = s->chunk.ctr6->more_data;
+		s->partition.source_dsa_guid          = s->chunk.ctr6->source_dsa_guid;
+		s->partition.source_dsa_invocation_id = s->chunk.ctr6->source_dsa_invocation_id;
+		s->partition.highwatermark            = s->chunk.ctr6->new_highwatermark;
+		break;
+	default:
+		PyErr_Format(PyExc_TypeError, "Bad level %u in replicate_chunk", level);
+		return NULL;
+	}
+
+	chunk_handler = libnet_vampire_cb_store_chunk;
+	if (py_schema) {
+		if (!PyBool_Check(py_schema)) {
+			PyErr_SetString(PyExc_TypeError, "Expected boolean schema");
+			return NULL;
+		}
+		if (py_schema == Py_True) {
+			chunk_handler = libnet_vampire_cb_schema_chunk;
+		}
+	}
+
+	s->chunk.ctr_level = level;
+
+	status = chunk_handler(s->vampire_state, &s->chunk);
+	if (!NT_STATUS_IS_OK(status)) {
+		PyErr_Format(PyExc_TypeError, "Failed to process chunk: %s", nt_errstr(status));
+		return NULL;
+	}
+
+	Py_RETURN_NONE;
+}
+
+
+/*
+  find a DC given a domain name and server type
+ */
+static PyObject *py_net_finddc(py_net_Object *self, PyObject *args)
+{
+	const char *domain_name;
+	unsigned server_type;
+	NTSTATUS status;
+	struct finddcs *io;
+	TALLOC_CTX *mem_ctx;
+	PyObject *ret;
+
+	if (!PyArg_ParseTuple(args, "sI", &domain_name, &server_type)) {
+		return NULL;
+	}
+
+	mem_ctx = talloc_new(self->mem_ctx);
+
+	io = talloc_zero(mem_ctx, struct finddcs);
+	io->in.domain_name = domain_name;
+	io->in.minimum_dc_flags = server_type;
+
+	status = finddcs_cldap(io, io,
+			       lpcfg_resolve_context(self->libnet_ctx->lp_ctx), self->ev);
+	if (NT_STATUS_IS_ERR(status)) {
+		PyErr_SetString(PyExc_RuntimeError, nt_errstr(status));
+		talloc_free(mem_ctx);
+		return NULL;
+	}
+
+	ret = py_return_ndr_struct("samba.dcerpc.nbt", "NETLOGON_SAM_LOGON_RESPONSE_EX",
+				   io, &io->out.netlogon.data.nt5_ex);
+	talloc_free(mem_ctx);
+
+	return ret;
+}
+
+
 static const char py_net_vampire_doc[] = "vampire(domain, target_dir=None)\n"
 					 "Vampire a domain.";
+
+static const char py_net_replicate_init_doc[] = "replicate_init(samdb, lp, drspipe)\n"
+					 "Setup for replicate_chunk calls.";
+
+static const char py_net_replicate_chunk_doc[] = "replicate_chunk(state, level, ctr, schema)\n"
+					 "Process replication for one chunk";
+
+static const char py_net_finddc_doc[] = "finddc(domain, server_type)\n"
+					 "find a DC with the specified server_type bits. Return the DNS name";
 
 static PyMethodDef net_obj_methods[] = {
 	{"join", (PyCFunction)py_net_join, METH_VARARGS|METH_KEYWORDS, py_net_join_doc},
@@ -317,23 +533,29 @@ static PyMethodDef net_obj_methods[] = {
 	{"create_user", (PyCFunction)py_net_user_create, METH_VARARGS|METH_KEYWORDS, py_net_create_user_doc},
 	{"delete_user", (PyCFunction)py_net_user_delete, METH_VARARGS|METH_KEYWORDS, py_net_delete_user_doc},
 	{"vampire", (PyCFunction)py_net_vampire, METH_VARARGS|METH_KEYWORDS, py_net_vampire_doc},
+	{"replicate_init", (PyCFunction)py_net_replicate_init, METH_VARARGS|METH_KEYWORDS, py_net_replicate_init_doc},
+	{"replicate_chunk", (PyCFunction)py_net_replicate_chunk, METH_VARARGS|METH_KEYWORDS, py_net_replicate_chunk_doc},
+	{"finddc", (PyCFunction)py_net_finddc, METH_VARARGS, py_net_finddc_doc},
 	{ NULL }
 };
 
 static void py_net_dealloc(py_net_Object *self)
 {
 	talloc_free(self->mem_ctx);
+	PyObject_Del(self);
 }
 
 static PyObject *net_obj_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
 	PyObject *py_creds, *py_lp = Py_None;
-	const char *kwnames[] = { "creds", "lp", NULL };
+	const char *kwnames[] = { "creds", "lp", "server", NULL };
 	py_net_Object *ret;
 	struct loadparm_context *lp;
+	const char *server_address = NULL;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|O", 
-			discard_const_p(char *, kwnames), &py_creds, &py_lp))
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|Oz",
+					 discard_const_p(char *, kwnames), &py_creds, &py_lp,
+					 &server_address))
 		return NULL;
 
 	ret = PyObject_New(py_net_Object, type);
@@ -358,6 +580,8 @@ static PyObject *net_obj_new(PyTypeObject *type, PyObject *args, PyObject *kwarg
 		Py_DECREF(ret);
 		return NULL;
 	}
+
+	ret->libnet_ctx->server_address = server_address;
 
 	ret->libnet_ctx->cred = cli_credentials_from_py_object(py_creds);
 	if (ret->libnet_ctx->cred == NULL) {
@@ -392,4 +616,8 @@ void initnet(void)
 
 	Py_INCREF(&py_net_Type);
 	PyModule_AddObject(m, "Net", (PyObject *)&py_net_Type);
+	PyModule_AddObject(m, "LIBNET_JOINDOMAIN_AUTOMATIC", PyInt_FromLong(LIBNET_JOINDOMAIN_AUTOMATIC));
+	PyModule_AddObject(m, "LIBNET_JOINDOMAIN_SPECIFIED", PyInt_FromLong(LIBNET_JOINDOMAIN_SPECIFIED));
+	PyModule_AddObject(m, "LIBNET_JOIN_AUTOMATIC", PyInt_FromLong(LIBNET_JOIN_AUTOMATIC));
+	PyModule_AddObject(m, "LIBNET_JOIN_SPECIFIED", PyInt_FromLong(LIBNET_JOIN_SPECIFIED));
 }

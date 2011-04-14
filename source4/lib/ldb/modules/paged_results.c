@@ -32,7 +32,9 @@
  *  Author: Simo Sorce
  */
 
-#include "ldb_includes.h"
+#include "replace.h"
+#include "system/filesys.h"
+#include "system/time.h"
 #include "ldb_module.h"
 
 struct message_store {
@@ -359,7 +361,7 @@ static int paged_search(struct ldb_module *module, struct ldb_request *req)
 		/* save it locally and remove it from the list */
 		/* we do not need to replace them later as we
 		 * are keeping the original req intact */
-		if (!save_controls(control, search_req, &saved_controls)) {
+		if (!ldb_save_controls(control, search_req, &saved_controls)) {
 			return LDB_ERR_OPERATIONS_ERROR;
 		}
 
@@ -423,8 +425,14 @@ static int paged_request_init(struct ldb_module *module)
 	return ldb_next_init(module);
 }
 
-const struct ldb_module_ops ldb_paged_results_module_ops = {
+static const struct ldb_module_ops ldb_paged_results_module_ops = {
 	.name           = "paged_results",
 	.search         = paged_search,
 	.init_context 	= paged_request_init
 };
+
+int ldb_paged_results_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_paged_results_module_ops);
+}

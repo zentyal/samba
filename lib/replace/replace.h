@@ -81,13 +81,13 @@
 #ifndef PRIi8
 # define PRIi8		"i"
 #endif
-#ifndef PRIi8
+#ifndef PRIi16
 # define PRIi16		"i"
 #endif
-#ifndef PRIi8
+#ifndef PRIi32
 # define PRIi32		"i"
 #endif
-#ifndef PRIi8
+#ifndef PRIi64
 # define PRIi64		__PRI64_PREFIX "i"
 #endif
 
@@ -119,6 +119,13 @@
 #if STDC_HEADERS
 #include <stdlib.h>
 #include <stddef.h>
+#endif
+
+#ifdef HAVE_LINUX_TYPES_H
+/*
+ * This is needed as some broken header files require this to be included early
+ */
+#include <linux/types.h>
 #endif
 
 #ifndef HAVE_STRERROR
@@ -283,14 +290,26 @@ char *rep_strcasestr(const char *haystack, const char *needle);
 char *rep_strtok_r(char *s, const char *delim, char **save_ptr);
 #endif
 
+
+
 #ifndef HAVE_STRTOLL
 #define strtoll rep_strtoll
 long long int rep_strtoll(const char *str, char **endptr, int base);
+#else
+#ifdef HAVE_BSD_STRTOLL
+#define strtoll rep_strtoll
+long long int rep_strtoll(const char *str, char **endptr, int base);
+#endif
 #endif
 
 #ifndef HAVE_STRTOULL
 #define strtoull rep_strtoull
 unsigned long long int rep_strtoull(const char *str, char **endptr, int base);
+#else
+#ifdef HAVE_BSD_STRTOLL /* yes, it's not HAVE_BSD_STRTOULL */
+#define strtoull rep_strtoull
+unsigned long long int rep_strtoull(const char *str, char **endptr, int base);
+#endif
 #endif
 
 #ifndef HAVE_FTRUNCATE
@@ -513,8 +532,13 @@ char *rep_get_current_dir_name(void);
 #endif
 
 #if !defined(HAVE_STRERROR_R) || !defined(STRERROR_R_PROTO_COMPATIBLE)
+#undef strerror_r
 #define strerror_r rep_strerror_r
 int rep_strerror_r(int errnum, char *buf, size_t buflen);
+#endif
+
+#if !defined(HAVE_CLOCK_GETTIME)
+#define clock_gettime rep_clock_gettime
 #endif
 
 #ifdef HAVE_LIMITS_H
@@ -751,6 +775,8 @@ char *ufc_crypt(const char *key, const char *salt);
 
 #ifndef HAVE_FDATASYNC
 #define fdatasync(fd) fsync(fd)
+#elif !defined(HAVE_DECL_FDATASYNC)
+int fdatasync(int );
 #endif
 
 /* these are used to mark symbols as local to a shared lib, or
@@ -769,6 +795,11 @@ char *ufc_crypt(const char *key, const char *salt);
 #else
 #  define _PRIVATE_
 #endif
+#endif
+
+#ifndef HAVE_POLL
+#define poll rep_poll
+/* prototype is in "system/network.h" */
 #endif
 
 #endif /* _LIBREPLACE_REPLACE_H */

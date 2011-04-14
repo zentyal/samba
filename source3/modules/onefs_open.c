@@ -33,6 +33,7 @@
  */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "onefs.h"
 #include "onefs_config.h"
 #include "oplock_onefs.h"
@@ -326,7 +327,7 @@ static NTSTATUS onefs_open_file(files_struct *fsp,
 	fsp->wcp = NULL; /* Write cache pointer. */
 
 	DEBUG(2,("%s opened file %s read=%s write=%s (numopen=%d)\n",
-		 conn->server_info->unix_name,
+		 conn->session_info->unix_name,
 		 smb_fname_str_dbg(smb_fname),
 		 BOOLSTR(fsp->can_read), BOOLSTR(fsp->can_write),
 		 conn->num_files_open));
@@ -1309,7 +1310,7 @@ NTSTATUS onefs_open_file_ntcreate(connection_struct *conn,
 		new_file_created = True;
 	}
 
-	set_share_mode(lck, fsp, conn->server_info->utok.uid, 0,
+	set_share_mode(lck, fsp, get_current_uid(conn), 0,
 		       fsp->oplock_type);
 
 	/* Handle strange delete on close create semantics. */
@@ -1665,7 +1666,7 @@ static NTSTATUS onefs_open_directory(connection_struct *conn,
 		return NT_STATUS_DELETE_PENDING;
 	}
 
-	set_share_mode(lck, fsp, conn->server_info->utok.uid, 0, NO_OPLOCK);
+	set_share_mode(lck, fsp, get_current_uid(conn), 0, NO_OPLOCK);
 
 	/*
 	 * For directories the delete on close bit at open time seems
@@ -2093,11 +2094,13 @@ NTSTATUS onefs_create_file(vfs_handle_struct *handle,
 
 	/* Get the file name if root_dir_fid was specified. */
 	if (root_dir_fid != 0) {
+		struct smb_filename *smb_fname_out = NULL;
 		status = get_relative_fid_filename(conn, req, root_dir_fid,
-						   smb_fname);
+						   smb_fname, &smb_fname_out);
 		if (!NT_STATUS_IS_OK(status)) {
 			goto fail;
 		}
+		smb_fname = smb_fname_out;
 	}
 
 	/* All file access must go through check_name() */

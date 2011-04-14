@@ -63,7 +63,7 @@ static bool run_netbench(struct torture_context *tctx, struct smbcli_state *cli,
 	FILE *f;
 	bool correct = true;
 	double target_rate = torture_setting_double(tctx, "targetrate", 0);	
-	int n;
+	int n = 0;
 
 	if (target_rate != 0 && client == 0) {
 		printf("Targetting %.4f MByte/sec\n", target_rate);
@@ -282,12 +282,10 @@ bool torture_nbench(struct torture_context *torture)
 
 NTSTATUS torture_nbench_init(void)
 {
-	struct torture_suite *suite = 
-		torture_suite_create(
-			talloc_autofree_context(),
-			"BENCH");
+	struct torture_suite *suite = torture_suite_create(
+						   talloc_autofree_context(), "bench");
 
-	torture_suite_add_simple_test(suite, "NBENCH", torture_nbench);
+	torture_suite_add_simple_test(suite, "nbench", torture_nbench);
 
 	suite->description = talloc_strdup(suite, "Benchmarks");
 

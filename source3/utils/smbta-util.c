@@ -17,12 +17,12 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "includes.h"
-
+#include "secrets.h"
 
 static void delete_key(void);
 
 
-static void help()
+static void help(void)
 {
 printf("-h 		print this help message.\n");
 printf("-f <file>	install the key from a file and activate\n");
@@ -34,7 +34,7 @@ printf("-s		check if a key is installed, and print the key to stdout.\n");
 printf("\n");
 }
 
-static void check_key()
+static void check_key(void)
 {	size_t size;
 	char *akey;
 	if (!secrets_init()) {
@@ -83,6 +83,7 @@ static void load_key_from_file(char *filename, char *key)
 		fclose(keyfile);
 		exit(1);
 	}
+	fclose(keyfile);
 }
 
 static void create_file_from_key(char *filename)
@@ -153,6 +154,7 @@ static void load_key_from_file_and_activate( char *filename)
 	if (akey != NULL) {
 		printf("Removing the old key.\n");
 		delete_key();
+		SAFE_FREE(akey);
 	}
 	printf("Installing the key from file %s\n",filename);
 	secrets_store("smb_traffic_analyzer_key", key, strlen(key)+1);

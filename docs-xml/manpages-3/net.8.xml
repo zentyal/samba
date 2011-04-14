@@ -1267,7 +1267,7 @@ Restore the mappings from the specified file or stdin.
 </refsect2>
 
 <refsect2>
-<title>IDMAP SECRET &lt;DOMAIN&gt;|ALLOC &lt;secret&gt;</title>
+<title>IDMAP SECRET &lt;DOMAIN&gt; &lt;secret&gt;</title>
 
 <para>
 Store a secret for the specified domain, used primarily for domains
@@ -1276,6 +1276,115 @@ as the password for the user DN used to bind to the ldap server.
 </para>
 
 </refsect2>
+
+<refsect2>
+
+<title>IDMAP DELETE [-f] [--db=&lt;DB&gt;] &lt;ID&gt;</title>
+
+<para>
+Delete a mapping sid &lt;-&gt; gid or sid &lt;-&gt; uid from the IDMAP database.
+The mapping is given by &lt;ID&gt; which may either be a sid: S-x-..., a gid: "GID number" or a uid: "UID number".
+Use -f to delete an invalid partial mapping &lt;ID&gt; -&gt; xx
+</para>
+<para>
+  Use "smbcontrol all idmap ..." to notify running smbd instances.
+  See the <citerefentry><refentrytitle>smbcontrol</refentrytitle>
+  <manvolnum>1</manvolnum></citerefentry> manpage for details.
+</para>
+</refsect2>
+
+<refsect2>
+
+<title>IDMAP CHECK [-v] [-r] [-a] [-T] [-f] [-l] [--db=&lt;DB&gt;]</title>
+
+<para>
+  Check and repair the IDMAP database. If no option is given a read only check
+  of the database is done. Among others an interactive or automatic repair mode
+  may be chosen with one of the following options:
+
+  <variablelist>
+    <varlistentry><term>-r|--repair</term>
+    <listitem><para>
+      Interactive repair mode, ask a lot of questions.
+    </para></listitem>
+    </varlistentry>
+
+    <varlistentry><term>-a|--auto</term>
+    <listitem><para>
+      Noninteractive repair mode, use default answers.
+    </para></listitem>
+    </varlistentry>
+
+    <varlistentry><term>-v|--verbose</term>
+      <listitem><para>
+	Produce more output.
+      </para></listitem>
+    </varlistentry>
+
+    <varlistentry><term>-f|--force</term>
+      <listitem><para>
+	Try to apply changes, even if they do not apply cleanly.
+      </para></listitem>
+    </varlistentry>
+
+    <varlistentry><term>-T|--test</term>
+      <listitem><para>
+	Dry run, show what changes would be made but don't touch anything.
+      </para></listitem>
+    </varlistentry>
+
+    <varlistentry><term>-l|--lock</term>
+      <listitem><para>
+	Lock the database while doing the check.
+      </para></listitem>
+    </varlistentry>
+
+    <varlistentry><term>--db &lt;DB&gt;</term>
+      <listitem><para>
+	Check the specified database.
+      </para></listitem>
+    </varlistentry>
+    <varlistentry><term></term>
+      <listitem><para>
+      </para></listitem>
+    </varlistentry>
+  </variablelist>
+
+  It reports about the finding of the following errors:
+
+  <variablelist>
+    <varlistentry><term>Missing reverse mapping:</term>
+    <listitem><para>
+      A record with mapping A-&gt;B where there is no B-&gt;A. Default action
+      in repair mode is to "fix" this by adding the reverse mapping.
+    </para></listitem>
+    </varlistentry>
+
+    <varlistentry><term>Invalid mapping:</term>
+    <listitem><para>
+      A record with mapping A-&gt;B where B-&gt;C. Default action
+      is to "delete" this record.
+    </para></listitem>
+  </varlistentry>
+
+  <varlistentry><term>Missing or invalid HWM:</term>
+    <listitem><para>
+      A high water mark is not at least equal to the largest ID in the
+      database. Default action is to "fix" this by setting it to the
+      largest ID found +1.
+    </para></listitem>
+  </varlistentry>
+
+  <varlistentry><term>Invalid record:</term>
+    <listitem><para>
+      Something we failed to parse. Default action is to "edit" it
+      in interactive and "delete" it in automatic mode.
+    </para></listitem>
+  </varlistentry>
+</variablelist>
+</para>
+</refsect2>
+
 
 <refsect2>
 <title>USERSHARE</title>
@@ -1613,6 +1722,164 @@ macros like %I.
 Delete the list of includes from the provided section (global or share).
 </para>
 </refsect3>
+
+</refsect2>
+
+<refsect2>
+<title>REGISTRY</title>
+<para>
+Manipulate Samba's registry.
+</para>
+
+<para>The registry commands are:
+<simplelist>
+<member>net registry enumerate   - Enumerate registry keys and values.</member>
+<member>net registry createkey   - Create a new registry key.</member>
+<member>net registry deletekey   - Delete a registry key.</member>
+<member>net registry getvalue    - Print a registry value.</member>
+<member>net registry getvalueraw - Print a registry value (raw format).</member>
+<member>net registry setvalue    - Set a new registry value.</member>
+<member>net registry increment   - Increment a DWORD registry value under a lock.
+</member>
+<member>net registry deletevalue - Delete a registry value.</member>
+<member>net registry getsd       - Get security descriptor.</member>
+<member>net registry getsd_sdd1  - Get security descriptor in sddl format.
+</member>
+<member>net registry setsd_sdd1  - Set security descriptor from sddl format
+string.</member>
+<member>net registry import      - Import a registration entries (.reg) file.
+</member>
+<member>net registry export      - Export a registration entries (.reg) file.
+</member>
+<member>net registry convert     - Convert a registration entries (.reg) file.
+</member>
+</simplelist>
+</para>
+
+<refsect3>
+  <title>REGISTRY ENUMERATE <replaceable>key</replaceable> </title>
+  <para>Enumerate subkeys and values of <emphasis>key</emphasis>
+  </para>
+</refsect3>
+
+<refsect3>
+  <title>REGISTRY CREATEKEY <replaceable>key</replaceable> </title>
+  <para>Create a new <emphasis>key</emphasis> if not yet existing.
+  </para>
+</refsect3>
+
+<refsect3>
+  <title>REGISTRY DELETEKEY <replaceable>key</replaceable> </title>
+  <para>Delete the given <emphasis>key</emphasis> and all of its
+  subkeys and values from the registry.
+  </para>
+</refsect3>
+
+<refsect3>
+  <title>REGISTRY GETVALUE <replaceable>key</replaceable> <!--
+  --><replaceable>name</replaceable></title>
+
+  <para>Output type and actual value of the value <emphasis>name</emphasis>
+  of the given <emphasis>key</emphasis>.
+  </para>
+</refsect3>
+
+<refsect3>
+  <title>REGISTRY GETVALUERAW <replaceable>key</replaceable> <!--
+  --><replaceable>name</replaceable></title>
+  <para>Output the actual value of the value <emphasis>name</emphasis>
+  of the given <emphasis>key</emphasis>.
+  </para>
+</refsect3>
+
+<refsect3>
+  <title>REGISTRY SETVALUE <replaceable>key</replaceable> <!--
+  --><replaceable>name</replaceable> <replaceable>type</replaceable> <!--
+  --><replaceable>value</replaceable> ...<!--
+  --></title>
+
+  <para>Set the value <emphasis>name</emphasis>
+  of an existing <emphasis>key</emphasis>.
+  <emphasis>type</emphasis> may be one of
+  <emphasis>sz</emphasis>, <emphasis>multi_sz</emphasis> or
+  <emphasis>dword</emphasis>.
+  In case of <emphasis>multi_sz</emphasis> <replaceable>value</replaceable> may
+  be given multiple times.
+  </para>
+</refsect3>
+
+<refsect3>
+  <title>REGISTRY INCREMENT <replaceable>key</replaceable> <!--
+  --><replaceable>name</replaceable> <replaceable>[inc]</replaceable><!--
+  --></title>
+
+  <para>Increment the DWORD value <emphasis>name</emphasis>
+  of <emphasis>key</emphasis> by <replaceable>inc</replaceable>
+  while holding a g_lock.
+  <emphasis>inc</emphasis> defaults to 1.
+  </para>
+</refsect3>
+
+<refsect3>
+  <title>REGISTRY DELETEVALUE <replaceable>key</replaceable> <!--
+  --><replaceable>name</replaceable></title>
+
+  <para>Delete the value <emphasis>name</emphasis>
+  of the given <emphasis>key</emphasis>.
+  </para>
+</refsect3>
+
+<refsect3>
+  <title>REGISTRY GETSD <replaceable>key</replaceable></title>
+
+  <para>Get the security descriptor of the given <emphasis>key</emphasis>.
+  </para>
+</refsect3>
+
+<refsect3>
+  <title>REGISTRY GETSD_SDDL <replaceable>key</replaceable></title>
+
+  <para>Get the security descriptor of the given <emphasis>key</emphasis> as a
+  Security Descriptor Definition Language (SDDL) string.
+  </para>
+</refsect3>
+
+<refsect3>
+  <title>REGISTRY SETSD_SDDL <replaceable>key</replaceable><!--
+  --><replaceable>sd</replaceable></title>
+
+  <para>Set the security descriptor of the given <emphasis>key</emphasis> from a
+  Security Descriptor Definition Language (SDDL) string <emphasis>sd</emphasis>.
+  </para>
+</refsect3>
+
+<refsect3>
+  <title>REGISTRY IMPORT <replaceable>file</replaceable><!--
+  --><replaceable>[opt]</replaceable></title>
+
+  <para>Import a registration entries (.reg) <emphasis>file</emphasis>.
+  </para>
+</refsect3>
+
+<refsect3>
+  <title>REGISTRY EXPORT <replaceable>key</replaceable><!--
+  --><replaceable>file</replaceable><!--
+  --><replaceable>[opt]</replaceable></title>
+
+  <para>Export a <emphasis>key</emphasis> to a registration entries (.reg)
+  <emphasis>file</emphasis>.
+  </para>
+</refsect3>
+
+<refsect3>
+  <title>REGISTRY CONVERT <replaceable>in</replaceable> <!--
+  --><replaceable>out</replaceable> <!--
+  --><replaceable>[[inopt] outopt]</replaceable></title>
+
+  <para>Convert a registration entries (.reg) file <emphasis>in</emphasis>.
+  </para>
+</refsect3>
+
 
 </refsect2>
 

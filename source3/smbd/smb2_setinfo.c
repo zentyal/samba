@@ -20,8 +20,10 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
 #include "../libcli/smb/smb_common.h"
+#include "trans2.h"
 
 static struct tevent_req *smbd_smb2_setinfo_send(TALLOC_CTX *mem_ctx,
 						 struct tevent_context *ev,
@@ -216,9 +218,15 @@ static struct tevent_req *smbd_smb2_setinfo_send(TALLOC_CTX *mem_ctx,
 		if (file_info_level == SMB_FILE_RENAME_INFORMATION) {
 			/* SMB2_FILE_RENAME_INFORMATION_INTERNAL == 0xFF00 + in_file_info_class */
 			file_info_level = SMB2_FILE_RENAME_INFORMATION_INTERNAL;
+			if (fsp->oplock_type != FAKE_LEVEL_II_OPLOCK &&
+			    fsp->oplock_type != NO_OPLOCK) {
+				/* No break, but error. */
+				tevent_req_nterror(req, NT_STATUS_SHARING_VIOLATION);
+				return tevent_req_post(req, ev);
+			}
 		}
 
-		if (fsp->is_directory || fsp->fh->fd == -1) {
+		if (fsp->fh->fd == -1) {
 			/*
 			 * This is actually a SETFILEINFO on a directory
 			 * handle (returned from an NT SMB). NT5.0 seems
@@ -311,6 +319,11 @@ static struct tevent_req *smbd_smb2_setinfo_send(TALLOC_CTX *mem_ctx,
 
 	case 0x03:/* SMB2_SETINFO_SECURITY */
 	{
+		if (!CAN_WRITE(conn)) {
+			tevent_req_nterror(req, NT_STATUS_ACCESS_DENIED);
+			return tevent_req_post(req, ev);
+		}
+
 		status = set_sd(fsp,
 				in_input_buffer.data,
 				in_input_buffer.length,

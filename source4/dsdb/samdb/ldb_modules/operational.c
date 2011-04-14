@@ -1,6 +1,7 @@
 /*
    ldb database library
 
+   Copyright (C) Andrew Bartlett <abartlet@samba.org> 2001-2010
    Copyright (C) Andrew Tridgell 2005
    Copyright (C) Simo Sorce 2006-2008
    Copyright (C) Matthias Dieter Wallnöfer 2009
@@ -24,11 +25,11 @@
  */
 
 /*
-  createTimestamp: HIDDEN, searchable, ldaptime, alias for whenCreated
-  modifyTimestamp: HIDDEN, searchable, ldaptime, alias for whenChanged
+  createTimeStamp: HIDDEN, searchable, ldaptime, alias for whenCreated
+  modifyTimeStamp: HIDDEN, searchable, ldaptime, alias for whenChanged
 
      for the above two, we do the search as normal, and if
-     createTimestamp or modifyTimestamp is asked for, then do
+     createTimeStamp or modifyTimeStamp is asked for, then do
      additional searches for whenCreated and whenChanged and fill in
      the resulting values
 
@@ -73,8 +74,7 @@
 #include "dsdb/samdb/samdb.h"
 #include "dsdb/samdb/ldb_modules/util.h"
 
-#include "auth/auth.h"
-#include "libcli/security/dom_sid.h"
+#include "libcli/security/security.h"
 
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof(a[0]))
@@ -88,7 +88,8 @@ struct operational_data {
   construct a canonical name from a message
 */
 static int construct_canonical_name(struct ldb_module *module,
-	struct ldb_message *msg, enum ldb_scope scope)
+				    struct ldb_message *msg, enum ldb_scope scope,
+				    struct ldb_request *parent)
 {
 	char *canonicalName;
 	canonicalName = ldb_dn_canonical_string(msg, msg->dn);
@@ -102,7 +103,8 @@ static int construct_canonical_name(struct ldb_module *module,
   construct a primary group token for groups from a message
 */
 static int construct_primary_group_token(struct ldb_module *module,
-					 struct ldb_message *msg, enum ldb_scope scope)
+					 struct ldb_message *msg, enum ldb_scope scope,
+					 struct ldb_request *parent)
 {
 	struct ldb_context *ldb;
 	uint32_t primary_group_token;
@@ -115,7 +117,7 @@ static int construct_primary_group_token(struct ldb_module *module,
 			return LDB_SUCCESS;
 		}
 
-		return samdb_msg_add_int(ldb, msg, msg, "primaryGroupToken",
+		return samdb_msg_add_uint(ldb, msg, msg, "primaryGroupToken",
 			primary_group_token);
 	} else {
 		return LDB_SUCCESS;
@@ -126,63 +128,133 @@ static int construct_primary_group_token(struct ldb_module *module,
   construct the token groups for SAM objects from a message
 */
 static int construct_token_groups(struct ldb_module *module,
-				  struct ldb_message *msg, enum ldb_scope scope)
+				  struct ldb_message *msg, enum ldb_scope scope,
+				  struct ldb_request *parent)
 {
 	struct ldb_context *ldb = ldb_module_get_ctx(module);;
-	struct auth_context *auth_context;
-	struct auth_serversupplied_info *server_info;
-	struct auth_session_info *session_info;
 	TALLOC_CTX *tmp_ctx = talloc_new(msg);
-	uint32_t i;
+	unsigned int i;
 	int ret;
+	const char *filter;
 
 	NTSTATUS status;
+
+	struct dom_sid *primary_group_sid;
+	const char *primary_group_string;
+	const char *primary_group_dn;
+	DATA_BLOB primary_group_blob;
+
+	struct dom_sid *account_sid;
+	const char *account_sid_string;
+	const char *account_sid_dn;
+	DATA_BLOB account_sid_blob;
+	struct dom_sid *groupSIDs = NULL;
+	unsigned int num_groupSIDs = 0;
+
+	struct dom_sid *domain_sid;
 
 	if (scope != LDB_SCOPE_BASE) {
 		ldb_set_errstring(ldb, "Cannot provide tokenGroups attribute, this is not a BASE search");
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
-	status = auth_context_create_from_ldb(tmp_ctx, ldb, &auth_context);
-	if (NT_STATUS_EQUAL(status, NT_STATUS_NO_MEMORY)) {
-		talloc_free(tmp_ctx);
-		return ldb_module_oom(module);
-	} else if (!NT_STATUS_IS_OK(status)) {
-		ldb_set_errstring(ldb, "Cannot provide tokenGroups attribute, could not create authContext");
-		talloc_free(tmp_ctx);
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
-
-	status = auth_get_server_info_principal(tmp_ctx, auth_context, NULL, msg->dn, &server_info);
-	if (NT_STATUS_EQUAL(status, NT_STATUS_NO_MEMORY)) {
-		talloc_free(tmp_ctx);
-		return ldb_module_oom(module);
-	} else if (NT_STATUS_EQUAL(status, NT_STATUS_NO_SUCH_USER)) {
-		/* Not a user, we have no tokenGroups */
+	/* If it's not a user, it won't have a primaryGroupID */
+	if (ldb_msg_find_element(msg, "primaryGroupID") == NULL) {
 		talloc_free(tmp_ctx);
 		return LDB_SUCCESS;
+	}
+
+	/* Ensure it has an objectSID too */
+	account_sid = samdb_result_dom_sid(tmp_ctx, msg, "objectSid");
+	if (account_sid == NULL) {
+		talloc_free(tmp_ctx);
+		return LDB_SUCCESS;
+	}
+
+	status = dom_sid_split_rid(tmp_ctx, account_sid, &domain_sid, NULL);
+	if (NT_STATUS_EQUAL(status, NT_STATUS_INVALID_PARAMETER)) {
+		talloc_free(tmp_ctx);
+		return LDB_ERR_INVALID_ATTRIBUTE_SYNTAX;
 	} else if (!NT_STATUS_IS_OK(status)) {
 		talloc_free(tmp_ctx);
-		ldb_asprintf_errstring(ldb, "Cannot provide tokenGroups attribute: auth_get_server_info_principal failed: %s", nt_errstr(status));
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
-	status = auth_generate_session_info(tmp_ctx, auth_context, server_info, 0, &session_info);
-	if (NT_STATUS_EQUAL(status, NT_STATUS_NO_MEMORY)) {
+	primary_group_sid = dom_sid_add_rid(tmp_ctx,
+					    domain_sid,
+					    ldb_msg_find_attr_as_uint(msg, "primaryGroupID", ~0));
+	if (!primary_group_sid) {
 		talloc_free(tmp_ctx);
-		return ldb_module_oom(module);
-	} else if (!NT_STATUS_IS_OK(status)) {
+		return ldb_oom(ldb);
+	}
+
+	/* only return security groups */
+	filter = talloc_asprintf(tmp_ctx, "(&(objectClass=group)(groupType:1.2.840.113556.1.4.803:=%u))",
+				 GROUP_TYPE_SECURITY_ENABLED);
+	if (!filter) {
 		talloc_free(tmp_ctx);
-		ldb_asprintf_errstring(ldb, "Cannot provide tokenGroups attribute: auth_generate_session_info failed: %s", nt_errstr(status));
+		return ldb_oom(ldb);
+	}
+
+	primary_group_string = dom_sid_string(tmp_ctx, primary_group_sid);
+	if (!primary_group_string) {
+		talloc_free(tmp_ctx);
+		return ldb_oom(ldb);
+	}
+
+	primary_group_dn = talloc_asprintf(tmp_ctx, "<SID=%s>", primary_group_string);
+	if (!primary_group_dn) {
+		talloc_free(tmp_ctx);
+		return ldb_oom(ldb);
+	}
+
+	primary_group_blob = data_blob_string_const(primary_group_dn);
+
+	account_sid_string = dom_sid_string(tmp_ctx, account_sid);
+	if (!account_sid_string) {
+		talloc_free(tmp_ctx);
+		return ldb_oom(ldb);
+	}
+
+	account_sid_dn = talloc_asprintf(tmp_ctx, "<SID=%s>", account_sid_string);
+	if (!account_sid_dn) {
+		talloc_free(tmp_ctx);
+		return ldb_oom(ldb);
+	}
+
+	account_sid_blob = data_blob_string_const(account_sid_dn);
+
+	status = dsdb_expand_nested_groups(ldb, &account_sid_blob,
+					   true, /* We don't want to add the object's SID itself,
+						    it's not returend in this attribute */
+					   filter,
+					   tmp_ctx, &groupSIDs, &num_groupSIDs);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		ldb_asprintf_errstring(ldb, "Failed to construct tokenGroups: expanding groups of SID %s failed: %s",
+				       account_sid_string, nt_errstr(status));
+		talloc_free(tmp_ctx);
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
-	/* We start at 1, as the first SID is the user's SID, not included in the tokenGroups */
-	for (i = 1; i < session_info->security_token->num_sids; i++) {
-		ret = samdb_msg_add_dom_sid(ldb, msg, msg,
-					    "tokenGroups",
-					    session_info->security_token->sids[i]);
-		if (ret != LDB_SUCCESS) {
+	/* Expands the primary group - this function takes in
+	 * memberOf-like values, so we fake one up with the
+	 * <SID=S-...> format of DN and then let it expand
+	 * them, as long as they meet the filter - so only
+	 * domain groups, not builtin groups
+	 */
+	status = dsdb_expand_nested_groups(ldb, &primary_group_blob, false, filter,
+					   tmp_ctx, &groupSIDs, &num_groupSIDs);
+	if (!NT_STATUS_IS_OK(status)) {
+		ldb_asprintf_errstring(ldb, "Failed to construct tokenGroups: expanding groups of SID %s failed: %s",
+				       account_sid_string, nt_errstr(status));
+		talloc_free(tmp_ctx);
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+
+	for (i=0; i < num_groupSIDs; i++) {
+		ret = samdb_msg_add_dom_sid(ldb, msg, msg, "tokenGroups", &groupSIDs[i]);
+		if (ret) {
 			talloc_free(tmp_ctx);
 			return ret;
 		}
@@ -195,50 +267,65 @@ static int construct_token_groups(struct ldb_module *module,
   construct the parent GUID for an entry from a message
 */
 static int construct_parent_guid(struct ldb_module *module,
-				 struct ldb_message *msg, enum ldb_scope scope)
+				 struct ldb_message *msg, enum ldb_scope scope,
+				 struct ldb_request *parent)
 {
-	struct ldb_result *res;
+	struct ldb_result *res, *parent_res;
 	const struct ldb_val *parent_guid;
-	const char *attrs[] = { "objectGUID", NULL };
+	const char *attrs[] = { "instanceType", NULL };
+	const char *attrs2[] = { "objectGUID", NULL };
+	uint32_t instanceType;
 	int ret;
+	struct ldb_dn *parent_dn;
 	struct ldb_val v;
 
-	/* TODO:  In the future, this needs to honour the partition boundaries */
-	struct ldb_dn *parent_dn = ldb_dn_get_parent(msg, msg->dn);
+	/* determine if the object is NC by instance type */
+	ret = dsdb_module_search_dn(module, msg, &res, msg->dn, attrs,
+	                            DSDB_FLAG_NEXT_MODULE |
+	                            DSDB_SEARCH_SHOW_RECYCLED, parent);
+
+	instanceType = ldb_msg_find_attr_as_uint(res->msgs[0],
+						 "instanceType", 0);
+	talloc_free(res);
+	if (instanceType & INSTANCE_TYPE_IS_NC_HEAD) {
+		DEBUG(4,(__location__ ": Object %s is NC\n",
+			 ldb_dn_get_linearized(msg->dn)));
+		return LDB_SUCCESS;
+	}
+	parent_dn = ldb_dn_get_parent(msg, msg->dn);
 
 	if (parent_dn == NULL) {
 		DEBUG(4,(__location__ ": Failed to find parent for dn %s\n",
 					 ldb_dn_get_linearized(msg->dn)));
 		return LDB_SUCCESS;
 	}
-
-	ret = dsdb_module_search_dn(module, msg, &res, parent_dn, attrs,
+	ret = dsdb_module_search_dn(module, msg, &parent_res, parent_dn, attrs2,
 	                            DSDB_FLAG_NEXT_MODULE |
-	                            DSDB_SEARCH_SHOW_DELETED);
+	                            DSDB_SEARCH_SHOW_RECYCLED, parent);
 	talloc_free(parent_dn);
 
-	/* if there is no parent for this object, then return */
+	/* not NC, so the object should have a parent*/
 	if (ret == LDB_ERR_NO_SUCH_OBJECT) {
 		DEBUG(4,(__location__ ": Parent dn for %s does not exist \n",
 			 ldb_dn_get_linearized(msg->dn)));
-		return LDB_SUCCESS;
+		return ldb_operr(ldb_module_get_ctx(module));
 	} else if (ret != LDB_SUCCESS) {
 		return ret;
 	}
 
-	parent_guid = ldb_msg_find_ldb_val(res->msgs[0], "objectGUID");
+	parent_guid = ldb_msg_find_ldb_val(parent_res->msgs[0], "objectGUID");
 	if (!parent_guid) {
-		talloc_free(res);
+		talloc_free(parent_res);
 		return LDB_SUCCESS;
 	}
 
-	v = data_blob_dup_talloc(res, parent_guid);
+	v = data_blob_dup_talloc(parent_res, parent_guid);
 	if (!v.data) {
-		talloc_free(res);
+		talloc_free(parent_res);
 		return ldb_oom(ldb_module_get_ctx(module));
 	}
 	ret = ldb_msg_add_steal_value(msg, "parentGUID", &v);
-	talloc_free(res);
+	talloc_free(parent_res);
 	return ret;
 }
 
@@ -246,7 +333,8 @@ static int construct_parent_guid(struct ldb_module *module,
   construct a subSchemaSubEntry
 */
 static int construct_subschema_subentry(struct ldb_module *module,
-					struct ldb_message *msg, enum ldb_scope scope)
+					struct ldb_message *msg, enum ldb_scope scope,
+					struct ldb_request *parent)
 {
 	struct operational_data *data = talloc_get_type(ldb_module_get_private(module), struct operational_data);
 	char *subSchemaSubEntry;
@@ -310,7 +398,8 @@ static int construct_msds_isrodc_with_dn(struct ldb_module *module,
 
 static int construct_msds_isrodc_with_server_dn(struct ldb_module *module,
 						struct ldb_message *msg,
-						struct ldb_dn *dn)
+						struct ldb_dn *dn,
+						struct ldb_request *parent)
 {
 	struct ldb_dn *server_dn;
 	const char *attr_obj_cat[] = { "objectCategory", NULL };
@@ -326,7 +415,7 @@ static int construct_msds_isrodc_with_server_dn(struct ldb_module *module,
 	}
 
 	ret = dsdb_module_search_dn(module, msg, &res, server_dn, attr_obj_cat,
-	                            DSDB_FLAG_NEXT_MODULE);
+	                            DSDB_FLAG_NEXT_MODULE, parent);
 	if (ret == LDB_ERR_NO_SUCH_OBJECT) {
 		DEBUG(4,(__location__ ": Can't get objectCategory for %s \n",
 					 ldb_dn_get_linearized(server_dn)));
@@ -345,17 +434,16 @@ static int construct_msds_isrodc_with_server_dn(struct ldb_module *module,
 }
 
 static int construct_msds_isrodc_with_computer_dn(struct ldb_module *module,
-						  struct ldb_message *msg)
+						  struct ldb_message *msg,
+						  struct ldb_request *parent)
 {
-	struct ldb_context *ldb;
-	const char *attr[] = { "serverReferenceBL", NULL };
-	struct ldb_result *res;
 	int ret;
 	struct ldb_dn *server_dn;
 
-	ret = dsdb_module_search_dn(module, msg, &res, msg->dn, attr,
-	                            DSDB_FLAG_NEXT_MODULE);
-	if (ret == LDB_ERR_NO_SUCH_OBJECT) {
+	ret = dsdb_module_reference_dn(module, msg, msg->dn, "serverReferenceBL",
+				       &server_dn, parent);
+	if (ret == LDB_ERR_NO_SUCH_OBJECT || ret == LDB_ERR_NO_SUCH_ATTRIBUTE) {
+		/* it's OK if we can't find serverReferenceBL attribute */
 		DEBUG(4,(__location__ ": Can't get serverReferenceBL for %s \n",
 			 ldb_dn_get_linearized(msg->dn)));
 		return LDB_SUCCESS;
@@ -363,25 +451,15 @@ static int construct_msds_isrodc_with_computer_dn(struct ldb_module *module,
 		return ret;
 	}
 
-	ldb = ldb_module_get_ctx(module);
-	if (!ldb) {
-		return LDB_SUCCESS;
-	}
-
-	server_dn = ldb_msg_find_attr_as_dn(ldb, msg, res->msgs[0], "serverReferenceBL");
-	if (!server_dn) {
-		DEBUG(4,(__location__ ": Can't find serverReferenceBL for %s \n",
-			 ldb_dn_get_linearized(res->msgs[0]->dn)));
-		return LDB_SUCCESS;
-	}
-	return construct_msds_isrodc_with_server_dn(module, msg, server_dn);
+	return construct_msds_isrodc_with_server_dn(module, msg, server_dn, parent);
 }
 
 /*
   construct msDS-isRODC attr
 */
 static int construct_msds_isrodc(struct ldb_module *module,
-				 struct ldb_message *msg, enum ldb_scope scope)
+				 struct ldb_message *msg, enum ldb_scope scope,
+				 struct ldb_request *parent)
 {
 	struct ldb_message_element * object_class;
 	struct ldb_message_element * object_category;
@@ -412,13 +490,13 @@ static int construct_msds_isrodc(struct ldb_module *module,
 			 * the DN of TO. Apply the previous rule for the "TO is an nTDSDSA  object" case,
 			 * substituting TN for TO.
 			 */
-			return construct_msds_isrodc_with_server_dn(module, msg, msg->dn);
+			return construct_msds_isrodc_with_server_dn(module, msg, msg->dn, parent);
 		}
 		if (strequal((const char*)object_class->values[i].data, "computer")) {
 			/* Let TS be the server  object named by TO!serverReferenceBL. Apply the previous
 			 * rule for the "TO is a server  object" case, substituting TS for TO.
 			 */
-			return construct_msds_isrodc_with_computer_dn(module, msg);
+			return construct_msds_isrodc_with_computer_dn(module, msg, parent);
 		}
 	}
 
@@ -434,12 +512,14 @@ static int construct_msds_isrodc(struct ldb_module *module,
 */
 static int construct_msds_keyversionnumber(struct ldb_module *module,
 					   struct ldb_message *msg,
-					   enum ldb_scope scope)
+					   enum ldb_scope scope,
+					   struct ldb_request *parent)
 {
 	uint32_t i;
 	enum ndr_err_code ndr_err;
 	const struct ldb_val *omd_value;
 	struct replPropertyMetaDataBlob *omd;
+	int ret;
 
 	omd_value = ldb_msg_find_ldb_val(msg, "replPropertyMetaData");
 	if (!omd_value) {
@@ -471,8 +551,15 @@ static int construct_msds_keyversionnumber(struct ldb_module *module,
 		return LDB_SUCCESS;
 	}
 	for (i=0; i<omd->ctr.ctr1.count; i++) {
-		if (omd->ctr.ctr1.array[i].attid == DRSUAPI_ATTRIBUTE_unicodePwd) {
-			ldb_msg_add_fmt(msg, "msDS-KeyVersionNumber", "%u", omd->ctr.ctr1.array[i].version);
+		if (omd->ctr.ctr1.array[i].attid == DRSUAPI_ATTID_unicodePwd) {
+			ret = samdb_msg_add_uint(ldb_module_get_ctx(module),
+						 msg, msg,
+						 "msDS-KeyVersionNumber",
+						 omd->ctr.ctr1.array[i].version);
+			if (ret != LDB_SUCCESS) {
+				talloc_free(omd);
+				return ret;
+			}
 			break;
 		}
 	}
@@ -500,8 +587,8 @@ static const struct {
 	const char *attr;
 	const char *replace;
 } parse_tree_sub[] = {
-	{ "createTimestamp", "whenCreated" },
-	{ "modifyTimestamp", "whenChanged" }
+	{ "createTimeStamp", "whenCreated" },
+	{ "modifyTimeStamp", "whenChanged" }
 };
 
 
@@ -513,14 +600,14 @@ static const struct {
 	const char *attr;
 	const char *replace;
 	const char *extra_attr;
-	int (*constructor)(struct ldb_module *, struct ldb_message *, enum ldb_scope);
+	int (*constructor)(struct ldb_module *, struct ldb_message *, enum ldb_scope, struct ldb_request *);
 } search_sub[] = {
-	{ "createTimestamp", "whenCreated", NULL , NULL },
-	{ "modifyTimestamp", "whenChanged", NULL , NULL },
+	{ "createTimeStamp", "whenCreated", NULL , NULL },
+	{ "modifyTimeStamp", "whenChanged", NULL , NULL },
 	{ "structuralObjectClass", "objectClass", NULL , NULL },
-	{ "canonicalName", "distinguishedName", NULL , construct_canonical_name },
+	{ "canonicalName", NULL, NULL , construct_canonical_name },
 	{ "primaryGroupToken", "objectClass", "objectSid", construct_primary_group_token },
-	{ "tokenGroups", "objectClass", NULL, construct_token_groups },
+	{ "tokenGroups", "primaryGroupID", "objectSid", construct_token_groups },
 	{ "parentGUID", NULL, NULL, construct_parent_guid },
 	{ "subSchemaSubEntry", NULL, NULL, construct_subschema_subentry },
 	{ "msDS-isRODC", "objectClass", "objectCategory", construct_msds_isrodc },
@@ -549,11 +636,8 @@ static const struct {
 	{ "msDS-KeyVersionNumber",   OPERATIONAL_REMOVE_UNLESS_CONTROL  },
 	{ "parentGUID",              OPERATIONAL_REMOVE_ALWAYS  },
 	{ "replPropertyMetaData",    OPERATIONAL_REMOVE_UNASKED },
-	{ "unicodePwd",              OPERATIONAL_REMOVE_UNASKED },
-	{ "dBCSPwd",                 OPERATIONAL_REMOVE_UNASKED },
-	{ "ntPwdHistory",            OPERATIONAL_REMOVE_UNASKED },
-	{ "lmPwdHistory",            OPERATIONAL_REMOVE_UNASKED },
-	{ "supplementalCredentials", OPERATIONAL_REMOVE_UNASKED }
+#define _SEP ,OPERATIONAL_REMOVE_UNASKED},{
+	{ DSDB_SECRET_ATTRIBUTES_EX(_SEP), OPERATIONAL_REMOVE_UNASKED }
 };
 
 
@@ -568,7 +652,8 @@ static int operational_search_post_process(struct ldb_module *module,
 					   enum ldb_scope scope,
 					   const char * const *attrs_from_user,
 					   const char * const *attrs_searched_for,
-					   struct op_controls_flags* controls_flags)
+					   struct op_controls_flags* controls_flags,
+					   struct ldb_request *parent)
 {
 	struct ldb_context *ldb;
 	unsigned int i, a = 0;
@@ -619,7 +704,7 @@ static int operational_search_post_process(struct ldb_module *module,
 			   constructor or a simple copy */
 			constructed_attributes = true;
 			if (search_sub[i].constructor != NULL) {
-				if (search_sub[i].constructor(module, msg, scope) != LDB_SUCCESS) {
+				if (search_sub[i].constructor(module, msg, scope, parent) != LDB_SUCCESS) {
 					goto failed;
 				}
 			} else if (ldb_msg_copy_attr(msg,
@@ -653,8 +738,8 @@ static int operational_search_post_process(struct ldb_module *module,
 
 failed:
 	ldb_debug_set(ldb, LDB_DEBUG_WARNING,
-		      "operational_search_post_process failed for attribute '%s'",
-		      attrs_from_user[a]);
+		      "operational_search_post_process failed for attribute '%s' - %s",
+		      attrs_from_user[a], ldb_errstring(ldb));
 	return -1;
 }
 
@@ -695,7 +780,7 @@ static int operational_callback(struct ldb_request *req, struct ldb_reply *ares)
 						      ac->scope,
 						      ac->attrs,
 						      req->op.search.attrs,
-						      ac->controls_flags);
+						      ac->controls_flags, req);
 		if (ret != 0) {
 			return ldb_module_done(ac->req, NULL, NULL,
 						LDB_ERR_OPERATIONS_ERROR);
@@ -755,9 +840,9 @@ static int operational_search(struct ldb_module *module, struct ldb_request *req
 	ac->controls_flags = talloc(ac, struct op_controls_flags);
 	/* remember if the SD_FLAGS_OID was set */
 	ac->controls_flags->sd = (ldb_request_get_control(req, LDB_CONTROL_SD_FLAGS_OID) != NULL);
-	/* remember if the LDB_CONTROL_BYPASSOPERATIONAL_OID */
-	ac->controls_flags->bypassoperational = (ldb_request_get_control(req,
-							LDB_CONTROL_BYPASSOPERATIONAL_OID) != NULL);
+	/* remember if the LDB_CONTROL_BYPASS_OPERATIONAL_OID */
+	ac->controls_flags->bypassoperational =
+		(ldb_request_get_control(req, LDB_CONTROL_BYPASS_OPERATIONAL_OID) != NULL);
 
 	/* in the list of attributes we are looking for, rename any
 	   attributes to the alias for any hidden attributes that can
@@ -806,6 +891,7 @@ static int operational_search(struct ldb_module *module, struct ldb_request *req
 					req->controls,
 					ac, operational_callback,
 					req);
+	LDB_REQ_SET_LOCATION(down_req);
 	if (ret != LDB_SUCCESS) {
 		return ldb_operr(ldb);
 	}
@@ -818,7 +904,6 @@ static int operational_init(struct ldb_module *ctx)
 {
 	struct operational_data *data;
 	int ret;
-	auth_init();
 
 	ret = ldb_next_init(ctx);
 
@@ -836,8 +921,14 @@ static int operational_init(struct ldb_module *ctx)
 	return LDB_SUCCESS;
 }
 
-_PUBLIC_ const struct ldb_module_ops ldb_operational_module_ops = {
+static const struct ldb_module_ops ldb_operational_module_ops = {
 	.name              = "operational",
 	.search            = operational_search,
 	.init_context	   = operational_init
 };
+
+int ldb_operational_module_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_operational_module_ops);
+}

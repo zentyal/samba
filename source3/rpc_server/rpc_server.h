@@ -1,5 +1,5 @@
 /*
- *  RPC Pipe server helper headers
+ *  RPC Server helper headers
  *  Almost completely rewritten by (C) Jeremy Allison 2005 - 2010
  *  Copyright (C) Simo Sorce <idra@samba.org> - 2010
  *
@@ -20,7 +20,23 @@
 #ifndef _RPC_SERVER_H_
 #define _RPC_SERVER_H_
 
+typedef bool (*dcerpc_ncacn_disconnect_fn)(struct pipes_struct *p);
+
 void set_incoming_fault(struct pipes_struct *p);
 void process_complete_pdu(struct pipes_struct *p);
+bool setup_named_pipe_socket(const char *pipe_name,
+			     struct tevent_context *ev_ctx);
+
+uint16_t setup_dcerpc_ncacn_tcpip_socket(struct tevent_context *ev_ctx,
+					 struct messaging_context *msg_ctx,
+					 struct ndr_syntax_id syntax_id,
+					 const struct sockaddr_storage *ifss,
+					 uint16_t port);
+
+bool setup_dcerpc_ncalrpc_socket(struct tevent_context *ev_ctx,
+				 struct messaging_context *msg_ctx,
+				 struct ndr_syntax_id syntax_id,
+				 const char *name,
+				 dcerpc_ncacn_disconnect_fn fn);
 
 #endif /* _PRC_SERVER_H_ */

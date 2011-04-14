@@ -3,7 +3,7 @@
 
    DRSUAPI prefixMap unit tests
 
-   Copyright (C) Kamen Mazdrashki <kamen.mazdrashki@postpath.com> 2009
+   Copyright (C) Kamen Mazdrashki <kamenim@samba.org> 2009-2010
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -52,7 +52,10 @@ struct drsut_pfm_oid_data {
 };
 
 /**
- * Default prefixMap initialization data
+ * Default prefixMap initialization data.
+ * This prefixMap is what dsdb_schema_pfm_new() should return.
+ * Based on: MS-DRSR, 5.16.4 ATTRTYP-to-OID Conversion
+ *           procedure NewPrefixTable( )
  */
 static const struct drsut_pfm_oid_data _prefixmap_test_new_data[] = {
 	{.id=0x00000000, .bin_oid="5504",                 .oid_prefix="2.5.4"},
@@ -77,7 +80,9 @@ static const struct drsut_pfm_oid_data _prefixmap_test_new_data[] = {
 };
 
 /**
- * Data to be used for creating full prefix map for testing
+ * Data to be used for creating full prefix map for testing.
+ * 'full-prefixMap' is based on what w2k8 returns as a prefixMap
+ * on clean installation - i.e. prefixMap for clean Schema
  */
 static const struct drsut_pfm_oid_data _prefixmap_full_map_data[] = {
 	{.id=0x00000000, .bin_oid="0x5504",                     .oid_prefix="2.5.4"},
@@ -134,30 +139,31 @@ static const struct drsut_pfm_oid_data _prefixmap_full_map_data[] = {
 
 
 /**
- * OID-to-ATTID mappings to be used for testing
+ * OID-to-ATTID mappings to be used for testing.
+ * An entry is marked as 'exists=true' if it exists in
+ * base prefixMap (_prefixmap_test_new_data)
  */
 static const struct {
 	const char 	*oid;
 	uint32_t 	id;
 	uint32_t 	attid;
+	bool		exists;
 } _prefixmap_test_data[] = {
-	{.oid="2.5.4.0", 		.id=0x00000000, .attid=0x000000},
-	{.oid="2.5.4.42", 		.id=0x00000000, .attid=0x00002a},
-	{.oid="1.2.840.113556.1.2.1", 	.id=0x00000002, .attid=0x020001},
-	{.oid="1.2.840.113556.1.2.13", 	.id=0x00000002, .attid=0x02000d},
-	{.oid="1.2.840.113556.1.2.281", .id=0x00000002, .attid=0x020119},
-	{.oid="1.2.840.113556.1.4.125", .id=0x00000009, .attid=0x09007d},
-	{.oid="1.2.840.113556.1.4.146", .id=0x00000009, .attid=0x090092},
-	{.oid="1.2.250.1", 	 	.id=0x00001b86, .attid=0x1b860001},
-	{.oid="1.2.250.130", 	 	.id=0x00001b86, .attid=0x1b860082},
-	{.oid="1.2.250.16386", 	 	.id=0x00001c78, .attid=0x1c788002},
-	{.oid="1.2.250.2097154", 	.id=0x00001c7b, .attid=0x1c7b8002},
+	{.oid="2.5.4.0", 		.id=0x00000000, .attid=0x000000,   .exists=true},
+	{.oid="2.5.4.42", 		.id=0x00000000, .attid=0x00002a,   .exists=true},
+	{.oid="1.2.840.113556.1.2.1", 	.id=0x00000002, .attid=0x020001,   .exists=true},
+	{.oid="1.2.840.113556.1.2.13", 	.id=0x00000002, .attid=0x02000d,   .exists=true},
+	{.oid="1.2.840.113556.1.2.281", .id=0x00000002, .attid=0x020119,   .exists=true},
+	{.oid="1.2.840.113556.1.4.125", .id=0x00000009, .attid=0x09007d,   .exists=true},
+	{.oid="1.2.840.113556.1.4.146", .id=0x00000009, .attid=0x090092,   .exists=true},
+	{.oid="1.2.250.1", 	 	.id=0x00001b86, .attid=0x1b860001, .exists=false},
+	{.oid="1.2.250.16386", 	 	.id=0x00001c78, .attid=0x1c788002, .exists=false},
+	{.oid="1.2.250.2097154", 	.id=0x00001c7b, .attid=0x1c7b8002, .exists=false},
 };
 
 
 /**
  * Creates dsdb_schema_prefixmap based on predefined data
- *
  */
 static WERROR _drsut_prefixmap_new(const struct drsut_pfm_oid_data *_pfm_init_data, uint32_t count,
 				   TALLOC_CTX *mem_ctx, struct dsdb_schema_prefixmap **_pfm)
@@ -189,6 +195,9 @@ static WERROR _drsut_prefixmap_new(const struct drsut_pfm_oid_data *_pfm_init_da
 	return WERR_OK;
 }
 
+/**
+ * Compares two prefixMaps for being equal - same items on same indexes
+ */
 static bool _torture_drs_pfm_compare_same(struct torture_context *tctx,
 					  const struct dsdb_schema_prefixmap *pfm_left,
 					  const struct dsdb_schema_prefixmap *pfm_right,
@@ -306,9 +315,6 @@ static bool torture_drs_unit_pfm_make_attid_small_map(struct torture_context *tc
 	/* create new prefix map */
 	werr = dsdb_schema_pfm_new(mem_ctx, &pfm);
 	torture_assert_werr_ok(tctx, werr, "dsdb_schema_pfm_new() failed!");
-	torture_assert(tctx, pfm != NULL, "NULL prefixMap created!");
-	torture_assert(tctx, pfm->length > 0, "Empty prefixMap created!");
-	torture_assert(tctx, pfm->prefixes != NULL, "No prefixes for newly created prefixMap!");
 
 	/* make some ATTIDs and check result */
 	for (i = 0; i < ARRAY_SIZE(_prefixmap_test_data); i++) {
@@ -343,6 +349,103 @@ static bool torture_drs_unit_pfm_make_attid_small_map(struct torture_context *tc
 			return false;
 		}
 
+	}
+
+	talloc_free(mem_ctx);
+
+	return true;
+}
+
+/**
+ * Tests dsdb_schema_pfm_attid_from_oid() using full prefixMap.
+ * In this test we know exactly which ATTID and prefixMap->ID
+ * should be returned- dsdb_schema_pfm_attid_from_oid() should succeed.
+ */
+static bool torture_drs_unit_pfm_attid_from_oid_full_map(struct torture_context *tctx,
+							 struct drsut_prefixmap_data *priv)
+{
+	WERROR werr;
+	uint32_t i, count;
+	uint32_t attid;
+	char *err_msg;
+
+	count = ARRAY_SIZE(_prefixmap_test_data);
+	for (i = 0; i < count; i++) {
+		werr = dsdb_schema_pfm_attid_from_oid(priv->pfm_full,
+						      _prefixmap_test_data[i].oid,
+						      &attid);
+		/* prepare error message */
+		err_msg = talloc_asprintf(priv, "dsdb_schema_pfm_attid_from_oid() failed with %s",
+						_prefixmap_test_data[i].oid);
+		torture_assert(tctx, err_msg, "Unexpected: Have no memory!");
+		/* verify result and returned ATTID */
+		torture_assert_werr_ok(tctx, werr, err_msg);
+		torture_assert_int_equal(tctx, attid, _prefixmap_test_data[i].attid, err_msg);
+		/* reclaim memory for prepared error message */
+		talloc_free(err_msg);
+	}
+
+	return true;
+}
+
+/**
+ * Tests dsdb_schema_pfm_attid_from_oid() using base (initial) prefixMap.
+ * dsdb_schema_pfm_attid_from_oid() should fail when testing with OID
+ * that are not already in the prefixMap.
+ */
+static bool torture_drs_unit_pfm_attid_from_oid_base_map(struct torture_context *tctx,
+							 struct drsut_prefixmap_data *priv)
+{
+	WERROR werr;
+	uint32_t i;
+	uint32_t attid;
+	char *err_msg;
+	struct dsdb_schema_prefixmap *pfm = NULL;
+	struct dsdb_schema_prefixmap pfm_prev;
+	TALLOC_CTX *mem_ctx;
+
+	mem_ctx = talloc_new(priv);
+	torture_assert(tctx, mem_ctx, "Unexpected: Have no memory!");
+
+	/* create new prefix map */
+	werr = dsdb_schema_pfm_new(mem_ctx, &pfm);
+	torture_assert_werr_ok(tctx, werr, "dsdb_schema_pfm_new() failed!");
+
+	/* keep initial pfm around for testing */
+	pfm_prev = *pfm;
+	pfm_prev.prefixes = talloc_reference(mem_ctx, pfm->prefixes);
+
+	/* get some ATTIDs and check result */
+	for (i = 0; i < ARRAY_SIZE(_prefixmap_test_data); i++) {
+		werr = dsdb_schema_pfm_attid_from_oid(pfm, _prefixmap_test_data[i].oid, &attid);
+
+		/* prepare error message */
+		err_msg = talloc_asprintf(mem_ctx,
+					  "dsdb_schema_pfm_attid_from_oid() failed for %s",
+					  _prefixmap_test_data[i].oid);
+		torture_assert(tctx, err_msg, "Unexpected: Have no memory!");
+
+
+		/* verify pfm hasn't been altered */
+		if (_prefixmap_test_data[i].exists) {
+			/* should succeed and return valid ATTID */
+			torture_assert_werr_ok(tctx, werr, err_msg);
+			/* verify ATTID */
+			torture_assert_int_equal(tctx,
+						 attid, _prefixmap_test_data[i].attid,
+						 err_msg);
+		} else {
+			/* should fail */
+			torture_assert_werr_equal(tctx, werr, WERR_NOT_FOUND, err_msg);
+		}
+
+		/* prefixMap should never be changed */
+		if (!_torture_drs_pfm_compare_same(tctx, &pfm_prev, pfm, true)) {
+			torture_fail(tctx, "schema->prefixmap has changed");
+		}
+
+		/* reclaim memory for prepared error message */
+		talloc_free(err_msg);
 	}
 
 	talloc_free(mem_ctx);
@@ -394,8 +497,13 @@ static bool torture_drs_unit_pfm_oid_from_attid_check_attid(struct torture_conte
 	const char *oid;
 
 	/* Test with valid prefixMap attid */
-	werr = dsdb_schema_pfm_oid_from_attid(priv->pfm_full, 0x00000000, tctx, &oid);
-	torture_assert_werr_ok(tctx, werr, "Testing prefixMap type attid = 0x0000000");
+	werr = dsdb_schema_pfm_oid_from_attid(priv->pfm_full, 0x00010001, tctx, &oid);
+	torture_assert_werr_ok(tctx, werr, "Testing prefixMap type attid = 0x00010001");
+
+	/* Test with valid attid but invalid index */
+	werr = dsdb_schema_pfm_oid_from_attid(priv->pfm_full, 0x01110001, tctx, &oid);
+	torture_assert_werr_equal(tctx, werr, WERR_DS_NO_ATTRIBUTE_OR_VALUE,
+				  "Testing invalid-index attid = 0x01110001");
 
 	/* Test with attid in msDS-IntId range */
 	werr = dsdb_schema_pfm_oid_from_attid(priv->pfm_full, 0x80000000, tctx, &oid);
@@ -577,7 +685,7 @@ static bool torture_drs_unit_pfm_read_write_ldb(struct torture_context *tctx, st
 }
 
 /**
- * Test rdsdb_create_prefix_mapping
+ * Test dsdb_create_prefix_mapping
  */
 static bool torture_drs_unit_dsdb_create_prefix_mapping(struct torture_context *tctx, struct drsut_prefixmap_data *priv)
 {
@@ -585,22 +693,6 @@ static bool torture_drs_unit_dsdb_create_prefix_mapping(struct torture_context *
 	uint32_t i;
 	struct dsdb_schema *schema;
 	TALLOC_CTX *mem_ctx;
-	const struct {
-		const char 	*oid;
-		uint32_t 	attid;
-		bool		exists;	/* if this prefix already exists or should be added */
-	} _test_data[] = {
-		{.oid="2.5.4.0", 		.attid=0x00000000, true},
-		{.oid="2.5.4.42", 		.attid=0x0000002a, true},
-		{.oid="1.2.840.113556.1.2.1", 	.attid=0x00020001, true},
-		{.oid="1.2.840.113556.1.2.13", 	.attid=0x0002000d, true},
-		{.oid="1.2.840.113556.1.2.281", .attid=0x00020119, true},
-		{.oid="1.2.840.113556.1.4.125", .attid=0x0009007d, true},
-		{.oid="1.2.840.113556.1.4.146", .attid=0x00090092, true},
-		{.oid="1.2.250.1", 	 	.attid=0x1b860001, false},
-		{.oid="1.2.250.16386", 	 	.attid=0x1c788002, false},
-		{.oid="1.2.250.2097154", 	.attid=0x1c7b8002, false},
-	};
 
 	mem_ctx = talloc_new(tctx);
 	torture_assert(tctx, mem_ctx, "Unexpected: Have no memory!");
@@ -617,7 +709,7 @@ static bool torture_drs_unit_dsdb_create_prefix_mapping(struct torture_context *
 	werr = dsdb_write_prefixes_from_schema_to_ldb(mem_ctx, priv->ldb_ctx, schema);
 	torture_assert_werr_ok(tctx, werr, "dsdb_write_prefixes_from_schema_to_ldb() failed");
 
-	for (i = 0; i < ARRAY_SIZE(_test_data); i++) {
+	for (i = 0; i < ARRAY_SIZE(_prefixmap_test_data); i++) {
 		struct dsdb_schema_prefixmap *pfm_ldb;
 		struct dsdb_schema_prefixmap *pfm_prev;
 
@@ -625,11 +717,11 @@ static bool torture_drs_unit_dsdb_create_prefix_mapping(struct torture_context *
 		pfm_prev = talloc_reference(schema, schema->prefixmap);
 
 		/* call dsdb_create_prefix_mapping() and check result accordingly */
-		werr = dsdb_create_prefix_mapping(priv->ldb_ctx, schema, _test_data[i].oid);
+		werr = dsdb_create_prefix_mapping(priv->ldb_ctx, schema, _prefixmap_test_data[i].oid);
 		torture_assert_werr_ok(tctx, werr, "dsdb_create_prefix_mapping() failed");
 
 		/* verify pfm has been altered or not if needed */
-		if (_test_data[i].exists) {
+		if (_prefixmap_test_data[i].exists) {
 			torture_assert(tctx, pfm_prev == schema->prefixmap,
 				       "schema->prefixmap has been reallocated!");
 			if (!_torture_drs_pfm_compare_same(tctx, pfm_prev, schema->prefixmap, true)) {
@@ -754,7 +846,7 @@ static bool torture_drs_unit_prefixmap_teardown(struct torture_context *tctx, st
 
 /**
  * Test case initialization for
- * DRS-UNIT.prefixMap
+ * drs.unit.prefixMap
  */
 struct torture_tcase * torture_drs_unit_prefixmap(struct torture_suite *suite)
 {
@@ -774,6 +866,12 @@ struct torture_tcase * torture_drs_unit_prefixmap(struct torture_suite *suite)
 
 	torture_tcase_add_simple_test(tc, "make_attid_full_map", (pfn_run)torture_drs_unit_pfm_make_attid_full_map);
 	torture_tcase_add_simple_test(tc, "make_attid_small_map", (pfn_run)torture_drs_unit_pfm_make_attid_small_map);
+
+	torture_tcase_add_simple_test(tc, "attid_from_oid_full_map",
+				      (pfn_run)torture_drs_unit_pfm_attid_from_oid_full_map);
+	torture_tcase_add_simple_test(tc, "attid_from_oid_empty_map",
+				      (pfn_run)torture_drs_unit_pfm_attid_from_oid_base_map);
+
 	torture_tcase_add_simple_test(tc, "oid_from_attid_full_map", (pfn_run)torture_drs_unit_pfm_oid_from_attid);
 	torture_tcase_add_simple_test(tc, "oid_from_attid_check_attid",
 				      (pfn_run)torture_drs_unit_pfm_oid_from_attid_check_attid);

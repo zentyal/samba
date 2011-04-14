@@ -460,7 +460,11 @@ static bool test_start_dcerpc_server(struct torture_context *tctx,
 
 	torture_comment(tctx, "Listening for callbacks on %s\n", address);
 
-	status = smbsrv_add_socket(event_ctx, tctx->lp_ctx, &single_ops, address);
+	status = process_model_init(tctx->lp_ctx);
+	torture_assert_ntstatus_ok(tctx, status,
+				   "unable to initialize process models");
+
+	status = smbsrv_add_socket(tctx, event_ctx, tctx->lp_ctx, process_model_startup("single"), address);
 	torture_assert_ntstatus_ok(tctx, status, "starting smb server");
 
 	status = dcesrv_init_context(tctx, tctx->lp_ctx, endpoints, &dce_ctx);
@@ -469,7 +473,7 @@ static bool test_start_dcerpc_server(struct torture_context *tctx,
 
 	for (e=dce_ctx->endpoint_list;e;e=e->next) {
 		status = dcesrv_add_ep(dce_ctx, tctx->lp_ctx,
-				       e, tctx->ev, &single_ops);
+				       e, tctx->ev, process_model_startup("single"));
 		torture_assert_ntstatus_ok(tctx, status,
 				"unable listen on dcerpc endpoint server");
 	}
@@ -581,7 +585,7 @@ static bool test_ReplyOpenPrinter(struct torture_context *tctx,
 
 struct torture_suite *torture_rpc_spoolss_notify(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "SPOOLSS-NOTIFY");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "spoolss.notify");
 
 	struct torture_rpc_tcase *tcase = torture_suite_add_rpc_iface_tcase(suite,
 							"notify", &ndr_table_spoolss);

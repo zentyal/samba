@@ -24,6 +24,7 @@
 #include "rpc_server/dcerpc_server.h"
 #include "librpc/gen_ndr/ndr_srvsvc.h"
 #include "rpc_server/common/common.h"
+#include "rpc_server/common/share.h"
 #include "auth/auth.h"
 #include "libcli/security/security.h"
 #include "system/time.h"
@@ -33,7 +34,7 @@
 #define SRVSVC_CHECK_ADMIN_ACCESS do { \
 	struct security_token *t = dce_call->conn->auth_state.session_info->security_token; \
 	if (!security_token_has_builtin_administrators(t) && \
-	    !security_token_has_sid_string(t, SID_BUILTIN_SERVER_OPERATORS)) { \
+	    !security_token_has_sid(t, &global_sid_Builtin_Server_Operators)) { \
 	    	return WERR_ACCESS_DENIED; \
 	} \
 } while (0)
@@ -430,13 +431,13 @@ static WERROR dcesrv_srvsvc_NetShareAdd(struct dcesrv_call_state *dce_call, TALL
 		info[i].name = SHARE_TYPE;
 		info[i].type = SHARE_INFO_STRING;
 		switch (r->in.info->info2->type) {
-		case 0x00:
+		case STYPE_DISKTREE:
 			info[i].value = talloc_strdup(info, "DISK");
 			break;
-		case 0x01:
+		case STYPE_PRINTQ:
 			info[i].value = talloc_strdup(info, "PRINTER");
 			break;
-		case 0x03:
+		case STYPE_IPC:
 			info[i].value = talloc_strdup(info, "IPC");
 			break;
 		default:

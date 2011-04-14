@@ -51,7 +51,7 @@ _PUBLIC_ void call_backtrace(void)
 #define BACKTRACE_STACK_SIZE 64
 #endif
 	void *backtrace_stack[BACKTRACE_STACK_SIZE];
-	size_t backtrace_size;
+	int backtrace_size;
 	char **backtrace_strings;
 
 	/* get the backtrace (stack frames) */
@@ -125,7 +125,7 @@ _PUBLIC_ _NORETURN_ void smb_panic(const char *why)
 		char pidstr[20];
 		char cmdstring[200];
 		safe_strcpy(cmdstring, panic_action, sizeof(cmdstring));
-		snprintf(pidstr, sizeof(pidstr), "%u", getpid());
+		snprintf(pidstr, sizeof(pidstr), "%d", (int) getpid());
 		all_string_sub(cmdstring, "%PID%", pidstr, sizeof(cmdstring));
 		if (progname) {
 			all_string_sub(cmdstring, "%PROG%", progname, sizeof(cmdstring));
@@ -187,9 +187,10 @@ setup our fault handlers
 **/
 _PUBLIC_ void fault_setup(const char *pname)
 {
-	if (progname == NULL) {
-		progname = pname;
+	if (progname != NULL) {
+		return;
 	}
+	progname = pname;
 #ifdef SIGSEGV
 	CatchSignal(SIGSEGV, sig_fault);
 #endif
@@ -203,6 +204,15 @@ _PUBLIC_ void fault_setup(const char *pname)
 	CatchSignal(SIGFPE, sig_fault);
 #endif
 }
+
+/**
+   disable setting up fault handlers
+**/
+_PUBLIC_ void fault_setup_disable(void)
+{
+	progname = "fault disabled";
+}
+
 
 /**
   register a fault handler. 

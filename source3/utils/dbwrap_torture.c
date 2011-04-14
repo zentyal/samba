@@ -20,6 +20,10 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "popt_common.h"
+#include "dbwrap.h"
+#include "messages.h"
 
 #if 0
 #include "lib/events/events.h"
@@ -30,8 +34,6 @@
 #include <sys/time.h>
 #include <time.h>
 #endif
-
-extern bool AllowDebugChange;
 
 #define DEFAULT_DB_NAME "transaction.tdb"
 
@@ -256,7 +258,10 @@ int main(int argc, const char *argv[])
 		setlinebuf(stdout);
 	}
 
-	DEBUGLEVEL_CLASS[DBGC_ALL] = 0;
+	load_case_tables();
+
+	setup_logging(argv[0], DEBUG_STDERR);
+	lp_set_cmdline("log level", "0");
 
 	pc = poptGetContext(argv[0], argc, argv, popt_options, POPT_CONTEXT_KEEP_FIRST);
 
@@ -276,9 +281,6 @@ int main(int argc, const char *argv[])
 		while (extra_argv[extra_argc]) extra_argc++;
 	}
 
-	load_case_tables();
-	dbf = x_stderr;
-	AllowDebugChange = false;
 	lp_load(get_dyn_CONFIGFILE(), true, false, false, true);
 
 	ev_ctx = tevent_context_init(mem_ctx);
@@ -300,7 +302,7 @@ int main(int argc, const char *argv[])
 	}
 
 	if (no_trans) {
-		tdb_flags |= TDB_CLEAR_IF_FIRST;
+		tdb_flags |= TDB_CLEAR_IF_FIRST|TDB_INCOMPATIBLE_HASH;
 	}
 
 	db = db_open(mem_ctx, db_name, 0, tdb_flags,  O_RDWR | O_CREAT, 0644);

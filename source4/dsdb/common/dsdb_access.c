@@ -35,6 +35,7 @@
 #include "param/param.h"
 #include "auth/auth.h"
 #include "dsdb/samdb/samdb.h"
+#include "dsdb/common/util.h"
 
 void dsdb_acl_debug(struct security_descriptor *sd,
 		      struct security_token *token,
@@ -86,7 +87,7 @@ int dsdb_check_access_on_dn_internal(struct ldb_context *ldb,
 				     TALLOC_CTX *mem_ctx,
 				     struct security_token *token,
 				     struct ldb_dn *dn,
-				     uint32_t access,
+				     uint32_t access_mask,
 				     const struct GUID *guid)
 {
 	struct security_descriptor *sd = NULL;
@@ -107,12 +108,13 @@ int dsdb_check_access_on_dn_internal(struct ldb_context *ldb,
 	}
 	sid = samdb_result_dom_sid(mem_ctx, acl_res->msgs[0], "objectSid");
 	if (guid) {
-		if (!insert_in_object_tree(mem_ctx, guid, access, &root, &new_node)) {
+		if (!insert_in_object_tree(mem_ctx, guid, access_mask, &root,
+					   &new_node)) {
 			return ldb_operr(ldb);
 		}
 	}
 	status = sec_access_check_ds(sd, token,
-				     access,
+				     access_mask,
 				     &access_granted,
 				     root,
 				     sid);
@@ -135,24 +137,24 @@ int dsdb_check_access_on_dn_internal(struct ldb_context *ldb,
 int dsdb_check_access_on_dn(struct ldb_context *ldb,
 			    TALLOC_CTX *mem_ctx,
 			    struct ldb_dn *dn,
-			    uint32_t access,
-			    const struct GUID *guid)
+			    struct security_token *token,
+			    uint32_t access_mask,
+			    const char *ext_right)
 {
 	int ret;
+	struct GUID guid;
 	struct ldb_result *acl_res;
 	static const char *acl_attrs[] = {
 		"nTSecurityDescriptor",
 		"objectSid",
 		NULL
 	};
-
-	struct auth_session_info *session_info
-		= (struct auth_session_info *)ldb_get_opaque(ldb, "sessionInfo");
-	if(!session_info) {
-		return ldb_operr(ldb);
+	NTSTATUS status = GUID_from_string(ext_right, &guid);
+	if (!NT_STATUS_IS_OK(status)) {
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
-	ret = ldb_search(ldb, mem_ctx, &acl_res, dn, LDB_SCOPE_BASE, acl_attrs, NULL);
+	ret = dsdb_search_dn(ldb, mem_ctx, &acl_res, dn, acl_attrs, DSDB_SEARCH_SHOW_DELETED);
 	if (ret != LDB_SUCCESS) {
 		DEBUG(10,("access_check: failed to find object %s\n", ldb_dn_get_linearized(dn)));
 		return ret;
@@ -160,9 +162,9 @@ int dsdb_check_access_on_dn(struct ldb_context *ldb,
 
 	return dsdb_check_access_on_dn_internal(ldb, acl_res,
 						mem_ctx,
-						session_info->security_token,
+						token,
 						dn,
-						access,
-						guid);
+						access_mask,
+						&guid);
 }
 

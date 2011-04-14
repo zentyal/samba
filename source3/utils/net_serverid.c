@@ -19,6 +19,9 @@
 
 #include "includes.h"
 #include "utils/net.h"
+#include "dbwrap.h"
+#include "serverid.h"
+#include "session.h"
 
 static int net_serverid_list_fn(const struct server_id *id,
 				uint32_t msg_flags, void *priv)
@@ -43,11 +46,9 @@ static int net_serverid_wipe_fn(struct db_record *rec,
 {
 	NTSTATUS status;
 
-#ifdef CLUSTER_SUPPORT
 	if (id->vnn != get_my_vnn()) {
 		return 0;
 	}
-#endif
 	status = rec->delete_rec(rec);
 	if (!NT_STATUS_IS_OK(status)) {
 		char *str = procid_str(talloc_tos(), id);

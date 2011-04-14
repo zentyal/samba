@@ -23,12 +23,7 @@
 
 #include "includes.h"
 
-int get_client_fd(void)
-{
-	return -1;
-}
-
-int find_service(fstring service)
+int find_service(TALLOC_CTX *ctx, const char *service_in, char **p_service_out)
 {
 	return -1;
 }
@@ -44,7 +39,8 @@ void cancel_pending_lock_requests_by_fid(files_struct *fsp,
 {
 }
 
-void send_stat_cache_delete_message(const char *name)
+void send_stat_cache_delete_message(struct messaging_context *msg_ctx,
+				    const char *name)
 {
 }
 
@@ -60,11 +56,6 @@ bool change_to_root_user(void)
 }
 
 struct event_context *smbd_event_context(void)
-{
-	return NULL;
-}
-
-struct messaging_context *smbd_messaging_context(void)
 {
 	return NULL;
 }

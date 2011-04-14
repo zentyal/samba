@@ -20,6 +20,9 @@
  */
 
 #include "includes.h"
+#include "smbd/smbd.h"
+#include "system/filesys.h"
+#include "ntioctl.h"
 
 /*
 
@@ -250,8 +253,8 @@ static const char *shadow_copy2_normalise_path(TALLOC_CTX *mem_ctx, const char *
 } while (0)
 
 #define _SHADOW2_NEXT_SMB_FNAME(op, args, rtype, eret, extra) do { \
-		const char *gmt_start; \
-		if (shadow_copy2_match_name(smb_fname->base_name, &gmt_start)) {	\
+	const char *gmt_start; \
+	if (shadow_copy2_match_name(smb_fname->base_name, &gmt_start)) { \
 		char *name2; \
 		char *smb_base_name_tmp = NULL; \
 		rtype ret; \
@@ -411,7 +414,7 @@ static char *convert_shadow2_name(vfs_handle_struct *handle, const char *fname, 
 	TALLOC_CTX *tmp_ctx = talloc_new(handle->data);
 	const char *snapdir, *relpath, *baseoffset, *basedir;
 	size_t baselen;
-	char *ret;
+	char *ret, *prefix;
 
 	struct tm timestamp;
 	time_t timestamp_t;
@@ -433,6 +436,13 @@ static char *convert_shadow2_name(vfs_handle_struct *handle, const char *fname, 
 		DEBUG(2,("no basedir found for share at %s\n", handle->conn->connectpath));
 		talloc_free(tmp_ctx);
 		return NULL;
+	}
+
+	prefix = talloc_asprintf(tmp_ctx, "%s/@GMT-", snapdir);
+	if (strncmp(fname, prefix, (talloc_get_size(prefix)-1)) == 0) {
+		/* this looks like as we have already normalized it, leave it untouched*/
+		talloc_free(tmp_ctx);
+		return talloc_strdup(handle->data, fname);
 	}
 
 	if (strncmp(fname, "@GMT-", 5) != 0) {
@@ -528,6 +538,10 @@ static int shadow_copy2_rename(vfs_handle_struct *handle,
 			       const struct smb_filename *smb_fname_src,
 			       const struct smb_filename *smb_fname_dst)
 {
+	if (shadow_copy2_match_name(smb_fname_src->base_name, NULL)) {
+		errno = EXDEV;
+		return -1;
+	}
 	SHADOW2_NEXT2_SMB_FNAME(RENAME,
 				(handle, smb_fname_src, smb_fname_dst));
 }
@@ -646,13 +660,13 @@ static int shadow_copy2_mknod(vfs_handle_struct *handle,
 }
 
 static char *shadow_copy2_realpath(vfs_handle_struct *handle,
-			    const char *fname, char *resolved_path)
+			    const char *fname)
 {
 	const char *gmt;
 
 	if (shadow_copy2_match_name(fname, &gmt)
 	    && (gmt[GMT_NAME_LEN] == '\0')) {
-		char *copy, *result;
+		char *copy;
 
 		copy = talloc_strdup(talloc_tos(), fname);
 		if (copy == NULL) {
@@ -661,19 +675,19 @@ static char *shadow_copy2_realpath(vfs_handle_struct *handle,
 		}
 
 		copy[gmt - fname] = '.';
+		copy[gmt - fname + 1] = '\0';
 
 		DEBUG(10, ("calling NEXT_REALPATH with %s\n", copy));
-		result = SMB_VFS_NEXT_REALPATH(handle, copy, resolved_path);
-		TALLOC_FREE(copy);
-		return result;
+		SHADOW2_NEXT(REALPATH, (handle, name), char *,
+			     NULL);
 	}
-        SHADOW2_NEXT(REALPATH, (handle, name, resolved_path), char *, NULL);
+        SHADOW2_NEXT(REALPATH, (handle, name), char *, NULL);
 }
 
 static const char *shadow_copy2_connectpath(struct vfs_handle_struct *handle,
 					    const char *fname)
 {
-	TALLOC_CTX *tmp_ctx = talloc_stackframe();
+	TALLOC_CTX *tmp_ctx;
 	const char *snapdir, *baseoffset, *basedir, *gmt_start;
 	size_t baselen;
 	char *ret;
@@ -684,7 +698,14 @@ static const char *shadow_copy2_connectpath(struct vfs_handle_struct *handle,
 		return handle->conn->connectpath;
 	}
 
-	fname = shadow_copy2_normalise_path(talloc_tos(), fname, gmt_start);
+        /*
+         * We have to create a real temporary context because we have
+         * to put our result on talloc_tos(). Thus we can't use a
+         * talloc_stackframe() here.
+         */
+	tmp_ctx = talloc_new(talloc_tos());
+
+	fname = shadow_copy2_normalise_path(tmp_ctx, fname, gmt_start);
 	if (fname == NULL) {
 		TALLOC_FREE(tmp_ctx);
 		return NULL;

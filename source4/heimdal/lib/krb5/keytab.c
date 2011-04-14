@@ -73,18 +73,14 @@
  *   store the keytab in a AFS keyfile (usually /usr/afs/etc/KeyFile ),
  *   the type's name is AFSKEYFILE. The residual part is a filename.
  *
- * - krb4
- *   the keytab is a Kerberos 4 srvtab that is on-the-fly converted to
- *   a keytab. The type's name is krb4 The residual part is a
- *   filename.
- *
  * - memory
  *   The keytab is stored in a memory segment. This allows sensitive
  *   and/or temporary data not to be stored on disk. The type's name
  *   is MEMORY. Each MEMORY keytab is referenced counted by and
  *   opened by the residual name, so two handles can point to the
- *   same memory area.  When the last user closes the entry, it
- *   disappears.
+ *   same memory area.  When the last user closes using krb5_kt_close()
+ *   the keytab, the keys in they keytab is memset() to zero and freed
+ *   and can no longer be looked up by name.
  *
  *
  * @subsection krb5_keytab_example Keytab example
@@ -113,7 +109,7 @@ main (int argc, char **argv)
     if (ret)
 	krb5_err(context, 1, ret, "krb5_kt_start_seq_get");
     while((ret = krb5_kt_next_entry(context, keytab, &entry, &cursor)) == 0){
-	krb5_unparse_name_short(context, entry.principal, &principal);
+	krb5_unparse_name(context, entry.principal, &principal);
 	printf("principal: %s\n", principal);
 	free(principal);
 	krb5_kt_free_entry(context, &entry);
@@ -169,6 +165,36 @@ krb5_kt_register(krb5_context context,
     return 0;
 }
 
+static const char *
+keytab_name(const char * name, const char ** ptype, size_t * ptype_len)
+{
+    const char * residual;
+
+    residual = strchr(name, ':');
+
+    if (residual == NULL
+
+#ifdef _WIN32
+
+        /* Avoid treating <drive>:<path> as a keytab type
+         * specification */
+
+        || name + 1 == residual
+#endif
+        ) {
+
+        *ptype = "FILE";
+        *ptype_len = strlen(*ptype);
+        residual = name;
+    } else {
+        *ptype = name;
+        *ptype_len = residual - name;
+        residual++;
+    }
+
+    return residual;
+}
+
 /**
  * Resolve the keytab name (of the form `type:residual') in `name'
  * into a keytab in `id'.
@@ -194,16 +220,7 @@ krb5_kt_resolve(krb5_context context,
     size_t type_len;
     krb5_error_code ret;
 
-    residual = strchr(name, ':');
-    if(residual == NULL) {
-	type = "FILE";
-	type_len = strlen(type);
-	residual = name;
-    } else {
-	type = name;
-	type_len = residual - name;
-	residual++;
-    }
+    residual = keytab_name(name, &type, &type_len);
 
     for(i = 0; i < context->num_kt_types; i++) {
 	if(strncasecmp(type, context->kt_types[i].prefix, type_len) == 0)

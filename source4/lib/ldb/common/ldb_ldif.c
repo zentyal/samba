@@ -41,7 +41,7 @@
 /*
   
 */
-static int ldb_read_data_file(void *mem_ctx, struct ldb_val *value)
+static int ldb_read_data_file(TALLOC_CTX *mem_ctx, struct ldb_val *value)
 {
 	struct stat statbuf;
 	char *buf;
@@ -150,7 +150,7 @@ int ldb_base64_decode(char *s)
   encode as base64
   caller frees
 */
-char *ldb_base64_encode(void *mem_ctx, const char *buf, int len)
+char *ldb_base64_encode(TALLOC_CTX *mem_ctx, const char *buf, int len)
 {
 	const char *b64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 	int bit_offset, byte_offset, idx, i;
@@ -189,10 +189,6 @@ int ldb_should_b64_encode(struct ldb_context *ldb, const struct ldb_val *val)
 {
 	unsigned int i;
 	uint8_t *p = val->data;
-
-	if (ldb->flags & LDB_FLG_SHOW_BINARY) {
-		return 0;
-	}
 
 	if (val->length == 0) {
 		return 0;
@@ -333,11 +329,14 @@ int ldb_ldif_write(struct ldb_context *ldb,
 
 		for (j=0;j<msg->elements[i].num_values;j++) {
 			struct ldb_val v;
+			bool use_b64_encode;
 			ret = a->syntax->ldif_write_fn(ldb, mem_ctx, &msg->elements[i].values[j], &v);
 			if (ret != LDB_SUCCESS) {
 				v = msg->elements[i].values[j];
 			}
-			if (ret != LDB_SUCCESS || ldb_should_b64_encode(ldb, &v)) {
+			use_b64_encode = !(ldb->flags & LDB_FLG_SHOW_BINARY)
+					&& ldb_should_b64_encode(ldb, &v);
+			if (ret != LDB_SUCCESS || use_b64_encode) {
 				ret = fprintf_fn(private_data, "%s:: ", 
 						 msg->elements[i].name);
 				CHECK_RET;
@@ -449,7 +448,7 @@ static char *next_chunk(struct ldb_context *ldb,
 
 
 /* simple ldif attribute parser */
-static int next_attr(void *mem_ctx, char **s, const char **attr, struct ldb_val *value)
+static int next_attr(TALLOC_CTX *mem_ctx, char **s, const char **attr, struct ldb_val *value)
 {
 	char *p;
 	int base64_encoded = 0;

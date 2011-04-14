@@ -27,13 +27,13 @@
 */
 
 #include "includes.h"
-#include "ldb/include/ldb_module.h"
+#include <ldb_module.h>
 #include "ldb/ldb_map/ldb_map.h"
 
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "librpc/ndr/libndr.h"
 #include "dsdb/samdb/samdb.h"
-#include "../../../lib/ldb/include/ldb_handlers.h"
+#include <ldb_handlers.h>
 
 struct entryuuid_private {
 	struct ldb_context *ldb;
@@ -147,7 +147,7 @@ static struct ldb_val objectCategory_always_dn(struct ldb_module *module, TALLOC
 	const struct ldb_schema_attribute *a = ldb_schema_attribute_by_name(ldb, "objectCategory");
 
 	dn = ldb_dn_from_ldb_val(ctx, ldb, val);
-	if (dn && ldb_dn_validate(dn)) {
+	if (ldb_dn_validate(dn)) {
 		talloc_free(dn);
 		return val_copy(module, ctx, val);
 	}
@@ -848,19 +848,24 @@ static int entryuuid_sequence_number(struct ldb_module *module, struct ldb_reque
 	partition_ctrl = ldb_request_get_control(req, DSDB_CONTROL_CURRENT_PARTITION_OID);
 	if (!partition_ctrl) {
 		ldb_debug_set(ldb, LDB_DEBUG_FATAL,
-			      "entryuuid_sequence_number: no current partition control found");
-		return LDB_ERR_CONSTRAINT_VIOLATION;
+			      "entryuuid_sequence_number: no current partition control found!");
+		return LDB_ERR_PROTOCOL_ERROR;
 	}
 
 	partition = talloc_get_type(partition_ctrl->data,
 				    struct dsdb_control_current_partition);
-	SMB_ASSERT(partition && partition->version == DSDB_CONTROL_CURRENT_PARTITION_VERSION);
+	if ((partition == NULL) || (partition->version != DSDB_CONTROL_CURRENT_PARTITION_VERSION)) {
+		ldb_debug_set(ldb, LDB_DEBUG_FATAL,
+			      "entryuuid_sequence_number: current partition control with wrong data!");
+		return LDB_ERR_PROTOCOL_ERROR;
+	}
 
 	ret = ldb_build_search_req(&search_req, ldb, req,
 				   partition->dn, LDB_SCOPE_BASE,
 				   NULL, contextCSN_attr, NULL,
 				   &seq_num, get_seq_callback,
 				   NULL);
+	LDB_REQ_SET_LOCATION(search_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -919,16 +924,34 @@ static int entryuuid_extended(struct ldb_module *module, struct ldb_request *req
 	return ldb_next_request(module, req);
 }
 
-_PUBLIC_ const struct ldb_module_ops ldb_entryuuid_module_ops = {
+static const struct ldb_module_ops ldb_entryuuid_module_ops = {
 	.name		   = "entryuuid",
 	.init_context	   = entryuuid_init,
 	.extended          = entryuuid_extended,
 	LDB_MAP_OPS
 };
 
-_PUBLIC_ const struct ldb_module_ops ldb_nsuniqueid_module_ops = {
+static const struct ldb_module_ops ldb_nsuniqueid_module_ops = {
 	.name		   = "nsuniqueid",
 	.init_context	   = nsuniqueid_init,
 	.extended          = entryuuid_extended,
 	LDB_MAP_OPS
 };
+
+/*
+  initialise the module
+ */
+_PUBLIC_ int ldb_simple_ldap_map_module_init(const char *version)
+{
+	int ret;
+	LDB_MODULE_CHECK_VERSION(version);
+	ret = ldb_register_module(&ldb_entryuuid_module_ops);
+	if (ret != LDB_SUCCESS) {
+		return ret;
+	}
+	ret = ldb_register_module(&ldb_nsuniqueid_module_ops);
+	if (ret != LDB_SUCCESS) {
+		return ret;
+	}
+	return LDB_SUCCESS;
+}

@@ -18,19 +18,21 @@
 */
 
 #include "includes.h"
+#include "auth.h"
+#include "smbd/globals.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
 
 static_decl_auth;
 
-static struct auth_init_function_entry *backends = NULL;
+static struct auth_init_function_entry *auth_backends = NULL;
 
 static struct auth_init_function_entry *auth_find_backend_entry(const char *name);
 
 NTSTATUS smb_register_auth(int version, const char *name, auth_init_function init)
 {
-	struct auth_init_function_entry *entry = backends;
+	struct auth_init_function_entry *entry = auth_backends;
 
 	if (version != AUTH_INTERFACE_VERSION) {
 		DEBUG(0,("Can't register auth_method!\n"
@@ -54,14 +56,14 @@ NTSTATUS smb_register_auth(int version, const char *name, auth_init_function ini
 	entry->name = smb_xstrdup(name);
 	entry->init = init;
 
-	DLIST_ADD(backends, entry);
+	DLIST_ADD(auth_backends, entry);
 	DEBUG(5,("Successfully added auth method '%s'\n", name));
 	return NT_STATUS_OK;
 }
 
 static struct auth_init_function_entry *auth_find_backend_entry(const char *name)
 {
-	struct auth_init_function_entry *entry = backends;
+	struct auth_init_function_entry *entry = auth_backends;
 
 	while(entry) {
 		if (strcmp(entry->name, name)==0) return entry;
@@ -233,11 +235,11 @@ static NTSTATUS check_ntlm_password(const struct auth_context *auth_context,
 
 #ifdef DEBUG_PASSWORD
 	DEBUG(100, ("user_info has passwords of length %d and %d\n", 
-		    (int)user_info->lm_resp.length, (int)user_info->nt_resp.length));
+		    (int)user_info->password.response.lanman.length, (int)user_info->password.response.nt.length));
 	DEBUG(100, ("lm:\n"));
-	dump_data(100, user_info->lm_resp.data, user_info->lm_resp.length);
+	dump_data(100, user_info->password.response.lanman.data, user_info->password.response.lanman.length);
 	DEBUG(100, ("nt:\n"));
-	dump_data(100, user_info->nt_resp.data, user_info->nt_resp.length);
+	dump_data(100, user_info->password.response.nt.data, user_info->password.response.nt.length);
 #endif
 
 	/* This needs to be sorted:  If it doesn't match, what should we do? */
@@ -248,7 +250,7 @@ static NTSTATUS check_ntlm_password(const struct auth_context *auth_context,
 		NTSTATUS result;
 
 		mem_ctx = talloc_init("%s authentication for user %s\\%s", auth_method->name,
-					    user_info->mapped.domain_name, user_info->client.account_name);
+				      user_info->mapped.domain_name, user_info->client.account_name);
 
 		result = auth_method->auth(auth_context, auth_method->private_data, mem_ctx, user_info, server_info);
 
@@ -284,7 +286,9 @@ static NTSTATUS check_ntlm_password(const struct auth_context *auth_context,
 		if (!(*server_info)->guest) {
 			/* We might not be root if we are an RPC call */
 			become_root();
-			nt_status = smb_pam_accountcheck(unix_username);
+			nt_status = smb_pam_accountcheck(
+				unix_username,
+				smbd_server_conn->client_id.name);
 			unbecome_root();
 
 			if (NT_STATUS_IS_OK(nt_status)) {
@@ -340,11 +344,12 @@ static int auth_context_destructor(void *ptr)
  Make a auth_info struct
 ***************************************************************************/
 
-static NTSTATUS make_auth_context(struct auth_context **auth_context)
+static NTSTATUS make_auth_context(TALLOC_CTX *mem_ctx,
+				  struct auth_context **auth_context)
 {
 	struct auth_context *ctx;
 
-	ctx = talloc_zero(talloc_autofree_context(), struct auth_context);
+	ctx = talloc_zero(mem_ctx, struct auth_context);
 	if (!ctx) {
 		DEBUG(0,("make_auth_context: talloc failed!\n"));
 		return NT_STATUS_NO_MEMORY;
@@ -417,7 +422,9 @@ bool load_auth_module(struct auth_context *auth_context,
  Make a auth_info struct for the auth subsystem
 ***************************************************************************/
 
-static NTSTATUS make_auth_context_text_list(struct auth_context **auth_context, char **text_list) 
+static NTSTATUS make_auth_context_text_list(TALLOC_CTX *mem_ctx,
+					    struct auth_context **auth_context,
+					    char **text_list)
 {
 	auth_methods *list = NULL;
 	auth_methods *t = NULL;
@@ -428,8 +435,11 @@ static NTSTATUS make_auth_context_text_list(struct auth_context **auth_context, 
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
-	if (!NT_STATUS_IS_OK(nt_status = make_auth_context(auth_context)))
+	nt_status = make_auth_context(mem_ctx, auth_context);
+
+	if (!NT_STATUS_IS_OK(nt_status)) {
 		return nt_status;
+	}
 
 	for (;*text_list; text_list++) { 
 		if (load_auth_module(*auth_context, *text_list, &t)) {
@@ -446,7 +456,8 @@ static NTSTATUS make_auth_context_text_list(struct auth_context **auth_context, 
  Make a auth_context struct for the auth subsystem
 ***************************************************************************/
 
-NTSTATUS make_auth_context_subsystem(struct auth_context **auth_context) 
+NTSTATUS make_auth_context_subsystem(TALLOC_CTX *mem_ctx,
+				     struct auth_context **auth_context)
 {
 	char **auth_method_list = NULL; 
 	NTSTATUS nt_status;
@@ -517,7 +528,7 @@ NTSTATUS make_auth_context_subsystem(struct auth_context **auth_context)
 		DEBUG(5,("Using specified auth order\n"));
 	}
 
-	nt_status = make_auth_context_text_list(auth_context,
+	nt_status = make_auth_context_text_list(mem_ctx, auth_context,
 						auth_method_list);
 
 	TALLOC_FREE(auth_method_list);
@@ -528,10 +539,13 @@ NTSTATUS make_auth_context_subsystem(struct auth_context **auth_context)
  Make a auth_info struct with a fixed challenge
 ***************************************************************************/
 
-NTSTATUS make_auth_context_fixed(struct auth_context **auth_context, uchar chal[8]) 
+NTSTATUS make_auth_context_fixed(TALLOC_CTX *mem_ctx,
+				 struct auth_context **auth_context,
+				 uchar chal[8])
 {
 	NTSTATUS nt_status;
-	if (!NT_STATUS_IS_OK(nt_status = make_auth_context_subsystem(auth_context))) {
+	nt_status = make_auth_context_subsystem(mem_ctx, auth_context);
+	if (!NT_STATUS_IS_OK(nt_status)) {
 		return nt_status;
 	}
 

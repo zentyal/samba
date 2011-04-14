@@ -41,9 +41,13 @@
 /*****************************************************/
 
 #include "includes.h"
+#include "popt_common.h"
 #include "utils/net.h"
-
-extern bool AllowDebugChange;
+#include "secrets.h"
+#include "lib/netapi/netapi.h"
+#include "../libcli/security/security.h"
+#include "passdb.h"
+#include "messages.h"
 
 #ifdef WITH_FAKE_KASERVER
 #include "utils/net_afs.h"
@@ -667,7 +671,7 @@ static struct functable net_func[] = {
 	{	"maxrid",
 		net_maxrid,
 		NET_TRANSPORT_LOCAL,
-		N_("Display the maximul RID currently used"),
+		N_("Display the maximum RID currently used"),
 		N_("  net maxrid")
 	},
 	{	"idmap",
@@ -811,12 +815,18 @@ static struct functable net_func[] = {
 		{"force-full-repl", 0, POPT_ARG_NONE, &c->opt_force_full_repl},
 		{"single-obj-repl", 0, POPT_ARG_NONE, &c->opt_single_obj_repl},
 		{"clean-old-entries", 0, POPT_ARG_NONE, &c->opt_clean_old_entries},
-
+		/* Options for 'net idmap'*/
+		{"db", 0, POPT_ARG_STRING, &c->opt_db},
+		{"lock", 0, POPT_ARG_NONE,   &c->opt_lock},
+		{"auto", 'a', POPT_ARG_NONE,   &c->opt_auto},
+		{"repair", 0, POPT_ARG_NONE,   &c->opt_repair},
 		POPT_COMMON_SAMBA
 		{ 0, 0, 0, 0}
 	};
 
 	zero_sockaddr(&c->opt_dest_ip);
+
+	setup_logging(argv[0], DEBUG_STDERR);
 
 	load_case_tables();
 
@@ -829,8 +839,7 @@ static struct functable net_func[] = {
 #endif
 
 	/* set default debug level to 0 regardless of what smb.conf sets */
-	DEBUGLEVEL_CLASS[DBGC_ALL] = 0;
-	dbf = x_stderr;
+	lp_set_cmdline("log level", "0");
 	c->private_data = net_func;
 
 	pc = poptGetContext(NULL, argc, (const char **) argv, long_options,
@@ -869,11 +878,6 @@ static struct functable net_func[] = {
 		}
 	}
 
-	/*
-	 * Don't load debug level from smb.conf. It should be
-	 * set by cmdline arg or remain default (0)
-	 */
-	AllowDebugChange = false;
 	lp_load(get_dyn_CONFIGFILE(), true, false, false, true);
 
  	argv_new = (const char **)poptGetArgs(pc);
@@ -925,6 +929,12 @@ static struct functable net_func[] = {
 	if (!c->opt_password) {
 		c->opt_password = getenv("PASSWD");
 	}
+
+	/* Failing to init the msg_ctx isn't a fatal error. Only
+	   root-level things (joining/leaving domains etc.) will be denied. */
+
+	c->msg_ctx = messaging_init(c, procid_self(),
+				    event_context_init(c));
 
 	rc = net_run_function(c, argc_new-1, argv_new+1, "net", net_func);
 

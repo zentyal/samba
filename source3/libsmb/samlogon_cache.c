@@ -22,7 +22,9 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
 #include "librpc/gen_ndr/ndr_krb5pac.h"
+#include "../libcli/security/security.h"
 
 #define NETSAMLOGON_TDB	"netsamlogon_cache.tdb"
 
@@ -45,7 +47,7 @@ bool netsamlogon_cache_init(void)
 
 	path = cache_path(NETSAMLOGON_TDB);
 again:
-	tdb = tdb_open_log(path, 0, TDB_DEFAULT,
+	tdb = tdb_open_log(path, 0, TDB_DEFAULT|TDB_INCOMPATIBLE_HASH,
 			   O_RDWR | O_CREAT, 0600);
 	if (tdb == NULL) {
 		DEBUG(0,("tdb_open_log('%s') - failed\n", path));
@@ -69,7 +71,7 @@ clear:
 	first_try = false;
 
 	DEBUG(0,("retry after CLEAR_IF_FIRST for '%s'\n", path));
-	tdb = tdb_open_log(path, 0, TDB_CLEAR_IF_FIRST,
+	tdb = tdb_open_log(path, 0, TDB_CLEAR_IF_FIRST|TDB_INCOMPATIBLE_HASH,
 			   O_RDWR | O_CREAT, 0600);
 	if (tdb) {
 		tdb_close(tdb);
@@ -98,14 +100,9 @@ bool netsamlogon_cache_shutdown(void)
  Clear cache getpwnam and getgroups entries from the winbindd cache
 ***********************************************************************/
 
-void netsamlogon_clear_cached_user(struct netr_SamInfo3 *info3)
+void netsamlogon_clear_cached_user(const struct dom_sid *user_sid)
 {
-	struct dom_sid	user_sid;
-	fstring keystr, tmp;
-
-	if (!info3) {
-		return;
-	}
+	fstring keystr;
 
 	if (!netsamlogon_cache_init()) {
 		DEBUG(0,("netsamlogon_clear_cached_user: cannot open "
@@ -113,10 +110,9 @@ void netsamlogon_clear_cached_user(struct netr_SamInfo3 *info3)
 			NETSAMLOGON_TDB));
 		return;
 	}
-	sid_compose(&user_sid, info3->base.domain_sid, info3->base.rid);
 
 	/* Prepare key as DOMAIN-SID/USER-RID string */
-	slprintf(keystr, sizeof(keystr), "%s", sid_to_fstring(tmp, &user_sid));
+	sid_to_fstring(keystr, user_sid);
 
 	DEBUG(10,("netsamlogon_clear_cached_user: SID [%s]\n", keystr));
 
@@ -131,7 +127,7 @@ void netsamlogon_clear_cached_user(struct netr_SamInfo3 *info3)
 bool netsamlogon_cache_store(const char *username, struct netr_SamInfo3 *info3)
 {
 	TDB_DATA data;
-	fstring keystr, tmp;
+	fstring keystr;
 	bool result = false;
 	struct dom_sid	user_sid;
 	time_t t = time(NULL);
@@ -153,7 +149,7 @@ bool netsamlogon_cache_store(const char *username, struct netr_SamInfo3 *info3)
 	sid_compose(&user_sid, info3->base.domain_sid, info3->base.rid);
 
 	/* Prepare key as DOMAIN-SID/USER-RID string */
-	slprintf(keystr, sizeof(keystr), "%s", sid_to_fstring(tmp, &user_sid));
+	sid_to_fstring(keystr, &user_sid);
 
 	DEBUG(10,("netsamlogon_cache_store: SID [%s]\n", keystr));
 

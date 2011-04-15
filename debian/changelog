@@ -1,8 +1,6 @@
 samba (2:3.6.0~pre2-1) UNRELEASED; urgency=low
 
   * New upstream release
-  * usershare.patch no longer needed as user shares are now enabled by
-    default
 
  -- Christian Perrier <bubulle@debian.org>  Fri, 15 Apr 2011 14:12:54 +0200
 

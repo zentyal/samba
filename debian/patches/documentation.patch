@@ -2,11 +2,11 @@ Description: Remove documentation parts that do not apply to Debian
 Author: Christian Perrier <bubulle@debian.org>
 Forwarded: not-needed
 
-Index: samba-3.6.0pre1/docs/manpages/swat.8
+Index: experimental/docs/manpages/swat.8
 ===================================================================
---- samba-3.6.0pre1.orig/docs/manpages/swat.8
-+++ samba-3.6.0pre1/docs/manpages/swat.8
-@@ -111,85 +111,6 @@
+--- experimental.orig/docs/manpages/swat.8
++++ experimental/docs/manpages/swat.8
+@@ -111,86 +111,6 @@
  .RS 4
  Print a summary of command line options\&.
  .RE
@@ -51,6 +51,7 @@ Index: samba-3.6.0pre1/docs/manpages/swat.8
 -.IP \(bu 2.3
 -.\}
 -/usr/local/samba/swat/help/*
+-.RE
 -.sp
 -.RE
 -.SS "Inetd Installation"
@@ -92,7 +93,7 @@ Index: samba-3.6.0pre1/docs/manpages/swat.8
  .SH "LAUNCHING"
  .PP
  To launch SWAT just run your favorite web browser and point it at "http://localhost:901/"\&.
-@@ -207,14 +128,11 @@
+@@ -208,14 +128,11 @@
  This file must contain a mapping of service name (e\&.g\&., swat) to service port (e\&.g\&., 901) and protocol type (e\&.g\&., tcp)\&.
  .RE
  .PP
@@ -109,10 +110,10 @@ Index: samba-3.6.0pre1/docs/manpages/swat.8
  .RE
  .SH "WARNINGS"
  .PP
-Index: samba-3.6.0pre1/docs/manpages/nmbd.8
+Index: experimental/docs/manpages/nmbd.8
 ===================================================================
---- samba-3.6.0pre1.orig/docs/manpages/nmbd.8
-+++ samba-3.6.0pre1/docs/manpages/nmbd.8
+--- experimental.orig/docs/manpages/nmbd.8
++++ experimental/docs/manpages/nmbd.8
 @@ -115,10 +115,7 @@
  to answer any name queries\&. Adding a line to this file affects name NetBIOS resolution from this host
  \fIONLY\fR\&.
@@ -155,10 +156,10 @@ Index: samba-3.6.0pre1/docs/manpages/nmbd.8
  nmbd
  to dump out its server database in the
  log\&.nmb
-Index: samba-3.6.0pre1/docs/manpages/smbd.8
+Index: experimental/docs/manpages/smbd.8
 ===================================================================
---- samba-3.6.0pre1.orig/docs/manpages/smbd.8
-+++ samba-3.6.0pre1/docs/manpages/smbd.8
+--- experimental.orig/docs/manpages/smbd.8
++++ experimental/docs/manpages/smbd.8
 @@ -169,14 +169,11 @@
  inetd, this file must contain a mapping of service name (e\&.g\&., netbios\-ssn) to service port (e\&.g\&., 139) and protocol type (e\&.g\&., tcp)\&.
  .RE
@@ -176,11 +177,11 @@ Index: samba-3.6.0pre1/docs/manpages/smbd.8
  .sp
  This file describes all the services the server is to make available to clients\&. See
  \fBsmb.conf\fR(5)
-Index: samba-3.6.0pre1/docs/manpages/lmhosts.5
+Index: experimental/docs/manpages/lmhosts.5
 ===================================================================
---- samba-3.6.0pre1.orig/docs/manpages/lmhosts.5
-+++ samba-3.6.0pre1/docs/manpages/lmhosts.5
-@@ -95,10 +95,8 @@
+--- experimental.orig/docs/manpages/lmhosts.5
++++ experimental/docs/manpages/lmhosts.5
+@@ -96,10 +96,8 @@
  file\&.
  .SH "FILES"
  .PP
@@ -193,10 +194,10 @@ Index: samba-3.6.0pre1/docs/manpages/lmhosts.5
  .SH "VERSION"
  .PP
  This man page is correct for version 3 of the Samba suite\&.
-Index: samba-3.6.0pre1/docs/manpages/ntlm_auth.1
+Index: experimental/docs/manpages/ntlm_auth.1
 ===================================================================
---- samba-3.6.0pre1.orig/docs/manpages/ntlm_auth.1
-+++ samba-3.6.0pre1/docs/manpages/ntlm_auth.1
+--- experimental.orig/docs/manpages/ntlm_auth.1
++++ experimental/docs/manpages/ntlm_auth.1
 @@ -43,7 +43,7 @@
  Some of these commands also require access to the directory
  winbindd_privileged
@@ -224,10 +225,10 @@ Index: samba-3.6.0pre1/docs/manpages/ntlm_auth.1
  .RE
  .PP
  gss\-spnego\-client
-Index: samba-3.6.0pre1/docs/manpages/tdbbackup.8
+Index: experimental/docs/manpages/tdbbackup.8
 ===================================================================
---- samba-3.6.0pre1.orig/docs/manpages/tdbbackup.8
-+++ samba-3.6.0pre1/docs/manpages/tdbbackup.8
+--- experimental.orig/docs/manpages/tdbbackup.8
++++ experimental/docs/manpages/tdbbackup.8
 @@ -77,7 +77,7 @@
  .\}
  
@@ -252,14 +253,14 @@ Index: samba-3.6.0pre1/docs/manpages/tdbbackup.8
  *\&.tdb
 -located in the /usr/local/samba/var directory or on some systems in the /var/cache or /var/lib/samba directories\&.
 +located in the /var/lib/samba and /var/run/samba directories\&.
+ .RE
  .SH "VERSION"
  .PP
- This man page is correct for version 3 of the Samba suite\&.
-Index: samba-3.6.0pre1/docs/manpages/winbindd.8
+Index: experimental/docs/manpages/winbindd.8
 ===================================================================
---- samba-3.6.0pre1.orig/docs/manpages/winbindd.8
-+++ samba-3.6.0pre1/docs/manpages/winbindd.8
-@@ -549,16 +549,16 @@
+--- experimental.orig/docs/manpages/winbindd.8
++++ experimental/docs/manpages/winbindd.8
+@@ -550,16 +550,16 @@
  file are owned by root\&.
  .RE
  .PP
@@ -280,7 +281,7 @@ Index: samba-3.6.0pre1/docs/manpages/winbindd.8
  file are owned by root\&.
  .RE
  .PP
-@@ -567,15 +567,12 @@
+@@ -568,15 +568,12 @@
  Implementation of name service switch library\&.
  .RE
  .PP

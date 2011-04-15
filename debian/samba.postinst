@@ -4,23 +4,6 @@
 #
 #
 
-case "$1" in
-	configure)
-		update-alternatives --install /usr/bin/smbstatus smbstatus /usr/bin/smbstatus.samba3 10 \
-			--slave /usr/share/man/man1/smbstatus.1.gz smbstatus.1.gz /usr/share/man/man1/smbstatus.samba3.1.gz
-		# continue below
-	;;
-
-	abort-upgrade|abort-remove|abort-deconfigure)
-		exit 0
-	;;
-
-	*)
-		echo "postinst called with unknown argument \`$1'" >&2
-		exit 0
-	;;
-esac
-
 # Handle debconf
 . /usr/share/debconf/confmodule
 
@@ -93,8 +76,8 @@ then
 	mv /var/run/samba/share_info.tdb /var/lib/samba/share_info.tdb
 fi
 
-if dpkg --compare-versions "$2" lt-nl 2:3.2.0-3 \
-   && dpkg --compare-versions "$2" ge 3.0.24 \
+if dpkg --compare-versions "$2" lt-nl 2:3.5.4~dfsg-2 \
+   && dpkg --compare-versions "$2" ge 2:3.5.0~rc1~dfsg-1 \
    && [ -e /etc/samba/schannel_store.tdb ] \
    && ! [ -e /var/lib/samba/schannel_store.tdb ]
 then
@@ -128,7 +111,7 @@ then
 		IFS=","
 		for USER in `getent group admin | cut -f4 -d:`; do
 			adduser "$USER" sambashare \
-			|| !getent passwd "$USER" >/dev/null
+			|| ! getent passwd "$USER" >/dev/null
 		done
 		IFS="$OLDIFS"
 	fi
@@ -138,6 +121,9 @@ if [ ! -e /var/lib/samba/usershares ]
 then
 	install -d -m 1770 -g sambashare /var/lib/samba/usershares
 fi
+
+update-alternatives --install /usr/bin/smbstatus smbstatus /usr/bin/smbstatus.samba3 10 \
+	--slave /usr/share/man/man1/smbstatus.1.gz smbstatus.1.gz /usr/share/man/man1/smbstatus.samba3.1.gz
 
 #DEBHELPER#
 

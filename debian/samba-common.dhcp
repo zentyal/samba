@@ -20,7 +20,7 @@ netbios_setup() {
 
 	# the destination file won't exist yet on the first run after 
 	# installing samba
-	if [ -e $SAMBA_DHCP_CONF ]
+	if [ -e $SAMBA_DHCP_CONF ] && [ -s $SAMBA_DHCP_CONF ]
 	then
 		# don't continue if no settings have changed
 		if [ "$new_netbios_name_servers" = "$old_netbios_name_servers" ] \

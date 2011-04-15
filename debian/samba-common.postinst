@@ -88,31 +88,6 @@ fi
 
 mkdir -p "$TEMPDIR"
 
-if [ -n "$2" ] && dpkg --compare-versions "$2" lt 3.0.28-3; then
-	if dpkg --compare-versions "$2" lt 3.0.26a-1 && [ "$2" != "${2%ubuntu*}" ]
-	then
-		base=dapper
-	elif [ "$2" != "${2%ubuntu*}" ]
-	then
-		base=gutsy
-	else
-		base=etch
-	fi
-
-	TEMPLATE=/usr/share/samba/smb.conf.${base}
-
-	cp "$TEMPLATE" "$NEWFILE"
-	configure_smb_conf "$NEWFILE"
-
-	if [ -e "$CONFIG" ]; then
-		sed -e '1,/^[;#[:space:]]*\[cdrom\]/ { d }
-			1,/^[[:space:]]*\[/ { /^[^[]/d; /^$/d }
-		' "$CONFIG" >> "$NEWFILE"
-	fi
-
-	ucf --three-way --debconf-ok "$NEWFILE" "$CONFIG"
-fi
-
 cp /usr/share/samba/smb.conf "$NEWFILE"
 configure_smb_conf "$NEWFILE"
 

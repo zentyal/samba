@@ -1,3 +1,131 @@
+samba (2:3.6.0~pre2-1) UNRELEASED; urgency=low
+
+  * New upstream release
+  * usershare.patch no longer needed as user shares are now enabled by
+    default
+
+ -- Christian Perrier <bubulle@debian.org>  Fri, 15 Apr 2011 14:12:54 +0200
+
+samba (2:3.5.8~dfsg-1) unstable; urgency=low
+
+  * New upstream release. This fixes the following bugs:
+    - Winbind leaks gids with idmap ldap backend (upstrem #7777)
+      Closes: #613624
+    - printing from Windows 7 fails with 0x000003e6
+      Closes: #617429
+  * smb.conf(5) restored from samba 3.5.6 as a workaround to upstream
+    #7997
+
+ -- Christian Perrier <bubulle@debian.org>  Tue, 08 Mar 2011 22:38:32 +0100
+
+samba (2:3.5.7~dfsg-1) unstable; urgency=low
+
+  [ Christian Perrier ]
+  * New upstream release
+  * Security update, fixing the following issue:
+    - CVE-2011-0719: denial of service by memory corruption
+  * Use architecture wildcard "linux-any" in build dependencies
+    Closes: #563372
+
+ -- Christian Perrier <bubulle@debian.org>  Tue, 01 Mar 2011 20:59:34 +0100
+
+samba (2:3.5.6~dfsg-5) unstable; urgency=low
+
+  * Fix FTBFS on Hurd. Closes: #610678
+  * Only try parsing dhcpd.conf is it's not empty,
+    in dhclient-enter-hooks.d/samba.  Closes: #594088.
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 05 Feb 2011 13:50:22 +0100
+
+samba (2:3.5.6~dfsg-4) unstable; urgency=low
+
+  * Fix pam_winbind file descriptor leak with a patch
+    proposed in https://bugzilla.samba.org/show_bug.cgi?id=7265.
+    Upstream claim is that #7265 is fixed in 3.5.6 but our bug submitter
+    confirmed it is not while the patch applied here fixes the file
+    descriptor leak.
+    Closes: #574468
+
+  [ Debconf translations ]  
+  * Brazilian Portuguese (Adriano Rafael Gomes).  Closes: #607402
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 15 Jan 2011 18:06:22 +0100
+
+samba (2:3.5.6~dfsg-3) unstable; urgency=low
+
+  [ Julien Cristau ]
+  * Bump libwbclient0 shlibs to match the newest version in the symbols file.
+  * Mark libwbclient0 as breaking other samba packages with versions older
+    than 2:3.4.1, as they were linked against libtalloc1 instead of
+    libtalloc2, and the combination causes crashes (closes: #593823).
+
+ -- Christian Perrier <bubulle@debian.org>  Mon, 06 Dec 2010 20:14:04 +0100
+
+samba (2:3.5.6~dfsg-2) unstable; urgency=low
+
+  [ Steve Langasek ]
+  * Fix debian/rules update-archs target to not add extra spaces on every
+    invocation...
+
+  [ Debconf translations ]  
+  * Catalan (Jordi Mallach).  Closes: #601101
+  * Japanese (Kenshi Muto).  Closes: #601364
+  * Bulgarian (Damyan Ivanov).  Closes: #601366
+  * Hebrew (Omer Zak).  Closes: #601633
+  * Kurdish (Erdal Ronahî).  Closes: #601719
+  * Dutch (Remco Rijnders).  Closes: #602220
+  * Greek (Konstantinos Margaritis).
+
+  [ Christian Perrier ]
+  * Include upstream's patch for "gvfsd-smb (Gnome vfs) fails to copy
+    files from a SMB share using SMB signing.". Backported from
+    to be released 3.5.7 version
+    Closes: #605729
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 04 Dec 2010 07:44:22 +0100
+
+samba (2:3.5.6~dfsg-1) unstable; urgency=low
+
+  * New upstream release. Fixes the following Debian bug:
+    - rpcclient readline segfault. Closes: #597203
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 10 Oct 2010 09:59:37 +0200
+
+samba (2:3.5.5~dfsg-1) unstable; urgency=high
+
+  [ Christian Perrier ]
+  * New upstream release. Security release fixing:
+    - CVE-2019-3069: Buffer overrun vulnerability in sid_parse.
+      Closes: #596891.
+  * Fix comment in swat's postinst. It is not turned off by default
+    Closes: #596040
+  * Drop transition code from (pre-etch) 3.0.20b-3 version in swat postinst
+
+  [ Steve Langasek ]
+  * debian/control: winbind needs libpam-runtime (>= 1.0.1-6) for
+    pam-auth-update.  Closes: #594325.
+
+  [ Debconf translations ]  
+  * Arabic (Ossama Khayat).  Closes: #596164
+
+ -- Christian Perrier <bubulle@debian.org>  Tue, 14 Sep 2010 23:03:35 +0200
+
+samba (2:3.5.4~dfsg-2) unstable; urgency=low
+
+  * Release to unstable
+
+  [ Debconf translations ]  
+  * Danish (Joe Dalton).  Closes: #592789.
+  * Galician (Jorge Barreiro).  Closes: #592809
+
+  [ Steve Langasek ]
+  * debian/patches/fhs-filespaths.patch, debian/samba.postinst,
+    debian/winbind.postinst: move some files from /etc/samba to
+    /var/lib/samba where they belong: MACHINE.SID, schannel_store.tdb,
+    and idmap2.tdb.
+
+ -- Christian Perrier <bubulle@debian.org>  Tue, 07 Sep 2010 17:47:32 +0200
+
 samba (2:3.6.0~pre1-1) experimental; urgency=low
 
   * New upstream release
@@ -25,6 +153,97 @@ samba (2:3.5.2~dfsg-2) experimental; urgency=low
     2:3.4.7~dfsg-2
 
  -- Christian Perrier <bubulle@debian.org>  Tue, 04 May 2010 17:13:47 +0200
+
+samba (2:3.5.2~dfsg-1) experimental; urgency=low
+
+  * New upstream release
+  * Bugs fixed upstream:
+    - Fix parsing of the gecos field
+      Closes: #460494
+
+ -- Christian Perrier <bubulle@debian.org>  Thu, 08 Apr 2010 19:48:07 +0200
+
+samba (2:3.5.1~dfsg-1) experimental; urgency=low
+
+  * New upstream release. Security fix: all smbd processes inherited
+    CAP_DAC_OVERRIDE capabilities, allowing all file system access to be
+    allowed even when permissions should have denied access.
+
+ -- Christian Perrier <bubulle@debian.org>  Tue, 09 Mar 2010 10:54:01 +0100
+
+samba (2:3.5.0dfsg-1) experimental; urgency=low
+
+  * New upstream release. Not using "3.5.0~dfsg" as version number
+    because we used a "higher" version number in previous versions.
+
+ -- Christian Perrier <bubulle@debian.org>  Tue, 02 Mar 2010 22:03:15 +0100
+
+samba (2:3.5.0~rc3~dfsg-1) experimental; urgency=low
+
+  * New upstream release candidate
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 20 Feb 2010 08:36:57 +0100
+
+samba (2:3.5.0~rc2~dfsg-1) experimental; urgency=low
+
+  * New upstream pre-release
+  * Use new --with-codepagedir option. Consequently drop
+    codepages-location.patch
+  * Drop "Using Samba" from the samba-doc file list as it was
+    removed upstream.
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 31 Jan 2010 11:53:48 +0100
+
+samba (2:3.5.0~rc1~dfsg-1) experimental; urgency=low
+
+  [ Christian Perrier ]
+  * New upstream pre-release
+
+ -- Christian Perrier <bubulle@debian.org>  Fri, 15 Jan 2010 23:31:01 +0100
+
+samba (2:3.4.8~dfsg-2) unstable; urgency=low
+
+  [ Steve Langasek ]
+  * Drop the per-release smb.conf templates, only needed for upgrade paths
+    that are no longer supported.
+  * Call /etc/init.d/samba directly from the logrotate script instead of
+    using invoke-rc.d, to address the irony that the only package I work on
+    that *has* a logrotate script is inconsistent with my position in
+    bug #445203.
+  * Fix a bashism in the samba postinst that can cause the package
+    installation to fail under dash.  LP: #576307.
+  * Add symlink from /etc/dhcp/dhclient-enter-hooks.d to
+    /etc/dhcp3/dhclient-enter-hooks.d for the hook location of the new
+    isc-dhcp-client package.  Closes: #585056.
+
+  [ Christian Perrier ]
+  * Don't copy system accounts from /etc/passwd to
+    /var/lib/samba/passdb.tdb. Closes: #502801
+  * Update Standards to 3.9.0 (checked, no change)
+  * Backport patch for upstream bug #7139 to fix "owner of file not
+    available with kerberos"
+    Closes: #586337   
+
+ -- Steve Langasek <vorlon@debian.org>  Wed, 14 Jul 2010 11:59:28 -0700
+
+samba (2:3.4.8~dfsg-1) unstable; urgency=low
+
+  [ Christian Perrier ]
+  * New upstream release
+  * Bugs fixed upstream:
+    - Fix writing with vfs_full_audit. Closes: #574011
+  * Drop deprecated 'share modes' parameter from default smb.conf
+    Closes: #580561
+  * Enable PIE during configure. Closes: #509135
+  * Avoid winbind's logrotate script to fail when there is no
+    /var/run/samba directory. Closes: #569926
+  * Add explanations about "passdb backend" default setting change
+    Closes: #553904
+
+  [ Debconf translations ]  
+  * Spanish (Omar Campagne).  Closes: #579011
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 12 May 2010 05:45:52 +0200
 
 samba (2:3.4.7~dfsg-2) unstable; urgency=low
 
@@ -100,53 +319,6 @@ samba (2:3.4.5~dfsg-1) unstable; urgency=low
     for some local reason.
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 23 Jan 2010 12:16:42 +0100
-
-samba (2:3.5.2~dfsg-1) experimental; urgency=low
-
-  * New upstream release
-  * Bugs fixed upstream:
-    - Fix parsing of the gecos field
-      Closes: #460494
-
- -- Christian Perrier <bubulle@debian.org>  Thu, 08 Apr 2010 19:48:07 +0200
-
-samba (2:3.5.1~dfsg-1) experimental; urgency=low
-
-  * New upstream release. Security fix: all smbd processes inherited
-    CAP_DAC_OVERRIDE capabilities, allowing all file system access to be
-    allowed even when permissions should have denied access.
-
- -- Christian Perrier <bubulle@debian.org>  Tue, 09 Mar 2010 10:54:01 +0100
-
-samba (2:3.5.0dfsg-1) experimental; urgency=low
-
-  * New upstream release. Not using "3.5.0~dfsg" as version number
-    because we used a "higher" version number in previous versions.
-
- -- Christian Perrier <bubulle@debian.org>  Tue, 02 Mar 2010 22:03:15 +0100
-
-samba (2:3.5.0~rc3~dfsg-1) experimental; urgency=low
-
-  * New upstream release candidate
-
- -- Christian Perrier <bubulle@debian.org>  Sat, 20 Feb 2010 08:36:57 +0100
-
-samba (2:3.5.0~rc2~dfsg-1) experimental; urgency=low
-
-  * New upstream pre-release
-  * Use new --with-codepagedir option. Consequently drop
-    codepages-location.patch
-  * Drop "Using Samba" from the samba-doc file list as it was
-    removed upstream.
-
- -- Christian Perrier <bubulle@debian.org>  Sun, 31 Jan 2010 11:53:48 +0100
-
-samba (2:3.5.0~rc1~dfsg-1) experimental; urgency=low
-
-  [ Christian Perrier ]
-  * New upstream pre-release
-
- -- Christian Perrier <bubulle@debian.org>  Fri, 15 Jan 2010 23:31:01 +0100
 
 samba (2:3.4.4~dfsg-1) unstable; urgency=low
 

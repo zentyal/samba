@@ -1,6 +1,11 @@
 samba (2:3.6.0~pre2-1) UNRELEASED; urgency=low
 
+  [ Christian Perrier ]
   * New upstream release
+
+  [ Mathieu Parent ]
+  * Build against libctdb-dev (>= 1.10+git20110412) to have required control:
+    CTDB_CONTROL_SCHEDULE_FOR_DELETION. 
 
  -- Christian Perrier <bubulle@debian.org>  Fri, 15 Apr 2011 14:12:54 +0200
 

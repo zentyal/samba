@@ -10,7 +10,7 @@ Build-Depends: debhelper (>= 6.0.7~), libpam0g-dev, libreadline-dev,
 	libtalloc-dev (>= 2.0.1-1~bpo50+1),
 	libcap-dev [linux-any],
 	libkeyutils-dev [linux-any],
-	ctdb (>= 1.0.103) [linux-any],
+	libctdb-dev (>= 1.10+git20110412) [linux-any],
 	pkg-config
 Build-Conflicts: libfam-dev
 Standards-Version: 3.9.0

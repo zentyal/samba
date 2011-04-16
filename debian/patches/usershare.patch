@@ -11,8 +11,8 @@ Index: experimental/docs/manpages/net.8
 ===================================================================
 --- experimental.orig/docs/manpages/net.8
 +++ experimental/docs/manpages/net.8
-@@ -916,9 +916,9 @@
- Store a secret for the specified domain, used primarily for domains that use idmap_ldap as a backend\&. In this case the secret is used as the password for the user DN used to bind to the ldap server\&.
+@@ -738,9 +738,9 @@
+ manpage for details\&.
  .SS "USERSHARE"
  .PP
 -Starting with version 3\&.0\&.23, a Samba server now supports the ability for non\-root users to add user defined shares to be exported using the "net usershare" commands\&.
@@ -27,7 +27,7 @@ Index: experimental/source3/param/loadparm.c
 ===================================================================
 --- experimental.orig/source3/param/loadparm.c
 +++ experimental/source3/param/loadparm.c
-@@ -5189,7 +5189,7 @@
+@@ -5461,7 +5461,7 @@
  	string_set(&Globals.szUsersharePath, s);
  	SAFE_FREE(s);
  	string_set(&Globals.szUsershareTemplateShare, "");

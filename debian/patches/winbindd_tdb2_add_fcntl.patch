@@ -4,13 +4,15 @@ Origin: vendor
 Bug: https://bugzilla.samba.org/show_bug.cgi?id=8091
 Forwarded: https://bugzilla.samba.org/show_bug.cgi?id=8091
 
---- samba-3.6.0~pre2.orig/source3/winbindd/idmap_tdb2.c
-+++ samba-3.6.0~pre2/source3/winbindd/idmap_tdb2.c
+Index: experimental/source3/winbindd/idmap_tdb2.c
+===================================================================
+--- experimental.orig/source3/winbindd/idmap_tdb2.c
++++ experimental/source3/winbindd/idmap_tdb2.c
 @@ -32,6 +32,7 @@
  */
  
  #include "includes.h"
-+#include "fcntl.h"
++#include "system/filesys.h"
  #include "winbindd.h"
  #include "idmap.h"
  #include "idmap_rw.h"

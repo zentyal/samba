@@ -3,6 +3,8 @@ samba (2:3.6.0~pre2-1) UNRELEASED; urgency=low
   [ Christian Perrier ]
   * New upstream release
   * add "#include "fcntl.h"" to idmap_tdb2.c to get it compiled
+  * samba-doc-pdf: add Samba3-HOWTO.pdf from pre1 as it
+    was forgotten upstream
 
   [ Mathieu Parent ]
   * Build against libctdb-dev (>= 1.10+git20110412) to have required control:

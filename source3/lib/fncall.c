@@ -21,7 +21,7 @@
 
 #if WITH_PTHREADPOOL
 
-#include "pthreadpool.h"
+#include "lib/pthreadpool/pthreadpool.h"
 
 struct fncall_state {
 	struct fncall_context *ctx;
@@ -86,7 +86,7 @@ struct fncall_context *fncall_context_init(TALLOC_CTX *mem_ctx,
 	}
 	talloc_set_destructor(ctx, fncall_context_destructor);
 
-	ctx->sig_fd = pthreadpool_sig_fd(ctx->pool);
+	ctx->sig_fd = pthreadpool_signal_fd(ctx->pool);
 	if (ctx->sig_fd == -1) {
 		TALLOC_FREE(ctx);
 		return NULL;

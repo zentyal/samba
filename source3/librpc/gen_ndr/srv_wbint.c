@@ -179,6 +179,92 @@ static bool api_wbint_LookupSid(struct pipes_struct *p)
 	return true;
 }
 
+static bool api_wbint_LookupSids(struct pipes_struct *p)
+{
+	const struct ndr_interface_call *call;
+	struct ndr_pull *pull;
+	struct ndr_push *push;
+	enum ndr_err_code ndr_err;
+	struct wbint_LookupSids *r;
+
+	call = &ndr_table_wbint.calls[NDR_WBINT_LOOKUPSIDS];
+
+	r = talloc(talloc_tos(), struct wbint_LookupSids);
+	if (r == NULL) {
+		return false;
+	}
+
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
+	if (pull == NULL) {
+		talloc_free(r);
+		return false;
+	}
+
+	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
+	ndr_err = call->ndr_pull(pull, NDR_IN, r);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		talloc_free(r);
+		return false;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_FUNCTION_DEBUG(wbint_LookupSids, NDR_IN, r);
+	}
+
+	ZERO_STRUCT(r->out);
+	r->out.domains = talloc_zero(r, struct lsa_RefDomainList);
+	if (r->out.domains == NULL) {
+		talloc_free(r);
+		return false;
+	}
+
+	r->out.names = talloc_zero(r, struct lsa_TransNameArray);
+	if (r->out.names == NULL) {
+		talloc_free(r);
+		return false;
+	}
+
+	r->out.result = _wbint_LookupSids(p, r);
+
+	if (p->rng_fault_state) {
+		talloc_free(r);
+		/* Return true here, srv_pipe_hnd.c will take care */
+		return true;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_FUNCTION_DEBUG(wbint_LookupSids, NDR_OUT | NDR_SET_VALUES, r);
+	}
+
+	push = ndr_push_init_ctx(r);
+	if (push == NULL) {
+		talloc_free(r);
+		return false;
+	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
+
+	ndr_err = call->ndr_push(push, NDR_OUT, r);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		talloc_free(r);
+		return false;
+	}
+
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
+
+	talloc_free(r);
+
+	return true;
+}
+
 static bool api_wbint_LookupName(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
@@ -397,6 +483,81 @@ static bool api_wbint_Sid2Gid(struct pipes_struct *p)
 
 	if (DEBUGLEVEL >= 10) {
 		NDR_PRINT_FUNCTION_DEBUG(wbint_Sid2Gid, NDR_OUT | NDR_SET_VALUES, r);
+	}
+
+	push = ndr_push_init_ctx(r);
+	if (push == NULL) {
+		talloc_free(r);
+		return false;
+	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
+
+	ndr_err = call->ndr_push(push, NDR_OUT, r);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		talloc_free(r);
+		return false;
+	}
+
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
+
+	talloc_free(r);
+
+	return true;
+}
+
+static bool api_wbint_Sids2UnixIDs(struct pipes_struct *p)
+{
+	const struct ndr_interface_call *call;
+	struct ndr_pull *pull;
+	struct ndr_push *push;
+	enum ndr_err_code ndr_err;
+	struct wbint_Sids2UnixIDs *r;
+
+	call = &ndr_table_wbint.calls[NDR_WBINT_SIDS2UNIXIDS];
+
+	r = talloc(talloc_tos(), struct wbint_Sids2UnixIDs);
+	if (r == NULL) {
+		return false;
+	}
+
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
+	if (pull == NULL) {
+		talloc_free(r);
+		return false;
+	}
+
+	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
+	ndr_err = call->ndr_pull(pull, NDR_IN, r);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		talloc_free(r);
+		return false;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_FUNCTION_DEBUG(wbint_Sids2UnixIDs, NDR_IN, r);
+	}
+
+	ZERO_STRUCT(r->out);
+	r->out.ids = r->in.ids;
+	r->out.result = _wbint_Sids2UnixIDs(p, r);
+
+	if (p->rng_fault_state) {
+		talloc_free(r);
+		/* Return true here, srv_pipe_hnd.c will take care */
+		return true;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_FUNCTION_DEBUG(wbint_Sids2UnixIDs, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
 	push = ndr_push_init_ctx(r);
@@ -1696,9 +1857,11 @@ static struct api_struct api_wbint_cmds[] =
 {
 	{"WBINT_PING", NDR_WBINT_PING, api_wbint_Ping},
 	{"WBINT_LOOKUPSID", NDR_WBINT_LOOKUPSID, api_wbint_LookupSid},
+	{"WBINT_LOOKUPSIDS", NDR_WBINT_LOOKUPSIDS, api_wbint_LookupSids},
 	{"WBINT_LOOKUPNAME", NDR_WBINT_LOOKUPNAME, api_wbint_LookupName},
 	{"WBINT_SID2UID", NDR_WBINT_SID2UID, api_wbint_Sid2Uid},
 	{"WBINT_SID2GID", NDR_WBINT_SID2GID, api_wbint_Sid2Gid},
+	{"WBINT_SIDS2UNIXIDS", NDR_WBINT_SIDS2UNIXIDS, api_wbint_Sids2UnixIDs},
 	{"WBINT_UID2SID", NDR_WBINT_UID2SID, api_wbint_Uid2Sid},
 	{"WBINT_GID2SID", NDR_WBINT_GID2SID, api_wbint_Gid2Sid},
 	{"WBINT_ALLOCATEUID", NDR_WBINT_ALLOCATEUID, api_wbint_AllocateUid},

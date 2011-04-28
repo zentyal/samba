@@ -11,8 +11,21 @@
 #include "librpc/gen_ndr/netlogon.h"
 #include "librpc/gen_ndr/misc.h"
 #include "librpc/gen_ndr/security.h"
+#include "librpc/gen_ndr/idmap.h"
 #ifndef _HEADER_wbint
 #define _HEADER_wbint
+
+struct wbint_TransID {
+	enum id_type type;
+	uint32_t domain_index;
+	uint32_t rid;
+	uint64_t unix_id;
+};
+
+struct wbint_TransIDArray {
+	uint32_t num_ids;
+	struct wbint_TransID *ids;/* [size_is(num_ids)] */
+};
 
 struct wbint_userinfo {
 	const char *acct_name;/* [unique,charset(UTF8)] */
@@ -78,6 +91,20 @@ struct wbint_LookupSid {
 };
 
 
+struct wbint_LookupSids {
+	struct {
+		struct lsa_SidArray *sids;/* [ref] */
+	} in;
+
+	struct {
+		struct lsa_RefDomainList *domains;/* [ref] */
+		struct lsa_TransNameArray *names;/* [ref] */
+		NTSTATUS result;
+	} out;
+
+};
+
+
 struct wbint_LookupName {
 	struct {
 		const char *domain;/* [ref,charset(UTF8)] */
@@ -116,6 +143,20 @@ struct wbint_Sid2Gid {
 
 	struct {
 		uint64_t *gid;/* [ref] */
+		NTSTATUS result;
+	} out;
+
+};
+
+
+struct wbint_Sids2UnixIDs {
+	struct {
+		struct lsa_RefDomainList *domains;/* [ref] */
+		struct wbint_TransIDArray *ids;/* [ref] */
+	} in;
+
+	struct {
+		struct wbint_TransIDArray *ids;/* [ref] */
 		NTSTATUS result;
 	} out;
 

@@ -899,7 +899,8 @@ char *vfs_GetWd(TALLOC_CTX *ctx, connection_struct *conn)
 NTSTATUS check_reduced_name(connection_struct *conn, const char *fname)
 {
 	char *resolved_name = NULL;
-	char *p = NULL;
+	bool allow_symlinks = true;
+	bool allow_widelinks = false;
 
 	DEBUG(3,("check_reduced_name [%s] [%s]\n", fname, conn->connectpath));
 
@@ -915,28 +916,20 @@ NTSTATUS check_reduced_name(connection_struct *conn, const char *fname)
 			case ENOENT:
 			{
 				TALLOC_CTX *ctx = talloc_tos();
-				char *tmp_fname = NULL;
-				char *last_component = NULL;
-				/* Last component didn't exist. Remove it and try and canonicalise the directory. */
+				char *dir_name = NULL;
+				const char *last_component = NULL;
+				char *new_name = NULL;
 
-				tmp_fname = talloc_strdup(ctx, fname);
-				if (!tmp_fname) {
+				/* Last component didn't exist.
+				   Remove it and try and canonicalise
+				   the directory name. */
+				if (!parent_dirname(ctx, fname,
+						&dir_name,
+						&last_component)) {
 					return NT_STATUS_NO_MEMORY;
 				}
-				p = strrchr_m(tmp_fname, '/');
-				if (p) {
-					*p++ = '\0';
-					last_component = p;
-				} else {
-					last_component = tmp_fname;
-					tmp_fname = talloc_strdup(ctx,
-							".");
-					if (!tmp_fname) {
-						return NT_STATUS_NO_MEMORY;
-					}
-				}
 
-				resolved_name = SMB_VFS_REALPATH(conn,tmp_fname);
+				resolved_name = SMB_VFS_REALPATH(conn,dir_name);
 				if (!resolved_name) {
 					NTSTATUS status = map_nt_error_from_unix(errno);
 
@@ -951,18 +944,16 @@ NTSTATUS check_reduced_name(connection_struct *conn, const char *fname)
 						nt_errstr(status)));
 					return status;
 				}
-				tmp_fname = talloc_asprintf(ctx,
+				new_name = talloc_asprintf(ctx,
 						"%s/%s",
 						resolved_name,
 						last_component);
-				if (!tmp_fname) {
+				if (!new_name) {
 					return NT_STATUS_NO_MEMORY;
 				}
 				SAFE_FREE(resolved_name);
-				resolved_name = SMB_STRDUP(tmp_fname);
+				resolved_name = SMB_STRDUP(new_name);
 				if (!resolved_name) {
-					DEBUG(0, ("check_reduced_name: malloc "
-						  "fail for %s\n", tmp_fname));
 					return NT_STATUS_NO_MEMORY;
 				}
 				break;
@@ -984,57 +975,65 @@ NTSTATUS check_reduced_name(connection_struct *conn, const char *fname)
 		return NT_STATUS_OBJECT_NAME_INVALID;
 	}
 
-	/* Check for widelinks allowed. */
-	if (!lp_widelinks(SNUM(conn))) {
-		    const char *conn_rootdir;
+	allow_widelinks = lp_widelinks(SNUM(conn));
+	allow_symlinks = lp_symlinks(SNUM(conn));
 
-		    conn_rootdir = SMB_VFS_CONNECTPATH(conn, fname);
-		    if (conn_rootdir == NULL) {
-			    DEBUG(2, ("check_reduced_name: Could not get "
-				      "conn_rootdir\n"));
-			    SAFE_FREE(resolved_name);
-			    return NT_STATUS_ACCESS_DENIED;
-		    }
+	/* Common widelinks and symlinks checks. */
+	if (!allow_widelinks || !allow_symlinks) {
+		const char *conn_rootdir;
+		size_t rootdir_len;
 
-		    if (strncmp(conn_rootdir, resolved_name,
-				strlen(conn_rootdir)) != 0) {
-			    DEBUG(2, ("check_reduced_name: Bad access "
-				      "attempt: %s is a symlink outside the "
-				      "share path\n", fname));
-			    DEBUGADD(2, ("conn_rootdir =%s\n", conn_rootdir));
-			    DEBUGADD(2, ("resolved_name=%s\n", resolved_name));
-			    SAFE_FREE(resolved_name);
-			    return NT_STATUS_ACCESS_DENIED;
-		    }
-	}
-
-        /* Check if we are allowing users to follow symlinks */
-        /* Patch from David Clerc <David.Clerc@cui.unige.ch>
-                University of Geneva */
-
-#ifdef S_ISLNK
-        if (!lp_symlinks(SNUM(conn))) {
-		struct smb_filename *smb_fname = NULL;
-		NTSTATUS status;
-
-		status = create_synthetic_smb_fname(talloc_tos(), fname, NULL,
-						    NULL, &smb_fname);
-		if (!NT_STATUS_IS_OK(status)) {
+		conn_rootdir = SMB_VFS_CONNECTPATH(conn, fname);
+		if (conn_rootdir == NULL) {
+			DEBUG(2, ("check_reduced_name: Could not get "
+				"conn_rootdir\n"));
 			SAFE_FREE(resolved_name);
-                        return status;
+			return NT_STATUS_ACCESS_DENIED;
 		}
 
-		if ( (SMB_VFS_LSTAT(conn, smb_fname) != -1) &&
-                                (S_ISLNK(smb_fname->st.st_ex_mode)) ) {
+		rootdir_len = strlen(conn_rootdir);
+		if (strncmp(conn_rootdir, resolved_name,
+				rootdir_len) != 0) {
+			DEBUG(2, ("check_reduced_name: Bad access "
+				"attempt: %s is a symlink outside the "
+				"share path\n", fname));
+			DEBUGADD(2, ("conn_rootdir =%s\n", conn_rootdir));
+			DEBUGADD(2, ("resolved_name=%s\n", resolved_name));
 			SAFE_FREE(resolved_name);
-                        DEBUG(3,("check_reduced_name: denied: file path name "
-				 "%s is a symlink\n",resolved_name));
-			TALLOC_FREE(smb_fname);
 			return NT_STATUS_ACCESS_DENIED;
-                }
-		TALLOC_FREE(smb_fname);
-        }
-#endif
+		}
+
+		/* Extra checks if all symlinks are disallowed. */
+		if (!allow_symlinks) {
+			/* fname can't have changed in resolved_path. */
+			const char *p = &resolved_name[rootdir_len];
+
+			/* *p can be '\0' if fname was "." */
+			if (*p == '\0' && ISDOT(fname)) {
+				goto out;
+			}
+
+			if (*p != '/') {
+				DEBUG(2, ("check_reduced_name: logic error (%c) "
+					"in resolved_name: %s\n",
+					*p,
+					fname));
+				SAFE_FREE(resolved_name);
+				return NT_STATUS_ACCESS_DENIED;
+			}
+
+			p++;
+			if (strcmp(fname, p)!=0) {
+				DEBUG(2, ("check_reduced_name: Bad access "
+					"attempt: %s is a symlink\n",
+					fname));
+				SAFE_FREE(resolved_name);
+				return NT_STATUS_ACCESS_DENIED;
+			}
+		}
+	}
+
+  out:
 
 	DEBUG(3,("check_reduced_name: %s reduced to %s\n", fname,
 		 resolved_name));
@@ -1273,8 +1272,8 @@ int smb_vfs_call_open(struct vfs_handle_struct *handle,
 		      struct smb_filename *smb_fname, struct files_struct *fsp,
 		      int flags, mode_t mode)
 {
-	VFS_FIND(open);
-	return handle->fns->open(handle, smb_fname, fsp, flags, mode);
+	VFS_FIND(open_fn);
+	return handle->fns->open_fn(handle, smb_fname, fsp, flags, mode);
 }
 
 NTSTATUS smb_vfs_call_create_file(struct vfs_handle_struct *handle,
@@ -1455,6 +1454,11 @@ int smb_vfs_call_lchown(struct vfs_handle_struct *handle, const char *path,
 NTSTATUS vfs_chown_fsp(files_struct *fsp, uid_t uid, gid_t gid)
 {
 	int ret;
+	bool as_root = false;
+	const char *path;
+	char *saved_dir = NULL;
+	char *parent_dir = NULL;
+	NTSTATUS status;
 
 	if (fsp->fh->fd != -1) {
 		/* Try fchown. */
@@ -1467,19 +1471,80 @@ NTSTATUS vfs_chown_fsp(files_struct *fsp, uid_t uid, gid_t gid)
 		}
 	}
 
-	if (fsp->posix_open) {
+	as_root = (geteuid() == 0);
+
+	if (as_root) {
+		/*
+		 * We are being asked to chown as root. Make
+		 * sure we chdir() into the path to pin it,
+		 * and always act using lchown to ensure we
+		 * don't deref any symbolic links.
+		 */
+		const char *final_component = NULL;
+		struct smb_filename local_fname;
+
+		saved_dir = vfs_GetWd(talloc_tos(),fsp->conn);
+		if (!saved_dir) {
+			status = map_nt_error_from_unix(errno);
+			DEBUG(0,("vfs_chown_fsp: failed to get "
+				"current working directory. Error was %s\n",
+				strerror(errno)));
+			return status;
+		}
+
+		if (!parent_dirname(talloc_tos(),
+				fsp->fsp_name->base_name,
+				&parent_dir,
+				&final_component)) {
+			return NT_STATUS_NO_MEMORY;
+		}
+
+		/* cd into the parent dir to pin it. */
+		ret = SMB_VFS_CHDIR(fsp->conn, parent_dir);
+		if (ret == -1) {
+			return map_nt_error_from_unix(errno);
+		}
+
+		ZERO_STRUCT(local_fname);
+		local_fname.base_name = CONST_DISCARD(char *,final_component);
+
+		/* Must use lstat here. */
+		ret = SMB_VFS_LSTAT(fsp->conn, &local_fname);
+		if (ret == -1) {
+			return map_nt_error_from_unix(errno);
+		}
+
+		/* Ensure it matches the fsp stat. */
+		if (!check_same_stat(&local_fname.st, &fsp->fsp_name->st)) {
+                        return NT_STATUS_ACCESS_DENIED;
+                }
+                path = final_component;
+        } else {
+                path = fsp->fsp_name->base_name;
+        }
+
+	if (fsp->posix_open || as_root) {
 		ret = SMB_VFS_LCHOWN(fsp->conn,
-			fsp->fsp_name->base_name,
+			path,
 			uid, gid);
 	} else {
 		ret = SMB_VFS_CHOWN(fsp->conn,
-			fsp->fsp_name->base_name,
+			path,
 			uid, gid);
 	}
+
 	if (ret == 0) {
-		return NT_STATUS_OK;
+		status = NT_STATUS_OK;
+	} else {
+		status = map_nt_error_from_unix(errno);
 	}
-	return map_nt_error_from_unix(errno);
+
+	if (as_root) {
+		vfs_ChDir(fsp->conn,saved_dir);
+		TALLOC_FREE(saved_dir);
+		TALLOC_FREE(parent_dir);
+	}
+	return status;
 }
 
 int smb_vfs_call_chdir(struct vfs_handle_struct *handle, const char *path)

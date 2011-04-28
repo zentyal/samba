@@ -7,6 +7,107 @@
 #include "librpc/gen_ndr/ndr_netlogon.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "librpc/gen_ndr/ndr_security.h"
+#include "librpc/gen_ndr/ndr_idmap.h"
+static enum ndr_err_code ndr_push_wbint_TransID(struct ndr_push *ndr, int ndr_flags, const struct wbint_TransID *r)
+{
+	if (ndr_flags & NDR_SCALARS) {
+		NDR_CHECK(ndr_push_align(ndr, 8));
+		NDR_CHECK(ndr_push_id_type(ndr, NDR_SCALARS, r->type));
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->domain_index));
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->rid));
+		NDR_CHECK(ndr_push_hyper(ndr, NDR_SCALARS, r->unix_id));
+		NDR_CHECK(ndr_push_trailer_align(ndr, 8));
+	}
+	if (ndr_flags & NDR_BUFFERS) {
+	}
+	return NDR_ERR_SUCCESS;
+}
+
+static enum ndr_err_code ndr_pull_wbint_TransID(struct ndr_pull *ndr, int ndr_flags, struct wbint_TransID *r)
+{
+	if (ndr_flags & NDR_SCALARS) {
+		NDR_CHECK(ndr_pull_align(ndr, 8));
+		NDR_CHECK(ndr_pull_id_type(ndr, NDR_SCALARS, &r->type));
+		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->domain_index));
+		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->rid));
+		NDR_CHECK(ndr_pull_hyper(ndr, NDR_SCALARS, &r->unix_id));
+		NDR_CHECK(ndr_pull_trailer_align(ndr, 8));
+	}
+	if (ndr_flags & NDR_BUFFERS) {
+	}
+	return NDR_ERR_SUCCESS;
+}
+
+_PUBLIC_ void ndr_print_wbint_TransID(struct ndr_print *ndr, const char *name, const struct wbint_TransID *r)
+{
+	ndr_print_struct(ndr, name, "wbint_TransID");
+	if (r == NULL) { ndr_print_null(ndr); return; }
+	ndr->depth++;
+	ndr_print_id_type(ndr, "type", r->type);
+	ndr_print_uint32(ndr, "domain_index", r->domain_index);
+	ndr_print_uint32(ndr, "rid", r->rid);
+	ndr_print_hyper(ndr, "unix_id", r->unix_id);
+	ndr->depth--;
+}
+
+static enum ndr_err_code ndr_push_wbint_TransIDArray(struct ndr_push *ndr, int ndr_flags, const struct wbint_TransIDArray *r)
+{
+	uint32_t cntr_ids_0;
+	if (ndr_flags & NDR_SCALARS) {
+		NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, r->num_ids));
+		NDR_CHECK(ndr_push_align(ndr, 8));
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->num_ids));
+		for (cntr_ids_0 = 0; cntr_ids_0 < r->num_ids; cntr_ids_0++) {
+			NDR_CHECK(ndr_push_wbint_TransID(ndr, NDR_SCALARS, &r->ids[cntr_ids_0]));
+		}
+		NDR_CHECK(ndr_push_trailer_align(ndr, 8));
+	}
+	if (ndr_flags & NDR_BUFFERS) {
+	}
+	return NDR_ERR_SUCCESS;
+}
+
+static enum ndr_err_code ndr_pull_wbint_TransIDArray(struct ndr_pull *ndr, int ndr_flags, struct wbint_TransIDArray *r)
+{
+	uint32_t cntr_ids_0;
+	TALLOC_CTX *_mem_save_ids_0;
+	if (ndr_flags & NDR_SCALARS) {
+		NDR_CHECK(ndr_pull_array_size(ndr, &r->ids));
+		NDR_CHECK(ndr_pull_align(ndr, 8));
+		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->num_ids));
+		NDR_PULL_ALLOC_N(ndr, r->ids, ndr_get_array_size(ndr, &r->ids));
+		_mem_save_ids_0 = NDR_PULL_GET_MEM_CTX(ndr);
+		NDR_PULL_SET_MEM_CTX(ndr, r->ids, 0);
+		for (cntr_ids_0 = 0; cntr_ids_0 < r->num_ids; cntr_ids_0++) {
+			NDR_CHECK(ndr_pull_wbint_TransID(ndr, NDR_SCALARS, &r->ids[cntr_ids_0]));
+		}
+		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_ids_0, 0);
+		if (r->ids) {
+			NDR_CHECK(ndr_check_array_size(ndr, (void*)&r->ids, r->num_ids));
+		}
+		NDR_CHECK(ndr_pull_trailer_align(ndr, 8));
+	}
+	if (ndr_flags & NDR_BUFFERS) {
+	}
+	return NDR_ERR_SUCCESS;
+}
+
+_PUBLIC_ void ndr_print_wbint_TransIDArray(struct ndr_print *ndr, const char *name, const struct wbint_TransIDArray *r)
+{
+	uint32_t cntr_ids_0;
+	ndr_print_struct(ndr, name, "wbint_TransIDArray");
+	if (r == NULL) { ndr_print_null(ndr); return; }
+	ndr->depth++;
+	ndr_print_uint32(ndr, "num_ids", r->num_ids);
+	ndr->print(ndr, "%s: ARRAY(%d)", "ids", (int)r->num_ids);
+	ndr->depth++;
+	for (cntr_ids_0=0;cntr_ids_0<r->num_ids;cntr_ids_0++) {
+		ndr_print_wbint_TransID(ndr, "ids", &r->ids[cntr_ids_0]);
+	}
+	ndr->depth--;
+	ndr->depth--;
+}
+
 _PUBLIC_ enum ndr_err_code ndr_push_wbint_userinfo(struct ndr_push *ndr, int ndr_flags, const struct wbint_userinfo *r)
 {
 	if (ndr_flags & NDR_SCALARS) {
@@ -733,6 +834,102 @@ _PUBLIC_ void ndr_print_wbint_LookupSid(struct ndr_print *ndr, const char *name,
 	ndr->depth--;
 }
 
+static enum ndr_err_code ndr_push_wbint_LookupSids(struct ndr_push *ndr, int flags, const struct wbint_LookupSids *r)
+{
+	if (flags & NDR_IN) {
+		if (r->in.sids == NULL) {
+			return ndr_push_error(ndr, NDR_ERR_INVALID_POINTER, "NULL [ref] pointer");
+		}
+		NDR_CHECK(ndr_push_lsa_SidArray(ndr, NDR_SCALARS|NDR_BUFFERS, r->in.sids));
+	}
+	if (flags & NDR_OUT) {
+		if (r->out.domains == NULL) {
+			return ndr_push_error(ndr, NDR_ERR_INVALID_POINTER, "NULL [ref] pointer");
+		}
+		NDR_CHECK(ndr_push_lsa_RefDomainList(ndr, NDR_SCALARS|NDR_BUFFERS, r->out.domains));
+		if (r->out.names == NULL) {
+			return ndr_push_error(ndr, NDR_ERR_INVALID_POINTER, "NULL [ref] pointer");
+		}
+		NDR_CHECK(ndr_push_lsa_TransNameArray(ndr, NDR_SCALARS|NDR_BUFFERS, r->out.names));
+		NDR_CHECK(ndr_push_NTSTATUS(ndr, NDR_SCALARS, r->out.result));
+	}
+	return NDR_ERR_SUCCESS;
+}
+
+static enum ndr_err_code ndr_pull_wbint_LookupSids(struct ndr_pull *ndr, int flags, struct wbint_LookupSids *r)
+{
+	TALLOC_CTX *_mem_save_sids_0;
+	TALLOC_CTX *_mem_save_domains_0;
+	TALLOC_CTX *_mem_save_names_0;
+	if (flags & NDR_IN) {
+		ZERO_STRUCT(r->out);
+
+		if (ndr->flags & LIBNDR_FLAG_REF_ALLOC) {
+			NDR_PULL_ALLOC(ndr, r->in.sids);
+		}
+		_mem_save_sids_0 = NDR_PULL_GET_MEM_CTX(ndr);
+		NDR_PULL_SET_MEM_CTX(ndr, r->in.sids, LIBNDR_FLAG_REF_ALLOC);
+		NDR_CHECK(ndr_pull_lsa_SidArray(ndr, NDR_SCALARS|NDR_BUFFERS, r->in.sids));
+		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_sids_0, LIBNDR_FLAG_REF_ALLOC);
+		NDR_PULL_ALLOC(ndr, r->out.domains);
+		ZERO_STRUCTP(r->out.domains);
+		NDR_PULL_ALLOC(ndr, r->out.names);
+		ZERO_STRUCTP(r->out.names);
+	}
+	if (flags & NDR_OUT) {
+		if (ndr->flags & LIBNDR_FLAG_REF_ALLOC) {
+			NDR_PULL_ALLOC(ndr, r->out.domains);
+		}
+		_mem_save_domains_0 = NDR_PULL_GET_MEM_CTX(ndr);
+		NDR_PULL_SET_MEM_CTX(ndr, r->out.domains, LIBNDR_FLAG_REF_ALLOC);
+		NDR_CHECK(ndr_pull_lsa_RefDomainList(ndr, NDR_SCALARS|NDR_BUFFERS, r->out.domains));
+		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_domains_0, LIBNDR_FLAG_REF_ALLOC);
+		if (ndr->flags & LIBNDR_FLAG_REF_ALLOC) {
+			NDR_PULL_ALLOC(ndr, r->out.names);
+		}
+		_mem_save_names_0 = NDR_PULL_GET_MEM_CTX(ndr);
+		NDR_PULL_SET_MEM_CTX(ndr, r->out.names, LIBNDR_FLAG_REF_ALLOC);
+		NDR_CHECK(ndr_pull_lsa_TransNameArray(ndr, NDR_SCALARS|NDR_BUFFERS, r->out.names));
+		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_names_0, LIBNDR_FLAG_REF_ALLOC);
+		NDR_CHECK(ndr_pull_NTSTATUS(ndr, NDR_SCALARS, &r->out.result));
+	}
+	return NDR_ERR_SUCCESS;
+}
+
+_PUBLIC_ void ndr_print_wbint_LookupSids(struct ndr_print *ndr, const char *name, int flags, const struct wbint_LookupSids *r)
+{
+	ndr_print_struct(ndr, name, "wbint_LookupSids");
+	if (r == NULL) { ndr_print_null(ndr); return; }
+	ndr->depth++;
+	if (flags & NDR_SET_VALUES) {
+		ndr->flags |= LIBNDR_PRINT_SET_VALUES;
+	}
+	if (flags & NDR_IN) {
+		ndr_print_struct(ndr, "in", "wbint_LookupSids");
+		ndr->depth++;
+		ndr_print_ptr(ndr, "sids", r->in.sids);
+		ndr->depth++;
+		ndr_print_lsa_SidArray(ndr, "sids", r->in.sids);
+		ndr->depth--;
+		ndr->depth--;
+	}
+	if (flags & NDR_OUT) {
+		ndr_print_struct(ndr, "out", "wbint_LookupSids");
+		ndr->depth++;
+		ndr_print_ptr(ndr, "domains", r->out.domains);
+		ndr->depth++;
+		ndr_print_lsa_RefDomainList(ndr, "domains", r->out.domains);
+		ndr->depth--;
+		ndr_print_ptr(ndr, "names", r->out.names);
+		ndr->depth++;
+		ndr_print_lsa_TransNameArray(ndr, "names", r->out.names);
+		ndr->depth--;
+		ndr_print_NTSTATUS(ndr, "result", r->out.result);
+		ndr->depth--;
+	}
+	ndr->depth--;
+}
+
 static enum ndr_err_code ndr_push_wbint_LookupName(struct ndr_push *ndr, int flags, const struct wbint_LookupName *r)
 {
 	if (flags & NDR_IN) {
@@ -1067,6 +1264,99 @@ _PUBLIC_ void ndr_print_wbint_Sid2Gid(struct ndr_print *ndr, const char *name, i
 		ndr_print_ptr(ndr, "gid", r->out.gid);
 		ndr->depth++;
 		ndr_print_hyper(ndr, "gid", *r->out.gid);
+		ndr->depth--;
+		ndr_print_NTSTATUS(ndr, "result", r->out.result);
+		ndr->depth--;
+	}
+	ndr->depth--;
+}
+
+static enum ndr_err_code ndr_push_wbint_Sids2UnixIDs(struct ndr_push *ndr, int flags, const struct wbint_Sids2UnixIDs *r)
+{
+	if (flags & NDR_IN) {
+		if (r->in.domains == NULL) {
+			return ndr_push_error(ndr, NDR_ERR_INVALID_POINTER, "NULL [ref] pointer");
+		}
+		NDR_CHECK(ndr_push_lsa_RefDomainList(ndr, NDR_SCALARS|NDR_BUFFERS, r->in.domains));
+		if (r->in.ids == NULL) {
+			return ndr_push_error(ndr, NDR_ERR_INVALID_POINTER, "NULL [ref] pointer");
+		}
+		NDR_CHECK(ndr_push_wbint_TransIDArray(ndr, NDR_SCALARS, r->in.ids));
+	}
+	if (flags & NDR_OUT) {
+		if (r->out.ids == NULL) {
+			return ndr_push_error(ndr, NDR_ERR_INVALID_POINTER, "NULL [ref] pointer");
+		}
+		NDR_CHECK(ndr_push_wbint_TransIDArray(ndr, NDR_SCALARS, r->out.ids));
+		NDR_CHECK(ndr_push_NTSTATUS(ndr, NDR_SCALARS, r->out.result));
+	}
+	return NDR_ERR_SUCCESS;
+}
+
+static enum ndr_err_code ndr_pull_wbint_Sids2UnixIDs(struct ndr_pull *ndr, int flags, struct wbint_Sids2UnixIDs *r)
+{
+	TALLOC_CTX *_mem_save_domains_0;
+	TALLOC_CTX *_mem_save_ids_0;
+	if (flags & NDR_IN) {
+		ZERO_STRUCT(r->out);
+
+		if (ndr->flags & LIBNDR_FLAG_REF_ALLOC) {
+			NDR_PULL_ALLOC(ndr, r->in.domains);
+		}
+		_mem_save_domains_0 = NDR_PULL_GET_MEM_CTX(ndr);
+		NDR_PULL_SET_MEM_CTX(ndr, r->in.domains, LIBNDR_FLAG_REF_ALLOC);
+		NDR_CHECK(ndr_pull_lsa_RefDomainList(ndr, NDR_SCALARS|NDR_BUFFERS, r->in.domains));
+		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_domains_0, LIBNDR_FLAG_REF_ALLOC);
+		if (ndr->flags & LIBNDR_FLAG_REF_ALLOC) {
+			NDR_PULL_ALLOC(ndr, r->in.ids);
+		}
+		_mem_save_ids_0 = NDR_PULL_GET_MEM_CTX(ndr);
+		NDR_PULL_SET_MEM_CTX(ndr, r->in.ids, LIBNDR_FLAG_REF_ALLOC);
+		NDR_CHECK(ndr_pull_wbint_TransIDArray(ndr, NDR_SCALARS, r->in.ids));
+		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_ids_0, LIBNDR_FLAG_REF_ALLOC);
+		NDR_PULL_ALLOC(ndr, r->out.ids);
+		*r->out.ids = *r->in.ids;
+	}
+	if (flags & NDR_OUT) {
+		if (ndr->flags & LIBNDR_FLAG_REF_ALLOC) {
+			NDR_PULL_ALLOC(ndr, r->out.ids);
+		}
+		_mem_save_ids_0 = NDR_PULL_GET_MEM_CTX(ndr);
+		NDR_PULL_SET_MEM_CTX(ndr, r->out.ids, LIBNDR_FLAG_REF_ALLOC);
+		NDR_CHECK(ndr_pull_wbint_TransIDArray(ndr, NDR_SCALARS, r->out.ids));
+		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_ids_0, LIBNDR_FLAG_REF_ALLOC);
+		NDR_CHECK(ndr_pull_NTSTATUS(ndr, NDR_SCALARS, &r->out.result));
+	}
+	return NDR_ERR_SUCCESS;
+}
+
+_PUBLIC_ void ndr_print_wbint_Sids2UnixIDs(struct ndr_print *ndr, const char *name, int flags, const struct wbint_Sids2UnixIDs *r)
+{
+	ndr_print_struct(ndr, name, "wbint_Sids2UnixIDs");
+	if (r == NULL) { ndr_print_null(ndr); return; }
+	ndr->depth++;
+	if (flags & NDR_SET_VALUES) {
+		ndr->flags |= LIBNDR_PRINT_SET_VALUES;
+	}
+	if (flags & NDR_IN) {
+		ndr_print_struct(ndr, "in", "wbint_Sids2UnixIDs");
+		ndr->depth++;
+		ndr_print_ptr(ndr, "domains", r->in.domains);
+		ndr->depth++;
+		ndr_print_lsa_RefDomainList(ndr, "domains", r->in.domains);
+		ndr->depth--;
+		ndr_print_ptr(ndr, "ids", r->in.ids);
+		ndr->depth++;
+		ndr_print_wbint_TransIDArray(ndr, "ids", r->in.ids);
+		ndr->depth--;
+		ndr->depth--;
+	}
+	if (flags & NDR_OUT) {
+		ndr_print_struct(ndr, "out", "wbint_Sids2UnixIDs");
+		ndr->depth++;
+		ndr_print_ptr(ndr, "ids", r->out.ids);
+		ndr->depth++;
+		ndr_print_wbint_TransIDArray(ndr, "ids", r->out.ids);
 		ndr->depth--;
 		ndr_print_NTSTATUS(ndr, "result", r->out.result);
 		ndr->depth--;
@@ -2328,6 +2618,15 @@ static const struct ndr_interface_call wbint_calls[] = {
 		{ 0, NULL },
 	},
 	{
+		"wbint_LookupSids",
+		sizeof(struct wbint_LookupSids),
+		(ndr_push_flags_fn_t) ndr_push_wbint_LookupSids,
+		(ndr_pull_flags_fn_t) ndr_pull_wbint_LookupSids,
+		(ndr_print_function_t) ndr_print_wbint_LookupSids,
+		{ 0, NULL },
+		{ 0, NULL },
+	},
+	{
 		"wbint_LookupName",
 		sizeof(struct wbint_LookupName),
 		(ndr_push_flags_fn_t) ndr_push_wbint_LookupName,
@@ -2351,6 +2650,15 @@ static const struct ndr_interface_call wbint_calls[] = {
 		(ndr_push_flags_fn_t) ndr_push_wbint_Sid2Gid,
 		(ndr_pull_flags_fn_t) ndr_pull_wbint_Sid2Gid,
 		(ndr_print_function_t) ndr_print_wbint_Sid2Gid,
+		{ 0, NULL },
+		{ 0, NULL },
+	},
+	{
+		"wbint_Sids2UnixIDs",
+		sizeof(struct wbint_Sids2UnixIDs),
+		(ndr_push_flags_fn_t) ndr_push_wbint_Sids2UnixIDs,
+		(ndr_pull_flags_fn_t) ndr_pull_wbint_Sids2UnixIDs,
+		(ndr_print_function_t) ndr_print_wbint_Sids2UnixIDs,
 		{ 0, NULL },
 		{ 0, NULL },
 	},
@@ -2527,7 +2835,7 @@ const struct ndr_interface_table ndr_table_wbint = {
 		NDR_WBINT_VERSION
 	},
 	.helpstring	= NDR_WBINT_HELPSTRING,
-	.num_calls	= 21,
+	.num_calls	= 23,
 	.calls		= wbint_calls,
 	.endpoints	= &wbint_endpoints,
 	.authservices	= &wbint_authservices

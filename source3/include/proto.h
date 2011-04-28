@@ -1080,7 +1080,6 @@ char *sanitize_username(TALLOC_CTX *mem_ctx, const char *username);
 void gfree_case_tables(void);
 void load_case_tables(void);
 size_t dos_PutUniCode(char *dst,const char *src, size_t len, bool null_terminate);
-char *skip_unibuf(char *src, size_t len);
 int rpcstr_push(void *dest, const char *src, size_t dest_len, int flags);
 int rpcstr_push_talloc(TALLOC_CTX *ctx, smb_ucs2_t **dest, const char *src);
 bool isvalid83_w(smb_ucs2_t c);
@@ -2720,11 +2719,6 @@ void set_server_role(void);
 uint32 get_int_param( const char* param );
 char* get_string_param( const char* param );
 
-/* The following definitions come from profile/profile.c  */
-
-void set_profile_level(int level, struct server_id src);
-bool profile_setup(struct messaging_context *msg_ctx, bool rdonly);
-
 /* The following definitions come from librpc/rpc/rpc_common.c  */
 struct ndr_interface_table;
 bool smb_register_ndr_interface(const struct ndr_interface_table *interface);
@@ -2932,7 +2926,7 @@ NTSTATUS smbsock_connect_recv(struct tevent_req *req, int *sock,
 NTSTATUS smbsock_connect(const struct sockaddr_storage *addr, uint16_t port,
 			 const char *called_name, int called_type,
 			 const char *calling_name, int calling_type,
-			 int *pfd, uint16_t *ret_port);
+			 int *pfd, uint16_t *ret_port, int sec_timeout);
 
 struct tevent_req *smbsock_any_connect_send(TALLOC_CTX *mem_ctx,
 					    struct tevent_context *ev,
@@ -2951,6 +2945,7 @@ NTSTATUS smbsock_any_connect(const struct sockaddr_storage *addrs,
 			     int *calling_types,
 			     size_t num_addrs,
 			     uint16_t port,
+			     int sec_timeout,
 			     int *pfd, size_t *chosen_index,
 			     uint16_t *chosen_port);
 

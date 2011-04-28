@@ -438,6 +438,227 @@ NTSTATUS dcerpc_wbint_LookupSid(struct dcerpc_binding_handle *h,
 	return NT_STATUS_OK;
 }
 
+struct dcerpc_wbint_LookupSids_r_state {
+	TALLOC_CTX *out_mem_ctx;
+};
+
+static void dcerpc_wbint_LookupSids_r_done(struct tevent_req *subreq);
+
+struct tevent_req *dcerpc_wbint_LookupSids_r_send(TALLOC_CTX *mem_ctx,
+	struct tevent_context *ev,
+	struct dcerpc_binding_handle *h,
+	struct wbint_LookupSids *r)
+{
+	struct tevent_req *req;
+	struct dcerpc_wbint_LookupSids_r_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct dcerpc_wbint_LookupSids_r_state);
+	if (req == NULL) {
+		return NULL;
+	}
+
+	state->out_mem_ctx = talloc_new(state);
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	subreq = dcerpc_binding_handle_call_send(state, ev, h,
+			NULL, &ndr_table_wbint,
+			NDR_WBINT_LOOKUPSIDS, state->out_mem_ctx, r);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, dcerpc_wbint_LookupSids_r_done, req);
+
+	return req;
+}
+
+static void dcerpc_wbint_LookupSids_r_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req =
+		tevent_req_callback_data(subreq,
+		struct tevent_req);
+	NTSTATUS status;
+
+	status = dcerpc_binding_handle_call_recv(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	tevent_req_done(req);
+}
+
+NTSTATUS dcerpc_wbint_LookupSids_r_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx)
+{
+	struct dcerpc_wbint_LookupSids_r_state *state =
+		tevent_req_data(req,
+		struct dcerpc_wbint_LookupSids_r_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
+NTSTATUS dcerpc_wbint_LookupSids_r(struct dcerpc_binding_handle *h, TALLOC_CTX *mem_ctx, struct wbint_LookupSids *r)
+{
+	NTSTATUS status;
+
+	status = dcerpc_binding_handle_call(h,
+			NULL, &ndr_table_wbint,
+			NDR_WBINT_LOOKUPSIDS, mem_ctx, r);
+
+	return status;
+}
+
+struct dcerpc_wbint_LookupSids_state {
+	struct wbint_LookupSids orig;
+	struct wbint_LookupSids tmp;
+	TALLOC_CTX *out_mem_ctx;
+};
+
+static void dcerpc_wbint_LookupSids_done(struct tevent_req *subreq);
+
+struct tevent_req *dcerpc_wbint_LookupSids_send(TALLOC_CTX *mem_ctx,
+						struct tevent_context *ev,
+						struct dcerpc_binding_handle *h,
+						struct lsa_SidArray *_sids /* [in] [ref] */,
+						struct lsa_RefDomainList *_domains /* [out] [ref] */,
+						struct lsa_TransNameArray *_names /* [out] [ref] */)
+{
+	struct tevent_req *req;
+	struct dcerpc_wbint_LookupSids_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct dcerpc_wbint_LookupSids_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+
+	/* In parameters */
+	state->orig.in.sids = _sids;
+
+	/* Out parameters */
+	state->orig.out.domains = _domains;
+	state->orig.out.names = _names;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "dcerpc_wbint_LookupSids_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = dcerpc_wbint_LookupSids_r_send(state, ev, h, &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, dcerpc_wbint_LookupSids_done, req);
+	return req;
+}
+
+static void dcerpc_wbint_LookupSids_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct dcerpc_wbint_LookupSids_state *state = tevent_req_data(
+		req, struct dcerpc_wbint_LookupSids_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = dcerpc_wbint_LookupSids_r_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.domains = *state->tmp.out.domains;
+	*state->orig.out.names = *state->tmp.out.names;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS dcerpc_wbint_LookupSids_recv(struct tevent_req *req,
+				      TALLOC_CTX *mem_ctx,
+				      NTSTATUS *result)
+{
+	struct dcerpc_wbint_LookupSids_state *state = tevent_req_data(
+		req, struct dcerpc_wbint_LookupSids_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possible out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
+NTSTATUS dcerpc_wbint_LookupSids(struct dcerpc_binding_handle *h,
+				 TALLOC_CTX *mem_ctx,
+				 struct lsa_SidArray *_sids /* [in] [ref] */,
+				 struct lsa_RefDomainList *_domains /* [out] [ref] */,
+				 struct lsa_TransNameArray *_names /* [out] [ref] */,
+				 NTSTATUS *result)
+{
+	struct wbint_LookupSids r;
+	NTSTATUS status;
+
+	/* In parameters */
+	r.in.sids = _sids;
+
+	status = dcerpc_wbint_LookupSids_r(h, mem_ctx, &r);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	/* Return variables */
+	*_domains = *r.out.domains;
+	*_names = *r.out.names;
+
+	/* Return result */
+	*result = r.out.result;
+
+	return NT_STATUS_OK;
+}
+
 struct dcerpc_wbint_LookupName_r_state {
 	TALLOC_CTX *out_mem_ctx;
 };
@@ -1100,6 +1321,224 @@ NTSTATUS dcerpc_wbint_Sid2Gid(struct dcerpc_binding_handle *h,
 
 	/* Return variables */
 	*_gid = *r.out.gid;
+
+	/* Return result */
+	*result = r.out.result;
+
+	return NT_STATUS_OK;
+}
+
+struct dcerpc_wbint_Sids2UnixIDs_r_state {
+	TALLOC_CTX *out_mem_ctx;
+};
+
+static void dcerpc_wbint_Sids2UnixIDs_r_done(struct tevent_req *subreq);
+
+struct tevent_req *dcerpc_wbint_Sids2UnixIDs_r_send(TALLOC_CTX *mem_ctx,
+	struct tevent_context *ev,
+	struct dcerpc_binding_handle *h,
+	struct wbint_Sids2UnixIDs *r)
+{
+	struct tevent_req *req;
+	struct dcerpc_wbint_Sids2UnixIDs_r_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct dcerpc_wbint_Sids2UnixIDs_r_state);
+	if (req == NULL) {
+		return NULL;
+	}
+
+	state->out_mem_ctx = talloc_new(state);
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	subreq = dcerpc_binding_handle_call_send(state, ev, h,
+			NULL, &ndr_table_wbint,
+			NDR_WBINT_SIDS2UNIXIDS, state->out_mem_ctx, r);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, dcerpc_wbint_Sids2UnixIDs_r_done, req);
+
+	return req;
+}
+
+static void dcerpc_wbint_Sids2UnixIDs_r_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req =
+		tevent_req_callback_data(subreq,
+		struct tevent_req);
+	NTSTATUS status;
+
+	status = dcerpc_binding_handle_call_recv(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	tevent_req_done(req);
+}
+
+NTSTATUS dcerpc_wbint_Sids2UnixIDs_r_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx)
+{
+	struct dcerpc_wbint_Sids2UnixIDs_r_state *state =
+		tevent_req_data(req,
+		struct dcerpc_wbint_Sids2UnixIDs_r_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
+NTSTATUS dcerpc_wbint_Sids2UnixIDs_r(struct dcerpc_binding_handle *h, TALLOC_CTX *mem_ctx, struct wbint_Sids2UnixIDs *r)
+{
+	NTSTATUS status;
+
+	status = dcerpc_binding_handle_call(h,
+			NULL, &ndr_table_wbint,
+			NDR_WBINT_SIDS2UNIXIDS, mem_ctx, r);
+
+	return status;
+}
+
+struct dcerpc_wbint_Sids2UnixIDs_state {
+	struct wbint_Sids2UnixIDs orig;
+	struct wbint_Sids2UnixIDs tmp;
+	TALLOC_CTX *out_mem_ctx;
+};
+
+static void dcerpc_wbint_Sids2UnixIDs_done(struct tevent_req *subreq);
+
+struct tevent_req *dcerpc_wbint_Sids2UnixIDs_send(TALLOC_CTX *mem_ctx,
+						  struct tevent_context *ev,
+						  struct dcerpc_binding_handle *h,
+						  struct lsa_RefDomainList *_domains /* [in] [ref] */,
+						  struct wbint_TransIDArray *_ids /* [in,out] [ref] */)
+{
+	struct tevent_req *req;
+	struct dcerpc_wbint_Sids2UnixIDs_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct dcerpc_wbint_Sids2UnixIDs_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+
+	/* In parameters */
+	state->orig.in.domains = _domains;
+	state->orig.in.ids = _ids;
+
+	/* Out parameters */
+	state->orig.out.ids = _ids;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "dcerpc_wbint_Sids2UnixIDs_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = dcerpc_wbint_Sids2UnixIDs_r_send(state, ev, h, &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, dcerpc_wbint_Sids2UnixIDs_done, req);
+	return req;
+}
+
+static void dcerpc_wbint_Sids2UnixIDs_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct dcerpc_wbint_Sids2UnixIDs_state *state = tevent_req_data(
+		req, struct dcerpc_wbint_Sids2UnixIDs_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = dcerpc_wbint_Sids2UnixIDs_r_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	*state->orig.out.ids = *state->tmp.out.ids;
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS dcerpc_wbint_Sids2UnixIDs_recv(struct tevent_req *req,
+					TALLOC_CTX *mem_ctx,
+					NTSTATUS *result)
+{
+	struct dcerpc_wbint_Sids2UnixIDs_state *state = tevent_req_data(
+		req, struct dcerpc_wbint_Sids2UnixIDs_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possible out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
+NTSTATUS dcerpc_wbint_Sids2UnixIDs(struct dcerpc_binding_handle *h,
+				   TALLOC_CTX *mem_ctx,
+				   struct lsa_RefDomainList *_domains /* [in] [ref] */,
+				   struct wbint_TransIDArray *_ids /* [in,out] [ref] */,
+				   NTSTATUS *result)
+{
+	struct wbint_Sids2UnixIDs r;
+	NTSTATUS status;
+
+	/* In parameters */
+	r.in.domains = _domains;
+	r.in.ids = _ids;
+
+	status = dcerpc_wbint_Sids2UnixIDs_r(h, mem_ctx, &r);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	/* Return variables */
+	*_ids = *r.out.ids;
 
 	/* Return result */
 	*result = r.out.result;

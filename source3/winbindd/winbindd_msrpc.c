@@ -1057,14 +1057,15 @@ static NTSTATUS msrpc_password_policy(struct winbindd_domain *domain,
 	return status;
 }
 
-typedef NTSTATUS (*lookup_sids_fn_t)(struct rpc_pipe_client *cli,
+typedef NTSTATUS (*lookup_sids_fn_t)(struct dcerpc_binding_handle *h,
 				     TALLOC_CTX *mem_ctx,
 				     struct policy_handle *pol,
 				     int num_sids,
 				     const struct dom_sid *sids,
 				     char ***pdomains,
 				     char ***pnames,
-				     enum lsa_SidType **ptypes);
+				     enum lsa_SidType **ptypes,
+				     NTSTATUS *result);
 
 NTSTATUS winbindd_lookup_sids(TALLOC_CTX *mem_ctx,
 			      struct winbindd_domain *domain,
@@ -1075,15 +1076,17 @@ NTSTATUS winbindd_lookup_sids(TALLOC_CTX *mem_ctx,
 			      enum lsa_SidType **types)
 {
 	NTSTATUS status;
+	NTSTATUS result;
 	struct rpc_pipe_client *cli = NULL;
+	struct dcerpc_binding_handle *b = NULL;
 	struct policy_handle lsa_policy;
 	unsigned int orig_timeout;
-	lookup_sids_fn_t lookup_sids_fn = rpccli_lsa_lookup_sids;
+	lookup_sids_fn_t lookup_sids_fn = dcerpc_lsa_lookup_sids;
 
 	if (domain->can_do_ncacn_ip_tcp) {
 		status = cm_connect_lsa_tcp(domain, mem_ctx, &cli);
 		if (NT_STATUS_IS_OK(status)) {
-			lookup_sids_fn = rpccli_lsa_lookup_sids3;
+			lookup_sids_fn = dcerpc_lsa_lookup_sids3;
 			goto lookup;
 		}
 		domain->can_do_ncacn_ip_tcp = false;
@@ -1095,27 +1098,30 @@ NTSTATUS winbindd_lookup_sids(TALLOC_CTX *mem_ctx,
 	}
 
  lookup:
+	b = cli->binding_handle;
+
 	/*
 	 * This call can take a long time
 	 * allow the server to time out.
 	 * 35 seconds should do it.
 	 */
-	orig_timeout = rpccli_set_timeout(cli, 35000);
+	orig_timeout = dcerpc_binding_handle_set_timeout(b, 35000);
 
-	status = lookup_sids_fn(cli,
+	status = lookup_sids_fn(b,
 				mem_ctx,
 				&lsa_policy,
 				num_sids,
 				sids,
 				domains,
 				names,
-				types);
+				types,
+				&result);
 
 	/* And restore our original timeout. */
-	rpccli_set_timeout(cli, orig_timeout);
+	dcerpc_binding_handle_set_timeout(b, orig_timeout);
 
-	if (NT_STATUS_V(status) == DCERPC_FAULT_ACCESS_DENIED ||
-	    NT_STATUS_V(status) == DCERPC_FAULT_SEC_PKG_ERROR) {
+	if (NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED) ||
+	    NT_STATUS_EQUAL(status, NT_STATUS_RPC_SEC_PKG_ERROR)) {
 		/*
 		 * This can happen if the schannel key is not
 		 * valid anymore, we need to invalidate the
@@ -1130,18 +1136,23 @@ NTSTATUS winbindd_lookup_sids(TALLOC_CTX *mem_ctx,
 		return status;
 	}
 
-	return status;
+	if (!NT_STATUS_IS_OK(result)) {
+		return result;
+	}
+
+	return NT_STATUS_OK;
 }
 
-typedef NTSTATUS (*lookup_names_fn_t)(struct rpc_pipe_client *cli,
+typedef NTSTATUS (*lookup_names_fn_t)(struct dcerpc_binding_handle *h,
 				      TALLOC_CTX *mem_ctx,
 				      struct policy_handle *pol,
-				      int num_names,
+				      uint32_t num_names,
 				      const char **names,
 				      const char ***dom_names,
-				      int level,
+				      enum lsa_LookupNamesLevel level,
 				      struct dom_sid **sids,
-				      enum lsa_SidType **types);
+				      enum lsa_SidType **types,
+				      NTSTATUS *result);
 
 NTSTATUS winbindd_lookup_names(TALLOC_CTX *mem_ctx,
 			       struct winbindd_domain *domain,
@@ -1152,15 +1163,17 @@ NTSTATUS winbindd_lookup_names(TALLOC_CTX *mem_ctx,
 			       enum lsa_SidType **types)
 {
 	NTSTATUS status;
+	NTSTATUS result;
 	struct rpc_pipe_client *cli = NULL;
+	struct dcerpc_binding_handle *b = NULL;
 	struct policy_handle lsa_policy;
 	unsigned int orig_timeout = 0;
-	lookup_names_fn_t lookup_names_fn = rpccli_lsa_lookup_names;
+	lookup_names_fn_t lookup_names_fn = dcerpc_lsa_lookup_names;
 
 	if (domain->can_do_ncacn_ip_tcp) {
 		status = cm_connect_lsa_tcp(domain, mem_ctx, &cli);
 		if (NT_STATUS_IS_OK(status)) {
-			lookup_names_fn = rpccli_lsa_lookup_names4;
+			lookup_names_fn = dcerpc_lsa_lookup_names4;
 			goto lookup;
 		}
 		domain->can_do_ncacn_ip_tcp = false;
@@ -1172,15 +1185,16 @@ NTSTATUS winbindd_lookup_names(TALLOC_CTX *mem_ctx,
 	}
 
  lookup:
+	b = cli->binding_handle;
 
 	/*
 	 * This call can take a long time
 	 * allow the server to time out.
 	 * 35 seconds should do it.
 	 */
-	orig_timeout = rpccli_set_timeout(cli, 35000);
+	orig_timeout = dcerpc_binding_handle_set_timeout(b, 35000);
 
-	status = lookup_names_fn(cli,
+	status = lookup_names_fn(b,
 				 mem_ctx,
 				 &lsa_policy,
 				 num_names,
@@ -1188,13 +1202,14 @@ NTSTATUS winbindd_lookup_names(TALLOC_CTX *mem_ctx,
 				 domains,
 				 1,
 				 sids,
-				 types);
+				 types,
+				 &result);
 
 	/* And restore our original timeout. */
-	rpccli_set_timeout(cli, orig_timeout);
+	dcerpc_binding_handle_set_timeout(b, orig_timeout);
 
-	if (NT_STATUS_V(status) == DCERPC_FAULT_ACCESS_DENIED ||
-	    NT_STATUS_V(status) == DCERPC_FAULT_SEC_PKG_ERROR) {
+	if (NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED) ||
+	    NT_STATUS_EQUAL(status, NT_STATUS_RPC_SEC_PKG_ERROR)) {
 		/*
 		 * This can happen if the schannel key is not
 		 * valid anymore, we need to invalidate the
@@ -1209,7 +1224,11 @@ NTSTATUS winbindd_lookup_names(TALLOC_CTX *mem_ctx,
 		return status;
 	}
 
-	return status;
+	if (!NT_STATUS_IS_OK(result)) {
+		return result;
+	}
+
+	return NT_STATUS_OK;
 }
 
 /* the rpc backend methods are exposed via this structure */

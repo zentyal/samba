@@ -133,15 +133,8 @@
 /* Leave at 28 - not yet released. Rename posix_fallocate to fallocate
 		to split out the two possible uses. JRA. */
 /* Leave at 28 - not yet released. Add fdopendir. JRA. */
+/* Leave at 28 - not yet released. Rename open function to open_fn. - gd */
 #define SMB_VFS_INTERFACE_VERSION 28
-
-
-/* to bug old modules which are trying to compile with the old functions */
-#define vfs_init __ERROR_please_port_this_module_to_SMB_VFS_INTERFACE_VERSION_8_donot_use_vfs_init_anymore(void) { __ERROR_please_port_this_module_to_SMB_VFS_INTERFACE_VERSION_8_donot_use_vfs_init_anymore };
-#define lp_parm_string __ERROR_please_port_lp_parm_string_to_lp_parm_const_string_or_lp_parm_talloc_string { \
-  __ERROR_please_port_lp_parm_string_to_lp_parm_const_string_or_lp_parm_talloc_string };
-#define lp_vfs_options __ERROR_please_donot_use_lp_vfs_options_anymore_use_lp_parm_xxxx_functions_instead { \
-  __ERROR_please_donot_use_lp_vfs_options_anymore_use_lp_parm_xxxx_functions_instead };
 
 /*
     All intercepted VFS operations must be declared as static functions inside module source
@@ -214,9 +207,9 @@ struct vfs_fn_pointers {
 
 	/* File operations */
 
-	int (*open)(struct vfs_handle_struct *handle,
-		    struct smb_filename *smb_fname, files_struct *fsp,
-		    int flags, mode_t mode);
+	int (*open_fn)(struct vfs_handle_struct *handle,
+		       struct smb_filename *smb_fname, files_struct *fsp,
+		       int flags, mode_t mode);
 	NTSTATUS (*create_file)(struct vfs_handle_struct *handle,
 				struct smb_request *req,
 				uint16_t root_dir_fid,

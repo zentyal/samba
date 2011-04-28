@@ -2,12 +2,12 @@
 .\"     Title: net
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 04/01/2011
+.\"      Date: 04/26/2011
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "NET" "8" "04/01/2011" "Samba 3\&.6" "System Administration tools"
+.TH "NET" "8" "04/26/2011" "Samba 3\&.6" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -736,6 +736,68 @@ Delete a mapping sid <\-> gid or sid <\-> uid from the IDMAP database\&. The map
 Use "smbcontrol all idmap \&.\&.\&." to notify running smbd instances\&. See the
 \fBsmbcontrol\fR(1)
 manpage for details\&.
+.SS "IDMAP CHECK [\-v] [\-r] [\-a] [\-T] [\-f] [\-l] [\-\-db=<DB>]"
+.PP
+Check and repair the IDMAP database\&. If no option is given a read only check of the database is done\&. Among others an interactive or automatic repair mode may be chosen with one of the following options:
+.PP
+\-r|\-\-repair
+.RS 4
+Interactive repair mode, ask a lot of questions\&.
+.RE
+.PP
+\-a|\-\-auto
+.RS 4
+Noninteractive repair mode, use default answers\&.
+.RE
+.PP
+\-v|\-\-verbose
+.RS 4
+Produce more output\&.
+.RE
+.PP
+\-f|\-\-force
+.RS 4
+Try to apply changes, even if they do not apply cleanly\&.
+.RE
+.PP
+\-T|\-\-test
+.RS 4
+Dry run, show what changes would be made but don\'t touch anything\&.
+.RE
+.PP
+\-l|\-\-lock
+.RS 4
+Lock the database while doing the check\&.
+.RE
+.PP
+\-\-db <DB>
+.RS 4
+Check the specified database\&.
+.RE
+.PP
+.RS 4
+.RE
+It reports about the finding of the following errors:
+.PP
+Missing reverse mapping:
+.RS 4
+A record with mapping A\->B where there is no B\->A\&. Default action in repair mode is to "fix" this by adding the reverse mapping\&.
+.RE
+.PP
+Invalid mapping:
+.RS 4
+A record with mapping A\->B where B\->C\&. Default action is to "delete" this record\&.
+.RE
+.PP
+Missing or invalid HWM:
+.RS 4
+A high water mark is not at least equal to the largest ID in the database\&. Default action is to "fix" this by setting it to the largest ID found +1\&.
+.RE
+.PP
+Invalid record:
+.RS 4
+Something we failed to parse\&. Default action is to "edit" it in interactive and "delete" it in automatic mode\&.
+.RE
 .SS "USERSHARE"
 .PP
 Starting with version 3\&.0\&.23, a Samba server now supports the ability for non\-root users to add user defined shares to be exported using the "net usershare" commands\&.

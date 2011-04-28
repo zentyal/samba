@@ -214,6 +214,17 @@ void change_file_owner_to_parent(connection_struct *conn,
 			 "directory %s. Error was %s\n",
 			 smb_fname_str_dbg(smb_fname_parent),
 			 strerror(errno)));
+		TALLOC_FREE(smb_fname_parent);
+		return;
+	}
+
+	if (smb_fname_parent->st.st_ex_uid == fsp->fsp_name->st.st_ex_uid) {
+		/* Already this uid - no need to change. */
+		DEBUG(10,("change_file_owner_to_parent: file %s "
+			"is already owned by uid %d\n",
+			fsp_str_dbg(fsp),
+			(int)fsp->fsp_name->st.st_ex_uid ));
+		TALLOC_FREE(smb_fname_parent);
 		return;
 	}
 
@@ -314,8 +325,18 @@ NTSTATUS change_dir_owner_to_parent(connection_struct *conn,
 		goto chdir;
 	}
 
+	if (smb_fname_parent->st.st_ex_uid == smb_fname_cwd->st.st_ex_uid) {
+		/* Already this uid - no need to change. */
+		DEBUG(10,("change_dir_owner_to_parent: directory %s "
+			"is already owned by uid %d\n",
+			fname,
+			(int)smb_fname_cwd->st.st_ex_uid ));
+		status = NT_STATUS_OK;
+		goto chdir;
+	}
+
 	become_root();
-	ret = SMB_VFS_CHOWN(conn, ".", smb_fname_parent->st.st_ex_uid,
+	ret = SMB_VFS_LCHOWN(conn, ".", smb_fname_parent->st.st_ex_uid,
 			    (gid_t)-1);
 	unbecome_root();
 	if (ret == -1) {
@@ -2543,7 +2564,7 @@ static NTSTATUS mkdir_internal(connection_struct *conn,
  Ensure we didn't get symlink raced on opening a directory.
 ****************************************************************************/
 
-static bool check_same_stat(const SMB_STRUCT_STAT *sbuf1,
+bool check_same_stat(const SMB_STRUCT_STAT *sbuf1,
 			const SMB_STRUCT_STAT *sbuf2)
 {
 	if (sbuf1->st_ex_uid != sbuf2->st_ex_uid ||

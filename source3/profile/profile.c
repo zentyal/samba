@@ -20,7 +20,10 @@
 */
 
 #include "includes.h"
+#include "system/shmem.h"
+#include "system/filesys.h"
 #include "messages.h"
+#include "smbprofile.h"
 
 #ifdef WITH_PROFILE
 #define IPC_PERMS ((S_IRUSR | S_IWUSR) | S_IRGRP | S_IROTH)

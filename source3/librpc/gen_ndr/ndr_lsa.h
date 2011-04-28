@@ -236,9 +236,15 @@ enum ndr_err_code ndr_pull_lsa_SidType(struct ndr_pull *ndr, int ndr_flags, enum
 void ndr_print_lsa_SidType(struct ndr_print *ndr, const char *name, enum lsa_SidType r);
 void ndr_print_lsa_TranslatedSid(struct ndr_print *ndr, const char *name, const struct lsa_TranslatedSid *r);
 void ndr_print_lsa_TransSidArray(struct ndr_print *ndr, const char *name, const struct lsa_TransSidArray *r);
+enum ndr_err_code ndr_push_lsa_RefDomainList(struct ndr_push *ndr, int ndr_flags, const struct lsa_RefDomainList *r);
+enum ndr_err_code ndr_pull_lsa_RefDomainList(struct ndr_pull *ndr, int ndr_flags, struct lsa_RefDomainList *r);
 void ndr_print_lsa_RefDomainList(struct ndr_print *ndr, const char *name, const struct lsa_RefDomainList *r);
+enum ndr_err_code ndr_push_lsa_LookupNamesLevel(struct ndr_push *ndr, int ndr_flags, enum lsa_LookupNamesLevel r);
+enum ndr_err_code ndr_pull_lsa_LookupNamesLevel(struct ndr_pull *ndr, int ndr_flags, enum lsa_LookupNamesLevel *r);
 void ndr_print_lsa_LookupNamesLevel(struct ndr_print *ndr, const char *name, enum lsa_LookupNamesLevel r);
 void ndr_print_lsa_TranslatedName(struct ndr_print *ndr, const char *name, const struct lsa_TranslatedName *r);
+enum ndr_err_code ndr_push_lsa_TransNameArray(struct ndr_push *ndr, int ndr_flags, const struct lsa_TransNameArray *r);
+enum ndr_err_code ndr_pull_lsa_TransNameArray(struct ndr_pull *ndr, int ndr_flags, struct lsa_TransNameArray *r);
 void ndr_print_lsa_TransNameArray(struct ndr_print *ndr, const char *name, const struct lsa_TransNameArray *r);
 void ndr_print_lsa_LUIDAttribute(struct ndr_print *ndr, const char *name, const struct lsa_LUIDAttribute *r);
 void ndr_print_lsa_PrivilegeSet(struct ndr_print *ndr, const char *name, const struct lsa_PrivilegeSet *r);

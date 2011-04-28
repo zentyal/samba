@@ -469,11 +469,7 @@ static NTSTATUS cli_pipe_validate_current_pdu(TALLOC_CTX *mem_ctx,
 			  pkt->u.fault.status),
 			  rpccli_pipe_txt(talloc_tos(), cli)));
 
-		if (NT_STATUS_IS_OK(NT_STATUS(pkt->u.fault.status))) {
-			return NT_STATUS_UNSUCCESSFUL;
-		} else {
-			return NT_STATUS(pkt->u.fault.status);
-		}
+		return dcerpc_fault_to_nt_status(pkt->u.fault.status);
 
 	default:
 		DEBUG(0, (__location__ "Unknown packet type %u received "
@@ -2459,7 +2455,7 @@ static NTSTATUS rpc_pipe_open_tcp_port(TALLOC_CTX *mem_ctx, const char *host,
 		goto fail;
 	}
 
-	status = open_socket_out(&addr, port, 60, &fd);
+	status = open_socket_out(&addr, port, 60*1000, &fd);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto fail;
 	}
@@ -2691,7 +2687,7 @@ NTSTATUS rpc_pipe_open_ncalrpc(TALLOC_CTX *mem_ctx, const char *socket_path,
 
 	ZERO_STRUCT(addr);
 	addr.sun_family = AF_UNIX;
-	strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path));
+	strlcpy(addr.sun_path, socket_path, sizeof(addr.sun_path));
 
 	if (sys_connect(fd, (struct sockaddr *)(void *)&addr) == -1) {
 		DEBUG(0, ("connect(%s) failed: %s\n", socket_path,

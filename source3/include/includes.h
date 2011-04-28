@@ -308,10 +308,10 @@ typedef sig_atomic_t volatile SIG_ATOMIC_T;
 #endif
 
 #ifdef LARGE_SMB_INO_T
-#define SINO_T_VAL(p, ofs, v) (SIVAL((p),(ofs),(v)&0xFFFFFFFF), SIVAL((p),(ofs)+4,(v)>>32))
-#define INO_T_VAL(p, ofs) ((SMB_INO_T)(((uint64_t)(IVAL(p,ofs)))| (((uint64_t)(IVAL(p,(ofs)+4))) << 32)))
+#define SINO_T_VAL(p, ofs, v) SBVAL(p, ofs, v)
+#define INO_T_VAL(p, ofs) ((SMB_INO_T)BVAL(p, ofs))
 #else 
-#define SINO_T_VAL(p, ofs, v) (SIVAL(p,ofs,v),SIVAL(p,(ofs)+4,0))
+#define SINO_T_VAL(p, ofs, v) SBVAL(p, ofs, ((uint64_t)(v)) & UINT32_MAX)
 #define INO_T_VAL(p, ofs) ((SMB_INO_T)(IVAL((p),(ofs))))
 #endif
 
@@ -323,11 +323,10 @@ typedef sig_atomic_t volatile SIG_ATOMIC_T;
 #  endif
 #endif
 
-#define SBIG_UINT(p, ofs, v) (SIVAL(p,ofs,(v)&0xFFFFFFFF), SIVAL(p,(ofs)+4,(v)>>32))
-#define BIG_UINT(p, ofs) ((((uint64_t) IVAL(p,(ofs)+4))<<32)|IVAL(p,ofs))
-#define IVAL2_TO_SMB_BIG_UINT(buf,off) ( (((uint64_t)(IVAL((buf),(off)))) & ((uint64_t)0xFFFFFFFF)) | \
-		(( ((uint64_t)(IVAL((buf),(off+4)))) & ((uint64_t)0xFFFFFFFF) ) << 32 ) )
-
+/* TODO: remove this macros */
+#define SBIG_UINT(p, ofs, v) SBVAL(p, ofs, v)
+#define BIG_UINT(p, ofs) BVAL(p, ofs)
+#define IVAL2_TO_SMB_BIG_UINT(p, ofs) BVAL(p, ofs)
 
 /* this should really be a 64 bit type if possible */
 typedef uint64_t br_off;
@@ -515,10 +514,10 @@ typedef char fstring[FSTRING_LEN];
 #include "../lib/util/attr.h"
 #include "../lib/util/tsort.h"
 #include "../lib/util/dlinklist.h"
-#include "tdb.h"
+#include <tdb.h>
 #include "util_tdb.h"
 
-#include "talloc.h"
+#include <talloc.h>
 
 #include "event.h"
 #include "../lib/util/tevent_unix.h"
@@ -527,18 +526,18 @@ typedef char fstring[FSTRING_LEN];
 
 #include "../lib/util/data_blob.h"
 #include "../lib/util/time.h"
+#include "../lib/util/debug.h"
+#include "../lib/util/debug_s3.h"
 
 #include "libads/ads_status.h"
 #include "../libcli/util/error.h"
 #include "../lib/util/charset/charset.h"
 #include "dynconfig.h"
-#include "debugparse.h"
 #include "locking.h"
 #include "smb_perfcount.h"
 #include "smb.h"
 #include "../lib/util/byteorder.h"
 
-#include "librpc/rpc/dcerpc.h"
 #include "client.h"
 
 #include "module.h"
@@ -562,35 +561,10 @@ enum flush_reason_enum {
     /* NUM_FLUSH_REASONS must remain the last value in the enumeration. */
     NUM_FLUSH_REASONS};
 
-#include "modules/nfs4_acls.h"
-
 /***** prototypes *****/
 #ifndef NO_PROTO_H
 #include "proto.h"
 #endif
-
-#if defined(HAVE_POSIX_ACLS)
-#include "modules/vfs_posixacl.h"
-#endif
-
-#if defined(HAVE_TRU64_ACLS)
-#include "modules/vfs_tru64acl.h"
-#endif
-
-#if defined(HAVE_SOLARIS_ACLS) || defined(HAVE_UNIXWARE_ACLS)
-#include "modules/vfs_solarisacl.h"
-#endif
-
-#if defined(HAVE_HPUX_ACLS)
-#include "modules/vfs_hpuxacl.h"
-#endif
-
-#if defined(HAVE_IRIX_ACLS)
-#include "modules/vfs_irixacl.h"
-#endif
-
-/* We need this after proto.h to reference GetTimeOfDay(). */
-#include "smbprofile.h"
 
 /* String routines */
 
@@ -603,10 +577,6 @@ enum flush_reason_enum {
 
 #ifndef SIGRTMIN
 #define SIGRTMIN NSIG
-#endif
-
-#ifndef MAP_FILE
-#define MAP_FILE 0
 #endif
 
 #if defined(HAVE_PUTPRPWNAM) && defined(AUTH_CLEARTEXT_SEG_CHARS)
@@ -695,10 +665,6 @@ char *talloc_asprintf_strupper_m(TALLOC_CTX *t, const char *fmt, ...) PRINTF_ATT
 
 #ifndef XATTR_REPLACE
 #define XATTR_REPLACE 0x2       /* set value, fail if attr does not exist */
-#endif
-
-#if defined(HAVE_LINUX_READAHEAD) && ! defined(HAVE_READAHEAD_DECL)
-ssize_t readahead(int fd, off64_t offset, size_t count);
 #endif
 
 #ifdef TRUE

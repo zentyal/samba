@@ -47,6 +47,28 @@ NTSTATUS dcerpc_wbint_LookupSid(struct dcerpc_binding_handle *h,
 				const char **_name /* [out] [ref,charset(UTF8)] */,
 				NTSTATUS *result);
 
+struct tevent_req *dcerpc_wbint_LookupSids_r_send(TALLOC_CTX *mem_ctx,
+	struct tevent_context *ev,
+	struct dcerpc_binding_handle *h,
+	struct wbint_LookupSids *r);
+NTSTATUS dcerpc_wbint_LookupSids_r_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+NTSTATUS dcerpc_wbint_LookupSids_r(struct dcerpc_binding_handle *h, TALLOC_CTX *mem_ctx, struct wbint_LookupSids *r);
+struct tevent_req *dcerpc_wbint_LookupSids_send(TALLOC_CTX *mem_ctx,
+						struct tevent_context *ev,
+						struct dcerpc_binding_handle *h,
+						struct lsa_SidArray *_sids /* [in] [ref] */,
+						struct lsa_RefDomainList *_domains /* [out] [ref] */,
+						struct lsa_TransNameArray *_names /* [out] [ref] */);
+NTSTATUS dcerpc_wbint_LookupSids_recv(struct tevent_req *req,
+				      TALLOC_CTX *mem_ctx,
+				      NTSTATUS *result);
+NTSTATUS dcerpc_wbint_LookupSids(struct dcerpc_binding_handle *h,
+				 TALLOC_CTX *mem_ctx,
+				 struct lsa_SidArray *_sids /* [in] [ref] */,
+				 struct lsa_RefDomainList *_domains /* [out] [ref] */,
+				 struct lsa_TransNameArray *_names /* [out] [ref] */,
+				 NTSTATUS *result);
+
 struct tevent_req *dcerpc_wbint_LookupName_r_send(TALLOC_CTX *mem_ctx,
 	struct tevent_context *ev,
 	struct dcerpc_binding_handle *h,
@@ -116,6 +138,26 @@ NTSTATUS dcerpc_wbint_Sid2Gid(struct dcerpc_binding_handle *h,
 			      struct dom_sid *_sid /* [in] [ref] */,
 			      uint64_t *_gid /* [out] [ref] */,
 			      NTSTATUS *result);
+
+struct tevent_req *dcerpc_wbint_Sids2UnixIDs_r_send(TALLOC_CTX *mem_ctx,
+	struct tevent_context *ev,
+	struct dcerpc_binding_handle *h,
+	struct wbint_Sids2UnixIDs *r);
+NTSTATUS dcerpc_wbint_Sids2UnixIDs_r_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+NTSTATUS dcerpc_wbint_Sids2UnixIDs_r(struct dcerpc_binding_handle *h, TALLOC_CTX *mem_ctx, struct wbint_Sids2UnixIDs *r);
+struct tevent_req *dcerpc_wbint_Sids2UnixIDs_send(TALLOC_CTX *mem_ctx,
+						  struct tevent_context *ev,
+						  struct dcerpc_binding_handle *h,
+						  struct lsa_RefDomainList *_domains /* [in] [ref] */,
+						  struct wbint_TransIDArray *_ids /* [in,out] [ref] */);
+NTSTATUS dcerpc_wbint_Sids2UnixIDs_recv(struct tevent_req *req,
+					TALLOC_CTX *mem_ctx,
+					NTSTATUS *result);
+NTSTATUS dcerpc_wbint_Sids2UnixIDs(struct dcerpc_binding_handle *h,
+				   TALLOC_CTX *mem_ctx,
+				   struct lsa_RefDomainList *_domains /* [in] [ref] */,
+				   struct wbint_TransIDArray *_ids /* [in,out] [ref] */,
+				   NTSTATUS *result);
 
 struct tevent_req *dcerpc_wbint_Uid2Sid_r_send(TALLOC_CTX *mem_ctx,
 	struct tevent_context *ev,

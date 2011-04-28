@@ -20,6 +20,7 @@
 #include "includes.h"
 #include "lib/netapi/netapi.h"
 #include "lib/netapi/netapi_private.h"
+#include "rpc_client/rpc_client.h"
 #include "../librpc/gen_ndr/ndr_samr_c.h"
 #include "rpc_client/cli_samr.h"
 #include "rpc_client/init_lsa.h"
@@ -81,7 +82,6 @@ WERROR libnetapi_samr_open_domain(struct libnetapi_ctx *mem_ctx,
 	}
 
 	if (!is_valid_policy_hnd(connect_handle)) {
-		NTSTATUS result;
 		status = dcerpc_try_samr_connects(pipe_cli->binding_handle, mem_ctx,
 						  pipe_cli->srv_name_slash,
 						  connect_mask,
@@ -222,7 +222,6 @@ WERROR libnetapi_samr_open_builtin_domain(struct libnetapi_ctx *mem_ctx,
 	}
 
 	if (!is_valid_policy_hnd(connect_handle)) {
-		NTSTATUS result;
 		status = dcerpc_try_samr_connects(pipe_cli->binding_handle, mem_ctx,
 						  pipe_cli->srv_name_slash,
 						  connect_mask,

@@ -23,6 +23,7 @@
 #include "system/filesys.h"
 #include "smbd/smbd.h"
 #include "ntioctl.h"
+#include "smbprofile.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_VFS
@@ -1675,7 +1676,7 @@ static struct vfs_fn_pointers vfs_default_fns = {
 
 	/* File operations */
 
-	.open = vfswrap_open,
+	.open_fn = vfswrap_open,
 	.create_file = vfswrap_create_file,
 	.close_fn = vfswrap_close,
 	.vfs_read = vfswrap_read,

@@ -368,7 +368,7 @@ struct lsa_RefDomainList {
 	uint32_t count;/* [range(0,1000)] */
 	struct lsa_DomainInfo *domains;/* [unique,size_is(count)] */
 	uint32_t max_size;
-};
+}/* [public] */;
 
 enum lsa_LookupNamesLevel
 #ifndef USE_UINT_ENUMS
@@ -402,7 +402,7 @@ struct lsa_TranslatedName {
 struct lsa_TransNameArray {
 	uint32_t count;/* [range(0,20480)] */
 	struct lsa_TranslatedName *names;/* [unique,size_is(count)] */
-};
+}/* [public] */;
 
 struct lsa_LUIDAttribute {
 	struct lsa_LUID luid;

@@ -3,9 +3,11 @@
 #define __SRV_WBINT__
 void _wbint_Ping(struct pipes_struct *p, struct wbint_Ping *r);
 NTSTATUS _wbint_LookupSid(struct pipes_struct *p, struct wbint_LookupSid *r);
+NTSTATUS _wbint_LookupSids(struct pipes_struct *p, struct wbint_LookupSids *r);
 NTSTATUS _wbint_LookupName(struct pipes_struct *p, struct wbint_LookupName *r);
 NTSTATUS _wbint_Sid2Uid(struct pipes_struct *p, struct wbint_Sid2Uid *r);
 NTSTATUS _wbint_Sid2Gid(struct pipes_struct *p, struct wbint_Sid2Gid *r);
+NTSTATUS _wbint_Sids2UnixIDs(struct pipes_struct *p, struct wbint_Sids2UnixIDs *r);
 NTSTATUS _wbint_Uid2Sid(struct pipes_struct *p, struct wbint_Uid2Sid *r);
 NTSTATUS _wbint_Gid2Sid(struct pipes_struct *p, struct wbint_Gid2Sid *r);
 NTSTATUS _wbint_AllocateUid(struct pipes_struct *p, struct wbint_AllocateUid *r);

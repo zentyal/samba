@@ -54,6 +54,11 @@ NTSTATUS winbindd_lookup_names(TALLOC_CTX *mem_ctx,
 			       const char ***domains,
 			       struct dom_sid **sids,
 			       enum lsa_SidType **types);
+NTSTATUS rpc_lookup_sids(TALLOC_CTX *mem_ctx,
+			 struct winbindd_domain *domain,
+			 struct lsa_SidArray *sids,
+			 struct lsa_RefDomainList **pdomains,
+			 struct lsa_TransNameArray **pnames);
 
 /* The following definitions come from winbindd/winbindd_cache.c  */
 
@@ -312,6 +317,7 @@ NTSTATUS winbindd_print_groupmembers(struct talloc_dict *members,
 
 void init_idmap_child(void);
 struct winbindd_child *idmap_child(void);
+struct idmap_domain *idmap_find_domain(const char *domname);
 
 /* The following definitions come from winbindd/winbindd_locator.c  */
 
@@ -424,6 +430,9 @@ void winbindd_set_locator_kdc_envs(const struct winbindd_domain *domain);
 void winbindd_unset_locator_kdc_env(const struct winbindd_domain *domain);
 void set_auth_errors(struct winbindd_response *resp, NTSTATUS result);
 bool is_domain_offline(const struct winbindd_domain *domain);
+bool is_domain_online(const struct winbindd_domain *domain);
+bool parse_sidlist(TALLOC_CTX *mem_ctx, const char *sidstr,
+		   struct dom_sid **sids, uint32_t *num_sids);
 
 /* The following definitions come from winbindd/winbindd_wins.c  */
 
@@ -458,6 +467,13 @@ struct tevent_req *winbindd_lookupsid_send(TALLOC_CTX *mem_ctx,
 					   struct winbindd_request *request);
 NTSTATUS winbindd_lookupsid_recv(struct tevent_req *req,
 				 struct winbindd_response *response);
+
+struct tevent_req *winbindd_lookupsids_send(TALLOC_CTX *mem_ctx,
+					    struct tevent_context *ev,
+					    struct winbindd_cli_state *cli,
+					    struct winbindd_request *request);
+NTSTATUS winbindd_lookupsids_recv(struct tevent_req *req,
+				  struct winbindd_response *response);
 
 struct tevent_req *wb_lookupname_send(TALLOC_CTX *mem_ctx,
 				      struct tevent_context *ev,
@@ -830,6 +846,22 @@ struct tevent_req *winbindd_pam_chng_pswd_auth_crap_send(
 NTSTATUS winbindd_pam_chng_pswd_auth_crap_recv(
 	struct tevent_req *req,
 	struct winbindd_response *response);
+
+struct tevent_req *wb_lookupsids_send(TALLOC_CTX *mem_ctx,
+				      struct tevent_context *ev,
+				      struct dom_sid *sids,
+				      uint32_t num_sids);
+NTSTATUS wb_lookupsids_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx,
+			    struct lsa_RefDomainList **domains,
+			    struct lsa_TransNameArray **names);
+
+struct tevent_req *winbindd_sids_to_xids_send(TALLOC_CTX *mem_ctx,
+					      struct tevent_context *ev,
+					      struct winbindd_cli_state *cli,
+					      struct winbindd_request *request);
+NTSTATUS winbindd_sids_to_xids_recv(struct tevent_req *req,
+				    struct winbindd_response *response);
+
 
 /* The following definitions come from winbindd/winbindd_samr.c  */
 

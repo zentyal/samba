@@ -2,12 +2,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 04/01/2011
+.\"      Date: 04/26/2011
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "04/01/2011" "Samba 3\&.6" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "04/26/2011" "Samba 3\&.6" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -464,11 +464,15 @@ The architecture of the remote machine\&. It currently recognizes Samba (\fBSamb
 %I
 .RS 4
 the IP address of the client machine\&.
+.sp
+Before 3\&.6\&.0 it could contain IPv4 mapped IPv6 addresses, now it only contains IPv4 or IPv6 addresses\&.
 .RE
 .PP
 %i
 .RS 4
 the local IP address to which a client connected\&.
+.sp
+Before 3\&.6\&.0 it could contain IPv4 mapped IPv6 addresses, now it only contains IPv4 or IPv6 addresses\&.
 .RE
 .PP
 %T
@@ -9519,14 +9523,16 @@ strict allocate (S)
 .RS 4
 This is a boolean that controls the handling of disk space allocation in the server\&. When this is set to
 \fByes\fR
-the server will change from UNIX behaviour of not committing real disk storage blocks when a file is extended to the Windows behaviour of actually forcing the disk system to allocate real storage blocks when a file is created or extended to be a given size\&. In UNIX terminology this means that Samba will stop creating sparse files\&. Modern UNIX filesystems now support extents and so in Samba 3\&.6\&.0 we have changed this parameter to default to "yes"\&. On older filesystems without extents you might want to turn this parameter to "no"\&.
+the server will change from UNIX behaviour of not committing real disk storage blocks when a file is extended to the Windows behaviour of actually forcing the disk system to allocate real storage blocks when a file is created or extended to be a given size\&. In UNIX terminology this means that Samba will stop creating sparse files\&.
+.sp
+This option is really desgined for file systems that support fast allocation of large numbers of blocks such as extent\-based file systems\&. On file systems that don\'t support extents (most notably ext3) this can make Samba slower\&. When you work with large files over >100MB on file systems without extents you may even run into problems with clients running into timeouts\&.
 .sp
 When you have an extent based filesystem it\'s likely that we can make use of unwritten extents which allows Samba to allocate even large amounts of space very fast and you will not see any timeout problems caused by strict allocate\&. With strict allocate in use you will also get much better out of quota messages in case you use quotas\&. Another advantage of activating this setting is that it will help to reduce file fragmentation\&.
 .sp
-To give you an idea on which filesystems this setting might currently be a good option for you: XFS, ext4, btrfs, ocfs2 on Linux and JFS2 on AIX support unwritten extents\&. On Filesystems that do not support it, preallocation is probably an expensive operation where you will see reduced performance and risk to let clients run into timeouts when creating large files\&. Examples are ext3, ZFS, HFS+ and most others, so be aware if you leave the default setting on those filesystems\&.
+To give you an idea on which filesystems this setting might currently be a good option for you: XFS, ext4, btrfs, ocfs2 on Linux and JFS2 on AIX support unwritten extents\&. On Filesystems that do not support it, preallocation is probably an expensive operation where you will see reduced performance and risk to let clients run into timeouts when creating large files\&. Examples are ext3, ZFS, HFS+ and most others, so be aware if you activate this setting on those filesystems\&.
 .sp
 Default:
-\fI\fIstrict allocate\fR\fR\fI = \fR\fIyes\fR\fI \fR
+\fI\fIstrict allocate\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 strict locking (S)

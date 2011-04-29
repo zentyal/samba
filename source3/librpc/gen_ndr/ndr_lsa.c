@@ -2249,7 +2249,7 @@ _PUBLIC_ void ndr_print_lsa_TransSidArray(struct ndr_print *ndr, const char *nam
 	ndr->depth--;
 }
 
-static enum ndr_err_code ndr_push_lsa_RefDomainList(struct ndr_push *ndr, int ndr_flags, const struct lsa_RefDomainList *r)
+_PUBLIC_ enum ndr_err_code ndr_push_lsa_RefDomainList(struct ndr_push *ndr, int ndr_flags, const struct lsa_RefDomainList *r)
 {
 	uint32_t cntr_domains_1;
 	if (ndr_flags & NDR_SCALARS) {
@@ -2273,7 +2273,7 @@ static enum ndr_err_code ndr_push_lsa_RefDomainList(struct ndr_push *ndr, int nd
 	return NDR_ERR_SUCCESS;
 }
 
-static enum ndr_err_code ndr_pull_lsa_RefDomainList(struct ndr_pull *ndr, int ndr_flags, struct lsa_RefDomainList *r)
+_PUBLIC_ enum ndr_err_code ndr_pull_lsa_RefDomainList(struct ndr_pull *ndr, int ndr_flags, struct lsa_RefDomainList *r)
 {
 	uint32_t _ptr_domains;
 	uint32_t cntr_domains_1;
@@ -2340,13 +2340,13 @@ _PUBLIC_ void ndr_print_lsa_RefDomainList(struct ndr_print *ndr, const char *nam
 	ndr->depth--;
 }
 
-static enum ndr_err_code ndr_push_lsa_LookupNamesLevel(struct ndr_push *ndr, int ndr_flags, enum lsa_LookupNamesLevel r)
+_PUBLIC_ enum ndr_err_code ndr_push_lsa_LookupNamesLevel(struct ndr_push *ndr, int ndr_flags, enum lsa_LookupNamesLevel r)
 {
 	NDR_CHECK(ndr_push_enum_uint1632(ndr, NDR_SCALARS, r));
 	return NDR_ERR_SUCCESS;
 }
 
-static enum ndr_err_code ndr_pull_lsa_LookupNamesLevel(struct ndr_pull *ndr, int ndr_flags, enum lsa_LookupNamesLevel *r)
+_PUBLIC_ enum ndr_err_code ndr_pull_lsa_LookupNamesLevel(struct ndr_pull *ndr, int ndr_flags, enum lsa_LookupNamesLevel *r)
 {
 	uint16_t v;
 	NDR_CHECK(ndr_pull_enum_uint1632(ndr, NDR_SCALARS, &v));
@@ -2411,7 +2411,7 @@ _PUBLIC_ void ndr_print_lsa_TranslatedName(struct ndr_print *ndr, const char *na
 	ndr->depth--;
 }
 
-static enum ndr_err_code ndr_push_lsa_TransNameArray(struct ndr_push *ndr, int ndr_flags, const struct lsa_TransNameArray *r)
+_PUBLIC_ enum ndr_err_code ndr_push_lsa_TransNameArray(struct ndr_push *ndr, int ndr_flags, const struct lsa_TransNameArray *r)
 {
 	uint32_t cntr_names_1;
 	if (ndr_flags & NDR_SCALARS) {
@@ -2434,7 +2434,7 @@ static enum ndr_err_code ndr_push_lsa_TransNameArray(struct ndr_push *ndr, int n
 	return NDR_ERR_SUCCESS;
 }
 
-static enum ndr_err_code ndr_pull_lsa_TransNameArray(struct ndr_pull *ndr, int ndr_flags, struct lsa_TransNameArray *r)
+_PUBLIC_ enum ndr_err_code ndr_pull_lsa_TransNameArray(struct ndr_pull *ndr, int ndr_flags, struct lsa_TransNameArray *r)
 {
 	uint32_t _ptr_names;
 	uint32_t cntr_names_1;

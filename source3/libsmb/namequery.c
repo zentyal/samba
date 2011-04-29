@@ -1177,7 +1177,6 @@ struct tevent_req *name_query_send(TALLOC_CTX *mem_ctx,
 	struct packet_struct p;
 	struct nmb_packet *nmb = &p.packet.nmb;
 	struct sockaddr_in *in_addr;
-	struct timeval timeout;
 
 	req = tevent_req_create(mem_ctx, &state, struct name_query_state);
 	if (req == NULL) {
@@ -1241,14 +1240,6 @@ struct tevent_req *name_query_send(TALLOC_CTX *mem_ctx,
 			       name_query_validator, state);
 	if (tevent_req_nomem(subreq, req)) {
 		DEBUG(10, ("nb_trans_send failed\n"));
-		return tevent_req_post(req, ev);
-	}
-	if (bcast) {
-		timeout = timeval_current_ofs(0, 250000);
-	} else {
-		timeout = timeval_current_ofs(2, 0);
-	}
-	if (!tevent_req_set_endtime(req, ev, timeout)) {
 		return tevent_req_post(req, ev);
 	}
 	tevent_req_set_callback(subreq, name_query_done, req);
@@ -1433,6 +1424,7 @@ NTSTATUS name_query(const char *name, int name_type,
 	TALLOC_CTX *frame = talloc_stackframe();
 	struct tevent_context *ev;
 	struct tevent_req *req;
+	struct timeval timeout;
 	NTSTATUS status = NT_STATUS_NO_MEMORY;
 
 	ev = tevent_context_init(frame);
@@ -1441,6 +1433,14 @@ NTSTATUS name_query(const char *name, int name_type,
 	}
 	req = name_query_send(ev, ev, name, name_type, bcast, recurse, to_ss);
 	if (req == NULL) {
+		goto fail;
+	}
+	if (bcast) {
+		timeout = timeval_current_ofs(0, 250000);
+	} else {
+		timeout = timeval_current_ofs(2, 0);
+	}
+	if (!tevent_req_set_endtime(req, ev, timeout)) {
 		goto fail;
 	}
 	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
@@ -1494,7 +1494,6 @@ NTSTATUS name_resolve_bcast(const char *name,
 	int i;
 	int num_interfaces = iface_count();
 	struct sockaddr_storage *ss_list;
-	struct sockaddr_storage ss;
 	NTSTATUS status = NT_STATUS_NOT_FOUND;
 
 	if (lp_disable_netbios()) {
@@ -1512,11 +1511,6 @@ NTSTATUS name_resolve_bcast(const char *name,
 
 	DEBUG(3,("name_resolve_bcast: Attempting broadcast lookup "
 		"for name %s<0x%x>\n", name, name_type));
-
-	if (!interpret_string_addr(&ss, lp_socket_address(),
-				AI_NUMERICHOST|AI_PASSIVE)) {
-		zero_sockaddr(&ss);
-	}
 
 	/*
 	 * Lookup the name on all the interfaces, return on

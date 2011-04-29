@@ -91,7 +91,7 @@ int sys_get_nfs_quota(const char *path, const char *bdev,
 		      enum SMB_QUOTA_TYPE qtype,
 		      unid_t id, SMB_DISK_QUOTA *dp)
 {
-	CLIENT *clnt;
+	CLIENT *clnt = NULL;
 	struct getquota_rslt gq_rslt;
 	struct getquota_args gq_args;
 	const char *mnttype;
@@ -134,6 +134,10 @@ int sys_get_nfs_quota(const char *path, const char *bdev,
 	memset(cutstr, '\0', len+1);
 	host = strncat(cutstr, mnttype, sizeof(char) * len);
 	testpath = strchr_m(mnttype, ':');
+	if (testpath == NULL) {
+		errno = EINVAL;
+		goto out;
+	}
 	testpath++;
 	gq_args.gqa_pathp = testpath;
 	gq_args.gqa_uid = id.uid;

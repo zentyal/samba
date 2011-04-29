@@ -97,6 +97,7 @@ TDBTOOL = @TDBTOOL@
 TDBDUMP = @TDBDUMP@
 TDBRESTORE = @TDBRESTORE@
 TDBTORTURE = @TDBTORTURE@
+PTHREADPOOLTEST = @PTHREADPOOLTEST@
 
 INSTALLCMD=@INSTALL@
 INSTALLLIBCMD_SH=@INSTALLLIBCMD_SH@
@@ -230,7 +231,7 @@ TORTURE_PROGS = bin/smbtorture@EXEEXT@ bin/msgtest@EXEEXT@ \
 	bin/masktest@EXEEXT@ bin/locktest@EXEEXT@ \
 	bin/locktest2@EXEEXT@ bin/nsstest@EXEEXT@ bin/vfstest@EXEEXT@ \
 	bin/pdbtest@EXEEXT@ $(TALLOCTORT) bin/replacetort@EXEEXT@ \
-	$(TDBTORTURE) \
+	$(TDBTORTURE) $(PTHREADPOOLTEST) \
 	bin/smbconftort@EXEEXT@ bin/vlp@EXEEXT@
 
 BIN_PROGS = @EXTRA_BIN_PROGS@ \
@@ -1128,6 +1129,9 @@ SMBCONFTORT_OBJ = $(SMBCONFTORT_OBJ0) \
 		  $(LIBSMB_ERR_OBJ) \
 		  $(POPT_LIB_OBJ)
 
+PTHREADPOOLTEST_OBJ = lib/pthreadpool/pthreadpool.o \
+		lib/pthreadpool/tests.o
+
 LIBNET_OBJ = libnet/libnet_join.o \
 	     libnet/libnet_keytab.o \
 	     librpc/gen_ndr/ndr_libnet_join.o
@@ -1340,6 +1344,7 @@ WINBINDD_OBJ1 = \
 		librpc/gen_ndr/ndr_wbint_c.o \
 		librpc/gen_ndr/srv_wbint.o \
 		librpc/gen_ndr/ndr_wbint.o \
+		librpc/gen_ndr/ndr_idmap.o \
 		winbindd/winbindd_async.o \
 		winbindd/winbindd_creds.o \
 		winbindd/winbindd_cred_cache.o \
@@ -1350,6 +1355,7 @@ WINBINDD_OBJ1 = \
 		winbindd/winbindd_ndr.o \
 		winbindd/wb_ping.o \
 		winbindd/wb_lookupsid.o \
+		winbindd/wb_lookupsids.o \
 		winbindd/wb_lookupname.o \
 		winbindd/wb_sid2uid.o \
 		winbindd/wb_sid2gid.o \
@@ -1370,11 +1376,13 @@ WINBINDD_OBJ1 = \
 		winbindd/wb_next_grent.o \
 		winbindd/wb_dsgetdcname.o \
 		winbindd/winbindd_lookupsid.o \
+		winbindd/winbindd_lookupsids.o \
 		winbindd/winbindd_lookupname.o \
 		winbindd/winbindd_sid_to_uid.o \
 		winbindd/winbindd_sid_to_gid.o \
 		winbindd/winbindd_uid_to_sid.o \
 		winbindd/winbindd_gid_to_sid.o \
+		winbindd/winbindd_sids_to_xids.o \
 		winbindd/winbindd_allocate_uid.o \
 		winbindd/winbindd_allocate_gid.o \
 		winbindd/winbindd_getpwsid.o \
@@ -1560,6 +1568,8 @@ talloctort : SHOWFLAGS $(TALLOCTORT)
 replacetort : SHOWFLAGS bin/replacetort@EXEEXT@
 
 smbconftort : SHOWFLAGS bin/smbconftort@EXEEXT@
+
+pthreadpooltest : SHOWFLAGS bin/pthreadpooltest@EXEEXT@
 
 timelimit : SHOWFLAGS bin/timelimit@EXEEXT@
 
@@ -1892,6 +1902,10 @@ bin/smbconftort@EXEEXT@: $(SMBCONFTORT_OBJ) @BUILD_POPT@ $(LIBTALLOC) $(LIBTDB)
 	@$(CC) -o $@ $(SMBCONFTORT_OBJ) $(LDFLAGS) \
 		$(DYNEXP) $(LIBS) $(LDAP_LIBS) $(POPT_LIBS) \
 		$(LIBTALLOC_LIBS) $(LIBTDB_LIBS)
+
+bin/pthreadpooltest@EXEEXT@: $(PTHREADPOOLTEST_OBJ)
+	@echo Linking $@
+	@$(CC) -o $@ $(PTHREADPOOLTEST_OBJ) $(LDFLAGS) -lpthread
 
 bin/masktest@EXEEXT@: $(BINARY_PREREQS) $(MASKTEST_OBJ) @BUILD_POPT@ $(LIBTALLOC) $(LIBTDB) $(LIBWBCLIENT)
 	@echo Linking $@
@@ -3442,7 +3456,7 @@ buildfarm-test:
 subunit-test:
 	$(MAKE) test SUBUNIT_FORMATTER=cat
 
-SELFTEST_TESTENV = dc
+SELFTEST_TESTENV = s3dc
 
 testenv:
 	$(MAKE) test SELFTEST_TESTENV=$(SELFTEST_TESTENV) TESTS="--testenv"

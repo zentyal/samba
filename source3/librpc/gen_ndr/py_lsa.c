@@ -3092,12 +3092,63 @@ static PyObject *py_lsa_RefDomainList_new(PyTypeObject *type, PyObject *args, Py
 	return py_talloc_new(struct lsa_RefDomainList, type);
 }
 
+static PyObject *py_lsa_RefDomainList_ndr_pack(PyObject *py_obj)
+{
+	struct lsa_RefDomainList *object = (struct lsa_RefDomainList *)py_talloc_get_ptr(py_obj);
+	DATA_BLOB blob;
+	enum ndr_err_code err;
+	err = ndr_push_struct_blob(&blob, py_talloc_get_mem_ctx(py_obj), object, (ndr_push_flags_fn_t)ndr_push_lsa_RefDomainList);
+	if (err != NDR_ERR_SUCCESS) {
+		PyErr_SetNdrError(err);
+		return NULL;
+	}
+
+	return PyString_FromStringAndSize((char *)blob.data, blob.length);
+}
+
+static PyObject *py_lsa_RefDomainList_ndr_unpack(PyObject *py_obj, PyObject *args)
+{
+	struct lsa_RefDomainList *object = (struct lsa_RefDomainList *)py_talloc_get_ptr(py_obj);
+	DATA_BLOB blob;
+	enum ndr_err_code err;
+	if (!PyArg_ParseTuple(args, "s#:__ndr_unpack__", &blob.data, &blob.length))
+		return NULL;
+
+	err = ndr_pull_struct_blob_all(&blob, py_talloc_get_mem_ctx(py_obj), object, (ndr_pull_flags_fn_t)ndr_pull_lsa_RefDomainList);
+	if (err != NDR_ERR_SUCCESS) {
+		PyErr_SetNdrError(err);
+		return NULL;
+	}
+
+	Py_RETURN_NONE;
+}
+
+static PyObject *py_lsa_RefDomainList_ndr_print(PyObject *py_obj)
+{
+	struct lsa_RefDomainList *object = (struct lsa_RefDomainList *)py_talloc_get_ptr(py_obj);
+	PyObject *ret;
+	char *retstr;
+
+	retstr = ndr_print_struct_string(py_talloc_get_mem_ctx(py_obj), (ndr_print_fn_t)ndr_print_lsa_RefDomainList, "lsa_RefDomainList", object);
+	ret = PyString_FromString(retstr);
+	talloc_free(retstr);
+
+	return ret;
+}
+
+static PyMethodDef py_lsa_RefDomainList_methods[] = {
+	{ "__ndr_pack__", (PyCFunction)py_lsa_RefDomainList_ndr_pack, METH_NOARGS, "S.ndr_pack(object) -> blob\nNDR pack" },
+	{ "__ndr_unpack__", (PyCFunction)py_lsa_RefDomainList_ndr_unpack, METH_VARARGS, "S.ndr_unpack(class, blob) -> None\nNDR unpack" },
+	{ "__ndr_print__", (PyCFunction)py_lsa_RefDomainList_ndr_print, METH_VARARGS, "S.ndr_print(object) -> None\nNDR print" },
+	{ NULL, NULL, 0, NULL }
+};
+
 
 static PyTypeObject lsa_RefDomainList_Type = {
 	PyObject_HEAD_INIT(NULL) 0,
 	.tp_name = "lsa.RefDomainList",
 	.tp_getset = py_lsa_RefDomainList_getsetters,
-	.tp_methods = NULL,
+	.tp_methods = py_lsa_RefDomainList_methods,
 	.tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
 	.tp_basicsize = sizeof(py_talloc_Object),
 	.tp_new = py_lsa_RefDomainList_new,
@@ -3265,12 +3316,63 @@ static PyObject *py_lsa_TransNameArray_new(PyTypeObject *type, PyObject *args, P
 	return py_talloc_new(struct lsa_TransNameArray, type);
 }
 
+static PyObject *py_lsa_TransNameArray_ndr_pack(PyObject *py_obj)
+{
+	struct lsa_TransNameArray *object = (struct lsa_TransNameArray *)py_talloc_get_ptr(py_obj);
+	DATA_BLOB blob;
+	enum ndr_err_code err;
+	err = ndr_push_struct_blob(&blob, py_talloc_get_mem_ctx(py_obj), object, (ndr_push_flags_fn_t)ndr_push_lsa_TransNameArray);
+	if (err != NDR_ERR_SUCCESS) {
+		PyErr_SetNdrError(err);
+		return NULL;
+	}
+
+	return PyString_FromStringAndSize((char *)blob.data, blob.length);
+}
+
+static PyObject *py_lsa_TransNameArray_ndr_unpack(PyObject *py_obj, PyObject *args)
+{
+	struct lsa_TransNameArray *object = (struct lsa_TransNameArray *)py_talloc_get_ptr(py_obj);
+	DATA_BLOB blob;
+	enum ndr_err_code err;
+	if (!PyArg_ParseTuple(args, "s#:__ndr_unpack__", &blob.data, &blob.length))
+		return NULL;
+
+	err = ndr_pull_struct_blob_all(&blob, py_talloc_get_mem_ctx(py_obj), object, (ndr_pull_flags_fn_t)ndr_pull_lsa_TransNameArray);
+	if (err != NDR_ERR_SUCCESS) {
+		PyErr_SetNdrError(err);
+		return NULL;
+	}
+
+	Py_RETURN_NONE;
+}
+
+static PyObject *py_lsa_TransNameArray_ndr_print(PyObject *py_obj)
+{
+	struct lsa_TransNameArray *object = (struct lsa_TransNameArray *)py_talloc_get_ptr(py_obj);
+	PyObject *ret;
+	char *retstr;
+
+	retstr = ndr_print_struct_string(py_talloc_get_mem_ctx(py_obj), (ndr_print_fn_t)ndr_print_lsa_TransNameArray, "lsa_TransNameArray", object);
+	ret = PyString_FromString(retstr);
+	talloc_free(retstr);
+
+	return ret;
+}
+
+static PyMethodDef py_lsa_TransNameArray_methods[] = {
+	{ "__ndr_pack__", (PyCFunction)py_lsa_TransNameArray_ndr_pack, METH_NOARGS, "S.ndr_pack(object) -> blob\nNDR pack" },
+	{ "__ndr_unpack__", (PyCFunction)py_lsa_TransNameArray_ndr_unpack, METH_VARARGS, "S.ndr_unpack(class, blob) -> None\nNDR unpack" },
+	{ "__ndr_print__", (PyCFunction)py_lsa_TransNameArray_ndr_print, METH_VARARGS, "S.ndr_print(object) -> None\nNDR print" },
+	{ NULL, NULL, 0, NULL }
+};
+
 
 static PyTypeObject lsa_TransNameArray_Type = {
 	PyObject_HEAD_INIT(NULL) 0,
 	.tp_name = "lsa.TransNameArray",
 	.tp_getset = py_lsa_TransNameArray_getsetters,
-	.tp_methods = NULL,
+	.tp_methods = py_lsa_TransNameArray_methods,
 	.tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
 	.tp_basicsize = sizeof(py_talloc_Object),
 	.tp_new = py_lsa_TransNameArray_new,

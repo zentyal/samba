@@ -620,6 +620,7 @@ PDB_STATIC
 SMBD_FAM_LIBS
 INIPARSERLIBS
 BUILD_INIPARSER
+PTHREADPOOLTEST
 PTHREADPOOL_OBJ
 PTHREAD_LDFLAGS
 PTHREAD_CFLAGS
@@ -20565,7 +20566,7 @@ fi
 else
 	cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
-#include "tdb.h"
+#include <tdb.h>
 int
 main ()
 {
@@ -36461,7 +36462,9 @@ if test x"$enable_pthreadpool" = x"yes" -a x"$samba_cv_HAVE_PTHREAD" = x"yes"; t
 
 $as_echo "#define WITH_PTHREADPOOL 1" >>confdefs.h
 
-    PTHREADPOOL_OBJ="lib/pthreadpool.o"
+    PTHREADPOOL_OBJ="lib/pthreadpool/pthreadpool.o"
+
+    PTHREADPOOLTEST="bin/pthreadpooltest\$(EXEEXT)"
 
 fi
 
@@ -36548,7 +36551,7 @@ fi
 ###################################################
 # Check for different/missing (set|get|end)netgrent prototypes
 CFLAGS_SAVE=$CFLAGS
-if test x"$samba_cv_HAVE_Wdeclaration_after_statement" = x"yes"; then
+if test x"$samba_cv_HAVE_Werror_implicit_function_declaration" = x"yes"; then
 	CFLAGS="$CFLAGS -Werror-implicit-function-declaration"
 fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for setnetgrent prototype" >&5

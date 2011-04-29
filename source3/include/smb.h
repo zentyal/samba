@@ -68,10 +68,6 @@
 /* how long to wait for secondary SMB packets (milli-seconds) */
 #define SMB_SECONDARY_WAIT (60*1000)
 
-/* Debugging stuff */
-#include "lib/util/debug.h"
-#include "lib/util/debug_s3.h"
-
 /* this defines the error codes that receive_smb can put in smb_read_error */
 enum smb_read_errors {
 	SMB_READ_OK = 0,
@@ -151,7 +147,6 @@ typedef union unid_t {
 
 #define SID_MAX_SIZE ((size_t)(8+(MAXSUBAUTHS*4)))
 
-#include "librpc/gen_ndr/dcerpc.h"
 #include "librpc/gen_ndr/security.h"
 
 /*
@@ -694,16 +689,6 @@ struct locking_data {
 	   (4) char file_name[];
         */
 };
-
-/* Used to store pipe open records for NetFileEnum() */
-
-struct pipe_open_rec {
-	struct server_id pid;
-	uid_t uid;
-	int pnum;
-	fstring name;
-};
-
 
 #define NT_HASH_LEN 16
 #define LM_HASH_LEN 16
@@ -1370,9 +1355,6 @@ enum printing_types {PRINT_BSD,PRINT_SYSV,PRINT_AIX,PRINT_HPUX,
 ,PRINT_TEST,PRINT_VLP
 #endif /* DEVELOPER */
 };
-
-/* LDAP schema types */
-enum schema_types {SCHEMA_COMPAT, SCHEMA_AD, SCHEMA_SAMBA};
 
 /* LDAP SSL options */
 enum ldap_ssl_types {LDAP_SSL_OFF, LDAP_SSL_START_TLS};

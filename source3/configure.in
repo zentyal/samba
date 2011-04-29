@@ -2151,7 +2151,7 @@ then
 	AC_SUBST(TDBTORTURE)
 	ac_cv_have_tdb_err_nesting=yes
 else
-	AC_TRY_COMPILE([#include "tdb.h"],
+	AC_TRY_COMPILE([#include <tdb.h>],
 		       [enum TDB_ERROR err = TDB_ERR_NESTING],
 		       ac_cv_have_tdb_err_nesting=yes,
 		       ac_cv_have_tdb_err_nesting=no)
@@ -6646,7 +6646,9 @@ if test x"$enable_pthreadpool" = x"yes" -a x"$samba_cv_HAVE_PTHREAD" = x"yes"; t
     LIBS="$LIBS $PTHREAD_LDFLAGS"
     CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
     AC_DEFINE(WITH_PTHREADPOOL, 1, [Whether to include pthreadpool helpers])
-    AC_SUBST(PTHREADPOOL_OBJ, "lib/pthreadpool.o")
+    AC_SUBST(PTHREADPOOL_OBJ, "lib/pthreadpool/pthreadpool.o")
+    PTHREADPOOLTEST="bin/pthreadpooltest\$(EXEEXT)"
+    AC_SUBST(PTHREADPOOLTEST)
 fi
 
 #################################################
@@ -6687,7 +6689,7 @@ AC_SUBST(FLAGS1)
 ###################################################
 # Check for different/missing (set|get|end)netgrent prototypes
 CFLAGS_SAVE=$CFLAGS
-if test x"$samba_cv_HAVE_Wdeclaration_after_statement" = x"yes"; then
+if test x"$samba_cv_HAVE_Werror_implicit_function_declaration" = x"yes"; then
 	CFLAGS="$CFLAGS -Werror-implicit-function-declaration"
 fi
 AC_CACHE_CHECK([for setnetgrent prototype],samba_cv_setnetgrent_prototype, [

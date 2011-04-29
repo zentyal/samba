@@ -1,10 +1,10 @@
                    =================================
-                   Release Notes for Samba 3.6.0pre2
-                            April 12, 2011
+                   Release Notes for Samba 3.6.0pre3
+                            April 26, 2011
                    =================================
 
 
-This is the second preview release of Samba 3.6.0.  This is *not*
+This is the third preview release of Samba 3.6.0.  This is *not*
 intended for production environments and is designed for testing
 purposes only.  Please report any defects via the Samba bug reporting
 system at https://bugzilla.samba.org/.
@@ -225,7 +225,6 @@ smb.conf changes
    smb2 max read		       New	       1048576
    smb2 max trans		       New	       1048576
    smb2 max write		       New	       1048576
-   strict allocate		       Changed Default Yes
    username map cache time	       New	       0
    winbind max clients		       New	       200
 
@@ -247,6 +246,53 @@ o   Stefan Metzmacher <metze@samba.org>
 
 o   Andreas Schneider <asn@samba.org>
     * Add an Endpoint Mapper daemon.
+
+
+Changes since 3.6.0pre2
+-----------------------
+
+o   Michael Adam <obnox@samba.org>
+    * Fix build of tdb2.
+
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 8083: "inherit owner = yes" doesn't interact correctly with
+      vfs_acl_xattr or vfs_acl_tdb module.
+    * BUG 8088: rpccli_samr_chng_pswd_auth_crap segfaults if any input blobs
+      are null.
+    * Correctly detect and deny symlinks anywhere in a path (not just the last
+      component) if "follow symlinks = no".
+
+
+o   Günther Deschner <gd@samba.org>
+    * BUG 8106: Fix the build of 'smbget' on HP NonStop.
+    * Fix timeout in rpc_pipe_open_tcp_port().
+    * Fix the build of "--with-profiling-data".
+    * Fix the AIX 5.3 build.
+
+
+o   Sergey Korsak <skif@1plus1.net>
+    * BUG #8099: setpwent() actually does endpwent() and vice versa on FreeBSD.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * BUG 8066: Fix wrong output in 'smbget'.
+    * Fix Coverity IDs 986, 1340, 2047, 2299, 2307, 2325, 2335, 2336, 2470,
+      2471, 2478.
+    * nsswitch: Add 'wbinfo --lookup-sids'.
+    * nsswitch: Add 'wbinfo --sids-to-unix-ids'.
+    * Fix smbd with the async echo responder.
+    * Fix the build of vfs_gpfs.c.
+    * Add a 10-second timeout for the 445 or netbios connection to a DC.
+    * Many pthreadpool fixes.
+
+
+o   Stefan Metzmacher <metze@samba.org>
+    * BUG 7383: Listen on IPv6 addresses with IPV6_ONLY.
+
+
+o   Rusty Russell <rusty@rustcorp.com.au>
+    * Fix transaction recovery area for converted tdbs.
 
 
 

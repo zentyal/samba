@@ -11,8 +11,8 @@ Index: experimental/docs/manpages/net.8
 ===================================================================
 --- experimental.orig/docs/manpages/net.8
 +++ experimental/docs/manpages/net.8
-@@ -738,9 +738,9 @@
- manpage for details\&.
+@@ -800,9 +800,9 @@
+ .RE
  .SS "USERSHARE"
  .PP
 -Starting with version 3\&.0\&.23, a Samba server now supports the ability for non\-root users to add user defined shares to be exported using the "net usershare" commands\&.

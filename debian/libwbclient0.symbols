@@ -22,6 +22,7 @@ libwbclient.so.0 libwbclient0 #MINVER#
  wbcChangeTrustCredentials@Base 2:3.5.0~pre2                                                                                  
  wbcCheckTrustCredentials@Base 2:3.2.0
  wbcDebug@Base 2:3.5.0~pre2                                                                                                   
+ wbcDcInfo@Base 2:3.6.0~pre3
  wbcDomainInfo@Base 2:3.2.0
  wbcEndgrent@Base 2:3.2.0
  wbcEndpwent@Base 2:3.2.0
@@ -43,6 +44,7 @@ libwbclient.so.0 libwbclient0 #MINVER#
  wbcLookupName@Base 2:3.2.0
  wbcLookupRids@Base 2:3.2.0
  wbcLookupSid@Base 2:3.2.0
+ wbcLookupSids@Base 2:3.6.0~pre3
  wbcLookupUserSids@Base 2:3.2.0
  wbcPing@Base 2:3.2.0
  wbcPingDc@Base 2:3.5.0~rc1~dfsg
@@ -58,8 +60,10 @@ libwbclient.so.0 libwbclient0 #MINVER#
  wbcSetpwent@Base 2:3.2.0
  wbcSidToGid@Base 2:3.2.0
  wbcSidToString@Base 2:3.2.0
+ wbcSidToStringBuf@Base 2:3.6.0~pre3
  wbcSidToUid@Base 2:3.2.0
- wbcSidTypeString@Base 2:3.5.0~pre2                                                                                           
+ wbcSidTypeString@Base 2:3.5.0~pre2
+ wbcSidsToUnixIds@Base 2:3.6.0~pre3
  wbcStringToSid@Base 2:3.2.0
  wbcUidToSid@Base 2:3.2.0
  wbcAddNamedBlob@Base 2:3.3.0

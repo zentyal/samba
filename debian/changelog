@@ -1,6 +1,6 @@
-samba (2:3.5.6~dfsg-3squeeze3) UNRELEASED; urgency=low
+samba (2:3.5.6~dfsg-3squeeze3) stable-proposed-updates; urgency=low
 
-  * Cherry-picked fixes from saba 3.5.8 for some important bugs:
+  * Cherry-picked fixes from samba 3.5.8 for some important bugs:
     - Upstream bug 7567: printing from Windows 7 fails with 0x000003e6.
       Closes: #617429
     - Upstream bug 6727: printer device settings not saved for normal

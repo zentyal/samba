@@ -5,6 +5,9 @@ samba (2:3.6.0~pre3-1) UNRELEASED; urgency=low
   * add "#include "fcntl.h"" to idmap_tdb2.c to get it compiled
   * samba-doc-pdf: add Samba3-HOWTO.pdf from pre1 as it
     was forgotten upstream
+  * libwbclient0.symbols: dropped several symbols related to
+    asynchronous actions that weren't working anyway (according
+    to Kai Blin at SambaXP)
 
   [ Mathieu Parent ]
   * Build against libctdb-dev (>= 1.10+git20110412) to have required control:

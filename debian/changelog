@@ -13,9 +13,9 @@ samba (2:3.5.8~dfsg-2) UNRELEASED; urgency=low
     titles translatable
   * Test the presence of testparm before trying to use it in init script
     Closes: #606320
-
-  [ Christian Perrier ]
-  * French (Christian Perrier)
+  * Document the newly introduced "map untrusted to domain" parameter
+    and its default value that can lead to disruptive behavioral
+    changes when upgrading from pre-3.5 versions.
 
  -- Mathieu Parent <sathieu@debian.org>  Tue, 29 Mar 2011 21:28:42 +0200
 

@@ -1,16 +1,16 @@
-# Thai translation of exim4.
-# Copyright (C) 2006 Software in the Public Interest, Inc.
+# Thai translation of samba.
+# Copyright (C) 2006-2011 Software in the Public Interest, Inc.
 # This file is distributed under the same license as the exim4 package.
-# Theppitak Karoonboonyanan <thep@linux.thai.net>, 2006.
+# Theppitak Karoonboonyanan <thep@linux.thai.net>, 2006-2011.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
 "POT-Creation-Date: 2011-05-12 10:46+0200\n"
-"PO-Revision-Date: 2007-03-13 10:05+0700\n"
+"PO-Revision-Date: 2011-05-12 18:06+0700\n"
 "Last-Translator:  Theppitak Karoonboonyanan <thep@linux.thai.net>\n"
-"Language-Team: Thai <l10n@opentle.org>\n"
+"Language-Team: Thai <thai-l10n@googlegroup.com>\n"
 "Language: th\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -20,7 +20,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:1001
 msgid "Samba server and utilities"
-msgstr ""
+msgstr "เซิร์ฟเวอร์ samba และเครื่องมือ"
 
 #. Type: boolean
 #. Description
@@ -92,19 +92,15 @@ msgstr "เวร์กกรุ๊ป/ชื่อโดเมน:"
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"กรุณาระบุเวิร์กกรุ๊ปที่คุณต้องการให้เซิร์ฟเวอร์นี้ประกาศเป็นสมาชิกเมื่อถูกถามโดยเครื่องลูก สังเกตว่า "
-"ค่านี้จะควบคุมชื่อโดเมนที่ใช้กับกรณีที่ตั้งค่า security=domain ด้วย"
+"กรุณาระบุเวิร์กกรุ๊ปสำหรับระบบนี้ ค่านี้จะกำหนดเวิร์กกรุ๊ปที่ระบบนี้จะเข้าร่วมเมื่อใช้เป็นเซิร์ฟเวอร์, "
+"กำหนดเวิร์กกรุ๊ปปริยายที่จะใช้เมื่อท่องดูด้วยโปรแกรมต่างๆ และกำหนดชื่อโดเมนที่จะใช้ในกรณีที่ตั้งค่า "
+"\"security=domain\" ด้วย"
 
 #. Type: boolean
 #. Description
@@ -115,42 +111,33 @@ msgstr "ใช้การเข้ารหัสลับกับรหัส
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
-#, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"เครื่องลูกข่ายวินโดวส์รุ่นใหม่ๆ ทั้งหมด จะติดต่อกับเซิร์ฟเวอร์ SMB โดยใช้รหัสผ่านที่เข้ารหัสลับ "
+"เครื่องลูกข่ายวินโดวส์รุ่นใหม่ๆ ทั้งหมด จะติดต่อกับเซิร์ฟเวอร์ SMB/CIFS โดยใช้รหัสผ่านที่เข้ารหัสลับ "
 "ถ้าคุณต้องการจะใช้รหัสผ่านแบบข้อความธรรมดา คุณจะต้องเปลี่ยนค่าค่าหนึ่งในเรจิสตรีของวินโดวส์"
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
-#, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"ขอแนะนำอย่างยิ่งให้เปิดใช้ตัวเลือกนี้ และถ้าคุณเปิดใช้ กรุณาตรวจสอบให้แน่ใจว่าคุณมีแฟ้ม /etc/"
-"samba/smbpasswd ที่ใช้การได้ และคุณได้ตั้งรหัสผ่านในนั้นสำหรับผู้ใช้แต่ละคน โดยใช้คำสั่ง "
-"smbpasswd"
+"ขอแนะนำอย่างยิ่งให้เปิดใช้ตัวเลือกนี้ "
+"เนื่องจากไม่มีการดูแลการรองรับรหัสผ่านแบบข้อความธรรมดาในผลิตภัณฑ์ต่างๆ "
+"ของไมโครซอฟท์อีกต่อไปแล้ว และถ้าคุณเปิดใช้ กรุณาตรวจสอบให้แน่ใจว่าคุณมีแฟ้ม /etc/samba/"
+"smbpasswd ที่ใช้การได้ และคุณได้ตั้งรหัสผ่านในนั้นสำหรับผู้ใช้แต่ละคน โดยใช้คำสั่ง smbpasswd"
 
 #. Type: title
 #. Description
 #: ../samba.templates:1001
 msgid "Samba server"
-msgstr ""
+msgstr "เซิร์ฟเวอร์ samba"
 
 #. Type: boolean
 #. Description

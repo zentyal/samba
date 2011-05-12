@@ -16,7 +16,7 @@ msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
 "POT-Creation-Date: 2011-05-12 10:46+0200\n"
-"PO-Revision-Date: 2010-10-25 22:28+0900\n"
+"PO-Revision-Date: 2011-05-12 18:19+0900\n"
 "Last-Translator: Kenshi Muto <kmuto@debian.org>\n"
 "Language-Team: Japanese <debian-japanese@lists.debian.org>\n"
 "Language: ja\n"
@@ -28,7 +28,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:1001
 msgid "Samba server and utilities"
-msgstr ""
+msgstr "Samba サーバおよびユーティリティ"
 
 #. Type: boolean
 #. Description
@@ -151,7 +151,7 @@ msgstr ""
 #. Description
 #: ../samba.templates:1001
 msgid "Samba server"
-msgstr ""
+msgstr "Samba サーバ"
 
 #. Type: boolean
 #. Description

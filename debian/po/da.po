@@ -1,15 +1,15 @@
 # Danish translation samba.
-# Copyright (C) 2010 samba & nedenstående oversættere.
+# Copyright (C) 2011 samba & nedenstående oversættere.
 # This file is distributed under the same license as the samba package.
 # Claus Hindsgaul <claus.hindsgaul@gmail.com>, 2004, 2006, 2007.
-# Joe Hansen (joedalton2@yahoo.dk), 2010.
+# Joe Hansen (joedalton2@yahoo.dk), 2010, 2011.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
 "POT-Creation-Date: 2011-05-12 10:46+0200\n"
-"PO-Revision-Date: 2010-08-12 17:30+01:00\n"
+"PO-Revision-Date: 2011-05-12 17:30+01:00\n"
 "Last-Translator: Joe Hansen <joedalton2@yahoo.dk>\n"
 "Language-Team: Danish <debian-l10n-danish@lists.debian.org> \n"
 "Language: \n"
@@ -21,7 +21,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:1001
 msgid "Samba server and utilities"
-msgstr ""
+msgstr "Sambaserver og -redskaber"
 
 #. Type: boolean
 #. Description
@@ -114,7 +114,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Use password encryption?"
-msgstr "Kryptér adgangskoder?"
+msgstr "Krypter adgangskoder?"
 
 #. Type: boolean
 #. Description
@@ -146,7 +146,7 @@ msgstr ""
 #. Description
 #: ../samba.templates:1001
 msgid "Samba server"
-msgstr ""
+msgstr "Sambaserver"
 
 #. Type: boolean
 #. Description

@@ -18,6 +18,14 @@ samba (2:3.5.8~dfsg-2) UNRELEASED; urgency=low
     changes when upgrading from pre-3.5 versions.
     Closes: #623190
 
+  [ Debconf translations ]
+  * French (Christian Perrier)
+  * Japanese (Kenshi Muto).  Closes: #626474
+  * Galician (Miguel Anxo Bouzada).  Closes: #626477
+  * Thai (Theppitak Karoonboonyanan).  Closes: #626487
+  * Russian (Yuri Kozlov).  Closes: #626523
+  * Danish (Joe Hansen).  Closes: #626531
+
  -- Mathieu Parent <sathieu@debian.org>  Tue, 29 Mar 2011 21:28:42 +0200
 
 samba (2:3.5.8~dfsg-1) unstable; urgency=low

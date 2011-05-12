@@ -15,7 +15,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Samba\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2009-01-02 12:18-0800\n"
+"POT-Creation-Date: 2011-05-12 10:46+0200\n"
 "PO-Revision-Date: 2007-03-13 08:06+0100\n"
 "Last-Translator: Matej Kovačič <matej.kovacic@owca.info>\n"
 "Language-Team: Sl <skrat@owca.info>\n"
@@ -27,16 +27,22 @@ msgstr ""
 "X-Poedit-Country: SLOVENIA\n"
 "X-Poedit-SourceCharset: utf-8\n"
 
-#. Type: boolean
+#. Type: title
 #. Description
 #: ../samba-common.templates:1001
+msgid "Samba server and utilities"
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
 msgid "Modify smb.conf to use WINS settings from DHCP?"
 msgstr ""
 "Spremeni smb.conf za uporabo WINS nastavitev pridobljenih s strani DHCP?"
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:1001
+#: ../samba-common.templates:2001
 msgid ""
 "If your computer gets IP address information from a DHCP server on the "
 "network, the DHCP server may also provide information about WINS servers "
@@ -52,20 +58,20 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:1001
+#: ../samba-common.templates:2001
 msgid ""
 "The dhcp3-client package must be installed to take advantage of this feature."
 msgstr "Za uporabo teh možnosti mora biti nameščen paket dhcp3-client."
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:2001
+#: ../samba-common.templates:3001
 msgid "Configure smb.conf automatically?"
 msgstr "Samodejna nastavitev smb.conf?"
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:2001
+#: ../samba-common.templates:3001
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -84,7 +90,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:2001
+#: ../samba-common.templates:3001
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
@@ -96,13 +102,13 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:3001
+#: ../samba-common.templates:4001
 msgid "Workgroup/Domain Name:"
 msgstr "Ime delovne skupine/domene:"
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:3001
+#: ../samba-common.templates:4001
 #, fuzzy
 #| msgid ""
 #| "Please specify the workgroup you want this server to appear to be in when "
@@ -120,13 +126,13 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:4001
+#: ../samba-common.templates:5001
 msgid "Use password encryption?"
 msgstr "Uporaba šifriranja gesel?"
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:4001
+#: ../samba-common.templates:5001
 #, fuzzy
 #| msgid ""
 #| "All recent Windows clients communicate with SMB servers using encrypted "
@@ -143,7 +149,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:4001
+#: ../samba-common.templates:5001
 #, fuzzy
 #| msgid ""
 #| "Enabling this option is highly recommended. If you do, make sure you have "
@@ -159,15 +165,21 @@ msgstr ""
 "imate veljavno datoteko /etc/samba/smbpasswd in da ste tam nastavili gesla "
 "za vsakega uporabnika s pomočjo ukaza smbpasswd."
 
-#. Type: boolean
+#. Type: title
 #. Description
 #: ../samba.templates:1001
+msgid "Samba server"
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:2001
 msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 msgstr "Ali naj ustvarim bazo samba gesel, /var/lib/samba/passdb.tdb?"
 
 #. Type: boolean
 #. Description
-#: ../samba.templates:1001
+#: ../samba.templates:2001
 msgid ""
 "To be compatible with the defaults in most versions of Windows, Samba must "
 "be configured to use encrypted passwords.  This requires user passwords to "
@@ -184,7 +196,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba.templates:1001
+#: ../samba.templates:2001
 msgid ""
 "If you do not create it, you will have to reconfigure Samba (and probably "
 "your client machines) to use plaintext passwords."
@@ -194,7 +206,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba.templates:1001
+#: ../samba.templates:2001
 msgid ""
 "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
 "from the samba-doc package for more details."
@@ -204,25 +216,25 @@ msgstr ""
 
 #. Type: select
 #. Choices
-#: ../samba.templates:2001
+#: ../samba.templates:3001
 msgid "daemons"
 msgstr "daemoni"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:2001
+#: ../samba.templates:3001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:2002
+#: ../samba.templates:3002
 msgid "How do you want to run Samba?"
 msgstr "Kako želite poganjati Sambo?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:2002
+#: ../samba.templates:3002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."

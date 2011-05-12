@@ -15,7 +15,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba/debian/po/ro.po\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2009-01-02 12:18-0800\n"
+"POT-Creation-Date: 2011-05-12 10:46+0200\n"
 "PO-Revision-Date: 2008-06-29 19:42+0300\n"
 "Last-Translator: Eddy Petrișor <eddy.petrisor@gmail.com>\n"
 "Language-Team: Romanian <debian-l10n-romanian@lists.debian.org>\n"
@@ -27,16 +27,22 @@ msgstr ""
 "Plural-Forms:  nplurals=3; plural=n==1 ? 0 : (n==0 || (n%100 > 0 && n%100 < "
 "20)) ? 1 : 2;\n"
 
-#. Type: boolean
+#. Type: title
 #. Description
 #: ../samba-common.templates:1001
+msgid "Samba server and utilities"
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
 msgid "Modify smb.conf to use WINS settings from DHCP?"
 msgstr "Se modifică smb.conf pentru a folosi configurațiile WINS din DHCP?"
 
 # RO: prefer să nu folosesc termeni de genul „calculatorul dvs.”; de multe ori nu e cazul și sună mai puțin profesional.
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:1001
+#: ../samba-common.templates:2001
 msgid ""
 "If your computer gets IP address information from a DHCP server on the "
 "network, the DHCP server may also provide information about WINS servers "
@@ -52,7 +58,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:1001
+#: ../samba-common.templates:2001
 msgid ""
 "The dhcp3-client package must be installed to take advantage of this feature."
 msgstr ""
@@ -61,13 +67,13 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:2001
+#: ../samba-common.templates:3001
 msgid "Configure smb.conf automatically?"
 msgstr "Se configurează smb.conf automat?"
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:2001
+#: ../samba-common.templates:3001
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -86,7 +92,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:2001
+#: ../samba-common.templates:3001
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
@@ -98,13 +104,13 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:3001
+#: ../samba-common.templates:4001
 msgid "Workgroup/Domain Name:"
 msgstr "Grupul de lucru/Numele de domeniu:"
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:3001
+#: ../samba-common.templates:4001
 #, fuzzy
 #| msgid ""
 #| "Please specify the workgroup you want this server to appear to be in when "
@@ -122,13 +128,13 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:4001
+#: ../samba-common.templates:5001
 msgid "Use password encryption?"
 msgstr "Se folosesc parole criptate? "
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:4001
+#: ../samba-common.templates:5001
 #, fuzzy
 #| msgid ""
 #| "All recent Windows clients communicate with SMB servers using encrypted "
@@ -145,7 +151,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:4001
+#: ../samba-common.templates:5001
 #, fuzzy
 #| msgid ""
 #| "Enabling this option is highly recommended. If you do, make sure you have "
@@ -161,15 +167,21 @@ msgstr ""
 "asigurați-vă că fișierul /etc/samba/smbpasswd este valid și că aveți "
 "configurată o parolă pentru fiecare utilizator (folosind comanda smbpasswd)."
 
-#. Type: boolean
+#. Type: title
 #. Description
 #: ../samba.templates:1001
+msgid "Samba server"
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:2001
 msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 msgstr "Se creează baza de date cu parole /var/lib/samba/passdb.tdb?"
 
 #. Type: boolean
 #. Description
-#: ../samba.templates:1001
+#: ../samba.templates:2001
 msgid ""
 "To be compatible with the defaults in most versions of Windows, Samba must "
 "be configured to use encrypted passwords.  This requires user passwords to "
@@ -185,7 +197,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba.templates:1001
+#: ../samba.templates:2001
 msgid ""
 "If you do not create it, you will have to reconfigure Samba (and probably "
 "your client machines) to use plaintext passwords."
@@ -195,7 +207,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba.templates:1001
+#: ../samba.templates:2001
 msgid ""
 "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
 "from the samba-doc package for more details."
@@ -205,25 +217,25 @@ msgstr ""
 
 #. Type: select
 #. Choices
-#: ../samba.templates:2001
+#: ../samba.templates:3001
 msgid "daemons"
 msgstr "demoni"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:2001
+#: ../samba.templates:3001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:2002
+#: ../samba.templates:3002
 msgid "How do you want to run Samba?"
 msgstr "Cum doriți să rulați Samba?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:2002
+#: ../samba.templates:3002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."

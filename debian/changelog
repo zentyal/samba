@@ -16,6 +16,7 @@ samba (2:3.5.8~dfsg-2) UNRELEASED; urgency=low
   * Document the newly introduced "map untrusted to domain" parameter
     and its default value that can lead to disruptive behavioral
     changes when upgrading from pre-3.5 versions.
+    Closes: #623190
 
  -- Mathieu Parent <sathieu@debian.org>  Tue, 29 Mar 2011 21:28:42 +0200
 

@@ -36,7 +36,10 @@ case "$1" in
 		# Make sure we have our PIDDIR, even if it's on a tmpfs
 		install -o root -g root -m 755 -d $PIDDIR
 
-		NMBD_DISABLED=`testparm -s --parameter-name='disable netbios' 2>/dev/null`
+		if [ -n `which testparm` ]
+		then
+			NMBD_DISABLED=`testparm -s --parameter-name='disable netbios' 2>/dev/null`
+		fi
 		if [ "$NMBD_DISABLED" != 'Yes' ]; then
 			log_progress_msg "nmbd"
 			if ! start-stop-daemon --start --quiet --oknodo --exec /usr/sbin/nmbd -- -D

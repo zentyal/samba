@@ -11,6 +11,8 @@ samba (2:3.5.8~dfsg-2) UNRELEASED; urgency=low
   [ Christian Perrier ]
   * Use db_settitle in debconf questions and make these
     titles translatable
+  * Test the presence of testparm before trying to use it in init script
+    Closes: #606320
 
   [ Christian Perrier ]
   * French (Christian Perrier)

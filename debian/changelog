@@ -25,6 +25,8 @@ samba (2:3.5.8~dfsg-2) UNRELEASED; urgency=low
   * Thai (Theppitak Karoonboonyanan).  Closes: #626487
   * Russian (Yuri Kozlov).  Closes: #626523
   * Danish (Joe Hansen).  Closes: #626531
+  * Esperanto (Felipe Castro).  Closes: #626558
+  * Hebrew (Eran Cohen).  Closes: #626638
 
  -- Mathieu Parent <sathieu@debian.org>  Tue, 29 Mar 2011 21:28:42 +0200
 

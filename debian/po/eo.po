@@ -1,13 +1,13 @@
 # This file is distributed under the same license as the samba package.
 # Copyright 2007, Serge Leblanc <serge.leblanc@wanadoo.fr>.
-# Copyright 2009, Felipe Castro <fefcas@gmail.com>.
+# Copyright 2009, 2011 Felipe Castro <fefcas@gmail.com>.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
 "POT-Creation-Date: 2011-05-12 10:46+0200\n"
-"PO-Revision-Date: 2009-03-11 06:04-0300\n"
+"PO-Revision-Date: 2011-05-12 19:50-0300\n"
 "Last-Translator: Felipe Castro <fefcas@gmail.com>\n"
 "Language-Team: Esperanto <debian-l10n-esperanto@lists.debian.org>\n"
 "Language: eo\n"
@@ -19,7 +19,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:1001
 msgid "Samba server and utilities"
-msgstr ""
+msgstr "Servilo Samba kaj utilaĵoj"
 
 #. Type: boolean
 #. Description
@@ -140,7 +140,7 @@ msgstr ""
 #. Description
 #: ../samba.templates:1001
 msgid "Samba server"
-msgstr ""
+msgstr "Servilo Samba"
 
 #. Type: boolean
 #. Description

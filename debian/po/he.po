@@ -23,7 +23,6 @@ msgstr ""
 #. Type: title
 #. Description
 #: ../samba-common.templates:1001
-#, fuzzy
 msgid "Samba server and utilities"
 msgstr "שרת סמבה ושירותים"
 
@@ -200,7 +199,6 @@ msgstr "תהליכי רקע"
 #. Type: select
 #. Choices
 #: ../samba.templates:3001
-#, fuzzy
 msgid "inetd"
 msgstr "inetd"
 

@@ -645,6 +645,7 @@ SMBLDAPUTIL
 SMBLDAP
 FAKE_KASERVER_OBJ
 SMB_FAM_LIBS
+LIBADDNS_FULLVER
 LIBADDNS_SOVER
 UNINSTALL_LIBADDNS
 INSTALL_LIBADDNS
@@ -654,6 +655,7 @@ LIBADDNS_STATIC
 LIBADDNS_SHARED
 LIBADDNS_STATIC_TARGET
 LIBADDNS_SHARED_TARGET
+LIBSMBSHAREMODES_FULLVER
 LIBSMBSHAREMODES_SOVER
 UNINSTALL_LIBSMBSHAREMODES
 INSTALL_LIBSMBSHAREMODES
@@ -663,6 +665,7 @@ LIBSMBSHAREMODES_STATIC
 LIBSMBSHAREMODES_SHARED
 LIBSMBSHAREMODES_STATIC_TARGET
 LIBSMBSHAREMODES_SHARED_TARGET
+LIBSMBCLIENT_FULLVER
 LIBSMBCLIENT_SOVER
 UNINSTALL_LIBSMBCLIENT
 INSTALL_LIBSMBCLIENT
@@ -672,6 +675,7 @@ LIBSMBCLIENT_STATIC
 LIBSMBCLIENT_SHARED
 LIBSMBCLIENT_STATIC_TARGET
 LIBSMBCLIENT_SHARED_TARGET
+LIBNETAPI_FULLVER
 LIBNETAPI_SOVER
 UNINSTALL_LIBNETAPI
 INSTALL_LIBNETAPI
@@ -686,6 +690,7 @@ TDBTOOL
 TDBRESTORE
 TDBDUMP
 TDBBACKUP
+LIBTDB_FULLVER
 LIBTDB_SOVER
 UNINSTALL_LIBTDB
 INSTALL_LIBTDB
@@ -704,6 +709,7 @@ LIBTDB_LIBS
 LIBTDB_CFLAGS
 TALLOCTORT
 LIBTALLOC_OBJ0
+LIBTALLOC_FULLVER
 LIBTALLOC_SOVER
 UNINSTALL_LIBTALLOC
 INSTALL_LIBTALLOC
@@ -780,6 +786,7 @@ PRINT_LIBS
 LIBSAMBAUTIL_SHARED
 LIBWBCLIENT_LIBS
 LIBWBCLIENT
+LIBWBCLIENT_FULLVER
 LIBWBCLIENT_SOVER
 LIBWBCLIENT_STATIC
 LIBWBCLIENT_STATIC_TARGET
@@ -931,6 +938,7 @@ enable_socket_wrapper
 enable_nss_wrapper
 enable_swat
 with_profiling_data
+enable_smbtorture4
 enable_cups
 enable_iprint
 with_readline
@@ -1627,6 +1635,7 @@ Optional Features:
   --enable-socket-wrapper Turn on socket wrapper library (default=no)
   --enable-nss-wrapper    Turn on nss wrapper library (default=no)
   --enable-swat           Build the SWAT tool (default=yes)
+  --enable-smbtorture4    Enable building smbtorture4 (default=auto)
   --enable-cups           Turn on CUPS support (default=auto)
   --enable-iprint         Turn on iPrint support (default=yes if cups is yes)
   --enable-static=PKGS    build static libraries default=no
@@ -6705,6 +6714,7 @@ fi
 
 
 
+
 # compile with optimization and without debugging by default, but
 # allow people to set their own preference.
 # do this here since AC_CACHE_CHECK apparently sets the CFLAGS to "-g -O2"
@@ -6952,7 +6962,17 @@ $as_echo "no" >&6; }
 fi
 
 
-smbtorture4_possible=yes
+# Check whether --enable-smbtorture4 was given.
+if test "${enable_smbtorture4+set}" = set; then :
+  enableval=$enable_smbtorture4;
+fi
+
+
+if test x$enable_smbtorture4 != xno; then
+	smbtorture4_possible=yes
+else
+	smbtorture4_possible=no
+fi
 
 
 for ac_prog in gawk mawk nawk awk
@@ -8473,6 +8493,8 @@ $as_echo "#define SYSV 1" >>confdefs.h
 $as_echo "no large file support" >&6; }
 				;;
 			5.*)
+			LDFLAGS="$LDFLAGS -lthread"
+			CPPFLAGS="$CPPFLAGS -D_REENTRANT"
 			{ $as_echo "$as_me:${as_lineno-$LINENO}: result: enabling large file support" >&5
 $as_echo "enabling large file support" >&6; }
 			if test "$ac_cv_c_compiler_gnu" = yes; then
@@ -8481,15 +8503,13 @@ $as_echo "enabling large file support" >&6; }
 				rm -fr conftest.c
 				case "$ac_cv_gcc_compiler_version_number" in
 					*"gcc version 2.6"*|*"gcc version 2.7"*)
-						CPPFLAGS="$CPPFLAGS -D_LARGEFILE64_SOURCE -D_REENTRANT"
-						LDFLAGS="$LDFLAGS -lthread"
+						CPPFLAGS="$CPPFLAGS -D_LARGEFILE64_SOURCE"
 
 $as_echo "#define _LARGEFILE64_SOURCE 1" >>confdefs.h
 
 						;;
 					*)
-						CPPFLAGS="$CPPFLAGS -D_LARGEFILE_SOURCE -D_REENTRANT -D_FILE_OFFSET_BITS=64"
-						LDFLAGS="$LDFLAGS -lthread"
+						CPPFLAGS="$CPPFLAGS -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
 
 $as_echo "#define _LARGEFILE64_SOURCE 1" >>confdefs.h
 
@@ -8499,8 +8519,7 @@ $as_echo "#define _FILE_OFFSET_BITS 64" >>confdefs.h
 						;;
 				esac
 			else
-				CPPFLAGS="$CPPFLAGS -D_LARGEFILE_SOURCE -D_REENTRANT -D_FILE_OFFSET_BITS=64"
-				LDFLAGS="$LDFLAGS -lthread"
+				CPPFLAGS="$CPPFLAGS -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
 
 $as_echo "#define _LARGEFILE64_SOURCE 1" >>confdefs.h
 
@@ -16596,6 +16615,7 @@ if test x"$ac_cv_header_gpfs_gpl_h" = x"yes"; then
 $as_echo "#define HAVE_GPFS 1" >>confdefs.h
 
     default_shared_modules="$default_shared_modules vfs_gpfs"
+    default_shared_modules="$default_shared_modules vfs_gpfs_hsm_notify"
 fi
 
 #############################################
@@ -20119,7 +20139,10 @@ if test x"$VERSIONSCRIPT" != "x"; then
 
 fi
 
-	LINK_LIBTALLOC=STATIC
+	if test x"$USESHARED" == x"no" ; then
+		LINK_LIBTALLOC=STATIC
+	fi
+	LIBTALLOCVERSION=`grep ^VERSION ${tallocdir}/wscript | sed -e "s/'//g" -e 's/.* //'`
 
 
 
@@ -20135,6 +20158,8 @@ INSTALL_LIBTALLOC=
 UNINSTALL_LIBTALLOC=
 
 LIBTALLOC_SOVER=2
+LIBTALLOC_FULLVER=${LIBTALLOCVERSION}
+
 
 
 
@@ -20226,9 +20251,9 @@ fi
 
 # Check whether --enable-external_libtdb was given.
 if test "${enable_external_libtdb+set}" = set; then :
-  enableval=$enable_external_libtdb;  enable_external_libtalloc=$enableval
+  enableval=$enable_external_libtdb;  enable_external_libtdb=$enableval
 else
-   enable_external_libtalloc=auto
+   enable_external_libtdb=auto
 fi
 
 
@@ -20451,7 +20476,10 @@ if test x"$VERSIONSCRIPT" != "x"; then
 
 fi
 
-	LINK_LIBTDB=STATIC
+	if test x"$USESHARED" == x"no" ; then
+		LINK_LIBTDB=STATIC
+	fi
+	LIBTDBVERSION=`grep ^VERSION ${tdbdir}/wscript | sed -e "s/'//g" -e 's/.* //'`
 
 
 
@@ -20467,6 +20495,8 @@ INSTALL_LIBTDB=
 UNINSTALL_LIBTDB=
 
 LIBTDB_SOVER=1
+LIBTDB_FULLVER=${LIBTDBVERSION}
+
 
 
 
@@ -20604,6 +20634,8 @@ INSTALL_LIBNETAPI=
 UNINSTALL_LIBNETAPI=
 
 LIBNETAPI_SOVER=0
+LIBNETAPI_FULLVER=$LIBNETAPI_SOVER
+
 
 
 
@@ -20695,6 +20727,8 @@ INSTALL_LIBSMBCLIENT=
 UNINSTALL_LIBSMBCLIENT=
 
 LIBSMBCLIENT_SOVER=0
+LIBSMBCLIENT_FULLVER=$LIBSMBCLIENT_SOVER
+
 
 
 
@@ -20786,6 +20820,8 @@ INSTALL_LIBSMBSHAREMODES=
 UNINSTALL_LIBSMBSHAREMODES=
 
 LIBSMBSHAREMODES_SOVER=0
+LIBSMBSHAREMODES_FULLVER=$LIBSMBSHAREMODES_SOVER
+
 
 
 
@@ -20877,6 +20913,8 @@ INSTALL_LIBADDNS=
 UNINSTALL_LIBADDNS=
 
 LIBADDNS_SOVER=0
+LIBADDNS_FULLVER=$LIBADDNS_SOVER
+
 
 
 
@@ -29986,6 +30024,73 @@ _ACEOF
 
 fi
 
+
+    ac_check_func_ext_save_LIBS=$LIBS
+    LIBS="$KRB5_LIBS $LIBS"
+        { $as_echo "$as_me:${as_lineno-$LINENO}: checking for gss_get_name_attribute" >&5
+$as_echo_n "checking for gss_get_name_attribute... " >&6; }
+if test "${ac_cv_func_ext_gss_get_name_attribute+set}" = set; then :
+  $as_echo_n "(cached) " >&6
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+/* Define gss_get_name_attribute to an innocuous variant, in case <limits.h> declares gss_get_name_attribute.
+   For example, HP-UX 11i <limits.h> declares gettimeofday.  */
+#define gss_get_name_attribute innocuous_gss_get_name_attribute
+
+/* System header to define __stub macros and hopefully few prototypes,
+    which can conflict with char gss_get_name_attribute (); below.
+    Prefer <limits.h> to <assert.h> if __STDC__ is defined, since
+    <limits.h> exists even on freestanding compilers.  */
+
+#ifdef __STDC__
+# include <limits.h>
+#else
+# include <assert.h>
+#endif
+
+#undef gss_get_name_attribute
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char gss_get_name_attribute ();
+/* The GNU C library defines this for functions which it implements
+    to always fail with ENOSYS.  Some functions are actually named
+    something starting with __ and the normal name is an alias.  */
+#if defined __stub_gss_get_name_attribute || defined __stub___gss_get_name_attribute
+choke me
+#endif
+
+int
+main ()
+{
+return gss_get_name_attribute ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_func_ext_gss_get_name_attribute=yes
+else
+  ac_cv_func_ext_gss_get_name_attribute=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_func_ext_gss_get_name_attribute" >&5
+$as_echo "$ac_cv_func_ext_gss_get_name_attribute" >&6; }
+    LIBS=$ac_check_func_ext_save_LIBS
+    if test $ac_cv_func_ext_gss_get_name_attribute = yes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_GSS_GET_NAME_ATTRIBUTE 1
+_ACEOF
+
+fi
+
   # MIT krb5 1.8 does not expose this call (yet)
   ac_fn_c_check_decl "$LINENO" "krb5_get_credentials_for_user" "ac_cv_have_decl_krb5_get_credentials_for_user" "#include <krb5.h>
 "
@@ -35664,6 +35769,7 @@ else
 	LIBWBCLIENT_SHARED_TARGET=bin/libwbclient.$SHLIBEXT
 	LIBWBCLIENT_STATIC_TARGET=bin/libwbclient.a
 	LIBWBCLIENT_SOVER=0
+	LIBWBCLIENT_FULLVER=0
 	if test $BLDSHARED = true -a x"$HAVE_WINBIND" = x"yes" -a x"$BUILD_LIBWBCLIENT_SHARED" = x"yes"; then
 		NSS_MODULES="${WINBIND_NSS} ${WINBIND_WINS_NSS}"
 		## Only worry about libwbclient if we have shared
@@ -38882,6 +38988,41 @@ $as_echo "shared" >&6; }
 $as_echo "static" >&6; }
 	else
 	    string_ignored_modules="$string_ignored_modules vfs_gpfs"
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: not" >&5
+$as_echo "not" >&6; }
+	fi
+
+
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking how to build vfs_gpfs_hsm_notify" >&5
+$as_echo_n "checking how to build vfs_gpfs_hsm_notify... " >&6; }
+	if test "$MODULE_vfs_gpfs_hsm_notify"; then
+		DEST=$MODULE_vfs_gpfs_hsm_notify
+	elif test "$MODULE_vfs" -a "$MODULE_DEFAULT_vfs_gpfs_hsm_notify"; then
+		DEST=$MODULE_vfs
+	else
+		DEST=$MODULE_DEFAULT_vfs_gpfs_hsm_notify
+	fi
+
+	if test x"$DEST" = xSHARED; then
+
+$as_echo "#define vfs_gpfs_hsm_notify_init init_samba_module" >>confdefs.h
+
+		VFS_MODULES="$VFS_MODULES "bin/gpfs_hsm_notify.$SHLIBEXT""
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: shared" >&5
+$as_echo "shared" >&6; }
+
+		string_shared_modules="$string_shared_modules vfs_gpfs_hsm_notify"
+	elif test x"$DEST" = xSTATIC; then
+		init_static_modules_vfs="$init_static_modules_vfs  vfs_gpfs_hsm_notify_init();"
+		decl_static_modules_vfs="$decl_static_modules_vfs extern NTSTATUS vfs_gpfs_hsm_notify_init(void);"
+		string_static_modules="$string_static_modules vfs_gpfs_hsm_notify"
+		VFS_STATIC="$VFS_STATIC \$(VFS_GPFS_PREFETCH_OBJ)"
+
+
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: static" >&5
+$as_echo "static" >&6; }
+	else
+	    string_ignored_modules="$string_ignored_modules vfs_gpfs_hsm_notify"
 		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: not" >&5
 $as_echo "not" >&6; }
 	fi

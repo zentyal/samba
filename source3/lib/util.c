@@ -24,6 +24,7 @@
 #include "includes.h"
 #include "system/passwd.h"
 #include "system/filesys.h"
+#include "util_tdb.h"
 #include "ctdbd_conn.h"
 #include "../lib/util/util_pw.h"
 #include "messages.h"
@@ -308,12 +309,12 @@ char *attrib_string(uint16 mode)
 
 	attrstr[0] = 0;
 
-	if (mode & aVOLID) fstrcat(attrstr,"V");
-	if (mode & aDIR) fstrcat(attrstr,"D");
-	if (mode & aARCH) fstrcat(attrstr,"A");
-	if (mode & aHIDDEN) fstrcat(attrstr,"H");
-	if (mode & aSYSTEM) fstrcat(attrstr,"S");
-	if (mode & aRONLY) fstrcat(attrstr,"R");	  
+	if (mode & FILE_ATTRIBUTE_VOLUME) fstrcat(attrstr,"V");
+	if (mode & FILE_ATTRIBUTE_DIRECTORY) fstrcat(attrstr,"D");
+	if (mode & FILE_ATTRIBUTE_ARCHIVE) fstrcat(attrstr,"A");
+	if (mode & FILE_ATTRIBUTE_HIDDEN) fstrcat(attrstr,"H");
+	if (mode & FILE_ATTRIBUTE_SYSTEM) fstrcat(attrstr,"S");
+	if (mode & FILE_ATTRIBUTE_READONLY) fstrcat(attrstr,"R");
 
 	return talloc_strdup(talloc_tos(), attrstr);
 }
@@ -2686,4 +2687,38 @@ bool any_nt_status_not_ok(NTSTATUS err1, NTSTATUS err2, NTSTATUS *result)
 int timeval_to_msec(struct timeval t)
 {
 	return t.tv_sec * 1000 + (t.tv_usec+999) / 1000;
+}
+
+/*******************************************************************
+ Check a given DOS pathname is valid for a share.
+********************************************************************/
+
+char *valid_share_pathname(TALLOC_CTX *ctx, const char *dos_pathname)
+{
+	char *ptr = NULL;
+
+	if (!dos_pathname) {
+		return NULL;
+	}
+
+	ptr = talloc_strdup(ctx, dos_pathname);
+	if (!ptr) {
+		return NULL;
+	}
+	/* Convert any '\' paths to '/' */
+	unix_format(ptr);
+	ptr = unix_clean_name(ctx, ptr);
+	if (!ptr) {
+		return NULL;
+	}
+
+	/* NT is braindead - it wants a C: prefix to a pathname ! So strip it. */
+	if (strlen(ptr) > 2 && ptr[1] == ':' && ptr[0] != '/')
+		ptr += 2;
+
+	/* Only absolute paths allowed. */
+	if (*ptr != '/')
+		return NULL;
+
+	return ptr;
 }

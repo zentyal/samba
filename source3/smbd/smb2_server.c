@@ -24,6 +24,7 @@
 #include "smbd/globals.h"
 #include "../libcli/smb/smb_common.h"
 #include "../lib/tsocket/tsocket.h"
+#include "../lib/util/tevent_ntstatus.h"
 #include "smbprofile.h"
 
 #define OUTVEC_ALLOC_SIZE (SMB2_HDR_BODY + 9)
@@ -607,7 +608,7 @@ static bool dup_smb2_vec3(TALLOC_CTX *ctx,
 			srcvec[1].iov_base ==
 				((uint8_t *)srcvec[0].iov_base) +
 					SMB2_HDR_BODY) {
-		outvec[1].iov_base = ((uint8_t *)outvec[1].iov_base) +
+		outvec[1].iov_base = ((uint8_t *)outvec[0].iov_base) +
 					SMB2_HDR_BODY;
 		outvec[1].iov_len = 8;
 	} else {

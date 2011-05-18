@@ -846,6 +846,9 @@
 /* Define to 1 if you have the `gss_display_status' function. */
 #undef HAVE_GSS_DISPLAY_STATUS
 
+/* Define to 1 if you have the `gss_get_name_attribute' function. */
+#undef HAVE_GSS_GET_NAME_ATTRIBUTE
+
 /* Define to 1 if you have the `gss_wrap_iov' function. */
 #undef HAVE_GSS_WRAP_IOV
 
@@ -3417,6 +3420,9 @@
 
 /* Whether to build vfs_full_audit as shared module */
 #undef vfs_full_audit_init
+
+/* Whether to build vfs_gpfs_hsm_notify as shared module */
+#undef vfs_gpfs_hsm_notify_init
 
 /* Whether to build vfs_gpfs as shared module */
 #undef vfs_gpfs_init

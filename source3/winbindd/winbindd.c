@@ -27,6 +27,7 @@
 #include "winbindd.h"
 #include "nsswitch/winbind_client.h"
 #include "nsswitch/wb_reqtrans.h"
+#include "ntdomain.h"
 #include "../librpc/gen_ndr/srv_lsa.h"
 #include "../librpc/gen_ndr/srv_samr.h"
 #include "secrets.h"
@@ -387,6 +388,7 @@ static void winbind_msg_validate_cache(struct messaging_context *msg_ctx,
 {
 	uint8 ret;
 	pid_t child_pid;
+	NTSTATUS status;
 
 	DEBUG(10, ("winbindd_msg_validate_cache: got validate-cache "
 		   "message.\n"));
@@ -413,7 +415,10 @@ static void winbind_msg_validate_cache(struct messaging_context *msg_ctx,
 
 	/* child */
 
-	if (!winbindd_reinit_after_fork(NULL)) {
+	status = winbindd_reinit_after_fork(NULL, NULL);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("winbindd_reinit_after_fork failed: %s\n",
+			  nt_errstr(status)));
 		_exit(0);
 	}
 

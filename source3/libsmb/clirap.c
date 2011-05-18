@@ -23,7 +23,9 @@
 #include "../libcli/auth/libcli_auth.h"
 #include "../librpc/gen_ndr/rap.h"
 #include "../lib/crypto/arcfour.h"
+#include "../lib/util/tevent_ntstatus.h"
 #include "async_smb.h"
+#include "libsmb/libsmb.h"
 #include "libsmb/clirap.h"
 #include "trans2.h"
 

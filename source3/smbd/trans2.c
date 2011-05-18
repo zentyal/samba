@@ -35,6 +35,8 @@
 #include "trans2.h"
 #include "auth.h"
 #include "smbprofile.h"
+#include "rpc_server/srv_pipe_hnd.h"
+#include "libsmb/libsmb.h"
 
 #define DIR_ENTRY_SAFETY_MARGIN 4096
 
@@ -1148,7 +1150,7 @@ static void call_trans2open(connection_struct *conn,
 	fattr = dos_mode(conn, smb_fname);
 	mtime = convert_timespec_to_time_t(smb_fname->st.st_ex_mtime);
 	inode = smb_fname->st.st_ex_ino;
-	if (fattr & aDIR) {
+	if (fattr & FILE_ATTRIBUTE_DIRECTORY) {
 		close_file(req, fsp, ERROR_CLOSE);
 		reply_nterror(req, NT_STATUS_ACCESS_DENIED);
 		goto out;
@@ -1524,7 +1526,7 @@ static bool smbd_marshall_dir_entry(TALLOC_CTX *ctx,
 	ZERO_STRUCT(create_date_ts);
 	ZERO_STRUCT(cdate_ts);
 
-	if (!(mode & aDIR)) {
+	if (!(mode & FILE_ATTRIBUTE_DIRECTORY)) {
 		file_size = get_file_size_stat(&smb_fname->st);
 	}
 	allocation_size = SMB_VFS_GET_ALLOC_SIZE(conn, NULL, &smb_fname->st);
@@ -4227,7 +4229,7 @@ NTSTATUS smbd_do_qfilepathinfo(connection_struct *conn,
 	mode = dos_mode(conn, smb_fname);
 	nlink = psbuf->st_ex_nlink;
 
-	if (nlink && (mode&aDIR)) {
+	if (nlink && (mode&FILE_ATTRIBUTE_DIRECTORY)) {
 		nlink = 1;
 	}
 
@@ -4308,7 +4310,7 @@ NTSTATUS smbd_do_qfilepathinfo(connection_struct *conn,
 		}
 	}
 
-	if (!(mode & aDIR)) {
+	if (!(mode & FILE_ATTRIBUTE_DIRECTORY)) {
 		file_size = get_file_size_stat(psbuf);
 	}
 
@@ -4478,7 +4480,7 @@ NTSTATUS smbd_do_qfilepathinfo(connection_struct *conn,
 			SOFF_T(pdata,8,file_size);
 			SIVAL(pdata,16,nlink);
 			SCVAL(pdata,20,delete_pending?1:0);
-			SCVAL(pdata,21,(mode&aDIR)?1:0);
+			SCVAL(pdata,21,(mode&FILE_ATTRIBUTE_DIRECTORY)?1:0);
 			SSVAL(pdata,22,0); /* Padding. */
 			break;
 
@@ -4561,7 +4563,7 @@ NTSTATUS smbd_do_qfilepathinfo(connection_struct *conn,
 			SOFF_T(pdata,8,file_size);
 			SIVAL(pdata,16,nlink);
 			SCVAL(pdata,20,delete_pending);
-			SCVAL(pdata,21,(mode&aDIR)?1:0);
+			SCVAL(pdata,21,(mode&FILE_ATTRIBUTE_DIRECTORY)?1:0);
 			SSVAL(pdata,22,0);
 			pdata += 24;
 			SIVAL(pdata,0,ea_size);
@@ -4592,7 +4594,7 @@ NTSTATUS smbd_do_qfilepathinfo(connection_struct *conn,
 			SBVAL(pdata,	0x30, file_size);
 			SIVAL(pdata,	0x38, nlink);
 			SCVAL(pdata,	0x3C, delete_pending);
-			SCVAL(pdata,	0x3D, (mode&aDIR)?1:0);
+			SCVAL(pdata,	0x3D, (mode&FILE_ATTRIBUTE_DIRECTORY)?1:0);
 			SSVAL(pdata,	0x3E, 0); /* padding */
 			SBVAL(pdata,	0x40, file_index);
 			SIVAL(pdata,	0x48, ea_size);
@@ -5554,9 +5556,9 @@ static NTSTATUS smb_set_file_dosmode(connection_struct *conn,
 
 	if (dosmode) {
 		if (S_ISDIR(smb_fname_base->st.st_ex_mode)) {
-			dosmode |= aDIR;
+			dosmode |= FILE_ATTRIBUTE_DIRECTORY;
 		} else {
-			dosmode &= ~aDIR;
+			dosmode &= ~FILE_ATTRIBUTE_DIRECTORY;
 		}
 	}
 
@@ -7240,7 +7242,7 @@ static NTSTATUS smb_posix_open(connection_struct *conn,
 	uint32 mod_unixmode = 0;
 	uint32 create_disp = 0;
 	uint32 access_mask = 0;
-	uint32 create_options = 0;
+	uint32 create_options = FILE_NON_DIRECTORY_FILE;
 	NTSTATUS status = NT_STATUS_OK;
 	mode_t unixmode = (mode_t)0;
 	files_struct *fsp = NULL;
@@ -7286,18 +7288,55 @@ static NTSTATUS smb_posix_open(connection_struct *conn,
 
 	wire_open_mode &= ~SMB_ACCMODE;
 
-	if((wire_open_mode & (SMB_O_CREAT | SMB_O_EXCL)) == (SMB_O_CREAT | SMB_O_EXCL)) {
-		create_disp = FILE_CREATE;
-	} else if((wire_open_mode & (SMB_O_CREAT | SMB_O_TRUNC)) == (SMB_O_CREAT | SMB_O_TRUNC)) {
-		create_disp = FILE_OVERWRITE_IF;
-	} else if((wire_open_mode & SMB_O_CREAT) == SMB_O_CREAT) {
-		create_disp = FILE_OPEN_IF;
-	} else if ((wire_open_mode & (SMB_O_CREAT | SMB_O_EXCL | SMB_O_TRUNC)) == 0) {
-		create_disp = FILE_OPEN;
-	} else {
-		DEBUG(5,("smb_posix_open: invalid create mode 0x%x\n",
-			(unsigned int)wire_open_mode ));
-		return NT_STATUS_INVALID_PARAMETER;
+	/* First take care of O_CREAT|O_EXCL interactions. */
+	switch (wire_open_mode & (SMB_O_CREAT | SMB_O_EXCL)) {
+		case (SMB_O_CREAT | SMB_O_EXCL):
+			/* File exists fail. File not exist create. */
+			create_disp = FILE_CREATE;
+			break;
+		case SMB_O_CREAT:
+			/* File exists open. File not exist create. */
+			create_disp = FILE_OPEN_IF;
+			break;
+		case 0:
+			/* File exists open. File not exist fail. */
+			create_disp = FILE_OPEN;
+			break;
+		case SMB_O_EXCL:
+			/* O_EXCL on its own without O_CREAT is undefined. */
+		default:
+			DEBUG(5,("smb_posix_open: invalid create mode 0x%x\n",
+				(unsigned int)wire_open_mode ));
+			return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	/* Next factor in the effects of O_TRUNC. */
+	wire_open_mode &= ~(SMB_O_CREAT | SMB_O_EXCL);
+
+	if (wire_open_mode & SMB_O_TRUNC) {
+		switch (create_disp) {
+			case FILE_CREATE:
+				/* (SMB_O_CREAT | SMB_O_EXCL | O_TRUNC) */
+				/* Leave create_disp alone as
+				   (O_CREAT|O_EXCL|O_TRUNC) == (O_CREAT|O_EXCL)
+				*/
+				/* File exists fail. File not exist create. */
+				break;
+			case FILE_OPEN_IF:
+				/* SMB_O_CREAT | SMB_O_TRUNC */
+				/* File exists overwrite. File not exist create. */
+				create_disp = FILE_OVERWRITE_IF;
+				break;
+			case FILE_OPEN:
+				/* SMB_O_TRUNC */
+				/* File exists overwrite. File not exist fail. */
+				create_disp = FILE_OVERWRITE;
+				break;
+			default:
+				/* Cannot get here. */
+				smb_panic("smb_posix_open: logic error");
+				return NT_STATUS_INVALID_PARAMETER;
+		}
 	}
 
 	raw_unixmode = IVAL(pdata,8);
@@ -7316,6 +7355,14 @@ static NTSTATUS smb_posix_open(connection_struct *conn,
 
 	if (wire_open_mode & SMB_O_SYNC) {
 		create_options |= FILE_WRITE_THROUGH;
+	}
+	if ((wire_open_mode & SMB_O_DIRECTORY) ||
+			VALID_STAT_OF_DIR(smb_fname->st)) {
+		if (access_mask != FILE_READ_DATA) {
+			return NT_STATUS_FILE_IS_A_DIRECTORY;
+		}
+		create_options &= ~FILE_NON_DIRECTORY_FILE;
+		create_options |= FILE_DIRECTORY_FILE;
 	}
 	if (wire_open_mode & SMB_O_APPEND) {
 		access_mask |= FILE_APPEND_DATA;
@@ -7338,7 +7385,7 @@ static NTSTATUS smb_posix_open(connection_struct *conn,
 		(FILE_SHARE_READ | FILE_SHARE_WRITE |	/* share_access */
 		    FILE_SHARE_DELETE),
 		create_disp,				/* create_disposition*/
-		FILE_NON_DIRECTORY_FILE,		/* create_options */
+		create_options,				/* create_options */
 		mod_unixmode,				/* file_attributes */
 		oplock_request,				/* oplock_request */
 		0,					/* allocation_size */

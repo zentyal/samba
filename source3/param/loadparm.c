@@ -53,10 +53,10 @@
 
 #include "includes.h"
 #include "system/filesys.h"
+#include "util_tdb.h"
 #include "printing.h"
 #include "lib/smbconf/smbconf.h"
 #include "lib/smbconf/smbconf_init.h"
-#include "lib/smbconf/smbconf_reg.h"
 
 #include "ads.h"
 #include "../librpc/gen_ndr/svcctl.h"
@@ -7208,14 +7208,14 @@ bool service_ok(int iService)
 
 static struct smbconf_ctx *lp_smbconf_ctx(void)
 {
-	WERROR werr;
+	sbcErr err;
 	static struct smbconf_ctx *conf_ctx = NULL;
 
 	if (conf_ctx == NULL) {
-		werr = smbconf_init(NULL, &conf_ctx, "registry:");
-		if (!W_ERROR_IS_OK(werr)) {
+		err = smbconf_init(NULL, &conf_ctx, "registry:");
+		if (!SBC_ERROR_IS_OK(err)) {
 			DEBUG(1, ("error initializing registry configuration: "
-				  "%s\n", win_errstr(werr)));
+				  "%s\n", sbcErrorString(err)));
 			conf_ctx = NULL;
 		}
 	}
@@ -7255,7 +7255,7 @@ static bool process_smbconf_service(struct smbconf_service *service)
  */
 bool process_registry_service(const char *service_name)
 {
-	WERROR werr;
+	sbcErr err;
 	struct smbconf_service *service = NULL;
 	TALLOC_CTX *mem_ctx = talloc_stackframe();
 	struct smbconf_ctx *conf_ctx = lp_smbconf_ctx();
@@ -7276,8 +7276,8 @@ bool process_registry_service(const char *service_name)
 		goto done;
 	}
 
-	werr = smbconf_get_share(conf_ctx, mem_ctx, service_name, &service);
-	if (!W_ERROR_IS_OK(werr)) {
+	err = smbconf_get_share(conf_ctx, mem_ctx, service_name, &service);
+	if (!SBC_ERROR_IS_OK(err)) {
 		goto done;
 	}
 
@@ -7313,7 +7313,7 @@ static bool process_registry_globals(void)
 
 bool process_registry_shares(void)
 {
-	WERROR werr;
+	sbcErr err;
 	uint32_t count;
 	struct smbconf_service **service = NULL;
 	uint32_t num_shares = 0;
@@ -7325,8 +7325,8 @@ bool process_registry_shares(void)
 		goto done;
 	}
 
-	werr = smbconf_get_config(conf_ctx, mem_ctx, &num_shares, &service);
-	if (!W_ERROR_IS_OK(werr)) {
+	err = smbconf_get_config(conf_ctx, mem_ctx, &num_shares, &service);
+	if (!SBC_ERROR_IS_OK(err)) {
 		goto done;
 	}
 
@@ -8610,7 +8610,8 @@ static void lp_add_auto_services(char *str)
  Auto-load one printer.
 ***************************************************************************/
 
-void lp_add_one_printer(const char *name, const char *comment, void *pdata)
+void lp_add_one_printer(const char *name, const char *comment,
+			const char *location, void *pdata)
 {
 	int printers = lp_servicenumber(PRINTERS_NAME);
 	int i;

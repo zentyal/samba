@@ -19,6 +19,7 @@
 */
 
 #include "includes.h"
+#include "../lib/util/tevent_ntstatus.h"
 #include "libads/sitename_cache.h"
 #include "libads/dns.h"
 #include "../libcli/netlogon/netlogon.h"
@@ -1252,6 +1253,7 @@ static bool name_query_validator(struct packet_struct *p, void *private_data)
 		private_data, struct name_query_state);
 	struct nmb_packet *nmb = &p->packet.nmb;
 	struct sockaddr_storage *tmp_addrs;
+	bool got_unique_netbios_name = false;
 	int i;
 
 	debug_nmb_packet(p);
@@ -1326,11 +1328,32 @@ static bool name_query_validator(struct packet_struct *p, void *private_data)
 		 "from %s ( ", inet_ntoa(p->ip)));
 
 	for (i=0; i<nmb->answers->rdlength/6; i++) {
+		uint16_t flags;
 		struct in_addr ip;
+		struct sockaddr_storage addr;
+		int j;
+
+		flags = RSVAL(&nmb->answers->rdata[i*6], 0);
+		got_unique_netbios_name |= ((flags & 0x8000) == 0);
+
 		putip((char *)&ip,&nmb->answers->rdata[2+i*6]);
-		in_addr_to_sockaddr_storage(
-			&state->addrs[state->num_addrs], ip);
+		in_addr_to_sockaddr_storage(&addr, ip);
+
+		for (j=0; j<state->num_addrs; j++) {
+			if (sockaddr_equal(
+				    (struct sockaddr *)&addr,
+				    (struct sockaddr *)&state->addrs[j])) {
+				break;
+			}
+		}
+		if (j < state->num_addrs) {
+			/* Already got it */
+			continue;
+		}
+
 		DEBUGADD(2,("%s ",inet_ntoa(ip)));
+
+		state->addrs[state->num_addrs] = addr;
 		state->num_addrs += 1;
 	}
 	DEBUGADD(2,(")\n"));
@@ -1351,10 +1374,10 @@ static bool name_query_validator(struct packet_struct *p, void *private_data)
 
 	if (state->bcast) {
 		/*
-		 * We have to collect all entries coming in from
-		 * broadcast queries
+		 * We have to collect all entries coming in from broadcast
+		 * queries. If we got a unique name, we're done.
 		 */
-		return false;
+		return got_unique_netbios_name;
 	}
 	/*
 	 * WINS responses are accepted when they are received
@@ -1488,7 +1511,8 @@ static bool convert_ss2service(struct ip_service **return_iplist,
 
 NTSTATUS name_resolve_bcast(const char *name,
 			int name_type,
-			struct ip_service **return_iplist,
+			TALLOC_CTX *mem_ctx,
+			struct sockaddr_storage **return_iplist,
 			int *return_count)
 {
 	int i;
@@ -1536,11 +1560,7 @@ NTSTATUS name_resolve_bcast(const char *name,
 	return status;
 
 success:
-
-	if (!convert_ss2service(return_iplist, ss_list, *return_count) )
-		status = NT_STATUS_NO_MEMORY;
-
-	TALLOC_FREE(ss_list);
+	*return_iplist = ss_list;
 	return status;
 }
 
@@ -2047,10 +2067,16 @@ NTSTATUS internal_resolve_name(const char *name,
 				}
 			}
 		} else if(strequal( tok, "bcast")) {
-			status = name_resolve_bcast(name, name_type,
-						    return_iplist,
-						    return_count);
+			struct sockaddr_storage *ss_list;
+			status = name_resolve_bcast(
+				name, name_type, talloc_tos(),
+				&ss_list, return_count);
 			if (NT_STATUS_IS_OK(status)) {
+				if (!convert_ss2service(return_iplist,
+							ss_list,
+							*return_count)) {
+					status = NT_STATUS_NO_MEMORY;
+				}
 				goto done;
 			}
 		} else {

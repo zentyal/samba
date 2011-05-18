@@ -1819,6 +1819,80 @@ static bool api_rap_NetUserDelete(struct pipes_struct *p)
 	return true;
 }
 
+static bool api_rap_NetRemoteTOD(struct pipes_struct *p)
+{
+	const struct ndr_interface_call *call;
+	struct ndr_pull *pull;
+	struct ndr_push *push;
+	enum ndr_err_code ndr_err;
+	struct rap_NetRemoteTOD *r;
+
+	call = &ndr_table_rap.calls[NDR_RAP_NETREMOTETOD];
+
+	r = talloc(talloc_tos(), struct rap_NetRemoteTOD);
+	if (r == NULL) {
+		return false;
+	}
+
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
+	if (pull == NULL) {
+		talloc_free(r);
+		return false;
+	}
+
+	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
+	ndr_err = call->ndr_pull(pull, NDR_IN, r);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		talloc_free(r);
+		return false;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_FUNCTION_DEBUG(rap_NetRemoteTOD, NDR_IN, r);
+	}
+
+	ZERO_STRUCT(r->out);
+	_rap_NetRemoteTOD(p, r);
+
+	if (p->rng_fault_state) {
+		talloc_free(r);
+		/* Return true here, srv_pipe_hnd.c will take care */
+		return true;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_FUNCTION_DEBUG(rap_NetRemoteTOD, NDR_OUT | NDR_SET_VALUES, r);
+	}
+
+	push = ndr_push_init_ctx(r);
+	if (push == NULL) {
+		talloc_free(r);
+		return false;
+	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
+
+	ndr_err = call->ndr_push(push, NDR_OUT, r);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		talloc_free(r);
+		return false;
+	}
+
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
+
+	talloc_free(r);
+
+	return true;
+}
+
 
 /* Tables */
 static struct api_struct api_rap_cmds[] = 
@@ -1847,6 +1921,7 @@ static struct api_struct api_rap_cmds[] =
 	{"RAP_NETSESSIONGETINFO", NDR_RAP_NETSESSIONGETINFO, api_rap_NetSessionGetInfo},
 	{"RAP_NETUSERADD", NDR_RAP_NETUSERADD, api_rap_NetUserAdd},
 	{"RAP_NETUSERDELETE", NDR_RAP_NETUSERDELETE, api_rap_NetUserDelete},
+	{"RAP_NETREMOTETOD", NDR_RAP_NETREMOTETOD, api_rap_NetRemoteTOD},
 };
 
 void rap_get_pipe_fns(struct api_struct **fns, int *n_fns)

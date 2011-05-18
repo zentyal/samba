@@ -363,4 +363,19 @@ NTSTATUS dcerpc_rap_NetUserDelete_r(struct dcerpc_binding_handle *h, TALLOC_CTX 
  * dcerpc_rap_NetUserDelete()
  */
 
+struct tevent_req *dcerpc_rap_NetRemoteTOD_r_send(TALLOC_CTX *mem_ctx,
+	struct tevent_context *ev,
+	struct dcerpc_binding_handle *h,
+	struct rap_NetRemoteTOD *r);
+NTSTATUS dcerpc_rap_NetRemoteTOD_r_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+NTSTATUS dcerpc_rap_NetRemoteTOD_r(struct dcerpc_binding_handle *h, TALLOC_CTX *mem_ctx, struct rap_NetRemoteTOD *r);
+/*
+ * The following functions are skipped because
+ * an [out] argument status is not a pointer or array:
+ *
+ * dcerpc_rap_NetRemoteTOD_send()
+ * dcerpc_rap_NetRemoteTOD_recv()
+ * dcerpc_rap_NetRemoteTOD()
+ */
+
 #endif /* _HEADER_RPC_rap */

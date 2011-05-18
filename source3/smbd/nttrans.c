@@ -29,6 +29,7 @@
 #include "auth.h"
 #include "ntioctl.h"
 #include "smbprofile.h"
+#include "libsmb/libsmb.h"
 
 extern const struct generic_mapping file_generic_mapping;
 
@@ -1363,7 +1364,7 @@ static NTSTATUS copy_internals(TALLOC_CTX *ctx,
 
 	/* Ensure attributes match. */
 	fattr = dos_mode(conn, smb_fname_src);
-	if ((fattr & ~attrs) & (aHIDDEN | aSYSTEM)) {
+	if ((fattr & ~attrs) & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM)) {
 		status = NT_STATUS_NO_SUCH_FILE;
 		goto out;
 	}
@@ -1450,7 +1451,7 @@ static NTSTATUS copy_internals(TALLOC_CTX *ctx,
 
 	status = close_file(NULL, fsp2, NORMAL_CLOSE);
 
-	/* Grrr. We have to do this as open_file_ntcreate adds aARCH when it
+	/* Grrr. We have to do this as open_file_ntcreate adds FILE_ATTRIBUTE_ARCHIVE when it
 	   creates the file. This isn't the correct thing to do in the copy
 	   case. JRA */
 	if (!parent_dirname(talloc_tos(), smb_fname_dst->base_name, &parent,

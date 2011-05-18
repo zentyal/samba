@@ -37,6 +37,7 @@ staticforward PyTypeObject rap_NetUserInfo2_Type;
 staticforward PyTypeObject rap_NetUserInfo10_Type;
 staticforward PyTypeObject rap_NetUserInfo11_Type;
 staticforward PyTypeObject rap_session_info_2_Type;
+staticforward PyTypeObject rap_TimeOfDayInfo_Type;
 
 void initrap(void);static PyTypeObject *Object_Type;
 
@@ -7077,6 +7078,282 @@ union rap_session_info *py_export_rap_session_info(TALLOC_CTX *mem_ctx, int leve
 	return ret;
 }
 
+
+static PyObject *py_rap_TimeOfDayInfo_get_TimeSinceJan11970(PyObject *obj, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(obj);
+	PyObject *py_TimeSinceJan11970;
+	py_TimeSinceJan11970 = PyInt_FromLong(object->TimeSinceJan11970);
+	return py_TimeSinceJan11970;
+}
+
+static int py_rap_TimeOfDayInfo_set_TimeSinceJan11970(PyObject *py_obj, PyObject *value, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(py_obj);
+	PY_CHECK_TYPE(&PyInt_Type, value, return -1;);
+	object->TimeSinceJan11970 = PyInt_AsLong(value);
+	return 0;
+}
+
+static PyObject *py_rap_TimeOfDayInfo_get_TimeSinceBoot(PyObject *obj, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(obj);
+	PyObject *py_TimeSinceBoot;
+	py_TimeSinceBoot = PyInt_FromLong(object->TimeSinceBoot);
+	return py_TimeSinceBoot;
+}
+
+static int py_rap_TimeOfDayInfo_set_TimeSinceBoot(PyObject *py_obj, PyObject *value, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(py_obj);
+	PY_CHECK_TYPE(&PyInt_Type, value, return -1;);
+	object->TimeSinceBoot = PyInt_AsLong(value);
+	return 0;
+}
+
+static PyObject *py_rap_TimeOfDayInfo_get_Hours(PyObject *obj, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(obj);
+	PyObject *py_Hours;
+	py_Hours = PyInt_FromLong(object->Hours);
+	return py_Hours;
+}
+
+static int py_rap_TimeOfDayInfo_set_Hours(PyObject *py_obj, PyObject *value, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(py_obj);
+	PY_CHECK_TYPE(&PyInt_Type, value, return -1;);
+	object->Hours = PyInt_AsLong(value);
+	return 0;
+}
+
+static PyObject *py_rap_TimeOfDayInfo_get_Minutes(PyObject *obj, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(obj);
+	PyObject *py_Minutes;
+	py_Minutes = PyInt_FromLong(object->Minutes);
+	return py_Minutes;
+}
+
+static int py_rap_TimeOfDayInfo_set_Minutes(PyObject *py_obj, PyObject *value, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(py_obj);
+	PY_CHECK_TYPE(&PyInt_Type, value, return -1;);
+	object->Minutes = PyInt_AsLong(value);
+	return 0;
+}
+
+static PyObject *py_rap_TimeOfDayInfo_get_Seconds(PyObject *obj, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(obj);
+	PyObject *py_Seconds;
+	py_Seconds = PyInt_FromLong(object->Seconds);
+	return py_Seconds;
+}
+
+static int py_rap_TimeOfDayInfo_set_Seconds(PyObject *py_obj, PyObject *value, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(py_obj);
+	PY_CHECK_TYPE(&PyInt_Type, value, return -1;);
+	object->Seconds = PyInt_AsLong(value);
+	return 0;
+}
+
+static PyObject *py_rap_TimeOfDayInfo_get_Hundreds(PyObject *obj, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(obj);
+	PyObject *py_Hundreds;
+	py_Hundreds = PyInt_FromLong(object->Hundreds);
+	return py_Hundreds;
+}
+
+static int py_rap_TimeOfDayInfo_set_Hundreds(PyObject *py_obj, PyObject *value, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(py_obj);
+	PY_CHECK_TYPE(&PyInt_Type, value, return -1;);
+	object->Hundreds = PyInt_AsLong(value);
+	return 0;
+}
+
+static PyObject *py_rap_TimeOfDayInfo_get_TimeZone(PyObject *obj, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(obj);
+	PyObject *py_TimeZone;
+	py_TimeZone = PyInt_FromLong(object->TimeZone);
+	return py_TimeZone;
+}
+
+static int py_rap_TimeOfDayInfo_set_TimeZone(PyObject *py_obj, PyObject *value, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(py_obj);
+	PY_CHECK_TYPE(&PyInt_Type, value, return -1;);
+	object->TimeZone = PyInt_AsLong(value);
+	return 0;
+}
+
+static PyObject *py_rap_TimeOfDayInfo_get_ClockFrequency(PyObject *obj, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(obj);
+	PyObject *py_ClockFrequency;
+	py_ClockFrequency = PyInt_FromLong(object->ClockFrequency);
+	return py_ClockFrequency;
+}
+
+static int py_rap_TimeOfDayInfo_set_ClockFrequency(PyObject *py_obj, PyObject *value, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(py_obj);
+	PY_CHECK_TYPE(&PyInt_Type, value, return -1;);
+	object->ClockFrequency = PyInt_AsLong(value);
+	return 0;
+}
+
+static PyObject *py_rap_TimeOfDayInfo_get_Day(PyObject *obj, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(obj);
+	PyObject *py_Day;
+	py_Day = PyInt_FromLong(object->Day);
+	return py_Day;
+}
+
+static int py_rap_TimeOfDayInfo_set_Day(PyObject *py_obj, PyObject *value, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(py_obj);
+	PY_CHECK_TYPE(&PyInt_Type, value, return -1;);
+	object->Day = PyInt_AsLong(value);
+	return 0;
+}
+
+static PyObject *py_rap_TimeOfDayInfo_get_Month(PyObject *obj, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(obj);
+	PyObject *py_Month;
+	py_Month = PyInt_FromLong(object->Month);
+	return py_Month;
+}
+
+static int py_rap_TimeOfDayInfo_set_Month(PyObject *py_obj, PyObject *value, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(py_obj);
+	PY_CHECK_TYPE(&PyInt_Type, value, return -1;);
+	object->Month = PyInt_AsLong(value);
+	return 0;
+}
+
+static PyObject *py_rap_TimeOfDayInfo_get_Year(PyObject *obj, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(obj);
+	PyObject *py_Year;
+	py_Year = PyInt_FromLong(object->Year);
+	return py_Year;
+}
+
+static int py_rap_TimeOfDayInfo_set_Year(PyObject *py_obj, PyObject *value, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(py_obj);
+	PY_CHECK_TYPE(&PyInt_Type, value, return -1;);
+	object->Year = PyInt_AsLong(value);
+	return 0;
+}
+
+static PyObject *py_rap_TimeOfDayInfo_get_Weekday(PyObject *obj, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(obj);
+	PyObject *py_Weekday;
+	py_Weekday = PyInt_FromLong(object->Weekday);
+	return py_Weekday;
+}
+
+static int py_rap_TimeOfDayInfo_set_Weekday(PyObject *py_obj, PyObject *value, void *closure)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(py_obj);
+	PY_CHECK_TYPE(&PyInt_Type, value, return -1;);
+	object->Weekday = PyInt_AsLong(value);
+	return 0;
+}
+
+static PyGetSetDef py_rap_TimeOfDayInfo_getsetters[] = {
+	{ discard_const_p(char, "TimeSinceJan11970"), py_rap_TimeOfDayInfo_get_TimeSinceJan11970, py_rap_TimeOfDayInfo_set_TimeSinceJan11970 },
+	{ discard_const_p(char, "TimeSinceBoot"), py_rap_TimeOfDayInfo_get_TimeSinceBoot, py_rap_TimeOfDayInfo_set_TimeSinceBoot },
+	{ discard_const_p(char, "Hours"), py_rap_TimeOfDayInfo_get_Hours, py_rap_TimeOfDayInfo_set_Hours },
+	{ discard_const_p(char, "Minutes"), py_rap_TimeOfDayInfo_get_Minutes, py_rap_TimeOfDayInfo_set_Minutes },
+	{ discard_const_p(char, "Seconds"), py_rap_TimeOfDayInfo_get_Seconds, py_rap_TimeOfDayInfo_set_Seconds },
+	{ discard_const_p(char, "Hundreds"), py_rap_TimeOfDayInfo_get_Hundreds, py_rap_TimeOfDayInfo_set_Hundreds },
+	{ discard_const_p(char, "TimeZone"), py_rap_TimeOfDayInfo_get_TimeZone, py_rap_TimeOfDayInfo_set_TimeZone },
+	{ discard_const_p(char, "ClockFrequency"), py_rap_TimeOfDayInfo_get_ClockFrequency, py_rap_TimeOfDayInfo_set_ClockFrequency },
+	{ discard_const_p(char, "Day"), py_rap_TimeOfDayInfo_get_Day, py_rap_TimeOfDayInfo_set_Day },
+	{ discard_const_p(char, "Month"), py_rap_TimeOfDayInfo_get_Month, py_rap_TimeOfDayInfo_set_Month },
+	{ discard_const_p(char, "Year"), py_rap_TimeOfDayInfo_get_Year, py_rap_TimeOfDayInfo_set_Year },
+	{ discard_const_p(char, "Weekday"), py_rap_TimeOfDayInfo_get_Weekday, py_rap_TimeOfDayInfo_set_Weekday },
+	{ NULL }
+};
+
+static PyObject *py_rap_TimeOfDayInfo_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
+{
+	return py_talloc_new(struct rap_TimeOfDayInfo, type);
+}
+
+static PyObject *py_rap_TimeOfDayInfo_ndr_pack(PyObject *py_obj)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(py_obj);
+	DATA_BLOB blob;
+	enum ndr_err_code err;
+	err = ndr_push_struct_blob(&blob, py_talloc_get_mem_ctx(py_obj), object, (ndr_push_flags_fn_t)ndr_push_rap_TimeOfDayInfo);
+	if (err != NDR_ERR_SUCCESS) {
+		PyErr_SetNdrError(err);
+		return NULL;
+	}
+
+	return PyString_FromStringAndSize((char *)blob.data, blob.length);
+}
+
+static PyObject *py_rap_TimeOfDayInfo_ndr_unpack(PyObject *py_obj, PyObject *args)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(py_obj);
+	DATA_BLOB blob;
+	enum ndr_err_code err;
+	if (!PyArg_ParseTuple(args, "s#:__ndr_unpack__", &blob.data, &blob.length))
+		return NULL;
+
+	err = ndr_pull_struct_blob_all(&blob, py_talloc_get_mem_ctx(py_obj), object, (ndr_pull_flags_fn_t)ndr_pull_rap_TimeOfDayInfo);
+	if (err != NDR_ERR_SUCCESS) {
+		PyErr_SetNdrError(err);
+		return NULL;
+	}
+
+	Py_RETURN_NONE;
+}
+
+static PyObject *py_rap_TimeOfDayInfo_ndr_print(PyObject *py_obj)
+{
+	struct rap_TimeOfDayInfo *object = (struct rap_TimeOfDayInfo *)py_talloc_get_ptr(py_obj);
+	PyObject *ret;
+	char *retstr;
+
+	retstr = ndr_print_struct_string(py_talloc_get_mem_ctx(py_obj), (ndr_print_fn_t)ndr_print_rap_TimeOfDayInfo, "rap_TimeOfDayInfo", object);
+	ret = PyString_FromString(retstr);
+	talloc_free(retstr);
+
+	return ret;
+}
+
+static PyMethodDef py_rap_TimeOfDayInfo_methods[] = {
+	{ "__ndr_pack__", (PyCFunction)py_rap_TimeOfDayInfo_ndr_pack, METH_NOARGS, "S.ndr_pack(object) -> blob\nNDR pack" },
+	{ "__ndr_unpack__", (PyCFunction)py_rap_TimeOfDayInfo_ndr_unpack, METH_VARARGS, "S.ndr_unpack(class, blob) -> None\nNDR unpack" },
+	{ "__ndr_print__", (PyCFunction)py_rap_TimeOfDayInfo_ndr_print, METH_VARARGS, "S.ndr_print(object) -> None\nNDR print" },
+	{ NULL, NULL, 0, NULL }
+};
+
+
+static PyTypeObject rap_TimeOfDayInfo_Type = {
+	PyObject_HEAD_INIT(NULL) 0,
+	.tp_name = "rap.TimeOfDayInfo",
+	.tp_getset = py_rap_TimeOfDayInfo_getsetters,
+	.tp_methods = py_rap_TimeOfDayInfo_methods,
+	.tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+	.tp_basicsize = sizeof(py_talloc_Object),
+	.tp_new = py_rap_TimeOfDayInfo_new,
+};
+
 static PyMethodDef rap_methods[] = {
 	{ NULL, NULL, 0, NULL }
 };
@@ -7152,6 +7429,8 @@ void initrap(void)
 
 	rap_session_info_2_Type.tp_base = Object_Type;
 
+	rap_TimeOfDayInfo_Type.tp_base = Object_Type;
+
 	if (PyType_Ready(&rap_group_info_1_Type) < 0)
 		return;
 	if (PyType_Ready(&rap_user_info_1_Type) < 0)
@@ -7209,6 +7488,8 @@ void initrap(void)
 	if (PyType_Ready(&rap_NetUserInfo11_Type) < 0)
 		return;
 	if (PyType_Ready(&rap_session_info_2_Type) < 0)
+		return;
+	if (PyType_Ready(&rap_TimeOfDayInfo_Type) < 0)
 		return;
 #ifdef PY_GROUP_INFO_1_PATCH
 	PY_GROUP_INFO_1_PATCH(&rap_group_info_1_Type);
@@ -7296,6 +7577,9 @@ void initrap(void)
 #endif
 #ifdef PY_SESSION_INFO_2_PATCH
 	PY_SESSION_INFO_2_PATCH(&rap_session_info_2_Type);
+#endif
+#ifdef PY_TIMEOFDAYINFO_PATCH
+	PY_TIMEOFDAYINFO_PATCH(&rap_TimeOfDayInfo_Type);
 #endif
 
 	m = Py_InitModule3("rap", rap_methods, "rap DCE/RPC");
@@ -7719,6 +8003,8 @@ void initrap(void)
 	PyModule_AddObject(m, "NetUserInfo11", (PyObject *)(void *)&rap_NetUserInfo11_Type);
 	Py_INCREF((PyObject *)(void *)&rap_session_info_2_Type);
 	PyModule_AddObject(m, "session_info_2", (PyObject *)(void *)&rap_session_info_2_Type);
+	Py_INCREF((PyObject *)(void *)&rap_TimeOfDayInfo_Type);
+	PyModule_AddObject(m, "TimeOfDayInfo", (PyObject *)(void *)&rap_TimeOfDayInfo_Type);
 #ifdef PY_MOD_RAP_PATCH
 	PY_MOD_RAP_PATCH(m);
 #endif

@@ -87,9 +87,47 @@ static int py_pcap_printer_set_info(PyObject *py_obj, PyObject *value, void *clo
 	return 0;
 }
 
+static PyObject *py_pcap_printer_get_location(PyObject *obj, void *closure)
+{
+	struct pcap_printer *object = (struct pcap_printer *)py_talloc_get_ptr(obj);
+	PyObject *py_location;
+	if (object->location == NULL) {
+		py_location = Py_None;
+		Py_INCREF(py_location);
+	} else {
+		if (object->location == NULL) {
+			py_location = Py_None;
+			Py_INCREF(py_location);
+		} else {
+			py_location = PyUnicode_Decode(object->location, strlen(object->location), "utf-8", "ignore");
+		}
+	}
+	return py_location;
+}
+
+static int py_pcap_printer_set_location(PyObject *py_obj, PyObject *value, void *closure)
+{
+	struct pcap_printer *object = (struct pcap_printer *)py_talloc_get_ptr(py_obj);
+	if (value == Py_None) {
+		object->location = NULL;
+	} else {
+		object->location = NULL;
+		if (PyUnicode_Check(value)) {
+			object->location = PyString_AS_STRING(PyUnicode_AsEncodedString(value, "utf-8", "ignore"));
+		} else if (PyString_Check(value)) {
+			object->location = PyString_AS_STRING(value);
+		} else {
+			PyErr_Format(PyExc_TypeError, "Expected string or unicode object, got %s", Py_TYPE(value)->tp_name);
+			return -1;
+		}
+	}
+	return 0;
+}
+
 static PyGetSetDef py_pcap_printer_getsetters[] = {
 	{ discard_const_p(char, "name"), py_pcap_printer_get_name, py_pcap_printer_set_name },
 	{ discard_const_p(char, "info"), py_pcap_printer_get_info, py_pcap_printer_set_info },
+	{ discard_const_p(char, "location"), py_pcap_printer_get_location, py_pcap_printer_set_location },
 	{ NULL }
 };
 

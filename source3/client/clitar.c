@@ -38,6 +38,7 @@
 #include "system/filesys.h"
 #include "clitar.h"
 #include "client/client_proto.h"
+#include "libsmb/libsmb.h"
 
 static int clipfind(char **aret, int ret, char *tok);
 
@@ -70,7 +71,7 @@ extern struct cli_state *cli;
 #define ATTRSET 1
 #define ATTRRESET 0
 
-static uint16 attribute = aDIR | aSYSTEM | aHIDDEN;
+static uint16 attribute = FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN;
 
 #ifndef CLIENT_TIMEOUT
 #define CLIENT_TIMEOUT (30*1000)
@@ -294,7 +295,7 @@ of link other than a GNUtar Longlink - ignoring\n"));
 
 	if ((unoct(hb->dbuf.mode, sizeof(hb->dbuf.mode)) & S_IFDIR) ||
 				(*(finfo->name+strlen(finfo->name)-1) == '\\')) {
-		finfo->mode=aDIR;
+		finfo->mode=FILE_ATTRIBUTE_DIRECTORY;
 	} else {
 		finfo->mode=0; /* we don't care about mode at the moment, we'll
 				* just make it a regular file */
@@ -686,13 +687,13 @@ static NTSTATUS do_atar(const char *rname_in, char *lname,
 
 	DEBUG(3,("file %s attrib 0x%X\n",finfo.name,finfo.mode));
 
-	if (tar_inc && !(finfo.mode & aARCH)) {
+	if (tar_inc && !(finfo.mode & FILE_ATTRIBUTE_ARCHIVE)) {
 		DEBUG(4, ("skipping %s - archive bit not set\n", finfo.name));
 		shallitime=0;
-	} else if (!tar_system && (finfo.mode & aSYSTEM)) {
+	} else if (!tar_system && (finfo.mode & FILE_ATTRIBUTE_SYSTEM)) {
 		DEBUG(4, ("skipping %s - system bit is set\n", finfo.name));
 		shallitime=0;
-	} else if (!tar_hidden && (finfo.mode & aHIDDEN)) {
+	} else if (!tar_hidden && (finfo.mode & FILE_ATTRIBUTE_HIDDEN)) {
 		DEBUG(4, ("skipping %s - hidden bit is set\n", finfo.name));
 		shallitime=0;
 	} else {
@@ -784,7 +785,7 @@ static NTSTATUS do_atar(const char *rname_in, char *lname,
 
 		/* if shallitime is true then we didn't skip */
 		if (tar_reset && !dry_run)
-			(void) do_setrattr(finfo.name, aARCH, ATTRRESET);
+			(void) do_setrattr(finfo.name, FILE_ATTRIBUTE_ARCHIVE, ATTRRESET);
 
 		clock_gettime_mono(&tp_end);
 		this_time = (tp_end.tv_sec - tp_start.tv_sec)*1000 + (tp_end.tv_nsec - tp_start.tv_nsec)/1000000;
@@ -852,7 +853,7 @@ static NTSTATUS do_tar(struct cli_state *cli_state, struct file_info *finfo,
 		TALLOC_FREE(exclaim);
 	}
 
-	if (finfo->mode & aDIR) {
+	if (finfo->mode & FILE_ATTRIBUTE_DIRECTORY) {
 		char *saved_curdir = NULL;
 		char *new_cd = NULL;
 		char *mtar_mask = NULL;
@@ -1045,8 +1046,12 @@ static int get_file(file_info2 finfo)
 		dsize = MIN(dsize, rsize);  /* Should be only what is left */
 		DEBUG(5, ("writing %i bytes, bpos = %i ...\n", dsize, bpos));
 
-		if (cli_write(cli, fnum, 0, buffer_p + bpos, pos, dsize) != dsize) {
-			DEBUG(0, ("Error writing remote file\n"));
+		status = cli_writeall(cli, fnum, 0,
+				      (uint8_t *)(buffer_p + bpos), pos,
+				      dsize, NULL);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(0, ("Error writing remote file: %s\n",
+				  nt_errstr(status)));
 			return 0;
 		}
 
@@ -1401,16 +1406,16 @@ int cmd_setmode(void)
 					direct=0;
 					break;
 				case 'r':
-					attra[direct]|=aRONLY;
+					attra[direct]|=FILE_ATTRIBUTE_READONLY;
 					break;
 				case 'h':
-					attra[direct]|=aHIDDEN;
+					attra[direct]|=FILE_ATTRIBUTE_HIDDEN;
 					break;
 				case 's':
-					attra[direct]|=aSYSTEM;
+					attra[direct]|=FILE_ATTRIBUTE_SYSTEM;
 					break;
 				case 'a':
-					attra[direct]|=aARCH;
+					attra[direct]|=FILE_ATTRIBUTE_ARCHIVE;
 					break;
 				default:
 					DEBUG(0, ("setmode <filename> <perm=[+|-]rsha>\n"));

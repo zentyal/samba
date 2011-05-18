@@ -25,6 +25,7 @@ void _rap_NetSessionEnum(struct pipes_struct *p, struct rap_NetSessionEnum *r);
 void _rap_NetSessionGetInfo(struct pipes_struct *p, struct rap_NetSessionGetInfo *r);
 void _rap_NetUserAdd(struct pipes_struct *p, struct rap_NetUserAdd *r);
 void _rap_NetUserDelete(struct pipes_struct *p, struct rap_NetUserDelete *r);
+void _rap_NetRemoteTOD(struct pipes_struct *p, struct rap_NetRemoteTOD *r);
 void rap_get_pipe_fns(struct api_struct **fns, int *n_fns);
 struct rpc_srv_callbacks;
 NTSTATUS rpc_rap_init(const struct rpc_srv_callbacks *rpc_srv_cb);

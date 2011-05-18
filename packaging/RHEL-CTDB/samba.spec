@@ -5,7 +5,7 @@ Summary: Samba SMB client and server
 Vendor: Samba Team
 Packager: Samba Team <samba@samba.org>
 Name:         samba
-Version:      3.6.0pre3
+Version:      3.6.0rc1
 Release:      1GITHASH
 Epoch:        0
 License: GNU GPL version 3
@@ -246,7 +246,7 @@ CFLAGS="$RPM_OPT_FLAGS $EXTRA -D_GNU_SOURCE" ./configure \
         --without-smbwrapper \
 	--with-pam \
 	--with-quotas \
-	--with-shared-modules=idmap_rid,idmap_ad,idmap_tdb2,vfs_gpfs,vfs_tsmsm \
+	--with-shared-modules=idmap_rid,idmap_ad,idmap_tdb2,vfs_gpfs,vfs_tsmsm,vfs_gpfs_hsm_notify \
 	--with-syslog \
 	--with-utmp \
 	--with-cluster-support \
@@ -482,6 +482,7 @@ exit 0
 %{_libarchdir}/samba/vfs/fileid.so
 %{_libarchdir}/samba/vfs/full_audit.so
 %{_libarchdir}/samba/vfs/gpfs.so
+%{_libarchdir}/samba/vfs/gpfs_hsm_notify.so
 %{_libarchdir}/samba/vfs/linux_xfs_sgid.so
 %{_libarchdir}/samba/vfs/netatalk.so
 %{_libarchdir}/samba/vfs/preopen.so

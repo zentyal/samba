@@ -1976,3 +1976,85 @@ NTSTATUS dcerpc_rap_NetUserDelete_r(struct dcerpc_binding_handle *h, TALLOC_CTX 
 	return status;
 }
 
+struct dcerpc_rap_NetRemoteTOD_r_state {
+	TALLOC_CTX *out_mem_ctx;
+};
+
+static void dcerpc_rap_NetRemoteTOD_r_done(struct tevent_req *subreq);
+
+struct tevent_req *dcerpc_rap_NetRemoteTOD_r_send(TALLOC_CTX *mem_ctx,
+	struct tevent_context *ev,
+	struct dcerpc_binding_handle *h,
+	struct rap_NetRemoteTOD *r)
+{
+	struct tevent_req *req;
+	struct dcerpc_rap_NetRemoteTOD_r_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct dcerpc_rap_NetRemoteTOD_r_state);
+	if (req == NULL) {
+		return NULL;
+	}
+
+	state->out_mem_ctx = talloc_new(state);
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	subreq = dcerpc_binding_handle_call_send(state, ev, h,
+			NULL, &ndr_table_rap,
+			NDR_RAP_NETREMOTETOD, state->out_mem_ctx, r);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, dcerpc_rap_NetRemoteTOD_r_done, req);
+
+	return req;
+}
+
+static void dcerpc_rap_NetRemoteTOD_r_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req =
+		tevent_req_callback_data(subreq,
+		struct tevent_req);
+	NTSTATUS status;
+
+	status = dcerpc_binding_handle_call_recv(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	tevent_req_done(req);
+}
+
+NTSTATUS dcerpc_rap_NetRemoteTOD_r_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx)
+{
+	struct dcerpc_rap_NetRemoteTOD_r_state *state =
+		tevent_req_data(req,
+		struct dcerpc_rap_NetRemoteTOD_r_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
+NTSTATUS dcerpc_rap_NetRemoteTOD_r(struct dcerpc_binding_handle *h, TALLOC_CTX *mem_ctx, struct rap_NetRemoteTOD *r)
+{
+	NTSTATUS status;
+
+	status = dcerpc_binding_handle_call(h,
+			NULL, &ndr_table_rap,
+			NDR_RAP_NETREMOTETOD, mem_ctx, r);
+
+	return status;
+}
+

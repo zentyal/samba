@@ -950,7 +950,9 @@ static NTSTATUS send_break_message(files_struct *fsp,
  * Do internal consistency checks on the share mode for a file.
  */
 
-static void find_oplock_types(struct share_mode_lock *lck,
+static void find_oplock_types(files_struct *fsp,
+				int oplock_request,
+				struct share_mode_lock *lck,
 				struct share_mode_entry **pp_batch,
 				struct share_mode_entry **pp_ex_or_batch,
 				bool *got_level2,
@@ -963,8 +965,24 @@ static void find_oplock_types(struct share_mode_lock *lck,
 	*got_level2 = false;
 	*got_no_oplock = false;
 
+	/* Ignore stat or internal opens, as is done in
+		delay_for_batch_oplocks() and
+		delay_for_exclusive_oplocks().
+	 */
+	if ((oplock_request & INTERNAL_OPEN_ONLY) || is_stat_open(fsp->access_mask)) {
+		return;
+	}
+
 	for (i=0; i<lck->num_share_modes; i++) {
 		if (!is_valid_share_mode_entry(&lck->share_modes[i])) {
+			continue;
+		}
+
+		if (lck->share_modes[i].op_type == NO_OPLOCK &&
+				is_stat_open(lck->share_modes[i].access_mask)) {
+			/* We ignore stat opens in the table - they
+			   always have NO_OPLOCK and never get or
+			   cause breaks. JRA. */
 			continue;
 		}
 
@@ -1623,9 +1641,9 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 		unx_mode = (mode_t)(new_dos_attributes & ~FILE_FLAG_POSIX_SEMANTICS);
 		new_dos_attributes = 0;
 	} else {
-		/* We add aARCH to this as this mode is only used if the file is
+		/* We add FILE_ATTRIBUTE_ARCHIVE to this as this mode is only used if the file is
 		 * created new. */
-		unx_mode = unix_mode(conn, new_dos_attributes | aARCH,
+		unx_mode = unix_mode(conn, new_dos_attributes | FILE_ATTRIBUTE_ARCHIVE,
 				     smb_fname, parent_dir);
 	}
 
@@ -1907,7 +1925,9 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 		}
 
 		/* Get the types we need to examine. */
-		find_oplock_types(lck,
+		find_oplock_types(fsp,
+				oplock_request,
+				lck,
 				&batch_entry,
 				&exclusive_entry,
 				&got_level2_oplock,
@@ -2152,7 +2172,9 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 		}
 
 		/* Get the types we need to examine. */
-		find_oplock_types(lck,
+		find_oplock_types(fsp,
+				oplock_request,
+				lck,
 				&batch_entry,
 				&exclusive_entry,
 				&got_level2_oplock,
@@ -2336,7 +2358,8 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 		new_file_created = True;
 	}
 
-	set_share_mode(lck, fsp, get_current_uid(conn), 0,
+	set_share_mode(lck, fsp, get_current_uid(conn),
+			req ? req->mid : 0,
 		       fsp->oplock_type);
 
 	/* Handle strange delete on close create semantics. */
@@ -2362,7 +2385,7 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 		    lp_store_dos_attributes(SNUM(conn))) {
 			if (!posix_open) {
 				if (file_set_dosmode(conn, smb_fname,
-					    new_dos_attributes | aARCH,
+					    new_dos_attributes | FILE_ATTRIBUTE_ARCHIVE,
 					    parent_dir, true) == 0) {
 					unx_mode = smb_fname->st.st_ex_mode;
 				}
@@ -2497,7 +2520,7 @@ static NTSTATUS mkdir_internal(connection_struct *conn,
 		posix_open = true;
 		mode = (mode_t)(file_attributes & ~FILE_FLAG_POSIX_SEMANTICS);
 	} else {
-		mode = unix_mode(conn, aDIR, smb_dname, parent_dir);
+		mode = unix_mode(conn, FILE_ATTRIBUTE_DIRECTORY, smb_dname, parent_dir);
 	}
 
 	if (SMB_VFS_MKDIR(conn, smb_dname->base_name, mode) != 0) {
@@ -2522,7 +2545,7 @@ static NTSTATUS mkdir_internal(connection_struct *conn,
 	if (lp_store_dos_attributes(SNUM(conn))) {
 		if (!posix_open) {
 			file_set_dosmode(conn, smb_dname,
-					 file_attributes | aDIR,
+					 file_attributes | FILE_ATTRIBUTE_DIRECTORY,
 					 parent_dir, true);
 		}
 	}
@@ -2829,7 +2852,8 @@ static NTSTATUS open_directory(connection_struct *conn,
 		return status;
 	}
 
-	set_share_mode(lck, fsp, get_current_uid(conn), 0, NO_OPLOCK);
+	set_share_mode(lck, fsp, get_current_uid(conn),
+			req ? req->mid : 0, NO_OPLOCK);
 
 	/* For directories the delete on close bit at open time seems
 	   always to be honored on close... See test 19 in Samba4 BASE-DELETE. */

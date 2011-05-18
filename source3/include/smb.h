@@ -83,14 +83,6 @@ enum smb_read_errors {
 
 #define DIR_STRUCT_SIZE 43
 
-/* these define the attribute byte as seen by DOS */
-#define aRONLY (1L<<0)		/* 0x01 */
-#define aHIDDEN (1L<<1)		/* 0x02 */
-#define aSYSTEM (1L<<2)		/* 0x04 */
-#define aVOLID (1L<<3)		/* 0x08 */
-#define aDIR (1L<<4)		/* 0x10 */
-#define aARCH (1L<<5)		/* 0x20 */
-
 /* deny modes */
 #define DENY_DOS 0
 #define DENY_ALL 1
@@ -1086,6 +1078,7 @@ struct bitmap {
 #define FILE_ATTRIBUTE_READONLY		0x001L
 #define FILE_ATTRIBUTE_HIDDEN		0x002L
 #define FILE_ATTRIBUTE_SYSTEM		0x004L
+#define FILE_ATTRIBUTE_VOLUME		0x008L
 #define FILE_ATTRIBUTE_DIRECTORY	0x010L
 #define FILE_ATTRIBUTE_ARCHIVE		0x020L
 #define FILE_ATTRIBUTE_NORMAL		0x080L
@@ -1748,5 +1741,21 @@ struct deferred_open_record;
 
 /* Used inside aio code. */
 struct aio_extra;
+
+/*
+ * Reasons for cache flush.
+ */
+
+enum flush_reason_enum {
+    SEEK_FLUSH,
+    READ_FLUSH,
+    WRITE_FLUSH,
+    READRAW_FLUSH,
+    OPLOCK_RELEASE_FLUSH,
+    CLOSE_FLUSH,
+    SYNC_FLUSH,
+    SIZECHANGE_FLUSH,
+    /* NUM_FLUSH_REASONS must remain the last value in the enumeration. */
+    NUM_FLUSH_REASONS};
 
 #endif /* _SMB_H */

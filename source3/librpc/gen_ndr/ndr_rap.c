@@ -6105,6 +6105,72 @@ _PUBLIC_ void ndr_print_rap_session_info(struct ndr_print *ndr, const char *name
 	}
 }
 
+_PUBLIC_ enum ndr_err_code ndr_push_rap_TimeOfDayInfo(struct ndr_push *ndr, int ndr_flags, const struct rap_TimeOfDayInfo *r)
+{
+	if (ndr_flags & NDR_SCALARS) {
+		NDR_CHECK(ndr_push_align(ndr, 4));
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->TimeSinceJan11970));
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->TimeSinceBoot));
+		NDR_CHECK(ndr_push_uint8(ndr, NDR_SCALARS, r->Hours));
+		NDR_CHECK(ndr_push_uint8(ndr, NDR_SCALARS, r->Minutes));
+		NDR_CHECK(ndr_push_uint8(ndr, NDR_SCALARS, r->Seconds));
+		NDR_CHECK(ndr_push_uint8(ndr, NDR_SCALARS, r->Hundreds));
+		NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, r->TimeZone));
+		NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, r->ClockFrequency));
+		NDR_CHECK(ndr_push_uint8(ndr, NDR_SCALARS, r->Day));
+		NDR_CHECK(ndr_push_uint8(ndr, NDR_SCALARS, r->Month));
+		NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, r->Year));
+		NDR_CHECK(ndr_push_uint8(ndr, NDR_SCALARS, r->Weekday));
+		NDR_CHECK(ndr_push_trailer_align(ndr, 4));
+	}
+	if (ndr_flags & NDR_BUFFERS) {
+	}
+	return NDR_ERR_SUCCESS;
+}
+
+_PUBLIC_ enum ndr_err_code ndr_pull_rap_TimeOfDayInfo(struct ndr_pull *ndr, int ndr_flags, struct rap_TimeOfDayInfo *r)
+{
+	if (ndr_flags & NDR_SCALARS) {
+		NDR_CHECK(ndr_pull_align(ndr, 4));
+		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->TimeSinceJan11970));
+		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->TimeSinceBoot));
+		NDR_CHECK(ndr_pull_uint8(ndr, NDR_SCALARS, &r->Hours));
+		NDR_CHECK(ndr_pull_uint8(ndr, NDR_SCALARS, &r->Minutes));
+		NDR_CHECK(ndr_pull_uint8(ndr, NDR_SCALARS, &r->Seconds));
+		NDR_CHECK(ndr_pull_uint8(ndr, NDR_SCALARS, &r->Hundreds));
+		NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &r->TimeZone));
+		NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &r->ClockFrequency));
+		NDR_CHECK(ndr_pull_uint8(ndr, NDR_SCALARS, &r->Day));
+		NDR_CHECK(ndr_pull_uint8(ndr, NDR_SCALARS, &r->Month));
+		NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &r->Year));
+		NDR_CHECK(ndr_pull_uint8(ndr, NDR_SCALARS, &r->Weekday));
+		NDR_CHECK(ndr_pull_trailer_align(ndr, 4));
+	}
+	if (ndr_flags & NDR_BUFFERS) {
+	}
+	return NDR_ERR_SUCCESS;
+}
+
+_PUBLIC_ void ndr_print_rap_TimeOfDayInfo(struct ndr_print *ndr, const char *name, const struct rap_TimeOfDayInfo *r)
+{
+	ndr_print_struct(ndr, name, "rap_TimeOfDayInfo");
+	if (r == NULL) { ndr_print_null(ndr); return; }
+	ndr->depth++;
+	ndr_print_uint32(ndr, "TimeSinceJan11970", r->TimeSinceJan11970);
+	ndr_print_uint32(ndr, "TimeSinceBoot", r->TimeSinceBoot);
+	ndr_print_uint8(ndr, "Hours", r->Hours);
+	ndr_print_uint8(ndr, "Minutes", r->Minutes);
+	ndr_print_uint8(ndr, "Seconds", r->Seconds);
+	ndr_print_uint8(ndr, "Hundreds", r->Hundreds);
+	ndr_print_uint16(ndr, "TimeZone", r->TimeZone);
+	ndr_print_uint16(ndr, "ClockFrequency", r->ClockFrequency);
+	ndr_print_uint8(ndr, "Day", r->Day);
+	ndr_print_uint8(ndr, "Month", r->Month);
+	ndr_print_uint16(ndr, "Year", r->Year);
+	ndr_print_uint8(ndr, "Weekday", r->Weekday);
+	ndr->depth--;
+}
+
 _PUBLIC_ enum ndr_err_code ndr_push_rap_NetShareEnum(struct ndr_push *ndr, int flags, const struct rap_NetShareEnum *r)
 {
 	if (flags & NDR_IN) {
@@ -7799,6 +7865,59 @@ _PUBLIC_ void ndr_print_rap_NetUserDelete(struct ndr_print *ndr, const char *nam
 		ndr->depth++;
 		ndr_print_rap_status(ndr, "status", r->out.status);
 		ndr_print_uint16(ndr, "convert", r->out.convert);
+		ndr->depth--;
+	}
+	ndr->depth--;
+}
+
+_PUBLIC_ enum ndr_err_code ndr_push_rap_NetRemoteTOD(struct ndr_push *ndr, int flags, const struct rap_NetRemoteTOD *r)
+{
+	if (flags & NDR_IN) {
+		NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, r->in.bufsize));
+	}
+	if (flags & NDR_OUT) {
+		NDR_CHECK(ndr_push_rap_status(ndr, NDR_SCALARS, r->out.status));
+		NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, r->out.convert));
+		NDR_CHECK(ndr_push_rap_TimeOfDayInfo(ndr, NDR_SCALARS, &r->out.tod));
+	}
+	return NDR_ERR_SUCCESS;
+}
+
+_PUBLIC_ enum ndr_err_code ndr_pull_rap_NetRemoteTOD(struct ndr_pull *ndr, int flags, struct rap_NetRemoteTOD *r)
+{
+	if (flags & NDR_IN) {
+		ZERO_STRUCT(r->out);
+
+		NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &r->in.bufsize));
+	}
+	if (flags & NDR_OUT) {
+		NDR_CHECK(ndr_pull_rap_status(ndr, NDR_SCALARS, &r->out.status));
+		NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &r->out.convert));
+		NDR_CHECK(ndr_pull_rap_TimeOfDayInfo(ndr, NDR_SCALARS, &r->out.tod));
+	}
+	return NDR_ERR_SUCCESS;
+}
+
+_PUBLIC_ void ndr_print_rap_NetRemoteTOD(struct ndr_print *ndr, const char *name, int flags, const struct rap_NetRemoteTOD *r)
+{
+	ndr_print_struct(ndr, name, "rap_NetRemoteTOD");
+	if (r == NULL) { ndr_print_null(ndr); return; }
+	ndr->depth++;
+	if (flags & NDR_SET_VALUES) {
+		ndr->flags |= LIBNDR_PRINT_SET_VALUES;
+	}
+	if (flags & NDR_IN) {
+		ndr_print_struct(ndr, "in", "rap_NetRemoteTOD");
+		ndr->depth++;
+		ndr_print_uint16(ndr, "bufsize", r->in.bufsize);
+		ndr->depth--;
+	}
+	if (flags & NDR_OUT) {
+		ndr_print_struct(ndr, "out", "rap_NetRemoteTOD");
+		ndr->depth++;
+		ndr_print_rap_status(ndr, "status", r->out.status);
+		ndr_print_uint16(ndr, "convert", r->out.convert);
+		ndr_print_rap_TimeOfDayInfo(ndr, "tod", &r->out.tod);
 		ndr->depth--;
 	}
 	ndr->depth--;

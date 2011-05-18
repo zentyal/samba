@@ -18,7 +18,10 @@
 */
 
 #include "includes.h"
+#include "libsmb/libsmb.h"
 #include "../lib/async_req/async_sock.h"
+#include "../lib/util/tevent_ntstatus.h"
+#include "../lib/util/tevent_unix.h"
 #include "async_smb.h"
 #include "smb_crypt.h"
 #include "libsmb/nmblib.h"
@@ -423,7 +426,8 @@ struct tevent_req *cli_smb_req_create(TALLOC_CTX *mem_ctx,
 	state->iov_count = iov_count + 3;
 
 	if (cli->timeout) {
-		endtime = timeval_current_ofs(0, cli->timeout * 1000);
+		endtime = timeval_current_ofs(cli->timeout / 1000,
+					      (cli->timeout % 1000) * 1000);
 		if (!tevent_req_set_endtime(result, ev, endtime)) {
 			tevent_req_nomem(NULL, result);
 		}

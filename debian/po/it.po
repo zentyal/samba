@@ -1,15 +1,14 @@
 # Italian (it) translation of debconf templates for samba
-# Copyright (C) 2004 Software in the Public Interest
 # This file is distributed under the same license as the samba package.
-# Luca Monducci <luca.mo@tiscali.it>, 2004-2009.
+# Luca Monducci <luca.mo@tiscali.it>, 2004-2011.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: samba 3.3.4 italian debconf templates\n"
+"Project-Id-Version: samba 3.5.8 italian debconf templates\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
 "POT-Creation-Date: 2011-05-12 10:46+0200\n"
-"PO-Revision-Date: 2011-05-12 23:42+0100\n"
-"Last-Translator: 74R10 <dario.java@gmail.com>\n"
+"PO-Revision-Date: 2010-05-14 10:37+0200\n"
+"Last-Translator: Luca Monducci <luca.mo@tiscali.it>\n"
 "Language-Team: Italian <debian-l10n-italian@lists.debian.org>\n"
 "Language: it\n"
 "MIME-Version: 1.0\n"
@@ -20,13 +19,13 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:1001
 msgid "Samba server and utilities"
-msgstr "Server Samba ed utilità"
+msgstr "Server e utilità Samba"
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:2001
 msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "Modificare il file smb.conf per usare le impostazioni WINS da DHCP?"
+msgstr "Modificare smb.conf per usare le impostazioni WINS da DHCP?"
 
 #. Type: boolean
 #. Description
@@ -38,11 +37,11 @@ msgid ""
 "to your smb.conf file so that DHCP-provided WINS settings will automatically "
 "be read from /etc/samba/dhcp.conf."
 msgstr ""
-"Se il computer acquisisce l'indirizzo IP da un server DHCP in rete, allora "
-"il server DHCP può fornire anche le informazioni sui server WINS (\"NetBIOS "
-"name server\") presenti nella rete. Questo richiede una modifica al file smb."
-"conf in modo che le impostazioni WINS fornite dal DHCP siano lette "
-"automaticamente da /etc/samba/dhcp.conf."
+"Se il computer acquisisce l'indirizzo IP da un server DHCP, tale server DHCP "
+"potrebbe fornire anche le informazioni sui server WINS (i name server per "
+"NetBIOS) presenti nella rete. È necessario modificare il file smb.conf per "
+"far leggere automaticamente da /etc/samba/dhcp.conf le impostazioni WINS "
+"fornite da DHCP."
 
 #. Type: boolean
 #. Description
@@ -57,7 +56,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:3001
 msgid "Configure smb.conf automatically?"
-msgstr "Configurare automaticamente il file smb.conf?"
+msgstr "Configurare automaticamente smb.conf?"
 
 #. Type: boolean
 #. Description
@@ -72,9 +71,9 @@ msgid ""
 msgstr ""
 "Il resto della configurazione di Samba riguarda i parametri in /etc/samba/"
 "smb.conf, il file usato per configurare i programmi di Samba (nmbd e smbd). "
-"L'attuale file smb.conf contiene una riga \"include\" o un'opzione che si "
+"L'attuale file smb.conf contiene una riga «include» o un'opzione che si "
 "estende su più righe; ciò potrebbe confondere il processo di configurazione "
-"automatica e richiede una modifica manuale del file smb.conf per renderlo "
+"automatica e richiere una modifica manuale del file smb.conf per renderlo "
 "nuovamente funzionante."
 
 #. Type: boolean
@@ -85,9 +84,9 @@ msgid ""
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
 msgstr ""
-"Se non scegli questa opzione, dovrai gestire manualmente qualsiasi "
-"cambiamento nella configurazione, non potrai beneficiare dei miglioramenti "
-"periodici della configurazione."
+"Se si rifiuta, si dovrà gestire qualsiasi cambiamento nella configurazione "
+"da soli e non sarà possibile beneficiare dei periodici miglioramenti della "
+"configurazione."
 
 #. Type: string
 #. Description
@@ -107,13 +106,13 @@ msgstr ""
 "Specificare il workgroup per questo sistema. Questa impostazione controlla "
 "in quale workgroup appare il sistema quando viene usato come server, il "
 "workgroup predefinito da usare nelle varie interfacce di navigazione e il "
-"nome del dominio quando è usato il parametro \"security=domain\"."
+"nome del dominio quando è usato il parametro «security=domain»."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
 msgid "Use password encryption?"
-msgstr "Usare password criptata ?"
+msgstr "Usare password cifrate?"
 
 #. Type: boolean
 #. Description
@@ -124,8 +123,8 @@ msgid ""
 "parameter in your Windows registry."
 msgstr ""
 "Tutti i client Windows recenti comunicano con i server SMB/CIFS usando "
-"password criptate. Per utilizzare password in chiaro è necessario cambiare "
-"un parametro nel registro di Windows."
+"password cifrate. Per usare password in chiaro è necessario cambiare un "
+"parametro nel registro di Windows."
 
 #. Type: boolean
 #. Description
@@ -136,17 +135,17 @@ msgid ""
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"È raccomandata l'attivazione di questa opzione visto nei prodotti Microsoft "
-"Windows non è più mantenuto il supporto per le password in chiaro. Se si "
-"accetta, assicurarsi che il file /etc/samba/smbpasswd sia valido e che le "
-"password di tutti gli utenti siano state inserite usando il comando "
+"È raccomandata l'attivazione di questa opzione visto che il supporto per le "
+"password in chiaro non è più portato avanti nei prodotti Microsoft Windows. "
+"Se si accetta, assicurarsi che il file /etc/samba/smbpasswd sia valido e che "
+"le password di tutti gli utenti siano state inserite usando il comando "
 "smbpasswd."
 
 #. Type: title
 #. Description
 #: ../samba.templates:1001
 msgid "Samba server"
-msgstr "Server Samba"
+msgstr ""
 
 #. Type: boolean
 #. Description
@@ -165,11 +164,11 @@ msgid ""
 "and be kept up-to-date in the future."
 msgstr ""
 "Per essere compatibile con le impostazioni predefinite di molte versioni di "
-"Windows, Samba deve essere configurato per usare password criptate. Ciò "
+"Windows, Samba deve essere configurato per usare password cifrate. Ciò "
 "richiede che le password degli utenti siano memorizzate in un file diverso "
-"da /etc/passwd. Questo file può essere creato automaticamente, ma le "
-"password dovranno essere inserite manualmente, usando smbpasswd, e si dovrà "
-"provvedere a mantenerlo aggiornato."
+"da /etc/passwd. Questo file può essere creato automaticamente ma le password "
+"dovranno essere inserite manualmente usando smbpasswd e in futuro il file "
+"dovrà essere tenuto aggiornato."
 
 #. Type: boolean
 #. Description
@@ -178,7 +177,7 @@ msgid ""
 "If you do not create it, you will have to reconfigure Samba (and probably "
 "your client machines) to use plaintext passwords."
 msgstr ""
-"Se non si crea questo file, si dovrà riconfigurare Samba (e probabilmente "
+"Se non si crea questo file è necessario riconfigurare Samba (e probabilmente "
 "anche le macchine client) per usare password in chiaro."
 
 #. Type: boolean
@@ -188,8 +187,8 @@ msgid ""
 "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
 "from the samba-doc package for more details."
 msgstr ""
-"Si veda per ulteriori dettagli /usr/share/doc/samba-doc/htmldocs/Samba3-"
-"Developers-Guide/pwencrypt.html contenuto nel pacchetto samba-doc."
+"Si veda /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+"html, contenuto nel pacchetto samba-doc, per ulteriori dettagli."
 
 #. Type: select
 #. Choices
@@ -216,7 +215,7 @@ msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
-"Il demone Samba smbd può essere avviato come un demone normale oppure da "
+"Il demone Samba smbd può essere avviato come un normale demone oppure da "
 "inetd. Si raccomanda l'avvio come demone."
 
 #~ msgid "Chaining passdb backends is not supported"

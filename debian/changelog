@@ -26,6 +26,9 @@ samba (2:3.5.8~dfsg-2) UNRELEASED; urgency=low
   * Bokmål, (Bjørn Steensrud).
   * Italian (74R10). 
 
+  [ Christian Perrier ]
+  * Italian (Luca Monducci).  Closes: #626674
+
  -- Mathieu Parent <sathieu@debian.org>  Tue, 29 Mar 2011 21:28:42 +0200
 
 samba (2:3.5.8~dfsg-1) unstable; urgency=low

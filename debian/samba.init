@@ -6,8 +6,8 @@
 # Required-Stop:     $network $local_fs $remote_fs
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Should-Start:      slapd
-# Should-Stop:       slapd
+# Should-Start:      slapd cups
+# Should-Stop:       slapd cups
 # Short-Description: start Samba daemons (nmbd and smbd)
 ### END INIT INFO
 

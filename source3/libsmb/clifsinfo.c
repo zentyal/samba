@@ -19,8 +19,10 @@
 */
 
 #include "includes.h"
+#include "libsmb/libsmb.h"
 #include "../libcli/auth/spnego.h"
 #include "../libcli/auth/ntlmssp.h"
+#include "../lib/util/tevent_ntstatus.h"
 #include "async_smb.h"
 #include "smb_crypt.h"
 #include "trans2.h"

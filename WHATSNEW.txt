@@ -1,10 +1,10 @@
-                   =================================
-                   Release Notes for Samba 3.6.0pre3
-                            April 26, 2011
-                   =================================
+                   ================================
+                   Release Notes for Samba 3.6.0rc1
+                             May 17, 2011
+                   ================================
 
 
-This is the third preview release of Samba 3.6.0.  This is *not*
+This is the first release candidate of Samba 3.6.0.  This is *not*
 intended for production environments and is designed for testing
 purposes only.  Please report any defects via the Samba bug reporting
 system at https://bugzilla.samba.org/.
@@ -228,6 +228,10 @@ smb.conf changes
    username map cache time	       New	       0
    winbind max clients		       New	       200
 
+   The variable substitutions for %i and %I no longer
+   use IPv4 addresses mapped to IPv6, e.g. '::ffff:192.168.0.1',
+   if the host has IPv6 enabled. Now %i and %I contain just
+   '192.168.0.1'.
 
 Commit Highlights
 -----------------
@@ -246,6 +250,44 @@ o   Stefan Metzmacher <metze@samba.org>
 
 o   Andreas Schneider <asn@samba.org>
     * Add an Endpoint Mapper daemon.
+
+
+Changes since 3.6.0pre3
+-----------------------
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 8111: CIFS VFS: Fix unexpected error on SMB posix open.
+    * BUG 8112: POSIX extension opens of a directory are denied with EISDIR.
+    * Remove fstrings from client struct.
+    * BUGFIX when converting from safe_strcpy to strlcpy.
+    * Fix off-by-one calculations with strlcpy.
+    * Ensure we always write the correct incoming mid into the share mode table
+      entries.
+    * Fix the SMB2 oplock showstopper.
+
+
+o   Christian Ambach <christian.ambach@de.ibm.com>
+    * Convert user-specified domain to uppercase in libsmb.
+
+
+o   Günther Deschner <gd@samba.org>
+    * BUG 8132: Fix filling printers location field when using cups.
+    * Fix Coverity CID #2302: FORWARD_NULL.
+    * Fix cups_pull_comment_location().
+    * Fix double free of cups request.
+    * Make cups_pull_comment_location() work again.
+    * Fix potential crash bug in display_print_driver3().
+
+
+o   Volker Lendecke <vl@samba.org>
+    * Properly clean up in pthreadpool_init in case of failure.
+    * Make plaintext session setup async.
+    * Reduce fd load in Winbind children.
+    * Avoid a potential 100% CPU loop in Winbind.
+    * Tune broadcast namequeries for unique names.
+    * Properly deal with exited winbind children.
+    * Fix dup_smb2_vec3.
+    * Fix return check in nss_wins.
 
 
 Changes since 3.6.0pre2
@@ -340,10 +382,6 @@ o   Gregor Beck <gbeck@sernet.de>
 o   Olly Betts <olly@survex.com>
     * Fix 'net usersidlist' not to skip every other user.
 
-
-o   Gregor Beck <gbeck@sernet.de>
-    * Add "net idmap check", a check and repair tool for the
-      id mapping database.
 
 o   Günther Deschner <gd@samba.org>
     * BUG 7690: Retry DNS updates when connection to one nameserver has failed.

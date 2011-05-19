@@ -69,13 +69,13 @@
 #include "rpc_client/cli_lsarpc.h"
 #include "../librpc/gen_ndr/ndr_dssetup_c.h"
 #include "libads/sitename_cache.h"
+#include "libsmb/libsmb.h"
 #include "libsmb/clidgram.h"
 #include "ads.h"
 #include "secrets.h"
 #include "../libcli/security/security.h"
 #include "passdb.h"
 #include "messages.h"
-#include "ntdomain.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
@@ -189,6 +189,7 @@ static bool fork_child_dc_connect(struct winbindd_domain *domain)
 	TALLOC_CTX *mem_ctx = NULL;
 	pid_t parent_pid = sys_getpid();
 	char *lfile = NULL;
+	NTSTATUS status;
 
 	if (domain->dc_probe_pid != (pid_t)-1) {
 		/*
@@ -233,7 +234,10 @@ static bool fork_child_dc_connect(struct winbindd_domain *domain)
 		}
 	}
 
-	if (!winbindd_reinit_after_fork(lfile)) {
+	status = winbindd_reinit_after_fork(NULL, lfile);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("winbindd_reinit_after_fork failed: %s\n",
+			  nt_errstr(status)));
 		messaging_send_buf(winbind_messaging_context(),
 				   pid_to_procid(parent_pid),
 				   MSG_WINBIND_FAILED_TO_GO_ONLINE,
@@ -816,7 +820,12 @@ static NTSTATUS cm_prepare_connection(const struct winbindd_domain *domain,
 
 	(*cli)->timeout = 10000; 	/* 10 seconds */
 	(*cli)->fd = sockfd;
-	fstrcpy((*cli)->desthost, controller);
+	(*cli)->desthost = talloc_strdup((*cli), controller);
+	if ((*cli)->desthost == NULL) {
+		result = NT_STATUS_NO_MEMORY;
+		goto done;
+	}
+
 	(*cli)->use_kerberos = True;
 
 	peeraddr_len = sizeof(peeraddr);
@@ -1699,6 +1708,7 @@ void invalidate_cm_connection(struct winbindd_cm_conn *conn)
 void close_conns_after_fork(void)
 {
 	struct winbindd_domain *domain;
+	struct winbindd_cli_state *cli_state;
 
 	for (domain = domain_list(); domain; domain = domain->next) {
 		struct cli_state *cli = domain->conn.cli;
@@ -1714,6 +1724,15 @@ void close_conns_after_fork(void)
 		}
 
 		invalidate_cm_connection(&domain->conn);
+	}
+
+	for (cli_state = winbindd_client_list();
+	     cli_state != NULL;
+	     cli_state = cli_state->next) {
+		if (cli_state->sock >= 0) {
+			close(cli_state->sock);
+			cli_state->sock = -1;
+		}
 	}
 }
 

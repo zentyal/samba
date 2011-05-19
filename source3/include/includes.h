@@ -173,10 +173,6 @@
 #include <aio.h>
 #endif
 
-#ifdef WITH_MADVISE_PROTECTED
-#include <sys/mman.h>
-#endif
-
 /* Special macros that are no-ops except when run under Valgrind on
  * x86.  They've moved a little bit from valgrind 1.0.4 to 1.9.4 */
 #if HAVE_VALGRIND_MEMCHECK_H
@@ -514,22 +510,17 @@ typedef char fstring[FSTRING_LEN];
 #include "../lib/util/attr.h"
 #include "../lib/util/tsort.h"
 #include "../lib/util/dlinklist.h"
-#include <tdb.h>
-#include "util_tdb.h"
 
 #include <talloc.h>
 
 #include "event.h"
-#include "../lib/util/tevent_unix.h"
-#include "../lib/util/tevent_ntstatus.h"
-#include "../lib/tsocket/tsocket.h"
 
 #include "../lib/util/data_blob.h"
 #include "../lib/util/time.h"
 #include "../lib/util/debug.h"
 #include "../lib/util/debug_s3.h"
 
-#include "libads/ads_status.h"
+#include "../libcli/util/ntstatus.h"
 #include "../libcli/util/error.h"
 #include "../lib/util/charset/charset.h"
 #include "dynconfig.h"
@@ -538,28 +529,10 @@ typedef char fstring[FSTRING_LEN];
 #include "smb.h"
 #include "../lib/util/byteorder.h"
 
-#include "client.h"
-
 #include "module.h"
 #include "../lib/util/talloc_stack.h"
 #include "../lib/util/smb_threads.h"
 #include "../lib/util/smb_threads_internal.h"
-
-/*
- * Reasons for cache flush.
- */
-
-enum flush_reason_enum {
-    SEEK_FLUSH,
-    READ_FLUSH,
-    WRITE_FLUSH,
-    READRAW_FLUSH,
-    OPLOCK_RELEASE_FLUSH,
-    CLOSE_FLUSH,
-    SYNC_FLUSH,
-    SIZECHANGE_FLUSH,
-    /* NUM_FLUSH_REASONS must remain the last value in the enumeration. */
-    NUM_FLUSH_REASONS};
 
 /***** prototypes *****/
 #ifndef NO_PROTO_H
@@ -604,15 +577,6 @@ enum flush_reason_enum {
 #  include <dmalloc.h>
 #endif
 
-
-#if HAVE_KERNEL_SHARE_MODES
-#ifndef LOCK_MAND 
-#define LOCK_MAND	32	/* This is a mandatory flock */
-#define LOCK_READ	64	/* ... Which allows concurrent read operations */
-#define LOCK_WRITE	128	/* ... Which allows concurrent write operations */
-#define LOCK_RW		192	/* ... Which allows concurrent read & write ops */
-#endif
-#endif
 
 #define MAX_SEC_CTX_DEPTH 8    /* Maximum number of security contexts */
 
@@ -693,11 +657,6 @@ void dump_core(void) _NORETURN_;
 void exit_server(const char *const reason) _NORETURN_;
 void exit_server_cleanly(const char *const reason) _NORETURN_;
 void exit_server_fault(void) _NORETURN_;
-
-#if defined(HAVE_IPV6)
-void in6_addr_to_sockaddr_storage(struct sockaddr_storage *ss,
-				  struct in6_addr ip);
-#endif
 
 /* samba3 doesn't use uwrap yet */
 #define uwrap_enabled() 0

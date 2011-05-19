@@ -9,6 +9,7 @@ static enum ndr_err_code ndr_push_pcap_printer(struct ndr_push *ndr, int ndr_fla
 		NDR_CHECK(ndr_push_align(ndr, 5));
 		NDR_CHECK(ndr_push_unique_ptr(ndr, r->name));
 		NDR_CHECK(ndr_push_unique_ptr(ndr, r->info));
+		NDR_CHECK(ndr_push_unique_ptr(ndr, r->location));
 		NDR_CHECK(ndr_push_trailer_align(ndr, 5));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
@@ -24,6 +25,12 @@ static enum ndr_err_code ndr_push_pcap_printer(struct ndr_push *ndr, int ndr_fla
 			NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, ndr_charset_length(r->info, CH_UTF8)));
 			NDR_CHECK(ndr_push_charset(ndr, NDR_SCALARS, r->info, ndr_charset_length(r->info, CH_UTF8), sizeof(uint8_t), CH_UTF8));
 		}
+		if (r->location) {
+			NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, ndr_charset_length(r->location, CH_UTF8)));
+			NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, 0));
+			NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, ndr_charset_length(r->location, CH_UTF8)));
+			NDR_CHECK(ndr_push_charset(ndr, NDR_SCALARS, r->location, ndr_charset_length(r->location, CH_UTF8), sizeof(uint8_t), CH_UTF8));
+		}
 	}
 	return NDR_ERR_SUCCESS;
 }
@@ -34,6 +41,8 @@ static enum ndr_err_code ndr_pull_pcap_printer(struct ndr_pull *ndr, int ndr_fla
 	TALLOC_CTX *_mem_save_name_0;
 	uint32_t _ptr_info;
 	TALLOC_CTX *_mem_save_info_0;
+	uint32_t _ptr_location;
+	TALLOC_CTX *_mem_save_location_0;
 	if (ndr_flags & NDR_SCALARS) {
 		NDR_CHECK(ndr_pull_align(ndr, 5));
 		NDR_CHECK(ndr_pull_generic_ptr(ndr, &_ptr_name));
@@ -47,6 +56,12 @@ static enum ndr_err_code ndr_pull_pcap_printer(struct ndr_pull *ndr, int ndr_fla
 			NDR_PULL_ALLOC(ndr, r->info);
 		} else {
 			r->info = NULL;
+		}
+		NDR_CHECK(ndr_pull_generic_ptr(ndr, &_ptr_location));
+		if (_ptr_location) {
+			NDR_PULL_ALLOC(ndr, r->location);
+		} else {
+			r->location = NULL;
 		}
 		NDR_CHECK(ndr_pull_trailer_align(ndr, 5));
 	}
@@ -75,6 +90,18 @@ static enum ndr_err_code ndr_pull_pcap_printer(struct ndr_pull *ndr, int ndr_fla
 			NDR_CHECK(ndr_pull_charset(ndr, NDR_SCALARS, &r->info, ndr_get_array_length(ndr, &r->info), sizeof(uint8_t), CH_UTF8));
 			NDR_PULL_SET_MEM_CTX(ndr, _mem_save_info_0, 0);
 		}
+		if (r->location) {
+			_mem_save_location_0 = NDR_PULL_GET_MEM_CTX(ndr);
+			NDR_PULL_SET_MEM_CTX(ndr, r->location, 0);
+			NDR_CHECK(ndr_pull_array_size(ndr, &r->location));
+			NDR_CHECK(ndr_pull_array_length(ndr, &r->location));
+			if (ndr_get_array_length(ndr, &r->location) > ndr_get_array_size(ndr, &r->location)) {
+				return ndr_pull_error(ndr, NDR_ERR_ARRAY_SIZE, "Bad array size %u should exceed array length %u", ndr_get_array_size(ndr, &r->location), ndr_get_array_length(ndr, &r->location));
+			}
+			NDR_CHECK(ndr_check_string_terminator(ndr, ndr_get_array_length(ndr, &r->location), sizeof(uint8_t)));
+			NDR_CHECK(ndr_pull_charset(ndr, NDR_SCALARS, &r->location, ndr_get_array_length(ndr, &r->location), sizeof(uint8_t), CH_UTF8));
+			NDR_PULL_SET_MEM_CTX(ndr, _mem_save_location_0, 0);
+		}
 	}
 	return NDR_ERR_SUCCESS;
 }
@@ -94,6 +121,12 @@ _PUBLIC_ void ndr_print_pcap_printer(struct ndr_print *ndr, const char *name, co
 	ndr->depth++;
 	if (r->info) {
 		ndr_print_string(ndr, "info", r->info);
+	}
+	ndr->depth--;
+	ndr_print_ptr(ndr, "location", r->location);
+	ndr->depth++;
+	if (r->location) {
+		ndr_print_string(ndr, "location", r->location);
 	}
 	ndr->depth--;
 	ndr->depth--;

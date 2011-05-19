@@ -1004,7 +1004,8 @@ bool stat_cache_lookup(connection_struct *conn,
 void send_stat_cache_delete_message(struct messaging_context *msg_ctx,
 				    const char *name);
 void stat_cache_delete(const char *name);
-unsigned int fast_string_hash(TDB_DATA *key);
+struct TDB_DATA;
+unsigned int fast_string_hash(struct TDB_DATA *key);
 bool reset_stat_cache( void );
 
 /* The following definitions come from smbd/statvfs.c  */
@@ -1056,7 +1057,7 @@ bool change_to_user(connection_struct *conn, uint16 vuid);
 bool change_to_user_by_session(connection_struct *conn,
 			       const struct auth_serversupplied_info *session_info);
 bool change_to_root_user(void);
-bool become_authenticated_pipe_user(struct pipes_struct *p);
+bool become_authenticated_pipe_user(struct auth_serversupplied_info *session_info);
 bool unbecome_authenticated_pipe_user(void);
 void become_root(void);
 void unbecome_root(void);

@@ -34,17 +34,15 @@
 #include "rpc_client/cli_spoolss.h"
 #include "rpc_client/init_spoolss.h"
 #include "../librpc/gen_ndr/ndr_srvsvc_c.h"
-#include "../librpc/gen_ndr/srv_samr.h"
-#include "../librpc/gen_ndr/srv_srvsvc.h"
 #include "../librpc/gen_ndr/rap.h"
 #include "../lib/util/binsearch.h"
 #include "../libcli/auth/libcli_auth.h"
 #include "rpc_client/init_lsa.h"
-#include "rpc_server/rpc_ncacn_np.h"
 #include "../libcli/security/security.h"
 #include "printing.h"
 #include "passdb/machine_sid.h"
 #include "auth.h"
+#include "rpc_server/rpc_ncacn_np.h"
 
 #ifdef CHECK_TYPES
 #undef CHECK_TYPES
@@ -2256,7 +2254,7 @@ static bool api_RNetShareAdd(struct smbd_server_connection *sconn,
 		return false;
 	}
 
-	status = rpc_pipe_open_internal(mem_ctx, &ndr_table_srvsvc.syntax_id,
+	status = rpc_pipe_open_interface(mem_ctx, &ndr_table_srvsvc.syntax_id,
 					conn->session_info,
 					&conn->sconn->client_id,
 					conn->sconn->msg_ctx,
@@ -2367,7 +2365,7 @@ static bool api_RNetGroupEnum(struct smbd_server_connection *sconn,
 		return False;
 	}
 
-	status = rpc_pipe_open_internal(
+	status = rpc_pipe_open_interface(
 		talloc_tos(), &ndr_table_samr.syntax_id,
 		conn->session_info, &conn->sconn->client_id,
 		conn->sconn->msg_ctx, &samr_pipe);
@@ -2573,7 +2571,7 @@ static bool api_NetUserGetGroups(struct smbd_server_connection *sconn,
 	p = *rdata;
 	endp = *rdata + *rdata_len;
 
-	status = rpc_pipe_open_internal(
+	status = rpc_pipe_open_interface(
 		talloc_tos(), &ndr_table_samr.syntax_id,
 		conn->session_info, &conn->sconn->client_id,
 		conn->sconn->msg_ctx, &samr_pipe);
@@ -2765,7 +2763,7 @@ static bool api_RNetUserEnum(struct smbd_server_connection *sconn,
 	p = *rdata;
 	endp = *rdata + *rdata_len;
 
-	status = rpc_pipe_open_internal(
+	status = rpc_pipe_open_interface(
 		talloc_tos(), &ndr_table_samr.syntax_id,
 		conn->session_info, &conn->sconn->client_id,
 		conn->sconn->msg_ctx, &samr_pipe);
@@ -3031,7 +3029,7 @@ static bool api_SetUserPassword(struct smbd_server_connection *sconn,
 	ZERO_STRUCT(domain_handle);
 	ZERO_STRUCT(user_handle);
 
-	status = rpc_pipe_open_internal(mem_ctx, &ndr_table_samr.syntax_id,
+	status = rpc_pipe_open_interface(mem_ctx, &ndr_table_samr.syntax_id,
 					conn->session_info,
 					&conn->sconn->client_id,
 					conn->sconn->msg_ctx,
@@ -3282,7 +3280,7 @@ static bool api_SamOEMChangePassword(struct smbd_server_connection *sconn,
 	memcpy(password.data, data, 516);
 	memcpy(hash.hash, data+516, 16);
 
-	status = rpc_pipe_open_internal(mem_ctx, &ndr_table_samr.syntax_id,
+	status = rpc_pipe_open_interface(mem_ctx, &ndr_table_samr.syntax_id,
 					conn->session_info,
 					&conn->sconn->client_id,
 					conn->sconn->msg_ctx,
@@ -3866,7 +3864,7 @@ static bool api_RNetServerGetInfo(struct smbd_server_connection *sconn,
 	p = *rdata;
 	p2 = p + struct_len;
 
-	status = rpc_pipe_open_internal(mem_ctx, &ndr_table_srvsvc.syntax_id,
+	status = rpc_pipe_open_interface(mem_ctx, &ndr_table_srvsvc.syntax_id,
 					conn->session_info,
 					&conn->sconn->client_id,
 					conn->sconn->msg_ctx,
@@ -4293,7 +4291,7 @@ static bool api_RNetUserGetInfo(struct smbd_server_connection *sconn,
 	ZERO_STRUCT(domain_handle);
 	ZERO_STRUCT(user_handle);
 
-	status = rpc_pipe_open_internal(mem_ctx, &ndr_table_samr.syntax_id,
+	status = rpc_pipe_open_interface(mem_ctx, &ndr_table_samr.syntax_id,
 					conn->session_info,
 					&conn->sconn->client_id,
 					conn->sconn->msg_ctx,

@@ -25,6 +25,7 @@
 
 #include "includes.h"
 #include "system/passwd.h"
+#include "ntdomain.h"
 #include "../librpc/gen_ndr/srv_srvsvc.h"
 #include "../libcli/security/security.h"
 #include "../librpc/gen_ndr/ndr_security.h"
@@ -34,7 +35,6 @@
 #include "smbd/smbd.h"
 #include "auth.h"
 #include "messages.h"
-#include "ntdomain.h"
 
 extern const struct generic_mapping file_generic_mapping;
 
@@ -1510,40 +1510,6 @@ WERROR _srvsvc_NetShareGetInfo(struct pipes_struct *p,
 	DEBUG(5,("_srvsvc_NetShareGetInfo: %d\n", __LINE__));
 
 	return status;
-}
-
-/*******************************************************************
- Check a given DOS pathname is valid for a share.
-********************************************************************/
-
-char *valid_share_pathname(TALLOC_CTX *ctx, const char *dos_pathname)
-{
-	char *ptr = NULL;
-
-	if (!dos_pathname) {
-		return NULL;
-	}
-
-	ptr = talloc_strdup(ctx, dos_pathname);
-	if (!ptr) {
-		return NULL;
-	}
-	/* Convert any '\' paths to '/' */
-	unix_format(ptr);
-	ptr = unix_clean_name(ctx, ptr);
-	if (!ptr) {
-		return NULL;
-	}
-
-	/* NT is braindead - it wants a C: prefix to a pathname ! So strip it. */
-	if (strlen(ptr) > 2 && ptr[1] == ':' && ptr[0] != '/')
-		ptr += 2;
-
-	/* Only absolute paths allowed. */
-	if (*ptr != '/')
-		return NULL;
-
-	return ptr;
 }
 
 /*******************************************************************

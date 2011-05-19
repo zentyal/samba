@@ -540,7 +540,8 @@ WERROR NetServerGetInfo_r(struct libnetapi_ctx *ctx,
 static WERROR NetServerSetInfo_l_1005(struct libnetapi_ctx *ctx,
 				      struct NetServerSetInfo *r)
 {
-	WERROR werr;
+	WERROR werr = WERR_OK;
+	sbcErr err;
 	struct smbconf_ctx *conf_ctx;
 	struct srvsvc_NetSrvInfo1005 *info1005;
 
@@ -563,13 +564,24 @@ static WERROR NetServerSetInfo_l_1005(struct libnetapi_ctx *ctx,
 		return WERR_NOT_SUPPORTED;
 	}
 
-	werr = smbconf_init_reg(ctx, &conf_ctx, NULL);
-	if (!W_ERROR_IS_OK(werr)) {
+	err = smbconf_init_reg(ctx, &conf_ctx, NULL);
+	if (!SBC_ERROR_IS_OK(err)) {
+		libnetapi_set_error_string(ctx,
+			"Could not initialize backend: %s",
+			sbcErrorString(err));
+		werr = WERR_NO_SUCH_SERVICE;
 		goto done;
 	}
 
-	werr = smbconf_set_global_parameter(conf_ctx, "server string",
+	err = smbconf_set_global_parameter(conf_ctx, "server string",
 					    info1005->comment);
+	if (!SBC_ERROR_IS_OK(err)) {
+		libnetapi_set_error_string(ctx,
+			"Could not set global parameter: %s",
+			sbcErrorString(err));
+		werr = WERR_NO_SUCH_SERVICE;
+		goto done;
+	}
 
  done:
 	smbconf_shutdown(conf_ctx);

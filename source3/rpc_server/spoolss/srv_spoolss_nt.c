@@ -28,6 +28,7 @@
    up, all the errors returned are DOS errors, not NT status codes. */
 
 #include "includes.h"
+#include "ntdomain.h"
 #include "nt_printing.h"
 #include "srv_spoolss_util.h"
 #include "../librpc/gen_ndr/srv_spoolss.h"
@@ -48,7 +49,10 @@
 #include "smbd/smbd.h"
 #include "auth.h"
 #include "messages.h"
-#include "ntdomain.h"
+#include "rpc_server/spoolss/srv_spoolss_nt.h"
+#include "util_tdb.h"
+#include "libsmb/libsmb.h"
+#include "printing/printer_list.h"
 
 /* macros stolen from s4 spoolss server */
 #define SPOOLSS_BUFFER_UNION(fn,info,level) \
@@ -2876,7 +2880,21 @@ static void spoolss_notify_location(struct messaging_context *msg_ctx,
 				    struct spoolss_PrinterInfo2 *pinfo2,
 				    TALLOC_CTX *mem_ctx)
 {
-	SETUP_SPOOLSS_NOTIFY_DATA_STRING(data, pinfo2->location);
+	const char *loc = pinfo2->location;
+	NTSTATUS status;
+
+	status = printer_list_get_printer(mem_ctx,
+					  pinfo2->sharename,
+					  NULL,
+					  &loc,
+					  NULL);
+	if (NT_STATUS_IS_OK(status)) {
+		if (loc == NULL) {
+			loc = pinfo2->location;
+		}
+	}
+
+	SETUP_SPOOLSS_NOTIFY_DATA_STRING(data, loc);
 }
 
 /*******************************************************************
@@ -3404,7 +3422,6 @@ static bool construct_notify_printer_info(struct messaging_context *msg_ctx,
 	uint16_t field;
 
 	struct spoolss_Notify *current_data;
-	print_queue_struct *queue=NULL;
 
 	type = option_type->type;
 
@@ -3438,7 +3455,7 @@ static bool construct_notify_printer_info(struct messaging_context *msg_ctx,
 			   pinfo2->printername));
 
 		notify_info_data_table[j].fn(msg_ctx, snum, current_data,
-					     queue, pinfo2, mem_ctx);
+					     NULL, pinfo2, mem_ctx);
 
 		info->count++;
 	}
@@ -4009,8 +4026,24 @@ static WERROR construct_printer_info2(TALLOC_CTX *mem_ctx,
 	}
 	W_ERROR_HAVE_NO_MEMORY(r->comment);
 
-	r->location		= talloc_strdup(mem_ctx, info2->location);
+	r->location	= talloc_strdup(mem_ctx, info2->location);
+	if (info2->location[0] == '\0') {
+		const char *loc = NULL;
+		NTSTATUS nt_status;
+
+		nt_status = printer_list_get_printer(mem_ctx,
+						     info2->sharename,
+						     NULL,
+						     &loc,
+						     NULL);
+		if (NT_STATUS_IS_OK(nt_status)) {
+			if (loc != NULL) {
+				r->location = talloc_strdup(mem_ctx, loc);
+			}
+		}
+	}
 	W_ERROR_HAVE_NO_MEMORY(r->location);
+
 	r->sepfile		= talloc_strdup(mem_ctx, info2->sepfile);
 	W_ERROR_HAVE_NO_MEMORY(r->sepfile);
 	r->printprocessor	= talloc_strdup(mem_ctx, info2->printprocessor);
@@ -8011,12 +8044,12 @@ WERROR _spoolss_AddPrinterDriverEx(struct pipes_struct *p,
 	}
 
 	DEBUG(5,("Cleaning driver's information\n"));
-	err = clean_up_driver_struct(p->mem_ctx, p, r->in.info_ctr);
+	err = clean_up_driver_struct(p->mem_ctx, p->session_info, r->in.info_ctr);
 	if (!W_ERROR_IS_OK(err))
 		goto done;
 
 	DEBUG(5,("Moving driver to final destination\n"));
-	err = move_driver_to_download_area(p, r->in.info_ctr);
+	err = move_driver_to_download_area(p->session_info, r->in.info_ctr);
 	if (!W_ERROR_IS_OK(err)) {
 		goto done;
 	}

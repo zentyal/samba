@@ -21,16 +21,16 @@
  */
 
 #include "includes.h"
+#include "ntdomain.h"
 #include "../librpc/gen_ndr/srv_eventlog.h"
 #include "lib/eventlog/eventlog.h"
-#include "registry.h"
 #include "../libcli/security/security.h"
 #include "../librpc/gen_ndr/ndr_winreg_c.h"
 #include "rpc_client/cli_winreg_int.h"
 #include "rpc_client/cli_winreg.h"
 #include "smbd/smbd.h"
 #include "auth.h"
-#include "ntdomain.h"
+#include "util_tdb.h"
 
 #undef  DBGC_CLASS
 #define DBGC_CLASS DBGC_RPC_SRV

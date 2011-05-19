@@ -20,6 +20,7 @@
  */
 
 #include "includes.h"
+#include "ntdomain.h"
 
 #include "../librpc/gen_ndr/ndr_epmapper_c.h"
 #include "../librpc/gen_ndr/srv_epmapper.h"
@@ -41,6 +42,8 @@
 #include "printing/nt_printing_migrate.h"
 #include "rpc_server/eventlog/srv_eventlog_reg.h"
 #include "rpc_server/svcctl/srv_svcctl_reg.h"
+#include "rpc_server/spoolss/srv_spoolss_nt.h"
+#include "rpc_server/svcctl/srv_svcctl_nt.h"
 
 #include "librpc/rpc/dcerpc_ep.h"
 

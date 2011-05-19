@@ -19,12 +19,12 @@
  */
 
 #include "includes.h"
+#include "../lib/util/tevent_ntstatus.h"
 #include "librpc/gen_ndr/ndr_epmapper_c.h"
 #include "../librpc/gen_ndr/ndr_schannel.h"
 #include "../librpc/gen_ndr/ndr_dssetup.h"
 #include "../libcli/auth/schannel.h"
 #include "../libcli/auth/spnego.h"
-#include "smb_krb5.h"
 #include "../libcli/auth/ntlmssp.h"
 #include "ntlmssp_wrap.h"
 #include "librpc/gen_ndr/ndr_dcerpc.h"
@@ -33,7 +33,7 @@
 #include "librpc/crypto/spnego.h"
 #include "rpc_dce.h"
 #include "cli_pipe.h"
-#include "ntdomain.h"
+#include "client.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_RPC_CLI

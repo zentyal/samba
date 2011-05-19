@@ -20,6 +20,8 @@
 */
 
 #include "includes.h"
+#include "libsmb/libsmb.h"
+#include "../lib/util/tevent_ntstatus.h"
 #include "libsmb/clidgram.h"
 #include "libsmb/nmblib.h"
 #include "messages.h"

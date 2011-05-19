@@ -857,6 +857,21 @@ union rap_session_info {
 	struct rap_session_info_2 info2;/* [case(2)] */
 }/* [public,nodiscriminant] */;
 
+struct rap_TimeOfDayInfo {
+	uint32_t TimeSinceJan11970;
+	uint32_t TimeSinceBoot;
+	uint8_t Hours;
+	uint8_t Minutes;
+	uint8_t Seconds;
+	uint8_t Hundreds;
+	uint16_t TimeZone;
+	uint16_t ClockFrequency;
+	uint8_t Day;
+	uint8_t Month;
+	uint16_t Year;
+	uint8_t Weekday;
+}/* [public] */;
+
 
 struct rap_NetShareEnum {
 	struct {
@@ -1231,6 +1246,20 @@ struct rap_NetUserDelete {
 	struct {
 		enum rap_status status;
 		uint16_t convert;
+	} out;
+
+};
+
+
+struct rap_NetRemoteTOD {
+	struct {
+		uint16_t bufsize;
+	} in;
+
+	struct {
+		enum rap_status status;
+		uint16_t convert;
+		struct rap_TimeOfDayInfo tod;
 	} out;
 
 };

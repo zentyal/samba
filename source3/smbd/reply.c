@@ -1108,9 +1108,9 @@ void reply_getatr(struct smb_request *req)
 	/* dos smetimes asks for a stat of "" - it returns a "hidden directory"
 		under WfWg - weird! */
 	if (*fname == '\0') {
-		mode = aHIDDEN | aDIR;
+		mode = FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_DIRECTORY;
 		if (!CAN_WRITE(conn)) {
-			mode |= aRONLY;
+			mode |= FILE_ATTRIBUTE_READONLY;
 		}
 		size = 0;
 		mtime = 0;
@@ -1156,7 +1156,7 @@ void reply_getatr(struct smb_request *req)
 		}
 
 		mtime = convert_timespec_to_time_t(smb_fname->st.st_ex_mtime);
-		if (mode & aDIR) {
+		if (mode & FILE_ATTRIBUTE_DIRECTORY) {
 			size = 0;
 		}
 	}
@@ -1257,9 +1257,9 @@ void reply_setatr(struct smb_request *req)
 
 	if (mode != FILE_ATTRIBUTE_NORMAL) {
 		if (VALID_STAT_OF_DIR(smb_fname->st))
-			mode |= aDIR;
+			mode |= FILE_ATTRIBUTE_DIRECTORY;
 		else
-			mode &= ~aDIR;
+			mode &= ~FILE_ATTRIBUTE_DIRECTORY;
 
 		if (file_set_dosmode(conn, smb_fname, mode, NULL,
 				     false) != 0) {
@@ -1428,7 +1428,7 @@ void reply_search(struct smb_request *req)
 	status_len = SVAL(p, 0);
 	p += 2;
 
-	/* dirtype &= ~aDIR; */
+	/* dirtype &= ~FILE_ATTRIBUTE_DIRECTORY; */
 
 	if (status_len == 0) {
 		nt_status = filename_convert(ctx, conn,
@@ -1520,11 +1520,11 @@ void reply_search(struct smb_request *req)
 	/* Initialize per SMBsearch/SMBffirst/SMBfunique operation data */
 	dptr_init_search_op(dirptr);
 
-	if ((dirtype&0x1F) == aVOLID) {
+	if ((dirtype&0x1F) == FILE_ATTRIBUTE_VOLUME) {
 		char buf[DIR_STRUCT_SIZE];
 		memcpy(buf,status,21);
 		if (!make_dir_struct(ctx,buf,"???????????",volume_label(SNUM(conn)),
-				0,aVOLID,0,!allow_long_path_components)) {
+				0,FILE_ATTRIBUTE_VOLUME,0,!allow_long_path_components)) {
 			reply_nterror(req, NT_STATUS_NO_MEMORY);
 			goto out;
 		}
@@ -1820,7 +1820,7 @@ void reply_open(struct smb_request *req)
 
 	mtime = convert_timespec_to_time_t(smb_fname->st.st_ex_mtime);
 
-	if (fattr & aDIR) {
+	if (fattr & FILE_ATTRIBUTE_DIRECTORY) {
 		DEBUG(3,("attempt to open a directory %s\n",
 			 fsp_str_dbg(fsp)));
 		close_file(req, fsp, ERROR_CLOSE);
@@ -2004,7 +2004,7 @@ void reply_open_and_X(struct smb_request *req)
 
 	fattr = dos_mode(conn, fsp->fsp_name);
 	mtime = convert_timespec_to_time_t(fsp->fsp_name->st.st_ex_mtime);
-	if (fattr & aDIR) {
+	if (fattr & FILE_ATTRIBUTE_DIRECTORY) {
 		close_file(req, fsp, ERROR_CLOSE);
 		reply_nterror(req, NT_STATUS_ACCESS_DENIED);
 		goto out;
@@ -2160,7 +2160,7 @@ void reply_mknew(struct smb_request *req)
 		goto out;
 	}
 
-	if (fattr & aVOLID) {
+	if (fattr & FILE_ATTRIBUTE_VOLUME) {
 		DEBUG(0,("Attempt to create file (%s) with volid set - "
 			 "please report this\n",
 			 smb_fname_str_dbg(smb_fname)));
@@ -2388,7 +2388,7 @@ static NTSTATUS can_rename(connection_struct *conn, files_struct *fsp,
 	}
 
 	fmode = dos_mode(conn, fsp->fsp_name);
-	if ((fmode & ~dirtype) & (aHIDDEN | aSYSTEM)) {
+	if ((fmode & ~dirtype) & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM)) {
 		return NT_STATUS_NO_SUCH_FILE;
 	}
 
@@ -2449,16 +2449,16 @@ static NTSTATUS do_unlink(connection_struct *conn,
 	fattr = dos_mode(conn, smb_fname);
 
 	if (dirtype & FILE_ATTRIBUTE_NORMAL) {
-		dirtype = aDIR|aARCH|aRONLY;
+		dirtype = FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_ARCHIVE|FILE_ATTRIBUTE_READONLY;
 	}
 
-	dirtype &= (aDIR|aARCH|aRONLY|aHIDDEN|aSYSTEM);
+	dirtype &= (FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_ARCHIVE|FILE_ATTRIBUTE_READONLY|FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_SYSTEM);
 	if (!dirtype) {
 		return NT_STATUS_NO_SUCH_FILE;
 	}
 
 	if (!dir_check_ftype(conn, fattr, dirtype)) {
-		if (fattr & aDIR) {
+		if (fattr & FILE_ATTRIBUTE_DIRECTORY) {
 			return NT_STATUS_FILE_IS_A_DIRECTORY;
 		}
 		return NT_STATUS_NO_SUCH_FILE;
@@ -2489,13 +2489,13 @@ static NTSTATUS do_unlink(connection_struct *conn,
 	}
 
 	/* Can't delete a directory. */
-	if (fattr & aDIR) {
+	if (fattr & FILE_ATTRIBUTE_DIRECTORY) {
 		return NT_STATUS_FILE_IS_A_DIRECTORY;
 	}
 #endif
 
 #if 0 /* JRATEST */
-	else if (dirtype & aDIR) /* Asked for a directory and it isn't. */
+	else if (dirtype & FILE_ATTRIBUTE_DIRECTORY) /* Asked for a directory and it isn't. */
 		return NT_STATUS_OBJECT_NAME_INVALID;
 #endif /* JRATEST */
 
@@ -2632,7 +2632,7 @@ NTSTATUS unlink_internals(connection_struct *conn, struct smb_request *req,
 		const char *dname = NULL;
 		char *talloced = NULL;
 
-		if ((dirtype & SAMBA_ATTRIBUTES_MASK) == aDIR) {
+		if ((dirtype & SAMBA_ATTRIBUTES_MASK) == FILE_ATTRIBUTE_DIRECTORY) {
 			status = NT_STATUS_OBJECT_NAME_INVALID;
 			goto out;
 		}
@@ -3213,7 +3213,7 @@ void reply_readbraw(struct smb_request *req)
 				"(%x << 32) used and we don't support "
 				"64 bit offsets.\n",
 			(unsigned int)IVAL(req->vwv+8, 0) ));
-			reply_readbraw_error();
+			reply_readbraw_error(sconn);
 			END_PROFILE(SMBreadbraw);
 			return;
 		}
@@ -6405,7 +6405,7 @@ NTSTATUS rename_internals(TALLOC_CTX *ctx,
 
 		/* Quick check for "." and ".." */
 		if (ISDOT(dname) || ISDOTDOT(dname)) {
-			if (attrs & aDIR) {
+			if (attrs & FILE_ATTRIBUTE_DIRECTORY) {
 				sysdir_entry = True;
 			} else {
 				TALLOC_FREE(talloced);
@@ -7971,7 +7971,7 @@ void reply_getattrE(struct smb_request *req)
 	srv_put_dos_date2((char *)req->outbuf, smb_vwv4,
 			  convert_timespec_to_time_t(fsp->fsp_name->st.st_ex_mtime));
 
-	if (mode & aDIR) {
+	if (mode & FILE_ATTRIBUTE_DIRECTORY) {
 		SIVAL(req->outbuf, smb_vwv6, 0);
 		SIVAL(req->outbuf, smb_vwv8, 0);
 	} else {

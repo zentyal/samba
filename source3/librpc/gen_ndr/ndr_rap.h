@@ -55,7 +55,9 @@
 
 #define NDR_RAP_NETUSERDELETE (0x17)
 
-#define NDR_RAP_CALL_COUNT (24)
+#define NDR_RAP_NETREMOTETOD (0x18)
+
+#define NDR_RAP_CALL_COUNT (25)
 enum ndr_err_code ndr_push_rap_status(struct ndr_push *ndr, int ndr_flags, enum rap_status r);
 enum ndr_err_code ndr_pull_rap_status(struct ndr_pull *ndr, int ndr_flags, enum rap_status *r);
 void ndr_print_rap_status(struct ndr_print *ndr, const char *name, enum rap_status r);
@@ -120,6 +122,9 @@ void ndr_print_rap_session_info_2(struct ndr_print *ndr, const char *name, const
 enum ndr_err_code ndr_push_rap_session_info(struct ndr_push *ndr, int ndr_flags, const union rap_session_info *r);
 enum ndr_err_code ndr_pull_rap_session_info(struct ndr_pull *ndr, int ndr_flags, union rap_session_info *r);
 void ndr_print_rap_session_info(struct ndr_print *ndr, const char *name, const union rap_session_info *r);
+enum ndr_err_code ndr_push_rap_TimeOfDayInfo(struct ndr_push *ndr, int ndr_flags, const struct rap_TimeOfDayInfo *r);
+enum ndr_err_code ndr_pull_rap_TimeOfDayInfo(struct ndr_pull *ndr, int ndr_flags, struct rap_TimeOfDayInfo *r);
+void ndr_print_rap_TimeOfDayInfo(struct ndr_print *ndr, const char *name, const struct rap_TimeOfDayInfo *r);
 enum ndr_err_code ndr_push_rap_NetShareEnum(struct ndr_push *ndr, int flags, const struct rap_NetShareEnum *r);
 enum ndr_err_code ndr_pull_rap_NetShareEnum(struct ndr_pull *ndr, int flags, struct rap_NetShareEnum *r);
 void ndr_print_rap_NetShareEnum(struct ndr_print *ndr, const char *name, int flags, const struct rap_NetShareEnum *r);
@@ -192,4 +197,7 @@ void ndr_print_rap_NetUserAdd(struct ndr_print *ndr, const char *name, int flags
 enum ndr_err_code ndr_push_rap_NetUserDelete(struct ndr_push *ndr, int flags, const struct rap_NetUserDelete *r);
 enum ndr_err_code ndr_pull_rap_NetUserDelete(struct ndr_pull *ndr, int flags, struct rap_NetUserDelete *r);
 void ndr_print_rap_NetUserDelete(struct ndr_print *ndr, const char *name, int flags, const struct rap_NetUserDelete *r);
+enum ndr_err_code ndr_push_rap_NetRemoteTOD(struct ndr_push *ndr, int flags, const struct rap_NetRemoteTOD *r);
+enum ndr_err_code ndr_pull_rap_NetRemoteTOD(struct ndr_pull *ndr, int flags, struct rap_NetRemoteTOD *r);
+void ndr_print_rap_NetRemoteTOD(struct ndr_print *ndr, const char *name, int flags, const struct rap_NetRemoteTOD *r);
 #endif /* _HEADER_NDR_rap */

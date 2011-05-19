@@ -32,6 +32,7 @@
 #include "../libcli/smbreadline/smbreadline.h"
 #include "../libcli/security/security.h"
 #include "system/select.h"
+#include "libsmb/libsmb.h"
 #include "libsmb/clirap.h"
 #include "trans2.h"
 #include "libsmb/nmblib.h"
@@ -505,7 +506,7 @@ static bool do_this_one(struct file_info *finfo)
 		return false;
 	}
 
-	if (finfo->mode & aDIR) {
+	if (finfo->mode & FILE_ATTRIBUTE_DIRECTORY) {
 		return true;
 	}
 
@@ -520,7 +521,7 @@ static bool do_this_one(struct file_info *finfo)
 		return false;
 	}
 
-	if ((archive_level==1 || archive_level==2) && !(finfo->mode & aARCH)) {
+	if ((archive_level==1 || archive_level==2) && !(finfo->mode & FILE_ATTRIBUTE_ARCHIVE)) {
 		DEBUG(3,("archive %s failed\n", finfo->name));
 		return false;
 	}
@@ -752,7 +753,7 @@ static NTSTATUS do_list_helper(const char *mntpoint, struct file_info *f,
 		*dir_end = '\0';
 	}
 
-	if (f->mode & aDIR) {
+	if (f->mode & FILE_ATTRIBUTE_DIRECTORY) {
 		if (do_list_dirs && do_this_one(f)) {
 			status = do_list_fn(cli_state, f, dir);
 			if (!NT_STATUS_IS_OK(status)) {
@@ -924,7 +925,7 @@ NTSTATUS do_list(const char *mask,
 static int cmd_dir(void)
 {
 	TALLOC_CTX *ctx = talloc_tos();
-	uint16 attribute = aDIR | aSYSTEM | aHIDDEN;
+	uint16 attribute = FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN;
 	char *mask = NULL;
 	char *buf = NULL;
 	int rc = 1;
@@ -974,7 +975,7 @@ static int cmd_dir(void)
 static int cmd_du(void)
 {
 	TALLOC_CTX *ctx = talloc_tos();
-	uint16 attribute = aDIR | aSYSTEM | aHIDDEN;
+	uint16 attribute = FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN;
 	char *mask = NULL;
 	char *buf = NULL;
 	NTSTATUS status;
@@ -1147,8 +1148,8 @@ static int do_get(const char *rname, const char *lname_in, bool reget)
 		close(handle);
 	}
 
-	if (archive_level >= 2 && (attr & aARCH)) {
-		cli_setatr(cli, rname, attr & ~(uint16)aARCH, 0);
+	if (archive_level >= 2 && (attr & FILE_ATTRIBUTE_ARCHIVE)) {
+		cli_setatr(cli, rname, attr & ~(uint16)FILE_ATTRIBUTE_ARCHIVE, 0);
 	}
 
 	{
@@ -1233,7 +1234,7 @@ static NTSTATUS do_mget(struct cli_state *cli_state, struct file_info *finfo,
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
-	if (finfo->mode & aDIR) {
+	if (finfo->mode & FILE_ATTRIBUTE_DIRECTORY) {
 		if (asprintf(&quest,
 			 "Get directory %s? ",finfo->name) < 0) {
 			return NT_STATUS_NO_MEMORY;
@@ -1251,7 +1252,7 @@ static NTSTATUS do_mget(struct cli_state *cli_state, struct file_info *finfo,
 	}
 	SAFE_FREE(quest);
 
-	if (!(finfo->mode & aDIR)) {
+	if (!(finfo->mode & FILE_ATTRIBUTE_DIRECTORY)) {
 		rname = talloc_asprintf(ctx,
 				"%s%s",
 				client_get_cur_dir(),
@@ -1306,7 +1307,7 @@ static NTSTATUS do_mget(struct cli_state *cli_state, struct file_info *finfo,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	status = do_list(mget_mask, aSYSTEM | aHIDDEN | aDIR,do_mget,false, true);
+	status = do_list(mget_mask, FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_DIRECTORY,do_mget,false, true);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -1395,13 +1396,13 @@ static int cmd_more(void)
 static int cmd_mget(void)
 {
 	TALLOC_CTX *ctx = talloc_tos();
-	uint16 attribute = aSYSTEM | aHIDDEN;
+	uint16 attribute = FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN;
 	char *mget_mask = NULL;
 	char *buf = NULL;
 	NTSTATUS status = NT_STATUS_OK;
 
 	if (recurse) {
-		attribute |= aDIR;
+		attribute |= FILE_ATTRIBUTE_DIRECTORY;
 	}
 
 	abort_mget = false;
@@ -2306,12 +2307,12 @@ static NTSTATUS do_del(struct cli_state *cli_state, struct file_info *finfo,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	if (finfo->mode & aDIR) {
+	if (finfo->mode & FILE_ATTRIBUTE_DIRECTORY) {
 		TALLOC_FREE(mask);
 		return NT_STATUS_OK;
 	}
 
-	status = cli_unlink(cli_state, mask, aSYSTEM | aHIDDEN);
+	status = cli_unlink(cli_state, mask, FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN);
 	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("%s deleting remote file %s\n",
 			 nt_errstr(status), mask);
@@ -2330,10 +2331,10 @@ static int cmd_del(void)
 	char *mask = NULL;
 	char *buf = NULL;
 	NTSTATUS status = NT_STATUS_OK;
-	uint16 attribute = aSYSTEM | aHIDDEN;
+	uint16 attribute = FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN;
 
 	if (recurse) {
-		attribute |= aDIR;
+		attribute |= FILE_ATTRIBUTE_DIRECTORY;
 	}
 
 	mask = talloc_strdup(ctx, client_get_cur_dir());
@@ -4516,7 +4517,7 @@ static NTSTATUS completion_remote_filter(const char *mnt,
 		return NT_STATUS_OK;
 	}
 
-	if ((info->dirmask[0] == 0) && !(f->mode & aDIR))
+	if ((info->dirmask[0] == 0) && !(f->mode & FILE_ATTRIBUTE_DIRECTORY))
 		info->matches[info->count] = SMB_STRDUP(f->name);
 	else {
 		TALLOC_CTX *ctx = talloc_stackframe();
@@ -4532,7 +4533,7 @@ static NTSTATUS completion_remote_filter(const char *mnt,
 			TALLOC_FREE(ctx);
 			return NT_STATUS_NO_MEMORY;
 		}
-		if (f->mode & aDIR) {
+		if (f->mode & FILE_ATTRIBUTE_DIRECTORY) {
 			tmp = talloc_asprintf_append(tmp, "%s",
 						     CLI_DIRSEP_STR);
 		}
@@ -4546,7 +4547,7 @@ static NTSTATUS completion_remote_filter(const char *mnt,
 	if (info->matches[info->count] == NULL) {
 		return NT_STATUS_OK;
 	}
-	if (f->mode & aDIR) {
+	if (f->mode & FILE_ATTRIBUTE_DIRECTORY) {
 		smb_readline_ca_char(0);
 	}
 	if (info->count == 1) {
@@ -4629,7 +4630,7 @@ static char **remote_completion(const char *text, int len)
 	if (!cli_resolve_path(ctx, "", auth_info, cli, dirmask, &targetcli, &targetpath)) {
 		goto cleanup;
 	}
-	status = cli_list(targetcli, targetpath, aDIR | aSYSTEM | aHIDDEN,
+	status = cli_list(targetcli, targetpath, FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN,
 			  completion_remote_filter, (void *)&info);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto cleanup;

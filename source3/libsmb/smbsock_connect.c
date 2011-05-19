@@ -18,7 +18,8 @@
 */
 
 #include "includes.h"
-#include "../lib/async_req/async_sock.h"
+#include "../lib/util/tevent_ntstatus.h"
+#include "client.h"
 #include "async_smb.h"
 #include "libsmb/nmblib.h"
 
@@ -270,6 +271,7 @@ static int smbsock_connect_state_destructor(
 {
 	if (state->sock != -1) {
 		close(state->sock);
+		state->sock = -1;
 	}
 	return 0;
 }

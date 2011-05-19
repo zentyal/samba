@@ -73,6 +73,7 @@ AC_SUBST(LIBWBCLIENT_SHARED)
 AC_SUBST(LIBWBCLIENT_STATIC_TARGET)
 AC_SUBST(LIBWBCLIENT_STATIC)
 AC_SUBST(LIBWBCLIENT_SOVER)
+AC_SUBST(LIBWBCLIENT_FULLVER)
 AC_SUBST(LIBWBCLIENT)
 AC_SUBST(LIBWBCLIENT_LIBS)
 
@@ -196,7 +197,14 @@ AC_ARG_WITH(profiling-data,
 )
 
 dnl Checks for programs.
-smbtorture4_possible=yes
+AC_ARG_ENABLE(smbtorture4,
+	[AS_HELP_STRING([--enable-smbtorture4], [Enable building smbtorture4 (default=auto)])])
+
+if test x$enable_smbtorture4 != xno; then
+	smbtorture4_possible=yes
+else
+	smbtorture4_possible=no
+fi
 
 AC_PROG_INSTALL
 AC_PROG_AWK
@@ -518,6 +526,8 @@ case "$host_os" in
 	  			AC_MSG_RESULT([no large file support])
 				;;
 			5.*)
+			LDFLAGS="$LDFLAGS -lthread"
+			CPPFLAGS="$CPPFLAGS -D_REENTRANT"
 			AC_MSG_RESULT([enabling large file support])
 			if test "$ac_cv_prog_gcc" = yes; then
 				${CC-cc} -v >conftest.c 2>&1
@@ -525,20 +535,17 @@ case "$host_os" in
 				rm -fr conftest.c
 				case "$ac_cv_gcc_compiler_version_number" in
 					*"gcc version 2.6"*|*"gcc version 2.7"*)
-						CPPFLAGS="$CPPFLAGS -D_LARGEFILE64_SOURCE -D_REENTRANT"
-						LDFLAGS="$LDFLAGS -lthread"
+						CPPFLAGS="$CPPFLAGS -D_LARGEFILE64_SOURCE"
 						AC_DEFINE(_LARGEFILE64_SOURCE, 1, [Whether to enable large file support])
 						;;
 					*)
-						CPPFLAGS="$CPPFLAGS -D_LARGEFILE_SOURCE -D_REENTRANT -D_FILE_OFFSET_BITS=64"
-						LDFLAGS="$LDFLAGS -lthread"
+						CPPFLAGS="$CPPFLAGS -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
 						AC_DEFINE(_LARGEFILE64_SOURCE, 1, [Whether to enable large file support])
 						AC_DEFINE(_FILE_OFFSET_BITS, 64, [File offset bits])
 						;;
 				esac
 			else
-				CPPFLAGS="$CPPFLAGS -D_LARGEFILE_SOURCE -D_REENTRANT -D_FILE_OFFSET_BITS=64"
-				LDFLAGS="$LDFLAGS -lthread"
+				CPPFLAGS="$CPPFLAGS -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
 				AC_DEFINE(_LARGEFILE64_SOURCE, 1, [Whether to enable large file support])
 				AC_DEFINE(_FILE_OFFSET_BITS, 64, [File offset bits])
 			fi
@@ -1118,6 +1125,7 @@ AC_CHECK_HEADERS(gpfs_gpl.h)
 if test x"$ac_cv_header_gpfs_gpl_h" = x"yes"; then
     AC_DEFINE(HAVE_GPFS,1,[Whether GPFS GPL headers are available])
     default_shared_modules="$default_shared_modules vfs_gpfs"
+    default_shared_modules="$default_shared_modules vfs_gpfs_hsm_notify"
 fi
 
 #############################################
@@ -2072,8 +2080,11 @@ LINK_LIBSMBCLIENT=STATIC
 #  TODO: for talloc and tdb (at least), these should
 #  be extracted from their respective source directories
 #
-AC_ARG_ENABLE(external_libtalloc, [AS_HELP_STRING([--enable-external-libtalloc], [Enable external talloc [default=auto]])],
-[ enable_external_libtalloc=$enableval ], [ enable_external_libtalloc=auto ])
+AC_ARG_ENABLE(external_libtalloc,
+	[AS_HELP_STRING([--enable-external-libtalloc],
+		[Enable external talloc [default=auto]])],
+	[ enable_external_libtalloc=$enableval ],
+	[ enable_external_libtalloc=auto ])
 
 if test "x$enable_external_libtalloc" != xno
 then
@@ -2090,8 +2101,11 @@ fi
 if test "x$enable_external_libtalloc" = xno
 then
 	m4_include(../lib/talloc/libtalloc.m4)
-	LINK_LIBTALLOC=STATIC
-	SMB_LIBRARY(talloc, 2)
+	if test x"$USESHARED" == x"no" ; then
+		LINK_LIBTALLOC=STATIC
+	fi
+	LIBTALLOCVERSION=`grep ^VERSION ${tallocdir}/wscript | sed -e "s/'//g" -e 's/.* //'`
+	SMB_LIBRARY(talloc, 2, ${LIBTALLOCVERSION})
 	LIBTALLOC_OBJ0=""
 	for obj in ${TALLOC_OBJ}; do
 		LIBTALLOC_OBJ0="${LIBTALLOC_OBJ0} ${tallocdir}/${obj}"
@@ -2108,8 +2122,8 @@ fi
 AC_ARG_ENABLE(external_libtdb,
 	[AS_HELP_STRING([--enable-external-libtdb],
 		[Enable external tdb [default=auto]])],
-		[ enable_external_libtalloc=$enableval ],
-		[ enable_external_libtalloc=auto ])
+		[ enable_external_libtdb=$enableval ],
+		[ enable_external_libtdb=auto ])
 
 if test "x$enable_external_libtdb" != xno
 then
@@ -2128,8 +2142,11 @@ AC_SUBST(LIBTDB_OBJ0)
 if test "x$enable_external_libtdb" = xno
 then
 	m4_include(../lib/tdb/libtdb.m4)
-	LINK_LIBTDB=STATIC
-	SMB_LIBRARY(tdb, 1)
+	if test x"$USESHARED" == x"no" ; then
+		LINK_LIBTDB=STATIC
+	fi
+	LIBTDBVERSION=`grep ^VERSION ${tdbdir}/wscript | sed -e "s/'//g" -e 's/.* //'`
+	SMB_LIBRARY(tdb, 1, ${LIBTDBVERSION})
 	LIBTDB_OBJ0=""
 	LIBTDB_LIBS="$LIBTDB_LIBS $TDB_DEPS"
 	for obj in ${TDB_OBJ}; do
@@ -2164,7 +2181,7 @@ fi
 SMB_LIBRARY(netapi, 0)
 SMB_LIBRARY(smbclient, 0)
 SMB_LIBRARY(smbsharemodes, 0)
-SMB_LIBRARY(addns, 0, no, [undefined API])
+SMB_LIBRARY(addns, 0, [], no, [undefined API])
 
 
 
@@ -3860,6 +3877,7 @@ if test x"$with_ads_support" != x"no"; then
   AC_CHECK_FUNC_EXT(krb5_get_credentials_for_user, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_get_host_realm, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_free_host_realm, $KRB5_LIBS)
+  AC_CHECK_FUNC_EXT(gss_get_name_attribute, $KRB5_LIBS)
 
   # MIT krb5 1.8 does not expose this call (yet)
   AC_CHECK_DECLS(krb5_get_credentials_for_user, [], [], [#include <krb5.h>])
@@ -6363,6 +6381,7 @@ else
 	LIBWBCLIENT_SHARED_TARGET=bin/libwbclient.$SHLIBEXT
 	LIBWBCLIENT_STATIC_TARGET=bin/libwbclient.a
 	LIBWBCLIENT_SOVER=0
+	LIBWBCLIENT_FULLVER=0
 	if test $BLDSHARED = true -a x"$HAVE_WINBIND" = x"yes" -a x"$BUILD_LIBWBCLIENT_SHARED" = x"yes"; then
 		NSS_MODULES="${WINBIND_NSS} ${WINBIND_WINS_NSS}"
 		## Only worry about libwbclient if we have shared
@@ -6871,6 +6890,7 @@ SMB_MODULE(vfs_cacheprime, \$(VFS_CACHEPRIME_OBJ), "bin/cacheprime.$SHLIBEXT", V
 SMB_MODULE(vfs_prealloc, \$(VFS_PREALLOC_OBJ), "bin/prealloc.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_commit, \$(VFS_COMMIT_OBJ), "bin/commit.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_gpfs, \$(VFS_GPFS_OBJ), "bin/gpfs.$SHLIBEXT", VFS)
+SMB_MODULE(vfs_gpfs_hsm_notify, \$(VFS_GPFS_PREFETCH_OBJ), "bin/gpfs_hsm_notify.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_readahead, \$(VFS_READAHEAD_OBJ), "bin/readahead.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_tsmsm, \$(VFS_TSMSM_OBJ), "bin/tsmsm.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_fileid, \$(VFS_FILEID_OBJ), "bin/fileid.$SHLIBEXT", VFS)

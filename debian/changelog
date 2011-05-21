@@ -16,6 +16,8 @@ samba (2:3.5.8~dfsg-2) UNRELEASED; urgency=low
   * Add cups to Should-{Start,Stop} in LSB headers of
     samba init script to guarantee that CUPS is started
     before samba. Closes: #619132
+  * Drop libsmbclient-dev useless dependency on samba-common
+    Closes: #597987
 
   [ Debconf translations ]
   * French (Christian Perrier)

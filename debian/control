@@ -165,7 +165,7 @@ Package: libsmbclient-dev
 Section: libdevel
 Priority: extra
 Architecture: any
-Depends: libsmbclient (= ${binary:Version}), ${misc:Depends}, samba-common (>= 2:3.4.0~pre1-2)
+Depends: libsmbclient (= ${binary:Version}), ${misc:Depends}
 Description: development files for libsmbclient
  This package provides the development files (static library and headers)
  required for building applications against libsmbclient, a library that

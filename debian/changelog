@@ -33,6 +33,7 @@ samba (2:3.5.8~dfsg-2) UNRELEASED; urgency=low
   * Finnish (Tapio Lehtonen).  Closes: #626890
   * Portuguese (Miguel Figueiredo).  Closes: #627224
   * German (Holger Wansing).  Closes: #627354
+  * Czech (Miroslav Kure).  Closes: #627442
 
  -- Mathieu Parent <sathieu@debian.org>  Tue, 29 Mar 2011 21:28:42 +0200
 

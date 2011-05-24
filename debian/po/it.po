@@ -7,7 +7,7 @@ msgstr ""
 "Project-Id-Version: samba 3.5.8 italian debconf templates\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
 "POT-Creation-Date: 2011-05-12 10:46+0200\n"
-"PO-Revision-Date: 2010-05-14 10:37+0200\n"
+"PO-Revision-Date: 2011-05-22 14:07+0200\n"
 "Last-Translator: Luca Monducci <luca.mo@tiscali.it>\n"
 "Language-Team: Italian <debian-l10n-italian@lists.debian.org>\n"
 "Language: it\n"
@@ -145,7 +145,7 @@ msgstr ""
 #. Description
 #: ../samba.templates:1001
 msgid "Samba server"
-msgstr ""
+msgstr "Server Samba"
 
 #. Type: boolean
 #. Description

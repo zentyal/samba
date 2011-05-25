@@ -2,14 +2,14 @@
 # Copyright (C) 2010 THE samba'S COPYRIGHT HOLDER
 # This file is distributed under the same license as the samba package.
 # André Luís Lopes <andrelop@debian.org>, 2007.
-# Adriano Rafael Gomes <adrianorg@gmail.com>, 2010.
+# Adriano Rafael Gomes <adrianorg@gmail.com>, 2010, 2011.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
 "POT-Creation-Date: 2011-05-12 10:46+0200\n"
-"PO-Revision-Date: 2010-12-11 21:52-0200\n"
+"PO-Revision-Date: 2011-05-24 23:14-0300\n"
 "Last-Translator: Adriano Rafael Gomes <adrianorg@gmail.com>\n"
 "Language-Team: Brazilian Portuguese <debian-l10n-portuguese@lists.debian."
 "org>\n"
@@ -17,13 +17,12 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"pt_BR utf-8\n"
 
 #. Type: title
 #. Description
 #: ../samba-common.templates:1001
 msgid "Samba server and utilities"
-msgstr ""
+msgstr "Servidor Samba e utilitários"
 
 #. Type: boolean
 #. Description
@@ -150,7 +149,7 @@ msgstr ""
 #. Description
 #: ../samba.templates:1001
 msgid "Samba server"
-msgstr ""
+msgstr "Servidor Samba"
 
 #. Type: boolean
 #. Description

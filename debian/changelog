@@ -1,3 +1,11 @@
+samba (2:3.5.8~dfsg-4) UNRELEASED; urgency=low
+
+  [ Debconf translations ]
+  * Spanish; (#  traductor (campo Last-Translator) y ponga en copia a la
+    lista de Omar Campagne).  Closes: #627813
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 25 May 2011 07:09:21 +0200
+
 samba (2:3.5.8~dfsg-3) unstable; urgency=low
 
   [ Debconf translations ]

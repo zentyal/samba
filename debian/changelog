@@ -1,11 +1,11 @@
-samba (2:3.5.8~dfsg-3) UNRELEASED; urgency=low
+samba (2:3.5.8~dfsg-3) unstable; urgency=low
 
   [ Debconf translations ]
   * Italian (Luca Monducci).  Closes: #626674
   * Dutch (Vincent Zweije).  Closes: #627519
   * Czech (Miroslav Kure).  Closes: #627442
 
- -- Christian Perrier <bubulle@debian.org>  Tue, 24 May 2011 22:36:14 +0200
+ -- Christian Perrier <bubulle@debian.org>  Tue, 24 May 2011 22:40:04 +0200
 
 samba (2:3.5.8~dfsg-2) unstable; urgency=low
 

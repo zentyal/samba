@@ -1,9 +1,9 @@
-samba (2:3.6.0~rc1-2) UNRELEASED; urgency=low
+samba (2:3.6.0~rc1-2) experimental; urgency=low
 
   * Use --with-nmbdsocketdir=/var/run/samba to have nmbd socket file
     in an existing directory. Closes: #628121
 
- -- Christian Perrier <bubulle@debian.org>  Fri, 27 May 2011 14:36:34 +0200
+ -- Christian Perrier <bubulle@debian.org>  Fri, 27 May 2011 15:35:44 +0200
 
 samba (2:3.6.0~rc1-1) experimental; urgency=low
 

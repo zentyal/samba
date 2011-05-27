@@ -5,6 +5,10 @@ samba (2:3.5.8~dfsg-4) UNRELEASED; urgency=low
   * Swedish (Martin Bagge / brother).  Closes: #627849
   * Brazilian Portuguese (Adriano Rafael Gomes).  Closes: #627866
 
+  [ Christian Perrier ]
+  * bug_601406_fix-perl-path-in-example.patch:  fix path to perl
+    binary in example file. Closes: #601406
+
  -- Christian Perrier <bubulle@debian.org>  Wed, 25 May 2011 07:09:21 +0200
 
 samba (2:3.5.8~dfsg-3) unstable; urgency=low

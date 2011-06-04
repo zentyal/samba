@@ -1,9 +1,9 @@
-samba (2:3.5.8~dfsg-5) UNRELEASED; urgency=low
+samba (2:3.5.8~dfsg-5) unstable; urgency=low
 
   * Fix "tdb2.so undefined symbol: dyn_get_STATEDIR" by fixing a typo
     in fhs-filespath.patch. Closes: #629183, LP: #789097
 
- -- Christian Perrier <bubulle@debian.org>  Sat, 04 Jun 2011 12:09:40 +0200
+ -- Christian Perrier <bubulle@debian.org>  Sat, 04 Jun 2011 13:48:32 +0200
 
 samba (2:3.5.8~dfsg-4) unstable; urgency=low
 

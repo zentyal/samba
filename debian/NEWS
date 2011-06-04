@@ -1,4 +1,4 @@
-samba (2:3.5.6~dfsg-3squeeze4) UNRELEASED; urgency=low
+samba (2:3.5.6~dfsg-3squeeze4) stable-proposed-updates; urgency=low
 
   * Please note that upgrading to 3.5.* series, the "map untrusted to
     domain" configuration parameters was introduced and defaults to "No".

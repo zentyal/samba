@@ -77,13 +77,12 @@
 /* For FSCTL_GET_SHADOW_COPY_DATA ...*/
 typedef char SHADOW_COPY_LABEL[25];
 
-typedef struct shadow_copy_data {
-	TALLOC_CTX *mem_ctx;
+struct shadow_copy_data {
 	/* Total number of shadow volumes currently mounted */
 	uint32 num_volumes;
 	/* Concatenated list of labels */
 	SHADOW_COPY_LABEL *labels;
-} SHADOW_COPY_DATA;
+};
 
 
 #endif /* _NTIOCTL_H */

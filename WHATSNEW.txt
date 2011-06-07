@@ -1,10 +1,10 @@
                    ================================
-                   Release Notes for Samba 3.6.0rc1
-                             May 17, 2011
+                   Release Notes for Samba 3.6.0rc2
+                            June 7, 2011
                    ================================
 
 
-This is the first release candidate of Samba 3.6.0.  This is *not*
+This is the second release candidate of Samba 3.6.0.  This is *not*
 intended for production environments and is designed for testing
 purposes only.  Please report any defects via the Samba bug reporting
 system at https://bugzilla.samba.org/.
@@ -166,10 +166,10 @@ endpoint mapper is like a DNS server but for ports. If you want to talk to a
 certain RPC service over TCP/IP, you just ask the endpoint mapper on which
 port it is running. Then you can connect to the service and make sure that it
 is running.
+
 The code is deactivated by default, because it needs more testing and it
-doesn't scale yet. We will work on these limitations and hopefully release it
-with pre3. If you want to enable and test the endpoint mapper you can set
-"rpc_server:epmapper = daemon" in the smb.conf file.
+doesn't scale yet. If you want to enable and test the endpoint mapper
+you can set "rpc_server:epmapper = daemon" in the smb.conf file.
 
 
 Internal restructuring
@@ -250,6 +250,83 @@ o   Stefan Metzmacher <metze@samba.org>
 
 o   Andreas Schneider <asn@samba.org>
     * Add an Endpoint Mapper daemon.
+
+
+Changes since 3.6.0rc1
+----------------------
+
+o   Michael Adam <obnox@samba.org>
+    * BUG 8200: Add support for multiple writeable ldap idmap domains.
+
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 6911: Fix Kerberos authentication from Vista to Samba.
+    * BUG 7054: Fix X account flag when "pwdlastset" is "0".
+    * BUG 8133: Fix strange behavior for the file (whose filename first
+      character is period ) in SMB2 case.
+    * BUG 8144: Fix setting timestamp when touching files with CIFS clients.
+    * BUG 8150: Ban "dos charset = utf8".
+    * BUG 8153: Fix setting up getaddrinfo on IPv6-only machines.
+    * BUG 8156: Fix 'net ads join' using the user's Kerberos ticket.
+    * BUG 8157: Fix parsing a cups printcap file.
+    * BUG 8163: Fix our asn.1 parser to handle negative numbers.
+    * BUG 8175: Fix smbd deadlock.
+    * BUG 8191: Split the ACE flag mapping between nfs4 and Windows into two
+      separate functions.
+    * BUG 8197: Winbind does not properly detect when a DC connection is dead.
+    * BUG 8203: Winbind needs to reset the DC connection if an RPC times out.
+
+
+o   Christian Ambach <ambi@samba.org>
+    * BUG 8152: Fix smbd crash in release_ip().
+
+
+o   Andrew Bartlett <abartlet@samba.org>
+    * BUG 8151: Deprecate security parameters.
+
+
+o   Gregor Beck <gbeck@sernet.de>
+    * BUG 8191: nfs4_acls: Pass ACE_FLAG_INHERITED_ACE up to the client/down
+      from the client.
+    * BUG 8192: Fix parsing of multiple flags in 'smbcacls'.
+
+
+o   Sumit Bose <sbose@redhat.com>
+    * BUG 8142: Fix typos in LDAP schema files.
+
+
+o   Holger Hetterich <hhetter@novell.com>
+    * BUG 8148: Default to protocol version 2 for SMB Traffic Analyzer.
+    * BUG 8154: Actually make use of SMBTA subversion numbers.
+
+
+o   Björn Jacke <bj@sernet.de>
+    * BUG 7998: Remove warning if IOV_MAX is not defined.
+
+
+o   Jim McDonough <jmcd@samba.org>
+    * BUG 8166: Don't lockout users when offline.
+
+
+o   Stefan Metzmacher <metze@samba.org>
+    * BUG 8140: talloc: Fix Valgrind false positives and other backports.
+    * BUG 8141: Fix wrong permissions on lp_ncalrpc_dir().
+
+
+o   Andreas Schneider <asn@samba.org>
+    * BUG 8155: Fix registering only named pipes on EPM for a service.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * BUG 8159: Fix memory corruption in fetching cli->server_domain from the
+      server.
+    * BUG 8185: "security=server" does not obey guest login field.
+    * BUG 8189: Support shadow copy display over SMB2.
+    * BUG 8199: Fix potential crash in smbd handling smb2.
+
+
+o   Samuel Thibault <sthibault@debian.org>
+    * BUG 7998: Fix build on Hurd.
 
 
 Changes since 3.6.0pre3

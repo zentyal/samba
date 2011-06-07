@@ -8,8 +8,7 @@ NPECHO2 = npecho_client2.exe npecho_server2.exe
 
 all: $(NPECHO) $(NPECHO2)
 
-MINGW_CC = i586-mingw32msvc-cc
-CC = $(MINGW_CC)
+CC = i586-mingw32msvc-gcc
 
 .SUFFIXES: .c .obj .exe
 
@@ -20,5 +19,5 @@ CC = $(MINGW_CC)
 	$(CC) $(CFLAGS) -o $@ $< $(LIBS)
 
 clean:
-	rm -f *~ *.obj *.exe
+	del *~ *.obj *.exe
 

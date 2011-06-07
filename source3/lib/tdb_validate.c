@@ -19,10 +19,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "includes.h"
-#include "system/filesys.h"
-#include "util_tdb.h"
 #include "tdb_validate.h"
+#include "includes.h"
 
 /*
  * internal validation function, executed by the child.
@@ -283,11 +281,6 @@ static int tdb_backup(TALLOC_CTX *ctx, const char *src_path,
 	}
 
 	tmp_path = talloc_asprintf(ctx, "%s%s", dst_path, ".tmp");
-	if (!tmp_path) {
-		DEBUG(3, ("talloc fail\n"));
-		goto done;
-	}
-
 	unlink(tmp_path);
 	dst_tdb = tdb_open_log(tmp_path,
 			       hash_size ? hash_size : tdb_hash_size(src_tdb),
@@ -362,10 +355,6 @@ static int rename_file_with_suffix(TALLOC_CTX *ctx, const char *path,
 	char *dst_path;
 
 	dst_path = talloc_asprintf(ctx, "%s%s", path, suffix);
-	if (dst_path == NULL) {
-		DEBUG(3, ("error out of memory\n"));
-		return ret;
-	}
 
 	ret = (rename(path, dst_path) != 0);
 
@@ -405,10 +394,6 @@ static int tdb_backup_with_rotate(TALLOC_CTX *ctx, const char *src_path,
 	{
 		char *rotate_path = talloc_asprintf(ctx, "%s%s", dst_path,
 						    rotate_suffix);
-		if (rotate_path == NULL) {
-			DEBUG(10, ("talloc fail\n"));
-			return -1;
-		}
 		DEBUG(10, ("backup of %s failed due to lack of space\n",
 			   src_path));
 		DEBUGADD(10, ("trying to free some space by removing rotated "
@@ -465,10 +450,6 @@ int tdb_validate_and_backup(const char *tdb_path,
 	}
 
 	tdb_path_backup = talloc_asprintf(ctx, "%s%s", tdb_path, backup_suffix);
-	if (!tdb_path_backup) {
-		DEBUG(0, ("tdb_validate_and_backup: out of memory\n"));
-		goto done;
-	}
 
 	ret = tdb_validate_open(tdb_path, validate_fn);
 

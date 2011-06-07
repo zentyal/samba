@@ -7,7 +7,7 @@
 	<manvolnum>1</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">User Commands</refmiscinfo>
-	<refmiscinfo class="version">3.6</refmiscinfo>
+	<refmiscinfo class="version">3.5</refmiscinfo>
 </refmeta>
 
 
@@ -261,7 +261,7 @@
 		</varlistentry>
 
 		<varlistentry>
-		<term>-P|--machine-pass</term>
+		<term>-P</term>
 		<listitem><para>
 		Make queries to the external server using the machine account of the local server.
 		</para></listitem>
@@ -317,7 +317,7 @@
 		</varlistentry>
 		
 		<varlistentry>
-		<term>-e|--encrypt</term>
+		<term>-e</term>
 		<listitem><para>This command line parameter requires the remote
 		server support the UNIX extensions. Request that the connection be
 		encrypted. This is new for Samba 3.2 and will only work with Samba
@@ -469,7 +469,7 @@
 		</varlistentry>
 		
 		<varlistentry>
-		<term>-c|--command command string</term>
+		<term>-c|--comand command string</term>
 		<listitem><para>command string is a semicolon-separated list of 
 		commands to be executed instead of prompting from stdin. <parameter>
 		-N</parameter> is implied by <parameter>-c</parameter>.</para>

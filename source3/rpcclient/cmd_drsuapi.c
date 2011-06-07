@@ -20,7 +20,7 @@
 
 #include "includes.h"
 #include "rpcclient.h"
-#include "../librpc/gen_ndr/ndr_drsuapi_c.h"
+#include "../librpc/gen_ndr/cli_drsuapi.h"
 
 static WERROR cracknames(struct rpc_pipe_client *cli,
 			 TALLOC_CTX *mem_ctx,
@@ -34,11 +34,10 @@ static WERROR cracknames(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 	WERROR werr;
 	int i;
-	uint32_t level = 1;
+	int32_t level = 1;
 	union drsuapi_DsNameRequest req;
-	uint32_t level_out;
+	int32_t level_out;
 	struct drsuapi_DsNameString *names;
-	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	names = TALLOC_ZERO_ARRAY(mem_ctx, struct drsuapi_DsNameString, argc);
 	W_ERROR_HAVE_NO_MEMORY(names);
@@ -55,7 +54,7 @@ static WERROR cracknames(struct rpc_pipe_client *cli,
 	req.req1.format_offered	= format_offered;
 	req.req1.format_desired	= format_desired;
 
-	status = dcerpc_drsuapi_DsCrackNames(b, mem_ctx,
+	status = rpccli_drsuapi_DsCrackNames(cli, mem_ctx,
 					     bind_handle,
 					     level,
 					     &req,
@@ -83,7 +82,6 @@ static WERROR cmd_drsuapi_cracknames(struct rpc_pipe_client *cli,
 
 	struct GUID bind_guid;
 	struct policy_handle bind_handle;
-	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	union drsuapi_DsNameCtr ctr;
 
@@ -94,7 +92,7 @@ static WERROR cmd_drsuapi_cracknames(struct rpc_pipe_client *cli,
 
 	GUID_from_string(DRSUAPI_DS_BIND_GUID, &bind_guid);
 
-	status = dcerpc_drsuapi_DsBind(b, mem_ctx,
+	status = rpccli_drsuapi_DsBind(cli, mem_ctx,
 				       &bind_guid,
 				       NULL,
 				       &bind_handle,
@@ -102,10 +100,6 @@ static WERROR cmd_drsuapi_cracknames(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return ntstatus_to_werror(status);
-	}
-
-	if (!W_ERROR_IS_OK(werr)) {
-		return werr;
 	}
 
 	werr = cracknames(cli, mem_ctx,
@@ -131,8 +125,7 @@ static WERROR cmd_drsuapi_cracknames(struct rpc_pipe_client *cli,
 
  out:
 	if (is_valid_policy_hnd(&bind_handle)) {
-		WERROR _werr;
-		dcerpc_drsuapi_DsUnbind(b, mem_ctx, &bind_handle, &_werr);
+		rpccli_drsuapi_DsUnbind(cli, mem_ctx, &bind_handle, &werr);
 	}
 
 	return werr;
@@ -241,7 +234,6 @@ static WERROR cmd_drsuapi_getdcinfo(struct rpc_pipe_client *cli,
 
 	struct GUID bind_guid;
 	struct policy_handle bind_handle;
-	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	const char *domain = NULL;
 	int32_t level = 1;
@@ -261,7 +253,7 @@ static WERROR cmd_drsuapi_getdcinfo(struct rpc_pipe_client *cli,
 
 	GUID_from_string(DRSUAPI_DS_BIND_GUID, &bind_guid);
 
-	status = dcerpc_drsuapi_DsBind(b, mem_ctx,
+	status = rpccli_drsuapi_DsBind(cli, mem_ctx,
 				       &bind_guid,
 				       NULL,
 				       &bind_handle,
@@ -271,14 +263,10 @@ static WERROR cmd_drsuapi_getdcinfo(struct rpc_pipe_client *cli,
 		return ntstatus_to_werror(status);
 	}
 
-	if (!W_ERROR_IS_OK(werr)) {
-		return werr;
-	}
-
 	req.req1.domain_name = domain;
 	req.req1.level = level;
 
-	status = dcerpc_drsuapi_DsGetDomainControllerInfo(b, mem_ctx,
+	status = rpccli_drsuapi_DsGetDomainControllerInfo(cli, mem_ctx,
 							  &bind_handle,
 							  1,
 							  &req,
@@ -297,8 +285,7 @@ static WERROR cmd_drsuapi_getdcinfo(struct rpc_pipe_client *cli,
 	display_domain_controller_info(level_out, &ctr);
  out:
 	if (is_valid_policy_hnd(&bind_handle)) {
-		WERROR _werr;
-		dcerpc_drsuapi_DsUnbind(b, mem_ctx, &bind_handle, &_werr);
+		rpccli_drsuapi_DsUnbind(cli, mem_ctx, &bind_handle, &werr);
 	}
 
 	return werr;
@@ -312,7 +299,6 @@ static WERROR cmd_drsuapi_getncchanges(struct rpc_pipe_client *cli,
 	WERROR werr;
 
 	struct policy_handle bind_handle;
-	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	struct GUID bind_guid;
 	struct drsuapi_DsBindInfoCtr bind_info;
@@ -322,9 +308,9 @@ static WERROR cmd_drsuapi_getncchanges(struct rpc_pipe_client *cli,
 
 	DATA_BLOB session_key;
 
-	uint32_t level = 8;
+	int32_t level = 8;
 	bool single = false;
-	uint32_t level_out = 0;
+	int32_t level_out = 0;
 	union drsuapi_DsGetNCChangesRequest req;
 	union drsuapi_DsGetNCChangesCtr ctr;
 	struct drsuapi_DsReplicaObjectIdentifier nc;
@@ -332,15 +318,15 @@ static WERROR cmd_drsuapi_getncchanges(struct rpc_pipe_client *cli,
 
 	struct drsuapi_DsGetNCChangesCtr1 *ctr1 = NULL;
 	struct drsuapi_DsGetNCChangesCtr6 *ctr6 = NULL;
-	uint32_t out_level = 0;
+	int32_t out_level = 0;
 	int y;
 
 	uint32_t supported_extensions = 0;
-	uint32_t replica_flags	= DRSUAPI_DRS_WRIT_REP |
-				  DRSUAPI_DRS_INIT_SYNC |
-				  DRSUAPI_DRS_PER_SYNC |
-				  DRSUAPI_DRS_GET_ANC |
-				  DRSUAPI_DRS_NEVER_SYNCED;
+	uint32_t replica_flags	= DRSUAPI_DS_REPLICA_NEIGHBOUR_WRITEABLE |
+				  DRSUAPI_DS_REPLICA_NEIGHBOUR_SYNC_ON_STARTUP |
+				  DRSUAPI_DS_REPLICA_NEIGHBOUR_DO_SCHEDULED_SYNCS |
+				  DRSUAPI_DS_REPLICA_NEIGHBOUR_RETURN_OBJECT_PARENTS |
+				  DRSUAPI_DS_REPLICA_NEIGHBOUR_NEVER_SYNCED;
 
 	if (argc > 3) {
 		printf("usage: %s [naming_context_or_object_dn [single]]\n", argv[0]);
@@ -402,7 +388,7 @@ static WERROR cmd_drsuapi_getncchanges(struct rpc_pipe_client *cli,
 	bind_info.length = 28;
 	bind_info.info.info28 = info28;
 
-	status = dcerpc_drsuapi_DsBind(b, mem_ctx,
+	status = rpccli_drsuapi_DsBind(cli, mem_ctx,
 				       &bind_guid,
 				       &bind_info,
 				       &bind_handle,
@@ -489,7 +475,7 @@ static WERROR cmd_drsuapi_getncchanges(struct rpc_pipe_client *cli,
 				(long long)req.req8.highwatermark.highest_usn));
 		}
 
-		status = dcerpc_drsuapi_DsGetNCChanges(b, mem_ctx,
+		status = rpccli_drsuapi_DsGetNCChanges(cli, mem_ctx,
 						       &bind_handle,
 						       level,
 						       &req,
@@ -497,15 +483,13 @@ static WERROR cmd_drsuapi_getncchanges(struct rpc_pipe_client *cli,
 						       &ctr,
 						       &werr);
 		if (!NT_STATUS_IS_OK(status)) {
-			werr = ntstatus_to_werror(status);
 			printf("Failed to get NC Changes: %s",
-				get_friendly_nt_error_msg(status));
+				get_friendly_werror_msg(werr));
 			goto out;
 		}
 
 		if (!W_ERROR_IS_OK(werr)) {
-			printf("Failed to get NC Changes: %s",
-				get_friendly_werror_msg(werr));
+			status = werror_to_ntstatus(werr);
 			goto out;
 		}
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 
 # Unix SMB/CIFS implementation.
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2007
@@ -17,15 +17,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-"""Tests for samba.dcerpc.misc."""
-
+import unittest
 from samba.dcerpc import misc
-import samba.tests
 
 text1 = "76f53846-a7c2-476a-ae2c-20e2b80d7b34"
 text2 = "344edffa-330a-4b39-b96e-2c34da52e8b1"
 
-class GUIDTests(samba.tests.TestCase):
+class GUIDTests(unittest.TestCase):
 
     def test_str(self):
         guid = misc.GUID(text1)
@@ -45,9 +43,9 @@ class GUIDTests(samba.tests.TestCase):
         guid2 = misc.GUID(text1)
         self.assertEquals(0, cmp(guid1, guid2))
         self.assertEquals(guid1, guid2)
-
-
-class PolicyHandleTests(samba.tests.TestCase):
+         
+        
+class PolicyHandleTests(unittest.TestCase):
 
     def test_init(self):
         x = misc.policy_handle(text1, 1)

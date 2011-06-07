@@ -21,8 +21,6 @@
 */
 
 #include "includes.h"
-#include "nmbd/nmbd.h"
-#include "smbprofile.h"
 
 /* Election parameters. */
 extern time_t StartupTime;
@@ -258,7 +256,7 @@ static bool win_election(struct work_record *work, int version,
   Process an incoming election datagram packet.
 ******************************************************************/
 
-void process_election(struct subnet_record *subrec, struct packet_struct *p, const char *buf)
+void process_election(struct subnet_record *subrec, struct packet_struct *p, char *buf)
 {
 	struct dgram_packet *dgram = &p->packet.dgram;
 	int version = CVAL(buf,0);

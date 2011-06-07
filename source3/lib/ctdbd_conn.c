@@ -19,13 +19,11 @@
 */
 
 #include "includes.h"
-#include "util_tdb.h"
 
 #ifdef CLUSTER_SUPPORT
 
-#include "ctdbd_conn.h"
-#include "packet.h"
-#include "messages.h"
+#include "librpc/gen_ndr/messaging.h"
+#include "librpc/gen_ndr/ndr_messaging.h"
 
 /* paths to these include files come from --with-ctdb= in configure */
 #include "ctdb.h"
@@ -59,7 +57,7 @@ static void cluster_fatal(const char *why)
 	   a core file. We need to release this process id immediately
 	   so that someone else can take over without getting sharing
 	   violations */
-	_exit(1);
+	_exit(0);
 }
 
 /*
@@ -106,59 +104,6 @@ static NTSTATUS get_cluster_vnn(struct ctdbd_connection *conn, uint32 *vnn)
 	return status;
 }
 
-/*
- * Are we active (i.e. not banned or stopped?)
- */
-static bool ctdbd_working(struct ctdbd_connection *conn, uint32_t vnn)
-{
-	int32_t cstatus=-1;
-	NTSTATUS status;
-	TDB_DATA outdata;
-	struct ctdb_node_map *m;
-	uint32_t failure_flags;
-	bool ret = false;
-	int i;
-
-	status = ctdbd_control(conn, CTDB_CURRENT_NODE,
-			       CTDB_CONTROL_GET_NODEMAP, 0, 0,
-			       tdb_null, talloc_tos(), &outdata, &cstatus);
-	if (!NT_STATUS_IS_OK(status)) {
-		cluster_fatal("ctdbd_control failed\n");
-	}
-	if ((cstatus != 0) || (outdata.dptr == NULL)) {
-		DEBUG(2, ("Received invalid ctdb data\n"));
-		return false;
-	}
-
-	m = (struct ctdb_node_map *)outdata.dptr;
-
-	for (i=0; i<m->num; i++) {
-		if (vnn == m->nodes[i].pnn) {
-			break;
-		}
-	}
-
-	if (i == m->num) {
-		DEBUG(2, ("Did not find ourselves (node %d) in nodemap\n",
-			  (int)vnn));
-		goto fail;
-	}
-
-	failure_flags = NODE_FLAGS_BANNED | NODE_FLAGS_DISCONNECTED
-		| NODE_FLAGS_PERMANENTLY_DISABLED | NODE_FLAGS_STOPPED;
-
-	if ((m->nodes[i].flags & failure_flags) != 0) {
-		DEBUG(2, ("Node has status %x, not active\n",
-			  (int)m->nodes[i].flags));
-		goto fail;
-	}
-
-	ret = true;
-fail:
-	TALLOC_FREE(outdata.dptr);
-	return ret;
-}
-
 uint32 ctdbd_vnn(const struct ctdbd_connection *conn)
 {
 	return conn->our_vnn;
@@ -190,7 +135,7 @@ static NTSTATUS ctdbd_connect(TALLOC_CTX *mem_ctx,
 	addr.sun_family = AF_UNIX;
 	strncpy(addr.sun_path, sockname, sizeof(addr.sun_path));
 
-	if (sys_connect(fd, (struct sockaddr *)(void *)&addr) == -1) {
+	if (sys_connect(fd, (struct sockaddr *)&addr) == -1) {
 		DEBUG(1, ("connect(%s) failed: %s\n", sockname,
 			  strerror(errno)));
 		close(fd);
@@ -312,7 +257,7 @@ static struct messaging_rec *ctdb_pull_messaging_rec(TALLOC_CTX *mem_ctx,
 	blob = data_blob_const(msg->data, msg->datalen);
 
 	ndr_err = ndr_pull_struct_blob(
-		&blob, result, result,
+		&blob, result, NULL, result,
 		(ndr_pull_flags_fn_t)ndr_pull_messaging_rec);
 
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -332,12 +277,13 @@ static struct messaging_rec *ctdb_pull_messaging_rec(TALLOC_CTX *mem_ctx,
 
 static NTSTATUS ctdb_packet_fd_read_sync(struct packet_context *ctx)
 {
-	int timeout = lp_ctdb_timeout();
+	struct timeval timeout;
+	struct timeval *ptimeout;
 
-	if (timeout == 0) {
-		timeout = -1;
-	}
-	return packet_fd_read_sync(ctx, timeout);
+	timeout = timeval_set(lp_ctdb_timeout(), 0);
+	ptimeout = (timeout.tv_sec != 0) ? &timeout : NULL;
+
+	return packet_fd_read_sync(ctx, ptimeout);
 }
 
 /*
@@ -422,19 +368,16 @@ static NTSTATUS ctdb_read_req(struct ctdbd_connection *conn, uint32 reqid,
 				  (msg->srvid == CTDB_SRVID_RECONFIGURE)
 				  ? "cluster reconfigure" : "SAMBA_NOTIFY"));
 
-			messaging_send(conn->msg_ctx,
-				       messaging_server_id(conn->msg_ctx),
+			messaging_send(conn->msg_ctx, procid_self(),
 				       MSG_SMB_BRL_VALIDATE, &data_blob_null);
-			messaging_send(conn->msg_ctx,
-				       messaging_server_id(conn->msg_ctx),
+			messaging_send(conn->msg_ctx, procid_self(),
 				       MSG_DBWRAP_G_LOCK_RETRY,
 				       &data_blob_null);
 			TALLOC_FREE(hdr);
 			goto next_pkt;
 		}
 
-		msg_state = TALLOC_P(NULL, struct deferred_msg_state);
-		if (msg_state == NULL) {
+		if (!(msg_state = TALLOC_P(talloc_autofree_context(), struct deferred_msg_state))) {
 			DEBUG(0, ("talloc failed\n"));
 			TALLOC_FREE(hdr);
 			goto next_pkt;
@@ -488,8 +431,8 @@ static NTSTATUS ctdb_read_req(struct ctdbd_connection *conn, uint32 reqid,
  * Get us a ctdbd connection
  */
 
-static NTSTATUS ctdbd_init_connection(TALLOC_CTX *mem_ctx,
-				      struct ctdbd_connection **pconn)
+NTSTATUS ctdbd_init_connection(TALLOC_CTX *mem_ctx,
+			       struct ctdbd_connection **pconn)
 {
 	struct ctdbd_connection *conn;
 	NTSTATUS status;
@@ -510,12 +453,6 @@ static NTSTATUS ctdbd_init_connection(TALLOC_CTX *mem_ctx,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10, ("get_cluster_vnn failed: %s\n", nt_errstr(status)));
-		goto fail;
-	}
-
-	if (!ctdbd_working(conn, conn->our_vnn)) {
-		DEBUG(2, ("Node is not working, can not connect\n"));
-		status = NT_STATUS_INTERNAL_DB_ERROR;
 		goto fail;
 	}
 
@@ -627,12 +564,10 @@ static NTSTATUS ctdb_handle_message(uint8_t *buf, size_t length,
 		 * family has passed away (SAMBA_NOTIFY), we need to
 		 * clean the brl database
 		 */
-		messaging_send(conn->msg_ctx,
-			       messaging_server_id(conn->msg_ctx),
+		messaging_send(conn->msg_ctx, procid_self(),
 			       MSG_SMB_BRL_VALIDATE, &data_blob_null);
 
-		messaging_send(conn->msg_ctx,
-			       messaging_server_id(conn->msg_ctx),
+		messaging_send(conn->msg_ctx, procid_self(),
 			       MSG_DBWRAP_G_LOCK_RETRY,
 			       &data_blob_null);
 
@@ -735,7 +670,7 @@ NTSTATUS ctdbd_messaging_send(struct ctdbd_connection *conn,
 	}
 
 	ndr_err = ndr_push_struct_blob(
-		&blob, mem_ctx, msg,
+		&blob, mem_ctx, NULL, msg,
 		(ndr_push_flags_fn_t)ndr_push_messaging_rec);
 
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -822,7 +757,6 @@ static NTSTATUS ctdbd_control(struct ctdbd_connection *conn,
 	req.opcode           = opcode;
 	req.srvid            = srvid;
 	req.datalen          = data.dsize;
-	req.flags            = flags;
 
 	DEBUG(10, ("ctdbd_control: Sending ctdb packet\n"));
 	ctdb_packet_dump(&req.hdr);
@@ -846,9 +780,6 @@ static NTSTATUS ctdbd_control(struct ctdbd_connection *conn,
 
 	if (flags & CTDB_CTRL_FLAG_NOREPLY) {
 		TALLOC_FREE(new_conn);
-		if (cstatus) {
-			*cstatus = 0;
-		}
 		return NT_STATUS_OK;
 	}
 
@@ -949,7 +880,7 @@ NTSTATUS ctdbd_db_attach(struct ctdbd_connection *conn,
 			       persistent
 			       ? CTDB_CONTROL_DB_ATTACH_PERSISTENT
 			       : CTDB_CONTROL_DB_ATTACH,
-			       tdb_flags, 0, data, NULL, &data, &cstatus);
+			       0, 0, data, NULL, &data, &cstatus);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, (__location__ " ctdb_control for db_attach "
 			  "failed: %s\n", nt_errstr(status)));
@@ -1343,15 +1274,15 @@ NTSTATUS ctdbd_register_ips(struct ctdbd_connection *conn,
 
 	switch (client.ss_family) {
 	case AF_INET:
-		p4.dest = *(struct sockaddr_in *)(void *)&server;
-		p4.src = *(struct sockaddr_in *)(void *)&client;
+		p4.dest = *(struct sockaddr_in *)&server;
+		p4.src = *(struct sockaddr_in *)&client;
 		data.dptr = (uint8_t *)&p4;
 		data.dsize = sizeof(p4);
 		break;
 #ifdef HAVE_STRUCT_CTDB_CONTROL_TCP_ADDR
 	case AF_INET6:
-		p.dest.ip6 = *(struct sockaddr_in6 *)(void *)&server;
-		p.src.ip6 = *(struct sockaddr_in6 *)(void *)&client;
+		p.dest.ip6 = *(struct sockaddr_in6 *)&server;
+		p.src.ip6 = *(struct sockaddr_in6 *)&client;
 		data.dptr = (uint8_t *)&p;
 		data.dsize = sizeof(p);
 		break;
@@ -1361,11 +1292,6 @@ NTSTATUS ctdbd_register_ips(struct ctdbd_connection *conn,
 	}
 
 	conn->release_ip_handler = release_ip_handler;
-	/*
-	 * store the IP address of the server socket for later
-	 * comparison in release_ip()
-	 */
-	conn->release_ip_priv = private_data;
 
 	/*
 	 * We want to be told about IP releases
@@ -1447,6 +1373,14 @@ NTSTATUS ctdb_unwatch(struct ctdbd_connection *conn)
 			  nt_errstr(status)));
 	}
 	return status;
+}
+
+#else
+
+NTSTATUS ctdbd_init_connection(TALLOC_CTX *mem_ctx,
+			       struct ctdbd_connection **pconn)
+{
+	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
 #endif

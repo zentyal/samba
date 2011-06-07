@@ -19,173 +19,83 @@
 */
 
 #include "includes.h"
-#include "lib/tevent/tevent_internal.h"
-#include "../lib/util/select.h"
-#include "system/select.h"
+#include <tevent_internal.h>
 
-struct tevent_poll_private {
-	/*
-	 * Index from file descriptor into the pollfd array
-	 */
-	int *pollfd_idx;
-
-	/*
-	 * Cache for s3_event_loop_once to avoid reallocs
-	 */
-	struct pollfd *pfds;
-};
-
-static struct tevent_poll_private *tevent_get_poll_private(
-	struct tevent_context *ev)
+void event_fd_set_writeable(struct tevent_fd *fde)
 {
-	struct tevent_poll_private *state;
-
-	state = (struct tevent_poll_private *)ev->additional_data;
-	if (state == NULL) {
-		state = TALLOC_ZERO_P(ev, struct tevent_poll_private);
-		ev->additional_data = (void *)state;
-		if (state == NULL) {
-			DEBUG(10, ("talloc failed\n"));
-		}
-	}
-	return state;
+	TEVENT_FD_WRITEABLE(fde);
 }
 
-static void count_fds(struct tevent_context *ev,
-		      int *pnum_fds, int *pmax_fd)
+void event_fd_set_not_writeable(struct tevent_fd *fde)
 {
-	struct tevent_fd *fde;
-	int num_fds = 0;
-	int max_fd = 0;
-
-	for (fde = ev->fd_events; fde != NULL; fde = fde->next) {
-		if (fde->flags & (EVENT_FD_READ|EVENT_FD_WRITE)) {
-			num_fds += 1;
-			if (fde->fd > max_fd) {
-				max_fd = fde->fd;
-			}
-		}
-	}
-	*pnum_fds = num_fds;
-	*pmax_fd = max_fd;
+	TEVENT_FD_NOT_WRITEABLE(fde);
 }
 
-bool event_add_to_poll_args(struct tevent_context *ev, TALLOC_CTX *mem_ctx,
-			    struct pollfd **pfds, int *pnum_pfds,
-			    int *ptimeout)
+void event_fd_set_readable(struct tevent_fd *fde)
 {
-	struct tevent_poll_private *state;
+	TEVENT_FD_READABLE(fde);
+}
+
+void event_fd_set_not_readable(struct tevent_fd *fde)
+{
+	TEVENT_FD_NOT_READABLE(fde);
+}
+
+/*
+ * Return if there's something in the queue
+ */
+
+bool event_add_to_select_args(struct tevent_context *ev,
+			      const struct timeval *now,
+			      fd_set *read_fds, fd_set *write_fds,
+			      struct timeval *timeout, int *maxfd)
+{
 	struct tevent_fd *fde;
-	int i, num_fds, max_fd, num_pollfds, idx_len;
-	struct pollfd *fds;
-	struct timeval now, diff;
-	int timeout;
-
-	state = tevent_get_poll_private(ev);
-	if (state == NULL) {
-		return false;
-	}
-	count_fds(ev, &num_fds, &max_fd);
-
-	idx_len = max_fd+1;
-
-	if (talloc_array_length(state->pollfd_idx) < idx_len) {
-		state->pollfd_idx = TALLOC_REALLOC_ARRAY(
-			state, state->pollfd_idx, int, idx_len);
-		if (state->pollfd_idx == NULL) {
-			DEBUG(10, ("talloc_realloc failed\n"));
-			return false;
-		}
-	}
-
-	fds = *pfds;
-	num_pollfds = *pnum_pfds;
-
-	/*
-	 * The +1 is for the sys_poll calling convention. It expects
-	 * an array 1 longer for the signal pipe
-	 */
-
-	if (talloc_array_length(fds) < num_pollfds + num_fds + 1) {
-		fds = TALLOC_REALLOC_ARRAY(mem_ctx, fds, struct pollfd,
-					   num_pollfds + num_fds + 1);
-		if (fds == NULL) {
-			DEBUG(10, ("talloc_realloc failed\n"));
-			return false;
-		}
-	}
-
-	memset(&fds[num_pollfds], 0, sizeof(struct pollfd) * num_fds);
-
-	/*
-	 * This needs tuning. We need to cope with multiple fde's for a file
-	 * descriptor. The problem is that we need to re-use pollfd_idx across
-	 * calls for efficiency. One way would be a direct bitmask that might
-	 * be initialized quicker, but our bitmap_init implementation is
-	 * pretty heavy-weight as well.
-	 */
-	for (i=0; i<idx_len; i++) {
-		state->pollfd_idx[i] = -1;
-	}
+	struct timeval diff;
+	bool ret = false;
 
 	for (fde = ev->fd_events; fde; fde = fde->next) {
-		struct pollfd *pfd;
-
-		if ((fde->flags & (EVENT_FD_READ|EVENT_FD_WRITE)) == 0) {
+		if (fde->fd < 0 || fde->fd >= FD_SETSIZE) {
+			/* We ignore here, as it shouldn't be
+			   possible to add an invalid fde->fd
+			   but we don't want FD_SET to see an
+			   invalid fd. */
 			continue;
 		}
 
-		if (state->pollfd_idx[fde->fd] == -1) {
-			/*
-			 * We haven't seen this fd yet. Allocate a new pollfd.
-			 */
-			state->pollfd_idx[fde->fd] = num_pollfds;
-			pfd = &fds[num_pollfds];
-			num_pollfds += 1;
-		} else {
-			/*
-			 * We have already seen this fd. OR in the flags.
-			 */
-			pfd = &fds[state->pollfd_idx[fde->fd]];
-		}
-
-		pfd->fd = fde->fd;
-
 		if (fde->flags & EVENT_FD_READ) {
-			pfd->events |= (POLLIN|POLLHUP);
+			FD_SET(fde->fd, read_fds);
+			ret = true;
 		}
 		if (fde->flags & EVENT_FD_WRITE) {
-			pfd->events |= POLLOUT;
+			FD_SET(fde->fd, write_fds);
+			ret = true;
+		}
+
+		if ((fde->flags & (EVENT_FD_READ|EVENT_FD_WRITE))
+		    && (fde->fd > *maxfd)) {
+			*maxfd = fde->fd;
 		}
 	}
-	*pfds = fds;
-	*pnum_pfds = num_pollfds;
 
 	if (ev->immediate_events != NULL) {
-		*ptimeout = 0;
+		*timeout = timeval_zero();
 		return true;
 	}
+
 	if (ev->timer_events == NULL) {
-		*ptimeout = MIN(*ptimeout, INT_MAX);
-		return true;
+		return ret;
 	}
 
-	now = timeval_current();
-	diff = timeval_until(&now, &ev->timer_events->next_event);
-	timeout = timeval_to_msec(diff);
-
-	if (timeout < *ptimeout) {
-		*ptimeout = timeout;
-	}
+	diff = timeval_until(now, &ev->timer_events->next_event);
+	*timeout = timeval_min(timeout, &diff);
 
 	return true;
 }
 
-bool run_events_poll(struct tevent_context *ev, int pollrtn,
-		     struct pollfd *pfds, int num_pfds)
+bool run_events(struct tevent_context *ev,
+		int selrtn, fd_set *read_fds, fd_set *write_fds)
 {
-	struct tevent_poll_private *state;
-	int *pollfd_idx;
 	struct tevent_fd *fde;
 	struct timeval now;
 
@@ -229,56 +139,21 @@ bool run_events_poll(struct tevent_context *ev, int pollrtn,
 		return true;
 	}
 
-	if (pollrtn <= 0) {
+	if (selrtn <= 0) {
 		/*
 		 * No fd ready
 		 */
 		return false;
 	}
 
-	state = (struct tevent_poll_private *)ev->additional_data;
-	pollfd_idx = state->pollfd_idx;
-
 	for (fde = ev->fd_events; fde; fde = fde->next) {
-		struct pollfd *pfd;
 		uint16 flags = 0;
 
-		if (pollfd_idx[fde->fd] >= num_pfds) {
-			DEBUG(1, ("internal error: pollfd_idx[fde->fd] (%d) "
-				  ">= num_pfds (%d)\n", pollfd_idx[fde->fd],
-				  num_pfds));
-			return false;
-		}
-		pfd = &pfds[pollfd_idx[fde->fd]];
+		if (FD_ISSET(fde->fd, read_fds)) flags |= EVENT_FD_READ;
+		if (FD_ISSET(fde->fd, write_fds)) flags |= EVENT_FD_WRITE;
 
-		if (pfd->fd != fde->fd) {
-			DEBUG(1, ("internal error: pfd->fd (%d) "
-				  "!= fde->fd (%d)\n", pollfd_idx[fde->fd],
-                                  num_pfds));
-			return false;
-		}
-
-		if (pfd->revents & (POLLHUP|POLLERR)) {
-			/* If we only wait for EVENT_FD_WRITE, we
-			   should not tell the event handler about it,
-			   and remove the writable flag, as we only
-			   report errors when waiting for read events
-			   to match the select behavior. */
-			if (!(fde->flags & EVENT_FD_READ)) {
-				EVENT_FD_NOT_WRITEABLE(fde);
-				continue;
-			}
-			flags |= EVENT_FD_READ;
-		}
-
-		if (pfd->revents & POLLIN) {
-			flags |= EVENT_FD_READ;
-		}
-		if (pfd->revents & POLLOUT) {
-			flags |= EVENT_FD_WRITE;
-		}
 		if (flags & fde->flags) {
-			DLIST_DEMOTE(ev->fd_events, fde, struct tevent_fd);
+			DLIST_DEMOTE(ev->fd_events, fde, struct tevent_fd *);
 			fde->handler(ev, fde, flags, fde->private_data);
 			return true;
 		}
@@ -286,6 +161,7 @@ bool run_events_poll(struct tevent_context *ev, int pollrtn,
 
 	return false;
 }
+
 
 struct timeval *get_timed_events_timeout(struct tevent_context *ev,
 					 struct timeval *to_ret)
@@ -311,39 +187,44 @@ struct timeval *get_timed_events_timeout(struct tevent_context *ev,
 
 static int s3_event_loop_once(struct tevent_context *ev, const char *location)
 {
-	struct tevent_poll_private *state;
-	int timeout;
-	int num_pfds;
+	struct timeval now, to;
+	fd_set r_fds, w_fds;
+	int maxfd = 0;
 	int ret;
 
-	timeout = INT_MAX;
+	FD_ZERO(&r_fds);
+	FD_ZERO(&w_fds);
 
-	state = tevent_get_poll_private(ev);
-	if (state == NULL) {
-		errno = ENOMEM;
-		return -1;
-	}
+	to.tv_sec = 9999;	/* Max timeout */
+	to.tv_usec = 0;
 
-	if (run_events_poll(ev, 0, NULL, 0)) {
+	if (run_events(ev, 0, NULL, NULL)) {
 		return 0;
 	}
 
-	num_pfds = 0;
-	if (!event_add_to_poll_args(ev, state,
-				    &state->pfds, &num_pfds, &timeout)) {
+	GetTimeOfDay(&now);
+
+	if (!event_add_to_select_args(ev, &now, &r_fds, &w_fds, &to, &maxfd)) {
 		return -1;
 	}
 
-	ret = sys_poll(state->pfds, num_pfds, timeout);
+	ret = sys_select(maxfd+1, &r_fds, &w_fds, NULL, &to);
+
 	if (ret == -1 && errno != EINTR) {
 		tevent_debug(ev, TEVENT_DEBUG_FATAL,
-			     "poll() failed: %d:%s\n",
+			     "sys_select() failed: %d:%s\n",
 			     errno, strerror(errno));
 		return -1;
 	}
 
-	run_events_poll(ev, ret, state->pfds, num_pfds);
+	run_events(ev, ret, &r_fds, &w_fds);
 	return 0;
+}
+
+void event_context_reinit(struct tevent_context *ev)
+{
+	tevent_common_context_destructor(ev);
+	return;
 }
 
 static int s3_event_context_init(struct tevent_context *ev)

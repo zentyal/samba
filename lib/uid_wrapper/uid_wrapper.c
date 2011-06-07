@@ -15,18 +15,10 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef _SAMBA_BUILD_
-
 #define UID_WRAPPER_NOT_REPLACE
-#include "../replace/replace.h"
-#include <talloc.h>
+#include "includes.h"
 #include "system/passwd.h"
-
-#else /* _SAMBA_BUILD_ */
-
-#error uid_wrapper_only_supported_in_samba_yet
-
-#endif
+#include "system/filesys.h"
 
 #ifndef _PUBLIC_
 #define _PUBLIC_
@@ -52,7 +44,7 @@ static void uwrap_init(void)
 		uwrap.enabled = true;
 		/* put us in one group */
 		uwrap.ngroups = 1;
-		uwrap.groups = talloc_array(NULL, gid_t, 1);
+		uwrap.groups = talloc_array(talloc_autofree_context(), gid_t, 1);
 		uwrap.groups[0] = 0;
 	}
 }
@@ -116,7 +108,7 @@ _PUBLIC_ int uwrap_setgroups(size_t size, const gid_t *list)
 	uwrap.groups = NULL;
 
 	if (size != 0) {
-		uwrap.groups = talloc_array(NULL, gid_t, size);
+		uwrap.groups = talloc_array(talloc_autofree_context(), gid_t, size);
 		if (uwrap.groups == NULL) {
 			errno = ENOMEM;
 			return -1;

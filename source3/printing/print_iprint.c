@@ -21,7 +21,6 @@
 
 #include "includes.h"
 #include "printing.h"
-#include "printing/pcap.h"
 
 #ifdef HAVE_IPRINT
 #include <cups/cups.h>
@@ -297,7 +296,7 @@ static int iprint_cache_add_printer(http_t *http,
 		*/
 
 		if (name != NULL && !secure && smb_enabled) 
-			pcap_cache_add(name, info, NULL);
+			pcap_cache_add(name, info);
 	}
 
  out:
@@ -575,8 +574,7 @@ static int iprint_job_pause(int snum, struct printjob *pjob)
 	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_LANGUAGE,
 	             "attributes-natural-language", NULL, language->language);
 
-	slprintf(uri, sizeof(uri) - 1, "ipp://%s/ipp/%s", iprint_server(),
-		 lp_printername(snum));
+	slprintf(uri, sizeof(uri) - 1, "ipp://%s/ipp/%s", iprint_server(), PRINTERNAME(snum));
 
 	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "printer-uri", NULL, uri);
 
@@ -589,8 +587,7 @@ static int iprint_job_pause(int snum, struct printjob *pjob)
 	* Do the request and get back a response...
 	*/
 
-	slprintf(httpPath, sizeof(httpPath) - 1, "/ipp/%s",
-		 lp_printername(snum));
+	slprintf(httpPath, sizeof(httpPath) - 1, "/ipp/%s", PRINTERNAME(snum));
 
 	if ((response = cupsDoRequest(http, request, httpPath)) != NULL) {
 		if (response->request.status.status_code >= IPP_OK_CONFLICT) {
@@ -675,8 +672,7 @@ static int iprint_job_resume(int snum, struct printjob *pjob)
 	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_LANGUAGE,
 	             "attributes-natural-language", NULL, language->language);
 
-	slprintf(uri, sizeof(uri) - 1, "ipp://%s/ipp/%s", iprint_server(),
-		 lp_printername(snum));
+	slprintf(uri, sizeof(uri) - 1, "ipp://%s/ipp/%s", iprint_server(), PRINTERNAME(snum));
 
 	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "printer-uri", NULL, uri);
 
@@ -689,8 +685,7 @@ static int iprint_job_resume(int snum, struct printjob *pjob)
 	* Do the request and get back a response...
 	*/
 
-	slprintf(httpPath, sizeof(httpPath) - 1, "/ipp/%s",
-		 lp_printername(snum));
+	slprintf(httpPath, sizeof(httpPath) - 1, "/ipp/%s", PRINTERNAME(snum));
 
 	if ((response = cupsDoRequest(http, request, httpPath)) != NULL) {
 		if (response->request.status.status_code >= IPP_OK_CONFLICT) {
@@ -731,6 +726,8 @@ static int iprint_job_submit(int snum, struct printjob *pjob)
 	ipp_attribute_t	*attr;		/* Current attribute */
 	cups_lang_t	*language = NULL;	/* Default language */
 	char		uri[HTTP_MAX_URI]; /* printer-uri attribute */
+	const char	*clientname = NULL; 	/* hostname of client for job-originating-host attribute */
+	char addr[INET6_ADDRSTRLEN];
 
 	DEBUG(5,("iprint_job_submit(%d, %p (%d))\n", snum, pjob, pjob->sysjob));
 
@@ -774,8 +771,7 @@ static int iprint_job_submit(int snum, struct printjob *pjob)
 	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_LANGUAGE,
 	             "attributes-natural-language", NULL, language->language);
 
-	slprintf(uri, sizeof(uri) - 1, "ipp://%s/ipp/%s", iprint_server(),
-		 lp_printername(snum));
+	slprintf(uri, sizeof(uri) - 1, "ipp://%s/ipp/%s", iprint_server(), PRINTERNAME(snum));
 
 	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI,
 	             "printer-uri", NULL, uri);
@@ -783,9 +779,14 @@ static int iprint_job_submit(int snum, struct printjob *pjob)
 	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "requesting-user-name",
 	             NULL, pjob->user);
 
+	clientname = client_name(get_client_fd());
+	if (strcmp(clientname, "UNKNOWN") == 0) {
+		clientname = client_addr(get_client_fd(),addr,sizeof(addr));
+	}
+	
 	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME,
 	             "job-originating-host-name", NULL,
-		     pjob->clientmachine);
+	             clientname);
 
 	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "job-name", NULL,
 	             pjob->jobname);
@@ -794,19 +795,17 @@ static int iprint_job_submit(int snum, struct printjob *pjob)
 	* Do the request and get back a response...
 	*/
 
-	slprintf(uri, sizeof(uri) - 1, "/ipp/%s", lp_printername(snum));
+	slprintf(uri, sizeof(uri) - 1, "/ipp/%s", PRINTERNAME(snum));
 
 	if ((response = cupsDoFileRequest(http, request, uri, pjob->filename)) != NULL) {
 		if (response->request.status.status_code >= IPP_OK_CONFLICT) {
-			DEBUG(0,("Unable to print file to %s - %s\n",
-				 lp_printername(snum),
+			DEBUG(0,("Unable to print file to %s - %s\n", PRINTERNAME(snum),
 			         ippErrorString(cupsLastError())));
 		} else {
 			ret = 0;
 		}
 	} else {
-		DEBUG(0,("Unable to print file to `%s' - %s\n",
-			 lp_printername(snum),
+		DEBUG(0,("Unable to print file to `%s' - %s\n", PRINTERNAME(snum),
 			 ippErrorString(cupsLastError())));
 	}
 

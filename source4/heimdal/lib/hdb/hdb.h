@@ -36,8 +36,6 @@
 #ifndef __HDB_H__
 #define __HDB_H__
 
-#include <krb5.h>
-
 #include <hdb_err.h>
 
 #include <heim_asn1.h>
@@ -55,8 +53,6 @@ enum hdb_lockop{ HDB_RLOCK, HDB_WLOCK };
 #define HDB_F_GET_KRBTGT	16	/* fetch krbtgt */
 #define HDB_F_GET_ANY		28	/* fetch any of client,server,krbtgt */
 #define HDB_F_CANON		32	/* want canonicalition */
-#define HDB_F_ADMIN_DATA	64	/* want data that kdc don't use  */
-#define HDB_F_KVNO_SPECIFIED	128	/* we want a particular KVNO */
 
 /* hdb_capability_flags */
 #define HDB_CAP_F_HANDLE_ENTERPRISE_PRINCIPAL 1
@@ -72,13 +68,6 @@ enum hdb_lockop{ HDB_RLOCK, HDB_WLOCK };
 #define HDB_KU_MKEY	0x484442
 
 typedef struct hdb_master_key_data *hdb_master_key;
-
-/**
- * hdb_entry_ex is a wrapper structure around the hdb_entry structure
- * that allows backends to keep a pointer to the backing store, ie in
- * ->hdb_fetch_kvno(), so that we the kadmin/kpasswd backend gets around to
- * ->hdb_store(), the backend doesn't need to lookup the entry again.
- */
 
 typedef struct hdb_entry_ex {
     void *ctx;
@@ -130,11 +119,10 @@ typedef struct HDB{
      *
      * Fetch an entry from the backend, flags are what type of entry
      * should be fetch: client, server, krbtgt.
-     * knvo (if specified and flags HDB_F_KVNO_SPECIFIED set) is the kvno to get
      */
-    krb5_error_code (*hdb_fetch_kvno)(krb5_context, struct HDB*,
-				      krb5_const_principal, unsigned, krb5_kvno,
-				      hdb_entry_ex*);
+    krb5_error_code (*hdb_fetch)(krb5_context, struct HDB*,
+				 krb5_const_principal, unsigned,
+				 hdb_entry_ex*);
     /**
      * Store an entry to database
      */
@@ -169,8 +157,6 @@ typedef struct HDB{
     krb5_error_code (*hdb_unlock)(krb5_context, struct HDB*);
     /**
      * Rename the data base.
-     *
-     * Assume that the database is not hdb_open'ed and not locked.
      */
     krb5_error_code (*hdb_rename)(krb5_context, struct HDB*, const char*);
     /**
@@ -207,22 +193,15 @@ typedef struct HDB{
      */
     krb5_error_code (*hdb_destroy)(krb5_context, struct HDB*);
     /**
-     * Get the list of realms this backend handles.
-     * This call is optional to support. The returned realms are used
-     * for announcing the realms over bonjour. Free returned array
-     * with krb5_free_host_realm().
-     */
-    krb5_error_code (*hdb_get_realms)(krb5_context, struct HDB *, krb5_realm **);
-    /**
      * Change password.
      *
      * Will update keys for the entry when given password.  The new
-     * keys must be written into the entry and will then later be
+     * keys must be written into the entry and and will then later be
      * ->hdb_store() into the database. The backend will still perform
      * all other operations, increasing the kvno, and update
      * modification timestamp.
      * 
-     * The backend needs to call _kadm5_set_keys() and perform password
+     * The backen need to call _kadm5_set_keys() and perform password
      * quality checks.
      */
     krb5_error_code (*hdb_password)(krb5_context, struct HDB*, hdb_entry_ex*, const char *, int);
@@ -238,7 +217,7 @@ typedef struct HDB{
      */
     krb5_error_code (*hdb_auth_status)(krb5_context, struct HDB *, hdb_entry_ex *, int);
     /**
-     * Check if delegation is allowed.
+     * Check is delegation is allowed.
      */
     krb5_error_code (*hdb_check_constrained_delegation)(krb5_context, struct HDB *, hdb_entry_ex *, krb5_const_principal);
 
@@ -246,14 +225,9 @@ typedef struct HDB{
      * Check if this name is an alias for the supplied client for PKINIT userPrinicpalName logins
      */
     krb5_error_code (*hdb_check_pkinit_ms_upn_match)(krb5_context, struct HDB *, hdb_entry_ex *, krb5_const_principal);
-
-    /**
-     * Check if s4u2self is allowed from this client to this server
-     */
-    krb5_error_code (*hdb_check_s4u2self)(krb5_context, struct HDB *, hdb_entry_ex *, krb5_const_principal);
 }HDB;
 
-#define HDB_INTERFACE_VERSION	7
+#define HDB_INTERFACE_VERSION	6
 
 struct hdb_so_method {
     int version;
@@ -270,8 +244,6 @@ struct hdb_method {
     const char *prefix;
     krb5_error_code (*create)(krb5_context, HDB **, const char *filename);
 };
-
-extern const int hdb_interface_version;
 
 #include <hdb-protos.h>
 

@@ -70,8 +70,8 @@ static int fork_tcon_client(struct torture_context *tctx,
 	struct smbcli_options options;
 	struct smbcli_session_options session_options;
 
-	lpcfg_smbcli_options(tctx->lp_ctx, &options);
-	lpcfg_smbcli_session_options(tctx->lp_ctx, &session_options);
+	lp_smbcli_options(tctx->lp_ctx, &options);
+	lp_smbcli_session_options(tctx->lp_ctx, &session_options);
 
 	child = fork();
 	if (child == -1) {
@@ -98,11 +98,12 @@ static int fork_tcon_client(struct torture_context *tctx,
 		NTSTATUS status;
 
 		status = smbcli_full_connection(NULL, &cli,
-				host, lpcfg_smb_ports(tctx->lp_ctx), share,
-				NULL, lpcfg_socket_options(tctx->lp_ctx), cmdline_credentials,
-				lpcfg_resolve_context(tctx->lp_ctx),
+				host, lp_smb_ports(tctx->lp_ctx), share,
+				NULL, lp_socket_options(tctx->lp_ctx), cmdline_credentials,
+				lp_resolve_context(tctx->lp_ctx),
 				tctx->ev, &options, &session_options,
-				lpcfg_gensec_settings(tctx, tctx->lp_ctx));
+				lp_iconv_convenience(tctx->lp_ctx),
+				lp_gensec_settings(tctx, tctx->lp_ctx));
 
 		if (!NT_STATUS_IS_OK(status)) {
 			printf("failed to connect to //%s/%s: %s\n",
@@ -123,23 +124,21 @@ done:
 
 static bool children_remain(void)
 {
-	bool res;
-
 	/* Reap as many children as possible. */
 	for (;;) {
 		pid_t ret = waitpid(-1, NULL, WNOHANG);
 		if (ret == 0) {
 			/* no children ready */
-			res = true;
-			break;
+			return true;
 		}
 		if (ret == -1) {
 			/* no children left. maybe */
-			res = errno != ECHILD;
-			break;
+			return errno == ECHILD ? false : true;
 		}
 	}
-	return res;
+
+	/* notreached */
+	return false;
 }
 
 static double rate_convert_secs(unsigned count,

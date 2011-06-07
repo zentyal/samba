@@ -51,16 +51,6 @@ a gettimeofday wrapper
 _PUBLIC_ void GetTimeOfDay(struct timeval *tval);
 
 /**
-a wrapper to preferably get the monotonic time
-**/
-_PUBLIC_ void clock_gettime_mono(struct timespec *tp);
-
-/**
-a wrapper to preferably get the monotonic time in s
-**/
-_PUBLIC_ time_t time_mono(time_t *t);
-
-/**
 interpret an 8 byte "filetime" structure to a time_t
 It's originally in "100ns units since jan 1st 1601"
 **/
@@ -119,29 +109,12 @@ _PUBLIC_ time_t pull_dos_date2(const uint8_t *date_ptr, int zone_offset);
 _PUBLIC_ time_t pull_dos_date3(const uint8_t *date_ptr, int zone_offset);
 
 /**
- Return a date and time as a string (optionally with microseconds)
-
- format is %Y/%m/%d %H:%M:%S if strftime is available
-**/
-
-char *timeval_string(TALLOC_CTX *ctx, const struct timeval *tp, bool hires);
-
-/**
- Return the current date and time as a string (optionally with microseconds)
-
- format is %Y/%m/%d %H:%M:%S if strftime is available
-**/
-char *current_timestring(TALLOC_CTX *ctx, bool hires);
-
-/**
 return a HTTP/1.0 time string
 **/
 _PUBLIC_ char *http_timestring(TALLOC_CTX *mem_ctx, time_t t);
 
 /**
  Return the date and time as a string
-
- format is %a %b %e %X %Y %Z
 **/
 _PUBLIC_ char *timestring(TALLOC_CTX *mem_ctx, time_t t);
 
@@ -169,11 +142,6 @@ _PUBLIC_ NTTIME nttime_from_string(const char *s);
   return (tv1 - tv2) in microseconds
 */
 _PUBLIC_ int64_t usec_time_diff(const struct timeval *tv1, const struct timeval *tv2);
-
-/**
-  return (tp1 - tp2) in nanoseconds
-*/
-_PUBLIC_ int64_t nsec_time_diff(const struct timespec *tp1, const struct timespec *tp2);
 
 /**
   return a zero timeval

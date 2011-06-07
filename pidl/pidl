@@ -1,4 +1,4 @@
-#!/usr/bin/env perl
+#!/usr/bin/perl -w
 
 ###################################################
 # package to parse IDL files and generate code for
@@ -653,18 +653,7 @@ sub process_file($)
 
 	$pidl = Parse::Pidl::ODL::ODL2IDL($pidl, dirname($idl_file), \@opt_incdirs);
 
-	if (defined($opt_ws_parser)) {
-	  require Parse::Pidl::Wireshark::NDR;
-
-	  my $cnffile = $idl_file;
-	  $cnffile =~ s/\.idl$/\.cnf/;
-
-	  my $generator = new Parse::Pidl::Wireshark::NDR();
-	  $generator->Initialize($cnffile);
-	}
-
-
-	if (defined($opt_ws_parser) or
+	if (defined($opt_ws_parser) or 
 	    defined($opt_client) or
 	    defined($opt_server) or 
 	    defined($opt_header) or
@@ -692,15 +681,13 @@ sub process_file($)
 	}
 
 	my $h_filename = "$outputdir/ndr_$basename.h";
-	my $c_header = "$outputdir/ndr_$basename\_c.h";
-	if (defined($opt_client) or defined($opt_samba3_ndr_client)) {
+	if (defined($opt_client)) {
 		require Parse::Pidl::Samba4::NDR::Client;
 		my ($c_client) = ($opt_client or "$outputdir/ndr_$basename\_c.c");
-		$c_header = $c_client;
+		my ($c_header) = $c_client;
 		$c_header =~ s/\.c$/.h/;
 
-		my $generator = new Parse::Pidl::Samba4::NDR::Client();
-		my ($srcd,$hdrd) = $generator->Parse(
+		my ($srcd,$hdrd) = Parse::Pidl::Samba4::NDR::Client::Parse(
 			$ndr,$gen_header,$h_filename,$c_header);
 
 		FileSave($c_client, $srcd);
@@ -773,7 +760,7 @@ sub process_file($)
 		my $header = $client; $header =~ s/\.c$/\.h/;
 		require Parse::Pidl::Samba3::ClientNDR;
 		my $generator = new Parse::Pidl::Samba3::ClientNDR();
-		my ($c_code,$h_code) = $generator->Parse($ndr, $header, $c_header);
+		my ($c_code,$h_code) = $generator->Parse($ndr, $header, $h_filename);
 		FileSave($client, $c_code);
 		FileSave($header, $h_code);
 	}

@@ -21,18 +21,23 @@
 */
 
 #include "includes.h"
-#include <tevent.h>
 #include "libcli/composite/composite.h"
 #include "winbind/wb_async_helpers.h"
 
+#include "lib/messaging/irpc.h"
+#include "librpc/gen_ndr/irpc.h"
+#include "auth/credentials/credentials.h"
 #include "libcli/security/security.h"
+#include "libcli/auth/libcli_auth.h"
+#include "librpc/gen_ndr/ndr_netlogon_c.h"
 #include "librpc/gen_ndr/ndr_lsa_c.h"
 #include "librpc/gen_ndr/ndr_samr_c.h"
 
+#include "winbind/wb_helper.h"
 
 struct lsa_lookupsids_state {
 	struct composite_context *ctx;
-	uint32_t num_sids;
+	int num_sids;
 	struct lsa_LookupSids r;
 	struct lsa_SidArray sids;
 	struct lsa_TransNameArray names;
@@ -41,18 +46,18 @@ struct lsa_lookupsids_state {
 	struct wb_sid_object **result;
 };
 
-static void lsa_lookupsids_recv_names(struct tevent_req *subreq);
+static void lsa_lookupsids_recv_names(struct rpc_request *req);
 
 struct composite_context *wb_lsa_lookupsids_send(TALLOC_CTX *mem_ctx,
 						 struct dcerpc_pipe *lsa_pipe,
 						 struct policy_handle *handle,
-						 uint32_t num_sids,
+						 int num_sids,
 						 const struct dom_sid **sids)
 {
 	struct composite_context *result;
+	struct rpc_request *req;
 	struct lsa_lookupsids_state *state;
-	uint32_t i;
-	struct tevent_req *subreq;
+	int i;
 
 	result = composite_create(mem_ctx, lsa_pipe->conn->event_ctx);
 	if (result == NULL) goto failed;
@@ -89,13 +94,11 @@ struct composite_context *wb_lsa_lookupsids_send(TALLOC_CTX *mem_ctx,
 	state->r.out.count = &state->count;
 	state->r.out.domains = &state->domains;
 
-	subreq = dcerpc_lsa_LookupSids_r_send(state,
-					      result->event_ctx,
-					      lsa_pipe->binding_handle,
-					      &state->r);
-	if (subreq == NULL) goto failed;
-	tevent_req_set_callback(subreq, lsa_lookupsids_recv_names, state);
+	req = dcerpc_lsa_LookupSids_send(lsa_pipe, state, &state->r);
+	if (req == NULL) goto failed;
 
+	req->async.callback = lsa_lookupsids_recv_names;
+	req->async.private_data = state;
 	return result;
 
  failed:
@@ -103,15 +106,14 @@ struct composite_context *wb_lsa_lookupsids_send(TALLOC_CTX *mem_ctx,
 	return NULL;
 }
 
-static void lsa_lookupsids_recv_names(struct tevent_req *subreq)
+static void lsa_lookupsids_recv_names(struct rpc_request *req)
 {
 	struct lsa_lookupsids_state *state =
-		tevent_req_callback_data(subreq,
-		struct lsa_lookupsids_state);
-	uint32_t i;
+		talloc_get_type(req->async.private_data,
+				struct lsa_lookupsids_state);
+	int i;
 
-	state->ctx->status = dcerpc_lsa_LookupSids_r_recv(subreq, state);
-	TALLOC_FREE(subreq);
+	state->ctx->status = dcerpc_ndr_request_recv(req);
 	if (!composite_is_ok(state->ctx)) return;
 	state->ctx->status = state->r.out.result;
 	if (!NT_STATUS_IS_OK(state->ctx->status) &&
@@ -193,20 +195,20 @@ struct lsa_lookupnames_state {
 	struct wb_sid_object **result;
 };
 
-static void lsa_lookupnames_recv_sids(struct tevent_req *subreq);
+static void lsa_lookupnames_recv_sids(struct rpc_request *req);
 
 struct composite_context *wb_lsa_lookupnames_send(TALLOC_CTX *mem_ctx,
 						  struct dcerpc_pipe *lsa_pipe,
 						  struct policy_handle *handle,
-						  uint32_t num_names,
+						  int num_names,
 						  const char **names)
 {
 	struct composite_context *result;
+	struct rpc_request *req;
 	struct lsa_lookupnames_state *state;
-	struct tevent_req *subreq;
 
 	struct lsa_String *lsa_names;
-	uint32_t i;
+	int i;
 
 	result = composite_create(mem_ctx, lsa_pipe->conn->event_ctx);
 	if (result == NULL) goto failed;
@@ -241,13 +243,11 @@ struct composite_context *wb_lsa_lookupnames_send(TALLOC_CTX *mem_ctx,
 	state->r.out.sids = &state->sids;
 	state->r.out.domains = &state->domains;
 
-	subreq = dcerpc_lsa_LookupNames_r_send(state,
-					       result->event_ctx,
-					       lsa_pipe->binding_handle,
-					       &state->r);
-	if (subreq == NULL) goto failed;
-	tevent_req_set_callback(subreq, lsa_lookupnames_recv_sids, state);
+	req = dcerpc_lsa_LookupNames_send(lsa_pipe, state, &state->r);
+	if (req == NULL) goto failed;
 
+	req->async.callback = lsa_lookupnames_recv_sids;
+	req->async.private_data = state;
 	return result;
 
  failed:
@@ -255,15 +255,14 @@ struct composite_context *wb_lsa_lookupnames_send(TALLOC_CTX *mem_ctx,
 	return NULL;
 }
 
-static void lsa_lookupnames_recv_sids(struct tevent_req *subreq)
+static void lsa_lookupnames_recv_sids(struct rpc_request *req)
 {
 	struct lsa_lookupnames_state *state =
-		tevent_req_callback_data(subreq,
-		struct lsa_lookupnames_state);
-	uint32_t i;
+		talloc_get_type(req->async.private_data,
+				struct lsa_lookupnames_state);
+	int i;
 
-	state->ctx->status = dcerpc_lsa_LookupNames_r_recv(subreq, state);
-	TALLOC_FREE(subreq);
+	state->ctx->status = dcerpc_ndr_request_recv(req);
 	if (!composite_is_ok(state->ctx)) return;
 	state->ctx->status = state->r.out.result;
 	if (!NT_STATUS_IS_OK(state->ctx->status) &&
@@ -323,7 +322,7 @@ struct samr_getuserdomgroups_state {
 	struct composite_context *ctx;
 	struct dcerpc_pipe *samr_pipe;
 
-	uint32_t num_rids;
+	int num_rids;
 	uint32_t *rids;
 
 	struct samr_RidWithAttributeArray *rid_array;
@@ -334,9 +333,9 @@ struct samr_getuserdomgroups_state {
 	struct samr_Close c;
 };
 
-static void samr_usergroups_recv_open(struct tevent_req *subreq);
-static void samr_usergroups_recv_groups(struct tevent_req *subreq);
-static void samr_usergroups_recv_close(struct tevent_req *subreq);
+static void samr_usergroups_recv_open(struct rpc_request *req);
+static void samr_usergroups_recv_groups(struct rpc_request *req);
+static void samr_usergroups_recv_close(struct rpc_request *req);
 
 struct composite_context *wb_samr_userdomgroups_send(TALLOC_CTX *mem_ctx,
 						     struct dcerpc_pipe *samr_pipe,
@@ -344,8 +343,8 @@ struct composite_context *wb_samr_userdomgroups_send(TALLOC_CTX *mem_ctx,
 						     uint32_t rid)
 {
 	struct composite_context *result;
+	struct rpc_request *req;
 	struct samr_getuserdomgroups_state *state;
-	struct tevent_req *subreq;
 
 	result = composite_create(mem_ctx, samr_pipe->conn->event_ctx);
 	if (result == NULL) goto failed;
@@ -365,13 +364,11 @@ struct composite_context *wb_samr_userdomgroups_send(TALLOC_CTX *mem_ctx,
 	state->o.in.rid = rid;
 	state->o.out.user_handle = state->user_handle;
 
-	subreq = dcerpc_samr_OpenUser_r_send(state,
-					     result->event_ctx,
-					     state->samr_pipe->binding_handle,
-					     &state->o);
-	if (subreq == NULL) goto failed;
-	tevent_req_set_callback(subreq, samr_usergroups_recv_open, state);
+	req = dcerpc_samr_OpenUser_send(state->samr_pipe, state, &state->o);
+	if (req == NULL) goto failed;
 
+	req->async.callback = samr_usergroups_recv_open;
+	req->async.private_data = state;
 	return result;
 
  failed:
@@ -379,14 +376,13 @@ struct composite_context *wb_samr_userdomgroups_send(TALLOC_CTX *mem_ctx,
 	return NULL;
 }
 					      
-static void samr_usergroups_recv_open(struct tevent_req *subreq)
+static void samr_usergroups_recv_open(struct rpc_request *req)
 {
 	struct samr_getuserdomgroups_state *state =
-		tevent_req_callback_data(subreq,
-		struct samr_getuserdomgroups_state);
+		talloc_get_type(req->async.private_data,
+				struct samr_getuserdomgroups_state);
 
-	state->ctx->status = dcerpc_samr_OpenUser_r_recv(subreq, state);
-	TALLOC_FREE(subreq);
+	state->ctx->status = dcerpc_ndr_request_recv(req);
 	if (!composite_is_ok(state->ctx)) return;
 	state->ctx->status = state->o.out.result;
 	if (!composite_is_ok(state->ctx)) return;
@@ -394,22 +390,19 @@ static void samr_usergroups_recv_open(struct tevent_req *subreq)
 	state->g.in.user_handle = state->user_handle;
 	state->g.out.rids = &state->rid_array;
 
-	subreq = dcerpc_samr_GetGroupsForUser_r_send(state,
-						     state->ctx->event_ctx,
-						     state->samr_pipe->binding_handle,
-						     &state->g);
-	if (composite_nomem(subreq, state->ctx)) return;
-	tevent_req_set_callback(subreq, samr_usergroups_recv_groups, state);
+	req = dcerpc_samr_GetGroupsForUser_send(state->samr_pipe, state,
+						&state->g);
+	composite_continue_rpc(state->ctx, req, samr_usergroups_recv_groups,
+			       state);
 }
 
-static void samr_usergroups_recv_groups(struct tevent_req *subreq)
+static void samr_usergroups_recv_groups(struct rpc_request *req)
 {
 	struct samr_getuserdomgroups_state *state =
-		tevent_req_callback_data(subreq,
-		struct samr_getuserdomgroups_state);
+		talloc_get_type(req->async.private_data,
+				struct samr_getuserdomgroups_state);
 
-	state->ctx->status = dcerpc_samr_GetGroupsForUser_r_recv(subreq, state);
-	TALLOC_FREE(subreq);
+	state->ctx->status = dcerpc_ndr_request_recv(req);
 	if (!composite_is_ok(state->ctx)) return;
 	state->ctx->status = state->g.out.result;
 	if (!composite_is_ok(state->ctx)) return;
@@ -417,22 +410,18 @@ static void samr_usergroups_recv_groups(struct tevent_req *subreq)
 	state->c.in.handle = state->user_handle;
 	state->c.out.handle = state->user_handle;
 
-	subreq = dcerpc_samr_Close_r_send(state,
-					  state->ctx->event_ctx,
-					  state->samr_pipe->binding_handle,
-					  &state->c);
-	if (composite_nomem(subreq, state->ctx)) return;
-	tevent_req_set_callback(subreq, samr_usergroups_recv_close, state);
+	req = dcerpc_samr_Close_send(state->samr_pipe, state, &state->c);
+	composite_continue_rpc(state->ctx, req, samr_usergroups_recv_close,
+			       state);
 }
 
-static void samr_usergroups_recv_close(struct tevent_req *subreq)
+static void samr_usergroups_recv_close(struct rpc_request *req)
 {
         struct samr_getuserdomgroups_state *state =
-		tevent_req_callback_data(subreq,
-		struct samr_getuserdomgroups_state);
+                talloc_get_type(req->async.private_data,
+                                struct samr_getuserdomgroups_state);
 
-	state->ctx->status = dcerpc_samr_Close_r_recv(subreq, state);
-	TALLOC_FREE(subreq);
+        state->ctx->status = dcerpc_ndr_request_recv(req);
         if (!composite_is_ok(state->ctx)) return;
         state->ctx->status = state->c.out.result;
         if (!composite_is_ok(state->ctx)) return;
@@ -442,13 +431,13 @@ static void samr_usergroups_recv_close(struct tevent_req *subreq)
 
 NTSTATUS wb_samr_userdomgroups_recv(struct composite_context *ctx,
 				    TALLOC_CTX *mem_ctx,
-				    uint32_t *num_rids, uint32_t **rids)
+				    int *num_rids, uint32_t **rids)
 {
         struct samr_getuserdomgroups_state *state =
                 talloc_get_type(ctx->private_data,
                                 struct samr_getuserdomgroups_state);
 
-	uint32_t i;
+	int i;
 	NTSTATUS status = composite_wait(ctx);
 	if (!NT_STATUS_IS_OK(status)) goto done;
 

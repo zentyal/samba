@@ -1,25 +1,25 @@
-What's new in Samba 4 alpha14
-=============================
+What's new in Samba 4 alpha8
+============================
 
 Samba 4 is the ambitious next version of the Samba suite that is being
-developed in parallel to the stable 3.x series. The main emphasis in
+developed in parallel to the stable 3.0 series. The main emphasis in
 this branch is support for the Active Directory logon protocols used
 by Windows 2000 and above.
 
-Samba4 alpha14 follows on from the alpha release series we have been
-publishing since September 2007.
+Samba4 alpha8 follows on from the alpha release series we have been
+publishing since September 2007
 
 WARNINGS
 ========
 
-Samba4 alpha14 is not a final Samba release.  That is more a reference
+Samba4 alpha8 is not a final Samba release.  That is more a reference
 to Samba4's lack of the features we expect you will need than a
 statement of code quality, but clearly it hasn't seen a broad
 deployment yet.  If you were to upgrade Samba3 (or indeed Windows) to
 Samba4, you would find many things work, but that other key features
 you may have relied on simply are not there yet.
 
-For example, while Samba 3 is an excellent member of a Active
+For example, while Samba 3.0 is an excellent member of a Active
 Directory domain, Samba4 is happier as a domain controller, and it is
 in this role where it has seen deployment into production.
 
@@ -28,7 +28,7 @@ automated basis, we have found Samba4 to be very stable in it's
 behaviour.  We have to recommend against upgrading production servers
 from Samba 3 to Samba 4 at this stage, because there may be the features on
 which you may rely that are not present, or the mapping of
-your configuration and user database may not be complete.
+your configuration and user database may not be complete. 
 
 If you are upgrading, or looking to develop, test or deploy Samba4, you should
 backup all configuration and data.
@@ -62,23 +62,22 @@ working on modules to map between AD-like behaviours and this backend.
 We are aiming for Samba 4 to be powerful frontend to large
 directories.
 
-CHANGES SINCE alpha13
+CHANGES SINCE alpha7
 =====================
 
-We have continued our commitment to provide a full DRS implementation for our
-AD implementation and therefore achieved also this time big steps forward.
+In the time since Samba4 alpha7 was released in Feburary 2009, Samba has
+continued to evolve, but you may particularly notice these areas 
+(in no particular order):
 
-Our progress on DRS is being tracked in the Samba wiki:
-http://wiki.samba.org/index.php/Samba4_DRS_TODO_List
+ Samba4 now includes the full AD schema, as used in Microsoft Windows 2008
 
-Beside this the release includes (among a lot of other things):
+ LDB (the core Samba4 database library) now handles large number of
+ users and groups much more efficiently
 
-* a script for backuping production provision
-Although still in development, samba4 is already used in a couple of production sites
-and such kind of use case is intensifying. This script is intendended for administrators
-to allow them to make a periodic backup of the provision in case of problem.
+These are just some of the user-visible highlights of the work done in
+the past few months.  More details of the work done 'under the hood'
+can be found in our GIT history.
 
-* the 'net' command has been renamed to 'samba-tool'
 
 CHANGES
 =======
@@ -103,33 +102,16 @@ KNOWN ISSUES
   and server.  (The NTP work in the previous alphas are partly to assist
   with this problem).
 
-- The DRS replication code fails, and is very new
-
-- Users upgrading existing databases to Samba4 should carefully
-  consult upgrading-samba4.txt.  We have made a number of changes in
-  this release that should make it easier to upgrade in future.
-  Btw: there exists also a script under the "setup" directory of the
-  source distribution called "upgrade_from_s3" which should allow a step-up
-  from Samba3 to Samba4. It's not included yet in the binary distributions
-  since it's completely experimental!
-
 RUNNING Samba4
 ==============
 
-A short guide to setting up Samba 4 can be found on the wiki:
-
-  http://wiki.samba.org/index.php/Samba4/HOWTO
+A short guide to setting up Samba 4 can be found in the howto.txt file
+in root of the tarball.
 
 DEVELOPMENT and FEEDBACK
 ========================
-
-We need your help! Projects as Samba 4 live from the community feedback. If you
-provide expressive bug reports, some documentation snippets on the wiki or some
-real code patches - all is appreciated if it meets our quality criterias. Here
-you can find further references:
-
 Bugs can be filed at https://bugzilla.samba.org/ but please be aware
-that many features are simply not expected to work at this stage.
+that many features are simply not expected to work at this stage.  
 
 The Samba Wiki at http://wiki.samba.org should detail some of these
 development plans.

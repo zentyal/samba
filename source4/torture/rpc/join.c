@@ -1,7 +1,9 @@
 #include "includes.h"
+#include "libnet/libnet.h"
 #include "libcli/libcli.h"
 
-#include "torture/rpc/torture_rpc.h"
+#include "auth/credentials/credentials.h"
+#include "torture/rpc/rpc.h"
 
 #include "libcli/resolve/resolve.h"
 #include "param/param.h"
@@ -31,17 +33,18 @@ bool torture_rpc_join(struct torture_context *torture)
 		return false;
 	}
 
-	lpcfg_smbcli_options(torture->lp_ctx, &options);
-	lpcfg_smbcli_session_options(torture->lp_ctx, &session_options);
+	lp_smbcli_options(torture->lp_ctx, &options);
+	lp_smbcli_session_options(torture->lp_ctx, &session_options);
 
 	status = smbcli_full_connection(tj, &cli, host,
-					lpcfg_smb_ports(torture->lp_ctx),
+					lp_smb_ports(torture->lp_ctx),
 					"IPC$", NULL,
-					lpcfg_socket_options(torture->lp_ctx),
+					lp_socket_options(torture->lp_ctx),
 					machine_account,
-					lpcfg_resolve_context(torture->lp_ctx),
+					lp_resolve_context(torture->lp_ctx),
 					torture->ev, &options, &session_options,
-					lpcfg_gensec_settings(torture, torture->lp_ctx));
+					lp_iconv_convenience(torture->lp_ctx),
+					lp_gensec_settings(torture, torture->lp_ctx));
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("%s failed to connect to IPC$ with workstation credentials\n",
 			  TORTURE_NETBIOS_NAME));
@@ -63,13 +66,14 @@ bool torture_rpc_join(struct torture_context *torture)
 	}
 
 	status = smbcli_full_connection(tj, &cli, host,
-					lpcfg_smb_ports(torture->lp_ctx),
+					lp_smb_ports(torture->lp_ctx),
 					"IPC$", NULL,
-					lpcfg_socket_options(torture->lp_ctx),
+					lp_socket_options(torture->lp_ctx),
 					machine_account,
-					lpcfg_resolve_context(torture->lp_ctx),
+					lp_resolve_context(torture->lp_ctx),
 					torture->ev, &options, &session_options,
-					lpcfg_gensec_settings(torture, torture->lp_ctx));
+					lp_iconv_convenience(torture->lp_ctx),
+					lp_gensec_settings(torture, torture->lp_ctx));
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("%s failed to connect to IPC$ with workstation credentials\n",
 			  TORTURE_NETBIOS_NAME));

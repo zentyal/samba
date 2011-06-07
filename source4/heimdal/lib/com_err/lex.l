@@ -53,7 +53,6 @@ static int getstring(void);
 
 %}
 
-%option nounput
 
 %%
 et			{ return ET; }
@@ -95,7 +94,7 @@ getstring(void)
 	    continue;
 	}
 	if(c == '\n'){
-	    _lex_error_message("unterminated string");
+	    error_message("unterminated string");
 	    lineno++;
 	    break;
 	}
@@ -115,7 +114,7 @@ getstring(void)
 }
 
 void
-_lex_error_message (const char *format, ...)
+error_message (const char *format, ...)
 {
      va_list args;
 

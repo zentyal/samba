@@ -34,10 +34,6 @@
 
 #ifdef _SAMBA_BUILD_
 
-/* defining this gives us the posix getpwnam_r() calls on solaris
-   Thanks to heimdal for this */
-#define _POSIX_PTHREAD_SEMANTICS
-
 #define NSS_WRAPPER_NOT_REPLACE
 #include "../replace/replace.h"
 #include "system/passwd.h"
@@ -211,7 +207,7 @@ struct nwrap_ops {
 	void		(*nw_endgrent)(struct nwrap_backend *b);
 };
 
-/* prototypes for files backend */
+/* protoypes for files backend */
 
 
 static struct passwd *nwrap_files_getpwnam(struct nwrap_backend *b,
@@ -249,7 +245,7 @@ static int nwrap_files_getgrent_r(struct nwrap_backend *b,
 				  size_t buflen, struct group **grdstp);
 static void nwrap_files_endgrent(struct nwrap_backend *b);
 
-/* prototypes for module backend */
+/* protoypes for module backend */
 
 static struct passwd *nwrap_module_getpwent(struct nwrap_backend *b);
 static int nwrap_module_getpwent_r(struct nwrap_backend *b,
@@ -464,8 +460,6 @@ static bool nwrap_module_init(const char *name,
 			      int *num_backends,
 			      struct nwrap_backend **backends)
 {
-	struct nwrap_backend *b;
-
 	*backends = (struct nwrap_backend *)realloc(*backends,
 		sizeof(struct nwrap_backend) * ((*num_backends) + 1));
 	if (!*backends) {
@@ -474,22 +468,11 @@ static bool nwrap_module_init(const char *name,
 		return false;
 	}
 
-	b = &((*backends)[*num_backends]);
-
-	b->name = name;
-	b->ops = ops;
-	b->so_path = so_path;
-
-	if (so_path != NULL) {
-		b->so_handle = nwrap_load_module(so_path);
-		b->fns = nwrap_load_module_fns(b);
-		if (b->fns == NULL) {
-			return false;
-		}
-	} else {
-		b->so_handle = NULL;
-		b->fns = NULL;
-	}
+	(*backends)[*num_backends].name = name;
+	(*backends)[*num_backends].ops = ops;
+	(*backends)[*num_backends].so_path = so_path;
+	(*backends)[*num_backends].so_handle = nwrap_load_module(so_path);
+	(*backends)[*num_backends].fns = nwrap_load_module_fns(&((*backends)[*num_backends]));
 
 	(*num_backends)++;
 
@@ -2185,7 +2168,7 @@ _PUBLIC_ int nwrap_getgrouplist(const char *user, gid_t group, gid_t *groups, in
 	struct group *grp;
 	gid_t *groups_tmp;
 	int count = 1;
-	const char *name_of_group = "";
+	const char *name_of_group = NULL;
 
 	if (!nwrap_enabled()) {
 		return real_getgrouplist(user, group, groups, ngroups);

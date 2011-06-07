@@ -26,7 +26,6 @@
 
 #include "lib/socket/socket.h"
 #include "smbd/service.h"
-#include "smbd/process_model_proto.h"
 
 /* modules can use the following to determine if the interface has changed
  * please increment the version number after each interface change
@@ -42,7 +41,7 @@ struct model_ops {
 	const char *name;
 
 	/* called at startup when the model is selected */
-	void (*model_init)(void);
+	void (*model_init)(struct tevent_context *);
 
 	/* function to accept new connection */
 	void (*accept_connection)(struct tevent_context *, 
@@ -56,7 +55,7 @@ struct model_ops {
 
 	/* function to create a task */
 	void (*new_task)(struct tevent_context *, 
-			 struct loadparm_context *lp_ctx,
+			 struct loadparm_context *lp_ctx, 
 			 const char *service_name,
 			 void (*)(struct tevent_context *, 
 				  struct loadparm_context *, struct server_id, 
@@ -64,7 +63,7 @@ struct model_ops {
 			 void *);
 
 	/* function to terminate a connection or task */
-	void (*terminate)(struct tevent_context *, struct loadparm_context *lp_ctx,
+	void (*terminate)(struct tevent_context *, struct loadparm_context *lp_ctx, 
 			  const char *reason);
 
 	/* function to set a title for the connection or task */
@@ -79,8 +78,8 @@ struct process_model_critical_sizes {
 
 extern const struct model_ops single_ops;
 
-const struct model_ops *process_model_startup(const char *model);
-NTSTATUS register_process_model(const struct model_ops *ops);
+const struct model_ops *process_model_startup(struct tevent_context *ev, const char *model);
+NTSTATUS register_process_model(const void *_ops);
 NTSTATUS process_model_init(struct loadparm_context *lp_ctx);
 
 #endif /* __PROCESS_MODEL_H__ */

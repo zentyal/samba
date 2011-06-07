@@ -20,7 +20,7 @@
 
 #include "includes.h"
 #include "rpcclient.h"
-#include "../librpc/gen_ndr/ndr_wkssvc_c.h"
+#include "../librpc/gen_ndr/cli_wkssvc.h"
 
 static WERROR cmd_wkssvc_wkstagetinfo(struct rpc_pipe_client *cli,
 				      TALLOC_CTX *mem_ctx,
@@ -32,7 +32,6 @@ static WERROR cmd_wkssvc_wkstagetinfo(struct rpc_pipe_client *cli,
 	uint32_t level = 100;
 	union wkssvc_NetWkstaInfo info;
 	const char *server_name;
-	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	if (argc > 2) {
 		printf("usage: %s <level>\n", argv[0]);
@@ -45,7 +44,7 @@ static WERROR cmd_wkssvc_wkstagetinfo(struct rpc_pipe_client *cli,
 
 	server_name = cli->desthost;
 
-	status = dcerpc_wkssvc_NetWkstaGetInfo(b, mem_ctx,
+	status = rpccli_wkssvc_NetWkstaGetInfo(cli, mem_ctx,
 					       server_name,
 					       level,
 					       &info,
@@ -67,12 +66,11 @@ static WERROR cmd_wkssvc_getjoininformation(struct rpc_pipe_client *cli,
 	enum wkssvc_NetJoinStatus name_type;
 	NTSTATUS status;
 	WERROR werr;
-	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	server_name = cli->desthost;
 	name_buffer = "";
 
-	status = dcerpc_wkssvc_NetrGetJoinInformation(b, mem_ctx,
+	status = rpccli_wkssvc_NetrGetJoinInformation(cli, mem_ctx,
 						      server_name,
 						      &name_buffer,
 						      &name_type,
@@ -101,7 +99,6 @@ static WERROR cmd_wkssvc_messagebuffersend(struct rpc_pipe_client *cli,
 	const char *message = "my message";
 	NTSTATUS status;
 	WERROR werr;
-	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	if (argc > 1) {
 		message = argv[1];
@@ -113,7 +110,7 @@ static WERROR cmd_wkssvc_messagebuffersend(struct rpc_pipe_client *cli,
 		return WERR_NOMEM;
 	}
 
-	status = dcerpc_wkssvc_NetrMessageBufferSend(b, mem_ctx,
+	status = rpccli_wkssvc_NetrMessageBufferSend(cli, mem_ctx,
 						     server_name,
 						     message_name,
 						     message_sender_name,
@@ -137,7 +134,6 @@ static WERROR cmd_wkssvc_enumeratecomputernames(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 	struct wkssvc_ComputerNamesCtr *ctr = NULL;
 	WERROR werr;
-	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	server_name = cli->desthost;
 
@@ -145,7 +141,7 @@ static WERROR cmd_wkssvc_enumeratecomputernames(struct rpc_pipe_client *cli,
 		name_type = atoi(argv[1]);
 	}
 
-	status = dcerpc_wkssvc_NetrEnumerateComputerNames(b, mem_ctx,
+	status = rpccli_wkssvc_NetrEnumerateComputerNames(cli, mem_ctx,
 							  server_name,
 							  name_type, 0,
 							  &ctr,
@@ -174,7 +170,6 @@ static WERROR cmd_wkssvc_enumerateusers(struct rpc_pipe_client *cli,
 	struct wkssvc_NetWkstaEnumUsersInfo info;
 	WERROR werr;
 	uint32_t i, num_entries, resume_handle;
-	struct dcerpc_binding_handle *b = cli->binding_handle;
 
 	server_name = cli->desthost;
 
@@ -184,7 +179,7 @@ static WERROR cmd_wkssvc_enumerateusers(struct rpc_pipe_client *cli,
 		info.level = atoi(argv[1]);
 	}
 
-	status = dcerpc_wkssvc_NetWkstaEnumUsers(b, mem_ctx, server_name,
+	status = rpccli_wkssvc_NetWkstaEnumUsers(cli, mem_ctx, server_name,
 						 &info, 1000, &num_entries,
 						 &resume_handle, &werr);
 	if (!NT_STATUS_IS_OK(status)) {

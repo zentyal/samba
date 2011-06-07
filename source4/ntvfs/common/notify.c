@@ -25,18 +25,17 @@
 
 #include "includes.h"
 #include "system/filesys.h"
-#include <tdb.h>
+#include "../tdb/include/tdb.h"
 #include "../lib/util/util_tdb.h"
 #include "messaging/messaging.h"
-#include "lib/util/tdb_wrap.h"
+#include "tdb_wrap.h"
 #include "lib/messaging/irpc.h"
-#include "librpc/gen_ndr/ndr_s4_notify.h"
+#include "librpc/gen_ndr/ndr_notify.h"
 #include "../lib/util/dlinklist.h"
 #include "ntvfs/common/ntvfs_common.h"
 #include "ntvfs/sysdep/sys_notify.h"
 #include "cluster/cluster.h"
 #include "param/param.h"
-#include "lib/util/tsort.h"
 
 struct notify_context {
 	struct tdb_wrap *w;
@@ -46,6 +45,7 @@ struct notify_context {
 	struct notify_array *array;
 	int seqnum;
 	struct sys_notify_context *sys_notify_ctx;
+	struct smb_iconv_convenience *iconv_convenience;
 };
 
 
@@ -112,6 +112,7 @@ struct notify_context *notify_init(TALLOC_CTX *mem_ctx, struct server_id server,
 	notify->messaging_ctx = messaging_ctx;
 	notify->list = NULL;
 	notify->array = NULL;
+	notify->iconv_convenience = lp_iconv_convenience(lp_ctx);
 	notify->seqnum = tdb_get_seqnum(notify->w->tdb);
 
 	talloc_set_destructor(notify, notify_destructor);
@@ -176,7 +177,8 @@ static NTSTATUS notify_load(struct notify_context *notify)
 	blob.data = dbuf.dptr;
 	blob.length = dbuf.dsize;
 
-	ndr_err = ndr_pull_struct_blob(&blob, notify->array, notify->array,
+	ndr_err = ndr_pull_struct_blob(&blob, notify->array, notify->iconv_convenience,
+				       notify->array,
 				       (ndr_pull_flags_fn_t)ndr_pull_notify_array);
 	free(dbuf.dptr);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -224,7 +226,7 @@ static NTSTATUS notify_save(struct notify_context *notify)
 	tmp_ctx = talloc_new(notify);
 	NT_STATUS_HAVE_NO_MEMORY(tmp_ctx);
 
-	ndr_err = ndr_push_struct_blob(&blob, tmp_ctx, notify->array,
+	ndr_err = ndr_push_struct_blob(&blob, tmp_ctx, notify->iconv_convenience, notify->array,
 				       (ndr_push_flags_fn_t)ndr_push_notify_array);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(tmp_ctx);
@@ -260,7 +262,7 @@ static void notify_handler(struct messaging_context *msg_ctx, void *private_data
 		return;
 	}
 
-	ndr_err = ndr_pull_struct_blob(data, tmp_ctx, &ev,
+	ndr_err = ndr_pull_struct_blob(data, tmp_ctx, notify->iconv_convenience, &ev,
 				      (ndr_pull_flags_fn_t)ndr_pull_notify_event);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(tmp_ctx);
@@ -326,7 +328,9 @@ static NTSTATUS notify_add_array(struct notify_context *notify, struct notify_en
 	d->max_mask |= e->filter;
 	d->max_mask_subdir |= e->subdir_filter;
 
-	TYPESAFE_QSORT(d->entries, d->num_entries, notify_compare);
+	if (d->num_entries > 1) {
+		qsort(d->entries, d->num_entries, sizeof(d->entries[0]), notify_compare);
+	}
 
 	/* recalculate the maximum masks */
 	d->max_mask = 0;
@@ -557,7 +561,7 @@ static void notify_send(struct notify_context *notify, struct notify_entry *e,
 
 	tmp_ctx = talloc_new(notify);
 
-	ndr_err = ndr_push_struct_blob(&data, tmp_ctx, &ev, (ndr_push_flags_fn_t)ndr_push_notify_event);
+	ndr_err = ndr_push_struct_blob(&data, tmp_ctx, notify->iconv_convenience, &ev, (ndr_push_flags_fn_t)ndr_push_notify_event);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(tmp_ctx);
 		return;

@@ -18,10 +18,8 @@
 */
 
 #include "includes.h"
-#include "../lib/util/tevent_ntstatus.h"
-#include "client.h"
+#include "../lib/async_req/async_sock.h"
 #include "async_smb.h"
-#include "libsmb/nmblib.h"
 
 struct nb_connect_state {
 	struct tevent_context *ev;
@@ -178,9 +176,7 @@ struct smbsock_connect_state {
 	struct tevent_context *ev;
 	const struct sockaddr_storage *addr;
 	const char *called_name;
-	uint8_t called_type;
 	const char *calling_name;
-	uint8_t calling_type;
 	struct tevent_req *req_139;
 	struct tevent_req *req_445;
 	int sock;
@@ -195,11 +191,8 @@ static void smbsock_connect_do_139(struct tevent_req *subreq);
 struct tevent_req *smbsock_connect_send(TALLOC_CTX *mem_ctx,
 					struct tevent_context *ev,
 					const struct sockaddr_storage *addr,
-					uint16_t port,
 					const char *called_name,
-					int called_type,
-					const char *calling_name,
-					int calling_type)
+					const char *calling_name)
 {
 	struct tevent_req *req, *subreq;
 	struct smbsock_connect_state *state;
@@ -213,37 +206,10 @@ struct tevent_req *smbsock_connect_send(TALLOC_CTX *mem_ctx,
 	state->sock = -1;
 	state->called_name =
 		(called_name != NULL) ? called_name : "*SMBSERVER";
-	state->called_type =
-		(called_type != -1) ? called_type : 0x20;
 	state->calling_name =
 		(calling_name != NULL) ? calling_name : global_myname();
-	state->calling_type =
-		(calling_type != -1) ? calling_type : 0x00;
 
 	talloc_set_destructor(state, smbsock_connect_state_destructor);
-
-	if (port == 139) {
-		subreq = tevent_wakeup_send(state, ev, timeval_set(0, 0));
-		if (tevent_req_nomem(subreq, req)) {
-			return tevent_req_post(req, ev);
-		}
-		tevent_req_set_callback(subreq, smbsock_connect_do_139, req);
-		return req;
-	}
-	if (port != 0) {
-		state->req_445 = open_socket_out_send(state, ev, addr, port,
-						      5000);
-		if (tevent_req_nomem(state->req_445, req)) {
-			return tevent_req_post(req, ev);
-		}
-		tevent_req_set_callback(
-			state->req_445, smbsock_connect_connected, req);
-		return req;
-	}
-
-	/*
-	 * port==0, try both
-	 */
 
 	state->req_445 = open_socket_out_send(state, ev, addr, 445, 5000);
 	if (tevent_req_nomem(state->req_445, req)) {
@@ -271,7 +237,6 @@ static int smbsock_connect_state_destructor(
 {
 	if (state->sock != -1) {
 		close(state->sock);
-		state->sock = -1;
 	}
 	return 0;
 }
@@ -291,10 +256,8 @@ static void smbsock_connect_do_139(struct tevent_req *subreq)
 		return;
 	}
 	state->req_139 = nb_connect_send(state, state->ev, state->addr,
-					 state->called_name,
-					 state->called_type,
-					 state->calling_name,
-					 state->calling_type);
+					 state->called_name, 0x20,
+					 state->calling_name, 0x0);
 	if (tevent_req_nomem(state->req_139, req)) {
 		return;
 	}
@@ -350,7 +313,7 @@ static void smbsock_connect_connected(struct tevent_req *subreq)
 }
 
 NTSTATUS smbsock_connect_recv(struct tevent_req *req, int *sock,
-			      uint16_t *ret_port)
+			  uint16_t *port)
 {
 	struct smbsock_connect_state *state = tevent_req_data(
 		req, struct smbsock_connect_state);
@@ -361,16 +324,15 @@ NTSTATUS smbsock_connect_recv(struct tevent_req *req, int *sock,
 	}
 	*sock = state->sock;
 	state->sock = -1;
-	if (ret_port != NULL) {
-		*ret_port = state->port;
+	if (port != NULL) {
+		*port = state->port;
 	}
 	return NT_STATUS_OK;
 }
 
-NTSTATUS smbsock_connect(const struct sockaddr_storage *addr, uint16_t port,
-			 const char *called_name, int called_type,
-			 const char *calling_name, int calling_type,
-			 int *pfd, uint16_t *ret_port, int sec_timeout)
+NTSTATUS smbsock_connect(const struct sockaddr_storage *addr,
+			 const char *called_name, const char *calling_name,
+			 int *pfd, uint16_t *port)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
 	struct event_context *ev;
@@ -381,21 +343,14 @@ NTSTATUS smbsock_connect(const struct sockaddr_storage *addr, uint16_t port,
 	if (ev == NULL) {
 		goto fail;
 	}
-	req = smbsock_connect_send(frame, ev, addr, port,
-				   called_name, called_type,
-				   calling_name, calling_type);
+	req = smbsock_connect_send(frame, ev, addr, called_name, calling_name);
 	if (req == NULL) {
-		goto fail;
-	}
-	if ((sec_timeout != 0) &&
-	    !tevent_req_set_endtime(
-		    req, ev, timeval_current_ofs(sec_timeout, 0))) {
 		goto fail;
 	}
 	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
 		goto fail;
 	}
-	status = smbsock_connect_recv(req, pfd, ret_port);
+	status = smbsock_connect_recv(req, pfd, port);
  fail:
 	TALLOC_FREE(frame);
 	return status;
@@ -405,18 +360,14 @@ struct smbsock_any_connect_state {
 	struct tevent_context *ev;
 	const struct sockaddr_storage *addrs;
 	const char **called_names;
-	int *called_types;
-	const char **calling_names;
-	int *calling_types;
 	size_t num_addrs;
-	uint16_t port;
 
 	struct tevent_req **requests;
 	size_t num_sent;
 	size_t num_received;
 
 	int fd;
-	uint16_t chosen_port;
+	uint16_t port;
 	size_t chosen_index;
 };
 
@@ -429,10 +380,7 @@ struct tevent_req *smbsock_any_connect_send(TALLOC_CTX *mem_ctx,
 					    struct tevent_context *ev,
 					    const struct sockaddr_storage *addrs,
 					    const char **called_names,
-					    int *called_types,
-					    const char **calling_names,
-					    int *calling_types,
-					    size_t num_addrs, uint16_t port)
+					    size_t num_addrs)
 {
 	struct tevent_req *req, *subreq;
 	struct smbsock_any_connect_state *state;
@@ -446,10 +394,6 @@ struct tevent_req *smbsock_any_connect_send(TALLOC_CTX *mem_ctx,
 	state->addrs = addrs;
 	state->num_addrs = num_addrs;
 	state->called_names = called_names;
-	state->called_types = called_types;
-	state->calling_names = calling_names;
-	state->calling_types = calling_types;
-	state->port = port;
 
 	if (num_addrs == 0) {
 		tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
@@ -514,15 +458,9 @@ static bool smbsock_any_connect_send_next(
 	}
 	subreq = smbsock_connect_send(
 		state->requests, state->ev, &state->addrs[state->num_sent],
-		state->port,
 		(state->called_names != NULL)
 		? state->called_names[state->num_sent] : NULL,
-		(state->called_types != NULL)
-		? state->called_types[state->num_sent] : -1,
-		(state->calling_names != NULL)
-		? state->calling_names[state->num_sent] : NULL,
-		(state->calling_types != NULL)
-		? state->calling_types[state->num_sent] : -1);
+		NULL);
 	if (tevent_req_nomem(subreq, req)) {
 		return false;
 	}
@@ -542,7 +480,7 @@ static void smbsock_any_connect_connected(struct tevent_req *subreq)
 		req, struct smbsock_any_connect_state);
 	NTSTATUS status;
 	int fd;
-	uint16_t chosen_port;
+	uint16_t port;
 	size_t i;
 	size_t chosen_index = 0;
 
@@ -557,7 +495,7 @@ static void smbsock_any_connect_connected(struct tevent_req *subreq)
 		return;
 	}
 
-	status = smbsock_connect_recv(subreq, &fd, &chosen_port);
+	status = smbsock_connect_recv(subreq, &fd, &port);
 
 	TALLOC_FREE(subreq);
 	state->requests[chosen_index] = NULL;
@@ -568,7 +506,7 @@ static void smbsock_any_connect_connected(struct tevent_req *subreq)
 		 */
 		TALLOC_FREE(state->requests);
 		state->fd = fd;
-		state->chosen_port = chosen_port;
+		state->port = port;
 		state->chosen_index = chosen_index;
 		tevent_req_done(req);
 		return;
@@ -590,8 +528,7 @@ static void smbsock_any_connect_connected(struct tevent_req *subreq)
 }
 
 NTSTATUS smbsock_any_connect_recv(struct tevent_req *req, int *pfd,
-				  size_t *chosen_index,
-				  uint16_t *chosen_port)
+				  size_t *chosen_index, uint16_t *port)
 {
 	struct smbsock_any_connect_state *state = tevent_req_data(
 		req, struct smbsock_any_connect_state);
@@ -604,22 +541,15 @@ NTSTATUS smbsock_any_connect_recv(struct tevent_req *req, int *pfd,
 	if (chosen_index != NULL) {
 		*chosen_index = state->chosen_index;
 	}
-	if (chosen_port != NULL) {
-		*chosen_port = state->chosen_port;
+	if (port != NULL) {
+		*port = state->port;
 	}
 	return NT_STATUS_OK;
 }
 
 NTSTATUS smbsock_any_connect(const struct sockaddr_storage *addrs,
-			     const char **called_names,
-			     int *called_types,
-			     const char **calling_names,
-			     int *calling_types,
-			     size_t num_addrs,
-			     uint16_t port,
-			     int sec_timeout,
-			     int *pfd, size_t *chosen_index,
-			     uint16_t *chosen_port)
+			     const char **called_names, size_t num_addrs,
+			     int *pfd, size_t *chosen_index, uint16_t *port)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
 	struct event_context *ev;
@@ -630,22 +560,15 @@ NTSTATUS smbsock_any_connect(const struct sockaddr_storage *addrs,
 	if (ev == NULL) {
 		goto fail;
 	}
-	req = smbsock_any_connect_send(frame, ev, addrs,
-				       called_names, called_types,
-				       calling_names, calling_types,
-				       num_addrs, port);
+	req = smbsock_any_connect_send(frame, ev, addrs, called_names,
+				       num_addrs);
 	if (req == NULL) {
-		goto fail;
-	}
-	if ((sec_timeout != 0) &&
-	    !tevent_req_set_endtime(
-		    req, ev, timeval_current_ofs(sec_timeout, 0))) {
 		goto fail;
 	}
 	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
 		goto fail;
 	}
-	status = smbsock_any_connect_recv(req, pfd, chosen_index, chosen_port);
+	status = smbsock_any_connect_recv(req, pfd, chosen_index, port);
  fail:
 	TALLOC_FREE(frame);
 	return status;

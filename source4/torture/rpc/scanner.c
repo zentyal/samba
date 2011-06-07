@@ -20,10 +20,12 @@
 */
 
 #include "includes.h"
+#include "torture/torture.h"
 #include "librpc/gen_ndr/ndr_mgmt_c.h"
 #include "librpc/ndr/ndr_table.h"
-#include "torture/rpc/torture_rpc.h"
+#include "torture/rpc/rpc.h"
 #include "param/param.h"
+#include "librpc/rpc/dcerpc_proto.h"
 
 /*
   work out how many calls there are for an interface
@@ -55,31 +57,24 @@ static bool test_num_calls(struct torture_context *tctx,
 	}
 
 	/* make null calls */
-	stub_in = data_blob_talloc(mem_ctx, NULL, 1000);
+	stub_in = data_blob(NULL, 1000);
 	memset(stub_in.data, 0xFF, stub_in.length);
 
 	for (i=0;i<200;i++) {
-		uint32_t out_flags = 0;
-		status = dcerpc_binding_handle_raw_call(p->binding_handle,
-							NULL, i,
-							0, /* in_flags */
-							stub_in.data,
-							stub_in.length,
-							mem_ctx,
-							&stub_out.data,
-							&stub_out.length,
-							&out_flags);
-		if (NT_STATUS_EQUAL(status, NT_STATUS_RPC_PROCNUM_OUT_OF_RANGE)) {
+		status = dcerpc_request(p, NULL, i, mem_ctx, &stub_in, &stub_out);
+		if (!NT_STATUS_IS_OK(status) &&
+		    p->last_fault_code == DCERPC_FAULT_OP_RNG_ERROR) {
 			break;
 		}
 
-		if (NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED)) {
+		if (!NT_STATUS_IS_OK(status) && p->last_fault_code == 5) {
 			printf("\tpipe disconnected at %d\n", i);
 			goto done;
 		}
 
-		if (NT_STATUS_EQUAL(status, NT_STATUS_RPC_PROTOCOL_ERROR)) {
-			printf("\tprotocol error at %d\n", i);
+		if (!NT_STATUS_IS_OK(status) && p->last_fault_code == 0x80010111) {
+			printf("\terr 0x80010111 at %d\n", i);
+			goto done;
 		}
 	}
 
@@ -137,7 +132,7 @@ bool torture_rpc_scanner(struct torture_context *torture)
 			b->endpoint = talloc_strdup(b, l->table->name);
 		}
 
-		lpcfg_set_cmdline(torture->lp_ctx, "torture:binding", dcerpc_binding_string(torture, b));
+		lp_set_cmdline(torture->lp_ctx, "torture:binding", dcerpc_binding_string(torture, b));
 
 		status = torture_rpc_connection(torture, &p, &ndr_table_mgmt);
 		if (!NT_STATUS_IS_OK(status)) {
@@ -146,7 +141,7 @@ bool torture_rpc_scanner(struct torture_context *torture)
 			continue;
 		}
 	
-		if (!test_inq_if_ids(torture, p->binding_handle, torture, test_num_calls, l->table)) {
+		if (!test_inq_if_ids(torture, p, torture, test_num_calls, l->table)) {
 			ret = false;
 		}
 	}

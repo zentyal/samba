@@ -29,7 +29,7 @@
   check out of bounds for incoming data
 */
 static bool raw_trans_oob(struct smbcli_request *req,
-			  unsigned int offset, unsigned int count)
+			  uint_t offset, uint_t count)
 {
 	uint8_t *ptr;
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 # Trivial reimplementation of tdbdump in Python
 
 import tdb, sys

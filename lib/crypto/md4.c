@@ -17,7 +17,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "replace.h"
+#include "includes.h"
 #include "../lib/crypto/md4.h"
 
 /* NOTE: This code makes no attempt to be fast! 

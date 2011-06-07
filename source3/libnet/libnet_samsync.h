@@ -17,7 +17,6 @@
  *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "../librpc/gen_ndr/netlogon.h"
 
 enum net_samsync_mode {
 	NET_SAMSYNC_MODE_FETCH_PASSDB = 0,
@@ -75,7 +74,6 @@ struct samsync_context {
 	struct samsync_object *objects;
 
 	struct rpc_pipe_client *cli;
-	struct messaging_context *msg_ctx;
 
 	const struct samsync_ops *ops;
 
@@ -86,14 +84,3 @@ extern const struct samsync_ops libnet_samsync_ldif_ops;
 extern const struct samsync_ops libnet_samsync_keytab_ops;
 extern const struct samsync_ops libnet_samsync_display_ops;
 extern const struct samsync_ops libnet_samsync_passdb_ops;
-
-/* The following definitions come from libnet/libnet_samsync.c  */
-
-NTSTATUS libnet_samsync_init_context(TALLOC_CTX *mem_ctx,
-				     const struct dom_sid *domain_sid,
-				     struct samsync_context **ctx_p);
-NTSTATUS libnet_samsync(enum netr_SamDatabaseID database_id,
-			struct samsync_context *ctx);
-NTSTATUS pull_netr_AcctLockStr(TALLOC_CTX *mem_ctx,
-			       struct lsa_BinaryString *r,
-			       struct netr_AcctLockStr **str_p);

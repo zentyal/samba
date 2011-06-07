@@ -24,7 +24,7 @@
 #include "libcli/raw/interfaces.h"
 #include "param/share.h"
 #include "librpc/gen_ndr/security.h"
-#include "librpc/gen_ndr/server_id4.h"
+#include "librpc/gen_ndr/server_id.h"
 
 /* modules can use the following to determine if the interface has changed */
 /* version 1 -> 0 - make module stacking easier -- metze */
@@ -209,8 +209,9 @@ struct ntvfs_context {
 	} oplock;
 
 	struct {
-		const struct tsocket_address *local_address;
-		const struct tsocket_address *remote_address;
+		void *private_data;
+		struct socket_address *(*get_my_addr)(void *private_data, TALLOC_CTX *mem_ctx);
+		struct socket_address *(*get_peer_addr)(void *private_data, TALLOC_CTX *mem_ctx);
 	} client;
 
 	struct {
@@ -332,7 +333,7 @@ struct ntvfs_critical_sizes {
 
 struct messaging_context;
 #include "librpc/gen_ndr/security.h"
-#include "librpc/gen_ndr/s4_notify.h"
+#include "librpc/gen_ndr/notify.h"
 #include "ntvfs/ntvfs_proto.h"
 
 #endif /* _NTVFS_H_ */

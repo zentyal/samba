@@ -24,6 +24,7 @@
 #include "winbind/wb_server.h"
 #include "smbd/service_task.h"
 #include "winbind/wb_helper.h"
+#include "param/param.h"
 
 struct name2domain_state {
 	struct composite_context *ctx;

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 # Unix SMB/CIFS implementation.
@@ -18,8 +18,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-"""Tests for samba.dcerpc.sam."""
-
 from samba.dcerpc import samr, security
 from samba.tests import RpcInterfaceTestCase
 
@@ -34,7 +32,6 @@ def toArray((handle, array, num_entries)):
 class SamrTests(RpcInterfaceTestCase):
 
     def setUp(self):
-        super(SamrTests, self).setUp()
         self.conn = samr.samr("ncalrpc:", self.get_loadparm())
 
     def test_connect5(self):
@@ -42,7 +39,6 @@ class SamrTests(RpcInterfaceTestCase):
 
     def test_connect2(self):
         handle = self.conn.Connect2(None, security.SEC_FLAG_MAXIMUM_ALLOWED)
-        self.assertTrue(handle is not None)
 
     def test_EnumDomains(self):
         handle = self.conn.Connect2(None, security.SEC_FLAG_MAXIMUM_ALLOWED)

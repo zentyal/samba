@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 
 # Unix SMB/CIFS implementation.
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2007-2008
@@ -17,44 +17,26 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-"""Tests for samba.provision."""
-
 import os
-from samba.provision import setup_secretsdb, findnss, ProvisionPaths
+from samba.provision import setup_secretsdb, findnss
 import samba.tests
-from samba.tests import env_loadparm, TestCase
+from ldb import Dn
+from samba import param
+import unittest
 
-def create_dummy_secretsdb(path, lp=None):
-    """Create a dummy secrets database for use in tests.
+lp = samba.tests.cmdline_loadparm
 
-    :param path: Path to store the secrets db
-    :param lp: Optional loadparm context. A simple one will
-        be generated if not specified.
-    """
-    if lp is None:
-        lp = env_loadparm()
-    paths = ProvisionPaths()
-    paths.secrets = path
-    paths.private_dir = os.path.dirname(path)
-    paths.keytab = "no.keytab"
-    paths.dns_keytab = "no.dns.keytab"
-    secrets_ldb = setup_secretsdb(paths, None, None, lp=lp)
-    secrets_ldb.transaction_commit()
-    return secrets_ldb
+setup_dir = "setup"
+def setup_path(file):
+    return os.path.join(setup_dir, file)
 
 
 class ProvisionTestCase(samba.tests.TestCaseInTempDir):
     """Some simple tests for individual functions in the provisioning code.
     """
-
     def test_setup_secretsdb(self):
         path = os.path.join(self.tempdir, "secrets.ldb")
-        paths = ProvisionPaths()
-        paths.secrets = path
-        paths.private_dir = os.path.dirname(path)
-        paths.keytab = "no.keytab"
-        paths.dns_keytab = "no.dns.keytab"
-        ldb = setup_secretsdb(paths, None, None, lp=env_loadparm())
+        ldb = setup_secretsdb(path, setup_path, None, None, lp=lp)
         try:
             self.assertEquals("LSA Secrets",
                  ldb.searchone(basedn="CN=LSA Secrets", attribute="CN"))
@@ -63,9 +45,8 @@ class ProvisionTestCase(samba.tests.TestCaseInTempDir):
             os.unlink(path)
             
 
-class FindNssTests(TestCase):
+class FindNssTests(unittest.TestCase):
     """Test findnss() function."""
-
     def test_nothing(self):
         def x(y):
             raise KeyError
@@ -83,7 +64,6 @@ class FindNssTests(TestCase):
 
 
 class Disabled(object):
-
     def test_setup_templatesdb(self):
         raise NotImplementedError(self.test_setup_templatesdb)
 
@@ -113,5 +93,8 @@ class Disabled(object):
 
     def test_vampire(self):
         raise NotImplementedError(self.test_vampire)
+
+    def test_erase_partitions(self):
+        raise NotImplementedError(self.test_erase_partitions)
 
 

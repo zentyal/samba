@@ -41,11 +41,9 @@
 
 #ifndef ROKEN_LIB_FUNCTION
 #ifdef _WIN32
-#define ROKEN_LIB_FUNCTION
-#define ROKEN_LIB_CALL     __cdecl
+#define ROKEN_LIB_FUNCTION _stdcall
 #else
 #define ROKEN_LIB_FUNCTION
-#define ROKEN_LIB_CALL
 #endif
 #endif
 
@@ -54,28 +52,28 @@ struct units {
     unsigned mult;
 };
 
-ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
+int ROKEN_LIB_FUNCTION
 parse_units (const char *s, const struct units *units,
 	     const char *def_unit);
 
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 print_units_table (const struct units *units, FILE *f);
 
-ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
+int ROKEN_LIB_FUNCTION
 parse_flags (const char *s, const struct units *units,
 	     int orig);
 
-ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
+int ROKEN_LIB_FUNCTION
 unparse_units (int num, const struct units *units, char *s, size_t len);
 
-ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
+int ROKEN_LIB_FUNCTION
 unparse_units_approx (int num, const struct units *units, char *s,
 		      size_t len);
 
-ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
+int ROKEN_LIB_FUNCTION
 unparse_flags (int num, const struct units *units, char *s, size_t len);
 
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 print_flags_table (const struct units *units, FILE *f);
 
 #endif /* __PARSE_UNITS_H__ */

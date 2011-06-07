@@ -96,49 +96,19 @@ NTSTATUS torture_ldap_connection2(struct torture_context *tctx, struct ldap_conn
 /* close an ldap connection to a server */
 NTSTATUS torture_ldap_close(struct ldap_connection *conn)
 {
-	struct ldap_message *msg;
-	struct ldap_request *req;
-	NTSTATUS status;
-
-	printf("Testing the most important error code -> error message conversions!\n");
-
-	msg = new_ldap_message(conn);
-	if (!msg) {
-		talloc_free(conn);
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	printf(" Try a AbandonRequest for an old message id\n");
-
-	msg->type = LDAP_TAG_UnbindRequest;
-
-	req = ldap_request_send(conn, msg);
-	if (!req) {
-		talloc_free(conn);
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	status = ldap_request_wait(req);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf("error in ldap unbind request - %s\n", nt_errstr(status));
-		talloc_free(conn);
-		return status;
-	}
-
 	talloc_free(conn);
 	return NT_STATUS_OK;
 }
 
 NTSTATUS torture_ldap_init(void)
 {
-	struct torture_suite *suite = torture_suite_create(talloc_autofree_context(), "ldap");
-	torture_suite_add_simple_test(suite, "bench-cldap", torture_bench_cldap);
-	torture_suite_add_simple_test(suite, "basic", torture_ldap_basic);
-	torture_suite_add_simple_test(suite, "sort", torture_ldap_sort);
-	torture_suite_add_simple_test(suite, "cldap", torture_cldap);
-	torture_suite_add_simple_test(suite, "schema", torture_ldap_schema);
-	torture_suite_add_simple_test(suite, "uptodatevector", torture_ldap_uptodatevector);
-	torture_suite_add_simple_test(suite, "nested-search", test_ldap_nested_search);
+	struct torture_suite *suite = torture_suite_create(talloc_autofree_context(), "LDAP");
+	torture_suite_add_simple_test(suite, "BENCH-CLDAP", torture_bench_cldap);
+	torture_suite_add_simple_test(suite, "BASIC", torture_ldap_basic);
+	torture_suite_add_simple_test(suite, "SORT", torture_ldap_sort);
+	torture_suite_add_simple_test(suite, "CLDAP", torture_cldap);
+	torture_suite_add_simple_test(suite, "SCHEMA", torture_ldap_schema);
+	torture_suite_add_simple_test(suite, "UPTODATEVECTOR", torture_ldap_uptodatevector);
 
 	suite->description = talloc_strdup(suite, "LDAP and CLDAP tests");
 

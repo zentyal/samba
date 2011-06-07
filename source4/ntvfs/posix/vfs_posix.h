@@ -40,7 +40,7 @@ struct pvfs_state {
 	struct GUID *base_fs_uuid;
 
 	const char *share_name;
-	unsigned int flags;
+	uint_t flags;
 
 	struct pvfs_mangle_context *mangle_ctx;
 
@@ -54,13 +54,13 @@ struct pvfs_state {
 	struct pvfs_wait *wait_list;
 
 	/* the sharing violation timeout (nsecs) */
-	unsigned int sharing_violation_delay;
+	uint_t sharing_violation_delay;
 
 	/* the oplock break timeout (secs) */
-	unsigned int oplock_break_timeout;
+	uint_t oplock_break_timeout;
 
 	/* the write time update delay (nsecs) */
-	unsigned int writetime_delay;
+	uint_t writetime_delay;
 
 	/* filesystem attributes (see FS_ATTR_*) */
 	uint32_t fs_attribs;
@@ -84,7 +84,7 @@ struct pvfs_state {
 		struct pvfs_search_state *list;
 
 		/* how long to keep inactive searches around for */
-		unsigned int inactivity_time;
+		uint_t inactivity_time;
 	} search;
 
 	/* used to accelerate acl mapping */
@@ -124,9 +124,9 @@ struct pvfs_dos_fileinfo {
   a filename passed by the client to any function
 */
 struct pvfs_filename {
-	char *original_name;
+	const char *original_name;
 	char *full_name;
-	char *stream_name; /* does not include :$DATA suffix */
+	const char *stream_name; /* does not include :$DATA suffix */
 	uint32_t stream_id;      /* this uses a hash, so is probabilistic */
 	bool has_wildcard;
 	bool exists;          /* true if the base filename exists */
@@ -182,8 +182,6 @@ struct pvfs_file_handle {
 
 	/* the open went through to completion */
 	bool open_completed;
-
-	uint8_t private_flags;
 };
 
 /* open file state */
@@ -224,8 +222,8 @@ struct pvfs_search_state {
 	uint16_t search_attrib;
 	uint16_t must_attrib;
 	struct pvfs_dir *dir;
-	time_t last_used; /* monotonic clock time */
-	unsigned int num_ea_names;
+	time_t last_used;
+	uint_t num_ea_names;
 	struct ea_name *ea_names;
 	struct tevent_timer *te;
 };
@@ -246,7 +244,6 @@ struct pvfs_search_state {
 #define PVFS_FLAG_XATTR_ENABLE   (1<<7)
 #define PVFS_FLAG_FAKE_OPLOCKS   (1<<8)
 #define PVFS_FLAG_LINUX_AIO      (1<<9)
-#define PVFS_FLAG_PERM_OVERRIDE  (1<<10)
 
 /* forward declare some anonymous structures */
 struct pvfs_dir;
@@ -269,7 +266,6 @@ struct pvfs_odb_retry;
 #define PVFS_SEARCH_INACTIVITY		"posix:searchinactivity"
 #define PVFS_ACL			"posix:acl"
 #define PVFS_AIO			"posix:aio"
-#define PVFS_PERM_OVERRIDE		"posix:permission override"
 
 #define PVFS_XATTR_DEFAULT			true
 #define PVFS_FAKE_OPLOCKS_DEFAULT		false

@@ -19,7 +19,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "replace.h"
+#include "includes.h"
 #include "../lib/crypto/arcfour.h"
 
 /* initialise the arcfour sbox with key */

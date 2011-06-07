@@ -6,7 +6,6 @@
 #ifndef _HEADER_NDR_libnetjoin
 #define _HEADER_NDR_libnetjoin
 
-#include "ads.h"
 #define NDR_LIBNETJOIN_CALL_COUNT (0)
 enum ndr_err_code ndr_push_libnet_JoinCtx(struct ndr_push *ndr, int flags, const struct libnet_JoinCtx *r);
 enum ndr_err_code ndr_pull_libnet_JoinCtx(struct ndr_pull *ndr, int flags, struct libnet_JoinCtx *r);

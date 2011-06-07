@@ -19,8 +19,7 @@
 
 #include "includes.h"
 #include "winbindd.h"
-#include "librpc/gen_ndr/ndr_wbint_c.h"
-#include "../libcli/security/security.h"
+#include "librpc/gen_ndr/cli_wbint.h"
 
 struct wb_lookupusergroups_state {
 	struct tevent_context *ev;
@@ -45,8 +44,8 @@ struct tevent_req *wb_lookupusergroups_send(TALLOC_CTX *mem_ctx,
 	}
 	sid_copy(&state->sid, sid);
 
-	subreq = dcerpc_wbint_LookupUserGroups_send(
-		state, ev, dom_child_handle(domain), &state->sid, &state->sids);
+	subreq = rpccli_wbint_LookupUserGroups_send(
+		state, ev, domain->child.rpccli, &state->sid, &state->sids);
 	if (tevent_req_nomem(subreq, req)) {
 		return tevent_req_post(req, ev);
 	}
@@ -62,10 +61,14 @@ static void wb_lookupusergroups_done(struct tevent_req *subreq)
 		req, struct wb_lookupusergroups_state);
 	NTSTATUS status, result;
 
-	status = dcerpc_wbint_LookupUserGroups_recv(subreq, state, &result);
+	status = rpccli_wbint_LookupUserGroups_recv(subreq, state, &result);
 	TALLOC_FREE(subreq);
-	if (any_nt_status_not_ok(status, result, &status)) {
+	if (!NT_STATUS_IS_OK(status)) {
 		tevent_req_nterror(req, status);
+		return;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		tevent_req_nterror(req, result);
 		return;
 	}
 	tevent_req_done(req);

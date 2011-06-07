@@ -25,8 +25,6 @@
 #define OID_KERBEROS5_OLD "1.2.840.48018.1.2.2"
 #define OID_KERBEROS5 "1.2.840.113554.1.2.2"
 
-#define ADS_IGNORE_PRINCIPAL "not_defined_in_RFC4178@please_ignore"
-
 #define SPNEGO_DELEG_FLAG    0x01
 #define SPNEGO_MUTUAL_FLAG   0x02
 #define SPNEGO_REPLAY_FLAG   0x04
@@ -34,12 +32,6 @@
 #define SPNEGO_ANON_FLAG     0x10
 #define SPNEGO_CONF_FLAG     0x20
 #define SPNEGO_INTEG_FLAG    0x40
-
-#define TOK_ID_KRB_AP_REQ	((const uint8_t *)"\x01\x00")
-#define TOK_ID_KRB_AP_REP	((const uint8_t *)"\x02\x00")
-#define TOK_ID_KRB_ERROR	((const uint8_t *)"\x03\x00")
-#define TOK_ID_GSS_GETMIC	((const uint8_t *)"\x01\x01")
-#define TOK_ID_GSS_WRAP		((const uint8_t *)"\x02\x01")
 
 enum spnego_negResult {
 	SPNEGO_ACCEPT_COMPLETED = 0,

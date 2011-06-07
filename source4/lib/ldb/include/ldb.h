@@ -47,10 +47,9 @@
 /*! \endcond */
 
 #include <stdbool.h>
-#include <talloc.h>
-#include <tevent.h>
-#include <ldb_version.h>
-#include <ldb_errors.h>
+#include "talloc.h"
+#include "tevent.h"
+#include "ldb_errors.h"
 
 /*
   major restrictions as compared to normal LDAP:
@@ -87,14 +86,6 @@ struct ldb_val {
 #ifndef PRINTF_ATTRIBUTE
 #define PRINTF_ATTRIBUTE(a,b)
 #endif
-
-#ifndef _DEPRECATED_
-#if (__GNUC__ >= 3) && (__GNUC_MINOR__ >= 1 )
-#define _DEPRECATED_ __attribute__ ((deprecated))
-#else
-#define _DEPRECATED_
-#endif
-#endif
 /*! \endcond */
 
 /* opaque ldb_dn structures, see ldb_dn.c for internals */
@@ -109,11 +100,6 @@ struct ldb_dn;
  deleted or modified respectively.
 */
 #define LDB_FLAG_MOD_MASK  0x3
-
-/**
-  use this to extract the mod type from the operation
- */
-#define LDB_FLAG_MOD_TYPE(flags) ((flags) & LDB_FLAG_MOD_MASK)
 
 /**
    Flag value used in ldap_modify() to indicate that attributes are
@@ -138,11 +124,6 @@ struct ldb_dn;
    \sa LDB_FLAG_MOD_MASK
 */
 #define LDB_FLAG_MOD_DELETE  3
-
-/**
-    flag bits on an element usable only by the internal implementation
-*/
-#define LDB_FLAG_INTERNAL_MASK 0xFFFFFFF0
 
 /**
   OID for logic AND comaprison.
@@ -315,7 +296,7 @@ struct ldb_parse_tree {
 };
 
 struct ldb_parse_tree *ldb_parse_tree(TALLOC_CTX *mem_ctx, const char *s);
-char *ldb_filter_from_tree(TALLOC_CTX *mem_ctx, const struct ldb_parse_tree *tree);
+char *ldb_filter_from_tree(TALLOC_CTX *mem_ctx, struct ldb_parse_tree *tree);
 
 /**
    Encode a binary blob
@@ -354,10 +335,6 @@ char *ldb_binary_encode_string(TALLOC_CTX *mem_ctx, const char *string);
 */
 typedef int (*ldb_attr_handler_t)(struct ldb_context *, TALLOC_CTX *mem_ctx, const struct ldb_val *, struct ldb_val *);
 typedef int (*ldb_attr_comparison_t)(struct ldb_context *, TALLOC_CTX *mem_ctx, const struct ldb_val *, const struct ldb_val *);
-struct ldb_schema_attribute;
-typedef int (*ldb_attr_operator_t)(struct ldb_context *, enum ldb_parse_op operation,
-				   const struct ldb_schema_attribute *a,
-				   const struct ldb_val *, const struct ldb_val *, bool *matched);
 
 /*
   attribute handler structure
@@ -375,7 +352,6 @@ struct ldb_schema_syntax {
 	ldb_attr_handler_t ldif_write_fn;
 	ldb_attr_handler_t canonicalise_fn;
 	ldb_attr_comparison_t comparison_fn;
-	ldb_attr_operator_t operator_fn;
 };
 
 struct ldb_schema_attribute {
@@ -480,49 +456,6 @@ const struct ldb_dn_extended_syntax *ldb_dn_extended_syntax_by_name(struct ldb_c
 /* sorting helpers */
 typedef int (*ldb_qsort_cmp_fn_t) (void *v1, void *v2, void *opaque);
 
-/* Individual controls */
-
-/**
-  OID for getting and manipulating attributes from the ldb
-  without interception in the operational module.
-  It can be used to access attribute that used to be stored in the sam 
-  and that are now calculated.
-*/
-#define LDB_CONTROL_BYPASS_OPERATIONAL_OID "1.3.6.1.4.1.7165.4.3.13"
-#define LDB_CONTROL_BYPASS_OPERATIONAL_NAME "bypassoperational"
-
-/**
-  OID for recalculate SD control. This control force the
-  dsdb code to recalculate the SD of the object as if the
-  object was just created.
-
-*/
-#define LDB_CONTROL_RECALCULATE_SD_OID "1.3.6.1.4.1.7165.4.3.5"
-#define LDB_CONTROL_RECALCULATE_SD_NAME "recalculate_sd"
-
-/**
-   REVEAL_INTERNALS is used to reveal internal attributes and DN
-   components which are not normally shown to the user
-*/
-#define LDB_CONTROL_REVEAL_INTERNALS "1.3.6.1.4.1.7165.4.3.6"
-#define LDB_CONTROL_REVEAL_INTERNALS_NAME	"reveal_internals"
-
-/**
-   LDB_CONTROL_AS_SYSTEM is used to skip access checks on operations
-   that are performed by the system, but with a user's credentials, e.g.
-   updating prefix map
-*/
-#define LDB_CONTROL_AS_SYSTEM_OID "1.3.6.1.4.1.7165.4.3.7"
-
-/**
-   LDB_CONTROL_PROVISION_OID is used to skip some constraint checks. It's is
-   mainly thought to be used for the provisioning.
-*/
-#define LDB_CONTROL_PROVISION_OID "1.3.6.1.4.1.7165.4.3.16"
-#define LDB_CONTROL_PROVISION_NAME	"provision"
-
-/* AD controls */
-
 /**
    OID for the paged results control. This control is included in the
    searchRequest and searchResultDone messages as part of the controls
@@ -532,7 +465,6 @@ typedef int (*ldb_qsort_cmp_fn_t) (void *v1, void *v2, void *opaque);
    \sa <a href="http://www.ietf.org/rfc/rfc2696.txt">RFC 2696</a>.
 */
 #define LDB_CONTROL_PAGED_RESULTS_OID	"1.2.840.113556.1.4.319"
-#define LDB_CONTROL_PAGED_RESULTS_NAME	"paged_result"
 
 /**
    OID for specifying the returned elements of the ntSecurityDescriptor
@@ -540,7 +472,6 @@ typedef int (*ldb_qsort_cmp_fn_t) (void *v1, void *v2, void *opaque);
    \sa <a href="http://msdn.microsoft.com/library/default.asp?url=/library/en-us/ldap/ldap/ldap_server_sd_flags_oid.asp">Microsoft documentation of this OID</a>
 */
 #define LDB_CONTROL_SD_FLAGS_OID	"1.2.840.113556.1.4.801"
-#define LDB_CONTROL_SD_FLAGS_NAME	"sd_flags"
 
 /**
    OID for specifying an advanced scope for the search (one partition)
@@ -548,7 +479,6 @@ typedef int (*ldb_qsort_cmp_fn_t) (void *v1, void *v2, void *opaque);
    \sa <a href="http://msdn.microsoft.com/library/default.asp?url=/library/en-us/ldap/ldap/ldap_server_domain_scope_oid.asp">Microsoft documentation of this OID</a>
 */
 #define LDB_CONTROL_DOMAIN_SCOPE_OID	"1.2.840.113556.1.4.1339"
-#define LDB_CONTROL_DOMAIN_SCOPE_NAME	"domain_scope"
 
 /**
    OID for specifying an advanced scope for a search
@@ -556,7 +486,6 @@ typedef int (*ldb_qsort_cmp_fn_t) (void *v1, void *v2, void *opaque);
    \sa <a href="http://msdn.microsoft.com/library/default.asp?url=/library/en-us/ldap/ldap/ldap_server_search_options_oid.asp">Microsoft documentation of this OID</a>
 */
 #define LDB_CONTROL_SEARCH_OPTIONS_OID	"1.2.840.113556.1.4.1340"
-#define LDB_CONTROL_SEARCH_OPTIONS_NAME	"search_options"
 
 /**
    OID for notification
@@ -564,15 +493,6 @@ typedef int (*ldb_qsort_cmp_fn_t) (void *v1, void *v2, void *opaque);
    \sa <a href="http://msdn.microsoft.com/library/default.asp?url=/library/en-us/ldap/ldap/ldap_server_notification_oid.asp">Microsoft documentation of this OID</a>
 */
 #define LDB_CONTROL_NOTIFICATION_OID	"1.2.840.113556.1.4.528"
-#define LDB_CONTROL_NOTIFICATION_NAME	"notification"
-
-/**
-   OID for performing subtree deletes
-
-   \sa <a href="http://msdn.microsoft.com/en-us/library/aa366991(v=VS.85).aspx">Microsoft documentation of this OID</a>
-*/
-#define LDB_CONTROL_TREE_DELETE_OID	"1.2.840.113556.1.4.805"
-#define LDB_CONTROL_TREE_DELETE_NAME	"tree_delete"
 
 /**
    OID for getting deleted objects
@@ -580,7 +500,6 @@ typedef int (*ldb_qsort_cmp_fn_t) (void *v1, void *v2, void *opaque);
    \sa <a href="http://msdn.microsoft.com/library/default.asp?url=/library/en-us/ldap/ldap/ldap_server_show_deleted_oid.asp">Microsoft documentation of this OID</a>
 */
 #define LDB_CONTROL_SHOW_DELETED_OID	"1.2.840.113556.1.4.417"
-#define LDB_CONTROL_SHOW_DELETED_NAME	"show_deleted"
 
 /**
    OID for getting recycled objects
@@ -588,7 +507,6 @@ typedef int (*ldb_qsort_cmp_fn_t) (void *v1, void *v2, void *opaque);
    \sa <a href="http://msdn.microsoft.com/en-us/library/dd304621(PROT.13).aspx">Microsoft documentation of this OID</a>
 */
 #define LDB_CONTROL_SHOW_RECYCLED_OID         "1.2.840.113556.1.4.2064"
-#define LDB_CONTROL_SHOW_RECYCLED_NAME	"show_recycled"
 
 /**
    OID for getting deactivated linked attributes
@@ -596,7 +514,6 @@ typedef int (*ldb_qsort_cmp_fn_t) (void *v1, void *v2, void *opaque);
    \sa <a href="http://msdn.microsoft.com/en-us/library/dd302781(PROT.13).aspx">Microsoft documentation of this OID</a>
 */
 #define LDB_CONTROL_SHOW_DEACTIVATED_LINK_OID "1.2.840.113556.1.4.2065"
-#define LDB_CONTROL_SHOW_DEACTIVATED_LINK_NAME	"show_deactivated_link"
 
 /**
    OID for extended DN
@@ -604,7 +521,6 @@ typedef int (*ldb_qsort_cmp_fn_t) (void *v1, void *v2, void *opaque);
    \sa <a href="http://msdn.microsoft.com/library/default.asp?url=/library/en-us/ldap/ldap/ldap_server_extended_dn_oid.asp">Microsoft documentation of this OID</a>
 */
 #define LDB_CONTROL_EXTENDED_DN_OID	"1.2.840.113556.1.4.529"
-#define LDB_CONTROL_EXTENDED_DN_NAME	"extended_dn"
 
 /**
    OID for LDAP server sort result extension.
@@ -619,7 +535,6 @@ typedef int (*ldb_qsort_cmp_fn_t) (void *v1, void *v2, void *opaque);
    \sa <a href="http://www.ietf.org/rfc/rfc2891.txt">RFC 2891</a>.
 */
 #define LDB_CONTROL_SERVER_SORT_OID	"1.2.840.113556.1.4.473"
-#define LDB_CONTROL_SERVER_SORT_NAME	"server_sort"
 
 /**
    OID for LDAP server sort result response extension.
@@ -631,7 +546,6 @@ typedef int (*ldb_qsort_cmp_fn_t) (void *v1, void *v2, void *opaque);
    \sa <a href="http://www.ietf.org/rfc/rfc2891.txt">RFC 2891</a>.
 */
 #define LDB_CONTROL_SORT_RESP_OID	"1.2.840.113556.1.4.474"
-#define LDB_CONTROL_SORT_RESP_NAME	"server_sort_resp"
 
 /**
    OID for LDAP Attribute Scoped Query extension.
@@ -640,7 +554,6 @@ typedef int (*ldb_qsort_cmp_fn_t) (void *v1, void *v2, void *opaque);
    messages as part of the controls field of the LDAPMessage.
 */
 #define LDB_CONTROL_ASQ_OID		"1.2.840.113556.1.4.1504"
-#define LDB_CONTROL_ASQ_NAME	"asq"
 
 /**
    OID for LDAP Directory Sync extension. 
@@ -649,7 +562,6 @@ typedef int (*ldb_qsort_cmp_fn_t) (void *v1, void *v2, void *opaque);
    messages as part of the controls field of the LDAPMessage.
 */
 #define LDB_CONTROL_DIRSYNC_OID		"1.2.840.113556.1.4.841"
-#define LDB_CONTROL_DIRSYNC_NAME	"dirsync"
 
 
 /**
@@ -659,7 +571,6 @@ typedef int (*ldb_qsort_cmp_fn_t) (void *v1, void *v2, void *opaque);
    as part of the controls field of the LDAPMessage.
 */
 #define LDB_CONTROL_VLV_REQ_OID		"2.16.840.1.113730.3.4.9"
-#define LDB_CONTROL_VLV_REQ_NAME	"vlv"
 
 /**
    OID for LDAP Virtual List View Response extension.
@@ -668,7 +579,6 @@ typedef int (*ldb_qsort_cmp_fn_t) (void *v1, void *v2, void *opaque);
    as part of the controls field of the LDAPMessage.
 */
 #define LDB_CONTROL_VLV_RESP_OID	"2.16.840.1.113730.3.4.10"
-#define LDB_CONTROL_VLV_RESP_NAME	"vlv_resp"
 
 /**
    OID to let modifies don't give an error when adding an existing
@@ -677,78 +587,22 @@ typedef int (*ldb_qsort_cmp_fn_t) (void *v1, void *v2, void *opaque);
    \sa <a href="http://msdn.microsoft.com/library/default.asp?url=/library/en-us/ldap/ldap/ldap_server_permissive_modify_oid.asp">Microsoft documentation of this OID</a>
 */
 #define LDB_CONTROL_PERMISSIVE_MODIFY_OID	"1.2.840.113556.1.4.1413"
-#define LDB_CONTROL_PERMISSIVE_MODIFY_NAME	"permissive_modify"
-
-/** 
-    OID to allow the server to be more 'fast and loose' with the data being added.  
-
-    \sa <a href="http://msdn.microsoft.com/en-us/library/aa366982(v=VS.85).aspx">Microsoft documentation of this OID</a>
-*/
-#define LDB_CONTROL_SERVER_LAZY_COMMIT   "1.2.840.113556.1.4.619"
-
-/**
-   Control for RODC join -see [MS-ADTS] section 3.1.1.3.4.1.23
-
-   \sa <a href="">Microsoft documentation of this OID</a>
-*/
-#define LDB_CONTROL_RODC_DCPROMO_OID "1.2.840.113556.1.4.1341"
-#define LDB_CONTROL_RODC_DCPROMO_NAME	"rodc_join"
-
-/* Other standardised controls */
-
-/**
-   OID for the allowing client to request temporary relaxed
-   enforcement of constraints of the x.500 model.
-
-   Mainly used for the OpenLDAP backend.
-
-   \sa <a href="http://opends.dev.java.net/public/standards/draft-zeilenga-ldap-managedit.txt">draft managedit</a>.
-*/
-#define LDB_CONTROL_RELAX_OID "1.3.6.1.4.1.4203.666.5.12"
-#define LDB_CONTROL_RELAX_NAME	"relax"
-
-/* Extended operations */
-
-/**
-   OID for LDAP Extended Operation SEQUENCE_NUMBER
-
-   This extended operation is used to retrieve the extended sequence number.
-*/
-#define LDB_EXTENDED_SEQUENCE_NUMBER	"1.3.6.1.4.1.7165.4.4.3"
-
-/**
-   OID for LDAP Extended Operation PASSWORD_CHANGE.
-
-   This Extended operation is used to allow user password changes by the user
-   itself.
-*/
-#define LDB_EXTENDED_PASSWORD_CHANGE_OID	"1.3.6.1.4.1.4203.1.11.1"
-
-
-/**
-   OID for LDAP Extended Operation FAST_BIND
-
-   This Extended operations is used to perform a fast bind.
-*/
-#define LDB_EXTENDED_FAST_BIND_OID	"1.2.840.113556.1.4.1781"
 
 /**
    OID for LDAP Extended Operation START_TLS.
 
-   This Extended operation is used to start a new TLS channel on top of a clear
-   text channel.
+   This Extended operation is used to start a new TLS
+   channel on top of a clear text channel.
 */
 #define LDB_EXTENDED_START_TLS_OID	"1.3.6.1.4.1.1466.20037"
 
 /**
-   OID for LDAP Extended Operation DYNAMIC_REFRESH.
-
-   This Extended operation is used to create and maintain objects which exist
-   only a specific time, e.g. when a certain client or a certain person is
-   logged in. Data refreshes have to be periodically sent in a specific
-   interval. Otherwise the entry is going to be removed.
 */
 #define LDB_EXTENDED_DYNAMIC_OID	"1.3.6.1.4.1.1466.101.119.1"
+
+/**
+*/
+#define LDB_EXTENDED_FAST_BIND_OID	"1.2.840.113556.1.4.1781"
 
 struct ldb_sd_flags_control {
 	/*
@@ -880,6 +734,8 @@ struct ldb_extended {
 	const char *oid;
 	void *data; /* NULL or a valid talloc pointer! talloc_get_type() will be used on it */
 };
+
+#define LDB_EXTENDED_SEQUENCE_NUMBER	"1.3.6.1.4.1.7165.4.4.3"
 
 enum ldb_sequence_type {
 	LDB_SEQ_HIGHEST_SEQ,
@@ -1107,7 +963,6 @@ int ldb_search_default_callback(struct ldb_request *req, struct ldb_reply *ares)
 */
 int ldb_op_default_callback(struct ldb_request *req, struct ldb_reply *ares);
 
-int ldb_modify_default_callback(struct ldb_request *req, struct ldb_reply *ares);
 
 /**
   Helper function to build a search request
@@ -1260,18 +1115,6 @@ int ldb_build_rename_req(struct ldb_request **ret_req,
   \return result code (LDB_SUCCESS on success, or a failure code)
 */
 int ldb_request_add_control(struct ldb_request *req, const char *oid, bool critical, void *data);
-
-/**
-  replace a ldb_control in a ldb_request
-
-  \param req the request struct where to add the control
-  \param oid the object identifier of the control as string
-  \param critical whether the control should be critical or not
-  \param data a talloc pointer to the control specific data
-
-  \return result code (LDB_SUCCESS on success, or a failure code)
-*/
-int ldb_request_replace_control(struct ldb_request *req, const char *oid, bool critical, void *data);
 
 /**
    check if a control with the specified "oid" exist and return it 
@@ -1464,12 +1307,6 @@ int ldb_transaction_commit(struct ldb_context *ldb);
   cancel a transaction
 */
 int ldb_transaction_cancel(struct ldb_context *ldb);
-
-/*
-  cancel a transaction with no error if no transaction is pending
-  used when we fork() to clear any parent transactions
-*/
-int ldb_transaction_cancel_noerr(struct ldb_context *ldb);
 
 
 /**
@@ -1713,10 +1550,10 @@ char *ldb_dn_alloc_linearized(TALLOC_CTX *mem_ctx, struct ldb_dn *dn);
   \param dn The DN to linearize
   \param mode Style of extended DN to return (0 is HEX representation of binary form, 1 is a string form)
 */
-char *ldb_dn_get_extended_linearized(TALLOC_CTX *mem_ctx, struct ldb_dn *dn, int mode);
+char *ldb_dn_get_extended_linearized(void *mem_ctx, struct ldb_dn *dn, int mode);
 const struct ldb_val *ldb_dn_get_extended_component(struct ldb_dn *dn, const char *name);
 int ldb_dn_set_extended_component(struct ldb_dn *dn, const char *name, const struct ldb_val *val);
-void ldb_dn_extended_filter(struct ldb_dn *dn, const char * const *accept_list);
+
 void ldb_dn_remove_extended_components(struct ldb_dn *dn);
 bool ldb_dn_has_extended(struct ldb_dn *dn);
 
@@ -1753,7 +1590,7 @@ struct ldb_dn *ldb_dn_new_fmt(TALLOC_CTX *mem_ctx, struct ldb_context *ldb, cons
   \note The DN will not be parsed at this time.  Use ldb_dn_validate to tell if the DN is syntacticly correct
 */
 
-struct ldb_dn *ldb_dn_from_ldb_val(TALLOC_CTX *mem_ctx, struct ldb_context *ldb, const struct ldb_val *strdn);
+struct ldb_dn *ldb_dn_from_ldb_val(void *mem_ctx, struct ldb_context *ldb, const struct ldb_val *strdn);
 
 /**
   Determine if this DN is syntactically valid 
@@ -1782,7 +1619,6 @@ struct ldb_dn *ldb_dn_get_parent(TALLOC_CTX *mem_ctx, struct ldb_dn *dn);
 char *ldb_dn_canonical_string(TALLOC_CTX *mem_ctx, struct ldb_dn *dn);
 char *ldb_dn_canonical_ex_string(TALLOC_CTX *mem_ctx, struct ldb_dn *dn);
 int ldb_dn_get_comp_num(struct ldb_dn *dn);
-int ldb_dn_get_extended_comp_num(struct ldb_dn *dn);
 const char *ldb_dn_get_component_name(struct ldb_dn *dn, unsigned int num);
 const struct ldb_val *ldb_dn_get_component_val(struct ldb_dn *dn, unsigned int num);
 const char *ldb_dn_get_rdn_name(struct ldb_dn *dn);
@@ -1793,7 +1629,6 @@ bool ldb_dn_is_valid(struct ldb_dn *dn);
 bool ldb_dn_is_special(struct ldb_dn *dn);
 bool ldb_dn_check_special(struct ldb_dn *dn, const char *check);
 bool ldb_dn_is_null(struct ldb_dn *dn);
-int ldb_dn_update_components(struct ldb_dn *dn, const struct ldb_dn *ref_dn);
 
 
 /**
@@ -1877,8 +1712,6 @@ int ldb_msg_add_steal_string(struct ldb_message *msg,
 			     const char *attr_name, char *str);
 int ldb_msg_add_string(struct ldb_message *msg, 
 		       const char *attr_name, const char *str);
-int ldb_msg_add_linearized_dn(struct ldb_message *msg, const char *attr_name,
-			      struct ldb_dn *dn);
 int ldb_msg_add_fmt(struct ldb_message *msg, 
 		    const char *attr_name, const char *fmt, ...) PRINTF_ATTRIBUTE(3,4);
 
@@ -1932,66 +1765,14 @@ struct ldb_message *ldb_msg_copy_shallow(TALLOC_CTX *mem_ctx,
 struct ldb_message *ldb_msg_copy(TALLOC_CTX *mem_ctx, 
 				 const struct ldb_message *msg);
 
-/*
- * ldb_msg_canonicalize() is now depreciated
- * Please use ldb_msg_normalize() instead
- *
- * NOTE: Returned ldb_message object is allocated
- * into *ldb's context. Callers are recommended
- * to steal the returned object into a TALLOC_CTX
- * with short lifetime.
- */
 struct ldb_message *ldb_msg_canonicalize(struct ldb_context *ldb, 
-					 const struct ldb_message *msg) _DEPRECATED_;
-
-int ldb_msg_normalize(struct ldb_context *ldb,
-		      TALLOC_CTX *mem_ctx,
-		      const struct ldb_message *msg,
-		      struct ldb_message **_msg_out);
+					 const struct ldb_message *msg);
 
 
-/*
- * ldb_msg_diff() is now depreciated
- * Please use ldb_msg_difference() instead
- *
- * NOTE: Returned ldb_message object is allocated
- * into *ldb's context. Callers are recommended
- * to steal the returned object into a TALLOC_CTX
- * with short lifetime.
- */
 struct ldb_message *ldb_msg_diff(struct ldb_context *ldb, 
 				 struct ldb_message *msg1,
-				 struct ldb_message *msg2) _DEPRECATED_;
+				 struct ldb_message *msg2);
 
-/**
- * return a ldb_message representing the differences between msg1 and msg2.
- * If you then use this in a ldb_modify() call,
- * it can be used to save edits to a message
- *
- * Result message is constructed as follows:
- * - LDB_FLAG_MOD_ADD     - elements found only in msg2
- * - LDB_FLAG_MOD_REPLACE - elements in msg2 that have
- * 			    different value in msg1
- *                          Value for msg2 element is used
- * - LDB_FLAG_MOD_DELETE  - elements found only in msg2
- *
- * @return LDB_SUCCESS or LDB_ERR_OPERATIONS_ERROR
- */
-int ldb_msg_difference(struct ldb_context *ldb,
-		       TALLOC_CTX *mem_ctx,
-		       struct ldb_message *msg1,
-		       struct ldb_message *msg2,
-		       struct ldb_message **_msg_out);
-
-/**
-   Tries to find a certain string attribute in a message
-
-   \param msg the message to check
-   \param name attribute name
-   \param value attribute value
-
-   \return 1 on match and 0 otherwise.
-*/
 int ldb_msg_check_string_attribute(const struct ldb_message *msg,
 				   const char *name,
 				   const char *value);
@@ -2098,12 +1879,6 @@ char *ldb_timestring(TALLOC_CTX *mem_ctx, time_t t);
 time_t ldb_string_to_time(const char *s);
 
 /**
-  convert a LDAP GeneralizedTime string in ldb_val format to a
-  time_t.
-*/
-int ldb_val_to_time(const struct ldb_val *v, time_t *t);
-
-/**
    Convert a time structure to a string
 
    This function converts a time_t structure to an LDAP formatted
@@ -2132,55 +1907,7 @@ time_t ldb_string_utc_to_time(const char *s);
 
 void ldb_qsort (void *const pbase, size_t total_elems, size_t size, void *opaque, ldb_qsort_cmp_fn_t cmp);
 
-#ifndef discard_const
-#define discard_const(ptr) ((void *)((uintptr_t)(ptr)))
-#endif
 
-/*
-  a wrapper around ldb_qsort() that ensures the comparison function is
-  type safe. This will produce a compilation warning if the types
-  don't match
- */
-#define LDB_TYPESAFE_QSORT(base, numel, opaque, comparison)	\
-do { \
-	if (numel > 1) { \
-		ldb_qsort(base, numel, sizeof((base)[0]), discard_const(opaque), (ldb_qsort_cmp_fn_t)comparison); \
-		comparison(&((base)[0]), &((base)[1]), opaque);		\
-	} \
-} while (0)
-
-/* allow ldb to also call TYPESAFE_QSORT() */
-#ifndef TYPESAFE_QSORT
-#define TYPESAFE_QSORT(base, numel, comparison) \
-do { \
-	if (numel > 1) { \
-		qsort(base, numel, sizeof((base)[0]), (int (*)(const void *, const void *))comparison); \
-		comparison(&((base)[0]), &((base)[1])); \
-	} \
-} while (0)
-#endif
-
-
-
-/**
-   Convert a control into its string representation.
-   
-   \param mem_ctx TALLOC context to return result on, and to allocate error_string on
-   \param control A struct ldb_control to convert
-
-   \return string representation of the control 
-*/
-char* ldb_control_to_string(TALLOC_CTX *mem_ctx, const struct ldb_control *control);
-/**
-   Convert a string representing a control into a ldb_control structure 
-   
-   \param ldb LDB context
-   \param mem_ctx TALLOC context to return result on, and to allocate error_string on
-   \param control_strings A string-formatted control
-
-   \return a ldb_control element
-*/
-struct ldb_control *ldb_parse_control_from_string(struct ldb_context *ldb, TALLOC_CTX *mem_ctx, const char *control_strings);
 /**
    Convert an array of string represention of a control into an array of ldb_control structures 
    
@@ -2200,29 +1927,5 @@ unsigned int ldb_get_flags(struct ldb_context *ldb);
 /* set the ldb flags */
 void ldb_set_flags(struct ldb_context *ldb, unsigned flags);
 
-
-struct ldb_dn *ldb_dn_binary_from_ldb_val(TALLOC_CTX *mem_ctx,
-					  struct ldb_context *ldb,
-					  const struct ldb_val *strdn);
-
-int ldb_dn_get_binary(struct ldb_dn *dn, struct ldb_val *val);
-int ldb_dn_set_binary(struct ldb_dn *dn, struct ldb_val *val);
-
-/* debugging functions for ldb requests */
-void ldb_req_set_location(struct ldb_request *req, const char *location);
-const char *ldb_req_location(struct ldb_request *req);
-
-/* set the location marker on a request handle - used for debugging */
-#define LDB_REQ_SET_LOCATION(req) ldb_req_set_location(req, __location__)
-
-/*
-  minimise a DN. The caller must pass in a validated DN.
-
-  If the DN has an extended component then only the first extended
-  component is kept, the DN string is stripped.
-
-  The existing dn is modified
- */
-bool ldb_dn_minimise(struct ldb_dn *dn);
 
 #endif

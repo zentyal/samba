@@ -21,7 +21,9 @@
 */
 
 #include "includes.h"
+#include "libcli/raw/libcliraw.h"
 #include "libcli/libcli.h"
+#include "torture/smbtorture.h"
 #include "torture/util.h"
 #include "system/time.h"
 #include "system/filesys.h"
@@ -42,7 +44,7 @@ static bool torture_locktest1(struct torture_context *tctx,
 	const char *fname = BASEDIR "\\lockt1.lck";
 	int fnum1, fnum2, fnum3;
 	time_t t1, t2;
-	unsigned int lock_timeout;
+	uint_t lock_timeout;
 
 	if (!torture_setup_dir(cli1, BASEDIR)) {
 		return false;
@@ -106,21 +108,21 @@ static bool torture_locktest1(struct torture_context *tctx,
 	lock_timeout = (6 + (random() % 20));
 	torture_comment(tctx, "Testing lock timeout with timeout=%u\n", 
 					lock_timeout);
-	t1 = time_mono(NULL);
+	t1 = time(NULL);
 	torture_assert(tctx, 
 		!NT_STATUS_IS_OK(smbcli_lock(cli2->tree, fnum3, 0, 4, lock_timeout * 1000, WRITE_LOCK)),
 		"lock3 succeeded! This is a locking bug\n");
 
 	if (!check_error(__location__, cli2, ERRDOS, ERRlock, 
 				 NT_STATUS_FILE_LOCK_CONFLICT)) return false;
-	t2 = time_mono(NULL);
+	t2 = time(NULL);
 
 	if (t2 - t1 < 5) {
 		torture_fail(tctx, 
 			"error: This server appears not to support timed lock requests");
 	}
 	torture_comment(tctx, "server slept for %u seconds for a %u second timeout\n",
-	       (unsigned int)(t2-t1), lock_timeout);
+	       (uint_t)(t2-t1), lock_timeout);
 
 	torture_assert_ntstatus_ok(tctx, smbcli_close(cli1->tree, fnum2),
 		talloc_asprintf(tctx, "close1 failed (%s)", smbcli_errstr(cli1->tree)));
@@ -802,7 +804,7 @@ fail:
 
 struct torture_suite *torture_base_locktest(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "lock");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "LOCK");
 	torture_suite_add_2smb_test(suite, "LOCK1", torture_locktest1);
 	torture_suite_add_1smb_test(suite, "LOCK2", torture_locktest2);
 	torture_suite_add_2smb_test(suite, "LOCK3", torture_locktest3);

@@ -19,7 +19,6 @@
  */
 
 #include "includes.h"
-#include "smbd/smbd.h"
 #include "onefs.h"
 #include "onefs_config.h"
 
@@ -265,7 +264,7 @@ static struct vfs_fn_pointers onefs_fns = {
 	.mkdir = onefs_mkdir,
 	.closedir = onefs_closedir,
 	.init_search_op = onefs_init_search_op,
-	.open_fn = onefs_open,
+	.open = onefs_open,
 	.create_file = onefs_create_file,
 	.close_fn = onefs_close,
 	.sendfile = onefs_sendfile,

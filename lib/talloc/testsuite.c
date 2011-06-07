@@ -25,9 +25,7 @@
 
 #include "replace.h"
 #include "system/time.h"
-#include <talloc.h>
-
-#include "talloc_testsuite.h"
+#include "talloc.h"
 
 static struct timeval timeval_current(void)
 {
@@ -103,7 +101,6 @@ static double timeval_elapsed(struct timeval *tv)
 
 static unsigned int test_abort_count;
 
-#if 0
 static void test_abort_fn(const char *reason)
 {
 	printf("# test_abort_fn(%s)\n", reason);
@@ -115,7 +112,6 @@ static void test_abort_start(void)
 	test_abort_count = 0;
 	talloc_set_abort_fn(test_abort_fn);
 }
-#endif
 
 static void test_abort_stop(void)
 {
@@ -1123,203 +1119,18 @@ static bool test_pool(void)
 {
 	void *pool;
 	void *p1, *p2, *p3, *p4;
-	void *p2_2;
 
 	pool = talloc_pool(NULL, 1024);
 
 	p1 = talloc_size(pool, 80);
-	memset(p1, 0x11, talloc_get_size(p1));
 	p2 = talloc_size(pool, 20);
-	memset(p2, 0x11, talloc_get_size(p2));
 	p3 = talloc_size(p1, 50);
-	memset(p3, 0x11, talloc_get_size(p3));
 	p4 = talloc_size(p3, 1000);
-	memset(p4, 0x11, talloc_get_size(p4));
-
-#if 1 /* this relies on ALWAYS_REALLOC == 0 in talloc.c */
-	p2_2 = talloc_realloc_size(pool, p2, 20+1);
-	torture_assert("pool realloc 20+1", p2_2 == p2, "failed: pointer changed");
-	memset(p2, 0x11, talloc_get_size(p2));
-	p2_2 = talloc_realloc_size(pool, p2, 20-1);
-	torture_assert("pool realloc 20-1", p2_2 == p2, "failed: pointer changed");
-	memset(p2, 0x11, talloc_get_size(p2));
-	p2_2 = talloc_realloc_size(pool, p2, 20-1);
-	torture_assert("pool realloc 20-1", p2_2 == p2, "failed: pointer changed");
-	memset(p2, 0x11, talloc_get_size(p2));
-
-	talloc_free(p3);
-
-	/* this should reclaim the memory of p4 and p3 */
-	p2_2 = talloc_realloc_size(pool, p2, 400);
-	torture_assert("pool realloc 400", p2_2 == p2, "failed: pointer changed");
-	memset(p2, 0x11, talloc_get_size(p2));
-
-	talloc_free(p1);
-
-	/* this should reclaim the memory of p1 */
-	p2_2 = talloc_realloc_size(pool, p2, 800);
-	torture_assert("pool realloc 800", p2_2 == p1, "failed: pointer not changed");
-	p2 = p2_2;
-	memset(p2, 0x11, talloc_get_size(p2));
-
-	/* this should do a malloc */
-	p2_2 = talloc_realloc_size(pool, p2, 1800);
-	torture_assert("pool realloc 1800", p2_2 != p2, "failed: pointer not changed");
-	p2 = p2_2;
-	memset(p2, 0x11, talloc_get_size(p2));
-
-	/* this should reclaim the memory from the pool */
-	p3 = talloc_size(pool, 80);
-	torture_assert("pool alloc 80", p3 == p1, "failed: pointer changed");
-	memset(p3, 0x11, talloc_get_size(p3));
-
-	talloc_free(p2);
-	talloc_free(p3);
-
-	p1 = talloc_size(pool, 80);
-	memset(p1, 0x11, talloc_get_size(p1));
-	p2 = talloc_size(pool, 20);
-	memset(p2, 0x11, talloc_get_size(p2));
-
-	talloc_free(p1);
-
-	p2_2 = talloc_realloc_size(pool, p2, 20-1);
-	torture_assert("pool realloc 20-1", p2_2 == p2, "failed: pointer changed");
-	memset(p2, 0x11, talloc_get_size(p2));
-	p2_2 = talloc_realloc_size(pool, p2, 20-1);
-	torture_assert("pool realloc 20-1", p2_2 == p2, "failed: pointer changed");
-	memset(p2, 0x11, talloc_get_size(p2));
-
-	/* this should do a malloc */
-	p2_2 = talloc_realloc_size(pool, p2, 1800);
-	torture_assert("pool realloc 1800", p2_2 != p2, "failed: pointer not changed");
-	p2 = p2_2;
-	memset(p2, 0x11, talloc_get_size(p2));
-
-	/* this should reclaim the memory from the pool */
-	p3 = talloc_size(pool, 800);
-	torture_assert("pool alloc 800", p3 == p1, "failed: pointer changed");
-	memset(p3, 0x11, talloc_get_size(p3));
-
-#endif /* this relies on ALWAYS_REALLOC == 0 in talloc.c */
 
 	talloc_free(pool);
 
 	return true;
 }
-
-static bool test_pool_steal(void)
-{
-	void *root;
-	void *pool;
-	void *p1, *p2;
-	void *p1_2, *p2_2;
-	size_t hdr;
-	size_t ofs1, ofs2;
-
-	root = talloc_new(NULL);
-	pool = talloc_pool(root, 1024);
-
-	p1 = talloc_size(pool, 4 * 16);
-	torture_assert("pool allocate 4 * 16", p1 != NULL, "failed ");
-	memset(p1, 0x11, talloc_get_size(p1));
-	p2 = talloc_size(pool, 4 * 16);
-	torture_assert("pool allocate 4 * 16", p2 > p1, "failed: !(p2 > p1) ");
-	memset(p2, 0x11, talloc_get_size(p2));
-
-	ofs1 = PTR_DIFF(p2, p1);
-	hdr = ofs1 - talloc_get_size(p1);
-
-	talloc_steal(root, p1);
-	talloc_steal(root, p2);
-
-	talloc_free(pool);
-
-	p1_2 = p1;
-
-#if 1 /* this relies on ALWAYS_REALLOC == 0 in talloc.c */
-	p1_2 = talloc_realloc_size(root, p1, 5 * 16);
-	torture_assert("pool realloc 5 * 16", p1_2 > p2, "failed: pointer not changed");
-	memset(p1_2, 0x11, talloc_get_size(p1_2));
-	ofs1 = PTR_DIFF(p1_2, p2);
-	ofs2 = talloc_get_size(p2) + hdr;
-
-	torture_assert("pool realloc ", ofs1 == ofs2, "failed: pointer offset unexpected");
-
-	p2_2 = talloc_realloc_size(root, p2, 3 * 16);
-	torture_assert("pool realloc 5 * 16", p2_2 == p2, "failed: pointer changed");
-	memset(p2_2, 0x11, talloc_get_size(p2_2));
-#endif /* this relies on ALWAYS_REALLOC == 0 in talloc.c */
-
-	talloc_free(p1_2);
-
-	p2_2 = p2;
-
-#if 1 /* this relies on ALWAYS_REALLOC == 0 in talloc.c */
-	/* now we should reclaim the full pool */
-	p2_2 = talloc_realloc_size(root, p2, 8 * 16);
-	torture_assert("pool realloc 8 * 16", p2_2 == p1, "failed: pointer not expected");
-	p2 = p2_2;
-	memset(p2_2, 0x11, talloc_get_size(p2_2));
-
-	/* now we malloc and free the full pool space */
-	p2_2 = talloc_realloc_size(root, p2, 2 * 1024);
-	torture_assert("pool realloc 2 * 1024", p2_2 != p1, "failed: pointer not expected");
-	memset(p2_2, 0x11, talloc_get_size(p2_2));
-
-#endif /* this relies on ALWAYS_REALLOC == 0 in talloc.c */
-
-	talloc_free(p2_2);
-
-	talloc_free(root);
-
-	return true;
-}
-
-static bool test_free_ref_null_context(void)
-{
-	void *p1, *p2, *p3;
-	int ret;
-
-	talloc_disable_null_tracking();
-	p1 = talloc_new(NULL);
-	p2 = talloc_new(NULL);
-
-	p3 = talloc_reference(p2, p1);
-	torture_assert("reference", p3 == p1, "failed: reference on null");
-
-	ret = talloc_free(p1);
-	torture_assert("ref free with null parent", ret == 0, "failed: free with null parent");
-	talloc_free(p2);
-
-	talloc_enable_null_tracking_no_autofree();
-	p1 = talloc_new(NULL);
-	p2 = talloc_new(NULL);
-
-	p3 = talloc_reference(p2, p1);
-	torture_assert("reference", p3 == p1, "failed: reference on null");
-
-	ret = talloc_free(p1);
-	torture_assert("ref free with null tracked parent", ret == 0, "failed: free with null parent");
-	talloc_free(p2);
-
-	return true;
-}
-
-static bool test_rusty(void)
-{
-	void *root;
-	const char *p1;
-
-	talloc_enable_null_tracking();
-	root = talloc_new(NULL);
-	p1 = talloc_strdup(root, "foo");
-	talloc_increase_ref_count(p1);
-	talloc_report_full(root, stdout);
-	talloc_free(root);
-	return true;
-}
-
 
 static void test_reset(void)
 {
@@ -1329,6 +1140,7 @@ static void test_reset(void)
 	talloc_enable_null_tracking_no_autofree();
 }
 
+struct torture_context;
 bool torture_local_talloc(struct torture_context *tctx)
 {
 	bool ret = true;
@@ -1373,12 +1185,6 @@ bool torture_local_talloc(struct torture_context *tctx)
 	ret &= test_talloc_free_in_destructor();
 	test_reset();
 	ret &= test_pool();
-	test_reset();
-	ret &= test_pool_steal();
-	test_reset();
-	ret &= test_free_ref_null_context();
-	test_reset();
-	ret &= test_rusty();
 
 	if (ret) {
 		test_reset();
@@ -1388,6 +1194,6 @@ bool torture_local_talloc(struct torture_context *tctx)
 	ret &= test_autofree();
 
 	test_reset();
-	talloc_disable_null_tracking();
+
 	return ret;
 }

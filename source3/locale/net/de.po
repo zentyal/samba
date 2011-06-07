@@ -924,7 +924,7 @@ msgstr ""
 #: ../../utils/net_ads.c:1070
 #, c-format
 msgid "Join is OK\n"
-msgstr "Mitgliedschaft ist OK\n"
+msgstr "Beitritt ist OK\n"
 
 #: ../../utils/net_ads.c:1081
 msgid "Host is not configured as a member server.\n"
@@ -3066,7 +3066,7 @@ msgstr "\t-e oder --encrypt\t\t\tSMB Übertragung verschlüsseln  (nur UNIX erwe
 
 #: ../../utils/net_help_common.c:54
 msgid "\t-k or --kerberos\t\tUse kerberos (active directory) authentication\n"
-msgstr "\t-k oder --kerberos\t\tKerberos Authentifizierung benutzen (Active Directory)\n"
+msgstr "\t-k oder --kerberos\t\tKerberos benutzen (active directory) authentication\n"
 
 #: ../../utils/net_idmap.c:26
 msgid "Out of memory!\n"
@@ -4407,7 +4407,7 @@ msgstr ""
 #: ../../utils/net_rpc.c:954
 msgid ""
 "net rpc user info\n"
-"    List domain groups of user"
+"    Lis domain groups of user"
 msgstr ""
 
 #: ../../utils/net_rpc.c:962
@@ -6161,12 +6161,12 @@ msgstr "\t[%s:%s]: REG_SZ: %s\n"
 #: ../../utils/net_rpc_printer.c:96
 #, c-format
 msgid "\t[%s:%s]: REG_BINARY: unknown length value not displayed\n"
-msgstr "\t[%s:%s]: REG_BINARY: unbekannte Länge, Daten werden nicht angezeigt\n"
+msgstr ""
 
 #: ../../utils/net_rpc_printer.c:120
 #, c-format
 msgid "\t%s: unknown type %d\n"
-msgstr "\t%s: unbekannter Typ %d\n"
+msgstr ""
 
 #: ../../utils/net_rpc_printer.c:254
 #, c-format
@@ -6544,7 +6544,7 @@ msgstr ""
 #: ../../utils/net_rpc_registry.c:1173 ../../utils/net_rpc_registry.c:1179
 #, c-format
 msgid "Closing %s..."
-msgstr "Schließe %s..."
+msgstr ""
 
 #: ../../utils/net_rpc_registry.c:1214
 msgid "net rpc registry getsd <path> <secinfo>\n"

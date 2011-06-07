@@ -29,16 +29,6 @@
 #define TEVENT_DEPRECATED
 #include <tevent.h>
 
-#if defined(UID_WRAPPER)
-#if !defined(UID_WRAPPER_REPLACE) && !defined(UID_WRAPPER_NOT_REPLACE)
-#define UID_WRAPPER_REPLACE
-#include "../uid_wrapper/uid_wrapper.h"
-#endif
-#else
-#define uwrap_enabled() 0
-#endif
-
-
 struct unixuid_private {
 	struct wbc_context *wbc_ctx;
 	struct unix_sec_ctx *last_sec_ctx;
@@ -50,7 +40,7 @@ struct unixuid_private {
 struct unix_sec_ctx {
 	uid_t uid;
 	gid_t gid;
-	unsigned int ngroups;
+	uint_t ngroups;
 	gid_t *groups;
 };
 
@@ -172,7 +162,7 @@ static NTSTATUS nt_token_to_unix_security(struct ntvfs_module_context *ntvfs,
 	struct unixuid_private *priv = ntvfs->private_data;
 	int i;
 	NTSTATUS status;
-	struct id_map *ids;
+	struct id_mapping *ids;
 	struct composite_context *ctx;
 	*sec = talloc(req, struct unix_sec_ctx);
 
@@ -181,17 +171,25 @@ static NTSTATUS nt_token_to_unix_security(struct ntvfs_module_context *ntvfs,
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
-	ids = talloc_array(req, struct id_map, token->num_sids);
+	ids = talloc_array(req, struct id_mapping, token->num_sids);
 	NT_STATUS_HAVE_NO_MEMORY(ids);
+
+	ids[0].unixid = NULL;
+	ids[0].sid = token->user_sid;
+	ids[0].status = NT_STATUS_NONE_MAPPED;
+
+	ids[1].unixid = NULL;
+	ids[1].sid = token->group_sid;
+	ids[1].status = NT_STATUS_NONE_MAPPED;
 
 	(*sec)->ngroups = token->num_sids - 2;
 	(*sec)->groups = talloc_array(*sec, gid_t, (*sec)->ngroups);
 	NT_STATUS_HAVE_NO_MEMORY((*sec)->groups);
 
-	for (i=0;i<token->num_sids;i++) {
-		ZERO_STRUCT(ids[i].xid);
-		ids[i].sid = &token->sids[i];
-		ids[i].status = ID_UNKNOWN;
+	for (i=0;i<(*sec)->ngroups;i++) {
+		ids[i+2].unixid = NULL;
+		ids[i+2].sid = token->sids[i+2];
+		ids[i+2].status = NT_STATUS_NONE_MAPPED;
 	}
 
 	ctx = wbc_sids_to_xids_send(priv->wbc_ctx, ids, token->num_sids, ids);
@@ -200,24 +198,24 @@ static NTSTATUS nt_token_to_unix_security(struct ntvfs_module_context *ntvfs,
 	status = wbc_sids_to_xids_recv(ctx, &ids);
 	NT_STATUS_NOT_OK_RETURN(status);
 
-	if (ids[0].xid.type == ID_TYPE_BOTH ||
-	    ids[0].xid.type == ID_TYPE_UID) {
-		(*sec)->uid = ids[0].xid.id;
+	if (ids[0].unixid->type == ID_TYPE_BOTH ||
+	    ids[0].unixid->type == ID_TYPE_UID) {
+		(*sec)->uid = ids[0].unixid->id;
 	} else {
 		return NT_STATUS_INVALID_SID;
 	}
 
-	if (ids[1].xid.type == ID_TYPE_BOTH ||
-	    ids[1].xid.type == ID_TYPE_GID) {
-		(*sec)->gid = ids[1].xid.id;
+	if (ids[1].unixid->type == ID_TYPE_BOTH ||
+	    ids[1].unixid->type == ID_TYPE_GID) {
+		(*sec)->gid = ids[1].unixid->id;
 	} else {
 		return NT_STATUS_INVALID_SID;
 	}
 
 	for (i=0;i<(*sec)->ngroups;i++) {
-		if (ids[i+2].xid.type == ID_TYPE_BOTH ||
-		    ids[i+2].xid.type == ID_TYPE_GID) {
-			(*sec)->groups[i] = ids[i+2].xid.id;
+		if (ids[i+2].unixid->type == ID_TYPE_BOTH ||
+		    ids[i+2].unixid->type == ID_TYPE_GID) {
+			(*sec)->groups[i] = ids[i+2].unixid->id;
 		} else {
 			return NT_STATUS_INVALID_SID;
 		}
@@ -237,10 +235,7 @@ static NTSTATUS unixuid_setup_security(struct ntvfs_module_context *ntvfs,
 	struct unix_sec_ctx *newsec;
 	NTSTATUS status;
 
-	/* If we are asked to set up, but have not had a successful
-	 * session setup or tree connect, then these may not be filled
-	 * in.  ACCESS_DENIED is the right error code here */
-	if (req->session_info == NULL || priv == NULL) {
+	if (req->session_info == NULL) {
 		return NT_STATUS_ACCESS_DENIED;
 	}
 

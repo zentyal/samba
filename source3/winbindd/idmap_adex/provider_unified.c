@@ -21,11 +21,7 @@
  */
 
 #include "includes.h"
-#include "ads.h"
-#include "idmap.h"
 #include "idmap_adex.h"
-#include "../libcli/ldap/ldap_ndr.h"
-#include "../libcli/security/dom_sid.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_IDMAP
@@ -39,7 +35,7 @@ struct lwcell_filter
 	enum filterType ftype;
 	bool use2307;
 	union {
-		struct dom_sid sid;
+		DOM_SID sid;
 		struct {
 			uint32_t id;
 			enum id_type type;
@@ -249,7 +245,7 @@ done:
 static NTSTATUS search_domain(struct likewise_cell **cell,
 			      LDAPMessage **msg,
 			      const char *dn,
-			      const struct dom_sid *sid)
+			      const DOM_SID *sid)
 {
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
 	TALLOC_CTX* frame = talloc_stackframe();
@@ -345,7 +341,7 @@ static NTSTATUS check_result_unique_scoped(ADS_STRUCT **ads_list,
 					   LDAPMessage **msg_list,
 					   int num_resp,
 					   char **dn,
-					   struct dom_sid *user_sid)
+					   DOM_SID *user_sid)
 {
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
 	int i;
@@ -469,7 +465,7 @@ static NTSTATUS search_forest(struct likewise_cell *forest_cell,
 	LDAPMessage **msg_list = NULL;
 	int num_resp = 0;
 	LDAPMessage *m;
-	struct dom_sid user_sid;
+	DOM_SID user_sid;
 	struct likewise_cell *domain_cell = NULL;
 
 	if ((gc = gc_search_start()) == NULL) {
@@ -487,7 +483,7 @@ static NTSTATUS search_forest(struct likewise_cell *forest_cell,
 
 		switch (fdata->ftype) {
 		case SidFilter:
-			sid_binstr = ldap_encode_ndr_dom_sid(frame, &fdata->filter.sid);
+			sid_binstr = sid_binstring(frame, &fdata->filter.sid);
 			BAIL_ON_PTR_ERROR(sid_binstr, nt_status);
 
 			filter = talloc_asprintf(frame, "(objectSid=%s)", sid_binstr);
@@ -615,7 +611,7 @@ done:
 
 static NTSTATUS pull_sid(struct likewise_cell *c,
 			 LDAPMessage *msg,
-			 struct dom_sid *sid)
+			 DOM_SID *sid)
 {
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
 	TALLOC_CTX *frame = talloc_stackframe();
@@ -971,7 +967,7 @@ done:
 /********************************************************************
  *******************************************************************/
 
-static NTSTATUS _ccp_get_sid_from_id(struct dom_sid * sid,
+static NTSTATUS _ccp_get_sid_from_id(DOM_SID * sid,
 				     uint32_t id, enum id_type type)
 {
 	struct likewise_cell *cell = NULL;
@@ -1000,7 +996,7 @@ done:
 
 static NTSTATUS _ccp_get_id_from_sid(uint32_t * id,
 				     enum id_type *type,
-				     const struct dom_sid * sid)
+				     const DOM_SID * sid)
 {
 	struct likewise_cell *cell = NULL;
 	LDAPMessage *msg = NULL;
@@ -1030,7 +1026,7 @@ done:
 /********************************************************************
  *******************************************************************/
 
-static NTSTATUS _ccp_nss_get_info(const struct dom_sid * sid,
+static NTSTATUS _ccp_nss_get_info(const DOM_SID * sid,
 				  TALLOC_CTX * ctx,
 				  const char **homedir,
 				  const char **shell,
@@ -1075,7 +1071,7 @@ static NTSTATUS _ccp_map_to_alias(TALLOC_CTX *ctx,
 {
 	TALLOC_CTX *frame = talloc_stackframe();
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
-	struct dom_sid sid;
+	DOM_SID sid;
 	struct likewise_cell *cell = NULL;
 	LDAPMessage *msg = NULL;
 	struct lwcell_filter filter;
@@ -1120,7 +1116,7 @@ static NTSTATUS _ccp_map_from_alias(TALLOC_CTX *mem_ctx,
 {
 	TALLOC_CTX *frame = talloc_stackframe();
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
-	struct dom_sid sid;
+	DOM_SID sid;
 	struct likewise_cell *cell_alias = NULL;
 	LDAPMessage *msg_alias = NULL;
 	struct likewise_cell *cell_sid = NULL;

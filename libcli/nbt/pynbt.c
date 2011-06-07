@@ -17,20 +17,18 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <Python.h>
 #include "includes.h"
+#include <Python.h>
 #include "libcli/util/pyerrors.h"
 #include "scripting/python/modules.h"
 #include "../libcli/nbt/libnbt.h"
 #include "lib/events/events.h"
 
-void initnetbios(void);
-
 #ifndef Py_RETURN_NONE
 #define Py_RETURN_NONE return Py_INCREF(Py_None), Py_None
 #endif
 
-extern PyTypeObject nbt_node_Type;
+PyAPI_DATA(PyTypeObject) nbt_node_Type;
 
 typedef struct {
 	PyObject_HEAD
@@ -38,10 +36,10 @@ typedef struct {
 	struct nbt_name_socket *socket;
 } nbt_node_Object;
 
-static void py_nbt_node_dealloc(nbt_node_Object *self)
+static void py_nbt_node_dealloc(PyObject *obj)
 {
-	talloc_free(self->mem_ctx);
-	self->ob_type->tp_free(self);
+	talloc_free(((nbt_node_Object *)obj)->mem_ctx);
+	PyObject_Del(obj);
 }
 
 static PyObject *py_nbt_node_init(PyTypeObject *self, PyObject *args, PyObject *kwargs)
@@ -54,7 +52,7 @@ static PyObject *py_nbt_node_init(PyTypeObject *self, PyObject *args, PyObject *
 		return NULL;
 
 	ev = s4_event_context_init(ret->mem_ctx);
-	ret->socket = nbt_name_socket_init(ret->mem_ctx, ev);
+	ret->socket = nbt_name_socket_init(ret->mem_ctx, ev, py_iconv_convenience(ret->mem_ctx));
 	return (PyObject *)ret;
 }
 
@@ -126,7 +124,7 @@ static bool PyObject_AsNBTName(PyObject *obj, struct nbt_name_socket *name_socke
 	return false;
 }
 
-static PyObject *PyObject_FromNBTName(struct nbt_name_socket *name_socket, 
+static PyObject *PyObject_FromNBTName(struct nbt_name_socket *name_socket, struct smb_iconv_convenience *ic,
 				      struct nbt_name *name)
 {
 	if (name->scope) {
@@ -177,7 +175,7 @@ static PyObject *py_nbt_name_query(PyObject *self, PyObject *args, PyObject *kwa
 		return NULL;
 	PyTuple_SetItem(ret, 0, PyString_FromString(io.out.reply_from));
 
-	py_name = PyObject_FromNBTName(node->socket, &io.out.name);
+	py_name = PyObject_FromNBTName(node->socket, py_iconv_convenience(node->socket), &io.out.name);
 	if (py_name == NULL)
 		return NULL;
 
@@ -235,7 +233,7 @@ static PyObject *py_nbt_name_status(PyObject *self, PyObject *args, PyObject *kw
 		return NULL;
 	PyTuple_SetItem(ret, 0, PyString_FromString(io.out.reply_from));
 
-	py_name = PyObject_FromNBTName(node->socket, &io.out.name);
+	py_name = PyObject_FromNBTName(node->socket, py_iconv_convenience(NULL), &io.out.name);
 	if (py_name == NULL)
 		return NULL;
 
@@ -298,7 +296,7 @@ static PyObject *py_nbt_name_register(PyObject *self, PyObject *args, PyObject *
 		return NULL;
 	PyTuple_SetItem(ret, 0, PyString_FromString(io.out.reply_from));
 
-	py_name = PyObject_FromNBTName(node->socket, &io.out.name);
+	py_name = PyObject_FromNBTName(node->socket, py_iconv_convenience(NULL), &io.out.name);
 	if (py_name == NULL)
 		return NULL;
 
@@ -353,7 +351,7 @@ static PyObject *py_nbt_name_refresh(PyObject *self, PyObject *args, PyObject *k
 		return NULL;
 	PyTuple_SetItem(ret, 0, PyString_FromString(io.out.reply_from));
 
-	py_name = PyObject_FromNBTName(node->socket, &io.out.name);
+	py_name = PyObject_FromNBTName(node->socket, py_iconv_convenience(NULL), &io.out.name);
 	if (py_name == NULL)
 		return NULL;
 
@@ -395,7 +393,7 @@ PyTypeObject nbt_node_Type = {
 	.tp_basicsize = sizeof(nbt_node_Object),
 	.tp_flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE,
 	.tp_new = py_nbt_node_init,
-	.tp_dealloc = (destructor)py_nbt_node_dealloc,
+	.tp_dealloc = py_nbt_node_dealloc,
 	.tp_methods = py_nbt_methods,
 	.tp_doc = "Node()\n"
 		  "Create a new NetBIOS node\n"

@@ -114,7 +114,7 @@ static void bind_auth_recv_alter(struct composite_context *creq);
 static void bind_auth_next_step(struct composite_context *c)
 {
 	struct bind_auth_state *state;
-	struct dcecli_security *sec;
+	struct dcerpc_security *sec;
 	struct composite_context *creq;
 	bool more_processing = false;
 
@@ -233,7 +233,7 @@ struct composite_context *dcerpc_bind_auth_send(TALLOC_CTX *mem_ctx,
 {
 	struct composite_context *c, *creq;
 	struct bind_auth_state *state;
-	struct dcecli_security *sec;
+	struct dcerpc_security *sec;
 
 	struct ndr_syntax_id syntax, transfer_syntax;
 
@@ -287,17 +287,6 @@ struct composite_context *dcerpc_bind_auth_send(TALLOC_CTX *mem_ctx,
 		if (!NT_STATUS_IS_OK(c->status)) {
 			DEBUG(1, ("Failed to set GENSEC target service: %s\n",
 				  nt_errstr(c->status)));
-			composite_error(c, c->status);
-			return c;
-		}
-	}
-
-	if (p->binding && p->binding->target_principal) {
-		c->status = gensec_set_target_principal(sec->generic_state,
-							p->binding->target_principal);
-		if (!NT_STATUS_IS_OK(c->status)) {
-			DEBUG(1, ("Failed to set GENSEC target principal to %s: %s\n",
-				  p->binding->target_principal, nt_errstr(c->status)));
 			composite_error(c, c->status);
 			return c;
 		}

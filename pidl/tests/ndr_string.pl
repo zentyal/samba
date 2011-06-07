@@ -14,7 +14,8 @@ test_samba4_ndr("string-pull-empty",
 '
 	uint8_t data[] = { 0x00, 0x00, 0x00, 0x00 };
 	DATA_BLOB b = { data, 4 };
-	struct ndr_pull *ndr = ndr_pull_init_blob(&b, NULL);
+	struct ndr_pull *ndr = ndr_pull_init_blob(&b, NULL, 
+		smb_iconv_convenience_init(NULL, "ASCII", "UTF8", true));
 	struct TestString r;
 	r.in.data = NULL;
 
@@ -36,7 +37,8 @@ test_samba4_ndr("string-ascii-pull",
 	uint8_t data[] = { 0x03, 0x00, 0x00, 0x00, 
 					   \'f\', \'o\', \'o\', 0 };
 	DATA_BLOB b = { data, 8 };
-	struct ndr_pull *ndr = ndr_pull_init_blob(&b, NULL);
+	struct ndr_pull *ndr = ndr_pull_init_blob(&b, NULL,
+		smb_iconv_convenience_init(NULL, "ASCII", "UTF8", true));
 	struct TestString r;
 	r.in.data = NULL;
 
@@ -72,7 +74,8 @@ test_samba4_ndr("string-wchar-fixed-array-01",
 			   0x02,  0x00, 0x00,  0x00
 	};
 	DATA_BLOB b = { data, sizeof(data) };
-	struct ndr_pull *ndr = ndr_pull_init_blob(&b, NULL);
+	struct ndr_pull *ndr = ndr_pull_init_blob(&b, NULL,
+		smb_iconv_convenience_init(NULL, "ASCII", "UTF8", true));
 	struct TestString r;
 	struct TestStringStruct str;
 	r.in.str = &str;
@@ -117,7 +120,8 @@ test_samba4_ndr("string-wchar-fixed-array-02",
 			   0x02,  0x00, 0x00,  0x00
 	};
 	DATA_BLOB b = { data, sizeof(data) };
-	struct ndr_pull *ndr = ndr_pull_init_blob(&b, NULL);
+	struct ndr_pull *ndr = ndr_pull_init_blob(&b, NULL,
+		smb_iconv_convenience_init(NULL, "ASCII", "UTF8", true));
 	struct TestString r;
 	struct TestStringStruct str;
 	r.in.str = &str;
@@ -148,7 +152,8 @@ test_samba4_ndr("string-wchar-fixed-array-03",
 			   0x02,  0x00, 0x00,  0x00
 	};
 	DATA_BLOB b = { data, sizeof(data) };
-	struct ndr_pull *ndr = ndr_pull_init_blob(&b, NULL);
+	struct ndr_pull *ndr = ndr_pull_init_blob(&b, NULL,
+		smb_iconv_convenience_init(NULL, "ASCII", "UTF8", true));
 	struct TestString r;
 	struct TestStringStruct str;
 	r.in.str = &str;
@@ -169,7 +174,8 @@ test_samba4_ndr("string-out",
 	uint8_t data[] = { 0x03, 0x00, 0x00, 0x00, 
 					   \'f\', \'o\', \'o\', 0 };
 	DATA_BLOB b = { data, 8 };
-	struct ndr_pull *ndr = ndr_pull_init_blob(&b, NULL);
+	struct ndr_pull *ndr = ndr_pull_init_blob(&b, NULL,
+		smb_iconv_convenience_init(NULL, "ASCII", "UTF8", true));
 	struct TestString r;
 	char *str = NULL;
 	r.out.data = &str;

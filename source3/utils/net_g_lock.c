@@ -20,7 +20,6 @@
 #include "includes.h"
 #include "net.h"
 #include "g_lock.h"
-#include "messages.h"
 
 static bool net_g_lock_init(TALLOC_CTX *mem_ctx,
 			    struct tevent_context **pev,
@@ -31,17 +30,17 @@ static bool net_g_lock_init(TALLOC_CTX *mem_ctx,
 	struct messaging_context *msg = NULL;
 	struct g_lock_ctx *g_ctx = NULL;
 
-	ev = tevent_context_init(mem_ctx);
+	ev = tevent_context_init(talloc_tos());
 	if (ev == NULL) {
 		d_fprintf(stderr, "ERROR: could not init event context\n");
 		goto fail;
 	}
-	msg = messaging_init(mem_ctx, procid_self(), ev);
+	msg = messaging_init(talloc_tos(), server_id_self(), ev);
 	if (msg == NULL) {
 		d_fprintf(stderr, "ERROR: could not init messaging context\n");
 		goto fail;
 	}
-	g_ctx = g_lock_ctx_init(mem_ctx, msg);
+	g_ctx = g_lock_ctx_init(talloc_tos(), msg);
 	if (g_ctx == NULL) {
 		d_fprintf(stderr, "ERROR: could not init g_lock context\n");
 		goto fail;
@@ -91,7 +90,7 @@ static int net_g_lock_do(struct net_context *c, int argc, const char **argv)
 
 	status = g_lock_do(name, G_LOCK_WRITE,
 			   timeval_set(timeout / 1000, timeout % 1000),
-			   procid_self(), net_g_lock_do_fn, &state);
+			   net_g_lock_do_fn, &state);
 	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr, "ERROR: g_lock_do failed: %s\n",
 			  nt_errstr(status));

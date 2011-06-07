@@ -23,13 +23,7 @@
 */
 
 #include "includes.h"
-#include "passdb.h"
-#include "system/passwd.h"
 #include "../libcli/auth/libcli_auth.h"
-#include "secrets.h"
-#include "../libcli/security/security.h"
-#include "../lib/util/util_pw.h"
-#include "util_tdb.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_PASSDB
@@ -151,7 +145,7 @@ static NTSTATUS samu_set_unix_internal(struct samu *user, const struct passwd *p
 	const char *guest_account = lp_guestaccount();
 	const char *domain = global_myname();
 	char *fullname;
-	uint32_t urid;
+	uint32 urid;
 
 	if ( !pwd ) {
 		return NT_STATUS_NO_SUCH_USER;
@@ -199,7 +193,7 @@ static NTSTATUS samu_set_unix_internal(struct samu *user, const struct passwd *p
 	/* Special case for the guest account which must have a RID of 501 */
 
 	if ( strequal( pwd->pw_name, guest_account ) ) {
-		if ( !pdb_set_user_sid_from_rid(user, DOMAIN_RID_GUEST, PDB_DEFAULT)) {
+		if ( !pdb_set_user_sid_from_rid(user, DOMAIN_USER_RID_GUEST, PDB_DEFAULT)) {
 			return NT_STATUS_NO_SUCH_USER;
 		}
 		return NT_STATUS_OK;
@@ -247,15 +241,16 @@ static NTSTATUS samu_set_unix_internal(struct samu *user, const struct passwd *p
 	   netr_SamInfo3 structure) */
 
 	if ( create && (pdb_capabilities() & PDB_CAP_STORE_RIDS)) {
-		uint32_t user_rid;
-		struct dom_sid user_sid;
+		uint32 user_rid;
+		DOM_SID user_sid;
 
 		if ( !pdb_new_rid( &user_rid ) ) {
 			DEBUG(3, ("Could not allocate a new RID\n"));
 			return NT_STATUS_ACCESS_DENIED;
 		}
 
-		sid_compose(&user_sid, get_global_sam_sid(), user_rid);
+		sid_copy( &user_sid, get_global_sam_sid() );
+		sid_append_rid( &user_sid, user_rid );
 
 		if ( !pdb_set_user_sid(user, &user_sid, PDB_SET) ) {
 			DEBUG(3, ("pdb_set_user_sid failed\n"));
@@ -377,7 +372,7 @@ uint32_t pdb_decode_acct_ctrl(const char *p)
  Routine to set 32 hex password characters from a 16 byte array.
 **************************************************************/
 
-void pdb_sethexpwd(char p[33], const unsigned char *pwd, uint32_t acct_ctrl)
+void pdb_sethexpwd(char p[33], const unsigned char *pwd, uint32 acct_ctrl)
 {
 	if (pwd != NULL) {
 		int i;
@@ -501,7 +496,7 @@ int algorithmic_rid_base(void)
  Converts NT user RID to a UNIX uid.
  ********************************************************************/
 
-uid_t algorithmic_pdb_user_rid_to_uid(uint32_t user_rid)
+uid_t algorithmic_pdb_user_rid_to_uid(uint32 user_rid)
 {
 	int rid_offset = algorithmic_rid_base();
 	return (uid_t)(((user_rid & (~USER_RID_TYPE)) - rid_offset)/RID_MULTIPLIER);
@@ -516,17 +511,17 @@ uid_t max_algorithmic_uid(void)
  converts UNIX uid to an NT User RID.
  ********************************************************************/
 
-uint32_t algorithmic_pdb_uid_to_user_rid(uid_t uid)
+uint32 algorithmic_pdb_uid_to_user_rid(uid_t uid)
 {
 	int rid_offset = algorithmic_rid_base();
-	return (((((uint32_t)uid)*RID_MULTIPLIER) + rid_offset) | USER_RID_TYPE);
+	return (((((uint32)uid)*RID_MULTIPLIER) + rid_offset) | USER_RID_TYPE);
 }
 
 /*******************************************************************
  Converts NT group RID to a UNIX gid.
  ********************************************************************/
 
-gid_t pdb_group_rid_to_gid(uint32_t group_rid)
+gid_t pdb_group_rid_to_gid(uint32 group_rid)
 {
 	int rid_offset = algorithmic_rid_base();
 	return (gid_t)(((group_rid & (~GROUP_RID_TYPE))- rid_offset)/RID_MULTIPLIER);
@@ -545,17 +540,17 @@ gid_t max_algorithmic_gid(void)
  there is not anymore a direct link between the gid and the rid.
  ********************************************************************/
 
-uint32_t algorithmic_pdb_gid_to_group_rid(gid_t gid)
+uint32 algorithmic_pdb_gid_to_group_rid(gid_t gid)
 {
 	int rid_offset = algorithmic_rid_base();
-	return (((((uint32_t)gid)*RID_MULTIPLIER) + rid_offset) | GROUP_RID_TYPE);
+	return (((((uint32)gid)*RID_MULTIPLIER) + rid_offset) | GROUP_RID_TYPE);
 }
 
 /*******************************************************************
  Decides if a RID is a well known RID.
  ********************************************************************/
 
-static bool rid_is_well_known(uint32_t rid)
+static bool rid_is_well_known(uint32 rid)
 {
 	/* Not using rid_offset here, because this is the actual
 	   NT fixed value (1000) */
@@ -567,14 +562,14 @@ static bool rid_is_well_known(uint32_t rid)
  Decides if a RID is a user or group RID.
  ********************************************************************/
 
-bool algorithmic_pdb_rid_is_user(uint32_t rid)
+bool algorithmic_pdb_rid_is_user(uint32 rid)
 {
 	if ( rid_is_well_known(rid) ) {
 		/*
-		 * The only well known user RIDs are DOMAIN_RID_ADMINISTRATOR
-		 * and DOMAIN_RID_GUEST.
+		 * The only well known user RIDs are DOMAIN_USER_RID_ADMIN
+		 * and DOMAIN_USER_RID_GUEST.
 		 */
-		if(rid == DOMAIN_RID_ADMINISTRATOR || rid == DOMAIN_RID_GUEST)
+		if(rid == DOMAIN_USER_RID_ADMIN || rid == DOMAIN_USER_RID_GUEST)
 			return True;
 	} else if((rid & RID_TYPE_MASK) == USER_RID_TYPE) {
 		return True;
@@ -598,7 +593,7 @@ bool lookup_global_sam_name(const char *name, int flags, uint32_t *rid,
 	   the group already exists. */
 
 	if ( strequal( name, "None" ) ) {
-		*rid = DOMAIN_RID_USERS;
+		*rid = DOMAIN_GROUP_RID_USERS;
 		*type = SID_NAME_DOM_GRP;
 
 		return True;
@@ -610,7 +605,7 @@ bool lookup_global_sam_name(const char *name, int flags, uint32_t *rid,
 
 	if ((flags & LOOKUP_NAME_GROUP) == 0) {
 		struct samu *sam_account = NULL;
-		struct dom_sid user_sid;
+		DOM_SID user_sid;
 
 		if ( !(sam_account = samu_new( NULL )) ) {
 			return False;
@@ -931,13 +926,13 @@ done:
 /*********************************************************************
 *********************************************************************/
 
-static bool init_samu_from_buffer_v0(struct samu *sampass, uint8_t *buf, uint32_t buflen)
+static bool init_samu_from_buffer_v0(struct samu *sampass, uint8 *buf, uint32 buflen)
 {
 
 	/* times are stored as 32bit integer
 	   take care on system with 64bit wide time_t
 	   --SSS */
-	uint32_t	logon_time,
+	uint32	logon_time,
 		logoff_time,
 		kickoff_time,
 		pass_last_set_time,
@@ -955,18 +950,18 @@ static bool init_samu_from_buffer_v0(struct samu *sampass, uint8_t *buf, uint32_
 	char *profile_path = NULL;
 	char *acct_desc = NULL;
 	char *workstations = NULL;
-	uint32_t	username_len, domain_len, nt_username_len,
+	uint32	username_len, domain_len, nt_username_len,
 		dir_drive_len, unknown_str_len, munged_dial_len,
 		fullname_len, homedir_len, logon_script_len,
 		profile_path_len, acct_desc_len, workstations_len;
 
-	uint32_t	user_rid, group_rid, remove_me, hours_len, unknown_6;
-	uint16_t	acct_ctrl, logon_divs;
-	uint16_t	bad_password_count, logon_count;
-	uint8_t	*hours = NULL;
-	uint8_t	*lm_pw_ptr = NULL, *nt_pw_ptr = NULL;
-	uint32_t		len = 0;
-	uint32_t		lm_pw_len, nt_pw_len, hourslen;
+	uint32	user_rid, group_rid, remove_me, hours_len, unknown_6;
+	uint16	acct_ctrl, logon_divs;
+	uint16	bad_password_count, logon_count;
+	uint8	*hours = NULL;
+	uint8	*lm_pw_ptr = NULL, *nt_pw_ptr = NULL;
+	uint32		len = 0;
+	uint32		lm_pw_len, nt_pw_len, hourslen;
 	bool ret = True;
 
 	if(sampass == NULL || buf == NULL) {
@@ -1009,7 +1004,7 @@ static bool init_samu_from_buffer_v0(struct samu *sampass, uint8_t *buf, uint32_
 		&logon_count,						/* w */
 		&unknown_6);						/* d */
 
-	if (len == (uint32_t) -1)  {
+	if (len == (uint32) -1)  {
 		ret = False;
 		goto done;
 	}
@@ -1090,7 +1085,7 @@ static bool init_samu_from_buffer_v0(struct samu *sampass, uint8_t *buf, uint32_
 	pdb_set_unknown_6(sampass, unknown_6, PDB_SET);
 	pdb_set_acct_ctrl(sampass, acct_ctrl, PDB_SET);
 	pdb_set_logon_divs(sampass, logon_divs, PDB_SET);
-	pdb_set_hours(sampass, hours, hours_len, PDB_SET);
+	pdb_set_hours(sampass, hours, PDB_SET);
 
 done:
 
@@ -1116,13 +1111,13 @@ done:
 /*********************************************************************
 *********************************************************************/
 
-static bool init_samu_from_buffer_v1(struct samu *sampass, uint8_t *buf, uint32_t buflen)
+static bool init_samu_from_buffer_v1(struct samu *sampass, uint8 *buf, uint32 buflen)
 {
 
 	/* times are stored as 32bit integer
 	   take care on system with 64bit wide time_t
 	   --SSS */
-	uint32_t	logon_time,
+	uint32	logon_time,
 		logoff_time,
 		kickoff_time,
 		bad_password_time,
@@ -1141,18 +1136,18 @@ static bool init_samu_from_buffer_v1(struct samu *sampass, uint8_t *buf, uint32_
 	char *profile_path = NULL;
 	char *acct_desc = NULL;
 	char *workstations = NULL;
-	uint32_t	username_len, domain_len, nt_username_len,
+	uint32	username_len, domain_len, nt_username_len,
 		dir_drive_len, unknown_str_len, munged_dial_len,
 		fullname_len, homedir_len, logon_script_len,
 		profile_path_len, acct_desc_len, workstations_len;
 
-	uint32_t	user_rid, group_rid, remove_me, hours_len, unknown_6;
-	uint16_t	acct_ctrl, logon_divs;
-	uint16_t	bad_password_count, logon_count;
-	uint8_t	*hours = NULL;
-	uint8_t	*lm_pw_ptr = NULL, *nt_pw_ptr = NULL;
-	uint32_t		len = 0;
-	uint32_t		lm_pw_len, nt_pw_len, hourslen;
+	uint32	user_rid, group_rid, remove_me, hours_len, unknown_6;
+	uint16	acct_ctrl, logon_divs;
+	uint16	bad_password_count, logon_count;
+	uint8	*hours = NULL;
+	uint8	*lm_pw_ptr = NULL, *nt_pw_ptr = NULL;
+	uint32		len = 0;
+	uint32		lm_pw_len, nt_pw_len, hourslen;
 	bool ret = True;
 
 	if(sampass == NULL || buf == NULL) {
@@ -1197,7 +1192,7 @@ static bool init_samu_from_buffer_v1(struct samu *sampass, uint8_t *buf, uint32_
 		&logon_count,						/* w */
 		&unknown_6);						/* d */
 
-	if (len == (uint32_t) -1)  {
+	if (len == (uint32) -1)  {
 		ret = False;
 		goto done;
 	}
@@ -1282,7 +1277,7 @@ static bool init_samu_from_buffer_v1(struct samu *sampass, uint8_t *buf, uint32_
 	pdb_set_unknown_6(sampass, unknown_6, PDB_SET);
 	pdb_set_acct_ctrl(sampass, acct_ctrl, PDB_SET);
 	pdb_set_logon_divs(sampass, logon_divs, PDB_SET);
-	pdb_set_hours(sampass, hours, hours_len, PDB_SET);
+	pdb_set_hours(sampass, hours, PDB_SET);
 
 done:
 
@@ -1305,13 +1300,13 @@ done:
 	return ret;
 }
 
-static bool init_samu_from_buffer_v2(struct samu *sampass, uint8_t *buf, uint32_t buflen)
+static bool init_samu_from_buffer_v2(struct samu *sampass, uint8 *buf, uint32 buflen)
 {
 
 	/* times are stored as 32bit integer
 	   take care on system with 64bit wide time_t
 	   --SSS */
-	uint32_t	logon_time,
+	uint32	logon_time,
 		logoff_time,
 		kickoff_time,
 		bad_password_time,
@@ -1330,19 +1325,19 @@ static bool init_samu_from_buffer_v2(struct samu *sampass, uint8_t *buf, uint32_
 	char *profile_path = NULL;
 	char *acct_desc = NULL;
 	char *workstations = NULL;
-	uint32_t	username_len, domain_len, nt_username_len,
+	uint32	username_len, domain_len, nt_username_len,
 		dir_drive_len, unknown_str_len, munged_dial_len,
 		fullname_len, homedir_len, logon_script_len,
 		profile_path_len, acct_desc_len, workstations_len;
 
-	uint32_t	user_rid, group_rid, hours_len, unknown_6;
-	uint16_t	acct_ctrl, logon_divs;
-	uint16_t	bad_password_count, logon_count;
-	uint8_t	*hours = NULL;
-	uint8_t	*lm_pw_ptr = NULL, *nt_pw_ptr = NULL, *nt_pw_hist_ptr = NULL;
-	uint32_t		len = 0;
-	uint32_t		lm_pw_len, nt_pw_len, nt_pw_hist_len, hourslen;
-	uint32_t pwHistLen = 0;
+	uint32	user_rid, group_rid, hours_len, unknown_6;
+	uint16	acct_ctrl, logon_divs;
+	uint16	bad_password_count, logon_count;
+	uint8	*hours = NULL;
+	uint8	*lm_pw_ptr = NULL, *nt_pw_ptr = NULL, *nt_pw_hist_ptr = NULL;
+	uint32		len = 0;
+	uint32		lm_pw_len, nt_pw_len, nt_pw_hist_len, hourslen;
+	uint32 pwHistLen = 0;
 	bool ret = True;
 	fstring tmp_string;
 	bool expand_explicit = lp_passdb_expand_explicit();
@@ -1390,7 +1385,7 @@ static bool init_samu_from_buffer_v2(struct samu *sampass, uint8_t *buf, uint32_
 		&logon_count,						/* w */
 		&unknown_6);						/* d */
 
-	if (len == (uint32_t) -1)  {
+	if (len == (uint32) -1)  {
 		ret = False;
 		goto done;
 	}
@@ -1479,7 +1474,7 @@ static bool init_samu_from_buffer_v2(struct samu *sampass, uint8_t *buf, uint32_
 	/* Change from V1 is addition of password history field. */
 	pdb_get_account_policy(PDB_POLICY_PASSWORD_HISTORY, &pwHistLen);
 	if (pwHistLen) {
-		uint8_t *pw_hist = SMB_MALLOC_ARRAY(uint8_t, pwHistLen * PW_HISTORY_ENTRY_LEN);
+		uint8 *pw_hist = SMB_MALLOC_ARRAY(uint8, pwHistLen * PW_HISTORY_ENTRY_LEN);
 		if (!pw_hist) {
 			ret = False;
 			goto done;
@@ -1513,7 +1508,7 @@ static bool init_samu_from_buffer_v2(struct samu *sampass, uint8_t *buf, uint32_
 	pdb_set_unknown_6(sampass, unknown_6, PDB_SET);
 	pdb_set_acct_ctrl(sampass, acct_ctrl, PDB_SET);
 	pdb_set_logon_divs(sampass, logon_divs, PDB_SET);
-	pdb_set_hours(sampass, hours, hours_len, PDB_SET);
+	pdb_set_hours(sampass, hours, PDB_SET);
 
 done:
 
@@ -1540,13 +1535,13 @@ done:
 /*********************************************************************
 *********************************************************************/
 
-static bool init_samu_from_buffer_v3(struct samu *sampass, uint8_t *buf, uint32_t buflen)
+static bool init_samu_from_buffer_v3(struct samu *sampass, uint8 *buf, uint32 buflen)
 {
 
 	/* times are stored as 32bit integer
 	   take care on system with 64bit wide time_t
 	   --SSS */
-	uint32_t	logon_time,
+	uint32	logon_time,
 		logoff_time,
 		kickoff_time,
 		bad_password_time,
@@ -1565,19 +1560,19 @@ static bool init_samu_from_buffer_v3(struct samu *sampass, uint8_t *buf, uint32_
 	char *profile_path = NULL;
 	char *acct_desc = NULL;
 	char *workstations = NULL;
-	uint32_t	username_len, domain_len, nt_username_len,
+	uint32	username_len, domain_len, nt_username_len,
 		dir_drive_len, comment_len, munged_dial_len,
 		fullname_len, homedir_len, logon_script_len,
 		profile_path_len, acct_desc_len, workstations_len;
 
-	uint32_t	user_rid, group_rid, hours_len, unknown_6, acct_ctrl;
-	uint16_t  logon_divs;
-	uint16_t	bad_password_count, logon_count;
-	uint8_t	*hours = NULL;
-	uint8_t	*lm_pw_ptr = NULL, *nt_pw_ptr = NULL, *nt_pw_hist_ptr = NULL;
-	uint32_t		len = 0;
-	uint32_t		lm_pw_len, nt_pw_len, nt_pw_hist_len, hourslen;
-	uint32_t pwHistLen = 0;
+	uint32	user_rid, group_rid, hours_len, unknown_6, acct_ctrl;
+	uint16  logon_divs;
+	uint16	bad_password_count, logon_count;
+	uint8	*hours = NULL;
+	uint8	*lm_pw_ptr = NULL, *nt_pw_ptr = NULL, *nt_pw_hist_ptr = NULL;
+	uint32		len = 0;
+	uint32		lm_pw_len, nt_pw_len, nt_pw_hist_len, hourslen;
+	uint32 pwHistLen = 0;
 	bool ret = True;
 	fstring tmp_string;
 	bool expand_explicit = lp_passdb_expand_explicit();
@@ -1616,7 +1611,7 @@ static bool init_samu_from_buffer_v3(struct samu *sampass, uint8_t *buf, uint32_
 		&nt_pw_len, &nt_pw_ptr,					/* B */
 		/* Change from V1 is addition of password history field. */
 		&nt_pw_hist_len, &nt_pw_hist_ptr,			/* B */
-		/* Change from V2 is the uint32_t acb_mask */
+		/* Change from V2 is the uint32 acb_mask */
 		&acct_ctrl,						/* d */
 		/* Also "remove_me" field was removed. */
 		&logon_divs,						/* w */
@@ -1626,18 +1621,18 @@ static bool init_samu_from_buffer_v3(struct samu *sampass, uint8_t *buf, uint32_
 		&logon_count,						/* w */
 		&unknown_6);						/* d */
 
-	if (len == (uint32_t) -1)  {
+	if (len == (uint32) -1)  {
 		ret = False;
 		goto done;
 	}
 
-	pdb_set_logon_time(sampass, convert_uint32_t_to_time_t(logon_time), PDB_SET);
-	pdb_set_logoff_time(sampass, convert_uint32_t_to_time_t(logoff_time), PDB_SET);
-	pdb_set_kickoff_time(sampass, convert_uint32_t_to_time_t(kickoff_time), PDB_SET);
-	pdb_set_bad_password_time(sampass, convert_uint32_t_to_time_t(bad_password_time), PDB_SET);
-	pdb_set_pass_can_change_time(sampass, convert_uint32_t_to_time_t(pass_can_change_time), PDB_SET);
-	pdb_set_pass_must_change_time(sampass, convert_uint32_t_to_time_t(pass_must_change_time), PDB_SET);
-	pdb_set_pass_last_set_time(sampass, convert_uint32_t_to_time_t(pass_last_set_time), PDB_SET);
+	pdb_set_logon_time(sampass, convert_uint32_to_time_t(logon_time), PDB_SET);
+	pdb_set_logoff_time(sampass, convert_uint32_to_time_t(logoff_time), PDB_SET);
+	pdb_set_kickoff_time(sampass, convert_uint32_to_time_t(kickoff_time), PDB_SET);
+	pdb_set_bad_password_time(sampass, convert_uint32_to_time_t(bad_password_time), PDB_SET);
+	pdb_set_pass_can_change_time(sampass, convert_uint32_to_time_t(pass_can_change_time), PDB_SET);
+	pdb_set_pass_must_change_time(sampass, convert_uint32_to_time_t(pass_must_change_time), PDB_SET);
+	pdb_set_pass_last_set_time(sampass, convert_uint32_to_time_t(pass_last_set_time), PDB_SET);
 
 	pdb_set_username(sampass, username, PDB_SET); 
 	pdb_set_domain(sampass, domain, PDB_SET);
@@ -1714,7 +1709,7 @@ static bool init_samu_from_buffer_v3(struct samu *sampass, uint8_t *buf, uint32_
 
 	pdb_get_account_policy(PDB_POLICY_PASSWORD_HISTORY, &pwHistLen);
 	if (pwHistLen) {
-		uint8_t *pw_hist = (uint8_t *)SMB_MALLOC(pwHistLen * PW_HISTORY_ENTRY_LEN);
+		uint8 *pw_hist = (uint8 *)SMB_MALLOC(pwHistLen * PW_HISTORY_ENTRY_LEN);
 		if (!pw_hist) {
 			ret = False;
 			goto done;
@@ -1745,10 +1740,10 @@ static bool init_samu_from_buffer_v3(struct samu *sampass, uint8_t *buf, uint32_
 	pdb_set_bad_password_count(sampass, bad_password_count, PDB_SET);
 	pdb_set_logon_count(sampass, logon_count, PDB_SET);
 	pdb_set_unknown_6(sampass, unknown_6, PDB_SET);
-	/* Change from V2 is the uint32_t acct_ctrl */
+	/* Change from V2 is the uint32 acct_ctrl */
 	pdb_set_acct_ctrl(sampass, acct_ctrl, PDB_SET);
 	pdb_set_logon_divs(sampass, logon_divs, PDB_SET);
-	pdb_set_hours(sampass, hours, hours_len, PDB_SET);
+	pdb_set_hours(sampass, hours, PDB_SET);
 
 done:
 
@@ -1775,14 +1770,14 @@ done:
 /*********************************************************************
 *********************************************************************/
 
-static uint32_t init_buffer_from_samu_v3 (uint8_t **buf, struct samu *sampass, bool size_only)
+static uint32 init_buffer_from_samu_v3 (uint8 **buf, struct samu *sampass, bool size_only)
 {
 	size_t len, buflen;
 
 	/* times are stored as 32bit integer
 	   take care on system with 64bit wide time_t
 	   --SSS */
-	uint32_t	logon_time,
+	uint32	logon_time,
 		logoff_time,
 		kickoff_time,
 		bad_password_time,
@@ -1790,7 +1785,7 @@ static uint32_t init_buffer_from_samu_v3 (uint8_t **buf, struct samu *sampass, b
 		pass_can_change_time,
 		pass_must_change_time;
 
-	uint32_t  user_rid, group_rid;
+	uint32  user_rid, group_rid;
 
 	const char *username;
 	const char *domain;
@@ -1804,29 +1799,29 @@ static uint32_t init_buffer_from_samu_v3 (uint8_t **buf, struct samu *sampass, b
 	const char *profile_path;
 	const char *acct_desc;
 	const char *workstations;
-	uint32_t	username_len, domain_len, nt_username_len,
+	uint32	username_len, domain_len, nt_username_len,
 		dir_drive_len, comment_len, munged_dial_len,
 		fullname_len, homedir_len, logon_script_len,
 		profile_path_len, acct_desc_len, workstations_len;
 
-	const uint8_t *lm_pw;
-	const uint8_t *nt_pw;
-	const uint8_t *nt_pw_hist;
-	uint32_t	lm_pw_len = 16;
-	uint32_t	nt_pw_len = 16;
-	uint32_t  nt_pw_hist_len;
-	uint32_t pwHistLen = 0;
+	const uint8 *lm_pw;
+	const uint8 *nt_pw;
+	const uint8 *nt_pw_hist;
+	uint32	lm_pw_len = 16;
+	uint32	nt_pw_len = 16;
+	uint32  nt_pw_hist_len;
+	uint32 pwHistLen = 0;
 
 	*buf = NULL;
 	buflen = 0;
 
-	logon_time = convert_time_t_to_uint32_t(pdb_get_logon_time(sampass));
-	logoff_time = convert_time_t_to_uint32_t(pdb_get_logoff_time(sampass));
-	kickoff_time = convert_time_t_to_uint32_t(pdb_get_kickoff_time(sampass));
-	bad_password_time = convert_time_t_to_uint32_t(pdb_get_bad_password_time(sampass));
-	pass_can_change_time = convert_time_t_to_uint32_t(pdb_get_pass_can_change_time_noncalc(sampass));
-	pass_must_change_time = convert_time_t_to_uint32_t(pdb_get_pass_must_change_time(sampass));
-	pass_last_set_time = convert_time_t_to_uint32_t(pdb_get_pass_last_set_time(sampass));
+	logon_time = convert_time_t_to_uint32(pdb_get_logon_time(sampass));
+	logoff_time = convert_time_t_to_uint32(pdb_get_logoff_time(sampass));
+	kickoff_time = convert_time_t_to_uint32(pdb_get_kickoff_time(sampass));
+	bad_password_time = convert_time_t_to_uint32(pdb_get_bad_password_time(sampass));
+	pass_can_change_time = convert_time_t_to_uint32(pdb_get_pass_can_change_time_noncalc(sampass));
+	pass_must_change_time = convert_time_t_to_uint32(pdb_get_pass_must_change_time(sampass));
+	pass_last_set_time = convert_time_t_to_uint32(pdb_get_pass_last_set_time(sampass));
 
 	user_rid = pdb_get_user_rid(sampass);
 	group_rid = pdb_get_group_rid(sampass);
@@ -1994,7 +1989,7 @@ static uint32_t init_buffer_from_samu_v3 (uint8_t **buf, struct samu *sampass, b
 	}
 
 	/* malloc the space needed */
-	if ( (*buf=(uint8_t*)SMB_MALLOC(len)) == NULL) {
+	if ( (*buf=(uint8*)SMB_MALLOC(len)) == NULL) {
 		DEBUG(0,("init_buffer_from_samu_v3: Unable to malloc() memory for buffer!\n"));
 		return (-1);
 	}
@@ -2045,13 +2040,13 @@ static uint32_t init_buffer_from_samu_v3 (uint8_t **buf, struct samu *sampass, b
 	return (buflen);
 }
 
-static bool init_samu_from_buffer_v4(struct samu *sampass, uint8_t *buf, uint32_t buflen)
+static bool init_samu_from_buffer_v4(struct samu *sampass, uint8 *buf, uint32 buflen)
 {
 	/* nothing changed between V3 and V4 */
 	return init_samu_from_buffer_v3(sampass, buf, buflen);
 }
 
-static uint32_t init_buffer_from_samu_v4(uint8_t **buf, struct samu *sampass, bool size_only)
+static uint32 init_buffer_from_samu_v4(uint8 **buf, struct samu *sampass, bool size_only)
 {
 	/* nothing changed between V3 and V4 */
 	return init_buffer_from_samu_v3(buf, sampass, size_only);
@@ -2062,7 +2057,7 @@ static uint32_t init_buffer_from_samu_v4(uint8_t **buf, struct samu *sampass, bo
  *********************************************************************/
 
 bool init_samu_from_buffer(struct samu *sampass, uint32_t level,
-			   uint8_t *buf, uint32_t buflen)
+			   uint8 *buf, uint32 buflen)
 {
 	switch (level) {
 	case SAMU_BUFFER_V0:
@@ -2084,7 +2079,7 @@ bool init_samu_from_buffer(struct samu *sampass, uint32_t level,
  Intialize a BYTE buffer from a struct samu struct
  *********************************************************************/
 
-uint32_t init_buffer_from_samu (uint8_t **buf, struct samu *sampass, bool size_only)
+uint32 init_buffer_from_samu (uint8 **buf, struct samu *sampass, bool size_only)
 {
 	return init_buffer_from_samu_v4(buf, sampass, size_only);
 }
@@ -2094,7 +2089,7 @@ uint32_t init_buffer_from_samu (uint8_t **buf, struct samu *sampass, bool size_o
 
 bool pdb_copy_sam_account(struct samu *dst, struct samu *src )
 {
-	uint8_t *buf = NULL;
+	uint8 *buf = NULL;
 	int len;
 
 	len = init_buffer_from_samu(&buf, src, False);
@@ -2133,8 +2128,8 @@ bool pdb_copy_sam_account(struct samu *dst, struct samu *src )
 bool pdb_update_bad_password_count(struct samu *sampass, bool *updated)
 {
 	time_t LastBadPassword;
-	uint16_t BadPasswordCount;
-	uint32_t resettime;
+	uint16 BadPasswordCount;
+	uint32 resettime; 
 	bool res;
 
 	BadPasswordCount = pdb_get_bad_password_count(sampass);
@@ -2153,15 +2148,15 @@ bool pdb_update_bad_password_count(struct samu *sampass, bool *updated)
 	}
 
 	/* First, check if there is a reset time to compare */
-	if ((resettime == (uint32_t) -1) || (resettime == 0)) {
+	if ((resettime == (uint32) -1) || (resettime == 0)) {
 		DEBUG(9, ("No reset time, can't reset bad pw count\n"));
 		return True;
 	}
 
 	LastBadPassword = pdb_get_bad_password_time(sampass);
 	DEBUG(7, ("LastBadPassword=%d, resettime=%d, current time=%d.\n", 
-		   (uint32_t) LastBadPassword, resettime, (uint32_t)time(NULL)));
-	if (time(NULL) > (LastBadPassword + convert_uint32_t_to_time_t(resettime)*60)){
+		   (uint32) LastBadPassword, resettime, (uint32)time(NULL)));
+	if (time(NULL) > (LastBadPassword + convert_uint32_to_time_t(resettime)*60)){
 		pdb_set_bad_password_count(sampass, 0, PDB_CHANGED);
 		pdb_set_bad_password_time(sampass, 0, PDB_CHANGED);
 		if (updated) {
@@ -2178,7 +2173,7 @@ bool pdb_update_bad_password_count(struct samu *sampass, bool *updated)
 
 bool pdb_update_autolock_flag(struct samu *sampass, bool *updated)
 {
-	uint32_t duration;
+	uint32 duration;
 	time_t LastBadPassword;
 	bool res;
 
@@ -2198,14 +2193,14 @@ bool pdb_update_autolock_flag(struct samu *sampass, bool *updated)
 	}
 
 	/* First, check if there is a duration to compare */
-	if ((duration == (uint32_t) -1)  || (duration == 0)) {
+	if ((duration == (uint32) -1)  || (duration == 0)) {
 		DEBUG(9, ("pdb_update_autolock_flag: No reset duration, can't reset autolock\n"));
 		return True;
 	}
 
 	LastBadPassword = pdb_get_bad_password_time(sampass);
 	DEBUG(7, ("pdb_update_autolock_flag: Account %s, LastBadPassword=%d, duration=%d, current time =%d.\n",
-		  pdb_get_username(sampass), (uint32_t)LastBadPassword, duration*60, (uint32_t)time(NULL)));
+		  pdb_get_username(sampass), (uint32)LastBadPassword, duration*60, (uint32)time(NULL)));
 
 	if (LastBadPassword == (time_t)0) {
 		DEBUG(1,("pdb_update_autolock_flag: Account %s "
@@ -2215,7 +2210,7 @@ bool pdb_update_autolock_flag(struct samu *sampass, bool *updated)
 		return True;
 	}
 
-	if ((time(NULL) > (LastBadPassword + convert_uint32_t_to_time_t(duration) * 60))) {
+	if ((time(NULL) > (LastBadPassword + convert_uint32_to_time_t(duration) * 60))) {
 		pdb_set_acct_ctrl(sampass,
 				  pdb_get_acct_ctrl(sampass) & ~ACB_AUTOLOCK,
 				  PDB_CHANGED);
@@ -2235,7 +2230,7 @@ bool pdb_update_autolock_flag(struct samu *sampass, bool *updated)
 
 bool pdb_increment_bad_password_count(struct samu *sampass)
 {
-	uint32_t account_policy_lockout;
+	uint32 account_policy_lockout;
 	bool autolock_updated = False, badpw_updated = False;
 	bool ret;
 
@@ -2371,7 +2366,7 @@ bool get_trust_pw_clear(const char *domain, char **ret_pwd,
  appropriate account name is stored in account_name.
 *******************************************************************/
 
-bool get_trust_pw_hash(const char *domain, uint8_t ret_pwd[16],
+bool get_trust_pw_hash(const char *domain, uint8 ret_pwd[16],
 		       const char **account_name,
 		       enum netr_SchannelType *channel)
 {
@@ -2402,4 +2397,27 @@ bool get_trust_pw_hash(const char *domain, uint8_t ret_pwd[16],
 	DEBUG(5, ("get_trust_pw_hash: could not fetch trust account "
 		"password for domain %s\n", domain));
 	return False;
+}
+
+struct samr_LogonHours get_logon_hours_from_pdb(TALLOC_CTX *mem_ctx,
+						struct samu *pw)
+{
+	struct samr_LogonHours hours;
+	const int units_per_week = 168;
+
+	ZERO_STRUCT(hours);
+	hours.bits = talloc_array(mem_ctx, uint8_t, units_per_week);
+	if (!hours.bits) {
+		return hours;
+	}
+
+	hours.units_per_week = units_per_week;
+	memset(hours.bits, 0xFF, units_per_week);
+
+	if (pdb_get_hours(pw)) {
+		memcpy(hours.bits, pdb_get_hours(pw),
+		       MIN(pdb_get_hours_len(pw), units_per_week));
+	}
+
+	return hours;
 }

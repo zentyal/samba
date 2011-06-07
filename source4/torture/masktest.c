@@ -22,10 +22,12 @@
 #include "system/filesys.h"
 #include "system/dir.h"
 #include "libcli/libcli.h"
+#include "libcli/raw/libcliraw.h"
 #include "system/time.h"
 #include "auth/credentials/credentials.h"
 #include "auth/gensec/gensec.h"
 #include "param/param.h"
+#include "dynconfig/dynconfig.h"
 #include "libcli/resolve/resolve.h"
 #include "lib/events/events.h"
 
@@ -77,6 +79,7 @@ static struct smbcli_state *connect_one(struct resolve_context *resolve_ctx,
 					const char *socket_options,
 					struct smbcli_options *options,
 					struct smbcli_session_options *session_options,
+					struct smb_iconv_convenience *iconv_convenience,
 					struct gensec_settings *gensec_settings)
 {
 	struct smbcli_state *c;
@@ -98,6 +101,7 @@ static struct smbcli_state *connect_one(struct resolve_context *resolve_ctx,
 					socket_options,
 					cmdline_credentials, resolve_ctx, ev,
 					options, session_options,
+					iconv_convenience,
 					gensec_settings);
 
 	if (!NT_STATUS_IS_OK(status)) {
@@ -331,7 +335,7 @@ static void usage(poptContext pc)
 	while((opt = poptGetNextOpt(pc)) != -1) {
 		switch (opt) {
 		case OPT_UNCLIST:
-			lpcfg_set_cmdline(cmdline_lp_ctx, "torture:unclist", poptGetOptArg(pc));
+			lp_set_cmdline(cmdline_lp_ctx, "torture:unclist", poptGetOptArg(pc));
 			break;
 		}
 	}
@@ -364,13 +368,14 @@ static void usage(poptContext pc)
 
 	gensec_init(lp_ctx);
 
-	lpcfg_smbcli_options(lp_ctx, &options);
-	lpcfg_smbcli_session_options(lp_ctx, &session_options);
+	lp_smbcli_options(lp_ctx, &options);
+	lp_smbcli_session_options(lp_ctx, &session_options);
 
-	cli = connect_one(lpcfg_resolve_context(lp_ctx), ev, mem_ctx, share,
-			  lpcfg_smb_ports(lp_ctx), lpcfg_socket_options(lp_ctx),
+	cli = connect_one(lp_resolve_context(lp_ctx), ev, mem_ctx, share, 
+			  lp_smb_ports(lp_ctx), lp_socket_options(lp_ctx), 
 			  &options, &session_options,
-			  lpcfg_gensec_settings(mem_ctx, lp_ctx));
+			  lp_iconv_convenience(lp_ctx),
+			  lp_gensec_settings(mem_ctx, lp_ctx));
 	if (!cli) {
 		DEBUG(0,("Failed to connect to %s\n", share));
 		exit(1);

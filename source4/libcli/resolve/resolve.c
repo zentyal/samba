@@ -27,8 +27,6 @@
 #include "system/network.h"
 #include "lib/socket/socket.h"
 #include "../lib/util/dlinklist.h"
-#include "lib/tsocket/tsocket.h"
-#include "lib/util/util_net.h"
 
 struct resolve_state {
 	struct resolve_context *ctx;
@@ -139,7 +137,7 @@ static struct composite_context *setup_next_method(struct composite_context *c)
  */
 struct composite_context *resolve_name_all_send(struct resolve_context *ctx,
 						TALLOC_CTX *mem_ctx,
-						uint32_t flags, /* RESOLVE_NAME_FLAG_* */
+						uint32_t flags,
 						uint16_t port,
 						struct nbt_name *name,
 						struct tevent_context *event_ctx)
@@ -147,7 +145,7 @@ struct composite_context *resolve_name_all_send(struct resolve_context *ctx,
 	struct composite_context *c;
 	struct resolve_state *state;
 
-	if (event_ctx == NULL) {
+	if (ctx == NULL || event_ctx == NULL) {
 		return NULL;
 	}
 
@@ -223,22 +221,12 @@ NTSTATUS resolve_name_all_recv(struct composite_context *c,
 	return status;
 }
 
-struct composite_context *resolve_name_ex_send(struct resolve_context *ctx,
-					       TALLOC_CTX *mem_ctx,
-					       uint32_t flags, /* RESOLVE_NAME_FLAG_* */
-					       uint16_t port,
-					       struct nbt_name *name,
-					       struct tevent_context *event_ctx)
-{
-	return resolve_name_all_send(ctx, mem_ctx, flags, port, name, event_ctx);
-}
-
 struct composite_context *resolve_name_send(struct resolve_context *ctx,
 					    TALLOC_CTX *mem_ctx,
 					    struct nbt_name *name,
 					    struct tevent_context *event_ctx)
 {
-	return resolve_name_ex_send(ctx, mem_ctx, 0, 0, name, event_ctx);
+	return resolve_name_all_send(ctx, mem_ctx, 0, 0, name, event_ctx);
 }
 
 NTSTATUS resolve_name_recv(struct composite_context *c,
@@ -251,81 +239,24 @@ NTSTATUS resolve_name_recv(struct composite_context *c,
 	status = resolve_name_all_recv(c, mem_ctx, &addrs, NULL);
 
 	if (NT_STATUS_IS_OK(status)) {
-		struct tsocket_address *t_addr = socket_address_to_tsocket_address(addrs, addrs[0]);
-		if (!t_addr) {
-			return NT_STATUS_NO_MEMORY;
-		}
-
-		*reply_addr = tsocket_address_inet_addr_string(t_addr, mem_ctx);
+		*reply_addr = talloc_steal(mem_ctx, addrs[0]->addr);
 		talloc_free(addrs);
-		if (!*reply_addr) {
-			return NT_STATUS_NO_MEMORY;
-		}
 	}
 
 	return status;
 }
-
-/*
-  receive multiple responses from resolve_name_send()
- */
-NTSTATUS resolve_name_multiple_recv(struct composite_context *c,
-				    TALLOC_CTX *mem_ctx,
-				    const char ***reply_addrs)
-{
-	NTSTATUS status;
-	struct socket_address **addrs = NULL;
-	int i;
-
-	status = resolve_name_all_recv(c, mem_ctx, &addrs, NULL);
-	NT_STATUS_NOT_OK_RETURN(status);
-
-	/* count the addresses */
-	for (i=0; addrs[i]; i++) ;
-
-	*reply_addrs = talloc_array(mem_ctx, const char *, i+1);
-	NT_STATUS_HAVE_NO_MEMORY(*reply_addrs);
-
-	for (i=0; addrs[i]; i++) {
-		struct tsocket_address *t_addr = socket_address_to_tsocket_address(addrs, addrs[i]);
-		NT_STATUS_HAVE_NO_MEMORY(t_addr);
-
-		(*reply_addrs)[i] = tsocket_address_inet_addr_string(t_addr, *reply_addrs);
-		NT_STATUS_HAVE_NO_MEMORY((*reply_addrs)[i]);
-	}
-	(*reply_addrs)[i] = NULL;
-
-	talloc_free(addrs);
-
-	return status;
-}
-
-/*
-  general name resolution - sync call
- */
-NTSTATUS resolve_name_ex(struct resolve_context *ctx,
-			 uint32_t flags, /* RESOLVE_NAME_FLAG_* */
-			 uint16_t port,
-			 struct nbt_name *name,
-			 TALLOC_CTX *mem_ctx,
-			 const char **reply_addr,
-			 struct tevent_context *ev)
-{
-	struct composite_context *c = resolve_name_ex_send(ctx, mem_ctx, flags, port, name, ev);
-	return resolve_name_recv(c, mem_ctx, reply_addr);
-}
-
 
 /*
   general name resolution - sync call
  */
 NTSTATUS resolve_name(struct resolve_context *ctx,
-		      struct nbt_name *name,
-		      TALLOC_CTX *mem_ctx,
-		      const char **reply_addr,
-		      struct tevent_context *ev)
+			  struct nbt_name *name,
+			  TALLOC_CTX *mem_ctx,
+			  const char **reply_addr,
+			  struct tevent_context *ev)
 {
-	return resolve_name_ex(ctx, 0, 0, name, mem_ctx, reply_addr, ev);
+	struct composite_context *c = resolve_name_send(ctx, mem_ctx, name, ev);
+	return resolve_name_recv(c, mem_ctx, reply_addr);
 }
 
 /* Initialise a struct nbt_name with a NULL scope */

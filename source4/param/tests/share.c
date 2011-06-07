@@ -106,7 +106,7 @@ static bool test_share_remove_invalid(struct torture_context *tctx,
 	struct share_context *ctx = (struct share_context *)discard_const(tcase_data);
 	NTSTATUS status;
 
-	status = share_remove(ctx, "nonexistent");
+	status = share_remove(ctx, "nonexistant");
 
 	if (NT_STATUS_EQUAL(status, NT_STATUS_NOT_IMPLEMENTED))
 		torture_skip(tctx, "Not supported by backend");
@@ -198,7 +198,7 @@ static bool teardown(struct torture_context *tctx, void *data)
 
 struct torture_suite *torture_local_share(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "share");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "SHARE");
 	struct torture_tcase *tcase;
 
 	share_init();

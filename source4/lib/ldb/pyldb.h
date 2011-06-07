@@ -1,7 +1,7 @@
 /*
    Unix SMB/CIFS implementation.
 
-   Python interface to ldb.
+   Swig interface to ldb.
 
    Copyright (C) 2007-2008 Jelmer Vernooij <jelmer@samba.org>
 
@@ -26,21 +26,23 @@
 #ifndef _PYLDB_H_
 #define _PYLDB_H_
 
+#include <Python.h>
 #include <talloc.h>
 
 typedef struct {
 	PyObject_HEAD
-	TALLOC_CTX *mem_ctx;
 	struct ldb_context *ldb_ctx;
+	TALLOC_CTX *mem_ctx;
 } PyLdbObject;
 
+PyObject *PyLdb_FromLdbContext(struct ldb_context *ldb_ctx);
 #define PyLdb_AsLdbContext(pyobj) ((PyLdbObject *)pyobj)->ldb_ctx
 #define PyLdb_Check(ob) PyObject_TypeCheck(ob, &PyLdb)
 
 typedef struct {
 	PyObject_HEAD
-	TALLOC_CTX *mem_ctx;
 	struct ldb_dn *dn;
+	TALLOC_CTX *mem_ctx;
 } PyLdbDnObject;
 
 PyObject *PyLdbDn_FromDn(struct ldb_dn *);
@@ -50,47 +52,38 @@ bool PyObject_AsDn(TALLOC_CTX *mem_ctx, PyObject *object, struct ldb_context *ld
 
 typedef struct {
 	PyObject_HEAD
-	TALLOC_CTX *mem_ctx;
 	struct ldb_message *msg;
+	TALLOC_CTX *mem_ctx;
 } PyLdbMessageObject;
 #define PyLdbMessage_Check(ob) PyObject_TypeCheck(ob, &PyLdbMessage)
 #define PyLdbMessage_AsMessage(pyobj) ((PyLdbMessageObject *)pyobj)->msg
 
 typedef struct {
 	PyObject_HEAD
-	TALLOC_CTX *mem_ctx;
 	struct ldb_module *mod;
+	TALLOC_CTX *mem_ctx;
 } PyLdbModuleObject;
+PyObject *PyLdbMessage_FromMessage(struct ldb_message *message);
+PyObject *PyLdbModule_FromModule(struct ldb_module *mod);
 #define PyLdbModule_AsModule(pyobj) ((PyLdbModuleObject *)pyobj)->mod
 
 typedef struct {
-	PyObject_HEAD
-	TALLOC_CTX *mem_ctx;
+	PyObject_HEAD	
 	struct ldb_message_element *el;
+	TALLOC_CTX *mem_ctx;
 } PyLdbMessageElementObject;
+struct ldb_message_element *PyObject_AsMessageElement(TALLOC_CTX *mem_ctx, PyObject *obj, int flags, const char *name);
+PyObject *PyLdbMessageElement_FromMessageElement(struct ldb_message_element *, TALLOC_CTX *mem_ctx);
 #define PyLdbMessageElement_AsMessageElement(pyobj) ((PyLdbMessageElementObject *)pyobj)->el
 #define PyLdbMessageElement_Check(ob) PyObject_TypeCheck(ob, &PyLdbMessageElement)
 
 typedef struct {
 	PyObject_HEAD
-	TALLOC_CTX *mem_ctx;
 	struct ldb_parse_tree *tree;
+	TALLOC_CTX *mem_ctx;
 } PyLdbTreeObject;
+PyObject *PyLdbTree_FromTree(struct ldb_parse_tree *);
 #define PyLdbTree_AsTree(pyobj) ((PyLdbTreeObject *)pyobj)->tree
-
-typedef struct {
-	PyObject_HEAD
-	TALLOC_CTX *mem_ctx;
-	PyObject *msgs;
-	PyObject *referals;
-	PyObject *controls;
-} PyLdbResultObject;
-
-typedef struct {
-	PyObject_HEAD
-	TALLOC_CTX *mem_ctx;
-	struct ldb_control *data;
-} PyLdbControlObject;
 
 #define PyErr_LDB_ERROR_IS_ERR_RAISE(err,ret,ldb) \
 	if (ret != LDB_SUCCESS) { \

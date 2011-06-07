@@ -33,7 +33,7 @@
 
 #include "gsskrb5_locl.h"
 
-OM_uint32 GSSAPI_CALLCONV
+OM_uint32
 _gsskrb5_export_cred(OM_uint32 *minor_status,
 		     gss_cred_id_t cred_handle,
 		     gss_buffer_t cred_token)
@@ -154,7 +154,7 @@ _gsskrb5_export_cred(OM_uint32 *minor_status,
     return GSS_S_COMPLETE;
 }
 
-OM_uint32 GSSAPI_CALLCONV
+OM_uint32
 _gsskrb5_import_cred(OM_uint32 * minor_status,
 		     gss_buffer_t cred_token,
 		     gss_cred_id_t * cred_handle)
@@ -250,6 +250,5 @@ _gsskrb5_import_cred(OM_uint32 * minor_status,
     handle->cred_flags = flags;
 
     *cred_handle = (gss_cred_id_t)handle;
-
     return GSS_S_COMPLETE;
 }

@@ -31,9 +31,9 @@
  * SUCH DAMAGE.
  */
 
-#include "krb5_locl.h"
+#include <krb5_locl.h>
 
-KRB5_LIB_FUNCTION int KRB5_LIB_CALL
+int KRB5_LIB_FUNCTION
 krb5_getportbyname (krb5_context context,
 		    const char *service,
 		    const char *proto,

@@ -1,14 +1,21 @@
 #!/bin/sh
 #
 
-SELF="$0"
-SELFDIR=`dirname "${SELF}"`
+SELF=$0
+SELFDIR=`dirname ${SELF}`
 
-DESTDIR="$1"
-CMD="$2"
-FILE="$3"
-SOURCE="$4"
-shift 4
+BUILDDIR=$1
+DESTDIR=$2
+
+CMD=$3
+FILE=$4
+SOURCE=$5
+shift 5
+
+test -z "${BUILDDIR}" && {
+	echo "${SELF}:BUILDDIR: '${BUILDDIR}'" >&2;
+	exit 1;
+}
 
 test -z "${DESTDIR}" && {
 	echo "${SELF}:DESTDIR: '${DESTDIR}'" >&2;
@@ -30,24 +37,28 @@ test -z "${SOURCE}" && {
 	exit 1;
 }
 
-CURDIR="`pwd`"
+CURDIR=`pwd`
 
-cd "${DESTDIR}" && {
-	# Remove older copies beforehand - MIT's compile_et uses odd permissions for these
-	# files, which makes Heimdal's compile_et fail mysteriously when writing to them.
-	rm -f `basename "${FILE}" .et`.c
-	rm -f `basename "${FILE}" .et`.h
-	"${CMD}" "${FILE}" >&2 || exit 1;
-	cd "${CURDIR}"
+cd ${BUILDDIR} && {
+	ABS_BUILDDIR=`pwd`
+	cd ${CURDIR}
+} || {
+	echo "${SELF}:cannot cd into '${BUILDDIR}'" >&2;
+	exit 1;
+}
+
+cd ${DESTDIR} && {
+	${ABS_BUILDDIR}/${CMD} ${FILE} >&2 || exit 1;
+	cd ${CURDIR}
 	TMP="${SOURCE}.$$"
-	mv "${SOURCE}" "${TMP}" && {
-		echo "#include \"config.h\"" > "${SOURCE}" && {
-			cat "${TMP}" >> "${SOURCE}"
+	mv ${SOURCE} ${TMP} && {
+		echo "#include \"config.h\"" > ${SOURCE} && {
+			cat ${TMP} >> ${SOURCE}
 		}
 	}
-	rm -f "${TMP}"
+	rm ${TMP}
 } || {
-	echo "${SELF}:cannot cd into '${DESTDIR}'" >&2;
+	echo "${SELF}:cannot cd into '${BUILDDIR}'" >&2;
 	exit 1;
 }
 

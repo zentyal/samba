@@ -17,17 +17,8 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "includes.h"
-#include "system/filesys.h"
 #include "utils/net.h"
-#include "rpc_client/rpc_client.h"
-#include "../librpc/gen_ndr/ndr_spoolss_c.h"
-#include "rpc_client/cli_spoolss.h"
-#include "rpc_client/init_spoolss.h"
-#include "nt_printing.h"
-#include "registry/reg_objects.h"
-#include "../libcli/security/security.h"
-#include "../libcli/registry/util_reg.h"
-#include "libsmb/libsmb.h"
+#include "../librpc/gen_ndr/cli_spoolss.h"
 
 /* support itanium as well */
 static const struct print_architecture_table_node archi_table[]= {
@@ -70,7 +61,7 @@ static void display_print_driver3(struct spoolss_DriverInfo3 *r)
 	printf(_("\tConfigfile: [%s]\n\n"), r->config_file);
 	printf(_("\tHelpfile: [%s]\n\n"), r->help_file);
 
-	for (i=0; r->dependent_files && r->dependent_files[i] != NULL; i++) {
+	for (i=0; r->dependent_files[i] != NULL; i++) {
 		printf(_("\tDependentfiles: [%s]\n"), r->dependent_files[i]);
 	}
 
@@ -80,44 +71,44 @@ static void display_print_driver3(struct spoolss_DriverInfo3 *r)
 	printf(_("\tDefaultdatatype: [%s]\n\n"), r->default_datatype);
 }
 
-static void display_reg_value(const char *subkey, struct regval_blob *value)
+static void display_reg_value(const char *subkey, struct regval_blob value)
 {
 	const char *text;
 	DATA_BLOB blob;
 
-	switch(regval_type(value)) {
+	switch(value.type) {
 	case REG_DWORD:
 		d_printf(_("\t[%s:%s]: REG_DWORD: 0x%08x\n"), subkey,
-			regval_name(value), *((uint32_t *) regval_data_p(value)));
+			value.valuename, *((uint32_t *) value.data_p));
 		break;
 
 	case REG_SZ:
-		blob = data_blob_const(regval_data_p(value), regval_size(value));
+		blob = data_blob_const(value.data_p, value.size);
 		pull_reg_sz(talloc_tos(), &blob, &text);
 		if (!text) {
 			break;
 		}
-		d_printf(_("\t[%s:%s]: REG_SZ: %s\n"), subkey, regval_name(value),
+		d_printf(_("\t[%s:%s]: REG_SZ: %s\n"), subkey, value.valuename,
 			 text);
 		break;
 
 	case REG_BINARY:
 		d_printf(_("\t[%s:%s]: REG_BINARY: unknown length value not "
 			   "displayed\n"),
-			 subkey, regval_name(value));
+			 subkey, value.valuename);
 		break;
 
 	case REG_MULTI_SZ: {
 		uint32_t i;
 		const char **values;
-		blob = data_blob_const(regval_data_p(value), regval_size(value));
+		blob = data_blob_const(value.data_p, value.size);
 
 		if (!pull_reg_multi_sz(NULL, &blob, &values)) {
 			d_printf("pull_reg_multi_sz failed\n");
 			break;
 		}
 
-		printf("%s: REG_MULTI_SZ: \n", regval_name(value));
+		printf("%s: REG_MULTI_SZ: \n", value.valuename);
 		for (i=0; values[i] != NULL; i++) {
 			d_printf("%s\n", values[i]);
 		}
@@ -126,8 +117,8 @@ static void display_reg_value(const char *subkey, struct regval_blob *value)
 	}
 
 	default:
-		d_printf(_("\t%s: unknown type %d\n"), regval_name(value),
-			 regval_type(value));
+		d_printf(_("\t%s: unknown type %d\n"), value.valuename,
+			 value.type);
 	}
 
 }
@@ -161,7 +152,7 @@ NTSTATUS net_copy_fileattr(struct net_context *c,
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
 	uint16_t fnum_src = 0;
 	uint16_t fnum_dst = 0;
-	struct security_descriptor *sd = NULL;
+	SEC_DESC *sd = NULL;
 	uint16_t attr;
 	time_t f_atime, f_ctime, f_mtime;
 
@@ -234,14 +225,12 @@ NTSTATUS net_copy_fileattr(struct net_context *c,
 	}
 
 	if (copy_acls) {
-		NTSTATUS status;
 
 		/* set acls */
-		status = cli_set_secdesc(cli_share_dst, fnum_dst, sd);
-		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(0, ("could not set secdesc on %s: %s\n",
-				  dst_name, nt_errstr(status)));
-			nt_status = status;
+		if (!cli_set_secdesc(cli_share_dst, fnum_dst, sd)) {
+			DEBUG(0,("could not set secdesc on %s: %s\n",
+				dst_name, cli_errstr(cli_share_dst)));
+			nt_status = cli_nt_error(cli_share_dst);
 			goto out;
 		}
 	}
@@ -387,19 +376,20 @@ NTSTATUS net_copy_file(struct net_context *c,
 	while (is_file) {
 
 		/* copying file */
-		int n;
+		int n, ret;
 		n = cli_read(cli_share_src, fnum_src, data, nread,
 				read_size);
 
 		if (n <= 0)
 			break;
 
-		nt_status = cli_writeall(cli_share_dst, fnum_dst, 0,
-					 (uint8_t *)data, nread, n, NULL);
+		ret = cli_write(cli_share_dst, fnum_dst, 0, data,
+			nread, n);
 
-		if (!NT_STATUS_IS_OK(nt_status)) {
+		if (n != ret) {
 			d_fprintf(stderr, _("Error writing file: %s\n"),
-				  nt_errstr(nt_status));
+				cli_errstr(cli_share_dst));
+			nt_status = cli_nt_error(cli_share_dst);
 			goto out;
 		}
 
@@ -496,11 +486,12 @@ static NTSTATUS net_copy_driverfile(struct net_context *c,
 				    struct cli_state *cli_share_dst,
 				    const char *file, const char *short_archi) {
 
+	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
 	const char *p;
 	char *src_name;
 	char *dst_name;
-	char *version = NULL;
-	char *filename = NULL;
+	char *version;
+	char *filename;
 	char *tok;
 
 	if (!file) {
@@ -517,27 +508,29 @@ static NTSTATUS net_copy_driverfile(struct net_context *c,
 		}
 	}
 
-	if (version == NULL || filename == NULL) {
-		return NT_STATUS_UNSUCCESSFUL;
-	}
-
 	/* build source file name */
-	src_name = talloc_asprintf(mem_ctx, "\\%s\\%s\\%s",
-				   short_archi, version, filename);
-	if (src_name == NULL) {
+	if (asprintf(&src_name, "\\%s\\%s\\%s", short_archi, version, filename) < 0 )
 		return NT_STATUS_NO_MEMORY;
-	}
+
 
 	/* create destination file name */
-	dst_name = talloc_asprintf(mem_ctx, "\\%s\\%s", short_archi, filename);
-	if (dst_name == NULL) {
-		return NT_STATUS_NO_MEMORY;
-	}
+	if (asprintf(&dst_name, "\\%s\\%s", short_archi, filename) < 0 )
+                return NT_STATUS_NO_MEMORY;
 
 
 	/* finally copy the file */
-	return net_copy_file(c, mem_ctx, cli_share_src, cli_share_dst,
-			     src_name, dst_name, false, false, false, true);
+	nt_status = net_copy_file(c, mem_ctx, cli_share_src, cli_share_dst,
+				  src_name, dst_name, false, false, false, true);
+	if (!NT_STATUS_IS_OK(nt_status))
+		goto out;
+
+	nt_status = NT_STATUS_OK;
+
+out:
+	SAFE_FREE(src_name);
+	SAFE_FREE(dst_name);
+
+	return nt_status;
 }
 
 /**
@@ -758,7 +751,6 @@ static bool net_spoolss_setprinter(struct rpc_pipe_client *pipe_hnd,
 				uint32_t level,
 				union spoolss_PrinterInfo *info)
 {
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 	WERROR result;
 	NTSTATUS status;
 	struct spoolss_SetPrinterInfoCtr info_ctr;
@@ -819,17 +811,14 @@ static bool net_spoolss_setprinter(struct rpc_pipe_client *pipe_hnd,
 		break; /* FIXME */
 	}
 
-	status = dcerpc_spoolss_SetPrinter(b, mem_ctx,
+	status = rpccli_spoolss_SetPrinter(pipe_hnd, mem_ctx,
 					   hnd,
 					   &info_ctr,
 					   &devmode_ctr,
 					   &secdesc_ctr,
 					   0, /* command */
 					   &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf(_("cannot set printer-info: %s\n"), nt_errstr(status));
-		return false;
-	}
+
 	if (!W_ERROR_IS_OK(result)) {
 		printf(_("cannot set printer-info: %s\n"), win_errstr(result));
 		return false;
@@ -847,23 +836,18 @@ static bool net_spoolss_setprinterdata(struct rpc_pipe_client *pipe_hnd,
 				       uint8_t *data,
 				       uint32_t offered)
 {
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 	WERROR result;
 	NTSTATUS status;
 
 	/* setprinterdata call */
-	status = dcerpc_spoolss_SetPrinterData(b, mem_ctx,
+	status = rpccli_spoolss_SetPrinterData(pipe_hnd, mem_ctx,
 					       hnd,
 					       value_name,
 					       type,
 					       data,
 					       offered,
 					       &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf (_("unable to set printerdata: %s\n"),
-			nt_errstr(status));
-		return false;
-	}
+
 	if (!W_ERROR_IS_OK(result)) {
 		printf (_("unable to set printerdata: %s\n"),
 			win_errstr(result));
@@ -926,24 +910,19 @@ static bool net_spoolss_setprinterdataex(struct rpc_pipe_client *pipe_hnd,
 					const char *keyname,
 					struct regval_blob *value)
 {
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 	WERROR result;
 	NTSTATUS status;
 
 	/* setprinterdataex call */
-	status = dcerpc_spoolss_SetPrinterDataEx(b, mem_ctx,
+	status = rpccli_spoolss_SetPrinterDataEx(pipe_hnd, mem_ctx,
 						 hnd,
 						 keyname,
-						 regval_name(value),
-						 regval_type(value),
-						 regval_data_p(value),
-						 regval_size(value),
+						 value->valuename,
+						 value->type,
+						 value->data_p,
+						 value->size,
 						 &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf(_("could not set printerdataex: %s\n"),
-		       nt_errstr(status));
-		return false;
-	}
+
 	if (!W_ERROR_IS_OK(result)) {
 		printf(_("could not set printerdataex: %s\n"),
 		       win_errstr(result));
@@ -994,14 +973,8 @@ static bool net_spoolss_enumprinterdrivers (struct rpc_pipe_client *pipe_hnd,
 						   count,
 						   info);
 	if (!W_ERROR_IS_OK(result)) {
-		if (W_ERROR_V(result) != W_ERROR_V(WERR_INVALID_ENVIRONMENT)) {
-			printf(_("cannot enum drivers for environment %s: %s\n"), env,
-				win_errstr(result));
-			return false;
-		} else {
-			printf(_("Server does not support environment [%s]\n"),
-				env);
-		}
+		printf(_("cannot enum drivers: %s\n"), win_errstr(result));
+		return false;
 	}
 
 	return true;
@@ -1047,7 +1020,6 @@ static bool net_spoolss_addprinterdriver(struct rpc_pipe_client *pipe_hnd,
 			     TALLOC_CTX *mem_ctx, uint32_t level,
 			     union spoolss_DriverInfo *info)
 {
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 	WERROR result;
 	NTSTATUS status;
 	struct spoolss_AddDriverInfoCtr info_ctr;
@@ -1069,14 +1041,10 @@ static bool net_spoolss_addprinterdriver(struct rpc_pipe_client *pipe_hnd,
 	}
 
 	/* addprinterdriver call */
-	status = dcerpc_spoolss_AddPrinterDriver(b, mem_ctx,
+	status = rpccli_spoolss_AddPrinterDriver(pipe_hnd, mem_ctx,
 						 pipe_hnd->srv_name_slash,
 						 &info_ctr,
 						 &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf(_("cannot add driver: %s\n"), nt_errstr(status));
-		return false;
-	}
 	/* be more verbose */
 	if (W_ERROR_V(result) == W_ERROR_V(WERR_ACCESS_DENIED)) {
 		printf(_("You are not allowed to add drivers\n"));
@@ -1103,9 +1071,7 @@ static bool get_printer_info(struct rpc_pipe_client *pipe_hnd,
 			uint32_t *num_printers,
 			union spoolss_PrinterInfo **info_p)
 {
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 	struct policy_handle hnd;
-	WERROR werr;
 
 	/* no arguments given, enumerate all printers */
 	if (argc == 0) {
@@ -1125,17 +1091,12 @@ static bool get_printer_info(struct rpc_pipe_client *pipe_hnd,
 					 &hnd))
 		return false;
 
-	*info_p = talloc_zero(mem_ctx, union spoolss_PrinterInfo);
-	if (*info_p == NULL) {
-		return false;
-	}
-
 	if (!net_spoolss_getprinter(pipe_hnd, mem_ctx, &hnd, level, *info_p)) {
-		dcerpc_spoolss_ClosePrinter(b, mem_ctx, &hnd, &werr);
+		rpccli_spoolss_ClosePrinter(pipe_hnd, mem_ctx, &hnd, NULL);
 		return false;
 	}
 
-	dcerpc_spoolss_ClosePrinter(b, mem_ctx, &hnd, &werr);
+	rpccli_spoolss_ClosePrinter(pipe_hnd, mem_ctx, &hnd, NULL);
 
 	*num_printers = 1;
 
@@ -1164,7 +1125,7 @@ out:
  **/
 
 NTSTATUS rpc_printer_list_internals(struct net_context *c,
-					const struct dom_sid *domain_sid,
+					const DOM_SID *domain_sid,
 					const char *domain_name,
 					struct cli_state *cli,
 					struct rpc_pipe_client *pipe_hnd,
@@ -1216,7 +1177,7 @@ NTSTATUS rpc_printer_list_internals(struct net_context *c,
  **/
 
 NTSTATUS rpc_printer_driver_list_internals(struct net_context *c,
-						const struct dom_sid *domain_sid,
+						const DOM_SID *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -1287,7 +1248,6 @@ static NTSTATUS rpc_printer_publish_internals_args(struct rpc_pipe_client *pipe_
 					const char **argv,
 					uint32_t action)
 {
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
 	uint32_t i, num_printers;
 	uint32_t level = 7;
@@ -1335,7 +1295,7 @@ static NTSTATUS rpc_printer_publish_internals_args(struct rpc_pipe_client *pipe_
 			break;
 		default:
 			action_str = N_("unknown action");
-			printf(_("unknown action: %d\n"), action);
+			printf(_("unkown action: %d\n"), action);
 			break;
 		}
 
@@ -1347,26 +1307,17 @@ static NTSTATUS rpc_printer_publish_internals_args(struct rpc_pipe_client *pipe_
 		ZERO_STRUCT(devmode_ctr);
 		ZERO_STRUCT(secdesc_ctr);
 
-		nt_status = dcerpc_spoolss_SetPrinter(b, mem_ctx,
+		nt_status = rpccli_spoolss_SetPrinter(pipe_hnd, mem_ctx,
 						      &hnd,
 						      &info_ctr,
 						      &devmode_ctr,
 						      &secdesc_ctr,
 						      0, /* command */
 						      &result);
-		if (!NT_STATUS_IS_OK(nt_status)) {
+
+		if (!W_ERROR_IS_OK(result) && (W_ERROR_V(result) != W_ERROR_V(WERR_IO_PENDING))) {
 			printf(_("cannot set printer-info: %s\n"),
-			       nt_errstr(nt_status));
-			goto done;
-		}
-		if (!W_ERROR_IS_OK(result) && !W_ERROR_EQUAL(result, WERR_IO_PENDING)) {
-			if ((action == DSPRINT_UPDATE) && W_ERROR_EQUAL(result, W_ERROR(0x80070002))) {
-				printf(_("printer not published yet\n"));
-			} else {
-				printf(_("cannot set printer-info: %s\n"),
-				       win_errstr(result));
-			}
-			nt_status = werror_to_ntstatus(result);
+			       win_errstr(result));
 			goto done;
 		}
 
@@ -1377,15 +1328,14 @@ static NTSTATUS rpc_printer_publish_internals_args(struct rpc_pipe_client *pipe_
 	nt_status = NT_STATUS_OK;
 
 done:
-	if (is_valid_policy_hnd(&hnd)) {
-		dcerpc_spoolss_ClosePrinter(b, mem_ctx, &hnd, &result);
-	}
+	if (is_valid_policy_hnd(&hnd))
+		rpccli_spoolss_ClosePrinter(pipe_hnd, mem_ctx, &hnd, NULL);
 
 	return nt_status;
 }
 
 NTSTATUS rpc_printer_publish_publish_internals(struct net_context *c,
-						const struct dom_sid *domain_sid,
+						const DOM_SID *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -1397,7 +1347,7 @@ NTSTATUS rpc_printer_publish_publish_internals(struct net_context *c,
 }
 
 NTSTATUS rpc_printer_publish_unpublish_internals(struct net_context *c,
-						const struct dom_sid *domain_sid,
+						const DOM_SID *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -1409,7 +1359,7 @@ NTSTATUS rpc_printer_publish_unpublish_internals(struct net_context *c,
 }
 
 NTSTATUS rpc_printer_publish_update_internals(struct net_context *c,
-						const struct dom_sid *domain_sid,
+						const DOM_SID *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -1438,7 +1388,7 @@ NTSTATUS rpc_printer_publish_update_internals(struct net_context *c,
  **/
 
 NTSTATUS rpc_printer_publish_list_internals(struct net_context *c,
-						const struct dom_sid *domain_sid,
+						const DOM_SID *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -1446,7 +1396,6 @@ NTSTATUS rpc_printer_publish_list_internals(struct net_context *c,
 						int argc,
 						const char **argv)
 {
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
 	uint32_t i, num_printers;
 	uint32_t level = 7;
@@ -1455,7 +1404,6 @@ NTSTATUS rpc_printer_publish_list_internals(struct net_context *c,
 	union spoolss_PrinterInfo info;
 	struct policy_handle hnd;
 	int state;
-	WERROR werr;
 
 	if (!get_printer_info(pipe_hnd, mem_ctx, 2, argc, argv, &num_printers, &info_enum))
 		return nt_status;
@@ -1500,7 +1448,7 @@ NTSTATUS rpc_printer_publish_list_internals(struct net_context *c,
 				       sharename);
 				break;
 			default:
-				printf(_("unknown state: %d\n"), state);
+				printf(_("unkown state: %d\n"), state);
 				break;
 		}
 	}
@@ -1508,9 +1456,8 @@ NTSTATUS rpc_printer_publish_list_internals(struct net_context *c,
 	nt_status = NT_STATUS_OK;
 
 done:
-	if (is_valid_policy_hnd(&hnd)) {
-		dcerpc_spoolss_ClosePrinter(b, mem_ctx, &hnd, &werr);
-	}
+	if (is_valid_policy_hnd(&hnd))
+		rpccli_spoolss_ClosePrinter(pipe_hnd, mem_ctx, &hnd, NULL);
 
 	return nt_status;
 }
@@ -1533,7 +1480,7 @@ done:
  **/
 
 NTSTATUS rpc_printer_migrate_security_internals(struct net_context *c,
-						const struct dom_sid *domain_sid,
+						const DOM_SID *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -1541,7 +1488,6 @@ NTSTATUS rpc_printer_migrate_security_internals(struct net_context *c,
 						int argc,
 						const char **argv)
 {
-	struct dcerpc_binding_handle *b_src = pipe_hnd->binding_handle;
 	/* TODO: what now, info2 or info3 ?
 	   convince jerry that we should add clientside setacls level 3 at least
 	*/
@@ -1551,22 +1497,19 @@ NTSTATUS rpc_printer_migrate_security_internals(struct net_context *c,
 	uint32_t level = 2;
 	const char *printername, *sharename;
 	struct rpc_pipe_client *pipe_hnd_dst = NULL;
-	struct dcerpc_binding_handle *b_dst = NULL;
 	struct policy_handle hnd_src, hnd_dst;
 	union spoolss_PrinterInfo *info_enum;
 	struct cli_state *cli_dst = NULL;
 	union spoolss_PrinterInfo info_src, info_dst;
-	WERROR werr;
 
 	DEBUG(3,("copying printer ACLs\n"));
 
 	/* connect destination PI_SPOOLSS */
 	nt_status = connect_dst_pipe(c, &cli_dst, &pipe_hnd_dst,
 				     &ndr_table_spoolss.syntax_id);
-	if (!NT_STATUS_IS_OK(nt_status)) {
+	if (!NT_STATUS_IS_OK(nt_status))
 		return nt_status;
-	}
-	b_dst = pipe_hnd_dst->binding_handle;
+
 
 	/* enum source printers */
 	if (!get_printer_info(pipe_hnd, mem_ctx, level, argc, argv, &num_printers, &info_enum)) {
@@ -1640,11 +1583,11 @@ NTSTATUS rpc_printer_migrate_security_internals(struct net_context *c,
 
 		/* close printer handles here */
 		if (is_valid_policy_hnd(&hnd_src)) {
-			dcerpc_spoolss_ClosePrinter(b_src, mem_ctx, &hnd_src, &werr);
+			rpccli_spoolss_ClosePrinter(pipe_hnd, mem_ctx, &hnd_src, NULL);
 		}
 
 		if (is_valid_policy_hnd(&hnd_dst)) {
-			dcerpc_spoolss_ClosePrinter(b_dst, mem_ctx, &hnd_dst, &werr);
+			rpccli_spoolss_ClosePrinter(pipe_hnd_dst, mem_ctx, &hnd_dst, NULL);
 		}
 
 	}
@@ -1654,11 +1597,11 @@ NTSTATUS rpc_printer_migrate_security_internals(struct net_context *c,
 done:
 
 	if (is_valid_policy_hnd(&hnd_src)) {
-		dcerpc_spoolss_ClosePrinter(b_src, mem_ctx, &hnd_src, &werr);
+		rpccli_spoolss_ClosePrinter(pipe_hnd, mem_ctx, &hnd_src, NULL);
 	}
 
 	if (is_valid_policy_hnd(&hnd_dst)) {
-		dcerpc_spoolss_ClosePrinter(b_dst, mem_ctx, &hnd_dst, &werr);
+		rpccli_spoolss_ClosePrinter(pipe_hnd_dst, mem_ctx, &hnd_dst, NULL);
 	}
 
 	if (cli_dst) {
@@ -1685,7 +1628,7 @@ done:
  **/
 
 NTSTATUS rpc_printer_migrate_forms_internals(struct net_context *c,
-						const struct dom_sid *domain_sid,
+						const DOM_SID *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -1693,7 +1636,6 @@ NTSTATUS rpc_printer_migrate_forms_internals(struct net_context *c,
 						int argc,
 						const char **argv)
 {
-	struct dcerpc_binding_handle *b_src = pipe_hnd->binding_handle;
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
 	WERROR result;
 	uint32_t i, f;
@@ -1701,7 +1643,6 @@ NTSTATUS rpc_printer_migrate_forms_internals(struct net_context *c,
 	uint32_t level = 1;
 	const char *printername, *sharename;
 	struct rpc_pipe_client *pipe_hnd_dst = NULL;
-	struct dcerpc_binding_handle *b_dst = NULL;
 	struct policy_handle hnd_src, hnd_dst;
 	union spoolss_PrinterInfo *info_enum;
 	union spoolss_PrinterInfo info_dst;
@@ -1714,10 +1655,8 @@ NTSTATUS rpc_printer_migrate_forms_internals(struct net_context *c,
 	/* connect destination PI_SPOOLSS */
 	nt_status = connect_dst_pipe(c, &cli_dst, &pipe_hnd_dst,
 				     &ndr_table_spoolss.syntax_id);
-	if (!NT_STATUS_IS_OK(nt_status)) {
+	if (!NT_STATUS_IS_OK(nt_status))
 		return nt_status;
-	}
-	b_dst = pipe_hnd_dst->binding_handle;
 
 	/* enum src printers */
 	if (!get_printer_info(pipe_hnd, mem_ctx, 2, argc, argv, &num_printers, &info_enum)) {
@@ -1792,16 +1731,11 @@ NTSTATUS rpc_printer_migrate_forms_internals(struct net_context *c,
 
 			/* FIXME: there might be something wrong with samba's
 			   builtin-forms */
-			status = dcerpc_spoolss_AddForm(b_dst, mem_ctx,
+			status = rpccli_spoolss_AddForm(pipe_hnd_dst, mem_ctx,
 							&hnd_dst,
 							1,
 							info,
 							&result);
-			if (!NT_STATUS_IS_OK(status)) {
-				d_printf(_("\tdcerpc_spoolss_AddForm form %d: [%s] - %s\n"),
-					f, forms[f].info1.form_name, nt_errstr(status));
-				continue;
-			}
 			if (!W_ERROR_IS_OK(result)) {
 				d_printf(_("\tAddForm form %d: [%s] refused.\n"),
 					f, forms[f].info1.form_name);
@@ -1815,11 +1749,11 @@ NTSTATUS rpc_printer_migrate_forms_internals(struct net_context *c,
 
 		/* close printer handles here */
 		if (is_valid_policy_hnd(&hnd_src)) {
-			dcerpc_spoolss_ClosePrinter(b_src, mem_ctx, &hnd_src, &result);
+			rpccli_spoolss_ClosePrinter(pipe_hnd, mem_ctx, &hnd_src, NULL);
 		}
 
 		if (is_valid_policy_hnd(&hnd_dst)) {
-			dcerpc_spoolss_ClosePrinter(b_dst, mem_ctx, &hnd_dst, &result);
+			rpccli_spoolss_ClosePrinter(pipe_hnd_dst, mem_ctx, &hnd_dst, NULL);
 		}
 	}
 
@@ -1827,13 +1761,11 @@ NTSTATUS rpc_printer_migrate_forms_internals(struct net_context *c,
 
 done:
 
-	if (is_valid_policy_hnd(&hnd_src)) {
-		dcerpc_spoolss_ClosePrinter(b_src, mem_ctx, &hnd_src, &result);
-	}
+	if (is_valid_policy_hnd(&hnd_src))
+		rpccli_spoolss_ClosePrinter(pipe_hnd, mem_ctx, &hnd_src, NULL);
 
-	if (is_valid_policy_hnd(&hnd_dst)) {
-		dcerpc_spoolss_ClosePrinter(b_dst, mem_ctx, &hnd_dst, &result);
-	}
+	if (is_valid_policy_hnd(&hnd_dst))
+		rpccli_spoolss_ClosePrinter(pipe_hnd_dst, mem_ctx, &hnd_dst, NULL);
 
 	if (cli_dst) {
 		cli_shutdown(cli_dst);
@@ -1859,7 +1791,7 @@ done:
  **/
 
 NTSTATUS rpc_printer_migrate_drivers_internals(struct net_context *c,
-						const struct dom_sid *domain_sid,
+						const DOM_SID *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -1867,7 +1799,6 @@ NTSTATUS rpc_printer_migrate_drivers_internals(struct net_context *c,
 						int argc,
 						const char **argv)
 {
-	struct dcerpc_binding_handle *b_src = pipe_hnd->binding_handle;
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
 	uint32_t i, p;
 	uint32_t num_printers;
@@ -1876,7 +1807,6 @@ NTSTATUS rpc_printer_migrate_drivers_internals(struct net_context *c,
 	bool got_src_driver_share = false;
 	bool got_dst_driver_share = false;
 	struct rpc_pipe_client *pipe_hnd_dst = NULL;
-	struct dcerpc_binding_handle *b_dst = NULL;
 	struct policy_handle hnd_src, hnd_dst;
 	union spoolss_DriverInfo drv_info_src;
 	union spoolss_PrinterInfo *info_enum;
@@ -1885,16 +1815,13 @@ NTSTATUS rpc_printer_migrate_drivers_internals(struct net_context *c,
 	struct cli_state *cli_share_src = NULL;
 	struct cli_state *cli_share_dst = NULL;
 	const char *drivername = NULL;
-	WERROR werr;
 
 	DEBUG(3,("copying printer-drivers\n"));
 
 	nt_status = connect_dst_pipe(c, &cli_dst, &pipe_hnd_dst,
 				     &ndr_table_spoolss.syntax_id);
-	if (!NT_STATUS_IS_OK(nt_status)) {
+	if (!NT_STATUS_IS_OK(nt_status))
 		return nt_status;
-	}
-	b_dst = pipe_hnd_dst->binding_handle;
 
 	/* open print$-share on the src server */
 	nt_status = connect_to_service(c, &cli_share_src, &cli->dest_ss,
@@ -2023,12 +1950,12 @@ NTSTATUS rpc_printer_migrate_drivers_internals(struct net_context *c,
 
 		/* close dst */
 		if (is_valid_policy_hnd(&hnd_dst)) {
-			dcerpc_spoolss_ClosePrinter(b_dst, mem_ctx, &hnd_dst, &werr);
+			rpccli_spoolss_ClosePrinter(pipe_hnd_dst, mem_ctx, &hnd_dst, NULL);
 		}
 
 		/* close src */
 		if (is_valid_policy_hnd(&hnd_src)) {
-			dcerpc_spoolss_ClosePrinter(b_src, mem_ctx, &hnd_src, &werr);
+			rpccli_spoolss_ClosePrinter(pipe_hnd, mem_ctx, &hnd_src, NULL);
 		}
 	}
 
@@ -2036,14 +1963,11 @@ NTSTATUS rpc_printer_migrate_drivers_internals(struct net_context *c,
 
 done:
 
-	if (is_valid_policy_hnd(&hnd_dst)) {
-		dcerpc_spoolss_ClosePrinter(b_dst, mem_ctx, &hnd_dst, &werr);
-	}
+	if (is_valid_policy_hnd(&hnd_src))
+		rpccli_spoolss_ClosePrinter(pipe_hnd, mem_ctx, &hnd_src, NULL);
 
-	/* close src */
-	if (is_valid_policy_hnd(&hnd_src)) {
-		dcerpc_spoolss_ClosePrinter(b_src, mem_ctx, &hnd_src, &werr);
-	}
+	if (is_valid_policy_hnd(&hnd_dst))
+		rpccli_spoolss_ClosePrinter(pipe_hnd_dst, mem_ctx, &hnd_dst, NULL);
 
 	if (cli_dst) {
 		cli_shutdown(cli_dst);
@@ -2078,7 +2002,7 @@ done:
  **/
 
 NTSTATUS rpc_printer_migrate_printers_internals(struct net_context *c,
-						const struct dom_sid *domain_sid,
+						const DOM_SID *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -2086,7 +2010,6 @@ NTSTATUS rpc_printer_migrate_printers_internals(struct net_context *c,
 						int argc,
 						const char **argv)
 {
-	struct dcerpc_binding_handle *b_src = pipe_hnd->binding_handle;
 	WERROR result;
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
 	uint32_t i = 0, num_printers;
@@ -2097,7 +2020,6 @@ NTSTATUS rpc_printer_migrate_printers_internals(struct net_context *c,
 	struct policy_handle hnd_dst, hnd_src;
 	const char *printername, *sharename;
 	struct rpc_pipe_client *pipe_hnd_dst = NULL;
-	struct dcerpc_binding_handle *b_dst = NULL;
 	struct spoolss_SetPrinterInfoCtr info_ctr;
 
 	DEBUG(3,("copying printers\n"));
@@ -2105,10 +2027,8 @@ NTSTATUS rpc_printer_migrate_printers_internals(struct net_context *c,
 	/* connect destination PI_SPOOLSS */
 	nt_status = connect_dst_pipe(c, &cli_dst, &pipe_hnd_dst,
 				     &ndr_table_spoolss.syntax_id);
-	if (!NT_STATUS_IS_OK(nt_status)) {
+	if (!NT_STATUS_IS_OK(nt_status))
 		return nt_status;
-	}
-	b_dst = pipe_hnd_dst->binding_handle;
 
 	/* enum printers */
 	if (!get_printer_info(pipe_hnd, mem_ctx, level, argc, argv, &num_printers, &info_enum)) {
@@ -2156,7 +2076,7 @@ NTSTATUS rpc_printer_migrate_printers_internals(struct net_context *c,
 			DEBUG(1,("printer already exists: %s\n", sharename));
 			/* close printer handle here - dst only, not got src yet. */
 			if (is_valid_policy_hnd(&hnd_dst)) {
-				dcerpc_spoolss_ClosePrinter(b_dst, mem_ctx, &hnd_dst, &result);
+				rpccli_spoolss_ClosePrinter(pipe_hnd_dst, mem_ctx, &hnd_dst, NULL);
 			}
 			continue;
 		}
@@ -2199,24 +2119,22 @@ NTSTATUS rpc_printer_migrate_printers_internals(struct net_context *c,
 
 		/* close printer handles here */
 		if (is_valid_policy_hnd(&hnd_src)) {
-			dcerpc_spoolss_ClosePrinter(b_src, mem_ctx, &hnd_src, &result);
+			rpccli_spoolss_ClosePrinter(pipe_hnd, mem_ctx, &hnd_src, NULL);
 		}
 
 		if (is_valid_policy_hnd(&hnd_dst)) {
-			dcerpc_spoolss_ClosePrinter(b_dst, mem_ctx, &hnd_dst, &result);
+			rpccli_spoolss_ClosePrinter(pipe_hnd_dst, mem_ctx, &hnd_dst, NULL);
 		}
 	}
 
 	nt_status = NT_STATUS_OK;
 
 done:
-	if (is_valid_policy_hnd(&hnd_src)) {
-		dcerpc_spoolss_ClosePrinter(b_src, mem_ctx, &hnd_src, &result);
-	}
+	if (is_valid_policy_hnd(&hnd_src))
+		rpccli_spoolss_ClosePrinter(pipe_hnd, mem_ctx, &hnd_src, NULL);
 
-	if (is_valid_policy_hnd(&hnd_dst)) {
-		dcerpc_spoolss_ClosePrinter(b_dst, mem_ctx, &hnd_dst, &result);
-	}
+	if (is_valid_policy_hnd(&hnd_dst))
+		rpccli_spoolss_ClosePrinter(pipe_hnd_dst, mem_ctx, &hnd_dst, NULL);
 
 	if (cli_dst) {
 		cli_shutdown(cli_dst);
@@ -2243,7 +2161,7 @@ done:
  **/
 
 NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
-						const struct dom_sid *domain_sid,
+						const DOM_SID *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -2251,18 +2169,16 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 						int argc,
 						const char **argv)
 {
-	struct dcerpc_binding_handle *b_src = pipe_hnd->binding_handle;
 
 	/* FIXME: Here the nightmare begins */
 
 	WERROR result;
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
-	uint32_t i = 0, j = 0;
+	uint32_t i = 0, p = 0, j = 0;
 	uint32_t num_printers;
 	uint32_t level = 2;
 	const char *printername, *sharename;
 	struct rpc_pipe_client *pipe_hnd_dst = NULL;
-	struct dcerpc_binding_handle *b_dst = NULL;
 	struct policy_handle hnd_src, hnd_dst;
 	union spoolss_PrinterInfo *info_enum;
 	union spoolss_PrinterInfo info_dst_publish;
@@ -2280,10 +2196,8 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 	/* connect destination PI_SPOOLSS */
 	nt_status = connect_dst_pipe(c, &cli_dst, &pipe_hnd_dst,
 				     &ndr_table_spoolss.syntax_id);
-	if (!NT_STATUS_IS_OK(nt_status)) {
+	if (!NT_STATUS_IS_OK(nt_status))
 		return nt_status;
-	}
-	b_dst = pipe_hnd_dst->binding_handle;
 
 	/* enum src printers */
 	if (!get_printer_info(pipe_hnd, mem_ctx, level, argc, argv, &num_printers, &info_enum)) {
@@ -2308,10 +2222,11 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 	/* do something for all printers */
 	for (i = 0; i < num_printers; i++) {
 
-		uint32_t value_needed;
-		uint32_t data_needed;
+		uint32_t value_offered = 0, value_needed;
+		uint32_t data_offered = 0, data_needed;
 		enum winreg_Type type;
-		struct spoolss_EnumPrinterData r;
+		uint8_t *buffer = NULL;
+		const char *value_name = NULL;
 
 		/* do some initialization */
 		printername = info_enum[i].info2.printername;
@@ -2403,60 +2318,60 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 		   FIXME: IIRC I've seen it too on a win2k-server
 		*/
 
-		r.in.handle = &hnd_src;
-		r.in.enum_index = 0;
-		r.in.value_offered = 0;
-		r.in.data_offered = 0;
-		r.out.value_name = NULL;
-		r.out.value_needed = &value_needed;
-		r.out.type = &type;
-		r.out.data = NULL;
-		r.out.data_needed = &data_needed;
-
 		/* enumerate data on src handle */
-		nt_status = dcerpc_spoolss_EnumPrinterData_r(b_src, mem_ctx, &r);
+		nt_status = rpccli_spoolss_EnumPrinterData(pipe_hnd, mem_ctx,
+							   &hnd_src,
+							   p,
+							   value_name,
+							   value_offered,
+							   &value_needed,
+							   &type,
+							   buffer,
+							   data_offered,
+							   &data_needed,
+							   &result);
 
-		r.in.data_offered	= *r.out.data_needed;
-		r.in.value_offered	= *r.out.value_needed;
-		r.out.data		= talloc_zero_array(mem_ctx, uint8_t, r.in.data_offered);
-		r.out.value_name	= talloc_zero_array(mem_ctx, char, r.in.value_offered);
+		data_offered	= data_needed;
+		value_offered	= value_needed;
+		buffer		= talloc_zero_array(mem_ctx, uint8_t, data_needed);
+		value_name	= talloc_zero_array(mem_ctx, char, value_needed);
 
 		/* loop for all printerdata of "PrinterDriverData" */
-		while (NT_STATUS_IS_OK(nt_status) && W_ERROR_IS_OK(r.out.result)) {
+		while (NT_STATUS_IS_OK(nt_status) && W_ERROR_IS_OK(result)) {
 
-			r.in.enum_index++;
-
-			nt_status = dcerpc_spoolss_EnumPrinterData_r(b_src, mem_ctx, &r);
-
+			nt_status = rpccli_spoolss_EnumPrinterData(pipe_hnd, mem_ctx,
+								   &hnd_src,
+								   p++,
+								   value_name,
+								   value_offered,
+								   &value_needed,
+								   &type,
+								   buffer,
+								   data_offered,
+								   &data_needed,
+								   &result);
 			/* loop for all reg_keys */
-			if (NT_STATUS_IS_OK(nt_status) && W_ERROR_IS_OK(r.out.result)) {
+			if (NT_STATUS_IS_OK(nt_status) && W_ERROR_IS_OK(result)) {
+
+				struct regval_blob v;
 
 				/* display_value */
 				if (c->opt_verbose) {
-					struct regval_blob *v;
-
-					v = regval_compose(talloc_tos(),
-							   r.out.value_name,
-							   *r.out.type,
-							   r.out.data,
-							   r.in.data_offered);
-					if (v == NULL) {
-						nt_status = NT_STATUS_NO_MEMORY;
-						goto done;
-					}
-
+					fstrcpy(v.valuename, value_name);
+					v.type = type;
+					v.size = data_offered;
+					v.data_p = buffer;
 					display_reg_value(SPOOL_PRINTERDATA_KEY, v);
-					talloc_free(v);
 				}
 
 				/* set_value */
 				if (!net_spoolss_setprinterdata(pipe_hnd_dst, mem_ctx,
-								&hnd_dst, r.out.value_name,
-								*r.out.type, r.out.data, r.in.data_offered))
+								&hnd_dst, value_name,
+								type, buffer, data_offered))
 					goto done;
 
 				DEBUGADD(1,("\tSetPrinterData of [%s] succeeded\n",
-					    r.out.value_name));
+					v.valuename));
 			}
 		}
 
@@ -2495,10 +2410,8 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 
 			for (j=0; j < count; j++) {
 
-				struct regval_blob *value;
+				struct regval_blob value;
 				DATA_BLOB blob;
-
-				ZERO_STRUCT(blob);
 
 				/* although samba replies with sane data in most cases we
 				   should try to avoid writing wrong registry data */
@@ -2513,6 +2426,7 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 
 						/* although windows uses a multi-sz, we use a sz */
 						push_reg_sz(mem_ctx, &blob, SAMBA_PRINTER_PORT_NAME);
+						fstrcpy(value.valuename, SPOOL_REG_PORTNAME);
 					}
 
 					if (strequal(info[j].value_name, SPOOL_REG_UNCNAME)) {
@@ -2522,6 +2436,7 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 							goto done;
 						}
 						push_reg_sz(mem_ctx, &blob, unc_name);
+						fstrcpy(value.valuename, SPOOL_REG_UNCNAME);
 					}
 
 					if (strequal(info[j].value_name, SPOOL_REG_URL)) {
@@ -2534,7 +2449,7 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 							nt_status = NT_STATUS_NO_MEMORY;
 							goto done;
 						}
-						push_reg_sz(mem_ctx, NULL, &blob, url);
+						push_reg_sz(mem_ctx, &blob, url);
 						fstrcpy(value.valuename, SPOOL_REG_URL);
 #endif
 					}
@@ -2542,21 +2457,21 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 					if (strequal(info[j].value_name, SPOOL_REG_SERVERNAME)) {
 
 						push_reg_sz(mem_ctx, &blob, longname);
+						fstrcpy(value.valuename, SPOOL_REG_SERVERNAME);
 					}
 
 					if (strequal(info[j].value_name, SPOOL_REG_SHORTSERVERNAME)) {
 
 						push_reg_sz(mem_ctx, &blob, global_myname());
+						fstrcpy(value.valuename, SPOOL_REG_SHORTSERVERNAME);
 					}
 
-					value = regval_compose(talloc_tos(),
-							       info[j].value_name,
-							       REG_SZ,
-							       blob.length == 0 ? NULL : blob.data,
-							       blob.length);
-					if (value == NULL) {
-						nt_status = NT_STATUS_NO_MEMORY;
-						goto done;
+					value.type = REG_SZ;
+					value.size = blob.length;
+					if (value.size) {
+						value.data_p = blob.data;
+					} else {
+						value.data_p = NULL;
 					}
 
 					if (c->opt_verbose)
@@ -2564,26 +2479,17 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 
 					/* here we have to set all subkeys on the dst server */
 					if (!net_spoolss_setprinterdataex(pipe_hnd_dst, mem_ctx, &hnd_dst,
-							subkey, value))
-					{
-						talloc_free(value);
+							subkey, &value))
 						goto done;
-					}
 
-					talloc_free(value);
 				} else {
 
-					struct regval_blob *v;
+					struct regval_blob v;
 
-					v = regval_compose(talloc_tos(),
-							   info[j].value_name,
-							   info[j].type,
-							   info[j].data->data,
-							   info[j].data->length);
-					if (v == NULL) {
-						nt_status = NT_STATUS_NO_MEMORY;
-						goto done;
-					}
+					fstrcpy(v.valuename, info[j].value_name);
+					v.type = info[j].type;
+					v.data_p = info[j].data->data;
+					v.size = info[j].data->length;
 
 					if (c->opt_verbose) {
 						display_reg_value(subkey, v);
@@ -2591,11 +2497,10 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 
 					/* here we have to set all subkeys on the dst server */
 					if (!net_spoolss_setprinterdataex(pipe_hnd_dst, mem_ctx, &hnd_dst,
-							subkey, v)) {
+							subkey, &v)) {
 						goto done;
 					}
 
-					talloc_free(v);
 				}
 
 				DEBUGADD(1,("\tSetPrinterDataEx of key [%s\\%s] succeeded\n",
@@ -2608,12 +2513,13 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 
 		/* close printer handles here */
 		if (is_valid_policy_hnd(&hnd_src)) {
-			dcerpc_spoolss_ClosePrinter(b_src, mem_ctx, &hnd_src, &result);
+			rpccli_spoolss_ClosePrinter(pipe_hnd, mem_ctx, &hnd_src, NULL);
 		}
 
 		if (is_valid_policy_hnd(&hnd_dst)) {
-			dcerpc_spoolss_ClosePrinter(b_dst, mem_ctx, &hnd_dst, &result);
+			rpccli_spoolss_ClosePrinter(pipe_hnd_dst, mem_ctx, &hnd_dst, NULL);
 		}
+
 	}
 
 	nt_status = NT_STATUS_OK;
@@ -2623,13 +2529,11 @@ done:
 	SAFE_FREE(url);
 	SAFE_FREE(unc_name);
 
-	if (is_valid_policy_hnd(&hnd_src)) {
-		dcerpc_spoolss_ClosePrinter(b_src, mem_ctx, &hnd_src, &result);
-	}
+	if (is_valid_policy_hnd(&hnd_src))
+		rpccli_spoolss_ClosePrinter(pipe_hnd, mem_ctx, &hnd_src, NULL);
 
-	if (is_valid_policy_hnd(&hnd_dst)) {
-		dcerpc_spoolss_ClosePrinter(b_dst, mem_ctx, &hnd_dst, &result);
-	}
+	if (is_valid_policy_hnd(&hnd_dst))
+		rpccli_spoolss_ClosePrinter(pipe_hnd_dst, mem_ctx, &hnd_dst, NULL);
 
 	if (cli_dst) {
 		cli_shutdown(cli_dst);

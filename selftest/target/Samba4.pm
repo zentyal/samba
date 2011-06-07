@@ -9,16 +9,15 @@ use strict;
 use Cwd qw(abs_path);
 use FindBin qw($RealBin);
 use POSIX;
-use SocketWrapper;
 
 sub new($$$$$) {
-	my ($classname, $bindir, $ldap, $srcdir, $exeext) = @_;
+	my ($classname, $bindir, $ldap, $setupdir, $exeext) = @_;
 	$exeext = "" unless defined($exeext);
-	my $self = {
-		vars => {},
-		ldap => $ldap,
-		bindir => $bindir,
-		srcdir => $srcdir,
+	my $self = { 
+		vars => {}, 
+		ldap => $ldap, 
+		bindir => $bindir, 
+		setupdir => $setupdir,
 		exeext => $exeext
 	};
 	bless $self;
@@ -28,15 +27,7 @@ sub new($$$$$) {
 sub bindir_path($$) {
 	my ($self, $path) = @_;
 
-	my $valpath = "$self->{bindir}/$path$self->{exeext}";
-
-	return $valpath if (-f $valpath);
-	return $path;
-}
-
-sub scriptdir_path($$) {
-	my ($self, $path) = @_;
-	return "$self->{srcdir}/source4/scripting/$path";
+	return "$self->{bindir}/$path$self->{exeext}";
 }
 
 sub openldap_start($$$) {
@@ -62,10 +53,10 @@ sub slapd_start($$)
 	        system("$ENV{OPENLDAP_SLAPD} -d0 -F $env_vars->{SLAPD_CONF_D} -h $uri > $env_vars->{LDAPDIR}/logs 2>&1 &");
 	}
 	while (system("$ldbsearch -H $uri -s base -b \"\" supportedLDAPVersion > /dev/null") != 0) {
-		$count++;
+	        $count++;
 		if ($count > 40) {
-			$self->slapd_stop($env_vars);
-			return 0;
+		    $self->slapd_stop($env_vars);
+		    return 0;
 		}
 		sleep(1);
 	}
@@ -76,19 +67,17 @@ sub slapd_stop($$)
 {
 	my ($self, $envvars) = @_;
 	if ($self->{ldap} eq "fedora-ds") {
-		system("$envvars->{LDAPDIR}/slapd-$envvars->{LDAP_INSTANCE}/stop-slapd");
+		system("$envvars->{LDAPDIR}/slapd-samba4/stop-slapd");
 	} elsif ($self->{ldap} eq "openldap") {
-		unless (open(IN, "<$envvars->{OPENLDAP_PIDFILE}")) {
-			warn("unable to open slapd pid file: $envvars->{OPENLDAP_PIDFILE}");
-			return 0;
-		}
+		open(IN, "<$envvars->{OPENLDAP_PIDFILE}") or 
+			die("unable to open slapd pid file: $envvars->{OPENLDAP_PIDFILE}");
 		kill 9, <IN>;
 		close(IN);
 	}
 	return 1;
 }
 
-sub check_or_start($$$)
+sub check_or_start($$$) 
 {
 	my ($self, $env_vars, $max_time) = @_;
 	return 0 if ( -p $env_vars->{SAMBA_TEST_FIFO});
@@ -97,8 +86,7 @@ sub check_or_start($$$)
 	POSIX::mkfifo($env_vars->{SAMBA_TEST_FIFO}, 0700);
 	unlink($env_vars->{SAMBA_TEST_LOG});
 	
-	my $pwd = `pwd`;
-	print "STARTING SAMBA for $ENV{ENVNAME}\n";
+	print "STARTING SAMBA... ";
 	my $pid = fork();
 	if ($pid == 0) {
 		open STDIN, $env_vars->{SAMBA_TEST_FIFO};
@@ -113,9 +101,9 @@ sub check_or_start($$$)
 		my $valgrind = "";
 		if (defined($ENV{SAMBA_VALGRIND})) {
 		    $valgrind = $ENV{SAMBA_VALGRIND};
-		}
+		} 
 
-		$ENV{KRB5_CONFIG} = $env_vars->{KRB5_CONFIG};
+		$ENV{KRB5_CONFIG} = $env_vars->{KRB5_CONFIG}; 
 		$ENV{WINBINDD_SOCKET_DIR} = $env_vars->{WINBINDD_SOCKET_DIR};
 
 		$ENV{NSS_WRAPPER_PASSWD} = $env_vars->{NSS_WRAPPER_PASSWD};
@@ -125,10 +113,8 @@ sub check_or_start($$$)
 
 		# Start slapd before samba, but with the fifo on stdin
 		if (defined($self->{ldap})) {
-		 	unless($self->slapd_start($env_vars)) {
-				warn("couldn't start slapd (main run)");
-				return undef;
-			}
+		    $self->slapd_start($env_vars) or 
+			die("couldn't start slapd (main run)");
 		}
 
 		my $optarg = "";
@@ -142,31 +128,26 @@ sub check_or_start($$$)
 
 		# allow selection of the process model using
 		# the environment varibale SAMBA_PROCESS_MODEL
-		# that allows us to change the process model for
+		# that allows us to change the process model for 
 		# individual machines in the build farm
 		my $model = "single";
 		if (defined($ENV{SAMBA_PROCESS_MODEL})) {
 			$model = $ENV{SAMBA_PROCESS_MODEL};
 		}
-		chomp($pwd);
-		my $cmdline = "$valgrind ${pwd}/$samba $optarg $env_vars->{CONFIGURATION} -M $model -i";
-		my $ret = system("$cmdline");
-		if ($ret == -1) {
-			print "Unable to start $cmdline: $ret: $!\n";
+		my $ret = system("$valgrind $samba $optarg $env_vars->{CONFIGURATION} -M $model -i");
+		if ($? == -1) {
+			print "Unable to start $samba: $ret: $!\n";
 			exit 1;
 		}
-		my $exit = ($ret >> 8);
 		unlink($env_vars->{SAMBA_TEST_FIFO});
-		if ($ret == 0) {
-			print "$samba exited with no error\n";
-			exit 0;
+		my $exit = $? >> 8;
+		if ( $ret == 0 ) {
+			print "$samba exits with status $exit\n";
 		} elsif ( $ret & 127 ) {
 			print "$samba got signal ".($ret & 127)." and exits with $exit!\n";
 		} else {
+			$ret = $? >> 8;
 			print "$samba failed with status $exit!\n";
-		}
-		if ($exit == 0) {
-			$exit = -1;
 		}
 		exit $exit;
 	}
@@ -184,8 +165,8 @@ sub wait_for_start($$)
 	print "delaying for nbt name registration\n";
 	sleep 2;
 
-	# This will return quickly when things are up, but be slow if we
-	# need to wait for (eg) SSL init
+	# This will return quickly when things are up, but be slow if we 
+	# need to wait for (eg) SSL init 
 	my $nmblookup = $self->bindir_path("nmblookup");
 	system("$nmblookup $testenv_vars->{CONFIGURATION} $testenv_vars->{SERVER}");
 	system("$nmblookup $testenv_vars->{CONFIGURATION} -U $testenv_vars->{SERVER_IP} $testenv_vars->{SERVER}");
@@ -210,7 +191,7 @@ sub write_ldb_file($$$)
 	my $ldbadd = $self->bindir_path("ldbadd");
 	open(LDIF, "|$ldbadd -H $file >/dev/null");
 	print LDIF $ldif;
-	return(close(LDIF));
+	return close(LDIF);
 }
 
 sub add_wins_config($$)
@@ -218,10 +199,10 @@ sub add_wins_config($$)
 	my ($self, $privatedir) = @_;
 
 	return $self->write_ldb_file("$privatedir/wins_config.ldb", "
-dn: name=TORTURE_11,CN=PARTNERS
+dn: name=TORTURE_6,CN=PARTNERS
 objectClass: wreplPartner
-name: TORTURE_11
-address: 127.0.0.11
+name: TORTURE_6
+address: 127.0.0.6
 pullInterval: 0
 pushChangeCount: 0
 type: 0x3
@@ -230,22 +211,22 @@ type: 0x3
 
 sub mk_fedora_ds($$)
 {
-	my ($self, $ctx) = @_;
+	my ($self, $ldapdir) = @_;
 
 	#Make the subdirectory be as fedora DS would expect
-	my $fedora_ds_dir = "$ctx->{ldapdir}/slapd-$ctx->{ldap_instance}";
+	my $fedora_ds_dir = "$ldapdir/slapd-samba4";
 
-	my $pidfile = "$fedora_ds_dir/logs/slapd-$ctx->{ldap_instance}.pid";
+	my $pidfile = "$fedora_ds_dir/logs/slapd-samba4.pid";
 
 	return ($fedora_ds_dir, $pidfile);
 }
 
 sub mk_openldap($$)
 {
-	my ($self, $ctx) = @_;
+	my ($self, $ldapdir) = @_;
 
-	my $slapd_conf_d = "$ctx->{ldapdir}/slapd.d";
-	my $pidfile = "$ctx->{ldapdir}/slapd.pid";
+	my $slapd_conf_d = "$ldapdir/slapd.d";
+	my $pidfile = "$ldapdir/slapd.pid";
 
 	return ($slapd_conf_d, $pidfile);
 }
@@ -279,7 +260,7 @@ YX70obsCAQI=
 EOF
 	close(DHFILE);
 
-	#Likewise, we pregenerate the key material.  This allows the
+	#Likewise, we pregenerate the key material.  This allows the 
 	#other certificates to be pre-generated
 	open(KEYFILE, ">$keyfile");
 	print KEYFILE <<EOF;
@@ -321,7 +302,7 @@ yoZeAErTALjyZYZEPcECQQDlUi0N8DFxQ/lOwWyR3Hailft+mPqoPCa8QHlQZnlG
 -----END RSA PRIVATE KEY-----
 EOF
 
-	#generated with
+	#generated with 
 	# hxtool issue-certificate --self-signed --issue-ca \
 	# --ca-private-key="FILE:$KEYFILE" \
 	# --subject="CN=CA,DC=samba,DC=example,DC=com" \
@@ -345,7 +326,7 @@ HTLk2sGigsWwrJ2N99sG/cqSJLJ1MFwLrs6koweBnYU0f/g=
 -----END CERTIFICATE-----
 EOF
 
-	#generated with GNUTLS internally in Samba.
+	#generated with GNUTLS internally in Samba.  
 
 	open(CERTFILE, ">$certfile");
 	print CERTFILE <<EOF;
@@ -459,14 +440,156 @@ Wfz/8alZ5aMezCQzXJyIaJsCLeKABosSwHcpAFmxlQ==
 EOF
 }
 
-sub mk_krb5_conf($$)
+#
+# provision_raw_prepare() is also used by Samba34.pm!
+#
+sub provision_raw_prepare($$$$$$$)
+{
+	my ($self, $prefix, $server_role, $netbiosname, $netbiosalias, $swiface, $password, $kdc_ipv4) = @_;
+	my $ctx;
+
+	-d $prefix or mkdir($prefix, 0777) or die("Unable to create $prefix");
+	my $prefix_abs = abs_path($prefix);
+
+	die ("prefix=''") if $prefix_abs eq "";
+	die ("prefix='/'") if $prefix_abs eq "/";
+
+	(system("rm -rf $prefix_abs/*") == 0) or die("Unable to clean up");
+
+	$ctx->{prefix} = $prefix;
+	$ctx->{prefix_abs} = $prefix_abs;
+	$ctx->{server_role} = $server_role;
+	$ctx->{netbiosname} = $netbiosname;
+	$ctx->{netbiosalias} = $netbiosalias;
+	$ctx->{swiface} = $swiface;
+	$ctx->{password} = $password;
+	$ctx->{kdc_ipv4} = $kdc_ipv4;
+
+	$ctx->{server_loglevel} = 1;
+	$ctx->{username} = "Administrator";
+	$ctx->{domain} = "SAMBADOMAIN";
+	$ctx->{realm} = "SAMBA.EXAMPLE.COM";
+	$ctx->{dnsname} = "samba.example.com";
+	$ctx->{basedn} = "dc=samba,dc=example,dc=com";
+
+	my $unix_name = ($ENV{USER} or $ENV{LOGNAME} or `whoami`);
+	chomp $unix_name;
+	$ctx->{unix_name} = $unix_name;
+	$ctx->{unix_uid} = $>;
+	$ctx->{unix_gids_str} = $);
+	@{$ctx->{unix_gids}} = split(" ", $ctx->{unix_gids_str});
+
+	$ctx->{etcdir} = "$prefix_abs/etc";
+	$ctx->{piddir} = "$prefix_abs/pid";
+	$ctx->{smb_conf} = "$ctx->{etcdir}/smb.conf";
+	$ctx->{krb5_conf} = "$ctx->{etcdir}/krb5.conf";
+	$ctx->{privatedir} = "$prefix_abs/private";
+	$ctx->{ncalrpcdir} = "$prefix_abs/ncalrpc";
+	$ctx->{lockdir} = "$prefix_abs/lockdir";
+	$ctx->{winbindd_socket_dir} = "$prefix_abs/winbindd_socket";
+	$ctx->{winbindd_privileged_socket_dir} = "$prefix_abs/winbindd_privileged_socket";
+	$ctx->{ntp_signd_socket_dir} = "$prefix_abs/ntp_signd_socket";
+	$ctx->{nsswrap_passwd} = "$ctx->{etcdir}/passwd";
+	$ctx->{nsswrap_group} = "$ctx->{etcdir}/group";
+
+	$ctx->{tlsdir} = "$ctx->{privatedir}/tls";
+
+	$ctx->{ipv4} = "127.0.0.$swiface";
+	$ctx->{interfaces} = "$ctx->{ipv4}/8";
+
+	$ctx->{localbasedn} = $ctx->{basedn};
+	$ctx->{localbasedn} = "CN=$netbiosname" if $server_role eq "member server";
+
+	push(@{$ctx->{directories}}, $ctx->{privatedir});
+	push(@{$ctx->{directories}}, $ctx->{etcdir});
+	push(@{$ctx->{directories}}, $ctx->{piddir});
+	push(@{$ctx->{directories}}, $ctx->{ncalrpcdir});
+	push(@{$ctx->{directories}}, $ctx->{lockdir});
+
+	$ctx->{smb_conf_extra_options} = "";
+
+	my @provision_options = ();
+	push (@provision_options, "NSS_WRAPPER_PASSWD=\"$ctx->{nsswrap_passwd}\"");
+	push (@provision_options, "NSS_WRAPPER_GROUP=\"$ctx->{nsswrap_group}\"");
+	if (defined($ENV{GDB_PROVISION})) {
+		push (@provision_options, "gdb --args");
+	}
+	if (defined($ENV{VALGRIND_PROVISION})) {
+		push (@provision_options, "valgrind");
+	}
+	if (defined($ENV{PYTHON})) {
+		push (@provision_options, $ENV{PYTHON});
+	}
+	push (@provision_options, "$self->{setupdir}/provision");
+	push (@provision_options, "--configfile=$ctx->{smb_conf}");
+	push (@provision_options, "--host-name=$ctx->{netbiosname}");
+	push (@provision_options, "--host-ip=$ctx->{ipv4}");
+	push (@provision_options, "--quiet");
+	push (@provision_options, "--domain=$ctx->{domain}");
+	push (@provision_options, "--realm=$ctx->{realm}");
+	push (@provision_options, "--adminpass=$ctx->{password}");
+	push (@provision_options, "--krbtgtpass=krbtgt$ctx->{password}");
+	push (@provision_options, "--machinepass=machine$ctx->{password}");
+	push (@provision_options, "--root=$ctx->{unix_name}");
+	push (@provision_options, "--server-role=\"$ctx->{server_role}\"");
+
+	@{$ctx->{provision_options}} = @provision_options;
+
+	return $ctx;
+}
+
+#
+# provision_raw_step1() is also used by Samba34.pm!
+#
+# Step1 creates the basic configuration
+#
+sub provision_raw_step1($$)
 {
 	my ($self, $ctx) = @_;
 
-	unless (open(KRB5CONF, ">$ctx->{krb5_conf}")) {
-		warn("can't open $ctx->{krb5_conf}$?");
-		return undef;
-	}
+	mkdir($_, 0777) foreach (@{$ctx->{directories}});
+
+	open(CONFFILE, ">$ctx->{smb_conf}")
+		or die("can't open $ctx->{smb_conf}$?");
+	print CONFFILE "
+[global]
+	netbios name = $ctx->{netbiosname}
+	netbios aliases = $ctx->{netbiosalias}
+	workgroup = $ctx->{domain}
+	realm = $ctx->{realm}
+	private dir = $ctx->{privatedir}
+	pid directory = $ctx->{piddir}
+	ncalrpc dir = $ctx->{ncalrpcdir}
+	lock dir = $ctx->{lockdir}
+	setup directory = $self->{setupdir}
+	modules dir = $self->{bindir}/modules
+	winbindd socket directory = $ctx->{winbindd_socket_dir}
+	winbindd privileged socket directory = $ctx->{winbindd_privileged_socket_dir}
+	ntp signd socket directory = $ctx->{ntp_signd_socket_dir}
+	winbind separator = /
+	name resolve order = bcast
+	interfaces = $ctx->{interfaces}
+	tls dh params file = $ctx->{tlsdir}/dhparms.pem
+	panic action = $RealBin/gdb_backtrace \%PID% \%PROG%
+	wins support = yes
+	server role = $ctx->{server_role}
+	notify:inotify = false
+	ldb:nosync = true
+#We don't want to pass our self-tests if the PAC code is wrong
+	gensec:require_pac = true
+	log level = $ctx->{server_loglevel}
+	lanman auth = Yes
+
+	# Begin extra options
+	$ctx->{smb_conf_extra_options}
+	# End extra options
+";
+	close(CONFFILE);
+
+	$self->mk_keyblobs($ctx->{tlsdir});
+
+	open(KRB5CONF, ">$ctx->{krb5_conf}")
+		or die("can't open $ctx->{krb5_conf}$?");
 	print KRB5CONF "
 #Generated krb5.conf for $ctx->{realm}
 
@@ -476,7 +599,6 @@ sub mk_krb5_conf($$)
  dns_lookup_kdc = false
  ticket_lifetime = 24h
  forwardable = yes
- allow_weak_crypto = yes
 
 [realms]
  $ctx->{realm} = {
@@ -507,185 +629,6 @@ sub mk_krb5_conf($$)
  .$ctx->{dnsname} = $ctx->{realm}
 ";
 	close(KRB5CONF);
-}
-
-sub provision_raw_prepare($$$$$$$$$$)
-{
-	my ($self, $prefix, $server_role, $netbiosname, $netbiosalias,
-	    $domain, $realm, $functional_level,
-	    $swiface, $password, $kdc_ipv4) = @_;
-	my $ctx;
-
-	unless(-d $prefix or mkdir($prefix, 0777)) {
-		warn("Unable to create $prefix");
-		return undef;
-	}
-	my $prefix_abs = abs_path($prefix);
-
-	die ("prefix=''") if $prefix_abs eq "";
-	die ("prefix='/'") if $prefix_abs eq "/";
-
-	unless (system("rm -rf $prefix_abs/*") == 0) {
-		warn("Unable to clean up");
-	}
-
-	$ctx->{prefix} = $prefix;
-	$ctx->{prefix_abs} = $prefix_abs;
-	
-	$ctx->{dns_host_file} = "$ENV{SELFTEST_PREFIX}/dns_host_file";
-
-	$ctx->{server_role} = $server_role;
-	$ctx->{netbiosname} = $netbiosname;
-	$ctx->{netbiosalias} = $netbiosalias;
-	$ctx->{swiface} = $swiface;
-	$ctx->{password} = $password;
-	$ctx->{kdc_ipv4} = $kdc_ipv4;
-
-	$ctx->{server_loglevel} =$ENV{SERVER_LOG_LEVEL} || 1;
-	$ctx->{username} = "Administrator";
-	$ctx->{domain} = $domain;
-	$ctx->{realm} = uc($realm);
-	$ctx->{dnsname} = lc($realm);
-	$ctx->{sid_generator} = "internal";
-
-	$ctx->{functional_level} = $functional_level;
-
-	my $unix_name = ($ENV{USER} or $ENV{LOGNAME} or `whoami`);
-	chomp $unix_name;
-	$ctx->{unix_name} = $unix_name;
-	$ctx->{unix_uid} = $>;
-	$ctx->{unix_gids_str} = $);
-	@{$ctx->{unix_gids}} = split(" ", $ctx->{unix_gids_str});
-
-	$ctx->{etcdir} = "$prefix_abs/etc";
-	$ctx->{piddir} = "$prefix_abs/pid";
-	$ctx->{smb_conf} = "$ctx->{etcdir}/smb.conf";
-	$ctx->{krb5_conf} = "$ctx->{etcdir}/krb5.conf";
-	$ctx->{privatedir} = "$prefix_abs/private";
-	$ctx->{ncalrpcdir} = "$prefix_abs/ncalrpc";
-	$ctx->{lockdir} = "$prefix_abs/lockdir";
-	$ctx->{winbindd_socket_dir} = "$prefix_abs/winbindd_socket";
-	$ctx->{winbindd_privileged_socket_dir} = "$prefix_abs/winbindd_privileged_socket";
-	$ctx->{ntp_signd_socket_dir} = "$prefix_abs/ntp_signd_socket";
-	$ctx->{nsswrap_passwd} = "$ctx->{etcdir}/passwd";
-	$ctx->{nsswrap_group} = "$ctx->{etcdir}/group";
-
-	$ctx->{tlsdir} = "$ctx->{privatedir}/tls";
-
-	$ctx->{ipv4} = "127.0.0.$swiface";
-	$ctx->{interfaces} = "$ctx->{ipv4}/8";
-
-	push(@{$ctx->{directories}}, $ctx->{privatedir});
-	push(@{$ctx->{directories}}, $ctx->{etcdir});
-	push(@{$ctx->{directories}}, $ctx->{piddir});
-	push(@{$ctx->{directories}}, $ctx->{ncalrpcdir});
-	push(@{$ctx->{directories}}, $ctx->{lockdir});
-
-	$ctx->{smb_conf_extra_options} = "";
-
-	my @provision_options = ();
-	push (@provision_options, "NSS_WRAPPER_PASSWD=\"$ctx->{nsswrap_passwd}\"");
-	push (@provision_options, "NSS_WRAPPER_GROUP=\"$ctx->{nsswrap_group}\"");
-	if (defined($ENV{GDB_PROVISION})) {
-		push (@provision_options, "gdb --args");
-		if (!defined($ENV{PYTHON})) {
-		    push (@provision_options, "env");
-		    push (@provision_options, "python");
-		}
-	}
-	if (defined($ENV{VALGRIND_PROVISION})) {
-		push (@provision_options, "valgrind");
-		if (!defined($ENV{PYTHON})) {
-		    push (@provision_options, "env");
-		    push (@provision_options, "python");
-		}
-	}
-	if (defined($ENV{PYTHON})) {
-		push (@provision_options, $ENV{PYTHON});
-	}
-	push (@provision_options, "$self->{srcdir}/source4/setup/provision");
-	push (@provision_options, "--configfile=$ctx->{smb_conf}");
-	push (@provision_options, "--host-name=$ctx->{netbiosname}");
-	push (@provision_options, "--host-ip=$ctx->{ipv4}");
-	push (@provision_options, "--quiet");
-	push (@provision_options, "--domain=$ctx->{domain}");
-	push (@provision_options, "--realm=$ctx->{realm}");
-	push (@provision_options, "--adminpass=$ctx->{password}");
-	push (@provision_options, "--krbtgtpass=krbtgt$ctx->{password}");
-	push (@provision_options, "--machinepass=machine$ctx->{password}");
-	push (@provision_options, "--root=$ctx->{unix_name}");
-	push (@provision_options, "--server-role=\"$ctx->{server_role}\"");
-	push (@provision_options, "--function-level=\"$ctx->{functional_level}\"");
-
-	@{$ctx->{provision_options}} = @provision_options;
-
-	return $ctx;
-}
-
-#
-# Step1 creates the basic configuration
-#
-sub provision_raw_step1($$)
-{
-	my ($self, $ctx) = @_;
-
-	mkdir($_, 0777) foreach (@{$ctx->{directories}});
-
-	unless (open(CONFFILE, ">$ctx->{smb_conf}")) {
-		warn("can't open $ctx->{smb_conf}$?");
-		return undef;
-	}
-	print CONFFILE "
-[global]
-	netbios name = $ctx->{netbiosname}
-	netbios aliases = $ctx->{netbiosalias}
-	posix:eadb = $ctx->{lockdir}/eadb.tdb
-	workgroup = $ctx->{domain}
-	realm = $ctx->{realm}
-	private dir = $ctx->{privatedir}
-	pid directory = $ctx->{piddir}
-	ncalrpc dir = $ctx->{ncalrpcdir}
-	lock dir = $ctx->{lockdir}
-	winbindd socket directory = $ctx->{winbindd_socket_dir}
-	winbindd privileged socket directory = $ctx->{winbindd_privileged_socket_dir}
-	ntp signd socket directory = $ctx->{ntp_signd_socket_dir}
-	winbind separator = /
-	name resolve order = file bcast
-	interfaces = $ctx->{interfaces}
-	tls dh params file = $ctx->{tlsdir}/dhparms.pem
-	panic action = $RealBin/gdb_backtrace \%PID% \%PROG%
-	wins support = yes
-	server role = $ctx->{server_role}
-	server services = +echo
-	notify:inotify = false
-	ldb:nosync = true
-#We don't want to pass our self-tests if the PAC code is wrong
-	gensec:require_pac = true
-	log level = $ctx->{server_loglevel}
-	lanman auth = Yes
-	rndc command = true
-        dns update command = $ENV{SRCDIR_ABS}/source4/scripting/bin/samba_dnsupdate --all-interfaces --use-file=$ctx->{dns_host_file}
-        spn update command = $ENV{SRCDIR_ABS}/source4/scripting/bin/samba_spnupdate
-        resolv:host file = $ctx->{dns_host_file}
-	dreplsrv:periodic_startup_interval = 0
-";
-
-	if (defined($ctx->{sid_generator}) && $ctx->{sid_generator} ne "internal") {
-		print CONFFILE "
-	sid generator = $ctx->{sid_generator}";
-	}
-
-	print CONFFILE "
-
-	# Begin extra options
-	$ctx->{smb_conf_extra_options}
-	# End extra options
-";
-	close(CONFFILE);
-
-	$self->mk_keyblobs($ctx->{tlsdir});
-
-	$self->mk_krb5_conf($ctx);
 
 	open(PWD, ">$ctx->{nsswrap_passwd}");
 	print PWD "
@@ -708,16 +651,13 @@ nogroup:x:65534:nobody
 	my $configuration = "--configfile=$ctx->{smb_conf}";
 
 #Ensure the config file is valid before we start
-	my $testparm = $self->scriptdir_path("bin/testparm");
+	my $testparm = $self->bindir_path("testparm");
 	if (system("$testparm $configuration -v --suppress-prompt >/dev/null 2>&1") != 0) {
 		system("$testparm -v --suppress-prompt $configuration >&2");
-		warn("Failed to create a valid smb.conf configuration $testparm!");
-		return undef;
+		die("Failed to create a valid smb.conf configuration $testparm!");
 	}
-	unless (system("($testparm $configuration -v --suppress-prompt --parameter-name=\"netbios name\" --section-name=global 2> /dev/null | grep -i \"^$ctx->{netbiosname}\" ) >/dev/null 2>&1") == 0) {
-		warn("Failed to create a valid smb.conf configuration! $testparm $configuration -v --suppress-prompt --parameter-name=\"netbios name\" --section-name=global");
-		return undef;
-	}
+
+	(system("($testparm $configuration -v --suppress-prompt --parameter-name=\"netbios name\" --section-name=global 2> /dev/null | grep -i \"^$ctx->{netbiosname}\" ) >/dev/null 2>&1") == 0) or die("Failed to create a valid smb.conf configuration! $self->{bindir}/testparm $configuration -v --suppress-prompt --parameter-name=\"netbios name\" --section-name=global");
 
 	my $ret = {
 		KRB5_CONFIG => $ctx->{krb5_conf},
@@ -731,7 +671,6 @@ nogroup:x:65534:nobody
 		REALM => $ctx->{realm},
 		PASSWORD => $ctx->{password},
 		LDAPDIR => $ctx->{ldapdir},
-		LDAP_INSTANCE => $ctx->{ldap_instance},
 		WINBINDD_SOCKET_DIR => $ctx->{winbindd_socket_dir},
 		NCALRPCDIR => $ctx->{ncalrpcdir},
 		LOCKDIR => $ctx->{lockdir},
@@ -749,6 +688,8 @@ nogroup:x:65534:nobody
 }
 
 #
+# provision_raw_step2() is also used by Samba34.pm!
+#
 # Step2 runs the provision script
 #
 sub provision_raw_step2($$$)
@@ -756,59 +697,52 @@ sub provision_raw_step2($$$)
 	my ($self, $ctx, $ret) = @_;
 
 	my $provision_cmd = join(" ", @{$ctx->{provision_options}});
-	unless (system($provision_cmd) == 0) {
-		warn("Unable to provision: \n$provision_cmd\n");
-		return undef;
-	}
+	(system($provision_cmd) == 0) or die("Unable to provision: \n$provision_cmd\n");
 
 	return $ret;
 }
 
-sub provision($$$$$$$$$)
+sub provision($$$$$$$)
 {
-	my ($self, $prefix, $server_role, $netbiosname, $netbiosalias,
-	    $domain, $realm, $functional_level,
-	    $swiface, $password, $kdc_ipv4, $extra_smbconf_options) = @_;
+	my ($self, $prefix, $server_role, $netbiosname, $netbiosalias, $swiface, $password, $kdc_ipv4) = @_;
 
 	my $ctx = $self->provision_raw_prepare($prefix, $server_role,
 					       $netbiosname, $netbiosalias,
-					       $domain, $realm, $functional_level,
 					       $swiface, $password, $kdc_ipv4);
 
 	$ctx->{tmpdir} = "$ctx->{prefix_abs}/tmp";
 	push(@{$ctx->{directories}}, "$ctx->{tmpdir}");
 	push(@{$ctx->{directories}}, "$ctx->{tmpdir}/test1");
 	push(@{$ctx->{directories}}, "$ctx->{tmpdir}/test2");
-	my $msdfs = "no";
-	$msdfs = "yes" if ($server_role eq "domain controller");
+
 	$ctx->{smb_conf_extra_options} = "
 
 	max xmit = 32K
 	server max protocol = SMB2
-        $extra_smbconf_options
-	host msdfs = $msdfs
-	lanman auth = yes
 
 [tmp]
 	path = $ctx->{tmpdir}
 	read only = no
-	posix:sharedelay = 10000
+	posix:sharedelay = 100000
+	posix:eadb = $ctx->{lockdir}/eadb.tdb
 	posix:oplocktimeout = 3
 	posix:writetimeupdatedelay = 500000
 
 [test1]
 	path = $ctx->{tmpdir}/test1
 	read only = no
-	posix:sharedelay = 10000
+	posix:sharedelay = 100000
+	posix:eadb = $ctx->{lockdir}/eadb.tdb
 	posix:oplocktimeout = 3
-	posix:writetimeupdatedelay = 50000
+	posix:writetimeupdatedelay = 500000
 
 [test2]
 	path = $ctx->{tmpdir}/test2
 	read only = no
-	posix:sharedelay = 10000
+	posix:sharedelay = 100000
+	posix:eadb = $ctx->{lockdir}/eadb.tdb
 	posix:oplocktimeout = 3
-	posix:writetimeupdatedelay = 50000
+	posix:writetimeupdatedelay = 500000
 
 [cifs]
 	read only = no
@@ -844,35 +778,28 @@ sub provision($$$$$$$$$)
 		$ldap_uri =~ s|/|%2F|g;
 		$ldap_uri = "ldapi://$ldap_uri";
 		$ctx->{ldap_uri} = $ldap_uri;
-		if ($self->{ldap} eq "fedora-ds") {
-			$ctx->{sid_generator} = "backend";
-		}
-
-		$ctx->{ldap_instance} = lc($ctx->{netbiosname});
 	}
 
 	my $ret = $self->provision_raw_step1($ctx);
-	unless (defined $ret) {
-		return undef;
-	}
 
 	if (defined($self->{ldap})) {
-		$ret->{LDAP_URI} = $ctx->{ldap_uri};
+                $ret->{LDAP_URI} = $ctx->{ldap_uri};
 		push (@{$ctx->{provision_options}}, "--ldap-backend-type=" . $self->{ldap});
-		push (@{$ctx->{provision_options}}, "--ldap-backend-nosync");
 		if ($self->{ldap} eq "openldap") {
-			push (@{$ctx->{provision_options}}, "--slapd-path=" . $ENV{OPENLDAP_SLAPD});
-			($ret->{SLAPD_CONF_D}, $ret->{OPENLDAP_PIDFILE}) = $self->mk_openldap($ctx) or die("Unable to create openldap directories");
+ 		        push (@{$ctx->{provision_options}}, "--slapd-path=" . $ENV{OPENLDAP_SLAPD});
+			($ret->{SLAPD_CONF_D}, $ret->{OPENLDAP_PIDFILE}) = $self->mk_openldap($ctx->{ldapdir}) or die("Unable to create openldap directories");
 
                 } elsif ($self->{ldap} eq "fedora-ds") {
  		        push (@{$ctx->{provision_options}}, "--slapd-path=" . "$ENV{FEDORA_DS_ROOT}/sbin/ns-slapd");
  		        push (@{$ctx->{provision_options}}, "--setup-ds-path=" . "$ENV{FEDORA_DS_ROOT}/sbin/setup-ds.pl");
-			($ret->{FEDORA_DS_DIR}, $ret->{FEDORA_DS_PIDFILE}) = $self->mk_fedora_ds($ctx) or die("Unable to create fedora ds directories");
+			($ret->{FEDORA_DS_DIR}, $ret->{FEDORA_DS_PIDFILE}) = $self->mk_fedora_ds($ctx->{ldapdir}) or die("Unable to create fedora ds directories");
 		}
 
 	}
 
-	return $self->provision_raw_step2($ctx, $ret);
+	$ret = $self->provision_raw_step2($ctx, $ret);
+
+	return $ret;
 }
 
 sub provision_member($$$)
@@ -882,153 +809,29 @@ sub provision_member($$$)
 
 	my $ret = $self->provision($prefix,
 				   "member server",
+				   "localmember3",
 				   "localmember",
-				   "member3",
-				   "SAMBADOMAIN",
-				   "samba.example.com",
-				   "2008",
 				   3,
-				   "locMEMpass3",
-				   $dcvars->{SERVER_IP},
-				   "");
-	unless ($ret) {
-		return undef;
-	}
+				   "localmemberpass",
+				   $dcvars->{SERVER_IP});
 
-	my $samba_tool = $self->bindir_path("samba-tool");
+	$ret or die("Unable to provision");
+
+	my $net = $self->bindir_path("net");
 	my $cmd = "";
 	$cmd .= "SOCKET_WRAPPER_DEFAULT_IFACE=\"$ret->{SOCKET_WRAPPER_DEFAULT_IFACE}\" ";
 	$cmd .= "KRB5_CONFIG=\"$ret->{KRB5_CONFIG}\" ";
-	$cmd .= "$samba_tool join $ret->{CONFIGURATION} $dcvars->{REALM} member";
-	$cmd .= " -U$dcvars->{DC_USERNAME}\%$dcvars->{DC_PASSWORD}";
+	$cmd .= "$net join $ret->{CONFIGURATION} $dcvars->{DOMAIN} member";
+	$cmd .= " -U$dcvars->{USERNAME}\%$dcvars->{PASSWORD}";
 
-	unless (system($cmd) == 0) {
-		warn("Join failed\n$cmd");
-		return undef;
-	}
+	system($cmd) == 0 or die("Join failed\n$cmd");
 
-	$ret->{MEMBER_SERVER} = $ret->{SERVER};
-	$ret->{MEMBER_SERVER_IP} = $ret->{SERVER_IP};
-	$ret->{MEMBER_NETBIOSNAME} = $ret->{NETBIOSNAME};
-	$ret->{MEMBER_NETBIOSALIAS} = $ret->{NETBIOSALIAS};
-	$ret->{MEMBER_USERNAME} = $ret->{USERNAME};
-	$ret->{MEMBER_PASSWORD} = $ret->{PASSWORD};
-
-	$ret->{DC_SERVER} = $dcvars->{DC_SERVER};
-	$ret->{DC_SERVER_IP} = $dcvars->{DC_SERVER_IP};
-	$ret->{DC_NETBIOSNAME} = $dcvars->{DC_NETBIOSNAME};
-	$ret->{DC_NETBIOSALIAS} = $dcvars->{DC_NETBIOSALIAS};
-	$ret->{DC_USERNAME} = $dcvars->{DC_USERNAME};
-	$ret->{DC_PASSWORD} = $dcvars->{DC_PASSWORD};
-
-	return $ret;
-}
-
-sub provision_rpc_proxy($$$)
-{
-	my ($self, $prefix, $dcvars) = @_;
-	print "PROVISIONING RPC PROXY...";
-
-	my $extra_smbconf_options = "dcerpc_remote:binding = ncacn_ip_tcp:localdc
-       dcerpc endpoint servers = epmapper, remote
-       dcerpc_remote:interfaces = rpcecho
-";
-
-	my $ret = $self->provision($prefix,
-				   "member server",
-				   "localrpcproxy",
-				   "rpcproxy4",
-				   "SAMBADOMAIN",
-				   "samba.example.com",
-				   "2008",
-				   4,
-				   "locRPCproxypass4",
-				   $dcvars->{SERVER_IP},
-				   $extra_smbconf_options);
-
-	unless ($ret) {
-		return undef;
-	}
-
-	my $samba_tool = $self->bindir_path("samba-tool");
-	my $cmd = "";
-	$cmd .= "SOCKET_WRAPPER_DEFAULT_IFACE=\"$ret->{SOCKET_WRAPPER_DEFAULT_IFACE}\" ";
-	$cmd .= "KRB5_CONFIG=\"$ret->{KRB5_CONFIG}\" ";
-	$cmd .= "$samba_tool join $ret->{CONFIGURATION} $dcvars->{REALM} member";
-	$cmd .= " -U$dcvars->{DC_USERNAME}\%$dcvars->{DC_PASSWORD}";
-
-	unless (system($cmd) == 0) {
-		warn("Join failed\n$cmd");
-		return undef;
-	}
-
-	$ret->{RPC_PROXY_SERVER} = $ret->{SERVER};
-	$ret->{RPC_PROXY_SERVER_IP} = $ret->{SERVER_IP};
-	$ret->{RPC_PROXY_NETBIOSNAME} = $ret->{NETBIOSNAME};
-	$ret->{RPC_PROXY_NETBIOSALIAS} = $ret->{NETBIOSALIAS};
-	$ret->{RPC_PROXY_USERNAME} = $ret->{USERNAME};
-	$ret->{RPC_PROXY_PASSWORD} = $ret->{PASSWORD};
-
-	return $ret;
-}
-
-sub provision_vampire_dc($$$)
-{
-	my ($self, $prefix, $dcvars) = @_;
-	print "PROVISIONING VAMPIRE DC...";
-
-	# We do this so that we don't run the provision.  That's the job of 'net vampire'.
-	my $ctx = $self->provision_raw_prepare($prefix, "domain controller",
-					       "localvampiredc",
-					       "dc2",
-					       "SAMBADOMAIN",
-					       "samba.example.com",
-					       "2008",
-					       2, $dcvars->{PASSWORD},
-					       $dcvars->{SERVER_IP});
-
-	$ctx->{smb_conf_extra_options} = "
-	max xmit = 32K
-	server max protocol = SMB2
-
-[sysvol]
-	path = $ctx->{lockdir}/sysvol
-	read only = yes
-
-[netlogon]
-	path = $ctx->{lockdir}/sysvol/$ctx->{dnsname}/scripts
-	read only = no
-
-";
-
-	my $ret = $self->provision_raw_step1($ctx);
-	unless ($ret) {
-		return undef;
-	}
-
-	my $samba_tool = $self->bindir_path("samba-tool");
-	my $cmd = "";
-	$cmd .= "SOCKET_WRAPPER_DEFAULT_IFACE=\"$ret->{SOCKET_WRAPPER_DEFAULT_IFACE}\" ";
-	$cmd .= "KRB5_CONFIG=\"$ret->{KRB5_CONFIG}\" ";
-	$cmd .= "$samba_tool join $ret->{CONFIGURATION} $dcvars->{REALM} DC --realm=$dcvars->{REALM}";
-	$cmd .= " -U$dcvars->{DC_USERNAME}\%$dcvars->{DC_PASSWORD}";
-
-	unless (system($cmd) == 0) {
-		warn("Join failed\n$cmd");
-		return undef;
-	}
-
-	$ret->{VAMPIRE_DC_SERVER} = $ret->{SERVER};
-	$ret->{VAMPIRE_DC_SERVER_IP} = $ret->{SERVER_IP};
-	$ret->{VAMPIRE_DC_NETBIOSNAME} = $ret->{NETBIOSNAME};
-	$ret->{VAMPIRE_DC_NETBIOSALIAS} = $ret->{NETBIOSALIAS};
-
-	$ret->{DC_SERVER} = $dcvars->{DC_SERVER};
-	$ret->{DC_SERVER_IP} = $dcvars->{DC_SERVER_IP};
-	$ret->{DC_NETBIOSNAME} = $dcvars->{DC_NETBIOSNAME};
-	$ret->{DC_NETBIOSALIAS} = $dcvars->{DC_NETBIOSALIAS};
-	$ret->{DC_USERNAME} = $dcvars->{DC_USERNAME};
-	$ret->{DC_PASSWORD} = $dcvars->{DC_PASSWORD};
+	$ret->{DC_SERVER} = $dcvars->{SERVER};
+	$ret->{DC_SERVER_IP} = $dcvars->{SERVER_IP};
+	$ret->{DC_NETBIOSNAME} = $dcvars->{NETBIOSNAME};
+	$ret->{DC_NETBIOSALIAS} = $dcvars->{NETBIOSALIAS};
+	$ret->{DC_USERNAME} = $dcvars->{USERNAME};
+	$ret->{DC_PASSWORD} = $dcvars->{PASSWORD};
 
 	return $ret;
 }
@@ -1040,181 +843,14 @@ sub provision_dc($$)
 	print "PROVISIONING DC...";
 	my $ret = $self->provision($prefix,
 				   "domain controller",
+				   "localdc1",
 				   "localdc",
-				   "dc1",
-				   "SAMBADOMAIN",
-				   "samba.example.com",
-				   "2008",
 				   1,
-				   "locDCpass1",
-				   "127.0.0.1", "");
+				   "localdcpass",
+				   "127.0.0.1");
 
-	return undef unless(defined $ret);
-	unless($self->add_wins_config("$prefix/private")) {
-		warn("Unable to add wins configuration");
-		return undef;
-	}
-
-	$ret->{DC_SERVER} = $ret->{SERVER};
-	$ret->{DC_SERVER_IP} = $ret->{SERVER_IP};
-	$ret->{DC_NETBIOSNAME} = $ret->{NETBIOSNAME};
-	$ret->{DC_NETBIOSALIAS} = $ret->{NETBIOSALIAS};
-	$ret->{DC_USERNAME} = $ret->{USERNAME};
-	$ret->{DC_PASSWORD} = $ret->{PASSWORD};
-
-	return $ret;
-}
-
-sub provision_fl2000dc($$)
-{
-	my ($self, $prefix) = @_;
-
-	print "PROVISIONING DC...";
-	my $ret = $self->provision($prefix,
-				   "domain controller",
-				   "dc5",
-				   "localfl2000dc",
-				   "SAMBA2000",
-				   "samba2000.example.com",
-				   "2000",
-				   5,
-				   "locDCpass5",
-				   "127.0.0.5", "");
-
-	unless($self->add_wins_config("$prefix/private")) {
-		warn("Unable to add wins configuration");
-		return undef;
-	}
-
-	return $ret;
-}
-
-sub provision_fl2003dc($$)
-{
-	my ($self, $prefix) = @_;
-
-	print "PROVISIONING DC...";
-	my $ret = $self->provision($prefix,
-				   "domain controller",
-				   "dc6",
-				   "localfl2003dc",
-				   "SAMBA2003",
-				   "samba2003.example.com",
-				   "2003",
-				   6,
-				   "locDCpass6",
-				   "127.0.0.6", "");
-
-	unless($self->add_wins_config("$prefix/private")) {
-		warn("Unable to add wins configuration");
-		return undef;
-	}
-
-	return $ret;
-}
-
-sub provision_fl2008r2dc($$)
-{
-	my ($self, $prefix) = @_;
-
-	print "PROVISIONING DC...";
-	my $ret = $self->provision($prefix,
-				   "domain controller",
-				   "dc7",
-				   "localfl2000r2dc",
-				   "SAMBA2008R2",
-				   "samba2008R2.example.com",
-				   "2008_R2",
-				   7,
-				   "locDCpass7",
-				   "127.0.0.7", "");
-
-	unless ($self->add_wins_config("$prefix/private")) {
-		warn("Unable to add wins configuration");
-		return undef;
-	}
-
-	return $ret;
-}
-
-
-sub provision_rodc($$$)
-{
-	my ($self, $prefix, $dcvars) = @_;
-	print "PROVISIONING RODC...";
-
-	# We do this so that we don't run the provision.  That's the job of 'net join RODC'.
-	my $ctx = $self->provision_raw_prepare($prefix, "domain controller",
-					       "rodc",
-					       "dc8",
-					       "SAMBADOMAIN",
-					       "samba.example.com",
-					       "2008",
-					       8, $dcvars->{PASSWORD},
-					       $dcvars->{SERVER_IP});
-	unless ($ctx) {
-		return undef;
-	}
-
-	$ctx->{tmpdir} = "$ctx->{prefix_abs}/tmp";
-	push(@{$ctx->{directories}}, "$ctx->{tmpdir}");
-
-	$ctx->{smb_conf_extra_options} = "
-	max xmit = 32K
-	server max protocol = SMB2
-
-[sysvol]
-	path = $ctx->{lockdir}/sysvol
-	read only = yes
-
-[netlogon]
-	path = $ctx->{lockdir}/sysvol/$ctx->{dnsname}/scripts
-	read only = yes
-
-[tmp]
-	path = $ctx->{tmpdir}
-	read only = no
-	posix:sharedelay = 10000
-	posix:oplocktimeout = 3
-	posix:writetimeupdatedelay = 500000
-
-";
-
-	my $ret = $self->provision_raw_step1($ctx);
-	unless ($ret) {
-		return undef;
-	}
-
-	my $samba_tool = $self->bindir_path("samba-tool");
-	my $cmd = "";
-	$cmd .= "SOCKET_WRAPPER_DEFAULT_IFACE=\"$ret->{SOCKET_WRAPPER_DEFAULT_IFACE}\" ";
-	$cmd .= "KRB5_CONFIG=\"$ret->{KRB5_CONFIG}\" ";
-	$cmd .= "$samba_tool join $ret->{CONFIGURATION} $dcvars->{REALM} RODC";
-	$cmd .= " -U$dcvars->{DC_USERNAME}\%$dcvars->{DC_PASSWORD}";
-	$cmd .= " --server=$dcvars->{DC_SERVER}";
-
-	unless (system($cmd) == 0) {
-		warn("RODC join failed\n$cmd");
-		return undef;
-	}
-
-	# we overwrite the kdc after the RODC join
-	# so that use the RODC as kdc and test
-	# the proxy code
-	$ctx->{kdc_ipv4} = $ret->{SERVER_IP};
-	$self->mk_krb5_conf($ctx);
-
-	$ret->{RODC_DC_SERVER} = $ret->{SERVER};
-	$ret->{RODC_DC_SERVER_IP} = $ret->{SERVER_IP};
-	$ret->{RODC_DC_NETBIOSNAME} = $ret->{NETBIOSNAME};
-	$ret->{RODC_DC_NETBIOSALIAS} = $ret->{NETBIOSALIAS};
-
-	$ret->{DC_SERVER} = $dcvars->{DC_SERVER};
-	$ret->{DC_SERVER_IP} = $dcvars->{DC_SERVER_IP};
-	$ret->{DC_NETBIOSNAME} = $dcvars->{DC_NETBIOSNAME};
-	$ret->{DC_NETBIOSALIAS} = $dcvars->{DC_NETBIOSALIAS};
-	$ret->{DC_USERNAME} = $dcvars->{DC_USERNAME};
-	$ret->{DC_PASSWORD} = $dcvars->{DC_PASSWORD};
+	$self->add_wins_config("$prefix/private") or 
+		die("Unable to add wins configuration");
 
 	return $ret;
 }
@@ -1226,7 +862,8 @@ sub teardown_env($$)
 
 	close(DATA);
 
-	if (open(IN, "<$envvars->{PIDDIR}/samba.pid")) {
+	if (-f "$envvars->{PIDDIR}/samba.pid" ) {
+		open(IN, "<$envvars->{PIDDIR}/samba.pid") or die("unable to open server pid file");
 		$pid = <IN>;
 		close(IN);
 
@@ -1234,16 +871,16 @@ sub teardown_env($$)
 		# this time to write out the covarge data
 		my $count = 0;
 		until (kill(0, $pid) == 0) {
-			# if no process sucessfully signalled, then we are done
-			sleep(1);
-			$count++;
-			last if $count > 20;
+		    # if no process sucessfully signalled, then we are done
+		    sleep(1);
+		    $count++;
+		    last if $count > 20;
 		}
-
+		
 		# If it is still around, kill it
 		if ($count > 20) {
-			print "server process $pid took more than $count seconds to exit, killing\n";
-			kill 9, $pid;
+		    print "server process $pid took more than $count seconds to exit, killing\n";
+		    kill 9, $pid;
 		}
 	}
 
@@ -1272,7 +909,7 @@ sub getlog_env($$)
 	close(LOG);
 
 	return "" if $out eq $title;
-
+ 
 	return $out;
 }
 
@@ -1280,130 +917,39 @@ sub check_env($$)
 {
 	my ($self, $envvars) = @_;
 
-	return (-p $envvars->{SAMBA_TEST_FIFO});
+	return 1 if (-p $envvars->{SAMBA_TEST_FIFO});
+
+	print $self->getlog_env($envvars);
+
+	return 0;
 }
 
 sub setup_env($$$)
 {
 	my ($self, $envname, $path) = @_;
 
-	$ENV{ENVNAME} = $envname;
-
 	if ($envname eq "dc") {
 		return $self->setup_dc("$path/dc");
-	} elsif ($envname eq "fl2000dc") {
-		return $self->setup_fl2000dc("$path/fl2000dc");
-	} elsif ($envname eq "fl2003dc") {
-		return $self->setup_fl2003dc("$path/fl2003dc");
-	} elsif ($envname eq "fl2008r2dc") {
-		return $self->setup_fl2008r2dc("$path/fl2008r2dc");
-	} elsif ($envname eq "rpc_proxy") {
-		if (not defined($self->{vars}->{dc})) {
-			$self->setup_dc("$path/dc");
-		}
-		return $self->setup_rpc_proxy("$path/rpc_proxy", $self->{vars}->{dc});
-	} elsif ($envname eq "vampire_dc") {
-		if (not defined($self->{vars}->{dc})) {
-			$self->setup_dc("$path/dc");
-		}
-		return $self->setup_vampire_dc("$path/vampire_dc", $self->{vars}->{dc});
 	} elsif ($envname eq "member") {
 		if (not defined($self->{vars}->{dc})) {
 			$self->setup_dc("$path/dc");
 		}
 		return $self->setup_member("$path/member", $self->{vars}->{dc});
-	} elsif ($envname eq "rodc") {
-		if (not defined($self->{vars}->{dc})) {
-			$self->setup_dc("$path/dc");
-		}
-		return $self->setup_rodc("$path/rodc", $self->{vars}->{dc});
-	} elsif ($envname eq "all") {
-		if (not defined($self->{vars}->{dc})) {
-			$ENV{ENVNAME} = "dc";
-			$self->setup_dc("$path/dc");
-		}
-		my $ret = $self->setup_member("$path/member", $self->{vars}->{dc});
-		if (not defined($self->{vars}->{rpc_proxy})) {
-			$ENV{ENVNAME} = "rpc_proxy";
-			my $rpc_proxy_ret = $self->setup_rpc_proxy("$path/rpc_proxy", $self->{vars}->{dc});
-			
-			$ret->{RPC_PROXY_SERVER} = $rpc_proxy_ret->{SERVER};
-			$ret->{RPC_PROXY_SERVER_IP} = $rpc_proxy_ret->{SERVER_IP};
-			$ret->{RPC_PROXY_NETBIOSNAME} = $rpc_proxy_ret->{NETBIOSNAME};
-			$ret->{RPC_PROXY_NETBIOSALIAS} = $rpc_proxy_ret->{NETBIOSALIAS};
-			$ret->{RPC_PROXY_USERNAME} = $rpc_proxy_ret->{USERNAME};
-			$ret->{RPC_PROXY_PASSWORD} = $rpc_proxy_ret->{PASSWORD};
-		}
-		if (not defined($self->{vars}->{fl2000dc})) {
-			$ENV{ENVNAME} = "fl2000dc";
-			my $fl2000dc_ret = $self->setup_fl2000dc("$path/fl2000dc", $self->{vars}->{dc});
-			
-			$ret->{FL2000DC_SERVER} = $fl2000dc_ret->{SERVER};
-			$ret->{FL2000DC_SERVER_IP} = $fl2000dc_ret->{SERVER_IP};
-			$ret->{FL2000DC_NETBIOSNAME} = $fl2000dc_ret->{NETBIOSNAME};
-			$ret->{FL2000DC_NETBIOSALIAS} = $fl2000dc_ret->{NETBIOSALIAS};
-			$ret->{FL2000DC_USERNAME} = $fl2000dc_ret->{USERNAME};
-			$ret->{FL2000DC_PASSWORD} = $fl2000dc_ret->{PASSWORD};
-		}
-		if (not defined($self->{vars}->{fl2003dc})) {
-			$ENV{ENVNAME} = "fl2003dc";
-			my $fl2003dc_ret = $self->setup_fl2003dc("$path/fl2003dc", $self->{vars}->{dc});
-
-			$ret->{FL2003DC_SERVER} = $fl2003dc_ret->{SERVER};
-			$ret->{FL2003DC_SERVER_IP} = $fl2003dc_ret->{SERVER_IP};
-			$ret->{FL2003DC_NETBIOSNAME} = $fl2003dc_ret->{NETBIOSNAME};
-			$ret->{FL2003DC_NETBIOSALIAS} = $fl2003dc_ret->{NETBIOSALIAS};
-			$ret->{FL2003DC_USERNAME} = $fl2003dc_ret->{USERNAME};
-			$ret->{FL2003DC_PASSWORD} = $fl2003dc_ret->{PASSWORD};
-		}
-		if (not defined($self->{vars}->{fl2008r2dc})) {
-			$ENV{ENVNAME} = "fl2008r2dc";
-			my $fl2008r2dc_ret = $self->setup_fl2008r2dc("$path/fl2008r2dc", $self->{vars}->{dc});
-
-			$ret->{FL2008R2DC_SERVER} = $fl2008r2dc_ret->{SERVER};
-			$ret->{FL2008R2DC_SERVER_IP} = $fl2008r2dc_ret->{SERVER_IP};
-			$ret->{FL2008R2DC_NETBIOSNAME} = $fl2008r2dc_ret->{NETBIOSNAME};
-			$ret->{FL2008R2DC_NETBIOSALIAS} = $fl2008r2dc_ret->{NETBIOSALIAS};
-			$ret->{FL2008R2DC_USERNAME} = $fl2008r2dc_ret->{USERNAME};
-			$ret->{FL2008R2DC_PASSWORD} = $fl2008r2dc_ret->{PASSWORD};
-		}
-		return $ret;
 	} else {
-		warn("Samba4 can't provide environment '$envname'");
-		return undef;
+		die("Samba4 can't provide environment '$envname'");
 	}
 }
 
-sub setup_member($$$)
+sub setup_member($$$$)
 {
 	my ($self, $path, $dc_vars) = @_;
 
 	my $env = $self->provision_member($path, $dc_vars);
 
-	if (defined $env) {
-		$self->check_or_start($env, ($ENV{SMBD_MAXTIME} or 7500));
+	$self->check_or_start($env, ($ENV{SMBD_MAXTIME} or 7500));
 
-		$self->wait_for_start($env);
+	$self->wait_for_start($env);
 
-		$self->{vars}->{member} = $env;
-	}
-
-	return $env;
-}
-
-sub setup_rpc_proxy($$$)
-{
-	my ($self, $path, $dc_vars) = @_;
-
-	my $env = $self->provision_rpc_proxy($path, $dc_vars);
-
-	if (defined $env) {
-	        $self->check_or_start($env, ($ENV{SMBD_MAXTIME} or 7500));
-
-		$self->wait_for_start($env);
-
-		$self->{vars}->{rpc_proxy} = $env;
-	}
 	return $env;
 }
 
@@ -1412,138 +958,20 @@ sub setup_dc($$)
 	my ($self, $path) = @_;
 
 	my $env = $self->provision_dc($path);
-	if (defined $env) {
-		$self->check_or_start($env,
-			($ENV{SMBD_MAXTIME} or 7500));
 
-		$self->wait_for_start($env);
-
-		$self->{vars}->{dc} = $env;
-	}
-	return $env;
-}
-
-sub setup_fl2000dc($$)
-{
-	my ($self, $path) = @_;
-
-	my $env = $self->provision_fl2000dc($path);
-	if (defined $env) {
-		$self->check_or_start($env,
-			($ENV{SMBD_MAXTIME} or 7500));
-
-		$self->wait_for_start($env);
-
-		$self->{vars}->{fl2000dc} = $env;
-	}
-
-	return $env;
-}
-
-sub setup_fl2003dc($$)
-{
-	my ($self, $path) = @_;
-
-	my $env = $self->provision_fl2003dc($path);
-
-	if (defined $env) {
-		$self->check_or_start($env,
-			($ENV{SMBD_MAXTIME} or 7500));
-
-		$self->wait_for_start($env);
-
-		$self->{vars}->{fl2003dc} = $env;
-	}
-	return $env;
-}
-
-sub setup_fl2008r2dc($$)
-{
-	my ($self, $path) = @_;
-
-	my $env = $self->provision_fl2008r2dc($path);
-
-	if (defined $env) {
-		$self->check_or_start($env,
-			($ENV{SMBD_MAXTIME} or 7500));
-
-		$self->wait_for_start($env);
-
-		$self->{vars}->{fl2008r2dc} = $env;
-	}
-
-	return $env;
-}
-
-sub setup_vampire_dc($$$)
-{
-	my ($self, $path, $dc_vars) = @_;
-
-	my $env = $self->provision_vampire_dc($path, $dc_vars);
-
-	if (defined $env) {
-		$self->check_or_start($env,
-			($ENV{SMBD_MAXTIME} or 7500));
-
-		$self->wait_for_start($env);
-
-		$self->{vars}->{vampire_dc} = $env;
-
-		# force replicated DC to update repsTo/repsFrom
-		# for vampired partitions
-		my $samba_tool = $self->bindir_path("samba-tool");
-		my $cmd = "";
-		$cmd .= "SOCKET_WRAPPER_DEFAULT_IFACE=\"$env->{SOCKET_WRAPPER_DEFAULT_IFACE}\"";
-		$cmd .= " KRB5_CONFIG=\"$env->{KRB5_CONFIG}\"";
-		$cmd .= " $samba_tool drs kcc $env->{DC_SERVER}";
-		$cmd .= " -U$dc_vars->{DC_USERNAME}\%$dc_vars->{DC_PASSWORD}";
-		unless (system($cmd) == 0) {
-			warn("Failed to exec kcc\n$cmd");
-			return undef;
-		}
-
-		# as 'vampired' dc may add data in its local replica
-		# we need to synchronize data between DCs
-		my $base_dn = "DC=".join(",DC=", split(/\./, $dc_vars->{REALM}));
-		$cmd = "SOCKET_WRAPPER_DEFAULT_IFACE=\"$env->{SOCKET_WRAPPER_DEFAULT_IFACE}\"";
-		$cmd .= " KRB5_CONFIG=\"$env->{KRB5_CONFIG}\"";
-		$cmd .= " $samba_tool drs replicate $env->{DC_SERVER} $env->{VAMPIRE_DC_SERVER}";
-		$cmd .= " -U$dc_vars->{DC_USERNAME}\%$dc_vars->{DC_PASSWORD}";
-		# replicate Configuration NC
-		my $cmd_repl = "$cmd \"CN=Configuration,$base_dn\"";
-		unless(system($cmd_repl) == 0) {
-			warn("Failed to replicate\n$cmd_repl");
-			return undef;
-		}
-		# replicate Default NC
-		$cmd_repl = "$cmd \"$base_dn\"";
-		unless(system($cmd_repl) == 0) {
-			warn("Failed to replicate\n$cmd_repl");
-			return undef;
-		}
-	}
-
-	return $env;
-}
-
-sub setup_rodc($$$)
-{
-	my ($self, $path, $dc_vars) = @_;
-
-	my $env = $self->provision_rodc($path, $dc_vars);
-
-	unless ($env) {
-		return undef;
-	}
-
-	$self->check_or_start($env,
+	$self->check_or_start($env, 
 		($ENV{SMBD_MAXTIME} or 7500));
 
 	$self->wait_for_start($env);
 
-	$self->{vars}->{rodc} = $env;
+	$self->{vars}->{dc} = $env;
 
 	return $env;
+}
+
+sub stop($)
+{
+	my ($self) = @_;
 }
 
 1;

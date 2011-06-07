@@ -38,7 +38,7 @@ struct groupadd_state {
 };
 
 
-static void continue_groupadd_created(struct tevent_req *subreq);
+static void continue_groupadd_created(struct rpc_request *req);
 
 
 struct composite_context* libnet_rpc_groupadd_send(struct dcerpc_pipe *p,
@@ -47,7 +47,7 @@ struct composite_context* libnet_rpc_groupadd_send(struct dcerpc_pipe *p,
 {
 	struct composite_context *c;
 	struct groupadd_state *s;
-	struct tevent_req *subreq;
+	struct rpc_request *create_req;
 
 	if (!p || !io) return NULL;
 
@@ -76,12 +76,10 @@ struct composite_context* libnet_rpc_groupadd_send(struct dcerpc_pipe *p,
 	s->creategroup.out.group_handle  = &s->group_handle;
 	s->creategroup.out.rid           = &s->group_rid;
  	
-	subreq = dcerpc_samr_CreateDomainGroup_r_send(s, c->event_ctx,
-						      s->pipe->binding_handle,
-						      &s->creategroup);
-	if (composite_nomem(subreq, c)) return c;
+	create_req = dcerpc_samr_CreateDomainGroup_send(s->pipe, c, &s->creategroup);
+	if (composite_nomem(create_req, c)) return c;
 
-	tevent_req_set_callback(subreq, continue_groupadd_created, c);
+	composite_continue_rpc(c, create_req, continue_groupadd_created, c);
 	return c;
 }
 
@@ -101,16 +99,15 @@ NTSTATUS libnet_rpc_groupadd_recv(struct composite_context *c, TALLOC_CTX *mem_c
 }
 
 
-static void continue_groupadd_created(struct tevent_req *subreq)
+static void continue_groupadd_created(struct rpc_request *req)
 {
 	struct composite_context *c;
 	struct groupadd_state *s;
 
-	c = tevent_req_callback_data(subreq, struct composite_context);
+	c = talloc_get_type(req->async.private_data, struct composite_context);
 	s = talloc_get_type(c->private_data, struct groupadd_state);
 
-	c->status = dcerpc_samr_CreateDomainGroup_r_recv(subreq, s);
-	TALLOC_FREE(subreq);
+	c->status = dcerpc_ndr_request_recv(req);
 	if (!composite_is_ok(c)) return;
 
 	c->status = s->creategroup.out.result;
@@ -143,9 +140,9 @@ struct groupdel_state {
 };
 
 
-static void continue_groupdel_name_found(struct tevent_req *subreq);
-static void continue_groupdel_group_opened(struct tevent_req *subreq);
-static void continue_groupdel_deleted(struct tevent_req *subreq);
+static void continue_groupdel_name_found(struct rpc_request *req);
+static void continue_groupdel_group_opened(struct rpc_request *req);
+static void continue_groupdel_deleted(struct rpc_request *req);
 
 
 struct composite_context* libnet_rpc_groupdel_send(struct dcerpc_pipe *p,
@@ -154,7 +151,7 @@ struct composite_context* libnet_rpc_groupdel_send(struct dcerpc_pipe *p,
 {
 	struct composite_context *c;
 	struct groupdel_state *s;
-	struct tevent_req *subreq;
+	struct rpc_request *lookup_req;
 
 	/* composite context allocation and setup */
 	c = composite_create(p, dcerpc_event_context(p));
@@ -181,27 +178,25 @@ struct composite_context* libnet_rpc_groupdel_send(struct dcerpc_pipe *p,
 	if (composite_nomem(s->lookupname.out.types, c)) return c;
 
 	/* send the request */
-	subreq = dcerpc_samr_LookupNames_r_send(s, c->event_ctx,
-						p->binding_handle,
-						&s->lookupname);
-	if (composite_nomem(subreq, c)) return c;
+	lookup_req = dcerpc_samr_LookupNames_send(p, c, &s->lookupname);
+	if (composite_nomem(lookup_req, c)) return c;
 
-	tevent_req_set_callback(subreq, continue_groupdel_name_found, c);
+	composite_continue_rpc(c, lookup_req, continue_groupdel_name_found, c);
 	return c;
 }
 
 
-static void continue_groupdel_name_found(struct tevent_req *subreq)
+static void continue_groupdel_name_found(struct rpc_request *req)
 {
 	struct composite_context *c;
 	struct groupdel_state *s;
+	struct rpc_request *opengroup_req;
 
-	c = tevent_req_callback_data(subreq, struct composite_context);
+	c = talloc_get_type(req->async.private_data, struct composite_context);
 	s = talloc_get_type(c->private_data, struct groupdel_state);
 
 	/* receive samr_LookupNames result */
-	c->status = dcerpc_samr_LookupNames_r_recv(subreq, s);
-	TALLOC_FREE(subreq);
+	c->status = dcerpc_ndr_request_recv(req);
 	if (!composite_is_ok(c)) return;
 
 	c->status = s->lookupname.out.result;
@@ -230,26 +225,24 @@ static void continue_groupdel_name_found(struct tevent_req *subreq)
 	s->opengroup.out.group_handle  = &s->group_handle;
 
 	/* send rpc request */
-	subreq = dcerpc_samr_OpenGroup_r_send(s, c->event_ctx,
-					      s->pipe->binding_handle,
-					      &s->opengroup);
-	if (composite_nomem(subreq, c)) return;
+	opengroup_req = dcerpc_samr_OpenGroup_send(s->pipe, c, &s->opengroup);
+	if (composite_nomem(opengroup_req, c)) return;
 
-	tevent_req_set_callback(subreq, continue_groupdel_group_opened, c);
+	composite_continue_rpc(c, opengroup_req, continue_groupdel_group_opened, c);
 }
 
 
-static void continue_groupdel_group_opened(struct tevent_req *subreq)
+static void continue_groupdel_group_opened(struct rpc_request *req)
 {
 	struct composite_context *c;
 	struct groupdel_state *s;
+	struct rpc_request *delgroup_req;
 
-	c = tevent_req_callback_data(subreq, struct composite_context);
+	c = talloc_get_type(req->async.private_data, struct composite_context);
 	s = talloc_get_type(c->private_data, struct groupdel_state);
 
 	/* receive samr_OpenGroup result */
-	c->status = dcerpc_samr_OpenGroup_r_recv(subreq, s);
-	TALLOC_FREE(subreq);
+	c->status = dcerpc_ndr_request_recv(req);
 	if (!composite_is_ok(c)) return;
 
 	c->status = s->opengroup.out.result;
@@ -263,27 +256,24 @@ static void continue_groupdel_group_opened(struct tevent_req *subreq)
 	s->deletegroup.out.group_handle  = &s->group_handle;
 	
 	/* send rpc request */
-	subreq = dcerpc_samr_DeleteDomainGroup_r_send(s, c->event_ctx,
-						      s->pipe->binding_handle,
-						      &s->deletegroup);
-	if (composite_nomem(subreq, c)) return;
+	delgroup_req = dcerpc_samr_DeleteDomainGroup_send(s->pipe, c, &s->deletegroup);
+	if (composite_nomem(delgroup_req, c)) return;
 
 	/* callback handler setup */
-	tevent_req_set_callback(subreq, continue_groupdel_deleted, c);
+	composite_continue_rpc(c, delgroup_req, continue_groupdel_deleted, c);
 }
 
 
-static void continue_groupdel_deleted(struct tevent_req *subreq)
+static void continue_groupdel_deleted(struct rpc_request *req)
 {
 	struct composite_context *c;
 	struct groupdel_state *s;
 
-	c = tevent_req_callback_data(subreq, struct composite_context);
+	c = talloc_get_type(req->async.private_data, struct composite_context);
 	s = talloc_get_type(c->private_data, struct groupdel_state);
 
 	/* receive samr_DeleteGroup result */
-	c->status = dcerpc_samr_DeleteDomainGroup_r_recv(subreq, s);
-	TALLOC_FREE(subreq);
+	c->status = dcerpc_ndr_request_recv(req);
 	if (!composite_is_ok(c)) return;
 
 	/* return the actual function call status */

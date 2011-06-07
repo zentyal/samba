@@ -46,9 +46,8 @@
 */
 
 #include "includes.h"
-#include "dbwrap.h"
-#include "serverid.h"
-#include "messages.h"
+#include "librpc/gen_ndr/messaging.h"
+#include "librpc/gen_ndr/ndr_messaging.h"
 
 struct messaging_callback {
 	struct messaging_callback *prev, *next;
@@ -96,29 +95,36 @@ struct msg_all {
  Send one of the messages for the broadcast.
 ****************************************************************************/
 
-static int traverse_fn(struct db_record *rec, const struct server_id *id,
-		       uint32_t msg_flags, void *state)
+static int traverse_fn(struct db_record *rec,
+		       const struct connections_key *ckey,
+		       const struct connections_data *crec,
+		       void *state)
 {
 	struct msg_all *msg_all = (struct msg_all *)state;
 	NTSTATUS status;
 
+	if (crec->cnum != -1)
+		return 0;
+
 	/* Don't send if the receiver hasn't registered an interest. */
 
-	if((msg_flags & msg_all->msg_flag) == 0) {
+	if(!(crec->bcast_msg_flags & msg_all->msg_flag))
 		return 0;
-	}
 
 	/* If the msg send fails because the pid was not found (i.e. smbd died), 
 	 * the msg has already been deleted from the messages.tdb.*/
 
-	status = messaging_send_buf(msg_all->msg_ctx, *id, msg_all->msg_type,
+	status = messaging_send_buf(msg_all->msg_ctx,
+				    crec->pid, msg_all->msg_type,
 				    (uint8 *)msg_all->buf, msg_all->len);
 
 	if (NT_STATUS_EQUAL(status, NT_STATUS_INVALID_HANDLE)) {
 		
 		/* If the pid was not found delete the entry from connections.tdb */
 
-		DEBUG(2, ("pid %s doesn't exist\n", procid_str_static(id)));
+		DEBUG(2,("pid %s doesn't exist - deleting connections %d [%s]\n",
+			 procid_str_static(&crec->pid), crec->cnum,
+			 crec->servicename));
 
 		rec->delete_rec(rec);
 	}
@@ -166,7 +172,7 @@ bool message_send_all(struct messaging_context *msg_ctx,
 	msg_all.n_sent = 0;
 	msg_all.msg_ctx = msg_ctx;
 
-	serverid_traverse(traverse_fn, &msg_all);
+	connections_forall(traverse_fn, &msg_all);
 	if (n_sent)
 		*n_sent = msg_all.n_sent;
 	return True;
@@ -194,7 +200,7 @@ struct messaging_context *messaging_init(TALLOC_CTX *mem_ctx,
 	status = messaging_tdb_init(ctx, ctx, &ctx->local);
 
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(2, ("messaging_tdb_init failed: %s\n",
+		DEBUG(0, ("messaging_tdb_init failed: %s\n",
 			  nt_errstr(status)));
 		TALLOC_FREE(ctx);
 		return NULL;
@@ -205,13 +211,12 @@ struct messaging_context *messaging_init(TALLOC_CTX *mem_ctx,
 		status = messaging_ctdbd_init(ctx, ctx, &ctx->remote);
 
 		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(2, ("messaging_ctdb_init failed: %s\n",
+			DEBUG(1, ("messaging_ctdb_init failed: %s\n",
 				  nt_errstr(status)));
 			TALLOC_FREE(ctx);
 			return NULL;
 		}
 	}
-	ctx->id.vnn = get_my_vnn();
 #endif
 
 	messaging_register(ctx, NULL, MSG_PING, ping_message);
@@ -225,22 +230,14 @@ struct messaging_context *messaging_init(TALLOC_CTX *mem_ctx,
 	return ctx;
 }
 
-struct server_id messaging_server_id(const struct messaging_context *msg_ctx)
-{
-	return msg_ctx->id;
-}
-
 /*
  * re-init after a fork
  */
-NTSTATUS messaging_reinit(struct messaging_context *msg_ctx,
-			  struct server_id id)
+NTSTATUS messaging_reinit(struct messaging_context *msg_ctx)
 {
 	NTSTATUS status;
 
 	TALLOC_FREE(msg_ctx->local);
-
-	msg_ctx->id = id;
 
 	status = messaging_tdb_init(msg_ctx, msg_ctx, &msg_ctx->local);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -363,7 +360,7 @@ NTSTATUS messaging_send_buf(struct messaging_context *msg_ctx,
 }
 
 /*
-  Dispatch one messaging_rec
+  Dispatch one messsaging_rec
 */
 void messaging_dispatch_rec(struct messaging_context *msg_ctx,
 			    struct messaging_rec *rec)

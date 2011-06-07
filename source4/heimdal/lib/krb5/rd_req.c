@@ -1,4 +1,3 @@
-
 /*
  * Copyright (c) 1997 - 2007 Kungliga Tekniska Högskolan
  * (Royal Institute of Technology, Stockholm, Sweden).
@@ -32,7 +31,7 @@
  * SUCH DAMAGE.
  */
 
-#include "krb5_locl.h"
+#include <krb5_locl.h>
 
 static krb5_error_code
 decrypt_tkt_enc_part (krb5_context context,
@@ -103,7 +102,7 @@ decrypt_authenticator (krb5_context context,
     return ret;
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_decode_ap_req(krb5_context context,
 		   const krb5_data *inbuf,
 		   krb5_ap_req *ap_req)
@@ -218,7 +217,7 @@ find_etypelist(krb5_context context,
     return ret;
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_decrypt_ticket(krb5_context context,
 		    Ticket *ticket,
 		    krb5_keyblock *key,
@@ -267,7 +266,7 @@ krb5_decrypt_ticket(krb5_context context,
     return 0;
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_verify_authenticator_checksum(krb5_context context,
 				   krb5_auth_context ac,
 				   void *data,
@@ -309,7 +308,7 @@ out:
 }
 
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_verify_ap_req(krb5_context context,
 		   krb5_auth_context *auth_context,
 		   krb5_ap_req *ap_req,
@@ -330,7 +329,7 @@ krb5_verify_ap_req(krb5_context context,
 				KRB5_KU_AP_REQ_AUTH);
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_verify_ap_req2(krb5_context context,
 		    krb5_auth_context *auth_context,
 		    krb5_ap_req *ap_req,
@@ -539,7 +538,7 @@ struct krb5_rd_req_out_ctx_data {
  * @ingroup krb5_auth
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_rd_req_in_ctx_alloc(krb5_context context, krb5_rd_req_in_ctx *ctx)
 {
     *ctx = calloc(1, sizeof(**ctx));
@@ -566,7 +565,7 @@ krb5_rd_req_in_ctx_alloc(krb5_context context, krb5_rd_req_in_ctx *ctx)
  * @ingroup krb5_auth
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_rd_req_in_set_keytab(krb5_context context,
 			  krb5_rd_req_in_ctx in,
 			  krb5_keytab keytab)
@@ -587,7 +586,7 @@ krb5_rd_req_in_set_keytab(krb5_context context,
  * @ingroup krb5_auth
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_rd_req_in_set_pac_check(krb5_context context,
 			     krb5_rd_req_in_ctx in,
 			     krb5_boolean flag)
@@ -597,7 +596,7 @@ krb5_rd_req_in_set_pac_check(krb5_context context,
 }
 
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_rd_req_in_set_keyblock(krb5_context context,
 			    krb5_rd_req_in_ctx in,
 			    krb5_keyblock *keyblock)
@@ -606,7 +605,7 @@ krb5_rd_req_in_set_keyblock(krb5_context context,
     return 0;
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_rd_req_out_get_ap_req_options(krb5_context context,
 				   krb5_rd_req_out_ctx out,
 				   krb5_flags *ap_req_options)
@@ -615,7 +614,7 @@ krb5_rd_req_out_get_ap_req_options(krb5_context context,
     return 0;
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_rd_req_out_get_ticket(krb5_context context,
 			    krb5_rd_req_out_ctx out,
 			    krb5_ticket **ticket)
@@ -623,7 +622,7 @@ krb5_rd_req_out_get_ticket(krb5_context context,
     return krb5_copy_ticket(context, out->ticket, ticket);
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_rd_req_out_get_keyblock(krb5_context context,
 			    krb5_rd_req_out_ctx out,
 			    krb5_keyblock **keyblock)
@@ -643,7 +642,7 @@ krb5_rd_req_out_get_keyblock(krb5_context context,
  * @ingroup krb5_auth
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_rd_req_out_get_server(krb5_context context,
 			    krb5_rd_req_out_ctx out,
 			    krb5_principal *principal)
@@ -651,7 +650,7 @@ krb5_rd_req_out_get_server(krb5_context context,
     return krb5_copy_principal(context, out->server, principal);
 }
 
-KRB5_LIB_FUNCTION void KRB5_LIB_CALL
+void  KRB5_LIB_FUNCTION
 krb5_rd_req_in_ctx_free(krb5_context context, krb5_rd_req_in_ctx ctx)
 {
     free(ctx);
@@ -666,7 +665,7 @@ krb5_rd_req_in_ctx_free(krb5_context context, krb5_rd_req_in_ctx ctx)
  * @ingroup krb5_auth
  */
 
-KRB5_LIB_FUNCTION void KRB5_LIB_CALL
+void  KRB5_LIB_FUNCTION
 krb5_rd_req_out_ctx_free(krb5_context context, krb5_rd_req_out_ctx ctx)
 {
     if (ctx->ticket)
@@ -682,7 +681,7 @@ krb5_rd_req_out_ctx_free(krb5_context context, krb5_rd_req_out_ctx ctx)
  *
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_rd_req(krb5_context context,
 	    krb5_auth_context *auth_context,
 	    const krb5_data *inbuf,
@@ -727,7 +726,7 @@ out:
  *
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_rd_req_with_keyblock(krb5_context context,
 			  krb5_auth_context *auth_context,
 			  const krb5_data *inbuf,
@@ -821,7 +820,7 @@ out:
  * @param inbuf the (AP-REQ) authentication buffer
  *
  * @param server the server with authenticate as, if NULL the function
- *        will try to find any available credential in the keytab
+ *        will try to find any avaiable credentintial in the keytab
  *        that will verify the reply. The function will prefer the
  *        server the server client specified in the AP-REQ, but if
  *        there is no mach, it will try all keytab entries for a
@@ -835,7 +834,7 @@ out:
  * @ingroup krb5_auth
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_rd_req_ctx(krb5_context context,
 		krb5_auth_context *auth_context,
 		const krb5_data *inbuf,
@@ -926,7 +925,7 @@ krb5_rd_req_ctx(krb5_context context,
 				  &o->keyblock);
 	if (ret) {
 	    /* If caller specified a server, fail. */
-	    if (service == NULL && (context->flags & KRB5_CTX_F_RD_REQ_IGNORE) == 0)
+	    if (service == NULL)
 		goto out;
 	    /* Otherwise, fall back to iterating over the keytab. This
 	     * have serious performace issues for larger keytab.

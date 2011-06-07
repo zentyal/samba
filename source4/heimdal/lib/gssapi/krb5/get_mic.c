@@ -33,8 +33,6 @@
 
 #include "gsskrb5_locl.h"
 
-#ifdef HEIM_WEAK_CRYPTO
-
 static OM_uint32
 mic_des
            (OM_uint32 * minor_status,
@@ -47,10 +45,9 @@ mic_des
            )
 {
   u_char *p;
-  EVP_MD_CTX *md5;
+  MD5_CTX md5;
   u_char hash[16];
   DES_key_schedule schedule;
-  EVP_CIPHER_CTX des_ctx;
   DES_cblock deskey;
   DES_cblock zero;
   int32_t seq_number;
@@ -82,12 +79,10 @@ mic_des
   p += 16;
 
   /* checksum */
-  md5 = EVP_MD_CTX_create();
-  EVP_DigestInit_ex(md5, EVP_md5(), NULL);
-  EVP_DigestUpdate(md5, p - 24, 8);
-  EVP_DigestUpdate(md5, message_buffer->value, message_buffer->length);
-  EVP_DigestFinal_ex(md5, hash, NULL);
-  EVP_MD_CTX_destroy(md5);
+  MD5_Init (&md5);
+  MD5_Update (&md5, p - 24, 8);
+  MD5_Update (&md5, message_buffer->value, message_buffer->length);
+  MD5_Final (hash, &md5);
 
   memset (&zero, 0, sizeof(zero));
   memcpy (&deskey, key->keyvalue.data, sizeof(deskey));
@@ -111,10 +106,9 @@ mic_des
 	  (ctx->more_flags & LOCAL) ? 0 : 0xFF,
 	  4);
 
-  EVP_CIPHER_CTX_init(&des_ctx);
-  EVP_CipherInit_ex(&des_ctx, EVP_des_cbc(), NULL, key->keyvalue.data, p + 8, 1);
-  EVP_Cipher(&des_ctx, p, p, 8);
-  EVP_CIPHER_CTX_cleanup(&des_ctx);
+  DES_set_key_unchecked (&deskey, &schedule);
+  DES_cbc_encrypt ((void *)p, (void *)p, 8,
+		   &schedule, (DES_cblock *)(p + 8), DES_ENCRYPT);
 
   krb5_auth_con_setlocalseqnumber (context,
 			       ctx->auth_context,
@@ -127,7 +121,6 @@ mic_des
   *minor_status = 0;
   return GSS_S_COMPLETE;
 }
-#endif
 
 static OM_uint32
 mic_des3
@@ -273,7 +266,7 @@ mic_des3
   return GSS_S_COMPLETE;
 }
 
-OM_uint32 GSSAPI_CALLCONV _gsskrb5_get_mic
+OM_uint32 _gsskrb5_get_mic
            (OM_uint32 * minor_status,
             const gss_ctx_id_t context_handle,
             gss_qop_t qop_req,
@@ -304,12 +297,8 @@ OM_uint32 GSSAPI_CALLCONV _gsskrb5_get_mic
 
   switch (keytype) {
   case KEYTYPE_DES :
-#ifdef HEIM_WEAK_CRYPTO
       ret = mic_des (minor_status, ctx, context, qop_req,
 		     message_buffer, message_token, key);
-#else
-      ret = GSS_S_FAILURE;
-#endif
       break;
   case KEYTYPE_DES3 :
       ret = mic_des3 (minor_status, ctx, context, qop_req,

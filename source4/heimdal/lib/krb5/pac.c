@@ -76,47 +76,10 @@ struct krb5_pac_data {
 static const char zeros[PAC_ALIGNMENT] = { 0 };
 
 /*
- * HMAC-MD5 checksum over any key (needed for the PAC routines)
- */
-
-static krb5_error_code
-HMAC_MD5_any_checksum(krb5_context context,
-		      const krb5_keyblock *key,
-		      const void *data,
-		      size_t len,
-		      unsigned usage,
-		      Checksum *result)
-{
-    struct _krb5_key_data local_key;
-    krb5_error_code ret;
-
-    memset(&local_key, 0, sizeof(local_key));
-
-    ret = krb5_copy_keyblock(context, key, &local_key.key);
-    if (ret)
-	return ret;
-
-    ret = krb5_data_alloc (&result->checksum, 16);
-    if (ret) {
-	krb5_free_keyblock(context, local_key.key);
-	return ret;
-    }
-
-    result->cksumtype = CKSUMTYPE_HMAC_MD5;
-    ret = _krb5_HMAC_MD5_checksum(context, &local_key, data, len, usage, result);
-    if (ret)
-	krb5_data_free(&result->checksum);
-    
-    krb5_free_keyblock(context, local_key.key);
-    return ret;
-}
-
-
-/*
  *
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code
 krb5_pac_parse(krb5_context context, const void *ptr, size_t len,
 	       krb5_pac *pac)
 {
@@ -127,13 +90,15 @@ krb5_pac_parse(krb5_context context, const void *ptr, size_t len,
 
     p = calloc(1, sizeof(*p));
     if (p == NULL) {
-	ret = krb5_enomem(context);
+	ret = ENOMEM;
+	krb5_set_error_message(context, ret, N_("malloc: out of memory", ""));
 	goto out;
     }
 
     sp = krb5_storage_from_readonly_mem(ptr, len);
     if (sp == NULL) {
-	ret = krb5_enomem(context);
+	ret = ENOMEM;
+	krb5_set_error_message(context, ret, N_("malloc: out of memory", ""));
 	goto out;
     }
     krb5_storage_set_flags(sp, KRB5_STORAGE_BYTEORDER_LE);
@@ -156,7 +121,8 @@ krb5_pac_parse(krb5_context context, const void *ptr, size_t len,
     p->pac = calloc(1,
 		    sizeof(*p->pac) + (sizeof(p->pac->buffers[0]) * (tmp - 1)));
     if (p->pac == NULL) {
-	ret = krb5_enomem(context);
+	ret = ENOMEM;
+	krb5_set_error_message(context, ret, N_("malloc: out of memory", ""));
 	goto out;
     }
 
@@ -258,7 +224,7 @@ out:
     return ret;
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code
 krb5_pac_init(krb5_context context, krb5_pac *pac)
 {
     krb5_error_code ret;
@@ -266,27 +232,31 @@ krb5_pac_init(krb5_context context, krb5_pac *pac)
 
     p = calloc(1, sizeof(*p));
     if (p == NULL) {
-	return krb5_enomem(context);
+	krb5_set_error_message(context, ENOMEM, N_("malloc: out of memory", ""));
+	return ENOMEM;
     }
 
     p->pac = calloc(1, sizeof(*p->pac));
     if (p->pac == NULL) {
 	free(p);
-	return krb5_enomem(context);
+	krb5_set_error_message(context, ENOMEM, N_("malloc: out of memory", ""));
+	return ENOMEM;
     }
 
     ret = krb5_data_alloc(&p->data, PACTYPE_SIZE);
     if (ret) {
 	free (p->pac);
 	free(p);
-	return krb5_enomem(context);
+	krb5_set_error_message(context, ret, N_("malloc: out of memory", ""));
+	return ret;
     }
+
 
     *pac = p;
     return 0;
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code
 krb5_pac_add_buffer(krb5_context context, krb5_pac p,
 		    uint32_t type, const krb5_data *data)
 {
@@ -299,9 +269,10 @@ krb5_pac_add_buffer(krb5_context context, krb5_pac p,
 
     ptr = realloc(p->pac,
 		  sizeof(*p->pac) + (sizeof(p->pac->buffers[0]) * len));
-    if (ptr == NULL)
-	return krb5_enomem(context);
-
+    if (ptr == NULL) {
+	krb5_set_error_message(context, ENOMEM, N_("malloc: out of memory", ""));
+	return ENOMEM;
+    }
     p->pac = ptr;
 
     for (i = 0; i < len; i++)
@@ -367,7 +338,7 @@ krb5_pac_add_buffer(krb5_context context, krb5_pac p,
  * @ingroup krb5_pac
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code
 krb5_pac_get_buffer(krb5_context context, krb5_pac p,
 		    uint32_t type, krb5_data *data)
 {
@@ -397,7 +368,7 @@ krb5_pac_get_buffer(krb5_context context, krb5_pac p,
  *
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code
 krb5_pac_get_types(krb5_context context,
 		   krb5_pac p,
 		   size_t *len,
@@ -408,7 +379,8 @@ krb5_pac_get_types(krb5_context context,
     *types = calloc(p->pac->numbuffers, sizeof(*types));
     if (*types == NULL) {
 	*len = 0;
-	return krb5_enomem(context);
+	krb5_set_error_message(context, ENOMEM, N_("malloc: out of memory", ""));
+	return ENOMEM;
     }
     for (i = 0; i < p->pac->numbuffers; i++)
 	(*types)[i] = p->pac->buffers[i].type;
@@ -421,7 +393,7 @@ krb5_pac_get_types(krb5_context context,
  *
  */
 
-KRB5_LIB_FUNCTION void KRB5_LIB_CALL
+void
 krb5_pac_free(krb5_context context, krb5_pac pac)
 {
     krb5_data_free(&pac->data);
@@ -440,6 +412,7 @@ verify_checksum(krb5_context context,
 		void *ptr, size_t len,
 		const krb5_keyblock *key)
 {
+    krb5_crypto crypto = NULL;
     krb5_storage *sp = NULL;
     uint32_t type;
     krb5_error_code ret;
@@ -449,9 +422,10 @@ verify_checksum(krb5_context context,
 
     sp = krb5_storage_from_mem((char *)data->data + sig->offset_lo,
 			       sig->buffersize);
-    if (sp == NULL)
-	return krb5_enomem(context);
-
+    if (sp == NULL) {
+	krb5_set_error_message(context, ENOMEM, N_("malloc: out of memory", ""));
+	return ENOMEM;
+    }
     krb5_storage_set_flags(sp, KRB5_STORAGE_BYTEORDER_LE);
 
     CHECK(ret, krb5_ret_uint32(sp, &type), out);
@@ -460,7 +434,8 @@ verify_checksum(krb5_context context,
 	sig->buffersize - krb5_storage_seek(sp, 0, SEEK_CUR);
     cksum.checksum.data = malloc(cksum.checksum.length);
     if (cksum.checksum.data == NULL) {
-	ret = krb5_enomem(context);
+	ret = ENOMEM;
+	krb5_set_error_message(context, ret, N_("malloc: out of memory", ""));
 	goto out;
     }
     ret = krb5_storage_read(sp, cksum.checksum.data, cksum.checksum.length);
@@ -477,43 +452,14 @@ verify_checksum(krb5_context context,
 	goto out;
     }
 
-    /* If the checksum is HMAC-MD5, the checksum type is not tied to
-     * the key type, instead the HMAC-MD5 checksum is applied blindly
-     * on whatever key is used for this connection, avoiding issues
-     * with unkeyed checksums on des-cbc-md5 and des-cbc-crc.  See
-     * http://comments.gmane.org/gmane.comp.encryption.kerberos.devel/8743
-     * for the same issue in MIT, and
-     * http://blogs.msdn.com/b/openspecification/archive/2010/01/01/verifying-the-server-signature-in-kerberos-privilege-account-certificate.aspx
-     * for Microsoft's explaination */
+    ret = krb5_crypto_init(context, key, 0, &crypto);
+    if (ret)
+	goto out;
 
-    if (cksum.cksumtype == CKSUMTYPE_HMAC_MD5) {
-	Checksum local_checksum;
-
-	memset(&local_checksum, 0, sizeof(local_checksum));
-
-	ret = HMAC_MD5_any_checksum(context, key, ptr, len,
-				    KRB5_KU_OTHER_CKSUM, &local_checksum);
-
-	if (ret != 0 || krb5_data_ct_cmp(&local_checksum.checksum, &cksum.checksum) != 0) {
-	    ret = KRB5KRB_AP_ERR_BAD_INTEGRITY;
-	    krb5_set_error_message(context, ret,
-				   N_("PAC integrity check failed for "
-				      "hmac-md5 checksum", ""));
-	}
-	krb5_data_free(&local_checksum.checksum);
-
-   } else {
-	krb5_crypto crypto = NULL;
-
-	ret = krb5_crypto_init(context, key, 0, &crypto);
-	if (ret)
-		goto out;
-
-	ret = krb5_verify_checksum(context, crypto, KRB5_KU_OTHER_CKSUM,
-				   ptr, len, &cksum);
-	krb5_crypto_destroy(context, crypto);
-    }
+    ret = krb5_verify_checksum(context, crypto, KRB5_KU_OTHER_CKSUM,
+			       ptr, len, &cksum);
     free(cksum.checksum.data);
+    krb5_crypto_destroy(context, crypto);
     krb5_storage_free(sp);
 
     return ret;
@@ -523,13 +469,14 @@ out:
 	free(cksum.checksum.data);
     if (sp)
 	krb5_storage_free(sp);
+    if (crypto)
+	krb5_crypto_destroy(context, crypto);
     return ret;
 }
 
 static krb5_error_code
 create_checksum(krb5_context context,
 		const krb5_keyblock *key,
-		uint32_t cksumtype,
 		void *data, size_t datalen,
 		void *sig, size_t siglen)
 {
@@ -537,29 +484,16 @@ create_checksum(krb5_context context,
     krb5_error_code ret;
     Checksum cksum;
 
-    /* If the checksum is HMAC-MD5, the checksum type is not tied to
-     * the key type, instead the HMAC-MD5 checksum is applied blindly
-     * on whatever key is used for this connection, avoiding issues
-     * with unkeyed checksums on des-cbc-md5 and des-cbc-crc.  See
-     * http://comments.gmane.org/gmane.comp.encryption.kerberos.devel/8743
-     * for the same issue in MIT, and
-     * http://blogs.msdn.com/b/openspecification/archive/2010/01/01/verifying-the-server-signature-in-kerberos-privilege-account-certificate.aspx
-     * for Microsoft's explaination */
+    ret = krb5_crypto_init(context, key, 0, &crypto);
+    if (ret)
+	return ret;
 
-    if (cksumtype == CKSUMTYPE_HMAC_MD5) {
-	ret = HMAC_MD5_any_checksum(context, key, data, datalen,
-				    KRB5_KU_OTHER_CKSUM, &cksum);
-    } else {
-	ret = krb5_crypto_init(context, key, 0, &crypto);
-	if (ret)
-	    return ret;
+    ret = krb5_create_checksum(context, crypto, KRB5_KU_OTHER_CKSUM, 0,
+			       data, datalen, &cksum);
+    krb5_crypto_destroy(context, crypto);
+    if (ret)
+	return ret;
 
-	ret = krb5_create_checksum(context, crypto, KRB5_KU_OTHER_CKSUM, 0,
-				   data, datalen, &cksum);
-	krb5_crypto_destroy(context, crypto);
-	if (ret)
-	    return ret;
-    }
     if (cksum.checksum.length != siglen) {
 	krb5_set_error_message(context, EINVAL, "pac checksum wrong length");
 	free_Checksum(&cksum);
@@ -603,8 +537,10 @@ verify_logonname(krb5_context context,
 
     sp = krb5_storage_from_readonly_mem((const char *)data->data + logon_name->offset_lo,
 					logon_name->buffersize);
-    if (sp == NULL)
-	return krb5_enomem(context);
+    if (sp == NULL) {
+	krb5_set_error_message(context, ENOMEM, N_("malloc: out of memory", ""));
+	return ENOMEM;
+    }
 
     krb5_storage_set_flags(sp, KRB5_STORAGE_BYTEORDER_LE);
 
@@ -631,7 +567,8 @@ verify_logonname(krb5_context context,
     s = malloc(len);
     if (s == NULL) {
 	krb5_storage_free(sp);
-	return krb5_enomem(context);
+	krb5_set_error_message(context, ENOMEM, N_("malloc: out of memory", ""));
+	return ENOMEM;
     }
     ret = krb5_storage_read(sp, s, len);
     if (ret != len) {
@@ -647,9 +584,10 @@ verify_logonname(krb5_context context,
 	unsigned int flags = WIND_RW_LE;
 
 	ucs2 = malloc(sizeof(ucs2[0]) * ucs2len);
-	if (ucs2 == NULL)
-	    return krb5_enomem(context);
-
+	if (ucs2 == NULL) {
+	    krb5_set_error_message(context, ENOMEM, N_("malloc: out of memory", ""));
+	    return ENOMEM;
+	}
 	ret = wind_ucs2read(s, len, &flags, ucs2, &ucs2len);
 	free(s);
 	if (ret) {
@@ -667,7 +605,8 @@ verify_logonname(krb5_context context,
 	s = malloc(u8len);
 	if (s == NULL) {
 	    free(ucs2);
-	    return krb5_enomem(context);
+	    krb5_set_error_message(context, ENOMEM, N_("malloc: out of memory", ""));
+	    return ENOMEM;
 	}
 	ret = wind_ucs2utf8(ucs2, ucs2len, s, &u8len);
 	free(ucs2);
@@ -713,9 +652,10 @@ build_logon_name(krb5_context context,
     krb5_data_zero(logon);
 
     sp = krb5_storage_emem();
-    if (sp == NULL)
-	return krb5_enomem(context);
-
+    if (sp == NULL) {
+	krb5_set_error_message(context, ENOMEM, N_("malloc: out of memory", ""));
+	return ENOMEM;
+    }
     krb5_storage_set_flags(sp, KRB5_STORAGE_BYTEORDER_LE);
 
     CHECK(ret, krb5_store_uint32(sp, t & 0xffffffff), out);
@@ -733,7 +673,7 @@ build_logon_name(krb5_context context,
 #if 1 /* cheat for now */
     s2 = malloc(len * 2);
     if (s2 == NULL) {
-	ret = krb5_enomem(context);
+	ret = ENOMEM;
 	free(s);
 	goto out;
     }
@@ -749,7 +689,7 @@ build_logon_name(krb5_context context,
     ret = krb5_storage_write(sp, s2, len * 2);
     free(s2);
     if (ret != len * 2) {
-	ret = krb5_enomem(context);
+	ret = ENOMEM;
 	goto out;
     }
     ret = krb5_storage_to_data(sp, logon);
@@ -780,7 +720,7 @@ out:
  * @ingroup krb5_pac
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code
 krb5_pac_verify(krb5_context context,
 		const krb5_pac pac,
 		time_t authtime,
@@ -876,9 +816,10 @@ fill_zeros(krb5_context context, krb5_storage *sp, size_t len)
 	if (l > sizeof(zeros))
 	    l = sizeof(zeros);
 	sret = krb5_storage_write(sp, zeros, l);
-	if (sret <= 0)
-	    return krb5_enomem(context);
-
+	if (sret <= 0) {
+	    krb5_set_error_message(context, ENOMEM, N_("malloc: out of memory", ""));
+	    return ENOMEM;
+	}
 	len -= sret;
     }
     return 0;
@@ -904,8 +845,8 @@ pac_checksum(krb5_context context,
 	return ret;
 
     if (krb5_checksum_is_keyed(context, cktype) == FALSE) {
-	*cksumtype = CKSUMTYPE_HMAC_MD5;
-	*cksumsize = 16;
+	krb5_set_error_message(context, EINVAL, "PAC checksum type is not keyed");
+	return EINVAL;
     }
 
     ret = krb5_checksumsize(context, cktype, cksumsize);
@@ -948,9 +889,10 @@ _krb5_pac_sign(krb5_context context,
 	void *ptr;
 
 	ptr = realloc(p->pac, sizeof(*p->pac) + (sizeof(p->pac->buffers[0]) * (p->pac->numbuffers + num - 1)));
-	if (ptr == NULL)
-	    return krb5_enomem(context);
-
+	if (ptr == NULL) {
+	    krb5_set_error_message(context, ENOMEM, N_("malloc: out of memory", ""));
+	    return ENOMEM;
+	}
 	p->pac = ptr;
 
 	if (p->logon_name == NULL) {
@@ -985,15 +927,17 @@ _krb5_pac_sign(krb5_context context,
 
     /* Encode PAC */
     sp = krb5_storage_emem();
-    if (sp == NULL)
-	return krb5_enomem(context);
-
+    if (sp == NULL) {
+	krb5_set_error_message(context, ENOMEM, N_("malloc: out of memory", ""));
+	return ENOMEM;
+    }
     krb5_storage_set_flags(sp, KRB5_STORAGE_BYTEORDER_LE);
 
     spdata = krb5_storage_emem();
     if (spdata == NULL) {
 	krb5_storage_free(sp);
-	return krb5_enomem(context);
+	krb5_set_error_message(context, ENOMEM, N_("malloc: out of memory", ""));
+	return ENOMEM;
     }
     krb5_storage_set_flags(spdata, KRB5_STORAGE_BYTEORDER_LE);
 
@@ -1031,7 +975,8 @@ _krb5_pac_sign(krb5_context context,
 
 	    sret = krb5_storage_write(spdata, ptr, len);
 	    if (sret != len) {
-		ret = krb5_enomem(context);
+		ret = ENOMEM;
+		krb5_set_error_message(context, ret, N_("malloc: out of memory", ""));
 		goto out;
 	    }
 	    /* XXX if not aligned, fill_zeros */
@@ -1068,26 +1013,29 @@ _krb5_pac_sign(krb5_context context,
     ret = krb5_storage_write(sp, d.data, d.length);
     if (ret != d.length) {
 	krb5_data_free(&d);
-	ret = krb5_enomem(context);
+	ret = ENOMEM;
+	krb5_set_error_message(context, ret, N_("malloc: out of memory", ""));
 	goto out;
     }
     krb5_data_free(&d);
 
     ret = krb5_storage_to_data(sp, &d);
     if (ret) {
-	ret = krb5_enomem(context);
+	krb5_set_error_message(context, ret, N_("malloc: out of memory", ""));
 	goto out;
     }
 
     /* sign */
-    ret = create_checksum(context, server_key, server_cksumtype,
+
+    ret = create_checksum(context, server_key,
 			  d.data, d.length,
 			  (char *)d.data + server_offset, server_size);
     if (ret) {
 	krb5_data_free(&d);
 	goto out;
     }
-    ret = create_checksum(context, priv_key, priv_cksumtype,
+
+    ret = create_checksum(context, priv_key,
 			  (char *)d.data + server_offset, server_size,
 			  (char *)d.data + priv_offset, priv_size);
     if (ret) {

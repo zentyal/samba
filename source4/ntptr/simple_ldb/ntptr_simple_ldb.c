@@ -30,13 +30,11 @@
 #include "includes.h"
 #include "ntptr/ntptr.h"
 #include "librpc/gen_ndr/ndr_spoolss.h"
-#include <ldb.h>
+#include "lib/ldb/include/ldb.h"
 #include "auth/auth.h"
 #include "dsdb/samdb/samdb.h"
 #include "ldb_wrap.h"
 #include "../lib/util/util_ldb.h"
-#include "librpc/gen_ndr/dcerpc.h"
-#include "rpc_server/dcerpc_server.h"
 #include "rpc_server/common/common.h"
 #include "param/param.h"
 
@@ -46,8 +44,8 @@
  */
 static struct ldb_context *sptr_db_connect(TALLOC_CTX *mem_ctx, struct tevent_context *ev_ctx, struct loadparm_context *lp_ctx)
 {
-	return ldb_wrap_connect(mem_ctx, ev_ctx, lp_ctx, lpcfg_spoolss_url(lp_ctx), system_session(lp_ctx),
-				NULL, 0);
+	return ldb_wrap_connect(mem_ctx, ev_ctx, lp_ctx, lp_spoolss_url(lp_ctx), system_session(mem_ctx, lp_ctx), 
+				NULL, 0, NULL);
 }
 
 static int sptr_db_search(struct ldb_context *ldb,
@@ -76,13 +74,13 @@ static int sptr_db_search(struct ldb_context *ldb,
 
 #define SET_STRING(ldb, mod, attr, value) do { \
 	if (value == NULL) return WERR_INVALID_PARAM; \
-	if (ldb_msg_add_string(mod, attr, value) != LDB_SUCCESS) { \
+	if (samdb_msg_add_string(ldb, (TALLOC_CTX *)mod, mod, attr, value) != 0) { \
 		return WERR_NOMEM; \
 	} \
 } while (0)
 
 #define SET_UINT(ldb, mod, attr, value) do { \
-	if (samdb_msg_add_uint(ldb, (TALLOC_CTX *)mod, mod, attr, value) != LDB_SUCCESS) { \
+	if (samdb_msg_add_uint(ldb, (TALLOC_CTX *)mod, mod, attr, value) != 0) { \
 		return WERR_NOMEM; \
 	} \
 } while (0)
@@ -131,7 +129,7 @@ static WERROR sptr_PrintServerData(struct ntptr_GenericHandle *server,
 				   union spoolss_PrinterData *r,
 				   enum winreg_Type *type)
 {
-	struct dcerpc_server_info *server_info = lpcfg_dcerpc_server_info(mem_ctx, server->ntptr->lp_ctx);
+	struct dcerpc_server_info *server_info = lp_dcerpc_server_info(mem_ctx, server->ntptr->lp_ctx);
 	if (strcmp("W3SvcInstalled", value_name) == 0) {
 		*type		= REG_DWORD;
 		r->value	= 0;
@@ -162,11 +160,13 @@ static WERROR sptr_PrintServerData(struct ntptr_GenericHandle *server,
 		return WERR_OK;
 	} else if (strcmp("DefaultSpoolDirectory", value_name) == 0) {
 		*type		= REG_SZ;
-		r->string	= "C:\\PRINTERS";
+		r->string	= talloc_strdup(mem_ctx, "C:\\PRINTERS");
+		W_ERROR_HAVE_NO_MEMORY(r->string);
 		return  WERR_OK;
 	} else if (strcmp("Architecture", value_name) == 0) {
 		*type		= REG_SZ;
-		r->string	= SPOOLSS_ARCHITECTURE_NT_X86;
+		r->string	= talloc_strdup(mem_ctx, SPOOLSS_ARCHITECTURE_NT_X86);
+		W_ERROR_HAVE_NO_MEMORY(r->string);
 		return  WERR_OK;
 	} else if (strcmp("DsPresent", value_name) == 0) {
 		*type		= REG_DWORD;
@@ -182,7 +182,7 @@ static WERROR sptr_PrintServerData(struct ntptr_GenericHandle *server,
 		os.build		= server_info->version_build;
 		os.extra_string		= "";
 
-		ndr_err = ndr_push_struct_blob(&blob, mem_ctx, &os, (ndr_push_flags_fn_t)ndr_push_spoolss_OSVersion);
+		ndr_err = ndr_push_struct_blob(&blob, mem_ctx, lp_iconv_convenience(server->ntptr->lp_ctx), &os, (ndr_push_flags_fn_t)ndr_push_spoolss_OSVersion);
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			return WERR_GENERAL_FAILURE;
 		}
@@ -205,7 +205,7 @@ static WERROR sptr_PrintServerData(struct ntptr_GenericHandle *server,
 		os_ex.product_type	= 0;
 		os_ex.reserved		= 0;
 
-		ndr_err = ndr_push_struct_blob(&blob, mem_ctx, &os_ex, (ndr_push_flags_fn_t)ndr_push_spoolss_OSVersionEx);
+		ndr_err = ndr_push_struct_blob(&blob, mem_ctx, lp_iconv_convenience(server->ntptr->lp_ctx), &os_ex, (ndr_push_flags_fn_t)ndr_push_spoolss_OSVersionEx);
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			return WERR_GENERAL_FAILURE;
 		}
@@ -214,14 +214,12 @@ static WERROR sptr_PrintServerData(struct ntptr_GenericHandle *server,
 		r->binary	= blob;
 		return WERR_OK;
 	} else if (strcmp("DNSMachineName", value_name) == 0) {
-		const char *dnsdomain = lpcfg_dnsdomain(server->ntptr->lp_ctx);
-
-		if (dnsdomain == NULL) return WERR_INVALID_PARAM;
+		if (!lp_realm(server->ntptr->lp_ctx)) return WERR_INVALID_PARAM;
 
 		*type		= REG_SZ;
 		r->string	= talloc_asprintf(mem_ctx, "%s.%s",
-							  lpcfg_netbios_name(server->ntptr->lp_ctx),
-							  dnsdomain);
+						   lp_netbios_name(server->ntptr->lp_ctx),
+						   lp_realm(server->ntptr->lp_ctx));
 		W_ERROR_HAVE_NO_MEMORY(r->string);
 		return WERR_OK;
 	}
@@ -242,7 +240,7 @@ static WERROR sptr_GetPrintServerData(struct ntptr_GenericHandle *server, TALLOC
 		return result;
 	}
 
-	ndr_err = ndr_push_union_blob(&blob, mem_ctx, 
+	ndr_err = ndr_push_union_blob(&blob, mem_ctx, lp_iconv_convenience(server->ntptr->lp_ctx),
 				      &data, *r->out.type, (ndr_push_flags_fn_t)ndr_push_spoolss_PrinterData);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		return WERR_GENERAL_FAILURE;
@@ -280,18 +278,18 @@ static WERROR sptr_EnumPrintServerForms(struct ntptr_GenericHandle *server, TALL
 	switch (r->in.level) {
 	case 1:
 		for (i=0; i < count; i++) {
-			info[i].info1.flags		= ldb_msg_find_attr_as_uint(msgs[i], "flags", SPOOLSS_FORM_BUILTIN);
+			info[i].info1.flags		= samdb_result_uint(msgs[i], "flags", SPOOLSS_FORM_BUILTIN);
 
-			info[i].info1.form_name		= ldb_msg_find_attr_as_string(msgs[i], "form-name", NULL);
+			info[i].info1.form_name		= samdb_result_string(msgs[i], "form-name", NULL);
 			W_ERROR_HAVE_NO_MEMORY(info[i].info1.form_name);
 
-			info[i].info1.size.width	= ldb_msg_find_attr_as_uint(msgs[i], "size-width", 0);
-			info[i].info1.size.height	= ldb_msg_find_attr_as_uint(msgs[i], "size-height", 0);
+			info[i].info1.size.width	= samdb_result_uint(msgs[i], "size-width", 0);
+			info[i].info1.size.height	= samdb_result_uint(msgs[i], "size-height", 0);
 
-			info[i].info1.area.left		= ldb_msg_find_attr_as_uint(msgs[i], "area-left", 0);
-			info[i].info1.area.top		= ldb_msg_find_attr_as_uint(msgs[i], "area-top", 0);
-			info[i].info1.area.right	= ldb_msg_find_attr_as_uint(msgs[i], "area-right", 0);
-			info[i].info1.area.bottom	= ldb_msg_find_attr_as_uint(msgs[i], "area-bottom", 0);
+			info[i].info1.area.left		= samdb_result_uint(msgs[i], "area-left", 0);
+			info[i].info1.area.top		= samdb_result_uint(msgs[i], "area-top", 0);
+			info[i].info1.area.right	= samdb_result_uint(msgs[i], "area-right", 0);
+			info[i].info1.area.bottom	= samdb_result_uint(msgs[i], "area-bottom", 0);
 		}
 		break;
 	default:
@@ -396,7 +394,7 @@ static WERROR sptr_SetPrintServerForm(struct ntptr_GenericHandle *server, TALLOC
 		if (count > 1) return WERR_FOOBAR;
 		if (count < 0) return WERR_GENERAL_FAILURE;
 
-		flags = ldb_msg_find_attr_as_uint(msgs[0], "flags", SPOOLSS_FORM_BUILTIN);
+		flags = samdb_result_uint(msgs[0], "flags", SPOOLSS_FORM_BUILTIN);
 		if (flags != SPOOLSS_FORM_USER) {
 			return WERR_FOOBAR;
 		}
@@ -423,7 +421,7 @@ static WERROR sptr_SetPrintServerForm(struct ntptr_GenericHandle *server, TALLOC
 		return WERR_UNKNOWN_LEVEL;
 	}
 
-	ret = dsdb_replace(sptr_db, msg, 0);
+	ret = samdb_replace(sptr_db, mem_ctx, msg);
 	if (ret != 0) {
 		return WERR_FOOBAR;
 	}
@@ -459,7 +457,7 @@ static WERROR sptr_DeletePrintServerForm(struct ntptr_GenericHandle *server, TAL
 	if (count > 1) return WERR_FOOBAR;
 	if (count < 0) return WERR_GENERAL_FAILURE;
 
-	flags = ldb_msg_find_attr_as_uint(msgs[0], "flags", SPOOLSS_FORM_BUILTIN);
+	flags = samdb_result_uint(msgs[0], "flags", SPOOLSS_FORM_BUILTIN);
 	if (flags != SPOOLSS_FORM_USER) {
 		return WERR_FOOBAR;
 	}
@@ -542,84 +540,84 @@ static WERROR sptr_EnumPrinters(struct ntptr_context *ntptr, TALLOC_CTX *mem_ctx
 	switch(r->in.level) {
 	case 1:
 		for (i = 0; i < count; i++) {
-			info[i].info1.flags		= ldb_msg_find_attr_as_uint(msgs[i], "flags", 0);
+			info[i].info1.flags		= samdb_result_uint(msgs[i], "flags", 0);
 
-			info[i].info1.name		= ldb_msg_find_attr_as_string(msgs[i], "name", "");
+			info[i].info1.name		= samdb_result_string(msgs[i], "name", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info1.name);
 
-			info[i].info1.description	= ldb_msg_find_attr_as_string(msgs[i], "description", "");
+			info[i].info1.description	= samdb_result_string(msgs[i], "description", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info1.description);
 
-			info[i].info1.comment		= ldb_msg_find_attr_as_string(msgs[i], "comment", NULL);
+			info[i].info1.comment		= samdb_result_string(msgs[i], "comment", NULL);
 		}
 		break;
 	case 2:
 		for (i = 0; i < count; i++) {
-			info[i].info2.servername	= ldb_msg_find_attr_as_string(msgs[i], "servername", "");
+			info[i].info2.servername	= samdb_result_string(msgs[i], "servername", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info2.servername);
 
-			info[i].info2.printername	= ldb_msg_find_attr_as_string(msgs[i], "printername", "");
+			info[i].info2.printername	= samdb_result_string(msgs[i], "printername", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info2.printername);
 
-			info[i].info2.sharename		= ldb_msg_find_attr_as_string(msgs[i], "sharename", "");
+			info[i].info2.sharename		= samdb_result_string(msgs[i], "sharename", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info2.sharename);
 
-			info[i].info2.portname		= ldb_msg_find_attr_as_string(msgs[i], "portname", "");
+			info[i].info2.portname		= samdb_result_string(msgs[i], "portname", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info2.portname);
 
-			info[i].info2.drivername	= ldb_msg_find_attr_as_string(msgs[i], "drivername", "");
+			info[i].info2.drivername	= samdb_result_string(msgs[i], "drivername", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info2.drivername);
 
-			info[i].info2.comment		= ldb_msg_find_attr_as_string(msgs[i], "comment", NULL);
+			info[i].info2.comment		= samdb_result_string(msgs[i], "comment", NULL);
 
-			info[i].info2.location		= ldb_msg_find_attr_as_string(msgs[i], "location", NULL);
+			info[i].info2.location		= samdb_result_string(msgs[i], "location", NULL);
 
 			info[i].info2.devmode		= NULL;
 
-			info[i].info2.sepfile		= ldb_msg_find_attr_as_string(msgs[i], "sepfile", NULL);
+			info[i].info2.sepfile		= samdb_result_string(msgs[i], "sepfile", NULL);
 
-			info[i].info2.printprocessor	= ldb_msg_find_attr_as_string(msgs[i], "printprocessor", "");
+			info[i].info2.printprocessor	= samdb_result_string(msgs[i], "printprocessor", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info2.printprocessor);
 
-			info[i].info2.datatype		= ldb_msg_find_attr_as_string(msgs[i], "datatype", "");
+			info[i].info2.datatype		= samdb_result_string(msgs[i], "datatype", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info2.datatype);
 
-			info[i].info2.parameters	= ldb_msg_find_attr_as_string(msgs[i], "parameters", NULL);
+			info[i].info2.parameters	= samdb_result_string(msgs[i], "parameters", NULL);
 
 			info[i].info2.secdesc		= NULL;
 
-			info[i].info2.attributes	= ldb_msg_find_attr_as_uint(msgs[i], "attributes", 0);
-			info[i].info2.priority		= ldb_msg_find_attr_as_uint(msgs[i], "priority", 0);
-			info[i].info2.defaultpriority	= ldb_msg_find_attr_as_uint(msgs[i], "defaultpriority", 0);
-			info[i].info2.starttime		= ldb_msg_find_attr_as_uint(msgs[i], "starttime", 0);
-			info[i].info2.untiltime		= ldb_msg_find_attr_as_uint(msgs[i], "untiltime", 0);
-			info[i].info2.status		= ldb_msg_find_attr_as_uint(msgs[i], "status", 0);
-			info[i].info2.cjobs		= ldb_msg_find_attr_as_uint(msgs[i], "cjobs", 0);
-			info[i].info2.averageppm	= ldb_msg_find_attr_as_uint(msgs[i], "averageppm", 0);
+			info[i].info2.attributes	= samdb_result_uint(msgs[i], "attributes", 0);
+			info[i].info2.priority		= samdb_result_uint(msgs[i], "priority", 0);
+			info[i].info2.defaultpriority	= samdb_result_uint(msgs[i], "defaultpriority", 0);
+			info[i].info2.starttime		= samdb_result_uint(msgs[i], "starttime", 0);
+			info[i].info2.untiltime		= samdb_result_uint(msgs[i], "untiltime", 0);
+			info[i].info2.status		= samdb_result_uint(msgs[i], "status", 0);
+			info[i].info2.cjobs		= samdb_result_uint(msgs[i], "cjobs", 0);
+			info[i].info2.averageppm	= samdb_result_uint(msgs[i], "averageppm", 0);
 		}
 		break;
 	case 4:
 		for (i = 0; i < count; i++) {
-			info[i].info4.printername	= ldb_msg_find_attr_as_string(msgs[i], "printername", "");
+			info[i].info4.printername	= samdb_result_string(msgs[i], "printername", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info2.printername);
 
-			info[i].info4.servername	= ldb_msg_find_attr_as_string(msgs[i], "servername", "");
+			info[i].info4.servername	= samdb_result_string(msgs[i], "servername", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info2.servername);
 
-			info[i].info4.attributes	= ldb_msg_find_attr_as_uint(msgs[i], "attributes", 0);
+			info[i].info4.attributes	= samdb_result_uint(msgs[i], "attributes", 0);
 		}
 		break;
 	case 5:
 		for (i = 0; i < count; i++) {
-			info[i].info5.printername	= ldb_msg_find_attr_as_string(msgs[i], "name", "");
+			info[i].info5.printername	= samdb_result_string(msgs[i], "name", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info5.printername);
 
-			info[i].info5.portname		= ldb_msg_find_attr_as_string(msgs[i], "port", "");
+			info[i].info5.portname		= samdb_result_string(msgs[i], "port", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info5.portname);
 
-			info[i].info5.attributes	= ldb_msg_find_attr_as_uint(msgs[i], "attributes", 0);
-			info[i].info5.device_not_selected_timeout = ldb_msg_find_attr_as_uint(msgs[i], "device_not_selected_timeout", 0);
-			info[i].info5.transmission_retry_timeout  = ldb_msg_find_attr_as_uint(msgs[i], "transmission_retry_timeout", 0);
+			info[i].info5.attributes	= samdb_result_uint(msgs[i], "attributes", 0);
+			info[i].info5.device_not_selected_timeout = samdb_result_uint(msgs[i], "device_not_selected_timeout", 0);
+			info[i].info5.transmission_retry_timeout  = samdb_result_uint(msgs[i], "transmission_retry_timeout", 0);
 		}
 		break;
 	default:
@@ -661,23 +659,23 @@ static WERROR sptr_EnumPorts(struct ntptr_context *ntptr, TALLOC_CTX *mem_ctx,
 	switch (r->in.level) {
 	case 1:
 		for (i = 0; i < count; i++) {
-			info[i].info1.port_name		= ldb_msg_find_attr_as_string(msgs[i], "port-name", "");
+			info[i].info1.port_name		= samdb_result_string(msgs[i], "port-name", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info1.port_name);
 		}
 		break;
 	case 2:
 		for (i=0; i < count; i++) {
-			info[i].info2.port_name		= ldb_msg_find_attr_as_string(msgs[i], "port-name", "");
+			info[i].info2.port_name		= samdb_result_string(msgs[i], "port-name", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info2.port_name);
 
-			info[i].info2.monitor_name	= ldb_msg_find_attr_as_string(msgs[i], "monitor-name", "");
+			info[i].info2.monitor_name	= samdb_result_string(msgs[i], "monitor-name", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info2.monitor_name);
 
-			info[i].info2.description	= ldb_msg_find_attr_as_string(msgs[i], "description", "");
+			info[i].info2.description	= samdb_result_string(msgs[i], "description", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info2.description);
 
-			info[i].info2.port_type		= ldb_msg_find_attr_as_uint(msgs[i], "port-type", SPOOLSS_PORT_TYPE_WRITE);
-			info[i].info2.reserved		= ldb_msg_find_attr_as_uint(msgs[i], "reserved", 0);
+			info[i].info2.port_type		= samdb_result_uint(msgs[i], "port-type", SPOOLSS_PORT_TYPE_WRITE);
+			info[i].info2.reserved		= samdb_result_uint(msgs[i], "reserved", 0);
 		}
 		break;
 	default:
@@ -711,19 +709,19 @@ static WERROR sptr_EnumMonitors(struct ntptr_context *ntptr, TALLOC_CTX *mem_ctx
 	switch (r->in.level) {
 	case 1:
 		for (i = 0; i < count; i++) {
-			info[i].info1.monitor_name	= ldb_msg_find_attr_as_string(msgs[i], "monitor-name", "");
+			info[i].info1.monitor_name	= samdb_result_string(msgs[i], "monitor-name", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info1.monitor_name);
 		}
 		break;
 	case 2:
 		for (i=0; i < count; i++) {
-			info[i].info2.monitor_name	= ldb_msg_find_attr_as_string(msgs[i], "monitor-name", "");
+			info[i].info2.monitor_name	= samdb_result_string(msgs[i], "monitor-name", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info2.monitor_name);
 
-			info[i].info2.environment	= ldb_msg_find_attr_as_string(msgs[i], "environment", "");
+			info[i].info2.environment	= samdb_result_string(msgs[i], "environment", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info2.environment);
 
-			info[i].info2.dll_name		= ldb_msg_find_attr_as_string(msgs[i], "dll-name", "");
+			info[i].info2.dll_name		= samdb_result_string(msgs[i], "dll-name", "");
 			W_ERROR_HAVE_NO_MEMORY(info[i].info2.dll_name);
 		}
 		break;
@@ -768,18 +766,18 @@ static WERROR sptr_GetPrinterForm(struct ntptr_GenericHandle *printer, TALLOC_CT
 
 	switch (r->in.level) {
 	case 1:
-		info->info1.flags	= ldb_msg_find_attr_as_uint(msgs[0], "flags", SPOOLSS_FORM_BUILTIN);
+		info->info1.flags	= samdb_result_uint(msgs[0], "flags", SPOOLSS_FORM_BUILTIN);
 
-		info->info1.form_name	= ldb_msg_find_attr_as_string(msgs[0], "form-name", NULL);
+		info->info1.form_name	= samdb_result_string(msgs[0], "form-name", NULL);
 		W_ERROR_HAVE_NO_MEMORY(info->info1.form_name);
 
-		info->info1.size.width	= ldb_msg_find_attr_as_uint(msgs[0], "size-width", 0);
-		info->info1.size.height	= ldb_msg_find_attr_as_uint(msgs[0], "size-height", 0);
+		info->info1.size.width	= samdb_result_uint(msgs[0], "size-width", 0);
+		info->info1.size.height	= samdb_result_uint(msgs[0], "size-height", 0);
 
-		info->info1.area.left	= ldb_msg_find_attr_as_uint(msgs[0], "area-left", 0);
-		info->info1.area.top	= ldb_msg_find_attr_as_uint(msgs[0], "area-top", 0);
-		info->info1.area.right	= ldb_msg_find_attr_as_uint(msgs[0], "area-right", 0);
-		info->info1.area.bottom	= ldb_msg_find_attr_as_uint(msgs[0], "area-bottom", 0);
+		info->info1.area.left	= samdb_result_uint(msgs[0], "area-left", 0);
+		info->info1.area.top	= samdb_result_uint(msgs[0], "area-top", 0);
+		info->info1.area.right	= samdb_result_uint(msgs[0], "area-right", 0);
+		info->info1.area.bottom	= samdb_result_uint(msgs[0], "area-bottom", 0);
 		break;
 	default:
 		return WERR_UNKNOWN_LEVEL;

@@ -26,6 +26,7 @@
 #include "torture/torture.h"
 #include "torture/smb2/proto.h"
 
+#include "librpc/gen_ndr/ndr_security.h"
 
 #define CHECK_STATUS(status, correct) do { \
 	if (!NT_STATUS_EQUAL(status, correct)) { \
@@ -231,11 +232,11 @@ done:
 */
 struct torture_suite *torture_smb2_read_init(void)
 {
-	struct torture_suite *suite = torture_suite_create(talloc_autofree_context(), "read");
+	struct torture_suite *suite = torture_suite_create(talloc_autofree_context(), "READ");
 
-	torture_suite_add_1smb2_test(suite, "eof", test_read_eof);
-	torture_suite_add_1smb2_test(suite, "position", test_read_position);
-	torture_suite_add_1smb2_test(suite, "dir", test_read_dir);
+	torture_suite_add_1smb2_test(suite, "EOF", test_read_eof);
+	torture_suite_add_1smb2_test(suite, "POSITION", test_read_position);
+	torture_suite_add_1smb2_test(suite, "DIR", test_read_dir);
 
 	suite->description = talloc_strdup(suite, "SMB2-READ tests");
 

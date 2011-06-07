@@ -38,11 +38,9 @@
 
 #ifndef ROKEN_LIB_FUNCTION
 #ifdef _WIN32
-#define ROKEN_LIB_FUNCTION
-#define ROKEN_LIB_CALL     __cdecl
+#define ROKEN_LIB_FUNCTION _stdcall
 #else
 #define ROKEN_LIB_FUNCTION
-#define ROKEN_LIB_CALL
 #endif
 #endif
 
@@ -153,7 +151,7 @@ struct rk_sig_record {
     unsigned sig_inception;
     unsigned key_tag;
     char     *signer;
-    size_t   sig_len;
+    unsigned sig_len;
     char     sig_data[1];	/* also includes signer */
 };
 
@@ -176,7 +174,7 @@ struct rk_ds_record {
     unsigned key_tag;
     unsigned algorithm;
     unsigned digest_type;
-    size_t digest_len;
+    unsigned digest_len;
     u_char digest_data[1];
 };
 
@@ -233,15 +231,15 @@ struct rk_dns_reply{
 extern "C" {
 #endif
 
-ROKEN_LIB_FUNCTION struct rk_dns_reply* ROKEN_LIB_CALL
+struct rk_dns_reply* ROKEN_LIB_FUNCTION
 	rk_dns_lookup(const char *, const char *);
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 	rk_dns_free_data(struct rk_dns_reply *);
-ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
+int ROKEN_LIB_FUNCTION
 	rk_dns_string_to_type(const char *name);
-ROKEN_LIB_FUNCTION const char * ROKEN_LIB_CALL
+const char *ROKEN_LIB_FUNCTION
 	rk_dns_type_to_string(int type);
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 	rk_dns_srv_order(struct rk_dns_reply*);
 
 #ifdef __cplusplus

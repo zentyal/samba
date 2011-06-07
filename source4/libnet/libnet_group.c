@@ -147,7 +147,6 @@ NTSTATUS libnet_CreateGroup_recv(struct composite_context *c,
 		r->out.error_string = talloc_strdup(mem_ctx, nt_errstr(status));
 	}
 
-	talloc_free(c);
 	return status;
 }
 
@@ -409,6 +408,7 @@ NTSTATUS libnet_GroupInfo_recv(struct composite_context* c, TALLOC_CTX *mem_ctx,
 	}
 
 	talloc_free(c);
+
 	return status;
 }
 
@@ -447,9 +447,10 @@ struct grouplist_state {
 
 
 static void continue_lsa_domain_opened(struct composite_context *ctx);
-static void continue_domain_queried(struct tevent_req *subreq);
+static void continue_domain_queried(struct rpc_request *req);
 static void continue_samr_domain_opened(struct composite_context *ctx);
-static void continue_groups_enumerated(struct tevent_req *subreq);
+static void continue_domain_queried(struct rpc_request *req);
+static void continue_groups_enumerated(struct rpc_request *req);
 
 
 /**
@@ -468,7 +469,7 @@ struct composite_context *libnet_GroupList_send(struct libnet_context *ctx,
 {
 	struct composite_context *c;
 	struct grouplist_state *s;
-	struct tevent_req *subreq;
+	struct rpc_request *query_req;
 	bool prereq_met = false;
 
 	/* composite context allocation and setup */
@@ -499,12 +500,10 @@ struct composite_context *libnet_GroupList_send(struct libnet_context *ctx,
 	if (composite_nomem(s->query_domain.out.info, c)) return c;
 
 	/* send the request */
-	subreq = dcerpc_lsa_QueryInfoPolicy_r_send(s, c->event_ctx,
-						   ctx->lsa.pipe->binding_handle,
-						   &s->query_domain);
-	if (composite_nomem(subreq, c)) return c;
+	query_req = dcerpc_lsa_QueryInfoPolicy_send(ctx->lsa.pipe, c, &s->query_domain);
+	if (composite_nomem(query_req, c)) return c;
 	
-	tevent_req_set_callback(subreq, continue_domain_queried, c);
+	composite_continue_rpc(c, query_req, continue_domain_queried, c);
 	return c;
 }
 
@@ -517,7 +516,7 @@ static void continue_lsa_domain_opened(struct composite_context *ctx)
 {
 	struct composite_context *c;
 	struct grouplist_state *s;
-	struct tevent_req *subreq;
+	struct rpc_request *query_req;
 	
 	c = talloc_get_type(ctx->async.private_data, struct composite_context);
 	s = talloc_get_type(c->private_data, struct grouplist_state);
@@ -533,12 +532,10 @@ static void continue_lsa_domain_opened(struct composite_context *ctx)
 	if (composite_nomem(s->query_domain.out.info, c)) return;
 
 	/* send the request */
-	subreq = dcerpc_lsa_QueryInfoPolicy_r_send(s, c->event_ctx,
-						   s->ctx->lsa.pipe->binding_handle,
-						   &s->query_domain);
-	if (composite_nomem(subreq, c)) return;
+	query_req = dcerpc_lsa_QueryInfoPolicy_send(s->ctx->lsa.pipe, c, &s->query_domain);
+	if (composite_nomem(query_req, c)) return;
 
-	tevent_req_set_callback(subreq, continue_domain_queried, c);
+	composite_continue_rpc(c, query_req, continue_domain_queried, c);
 }
 
 
@@ -546,18 +543,18 @@ static void continue_lsa_domain_opened(struct composite_context *ctx)
  * Stage 1: receive domain info and request to enum groups
  * provided a valid samr handle is opened
  */
-static void continue_domain_queried(struct tevent_req *subreq)
+static void continue_domain_queried(struct rpc_request *req)
 {
 	struct composite_context *c;
 	struct grouplist_state *s;
+	struct rpc_request *enum_req;
 	bool prereq_met = false;
 	
-	c = tevent_req_callback_data(subreq, struct composite_context);
+	c = talloc_get_type(req->async.private_data, struct composite_context);
 	s = talloc_get_type(c->private_data, struct grouplist_state);
 
 	/* receive result of rpc request */
-	c->status = dcerpc_lsa_QueryInfoPolicy_r_recv(subreq, s);
-	TALLOC_FREE(subreq);
+	c->status = dcerpc_ndr_request_recv(req);
 	if (!composite_is_ok(c)) return;
 
 	/* get the returned domain info */
@@ -579,12 +576,10 @@ static void continue_domain_queried(struct tevent_req *subreq)
 	if (composite_nomem(s->group_list.out.sam, c)) return;
 
 	/* send the request */
-	subreq = dcerpc_samr_EnumDomainGroups_r_send(s, c->event_ctx,
-						     s->ctx->samr.pipe->binding_handle,
-						     &s->group_list);
-	if (composite_nomem(subreq, c)) return;
+	enum_req = dcerpc_samr_EnumDomainGroups_send(s->ctx->samr.pipe, c, &s->group_list);
+	if (composite_nomem(enum_req, c)) return;
 
-	tevent_req_set_callback(subreq, continue_groups_enumerated, c);
+	composite_continue_rpc(c, enum_req, continue_groups_enumerated, c);
 }
 
 
@@ -596,7 +591,7 @@ static void continue_samr_domain_opened(struct composite_context *ctx)
 {
 	struct composite_context *c;
 	struct grouplist_state *s;
-	struct tevent_req *subreq;
+	struct rpc_request *enum_req;
 
 	c = talloc_get_type(ctx->async.private_data, struct composite_context);
 	s = talloc_get_type(c->private_data, struct grouplist_state);
@@ -616,30 +611,27 @@ static void continue_samr_domain_opened(struct composite_context *ctx)
 	if (composite_nomem(s->group_list.out.sam, c)) return;
 
 	/* send the request */
-	subreq = dcerpc_samr_EnumDomainGroups_r_send(s, c->event_ctx,
-						     s->ctx->samr.pipe->binding_handle,
-						     &s->group_list);
-	if (composite_nomem(subreq, c)) return;
+	enum_req = dcerpc_samr_EnumDomainGroups_send(s->ctx->samr.pipe, c, &s->group_list);
+	if (composite_nomem(enum_req, c)) return;
 
-	tevent_req_set_callback(subreq, continue_groups_enumerated, c);
+	composite_continue_rpc(c, enum_req, continue_groups_enumerated, c);
 }
 
 
 /*
  * Stage 2: receive enumerated groups and their rids
  */
-static void continue_groups_enumerated(struct tevent_req *subreq)
+static void continue_groups_enumerated(struct rpc_request *req)
 {
 	struct composite_context *c;
 	struct grouplist_state *s;
-	uint32_t i;
+	int i;
 
-	c = tevent_req_callback_data(subreq, struct composite_context);
+	c = talloc_get_type(req->async.private_data, struct composite_context);
 	s = talloc_get_type(c->private_data, struct grouplist_state);
 
 	/* receive result of rpc request */
-	c->status = dcerpc_samr_EnumDomainGroups_r_recv(subreq, s);
-	TALLOC_FREE(subreq);
+	c->status = dcerpc_ndr_request_recv(req);
 	if (!composite_is_ok(c)) return;
 
 	/* get the actual status of the rpc call result
@@ -671,11 +663,11 @@ static void continue_groups_enumerated(struct tevent_req *subreq)
 			if (composite_nomem(group_sid, c)) return;
 
 			/* groupname */
-			s->groups[i].groupname = talloc_strdup(s->groups, entry->name.string);
+			s->groups[i].groupname = talloc_strdup(c, entry->name.string);
 			if (composite_nomem(s->groups[i].groupname, c)) return;
 
 			/* sid string */
-			s->groups[i].sid = dom_sid_string(s->groups, group_sid);
+			s->groups[i].sid = dom_sid_string(c, group_sid);
 			if (composite_nomem(s->groups[i].sid, c)) return;
 		}
 
@@ -704,7 +696,6 @@ NTSTATUS libnet_GroupList_recv(struct composite_context *c, TALLOC_CTX *mem_ctx,
 	struct grouplist_state *s;
 
 	if (c == NULL || mem_ctx == NULL || io == NULL) {
-		talloc_free(c);
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
@@ -732,7 +723,6 @@ NTSTATUS libnet_GroupList_recv(struct composite_context *c, TALLOC_CTX *mem_ctx,
 		io->out.error_string = talloc_asprintf(mem_ctx, "Error: %s", nt_errstr(status));
 	}
 
-	talloc_free(c);
 	return status;
 }
 

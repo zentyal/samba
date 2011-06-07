@@ -18,15 +18,8 @@
 */
 
 #include "includes.h"
-#include "smbd/smbd.h"
 #include "smbd/globals.h"
 #include "../libcli/auth/spnego.h"
-#include "../libcli/auth/ntlmssp.h"
-#include "ntlmssp_wrap.h"
-#include "smb_crypt.h"
-#include "../lib/util/asn1.h"
-#include "auth.h"
-#include "libsmb/libsmb.h"
 
 /******************************************************************************
  Server side encryption.
@@ -38,7 +31,7 @@
 
 struct smb_srv_trans_enc_ctx {
 	struct smb_trans_enc_state *es;
-	struct auth_ntlmssp_state *auth_ntlmssp_state; /* Must be kept in sync with pointer in ec->ntlmssp_state. */
+	AUTH_NTLMSSP_STATE *auth_ntlmssp_state; /* Must be kept in sync with pointer in ec->ntlmssp_state. */
 };
 
 /******************************************************************************
@@ -60,9 +53,7 @@ bool is_encrypted_packet(const uint8_t *inbuf)
 	uint16_t enc_num;
 
 	/* Ignore non-session messages or non 0xFF'E' messages. */
-	if(CVAL(inbuf,0)
-	   || (smb_len(inbuf) < 8)
-	   || !(inbuf[4] == 0xFF && inbuf[5] == 'E')) {
+	if(CVAL(inbuf,0) || !(inbuf[4] == 0xFF && inbuf[5] == 'E')) {
 		return false;
 	}
 
@@ -93,7 +84,7 @@ static NTSTATUS make_auth_ntlmssp(struct smb_srv_trans_enc_ctx *ec)
 	 * We must remember to update the pointer copy for the common
 	 * functions after any auth_ntlmssp_start/auth_ntlmssp_end.
 	 */
-	ec->es->s.ntlmssp_state = auth_ntlmssp_get_ntlmssp_state(ec->auth_ntlmssp_state);
+	ec->es->s.ntlmssp_state = ec->auth_ntlmssp_state->ntlmssp_state;
 	return status;
 }
 
@@ -109,7 +100,7 @@ static void destroy_auth_ntlmssp(struct smb_srv_trans_enc_ctx *ec)
 	 */
 
 	if (ec->auth_ntlmssp_state) {
-		TALLOC_FREE(ec->auth_ntlmssp_state);
+		auth_ntlmssp_end(&ec->auth_ntlmssp_state);
 		/* The auth_ntlmssp_end killed this already. */
 		ec->es->s.ntlmssp_state = NULL;
 	}
@@ -429,7 +420,7 @@ static NTSTATUS srv_enc_spnego_gss_negotiate(unsigned char **ppdata, size_t *p_d
 	gss_release_buffer(&min, &out_buf);
 
 	/* Wrap in SPNEGO. */
-	response = spnego_gen_auth_response(talloc_tos(), &auth_reply, status, OID_KERBEROS5);
+	response = spnego_gen_auth_response(&auth_reply, status, OID_KERBEROS5);
 	data_blob_free(&auth_reply);
 
 	SAFE_FREE(*ppdata);
@@ -467,7 +458,7 @@ static NTSTATUS srv_enc_ntlm_negotiate(unsigned char **ppdata, size_t *p_data_si
 	 * for success ... */
 
 	if (spnego_wrap) {
-		response = spnego_gen_auth_response(talloc_tos(), &chal, status, OID_NTLMSSP);
+		response = spnego_gen_auth_response(&chal, status, OID_NTLMSSP);
 		data_blob_free(&chal);
 	} else {
 		/* Return the raw blob. */
@@ -504,7 +495,7 @@ static NTSTATUS srv_enc_spnego_negotiate(connection_struct *conn,
 
 	blob = data_blob_const(*ppdata, *p_data_size);
 
-	status = parse_spnego_mechanisms(talloc_tos(), blob, &secblob, &kerb_mech);
+	status = parse_spnego_mechanisms(blob, &secblob, &kerb_mech);
 	if (!NT_STATUS_IS_OK(status)) {
 		return nt_status_squash(status);
 	}
@@ -514,7 +505,7 @@ static NTSTATUS srv_enc_spnego_negotiate(connection_struct *conn,
 	srv_free_encryption_context(&partial_srv_trans_enc_ctx);
 
 	if (kerb_mech) {
-		TALLOC_FREE(kerb_mech);
+		SAFE_FREE(kerb_mech);
 
 #if defined(HAVE_GSSAPI) && defined(HAVE_KRB5)
 		status = srv_enc_spnego_gss_negotiate(ppdata, p_data_size, secblob);
@@ -572,7 +563,7 @@ static NTSTATUS srv_enc_spnego_ntlm_auth(connection_struct *conn,
 	}
 
 	blob = data_blob_const(*ppdata, *p_data_size);
-	if (!spnego_parse_auth(talloc_tos(), blob, &auth)) {
+	if (!spnego_parse_auth(blob, &auth)) {
 		srv_free_encryption_context(&partial_srv_trans_enc_ctx);
 		return NT_STATUS_INVALID_PARAMETER;
 	}
@@ -589,7 +580,7 @@ static NTSTATUS srv_enc_spnego_ntlm_auth(connection_struct *conn,
 	 * So set mechOID to NULL here.
 	 */
 
-	response = spnego_gen_auth_response(talloc_tos(), &auth_reply, status, NULL);
+	response = spnego_gen_auth_response(&auth_reply, status, NULL);
 	data_blob_free(&auth_reply);
 
 	if (NT_STATUS_IS_OK(status)) {
@@ -718,11 +709,8 @@ static NTSTATUS check_enc_good(struct smb_srv_trans_enc_ctx *ec)
 	}
 
 	if (ec->es->smb_enc_type == SMB_TRANS_ENC_NTLM) {
-		if (!auth_ntlmssp_negotiated_sign((ec->auth_ntlmssp_state))) {
-			return NT_STATUS_INVALID_PARAMETER;
-		}
-
-		if (!auth_ntlmssp_negotiated_seal((ec->auth_ntlmssp_state))) {
+		if ((ec->es->s.ntlmssp_state->neg_flags & (NTLMSSP_NEGOTIATE_SIGN|NTLMSSP_NEGOTIATE_SEAL)) !=
+				(NTLMSSP_NEGOTIATE_SIGN|NTLMSSP_NEGOTIATE_SEAL)) {
 			return NT_STATUS_INVALID_PARAMETER;
 		}
 	}

@@ -25,7 +25,6 @@
 #include "libcli/composite/composite.h"
 #include "librpc/rpc/dcerpc.h"
 #include "librpc/rpc/dcerpc_proto.h"
-#include "librpc/rpc/rpc_common.h"
 
 /* transport private information used by SMB pipe transport */
 struct smb_private {
@@ -39,7 +38,7 @@ struct smb_private {
 /*
   tell the dcerpc layer that the transport is dead
 */
-static void pipe_dead(struct dcecli_connection *c, NTSTATUS status)
+static void pipe_dead(struct dcerpc_connection *c, NTSTATUS status)
 {
 	struct smb_private *smb = (struct smb_private *)c->transport.private_data;
 
@@ -67,7 +66,7 @@ static void pipe_dead(struct dcecli_connection *c, NTSTATUS status)
    this holds the state of an in-flight call
 */
 struct smb_read_state {
-	struct dcecli_connection *c;
+	struct dcerpc_connection *c;
 	struct smbcli_request *req;
 	size_t received;
 	DATA_BLOB data;
@@ -110,7 +109,7 @@ static void smb_read_callback(struct smbcli_request *req)
 
 	if (frag_length <= state->received) {
 		DATA_BLOB data = state->data;
-		struct dcecli_connection *c = state->c;
+		struct dcerpc_connection *c = state->c;
 		data.length = state->received;
 		talloc_steal(state->c, data.data);
 		talloc_free(state);
@@ -141,7 +140,7 @@ static void smb_read_callback(struct smbcli_request *req)
   trigger a read request from the server, possibly with some initial
   data in the read buffer
 */
-static NTSTATUS send_read_request_continue(struct dcecli_connection *c, DATA_BLOB *blob)
+static NTSTATUS send_read_request_continue(struct dcerpc_connection *c, DATA_BLOB *blob)
 {
 	struct smb_private *smb = (struct smb_private *)c->transport.private_data;
 	union smb_read *io;
@@ -197,7 +196,7 @@ static NTSTATUS send_read_request_continue(struct dcecli_connection *c, DATA_BLO
 /*
   trigger a read request from the server
 */
-static NTSTATUS send_read_request(struct dcecli_connection *c)
+static NTSTATUS send_read_request(struct dcerpc_connection *c)
 {
 	struct smb_private *smb = (struct smb_private *)c->transport.private_data;
 
@@ -212,7 +211,7 @@ static NTSTATUS send_read_request(struct dcecli_connection *c)
    this holds the state of an in-flight trans call
 */
 struct smb_trans_state {
-	struct dcecli_connection *c;
+	struct dcerpc_connection *c;
 	struct smbcli_request *req;
 	struct smb_trans2 *trans;
 };
@@ -223,7 +222,7 @@ struct smb_trans_state {
 static void smb_trans_callback(struct smbcli_request *req)
 {
 	struct smb_trans_state *state = (struct smb_trans_state *)req->async.private_data;
-	struct dcecli_connection *c = state->c;
+	struct dcerpc_connection *c = state->c;
 	NTSTATUS status;
 
 	status = smb_raw_trans_recv(req, state, state->trans);
@@ -249,7 +248,7 @@ static void smb_trans_callback(struct smbcli_request *req)
 /*
   send a SMBtrans style request
 */
-static NTSTATUS smb_send_trans_request(struct dcecli_connection *c, DATA_BLOB *blob)
+static NTSTATUS smb_send_trans_request(struct dcerpc_connection *c, DATA_BLOB *blob)
 {
         struct smb_private *smb = (struct smb_private *)c->transport.private_data;
         struct smb_trans2 *trans;
@@ -306,7 +305,7 @@ static NTSTATUS smb_send_trans_request(struct dcecli_connection *c, DATA_BLOB *b
 */
 static void smb_write_callback(struct smbcli_request *req)
 {
-	struct dcecli_connection *c = (struct dcecli_connection *)req->async.private_data;
+	struct dcerpc_connection *c = (struct dcerpc_connection *)req->async.private_data;
 
 	if (!NT_STATUS_IS_OK(req->status)) {
 		DEBUG(0,("dcerpc_smb: write callback error\n"));
@@ -319,7 +318,7 @@ static void smb_write_callback(struct smbcli_request *req)
 /* 
    send a packet to the server
 */
-static NTSTATUS smb_send_request(struct dcecli_connection *c, DATA_BLOB *blob, 
+static NTSTATUS smb_send_request(struct dcerpc_connection *c, DATA_BLOB *blob, 
 				 bool trigger_read)
 {
 	struct smb_private *smb = (struct smb_private *)c->transport.private_data;
@@ -370,7 +369,7 @@ static void free_request(struct smbcli_request *req)
 /* 
    shutdown SMB pipe connection
 */
-static NTSTATUS smb_shutdown_pipe(struct dcecli_connection *c, NTSTATUS status)
+static NTSTATUS smb_shutdown_pipe(struct dcerpc_connection *c, NTSTATUS status)
 {
 	struct smb_private *smb = (struct smb_private *)c->transport.private_data;
 	union smb_close io;
@@ -397,7 +396,7 @@ static NTSTATUS smb_shutdown_pipe(struct dcecli_connection *c, NTSTATUS status)
 /*
   return SMB server name (called name)
 */
-static const char *smb_peer_name(struct dcecli_connection *c)
+static const char *smb_peer_name(struct dcerpc_connection *c)
 {
 	struct smb_private *smb = (struct smb_private *)c->transport.private_data;
 	if (smb == NULL) return "";
@@ -407,7 +406,7 @@ static const char *smb_peer_name(struct dcecli_connection *c)
 /*
   return remote name we make the actual connection (good for kerberos) 
 */
-static const char *smb_target_hostname(struct dcecli_connection *c)
+static const char *smb_target_hostname(struct dcerpc_connection *c)
 {
 	struct smb_private *smb = talloc_get_type(c->transport.private_data, struct smb_private);
 	if (smb == NULL) return "";
@@ -417,7 +416,7 @@ static const char *smb_target_hostname(struct dcecli_connection *c)
 /*
   fetch the user session key 
 */
-static NTSTATUS smb_session_key(struct dcecli_connection *c, DATA_BLOB *session_key)
+static NTSTATUS smb_session_key(struct dcerpc_connection *c, DATA_BLOB *session_key)
 {
 	struct smb_private *smb = (struct smb_private *)c->transport.private_data;
 
@@ -431,7 +430,7 @@ static NTSTATUS smb_session_key(struct dcecli_connection *c, DATA_BLOB *session_
 
 struct pipe_open_smb_state {
 	union smb_open *open;
-	struct dcecli_connection *c;
+	struct dcerpc_connection *c;
 	struct smbcli_tree *tree;
 	struct composite_context *ctx;
 };
@@ -445,7 +444,7 @@ struct composite_context *dcerpc_pipe_open_smb_send(struct dcerpc_pipe *p,
 	struct composite_context *ctx;
 	struct pipe_open_smb_state *state;
 	struct smbcli_request *req;
-	struct dcecli_connection *c = p->conn;
+	struct dcerpc_connection *c = p->conn;
 
 	/* if we don't have a binding on this pipe yet, then create one */
 	if (p->binding == NULL) {
@@ -477,7 +476,7 @@ struct composite_context *dcerpc_pipe_open_smb_send(struct dcerpc_pipe *p,
 
 	state->open->ntcreatex.level = RAW_OPEN_NTCREATEX;
 	state->open->ntcreatex.in.flags = 0;
-	state->open->ntcreatex.in.root_fid.fnum = 0;
+	state->open->ntcreatex.in.root_fid = 0;
 	state->open->ntcreatex.in.access_mask = 
 		SEC_STD_READ_CONTROL |
 		SEC_FILE_WRITE_ATTRIBUTE |
@@ -515,7 +514,7 @@ static void pipe_open_recv(struct smbcli_request *req)
 	struct pipe_open_smb_state *state = talloc_get_type(req->async.private_data,
 					    struct pipe_open_smb_state);
 	struct composite_context *ctx = state->ctx;
-	struct dcecli_connection *c = state->c;
+	struct dcerpc_connection *c = state->c;
 	struct smb_private *smb;
 	
 	ctx->status = smb_raw_open_recv(req, state, state->open);
@@ -571,7 +570,7 @@ _PUBLIC_ NTSTATUS dcerpc_pipe_open_smb(struct dcerpc_pipe *p,
 /*
   return the SMB tree used for a dcerpc over SMB pipe
 */
-_PUBLIC_ struct smbcli_tree *dcerpc_smb_tree(struct dcecli_connection *c)
+_PUBLIC_ struct smbcli_tree *dcerpc_smb_tree(struct dcerpc_connection *c)
 {
 	struct smb_private *smb;
 
@@ -586,7 +585,7 @@ _PUBLIC_ struct smbcli_tree *dcerpc_smb_tree(struct dcecli_connection *c)
 /*
   return the SMB fnum used for a dcerpc over SMB pipe (hack for torture operations)
 */
-_PUBLIC_ uint16_t dcerpc_smb_fnum(struct dcecli_connection *c)
+_PUBLIC_ uint16_t dcerpc_smb_fnum(struct dcerpc_connection *c)
 {
 	struct smb_private *smb;
 

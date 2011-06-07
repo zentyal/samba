@@ -24,7 +24,6 @@
 
 #include "includes.h"
 #include "smbldap.h"
-#include "passdb.h"
 
 /**********************************************************************
  Add the account-policies below the sambaDomain object to LDAP, 

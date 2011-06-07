@@ -31,42 +31,36 @@
  *  Author: Andrew Tridgell
  */
 
-#include "replace.h"
-#include "system/filesys.h"
-#include "system/time.h"
+#include "ldb_includes.h"
 #include "ldb.h"
 #include "tools/cmdline.h"
 
-static struct timespec tp1,tp2;
+static struct timeval tp1,tp2;
 static struct ldb_cmdline *options;
 
 static void _start_timer(void)
 {
-	if (clock_gettime(CUSTOM_CLOCK_MONOTONIC, &tp1) != 0) {
-		clock_gettime(CLOCK_REALTIME, &tp1);
-	}
+	gettimeofday(&tp1,NULL);
 }
 
 static double _end_timer(void)
 {
-	if (clock_gettime(CUSTOM_CLOCK_MONOTONIC, &tp2) != 0) {
-		clock_gettime(CLOCK_REALTIME, &tp2);
-	}
+	gettimeofday(&tp2,NULL);
 	return((tp2.tv_sec - tp1.tv_sec) + 
-	       (tp2.tv_nsec - tp1.tv_nsec)*1.0e-9);
+	       (tp2.tv_usec - tp1.tv_usec)*1.0e-6);
 }
 
 static void add_records(struct ldb_context *ldb,
 			struct ldb_dn *basedn,
-			unsigned int count)
+			int count)
 {
 	struct ldb_message msg;
-	unsigned int i;
+	int i;
 
 #if 0
         if (ldb_lock(ldb, "transaction") != 0) {
                 printf("transaction lock failed\n");
-                exit(LDB_ERR_OPERATIONS_ERROR);
+                exit(1);
         }
 #endif
 	for (i=0;i<count;i++) {
@@ -128,7 +122,7 @@ static void add_records(struct ldb_context *ldb,
 
 		if (ldb_add(ldb, &msg) != 0) {
 			printf("Add of %s failed - %s\n", name, ldb_errstring(ldb));
-			exit(LDB_ERR_OPERATIONS_ERROR);
+			exit(1);
 		}
 
 		printf("adding uid %s\r", name);
@@ -139,7 +133,7 @@ static void add_records(struct ldb_context *ldb,
 #if 0
         if (ldb_unlock(ldb, "transaction") != 0) {
                 printf("transaction unlock failed\n");
-                exit(LDB_ERR_OPERATIONS_ERROR);
+                exit(1);
         }
 #endif
 	printf("\n");
@@ -147,10 +141,10 @@ static void add_records(struct ldb_context *ldb,
 
 static void modify_records(struct ldb_context *ldb,
 			   struct ldb_dn *basedn,
-			   unsigned int count)
+			   int count)
 {
 	struct ldb_message msg;
-	unsigned int i;
+	int i;
 
 	for (i=0;i<count;i++) {
 		struct ldb_message_element el[3];
@@ -185,7 +179,7 @@ static void modify_records(struct ldb_context *ldb,
 
 		if (ldb_modify(ldb, &msg) != 0) {
 			printf("Modify of %s failed - %s\n", name, ldb_errstring(ldb));
-			exit(LDB_ERR_OPERATIONS_ERROR);
+			exit(1);
 		}
 
 		printf("Modifying uid %s\r", name);
@@ -200,9 +194,9 @@ static void modify_records(struct ldb_context *ldb,
 
 static void delete_records(struct ldb_context *ldb,
 			   struct ldb_dn *basedn,
-			   unsigned int count)
+			   int count)
 {
-	unsigned int i;
+	int i;
 
 	for (i=0;i<count;i++) {
 		struct ldb_dn *dn;
@@ -215,7 +209,7 @@ static void delete_records(struct ldb_context *ldb,
 
 		if (ldb_delete(ldb, dn) != 0) {
 			printf("Delete of %s failed - %s\n", ldb_dn_get_linearized(dn), ldb_errstring(ldb));
-			exit(LDB_ERR_OPERATIONS_ERROR);
+			exit(1);
 		}
 		talloc_free(name);
 	}
@@ -223,10 +217,9 @@ static void delete_records(struct ldb_context *ldb,
 	printf("\n");
 }
 
-static void search_uid(struct ldb_context *ldb, struct ldb_dn *basedn,
-		       unsigned int nrecords, unsigned int nsearches)
+static void search_uid(struct ldb_context *ldb, struct ldb_dn *basedn, int nrecords, int nsearches)
 {
-	unsigned int i;
+	int i;
 
 	for (i=0;i<nsearches;i++) {
 		int uid = (i * 700 + 17) % (nrecords * 2);
@@ -239,15 +232,15 @@ static void search_uid(struct ldb_context *ldb, struct ldb_dn *basedn,
 
 		if (ret != LDB_SUCCESS || (uid < nrecords && res->count != 1)) {
 			printf("Failed to find %s - %s\n", expr, ldb_errstring(ldb));
-			exit(LDB_ERR_OPERATIONS_ERROR);
+			exit(1);
 		}
 
 		if (uid >= nrecords && res->count > 0) {
 			printf("Found %s !? - %d\n", expr, ret);
-			exit(LDB_ERR_OPERATIONS_ERROR);
+			exit(1);
 		}
 
-		printf("Testing uid %d/%d - %d  \r", i, uid, res->count);
+		printf("testing uid %d/%d - %d  \r", i, uid, res->count);
 		fflush(stdout);
 
 		talloc_free(res);
@@ -257,15 +250,14 @@ static void search_uid(struct ldb_context *ldb, struct ldb_dn *basedn,
 	printf("\n");
 }
 
-static void start_test(struct ldb_context *ldb, unsigned int nrecords,
-		       unsigned int nsearches)
+static void start_test(struct ldb_context *ldb, int nrecords, int nsearches)
 {
 	struct ldb_dn *basedn;
 
 	basedn = ldb_dn_new(ldb, ldb, options->basedn);
 	if ( ! ldb_dn_validate(basedn)) {
-		printf("Invalid base DN format\n");
-		exit(LDB_ERR_INVALID_DN_SYNTAX);
+		printf("Invalid base DN\n");
+		exit(1);
 	}
 
 	printf("Adding %d records\n", nrecords);
@@ -330,7 +322,7 @@ static void start_test_index(struct ldb_context **ldb)
 
 	if (ldb_add(*ldb, msg) != 0) {
 		printf("Add of %s failed - %s\n", ldb_dn_get_linearized(msg->dn), ldb_errstring(*ldb));
-		exit(LDB_ERR_OPERATIONS_ERROR);
+		exit(1);
 	}
 
 	basedn = ldb_dn_new(*ldb, *ldb, options->basedn);
@@ -345,12 +337,12 @@ static void start_test_index(struct ldb_context **ldb)
 
 	if (ldb_add(*ldb, msg) != 0) {
 		printf("Add of %s failed - %s\n", ldb_dn_get_linearized(msg->dn), ldb_errstring(*ldb));
-		exit(LDB_ERR_OPERATIONS_ERROR);
+		exit(1);
 	}
 
 	if (talloc_free(*ldb) != 0) {
 		printf("failed to free/close ldb database");
-		exit(LDB_ERR_OPERATIONS_ERROR);
+		exit(1);
 	}
 
 	(*ldb) = ldb_init(options, NULL);
@@ -358,21 +350,19 @@ static void start_test_index(struct ldb_context **ldb)
 	ret = ldb_connect(*ldb, options->url, flags, NULL);
 	if (ret != 0) {
 		printf("failed to connect to %s\n", options->url);
-		exit(LDB_ERR_OPERATIONS_ERROR);
+		exit(1);
 	}
 
 	basedn = ldb_dn_new(*ldb, *ldb, options->basedn);
-	msg->dn = basedn;
-	ldb_dn_add_child_fmt(msg->dn, "cn=test");
 
 	ret = ldb_search(*ldb, *ldb, &res, basedn, LDB_SCOPE_SUBTREE, NULL, "uid=test");
 	if (ret != LDB_SUCCESS) { 
 		printf("Search with (uid=test) filter failed!\n");
-		exit(LDB_ERR_OPERATIONS_ERROR);
+		exit(1);
 	}
 	if(res->count != 1) {
 		printf("Should have found 1 record - found %d\n", res->count);
-		exit(LDB_ERR_OPERATIONS_ERROR);
+		exit(1);
 	}
 
 	indexlist = ldb_dn_new(*ldb, *ldb, "@INDEXLIST");
@@ -380,14 +370,14 @@ static void start_test_index(struct ldb_context **ldb)
 	if (ldb_delete(*ldb, msg->dn) != 0 ||
 	    ldb_delete(*ldb, indexlist) != 0) {
 		printf("cleanup failed - %s\n", ldb_errstring(*ldb));
-		exit(LDB_ERR_OPERATIONS_ERROR);
+		exit(1);
 	}
 
 	printf("Finished index test\n");
 }
 
 
-static void usage(struct ldb_context *ldb)
+static void usage(void)
 {
 	printf("Usage: ldbtest <options>\n");
 	printf("Options:\n");
@@ -396,7 +386,7 @@ static void usage(struct ldb_context *ldb)
 	printf("  --num-searches nsearches     number of searches to do\n");
 	printf("\n");
 	printf("tests ldb API\n\n");
-	exit(LDB_ERR_OPERATIONS_ERROR);
+	exit(1);
 }
 
 int main(int argc, const char **argv)
@@ -405,9 +395,6 @@ int main(int argc, const char **argv)
 	struct ldb_context *ldb;
 
 	ldb = ldb_init(mem_ctx, NULL);
-	if (ldb == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
 
 	options = ldb_cmdline_process(ldb, argc, argv, usage);
 
@@ -422,13 +409,11 @@ int main(int argc, const char **argv)
 	printf("Testing with num-records=%d and num-searches=%d\n", 
 	       options->num_records, options->num_searches);
 
-	start_test(ldb,
-		   (unsigned int) options->num_records,
-		   (unsigned int) options->num_searches);
+	start_test(ldb, options->num_records, options->num_searches);
 
 	start_test_index(&ldb);
 
 	talloc_free(mem_ctx);
 
-	return LDB_SUCCESS;
+	return 0;
 }

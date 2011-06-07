@@ -27,7 +27,7 @@
 #include "lib/socket/socket.h"
 #include "../lib/util/asn1.h"
 #include "../lib/util/dlinklist.h"
-#include "libcli/ldap/libcli_ldap.h"
+#include "libcli/ldap/ldap.h"
 #include "libcli/ldap/ldap_proto.h"
 #include "libcli/ldap/ldap_client.h"
 #include "libcli/composite/composite.h"
@@ -338,9 +338,7 @@ _PUBLIC_ struct composite_context *ldap_connect_send(struct ldap_connection *con
 		/* LDAPI connections are to localhost, so give the
 		 * local host name as the target for gensec's
 		 * DIGEST-MD5 mechanism */
-		conn->host = talloc_asprintf(conn, "%s.%s",
-					     lpcfg_netbios_name(conn->lp_ctx),
-					     lpcfg_dnsdomain(conn->lp_ctx));
+		conn->host = talloc_asprintf(conn, "%s.%s", lp_netbios_name(conn->lp_ctx),  lp_realm(conn->lp_ctx));
 		if (composite_nomem(conn->host, state->ctx)) {
 			return result;
 		}
@@ -375,7 +373,7 @@ _PUBLIC_ struct composite_context *ldap_connect_send(struct ldap_connection *con
 		}
 		
 		ctx = socket_connect_multi_send(state, conn->host, 1, &conn->port,
-						lpcfg_resolve_context(conn->lp_ctx), conn->event.event_ctx);
+						lp_resolve_context(conn->lp_ctx), conn->event.event_ctx);
 		if (ctx == NULL) goto failed;
 
 		ctx->async.fn = ldap_connect_recv_tcp_conn;
@@ -405,7 +403,8 @@ static void ldap_connect_got_sock(struct composite_context *ctx,
 	talloc_steal(conn, conn->sock);
 	if (conn->ldaps) {
 		struct socket_context *tls_socket;
-		char *cafile = lpcfg_tls_cafile(conn->sock, conn->lp_ctx);
+		struct socket_context *tmp_socket;
+		char *cafile = lp_tls_cafile(conn->sock, conn->lp_ctx);
 
 		if (!cafile || !*cafile) {
 			talloc_free(conn->sock);
@@ -499,7 +498,7 @@ _PUBLIC_ void ldap_set_reconn_params(struct ldap_connection *conn, int max_retri
 	if (conn) {
 		conn->reconnect.max_retries = max_retries;
 		conn->reconnect.retries = 0;
-		conn->reconnect.previous = time_mono(NULL);
+		conn->reconnect.previous = time(NULL);
 	}
 }
 
@@ -507,7 +506,7 @@ _PUBLIC_ void ldap_set_reconn_params(struct ldap_connection *conn, int max_retri
 static void ldap_reconnect(struct ldap_connection *conn)
 {
 	NTSTATUS status;
-	time_t now = time_mono(NULL);
+	time_t now = time(NULL);
 
 	/* do we have set up reconnect ? */
 	if (conn->reconnect.max_retries == 0) return;
@@ -565,10 +564,10 @@ static void ldap_request_timeout(struct tevent_context *ev, struct tevent_timer 
 
 
 /*
-  called on completion of a failed ldap request
+  called on completion of a one-way ldap request
 */
-static void ldap_request_failed_complete(struct tevent_context *ev, struct tevent_timer *te,
-				      struct timeval t, void *private_data)
+static void ldap_request_complete(struct tevent_context *ev, struct tevent_timer *te, 
+				  struct timeval t, void *private_data)
 {
 	struct ldap_request *req = talloc_get_type(private_data, struct ldap_request);
 	if (req->async.fn) {
@@ -577,20 +576,6 @@ static void ldap_request_failed_complete(struct tevent_context *ev, struct teven
 }
 
 /*
-  called on completion of a one-way ldap request
-*/
-static void ldap_request_oneway_complete(void *private_data)
-{
-	struct ldap_request *req = talloc_get_type(private_data, struct ldap_request);
-	if (req->state == LDAP_REQUEST_PENDING) {
-		DLIST_REMOVE(req->conn->pending, req);
-	}
-	req->state = LDAP_REQUEST_DONE;
-	if (req->async.fn) {
-		req->async.fn(req);
-	}
-}
-/*
   send a ldap message - async interface
 */
 _PUBLIC_ struct ldap_request *ldap_request_send(struct ldap_connection *conn,
@@ -598,7 +583,6 @@ _PUBLIC_ struct ldap_request *ldap_request_send(struct ldap_connection *conn,
 {
 	struct ldap_request *req;
 	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
-	packet_send_callback_fn_t send_callback = NULL;
 
 	req = talloc_zero(conn, struct ldap_request);
 	if (req == NULL) return NULL;
@@ -628,15 +612,22 @@ _PUBLIC_ struct ldap_request *ldap_request_send(struct ldap_connection *conn,
 		goto failed;		
 	}
 
-	if (req->type == LDAP_TAG_AbandonRequest ||
-	    req->type == LDAP_TAG_UnbindRequest) {
-		send_callback = ldap_request_oneway_complete;
-	}
-
-	status = packet_send_callback(conn->packet, req->data,
-				      send_callback, req);
+	status = packet_send(conn->packet, req->data);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto failed;
+	}
+
+	/* some requests don't expect a reply, so don't add those to the
+	   pending queue */
+	if (req->type == LDAP_TAG_AbandonRequest ||
+	    req->type == LDAP_TAG_UnbindRequest) {
+		req->status = NT_STATUS_OK;
+		req->state = LDAP_REQUEST_DONE;
+		/* we can't call the async callback now, as it isn't setup, so
+		   call it as next event */
+		tevent_add_timer(conn->event.event_ctx, req, timeval_zero(),
+				 ldap_request_complete, req);
+		return req;
 	}
 
 	req->state = LDAP_REQUEST_PENDING;
@@ -653,7 +644,7 @@ failed:
 	req->status = status;
 	req->state = LDAP_REQUEST_ERROR;
 	tevent_add_timer(conn->event.event_ctx, req, timeval_zero(),
-			 ldap_request_failed_complete, req);
+			 ldap_request_complete, req);
 
 	return req;
 }

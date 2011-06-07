@@ -27,50 +27,50 @@
 #include "lib/smbconf/smbconf.h"
 
 struct smbconf_ops {
-	sbcErr (*init)(struct smbconf_ctx *ctx, const char *path);
+	WERROR (*init)(struct smbconf_ctx *ctx, const char *path);
 	int (*shutdown)(struct smbconf_ctx *ctx);
 	bool (*requires_messaging)(struct smbconf_ctx *ctx);
 	bool (*is_writeable)(struct smbconf_ctx *ctx);
-	sbcErr (*open_conf)(struct smbconf_ctx *ctx);
+	WERROR (*open_conf)(struct smbconf_ctx *ctx);
 	int (*close_conf)(struct smbconf_ctx *ctx);
 	void (*get_csn)(struct smbconf_ctx *ctx, struct smbconf_csn *csn,
 			const char *service, const char *param);
-	sbcErr (*drop)(struct smbconf_ctx *ctx);
-	sbcErr (*get_share_names)(struct smbconf_ctx *ctx,
+	WERROR (*drop)(struct smbconf_ctx *ctx);
+	WERROR (*get_share_names)(struct smbconf_ctx *ctx,
 				  TALLOC_CTX *mem_ctx,
 				  uint32_t *num_shares,
 				  char ***share_names);
 	bool (*share_exists)(struct smbconf_ctx *ctx, const char *service);
-	sbcErr (*create_share)(struct smbconf_ctx *ctx, const char *service);
-	sbcErr (*get_share)(struct smbconf_ctx *ctx,
+	WERROR (*create_share)(struct smbconf_ctx *ctx, const char *service);
+	WERROR (*get_share)(struct smbconf_ctx *ctx,
 			    TALLOC_CTX *mem_ctx,
 			    const char *servicename,
 			    struct smbconf_service **service);
-	sbcErr (*delete_share)(struct smbconf_ctx *ctx,
+	WERROR (*delete_share)(struct smbconf_ctx *ctx,
 				    const char *servicename);
-	sbcErr (*set_parameter)(struct smbconf_ctx *ctx,
+	WERROR (*set_parameter)(struct smbconf_ctx *ctx,
 				const char *service,
 				const char *param,
 				const char *valstr);
-	sbcErr (*get_parameter)(struct smbconf_ctx *ctx,
+	WERROR (*get_parameter)(struct smbconf_ctx *ctx,
 				TALLOC_CTX *mem_ctx,
 				const char *service,
 				const char *param,
 				char **valstr);
-	sbcErr (*delete_parameter)(struct smbconf_ctx *ctx,
+	WERROR (*delete_parameter)(struct smbconf_ctx *ctx,
 				   const char *service, const char *param);
-	sbcErr (*get_includes)(struct smbconf_ctx *ctx,
+	WERROR (*get_includes)(struct smbconf_ctx *ctx,
 			       TALLOC_CTX *mem_ctx,
 			       const char *service,
 			       uint32_t *num_includes, char ***includes);
-	sbcErr (*set_includes)(struct smbconf_ctx *ctx,
+	WERROR (*set_includes)(struct smbconf_ctx *ctx,
 			       const char *service,
 			       uint32_t num_includes, const char **includes);
-	sbcErr (*delete_includes)(struct smbconf_ctx *ctx,
+	WERROR (*delete_includes)(struct smbconf_ctx *ctx,
 				  const char *service);
-	sbcErr (*transaction_start)(struct smbconf_ctx *ctx);
-	sbcErr (*transaction_commit)(struct smbconf_ctx *ctx);
-	sbcErr (*transaction_cancel)(struct smbconf_ctx *ctx);
+	WERROR (*transaction_start)(struct smbconf_ctx *ctx);
+	WERROR (*transaction_commit)(struct smbconf_ctx *ctx);
+	WERROR (*transaction_cancel)(struct smbconf_ctx *ctx);
 };
 
 struct smbconf_ctx {
@@ -79,10 +79,10 @@ struct smbconf_ctx {
 	void *data; /* private data for use in backends */
 };
 
-sbcErr smbconf_init_internal(TALLOC_CTX *mem_ctx, struct smbconf_ctx **conf_ctx,
+WERROR smbconf_init_internal(TALLOC_CTX *mem_ctx, struct smbconf_ctx **conf_ctx,
 			     const char *path, struct smbconf_ops *ops);
 
-sbcErr smbconf_add_string_to_array(TALLOC_CTX *mem_ctx,
+WERROR smbconf_add_string_to_array(TALLOC_CTX *mem_ctx,
 				   char ***array,
 				   uint32_t count,
 				   const char *string);

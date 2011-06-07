@@ -409,14 +409,12 @@ static int traverse_fn(TDB_CONTEXT *the_tdb, TDB_DATA key, TDB_DATA dbuf, void *
 
 static void info_tdb(void)
 {
-	char *summary = tdb_summary(tdb);
-
-	if (!summary) {
+	int count;
+	total_bytes = 0;
+	if ((count = tdb_traverse(tdb, traverse_fn, NULL)) == -1)
 		printf("Error = %s\n", tdb_errorstr(tdb));
-	} else {
-		printf("%s", summary);
-		free(summary);
-	}
+	else
+		printf("%d records totalling %d bytes\n", count, total_bytes);
 }
 
 static void speed_tdb(const char *tlimit)

@@ -19,8 +19,6 @@
 */
 
 #include "includes.h"
-#include "libads/dns.h"
-#include "../librpc/ndr/libndr.h"
 
 /* AIX resolv.h uses 'class' in struct ns_rr */
 
@@ -298,7 +296,7 @@ static NTSTATUS dns_send_req( TALLOC_CTX *ctx, const char *name, int q_type,
 	int resp_len = NS_PACKETSZ;
 	static time_t last_dns_check = 0;
 	static NTSTATUS last_dns_status = NT_STATUS_OK;
-	time_t now = time_mono(NULL);
+	time_t now = time(NULL);
 
 	/* Try to prevent bursts of DNS lookups if the server is down */
 
@@ -333,7 +331,7 @@ static NTSTATUS dns_send_req( TALLOC_CTX *ctx, const char *name, int q_type,
 				DEBUG(0,("ads_dns_lookup_srv: "
 					"talloc() failed!\n"));
 				last_dns_status = NT_STATUS_NO_MEMORY;
-				last_dns_check = time_mono(NULL);
+				last_dns_check = time(NULL);
 				return last_dns_status;
 			}
 		}
@@ -352,7 +350,7 @@ static NTSTATUS dns_send_req( TALLOC_CTX *ctx, const char *name, int q_type,
 			if (errno == ECONNREFUSED) {
 				last_dns_status = NT_STATUS_CONNECTION_REFUSED;
 			}
-			last_dns_check = time_mono(NULL);
+			last_dns_check = time(NULL);
 			return last_dns_status;
 		}
 
@@ -366,7 +364,7 @@ static NTSTATUS dns_send_req( TALLOC_CTX *ctx, const char *name, int q_type,
 					name));
 				TALLOC_FREE( buffer );
 				last_dns_status = NT_STATUS_BUFFER_TOO_SMALL;
-				last_dns_check = time_mono(NULL);
+				last_dns_check = time(NULL);
 				return last_dns_status;
 			}
 
@@ -379,7 +377,7 @@ static NTSTATUS dns_send_req( TALLOC_CTX *ctx, const char *name, int q_type,
 	*buf = buffer;
 	*resp_length = resp_len;
 
-	last_dns_check = time_mono(NULL);
+	last_dns_check = time(NULL);
 	last_dns_status = NT_STATUS_OK;
 	return last_dns_status;
 }
@@ -565,7 +563,7 @@ static NTSTATUS ads_dns_lookup_srv( TALLOC_CTX *ctx,
 		}
 	}
 
-	TYPESAFE_QSORT(dcs, idx, dnssrvcmp );
+	qsort( dcs, idx, sizeof(struct dns_rr_srv), QSORT_CAST dnssrvcmp );
 
 	*dclist = dcs;
 	*numdcs = idx;
@@ -726,6 +724,119 @@ NTSTATUS ads_dns_lookup_ns(TALLOC_CTX *ctx,
 	*numns = idx;
 
 	return NT_STATUS_OK;
+}
+
+/****************************************************************************
+ Store and fetch the AD client sitename.
+****************************************************************************/
+
+#define SITENAME_KEY	"AD_SITENAME/DOMAIN/%s"
+
+static char *sitename_key(const char *realm)
+{
+	char *keystr;
+
+	if (asprintf_strupper_m(&keystr, SITENAME_KEY, realm) == -1) {
+		return NULL;
+	}
+
+	return keystr;
+}
+
+
+/****************************************************************************
+ Store the AD client sitename.
+ We store indefinately as every new CLDAP query will re-write this.
+****************************************************************************/
+
+bool sitename_store(const char *realm, const char *sitename)
+{
+	time_t expire;
+	bool ret = False;
+	char *key;
+
+	if (!realm || (strlen(realm) == 0)) {
+		DEBUG(0,("sitename_store: no realm\n"));
+		return False;
+	}
+
+	key = sitename_key(realm);
+
+	if (!sitename || (sitename && !*sitename)) {
+		DEBUG(5,("sitename_store: deleting empty sitename!\n"));
+		ret = gencache_del(key);
+		SAFE_FREE(key);
+		return ret;
+	}
+
+	expire = get_time_t_max(); /* Store indefinately. */
+
+	DEBUG(10,("sitename_store: realm = [%s], sitename = [%s], expire = [%u]\n",
+		realm, sitename, (unsigned int)expire ));
+
+	ret = gencache_set( key, sitename, expire );
+	SAFE_FREE(key);
+	return ret;
+}
+
+/****************************************************************************
+ Fetch the AD client sitename.
+ Caller must free.
+****************************************************************************/
+
+char *sitename_fetch(const char *realm)
+{
+	char *sitename = NULL;
+	time_t timeout;
+	bool ret = False;
+	const char *query_realm;
+	char *key;
+
+	if (!realm || (strlen(realm) == 0)) {
+		query_realm = lp_realm();
+	} else {
+		query_realm = realm;
+	}
+
+	key = sitename_key(query_realm);
+
+	ret = gencache_get( key, &sitename, &timeout );
+	SAFE_FREE(key);
+	if ( !ret ) {
+		DEBUG(5,("sitename_fetch: No stored sitename for %s\n",
+			query_realm));
+	} else {
+		DEBUG(5,("sitename_fetch: Returning sitename for %s: \"%s\"\n",
+			query_realm, sitename ));
+	}
+	return sitename;
+}
+
+/****************************************************************************
+ Did the sitename change ?
+****************************************************************************/
+
+bool stored_sitename_changed(const char *realm, const char *sitename)
+{
+	bool ret = False;
+
+	char *new_sitename;
+
+	if (!realm || (strlen(realm) == 0)) {
+		DEBUG(0,("stored_sitename_changed: no realm\n"));
+		return False;
+	}
+
+	new_sitename = sitename_fetch(realm);
+
+	if (sitename && new_sitename && !strequal(sitename, new_sitename)) {
+		ret = True;
+	} else if ((sitename && !new_sitename) ||
+			(!sitename && new_sitename)) {
+		ret = True;
+	}
+	SAFE_FREE(new_sitename);
+	return ret;
 }
 
 /********************************************************************

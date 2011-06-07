@@ -26,6 +26,34 @@
 #define NBTKEY_FMT  "NBT/%s#%02X"
 
 /**
+ * Initialise namecache system. Function calls gencache
+ * initialisation function to perform necessary actions
+ *
+ * @return true upon successful initialisation of the cache or
+ *         false on failure
+ **/
+
+bool namecache_enable(void)
+{
+	/*
+	 * Check if name caching disabled by setting the name cache
+	 * timeout to zero.
+	 */
+
+	if (lp_name_cache_timeout() == 0) {
+		DEBUG(5, ("namecache_enable: disabling netbios name cache\n"));
+		return False;
+	}
+
+	/* I leave it for now, though I don't think we really
+	 * need this (mimir, 27.09.2002) */
+	DEBUG(5, ("namecache_enable: enabling netbios namecache, timeout %d "
+		  "seconds\n", lp_name_cache_timeout()));
+
+	return True;
+}
+
+/**
  * Generates a key for netbios name lookups on basis of
  * netbios name and type.
  * The caller must free returned key string when finished.
@@ -160,9 +188,9 @@ bool namecache_fetch(const char *name,
 		DEBUG(5, ("no entry for %s#%02X found.\n", name, name_type));
 		SAFE_FREE(key);
 		return False;
+	} else {
+		DEBUG(5, ("name %s#%02X found.\n", name, name_type));
 	}
-
-	DEBUG(5, ("name %s#%02X found.\n", name, name_type));
 
 	/*
 	 * Split up the stored value into the list of IP adresses

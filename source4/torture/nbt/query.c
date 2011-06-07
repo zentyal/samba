@@ -62,7 +62,7 @@ static bool bench_namequery(struct torture_context *tctx)
 
 	io.in.name = name;
 	io.in.dest_addr = address;
-	io.in.dest_port = lpcfg_nbt_port(tctx->lp_ctx);
+	io.in.dest_port = lp_nbt_port(tctx->lp_ctx);
 	io.in.broadcast = false;
 	io.in.wins_lookup = false;
 	io.in.timeout = 1;
@@ -108,7 +108,7 @@ static bool bench_namequery(struct torture_context *tctx)
 */
 struct torture_suite *torture_bench_nbt(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "bench");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "BENCH");
 	torture_suite_add_simple_test(suite, "namequery", bench_namequery);
 
 	return suite;

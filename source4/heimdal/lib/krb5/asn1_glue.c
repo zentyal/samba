@@ -37,14 +37,14 @@
 
 #include "krb5_locl.h"
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 _krb5_principal2principalname (PrincipalName *p,
 			       const krb5_principal from)
 {
     return copy_PrincipalName(&from->name, p);
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 _krb5_principalname2krb5_principal (krb5_context context,
 				    krb5_principal *principal,
 				    const PrincipalName from,

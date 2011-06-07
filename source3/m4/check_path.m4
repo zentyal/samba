@@ -19,7 +19,6 @@ rootsbindir="\${SBINDIR}"
 lockdir="\${VARDIR}/locks"
 piddir="\${VARDIR}/locks"
 ncalrpcdir="\${VARDIR}/ncalrpc"
-nmbdsocketdir="${lockdir}/.nmbd"
 test "${mandir}" || mandir="\${prefix}/man"
 logfilebase="\${VARDIR}"
 privatedir="\${prefix}/private"
@@ -167,22 +166,6 @@ AC_ARG_WITH(ncalrpcdir,
   esac])
 
 #################################################
-# set nmbd socket directory location
-AC_ARG_WITH(nmbdsocketdir,
-[AS_HELP_STRING([--with-nmbdsocketdir=DIR], [Where to put the nmbd socket directory (${lockdir}/.nmbd)])],
-[ case "$withval" in
-  yes|no)
-  #
-  # Just in case anybody calls it without argument
-  #
-    AC_MSG_WARN([--with-nmbdsocketdir called without argument - will use default])
-  ;;
-  * )
-    nmbdsocketdir="$withval"
-    ;;
-  esac])
-
-#################################################
 # set SWAT directory location
 AC_ARG_WITH(swatdir,
 [AS_HELP_STRING([--with-swatdir=DIR], [Where to put SWAT files ($ac_default_prefix/swat)])],
@@ -315,7 +298,6 @@ AC_ARG_WITH(codepagedir,
 AC_SUBST(configdir)
 AC_SUBST(lockdir)
 AC_SUBST(piddir)
-AC_SUBST(nmbdsocketdir)
 AC_SUBST(ncalrpcdir)
 AC_SUBST(logfilebase)
 AC_SUBST(privatedir)

@@ -76,6 +76,7 @@ SKIP: {
 	}
 
 	my $main = "
+#define uint_t unsigned int
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>

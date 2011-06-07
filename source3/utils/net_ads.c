@@ -22,21 +22,9 @@
 
 #include "includes.h"
 #include "utils/net.h"
-#include "rpc_client/cli_pipe.h"
 #include "librpc/gen_ndr/ndr_krb5pac.h"
-#include "../librpc/gen_ndr/ndr_spoolss.h"
+#include "../librpc/gen_ndr/cli_spoolss.h"
 #include "nsswitch/libwbclient/wbclient.h"
-#include "ads.h"
-#include "libads/cldap.h"
-#include "libads/dns.h"
-#include "../libds/common/flags.h"
-#include "librpc/gen_ndr/libnet_join.h"
-#include "libnet/libnet_join.h"
-#include "smb_krb5.h"
-#include "secrets.h"
-#include "krb5_env.h"
-#include "../libcli/security/security.h"
-#include "libsmb/libsmb.h"
 
 #ifdef HAVE_ADS
 
@@ -115,7 +103,7 @@ static int net_ads_cldap_netlogon(struct net_context *c, ADS_STRUCT *ads)
 	printf(_("Domain:\t\t\t%s\n"), reply.dns_domain);
 	printf(_("Domain Controller:\t%s\n"), reply.pdc_dns_name);
 
-	printf(_("Pre-Win2k Domain:\t%s\n"), reply.domain_name);
+	printf(_("Pre-Win2k Domain:\t%s\n"), reply.domain);
 	printf(_("Pre-Win2k Hostname:\t%s\n"), reply.pdc_name);
 
 	if (*reply.user_name) printf(_("User name:\t%s\n"), reply.user_name);
@@ -413,7 +401,7 @@ static int net_ads_workgroup(struct net_context *c, int argc, const char **argv)
 		return -1;
 	}
 
-	d_printf(_("Workgroup: %s\n"), reply.domain_name);
+	d_printf(_("Workgroup: %s\n"), reply.domain);
 
 	ads_destroy(&ads);
 
@@ -487,7 +475,7 @@ static int ads_user_add(struct net_context *c, int argc, const char **argv)
 	if (c->opt_container) {
 		ou_str = SMB_STRDUP(c->opt_container);
 	} else {
-		ou_str = ads_default_ou_string(ads, DS_GUID_USERS_CONTAINER);
+		ou_str = ads_default_ou_string(ads, WELL_KNOWN_GUID_USERS);
 	}
 
 	status = ads_add_user_acct(ads, argv[0], ou_str, c->opt_comment);
@@ -551,7 +539,7 @@ static int ads_user_info(struct net_context *c, int argc, const char **argv)
 	char **grouplist;
 	char *primary_group;
 	char *escaped_user;
-	struct dom_sid primary_group_sid;
+	DOM_SID primary_group_sid;
 	uint32_t group_rid;
 	enum wbcSidType type;
 
@@ -781,7 +769,7 @@ static int ads_group_add(struct net_context *c, int argc, const char **argv)
 	if (c->opt_container) {
 		ou_str = SMB_STRDUP(c->opt_container);
 	} else {
-		ou_str = ads_default_ou_string(ads, DS_GUID_USERS_CONTAINER);
+		ou_str = ads_default_ou_string(ads, WELL_KNOWN_GUID_USERS);
 	}
 
 	status = ads_add_group_acct(ads, argv[0], ou_str, c->opt_comment);
@@ -970,12 +958,6 @@ static int net_ads_leave(struct net_context *c, int argc, const char **argv)
 		use_in_memory_ccache();
 	}
 
-	if (!c->msg_ctx) {
-		d_fprintf(stderr, _("Could not initialise message context. "
-			"Try running as root\n"));
-		return -1;
-	}
-
 	werr = libnet_init_UnjoinCtx(ctx, &r);
 	if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, _("Could not initialise unjoin context.\n"));
@@ -995,7 +977,6 @@ static int net_ads_leave(struct net_context *c, int argc, const char **argv)
 	r->in.unjoin_flags	= WKSSVC_JOIN_FLAGS_JOIN_TYPE |
 				  WKSSVC_JOIN_FLAGS_ACCOUNT_DELETE;
 	r->in.delete_machine_account = true;
-	r->in.msg_ctx		= c->msg_ctx;
 
 	werr = libnet_Unjoin(ctx, r);
 	if (!W_ERROR_IS_OK(werr)) {
@@ -1122,7 +1103,7 @@ static WERROR check_ads_config( void )
 *******************************************************************/
 
 #if defined(WITH_DNS_UPDATES)
-#include "../lib/addns/dns.h"
+#include "dns.h"
 DNS_ERROR DoDNSUpdate(char *pszServerName,
 		      const char *pszDomainName, const char *pszHostName,
 		      const struct sockaddr_storage *sslist,
@@ -1134,7 +1115,7 @@ static NTSTATUS net_update_dns_internal(TALLOC_CTX *ctx, ADS_STRUCT *ads,
 					int num_addrs)
 {
 	struct dns_rr_ns *nameservers = NULL;
-	int ns_count = 0, i;
+	int ns_count = 0;
 	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
 	DNS_ERROR dns_err;
 	fstring dns_server;
@@ -1199,31 +1180,14 @@ static NTSTATUS net_update_dns_internal(TALLOC_CTX *ctx, ADS_STRUCT *ads,
 
 	}
 
-	for (i=0; i < ns_count; i++) {
+	/* Now perform the dns update - we'll try non-secure and if we fail,
+	   we'll follow it up with a secure update */
 
-		/* Now perform the dns update - we'll try non-secure and if we fail,
-		   we'll follow it up with a secure update */
+	fstrcpy( dns_server, nameservers[0].hostname );
 
-		fstrcpy( dns_server, nameservers[i].hostname );
-
-		dns_err = DoDNSUpdate(dns_server, dnsdomain, machine_name, addrs, num_addrs);
-		if (ERR_DNS_IS_OK(dns_err)) {
-			status = NT_STATUS_OK;
-			goto done;
-		}
-
-		if (ERR_DNS_EQUAL(dns_err, ERROR_DNS_INVALID_NAME_SERVER) ||
-		    ERR_DNS_EQUAL(dns_err, ERROR_DNS_CONNECTION_FAILED) ||
-		    ERR_DNS_EQUAL(dns_err, ERROR_DNS_SOCKET_ERROR)) {
-			DEBUG(1,("retrying DNS update with next nameserver after receiving %s\n",
-				dns_errstr(dns_err)));
-			continue;
-		}
-
-		d_printf(_("DNS Update for %s failed: %s\n"),
-			machine_name, dns_errstr(dns_err));
+	dns_err = DoDNSUpdate(dns_server, dnsdomain, machine_name, addrs, num_addrs);
+	if (!ERR_DNS_IS_OK(dns_err)) {
 		status = NT_STATUS_UNSUCCESSFUL;
-		goto done;
 	}
 
 done:
@@ -1386,13 +1350,6 @@ int net_ads_join(struct net_context *c, int argc, const char **argv)
 		goto fail;
 	}
 
-	if (!c->msg_ctx) {
-		d_fprintf(stderr, _("Could not initialise message context. "
-			"Try running as root\n"));
-		werr = WERR_ACCESS_DENIED;
-		goto fail;
-	}
-
 	/* Do the domain join here */
 
 	r->in.domain_name	= domain;
@@ -1410,14 +1367,8 @@ int net_ads_join(struct net_context *c, int argc, const char **argv)
 	r->in.join_flags	= WKSSVC_JOIN_FLAGS_JOIN_TYPE |
 				  WKSSVC_JOIN_FLAGS_ACCOUNT_CREATE |
 				  WKSSVC_JOIN_FLAGS_DOMAIN_JOIN_IF_JOINED;
-	r->in.msg_ctx		= c->msg_ctx;
 
 	werr = libnet_Join(ctx, r);
-	if (W_ERROR_EQUAL(werr, WERR_DCNOTFOUND) &&
-	    strequal(domain, lp_realm())) {
-		r->in.domain_name = lp_workgroup();
-		werr = libnet_Join(ctx, r);
-	}
 	if (!W_ERROR_IS_OK(werr)) {
 		goto fail;
 	}
@@ -1486,10 +1437,9 @@ int net_ads_join(struct net_context *c, int argc, const char **argv)
 		/* exit from this block using machine creds */
 		ads_destroy(&ads_dns);
 	}
-
-done:
 #endif
 
+done:
 	TALLOC_FREE(r);
 	TALLOC_FREE( ctx );
 
@@ -1632,8 +1582,7 @@ static int net_ads_dns_gethostbyname(struct net_context *c, int argc, const char
 
 	err = do_gethostbyname(argv[0], argv[1]);
 
-	d_printf(_("do_gethostbyname returned %s (%d)\n"),
-		dns_errstr(err), ERROR_DNS_V(err));
+	d_printf(_("do_gethostbyname returned %d\n"), ERROR_DNS_V(err));
 #endif
 	return 0;
 }
@@ -1833,10 +1782,10 @@ static int net_ads_printer_publish(struct net_context *c, int argc, const char *
 					c->opt_user_name, c->opt_workgroup,
 					c->opt_password ? c->opt_password : "",
 					CLI_FULL_CONNECTION_USE_KERBEROS,
-					Undefined);
+					Undefined, NULL);
 
 	if (NT_STATUS_IS_ERR(nt_status)) {
-		d_fprintf(stderr, _("Unable to open a connection to %s to "
+		d_fprintf(stderr, _("Unable to open a connnection to %s to "
 			            "obtain data for %s\n"),
 			  servername, printername);
 		ads_destroy(&ads);
@@ -1885,7 +1834,7 @@ static int net_ads_printer_publish(struct net_context *c, int argc, const char *
 
 	nt_status = cli_rpc_pipe_open_noauth(cli, &ndr_table_spoolss.syntax_id, &pipe_hnd);
 	if (!NT_STATUS_IS_OK(nt_status)) {
-		d_fprintf(stderr, _("Unable to open a connection to the spoolss pipe on %s\n"),
+		d_fprintf(stderr, _("Unable to open a connnection to the spoolss pipe on %s\n"),
 			 servername);
 		SAFE_FREE(prt_dn);
 		ads_destroy(&ads);
@@ -2315,7 +2264,7 @@ static int net_ads_sid(struct net_context *c, int argc, const char **argv)
 	const char *sid_string;
 	const char **attrs;
 	LDAPMessage *res = NULL;
-	struct dom_sid sid;
+	DOM_SID sid;
 
 	if (argc < 1 || c->display_usage) {
 		return net_ads_sid_usage(c, argc, argv);
@@ -2513,6 +2462,7 @@ static int net_ads_kerberos_renew(struct net_context *c, int argc, const char **
 
 static int net_ads_kerberos_pac(struct net_context *c, int argc, const char **argv)
 {
+	struct PAC_DATA *pac = NULL;
 	struct PAC_LOGON_INFO *info = NULL;
 	TALLOC_CTX *mem_ctx = NULL;
 	NTSTATUS status;
@@ -2542,7 +2492,7 @@ static int net_ads_kerberos_pac(struct net_context *c, int argc, const char **ar
 	status = kerberos_return_pac(mem_ctx,
 				     c->opt_user_name,
 				     c->opt_password,
-				     0,
+			     	     0,
 				     NULL,
 				     NULL,
 				     NULL,
@@ -2550,13 +2500,14 @@ static int net_ads_kerberos_pac(struct net_context *c, int argc, const char **ar
 				     true,
 				     2592000, /* one month */
 				     impersonate_princ_s,
-				     &info);
+				     &pac);
 	if (!NT_STATUS_IS_OK(status)) {
 		d_printf(_("failed to query kerberos PAC: %s\n"),
 			nt_errstr(status));
 		goto out;
 	}
 
+	info = get_logon_info_from_pac(pac);
 	if (info) {
 		const char *s;
 		s = NDR_PRINT_STRUCT_STRING(mem_ctx, PAC_LOGON_INFO, info);
@@ -2838,11 +2789,6 @@ int net_ads_user(struct net_context *c, int argc, const char **argv)
 }
 
 int net_ads_group(struct net_context *c, int argc, const char **argv)
-{
-	return net_ads_noads();
-}
-
-int net_ads_gpo(struct net_context *c, int argc, const char **argv)
 {
 	return net_ads_noads();
 }

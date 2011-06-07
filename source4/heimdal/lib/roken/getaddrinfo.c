@@ -365,7 +365,7 @@ get_nodes (const char *nodename,
  * };
  */
 
-ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
+int ROKEN_LIB_FUNCTION
 getaddrinfo(const char *nodename,
 	    const char *servname,
 	    const struct addrinfo *hints,

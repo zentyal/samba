@@ -47,7 +47,7 @@
  * Do we need any extra hacks for SIGCLD and/or SIGCHLD?
  */
 
-ROKEN_LIB_FUNCTION SigAction ROKEN_LIB_CALL
+SigAction ROKEN_LIB_FUNCTION
 signal(int iSig, SigAction pAction)
 {
     struct sigaction saNew, saOld;

@@ -460,7 +460,7 @@ bool strhasupper(const char *s)
 	}
 
 	for(p = tmp; *p != 0; p++) {
-		if(isupper_m(*p)) {
+		if(isupper_w(*p)) {
 			break;
 		}
 	}
@@ -485,7 +485,7 @@ bool strhaslower(const char *s)
 	}
 
 	for(p = tmp; *p != 0; p++) {
-		if(islower_m(*p)) {
+		if(islower_w(*p)) {
 			break;
 		}
 	}
@@ -586,9 +586,7 @@ char *safe_strcat_fn(const char *fn,
  Paranoid strcpy into a buffer of given length (includes terminating
  zero. Strips out all but 'a-Z0-9' and the character in other_safe_chars
  and replaces with '_'. Deliberately does *NOT* check for multibyte
- characters. Treats src as an array of bytes, not as a multibyte
- string. Any byte >0x7f is automatically converted to '_'.
- other_safe_chars must also contain an ascii string (bytes<0x7f).
+ characters. Don't change it !
 **/
 
 char *alpha_strcpy_fn(const char *fn,
@@ -624,12 +622,8 @@ char *alpha_strcpy_fn(const char *fn,
 
 	for(i = 0; i < len; i++) {
 		int val = (src[i] & 0xff);
-		if (val > 0x7f) {
-			dest[i] = '_';
-			continue;
-		}
-		if (isupper(val) || islower(val) ||
-				isdigit(val) || strchr(other_safe_chars, val))
+		if (isupper_ascii(val) || islower_ascii(val) ||
+				isdigit(val) || strchr_m(other_safe_chars, val))
 			dest[i] = src[i];
 		else
 			dest[i] = '_';
@@ -826,6 +820,10 @@ void string_sub2(char *s,const char *pattern, const char *insert, size_t len,
 		}
 		for (i=0;i<li;i++) {
 			switch (insert[i]) {
+			case '`':
+			case '"':
+			case '\'':
+			case ';':
 			case '$':
 				/* allow a trailing $
 				 * (as in machine accounts) */
@@ -833,10 +831,6 @@ void string_sub2(char *s,const char *pattern, const char *insert, size_t len,
 					p[i] = insert[i];
 					break;
 				}
-			case '`':
-			case '"':
-			case '\'':
-			case ';':
 			case '%':
 			case '\r':
 			case '\n':
@@ -908,16 +902,16 @@ char *realloc_string_sub2(char *string,
 	ld = li - lp;
 	for (i=0;i<li;i++) {
 		switch (in[i]) {
+			case '`':
+			case '"':
+			case '\'':
+			case ';':
 			case '$':
 				/* allow a trailing $
 				 * (as in machine accounts) */
 				if (allow_trailing_dollar && (i == li - 1 )) {
 					break;
 				}
-			case '`':
-			case '"':
-			case '\'':
-			case ';':
 			case '%':
 			case '\r':
 			case '\n':
@@ -1003,16 +997,16 @@ char *talloc_string_sub2(TALLOC_CTX *mem_ctx, const char *src,
 
 	for (i=0;i<li;i++) {
 		switch (in[i]) {
+			case '`':
+			case '"':
+			case '\'':
+			case ';':
 			case '$':
 				/* allow a trailing $
 				 * (as in machine accounts) */
 				if (allow_trailing_dollar && (i == li - 1 )) {
 					break;
 				}
-			case '`':
-			case '"':
-			case '\'':
-			case ';':
 			case '%':
 			case '\r':
 			case '\n':
@@ -1462,12 +1456,10 @@ void strupper_m(char *s)
 /**
  * Calculate the number of units (8 or 16-bit, depending on the
  * destination charset), that would be needed to convert the input
- * string which is expected to be in in src_charset encoding to the
+ * string which is expected to be in in CH_UNIX encoding to the
  * destination charset (which should be a unicode charset).
  */
-
-size_t strlen_m_ext(const char *s, const charset_t src_charset,
-		    const charset_t dst_charset)
+size_t strlen_m_ext(const char *s, const charset_t dst_charset)
 {
 	size_t count = 0;
 
@@ -1486,10 +1478,10 @@ size_t strlen_m_ext(const char *s, const charset_t src_charset,
 
 	while (*s) {
 		size_t c_size;
-		codepoint_t c = next_codepoint_ext(s, src_charset, &c_size);
+		codepoint_t c = next_codepoint(s, &c_size);
 		s += c_size;
 
-		switch (dst_charset) {
+		switch(dst_charset) {
 		case CH_UTF16LE:
 		case CH_UTF16BE:
 		case CH_UTF16MUNGED:
@@ -1529,26 +1521,23 @@ size_t strlen_m_ext(const char *s, const charset_t src_charset,
 	return count;
 }
 
-size_t strlen_m_ext_term(const char *s, const charset_t src_charset,
-			 const charset_t dst_charset)
+size_t strlen_m_ext_term(const char *s, const charset_t dst_charset)
 {
 	if (!s) {
 		return 0;
 	}
-	return strlen_m_ext(s, src_charset, dst_charset) + 1;
+	return strlen_m_ext(s, dst_charset) + 1;
 }
 
 /**
- * Calculate the number of 16-bit units that would bee needed to convert
- * the input string which is expected to be in CH_UNIX encoding to UTF16.
- *
- * This will be the same as the number of bytes in a string for single
- * byte strings, but will be different for multibyte.
- */
+ Count the number of UCS2 characters in a string. Normally this will
+ be the same as the number of bytes in a string for single byte strings,
+ but will be different for multibyte.
+**/
 
 size_t strlen_m(const char *s)
 {
-	return strlen_m_ext(s, CH_UNIX, CH_UTF16LE);
+	return strlen_m_ext(s, CH_UTF16LE);
 }
 
 /**
@@ -1581,6 +1570,47 @@ size_t strlen_m_term_null(const char *s)
 	}
 
 	return len+1;
+}
+/**
+ Return a RFC2254 binary string representation of a buffer.
+ Used in LDAP filters.
+ Caller must free.
+**/
+
+char *binary_string_rfc2254(TALLOC_CTX *mem_ctx, const uint8_t *buf, int len)
+{
+	char *s;
+	int i, j;
+	const char *hex = "0123456789ABCDEF";
+	s = talloc_array(mem_ctx, char, len * 3 + 1);
+	if (s == NULL) {
+		return NULL;
+	}
+	for (j=i=0;i<len;i++) {
+		s[j] = '\\';
+		s[j+1] = hex[((unsigned char)buf[i]) >> 4];
+		s[j+2] = hex[((unsigned char)buf[i]) & 0xF];
+		j += 3;
+	}
+	s[j] = 0;
+	return s;
+}
+
+char *binary_string(char *buf, int len)
+{
+	char *s;
+	int i, j;
+	const char *hex = "0123456789ABCDEF";
+	s = (char *)SMB_MALLOC(len * 2 + 1);
+	if (!s)
+		return NULL;
+	for (j=i=0;i<len;i++) {
+		s[j]   = hex[((unsigned char)buf[i]) >> 4];
+		s[j+1] = hex[((unsigned char)buf[i]) & 0xF];
+		j += 2;
+	}
+	s[j] = 0;
+	return s;
 }
 
 /**
@@ -1985,7 +2015,7 @@ char *base64_encode_data_blob(TALLOC_CTX *mem_ctx, DATA_BLOB data)
 uint64_t STR_TO_SMB_BIG_UINT(const char *nptr, const char **entptr)
 {
 
-	uint64_t val = (uint64_t)-1;
+	uint64_t val = -1;
 	const char *p = nptr;
 
 	if (!p) {
@@ -2021,7 +2051,6 @@ uint64_t STR_TO_SMB_BIG_UINT(const char *nptr, const char **entptr)
  */
 SMB_OFF_T conv_str_size(const char * str)
 {
-	SMB_OFF_T lval_orig;
         SMB_OFF_T lval;
 	char * end;
 
@@ -2031,9 +2060,9 @@ SMB_OFF_T conv_str_size(const char * str)
 
 #ifdef HAVE_STRTOULL
 	if (sizeof(SMB_OFF_T) == 8) {
-		lval = strtoull(str, &end, 10 /* base */);
+	    lval = strtoull(str, &end, 10 /* base */);
 	} else {
-		lval = strtoul(str, &end, 10 /* base */);
+	    lval = strtoul(str, &end, 10 /* base */);
 	}
 #else
 	lval = strtoul(str, &end, 10 /* base */);
@@ -2043,38 +2072,35 @@ SMB_OFF_T conv_str_size(const char * str)
                 return 0;
         }
 
-        if (*end == '\0') {
-		return lval;
-	}
+        if (*end) {
+		SMB_OFF_T lval_orig = lval;
 
-	lval_orig = lval;
+                if (strwicmp(end, "K") == 0) {
+                        lval *= (SMB_OFF_T)1024;
+                } else if (strwicmp(end, "M") == 0) {
+                        lval *= ((SMB_OFF_T)1024 * (SMB_OFF_T)1024);
+                } else if (strwicmp(end, "G") == 0) {
+                        lval *= ((SMB_OFF_T)1024 * (SMB_OFF_T)1024 *
+				(SMB_OFF_T)1024);
+                } else if (strwicmp(end, "T") == 0) {
+                        lval *= ((SMB_OFF_T)1024 * (SMB_OFF_T)1024 *
+				(SMB_OFF_T)1024 * (SMB_OFF_T)1024);
+                } else if (strwicmp(end, "P") == 0) {
+                        lval *= ((SMB_OFF_T)1024 * (SMB_OFF_T)1024 *
+				(SMB_OFF_T)1024 * (SMB_OFF_T)1024 *
+				(SMB_OFF_T)1024);
+                } else {
+                        return 0;
+                }
 
-	if (strwicmp(end, "K") == 0) {
-		lval *= (SMB_OFF_T)1024;
-	} else if (strwicmp(end, "M") == 0) {
-		lval *= ((SMB_OFF_T)1024 * (SMB_OFF_T)1024);
-	} else if (strwicmp(end, "G") == 0) {
-		lval *= ((SMB_OFF_T)1024 * (SMB_OFF_T)1024 *
-			 (SMB_OFF_T)1024);
-	} else if (strwicmp(end, "T") == 0) {
-		lval *= ((SMB_OFF_T)1024 * (SMB_OFF_T)1024 *
-			 (SMB_OFF_T)1024 * (SMB_OFF_T)1024);
-	} else if (strwicmp(end, "P") == 0) {
-		lval *= ((SMB_OFF_T)1024 * (SMB_OFF_T)1024 *
-			 (SMB_OFF_T)1024 * (SMB_OFF_T)1024 *
-			 (SMB_OFF_T)1024);
-	} else {
-		return 0;
-	}
-
-	/*
-	 * Primitive attempt to detect wrapping on platforms with
-	 * 4-byte SMB_OFF_T. It's better to let the caller handle a
-	 * failure than some random number.
-	 */
-	if (lval_orig <= lval) {
-		return 0;
-	}
+		/* Primitive attempt to detect wrapping on platforms with
+		 * 4-byte SMB_OFF_T. It's better to let the caller handle
+		 * a failure than some random number.
+		 */
+		if (lval_orig <= lval) {
+			return 0;
+		}
+        }
 
 	return lval;
 }
@@ -2085,9 +2111,6 @@ void string_append(char **left, const char *right)
 
 	if (*left == NULL) {
 		*left = (char *)SMB_MALLOC(new_len);
-		if (*left == NULL) {
-			return;
-		}
 		*left[0] = '\0';
 	} else {
 		new_len += strlen(*left);
@@ -2271,10 +2294,6 @@ bool validate_net_name( const char *name,
 		int max_len)
 {
 	int i;
-
-	if (!name) {
-		return false;
-	}
 
 	for ( i=0; i<max_len && name[i]; i++ ) {
 		/* fail if strchr_m() finds one of the invalid characters */
@@ -2517,12 +2536,4 @@ char **str_list_make_v3(TALLOC_CTX *mem_ctx, const char *string,
 
 	TALLOC_FREE(s);
 	return list;
-}
-
-char *sanitize_username(TALLOC_CTX *mem_ctx, const char *username)
-{
-	fstring tmp;
-
-	alpha_strcpy(tmp, username, ". _-$", sizeof(tmp));
-	return talloc_strdup(mem_ctx, tmp);
 }

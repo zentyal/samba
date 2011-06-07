@@ -113,14 +113,14 @@ import "misc.idl", "security.idl";
 	/******************/
 	/* Function: 0x06 */
 	typedef struct {
-		uint3264  len; /* ignored */
+		uint32  len; /* ignored */
 		uint16  impersonation_level;
 		uint8   context_mode;
 		uint8   effective_only;
 	} lsa_QosInfo;
 
 	typedef struct {
-		uint3264 len; /* ignored */
+		uint32 len; /* ignored */
 		uint8 *root_dir;
 		[string,charset(UTF16)] uint16 *object_name;
 		uint32 attributes;
@@ -519,7 +519,7 @@ import "misc.idl", "security.idl";
 	} lsa_TransSidArray;
 
 	const int LSA_REF_DOMAIN_LIST_MULTIPLIER = 32;
-	typedef [public] struct {
+	typedef struct {
 		[range(0,1000)] uint32 count;
 		[size_is(count)] lsa_DomainInfo *domains;
 		uint32 max_size;
@@ -533,7 +533,7 @@ import "misc.idl", "security.idl";
 	 * Level 6: Like 4
 	 */
 
-	typedef [public] enum {
+	typedef enum {
 		LSA_LOOKUP_NAMES_ALL = 1,
 		LSA_LOOKUP_NAMES_DOMAINS_ONLY = 2,
 		LSA_LOOKUP_NAMES_PRIMARY_DOMAIN_ONLY = 3,
@@ -563,7 +563,7 @@ import "misc.idl", "security.idl";
 		uint32 sid_index;
 	} lsa_TranslatedName;
 
-	typedef [public] struct {
+	typedef struct {
 		[range(0,20480)] uint32 count;
 		[size_is(count)] lsa_TranslatedName *names;
 	} lsa_TransNameArray;
@@ -639,6 +639,22 @@ import "misc.idl", "security.idl";
 	/* Function:           0x16 */
 	[todo] NTSTATUS lsa_SetQuotasForAccount();
 
+	typedef [bitmap32bit] bitmap {
+		LSA_POLICY_MODE_INTERACTIVE             = 0x00000001,
+		LSA_POLICY_MODE_NETWORK                 = 0x00000002,
+		LSA_POLICY_MODE_BATCH                   = 0x00000004,
+		LSA_POLICY_MODE_SERVICE                 = 0x00000010,
+		LSA_POLICY_MODE_PROXY			= 0x00000020,
+		LSA_POLICY_MODE_DENY_INTERACTIVE        = 0x00000040,
+		LSA_POLICY_MODE_DENY_NETWORK            = 0x00000080,
+		LSA_POLICY_MODE_DENY_BATCH              = 0x00000100,
+		LSA_POLICY_MODE_DENY_SERVICE            = 0x00000200,
+		LSA_POLICY_MODE_REMOTE_INTERACTIVE      = 0x00000400,
+		LSA_POLICY_MODE_DENY_REMOTE_INTERACTIVE = 0x00000800,
+		LSA_POLICY_MODE_ALL			= 0x00000FF7,
+		LSA_POLICY_MODE_ALL_NT4			= 0x00000037
+	} lsa_SystemAccessModeFlags;
+
 	/* Function:    0x17 */
 	NTSTATUS lsa_GetSystemAccessAccount(
 		[in]      policy_handle *handle,
@@ -660,8 +676,8 @@ import "misc.idl", "security.idl";
 		);
 
 	typedef [flag(NDR_PAHEX)] struct {
-		uint3264 length;
-		uint3264 size;
+		uint32 length;
+		uint32 size;
 		[size_is(size),length_is(length)] uint8 *data;
 	} lsa_DATA_BUF;
 
@@ -754,7 +770,7 @@ import "misc.idl", "security.idl";
 		lsa_DATA_BUF2  data;
 	} lsa_TrustDomainInfoBuffer;
 
-	typedef [public] struct {
+	typedef struct {
 		uint32 incoming_count;
 		lsa_TrustDomainInfoBuffer *incoming_current_auth_info;
 		lsa_TrustDomainInfoBuffer *incoming_previous_auth_info;
@@ -1024,11 +1040,11 @@ import "misc.idl", "security.idl";
 
 	/**********************/
 	/* Function 0x31 */
-	[public] NTSTATUS lsa_SetTrustedDomainInfoByName(
+	NTSTATUS lsa_SetTrustedDomainInfoByName(
 		[in]                   policy_handle         *handle,
-		[in,ref]               lsa_String             *trusted_domain,
+		[in]                   lsa_String             trusted_domain,
 		[in]                   lsa_TrustDomInfoEnum   level,
-		[in,ref,switch_is(level)] lsa_TrustedDomainInfo *info
+		[in,unique,switch_is(level)] lsa_TrustedDomainInfo *info
 		);
 
 	/* Function 0x32 */
@@ -1053,7 +1069,7 @@ import "misc.idl", "security.idl";
 		[in]  policy_handle               *policy_handle,
 		[in]  lsa_TrustDomainInfoInfoEx   *info,
 		[in]  lsa_TrustDomainInfoAuthInfoInternal *auth_info,
-		[in]  lsa_TrustedAccessMask access_mask,
+		[in]  uint32 access_mask,
 		[out] policy_handle               *trustdom_handle
 		);
 
@@ -1064,19 +1080,16 @@ import "misc.idl", "security.idl";
 	);
 
 	/* Function 0x35 */
-	typedef [bitmap32bit] bitmap {
-		LSA_POLICY_KERBEROS_VALIDATE_CLIENT = 0x00000080
-	} lsa_krbAuthenticationOptions;
 
 	/* w2k3 returns either 0x000bbbd000000000 or 0x000a48e800000000
-	   for reserved - gd */
+	   for unknown6 - gd */
 	typedef struct {
-		lsa_krbAuthenticationOptions authentication_options;
+		uint32 enforce_restrictions;
 		hyper service_tkt_lifetime;
 		hyper user_tkt_lifetime;
 		hyper user_tkt_renewaltime;
 		hyper clock_skew;
-		hyper reserved;
+		hyper unknown6;
 	} lsa_DomainInfoKerberos;
 
 	typedef struct {
@@ -1112,7 +1125,7 @@ import "misc.idl", "security.idl";
 	NTSTATUS lsa_OpenTrustedDomainByName(
 		[in]     policy_handle *handle,
 		[in]         lsa_String     name,
-		[in]     lsa_TrustedAccessMask access_mask,
+		[in]         uint32         access_mask,
 		[out]    policy_handle *trustdom_handle
 		);
 
@@ -1187,7 +1200,7 @@ import "misc.idl", "security.idl";
 		[in]  policy_handle               *policy_handle,
 		[in]  lsa_TrustDomainInfoInfoEx   *info,
 		[in]  lsa_TrustDomainInfoAuthInfoInternal *auth_info,
-		[in]  lsa_TrustedAccessMask access_mask,
+		[in]  uint32                       access_mask,
 		[out] policy_handle               *trustdom_handle
 		);
 
@@ -1255,7 +1268,7 @@ import "misc.idl", "security.idl";
 
 	/* Function 0x49 */
 	typedef struct {
-		[range(0,131072)] uint3264 length;
+		[range(0,131072)] uint32 length;
 		[size_is(length)] uint8 *data;
 	} lsa_ForestTrustBinaryData;
 
@@ -1266,7 +1279,7 @@ import "misc.idl", "security.idl";
 	} lsa_ForestTrustDomainInfo;
 
 	typedef [switch_type(uint32)] union {
-		[case(LSA_FOREST_TRUST_TOP_LEVEL_NAME)] lsa_StringLarge top_level_name;
+		[case(LSA_FOREST_TRUST_TOP_LEVEL_NAME)] lsa_String top_level_name;
 		[case(LSA_FOREST_TRUST_TOP_LEVEL_NAME_EX)] lsa_StringLarge top_level_name_ex;
 		[case(LSA_FOREST_TRUST_DOMAIN_INFO)] lsa_ForestTrustDomainInfo domain_info;
 		[default] lsa_ForestTrustBinaryData data;
@@ -1281,9 +1294,9 @@ import "misc.idl", "security.idl";
 
 	typedef struct {
 		uint32 flags;
-		lsa_ForestTrustRecordType type;
-		hyper time;
-		[switch_is(type)] lsa_ForestTrustData forest_trust_data;
+		lsa_ForestTrustRecordType level;
+		hyper unknown;
+		[switch_is(level)] lsa_ForestTrustData forest_trust_data;
 	} lsa_ForestTrustRecord;
 
 	typedef [public] struct {
@@ -1298,56 +1311,8 @@ import "misc.idl", "security.idl";
 		[out,ref] lsa_ForestTrustInformation **forest_trust_info
 		);
 
-	/*****************
-	 * Function 0x4a */
-
-	typedef [v1_enum] enum {
-		LSA_FOREST_TRUST_COLLISION_TDO = 0,
-		LSA_FOREST_TRUST_COLLISION_XREF = 1,
-		LSA_FOREST_TRUST_COLLISION_OTHER = 2
-	} lsa_ForestTrustCollisionRecordType;
-
-	/* if type is CollisionTdo, flags can be */
-	typedef [bitmap32bit] bitmap {
-		LSA_TLN_DISABLED_NEW		= 0x00000001,
-		LSA_TLN_DISABLED_ADMIN		= 0x00000002,
-		LSA_TLN_DISABLED_CONFLICT	= 0x00000004
-	} lsa_ForestTrustCollisionTDOFlags;
-
-	/* if type is CollisionXref, flags can be */
-	typedef [bitmap32bit] bitmap {
-		LSA_SID_DISABLED_ADMIN		= 0x00000001,
-		LSA_SID_DISABLED_CONFLICT	= 0x00000002,
-		LSA_NB_DISABLED_ADMIN		= 0x00000004,
-		LSA_NB_DISABLED_CONFLICT	= 0x00000008
-	} lsa_ForestTrustCollisionXrefFlags;
-
-	typedef [nodiscriminant] union {
-		[case(LSA_FOREST_TRUST_COLLISION_TDO)] lsa_ForestTrustCollisionTDOFlags flags;
-		[case(LSA_FOREST_TRUST_COLLISION_XREF)] lsa_ForestTrustCollisionXrefFlags flags;
-		[default] uint32 flags;
-	} lsa_ForestTrustCollisionFlags;
-
-	typedef struct {
-		uint32 index;
-		lsa_ForestTrustCollisionRecordType type;
-		[switch_is(type)] lsa_ForestTrustCollisionFlags flags;
-		lsa_String name;
-	} lsa_ForestTrustCollisionRecord;
-
-	typedef struct {
-		uint32 count;
-		[size_is(count)] lsa_ForestTrustCollisionRecord **entries;
-	} lsa_ForestTrustCollisionInfo;
-
-	[public] NTSTATUS lsa_lsaRSetForestTrustInformation(
-		[in]      policy_handle *handle,
-		[in,ref]  lsa_StringLarge *trusted_domain_name,
-		[in]      uint16 highest_record_type,
-		[in,ref]  lsa_ForestTrustInformation *forest_trust_info,
-		[in]      uint8 check_only,
-		[out,ref] lsa_ForestTrustCollisionInfo **collision_info
-		);
+	/* Function 0x4a */
+	[todo] NTSTATUS lsa_LSARSETFORESTTRUSTINFORMATION();
 
 	/* Function 0x4b */
 	[todo] NTSTATUS lsa_CREDRRENAME();

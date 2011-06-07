@@ -21,7 +21,6 @@
  * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "smbd/smbd.h"
 #include <ifs/ifs_syscalls.h>
 #include <sys/types.h>
 #include <sys/isi_enc.h>

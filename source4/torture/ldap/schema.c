@@ -23,11 +23,15 @@
 #include "libcli/ldap/ldap_client.h"
 #include "lib/cmdline/popt_common.h"
 #include "ldb_wrap.h"
+#include "lib/ldb/include/ldb.h"
+#include "lib/ldb/include/ldb_errors.h"
 #include "dsdb/samdb/samdb.h"
 #include "../lib/util/dlinklist.h"
 
 #include "torture/torture.h"
+#include "torture/ldap/proto.h"
 
+#include "param/param.h"
 
 struct test_rootDSE {
 	const char *defaultdn;
@@ -211,28 +215,43 @@ again:
 static int test_add_attribute(void *ptr, struct ldb_context *ldb, struct ldb_message *msg)
 {
 	struct dsdb_schema *schema = talloc_get_type(ptr, struct dsdb_schema);
+	struct dsdb_attribute *attr = NULL;
 	WERROR status;
 
-	status = dsdb_attribute_from_ldb(ldb, schema, msg);
+	attr = talloc_zero(schema, struct dsdb_attribute);
+	if (!attr) {
+		goto failed;
+	}
+
+	status = dsdb_attribute_from_ldb(ldb, schema, msg, attr, attr);
 	if (!W_ERROR_IS_OK(status)) {
 		goto failed;
 	}
 
+	DLIST_ADD_END(schema->attributes, attr, struct dsdb_attribute *);
 	return LDB_SUCCESS;
 failed:
+	talloc_free(attr);
 	return LDB_ERR_OTHER;
 }
 
 static int test_add_class(void *ptr, struct ldb_context *ldb, struct ldb_message *msg)
 {
 	struct dsdb_schema *schema = talloc_get_type(ptr, struct dsdb_schema);
+	struct dsdb_class *obj;
 	WERROR status;
 
-	status = dsdb_class_from_ldb(schema, msg);
+	obj = talloc_zero(schema, struct dsdb_class);
+	if (!obj) {
+		goto failed;
+	}
+
+	status = dsdb_class_from_ldb(schema, msg, obj, obj);
 	if (!W_ERROR_IS_OK(status)) {
 		goto failed;
 	}
 
+	DLIST_ADD_END(schema->classes, obj, struct dsdb_class *);
 	return LDB_SUCCESS;
 failed:
 	return LDB_ERR_OTHER;
@@ -341,7 +360,7 @@ static bool test_dump_sorted_syntax(struct ldb_context *ldb, struct test_rootDSE
 
 			if (strcmp(syntaxes[i], a->attributeSyntax_oid) != 0) continue;
 
-			om_hex = data_blob_hex_string_upper(ldb, &a->oMObjectClass);
+			om_hex = data_blob_hex_string(ldb, &a->oMObjectClass);
 			if (!om_hex) {
 				return false;
 			}
@@ -353,22 +372,6 @@ static bool test_dump_sorted_syntax(struct ldb_context *ldb, struct test_rootDSE
 		}
 	}
 
-	return true;
-}
-
-static bool test_dump_not_in_filtered_replica(struct ldb_context *ldb, struct test_rootDSE *root, struct dsdb_schema *schema)
-{
-	struct dsdb_attribute *a;
-	uint32_t a_i = 1;
-
-	d_printf("Dumping attributes not in filtered replica\n");
-
-	for (a=schema->attributes; a; a = a->next) {
-		if (!dsdb_attribute_is_attr_in_filtered_replica(a)) {
-			d_printf("attr[%4u]: '%s'\n", a_i++,
-				 a->lDAPDisplayName);
-		}
-	}
 	return true;
 }
 
@@ -388,7 +391,7 @@ bool torture_ldap_schema(struct torture_context *torture)
 	ldb = ldb_wrap_connect(torture, torture->ev, torture->lp_ctx, url,
 			       NULL,
 			       cmdline_credentials,
-			       0);
+			       0, NULL);
 	if (!ldb) goto failed;
 
 	ret &= test_search_rootDSE(ldb, &rootDSE);
@@ -400,7 +403,6 @@ bool torture_ldap_schema(struct torture_context *torture)
 	ret &= test_dump_partial(ldb, &rootDSE, schema);
 	ret &= test_dump_contructed(ldb, &rootDSE, schema);
 	ret &= test_dump_sorted_syntax(ldb, &rootDSE, schema);
-	ret &= test_dump_not_in_filtered_replica(ldb, &rootDSE, schema);
 
 failed:
 	return ret;

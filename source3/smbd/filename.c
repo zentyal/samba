@@ -25,9 +25,6 @@
  */
 
 #include "includes.h"
-#include "system/filesys.h"
-#include "fake_file.h"
-#include "smbd/smbd.h"
 
 static NTSTATUS build_stream_path(TALLOC_CTX *mem_ctx,
 				  connection_struct *conn,
@@ -98,91 +95,6 @@ static NTSTATUS check_for_dot_component(const struct smb_filename *smb_fname)
 			return NT_STATUS_OBJECT_NAME_INVALID;
 		}
 	}
-	return NT_STATUS_OK;
-}
-
-/****************************************************************************
- Optimization for common case where the missing part
- is in the last component and the client already
- sent the correct case.
- Returns NT_STATUS_OK to mean continue the tree walk
- (possibly with modified start pointer).
- Any other NT_STATUS_XXX error means terminate the path
- lookup here.
-****************************************************************************/
-
-static NTSTATUS check_parent_exists(TALLOC_CTX *ctx,
-				connection_struct *conn,
-				bool posix_pathnames,
-				const struct smb_filename *smb_fname,
-				char **pp_dirpath,
-				char **pp_start)
-{
-	struct smb_filename parent_fname;
-	const char *last_component = NULL;
-	NTSTATUS status;
-	int ret;
-
-	ZERO_STRUCT(parent_fname);
-	if (!parent_dirname(ctx, smb_fname->base_name,
-				&parent_fname.base_name,
-				&last_component)) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	/*
-	 * If there was no parent component in
-	 * smb_fname->base_name of the parent name
-	 * contained a wildcard then don't do this
-	 * optimization.
-	 */
-	if ((smb_fname->base_name == last_component) ||
-			ms_has_wild(parent_fname.base_name)) {
-		return NT_STATUS_OK;
-	}
-
-	if (posix_pathnames) {
-		ret = SMB_VFS_LSTAT(conn, &parent_fname);
-	} else {
-		ret = SMB_VFS_STAT(conn, &parent_fname);
-	}
-
-	/* If the parent stat failed, just continue
-	   with the normal tree walk. */
-
-	if (ret == -1) {
-		return NT_STATUS_OK;
-	}
-
-	status = check_for_dot_component(&parent_fname);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	/* Parent exists - set "start" to be the
-	 * last compnent to shorten the tree walk. */
-
-	/*
-	 * Safe to use CONST_DISCARD
-	 * here as last_component points
-	 * into our smb_fname->base_name.
-	 */
-	*pp_start = CONST_DISCARD(char *,last_component);
-
-	/* Update dirpath. */
-	TALLOC_FREE(*pp_dirpath);
-	*pp_dirpath = talloc_strdup(ctx, parent_fname.base_name);
-	if (!*pp_dirpath) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	DEBUG(5,("check_parent_exists: name "
-		"= %s, dirpath = %s, "
-		"start = %s\n",
-		smb_fname->base_name,
-		*pp_dirpath,
-		*pp_start));
-
 	return NT_STATUS_OK;
 }
 
@@ -372,7 +284,7 @@ NTSTATUS unix_convert(TALLOC_CTX *ctx,
 	start = smb_fname->base_name;
 
 	/*
-	 * If we're providing case insensitive semantics or
+	 * If we're providing case insentive semantics or
 	 * the underlying filesystem is case insensitive,
 	 * then a case-normalized hit in the stat-cache is
 	 * authoratitive. JRA.
@@ -390,7 +302,7 @@ NTSTATUS unix_convert(TALLOC_CTX *ctx,
 
 	/*
 	 * Make sure "dirpath" is an allocated string, we use this for
-	 * building the directories with talloc_asprintf and free it.
+	 * building the directories with asprintf and free it.
 	 */
 
 	if ((dirpath == NULL) && (!(dirpath = talloc_strdup(ctx,"")))) {
@@ -440,26 +352,9 @@ NTSTATUS unix_convert(TALLOC_CTX *ctx,
 			goto done;
 		}
 
-		/* Stat failed - ensure we don't use it. */
-		SET_STAT_INVALID(smb_fname->st);
-
-		if (errno == ENOENT) {
-			/* Optimization when creating a new file - only
-			   the last component doesn't exist. */
-			status = check_parent_exists(ctx,
-						conn,
-						posix_pathnames,
-						smb_fname,
-						&dirpath,
-						&start);
-			if (!NT_STATUS_IS_OK(status)) {
-				goto fail;
-			}
-		}
-
 		/*
 		 * A special case - if we don't have any wildcards or mangling chars and are case
-		 * sensitive or the underlying filesystem is case insensitive then searching
+		 * sensitive or the underlying filesystem is case insentive then searching
 		 * won't help.
 		 */
 
@@ -486,12 +381,10 @@ NTSTATUS unix_convert(TALLOC_CTX *ctx,
 				 * or a missing intermediate component ?
 				 */
 				struct smb_filename parent_fname;
-				const char *last_component = NULL;
-
 				ZERO_STRUCT(parent_fname);
 				if (!parent_dirname(ctx, smb_fname->base_name,
 							&parent_fname.base_name,
-							&last_component)) {
+							NULL)) {
 					status = NT_STATUS_NO_MEMORY;
 					goto fail;
 				}
@@ -508,7 +401,6 @@ NTSTATUS unix_convert(TALLOC_CTX *ctx,
 						goto fail;
 					}
 				}
-
 				/*
 				 * Missing last component is ok - new file.
 				 * Also deal with permission denied elsewhere.
@@ -516,23 +408,6 @@ NTSTATUS unix_convert(TALLOC_CTX *ctx,
 				 */
 				goto done;
 			}
-		}
-	} else {
-		/*
-		 * We have a wildcard in the pathname.
-		 *
-		 * Optimization for common case where the wildcard
-		 * is in the last component and the client already
-		 * sent the correct case.
-		 */
-		status = check_parent_exists(ctx,
-					conn,
-					posix_pathnames,
-					smb_fname,
-					&dirpath,
-					&start);
-		if (!NT_STATUS_IS_OK(status)) {
-			goto fail;
 		}
 	}
 
@@ -602,12 +477,6 @@ NTSTATUS unix_convert(TALLOC_CTX *ctx,
 		if (name_has_wildcard && end) {
 			status = NT_STATUS_OBJECT_NAME_INVALID;
 			goto fail;
-		}
-
-		/* Skip the stat call if it's a wildcard end. */
-		if (name_has_wildcard) {
-			DEBUG(5,("Wildcard %s\n",start));
-			goto done;
 		}
 
 		/*
@@ -862,18 +731,8 @@ NTSTATUS unix_convert(TALLOC_CTX *ctx,
 		 */
 		if (VALID_STAT(smb_fname->st)) {
 			bool delete_pending;
-			uint32_t name_hash;
-
-			status = file_name_hash(conn,
-					smb_fname_str_dbg(smb_fname),
-					&name_hash);
-			if (!NT_STATUS_IS_OK(status)) {
-				goto fail;
-			}
-
 			get_file_infos(vfs_file_id_from_sbuf(conn,
 							     &smb_fname->st),
-				       name_hash,
 				       &delete_pending, NULL);
 			if (delete_pending) {
 				status = NT_STATUS_DELETE_PENDING;

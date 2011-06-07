@@ -81,13 +81,13 @@
 #ifndef PRIi8
 # define PRIi8		"i"
 #endif
-#ifndef PRIi16
+#ifndef PRIi8
 # define PRIi16		"i"
 #endif
-#ifndef PRIi32
+#ifndef PRIi8
 # define PRIi32		"i"
 #endif
-#ifndef PRIi64
+#ifndef PRIi8
 # define PRIi64		__PRI64_PREFIX "i"
 #endif
 
@@ -121,13 +121,6 @@
 #include <stddef.h>
 #endif
 
-#ifdef HAVE_LINUX_TYPES_H
-/*
- * This is needed as some broken header files require this to be included early
- */
-#include <linux/types.h>
-#endif
-
 #ifndef HAVE_STRERROR
 extern char *sys_errlist[];
 #define strerror(i) sys_errlist[i]
@@ -145,12 +138,6 @@ char *rep_strdup(const char *s);
 #ifndef HAVE_MEMMOVE
 #define memmove rep_memmove
 void *rep_memmove(void *dest,const void *src,int size);
-#endif
-
-#ifndef HAVE_MEMMEM
-#define memmem rep_memmem
-void *rep_memmem(const void *haystack, size_t haystacklen,
-		 const void *needle, size_t needlelen);
 #endif
 
 #ifndef HAVE_MKTIME
@@ -290,26 +277,14 @@ char *rep_strcasestr(const char *haystack, const char *needle);
 char *rep_strtok_r(char *s, const char *delim, char **save_ptr);
 #endif
 
-
-
 #ifndef HAVE_STRTOLL
 #define strtoll rep_strtoll
 long long int rep_strtoll(const char *str, char **endptr, int base);
-#else
-#ifdef HAVE_BSD_STRTOLL
-#define strtoll rep_strtoll
-long long int rep_strtoll(const char *str, char **endptr, int base);
-#endif
 #endif
 
 #ifndef HAVE_STRTOULL
 #define strtoull rep_strtoull
 unsigned long long int rep_strtoull(const char *str, char **endptr, int base);
-#else
-#ifdef HAVE_BSD_STRTOLL /* yes, it's not HAVE_BSD_STRTOULL */
-#define strtoull rep_strtoull
-unsigned long long int rep_strtoull(const char *str, char **endptr, int base);
-#endif
 #endif
 
 #ifndef HAVE_FTRUNCATE
@@ -353,16 +328,6 @@ int rep_dlclose(void *handle);
 #ifndef HAVE_SOCKETPAIR
 #define socketpair rep_socketpair
 /* prototype is in system/network.h */
-#endif
-
-#ifndef HAVE_VDPRINTF
-#define vdprintf rep_vdprintf
-int rep_vdprintf(int fd, const char *format, va_list ap);
-#endif
-
-#ifndef HAVE_DPRINTF
-#define dprintf rep_dprintf
-int rep_dprintf(int fd, const char *format, ...);
 #endif
 
 #ifndef PRINTF_ATTRIBUTE
@@ -524,21 +489,6 @@ ssize_t rep_pwrite(int __fd, const void *__buf, size_t __nbytes, off_t __offset)
 #ifndef HAVE_FREEIFADDRS
 #define freeifaddrs rep_freeifaddrs
 /* prototype is in "system/network.h" */
-#endif
-
-#ifndef HAVE_GET_CURRENT_DIR_NAME
-#define get_current_dir_name rep_get_current_dir_name
-char *rep_get_current_dir_name(void);
-#endif
-
-#if !defined(HAVE_STRERROR_R) || !defined(STRERROR_R_PROTO_COMPATIBLE)
-#undef strerror_r
-#define strerror_r rep_strerror_r
-int rep_strerror_r(int errnum, char *buf, size_t buflen);
-#endif
-
-#if !defined(HAVE_CLOCK_GETTIME)
-#define clock_gettime rep_clock_gettime
 #endif
 
 #ifdef HAVE_LIMITS_H
@@ -771,35 +721,6 @@ char *ufc_crypt(const char *key, const char *salt);
 #ifndef unlikely
 #define unlikely(x) (x)
 #endif
-#endif
-
-#ifndef HAVE_FDATASYNC
-#define fdatasync(fd) fsync(fd)
-#elif !defined(HAVE_DECL_FDATASYNC)
-int fdatasync(int );
-#endif
-
-/* these are used to mark symbols as local to a shared lib, or
- * publicly available via the shared lib API */
-#ifndef _PUBLIC_
-#ifdef HAVE_VISIBILITY_ATTR
-#define _PUBLIC_ __attribute__((visibility("default")))
-#else
-#define _PUBLIC_
-#endif
-#endif
-
-#ifndef _PRIVATE_
-#ifdef HAVE_VISIBILITY_ATTR
-#  define _PRIVATE_ __attribute__((visibility("hidden")))
-#else
-#  define _PRIVATE_
-#endif
-#endif
-
-#ifndef HAVE_POLL
-#define poll rep_poll
-/* prototype is in "system/network.h" */
 #endif
 
 #endif /* _LIBREPLACE_REPLACE_H */

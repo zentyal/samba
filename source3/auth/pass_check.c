@@ -1,18 +1,18 @@
-/*
+/* 
    Unix SMB/CIFS implementation.
    Password checking
    Copyright (C) Andrew Tridgell 1992-1998
-
+   
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -21,17 +21,9 @@
    password database. The SMB encrypted password support is elsewhere */
 
 #include "includes.h"
-#include "system/passwd.h"
-#include "auth.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
-
-/* what is the longest significant password available on your system?
- Knowing this speeds up password searches a lot */
-#ifndef PASSWORD_LENGTH
-#define PASSWORD_LENGTH 8
-#endif
 
 /* these are kept here to keep the string_combinations function simple */
 static char *ths_user;
@@ -500,10 +492,8 @@ try all combinations with N uppercase letters.
 offset is the first char to try and change (start with 0)
 it assumes the string starts lowercased
 ****************************************************************************/
-static NTSTATUS string_combinations2(char *s, int offset,
-				     NTSTATUS (*fn)(const char *s,
-						    void *private_data),
-				     int N, void *private_data)
+static NTSTATUS string_combinations2(char *s, int offset, NTSTATUS (*fn) (const char *),
+				 int N)
 {
 	int len = strlen(s);
 	int i;
@@ -514,17 +504,15 @@ static NTSTATUS string_combinations2(char *s, int offset,
 #endif
 
 	if (N <= 0 || offset >= len)
-		return (fn(s, private_data));
+		return (fn(s));
 
 	for (i = offset; i < (len - (N - 1)); i++) {
 		char c = s[i];
 		if (!islower_ascii(c))
 			continue;
 		s[i] = toupper_ascii(c);
-		nt_status = string_combinations2(s, i + 1, fn, N - 1,
-						 private_data);
-		if (!NT_STATUS_EQUAL(nt_status, NT_STATUS_WRONG_PASSWORD)) {
-			return nt_status;
+		if (!NT_STATUS_EQUAL(nt_status = string_combinations2(s, i + 1, fn, N - 1),NT_STATUS_WRONG_PASSWORD)) {
+			return (nt_status);
 		}
 		s[i] = c;
 	}
@@ -538,19 +526,13 @@ try all combinations with up to N uppercase letters.
 offset is the first char to try and change (start with 0)
 it assumes the string starts lowercased
 ****************************************************************************/
-static NTSTATUS string_combinations(char *s,
-				    NTSTATUS (*fn)(const char *s,
-						   void *private_data),
-				    int N, void *private_data)
+static NTSTATUS string_combinations(char *s, NTSTATUS (*fn) (const char *), int N)
 {
 	int n;
 	NTSTATUS nt_status;
-	for (n = 1; n <= N; n++) {
-		nt_status = string_combinations2(s, 0, fn, n, private_data);
-		if (!NT_STATUS_EQUAL(nt_status, NT_STATUS_WRONG_PASSWORD)) {
+	for (n = 1; n <= N; n++)
+		if (!NT_STATUS_EQUAL(nt_status = string_combinations2(s, 0, fn, n), NT_STATUS_WRONG_PASSWORD))
 			return nt_status;
-		}
-	}
 	return NT_STATUS_WRONG_PASSWORD;
 }
 
@@ -558,11 +540,10 @@ static NTSTATUS string_combinations(char *s,
 /****************************************************************************
 core of password checking routine
 ****************************************************************************/
-static NTSTATUS password_check(const char *password, void *private_data)
+static NTSTATUS password_check(const char *password)
 {
 #ifdef WITH_PAM
-	const char *rhost = (const char *)private_data;
-	return smb_pam_passcheck(get_this_user(), rhost, password);
+	return smb_pam_passcheck(get_this_user(), password);
 #else
 
 	bool ret;
@@ -578,7 +559,7 @@ static NTSTATUS password_check(const char *password, void *private_data)
 #endif /* WITH_DFS */
 
 #ifdef OSF1_ENH_SEC
-
+	
 	ret = (strcmp(osf1_bigcrypt(password, get_this_salt()),
 		      get_this_crypted()) == 0);
 	if (!ret) {
@@ -591,9 +572,9 @@ static NTSTATUS password_check(const char *password, void *private_data)
 	} else {
 		return NT_STATUS_WRONG_PASSWORD;
 	}
-
+	
 #endif /* OSF1_ENH_SEC */
-
+	
 #ifdef ULTRIX_AUTH
 	ret = (strcmp((char *)crypt16(password, get_this_salt()), get_this_crypted()) == 0);
 	if (ret) {
@@ -601,9 +582,9 @@ static NTSTATUS password_check(const char *password, void *private_data)
         } else {
 		return NT_STATUS_WRONG_PASSWORD;
 	}
-
+	
 #endif /* ULTRIX_AUTH */
-
+	
 #ifdef LINUX_BIGCRYPT
 	ret = (linux_bigcrypt(password, get_this_salt(), get_this_crypted()));
         if (ret) {
@@ -612,9 +593,9 @@ static NTSTATUS password_check(const char *password, void *private_data)
 		return NT_STATUS_WRONG_PASSWORD;
 	}
 #endif /* LINUX_BIGCRYPT */
-
+	
 #if defined(HAVE_BIGCRYPT) && defined(HAVE_CRYPT) && defined(USE_BOTH_CRYPT_CALLS)
-
+	
 	/*
 	 * Some systems have bigcrypt in the C library but might not
 	 * actually use it for the password hashes (HPUX 10.20) is
@@ -632,7 +613,7 @@ static NTSTATUS password_check(const char *password, void *private_data)
 		return NT_STATUS_WRONG_PASSWORD;
 	}
 #else /* HAVE_BIGCRYPT && HAVE_CRYPT && USE_BOTH_CRYPT_CALLS */
-
+	
 #ifdef HAVE_BIGCRYPT
 	ret = (strcmp(bigcrypt(password, get_this_salt()), get_this_crypted()) == 0);
         if (ret) {
@@ -641,7 +622,7 @@ static NTSTATUS password_check(const char *password, void *private_data)
 		return NT_STATUS_WRONG_PASSWORD;
 	}
 #endif /* HAVE_BIGCRYPT */
-
+	
 #ifndef HAVE_CRYPT
 	DEBUG(1, ("Warning - no crypt available\n"));
 	return NT_STATUS_LOGON_FAILURE;
@@ -666,11 +647,8 @@ match is found and is used to update the encrypted password file
 return NT_STATUS_OK on correct match, appropriate error otherwise
 ****************************************************************************/
 
-NTSTATUS pass_check(const struct passwd *pass,
-		    const char *user,
-		    const char *rhost,
-		    const char *password,
-		    bool run_cracker)
+NTSTATUS pass_check(const struct passwd *pass, const char *user, const char *password, 
+		    int pwlen, bool (*fn) (const char *, const char *), bool run_cracker)
 {
 	char *pass2 = NULL;
 	int level = lp_passwordlevel();
@@ -684,7 +662,7 @@ NTSTATUS pass_check(const struct passwd *pass,
 	if (!password)
 		return NT_STATUS_LOGON_FAILURE;
 
-	if ((!*password) && !lp_null_passwords())
+	if (((!*password) || (!pwlen)) && !lp_null_passwords())
 		return NT_STATUS_LOGON_FAILURE;
 
 #if defined(WITH_PAM) 
@@ -698,11 +676,11 @@ NTSTATUS pass_check(const struct passwd *pass,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	DEBUG(4, ("pass_check: Checking (PAM) password for user %s\n", user));
+	DEBUG(4, ("pass_check: Checking (PAM) password for user %s (l=%d)\n", user, pwlen));
 
 #else /* Not using PAM */
 
-	DEBUG(4, ("pass_check: Checking password for user %s\n", user));
+	DEBUG(4, ("pass_check: Checking password for user %s (l=%d)\n", user, pwlen));
 
 	if (!pass) {
 		DEBUG(3, ("Couldn't find user %s\n", user));
@@ -840,8 +818,11 @@ NTSTATUS pass_check(const struct passwd *pass,
 #endif /* defined(WITH_PAM) */
 
 	/* try it as it came to us */
-	nt_status = password_check(password, (void *)rhost);
+	nt_status = password_check(password);
         if NT_STATUS_IS_OK(nt_status) {
+                if (fn) {
+                        fn(user, password);
+		}
 		return (nt_status);
 	} else if (!NT_STATUS_EQUAL(nt_status, NT_STATUS_WRONG_PASSWORD)) {
                 /* No point continuing if its not the password thats to blame (ie PAM disabled). */
@@ -868,8 +849,9 @@ NTSTATUS pass_check(const struct passwd *pass,
 	/* try all lowercase if it's currently all uppercase */
 	if (strhasupper(pass2)) {
 		strlower_m(pass2);
-		nt_status = password_check(pass2, (void *)rhost);
-		if (NT_STATUS_IS_OK(nt_status)) {
+		if NT_STATUS_IS_OK(nt_status = password_check(pass2)) {
+		        if (fn)
+				fn(user, pass2);
 			return (nt_status);
 		}
 	}
@@ -881,12 +863,12 @@ NTSTATUS pass_check(const struct passwd *pass,
 
 	/* last chance - all combinations of up to level chars upper! */
 	strlower_m(pass2);
-
-	nt_status = string_combinations(pass2, password_check, level,
-					(void *)rhost);
-        if (NT_STATUS_IS_OK(nt_status)) {
+ 
+        if (NT_STATUS_IS_OK(nt_status = string_combinations(pass2, password_check, level))) {
+                if (fn)
+			fn(user, pass2);
 		return nt_status;
 	}
-
+        
 	return NT_STATUS_WRONG_PASSWORD;
 }

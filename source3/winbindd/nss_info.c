@@ -20,7 +20,6 @@
 */
 
 #include "includes.h"
-#include "ads.h"
 #include "nss_info.h"
 
 static struct nss_function_entry *backends = NULL;
@@ -88,6 +87,8 @@ static struct nss_function_entry *nss_get_backend(const char *name )
 static bool parse_nss_parm( const char *config, char **backend, char **domain )
 {
 	char *p;
+	char *q;
+	int len;
 
 	*backend = *domain = NULL;
 
@@ -109,8 +110,17 @@ static bool parse_nss_parm( const char *config, char **backend, char **domain )
 		*domain = SMB_STRDUP( p+1 );
 	}
 
-	*backend = SMB_STRNDUP(config, PTR_DIFF(p, config));
-	return (*backend != NULL);
+	len = PTR_DIFF(p,config)+1;
+	if ( (q = SMB_MALLOC_ARRAY( char, len )) == NULL ) {
+		SAFE_FREE( *backend );
+		return False;
+	}
+
+	StrnCpy( q, config, len-1);
+	q[len-1] = '\0';
+	*backend = q;
+
+	return True;
 }
 
 static NTSTATUS nss_domain_list_add_domain(const char *domain,
@@ -154,25 +164,23 @@ static NTSTATUS nss_domain_list_add_domain(const char *domain,
  to initialize the state on a per domain basis.
  *******************************************************************/
 
-static NTSTATUS nss_init(const char **nss_list)
+ NTSTATUS nss_init( const char **nss_list )
 {
 	NTSTATUS status;
-	static bool nss_initialized = false;
+	static NTSTATUS nss_initialized = NT_STATUS_UNSUCCESSFUL;
 	int i;
 	char *backend, *domain;
 	struct nss_function_entry *nss_backend;
 
 	/* check for previous successful initializations */
 
-	if (nss_initialized) {
+	if ( NT_STATUS_IS_OK(nss_initialized) )
 		return NT_STATUS_OK;
-	}
 
-	/* The "template" backend should always be registered as it
+	/* The "template" backend should alqays be registered as it
 	   is a static module */
 
-	nss_backend = nss_get_backend("template");
-	if (nss_backend == NULL) {
+	if ( (nss_backend = nss_get_backend( "template" )) == NULL ) {
 		static_init_nss_info;
 	}
 
@@ -192,34 +200,19 @@ static NTSTATUS nss_init(const char **nss_list)
 
 		/* validate the backend */
 
-		nss_backend = nss_get_backend(backend);
-		if (nss_backend == NULL) {
-			/*
-			 * This is a freaking hack. We don't have proper
-			 * modules for nss_info backends. Right now we have
-			 * our standard nss_info backends in the ad backend.
-			 */
-			status = smb_probe_module("idmap", "ad");
-			if ( !NT_STATUS_IS_OK(status) ) {
-				continue;
-			}
-		}
-
-		nss_backend = nss_get_backend(backend);
-		if (nss_backend == NULL) {
+		if ( (nss_backend = nss_get_backend( backend )) == NULL ) {
 			/* attempt to register the backend */
 			status = smb_probe_module( "nss_info", backend );
 			if ( !NT_STATUS_IS_OK(status) ) {
 				continue;
 			}
-		}
 
-		/* try again */
-		nss_backend = nss_get_backend(backend);
-		if (nss_backend == NULL) {
-			DEBUG(0, ("nss_init: unregistered backend %s!. "
-				  "Skipping\n", backend));
-			continue;
+			/* try again */
+			if ( (nss_backend = nss_get_backend( backend )) == NULL ) {
+				DEBUG(0,("nss_init: unregistered backend %s!.  Skipping\n",
+					 backend));
+				continue;
+			}
 		}
 
 		/*
@@ -248,10 +241,10 @@ static NTSTATUS nss_init(const char **nss_list)
 			 "Defaulting to \"template\".\n"));
 
 
-		/* we should default to use template here */
+		/* we shouild default to use template here */
 	}
 
-	nss_initialized = true;
+	nss_initialized = NT_STATUS_OK;
 
 	return NT_STATUS_OK;
 }
@@ -266,8 +259,8 @@ static struct nss_domain_entry *find_nss_domain( const char *domain )
 
 	status = nss_init( lp_winbind_nss_info() );
 	if ( !NT_STATUS_IS_OK(status) ) {
-		DEBUG(4,("find_nss_domain: Failed to init nss_info API "
-			 "(%s)!\n", nt_errstr(status)));
+		DEBUG(4,("nss_get_info: Failed to init nss_info API (%s)!\n",
+			 nt_errstr(status)));
 		return NULL;
 	}
 
@@ -306,8 +299,9 @@ static struct nss_domain_entry *find_nss_domain( const char *domain )
 /********************************************************************
  *******************************************************************/
 
-NTSTATUS nss_get_info( const char *domain, const struct dom_sid *user_sid,
+NTSTATUS nss_get_info( const char *domain, const DOM_SID *user_sid,
 		       TALLOC_CTX *ctx,
+		       ADS_STRUCT *ads, LDAPMessage *msg,
 		       const char **homedir, const char **shell,
 		       const char **gecos, gid_t *p_gid)
 {
@@ -325,7 +319,7 @@ NTSTATUS nss_get_info( const char *domain, const struct dom_sid *user_sid,
 
 	m = p->backend->methods;
 
-	return m->get_nss_info( p, user_sid, ctx,
+	return m->get_nss_info( p, user_sid, ctx, ads, msg,
 				homedir, shell, gecos, p_gid );
 }
 

@@ -232,10 +232,10 @@ static NTSTATUS fill_search_info(struct pvfs_state *pvfs,
   the search fill loop
 */
 static NTSTATUS pvfs_search_fill(struct pvfs_state *pvfs, TALLOC_CTX *mem_ctx, 
-				 unsigned int max_count,
+				 uint_t max_count, 
 				 struct pvfs_search_state *search,
 				 enum smb_search_data_level level,
-				 unsigned int *reply_count,
+				 uint_t *reply_count,
 				 void *search_private, 
 				 bool (*callback)(void *, const union smb_search_data *))
 {
@@ -291,7 +291,7 @@ static NTSTATUS pvfs_search_fill(struct pvfs_state *pvfs, TALLOC_CTX *mem_ctx,
 static void pvfs_search_cleanup(struct pvfs_state *pvfs)
 {
 	int i;
-	time_t t = time_mono(NULL);
+	time_t t = time(NULL);
 
 	for (i=0;i<MAX_OLD_SEARCHES;i++) {
 		struct pvfs_search_state *search;
@@ -323,7 +323,7 @@ static NTSTATUS pvfs_search_first_old(struct ntvfs_module_context *ntvfs,
 	struct pvfs_state *pvfs = talloc_get_type(ntvfs->private_data,
 				  struct pvfs_state);
 	struct pvfs_search_state *search;
-	unsigned int reply_count;
+	uint_t reply_count;
 	uint16_t search_attrib;
 	const char *pattern;
 	NTSTATUS status;
@@ -379,7 +379,7 @@ static NTSTATUS pvfs_search_first_old(struct ntvfs_module_context *ntvfs,
 	search->current_index = 0;
 	search->search_attrib = search_attrib & 0xFF;
 	search->must_attrib = (search_attrib>>8) & 0xFF;
-	search->last_used = time_mono(NULL);
+	search->last_used = time(NULL);
 	search->te = NULL;
 
 	DLIST_ADD(pvfs->search.list, search);
@@ -415,7 +415,7 @@ static NTSTATUS pvfs_search_next_old(struct ntvfs_module_context *ntvfs,
 	void *p;
 	struct pvfs_search_state *search;
 	struct pvfs_dir *dir;
-	unsigned int reply_count, max_count;
+	uint_t reply_count, max_count;
 	uint16_t handle;
 	NTSTATUS status;
 
@@ -437,7 +437,7 @@ static NTSTATUS pvfs_search_next_old(struct ntvfs_module_context *ntvfs,
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
-	search->last_used = time_mono(NULL);
+	search->last_used = time(NULL);
 
 	status = pvfs_search_fill(pvfs, req, max_count, search, io->generic.data_level,
 				  &reply_count, search_private, callback);
@@ -467,7 +467,7 @@ static NTSTATUS pvfs_search_first_trans2(struct ntvfs_module_context *ntvfs,
 	struct pvfs_state *pvfs = talloc_get_type(ntvfs->private_data,
 				  struct pvfs_state);
 	struct pvfs_search_state *search;
-	unsigned int reply_count;
+	uint_t reply_count;
 	uint16_t search_attrib, max_count;
 	const char *pattern;
 	NTSTATUS status;
@@ -565,7 +565,7 @@ static NTSTATUS pvfs_search_next_trans2(struct ntvfs_module_context *ntvfs,
 	void *p;
 	struct pvfs_search_state *search;
 	struct pvfs_dir *dir;
-	unsigned int reply_count;
+	uint_t reply_count;
 	uint16_t handle;
 	NTSTATUS status;
 
@@ -629,7 +629,7 @@ static NTSTATUS pvfs_search_first_smb2(struct ntvfs_module_context *ntvfs,
 	struct pvfs_state *pvfs = talloc_get_type(ntvfs->private_data,
 				  struct pvfs_state);
 	struct pvfs_search_state *search;
-	unsigned int reply_count;
+	uint_t reply_count;
 	uint16_t max_count;
 	const char *pattern;
 	NTSTATUS status;
@@ -666,10 +666,10 @@ static NTSTATUS pvfs_search_first_smb2(struct ntvfs_module_context *ntvfs,
 	}
 
 	if (strequal("", f->handle->name->original_name)) {
-		pattern = talloc_asprintf(req, "%s", io->in.pattern);
+		pattern = talloc_asprintf(req, "\\%s", io->in.pattern);
 		NT_STATUS_HAVE_NO_MEMORY(pattern);
 	} else {
-		pattern = talloc_asprintf(req, "%s\\%s",
+		pattern = talloc_asprintf(req, "\\%s\\%s",
 					  f->handle->name->original_name,
 					  io->in.pattern);
 		NT_STATUS_HAVE_NO_MEMORY(pattern);
@@ -732,7 +732,7 @@ static NTSTATUS pvfs_search_next_smb2(struct ntvfs_module_context *ntvfs,
 	struct pvfs_state *pvfs = talloc_get_type(ntvfs->private_data,
 				  struct pvfs_state);
 	struct pvfs_search_state *search;
-	unsigned int reply_count;
+	uint_t reply_count;
 	uint16_t max_count;
 	NTSTATUS status;
 	struct pvfs_file *f;

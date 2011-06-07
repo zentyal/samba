@@ -4,7 +4,7 @@
    
    Copyright (C) Stefan Metzmacher 2004
    Copyright (C) Simo Sorce 2004
-   Copyright (C) Matthias Dieter Wallnöfer 2009-2010
+   Copyright (C) Matthias Dieter Wallnöfer 2009
     
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,13 +22,13 @@
 */
 
 #include "includes.h"
-#include "ldb_wrap.h"
 #include "libcli/ldap/ldap_client.h"
 #include "lib/cmdline/popt_common.h"
 
 #include "torture/torture.h"
 #include "torture/ldap/proto.h"
 
+#include "param/param.h"
 
 static bool test_bind_simple(struct ldap_connection *conn, const char *userdn, const char *password)
 {
@@ -63,7 +63,7 @@ static bool test_multibind(struct ldap_connection *conn, const char *userdn, con
 {
 	bool ret = true;
 
-	printf("Testing multiple binds on a single connection as anonymous and user\n");
+	printf("Testing multiple binds on a single connnection as anonymous and user\n");
 
 	ret = test_bind_simple(conn, NULL, NULL);
 	if (!ret) {
@@ -79,8 +79,7 @@ static bool test_multibind(struct ldap_connection *conn, const char *userdn, con
 	return ret;
 }
 
-static bool test_search_rootDSE(struct ldap_connection *conn, const char **basedn,
-	const char ***partitions)
+static bool test_search_rootDSE(struct ldap_connection *conn, char **basedn)
 {
 	bool ret = true;
 	struct ldap_message *msg, *result;
@@ -92,10 +91,6 @@ static bool test_search_rootDSE(struct ldap_connection *conn, const char **based
 	printf("Testing RootDSE Search\n");
 
 	*basedn = NULL;
-
-	if (partitions != NULL) {
-		*partitions = const_str_list(str_list_make_empty(conn));
-	}
 
 	msg = new_ldap_message(conn);
 	if (!msg) {
@@ -143,15 +138,10 @@ static bool test_search_rootDSE(struct ldap_connection *conn, const char **based
 							  (int)r->attributes[i].values[j].length,
 							  (char *)r->attributes[i].values[j].data);
 			}
-			if ((partitions != NULL) &&
-			    (strcasecmp("namingContexts", r->attributes[i].name) == 0)) {
-				char *entry = talloc_asprintf(conn, "%.*s",
-							      (int)r->attributes[i].values[j].length,
-							      (char *)r->attributes[i].values[j].data);
-				*partitions = str_list_add(*partitions, entry);
-			}
 		}
 	}
+
+	talloc_free(req);
 
 	return ret;
 }
@@ -218,19 +208,16 @@ static WERROR ad_error(const char *err_msg, char **reason)
 	return err;
 }
 
-/* This has to be done using the LDAP API since the LDB API does only transmit
- * the error code and not the error message. */
 static bool test_error_codes(struct torture_context *tctx,
 	struct ldap_connection *conn, const char *basedn)
 {
 	struct ldap_message *msg, *rep;
 	struct ldap_request *req;
-	const char *err_code_str;
-	char *endptr;
+	char *err_code_str, *endptr;
 	WERROR err;
 	NTSTATUS status;
 
-	printf("Testing the most important error code -> error message conversions!\n");
+	printf("Testing error codes - to make this test pass against SAMBA 4 you have to specify the target!\n");
 
 	if (!basedn) {
 		return false;
@@ -255,7 +242,7 @@ static bool test_error_codes(struct torture_context *tctx,
 
 	status = ldap_result_one(req, &rep, LDAP_TAG_AddResponse);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("error in ldap add request - %s\n", nt_errstr(status));
+		printf("error in ldap addition request - %s\n", nt_errstr(status));
 		return false;
 	}
 
@@ -270,86 +257,19 @@ static bool test_error_codes(struct torture_context *tctx,
 	err = ad_error(rep->r.AddResponse.errormessage, &endptr);
 	err_code_str = win_errstr(err);
 	printf(" - Errorcode: %s; Reason: %s\n", err_code_str, endptr);
-	if ((!W_ERROR_EQUAL(err, WERR_DS_REFERRAL))
-			|| (rep->r.AddResponse.resultcode != LDAP_REFERRAL)) {
+	if (!torture_setting_bool(tctx, "samba4", false)) {
+		if ((!W_ERROR_EQUAL(err, WERR_DS_REFERRAL))
+			|| (rep->r.AddResponse.resultcode != 10)) {
 			return false;
-	}
-	if ((rep->r.AddResponse.referral == NULL)
-			|| (strstr(rep->r.AddResponse.referral, basedn) == NULL)) {
+		}
+	} else {
+		if ((!W_ERROR_EQUAL(err, WERR_DS_GENERIC_ERROR))
+			|| (rep->r.AddResponse.resultcode != 80)) {
 			return false;
-	}
-
-	printf(" Try another wrong addition\n");
-
-	msg->type = LDAP_TAG_AddRequest;
-	msg->r.AddRequest.dn = "";
-	msg->r.AddRequest.num_attributes = 0;
-	msg->r.AddRequest.attributes = NULL;
-
-	req = ldap_request_send(conn, msg);
-	if (!req) {
-		return false;
-	}
-
-	status = ldap_result_one(req, &rep, LDAP_TAG_AddResponse);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf("error in ldap add request - %s\n", nt_errstr(status));
-		return false;
-	}
-
-	if ((rep->r.AddResponse.resultcode == 0)
-		|| (rep->r.AddResponse.errormessage == NULL)
-		|| (strtol(rep->r.AddResponse.errormessage, &endptr,16) <= 0)
-		|| (*endptr != ':')) {
-		printf("Invalid error message!\n");
-		return false;
-	}
-
-	err = ad_error(rep->r.AddResponse.errormessage, &endptr);
-	err_code_str = win_errstr(err);
-	printf(" - Errorcode: %s; Reason: %s\n", err_code_str, endptr);
-	if ((!W_ERROR_EQUAL(err, WERR_DS_ROOT_MUST_BE_NC) &&
-	     !W_ERROR_EQUAL(err, WERR_DS_NAMING_VIOLATION))
-		|| (rep->r.AddResponse.resultcode != LDAP_NAMING_VIOLATION)) {
-		return false;
+		}
 	}
 
 	printf(" Try a wrong modification\n");
-
-	msg->type = LDAP_TAG_ModifyRequest;
-	msg->r.ModifyRequest.dn = basedn;
-	msg->r.ModifyRequest.num_mods = 0;
-	msg->r.ModifyRequest.mods = NULL;
-
-	req = ldap_request_send(conn, msg);
-	if (!req) {
-		return false;
-	}
-
-	status = ldap_result_one(req, &rep, LDAP_TAG_ModifyResponse);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf("error in ldap modifification request - %s\n", nt_errstr(status));
-		return false;
-	}
-
-	if ((rep->r.ModifyResponse.resultcode == 0)
-		|| (rep->r.ModifyResponse.errormessage == NULL)
-		|| (strtol(rep->r.ModifyResponse.errormessage, &endptr,16) <= 0)
-		|| (*endptr != ':')) {
-		printf("Invalid error message!\n");
-		return false;
-	}
-
-	err = ad_error(rep->r.ModifyResponse.errormessage, &endptr);
-	err_code_str = win_errstr(err);
-	printf(" - Errorcode: %s; Reason: %s\n", err_code_str, endptr);
-	if ((!W_ERROR_EQUAL(err, WERR_INVALID_PARAM) &&
-	     !W_ERROR_EQUAL(err, WERR_DS_UNWILLING_TO_PERFORM))
-		|| (rep->r.ModifyResponse.resultcode != LDAP_UNWILLING_TO_PERFORM)) {
-		return false;
-	}
-
-	printf(" Try another wrong modification\n");
 
 	msg->type = LDAP_TAG_ModifyRequest;
 	msg->r.ModifyRequest.dn = "";
@@ -378,46 +298,19 @@ static bool test_error_codes(struct torture_context *tctx,
 	err = ad_error(rep->r.ModifyResponse.errormessage, &endptr);
 	err_code_str = win_errstr(err);
 	printf(" - Errorcode: %s; Reason: %s\n", err_code_str, endptr);
-	if ((!W_ERROR_EQUAL(err, WERR_INVALID_PARAM) &&
-	     !W_ERROR_EQUAL(err, WERR_DS_UNWILLING_TO_PERFORM))
-		|| (rep->r.ModifyResponse.resultcode != LDAP_UNWILLING_TO_PERFORM)) {
-		return false;
+	if (!torture_setting_bool(tctx, "samba4", false)) {
+		if ((!W_ERROR_EQUAL(err, WERR_INVALID_PARAM))
+			|| (rep->r.ModifyResponse.resultcode != 53)) {
+			return false;
+		}
+	} else {
+		if ((!W_ERROR_EQUAL(err, WERR_DS_GENERIC_ERROR))
+			|| (rep->r.ModifyResponse.resultcode != 80)) {
+			return false;
+		}
 	}
 
 	printf(" Try a wrong removal\n");
-
-	msg->type = LDAP_TAG_DelRequest;
-	msg->r.DelRequest.dn = basedn;
-
-	req = ldap_request_send(conn, msg);
-	if (!req) {
-		return false;
-	}
-
-	status = ldap_result_one(req, &rep, LDAP_TAG_DelResponse);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf("error in ldap removal request - %s\n", nt_errstr(status));
-		return false;
-	}
-
-	if ((rep->r.DelResponse.resultcode == 0)
-		|| (rep->r.DelResponse.errormessage == NULL)
-		|| (strtol(rep->r.DelResponse.errormessage, &endptr,16) <= 0)
-		|| (*endptr != ':')) {
-		printf("Invalid error message!\n");
-		return false;
-	}
-
-	err = ad_error(rep->r.DelResponse.errormessage, &endptr);
-	err_code_str = win_errstr(err);
-	printf(" - Errorcode: %s; Reason: %s\n", err_code_str, endptr);
-	if ((!W_ERROR_EQUAL(err, WERR_DS_CANT_DELETE) &&
-	     !W_ERROR_EQUAL(err, WERR_DS_UNWILLING_TO_PERFORM))
-		|| (rep->r.DelResponse.resultcode != LDAP_UNWILLING_TO_PERFORM)) {
-		return false;
-	}
-
-	printf(" Try another wrong removal\n");
 
 	msg->type = LDAP_TAG_DelRequest;
 	msg->r.DelRequest.dn = "";
@@ -444,391 +337,20 @@ static bool test_error_codes(struct torture_context *tctx,
 	err = ad_error(rep->r.DelResponse.errormessage, &endptr);
 	err_code_str = win_errstr(err);
 	printf(" - Errorcode: %s; Reason: %s\n", err_code_str, endptr);
-	if ((!W_ERROR_EQUAL(err, WERR_DS_OBJ_NOT_FOUND) &&
-	     !W_ERROR_EQUAL(err, WERR_DS_NO_SUCH_OBJECT))
-		|| (rep->r.DelResponse.resultcode != LDAP_NO_SUCH_OBJECT)) {
-		return false;
-	}
-
-	printf(" Try a wrong rename\n");
-
-	msg->type = LDAP_TAG_ModifyDNRequest;
-	msg->r.ModifyDNRequest.dn = basedn;
-	msg->r.ModifyDNRequest.newrdn = "dc=test";
-	msg->r.ModifyDNRequest.deleteolddn = true;
-	msg->r.ModifyDNRequest.newsuperior = NULL;
-
-	req = ldap_request_send(conn, msg);
-	if (!req) {
-		return false;
-	}
-
-	status = ldap_result_one(req, &rep, LDAP_TAG_ModifyDNResponse);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf("error in ldap rename request - %s\n", nt_errstr(status));
-		return false;
-	}
-
-	if ((rep->r.ModifyDNResponse.resultcode == 0)
-		|| (rep->r.ModifyDNResponse.errormessage == NULL)
-		|| (strtol(rep->r.ModifyDNResponse.errormessage, &endptr,16) <= 0)
-		|| (*endptr != ':')) {
-		printf("Invalid error message!\n");
-		return false;
-	}
-
-	err = ad_error(rep->r.ModifyDNResponse.errormessage, &endptr);
-	err_code_str = win_errstr(err);
-	printf(" - Errorcode: %s; Reason: %s\n", err_code_str, endptr);
-	if ((!W_ERROR_EQUAL(err, WERR_DS_NO_PARENT_OBJECT) &&
-	     !W_ERROR_EQUAL(err, WERR_DS_GENERIC_ERROR))
-		|| (rep->r.ModifyDNResponse.resultcode != LDAP_OTHER)) {
-		return false;
-	}
-
-	printf(" Try another wrong rename\n");
-
-	msg->type = LDAP_TAG_ModifyDNRequest;
-	msg->r.ModifyDNRequest.dn = basedn;
-	msg->r.ModifyDNRequest.newrdn = basedn;
-	msg->r.ModifyDNRequest.deleteolddn = true;
-	msg->r.ModifyDNRequest.newsuperior = NULL;
-
-	req = ldap_request_send(conn, msg);
-	if (!req) {
-		return false;
-	}
-
-	status = ldap_result_one(req, &rep, LDAP_TAG_ModifyDNResponse);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf("error in ldap rename request - %s\n", nt_errstr(status));
-		return false;
-	}
-
-	if ((rep->r.ModifyDNResponse.resultcode == 0)
-		|| (rep->r.ModifyDNResponse.errormessage == NULL)
-		|| (strtol(rep->r.ModifyDNResponse.errormessage, &endptr,16) <= 0)
-		|| (*endptr != ':')) {
-		printf("Invalid error message!\n");
-		return false;
-	}
-
-	err = ad_error(rep->r.ModifyDNResponse.errormessage, &endptr);
-	err_code_str = win_errstr(err);
-	printf(" - Errorcode: %s; Reason: %s\n", err_code_str, endptr);
-	if ((!W_ERROR_EQUAL(err, WERR_INVALID_PARAM) &&
-	     !W_ERROR_EQUAL(err, WERR_DS_NAMING_VIOLATION))
-		|| (rep->r.ModifyDNResponse.resultcode != LDAP_NAMING_VIOLATION)) {
-		return false;
-	}
-
-	printf(" Try another wrong rename\n");
-
-	msg->type = LDAP_TAG_ModifyDNRequest;
-	msg->r.ModifyDNRequest.dn = basedn;
-	msg->r.ModifyDNRequest.newrdn = "";
-	msg->r.ModifyDNRequest.deleteolddn = true;
-	msg->r.ModifyDNRequest.newsuperior = NULL;
-
-	req = ldap_request_send(conn, msg);
-	if (!req) {
-		return false;
-	}
-
-	status = ldap_result_one(req, &rep, LDAP_TAG_ModifyDNResponse);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf("error in ldap rename request - %s\n", nt_errstr(status));
-		return false;
-	}
-
-	if ((rep->r.ModifyDNResponse.resultcode == 0)
-		|| (rep->r.ModifyDNResponse.errormessage == NULL)
-		|| (strtol(rep->r.ModifyDNResponse.errormessage, &endptr,16) <= 0)
-		|| (*endptr != ':')) {
-		printf("Invalid error message!\n");
-		return false;
-	}
-
-	err = ad_error(rep->r.ModifyDNResponse.errormessage, &endptr);
-	err_code_str = win_errstr(err);
-	printf(" - Errorcode: %s; Reason: %s\n", err_code_str, endptr);
-	if ((!W_ERROR_EQUAL(err, WERR_INVALID_PARAM) &&
-	     !W_ERROR_EQUAL(err, WERR_DS_PROTOCOL_ERROR))
-		|| (rep->r.ModifyDNResponse.resultcode != LDAP_PROTOCOL_ERROR)) {
-		return false;
-	}
-
-	printf(" Try another wrong rename\n");
-
-	msg->type = LDAP_TAG_ModifyDNRequest;
-	msg->r.ModifyDNRequest.dn = "";
-	msg->r.ModifyDNRequest.newrdn = "cn=temp";
-	msg->r.ModifyDNRequest.deleteolddn = true;
-	msg->r.ModifyDNRequest.newsuperior = NULL;
-
-	req = ldap_request_send(conn, msg);
-	if (!req) {
-		return false;
-	}
-
-	status = ldap_result_one(req, &rep, LDAP_TAG_ModifyDNResponse);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf("error in ldap rename request - %s\n", nt_errstr(status));
-		return false;
-	}
-
-	if ((rep->r.ModifyDNResponse.resultcode == 0)
-		|| (rep->r.ModifyDNResponse.errormessage == NULL)
-		|| (strtol(rep->r.ModifyDNResponse.errormessage, &endptr,16) <= 0)
-		|| (*endptr != ':')) {
-		printf("Invalid error message!\n");
-		return false;
-	}
-
-	err = ad_error(rep->r.ModifyDNResponse.errormessage, &endptr);
-	err_code_str = win_errstr(err);
-	printf(" - Errorcode: %s; Reason: %s\n", err_code_str, endptr);
-	if ((!W_ERROR_EQUAL(err, WERR_DS_OBJ_NOT_FOUND) &&
-	     !W_ERROR_EQUAL(err, WERR_DS_NO_SUCH_OBJECT))
-		|| (rep->r.ModifyDNResponse.resultcode != LDAP_NO_SUCH_OBJECT)) {
-		return false;
-	}
-
-	return true;
-}
-
-static bool test_referrals(struct torture_context *tctx, TALLOC_CTX *mem_ctx,
-	const char *url, const char *basedn, const char **partitions)
-{
-	struct ldb_context *ldb;
-	struct ldb_result *res;
-	const char * const *attrs = { NULL };
-	struct ldb_dn *dn1, *dn2;
-	int ret;
-	int i, j, k;
-	char *tempstr;
-	bool found, l_found;
-
-	printf("Testing referrals\n");
-
-	if (partitions[0] == NULL) {
-		printf("Partitions list empty!\n");
-		return false;
-	}
-
-	if (strcmp(partitions[0], basedn) != 0) {
-		printf("The first (root) partition DN should be the base DN!\n");
-		return false;
-	}
-
-	ldb = ldb_wrap_connect(mem_ctx, tctx->ev, tctx->lp_ctx, url,
-			       NULL, cmdline_credentials, 0);
-
-	/* "partitions[i]" are the partitions for which we search the parents */
-	for (i = 1; partitions[i] != NULL; i++) {
-		dn1 = ldb_dn_new(mem_ctx, ldb, partitions[i]);
-		if (dn1 == NULL) {
-			printf("Out of memory\n");
-			talloc_free(ldb);
+	if (!torture_setting_bool(tctx, "samba4", false)) {
+		if ((!W_ERROR_EQUAL(err, WERR_DS_OBJ_NOT_FOUND))
+			|| (rep->r.DelResponse.resultcode != 32)) {
 			return false;
 		}
-
-		/* search using base scope */
-		/* "partitions[j]" are the parent candidates */
-		for (j = str_list_length(partitions) - 1; j >= 0; --j) {
-			dn2 = ldb_dn_new(mem_ctx, ldb, partitions[j]);
-			if (dn2 == NULL) {
-				printf("Out of memory\n");
-				talloc_free(ldb);
-				return false;
-			}
-
-			ret = ldb_search(ldb, mem_ctx, &res, dn2,
-					 LDB_SCOPE_BASE, attrs,
-					 "(foo=bar)");
-			if (ret != LDB_SUCCESS) {
-				printf("%s", ldb_errstring(ldb));
-				talloc_free(ldb);
-				return false;
-			}
-
-			if (res->refs != NULL) {
-				printf("There shouldn't be generated any referrals in the base scope!\n");
-				talloc_free(ldb);
-				return false;
-			}
-
-			talloc_free(res);
-			talloc_free(dn2);
+	} else {
+		if ((!W_ERROR_EQUAL(err, WERR_DS_INVALID_DN_SYNTAX))
+			|| (rep->r.DelResponse.resultcode != 34)) {
+			return false;
 		}
-
-		/* search using onelevel scope */
-		found = false;
-		/* "partitions[j]" are the parent candidates */
-		for (j = str_list_length(partitions) - 1; j >= 0; --j) {
-			dn2 = ldb_dn_new(mem_ctx, ldb, partitions[j]);
-			if (dn2 == NULL) {
-				printf("Out of memory\n");
-				talloc_free(ldb);
-				return false;
-			}
-
-			ret = ldb_search(ldb, mem_ctx, &res, dn2,
-					 LDB_SCOPE_ONELEVEL, attrs,
-					 "(foo=bar)");
-			if (ret != LDB_SUCCESS) {
-				printf("%s", ldb_errstring(ldb));
-				talloc_free(ldb);
-				return false;
-			}
-
-			tempstr = talloc_asprintf(mem_ctx, "/%s??base",
-						  partitions[i]);
-			if (tempstr == NULL) {
-				printf("Out of memory\n");
-				talloc_free(ldb);
-				return false;
-			}
-
-			/* Try to find or find not a matching referral */
-			l_found = false;
-			for (k = 0; (!l_found) && (res->refs != NULL)
-			    && (res->refs[k] != NULL); k++) {
-				if (strstr(res->refs[k], tempstr) != NULL) {
-					l_found = true;
-				}
-			}
-
-			talloc_free(tempstr);
-
-			if ((!found) && (ldb_dn_compare_base(dn2, dn1) == 0)
-			    && (ldb_dn_compare(dn2, dn1) != 0)) {
-				/* This is a referral candidate */
-				if (!l_found) {
-					printf("A required referral hasn't been found on onelevel scope (%s -> %s)!\n", partitions[j], partitions[i]);
-					talloc_free(ldb);
-					return false;
-				}
-				found = true;
-			} else {
-				/* This isn't a referral candidate */
-				if (l_found) {
-					printf("A unrequired referral has been found on onelevel scope (%s -> %s)!\n", partitions[j], partitions[i]);
-					talloc_free(ldb);
-					return false;
-				}
-			}
-
-			talloc_free(res);
-			talloc_free(dn2);
-		}
-
-		/* search using subtree scope */
-		found = false;
-		/* "partitions[j]" are the parent candidates */
-		for (j = str_list_length(partitions) - 1; j >= 0; --j) {
-			dn2 = ldb_dn_new(mem_ctx, ldb, partitions[j]);
-			if (dn2 == NULL) {
-				printf("Out of memory\n");
-				talloc_free(ldb);
-				return false;
-			}
-
-			ret = ldb_search(ldb, mem_ctx, &res, dn2,
-					 LDB_SCOPE_SUBTREE, attrs,
-					 "(foo=bar)");
-			if (ret != LDB_SUCCESS) {
-				printf("%s", ldb_errstring(ldb));
-				talloc_free(ldb);
-				return false;
-			}
-
-			tempstr = talloc_asprintf(mem_ctx, "/%s",
-						  partitions[i]);
-			if (tempstr == NULL) {
-				printf("Out of memory\n");
-				talloc_free(ldb);
-				return false;
-			}
-
-			/* Try to find or find not a matching referral */
-			l_found = false;
-			for (k = 0; (!l_found) && (res->refs != NULL)
-			    && (res->refs[k] != NULL); k++) {
-				if (strstr(res->refs[k], tempstr) != NULL) {
-					l_found = true;
-				}
-			}
-
-			talloc_free(tempstr);
-
-			if ((!found) && (ldb_dn_compare_base(dn2, dn1) == 0)
-			    && (ldb_dn_compare(dn2, dn1) != 0)) {
-				/* This is a referral candidate */
-				if (!l_found) {
-					printf("A required referral hasn't been found on subtree scope (%s -> %s)!\n", partitions[j], partitions[i]);
-					talloc_free(ldb);
-					return false;
-				}
-				found = true;
-			} else {
-				/* This isn't a referral candidate */
-				if (l_found) {
-					printf("A unrequired referral has been found on subtree scope (%s -> %s)!\n", partitions[j], partitions[i]);
-					talloc_free(ldb);
-					return false;
-				}
-			}
-
-			talloc_free(res);
-			talloc_free(dn2);
-		}
-
-		talloc_free(dn1);
-	}
-
-	talloc_free(ldb);
-
-	return true;
-}
-
-static bool test_abandom_request(struct torture_context *tctx,
-	struct ldap_connection *conn, const char *basedn)
-{
-	struct ldap_message *msg;
-	struct ldap_request *req;
-	NTSTATUS status;
-
-	printf("Testing the AbandonRequest with an old message id!\n");
-
-	if (!basedn) {
-		return false;
-	}
-
-	msg = new_ldap_message(conn);
-	if (!msg) {
-		return false;
-	}
-
-	printf(" Try a AbandonRequest for an old message id\n");
-
-	msg->type = LDAP_TAG_AbandonRequest;
-	msg->r.AbandonRequest.messageid = 1;
-
-	req = ldap_request_send(conn, msg);
-	if (!req) {
-		return false;
-	}
-
-	status = ldap_request_wait(req);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf("error in ldap abandon request - %s\n", nt_errstr(status));
-		return false;
 	}
 
 	return true;
 }
-
 
 bool torture_ldap_basic(struct torture_context *torture)
 {
@@ -839,9 +361,8 @@ bool torture_ldap_basic(struct torture_context *torture)
 	const char *host = torture_setting_string(torture, "host", NULL);
 	const char *userdn = torture_setting_string(torture, "ldap_userdn", NULL);
 	const char *secret = torture_setting_string(torture, "ldap_secret", NULL);
-	const char *url;
-	const char *basedn;
-	const char **partitions;
+	char *url;
+	char *basedn;
 
 	mem_ctx = talloc_init("torture_ldap_basic");
 
@@ -852,7 +373,7 @@ bool torture_ldap_basic(struct torture_context *torture)
 		return false;
 	}
 
-	if (!test_search_rootDSE(conn, &basedn, &partitions)) {
+	if (!test_search_rootDSE(conn, &basedn)) {
 		ret = false;
 	}
 
@@ -873,16 +394,6 @@ bool torture_ldap_basic(struct torture_context *torture)
 	/* error codes test here */
 
 	if (!test_error_codes(torture, conn, basedn)) {
-		ret = false;
-	}
-
-	/* referrals test here */
-
-	if (!test_referrals(torture, mem_ctx, url, basedn, partitions)) {
-		ret = false;
-	}
-
-	if (!test_abandom_request(torture, conn, basedn)) {
 		ret = false;
 	}
 

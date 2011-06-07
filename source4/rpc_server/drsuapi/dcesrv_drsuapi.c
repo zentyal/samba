@@ -25,18 +25,8 @@
 #include "rpc_server/dcerpc_server.h"
 #include "rpc_server/common/common.h"
 #include "dsdb/samdb/samdb.h"
-#include "libcli/security/security.h"
-#include "libcli/security/session.h"
 #include "rpc_server/drsuapi/dcesrv_drsuapi.h"
-#include "auth/auth.h"
-#include "param/param.h"
-#include "lib/messaging/irpc.h"
-
-#define DRSUAPI_UNSUPPORTED(fname) do { \
-	DEBUG(1,(__location__ ": Unsupported DRS call %s\n", #fname)); \
-	if (DEBUGLVL(2)) NDR_PRINT_IN_DEBUG(fname, r); \
-	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR); \
-} while (0)
+#include "libcli/security/security.h"
 
 /* 
   drsuapi_DsBind 
@@ -57,9 +47,6 @@ static WERROR dcesrv_drsuapi_DsBind(struct dcesrv_call_state *dce_call, TALLOC_C
 	uint32_t pid;
 	uint32_t repl_epoch;
 	int ret;
-	struct auth_session_info *auth_info;
-	WERROR werr;
-	bool connected_as_system = false;
 
 	r->out.bind_info = NULL;
 	ZERO_STRUCTP(r->out.bind_handle);
@@ -67,40 +54,12 @@ static WERROR dcesrv_drsuapi_DsBind(struct dcesrv_call_state *dce_call, TALLOC_C
 	b_state = talloc_zero(mem_ctx, struct drsuapi_bind_state);
 	W_ERROR_HAVE_NO_MEMORY(b_state);
 
-	/* if this is a DC connecting, give them system level access */
-	werr = drs_security_level_check(dce_call, NULL, SECURITY_DOMAIN_CONTROLLER, NULL);
-	if (W_ERROR_IS_OK(werr)) {
-		DEBUG(3,(__location__ ": doing DsBind with system_session\n"));
-		auth_info = system_session(dce_call->conn->dce_ctx->lp_ctx);
-		connected_as_system = true;
-	} else {
-		auth_info = dce_call->conn->auth_state.session_info;
-	}
-
 	/*
 	 * connect to the samdb
 	 */
-	b_state->sam_ctx = samdb_connect(b_state, dce_call->event_ctx, 
-					 dce_call->conn->dce_ctx->lp_ctx, auth_info, 0);
+	b_state->sam_ctx = samdb_connect(b_state, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx, dce_call->conn->auth_state.session_info); 
 	if (!b_state->sam_ctx) {
 		return WERR_FOOBAR;
-	}
-
-	if (connected_as_system) {
-		b_state->sam_ctx_system = b_state->sam_ctx;
-	} else {
-		/* an RODC also needs system samdb access for secret
-		   attribute replication */
-		werr = drs_security_level_check(dce_call, NULL, SECURITY_RO_DOMAIN_CONTROLLER,
-						samdb_domain_sid(b_state->sam_ctx));
-		if (W_ERROR_IS_OK(werr)) {
-			b_state->sam_ctx_system = samdb_connect(b_state, dce_call->event_ctx,
-								dce_call->conn->dce_ctx->lp_ctx,
-								system_session(dce_call->conn->dce_ctx->lp_ctx), 0);
-			if (!b_state->sam_ctx_system) {
-				return WERR_FOOBAR;
-			}
-		}
 	}
 
 	/*
@@ -135,8 +94,7 @@ static WERROR dcesrv_drsuapi_DsBind(struct dcesrv_call_state *dce_call, TALLOC_C
 	if (ntds_res->count != 1) {
 		return WERR_DS_DRA_INTERNAL_ERROR;
 	}
-	repl_epoch = ldb_msg_find_attr_as_uint(ntds_res->msgs[0],
-					       "ms-DS-ReplicationEpoch", 0);
+	repl_epoch = samdb_result_uint(ntds_res->msgs[0], "ms-DS-ReplicationEpoch", 0);
 
 	/*
 	 * The "process identifier" of the client.
@@ -188,7 +146,10 @@ static WERROR dcesrv_drsuapi_DsBind(struct dcesrv_call_state *dce_call, TALLOC_C
 	b_state->local_info28.supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_RESTORE_USN_OPTIMIZATION;
 	b_state->local_info28.supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_KCC_EXECUTE;
 	b_state->local_info28.supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_ADDENTRY_V2;
-	b_state->local_info28.supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_LINKED_VALUE_REPLICATION;
+	if (0 /*domain.behavior_version == 2*/) {
+		/* TODO: find out how this is really triggered! */
+		b_state->local_info28.supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_LINKED_VALUE_REPLICATION;
+	}
 	b_state->local_info28.supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_DCINFO_V2;
 	b_state->local_info28.supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_INSTANCE_TYPE_NOT_REQ_ON_MOD;
 	b_state->local_info28.supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_CRYPTO_BIND;
@@ -198,7 +159,7 @@ static WERROR dcesrv_drsuapi_DsBind(struct dcesrv_call_state *dce_call, TALLOC_C
 	b_state->local_info28.supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_TRANSITIVE_MEMBERSHIP;
 	b_state->local_info28.supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_ADD_SID_HISTORY;
 	b_state->local_info28.supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_POST_BETA3;
-	b_state->local_info28.supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_GETCHGREQ_V5;
+	b_state->local_info28.supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_00100000;
 	b_state->local_info28.supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_GET_MEMBERSHIPS2;
 	b_state->local_info28.supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_GETCHGREQ_V6;
 	b_state->local_info28.supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_NONDOMAIN_NCS;
@@ -211,7 +172,6 @@ static WERROR dcesrv_drsuapi_DsBind(struct dcesrv_call_state *dce_call, TALLOC_C
 #if 0 /* we don't support XPRESS compression yet */
 	b_state->local_info28.supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_XPRESS_COMPRESS;
 #endif
-	b_state->local_info28.supported_extensions	|= DRSUAPI_SUPPORTED_EXTENSION_GETCHGREQ_V10;
 	b_state->local_info28.site_guid			= site_guid;
 	b_state->local_info28.pid			= pid;
 	b_state->local_info28.repl_epoch		= repl_epoch;
@@ -269,33 +229,15 @@ static WERROR dcesrv_drsuapi_DsReplicaSync(struct dcesrv_call_state *dce_call, T
 					   struct drsuapi_DsReplicaSync *r)
 {
 	WERROR status;
-	uint32_t timeout;
 
-	status = drs_security_level_check(dce_call, "DsReplicaSync", SECURITY_DOMAIN_CONTROLLER, NULL);
+	status = drs_security_level_check(dce_call, "DsReplicaSync");
 	if (!W_ERROR_IS_OK(status)) {
 		return status;
 	}
 
-	if (r->in.level != 1) {
-		DEBUG(0,("DsReplicaSync called with unsupported level %d\n", r->in.level));
-		return WERR_DS_DRA_INVALID_PARAMETER;
-	}
-
-	if (r->in.req->req1.options & DRSUAPI_DRS_ASYNC_OP) {
-		timeout = IRPC_CALL_TIMEOUT;
-	} else {
-		/*
-		 * use Infinite time for timeout in case
-		 * the caller made a sync call
-		 */
-		timeout = IRPC_CALL_TIMEOUT_INF;
-	}
-
-	dcesrv_irpc_forward_rpc_call(dce_call, mem_ctx,
-				     r, NDR_DRSUAPI_DSREPLICASYNC,
+	dcesrv_irpc_forward_rpc_call(dce_call, mem_ctx, r, NDR_DRSUAPI_DSREPLICASYNC,
 				     &ndr_table_drsuapi,
-				     "dreplsrv", "DsReplicaSync",
-				     timeout);
+				     "dreplsrv", "DsReplicaSync");
 
 	return WERR_OK;
 }
@@ -307,20 +249,7 @@ static WERROR dcesrv_drsuapi_DsReplicaSync(struct dcesrv_call_state *dce_call, T
 static WERROR dcesrv_drsuapi_DsReplicaAdd(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 					  struct drsuapi_DsReplicaAdd *r)
 {
-	WERROR status;
-
-	status = drs_security_level_check(dce_call, "DsReplicaAdd", SECURITY_DOMAIN_CONTROLLER, NULL);
-	if (!W_ERROR_IS_OK(status)) {
-		return status;
-	}
-
-	dcesrv_irpc_forward_rpc_call(dce_call, mem_ctx,
-				     r, NDR_DRSUAPI_DSREPLICAADD,
-				     &ndr_table_drsuapi,
-				     "dreplsrv", "DsReplicaAdd",
-				     IRPC_CALL_TIMEOUT);
-
-	return WERR_OK;
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
 
 
@@ -330,20 +259,7 @@ static WERROR dcesrv_drsuapi_DsReplicaAdd(struct dcesrv_call_state *dce_call, TA
 static WERROR dcesrv_drsuapi_DsReplicaDel(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 					  struct drsuapi_DsReplicaDel *r)
 {
-	WERROR status;
-
-	status = drs_security_level_check(dce_call, "DsReplicaDel", SECURITY_DOMAIN_CONTROLLER, NULL);
-	if (!W_ERROR_IS_OK(status)) {
-		return status;
-	}
-
-	dcesrv_irpc_forward_rpc_call(dce_call, mem_ctx,
-				     r, NDR_DRSUAPI_DSREPLICADEL,
-				     &ndr_table_drsuapi,
-				     "dreplsrv", "DsReplicaDel",
-				     IRPC_CALL_TIMEOUT);
-
-	return WERR_OK;
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
 
 
@@ -353,20 +269,7 @@ static WERROR dcesrv_drsuapi_DsReplicaDel(struct dcesrv_call_state *dce_call, TA
 static WERROR dcesrv_drsuapi_DsReplicaMod(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 					  struct drsuapi_DsReplicaMod *r)
 {
-	WERROR status;
-
-	status = drs_security_level_check(dce_call, "DsReplicaMod", SECURITY_DOMAIN_CONTROLLER, NULL);
-	if (!W_ERROR_IS_OK(status)) {
-		return status;
-	}
-
-	dcesrv_irpc_forward_rpc_call(dce_call, mem_ctx,
-				     r, NDR_DRSUAPI_DSREPLICAMOD,
-				     &ndr_table_drsuapi,
-				     "dreplsrv", "DsReplicaMod",
-				     IRPC_CALL_TIMEOUT);
-
-	return WERR_OK;
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
 
 
@@ -376,7 +279,7 @@ static WERROR dcesrv_drsuapi_DsReplicaMod(struct dcesrv_call_state *dce_call, TA
 static WERROR dcesrv_DRSUAPI_VERIFY_NAMES(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 		       struct DRSUAPI_VERIFY_NAMES *r)
 {
-	DRSUAPI_UNSUPPORTED(DRSUAPI_VERIFY_NAMES);
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
 
 
@@ -386,7 +289,7 @@ static WERROR dcesrv_DRSUAPI_VERIFY_NAMES(struct dcesrv_call_state *dce_call, TA
 static WERROR dcesrv_drsuapi_DsGetMemberships(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 		       struct drsuapi_DsGetMemberships *r)
 {
-	DRSUAPI_UNSUPPORTED(drsuapi_DsGetMemberships);
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
 
 
@@ -396,7 +299,7 @@ static WERROR dcesrv_drsuapi_DsGetMemberships(struct dcesrv_call_state *dce_call
 static WERROR dcesrv_DRSUAPI_INTER_DOMAIN_MOVE(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 		       struct DRSUAPI_INTER_DOMAIN_MOVE *r)
 {
-	DRSUAPI_UNSUPPORTED(DRSUAPI_INTER_DOMAIN_MOVE);
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
 
 
@@ -406,8 +309,9 @@ static WERROR dcesrv_DRSUAPI_INTER_DOMAIN_MOVE(struct dcesrv_call_state *dce_cal
 static WERROR dcesrv_drsuapi_DsGetNT4ChangeLog(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 		       struct drsuapi_DsGetNT4ChangeLog *r)
 {
-	DRSUAPI_UNSUPPORTED(drsuapi_DsGetNT4ChangeLog);
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
+
 
 /* 
   drsuapi_DsCrackNames 
@@ -415,6 +319,7 @@ static WERROR dcesrv_drsuapi_DsGetNT4ChangeLog(struct dcesrv_call_state *dce_cal
 static WERROR dcesrv_drsuapi_DsCrackNames(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 			    struct drsuapi_DsCrackNames *r)
 {
+	WERROR status;
 	struct drsuapi_bind_state *b_state;
 	struct dcesrv_handle *h;
 
@@ -428,35 +333,113 @@ static WERROR dcesrv_drsuapi_DsCrackNames(struct dcesrv_call_state *dce_call, TA
 
 	switch (r->in.level) {
 		case 1: {
-			switch(r->in.req->req1.format_offered){
-			case DRSUAPI_DS_NAME_FORMAT_UPN_AND_ALTSECID:
-			case DRSUAPI_DS_NAME_FORMAT_NT4_ACCOUNT_NAME_SANS_DOMAIN_EX:
-			case DRSUAPI_DS_NAME_FORMAT_LIST_GLOBAL_CATALOG_SERVERS:
-			case DRSUAPI_DS_NAME_FORMAT_UPN_FOR_LOGON:
-			case DRSUAPI_DS_NAME_FORMAT_LIST_SERVERS_WITH_DCS_IN_SITE:
-			case DRSUAPI_DS_NAME_FORMAT_STRING_SID_NAME:
-			case DRSUAPI_DS_NAME_FORMAT_ALT_SECURITY_IDENTITIES_NAME:
-			case DRSUAPI_DS_NAME_FORMAT_LIST_NCS:
-			case DRSUAPI_DS_NAME_FORMAT_LIST_DOMAINS:
-			case DRSUAPI_DS_NAME_FORMAT_MAP_SCHEMA_GUID:
-			case DRSUAPI_DS_NAME_FORMAT_NT4_ACCOUNT_NAME_SANS_DOMAIN:
-			case DRSUAPI_DS_NAME_FORMAT_LIST_INFO_FOR_SERVER:
-			case DRSUAPI_DS_NAME_FORMAT_LIST_SERVERS_FOR_DOMAIN_IN_SITE:
-			case DRSUAPI_DS_NAME_FORMAT_LIST_DOMAINS_IN_SITE:
-			case DRSUAPI_DS_NAME_FORMAT_LIST_SERVERS_IN_SITE:
-			case DRSUAPI_DS_NAME_FORMAT_LIST_SITES:
-				DEBUG(0, ("DsCrackNames: Unsupported operation requested: %X",
-					  r->in.req->req1.format_offered));
-				return WERR_OK;
-			case DRSUAPI_DS_NAME_FORMAT_LIST_ROLES:
-				return dcesrv_drsuapi_ListRoles(b_state->sam_ctx, mem_ctx,
-								&r->in.req->req1, &r->out.ctr->ctr1);
-			default:/* format_offered is in the enum drsuapi_DsNameFormat*/
-				return dcesrv_drsuapi_CrackNamesByNameFormat(b_state->sam_ctx, mem_ctx,
-									     &r->in.req->req1, &r->out.ctr->ctr1);
+			struct drsuapi_DsNameCtr1 *ctr1;
+			struct drsuapi_DsNameInfo1 *names;
+			int count;
+			int i;
+
+			ctr1 = talloc(mem_ctx, struct drsuapi_DsNameCtr1);
+			W_ERROR_HAVE_NO_MEMORY(ctr1);
+
+			count = r->in.req->req1.count;
+			names = talloc_array(mem_ctx, struct drsuapi_DsNameInfo1, count);
+			W_ERROR_HAVE_NO_MEMORY(names);
+
+			for (i=0; i < count; i++) {
+				status = DsCrackNameOneName(b_state->sam_ctx, mem_ctx,
+							    r->in.req->req1.format_flags,
+							    r->in.req->req1.format_offered,
+							    r->in.req->req1.format_desired,
+							    r->in.req->req1.names[i].str,
+							    &names[i]);
+				if (!W_ERROR_IS_OK(status)) {
+					return status;
+				}
 			}
+
+			ctr1->count = count;
+			ctr1->array = names;
+			r->out.ctr->ctr1 = ctr1;
+
+			return WERR_OK;
 		}
 	}
+	
+	return WERR_UNKNOWN_LEVEL;
+}
+
+/* 
+  drsuapi_DsWriteAccountSpn 
+*/
+static WERROR dcesrv_drsuapi_DsWriteAccountSpn(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+		       struct drsuapi_DsWriteAccountSpn *r)
+{
+	struct drsuapi_bind_state *b_state;
+	struct dcesrv_handle *h;
+
+	*r->out.level_out = r->in.level;
+
+	DCESRV_PULL_HANDLE_WERR(h, r->in.bind_handle, DRSUAPI_BIND_HANDLE);
+	b_state = h->data;
+
+	r->out.res = talloc(mem_ctx, union drsuapi_DsWriteAccountSpnResult);
+	W_ERROR_HAVE_NO_MEMORY(r->out.res);
+
+	switch (r->in.level) {
+		case 1: {
+			struct drsuapi_DsWriteAccountSpnRequest1 *req;
+			struct ldb_message *msg;
+			int count, i, ret;
+			req = &r->in.req->req1;
+			count = req->count;
+
+			msg = ldb_msg_new(mem_ctx);
+			if (msg == NULL) {
+				return WERR_NOMEM;
+			}
+
+			msg->dn = ldb_dn_new(msg, b_state->sam_ctx, req->object_dn);
+			if ( ! ldb_dn_validate(msg->dn)) {
+				r->out.res->res1.status = WERR_OK;
+				return WERR_OK;
+			}
+			
+			/* construct mods */
+			for (i = 0; i < count; i++) {
+				samdb_msg_add_string(b_state->sam_ctx, 
+						     msg, msg, "servicePrincipalName",
+						     req->spn_names[i].str);
+			}
+			for (i=0;i<msg->num_elements;i++) {
+				switch (req->operation) {
+				case DRSUAPI_DS_SPN_OPERATION_ADD:
+ 					msg->elements[i].flags = LDB_FLAG_MOD_ADD;
+					break;
+				case DRSUAPI_DS_SPN_OPERATION_REPLACE:
+					msg->elements[i].flags = LDB_FLAG_MOD_REPLACE;
+					break;
+				case DRSUAPI_DS_SPN_OPERATION_DELETE:
+					msg->elements[i].flags = LDB_FLAG_MOD_DELETE;
+					break;
+				}
+			}
+   
+			/* Apply to database */
+
+			ret = ldb_modify(b_state->sam_ctx, msg);
+			if (ret != 0) {
+				DEBUG(0,("Failed to modify SPNs on %s: %s\n",
+					 ldb_dn_get_linearized(msg->dn), 
+					 ldb_errstring(b_state->sam_ctx)));
+				r->out.res->res1.status = WERR_ACCESS_DENIED;
+			} else {
+				r->out.res->res1.status = WERR_OK;
+			}
+
+			return WERR_OK;
+		}
+	}
+	
 	return WERR_UNKNOWN_LEVEL;
 }
 
@@ -474,9 +457,10 @@ static WERROR dcesrv_drsuapi_DsRemoveDSServer(struct dcesrv_call_state *dce_call
 	bool ok;
 	WERROR status;
 
+	ZERO_STRUCT(r->out.res);
 	*r->out.level_out = 1;
 
-	status = drs_security_level_check(dce_call, "DsRemoveDSServer", SECURITY_DOMAIN_CONTROLLER, NULL);
+	status = drs_security_level_check(dce_call, "DsRemoveDSServer");
 	if (!W_ERROR_IS_OK(status)) {
 		return status;
 	}
@@ -523,15 +507,15 @@ static WERROR dcesrv_drsuapi_DsRemoveDSServer(struct dcesrv_call_state *dce_call
 static WERROR dcesrv_DRSUAPI_REMOVE_DS_DOMAIN(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 		       struct DRSUAPI_REMOVE_DS_DOMAIN *r)
 {
-	DRSUAPI_UNSUPPORTED(DRSUAPI_REMOVE_DS_DOMAIN);
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
 
 /* Obtain the site name from a server DN */
-static const char *result_site_name(struct ldb_dn *server_dn)
+static const char *result_site_name(struct ldb_dn *site_dn)
 {
 	/* Format is cn=<NETBIOS name>,cn=Servers,cn=<site>,cn=sites.... */
-	const struct ldb_val *val = ldb_dn_get_component_val(server_dn, 2);
-	const char *name = ldb_dn_get_component_name(server_dn, 2);
+	const struct ldb_val *val = ldb_dn_get_component_val(site_dn, 2);
+	const char *name = ldb_dn_get_component_name(site_dn, 2);
 
 	if (!name || (ldb_attr_cmp(name, "cn") != 0)) {
 		/* Ensure this matches the format.  This gives us a
@@ -571,8 +555,7 @@ static WERROR dcesrv_drsuapi_DsGetDomainControllerInfo_1(struct drsuapi_bind_sta
 	struct drsuapi_DsGetDCInfoCtr1 *ctr1;
 	struct drsuapi_DsGetDCInfoCtr2 *ctr2;
 
-	int ret;
-	unsigned int i;
+	int ret, i;
 
 	*r->out.level_out = r->in.req->req1.level;
 	r->out.ctr = talloc(mem_ctx, union drsuapi_DsGetDCInfoCtr);
@@ -702,7 +685,7 @@ static WERROR dcesrv_drsuapi_DsGetDomainControllerInfo_1(struct drsuapi_bind_sta
 						 LDB_SCOPE_BASE, attrs_ntds, "objectClass=nTDSDSA");
 			if (ret == LDB_SUCCESS && res_ntds->count == 1) {
 				ctr2->array[i].is_gc
-					= (ldb_msg_find_attr_as_uint(res_ntds->msgs[0], "options", 0) & DS_NTDSDSA_OPT_IS_GC);
+					= (ldb_msg_find_attr_as_int(res_ntds->msgs[0], "options", 0) == 1);
 				ctr2->array[i].ntds_guid 
 					= samdb_result_guid(res_ntds->msgs[0], "objectGUID");
 				ctr2->array[i].ntds_dn = ldb_dn_get_linearized(res_ntds->msgs[0]->dn);
@@ -800,17 +783,7 @@ static WERROR dcesrv_drsuapi_DsGetDomainControllerInfo(struct dcesrv_call_state 
 static WERROR dcesrv_drsuapi_DsExecuteKCC(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 				  struct drsuapi_DsExecuteKCC *r)
 {
-	WERROR status;
-	status = drs_security_level_check(dce_call, "DsExecuteKCC", SECURITY_DOMAIN_CONTROLLER, NULL);
-
-	if (!W_ERROR_IS_OK(status)) {
-		return status;
-	}
-
-	dcesrv_irpc_forward_rpc_call(dce_call, mem_ctx, r, NDR_DRSUAPI_DSEXECUTEKCC,
-				     &ndr_table_drsuapi, "kccsrv", "DsExecuteKCC",
-				     IRPC_CALL_TIMEOUT);
-	return WERR_OK;
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
 
 
@@ -820,23 +793,7 @@ static WERROR dcesrv_drsuapi_DsExecuteKCC(struct dcesrv_call_state *dce_call, TA
 static WERROR dcesrv_drsuapi_DsReplicaGetInfo(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 		       struct drsuapi_DsReplicaGetInfo *r)
 {
-	enum security_user_level level;
-
-	if (!lpcfg_parm_bool(dce_call->conn->dce_ctx->lp_ctx, NULL,
-			 "drs", "disable_sec_check", false)) {
-		level = security_session_user_level(dce_call->conn->auth_state.session_info, NULL);
-		if (level < SECURITY_DOMAIN_CONTROLLER) {
-			DEBUG(1,(__location__ ": Administrator access required for DsReplicaGetInfo\n"));
-			security_token_debug(0, 2, dce_call->conn->auth_state.session_info->security_token);
-			return WERR_DS_DRA_ACCESS_DENIED;
-		}
-	}
-
-	dcesrv_irpc_forward_rpc_call(dce_call, mem_ctx, r, NDR_DRSUAPI_DSREPLICAGETINFO,
-				     &ndr_table_drsuapi, "kccsrv", "DsReplicaGetInfo",
-				     IRPC_CALL_TIMEOUT);
-
-	return WERR_OK;
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
 
 
@@ -846,7 +803,7 @@ static WERROR dcesrv_drsuapi_DsReplicaGetInfo(struct dcesrv_call_state *dce_call
 static WERROR dcesrv_DRSUAPI_ADD_SID_HISTORY(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 		       struct DRSUAPI_ADD_SID_HISTORY *r)
 {
-	DRSUAPI_UNSUPPORTED(DRSUAPI_ADD_SID_HISTORY);
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
 
 /* 
@@ -855,7 +812,7 @@ static WERROR dcesrv_DRSUAPI_ADD_SID_HISTORY(struct dcesrv_call_state *dce_call,
 static WERROR dcesrv_drsuapi_DsGetMemberships2(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 		       struct drsuapi_DsGetMemberships2 *r)
 {
-	DRSUAPI_UNSUPPORTED(drsuapi_DsGetMemberships2);
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
 
 /* 
@@ -864,7 +821,7 @@ static WERROR dcesrv_drsuapi_DsGetMemberships2(struct dcesrv_call_state *dce_cal
 static WERROR dcesrv_DRSUAPI_REPLICA_VERIFY_OBJECTS(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 		       struct DRSUAPI_REPLICA_VERIFY_OBJECTS *r)
 {
-	DRSUAPI_UNSUPPORTED(DRSUAPI_REPLICA_VERIFY_OBJECTS);
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
 
 
@@ -874,7 +831,7 @@ static WERROR dcesrv_DRSUAPI_REPLICA_VERIFY_OBJECTS(struct dcesrv_call_state *dc
 static WERROR dcesrv_DRSUAPI_GET_OBJECT_EXISTENCE(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 		       struct DRSUAPI_GET_OBJECT_EXISTENCE *r)
 {
-	DRSUAPI_UNSUPPORTED(DRSUAPI_GET_OBJECT_EXISTENCE);
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
 
 
@@ -884,7 +841,7 @@ static WERROR dcesrv_DRSUAPI_GET_OBJECT_EXISTENCE(struct dcesrv_call_state *dce_
 static WERROR dcesrv_drsuapi_QuerySitesByCost(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 		       struct drsuapi_QuerySitesByCost *r)
 {
-	DRSUAPI_UNSUPPORTED(drsuapi_QuerySitesByCost);
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
 
 

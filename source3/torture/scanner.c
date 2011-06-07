@@ -2,25 +2,22 @@
    Unix SMB/CIFS implementation.
    SMB torture tester - scanning functions
    Copyright (C) Andrew Tridgell 2001
-
+   
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
-#include "system/filesys.h"
-#include "torture/proto.h"
-#include "libsmb/libsmb.h"
 
 #define VERBOSE 0
 #define OP_MIN 0
@@ -52,40 +49,40 @@ check for existance of a trans2 call
 ****************************************************************************/
 static NTSTATUS try_trans2(struct cli_state *cli, 
 			 int op,
-			 uint8_t *param, uint8_t *data,
-			 uint32_t param_len, uint32_t data_len,
-			 uint32_t *rparam_len, uint32_t *rdata_len)
+			 char *param, char *data,
+			 int param_len, int data_len,
+			 unsigned int *rparam_len, unsigned int *rdata_len)
 {
-	uint16_t setup[1];
-	uint8_t *rparam=NULL, *rdata=NULL;
-	NTSTATUS status;
+	uint16 setup = op;
+	char *rparam=NULL, *rdata=NULL;
 
-	SSVAL(setup+0, 0, op);
+	if (!cli_send_trans(cli, SMBtrans2, 
+                            NULL,                           /* name */
+                            -1, 0,                          /* fid, flags */
+                            &setup, 1, 0,                   /* setup, length, max */
+                            param, param_len, 2,            /* param, length, max */
+                            data, data_len, cli->max_xmit   /* data, length, max */
+                           )) {
+		return cli_nt_error(cli);
+	}
 
-	status = cli_trans(talloc_tos(), cli, SMBtrans2,
-			   NULL, -1, /* name, fid */
-			   op, 0,
-			   NULL, 0, 0, /* setup */
-			   param, param_len, 2,
-			   data, data_len, cli->max_xmit,
-			   NULL,		/* recv_flags2 */
-			   NULL, 0, NULL,	/* rsetup */
-			   &rparam, 0, rparam_len,
-			   &rdata, 0, rdata_len);
+	cli_receive_trans(cli, SMBtrans2,
+			   &rparam, rparam_len,
+			   &rdata, rdata_len);
 
-	TALLOC_FREE(rdata);
-	TALLOC_FREE(rparam);
+	SAFE_FREE(rdata);
+	SAFE_FREE(rparam);
 
-	return status;
+	return cli_nt_error(cli);
 }
 
 
 static NTSTATUS try_trans2_len(struct cli_state *cli, 
 			     const char *format,
 			     int op, int level,
-			     uint8_t *param, uint8_t *data,
-			     uint32_t param_len, uint32_t *data_len,
-			     uint32_t *rparam_len, uint32_t *rdata_len)
+			     char *param, char *data,
+			     int param_len, int *data_len,
+			     unsigned int *rparam_len, unsigned int *rdata_len)
 {
 	NTSTATUS ret=NT_STATUS_OK;
 
@@ -118,10 +115,10 @@ check for existance of a trans2 call
 static bool scan_trans2(struct cli_state *cli, int op, int level, 
 			int fnum, int dnum, const char *fname)
 {
-	uint32_t data_len = 0;
-	uint32_t param_len = 0;
-	uint32_t rparam_len, rdata_len;
-	uint8_t param[PARAM_SIZE], data[DATA_SIZE];
+	int data_len = 0;
+	int param_len = 0;
+	unsigned int rparam_len, rdata_len;
+	char param[PARAM_SIZE], data[DATA_SIZE];
 	NTSTATUS status;
 
 	memset(data, 0, sizeof(data));
@@ -173,7 +170,7 @@ static bool scan_trans2(struct cli_state *cli, int op, int level,
 
 	status = try_trans2_len(cli, "newfile", op, level, param, data, param_len, &data_len, 
 				&rparam_len, &rdata_len);
-	cli_unlink(cli, "\\newfile.dat", FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN);
+	cli_unlink(cli, "\\newfile.dat", aSYSTEM | aHIDDEN);
 	cli_rmdir(cli, "\\newfile.dat");
 	if (NT_STATUS_IS_OK(status)) return True;
 
@@ -261,38 +258,39 @@ static void nttrans_check_hit(const char *format, int op, int level, NTSTATUS st
 check for existance of a nttrans call
 ****************************************************************************/
 static NTSTATUS try_nttrans(struct cli_state *cli, 
-			    int op,
-			    uint8_t *param, uint8_t *data,
-			    int32_t param_len, uint32_t data_len,
-			    uint32_t *rparam_len,
-			    uint32_t *rdata_len)
+			 int op,
+			 char *param, char *data,
+			 int param_len, int data_len,
+			 unsigned int *rparam_len, unsigned int *rdata_len)
 {
-	uint8_t *rparam=NULL, *rdata=NULL;
-	NTSTATUS status;
+	char *rparam=NULL, *rdata=NULL;
 
-	status = cli_trans(talloc_tos(), cli, SMBnttrans,
-			   NULL, -1, /* name, fid */
-			   op, 0,
-			   NULL, 0, 0, /* setup */
-			   param, param_len, 2,
-			   data, data_len, cli->max_xmit,
-			   NULL,		/* recv_flags2 */
-			   NULL, 0, NULL,	/* rsetup */
-			   &rparam, 0, rparam_len,
-			   &rdata, 0, rdata_len);
+	if (!cli_send_nt_trans(cli, op, 
+			       0,   
+			       NULL, 0, 0,
+			       param, param_len, 2,            /* param, length, max */
+			       data, data_len, cli->max_xmit   /* data, length, max */
+                           )) {
+		return cli_nt_error(cli);
+	}
+
+	cli_receive_nt_trans(cli,
+			     &rparam, rparam_len,
+			     &rdata, rdata_len);
+
 	SAFE_FREE(rdata);
 	SAFE_FREE(rparam);
 
-	return status;
+	return cli_nt_error(cli);
 }
 
 
 static NTSTATUS try_nttrans_len(struct cli_state *cli, 
 			     const char *format,
 			     int op, int level,
-			     uint8_t *param, uint8_t *data,
-			     int param_len, uint32_t *data_len,
-			     uint32_t *rparam_len, uint32_t *rdata_len)
+			     char *param, char *data,
+			     int param_len, int *data_len,
+			     unsigned int *rparam_len, unsigned int *rdata_len)
 {
 	NTSTATUS ret=NT_STATUS_OK;
 
@@ -325,10 +323,10 @@ check for existance of a nttrans call
 static bool scan_nttrans(struct cli_state *cli, int op, int level, 
 			int fnum, int dnum, const char *fname)
 {
-	uint32_t data_len = 0;
-	uint32_t param_len = 0;
-	uint32_t rparam_len, rdata_len;
-	uint8_t param[PARAM_SIZE], data[DATA_SIZE];
+	int data_len = 0;
+	int param_len = 0;
+	unsigned int rparam_len, rdata_len;
+	char param[PARAM_SIZE], data[DATA_SIZE];
 	NTSTATUS status;
 
 	memset(data, 0, sizeof(data));
@@ -380,7 +378,7 @@ static bool scan_nttrans(struct cli_state *cli, int op, int level,
 
 	status = try_nttrans_len(cli, "newfile", op, level, param, data, param_len, &data_len, 
 				&rparam_len, &rdata_len);
-	cli_unlink(cli, "\\newfile.dat", FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN);
+	cli_unlink(cli, "\\newfile.dat", aSYSTEM | aHIDDEN);
 	cli_rmdir(cli, "\\newfile.dat");
 	if (NT_STATUS_IS_OK(status)) return True;
 

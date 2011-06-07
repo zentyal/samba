@@ -26,9 +26,9 @@
 
 #include "includes.h"
 #include "system/filesys.h"
-#include <tdb.h>
+#include "../tdb/include/tdb.h"
 #include "messaging/messaging.h"
-#include "lib/util/tdb_wrap.h"
+#include "tdb_wrap.h"
 #include "lib/messaging/irpc.h"
 #include "libcli/libcli.h"
 #include "cluster/cluster.h"
@@ -79,13 +79,6 @@ struct brl_handle {
 	struct ntvfs_handle *ntvfs;
 	struct lock_struct last_lock;
 };
-
-/* see if we have wrapped locks, which are no longer allowed (windows
- * changed this in win7 */
-static bool brl_invalid_lock_range(uint64_t start, uint64_t size)
-{
-	return (size > 1 && (start + size < start));
-}
 
 /*
   Open up the brlock.tdb database. Close it down using
@@ -306,10 +299,6 @@ static NTSTATUS brl_tdb_lock(struct brl_context *brl,
 	kbuf.dptr = brlh->key.data;
 	kbuf.dsize = brlh->key.length;
 
-	if (brl_invalid_lock_range(start, size)) {
-		return NT_STATUS_INVALID_LOCK_RANGE;
-	}
-
 	if (tdb_chainlock(brl->w->tdb, kbuf) != 0) {
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
@@ -459,10 +448,6 @@ static NTSTATUS brl_tdb_unlock(struct brl_context *brl,
 
 	kbuf.dptr = brlh->key.data;
 	kbuf.dsize = brlh->key.length;
-
-	if (brl_invalid_lock_range(start, size)) {
-		return NT_STATUS_INVALID_LOCK_RANGE;
-	}
 
 	if (tdb_chainlock(brl->w->tdb, kbuf) != 0) {
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
@@ -635,10 +620,6 @@ static NTSTATUS brl_tdb_locktest(struct brl_context *brl,
 	kbuf.dptr = brlh->key.data;
 	kbuf.dsize = brlh->key.length;
 
-	if (brl_invalid_lock_range(start, size)) {
-		return NT_STATUS_INVALID_LOCK_RANGE;
-	}
-
 	dbuf = tdb_fetch(brl->w->tdb, kbuf);
 	if (dbuf.dptr == NULL) {
 		return NT_STATUS_OK;
@@ -738,32 +719,6 @@ static NTSTATUS brl_tdb_close(struct brl_context *brl,
 	return status;
 }
 
-static NTSTATUS brl_tdb_count(struct brl_context *brl, struct brl_handle *brlh,
-			      int *count)
-{
-	TDB_DATA kbuf, dbuf;
-
-	kbuf.dptr = brlh->key.data;
-	kbuf.dsize = brlh->key.length;
-	*count = 0;
-
-	if (tdb_chainlock(brl->w->tdb, kbuf) != 0) {
-		return NT_STATUS_INTERNAL_DB_CORRUPTION;
-	}
-
-	dbuf = tdb_fetch(brl->w->tdb, kbuf);
-	if (!dbuf.dptr) {
-		tdb_chainunlock(brl->w->tdb, kbuf);
-		return NT_STATUS_OK;
-	}
-
-	*count = dbuf.dsize / sizeof(struct lock_struct);
-
-	free(dbuf.dptr);
-	tdb_chainunlock(brl->w->tdb, kbuf);
-
-	return NT_STATUS_OK;
-}
 
 static const struct brlock_ops brlock_tdb_ops = {
 	.brl_init           = brl_tdb_init,
@@ -772,8 +727,7 @@ static const struct brlock_ops brlock_tdb_ops = {
 	.brl_unlock         = brl_tdb_unlock,
 	.brl_remove_pending = brl_tdb_remove_pending,
 	.brl_locktest       = brl_tdb_locktest,
-	.brl_close          = brl_tdb_close,
-	.brl_count          = brl_tdb_count
+	.brl_close          = brl_tdb_close
 };
 
 

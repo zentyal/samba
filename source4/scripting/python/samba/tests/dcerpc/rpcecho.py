@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 
 # Unix SMB/CIFS implementation.
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2008
@@ -17,17 +17,15 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-"""Tests for samba.dceprc.rpcecho."""
-
 from samba.dcerpc import echo
 from samba.ndr import ndr_pack, ndr_unpack
-from samba.tests import RpcInterfaceTestCase, TestCase
+import unittest
+from samba.tests import RpcInterfaceTestCase
 
 
 class RpcEchoTests(RpcInterfaceTestCase):
 
     def setUp(self):
-        super(RpcEchoTests, self).setUp()
         self.conn = echo.rpcecho("ncalrpc:", self.get_loadparm())
 
     def test_two_contexts(self):
@@ -35,7 +33,7 @@ class RpcEchoTests(RpcInterfaceTestCase):
         self.assertEquals(3, self.conn2.AddOne(2))
 
     def test_abstract_syntax(self):
-        self.assertEquals(("60a15ec5-4de8-11d7-a637-005056a20182", 1),
+        self.assertEquals(("60a15ec5-4de8-11d7-a637-005056a20182", 1), 
                           self.conn.abstract_syntax)
 
     def test_addone(self):
@@ -61,7 +59,7 @@ class RpcEchoTests(RpcInterfaceTestCase):
         self.assertEquals(None, self.conn.server_name)
 
 
-class NdrEchoTests(TestCase):
+class NdrEchoTests(unittest.TestCase):
 
     def test_info1_push(self):
         x = echo.info1()

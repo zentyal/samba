@@ -18,7 +18,6 @@
 
 #include "includes.h"
 #include "../lib/util/dlinklist.h"
-#include "../lib/util/parmlist.h"
 #include "param/param.h"
 #include "param/loadparm.h"
 #include "system/filesys.h"
@@ -233,14 +232,14 @@ int param_use(struct loadparm_context *lp_ctx, struct param_context *ctx)
 		bool isglobal = strcmp(section->name, "global") == 0;
 		for (param = section->parameters->entries; param; param = param->next) {
 			if (isglobal)
-				lpcfg_do_global_parameter(lp_ctx, param->key,
+				lp_do_global_parameter(lp_ctx, param->key,
 						       param->value);
 			else {
 				struct loadparm_service *service = 
-							lpcfg_service(lp_ctx, section->name);
+							lp_service(lp_ctx, section->name);
 				if (service == NULL)
-					service = lpcfg_add_service(lp_ctx, lpcfg_default_service(lp_ctx), section->name);
-				lpcfg_do_service_parameter(lp_ctx, service, param->key, param->value);
+					service = lp_add_service(lp_ctx, lp_default_service(lp_ctx), section->name);
+				lp_do_service_parameter(lp_ctx, service, param->key, param->value);
 			}
 		}
 	}

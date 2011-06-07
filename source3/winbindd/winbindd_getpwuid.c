@@ -65,7 +65,8 @@ static void winbindd_getpwuid_uid2sid_done(struct tevent_req *subreq)
 
 	status = wb_uid2sid_recv(subreq, &state->sid);
 	TALLOC_FREE(subreq);
-	if (tevent_req_nterror(req, status)) {
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
 		return;
 	}
 
@@ -84,7 +85,8 @@ static void winbindd_getpwuid_done(struct tevent_req *subreq)
 
 	status = wb_getpwsid_recv(subreq);
 	TALLOC_FREE(subreq);
-	if (tevent_req_nterror(req, status)) {
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
 		return;
 	}
 	tevent_req_done(req);

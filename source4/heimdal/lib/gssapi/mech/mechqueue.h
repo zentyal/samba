@@ -34,18 +34,20 @@
 #ifndef	_MECHQUEUE_H_
 #define	_MECHQUEUE_H_
 
+#ifndef SLIST_HEAD
+
 /*
  * Singly-linked List definitions.
  */
-#define	HEIM_SLIST_HEAD(name, type)						\
+#define	SLIST_HEAD(name, type)						\
 struct name {								\
 	struct type *slh_first;	/* first element */			\
 }
 
-#define	HEIM_SLIST_HEAD_INITIALIZER(head)					\
+#define	SLIST_HEAD_INITIALIZER(head)					\
 	{ NULL }
 
-#define	HEIM_SLIST_ENTRY(type)						\
+#define	SLIST_ENTRY(type)						\
 struct {								\
 	struct type *sle_next;	/* next element */			\
 }
@@ -53,27 +55,27 @@ struct {								\
 /*
  * Singly-linked List functions.
  */
-#define	HEIM_SLIST_INIT(head) do {						\
+#define	SLIST_INIT(head) do {						\
 	(head)->slh_first = NULL;					\
 } while (/*CONSTCOND*/0)
 
-#define	HEIM_SLIST_INSERT_AFTER(slistelm, elm, field) do {			\
+#define	SLIST_INSERT_AFTER(slistelm, elm, field) do {			\
 	(elm)->field.sle_next = (slistelm)->field.sle_next;		\
 	(slistelm)->field.sle_next = (elm);				\
 } while (/*CONSTCOND*/0)
 
-#define	HEIM_SLIST_INSERT_HEAD(head, elm, field) do {			\
+#define	SLIST_INSERT_HEAD(head, elm, field) do {			\
 	(elm)->field.sle_next = (head)->slh_first;			\
 	(head)->slh_first = (elm);					\
 } while (/*CONSTCOND*/0)
 
-#define	HEIM_SLIST_REMOVE_HEAD(head, field) do {				\
+#define	SLIST_REMOVE_HEAD(head, field) do {				\
 	(head)->slh_first = (head)->slh_first->field.sle_next;		\
 } while (/*CONSTCOND*/0)
 
-#define	HEIM_SLIST_REMOVE(head, elm, type, field) do {			\
+#define	SLIST_REMOVE(head, elm, type, field) do {			\
 	if ((head)->slh_first == (elm)) {				\
-		HEIM_SLIST_REMOVE_HEAD((head), field);			\
+		SLIST_REMOVE_HEAD((head), field);			\
 	}								\
 	else {								\
 		struct type *curelm = (head)->slh_first;		\
@@ -84,14 +86,16 @@ struct {								\
 	}								\
 } while (/*CONSTCOND*/0)
 
-#define	HEIM_SLIST_FOREACH(var, head, field)					\
+#define	SLIST_FOREACH(var, head, field)					\
 	for((var) = (head)->slh_first; (var); (var) = (var)->field.sle_next)
 
 /*
  * Singly-linked List access methods.
  */
-#define	HEIM_SLIST_EMPTY(head)	((head)->slh_first == NULL)
-#define	HEIM_SLIST_FIRST(head)	((head)->slh_first)
-#define	HEIM_SLIST_NEXT(elm, field)	((elm)->field.sle_next)
+#define	SLIST_EMPTY(head)	((head)->slh_first == NULL)
+#define	SLIST_FIRST(head)	((head)->slh_first)
+#define	SLIST_NEXT(elm, field)	((elm)->field.sle_next)
+
+#endif /* SLIST_HEAD */
 
 #endif	/* !_MECHQUEUE_H_ */

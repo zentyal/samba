@@ -33,13 +33,15 @@
 
 #include <config.h>
 
+#include <unistd.h>
+
 #include "roken.h"
 
 /*
  * Write datablob to a filename, don't care about errors.
  */
 
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 rk_dumpdata (const char *filename, const void *buf, size_t size)
 {
     int fd;
@@ -55,7 +57,7 @@ rk_dumpdata (const char *filename, const void *buf, size_t size)
  * Read all data from a filename, care about errors.
  */
 
-ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
+int ROKEN_LIB_FUNCTION
 rk_undumpdata(const char *filename, void **buf, size_t *size)
 {
     struct stat sb;

@@ -1,21 +1,21 @@
-/*
+/* 
    Unix SMB/CIFS implementation.
 
    test DOS extended attributes
 
    Copyright (C) Andrew Tridgell 2004
    Copyright (C) Guenter Kukkukk 2005
-
+   
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -29,19 +29,23 @@
 #define BASEDIR "\\testeas"
 
 #define CHECK_STATUS(status, correct) do { \
-	torture_assert_ntstatus_equal_goto(tctx, status, correct, ret, done, "Incorrect status"); \
-	} while (0)
+	if (!NT_STATUS_EQUAL(status, correct)) { \
+		printf("(%s) Incorrect status %s - should be %s\n", \
+		       __location__, nt_errstr(status), nt_errstr(correct)); \
+		ret = false; \
+		goto done; \
+	}} while (0)
 
 static	bool maxeadebug; /* need that here, to allow no file delete in debug case */
 
-static bool check_ea(struct smbcli_state *cli,
+static bool check_ea(struct smbcli_state *cli, 
 		     const char *fname, const char *eaname, const char *value)
 {
 	NTSTATUS status = torture_check_ea(cli, fname, eaname, value);
 	return NT_STATUS_IS_OK(status);
 }
 
-static bool test_eas(struct smbcli_state *cli, struct torture_context *tctx)
+static bool test_eas(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 {
 	NTSTATUS status;
 	union smb_setfileinfo setfile;
@@ -50,33 +54,33 @@ static bool test_eas(struct smbcli_state *cli, struct torture_context *tctx)
 	bool ret = true;
 	int fnum = -1;
 
-	torture_comment(tctx, "TESTING SETFILEINFO EA_SET\n");
+	printf("TESTING SETFILEINFO EA_SET\n");
 
 	io.generic.level = RAW_OPEN_NTCREATEX;
-	io.ntcreatex.in.root_fid.fnum = 0;
+	io.ntcreatex.in.root_fid = 0;
 	io.ntcreatex.in.flags = 0;
 	io.ntcreatex.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	io.ntcreatex.in.create_options = 0;
 	io.ntcreatex.in.file_attr = FILE_ATTRIBUTE_NORMAL;
-	io.ntcreatex.in.share_access =
-		NTCREATEX_SHARE_ACCESS_READ |
+	io.ntcreatex.in.share_access = 
+		NTCREATEX_SHARE_ACCESS_READ | 
 		NTCREATEX_SHARE_ACCESS_WRITE;
 	io.ntcreatex.in.alloc_size = 0;
 	io.ntcreatex.in.open_disposition = NTCREATEX_DISP_CREATE;
 	io.ntcreatex.in.impersonation = NTCREATEX_IMPERSONATION_ANONYMOUS;
 	io.ntcreatex.in.security_flags = 0;
 	io.ntcreatex.in.fname = fname;
-	status = smb_raw_open(cli->tree, tctx, &io);
+	status = smb_raw_open(cli->tree, mem_ctx, &io);
 	CHECK_STATUS(status, NT_STATUS_OK);
 	fnum = io.ntcreatex.out.file.fnum;
-
+	
 	ret &= check_ea(cli, fname, "EAONE", NULL);
 
-	torture_comment(tctx, "Adding first two EAs\n");
+	printf("Adding first two EAs\n");
 	setfile.generic.level = RAW_SFILEINFO_EA_SET;
 	setfile.generic.in.file.fnum = fnum;
 	setfile.ea_set.in.num_eas = 2;
-	setfile.ea_set.in.eas = talloc_array(tctx, struct ea_struct, 2);
+	setfile.ea_set.in.eas = talloc_array(mem_ctx, struct ea_struct, 2);
 	setfile.ea_set.in.eas[0].flags = 0;
 	setfile.ea_set.in.eas[0].name.s = "EAONE";
 	setfile.ea_set.in.eas[0].value = data_blob_string_const("VALUE1");
@@ -90,7 +94,7 @@ static bool test_eas(struct smbcli_state *cli, struct torture_context *tctx)
 	ret &= check_ea(cli, fname, "EAONE", "VALUE1");
 	ret &= check_ea(cli, fname, "SECONDEA", "ValueTwo");
 
-	torture_comment(tctx, "Modifying 2nd EA\n");
+	printf("Modifying 2nd EA\n");
 	setfile.ea_set.in.num_eas = 1;
 	setfile.ea_set.in.eas[0].name.s = "SECONDEA";
 	setfile.ea_set.in.eas[0].value = data_blob_string_const(" Changed Value");
@@ -100,7 +104,7 @@ static bool test_eas(struct smbcli_state *cli, struct torture_context *tctx)
 	ret &= check_ea(cli, fname, "EAONE", "VALUE1");
 	ret &= check_ea(cli, fname, "SECONDEA", " Changed Value");
 
-	torture_comment(tctx, "Setting a NULL EA\n");
+	printf("Setting a NULL EA\n");
 	setfile.ea_set.in.eas[0].value = data_blob(NULL, 0);
 	setfile.ea_set.in.eas[0].name.s = "NULLEA";
 	status = smb_raw_setfileinfo(cli->tree, &setfile);
@@ -110,7 +114,7 @@ static bool test_eas(struct smbcli_state *cli, struct torture_context *tctx)
 	ret &= check_ea(cli, fname, "SECONDEA", " Changed Value");
 	ret &= check_ea(cli, fname, "NULLEA", NULL);
 
-	torture_comment(tctx, "Deleting first EA\n");
+	printf("Deleting first EA\n");
 	setfile.ea_set.in.eas[0].flags = 0;
 	setfile.ea_set.in.eas[0].name.s = "EAONE";
 	setfile.ea_set.in.eas[0].value = data_blob(NULL, 0);
@@ -120,7 +124,7 @@ static bool test_eas(struct smbcli_state *cli, struct torture_context *tctx)
 	ret &= check_ea(cli, fname, "EAONE", NULL);
 	ret &= check_ea(cli, fname, "SECONDEA", " Changed Value");
 
-	torture_comment(tctx, "Deleting second EA\n");
+	printf("Deleting second EA\n");
 	setfile.ea_set.in.eas[0].flags = 0;
 	setfile.ea_set.in.eas[0].name.s = "SECONDEA";
 	setfile.ea_set.in.eas[0].value = data_blob(NULL, 0);
@@ -139,10 +143,9 @@ done:
 /*
  * Helper function to retrieve the max. ea size for one ea name
  */
-static int test_one_eamax(struct torture_context *tctx,
-			  struct smbcli_state *cli, const int fnum,
-			  const char *eaname, DATA_BLOB eablob,
-			  const int eastart, const int eadebug)
+static int test_one_eamax(struct smbcli_state *cli, const int fnum, 
+			  const char *eaname, DATA_BLOB eablob, 
+			  const int eastart, const int eadebug) 
 {
 	NTSTATUS status;
 	struct ea_struct eastruct;
@@ -164,7 +167,7 @@ static int test_one_eamax(struct torture_context *tctx,
 
 	do {
 		if (eadebug) {
-			torture_comment(tctx, "Testing EA size: %d\n", i);
+			printf ("Testing EA size: %d\n", i);
 		}
 		setfile.ea_set.in.eas->value.length = i;
 
@@ -172,33 +175,33 @@ static int test_one_eamax(struct torture_context *tctx,
 
 		if (NT_STATUS_EQUAL(status, NT_STATUS_OK)) {
 			if (eadebug) {
-				torture_comment(tctx, "[%s] EA size %d succeeded! "
-					"(high=%d low=%d)\n",
+				printf ("[%s] EA size %d succeeded! "
+					"(high=%d low=%d)\n", 
 					eaname, i, high, low);
 			}
 			low = i;
 			if (low == maxeasize) {
-				torture_comment(tctx, "Max. EA size for \"%s\"=%d "
-					"[but could be possibly larger]\n",
+				printf ("Max. EA size for \"%s\"=%d "
+					"[but could be possibly larger]\n", 
 					eaname, low);
 				break;
 			}
 			if (high - low == 1 && high != maxeasize) {
-				torture_comment(tctx, "Max. EA size for \"%s\"=%d\n",
+				printf ("Max. EA size for \"%s\"=%d\n", 
 					eaname, low);
 				break;
 			}
 			i += (high - low + 1) / 2;
 		} else {
 			if (eadebug) {
-				torture_comment(tctx, "[%s] EA size %d failed!    "
-					"(high=%d low=%d) [%s]\n",
-					eaname, i, high, low,
+				printf ("[%s] EA size %d failed!    "
+					"(high=%d low=%d) [%s]\n", 
+					eaname, i, high, low, 
 					nt_errstr(status));
 			}
 			high = i;
 			if (high - low <= 1) {
-				torture_comment(tctx, "Max. EA size for \"%s\"=%d\n",
+				printf ("Max. EA size for \"%s\"=%d\n", 
 					eaname, low);
 				break;
 			}
@@ -241,7 +244,7 @@ static bool test_max_eas(struct smbcli_state *cli, struct torture_context *tctx)
 	int       maxeanames;
 	int       maxeastart;
 
-	torture_comment(tctx, "TESTING SETFILEINFO MAX. EA_SET\n");
+	printf("TESTING SETFILEINFO MAX. EA_SET\n");
 
 	maxeasize  = torture_setting_int(tctx, "maxeasize", 65536);
 	maxeanames = torture_setting_int(tctx, "maxeanames", 101);
@@ -250,42 +253,42 @@ static bool test_max_eas(struct smbcli_state *cli, struct torture_context *tctx)
 
 	/* Do some sanity check on possibly passed parms */
 	if (maxeasize <= 0) {
-		torture_comment(tctx, "Invalid parameter 'maxeasize=%d'",maxeasize);
+		printf("Invalid parameter 'maxeasize=%d'",maxeasize);
 		err = true;
 	}
 	if (maxeanames <= 0) {
-		torture_comment(tctx, "Invalid parameter 'maxeanames=%d'",maxeanames);
+		printf("Invalid parameter 'maxeanames=%d'",maxeanames);
 		err = true;
 	}
 	if (maxeastart <= 0) {
-		torture_comment(tctx, "Invalid parameter 'maxeastart=%d'",maxeastart);
+		printf("Invalid parameter 'maxeastart=%d'",maxeastart);
 		err = true;
 	}
 	if (maxeadebug < 0) {
-		torture_comment(tctx, "Invalid parameter 'maxeadebug=%d'",maxeadebug);
+		printf("Invalid parameter 'maxeadebug=%d'",maxeadebug);
 		err = true;
 	}
 	if (err) {
-	  torture_comment(tctx, "\n\n");
+	  printf("\n\n");
 	  goto done;
 	}
 	if (maxeastart > maxeasize) {
 		maxeastart = maxeasize;
-		torture_comment(tctx, "'maxeastart' outside range - corrected to %d\n",
+		printf ("'maxeastart' outside range - corrected to %d\n", 
 			maxeastart);
 	}
-	torture_comment(tctx, "MAXEA parms: maxeasize=%d maxeanames=%d maxeastart=%d"
-	       " maxeadebug=%d\n", maxeasize, maxeanames, maxeastart,
+	printf("MAXEA parms: maxeasize=%d maxeanames=%d maxeastart=%d"
+	       " maxeadebug=%d\n", maxeasize, maxeanames, maxeastart, 
 	       maxeadebug);
 
 	io.generic.level = RAW_OPEN_NTCREATEX;
-	io.ntcreatex.in.root_fid.fnum = 0;
+	io.ntcreatex.in.root_fid = 0;
 	io.ntcreatex.in.flags = 0;
 	io.ntcreatex.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	io.ntcreatex.in.create_options = 0;
 	io.ntcreatex.in.file_attr = FILE_ATTRIBUTE_NORMAL;
-	io.ntcreatex.in.share_access =
-		NTCREATEX_SHARE_ACCESS_READ |
+	io.ntcreatex.in.share_access = 
+		NTCREATEX_SHARE_ACCESS_READ | 
 		NTCREATEX_SHARE_ACCESS_WRITE;
 	io.ntcreatex.in.alloc_size = 0;
 	io.ntcreatex.in.open_disposition = NTCREATEX_DISP_CREATE;
@@ -295,13 +298,13 @@ static bool test_max_eas(struct smbcli_state *cli, struct torture_context *tctx)
 	status = smb_raw_open(cli->tree, tctx, &io);
 	CHECK_STATUS(status, NT_STATUS_OK);
 	fnum = io.ntcreatex.out.file.fnum;
-
+	
 	eablob = data_blob_talloc(tctx, NULL, maxeasize);
 	if (eablob.data == NULL) {
 		goto done;
 	}
-	/*
-	 * Fill in some EA data - the offset could be easily checked
+	/* 
+	 * Fill in some EA data - the offset could be easily checked 
 	 * during a hexdump.
 	 */
 	for (i = 0, k = 0; i < eablob.length / 4; i++, k+=4) {
@@ -312,11 +315,11 @@ static bool test_max_eas(struct smbcli_state *cli, struct torture_context *tctx)
 	}
 
 	i = eablob.length % 4;
-	if (i-- > 0) {
+	if (i-- > 0) { 
 		eablob.data[k] = k & 0xff;
-		if (i-- > 0) {
+		if (i-- > 0) { 
 			eablob.data[k+1] = (k >>  8) & 0xff;
-			if (i-- > 0) {
+			if (i-- > 0) { 
 				eablob.data[k+2] = (k >> 16) & 0xff;
 			}
 		}
@@ -336,7 +339,7 @@ static bool test_max_eas(struct smbcli_state *cli, struct torture_context *tctx)
 		if(eaname == NULL) {
 			goto done;
 		}
-		j = test_one_eamax(tctx, cli, fnum, eaname, eablob, last, maxeadebug);
+		j = test_one_eamax(cli, fnum, eaname, eablob, last, maxeadebug);
 		if (j <= 0) {
 			break;
 		}
@@ -344,10 +347,10 @@ static bool test_max_eas(struct smbcli_state *cli, struct torture_context *tctx)
 		last = j;
 	}
 
-	torture_comment(tctx, "Total EA size:%d\n", total);
+	printf("Total EA size:%d\n", total);
 	if (i == maxeanames) {
-		torture_comment(tctx, "NOTE: More EAs could be available!\n");
-	}
+		printf ("NOTE: More EAs could be available!\n");
+	} 
 	if (total == 0) {
 		ret = false;
 	}
@@ -359,7 +362,7 @@ done:
 /*
   test using NTTRANS CREATE to create a file with an initial EA set
 */
-static bool test_nttrans_create(struct smbcli_state *cli, struct torture_context *tctx)
+static bool test_nttrans_create(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 {
 	NTSTATUS status;
 	union smb_open io;
@@ -369,16 +372,16 @@ static bool test_nttrans_create(struct smbcli_state *cli, struct torture_context
 	struct ea_struct eas[3];
 	struct smb_ea_list ea_list;
 
-	torture_comment(tctx, "TESTING NTTRANS CREATE WITH EAS\n");
+	printf("TESTING NTTRANS CREATE WITH EAS\n");
 
 	io.generic.level = RAW_OPEN_NTTRANS_CREATE;
-	io.ntcreatex.in.root_fid.fnum = 0;
+	io.ntcreatex.in.root_fid = 0;
 	io.ntcreatex.in.flags = 0;
 	io.ntcreatex.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	io.ntcreatex.in.create_options = 0;
 	io.ntcreatex.in.file_attr = FILE_ATTRIBUTE_NORMAL;
-	io.ntcreatex.in.share_access =
-		NTCREATEX_SHARE_ACCESS_READ |
+	io.ntcreatex.in.share_access = 
+		NTCREATEX_SHARE_ACCESS_READ | 
 		NTCREATEX_SHARE_ACCESS_WRITE;
 	io.ntcreatex.in.alloc_size = 0;
 	io.ntcreatex.in.open_disposition = NTCREATEX_DISP_CREATE;
@@ -404,10 +407,10 @@ static bool test_nttrans_create(struct smbcli_state *cli, struct torture_context
 	io.ntcreatex.in.ea_list = &ea_list;
 	io.ntcreatex.in.sec_desc = NULL;
 
-	status = smb_raw_open(cli->tree, tctx, &io);
+	status = smb_raw_open(cli->tree, mem_ctx, &io);
 	CHECK_STATUS(status, NT_STATUS_OK);
 	fnum = io.ntcreatex.out.file.fnum;
-
+	
 	ret &= check_ea(cli, fname, "EAONE", NULL);
 	ret &= check_ea(cli, fname, "1st EA", "Value One");
 	ret &= check_ea(cli, fname, "2nd EA", "Second Value");
@@ -415,7 +418,7 @@ static bool test_nttrans_create(struct smbcli_state *cli, struct torture_context
 
 	smbcli_close(cli->tree, fnum);
 
-	torture_comment(tctx, "Trying to add EAs on non-create\n");
+	printf("Trying to add EAs on non-create\n");
 	io.ntcreatex.in.open_disposition = NTCREATEX_DISP_OPEN;
 	io.ntcreatex.in.fname = fname;
 
@@ -424,10 +427,10 @@ static bool test_nttrans_create(struct smbcli_state *cli, struct torture_context
 	eas[0].name.s = "Fourth EA";
 	eas[0].value = data_blob_string_const("Value Four");
 
-	status = smb_raw_open(cli->tree, tctx, &io);
+	status = smb_raw_open(cli->tree, mem_ctx, &io);
 	CHECK_STATUS(status, NT_STATUS_OK);
 	fnum = io.ntcreatex.out.file.fnum;
-
+	
 	ret &= check_ea(cli, fname, "1st EA", "Value One");
 	ret &= check_ea(cli, fname, "2nd EA", "Second Value");
 	ret &= check_ea(cli, fname, "and 3rd", "final value");
@@ -438,7 +441,7 @@ done:
 	return ret;
 }
 
-/*
+/* 
    basic testing of EA calls
 */
 bool torture_raw_eas(struct torture_context *torture, struct smbcli_state *cli)
@@ -457,7 +460,7 @@ bool torture_raw_eas(struct torture_context *torture, struct smbcli_state *cli)
 	return ret;
 }
 
-/*
+/* 
    test max EA size
 */
 bool torture_max_eas(struct torture_context *torture)

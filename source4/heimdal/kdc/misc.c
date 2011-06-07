@@ -33,6 +33,8 @@
 
 #include "kdc_locl.h"
 
+RCSID("$Id$");
+
 struct timeval _kdc_now;
 
 krb5_error_code
@@ -40,19 +42,12 @@ _kdc_db_fetch(krb5_context context,
 	      krb5_kdc_configuration *config,
 	      krb5_const_principal principal,
 	      unsigned flags,
-	      krb5int32 *kvno_ptr,
 	      HDB **db,
 	      hdb_entry_ex **h)
 {
     hdb_entry_ex *ent;
-    krb5_error_code ret = HDB_ERR_NOENTRY;
+    krb5_error_code ret;
     int i;
-    unsigned kvno = 0;
-
-    if (kvno_ptr) {
-	    kvno = *kvno_ptr;
-	    flags |= HDB_F_KVNO_SPECIFIED;
-    }
 
     ent = calloc (1, sizeof (*ent));
     if (ent == NULL) {
@@ -85,19 +80,16 @@ _kdc_db_fetch(krb5_context context,
 
 	ret = config->db[i]->hdb_open(context, config->db[i], O_RDONLY, 0);
 	if (ret) {
-	    const char *msg = krb5_get_error_message(context, ret);
-	    kdc_log(context, config, 0, "Failed to open database: %s", msg);
-	    krb5_free_error_message(context, msg);
+	    kdc_log(context, config, 0, "Failed to open database: %s",
+		    krb5_get_err_text(context, ret));
 	    continue;
 	}
 
-	ret = config->db[i]->hdb_fetch_kvno(context,
-					    config->db[i],
-					    principal,
-					    flags | HDB_F_DECRYPT,
-					    kvno,
-					    ent);
-
+	ret = config->db[i]->hdb_fetch(context,
+				       config->db[i],
+				       principal,
+				       flags | HDB_F_DECRYPT,
+				       ent);
 	krb5_free_principal(context, enterprise_principal);
 
 	config->db[i]->hdb_close(context, config->db[i]);
@@ -109,9 +101,9 @@ _kdc_db_fetch(krb5_context context,
 	}
     }
     free(ent);
-    krb5_set_error_message(context, ret,
+    krb5_set_error_message(context, HDB_ERR_NOENTRY,
 			   "no such entry found in hdb");
-    return ret;
+    return HDB_ERR_NOENTRY;
 }
 
 void

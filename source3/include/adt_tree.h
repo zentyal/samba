@@ -20,7 +20,22 @@
 #ifndef ADT_TREE_H
 #define ADT_TREE_H
 
-struct sorted_tree;
+/* data structure used to build the tree */
+
+typedef struct _tree_node {
+	struct _tree_node	*parent;
+	struct _tree_node	**children;
+	int 			num_children;
+	char			*key;
+	void			*data_p;
+} TREE_NODE;
+
+typedef struct _tree_root {
+	TREE_NODE	*root;
+
+	/* not used currently (is it needed?) */
+	int 		(*compare)(void* x, void *y);
+} SORTED_TREE;
 
 /* 
  * API
@@ -28,19 +43,19 @@ struct sorted_tree;
 
 /* create a new tree, talloc_free() to throw it away */
 
-struct sorted_tree *pathtree_init(void *data_p);
+SORTED_TREE*  pathtree_init( void *data_p, int (cmp_fn)(void*, void*) );
 
 /* add a new path component */
 
-WERROR pathtree_add(struct sorted_tree *tree, const char *path, void *data_p );
+WERROR        pathtree_add( SORTED_TREE *tree, const char *path, void *data_p );
 
 /* search path */
 
-void *pathtree_find(struct sorted_tree *tree, char *key );
+void*         pathtree_find( SORTED_TREE *tree, char *key );
 
 /* debug (print) functions */
 
-void pathtree_print_keys(struct sorted_tree *tree, int debug );
+void          pathtree_print_keys( SORTED_TREE *tree, int debug );
 
 
 #endif

@@ -20,12 +20,6 @@
  */
 
 #include "includes.h"
-#include "system/filesys.h"
-#include "../librpc/gen_ndr/perfcount.h"
-#include "registry.h"
-#include "reg_perfcount.h"
-#include "../libcli/registry/util_reg.h"
-#include "util_tdb.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
@@ -47,11 +41,6 @@ static char *counters_directory(const char *dbname)
 	char *ret = NULL;
 	TALLOC_CTX *ctx = talloc_tos();
 
-	path = state_path(PERFCOUNTDIR);
-	if (!directory_exist(path)) {
-		mkdir(path, 0755);
-	}
-
 	path = talloc_asprintf(ctx, "%s/%s", PERFCOUNTDIR, dbname);
 	if (!path) {
 		return NULL;
@@ -60,6 +49,21 @@ static char *counters_directory(const char *dbname)
 	ret = talloc_strdup(ctx, state_path(path));
 	TALLOC_FREE(path);
 	return ret;
+}
+
+/*********************************************************************
+*********************************************************************/
+
+void perfcount_init_keys( void )
+{
+	char *p = state_path(PERFCOUNTDIR);
+
+	/* no registry keys; just create the perfmon directory */
+
+	if ( !directory_exist( p ) )
+		mkdir( p, 0755 );
+
+	return;
 }
 
 /*********************************************************************
@@ -614,14 +618,14 @@ static bool _reg_perfcount_add_counter(struct PERF_DATA_BLOCK *block,
 	obj = NULL;
 	memset(buf, 0, PERFCOUNT_MAX_LEN);
 	memcpy(buf, data.dptr, data.dsize);
-	begin = strchr(buf, '[');
-	end = strchr(buf, ']');
+	begin = index(buf, '[');
+	end = index(buf, ']');
 	if(begin == NULL || end == NULL)
 		return False;
 	start = begin+1;
 
 	while(start < end) {
-		stop = strchr(start, ',');
+		stop = index(start, ',');
 		if(stop == NULL)
 			stop = end;
 		*stop = '\0';

@@ -21,7 +21,7 @@
 
 #include "includes.h"
 #include "rpcclient.h"
-#include "../librpc/gen_ndr/ndr_dssetup_c.h"
+#include "../librpc/gen_ndr/cli_dssetup.h"
 
 /* Look up domain related information on a remote host */
 
@@ -29,12 +29,11 @@ static WERROR cmd_ds_dsrole_getprimarydominfo(struct rpc_pipe_client *cli,
 					      TALLOC_CTX *mem_ctx, int argc,
 					      const char **argv)
 {
-	struct dcerpc_binding_handle *b = cli->binding_handle;
 	NTSTATUS status;
 	WERROR werr;
 	union dssetup_DsRoleInfo info;
 
-	status = dcerpc_dssetup_DsRoleGetPrimaryDomainInformation(b, mem_ctx,
+	status = rpccli_dssetup_DsRoleGetPrimaryDomainInformation(cli, mem_ctx,
 								  DS_ROLE_BASIC_INFORMATION,
 								  &info,
 								  &werr);

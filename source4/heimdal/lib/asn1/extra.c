@@ -3,8 +3,6 @@
  * (Royal Institute of Technology, Stockholm, Sweden).
  * All rights reserved.
  *
- * Portions Copyright (c) 2009 Apple Inc. All rights reserved.
- *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -42,7 +40,13 @@ int
 encode_heim_any(unsigned char *p, size_t len,
 		const heim_any *data, size_t *size)
 {
-    return der_put_octet_string (p, len, data, size);
+    if (data->length > len)
+	return ASN1_OVERFLOW;
+    p -= data->length;
+    len -= data->length;
+    memcpy (p+1, data->data, data->length);
+    *size = data->length;
+    return 0;
 }
 
 int
@@ -87,7 +91,8 @@ decode_heim_any(const unsigned char *p, size_t len,
 void
 free_heim_any(heim_any *data)
 {
-    der_free_octet_string(data);
+    free(data->data);
+    data->data = NULL;
 }
 
 size_t
@@ -99,43 +104,58 @@ length_heim_any(const heim_any *data)
 int
 copy_heim_any(const heim_any *from, heim_any *to)
 {
-    return der_copy_octet_string(from, to);
+    to->data = malloc(from->length);
+    if (to->data == NULL && from->length != 0)
+	return ENOMEM;
+    memcpy(to->data, from->data, from->length);
+    to->length = from->length;
+    return 0;
 }
 
 int
 encode_heim_any_set(unsigned char *p, size_t len,
 		    const heim_any_set *data, size_t *size)
 {
-    return der_put_octet_string (p, len, data, size);
+    return encode_heim_any(p, len, data, size);
 }
+
 
 int
 decode_heim_any_set(const unsigned char *p, size_t len,
 		heim_any_set *data, size_t *size)
 {
-    return der_get_octet_string(p, len, data, size);
+    memset(data, 0, sizeof(*data));
+    data->data = malloc(len);
+    if (data->data == NULL && len != 0)
+	return ENOMEM;
+    data->length = len;
+    memcpy(data->data, p, len);
+    if (size) *size = len;
+    return 0;
 }
 
 void
 free_heim_any_set(heim_any_set *data)
 {
-    der_free_octet_string(data);
+    free_heim_any(data);
 }
 
 size_t
 length_heim_any_set(const heim_any *data)
 {
-    return data->length;
+    return length_heim_any(data);
 }
 
 int
 copy_heim_any_set(const heim_any_set *from, heim_any_set *to)
 {
-    return der_copy_octet_string(from, to);
+    return copy_heim_any(from, to);
 }
 
 int
 heim_any_cmp(const heim_any_set *p, const heim_any_set *q)
 {
-    return der_heim_octet_string_cmp(p, q);
+    if (p->length != q->length)
+	return p->length - q->length;
+    return memcmp(p->data, q->data, p->length);
 }

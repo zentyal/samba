@@ -18,7 +18,7 @@
 #define PAM_SM_AUTH
 
 #include "includes.h"
-#include "lib/util/debug.h"
+#include "debug.h"
 
 #ifndef LINUX
 
@@ -44,7 +44,7 @@
 #define AUTH_RETURN						\
 do {								\
 	/* Restore application signal handler */		\
-	CatchSignal(SIGPIPE, oldsig_handler);			\
+	CatchSignal(SIGPIPE, SIGNAL_CAST oldsig_handler);	\
 	if(ret_data) {						\
 		*ret_data = retval;				\
 		pam_set_data( pamh, "smb_setcred_return"	\
@@ -80,7 +80,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 	char *p = NULL;
 
 	/* Samba initialization. */
-	load_case_tables_library();
+	load_case_tables();
         lp_set_in_client(True);
 
 	ctrl = set_ctrl(pamh, flags, argc, argv);
@@ -92,7 +92,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 	/* we need to do this before we call AUTH_RETURN */
 	/* Getting into places that might use LDAP -- protect the app
 	from a SIGPIPE it's not expecting */
-	oldsig_handler = CatchSignal(SIGPIPE, SIG_IGN);
+	oldsig_handler = CatchSignal(SIGPIPE, SIGNAL_CAST SIG_IGN);
 
 	/* get the username */
 	retval = pam_get_user( pamh, &name, "Username: " );

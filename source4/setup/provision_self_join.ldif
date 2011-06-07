@@ -9,20 +9,33 @@ objectClass: user
 objectClass: computer
 accountExpires: 9223372036854775807
 dNSHostName: ${DNSNAME}
-# "MSDFSR-ComputerReferenceBL" doesn't exist since we still miss DFSR support
-# "isCritcalSystemObject" is now filled in by the samldb LDB module
+# "frsComputerReferenceBL" doesn't exist since we still miss FRS support
+isCriticalSystemObject: TRUE
 localPolicyFlags: 0
 operatingSystem: Samba
 operatingSystemVersion: ${SAMBA_VERSION_STRING}
+primaryGroupID: 516
+# "rIDSetReferences" doesn't exist since we still miss distributed RIDs
 sAMAccountName: ${NETBIOSNAME}$
-# The "servicePrincipalName" updates are now handled by the "samba_spnupdate"
-# script
+# "servicePrincipalName" for FRS doesn't exit since we still miss FRS support
+# "servicePrincipalName"s for DNS ("ldap/../ForestDnsZones",
+# "ldap/../DomainDnsZones", "DNS/..") don't exist since we don't support AD DNS
+servicePrincipalName: GC/${DNSNAME}/${REALM}
+servicePrincipalName: HOST/${DNSNAME}/${DOMAIN}
+servicePrincipalName: HOST/${NETBIOSNAME}
+servicePrincipalName: HOST/${DNSNAME}
+servicePrincipalName: HOST/${DNSNAME}/${REALM}
+# "servicePrincipalName"s with GUIDs are located in
+# "provision_self_join_modify.ldif"
+servicePrincipalName: ldap/${DNSNAME}/${DOMAIN}
+servicePrincipalName: ldap/${NETBIOSNAME}
+servicePrincipalName: ldap/${DNSNAME}
+servicePrincipalName: ldap/${DNSNAME}/${REALM}
 userAccountControl: 532480
-clearTextPassword:: ${MACHINEPASS_B64}
-objectSid: ${DOMAINSID}-${DCRID}
+userPassword:: ${MACHINEPASS_B64}
 
-# Here are missing the objects for the NTFRS subscription since we don't
-# support this technique yet.
+# Here are missing the objects for the NTFRS subscription and the RID set since
+# we don't support those techniques (FRS, distributed RIDs) yet.
 
 # Objects under "Configuration/Sites/<Default sitename>/Servers"
 
@@ -54,4 +67,17 @@ msDS-hasMasterNCs: ${SCHEMADN}
 msDS-hasMasterNCs: ${DOMAINDN}
 options: 1
 systemFlags: 33554432
-${NTDSGUID}
+
+# Provides an account for DNS keytab export
+dn: CN=dns,CN=Users,${DOMAINDN}
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: user
+description: DNS Service Account
+userAccountControl: 514
+accountExpires: 9223372036854775807
+sAMAccountName: dns
+servicePrincipalName: DNS/${DNSDOMAIN}
+userPassword:: ${DNSPASS_B64}
+isCriticalSystemObject: TRUE

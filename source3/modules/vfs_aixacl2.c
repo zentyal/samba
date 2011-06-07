@@ -18,7 +18,6 @@
  */
 
 #include "includes.h"
-#include "smbd/smbd.h"
 #include "nfs4_acls.h"
 
 #undef DBGC_CLASS
@@ -156,7 +155,7 @@ static bool aixjfs2_get_nfs4_acl(const char *name,
 
 static NTSTATUS aixjfs2_fget_nt_acl(vfs_handle_struct *handle,
 	files_struct *fsp, uint32 security_info,
-	struct security_descriptor **ppdesc)
+	SEC_DESC **ppdesc)
 {
 	SMB4ACL_T *pacl = NULL;
 	bool	result;
@@ -178,7 +177,7 @@ static NTSTATUS aixjfs2_fget_nt_acl(vfs_handle_struct *handle,
 
 static NTSTATUS aixjfs2_get_nt_acl(vfs_handle_struct *handle,
 	const char *name,
-	uint32 security_info, struct security_descriptor **ppdesc)
+	uint32 security_info, SEC_DESC **ppdesc)
 {
 	SMB4ACL_T *pacl = NULL;
 	bool	result;
@@ -371,7 +370,7 @@ static bool aixjfs2_process_smbacl(files_struct *fsp, SMB4ACL_T *smbacl)
 	return True;
 }
 
-static NTSTATUS aixjfs2_set_nt_acl_common(files_struct *fsp, uint32 security_info_sent, const struct security_descriptor *psd)
+static NTSTATUS aixjfs2_set_nt_acl_common(files_struct *fsp, uint32 security_info_sent, const SEC_DESC *psd)
 {
 	acl_type_t	acl_type_info;
 	NTSTATUS	result = NT_STATUS_ACCESS_DENIED;
@@ -395,7 +394,7 @@ static NTSTATUS aixjfs2_set_nt_acl_common(files_struct *fsp, uint32 security_inf
 	return result;
 }
 
-NTSTATUS aixjfs2_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp, uint32 security_info_sent, const struct security_descriptor *psd)
+NTSTATUS aixjfs2_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp, uint32 security_info_sent, const SEC_DESC *psd)
 {
 	return aixjfs2_set_nt_acl_common(fsp, security_info_sent, psd);
 }

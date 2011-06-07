@@ -42,7 +42,6 @@
 #define AES_encrypt hc_AES_encrypt
 #define AES_decrypt hc_AES_decrypt
 #define AES_cbc_encrypt hc_AES_cbc_encrypt
-#define AES_cfb8_encrypt hc_AES_cfb8_encrypt
 
 /*
  *
@@ -70,11 +69,8 @@ void AES_encrypt(const unsigned char *, unsigned char *, const AES_KEY *);
 void AES_decrypt(const unsigned char *, unsigned char *, const AES_KEY *);
 
 void AES_cbc_encrypt(const unsigned char *, unsigned char *,
-		     unsigned long, const AES_KEY *,
+		     const unsigned long, const AES_KEY *,
 		     unsigned char *, int);
-void AES_cfb8_encrypt(const unsigned char *, unsigned char *,
-		      unsigned long, const AES_KEY *,
-		      unsigned char *, int);
 
 #ifdef  __cplusplus
 }

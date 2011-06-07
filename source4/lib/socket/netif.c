@@ -34,7 +34,6 @@
 #include "includes.h"
 #include "system/network.h"
 #include "netif.h"
-#include "lib/util/tsort.h"
 
 /****************************************************************************
  Try the "standard" getifaddrs/freeifaddrs interfaces.
@@ -110,7 +109,7 @@ int get_interfaces(struct iface_struct *ifaces, int max_interfaces)
 	if (total <= 0) return total;
 
 	/* now we need to remove duplicates */
-	TYPESAFE_QSORT(ifaces, total, iface_comp);
+	qsort(ifaces, total, sizeof(ifaces[0]), QSORT_CAST iface_comp);
 
 	for (i=1;i<total;) {
 		if (iface_comp(&ifaces[i-1], &ifaces[i]) == 0) {

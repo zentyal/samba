@@ -155,7 +155,7 @@ failed:
 	talloc_free(proxy->newdn);
 	talloc_free(proxy->upstream);
 	proxy->upstream = NULL;
-	return ldb_operr(ldb);
+	return LDB_ERR_OPERATIONS_ERROR;
 }
 
 
@@ -165,7 +165,7 @@ failed:
 static void proxy_convert_blob(TALLOC_CTX *mem_ctx, struct ldb_val *v,
 			       const char *oldstr, const char *newstr)
 {
-	size_t len1, len2, len3;
+	int len1, len2, len3;
 	uint8_t *olddata = v->data;
 	char *p = strcasestr((char *)v->data, oldstr);
 
@@ -184,7 +184,7 @@ static void proxy_convert_blob(TALLOC_CTX *mem_ctx, struct ldb_val *v,
 */
 static void proxy_convert_value(struct proxy_data *proxy, struct ldb_message *msg, struct ldb_val *v)
 {
-	size_t i;
+	int i;
 
 	for (i=0;proxy->oldstr[i];i++) {
 		char *p = strcasestr((char *)v->data, proxy->oldstr[i]);
@@ -201,7 +201,7 @@ static struct ldb_parse_tree *proxy_convert_tree(TALLOC_CTX *mem_ctx,
 						 struct proxy_data *proxy,
 						 struct ldb_parse_tree *tree)
 {
-	size_t i;
+	int i;
 	char *expression = ldb_filter_from_tree(mem_ctx, tree);
 
 	for (i=0;proxy->newstr[i];i++) {
@@ -225,7 +225,7 @@ static void proxy_convert_record(struct ldb_context *ldb,
 				 struct proxy_data *proxy,
 				 struct ldb_message *msg)
 {
-	unsigned int attr, v;
+	int attr, v;
 
 	/* fix the message DN */
 	if (ldb_dn_compare_base(proxy->olddn, msg->dn) == 0) {
@@ -307,8 +307,7 @@ static int proxy_search_bytree(struct ldb_module *module, struct ldb_request *re
 	struct proxy_data *proxy = talloc_get_type(ldb_module_get_private(module), struct proxy_data);
 	struct ldb_request *newreq;
 	struct ldb_dn *base;
-	unsigned int i;
-	int ret;
+	int ret, i;
 
 	ldb = ldb_module_get_ctx(module);
 
@@ -319,7 +318,7 @@ static int proxy_search_bytree(struct ldb_module *module, struct ldb_request *re
 	}
 
 	if (load_proxy_info(module) != LDB_SUCCESS) {
-		return ldb_operr(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
 	/* see if the dn is within olddn */
@@ -329,7 +328,7 @@ static int proxy_search_bytree(struct ldb_module *module, struct ldb_request *re
 
 	ac = talloc(req, struct proxy_ctx);
 	if (ac == NULL) {
-		return ldb_oom(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
 	ac->module = module;
@@ -360,7 +359,7 @@ static int proxy_search_bytree(struct ldb_module *module, struct ldb_request *re
 				      req->controls,
 				      ac, proxy_search_callback,
 				      req);
-	LDB_REQ_SET_LOCATION(newreq);
+
 	/* FIXME: warning, need a real event system hooked up for this to work properly,
 	 * 	  for now this makes the module *not* ASYNC */
 	ret = ldb_request(proxy->upstream, newreq);
@@ -394,13 +393,7 @@ static int proxy_request(struct ldb_module *module, struct ldb_request *req)
 	}
 }
 
-static const struct ldb_module_ops ldb_proxy_module_ops = {
+_PUBLIC_ const struct ldb_module_ops ldb_proxy_module_ops = {
 	.name		= "proxy",
 	.request	= proxy_request
 };
-
-int ldb_proxy_module_init(const char *version)
-{
-	LDB_MODULE_CHECK_VERSION(version);
-	return ldb_register_module(&ldb_proxy_module_ops);
-}

@@ -21,9 +21,6 @@
 */
 
 #include "includes.h"
-#include "system/filesys.h"
-#include "nmbd/nmbd.h"
-#include "util_tdb.h"
 
 #define WINS_LIST "wins.dat"
 #define WINS_VERSION 1
@@ -51,26 +48,6 @@ static void wins_delete_all_tmp_in_memory_records(void)
 		DLIST_REMOVE(wins_server_subnet->namelist, nr);
 		SAFE_FREE(nr->data.ip);
 		SAFE_FREE(nr);
-	}
-}
-
-/****************************************************************************
- Delete all the temporary 1b name records on the in-memory linked list.
-*****************************************************************************/
-
-static void wins_delete_all_1b_in_memory_records(void)
-{
-	struct name_record *nr = NULL;
-	struct name_record *nrnext = NULL;
-
-	/* Delete all temporary 1b name records on the wins subnet linked list. */
-	for( nr = wins_server_subnet->namelist; nr; nr = nrnext) {
-		nrnext = nr->next;
-		if (nr->name.name_type == 0x1b) {
-			DLIST_REMOVE(wins_server_subnet->namelist, nr);
-			SAFE_FREE(nr->data.ip);
-			SAFE_FREE(nr);
-		}
 	}
 }
 
@@ -427,7 +404,7 @@ static void update_wins_flag(struct name_record *namerec, int flags)
 	/* and add the given bits */
 	namerec->data.wins_flags|=flags;
 
-	DEBUG(8,("update_wins_flag: nbflags: 0x%x, ttl: %d, flags: 0x%x, winsflags: 0x%x\n", 
+	DEBUG(8,("update_wins_flag: nbflags: 0x%x, ttl: 0x%d, flags: 0x%x, winsflags: 0x%x\n", 
 		 namerec->data.nb_flags, (int)namerec->data.death_time, flags, namerec->data.wins_flags));
 }
 
@@ -606,8 +583,7 @@ bool initialise_wins(void)
 	}
 
 	/* Open the wins.tdb. */
-	wins_tdb = tdb_open_log(state_path("wins.tdb"), 0, TDB_DEFAULT|TDB_CLEAR_IF_FIRST|TDB_INCOMPATIBLE_HASH,
-			O_CREAT|O_RDWR, 0600);
+	wins_tdb = tdb_open_log(state_path("wins.tdb"), 0, TDB_DEFAULT|TDB_CLEAR_IF_FIRST, O_CREAT|O_RDWR, 0600);
 	if (!wins_tdb) {
 		DEBUG(0,("initialise_wins: failed to open wins.tdb. Error was %s\n",
 			strerror(errno) ));
@@ -1274,84 +1250,6 @@ to register name %s from IP %s.\n", nmb_namestr(question), inet_ntoa(p->ip) ));
 			 */
 
 			if(!find_ip_in_name_record(namerec, from_ip)) {
-				/*
-				 * Need to emulate the behaviour of Windows, as
-				 * described in:
-				 * http://lists.samba.org/archive/samba-technical/2001-October/016236.html
-				 * (is there an MS reference for this
-				 * somewhere?) because if the 1c list gets over
-				 * 86 entries, the reply packet is too big
-				 * (rdata>576 bytes) so no reply is sent.
-				 *
-				 * Keep only the "latest" 25 records, while
-				 * ensuring that the PDC (0x1b) is never removed
-				 * We do this by removing the first entry that
-				 * isn't the 1b entry for the same name,
-				 * on the grounds that insertion is at the end
-				 * of the list, so the oldest entries are at
-				 * the start.
-				 *
-				 */
-				while(namerec->data.num_ips>=25) {
-					struct name_record *name1brec = NULL;
-
-					/* We only do this for 1c types. */
-					if (namerec->name.name_type != 0x1c) {
-						break;
-					}
-					DEBUG(3,("wins_process_name_registration_request: "
-						"More than 25 IPs already in "
-						"the list. Looking for a 1b "
-						"record\n"));
-
-					/* Ensure we have all the active 1b
-					 * names on the list. */
-					wins_delete_all_1b_in_memory_records();
-					fetch_all_active_wins_1b_names();
-
-					/* Per the above, find the 1b record,
-					   and then remove the first IP that isn't the same */
-					for(name1brec = subrec->namelist;
-							name1brec;
-							name1brec = name1brec->next ) {
-						if( WINS_STATE_ACTIVE(name1brec) &&
-								name1brec->name.name_type == 0x1b) {
-							DEBUG(3,("wins_process_name_registration_request: "
-								"Found the #1b record "
-								"with ip %s\n",
-								inet_ntoa(name1brec->data.ip[0])));
-							break;
-						}
-					}
-					if(!name1brec) {
-						DEBUG(3,("wins_process_name_registration_request: "
-							"Didn't find a #1b name record. "
-							"Removing the first available "
-							"entry %s\n",
-							inet_ntoa(namerec->data.ip[0])));
-						remove_ip_from_name_record(namerec, namerec->data.ip[0]);
-						wins_hook("delete", namerec, 0);
-					} else {
-						int i;
-						for(i=0; i<namerec->data.num_ips; i++) {
-							/* The name1brec should only have
-							 * the single IP address in it,
-							 * so we only check against the first one*/
-							if(!ip_equal_v4( namerec->data.ip[i], name1brec->data.ip[0])) {
-								/* The i'th entry isn't the 1b address; delete it  */
-								DEBUG(3,("wins_process_name_registration_request: "
-									"Entry at %d is not the #1b address. "
-									"About to remove it\n",
-									i));
-								remove_ip_from_name_record(namerec, namerec->data.ip[i]);
-								wins_hook("delete", namerec, 0);
-								break;
-							}
-						}
-					}
-				}
-				/* The list is guaranteed to be < 25 entries now
-				 * - safe to add a new one  */
 				add_ip_to_name_record(namerec, from_ip);
 				/* we need to update the record for replication */
 				get_global_id_and_update(&namerec->data.id, True);
@@ -1968,40 +1866,27 @@ void send_wins_name_query_response(int rcode, struct packet_struct *p,
 	memset(rdata,'\0',6);
 
 	if(rcode == 0) {
-
-		int ip_count;
-
 		ttl = (namerec->data.death_time != PERMANENT_TTL) ?  namerec->data.death_time - p->timestamp : lp_max_wins_ttl();
-
-		/* The netbios reply packet data section is limited to 576 bytes.  In theory 
-		 * this should give us space for 96 addresses, but in practice, 86 appears 
-		 * to be the max (don't know why).  If we send any more than that, 
-		 * reply_netbios_packet will fail to send a reply to avoid a memcpy buffer 
-		 * overflow.  Keep the count to 85 and it will be ok */
-		ip_count=namerec->data.num_ips;
-		if(ip_count>85) {
-			ip_count=85;	
-		}
 
 		/* Copy all known ip addresses into the return data. */
 		/* Optimise for the common case of one IP address so we don't need a malloc. */
 
-		if( ip_count == 1 ) {
+		if( namerec->data.num_ips == 1 ) {
 			prdata = rdata;
 		} else {
-			if((prdata = (char *)SMB_MALLOC( ip_count * 6 )) == NULL) {
+			if((prdata = (char *)SMB_MALLOC( namerec->data.num_ips * 6 )) == NULL) {
 				DEBUG(0,("send_wins_name_query_response: malloc fail !\n"));
 				return;
 			}
 		}
 
-		for(i = 0; i < ip_count; i++) {
+		for(i = 0; i < namerec->data.num_ips; i++) {
 			set_nb_flags(&prdata[i*6],namerec->data.nb_flags);
 			putip((char *)&prdata[2+(i*6)], &namerec->data.ip[i]);
 		}
 
 		sort_query_replies(prdata, i, p->ip);
-		reply_data_len = ip_count * 6;
+		reply_data_len = namerec->data.num_ips * 6;
 	}
 
 	reply_netbios_packet(p,                                /* Packet to reply to. */
@@ -2140,7 +2025,7 @@ void wins_process_name_release_request(struct subnet_record *subrec,
 	uint16 nb_flags = get_nb_flags(nmb->additional->rdata);
 	struct name_record *namerec = NULL;
 	struct in_addr from_ip;
-	bool releasing_group_name = (nb_flags & NB_GROUP) ? True : False;
+	bool releasing_group_name = (nb_flags & NB_GROUP) ? True : False;;
 
 	putip((char *)&from_ip,&nmb->additional->rdata[2]);
 

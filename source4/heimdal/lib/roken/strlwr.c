@@ -38,7 +38,7 @@
 #include "roken.h"
 
 #ifndef HAVE_STRLWR
-ROKEN_LIB_FUNCTION char * ROKEN_LIB_CALL
+char * ROKEN_LIB_FUNCTION
 strlwr(char *str)
 {
   char *s;

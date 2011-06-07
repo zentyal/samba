@@ -33,11 +33,22 @@
 
 #include "ldb_private.h"
 #include "dlinklist.h"
-#include "system/dir.h"
+
+#define LDB_MODULE_PREFIX	"modules:"
+#define LDB_MODULE_PREFIX_LEN	8
+
+static void *ldb_dso_load_symbol(struct ldb_context *ldb, const char *name,
+				 const char *symbol);
+
+void ldb_set_modules_dir(struct ldb_context *ldb, const char *path)
+{
+	talloc_free(ldb->modules_dir);
+	ldb->modules_dir = talloc_strdup(ldb, path);
+}
 
 static char *ldb_modules_strdup_no_spaces(TALLOC_CTX *mem_ctx, const char *string)
 {
-	size_t i, len;
+	int i, len;
 	char *trimmed;
 
 	trimmed = talloc_strdup(mem_ctx, string);
@@ -68,7 +79,7 @@ const char **ldb_modules_list_from_string(struct ldb_context *ldb, TALLOC_CTX *m
 	char **modules = NULL;
 	const char **m;
 	char *modstr, *p;
-	unsigned int i;
+	int i;
 
 	/* spaces not admitted */
 	modstr = ldb_modules_strdup_no_spaces(mem_ctx, string);
@@ -84,12 +95,6 @@ const char **ldb_modules_list_from_string(struct ldb_context *ldb, TALLOC_CTX *m
 		return NULL;
 	}
 	talloc_steal(modules, modstr);
-
-	if (modstr[0] == '\0') {
-		modules[0] = NULL;
-		m = (const char **)modules;
-		return m;
-	}
 
 	i = 0;
 	/* The str*r*chr walks backwards:  This is how we get the inverse order mentioned above */
@@ -125,13 +130,29 @@ static struct ops_list_entry {
 	struct ops_list_entry *next;
 } *registered_modules = NULL;
 
-static struct backends_list_entry *ldb_find_backend(const char *url_prefix)
+static const struct ldb_builtins {
+	const struct ldb_backend_ops *backend_ops;
+	const struct ldb_module_ops *module_ops;
+} builtins[];
+
+static ldb_connect_fn ldb_find_backend(const char *url)
 {
 	struct backends_list_entry *backend;
+	int i;
+
+	for (i = 0; builtins[i].backend_ops || builtins[i].module_ops; i++) {
+		if (builtins[i].backend_ops == NULL) continue;
+
+		if (strncmp(builtins[i].backend_ops->name, url,
+			    strlen(builtins[i].backend_ops->name)) == 0) {
+			return builtins[i].backend_ops->connect_fn;
+		}
+	}
 
 	for (backend = ldb_backends; backend; backend = backend->next) {
-		if (strcmp(backend->ops->name, url_prefix) == 0) {
-			return backend;
+		if (strncmp(backend->ops->name, url,
+			    strlen(backend->ops->name)) == 0) {
+			return backend->ops->connect_fn;
 		}
 	}
 
@@ -139,34 +160,32 @@ static struct backends_list_entry *ldb_find_backend(const char *url_prefix)
 }
 
 /*
-  register a new ldb backend
-
-  if override is true, then override any existing backend for this prefix
+ register a new ldb backend
 */
-int ldb_register_backend(const char *url_prefix, ldb_connect_fn connectfn, bool override)
+int ldb_register_backend(const char *url_prefix, ldb_connect_fn connectfn)
 {
-	struct backends_list_entry *be;
+	struct ldb_backend_ops *backend;
+	struct backends_list_entry *entry;
 
-	be = ldb_find_backend(url_prefix);
-	if (be) {
-		if (!override) {
-			return LDB_SUCCESS;
-		}
-	} else {
-		be = talloc_zero(ldb_backends, struct backends_list_entry);
-		if (!be) {
-			return LDB_ERR_OPERATIONS_ERROR;
-		}
-		be->ops = talloc_zero(be, struct ldb_backend_ops);
-		if (!be->ops) {
-			talloc_free(be);
-			return LDB_ERR_OPERATIONS_ERROR;
-		}
-		DLIST_ADD_END(ldb_backends, be, struct backends_list_entry);
+	backend = talloc(talloc_autofree_context(), struct ldb_backend_ops);
+	if (!backend) return LDB_ERR_OPERATIONS_ERROR;
+
+	entry = talloc(talloc_autofree_context(), struct backends_list_entry);
+	if (!entry) {
+		talloc_free(backend);
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
-	be->ops->name = url_prefix;
-	be->ops->connect_fn = connectfn;
+	if (ldb_find_backend(url_prefix)) {
+		return LDB_SUCCESS;
+	}
+
+	/* Maybe check for duplicity here later on? */
+
+	backend->name = talloc_strdup(backend, url_prefix);
+	backend->connect_fn = connectfn;
+	entry->ops = backend;
+	DLIST_ADD(ldb_backends, entry);
 
 	return LDB_SUCCESS;
 }
@@ -185,14 +204,14 @@ int ldb_register_backend(const char *url_prefix, ldb_connect_fn connectfn, bool 
    This allows modules to get at only the backend module, for example where a
    module may wish to direct certain requests at a particular backend.
 */
-int ldb_module_connect_backend(struct ldb_context *ldb,
-			       const char *url,
-			       const char *options[],
-			       struct ldb_module **backend_module)
+int ldb_connect_backend(struct ldb_context *ldb,
+			const char *url,
+			const char *options[],
+			struct ldb_module **backend_module)
 {
 	int ret;
 	char *backend;
-	struct backends_list_entry *be;
+	ldb_connect_fn fn;
 
 	if (strchr(url, ':') != NULL) {
 		backend = talloc_strndup(ldb, url, strchr(url, ':')-url);
@@ -201,65 +220,50 @@ int ldb_module_connect_backend(struct ldb_context *ldb,
 		backend = talloc_strdup(ldb, "tdb");
 	}
 
-	be = ldb_find_backend(backend);
+	fn = ldb_find_backend(backend);
+
+	if (fn == NULL) {
+		struct ldb_backend_ops *ops;
+		char *symbol_name = talloc_asprintf(ldb, "ldb_%s_backend_ops", backend);
+		if (symbol_name == NULL) {
+			return LDB_ERR_OPERATIONS_ERROR;
+		}
+		ops = ldb_dso_load_symbol(ldb, backend, symbol_name);
+		if (ops != NULL) {
+			fn = ops->connect_fn;
+		}
+		talloc_free(symbol_name);
+	}
 
 	talloc_free(backend);
 
-	if (be == NULL) {
+	if (fn == NULL) {
 		ldb_debug(ldb, LDB_DEBUG_FATAL,
-			  "Unable to find backend for '%s' - do you need to set LDB_MODULES_PATH?", url);
+			  "Unable to find backend for '%s'", url);
 		return LDB_ERR_OTHER;
 	}
 
-	ret = be->ops->connect_fn(ldb, url, ldb->flags, options, backend_module);
+	ret = fn(ldb, url, ldb->flags, options, backend_module);
 
 	if (ret != LDB_SUCCESS) {
 		ldb_debug(ldb, LDB_DEBUG_ERROR,
-			  "Failed to connect to '%s' with backend '%s'", url, be->ops->name);
+			  "Failed to connect to '%s'", url);
 		return ret;
 	}
 	return ret;
 }
 
-static struct ldb_hooks {
-	struct ldb_hooks *next, *prev;
-	ldb_hook_fn hook_fn;
-} *ldb_hooks;
-
-/*
-  register a ldb hook function
- */
-int ldb_register_hook(ldb_hook_fn hook_fn)
-{
-	struct ldb_hooks *lc;
-	lc = talloc_zero(ldb_hooks, struct ldb_hooks);
-	if (lc == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
-	lc->hook_fn = hook_fn;
-	DLIST_ADD_END(ldb_hooks, lc, struct ldb_hooks);
-	return LDB_SUCCESS;
-}
-
-/*
-  call ldb hooks of a given type
- */
-int ldb_modules_hook(struct ldb_context *ldb, enum ldb_module_hook_type t)
-{
-	struct ldb_hooks *lc;
-	for (lc = ldb_hooks; lc; lc=lc->next) {
-		int ret = lc->hook_fn(ldb, t);
-		if (ret != LDB_SUCCESS) {
-			return ret;
-		}
-	}
-	return LDB_SUCCESS;
-}
-
-
 static const struct ldb_module_ops *ldb_find_module_ops(const char *name)
 {
 	struct ops_list_entry *e;
+	int i;
+
+	for (i = 0; builtins[i].backend_ops || builtins[i].module_ops; i++) {
+		if (builtins[i].module_ops == NULL) continue;
+
+		if (strcmp(builtins[i].module_ops->name, name) == 0)
+			return builtins[i].module_ops;
+	}
 
 	for (e = registered_modules; e; e = e->next) {
  		if (strcmp(e->ops->name, name) == 0)
@@ -272,12 +276,11 @@ static const struct ldb_module_ops *ldb_find_module_ops(const char *name)
 
 int ldb_register_module(const struct ldb_module_ops *ops)
 {
-	struct ops_list_entry *entry;
+	struct ops_list_entry *entry = talloc(talloc_autofree_context(), struct ops_list_entry);
 
 	if (ldb_find_module_ops(ops->name) != NULL)
-		return LDB_ERR_ENTRY_ALREADY_EXISTS;
+		return -1;
 
-	entry = talloc(talloc_autofree_context(), struct ops_list_entry);
 	if (entry == NULL)
 		return -1;
 
@@ -288,18 +291,47 @@ int ldb_register_module(const struct ldb_module_ops *ops)
 	return 0;
 }
 
-/*
-  load a list of modules
- */
-int ldb_module_load_list(struct ldb_context *ldb, const char **module_list,
-			 struct ldb_module *backend, struct ldb_module **out)
+static void *ldb_dso_load_symbol(struct ldb_context *ldb, const char *name,
+				 const char *symbol)
+{
+	char *path;
+	void *handle;
+	void *sym;
+
+	if (ldb->modules_dir == NULL)
+		return NULL;
+
+	path = talloc_asprintf(ldb, "%s/%s.%s", ldb->modules_dir, name,
+			       SHLIBEXT);
+
+	ldb_debug(ldb, LDB_DEBUG_TRACE, "trying to load %s from %s", name, path);
+
+	handle = dlopen(path, RTLD_NOW);
+	if (handle == NULL) {
+		ldb_debug(ldb, LDB_DEBUG_WARNING, "unable to load %s from %s: %s", name, path, dlerror());
+		return NULL;
+	}
+
+	sym = (int (*)(void))dlsym(handle, symbol);
+
+	if (sym == NULL) {
+		ldb_debug(ldb, LDB_DEBUG_ERROR, "no symbol `%s' found in %s: %s", symbol, path, dlerror());
+		return NULL;
+	}
+
+	talloc_free(path);
+
+	return sym;
+}
+
+int ldb_load_modules_list(struct ldb_context *ldb, const char **module_list, struct ldb_module *backend, struct ldb_module **out)
 {
 	struct ldb_module *module;
-	unsigned int i;
+	int i;
 
 	module = backend;
 
-	for (i = 0; module_list && module_list[i] != NULL; i++) {
+	for (i = 0; module_list[i] != NULL; i++) {
 		struct ldb_module *current;
 		const struct ldb_module_ops *ops;
 
@@ -308,11 +340,20 @@ int ldb_module_load_list(struct ldb_context *ldb, const char **module_list,
 		}
 
 		ops = ldb_find_module_ops(module_list[i]);
+		if (ops == NULL) {
+			char *symbol_name = talloc_asprintf(ldb, "ldb_%s_module_ops",
+												module_list[i]);
+			if (symbol_name == NULL) {
+				return LDB_ERR_OPERATIONS_ERROR;
+			}
+			ops = ldb_dso_load_symbol(ldb, module_list[i], symbol_name);
+			talloc_free(symbol_name);
+		}
 
 		if (ops == NULL) {
-			ldb_debug(ldb, LDB_DEBUG_FATAL, "WARNING: Module [%s] not found - do you need to set LDB_MODULES_PATH?",
+			ldb_debug(ldb, LDB_DEBUG_WARNING, "WARNING: Module [%s] not found",
 				  module_list[i]);
-			return LDB_ERR_OPERATIONS_ERROR;
+			continue;
 		}
 
 		current = talloc_zero(ldb, struct ldb_module);
@@ -330,10 +371,7 @@ int ldb_module_load_list(struct ldb_context *ldb, const char **module_list,
 	return LDB_SUCCESS;
 }
 
-/*
-  initialise a chain of modules
- */
-int ldb_module_init_chain(struct ldb_context *ldb, struct ldb_module *module)
+int ldb_init_module_chain(struct ldb_context *ldb, struct ldb_module *module)
 {
 	while (module && module->ops->init_context == NULL)
 		module = module->next;
@@ -344,8 +382,7 @@ int ldb_module_init_chain(struct ldb_context *ldb, struct ldb_module *module)
 	if (module) {
 		int ret = module->ops->init_context(module);
 		if (ret != LDB_SUCCESS) {
-			ldb_debug(ldb, LDB_DEBUG_FATAL, "module %s initialization failed : %s",
-				  module->ops->name, ldb_strerror(ret));
+			ldb_debug(ldb, LDB_DEBUG_FATAL, "module %s initialization failed", module->ops->name);
 			return ret;
 		}
 	}
@@ -355,8 +392,8 @@ int ldb_module_init_chain(struct ldb_context *ldb, struct ldb_module *module)
 
 int ldb_load_modules(struct ldb_context *ldb, const char *options[])
 {
-	const char *modules_string;
 	const char **modules = NULL;
+	int i;
 	int ret;
 	TALLOC_CTX *mem_ctx = talloc_new(ldb);
 	if (!mem_ctx) {
@@ -367,9 +404,10 @@ int ldb_load_modules(struct ldb_context *ldb, const char *options[])
 
 	/* check if we have a custom module list passd as ldb option */
 	if (options) {
-		modules_string = ldb_options_find(ldb, options, "modules");
-		if (modules_string) {
-			modules = ldb_modules_list_from_string(ldb, mem_ctx, modules_string);
+		for (i = 0; options[i] != NULL; i++) {
+			if (strncmp(options[i], LDB_MODULE_PREFIX, LDB_MODULE_PREFIX_LEN) == 0) {
+				modules = ldb_modules_list_from_string(ldb, mem_ctx, &options[i][LDB_MODULE_PREFIX_LEN]);
+			}
 		}
 	}
 
@@ -415,7 +453,7 @@ int ldb_load_modules(struct ldb_context *ldb, const char *options[])
 	}
 
 	if (modules != NULL) {
-		ret = ldb_module_load_list(ldb, modules, ldb->modules, &ldb->modules);
+		ret = ldb_load_modules_list(ldb, modules, ldb->modules, &ldb->modules);
 		if (ret != LDB_SUCCESS) {
 			talloc_free(mem_ctx);
 			return ret;
@@ -424,7 +462,7 @@ int ldb_load_modules(struct ldb_context *ldb, const char *options[])
 		ldb_debug(ldb, LDB_DEBUG_TRACE, "No modules specified for this database");
 	}
 
-	ret = ldb_module_init_chain(ldb, ldb->modules);
+	ret = ldb_init_module_chain(ldb, ldb->modules);
 	talloc_free(mem_ctx);
 	return ret;
 }
@@ -437,10 +475,6 @@ int ldb_load_modules(struct ldb_context *ldb, const char *options[])
 #define FIND_OP_NOERR(module, op) do { \
 	module = module->next; \
 	while (module && module->ops->op == NULL) module = module->next; \
-	if ((module && module->ldb->flags & LDB_FLG_ENABLE_TRACING)) { \
-		ldb_debug(module->ldb, LDB_DEBUG_TRACE, "ldb_trace_next_request: (%s)->" #op, \
-			  module->ops->name);				\
-	}								\
 } while (0)
 
 #define FIND_OP(module, op) do { \
@@ -481,11 +515,6 @@ const char * ldb_module_get_name(struct ldb_module *module)
 struct ldb_context *ldb_module_get_ctx(struct ldb_module *module)
 {
 	return module->ldb;
-}
-
-const struct ldb_module_ops *ldb_module_get_ops(struct ldb_module *module)
-{
-	return module->ops;
 }
 
 void *ldb_module_get_private(struct ldb_module *module)
@@ -562,7 +591,7 @@ int ldb_next_request(struct ldb_module *module, struct ldb_request *request)
 		 * all our modules, and leaves us one less sharp
 		 * corner for module developers to cut themselves on
 		 */
-		ret = ldb_module_done(request, NULL, NULL, ret);
+		ldb_module_done(request, NULL, NULL, ret);
 	}
 	return ret;
 }
@@ -571,88 +600,36 @@ int ldb_next_init(struct ldb_module *module)
 {
 	module = module->next;
 
-	return ldb_module_init_chain(module->ldb, module);
+	return ldb_init_module_chain(module->ldb, module);
 }
 
 int ldb_next_start_trans(struct ldb_module *module)
 {
-	int ret;
 	FIND_OP(module, start_transaction);
-	ret = module->ops->start_transaction(module);
-	if (ret == LDB_SUCCESS) {
-		return ret;
-	}
-	if (!ldb_errstring(module->ldb)) {
-		/* Set a default error string, to place the blame somewhere */
-		ldb_asprintf_errstring(module->ldb, "start_trans error in module %s: %s (%d)", module->ops->name, ldb_strerror(ret), ret);
-	}
-	if ((module && module->ldb->flags & LDB_FLG_ENABLE_TRACING)) { 
-		ldb_debug(module->ldb, LDB_DEBUG_TRACE, "ldb_next_start_trans error: %s", 
-			  ldb_errstring(module->ldb));				
-	}
-	return ret;
+	return module->ops->start_transaction(module);
 }
 
 int ldb_next_end_trans(struct ldb_module *module)
 {
-	int ret;
 	FIND_OP(module, end_transaction);
-	ret = module->ops->end_transaction(module);
-	if (ret == LDB_SUCCESS) {
-		return ret;
-	}
-	if (!ldb_errstring(module->ldb)) {
-		/* Set a default error string, to place the blame somewhere */
-		ldb_asprintf_errstring(module->ldb, "end_trans error in module %s: %s (%d)", module->ops->name, ldb_strerror(ret), ret);
-	}
-	if ((module && module->ldb->flags & LDB_FLG_ENABLE_TRACING)) { 
-		ldb_debug(module->ldb, LDB_DEBUG_TRACE, "ldb_next_end_trans error: %s", 
-			  ldb_errstring(module->ldb));				
-	}
-	return ret;
+	return module->ops->end_transaction(module);
 }
 
 int ldb_next_prepare_commit(struct ldb_module *module)
 {
-	int ret;
 	FIND_OP_NOERR(module, prepare_commit);
 	if (module == NULL) {
 		/* we are allowed to have no prepare commit in
 		   backends */
 		return LDB_SUCCESS;
 	}
-	ret = module->ops->prepare_commit(module);
-	if (ret == LDB_SUCCESS) {
-		return ret;
-	}
-	if (!ldb_errstring(module->ldb)) {
-		/* Set a default error string, to place the blame somewhere */
-		ldb_asprintf_errstring(module->ldb, "prepare_commit error in module %s: %s (%d)", module->ops->name, ldb_strerror(ret), ret);
-	}
-	if ((module && module->ldb->flags & LDB_FLG_ENABLE_TRACING)) { 
-		ldb_debug(module->ldb, LDB_DEBUG_TRACE, "ldb_next_prepare_commit error: %s", 
-			  ldb_errstring(module->ldb));				
-	}
-	return ret;
+	return module->ops->prepare_commit(module);
 }
 
 int ldb_next_del_trans(struct ldb_module *module)
 {
-	int ret;
 	FIND_OP(module, del_transaction);
-	ret = module->ops->del_transaction(module);
-	if (ret == LDB_SUCCESS) {
-		return ret;
-	}
-	if (!ldb_errstring(module->ldb)) {
-		/* Set a default error string, to place the blame somewhere */
-		ldb_asprintf_errstring(module->ldb, "del_trans error in module %s: %s (%d)", module->ops->name, ldb_strerror(ret), ret);
-	}
-	if ((module && module->ldb->flags & LDB_FLG_ENABLE_TRACING)) { 
-		ldb_debug(module->ldb, LDB_DEBUG_TRACE, "ldb_next_del_trans error: %s", 
-			  ldb_errstring(module->ldb));				
-	}
-	return ret;
+	return module->ops->del_transaction(module);
 }
 
 struct ldb_handle *ldb_handle_new(TALLOC_CTX *mem_ctx, struct ldb_context *ldb)
@@ -669,8 +646,6 @@ struct ldb_handle *ldb_handle_new(TALLOC_CTX *mem_ctx, struct ldb_context *ldb)
 	h->state = LDB_ASYNC_INIT;
 	h->ldb = ldb;
 	h->flags = 0;
-	h->location = NULL;
-	h->parent = NULL;
 
 	return h;
 }
@@ -753,7 +728,7 @@ int ldb_module_send_referral(struct ldb_request *req,
  * 	req:   the original request passed to your module
  * 	ctrls: controls to send in the reply (must be a talloc pointer, steal)
  * 	response: results for extended request (steal)
- * 	error: LDB_SUCCESS for a successful return
+ * 	error: LDB_SUCCESS for a succesful return
  * 	       any other ldb error otherwise
  */
 int ldb_module_done(struct ldb_request *req,
@@ -787,11 +762,12 @@ int ldb_module_done(struct ldb_request *req,
 		ldb_debug_end(req->handle->ldb, LDB_DEBUG_TRACE);
 	}
 
-	return req->callback(req, ares);
+	req->callback(req, ares);
+	return error;
 }
 
 /* to be used *only* in modules init functions.
- * this function is synchronous and will register
+ * this function i synchronous and will register
  * the requested OID in the rootdse module if present
  * otherwise it will return an error */
 int ldb_mod_register_control(struct ldb_module *module, const char *oid)
@@ -824,319 +800,70 @@ int ldb_mod_register_control(struct ldb_module *module, const char *oid)
 	return ret;
 }
 
-static int ldb_modules_load_dir(const char *modules_dir, const char *version);
+#ifndef STATIC_LIBLDB_MODULES
 
-
-/*
-  load one module. A static list of loaded module inode numbers is
-  used to prevent a module being loaded twice
-
-  dlopen() is used on the module, and dlsym() is then used to look for
-  a ldb_init_module() function. If present, that function is called
-  with the ldb version number as an argument.
-
-  The ldb_init_module() function will typically call
-  ldb_register_module() and ldb_register_backend() to register a
-  module or backend, but it may also be used to register command line
-  handling functions, ldif handlers or any other local
-  modififications.
-
-  The ldb_init_module() function does not get a ldb_context passed in,
-  as modules will be used for multiple ldb context handles. The call
-  from the first ldb_init() is just a convenient way to ensure it is
-  called early enough.
- */
-static int ldb_modules_load_path(const char *path, const char *version)
-{
-	void *handle;
-	int (*init_fn)(const char *);
-	int ret;
-	struct stat st;
-	static struct loaded {
-		struct loaded *next, *prev;
-		ino_t st_ino;
-		dev_t st_dev;
-	} *loaded;
-	struct loaded *le;
-	int dlopen_flags;
-
-	ret = stat(path, &st);
-	if (ret != 0) {
-		fprintf(stderr, "ldb: unable to stat module %s : %s\n", path, strerror(errno));
-		return LDB_ERR_UNAVAILABLE;
-	}
-
-	for (le=loaded; le; le=le->next) {
-		if (le->st_ino == st.st_ino &&
-		    le->st_dev == st.st_dev) {
-			/* its already loaded */
-			return LDB_SUCCESS;
-		}
-	}
-
-	le = talloc(loaded, struct loaded);
-	if (le == NULL) {
-		fprintf(stderr, "ldb: unable to allocated loaded entry\n");
-		return LDB_ERR_UNAVAILABLE;
-	}
-
-	le->st_ino = st.st_ino;
-	le->st_dev = st.st_dev;
-
-	DLIST_ADD_END(loaded, le, struct loaded);
-
-	/* if it is a directory, recurse */
-	if (S_ISDIR(st.st_mode)) {
-		return ldb_modules_load_dir(path, version);
-	}
-
-	dlopen_flags = RTLD_NOW;
-#ifdef RTLD_DEEPBIND
-	/* use deepbind if possible, to avoid issues with different
-	   system library varients, for example ldb modules may be linked
-	   against Heimdal while the application may use MIT kerberos
-
-	   See the dlopen manpage for details
-	*/
-	dlopen_flags |= RTLD_DEEPBIND;
+#ifdef HAVE_LDB_LDAP
+#define LDAP_BACKEND LDB_BACKEND(ldap), LDB_BACKEND(ldapi), LDB_BACKEND(ldaps),
+#else
+#define LDAP_BACKEND
 #endif
 
-	handle = dlopen(path, dlopen_flags);
-	if (handle == NULL) {
-		fprintf(stderr, "ldb: unable to dlopen %s : %s\n", path, dlerror());
-		return LDB_SUCCESS;
-	}
+#ifdef HAVE_LDB_SQLITE3
+#define SQLITE3_BACKEND LDB_BACKEND(sqlite3),
+#else
+#define SQLITE3_BACKEND
+#endif
 
-	init_fn = dlsym(handle, "ldb_init_module");
-	if (init_fn == NULL) {
-		/* ignore it, it could be an old-style
-		 * module. Once we've converted all modules we
-		 * could consider this an error */
-		dlclose(handle);
-		return LDB_SUCCESS;
-	}
-
-	ret = init_fn(version);
-	if (ret == LDB_ERR_ENTRY_ALREADY_EXISTS) {
-		/* the module is already registered - ignore this, as
-		 * it can happen if LDB_MODULES_PATH points at both
-		 * the build and install directory
-		 */
-		ret = LDB_SUCCESS;
-	}
-	return ret;
-}
-
-static int qsort_string(const char **s1, const char **s2)
-{
-	return strcmp(*s1, *s2);
-}
-
+#define STATIC_LIBLDB_MODULES \
+	LDB_BACKEND(tdb),	\
+	LDAP_BACKEND	\
+	SQLITE3_BACKEND	\
+	LDB_MODULE(rdn_name),	\
+	LDB_MODULE(paged_results),	\
+	LDB_MODULE(server_sort),		\
+	LDB_MODULE(asq), \
+	NULL
+#endif
 
 /*
-  load all modules from the given ldb modules directory. This is run once
-  during the first ldb_init() call.
-
-  Modules are loaded in alphabetical order to ensure that any module
-  load ordering dependencies are reproducible. Modules should avoid
-  relying on load order
+ * this is a bit hacked, as STATIC_LIBLDB_MODULES contains ','
+ * between the elements and we want to autogenerate the
+ * extern struct declarations, so we do some hacks and let the
+ * ',' appear in an unused function prototype.
  */
-static int ldb_modules_load_dir(const char *modules_dir, const char *version)
-{
-	DIR *dir;
-	struct dirent *de;
-	const char **modlist = NULL;
-	TALLOC_CTX *tmp_ctx = talloc_new(NULL);
-	unsigned i, num_modules = 0;
+#undef NULL
+#define NULL LDB_MODULE(NULL),
 
-	dir = opendir(modules_dir);
-	if (dir == NULL) {
-		if (errno == ENOENT) {
-			talloc_free(tmp_ctx);
-			/* we don't have any modules */
-			return LDB_SUCCESS;
-		}
-		talloc_free(tmp_ctx);
-		fprintf(stderr, "ldb: unable to open modules directory '%s' - %s\n",
-			modules_dir, strerror(errno));
-		return LDB_ERR_UNAVAILABLE;
-	}
+#define LDB_BACKEND(name) \
+	int); \
+	extern const struct ldb_backend_ops ldb_ ## name ## _backend_ops;\
+	extern void ldb_noop ## name (int
+#define LDB_MODULE(name) \
+	int); \
+	extern const struct ldb_module_ops ldb_ ## name ## _module_ops;\
+	extern void ldb_noop ## name (int
 
+extern void ldb_start_noop(int,
+STATIC_LIBLDB_MODULES
+int);
 
-	while ((de = readdir(dir))) {
-		if (ISDOT(de->d_name) || ISDOTDOT(de->d_name))
-			continue;
-
-		modlist = talloc_realloc(tmp_ctx, modlist, const char *, num_modules+1);
-		if (modlist == NULL) {
-			talloc_free(tmp_ctx);
-			closedir(dir);
-			fprintf(stderr, "ldb: unable to allocate modules list\n");
-			return LDB_ERR_UNAVAILABLE;
-		}
-		modlist[num_modules] = talloc_asprintf(modlist, "%s/%s", modules_dir, de->d_name);
-		if (modlist[num_modules] == NULL) {
-			talloc_free(tmp_ctx);
-			closedir(dir);
-			fprintf(stderr, "ldb: unable to allocate module list entry\n");
-			return LDB_ERR_UNAVAILABLE;
-		}
-		num_modules++;
-	}
-
-	closedir(dir);
-
-	/* sort the directory, so we get consistent load ordering */
-	TYPESAFE_QSORT(modlist, num_modules, qsort_string);
-
-	for (i=0; i<num_modules; i++) {
-		int ret = ldb_modules_load_path(modlist[i], version);
-		if (ret != LDB_SUCCESS) {
-			fprintf(stderr, "ldb: failed to initialise module %s : %s\n",
-				modlist[i], ldb_strerror(ret));
-			talloc_free(tmp_ctx);
-			return ret;
-		}
-	}
-
-	talloc_free(tmp_ctx);
-
-	return LDB_SUCCESS;
+#undef NULL
+#define NULL { \
+	.backend_ops = (void *)0, \
+	.module_ops = (void *)0 \
 }
 
-/* 
-   load any additional modules from the given directory 
-*/
-void ldb_set_modules_dir(struct ldb_context *ldb, const char *path)
-{
-	int ret = ldb_modules_load_path(path, LDB_VERSION);
-	if (ret != LDB_SUCCESS) {
-		ldb_asprintf_errstring(ldb, "Failed to load modules from: %s\n", path);
-	}
+#undef LDB_BACKEND
+#define LDB_BACKEND(name) { \
+	.backend_ops = &ldb_ ## name ## _backend_ops, \
+	.module_ops = (void *)0 \
+}
+#undef LDB_MODULE
+#define LDB_MODULE(name) { \
+	.backend_ops = (void *)0, \
+	.module_ops = &ldb_ ## name ## _module_ops \
 }
 
-
-/*
-  load all modules static (builtin) modules
- */
-static int ldb_modules_load_static(const char *version)
-{
-	static bool initialised;
-#define _MODULE_PROTO(init) extern int init(const char *);
-	STATIC_ldb_MODULES_PROTO;
-	const ldb_module_init_fn static_init_functions[] = { STATIC_ldb_MODULES };
-	unsigned i;
-
-	if (initialised) {
-		return LDB_SUCCESS;
-	}
-	initialised = true;
-
-	for (i=0; static_init_functions[i]; i++) {
-		int ret = static_init_functions[i](version);
-		if (ret != LDB_SUCCESS) {
-			return ret;
-		}
-	}
-	return LDB_SUCCESS;
-}
-
-/*
-  load all modules from the given ldb modules path, colon
-  separated.
-
-  modules are loaded recursively for all subdirectories in the paths
- */
-int ldb_modules_load(const char *modules_path, const char *version)
-{
-	char *tok, *path, *tok_ptr=NULL;
-	int ret;
-
-	ret = ldb_modules_load_static(version);
-	if (ret != LDB_SUCCESS) {
-		return ret;
-	}
-
-	path = talloc_strdup(NULL, modules_path);
-	if (path == NULL) {
-		fprintf(stderr, "ldb: failed to allocate modules_path\n");
-		return LDB_ERR_UNAVAILABLE;
-	}
-
-	for (tok=strtok_r(path, ":", &tok_ptr);
-	     tok;
-	     tok=strtok_r(NULL, ":", &tok_ptr)) {
-		ret = ldb_modules_load_path(tok, version);
-		if (ret != LDB_SUCCESS) {
-			talloc_free(path);
-			return ret;
-		}
-	}
-	talloc_free(path);
-
-	return LDB_SUCCESS;
-}
-
-
-/*
-  return a string representation of the calling chain for the given
-  ldb request
- */
-char *ldb_module_call_chain(struct ldb_request *req, TALLOC_CTX *mem_ctx)
-{
-	char *ret;
-	int i=0;
-
-	ret = talloc_strdup(mem_ctx, "");
-	if (ret == NULL) {
-		return NULL;
-	}
-
-	while (req && req->handle) {
-		char *s = talloc_asprintf_append_buffer(ret, "req[%u] %p  : %s\n",
-							i++, req, ldb_req_location(req));
-		if (s == NULL) {
-			talloc_free(ret);
-			return NULL;
-		}
-		ret = s;
-		req = req->handle->parent;
-	}
-	return ret;
-}
-
-
-/*
-  return the next module in the chain
- */
-struct ldb_module *ldb_module_next(struct ldb_module *module)
-{
-	return module->next;
-}
-
-/*
-  set the next module in the module chain
- */
-void ldb_module_set_next(struct ldb_module *module, struct ldb_module *next)
-{
-	module->next = next;
-}
-
-
-/*
-  get the popt_options pointer in the ldb structure. This allows a ldb
-  module to change the command line parsing
- */
-struct poptOption **ldb_module_popt_options(struct ldb_context *ldb)
-{
-	return &ldb->popt_options;
-}
-
-
-/*
-  return the current ldb flags LDB_FLG_*
- */
-uint32_t ldb_module_flags(struct ldb_context *ldb)
-{
-	return ldb->flags;
-}
+static const struct ldb_builtins builtins[] = {
+	STATIC_LIBLDB_MODULES
+};

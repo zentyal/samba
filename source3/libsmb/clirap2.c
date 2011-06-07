@@ -76,10 +76,6 @@
 /*****************************************************/
 
 #include "includes.h"
-#include "libsmb/libsmb.h"
-#include "../librpc/gen_ndr/rap.h"
-#include "../librpc/gen_ndr/svcctl.h"
-#include "libsmb/clirap.h"
 
 #define WORDSIZE 2
 #define DWORDSIZE 4
@@ -214,7 +210,7 @@ static size_t rap_getstringp(TALLOC_CTX *ctx, char *p, char **dest, char *r, uin
 		}
 	}
 	pull_string_talloc(ctx,src,0,dest,src,len,STR_ASCII);
-	return 4;
+	return len;
 }
 
 static char *make_header(char *param, uint16 apinum, const char *reqfmt, const char *datafmt)
@@ -288,7 +284,7 @@ int cli_NetGroupDelete(struct cli_state *cli, const char *group_name)
  call a NetGroupAdd - add user group to remote server
 ****************************************************************************/
 
-int cli_NetGroupAdd(struct cli_state *cli, struct rap_group_info_1 *grinfo)
+int cli_NetGroupAdd(struct cli_state *cli, RAP_GROUP_INFO_1 *grinfo)
 {
 	char *rparam = NULL;
 	char *rdata = NULL;
@@ -324,7 +320,7 @@ int cli_NetGroupAdd(struct cli_state *cli, struct rap_group_info_1 *grinfo)
 	PUTWORD(p, 0); /* reserved word 0 */
 
 	p = data;
-	PUTSTRINGF(p, (const char *)grinfo->group_name, RAP_GROUPNAME_LEN);
+	PUTSTRINGF(p, grinfo->group_name, RAP_GROUPNAME_LEN);
 	PUTBYTE(p, 0); /* pad byte 0 */
 	PUTSTRINGP(p, grinfo->comment, data, soffset);
 
@@ -834,7 +830,7 @@ int cli_NetUserDelete(struct cli_state *cli, const char * user_name )
  Call a NetUserAdd - add user to remote server.
 ****************************************************************************/
 
-int cli_NetUserAdd(struct cli_state *cli, struct rap_user_info_1 * userinfo )
+int cli_NetUserAdd(struct cli_state *cli, RAP_USER_INFO_1 * userinfo )
 {
 	char *rparam = NULL;
 	char *rdata = NULL;
@@ -867,16 +863,16 @@ int cli_NetUserAdd(struct cli_state *cli, struct rap_user_info_1 * userinfo )
 	PUTWORD(p, 1); /* info level */
 	PUTWORD(p, 0); /* pwencrypt */
 	if(userinfo->passwrd)
-		PUTWORD(p,MIN(strlen((const char *)userinfo->passwrd), RAP_UPASSWD_LEN));
+		PUTWORD(p,MIN(strlen(userinfo->passwrd), RAP_UPASSWD_LEN));
 	else
 		PUTWORD(p, 0); /* password length */
 
 	p = data;
 	memset(data, '\0', soffset);
 
-	PUTSTRINGF(p, (const char *)userinfo->user_name, RAP_USERNAME_LEN);
+	PUTSTRINGF(p, userinfo->user_name, RAP_USERNAME_LEN);
 	PUTBYTE(p, 0); /* pad byte 0 */
-	PUTSTRINGF(p, (const char *)userinfo->passwrd, RAP_UPASSWD_LEN);
+	PUTSTRINGF(p, userinfo->passwrd, RAP_UPASSWD_LEN);
 	PUTDWORD(p, 0); /* pw age - n.a. on user add */
 	PUTWORD(p, userinfo->priv);
 	PUTSTRINGP(p, userinfo->home_dir, data, soffset);
@@ -1337,7 +1333,7 @@ int cli_NetFileEnum(struct cli_state *cli, const char * user,
  Call a NetShareAdd - share/export directory on remote server.
 ****************************************************************************/
 
-int cli_NetShareAdd(struct cli_state *cli, struct rap_share_info_2 * sinfo )
+int cli_NetShareAdd(struct cli_state *cli, RAP_SHARE_INFO_2 * sinfo )
 {
 	char *rparam = NULL;
 	char *rdata = NULL;
@@ -1369,7 +1365,7 @@ int cli_NetShareAdd(struct cli_state *cli, struct rap_share_info_2 * sinfo )
 	PUTWORD(p, 0); /* reserved word 0 */
 
 	p = data;
-	PUTSTRINGF(p, (const char *)sinfo->share_name, RAP_SHARENAME_LEN);
+	PUTSTRINGF(p, sinfo->share_name, RAP_SHARENAME_LEN);
 	PUTBYTE(p, 0); /* pad byte 0 */
 
 	PUTWORD(p, sinfo->share_type);
@@ -1378,7 +1374,7 @@ int cli_NetShareAdd(struct cli_state *cli, struct rap_share_info_2 * sinfo )
 	PUTWORD(p, sinfo->maximum_users);
 	PUTWORD(p, sinfo->active_users);
 	PUTSTRINGP(p, sinfo->path, data, soffset);
-	PUTSTRINGF(p, (const char *)sinfo->password, RAP_SPASSWD_LEN);
+	PUTSTRINGF(p, sinfo->password, RAP_SPASSWD_LEN);
 	SCVAL(p,-1,0x0A); /* required 0x0A at end of password */
 
 	if (cli_api(cli,
@@ -1903,7 +1899,7 @@ bool cli_NetWkstaUserLogoff(struct cli_state *cli, const char *user, const char 
 
 int cli_NetPrintQEnum(struct cli_state *cli,
 		void (*qfn)(const char*,uint16,uint16,uint16,const char*,const char*,const char*,const char*,const char*,uint16,uint16),
-		void (*jfn)(uint16,const char*,const char*,const char*,const char*,uint16,uint16,const char*,unsigned int,unsigned int,const char*))
+		void (*jfn)(uint16,const char*,const char*,const char*,const char*,uint16,uint16,const char*,uint_t,uint_t,const char*))
 {
 	char param[WORDSIZE                         /* api number    */
 		+sizeof(RAP_NetPrintQEnum_REQ)    /* req string    */
@@ -2079,7 +2075,7 @@ int cli_NetPrintQEnum(struct cli_state *cli,
 
 int cli_NetPrintQGetInfo(struct cli_state *cli, const char *printer,
 	void (*qfn)(const char*,uint16,uint16,uint16,const char*,const char*,const char*,const char*,const char*,uint16,uint16),
-	void (*jfn)(uint16,const char*,const char*,const char*,const char*,uint16,uint16,const char*,unsigned int,unsigned int,const char*))
+	void (*jfn)(uint16,const char*,const char*,const char*,const char*,uint16,uint16,const char*,uint_t,uint_t,const char*))
 {
 	char param[WORDSIZE                         /* api number    */
 		+sizeof(RAP_NetPrintQGetInfo_REQ) /* req string    */
@@ -2339,7 +2335,7 @@ int cli_RNetServiceEnum(struct cli_state *cli, void (*fn)(const char *, const ch
  Call a NetSessionEnum - list workstations with sessions to an SMB server.
 ****************************************************************************/
 
-int cli_NetSessionEnum(struct cli_state *cli, void (*fn)(char *, char *, uint16, uint16, uint16, unsigned int, unsigned int, unsigned int, char *))
+int cli_NetSessionEnum(struct cli_state *cli, void (*fn)(char *, char *, uint16, uint16, uint16, uint_t, uint_t, uint_t, char *))
 {
 	char param[WORDSIZE                       /* api number    */
 		+sizeof(RAP_NetSessionEnum_REQ) /* parm string   */
@@ -2439,7 +2435,7 @@ int cli_NetSessionEnum(struct cli_state *cli, void (*fn)(char *, char *, uint16,
 ****************************************************************************/
 
 int cli_NetSessionGetInfo(struct cli_state *cli, const char *workstation,
-		void (*fn)(const char *, const char *, uint16, uint16, uint16, unsigned int, unsigned int, unsigned int, const char *))
+		void (*fn)(const char *, const char *, uint16, uint16, uint16, uint_t, uint_t, uint_t, const char *))
 {
 	char param[WORDSIZE                          /* api number    */
 		+sizeof(RAP_NetSessionGetInfo_REQ) /* req string    */

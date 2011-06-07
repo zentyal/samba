@@ -20,7 +20,6 @@
 */
 
 #include "includes.h"
-#include "nmbd/nmbd.h"
 
 /****************************************************************************
 Function called when the name lookup succeeded.

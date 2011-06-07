@@ -50,18 +50,12 @@ typedef char fstring[FSTRING_LEN];
  * 22: added WINBINDD_PING_DC
  * 23: added session_key to ccache_ntlm_auth response
  *     added WINBINDD_CCACHE_SAVE
- * 24: Fill in num_entries WINBINDD_LIST_USERS and WINBINDD_LIST_GROUPS
- * 25: removed WINBINDD_SET_HWM
- *     removed WINBINDD_SET_MAPPING
- *     removed WINBINDD_REMOVE_MAPPING
- * 26: added WINBINDD_DC_INFO
- * 27: added WINBINDD_LOOKUPSIDS
  */
-#define WINBIND_INTERFACE_VERSION 27
+#define WINBIND_INTERFACE_VERSION 23
 
 /* Have to deal with time_t being 4 or 8 bytes due to structure alignment.
    On a 64bit Linux box, we have to support a constant structure size
-   between /lib/libnss_winbind.so.2 and /lib64/libnss_winbind.so.2.
+   between /lib/libnss_winbind.so.2 and /li64/libnss_winbind.so.2.
    The easiest way to do this is to always use 8byte values for time_t. */
 
 #define SMB_TIME_T int64_t
@@ -109,7 +103,6 @@ enum winbindd_cmd {
 	WINBINDD_LOOKUPSID,
 	WINBINDD_LOOKUPNAME,
 	WINBINDD_LOOKUPRIDS,
-	WINBINDD_LOOKUPSIDS,
 
 	/* Lookup functions */
 
@@ -121,6 +114,9 @@ enum winbindd_cmd {
 
 	WINBINDD_ALLOCATE_UID,
 	WINBINDD_ALLOCATE_GID,
+	WINBINDD_SET_MAPPING,
+	WINBINDD_REMOVE_MAPPING,
+	WINBINDD_SET_HWM,
 
 	/* Miscellaneous other stuff */
 
@@ -135,7 +131,6 @@ enum winbindd_cmd {
 				   struct winbindd_domain */
 	WINBINDD_GETDCNAME,	/* Issue a GetDCName Request */
 	WINBINDD_DSGETDCNAME,	/* Issue a DsGetDCName Request */
-	WINBINDD_DC_INFO,	/* Which DC are we connected to? */
 
 	WINBINDD_SHOW_SEQUENCE, /* display sequence numbers of domains */
 
@@ -171,6 +166,9 @@ enum winbindd_cmd {
 	WINBINDD_DUAL_SIDS2XIDS,
 	WINBINDD_DUAL_UID2SID,
 	WINBINDD_DUAL_GID2SID,
+	WINBINDD_DUAL_SET_MAPPING,
+	WINBINDD_DUAL_REMOVE_MAPPING,
+	WINBINDD_DUAL_SET_HWM,
 
 	/* Wrapper around possibly blocking unix nss calls */
 	WINBINDD_DUAL_USERINFO,

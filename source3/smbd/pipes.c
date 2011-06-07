@@ -26,10 +26,6 @@
 
 
 #include "includes.h"
-#include "smbd/smbd.h"
-#include "smbd/globals.h"
-#include "libcli/security/security.h"
-#include "rpc_server/srv_pipe_hnd.h"
 
 #define	PIPE		"\\PIPE\\"
 #define	PIPELEN		strlen(PIPE)
@@ -69,13 +65,8 @@ NTSTATUS open_np_file(struct smb_request *smb_req, const char *name,
 		return status;
 	}
 
-	status = np_open(fsp, name,
-			 conn->sconn->local_address,
-			 conn->sconn->remote_address,
-			 &conn->sconn->client_id,
-			 conn->session_info,
-			 conn->sconn->msg_ctx,
-			 &fsp->fake_file_handle);
+	status = np_open(NULL, name, conn->client_address,
+			 conn->server_info, &fsp->fake_file_handle);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10, ("np_open(%s) returned %s\n", name,
 			   nt_errstr(status)));
@@ -243,7 +234,7 @@ static void pipe_write_done(struct tevent_req *subreq)
 	DEBUG(3,("write-IPC nwritten=%d\n", (int)nwritten));
 
  send:
-	if (!srv_send_smb(req->sconn, (char *)req->outbuf,
+	if (!srv_send_smb(smbd_server_fd(), (char *)req->outbuf,
 			  true, req->seqnum+1,
 			  IS_CONN_ENCRYPTED(req->conn)||req->encrypted,
 			  &req->pcd)) {
@@ -458,21 +449,7 @@ static void pipe_read_andx_done(struct tevent_req *subreq)
 	state->outbuf = NULL;
 
 	srv_set_message((char *)req->outbuf, 12, nread, False);
-
-#if 0
-	/*
-	 * we should return STATUS_BUFFER_OVERFLOW if there's
-	 * out standing data.
-	 *
-	 * But we can't enable it yet, as it has bad interactions
-	 * with fixup_chain_error_packet() in chain_reply().
-	 */
-	if (is_data_outstanding) {
-		error_packet_set((char *)req->outbuf, ERRDOS, ERRmoredata,
-				 STATUS_BUFFER_OVERFLOW, __LINE__, __FILE__);
-	}
-#endif
-
+  
 	SSVAL(req->outbuf,smb_vwv5,nread);
 	SSVAL(req->outbuf,smb_vwv6,
 	      req_wct_ofs(req)

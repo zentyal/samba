@@ -9,6 +9,6 @@ Version: 0
 URL: http://www.samba.org/
 #Libs: -L@libdir@ -lsmbsharemodes
 Libs: -lsmbsharemodes
-Libs.private: -lsmbsharemodes @LIBS@
+Libs.private: -lsmbsharemodes @KRB5_LIBS@ @LDAP_LIBS@ @LIBS@
 Cflags: -I@includedir@
 

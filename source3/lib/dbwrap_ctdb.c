@@ -19,15 +19,11 @@
 */
 
 #include "includes.h"
-#include "system/filesys.h"
-#include "lib/util/tdb_wrap.h"
-#include "util_tdb.h"
 #ifdef CLUSTER_SUPPORT
 #include "ctdb.h"
 #include "ctdb_private.h"
 #include "ctdbd_conn.h"
 #include "g_lock.h"
-#include "messages.h"
 
 struct db_ctdb_transaction_handle {
 	struct db_ctdb_ctx *ctx;
@@ -54,7 +50,6 @@ struct db_ctdb_ctx {
 struct db_ctdb_rec {
 	struct db_ctdb_ctx *ctdb_ctx;
 	struct ctdb_ltdb_header header;
-	struct timeval lock_time;
 };
 
 static NTSTATUS tdb_error_to_ntstatus(struct tdb_context *tdb)
@@ -478,33 +473,6 @@ static int db_ctdb_transaction_fetch(struct db_ctdb_ctx *db,
 	return 0;
 }
 
-/**
- * Fetch a record from a persistent database
- * without record locking and without an active transaction.
- *
- * This just fetches from the local database copy.
- * Since the databases are kept in syc cluster-wide,
- * there is no point in doing a ctdb call to fetch the
- * record from the lmaster. It does even harm since migration
- * of records bump their RSN and hence render the persistent
- * database inconsistent.
- */
-static int db_ctdb_fetch_persistent(struct db_ctdb_ctx *db,
-				    TALLOC_CTX *mem_ctx,
-				    TDB_DATA key, TDB_DATA *data)
-{
-	NTSTATUS status;
-
-	status = db_ctdb_ltdb_fetch(db, key, NULL, mem_ctx, data);
-
-	if (NT_STATUS_EQUAL(status, NT_STATUS_NOT_FOUND)) {
-		*data = tdb_null;
-	} else if (!NT_STATUS_IS_OK(status)) {
-		return -1;
-	}
-
-	return 0;
-}
 
 static NTSTATUS db_ctdb_store_transaction(struct db_record *rec, TDB_DATA data, int flag);
 static NTSTATUS db_ctdb_delete_transaction(struct db_record *rec);
@@ -911,56 +879,9 @@ static NTSTATUS db_ctdb_store(struct db_record *rec, TDB_DATA data, int flag)
 
 
 
-#ifdef CTDB_CONTROL_SCHEDULE_FOR_DELETION
-static NTSTATUS db_ctdb_send_schedule_for_deletion(struct db_record *rec)
-{
-	NTSTATUS status;
-	struct ctdb_control_schedule_for_deletion *dd;
-	TDB_DATA indata;
-	int cstatus;
-	struct db_ctdb_rec *crec = talloc_get_type_abort(
-		rec->private_data, struct db_ctdb_rec);
-
-	indata.dsize = offsetof(struct ctdb_control_schedule_for_deletion, key) + rec->key.dsize;
-	indata.dptr = talloc_zero_array(crec, uint8_t, indata.dsize);
-	if (indata.dptr == NULL) {
-		DEBUG(0, (__location__ " talloc failed!\n"));
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	dd = (struct ctdb_control_schedule_for_deletion *)(void *)indata.dptr;
-	dd->db_id = crec->ctdb_ctx->db_id;
-	dd->hdr = crec->header;
-	dd->keylen = rec->key.dsize;
-	memcpy(dd->key, rec->key.dptr, rec->key.dsize);
-
-	status = ctdbd_control_local(messaging_ctdbd_connection(),
-				     CTDB_CONTROL_SCHEDULE_FOR_DELETION,
-				     crec->ctdb_ctx->db_id,
-				     CTDB_CTRL_FLAG_NOREPLY, /* flags */
-				     indata,
-				     NULL, /* outdata */
-				     NULL, /* errmsg */
-				     &cstatus);
-	talloc_free(indata.dptr);
-
-	if (!NT_STATUS_IS_OK(status) || cstatus != 0) {
-		DEBUG(1, (__location__ " Error sending local control "
-			  "SCHEDULE_FOR_DELETION: %s, cstatus = %d\n",
-			  nt_errstr(status), cstatus));
-		if (NT_STATUS_IS_OK(status)) {
-			status = NT_STATUS_UNSUCCESSFUL;
-		}
-	}
-
-	return status;
-}
-#endif
-
 static NTSTATUS db_ctdb_delete(struct db_record *rec)
 {
 	TDB_DATA data;
-	NTSTATUS status;
 
 	/*
 	 * We have to store the header with empty data. TODO: Fix the
@@ -969,23 +890,14 @@ static NTSTATUS db_ctdb_delete(struct db_record *rec)
 
 	ZERO_STRUCT(data);
 
-	status = db_ctdb_store(rec, data, 0);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
+	return db_ctdb_store(rec, data, 0);
 
-#ifdef CTDB_CONTROL_SCHEDULE_FOR_DELETION
-	status = db_ctdb_send_schedule_for_deletion(rec);
-#endif
-
-	return status;
 }
 
 static int db_ctdb_record_destr(struct db_record* data)
 {
 	struct db_ctdb_rec *crec = talloc_get_type_abort(
 		data->private_data, struct db_ctdb_rec);
-	int threshold;
 
 	DEBUG(10, (DEBUGLEVEL > 10
 		   ? "Unlocking db %u key %s\n"
@@ -997,14 +909,6 @@ static int db_ctdb_record_destr(struct db_record* data)
 	if (tdb_chainunlock(crec->ctdb_ctx->wtdb->tdb, data->key) != 0) {
 		DEBUG(0, ("tdb_chainunlock failed\n"));
 		return -1;
-	}
-
-	threshold = lp_ctdb_locktime_warn_threshold();
-	if (threshold != 0) {
-		double timediff = timeval_elapsed(&crec->lock_time);
-		if ((timediff * 1000) > threshold) {
-			DEBUG(0, ("Held tdb lock %f seconds\n", timediff));
-		}
 	}
 
 	return 0;
@@ -1091,8 +995,7 @@ again:
 			   ((struct ctdb_ltdb_header *)ctdb_data.dptr)->dmaster : -1,
 			   get_my_vnn()));
 
-		status = ctdbd_migrate(messaging_ctdbd_connection(), ctx->db_id,
-				       key);
+		status = ctdbd_migrate(messaging_ctdbd_connection(),ctx->db_id, key);
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(5, ("ctdb_migrate failed: %s\n",
 				  nt_errstr(status)));
@@ -1107,8 +1010,6 @@ again:
 		DEBUG(0, ("db_ctdb_fetch_locked needed %d attempts\n",
 			  migrate_attempts));
 	}
-
-	GetTimeOfDay(&crec->lock_time);
 
 	memcpy(&crec->header, ctdb_data.dptr, sizeof(crec->header));
 
@@ -1161,10 +1062,6 @@ static int db_ctdb_fetch(struct db_context *db, TALLOC_CTX *mem_ctx,
 		return db_ctdb_transaction_fetch(ctx, mem_ctx, key, data);
 	}
 
-	if (db->persistent) {
-		return db_ctdb_fetch_persistent(ctx, mem_ctx, key, data);
-	}
-
 	/* try a direct fetch */
 	ctdb_data = tdb_fetch(ctx->wtdb->tdb, key);
 
@@ -1175,8 +1072,8 @@ static int db_ctdb_fetch(struct db_context *db, TALLOC_CTX *mem_ctx,
 	 */
 	if ((ctdb_data.dptr != NULL) &&
 	    (ctdb_data.dsize >= sizeof(struct ctdb_ltdb_header)) &&
-	    ((struct ctdb_ltdb_header *)ctdb_data.dptr)->dmaster == get_my_vnn())
-	{
+	    (db->persistent ||
+	     ((struct ctdb_ltdb_header *)ctdb_data.dptr)->dmaster == get_my_vnn())) {
 		/* we are the dmaster - avoid the ctdb protocol op */
 
 		data->dsize = ctdb_data.dsize - sizeof(struct ctdb_ltdb_header);
@@ -1201,8 +1098,7 @@ static int db_ctdb_fetch(struct db_context *db, TALLOC_CTX *mem_ctx,
 	SAFE_FREE(ctdb_data.dptr);
 
 	/* we weren't able to get it locally - ask ctdb to fetch it for us */
-	status = ctdbd_fetch(messaging_ctdbd_connection(), ctx->db_id, key,
-			     mem_ctx, data);
+	status = ctdbd_fetch(messaging_ctdbd_connection(),ctx->db_id, key, mem_ctx, data);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(5, ("ctdbd_fetch failed: %s\n", nt_errstr(status)));
 		return -1;
@@ -1381,11 +1277,6 @@ struct db_context *db_open_ctdb(TALLOC_CTX *mem_ctx,
 	db_ctdb->db = result;
 
 	conn = messaging_ctdbd_connection();
-	if (conn == NULL) {
-		DEBUG(1, ("Could not connect to ctdb\n"));
-		TALLOC_FREE(result);
-		return NULL;
-	}
 
 	if (!NT_STATUS_IS_OK(ctdbd_db_attach(conn, name, &db_ctdb->db_id, tdb_flags))) {
 		DEBUG(0, ("ctdbd_db_attach failed for %s\n", name));

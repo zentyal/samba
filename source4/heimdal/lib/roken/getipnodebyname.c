@@ -44,7 +44,7 @@ static int h_errno = NO_RECOVERY;
  * to a malloced struct hostent or NULL.
  */
 
-ROKEN_LIB_FUNCTION struct hostent * ROKEN_LIB_CALL
+struct hostent * ROKEN_LIB_FUNCTION
 getipnodebyname (const char *name, int af, int flags, int *error_num)
 {
     struct hostent *tmp;

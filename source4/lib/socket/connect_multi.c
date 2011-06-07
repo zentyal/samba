@@ -33,7 +33,7 @@
   overall state
 */
 struct connect_multi_state {
-	struct socket_address *server_address;
+	const char *server_address;
 	int num_ports;
 	uint16_t *ports;
 
@@ -64,7 +64,7 @@ static void continue_one(struct composite_context *creq);
 */
 _PUBLIC_ struct composite_context *socket_connect_multi_send(
 						    TALLOC_CTX *mem_ctx,
-						    const char *server_name,
+						    const char *server_address,
 						    int num_server_ports,
 						    uint16_t *server_ports,
 						    struct resolve_context *resolve_ctx,
@@ -74,9 +74,6 @@ _PUBLIC_ struct composite_context *socket_connect_multi_send(
 	struct connect_multi_state *multi;
 	int i;
 
-	struct nbt_name name;
-	struct composite_context *creq;
-		
 	result = talloc_zero(mem_ctx, struct composite_context);
 	if (result == NULL) return NULL;
 	result->state = COMPOSITE_STATE_IN_PROGRESS;
@@ -86,6 +83,9 @@ _PUBLIC_ struct composite_context *socket_connect_multi_send(
 	if (composite_nomem(multi, result)) goto failed;
 	result->private_data = multi;
 
+	multi->server_address = talloc_strdup(multi, server_address);
+	if (composite_nomem(multi->server_address, result)) goto failed;
+
 	multi->num_ports = num_server_ports;
 	multi->ports = talloc_array(multi, uint16_t, multi->num_ports);
 	if (composite_nomem(multi->ports, result)) goto failed;
@@ -94,20 +94,29 @@ _PUBLIC_ struct composite_context *socket_connect_multi_send(
 		multi->ports[i] = server_ports[i];
 	}
 
-	/*  
-	    we don't want to do the name resolution separately
+	if (!is_ipaddress(server_address)) {
+		/*  
+		    we don't want to do the name resolution separately
 		    for each port, so start it now, then only start on
 		    the real sockets once we have an IP
-	*/
-	make_nbt_name_server(&name, server_name);
+		 */
+		struct nbt_name name;
+		struct composite_context *creq;
+		make_nbt_name_server(&name, server_address);
+		creq = resolve_name_send(resolve_ctx, multi, &name, result->event_ctx);
+		if (composite_nomem(creq, result)) goto failed;
+		composite_continue(result, creq, continue_resolve_name, result);
+		return result;
+	}
 
-	creq = resolve_name_all_send(resolve_ctx, multi, 0, multi->ports[0], &name, result->event_ctx);
-	if (composite_nomem(creq, result)) goto failed;
+	/* now we've setup the state we can process the first socket */
+	connect_multi_next_socket(result);
 
-	composite_continue(result, creq, continue_resolve_name, result);
+	if (!NT_STATUS_IS_OK(result->status)) {
+		goto failed;
+	}
 
 	return result;
-
 
  failed:
 	composite_error(result, result->status);
@@ -139,10 +148,10 @@ static void connect_multi_next_socket(struct composite_context *result)
 	result->status = socket_create("ipv4", SOCKET_TYPE_STREAM, &state->sock, 0);
 	if (!composite_is_ok(result)) return;
 
-	state->addr = socket_address_copy(state, multi->server_address);
+	/* Form up the particular address we are interested in */
+	state->addr = socket_address_from_strings(state, state->sock->backend_name, 
+						  multi->server_address, multi->ports[next]);
 	if (composite_nomem(state->addr, result)) return;
-
-	socket_address_set_port(state->addr, multi->ports[next]);
 
 	talloc_steal(state, state->sock);
 
@@ -188,13 +197,12 @@ static void continue_resolve_name(struct composite_context *creq)
 							   struct composite_context);
 	struct connect_multi_state *multi = talloc_get_type(result->private_data, 
 							    struct connect_multi_state);
-	struct socket_address **addr;
+	const char *addr;
 
-	result->status = resolve_name_all_recv(creq, multi, &addr, NULL);
+	result->status = resolve_name_recv(creq, multi, &addr);
 	if (!composite_is_ok(result)) return;
 
-	/* Let's just go for the first for now */
-	multi->server_address = addr[0];
+	multi->server_address = addr;
 
 	connect_multi_next_socket(result);
 }

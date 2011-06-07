@@ -24,10 +24,7 @@
 */
 
 #include "includes.h"
-#include "system/passwd.h"
-#include "libnet/libnet_samsync.h"
-#include "../libcli/security/security.h"
-#include "passdb.h"
+#include "libnet/libnet.h"
 
 /* Convert a struct samu_DELTA to a struct samu. */
 #define STRING_CHANGED (old_string && !new_string) ||\
@@ -181,8 +178,7 @@ static NTSTATUS sam_account_from_delta(struct samu *account,
 		pdb_sethexhours(oldstr, pdb_get_hours(account));
 		pdb_sethexhours(newstr, r->logon_hours.bits);
 		if (!strequal(oldstr, newstr))
-			pdb_set_hours(account, r->logon_hours.bits,
-				      pdb_get_hours_len(account), PDB_CHANGED);
+			pdb_set_hours(account, r->logon_hours.bits, PDB_CHANGED);
 	}
 
 	if (pdb_get_bad_password_count(account) != r->bad_password_count)
@@ -303,8 +299,8 @@ static NTSTATUS fetch_account_info(TALLOC_CTX *mem_ctx,
 	struct samu *sam_account=NULL;
 	GROUP_MAP map;
 	struct group *grp;
-	struct dom_sid user_sid;
-	struct dom_sid group_sid;
+	DOM_SID user_sid;
+	DOM_SID group_sid;
 	struct passwd *passwd = NULL;
 	fstring sid_string;
 
@@ -322,7 +318,8 @@ static NTSTATUS fetch_account_info(TALLOC_CTX *mem_ctx,
 		goto done;
 	}
 
-	sid_compose(&user_sid, get_global_sam_sid(), r->rid);
+	sid_copy(&user_sid, get_global_sam_sid());
+	sid_append_rid(&user_sid, r->rid);
 
 	DEBUG(3, ("Attempting to find SID %s for user %s in the passdb\n",
 		  sid_to_fstring(sid_string, &user_sid), account));
@@ -389,7 +386,7 @@ static NTSTATUS fetch_group_info(TALLOC_CTX *mem_ctx,
 	fstring name;
 	fstring comment;
 	struct group *grp = NULL;
-	struct dom_sid group_sid;
+	DOM_SID group_sid;
 	fstring sid_string;
 	GROUP_MAP map;
 	bool insert = true;
@@ -398,7 +395,8 @@ static NTSTATUS fetch_group_info(TALLOC_CTX *mem_ctx,
 	fstrcpy(comment, r->description.string);
 
 	/* add the group to the mapping table */
-	sid_compose(&group_sid, get_global_sam_sid(), rid);
+	sid_copy(&group_sid, get_global_sam_sid());
+	sid_append_rid(&group_sid, rid);
 	sid_to_fstring(sid_string, &group_sid);
 
 	if (pdb_getgrsid(&map, group_sid)) {
@@ -453,7 +451,7 @@ static NTSTATUS fetch_group_mem_info(TALLOC_CTX *mem_ctx,
 	int i;
 	char **nt_members = NULL;
 	char **unix_members;
-	struct dom_sid group_sid;
+	DOM_SID group_sid;
 	GROUP_MAP map;
 	struct group *grp;
 
@@ -461,7 +459,8 @@ static NTSTATUS fetch_group_mem_info(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_OK;
 	}
 
-	sid_compose(&group_sid, get_global_sam_sid(), rid);
+	sid_copy(&group_sid, get_global_sam_sid());
+	sid_append_rid(&group_sid, rid);
 
 	if (!get_domain_group_from_sid(group_sid, &map)) {
 		DEBUG(0, ("Could not find global group %d\n", rid));
@@ -486,13 +485,14 @@ static NTSTATUS fetch_group_mem_info(TALLOC_CTX *mem_ctx,
 
 	for (i=0; i < r->num_rids; i++) {
 		struct samu *member = NULL;
-		struct dom_sid member_sid;
+		DOM_SID member_sid;
 
 		if ( !(member = samu_new(mem_ctx)) ) {
 			return NT_STATUS_NO_MEMORY;
 		}
 
-		sid_compose(&member_sid, get_global_sam_sid(), r->rids[i]);
+		sid_copy(&member_sid, get_global_sam_sid());
+		sid_append_rid(&member_sid, r->rids[i]);
 
 		if (!pdb_getsampwsid(member, &member_sid)) {
 			DEBUG(1, ("Found bogus group member: %d (member_sid=%s group=%s)\n",
@@ -573,12 +573,12 @@ static NTSTATUS fetch_group_mem_info(TALLOC_CTX *mem_ctx,
 static NTSTATUS fetch_alias_info(TALLOC_CTX *mem_ctx,
 				 uint32_t rid,
 				 struct netr_DELTA_ALIAS *r,
-				 const struct dom_sid *dom_sid)
+				 const DOM_SID *dom_sid)
 {
 	fstring name;
 	fstring comment;
 	struct group *grp = NULL;
-	struct dom_sid alias_sid;
+	DOM_SID alias_sid;
 	fstring sid_string;
 	GROUP_MAP map;
 	bool insert = true;
@@ -587,7 +587,8 @@ static NTSTATUS fetch_alias_info(TALLOC_CTX *mem_ctx,
 	fstrcpy(comment, r->description.string);
 
 	/* Find out whether the group is already mapped */
-	sid_compose(&alias_sid, dom_sid, rid);
+	sid_copy(&alias_sid, dom_sid);
+	sid_append_rid(&alias_sid, rid);
 	sid_to_fstring(sid_string, &alias_sid);
 
 	if (pdb_getgrsid(&map, alias_sid)) {
@@ -612,7 +613,7 @@ static NTSTATUS fetch_alias_info(TALLOC_CTX *mem_ctx,
 	map.gid = grp->gr_gid;
 	map.sid = alias_sid;
 
-	if (dom_sid_equal(dom_sid, &global_sid_Builtin))
+	if (sid_equal(dom_sid, &global_sid_Builtin))
 		map.sid_name_use = SID_NAME_WKN_GRP;
 	else
 		map.sid_name_use = SID_NAME_ALIAS;
@@ -634,7 +635,7 @@ static NTSTATUS fetch_alias_info(TALLOC_CTX *mem_ctx,
 static NTSTATUS fetch_alias_mem(TALLOC_CTX *mem_ctx,
 				uint32_t rid,
 				struct netr_DELTA_ALIAS_MEMBER *r,
-				const struct dom_sid *dom_sid)
+				const DOM_SID *dom_sid)
 {
 	return NT_STATUS_OK;
 }

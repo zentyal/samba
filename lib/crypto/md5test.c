@@ -17,8 +17,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "replace.h"
-#include "../lib/util/util.h"
+#include "includes.h"
 #include "../lib/crypto/crypto.h"
 
 struct torture_context;

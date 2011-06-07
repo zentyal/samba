@@ -1,23 +1,9 @@
 #!/bin/sh
-#
-# Blackbox tests for the "net registry" and "net rpc registry" commands.
-#
-# Copyright (C) 2010-2011 Michael Adam <obnox@samba.org>
-# Copyright (C) 2010 Gregor Beck <gbeck@sernet.de>
-#
+
+# Tests for the "net registry" and "net rpc registry" commands.
 # rpc tests are chose by specifying "rpc" as commandline parameter.
 
-if [ $# -lt 3 ]; then
-cat <<EOF
-Usage: test_net_registry.sh SCRIPTDIR SERVERCONFFILE CONFIGURATION RPC
-EOF
-exit 1;
-fi
-
-SCRIPTDIR="$1"
-SERVERCONFFILE="$2"
-CONFIGURATION="$3"
-RPC="$4"
+RPC="$1"
 
 NET="$VALGRIND ${NET:-$BINDIR/net} $CONFIGURATION"
 
@@ -28,8 +14,8 @@ else
 fi
 
 test x"$TEST_FUNCTIONS_SH" != x"INCLUDED" && {
-incdir=`dirname $0`/../../../testprogs/blackbox
-. $incdir/subunit.sh
+incdir=`dirname $0`
+. $incdir/test_functions.sh
 }
 
 failed=0
@@ -158,7 +144,7 @@ test_deletekey()
 	fi
 
 	UNEXPECTED="Keyname = ${SUBKEY}"
-	printf "%s\n" "$OUTPUT" | grep '^Keyname' | grep ${SUBKEY}
+	printf "%s\n" "$OUTPUT" | 'grep ^Keyname' | grep ${SUBKEY}
 	if test "x$?" = "x0" ; then
 		echo "ERROR: found '$UNEXPECTED' after delete in output"
 		echo "output:"
@@ -251,7 +237,7 @@ test_deletekey_with_subkey()
 test_setvalue()
 {
 	KEY="$1"
-	VALNAME="${2#_}"
+	VALNAME="$2"
 	VALTYPE="$3"
 	VALVALUE="$4"
 
@@ -262,7 +248,7 @@ test_setvalue()
 		return
 	fi
 
-	OUTPUT=`${NETREG} setvalue ${KEY} "${VALNAME}" ${VALTYPE} ${VALVALUE}`
+	OUTPUT=`${NETREG} setvalue ${KEY} ${VALNAME} ${VALTYPE} ${VALVALUE}`
 	if test "x$?" != "x0" ; then
 		echo "ERROR: failed to set value testval in key ${KEY}"
 		printf "%s\n" "${OUTPUT}"
@@ -270,38 +256,54 @@ test_setvalue()
 		return
 	fi
 
-	OUTPUT=`${NETREG} getvalueraw ${KEY} "${VALNAME}"`
+	OUTPUT=`${NETREG} enumerate ${KEY}`
 	if test "x$?" != "x0" ; then
-		echo "ERROR: failure calling getvalueraw for key ${KEY}"
+		echo "ERROR: failure calling enumerate for key ${KEY}"
 		echo output:
 		printf "%s\n" "${OUTPUT}"
 		false
 		return
 	fi
 
-	if test "x${OUTPUT}" != "x${VALVALUE}" ; then
-		echo "ERROR: failure retrieving value ${VALNAME} for key ${KEY}"
-		printf "expected: %s\ngot: %s\n" "${VALVALUE}" "${OUTPUT}"
+	printf "%s\n" "$OUTPUT" | {
+	FOUND=0
+	while read LINE ; do
+		SEARCH1=`echo $LINE | grep '^Valuename' | grep ${VALNAME}`
+		if test "x$?" = "x0" ; then
+			read LINE
+			read LINE
+			SEARCH2=`echo $LINE | grep '^Value ' | grep ${VALVALUE}`
+			if test "x$?" = "x0" ; then
+				FOUND=1
+				break
+			fi
+		fi
+	done
+
+	if test "x$FOUND" != "x1" ; then
+		echo "ERROR: did not find value '${VALNAME}' with enumerate"
+		echo "enumerate output:"
+		printf "%s\n" "$OUTPUT"
 		false
 		return
 	fi
-
+	}
 }
 
 test_deletevalue()
 {
 	KEY="$1"
-	VALNAME="${2#_}"
+	VALNAME="$2"
 
-	${NETREG} deletevalue ${KEY} "${VALNAME}"
+	${NETREG} deletevalue ${KEY} ${VALNAME}
 }
 
 test_deletevalue_nonexisting()
 {
 	KEY="$1"
-	VALNAME="${2#_}"
+	VALNAME="$2"
 
-	${NETREG} deletevalue ${KEY} "${VALNAME}"
+	${NETREG} deletevalue ${KEY} ${VALNAME}
 	if test "x$?" = "x0" ; then
 		echo "ERROR: succeeded deleting value ${VALNAME}"
 		false
@@ -313,13 +315,13 @@ test_deletevalue_nonexisting()
 test_setvalue_twice()
 {
 	KEY="$1"
-	VALNAME="${2#_}"
+	VALNAME="$2"
 	VALTYPE1="$3"
 	VALVALUE1="$4"
 	VALTYPE2="$5"
 	VALVALUE2="$6"
 
-	OUTPUT=`test_setvalue ${KEY} _"${VALNAME}" ${VALTYPE1} ${VALVALUE1}`
+	OUTPUT=`test_setvalue ${KEY} ${VALNAME} ${VALTYPE1} ${VALVALUE1}`
 	if test "x$?" != "x0" ; then
 		echo "ERROR: first setvalue call failed"
 		printf "%s\n" "$OUTPUT"
@@ -327,9 +329,46 @@ test_setvalue_twice()
 		return
 	fi
 
-	${NETREG} setvalue ${KEY} "${VALNAME}" ${VALTYPE2} ${VALVALUE2}
+	${NETREG} setvalue ${KEY} ${VALNAME} ${VALTYPE2} ${VALVALUE2}
 }
 
+give_administrative_rights()
+{
+	bin/net -s $SERVERCONFFILE sam createbuiltingroup Administrators
+	if test "x$?" != "x0" ; then
+		echo "ERROR: creating builtin group Administrators"
+		false
+		return
+	fi
+
+	bin/net -s $SERVERCONFFILE sam addmem BUILTIN\\Administrators $USERNAME
+	if test "x$?" != "x0" ; then
+		echo "ERROR: adding user $USERNAME to BUILTIN\\Administrators"
+		false
+	else
+		true
+	fi
+}
+
+take_administrative_rights()
+{
+	bin/net -s $SERVERCONFFILE sam delmem BUILTIN\\Administrators $USERNAME
+	if test "x$?" != "x0" ; then
+		echo "ERROR: removing user $USERNAME from BUILTIN\\Administrators"
+		false
+	else
+		true
+	fi
+}
+
+if test "x${RPC}" = "xrpc" ; then
+testit "giving user ${USERNAME} administrative rights" \
+	give_administrative_rights
+	if [ "x$?" != "x0" ] ; then
+		failed=`expr $failed + 1`
+		testok $0 $failed
+	fi
+fi
 
 testit "enumerate HKLM" \
 	test_enumerate HKLM || \
@@ -379,37 +418,30 @@ testit "delete key with subkey" \
 	failed=`expr $failed + 1`
 
 testit "set value" \
-	test_setvalue HKLM/testkey _testval sz moin || \
+	test_setvalue HKLM/testkey testval sz moin || \
 	failed=`expr $failed + 1`
 
 testit "delete value" \
-	test_deletevalue HKLM/testkey _testval || \
+	test_deletevalue HKLM/testkey testval || \
 	failed=`expr $failed + 1`
 
 testit "delete nonexisting value" \
-	test_deletevalue_nonexisting HKLM/testkey _testval || \
+	test_deletevalue_nonexisting HKLM/testkey testval || \
 	failed=`expr $failed + 1`
 
 testit "set value to different type" \
 	test_setvalue_twice HKLM/testkey testval sz moin dword 42 || \
 	failed=`expr $failed + 1`
 
-testit "set default value" \
-	test_setvalue HKLM/testkey _"" sz 42 || \
-	failed=`expr $failed + 1`
-
-testit "delete default value" \
-	test_deletevalue HKLM/testkey _"" || \
-	failed=`expr $failed + 1`
-
-testit "delete nonexisting default value" \
-	test_deletevalue_nonexisting HKLM/testkey _"" || \
-	failed=`expr $failed + 1`
-
 testit "delete key with value" \
 	test_deletekey HKLM/testkey || \
 	failed=`expr $failed + 1`
 
+if test "x${RPC}" = "xrpc" ; then
+testit "taking administrative rights from user ${USERNAME}" \
+	take_administrative_rights || \
+	failed=`expr $failed + 1`
+fi
 
 testok $0 $failed
 

@@ -17,60 +17,49 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <Python.h>
+#include <stdint.h>
+#include <stdbool.h>
+
 #include "includes.h"
 #include "param/param.h"
 #include "param/loadparm.h"
-#include "lib/talloc/pytalloc.h"
+#include <Python.h>
+#include "pytalloc.h"
 
 #define PyLoadparmContext_AsLoadparmContext(obj) py_talloc_get_type(obj, struct loadparm_context)
 
-_PUBLIC_ struct loadparm_context *lpcfg_from_py_object(TALLOC_CTX *mem_ctx, PyObject *py_obj)
+_PUBLIC_ struct loadparm_context *lp_from_py_object(PyObject *py_obj)
 {
-	struct loadparm_context *lp_ctx;
-	PyObject *param_mod;
-	PyTypeObject *lp_type;
-	bool is_lpobj;
+    struct loadparm_context *lp_ctx;
 
-	if (PyString_Check(py_obj)) {
-		lp_ctx = loadparm_init_global(false);
-		if (!lpcfg_load(lp_ctx, PyString_AsString(py_obj))) {
+    if (PyString_Check(py_obj)) {
+        lp_ctx = loadparm_init(NULL);
+        if (!lp_load(lp_ctx, PyString_AsString(py_obj))) {
+            talloc_free(lp_ctx);
 			PyErr_Format(PyExc_RuntimeError, "Unable to load %s", 
-				     PyString_AsString(py_obj));
-			return NULL;
-		}
-		return lp_ctx;
-	}
+						 PyString_AsString(py_obj));
+            return NULL;
+        }
+        return lp_ctx;
+    }
 
-	if (py_obj == Py_None) {
-		return loadparm_init_global(true);
-	}
+    if (py_obj == Py_None) {
+        lp_ctx = loadparm_init(NULL);
+		/* We're not checking that loading the file succeeded *on purpose */
+        lp_load_default(lp_ctx);
+        return lp_ctx;
+    }
 
-	param_mod = PyImport_ImportModule("samba.param");
-	if (param_mod == NULL) {
-		return NULL;
-	}
-
-	lp_type = (PyTypeObject *)PyObject_GetAttrString(param_mod, "LoadParm");
-	Py_DECREF(param_mod);
-	if (lp_type == NULL) {
-		PyErr_SetString(PyExc_RuntimeError, "Unable to import LoadParm");
-		return NULL;
-	}
-
-	is_lpobj = PyObject_TypeCheck(py_obj, lp_type);
-	Py_DECREF(lp_type);
-	if (is_lpobj) {
-		return talloc_reference(mem_ctx, PyLoadparmContext_AsLoadparmContext(py_obj));
-	}
-
-	PyErr_SetNone(PyExc_TypeError);
-	return NULL;
+    return PyLoadparmContext_AsLoadparmContext(py_obj);
 }
 
 struct loadparm_context *py_default_loadparm_context(TALLOC_CTX *mem_ctx)
 {
-	return loadparm_init_global(true);
+    struct loadparm_context *ret;
+    ret = loadparm_init(mem_ctx);
+    if (!lp_load_default(ret))
+        return NULL;
+    return ret;
 }
 
 

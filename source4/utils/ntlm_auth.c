@@ -24,7 +24,7 @@
 #include "includes.h"
 #include "system/filesys.h"
 #include "lib/cmdline/popt_common.h"
-#include <ldb.h>
+#include "lib/ldb/include/ldb.h"
 #include "auth/credentials/credentials.h"
 #include "auth/gensec/gensec.h"
 #include "auth/auth.h"
@@ -211,8 +211,8 @@ static NTSTATUS local_pw_check_specified(struct loadparm_context *lp_ctx,
 		
 		
 		nt_status = ntlm_password_check(mem_ctx, 
-						lpcfg_lanman_auth(lp_ctx),
-						lpcfg_ntlm_auth(lp_ctx),
+						lp_lanman_auth(lp_ctx),
+						lp_ntlm_auth(lp_ctx),
 						MSV1_0_ALLOW_SERVER_TRUST_ACCOUNT |
 						MSV1_0_ALLOW_WORKSTATION_TRUST_ACCOUNT,
 						challenge,
@@ -225,11 +225,10 @@ static NTSTATUS local_pw_check_specified(struct loadparm_context *lp_ctx,
 		
 		if (NT_STATUS_IS_OK(nt_status)) {
 			if (unix_name) {
-				if (asprintf(unix_name, "%s%c%s", domain,
-					     *lpcfg_winbind_separator(lp_ctx),
-					     username) < 0) {
-					nt_status = NT_STATUS_NO_MEMORY;
-				}
+				asprintf(unix_name, 
+					 "%s%c%s", domain,
+					 *lp_winbind_separator(lp_ctx), 
+					 username);
 			}
 		} else {
 			DEBUG(3, ("Login for user [%s]\\[%s]@[%s] failed due to [%s]\n", 
@@ -477,7 +476,7 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 			/* setup the client side */
 
 			nt_status = gensec_client_start(NULL, &state->gensec_state, ev, 
-							lpcfg_gensec_settings(NULL, lp_ctx));
+							lp_gensec_settings(NULL, lp_ctx));
 			if (!NT_STATUS_IS_OK(nt_status)) {
 				talloc_free(mem_ctx);
 				exit(1);
@@ -490,7 +489,8 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 			const char *winbind_method[] = { "winbind", NULL };
 			struct auth_context *auth_context;
 
-			msg = messaging_client_init(state, lpcfg_messaging_path(state, lp_ctx), ev);
+			msg = messaging_client_init(state, lp_messaging_path(state, lp_ctx), 
+						    lp_iconv_convenience(lp_ctx), ev);
 			if (!msg) {
 				talloc_free(mem_ctx);
 				exit(1);
@@ -500,7 +500,6 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 								ev, 
 								msg, 
 								lp_ctx,
-								NULL,
 								&auth_context);
 	
 			if (!NT_STATUS_IS_OK(nt_status)) {
@@ -509,7 +508,7 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 			}
 			
 			if (!NT_STATUS_IS_OK(gensec_server_start(state, ev, 
-								 lpcfg_gensec_settings(state, lp_ctx),
+								 lp_gensec_settings(state, lp_ctx), 
 								 auth_context, &state->gensec_state))) {
 				talloc_free(mem_ctx);
 				exit(1);
@@ -617,7 +616,7 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 		for (i=0; i<session_info->security_token->num_sids; i++) {
 			struct security_token *token = session_info->security_token; 
 			const char *sidstr = dom_sid_string(session_info, 
-							    &token->sids[i]);
+							    token->sids[i]);
 			grouplist = talloc_asprintf_append_buffer(grouplist, "%s,", sidstr);
 		}
 
@@ -647,12 +646,12 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 	}
 
 	if (strncmp(buf, "GF", 2) == 0) {
-		struct ntlmssp_state *ntlmssp_state;
+		struct gensec_ntlmssp_state *gensec_ntlmssp_state;
 		uint32_t neg_flags;
 
-		ntlmssp_state = talloc_get_type(state->gensec_state->private_data,
-				struct ntlmssp_state);
-		neg_flags = ntlmssp_state->neg_flags;
+		gensec_ntlmssp_state = talloc_get_type(state->gensec_state->private_data, 
+				struct gensec_ntlmssp_state);
+		neg_flags = gensec_ntlmssp_state->neg_flags;
 
 		DEBUG(10, ("Requested negotiated feature flags\n"));
 		mux_printf(mux_id, "GF 0x%08x\n", neg_flags);
@@ -662,7 +661,7 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 	nt_status = gensec_update(state->gensec_state, mem_ctx, in, &out);
 	
 	/* don't leak 'bad password'/'no such user' info to the network client */
-	nt_status = nt_status_squash(nt_status);
+	nt_status = auth_nt_status_squash(nt_status);
 
 	if (out.length) {
 		out_base64 = base64_encode_data_blob(mem_ctx, out);
@@ -702,13 +701,13 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 		if (!NT_STATUS_IS_OK(nt_status)) {
 			reply_code = "BH Failed to retrive session info";
 			reply_arg = nt_errstr(nt_status);
-			DEBUG(1, ("GENSEC failed to retrieve the session info: %s\n", nt_errstr(nt_status)));
+			DEBUG(1, ("GENSEC failed to retreive the session info: %s\n", nt_errstr(nt_status)));
 		} else {
 
 			reply_code = "AF";
 			reply_arg = talloc_asprintf(state->gensec_state, 
-						    "%s%s%s", session_info->info->domain_name,
-						    lpcfg_winbind_separator(lp_ctx), session_info->info->account_name);
+						    "%s%s%s", session_info->server_info->domain_name, 
+						    lp_winbind_separator(lp_ctx), session_info->server_info->account_name);
 			talloc_free(session_info);
 		}
 	} else if (state->gensec_state->gensec_role == GENSEC_CLIENT) {
@@ -760,7 +759,7 @@ static void manage_ntlm_server_1_request(enum stdio_helper_mode stdio_helper_mod
 		} else if (plaintext_password) {
 			/* handle this request as plaintext */
 			if (!full_username) {
-				if (asprintf(&full_username, "%s%c%s", domain, *lpcfg_winbind_separator(lp_ctx), username) < 0) {
+				if (asprintf(&full_username, "%s%c%s", domain, *lp_winbind_separator(lp_ctx), username) == -1) {
 					mux_printf(mux_id, "Error: Out of memory in asprintf!\n.\n");
 					return;
 				}
@@ -785,14 +784,14 @@ static void manage_ntlm_server_1_request(enum stdio_helper_mode stdio_helper_mod
 				SAFE_FREE(domain);
 				if (!parse_ntlm_auth_domain_user(full_username, &username, 
 												 &domain, 
-												 *lpcfg_winbind_separator(lp_ctx))) {
+												 *lp_winbind_separator(lp_ctx))) {
 					/* username might be 'tainted', don't print into our new-line deleimianted stream */
 					mux_printf(mux_id, "Error: Could not parse into domain and username\n");
 				}
 			}
 
 			if (!domain) {
-				domain = smb_xstrdup(lpcfg_workgroup(lp_ctx));
+				domain = smb_xstrdup(lp_workgroup(lp_ctx));
 			}
 
 			if (ntlm_server_1_lm_session_key) 
@@ -805,7 +804,7 @@ static void manage_ntlm_server_1_request(enum stdio_helper_mode stdio_helper_mod
 				    local_pw_check_specified(lp_ctx,
 							     username, 
 							      domain, 
-							      lpcfg_netbios_name(lp_ctx),
+							      lp_netbios_name(lp_ctx),
 							      &challenge, 
 							      &lm_response, 
 							      &nt_response, 
@@ -933,7 +932,7 @@ static void manage_ntlm_server_1_request(enum stdio_helper_mode stdio_helper_mod
 	}
 }
 
-static void manage_squid_request(struct loadparm_context *lp_ctx, enum stdio_helper_mode helper_mode,
+static void manage_squid_request(struct loadparm_context *lp_ctx, enum stdio_helper_mode helper_mode, 
 				 stdio_helper_function fn, void **private2) 
 {
 	char *buf;
@@ -1040,7 +1039,7 @@ static void manage_squid_request(struct loadparm_context *lp_ctx, enum stdio_hel
 	talloc_free(buf);
 }
 
-static void squid_stream(struct loadparm_context *lp_ctx,
+static void squid_stream(struct loadparm_context *lp_ctx, 
 			 enum stdio_helper_mode stdio_mode, 
 			 stdio_helper_function fn) {
 	/* initialize FDescs */
@@ -1133,7 +1132,7 @@ int main(int argc, const char **argv)
 	gensec_init(cmdline_lp_ctx);
 
 	if (opt_domain == NULL) {
-		opt_domain = lpcfg_workgroup(cmdline_lp_ctx);
+		opt_domain = lp_workgroup(cmdline_lp_ctx);
 	}
 
 	if (helper_protocol) {
@@ -1160,7 +1159,7 @@ int main(int argc, const char **argv)
 	}
 
 	if (opt_workstation == NULL) {
-		opt_workstation = lpcfg_netbios_name(cmdline_lp_ctx);
+		opt_workstation = lp_netbios_name(cmdline_lp_ctx);
 	}
 
 	if (!opt_password) {
@@ -1170,11 +1169,7 @@ int main(int argc, const char **argv)
 	{
 		char *user;
 
-		if (asprintf(&user, "%s%c%s", opt_domain,
-		             *lpcfg_winbind_separator(cmdline_lp_ctx),
-			     opt_username) < 0) {
-			return 1;
-		}
+		asprintf(&user, "%s%c%s", opt_domain, *lp_winbind_separator(cmdline_lp_ctx), opt_username);
 		if (!check_plaintext_auth(user, opt_password, true)) {
 			return 1;
 		}

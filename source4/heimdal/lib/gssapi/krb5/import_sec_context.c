@@ -33,7 +33,7 @@
 
 #include "gsskrb5_locl.h"
 
-OM_uint32 GSSAPI_CALLCONV
+OM_uint32
 _gsskrb5_import_sec_context (
     OM_uint32 * minor_status,
     const gss_buffer_t interprocess_token,
@@ -201,8 +201,6 @@ _gsskrb5_import_sec_context (
         goto failure;
 
     krb5_storage_free (sp);
-
-    _gsskrb5i_is_cfx(context, ctx, (ctx->more_flags & LOCAL) == 0);
 
     *context_handle = (gss_ctx_id_t)ctx;
 

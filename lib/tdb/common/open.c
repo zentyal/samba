@@ -6,11 +6,11 @@
    Copyright (C) Andrew Tridgell              1999-2005
    Copyright (C) Paul `Rusty' Russell		   2000
    Copyright (C) Jeremy Allison			   2000-2003
-
+   
      ** NOTE! The following LGPL license applies to the tdb
      ** library. This does NOT imply that all of Samba is released
      ** under the LGPL
-
+   
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
    License as published by the Free Software Foundation; either
@@ -30,25 +30,20 @@
 /* all contexts, to ensure no double-opens (fcntl locks don't nest!) */
 static struct tdb_context *tdbs = NULL;
 
-/* We use two hashes to double-check they're using the right hash function. */
-void tdb_header_hash(struct tdb_context *tdb,
-		     uint32_t *magic1_hash, uint32_t *magic2_hash)
+
+/* This is based on the hash algorithm from gdbm */
+static unsigned int default_tdb_hash(TDB_DATA *key)
 {
-	TDB_DATA hash_key;
-	uint32_t tdb_magic = TDB_MAGIC;
+	uint32_t value;	/* Used to compute the hash value.  */
+	uint32_t   i;	/* Used to cycle through random values. */
 
-	hash_key.dptr = discard_const_p(unsigned char, TDB_MAGIC_FOOD);
-	hash_key.dsize = sizeof(TDB_MAGIC_FOOD);
-	*magic1_hash = tdb->hash_fn(&hash_key);
+	/* Set the initial value from the key size. */
+	for (value = 0x238F13AF * key->dsize, i=0; i < key->dsize; i++)
+		value = (value + (key->dptr[i] << (i*5 % 24)));
 
-	hash_key.dptr = (unsigned char *)CONVERT(tdb_magic);
-	hash_key.dsize = sizeof(tdb_magic);
-	*magic2_hash = tdb->hash_fn(&hash_key);
-
-	/* Make sure at least one hash is non-zero! */
-	if (*magic1_hash == 0 && *magic2_hash == 0)
-		*magic1_hash = 1;
+	return (1103515243 * value + 12345);  
 }
+
 
 /* initialise a new database with a specified hash size */
 static int tdb_new_database(struct tdb_context *tdb, int hash_size)
@@ -56,6 +51,7 @@ static int tdb_new_database(struct tdb_context *tdb, int hash_size)
 	struct tdb_header *newdb;
 	size_t size;
 	int ret = -1;
+	ssize_t written;
 
 	/* We make it up in memory, then write it out if not internal */
 	size = sizeof(struct tdb_header) + (hash_size+1)*sizeof(tdb_off_t);
@@ -67,14 +63,6 @@ static int tdb_new_database(struct tdb_context *tdb, int hash_size)
 	/* Fill in the header */
 	newdb->version = TDB_VERSION;
 	newdb->hash_size = hash_size;
-
-	tdb_header_hash(tdb, &newdb->magic1_hash, &newdb->magic2_hash);
-
-	/* Make sure older tdbs (which don't check the magic hash fields)
-	 * will refuse to open this TDB. */
-	if (tdb->flags & TDB_INCOMPATIBLE_HASH)
-		newdb->rwlocks = TDB_HASH_RWLOCK_MAGIC;
-
 	if (tdb->flags & TDB_INTERNAL) {
 		tdb->map_size = size;
 		tdb->map_ptr = (char *)newdb;
@@ -95,8 +83,22 @@ static int tdb_new_database(struct tdb_context *tdb, int hash_size)
 	/* Don't endian-convert the magic food! */
 	memcpy(newdb->magic_food, TDB_MAGIC_FOOD, strlen(TDB_MAGIC_FOOD)+1);
 	/* we still have "ret == -1" here */
-	if (tdb_write_all(tdb->fd, newdb, size))
+	written = write(tdb->fd, newdb, size);
+	if (written == size) {
 		ret = 0;
+	} else if (written != -1) {
+		/* call write once again, this usually should return -1 and
+		 * set errno appropriately */
+		size -= written;
+		written = write(tdb->fd, newdb+written, size);
+		if (written == size) {
+		ret = 0;
+		} else if (written >= 0) {
+			/* a second incomplete write - we give up.
+			 * guessing the errno... */
+			errno = ENOSPC;
+		}
+	}
 
   fail:
 	SAFE_FREE(newdb);
@@ -109,7 +111,7 @@ static int tdb_already_open(dev_t device,
 			    ino_t ino)
 {
 	struct tdb_context *i;
-
+	
 	for (i = tdbs; i; i = i->next) {
 		if (i->device == device && i->inode == ino) {
 			return 1;
@@ -129,7 +131,7 @@ static int tdb_already_open(dev_t device,
    try to call tdb_error or tdb_errname, just do strerror(errno).
 
    @param name may be NULL for internal databases. */
-_PUBLIC_ struct tdb_context *tdb_open(const char *name, int hash_size, int tdb_flags,
+struct tdb_context *tdb_open(const char *name, int hash_size, int tdb_flags,
 		      int open_flags, mode_t mode)
 {
 	return tdb_open_ex(name, hash_size, tdb_flags, open_flags, mode, NULL, NULL);
@@ -141,28 +143,8 @@ static void null_log_fn(struct tdb_context *tdb, enum tdb_debug_level level, con
 {
 }
 
-static bool check_header_hash(struct tdb_context *tdb,
-			      bool default_hash, uint32_t *m1, uint32_t *m2)
-{
-	tdb_header_hash(tdb, m1, m2);
-	if (tdb->header.magic1_hash == *m1 &&
-	    tdb->header.magic2_hash == *m2) {
-		return true;
-	}
 
-	/* If they explicitly set a hash, always respect it. */
-	if (!default_hash)
-		return false;
-
-	/* Otherwise, try the other inbuilt hash. */
-	if (tdb->hash_fn == tdb_old_hash)
-		tdb->hash_fn = tdb_jenkins_hash;
-	else
-		tdb->hash_fn = tdb_old_hash;
-	return check_header_hash(tdb, false, m1, m2);
-}
-
-_PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int tdb_flags,
+struct tdb_context *tdb_open_ex(const char *name, int hash_size, int tdb_flags,
 				int open_flags, mode_t mode,
 				const struct tdb_logging_context *log_ctx,
 				tdb_hash_func hash_fn)
@@ -173,8 +155,6 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
 	unsigned char *vp;
 	uint32_t vertest;
 	unsigned v;
-	const char *hash_alg;
-	uint32_t magic1, magic2;
 
 	if (!(tdb = (struct tdb_context *)calloc(1, sizeof *tdb))) {
 		/* Can't log this */
@@ -196,45 +176,7 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
 		tdb->log.log_fn = null_log_fn;
 		tdb->log.log_private = NULL;
 	}
-
-	if (name == NULL && (tdb_flags & TDB_INTERNAL)) {
-		name = "__TDB_INTERNAL__";
-	}
-
-	if (name == NULL) {
-		tdb->name = discard_const_p(char, "__NULL__");
-		TDB_LOG((tdb, TDB_DEBUG_FATAL, "tdb_open_ex: called with name == NULL\n"));
-		tdb->name = NULL;
-		errno = EINVAL;
-		goto fail;
-	}
-
-	/* now make a copy of the name, as the caller memory might went away */
-	if (!(tdb->name = (char *)strdup(name))) {
-		/*
-		 * set the name as the given string, so that tdb_name() will
-		 * work in case of an error.
-		 */
-		tdb->name = discard_const_p(char, name);
-		TDB_LOG((tdb, TDB_DEBUG_ERROR, "tdb_open_ex: can't strdup(%s)\n",
-			 name));
-		tdb->name = NULL;
-		errno = ENOMEM;
-		goto fail;
-	}
-
-	if (hash_fn) {
-		tdb->hash_fn = hash_fn;
-		hash_alg = "the user defined";
-	} else {
-		/* This controls what we use when creating a tdb. */
-		if (tdb->flags & TDB_INCOMPATIBLE_HASH) {
-			tdb->hash_fn = tdb_jenkins_hash;
-		} else {
-			tdb->hash_fn = tdb_old_hash;
-		}
-		hash_alg = "either default";
-	}
+	tdb->hash_fn = hash_fn ? hash_fn : default_tdb_hash;
 
 	/* cache the page size */
 	tdb->page_size = getpagesize();
@@ -250,7 +192,7 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
 		errno = EINVAL;
 		goto fail;
 	}
-
+	
 	if (hash_size == 0)
 		hash_size = DEFAULT_HASH_SIZE;
 	if ((open_flags & O_ACCMODE) == O_RDONLY) {
@@ -267,10 +209,6 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
 			"allow_nesting and disallow_nesting are not allowed together!"));
 		errno = EINVAL;
 		goto fail;
-	}
-
-	if (getenv("TDB_NO_FSYNC")) {
-		tdb->flags |= TDB_NOSYNC;
 	}
 
 	/*
@@ -303,8 +241,8 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
         fcntl(tdb->fd, F_SETFD, v | FD_CLOEXEC);
 
 	/* ensure there is only one process initialising at once */
-	if (tdb_nest_lock(tdb, OPEN_LOCK, F_WRLCK, TDB_LOCK_WAIT) == -1) {
-		TDB_LOG((tdb, TDB_DEBUG_ERROR, "tdb_open_ex: failed to get open lock on %s: %s\n",
+	if (tdb->methods->tdb_brlock(tdb, GLOBAL_LOCK, F_WRLCK, F_SETLKW, 0, 1) == -1) {
+		TDB_LOG((tdb, TDB_DEBUG_ERROR, "tdb_open_ex: failed to get global lock on %s: %s\n",
 			 name, strerror(errno)));
 		goto fail;	/* errno set by tdb_brlock */
 	}
@@ -312,7 +250,7 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
 	/* we need to zero database if we are the only one with it open */
 	if ((tdb_flags & TDB_CLEAR_IF_FIRST) &&
 	    (!tdb->read_only) &&
-	    (locked = (tdb_nest_lock(tdb, ACTIVE_LOCK, F_WRLCK, TDB_LOCK_NOWAIT|TDB_LOCK_PROBE) == 0))) {
+	    (locked = (tdb->methods->tdb_brlock(tdb, ACTIVE_LOCK, F_WRLCK, F_SETLK, 0, 1) == 0))) {
 		open_flags |= O_CREAT;
 		if (ftruncate(tdb->fd, 0) == -1) {
 			TDB_LOG((tdb, TDB_DEBUG_FATAL, "tdb_open_ex: "
@@ -351,28 +289,8 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
 	if (fstat(tdb->fd, &st) == -1)
 		goto fail;
 
-	if (tdb->header.rwlocks != 0 &&
-	    tdb->header.rwlocks != TDB_HASH_RWLOCK_MAGIC) {
+	if (tdb->header.rwlocks != 0) {
 		TDB_LOG((tdb, TDB_DEBUG_ERROR, "tdb_open_ex: spinlocks no longer supported\n"));
-		goto fail;
-	}
-
-	if ((tdb->header.magic1_hash == 0) && (tdb->header.magic2_hash == 0)) {
-		/* older TDB without magic hash references */
-		tdb->hash_fn = tdb_old_hash;
-	} else if (!check_header_hash(tdb, !hash_fn, &magic1, &magic2)) {
-		TDB_LOG((tdb, TDB_DEBUG_FATAL, "tdb_open_ex: "
-			 "%s was not created with %s hash function we are using\n"
-			 "magic1_hash[0x%08X %s 0x%08X] "
-			 "magic2_hash[0x%08X %s 0x%08X]\n",
-			 name, hash_alg,
-			 tdb->header.magic1_hash,
-			 (tdb->header.magic1_hash == magic1) ? "==" : "!=",
-			 magic1,
-			 tdb->header.magic2_hash,
-			 (tdb->header.magic2_hash == magic2) ? "==" : "!=",
-			 magic2));
-		errno = EINVAL;
 		goto fail;
 	}
 
@@ -385,14 +303,19 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
 		goto fail;
 	}
 
+	if (!(tdb->name = (char *)strdup(name))) {
+		errno = ENOMEM;
+		goto fail;
+	}
+
 	tdb->map_size = st.st_size;
 	tdb->device = st.st_dev;
 	tdb->inode = st.st_ino;
 	tdb_mmap(tdb);
 	if (locked) {
-		if (tdb_nest_unlock(tdb, ACTIVE_LOCK, F_WRLCK, false) == -1) {
+		if (tdb->methods->tdb_brlock(tdb, ACTIVE_LOCK, F_UNLCK, F_SETLK, 0, 1) == -1) {
 			TDB_LOG((tdb, TDB_DEBUG_ERROR, "tdb_open_ex: "
-				 "failed to release ACTIVE_LOCK on %s: %s\n",
+				 "failed to take ACTIVE_LOCK on %s: %s\n",
 				 name, strerror(errno)));
 			goto fail;
 		}
@@ -405,9 +328,8 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
 
 	if (tdb_flags & TDB_CLEAR_IF_FIRST) {
 		/* leave this lock in place to indicate it's in use */
-		if (tdb_nest_lock(tdb, ACTIVE_LOCK, F_RDLCK, TDB_LOCK_WAIT) == -1) {
+		if (tdb->methods->tdb_brlock(tdb, ACTIVE_LOCK, F_RDLCK, F_SETLKW, 0, 1) == -1)
 			goto fail;
-		}
 	}
 
 	/* if needed, run recovery */
@@ -434,10 +356,9 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
  internal:
 	/* Internal (memory-only) databases skip all the code above to
 	 * do with disk files, and resume here by releasing their
-	 * open lock and hooking into the active list. */
-	if (tdb_nest_unlock(tdb, OPEN_LOCK, F_WRLCK, false) == -1) {
+	 * global lock and hooking into the active list. */
+	if (tdb->methods->tdb_brlock(tdb, GLOBAL_LOCK, F_UNLCK, F_SETLKW, 0, 1) == -1)
 		goto fail;
-	}
 	tdb->next = tdbs;
 	tdbs = tdb;
 	return tdb;
@@ -457,11 +378,10 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
 		else
 			tdb_munmap(tdb);
 	}
+	SAFE_FREE(tdb->name);
 	if (tdb->fd != -1)
 		if (close(tdb->fd) != 0)
 			TDB_LOG((tdb, TDB_DEBUG_ERROR, "tdb_open_ex: failed to close tdb->fd on error!\n"));
-	SAFE_FREE(tdb->lockrecs);
-	SAFE_FREE(tdb->name);
 	SAFE_FREE(tdb);
 	errno = save_errno;
 	return NULL;
@@ -472,7 +392,7 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
  * Set the maximum number of dead records per hash chain
  */
 
-_PUBLIC_ void tdb_set_max_dead(struct tdb_context *tdb, int max_dead)
+void tdb_set_max_dead(struct tdb_context *tdb, int max_dead)
 {
 	tdb->max_dead_records = max_dead;
 }
@@ -482,15 +402,15 @@ _PUBLIC_ void tdb_set_max_dead(struct tdb_context *tdb, int max_dead)
  *
  * @returns -1 for error; 0 for success.
  **/
-_PUBLIC_ int tdb_close(struct tdb_context *tdb)
+int tdb_close(struct tdb_context *tdb)
 {
 	struct tdb_context **i;
 	int ret = 0;
 
-	if (tdb->transaction) {
-		tdb_transaction_cancel(tdb);
-	}
 	tdb_trace(tdb, "tdb_close");
+	if (tdb->transaction) {
+		_tdb_transaction_cancel(tdb);
+	}
 
 	if (tdb->map_ptr) {
 		if (tdb->flags & TDB_INTERNAL)
@@ -523,13 +443,13 @@ _PUBLIC_ int tdb_close(struct tdb_context *tdb)
 }
 
 /* register a loging function */
-_PUBLIC_ void tdb_set_logging_function(struct tdb_context *tdb,
-                                       const struct tdb_logging_context *log_ctx)
+void tdb_set_logging_function(struct tdb_context *tdb,
+                              const struct tdb_logging_context *log_ctx)
 {
         tdb->log = *log_ctx;
 }
 
-_PUBLIC_ void *tdb_get_logging_private(struct tdb_context *tdb)
+void *tdb_get_logging_private(struct tdb_context *tdb)
 {
 	return tdb->log.log_private;
 }
@@ -545,7 +465,7 @@ static int tdb_reopen_internal(struct tdb_context *tdb, bool active_lock)
 		return 0; /* Nothing to do. */
 	}
 
-	if (tdb_have_extra_locks(tdb)) {
+	if (tdb->num_locks != 0 || tdb->global_lock.count) {
 		TDB_LOG((tdb, TDB_DEBUG_ERROR, "tdb_reopen: reopen not allowed with locks held\n"));
 		goto fail;
 	}
@@ -580,11 +500,8 @@ static int tdb_reopen_internal(struct tdb_context *tdb, bool active_lock)
 	tdb_mmap(tdb);
 #endif /* fake pread or pwrite */
 
-	/* We may still think we hold the active lock. */
-	tdb->num_lockrecs = 0;
-	SAFE_FREE(tdb->lockrecs);
-
-	if (active_lock && tdb_nest_lock(tdb, ACTIVE_LOCK, F_RDLCK, TDB_LOCK_WAIT) == -1) {
+	if (active_lock &&
+	    (tdb->methods->tdb_brlock(tdb, ACTIVE_LOCK, F_RDLCK, F_SETLKW, 0, 1) == -1)) {
 		TDB_LOG((tdb, TDB_DEBUG_FATAL, "tdb_reopen: failed to obtain active lock\n"));
 		goto fail;
 	}
@@ -598,13 +515,13 @@ fail:
 
 /* reopen a tdb - this can be used after a fork to ensure that we have an independent
    seek pointer from our parent and to re-establish locks */
-_PUBLIC_ int tdb_reopen(struct tdb_context *tdb)
+int tdb_reopen(struct tdb_context *tdb)
 {
 	return tdb_reopen_internal(tdb, tdb->flags & TDB_CLEAR_IF_FIRST);
 }
 
 /* reopen all tdb's */
-_PUBLIC_ int tdb_reopen_all(int parent_longlived)
+int tdb_reopen_all(int parent_longlived)
 {
 	struct tdb_context *tdb;
 

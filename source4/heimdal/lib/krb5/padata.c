@@ -33,7 +33,7 @@
 
 #include "krb5_locl.h"
 
-KRB5_LIB_FUNCTION PA_DATA * KRB5_LIB_CALL
+PA_DATA *
 krb5_find_padata(PA_DATA *val, unsigned len, int type, int *idx)
 {
     for(; *idx < len; (*idx)++)
@@ -42,7 +42,7 @@ krb5_find_padata(PA_DATA *val, unsigned len, int type, int *idx)
     return NULL;
 }
 
-KRB5_LIB_FUNCTION int KRB5_LIB_CALL
+int KRB5_LIB_FUNCTION
 krb5_padata_add(krb5_context context, METHOD_DATA *md,
 		int type, void *buf, size_t len)
 {

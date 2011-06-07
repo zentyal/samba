@@ -18,8 +18,7 @@
 */
 
 #include "includes.h"
-#include "printing/pcap.h"
-#include "printing/load.h"
+
 
 /***************************************************************************
 auto-load some homes and printer services
@@ -54,12 +53,12 @@ static void add_auto_printers(void)
 }
 
 /***************************************************************************
-load automatic printer services from pre-populated pcap cache
+load automatic printer services
 ***************************************************************************/
-void load_printers(struct tevent_context *ev,
-		   struct messaging_context *msg_ctx)
+void load_printers(void)
 {
-	SMB_ASSERT(pcap_cache_loaded());
+	if (!pcap_cache_loaded())
+		pcap_cache_reload();
 
 	add_auto_printers();
 

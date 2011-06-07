@@ -2,25 +2,23 @@
    Unix SMB/CIFS implementation.
    diagnosis tools for web admin
    Copyright (C) Andrew Tridgell 1998
-
+   
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
 #include "web/swat_proto.h"
-#include "lib/winbind_util.h"
-#include "libsmb/libsmb.h"
 
 #ifdef WITH_WINBIND
 
@@ -37,21 +35,23 @@ bool winbindd_running(void)
 bool nmbd_running(void)
 {
 	struct in_addr loopback_ip;
-	int count;
+	int fd, count, flags;
 	struct sockaddr_storage *ss_list;
 	struct sockaddr_storage ss;
-	NTSTATUS status;
 
 	loopback_ip.s_addr = htonl(INADDR_LOOPBACK);
 	in_addr_to_sockaddr_storage(&ss, loopback_ip);
 
-	status = name_query("__SAMBA__", 0,
-			    True, True, &ss,
-			    talloc_tos(), &ss_list, &count,
-			    NULL);
-	if (NT_STATUS_IS_OK(status)) {
-		TALLOC_FREE(ss_list);
-		return True;
+	if ((fd = open_socket_in(SOCK_DGRAM, 0, 3,
+				 &ss, True)) != -1) {
+		if ((ss_list = name_query(fd, "__SAMBA__", 0, 
+					  True, True, &ss,
+					  &count, &flags, NULL)) != NULL) {
+			SAFE_FREE(ss_list);
+			close(fd);
+			return True;
+		}
+		close (fd);
 	}
 
 	return False;

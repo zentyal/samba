@@ -18,7 +18,6 @@
  */
 
 #include "includes.h"
-#include "smbd/smbd.h"
 
 /* Extent preallocation module.
  *
@@ -214,7 +213,7 @@ static int prealloc_ftruncate(vfs_handle_struct * handle,
 }
 
 static struct vfs_fn_pointers prealloc_fns = {
-	.open_fn = prealloc_open,
+	.open = prealloc_open,
 	.ftruncate = prealloc_ftruncate,
 	.connect_fn = prealloc_connect,
 };

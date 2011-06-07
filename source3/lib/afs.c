@@ -219,7 +219,7 @@ bool afs_login(connection_struct *conn)
 	char *cell = NULL;
 	bool result;
 	char *ticket_str = NULL;
-	const struct dom_sid *user_sid;
+	const DOM_SID *user_sid;
 	TALLOC_CTX *ctx = talloc_tos();
 
 	struct ClearToken ct;
@@ -231,16 +231,16 @@ bool afs_login(connection_struct *conn)
 	}
 
 	afs_username = talloc_sub_advanced(ctx,
-				SNUM(conn), conn->session_info->unix_name,
-				conn->connectpath, conn->session_info->utok.gid,
-				conn->session_info->sanitized_username,
-				pdb_get_domain(conn->session_info->sam_account),
+				SNUM(conn), conn->server_info->unix_name,
+				conn->connectpath, conn->server_info->utok.gid,
+				conn->server_info->sanitized_username,
+				pdb_get_domain(conn->server_info->sam_account),
 				afs_username);
 	if (!afs_username) {
 		return false;
 	}
 
-	user_sid = &conn->session_info->security_token->user_sids[0];
+	user_sid = &conn->server_info->ptok->user_sids[0];
 	afs_username = talloc_string_sub(talloc_tos(),
 					afs_username,
 					"%s",

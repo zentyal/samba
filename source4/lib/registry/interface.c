@@ -44,7 +44,7 @@ const struct reg_predefined_key reg_predefined_keys[] = {
 /** Obtain name of specific hkey. */
 _PUBLIC_ const char *reg_get_predef_name(uint32_t hkey)
 {
-	unsigned int i;
+	int i;
 	for (i = 0; reg_predefined_keys[i].name; i++) {
 		if (reg_predefined_keys[i].handle == hkey)
 			return reg_predefined_keys[i].name;
@@ -58,7 +58,7 @@ _PUBLIC_ WERROR reg_get_predefined_key_by_name(struct registry_context *ctx,
 					       const char *name,
 					       struct registry_key **key)
 {
-	unsigned int i;
+	int i;
 
 	for (i = 0; reg_predefined_keys[i].name; i++) {
 		if (!strcasecmp(reg_predefined_keys[i].name, name))
@@ -150,7 +150,7 @@ _PUBLIC_ WERROR reg_key_get_info(TALLOC_CTX *mem_ctx,
  */
 _PUBLIC_ WERROR reg_key_get_subkey_by_index(TALLOC_CTX *mem_ctx,
 					    const struct registry_key *key,
-					    uint32_t idx, const char **name,
+					    int idx, const char **name,
 					    const char **keyclass,
 					    NTTIME *last_changed_time)
 {
@@ -185,8 +185,7 @@ _PUBLIC_ WERROR reg_key_get_value_by_name(TALLOC_CTX *mem_ctx,
 /**
  * Delete a key.
  */
-_PUBLIC_ WERROR reg_key_del(TALLOC_CTX *mem_ctx, struct registry_key *parent,
-			    const char *name)
+_PUBLIC_ WERROR reg_key_del(struct registry_key *parent, const char *name)
 {
 	if (parent == NULL)
 		return WERR_INVALID_PARAM;
@@ -194,7 +193,7 @@ _PUBLIC_ WERROR reg_key_del(TALLOC_CTX *mem_ctx, struct registry_key *parent,
 	if (parent->context->ops->delete_key == NULL)
 		return WERR_NOT_SUPPORTED;
 
-	return parent->context->ops->delete_key(mem_ctx, parent, name);
+	return parent->context->ops->delete_key(parent, name);
 }
 
 /**
@@ -202,7 +201,7 @@ _PUBLIC_ WERROR reg_key_del(TALLOC_CTX *mem_ctx, struct registry_key *parent,
  */
 _PUBLIC_ WERROR reg_key_add_name(TALLOC_CTX *mem_ctx,
 				 struct registry_key *parent,
-				 const char *path, const char *key_class,
+				 const char *name, const char *key_class,
 				 struct security_descriptor *desc,
 				 struct registry_key **newkey)
 {
@@ -215,7 +214,7 @@ _PUBLIC_ WERROR reg_key_add_name(TALLOC_CTX *mem_ctx,
 		return WERR_NOT_SUPPORTED;
 	}
 
-	return parent->context->ops->create_key(mem_ctx, parent, path,
+	return parent->context->ops->create_key(mem_ctx, parent, name,
 						key_class, desc, newkey);
 }
 
@@ -258,8 +257,7 @@ _PUBLIC_ WERROR reg_get_sec_desc(TALLOC_CTX *ctx,
 /**
  * Delete a value.
  */
-_PUBLIC_ WERROR reg_del_value(TALLOC_CTX *mem_ctx, struct registry_key *key,
-			      const char *valname)
+_PUBLIC_ WERROR reg_del_value(struct registry_key *key, const char *valname)
 {
 	if (key == NULL)
 		return WERR_INVALID_PARAM;
@@ -267,7 +265,7 @@ _PUBLIC_ WERROR reg_del_value(TALLOC_CTX *mem_ctx, struct registry_key *key,
 	if (key->context->ops->delete_value == NULL)
 		return WERR_NOT_SUPPORTED;
 
-	return key->context->ops->delete_value(mem_ctx, key, valname);
+	return key->context->ops->delete_value(key, valname);
 }
 
 /**

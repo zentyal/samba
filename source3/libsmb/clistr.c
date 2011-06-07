@@ -19,7 +19,6 @@
 */
 
 #include "includes.h"
-#include "libsmb/libsmb.h"
 
 size_t clistr_push_fn(const char *function,
 			unsigned int line,
@@ -35,12 +34,12 @@ size_t clistr_push_fn(const char *function,
 			DEBUG(0, ("Pushing string of 'unlimited' length into non-SMB buffer!\n"));
 			return push_string_base(function, line,
 						cli->outbuf,
-						(uint16_t)(cli_ucs2(cli) ? FLAGS2_UNICODE_STRINGS : 0),
+						SVAL(cli->outbuf, smb_flg2),
 						dest, src, -1, flags);
 		}
 		return push_string_base(function, line, 
 					cli->outbuf,
-					(uint16_t)(cli_ucs2(cli) ? FLAGS2_UNICODE_STRINGS : 0),
+					SVAL(cli->outbuf, smb_flg2),
 					dest, src, cli->bufsize - buf_used,
 					flags);
 	}
@@ -48,7 +47,7 @@ size_t clistr_push_fn(const char *function,
 	/* 'normal' push into size-specified buffer */
 	return push_string_base(function, line, 
 				cli->outbuf,
-				(uint16_t)(cli_ucs2(cli) ? FLAGS2_UNICODE_STRINGS : 0),
+				SVAL(cli->outbuf, smb_flg2),
 				dest, src, dest_len, flags);
 }
 
@@ -69,8 +68,7 @@ size_t clistr_pull_fn(const char *function,
 size_t clistr_pull_talloc_fn(const char *function,
 				unsigned int line,
 				TALLOC_CTX *ctx,
-				const char *base,
-				uint16_t flags2,
+				const char *inbuf,
 				char **pp_dest,
 				const void *src,
 				int src_len,
@@ -79,8 +77,8 @@ size_t clistr_pull_talloc_fn(const char *function,
 	return pull_string_talloc_fn(function,
 					line,
 					ctx,
-					base,
-					flags2,
+					inbuf,
+					SVAL(inbuf, smb_flg2),
 					pp_dest,
 					src,
 					src_len,
@@ -90,4 +88,9 @@ size_t clistr_pull_talloc_fn(const char *function,
 size_t clistr_align_out(struct cli_state *cli, const void *p, int flags)
 {
 	return align_string(cli->outbuf, (const char *)p, flags);
+}
+
+size_t clistr_align_in(struct cli_state *cli, const void *p, int flags)
+{
+	return align_string(cli->inbuf, (const char *)p, flags);
 }

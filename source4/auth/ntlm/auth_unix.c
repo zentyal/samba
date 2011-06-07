@@ -23,83 +23,77 @@
 #include "auth/auth.h"
 #include "auth/ntlm/auth_proto.h"
 #include "system/passwd.h" /* needed by some systems for struct passwd */
-#include "lib/socket/socket.h"
-#include "lib/tsocket/tsocket.h"
-#include "../libcli/auth/pam_errors.h"
+#include "lib/socket/socket.h" 
+#include "auth/ntlm/pam_errors.h"
 #include "param/param.h"
 
 /* TODO: look at how to best fill in parms retrieveing a struct passwd info
  * except in case USER_INFO_DONT_CHECK_UNIX_ACCOUNT is set
  */
-static NTSTATUS authunix_make_user_info_dc(TALLOC_CTX *mem_ctx,
+static NTSTATUS authunix_make_server_info(TALLOC_CTX *mem_ctx,
 					  const char *netbios_name,
 					  const struct auth_usersupplied_info *user_info,
 					  struct passwd *pwd,
-					  struct auth_user_info_dc **_user_info_dc)
+					  struct auth_serversupplied_info **_server_info)
 {
-	struct auth_user_info_dc *user_info_dc;
-	struct auth_user_info *info;
+	struct auth_serversupplied_info *server_info;
 	NTSTATUS status;
 
 	/* This is a real, real hack */
 	if (pwd->pw_uid == 0) {
-		status = auth_system_user_info_dc(mem_ctx, netbios_name, &user_info_dc);
+		status = auth_system_server_info(mem_ctx, netbios_name, &server_info);
 		if (!NT_STATUS_IS_OK(status)) {
 			return status;
 		}
 
-		user_info_dc->info = info = talloc_zero(user_info_dc, struct auth_user_info);
-		NT_STATUS_HAVE_NO_MEMORY(user_info_dc->info);
-
-		info->account_name = talloc_steal(info, pwd->pw_name);
-		NT_STATUS_HAVE_NO_MEMORY(info->account_name);
+		server_info->account_name = talloc_steal(server_info, pwd->pw_name);
+		NT_STATUS_HAVE_NO_MEMORY(server_info->account_name);
 		
-		info->domain_name = talloc_strdup(info, "unix");
-		NT_STATUS_HAVE_NO_MEMORY(info->domain_name);
+		server_info->domain_name = talloc_strdup(server_info, "unix");
+		NT_STATUS_HAVE_NO_MEMORY(server_info->domain_name);
 	} else {
-		user_info_dc = talloc(mem_ctx, struct auth_user_info_dc);
-		NT_STATUS_HAVE_NO_MEMORY(user_info_dc);
+		server_info = talloc(mem_ctx, struct auth_serversupplied_info);
+		NT_STATUS_HAVE_NO_MEMORY(server_info);
 		
-		user_info_dc->info = info = talloc_zero(user_info_dc, struct auth_user_info);
-		NT_STATUS_HAVE_NO_MEMORY(user_info_dc->info);
-
-		info->authenticated = true;
+		server_info->authenticated = true;
 		
-		info->account_name = talloc_steal(info, pwd->pw_name);
-		NT_STATUS_HAVE_NO_MEMORY(info->account_name);
+		server_info->account_name = talloc_steal(server_info, pwd->pw_name);
+		NT_STATUS_HAVE_NO_MEMORY(server_info->account_name);
 		
-		info->domain_name = talloc_strdup(info, "unix");
-		NT_STATUS_HAVE_NO_MEMORY(info->domain_name);
+		server_info->domain_name = talloc_strdup(server_info, "unix");
+		NT_STATUS_HAVE_NO_MEMORY(server_info->domain_name);
 
 		/* This isn't in any way correct.. */
-		user_info_dc->num_sids = 0;
-		user_info_dc->sids = NULL;
+		server_info->account_sid = NULL;
+		server_info->primary_group_sid = NULL;
+		server_info->n_domain_groups = 0;
+		server_info->domain_groups = NULL;
 	}
-	user_info_dc->user_session_key = data_blob(NULL,0);
-	user_info_dc->lm_session_key = data_blob(NULL,0);
+	server_info->user_session_key = data_blob(NULL,0);
+	server_info->lm_session_key = data_blob(NULL,0);
 
-	info->full_name = talloc_steal(info, pwd->pw_gecos);
-	NT_STATUS_HAVE_NO_MEMORY(info->full_name);
-	info->logon_script = talloc_strdup(info, "");
-	NT_STATUS_HAVE_NO_MEMORY(info->logon_script);
-	info->profile_path = talloc_strdup(info, "");
-	NT_STATUS_HAVE_NO_MEMORY(info->profile_path);
-	info->home_directory = talloc_strdup(info, "");
-	NT_STATUS_HAVE_NO_MEMORY(info->home_directory);
-	info->home_drive = talloc_strdup(info, "");
-	NT_STATUS_HAVE_NO_MEMORY(info->home_drive);
+	server_info->full_name = talloc_steal(server_info, pwd->pw_gecos);
+	NT_STATUS_HAVE_NO_MEMORY(server_info->full_name);
+	server_info->logon_script = talloc_strdup(server_info, "");
+	NT_STATUS_HAVE_NO_MEMORY(server_info->logon_script);
+	server_info->profile_path = talloc_strdup(server_info, "");
+	NT_STATUS_HAVE_NO_MEMORY(server_info->profile_path);
+	server_info->home_directory = talloc_strdup(server_info, "");
+	NT_STATUS_HAVE_NO_MEMORY(server_info->home_directory);
+	server_info->home_drive = talloc_strdup(server_info, "");
+	NT_STATUS_HAVE_NO_MEMORY(server_info->home_drive);
 
-	info->last_logon = 0;
-	info->last_logoff = 0;
-	info->acct_expiry = 0;
-	info->last_password_change = 0;
-	info->allow_password_change = 0;
-	info->force_password_change = 0;
-	info->logon_count = 0;
-	info->bad_password_count = 0;
-	info->acct_flags = 0;
+	server_info->last_logon = 0;
+	server_info->last_logoff = 0;
+	server_info->acct_expiry = 0;
+	server_info->last_password_change = 0;
+	server_info->allow_password_change = 0;
+	server_info->force_password_change = 0;
+	server_info->logon_count = 0;
+	server_info->bad_password_count = 0;
+	server_info->acct_flags = 0;
 
-	*_user_info_dc = user_info_dc;
+	*_server_info = server_info;
 
 	return NT_STATUS_OK;
 }
@@ -435,7 +429,7 @@ static NTSTATUS smb_pam_setcred(pam_handle_t *pamh, const char * user)
 	return pam_to_nt_status(pam_error);
 }
 
-static NTSTATUS check_unix_password(TALLOC_CTX *ctx, struct loadparm_context *lp_ctx,
+static NTSTATUS check_unix_password(TALLOC_CTX *ctx, struct loadparm_context *lp_ctx, 
 				    const struct auth_usersupplied_info *user_info, struct passwd **pws)
 {
 	struct smb_pam_user_info *info;
@@ -464,13 +458,12 @@ static NTSTATUS check_unix_password(TALLOC_CTX *ctx, struct loadparm_context *lp
 	 * if true set up a crack name routine.
 	 */
 
-	nt_status = smb_pam_start(&pamh, user_info->mapped.account_name,
-			user_info->remote_host ? tsocket_address_inet_addr_string(user_info->remote_host, ctx) : NULL, pamconv);
+	nt_status = smb_pam_start(&pamh, user_info->mapped.account_name, user_info->remote_host ? user_info->remote_host->addr : NULL, pamconv);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		return nt_status;
 	}
 
-	nt_status = smb_pam_auth(pamh, lpcfg_null_passwords(lp_ctx), user_info->mapped.account_name);
+	nt_status = smb_pam_auth(pamh, lp_null_passwords(lp_ctx), user_info->mapped.account_name);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		smb_pam_end(pamh);
 		return nt_status;
@@ -610,7 +603,7 @@ static NTSTATUS check_unix_password(TALLOC_CTX *ctx, struct loadparm_context *lp
 	char *crypted;
 	struct passwd *pws;
 	NTSTATUS nt_status;
-	int level = lpcfg_passwordlevel(lp_ctx);
+	int level = lp_passwordlevel(lp_ctx);
 
 	*ret_passwd = NULL;
 
@@ -713,7 +706,7 @@ static NTSTATUS check_unix_password(TALLOC_CTX *ctx, struct loadparm_context *lp
 #endif
 
 	if (crypted[0] == '\0') {
-		if (!lpcfg_null_passwords(lp_ctx)) {
+		if (!lp_null_passwords(lp_ctx)) {
 			DEBUG(2, ("Disallowing %s with null password\n", username));
 			return NT_STATUS_LOGON_FAILURE;
 		}
@@ -798,7 +791,7 @@ static NTSTATUS authunix_want_check(struct auth_method_context *ctx,
 static NTSTATUS authunix_check_password(struct auth_method_context *ctx,
 					TALLOC_CTX *mem_ctx,
 					const struct auth_usersupplied_info *user_info,
-					struct auth_user_info_dc **user_info_dc)
+					struct auth_serversupplied_info **server_info)
 {
 	TALLOC_CTX *check_ctx;
 	NTSTATUS nt_status;
@@ -819,8 +812,8 @@ static NTSTATUS authunix_check_password(struct auth_method_context *ctx,
 		return nt_status;
 	}
 
-	nt_status = authunix_make_user_info_dc(mem_ctx, lpcfg_netbios_name(ctx->auth_ctx->lp_ctx),
-					      user_info, pwd, user_info_dc);
+	nt_status = authunix_make_server_info(mem_ctx, lp_netbios_name(ctx->auth_ctx->lp_ctx),
+					      user_info, pwd, server_info);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		talloc_free(check_ctx);
 		return nt_status;

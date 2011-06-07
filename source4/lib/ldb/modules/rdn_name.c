@@ -1,7 +1,7 @@
 /* 
    ldb database library
 
-   Copyright (C) Andrew Bartlett 2005-2009
+   Copyright (C) Andrew Bartlett 2005
    Copyright (C) Simo Sorce 2006-2008
 
      ** NOTE! The following LGPL license applies to the ldb
@@ -36,17 +36,29 @@
  *      Simo Sorce Mar 2006
  */
 
-#include "replace.h"
-#include "system/filesys.h"
-#include "system/time.h"
+#include "ldb_includes.h"
 #include "ldb_module.h"
 
 struct rename_context {
+
 	struct ldb_module *module;
 	struct ldb_request *req;
 
 	struct ldb_reply *ares;
 };
+
+static struct ldb_message_element *rdn_name_find_attribute(const struct ldb_message *msg, const char *name)
+{
+	int i;
+
+	for (i = 0; i < msg->num_elements; i++) {
+		if (ldb_attr_cmp(name, msg->elements[i].name) == 0) {
+			return &msg->elements[i];
+		}
+	}
+
+	return NULL;
+}
 
 static int rdn_name_add_callback(struct ldb_request *req,
 				 struct ldb_reply *ares)
@@ -59,11 +71,6 @@ static int rdn_name_add_callback(struct ldb_request *req,
 		return ldb_module_done(ac->req, NULL, NULL,
 					LDB_ERR_OPERATIONS_ERROR);
 	}
-
-	if (ares->type == LDB_REPLY_REFERRAL) {
-		return ldb_module_send_referral(ac->req, ares->referral);
-	}
-
 	if (ares->error != LDB_SUCCESS) {
 		return ldb_module_done(ac->req, ares->controls,
 					ares->response, ares->error);
@@ -87,12 +94,11 @@ static int rdn_name_add(struct ldb_module *module, struct ldb_request *req)
 	struct ldb_message_element *attribute;
 	const struct ldb_schema_attribute *a;
 	const char *rdn_name;
-	const struct ldb_val *rdn_val_p;
 	struct ldb_val rdn_val;
-	unsigned int i;
-	int ret;
+	int i, ret;
 
 	ldb = ldb_module_get_ctx(module);
+	ldb_debug(ldb, LDB_DEBUG_TRACE, "rdn_name_add_record");
 
 	/* do not manipulate our control entries */
 	if (ldb_dn_is_special(req->op.add.message->dn)) {
@@ -114,78 +120,52 @@ static int rdn_name_add(struct ldb_module *module, struct ldb_request *req)
 
 	rdn_name = ldb_dn_get_rdn_name(msg->dn);
 	if (rdn_name == NULL) {
+		talloc_free(ac);
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 	
-	rdn_val_p = ldb_dn_get_rdn_val(msg->dn);
-	if (rdn_val_p == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
-	if (rdn_val_p->length == 0) {
-		ldb_asprintf_errstring(ldb, "Empty RDN value on %s not permitted!",
-				       ldb_dn_get_linearized(req->op.add.message->dn));
-		return LDB_ERR_INVALID_DN_SYNTAX;
-	}
-	rdn_val = ldb_val_dup(msg, rdn_val_p);
-
-	/* Perhaps someone above us tried to set this? Then ignore it */
-	ldb_msg_remove_attr(msg, "name");
-
-	ret = ldb_msg_add_value(msg, "name", &rdn_val, NULL);
-	if (ret != LDB_SUCCESS) {
-		return ret;
+	rdn_val = ldb_val_dup(msg, ldb_dn_get_rdn_val(msg->dn));
+	
+	/* Perhaps someone above us tried to set this? */
+	if ((attribute = rdn_name_find_attribute(msg, "name")) != NULL ) {
+		attribute->num_values = 0;
 	}
 
-	a = ldb_schema_attribute_by_name(ldb, rdn_name);
-	if (a == NULL) {
+	if (ldb_msg_add_value(msg, "name", &rdn_val, NULL) != 0) {
+		talloc_free(ac);
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
-	attribute = ldb_msg_find_element(msg, rdn_name);
+	attribute = rdn_name_find_attribute(msg, rdn_name);
+
 	if (!attribute) {
-		/* add entry with normalised RDN information if possible */
-		if (a->name != NULL) {
-			ret = ldb_msg_add_value(msg, a->name, &rdn_val, NULL);
-		} else {
-			ret = ldb_msg_add_value(msg, rdn_name, &rdn_val, NULL);
-		}
-		if (ret != LDB_SUCCESS) {
-			return ret;
+		if (ldb_msg_add_value(msg, rdn_name, &rdn_val, NULL) != 0) {
+			talloc_free(ac);
+			return LDB_ERR_OPERATIONS_ERROR;
 		}
 	} else {
-		/* normalise attribute name if possible */
-		if (a->name != NULL) {
-			attribute->name = a->name;
-		}
-		/* normalise attribute value */
+		a = ldb_schema_attribute_by_name(ldb, rdn_name);
+
 		for (i = 0; i < attribute->num_values; i++) {
-			bool matched;
-			if (a->syntax->operator_fn) {
-				ret = a->syntax->operator_fn(ldb, LDB_OP_EQUALITY, a,
-							     &rdn_val, &attribute->values[i], &matched);
-				if (ret != LDB_SUCCESS) return ret;
-			} else {
-				matched = (a->syntax->comparison_fn(ldb, msg,
-								    &rdn_val, &attribute->values[i]) == 0);
-			}
-			if (matched) {
+			ret = a->syntax->comparison_fn(ldb, msg,
+					&rdn_val, &attribute->values[i]);
+			if (ret == 0) {
 				/* overwrite so it matches in case */
 				attribute->values[i] = rdn_val;
 				break;
 			}
 		}
 		if (i == attribute->num_values) {
-			char *rdn_errstring = talloc_asprintf(ac,
-				"RDN mismatch on %s: %s (%.*s) should match one of:", 
-				ldb_dn_get_linearized(msg->dn), rdn_name, 
-				(int)rdn_val.length, (const char *)rdn_val.data);
+			char *rdn_errstring = talloc_asprintf(ac, "RDN mismatch on %s: %s (%.*s) should match one of:", 
+							  ldb_dn_get_linearized(msg->dn), rdn_name, 
+							  (int)rdn_val.length, (const char *)rdn_val.data);
 			for (i = 0; i < attribute->num_values; i++) {
-				rdn_errstring = talloc_asprintf_append(
-					rdn_errstring, " (%.*s)",
-					(int)attribute->values[i].length, 
-					(const char *)attribute->values[i].data);
+				rdn_errstring = talloc_asprintf_append(rdn_errstring, " (%.*s)",
+								       (int)attribute->values[i].length, 
+								       (const char *)attribute->values[i].data);
 			}
-			ldb_set_errstring(ldb, rdn_errstring);
+			ldb_debug_set(ldb, LDB_DEBUG_FATAL, "%s", rdn_errstring);
+			talloc_free(ac);
 			/* Match AD's error here */
 			return LDB_ERR_INVALID_DN_SYNTAX;
 		}
@@ -216,11 +196,6 @@ static int rdn_modify_callback(struct ldb_request *req, struct ldb_reply *ares)
 		return ldb_module_done(ac->req, NULL, NULL,
 					LDB_ERR_OPERATIONS_ERROR);
 	}
-
-	if (ares->type == LDB_REPLY_REFERRAL) {
-		return ldb_module_send_referral(ac->req, ares->referral);
-	}
-
 	if (ares->error != LDB_SUCCESS) {
 		return ldb_module_done(ac->req, ares->controls,
 					ares->response, ares->error);
@@ -243,7 +218,6 @@ static int rdn_rename_callback(struct ldb_request *req, struct ldb_reply *ares)
 	struct rename_context *ac;
 	struct ldb_request *mod_req;
 	const char *rdn_name;
-	const struct ldb_val *rdn_val_p;
 	struct ldb_val rdn_val;
 	struct ldb_message *msg;
 	int ret;
@@ -254,11 +228,6 @@ static int rdn_rename_callback(struct ldb_request *req, struct ldb_reply *ares)
 	if (!ares) {
 		goto error;
 	}
-
-	if (ares->type == LDB_REPLY_REFERRAL) {
-		return ldb_module_send_referral(ac->req, ares->referral);
-	}
-
 	if (ares->error != LDB_SUCCESS) {
 		return ldb_module_done(ac->req, ares->controls,
 					ares->response, ares->error);
@@ -280,24 +249,13 @@ static int rdn_rename_callback(struct ldb_request *req, struct ldb_reply *ares)
 	if (msg->dn == NULL) {
 		goto error;
 	}
-
 	rdn_name = ldb_dn_get_rdn_name(ac->req->op.rename.newdn);
 	if (rdn_name == NULL) {
 		goto error;
 	}
-
-	rdn_val_p = ldb_dn_get_rdn_val(msg->dn);
-	if (rdn_val_p == NULL) {
-		goto error;
-	}
-	if (rdn_val_p->length == 0) {
-		ldb_asprintf_errstring(ldb, "Empty RDN value on %s not permitted!",
-				       ldb_dn_get_linearized(req->op.rename.olddn));
-		return ldb_module_done(ac->req, NULL, NULL,
-				       LDB_ERR_NAMING_VIOLATION);
-	}
-	rdn_val = ldb_val_dup(msg, rdn_val_p);
-
+	
+	rdn_val = ldb_val_dup(msg, ldb_dn_get_rdn_val(ac->req->op.rename.newdn));
+	
 	if (ldb_msg_add_empty(msg, rdn_name, LDB_FLAG_MOD_REPLACE, NULL) != 0) {
 		goto error;
 	}
@@ -320,11 +278,12 @@ static int rdn_rename_callback(struct ldb_request *req, struct ldb_reply *ares)
 	}
 	talloc_steal(mod_req, msg);
 
-	/* go on with the call chain */
-	return ldb_next_request(ac->module, mod_req);
+	/* do the mod call */
+	return ldb_request(ldb, mod_req);
 
 error:
-	return ldb_module_done(ac->req, NULL, NULL, LDB_ERR_OPERATIONS_ERROR);
+	return ldb_module_done(ac->req, NULL, NULL,
+						LDB_ERR_OPERATIONS_ERROR);
 }
 
 static int rdn_name_rename(struct ldb_module *module, struct ldb_request *req)
@@ -335,6 +294,7 @@ static int rdn_name_rename(struct ldb_module *module, struct ldb_request *req)
 	int ret;
 
 	ldb = ldb_module_get_ctx(module);
+	ldb_debug(ldb, LDB_DEBUG_TRACE, "rdn_name_rename");
 
 	/* do not manipulate our control entries */
 	if (ldb_dn_is_special(req->op.rename.newdn)) {
@@ -360,94 +320,15 @@ static int rdn_name_rename(struct ldb_module *module, struct ldb_request *req)
 				   req);
 
 	if (ret != LDB_SUCCESS) {
-		return ret;
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
 	/* rename first, modify "name" if rename is ok */
 	return ldb_next_request(module, down_req);
 }
 
-static int rdn_name_modify(struct ldb_module *module, struct ldb_request *req)
-{
-	struct ldb_context *ldb;
-	const struct ldb_val *rdn_val_p;
-
-	ldb = ldb_module_get_ctx(module);
-
-	/* do not manipulate our control entries */
-	if (ldb_dn_is_special(req->op.mod.message->dn)) {
-		return ldb_next_request(module, req);
-	}
-
-	rdn_val_p = ldb_dn_get_rdn_val(req->op.mod.message->dn);
-	if (rdn_val_p == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
-	if (rdn_val_p->length == 0) {
-		ldb_asprintf_errstring(ldb, "Empty RDN value on %s not permitted!",
-				       ldb_dn_get_linearized(req->op.mod.message->dn));
-		return LDB_ERR_INVALID_DN_SYNTAX;
-	}
-
-	if (ldb_msg_find_element(req->op.mod.message, "distinguishedName")) {
-		ldb_asprintf_errstring(ldb, "Modify of 'distinguishedName' on %s not permitted, must use 'rename' operation instead",
-				       ldb_dn_get_linearized(req->op.mod.message->dn));
-		return LDB_ERR_CONSTRAINT_VIOLATION;
-	}
-
-	if (ldb_msg_find_element(req->op.mod.message, "name")) {
-		ldb_asprintf_errstring(ldb, "Modify of 'name' on %s not permitted, must use 'rename' operation instead",
-				       ldb_dn_get_linearized(req->op.mod.message->dn));
-		return LDB_ERR_NOT_ALLOWED_ON_RDN;
-	}
-
-	if (ldb_msg_find_element(req->op.mod.message, ldb_dn_get_rdn_name(req->op.mod.message->dn))) {
-		ldb_asprintf_errstring(ldb, "Modify of RDN '%s' on %s not permitted, must use 'rename' operation instead",
-				       ldb_dn_get_rdn_name(req->op.mod.message->dn), ldb_dn_get_linearized(req->op.mod.message->dn));
-		return LDB_ERR_NOT_ALLOWED_ON_RDN;
-	}
-
-	/* All OK, they kept their fingers out of the special attributes */
-	return ldb_next_request(module, req);
-}
-
-static int rdn_name_search(struct ldb_module *module, struct ldb_request *req)
-{
-	struct ldb_context *ldb;
-	const char *rdn_name;
-	const struct ldb_val *rdn_val_p;
-
-	ldb = ldb_module_get_ctx(module);
-
-	/* do not manipulate our control entries */
-	if (ldb_dn_is_special(req->op.search.base)) {
-		return ldb_next_request(module, req);
-	}
-
-	rdn_name = ldb_dn_get_rdn_name(req->op.search.base);
-	rdn_val_p = ldb_dn_get_rdn_val(req->op.search.base);
-	if ((rdn_name != NULL) && (rdn_val_p == NULL)) {
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
-	if ((rdn_val_p != NULL) && (rdn_val_p->length == 0)) {
-		ldb_asprintf_errstring(ldb, "Empty RDN value on %s not permitted!",
-				       ldb_dn_get_linearized(req->op.search.base));
-		return LDB_ERR_INVALID_DN_SYNTAX;
-	}
-
-	return ldb_next_request(module, req);
-}
-
-static const struct ldb_module_ops ldb_rdn_name_module_ops = {
+const struct ldb_module_ops ldb_rdn_name_module_ops = {
 	.name              = "rdn_name",
 	.add               = rdn_name_add,
-	.modify            = rdn_name_modify,
 	.rename            = rdn_name_rename,
-	.search            = rdn_name_search
 };
-
-int ldb_rdn_name_init(const char *version)
-{
-	LDB_MODULE_CHECK_VERSION(version);
-	return ldb_register_module(&ldb_rdn_name_module_ops);
-}

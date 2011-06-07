@@ -21,8 +21,10 @@
 
 #include "includes.h"
 #include "auth/auth.h"
+#include "auth/ntlm/auth_proto.h"
 #include "auth/credentials/credentials.h"
 #include "libcli/security/security.h"
+#include "librpc/gen_ndr/ndr_samr.h"
 #include "libcli/smb_composite/smb_composite.h"
 #include "param/param.h"
 #include "libcli/resolve/resolve.h"
@@ -40,7 +42,7 @@ static NTSTATUS server_want_check(struct auth_method_context *ctx,
 /** 
  * The challenge from the target server, when operating in security=server
  **/
-static NTSTATUS server_get_challenge(struct auth_method_context *ctx, TALLOC_CTX *mem_ctx, uint8_t chal[8])
+static NTSTATUS server_get_challenge(struct auth_method_context *ctx, TALLOC_CTX *mem_ctx, DATA_BLOB *_blob)
 {
 	struct smb_composite_connect io;
 	struct smbcli_options smb_options;
@@ -49,13 +51,13 @@ static NTSTATUS server_get_challenge(struct auth_method_context *ctx, TALLOC_CTX
 
 	/* Make a connection to the target server, found by 'password server' in smb.conf */
 	
-	lpcfg_smbcli_options(ctx->auth_ctx->lp_ctx, &smb_options);
+	lp_smbcli_options(ctx->auth_ctx->lp_ctx, &smb_options);
 
 	/* Make a negprot, WITHOUT SPNEGO, so we get a challenge nice an easy */
 	io.in.options.use_spnego = false;
 
 	/* Hope we don't get * (the default), as this won't work... */
-	host_list = lpcfg_passwordserver(ctx->auth_ctx->lp_ctx);
+	host_list = lp_passwordserver(ctx->auth_ctx->lp_ctx); 
 	if (!host_list) {
 		return NT_STATUS_INTERNAL_ERROR;
 	}
@@ -63,16 +65,16 @@ static NTSTATUS server_get_challenge(struct auth_method_context *ctx, TALLOC_CTX
 	if (strequal(io.in.dest_host, "*")) {
 		return NT_STATUS_INTERNAL_ERROR;
 	}
-	io.in.dest_ports = lpcfg_smb_ports(ctx->auth_ctx->lp_ctx);
-	io.in.socket_options = lpcfg_socket_options(ctx->auth_ctx->lp_ctx);
-	io.in.gensec_settings = lpcfg_gensec_settings(mem_ctx, ctx->auth_ctx->lp_ctx);
+	io.in.dest_ports = lp_smb_ports(ctx->auth_ctx->lp_ctx); 
+	io.in.socket_options = lp_socket_options(ctx->auth_ctx->lp_ctx);
+	io.in.gensec_settings = lp_gensec_settings(mem_ctx, ctx->auth_ctx->lp_ctx);
 
 	io.in.called_name = strupper_talloc(mem_ctx, io.in.dest_host);
 
 	/* We don't want to get as far as the session setup */
 	io.in.credentials = cli_credentials_init_anon(mem_ctx);
 	cli_credentials_set_workstation(io.in.credentials,
-					lpcfg_netbios_name(ctx->auth_ctx->lp_ctx),
+					lp_netbios_name(ctx->auth_ctx->lp_ctx),
 					CRED_SPECIFIED);
 
 	io.in.service = NULL;
@@ -81,16 +83,14 @@ static NTSTATUS server_get_challenge(struct auth_method_context *ctx, TALLOC_CTX
 
 	io.in.options = smb_options;
 	
-	lpcfg_smbcli_session_options(ctx->auth_ctx->lp_ctx, &io.in.session_options);
+	io.in.iconv_convenience = lp_iconv_convenience(ctx->auth_ctx->lp_ctx);
+	lp_smbcli_session_options(ctx->auth_ctx->lp_ctx, &io.in.session_options);
 
-	status = smb_composite_connect(&io, mem_ctx, lpcfg_resolve_context(ctx->auth_ctx->lp_ctx),
+	status = smb_composite_connect(&io, mem_ctx, lp_resolve_context(ctx->auth_ctx->lp_ctx),
 				       ctx->auth_ctx->event_ctx);
 	NT_STATUS_NOT_OK_RETURN(status);
 
-	if (io.out.tree->session->transport->negotiate.secblob.length != 8) {
-		return NT_STATUS_INTERNAL_ERROR;
-	}
-	memcpy(chal, io.out.tree->session->transport->negotiate.secblob.data, 8);
+	*_blob = io.out.tree->session->transport->negotiate.secblob;
 	ctx->private_data = talloc_steal(ctx, io.out.tree->session);
 	return NT_STATUS_OK;
 }
@@ -111,11 +111,10 @@ static NTSTATUS server_get_challenge(struct auth_method_context *ctx, TALLOC_CTX
 static NTSTATUS server_check_password(struct auth_method_context *ctx,
 				      TALLOC_CTX *mem_ctx,
 				      const struct auth_usersupplied_info *user_info, 
-				      struct auth_user_info_dc **_user_info_dc)
+				      struct auth_serversupplied_info **_server_info)
 {
 	NTSTATUS nt_status;
-	struct auth_user_info_dc *user_info_dc;
-	struct auth_user_info *info;
+	struct auth_serversupplied_info *server_info;
 	struct cli_credentials *creds;
 	struct smb_composite_sesssetup session_setup;
 
@@ -148,7 +147,7 @@ static NTSTATUS server_check_password(struct auth_method_context *ctx,
 
 	session_setup.in.credentials = creds;
 	session_setup.in.workgroup = ""; /* Only used with SPNEGO, which we are not doing */
-	session_setup.in.gensec_settings = lpcfg_gensec_settings(session, ctx->auth_ctx->lp_ctx);
+	session_setup.in.gensec_settings = lp_gensec_settings(session, ctx->auth_ctx->lp_ctx);
 
 	/* Check password with remove server - this should be async some day */
 	nt_status = smb_composite_sesssetup(session, &session_setup);
@@ -157,59 +156,59 @@ static NTSTATUS server_check_password(struct auth_method_context *ctx,
 		return nt_status;
 	}
 
-	user_info_dc = talloc(mem_ctx, struct auth_user_info_dc);
-	NT_STATUS_HAVE_NO_MEMORY(user_info_dc);
+	server_info = talloc(mem_ctx, struct auth_serversupplied_info);
+	NT_STATUS_HAVE_NO_MEMORY(server_info);
 
-	user_info_dc->num_sids = 1;
+	server_info->account_sid = dom_sid_parse_talloc(server_info, SID_NT_ANONYMOUS);
+	NT_STATUS_HAVE_NO_MEMORY(server_info->account_sid);
 
-	/* This returns a pointer to a struct dom_sid, which is the
-	 * same as a 1 element list of struct dom_sid */
-	user_info_dc->sids = dom_sid_parse_talloc(user_info_dc, SID_NT_ANONYMOUS);
-	NT_STATUS_HAVE_NO_MEMORY(user_info_dc->sids);
+	/* is this correct? */
+	server_info->primary_group_sid = dom_sid_parse_talloc(server_info, SID_BUILTIN_GUESTS);
+	NT_STATUS_HAVE_NO_MEMORY(server_info->primary_group_sid);
+
+	server_info->n_domain_groups = 0;
+	server_info->domain_groups = NULL;
 
 	/* annoying, but the Anonymous really does have a session key, 
 	   and it is all zeros! */
-	user_info_dc->user_session_key = data_blob(NULL, 0);
-	user_info_dc->lm_session_key = data_blob(NULL, 0);
+	server_info->user_session_key = data_blob(NULL, 0);
+	server_info->lm_session_key = data_blob(NULL, 0);
 
-	user_info_dc->info = info = talloc_zero(user_info_dc, struct auth_user_info);
-	NT_STATUS_HAVE_NO_MEMORY(user_info_dc->info);
+	server_info->account_name = talloc_strdup(server_info, user_info->client.account_name);
+	NT_STATUS_HAVE_NO_MEMORY(server_info->account_name);
 
-	info->account_name = talloc_strdup(user_info_dc, user_info->client.account_name);
-	NT_STATUS_HAVE_NO_MEMORY(info->account_name);
+	server_info->domain_name = talloc_strdup(server_info, user_info->client.domain_name);
+	NT_STATUS_HAVE_NO_MEMORY(server_info->domain_name);
 
-	info->domain_name = talloc_strdup(user_info_dc, user_info->client.domain_name);
-	NT_STATUS_HAVE_NO_MEMORY(info->domain_name);
+	server_info->full_name = NULL;
 
-	info->full_name = NULL;
+	server_info->logon_script = talloc_strdup(server_info, "");
+	NT_STATUS_HAVE_NO_MEMORY(server_info->logon_script);
 
-	info->logon_script = talloc_strdup(user_info_dc, "");
-	NT_STATUS_HAVE_NO_MEMORY(info->logon_script);
+	server_info->profile_path = talloc_strdup(server_info, "");
+	NT_STATUS_HAVE_NO_MEMORY(server_info->profile_path);
 
-	info->profile_path = talloc_strdup(user_info_dc, "");
-	NT_STATUS_HAVE_NO_MEMORY(info->profile_path);
+	server_info->home_directory = talloc_strdup(server_info, "");
+	NT_STATUS_HAVE_NO_MEMORY(server_info->home_directory);
 
-	info->home_directory = talloc_strdup(user_info_dc, "");
-	NT_STATUS_HAVE_NO_MEMORY(info->home_directory);
+	server_info->home_drive = talloc_strdup(server_info, "");
+	NT_STATUS_HAVE_NO_MEMORY(server_info->home_drive);
 
-	info->home_drive = talloc_strdup(user_info_dc, "");
-	NT_STATUS_HAVE_NO_MEMORY(info->home_drive);
+	server_info->last_logon = 0;
+	server_info->last_logoff = 0;
+	server_info->acct_expiry = 0;
+	server_info->last_password_change = 0;
+	server_info->allow_password_change = 0;
+	server_info->force_password_change = 0;
 
-	info->last_logon = 0;
-	info->last_logoff = 0;
-	info->acct_expiry = 0;
-	info->last_password_change = 0;
-	info->allow_password_change = 0;
-	info->force_password_change = 0;
+	server_info->logon_count = 0;
+	server_info->bad_password_count = 0;
 
-	info->logon_count = 0;
-	info->bad_password_count = 0;
+	server_info->acct_flags = ACB_NORMAL;
 
-	info->acct_flags = ACB_NORMAL;
+	server_info->authenticated = false;
 
-	info->authenticated = false;
-
-	*_user_info_dc = user_info_dc;
+	*_server_info = server_info;
 
 	return nt_status;
 }

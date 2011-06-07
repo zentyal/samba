@@ -1,4 +1,4 @@
-/*
+/* 
    ldb database library
 
    Copyright (C) Andrew Tridgell  2004
@@ -6,7 +6,7 @@
      ** NOTE! The following LGPL license applies to the ldb
      ** library. This does NOT imply that all of Samba is released
      ** under the LGPL
-
+   
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
    License as published by the Free Software Foundation; either
@@ -33,33 +33,25 @@
 
 #include "ldb.h"
 #include "tools/cmdline.h"
-#include "ldbutil.h"
 
-static unsigned int failures;
-static struct ldb_cmdline *options;
+static int failures;
 
-static void usage(struct ldb_context *ldb)
+static void usage(void)
 {
-	printf("Usage: ldbadd <options> <ldif...>\n");
+	printf("Usage: ldbadd <options> <ldif...>\n");	
 	printf("Adds records to a ldb, reading ldif the specified list of files\n\n");
-	ldb_cmdline_help(ldb, "ldbadd", stdout);
-	exit(LDB_ERR_OPERATIONS_ERROR);
+	ldb_cmdline_help("ldbadd", stdout);
+	exit(1);
 }
 
 
 /*
   add records from an opened file
 */
-static int process_file(struct ldb_context *ldb, FILE *f, unsigned int *count)
+static int process_file(struct ldb_context *ldb, FILE *f, int *count)
 {
 	struct ldb_ldif *ldif;
 	int ret = LDB_SUCCESS;
-        struct ldb_control **req_ctrls = ldb_parse_control_strings(ldb, ldb, (const char **)options->controls);
-	if (options->controls != NULL &&  req_ctrls== NULL) {
-		printf("parsing controls failed: %s\n", ldb_errstring(ldb));
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
-
 
 	while ((ldif = ldb_ldif_read_file(ldb, f))) {
 		if (ldif->changetype != LDB_CHANGETYPE_ADD &&
@@ -68,27 +60,15 @@ static int process_file(struct ldb_context *ldb, FILE *f, unsigned int *count)
 			break;
 		}
 
-		ret = ldb_msg_normalize(ldb, ldif, ldif->msg, &ldif->msg);
-		if (ret != LDB_SUCCESS) {
-			fprintf(stderr,
-			        "ERR: Message canonicalize failed - %s\n",
-			        ldb_strerror(ret));
-			failures++;
-			ldb_ldif_read_free(ldb, ldif);
-			continue;
-		}
+		ldif->msg = ldb_msg_canonicalize(ldb, ldif->msg);
 
-		ret = ldb_add_ctrl(ldb, ldif->msg,req_ctrls);
+		ret = ldb_add(ldb, ldif->msg);
 		if (ret != LDB_SUCCESS) {
-			fprintf(stderr, "ERR: %s : \"%s\" on DN %s\n",
-				ldb_strerror(ret), ldb_errstring(ldb),
-				ldb_dn_get_linearized(ldif->msg->dn));
+			fprintf(stderr, "ERR: \"%s\" on DN %s\n", 
+				ldb_errstring(ldb), ldb_dn_get_linearized(ldif->msg->dn));
 			failures++;
 		} else {
 			(*count)++;
-			if (options->verbose) {
-				printf("Added %s\n", ldb_dn_get_linearized(ldif->msg->dn));
-			}
 		}
 		ldb_ldif_read_free(ldb, ldif);
 	}
@@ -101,21 +81,16 @@ static int process_file(struct ldb_context *ldb, FILE *f, unsigned int *count)
 int main(int argc, const char **argv)
 {
 	struct ldb_context *ldb;
-	unsigned int i, count = 0;
-	int ret = LDB_SUCCESS;
-	TALLOC_CTX *mem_ctx = talloc_new(NULL);
+	int i, ret=0, count=0;
+	struct ldb_cmdline *options;
 
-	ldb = ldb_init(mem_ctx, NULL);
-	if (ldb == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
+	ldb = ldb_init(NULL, NULL);
 
 	options = ldb_cmdline_process(ldb, argc, argv, usage);
 
-	ret = ldb_transaction_start(ldb);
-	if (ret != LDB_SUCCESS) {
+	if (ldb_transaction_start(ldb) != 0) {
 		printf("Failed to start transaction: %s\n", ldb_errstring(ldb));
-		return ret;
+		exit(1);
 	}
 
 	if (options->argc == 0) {
@@ -127,7 +102,7 @@ int main(int argc, const char **argv)
 			f = fopen(fname, "r");
 			if (!f) {
 				perror(fname);
-				return LDB_ERR_OPERATIONS_ERROR;
+				exit(1);
 			}
 			ret = process_file(ldb, f, &count);
 			fclose(f);
@@ -135,18 +110,17 @@ int main(int argc, const char **argv)
 	}
 
 	if (count != 0) {
-		ret = ldb_transaction_commit(ldb);
-		if (ret != LDB_SUCCESS) {
+		if (ldb_transaction_commit(ldb) != 0) {
 			printf("Failed to commit transaction: %s\n", ldb_errstring(ldb));
-			return ret;
+			exit(1);
 		}
 	} else {
 		ldb_transaction_cancel(ldb);
 	}
 
-	talloc_free(mem_ctx);
+	talloc_free(ldb);
 
-	printf("Added %u records with %u failures\n", count, failures);
-
+	printf("Added %d records with %d failures\n", count, failures);
+	
 	return ret;
 }

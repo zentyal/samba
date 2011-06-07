@@ -7,7 +7,7 @@ else
 	FULL=0
 fi
 
-ARGS="--outputdir $PIDL_OUTPUTDIR --header --ndr-parser --samba3-ndr-server --server --client --python --dcom-proxy --com-header $PIDL_ARGS --"
+ARGS="--outputdir $PIDL_OUTPUTDIR --header --ndr-parser --samba3-ndr-server --samba3-ndr-client --server --client --python --dcom-proxy --com-header $PIDL_ARGS --"
 IDL_FILES="$*"
 
 oldpwd=`pwd`
@@ -29,20 +29,16 @@ fi
 
 list=""
 for f in ${IDL_FILES}; do
-        b=`basename $f .idl`
-	outfiles="$b.h ndr_${b}_c.c ndr_$b.h ndr_${b}_s.c srv_$b.c"
-	outfiles="$outfiles ndr_$b.c ndr_${b}_c.h py_$b.c srv_$b.h"
+	basename=`basename $f .idl`
+	ndr="$PIDL_OUTPUTDIR/py_$basename.c"
 
-	for o in $outfiles; do
-	    [ -f $PIDL_OUTPUTDIR/$o ] || {
+	if [ -f $ndr ]; then
+		if [ "x`find $f -newer $ndr -print`" = "x$f" ]; then
+			list="$list $f"
+		fi
+	else 
 		list="$list $f"
-		break
-	    }
-	    test "`find $f -newer $PIDL_OUTPUTDIR/$o`" != "" && {
-		list="$list $f"
-		break
-	    }
-	done
+	fi
 done
 
 ##

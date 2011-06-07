@@ -1,4 +1,4 @@
-/*
+/* 
    ldb database library
 
    Copyright (C) Simo Sorce  2004
@@ -6,7 +6,7 @@
      ** NOTE! The following LGPL license applies to the ldb
      ** library. This does NOT imply that all of Samba is released
      ** under the LGPL
-
+   
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
    License as published by the Free Software Foundation; either
@@ -31,9 +31,6 @@
  *  Author: Simo Sorce
  */
 
-#include "replace.h"
-#include "system/filesys.h"
-#include "system/time.h"
 #include "ldb_module.h"
 
 struct private_data {
@@ -126,7 +123,7 @@ static int skel_init(struct ldb_module *module)
 	return ldb_next_init(module);
 }
 
-static const struct ldb_module_ops ldb_skel_module_ops = {
+const struct ldb_module_ops ldb_skel_module_ops = {
 	.name		   = "skel",
 	.init_context	   = skel_init,
 	.search            = skel_search,
@@ -139,9 +136,3 @@ static const struct ldb_module_ops ldb_skel_module_ops = {
 	.end_transaction   = skel_end_trans,
 	.del_transaction   = skel_del_trans,
 };
-
-int ldb_skel_init(const char *version)
-{
-	LDB_MODULE_CHECK_VERSION(version);
-	return ldb_register_module(&ldb_skel_module_ops);
-}

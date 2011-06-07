@@ -127,61 +127,13 @@ static const struct ndr_interface_table *load_iface_from_plugin(const char *plug
 	return p;
 }
 
-static void printf_cb(const char *buf, void *private_data)
-{
-	printf("%s", buf);
-}
-
 static void ndrdump_data(uint8_t *d, uint32_t l, bool force)
 {
-	dump_data_cb(d, l, !force, printf_cb, NULL);
-}
-
-static NTSTATUS ndrdump_pull_and_print_pipes(const char *function,
-				struct ndr_pull *ndr_pull,
-				struct ndr_print *ndr_print,
-				const struct ndr_interface_call_pipes *pipes)
-{
-	NTSTATUS status;
-	enum ndr_err_code ndr_err;
-	uint32_t i;
-
-	for (i=0; i < pipes->num_pipes; i++) {
-		uint64_t idx = 0;
-		while (true) {
-			uint32_t *count;
-			void *c;
-			char *n;
-
-			c = talloc_zero_size(ndr_pull, pipes->pipes[i].chunk_struct_size);
-			talloc_set_name(c, "struct %s", pipes->pipes[i].name);
-			/*
-			 * Note: the first struct member is always
-			 * 'uint32_t count;'
-			 */
-			count = (uint32_t *)c;
-
-			n = talloc_asprintf(c, "%s: %s[%llu]",
-					function, pipes->pipes[i].name,
-					(unsigned long long)idx);
-
-			ndr_err = pipes->pipes[i].ndr_pull(ndr_pull, NDR_SCALARS, c);
-			status = ndr_map_error2ntstatus(ndr_err);
-
-			printf("pull returned %s\n", nt_errstr(status));
-			if (!NT_STATUS_IS_OK(status)) {
-				return status;
-			}
-			pipes->pipes[i].ndr_print(ndr_print, n, c);
-
-			if (*count == 0) {
-				break;
-			}
-			idx++;
-		}
+	if (force) {
+		dump_data(0, d, l);
+	} else {
+		dump_data_skip_zeros(0, d, l);
 	}
-
-	return NT_STATUS_OK;
 }
 
  int main(int argc, const char *argv[])
@@ -219,8 +171,10 @@ static NTSTATUS ndrdump_pull_and_print_pipes(const char *function,
 		POPT_COMMON_VERSION
 		{ NULL }
 	};
-	struct ndr_interface_call_pipes *in_pipes = NULL;
-	struct ndr_interface_call_pipes *out_pipes = NULL;
+
+	if (DEBUGLEVEL < 1) {
+		DEBUGLEVEL = 1;
+	}
 
 	ndr_table_init();
 
@@ -229,7 +183,9 @@ static NTSTATUS ndrdump_pull_and_print_pipes(const char *function,
 
 	setlinebuf(stdout);
 
-	setup_logging("ndrdump", DEBUG_STDOUT);
+	dbf = x_stderr;
+
+	setup_logging_stdout();
 
 	pc = poptGetContext("ndrdump", argc, argv, long_options, 0);
 	
@@ -296,20 +252,18 @@ static NTSTATUS ndrdump_pull_and_print_pipes(const char *function,
 		exit(1);
 	}
 
-	f = find_function(p, function);
-
 	if (strcmp(inout, "in") == 0 ||
 	    strcmp(inout, "request") == 0) {
 		flags = NDR_IN;
-		in_pipes = &f->in_pipes;
 	} else if (strcmp(inout, "out") == 0 ||
 		   strcmp(inout, "response") == 0) {
 		flags = NDR_OUT;
-		out_pipes = &f->out_pipes;
 	} else {
 		printf("Bad inout value '%s'\n", inout);
 		exit(1);
 	}
+
+	f = find_function(p, function);
 
 	mem_ctx = talloc_init("ndrdump");
 
@@ -340,7 +294,7 @@ static NTSTATUS ndrdump_pull_and_print_pipes(const char *function,
 		blob.data = data;
 		blob.length = size;
 
-		ndr_pull = ndr_pull_init_blob(&blob, mem_ctx);
+		ndr_pull = ndr_pull_init_blob(&blob, mem_ctx, lp_iconv_convenience(cmdline_lp_ctx));
 		ndr_pull->flags |= LIBNDR_FLAG_REF_ALLOC;
 		if (assume_ndr64) {
 			ndr_pull->flags |= LIBNDR_FLAG_NDR64;
@@ -376,22 +330,10 @@ static NTSTATUS ndrdump_pull_and_print_pipes(const char *function,
 	blob.data = data;
 	blob.length = size;
 
-	ndr_pull = ndr_pull_init_blob(&blob, mem_ctx);
+	ndr_pull = ndr_pull_init_blob(&blob, mem_ctx, lp_iconv_convenience(cmdline_lp_ctx));
 	ndr_pull->flags |= LIBNDR_FLAG_REF_ALLOC;
 	if (assume_ndr64) {
 		ndr_pull->flags |= LIBNDR_FLAG_NDR64;
-	}
-
-	ndr_print = talloc_zero(mem_ctx, struct ndr_print);
-	ndr_print->print = ndr_print_printf_helper;
-	ndr_print->depth = 1;
-
-	if (out_pipes) {
-		status = ndrdump_pull_and_print_pipes(function, ndr_pull, ndr_print, out_pipes);
-		if (!NT_STATUS_IS_OK(status)) {
-			printf("dump FAILED\n");
-			exit(1);
-		}
 	}
 
 	ndr_err = f->ndr_pull(ndr_pull, flags, st);
@@ -411,19 +353,14 @@ static NTSTATUS ndrdump_pull_and_print_pipes(const char *function,
 		ndrdump_data(blob.data, blob.length, dumpdata);
 	}
 
+	ndr_print = talloc_zero(mem_ctx, struct ndr_print);
+	ndr_print->print = ndr_print_debug_helper;
+	ndr_print->depth = 1;
 	f->ndr_print(ndr_print, function, flags, st);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("dump FAILED\n");
 		exit(1);
-	}
-
-	if (in_pipes) {
-		status = ndrdump_pull_and_print_pipes(function, ndr_pull, ndr_print, in_pipes);
-		if (!NT_STATUS_IS_OK(status)) {
-			printf("dump FAILED\n");
-			exit(1);
-		}
 	}
 
 	if (validate) {
@@ -435,7 +372,7 @@ static NTSTATUS ndrdump_pull_and_print_pipes(const char *function,
 		uint8_t byte_a, byte_b;
 		bool differ;
 
-		ndr_v_push = ndr_push_init_ctx(mem_ctx);
+		ndr_v_push = ndr_push_init_ctx(mem_ctx, lp_iconv_convenience(cmdline_lp_ctx));
 		
 		ndr_err = f->ndr_push(ndr_v_push, flags, st);
 		status = ndr_map_error2ntstatus(ndr_err);
@@ -452,7 +389,7 @@ static NTSTATUS ndrdump_pull_and_print_pipes(const char *function,
 			ndrdump_data(v_blob.data, v_blob.length, dumpdata);
 		}
 
-		ndr_v_pull = ndr_pull_init_blob(&v_blob, mem_ctx);
+		ndr_v_pull = ndr_pull_init_blob(&v_blob, mem_ctx, lp_iconv_convenience(cmdline_lp_ctx));
 		ndr_v_pull->flags |= LIBNDR_FLAG_REF_ALLOC;
 
 		ndr_err = f->ndr_pull(ndr_v_pull, flags, v_st);

@@ -19,7 +19,7 @@
 
 #include "includes.h"
 #include "winbindd.h"
-#include "librpc/gen_ndr/ndr_wbint_c.h"
+#include "librpc/gen_ndr/cli_wbint.h"
 
 struct winbindd_ping_dc_state {
 	uint8_t dummy;
@@ -61,7 +61,7 @@ struct tevent_req *winbindd_ping_dc_send(TALLOC_CTX *mem_ctx,
 		return tevent_req_post(req, ev);
 	}
 
-	subreq = dcerpc_wbint_PingDc_send(state, ev, dom_child_handle(domain));
+	subreq = rpccli_wbint_PingDc_send(state, ev, domain->child.rpccli);
 	if (tevent_req_nomem(subreq, req)) {
 		return tevent_req_post(req, ev);
 	}
@@ -77,9 +77,13 @@ static void winbindd_ping_dc_done(struct tevent_req *subreq)
 		req, struct winbindd_ping_dc_state);
 	NTSTATUS status, result;
 
-	status = dcerpc_wbint_PingDc_recv(subreq, state, &result);
-	if (any_nt_status_not_ok(status, result, &status)) {
+	status = rpccli_wbint_PingDc_recv(subreq, state, &result);
+	if (!NT_STATUS_IS_OK(status)) {
 		tevent_req_nterror(req, status);
+		return;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		tevent_req_nterror(req, result);
 		return;
 	}
 	tevent_req_done(req);

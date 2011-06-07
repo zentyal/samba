@@ -23,7 +23,7 @@
 #include "process_model.h"
 #include "lib/messaging/irpc.h"
 #include "param/param.h"
-#include "librpc/gen_ndr/ndr_irpc_c.h"
+#include "librpc/gen_ndr/ndr_irpc.h"
 
 /*
   terminate a task service
@@ -35,15 +35,15 @@ void task_server_terminate(struct task_server *task, const char *reason, bool fa
 	DEBUG(0,("task_server_terminate: [%s]\n", reason));
 
 	if (fatal) {
-		struct dcerpc_binding_handle *irpc_handle;
 		struct samba_terminate r;
+		struct server_id *sid;
 
-		irpc_handle = irpc_binding_handle_by_name(task, task->msg_ctx,
-							  "samba", &ndr_table_irpc);
-		if (irpc_handle != NULL) {
-			r.in.reason = reason;
-			dcerpc_samba_terminate_r(irpc_handle, task, &r);
-		}
+		sid = irpc_servers_byname(task->msg_ctx, task, "samba");
+
+		r.in.reason = reason;
+		IRPC_CALL(task->msg_ctx, sid[0],
+			  irpc, SAMBA_TERMINATE,
+			  &r, NULL);
 	}
 
 	model_ops->terminate(event_ctx, task->lp_ctx, reason);
@@ -79,8 +79,9 @@ static void task_server_callback(struct tevent_context *event_ctx,
 	task->lp_ctx = lp_ctx;
 
 	task->msg_ctx = messaging_init(task, 
-				       lpcfg_messaging_path(task, task->lp_ctx),
+				       lp_messaging_path(task, task->lp_ctx),
 				       task->server_id, 
+				       lp_iconv_convenience(task->lp_ctx),
 				       task->event_ctx);
 	if (!task->msg_ctx) {
 		task_server_terminate(task, "messaging_init() failed", true);

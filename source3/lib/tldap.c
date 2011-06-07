@@ -18,12 +18,6 @@
 */
 
 #include "includes.h"
-#include "tldap.h"
-#include "../lib/util/asn1.h"
-#include "../lib/tsocket/tsocket.h"
-#include "../lib/util/tevent_unix.h"
-
-static int tldap_simple_recv(struct tevent_req *req);
 
 bool tevent_req_is_ldap_error(struct tevent_req *req, int *perr)
 {
@@ -424,7 +418,7 @@ static struct tevent_req *tldap_msg_send(TALLOC_CTX *mem_ctx,
 		return tevent_req_post(req, ev);
 	}
 
-	state->iov.iov_base = (void *)blob.data;
+	state->iov.iov_base = blob.data;
 	state->iov.iov_len = blob.length;
 
 	subreq = tstream_writev_queue_send(state, ev, ld->conn, ld->outgoing,
@@ -511,7 +505,7 @@ static bool tldap_msg_set_pending(struct tevent_req *req)
 	}
 
 	/*
-	 * We're the first one, add the read_ldap request that waits for the
+	 * We're the first ones, add the read_ldap request that waits for the
 	 * answer from the server
 	 */
 	subreq = read_ldap_send(ld->pending, state->ev, ld->conn);
@@ -560,6 +554,7 @@ static void tldap_msg_received(struct tevent_req *subreq)
 		subreq, struct tldap_context);
 	struct tevent_req *req;
 	struct tldap_msg_state *state;
+	struct tevent_context *ev;
 	struct asn1_data *data;
 	uint8_t *inbuf;
 	ssize_t received;
@@ -617,6 +612,8 @@ static void tldap_msg_received(struct tevent_req *subreq)
 
 	state->inbuf = talloc_move(state, &inbuf);
 	state->data = talloc_move(state, &data);
+
+	ev = state->ev;
 
 	talloc_set_destructor(req, NULL);
 	tldap_msg_unset_pending(req);
@@ -736,11 +733,6 @@ static void tldap_save_msg(struct tldap_context *ld, struct tevent_req *req)
 static char *blob2string_talloc(TALLOC_CTX *mem_ctx, DATA_BLOB blob)
 {
 	char *result = talloc_array(mem_ctx, char, blob.length+1);
-
-	if (result == NULL) {
-		return NULL;
-	}
-
 	memcpy(result, blob.data, blob.length);
 	result[blob.length] = '\0';
 	return result;
@@ -748,21 +740,13 @@ static char *blob2string_talloc(TALLOC_CTX *mem_ctx, DATA_BLOB blob)
 
 static bool asn1_read_OctetString_talloc(TALLOC_CTX *mem_ctx,
 					 struct asn1_data *data,
-					 char **presult)
+					 char **result)
 {
 	DATA_BLOB string;
-	char *result;
 	if (!asn1_read_OctetString(data, mem_ctx, &string))
 		return false;
-
-	result = blob2string_talloc(mem_ctx, string);
-
+	*result = blob2string_talloc(mem_ctx, string);
 	data_blob_free(&string);
-
-	if (result == NULL) {
-		return false;
-	}
-	*presult = result;
 	return true;
 }
 
@@ -884,7 +868,12 @@ static void tldap_sasl_bind_done(struct tevent_req *subreq)
 
 int tldap_sasl_bind_recv(struct tevent_req *req)
 {
-	return tldap_simple_recv(req);
+	int err;
+
+	if (tevent_req_is_ldap_error(req, &err)) {
+		return err;
+	}
+	return TLDAP_SUCCESS;
 }
 
 int tldap_sasl_bind(struct tldap_context *ld,
@@ -967,661 +956,175 @@ int tldap_simple_bind(struct tldap_context *ld, const char *dn,
 
 /*****************************************************************************/
 
-/* can't use isalpha() as only a strict set is valid for LDAP */
-
-static bool tldap_is_alpha(char c)
-{
-	return (((c >= 'a') && (c <= 'z')) || \
-		((c >= 'A') && (c <= 'Z')));
-}
-
-static bool tldap_is_adh(char c)
-{
-	return tldap_is_alpha(c) || isdigit(c) || (c == '-');
-}
-
-#define TLDAP_FILTER_AND  ASN1_CONTEXT(0)
-#define TLDAP_FILTER_OR   ASN1_CONTEXT(1)
-#define TLDAP_FILTER_NOT  ASN1_CONTEXT(2)
-#define TLDAP_FILTER_EQ   ASN1_CONTEXT(3)
-#define TLDAP_FILTER_SUB  ASN1_CONTEXT(4)
-#define TLDAP_FILTER_LE   ASN1_CONTEXT(5)
-#define TLDAP_FILTER_GE   ASN1_CONTEXT(6)
-#define TLDAP_FILTER_PRES ASN1_CONTEXT_SIMPLE(7)
-#define TLDAP_FILTER_APX  ASN1_CONTEXT(8)
-#define TLDAP_FILTER_EXT  ASN1_CONTEXT(9)
-
-#define TLDAP_SUB_INI ASN1_CONTEXT_SIMPLE(0)
-#define TLDAP_SUB_ANY ASN1_CONTEXT_SIMPLE(1)
-#define TLDAP_SUB_FIN ASN1_CONTEXT_SIMPLE(2)
-
-
-/* oid's should be numerical only in theory,
- * but apparently some broken servers may have alphanum aliases instead.
- * Do like openldap libraries and allow alphanum aliases for oids, but
- * do not allow Tagging options in that case.
+/*
+ * This piece has a dependency on ldb, the ldb_parse_tree() function is used.
+ * In case we want to separate out tldap, we need to copy or rewrite it.
  */
-static bool tldap_is_attrdesc(const char *s, int len, bool no_tagopts)
+
+#include "lib/ldb/include/ldb.h"
+#include "lib/ldb/include/ldb_errors.h"
+
+static bool ldap_push_filter(struct asn1_data *data,
+			     struct ldb_parse_tree *tree)
 {
-	bool is_oid = false;
-	bool dot = false;
 	int i;
 
-	/* first char has stricter rules */
-	if (isdigit(*s)) {
-		is_oid = true;
-	} else if (!tldap_is_alpha(*s)) {
-		/* bad first char */
-		return false;
-	}
-
-	for (i = 1; i < len; i++) {
-
-		if (is_oid) {
-			if (isdigit(s[i])) {
-				dot = false;
-				continue;
-			}
-			if (s[i] == '.') {
-				if (dot) {
-					/* malformed */
-					return false;
-				}
-				dot = true;
-				continue;
-			}
-		} else {
-			if (tldap_is_adh(s[i])) {
-				continue;
+	switch (tree->operation) {
+	case LDB_OP_AND:
+	case LDB_OP_OR:
+		asn1_push_tag(data,
+			      ASN1_CONTEXT(tree->operation==LDB_OP_AND?0:1));
+		for (i=0; i<tree->u.list.num_elements; i++) {
+			if (!ldap_push_filter(data,
+					      tree->u.list.elements[i])) {
+				return false;
 			}
 		}
-
-		if (s[i] == ';') {
-			if (no_tagopts) {
-				/* no tagging options */
-				return false;
-			}
-			if (dot) {
-				/* malformed */
-				return false;
-			}
-			if ((i + 1) == len) {
-				/* malformed */
-				return false;
-			}
-
-			is_oid = false;
-			continue;
-		}
-	}
-
-	if (dot) {
-		/* malformed */
-		return false;
-	}
-
-	return true;
-}
-
-/* this function copies the value until the closing parenthesis is found. */
-static char *tldap_get_val(TALLOC_CTX *memctx,
-			   const char *value, const char **_s)
-{
-	const char *s = value;
-
-	/* find terminator */
-	while (*s) {
-		s = strchr(s, ')');
-		if (s && (*(s - 1) == '\\')) {
-			continue;
-		}
-		break;
-	}
-	if (!s || !(*s == ')')) {
-		/* malformed filter */
-		return NULL;
-	}
-
-	*_s = s;
-
-	return talloc_strndup(memctx, value, s - value);
-}
-
-static int tldap_hex2char(const char *x)
-{
-	if (isxdigit(x[0]) && isxdigit(x[1])) {
-		const char h1 = x[0], h2 = x[1];
-		int c = 0;
-
-		if (h1 >= 'a') c = h1 - (int)'a' + 10;
-		else if (h1 >= 'A') c = h1 - (int)'A' + 10;
-		else if (h1 >= '0') c = h1 - (int)'0';
-		c = c << 4;
-		if (h2 >= 'a') c += h2 - (int)'a' + 10;
-		else if (h2 >= 'A') c += h2 - (int)'A' + 10;
-		else if (h2 >= '0') c += h2 - (int)'0';
-
-		return c;
-	}
-
-	return -1;
-}
-
-static bool tldap_find_first_star(const char *val, const char **star)
-{
-	const char *s;
-
-	for (s = val; *s; s++) {
-		switch (*s) {
-		case '\\':
-			if (isxdigit(s[1]) && isxdigit(s[2])) {
-				s += 2;
-				break;
-			}
-			/* not hex based escape, check older syntax */
-			switch (s[1]) {
-			case '(':
-			case ')':
-			case '*':
-			case '\\':
-				s++;
-				break;
-			default:
-				/* invalid escape sequence */
-				return false;
-			}
-			break;
-		case ')':
-			/* end of val, nothing found */
-			*star = s;
-			return true;
-
-		case '*':
-			*star = s;
-			return true;
-		}
-	}
-
-	/* string ended without closing parenthesis, filter is malformed */
-	return false;
-}
-
-static bool tldap_unescape_inplace(char *value, size_t *val_len)
-{
-	int c, i, p;
-
-	for (i = 0,p = 0; i < *val_len; i++) {
-
-		switch (value[i]) {
-		case '(':
-		case ')':
-		case '*':
-			/* these must be escaped */
-			return false;
-
-		case '\\':
-			if (!value[i + 1]) {
-				/* invalid EOL */
-				return false;
-			}
-			i++;
-
-			c = tldap_hex2char(&value[i]);
-			if (c >= 0 && c < 256) {
-				value[p] = c;
-				i++;
-				p++;
-				break;
-			}
-
-			switch (value[i]) {
-			case '(':
-			case ')':
-			case '*':
-			case '\\':
-				value[p] = value[i];
-				p++;
-			default:
-				/* invalid */
-				return false;
-			}
-			break;
-
-		default:
-			value[p] = value[i];
-			p++;
-		}
-	}
-	value[p] = '\0';
-	*val_len = p;
-	return true;
-}
-
-static bool tldap_push_filter_basic(struct tldap_context *ld,
-				    struct asn1_data *data,
-				    const char **_s);
-static bool tldap_push_filter_substring(struct tldap_context *ld,
-					struct asn1_data *data,
-					const char *val,
-					const char **_s);
-static bool tldap_push_filter_int(struct tldap_context *ld,
-				  struct asn1_data *data,
-				  const char **_s)
-{
-	const char *s = *_s;
-	bool ret;
-
-	if (*s != '(') {
-		tldap_debug(ld, TLDAP_DEBUG_ERROR,
-			    "Incomplete or malformed filter\n");
-		return false;
-	}
-	s++;
-
-	/* we are right after a parenthesis,
-	 * find out what op we have at hand */
-	switch (*s) {
-	case '&':
-		tldap_debug(ld, TLDAP_DEBUG_TRACE, "Filter op: AND\n");
-		asn1_push_tag(data, TLDAP_FILTER_AND);
-		s++;
+		asn1_pop_tag(data);
 		break;
 
-	case '|':
-		tldap_debug(ld, TLDAP_DEBUG_TRACE, "Filter op: OR\n");
-		asn1_push_tag(data, TLDAP_FILTER_OR);
-		s++;
-		break;
-
-	case '!':
-		tldap_debug(ld, TLDAP_DEBUG_TRACE, "Filter op: NOT\n");
-		asn1_push_tag(data, TLDAP_FILTER_NOT);
-		s++;
-		ret = tldap_push_filter_int(ld, data, &s);
-		if (!ret) {
+	case LDB_OP_NOT:
+		asn1_push_tag(data, ASN1_CONTEXT(2));
+		if (!ldap_push_filter(data, tree->u.isnot.child)) {
 			return false;
 		}
 		asn1_pop_tag(data);
-		goto done;
+		break;
 
-	case '(':
-	case ')':
-		tldap_debug(ld, TLDAP_DEBUG_ERROR,
-			    "Invalid parenthesis '%c'\n", *s);
-		return false;
-
-	case '\0':
-		tldap_debug(ld, TLDAP_DEBUG_ERROR,
-			    "Invalid filter termination\n");
-		return false;
-
-	default:
-		ret = tldap_push_filter_basic(ld, data, &s);
-		if (!ret) {
-			return false;
-		}
-		goto done;
-	}
-
-	/* only and/or filters get here.
-	 * go through the list of filters */
-
-	if (*s == ')') {
-		/* RFC 4526: empty and/or */
+	case LDB_OP_EQUALITY:
+		/* equality test */
+		asn1_push_tag(data, ASN1_CONTEXT(3));
+		asn1_write_OctetString(data, tree->u.equality.attr,
+				      strlen(tree->u.equality.attr));
+		asn1_write_OctetString(data, tree->u.equality.value.data,
+				      tree->u.equality.value.length);
 		asn1_pop_tag(data);
-		goto done;
-	}
+		break;
 
-	while (*s) {
-		ret = tldap_push_filter_int(ld, data, &s);
-		if (!ret) {
-			return false;
-		}
-
-		if (*s == ')') {
-			/* end of list, return */
+	case LDB_OP_SUBSTRING:
+		/*
+		  SubstringFilter ::= SEQUENCE {
+			  type            AttributeDescription,
+			  -- at least one must be present
+			  substrings      SEQUENCE OF CHOICE {
+				  initial [0] LDAPString,
+				  any     [1] LDAPString,
+				  final   [2] LDAPString } }
+		*/
+		asn1_push_tag(data, ASN1_CONTEXT(4));
+		asn1_write_OctetString(data, tree->u.substring.attr,
+				       strlen(tree->u.substring.attr));
+		asn1_push_tag(data, ASN1_SEQUENCE(0));
+		i = 0;
+		if (!tree->u.substring.start_with_wildcard) {
+			asn1_push_tag(data, ASN1_CONTEXT_SIMPLE(0));
+			asn1_write_DATA_BLOB_LDAPString(
+				data, tree->u.substring.chunks[i]);
 			asn1_pop_tag(data);
-			break;
+			i++;
 		}
-	}
+		while (tree->u.substring.chunks[i]) {
+			int ctx;
 
-done:
-	if (*s != ')') {
-		tldap_debug(ld, TLDAP_DEBUG_ERROR,
-			    "Incomplete or malformed filter\n");
-		return false;
-	}
-	s++;
-
-	if (data->has_error) {
-		return false;
-	}
-
-	*_s = s;
-	return true;
-}
-
-
-static bool tldap_push_filter_basic(struct tldap_context *ld,
-				    struct asn1_data *data,
-				    const char **_s)
-{
-	TALLOC_CTX *tmpctx = talloc_tos();
-	const char *s = *_s;
-	const char *e;
-	const char *eq;
-	const char *val;
-	const char *type;
-	const char *dn;
-	const char *rule;
-	const char *star;
-	size_t type_len = 0;
-	char *uval;
-	size_t uval_len;
-	bool write_octect = true;
-	bool ret;
-
-	eq = strchr(s, '=');
-	if (!eq) {
-		tldap_debug(ld, TLDAP_DEBUG_ERROR,
-			    "Invalid filter, missing equal sign\n");
-		return false;
-	}
-
-	val = eq + 1;
-	e = eq - 1;
-
-	switch (*e) {
-	case '<':
-		asn1_push_tag(data, TLDAP_FILTER_LE);
-		break;
-
-	case '>':
-		asn1_push_tag(data, TLDAP_FILTER_GE);
-		break;
-
-	case '~':
-		asn1_push_tag(data, TLDAP_FILTER_APX);
-		break;
-
-	case ':':
-		asn1_push_tag(data, TLDAP_FILTER_EXT);
-		write_octect = false;
-
-		type = NULL;
-		dn = NULL;
-		rule = NULL;
-
-		if (*s == ':') { /* [:dn]:rule:= value */
-			if (s == e) {
-				/* malformed filter */
-				return false;
-			}
-			dn = s;
-		} else { /* type[:dn][:rule]:= value */
-			type = s;
-			dn = strchr(s, ':');
-			type_len = dn - type;
-			if (dn == e) { /* type:= value */
-				dn = NULL;
-			}
-		}
-		if (dn) {
-			dn++;
-
-			rule = strchr(dn, ':');
-			if ((rule == dn + 1) || rule + 1 == e) {
-				/* malformed filter, contains "::" */
-				return false;
-			}
-
-			if (StrnCaseCmp(dn, "dn:", 3) != 0) {
-				if (rule == e) {
-					rule = dn;
-					dn = NULL;
-				} else {
-					/* malformed filter. With two
-					 * optionals, the first must be "dn"
-					 */
-					return false;
-				}
+			if ((!tree->u.substring.chunks[i + 1]) &&
+			    (tree->u.substring.end_with_wildcard == 0)) {
+				ctx = 2;
 			} else {
-				if (rule == e) {
-					rule = NULL;
-				} else {
-					rule++;
-				}
+				ctx = 1;
 			}
+			asn1_push_tag(data, ASN1_CONTEXT_SIMPLE(ctx));
+			asn1_write_DATA_BLOB_LDAPString(
+				data, tree->u.substring.chunks[i]);
+			asn1_pop_tag(data);
+			i++;
 		}
+		asn1_pop_tag(data);
+		asn1_pop_tag(data);
+		break;
 
-		if (!type && !dn && !rule) {
-			/* malformed filter, there must be at least one */
-			return false;
-		}
+	case LDB_OP_GREATER:
+		/* greaterOrEqual test */
+		asn1_push_tag(data, ASN1_CONTEXT(5));
+		asn1_write_OctetString(data, tree->u.comparison.attr,
+				      strlen(tree->u.comparison.attr));
+		asn1_write_OctetString(data, tree->u.comparison.value.data,
+				      tree->u.comparison.value.length);
+		asn1_pop_tag(data);
+		break;
 
+	case LDB_OP_LESS:
+		/* lessOrEqual test */
+		asn1_push_tag(data, ASN1_CONTEXT(6));
+		asn1_write_OctetString(data, tree->u.comparison.attr,
+				      strlen(tree->u.comparison.attr));
+		asn1_write_OctetString(data, tree->u.comparison.value.data,
+				      tree->u.comparison.value.length);
+		asn1_pop_tag(data);
+		break;
+
+	case LDB_OP_PRESENT:
+		/* present test */
+		asn1_push_tag(data, ASN1_CONTEXT_SIMPLE(7));
+		asn1_write_LDAPString(data, tree->u.present.attr);
+		asn1_pop_tag(data);
+		return !data->has_error;
+
+	case LDB_OP_APPROX:
+		/* approx test */
+		asn1_push_tag(data, ASN1_CONTEXT(8));
+		asn1_write_OctetString(data, tree->u.comparison.attr,
+				      strlen(tree->u.comparison.attr));
+		asn1_write_OctetString(data, tree->u.comparison.value.data,
+				      tree->u.comparison.value.length);
+		asn1_pop_tag(data);
+		break;
+
+	case LDB_OP_EXTENDED:
 		/*
 		  MatchingRuleAssertion ::= SEQUENCE {
 		  matchingRule    [1] MatchingRuleID OPTIONAL,
-		  type	    [2] AttributeDescription OPTIONAL,
+		  type            [2] AttributeDescription OPTIONAL,
 		  matchValue      [3] AssertionValue,
 		  dnAttributes    [4] BOOLEAN DEFAULT FALSE
 		  }
 		*/
-
-		/* check and add rule */
-		if (rule) {
-			ret = tldap_is_attrdesc(rule, e - rule, true);
-			if (!ret) {
-				return false;
-			}
+		asn1_push_tag(data, ASN1_CONTEXT(9));
+		if (tree->u.extended.rule_id) {
 			asn1_push_tag(data, ASN1_CONTEXT_SIMPLE(1));
-			asn1_write(data, rule, e - rule);
+			asn1_write_LDAPString(data, tree->u.extended.rule_id);
 			asn1_pop_tag(data);
 		}
-
-		/* check and add type */
-		if (type) {
-			ret = tldap_is_attrdesc(type, type_len, false);
-			if (!ret) {
-				return false;
-			}
+		if (tree->u.extended.attr) {
 			asn1_push_tag(data, ASN1_CONTEXT_SIMPLE(2));
-			asn1_write(data, type, type_len);
+			asn1_write_LDAPString(data, tree->u.extended.attr);
 			asn1_pop_tag(data);
 		}
-
-		uval = tldap_get_val(tmpctx, val, _s);
-		if (!uval) {
-			return false;
-		}
-		uval_len = *_s - val;
-		ret = tldap_unescape_inplace(uval, &uval_len);
-		if (!ret) {
-			return false;
-		}
-
 		asn1_push_tag(data, ASN1_CONTEXT_SIMPLE(3));
-		asn1_write(data, uval, uval_len);
+		asn1_write_DATA_BLOB_LDAPString(data, &tree->u.extended.value);
 		asn1_pop_tag(data);
-
 		asn1_push_tag(data, ASN1_CONTEXT_SIMPLE(4));
-		asn1_write_uint8(data, dn?1:0);
+		asn1_write_uint8(data, tree->u.extended.dnAttributes);
+		asn1_pop_tag(data);
 		asn1_pop_tag(data);
 		break;
 
 	default:
-		e = eq;
-
-		ret = tldap_is_attrdesc(s, e - s, false);
-		if (!ret) {
-			return false;
-		}
-
-		if (strncmp(val, "*)", 2) == 0) {
-			/* presence */
-			asn1_push_tag(data, TLDAP_FILTER_PRES);
-			asn1_write(data, s, e - s);
-			*_s = val + 1;
-			write_octect = false;
-			break;
-		}
-
-		ret = tldap_find_first_star(val, &star);
-		if (!ret) {
-			return false;
-		}
-		if (*star == '*') {
-			/* substring */
-			asn1_push_tag(data, TLDAP_FILTER_SUB);
-			asn1_write_OctetString(data, s, e - s);
-			ret = tldap_push_filter_substring(ld, data, val, &s);
-			if (!ret) {
-				return false;
-			}
-			*_s = s;
-			write_octect = false;
-			break;
-		}
-
-		/* if nothing else, then it is just equality */
-		asn1_push_tag(data, TLDAP_FILTER_EQ);
-		write_octect = true;
-		break;
-	}
-
-	if (write_octect) {
-		uval = tldap_get_val(tmpctx, val, _s);
-		if (!uval) {
-			return false;
-		}
-		uval_len = *_s - val;
-		ret = tldap_unescape_inplace(uval, &uval_len);
-		if (!ret) {
-			return false;
-		}
-
-		asn1_write_OctetString(data, s, e - s);
-		asn1_write_OctetString(data, uval, uval_len);
-	}
-
-	if (data->has_error) {
 		return false;
 	}
-	asn1_pop_tag(data);
-	return true;
+	return !data->has_error;
 }
 
-static bool tldap_push_filter_substring(struct tldap_context *ld,
-					struct asn1_data *data,
-					const char *val,
-					const char **_s)
+static bool tldap_push_filter(struct asn1_data *data, const char *filter)
 {
-	TALLOC_CTX *tmpctx = talloc_tos();
-	bool initial = true;
-	const char *star;
-	char *chunk;
-	size_t chunk_len;
+	struct ldb_parse_tree *tree;
 	bool ret;
 
-	/*
-	  SubstringFilter ::= SEQUENCE {
-		  type	    AttributeDescription,
-		  -- at least one must be present
-		  substrings      SEQUENCE OF CHOICE {
-			  initial [0] LDAPString,
-			  any     [1] LDAPString,
-			  final   [2] LDAPString } }
-	*/
-	asn1_push_tag(data, ASN1_SEQUENCE(0));
-
-	do {
-		ret = tldap_find_first_star(val, &star);
-		if (!ret) {
-			return false;
-		}
-		chunk_len = star - val;
-
-		switch (*star) {
-		case '*':
-			if (!initial && chunk_len == 0) {
-				/* found '**', which is illegal */
-				return false;
-			}
-			break;
-		case ')':
-			if (initial) {
-				/* no stars ?? */
-				return false;
-			}
-			/* we are done */
-			break;
-		default:
-			/* ?? */
-			return false;
-		}
-
-		if (initial && chunk_len == 0) {
-			val = star + 1;
-			initial = false;
-			continue;
-		}
-
-		chunk = talloc_strndup(tmpctx, val, chunk_len);
-		if (!chunk) {
-			return false;
-		}
-		ret = tldap_unescape_inplace(chunk, &chunk_len);
-		if (!ret) {
-			return false;
-		}
-		switch (*star) {
-		case '*':
-			if (initial) {
-				asn1_push_tag(data, TLDAP_SUB_INI);
-				initial = false;
-			} else {
-				asn1_push_tag(data, TLDAP_SUB_ANY);
-			}
-			break;
-		case ')':
-			asn1_push_tag(data, TLDAP_SUB_FIN);
-			break;
-		default:
-			/* ?? */
-			return false;
-		}
-		asn1_write(data, chunk, chunk_len);
-		asn1_pop_tag(data);
-
-		val = star + 1;
-
-	} while (*star == '*');
-
-	*_s = star;
-
-	/* end of sequence */
-	asn1_pop_tag(data);
-	return true;
-}
-
-/* NOTE: although openldap libraries allow for spaces in some places, mosly
- * around parenthesis, we do not allow any spaces (except in values of
- * course) as I couldn't fine any place in RFC 4512 or RFC 4515 where
- * leading or trailing spaces where allowed.
- */
-static bool tldap_push_filter(struct tldap_context *ld,
-			      struct asn1_data *data,
-			      const char *filter)
-{
-	const char *s = filter;
-	bool ret;
-
-	ret = tldap_push_filter_int(ld, data, &s);
-	if (ret && *s) {
-		tldap_debug(ld, TLDAP_DEBUG_ERROR,
-			    "Incomplete or malformed filter\n");
+	tree = ldb_parse_tree(talloc_tos(), filter);
+	if (tree == NULL) {
 		return false;
 	}
+	ret = ldap_push_filter(data, tree);
+	TALLOC_FREE(tree);
 	return ret;
 }
 
@@ -1662,7 +1165,7 @@ struct tevent_req *tldap_search_send(TALLOC_CTX *mem_ctx,
 	asn1_write_Integer(state->out, timelimit);
 	asn1_write_BOOLEAN(state->out, attrsonly);
 
-	if (!tldap_push_filter(ld, state->out, filter)) {
+	if (!tldap_push_filter(state->out, filter)) {
 		goto encoding_error;
 	}
 
@@ -1841,13 +1344,6 @@ int tldap_search(struct tldap_context *ld,
 
 	tevent_req_set_callback(req, tldap_search_cb, &state);
 
-	if (!tevent_req_is_in_progress(req)) {
-		/* an error happend before sending */
-		if (tevent_req_is_ldap_error(req, &state.rc)) {
-			goto fail;
-		}
-	}
-
 	while (tevent_req_is_in_progress(req)
 	       && (state.rc == TLDAP_SUCCESS)) {
 		if (tevent_loop_once(ev) == -1) {
@@ -1958,9 +1454,8 @@ bool tldap_entry_dn(struct tldap_message *msg, char **dn)
 	return true;
 }
 
-bool tldap_entry_attributes(struct tldap_message *msg,
-			    struct tldap_attribute **attributes,
-			    int *num_attributes)
+bool tldap_entry_attributes(struct tldap_message *msg, int *num_attributes,
+			    struct tldap_attribute **attributes)
 {
 	if ((msg->dn == NULL) && (!tldap_parse_search_entry(msg))) {
 		return false;
@@ -2132,7 +1627,7 @@ int tldap_add_recv(struct tevent_req *req)
 }
 
 int tldap_add(struct tldap_context *ld, const char *dn,
-	      struct tldap_mod *attributes, int num_attributes,
+	      int num_attributes, struct tldap_mod *attributes,
 	      struct tldap_control *sctrls, int num_sctrls,
 	      struct tldap_control *cctrls, int num_cctrls)
 {
@@ -2172,7 +1667,7 @@ struct tevent_req *tldap_modify_send(TALLOC_CTX *mem_ctx,
 				     struct tevent_context *ev,
 				     struct tldap_context *ld,
 				     const char *dn,
-				     struct tldap_mod *mods, int num_mods,
+				     int num_mods, struct tldap_mod *mods,
 				     struct tldap_control *sctrls,
 				     int num_sctrls,
 				     struct tldap_control *cctrls,
@@ -2232,7 +1727,7 @@ int tldap_modify_recv(struct tevent_req *req)
 }
 
 int tldap_modify(struct tldap_context *ld, const char *dn,
-		 struct tldap_mod *mods, int num_mods,
+		 int num_mods, struct tldap_mod *mods,
 		 struct tldap_control *sctrls, int num_sctrls,
 		 struct tldap_control *cctrls, int num_cctrls)
  {
@@ -2247,7 +1742,7 @@ int tldap_modify(struct tldap_context *ld, const char *dn,
 		goto fail;
 	}
 
-	req = tldap_modify_send(frame, ev, ld, dn, mods, num_mods,
+	req = tldap_modify_send(frame, ev, ld, dn, num_mods, mods,
 				sctrls, num_sctrls, cctrls, num_cctrls);
 	if (req == NULL) {
 		result = TLDAP_NO_MEMORY;
@@ -2382,7 +1877,6 @@ void tldap_msg_sctrls(struct tldap_message *msg, int *num_sctrls,
 	if (msg == NULL) {
 		*sctrls = NULL;
 		*num_sctrls = 0;
-		return;
 	}
 	*sctrls = msg->res_sctrls;
 	*num_sctrls = talloc_array_length(msg->res_sctrls);

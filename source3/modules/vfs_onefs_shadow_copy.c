@@ -22,7 +22,6 @@
  */
 
 #include "includes.h"
-#include "smbd/smbd.h"
 #include "onefs_shadow_copy.h"
 
 static int vfs_onefs_shadow_copy_debug_level = DBGC_VFS;
@@ -234,7 +233,6 @@ onefs_shadow_copy_create_file(vfs_handle_struct *handle,
 			      uint32_t file_attributes,
 			      uint32_t oplock_request,
 			      uint64_t allocation_size,
-			      uint32_t private_flags,
 			      struct security_descriptor *sd,
 			      struct ea_list *ea_list,
 			      files_struct **result,
@@ -245,8 +243,7 @@ onefs_shadow_copy_create_file(vfs_handle_struct *handle,
 				  access_mask, share_access,
 				  create_disposition, create_options,
 				  file_attributes, oplock_request,
-				  allocation_size, private_flags,
-				  sd, ea_list, result, pinfo),
+				  allocation_size, sd, ea_list, result, pinfo),
 			      NTSTATUS);
 }
 
@@ -472,10 +469,11 @@ onefs_shadow_copy_mknod(vfs_handle_struct *handle, const char *path,
 }
 
 static char *
-onefs_shadow_copy_realpath(vfs_handle_struct *handle, const char *path)
+onefs_shadow_copy_realpath(vfs_handle_struct *handle, const char *path,
+			   char *resolved_path)
 {
 	SHADOW_NEXT(REALPATH,
-		    (handle, cpath ?: path),
+		    (handle, cpath ?: path, resolved_path),
 		    char *);
 }
 
@@ -635,10 +633,8 @@ onefs_shadow_copy_lsetxattr(vfs_handle_struct *handle, const char *path,
 
 static bool
 onefs_shadow_copy_is_offline(struct vfs_handle_struct *handle,
-			     const struct smb_fname *fname,
-			     SMB_STRUCT_STAT *sbuf)
+			     const char *path, SMB_STRUCT_STAT *sbuf)
 {
-#error Isilon, please convert "char *path" to "struct smb_fname *fname"
 	SHADOW_NEXT(IS_OFFLINE,
 		    (handle, cpath ?: path, sbuf),
 		    bool);
@@ -646,9 +642,8 @@ onefs_shadow_copy_is_offline(struct vfs_handle_struct *handle,
 
 static int
 onefs_shadow_copy_set_offline(struct vfs_handle_struct *handle,
-			       const struct smb_filename *fname)
+			      const char *path)
 {
-#error Isilon, please convert "char *path" to "struct smb_fname *fname"
 	SHADOW_NEXT(SET_OFFLINE,
 		    (handle, cpath ?: path),
 		    int);
@@ -663,7 +658,7 @@ static struct vfs_fn_pointers onefs_shadow_copy_fns = {
 	.opendir = onefs_shadow_copy_opendir,
 	.mkdir = onefs_shadow_copy_mkdir,
 	.rmdir = onefs_shadow_copy_rmdir,
-	.open_fn = onefs_shadow_copy_open,
+	.open = onefs_shadow_copy_open,
 	.create_file = onefs_shadow_copy_create_file,
 	.rename = onefs_shadow_copy_rename,
 	.stat = onefs_shadow_copy_stat,

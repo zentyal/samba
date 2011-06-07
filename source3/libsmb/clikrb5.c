@@ -22,17 +22,7 @@
 
 #include "includes.h"
 #include "smb_krb5.h"
-#include "../librpc/gen_ndr/krb5pac.h"
-#include "../lib/util/asn1.h"
-#include "libsmb/nmblib.h"
-
-#ifndef KRB5_AUTHDATA_WIN2K_PAC
-#define KRB5_AUTHDATA_WIN2K_PAC 128
-#endif
-
-#ifndef KRB5_AUTHDATA_IF_RELEVANT
-#define KRB5_AUTHDATA_IF_RELEVANT 1
-#endif
+#include "authdata.h"
 
 #ifdef HAVE_KRB5
 
@@ -357,7 +347,7 @@ bool unwrap_edata_ntstatus(TALLOC_CTX *mem_ctx,
 	}
 	
 	asn1_start_tag(data, ASN1_CONTEXT(2));
-	asn1_read_OctetString(data, talloc_tos(), &edata_contents);
+	asn1_read_OctetString(data, talloc_autofree_context(), &edata_contents);
 	asn1_end_tag(data);
 	asn1_end_tag(data);
 	asn1_end_tag(data);
@@ -400,7 +390,7 @@ bool unwrap_pac(TALLOC_CTX *mem_ctx, DATA_BLOB *auth_data, DATA_BLOB *unwrapped_
 	
 	asn1_end_tag(data);
 	asn1_start_tag(data, ASN1_CONTEXT(1));
-	asn1_read_OctetString(data, talloc_tos(), &pac_contents);
+	asn1_read_OctetString(data, talloc_autofree_context(), &pac_contents);
 	asn1_end_tag(data);
 	asn1_end_tag(data);
 	asn1_end_tag(data);
@@ -938,12 +928,11 @@ cleanup_princ:
 }
 
 /*
-  get a kerberos5 ticket for the given service
+  get a kerberos5 ticket for the given service 
 */
-int cli_krb5_get_ticket(TALLOC_CTX *mem_ctx,
-			const char *principal, time_t time_offset,
-			DATA_BLOB *ticket, DATA_BLOB *session_key_krb5,
-			uint32_t extra_ap_opts, const char *ccname,
+int cli_krb5_get_ticket(const char *principal, time_t time_offset, 
+			DATA_BLOB *ticket, DATA_BLOB *session_key_krb5, 
+			uint32 extra_ap_opts, const char *ccname, 
 			time_t *tgs_expire,
 			const char *impersonate_princ_s)
 
@@ -954,15 +943,17 @@ int cli_krb5_get_ticket(TALLOC_CTX *mem_ctx,
 	krb5_ccache ccdef = NULL;
 	krb5_auth_context auth_context = NULL;
 	krb5_enctype enc_types[] = {
+#ifdef ENCTYPE_ARCFOUR_HMAC
 		ENCTYPE_ARCFOUR_HMAC,
-		ENCTYPE_DES_CBC_MD5,
-		ENCTYPE_DES_CBC_CRC,
+#endif 
+		ENCTYPE_DES_CBC_MD5, 
+		ENCTYPE_DES_CBC_CRC, 
 		ENCTYPE_NULL};
 
 	initialize_krb5_error_table();
 	retval = krb5_init_context(&context);
 	if (retval) {
-		DEBUG(1, ("krb5_init_context failed (%s)\n",
+		DEBUG(1,("cli_krb5_get_ticket: krb5_init_context failed (%s)\n", 
 			 error_message(retval)));
 		goto failed;
 	}
@@ -973,60 +964,56 @@ int cli_krb5_get_ticket(TALLOC_CTX *mem_ctx,
 
 	if ((retval = krb5_cc_resolve(context, ccname ?
 			ccname : krb5_cc_default_name(context), &ccdef))) {
-		DEBUG(1, ("krb5_cc_default failed (%s)\n",
+		DEBUG(1,("cli_krb5_get_ticket: krb5_cc_default failed (%s)\n",
 			 error_message(retval)));
 		goto failed;
 	}
 
 	if ((retval = krb5_set_default_tgs_ktypes(context, enc_types))) {
-		DEBUG(1, ("krb5_set_default_tgs_ktypes failed (%s)\n",
+		DEBUG(1,("cli_krb5_get_ticket: krb5_set_default_tgs_ktypes failed (%s)\n",
 			 error_message(retval)));
 		goto failed;
 	}
 
-	retval = ads_krb5_mk_req(context, &auth_context,
-				AP_OPTS_USE_SUBKEY | (krb5_flags)extra_ap_opts,
-				principal, ccdef, &packet,
-				tgs_expire, impersonate_princ_s);
-	if (retval) {
+	if ((retval = ads_krb5_mk_req(context, 
+					&auth_context, 
+					AP_OPTS_USE_SUBKEY | (krb5_flags)extra_ap_opts,
+					principal,
+					ccdef, &packet,
+					tgs_expire,
+					impersonate_princ_s))) {
 		goto failed;
 	}
 
-	get_krb5_smb_session_key(mem_ctx, context, auth_context,
-				 session_key_krb5, false);
+	get_krb5_smb_session_key(context, auth_context, session_key_krb5, False);
 
-	*ticket = data_blob_talloc(mem_ctx, packet.data, packet.length);
+	*ticket = data_blob(packet.data, packet.length);
 
- 	kerberos_free_data_contents(context, &packet);
+ 	kerberos_free_data_contents(context, &packet); 
 
 failed:
 
-	if (context) {
+	if ( context ) {
 		if (ccdef)
 			krb5_cc_close(context, ccdef);
 		if (auth_context)
 			krb5_auth_con_free(context, auth_context);
 		krb5_free_context(context);
 	}
-
+		
 	return retval;
 }
 
-bool get_krb5_smb_session_key(TALLOC_CTX *mem_ctx,
-			      krb5_context context,
-			      krb5_auth_context auth_context,
-			      DATA_BLOB *session_key, bool remote)
-{
+ bool get_krb5_smb_session_key(krb5_context context, krb5_auth_context auth_context, DATA_BLOB *session_key, bool remote)
+ {
 	krb5_keyblock *skey = NULL;
 	krb5_error_code err = 0;
 	bool ret = false;
 
 	if (remote) {
-		err = krb5_auth_con_getremotesubkey(context,
-						    auth_context, &skey);
+		err = krb5_auth_con_getremotesubkey(context, auth_context, &skey);
 	} else {
-		err = krb5_auth_con_getlocalsubkey(context,
-						   auth_context, &skey);
+		err = krb5_auth_con_getlocalsubkey(context, auth_context, &skey);
 	}
 
 	if (err || skey == NULL) {
@@ -1034,25 +1021,19 @@ bool get_krb5_smb_session_key(TALLOC_CTX *mem_ctx,
 		goto done;
 	}
 
-	DEBUG(10, ("Got KRB5 session key of length %d\n",
-		   (int)KRB5_KEY_LENGTH(skey)));
-
-	*session_key = data_blob_talloc(mem_ctx,
-					 KRB5_KEY_DATA(skey),
-					 KRB5_KEY_LENGTH(skey));
-	dump_data_pw("KRB5 Session Key:\n",
-		     session_key->data,
-		     session_key->length);
+	DEBUG(10, ("Got KRB5 session key of length %d\n",  (int)KRB5_KEY_LENGTH(skey)));
+	*session_key = data_blob(KRB5_KEY_DATA(skey), KRB5_KEY_LENGTH(skey));
+	dump_data_pw("KRB5 Session Key:\n", session_key->data, session_key->length);
 
 	ret = true;
 
-done:
+ done:
 	if (skey) {
 		krb5_free_keyblock(context, skey);
 	}
 
 	return ret;
-}
+ }
 
 
 #if defined(HAVE_KRB5_PRINCIPAL_GET_COMP_STRING) && !defined(HAVE_KRB5_PRINC_COMPONENT)
@@ -2270,10 +2251,8 @@ char *smb_krb5_principal_get_realm(krb5_context context,
 
 #else /* HAVE_KRB5 */
  /* this saves a few linking headaches */
- int cli_krb5_get_ticket(TALLOC_CTX *mem_ctx,
-			const char *principal, time_t time_offset,
-			DATA_BLOB *ticket, DATA_BLOB *session_key_krb5,
-			uint32_t extra_ap_opts,
+ int cli_krb5_get_ticket(const char *principal, time_t time_offset, 
+			DATA_BLOB *ticket, DATA_BLOB *session_key_krb5, uint32 extra_ap_opts,
 			const char *ccname, time_t *tgs_expire,
 			const char *impersonate_princ_s)
 {
@@ -2281,10 +2260,4 @@ char *smb_krb5_principal_get_realm(krb5_context context,
 	 return 1;
 }
 
-bool unwrap_pac(TALLOC_CTX *mem_ctx, DATA_BLOB *auth_data, DATA_BLOB *unwrapped_pac_data)
-{
-	DEBUG(0,("NO KERBEROS SUPPORT\n"));
-	return false;
-}
-
-#endif /* HAVE_KRB5 */
+#endif

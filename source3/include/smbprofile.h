@@ -26,7 +26,7 @@
 
 #define PROF_SHMEM_KEY ((key_t)0x07021999)
 #define PROF_SHM_MAGIC 0x6349985
-#define PROF_SHM_VERSION 12
+#define PROF_SHM_VERSION 11
 
 /* time values in the following structure are in microseconds */
 
@@ -42,10 +42,6 @@ enum profile_stats_values
 	PR_VALUE_SYSCALL_OPENDIR,
 #define syscall_opendir_count __profile_stats_value(PR_VALUE_SYSCALL_OPENDIR, count)
 #define syscall_opendir_time __profile_stats_value(PR_VALUE_SYSCALL_OPENDIR, time)
-
-	PR_VALUE_SYSCALL_FDOPENDIR,
-#define syscall_fdopendir_count __profile_stats_value(PR_VALUE_SYSCALL_FDOPENDIR, count)
-#define syscall_fdopendir_time __profile_stats_value(PR_VALUE_SYSCALL_FDOPENDIR, time)
 
 	PR_VALUE_SYSCALL_READDIR,
 #define syscall_readdir_count __profile_stats_value(PR_VALUE_SYSCALL_READDIR, count)
@@ -182,10 +178,6 @@ enum profile_stats_values
 	PR_VALUE_SYSCALL_FTRUNCATE,
 #define syscall_ftruncate_count __profile_stats_value(PR_VALUE_SYSCALL_FTRUNCATE, count)
 #define syscall_ftruncate_time __profile_stats_value(PR_VALUE_SYSCALL_FTRUNCATE, time)
-
-	PR_VALUE_SYSCALL_FALLOCATE,
-#define syscall_fallocate_count __profile_stats_value(PR_VALUE_SYSCALL_FALLOCATE, count)
-#define syscall_fallocate_time __profile_stats_value(PR_VALUE_SYSCALL_FALLOCATE, time)
 
 	PR_VALUE_SYSCALL_FCNTL_LOCK,
 #define syscall_fcntl_lock_count __profile_stats_value(PR_VALUE_SYSCALL_FCNTL_LOCK, count)
@@ -764,82 +756,6 @@ enum profile_stats_values
 #define election_count __profile_stats_value(PR_VALUE_ELECTION, count)
 #define election_time __profile_stats_value(PR_VALUE_ELECTION, time)
 
-	PR_VALUE_SMB2_NEGPROT,
-#define smb2_negprot_count __profile_stats_value(PR_VALUE_SMB2_NEGPROT, count)
-#define smb2_negprot_time __profile_stats_value(PR_VALUE_SMB2_NEGPROT, time)
-
-	PR_VALUE_SMB2_SESSSETUP,
-#define smb2_sesssetup_count __profile_stats_value(PR_VALUE_SMB2_SESSSETUP, count)
-#define smb2_sesssetup_time __profile_stats_value(PR_VALUE_SMB2_SESSSETUP, time)
-
-	PR_VALUE_SMB2_LOGOFF,
-#define smb2_logoff_count __profile_stats_value(PR_VALUE_SMB2_LOGOFF, count)
-#define smb2_logoff_time __profile_stats_value(PR_VALUE_SMB2_LOGOFF, time)
-
-	PR_VALUE_SMB2_TCON,
-#define smb2_tcon_count __profile_stats_value(PR_VALUE_SMB2_TCON, count)
-#define smb2_tcon_time __profile_stats_value(PR_VALUE_SMB2_TCON, time)
-
-	PR_VALUE_SMB2_TDIS,
-#define smb2_tdis_count __profile_stats_value(PR_VALUE_SMB2_TDIS, count)
-#define smb2_tdis_time __profile_stats_value(PR_VALUE_SMB2_TDIS, time)
-
-	PR_VALUE_SMB2_CREATE,
-#define smb2_create_count __profile_stats_value(PR_VALUE_SMB2_CREATE, count)
-#define smb2_create_time __profile_stats_value(PR_VALUE_SMB2_CREATE, time)
-
-	PR_VALUE_SMB2_CLOSE,
-#define smb2_close_count __profile_stats_value(PR_VALUE_SMB2_CLOSE, count)
-#define smb2_close_time __profile_stats_value(PR_VALUE_SMB2_CLOSE, time)
-
-	PR_VALUE_SMB2_FLUSH,
-#define smb2_flush_count __profile_stats_value(PR_VALUE_SMB2_FLUSH, count)
-#define smb2_flush_time __profile_stats_value(PR_VALUE_SMB2_FLUSH, time)
-
-	PR_VALUE_SMB2_READ,
-#define smb2_read_count __profile_stats_value(PR_VALUE_SMB2_READ, count)
-#define smb2_read_time __profile_stats_value(PR_VALUE_SMB2_READ, time)
-
-	PR_VALUE_SMB2_WRITE,
-#define smb2_write_count __profile_stats_value(PR_VALUE_SMB2_WRITE, count)
-#define smb2_write_time __profile_stats_value(PR_VALUE_SMB2_WRITE, time)
-
-	PR_VALUE_SMB2_LOCK,
-#define smb2_lock_count __profile_stats_value(PR_VALUE_SMB2_LOCK, count)
-#define smb2_lock_time __profile_stats_value(PR_VALUE_SMB2_LOCK, time)
-
-	PR_VALUE_SMB2_IOCTL,
-#define smb2_ioctl_count __profile_stats_value(PR_VALUE_SMB2_IOCTL, count)
-#define smb2_ioctl_time __profile_stats_value(PR_VALUE_SMB2_IOCTL, time)
-
-	PR_VALUE_SMB2_CANCEL,
-#define smb2_cancel_count __profile_stats_value(PR_VALUE_SMB2_CANCEL, count)
-#define smb2_cancel_time __profile_stats_value(PR_VALUE_SMB2_CANCEL, time)
-
-	PR_VALUE_SMB2_KEEPALIVE,
-#define smb2_keepalive_count __profile_stats_value(PR_VALUE_SMB2_KEEPALIVE, count)
-#define smb2_keepalive_time __profile_stats_value(PR_VALUE_SMB2_KEEPALIVE, time)
-
-	PR_VALUE_SMB2_FIND,
-#define smb2_find_count __profile_stats_value(PR_VALUE_SMB2_FIND, count)
-#define smb2_find_time __profile_stats_value(PR_VALUE_SMB2_FIND, time)
-
-	PR_VALUE_SMB2_NOTIFY,
-#define smb2_notify_count __profile_stats_value(PR_VALUE_SMB2_NOTIFY, count)
-#define smb2_notify_time __profile_stats_value(PR_VALUE_SMB2_NOTIFY, time)
-
-	PR_VALUE_SMB2_GETINFO,
-#define smb2_getinfo_count __profile_stats_value(PR_VALUE_SMB2_GETINFO, count)
-#define smb2_getinfo_time __profile_stats_value(PR_VALUE_SMB2_GETINFO, time)
-
-	PR_VALUE_SMB2_SETINFO,
-#define smb2_setinfo_count __profile_stats_value(PR_VALUE_SMB2_SETINFO, count)
-#define smb2_setinfo_time __profile_stats_value(PR_VALUE_SMB2_SETINFO, time)
-
-	PR_VALUE_SMB2_BREAK,
-#define smb2_break_count __profile_stats_value(PR_VALUE_SMB2_BREAK, count)
-#define smb2_break_time __profile_stats_value(PR_VALUE_SMB2_BREAK, time)
-
 	/* This mist remain the last value. */
 	PR_VALUE_MAX
 }; /* enum profile_stats_values */
@@ -902,15 +818,33 @@ extern bool do_profile_times;
 #define DEC_PROFILE_COUNT(x) profile_p->x--
 #define ADD_PROFILE_COUNT(x,y) profile_p->x += (y)
 
+#if defined(HAVE_CLOCK_GETTIME)
+
+extern clockid_t __profile_clock;
+
 static inline uint64_t profile_timestamp(void)
 {
 	struct timespec ts;
 
-	/* we might prefer to use the _COARSE clock variant of CLOCK_MONOTONIC
-	   that one is faster but cached and "just" tick-wise precise */
-	clock_gettime_mono(&ts);
+	/* FIXME: On a single-CPU system, or a system where we have bound
+	 * daemon threads to single CPUs (eg. using cpusets or processor
+	 * affinity), it might be preferable to use CLOCK_PROCESS_CPUTIME_ID.
+	 */
+
+	clock_gettime(__profile_clock, &ts);
 	return (ts.tv_sec * 1000000) + (ts.tv_nsec / 1000); /* usec */
 }
+
+#else
+
+static inline uint64_t profile_timestamp(void)
+{
+	struct timeval tv;
+	GetTimeOfDay(&tv);
+	return (tv.tv_sec * 1000000) + tv.tv_usec;
+}
+
+#endif
 
 /* end of helper macros */
 
@@ -955,6 +889,8 @@ static inline uint64_t profile_timestamp(void)
 		ADD_PROFILE_COUNT(x##_time, \
 		    profile_timestamp() - __profstamp_##x); \
 	}
+
+
 #else /* WITH_PROFILE */
 
 #define DO_PROFILE_INC(x)
@@ -964,11 +900,7 @@ static inline uint64_t profile_timestamp(void)
 #define START_PROFILE(x)
 #define START_PROFILE_BYTES(x,n)
 #define END_PROFILE(x)
+
 #endif /* WITH_PROFILE */
-
-/* The following definitions come from profile/profile.c  */
-
-void set_profile_level(int level, struct server_id src);
-bool profile_setup(struct messaging_context *msg_ctx, bool rdonly);
 
 #endif

@@ -24,7 +24,6 @@
 #include "librpc/rpc/dcerpc.h"
 #include "librpc/rpc/dcerpc_proto.h"
 #include "torture/torture.h"
-#include "lib/util/util_net.h"
 
 static bool test_BindingString(struct torture_context *tctx,
 							   const void *test_data)
@@ -128,12 +127,6 @@ static bool test_parse_check_results(struct torture_context *tctx)
 	torture_assert_int_equal(tctx, b->object.if_version, 0, "object version");
 	torture_assert_ntstatus_ok(tctx, dcerpc_parse_binding(tctx, 
 		"308FB580-1EB2-11CA-923B-08002B1075A7@ncacn_ip_tcp:$SERVER", &b), "parse");
-	torture_assert_ntstatus_ok(tctx, dcerpc_parse_binding(tctx, "ncacn_ip_tcp:$SERVER[,sign,localaddress=192.168.1.1]", &b), "parse");
-	torture_assert(tctx, b->transport == NCACN_IP_TCP, "ncacn_ip_tcp expected");
-	torture_assert(tctx, b->flags == (DCERPC_SIGN | DCERPC_LOCALADDRESS), "sign flag");
-	torture_assert_str_equal(tctx, b->localaddress, "192.168.1.1", "localaddress");
-	torture_assert_str_equal(tctx, "ncacn_ip_tcp:$SERVER[,sign,localaddress=192.168.1.1]",
-				 dcerpc_binding_string(tctx, b), "back to string");
 
 	return true;
 }
@@ -162,7 +155,7 @@ static bool test_no_transport(struct torture_context *tctx)
 struct torture_suite *torture_local_binding_string(TALLOC_CTX *mem_ctx)
 {
 	int i;
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "binding");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "BINDING");
 
 	for (i = 0; i < ARRAY_SIZE(test_strings); i++) {
 		torture_suite_add_simple_tcase_const(suite, test_strings[i],

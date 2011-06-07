@@ -31,13 +31,6 @@
  */
 
 #include "includes.h"
-#include "system/filesys.h"
-#include "popt_common.h"
-#include "dbwrap.h"
-#include "../libcli/security/security.h"
-#include "session.h"
-#include "locking/proto.h"
-#include "messages.h"
 
 #define SMB_MAXPIDS		2048
 static uid_t 		Ucrit_uid = 0;               /* added by OH */
@@ -239,7 +232,8 @@ static void print_brl(struct file_id id,
 	TALLOC_FREE(share_mode);
 }
 
-static int traverse_fn1(const struct connections_key *key,
+static int traverse_fn1(struct db_record *rec,
+			const struct connections_key *key,
 			const struct connections_data *crec,
 			void *state)
 {
@@ -258,26 +252,30 @@ static int traverse_fn1(const struct connections_key *key,
 	return 0;
 }
 
-static int traverse_sessionid(const char *key, struct sessionid *session,
-			      void *private_data)
+static int traverse_sessionid(struct db_record *db, void *state)
 {
+	struct sessionid sessionid;
 	fstring uid_str, gid_str;
 
-	if (!process_exists(session->pid)
-	    || !Ucrit_checkUid(session->uid)) {
+	if (db->value.dsize != sizeof(sessionid))
+		return 0;
+
+	memcpy(&sessionid, db->value.dptr, sizeof(sessionid));
+
+	if (!process_exists(sessionid.pid) || !Ucrit_checkUid(sessionid.uid)) {
 		return 0;
 	}
 
-	Ucrit_addPid(session->pid);
+	Ucrit_addPid( sessionid.pid );
 
-	fstr_sprintf(uid_str, "%u", (unsigned int)session->uid);
-	fstr_sprintf(gid_str, "%u", (unsigned int)session->gid);
+	fstr_sprintf(uid_str, "%u", (unsigned int)sessionid.uid);
+	fstr_sprintf(gid_str, "%u", (unsigned int)sessionid.gid);
 
 	d_printf("%-7s   %-12s  %-12s  %-12s (%s)\n",
-		 procid_str_static(&session->pid),
-		 numeric_only ? uid_str : uidtoname(session->uid),
-		 numeric_only ? gid_str : gidtoname(session->gid),
-		 session->remote_machine, session->hostname);
+		 procid_str_static(&sessionid.pid),
+		 numeric_only ? uid_str : uidtoname(sessionid.uid),
+		 numeric_only ? gid_str : gidtoname(sessionid.gid), 
+		 sessionid.remote_machine, sessionid.hostname);
 
 	return 0;
 }
@@ -313,7 +311,9 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 	sec_init();
 	load_case_tables();
 
-	setup_logging(argv[0], DEBUG_STDERR);
+	setup_logging(argv[0],True);
+
+	dbf = x_stderr;
 
 	if (getuid() != geteuid()) {
 		d_printf("smbstatus should not be run setuid\n");
@@ -412,15 +412,23 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 	}
 
 	if ( show_processes ) {
-		d_printf("\nSamba version %s\n",samba_version_string());
-		d_printf("PID     Username      Group         Machine                        \n");
-		d_printf("-------------------------------------------------------------------\n");
-		if (lp_security() == SEC_SHARE) {
-			d_printf(" <processes do not show up in "
-				 "anonymous mode>\n");
-		}
+		struct db_context *db;
+		db = db_open(NULL, lock_path("sessionid.tdb"), 0,
+			     TDB_CLEAR_IF_FIRST, O_RDONLY, 0644);
+		if (!db) {
+			d_printf("sessionid.tdb not initialised\n");
+		} else {
+			d_printf("\nSamba version %s\n",samba_version_string());
+			d_printf("PID     Username      Group         Machine                        \n");
+			d_printf("-------------------------------------------------------------------\n");
+			if (lp_security() == SEC_SHARE) {
+				d_printf(" <processes do not show up in "
+				    "anonymous mode>\n");
+			}
 
-		sessionid_traverse_read(traverse_sessionid, NULL);
+			db->traverse_read(db, traverse_sessionid, NULL);
+			TALLOC_FREE(db);
+		}
 
 		if (processes_only) {
 			goto done;
@@ -439,7 +447,7 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 		d_printf("\nService      pid     machine       Connected at\n");
 		d_printf("-------------------------------------------------------\n");
 
-		connections_forall_read(traverse_fn1, NULL);
+		connections_forall(traverse_fn1, NULL);
 
 		d_printf("\n");
 
@@ -452,7 +460,7 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 		int result;
 		struct db_context *db;
 		db = db_open(NULL, lock_path("locking.tdb"), 0,
-			     TDB_CLEAR_IF_FIRST|TDB_INCOMPATIBLE_HASH, O_RDONLY, 0);
+			     TDB_CLEAR_IF_FIRST, O_RDONLY, 0);
 
 		if (!db) {
 			d_printf("%s not initialised\n",

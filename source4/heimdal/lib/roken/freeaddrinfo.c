@@ -39,7 +39,7 @@
  * free the list of `struct addrinfo' starting at `ai'
  */
 
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 freeaddrinfo(struct addrinfo *ai)
 {
     struct addrinfo *tofree;

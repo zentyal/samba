@@ -20,16 +20,12 @@
 #ifndef __LIB_NETAPI_PRIVATE_H__
 #define __LIB_NETAPI_PRIVATE_H__
 
-#include "lib/netapi/netapi_net.h"
-
 #define LIBNETAPI_REDIRECT_TO_LOCALHOST(ctx, r, fn) \
 	DEBUG(10,("redirecting call %s to localhost\n", #fn)); \
 	if (!r->in.server_name) { \
 		r->in.server_name = "localhost"; \
 	} \
 	return fn ## _r(ctx, r);
-
-struct dcerpc_binding_handle;
 
 struct libnetapi_private_ctx {
 	struct {
@@ -48,8 +44,6 @@ struct libnetapi_private_ctx {
 	} samr;
 
 	struct client_ipc_connection *ipc_connections;
-
-	struct messaging_context *msg_ctx;
 };
 
 NET_API_STATUS libnetapi_get_password(struct libnetapi_ctx *ctx, char **password);
@@ -62,10 +56,6 @@ WERROR libnetapi_open_pipe(struct libnetapi_ctx *ctx,
 			   const char *server_name,
 			   const struct ndr_syntax_id *interface,
 			   struct rpc_pipe_client **presult);
-WERROR libnetapi_get_binding_handle(struct libnetapi_ctx *ctx,
-				    const char *server_name,
-				    const struct ndr_syntax_id *interface,
-				    struct dcerpc_binding_handle **binding_handle);
 WERROR libnetapi_samr_open_domain(struct libnetapi_ctx *mem_ctx,
 				  struct rpc_pipe_client *pipe_cli,
 				  uint32_t connect_mask,

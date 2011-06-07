@@ -43,13 +43,7 @@
 #endif
 
 #ifdef HAVE_NEW_LIBREADLINE
-#ifdef HAVE_CPPFUNCTION
-#  define RL_COMPLETION_CAST (CPPFunction *)
-#elif HAVE_RL_COMPLETION_T
-#  define RL_COMPLETION_CAST (rl_completion_t *)
-#else
-#  define RL_COMPLETION_CAST
-#endif
+#  define RL_COMPLETION_CAST (rl_completion_func_t *)
 #else
 /* This type is missing from libreadline<4.0  (approximately) */
 #  define RL_COMPLETION_CAST

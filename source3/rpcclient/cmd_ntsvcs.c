@@ -20,19 +20,18 @@
 
 #include "includes.h"
 #include "rpcclient.h"
-#include "../librpc/gen_ndr/ndr_ntsvcs_c.h"
+#include "../librpc/gen_ndr/cli_ntsvcs.h"
 
 static WERROR cmd_ntsvcs_get_version(struct rpc_pipe_client *cli,
 				     TALLOC_CTX *mem_ctx,
 				     int argc,
 				     const char **argv)
 {
-	struct dcerpc_binding_handle *b = cli->binding_handle;
 	NTSTATUS status;
 	WERROR werr;
 	uint16_t version;
 
-	status = dcerpc_PNP_GetVersion(b, mem_ctx,
+	status = rpccli_PNP_GetVersion(cli, mem_ctx,
 				       &version, &werr);
 	if (!NT_STATUS_IS_OK(status)) {
 		return ntstatus_to_werror(status);
@@ -50,7 +49,6 @@ static WERROR cmd_ntsvcs_validate_dev_inst(struct rpc_pipe_client *cli,
 					   int argc,
 					   const char **argv)
 {
-	struct dcerpc_binding_handle *b = cli->binding_handle;
 	NTSTATUS status;
 	WERROR werr;
 	const char *devicepath = NULL;
@@ -67,7 +65,7 @@ static WERROR cmd_ntsvcs_validate_dev_inst(struct rpc_pipe_client *cli,
 		flags = atoi(argv[2]);
 	}
 
-	status = dcerpc_PNP_ValidateDeviceInstance(b, mem_ctx,
+	status = rpccli_PNP_ValidateDeviceInstance(cli, mem_ctx,
 						   devicepath,
 						   flags,
 						   &werr);
@@ -83,7 +81,6 @@ static WERROR cmd_ntsvcs_hw_prof_flags(struct rpc_pipe_client *cli,
 				       int argc,
 				       const char **argv)
 {
-	struct dcerpc_binding_handle *b = cli->binding_handle;
 	NTSTATUS status;
 	WERROR werr;
 	const char *devicepath = NULL;
@@ -99,7 +96,7 @@ static WERROR cmd_ntsvcs_hw_prof_flags(struct rpc_pipe_client *cli,
 
 	devicepath = argv[1];
 
-	status = dcerpc_PNP_HwProfFlags(b, mem_ctx,
+	status = rpccli_PNP_HwProfFlags(cli, mem_ctx,
 					0,
 					devicepath,
 					0,
@@ -122,7 +119,6 @@ static WERROR cmd_ntsvcs_get_hw_prof_info(struct rpc_pipe_client *cli,
 					  int argc,
 					  const char **argv)
 {
-	struct dcerpc_binding_handle *b = cli->binding_handle;
 	NTSTATUS status;
 	WERROR werr;
 	uint32_t idx = 0;
@@ -131,7 +127,7 @@ static WERROR cmd_ntsvcs_get_hw_prof_info(struct rpc_pipe_client *cli,
 
 	ZERO_STRUCT(info);
 
-	status = dcerpc_PNP_GetHwProfInfo(b, mem_ctx,
+	status = rpccli_PNP_GetHwProfInfo(cli, mem_ctx,
 					  idx,
 					  &info,
 					  size,
@@ -149,7 +145,6 @@ static WERROR cmd_ntsvcs_get_dev_reg_prop(struct rpc_pipe_client *cli,
 					  int argc,
 					  const char **argv)
 {
-	struct dcerpc_binding_handle *b = cli->binding_handle;
 	NTSTATUS status;
 	WERROR werr;
 	const char *devicepath = NULL;
@@ -175,7 +170,7 @@ static WERROR cmd_ntsvcs_get_dev_reg_prop(struct rpc_pipe_client *cli,
 	buffer = talloc_array(mem_ctx, uint8_t, buffer_size);
 	W_ERROR_HAVE_NO_MEMORY(buffer);
 
-	status = dcerpc_PNP_GetDeviceRegProp(b, mem_ctx,
+	status = rpccli_PNP_GetDeviceRegProp(cli, mem_ctx,
 					     devicepath,
 					     property,
 					     &reg_data_type,
@@ -196,7 +191,6 @@ static WERROR cmd_ntsvcs_get_dev_list_size(struct rpc_pipe_client *cli,
 					   int argc,
 					   const char **argv)
 {
-	struct dcerpc_binding_handle *b = cli->binding_handle;
 	NTSTATUS status;
 	WERROR werr;
 	uint32_t size = 0;
@@ -216,7 +210,7 @@ static WERROR cmd_ntsvcs_get_dev_list_size(struct rpc_pipe_client *cli,
 		flags = atoi(argv[2]);
 	}
 
-	status = dcerpc_PNP_GetDeviceListSize(b, mem_ctx,
+	status = rpccli_PNP_GetDeviceListSize(cli, mem_ctx,
 					      filter,
 					      &size,
 					      flags,
@@ -235,7 +229,6 @@ static WERROR cmd_ntsvcs_get_dev_list(struct rpc_pipe_client *cli,
 				      int argc,
 				      const char **argv)
 {
-	struct dcerpc_binding_handle *b = cli->binding_handle;
 	NTSTATUS status;
 	WERROR werr;
 	const char *filter = NULL;
@@ -265,7 +258,7 @@ static WERROR cmd_ntsvcs_get_dev_list(struct rpc_pipe_client *cli,
 		return WERR_NOMEM;
 	}
 
-	status = dcerpc_PNP_GetDeviceList(b, mem_ctx,
+	status = rpccli_PNP_GetDeviceList(cli, mem_ctx,
 					  filter,
 					  buffer,
 					  &length,

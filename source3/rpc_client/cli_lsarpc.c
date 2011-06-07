@@ -23,11 +23,7 @@
 */
 
 #include "includes.h"
-#include "rpc_client/rpc_client.h"
-#include "../librpc/gen_ndr/ndr_lsa_c.h"
-#include "rpc_client/cli_lsarpc.h"
-#include "rpc_client/init_lsa.h"
-#include "../libcli/security/security.h"
+#include "../librpc/gen_ndr/cli_lsa.h"
 
 /** @defgroup lsa LSA - Local Security Architecture
  *  @ingroup rpc_client
@@ -42,12 +38,14 @@
  * security authority", which is half of a password database.
  **/
 
-NTSTATUS dcerpc_lsa_open_policy(struct dcerpc_binding_handle *h,
+/** Open a LSA policy handle
+ *
+ * @param cli Handle on an initialised SMB connection */
+
+NTSTATUS rpccli_lsa_open_policy(struct rpc_pipe_client *cli,
 				TALLOC_CTX *mem_ctx,
-				bool sec_qos,
-				uint32_t des_access,
-				struct policy_handle *pol,
-				NTSTATUS *result)
+				bool sec_qos, uint32 des_access,
+				struct policy_handle *pol)
 {
 	struct lsa_ObjectAttribute attr;
 	struct lsa_QosInfo qos;
@@ -66,47 +64,21 @@ NTSTATUS dcerpc_lsa_open_policy(struct dcerpc_binding_handle *h,
 		attr.sec_qos		= &qos;
 	}
 
-	return dcerpc_lsa_OpenPolicy(h,
-				     mem_ctx,
+	return rpccli_lsa_OpenPolicy(cli, mem_ctx,
 				     &system_name,
 				     &attr,
 				     des_access,
-				     pol,
-				     result);
+				     pol);
 }
 
 /** Open a LSA policy handle
- *
- * @param cli Handle on an initialised SMB connection */
+  *
+  * @param cli Handle on an initialised SMB connection
+  */
 
-NTSTATUS rpccli_lsa_open_policy(struct rpc_pipe_client *cli,
-				TALLOC_CTX *mem_ctx,
-				bool sec_qos, uint32 des_access,
-				struct policy_handle *pol)
-{
-	NTSTATUS status;
-	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
-
-	status = dcerpc_lsa_open_policy(cli->binding_handle,
-					mem_ctx,
-					sec_qos,
-					des_access,
-					pol,
-					&result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	return result;
-}
-
-NTSTATUS dcerpc_lsa_open_policy2(struct dcerpc_binding_handle *h,
-				 TALLOC_CTX *mem_ctx,
-				 const char *srv_name_slash,
-				 bool sec_qos,
-				 uint32_t des_access,
-				 struct policy_handle *pol,
-				 NTSTATUS *result)
+NTSTATUS rpccli_lsa_open_policy2(struct rpc_pipe_client *cli,
+				 TALLOC_CTX *mem_ctx, bool sec_qos,
+				 uint32 des_access, struct policy_handle *pol)
 {
 	struct lsa_ObjectAttribute attr;
 	struct lsa_QosInfo qos;
@@ -124,76 +96,54 @@ NTSTATUS dcerpc_lsa_open_policy2(struct dcerpc_binding_handle *h,
 		attr.sec_qos		= &qos;
 	}
 
-	return dcerpc_lsa_OpenPolicy2(h,
-				      mem_ctx,
-				      srv_name_slash,
+	return rpccli_lsa_OpenPolicy2(cli, mem_ctx,
+				      cli->srv_name_slash,
 				      &attr,
 				      des_access,
-				      pol,
-				      result);
-}
-
-/** Open a LSA policy handle
-  *
-  * @param cli Handle on an initialised SMB connection
-  */
-
-NTSTATUS rpccli_lsa_open_policy2(struct rpc_pipe_client *cli,
-				 TALLOC_CTX *mem_ctx, bool sec_qos,
-				 uint32 des_access, struct policy_handle *pol)
-{
-	NTSTATUS status;
-	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
-
-	status = dcerpc_lsa_open_policy2(cli->binding_handle,
-					 mem_ctx,
-					 cli->srv_name_slash,
-					 sec_qos,
-					 des_access,
-					 pol,
-					 &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	return result;
+				      pol);
 }
 
 /* Lookup a list of sids
  *
  * internal version withOUT memory allocation of the target arrays.
- * this assumes sufficiently sized arrays to store domains, names and types. */
+ * this assumes suffciently sized arrays to store domains, names and types. */
 
-static NTSTATUS dcerpc_lsa_lookup_sids_noalloc(struct dcerpc_binding_handle *h,
+static NTSTATUS rpccli_lsa_lookup_sids_noalloc(struct rpc_pipe_client *cli,
 					       TALLOC_CTX *mem_ctx,
 					       struct policy_handle *pol,
 					       int num_sids,
-					       const struct dom_sid *sids,
+					       const DOM_SID *sids,
 					       char **domains,
 					       char **names,
 					       enum lsa_SidType *types,
-					       bool use_lookupsids3,
-					       NTSTATUS *presult)
+					       bool use_lookupsids3)
 {
-	NTSTATUS status = NT_STATUS_OK;
-	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
+	NTSTATUS result = NT_STATUS_OK;
+	TALLOC_CTX *tmp_ctx = NULL;
+	int i;
 	struct lsa_SidArray sid_array;
 	struct lsa_RefDomainList *ref_domains = NULL;
 	struct lsa_TransNameArray lsa_names;
-	enum lsa_LookupNamesLevel level = LSA_LOOKUP_NAMES_ALL;
 	uint32_t count = 0;
-	int i;
+	uint16_t level = 1;
 
 	ZERO_STRUCT(lsa_names);
 
+	tmp_ctx = talloc_new(mem_ctx);
+	if (!tmp_ctx) {
+		DEBUG(0, ("rpccli_lsa_lookup_sids_noalloc: out of memory!\n"));
+		result = NT_STATUS_UNSUCCESSFUL;
+		goto done;
+	}
+
 	sid_array.num_sids = num_sids;
 	sid_array.sids = TALLOC_ARRAY(mem_ctx, struct lsa_SidPtr, num_sids);
-	if (sid_array.sids == NULL) {
+	if (!sid_array.sids) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
 	for (i = 0; i<num_sids; i++) {
-		sid_array.sids[i].sid = dom_sid_dup(mem_ctx, &sids[i]);
+		sid_array.sids[i].sid = sid_dup_talloc(mem_ctx, &sids[i]);
 		if (!sid_array.sids[i].sid) {
 			return NT_STATUS_NO_MEMORY;
 		}
@@ -205,26 +155,19 @@ static NTSTATUS dcerpc_lsa_lookup_sids_noalloc(struct dcerpc_binding_handle *h,
 
 		ZERO_STRUCT(lsa_names2);
 
-		status = dcerpc_lsa_LookupSids3(h,
-						mem_ctx,
+		result = rpccli_lsa_LookupSids3(cli, mem_ctx,
 						&sid_array,
 						&ref_domains,
 						&lsa_names2,
 						level,
 						&count,
-						LSA_LOOKUP_OPTION_SEARCH_ISOLATED_NAMES,
-						LSA_CLIENT_REVISION_2,
-						&result);
-		if (!NT_STATUS_IS_OK(status)) {
-			return status;
-		}
+						0,
+						0);
 
-		if(!NT_STATUS_IS_ERR(result)) {
-			lsa_names.count = lsa_names2.count;
-			lsa_names.names = talloc_array(mem_ctx,
-						       struct lsa_TranslatedName,
-						       lsa_names.count);
-			if (lsa_names.names == NULL) {
+		if (!NT_STATUS_IS_ERR(result)) {
+			lsa_names.count	= lsa_names2.count;
+			lsa_names.names = talloc_array(mem_ctx, struct lsa_TranslatedName, lsa_names.count);
+			if (!lsa_names.names) {
 				return NT_STATUS_NO_MEMORY;
 			}
 			for (n=0; n < lsa_names.count; n++) {
@@ -235,34 +178,28 @@ static NTSTATUS dcerpc_lsa_lookup_sids_noalloc(struct dcerpc_binding_handle *h,
 		}
 
 	} else {
-		status = dcerpc_lsa_LookupSids(h,
-					       mem_ctx,
+		result = rpccli_lsa_LookupSids(cli, mem_ctx,
 					       pol,
 					       &sid_array,
 					       &ref_domains,
 					       &lsa_names,
 					       level,
-					       &count,
-					       &result);
+					       &count);
 	}
 
-	DEBUG(10, ("LSA_LOOKUPSIDS returned status: '%s', result: '%s', "
-		   "mapped count = %d'\n",
-		   nt_errstr(status), nt_errstr(result), count));
-
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
+	DEBUG(10, ("LSA_LOOKUPSIDS returned '%s', mapped count = %d'\n",
+		   nt_errstr(result), count));
 
 	if (!NT_STATUS_IS_OK(result) &&
 	    !NT_STATUS_EQUAL(result, NT_STATUS_NONE_MAPPED) &&
 	    !NT_STATUS_EQUAL(result, STATUS_SOME_UNMAPPED))
 	{
-		*presult = result;
-		return status;
+		/* An actual error occured */
+		goto done;
 	}
 
 	/* Return output parameters */
+
 	if (NT_STATUS_EQUAL(result, NT_STATUS_NONE_MAPPED) ||
 	    (count == 0))
 	{
@@ -271,8 +208,8 @@ static NTSTATUS dcerpc_lsa_lookup_sids_noalloc(struct dcerpc_binding_handle *h,
 			(domains)[i] = NULL;
 			(types)[i] = SID_NAME_UNKNOWN;
 		}
-		*presult = NT_STATUS_NONE_MAPPED;
-		return status;
+		result = NT_STATUS_NONE_MAPPED;
+		goto done;
 	}
 
 	for (i = 0; i < num_sids; i++) {
@@ -287,22 +224,22 @@ static NTSTATUS dcerpc_lsa_lookup_sids_noalloc(struct dcerpc_binding_handle *h,
 			name = lsa_names.names[i].name.string;
 
 			if (name) {
-				(names)[i] = talloc_strdup(names, name);
+				(names)[i] = talloc_strdup(mem_ctx, name);
 				if ((names)[i] == NULL) {
 					DEBUG(0, ("cli_lsa_lookup_sids_noalloc(): out of memory\n"));
-					*presult = NT_STATUS_UNSUCCESSFUL;
-					return status;
+					result = NT_STATUS_UNSUCCESSFUL;
+					goto done;
 				}
 			} else {
 				(names)[i] = NULL;
 			}
-			domains[i] = talloc_strdup(domains,
-						   dom_name ? dom_name : "");
+			domains[i] = talloc_strdup(
+				mem_ctx, dom_name ? dom_name : "");
 			(types)[i] = lsa_names.names[i].sid_type;
 			if (((domains)[i] == NULL)) {
 				DEBUG(0, ("cli_lsa_lookup_sids_noalloc(): out of memory\n"));
-				*presult = NT_STATUS_UNSUCCESSFUL;
-				return status;
+				result = NT_STATUS_UNSUCCESSFUL;
+				goto done;
 			}
 
 		} else {
@@ -312,8 +249,9 @@ static NTSTATUS dcerpc_lsa_lookup_sids_noalloc(struct dcerpc_binding_handle *h,
 		}
 	}
 
-	*presult = NT_STATUS_OK;
-	return status;
+done:
+	TALLOC_FREE(tmp_ctx);
+	return result;
 }
 
 /* Lookup a list of sids
@@ -328,47 +266,43 @@ static NTSTATUS dcerpc_lsa_lookup_sids_noalloc(struct dcerpc_binding_handle *h,
  * at 20480 for win2k3, but we keep it at a save 1000 for now. */
 #define LOOKUP_SIDS_HUNK_SIZE 1000
 
-static NTSTATUS dcerpc_lsa_lookup_sids_generic(struct dcerpc_binding_handle *h,
+static NTSTATUS rpccli_lsa_lookup_sids_generic(struct rpc_pipe_client *cli,
 					       TALLOC_CTX *mem_ctx,
 					       struct policy_handle *pol,
 					       int num_sids,
-					       const struct dom_sid *sids,
+					       const DOM_SID *sids,
 					       char ***pdomains,
 					       char ***pnames,
 					       enum lsa_SidType **ptypes,
-					       bool use_lookupsids3,
-					       NTSTATUS *presult)
+					       bool use_lookupsids3)
 {
-	NTSTATUS status = NT_STATUS_OK;
 	NTSTATUS result = NT_STATUS_OK;
 	int sids_left = 0;
 	int sids_processed = 0;
-	const struct dom_sid *hunk_sids = sids;
+	const DOM_SID *hunk_sids = sids;
 	char **hunk_domains;
 	char **hunk_names;
 	enum lsa_SidType *hunk_types;
 	char **domains = NULL;
 	char **names = NULL;
 	enum lsa_SidType *types = NULL;
-	bool have_mapped = false;
-	bool have_unmapped = false;
 
 	if (num_sids) {
 		if (!(domains = TALLOC_ARRAY(mem_ctx, char *, num_sids))) {
 			DEBUG(0, ("rpccli_lsa_lookup_sids(): out of memory\n"));
-			status = NT_STATUS_NO_MEMORY;
+			result = NT_STATUS_NO_MEMORY;
 			goto fail;
 		}
 
 		if (!(names = TALLOC_ARRAY(mem_ctx, char *, num_sids))) {
 			DEBUG(0, ("rpccli_lsa_lookup_sids(): out of memory\n"));
-			status = NT_STATUS_NO_MEMORY;
+			result = NT_STATUS_NO_MEMORY;
 			goto fail;
 		}
 
 		if (!(types = TALLOC_ARRAY(mem_ctx, enum lsa_SidType, num_sids))) {
 			DEBUG(0, ("rpccli_lsa_lookup_sids(): out of memory\n"));
-			status = NT_STATUS_NO_MEMORY;
+			result = NT_STATUS_NO_MEMORY;
 			goto fail;
 		}
 	}
@@ -380,7 +314,7 @@ static NTSTATUS dcerpc_lsa_lookup_sids_generic(struct dcerpc_binding_handle *h,
 
 	while (sids_left > 0) {
 		int hunk_num_sids;
-		NTSTATUS hunk_result = NT_STATUS_UNSUCCESSFUL;
+		NTSTATUS hunk_result = NT_STATUS_OK;
 
 		hunk_num_sids = ((sids_left > LOOKUP_SIDS_HUNK_SIZE)
 				? LOOKUP_SIDS_HUNK_SIZE
@@ -392,44 +326,33 @@ static NTSTATUS dcerpc_lsa_lookup_sids_generic(struct dcerpc_binding_handle *h,
 			   sids_processed + hunk_num_sids - 1,
 			   num_sids));
 
-		status = dcerpc_lsa_lookup_sids_noalloc(h,
-							mem_ctx,
-							pol,
-							hunk_num_sids,
-							hunk_sids,
-							hunk_domains,
-							hunk_names,
-							hunk_types,
-							use_lookupsids3,
-							&hunk_result);
-		if (!NT_STATUS_IS_OK(status)) {
-			goto fail;
-		}
+		hunk_result = rpccli_lsa_lookup_sids_noalloc(cli,
+							     mem_ctx,
+							     pol,
+							     hunk_num_sids,
+							     hunk_sids,
+							     hunk_domains,
+							     hunk_names,
+							     hunk_types,
+							     use_lookupsids3);
 
 		if (!NT_STATUS_IS_OK(hunk_result) &&
 		    !NT_STATUS_EQUAL(hunk_result, STATUS_SOME_UNMAPPED) &&
 		    !NT_STATUS_EQUAL(hunk_result, NT_STATUS_NONE_MAPPED))
 		{
 			/* An actual error occured */
-			*presult = hunk_result;
+			result = hunk_result;
 			goto fail;
 		}
 
-		if (NT_STATUS_IS_OK(hunk_result)) {
-			have_mapped = true;
-		}
-		if (NT_STATUS_EQUAL(hunk_result, NT_STATUS_NONE_MAPPED)) {
-			have_unmapped = true;
-		}
-		if (NT_STATUS_EQUAL(hunk_result, STATUS_SOME_UNMAPPED)) {
-			int i;
-			for (i=0; i<hunk_num_sids; i++) {
-				if (hunk_types[i] == SID_NAME_UNKNOWN) {
-					have_unmapped = true;
-				} else {
-					have_mapped = true;
-				}
-			}
+		/* adapt overall result */
+		if (( NT_STATUS_IS_OK(result) &&
+		     !NT_STATUS_IS_OK(hunk_result))
+		    ||
+		    ( NT_STATUS_EQUAL(result, NT_STATUS_NONE_MAPPED) &&
+		     !NT_STATUS_EQUAL(hunk_result, NT_STATUS_NONE_MAPPED)))
+		{
+			result = STATUS_SOME_UNMAPPED;
 		}
 
 		sids_left -= hunk_num_sids;
@@ -443,211 +366,119 @@ static NTSTATUS dcerpc_lsa_lookup_sids_generic(struct dcerpc_binding_handle *h,
 	*pdomains = domains;
 	*pnames = names;
 	*ptypes = types;
-
-	if (!have_mapped) {
-		result = NT_STATUS_NONE_MAPPED;
-	}
-	if (have_unmapped) {
-		result = STATUS_SOME_UNMAPPED;
-	}
-	*presult = result;
-
-	return status;
+	return result;
 
 fail:
 	TALLOC_FREE(domains);
 	TALLOC_FREE(names);
 	TALLOC_FREE(types);
-
-	return status;
-}
-
-NTSTATUS dcerpc_lsa_lookup_sids(struct dcerpc_binding_handle *h,
-				TALLOC_CTX *mem_ctx,
-				struct policy_handle *pol,
-				int num_sids,
-				const struct dom_sid *sids,
-				char ***pdomains,
-				char ***pnames,
-				enum lsa_SidType **ptypes,
-				NTSTATUS *result)
-{
-	return dcerpc_lsa_lookup_sids_generic(h,
-					      mem_ctx,
-					      pol,
-					      num_sids,
-					      sids,
-					      pdomains,
-					      pnames,
-					      ptypes,
-					      false,
-					      result);
+	return result;
 }
 
 NTSTATUS rpccli_lsa_lookup_sids(struct rpc_pipe_client *cli,
 				TALLOC_CTX *mem_ctx,
 				struct policy_handle *pol,
 				int num_sids,
-				const struct dom_sid *sids,
+				const DOM_SID *sids,
 				char ***pdomains,
 				char ***pnames,
 				enum lsa_SidType **ptypes)
 {
-	NTSTATUS status;
-	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
-
-	status = dcerpc_lsa_lookup_sids_generic(cli->binding_handle,
-						mem_ctx,
-						pol,
-						num_sids,
-						sids,
-						pdomains,
-						pnames,
-						ptypes,
-						false,
-						&result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	return result;
-}
-
-NTSTATUS dcerpc_lsa_lookup_sids3(struct dcerpc_binding_handle *h,
-				 TALLOC_CTX *mem_ctx,
-				 struct policy_handle *pol,
-				 int num_sids,
-				 const struct dom_sid *sids,
-				 char ***pdomains,
-				 char ***pnames,
-				 enum lsa_SidType **ptypes,
-				 NTSTATUS *result)
-{
-	return dcerpc_lsa_lookup_sids_generic(h,
-					      mem_ctx,
-					      pol,
-					      num_sids,
-					      sids,
-					      pdomains,
-					      pnames,
-					      ptypes,
-					      true,
-					      result);
+	return rpccli_lsa_lookup_sids_generic(cli, mem_ctx, pol, num_sids, sids,
+					      pdomains, pnames, ptypes, false);
 }
 
 NTSTATUS rpccli_lsa_lookup_sids3(struct rpc_pipe_client *cli,
 				 TALLOC_CTX *mem_ctx,
 				 struct policy_handle *pol,
 				 int num_sids,
-				 const struct dom_sid *sids,
+				 const DOM_SID *sids,
 				 char ***pdomains,
 				 char ***pnames,
 				 enum lsa_SidType **ptypes)
 {
-	NTSTATUS status;
-	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
-
-	status = dcerpc_lsa_lookup_sids_generic(cli->binding_handle,
-						mem_ctx,
-						pol,
-						num_sids,
-						sids,
-						pdomains,
-						pnames,
-						ptypes,
-						true,
-						&result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	return result;
+	return rpccli_lsa_lookup_sids_generic(cli, mem_ctx, pol, num_sids, sids,
+					      pdomains, pnames, ptypes, true);
 }
 
 /** Lookup a list of names */
 
-static NTSTATUS dcerpc_lsa_lookup_names_generic(struct dcerpc_binding_handle *h,
+static NTSTATUS rpccli_lsa_lookup_names_generic(struct rpc_pipe_client *cli,
 						TALLOC_CTX *mem_ctx,
-						struct policy_handle *pol,
-						uint32_t num_names,
+						struct policy_handle *pol, int num_names,
 						const char **names,
 						const char ***dom_names,
-						enum lsa_LookupNamesLevel level,
-						struct dom_sid **sids,
+						int level,
+						DOM_SID **sids,
 						enum lsa_SidType **types,
-						bool use_lookupnames4,
-						NTSTATUS *presult)
+						bool use_lookupnames4)
 {
-	NTSTATUS status;
+	NTSTATUS result;
+	int i;
 	struct lsa_String *lsa_names = NULL;
 	struct lsa_RefDomainList *domains = NULL;
 	struct lsa_TransSidArray sid_array;
 	struct lsa_TransSidArray3 sid_array3;
 	uint32_t count = 0;
-	uint32_t i;
 
 	ZERO_STRUCT(sid_array);
 	ZERO_STRUCT(sid_array3);
 
 	lsa_names = TALLOC_ARRAY(mem_ctx, struct lsa_String, num_names);
-	if (lsa_names == NULL) {
+	if (!lsa_names) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	for (i = 0; i < num_names; i++) {
+	for (i=0; i<num_names; i++) {
 		init_lsa_String(&lsa_names[i], names[i]);
 	}
 
 	if (use_lookupnames4) {
-		status = dcerpc_lsa_LookupNames4(h,
-						 mem_ctx,
+		result = rpccli_lsa_LookupNames4(cli, mem_ctx,
 						 num_names,
 						 lsa_names,
 						 &domains,
 						 &sid_array3,
 						 level,
 						 &count,
-						 LSA_LOOKUP_OPTION_SEARCH_ISOLATED_NAMES,
-						 LSA_CLIENT_REVISION_2,
-						 presult);
+						 0,
+						 0);
 	} else {
-		status = dcerpc_lsa_LookupNames(h,
-						mem_ctx,
-						pol,
+		result = rpccli_lsa_LookupNames(cli, mem_ctx,
+					        pol,
 						num_names,
 						lsa_names,
 						&domains,
 						&sid_array,
 						level,
-						&count,
-						presult);
-	}
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
+						&count);
 	}
 
-	if (!NT_STATUS_IS_OK(*presult) &&
-	    !NT_STATUS_EQUAL(*presult, STATUS_SOME_UNMAPPED)) {
+	if (!NT_STATUS_IS_OK(result) && NT_STATUS_V(result) !=
+	    NT_STATUS_V(STATUS_SOME_UNMAPPED)) {
+
 		/* An actual error occured */
+
 		goto done;
 	}
 
 	/* Return output parameters */
+
 	if (count == 0) {
-		*presult = NT_STATUS_NONE_MAPPED;
+		result = NT_STATUS_NONE_MAPPED;
 		goto done;
 	}
 
 	if (num_names) {
-		if (!((*sids = TALLOC_ARRAY(mem_ctx, struct dom_sid, num_names)))) {
+		if (!((*sids = TALLOC_ARRAY(mem_ctx, DOM_SID, num_names)))) {
 			DEBUG(0, ("cli_lsa_lookup_sids(): out of memory\n"));
-			*presult = NT_STATUS_NO_MEMORY;
+			result = NT_STATUS_NO_MEMORY;
 			goto done;
 		}
 
 		if (!((*types = TALLOC_ARRAY(mem_ctx, enum lsa_SidType, num_names)))) {
 			DEBUG(0, ("cli_lsa_lookup_sids(): out of memory\n"));
-			*presult = NT_STATUS_NO_MEMORY;
+			result = NT_STATUS_NO_MEMORY;
 			goto done;
 		}
 
@@ -655,7 +486,7 @@ static NTSTATUS dcerpc_lsa_lookup_names_generic(struct dcerpc_binding_handle *h,
 			*dom_names = TALLOC_ARRAY(mem_ctx, const char *, num_names);
 			if (*dom_names == NULL) {
 				DEBUG(0, ("cli_lsa_lookup_sids(): out of memory\n"));
-				*presult = NT_STATUS_NO_MEMORY;
+				result = NT_STATUS_NO_MEMORY;
 				goto done;
 			}
 		}
@@ -669,7 +500,7 @@ static NTSTATUS dcerpc_lsa_lookup_names_generic(struct dcerpc_binding_handle *h,
 
 	for (i = 0; i < num_names; i++) {
 		uint32_t dom_idx;
-		struct dom_sid *sid = &(*sids)[i];
+		DOM_SID *sid = &(*sids)[i];
 
 		if (use_lookupnames4) {
 			dom_idx		= sid_array3.sids[i].sid_index;
@@ -706,113 +537,34 @@ static NTSTATUS dcerpc_lsa_lookup_names_generic(struct dcerpc_binding_handle *h,
 	}
 
  done:
-	return status;
-}
 
-NTSTATUS dcerpc_lsa_lookup_names(struct dcerpc_binding_handle *h,
-				 TALLOC_CTX *mem_ctx,
-				 struct policy_handle *pol,
-				 uint32_t num_names,
-				 const char **names,
-				 const char ***dom_names,
-				 enum lsa_LookupNamesLevel level,
-				 struct dom_sid **sids,
-				 enum lsa_SidType **types,
-				 NTSTATUS *result)
-{
-	return dcerpc_lsa_lookup_names_generic(h,
-					       mem_ctx,
-					       pol,
-					       num_names,
-					       names,
-					       dom_names,
-					       level,
-					       sids,
-					       types,
-					       false,
-					       result);
+	return result;
 }
 
 NTSTATUS rpccli_lsa_lookup_names(struct rpc_pipe_client *cli,
 				 TALLOC_CTX *mem_ctx,
-				 struct policy_handle *pol,
-				 int num_names,
+				 struct policy_handle *pol, int num_names,
 				 const char **names,
 				 const char ***dom_names,
 				 int level,
-				 struct dom_sid **sids,
+				 DOM_SID **sids,
 				 enum lsa_SidType **types)
 {
-	NTSTATUS status;
-	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
-
-	status = dcerpc_lsa_lookup_names(cli->binding_handle,
-					 mem_ctx,
-					 pol,
-					 num_names,
-					 names,
-					 dom_names,
-					 level,
-					 sids,
-					 types,
-					 &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	return result;
-}
-
-NTSTATUS dcerpc_lsa_lookup_names4(struct dcerpc_binding_handle *h,
-				  TALLOC_CTX *mem_ctx,
-				  struct policy_handle *pol,
-				  uint32_t num_names,
-				  const char **names,
-				  const char ***dom_names,
-				  enum lsa_LookupNamesLevel level,
-				  struct dom_sid **sids,
-				  enum lsa_SidType **types,
-				  NTSTATUS *result)
-{
-	return dcerpc_lsa_lookup_names_generic(h,
-					       mem_ctx,
-					       pol,
-					       num_names,
-					       names,
-					       dom_names,
-					       level,
-					       sids,
-					       types,
-					       true,
-					       result);
+	return rpccli_lsa_lookup_names_generic(cli, mem_ctx, pol, num_names,
+					       names, dom_names, level, sids,
+					       types, false);
 }
 
 NTSTATUS rpccli_lsa_lookup_names4(struct rpc_pipe_client *cli,
 				  TALLOC_CTX *mem_ctx,
-				  struct policy_handle *pol,
-				  int num_names,
+				  struct policy_handle *pol, int num_names,
 				  const char **names,
 				  const char ***dom_names,
 				  int level,
-				  struct dom_sid **sids,
+				  DOM_SID **sids,
 				  enum lsa_SidType **types)
 {
-	NTSTATUS status;
-	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
-
-	status = dcerpc_lsa_lookup_names4(cli->binding_handle,
-					  mem_ctx,
-					  pol,
-					  num_names,
-					  names,
-					  dom_names,
-					  level,
-					  sids,
-					  types,
-					  &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	return result;
+	return rpccli_lsa_lookup_names_generic(cli, mem_ctx, pol, num_names,
+					       names, dom_names, level, sids,
+					       types, true);
 }

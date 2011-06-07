@@ -22,7 +22,6 @@
 #include "includes.h"
 #include "system/network.h"
 #include "librpc/ndr/libndr.h"
-#include "lib/util/util_net.h"
 
 #define NDR_SVAL(ndr, ofs) (NDR_BE(ndr)?RSVAL(ndr->data,ofs):SVAL(ndr->data,ofs))
 #define NDR_IVAL(ndr, ofs) (NDR_BE(ndr)?RIVAL(ndr->data,ofs):IVAL(ndr->data,ofs))
@@ -177,19 +176,6 @@ _PUBLIC_ enum ndr_err_code ndr_pull_double(struct ndr_pull *ndr, int ndr_flags, 
 }
 
 /*
-  parse a pointer referent identifier stored in 2 bytes
-*/
-_PUBLIC_ enum ndr_err_code ndr_pull_relative_ptr_short(struct ndr_pull *ndr, uint16_t *v)
-{
-	NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, v));
-	if (*v != 0) {
-		ndr->ptr_count++;
-	}
-	*(v) -= ndr->relative_rap_convert;
-	return NDR_ERR_SUCCESS;
-}
-
-/*
   parse a pointer referent identifier
 */
 _PUBLIC_ enum ndr_err_code ndr_pull_generic_ptr(struct ndr_pull *ndr, uint32_t *v)
@@ -252,9 +238,6 @@ _PUBLIC_ enum ndr_err_code ndr_pull_dlong(struct ndr_pull *ndr, int ndr_flags, i
 _PUBLIC_ enum ndr_err_code ndr_pull_hyper(struct ndr_pull *ndr, int ndr_flags, uint64_t *v)
 {
 	NDR_PULL_ALIGN(ndr, 8);
-	if (NDR_BE(ndr)) {
-		return ndr_pull_udlongr(ndr, ndr_flags, v);
-	}
 	return ndr_pull_udlong(ndr, ndr_flags, v);
 }
 
@@ -552,9 +535,6 @@ _PUBLIC_ enum ndr_err_code ndr_push_dlong(struct ndr_push *ndr, int ndr_flags, i
 _PUBLIC_ enum ndr_err_code ndr_push_hyper(struct ndr_push *ndr, int ndr_flags, uint64_t v)
 {
 	NDR_PUSH_ALIGN(ndr, 8);
-	if (NDR_BE(ndr)) {
-		return ndr_push_udlongr(ndr, NDR_SCALARS, v);
-	}
 	return ndr_push_udlong(ndr, NDR_SCALARS, v);
 }
 
@@ -810,56 +790,6 @@ _PUBLIC_ enum ndr_err_code ndr_pull_time_t(struct ndr_pull *ndr, int ndr_flags, 
 
 
 /*
-  push a uid_t
-*/
-_PUBLIC_ enum ndr_err_code ndr_push_uid_t(struct ndr_push *ndr, int ndr_flags, uid_t u)
-{
-	return ndr_push_hyper(ndr, NDR_SCALARS, (uint64_t)u);
-}
-
-/*
-  pull a uid_t
-*/
-_PUBLIC_ enum ndr_err_code ndr_pull_uid_t(struct ndr_pull *ndr, int ndr_flags, uid_t *u)
-{
-	uint64_t uu;
-	NDR_CHECK(ndr_pull_hyper(ndr, ndr_flags, &uu));
-	*u = (uid_t)uu;
-	if (unlikely(uu != *u)) {
-		DEBUG(0,(__location__ ": uid_t pull doesn't fit 0x%016llx\n",
-			 (unsigned long long)uu));
-		return NDR_ERR_NDR64;
-	}
-	return NDR_ERR_SUCCESS;
-}
-
-
-/*
-  push a gid_t
-*/
-_PUBLIC_ enum ndr_err_code ndr_push_gid_t(struct ndr_push *ndr, int ndr_flags, gid_t g)
-{
-	return ndr_push_hyper(ndr, NDR_SCALARS, (uint64_t)g);
-}
-
-/*
-  pull a gid_t
-*/
-_PUBLIC_ enum ndr_err_code ndr_pull_gid_t(struct ndr_pull *ndr, int ndr_flags, gid_t *g)
-{
-	uint64_t gg;
-	NDR_CHECK(ndr_pull_hyper(ndr, ndr_flags, &gg));
-	*g = (gid_t)gg;
-	if (unlikely(gg != *g)) {
-		DEBUG(0,(__location__ ": gid_t pull doesn't fit 0x%016llx\n",
-			 (unsigned long long)gg));
-		return NDR_ERR_NDR64;
-	}
-	return NDR_ERR_SUCCESS;
-}
-
-
-/*
   pull a ipv4address
 */
 _PUBLIC_ enum ndr_err_code ndr_pull_ipv4address(struct ndr_pull *ndr, int ndr_flags, const char **address)
@@ -881,7 +811,7 @@ _PUBLIC_ enum ndr_err_code ndr_push_ipv4address(struct ndr_push *ndr, int ndr_fl
 	uint32_t addr;
 	if (!is_ipaddress(address)) {
 		return ndr_push_error(ndr, NDR_ERR_IPV4ADDRESS,
-				      "Invalid IPv4 address: '%s'",
+				      "Invalid IPv4 address: '%s'", 
 				      address);
 	}
 	addr = inet_addr(address);
@@ -892,80 +822,16 @@ _PUBLIC_ enum ndr_err_code ndr_push_ipv4address(struct ndr_push *ndr, int ndr_fl
 /*
   print a ipv4address
 */
-_PUBLIC_ void ndr_print_ipv4address(struct ndr_print *ndr, const char *name,
+_PUBLIC_ void ndr_print_ipv4address(struct ndr_print *ndr, const char *name, 
 			   const char *address)
 {
 	ndr->print(ndr, "%-25s: %s", name, address);
 }
 
-/*
-  pull a ipv6address
-*/
-#define IPV6_BYTES 16
-#define IPV6_ADDR_STR_LEN 39
-_PUBLIC_ enum ndr_err_code ndr_pull_ipv6address(struct ndr_pull *ndr, int ndr_flags, const char **address)
-{
-	uint8_t addr[IPV6_BYTES];
-	char *addr_str = talloc_strdup(ndr->current_mem_ctx, "");
-	int i;
-	NDR_CHECK(ndr_pull_array_uint8(ndr, ndr_flags, addr, IPV6_BYTES));
-	for (i = 0; i < IPV6_BYTES; ++i) {
-		addr_str = talloc_asprintf_append(addr_str, "%02x", addr[i]);
-		/* We need a ':' every second byte but the last one */
-		if (i%2 == 1 && i != (IPV6_BYTES - 1)) {
-			addr_str = talloc_strdup_append(addr_str, ":");
-		}
-	}
-	*address = addr_str;
-	NDR_ERR_HAVE_NO_MEMORY(*address);
-	return NDR_ERR_SUCCESS;
-}
-
-/*
-  push a ipv6address
-*/
-_PUBLIC_ enum ndr_err_code ndr_push_ipv6address(struct ndr_push *ndr, int ndr_flags, const char *address)
-{
-#ifdef AF_INET6
-	uint8_t addr[IPV6_BYTES];
-	int ret;
-
-	if (!is_ipaddress(address)) {
-		return ndr_push_error(ndr, NDR_ERR_IPV6ADDRESS,
-				      "Invalid IPv6 address: '%s'",
-				      address);
-	}
-	ret = inet_pton(AF_INET6, address, addr);
-	if (ret <= 0) {
-		return NDR_ERR_IPV6ADDRESS;
-	}
-
-	NDR_CHECK(ndr_push_array_uint8(ndr, ndr_flags, addr, IPV6_BYTES));
-
-	return NDR_ERR_SUCCESS;
-#else
-	return NDR_ERR_IPV6ADDRESS;
-#endif
-}
-
-/*
-  print a ipv6address
-*/
-_PUBLIC_ void ndr_print_ipv6address(struct ndr_print *ndr, const char *name,
-			   const char *address)
-{
-	ndr->print(ndr, "%-25s: %s", name, address);
-}
-#undef IPV6_BYTES
 
 _PUBLIC_ void ndr_print_struct(struct ndr_print *ndr, const char *name, const char *type)
 {
 	ndr->print(ndr, "%s: struct %s", name, type);
-}
-
-_PUBLIC_ void ndr_print_null(struct ndr_print *ndr)
-{
-	ndr->print(ndr, "UNEXPECTED NULL POINTER");
 }
 
 _PUBLIC_ void ndr_print_enum(struct ndr_print *ndr, const char *name, const char *type, 
@@ -1020,16 +886,6 @@ _PUBLIC_ void ndr_print_int32(struct ndr_print *ndr, const char *name, int32_t v
 }
 
 _PUBLIC_ void ndr_print_uint32(struct ndr_print *ndr, const char *name, uint32_t v)
-{
-	ndr->print(ndr, "%-25s: 0x%08x (%u)", name, v, v);
-}
-
-_PUBLIC_ void ndr_print_int3264(struct ndr_print *ndr, const char *name, int32_t v)
-{
-	ndr->print(ndr, "%-25s: %d", name, v);
-}
-
-_PUBLIC_ void ndr_print_uint3264(struct ndr_print *ndr, const char *name, uint32_t v)
 {
 	ndr->print(ndr, "%-25s: 0x%08x (%u)", name, v, v);
 }
@@ -1100,16 +956,6 @@ _PUBLIC_ void ndr_print_time_t(struct ndr_print *ndr, const char *name, time_t t
 	}
 }
 
-_PUBLIC_ void ndr_print_uid_t(struct ndr_print *ndr, const char *name, uid_t u)
-{
-	ndr_print_dlong(ndr, name, u);
-}
-
-_PUBLIC_ void ndr_print_gid_t(struct ndr_print *ndr, const char *name, gid_t g)
-{
-	ndr_print_dlong(ndr, name, g);
-}
-
 _PUBLIC_ void ndr_print_union(struct ndr_print *ndr, const char *name, int level, const char *type)
 {
 	if (ndr->flags & LIBNDR_PRINT_ARRAY_HEX) {
@@ -1128,11 +974,6 @@ _PUBLIC_ void ndr_print_array_uint8(struct ndr_print *ndr, const char *name,
 			   const uint8_t *data, uint32_t count)
 {
 	int i;
-
-	if (data == NULL) {
-		ndr->print(ndr, "%s: ARRAY(%d) : NULL", name, count);
-		return;
-	}
 
 	if (count <= 600 && (ndr->flags & LIBNDR_PRINT_ARRAY_HEX)) {
 		char s[1202];
@@ -1156,58 +997,11 @@ _PUBLIC_ void ndr_print_array_uint8(struct ndr_print *ndr, const char *name,
 	ndr->depth--;	
 }
 
-static void ndr_print_asc(struct ndr_print *ndr, const uint8_t *buf, int len)
-{
-	int i;
-	for (i=0;i<len;i++)
-		ndr->print(ndr, "%c", isprint(buf[i])?buf[i]:'.');
-}
-
-/*
-  ndr_print version of dump_data()
- */
-static void ndr_dump_data(struct ndr_print *ndr, const uint8_t *buf, int len)
-{
-	int i=0;
-
-	ndr->no_newline = true;
-
-	for (i=0;i<len;) {
-		if (i%16 == 0 && i<len) {
-			ndr->print(ndr, "[%04X] ",i);
-		}
-
-		ndr->print(ndr, "%02X ",(int)buf[i]);
-		i++;
-		if (i%8 == 0) ndr->print(ndr,"  ");
-		if (i%16 == 0) {
-			ndr_print_asc(ndr,&buf[i-16],8); ndr->print(ndr," ");
-			ndr_print_asc(ndr,&buf[i-8],8); ndr->print(ndr, "\n");
-		}
-	}
-
-	if (i%16) {
-		int n;
-		n = 16 - (i%16);
-		ndr->print(ndr, " ");
-		if (n>8) ndr->print(ndr," ");
-		while (n--) ndr->print(ndr,"   ");
-		n = MIN(8,i%16);
-		ndr_print_asc(ndr,&buf[i-(i%16)],n); ndr->print(ndr, " ");
-		n = (i%16) - n;
-		if (n>0) ndr_print_asc(ndr,&buf[i-n],n);
-		ndr->print(ndr,"\n");
-	}
-
-	ndr->no_newline = false;
-}
-
-
 _PUBLIC_ void ndr_print_DATA_BLOB(struct ndr_print *ndr, const char *name, DATA_BLOB r)
 {
 	ndr->print(ndr, "%-25s: DATA_BLOB length=%u", name, (unsigned)r.length);
 	if (r.length) {
-		ndr_dump_data(ndr, r.data, r.length);
+		dump_data(10, r.data, r.length);
 	}
 }
 
@@ -1273,34 +1067,4 @@ _PUBLIC_ uint32_t ndr_size_DATA_BLOB(int ret, const DATA_BLOB *data, int flags)
 {
 	if (!data) return ret;
 	return ret + data->length;
-}
-
-_PUBLIC_ void ndr_print_bool(struct ndr_print *ndr, const char *name, const bool b)
-{
-	ndr->print(ndr, "%-25s: %s", name, b?"true":"false");
-}
-
-_PUBLIC_ NTSTATUS ndr_map_error2ntstatus(enum ndr_err_code ndr_err)
-{
-	switch (ndr_err) {
-	case NDR_ERR_SUCCESS:
-		return NT_STATUS_OK;
-	case NDR_ERR_BUFSIZE:
-		return NT_STATUS_BUFFER_TOO_SMALL;
-	case NDR_ERR_TOKEN:
-		return NT_STATUS_INTERNAL_ERROR;
-	case NDR_ERR_ALLOC:
-		return NT_STATUS_NO_MEMORY;
-	case NDR_ERR_ARRAY_SIZE:
-		return NT_STATUS_ARRAY_BOUNDS_EXCEEDED;
-	case NDR_ERR_INVALID_POINTER:
-		return NT_STATUS_INVALID_PARAMETER_MIX;
-	case NDR_ERR_UNREAD_BYTES:
-		return NT_STATUS_PORT_MESSAGE_TOO_LONG;
-	default:
-		break;
-	}
-
-	/* we should map all error codes to different status codes */
-	return NT_STATUS_INVALID_PARAMETER;
 }

@@ -41,7 +41,7 @@
  * Glue for MIT API
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_c_make_checksum(krb5_context context,
 		     krb5_cksumtype cksumtype,
 		     const krb5_keyblock *key,
@@ -63,7 +63,7 @@ krb5_c_make_checksum(krb5_context context,
     return ret ;
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_c_verify_checksum(krb5_context context, const krb5_keyblock *key,
 		       krb5_keyusage usage, const krb5_data *data,
 		       const krb5_checksum *cksum, krb5_boolean *valid)
@@ -79,7 +79,8 @@ krb5_c_verify_checksum(krb5_context context, const krb5_keyblock *key,
 	return ret;
 
     if (data_cksum.cksumtype == cksum->cksumtype
-	&& krb5_data_ct_cmp(&data_cksum.checksum, &cksum->checksum) == 0)
+	&& data_cksum.checksum.length == cksum->checksum.length
+	&& memcmp(data_cksum.checksum.data, cksum->checksum.data, cksum->checksum.length) == 0)
 	*valid = 1;
 
     krb5_free_checksum_contents(context, &data_cksum);
@@ -87,7 +88,7 @@ krb5_c_verify_checksum(krb5_context context, const krb5_keyblock *key,
     return 0;
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_c_get_checksum(krb5_context context, const krb5_checksum *cksum,
 		    krb5_cksumtype *type, krb5_data **data)
 {
@@ -110,7 +111,7 @@ krb5_c_get_checksum(krb5_context context, const krb5_checksum *cksum,
     return 0;
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_c_set_checksum(krb5_context context, krb5_checksum *cksum,
 		    krb5_cksumtype type, const krb5_data *data)
 {
@@ -118,51 +119,51 @@ krb5_c_set_checksum(krb5_context context, krb5_checksum *cksum,
     return der_copy_octet_string(data, &cksum->checksum);
 }
 
-KRB5_LIB_FUNCTION void KRB5_LIB_CALL
+void KRB5_LIB_FUNCTION
 krb5_free_checksum (krb5_context context, krb5_checksum *cksum)
 {
     krb5_checksum_free(context, cksum);
     free(cksum);
 }
 
-KRB5_LIB_FUNCTION void KRB5_LIB_CALL
+void KRB5_LIB_FUNCTION
 krb5_free_checksum_contents(krb5_context context, krb5_checksum *cksum)
 {
     krb5_checksum_free(context, cksum);
     memset(cksum, 0, sizeof(*cksum));
 }
 
-KRB5_LIB_FUNCTION void KRB5_LIB_CALL
+void KRB5_LIB_FUNCTION
 krb5_checksum_free(krb5_context context, krb5_checksum *cksum)
 {
     free_Checksum(cksum);
 }
 
-KRB5_LIB_FUNCTION krb5_boolean KRB5_LIB_CALL
+krb5_boolean KRB5_LIB_FUNCTION
 krb5_c_valid_enctype (krb5_enctype etype)
 {
     return krb5_enctype_valid(NULL, etype);
 }
 
-KRB5_LIB_FUNCTION krb5_boolean KRB5_LIB_CALL
+krb5_boolean KRB5_LIB_FUNCTION
 krb5_c_valid_cksumtype(krb5_cksumtype ctype)
 {
     return krb5_cksumtype_valid(NULL, ctype);
 }
 
-KRB5_LIB_FUNCTION krb5_boolean KRB5_LIB_CALL
+krb5_boolean KRB5_LIB_FUNCTION
 krb5_c_is_coll_proof_cksum(krb5_cksumtype ctype)
 {
     return krb5_checksum_is_collision_proof(NULL, ctype);
 }
 
-KRB5_LIB_FUNCTION krb5_boolean KRB5_LIB_CALL
+krb5_boolean KRB5_LIB_FUNCTION
 krb5_c_is_keyed_cksum(krb5_cksumtype ctype)
 {
     return krb5_checksum_is_keyed(NULL, ctype);
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_copy_checksum (krb5_context context,
 		    const krb5_checksum *old,
 		    krb5_checksum **new)
@@ -173,14 +174,14 @@ krb5_copy_checksum (krb5_context context,
     return copy_Checksum(old, *new);
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_c_checksum_length (krb5_context context, krb5_cksumtype cksumtype,
 			size_t *length)
 {
     return krb5_checksumsize(context, cksumtype, length);
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_c_block_size(krb5_context context,
 		  krb5_enctype enctype,
 		  size_t *blocksize)
@@ -203,7 +204,7 @@ krb5_c_block_size(krb5_context context,
     return ret;
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_c_decrypt(krb5_context context,
 	       const krb5_keyblock key,
 	       krb5_keyusage usage,
@@ -243,7 +244,7 @@ krb5_c_decrypt(krb5_context context,
     return ret ;
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_c_encrypt(krb5_context context,
 	       const krb5_keyblock *key,
 	       krb5_keyusage usage,
@@ -285,7 +286,7 @@ krb5_c_encrypt(krb5_context context,
     return ret ;
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_c_encrypt_length(krb5_context context,
 		      krb5_enctype enctype,
 		      size_t inputlen,
@@ -310,24 +311,18 @@ krb5_c_encrypt_length(krb5_context context,
     return 0;
 }
 
-/**
- * Deprecated: keytypes doesn't exists, they are really enctypes.
- *
- * @ingroup krb5_deprecated
- */
-
-KRB5_DEPRECATED
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_c_enctype_compare(krb5_context context,
 		       krb5_enctype e1,
 		       krb5_enctype e2,
 		       krb5_boolean *similar)
+    KRB5_DEPRECATED
 {
     *similar = (e1 == e2);
     return 0;
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_c_make_random_key(krb5_context context,
 		       krb5_enctype enctype,
 		       krb5_keyblock *random_key)
@@ -335,7 +330,7 @@ krb5_c_make_random_key(krb5_context context,
     return krb5_generate_random_keyblock(context, enctype, random_key);
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_c_keylengths(krb5_context context,
 		  krb5_enctype enctype,
 		  size_t *ilen,
@@ -350,7 +345,7 @@ krb5_c_keylengths(krb5_context context,
     return krb5_enctype_keysize(context, enctype, keylen);
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_c_prf_length(krb5_context context,
 		  krb5_enctype type,
 		  size_t *length)
@@ -358,7 +353,7 @@ krb5_c_prf_length(krb5_context context,
     return krb5_crypto_prf_length(context, type, length);
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_c_prf(krb5_context context,
 	   const krb5_keyblock *key,
 	   const krb5_data *input,
@@ -377,58 +372,18 @@ krb5_c_prf(krb5_context context,
     return ret;
 }
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
-krb5_c_random_make_octets(krb5_context context, krb5_data * data)
-{
-    return krb5_generate_random_keyblock(context, data->length, data->data);
-}
-
 /**
  * MIT compat glue
  *
  * @ingroup krb5_ccache
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_cc_copy_creds(krb5_context context,
 		   const krb5_ccache from,
 		   krb5_ccache to)
 {
     return krb5_cc_copy_cache(context, from, to);
-}
-
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
-krb5_auth_con_getsendsubkey(krb5_context context, krb5_auth_context auth_context,
-                            krb5_keyblock **keyblock)
-{
-    return krb5_auth_con_getlocalsubkey(context, auth_context, keyblock);
-}
-
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
-krb5_auth_con_getrecvsubkey(krb5_context context, krb5_auth_context auth_context,
-                            krb5_keyblock **keyblock)
-{
-    return krb5_auth_con_getremotesubkey(context, auth_context, keyblock);
-}
-
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
-krb5_auth_con_setsendsubkey(krb5_context context, krb5_auth_context auth_context,
-                            krb5_keyblock *keyblock)
-{
-    return krb5_auth_con_setlocalsubkey(context, auth_context, keyblock);
-}
-
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
-krb5_auth_con_setrecvsubkey(krb5_context context, krb5_auth_context auth_context,
-                            krb5_keyblock *keyblock)
-{
-    return krb5_auth_con_setremotesubkey(context, auth_context, keyblock);
-}
-
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
-krb5_free_default_realm(krb5_context context, krb5_realm realm)
-{
-    return krb5_xfree(realm);
 }
 
 #endif /* HEIMDAL_SMALLER */

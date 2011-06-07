@@ -24,7 +24,6 @@
  */
 
 #include "includes.h"
-#include "system/filesys.h"
 
 /* Do this on our own in TRANSFER_BUF_SIZE chunks.
  * It's safe to make direct syscalls to lseek/write here

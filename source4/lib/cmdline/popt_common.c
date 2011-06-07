@@ -66,8 +66,8 @@ static void popt_samba_callback(poptContext con,
 	const char *pname;
 
 	if (reason == POPT_CALLBACK_REASON_POST) {
-		if (lpcfg_configfile(cmdline_lp_ctx) == NULL) {
-			lpcfg_load_default(cmdline_lp_ctx);
+		if (lp_configfile(cmdline_lp_ctx) == NULL) {
+            lp_load_default(cmdline_lp_ctx);
 		}
 		/* Hook any 'every Samba program must do this, after
 		 * the smb.conf is setup' functions here */
@@ -83,7 +83,7 @@ static void popt_samba_callback(poptContext con,
 		pname++;
 
 	if (reason == POPT_CALLBACK_REASON_PRE) {
-		cmdline_lp_ctx = loadparm_init_global(false);
+		cmdline_lp_ctx = loadparm_init(talloc_autofree_context());
 
 		/* Hook for 'almost the first thing to do in a samba program' here */
 		/* setup for panics */
@@ -108,14 +108,14 @@ static void popt_samba_callback(poptContext con,
 		break;
 
 	case OPT_OPTION:
-		if (!lpcfg_set_option(cmdline_lp_ctx, arg)) {
+		if (!lp_set_option(cmdline_lp_ctx, arg)) {
 			fprintf(stderr, "Error setting option '%s'\n", arg);
 			exit(1);
 		}
 		break;
 
 	case 'd':
-		lpcfg_set_cmdline(cmdline_lp_ctx, "log level", arg);
+		lp_set_cmdline(cmdline_lp_ctx, "log level", arg);
 		break;
 
 	case OPT_DEBUG_STDERR:
@@ -124,14 +124,14 @@ static void popt_samba_callback(poptContext con,
 
 	case 's':
 		if (arg) {
-			lpcfg_load(cmdline_lp_ctx, arg);
+			lp_load(cmdline_lp_ctx, arg);
 		}
 		break;
 
 	case 'l':
 		if (arg) {
 			char *new_logfile = talloc_asprintf(NULL, "%s/log.%s", arg, pname);
-			lpcfg_set_cmdline(cmdline_lp_ctx, "log file", new_logfile);
+			lp_set_cmdline(cmdline_lp_ctx, "log file", new_logfile);
 			talloc_free(new_logfile);
 		}
 		break;
@@ -152,36 +152,36 @@ static void popt_common_callback(poptContext con,
 	switch(opt->val) {
 	case 'O':
 		if (arg) {
-			lpcfg_set_cmdline(lp_ctx, "socket options", arg);
+			lp_set_cmdline(lp_ctx, "socket options", arg);
 		}
 		break;
 	
 	case 'W':
-		lpcfg_set_cmdline(lp_ctx, "workgroup", arg);
+		lp_set_cmdline(lp_ctx, "workgroup", arg);
 		break;
 
 	case 'r':
-		lpcfg_set_cmdline(lp_ctx, "realm", arg);
+		lp_set_cmdline(lp_ctx, "realm", arg);
 		break;
 		
 	case 'n':
-		lpcfg_set_cmdline(lp_ctx, "netbios name", arg);
+		lp_set_cmdline(lp_ctx, "netbios name", arg);
 		break;
 		
 	case 'i':
-		lpcfg_set_cmdline(lp_ctx, "netbios scope", arg);
+		lp_set_cmdline(lp_ctx, "netbios scope", arg);
 		break;
 
 	case 'm':
-		lpcfg_set_cmdline(lp_ctx, "client max protocol", arg);
+		lp_set_cmdline(lp_ctx, "client max protocol", arg);
 		break;
 
 	case 'R':
-		lpcfg_set_cmdline(lp_ctx, "name resolve order", arg);
+		lp_set_cmdline(lp_ctx, "name resolve order", arg);
 		break;
 
 	case 'S':
-		lpcfg_set_cmdline(lp_ctx, "client signing", arg);
+		lp_set_cmdline(lp_ctx, "client signing", arg);
 		break;
 
 	}

@@ -18,10 +18,6 @@
 */
 
 #include "includes.h"
-#include "libsmb/libsmb.h"
-#include "system/filesys.h"
-#include "locking/proto.h"
-#include "libsmb/nmblib.h"
 
 static fstring password[2];
 static fstring username[2];
@@ -237,12 +233,13 @@ static struct cli_state *connect_one(char *share, int snum)
 		fstrcpy(username[1], username[0]);
 	}
 
-	status = cli_session_setup(c, username[snum],
-				   password[snum], strlen(password[snum]),
-				   password[snum], strlen(password[snum]),
-				   lp_workgroup());
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0,("session setup failed: %s\n", nt_errstr(status)));
+	if (!NT_STATUS_IS_OK(cli_session_setup(c, username[snum], 
+					       password[snum],
+					       strlen(password[snum]),
+					       password[snum],
+					       strlen(password[snum]),
+					       lp_workgroup()))) {
+		DEBUG(0,("session setup failed: %s\n", cli_errstr(c)));
 		return NULL;
 	}
 
@@ -401,7 +398,7 @@ static void close_files(struct cli_state *cli[NSERVERS][NCONNECTIONS],
 		}
 	}
 	for (server=0;server<NSERVERS;server++) {
-		cli_unlink(cli[server][0], FILENAME, FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN);
+		cli_unlink(cli[server][0], FILENAME, aSYSTEM | aHIDDEN);
 	}
 }
 
@@ -607,12 +604,14 @@ static void usage(void)
 
 	load_case_tables();
 
+	dbf = x_stderr;
+
 	if (argc < 3 || argv[1][0] == '-') {
 		usage();
 		exit(1);
 	}
 
-	setup_logging(argv[0], DEBUG_STDOUT);
+	setup_logging(argv[0],True);
 
 	for (server=0;server<NSERVERS;server++) {
 		share[server] = argv[1+server];

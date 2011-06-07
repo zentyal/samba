@@ -34,7 +34,6 @@
 #include "torture/util.h"
 
 #include "system/filesys.h"
-#include "lib/util/tsort.h"
 
 #define DNAME	"smb2_dir"
 #define NFILES	100
@@ -109,7 +108,7 @@ static bool test_find(struct torture_context *tctx,
 	struct file_elem files[NFILES] = {};
 	NTSTATUS status;
 	bool ret = true;
-	unsigned int count;
+	uint_t count;
 	int i, j, file_count = 0;
 
 	status = populate_tree(tctx, mem_ctx, tree, files, NFILES, &h);
@@ -194,7 +193,7 @@ static bool test_fixed(struct torture_context *tctx,
 	struct file_elem files[NFILES] = {};
 	NTSTATUS status;
 	bool ret = true;
-	unsigned int count;
+	uint_t count;
 	int i;
 
 	status = populate_tree(tctx, mem_ctx, tree, files, NFILES, &h);
@@ -267,8 +266,8 @@ static bool test_fixed(struct torture_context *tctx,
 				continue;
 
 			torture_result(tctx, TORTURE_FAIL,
-				       "(%s): didn't expect %s (count=%u)\n",
-				       __location__, found, count);
+			    "(%s): didn't expect %s\n",
+			    __location__, found);
 			ret = false;
 			goto done;
 		}
@@ -361,7 +360,7 @@ static union smb_search_data *find(const char *name)
 static bool fill_level_data(TALLOC_CTX *mem_ctx,
 			    union smb_search_data *data,
 			    union smb_search_data *d,
-			    unsigned int count,
+			    uint_t count,
 			    uint8_t level,
 			    enum smb_search_data_level data_level)
 {
@@ -386,7 +385,7 @@ NTSTATUS torture_single_file_search(struct smb2_tree *tree,
 				    enum smb_search_data_level data_level,
 				    int idx,
 				    union smb_search_data *d,
-				    unsigned int *count,
+				    uint_t *count,
 				    struct smb2_handle *h)
 {
 	struct smb2_find f;
@@ -417,7 +416,7 @@ static bool test_one_file(struct torture_context *tctx,
 	const char *fname =  "torture_search.txt";
 	NTSTATUS status;
 	int i;
-	unsigned int count;
+	uint_t count;
 	union smb_fileinfo all_info2, alt_info, internal_info;
 	union smb_search_data *s;
 	union smb_search_data d;
@@ -432,7 +431,7 @@ static bool test_one_file(struct torture_context *tctx,
 
 	/* call all the File Information Classes */
 	for (i=0;i<ARRAY_SIZE(levels);i++) {
-		torture_comment(tctx, "Testing %s %d\n", levels[i].name,
+		torture_comment(tctx, "testing %s %d\n", levels[i].name,
 				levels[i].level);
 
 		levels[i].status = torture_single_file_search(tree, mem_ctx,
@@ -672,7 +671,7 @@ static NTSTATUS multiple_smb2_search(struct smb2_tree *tree,
 {
 	struct smb2_find f;
 	bool ret = true;
-	unsigned int count = 0;
+	uint_t count = 0;
 	union smb_search_data *d;
 	NTSTATUS status;
 	struct multiple_result *result = (struct multiple_result *)data;
@@ -809,7 +808,8 @@ static bool test_many_files(struct torture_context *tctx,
 		compare_data_level = search_types[t].data_level;
 		level_sort = search_types[t].level;
 
-		TYPESAFE_QSORT(result.list, result.count, search_compare);
+		qsort(result.list, result.count, sizeof(result.list[0]),
+		      QSORT_CAST  search_compare);
 
 		for (i=0;i<result.count;i++) {
 			const char *s;
@@ -895,7 +895,7 @@ static bool test_modify_search(struct torture_context *tctx,
 	NTSTATUS status;
 	bool ret = true;
 	int i;
-	unsigned int count;
+	uint_t count;
 
 	smb2_deltree(tree, DNAME);
 
@@ -1105,7 +1105,7 @@ static bool test_file_index(struct torture_context *tctx,
 	struct smb2_find f;
 	struct smb2_handle h;
 	union smb_search_data *d;
-	unsigned count;
+	int count;
 
 	smb2_deltree(tree, DNAME);
 
@@ -1223,9 +1223,9 @@ static bool test_large_files(struct torture_context *tctx,
 	struct smb2_find f;
 	struct smb2_handle h;
 	union smb_search_data *d;
-	int i, j, file_count = 0;
+	int count, file_count = 0;
 	char **strs = NULL;
-	unsigned count;
+	int i, j;
 
 	torture_comment(tctx,
 	    "Testing directory enumeration in a directory with >1000 files\n");
@@ -1330,16 +1330,16 @@ done:
 struct torture_suite *torture_smb2_dir_init(void)
 {
 	struct torture_suite *suite =
-	    torture_suite_create(talloc_autofree_context(), "dir");
+	    torture_suite_create(talloc_autofree_context(), "DIR");
 
-	torture_suite_add_1smb2_test(suite, "find", test_find);
-	torture_suite_add_1smb2_test(suite, "fixed", test_fixed);
-	torture_suite_add_1smb2_test(suite, "one", test_one_file);
-	torture_suite_add_1smb2_test(suite, "many", test_many_files);
-	torture_suite_add_1smb2_test(suite, "modify", test_modify_search);
-	torture_suite_add_1smb2_test(suite, "sorted", test_sorted);
-	torture_suite_add_1smb2_test(suite, "file-index", test_file_index);
-	torture_suite_add_1smb2_test(suite, "large-files", test_large_files);
+	torture_suite_add_1smb2_test(suite, "FIND", test_find);
+	torture_suite_add_1smb2_test(suite, "FIXED", test_fixed);
+	torture_suite_add_1smb2_test(suite, "ONE", test_one_file);
+	torture_suite_add_1smb2_test(suite, "MANY", test_many_files);
+	torture_suite_add_1smb2_test(suite, "MODIFY", test_modify_search);
+	torture_suite_add_1smb2_test(suite, "SORTED", test_sorted);
+	torture_suite_add_1smb2_test(suite, "FILE-INDEX", test_file_index);
+	torture_suite_add_1smb2_test(suite, "LARGE-FILES", test_large_files);
 	suite->description = talloc_strdup(suite, "SMB2-DIR tests");
 
 	return suite;

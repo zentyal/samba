@@ -391,7 +391,7 @@ enum ndr_err_code ndr_pull_compression_start(struct ndr_pull *subndr,
 	bool last = false;
 	z_stream z;
 
-	ndrpush = ndr_push_init_ctx(subndr);
+	ndrpush = ndr_push_init_ctx(subndr, subndr->iconv_convenience);
 	NDR_ERR_HAVE_NO_MEMORY(ndrpush);
 
 	switch (compression_alg) {
@@ -431,6 +431,8 @@ enum ndr_err_code ndr_pull_compression_start(struct ndr_pull *subndr,
 	comndr->data_size	= uncompressed.length;
 	comndr->offset		= 0;
 
+	comndr->iconv_convenience = talloc_reference(comndr, subndr->iconv_convenience);
+
 	*_comndr = comndr;
 	return NDR_ERR_SUCCESS;
 }
@@ -463,7 +465,7 @@ enum ndr_err_code ndr_push_compression_start(struct ndr_push *subndr,
 				      compression_alg);
 	}
 
-	uncomndr = ndr_push_init_ctx(subndr);
+	uncomndr = ndr_push_init_ctx(subndr, subndr->iconv_convenience);
 	NDR_ERR_HAVE_NO_MEMORY(uncomndr);
 	uncomndr->flags	= subndr->flags;
 
@@ -489,6 +491,8 @@ enum ndr_err_code ndr_push_compression_end(struct ndr_push *subndr,
 	ndrpull->data		= uncomndr->data;
 	ndrpull->data_size	= uncomndr->offset;
 	ndrpull->offset		= 0;
+
+	ndrpull->iconv_convenience = talloc_reference(ndrpull, subndr->iconv_convenience);
 
 	switch (compression_alg) {
 	case NDR_COMPRESSION_MSZIP:

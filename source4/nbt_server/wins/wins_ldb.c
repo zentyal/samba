@@ -31,7 +31,7 @@
 #include "lib/events/events.h"
 #include "nbt_server/nbt_server.h"
 #include "nbt_server/wins/winsdb.h"
-#include <ldb_module.h>
+#include "lib/ldb/include/ldb_module.h"
 #include "system/network.h"
 #include "lib/socket/netif.h"
 #include "param/param.h"
@@ -89,10 +89,10 @@ static int wins_ldb_init(struct ldb_module *module)
 
 	ldb_module_set_private(module, NULL);
 
-	owner = lpcfg_parm_string(lp_ctx, NULL, "winsdb", "local_owner");
+	owner = lp_parm_string(lp_ctx, NULL, "winsdb", "local_owner");
 	if (!owner) {
 		struct interface *ifaces;
-		load_interfaces(module, lpcfg_interfaces(lp_ctx), &ifaces);
+		load_interfaces(module, lp_interfaces(lp_ctx), &ifaces);
 		owner = iface_n_ip(ifaces, 0);
 		if (!owner) {
 			owner = "0.0.0.0";
@@ -113,15 +113,9 @@ failed:
 	return LDB_ERR_OTHER;
 }
 
-static const struct ldb_module_ops ldb_wins_ldb_module_ops = {
+_PUBLIC_ const struct ldb_module_ops ldb_wins_ldb_module_ops = {
 	.name          = "wins_ldb",
 	.add           = wins_ldb_verify,
 	.modify        = wins_ldb_verify,
 	.init_context  = wins_ldb_init
 };
-
-int ldb_wins_ldb_module_init(const char *version)
-{
-	LDB_MODULE_CHECK_VERSION(version);
-	return ldb_register_module(&ldb_wins_ldb_module_ops);
-}

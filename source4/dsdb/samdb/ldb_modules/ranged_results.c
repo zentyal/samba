@@ -58,8 +58,7 @@ static int rr_search_callback(struct ldb_request *req, struct ldb_reply *ares)
 {
 	struct ldb_context *ldb;
 	struct rr_context *ac;
-	unsigned int i, j;
-	TALLOC_CTX *temp_ctx;
+	int i, j;
 
 	ac = talloc_get_type(req->context, struct rr_context);
 	ldb = ldb_module_get_ctx(ac->module);
@@ -84,13 +83,6 @@ static int rr_search_callback(struct ldb_request *req, struct ldb_reply *ares)
 
 	/* LDB_REPLY_ENTRY */
 
-	temp_ctx = talloc_new(ac->req);
-	if (!temp_ctx) {
-		ldb_module_oom(ac->module);
-		return ldb_module_done(ac->req, NULL, NULL,
-				       LDB_ERR_OPERATIONS_ERROR);
-	}
-
 	/* Find those that are range requests from the attribute list */
 	for (i = 0; ac->req->op.search.attrs[i]; i++) {
 		char *p, *new_attr;
@@ -98,7 +90,6 @@ static int rr_search_callback(struct ldb_request *req, struct ldb_reply *ares)
 		unsigned int start, end, orig_num_values;
 		struct ldb_message_element *el;
 		struct ldb_val *orig_values;
-
 		p = strchr(ac->req->op.search.attrs[i], ';');
 		if (!p) {
 			continue;
@@ -113,7 +104,7 @@ static int rr_search_callback(struct ldb_request *req, struct ldb_reply *ares)
 				continue;
 			}
 		}
-		new_attr = talloc_strndup(temp_ctx,
+		new_attr = talloc_strndup(ac->req,
 					  ac->req->op.search.attrs[i],
 					  (size_t)(p - ac->req->op.search.attrs[i]));
 
@@ -133,7 +124,7 @@ static int rr_search_callback(struct ldb_request *req, struct ldb_reply *ares)
 			end_str = "*";
 			end = el->num_values - 1;
 		} else {
-			end_str = talloc_asprintf(temp_ctx, "%u", end);
+			end_str = talloc_asprintf(el, "%u", end);
 			if (!end_str) {
 				ldb_oom(ldb);
 				return ldb_module_done(ac->req, NULL, NULL,
@@ -157,9 +148,7 @@ static int rr_search_callback(struct ldb_request *req, struct ldb_reply *ares)
 			
 			el->num_values = 0;
 			
-			el->values = talloc_array(ares->message->elements,
-						  struct ldb_val,
-						  (end - start) + 1);
+			el->values = talloc_array(el, struct ldb_val, (end - start) + 1);
 			if (!el->values) {
 				ldb_oom(ldb);
 				return ldb_module_done(ac->req, NULL, NULL,
@@ -170,17 +159,13 @@ static int rr_search_callback(struct ldb_request *req, struct ldb_reply *ares)
 				el->num_values++;
 			}
 		}
-		el->name = talloc_asprintf(ares->message->elements,
-					   "%s;range=%u-%s", el->name, start,
-					   end_str);
+		el->name = talloc_asprintf(el, "%s;range=%u-%s", el->name, start, end_str);
 		if (!el->name) {
 			ldb_oom(ldb);
 			return ldb_module_done(ac->req, NULL, NULL,
 						LDB_ERR_OPERATIONS_ERROR);
 		}
 	}
-
-	talloc_free(temp_ctx);
 
 	return ldb_module_send_entry(ac->req, ares->message, ares->controls);
 }
@@ -189,7 +174,7 @@ static int rr_search_callback(struct ldb_request *req, struct ldb_reply *ares)
 static int rr_search(struct ldb_module *module, struct ldb_request *req)
 {
 	struct ldb_context *ldb;
-	unsigned int i;
+	int i;
 	unsigned int start, end;
 	const char **new_attrs = NULL;
 	bool found_rr = false;
@@ -231,14 +216,15 @@ static int rr_search(struct ldb_module *module, struct ldb_request *req)
 					      (size_t)(p - new_attrs[i]));
 
 		if (!new_attrs[i]) {
-			return ldb_oom(ldb);
+			ldb_oom(ldb);
+			return LDB_ERR_OPERATIONS_ERROR;
 		}
 	}
 
 	if (found_rr) {
 		ac = rr_init_context(module, req);
 		if (!ac) {
-			return ldb_operr(ldb);
+			return LDB_ERR_OPERATIONS_ERROR;
 		}
 
 		ret = ldb_build_search_req_ex(&down_req, ldb, ac,
@@ -249,7 +235,6 @@ static int rr_search(struct ldb_module *module, struct ldb_request *req)
 					      req->controls,
 					      ac, rr_search_callback,
 					      req);
-		LDB_REQ_SET_LOCATION(down_req);
 		if (ret != LDB_SUCCESS) {
 			return ret;
 		}
@@ -261,13 +246,7 @@ static int rr_search(struct ldb_module *module, struct ldb_request *req)
 	return ldb_next_request(module, req);
 }
 
-static const struct ldb_module_ops ldb_ranged_results_module_ops = {
+const struct ldb_module_ops ldb_ranged_results_module_ops = {
 	.name		   = "ranged_results",
 	.search            = rr_search,
 };
-
-int ldb_ranged_results_module_init(const char *version)
-{
-	LDB_MODULE_CHECK_VERSION(version);
-	return ldb_register_module(&ldb_ranged_results_module_ops);
-}

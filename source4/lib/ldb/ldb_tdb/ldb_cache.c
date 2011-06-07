@@ -60,7 +60,7 @@ static void ltdb_attributes_unload(struct ldb_module *module)
 	void *data = ldb_module_get_private(module);
 	struct ltdb_private *ltdb = talloc_get_type(data, struct ltdb_private);
 	struct ldb_message *msg;
-	unsigned int i;
+	int i;
 
 	ldb = ldb_module_get_ctx(module);
 
@@ -83,10 +83,10 @@ static void ltdb_attributes_unload(struct ldb_module *module)
 */
 static int ltdb_attributes_flags(struct ldb_message_element *el, unsigned *v)
 {
-	unsigned int i;
+	int i;
 	unsigned value = 0;
 	for (i=0;i<el->num_values;i++) {
-		unsigned int j;
+		int j;
 		for (j=0;ltdb_valid_attr_flags[j].name;j++) {
 			if (strcmp(ltdb_valid_attr_flags[j].name, 
 				   (char *)el->values[i].data) == 0) {
@@ -112,15 +112,14 @@ static int ltdb_attributes_load(struct ldb_module *module)
 	struct ltdb_private *ltdb = talloc_get_type(data, struct ltdb_private);
 	struct ldb_message *msg = ltdb->cache->attributes;
 	struct ldb_dn *dn;
-	unsigned int i;
-	int r;
+	int i, r;
 
 	ldb = ldb_module_get_ctx(module);
 
 	if (ldb->schema.attribute_handler_override) {
 		/* we skip loading the @ATTRIBUTES record when a module is supplying
 		   its own attribute handling */
-		return 0;
+		return LDB_SUCCESS;
 	}
 
 	dn = ldb_dn_new(module, ldb, LTDB_ATTRIBUTES);
@@ -203,7 +202,7 @@ static int ltdb_baseinfo_init(struct ldb_module *module)
 
 	ltdb->sequence_number = atof(initial_sequence_number);
 
-	msg = ldb_msg_new(ltdb);
+	msg = talloc(ltdb, struct ldb_message);
 	if (msg == NULL) {
 		goto failed;
 	}
@@ -287,18 +286,18 @@ int ltdb_cache_load(struct ldb_module *module)
 	if (ltdb->cache == NULL) {
 		ltdb->cache = talloc_zero(ltdb, struct ltdb_cache);
 		if (ltdb->cache == NULL) goto failed;
-		ltdb->cache->indexlist = ldb_msg_new(ltdb->cache);
-		ltdb->cache->attributes = ldb_msg_new(ltdb->cache);
+		ltdb->cache->indexlist = talloc_zero(ltdb->cache, struct ldb_message);
+		ltdb->cache->attributes = talloc_zero(ltdb->cache, struct ldb_message);
 		if (ltdb->cache->indexlist == NULL ||
 		    ltdb->cache->attributes == NULL) {
 			goto failed;
 		}
 	}
 
-	baseinfo = ldb_msg_new(ltdb->cache);
+	baseinfo = talloc(ltdb->cache, struct ldb_message);
 	if (baseinfo == NULL) goto failed;
 
-	baseinfo_dn = ldb_dn_new(baseinfo, ldb, LTDB_BASEINFO);
+	baseinfo_dn = ldb_dn_new(module, ldb, LTDB_BASEINFO);
 	if (baseinfo_dn == NULL) goto failed;
 
 	r= ltdb_search_dn1(module, baseinfo_dn, baseinfo);
@@ -327,7 +326,7 @@ int ltdb_cache_load(struct ldb_module *module)
 	ltdb->sequence_number = seq;
 
 	/* Read an interpret database options */
-	options = ldb_msg_new(ltdb->cache);
+	options = talloc(ltdb->cache, struct ldb_message);
 	if (options == NULL) goto failed;
 
 	options_dn = ldb_dn_new(options, ldb, LTDB_OPTIONS);
@@ -348,17 +347,16 @@ int ltdb_cache_load(struct ldb_module *module)
 	talloc_free(ltdb->cache->last_attribute.name);
 	memset(&ltdb->cache->last_attribute, 0, sizeof(ltdb->cache->last_attribute));
 
-	talloc_free(ltdb->cache->indexlist);
-	ltdb_attributes_unload(module); /* calls internally "talloc_free" */
+	ltdb_attributes_unload(module);
 
-	ltdb->cache->indexlist = ldb_msg_new(ltdb->cache);
-	ltdb->cache->attributes = ldb_msg_new(ltdb->cache);
+	talloc_free(ltdb->cache->indexlist);
+
+	ltdb->cache->indexlist = talloc_zero(ltdb->cache, struct ldb_message);
+	ltdb->cache->attributes = talloc_zero(ltdb->cache, struct ldb_message);
 	if (ltdb->cache->indexlist == NULL ||
 	    ltdb->cache->attributes == NULL) {
 		goto failed;
 	}
-	ltdb->cache->one_level_indexes = false;
-	ltdb->cache->attribute_indexes = false;
 	    
 	indexlist_dn = ldb_dn_new(module, ldb, LTDB_INDEXLIST);
 	if (indexlist_dn == NULL) goto failed;
@@ -368,13 +366,6 @@ int ltdb_cache_load(struct ldb_module *module)
 		goto failed;
 	}
 
-	if (ldb_msg_find_element(ltdb->cache->indexlist, LTDB_IDXONE) != NULL) {
-		ltdb->cache->one_level_indexes = true;
-	}
-	if (ldb_msg_find_element(ltdb->cache->indexlist, LTDB_IDXATTR) != NULL) {
-		ltdb->cache->attribute_indexes = true;
-	}
-
 	if (ltdb_attributes_load(module) == -1) {
 		goto failed;
 	}
@@ -382,12 +373,14 @@ int ltdb_cache_load(struct ldb_module *module)
 done:
 	talloc_free(options);
 	talloc_free(baseinfo);
+	talloc_free(baseinfo_dn);
 	talloc_free(indexlist_dn);
 	return 0;
 
 failed:
 	talloc_free(options);
 	talloc_free(baseinfo);
+	talloc_free(baseinfo_dn);
 	talloc_free(indexlist_dn);
 	return -1;
 }
@@ -411,7 +404,7 @@ int ltdb_increase_sequence_number(struct ldb_module *module)
 
 	ldb = ldb_module_get_ctx(module);
 
-	msg = ldb_msg_new(ltdb);
+	msg = talloc(ltdb, struct ldb_message);
 	if (msg == NULL) {
 		errno = ENOMEM;
 		return LDB_ERR_OPERATIONS_ERROR;
@@ -419,7 +412,6 @@ int ltdb_increase_sequence_number(struct ldb_module *module)
 
 	s = talloc_asprintf(msg, "%llu", ltdb->sequence_number+1);
 	if (!s) {
-		talloc_free(msg);
 		errno = ENOMEM;
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
@@ -456,14 +448,13 @@ int ltdb_increase_sequence_number(struct ldb_module *module)
 
 	s = ldb_timestring(msg, t);
 	if (s == NULL) {
-		talloc_free(msg);
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
 	val_time.data = (uint8_t *)s;
 	val_time.length = strlen(s);
 
-	ret = ltdb_modify_internal(module, msg, NULL);
+	ret = ltdb_modify_internal(module, msg);
 
 	talloc_free(msg);
 
@@ -480,7 +471,7 @@ int ltdb_increase_sequence_number(struct ldb_module *module)
 
 int ltdb_check_at_attributes_values(const struct ldb_val *value)
 {
-	unsigned int i;
+	int i;
 
 	for (i = 0; ltdb_valid_attr_flags[i].name != NULL; i++) {
 		if ((strcmp(ltdb_valid_attr_flags[i].name, (char *)value->data) == 0)) {

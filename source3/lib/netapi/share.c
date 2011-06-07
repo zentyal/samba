@@ -23,7 +23,7 @@
 #include "lib/netapi/netapi.h"
 #include "lib/netapi/netapi_private.h"
 #include "lib/netapi/libnetapi.h"
-#include "../librpc/gen_ndr/ndr_srvsvc_c.h"
+#include "../librpc/gen_ndr/cli_srvsvc.h"
 
 /****************************************************************
 ****************************************************************/
@@ -182,8 +182,8 @@ WERROR NetShareAdd_r(struct libnetapi_ctx *ctx,
 {
 	WERROR werr;
 	NTSTATUS status;
+	struct rpc_pipe_client *pipe_cli = NULL;
 	union srvsvc_NetShareInfo info;
-	struct dcerpc_binding_handle *b;
 
 	if (!r->in.buffer) {
 		return WERR_INVALID_PARAM;
@@ -199,9 +199,9 @@ WERROR NetShareAdd_r(struct libnetapi_ctx *ctx,
 			return WERR_UNKNOWN_LEVEL;
 	}
 
-	werr = libnetapi_get_binding_handle(ctx, r->in.server_name,
-					    &ndr_table_srvsvc.syntax_id,
-					    &b);
+	werr = libnetapi_open_pipe(ctx, r->in.server_name,
+				   &ndr_table_srvsvc.syntax_id,
+				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
@@ -215,17 +215,12 @@ WERROR NetShareAdd_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	status = dcerpc_srvsvc_NetShareAdd(b, talloc_tos(),
+	status = rpccli_srvsvc_NetShareAdd(pipe_cli, talloc_tos(),
 					   r->in.server_name,
 					   r->in.level,
 					   &info,
 					   r->out.parm_err,
 					   &werr);
-	if (!NT_STATUS_IS_OK(status)) {
-		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
@@ -251,20 +246,20 @@ WERROR NetShareDel_r(struct libnetapi_ctx *ctx,
 {
 	WERROR werr;
 	NTSTATUS status;
-	struct dcerpc_binding_handle *b;
+	struct rpc_pipe_client *pipe_cli = NULL;
 
 	if (!r->in.net_name) {
 		return WERR_INVALID_PARAM;
 	}
 
-	werr = libnetapi_get_binding_handle(ctx, r->in.server_name,
-					    &ndr_table_srvsvc.syntax_id,
-					    &b);
+	werr = libnetapi_open_pipe(ctx, r->in.server_name,
+				   &ndr_table_srvsvc.syntax_id,
+				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
 
-	status = dcerpc_srvsvc_NetShareDel(b, talloc_tos(),
+	status = rpccli_srvsvc_NetShareDel(pipe_cli, talloc_tos(),
 					   r->in.server_name,
 					   r->in.net_name,
 					   r->in.reserved,
@@ -295,12 +290,12 @@ WERROR NetShareEnum_r(struct libnetapi_ctx *ctx,
 {
 	WERROR werr;
 	NTSTATUS status;
+	struct rpc_pipe_client *pipe_cli = NULL;
 	struct srvsvc_NetShareInfoCtr info_ctr;
 	struct srvsvc_NetShareCtr0 ctr0;
 	struct srvsvc_NetShareCtr1 ctr1;
 	struct srvsvc_NetShareCtr2 ctr2;
 	uint32_t i;
-	struct dcerpc_binding_handle *b;
 
 	if (!r->out.buffer) {
 		return WERR_INVALID_PARAM;
@@ -320,9 +315,9 @@ WERROR NetShareEnum_r(struct libnetapi_ctx *ctx,
 
 	ZERO_STRUCT(info_ctr);
 
-	werr = libnetapi_get_binding_handle(ctx, r->in.server_name,
-					    &ndr_table_srvsvc.syntax_id,
-					    &b);
+	werr = libnetapi_open_pipe(ctx, r->in.server_name,
+				   &ndr_table_srvsvc.syntax_id,
+				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
@@ -343,19 +338,14 @@ WERROR NetShareEnum_r(struct libnetapi_ctx *ctx,
 			break;
 	}
 
-	status = dcerpc_srvsvc_NetShareEnumAll(b, talloc_tos(),
+	status = rpccli_srvsvc_NetShareEnumAll(pipe_cli, talloc_tos(),
 					       r->in.server_name,
 					       &info_ctr,
 					       r->in.prefmaxlen,
 					       r->out.total_entries,
 					       r->out.resume_handle,
 					       &werr);
-	if (!NT_STATUS_IS_OK(status)) {
-		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-
-	if (!W_ERROR_IS_OK(werr) && !W_ERROR_EQUAL(werr, WERR_MORE_DATA)) {
+	if (NT_STATUS_IS_ERR(status)) {
 		goto done;
 	}
 
@@ -380,7 +370,6 @@ WERROR NetShareEnum_r(struct libnetapi_ctx *ctx,
 								    r->out.entries_read);
 		if (!NT_STATUS_IS_OK(status)) {
 			werr = ntstatus_to_werror(status);
-			goto done;
 		}
 	}
 
@@ -405,9 +394,9 @@ WERROR NetShareGetInfo_r(struct libnetapi_ctx *ctx,
 {
 	WERROR werr;
 	NTSTATUS status;
+	struct rpc_pipe_client *pipe_cli = NULL;
 	union srvsvc_NetShareInfo info;
 	uint32_t num_entries = 0;
-	struct dcerpc_binding_handle *b;
 
 	if (!r->in.net_name || !r->out.buffer) {
 		return WERR_INVALID_PARAM;
@@ -427,23 +416,19 @@ WERROR NetShareGetInfo_r(struct libnetapi_ctx *ctx,
 			return WERR_UNKNOWN_LEVEL;
 	}
 
-	werr = libnetapi_get_binding_handle(ctx, r->in.server_name,
-					    &ndr_table_srvsvc.syntax_id,
-					    &b);
+	werr = libnetapi_open_pipe(ctx, r->in.server_name,
+				   &ndr_table_srvsvc.syntax_id,
+				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
 
-	status = dcerpc_srvsvc_NetShareGetInfo(b, talloc_tos(),
+	status = rpccli_srvsvc_NetShareGetInfo(pipe_cli, talloc_tos(),
 					       r->in.server_name,
 					       r->in.net_name,
 					       r->in.level,
 					       &info,
 					       &werr);
-	if (!NT_STATUS_IS_OK(status)) {
-		werr = ntstatus_to_werror(status);
-		goto done;
-	}
 
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
@@ -479,8 +464,8 @@ WERROR NetShareSetInfo_r(struct libnetapi_ctx *ctx,
 {
 	WERROR werr;
 	NTSTATUS status;
+	struct rpc_pipe_client *pipe_cli = NULL;
 	union srvsvc_NetShareInfo info;
-	struct dcerpc_binding_handle *b;
 
 	if (!r->in.buffer) {
 		return WERR_INVALID_PARAM;
@@ -501,9 +486,9 @@ WERROR NetShareSetInfo_r(struct libnetapi_ctx *ctx,
 			return WERR_UNKNOWN_LEVEL;
 	}
 
-	werr = libnetapi_get_binding_handle(ctx, r->in.server_name,
-					    &ndr_table_srvsvc.syntax_id,
-					    &b);
+	werr = libnetapi_open_pipe(ctx, r->in.server_name,
+				   &ndr_table_srvsvc.syntax_id,
+				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
@@ -517,18 +502,13 @@ WERROR NetShareSetInfo_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	status = dcerpc_srvsvc_NetShareSetInfo(b, talloc_tos(),
+	status = rpccli_srvsvc_NetShareSetInfo(pipe_cli, talloc_tos(),
 					       r->in.server_name,
 					       r->in.net_name,
 					       r->in.level,
 					       &info,
 					       r->out.parm_err,
 					       &werr);
-	if (!NT_STATUS_IS_OK(status)) {
-		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}

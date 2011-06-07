@@ -24,9 +24,7 @@
 
 */
 
-#include "replace.h"
-#include "system/filesys.h"
-#include "system/time.h"
+#include "ldb_includes.h"
 #include "ldb_map.h"
 #include "ldb_map_private.h"
 
@@ -38,7 +36,7 @@
 static struct ldb_message_element *ldb_msg_el_map_local(struct ldb_module *module, void *mem_ctx, const struct ldb_map_attribute *map, const struct ldb_message_element *old)
 {
 	struct ldb_message_element *el;
-	unsigned int i;
+	int i;
 
 	el = talloc_zero(mem_ctx, struct ldb_message_element);
 	if (el == NULL) {
@@ -81,10 +79,10 @@ static int ldb_msg_el_partition(struct ldb_module *module, struct ldb_message *l
 	}
 
 	switch (map->type) {
-	case LDB_MAP_IGNORE:
+	case MAP_IGNORE:
 		goto local;
 
-	case LDB_MAP_CONVERT:
+	case MAP_CONVERT:
 		if (map->u.convert.convert_local == NULL) {
 			ldb_debug(ldb, LDB_DEBUG_WARNING, "ldb_map: "
 				  "Not mapping attribute '%s': "
@@ -93,12 +91,12 @@ static int ldb_msg_el_partition(struct ldb_module *module, struct ldb_message *l
 			goto local;
 		}
 		/* fall through */
-	case LDB_MAP_KEEP:
-	case LDB_MAP_RENAME:
+	case MAP_KEEP:
+	case MAP_RENAME:
 		el = ldb_msg_el_map_local(module, remote, map, old);
 		break;
 
-	case LDB_MAP_GENERATE:
+	case MAP_GENERATE:
 		if (map->u.generate.generate_remote == NULL) {
 			ldb_debug(ldb, LDB_DEBUG_WARNING, "ldb_map: "
 				  "Not mapping attribute '%s': "
@@ -143,7 +141,7 @@ static bool ldb_msg_check_remote(struct ldb_module *module, const struct ldb_mes
 {
 	const struct ldb_map_context *data = map_get_context(module);
 	bool ret;
-	unsigned int i;
+	int i;
 
 	for (i = 0; i < msg->num_elements; i++) {
 		ret = map_attr_check_remote(data, msg->elements[i].name);
@@ -161,8 +159,7 @@ static int ldb_msg_partition(struct ldb_module *module, struct ldb_message *loca
 {
 	/* const char * const names[]; */
 	struct ldb_context *ldb;
-	unsigned int i;
-	int ret;
+	int i, ret;
 
 	ldb = ldb_module_get_ctx(module);
 
@@ -359,12 +356,13 @@ static int map_op_remote_callback(struct ldb_request *req,
 
 
 /* Add a record. */
-int ldb_map_add(struct ldb_module *module, struct ldb_request *req)
+int map_add(struct ldb_module *module, struct ldb_request *req)
 {
 	const struct ldb_message *msg = req->op.add.message;
 	struct ldb_context *ldb;
 	struct map_context *ac;
 	struct ldb_message *remote_msg;
+	const char *dn;
 	int ret;
 
 	ldb = ldb_module_get_ctx(module);
@@ -416,7 +414,6 @@ int ldb_map_add(struct ldb_module *module, struct ldb_request *req)
 				req->controls,
 				ac, map_op_remote_callback,
 				req);
-	LDB_REQ_SET_LOCATION(ac->remote_req);
 	if (ret != LDB_SUCCESS) {
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
@@ -429,9 +426,8 @@ int ldb_map_add(struct ldb_module *module, struct ldb_request *req)
 
 	/* Store remote DN in 'IS_MAPPED' */
 	/* TODO: use GUIDs here instead */
-	ret = ldb_msg_add_linearized_dn(ac->local_msg, IS_MAPPED,
-					remote_msg->dn);
-	if (ret != LDB_SUCCESS) {
+	dn = ldb_dn_alloc_linearized(ac->local_msg, remote_msg->dn);
+	if (ldb_msg_add_string(ac->local_msg, IS_MAPPED, dn) != 0) {
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
@@ -454,7 +450,6 @@ static int map_add_do_local(struct map_context *ac)
 				ac,
 				map_op_local_callback,
 				ac->req);
-	LDB_REQ_SET_LOCATION(local_req);
 	if (ret != LDB_SUCCESS) {
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
@@ -466,7 +461,7 @@ static int map_add_do_local(struct map_context *ac)
 *****************************************************************************/
 
 /* Modify a record. */
-int ldb_map_modify(struct ldb_module *module, struct ldb_request *req)
+int map_modify(struct ldb_module *module, struct ldb_request *req)
 {
 	const struct ldb_message *msg = req->op.mod.message;
 	struct ldb_request *search_req;
@@ -526,7 +521,6 @@ int ldb_map_modify(struct ldb_module *module, struct ldb_request *req)
 				req->controls,
 				ac, map_op_remote_callback,
 				req);
-	LDB_REQ_SET_LOCATION(ac->remote_req);
 	if (ret != LDB_SUCCESS) {
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
@@ -551,6 +545,7 @@ static int map_modify_do_local(struct map_context *ac)
 {
 	struct ldb_request *local_req;
 	struct ldb_context *ldb;
+	char *dn;
 	int ret;
 
 	ldb = ldb_module_get_ctx(ac->module);
@@ -563,9 +558,9 @@ static int map_modify_do_local(struct map_context *ac)
 					LDB_FLAG_MOD_ADD, NULL) != 0) {
 			return LDB_ERR_OPERATIONS_ERROR;
 		}
-		ret = ldb_msg_add_linearized_dn(ac->local_msg, IS_MAPPED,
-						ac->remote_req->op.mod.message->dn);
-		if (ret != 0) {
+		dn = ldb_dn_alloc_linearized(ac->local_msg,
+					ac->remote_req->op.mod.message->dn);
+		if (ldb_msg_add_string(ac->local_msg, IS_MAPPED, dn) != 0) {
 			return LDB_ERR_OPERATIONS_ERROR;
 		}
 
@@ -576,7 +571,6 @@ static int map_modify_do_local(struct map_context *ac)
 					ac,
 					map_op_local_callback,
 					ac->req);
-		LDB_REQ_SET_LOCATION(local_req);
 		if (ret != LDB_SUCCESS) {
 			return LDB_ERR_OPERATIONS_ERROR;
 		}
@@ -588,7 +582,6 @@ static int map_modify_do_local(struct map_context *ac)
 					ac,
 					map_op_local_callback,
 					ac->req);
-		LDB_REQ_SET_LOCATION(local_req);
 		if (ret != LDB_SUCCESS) {
 			return LDB_ERR_OPERATIONS_ERROR;
 		}
@@ -602,7 +595,7 @@ static int map_modify_do_local(struct map_context *ac)
 *****************************************************************************/
 
 /* Delete a record. */
-int ldb_map_delete(struct ldb_module *module, struct ldb_request *req)
+int map_delete(struct ldb_module *module, struct ldb_request *req)
 {
 	struct ldb_request *search_req;
 	struct ldb_context *ldb;
@@ -635,7 +628,6 @@ int ldb_map_delete(struct ldb_module *module, struct ldb_request *req)
 				   ac,
 				   map_op_remote_callback,
 				   req);
-	LDB_REQ_SET_LOCATION(ac->remote_req);
 	if (ret != LDB_SUCCESS) {
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
@@ -678,7 +670,6 @@ static int map_delete_do_local(struct map_context *ac)
 				   ac,
 				   map_op_local_callback,
 				   ac->req);
-	LDB_REQ_SET_LOCATION(local_req);
 	if (ret != LDB_SUCCESS) {
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
@@ -690,7 +681,7 @@ static int map_delete_do_local(struct map_context *ac)
 *****************************************************************************/
 
 /* Rename a record. */
-int ldb_map_rename(struct ldb_module *module, struct ldb_request *req)
+int map_rename(struct ldb_module *module, struct ldb_request *req)
 {
 	struct ldb_request *search_req;
 	struct ldb_context *ldb;
@@ -730,7 +721,6 @@ int ldb_map_rename(struct ldb_module *module, struct ldb_request *req)
 				   req->controls,
 				   ac, map_op_remote_callback,
 				   req);
-	LDB_REQ_SET_LOCATION(ac->remote_req);
 	if (ret != LDB_SUCCESS) {
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
@@ -774,7 +764,6 @@ static int map_rename_do_local(struct map_context *ac)
 				   ac,
 				   map_rename_local_callback,
 				   ac->req);
-	LDB_REQ_SET_LOCATION(local_req);
 	if (ret != LDB_SUCCESS) {
 		return LDB_ERR_OPERATIONS_ERROR;
 	}

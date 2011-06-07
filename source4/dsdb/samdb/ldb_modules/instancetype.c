@@ -31,86 +31,117 @@
  */
 
 #include "includes.h"
-#include "ldb.h"
 #include "ldb_module.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "dsdb/samdb/samdb.h"
 #include "../libds/common/flags.h"
-#include "dsdb/samdb/ldb_modules/util.h"
+
+struct it_context {
+	struct ldb_module *module;
+	struct ldb_request *req;
+};
+
+static int it_callback(struct ldb_request *req, struct ldb_reply *ares)
+{
+	struct ldb_context *ldb;
+	struct it_context *ac;
+
+	ac = talloc_get_type(req->context, struct it_context);
+	ldb = ldb_module_get_ctx(ac->module);
+
+	if (!ares) {
+		return ldb_module_done(ac->req, NULL, NULL,
+					LDB_ERR_OPERATIONS_ERROR);
+	}
+	if (ares->error != LDB_SUCCESS) {
+		return ldb_module_done(ac->req, ares->controls,
+					ares->response, ares->error);
+	}
+
+	if (ares->type != LDB_REPLY_DONE) {
+		ldb_set_errstring(ldb, "Invalid reply type!");
+		return ldb_module_done(ac->req, NULL, NULL,
+					LDB_ERR_OPERATIONS_ERROR);
+	}
+
+	return ldb_module_done(ac->req, ares->controls,
+					ares->response, ares->error);
+}
 
 /* add_record: add instancetype attribute */
 static int instancetype_add(struct ldb_module *module, struct ldb_request *req)
 {
-	struct ldb_context *ldb = ldb_module_get_ctx(module);
+	struct ldb_context *ldb;
 	struct ldb_request *down_req;
 	struct ldb_message *msg;
-	struct ldb_message_element *el;
-	uint32_t instanceType;
+	struct it_context *ac;
+	uint32_t instance_type;
 	int ret;
+	const struct ldb_control *partition_ctrl;
+	const struct dsdb_control_current_partition *partition;
+
+	ldb = ldb_module_get_ctx(module);
+
+	ldb_debug(ldb, LDB_DEBUG_TRACE, "instancetype_add_record\n");
 
 	/* do not manipulate our control entries */
 	if (ldb_dn_is_special(req->op.add.message->dn)) {
 		return ldb_next_request(module, req);
 	}
 
-	ldb_debug(ldb, LDB_DEBUG_TRACE, "instancetype_add\n");
-
-	el = ldb_msg_find_element(req->op.add.message, "instanceType");
-	if (el != NULL) {
-		if (el->num_values != 1) {
-			ldb_set_errstring(ldb, "instancetype: the 'instanceType' attribute is single-valued!");
-			return LDB_ERR_UNWILLING_TO_PERFORM;
-		}
-
-		instanceType = ldb_msg_find_attr_as_uint(req->op.add.message,
-							 "instanceType", 0);
-		if (!(instanceType & INSTANCE_TYPE_IS_NC_HEAD)) {
-			/*
-			 * If we have no NC add operation (no TYPE_IS_NC_HEAD)
-			 * then "instanceType" can only be "0" or "TYPE_WRITE".
-			 */
-			if ((instanceType != 0) &&
-			    ((instanceType & INSTANCE_TYPE_WRITE) == 0)) {
-				ldb_set_errstring(ldb, "instancetype: if TYPE_IS_NC_HEAD wasn't set, then only TYPE_WRITE or 0 are allowed!");
-				return LDB_ERR_UNWILLING_TO_PERFORM;
-			}
-		} else {
-			/*
-			 * If we have a NC add operation then we need also the
-			 * "TYPE_WRITE" flag in order to succeed.
-			*/
-			if (!(instanceType & INSTANCE_TYPE_WRITE)) {
-				ldb_set_errstring(ldb, "instancetype: if TYPE_IS_NC_HEAD was set, then also TYPE_WRITE is requested!");
-				return LDB_ERR_UNWILLING_TO_PERFORM;
-			}
-		}
-
-		/* we did only tests, so proceed with the original request */
-		return ldb_next_request(module, req);
+	if (ldb_msg_find_element(req->op.add.message, "instanceType")) {
+		/* TODO: we need to validate and possibly create a new
+		   partition */
+		return ldb_next_request(module, req);		
 	}
 
+	partition_ctrl = ldb_request_get_control(req, DSDB_CONTROL_CURRENT_PARTITION_OID);
+	if (!partition_ctrl) {
+		ldb_debug_set(ldb, LDB_DEBUG_FATAL,
+			      "instancetype_add: no current partition control found");
+		return LDB_ERR_CONSTRAINT_VIOLATION;
+	}
+
+	partition = talloc_get_type(partition_ctrl->data,
+				    struct dsdb_control_current_partition);
+	SMB_ASSERT(partition && partition->version == DSDB_CONTROL_CURRENT_PARTITION_VERSION);
+
+	ac = talloc(req, struct it_context);
+	if (ac == NULL) {
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+	ac->module = module;
+	ac->req = req;
+
 	/* we have to copy the message as the caller might have it as a const */
-	msg = ldb_msg_copy_shallow(req, req->op.add.message);
+	msg = ldb_msg_copy_shallow(ac, req->op.add.message);
 	if (msg == NULL) {
-		return ldb_oom(ldb);
+		ldb_oom(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
 	/*
 	 * TODO: calculate correct instance type
 	 */
-	instanceType = INSTANCE_TYPE_WRITE;
-
-	ret = samdb_msg_add_uint(ldb, msg, msg, "instanceType", instanceType);
-	if (ret != LDB_SUCCESS) {
-		return ret;
+	instance_type = INSTANCE_TYPE_WRITE;
+	if (ldb_dn_compare(partition->dn, msg->dn) == 0) {
+		instance_type |= INSTANCE_TYPE_IS_NC_HEAD;
+		if (ldb_dn_compare(msg->dn, samdb_base_dn(ldb)) != 0) {
+			instance_type |= INSTANCE_TYPE_NC_ABOVE;
+		}
 	}
 
-	ret = ldb_build_add_req(&down_req, ldb, req,
+	ret = ldb_msg_add_fmt(msg, "instanceType", "%u", instance_type);
+	if (ret != LDB_SUCCESS) {
+		ldb_oom(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+
+	ret = ldb_build_add_req(&down_req, ldb, ac,
 				msg,
 				req->controls,
-				req, dsdb_next_callback,
+				ac, it_callback,
 				req);
-	LDB_REQ_SET_LOCATION(down_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -119,36 +150,7 @@ static int instancetype_add(struct ldb_module *module, struct ldb_request *req)
 	return ldb_next_request(module, down_req);
 }
 
-/* deny instancetype modification */
-static int instancetype_mod(struct ldb_module *module, struct ldb_request *req)
-{
-	struct ldb_context *ldb = ldb_module_get_ctx(module);
-	struct ldb_message_element *el;
-
-	/* do not manipulate our control entries */
-	if (ldb_dn_is_special(req->op.mod.message->dn)) {
-		return ldb_next_request(module, req);
-	}
-
-	ldb_debug(ldb, LDB_DEBUG_TRACE, "instancetype_mod\n");
-
-	el = ldb_msg_find_element(req->op.mod.message, "instanceType");
-	if (el != NULL) {
-		ldb_set_errstring(ldb, "instancetype: the 'instanceType' attribute can never be changed!");
-		return LDB_ERR_CONSTRAINT_VIOLATION;
-	}
-
-	return ldb_next_request(module, req);
-}
-
-static const struct ldb_module_ops ldb_instancetype_module_ops = {
+_PUBLIC_ const struct ldb_module_ops ldb_instancetype_module_ops = {
 	.name          = "instancetype",
 	.add           = instancetype_add,
-	.modify        = instancetype_mod
 };
-
-int ldb_instancetype_module_init(const char *version)
-{
-	LDB_MODULE_CHECK_VERSION(version);
-	return ldb_register_module(&ldb_instancetype_module_ops);
-}

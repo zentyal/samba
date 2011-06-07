@@ -19,10 +19,7 @@
 */
 
 #include "includes.h"
-#include "system/filesys.h"
 #include "librpc/gen_ndr/ndr_xattr.h"
-#include "../libcli/security/security.h"
-#include "smbd/smbd.h"
 
 static uint32_t filter_mode_by_protocol(uint32_t mode)
 {
@@ -36,12 +33,22 @@ static uint32_t filter_mode_by_protocol(uint32_t mode)
 	return mode;
 }
 
+static int set_sparse_flag(const SMB_STRUCT_STAT * const sbuf)
+{
+#if defined (HAVE_STAT_ST_BLOCKS) && defined(STAT_ST_BLOCKSIZE)
+	if (sbuf->st_ex_size > sbuf->st_ex_blocks * (SMB_OFF_T)STAT_ST_BLOCKSIZE) {
+		return FILE_ATTRIBUTE_SPARSE;
+	}
+#endif
+	return 0;
+}
+
 static int set_link_read_only_flag(const SMB_STRUCT_STAT *const sbuf)
 {
 #ifdef S_ISLNK
 #if LINKS_READ_ONLY
 	if (S_ISLNK(sbuf->st_mode) && S_ISDIR(sbuf->st_mode))
-		return FILE_ATTRIBUTE_READONLY;
+		return aRONLY;
 #endif
 #endif
 	return 0;
@@ -173,36 +180,37 @@ static uint32 dos_mode_from_sbuf(connection_struct *conn,
 	if (ro_opts == MAP_READONLY_YES) {
 		/* Original Samba method - map inverse of user "w" bit. */
 		if ((smb_fname->st.st_ex_mode & S_IWUSR) == 0) {
-			result |= FILE_ATTRIBUTE_READONLY;
+			result |= aRONLY;
 		}
 	} else if (ro_opts == MAP_READONLY_PERMISSIONS) {
 		/* Check actual permissions for read-only. */
 		if (!can_write_to_file(conn, smb_fname)) {
-			result |= FILE_ATTRIBUTE_READONLY;
+			result |= aRONLY;
 		}
 	} /* Else never set the readonly bit. */
 
 	if (MAP_ARCHIVE(conn) && ((smb_fname->st.st_ex_mode & S_IXUSR) != 0))
-		result |= FILE_ATTRIBUTE_ARCHIVE;
+		result |= aARCH;
 
 	if (MAP_SYSTEM(conn) && ((smb_fname->st.st_ex_mode & S_IXGRP) != 0))
-		result |= FILE_ATTRIBUTE_SYSTEM;
+		result |= aSYSTEM;
 
 	if (MAP_HIDDEN(conn) && ((smb_fname->st.st_ex_mode & S_IXOTH) != 0))
-		result |= FILE_ATTRIBUTE_HIDDEN;
+		result |= aHIDDEN;   
 
 	if (S_ISDIR(smb_fname->st.st_ex_mode))
-		result = FILE_ATTRIBUTE_DIRECTORY | (result & FILE_ATTRIBUTE_READONLY);
+		result = aDIR | (result & aRONLY);
 
+	result |= set_sparse_flag(&smb_fname->st);
 	result |= set_link_read_only_flag(&smb_fname->st);
 
 	DEBUG(8,("dos_mode_from_sbuf returning "));
 
-	if (result & FILE_ATTRIBUTE_HIDDEN) DEBUG(8, ("h"));
-	if (result & FILE_ATTRIBUTE_READONLY ) DEBUG(8, ("r"));
-	if (result & FILE_ATTRIBUTE_SYSTEM) DEBUG(8, ("s"));
-	if (result & FILE_ATTRIBUTE_DIRECTORY   ) DEBUG(8, ("d"));
-	if (result & FILE_ATTRIBUTE_ARCHIVE  ) DEBUG(8, ("a"));
+	if (result & aHIDDEN) DEBUG(8, ("h"));
+	if (result & aRONLY ) DEBUG(8, ("r"));
+	if (result & aSYSTEM) DEBUG(8, ("s"));
+	if (result & aDIR   ) DEBUG(8, ("d"));
+	if (result & aARCH  ) DEBUG(8, ("a"));
 
 	DEBUG(8,("\n"));
 	return result;
@@ -241,7 +249,7 @@ static bool get_ea_dos_attribute(connection_struct *conn,
 #else
 				) {
 #endif
-			DEBUG(1,("get_ea_dos_attribute: Cannot get attribute "
+			DEBUG(1,("get_ea_dos_attributes: Cannot get attribute "
 				 "from EA on file %s: Error = %s\n",
 				 smb_fname_str_dbg(smb_fname),
 				 strerror(errno)));
@@ -253,16 +261,8 @@ static bool get_ea_dos_attribute(connection_struct *conn,
 	blob.data = (uint8_t *)attrstr;
 	blob.length = sizeret;
 
-	ndr_err = ndr_pull_struct_blob(&blob, talloc_tos(), &dosattrib,
+	ndr_err = ndr_pull_struct_blob(&blob, talloc_tos(), NULL, &dosattrib,
 			(ndr_pull_flags_fn_t)ndr_pull_xattr_DOSATTRIB);
-
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		DEBUG(1,("get_ea_dos_attribute: bad ndr decode "
-			 "from EA on file %s: Error = %s\n",
-			 smb_fname_str_dbg(smb_fname),
-			 ndr_errstr(ndr_err)));
-		return false;
-	}
 
 	DEBUG(10,("get_ea_dos_attribute: %s attr = %s\n",
 		  smb_fname_str_dbg(smb_fname), dosattrib.attrib_hex));
@@ -281,7 +281,7 @@ static bool get_ea_dos_attribute(connection_struct *conn,
 				update_stat_ex_create_time(&smb_fname->st,
 							create_time);
 
-				DEBUG(10,("get_ea_dos_attribute: file %s case 1 "
+				DEBUG(10,("get_ea_dos_attributes: file %s case 1 "
 					"set btime %s\n",
 					smb_fname_str_dbg(smb_fname),
 					time_to_asc(convert_timespec_to_time_t(
@@ -303,33 +303,32 @@ static bool get_ea_dos_attribute(connection_struct *conn,
 				update_stat_ex_create_time(&smb_fname->st,
 							create_time);
 
-				DEBUG(10,("get_ea_dos_attribute: file %s case 3 "
+				DEBUG(10,("get_ea_dos_attributes: file %s case 3 "
 					"set btime %s\n",
 					smb_fname_str_dbg(smb_fname),
 					time_to_asc(convert_timespec_to_time_t(
 						create_time)) ));
 			}
 			break;
-		default:
-			DEBUG(1,("get_ea_dos_attribute: Badly formed DOSATTRIB on "
-				 "file %s - %s\n", smb_fname_str_dbg(smb_fname),
-				 attrstr));
+			default:
+				DEBUG(1,("get_ea_dos_attributes: Badly formed DOSATTRIB on "
+					 "file %s - %s\n", smb_fname_str_dbg(smb_fname),
+					 attrstr));
 	                return false;
 	}
 
 	if (S_ISDIR(smb_fname->st.st_ex_mode)) {
-		dosattr |= FILE_ATTRIBUTE_DIRECTORY;
+		dosattr |= aDIR;
 	}
-	/* FILE_ATTRIBUTE_SPARSE is valid on get but not on set. */
-	*pattr = (uint32)(dosattr & (SAMBA_ATTRIBUTES_MASK|FILE_ATTRIBUTE_SPARSE));
+	*pattr = (uint32)(dosattr & SAMBA_ATTRIBUTES_MASK);
 
 	DEBUG(8,("get_ea_dos_attribute returning (0x%x)", dosattr));
 
-	if (dosattr & FILE_ATTRIBUTE_HIDDEN) DEBUG(8, ("h"));
-	if (dosattr & FILE_ATTRIBUTE_READONLY ) DEBUG(8, ("r"));
-	if (dosattr & FILE_ATTRIBUTE_SYSTEM) DEBUG(8, ("s"));
-	if (dosattr & FILE_ATTRIBUTE_DIRECTORY   ) DEBUG(8, ("d"));
-	if (dosattr & FILE_ATTRIBUTE_ARCHIVE  ) DEBUG(8, ("a"));
+	if (dosattr & aHIDDEN) DEBUG(8, ("h"));
+	if (dosattr & aRONLY ) DEBUG(8, ("r"));
+	if (dosattr & aSYSTEM) DEBUG(8, ("s"));
+	if (dosattr & aDIR   ) DEBUG(8, ("d"));
+	if (dosattr & aARCH  ) DEBUG(8, ("a"));
 
 	DEBUG(8,("\n"));
 
@@ -348,6 +347,8 @@ static bool set_ea_dos_attribute(connection_struct *conn,
 	struct xattr_DOSATTRIB dosattrib;
 	enum ndr_err_code ndr_err;
 	DATA_BLOB blob;
+	files_struct *fsp = NULL;
+	bool ret = false;
 
 	if (!lp_store_dos_attributes(SNUM(conn))) {
 		return False;
@@ -363,13 +364,8 @@ static bool set_ea_dos_attribute(connection_struct *conn,
 	unix_timespec_to_nt_time(&dosattrib.info.info3.create_time,
 				smb_fname->st.st_ex_btime);
 
-	DEBUG(10,("set_ea_dos_attributes: set attribute 0x%x, btime = %s on file %s\n",
-		(unsigned int)dosmode,
-		time_to_asc(convert_timespec_to_time_t(smb_fname->st.st_ex_btime)),
-		smb_fname_str_dbg(smb_fname) ));
-
 	ndr_err = ndr_push_struct_blob(
-			&blob, talloc_tos(), &dosattrib,
+			&blob, talloc_tos(), NULL, &dosattrib,
 			(ndr_push_flags_fn_t)ndr_push_xattr_DOSATTRIB);
 
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -385,9 +381,6 @@ static bool set_ea_dos_attribute(connection_struct *conn,
 	if (SMB_VFS_SETXATTR(conn, smb_fname->base_name,
 			     SAMBA_XATTR_DOS_ATTRIB, blob.data, blob.length,
 			     0) == -1) {
-		bool ret = false;
-		files_struct *fsp = NULL;
-
 		if((errno != EPERM) && (errno != EACCES)) {
 			if (errno == ENOSYS
 #if defined(ENOTSUP)
@@ -420,9 +413,9 @@ static bool set_ea_dos_attribute(connection_struct *conn,
 
 		if (!NT_STATUS_IS_OK(open_file_fchmod(conn, smb_fname,
 						      &fsp)))
-			return false;
+			return ret;
 		become_root();
-		if (SMB_VFS_FSETXATTR(fsp,
+		if (SMB_VFS_SETXATTR(conn, smb_fname->base_name,
 				     SAMBA_XATTR_DOS_ATTRIB, blob.data,
 				     blob.length, 0) == 0) {
 			ret = true;
@@ -465,7 +458,7 @@ uint32 dos_mode_msdfs(connection_struct *conn,
 		/* Only . and .. are not hidden. */
 		if (p[0] == '.' && !((p[1] == '\0') ||
 				(p[1] == '.' && p[2] == '\0'))) {
-			result |= FILE_ATTRIBUTE_HIDDEN;
+			result |= aHIDDEN;
 		}
 	}
 
@@ -473,9 +466,9 @@ uint32 dos_mode_msdfs(connection_struct *conn,
 
 	/* Optimization : Only call is_hidden_path if it's not already
 	   hidden. */
-	if (!(result & FILE_ATTRIBUTE_HIDDEN) &&
+	if (!(result & aHIDDEN) &&
 	    IS_HIDDEN_PATH(conn, smb_fname->base_name)) {
-		result |= FILE_ATTRIBUTE_HIDDEN;
+		result |= aHIDDEN;
 	}
 
 	if (result == 0) {
@@ -486,11 +479,11 @@ uint32 dos_mode_msdfs(connection_struct *conn,
 
 	DEBUG(8,("dos_mode_msdfs returning "));
 
-	if (result & FILE_ATTRIBUTE_HIDDEN) DEBUG(8, ("h"));
-	if (result & FILE_ATTRIBUTE_READONLY ) DEBUG(8, ("r"));
-	if (result & FILE_ATTRIBUTE_SYSTEM) DEBUG(8, ("s"));
-	if (result & FILE_ATTRIBUTE_DIRECTORY   ) DEBUG(8, ("d"));
-	if (result & FILE_ATTRIBUTE_ARCHIVE  ) DEBUG(8, ("a"));
+	if (result & aHIDDEN) DEBUG(8, ("h"));
+	if (result & aRONLY ) DEBUG(8, ("r"));
+	if (result & aSYSTEM) DEBUG(8, ("s"));
+	if (result & aDIR   ) DEBUG(8, ("d"));
+	if (result & aARCH  ) DEBUG(8, ("a"));
 	if (result & FILE_ATTRIBUTE_SPARSE ) DEBUG(8, ("[sparse]"));
 
 	DEBUG(8,("\n"));
@@ -507,13 +500,13 @@ int dos_attributes_to_stat_dos_flags(uint32_t dosmode)
 {
 	uint32_t dos_stat_flags = 0;
 
-	if (dosmode & FILE_ATTRIBUTE_ARCHIVE)
+	if (dosmode & aARCH)
 		dos_stat_flags |= UF_DOS_ARCHIVE;
-	if (dosmode & FILE_ATTRIBUTE_HIDDEN)
+	if (dosmode & aHIDDEN)
 		dos_stat_flags |= UF_DOS_HIDDEN;
-	if (dosmode & FILE_ATTRIBUTE_READONLY)
+	if (dosmode & aRONLY)
 		dos_stat_flags |= UF_DOS_RO;
-	if (dosmode & FILE_ATTRIBUTE_SYSTEM)
+	if (dosmode & aSYSTEM)
 		dos_stat_flags |= UF_DOS_SYSTEM;
 	if (dosmode & FILE_ATTRIBUTE_NONINDEXED)
 		dos_stat_flags |= UF_DOS_NOINDEX;
@@ -540,20 +533,19 @@ static bool get_stat_dos_flags(connection_struct *conn,
 		  smb_fname_str_dbg(smb_fname)));
 
 	if (smb_fname->st.st_ex_flags & UF_DOS_ARCHIVE)
-		*dosmode |= FILE_ATTRIBUTE_ARCHIVE;
+		*dosmode |= aARCH;
 	if (smb_fname->st.st_ex_flags & UF_DOS_HIDDEN)
-		*dosmode |= FILE_ATTRIBUTE_HIDDEN;
+		*dosmode |= aHIDDEN;
 	if (smb_fname->st.st_ex_flags & UF_DOS_RO)
-		*dosmode |= FILE_ATTRIBUTE_READONLY;
+		*dosmode |= aRONLY;
 	if (smb_fname->st.st_ex_flags & UF_DOS_SYSTEM)
-		*dosmode |= FILE_ATTRIBUTE_SYSTEM;
+		*dosmode |= aSYSTEM;
 	if (smb_fname->st.st_ex_flags & UF_DOS_NOINDEX)
 		*dosmode |= FILE_ATTRIBUTE_NONINDEXED;
-	if (smb_fname->st.st_ex_flags & FILE_ATTRIBUTE_SPARSE)
-		*dosmode |= FILE_ATTRIBUTE_SPARSE;
 	if (S_ISDIR(smb_fname->st.st_ex_mode))
-		*dosmode |= FILE_ATTRIBUTE_DIRECTORY;
+		*dosmode |= aDIR;
 
+	*dosmode |= set_sparse_flag(&smb_fname->st);
 	*dosmode |= set_link_read_only_flag(&smb_fname->st);
 
 	return true;
@@ -637,7 +629,7 @@ uint32 dos_mode(connection_struct *conn, struct smb_filename *smb_fname)
 		/* Only . and .. are not hidden. */
 		if (p[0] == '.' && !((p[1] == '\0') ||
 				(p[1] == '.' && p[2] == '\0'))) {
-			result |= FILE_ATTRIBUTE_HIDDEN;
+			result |= aHIDDEN;
 		}
 	}
 
@@ -646,21 +638,23 @@ uint32 dos_mode(connection_struct *conn, struct smb_filename *smb_fname)
 #endif
 	if (!used_stat_dos_flags) {
 		/* Get the DOS attributes from an EA by preference. */
-		if (!get_ea_dos_attribute(conn, smb_fname, &result)) {
+		if (get_ea_dos_attribute(conn, smb_fname, &result)) {
+			result |= set_sparse_flag(&smb_fname->st);
+		} else {
 			result |= dos_mode_from_sbuf(conn, smb_fname);
 		}
 	}
 
-	offline = SMB_VFS_IS_OFFLINE(conn, smb_fname, &smb_fname->st);
+	offline = SMB_VFS_IS_OFFLINE(conn, smb_fname->base_name, &smb_fname->st);
 	if (S_ISREG(smb_fname->st.st_ex_mode) && offline) {
 		result |= FILE_ATTRIBUTE_OFFLINE;
 	}
 
 	/* Optimization : Only call is_hidden_path if it's not already
 	   hidden. */
-	if (!(result & FILE_ATTRIBUTE_HIDDEN) &&
+	if (!(result & aHIDDEN) &&
 	    IS_HIDDEN_PATH(conn, smb_fname->base_name)) {
-		result |= FILE_ATTRIBUTE_HIDDEN;
+		result |= aHIDDEN;
 	}
 
 	if (result == 0) {
@@ -671,11 +665,11 @@ uint32 dos_mode(connection_struct *conn, struct smb_filename *smb_fname)
 
 	DEBUG(8,("dos_mode returning "));
 
-	if (result & FILE_ATTRIBUTE_HIDDEN) DEBUG(8, ("h"));
-	if (result & FILE_ATTRIBUTE_READONLY ) DEBUG(8, ("r"));
-	if (result & FILE_ATTRIBUTE_SYSTEM) DEBUG(8, ("s"));
-	if (result & FILE_ATTRIBUTE_DIRECTORY   ) DEBUG(8, ("d"));
-	if (result & FILE_ATTRIBUTE_ARCHIVE  ) DEBUG(8, ("a"));
+	if (result & aHIDDEN) DEBUG(8, ("h"));
+	if (result & aRONLY ) DEBUG(8, ("r"));
+	if (result & aSYSTEM) DEBUG(8, ("s"));
+	if (result & aDIR   ) DEBUG(8, ("d"));
+	if (result & aARCH  ) DEBUG(8, ("a"));
 	if (result & FILE_ATTRIBUTE_SPARSE ) DEBUG(8, ("[sparse]"));
 
 	DEBUG(8,("\n"));
@@ -712,9 +706,9 @@ int file_set_dosmode(connection_struct *conn, struct smb_filename *smb_fname,
 			   &smb_fname->st.st_ex_mode);
 
 	if (S_ISDIR(smb_fname->st.st_ex_mode))
-		dosmode |= FILE_ATTRIBUTE_DIRECTORY;
+		dosmode |= aDIR;
 	else
-		dosmode &= ~FILE_ATTRIBUTE_DIRECTORY;
+		dosmode &= ~aDIR;
 
 	new_create_timespec = smb_fname->st.st_ex_btime;
 
@@ -722,7 +716,7 @@ int file_set_dosmode(connection_struct *conn, struct smb_filename *smb_fname,
 
 	if (dosmode & FILE_ATTRIBUTE_OFFLINE) {
 		if (!(old_mode & FILE_ATTRIBUTE_OFFLINE)) {
-			lret = SMB_VFS_SET_OFFLINE(conn, smb_fname);
+			lret = SMB_VFS_SET_OFFLINE(conn, smb_fname->base_name);
 			if (lret == -1) {
 				DEBUG(0, ("set_dos_mode: client has asked to "
 					  "set FILE_ATTRIBUTE_OFFLINE to "
@@ -799,27 +793,6 @@ int file_set_dosmode(connection_struct *conn, struct smb_filename *smb_fname,
 		unixmode |= (smb_fname->st.st_ex_mode & (S_IWUSR|S_IWGRP|S_IWOTH));
 	}
 
-	/*
-	 * From the chmod 2 man page:
-	 *
-	 * "If the calling process is not privileged, and the group of the file
-	 * does not match the effective group ID of the process or one of its
-	 * supplementary group IDs, the S_ISGID bit will be turned off, but
-	 * this will not cause an error to be returned."
-	 *
-	 * Simply refuse to do the chmod in this case.
-	 */
-
-	if (S_ISDIR(smb_fname->st.st_ex_mode) && (unixmode & S_ISGID) &&
-			geteuid() != sec_initial_uid() &&
-			!current_user_in_group(conn, smb_fname->st.st_ex_gid)) {
-		DEBUG(3,("file_set_dosmode: setgid bit cannot be "
-			"set for directory %s\n",
-			smb_fname_str_dbg(smb_fname)));
-		errno = EPERM;
-		return -1;
-	}
-
 	ret = SMB_VFS_CHMOD(conn, smb_fname->base_name, unixmode);
 	if (ret == 0) {
 		if(!newfile || (lret != -1)) {
@@ -867,74 +840,6 @@ int file_set_dosmode(connection_struct *conn, struct smb_filename *smb_fname,
 	}
 
 	return( ret );
-}
-
-
-NTSTATUS file_set_sparse(connection_struct *conn,
-			 files_struct *fsp,
-			 bool sparse)
-{
-	uint32_t old_dosmode;
-	uint32_t new_dosmode;
-	NTSTATUS status;
-
-	if (!CAN_WRITE(conn)) {
-		DEBUG(9,("file_set_sparse: fname[%s] set[%u] "
-			"on readonly share[%s]\n",
-			smb_fname_str_dbg(fsp->fsp_name),
-			sparse,
-			lp_servicename(SNUM(conn))));
-		return NT_STATUS_MEDIA_WRITE_PROTECTED;
-	}
-
-	if (!(fsp->access_mask & FILE_WRITE_DATA) &&
-			!(fsp->access_mask & FILE_WRITE_ATTRIBUTES)) {
-		DEBUG(9,("file_set_sparse: fname[%s] set[%u] "
-			"access_mask[0x%08X] - access denied\n",
-			smb_fname_str_dbg(fsp->fsp_name),
-			sparse,
-			fsp->access_mask));
-		return NT_STATUS_ACCESS_DENIED;
-	}
-
-	DEBUG(10,("file_set_sparse: setting sparse bit %u on file %s\n",
-		  sparse, smb_fname_str_dbg(fsp->fsp_name)));
-
-	if (!lp_store_dos_attributes(SNUM(conn))) {
-		return NT_STATUS_INVALID_DEVICE_REQUEST;
-	}
-
-	status = vfs_stat_fsp(fsp);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	old_dosmode = dos_mode(conn, fsp->fsp_name);
-
-	if (sparse && !(old_dosmode & FILE_ATTRIBUTE_SPARSE)) {
-		new_dosmode = old_dosmode | FILE_ATTRIBUTE_SPARSE;
-	} else if (!sparse && (old_dosmode & FILE_ATTRIBUTE_SPARSE)) {
-		new_dosmode = old_dosmode & ~FILE_ATTRIBUTE_SPARSE;
-	} else {
-		return NT_STATUS_OK;
-	}
-
-	/* Store the DOS attributes in an EA. */
-	if (!set_ea_dos_attribute(conn, fsp->fsp_name,
-				  new_dosmode)) {
-		if (errno == 0) {
-			errno = EIO;
-		}
-		return map_nt_error_from_unix(errno);
-	}
-
-	notify_fname(conn, NOTIFY_ACTION_MODIFIED,
-		     FILE_NOTIFY_CHANGE_ATTRIBUTES,
-		     fsp->fsp_name->base_name);
-
-	fsp->is_sparse = sparse;
-
-	return NT_STATUS_OK;
 }
 
 /*******************************************************************

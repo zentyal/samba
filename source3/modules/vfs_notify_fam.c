@@ -19,8 +19,6 @@
  */
 
 #include "includes.h"
-#include "smbd/smbd.h"
-#include "librpc/gen_ndr/notify.h"
 
 #include <fam.h>
 
@@ -81,27 +79,12 @@ static NTSTATUS fam_open_connection(FAMConnection *fam_conn,
 	ZERO_STRUCTP(fam_conn);
 	FAMCONNECTION_GETFD(fam_conn) = -1;
 
-
-#ifdef HAVE_FAMNOEXISTS
-	/* We should honor outside setting of the GAM_CLIENT_ID. */
-	setenv("GAM_CLIENT_ID","SAMBA",0);
-#endif
-
 	if (asprintf(&name, "smbd (%lu)", (unsigned long)sys_getpid()) == -1) {
 		DEBUG(0, ("No memory\n"));
 		return NT_STATUS_NO_MEMORY;
 	}
 
 	res = FAMOpen2(fam_conn, name);
-
-#ifdef HAVE_FAMNOEXISTS
-	/*
-	 * This reduces the chatter between GAMIN and samba making the pair
-	 * much more reliable.
-	 */
-	FAMNoExists(fam_conn);
-#endif
-
 	SAFE_FREE(name);
 
 	if (res < 0) {

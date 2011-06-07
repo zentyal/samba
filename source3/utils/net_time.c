@@ -18,8 +18,6 @@
 */
 #include "includes.h"
 #include "utils/net.h"
-#include "libsmb/nmblib.h"
-#include "libsmb/libsmb.h"
 
 /*
   return the time on a server. This does not require any authentication
@@ -105,22 +103,26 @@ int net_time_usage(struct net_context *c, int argc, const char **argv)
 	return -1;
 }
 
-/* try to set the system clock */
+/* try to set the system clock using /bin/date */
 static int net_time_set(struct net_context *c, int argc, const char **argv)
 {
-	struct timeval tv;
+	time_t t = nettime(c, NULL);
+	char *cmd;
 	int result;
 
-	tv.tv_sec = nettime(c, NULL);
-	tv.tv_usec=0;
+	if (t == 0) return -1;
 
-	if (tv.tv_sec == 0) return -1;
-
-	result = settimeofday(&tv,NULL);
-
+	/* yes, I know this is cheesy. Use "net time system" if you want to
+	   roll your own. I'm putting this in as it works on a large number
+	   of systems and the user has a choice in whether its used or not */
+	if (asprintf(&cmd, "/bin/date %s", systime(t)) == -1) {
+		return -1;
+	}
+	result = system(cmd);
 	if (result)
-		d_fprintf(stderr, _("setting system clock failed.  Error was (%s)\n"),
-			strerror(errno));
+		d_fprintf(stderr, _("%s failed.  Error was (%s)\n"),
+			cmd, strerror(errno));
+	free(cmd);
 
 	return result;
 }

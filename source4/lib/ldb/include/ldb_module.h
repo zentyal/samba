@@ -33,25 +33,10 @@
 #ifndef _LDB_MODULE_H_
 #define _LDB_MODULE_H_
 
-#include <ldb.h>
+#include "ldb.h"
 
 struct ldb_context;
 struct ldb_module;
-
-/**
-   internal flag bits on message elements. Must be within LDB_FLAG_INTERNAL_MASK
- */
-#define LDB_FLAG_INTERNAL_DISABLE_VALIDATION 0x10
-
-/* disable any single value checking on this attribute */
-#define LDB_FLAG_INTERNAL_DISABLE_SINGLE_VALUE_CHECK 0x20
-
-/* attribute has failed access check and must not be exposed */
-#define LDB_FLAG_INTERNAL_INACCESSIBLE_ATTRIBUTE 0x40
-
-/* force single value checking on this attribute */
-#define LDB_FLAG_INTERNAL_FORCE_SINGLE_VALUE_CHECK 0x80
-
 
 /*
    these function pointers define the operations that a ldb module can intercept
@@ -82,11 +67,7 @@ void ldb_debug_set(struct ldb_context *ldb, enum ldb_debug_level level,
 void ldb_debug_add(struct ldb_context *ldb, const char *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
 void ldb_debug_end(struct ldb_context *ldb, enum ldb_debug_level level);
 
-#define ldb_error(ldb, ecode, reason) ldb_error_at(ldb, ecode, reason, __FILE__, __LINE__)
-
-#define ldb_oom(ldb) ldb_error(ldb, LDB_ERR_OPERATIONS_ERROR, "ldb out of memory")
-#define ldb_module_oom(module) ldb_oom(ldb_module_get_ctx(module))
-#define ldb_operr(ldb) ldb_error(ldb, LDB_ERR_OPERATIONS_ERROR, "operations error")
+#define ldb_oom(ldb) ldb_debug_set(ldb, LDB_DEBUG_FATAL, "ldb out of memory at %s:%d\n", __FILE__, __LINE__)
 
 /* The following definitions come from lib/ldb/common/ldb.c  */
 
@@ -117,21 +98,10 @@ void ldb_schema_attribute_set_override_handler(struct ldb_context *ldb,
 					       ldb_attribute_handler_override_fn_t override,
 					       void *private_data);
 
-/* A useful function to build comparison functions with */
-int ldb_any_comparison(struct ldb_context *ldb, void *mem_ctx, 
-		       ldb_attr_handler_t canonicalise_fn, 
-		       const struct ldb_val *v1,
-		       const struct ldb_val *v2);
-
 /* The following definitions come from lib/ldb/common/ldb_controls.c  */
-int ldb_save_controls(struct ldb_control *exclude, struct ldb_request *req, struct ldb_control ***saver);
-/* Returns a list of controls, except the one specified.  Included
- * controls become a child of returned list if they were children of
- * controls_in */
-struct ldb_control **ldb_controls_except_specified(struct ldb_control **controls_in, 
-					       TALLOC_CTX *mem_ctx, 
-					       struct ldb_control *exclude);
-int ldb_check_critical_controls(struct ldb_control **controls);
+struct ldb_control *get_control_from_list(struct ldb_control **controls, const char *oid);
+int save_controls(struct ldb_control *exclude, struct ldb_request *req, struct ldb_control ***saver);
+int check_critical_controls(struct ldb_control **controls);
 
 /* The following definitions come from lib/ldb/common/ldb_ldif.c  */
 int ldb_should_b64_encode(struct ldb_context *ldb, const struct ldb_val *val);
@@ -142,16 +112,6 @@ int ldb_match_msg(struct ldb_context *ldb,
 		  const struct ldb_parse_tree *tree,
 		  struct ldb_dn *base,
 		  enum ldb_scope scope);
-
-int ldb_match_msg_error(struct ldb_context *ldb,
-			const struct ldb_message *msg,
-			const struct ldb_parse_tree *tree,
-			struct ldb_dn *base,
-			enum ldb_scope scope,
-			bool *matched);
-
-int ldb_match_msg_objectclass(const struct ldb_message *msg,
-			      const char *objectclass);
 
 /* The following definitions come from lib/ldb/common/ldb_modules.c  */
 
@@ -164,7 +124,6 @@ const char * ldb_module_get_name(struct ldb_module *module);
 struct ldb_context *ldb_module_get_ctx(struct ldb_module *module);
 void *ldb_module_get_private(struct ldb_module *module);
 void ldb_module_set_private(struct ldb_module *module, void *private_data);
-const struct ldb_module_ops *ldb_module_get_ops(struct ldb_module *module);
 
 int ldb_next_request(struct ldb_module *module, struct ldb_request *request);
 int ldb_next_start_trans(struct ldb_module *module);
@@ -176,7 +135,6 @@ int ldb_next_init(struct ldb_module *module);
 void ldb_set_errstring(struct ldb_context *ldb, const char *err_string);
 void ldb_asprintf_errstring(struct ldb_context *ldb, const char *format, ...) PRINTF_ATTRIBUTE(2,3);
 void ldb_reset_err_string(struct ldb_context *ldb);
-int ldb_error_at(struct ldb_context *ldb, int ecode, const char *reason, const char *file, int line);
 
 const char *ldb_default_modules_dir(void);
 
@@ -193,7 +151,7 @@ struct ldb_backend_ops {
 
 const char *ldb_default_modules_dir(void);
 
-int ldb_register_backend(const char *url_prefix, ldb_connect_fn, bool);
+int ldb_register_backend(const char *url_prefix, ldb_connect_fn);
 
 struct ldb_handle *ldb_handle_new(TALLOC_CTX *mem_ctx, struct ldb_context *ldb);
 
@@ -212,119 +170,5 @@ int ldb_module_done(struct ldb_request *req,
 int ldb_mod_register_control(struct ldb_module *module, const char *oid);
 
 void ldb_set_default_dns(struct ldb_context *ldb);
-/**
-  Add a ldb_control to a ldb_reply
-
-  \param ares the reply struct where to add the control
-  \param oid the object identifier of the control as string
-  \param critical whether the control should be critical or not
-  \param data a talloc pointer to the control specific data
-
-  \return result code (LDB_SUCCESS on success, or a failure code)
-*/
-int ldb_reply_add_control(struct ldb_reply *ares, const char *oid, bool critical, void *data);
-
-/**
-  mark a request as untrusted. This tells the rootdse module to remove
-  unregistered controls
- */
-void ldb_req_mark_untrusted(struct ldb_request *req);
-
-/**
-  mark a request as trusted.
- */
-void ldb_req_mark_trusted(struct ldb_request *req);
-
-/**
-   return true is a request is untrusted
- */
-bool ldb_req_is_untrusted(struct ldb_request *req);
-
-/* load all modules from the given directory */
-int ldb_modules_load(const char *modules_path, const char *version);
-
-/* init functions prototype */
-typedef int (*ldb_module_init_fn)(const char *);
-
-/*
-  general ldb hook function
- */
-enum ldb_module_hook_type { LDB_MODULE_HOOK_CMDLINE_OPTIONS     = 1,
-			    LDB_MODULE_HOOK_CMDLINE_PRECONNECT  = 2,
-			    LDB_MODULE_HOOK_CMDLINE_POSTCONNECT = 3 };
-
-typedef int (*ldb_hook_fn)(struct ldb_context *, enum ldb_module_hook_type );
-
-/*
-  register a ldb hook function
- */
-int ldb_register_hook(ldb_hook_fn hook_fn);
-
-/*
-  call ldb hooks of a given type
- */
-int ldb_modules_hook(struct ldb_context *ldb, enum ldb_module_hook_type t);
-
-#define LDB_MODULE_CHECK_VERSION(version) do { \
- if (strcmp(version, LDB_VERSION) != 0) { \
-	fprintf(stderr, "ldb: module version mismatch in %s : ldb_version=%s module_version=%s\n", \
-			__FILE__, version, LDB_VERSION); \
-        return LDB_ERR_UNAVAILABLE; \
- }} while (0)
-
-
-/*
-  return a string representation of the calling chain for the given
-  ldb request
- */
-char *ldb_module_call_chain(struct ldb_request *req, TALLOC_CTX *mem_ctx);
-
-/*
-  return the next module in the chain
- */
-struct ldb_module *ldb_module_next(struct ldb_module *module);
-
-/*
-  set the next module in the module chain
- */
-void ldb_module_set_next(struct ldb_module *module, struct ldb_module *next);
-
-/*
-  load a list of modules
- */
-int ldb_module_load_list(struct ldb_context *ldb, const char **module_list,
-			 struct ldb_module *backend, struct ldb_module **out);
-
-/*
-  get the popt_options pointer in the ldb structure. This allows a ldb
-  module to change the command line parsing
- */
-struct poptOption **ldb_module_popt_options(struct ldb_context *ldb);
-
-/* modules are called in inverse order on the stack.
-   Lets place them as an admin would think the right order is.
-   Modules order is important */
-const char **ldb_modules_list_from_string(struct ldb_context *ldb, TALLOC_CTX *mem_ctx, const char *string);
-
-/*
-  return the current ldb flags LDB_FLG_*
- */
-uint32_t ldb_module_flags(struct ldb_context *ldb);
-
-int ldb_module_connect_backend(struct ldb_context *ldb,
-			       const char *url,
-			       const char *options[],
-			       struct ldb_module **backend_module);
-
-/*
-  initialise a chain of modules
- */
-int ldb_module_init_chain(struct ldb_context *ldb, struct ldb_module *module);
-
-/*
- * prototype for the init function defined by dynamically loaded modules
- */
-int ldb_init_module(const char *version);
-
 
 #endif

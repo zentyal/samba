@@ -167,7 +167,7 @@ static void cldap_recvfrom_stop(struct cldap_socket *c)
 	c->recv_subreq = NULL;
 }
 
-static bool cldap_socket_recv_dgram(struct cldap_socket *c,
+static void cldap_socket_recv_dgram(struct cldap_socket *c,
 				    struct cldap_incoming *in);
 
 static void cldap_recvfrom_done(struct tevent_req *subreq)
@@ -176,7 +176,6 @@ static void cldap_recvfrom_done(struct tevent_req *subreq)
 				 struct cldap_socket);
 	struct cldap_incoming *in = NULL;
 	ssize_t ret;
-	bool setup_done;
 
 	c->recv_subreq = NULL;
 
@@ -200,10 +199,10 @@ static void cldap_recvfrom_done(struct tevent_req *subreq)
 	}
 
 	/* this function should free or steal 'in' */
-	setup_done = cldap_socket_recv_dgram(c, in);
+	cldap_socket_recv_dgram(c, in);
 	in = NULL;
 
-	if (!setup_done && !cldap_recvfrom_setup(c)) {
+	if (!cldap_recvfrom_setup(c)) {
 		goto nomem;
 	}
 
@@ -219,7 +218,7 @@ nomem:
 /*
   handle recv events on a cldap socket
 */
-static bool cldap_socket_recv_dgram(struct cldap_socket *c,
+static void cldap_socket_recv_dgram(struct cldap_socket *c,
 				    struct cldap_incoming *in)
 {
 	DATA_BLOB blob;
@@ -263,7 +262,7 @@ static bool cldap_socket_recv_dgram(struct cldap_socket *c,
 
 		/* this function should free or steal 'in' */
 		c->incoming.handler(c, c->incoming.private_data, in);
-		return false;
+		return;
 	}
 
 	search = talloc_get_type(p, struct cldap_search_state);
@@ -271,15 +270,8 @@ static bool cldap_socket_recv_dgram(struct cldap_socket *c,
 	search->response.asn1 = asn1;
 	search->response.asn1->ofs = 0;
 
-	DLIST_REMOVE(c->searches.list, search);
-
-	if (!cldap_recvfrom_setup(c)) {
-		goto nomem;
-	}
-
 	tevent_req_done(search->req);
-	talloc_free(in);
-	return true;
+	goto done;
 
 nomem:
 	in->recv_errno = ENOMEM;
@@ -297,7 +289,6 @@ nterror:
 	tevent_req_nterror(c->searches.list->req, status);
 done:
 	talloc_free(in);
-	return false;
 }
 
 /*
@@ -329,11 +320,7 @@ NTSTATUS cldap_socket_init(TALLOC_CTX *mem_ctx,
 	c->event.ctx = ev;
 
 	if (!local_addr) {
-		/* we use ipv4 here instead of ip, as otherwise we end
-		   up with a PF_INET6 socket, and sendto() for ipv4
-		   addresses will fail. That breaks cldap name
-		   resolution for winbind to IPv4 hosts. */
-		ret = tsocket_address_inet_from_strings(c, "ipv4",
+		ret = tsocket_address_inet_from_strings(c, "ip",
 							NULL, 0,
 							&any);
 		if (ret != 0) {
@@ -959,6 +946,7 @@ static void cldap_netlogon_state_done(struct tevent_req *subreq)
   receive a cldap netlogon reply
 */
 NTSTATUS cldap_netlogon_recv(struct tevent_req *req,
+			     struct smb_iconv_convenience *iconv_convenience,
 			     TALLOC_CTX *mem_ctx,
 			     struct cldap_netlogon *io)
 {
@@ -986,6 +974,7 @@ NTSTATUS cldap_netlogon_recv(struct tevent_req *req,
 	data = state->search.out.response->attributes[0].values;
 
 	status = pull_netlogon_samlogon_response(data, mem_ctx,
+						 iconv_convenience,
 						 &io->out.netlogon);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto failed;
@@ -1005,6 +994,7 @@ failed:
   sync cldap netlogon search
 */
 NTSTATUS cldap_netlogon(struct cldap_socket *cldap,
+			struct smb_iconv_convenience *iconv_convenience,
 			TALLOC_CTX *mem_ctx,
 			struct cldap_netlogon *io)
 {
@@ -1027,7 +1017,7 @@ NTSTATUS cldap_netlogon(struct cldap_socket *cldap,
 		return NT_STATUS_INTERNAL_ERROR;
 	}
 
-	status = cldap_netlogon_recv(req, mem_ctx, io);
+	status = cldap_netlogon_recv(req, iconv_convenience, mem_ctx, io);
 	talloc_free(req);
 
 	return status;
@@ -1091,6 +1081,7 @@ NTSTATUS cldap_error_reply(struct cldap_socket *cldap,
   send a netlogon reply 
 */
 NTSTATUS cldap_netlogon_reply(struct cldap_socket *cldap,
+			      struct smb_iconv_convenience *iconv_convenience,
 			      uint32_t message_id,
 			      struct tsocket_address *dest,
 			      uint32_t version,
@@ -1104,6 +1095,7 @@ NTSTATUS cldap_netlogon_reply(struct cldap_socket *cldap,
 	DATA_BLOB blob;
 
 	status = push_netlogon_samlogon_response(&blob, tmp_ctx,
+						 iconv_convenience,
 						 netlogon);
 	if (!NT_STATUS_IS_OK(status)) {
 		talloc_free(tmp_ctx);

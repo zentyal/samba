@@ -31,8 +31,9 @@
  */
 
 #include "mech_locl.h"
+RCSID("$Id$");
 
-GSSAPI_LIB_FUNCTION OM_uint32 GSSAPI_LIB_CALL
+OM_uint32 GSSAPI_LIB_FUNCTION
 gss_set_cred_option (OM_uint32 *minor_status,
 		     gss_cred_id_t *cred_handle,
 		     const gss_OID object,
@@ -54,9 +55,9 @@ gss_set_cred_option (OM_uint32 *minor_status,
 		if (cred == NULL)
 		    return GSS_S_FAILURE;
 
-		HEIM_SLIST_INIT(&cred->gc_mc);
+		SLIST_INIT(&cred->gc_mc);
 
-		HEIM_SLIST_FOREACH(m, &_gss_mechs, gm_link) {
+		SLIST_FOREACH(m, &_gss_mechs, gm_link) {
 
 			if (m->gm_mech.gm_set_cred_option == NULL)
 				continue;
@@ -81,7 +82,7 @@ gss_set_cred_option (OM_uint32 *minor_status,
 				continue;
 			}
 			one_ok = 1;
-			HEIM_SLIST_INSERT_HEAD(&cred->gc_mc, mc, gmc_link);
+			SLIST_INSERT_HEAD(&cred->gc_mc, mc, gmc_link);
 		}
 		*cred_handle = (gss_cred_id_t)cred;
 		if (!one_ok) {
@@ -91,7 +92,7 @@ gss_set_cred_option (OM_uint32 *minor_status,
 	} else {
 		gssapi_mech_interface	m;
 
-		HEIM_SLIST_FOREACH(mc, &cred->gc_mc, gmc_link) {
+		SLIST_FOREACH(mc, &cred->gc_mc, gmc_link) {
 			m = mc->gmc_mech;
 	
 			if (m == NULL)

@@ -110,16 +110,14 @@ copy_type (const char *from, const char *to, const Type *t, int preserve)
 	    if(t->type == TChoice)
 		fprintf(codefile, "case %s:\n", m->label);
 
-	    if (asprintf (&fs, "%s(%s)->%s%s",
-			  m->optional ? "" : "&", from,
-			  t->type == TChoice ? "u." : "", m->gen_name) < 0)
-		errx(1, "malloc");
+	    asprintf (&fs, "%s(%s)->%s%s",
+		      m->optional ? "" : "&", from,
+		      t->type == TChoice ? "u." : "", m->gen_name);
 	    if (fs == NULL)
 		errx(1, "malloc");
-	    if (asprintf (&ts, "%s(%s)->%s%s",
-			  m->optional ? "" : "&", to,
-			  t->type == TChoice ? "u." : "", m->gen_name) < 0)
-		errx(1, "malloc");
+	    asprintf (&ts, "%s(%s)->%s%s",
+		      m->optional ? "" : "&", to,
+		      t->type == TChoice ? "u." : "", m->gen_name);
 	    if (ts == NULL)
 		errx(1, "malloc");
 	    if(m->optional){
@@ -157,7 +155,8 @@ copy_type (const char *from, const char *to, const Type *t, int preserve)
     }
     case TSetOf:
     case TSequenceOf: {
-	char *f = NULL, *T = NULL;
+	char *f;
+	char *T;
 
 	fprintf (codefile, "if(((%s)->val = "
 		 "malloc((%s)->len * sizeof(*(%s)->val))) == NULL && (%s)->len != 0)\n",
@@ -167,12 +166,10 @@ copy_type (const char *from, const char *to, const Type *t, int preserve)
 	fprintf(codefile,
 		"for((%s)->len = 0; (%s)->len < (%s)->len; (%s)->len++){\n",
 		to, to, from, to);
-	if (asprintf(&f, "&(%s)->val[(%s)->len]", from, to) < 0)
-	    errx(1, "malloc");
+	asprintf(&f, "&(%s)->val[(%s)->len]", from, to);
 	if (f == NULL)
 	    errx(1, "malloc");
-	if (asprintf(&T, "&(%s)->val[(%s)->len]", to, to) < 0)
-	    errx(1, "malloc");
+	asprintf(&T, "&(%s)->val[(%s)->len]", to, to);
 	if (T == NULL)
 	    errx(1, "malloc");
 	copy_type(f, T, t->subtype, FALSE);
@@ -185,9 +182,6 @@ copy_type (const char *from, const char *to, const Type *t, int preserve)
 	fprintf(codefile, "*(%s) = *(%s);\n", to, from);
 	break;
     case TGeneralString:
-	copy_primitive ("general_string", from, to);
-	break;
-    case TTeletexString:
 	copy_primitive ("general_string", from, to);
 	break;
     case TUTCTime:
@@ -231,7 +225,11 @@ generate_type_copy (const Symbol *s)
 
   used_fail = 0;
 
-  fprintf (codefile, "int ASN1CALL\n"
+  fprintf (headerfile,
+	   "int    copy_%s  (const %s *, %s *);\n",
+	   s->gen_name, s->gen_name, s->gen_name);
+
+  fprintf (codefile, "int\n"
 	   "copy_%s(const %s *from, %s *to)\n"
 	   "{\n"
 	   "memset(to, 0, sizeof(*to));\n",

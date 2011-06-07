@@ -32,13 +32,12 @@
 
 #include "system/time.h"
 #include "system/wait.h"
-#include "system/locale.h"
 
 /* only do the C++ reserved word check when we compile
    to include --with-developer since too many systems
    still have comflicts with their header files (e.g. IRIX 6.4) */
 
-#if !defined(__cplusplus) && defined(DEVELOPER) && defined(__linux__)
+#if !defined(__cplusplus) && defined(DEVELOPER)
 #define class #error DONT_USE_CPLUSPLUS_RESERVED_NAMES
 #define private #error DONT_USE_CPLUSPLUS_RESERVED_NAMES
 #define public #error DONT_USE_CPLUSPLUS_RESERVED_NAMES
@@ -68,5 +67,14 @@
 /* Thread functions. */
 #include "../lib/util/smb_threads.h"
 #include "../lib/util/smb_threads_internal.h"
+
+#if defined(UID_WRAPPER)
+#if !defined(UID_WRAPPER_REPLACE) && !defined(UID_WRAPPER_NOT_REPLACE)
+#define UID_WRAPPER_REPLACE
+#include "../uid_wrapper/uid_wrapper.h"
+#endif
+#else
+#define uwrap_enabled() 0
+#endif
 
 #endif /* _INCLUDES_H */

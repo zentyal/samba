@@ -20,15 +20,9 @@
 #define _PYCREDENTIALS_H_
 
 #include "auth/credentials/credentials.h"
-#include <pytalloc.h>
+#include "pytalloc.h"
 
-extern PyTypeObject PyCredentials;
-extern PyTypeObject PyCredentialCacheContainer;
-typedef struct {
-	PyObject_HEAD
-	TALLOC_CTX *mem_ctx;
-	struct ccache_container *ccc;
-} PyCredentialCacheContainerObject;
+PyAPI_DATA(PyTypeObject) PyCredentials;
 #define PyCredentials_Check(py_obj) PyObject_TypeCheck(py_obj, &PyCredentials)
 #define PyCredentials_AsCliCredentials(py_obj) py_talloc_get_type(py_obj, struct cli_credentials)
 #define cli_credentials_from_py_object(py_obj) (py_obj == Py_None)?cli_credentials_init_anon(NULL):PyCredentials_AsCliCredentials(py_obj)

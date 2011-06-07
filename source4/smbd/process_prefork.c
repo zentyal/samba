@@ -25,12 +25,13 @@
 
 #include "includes.h"
 #include "lib/events/events.h"
+#include "../tdb/include/tdb.h"
 #include "lib/socket/socket.h"
 #include "smbd/process_model.h"
+#include "param/secrets.h"
 #include "system/filesys.h"
 #include "cluster/cluster.h"
 #include "param/param.h"
-#include "ldb_wrap.h"
 
 #ifdef HAVE_SETPROCTITLE
 #ifdef HAVE_SETPROCTITLE_H
@@ -48,14 +49,17 @@ static int none_setproctitle(const char *fmt, ...)
 /*
   called when the process model is selected
 */
-static void prefork_model_init(void)
+static void prefork_model_init(struct tevent_context *ev)
 {
 	signal(SIGCHLD, SIG_IGN);
 }
 
 static void prefork_reload_after_fork(void)
 {
-	ldb_wrap_fork_hook();
+	/* tdb needs special fork handling */
+	if (tdb_reopen_all(1) == -1) {
+		DEBUG(0,("prefork_reload_after_fork: tdb_reopen_all failed.\n"));
+	}
 
 	/* Ensure that the forked children do not expose identical random streams */
 	set_need_random_reseed();
@@ -93,7 +97,7 @@ static void prefork_accept_connection(struct tevent_context *ev,
 static void prefork_new_task(struct tevent_context *ev, 
 			     struct loadparm_context *lp_ctx,
 			     const char *service_name,
-			     void (*new_task_fn)(struct tevent_context *, struct loadparm_context *lp_ctx, struct server_id , void *),
+			     void (*new_task_fn)(struct tevent_context *, struct loadparm_context *lp_ctx, struct server_id , void *), 
 			     void *private_data)
 {
 	pid_t pid;
@@ -122,14 +126,14 @@ static void prefork_new_task(struct tevent_context *ev,
 	   is not associated with this new connection */
 	talloc_free(ev);
 
-	setproctitle("task %s server_id[%d]", service_name, (int)pid);
+	setproctitle("task %s server_id[%d]", service_name, pid);
 
 	prefork_reload_after_fork();
 
 	/* setup this new connection: process will bind to it's sockets etc */
 	new_task_fn(ev2, lp_ctx, cluster_id(pid, 0), private_data);
 
-	num_children = lpcfg_parm_int(lp_ctx, NULL, "prefork children", service_name, 0);
+	num_children = lp_parm_int(lp_ctx, NULL, "prefork children", service_name, 0);
 	if (num_children == 0) {
 
 		/* We don't want any kids hanging around for this one,
@@ -151,7 +155,7 @@ static void prefork_new_task(struct tevent_context *ev,
 			return;
 		} else {
 			pid = getpid();
-			setproctitle("task %s server_id[%d]", service_name, (int)pid);
+			setproctitle("task %s server_id[%d]", service_name, pid);
 
 			prefork_reload_after_fork();
 
@@ -170,7 +174,7 @@ static void prefork_new_task(struct tevent_context *ev,
 	
 	/* But we need a events system to handle reaping children */
 	ev_parent = s4_event_context_init(NULL);
-
+	
 	/* TODO: Handle some events... */
 	
 	/* we can't return to the top level here, as that event context is gone,
@@ -185,7 +189,7 @@ static void prefork_new_task(struct tevent_context *ev,
 
 
 /* called when a task goes down */
-static void prefork_terminate(struct tevent_context *ev, struct loadparm_context *lp_ctx, const char *reason)
+_NORETURN_ static void prefork_terminate(struct tevent_context *ev, struct loadparm_context *lp_ctx, const char *reason) 
 {
 	DEBUG(2,("prefork_terminate: reason[%s]\n",reason));
 }

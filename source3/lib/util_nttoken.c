@@ -26,30 +26,29 @@
 /* function(s) moved from auth/auth_util.c to minimize linker deps */
 
 #include "includes.h"
-#include "../libcli/security/security.h"
 
 /****************************************************************************
  Duplicate a SID token.
 ****************************************************************************/
 
-struct security_token *dup_nt_token(TALLOC_CTX *mem_ctx, const struct security_token *ptoken)
+NT_USER_TOKEN *dup_nt_token(TALLOC_CTX *mem_ctx, const NT_USER_TOKEN *ptoken)
 {
-	struct security_token *token;
+	NT_USER_TOKEN *token;
 
 	if (!ptoken)
 		return NULL;
 
-	token = TALLOC_ZERO_P(mem_ctx, struct security_token);
+	token = TALLOC_ZERO_P(mem_ctx, NT_USER_TOKEN);
 	if (token == NULL) {
 		DEBUG(0, ("talloc failed\n"));
 		return NULL;
 	}
 
-	if (ptoken->sids && ptoken->num_sids) {
-		token->sids = (struct dom_sid *)talloc_memdup(
-			token, ptoken->sids, sizeof(struct dom_sid) * ptoken->num_sids );
+	if (ptoken->user_sids && ptoken->num_sids) {
+		token->user_sids = (DOM_SID *)talloc_memdup(
+			token, ptoken->user_sids, sizeof(DOM_SID) * ptoken->num_sids );
 
-		if (token->sids == NULL) {
+		if (token->user_sids == NULL) {
 			DEBUG(0, ("talloc_memdup failed\n"));
 			TALLOC_FREE(token);
 			return NULL;
@@ -57,8 +56,12 @@ struct security_token *dup_nt_token(TALLOC_CTX *mem_ctx, const struct security_t
 		token->num_sids = ptoken->num_sids;
 	}
 	
-	token->privilege_mask = ptoken->privilege_mask;
-	token->rights_mask = ptoken->rights_mask;
+	/* copy the privileges; don't consider failure to be critical here */
+	
+	if ( !se_priv_copy( &token->privileges, &ptoken->privileges ) ) {
+		DEBUG(0,("dup_nt_token: Failure to copy SE_PRIV!.  "
+			 "Continuing with 0 privileges assigned.\n"));
+	}
 
 	return token;
 }
@@ -68,11 +71,11 @@ struct security_token *dup_nt_token(TALLOC_CTX *mem_ctx, const struct security_t
 ****************************************************************************/
 
 NTSTATUS merge_nt_token(TALLOC_CTX *mem_ctx,
-			const struct security_token *token_1,
-			const struct security_token *token_2,
-			struct security_token **token_out)
+			const struct nt_user_token *token_1,
+			const struct nt_user_token *token_2,
+			struct nt_user_token **token_out)
 {
-	struct security_token *token = NULL;
+	struct nt_user_token *token = NULL;
 	NTSTATUS status;
 	int i;
 
@@ -80,13 +83,13 @@ NTSTATUS merge_nt_token(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	token = TALLOC_ZERO_P(mem_ctx, struct security_token);
+	token = TALLOC_ZERO_P(mem_ctx, struct nt_user_token);
 	NT_STATUS_HAVE_NO_MEMORY(token);
 
 	for (i=0; i < token_1->num_sids; i++) {
 		status = add_sid_to_array_unique(mem_ctx,
-						 &token_1->sids[i],
-						 &token->sids,
+						 &token_1->user_sids[i],
+						 &token->user_sids,
 						 &token->num_sids);
 		if (!NT_STATUS_IS_OK(status)) {
 			TALLOC_FREE(token);
@@ -96,8 +99,8 @@ NTSTATUS merge_nt_token(TALLOC_CTX *mem_ctx,
 
 	for (i=0; i < token_2->num_sids; i++) {
 		status = add_sid_to_array_unique(mem_ctx,
-						 &token_2->sids[i],
-						 &token->sids,
+						 &token_2->user_sids[i],
+						 &token->user_sids,
 						 &token->num_sids);
 		if (!NT_STATUS_IS_OK(status)) {
 			TALLOC_FREE(token);
@@ -105,11 +108,8 @@ NTSTATUS merge_nt_token(TALLOC_CTX *mem_ctx,
 		}
 	}
 
-	token->privilege_mask |= token_1->privilege_mask;
-	token->privilege_mask |= token_2->privilege_mask;
-
-	token->rights_mask |= token_1->rights_mask;
-	token->rights_mask |= token_2->rights_mask;
+	se_priv_add(&token->privileges, &token_1->privileges);
+	se_priv_add(&token->privileges, &token_2->privileges);
 
 	*token_out = token;
 
@@ -117,15 +117,15 @@ NTSTATUS merge_nt_token(TALLOC_CTX *mem_ctx,
 }
 
 /*******************************************************************
- Check if this struct security_ace has a SID in common with the token.
+ Check if this ACE has a SID in common with the token.
 ********************************************************************/
 
-bool token_sid_in_ace(const struct security_token *token, const struct security_ace *ace)
+bool token_sid_in_ace(const NT_USER_TOKEN *token, const struct security_ace *ace)
 {
 	size_t i;
 
 	for (i = 0; i < token->num_sids; i++) {
-		if (dom_sid_equal(&ace->trustee, &token->sids[i]))
+		if (sid_equal(&ace->trustee, &token->user_sids[i]))
 			return true;
 	}
 

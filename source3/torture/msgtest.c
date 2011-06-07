@@ -1,17 +1,17 @@
 /* 
    Unix SMB/CIFS implementation.
    Copyright (C) Andrew Tridgell 2000
-
+   
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -21,7 +21,6 @@
  */
 
 #include "includes.h"
-#include "messages.h"
 
 static int pong_count;
 
@@ -49,16 +48,16 @@ static void pong_message(struct messaging_context *msg_ctx,
 
 	load_case_tables();
 
-	setup_logging(argv[0], DEBUG_STDOUT);
-
+	setup_logging(argv[0],True);
+	
 	lp_load(get_dyn_CONFIGFILE(),False,False,False,True);
 
 	if (!(evt_ctx = tevent_context_init(NULL)) ||
-	    !(msg_ctx = messaging_init(NULL, procid_self(), evt_ctx))) {
+	    !(msg_ctx = messaging_init(NULL, server_id_self(), evt_ctx))) {
 		fprintf(stderr, "could not init messaging context\n");
 		exit(1);
 	}
-
+	
 	if (argc != 3) {
 		fprintf(stderr, "%s: Usage - %s pid count\n", argv[0],
 			argv[0]);
@@ -88,10 +87,10 @@ static void pong_message(struct messaging_context *msg_ctx,
 	safe_strcpy(buf, "1234567890", sizeof(buf)-1);
 
 	for (i=0;i<n;i++) {
-		messaging_send(msg_ctx, messaging_server_id(msg_ctx), MSG_PING,
+		messaging_send(msg_ctx, pid_to_procid(getpid()), MSG_PING,
 			       &data_blob_null);
-		messaging_send_buf(msg_ctx, messaging_server_id(msg_ctx),
-				   MSG_PING,(uint8 *)buf, 11);
+		messaging_send_buf(msg_ctx, pid_to_procid(getpid()), MSG_PING,
+				   (uint8 *)buf, 11);
 	}
 
 	for (i=0;i<n;i++) {
@@ -133,7 +132,7 @@ static void pong_message(struct messaging_context *msg_ctx,
 				}
 			}
 		}
-
+		
 		printf("waiting for %d remaining replies (done %d)\n", 
 		       (int)(ping_count - pong_count), pong_count);
 		while (timeval_elapsed(&tv) < 30 && pong_count < ping_count) {
@@ -142,12 +141,12 @@ static void pong_message(struct messaging_context *msg_ctx,
 				break;
 			}
 		}
-
+		
 		if (ping_count != pong_count) {
 			fprintf(stderr, "ping test failed! received %d, sent "
 				"%d\n", pong_count, (int)ping_count);
 		}
-
+		
 		printf("ping rate of %.0f messages/sec\n", 
 		       (ping_count+pong_count)/timeval_elapsed(&tv));
 	}

@@ -29,9 +29,6 @@ subunit_pass_test () {
   echo "success: $1"
 }
 
-# This is just a hack as we have some broken scripts
-# which use "exit $failed", without initializing failed.
-failed=0
 
 subunit_fail_test () {
   # emit the current protocol fail-marker for test $1, and emit stdin as
@@ -83,20 +80,3 @@ testit_expect_failure () {
 	fi
 	return $status
 }
-
-testok () {
-	name=`basename $1`
-	shift
-	failed=$2
-	shift
-
-	exit $failed
-}
-
-# work out the top level source directory
-if [ -d source4 ]; then
-    SRCDIR="."
-else
-    SRCDIR=".."
-fi
-export SRCDIR

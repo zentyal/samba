@@ -27,6 +27,7 @@
  */
 
 #include "mech_locl.h"
+RCSID("$Id$");
 
 static OM_uint32
 parse_header(const gss_buffer_t input_token, gss_OID mech_oid)
@@ -141,8 +142,7 @@ choose_mech(const gss_buffer_t input, gss_OID mech_oid)
 }
 
 
-GSSAPI_LIB_FUNCTION OM_uint32 GSSAPI_LIB_CALL
-gss_accept_sec_context(OM_uint32 *minor_status,
+OM_uint32 gss_accept_sec_context(OM_uint32 *minor_status,
     gss_ctx_id_t *context_handle,
     const gss_cred_id_t acceptor_cred_handle,
     const gss_buffer_t input_token,
@@ -161,7 +161,6 @@ gss_accept_sec_context(OM_uint32 *minor_status,
 	struct _gss_mechanism_cred *mc;
 	gss_cred_id_t acceptor_mc, delegated_mc;
 	gss_name_t src_mn;
-	gss_OID mech_ret_type = NULL;
 
 	*minor_status = 0;
 	if (src_name)
@@ -209,7 +208,7 @@ gss_accept_sec_context(OM_uint32 *minor_status,
 	}
 
 	if (cred) {
-		HEIM_SLIST_FOREACH(mc, &cred->gc_mc, gmc_link)
+		SLIST_FOREACH(mc, &cred->gc_mc, gmc_link)
 			if (mc->gmc_mech == m)
 				break;
 		if (!mc) {
@@ -229,7 +228,7 @@ gss_accept_sec_context(OM_uint32 *minor_status,
 	    input_token,
 	    input_chan_bindings,
 	    &src_mn,
-	    &mech_ret_type,
+	    mech_type,
 	    output_token,
 	    &mech_ret_flags,
 	    time_rec,
@@ -241,9 +240,6 @@ gss_accept_sec_context(OM_uint32 *minor_status,
 		gss_delete_sec_context(&junk, context_handle, NULL);
 		return (major_status);
 	}
-
-	if (mech_type)
-	    *mech_type = mech_ret_type;
 
 	if (src_name && src_mn) {
 		/*
@@ -264,17 +260,8 @@ gss_accept_sec_context(OM_uint32 *minor_status,
 	if (mech_ret_flags & GSS_C_DELEG_FLAG) {
 		if (!delegated_cred_handle) {
 			m->gm_release_cred(minor_status, &delegated_mc);
-			mech_ret_flags &=
-			    ~(GSS_C_DELEG_FLAG|GSS_C_DELEG_POLICY_FLAG);
-		} else if (gss_oid_equal(mech_ret_type, &m->gm_mech_oid) == 0) {
-			/* 
-			 * If the returned mech_type is not the same
-			 * as the mech, assume its pseudo mech type
-			 * and the returned type is already a
-			 * mech-glue object
-			 */
-			*delegated_cred_handle = delegated_mc;
-
+			if (ret_flags)
+				*ret_flags &= ~GSS_C_DELEG_FLAG;
 		} else if (delegated_mc) {
 			struct _gss_cred *dcred;
 			struct _gss_mechanism_cred *dmc;
@@ -285,7 +272,7 @@ gss_accept_sec_context(OM_uint32 *minor_status,
 				gss_delete_sec_context(&junk, context_handle, NULL);
 				return (GSS_S_FAILURE);
 			}
-			HEIM_SLIST_INIT(&dcred->gc_mc);
+			SLIST_INIT(&dcred->gc_mc);
 			dmc = malloc(sizeof(struct _gss_mechanism_cred));
 			if (!dmc) {
 				free(dcred);
@@ -296,7 +283,7 @@ gss_accept_sec_context(OM_uint32 *minor_status,
 			dmc->gmc_mech = m;
 			dmc->gmc_mech_oid = &m->gm_mech_oid;
 			dmc->gmc_cred = delegated_mc;
-			HEIM_SLIST_INSERT_HEAD(&dcred->gc_mc, dmc, gmc_link);
+			SLIST_INSERT_HEAD(&dcred->gc_mc, dmc, gmc_link);
 
 			*delegated_cred_handle = (gss_cred_id_t) dcred;
 		}

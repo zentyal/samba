@@ -20,10 +20,6 @@
 */
 
 #include "includes.h"
-#include "torture/proto.h"
-#include "../libcli/security/security.h"
-#include "libsmb/libsmb.h"
-#include "libsmb/clirap.h"
 
 #define MAX_FILES 1000
 
@@ -31,7 +27,6 @@ static char buf[70000];
 extern int line_count;
 extern int nbio_id;
 static int nprocs;
-static struct timeval nb_start;
 
 static struct {
 	int fd;
@@ -65,9 +60,7 @@ void nb_alarm(int ignore)
 		if (!children[i].done) num_clients++;
 	}
 
-	printf("%4d  %8d  %.2f MB/sec\r",
-	       num_clients, lines/nprocs,
-	       1.0e-6 * nbio_total() / timeval_elapsed(&nb_start));
+	printf("%4d  %8d  %.2f MB/sec\r", num_clients, lines/nprocs, 1.0e-6 * nbio_total() / end_timer());
 
 	signal(SIGALRM, nb_alarm);
 	alarm(1);	
@@ -128,14 +121,14 @@ void nb_setup(struct cli_state *cli)
 {
 	signal(SIGSEGV, sigsegv);
 	c = cli;
-	nb_start = timeval_current();
+	start_timer();
 	children[nbio_id].done = 0;
 }
 
 
 void nb_unlink(const char *fname)
 {
-	if (!NT_STATUS_IS_OK(cli_unlink(c, fname, FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN))) {
+	if (!NT_STATUS_IS_OK(cli_unlink(c, fname, aSYSTEM | aHIDDEN))) {
 #if NBDEBUG
 		printf("(%d) unlink %s failed (%s)\n", 
 		       line_count, fname, cli_errstr(c));
@@ -190,17 +183,13 @@ void nb_createx(const char *fname,
 void nb_writex(int handle, int offset, int size, int ret_size)
 {
 	int i;
-	NTSTATUS status;
 
 	if (buf[0] == 0) memset(buf, 1, sizeof(buf));
 
 	i = find_handle(handle);
-	status = cli_writeall(c, ftable[i].fd, 0, (uint8_t *)buf, offset, size,
-			      NULL);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf("(%d) ERROR: write failed on handle %d, fd %d "
-		       "error %s\n", line_count, handle, ftable[i].fd,
-		       nt_errstr(status));
+	if (cli_write(c, ftable[i].fd, 0, buf, offset, size) != ret_size) {
+		printf("(%d) ERROR: write failed on handle %d, fd %d \
+errno %d (%s)\n", line_count, handle, ftable[i].fd, errno, strerror(errno));
 		exit(1);
 	}
 
@@ -252,15 +241,14 @@ void nb_rename(const char *oldname, const char *newname)
 
 void nb_qpathinfo(const char *fname)
 {
-	cli_qpathinfo1(c, fname, NULL, NULL, NULL, NULL, NULL);
+	cli_qpathinfo(c, fname, NULL, NULL, NULL, NULL, NULL);
 }
 
 void nb_qfileinfo(int fnum)
 {
 	int i;
 	i = find_handle(fnum);
-	cli_qfileinfo_basic(c, ftable[i].fd, NULL, NULL, NULL, NULL, NULL,
-			    NULL, NULL);
+	cli_qfileinfo(c, ftable[i].fd, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
 void nb_qfsinfo(int level)
@@ -270,11 +258,9 @@ void nb_qfsinfo(int level)
 	cli_dskattr(c, &bsize, &total, &avail);
 }
 
-static NTSTATUS find_fn(const char *mnt, struct file_info *finfo, const char *name,
-		    void *state)
+static void find_fn(const char *mnt, file_info *finfo, const char *name, void *state)
 {
 	/* noop */
-	return NT_STATUS_OK;
 }
 
 void nb_findfirst(const char *mask)
@@ -291,33 +277,24 @@ void nb_flush(int fnum)
 
 static int total_deleted;
 
-static NTSTATUS delete_fn(const char *mnt, struct file_info *finfo,
-		      const char *name, void *state)
+static void delete_fn(const char *mnt, file_info *finfo, const char *name, void *state)
 {
-	NTSTATUS status;
 	char *s, *n;
-	if (finfo->name[0] == '.') {
-		return NT_STATUS_OK;
-	}
+	if (finfo->name[0] == '.') return;
 
 	n = SMB_STRDUP(name);
 	n[strlen(n)-1] = 0;
 	if (asprintf(&s, "%s%s", n, finfo->name) == -1) {
 		printf("asprintf failed\n");
-		return NT_STATUS_NO_MEMORY;
+		return;
 	}
-	if (finfo->mode & FILE_ATTRIBUTE_DIRECTORY) {
+	if (finfo->mode & aDIR) {
 		char *s2;
 		if (asprintf(&s2, "%s\\*", s) == -1) {
 			printf("asprintf failed\n");
-			return NT_STATUS_NO_MEMORY;
+			return;
 		}
-		status = cli_list(c, s2, FILE_ATTRIBUTE_DIRECTORY, delete_fn, NULL);
-		if (!NT_STATUS_IS_OK(status)) {
-			free(n);
-			free(s2);
-			return status;
-		}
+		cli_list(c, s2, aDIR, delete_fn, NULL);
 		nb_rmdir(s);
 	} else {
 		total_deleted++;
@@ -325,7 +302,6 @@ static NTSTATUS delete_fn(const char *mnt, struct file_info *finfo,
 	}
 	free(s);
 	free(n);
-	return NT_STATUS_OK;
 }
 
 void nb_deltree(const char *dname)
@@ -337,7 +313,7 @@ void nb_deltree(const char *dname)
 	}
 
 	total_deleted = 0;
-	cli_list(c, mask, FILE_ATTRIBUTE_DIRECTORY, delete_fn, NULL);
+	cli_list(c, mask, aDIR, delete_fn, NULL);
 	free(mask);
 	cli_rmdir(c, dname);
 

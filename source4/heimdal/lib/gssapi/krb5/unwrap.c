@@ -33,8 +33,6 @@
 
 #include "gsskrb5_locl.h"
 
-#ifdef HEIM_WEAK_CRYPTO
-
 static OM_uint32
 unwrap_des
            (OM_uint32 * minor_status,
@@ -48,9 +46,8 @@ unwrap_des
 {
   u_char *p, *seq;
   size_t len;
-  EVP_MD_CTX *md5;
+  MD5_CTX md5;
   u_char hash[16];
-  EVP_CIPHER_CTX des_ctx;
   DES_key_schedule schedule;
   DES_cblock deskey;
   DES_cblock zero;
@@ -101,13 +98,16 @@ unwrap_des
 
       for (i = 0; i < sizeof(deskey); ++i)
 	  deskey[i] ^= 0xf0;
+      DES_set_key_unchecked (&deskey, &schedule);
+      memset (&zero, 0, sizeof(zero));
+      DES_cbc_encrypt ((void *)p,
+		       (void *)p,
+		       input_message_buffer->length - len,
+		       &schedule,
+		       &zero,
+		       DES_DECRYPT);
 
-
-      EVP_CIPHER_CTX_init(&des_ctx);
-      EVP_CipherInit_ex(&des_ctx, EVP_des_cbc(), NULL, deskey, zero, 0);
-      EVP_Cipher(&des_ctx, p, p, input_message_buffer->length - len);
-      EVP_CIPHER_CTX_cleanup(&des_ctx);
-
+      memset (deskey, 0, sizeof(deskey));
       memset (&schedule, 0, sizeof(schedule));
   }
 
@@ -122,19 +122,17 @@ unwrap_des
         return ret;
   }
 
-  md5 = EVP_MD_CTX_create();
-  EVP_DigestInit_ex(md5, EVP_md5(), NULL);
-  EVP_DigestUpdate(md5, p - 24, 8);
-  EVP_DigestUpdate(md5, p, input_message_buffer->length - len);
-  EVP_DigestFinal_ex(md5, hash, NULL);
-  EVP_MD_CTX_destroy(md5);
+  MD5_Init (&md5);
+  MD5_Update (&md5, p - 24, 8);
+  MD5_Update (&md5, p, input_message_buffer->length - len);
+  MD5_Final (hash, &md5);
 
   memset (&zero, 0, sizeof(zero));
   memcpy (&deskey, key->keyvalue.data, sizeof(deskey));
   DES_set_key_unchecked (&deskey, &schedule);
   DES_cbc_cksum ((void *)hash, (void *)hash, sizeof(hash),
 		 &schedule, &zero);
-  if (ct_memcmp (p - 8, hash, 8) != 0)
+  if (memcmp (p - 8, hash, 8) != 0)
     return GSS_S_BAD_MIC;
 
   /* verify sequence number */
@@ -142,11 +140,9 @@ unwrap_des
   HEIMDAL_MUTEX_lock(&context_handle->ctx_id_mutex);
 
   p -= 16;
-
-  EVP_CIPHER_CTX_init(&des_ctx);
-  EVP_CipherInit_ex(&des_ctx, EVP_des_cbc(), NULL, key->keyvalue.data, hash, 0);
-  EVP_Cipher(&des_ctx, p, p, 8);
-  EVP_CIPHER_CTX_cleanup(&des_ctx);
+  DES_set_key_unchecked (&deskey, &schedule);
+  DES_cbc_encrypt ((void *)p, (void *)p, 8,
+		   &schedule, (DES_cblock *)hash, DES_DECRYPT);
 
   memset (deskey, 0, sizeof(deskey));
   memset (&schedule, 0, sizeof(schedule));
@@ -155,9 +151,9 @@ unwrap_des
   _gsskrb5_decode_om_uint32(seq, &seq_number);
 
   if (context_handle->more_flags & LOCAL)
-      cmp = ct_memcmp(&seq[4], "\xff\xff\xff\xff", 4);
+      cmp = memcmp(&seq[4], "\xff\xff\xff\xff", 4);
   else
-      cmp = ct_memcmp(&seq[4], "\x00\x00\x00\x00", 4);
+      cmp = memcmp(&seq[4], "\x00\x00\x00\x00", 4);
 
   if (cmp != 0) {
     HEIMDAL_MUTEX_unlock(&context_handle->ctx_id_mutex);
@@ -184,7 +180,6 @@ unwrap_des
 	  output_message_buffer->length);
   return GSS_S_COMPLETE;
 }
-#endif
 
 static OM_uint32
 unwrap_des3
@@ -229,16 +224,16 @@ unwrap_des3
   if (memcmp (p, "\x04\x00", 2) != 0) /* HMAC SHA1 DES3_KD */
     return GSS_S_BAD_SIG;
   p += 2;
-  if (ct_memcmp (p, "\x02\x00", 2) == 0) {
+  if (memcmp (p, "\x02\x00", 2) == 0) {
     cstate = 1;
-  } else if (ct_memcmp (p, "\xff\xff", 2) == 0) {
+  } else if (memcmp (p, "\xff\xff", 2) == 0) {
     cstate = 0;
   } else
     return GSS_S_BAD_MIC;
   p += 2;
   if(conf_state != NULL)
     *conf_state = cstate;
-  if (ct_memcmp (p, "\xff\xff", 2) != 0)
+  if (memcmp (p, "\xff\xff", 2) != 0)
     return GSS_S_DEFECTIVE_TOKEN;
   p += 2;
   p += 28;
@@ -319,9 +314,9 @@ unwrap_des3
   _gsskrb5_decode_om_uint32(seq, &seq_number);
 
   if (context_handle->more_flags & LOCAL)
-      cmp = ct_memcmp(&seq[4], "\xff\xff\xff\xff", 4);
+      cmp = memcmp(&seq[4], "\xff\xff\xff\xff", 4);
   else
-      cmp = ct_memcmp(&seq[4], "\x00\x00\x00\x00", 4);
+      cmp = memcmp(&seq[4], "\x00\x00\x00\x00", 4);
 
   krb5_data_free (&seq_data);
   if (cmp != 0) {
@@ -379,7 +374,7 @@ unwrap_des3
   return GSS_S_COMPLETE;
 }
 
-OM_uint32 GSSAPI_CALLCONV _gsskrb5_unwrap
+OM_uint32 _gsskrb5_unwrap
            (OM_uint32 * minor_status,
             const gss_ctx_id_t context_handle,
             const gss_buffer_t input_message_buffer,
@@ -419,13 +414,9 @@ OM_uint32 GSSAPI_CALLCONV _gsskrb5_unwrap
 
   switch (keytype) {
   case KEYTYPE_DES :
-#ifdef HEIM_WEAK_CRYPTO
       ret = unwrap_des (minor_status, ctx,
 			input_message_buffer, output_message_buffer,
 			conf_state, qop_state, key);
-#else
-      ret = GSS_S_FAILURE;
-#endif
       break;
   case KEYTYPE_DES3 :
       ret = unwrap_des3 (minor_status, ctx, context,

@@ -36,7 +36,7 @@
 
 #ifndef HAVE_BSWAP32
 
-ROKEN_LIB_FUNCTION unsigned int ROKEN_LIB_CALL
+unsigned int ROKEN_LIB_FUNCTION
 bswap32 (unsigned int val)
 {
     return (val & 0xff) << 24 |
@@ -48,7 +48,7 @@ bswap32 (unsigned int val)
 
 #ifndef HAVE_BSWAP16
 
-ROKEN_LIB_FUNCTION unsigned short ROKEN_LIB_CALL
+unsigned short ROKEN_LIB_FUNCTION
 bswap16 (unsigned short val)
 {
     return (val & 0xff) << 8 |

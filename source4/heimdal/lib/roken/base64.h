@@ -38,18 +38,16 @@
 
 #ifndef ROKEN_LIB_FUNCTION
 #ifdef _WIN32
-#define ROKEN_LIB_FUNCTION
-#define ROKEN_LIB_CALL __cdecl
+#define ROKEN_LIB_FUNCTION _stdcall
 #else
 #define ROKEN_LIB_FUNCTION
-#define ROKEN_LIB_CALL
 #endif
 #endif
 
-ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
+int ROKEN_LIB_FUNCTION
 base64_encode(const void *, int, char **);
 
-ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
+int ROKEN_LIB_FUNCTION
 base64_decode(const char *, void *);
 
 #endif

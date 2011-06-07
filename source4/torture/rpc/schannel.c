@@ -24,9 +24,9 @@
 #include "librpc/gen_ndr/ndr_lsa_c.h"
 #include "librpc/gen_ndr/ndr_samr_c.h"
 #include "auth/credentials/credentials.h"
-#include "torture/rpc/torture_rpc.h"
+#include "torture/rpc/rpc.h"
 #include "lib/cmdline/popt_common.h"
-#include "../libcli/auth/schannel.h"
+#include "auth/gensec/schannel_proto.h"
 #include "libcli/auth/libcli_auth.h"
 #include "libcli/security/security.h"
 #include "system/filesys.h"
@@ -55,13 +55,11 @@ bool test_netlogon_ex_ops(struct dcerpc_pipe *p, struct torture_context *tctx,
 	DATA_BLOB names_blob, chal, lm_resp, nt_resp;
 	int i;
 	int flags = CLI_CRED_NTLM_AUTH;
-	struct dcerpc_binding_handle *b = p->binding_handle;
-
-	if (lpcfg_client_lanman_auth(tctx->lp_ctx)) {
+	if (lp_client_lanman_auth(tctx->lp_ctx)) {
 		flags |= CLI_CRED_LANMAN_AUTH;
 	}
 
-	if (lpcfg_client_ntlmv2_auth(tctx->lp_ctx)) {
+	if (lp_client_ntlmv2_auth(tctx->lp_ctx)) {
 		flags |= CLI_CRED_NTLMv2_AUTH;
 	}
 
@@ -115,9 +113,8 @@ bool test_netlogon_ex_ops(struct dcerpc_pipe *p, struct torture_context *tctx,
 	for (i=2;i<3;i++) {
 		r.in.validation_level = i;
 		
-		torture_assert_ntstatus_ok(tctx, dcerpc_netr_LogonSamLogonEx_r(b, tctx, &r),
-			"LogonSamLogon failed");
-		torture_assert_ntstatus_ok(tctx, r.out.result, "LogonSamLogon failed");
+		status = dcerpc_netr_LogonSamLogonEx(p, tctx, &r);
+		torture_assert_ntstatus_ok(tctx, status, "LogonSamLogon failed");
 	}
 
 	return true;
@@ -127,8 +124,9 @@ bool test_netlogon_ex_ops(struct dcerpc_pipe *p, struct torture_context *tctx,
   do some samr ops using the schannel connection
  */
 static bool test_samr_ops(struct torture_context *tctx,
-			  struct dcerpc_binding_handle *b)
+			  struct dcerpc_pipe *p)
 {
+	NTSTATUS status;
 	struct samr_GetDomPwInfo r;
 	struct samr_PwInfo info;
 	struct samr_Connect connect_r;
@@ -138,7 +136,7 @@ static bool test_samr_ops(struct torture_context *tctx,
 	struct policy_handle handle;
 	struct policy_handle domain_handle;
 
-	name.string = lpcfg_workgroup(tctx->lp_ctx);
+	name.string = lp_workgroup(tctx->lp_ctx);
 	r.in.domain_name = &name;
 	r.out.info = &info;
 
@@ -148,14 +146,13 @@ static bool test_samr_ops(struct torture_context *tctx,
 	
 	printf("Testing Connect and OpenDomain on BUILTIN\n");
 
-	torture_assert_ntstatus_ok(tctx, dcerpc_samr_Connect_r(b, tctx, &connect_r),
-		"Connect failed");
-	if (!NT_STATUS_IS_OK(connect_r.out.result)) {
-		if (NT_STATUS_EQUAL(connect_r.out.result, NT_STATUS_ACCESS_DENIED)) {
+	status = dcerpc_samr_Connect(p, tctx, &connect_r);
+	if (!NT_STATUS_IS_OK(status)) {
+		if (NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED)) {
 			printf("Connect failed (expected, schannel mapped to anonymous): %s\n",
-			       nt_errstr(connect_r.out.result));
+			       nt_errstr(status));
 		} else {
-			printf("Connect failed - %s\n", nt_errstr(connect_r.out.result));
+			printf("Connect failed - %s\n", nt_errstr(status));
 			return false;
 		}
 	} else {
@@ -164,10 +161,9 @@ static bool test_samr_ops(struct torture_context *tctx,
 		opendom.in.sid = dom_sid_parse_talloc(tctx, "S-1-5-32");
 		opendom.out.domain_handle = &domain_handle;
 		
-		torture_assert_ntstatus_ok(tctx, dcerpc_samr_OpenDomain_r(b, tctx, &opendom),
-			"OpenDomain failed");
-		if (!NT_STATUS_IS_OK(opendom.out.result)) {
-			printf("OpenDomain failed - %s\n", nt_errstr(opendom.out.result));
+		status = dcerpc_samr_OpenDomain(p, tctx, &opendom);
+		if (!NT_STATUS_IS_OK(status)) {
+			printf("OpenDomain failed - %s\n", nt_errstr(status));
 			return false;
 		}
 	}
@@ -176,11 +172,10 @@ static bool test_samr_ops(struct torture_context *tctx,
 	
 	/* do several ops to test credential chaining */
 	for (i=0;i<5;i++) {
-		torture_assert_ntstatus_ok(tctx, dcerpc_samr_GetDomPwInfo_r(b, tctx, &r),
-			"GetDomPwInfo failed");
-		if (!NT_STATUS_IS_OK(r.out.result)) {
-			if (!NT_STATUS_EQUAL(r.out.result, NT_STATUS_ACCESS_DENIED)) {
-				printf("GetDomPwInfo op %d failed - %s\n", i, nt_errstr(r.out.result));
+		status = dcerpc_samr_GetDomPwInfo(p, tctx, &r);
+		if (!NT_STATUS_IS_OK(status)) {
+			if (!NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED)) {
+				printf("GetDomPwInfo op %d failed - %s\n", i, nt_errstr(status));
 				return false;
 			}
 		}
@@ -196,10 +191,10 @@ static bool test_samr_ops(struct torture_context *tctx,
 static bool test_lsa_ops(struct torture_context *tctx, struct dcerpc_pipe *p)
 {
 	struct lsa_GetUserName r;
+	NTSTATUS status;
 	bool ret = true;
 	struct lsa_String *account_name_p = NULL;
 	struct lsa_String *authority_name_p = NULL;
-	struct dcerpc_binding_handle *b = p->binding_handle;
 
 	printf("\nTesting GetUserName\n");
 
@@ -209,13 +204,14 @@ static bool test_lsa_ops(struct torture_context *tctx, struct dcerpc_pipe *p)
 	r.out.account_name = &account_name_p;
 
 	/* do several ops to test credential chaining and various operations */
-	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_GetUserName_r(b, tctx, &r),
-		"lsa_GetUserName failed");
+	status = dcerpc_lsa_GetUserName(p, tctx, &r);
 
 	authority_name_p = *r.out.authority_name;
 
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		printf("GetUserName failed - %s\n", nt_errstr(r.out.result));
+	if (NT_STATUS_EQUAL(status, NT_STATUS_RPC_PROTSEQ_NOT_SUPPORTED)) {
+		printf("not considering %s to be an error\n", nt_errstr(status));
+	} else if (!NT_STATUS_IS_OK(status)) {
+		printf("GetUserName failed - %s\n", nt_errstr(status));
 		return false;
 	} else {
 		if (!r.out.account_name) {
@@ -288,7 +284,7 @@ static bool test_schannel(struct torture_context *tctx,
 	torture_assert_ntstatus_ok(tctx, status, 
 		"Failed to connect with schannel");
 
-	torture_assert(tctx, test_samr_ops(tctx, p->binding_handle),
+	torture_assert(tctx, test_samr_ops(tctx, p), 
 		       "Failed to process schannel secured SAMR ops");
 
 	/* Also test that when we connect to the netlogon pipe, that
@@ -304,7 +300,7 @@ static bool test_schannel(struct torture_context *tctx,
 	torture_assert_ntstatus_ok(tctx, status, "seconday connection");
 
 	status = dcerpc_bind_auth(p_netlogon, &ndr_table_netlogon, 
-				  credentials, lpcfg_gensec_settings(tctx, tctx->lp_ctx),
+				  credentials, lp_gensec_settings(tctx, tctx->lp_ctx),
 				  DCERPC_AUTH_TYPE_SCHANNEL,
 				  dcerpc_auth_level(p->conn),
 				  NULL);
@@ -331,7 +327,7 @@ static bool test_schannel(struct torture_context *tctx,
 	torture_assert_ntstatus_ok(tctx, status, "seconday connection");
 
 	status = dcerpc_bind_auth(p_lsa, &ndr_table_lsarpc,
-				  credentials, lpcfg_gensec_settings(tctx, tctx->lp_ctx),
+				  credentials, lp_gensec_settings(tctx, tctx->lp_ctx),
 				  DCERPC_AUTH_TYPE_SCHANNEL,
 				  dcerpc_auth_level(p->conn),
 				  NULL);
@@ -359,7 +355,7 @@ static bool test_schannel(struct torture_context *tctx,
 		"Failed to connect with schannel");
 
 	/* do a some SAMR operations.  We have *not* done a new serverauthenticate */
-	torture_assert (tctx, test_samr_ops(tctx, p_samr2->binding_handle),
+	torture_assert (tctx, test_samr_ops(tctx, p_samr2), 
 			"Failed to process schannel secured SAMR ops (on fresh connection)");
 
 	/* Swap the binding details from SAMR to NETLOGON */
@@ -372,7 +368,7 @@ static bool test_schannel(struct torture_context *tctx,
 
 	/* and now setup an SCHANNEL bind on netlogon */
 	status = dcerpc_bind_auth(p_netlogon2, &ndr_table_netlogon,
-				  credentials, lpcfg_gensec_settings(tctx, tctx->lp_ctx),
+				  credentials, lp_gensec_settings(tctx, tctx->lp_ctx),
 				  DCERPC_AUTH_TYPE_SCHANNEL,
 				  dcerpc_auth_level(p_samr2->conn),
 				  NULL);
@@ -558,7 +554,7 @@ static void torture_schannel_bench_connected(struct composite_context *c)
 	}
 }
 
-static void torture_schannel_bench_recv(struct tevent_req *subreq);
+static void torture_schannel_bench_recv(struct rpc_request *req);
 
 static bool torture_schannel_bench_start(struct torture_schannel_bench_conn *conn)
 {
@@ -566,7 +562,7 @@ static bool torture_schannel_bench_start(struct torture_schannel_bench_conn *con
 	NTSTATUS status;
 	DATA_BLOB names_blob, chal, lm_resp, nt_resp;
 	int flags = CLI_CRED_NTLM_AUTH;
-	struct tevent_req *subreq;
+	struct rpc_request *req;
 	struct cli_credentials *user_creds;
 
 	if (conn->total % 2) {
@@ -575,11 +571,11 @@ static bool torture_schannel_bench_start(struct torture_schannel_bench_conn *con
 		user_creds = s->user2_creds;
 	}
 
-	if (lpcfg_client_lanman_auth(s->tctx->lp_ctx)) {
+	if (lp_client_lanman_auth(s->tctx->lp_ctx)) {
 		flags |= CLI_CRED_LANMAN_AUTH;
 	}
 
-	if (lpcfg_client_ntlmv2_auth(s->tctx->lp_ctx)) {
+	if (lp_client_ntlmv2_auth(s->tctx->lp_ctx)) {
 		flags |= CLI_CRED_NTLMv2_AUTH;
 	}
 
@@ -632,26 +628,24 @@ static bool torture_schannel_bench_start(struct torture_schannel_bench_conn *con
 	conn->r.out.authoritative = talloc(conn->tmp, uint8_t);
 	conn->r.out.flags = conn->r.in.flags;
 
-	subreq = dcerpc_netr_LogonSamLogonEx_r_send(s, s->tctx->ev,
-						    conn->pipe->binding_handle,
-						    &conn->r);
-	torture_assert(s->tctx, subreq, "Failed to setup LogonSamLogonEx request");
+	req = dcerpc_netr_LogonSamLogonEx_send(conn->pipe, conn->tmp, &conn->r);
+	torture_assert(s->tctx, req, "Failed to setup LogonSamLogonEx request");
 
-	tevent_req_set_callback(subreq, torture_schannel_bench_recv, conn);
+	req->async.callback = torture_schannel_bench_recv;
+	req->async.private_data = conn;
 
 	return true;
 }
 
-static void torture_schannel_bench_recv(struct tevent_req *subreq)
+static void torture_schannel_bench_recv(struct rpc_request *req)
 {
 	bool ret;
 	struct torture_schannel_bench_conn *conn =
-		(struct torture_schannel_bench_conn *)tevent_req_callback_data_void(subreq);
+		(struct torture_schannel_bench_conn *)req->async.private_data;
 	struct torture_schannel_bench *s = talloc_get_type(conn->s,
 					   struct torture_schannel_bench);
 
-	s->error = dcerpc_netr_LogonSamLogonEx_r_recv(subreq, subreq);
-	TALLOC_FREE(subreq);
+	s->error = dcerpc_ndr_request_recv(req);
 	if (!NT_STATUS_IS_OK(s->error)) {
 		return;
 	}
@@ -776,7 +770,7 @@ bool torture_rpc_schannel_bench1(struct torture_context *torture)
 
 	{
 		struct netr_ServerPasswordSet pwset;
-		char *password = generate_random_password(s->join_ctx1, 8, 255);
+		char *password = generate_random_str(s->join_ctx1, 8);
 		struct netlogon_creds_CredentialState *creds_state;
 		struct dcerpc_pipe *net_pipe;
 		struct netr_Authenticator credential, return_authenticator;
@@ -808,9 +802,8 @@ bool torture_rpc_schannel_bench1(struct torture_context *torture)
 		netlogon_creds_des_encrypt(creds_state, &new_password);
 		netlogon_creds_client_authenticator(creds_state, &credential);
 
-		torture_assert_ntstatus_ok(torture, dcerpc_netr_ServerPasswordSet_r(net_pipe->binding_handle, torture, &pwset),
-			"ServerPasswordSet failed");
-		torture_assert_ntstatus_ok(torture, pwset.out.result,
+		status = dcerpc_netr_ServerPasswordSet(net_pipe, torture, &pwset);
+		torture_assert_ntstatus_ok(torture, status,
 					   "ServerPasswordSet failed");
 
 		if (!netlogon_creds_client_check(creds_state,

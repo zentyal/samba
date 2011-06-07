@@ -28,11 +28,11 @@
 #define BITSETW(ptr,bit) ((SVAL(ptr,0) & (1<<(bit)))!=0)
 
 /* for readability... */
-#define IS_DOS_READONLY(test_mode) (((test_mode) & FILE_ATTRIBUTE_READONLY) != 0)
-#define IS_DOS_DIR(test_mode)      (((test_mode) & FILE_ATTRIBUTE_DIRECTORY) != 0)
-#define IS_DOS_ARCHIVE(test_mode)  (((test_mode) & FILE_ATTRIBUTE_ARCHIVE) != 0)
-#define IS_DOS_SYSTEM(test_mode)   (((test_mode) & FILE_ATTRIBUTE_SYSTEM) != 0)
-#define IS_DOS_HIDDEN(test_mode)   (((test_mode) & FILE_ATTRIBUTE_HIDDEN) != 0)
+#define IS_DOS_READONLY(test_mode) (((test_mode) & aRONLY) != 0)
+#define IS_DOS_DIR(test_mode)      (((test_mode) & aDIR) != 0)
+#define IS_DOS_ARCHIVE(test_mode)  (((test_mode) & aARCH) != 0)
+#define IS_DOS_SYSTEM(test_mode)   (((test_mode) & aSYSTEM) != 0)
+#define IS_DOS_HIDDEN(test_mode)   (((test_mode) & aHIDDEN) != 0)
 
 #define SMB_WARN(condition, message) \
     ((condition) ? (void)0 : \
@@ -68,6 +68,8 @@
 
 
 /* access various service details */
+#define SERVICE(snum)      (lp_servicename(snum))
+#define PRINTERNAME(snum)  (lp_printername(snum))
 #define CAN_WRITE(conn)    (!conn->read_only)
 #define VALID_SNUM(snum)   (lp_snum_ok(snum))
 #define GUEST_OK(snum)     (VALID_SNUM(snum) && lp_guest_ok(snum))
@@ -144,6 +146,15 @@
 #define ENCRYPTION_REQUIRED(conn) ((conn) ? ((conn)->encrypt_level == Required) : false)
 #define IS_CONN_ENCRYPTED(conn) ((conn) ? (conn)->encrypted_tid : false)
 
+/*******************************************************************
+find the difference in milliseconds between two struct timeval
+values
+********************************************************************/
+
+#define TvalDiff(tvalold,tvalnew) \
+  (((tvalnew)->tv_sec - (tvalold)->tv_sec)*1000 +  \
+	 ((int)(tvalnew)->tv_usec - (int)(tvalold)->tv_usec)/1000)
+
 /****************************************************************************
 true if two IPv4 addresses are equal
 ****************************************************************************/
@@ -194,15 +205,6 @@ copy an IP address from one buffer to another
 *****************************************************************************/
 
 #define IS_DC  (lp_server_role()==ROLE_DOMAIN_PDC || lp_server_role()==ROLE_DOMAIN_BDC) 
-
-/*
- * If you add any entries to KERBEROS_VERIFY defines, please modify the below expressions
- * so they remain accurate.
- */
-#define USE_KERBEROS_KEYTAB (KERBEROS_VERIFY_SECRETS != lp_kerberos_method())
-#define USE_SYSTEM_KEYTAB \
-    ((KERBEROS_VERIFY_SECRETS_AND_KEYTAB == lp_kerberos_method()) || \
-     (KERBEROS_VERIFY_SYSTEM_KEYTAB == lp_kerberos_method()))
 
 /*****************************************************************************
  Safe allocation macros.
@@ -264,6 +266,8 @@ NULL returns on zero request. JRA.
 
 #if defined(PARANOID_MALLOC_CHECKER)
 
+#define PRS_ALLOC_MEM(ps, type, count) (type *)prs_alloc_mem_((ps),sizeof(type),(count))
+
 /* Get medieval on our ass about malloc.... */
 
 /* Restrictions on malloc/realloc/calloc. */
@@ -299,6 +303,8 @@ NULL returns on zero request. JRA.
 #define SMB_STRNDUP(s,n) smb_xstrndup(s,n)
 
 #else
+
+#define PRS_ALLOC_MEM(ps, type, count) (type *)prs_alloc_mem((ps),sizeof(type),(count))
 
 /* Regular malloc code. */
 

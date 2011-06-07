@@ -1,6 +1,4 @@
-#include "replace.h"
-#include "system/filesys.h"
-#include "system/time.h"
+#include "ldb_includes.h"
 
 /* A handy macro to report Out of Memory conditions */
 #define map_oom(module) ldb_set_errstring(ldb_module_get_ctx(module), talloc_asprintf(module, "Out of Memory"));
@@ -39,9 +37,6 @@ struct map_context {
 
 	struct map_reply *r_list;
 	struct map_reply *r_current;
-
-	/* The response continaing any controls the remote server gave */
-	struct ldb_reply *remote_done_ares;
 };
 
 /* Common operations

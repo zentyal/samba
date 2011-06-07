@@ -21,7 +21,6 @@
 */
 
 #include "includes.h"
-#include "nmbd/nmbd.h"
 
 int num_response_packets = 0;
 

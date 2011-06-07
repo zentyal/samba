@@ -2,26 +2,23 @@
    Unix SMB/CIFS implementation.
    Files[] structure handling
    Copyright (C) Andrew Tridgell 1998
-
+   
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
-#include "smbd/smbd.h"
 #include "smbd/globals.h"
-#include "libcli/security/security.h"
-#include "util_tdb.h"
 
 #define VALID_FNUM(fnum)   (((fnum) >= 0) && ((fnum) < real_max_open_files))
 
@@ -31,13 +28,11 @@
  Return a unique number identifying this fsp over the life of this pid.
 ****************************************************************************/
 
-static unsigned long get_gen_count(struct smbd_server_connection *sconn)
+static unsigned long get_gen_count(void)
 {
-	sconn->file_gen_counter += 1;
-	if (sconn->file_gen_counter == 0) {
-		sconn->file_gen_counter += 1;
-	}
-	return sconn->file_gen_counter;
+	if ((++file_gen_counter) == 0)
+		return ++file_gen_counter;
+	return file_gen_counter;
 }
 
 /****************************************************************************
@@ -47,7 +42,6 @@ static unsigned long get_gen_count(struct smbd_server_connection *sconn)
 NTSTATUS file_new(struct smb_request *req, connection_struct *conn,
 		  files_struct **result)
 {
-	struct smbd_server_connection *sconn = conn->sconn;
 	int i;
 	files_struct *fsp;
 	NTSTATUS status;
@@ -57,14 +51,13 @@ NTSTATUS file_new(struct smb_request *req, connection_struct *conn,
 	   reuse a file descriptor from an earlier smb connection. This code
 	   increases the chance that the errant client will get an error rather
 	   than causing corruption */
-	if (sconn->first_file == 0) {
-		sconn->first_file = (sys_getpid() ^ (int)time(NULL));
-		sconn->first_file %= sconn->real_max_open_files;
+	if (first_file == 0) {
+		first_file = (sys_getpid() ^ (int)time(NULL)) % real_max_open_files;
 	}
 
 	/* TODO: Port the id-tree implementation from Samba4 */
 
-	i = bitmap_find(sconn->file_bmap, sconn->first_file);
+	i = bitmap_find(file_bmap, first_file);
 	if (i == -1) {
 		DEBUG(0,("ERROR! Out of file structures\n"));
 		/* TODO: We have to unconditionally return a DOS error here,
@@ -75,7 +68,7 @@ NTSTATUS file_new(struct smb_request *req, connection_struct *conn,
 
 	/*
 	 * Make a child of the connection_struct as an fsp can't exist
-	 * independent of a connection.
+	 * indepenedent of a connection.
 	 */
 	fsp = talloc_zero(conn, struct files_struct);
 	if (!fsp) {
@@ -97,13 +90,13 @@ NTSTATUS file_new(struct smb_request *req, connection_struct *conn,
 	fsp->fh->fd = -1;
 
 	fsp->conn = conn;
-	fsp->fh->gen_id = get_gen_count(sconn);
+	fsp->fh->gen_id = get_gen_count();
 	GetTimeOfDay(&fsp->open_time);
 
-	sconn->first_file = (i+1) % (sconn->real_max_open_files);
+	first_file = (i+1) % real_max_open_files;
 
-	bitmap_set(sconn->file_bmap, i);
-	sconn->files_used += 1;
+	bitmap_set(file_bmap, i);
+	files_used++;
 
 	fsp->fnum = i + FILE_HANDLE_OFFSET;
 	SMB_ASSERT(fsp->fnum < 65536);
@@ -120,10 +113,10 @@ NTSTATUS file_new(struct smb_request *req, connection_struct *conn,
 		TALLOC_FREE(fsp->fh);
 	}
 
-	DLIST_ADD(sconn->files, fsp);
+	DLIST_ADD(Files, fsp);
 
 	DEBUG(5,("allocated file structure %d, fnum = %d (%d used)\n",
-		 i, fsp->fnum, sconn->files_used));
+		 i, fsp->fnum, files_used));
 
 	if (req != NULL) {
 		req->chain_fsp = fsp;
@@ -134,7 +127,7 @@ NTSTATUS file_new(struct smb_request *req, connection_struct *conn,
 	  at the start of the list and we search from
 	  a cache hit to the *end* of the list. */
 
-	ZERO_STRUCT(sconn->fsp_fi_cache);
+	ZERO_STRUCT(fsp_fi_cache);
 
 	conn->num_files_open++;
 
@@ -149,8 +142,8 @@ NTSTATUS file_new(struct smb_request *req, connection_struct *conn,
 void file_close_conn(connection_struct *conn)
 {
 	files_struct *fsp, *next;
-
-	for (fsp=conn->sconn->files; fsp; fsp=next) {
+	
+	for (fsp=Files;fsp;fsp=next) {
 		next = fsp->next;
 		if (fsp->conn == conn) {
 			close_file(NULL, fsp, SHUTDOWN_CLOSE);
@@ -162,12 +155,11 @@ void file_close_conn(connection_struct *conn)
  Close all open files for a pid and a vuid.
 ****************************************************************************/
 
-void file_close_pid(struct smbd_server_connection *sconn, uint16 smbpid,
-		    int vuid)
+void file_close_pid(uint16 smbpid, int vuid)
 {
 	files_struct *fsp, *next;
-
-	for (fsp=sconn->files;fsp;fsp=next) {
+	
+	for (fsp=Files;fsp;fsp=next) {
 		next = fsp->next;
 		if ((fsp->file_pid == smbpid) && (fsp->vuid == vuid)) {
 			close_file(NULL, fsp, SHUTDOWN_CLOSE);
@@ -179,7 +171,7 @@ void file_close_pid(struct smbd_server_connection *sconn, uint16 smbpid,
  Initialise file structures.
 ****************************************************************************/
 
-bool file_init(struct smbd_server_connection *sconn)
+void file_init(void)
 {
 	int request_max_open_files = lp_max_open_files();
 	int real_lim;
@@ -191,38 +183,34 @@ bool file_init(struct smbd_server_connection *sconn)
 	 */
 	real_lim = set_maxfiles(request_max_open_files + MAX_OPEN_FUDGEFACTOR);
 
-	sconn->real_max_open_files = real_lim - MAX_OPEN_FUDGEFACTOR;
+	real_max_open_files = real_lim - MAX_OPEN_FUDGEFACTOR;
 
-	if (sconn->real_max_open_files + FILE_HANDLE_OFFSET + MAX_OPEN_PIPES
-	    > 65536)
-		sconn->real_max_open_files =
-			65536 - FILE_HANDLE_OFFSET - MAX_OPEN_PIPES;
+	if (real_max_open_files + FILE_HANDLE_OFFSET + MAX_OPEN_PIPES > 65536)
+		real_max_open_files = 65536 - FILE_HANDLE_OFFSET - MAX_OPEN_PIPES;
 
-	if(sconn->real_max_open_files != request_max_open_files) {
-		DEBUG(1, ("file_init: Information only: requested %d "
-			  "open files, %d are available.\n",
-			  request_max_open_files, sconn->real_max_open_files));
+	if(real_max_open_files != request_max_open_files) {
+		DEBUG(1,("file_init: Information only: requested %d \
+open files, %d are available.\n", request_max_open_files, real_max_open_files));
 	}
 
-	SMB_ASSERT(sconn->real_max_open_files > 100);
+	SMB_ASSERT(real_max_open_files > 100);
 
-	sconn->file_bmap = bitmap_talloc(sconn, sconn->real_max_open_files);
-
-	if (!sconn->file_bmap) {
-		return false;
+	file_bmap = bitmap_allocate(real_max_open_files);
+	
+	if (!file_bmap) {
+		exit_server("out of memory in file_init");
 	}
-	return true;
 }
 
 /****************************************************************************
  Close files open by a specified vuid.
 ****************************************************************************/
 
-void file_close_user(struct smbd_server_connection *sconn, int vuid)
+void file_close_user(int vuid)
 {
 	files_struct *fsp, *next;
 
-	for (fsp=sconn->files; fsp; fsp=next) {
+	for (fsp=Files;fsp;fsp=next) {
 		next=fsp->next;
 		if (fsp->vuid == vuid) {
 			close_file(NULL, fsp, SHUTDOWN_CLOSE);
@@ -234,15 +222,14 @@ void file_close_user(struct smbd_server_connection *sconn, int vuid)
  * Walk the files table until "fn" returns non-NULL
  */
 
-struct files_struct *files_forall(
-	struct smbd_server_connection *sconn,
+struct files_struct *file_walk_table(
 	struct files_struct *(*fn)(struct files_struct *fsp,
 				   void *private_data),
 	void *private_data)
 {
 	struct files_struct *fsp, *next;
 
-	for (fsp = sconn->files; fsp; fsp = next) {
+	for (fsp = Files; fsp; fsp = next) {
 		struct files_struct *ret;
 		next = fsp->next;
 		ret = fn(fsp, private_data);
@@ -254,18 +241,35 @@ struct files_struct *files_forall(
 }
 
 /****************************************************************************
- Find a fsp given a file descriptor.
+ Debug to enumerate all open files in the smbd.
 ****************************************************************************/
 
-files_struct *file_find_fd(struct smbd_server_connection *sconn, int fd)
+void file_dump_open_table(void)
 {
 	int count=0;
 	files_struct *fsp;
 
-	for (fsp=sconn->files; fsp; fsp=fsp->next,count++) {
+	for (fsp=Files;fsp;fsp=fsp->next,count++) {
+		DEBUG(10,("Files[%d], fnum = %d, name %s, fd = %d, gen = %lu, "
+			  "fileid=%s\n", count, fsp->fnum, fsp_str_dbg(fsp),
+			  fsp->fh->fd, (unsigned long)fsp->fh->gen_id,
+			  file_id_string_tos(&fsp->file_id)));
+	}
+}
+
+/****************************************************************************
+ Find a fsp given a file descriptor.
+****************************************************************************/
+
+files_struct *file_find_fd(int fd)
+{
+	int count=0;
+	files_struct *fsp;
+
+	for (fsp=Files;fsp;fsp=fsp->next,count++) {
 		if (fsp->fh->fd == fd) {
 			if (count > 10) {
-				DLIST_PROMOTE(sconn->files, fsp);
+				DLIST_PROMOTE(Files, fsp);
 			}
 			return fsp;
 		}
@@ -278,18 +282,17 @@ files_struct *file_find_fd(struct smbd_server_connection *sconn, int fd)
  Find a fsp given a device, inode and file_id.
 ****************************************************************************/
 
-files_struct *file_find_dif(struct smbd_server_connection *sconn,
-			    struct file_id id, unsigned long gen_id)
+files_struct *file_find_dif(struct file_id id, unsigned long gen_id)
 {
 	int count=0;
 	files_struct *fsp;
 
-	for (fsp=sconn->files; fsp; fsp=fsp->next,count++) {
+	for (fsp=Files;fsp;fsp=fsp->next,count++) {
 		/* We can have a fsp->fh->fd == -1 here as it could be a stat open. */
 		if (file_id_equal(&fsp->file_id, &id) &&
 		    fsp->fh->gen_id == gen_id ) {
 			if (count > 10) {
-				DLIST_PROMOTE(sconn->files, fsp);
+				DLIST_PROMOTE(Files, fsp);
 			}
 			/* Paranoia check. */
 			if ((fsp->fh->fd == -1) &&
@@ -312,33 +315,48 @@ files_struct *file_find_dif(struct smbd_server_connection *sconn,
 }
 
 /****************************************************************************
+ Check if an fsp still exists.
+****************************************************************************/
+
+files_struct *file_find_fsp(files_struct *orig_fsp)
+{
+	files_struct *fsp;
+
+	for (fsp=Files;fsp;fsp=fsp->next) {
+		if (fsp == orig_fsp)
+			return fsp;
+	}
+
+	return NULL;
+}
+
+/****************************************************************************
  Find the first fsp given a device and inode.
  We use a singleton cache here to speed up searching from getfilepathinfo
  calls.
 ****************************************************************************/
 
-files_struct *file_find_di_first(struct smbd_server_connection *sconn,
-				 struct file_id id)
+files_struct *file_find_di_first(struct file_id id)
 {
 	files_struct *fsp;
 
-	if (file_id_equal(&sconn->fsp_fi_cache.id, &id)) {
+	if (file_id_equal(&fsp_fi_cache.id, &id)) {
 		/* Positive or negative cache hit. */
-		return sconn->fsp_fi_cache.fsp;
+		return fsp_fi_cache.fsp;
 	}
 
-	sconn->fsp_fi_cache.id = id;
+	fsp_fi_cache.id = id;
 
-	for (fsp=sconn->files;fsp;fsp=fsp->next) {
+	for (fsp=Files;fsp;fsp=fsp->next) {
 		if (file_id_equal(&fsp->file_id, &id)) {
 			/* Setup positive cache. */
-			sconn->fsp_fi_cache.fsp = fsp;
+			fsp_fi_cache.fsp = fsp;
 			return fsp;
 		}
 	}
 
 	/* Setup negative cache. */
-	sconn->fsp_fi_cache.fsp = NULL;
+	fsp_fi_cache.fsp = NULL;
 	return NULL;
 }
 
@@ -355,6 +373,23 @@ files_struct *file_find_di_next(files_struct *start_fsp)
 			return fsp;
 		}
 	}
+
+	return NULL;
+}
+
+/****************************************************************************
+ Find a fsp that is open for printing.
+****************************************************************************/
+
+files_struct *file_find_print(void)
+{
+	files_struct *fsp;
+
+	for (fsp=Files;fsp;fsp=fsp->next) {
+		if (fsp->print_file) {
+			return fsp;
+		}
+	} 
 
 	return NULL;
 }
@@ -379,7 +414,7 @@ bool file_find_subpath(files_struct *dir_fsp)
 
 	dlen = strlen(d_fullname);
 
-	for (fsp=dir_fsp->conn->sconn->files; fsp; fsp=fsp->next) {
+	for (fsp=Files;fsp;fsp=fsp->next) {
 		char *d1_fullname;
 
 		if (fsp == dir_fsp) {
@@ -416,7 +451,7 @@ void file_sync_all(connection_struct *conn)
 {
 	files_struct *fsp, *next;
 
-	for (fsp=conn->sconn->files; fsp; fsp=next) {
+	for (fsp=Files;fsp;fsp=next) {
 		next=fsp->next;
 		if ((conn == fsp->conn) && (fsp->fh->fd != -1)) {
 			sync_file(conn, fsp, True /* write through */);
@@ -430,9 +465,7 @@ void file_sync_all(connection_struct *conn)
 
 void file_free(struct smb_request *req, files_struct *fsp)
 {
-	struct smbd_server_connection *sconn = fsp->conn->sconn;
-
-	DLIST_REMOVE(sconn->files, fsp);
+	DLIST_REMOVE(Files, fsp);
 
 	TALLOC_FREE(fsp->fake_file_handle);
 
@@ -457,11 +490,11 @@ void file_free(struct smb_request *req, files_struct *fsp)
 	/* Ensure this event will never fire. */
 	TALLOC_FREE(fsp->update_write_time_event);
 
-	bitmap_clear(sconn->file_bmap, fsp->fnum - FILE_HANDLE_OFFSET);
-	sconn->files_used--;
+	bitmap_clear(file_bmap, fsp->fnum - FILE_HANDLE_OFFSET);
+	files_used--;
 
 	DEBUG(5,("freed files structure %d (%d used)\n",
-		 fsp->fnum, sconn->files_used));
+		 fsp->fnum, files_used));
 
 	fsp->conn->num_files_open--;
 
@@ -469,17 +502,9 @@ void file_free(struct smb_request *req, files_struct *fsp)
 		req->chain_fsp = NULL;
 	}
 
-	/*
-	 * Clear all possible chained fsp
-	 * pointers in the SMB2 request queue.
-	 */
-	if (req != NULL && req->smb2req) {
-		remove_smb2_chained_fsp(fsp);
-	}
-
 	/* Closing a file can invalidate the positive cache. */
-	if (fsp == sconn->fsp_fi_cache.fsp) {
-		ZERO_STRUCT(sconn->fsp_fi_cache);
+	if (fsp == fsp_fi_cache.fsp) {
+		ZERO_STRUCT(fsp_fi_cache);
 	}
 
 	/* Drop all remaining extensions. */
@@ -499,16 +524,15 @@ void file_free(struct smb_request *req, files_struct *fsp)
  Get an fsp from a 16 bit fnum.
 ****************************************************************************/
 
-static struct files_struct *file_fnum(struct smbd_server_connection *sconn,
-				      uint16 fnum)
+files_struct *file_fnum(uint16 fnum)
 {
 	files_struct *fsp;
 	int count=0;
 
-	for (fsp=sconn->files; fsp; fsp=fsp->next, count++) {
+	for (fsp=Files;fsp;fsp=fsp->next, count++) {
 		if (fsp->fnum == fnum) {
 			if (count > 10) {
-				DLIST_PROMOTE(sconn->files, fsp);
+				DLIST_PROMOTE(Files, fsp);
 			}
 			return fsp;
 		}
@@ -517,32 +541,19 @@ static struct files_struct *file_fnum(struct smbd_server_connection *sconn,
 }
 
 /****************************************************************************
- Get an fsp from a packet given a 16 bit fnum.
+ Get an fsp from a packet given the offset of a 16 bit fnum.
 ****************************************************************************/
 
 files_struct *file_fsp(struct smb_request *req, uint16 fid)
 {
 	files_struct *fsp;
 
-	if (req == NULL) {
-		/*
-		 * We should never get here. req==NULL could in theory
-		 * only happen from internal opens with a non-zero
-		 * root_dir_fid. Internal opens just don't do that, at
-		 * least they are not supposed to do so. And if they
-		 * start to do so, they better fake up a smb_request
-		 * from which we get the right smbd_server_conn. While
-		 * this should never happen, let's return NULL here.
-		 */
-		return NULL;
-	}
-
-	if (req->chain_fsp != NULL) {
+	if ((req != NULL) && (req->chain_fsp != NULL)) {
 		return req->chain_fsp;
 	}
 
-	fsp = file_fnum(req->sconn, fid);
-	if (fsp != NULL) {
+	fsp = file_fnum(fid);
+	if ((fsp != NULL) && (req != NULL)) {
 		req->chain_fsp = fsp;
 	}
 	return fsp;
@@ -577,48 +588,11 @@ NTSTATUS dup_file_fsp(struct smb_request *req, files_struct *from,
 	} else {
 		to->can_write = (access_mask & (FILE_WRITE_DATA | FILE_APPEND_DATA)) ? True : False;
 	}
+	to->print_file = from->print_file;
 	to->modified = from->modified;
 	to->is_directory = from->is_directory;
 	to->aio_write_behind = from->aio_write_behind;
-
-	if (from->print_file) {
-		to->print_file = talloc(to, struct print_file_data);
-		if (!to->print_file) return NT_STATUS_NO_MEMORY;
-		to->print_file->rap_jobid = from->print_file->rap_jobid;
-	} else {
-		to->print_file = NULL;
-	}
-
 	return fsp_set_smb_fname(to, from->fsp_name);
-}
-
-/**
- * Return a jenkins hash of a pathname on a connection.
- */
-
-NTSTATUS file_name_hash(connection_struct *conn,
-			const char *name, uint32_t *p_name_hash)
-{
-	TDB_DATA key;
-	char *fullpath = NULL;
-
-	/* Set the hash of the full pathname. */
-	fullpath = talloc_asprintf(talloc_tos(),
-			"%s/%s",
-			conn->connectpath,
-			name);
-	if (!fullpath) {
-		return NT_STATUS_NO_MEMORY;
-	}
-	key = string_term_tdb_data(fullpath);
-	*p_name_hash = tdb_jenkins_hash(&key);
-
-	DEBUG(10,("file_name_hash: %s hash 0x%x\n",
-		fullpath,
-		(unsigned int)*p_name_hash ));
-
-	TALLOC_FREE(fullpath);
-	return NT_STATUS_OK;
 }
 
 /**
@@ -638,7 +612,5 @@ NTSTATUS fsp_set_smb_fname(struct files_struct *fsp,
 	TALLOC_FREE(fsp->fsp_name);
 	fsp->fsp_name = smb_fname_new;
 
-	return file_name_hash(fsp->conn,
-			smb_fname_str_dbg(fsp->fsp_name),
-			&fsp->name_hash);
+	return NT_STATUS_OK;
 }

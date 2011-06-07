@@ -46,9 +46,6 @@ extern char *yytext;
 #define alloca(x) malloc(x)
 #endif
 
-#define YYMALLOC malloc
-#define YYFREE free
-
 %}
 
 %union {
@@ -170,5 +167,5 @@ name2number(const char *str)
 void
 yyerror (char *s)
 {
-     _lex_error_message ("%s\n", s);
+     error_message ("%s\n", s);
 }

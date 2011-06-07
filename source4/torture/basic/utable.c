@@ -18,6 +18,7 @@
 */
 
 #include "includes.h"
+#include "torture/torture.h"
 #include "system/filesys.h"
 #include "system/locale.h"
 #include "libcli/libcli.h"
@@ -49,9 +50,9 @@ bool torture_utable(struct torture_context *tctx,
 		SSVAL(c2, 0, c);
 		strncpy(fname, "\\utable\\x", sizeof(fname)-1);
 		p = fname+strlen(fname);
-		len = convert_string(CH_UTF16, CH_UNIX, 
+		convert_string_convenience(lp_iconv_convenience(tctx->lp_ctx), CH_UTF16, CH_UNIX, 
 				     c2, 2, 
-				     p, sizeof(fname)-strlen(fname), false);
+				     p, sizeof(fname)-strlen(fname), &len, false);
 		p[len] = 0;
 		strncat(fname,"_a_long_extension",sizeof(fname)-1);
 
@@ -97,7 +98,7 @@ bool torture_utable(struct torture_context *tctx,
 }
 
 
-static char *form_name(int c)
+static char *form_name(struct smb_iconv_convenience *iconv_convenience, int c)
 {
 	static char fname[256];
 	uint8_t c2[4];
@@ -108,11 +109,9 @@ static char *form_name(int c)
 	p = fname+strlen(fname);
 	SSVAL(c2, 0, c);
 
-	len = convert_string(CH_UTF16, CH_UNIX, 
+	convert_string_convenience(iconv_convenience, CH_UTF16, CH_UNIX, 
 			     c2, 2, 
-			     p, sizeof(fname)-strlen(fname), false);
-	if (len == -1)
-		return NULL;
+			     p, sizeof(fname)-strlen(fname), &len, false);
 	p[len] = 0;
 	return fname;
 }
@@ -140,7 +139,7 @@ bool torture_casetable(struct torture_context *tctx,
 
 		torture_comment(tctx, "%04x (%c)\n", c, isprint(c)?c:'.');
 
-		fname = form_name(c);
+		fname = form_name(lp_iconv_convenience(tctx->lp_ctx), c);
 		fnum = smbcli_nt_create_full(cli->tree, fname, 0,
 #if 0
 					     SEC_RIGHT_MAXIMUM_ALLOWED, 

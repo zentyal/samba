@@ -24,16 +24,18 @@
 */
 
 #include "includes.h"
-#include "smbd/smbd.h"
-#include "popt_common.h"
 #include "vfstest.h"
-#include "../libcli/smbreadline/smbreadline.h"
 
 /* List to hold groups of commands */
 static struct cmd_list {
 	struct cmd_list *prev, *next;
 	struct cmd_set *cmd_set;
 } *cmd_list;
+
+int get_client_fd(void)
+{
+	return -1;
+}
 
 /****************************************************************************
 handle completion of commands for readline
@@ -189,7 +191,7 @@ static NTSTATUS cmd_debuglevel(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int a
 	}
 
 	if (argc == 2) {
-		lp_set_cmdline("log level", argv[1]);
+		DEBUGLEVEL = atoi(argv[1]);
 	}
 
 	printf("debuglevel is %d\n", DEBUGLEVEL);
@@ -412,7 +414,69 @@ void exit_server_cleanly(const char *const reason)
 	exit_server("normal exit");
 }
 
+static int server_fd = -1;
 int last_message = -1;
+
+int smbd_server_fd(void)
+{
+		return server_fd;
+}
+
+void reload_printers(void)
+{
+	return;
+}
+
+/****************************************************************************
+ Reload the services file.
+**************************************************************************/
+
+bool reload_services(bool test)
+{
+	bool ret;
+
+	if (lp_loaded()) {
+		const char *fname = lp_configfile();
+		if (file_exist(fname) &&
+		    !strcsequal(fname, get_dyn_CONFIGFILE())) {
+			set_dyn_CONFIGFILE(fname);
+			test = False;
+		}
+	}
+
+	reopen_logs();
+
+	if (test && !lp_file_list_changed())
+		return(True);
+
+	lp_killunused(conn_snum_used);
+
+	ret = lp_load(get_dyn_CONFIGFILE(), False, False, True, True);
+
+	/* perhaps the config filename is now set */
+	if (!test)
+		reload_services(True);
+
+	reopen_logs();
+
+	load_interfaces();
+
+	{
+		if (smbd_server_fd() != -1) {      
+			set_socket_options(smbd_server_fd(),"SO_KEEPALIVE");
+			set_socket_options(smbd_server_fd(),
+					   lp_socket_options());
+		}
+	}
+
+	mangle_reset_cache();
+	reset_stat_cache();
+
+	/* this forces service parameters to be flushed */
+	set_current_service(NULL,0,True);
+
+	return (ret);
+}
 
 struct event_context *smbd_event_context(void)
 {
@@ -422,6 +486,30 @@ struct event_context *smbd_event_context(void)
 		smb_panic("Could not init smbd event context\n");
 	}
 	return ctx;
+}
+
+struct messaging_context *smbd_messaging_context(void)
+{
+	static struct messaging_context *ctx;
+
+	if (!ctx && !(ctx = messaging_init(NULL, server_id_self(),
+					   smbd_event_context()))) {
+		smb_panic("Could not init smbd messaging context\n");
+	}
+	return ctx;
+}
+
+struct memcache *smbd_memcache(void)
+{
+	static struct memcache *cache;
+
+	if (!cache
+	    && !(cache = memcache_init(NULL,
+				       lp_max_stat_cache_size()*1024))) {
+
+		smb_panic("Could not init smbd memcache");
+	}
+	return cache;
 }
 
 /* Main function */
@@ -458,14 +546,12 @@ int main(int argc, char *argv[])
 
 	poptFreeContext(pc);
 
-	lp_load_initial_only(get_dyn_CONFIGFILE());
-
 	/* TODO: check output */
-	reload_services(smbd_messaging_context(), -1, False);
+	reload_services(False);
 
 	/* the following functions are part of the Samba debugging
 	   facilities.  See lib/debug.c */
-	setup_logging("vfstest", DEBUG_STDOUT);
+	setup_logging("vfstest", True);
 	
 	/* Load command lists */
 

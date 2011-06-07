@@ -20,6 +20,7 @@
  */
 
 #include "includes.h"
+#include "librpc/ndr/libndr.h"
 
 /* This map was extracted by the ERRMAPEXTRACT smbtorture command. 
    The setup was a Samba HEAD (2002-01-03) PDC and an Win2k member 
@@ -178,7 +179,6 @@ static const struct {
 	 during the session setup }
 */
 	{ERRSRV,	ERRbadpw,	NT_STATUS_WRONG_PASSWORD},
-	{ERRSRV,	ERRbaduid,	NT_STATUS_USER_SESSION_DELETED},
 	{ERRHRD,	ERRgeneral,	NT_STATUS_ILL_FORMED_PASSWORD},
 	{ERRHRD,	ERRgeneral,	NT_STATUS_PASSWORD_RESTRICTION},
 	{ERRDOS,	ERRnoaccess,	NT_STATUS_LOGON_FAILURE},
@@ -1321,7 +1321,7 @@ const struct unix_error_map unix_nt_errmap[] = {
 	{ ENODATA,      NT_STATUS_NOT_FOUND },
 #endif
 #ifdef EDQUOT
-	{ EDQUOT,       NT_STATUS_DISK_FULL }, /* Windows does NOT return NT_STATUS_QUOTA_EXCEEDED */
+	{ EDQUOT,       NT_STATUS_QUOTA_EXCEEDED },
 #endif
 #ifdef ENOTEMPTY
 	{ ENOTEMPTY,    NT_STATUS_DIRECTORY_NOT_EMPTY },
@@ -1382,8 +1382,27 @@ NTSTATUS map_nt_error_from_unix(int unix_error)
 	return NT_STATUS_UNSUCCESSFUL;
 }
 
-/* Convert a Unix error code to WERROR */
-WERROR unix_to_werror(int unix_error)
+NTSTATUS ndr_map_error2ntstatus(enum ndr_err_code ndr_err)
 {
-	return ntstatus_to_werror(map_nt_error_from_unix(unix_error));
+	switch (ndr_err) {
+	case NDR_ERR_SUCCESS:
+		return NT_STATUS_OK;
+	case NDR_ERR_BUFSIZE:
+		return NT_STATUS_BUFFER_TOO_SMALL;
+	case NDR_ERR_TOKEN:
+		return NT_STATUS_INTERNAL_ERROR;
+	case NDR_ERR_ALLOC:
+		return NT_STATUS_NO_MEMORY;
+	case NDR_ERR_ARRAY_SIZE:
+		return NT_STATUS_ARRAY_BOUNDS_EXCEEDED;
+	case NDR_ERR_INVALID_POINTER:
+		return NT_STATUS_INVALID_PARAMETER_MIX;
+	case NDR_ERR_UNREAD_BYTES:
+		return NT_STATUS_PORT_MESSAGE_TOO_LONG;
+	default:
+		break;
+	}
+
+	/* we should map all error codes to different status codes */
+	return NT_STATUS_INVALID_PARAMETER;
 }

@@ -23,9 +23,10 @@
 #include "includes.h"
 #include "nbt_server/nbt_server.h"
 #include "lib/socket/socket.h"
-#include <ldb.h>
+#include "lib/ldb/include/ldb.h"
 #include "dsdb/samdb/samdb.h"
 #include "auth/auth.h"
+#include "../lib/util/util_ldb.h"
 #include "param/param.h"
 #include "smbd/service_task.h"
 #include "cldap_server/cldap_server.h"
@@ -54,13 +55,13 @@ static void nbtd_netlogon_getdc(struct dgram_mailslot_handler *dgmslot,
 
 	samctx = iface->nbtsrv->sam_ctx;
 
-	if (lpcfg_server_role(iface->nbtsrv->task->lp_ctx) != ROLE_DOMAIN_CONTROLLER
+	if (lp_server_role(iface->nbtsrv->task->lp_ctx) != ROLE_DOMAIN_CONTROLLER
 	    || !samdb_is_pdc(samctx)) {
 		DEBUG(2, ("Not a PDC, so not processing LOGON_PRIMARY_QUERY\n"));
 		return;		
 	}
 
-	if (strcasecmp_m(name->name, lpcfg_workgroup(iface->nbtsrv->task->lp_ctx)) != 0) {
+	if (strcasecmp_m(name->name, lp_workgroup(iface->nbtsrv->task->lp_ctx)) != 0) {
 		DEBUG(5,("GetDC requested for a domian %s that we don't host\n", name->name));
 		return;
 	}
@@ -71,16 +72,16 @@ static void nbtd_netlogon_getdc(struct dgram_mailslot_handler *dgmslot,
 	pdc = &netlogon_response.data.get_pdc;
 
 	pdc->command = NETLOGON_RESPONSE_FROM_PDC;
-	pdc->pdc_name         = lpcfg_netbios_name(iface->nbtsrv->task->lp_ctx);
+	pdc->pdc_name         = lp_netbios_name(iface->nbtsrv->task->lp_ctx);
 	pdc->unicode_pdc_name = pdc->pdc_name;
-	pdc->domain_name      = lpcfg_workgroup(iface->nbtsrv->task->lp_ctx);
+	pdc->domain_name      = lp_workgroup(iface->nbtsrv->task->lp_ctx);
 	pdc->nt_version       = 1;
 	pdc->lmnt_token       = 0xFFFF;
 	pdc->lm20_token       = 0xFFFF;
 
 	dgram_mailslot_netlogon_reply(reply_iface->dgmsock, 
 				      packet, 
-				      lpcfg_netbios_name(iface->nbtsrv->task->lp_ctx),
+				      lp_netbios_name(iface->nbtsrv->task->lp_ctx),
 				      netlogon->req.pdc.mailslot_name,
 				      &netlogon_response);
 }
@@ -123,7 +124,7 @@ static void nbtd_netlogon_samlogon(struct dgram_mailslot_handler *dgmslot,
 
 	status = fill_netlogon_samlogon_response(samctx, packet, NULL, name->name, sid, NULL, 
 						 netlogon->req.logon.user_name, netlogon->req.logon.acct_control, src->addr, 
-						 netlogon->req.logon.nt_version, iface->nbtsrv->task->lp_ctx, &netlogon_response.data.samlogon, false);
+						 netlogon->req.logon.nt_version, iface->nbtsrv->task->lp_ctx, &netlogon_response.data.samlogon);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(2,("NBT netlogon query failed domain=%s sid=%s version=%d - %s\n",
 			 name->name, dom_sid_string(packet, sid), netlogon->req.logon.nt_version, nt_errstr(status)));
@@ -136,7 +137,7 @@ static void nbtd_netlogon_samlogon(struct dgram_mailslot_handler *dgmslot,
 
 	dgram_mailslot_netlogon_reply(reply_iface->dgmsock, 
 				      packet, 
-				      lpcfg_netbios_name(iface->nbtsrv->task->lp_ctx),
+				      lp_netbios_name(iface->nbtsrv->task->lp_ctx),
 				      netlogon->req.logon.mailslot_name,
 				      &netlogon_response);
 }

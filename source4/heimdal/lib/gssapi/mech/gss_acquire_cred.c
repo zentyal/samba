@@ -27,8 +27,9 @@
  */
 
 #include "mech_locl.h"
+RCSID("$Id$");
 
-GSSAPI_LIB_FUNCTION OM_uint32 GSSAPI_LIB_CALL
+OM_uint32 GSSAPI_LIB_FUNCTION
 gss_acquire_cred(OM_uint32 *minor_status,
     const gss_name_t desired_name,
     OM_uint32 time_req,
@@ -90,7 +91,7 @@ gss_acquire_cred(OM_uint32 *minor_status,
 		*minor_status = ENOMEM;
 		return (GSS_S_FAILURE);
 	}
-	HEIM_SLIST_INIT(&cred->gc_mc);
+	SLIST_INIT(&cred->gc_mc);
 
 	if (mechs == GSS_C_NO_OID_SET)
 		mechs = _gss_mech_oids;
@@ -145,14 +146,14 @@ gss_acquire_cred(OM_uint32 *minor_status,
 			}
 		}
 
-		HEIM_SLIST_INSERT_HEAD(&cred->gc_mc, mc, gmc_link);
+		SLIST_INSERT_HEAD(&cred->gc_mc, mc, gmc_link);
 	}
 
 	/*
 	 * If we didn't manage to create a single credential, return
 	 * an error.
 	 */
-	if (!HEIM_SLIST_FIRST(&cred->gc_mc)) {
+	if (!SLIST_FIRST(&cred->gc_mc)) {
 		free(cred);
 		if (actual_mechs)
 			gss_release_oid_set(minor_status, actual_mechs);

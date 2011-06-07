@@ -21,8 +21,6 @@
 
 
 #include "includes.h"
-#include "popt_common.h"
-#include "passdb.h"
 
 static bool samu_correct(struct samu *s1, struct samu *s2)
 {
@@ -249,7 +247,7 @@ int main(int argc, char **argv)
 
 	load_case_tables();
 
-	pc = poptGetContext("pdbtest", argc, (const char **) argv,
+	pc = poptGetContext("vfstest", argc, (const char **) argv,
 			    long_options, 0);
 
 	poptSetOtherOptionHelp(pc, "backend[:settings] username");
@@ -260,7 +258,7 @@ int main(int argc, char **argv)
 
 	/* Load configuration */
 	lp_load(get_dyn_CONFIGFILE(), False, False, True, True);
-	setup_logging("pdbtest", DEBUG_STDOUT);
+	setup_logging("pdbtest", True);
 
 	if (backend == NULL) {
 		backend = lp_passdb_backend();

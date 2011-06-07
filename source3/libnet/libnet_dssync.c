@@ -21,26 +21,21 @@
 
 
 #include "includes.h"
-#include "libnet/libnet_dssync.h"
-#include "rpc_client/cli_pipe.h"
+#include "libnet/libnet.h"
 #include "../libcli/drsuapi/drsuapi.h"
-#include "../librpc/gen_ndr/ndr_drsuapi_c.h"
+#include "../librpc/gen_ndr/cli_drsuapi.h"
 
 /****************************************************************
 ****************************************************************/
 
 static int libnet_dssync_free_context(struct dssync_context *ctx)
 {
-	WERROR result;
-	struct dcerpc_binding_handle *b;
-
 	if (!ctx) {
 		return 0;
 	}
 
 	if (is_valid_policy_hnd(&ctx->bind_handle) && ctx->cli) {
-		b = ctx->cli->binding_handle;
-		dcerpc_drsuapi_DsUnbind(b, ctx, &ctx->bind_handle, &result);
+		rpccli_drsuapi_DsUnbind(ctx->cli, ctx, &ctx->bind_handle, NULL);
 	}
 
 	return 0;
@@ -129,7 +124,6 @@ static NTSTATUS libnet_dssync_bind(TALLOC_CTX *mem_ctx,
 	struct GUID bind_guid;
 	struct drsuapi_DsBindInfoCtr bind_info;
 	struct drsuapi_DsBindInfo28 info28;
-	struct dcerpc_binding_handle *b = ctx->cli->binding_handle;
 
 	ZERO_STRUCT(info28);
 
@@ -170,7 +164,7 @@ static NTSTATUS libnet_dssync_bind(TALLOC_CTX *mem_ctx,
 	bind_info.length = 28;
 	bind_info.info.info28 = info28;
 
-	status = dcerpc_drsuapi_DsBind(b, mem_ctx,
+	status = rpccli_drsuapi_DsBind(ctx->cli, mem_ctx,
 				       &bind_guid,
 				       &bind_info,
 				       &ctx->bind_handle,
@@ -224,12 +218,11 @@ static NTSTATUS libnet_dssync_lookup_nc(TALLOC_CTX *mem_ctx,
 {
 	NTSTATUS status;
 	WERROR werr;
-	uint32_t level = 1;
+	int32_t level = 1;
 	union drsuapi_DsNameRequest req;
-	uint32_t level_out;
+	int32_t level_out;
 	struct drsuapi_DsNameString names[1];
 	union drsuapi_DsNameCtr ctr;
-	struct dcerpc_binding_handle *b = ctx->cli->binding_handle;
 
 	names[0].str = talloc_asprintf(mem_ctx, "%s\\", ctx->domain_name);
 	NT_STATUS_HAVE_NO_MEMORY(names[0].str);
@@ -242,7 +235,7 @@ static NTSTATUS libnet_dssync_lookup_nc(TALLOC_CTX *mem_ctx,
 	req.req1.format_offered	= DRSUAPI_DS_NAME_FORMAT_UNKNOWN;
 	req.req1.format_desired	= DRSUAPI_DS_NAME_FORMAT_FQDN_1779;
 
-	status = dcerpc_drsuapi_DsCrackNames(b, mem_ctx,
+	status = rpccli_drsuapi_DsCrackNames(ctx->cli, mem_ctx,
 					     &ctx->bind_handle,
 					     level,
 					     &req,
@@ -252,14 +245,11 @@ static NTSTATUS libnet_dssync_lookup_nc(TALLOC_CTX *mem_ctx,
 	if (!NT_STATUS_IS_OK(status)) {
 		ctx->error_message = talloc_asprintf(ctx,
 			"Failed to lookup DN for domain name: %s",
-			get_friendly_nt_error_msg(status));
+			get_friendly_werror_msg(werr));
 		return status;
 	}
 
 	if (!W_ERROR_IS_OK(werr)) {
-		ctx->error_message = talloc_asprintf(ctx,
-			"Failed to lookup DN for domain name: %s",
-			get_friendly_werror_msg(werr));
 		return werror_to_ntstatus(werr);
 	}
 
@@ -310,23 +300,23 @@ static NTSTATUS libnet_dssync_build_request(TALLOC_CTX *mem_ctx,
 					    struct dssync_context *ctx,
 					    const char *dn,
 					    struct replUpToDateVectorBlob *utdv,
-					    uint32_t *plevel,
+					    int32_t *plevel,
 					    union drsuapi_DsGetNCChangesRequest *preq)
 {
 	NTSTATUS status;
 	uint32_t count;
-	uint32_t level;
+	int32_t level;
 	union drsuapi_DsGetNCChangesRequest req;
 	struct dom_sid null_sid;
 	enum drsuapi_DsExtendedOperation extended_op;
 	struct drsuapi_DsReplicaObjectIdentifier *nc = NULL;
 	struct drsuapi_DsReplicaCursorCtrEx *cursors = NULL;
 
-	uint32_t replica_flags	= DRSUAPI_DRS_WRIT_REP |
-				  DRSUAPI_DRS_INIT_SYNC |
-				  DRSUAPI_DRS_PER_SYNC |
-				  DRSUAPI_DRS_GET_ANC |
-				  DRSUAPI_DRS_NEVER_SYNCED;
+	uint32_t replica_flags	= DRSUAPI_DS_REPLICA_NEIGHBOUR_WRITEABLE |
+				  DRSUAPI_DS_REPLICA_NEIGHBOUR_SYNC_ON_STARTUP |
+				  DRSUAPI_DS_REPLICA_NEIGHBOUR_DO_SCHEDULED_SYNCS |
+				  DRSUAPI_DS_REPLICA_NEIGHBOUR_RETURN_OBJECT_PARENTS |
+				  DRSUAPI_DS_REPLICA_NEIGHBOUR_NEVER_SYNCED;
 
 	ZERO_STRUCT(null_sid);
 	ZERO_STRUCT(req);
@@ -425,7 +415,7 @@ fail:
 
 static NTSTATUS libnet_dssync_getncchanges(TALLOC_CTX *mem_ctx,
 					   struct dssync_context *ctx,
-					   uint32_t level,
+					   int32_t level,
 					   union drsuapi_DsGetNCChangesRequest *req,
 					   struct replUpToDateVectorBlob **pnew_utdv)
 {
@@ -435,11 +425,10 @@ static NTSTATUS libnet_dssync_getncchanges(TALLOC_CTX *mem_ctx,
 	struct drsuapi_DsGetNCChangesCtr1 *ctr1 = NULL;
 	struct drsuapi_DsGetNCChangesCtr6 *ctr6 = NULL;
 	struct replUpToDateVectorBlob *new_utdv = NULL;
-	uint32_t level_out = 0;
-	uint32_t out_level = 0;
+	int32_t level_out = 0;
+	int32_t out_level = 0;
 	int y;
 	bool last_query;
-	struct dcerpc_binding_handle *b = ctx->cli->binding_handle;
 
 	if (!ctx->single_object_replication) {
 		new_utdv = TALLOC_ZERO_P(mem_ctx, struct replUpToDateVectorBlob);
@@ -452,8 +441,6 @@ static NTSTATUS libnet_dssync_getncchanges(TALLOC_CTX *mem_ctx,
 	for (y=0, last_query = false; !last_query; y++) {
 		struct drsuapi_DsReplicaObjectListItemEx *first_object = NULL;
 		struct drsuapi_DsReplicaOIDMapping_Ctr *mapping_ctr = NULL;
-		uint32_t linked_attributes_count = 0;
-		struct drsuapi_DsReplicaLinkedAttribute *linked_attributes = NULL;
 
 		if (level == 8) {
 			DEBUG(1,("start[%d] tmp_higest_usn: %llu , highest_usn: %llu\n",y,
@@ -465,7 +452,7 @@ static NTSTATUS libnet_dssync_getncchanges(TALLOC_CTX *mem_ctx,
 				(long long)req->req5.highwatermark.highest_usn));
 		}
 
-		status = dcerpc_drsuapi_DsGetNCChanges(b, mem_ctx,
+		status = rpccli_drsuapi_DsGetNCChanges(ctx->cli, mem_ctx,
 						       &ctx->bind_handle,
 						       level,
 						       req,
@@ -475,15 +462,12 @@ static NTSTATUS libnet_dssync_getncchanges(TALLOC_CTX *mem_ctx,
 		if (!NT_STATUS_IS_OK(status)) {
 			ctx->error_message = talloc_asprintf(ctx,
 				"Failed to get NC Changes: %s",
-				get_friendly_nt_error_msg(status));
+				get_friendly_werror_msg(werr));
 			goto out;
 		}
 
 		if (!W_ERROR_IS_OK(werr)) {
 			status = werror_to_ntstatus(werr);
-			ctx->error_message = talloc_asprintf(ctx,
-				"Failed to get NC Changes: %s",
-				get_friendly_werror_msg(werr));
 			goto out;
 		}
 
@@ -540,9 +524,6 @@ static NTSTATUS libnet_dssync_getncchanges(TALLOC_CTX *mem_ctx,
 			first_object = ctr6->first_object;
 			mapping_ctr = &ctr6->mapping_ctr;
 
-			linked_attributes = ctr6->linked_attributes;
-			linked_attributes_count = ctr6->linked_attributes_count;
-
 			if (ctr6->more_data) {
 				req->req8.highwatermark = ctr6->new_highwatermark;
 			} else {
@@ -582,23 +563,6 @@ static NTSTATUS libnet_dssync_getncchanges(TALLOC_CTX *mem_ctx,
 				goto out;
 			}
 		}
-
-		if (linked_attributes_count == 0) {
-			continue;
-		}
-
-		if (ctx->ops->process_links) {
-			status = ctx->ops->process_links(ctx, mem_ctx,
-							 linked_attributes_count,
-							 linked_attributes,
-							 mapping_ctr);
-			if (!NT_STATUS_IS_OK(status)) {
-				ctx->error_message = talloc_asprintf(ctx,
-					"Failed to call processing function: %s",
-					nt_errstr(status));
-				goto out;
-			}
-		}
 	}
 
 	*pnew_utdv = new_utdv;
@@ -612,7 +576,7 @@ static NTSTATUS libnet_dssync_process(TALLOC_CTX *mem_ctx,
 {
 	NTSTATUS status;
 
-	uint32_t level = 0;
+	int32_t level = 0;
 	union drsuapi_DsGetNCChangesRequest req;
 	struct replUpToDateVectorBlob *old_utdv = NULL;
 	struct replUpToDateVectorBlob *pnew_utdv = NULL;

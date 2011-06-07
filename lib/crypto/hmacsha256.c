@@ -26,7 +26,7 @@
  taken direct from rfc2202 implementation and modified for suitable use
  */
 
-#include "replace.h"
+#include "includes.h"
 #include "../lib/crypto/crypto.h"
 
 /***********************************************************************

@@ -24,7 +24,6 @@
 #include "libcli/resolve/resolve.h"
 #include "torture/torture.h"
 #include "system/network.h"
-#include "lib/util/util_net.h"
 
 static bool test_async_resolve(struct torture_context *tctx)
 {
@@ -82,7 +81,7 @@ static bool test_sync_resolve(struct torture_context *tctx)
 
 struct torture_suite *torture_local_resolve(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "resolve");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "RESOLVE");
 
 	torture_suite_add_simple_test(suite, "async", test_async_resolve);
 	torture_suite_add_simple_test(suite, "sync", test_sync_resolve);

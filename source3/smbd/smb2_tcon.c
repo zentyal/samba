@@ -19,11 +19,8 @@
 */
 
 #include "includes.h"
-#include "smbd/smbd.h"
 #include "smbd/globals.h"
 #include "../libcli/smb/smb_common.h"
-#include "../libcli/security/security.h"
-#include "auth.h"
 
 static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
 				       const char *in_path,
@@ -46,11 +43,11 @@ NTSTATUS smbd_smb2_request_process_tcon(struct smbd_smb2_request *req)
 	DATA_BLOB in_path_buffer;
 	char *in_path_string;
 	size_t in_path_string_size;
-	uint8_t out_share_type = 0;
-	uint32_t out_share_flags = 0;
-	uint32_t out_capabilities = 0;
-	uint32_t out_maximal_access = 0;
-	uint32_t out_tree_id = 0;
+	uint8_t out_share_type;
+	uint32_t out_share_flags;
+	uint32_t out_capabilities;
+	uint32_t out_maximal_access;
+	uint32_t out_tree_id;
 	NTSTATUS status;
 	bool ok;
 
@@ -129,12 +126,9 @@ static int smbd_smb2_tcon_destructor(struct smbd_smb2_tcon *tcon)
 
 	idr_remove(tcon->session->tcons.idtree, tcon->tid);
 	DLIST_REMOVE(tcon->session->tcons.list, tcon);
-	SMB_ASSERT(tcon->session->sconn->num_tcons_open > 0);
-	tcon->session->sconn->num_tcons_open--;
 
 	if (tcon->compat_conn) {
-		set_current_service(tcon->compat_conn, 0, true);
-		close_cnum(tcon->compat_conn, tcon->session->vuid);
+		conn_free(tcon->compat_conn);
 	}
 
 	tcon->compat_conn = NULL;
@@ -153,11 +147,9 @@ static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
 				       uint32_t *out_tree_id)
 {
 	const char *share = in_path;
-	char *service = NULL;
+	fstring service;
 	int snum = -1;
 	struct smbd_smb2_tcon *tcon;
-	connection_struct *compat_conn = NULL;
-	user_struct *compat_vuser = req->session->compat_vuser;
 	int id;
 	NTSTATUS status;
 
@@ -171,40 +163,18 @@ static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
 	DEBUG(10,("smbd_smb2_tree_connect: path[%s] share[%s]\n",
 		  in_path, share));
 
-	service = talloc_strdup(talloc_tos(), share);
-	if(!service) {
-		return NT_STATUS_NO_MEMORY;
-	}
+	fstrcpy(service, share);
 
 	strlower_m(service);
 
-	/* TODO: do more things... */
-	if (strequal(service,HOMES_NAME)) {
-		if (compat_vuser->homes_snum == -1) {
-			DEBUG(2, ("[homes] share not available for "
-				"user %s because it was not found "
-				"or created at session setup "
-				"time\n",
-				compat_vuser->session_info->unix_name));
-			return NT_STATUS_BAD_NETWORK_NAME;
-		}
-		snum = compat_vuser->homes_snum;
-	} else if ((compat_vuser->homes_snum != -1)
-                   && strequal(service,
-			lp_servicename(compat_vuser->homes_snum))) {
-		snum = compat_vuser->homes_snum;
-	} else {
-		snum = find_service(talloc_tos(), service, &service);
-		if (!service) {
-			return NT_STATUS_NO_MEMORY;
-		}
-	}
-
+	snum = find_service(service);
 	if (snum < 0) {
 		DEBUG(3,("smbd_smb2_tree_connect: couldn't find service %s\n",
 			 service));
 		return NT_STATUS_BAD_NETWORK_NAME;
 	}
+
+	/* TODO: do more things... */
 
 	/* create a new tcon as child of the session */
 	tcon = talloc_zero(req->session, struct smbd_smb2_tcon);
@@ -224,53 +194,21 @@ static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
 	DLIST_ADD_END(req->session->tcons.list, tcon,
 		      struct smbd_smb2_tcon *);
 	tcon->session = req->session;
-	tcon->session->sconn->num_tcons_open++;
 	talloc_set_destructor(tcon, smbd_smb2_tcon_destructor);
 
-	compat_conn = make_connection_snum(req->sconn,
+	tcon->compat_conn = make_connection_snum(req->sconn,
 					snum, req->session->compat_vuser,
 					data_blob_null, "???",
 					&status);
-	if (compat_conn == NULL) {
+	if (tcon->compat_conn == NULL) {
 		TALLOC_FREE(tcon);
 		return status;
 	}
-	tcon->compat_conn = talloc_move(tcon, &compat_conn);
 	tcon->compat_conn->cnum = tcon->tid;
 
-	if (IS_PRINT(tcon->compat_conn)) {
-		*out_share_type = SMB2_SHARE_TYPE_PRINT;
-	} else if (IS_IPC(tcon->compat_conn)) {
-		*out_share_type = SMB2_SHARE_TYPE_PIPE;
-	} else {
-		*out_share_type = SMB2_SHARE_TYPE_DISK;
-	}
-
-	*out_share_flags = SMB2_SHAREFLAG_ALLOW_NAMESPACE_CACHING;
-
-	if (lp_msdfs_root(SNUM(tcon->compat_conn)) && lp_host_msdfs()) {
-		*out_share_flags |= (SMB2_SHAREFLAG_DFS|SMB2_SHAREFLAG_DFS_ROOT);
-		*out_capabilities = SMB2_SHARE_CAP_DFS;
-	} else {
-		*out_capabilities = 0;
-	}
-
-	switch(lp_csc_policy(SNUM(tcon->compat_conn))) {
-	case CSC_POLICY_MANUAL:
-		break;
-	case CSC_POLICY_DOCUMENTS:
-		*out_share_flags |= SMB2_SHAREFLAG_AUTO_CACHING;
-		break;
-	case CSC_POLICY_PROGRAMS:
-		*out_share_flags |= SMB2_SHAREFLAG_VDO_CACHING;
-		break;
-	case CSC_POLICY_DISABLE:
-		*out_share_flags |= SMB2_SHAREFLAG_NO_CACHING;
-		break;
-	default:
-		break;
-	}
-
+	*out_share_type = 0x01;
+	*out_share_flags = SMB2_SHAREFLAG_ALL;
+	*out_capabilities = 0;
 	*out_maximal_access = FILE_GENERIC_ALL;
 
 	*out_tree_id = tcon->tid;
@@ -280,35 +218,14 @@ static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
 NTSTATUS smbd_smb2_request_check_tcon(struct smbd_smb2_request *req)
 {
 	const uint8_t *inhdr;
-	const uint8_t *outhdr;
 	int i = req->current_idx;
 	uint32_t in_tid;
 	void *p;
 	struct smbd_smb2_tcon *tcon;
-	bool chained_fixup = false;
 
 	inhdr = (const uint8_t *)req->in.vector[i+0].iov_base;
 
 	in_tid = IVAL(inhdr, SMB2_HDR_TID);
-
-	if (in_tid == (0xFFFFFFFF)) {
-		if (req->async) {
-			/*
-			 * async request - fill in tid from
-			 * already setup out.vector[].iov_base.
-			 */
-			outhdr = (const uint8_t *)req->out.vector[i].iov_base;
-			in_tid = IVAL(outhdr, SMB2_HDR_TID);
-		} else if (i > 2) {
-			/*
-			 * Chained request - fill in tid from
-			 * the previous request out.vector[].iov_base.
-			 */
-			outhdr = (const uint8_t *)req->out.vector[i-3].iov_base;
-			in_tid = IVAL(outhdr, SMB2_HDR_TID);
-			chained_fixup = true;
-		}
-	}
 
 	/* lookup an existing session */
 	p = idr_find(req->session->tcons.idtree, in_tid);
@@ -327,13 +244,6 @@ NTSTATUS smbd_smb2_request_check_tcon(struct smbd_smb2_request *req)
 	}
 
 	req->tcon = tcon;
-
-	if (chained_fixup) {
-		/* Fix up our own outhdr. */
-		outhdr = (const uint8_t *)req->out.vector[i].iov_base;
-		SIVAL(outhdr, SMB2_HDR_TID, in_tid);
-	}
-
 	return NT_STATUS_OK;
 }
 

@@ -12,7 +12,7 @@ use strict;
 use Parse::Pidl qw(warning fatal error);
 use Parse::Pidl::Typelist qw(hasType resolveType getType mapTypeName expandAlias);
 use Parse::Pidl::Util qw(has_property ParseExpr unmake_str);
-use Parse::Pidl::NDR qw(GetPrevLevel GetNextLevel ContainsDeferred ContainsPipe is_charset_array);
+use Parse::Pidl::NDR qw(GetPrevLevel GetNextLevel ContainsDeferred is_charset_array);
 use Parse::Pidl::CUtil qw(get_value_of get_pointer_to);
 use Parse::Pidl::Samba4 qw(ArrayDynamicallyAllocated);
 use Parse::Pidl::Samba4::Header qw(GenerateFunctionInEnv GenerateFunctionOutEnv EnvSubstituteValue GenerateStructEnv);
@@ -24,9 +24,8 @@ sub new($) {
 	my ($class) = @_;
 	my $self = { res => "", res_hdr => "", tabs => "", constants => {},
 	             module_methods => [], module_objects => [], ready_types => [],
-				 module_imports => {}, type_imports => {},
-				 patch_type_calls => [], prereadycode => [],
-			 	 postreadycode => []};
+				 module_imports => [], type_imports => {},
+				 patch_type_calls => [], readycode => [] };
 	bless($self, $class);
 }
 
@@ -64,10 +63,7 @@ sub PrettifyTypeName($$)
 {
 	my ($name, $basename) = @_;
 
-	$basename =~ s/^.*\.([^.]+)$/\1/;
-
 	$name =~ s/^$basename\_//;
-
 
 	return $name;
 }
@@ -80,7 +76,7 @@ sub Import
 		$_ = unmake_str($_);
 		s/\.idl$//;
 		$self->pidl_hdr("#include \"librpc/gen_ndr/$_\.h\"\n");
-		$self->register_module_import("samba.dcerpc.$_");
+		$self->register_module_import($_);
 	}
 }
 
@@ -130,7 +126,6 @@ sub FromUnionToPythonFunction($$$$)
 			$self->ConvertObjectToPython($mem_ctx, {}, $e, "$name->$e->{NAME}", "ret", "return NULL;");
 		} else {
 			$self->pidl("ret = Py_None;");
-			$self->pidl("Py_INCREF(ret);");
 		}
 
 		$self->pidl("return ret;");
@@ -218,7 +213,7 @@ sub PythonStruct($$$$$$)
 			if ($l->{TYPE} eq "POINTER" and 
 				not ($nl->{TYPE} eq "ARRAY" and ($nl->{IS_FIXED} or is_charset_array($e, $nl))) and
 				not ($nl->{TYPE} eq "DATA" and Parse::Pidl::Typelist::scalar_is_reference($nl->{DATA_TYPE}))) {
-				$self->pidl("talloc_unlink(py_talloc_get_mem_ctx(py_obj), $varname);");
+				$self->pidl("talloc_free($varname);");
 			}
 			$self->ConvertObjectFromPython($env, $mem_ctx, $e, "value", $varname, "return -1;");
 			$self->pidl("return 0;");
@@ -258,7 +253,7 @@ sub PythonStruct($$$$$$)
 		$self->pidl("$cname *object = ($cname *)py_talloc_get_ptr(py_obj);");
 		$self->pidl("DATA_BLOB blob;");
 		$self->pidl("enum ndr_err_code err;");
-		$self->pidl("err = ndr_push_struct_blob(&blob, py_talloc_get_mem_ctx(py_obj), object, (ndr_push_flags_fn_t)ndr_push_$name);");
+		$self->pidl("err = ndr_push_struct_blob(&blob, py_talloc_get_mem_ctx(py_obj), NULL, object, (ndr_push_flags_fn_t)ndr_push_$name);");
 		$self->pidl("if (err != NDR_ERR_SUCCESS) {");
 		$self->indent;
 		$self->pidl("PyErr_SetNdrError(err);");
@@ -280,7 +275,24 @@ sub PythonStruct($$$$$$)
 		$self->pidl("if (!PyArg_ParseTuple(args, \"s#:__ndr_unpack__\", &blob.data, &blob.length))");
 		$self->pidl("\treturn NULL;");
 		$self->pidl("");
-		$self->pidl("err = ndr_pull_struct_blob_all(&blob, py_talloc_get_mem_ctx(py_obj), object, (ndr_pull_flags_fn_t)ndr_pull_$name);");
+
+		# This disgusting hack works around the fact that ndr_pull_struct_blob_all will always fail on structures with relative pointers.  
+                # So, map ndr_unpack to ndr_pull_struct_blob_all only if we don't have any relative pointers in this
+		my $got_relative = 0;
+		if ($#{$d->{ELEMENTS}} > -1) {
+		        foreach my $e (@{$d->{ELEMENTS}}) {
+			        my $l = $e->{LEVELS}[0];
+				if ($l->{TYPE} eq "POINTER" and ($l->{POINTER_TYPE} eq "relative")) {
+				        $got_relative = 1;
+					last;
+				}
+			}
+		}
+		if ($got_relative == 0) {
+		        $self->pidl("err = ndr_pull_struct_blob_all(&blob, py_talloc_get_mem_ctx(py_obj), NULL, object, (ndr_pull_flags_fn_t)ndr_pull_$name);");
+		} else {
+		        $self->pidl("err = ndr_pull_struct_blob(&blob, py_talloc_get_mem_ctx(py_obj), NULL, object, (ndr_pull_flags_fn_t)ndr_pull_$name);");
+		}
 		$self->pidl("if (err != NDR_ERR_SUCCESS) {");
 		$self->indent;
 		$self->pidl("PyErr_SetNdrError(err);");
@@ -292,29 +304,11 @@ sub PythonStruct($$$$$$)
 		$self->deindent;
 		$self->pidl("}");
 		$self->pidl("");
-
-		$self->pidl("static PyObject *py_$name\_ndr_print(PyObject *py_obj)");
-		$self->pidl("{");
-		$self->indent;
-		$self->pidl("$cname *object = ($cname *)py_talloc_get_ptr(py_obj);");
-		$self->pidl("PyObject *ret;");
-		$self->pidl("char *retstr;");
-		$self->pidl("");
-		$self->pidl("retstr = ndr_print_struct_string(py_talloc_get_mem_ctx(py_obj), (ndr_print_fn_t)ndr_print_$name, \"$name\", object);");
-		$self->pidl("ret = PyString_FromString(retstr);");
-		$self->pidl("talloc_free(retstr);");
-		$self->pidl("");
-		$self->pidl("return ret;");
-		$self->deindent;
-		$self->pidl("}");
-		$self->pidl("");
-
 		$py_methods = "py_$name\_methods";
 		$self->pidl("static PyMethodDef $py_methods\[] = {");
 		$self->indent;
-		$self->pidl("{ \"__ndr_pack__\", (PyCFunction)py_$name\_ndr_pack, METH_NOARGS, \"S.ndr_pack(object) -> blob\\nNDR pack\" },");
-		$self->pidl("{ \"__ndr_unpack__\", (PyCFunction)py_$name\_ndr_unpack, METH_VARARGS, \"S.ndr_unpack(class, blob) -> None\\nNDR unpack\" },");
-		$self->pidl("{ \"__ndr_print__\", (PyCFunction)py_$name\_ndr_print, METH_VARARGS, \"S.ndr_print(object) -> None\\nNDR print\" },");
+		$self->pidl("{ \"__ndr_pack__\", (PyCFunction)py_$name\_ndr_pack, METH_NOARGS, \"S.pack() -> blob\\nNDR pack\" },");
+		$self->pidl("{ \"__ndr_unpack__\", (PyCFunction)py_$name\_ndr_unpack, METH_VARARGS, \"S.unpack(blob) -> None\\nNDR unpack\" },");
 		$self->pidl("{ NULL, NULL, 0, NULL }");
 		$self->deindent;
 		$self->pidl("};");
@@ -329,21 +323,20 @@ sub PythonStruct($$$$$$)
 	$self->indent;
 	$self->pidl("PyObject_HEAD_INIT(NULL) 0,");
 	$self->pidl(".tp_name = \"$modulename.$prettyname\",");
+	$self->pidl(".tp_basicsize = sizeof(py_talloc_Object),");
+	$self->pidl(".tp_dealloc = py_talloc_dealloc,");
 	$self->pidl(".tp_getset = $getsetters,");
+	$self->pidl(".tp_repr = py_talloc_default_repr,");
 	if ($docstring) {
 		$self->pidl(".tp_doc = $docstring,");
 	}
 	$self->pidl(".tp_methods = $py_methods,");
 	$self->pidl(".tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,");
-	$self->pidl(".tp_basicsize = sizeof(py_talloc_Object),");
 	$self->pidl(".tp_new = py_$name\_new,");
 	$self->deindent;
 	$self->pidl("};");
 
 	$self->pidl("");
-
-	my $talloc_typename = $self->import_type_variable("talloc", "Object");
-	$self->register_module_prereadycode(["$name\_Type.tp_base = $talloc_typename;", ""]);
 
 	return "&$typeobject";
 }
@@ -395,7 +388,7 @@ sub PythonFunctionUnpackOut($$$)
 	$self->pidl("static PyObject *$outfnname(struct $fn->{NAME} *r)");
 	$self->pidl("{");
 	$self->indent;
-	$self->pidl("PyObject *result;");
+	$self->pidl("PyObject *result = Py_None;");
 	foreach my $e (@{$fn->{ELEMENTS}}) {
 		next unless (grep(/out/,@{$e->{DIRECTION}}));
 		next if (($metadata_args->{in}->{$e->{NAME}} and grep(/in/, @{$e->{DIRECTION}})) or 
@@ -414,8 +407,6 @@ sub PythonFunctionUnpackOut($$$)
 		$self->pidl("result = PyTuple_New($result_size);");
 		$signature .= "(";
 	} elsif ($result_size == 0) {
-		$self->pidl("result = Py_None;");
-		$self->pidl("Py_INCREF(result);");
 		$signature .= "None";
 	}
 
@@ -514,7 +505,7 @@ sub PythonFunctionPackIn($$$)
 		if ($metadata_args->{in}->{$e->{NAME}}) {
 			my $py_var = "py_".$metadata_args->{in}->{$e->{NAME}};
 			$self->pidl("PY_CHECK_TYPE(&PyList_Type, $py_var, $fail);");
-			my $val = "PyList_GET_SIZE($py_var)";
+			my $val = "PyList_Size($py_var)";
 			if ($e->{LEVELS}[0]->{TYPE} eq "POINTER") {
 				$self->pidl("r->in.$e->{NAME} = talloc_ptrtype(r, r->in.$e->{NAME});");
 				$self->pidl("*r->in.$e->{NAME} = $val;");
@@ -539,13 +530,22 @@ sub PythonFunction($$$)
 	my $fnname = "py_$fn->{NAME}";
 	my $docstring = $self->DocString($fn, $fn->{NAME});
 
-	my ($infn, $insignature) = $self->PythonFunctionPackIn($fn, $fnname);
-	my ($outfn, $outsignature) = $self->PythonFunctionUnpackOut($fn, $fnname);
-	my $signature = "S.$prettyname($insignature) -> $outsignature";
-	if ($docstring) {
-		$docstring = "\"$signature\\n\\n\"$docstring";
+	my ($insignature, $outsignature);
+	my ($infn, $outfn);
+
+	if (has_property($fn, "todo")) {
+		unless ($docstring) { $docstring = "NULL"; }
+		$infn = "NULL";
+		$outfn = "NULL";
 	} else {
-		$docstring = "\"$signature\"";
+		($infn, $insignature) = $self->PythonFunctionPackIn($fn, $fnname);
+		($outfn, $outsignature) = $self->PythonFunctionUnpackOut($fn, $fnname);
+		my $signature = "S.$prettyname($insignature) -> $outsignature";
+		if ($docstring) {
+			$docstring = "\"$signature\\n\\n\"$docstring";
+		} else {
+			$docstring = "\"$signature\"";
+		}
 	}
 
 	return ($infn, $outfn, $docstring);
@@ -663,18 +663,8 @@ sub Interface($$$)
 		my @fns = ();
 
 		foreach my $d (@{$interface->{FUNCTIONS}}) {
-			next if has_property($d, "noopnum");
+			next if not defined($d->{OPNUM});
 			next if has_property($d, "nopython");
-			next if has_property($d, "todo");
-
-			my $skip = 0;
-			foreach my $e (@{$d->{ELEMENTS}}) {
-				if (ContainsPipe($e, $e->{LEVELS}[0])) {
-					$skip = 1;
-					last;
-				}
-			}
-			next if $skip;
 
 			my $prettyname = $d->{NAME};
 
@@ -683,14 +673,14 @@ sub Interface($$$)
 
 			my ($infn, $outfn, $fndocstring) = $self->PythonFunction($d, $interface->{NAME}, $prettyname);
 
-			push (@fns, [$infn, $outfn, "dcerpc_$d->{NAME}_r", $prettyname, $fndocstring, $d->{OPNUM}]);
+			push (@fns, [$infn, $outfn, "dcerpc_$d->{NAME}", $prettyname, $fndocstring, $d->{OPNUM}]);
 		}
 
 		$self->pidl("const struct PyNdrRpcMethodDef py_ndr_$interface->{NAME}\_methods[] = {");
 		$self->indent;
 		foreach my $d (@fns) {
 			my ($infn, $outfn, $callfn, $prettyname, $docstring, $opnum) = @$d;
-			$self->pidl("{ \"$prettyname\", $docstring, (py_dcerpc_call_fn)$callfn, (py_data_pack_fn)$infn, (py_data_unpack_fn)$outfn, $opnum, &ndr_table_$interface->{NAME} },");
+			$self->pidl("{ \"$prettyname\", $docstring, (dcerpc_call_fn)$callfn, (py_data_pack_fn)$infn, (py_data_unpack_fn)$outfn, $opnum, &ndr_table_$interface->{NAME} },");
 		}
 		$self->pidl("{ NULL }");
 		$self->deindent;
@@ -721,13 +711,12 @@ sub Interface($$$)
 			$docstring = $signature;
 		}
 
-		my $if_typename = "$interface->{NAME}_InterfaceType";
-
-		$self->pidl("static PyTypeObject $if_typename = {");
+		$self->pidl("static PyTypeObject $interface->{NAME}_InterfaceType = {");
 		$self->indent;
 		$self->pidl("PyObject_HEAD_INIT(NULL) 0,");
 		$self->pidl(".tp_name = \"$basename.$interface->{NAME}\",");
 		$self->pidl(".tp_basicsize = sizeof(dcerpc_InterfaceObject),");
+		$self->pidl(".tp_base = &dcerpc_InterfaceType,");
 		$self->pidl(".tp_doc = $docstring,");
 		$self->pidl(".tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,");
 		$self->pidl(".tp_new = interface_$interface->{NAME}_new,");
@@ -736,10 +725,8 @@ sub Interface($$$)
 
 		$self->pidl("");
 
-		$self->register_module_typeobject($interface->{NAME}, "&$if_typename");
-		my $dcerpc_typename = $self->import_type_variable("samba.dcerpc.base", "ClientConnection");
-		$self->register_module_prereadycode(["$if_typename.tp_base = $dcerpc_typename;", ""]);
-		$self->register_module_postreadycode(["if (!PyInterface_AddNdrRpcMethods(&$if_typename, py_ndr_$interface->{NAME}\_methods))", "\treturn;", ""]);
+		$self->register_module_typeobject($interface->{NAME}, "&$interface->{NAME}_InterfaceType");
+		$self->register_module_readycode(["if (!PyInterface_AddNdrRpcMethods(&$interface->{NAME}_InterfaceType, py_ndr_$interface->{NAME}\_methods))", "\treturn;", ""]);
 	}
 
 	$self->pidl_hdr("\n");
@@ -756,7 +743,7 @@ sub register_module_typeobject($$$)
 {
 	my ($self, $name, $py_name) = @_;
 
-	$self->register_module_object($name, "(PyObject *)(void *)$py_name");
+	$self->register_module_object($name, "(PyObject *)$py_name");
 
 	$self->check_ready_type($py_name);
 
@@ -771,26 +758,9 @@ sub check_ready_type($$)
 
 sub register_module_import($$)
 {
-	my ($self, $module_path) = @_;
+	my ($self, $basename) = @_;
 
-	my $var_name = $module_path;
-	$var_name =~ s/\./_/g;
-	$var_name = "dep_$var_name";
-
-	$self->{module_imports}->{$var_name} = $module_path;
-
-	return $var_name;
-}
-
-sub import_type_variable($$$)
-{
-	my ($self, $module, $name) = @_;
-
-	$self->register_module_import($module);
-	unless (defined($self->{type_imports}->{$name})) {
-		$self->{type_imports}->{$name} = $module;
-	}
-	return "$name\_Type";
+	push (@{$self->{module_imports}}, $basename) unless (grep(/^$basename$/,@{$self->{module_imports}}));
 }
 
 sub use_type_variable($$)
@@ -798,7 +768,7 @@ sub use_type_variable($$)
 	my ($self, $orig_ctype) = @_;
 	# FIXME: Have a global lookup table for types that look different on the 
 	# wire than they are named in C?
-	if ($orig_ctype->{NAME} eq "dom_sid2" or $orig_ctype->{NAME} eq "dom_sid28") {
+	if ($orig_ctype->{NAME} eq "dom_sid2") {
 		$orig_ctype->{NAME} = "dom_sid";
 	}
 	my $ctype = resolveType($orig_ctype);
@@ -807,7 +777,11 @@ sub use_type_variable($$)
 	}
 	# If this is an external type, make sure we do the right imports.
 	if (($ctype->{BASEFILE} ne $self->{BASENAME})) {
-		return $self->import_type_variable("samba.dcerpc.$ctype->{BASEFILE}", $ctype->{NAME});
+		$self->register_module_import($ctype->{BASEFILE});
+		unless (defined($self->{type_imports}->{$ctype->{NAME}})) {
+			$self->{type_imports}->{$ctype->{NAME}} = $ctype->{BASEFILE};
+		}
+		return "$ctype->{NAME}_Type";
 	}
 	return "&$ctype->{NAME}_Type";
 }
@@ -820,18 +794,11 @@ sub register_patch_type_call($$$)
 
 }
 
-sub register_module_prereadycode($$)
+sub register_module_readycode($$)
 {
 	my ($self, $code) = @_;
 
-	push (@{$self->{prereadycode}}, @$code);
-}
-
-sub register_module_postreadycode($$)
-{
-	my ($self, $code) = @_;
-
-	push (@{$self->{postreadycode}}, @$code);
+	push (@{$self->{readycode}}, @$code);
 }
 
 sub register_module_object($$$)
@@ -847,8 +814,7 @@ sub assign($$$)
 	if ($dest =~ /^\&/ and $src eq "NULL") {
 		$self->pidl("memset($dest, 0, sizeof(" . get_value_of($dest) . "));");
 	} elsif ($dest =~ /^\&/) {
-		my $destvar = get_value_of($dest);
-		$self->pidl("$destvar = *$src;");
+		$self->pidl("memcpy($dest, $src, sizeof(" . get_value_of($dest) . "));");
 	} else {
 		$self->pidl("$dest = $src;");
 	}
@@ -867,103 +833,42 @@ sub ConvertObjectFromPythonData($$$$$$;$)
 		$actual_ctype = $actual_ctype->{DATA};
 	}
 
-	if ($actual_ctype->{TYPE} eq "ENUM" or $actual_ctype->{TYPE} eq "BITMAP") {
-		$self->pidl("if (PyLong_Check($cvar)) {");
-		$self->indent;
-		$self->pidl("$target = PyLong_AsLongLong($cvar);");
-		$self->deindent;
-		$self->pidl("} else if (PyInt_Check($cvar)) {");
-		$self->indent;
+	if ($actual_ctype->{TYPE} eq "ENUM" or $actual_ctype->{TYPE} eq "BITMAP" or 
+		$actual_ctype->{TYPE} eq "SCALAR" and (
+		expandAlias($actual_ctype->{NAME}) =~ /^(u?int[0-9]*|hyper|NTTIME|time_t|NTTIME_hyper|NTTIME_1sec|dlong|udlong|udlongr)$/)) {
+		$self->pidl("PY_CHECK_TYPE(&PyInt_Type, $cvar, $fail);");
 		$self->pidl("$target = PyInt_AsLong($cvar);");
-		$self->deindent;
-		$self->pidl("} else {");
-		$self->indent;
-		$self->pidl("PyErr_Format(PyExc_TypeError, \"Expected type %s or %s\",\\");
-		$self->pidl("  PyInt_Type.tp_name, PyLong_Type.tp_name);");
-		$self->pidl($fail);
-		$self->deindent;
-		$self->pidl("}");
 		return;
-	}
-	if ($actual_ctype->{TYPE} eq "SCALAR" ) {
-		if (expandAlias($actual_ctype->{NAME}) =~ /^(u?int64|hyper|dlong|udlong|udlongr|NTTIME_hyper|NTTIME|NTTIME_1sec)$/) {
-			$self->pidl("if (PyLong_Check($cvar)) {");
-			$self->indent;
-			$self->pidl("$target = PyLong_AsLongLong($cvar);");
-			$self->deindent;
-			$self->pidl("} else if (PyInt_Check($cvar)) {");
-			$self->indent;
-			$self->pidl("$target = PyInt_AsLong($cvar);");
-			$self->deindent;
-			$self->pidl("} else {");
-			$self->indent;
-			$self->pidl("PyErr_Format(PyExc_TypeError, \"Expected type %s or %s\",\\");
-			$self->pidl("  PyInt_Type.tp_name, PyLong_Type.tp_name);");
-			$self->pidl($fail);
-			$self->deindent;
-			$self->pidl("}");
-			return;
-		}
-		if (expandAlias($actual_ctype->{NAME}) =~ /^(char|u?int[0-9]*|time_t|uid_t|gid_t)$/) {
-			$self->pidl("PY_CHECK_TYPE(&PyInt_Type, $cvar, $fail);");
-			$self->pidl("$target = PyInt_AsLong($cvar);");
-			return;
-		}
 	}
 
 	if ($actual_ctype->{TYPE} eq "STRUCT" or $actual_ctype->{TYPE} eq "INTERFACE") {
 		my $ctype_name = $self->use_type_variable($ctype);
 		unless (defined ($ctype_name)) {
 			error($location, "Unable to determine origin of type `" . mapTypeName($ctype) . "'");
-			$self->pidl("PyErr_SetString(PyExc_TypeError, \"Can not convert C Type " . mapTypeName($ctype) . " from Python\");");
+			$self->pidl("PyErr_SetString(PyExc_TypeError, \"Can not convert C Type " . mapTypeName($ctype) . " to Python\");");
 			return;
 		}
 		$self->pidl("PY_CHECK_TYPE($ctype_name, $cvar, $fail);");
-		$self->pidl("if (talloc_reference($mem_ctx, py_talloc_get_mem_ctx($cvar)) == NULL) {");
-		$self->indent;
-		$self->pidl("PyErr_NoMemory();");
-		$self->pidl("$fail");
-		$self->deindent;
-		$self->pidl("}");
-		$self->assign($target, "(".mapTypeName($ctype)." *)py_talloc_get_ptr($cvar)");
+		$self->assign($target, "py_talloc_get_ptr($cvar)");
 		return;
 	}
 
 	if ($actual_ctype->{TYPE} eq "SCALAR" and $actual_ctype->{NAME} eq "DATA_BLOB") {
-		$self->pidl("$target = data_blob_talloc($mem_ctx, PyString_AS_STRING($cvar), PyString_GET_SIZE($cvar));");
+		$self->pidl("$target = data_blob_talloc($mem_ctx, PyString_AsString($cvar), PyString_Size($cvar));");
 		return;
 	}
 
 	if ($actual_ctype->{TYPE} eq "SCALAR" and 
 		($actual_ctype->{NAME} eq "string" or $actual_ctype->{NAME} eq "nbt_string" or $actual_ctype->{NAME} eq "nbt_name" or $actual_ctype->{NAME} eq "wrepl_nbt_name")) {
-		$self->pidl("$target = talloc_strdup($mem_ctx, PyString_AS_STRING($cvar));");
-		return;
-	}
-
-	if ($actual_ctype->{TYPE} eq "SCALAR" and ($actual_ctype->{NAME} eq "dns_string" or $actual_ctype->{NAME} eq "dns_name")) {
-		$self->pidl("$target = talloc_strdup($mem_ctx, PyString_AS_STRING($cvar));");
+		$self->pidl("$target = talloc_strdup($mem_ctx, PyString_AsString($cvar));");
 		return;
 	}
 
 	if ($actual_ctype->{TYPE} eq "SCALAR" and $actual_ctype->{NAME} eq "ipv4address") {
-		$self->pidl("$target = PyString_AS_STRING($cvar);");
-		return;
-	}
-
-	if ($actual_ctype->{TYPE} eq "SCALAR" and $actual_ctype->{NAME} eq "ipv6address") {
 		$self->pidl("$target = PyString_AsString($cvar);");
 		return;
-	}
+		}
 
-	if ($actual_ctype->{TYPE} eq "SCALAR" and $actual_ctype->{NAME} eq "dnsp_name") {
-		$self->pidl("$target = PyString_AS_STRING($cvar);");
-		return;
-	}
-
-	if ($actual_ctype->{TYPE} eq "SCALAR" and $actual_ctype->{NAME} eq "dnsp_string") {
-		$self->pidl("$target = PyString_AS_STRING($cvar);");
-		return;
-	}
 
 	if ($actual_ctype->{TYPE} eq "SCALAR" and $actual_ctype->{NAME} eq "NTSTATUS") {
 		$self->pidl("$target = NT_STATUS(PyInt_AsLong($cvar));");
@@ -993,15 +898,12 @@ sub ConvertObjectFromPythonLevel($$$$$$$$)
 {
 	my ($self, $env, $mem_ctx, $py_var, $e, $l, $var_name, $fail) = @_;
 	my $nl = GetNextLevel($e, $l);
-	if ($nl and $nl->{TYPE} eq "SUBCONTEXT") {
-		$nl = GetNextLevel($e, $nl);
-	}
-	my $pl = GetPrevLevel($e, $l);
-	if ($pl and $pl->{TYPE} eq "SUBCONTEXT") {
-		$pl = GetPrevLevel($e, $pl);
-	}
 
 	if ($l->{TYPE} eq "POINTER") {
+		if ($nl->{TYPE} eq "DATA" and Parse::Pidl::Typelist::scalar_is_reference($nl->{DATA_TYPE})) {
+			$self->ConvertObjectFromPythonLevel($env, $mem_ctx, $py_var, $e, $nl, $var_name, $fail);
+			return;
+		}
 		if ($l->{POINTER_TYPE} ne "ref") {
 			$self->pidl("if ($py_var == Py_None) {");
 			$self->indent;
@@ -1010,45 +912,22 @@ sub ConvertObjectFromPythonLevel($$$$$$$$)
 			$self->pidl("} else {");
 			$self->indent;
 		}
-		# if we want to handle more than one level of pointer in python interfaces
-		# then this is where we would need to allocate it
-		if ($l->{POINTER_TYPE} eq "ref") {
-			$self->pidl("$var_name = talloc_ptrtype($mem_ctx, $var_name);");
-		} elsif ($nl->{TYPE} eq "DATA" and Parse::Pidl::Typelist::is_scalar($nl->{DATA_TYPE})
-			 and not Parse::Pidl::Typelist::scalar_is_reference($nl->{DATA_TYPE})) {
-			$self->pidl("$var_name = talloc_ptrtype($mem_ctx, $var_name);");
-		} else {
-			$self->pidl("$var_name = NULL;");
-		}
-		unless ($nl->{TYPE} eq "DATA" and Parse::Pidl::Typelist::scalar_is_reference($nl->{DATA_TYPE})) {
-			$var_name = get_value_of($var_name);
-		}
-		$self->ConvertObjectFromPythonLevel($env, $mem_ctx, $py_var, $e, $nl, $var_name, $fail);
+		$self->pidl("$var_name = talloc_ptrtype($mem_ctx, $var_name);");
+		$self->ConvertObjectFromPythonLevel($env, $mem_ctx, $py_var, $e, $nl, get_value_of($var_name), $fail);
 		if ($l->{POINTER_TYPE} ne "ref") {
 			$self->deindent;
 			$self->pidl("}");
 		}
 	} elsif ($l->{TYPE} eq "ARRAY") {
+		my $pl = GetPrevLevel($e, $l);
 		if ($pl && $pl->{TYPE} eq "POINTER") {
 			$var_name = get_pointer_to($var_name);
 		}
 
 		if (is_charset_array($e, $l)) {
-			$self->pidl("if (PyUnicode_Check($py_var)) {");
-			$self->indent;
+			$self->pidl("PY_CHECK_TYPE(&PyUnicode_Type, $py_var, $fail);");
 			# FIXME: Use Unix charset setting rather than utf-8
-			$self->pidl($var_name . " = PyString_AS_STRING(PyUnicode_AsEncodedString($py_var, \"utf-8\", \"ignore\"));");
-			$self->deindent;
-			$self->pidl("} else if (PyString_Check($py_var)) {");
-			$self->indent;
-			$self->pidl($var_name . " = PyString_AS_STRING($py_var);");
-			$self->deindent;
-			$self->pidl("} else {");
-			$self->indent;
-			$self->pidl("PyErr_Format(PyExc_TypeError, \"Expected string or unicode object, got %s\", Py_TYPE($py_var)->tp_name);");
-			$self->pidl("$fail");
-			$self->deindent;
-			$self->pidl("}");
+			$self->pidl($var_name . " = PyString_AsString(PyUnicode_AsEncodedString($py_var, \"utf-8\", \"ignore\"));");
 		} else {
 			my $counter = "$e->{NAME}_cntr_$l->{LEVEL_INDEX}";
 			$self->pidl("PY_CHECK_TYPE(&PyList_Type, $py_var, $fail);");
@@ -1056,19 +935,18 @@ sub ConvertObjectFromPythonLevel($$$$$$$$)
 			$self->indent;
 			$self->pidl("int $counter;");
 			if (ArrayDynamicallyAllocated($e, $l)) {
-				$self->pidl("$var_name = talloc_array_ptrtype($mem_ctx, $var_name, PyList_GET_SIZE($py_var));");
-				$self->pidl("if (!$var_name) { $fail; }");
-				$self->pidl("talloc_set_name_const($var_name, \"ARRAY: $var_name\");");
+				$self->pidl("$var_name = talloc_array_ptrtype($mem_ctx, $var_name, PyList_Size($py_var));");
 			}
-			$self->pidl("for ($counter = 0; $counter < PyList_GET_SIZE($py_var); $counter++) {");
+			$self->pidl("for ($counter = 0; $counter < PyList_Size($py_var); $counter++) {");
 			$self->indent;
-			$self->ConvertObjectFromPythonLevel($env, $var_name, "PyList_GET_ITEM($py_var, $counter)", $e, $nl, $var_name."[$counter]", $fail);
+			$self->ConvertObjectFromPythonLevel($env, $var_name, "PyList_GetItem($py_var, $counter)", $e, GetNextLevel($e, $l), $var_name."[$counter]", $fail);
 			$self->deindent;
 			$self->pidl("}");
 			$self->deindent;
 			$self->pidl("}");
 		}
 	} elsif ($l->{TYPE} eq "DATA") {
+
 		if (not Parse::Pidl::Typelist::is_scalar($l->{DATA_TYPE})) {
 			$var_name = get_pointer_to($var_name);
 		}
@@ -1076,18 +954,9 @@ sub ConvertObjectFromPythonLevel($$$$$$$$)
 	} elsif ($l->{TYPE} eq "SWITCH") {
 		$var_name = get_pointer_to($var_name);
 		my $switch = ParseExpr($l->{SWITCH_IS}, $env, $e);
-		my $switch_ptr = "$e->{NAME}_switch_$l->{LEVEL_INDEX}";
-		$self->pidl("{");
-		$self->indent;
-		my $union_type = mapTypeName($nl->{DATA_TYPE});
-		$self->pidl("$union_type *$switch_ptr;");
-		$self->pidl("$switch_ptr = py_export_" . $nl->{DATA_TYPE} . "($mem_ctx, $switch, $py_var);");
-		$self->fail_on_null($switch_ptr, $fail);
-		$self->assign($var_name, "$switch_ptr");
-		$self->deindent;
-		$self->pidl("}");
+		$self->assign($var_name, "py_export_" . GetNextLevel($e, $l)->{DATA_TYPE} . "($mem_ctx, $switch, $py_var)");
 	} elsif ($l->{TYPE} eq "SUBCONTEXT") {
-		$self->ConvertObjectFromPythonLevel($env, $mem_ctx, $py_var, $e, $nl, $var_name, $fail);
+		$self->ConvertObjectFromPythonLevel($env, $mem_ctx, $py_var, $e, GetNextLevel($e, $l), $var_name, $fail);
 	} else {
 		fatal($e->{ORIGINAL}, "unknown level type $l->{TYPE}");
 	}
@@ -1108,11 +977,7 @@ sub ConvertScalarToPython($$$)
 
 	$ctypename = expandAlias($ctypename);
 
-	if ($ctypename =~ /^(u?int64|hyper|dlong|udlong|udlongr|NTTIME_hyper|NTTIME|NTTIME_1sec)$/) {
-		return "PyLong_FromLongLong($cvar)";
-	}
-
-	if ($ctypename =~ /^(char|u?int[0-9]*|time_t|uid_t|gid_t)$/) {
+	if ($ctypename =~ /^(char|u?int[0-9]*|hyper|dlong|udlong|udlongr|time_t|NTTIME_hyper|NTTIME|NTTIME_1sec)$/) {
 		return "PyInt_FromLong($cvar)";
 	}
 
@@ -1129,19 +994,12 @@ sub ConvertScalarToPython($$$)
 	}
 
 	if (($ctypename eq "string" or $ctypename eq "nbt_string" or $ctypename eq "nbt_name" or $ctypename eq "wrepl_nbt_name")) {
-		return "PyString_FromStringOrNULL($cvar)";
-	}
-
-	if (($ctypename eq "dns_string" or $ctypename eq "dns_name")) {
-		return "PyString_FromStringOrNULL($cvar)";
+		return "PyString_FromString($cvar)";
 	}
 
 	# Not yet supported
 	if ($ctypename eq "string_array") { return "PyCObject_FromTallocPtr($cvar)"; }
-	if ($ctypename eq "ipv4address") { return "PyString_FromStringOrNULL($cvar)"; }
-	if ($ctypename eq "ipv6address") { return "PyString_FromStringOrNULL($cvar)"; }
-	if ($ctypename eq "dnsp_name") { return "PyString_FromStringOrNULL($cvar)"; }
-	if ($ctypename eq "dnsp_string") { return "PyString_FromStringOrNULL($cvar)"; }
+	if ($ctypename eq "ipv4address") { return "PyString_FromString($cvar)"; }
 	if ($ctypename eq "pointer") {
 		return "PyCObject_FromTallocPtr($cvar)";
 	}
@@ -1196,50 +1054,34 @@ sub ConvertObjectToPythonLevel($$$$$$)
 {
 	my ($self, $mem_ctx, $env, $e, $l, $var_name, $py_var, $fail) = @_;
 	my $nl = GetNextLevel($e, $l);
-	if ($nl and $nl->{TYPE} eq "SUBCONTEXT") {
-		$nl = GetNextLevel($e, $nl);
-	}
-	my $pl = GetPrevLevel($e, $l);
-	if ($pl and $pl->{TYPE} eq "SUBCONTEXT") {
-		$pl = GetPrevLevel($e, $pl);
-	}
 
 	if ($l->{TYPE} eq "POINTER") {
+		if ($nl->{TYPE} eq "DATA" and Parse::Pidl::Typelist::scalar_is_reference($nl->{DATA_TYPE})) {
+			$self->ConvertObjectToPythonLevel($var_name, $env, $e, $nl, $var_name, $py_var, $fail);
+			return;
+		}
 		if ($l->{POINTER_TYPE} ne "ref") {
 			$self->pidl("if ($var_name == NULL) {");
 			$self->indent;
 			$self->pidl("$py_var = Py_None;");
-			$self->pidl("Py_INCREF($py_var);");
 			$self->deindent;
 			$self->pidl("} else {");
 			$self->indent;
 		}
-		my $var_name2 = $var_name;
-		unless ($nl->{TYPE} eq "DATA" and Parse::Pidl::Typelist::scalar_is_reference($nl->{DATA_TYPE})) {
-			$var_name2 = get_value_of($var_name);
-		}
-		$self->ConvertObjectToPythonLevel($var_name, $env, $e, $nl, $var_name2, $py_var, $fail);
+		$self->ConvertObjectToPythonLevel($var_name, $env, $e, $nl, get_value_of($var_name), $py_var, $fail);
 		if ($l->{POINTER_TYPE} ne "ref") {
 			$self->deindent;
 			$self->pidl("}");
 		}
 	} elsif ($l->{TYPE} eq "ARRAY") {
+		my $pl = GetPrevLevel($e, $l);
 		if ($pl && $pl->{TYPE} eq "POINTER") {
 			$var_name = get_pointer_to($var_name);
 		}
 
 		if (is_charset_array($e, $l)) {
 			# FIXME: Use Unix charset setting rather than utf-8
-			$self->pidl("if ($var_name == NULL) {");
-			$self->indent;
-			$self->pidl("$py_var = Py_None;");
-			$self->pidl("Py_INCREF($py_var);");
-			$self->deindent;
-			$self->pidl("} else {");
-			$self->indent;
 			$self->pidl("$py_var = PyUnicode_Decode($var_name, strlen($var_name), \"utf-8\", \"ignore\");");
-			$self->deindent;
-			$self->pidl("}");
 		} else {
 			die("No SIZE_IS for array $var_name") unless (defined($l->{SIZE_IS}));
 			my $length = $l->{SIZE_IS};
@@ -1258,7 +1100,7 @@ sub ConvertObjectToPythonLevel($$$$$$)
 			$self->indent;
 			my $member_var = "py_$e->{NAME}_$l->{LEVEL_INDEX}";
 			$self->pidl("PyObject *$member_var;");
-			$self->ConvertObjectToPythonLevel($var_name, $env, $e, $nl, $var_name."[$counter]", $member_var, $fail);
+			$self->ConvertObjectToPythonLevel($var_name, $env, $e, GetNextLevel($e, $l), $var_name."[$counter]", $member_var, $fail);
 			$self->pidl("PyList_SetItem($py_var, $counter, $member_var);");
 			$self->deindent;
 			$self->pidl("}");
@@ -1268,7 +1110,7 @@ sub ConvertObjectToPythonLevel($$$$$$)
 	} elsif ($l->{TYPE} eq "SWITCH") {
 		$var_name = get_pointer_to($var_name);
 		my $switch = ParseExpr($l->{SWITCH_IS}, $env, $e);
-		$self->pidl("$py_var = py_import_" . $nl->{DATA_TYPE} . "($mem_ctx, $switch, $var_name);");
+		$self->pidl("$py_var = py_import_" . GetNextLevel($e, $l)->{DATA_TYPE} . "($mem_ctx, $switch, $var_name);");
 		$self->fail_on_null($py_var, $fail);
 
 	} elsif ($l->{TYPE} eq "DATA") {
@@ -1278,7 +1120,7 @@ sub ConvertObjectToPythonLevel($$$$$$)
 		my $conv = $self->ConvertObjectToPythonData($mem_ctx, $l->{DATA_TYPE}, $var_name, $e->{ORIGINAL});
 		$self->pidl("$py_var = $conv;");
 	} elsif ($l->{TYPE} eq "SUBCONTEXT") {
-		$self->ConvertObjectToPythonLevel($mem_ctx, $env, $e, $nl, $var_name, $py_var, $fail);
+		$self->ConvertObjectToPythonLevel($mem_ctx, $env, $e, GetNextLevel($e, $l), $var_name, $py_var, $fail);
 	} else {
 		fatal($e->{ORIGINAL}, "Unknown level type $l->{TYPE} $var_name");
 	}
@@ -1299,13 +1141,17 @@ sub Parse($$$$$)
 
     $self->pidl_hdr("
 /* Python wrapper functions auto-generated by pidl */
-#include <Python.h>
 #include \"includes.h\"
-#include <pytalloc.h>
+#include <Python.h>
+#include \"librpc/rpc/dcerpc.h\"
+#include \"lib/talloc/pytalloc.h\"
 #include \"librpc/rpc/pyrpc.h\"
-#include \"librpc/rpc/pyrpc_util.h\"
 #include \"$hdr\"
 #include \"$ndr_hdr\"
+
+#ifndef Py_RETURN_NONE
+#define Py_RETURN_NONE return Py_INCREF(Py_None), Py_None
+#endif
 
 ");
 
@@ -1327,46 +1173,38 @@ sub Parse($$$$$)
 
 	$self->pidl("");
 
-	$self->pidl_hdr("void init$basename(void);");
 	$self->pidl("void init$basename(void)");
 	$self->pidl("{");
 	$self->indent;
 	$self->pidl("PyObject *m;");
-	foreach (keys %{$self->{module_imports}}) {
-		$self->pidl("PyObject *$_;");
+	foreach (@{$self->{module_imports}}) {
+		$self->pidl("PyObject *dep_$_;");
 	}
 	$self->pidl("");
 
-	foreach (keys %{$self->{module_imports}}) {
-		my $var_name = $_;
-		my $module_path = $self->{module_imports}->{$var_name};
-		$self->pidl("$var_name = PyImport_ImportModule(\"$module_path\");");
-		$self->pidl("if ($var_name == NULL)");
+	foreach (@{$self->{module_imports}}) {
+		$self->pidl("dep_$_ = PyImport_ImportModule(\"samba.dcerpc.$_\");");
+		$self->pidl("if (dep_$_ == NULL)");
 		$self->pidl("\treturn;");
 		$self->pidl("");
 	}
 
 	foreach (keys %{$self->{type_imports}}) {
-		my $type_var = "$_\_Type";
-		my $module_path = $self->{type_imports}->{$_};
-		$self->pidl_hdr("static PyTypeObject *$type_var;\n");
-		my $pretty_name = PrettifyTypeName($_, $module_path);
-		my $module_var = "dep_$module_path";
-		$module_var =~ s/\./_/g;
-		$self->pidl("$type_var = (PyTypeObject *)PyObject_GetAttrString($module_var, \"$pretty_name\");");
-		$self->pidl("if ($type_var == NULL)");
+		my $basefile = $self->{type_imports}->{$_};
+		$self->pidl_hdr("static PyTypeObject *$_\_Type;\n");
+		my $pretty_name = PrettifyTypeName($_, $basefile);
+		$self->pidl("$_\_Type = (PyTypeObject *)PyObject_GetAttrString(dep_$basefile, \"$pretty_name\");");
+		$self->pidl("if ($_\_Type == NULL)");
 		$self->pidl("\treturn;");
 		$self->pidl("");
 	}
-
-	$self->pidl($_) foreach (@{$self->{prereadycode}});
 
 	foreach (@{$self->{ready_types}}) {
 		$self->pidl("if (PyType_Ready($_) < 0)");
 		$self->pidl("\treturn;");
 	}
 
-	$self->pidl($_) foreach (@{$self->{postreadycode}});
+	$self->pidl($_) foreach (@{$self->{readycode}});
 
 	foreach (@{$self->{patch_type_calls}}) {
 		my ($typename, $cvar) = @$_;

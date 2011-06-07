@@ -9,7 +9,7 @@
      ** NOTE! The following LGPL license applies to the tdb
      ** library. This does NOT imply that all of Samba is released
      ** under the LGPL
-
+   
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
    License as published by the Free Software Foundation; either
@@ -24,10 +24,10 @@
    License along with this library; if not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <Python.h>
 #include "replace.h"
 #include "system/filesys.h"
 
+#include <Python.h>
 #ifndef Py_RETURN_NONE
 #define Py_RETURN_NONE return Py_INCREF(Py_None), Py_None
 #endif
@@ -41,7 +41,7 @@ typedef struct {
 	bool closed;
 } PyTdbObject;
 
-staticforward PyTypeObject PyTdb;
+PyAPI_DATA(PyTypeObject) PyTdb;
 
 static void PyErr_SetTDBError(TDB_CONTEXT *tdb)
 {
@@ -77,18 +77,14 @@ static PyObject *PyString_FromTDB_DATA(TDB_DATA data)
 
 static PyObject *py_tdb_open(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
-	char *name = NULL;
+	char *name;
 	int hash_size = 0, tdb_flags = TDB_DEFAULT, flags = O_RDWR, mode = 0600;
 	TDB_CONTEXT *ctx;
 	PyTdbObject *ret;
 	const char *kwnames[] = { "name", "hash_size", "tdb_flags", "flags", "mode", NULL };
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|siiii", (char **)kwnames, &name, &hash_size, &tdb_flags, &flags, &mode))
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|iiii", (char **)kwnames, &name, &hash_size, &tdb_flags, &flags, &mode))
 		return NULL;
-
-	if (name == NULL) {
-		tdb_flags |= TDB_INTERNAL;
-	}
 
 	ctx = tdb_open(name, hash_size, tdb_flags, flags, mode);
 	if (ctx == NULL) {
@@ -97,11 +93,6 @@ static PyObject *py_tdb_open(PyTypeObject *type, PyObject *args, PyObject *kwarg
 	}
 
 	ret = PyObject_New(PyTdbObject, &PyTdb);
-	if (!ret) {
-		tdb_close(ctx);
-		return NULL;
-	}
-
 	ret->ctx = ctx;
 	ret->closed = false;
 	return (PyObject *)ret;
@@ -121,9 +112,9 @@ static PyObject *obj_transaction_commit(PyTdbObject *self)
 	Py_RETURN_NONE;
 }
 
-static PyObject *obj_transaction_prepare_commit(PyTdbObject *self)
+static PyObject *obj_transaction_recover(PyTdbObject *self)
 {
-	int ret = tdb_transaction_prepare_commit(self->ctx);
+	int ret = tdb_transaction_recover(self->ctx);
 	PyErr_TDB_ERROR_IS_ERR_RAISE(ret, self->ctx);
 	Py_RETURN_NONE;
 }
@@ -275,27 +266,6 @@ static PyObject *obj_store(PyTdbObject *self, PyObject *args)
 	Py_RETURN_NONE;
 }
 
-static PyObject *obj_add_flags(PyTdbObject *self, PyObject *args)
-{
-	unsigned flags;
-
-	if (!PyArg_ParseTuple(args, "I", &flags))
-		return NULL;
-
-	tdb_add_flags(self->ctx, flags);
-	Py_RETURN_NONE;
-}
-
-static PyObject *obj_remove_flags(PyTdbObject *self, PyObject *args)
-{
-	unsigned flags;
-
-	if (!PyArg_ParseTuple(args, "I", &flags))
-		return NULL;
-
-	tdb_remove_flags(self->ctx, flags);
-	Py_RETURN_NONE;
-}
 
 typedef struct {
 	PyObject_HEAD
@@ -335,8 +305,6 @@ static PyObject *tdb_object_iter(PyTdbObject *self)
 	PyTdbIteratorObject *ret;	
 
 	ret = PyObject_New(PyTdbIteratorObject, &PyTdbIterator);
-	if (!ret)
-		return NULL;
 	ret->current = tdb_firstkey(self->ctx);
 	ret->iteratee = self;
 	Py_INCREF(self);
@@ -350,25 +318,6 @@ static PyObject *obj_clear(PyTdbObject *self)
 	Py_RETURN_NONE;
 }
 
-static PyObject *obj_repack(PyTdbObject *self)
-{
-	int ret = tdb_repack(self->ctx);
-	PyErr_TDB_ERROR_IS_ERR_RAISE(ret, self->ctx);
-	Py_RETURN_NONE;
-}
-
-static PyObject *obj_enable_seqnum(PyTdbObject *self)
-{
-	tdb_enable_seqnum(self->ctx);
-	Py_RETURN_NONE;
-}
-
-static PyObject *obj_increment_seqnum_nonblock(PyTdbObject *self)
-{
-	tdb_increment_seqnum_nonblock(self->ctx);
-	Py_RETURN_NONE;
-}
-
 static PyMethodDef tdb_object_methods[] = {
 	{ "transaction_cancel", (PyCFunction)obj_transaction_cancel, METH_NOARGS, 
 		"S.transaction_cancel() -> None\n"
@@ -376,9 +325,9 @@ static PyMethodDef tdb_object_methods[] = {
 	{ "transaction_commit", (PyCFunction)obj_transaction_commit, METH_NOARGS,
 		"S.transaction_commit() -> None\n"
 		"Commit the currently active transaction." },
-	{ "transaction_prepare_commit", (PyCFunction)obj_transaction_prepare_commit, METH_NOARGS,
-		"S.transaction_prepare_commit() -> None\n"
-		"Prepare to commit the currently active transaction" },
+	{ "transaction_recover", (PyCFunction)obj_transaction_recover, METH_NOARGS,
+		"S.transaction_recover() -> None\n"
+		"Recover the currently active transaction." },
 	{ "transaction_start", (PyCFunction)obj_transaction_start, METH_NOARGS,
 		"S.transaction_start() -> None\n"
 		"Start a new transaction." },
@@ -402,17 +351,9 @@ static PyMethodDef tdb_object_methods[] = {
 		"Check whether key exists in this database." },
 	{ "store", (PyCFunction)obj_store, METH_VARARGS, "S.store(key, data, flag=REPLACE) -> None"
 		"Store data." },
-	{ "add_flags", (PyCFunction)obj_add_flags, METH_VARARGS, "S.add_flags(flags) -> None" },
-	{ "remove_flags", (PyCFunction)obj_remove_flags, METH_VARARGS, "S.remove_flags(flags) -> None" },
 	{ "iterkeys", (PyCFunction)tdb_object_iter, METH_NOARGS, "S.iterkeys() -> iterator" },
 	{ "clear", (PyCFunction)obj_clear, METH_NOARGS, "S.clear() -> None\n"
 		"Wipe the entire database." },
-	{ "repack", (PyCFunction)obj_repack, METH_NOARGS, "S.repack() -> None\n"
-		"Repack the entire database." },
-	{ "enable_seqnum", (PyCFunction)obj_enable_seqnum, METH_NOARGS,
-		"S.enable_seqnum() -> None" },
-	{ "increment_seqnum_nonblock", (PyCFunction)obj_increment_seqnum_nonblock, METH_NOARGS,
-		"S.increment_seqnum_nonblock() -> None" },
 	{ NULL }
 };
 
@@ -434,11 +375,6 @@ static PyObject *obj_get_map_size(PyTdbObject *self, void *closure)
 	return PyInt_FromLong(tdb_map_size(self->ctx));
 }
 
-static PyObject *obj_get_freelist_size(PyTdbObject *self, void *closure)
-{
-	return PyInt_FromLong(tdb_freelist_size(self->ctx));
-}
-
 static PyObject *obj_get_flags(PyTdbObject *self, void *closure)
 {
 	return PyInt_FromLong(tdb_get_flags(self->ctx));
@@ -449,37 +385,25 @@ static PyObject *obj_get_filename(PyTdbObject *self, void *closure)
 	return PyString_FromString(tdb_name(self->ctx));
 }
 
-static PyObject *obj_get_seqnum(PyTdbObject *self, void *closure)
-{
-	return PyInt_FromLong(tdb_get_seqnum(self->ctx));
-}
-
-
 static PyGetSetDef tdb_object_getsetters[] = {
 	{ (char *)"hash_size", (getter)obj_get_hash_size, NULL, NULL },
 	{ (char *)"map_size", (getter)obj_get_map_size, NULL, NULL },
-	{ (char *)"freelist_size", (getter)obj_get_freelist_size, NULL, NULL },
 	{ (char *)"flags", (getter)obj_get_flags, NULL, NULL },
 	{ (char *)"max_dead", NULL, (setter)obj_set_max_dead, NULL },
 	{ (char *)"filename", (getter)obj_get_filename, NULL, (char *)"The filename of this TDB file."},
-	{ (char *)"seqnum", (getter)obj_get_seqnum, NULL, NULL },
 	{ NULL }
 };
 
 static PyObject *tdb_object_repr(PyTdbObject *self)
 {
-	if (tdb_get_flags(self->ctx) & TDB_INTERNAL) {
-		return PyString_FromString("Tdb(<internal>)");
-	} else {
-		return PyString_FromFormat("Tdb('%s')", tdb_name(self->ctx));
-	}
+	return PyString_FromFormat("Tdb('%s')", tdb_name(self->ctx));
 }
 
 static void tdb_object_dealloc(PyTdbObject *self)
 {
 	if (!self->closed)
 		tdb_close(self->ctx);
-	self->ob_type->tp_free(self);
+	PyObject_Del(self);
 }
 
 static PyObject *obj_getitem(PyTdbObject *self, PyObject *key)
@@ -538,7 +462,7 @@ static PyMappingMethods tdb_object_mapping = {
 	.mp_subscript = (binaryfunc)obj_getitem,
 	.mp_ass_subscript = (objobjargproc)obj_setitem,
 };
-static PyTypeObject PyTdb = {
+PyTypeObject PyTdb = {
 	.tp_name = "Tdb",
 	.tp_basicsize = sizeof(PyTdbObject),
 	.tp_methods = tdb_object_methods,
@@ -558,7 +482,6 @@ static PyMethodDef tdb_methods[] = {
 	{ NULL }
 };
 
-void inittdb(void);
 void inittdb(void)
 {
 	PyObject *m;
@@ -584,16 +507,7 @@ void inittdb(void)
 	PyModule_AddObject(m, "NOMMAP", PyInt_FromLong(TDB_NOMMAP));
 	PyModule_AddObject(m, "CONVERT", PyInt_FromLong(TDB_CONVERT));
 	PyModule_AddObject(m, "BIGENDIAN", PyInt_FromLong(TDB_BIGENDIAN));
-	PyModule_AddObject(m, "NOSYNC", PyInt_FromLong(TDB_NOSYNC));
-	PyModule_AddObject(m, "SEQNUM", PyInt_FromLong(TDB_SEQNUM));
-	PyModule_AddObject(m, "VOLATILE", PyInt_FromLong(TDB_VOLATILE));
-	PyModule_AddObject(m, "ALLOW_NESTING", PyInt_FromLong(TDB_ALLOW_NESTING));
-	PyModule_AddObject(m, "DISALLOW_NESTING", PyInt_FromLong(TDB_DISALLOW_NESTING));
-	PyModule_AddObject(m, "INCOMPATIBLE_HASH", PyInt_FromLong(TDB_INCOMPATIBLE_HASH));
-
 	PyModule_AddObject(m, "__docformat__", PyString_FromString("restructuredText"));
-
-	PyModule_AddObject(m, "__version__", PyString_FromString(PACKAGE_VERSION));
 
 	Py_INCREF(&PyTdb);
 	PyModule_AddObject(m, "Tdb", (PyObject *)&PyTdb);

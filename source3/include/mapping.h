@@ -24,10 +24,9 @@
 typedef struct _GROUP_MAP {
 	struct pdb_methods *methods;
 	gid_t gid;
-	struct dom_sid sid;
+	DOM_SID sid;
 	enum lsa_SidType sid_name_use;
 	fstring nt_name;
 	fstring comment;
 } GROUP_MAP;
 
-#include "groupdb/proto.h"

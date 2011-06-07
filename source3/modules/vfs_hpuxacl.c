@@ -47,10 +47,6 @@
 
 
 #include "includes.h"
-#include "system/filesys.h"
-#include "smbd/smbd.h"
-#include "modules/vfs_hpuxacl.h"
-
 
 /* 
  * including standard header <sys/aclv.h> 
@@ -193,8 +189,7 @@ SMB_ACL_T hpuxacl_sys_acl_get_fd(vfs_handle_struct *handle,
 	 */
 	/* For all I see, the info should already be in the fsp
 	 * parameter, but get it again to be safe --- necessary? */
-        files_struct *file_struct_p = file_find_fd(fsp->conn->sconn,
-						   fsp->fh->fd);
+        files_struct *file_struct_p = file_find_fd(fsp->fh->fd);
         if (file_struct_p == NULL) {
                 errno = EBADF;
                 return NULL;
@@ -333,8 +328,7 @@ int hpuxacl_sys_acl_set_fd(vfs_handle_struct *handle,
          */
 	/* For all I see, the info should already be in the fsp
 	 * parameter, but get it again to be safe --- necessary? */
-        files_struct *file_struct_p = file_find_fd(fsp->conn->sconn,
-						   fsp->fh->fd);
+        files_struct *file_struct_p = file_find_fd(fsp->fh->fd);
         if (file_struct_p == NULL) {
                 errno = EBADF;
                 return -1;

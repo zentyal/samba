@@ -39,7 +39,7 @@
 
 #ifndef HAVE_STRSEP
 
-ROKEN_LIB_FUNCTION char * ROKEN_LIB_CALL
+char * ROKEN_LIB_FUNCTION
 strsep(char **str, const char *delim)
 {
     char *save = *str;

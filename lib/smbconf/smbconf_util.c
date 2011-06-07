@@ -39,43 +39,43 @@ static int smbconf_destroy_ctx(struct smbconf_ctx *ctx)
  * After the work with the configuration is completed, smbconf_shutdown()
  * should be called.
  */
-sbcErr smbconf_init_internal(TALLOC_CTX *mem_ctx, struct smbconf_ctx **conf_ctx,
+WERROR smbconf_init_internal(TALLOC_CTX *mem_ctx, struct smbconf_ctx **conf_ctx,
 			     const char *path, struct smbconf_ops *ops)
 {
-	sbcErr err = SBC_ERR_OK;
+	WERROR werr = WERR_OK;
 	struct smbconf_ctx *ctx;
 
 	if (conf_ctx == NULL) {
-		return SBC_ERR_INVALID_PARAM;
+		return WERR_INVALID_PARAM;
 	}
 
 	ctx = talloc_zero(mem_ctx, struct smbconf_ctx);
 	if (ctx == NULL) {
-		return SBC_ERR_NOMEM;
+		return WERR_NOMEM;
 	}
 
 	ctx->ops = ops;
 
-	err = ctx->ops->init(ctx, path);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = ctx->ops->init(ctx, path);
+	if (!W_ERROR_IS_OK(werr)) {
 		goto fail;
 	}
 
 	talloc_set_destructor(ctx, smbconf_destroy_ctx);
 
 	*conf_ctx = ctx;
-	return err;
+	return werr;
 
 fail:
 	talloc_free(ctx);
-	return err;
+	return werr;
 }
 
 
 /**
  * add a string to a talloced array of strings.
  */
-sbcErr smbconf_add_string_to_array(TALLOC_CTX *mem_ctx,
+WERROR smbconf_add_string_to_array(TALLOC_CTX *mem_ctx,
 				   char ***array,
 				   uint32_t count,
 				   const char *string)
@@ -83,12 +83,12 @@ sbcErr smbconf_add_string_to_array(TALLOC_CTX *mem_ctx,
 	char **new_array = NULL;
 
 	if (array == NULL) {
-		return SBC_ERR_INVALID_PARAM;
+		return WERR_INVALID_PARAM;
 	}
 
 	new_array = talloc_realloc(mem_ctx, *array, char *, count + 1);
 	if (new_array == NULL) {
-		return SBC_ERR_NOMEM;
+		return WERR_NOMEM;
 	}
 
 	if (string == NULL) {
@@ -97,13 +97,13 @@ sbcErr smbconf_add_string_to_array(TALLOC_CTX *mem_ctx,
 		new_array[count] = talloc_strdup(new_array, string);
 		if (new_array[count] == NULL) {
 			talloc_free(new_array);
-			return SBC_ERR_NOMEM;
+			return WERR_NOMEM;
 		}
 	}
 
 	*array = new_array;
 
-	return SBC_ERR_OK;
+	return WERR_OK;
 }
 
 bool smbconf_find_in_array(const char *string, char **list,

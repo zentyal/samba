@@ -20,8 +20,6 @@
 */
 
 #include "includes.h"
-#include "../lib/crypto/md5.h"
-#include "smb_signing.h"
 
 /* Used by the SMB signing functions. */
 
@@ -45,50 +43,25 @@ struct smb_signing_state {
 
 	/* the next expected seqnum */
 	uint32_t seqnum;
-
-	TALLOC_CTX *mem_ctx;
-	void *(*alloc_fn)(TALLOC_CTX *mem_ctx, size_t len);
-	void (*free_fn)(TALLOC_CTX *mem_ctx, void *ptr);
 };
 
 static void smb_signing_reset_info(struct smb_signing_state *si)
 {
 	si->active = false;
 	si->bsrspyl = false;
+	data_blob_free(&si->mac_key);
 	si->seqnum = 0;
-
-	if (si->free_fn) {
-		si->free_fn(si->mem_ctx, si->mac_key.data);
-	} else {
-		talloc_free(si->mac_key.data);
-	}
-	si->mac_key.data = NULL;
-	si->mac_key.length = 0;
 }
 
-struct smb_signing_state *smb_signing_init_ex(TALLOC_CTX *mem_ctx,
-					      bool allowed,
-					      bool mandatory,
-					      void *(*alloc_fn)(TALLOC_CTX *, size_t),
-					      void (*free_fn)(TALLOC_CTX *, void *))
+struct smb_signing_state *smb_signing_init(TALLOC_CTX *mem_ctx,
+					   bool allowed,
+					   bool mandatory)
 {
 	struct smb_signing_state *si;
 
-	if (alloc_fn) {
-		void *p = alloc_fn(mem_ctx, sizeof(struct smb_signing_state));
-		if (p == NULL) {
-			return NULL;
-		}
-		memset(p, 0, sizeof(struct smb_signing_state));
-		si = (struct smb_signing_state *)p;
-		si->mem_ctx = mem_ctx;
-		si->alloc_fn = alloc_fn;
-		si->free_fn = free_fn;
-	} else {
-		si = talloc_zero(mem_ctx, struct smb_signing_state);
-		if (si == NULL) {
-			return NULL;
-		}
+	si = talloc_zero(mem_ctx, struct smb_signing_state);
+	if (si == NULL) {
+		return NULL;
 	}
 
 	if (mandatory) {
@@ -99,13 +72,6 @@ struct smb_signing_state *smb_signing_init_ex(TALLOC_CTX *mem_ctx,
 	si->mandatory = mandatory;
 
 	return si;
-}
-
-struct smb_signing_state *smb_signing_init(TALLOC_CTX *mem_ctx,
-					   bool allowed,
-					   bool mandatory)
-{
-	return smb_signing_init_ex(mem_ctx, allowed, mandatory, NULL, NULL);
 }
 
 static bool smb_signing_good(struct smb_signing_state *si,
@@ -346,18 +312,7 @@ bool smb_signing_activate(struct smb_signing_state *si,
 	smb_signing_reset_info(si);
 
 	len = response.length + user_session_key.length;
-	if (si->alloc_fn) {
-		si->mac_key.data = (uint8_t *)si->alloc_fn(si->mem_ctx, len);
-		if (si->mac_key.data == NULL) {
-			return false;
-		}
-	} else {
-		si->mac_key.data = (uint8_t *)talloc_size(si, len);
-		if (si->mac_key.data == NULL) {
-			return false;
-		}
-	}
-	si->mac_key.length = len;
+	si->mac_key = data_blob_talloc(si, NULL, len);
 
 	ofs = 0;
 	memcpy(&si->mac_key.data[ofs], user_session_key.data, user_session_key.length);

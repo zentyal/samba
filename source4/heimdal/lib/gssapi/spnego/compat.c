@@ -32,6 +32,8 @@
 
 #include "spnego_locl.h"
 
+RCSID("$Id$");
+
 /*
  * Apparently Microsoft got the OID wrong, and used
  * 1.2.840.48018.1.2.2 instead. We need both this and
@@ -49,9 +51,8 @@ gss_OID_desc _gss_spnego_krb5_mechanism_oid_desc =
 /*
  * Allocate a SPNEGO context handle
  */
-OM_uint32 GSSAPI_CALLCONV
-_gss_spnego_alloc_sec_context (OM_uint32 * minor_status,
-			       gss_ctx_id_t *context_handle)
+OM_uint32 _gss_spnego_alloc_sec_context (OM_uint32 * minor_status,
+					 gss_ctx_id_t *context_handle)
 {
     gssspnego_ctx ctx;
 
@@ -92,7 +93,7 @@ _gss_spnego_alloc_sec_context (OM_uint32 * minor_status,
  * Free a SPNEGO context handle. The caller must have acquired
  * the lock before this is called.
  */
-OM_uint32 GSSAPI_CALLCONV _gss_spnego_internal_delete_sec_context
+OM_uint32 _gss_spnego_internal_delete_sec_context
            (OM_uint32 *minor_status,
             gss_ctx_id_t *context_handle,
             gss_buffer_t output_token
@@ -141,6 +142,7 @@ OM_uint32 GSSAPI_CALLCONV _gss_spnego_internal_delete_sec_context
     HEIMDAL_MUTEX_destroy(&ctx->ctx_id_mutex);
 
     free(ctx);
+    *context_handle = NULL;
 
     return ret;
 }
@@ -151,7 +153,7 @@ OM_uint32 GSSAPI_CALLCONV _gss_spnego_internal_delete_sec_context
  * a non-preferred mechanism was negotiated
  */
 
-OM_uint32 GSSAPI_CALLCONV
+OM_uint32
 _gss_spnego_require_mechlist_mic(OM_uint32 *minor_status,
 				 gssspnego_ctx ctx,
 				 int *require_mic)
@@ -229,12 +231,12 @@ add_mech_type(gss_OID mech_type,
 }
 
 
-OM_uint32 GSSAPI_CALLCONV
+OM_uint32
 _gss_spnego_indicate_mechtypelist (OM_uint32 *minor_status,
 				   gss_name_t target_name,
 				   OM_uint32 (*func)(gss_name_t, gss_OID),
 				   int includeMSCompatOID,
-				   const gss_cred_id_t cred_handle,
+				   const gssspnego_cred cred_handle,
 				   MechTypeList *mechtypelist,
 				   gss_OID *preferred_mech)
 {
@@ -246,9 +248,9 @@ _gss_spnego_indicate_mechtypelist (OM_uint32 *minor_status,
     mechtypelist->len = 0;
     mechtypelist->val = NULL;
 
-    if (cred_handle) {
+    if (cred_handle != NULL) {
 	ret = gss_inquire_cred(minor_status,
-			       cred_handle,
+			       cred_handle->negotiated_cred_id,
 			       NULL,
 			       NULL,
 			       NULL,

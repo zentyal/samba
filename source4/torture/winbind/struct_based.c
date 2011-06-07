@@ -20,11 +20,12 @@
 
 #include "includes.h"
 #include "torture/torture.h"
+#include "torture/winbind/proto.h"
 #include "nsswitch/winbind_client.h"
 #include "libcli/security/security.h"
 #include "librpc/gen_ndr/netlogon.h"
 #include "param/param.h"
-#include "../libcli/auth/pam_errors.h"
+#include "auth/ntlm/pam_errors.h"
 
 #define DO_STRUCT_REQ_REP_EXT(op,req,rep,expected,strict,warnaction,cmt) do { \
 	NSS_STATUS __got, __expected = (expected); \
@@ -122,9 +123,8 @@ static bool torture_winbind_struct_info(struct torture_context *torture)
 	DO_STRUCT_REQ_REP(WINBINDD_INFO, NULL, &rep);
 
 	separator = torture_setting_string(torture,
-					   "winbindd_separator",
-					   lpcfg_winbind_separator(torture->lp_ctx));
-
+					   "winbindd separator",
+					   lp_winbind_separator(torture->lp_ctx));
 	torture_assert_int_equal(torture,
 				 rep.data.info.winbind_separator,
 				 *separator,
@@ -167,10 +167,10 @@ static bool torture_winbind_struct_netbios_name(struct torture_context *torture)
 	DO_STRUCT_REQ_REP(WINBINDD_NETBIOS_NAME, NULL, &rep);
 
 	expected = torture_setting_string(torture,
-					  "winbindd_netbios_name",
-					  lpcfg_netbios_name(torture->lp_ctx));
+					  "winbindd netbios name",
+					  lp_netbios_name(torture->lp_ctx));
 	expected = strupper_talloc(torture, expected);
-
+	
 	torture_assert_str_equal(torture,
 				 rep.data.netbios_name, expected,
 				 "winbindd's netbios name doesn't match");
@@ -200,8 +200,8 @@ static bool torture_winbind_struct_domain_name(struct torture_context *torture)
 	torture_comment(torture, "Running WINBINDD_DOMAIN_NAME (struct based)\n");
 
 	expected = torture_setting_string(torture,
-					  "winbindd_netbios_domain",
-					  lpcfg_workgroup(torture->lp_ctx));
+					  "winbindd netbios domain",
+					  lp_workgroup(torture->lp_ctx));
 
 	get_winbind_domain(torture, &domain);
 
@@ -474,9 +474,6 @@ static bool torture_winbind_struct_getdcname(struct torture_context *torture)
 {
 	bool ok;
 	bool strict = torture_setting_bool(torture, "strict mode", false);
-	const char *domain_name = torture_setting_string(torture,
-					"winbindd_netbios_domain",
-					lpcfg_workgroup(torture->lp_ctx));
 	struct torture_trust_domain *listd = NULL;
 	uint32_t i, count = 0;
 
@@ -488,13 +485,6 @@ static bool torture_winbind_struct_getdcname(struct torture_context *torture)
 	for (i=0; listd && listd[i].netbios_name; i++) {
 		struct winbindd_request req;
 		struct winbindd_response rep;
-
-		/* getdcname is not expected to work on "BUILTIN" or our own
-		 * domain */
-		if (strequal(listd[i].netbios_name, "BUILTIN") ||
-		    strequal(listd[i].netbios_name, domain_name)) {
-			continue;
-		}
 
 		ZERO_STRUCT(req);
 		ZERO_STRUCT(rep);
@@ -627,7 +617,7 @@ static bool torture_winbind_struct_list_users(struct torture_context *torture)
 	torture_comment(torture, "Running WINBINDD_LIST_USERS (struct based)\n");
 
 	ok = get_user_list(torture, &users);
-	torture_assert(torture, ok, "failed to get user list");
+	torture_assert(torture, ok, "failed to get group list");
 
 	for (count = 0; users[count]; count++) { }
 
@@ -636,9 +626,7 @@ static bool torture_winbind_struct_list_users(struct torture_context *torture)
 	return true;
 }
 
-static bool get_group_list(struct torture_context *torture,
-			   unsigned int *num_entries,
-			   char ***groups)
+static bool get_group_list(struct torture_context *torture, char ***groups)
 {
 	struct winbindd_request req;
 	struct winbindd_response rep;
@@ -651,17 +639,8 @@ static bool get_group_list(struct torture_context *torture,
 	ZERO_STRUCT(rep);
 
 	DO_STRUCT_REQ_REP(WINBINDD_LIST_GROUPS, &req, &rep);
+
 	extra_data = (char *)rep.extra_data.data;
-
-	*num_entries = rep.data.num_entries;
-
-	if (*num_entries == 0) {
-		torture_assert(torture, extra_data == NULL,
-			       "extra data is null for >0 reported entries\n");
-		*groups = NULL;
-		return true;
-	}
-
 	torture_assert(torture, extra_data, "NULL extra data");
 
 	for(count = 0;
@@ -675,9 +654,6 @@ static bool get_group_list(struct torture_context *torture,
 
 	SAFE_FREE(rep.extra_data.data);
 
-	torture_assert_int_equal(torture, *num_entries, count,
-				 "Wrong number of group entries reported.");
-
 	*groups = g;
 	return true;
 }
@@ -690,8 +666,10 @@ static bool torture_winbind_struct_list_groups(struct torture_context *torture)
 
 	torture_comment(torture, "Running WINBINDD_LIST_GROUPS (struct based)\n");
 
-	ok = get_group_list(torture, &count, &groups);
+	ok = get_group_list(torture, &groups);
 	torture_assert(torture, ok, "failed to get group list");
+
+	for (count = 0; groups[count]; count++) { }
 
 	torture_comment(torture, "got %d groups\n", count);
 
@@ -782,7 +760,7 @@ static bool torture_winbind_struct_show_sequence(struct torture_context *torture
 		uint32_t seq;
 
 		torture_assert(torture, s[i].netbios_name,
-			       "more domains received in second run");
+			       "more domains recieved in second run");
 		torture_assert_str_equal(torture, domlist[i].netbios_name,
 					 s[i].netbios_name,
 					 "inconsistent order of domain lists");
@@ -850,23 +828,12 @@ static bool torture_winbind_struct_getpwent(struct torture_context *torture)
 	ZERO_STRUCT(req);
 	ZERO_STRUCT(rep);
 	req.data.num_entries = 1;
-	if (torture_setting_bool(torture, "samba3", false)) {
-		bool __noop = false;
-		DO_STRUCT_REQ_REP_EXT(WINBINDD_GETPWENT, &req, &rep,
-				      NSS_STATUS_SUCCESS, false, __noop=true,
-				      NULL);
-	} else {
-		DO_STRUCT_REQ_REP(WINBINDD_GETPWENT, &req, &rep);
-	}
+	DO_STRUCT_REQ_REP(WINBINDD_GETPWENT, &req, &rep);
 	pwent = (struct winbindd_pw *)rep.extra_data.data;
-	if (!torture_setting_bool(torture, "samba3", false)) {
-		torture_assert(torture, (pwent != NULL), "NULL pwent");
-	}
-	if (pwent) {
-		torture_comment(torture, "name: %s, uid: %d, gid: %d, shell: %s\n",
-				pwent->pw_name, pwent->pw_uid, pwent->pw_gid,
-				pwent->pw_shell);
-	}
+	torture_assert(torture, (pwent != NULL), "NULL pwent");
+	torture_comment(torture, "name: %s, uid: %d, gid: %d, shell: %s\n",
+			pwent->pw_name, pwent->pw_uid, pwent->pw_gid,
+			pwent->pw_shell);
 
 	return true;
 }
@@ -927,9 +894,6 @@ static bool lookup_name_sid_list(struct torture_context *torture, char **list)
 		struct winbindd_response rep;
 		char *sid;
 		char *name;
-		const char *domain_name = torture_setting_string(torture,
-						"winbindd_netbios_domain",
-						lpcfg_workgroup(torture->lp_ctx));
 
 		ZERO_STRUCT(req);
 		ZERO_STRUCT(rep);
@@ -948,15 +912,10 @@ static bool lookup_name_sid_list(struct torture_context *torture, char **list)
 
 		DO_STRUCT_REQ_REP(WINBINDD_LOOKUPSID, &req, &rep);
 
-		if (strequal(rep.data.name.dom_name, domain_name)) {
-			name = talloc_asprintf(torture, "%s",
-					       rep.data.name.name);
-		} else {
-			name = talloc_asprintf(torture, "%s%c%s",
-					       rep.data.name.dom_name,
-					       winbind_separator(torture),
-					       rep.data.name.name);
-		}
+		name = talloc_asprintf(torture, "%s%c%s",
+				       rep.data.name.dom_name,
+				       winbind_separator(torture),
+				       rep.data.name.name);
 
 		torture_assert_casestr_equal(torture, list[count], name,
 					 "LOOKUP_SID after LOOKUP_NAME != id");
@@ -977,7 +936,7 @@ static bool name_is_in_list(const char *name, const char **list)
 {
 	uint32_t count;
 
-	for (count = 0; list && list[count]; count++) {
+	for (count = 0; list[count]; count++) {
 		if (strequal(name, list[count])) {
 			return true;
 		}
@@ -996,7 +955,7 @@ static bool torture_winbind_struct_lookup_name_sid(struct torture_context *tortu
 	bool strict = torture_setting_bool(torture, "strict mode", false);
 	char **users;
 	char **groups;
-	uint32_t count, num_groups;
+	uint32_t count;
 	bool ok;
 
 	torture_comment(torture, "Running WINBINDD_LOOKUP_NAME_SID (struct based)\n");
@@ -1005,11 +964,9 @@ static bool torture_winbind_struct_lookup_name_sid(struct torture_context *tortu
 	torture_assert(torture, ok, "failed to retrieve list of users");
 	lookup_name_sid_list(torture, users);
 
-	ok = get_group_list(torture, &num_groups, &groups);
+	ok = get_group_list(torture, &groups);
 	torture_assert(torture, ok, "failed to retrieve list of groups");
-	if (num_groups > 0) {
-		lookup_name_sid_list(torture, groups);
-	}
+	lookup_name_sid_list(torture, groups);
 
 	ZERO_STRUCT(req);
 	ZERO_STRUCT(rep);
@@ -1062,26 +1019,26 @@ static bool torture_winbind_struct_lookup_name_sid(struct torture_context *tortu
 
 struct torture_suite *torture_winbind_struct_init(void)
 {
-	struct torture_suite *suite = torture_suite_create(talloc_autofree_context(), "struct");
+	struct torture_suite *suite = torture_suite_create(talloc_autofree_context(), "STRUCT");
 
-	torture_suite_add_simple_test(suite, "interface_version", torture_winbind_struct_interface_version);
-	torture_suite_add_simple_test(suite, "ping", torture_winbind_struct_ping);
-	torture_suite_add_simple_test(suite, "info", torture_winbind_struct_info);
-	torture_suite_add_simple_test(suite, "priv_pipe_dir", torture_winbind_struct_priv_pipe_dir);
-	torture_suite_add_simple_test(suite, "netbios_name", torture_winbind_struct_netbios_name);
-	torture_suite_add_simple_test(suite, "domain_name", torture_winbind_struct_domain_name);
-	torture_suite_add_simple_test(suite, "check_machacc", torture_winbind_struct_check_machacc);
-	torture_suite_add_simple_test(suite, "list_trustdom", torture_winbind_struct_list_trustdom);
-	torture_suite_add_simple_test(suite, "domain_info", torture_winbind_struct_domain_info);
-	torture_suite_add_simple_test(suite, "getdcname", torture_winbind_struct_getdcname);
-	torture_suite_add_simple_test(suite, "dsgetdcname", torture_winbind_struct_dsgetdcname);
-	torture_suite_add_simple_test(suite, "list_users", torture_winbind_struct_list_users);
-	torture_suite_add_simple_test(suite, "list_groups", torture_winbind_struct_list_groups);
-	torture_suite_add_simple_test(suite, "show_sequence", torture_winbind_struct_show_sequence);
-	torture_suite_add_simple_test(suite, "setpwent", torture_winbind_struct_setpwent);
-	torture_suite_add_simple_test(suite, "getpwent", torture_winbind_struct_getpwent);
-	torture_suite_add_simple_test(suite, "endpwent", torture_winbind_struct_endpwent);
-	torture_suite_add_simple_test(suite, "lookup_name_sid", torture_winbind_struct_lookup_name_sid);
+	torture_suite_add_simple_test(suite, "INTERFACE_VERSION", torture_winbind_struct_interface_version);
+	torture_suite_add_simple_test(suite, "PING", torture_winbind_struct_ping);
+	torture_suite_add_simple_test(suite, "INFO", torture_winbind_struct_info);
+	torture_suite_add_simple_test(suite, "PRIV_PIPE_DIR", torture_winbind_struct_priv_pipe_dir);
+	torture_suite_add_simple_test(suite, "NETBIOS_NAME", torture_winbind_struct_netbios_name);
+	torture_suite_add_simple_test(suite, "DOMAIN_NAME", torture_winbind_struct_domain_name);
+	torture_suite_add_simple_test(suite, "CHECK_MACHACC", torture_winbind_struct_check_machacc);
+	torture_suite_add_simple_test(suite, "LIST_TRUSTDOM", torture_winbind_struct_list_trustdom);
+	torture_suite_add_simple_test(suite, "DOMAIN_INFO", torture_winbind_struct_domain_info);
+	torture_suite_add_simple_test(suite, "GETDCNAME", torture_winbind_struct_getdcname);
+	torture_suite_add_simple_test(suite, "DSGETDCNAME", torture_winbind_struct_dsgetdcname);
+	torture_suite_add_simple_test(suite, "LIST_USERS", torture_winbind_struct_list_users);
+	torture_suite_add_simple_test(suite, "LIST_GROUPS", torture_winbind_struct_list_groups);
+	torture_suite_add_simple_test(suite, "SHOW_SEQUENCE", torture_winbind_struct_show_sequence);
+	torture_suite_add_simple_test(suite, "SETPWENT", torture_winbind_struct_setpwent);
+	torture_suite_add_simple_test(suite, "GETPWENT", torture_winbind_struct_getpwent);
+	torture_suite_add_simple_test(suite, "ENDPWENT", torture_winbind_struct_endpwent);
+	torture_suite_add_simple_test(suite, "LOOKUP_NAME_SID", torture_winbind_struct_lookup_name_sid);
 
 	suite->description = talloc_strdup(suite, "WINBIND - struct based protocol tests");
 

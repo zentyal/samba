@@ -431,9 +431,6 @@ void ndr_print_SERVER_INFO_1601(struct ndr_print *ndr, const char *name, const s
 enum ndr_err_code ndr_push_SERVER_INFO_1602(struct ndr_push *ndr, int ndr_flags, const struct SERVER_INFO_1602 *r);
 enum ndr_err_code ndr_pull_SERVER_INFO_1602(struct ndr_pull *ndr, int ndr_flags, struct SERVER_INFO_1602 *r);
 void ndr_print_SERVER_INFO_1602(struct ndr_print *ndr, const char *name, const struct SERVER_INFO_1602 *r);
-enum ndr_err_code ndr_push_DOMAIN_CONTROLLER_INFO_FLAGS(struct ndr_push *ndr, int ndr_flags, enum DOMAIN_CONTROLLER_INFO_FLAGS r);
-enum ndr_err_code ndr_pull_DOMAIN_CONTROLLER_INFO_FLAGS(struct ndr_pull *ndr, int ndr_flags, enum DOMAIN_CONTROLLER_INFO_FLAGS *r);
-void ndr_print_DOMAIN_CONTROLLER_INFO_FLAGS(struct ndr_print *ndr, const char *name, enum DOMAIN_CONTROLLER_INFO_FLAGS r);
 enum ndr_err_code ndr_push_DOMAIN_CONTROLLER_INFO(struct ndr_push *ndr, int ndr_flags, const struct DOMAIN_CONTROLLER_INFO *r);
 enum ndr_err_code ndr_pull_DOMAIN_CONTROLLER_INFO(struct ndr_pull *ndr, int ndr_flags, struct DOMAIN_CONTROLLER_INFO *r);
 void ndr_print_DOMAIN_CONTROLLER_INFO(struct ndr_print *ndr, const char *name, const struct DOMAIN_CONTROLLER_INFO *r);

@@ -19,8 +19,7 @@
 
 #include "includes.h"
 #include "winbindd.h"
-#include "librpc/gen_ndr/ndr_wbint_c.h"
-#include "../libcli/security/security.h"
+#include "librpc/gen_ndr/cli_wbint.h"
 
 struct wb_getpwsid_state {
 	struct winbindd_domain *user_domain;
@@ -74,7 +73,8 @@ static void wb_getpwsid_queryuser_done(struct tevent_req *subreq)
 
 	status = wb_queryuser_recv(subreq, state, &state->userinfo);
 	TALLOC_FREE(subreq);
-	if (tevent_req_nterror(req, status)) {
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
 		return;
 	}
 
@@ -117,7 +117,8 @@ static void wb_getpwsid_lookupsid_done(struct tevent_req *subreq)
 	status = wb_lookupsid_recv(subreq, state->userinfo, &type, &domain,
 				   &state->userinfo->acct_name);
 	TALLOC_FREE(subreq);
-	if (tevent_req_nterror(req, status)) {
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
 		return;
 	}
 	subreq = wb_fill_pwent_send(state, state->ev, state->userinfo,
@@ -135,7 +136,8 @@ static void wb_getpwsid_done(struct tevent_req *subreq)
 	NTSTATUS status;
 
 	status = wb_fill_pwent_recv(subreq);
-	if (tevent_req_nterror(req, status)) {
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
 		return;
 	}
 	tevent_req_done(req);

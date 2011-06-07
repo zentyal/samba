@@ -23,6 +23,7 @@
 #include "libcli/smb2/smb2.h"
 #include "libcli/smb2/smb2_calls.h"
 #include "lib/cmdline/popt_common.h"
+#include "lib/events/events.h"
 #include "torture/torture.h"
 #include "param/param.h"
 #include "libcli/resolve/resolve.h"
@@ -201,15 +202,15 @@ bool torture_smb2_scan(struct torture_context *torture)
 	struct smb2_request *req;
 	struct smbcli_options options;
 
-	lpcfg_smbcli_options(torture->lp_ctx, &options);
+	lp_smbcli_options(torture->lp_ctx, &options);
 
 	status = smb2_connect(mem_ctx, host, 
-						  lpcfg_smb_ports(torture->lp_ctx),
+						  lp_smb_ports(torture->lp_ctx),
 						  share, 
-						  lpcfg_resolve_context(torture->lp_ctx),
+						  lp_resolve_context(torture->lp_ctx), 
 						  credentials, &tree, torture->ev, &options,
-						  lpcfg_socket_options(torture->lp_ctx),
-						  lpcfg_gensec_settings(torture, torture->lp_ctx));
+						  lp_socket_options(torture->lp_ctx),
+						  lp_gensec_settings(torture, torture->lp_ctx));
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("Connection failed - %s\n", nt_errstr(status));
 		return false;
@@ -224,12 +225,12 @@ bool torture_smb2_scan(struct torture_context *torture)
 		if (!smb2_request_receive(req)) {
 			talloc_free(tree);
 			status = smb2_connect(mem_ctx, host, 
-								  lpcfg_smb_ports(torture->lp_ctx),
+								  lp_smb_ports(torture->lp_ctx),
 								  share, 
-								  lpcfg_resolve_context(torture->lp_ctx),
+								  lp_resolve_context(torture->lp_ctx), 
 								  credentials, &tree, torture->ev, &options,
-								  lpcfg_socket_options(torture->lp_ctx),
-								  lpcfg_gensec_settings(mem_ctx, torture->lp_ctx));
+								  lp_socket_options(torture->lp_ctx),
+								  lp_gensec_settings(mem_ctx, torture->lp_ctx));
 			if (!NT_STATUS_IS_OK(status)) {
 				printf("Connection failed - %s\n", nt_errstr(status));
 				return false;

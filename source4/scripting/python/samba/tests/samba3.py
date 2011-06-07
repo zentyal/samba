@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 
 # Unix SMB/CIFS implementation.
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2007
@@ -17,30 +17,20 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-"""Tests for samba.samba3."""
-
-from samba.samba3 import (GroupMappingDatabase, Registry, PolicyDatabase,
-        SecretsDatabase, TdbSam)
-from samba.samba3 import (WinsDatabase, SmbpasswdFile, ACB_NORMAL,
-        IdmapDatabase, SAMUser, ParamFile)
-from samba.tests import TestCase
+import unittest
+from samba.samba3 import GroupMappingDatabase, Registry, PolicyDatabase, SecretsDatabase, TdbSam
+from samba.samba3 import WinsDatabase, SmbpasswdFile, ACB_NORMAL, IdmapDatabase, SAMUser, ParamFile
 import os
 
-for p in [ "../../../../../testdata/samba3", "../../../../testdata/samba3" ]:
-    DATADIR = os.path.join(os.path.dirname(__file__), p)
-    if os.path.exists(DATADIR):
-        break
+DATADIR=os.path.join(os.path.dirname(__file__), "../../../../../testdata/samba3")
+print "Samba 3 data dir: %s" % DATADIR
 
-
-class RegistryTestCase(TestCase):
-
+class RegistryTestCase(unittest.TestCase):
     def setUp(self):
-        super(RegistryTestCase, self).setUp()
         self.registry = Registry(os.path.join(DATADIR, "registry.tdb"))
 
     def tearDown(self):
         self.registry.close()
-        super(RegistryTestCase, self).tearDown()
 
     def test_length(self):
         self.assertEquals(28, len(self.registry))
@@ -57,10 +47,8 @@ class RegistryTestCase(TestCase):
                            self.registry.values("HKLM/SYSTEM/CURRENTCONTROLSET/SERVICES/EVENTLOG"))
 
 
-class PolicyTestCase(TestCase):
-
+class PolicyTestCase(unittest.TestCase):
     def setUp(self):
-        super(PolicyTestCase, self).setUp()
         self.policy = PolicyDatabase(os.path.join(DATADIR, "account_policy.tdb"))
 
     def test_policy(self):
@@ -76,15 +64,12 @@ class PolicyTestCase(TestCase):
         self.assertEquals(self.policy.bad_lockout_minutes, None)
 
 
-class GroupsTestCase(TestCase):
-
+class GroupsTestCase(unittest.TestCase):
     def setUp(self):
-        super(GroupsTestCase, self).setUp()
         self.groupdb = GroupMappingDatabase(os.path.join(DATADIR, "group_mapping.tdb"))
 
     def tearDown(self):
         self.groupdb.close()
-        super(GroupsTestCase, self).tearDown()
 
     def test_group_length(self):
         self.assertEquals(13, len(list(self.groupdb.groupsids())))
@@ -100,29 +85,23 @@ class GroupsTestCase(TestCase):
         self.assertEquals(0, len(list(self.groupdb.aliases())))
 
 
-class SecretsDbTestCase(TestCase):
-
+class SecretsDbTestCase(unittest.TestCase):
     def setUp(self):
-        super(SecretsDbTestCase, self).setUp()
         self.secretsdb = SecretsDatabase(os.path.join(DATADIR, "secrets.tdb"))
 
     def tearDown(self):
         self.secretsdb.close()
-        super(SecretsDbTestCase, self).tearDown()
 
     def test_get_sid(self):
         self.assertTrue(self.secretsdb.get_sid("BEDWYR") is not None)
 
 
-class TdbSamTestCase(TestCase):
-
+class TdbSamTestCase(unittest.TestCase):
     def setUp(self):
-        super(TdbSamTestCase, self).setUp()
         self.samdb = TdbSam(os.path.join(DATADIR, "passdb.tdb"))
 
     def tearDown(self):
         self.samdb.close()
-        super(TdbSamTestCase, self).tearDown()
 
     def test_usernames(self):
         self.assertEquals(3, len(list(self.samdb.usernames())))
@@ -161,10 +140,8 @@ class TdbSamTestCase(TestCase):
         self.assertEquals(user, other)
 
 
-class WinsDatabaseTestCase(TestCase):
-
+class WinsDatabaseTestCase(unittest.TestCase):
     def setUp(self):
-        super(WinsDatabaseTestCase, self).setUp()
         self.winsdb = WinsDatabase(os.path.join(DATADIR, "wins.dat"))
 
     def test_length(self):
@@ -175,13 +152,10 @@ class WinsDatabaseTestCase(TestCase):
 
     def tearDown(self):
         self.winsdb.close()
-        super(WinsDatabaseTestCase, self).tearDown()
 
 
-class SmbpasswdTestCase(TestCase):
-
+class SmbpasswdTestCase(unittest.TestCase):
     def setUp(self):
-        super(SmbpasswdTestCase, self).setUp()
         self.samdb = SmbpasswdFile(os.path.join(DATADIR, "smbpasswd"))
 
     def test_length(self):
@@ -198,15 +172,11 @@ class SmbpasswdTestCase(TestCase):
 
     def tearDown(self):
         self.samdb.close()
-        super(SmbpasswdTestCase, self).tearDown()
 
 
-class IdmapDbTestCase(TestCase):
-
+class IdmapDbTestCase(unittest.TestCase):
     def setUp(self):
-        super(IdmapDbTestCase, self).setUp()
-        self.idmapdb = IdmapDatabase(os.path.join(DATADIR,
-            "winbindd_idmap.tdb"))
+        self.idmapdb = IdmapDatabase(os.path.join(DATADIR, "winbindd_idmap.tdb"))
 
     def test_user_hwm(self):
         self.assertEquals(10000, self.idmapdb.get_user_hwm())
@@ -228,11 +198,19 @@ class IdmapDbTestCase(TestCase):
 
     def tearDown(self):
         self.idmapdb.close()
-        super(IdmapDbTestCase, self).tearDown()
 
 
-class ParamTestCase(TestCase):
+class ShareInfoTestCase(unittest.TestCase):
+    def setUp(self):
+        self.shareinfodb = ShareInfoDatabase(os.path.join(DATADIR, "share_info.tdb"))
 
+    # FIXME: needs proper data so it can be tested
+
+    def tearDown(self):
+        self.shareinfodb.close()
+
+
+class ParamTestCase(unittest.TestCase):
     def test_init(self):
         file = ParamFile()
         self.assertTrue(file is not None)

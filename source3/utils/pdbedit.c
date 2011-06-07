@@ -21,10 +21,6 @@
 */
 
 #include "includes.h"
-#include "popt_common.h"
-#include "../librpc/gen_ndr/samr.h"
-#include "../libcli/security/security.h"
-#include "passdb.h"
 
 #define BIT_BACKEND	0x00000004
 #define BIT_VERBOSE	0x00000008
@@ -59,7 +55,7 @@
 #define MASK_ALWAYS_GOOD	0x0000001F
 #define MASK_USER_GOOD		0x60405FE0
 
-static int get_sid_from_cli_string(struct dom_sid *sid, const char *str_sid)
+static int get_sid_from_cli_string(DOM_SID *sid, const char *str_sid)
 {
 	uint32_t rid;
 
@@ -72,7 +68,8 @@ static int get_sid_from_cli_string(struct dom_sid *sid, const char *str_sid)
 					"a complete SID or RID!\n");
 			return -1;
 		}
-		sid_compose(sid, get_global_sam_sid(), rid);
+		sid_copy(sid, get_global_sam_sid());
+		sid_append_rid(sid, rid);
 	}
 
 	return 0;
@@ -107,7 +104,7 @@ static int export_database (struct pdb_methods *in,
 	while (u_search->next_entry(u_search, &userentry)) {
 		struct samu *user;
 		struct samu *account;
-		struct dom_sid user_sid;
+		DOM_SID user_sid;
 
 		DEBUG(4, ("Processing account %s\n", userentry.account_name));
 
@@ -205,7 +202,7 @@ static int reinit_account_policies (void)
 	int i;
 
 	for (i=1; decode_account_policy_name(i) != NULL; i++) {
-		uint32_t policy_value;
+		uint32 policy_value;
 		if (!account_policy_get_default(i, &policy_value)) {
 			fprintf(stderr, "Can't get default account policy\n");
 			return -1;
@@ -229,7 +226,7 @@ static int export_account_policies (struct pdb_methods *in, struct pdb_methods *
 	int i;
 
 	for ( i=1; decode_account_policy_name(i) != NULL; i++ ) {
-		uint32_t policy_value;
+		uint32 policy_value;
 		NTSTATUS status;
 
 		status = in->get_account_policy(in, i, &policy_value);
@@ -265,7 +262,7 @@ static int print_sam_info (struct samu *sam_pwent, bool verbosity, bool smbpwdst
 
 	if (verbosity) {
 		char temp[44];
-		const uint8_t *hours;
+		const uint8 *hours;
 
 		printf ("Unix username:        %s\n", pdb_get_username(sam_pwent));
 		printf ("NT username:          %s\n", pdb_get_nt_username(sam_pwent));
@@ -332,7 +329,7 @@ static int print_sam_info (struct samu *sam_pwent, bool verbosity, bool smbpwdst
 		       lm_passwd,
 		       nt_passwd,
 		       pdb_encode_acct_ctrl(pdb_get_acct_ctrl(sam_pwent),NEW_PW_FORMAT_SPACE_PADDED_LEN),
-		       (uint32)convert_time_t_to_uint32_t(pdb_get_pass_last_set_time(sam_pwent)));
+		       (uint32)convert_time_t_to_uint32(pdb_get_pass_last_set_time(sam_pwent)));
 	} else {
 		uid = nametouid(pdb_get_username(sam_pwent));
 		printf ("%s:%lu:%s\n", pdb_get_username(sam_pwent), (unsigned long)uid,
@@ -380,7 +377,7 @@ static int print_users_list(bool verbosity, bool smbpwdstyle)
 	struct samr_displayentry userentry;
 	struct samu *sam_pwent;
 	TALLOC_CTX *tosctx;
-	struct dom_sid user_sid;
+	DOM_SID user_sid;
 	bool bret;
 	int ret;
 
@@ -438,7 +435,7 @@ static int fix_users_list(void)
 	struct samr_displayentry userentry;
 	struct samu *sam_pwent;
 	TALLOC_CTX *tosctx;
-	struct dom_sid user_sid;
+	DOM_SID user_sid;
 	NTSTATUS status;
 	bool bret;
 	int ret;
@@ -508,7 +505,7 @@ static int set_user_info(const char *username, const char *fullname,
 	uint32_t acb_flags;
 	uint32_t not_settable;
 	uint32_t new_flags;
-	struct dom_sid u_sid;
+	DOM_SID u_sid;
 	bool ret;
 
 	sam_pwent = samu_new(NULL);
@@ -527,7 +524,7 @@ static int set_user_info(const char *username, const char *fullname,
 		hours_len = pdb_get_hours_len(sam_pwent);
 		memset(hours_array, 0xff, hours_len);
 
-		pdb_set_hours(sam_pwent, hours_array, hours_len, PDB_CHANGED);
+		pdb_set_hours(sam_pwent, hours_array, PDB_CHANGED);
 	}
 
 	if (!pdb_update_autolock_flag(sam_pwent, &updated_autolock)) {
@@ -596,7 +593,7 @@ static int set_user_info(const char *username, const char *fullname,
 				return -1;
 			}
 
-			value = convert_uint32_t_to_time_t(num);
+			value = convert_uint32_to_time_t(num);
 		}
 
 		pdb_set_kickoff_time(sam_pwent, value, PDB_CHANGED);
@@ -622,7 +619,7 @@ static int set_machine_info(const char *machinename,
 	uint32_t acb_flags;
 	uint32_t not_settable;
 	uint32_t new_flags;
-	struct dom_sid m_sid;
+	DOM_SID m_sid;
 	char *name;
 	int len;
 	bool ret;
@@ -713,7 +710,7 @@ static int new_user(const char *username, const char *fullname,
 	struct samu *sam_pwent = NULL;
 	TALLOC_CTX *tosctx;
 	NTSTATUS status;
-	struct dom_sid u_sid;
+	DOM_SID u_sid;
 	int flags;
 	int ret;
 
@@ -810,7 +807,7 @@ static int new_machine(const char *machinename, char *machine_sid)
 	struct samu *sam_pwent = NULL;
 	TALLOC_CTX *tosctx;
 	NTSTATUS status;
-	struct dom_sid m_sid;
+	DOM_SID m_sid;
 	char *compatpwd;
 	char *name;
 	int flags;
@@ -1059,7 +1056,7 @@ int main (int argc, char **argv)
 
 	load_case_tables();
 
-	setup_logging("pdbedit", DEBUG_STDOUT);
+	setup_logging("pdbedit", True);
 
 	pc = poptGetContext(NULL, argc, (const char **) argv, long_options,
 			    POPT_CONTEXT_KEEP_FIRST);
@@ -1136,7 +1133,7 @@ int main (int argc, char **argv)
 
 	/* account policy operations */
 	if ((checkparms & BIT_ACCPOLICY) && !(checkparms & ~(BIT_ACCPOLICY + BIT_ACCPOLVAL))) {
-		uint32_t value;
+		uint32 value;
 		enum pdb_policy_type field = account_policy_name_to_typenum(account_policy);
 		if (field == 0) {
 			const char **names;

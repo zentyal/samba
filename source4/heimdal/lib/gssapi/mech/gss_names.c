@@ -27,6 +27,7 @@
  */
 
 #include "mech_locl.h"
+RCSID("$Id$");
 
 OM_uint32
 _gss_find_mn(OM_uint32 *minor_status, struct _gss_name *name, gss_OID mech,
@@ -38,7 +39,7 @@ _gss_find_mn(OM_uint32 *minor_status, struct _gss_name *name, gss_OID mech,
 
 	*output_mn = NULL;
 
-	HEIM_SLIST_FOREACH(mn, &name->gn_mn, gmn_link) {
+	SLIST_FOREACH(mn, &name->gn_mn, gmn_link) {
 		if (gss_oid_equal(mech, mn->gmn_mech_oid))
 			break;
 	}
@@ -72,7 +73,7 @@ _gss_find_mn(OM_uint32 *minor_status, struct _gss_name *name, gss_OID mech,
 
 		mn->gmn_mech = m;
 		mn->gmn_mech_oid = &m->gm_mech_oid;
-		HEIM_SLIST_INSERT_HEAD(&name->gn_mn, mn, gmn_link);
+		SLIST_INSERT_HEAD(&name->gn_mn, mn, gmn_link);
 	}
 	*output_mn = mn;
 	return 0;
@@ -99,11 +100,11 @@ _gss_make_name(gssapi_mech_interface m, gss_name_t new_mn)
 		return (0);
 	}
 
-	HEIM_SLIST_INIT(&name->gn_mn);
+	SLIST_INIT(&name->gn_mn);
 	mn->gmn_mech = m;
 	mn->gmn_mech_oid = &m->gm_mech_oid;
 	mn->gmn_name = new_mn;
-	HEIM_SLIST_INSERT_HEAD(&name->gn_mn, mn, gmn_link);
+	SLIST_INSERT_HEAD(&name->gn_mn, mn, gmn_link);
 
 	return (name);
 }

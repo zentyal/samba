@@ -19,8 +19,7 @@
 
 #include "includes.h"
 #include "winbindd.h"
-#include "librpc/gen_ndr/ndr_wbint_c.h"
-#include "passdb/machine_sid.h"
+#include "librpc/gen_ndr/cli_wbint.h"
 
 struct wb_next_pwent_state {
 	struct tevent_context *ev;
@@ -148,7 +147,8 @@ static void wb_next_pwent_fill_done(struct tevent_req *subreq)
 
 	status = wb_fill_pwent_recv(subreq);
 	TALLOC_FREE(subreq);
-	if (tevent_req_nterror(req, status)) {
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
 		return;
 	}
 	state->gstate->next_user += 1;

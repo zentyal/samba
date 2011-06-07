@@ -22,6 +22,7 @@
 #include "winbind/wb_server.h"
 #include "lib/messaging/irpc.h"
 #include "libcli/composite/composite.h"
+#include "libcli/security/proto.h"
 #include "librpc/gen_ndr/ndr_winbind.h"
 #include "smbd/service_task.h"
 
@@ -71,52 +72,6 @@ static void wb_irpc_SamLogon_callback(struct composite_context *ctx)
 	irpc_send_reply(s->msg, status);
 }
 
-struct wb_irpc_DsrUpdateReadOnlyServerDnsRecords_state {
-	struct irpc_message *msg;
-	struct winbind_DsrUpdateReadOnlyServerDnsRecords *req;
-};
-
-static void wb_irpc_DsrUpdateReadOnlyServerDnsRecords_callback(struct composite_context *ctx);
-
-static NTSTATUS wb_irpc_DsrUpdateReadOnlyServerDnsRecords(struct irpc_message *msg,
-				 struct winbind_DsrUpdateReadOnlyServerDnsRecords *req)
-{
-	struct wbsrv_service *service = talloc_get_type(msg->private_data,
-					struct wbsrv_service);
-	struct wb_irpc_DsrUpdateReadOnlyServerDnsRecords_state *s;
-	struct composite_context *ctx;
-
-	DEBUG(5, ("wb_irpc_DsrUpdateReadOnlyServerDnsRecords called\n"));
-
-	s = talloc(msg, struct wb_irpc_DsrUpdateReadOnlyServerDnsRecords_state);
-	NT_STATUS_HAVE_NO_MEMORY(s);
-
-	s->msg = msg;
-	s->req = req;
-
-	ctx = wb_update_rodc_dns_send(msg, service, req);
-	NT_STATUS_HAVE_NO_MEMORY(ctx);
-
-	ctx->async.fn = wb_irpc_DsrUpdateReadOnlyServerDnsRecords_callback;
-	ctx->async.private_data = s;
-
-	msg->defer_reply = true;
-	return NT_STATUS_OK;
-}
-
-static void wb_irpc_DsrUpdateReadOnlyServerDnsRecords_callback(struct composite_context *ctx)
-{
-	struct wb_irpc_DsrUpdateReadOnlyServerDnsRecords_state *s = talloc_get_type(ctx->async.private_data,
-					   struct wb_irpc_DsrUpdateReadOnlyServerDnsRecords_state);
-	NTSTATUS status;
-
-	DEBUG(5, ("wb_irpc_DsrUpdateReadOnlyServerDnsRecords_callback called\n"));
-
-	status = wb_update_rodc_dns_recv(ctx, s, s->req);
-
-	irpc_send_reply(s->msg, status);
-}
-
 struct wb_irpc_get_idmap_state {
 	struct irpc_message *msg;
 	struct winbind_get_idmap *req;
@@ -131,7 +86,7 @@ static NTSTATUS wb_irpc_get_idmap(struct irpc_message *msg,
 	struct wbsrv_service *service = talloc_get_type(msg->private_data,
 					struct wbsrv_service);
 	struct wb_irpc_get_idmap_state *s;
-	struct composite_context *ctx = NULL;
+	struct composite_context *ctx;
 
 	DEBUG(5, ("wb_irpc_get_idmap called\n"));
 
@@ -193,10 +148,6 @@ NTSTATUS wbsrv_init_irpc(struct wbsrv_service *service)
 
 	status = IRPC_REGISTER(service->task->msg_ctx, winbind, WINBIND_SAMLOGON,
 			       wb_irpc_SamLogon, service);
-	NT_STATUS_NOT_OK_RETURN(status);
-
-	status = IRPC_REGISTER(service->task->msg_ctx, winbind, WINBIND_DSRUPDATEREADONLYSERVERDNSRECORDS,
-			       wb_irpc_DsrUpdateReadOnlyServerDnsRecords, service);
 	NT_STATUS_NOT_OK_RETURN(status);
 
 	status = IRPC_REGISTER(service->task->msg_ctx, winbind, WINBIND_GET_IDMAP,

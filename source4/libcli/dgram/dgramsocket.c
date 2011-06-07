@@ -61,7 +61,7 @@ static void dgm_socket_recv(struct nbt_dgram_socket *dgmsock)
 	}
 	blob.length = nread;
 
-	DEBUG(5,("Received dgram packet of length %d from %s:%d\n", 
+	DEBUG(2,("Received dgram packet of length %d from %s:%d\n", 
 		 (int)blob.length, src->addr, src->port));
 
 	packet = talloc(tmp_ctx, struct nbt_dgram_packet);
@@ -71,7 +71,7 @@ static void dgm_socket_recv(struct nbt_dgram_socket *dgmsock)
 	}
 
 	/* parse the request */
-	ndr_err = ndr_pull_struct_blob(&blob, packet, packet,
+	ndr_err = ndr_pull_struct_blob(&blob, packet, dgmsock->iconv_convenience, packet,
 				      (ndr_pull_flags_fn_t)ndr_pull_nbt_dgram_packet);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		status = ndr_map_error2ntstatus(ndr_err);
@@ -157,7 +157,8 @@ static void dgm_socket_handler(struct tevent_context *ev, struct tevent_fd *fde,
   then operations will use that event context
 */
 struct nbt_dgram_socket *nbt_dgram_socket_init(TALLOC_CTX *mem_ctx, 
-					      struct tevent_context *event_ctx)
+					      struct tevent_context *event_ctx,
+					      struct smb_iconv_convenience *iconv_convenience)
 {
 	struct nbt_dgram_socket *dgmsock;
 	NTSTATUS status;
@@ -182,6 +183,7 @@ struct nbt_dgram_socket *nbt_dgram_socket_init(TALLOC_CTX *mem_ctx,
 	dgmsock->send_queue = NULL;
 	dgmsock->incoming.handler = NULL;
 	dgmsock->mailslot_handlers = NULL;
+	dgmsock->iconv_convenience = iconv_convenience;
 	
 	return dgmsock;
 
@@ -224,7 +226,7 @@ NTSTATUS nbt_dgram_send(struct nbt_dgram_socket *dgmsock,
 	req->dest = dest;
 	if (talloc_reference(req, dest) == NULL) goto failed;
 
-	ndr_err = ndr_push_struct_blob(&req->encoded, req, packet,
+	ndr_err = ndr_push_struct_blob(&req->encoded, req, dgmsock->iconv_convenience, packet,
 				      (ndr_push_flags_fn_t)ndr_push_nbt_dgram_packet);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		status = ndr_map_error2ntstatus(ndr_err);

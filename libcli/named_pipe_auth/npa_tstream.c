@@ -24,9 +24,7 @@
 #include "../lib/tsocket/tsocket_internal.h"
 #include "../librpc/gen_ndr/ndr_named_pipe_auth.h"
 #include "../libcli/named_pipe_auth/npa_tstream.h"
-#if _SAMBA_BUILD_ == 4
 #include "libcli/raw/smb.h"
-#endif
 
 static const struct tstream_context_ops tstream_npa_ops;
 
@@ -41,6 +39,7 @@ struct tstream_npa {
 struct tstream_npa_connect_state {
 	struct {
 		struct tevent_context *ev;
+		struct smb_iconv_convenience *smb_iconv_c;
 	} caller;
 
 	const char *unix_path;
@@ -59,22 +58,23 @@ struct tstream_npa_connect_state {
 static void tstream_npa_connect_unix_done(struct tevent_req *subreq);
 
 struct tevent_req *tstream_npa_connect_send(TALLOC_CTX *mem_ctx,
-					    struct tevent_context *ev,
-					    const char *directory,
-					    const char *npipe,
-					    const struct tsocket_address *client,
-					    const char *client_name_in,
-					    const struct tsocket_address *server,
-					    const char *server_name,
-					    const struct auth_session_info_transport *session_info)
+					struct tevent_context *ev,
+					struct smb_iconv_convenience *smb_iconv_c,
+					const char *directory,
+					const char *npipe,
+					const struct tsocket_address *client,
+					const char *client_name_in,
+					const struct tsocket_address *server,
+					const char *server_name,
+					const struct netr_SamInfo3 *sam_info3,
+					DATA_BLOB session_key,
+					DATA_BLOB delegated_creds)
 {
 	struct tevent_req *req;
 	struct tstream_npa_connect_state *state;
 	struct tevent_req *subreq;
 	int ret;
 	enum ndr_err_code ndr_err;
-	char *lower_case_npipe;
-	struct named_pipe_auth_req_info4 *info4;
 
 	req = tevent_req_create(mem_ctx, &state,
 				struct tstream_npa_connect_state);
@@ -83,16 +83,11 @@ struct tevent_req *tstream_npa_connect_send(TALLOC_CTX *mem_ctx,
 	}
 
 	state->caller.ev = ev;
-
-	lower_case_npipe = strlower_talloc(state, npipe);
-	if (tevent_req_nomem(lower_case_npipe, req)) {
-		goto post;
-	}
+	state->caller.smb_iconv_c = smb_iconv_c;
 
 	state->unix_path = talloc_asprintf(state, "%s/%s",
 					   directory,
-					   lower_case_npipe);
-	talloc_free(lower_case_npipe);
+					   npipe);
 	if (tevent_req_nomem(state->unix_path, req)) {
 		goto post;
 	}
@@ -114,53 +109,66 @@ struct tevent_req *tstream_npa_connect_send(TALLOC_CTX *mem_ctx,
 	}
 
 	ZERO_STRUCT(state->auth_req);
+	if (client) {
+		struct named_pipe_auth_req_info3 *info3;
 
-	if (!server) {
-		tevent_req_error(req, EINVAL);
-		goto post;
-	}
+		if (!server) {
+			tevent_req_error(req, EINVAL);
+			goto post;
+		}
 
-	state->auth_req.level = 4;
-	info4 = &state->auth_req.info.info4;
+		state->auth_req.level = 3;
+		info3 = &state->auth_req.info.info3;
 
-	info4->client_name = client_name_in;
-	info4->client_addr = tsocket_address_inet_addr_string(client, state);
-	if (!info4->client_addr) {
-		/* errno might be EINVAL */
-		tevent_req_error(req, errno);
-		goto post;
-	}
-	info4->client_port = tsocket_address_inet_port(client);
-	if (!info4->client_name) {
-		info4->client_name = info4->client_addr;
-	}
+		info3->client_name = client_name_in;
+		info3->client_addr = tsocket_address_inet_addr_string(client, state);
+		if (!info3->client_addr) {
+			/* errno might be EINVAL */
+			tevent_req_error(req, errno);
+			goto post;
+		}
+		info3->client_port = tsocket_address_inet_port(client);
+		if (!info3->client_name) {
+			info3->client_name = info3->client_addr;
+		}
 
-	info4->server_addr = tsocket_address_inet_addr_string(server, state);
-	if (!info4->server_addr) {
-		/* errno might be EINVAL */
-		tevent_req_error(req, errno);
-		goto post;
-	}
-	info4->server_port = tsocket_address_inet_port(server);
-	if (!info4->server_name) {
-		info4->server_name = info4->server_addr;
-	}
+		info3->server_addr = tsocket_address_inet_addr_string(server, state);
+		if (!info3->server_addr) {
+			/* errno might be EINVAL */
+			tevent_req_error(req, errno);
+			goto post;
+		}
+		info3->server_port = tsocket_address_inet_port(server);
+		if (!info3->server_name) {
+			info3->server_name = info3->server_addr;
+		}
 
-	info4->session_info = discard_const_p(struct auth_session_info_transport, session_info);
+		info3->sam_info3 = discard_const_p(struct netr_SamInfo3, sam_info3);
+		info3->session_key_length = session_key.length;
+		info3->session_key = session_key.data;
+		info3->gssapi_delegated_creds_length = delegated_creds.length;
+		info3->gssapi_delegated_creds = delegated_creds.data;
+
+	} else if (sam_info3) {
+		state->auth_req.level = 1;
+		state->auth_req.info.info1 = *sam_info3;
+	} else {
+		state->auth_req.level = 0;
+	}
 
 	if (DEBUGLVL(10)) {
 		NDR_PRINT_DEBUG(named_pipe_auth_req, &state->auth_req);
 	}
 
 	ndr_err = ndr_push_struct_blob(&state->auth_req_blob,
-			state, &state->auth_req,
+			state, smb_iconv_c, &state->auth_req,
 			(ndr_push_flags_fn_t)ndr_push_named_pipe_auth_req);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		tevent_req_error(req, EINVAL);
 		goto post;
 	}
 
-	state->auth_req_iov.iov_base = (char *) state->auth_req_blob.data;
+	state->auth_req_iov.iov_base = state->auth_req_blob.data;
 	state->auth_req_iov.iov_len = state->auth_req_blob.length;
 
 	subreq = tstream_unix_connect_send(state,
@@ -301,7 +309,7 @@ static int tstream_npa_connect_next_vector(struct tstream_context *unix_stream,
 	if (!vector) {
 		return -1;
 	}
-	vector[0].iov_base = (char *) (state->auth_rep_blob.data + ofs);
+	vector[0].iov_base = state->auth_rep_blob.data + ofs;
 	vector[0].iov_len = state->auth_rep_blob.length - ofs;
 	count = 1;
 
@@ -335,7 +343,7 @@ static void tstream_npa_connect_readv_done(struct tevent_req *subreq)
 
 	ndr_err = ndr_pull_struct_blob(
 		&state->auth_rep_blob, state,
-		&state->auth_rep,
+		state->caller.smb_iconv_c, &state->auth_rep,
 		(ndr_pull_flags_fn_t)ndr_pull_named_pipe_auth_rep);
 
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -408,18 +416,27 @@ int _tstream_npa_connect_recv(struct tevent_req *req,
 					struct tstream_npa,
 					location);
 	if (!stream) {
-		*perrno = ENOMEM;
-		tevent_req_received(req);
 		return -1;
 	}
 	ZERO_STRUCTP(npas);
 
 	npas->unix_stream = talloc_move(stream, &state->unix_stream);
 	switch (state->auth_rep.level) {
-	case 4:
-		npas->file_type = state->auth_rep.info.info4.file_type;
-		device_state = state->auth_rep.info.info4.device_state;
-		allocation_size = state->auth_rep.info.info4.allocation_size;
+	case 0:
+	case 1:
+		npas->file_type = FILE_TYPE_BYTE_MODE_PIPE;
+		device_state = 0x00ff;
+		allocation_size = 2048;
+		break;
+	case 2:
+		npas->file_type = state->auth_rep.info.info2.file_type;
+		device_state = state->auth_rep.info.info2.device_state;
+		allocation_size = state->auth_rep.info.info2.allocation_size;
+		break;
+	case 3:
+		npas->file_type = state->auth_rep.info.info3.file_type;
+		device_state = state->auth_rep.info.info3.device_state;
+		allocation_size = state->auth_rep.info.info3.allocation_size;
 		break;
 	}
 
@@ -552,7 +569,7 @@ static struct tevent_req *tstream_npa_readv_send(TALLOC_CTX *mem_ctx,
 				memcpy(base, pbase + ofs, left);
 
 				base += left;
-				state->vector[0].iov_base = (char *) base;
+				state->vector[0].iov_base = base;
 				state->vector[0].iov_len -= left;
 
 				ofs += left;
@@ -577,7 +594,7 @@ static struct tevent_req *tstream_npa_readv_send(TALLOC_CTX *mem_ctx,
 
 		if (left > 0) {
 			memmove(pbase, pbase + ofs, left);
-			npas->pending.iov_base = (char *) pbase;
+			npas->pending.iov_base = pbase;
 			npas->pending.iov_len = left;
 			/*
 			 * this cannot fail and even if it
@@ -585,7 +602,7 @@ static struct tevent_req *tstream_npa_readv_send(TALLOC_CTX *mem_ctx,
 			 */
 			pbase = talloc_realloc(npas, pbase, uint8_t, left);
 			if (pbase) {
-				npas->pending.iov_base = (char *) pbase;
+				npas->pending.iov_base = pbase;
 			}
 			pbase = NULL;
 		}
@@ -673,7 +690,7 @@ static int tstream_npa_readv_next_vector(struct tstream_context *unix_stream,
 			return -1;
 		}
 		ZERO_STRUCT(state->hdr);
-		vector[0].iov_base = (char *) state->hdr;
+		vector[0].iov_base = state->hdr;
 		vector[0].iov_len = sizeof(state->hdr);
 
 		count = 1;
@@ -709,11 +726,11 @@ static int tstream_npa_readv_next_vector(struct tstream_context *unix_stream,
 		if (left < state->vector[0].iov_len) {
 			uint8_t *base;
 			base = (uint8_t *)state->vector[0].iov_base;
-			vector[count].iov_base = (char *) base;
+			vector[count].iov_base = base;
 			vector[count].iov_len = left;
 			count++;
 			base += left;
-			state->vector[0].iov_base = (char *) base;
+			state->vector[0].iov_base = base;
 			state->vector[0].iov_len -= left;
 			break;
 		}
@@ -726,12 +743,12 @@ static int tstream_npa_readv_next_vector(struct tstream_context *unix_stream,
 
 	if (left > 0) {
 		/*
-		 * if the message is longer than the buffers the caller
+		 * if the message if longer than the buffers the caller
 		 * requested, we need to consume the rest of the message
 		 * into the pending buffer, where the next readv can
 		 * be served from.
 		 */
-		npas->pending.iov_base = talloc_array(npas, char, left);
+		npas->pending.iov_base = talloc_array(npas, uint8_t, left);
 		if (!npas->pending.iov_base) {
 			return -1;
 		}
@@ -791,7 +808,6 @@ struct tstream_npa_writev_state {
 	size_t count;
 
 	/* the header for message mode */
-	bool hdr_used;
 	uint8_t hdr[2];
 
 	int ret;
@@ -828,7 +844,6 @@ static struct tevent_req *tstream_npa_writev_send(TALLOC_CTX *mem_ctx,
 
 	switch (npas->file_type) {
 	case FILE_TYPE_BYTE_MODE_PIPE:
-		state->hdr_used	= false;
 		state->vector	= vector;
 		state->count	= count;
 		break;
@@ -842,11 +857,10 @@ static struct tevent_req *tstream_npa_writev_send(TALLOC_CTX *mem_ctx,
 		if (tevent_req_nomem(new_vector, req)) {
 			goto post;
 		}
-		new_vector[0].iov_base = (char *) state->hdr;
+		new_vector[0].iov_base = state->hdr;
 		new_vector[0].iov_len = sizeof(state->hdr);
 		memcpy(new_vector + 1, vector, sizeof(struct iovec)*count);
 
-		state->hdr_used	= true;
 		state->vector	= new_vector;
 		state->count	= count + 1;
 
@@ -895,14 +909,6 @@ static void tstream_npa_writev_handler(struct tevent_req *subreq)
 	if (ret == -1) {
 		tevent_req_error(req, sys_errno);
 		return;
-	}
-
-	/*
-	 * in message mode we need to hide the length
-	 * of the hdr from the caller
-	 */
-	if (state->hdr_used) {
-		ret -= sizeof(state->hdr);
 	}
 
 	state->ret = ret;
@@ -1063,384 +1069,3 @@ int _tstream_npa_existing_socket(TALLOC_CTX *mem_ctx,
 	return 0;
 }
 
-
-struct tstream_npa_accept_state {
-	struct tevent_context *ev;
-	struct tstream_context *plain;
-	uint16_t file_type;
-	uint16_t device_state;
-	uint64_t alloc_size;
-
-	DATA_BLOB npa_blob;
-	struct iovec out_iov;
-
-	/* results */
-	NTSTATUS accept_status;
-	struct tsocket_address *client;
-	char *client_name;
-	struct tsocket_address *server;
-	char *server_name;
-	struct auth_session_info_transport *session_info;
-};
-
-static int tstream_npa_accept_next_vector(struct tstream_context *unix_stream,
-					  void *private_data,
-					  TALLOC_CTX *mem_ctx,
-					  struct iovec **_vector,
-					  size_t *_count);
-static void tstream_npa_accept_existing_reply(struct tevent_req *subreq);
-static void tstream_npa_accept_existing_done(struct tevent_req *subreq);
-
-struct tevent_req *tstream_npa_accept_existing_send(TALLOC_CTX *mem_ctx,
-					struct tevent_context *ev,
-					struct tstream_context *plain,
-					uint16_t file_type,
-					uint16_t device_state,
-					uint64_t allocation_size)
-{
-	struct tstream_npa_accept_state *state;
-	struct tevent_req *req, *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct tstream_npa_accept_state);
-	if (req == NULL) {
-		return NULL;
-	}
-
-	switch (file_type) {
-	case FILE_TYPE_BYTE_MODE_PIPE:
-		break;
-	case FILE_TYPE_MESSAGE_MODE_PIPE:
-		break;
-	default:
-		tevent_req_error(req, EINVAL);
-		goto post;
-	}
-
-	ZERO_STRUCTP(state);
-
-	state->ev = ev;
-	state->plain = plain;
-	state->file_type = file_type;
-	state->device_state = device_state;
-	state->alloc_size = allocation_size;
-
-	/*
-	 * The named pipe pdu's have the length as 8 byte (initial_read_size),
-	 * named_pipe_full_request provides the pdu length then.
-	 */
-	subreq = tstream_readv_pdu_send(state, ev, plain,
-					tstream_npa_accept_next_vector,
-					state);
-	if (tevent_req_nomem(subreq, req)) {
-		goto post;
-	}
-
-	tevent_req_set_callback(subreq,
-				tstream_npa_accept_existing_reply, req);
-
-	return req;
-
-post:
-	tevent_req_post(req, ev);
-	return req;
-}
-
-static int tstream_npa_accept_next_vector(struct tstream_context *unix_stream,
-					  void *private_data,
-					  TALLOC_CTX *mem_ctx,
-					  struct iovec **_vector,
-					  size_t *_count)
-{
-	struct tstream_npa_accept_state *state =
-		talloc_get_type_abort(private_data,
-					struct tstream_npa_accept_state);
-	struct iovec *vector;
-	size_t count;
-	off_t ofs = 0;
-
-	if (state->npa_blob.length == 0) {
-		state->npa_blob = data_blob_talloc(state, NULL, 4);
-		if (!state->npa_blob.data) {
-			return -1;
-		}
-	} else if (state->npa_blob.length == 4) {
-		uint32_t msg_len;
-
-		ofs = 4;
-
-		msg_len = RIVAL(state->npa_blob.data, 0);
-
-		if (msg_len > 0x00FFFFFF) {
-			errno = EMSGSIZE;
-			return -1;
-		}
-
-		if (msg_len == 0) {
-			errno = EMSGSIZE;
-			return -1;
-		}
-
-		msg_len += ofs;
-
-		state->npa_blob.data = talloc_realloc(state,
-						      state->npa_blob.data,
-						      uint8_t, msg_len);
-		if (!state->npa_blob.data) {
-			return -1;
-		}
-		state->npa_blob.length = msg_len;
-	} else {
-		if (memcmp(&state->npa_blob.data[4],
-			   NAMED_PIPE_AUTH_MAGIC, 4) != 0) {
-			DEBUG(0, ("Wrong protocol\n"));
-#if defined(EPROTONOSUPPORT)
-			errno = EPROTONOSUPPORT;
-#elif defined(EPROTO)
-			errno = EPROTO;
-#else
-			errno = EINVAL;
-#endif
-			return -1;
-		}
-		*_vector = NULL;
-		*_count = 0;
-		return 0;
-	}
-
-	/* we need to get a message header */
-	vector = talloc_array(mem_ctx, struct iovec, 1);
-	if (!vector) {
-		return -1;
-	}
-	vector[0].iov_base = (char *) (state->npa_blob.data + ofs);
-	vector[0].iov_len = state->npa_blob.length - ofs;
-	count = 1;
-
-	*_vector = vector;
-	*_count = count;
-	return 0;
-}
-
-static void tstream_npa_accept_existing_reply(struct tevent_req *subreq)
-{
-	struct tevent_req *req =
-			tevent_req_callback_data(subreq, struct tevent_req);
-	struct tstream_npa_accept_state *state =
-			tevent_req_data(req, struct tstream_npa_accept_state);
-	struct named_pipe_auth_req *pipe_request;
-	struct named_pipe_auth_rep pipe_reply;
-	struct named_pipe_auth_req_info4 i4;
-	enum ndr_err_code ndr_err;
-	DATA_BLOB out;
-	int sys_errno;
-	int ret;
-
-	ret = tstream_readv_pdu_recv(subreq, &sys_errno);
-	TALLOC_FREE(subreq);
-	if (ret == -1) {
-		tevent_req_error(req, sys_errno);
-		return;
-	}
-
-	DEBUG(10, ("Received packet of length %lu\n",
-		   (long)state->npa_blob.length));
-	dump_data(11, state->npa_blob.data, state->npa_blob.length);
-
-	ZERO_STRUCT(pipe_reply);
-	pipe_reply.level = 0;
-	pipe_reply.status = NT_STATUS_INTERNAL_ERROR;
-	/*
-	 * TODO: check it's a root (uid == 0) pipe
-	 */
-
-	pipe_request = talloc(state, struct named_pipe_auth_req);
-	if (!pipe_request) {
-		DEBUG(0, ("Out of memory!\n"));
-		goto reply;
-	}
-
-	/* parse the passed credentials */
-	ndr_err = ndr_pull_struct_blob_all(
-			&state->npa_blob, pipe_request, pipe_request,
-			(ndr_pull_flags_fn_t)ndr_pull_named_pipe_auth_req);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		pipe_reply.status = ndr_map_error2ntstatus(ndr_err);
-		DEBUG(2, ("Could not unmarshall named_pipe_auth_req: %s\n",
-			  nt_errstr(pipe_reply.status)));
-		goto reply;
-	}
-
-	if (DEBUGLVL(10)) {
-		NDR_PRINT_DEBUG(named_pipe_auth_req, pipe_request);
-	}
-
-	ZERO_STRUCT(i4);
-
-	if (pipe_request->level != 4) {
-		DEBUG(0, ("Unknown level %u\n", pipe_request->level));
-		pipe_reply.level = 0;
-		pipe_reply.status = NT_STATUS_INVALID_LEVEL;
-		goto reply;
-	}
-
-	pipe_reply.level = 4;
-	pipe_reply.status = NT_STATUS_OK;
-	pipe_reply.info.info4.file_type = state->file_type;
-	pipe_reply.info.info4.device_state = state->device_state;
-	pipe_reply.info.info4.allocation_size = state->alloc_size;
-
-	i4 = pipe_request->info.info4;
-	if (i4.server_addr == NULL) {
-		pipe_reply.status = NT_STATUS_INVALID_ADDRESS;
-		DEBUG(2, ("Missing server address\n"));
-		goto reply;
-	}
-	if (i4.client_addr == NULL) {
-		pipe_reply.status = NT_STATUS_INVALID_ADDRESS;
-		DEBUG(2, ("Missing client address\n"));
-		goto reply;
-	}
-
-	state->server_name = discard_const_p(char,
-					     talloc_move(state, &i4.server_name));
-	ret = tsocket_address_inet_from_strings(state, "ip",
-						i4.server_addr,
-						i4.server_port,
-						&state->server);
-	if (ret != 0) {
-		DEBUG(2, ("Invalid server address[%s:%u] - %s\n",
-			  i4.server_addr, i4.server_port,
-			  strerror(errno)));
-		pipe_reply.status = NT_STATUS_INVALID_ADDRESS;
-		goto reply;
-	}
-
-	state->client_name = discard_const_p(char,
-					     talloc_move(state, &i4.client_name));
-	ret = tsocket_address_inet_from_strings(state, "ip",
-						i4.client_addr,
-						i4.client_port,
-						&state->client);
-	if (ret != 0) {
-		DEBUG(2, ("Invalid server address[%s:%u] - %s\n",
-			  i4.client_addr, i4.client_port,
-			  strerror(errno)));
-		pipe_reply.status = NT_STATUS_INVALID_ADDRESS;
-		goto reply;
-	}
-
-	state->session_info = talloc_move(state, &i4.session_info);
-reply:
-	/* create the output */
-	ndr_err = ndr_push_struct_blob(&out, state, &pipe_reply,
-			(ndr_push_flags_fn_t)ndr_push_named_pipe_auth_rep);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		DEBUG(2, ("Error encoding structure: %s",
-			  ndr_map_error2string(ndr_err)));
-		tevent_req_error(req, EIO);
-		return;
-	}
-
-	DEBUG(10, ("named_pipe_auth reply[%u]\n", (unsigned)out.length));
-	dump_data(11, out.data, out.length);
-
-	if (DEBUGLVL(10)) {
-		NDR_PRINT_DEBUG(named_pipe_auth_rep, &pipe_reply);
-	}
-
-	state->accept_status = pipe_reply.status;
-
-	state->out_iov.iov_base = (char *) out.data;
-	state->out_iov.iov_len = out.length;
-
-	subreq = tstream_writev_send(state, state->ev,
-				     state->plain,
-				     &state->out_iov, 1);
-	if (tevent_req_nomem(subreq, req)) {
-		DEBUG(0, ("no memory for tstream_writev_send"));
-		return;
-	}
-
-	tevent_req_set_callback(subreq, tstream_npa_accept_existing_done, req);
-}
-
-static void tstream_npa_accept_existing_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req =
-			tevent_req_callback_data(subreq, struct tevent_req);
-	int sys_errno;
-	int ret;
-
-	ret = tstream_writev_recv(subreq, &sys_errno);
-	TALLOC_FREE(subreq);
-	if (ret == -1) {
-		tevent_req_error(req, sys_errno);
-		return;
-	}
-
-	tevent_req_done(req);
-}
-
-int _tstream_npa_accept_existing_recv(struct tevent_req *req,
-				      int *perrno,
-				      TALLOC_CTX *mem_ctx,
-				      struct tstream_context **stream,
-				      struct tsocket_address **client,
-				      char **_client_name,
-				      struct tsocket_address **server,
-				      char **server_name,
-				      struct auth_session_info_transport **session_info,
-				      const char *location)
-{
-	struct tstream_npa_accept_state *state =
-			tevent_req_data(req, struct tstream_npa_accept_state);
-	struct tstream_npa *npas;
-	int ret;
-
-	ret = tsocket_simple_int_recv(req, perrno);
-	if (ret != 0) {
-		DEBUG(2, ("Failed to accept named pipe conection: %s\n",
-			  strerror(*perrno)));
-		tevent_req_received(req);
-		return -1;
-	}
-
-	if (!NT_STATUS_IS_OK(state->accept_status)) {
-#if defined(EPROTONOSUPPORT)
-		*perrno = EPROTONOSUPPORT;
-#elif defined(EPROTO)
-		*perrno = EPROTO;
-#else
-		*perrno = EINVAL;
-#endif
-		DEBUG(2, ("Failed to accept named pipe conection: %s => %s\n",
-			  nt_errstr(state->accept_status),
-			  strerror(*perrno)));
-		tevent_req_received(req);
-		return -1;
-	}
-
-	*stream = tstream_context_create(mem_ctx,
-					 &tstream_npa_ops,
-					 &npas,
-					 struct tstream_npa,
-					 location);
-	if (!*stream) {
-		*perrno = ENOMEM;
-		tevent_req_received(req);
-		return -1;
-	}
-	ZERO_STRUCTP(npas);
-	npas->unix_stream = state->plain;
-	npas->file_type = state->file_type;
-
-	*client = talloc_move(mem_ctx, &state->client);
-	*_client_name = talloc_move(mem_ctx, &state->client_name);
-	*server = talloc_move(mem_ctx, &state->server);
-	*server_name = talloc_move(mem_ctx, &state->server_name);
-	*session_info = talloc_move(mem_ctx, &state->session_info);
-
-	tevent_req_received(req);
-	return 0;
-}

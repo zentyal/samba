@@ -7,7 +7,7 @@
 	<manvolnum>1</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">User Commands</refmiscinfo>
-	<refmiscinfo class="version">3.6</refmiscinfo>
+	<refmiscinfo class="version">3.5</refmiscinfo>
 </refmeta>
 
 
@@ -156,7 +156,7 @@
                 could cause the helper to authenticate the
                 user). </para>
 
-		<para>Currently implemented parameters from the
+		<para>Curently implemented parameters from the
 		external program to the helper are:</para>
 		<variablelist>
 		  <varlistentry>

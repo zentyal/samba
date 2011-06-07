@@ -18,10 +18,6 @@
 */
 
 #include "includes.h"
-#include "system/filesys.h"
-#include "trans2.h"
-#include "libsmb/libsmb.h"
-#include "libsmb/nmblib.h"
 
 static fstring password;
 static fstring username;
@@ -38,6 +34,7 @@ static int ignore_dot_errors = 0;
 
 extern char *optarg;
 extern int optind;
+extern bool AllowDebugChange;
 
 /* a test fn for LANMAN mask support */
 static int ms_fnmatch_lanman_core(const char *pattern, const char *string)
@@ -230,12 +227,11 @@ static struct cli_state *connect_one(char *share)
 		}
 	}
 
-	status = cli_session_setup(c, username,
-				   password, strlen(password),
-				   password, strlen(password),
-				   lp_workgroup());
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("session setup failed: %s\n", nt_errstr(status)));
+	if (!NT_STATUS_IS_OK(cli_session_setup(c, username, 
+					       password, strlen(password),
+					       password, strlen(password),
+					       lp_workgroup()))) {
+		DEBUG(0,("session setup failed: %s\n", cli_errstr(c)));
 		return NULL;
 	}
 
@@ -267,16 +263,10 @@ static struct cli_state *connect_one(char *share)
 }
 
 static char *resultp;
+static file_info *f_info;
 
-struct rn_state {
-	char **pp_long_name;
-	char *short_name;
-};
-
-static NTSTATUS listfn(const char *mnt, struct file_info *f, const char *s,
-		   void *private_data)
+static void listfn(const char *mnt, file_info *f, const char *s, void *state)
 {
-	struct rn_state *state = (struct rn_state *)private_data;
 	if (strcmp(f->name,".") == 0) {
 		resultp[0] = '+';
 	} else if (strcmp(f->name,"..") == 0) {
@@ -284,43 +274,28 @@ static NTSTATUS listfn(const char *mnt, struct file_info *f, const char *s,
 	} else {
 		resultp[2] = '+';
 	}
-
-	if (state == NULL) {
-		return NT_STATUS_INTERNAL_ERROR;
-	}
-
-	if (ISDOT(f->name) || ISDOTDOT(f->name))  {
-		return NT_STATUS_OK;
-	}
-
-	fstrcpy(state->short_name, f->short_name);
-	strlower_m(state->short_name);
-	*state->pp_long_name = SMB_STRDUP(f->name);
-	if (!*state->pp_long_name) {
-		return NT_STATUS_NO_MEMORY;
-	}
-	strlower_m(*state->pp_long_name);
-	return NT_STATUS_OK;
+	f_info = f;
 }
 
 static void get_real_name(struct cli_state *cli,
 			  char **pp_long_name, fstring short_name)
 {
-	struct rn_state state;
-
-	state.pp_long_name = pp_long_name;
-	state.short_name = short_name;
-
 	*pp_long_name = NULL;
 	/* nasty hack to force level 260 listings - tridge */
+	cli->capabilities |= CAP_NT_SMBS;
 	if (max_protocol <= PROTOCOL_LANMAN1) {
-		cli_list_trans(cli, "\\masktest\\*.*", FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_DIRECTORY,
-			       SMB_FIND_FILE_BOTH_DIRECTORY_INFO, listfn,
-			       &state);
+		cli_list_new(cli, "\\masktest\\*.*", aHIDDEN | aDIR, listfn, NULL);
 	} else {
-		cli_list_trans(cli, "\\masktest\\*", FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_DIRECTORY,
-			       SMB_FIND_FILE_BOTH_DIRECTORY_INFO,
-			       listfn, &state);
+		cli_list_new(cli, "\\masktest\\*", aHIDDEN | aDIR, listfn, NULL);
+	}
+	if (f_info) {
+		fstrcpy(short_name, f_info->short_name);
+		strlower_m(short_name);
+		*pp_long_name = SMB_STRDUP(f_info->name);
+		if (!*pp_long_name) {
+			return;
+		}
+		strlower_m(*pp_long_name);
 	}
 
 	if (*short_name == 0) {
@@ -355,12 +330,14 @@ static void testpair(struct cli_state *cli, const char *mask, const char *file)
 
 	resultp = res1;
 	fstrcpy(short_name, "");
+	f_info = NULL;
 	get_real_name(cli, &long_name, short_name);
 	if (!long_name) {
 		return;
 	}
+	f_info = NULL;
 	fstrcpy(res1, "---");
-	cli_list(cli, mask, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_DIRECTORY, listfn, NULL);
+	cli_list(cli, mask, aHIDDEN | aDIR, listfn, NULL);
 
 	res2 = reg_test(cli, mask, long_name, short_name);
 
@@ -372,7 +349,7 @@ static void testpair(struct cli_state *cli, const char *mask, const char *file)
 		if (die_on_error) exit(1);
 	}
 
-	cli_unlink(cli, file, FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN);
+	cli_unlink(cli, file, aSYSTEM | aHIDDEN);
 
 	if (count % 100 == 0) DEBUG(0,("%d\n", count));
 	SAFE_FREE(long_name);
@@ -389,7 +366,7 @@ static void test_mask(int argc, char *argv[],
 
 	cli_mkdir(cli, "\\masktest");
 
-	cli_unlink(cli, "\\masktest\\*", FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN);
+	cli_unlink(cli, "\\masktest\\*", aSYSTEM | aHIDDEN);
 
 	if (argc >= 2) {
 		while (argc >= 2) {
@@ -488,7 +465,10 @@ static void usage(void)
 
 	setlinebuf(stdout);
 
-	lp_set_cmdline("log level", "0");
+	dbf = x_stderr;
+
+	DEBUGLEVEL = 0;
+	AllowDebugChange = False;
 
 	if (argc < 2 || argv[1][0] == '-') {
 		usage();
@@ -499,12 +479,11 @@ static void usage(void)
 
 	all_string_sub(share,"/","\\",0);
 
-	setup_logging(argv[0], DEBUG_STDERR);
+	setup_logging(argv[0],True);
 
 	argc -= 1;
 	argv += 1;
 
-	load_case_tables();
 	lp_load(get_dyn_CONFIGFILE(),True,False,False,True);
 	load_interfaces();
 
@@ -520,7 +499,7 @@ static void usage(void)
 			NumLoops = atoi(optarg);
 			break;
 		case 'd':
-			lp_set_cmdline("log level", optarg);
+			DEBUGLEVEL = atoi(optarg);
 			break;
 		case 'E':
 			die_on_error = 1;

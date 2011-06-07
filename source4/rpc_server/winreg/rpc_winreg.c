@@ -25,7 +25,7 @@
 #include "lib/registry/registry.h"
 #include "librpc/gen_ndr/ndr_winreg.h"
 #include "librpc/gen_ndr/ndr_security.h"
-#include "libcli/security/session.h"
+#include "libcli/security/security.h"
 
 enum handle_types { HTYPE_REGVAL, HTYPE_REGKEY };
 
@@ -36,8 +36,7 @@ static NTSTATUS dcerpc_winreg_bind(struct dcesrv_call_state *dce_call,
 	WERROR err;
 
 	err = reg_open_samba(dce_call->context,
-			     &ctx, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx,
-			     dce_call->conn->auth_state.session_info,
+			     &ctx, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx, dce_call->conn->auth_state.session_info,
 			     NULL);
 
 	if (!W_ERROR_IS_OK(err)) {
@@ -61,7 +60,6 @@ static WERROR dcesrv_winreg_openhive(struct dcesrv_call_state *dce_call,
 	WERROR result;
 
 	h = dcesrv_handle_new(dce_call->context, HTYPE_REGKEY);
-	W_ERROR_HAVE_NO_MEMORY(h);
 
 	result = reg_get_predefined_key(ctx, hkey,
 				       (struct registry_key **)&h->data);
@@ -99,7 +97,7 @@ static WERROR dcesrv_winreg_CloseKey(struct dcesrv_call_state *dce_call,
 
 	DCESRV_PULL_HANDLE_FAULT(h, r->in.handle, HTYPE_REGKEY);
 
-	talloc_unlink(dce_call->context, h);
+	talloc_free(h);
 
 	ZERO_STRUCTP(r->out.handle);
 
@@ -123,15 +121,10 @@ static WERROR dcesrv_winreg_CreateKey(struct dcesrv_call_state *dce_call,
 
 	newh = dcesrv_handle_new(dce_call->context, HTYPE_REGKEY);
 
-	switch (security_session_user_level(dce_call->conn->auth_state.session_info, NULL))
+	switch (security_session_user_level(dce_call->conn->auth_state.session_info))
 	{
 	case SECURITY_SYSTEM:
 	case SECURITY_ADMINISTRATOR:
-		/* we support only non volatile keys */
-		if (r->in.options != REG_OPTION_NON_VOLATILE) {
-			return WERR_NOT_SUPPORTED;
-		}
-
 		/* the security descriptor is optional */
 		if (r->in.secdesc != NULL) {
 			DATA_BLOB sdblob;
@@ -141,7 +134,7 @@ static WERROR dcesrv_winreg_CreateKey(struct dcesrv_call_state *dce_call,
 			if (sdblob.data == NULL) {
 				return WERR_INVALID_PARAM;
 			}
-			ndr_err = ndr_pull_struct_blob_all(&sdblob, mem_ctx, &sd,
+			ndr_err = ndr_pull_struct_blob_all(&sdblob, mem_ctx, NULL, &sd,
 							   (ndr_pull_flags_fn_t)ndr_pull_security_descriptor);
 			if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 				return WERR_INVALID_PARAM;
@@ -150,21 +143,12 @@ static WERROR dcesrv_winreg_CreateKey(struct dcesrv_call_state *dce_call,
 		
 		result = reg_key_add_name(newh, key, r->in.name.name, NULL,
 			r->in.secdesc?&sd:NULL, (struct registry_key **)&newh->data);
-
-		r->out.action_taken = talloc(mem_ctx, enum winreg_CreateAction);
-		if (r->out.action_taken == NULL) {
-			talloc_free(newh);
-			return WERR_NOMEM;
-		}
-		*r->out.action_taken = REG_ACTION_NONE;
-
 		if (W_ERROR_IS_OK(result)) {
 			r->out.new_handle = &newh->wire_handle;
-			*r->out.action_taken = REG_CREATED_NEW_KEY;
 		} else {
 			talloc_free(newh);
 		}
-
+		
 		return result;
 	default:
 		return WERR_ACCESS_DENIED;
@@ -181,19 +165,15 @@ static WERROR dcesrv_winreg_DeleteKey(struct dcesrv_call_state *dce_call,
 {
 	struct dcesrv_handle *h;
 	struct registry_key *key;
-	WERROR result;
 
 	DCESRV_PULL_HANDLE_FAULT(h, r->in.handle, HTYPE_REGKEY);
 	key = h->data;
 
-	switch (security_session_user_level(dce_call->conn->auth_state.session_info, NULL))
+	switch (security_session_user_level(dce_call->conn->auth_state.session_info))
 	{
 	case SECURITY_SYSTEM:
 	case SECURITY_ADMINISTRATOR:
-		result = reg_key_del(mem_ctx, key, r->in.key.name);
-		talloc_unlink(dce_call->context, h);
-
-		return result;
+		return reg_key_del(key, r->in.key.name);
 	default:
 		return WERR_ACCESS_DENIED;
 	}
@@ -213,11 +193,11 @@ static WERROR dcesrv_winreg_DeleteValue(struct dcesrv_call_state *dce_call,
 	DCESRV_PULL_HANDLE_FAULT(h, r->in.handle, HTYPE_REGKEY);
 	key = h->data;
 
-	switch (security_session_user_level(dce_call->conn->auth_state.session_info, NULL))
+	switch (security_session_user_level(dce_call->conn->auth_state.session_info))
 	{
 	case SECURITY_SYSTEM:
 	case SECURITY_ADMINISTRATOR:
-		return reg_del_value(mem_ctx, key, r->in.value.name);
+		return reg_del_value(key, r->in.value.name);
 	default:
 		return WERR_ACCESS_DENIED;
 	}
@@ -301,6 +281,11 @@ static WERROR dcesrv_winreg_EnumValue(struct dcesrv_call_state *dce_call,
 		data.length = *r->in.length;
 	}
 
+	/* check if there is enough room for the name */
+	if (r->in.name->size < 2*strlen_m_term(data_name)) {
+		return WERR_MORE_DATA;
+	}
+
 	/* "data_name" is NULL when we query the default attribute */
 	if (data_name != NULL) {
 		r->out.name->name = data_name;
@@ -311,11 +296,11 @@ static WERROR dcesrv_winreg_EnumValue(struct dcesrv_call_state *dce_call,
 	}
 	r->out.name->size = r->in.name->size;
 
-	r->out.type = talloc(mem_ctx, enum winreg_Type);
+	r->out.type = talloc(mem_ctx, uint32_t);
 	if (!r->out.type) {
 		return WERR_NOMEM;
 	}
-	*r->out.type = (enum winreg_Type) data_type;
+	*r->out.type = data_type;
 
 	/* check the client has enough room for the value */
 	if (r->in.value != NULL &&
@@ -351,7 +336,7 @@ static WERROR dcesrv_winreg_FlushKey(struct dcesrv_call_state *dce_call,
 	DCESRV_PULL_HANDLE_FAULT(h, r->in.handle, HTYPE_REGKEY);
 	key = h->data;
 
-	switch (security_session_user_level(dce_call->conn->auth_state.session_info, NULL))
+	switch (security_session_user_level(dce_call->conn->auth_state.session_info))
 	{
 	case SECURITY_SYSTEM:
 	case SECURITY_ADMINISTRATOR:
@@ -413,7 +398,7 @@ static WERROR dcesrv_winreg_OpenKey(struct dcesrv_call_state *dce_call,
 	DCESRV_PULL_HANDLE_FAULT(h, r->in.parent_handle, HTYPE_REGKEY);
 	key = h->data;
 
-	switch (security_session_user_level(dce_call->conn->auth_state.session_info, NULL))
+	switch (security_session_user_level(dce_call->conn->auth_state.session_info))
 	{
 	case SECURITY_SYSTEM:
 	case SECURITY_ADMINISTRATOR:
@@ -436,6 +421,7 @@ static WERROR dcesrv_winreg_OpenKey(struct dcesrv_call_state *dce_call,
 	default:
 		return WERR_ACCESS_DENIED;
 	}
+
 }
 
 
@@ -454,7 +440,7 @@ static WERROR dcesrv_winreg_QueryInfoKey(struct dcesrv_call_state *dce_call,
 	DCESRV_PULL_HANDLE_FAULT(h, r->in.handle, HTYPE_REGKEY);
 	key = h->data;
 
-	switch (security_session_user_level(dce_call->conn->auth_state.session_info, NULL))
+	switch (security_session_user_level(dce_call->conn->auth_state.session_info))
 	{
 	case SECURITY_SYSTEM:
 	case SECURITY_ADMINISTRATOR:
@@ -463,15 +449,6 @@ static WERROR dcesrv_winreg_QueryInfoKey(struct dcesrv_call_state *dce_call,
 			r->out.num_subkeys, r->out.num_values,
 			r->out.last_changed_time, r->out.max_subkeylen,
 			r->out.max_valnamelen, r->out.max_valbufsize);
-
-		if (r->out.max_subkeylen != NULL) {
-			/* for UTF16 encoding */
-			*r->out.max_subkeylen *= 2;
-		}
-		if (r->out.max_valnamelen != NULL) {
-			/* for UTF16 encoding */
-			*r->out.max_valnamelen *= 2;
-		}
 
 		if (classname != NULL) {
 			r->out.classname->name = classname;
@@ -505,16 +482,11 @@ static WERROR dcesrv_winreg_QueryValue(struct dcesrv_call_state *dce_call,
 	DCESRV_PULL_HANDLE_FAULT(h, r->in.handle, HTYPE_REGKEY);
 	key = h->data;
 
-	switch (security_session_user_level(dce_call->conn->auth_state.session_info, NULL))
+	switch (security_session_user_level(dce_call->conn->auth_state.session_info))
 	{
 	case SECURITY_SYSTEM:
 	case SECURITY_ADMINISTRATOR:
 	case SECURITY_USER:
-		if ((r->in.type == NULL) || (r->in.data_length == NULL) ||
-		    (r->in.data_size == NULL)) {
-			return WERR_INVALID_PARAM;
-		}
-
 		result = reg_key_get_value_by_name(mem_ctx, key, 
 			 r->in.value_name->name, &value_type, &value_data);
 		
@@ -523,18 +495,13 @@ static WERROR dcesrv_winreg_QueryValue(struct dcesrv_call_state *dce_call,
 			value_type = *r->in.type;
 			value_data.data = r->in.data;
 			value_data.length = *r->in.data_length;
-		} else {
-			if ((r->in.data != NULL)
-			    && (*r->in.data_size < value_data.length)) {
-				result = WERR_MORE_DATA;
-			}
 		}
 
-		r->out.type = talloc(mem_ctx, enum winreg_Type);
+		r->out.type = talloc(mem_ctx, uint32_t);
 		if (!r->out.type) {
 			return WERR_NOMEM;
 		}
-		*r->out.type = (enum winreg_Type) value_type;
+		*r->out.type = value_type;
 		r->out.data_length = talloc(mem_ctx, uint32_t);
 		if (!r->out.data_length) {
 			return WERR_NOMEM;
@@ -613,7 +580,7 @@ static WERROR dcesrv_winreg_SetValue(struct dcesrv_call_state *dce_call,
 	DCESRV_PULL_HANDLE_FAULT(h, r->in.handle, HTYPE_REGKEY);
 	key = h->data;
 
-	switch (security_session_user_level(dce_call->conn->auth_state.session_info, NULL))
+	switch (security_session_user_level(dce_call->conn->auth_state.session_info))
 	{
 	case SECURITY_SYSTEM:
 	case SECURITY_ADMINISTRATOR:
@@ -723,15 +690,6 @@ static WERROR dcesrv_winreg_QueryMultipleValues2(struct dcesrv_call_state *dce_c
 	return WERR_NOT_SUPPORTED;
 }
 
-/*
-  winreg_DeleteKeyEx
-*/
-static WERROR dcesrv_winreg_DeleteKeyEx(struct dcesrv_call_state *dce_call,
-					TALLOC_CTX *mem_ctx,
-					struct winreg_DeleteKeyEx *r)
-{
-	return WERR_NOT_SUPPORTED;
-}
 
 /* include the generated boilerplate */
 #include "librpc/gen_ndr/ndr_winreg_s.c"

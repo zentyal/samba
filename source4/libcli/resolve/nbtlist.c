@@ -163,7 +163,8 @@ struct composite_context *resolve_name_nbtlist_send(TALLOC_CTX *mem_ctx,
 		return c;
 	}
 
-	state->nbtsock = nbt_name_socket_init(state, event_ctx);
+	state->nbtsock = nbt_name_socket_init(state, event_ctx, 
+					      global_iconv_convenience);
 	if (composite_nomem(state->nbtsock, c)) return c;
 
 	/* count the address_list size */

@@ -21,7 +21,8 @@
 
 #include "includes.h"
 #include "../lib/util/asn1.h"
-#include "libcli/ldap/libcli_ldap.h"
+#include "libcli/ldap/ldap.h"
+#include "lib/ldb/include/ldb.h"
 #include "libcli/ldap/ldap_proto.h"
 #include "dsdb/samdb/samdb.h"
 
@@ -213,7 +214,7 @@ static bool decode_sd_flags_request(void *mem_ctx, DATA_BLOB in, void *_out)
 		return false;
 	}
 
-	if (!asn1_read_Integer(data, (int *) &(lsdfc->secinfo_flags))) {
+	if (!asn1_read_Integer(data, &(lsdfc->secinfo_flags))) {
 		return false;
 	}
 
@@ -247,7 +248,7 @@ static bool decode_search_options_request(void *mem_ctx, DATA_BLOB in, void *_ou
 		return false;
 	}
 
-	if (!asn1_read_Integer(data, (int *) &(lsoc->search_options))) {
+	if (!asn1_read_Integer(data, &(lsoc->search_options))) {
 		return false;
 	}
 
@@ -422,6 +423,69 @@ static bool decode_asq_control(void *mem_ctx, DATA_BLOB in, void *_out)
 	}
 
 	*out = lac;
+
+	return true;
+}
+
+static bool decode_domain_scope_request(void *mem_ctx, DATA_BLOB in, void *_out)
+{
+	if (in.length != 0) {
+		return false;
+	}
+
+	return true;
+}
+
+static bool decode_notification_request(void *mem_ctx, DATA_BLOB in, void *_out)
+{
+	if (in.length != 0) {
+		return false;
+	}
+
+	return true;
+}
+
+static bool decode_show_deleted_request(void *mem_ctx, DATA_BLOB in, void *_out)
+{
+	if (in.length != 0) {
+		return false;
+	}
+
+	return true;
+}
+
+static bool decode_show_recycled_request(void *mem_ctx, DATA_BLOB in, void *_out)
+{
+	if (in.length != 0) {
+		return false;
+	}
+
+	return true;
+}
+
+static bool decode_show_deactivated_link_request(void *mem_ctx, DATA_BLOB in, void *_out)
+{
+	if (in.length != 0) {
+		return false;
+	}
+
+	return true;
+}
+
+static bool decode_permissive_modify_request(void *mem_ctx, DATA_BLOB in, void *_out)
+{
+	if (in.length != 0) {
+		return false;
+	}
+
+	return true;
+}
+
+static bool decode_manageDSAIT_request(void *mem_ctx, DATA_BLOB in, void *_out)
+{
+	if (in.length != 0) {
+		return false;
+	}
 
 	return true;
 }
@@ -885,6 +949,76 @@ static bool encode_dirsync_request(void *mem_ctx, void *in, DATA_BLOB *out)
 	return true;
 }
 
+static bool encode_domain_scope_request(void *mem_ctx, void *in, DATA_BLOB *out)
+{
+	if (in) {
+		return false;
+	}
+
+	*out = data_blob(NULL, 0);
+	return true;
+}
+
+static bool encode_notification_request(void *mem_ctx, void *in, DATA_BLOB *out)
+{
+	if (in) {
+		return false;
+	}
+
+	*out = data_blob(NULL, 0);
+	return true;
+}
+
+static bool encode_show_deleted_request(void *mem_ctx, void *in, DATA_BLOB *out)
+{
+	if (in) {
+		return false;
+	}
+
+	*out = data_blob(NULL, 0);
+	return true;
+}
+
+static bool encode_show_recycled_request(void *mem_ctx, void *in, DATA_BLOB *out)
+{
+	if (in) {
+		return false;
+	}
+
+	*out = data_blob(NULL, 0);
+	return true;
+}
+
+static bool encode_show_deactivated_link_request(void *mem_ctx, void *in, DATA_BLOB *out)
+{
+	if (in) {
+		return false;
+	}
+
+	*out = data_blob(NULL, 0);
+	return true;
+}
+
+static bool encode_permissive_modify_request(void *mem_ctx, void *in, DATA_BLOB *out)
+{
+	if (in) {
+		return false;
+	}
+
+	*out = data_blob(NULL, 0);
+	return true;
+}
+
+static bool encode_manageDSAIT_request(void *mem_ctx, void *in, DATA_BLOB *out)
+{
+	if (in) {
+		return false;
+	}
+
+	*out = data_blob(NULL, 0);
+	return true;
+}
+
 static bool encode_vlv_request(void *mem_ctx, void *in, DATA_BLOB *out)
 {
 	struct ldb_vlv_req_control *lvrc = talloc_get_type(in, struct ldb_vlv_req_control);
@@ -1117,82 +1251,29 @@ static bool decode_openldap_dereference(void *mem_ctx, DATA_BLOB in, void *_out)
 	return true;
 }
 
-static bool encode_flag_request(void *mem_ctx, void *in, DATA_BLOB *out)
-{
-	if (in) {
-		return false;
-	}
-
-	*out = data_blob(NULL, 0);
-	return true;
-}
-
-static bool decode_flag_request(void *mem_ctx, DATA_BLOB in, void *_out)
-{
-	if (in.length != 0) {
-		return false;
-	}
-
-	return true;
-}
-
 static const struct ldap_control_handler ldap_known_controls[] = {
-	{ LDB_CONTROL_PAGED_RESULTS_OID, decode_paged_results_request, encode_paged_results_request },
-	{ LDB_CONTROL_SD_FLAGS_OID, decode_sd_flags_request, encode_sd_flags_request },
-	{ LDB_CONTROL_DOMAIN_SCOPE_OID, decode_flag_request, encode_flag_request },
-	{ LDB_CONTROL_SEARCH_OPTIONS_OID, decode_search_options_request, encode_search_options_request },
-	{ LDB_CONTROL_NOTIFICATION_OID, decode_flag_request, encode_flag_request },
-	{ LDB_CONTROL_TREE_DELETE_OID, decode_flag_request, encode_flag_request },
-	{ LDB_CONTROL_SHOW_DELETED_OID, decode_flag_request, encode_flag_request },
-	{ LDB_CONTROL_SHOW_RECYCLED_OID, decode_flag_request, encode_flag_request },
-	{ LDB_CONTROL_SHOW_DEACTIVATED_LINK_OID, decode_flag_request, encode_flag_request },
-	{ LDB_CONTROL_EXTENDED_DN_OID, decode_extended_dn_request, encode_extended_dn_request },
-	{ LDB_CONTROL_SERVER_SORT_OID, decode_server_sort_request, encode_server_sort_request },
-	{ LDB_CONTROL_SORT_RESP_OID, decode_server_sort_response, encode_server_sort_response },
-	{ LDB_CONTROL_ASQ_OID, decode_asq_control, encode_asq_control },
-	{ LDB_CONTROL_DIRSYNC_OID, decode_dirsync_request, encode_dirsync_request },
-	{ LDB_CONTROL_VLV_REQ_OID, decode_vlv_request, encode_vlv_request },
-	{ LDB_CONTROL_VLV_RESP_OID, decode_vlv_response, encode_vlv_response },
-	{ LDB_CONTROL_PERMISSIVE_MODIFY_OID, decode_flag_request, encode_flag_request },
-	{ LDB_CONTROL_SERVER_LAZY_COMMIT, decode_flag_request, encode_flag_request },
-	{ LDB_CONTROL_RODC_DCPROMO_OID, decode_flag_request, encode_flag_request },
-	{ LDB_CONTROL_RELAX_OID, decode_flag_request, encode_flag_request },
-	{ DSDB_OPENLDAP_DEREFERENCE_CONTROL, decode_openldap_dereference, encode_openldap_dereference },
-
+	{ "1.2.840.113556.1.4.319", decode_paged_results_request, encode_paged_results_request },
+	{ "1.2.840.113556.1.4.529", decode_extended_dn_request, encode_extended_dn_request },
+	{ "1.2.840.113556.1.4.473", decode_server_sort_request, encode_server_sort_request },
+	{ "1.2.840.113556.1.4.474", decode_server_sort_response, encode_server_sort_response },
+	{ "1.2.840.113556.1.4.1504", decode_asq_control, encode_asq_control },
+	{ "1.2.840.113556.1.4.841", decode_dirsync_request, encode_dirsync_request },
+	{ "1.2.840.113556.1.4.528", decode_notification_request, encode_notification_request },
+	{ "1.2.840.113556.1.4.417", decode_show_deleted_request, encode_show_deleted_request },
+	{ "1.2.840.113556.1.4.2064", decode_show_recycled_request, encode_show_recycled_request },
+	{ "1.2.840.113556.1.4.2065", decode_show_deactivated_link_request, encode_show_deactivated_link_request },
+	{ "1.2.840.113556.1.4.1413", decode_permissive_modify_request, encode_permissive_modify_request },
+	{ "1.2.840.113556.1.4.801", decode_sd_flags_request, encode_sd_flags_request },
+	{ "1.2.840.113556.1.4.1339", decode_domain_scope_request, encode_domain_scope_request },
+	{ "1.2.840.113556.1.4.1340", decode_search_options_request, encode_search_options_request },
+	{ "2.16.840.1.113730.3.4.2", decode_manageDSAIT_request, encode_manageDSAIT_request },
+	{ "2.16.840.1.113730.3.4.9", decode_vlv_request, encode_vlv_request },
+	{ "2.16.840.1.113730.3.4.10", decode_vlv_response, encode_vlv_response },
 /* DSDB_CONTROL_CURRENT_PARTITION_OID is internal only, and has no network representation */
-	{ DSDB_CONTROL_CURRENT_PARTITION_OID, NULL, NULL },
-/* DSDB_CONTROL_REPLICATED_UPDATE_OID is internal only, and has no network representation */
-	{ DSDB_CONTROL_REPLICATED_UPDATE_OID, NULL, NULL },
-/* DSDB_CONTROL_DN_STORAGE_FORMAT_OID is internal only, and has no network representation */
-	{ DSDB_CONTROL_DN_STORAGE_FORMAT_OID, NULL, NULL },
-/* LDB_CONTROL_RECALCULATE_SD_OID is internal only, and has no network representation */
-	{ LDB_CONTROL_RECALCULATE_SD_OID, NULL, NULL },
-/* LDB_CONTROL_REVEAL_INTERNALS is internal only, and has no network representation */
-	{ LDB_CONTROL_REVEAL_INTERNALS, NULL, NULL },
-/* LDB_CONTROL_AS_SYSTEM_OID is internal only, and has no network representation */
-	{ LDB_CONTROL_AS_SYSTEM_OID, NULL, NULL },
-/* DSDB_CONTROL_PASSWORD_CHANGE_STATUS_OID is internal only, and has no network representation */
-	{ DSDB_CONTROL_PASSWORD_CHANGE_STATUS_OID, NULL, NULL },
-/* DSDB_CONTROL_PASSWORD_HASH_VALUES_OID is internal only, and has no network representation */
-	{ DSDB_CONTROL_PASSWORD_HASH_VALUES_OID, NULL, NULL },
-/* DSDB_CONTROL_PASSWORD_CHANGE_OID is internal only, and has no network representation */
-	{ DSDB_CONTROL_PASSWORD_CHANGE_OID, NULL, NULL },
-/* DSDB_CONTROL_APPLY_LINKS is internal only, and has no network representation */
-	{ DSDB_CONTROL_APPLY_LINKS, NULL, NULL },
-/* DSDB_CONTROL_BYPASS_PASSWORD_HASH_OID is internal only, and has an empty network representation */
-	{ DSDB_CONTROL_BYPASS_PASSWORD_HASH_OID, decode_flag_request, encode_flag_request },
-/* LDB_CONTROL_BYPASS_OPERATIONAL_OID is internal only, and has no network representation */
-	{ LDB_CONTROL_BYPASS_OPERATIONAL_OID, NULL, NULL },
-/* DSDB_CONTROL_CHANGEREPLMETADATA_OID is internal only, and has no network representation */
-	{ DSDB_CONTROL_CHANGEREPLMETADATA_OID, NULL, NULL },
-/* LDB_CONTROL_PROVISION_OID is internal only, and has no network representation */
-	{ LDB_CONTROL_PROVISION_OID, NULL, NULL },
+	{ "1.3.6.1.4.1.7165.4.3.2", NULL, NULL },
 /* DSDB_EXTENDED_REPLICATED_OBJECTS_OID is internal only, and has no network representation */
-	{ DSDB_EXTENDED_REPLICATED_OBJECTS_OID, NULL, NULL },
-/* DSDB_EXTENDED_SCHEMA_UPDATE_NOW_OID is internal only, and has no network representation */
-	{ DSDB_EXTENDED_SCHEMA_UPDATE_NOW_OID, NULL, NULL },
-/* DSDB_EXTENDED_ALLOCATE_RID_POOL is internal only, and has no network representation */
-	{ DSDB_EXTENDED_ALLOCATE_RID_POOL, NULL, NULL },
+	{ "1.3.6.1.4.1.7165.4.4.1", NULL, NULL },
+	{ DSDB_OPENLDAP_DEREFERENCE_CONTROL, decode_openldap_dereference, encode_openldap_dereference},
 	{ NULL, NULL, NULL }
 };
 

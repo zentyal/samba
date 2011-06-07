@@ -41,7 +41,6 @@
 #endif
 
 #include <krb5-types.h>
-#include <roken.h>
 
 #include "wind.h"
 #include "wind_err.h"

@@ -33,7 +33,7 @@
 
 #include "gsskrb5_locl.h"
 
-OM_uint32 GSSAPI_CALLCONV
+OM_uint32
 _gsskrb5_pseudo_random(OM_uint32 *minor_status,
 		       gss_ctx_id_t context_handle,
 		       int prf_key,
@@ -132,7 +132,6 @@ _gsskrb5_pseudo_random(OM_uint32 *minor_status,
 	krb5_data_free(&output);
 	num++;
     }
-    free(input.data);
 
     krb5_crypto_destroy(context, crypto);
 

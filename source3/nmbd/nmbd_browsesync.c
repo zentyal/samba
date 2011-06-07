@@ -21,7 +21,6 @@
 */
 
 #include "includes.h"
-#include "nmbd/nmbd.h"
 
 /* This is our local master browser list database. */
 extern struct browse_cache_record *lmb_browserlist;
@@ -643,11 +642,6 @@ void sync_all_dmbs(time_t t)
 		if (strcmp(lp_workgroup(), work->work_group)) {
 			count++;
 		}
-	}
-
-	/* leave if we don't have to do any syncs */
-	if (count == 0) {
-		return;
 	}
 
 	/* sync with a probability of 1/count */

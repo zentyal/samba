@@ -21,10 +21,6 @@
 
 #include "includes.h"
 #include "utils/net.h"
-#include "rpc_client/cli_pipe.h"
-#include "../librpc/gen_ndr/ndr_lsa.h"
-#include "rpc_client/cli_lsarpc.h"
-#include "libsmb/libsmb.h"
 
 /********************************************************
  Connection cachine struct. Goes away when ctx destroyed.
@@ -111,7 +107,8 @@ static struct con_struct *create_cs(struct net_context *c,
 					"",
 #endif
 					0,
-					Undefined);
+					Undefined,
+					NULL);
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(2,("create_cs: Connect failed. Error was %s\n", nt_errstr(nt_status)));
@@ -158,7 +155,7 @@ static struct con_struct *create_cs(struct net_context *c,
 
 NTSTATUS net_lookup_name_from_sid(struct net_context *c,
 				TALLOC_CTX *ctx,
-				struct dom_sid *psid,
+				DOM_SID *psid,
 				const char **ppdomain,
 				const char **ppname)
 {
@@ -200,11 +197,11 @@ NTSTATUS net_lookup_name_from_sid(struct net_context *c,
 ********************************************************/
 
 NTSTATUS net_lookup_sid_from_name(struct net_context *c, TALLOC_CTX *ctx,
-				  const char *full_name, struct dom_sid *pret_sid)
+				  const char *full_name, DOM_SID *pret_sid)
 {
 	NTSTATUS nt_status;
 	struct con_struct *csp = NULL;
-	struct dom_sid *sids = NULL;
+	DOM_SID *sids = NULL;
 	enum lsa_SidType *types = NULL;
 
 	csp = create_cs(c, ctx, &nt_status);

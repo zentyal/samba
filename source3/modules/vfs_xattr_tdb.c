@@ -18,13 +18,8 @@
  */
 
 #include "includes.h"
-#include "system/filesys.h"
-#include "smbd/smbd.h"
 #include "librpc/gen_ndr/xattr.h"
 #include "librpc/gen_ndr/ndr_xattr.h"
-#include "../librpc/gen_ndr/ndr_netlogon.h"
-#include "dbwrap.h"
-#include "util_tdb.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_VFS
@@ -52,14 +47,15 @@ static NTSTATUS xattr_tdb_pull_attrs(TALLOC_CTX *mem_ctx,
 
 	blob = data_blob_const(data->dptr, data->dsize);
 
-	ndr_err = ndr_pull_struct_blob(&blob, result, result,
+	ndr_err = ndr_pull_struct_blob(
+		&blob, result, NULL, result,
 		(ndr_pull_flags_fn_t)ndr_pull_tdb_xattrs);
 
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		DEBUG(0, ("ndr_pull_tdb_xattrs failed: %s\n",
 			  ndr_errstr(ndr_err)));
 		TALLOC_FREE(result);
-		return ndr_map_error2ntstatus(ndr_err);
+		return ndr_map_error2ntstatus(ndr_err);;
 	}
 
 	*presult = result;
@@ -77,13 +73,14 @@ static NTSTATUS xattr_tdb_push_attrs(TALLOC_CTX *mem_ctx,
 	DATA_BLOB blob;
 	enum ndr_err_code ndr_err;
 
-	ndr_err = ndr_push_struct_blob(&blob, mem_ctx, attribs,
+	ndr_err = ndr_push_struct_blob(
+		&blob, mem_ctx, NULL, attribs,
 		(ndr_push_flags_fn_t)ndr_push_tdb_xattrs);
 
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		DEBUG(0, ("ndr_push_tdb_xattrs failed: %s\n",
 			  ndr_errstr(ndr_err)));
-		return ndr_map_error2ntstatus(ndr_err);
+		return ndr_map_error2ntstatus(ndr_err);;
 	}
 
 	*data = make_tdb_data(blob.data, blob.length);
@@ -727,7 +724,7 @@ static void close_xattr_db(void **data)
 static int xattr_tdb_connect(vfs_handle_struct *handle, const char *service,
 			  const char *user)
 {
-	char *sname = NULL;
+	fstring sname;
 	int res, snum;
 	struct db_context *db;
 
@@ -736,8 +733,9 @@ static int xattr_tdb_connect(vfs_handle_struct *handle, const char *service,
 		return res;
 	}
 
-	snum = find_service(talloc_tos(), service, &sname);
-	if (snum == -1 || sname == NULL) {
+	fstrcpy(sname, service);
+	snum = find_service(sname);
+	if (snum == -1) {
 		/*
 		 * Should not happen, but we should not fail just *here*.
 		 */

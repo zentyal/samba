@@ -33,9 +33,7 @@
  *  Author: Simo Sorce
  */
 
-#include "replace.h"
-#include "system/filesys.h"
-#include "system/time.h"
+#include "includes.h"
 #include "ldb_module.h"
 
 #define PS_DEFAULT_PAGE_SIZE 500
@@ -54,7 +52,7 @@ struct ps_context {
 	bool pending;
 
 	char **saved_referrals;
-	unsigned int num_referrals;
+	int num_referrals;
 
 	struct ldb_request *down_req;
 };
@@ -80,7 +78,7 @@ static int check_ps_continuation(struct ps_context *ac, struct ldb_request *req,
 			ldb_set_errstring(ldb, "paged_searches:  ERROR: We got back a control from a previous page, but this time no control was returned!");
 			return LDB_ERR_OPERATIONS_ERROR;
 		} else {
-			/* No cookie received yet, valid to just return the full data set */
+			/* No cookie recived yet, valid to just return the full data set */
 
 			/* we are done */
 			ac->pending = false;
@@ -134,7 +132,7 @@ static int send_referrals(struct ps_context *ac)
 {
 	struct ldb_reply *ares;
 	int ret;
-	unsigned int i;
+	int i;
 
 	for (i = 0; i < ac->num_referrals; i++) {
 		ares = talloc_zero(ac->req, struct ldb_reply);
@@ -272,7 +270,6 @@ static int ps_search(struct ldb_module *module, struct ldb_request *req)
 					ac,
 					ps_callback,
 					ac->req);
-	LDB_REQ_SET_LOCATION(ac->down_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -354,7 +351,6 @@ static int ps_init(struct ldb_module *module)
 				   attrs, NULL,
 				   data, check_supported_paged,
 				   NULL);
-	LDB_REQ_SET_LOCATION(req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -373,14 +369,8 @@ static int ps_init(struct ldb_module *module)
 	return ldb_next_init(module);
 }
 
-static const struct ldb_module_ops ldb_paged_searches_module_ops = {
+_PUBLIC_ const struct ldb_module_ops ldb_paged_searches_module_ops = {
 	.name           = "paged_searches",
 	.search         = ps_search,
 	.init_context 	= ps_init
 };
-
-int ldb_paged_searches_init(const char *version)
-{
-	LDB_MODULE_CHECK_VERSION(version);
-	return ldb_register_module(&ldb_paged_searches_module_ops);
-}

@@ -97,7 +97,8 @@ static void winbindd_show_sequence_done_one(struct tevent_req *subreq)
 
 	status = wb_seqnum_recv(subreq, &state->seqnum);
 	TALLOC_FREE(subreq);
-	if (tevent_req_nterror(req, status)) {
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
 		return;
 	}
 	tevent_req_done(req);
@@ -115,7 +116,8 @@ static void winbindd_show_sequence_done_all(struct tevent_req *subreq)
 				 &state->domains, &state->stati,
 				 &state->seqnums);
 	TALLOC_FREE(subreq);
-	if (tevent_req_nterror(req, status)) {
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
 		return;
 	}
 	tevent_req_done(req);

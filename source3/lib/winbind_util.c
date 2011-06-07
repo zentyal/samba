@@ -19,13 +19,10 @@
 */
 
 #include "includes.h"
-#include "../libcli/security/security.h"
-#include "../lib/util/util_pw.h"
-#include "nsswitch/libwbclient/wbclient.h"
 
 #if defined(WITH_WINBIND)
 
-#include "lib/winbind_util.h"
+#include "nsswitch/libwbclient/wbclient.h"
 
 struct passwd * winbind_getpwnam(const char * name)
 {
@@ -44,7 +41,7 @@ struct passwd * winbind_getpwnam(const char * name)
 	return pwd;
 }
 
-struct passwd * winbind_getpwsid(const struct dom_sid *sid)
+struct passwd * winbind_getpwsid(const DOM_SID *sid)
 {
 	wbcErr result;
 	struct passwd * tmp_pwd = NULL;
@@ -66,7 +63,7 @@ struct passwd * winbind_getpwsid(const struct dom_sid *sid)
 
 /* Call winbindd to convert a name to a sid */
 
-bool winbind_lookup_name(const char *dom_name, const char *name, struct dom_sid *sid,
+bool winbind_lookup_name(const char *dom_name, const char *name, DOM_SID *sid, 
                          enum lsa_SidType *name_type)
 {
 	struct wbcDomainSid dom_sid;
@@ -77,7 +74,7 @@ bool winbind_lookup_name(const char *dom_name, const char *name, struct dom_sid 
 	if (result != WBC_ERR_SUCCESS)
 		return false;
 
-	memcpy(sid, &dom_sid, sizeof(struct dom_sid));
+	memcpy(sid, &dom_sid, sizeof(DOM_SID));	
 	*name_type = (enum lsa_SidType)type;	
 
 	return true;	
@@ -85,7 +82,7 @@ bool winbind_lookup_name(const char *dom_name, const char *name, struct dom_sid 
 
 /* Call winbindd to convert sid to name */
 
-bool winbind_lookup_sid(TALLOC_CTX *mem_ctx, const struct dom_sid *sid,
+bool winbind_lookup_sid(TALLOC_CTX *mem_ctx, const DOM_SID *sid, 
 			const char **domain, const char **name,
                         enum lsa_SidType *name_type)
 {
@@ -137,7 +134,7 @@ bool winbind_ping(void)
 
 /* Call winbindd to convert SID to uid */
 
-bool winbind_sid_to_uid(uid_t *puid, const struct dom_sid *sid)
+bool winbind_sid_to_uid(uid_t *puid, const DOM_SID *sid)
 {
 	struct wbcDomainSid dom_sid;
 	wbcErr result;
@@ -151,14 +148,14 @@ bool winbind_sid_to_uid(uid_t *puid, const struct dom_sid *sid)
 
 /* Call winbindd to convert uid to sid */
 
-bool winbind_uid_to_sid(struct dom_sid *sid, uid_t uid)
+bool winbind_uid_to_sid(DOM_SID *sid, uid_t uid)
 {
 	struct wbcDomainSid dom_sid;
 	wbcErr result;
 
 	result = wbcUidToSid(uid, &dom_sid);
 	if (result == WBC_ERR_SUCCESS) {
-		memcpy(sid, &dom_sid, sizeof(struct dom_sid));
+		memcpy(sid, &dom_sid, sizeof(DOM_SID));
 	} else {
 		sid_copy(sid, &global_sid_NULL);
 	}
@@ -168,7 +165,7 @@ bool winbind_uid_to_sid(struct dom_sid *sid, uid_t uid)
 
 /* Call winbindd to convert SID to gid */
 
-bool winbind_sid_to_gid(gid_t *pgid, const struct dom_sid *sid)
+bool winbind_sid_to_gid(gid_t *pgid, const DOM_SID *sid)
 {
 	struct wbcDomainSid dom_sid;
 	wbcErr result;
@@ -182,14 +179,14 @@ bool winbind_sid_to_gid(gid_t *pgid, const struct dom_sid *sid)
 
 /* Call winbindd to convert gid to sid */
 
-bool winbind_gid_to_sid(struct dom_sid *sid, gid_t gid)
+bool winbind_gid_to_sid(DOM_SID *sid, gid_t gid)
 {
 	struct wbcDomainSid dom_sid;
 	wbcErr result;
 
 	result = wbcGidToSid(gid, &dom_sid);
 	if (result == WBC_ERR_SUCCESS) {
-		memcpy(sid, &dom_sid, sizeof(struct dom_sid));
+		memcpy(sid, &dom_sid, sizeof(DOM_SID));
 	} else {
 		sid_copy(sid, &global_sid_NULL);
 	}
@@ -216,7 +213,7 @@ wbcErr wb_is_trusted_domain(const char *domain)
 /* Lookup a set of rids in a given domain */
 
 bool winbind_lookup_rids(TALLOC_CTX *mem_ctx,
-			 const struct dom_sid *domain_sid,
+			 const DOM_SID *domain_sid,
 			 int num_rids, uint32 *rids,
 			 const char **domain_name,
 			 const char ***names, enum lsa_SidType **types)
@@ -298,8 +295,8 @@ bool winbind_get_groups(TALLOC_CTX * mem_ctx, const char *account, uint32_t *num
 }
 
 bool winbind_get_sid_aliases(TALLOC_CTX *mem_ctx,
-			     const struct dom_sid *dom_sid,
-			     const struct dom_sid *members,
+			     const DOM_SID *dom_sid,
+			     const DOM_SID *members,
 			     size_t num_members,
 			     uint32_t **pp_alias_rids,
 			     size_t *p_num_alias_rids)
@@ -349,12 +346,12 @@ struct passwd * winbind_getpwnam(const char * name)
 	return NULL;
 }
 
-struct passwd * winbind_getpwsid(const struct dom_sid *sid)
+struct passwd * winbind_getpwsid(const DOM_SID *sid)
 {
 	return NULL;
 }
 
-bool winbind_lookup_name(const char *dom_name, const char *name, struct dom_sid *sid,
+bool winbind_lookup_name(const char *dom_name, const char *name, DOM_SID *sid, 
                          enum lsa_SidType *name_type)
 {
 	return false;
@@ -362,7 +359,7 @@ bool winbind_lookup_name(const char *dom_name, const char *name, struct dom_sid 
 
 /* Call winbindd to convert sid to name */
 
-bool winbind_lookup_sid(TALLOC_CTX *mem_ctx, const struct dom_sid *sid,
+bool winbind_lookup_sid(TALLOC_CTX *mem_ctx, const DOM_SID *sid, 
 			const char **domain, const char **name,
                         enum lsa_SidType *name_type)
 {
@@ -378,28 +375,28 @@ bool winbind_ping(void)
 
 /* Call winbindd to convert SID to uid */
 
-bool winbind_sid_to_uid(uid_t *puid, const struct dom_sid *sid)
+bool winbind_sid_to_uid(uid_t *puid, const DOM_SID *sid)
 {
 	return false;
 }
 
 /* Call winbindd to convert uid to sid */
 
-bool winbind_uid_to_sid(struct dom_sid *sid, uid_t uid)
+bool winbind_uid_to_sid(DOM_SID *sid, uid_t uid)
 {
 	return false;
 }
 
 /* Call winbindd to convert SID to gid */
 
-bool winbind_sid_to_gid(gid_t *pgid, const struct dom_sid *sid)
+bool winbind_sid_to_gid(gid_t *pgid, const DOM_SID *sid)
 {
 	return false;	
 }
 
 /* Call winbindd to convert gid to sid */
 
-bool winbind_gid_to_sid(struct dom_sid *sid, gid_t gid)
+bool winbind_gid_to_sid(DOM_SID *sid, gid_t gid)
 {
 	return false;
 }
@@ -414,7 +411,7 @@ wbcErr wb_is_trusted_domain(const char *domain)
 /* Lookup a set of rids in a given domain */
 
 bool winbind_lookup_rids(TALLOC_CTX *mem_ctx,
-			 const struct dom_sid *domain_sid,
+			 const DOM_SID *domain_sid,
 			 int num_rids, uint32 *rids,
 			 const char **domain_name,
 			 const char ***names, enum lsa_SidType **types)
@@ -442,8 +439,8 @@ bool winbind_get_groups(TALLOC_CTX *mem_ctx, const char *account, uint32_t *num_
 }
 
 bool winbind_get_sid_aliases(TALLOC_CTX *mem_ctx,
-			     const struct dom_sid *dom_sid,
-			     const struct dom_sid *members,
+			     const DOM_SID *dom_sid,
+			     const DOM_SID *members,
 			     size_t num_members,
 			     uint32_t **pp_alias_rids,
 			     size_t *p_num_alias_rids)

@@ -5,31 +5,27 @@
    Copyright (C) Andrew Tridgell		2002
    Copyright (C) Gerald (Jerry) Carter		2000
    Copyright (C) Stefan (metze) Metzmacher	2002
-
+      
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
-#include "passdb.h"
-#include "secrets.h"
-#include "dbwrap.h"
-#include "../libcli/security/security.h"
 
 /* NOTE! the global_sam_sid is the SID of our local SAM. This is only
    equal to the domain SID when we are a DC, otherwise its our
    workstation SID */
-static struct dom_sid *global_sam_sid=NULL;
+static DOM_SID *global_sam_sid=NULL;
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_PASSDB
@@ -39,19 +35,19 @@ static struct dom_sid *global_sam_sid=NULL;
  style of SID storage
 ****************************************************************************/
 
-static bool read_sid_from_file(const char *fname, struct dom_sid *sid)
+static bool read_sid_from_file(const char *fname, DOM_SID *sid)
 {
 	char **lines;
 	int numlines;
 	bool ret;
 
 	lines = file_lines_load(fname, &numlines,0, NULL);
-
+	
 	if (!lines || numlines < 1) {
-		TALLOC_FREE(lines);
+		if (lines) TALLOC_FREE(lines);
 		return False;
 	}
-
+	
 	ret = string_to_sid(sid, lines[0]);
 	TALLOC_FREE(lines);
 	return ret;
@@ -60,13 +56,12 @@ static bool read_sid_from_file(const char *fname, struct dom_sid *sid)
 /*
   generate a random sid - used to build our own sid if we don't have one
 */
-static void generate_random_sid(struct dom_sid *sid)
+static void generate_random_sid(DOM_SID *sid)
 {
 	int i;
 	uchar raw_sid_data[12];
 
-	ZERO_STRUCTP(sid);
-
+	memset((char *)sid, '\0', sizeof(*sid));
 	sid->sid_rev_num = 1;
 	sid->id_auth[5] = 5;
 	sid->num_auths = 0;
@@ -81,13 +76,13 @@ static void generate_random_sid(struct dom_sid *sid)
  Generate the global machine sid.
 ****************************************************************************/
 
-static struct dom_sid *pdb_generate_sam_sid(void)
+static DOM_SID *pdb_generate_sam_sid(void)
 {
-	struct dom_sid domain_sid;
+	DOM_SID domain_sid;
 	char *fname = NULL;
-	struct dom_sid *sam_sid;
-
-	if(!(sam_sid=SMB_MALLOC_P(struct dom_sid)))
+	DOM_SID *sam_sid;
+	
+	if(!(sam_sid=SMB_MALLOC_P(DOM_SID)))
 		return NULL;
 
 	if ( IS_DC ) {
@@ -115,7 +110,7 @@ static struct dom_sid *pdb_generate_sam_sid(void)
 			return sam_sid;
 		}
 
-		if (!dom_sid_equal(&domain_sid, sam_sid)) {
+		if (!sid_equal(&domain_sid, sam_sid)) {
 
 			/* Domain name sid doesn't match global sam sid. Re-store domain sid as 'local' sid. */
 
@@ -129,6 +124,7 @@ static struct dom_sid *pdb_generate_sam_sid(void)
 		}
 
 		return sam_sid;
+		
 	}
 
 	/* check for an old MACHINE.SID file for backwards compatibility */
@@ -183,13 +179,13 @@ static struct dom_sid *pdb_generate_sam_sid(void)
 }   
 
 /* return our global_sam_sid */
-struct dom_sid *get_global_sam_sid(void)
+DOM_SID *get_global_sam_sid(void)
 {
 	struct db_context *db;
 
 	if (global_sam_sid != NULL)
 		return global_sam_sid;
-
+	
 	/*
 	 * memory for global_sam_sid is allocated in
 	 * pdb_generate_sam_sid() as needed
@@ -232,20 +228,21 @@ void reset_global_sam_sid(void)
  Check if the SID is our domain SID (S-1-5-21-x-y-z).
 *****************************************************************/  
 
-bool sid_check_is_domain(const struct dom_sid *sid)
+bool sid_check_is_domain(const DOM_SID *sid)
 {
-	return dom_sid_equal(sid, get_global_sam_sid());
+	return sid_equal(sid, get_global_sam_sid());
 }
 
 /*****************************************************************
  Check if the SID is our domain SID (S-1-5-21-x-y-z).
 *****************************************************************/  
 
-bool sid_check_is_in_our_domain(const struct dom_sid *sid)
+bool sid_check_is_in_our_domain(const DOM_SID *sid)
 {
-	struct dom_sid dom_sid;
+	DOM_SID dom_sid;
+	uint32 rid;
 
 	sid_copy(&dom_sid, sid);
-	sid_split_rid(&dom_sid, NULL);
+	sid_split_rid(&dom_sid, &rid);
 	return sid_check_is_domain(&dom_sid);
 }

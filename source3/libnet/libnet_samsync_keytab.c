@@ -19,26 +19,31 @@
 */
 
 #include "includes.h"
-#include "smb_krb5.h"
-#include "ads.h"
-#include "libnet/libnet_keytab.h"
-#include "libnet/libnet_samsync.h"
-#include "krb5_env.h"
+#include "libnet/libnet.h"
 
-#if defined(HAVE_ADS)
+#if defined(HAVE_ADS) && defined(ENCTYPE_ARCFOUR_HMAC)
 
 /****************************************************************
 ****************************************************************/
 
 static NTSTATUS keytab_ad_connect(TALLOC_CTX *mem_ctx,
 				  const char *domain_name,
-				  const char *dc,
 				  const char *username,
 				  const char *password,
 				  struct libnet_keytab_context *ctx)
 {
+	NTSTATUS status;
 	ADS_STATUS ad_status;
 	ADS_STRUCT *ads;
+	struct netr_DsRGetDCNameInfo *info = NULL;
+	const char *dc;
+
+	status = dsgetdcname(mem_ctx, NULL, domain_name, NULL, NULL, 0, &info);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	dc = strip_hostname(info->dc_unc);
 
 	ads = ads_init(NULL, domain_name, dc);
 	NT_STATUS_HAVE_NO_MEMORY(ads);
@@ -110,28 +115,17 @@ static NTSTATUS init_keytab(TALLOC_CTX *mem_ctx,
 	struct libnet_keytab_entry *entry;
 	uint64_t old_sequence_num = 0;
 	const char *principal = NULL;
-	struct netr_DsRGetDCNameInfo *info = NULL;
-	const char *dc;
 
 	ret = libnet_keytab_init(mem_ctx, ctx->output_filename, &keytab_ctx);
 	if (ret) {
 		return krb5_to_nt_status(ret);
 	}
 
-	status = dsgetdcname(mem_ctx, ctx->msg_ctx,
-			     ctx->domain_name, NULL, NULL, 0, &info);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	dc = strip_hostname(info->dc_unc);
-
 	keytab_ctx->clean_old_entries = ctx->clean_old_entries;
 	ctx->private_data = keytab_ctx;
 
 	status = keytab_ad_connect(mem_ctx,
 				   ctx->domain_name,
-				   dc,
 				   ctx->username,
 				   ctx->password,
 				   keytab_ctx);
@@ -299,7 +293,7 @@ static NTSTATUS close_keytab(TALLOC_CTX *mem_ctx,
 	return NT_STATUS_NOT_SUPPORTED;
 }
 
-#endif /* defined(HAVE_ADS) */
+#endif /* defined(HAVE_ADS) && defined(ENCTYPE_ARCFOUR_HMAC) */
 
 const struct samsync_ops libnet_samsync_keytab_ops = {
 	.startup		= init_keytab,

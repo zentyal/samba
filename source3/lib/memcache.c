@@ -31,7 +31,7 @@ struct memcache_element {
 };
 
 struct memcache {
-	struct memcache_element *mru;
+	struct memcache_element *mru, *lru;
 	struct rb_root tree;
 	size_t size;
 	size_t max_size;
@@ -161,7 +161,16 @@ bool memcache_lookup(struct memcache *cache, enum memcache_number n,
 	}
 
 	if (cache->size != 0) {
+		/*
+		 * Do LRU promotion only when we will ever shrink
+		 */
+		if (e == cache->lru) {
+			cache->lru = e->prev;
+		}
 		DLIST_PROMOTE(cache->mru, e);
+		if (cache->mru == NULL) {
+			cache->mru = e;
+		}
 	}
 
 	memcache_element_parse(e, &key, value);
@@ -192,6 +201,9 @@ static void memcache_delete_element(struct memcache *cache,
 {
 	rb_erase(&e->rb_node, &cache->tree);
 
+	if (e == cache->lru) {
+		cache->lru = e->prev;
+	}
 	DLIST_REMOVE(cache->mru, e);
 
 	if (memcache_is_talloc(e->n)) {
@@ -215,8 +227,8 @@ static void memcache_trim(struct memcache *cache)
 		return;
 	}
 
-	while ((cache->size > cache->max_size) && DLIST_TAIL(cache->mru)) {
-		memcache_delete_element(cache, DLIST_TAIL(cache->mru));
+	while ((cache->size > cache->max_size) && (cache->lru != NULL)) {
+		memcache_delete_element(cache, cache->lru);
 	}
 }
 
@@ -319,6 +331,9 @@ void memcache_add(struct memcache *cache, enum memcache_number n,
 	rb_insert_color(&e->rb_node, &cache->tree);
 
 	DLIST_ADD(cache->mru, e);
+	if (cache->lru == NULL) {
+		cache->lru = e;
+	}
 
 	cache->size += element_size;
 	memcache_trim(cache);
@@ -383,6 +398,10 @@ void memcache_flush(struct memcache *cache, enum memcache_number n)
 			break;
 		}
 		node = next;
+	}
+
+	if (node == NULL) {
+		return;
 	}
 
 	/*

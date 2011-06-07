@@ -23,9 +23,7 @@
 
 
 #include "includes.h"
-#include "smbd/smbd.h"
 #include "smbd/globals.h"
-#include "smbprofile.h"
 
 extern userdom_struct current_user_info;
 
@@ -247,7 +245,7 @@ void reply_sendtxt(struct smb_request *req)
 		return;
 	}
 
-	if ((smbd_msg_state == NULL) || (req->buflen < 3)) {
+	if (smbd_msg_state == NULL) {
 		reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
 		END_PROFILE(SMBsendtxt);
 		return;

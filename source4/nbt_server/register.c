@@ -93,7 +93,7 @@ static void name_refresh_handler(struct tevent_context *ev, struct tevent_timer 
 	   registration packets */
 	io.in.name            = iname->name;
 	io.in.dest_addr       = iface->bcast_address;
-	io.in.dest_port       = lpcfg_nbt_port(iface->nbtsrv->task->lp_ctx);
+	io.in.dest_port       = lp_nbt_port(iface->nbtsrv->task->lp_ctx);
 	io.in.address         = iface->ip_address;
 	io.in.nb_flags        = iname->nb_flags;
 	io.in.ttl             = iname->ttl;
@@ -118,7 +118,7 @@ static void name_refresh_handler(struct tevent_context *ev, struct tevent_timer 
 static void nbtd_start_refresh_timer(struct nbtd_iface_name *iname)
 {
 	uint32_t refresh_time;
-	uint32_t max_refresh_time = lpcfg_parm_int(iname->iface->nbtsrv->task->lp_ctx, NULL, "nbtd", "max_refresh_time", 7200);
+	uint32_t max_refresh_time = lp_parm_int(iname->iface->nbtsrv->task->lp_ctx, NULL, "nbtd", "max_refresh_time", 7200);
 
 	refresh_time = MIN(max_refresh_time, iname->ttl/2);
 	
@@ -128,32 +128,26 @@ static void nbtd_start_refresh_timer(struct nbtd_iface_name *iname)
 			name_refresh_handler, iname);
 }
 
-struct nbtd_register_name_state {
-	struct nbtd_iface_name *iname;
-	struct nbt_name_register_bcast io;
-};
 
 /*
   a name registration has completed
 */
-static void nbtd_register_name_handler(struct tevent_req *subreq)
+static void nbtd_register_handler(struct composite_context *creq)
 {
-	struct nbtd_register_name_state *state =
-		tevent_req_callback_data(subreq,
-		struct nbtd_register_name_state);
-	struct nbtd_iface_name *iname = state->iname;
+	struct nbtd_iface_name *iname = talloc_get_type(creq->async.private_data, 
+							struct nbtd_iface_name);
 	NTSTATUS status;
+	TALLOC_CTX *tmp_ctx = talloc_new(iname);
 
-	status = nbt_name_register_bcast_recv(subreq);
-	TALLOC_FREE(subreq);
+	status = nbt_name_register_bcast_recv(creq);
 	if (NT_STATUS_IS_OK(status)) {
 		/* good - nobody complained about our registration */
 		iname->nb_flags |= NBT_NM_ACTIVE;
 		DEBUG(3,("Registered %s with %s on interface %s\n",
-			 nbt_name_string(state, &iname->name),
+			 nbt_name_string(tmp_ctx, &iname->name), 
 			 iname->iface->ip_address, iname->iface->bcast_address));
 		iname->registration_time = timeval_current();
-		talloc_free(state);
+		talloc_free(tmp_ctx);
 		nbtd_start_refresh_timer(iname);
 		return;
 	}
@@ -162,10 +156,10 @@ static void nbtd_register_name_handler(struct tevent_req *subreq)
 	iname->nb_flags |= NBT_NM_CONFLICT;
 
 	DEBUG(1,("Error registering %s with %s on interface %s - %s\n",
-		 nbt_name_string(state, &iname->name),
+		 nbt_name_string(tmp_ctx, &iname->name),
 		 iname->iface->ip_address, iname->iface->bcast_address,
 		 nt_errstr(status)));
-	talloc_free(state);
+	talloc_free(tmp_ctx);
 }
 
 
@@ -177,9 +171,9 @@ static void nbtd_register_name_iface(struct nbtd_interface *iface,
 				     uint16_t nb_flags)
 {
 	struct nbtd_iface_name *iname;
-	const char *scope = lpcfg_netbios_scope(iface->nbtsrv->task->lp_ctx);
-	struct nbtd_register_name_state *state;
-	struct tevent_req *subreq;
+	const char *scope = lp_netbios_scope(iface->nbtsrv->task->lp_ctx);
+	struct nbt_name_register_bcast io;
+	struct composite_context *creq;
 	struct nbtd_server *nbtsrv = iface->nbtsrv;
 
 	iname = talloc(iface, struct nbtd_iface_name);
@@ -194,7 +188,7 @@ static void nbtd_register_name_iface(struct nbtd_interface *iface,
 		iname->name.scope = NULL;
 	}
 	iname->nb_flags          = nb_flags;
-	iname->ttl               = lpcfg_parm_int(iface->nbtsrv->task->lp_ctx, NULL, "nbtd", "bcast_ttl", 300000);
+	iname->ttl               = lp_parm_int(iface->nbtsrv->task->lp_ctx, NULL, "nbtd", "bcast_ttl", 300000);
 	iname->registration_time = timeval_zero();
 	iname->wins_server       = NULL;
 
@@ -214,30 +208,20 @@ static void nbtd_register_name_iface(struct nbtd_interface *iface,
 		return;
 	}
 
-	state = talloc_zero(iname, struct nbtd_register_name_state);
-	if (state == NULL) {
-		return;
-	}
-
-	state->iname = iname;
-
 	/* setup a broadcast name registration request */
-	state->io.in.name      = iname->name;
-	state->io.in.dest_addr = iface->bcast_address;
-	state->io.in.dest_port = lpcfg_nbt_port(iface->nbtsrv->task->lp_ctx);
-	state->io.in.address   = iface->ip_address;
-	state->io.in.nb_flags  = nb_flags;
-	state->io.in.ttl       = iname->ttl;
+	io.in.name            = iname->name;
+	io.in.dest_addr       = iface->bcast_address;
+	io.in.dest_port       = lp_nbt_port(iface->nbtsrv->task->lp_ctx);
+	io.in.address         = iface->ip_address;
+	io.in.nb_flags        = nb_flags;
+	io.in.ttl             = iname->ttl;
 
 	nbtsrv->stats.total_sent++;
+	creq = nbt_name_register_bcast_send(iface->nbtsock, &io);
+	if (creq == NULL) return;
 
-	subreq = nbt_name_register_bcast_send(state, nbtsrv->task->event_ctx,
-					      iface->nbtsock, &state->io);
-	if (subreq == NULL) {
-		return;
-	}
-
-	tevent_req_set_callback(subreq, nbtd_register_name_handler, state);
+	creq->async.fn = nbtd_register_handler;
+	creq->async.private_data = iname;
 }
 
 
@@ -278,29 +262,29 @@ void nbtd_register_names(struct nbtd_server *nbtsrv)
 
 	/* note that we don't initially mark the names "ACTIVE". They are 
 	   marked active once registration is successful */
-	nbtd_register_name(nbtsrv, lpcfg_netbios_name(nbtsrv->task->lp_ctx), NBT_NAME_CLIENT, nb_flags);
-	nbtd_register_name(nbtsrv, lpcfg_netbios_name(nbtsrv->task->lp_ctx), NBT_NAME_USER,   nb_flags);
-	nbtd_register_name(nbtsrv, lpcfg_netbios_name(nbtsrv->task->lp_ctx), NBT_NAME_SERVER, nb_flags);
+	nbtd_register_name(nbtsrv, lp_netbios_name(nbtsrv->task->lp_ctx), NBT_NAME_CLIENT, nb_flags);
+	nbtd_register_name(nbtsrv, lp_netbios_name(nbtsrv->task->lp_ctx), NBT_NAME_USER,   nb_flags);
+	nbtd_register_name(nbtsrv, lp_netbios_name(nbtsrv->task->lp_ctx), NBT_NAME_SERVER, nb_flags);
 
-	aliases = lpcfg_netbios_aliases(nbtsrv->task->lp_ctx);
+	aliases = lp_netbios_aliases(nbtsrv->task->lp_ctx);
 	while (aliases && aliases[0]) {
 		nbtd_register_name(nbtsrv, aliases[0], NBT_NAME_CLIENT, nb_flags);
 		nbtd_register_name(nbtsrv, aliases[0], NBT_NAME_SERVER, nb_flags);
 		aliases++;
 	}
 
-	if (lpcfg_server_role(nbtsrv->task->lp_ctx) == ROLE_DOMAIN_CONTROLLER)	{
+	if (lp_server_role(nbtsrv->task->lp_ctx) == ROLE_DOMAIN_CONTROLLER)	{
 		bool is_pdc = samdb_is_pdc(nbtsrv->sam_ctx);
 		if (is_pdc) {
-			nbtd_register_name(nbtsrv, lpcfg_workgroup(nbtsrv->task->lp_ctx),
+			nbtd_register_name(nbtsrv, lp_workgroup(nbtsrv->task->lp_ctx),
 					   NBT_NAME_PDC, nb_flags);
 		}
-		nbtd_register_name(nbtsrv, lpcfg_workgroup(nbtsrv->task->lp_ctx),
+		nbtd_register_name(nbtsrv, lp_workgroup(nbtsrv->task->lp_ctx),
 				   NBT_NAME_LOGON, nb_flags | NBT_NM_GROUP);
 	}
 
 	nb_flags |= NBT_NM_GROUP;
-	nbtd_register_name(nbtsrv, lpcfg_workgroup(nbtsrv->task->lp_ctx), NBT_NAME_CLIENT, nb_flags);
+	nbtd_register_name(nbtsrv, lp_workgroup(nbtsrv->task->lp_ctx), NBT_NAME_CLIENT, nb_flags);
 
 	nb_flags |= NBT_NM_PERMANENT;
 	nbtd_register_name(nbtsrv, "__SAMBA__",       NBT_NAME_CLIENT, nb_flags);

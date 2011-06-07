@@ -23,7 +23,7 @@
 #ifndef SAMBA_DCERPC_SERVER_H
 #define SAMBA_DCERPC_SERVER_H
 
-#include "librpc/gen_ndr/server_id4.h"
+#include "librpc/gen_ndr/server_id.h"
 #include "librpc/rpc/dcerpc.h"
 #include "librpc/ndr/libndr.h"
 
@@ -44,7 +44,7 @@ struct dcesrv_interface {
 	struct ndr_syntax_id syntax_id;
 
 	/* this function is called when the client binds to this interface  */
-	NTSTATUS (*bind)(struct dcesrv_call_state *, const struct dcesrv_interface *, uint32_t if_version);
+	NTSTATUS (*bind)(struct dcesrv_call_state *, const struct dcesrv_interface *);
 
 	/* this function is called when the client disconnects the endpoint */
 	void (*unbind)(struct dcesrv_connection_context *, const struct dcesrv_interface *);
@@ -218,13 +218,12 @@ struct dcesrv_connection {
 	struct {
 		void *private_data;
 		void (*report_output_data)(struct dcesrv_connection *);
+		struct socket_address *(*get_my_addr)(struct dcesrv_connection *, TALLOC_CTX *mem_ctx);
+		struct socket_address *(*get_peer_addr)(struct dcesrv_connection *, TALLOC_CTX *mem_ctx);
 	} transport;
 
 	struct tstream_context *stream;
 	struct tevent_queue *send_queue;
-
-	const struct tsocket_address *local_address;
-	const struct tsocket_address *remote_address;
 };
 
 
@@ -261,9 +260,6 @@ struct dcesrv_assoc_group {
 
 	/* parent context */
 	struct dcesrv_context *dce_ctx;
-
-	/* Remote association group ID (if proxied) */
-	uint32_t proxied_id;
 };
 
 /* server-wide context information for the dcerpc server */
@@ -335,8 +331,6 @@ struct dcesrv_handle *dcesrv_handle_fetch(
 struct socket_address *dcesrv_connection_get_my_addr(struct dcesrv_connection *conn, TALLOC_CTX *mem_ctx);
 
 struct socket_address *dcesrv_connection_get_peer_addr(struct dcesrv_connection *conn, TALLOC_CTX *mem_ctx);
-const struct tsocket_address *dcesrv_connection_get_local_address(struct dcesrv_connection *conn);
-const struct tsocket_address *dcesrv_connection_get_remote_address(struct dcesrv_connection *conn);
 
 NTSTATUS dcesrv_fetch_session_key(struct dcesrv_connection *p, DATA_BLOB *session_key);
 
@@ -377,26 +371,6 @@ NTSTATUS dcesrv_fetch_session_key(struct dcesrv_connection *p, DATA_BLOB *sessio
 #define DCESRV_PULL_HANDLE(h, inhandle, t) DCESRV_PULL_HANDLE_RETVAL(h, inhandle, t, NT_STATUS_INVALID_HANDLE)
 #define DCESRV_PULL_HANDLE_WERR(h, inhandle, t) DCESRV_PULL_HANDLE_RETVAL(h, inhandle, t, WERR_BADFID)
 
-NTSTATUS dcesrv_add_ep(struct dcesrv_context *dce_ctx,
-		       struct loadparm_context *lp_ctx,
-		       struct dcesrv_endpoint *e,
-		       struct tevent_context *event_ctx,
-		       const struct model_ops *model_ops);
-
-/**
- * retrieve credentials from a dce_call
- */
-_PUBLIC_ struct cli_credentials *dcesrv_call_credentials(struct dcesrv_call_state *dce_call);
-
-/**
- * returns true if this is an authenticated call
- */
-_PUBLIC_ bool dcesrv_call_authenticated(struct dcesrv_call_state *dce_call);
-
-/**
- * retrieve account_name for a dce_call
- */
-_PUBLIC_ const char *dcesrv_call_account_name(struct dcesrv_call_state *dce_call);
 
 
 #endif /* SAMBA_DCERPC_SERVER_H */

@@ -24,16 +24,19 @@
 #include "winbind/idmap.h"
 #include "libnet/libnet.h"
 
+#define WINBINDD_SAMBA3_SOCKET "pipe"
+/* the privileged socket is in smbd_tmp_dir() */
+#define WINBINDD_SAMBA3_PRIVILEGED_SOCKET "winbind_pipe"
+
 /* this struct stores global data for the winbind task */
 struct wbsrv_service {
 	struct task_server *task;
 
 	const struct dom_sid *primary_sid;
-	enum netr_SchannelType sec_channel_type;
 	struct wbsrv_domain *domains;
 	struct idmap_context *idmap_ctx;
-	const char *priv_pipe_dir;
-	const char *pipe_dir;
+
+	const char *priv_socket_path;
 };
 
 struct wbsrv_samconn {
@@ -48,7 +51,9 @@ struct wb_dom_info {
 	const char *name;
 	const char *dns_name;
 	const struct dom_sid *sid;
-	struct nbt_dc_name *dc;
+
+	int num_dcs;
+	struct nbt_dc_name *dcs;
 };
 
 struct wbsrv_domain {
@@ -95,15 +100,12 @@ struct wbsrv_connection {
 	/* how many calls are pending */
 	uint32_t pending_calls;
 
-	struct tstream_context *tstream;
-
-	struct tevent_queue *send_queue;
+	struct packet_context *packet;
 
 	struct loadparm_context *lp_ctx;
 };
 
 #define WBSRV_SAMBA3_SET_STRING(dest, src) do { \
-	memset(dest, 0, sizeof(dest));\
 	safe_strcpy(dest, src, sizeof(dest)-1);\
 } while(0)
 
@@ -113,19 +115,6 @@ struct wbsrv_connection {
 struct wbsrv_pwent {
 	/* Current UserList structure, contains 1+ user structs */
 	struct libnet_UserList *user_list;
-
-	/* Index of the next user struct in the current UserList struct */
-	uint32_t page_index;
-
-	/* The libnet_ctx to use for the libnet_UserList call */
-	struct libnet_context *libnet_ctx;
-};
-/*
-  state of a grent query
-*/
-struct wbsrv_grent {
-	/* Current UserList structure, contains 1+ user structs */
-	struct libnet_GroupList *group_list;
 
 	/* Index of the next user struct in the current UserList struct */
 	uint32_t page_index;
@@ -159,24 +148,22 @@ struct wbsrv_samba3_call {
 	/* the connection the call belongs to */
 	struct wbsrv_connection *wbconn;
 
+	/* the backend should use this event context */
+	struct tevent_context *event_ctx;
+
 	/* here the backend can store stuff like composite_context's ... */
 	void *private_data;
 
 	/* the request structure of the samba3 protocol */
-	struct winbindd_request *request;
+	struct winbindd_request request;
 	
 	/* the response structure of the samba3 protocol*/
-	struct winbindd_response *response;
-
-	DATA_BLOB in;
-	DATA_BLOB out;
-	struct iovec out_iov[1];
+	struct winbindd_response response;
 };
 
 struct netr_LMSessionKey;
 struct netr_UserSessionKey;
 struct winbind_SamLogon;
-struct winbind_DsrUpdateReadOnlyServerDnsRecords;
 
 #include "winbind/wb_async_helpers.h"
 #include "winbind/wb_proto.h"

@@ -25,7 +25,6 @@
 #include "lib/messaging/irpc.h"
 #include "librpc/gen_ndr/ndr_irpc.h"
 #include "auth/auth.h"
-#include "lib/tsocket/tsocket.h"
 
 /*
   return a list of open sessions
@@ -35,14 +34,8 @@ static NTSTATUS smbsrv_session_information(struct irpc_message *msg,
 {
 	struct smbsrv_connection *smb_conn = talloc_get_type(msg->private_data,
 					     struct smbsrv_connection);
-	struct tsocket_address *client_addr = smb_conn->connection->remote_address;
-	char *client_addr_string;
 	int i=0, count=0;
 	struct smbsrv_session *sess;
-
-	/* This is for debugging only! */
-	client_addr_string = tsocket_address_string(client_addr, r);
-	NT_STATUS_HAVE_NO_MEMORY(client_addr_string);
 
 	/* count the number of sessions */
 	for (sess=smb_conn->sessions.list; sess; sess=sess->next) {
@@ -55,12 +48,18 @@ static NTSTATUS smbsrv_session_information(struct irpc_message *msg,
 
 	for (sess=smb_conn->sessions.list; sess; sess=sess->next) {
 		struct smbsrv_session_info *info = &r->out.info.sessions.sessions[i];
-
-		info->client_ip    = client_addr_string;
+		struct socket_address *client_addr;
+		client_addr = socket_get_peer_addr(smb_conn->connection->socket, r);
+		
+		if (client_addr) {
+			info->client_ip = client_addr->addr;
+		} else {
+			info->client_ip = NULL;
+		}
 
 		info->vuid         = sess->vuid;
-		info->account_name = sess->session_info->info->account_name;
-		info->domain_name  = sess->session_info->info->domain_name;
+		info->account_name = sess->session_info->server_info->account_name;
+		info->domain_name  = sess->session_info->server_info->domain_name;
 		
 		info->connect_time = timeval_to_nttime(&sess->statistics.connect_time);
 		info->auth_time    = timeval_to_nttime(&sess->statistics.auth_time);
@@ -79,14 +78,8 @@ static NTSTATUS smbsrv_tcon_information(struct irpc_message *msg,
 {
 	struct smbsrv_connection *smb_conn = talloc_get_type(msg->private_data,
 					     struct smbsrv_connection);
-	struct tsocket_address *client_addr = smb_conn->connection->remote_address;
-	char *client_addr_string;
 	int i=0, count=0;
 	struct smbsrv_tcon *tcon;
-
-	/* This is for debugging only! */
-	client_addr_string = tsocket_address_string(client_addr, r);
-	NT_STATUS_HAVE_NO_MEMORY(client_addr_string);
 
 	/* count the number of tcons */
 	for (tcon=smb_conn->smb_tcons.list; tcon; tcon=tcon->next) {
@@ -99,8 +92,14 @@ static NTSTATUS smbsrv_tcon_information(struct irpc_message *msg,
 
 	for (tcon=smb_conn->smb_tcons.list; tcon; tcon=tcon->next) {
 		struct smbsrv_tcon_info *info = &r->out.info.tcons.tcons[i];
-
-		info->client_ip    = client_addr_string;
+		struct socket_address *client_addr;
+		client_addr = socket_get_peer_addr(smb_conn->connection->socket, r);
+		
+		if (client_addr) {
+			info->client_ip = client_addr->addr;
+		} else {
+			info->client_ip = NULL;
+		}
 
 		info->tid          = tcon->tid;
 		info->share_name   = tcon->share_name;

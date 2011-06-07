@@ -461,6 +461,7 @@ static int std_event_loop_select(struct std_event_context *std_ev, struct timeva
 			std_ev->exit_code = EBADF;
 			return -1;
 		}
+
 		if (fde->flags & TEVENT_FD_READ) {
 			FD_SET(fde->fd, &r_fds);
 		}
@@ -509,7 +510,7 @@ static int std_event_loop_select(struct std_event_context *std_ev, struct timeva
 
 			if (FD_ISSET(fde->fd, &r_fds)) flags |= TEVENT_FD_READ;
 			if (FD_ISSET(fde->fd, &w_fds)) flags |= TEVENT_FD_WRITE;
-			if (flags & fde->flags) {
+			if (flags) {
 				fde->handler(std_ev->ev, fde, flags, fde->private_data);
 				break;
 			}
@@ -566,7 +567,7 @@ static const struct tevent_ops std_event_ops = {
 };
 
 
-_PRIVATE_ bool tevent_standard_init(void)
+bool tevent_standard_init(void)
 {
 	return tevent_register_backend("standard", &std_event_ops);
 }

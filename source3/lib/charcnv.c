@@ -45,13 +45,72 @@ char lp_failed_convert_char(void)
  */
 
 
+static smb_iconv_t conv_handles[NUM_CHARSETS][NUM_CHARSETS];
 static bool conv_silent; /* Should we do a debug if the conversion fails ? */
 static bool initialized;
+
+/**
+ * Return the name of a charset to give to iconv().
+ **/
+static const char *charset_name(charset_t ch)
+{
+	const char *ret;
+
+	switch (ch) {
+	case CH_UTF16LE:
+		ret = "UTF-16LE";
+		break;
+	case CH_UTF16BE:
+		ret = "UTF-16BE";
+		break;
+	case CH_UNIX:
+		ret = lp_unix_charset();
+		break;
+	case CH_DOS:
+		ret = lp_dos_charset();
+		break;
+	case CH_DISPLAY:
+		ret = lp_display_charset();
+		break;
+	case CH_UTF8:
+		ret = "UTF8";
+		break;
+	default:
+		ret = NULL;
+	}
+
+#if defined(HAVE_NL_LANGINFO) && defined(CODESET)
+	if (ret && !strcmp(ret, "LOCALE")) {
+		const char *ln = NULL;
+
+#ifdef HAVE_SETLOCALE
+		setlocale(LC_ALL, "");
+#endif
+		ln = nl_langinfo(CODESET);
+		if (ln) {
+			/* Check whether the charset name is supported
+			   by iconv */
+			smb_iconv_t handle = smb_iconv_open(ln,"UCS-2LE");
+			if (handle == (smb_iconv_t) -1) {
+				DEBUG(5,("Locale charset '%s' unsupported, using ASCII instead\n", ln));
+				ln = NULL;
+			} else {
+				DEBUG(5,("Substituting charset '%s' for LOCALE\n", ln));
+				smb_iconv_close(handle);
+			}
+		}
+		ret = ln;
+	}
+#endif
+
+	if (!ret || !*ret) ret = "ASCII";
+	return ret;
+}
 
 void lazy_initialize_conv(void)
 {
 	if (!initialized) {
-		load_case_tables_library();
+		load_case_tables();
 		init_iconv();
 		initialized = true;
 	}
@@ -62,7 +121,16 @@ void lazy_initialize_conv(void)
  **/
 void gfree_charcnv(void)
 {
-	TALLOC_FREE(global_iconv_convenience);
+	int c1, c2;
+
+	for (c1=0;c1<NUM_CHARSETS;c1++) {
+		for (c2=0;c2<NUM_CHARSETS;c2++) {
+			if ( conv_handles[c1][c2] ) {
+				smb_iconv_close( conv_handles[c1][c2] );
+				conv_handles[c1][c2] = 0;
+			}
+		}
+	}
 	initialized = false;
 }
 
@@ -75,9 +143,60 @@ void gfree_charcnv(void)
  **/
 void init_iconv(void)
 {
-	global_iconv_convenience = smb_iconv_convenience_reinit(NULL, lp_dos_charset(),
-								lp_unix_charset(), lp_display_charset(),
-								true, global_iconv_convenience);
+	int c1, c2;
+	bool did_reload = False;
+
+	/* so that charset_name() works we need to get the UNIX<->UCS2 going
+	   first */
+	if (!conv_handles[CH_UNIX][CH_UTF16LE])
+		conv_handles[CH_UNIX][CH_UTF16LE] = smb_iconv_open(charset_name(CH_UTF16LE), "ASCII");
+
+	if (!conv_handles[CH_UTF16LE][CH_UNIX])
+		conv_handles[CH_UTF16LE][CH_UNIX] = smb_iconv_open("ASCII", charset_name(CH_UTF16LE));
+
+	for (c1=0;c1<NUM_CHARSETS;c1++) {
+		for (c2=0;c2<NUM_CHARSETS;c2++) {
+			const char *n1 = charset_name((charset_t)c1);
+			const char *n2 = charset_name((charset_t)c2);
+			if (conv_handles[c1][c2] &&
+			    strcmp(n1, conv_handles[c1][c2]->from_name) == 0 &&
+			    strcmp(n2, conv_handles[c1][c2]->to_name) == 0)
+				continue;
+
+			did_reload = True;
+
+			if (conv_handles[c1][c2])
+				smb_iconv_close(conv_handles[c1][c2]);
+
+			conv_handles[c1][c2] = smb_iconv_open(n2,n1);
+			if (conv_handles[c1][c2] == (smb_iconv_t)-1) {
+				DEBUG(0,("init_iconv: Conversion from %s to %s not supported\n",
+					 charset_name((charset_t)c1), charset_name((charset_t)c2)));
+				if (c1 != CH_UTF16LE && c1 != CH_UTF16BE) {
+					n1 = "ASCII";
+				}
+				if (c2 != CH_UTF16LE && c2 != CH_UTF16BE) {
+					n2 = "ASCII";
+				}
+				DEBUG(0,("init_iconv: Attempting to replace with conversion from %s to %s\n",
+					n1, n2 ));
+				conv_handles[c1][c2] = smb_iconv_open(n2,n1);
+				if (!conv_handles[c1][c2]) {
+					DEBUG(0,("init_iconv: Conversion from %s to %s failed", n1, n2));
+					smb_panic("init_iconv: conv_handle initialization failed");
+				}
+			}
+		}
+	}
+
+	if (did_reload) {
+		/* XXX: Does this really get called every time the dos
+		 * codepage changes? */
+		/* XXX: Is the did_reload test too strict? */
+		conv_silent = True;
+		init_valid_table();
+		conv_silent = False;
+	}
 }
 
 /**
@@ -104,11 +223,10 @@ static size_t convert_string_internal(charset_t from, charset_t to,
 	const char* inbuf = (const char*)src;
 	char* outbuf = (char*)dest;
 	smb_iconv_t descriptor;
-	struct smb_iconv_convenience *ic;
 
 	lazy_initialize_conv();
-	ic = get_iconv_convenience();
-	descriptor = get_conv_handle(ic, from, to);
+
+	descriptor = conv_handles[from][to];
 
 	if (srclen == (size_t)-1) {
 		if (from == CH_UTF16LE || from == CH_UTF16BE) {
@@ -146,11 +264,11 @@ static size_t convert_string_internal(charset_t from, charset_t to,
 				if (!conv_silent) {
 					if (from == CH_UNIX) {
 						DEBUG(3,("E2BIG: convert_string(%s,%s): srclen=%u destlen=%u - '%s'\n",
-							 charset_name(ic, from), charset_name(ic, to),
+							charset_name(from), charset_name(to),
 							(unsigned int)srclen, (unsigned int)destlen, (const char *)src));
 					} else {
 						DEBUG(3,("E2BIG: convert_string(%s,%s): srclen=%u destlen=%u\n",
-							 charset_name(ic, from), charset_name(ic, to),
+							charset_name(from), charset_name(to),
 							(unsigned int)srclen, (unsigned int)destlen));
 					}
 				}
@@ -443,7 +561,6 @@ bool convert_string_talloc(TALLOC_CTX *ctx, charset_t from, charset_t to,
 	char *outbuf = NULL, *ob = NULL;
 	smb_iconv_t descriptor;
 	void **dest = (void **)dst;
-	struct smb_iconv_convenience *ic;
 
 	*dest = NULL;
 
@@ -456,30 +573,20 @@ bool convert_string_talloc(TALLOC_CTX *ctx, charset_t from, charset_t to,
 		errno = EINVAL;
 		return false;
 	}
-
 	if (srclen == 0) {
-		/* We really should treat this as an error, but
-		   there are too many callers that need this to
-		   return a NULL terminated string in the correct
-		   character set. */
-		if (to == CH_UTF16LE|| to == CH_UTF16BE || to == CH_UTF16MUNGED) {
-			destlen = 2;
-		} else {
-			destlen = 1;
-		}
-		ob = talloc_zero_array(ctx, char, destlen);
+		ob = talloc_strdup(ctx, "");
 		if (ob == NULL) {
 			errno = ENOMEM;
 			return false;
 		}
-		*converted_size = destlen;
 		*dest = ob;
+		*converted_size = 0;
 		return true;
 	}
 
 	lazy_initialize_conv();
-	ic = get_iconv_convenience();
-	descriptor = get_conv_handle(ic, from, to);
+
+	descriptor = conv_handles[from][to];
 
 	if (descriptor == (smb_iconv_t)-1 || descriptor == (smb_iconv_t)0) {
 		if (!conv_silent)
@@ -569,16 +676,6 @@ bool convert_string_talloc(TALLOC_CTX *ctx, charset_t from, charset_t to,
 	/* Must ucs2 null terminate in the extra space we allocated. */
 	ob[destlen] = '\0';
 	ob[destlen+1] = '\0';
-
-	/* Ensure we can never return a *converted_size of zero. */
-	if (destlen == 0) {
-		/* This can happen from a bad iconv "use_as_is:" call. */
-		if (to == CH_UTF16LE|| to == CH_UTF16BE || to == CH_UTF16MUNGED) {
-			destlen = 2;
-		} else {
-			destlen = 1;
-		}
-	}
 
 	*converted_size = destlen;
 	return true;
@@ -1132,7 +1229,7 @@ size_t push_ucs2(const void *base_ptr, void *dest, const char *src, size_t dest_
 		   terminated if STR_TERMINATE isn't set. */
 
 		for (i = 0; i < (ret / 2) && i < (dest_len / 2) && dest_ucs2[i]; i++) {
-			smb_ucs2_t v = toupper_m(dest_ucs2[i]);
+			smb_ucs2_t v = toupper_w(dest_ucs2[i]);
 			if (v != dest_ucs2[i]) {
 				dest_ucs2[i] = v;
 			}
@@ -1245,7 +1342,6 @@ bool push_utf8_talloc(TALLOC_CTX *ctx, char **dest, const char *src,
 size_t pull_ucs2(const void *base_ptr, char *dest, const void *src, size_t dest_len, size_t src_len, int flags)
 {
 	size_t ret;
-	size_t ucs2_align_len = 0;
 
 	if (dest_len == (size_t)-1) {
 		/* No longer allow dest_len of -1. */
@@ -1263,7 +1359,6 @@ size_t pull_ucs2(const void *base_ptr, char *dest, const void *src, size_t dest_
 		src = (const void *)((const char *)src + 1);
 		if (src_len != (size_t)-1)
 			src_len--;
-		ucs2_align_len = 1;
 	}
 
 	if (flags & STR_TERMINATE) {
@@ -1299,7 +1394,7 @@ size_t pull_ucs2(const void *base_ptr, char *dest, const void *src, size_t dest_
 		dest[0] = 0;
 	}
 
-	return src_len + ucs2_align_len;
+	return src_len;
 }
 
 /**
@@ -1325,7 +1420,6 @@ size_t pull_ucs2_base_talloc(TALLOC_CTX *ctx,
 {
 	char *dest;
 	size_t dest_len;
-	size_t ucs2_align_len = 0;
 
 	*ppdest = NULL;
 
@@ -1344,7 +1438,6 @@ size_t pull_ucs2_base_talloc(TALLOC_CTX *ctx,
 		src = (const void *)((const char *)src + 1);
 		if (src_len != (size_t)-1)
 			src_len--;
-		ucs2_align_len = 1;
 	}
 
 	if (flags & STR_TERMINATE) {
@@ -1410,7 +1503,7 @@ size_t pull_ucs2_base_talloc(TALLOC_CTX *ctx,
 	}
 
 	*ppdest = dest;
-	return src_len + ucs2_align_len;
+	return src_len;
 }
 
 size_t pull_ucs2_fstring(char *dest, const void *src)
@@ -1699,4 +1792,147 @@ size_t align_string(const void *base_ptr, const char *p, int flags)
 	}
 	return 0;
 }
+
+/*
+  Return the unicode codepoint for the next multi-byte CH_UNIX character
+  in the string. The unicode codepoint (codepoint_t) is an unsinged 32 bit value.
+
+  Also return the number of bytes consumed (which tells the caller
+  how many bytes to skip to get to the next CH_UNIX character).
+
+  Return INVALID_CODEPOINT if the next character cannot be converted.
+*/
+
+codepoint_t next_codepoint(const char *str, size_t *size)
+{
+	/* It cannot occupy more than 4 bytes in UTF16 format */
+	uint8_t buf[4];
+	smb_iconv_t descriptor;
+	size_t ilen_orig;
+	size_t ilen;
+	size_t olen;
+	char *outbuf;
+
+	if ((str[0] & 0x80) == 0) {
+		*size = 1;
+		return (codepoint_t)str[0];
+	}
+
+	/* We assume that no multi-byte character can take
+	   more than 5 bytes. This is OK as we only
+	   support codepoints up to 1M */
+
+	ilen_orig = strnlen(str, 5);
+	ilen = ilen_orig;
+
+        lazy_initialize_conv();
+
+        descriptor = conv_handles[CH_UNIX][CH_UTF16LE];
+	if (descriptor == (smb_iconv_t)-1 || descriptor == (smb_iconv_t)0) {
+		*size = 1;
+		return INVALID_CODEPOINT;
+	}
+
+	/* This looks a little strange, but it is needed to cope
+	   with codepoints above 64k which are encoded as per RFC2781. */
+	olen = 2;
+	outbuf = (char *)buf;
+	smb_iconv(descriptor, &str, &ilen, &outbuf, &olen);
+	if (olen == 2) {
+		/* We failed to convert to a 2 byte character.
+		   See if we can convert to a 4 UTF16-LE byte char encoding.
+		*/
+		olen = 4;
+		outbuf = (char *)buf;
+		smb_iconv(descriptor,  &str, &ilen, &outbuf, &olen);
+		if (olen == 4) {
+			/* We didn't convert any bytes */
+			*size = 1;
+			return INVALID_CODEPOINT;
+		}
+		olen = 4 - olen;
+	} else {
+		olen = 2 - olen;
+	}
+
+	*size = ilen_orig - ilen;
+
+	if (olen == 2) {
+		/* 2 byte, UTF16-LE encoded value. */
+		return (codepoint_t)SVAL(buf, 0);
+	}
+	if (olen == 4) {
+		/* Decode a 4 byte UTF16-LE character manually.
+		   See RFC2871 for the encoding machanism.
+		*/
+		codepoint_t w1 = SVAL(buf,0) & ~0xD800;
+		codepoint_t w2 = SVAL(buf,2) & ~0xDC00;
+
+		return (codepoint_t)0x10000 +
+				(w1 << 10) + w2;
+	}
+
+	/* no other length is valid */
+	return INVALID_CODEPOINT;
+}
+
+/*
+  push a single codepoint into a CH_UNIX string the target string must
+  be able to hold the full character, which is guaranteed if it is at
+  least 5 bytes in size. The caller may pass less than 5 bytes if they
+  are sure the character will fit (for example, you can assume that
+  uppercase/lowercase of a character will not add more than 1 byte)
+
+  return the number of bytes occupied by the CH_UNIX character, or
+  -1 on failure
+*/
+_PUBLIC_ ssize_t push_codepoint(char *str, codepoint_t c)
+{
+	smb_iconv_t descriptor;
+	uint8_t buf[4];
+	size_t ilen, olen;
+	const char *inbuf;
+	
+	if (c < 128) {
+		*str = c;
+		return 1;
+	}
+
+	lazy_initialize_conv();
+
+	descriptor = conv_handles[CH_UNIX][CH_UTF16LE];
+	if (descriptor == (smb_iconv_t)-1 || descriptor == (smb_iconv_t)0) {
+		return -1;
+	}
+
+	if (c < 0x10000) {
+		ilen = 2;
+		olen = 5;
+		inbuf = (char *)buf;
+		SSVAL(buf, 0, c);
+		smb_iconv(descriptor, &inbuf, &ilen, &str, &olen);
+		if (ilen != 0) {
+			return -1;
+		}
+		return 5 - olen;
+	}
+
+	c -= 0x10000;
+
+	buf[0] = (c>>10) & 0xFF;
+	buf[1] = (c>>18) | 0xd8;
+	buf[2] = c & 0xFF;
+	buf[3] = ((c>>8) & 0x3) | 0xdc;
+
+	ilen = 4;
+	olen = 5;
+	inbuf = (char *)buf;
+
+	smb_iconv(descriptor, &inbuf, &ilen, &str, &olen);
+	if (ilen != 0) {
+		return -1;
+	}
+	return 5 - olen;
+}
+
 

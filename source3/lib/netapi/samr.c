@@ -20,11 +20,7 @@
 #include "includes.h"
 #include "lib/netapi/netapi.h"
 #include "lib/netapi/netapi_private.h"
-#include "rpc_client/rpc_client.h"
-#include "../librpc/gen_ndr/ndr_samr_c.h"
-#include "rpc_client/cli_samr.h"
-#include "rpc_client/init_lsa.h"
-#include "../libcli/security/security.h"
+#include "../librpc/gen_ndr/cli_samr.h"
 
 /****************************************************************
 ****************************************************************/
@@ -37,7 +33,7 @@ WERROR libnetapi_samr_open_domain(struct libnetapi_ctx *mem_ctx,
 				  struct policy_handle *domain_handle,
 				  struct dom_sid2 **domain_sid)
 {
-	NTSTATUS status, result;
+	NTSTATUS status;
 	WERROR werr;
 	struct libnetapi_private_ctx *priv;
 	uint32_t resume_handle = 0;
@@ -47,7 +43,6 @@ WERROR libnetapi_samr_open_domain(struct libnetapi_ctx *mem_ctx,
 	struct lsa_String lsa_domain_name;
 	bool domain_found = true;
 	int i;
-	struct dcerpc_binding_handle *b = pipe_cli->binding_handle;
 
 	priv = talloc_get_type_abort(mem_ctx->private_data,
 		struct libnetapi_private_ctx);
@@ -82,34 +77,23 @@ WERROR libnetapi_samr_open_domain(struct libnetapi_ctx *mem_ctx,
 	}
 
 	if (!is_valid_policy_hnd(connect_handle)) {
-		status = dcerpc_try_samr_connects(pipe_cli->binding_handle, mem_ctx,
-						  pipe_cli->srv_name_slash,
+		status = rpccli_try_samr_connects(pipe_cli, mem_ctx,
 						  connect_mask,
-						  connect_handle,
-						  &result);
+						  connect_handle);
 		if (!NT_STATUS_IS_OK(status)) {
 			werr = ntstatus_to_werror(status);
 			goto done;
 		}
-		if (!NT_STATUS_IS_OK(result)) {
-			werr = ntstatus_to_werror(result);
-			goto done;
-		}
 	}
 
-	status = dcerpc_samr_EnumDomains(b, mem_ctx,
+	status = rpccli_samr_EnumDomains(pipe_cli, mem_ctx,
 					 connect_handle,
 					 &resume_handle,
 					 &sam,
 					 0xffffffff,
-					 &num_entries,
-					 &result);
+					 &num_entries);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -132,32 +116,22 @@ WERROR libnetapi_samr_open_domain(struct libnetapi_ctx *mem_ctx,
 
 	init_lsa_String(&lsa_domain_name, domain_name);
 
-	status = dcerpc_samr_LookupDomain(b, mem_ctx,
+	status = rpccli_samr_LookupDomain(pipe_cli, mem_ctx,
 					  connect_handle,
 					  &lsa_domain_name,
-					  domain_sid,
-					  &result);
+					  domain_sid);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
-	status = dcerpc_samr_OpenDomain(b, mem_ctx,
+	status = rpccli_samr_OpenDomain(pipe_cli, mem_ctx,
 					connect_handle,
 					domain_mask,
 					*domain_sid,
-					domain_handle,
-					&result);
+					domain_handle);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -188,10 +162,9 @@ WERROR libnetapi_samr_open_builtin_domain(struct libnetapi_ctx *mem_ctx,
 					  struct policy_handle *connect_handle,
 					  struct policy_handle *builtin_handle)
 {
-	NTSTATUS status, result;
+	NTSTATUS status;
 	WERROR werr;
 	struct libnetapi_private_ctx *priv;
-	struct dcerpc_binding_handle *b = pipe_cli->binding_handle;
 
 	priv = talloc_get_type_abort(mem_ctx->private_data,
 		struct libnetapi_private_ctx);
@@ -222,33 +195,22 @@ WERROR libnetapi_samr_open_builtin_domain(struct libnetapi_ctx *mem_ctx,
 	}
 
 	if (!is_valid_policy_hnd(connect_handle)) {
-		status = dcerpc_try_samr_connects(pipe_cli->binding_handle, mem_ctx,
-						  pipe_cli->srv_name_slash,
+		status = rpccli_try_samr_connects(pipe_cli, mem_ctx,
 						  connect_mask,
-						  connect_handle,
-						  &result);
+						  connect_handle);
 		if (!NT_STATUS_IS_OK(status)) {
 			werr = ntstatus_to_werror(status);
 			goto done;
 		}
-		if (!NT_STATUS_IS_OK(result)) {
-			werr = ntstatus_to_werror(result);
-			goto done;
-		}
 	}
 
-	status = dcerpc_samr_OpenDomain(b, mem_ctx,
+	status = rpccli_samr_OpenDomain(pipe_cli, mem_ctx,
 					connect_handle,
 					builtin_mask,
-					CONST_DISCARD(struct dom_sid *, &global_sid_Builtin),
-					builtin_handle,
-					&result);
+					CONST_DISCARD(DOM_SID *, &global_sid_Builtin),
+					builtin_handle);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -273,8 +235,6 @@ void libnetapi_samr_close_domain_handle(struct libnetapi_ctx *ctx,
 					struct policy_handle *handle)
 {
 	struct libnetapi_private_ctx *priv;
-	struct dcerpc_binding_handle *b;
-	NTSTATUS result;
 
 	if (!is_valid_policy_hnd(handle)) {
 		return;
@@ -283,13 +243,11 @@ void libnetapi_samr_close_domain_handle(struct libnetapi_ctx *ctx,
 	priv = talloc_get_type_abort(ctx->private_data,
 		struct libnetapi_private_ctx);
 
-	if (!policy_handle_equal(handle, &priv->samr.domain_handle)) {
+	if (!policy_hnd_equal(handle, &priv->samr.domain_handle)) {
 		return;
 	}
 
-	b = priv->samr.cli->binding_handle;
-
-	dcerpc_samr_Close(b, ctx, handle, &result);
+	rpccli_samr_Close(priv->samr.cli, ctx, handle);
 
 	ZERO_STRUCT(priv->samr.domain_handle);
 }
@@ -301,8 +259,6 @@ void libnetapi_samr_close_builtin_handle(struct libnetapi_ctx *ctx,
 					 struct policy_handle *handle)
 {
 	struct libnetapi_private_ctx *priv;
-	struct dcerpc_binding_handle *b;
-	NTSTATUS result;
 
 	if (!is_valid_policy_hnd(handle)) {
 		return;
@@ -311,13 +267,11 @@ void libnetapi_samr_close_builtin_handle(struct libnetapi_ctx *ctx,
 	priv = talloc_get_type_abort(ctx->private_data,
 		struct libnetapi_private_ctx);
 
-	if (!policy_handle_equal(handle, &priv->samr.builtin_handle)) {
+	if (!policy_hnd_equal(handle, &priv->samr.builtin_handle)) {
 		return;
 	}
 
-	b = priv->samr.cli->binding_handle;
-
-	dcerpc_samr_Close(b, ctx, handle, &result);
+	rpccli_samr_Close(priv->samr.cli, ctx, handle);
 
 	ZERO_STRUCT(priv->samr.builtin_handle);
 }
@@ -329,8 +283,6 @@ void libnetapi_samr_close_connect_handle(struct libnetapi_ctx *ctx,
 					 struct policy_handle *handle)
 {
 	struct libnetapi_private_ctx *priv;
-	struct dcerpc_binding_handle *b;
-	NTSTATUS result;
 
 	if (!is_valid_policy_hnd(handle)) {
 		return;
@@ -339,13 +291,11 @@ void libnetapi_samr_close_connect_handle(struct libnetapi_ctx *ctx,
 	priv = talloc_get_type_abort(ctx->private_data,
 		struct libnetapi_private_ctx);
 
-	if (!policy_handle_equal(handle, &priv->samr.connect_handle)) {
+	if (!policy_hnd_equal(handle, &priv->samr.connect_handle)) {
 		return;
 	}
 
-	b = priv->samr.cli->binding_handle;
-
-	dcerpc_samr_Close(b, ctx, handle, &result);
+	rpccli_samr_Close(priv->samr.cli, ctx, handle);
 
 	ZERO_STRUCT(priv->samr.connect_handle);
 }

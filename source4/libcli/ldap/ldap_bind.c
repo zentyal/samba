@@ -22,7 +22,7 @@
 */
 
 #include "includes.h"
-#include "libcli/ldap/libcli_ldap.h"
+#include "libcli/ldap/ldap.h"
 #include "libcli/ldap/ldap_proto.h"
 #include "libcli/ldap/ldap_client.h"
 #include "lib/tls/tls.h"
@@ -225,7 +225,7 @@ _PUBLIC_ NTSTATUS ldap_bind_sasl(struct ldap_connection *conn,
 
 	status = gensec_client_start(conn, &conn->gensec,
 				     conn->event.event_ctx, 
-				     lpcfg_gensec_settings(conn, lp_ctx));
+				     lp_gensec_settings(conn, lp_ctx));
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("Failed to start GENSEC engine (%s)\n", nt_errstr(status)));
 		goto failed;
@@ -352,7 +352,7 @@ _PUBLIC_ NTSTATUS ldap_bind_sasl(struct ldap_connection *conn,
 			status = NT_STATUS_NO_MEMORY;
 			goto failed;
 		}
-		talloc_reparent(conn, tmp_ctx, req);
+		talloc_steal(tmp_ctx, req);
 
 		status = ldap_result_n(req, 0, &response);
 		if (!NT_STATUS_IS_OK(status)) {

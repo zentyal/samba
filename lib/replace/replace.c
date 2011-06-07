@@ -3,7 +3,6 @@
    replacement routines for broken systems
    Copyright (C) Andrew Tridgell 1992-1998
    Copyright (C) Jelmer Vernooij 2005-2008
-   Copyright (C) Matthieu Patou  2010
 
      ** NOTE! The following LGPL license applies to the replace
      ** library. This does NOT imply that all of Samba is released
@@ -410,7 +409,7 @@ int rep_chroot(const char *dname)
 int rep_mkstemp(char *template)
 {
 	/* have a reasonable go at emulating it. Hope that
-	   the system mktemp() isn't completely hopeless */
+	   the system mktemp() isn't completly hopeless */
 	char *p = mktemp(template);
 	if (!p)
 		return -1;
@@ -503,7 +502,6 @@ char *rep_strtok_r(char *s, const char *delim, char **save_ptr)
 }
 #endif
 
-
 #ifndef HAVE_STRTOLL
 long long int rep_strtoll(const char *str, char **endptr, int base)
 {
@@ -517,29 +515,7 @@ long long int rep_strtoll(const char *str, char **endptr, int base)
 # error "You need a strtoll function"
 #endif
 }
-#else
-#ifdef HAVE_BSD_STRTOLL
-#ifdef HAVE_STRTOQ
-long long int rep_strtoll(const char *str, char **endptr, int base)
-{
-	long long int nb = strtoq(str, endptr, base);
-	/* In linux EINVAL is only returned if base is not ok */
-	if (errno == EINVAL) {
-		if (base == 0 || (base >1 && base <37)) {
-			/* Base was ok so it's because we were not
-			 * able to make the convertion.
-			 * Let's reset errno.
-			 */
-			errno = 0;
-		}
-	}
-	return nb;
-}
-#else
-#error "You need the strtoq function"
-#endif /* HAVE_STRTOQ */
-#endif /* HAVE_BSD_STRTOLL */
-#endif /* HAVE_STRTOLL */
+#endif
 
 
 #ifndef HAVE_STRTOULL
@@ -555,29 +531,7 @@ unsigned long long int rep_strtoull(const char *str, char **endptr, int base)
 # error "You need a strtoull function"
 #endif
 }
-#else
-#ifdef HAVE_BSD_STRTOLL
-#ifdef HAVE_STRTOUQ
-unsigned long long int rep_strtoull(const char *str, char **endptr, int base)
-{
-	unsigned long long int nb = strtouq(str, endptr, base);
-	/* In linux EINVAL is only returned if base is not ok */
-	if (errno == EINVAL) {
-		if (base == 0 || (base >1 && base <37)) {
-			/* Base was ok so it's because we were not
-			 * able to make the convertion.
-			 * Let's reset errno.
-			 */
-			errno = 0;
-		}
-	}
-	return nb;
-}
-#else
-#error "You need the strtouq function"
-#endif /* HAVE_STRTOUQ */
-#endif /* HAVE_BSD_STRTOLL */
-#endif /* HAVE_STRTOULL */
+#endif
 
 #ifndef HAVE_SETENV
 int rep_setenv(const char *name, const char *value, int overwrite) 
@@ -725,106 +679,5 @@ char *rep_realpath(const char *path, char *resolved_path)
 	/* As realpath is not a system call we can't return ENOSYS. */
 	errno = EINVAL;
 	return NULL;
-}
-#endif
-
-
-#ifndef HAVE_MEMMEM
-void *rep_memmem(const void *haystack, size_t haystacklen,
-		 const void *needle, size_t needlelen)
-{
-	if (needlelen == 0) {
-		return discard_const(haystack);
-	}
-	while (haystacklen >= needlelen) {
-		char *p = (char *)memchr(haystack, *(const char *)needle,
-					 haystacklen-(needlelen-1));
-		if (!p) return NULL;
-		if (memcmp(p, needle, needlelen) == 0) {
-			return p;
-		}
-		haystack = p+1;
-		haystacklen -= (p - (const char *)haystack) + 1;
-	}
-	return NULL;
-}
-#endif
-
-#ifndef HAVE_VDPRINTF
-int rep_vdprintf(int fd, const char *format, va_list ap)
-{
-	char *s = NULL;
-	int ret;
-
-	vasprintf(&s, format, ap);
-	if (s == NULL) {
-		errno = ENOMEM;
-		return -1;
-	}
-	ret = write(fd, s, strlen(s));
-	free(s);
-	return ret;
-}
-#endif
-
-#ifndef HAVE_DPRINTF
-int rep_dprintf(int fd, const char *format, ...)
-{
-	int ret;
-	va_list ap;
-
-	va_start(ap, format);
-	ret = vdprintf(fd, format, ap);
-	va_end(ap);
-
-	return ret;
-}
-#endif
-
-#ifndef HAVE_GET_CURRENT_DIR_NAME
-char *rep_get_current_dir_name(void)
-{
-	char buf[PATH_MAX+1];
-	char *p;
-	p = getcwd(buf, sizeof(buf));
-	if (p == NULL) {
-		return NULL;
-	}
-	return strdup(p);
-}
-#endif
-
-#if !defined(HAVE_STRERROR_R) || !defined(STRERROR_R_PROTO_COMPATIBLE)
-int rep_strerror_r(int errnum, char *buf, size_t buflen)
-{
-	char *s = strerror(errnum);
-	if (strlen(s)+1 > buflen) {
-		errno = ERANGE;
-		return -1;
-	}
-	strncpy(buf, s, buflen);
-	return 0;
-}
-#endif
-
-#ifndef HAVE_CLOCK_GETTIME
-int rep_clock_gettime(clockid_t clk_id, struct timespec *tp)
-{
-	struct timeval tval;
-	switch (clk_id) {
-		case 0: /* CLOCK_REALTIME :*/
-#ifdef HAVE_GETTIMEOFDAY_TZ
-			gettimeofday(&tval,NULL);
-#else
-			gettimeofday(&tval);
-#endif
-			tp->tv_sec = tval.tv_sec;
-			tp->tv_nsec = tval.tv_usec * 1000;
-			break;
-		default:
-			errno = EINVAL;
-			return -1;
-	}
-	return 0;
 }
 #endif

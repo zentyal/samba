@@ -25,9 +25,6 @@
 
 #include "includes.h"
 #include "libnet/libnet_samsync.h"
-#include "smbldap.h"
-#include "transfer_file.h"
-#include "passdb.h"
 
 #ifdef HAVE_LDAP
 
@@ -86,9 +83,6 @@ static NTSTATUS populate_ldap_for_ldif(const char *sid,
 	if (suffix_attr == NULL) {
 		len = strlen(suffix);
 		suffix_attr = (char*)SMB_MALLOC(len+1);
-		if (!suffix_attr) {
-			return NT_STATUS_NO_MEMORY;
-		}
 		memcpy(suffix_attr, suffix, len);
 		suffix_attr[len] = '\0';
 	}

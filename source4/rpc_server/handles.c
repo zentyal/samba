@@ -22,7 +22,7 @@
 #include "includes.h"
 #include "../lib/util/dlinklist.h"
 #include "rpc_server/dcerpc_server.h"
-#include "libcli/security/security.h"
+#include "libcli/security/dom_sid.h"
 #include "auth/session.h"
 
 /*
@@ -44,7 +44,7 @@ _PUBLIC_ struct dcesrv_handle *dcesrv_handle_new(struct dcesrv_connection_contex
 	struct dcesrv_handle *h;
 	struct dom_sid *sid;
 
-	sid = &context->conn->auth_state.session_info->security_token->sids[PRIMARY_USER_SID_INDEX];
+	sid = context->conn->auth_state.session_info->security_token->user_sid;
 
 	h = talloc(context->assoc_group, struct dcesrv_handle);
 	if (!h) {
@@ -80,7 +80,7 @@ _PUBLIC_ struct dcesrv_handle *dcesrv_handle_fetch(
 	struct dcesrv_handle *h;
 	struct dom_sid *sid;
 
-	sid = &context->conn->auth_state.session_info->security_token->sids[PRIMARY_USER_SID_INDEX];
+	sid = context->conn->auth_state.session_info->security_token->user_sid;
 
 	if (policy_handle_empty(p)) {
 		/* TODO: we should probably return a NULL handle here */

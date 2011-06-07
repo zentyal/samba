@@ -46,7 +46,7 @@
  * @ingroup krb5
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_copy_host_realm(krb5_context context,
 		     const krb5_realm *from,
 		     krb5_realm **to)

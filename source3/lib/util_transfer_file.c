@@ -21,7 +21,6 @@
 
 
 #include <includes.h>
-#include "transfer_file.h"
 
 /****************************************************************************
  Transfer some data between two fd's.

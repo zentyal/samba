@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 #
 #  tool to manipulate a remote registry
 #  Copyright Andrew Tridgell 2005

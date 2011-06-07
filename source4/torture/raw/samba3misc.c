@@ -90,7 +90,7 @@ bool torture_samba3_checkfsp(struct torture_context *torture)
 		union smb_open io;
 		io.generic.level = RAW_OPEN_NTCREATEX;
 		io.ntcreatex.in.flags = NTCREATEX_FLAGS_EXTENDED;
-		io.ntcreatex.in.root_fid.fnum = 0;
+		io.ntcreatex.in.root_fid = 0;
 		io.ntcreatex.in.security_flags = 0;
 		io.ntcreatex.in.open_disposition = NTCREATEX_DISP_CREATE;
 		io.ntcreatex.in.access_mask = SEC_RIGHTS_FILE_ALL;
@@ -162,8 +162,8 @@ bool torture_samba3_checkfsp(struct torture_context *torture)
 static NTSTATUS raw_smbcli_open(struct smbcli_tree *tree, const char *fname, int flags, int share_mode, int *fnum)
 {
         union smb_open open_parms;
-        unsigned int openfn=0;
-        unsigned int accessmode=0;
+        uint_t openfn=0;
+        uint_t accessmode=0;
         TALLOC_CTX *mem_ctx;
         NTSTATUS status;
 
@@ -225,8 +225,8 @@ static NTSTATUS raw_smbcli_open(struct smbcli_tree *tree, const char *fname, int
 static NTSTATUS raw_smbcli_t2open(struct smbcli_tree *tree, const char *fname, int flags, int share_mode, int *fnum)
 {
         union smb_open io;
-        unsigned int openfn=0;
-        unsigned int accessmode=0;
+        uint_t openfn=0;
+        uint_t accessmode=0;
         TALLOC_CTX *mem_ctx;
         NTSTATUS status;
 
@@ -304,7 +304,7 @@ static NTSTATUS raw_smbcli_ntcreate(struct smbcli_tree *tree, const char *fname,
 	memset(&io, '\0', sizeof(io));
         io.generic.level = RAW_OPEN_NTCREATEX;
 	io.ntcreatex.in.flags = NTCREATEX_FLAGS_EXTENDED;
-	io.ntcreatex.in.root_fid.fnum = 0;
+	io.ntcreatex.in.root_fid = 0;
 	io.ntcreatex.in.access_mask = SEC_RIGHTS_FILE_ALL;
 	io.ntcreatex.in.alloc_size = 0;
 	io.ntcreatex.in.file_attr = FILE_ATTRIBUTE_NORMAL;
@@ -346,9 +346,9 @@ bool torture_samba3_badpath(struct torture_context *torture)
 		return false;
 	}
 
-	nt_status_support = lpcfg_nt_status_support(torture->lp_ctx);
+	nt_status_support = lp_nt_status_support(torture->lp_ctx);
 
-	if (!lpcfg_set_cmdline(torture->lp_ctx, "nt status support", "yes")) {
+	if (!lp_set_cmdline(torture->lp_ctx, "nt status support", "yes")) {
 		printf("Could not set 'nt status support = yes'\n");
 		goto fail;
 	}
@@ -357,7 +357,7 @@ bool torture_samba3_badpath(struct torture_context *torture)
 		goto fail;
 	}
 
-	if (!lpcfg_set_cmdline(torture->lp_ctx, "nt status support", "no")) {
+	if (!lp_set_cmdline(torture->lp_ctx, "nt status support", "no")) {
 		printf("Could not set 'nt status support = yes'\n");
 		goto fail;
 	}
@@ -366,7 +366,7 @@ bool torture_samba3_badpath(struct torture_context *torture)
 		goto fail;
 	}
 
-	if (!lpcfg_set_cmdline(torture->lp_ctx, "nt status support",
+	if (!lp_set_cmdline(torture->lp_ctx, "nt status support",
 			    nt_status_support ? "yes":"no")) {
 		printf("Could not reset 'nt status support = yes'");
 		goto fail;
@@ -621,7 +621,7 @@ bool torture_samba3_caseinsensitive(struct torture_context *torture)
 	char *fpath;
 	int fnum;
 	int counter = 0;
-	bool ret = false;
+	bool ret = true;
 
 	if (!(mem_ctx = talloc_init("torture_samba3_caseinsensitive"))) {
 		d_printf("talloc_init failed\n");
@@ -635,8 +635,8 @@ bool torture_samba3_caseinsensitive(struct torture_context *torture)
 	smbcli_deltree(cli->tree, dirname);
 
 	status = smbcli_mkdir(cli->tree, dirname);
-	torture_assert_ntstatus_ok(torture, status, "smbcli_mkdir failed");
 	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("smbcli_mkdir failed: %s\n", nt_errstr(status));
 		goto done;
 	}
 
@@ -645,8 +645,7 @@ bool torture_samba3_caseinsensitive(struct torture_context *torture)
 	}
 	fnum = smbcli_open(cli->tree, fpath, O_RDWR | O_CREAT, DENY_NONE);
 	if (fnum == -1) {
-		torture_result(torture, TORTURE_FAIL,
-			"Could not create file %s: %s", fpath,
+		d_printf("Could not create file %s: %s\n", fpath,
 			 smbcli_errstr(cli->tree));
 		goto done;
 	}
@@ -662,8 +661,7 @@ bool torture_samba3_caseinsensitive(struct torture_context *torture)
 		ret = true;
 	}
 	else {
-		torture_result(torture, TORTURE_FAIL,
-			"expected 3 entries, got %d", counter);
+		d_fprintf(stderr, "expected 3 entries, got %d\n", counter);
 		ret = false;
 	}
 
@@ -889,7 +887,7 @@ bool torture_samba3_rootdirfid(struct torture_context *tctx)
 	ZERO_STRUCT(io);
 	io.generic.level = RAW_OPEN_NTCREATEX;
 	io.ntcreatex.in.flags = NTCREATEX_FLAGS_EXTENDED;
-	io.ntcreatex.in.root_fid.fnum = 0;
+	io.ntcreatex.in.root_fid = 0;
 	io.ntcreatex.in.security_flags = 0;
 	io.ntcreatex.in.access_mask =
 		SEC_STD_SYNCHRONIZE | SEC_FILE_EXECUTE;
@@ -914,7 +912,7 @@ bool torture_samba3_rootdirfid(struct torture_context *tctx)
 	io.ntcreatex.in.flags =
 		NTCREATEX_FLAGS_REQUEST_OPLOCK
 		| NTCREATEX_FLAGS_REQUEST_BATCH_OPLOCK;
-	io.ntcreatex.in.root_fid.fnum = dnum;
+	io.ntcreatex.in.root_fid = dnum;
 	io.ntcreatex.in.security_flags = 0;
 	io.ntcreatex.in.open_disposition = NTCREATEX_DISP_OVERWRITE_IF;
 	io.ntcreatex.in.access_mask = SEC_RIGHTS_FILE_ALL;
@@ -963,7 +961,7 @@ bool torture_samba3_oplock_logoff(struct torture_context *tctx)
 	ZERO_STRUCT(io);
 	io.generic.level = RAW_OPEN_NTCREATEX;
 	io.ntcreatex.in.flags = NTCREATEX_FLAGS_EXTENDED;
-	io.ntcreatex.in.root_fid.fnum = 0;
+	io.ntcreatex.in.root_fid = 0;
 	io.ntcreatex.in.security_flags = 0;
 	io.ntcreatex.in.access_mask =
 		SEC_STD_SYNCHRONIZE | SEC_FILE_EXECUTE;
@@ -1009,7 +1007,7 @@ bool torture_samba3_oplock_logoff(struct torture_context *tctx)
 
 	echo_req.in.repeat_count = 1;
 	echo_req.in.size = 1;
-	echo_req.in.data = discard_const_p(uint8_t, "");
+	echo_req.in.data = (uint8_t *)"";
 
 	status = smb_raw_echo(cli->session->transport, &echo_req);
 	if (!NT_STATUS_IS_OK(status)) {

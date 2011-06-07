@@ -48,6 +48,8 @@
 
 #include <assert.h>
 
+RCSID("$Id$");
+
 #ifdef _AIX /* AIX have broken res_nsearch() in 5.1 (5.0 also ?) */
 #undef HAVE_RES_NSEARCH
 #endif
@@ -78,7 +80,7 @@ static struct stot{
 
 int _resolve_debug = 0;
 
-ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
+int ROKEN_LIB_FUNCTION
 rk_dns_string_to_type(const char *name)
 {
     struct stot *p = stot;
@@ -88,7 +90,7 @@ rk_dns_string_to_type(const char *name)
     return -1;
 }
 
-ROKEN_LIB_FUNCTION const char * ROKEN_LIB_CALL
+const char * ROKEN_LIB_FUNCTION
 rk_dns_type_to_string(int type)
 {
     struct stot *p = stot;
@@ -98,7 +100,7 @@ rk_dns_type_to_string(int type)
     return NULL;
 }
 
-#if ((defined(HAVE_RES_SEARCH) || defined(HAVE_RES_NSEARCH)) && defined(HAVE_DN_EXPAND)) || defined(HAVE_WINDNS)
+#if (defined(HAVE_RES_SEARCH) || defined(HAVE_RES_NSEARCH)) && defined(HAVE_DN_EXPAND)
 
 static void
 dns_free_rr(struct rk_resource_record *rr)
@@ -110,7 +112,7 @@ dns_free_rr(struct rk_resource_record *rr)
     free(rr);
 }
 
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 rk_dns_free_data(struct rk_dns_reply *r)
 {
     struct rk_resource_record *rr;
@@ -123,8 +125,6 @@ rk_dns_free_data(struct rk_dns_reply *r)
     }
     free (r);
 }
-
-#ifndef HAVE_WINDNS
 
 static int
 parse_record(const unsigned char *data, const unsigned char *end_data,
@@ -523,7 +523,8 @@ dns_lookup_int(const char *domain, int rr_class, int rr_type)
 {
     struct rk_dns_reply *r;
     void *reply = NULL;
-    int size, len;
+    int size;
+    int len;
 #if defined(HAVE_DNS_SEARCH)
     struct sockaddr_storage from;
     uint32_t fromsize = sizeof(from);
@@ -541,12 +542,15 @@ dns_lookup_int(const char *domain, int rr_class, int rr_type)
 	return NULL; /* is this the best we can do? */
 #endif
 
-    len = 1500;
-    while(1) {
+    size = 0;
+    len = 1000;
+    do {
 	if (reply) {
 	    free(reply);
 	    reply = NULL;
 	}
+	if (size <= len)
+	    size = len;
 	if (_resolve_debug) {
 #if defined(HAVE_DNS_SEARCH)
 	    dns_set_debug(handle, 1);
@@ -554,37 +558,27 @@ dns_lookup_int(const char *domain, int rr_class, int rr_type)
 	    state.options |= RES_DEBUG;
 #endif
 	    fprintf(stderr, "dns_lookup(%s, %d, %s), buffer size %d\n", domain,
-		    rr_class, rk_dns_type_to_string(rr_type), len);
+		    rr_class, rk_dns_type_to_string(rr_type), size);
 	}
-	reply = malloc(len);
+	reply = malloc(size);
 	if (reply == NULL) {
 	    resolve_free_handle(handle);
 	    return NULL;
 	}
 
-	size = resolve_search(handle, domain, rr_class, rr_type, reply, len);
+	len = resolve_search(handle, domain, rr_class, rr_type, reply, size);
 
 	if (_resolve_debug) {
 	    fprintf(stderr, "dns_lookup(%s, %d, %s) --> %d\n",
-		    domain, rr_class, rk_dns_type_to_string(rr_type), size);
+		    domain, rr_class, rk_dns_type_to_string(rr_type), len);
 	}
-	if (size > len) {
-	    /* resolver thinks it know better, go for it */
-	    len = size;
-	} else if (size > 0) {
-	    /* got a good reply */
-	    break;
-	} else if (size <= 0 && len < rk_DNS_MAX_PACKET_SIZE) {
-	    len *= 2;
-	    if (len > rk_DNS_MAX_PACKET_SIZE)
-		len = rk_DNS_MAX_PACKET_SIZE;
-	} else {
-	    /* the end, leave */
+	if (len <= 0) {
 	    resolve_free_handle(handle);
 	    free(reply);
 	    return NULL;
 	}
-    }
+    } while (size < len && len < rk_DNS_MAX_PACKET_SIZE);
+    resolve_free_handle(handle);
 
     len = min(len, size);
     r = parse_reply(reply, len);
@@ -592,7 +586,7 @@ dns_lookup_int(const char *domain, int rr_class, int rr_type)
     return r;
 }
 
-ROKEN_LIB_FUNCTION struct rk_dns_reply * ROKEN_LIB_CALL
+struct rk_dns_reply * ROKEN_LIB_FUNCTION
 rk_dns_lookup(const char *domain, const char *type_name)
 {
     int type;
@@ -607,8 +601,6 @@ rk_dns_lookup(const char *domain, const char *type_name)
     return dns_lookup_int(domain, rk_ns_c_in, type);
 }
 
-#endif	/* !HAVE_WINDNS */
-
 static int
 compare_srv(const void *a, const void *b)
 {
@@ -619,8 +611,12 @@ compare_srv(const void *a, const void *b)
     return ((*aa)->u.srv->priority - (*bb)->u.srv->priority);
 }
 
+#ifndef HAVE_RANDOM
+#define random() rand()
+#endif
+
 /* try to rearrange the srv-records by the algorithm in RFC2782 */
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 rk_dns_srv_order(struct rk_dns_reply *r)
 {
     struct rk_resource_record **srvs, **ss, **headp;
@@ -631,8 +627,6 @@ rk_dns_srv_order(struct rk_dns_reply *r)
     int state[256 / sizeof(int)];
     char *oldstate;
 #endif
-
-    rk_random_init();
 
     for(rr = r->head; rr; rr = rr->next)
 	if(rr->type == rk_ns_t_srv)
@@ -680,7 +674,7 @@ rk_dns_srv_order(struct rk_dns_reply *r)
 	/* ss is now the first record of this priority and ee is the
            first of the next */
 	while(ss < ee) {
-	    rnd = rk_random() % (sum + 1);
+	    rnd = random() % (sum + 1);
 	    for(count = 0, tt = ss; ; tt++) {
 		if(*tt == NULL)
 		    continue;
@@ -710,232 +704,20 @@ rk_dns_srv_order(struct rk_dns_reply *r)
     return;
 }
 
-#ifdef HAVE_WINDNS
-
-#include <WinDNS.h>
-
-static struct rk_resource_record *
-parse_dns_record(PDNS_RECORD pRec)
-{
-    struct rk_resource_record * rr;
-
-    if (pRec == NULL)
-	return NULL;
-
-    rr = calloc(1, sizeof(*rr));
-
-    rr->domain = strdup(pRec->pName);
-    rr->type = pRec->wType;
-    rr->class = 0;
-    rr->ttl = pRec->dwTtl;
-    rr->size = 0;
-
-    switch (rr->type) {
-    case rk_ns_t_ns:
-    case rk_ns_t_cname:
-    case rk_ns_t_ptr:
-	rr->u.txt = strdup(pRec->Data.NS.pNameHost);
-	if(rr->u.txt == NULL) {
-	    dns_free_rr(rr);
-	    return NULL;
-	}
-	break;
-
-    case rk_ns_t_mx:
-    case rk_ns_t_afsdb:{
-	size_t hostlen = strnlen(pRec->Data.MX.pNameExchange, DNS_MAX_NAME_LENGTH);
-
-	rr->u.mx = (struct mx_record *)malloc(sizeof(struct mx_record) +
-					      hostlen);
-	if (rr->u.mx == NULL) {
-	    dns_free_rr(rr);
-	    return NULL;
-	}
-
-	strcpy_s(rr->u.mx->domain, hostlen + 1, pRec->Data.MX.pNameExchange);
-	rr->u.mx->preference = pRec->Data.MX.wPreference;
-	break;
-    }
-
-    case rk_ns_t_srv:{
-	size_t hostlen = strnlen(pRec->Data.SRV.pNameTarget, DNS_MAX_NAME_LENGTH);
-
-	rr->u.srv =
-	    (struct srv_record*)malloc(sizeof(struct srv_record) +
-				       hostlen);
-	if(rr->u.srv == NULL) {
-	    dns_free_rr(rr);
-	    return NULL;
-	}
-
-	rr->u.srv->priority = pRec->Data.SRV.wPriority;
-	rr->u.srv->weight = pRec->Data.SRV.wWeight;
-	rr->u.srv->port = pRec->Data.SRV.wPort;
-	strcpy_s(rr->u.srv->target, hostlen + 1, pRec->Data.SRV.pNameTarget);
-
-	break;
-    }
-
-    case rk_ns_t_txt:{
-	size_t len;
-
-	if (pRec->Data.TXT.dwStringCount == 0) {
-	    rr->u.txt = strdup("");
-	    break;
-	}
-
-	len = strnlen(pRec->Data.TXT.pStringArray[0], DNS_MAX_TEXT_STRING_LENGTH);
-
-	rr->u.txt = (char *)malloc(len + 1);
-	strcpy_s(rr->u.txt, len + 1, pRec->Data.TXT.pStringArray[0]);
-
-	break;
-    }
-
-    case rk_ns_t_key : {
-	size_t key_len;
-
-	if (pRec->wDataLength < 4) {
-	    dns_free_rr(rr);
-	    return NULL;
-	}
-
-	key_len = pRec->wDataLength - 4;
-	rr->u.key = malloc (sizeof(*rr->u.key) + key_len - 1);
-	if (rr->u.key == NULL) {
-	    dns_free_rr(rr);
-	    return NULL;
-	}
-
-	rr->u.key->flags     = pRec->Data.KEY.wFlags;
-	rr->u.key->protocol  = pRec->Data.KEY.chProtocol;
-	rr->u.key->algorithm = pRec->Data.KEY.chAlgorithm;
-	rr->u.key->key_len   = key_len;
-	memcpy_s (rr->u.key->key_data, key_len,
-		  pRec->Data.KEY.Key, key_len);
-	break;
-    }
-
-    case rk_ns_t_sig : {
-	size_t sig_len, hostlen;
-
-	if(pRec->wDataLength <= 18) {
-	    dns_free_rr(rr);
-	    return NULL;
-	}
-
-	sig_len = pRec->wDataLength;
-
-	hostlen = strnlen(pRec->Data.SIG.pNameSigner, DNS_MAX_NAME_LENGTH);
-
-	rr->u.sig = malloc(sizeof(*rr->u.sig)
-			      + hostlen + sig_len);
-	if (rr->u.sig == NULL) {
-	    dns_free_rr(rr);
-	    return NULL;
-	}
-	rr->u.sig->type           = pRec->Data.SIG.wTypeCovered;
-	rr->u.sig->algorithm      = pRec->Data.SIG.chAlgorithm;
-	rr->u.sig->labels         = pRec->Data.SIG.chLabelCount;
-	rr->u.sig->orig_ttl       = pRec->Data.SIG.dwOriginalTtl;
-	rr->u.sig->sig_expiration = pRec->Data.SIG.dwExpiration;
-	rr->u.sig->sig_inception  = pRec->Data.SIG.dwTimeSigned;
-	rr->u.sig->key_tag        = pRec->Data.SIG.wKeyTag;
-	rr->u.sig->sig_len        = sig_len;
-	memcpy_s (rr->u.sig->sig_data, sig_len,
-		  pRec->Data.SIG.Signature, sig_len);
-	rr->u.sig->signer         = &rr->u.sig->sig_data[sig_len];
-	strcpy_s(rr->u.sig->signer, hostlen + 1, pRec->Data.SIG.pNameSigner);
-	break;
-    }
-
-#ifdef DNS_TYPE_DS
-    case rk_ns_t_ds: {
-	rr->u.ds = malloc (sizeof(*rr->u.ds) + pRec->Data.DS.wDigestLength - 1);
-	if (rr->u.ds == NULL) {
-	    dns_free_rr(rr);
-	    return NULL;
-	}
-
-	rr->u.ds->key_tag     = pRec->Data.DS.wKeyTag;
-	rr->u.ds->algorithm   = pRec->Data.DS.chAlgorithm;
-	rr->u.ds->digest_type = pRec->Data.DS.chDigestType;
-	rr->u.ds->digest_len  = pRec->Data.DS.wDigestLength;
-	memcpy_s (rr->u.ds->digest_data, pRec->Data.DS.wDigestLength,
-		  pRec->Data.DS.Digest, pRec->Data.DS.wDigestLength);
-	break;
-    }
-#endif
-
-    default:
-	dns_free_rr(rr);
-	return NULL;
-    }
-
-    rr->next = parse_dns_record(pRec->pNext);
-    return rr;
-}
-
-ROKEN_LIB_FUNCTION struct rk_dns_reply * ROKEN_LIB_CALL
-rk_dns_lookup(const char *domain, const char *type_name)
-{
-    DNS_STATUS status;
-    int type;
-    PDNS_RECORD pRec = NULL;
-    struct rk_dns_reply * r = NULL;
-
-    __try {
-
-	type = rk_dns_string_to_type(type_name);
-	if(type == -1) {
-	    if(_resolve_debug)
-		fprintf(stderr, "dns_lookup: unknown resource type: `%s'\n",
-			type_name);
-	    return NULL;
-	}
-
-	status = DnsQuery_UTF8(domain, type, DNS_QUERY_STANDARD, NULL,
-			       &pRec, NULL);
-	if (status != ERROR_SUCCESS)
-	    return NULL;
-
-	r = calloc(1, sizeof(*r));
-	r->q.domain = strdup(domain);
-	r->q.type = type;
-	r->q.class = 0;
-
-	r->head = parse_dns_record(pRec);
-
-	if (r->head == NULL) {
-	    rk_dns_free_data(r);
-	    return NULL;
-	} else {
-	    return r;
-	}
-
-    } __finally {
-
-	if (pRec)
-	    DnsRecordListFree(pRec, DnsFreeRecordList);
-
-    }
-}
-#endif	/* HAVE_WINDNS */
-
 #else /* NOT defined(HAVE_RES_SEARCH) && defined(HAVE_DN_EXPAND) */
 
-ROKEN_LIB_FUNCTION struct rk_dns_reply * ROKEN_LIB_CALL
+struct rk_dns_reply * ROKEN_LIB_FUNCTION
 rk_dns_lookup(const char *domain, const char *type_name)
 {
     return NULL;
 }
 
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 rk_dns_free_data(struct rk_dns_reply *r)
 {
 }
 
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 rk_dns_srv_order(struct rk_dns_reply *r)
 {
 }

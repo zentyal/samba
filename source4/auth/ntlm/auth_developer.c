@@ -23,6 +23,7 @@
 #include "auth/auth.h"
 #include "auth/ntlm/auth_proto.h"
 #include "libcli/security/security.h"
+#include "librpc/gen_ndr/ndr_samr.h"
 
 static NTSTATUS name_to_ntstatus_want_check(struct auth_method_context *ctx,
 			      		    TALLOC_CTX *mem_ctx,
@@ -47,11 +48,10 @@ static NTSTATUS name_to_ntstatus_want_check(struct auth_method_context *ctx,
 static NTSTATUS name_to_ntstatus_check_password(struct auth_method_context *ctx,
 			      		        TALLOC_CTX *mem_ctx,
 					        const struct auth_usersupplied_info *user_info, 
-					        struct auth_user_info_dc **_user_info_dc)
+					        struct auth_serversupplied_info **_server_info)
 {
 	NTSTATUS nt_status;
-	struct auth_user_info_dc *user_info_dc;
-	struct auth_user_info *info;
+	struct auth_serversupplied_info *server_info;
 	uint32_t error_num;
 	const char *user;
 
@@ -66,65 +66,66 @@ static NTSTATUS name_to_ntstatus_check_password(struct auth_method_context *ctx,
 	}
 	NT_STATUS_NOT_OK_RETURN(nt_status);
 
-	user_info_dc = talloc(mem_ctx, struct auth_user_info_dc);
-	NT_STATUS_HAVE_NO_MEMORY(user_info_dc);
+	server_info = talloc(mem_ctx, struct auth_serversupplied_info);
+	NT_STATUS_HAVE_NO_MEMORY(server_info);
 
-	/* This returns a pointer to a struct dom_sid, which is the
-	 * same as a 1 element list of struct dom_sid */
-	user_info_dc->num_sids = 1;
-	user_info_dc->sids = dom_sid_parse_talloc(user_info_dc, SID_NT_ANONYMOUS);
-	NT_STATUS_HAVE_NO_MEMORY(user_info_dc->sids);
+	server_info->account_sid = dom_sid_parse_talloc(server_info, SID_NT_ANONYMOUS);
+	NT_STATUS_HAVE_NO_MEMORY(server_info->account_sid);
+
+	/* is this correct? */
+	server_info->primary_group_sid = dom_sid_parse_talloc(server_info, SID_BUILTIN_GUESTS);
+	NT_STATUS_HAVE_NO_MEMORY(server_info->primary_group_sid);
+
+	server_info->n_domain_groups = 0;
+	server_info->domain_groups = NULL;
 
 	/* annoying, but the Anonymous really does have a session key, 
 	   and it is all zeros! */
-	user_info_dc->user_session_key = data_blob_talloc(user_info_dc, NULL, 16);
-	NT_STATUS_HAVE_NO_MEMORY(user_info_dc->user_session_key.data);
+	server_info->user_session_key = data_blob_talloc(server_info, NULL, 16);
+	NT_STATUS_HAVE_NO_MEMORY(server_info->user_session_key.data);
 
-	user_info_dc->lm_session_key = data_blob_talloc(user_info_dc, NULL, 16);
-	NT_STATUS_HAVE_NO_MEMORY(user_info_dc->lm_session_key.data);
+	server_info->lm_session_key = data_blob_talloc(server_info, NULL, 16);
+	NT_STATUS_HAVE_NO_MEMORY(server_info->lm_session_key.data);
 
-	data_blob_clear(&user_info_dc->user_session_key);
-	data_blob_clear(&user_info_dc->lm_session_key);
+	data_blob_clear(&server_info->user_session_key);
+	data_blob_clear(&server_info->lm_session_key);
 
-	user_info_dc->info = info = talloc_zero(user_info_dc, struct auth_user_info);
-	NT_STATUS_HAVE_NO_MEMORY(user_info_dc->info);
+	server_info->account_name = talloc_asprintf(server_info, "NAME TO NTSTATUS %s ANONYMOUS LOGON", user);
+	NT_STATUS_HAVE_NO_MEMORY(server_info->account_name);
 
-	info->account_name = talloc_asprintf(user_info_dc, "NAME TO NTSTATUS %s ANONYMOUS LOGON", user);
-	NT_STATUS_HAVE_NO_MEMORY(info->account_name);
+	server_info->domain_name = talloc_strdup(server_info, "NT AUTHORITY");
+	NT_STATUS_HAVE_NO_MEMORY(server_info->domain_name);
 
-	info->domain_name = talloc_strdup(user_info_dc, "NT AUTHORITY");
-	NT_STATUS_HAVE_NO_MEMORY(info->domain_name);
+	server_info->full_name = talloc_asprintf(server_info, "NAME TO NTSTATUS %s Anonymous Logon", user);
+	NT_STATUS_HAVE_NO_MEMORY(server_info->full_name);
 
-	info->full_name = talloc_asprintf(user_info_dc, "NAME TO NTSTATUS %s Anonymous Logon", user);
-	NT_STATUS_HAVE_NO_MEMORY(info->full_name);
+	server_info->logon_script = talloc_strdup(server_info, "");
+	NT_STATUS_HAVE_NO_MEMORY(server_info->logon_script);
 
-	info->logon_script = talloc_strdup(user_info_dc, "");
-	NT_STATUS_HAVE_NO_MEMORY(info->logon_script);
+	server_info->profile_path = talloc_strdup(server_info, "");
+	NT_STATUS_HAVE_NO_MEMORY(server_info->profile_path);
 
-	info->profile_path = talloc_strdup(user_info_dc, "");
-	NT_STATUS_HAVE_NO_MEMORY(info->profile_path);
+	server_info->home_directory = talloc_strdup(server_info, "");
+	NT_STATUS_HAVE_NO_MEMORY(server_info->home_directory);
 
-	info->home_directory = talloc_strdup(user_info_dc, "");
-	NT_STATUS_HAVE_NO_MEMORY(info->home_directory);
+	server_info->home_drive = talloc_strdup(server_info, "");
+	NT_STATUS_HAVE_NO_MEMORY(server_info->home_drive);
 
-	info->home_drive = talloc_strdup(user_info_dc, "");
-	NT_STATUS_HAVE_NO_MEMORY(info->home_drive);
+	server_info->last_logon = 0;
+	server_info->last_logoff = 0;
+	server_info->acct_expiry = 0;
+	server_info->last_password_change = 0;
+	server_info->allow_password_change = 0;
+	server_info->force_password_change = 0;
 
-	info->last_logon = 0;
-	info->last_logoff = 0;
-	info->acct_expiry = 0;
-	info->last_password_change = 0;
-	info->allow_password_change = 0;
-	info->force_password_change = 0;
+	server_info->logon_count = 0;
+	server_info->bad_password_count = 0;
 
-	info->logon_count = 0;
-	info->bad_password_count = 0;
+	server_info->acct_flags = ACB_NORMAL;
 
-	info->acct_flags = ACB_NORMAL;
+	server_info->authenticated = false;
 
-	info->authenticated = true;
-
-	*_user_info_dc = user_info_dc;
+	*_server_info = server_info;
 
 	return nt_status;
 }
@@ -150,12 +151,15 @@ static const struct auth_operations name_to_ntstatus_auth_ops = {
  *
  * @return NT_STATUS_UNSUCCESSFUL
  **/
-static NTSTATUS fixed_challenge_get_challenge(struct auth_method_context *ctx, TALLOC_CTX *mem_ctx, uint8_t chal[8])
+static NTSTATUS fixed_challenge_get_challenge(struct auth_method_context *ctx, TALLOC_CTX *mem_ctx, DATA_BLOB *_blob)
 {
+	DATA_BLOB blob;
 	const char *challenge = "I am a teapot";
 
-	memcpy(chal, challenge, 8);
+	blob = data_blob_talloc(mem_ctx, challenge, 8);
+	NT_STATUS_HAVE_NO_MEMORY(blob.data);
 
+	*_blob = blob;
 	return NT_STATUS_OK;
 }
 
@@ -170,7 +174,7 @@ static NTSTATUS fixed_challenge_want_check(struct auth_method_context *ctx,
 static NTSTATUS fixed_challenge_check_password(struct auth_method_context *ctx,
 			      		       TALLOC_CTX *mem_ctx,
 					       const struct auth_usersupplied_info *user_info,
-					       struct auth_user_info_dc **_user_info_dc)
+					       struct auth_serversupplied_info **_server_info)
 {
 	/* don't handle any users */
 	return NT_STATUS_NO_SUCH_USER;

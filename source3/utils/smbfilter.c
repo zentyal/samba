@@ -2,26 +2,22 @@
    Unix SMB/CIFS implementation.
    SMB filter/socket plugin
    Copyright (C) Andrew Tridgell 1999
-
+   
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
-#include "system/filesys.h"
-#include "system/select.h"
-#include "../lib/util/select.h"
-#include "libsmb/nmblib.h"
 
 #define SECURITY_MASK 0
 #define SECURITY_SET  0
@@ -47,7 +43,6 @@ static void save_file(const char *fname, void *ppacket, size_t length)
 	}
 	if (write(fd, ppacket, length) != length) {
 		fprintf(stderr,"Failed to write %s\n", fname);
-		close(fd);
 		return;
 	}
 	close(fd);
@@ -194,38 +189,17 @@ static void filter_child(int c, struct sockaddr_storage *dest_ss)
 	}
 
 	while (c != -1 || s != -1) {
-		struct pollfd fds[2];
-		int num_fds, ret;
+		fd_set fds;
+		int num;
+		
+		FD_ZERO(&fds);
+		if (s >= 0 && s < FD_SETSIZE) FD_SET(s, &fds);
+		if (c >= 0 && c < FD_SETSIZE) FD_SET(c, &fds);
 
-		memset(fds, 0, sizeof(struct pollfd) * 2);
-		fds[0].fd = -1;
-		fds[1].fd = -1;
-		num_fds = 0;
-
-		if (s != -1) {
-			fds[num_fds].fd = s;
-			fds[num_fds].events = POLLIN|POLLHUP;
-			num_fds += 1;
-		}
-		if (c != -1) {
-			fds[num_fds].fd = c;
-			fds[num_fds].events = POLLIN|POLLHUP;
-			num_fds += 1;
-		}
-
-		ret = sys_poll_intr(fds, num_fds, -1);
-		if (ret <= 0) {
-			continue;
-		}
-
-		/*
-		 * find c in fds and see if it's readable
-		 */
-		if ((c != -1) &&
-		    (((fds[0].fd == c)
-		      && (fds[0].revents & (POLLIN|POLLHUP|POLLERR))) ||
-		     ((fds[1].fd == c)
-		      && (fds[1].revents & (POLLIN|POLLHUP|POLLERR))))) {
+		num = sys_select_intr(MAX(s+1, c+1),&fds,NULL,NULL,NULL);
+		if (num <= 0) continue;
+		
+		if (c != -1 && FD_ISSET(c, &fds)) {
 			size_t len;
 			if (!NT_STATUS_IS_OK(receive_smb_raw(
 							c, packet, sizeof(packet),
@@ -239,15 +213,7 @@ static void filter_child(int c, struct sockaddr_storage *dest_ss)
 				exit(1);
 			}			
 		}
-
-		/*
-		 * find s in fds and see if it's readable
-		 */
-		if ((s != -1) &&
-		    (((fds[0].fd == s)
-		      && (fds[0].revents & (POLLIN|POLLHUP|POLLERR))) ||
-		     ((fds[1].fd == s)
-		      && (fds[1].revents & (POLLIN|POLLHUP|POLLERR))))) {
+		if (s != -1 && FD_ISSET(s, &fds)) {
 			size_t len;
 			if (!NT_STATUS_IS_OK(receive_smb_raw(
 							s, packet, sizeof(packet),
@@ -279,7 +245,7 @@ static void start_filter(char *desthost)
 
 	zero_sockaddr(&my_ss);
 	s = open_socket_in(SOCK_STREAM, 445, 0, &my_ss, True);
-
+	
 	if (s == -1) {
 		d_printf("bind failed\n");
 		exit(1);
@@ -295,12 +261,19 @@ static void start_filter(char *desthost)
 	}
 
 	while (1) {
-		int num, revents;
+		fd_set fds;
+		int num;
 		struct sockaddr_storage ss;
 		socklen_t in_addrlen = sizeof(ss);
+		
+		FD_ZERO(&fds);
+		if (s < 0 || s >= FD_SETSIZE) {
+			break;
+		}
+		FD_SET(s, &fds);
 
-		num = poll_intr_one_fd(s, POLLIN|POLLHUP, -1, &revents);
-		if ((num > 0) && (revents & (POLLIN|POLLHUP|POLLERR))) {
+		num = sys_select_intr(s+1,&fds,NULL,NULL,NULL);
+		if (num > 0) {
 			c = accept(s, (struct sockaddr *)&ss, &in_addrlen);
 			if (c != -1) {
 				if (fork() == 0) {
@@ -324,7 +297,7 @@ int main(int argc, char *argv[])
 
 	load_case_tables();
 
-	setup_logging(argv[0], DEBUG_STDOUT);
+	setup_logging(argv[0],True);
 
 	configfile = get_dyn_CONFIGFILE();
 

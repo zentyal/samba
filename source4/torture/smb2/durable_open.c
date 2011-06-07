@@ -20,6 +20,7 @@
 */
 
 #include "includes.h"
+#include "librpc/gen_ndr/security.h"
 #include "libcli/smb2/smb2.h"
 #include "libcli/smb2/smb2_calls.h"
 #include "torture/torture.h"
@@ -433,7 +434,7 @@ bool test_durable_open_lock(struct torture_context *tctx,
 	ZERO_STRUCT(el);
 	lck.in.locks		= el;
 	lck.in.lock_count	= 0x0001;
-	lck.in.lock_sequence	= 0x00000000;
+	lck.in.reserved		= 0x00000000;
 	lck.in.file.handle	= h;
 	el[0].offset		= 0;
 	el[0].length		= 1;
@@ -586,14 +587,14 @@ bool test_durable_open_open(struct torture_context *tctx,
 struct torture_suite *torture_smb2_durable_open_init(void)
 {
 	struct torture_suite *suite =
-	    torture_suite_create(talloc_autofree_context(), "durable-open");
+	    torture_suite_create(talloc_autofree_context(), "DURABLE-OPEN");
 
-	torture_suite_add_2smb2_test(suite, "file-position",
+	torture_suite_add_2smb2_test(suite, "FILE-POSITION",
 	    test_durable_open_file_position);
-	torture_suite_add_2smb2_test(suite, "oplock", test_durable_open_oplock);
-	torture_suite_add_2smb2_test(suite, "lease", test_durable_open_lease);
-	torture_suite_add_1smb2_test(suite, "lock", test_durable_open_lock);
-	torture_suite_add_2smb2_test(suite, "open", test_durable_open_open);
+	torture_suite_add_2smb2_test(suite, "OPLOCK", test_durable_open_oplock);
+	torture_suite_add_2smb2_test(suite, "LEASE", test_durable_open_lease);
+	torture_suite_add_1smb2_test(suite, "LOCK", test_durable_open_lock);
+	torture_suite_add_2smb2_test(suite, "OPEN", test_durable_open_open);
 
 	suite->description = talloc_strdup(suite, "SMB2-DURABLE-OPEN tests");
 

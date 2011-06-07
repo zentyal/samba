@@ -5,21 +5,12 @@
 # The main purpose (for now) is to test all the special handlers
 # and the macro expansions.
 
-if [ $# -lt 1 ]; then
-cat <<EOF
-Usage: test_net_registry_roundtrip.sh LOCAL_PATH
-EOF
-exit 1;
-fi
-
-LOCAL_PATH="$1"
-
-TEMP_CONFFILE=${LOCAL_PATH}/smb.conf.tmp
+TEMP_CONFFILE=${LIBDIR}/smb.conf.tmp
 TESTPARM="$VALGRIND ${TESTPARM:-$BINDIR/testparm} --suppress-prompt --skip-logic-checks"
 
 test x"$TEST_FUNCTIONS_SH" != x"INCLUDED" && {
-incdir=`dirname $0`/../../../testprogs/blackbox
-. $incdir/subunit.sh
+incdir=`dirname $0`
+. $incdir/test_functions.sh
 }
 
 failed=0

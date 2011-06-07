@@ -62,8 +62,8 @@ static char *print_schema_recursive(char *append_to_string, struct dsdb_schema *
 			.num_values = 1,
 			.values = &objectclass_name_as_ldb_val
 		};
-		unsigned int j;
-		unsigned int attr_idx;
+		int j;
+		int attr_idx;
 		
 		if (!mem_ctx) {
 			DEBUG(0, ("Failed to create new talloc context\n"));
@@ -87,14 +87,6 @@ static char *print_schema_recursive(char *append_to_string, struct dsdb_schema *
 		for (j=0; name && attr_map && attr_map[j].old_attr; j++) {
 			if (strcasecmp(name, attr_map[j].old_attr) == 0) {
 				name =  attr_map[j].new_attr;
-				break;
-			}
-		}
-		
-		/* We might have been asked to remap this subClassOf, due to a conflict */
-		for (j=0; subClassOf && attr_map && attr_map[j].old_attr; j++) {
-			if (strcasecmp(subClassOf, attr_map[j].old_attr) == 0) {
-				subClassOf =  attr_map[j].new_attr;
 				break;
 			}
 		}
@@ -183,11 +175,11 @@ char *dsdb_convert_schema_to_openldap(struct ldb_context *ldb, char *target_str,
 	char *line;
 	char *out;
 	const char **attrs_skip = NULL;
-	unsigned int num_skip = 0;
+	int num_skip = 0;
 	struct oid_map *oid_map = NULL;
-	unsigned int num_oid_maps = 0;
+	int num_oid_maps = 0;
 	struct attr_map *attr_map = NULL;
-	unsigned int num_attr_maps = 0;
+	int num_attr_maps = 0;	
 	struct dsdb_attribute *attribute;
 	struct dsdb_schema *schema;
 	enum dsdb_schema_convert_target target;
@@ -261,7 +253,7 @@ char *dsdb_convert_schema_to_openldap(struct ldb_context *ldb, char *target_str,
 		}
 	}
 
-	schema = dsdb_get_schema(ldb, mem_ctx);
+	schema = dsdb_get_schema(ldb);
 	if (!schema) {
 		DEBUG(0, ("No schema on ldb to convert!\n"));
 		return NULL;
@@ -284,7 +276,7 @@ char *dsdb_convert_schema_to_openldap(struct ldb_context *ldb, char *target_str,
 		bool single_value = attribute->isSingleValued;
 
 		char *schema_entry = NULL;
-		unsigned int j;
+		int j;
 
 		/* We have been asked to skip some attributes/objectClasses */
 		if (attrs_skip && str_list_check_ci(attrs_skip, name)) {

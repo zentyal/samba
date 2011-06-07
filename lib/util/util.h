@@ -21,8 +21,10 @@
 #ifndef _SAMBA_UTIL_H_
 #define _SAMBA_UTIL_H_
 
-#include "lib/util/charset/charset.h"
-#include "lib/util/attr.h"
+#if _SAMBA_BUILD_ == 4
+#include "../lib/util/charset/charset.h"
+#endif
+#include "../lib/util/attr.h"
 
 /* for TALLOC_CTX */
 #include <talloc.h>
@@ -37,11 +39,12 @@ struct smbsrv_tcon;
 extern const char *logfile;
 extern const char *panic_action;
 
-#include "lib/util/time.h"
-#include "lib/util/data_blob.h"
-#include "lib/util/xfile.h"
-#include "lib/util/byteorder.h"
-#include "lib/util/talloc_stack.h"
+#include "../lib/util/time.h"
+#include "../lib/util/data_blob.h"
+#include "../lib/util/xfile.h"
+#include "../lib/util/mutex.h"
+#include "../lib/util/byteorder.h"
+#include "../lib/util/talloc_stack.h"
 
 /**
  * assert macros 
@@ -57,11 +60,18 @@ extern const char *panic_action;
 	    __FILE__, __LINE__, #b)); }} while (0)
 #endif
 
+#if _SAMBA_BUILD_ == 4
+#ifdef VALGRIND
+#define strlen(x) valgrind_strlen(x)
+size_t valgrind_strlen(const char *s);
+#endif
+#endif
+
 #ifndef ABS
 #define ABS(a) ((a)>0?(a):(-(a)))
 #endif
 
-#include "lib/util/memory.h"
+#include "../lib/util/memory.h"
 
 /**
  * Write backtrace to debug log
@@ -78,7 +88,6 @@ _PUBLIC_ _NORETURN_ void smb_panic(const char *why);
 setup our fault handlers
 **/
 _PUBLIC_ void fault_setup(const char *pname);
-_PUBLIC_ void fault_setup_disable(void);
 #endif
 
 /**
@@ -133,20 +142,8 @@ _PUBLIC_ pid_t sys_fork(void);
  **/
 _PUBLIC_ pid_t sys_getpid(void);
 
-_PUBLIC_ int sys_getpeereid( int s, uid_t *uid);
-
-struct sockaddr;
-
-_PUBLIC_ int sys_getnameinfo(const struct sockaddr *psa,
-			     int salen,
-			     char *host,
-			     size_t hostlen,
-			     char *service,
-			     size_t servlen,
-			     int flags);
-_PUBLIC_ int sys_connect(int fd, const struct sockaddr * addr);
-
 /* The following definitions come from lib/util/genrand.c  */
+
 /**
  Copy any user given reseed data.
 **/
@@ -179,11 +176,6 @@ _PUBLIC_ uint32_t generate_random(void);
   very basic password quality checker
 **/
 _PUBLIC_ bool check_password_quality(const char *s);
-
-/**
- * Generate a random text password.
- */
-_PUBLIC_ char *generate_random_password(TALLOC_CTX *mem_ctx, size_t min, size_t max);
 
 /**
  Use the random number generator to generate a random string.
@@ -458,7 +450,7 @@ _PUBLIC_ char **str_list_make(TALLOC_CTX *mem_ctx, const char *string,
 
 /**
  * build a null terminated list of strings from an argv-like input string 
- * Entries are separated by spaces and can be enclosed by quotes.
+ * Entries are seperated by spaces and can be enclosed by quotes. 
  * Does NOT support escaping
  */
 _PUBLIC_ char **str_list_make_shell(TALLOC_CTX *mem_ctx, const char *string, const char *sep);
@@ -466,10 +458,10 @@ _PUBLIC_ char **str_list_make_shell(TALLOC_CTX *mem_ctx, const char *string, con
 /**
  * join a list back to one string 
  */
-_PUBLIC_ char *str_list_join(TALLOC_CTX *mem_ctx, const char **list, char separator);
+_PUBLIC_ char *str_list_join(TALLOC_CTX *mem_ctx, const char **list, char seperator);
 
 /** join a list back to one (shell-like) string; entries 
- * separated by spaces, using quotes where necessary */
+ * seperated by spaces, using quotes where necessary */
 _PUBLIC_ char *str_list_join_shell(TALLOC_CTX *mem_ctx, const char **list, char sep);
 
 /**
@@ -485,7 +477,7 @@ _PUBLIC_ char **str_list_copy(TALLOC_CTX *mem_ctx, const char **list);
 /**
    Return true if all the elements of the list match exactly.
  */
-_PUBLIC_ bool str_list_equal(const char * const *list1, const char * const *list2);
+_PUBLIC_ bool str_list_equal(const char **list1, const char **list2);
 
 /**
   add an entry to a string list
@@ -542,11 +534,6 @@ _PUBLIC_ const char **str_list_add_const(const char **list, const char *s);
 */
 _PUBLIC_ const char **str_list_copy_const(TALLOC_CTX *mem_ctx,
 					  const char **list);
-
-/**
- * Needed for making an "unconst" list "const"
- */
-_PUBLIC_ const char **const_str_list(char **list);
 
 
 /* The following definitions come from lib/util/util_file.c  */
@@ -609,11 +596,6 @@ _PUBLIC_ int vfdprintf(int fd, const char *format, va_list ap) PRINTF_ATTRIBUTE(
 _PUBLIC_ int fdprintf(int fd, const char *format, ...) PRINTF_ATTRIBUTE(2,3);
 _PUBLIC_ bool large_file_support(const char *path);
 
-/*
-  compare two files, return true if the two files have the same content
- */
-bool file_compare(const char *path1, const char *path2);
-
 /* The following definitions come from lib/util/util.c  */
 
 
@@ -658,12 +640,39 @@ _PUBLIC_ int set_blocking(int fd, bool set);
 /**
  Sleep for a specified number of milliseconds.
 **/
-_PUBLIC_ void smb_msleep(unsigned int t);
+_PUBLIC_ void msleep(unsigned int t);
 
 /**
  Get my own name, return in talloc'ed storage.
 **/
 _PUBLIC_ char* get_myname(TALLOC_CTX *mem_ctx);
+
+/**
+ Return true if a string could be a pure IP address.
+**/
+_PUBLIC_ bool is_ipaddress(const char *str);
+
+/**
+ Interpret an internet address or name into an IP address in 4 byte form.
+**/
+_PUBLIC_ uint32_t interpret_addr(const char *str);
+
+/**
+ A convenient addition to interpret_addr().
+**/
+_PUBLIC_ struct in_addr interpret_addr2(const char *str);
+
+/**
+ Check if an IP is the 0.0.0.0.
+**/
+_PUBLIC_ bool is_zero_ip_v4(struct in_addr ip);
+
+/**
+ Are two IPs on the same subnet?
+**/
+_PUBLIC_ bool same_net_v4(struct in_addr ip1,struct in_addr ip2,struct in_addr mask);
+
+_PUBLIC_ bool is_ipaddress_v4(const char *str);
 
 /**
  Check if a process exists. Does this work on all unixes?
@@ -677,14 +686,6 @@ _PUBLIC_ bool process_exists_by_pid(pid_t pid);
 _PUBLIC_ bool fcntl_lock(int fd, int op, off_t offset, off_t count, int type);
 
 /**
- * Write dump of binary data to a callback
- */
-void dump_data_cb(const uint8_t *buf, int len,
-		  bool omit_zero_bytes,
-		  void (*cb)(const char *buf, void *private_data),
-		  void *private_data);
-
-/**
  * Write dump of binary data to the log file.
  *
  * The data is only written if the log level is at least level.
@@ -695,7 +696,7 @@ _PUBLIC_ void dump_data(int level, const uint8_t *buf,int len);
  * Write dump of binary data to the log file.
  *
  * The data is only written if the log level is at least level.
- * 16 zero bytes in a row are omitted
+ * 16 zero bytes in a row are ommited
  */
 _PUBLIC_ void dump_data_skip_zeros(int level, const uint8_t *buf, int len);
 
@@ -782,6 +783,15 @@ int ms_fnmatch(const char *pattern, const char *string, enum protocol_types prot
 int gen_fnmatch(const char *pattern, const char *string);
 #endif
 
+/* The following definitions come from lib/util/mutex.c  */
+
+
+/**
+  register a set of mutex/rwlock handlers. 
+  Should only be called once in the execution of smbd.
+*/
+_PUBLIC_ bool register_mutex_handlers(const char *name, struct mutex_ops *ops);
+
 /* The following definitions come from lib/util/idtree.c  */
 
 
@@ -829,7 +839,7 @@ _PUBLIC_ void close_low_fds(bool stderr_too);
 /**
  Become a daemon, discarding the controlling terminal.
 **/
-_PUBLIC_ void become_daemon(bool do_fork, bool no_process_group, bool log_stdout);
+_PUBLIC_ void become_daemon(bool do_fork, bool no_process_group);
 
 /**
  * Load a ini-style file.
@@ -842,9 +852,6 @@ bool pm_process( const char *fileName,
 bool unmap_file(void *start, size_t size);
 
 void print_asc(int level, const uint8_t *buf,int len);
-void print_asc_cb(const uint8_t *buf, int len,
-		  void (*cb)(const char *buf, void *private_data),
-		  void *private_data);
 
 /**
  * Add an id to an array of ids.
@@ -854,37 +861,9 @@ void print_asc_cb(const uint8_t *buf, int len,
  */
 
 bool add_uid_to_array_unique(TALLOC_CTX *mem_ctx, uid_t uid,
-			     uid_t **uids, uint32_t *num_uids);
+			     uid_t **uids, size_t *num_uids);
 bool add_gid_to_array_unique(TALLOC_CTX *mem_ctx, gid_t gid,
-			     gid_t **gids, uint32_t *num_gids);
+			     gid_t **gids, size_t *num_gids);
 
-/**
- * Allocate anonymous shared memory of the given size
- */
-void *anonymous_shared_allocate(size_t bufsz);
-void anonymous_shared_free(void *ptr);
-
-/*
-  run a command as a child process, with a timeout.
-
-  any stdout/stderr from the child will appear in the Samba logs with
-  the specified log levels
-
-  If callback is set then the callback is called on completion
-  with the return code from the command
- */
-struct tevent_context;
-struct tevent_req;
-struct tevent_req *samba_runcmd_send(TALLOC_CTX *mem_ctx,
-				     struct tevent_context *ev,
-				     struct timeval endtime,
-				     int stdout_log_level,
-				     int stderr_log_level,
-				     const char * const *argv0, ...);
-int samba_runcmd_recv(struct tevent_req *req, int *perrno);
-
-#ifdef DEVELOPER
-void samba_start_debugger(void);
-#endif
 
 #endif /* _SAMBA_UTIL_H_ */

@@ -162,7 +162,7 @@ struct tevent_fd {
 	const char *handler_name;
 	const char *location;
 	/* this is private for the events_ops implementation */
-	uint64_t additional_flags;
+	uint16_t additional_flags;
 	void *additional_data;
 };
 
@@ -303,7 +303,6 @@ void tevent_cleanup_pending_signal_handlers(struct tevent_signal *se);
 
 bool tevent_standard_init(void);
 bool tevent_select_init(void);
-bool tevent_poll_init(void);
 #ifdef HAVE_EPOLL
 bool tevent_epoll_init(void);
 #endif

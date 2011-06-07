@@ -21,8 +21,10 @@
 
 #include "includes.h"
 #include "libcli/libcli.h"
+#include "torture/torture.h"
 #include "torture/util.h"
 #include "system/filesys.h"
+#include "libcli/raw/libcliraw.h"
 #include "libcli/raw/raw_proto.h"
 
 #include "torture/raw/proto.h"
@@ -1422,7 +1424,7 @@ static bool deltest21(struct torture_context *tctx)
 
 	/* On slow build farm machines it might happen that they are not fast
 	 * enogh to delete the file for this test */
-	smb_msleep(200);
+	msleep(200);
 
 	/* File should not be there. */
 	fnum1 = smbcli_nt_create_full(cli1->tree, fname, 0, 
@@ -1515,69 +1517,7 @@ static bool deltest22(struct torture_context *tctx)
 
 	CHECK_STATUS(cli1, NT_STATUS_DELETE_PENDING);
 
-	smbcli_close(cli1->tree, dnum2);
-	CHECK_STATUS(cli1, NT_STATUS_OK);
-
 	return correct;
-}
-
-/* Test 23 - Second directory open fails when delete is pending. */
-static bool deltest23(struct torture_context *tctx,
-			struct smbcli_state *cli1,
-			struct smbcli_state *cli2)
-{
-	int dnum1 = -1;
-	int dnum2 = -1;
-	bool correct = true;
-	NTSTATUS status;
-
-	del_clean_area(cli1, cli2);
-
-	/* Test 23 -- Basic delete on close for directories. */
-
-	/* Open a directory */
-	dnum1 = smbcli_nt_create_full(cli1->tree, dname, 0,
-				      SEC_FILE_READ_DATA|
-				      SEC_FILE_WRITE_DATA|
-				      SEC_STD_DELETE,
-				      FILE_ATTRIBUTE_DIRECTORY,
-				      NTCREATEX_SHARE_ACCESS_READ|
-				      NTCREATEX_SHARE_ACCESS_WRITE|
-				      NTCREATEX_SHARE_ACCESS_DELETE,
-				      NTCREATEX_DISP_CREATE,
-				      NTCREATEX_OPTIONS_DIRECTORY, 0);
-
-	torture_assert(tctx, dnum1 != -1, talloc_asprintf(tctx,
-			   "open of %s failed: %s!",
-			   dname, smbcli_errstr(cli1->tree)));
-
-	correct &= check_delete_on_close(tctx, cli1, dnum1, dname, false,
-	    __location__);
-
-	/* Set delete on close */
-	status = smbcli_nt_delete_on_close(cli1->tree, dnum1, true);
-
-	/* Attempt opening the directory again.  It should fail. */
-	dnum2 = smbcli_nt_create_full(cli1->tree, dname, 0,
-				      SEC_FILE_READ_DATA|
-				      SEC_FILE_WRITE_DATA|
-				      SEC_STD_DELETE,
-				      FILE_ATTRIBUTE_DIRECTORY,
-				      NTCREATEX_SHARE_ACCESS_READ|
-				      NTCREATEX_SHARE_ACCESS_WRITE|
-				      NTCREATEX_SHARE_ACCESS_DELETE,
-				      NTCREATEX_DISP_OPEN,
-				      NTCREATEX_OPTIONS_DIRECTORY, 0);
-
-	torture_assert(tctx, dnum2 == -1, talloc_asprintf(tctx,
-			   "open of %s succeeded: %s. It should have failed "
-			   "with NT_STATUS_DELETE_PENDING",
-			   dname, smbcli_errstr(cli1->tree)));
-
-	torture_assert_ntstatus_equal(tctx, smbcli_nt_error(cli1->tree),
-	    NT_STATUS_DELETE_PENDING, "smbcli_open failed");
-
-	return true;
 }
 
 /*
@@ -1586,7 +1526,8 @@ static bool deltest23(struct torture_context *tctx,
 struct torture_suite *torture_test_delete(void)
 {
 	struct torture_suite *suite = torture_suite_create(
-		talloc_autofree_context(), "delete");
+		talloc_autofree_context(),
+		"DELETE");
 
 	torture_suite_add_2smb_test(suite, "deltest1", deltest1);
 	torture_suite_add_2smb_test(suite, "deltest2", deltest2);
@@ -1612,7 +1553,6 @@ struct torture_suite *torture_test_delete(void)
 	torture_suite_add_2smb_test(suite, "deltest20b", deltest20b);
 	torture_suite_add_simple_test(suite, "deltest21", deltest21);
 	torture_suite_add_simple_test(suite, "deltest22", deltest22);
-	torture_suite_add_2smb_test(suite, "deltest23", deltest23);
 
 	return suite;
 }

@@ -21,8 +21,6 @@
 */
 
 #include "includes.h"
-#include "system/filesys.h"
-#include "nmbd/nmbd.h"
 
 uint16 samba_nb_type = 0; /* samba's NetBIOS name type */
 

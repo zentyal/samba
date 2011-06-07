@@ -21,54 +21,45 @@
 #ifndef _SAMBA_AUTH_SESSION_H
 #define _SAMBA_AUTH_SESSION_H
 
-#include "librpc/gen_ndr/security.h"
+struct auth_session_info {
+	struct security_token *security_token;
+	struct auth_serversupplied_info *server_info;
+	DATA_BLOB session_key;
+	struct cli_credentials *credentials;
+};
+
 #include "librpc/gen_ndr/netlogon.h"
-#include "librpc/gen_ndr/auth.h"
 
 struct tevent_context;
-struct ldb_context;
-struct ldb_dn;
+
 /* Create a security token for a session SYSTEM (the most
  * trusted/prvilaged account), including the local machine account as
  * the off-host credentials */
-struct auth_session_info *system_session(struct loadparm_context *lp_ctx) ;
+struct auth_session_info *system_session(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx) ;
 
-NTSTATUS auth_anonymous_user_info_dc(TALLOC_CTX *mem_ctx,
-					     const char *netbios_name,
-					     struct auth_user_info_dc **interim_info);
-NTSTATUS auth_generate_session_info(TALLOC_CTX *mem_ctx,
-				    struct loadparm_context *lp_ctx, /* Optional, if you don't want privilages */
-				    struct ldb_context *sam_ctx, /* Optional, if you don't want local groups */
-				    struct auth_user_info_dc *interim_info,
-				    uint32_t session_info_flags,
-				    struct auth_session_info **session_info);
-NTSTATUS auth_anonymous_session_info(TALLOC_CTX *parent_ctx, 
-				     struct loadparm_context *lp_ctx,
-				     struct auth_session_info **session_info);
-struct auth_session_info *auth_session_info_from_transport(TALLOC_CTX *mem_ctx,
-							   struct auth_session_info_transport *session_info_transport,
-							   struct loadparm_context *lp_ctx,
-							   const char **reason);
-NTSTATUS auth_session_info_transport_from_session(TALLOC_CTX *mem_ctx,
-						  struct auth_session_info *session_info,
-						  struct tevent_context *event_ctx,
-						  struct loadparm_context *lp_ctx,
-						  struct auth_session_info_transport **transport_out);
-
-/* Produce a session_info for an arbitary DN or principal in the local
- * DB, assuming the local DB holds all the groups
- *
- * Supply either a principal or a DN
+/*
+ * Create a system session, but with anonymous credentials (so we do
+ * not need to open secrets.ldb) 
  */
-NTSTATUS authsam_get_session_info_principal(TALLOC_CTX *mem_ctx,
-					    struct loadparm_context *lp_ctx,
-					    struct ldb_context *sam_ctx,
-					    const char *principal,
-					    struct ldb_dn *user_dn,
-					    uint32_t session_info_flags,
-					    struct auth_session_info **session_info);
+struct auth_session_info *system_session_anon(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx);
+
+
+NTSTATUS auth_anonymous_server_info(TALLOC_CTX *mem_ctx, 
+				    const char *netbios_name,
+				    struct auth_serversupplied_info **_server_info) ;
+NTSTATUS auth_generate_session_info(TALLOC_CTX *mem_ctx, 
+				    struct tevent_context *event_ctx,
+				    struct loadparm_context *lp_ctx,
+				    struct auth_serversupplied_info *server_info, 
+				    struct auth_session_info **_session_info) ;
+
+NTSTATUS auth_anonymous_session_info(TALLOC_CTX *parent_ctx, 
+				     struct tevent_context *ev_ctx,
+				     struct loadparm_context *lp_ctx,
+				     struct auth_session_info **_session_info);
 
 struct auth_session_info *anonymous_session(TALLOC_CTX *mem_ctx, 
+					    struct tevent_context *event_ctx,
 					    struct loadparm_context *lp_ctx);
 
 struct auth_session_info *admin_session(TALLOC_CTX *mem_ctx,

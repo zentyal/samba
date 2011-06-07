@@ -21,8 +21,6 @@
 */
 
 #include "includes.h"
-#include "system/filesys.h"
-#include "popt_common.h"
 #undef realloc
 
 static int
@@ -202,7 +200,7 @@ int main(int argc, char *argv[])
 
 	/* the following functions are part of the Samba debugging
 	   facilities.  See lib/debug.c */
-	setup_logging("smbiconv", DEBUG_STDOUT);
+	setup_logging("smbiconv", True);
 
 	if (preload_modules[0]) smb_load_modules(preload_modules);
 

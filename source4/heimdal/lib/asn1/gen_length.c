@@ -43,7 +43,6 @@ length_primitive (const char *typename,
     fprintf (codefile, "%s += der_length_%s(%s);\n", variable, typename, name);
 }
 
-/* XXX same as der_length_tag */
 static size_t
 length_tag(unsigned int tag)
 {
@@ -149,9 +148,10 @@ length_type (const char *name, const Type *t,
 	    if(t->type == TChoice)
 		fprintf(codefile, "case %s:\n", m->label);
 
-	    if (asprintf (&s, "%s(%s)->%s%s",
-			  m->optional ? "" : "&", name,
-			  t->type == TChoice ? "u." : "", m->gen_name) < 0 || s == NULL)
+	    asprintf (&s, "%s(%s)->%s%s",
+		      m->optional ? "" : "&", name,
+		      t->type == TChoice ? "u." : "", m->gen_name);
+	    if (s == NULL)
 		errx(1, "malloc");
 	    if (m->optional)
 		fprintf (codefile, "if(%s)", s);
@@ -182,22 +182,24 @@ length_type (const char *name, const Type *t,
     }
     case TSetOf:
     case TSequenceOf: {
-	char *n = NULL;
-	char *sname = NULL;
+	char *n;
+	char *sname;
 
 	fprintf (codefile,
 		 "{\n"
-		 "size_t %s_oldret = %s;\n"
+		 "int %s_oldret = %s;\n"
 		 "int i;\n"
 		 "%s = 0;\n",
 		 tmpstr, variable, variable);
 
 	fprintf (codefile, "for(i = (%s)->len - 1; i >= 0; --i){\n", name);
-	fprintf (codefile, "size_t %s_for_oldret = %s;\n"
+	fprintf (codefile, "int %s_for_oldret = %s;\n"
 		 "%s = 0;\n", tmpstr, variable, variable);
-	if (asprintf (&n, "&(%s)->val[i]", name) < 0  || n == NULL)
+	asprintf (&n, "&(%s)->val[i]", name);
+	if (n == NULL)
 	    errx(1, "malloc");
-	if (asprintf (&sname, "%s_S_Of", tmpstr) < 0 || sname == NULL)
+	asprintf (&sname, "%s_S_Of", tmpstr);
+	if (sname == NULL)
 	    errx(1, "malloc");
 	length_type(n, t->subtype, variable, sname);
 	fprintf (codefile, "%s += %s_for_oldret;\n",
@@ -215,9 +217,6 @@ length_type (const char *name, const Type *t,
 	length_primitive ("generalized_time", name, variable);
 	break;
     case TGeneralString:
-	length_primitive ("general_string", name, variable);
-	break;
-    case TTeletexString:
 	length_primitive ("general_string", name, variable);
 	break;
     case TUTCTime:
@@ -245,8 +244,9 @@ length_type (const char *name, const Type *t,
 	fprintf (codefile, "/* NULL */\n");
 	break;
     case TTag:{
-    	char *tname = NULL;
-	if (asprintf(&tname, "%s_tag", tmpstr) < 0 || tname == NULL)
+    	char *tname;
+	asprintf(&tname, "%s_tag", tmpstr);
+	if (tname == NULL)
 	    errx(1, "malloc");
 	length_type (name, t->subtype, variable, tname);
 	fprintf (codefile, "ret += %lu + der_length_len (ret);\n",
@@ -266,8 +266,12 @@ length_type (const char *name, const Type *t,
 void
 generate_type_length (const Symbol *s)
 {
+    fprintf (headerfile,
+	     "size_t length_%s(const %s *);\n",
+	     s->gen_name, s->gen_name);
+
     fprintf (codefile,
-	     "size_t ASN1CALL\n"
+	     "size_t\n"
 	     "length_%s(const %s *data)\n"
 	     "{\n"
 	     "size_t ret = 0;\n",

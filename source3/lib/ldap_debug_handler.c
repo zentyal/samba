@@ -18,7 +18,6 @@
  */
 
 #include "includes.h"
-#include "smb_ldap.h"
 
 #if defined(HAVE_LDAP) && defined(HAVE_LBER_LOG_PRINT_FN)
 static void samba_ldap_log_print_fn(LDAP_CONST char *data)

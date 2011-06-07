@@ -1,6 +1,8 @@
 #include "mech_locl.h"
 #include "heim_threads.h"
 
+RCSID("$Id$");
+
 struct mg_thread_ctx {
     gss_OID mech;
     OM_uint32 maj_stat;
@@ -85,19 +87,17 @@ _gss_mg_get_error(const gss_OID mech, OM_uint32 type,
     case GSS_C_GSS_CODE: {
 	if (value != mg->maj_stat || mg->maj_error.length == 0)
 	    break;
-	string->value = malloc(mg->maj_error.length + 1);
+	string->value = malloc(mg->maj_error.length);
 	string->length = mg->maj_error.length;
 	memcpy(string->value, mg->maj_error.value, mg->maj_error.length);
-        ((char *) string->value)[string->length] = '\0';
 	return GSS_S_COMPLETE;
     }
     case GSS_C_MECH_CODE: {
 	if (value != mg->min_stat || mg->min_error.length == 0)
 	    break;
-	string->value = malloc(mg->min_error.length + 1);
+	string->value = malloc(mg->min_error.length);
 	string->length = mg->min_error.length;
 	memcpy(string->value, mg->min_error.value, mg->min_error.length);
-        ((char *) string->value)[string->length] = '\0';
 	return GSS_S_COMPLETE;
     }
     }

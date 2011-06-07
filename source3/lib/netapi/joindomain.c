@@ -18,17 +18,14 @@
  */
 
 #include "includes.h"
-#include "ads.h"
+
 #include "librpc/gen_ndr/libnetapi.h"
-#include "libcli/auth/libcli_auth.h"
 #include "lib/netapi/netapi.h"
 #include "lib/netapi/netapi_private.h"
 #include "lib/netapi/libnetapi.h"
-#include "librpc/gen_ndr/libnet_join.h"
-#include "libnet/libnet_join.h"
-#include "../librpc/gen_ndr/ndr_wkssvc_c.h"
-#include "rpc_client/cli_pipe.h"
-#include "secrets.h"
+#include "libnet/libnet.h"
+#include "libcli/auth/libcli_auth.h"
+#include "../librpc/gen_ndr/cli_wkssvc.h"
 
 /****************************************************************
 ****************************************************************/
@@ -37,11 +34,7 @@ WERROR NetJoinDomain_l(struct libnetapi_ctx *mem_ctx,
 		       struct NetJoinDomain *r)
 {
 	struct libnet_JoinCtx *j = NULL;
-	struct libnetapi_private_ctx *priv;
 	WERROR werr;
-
-	priv = talloc_get_type_abort(mem_ctx->private_data,
-		struct libnetapi_private_ctx);
 
 	if (!r->in.domain) {
 		return WERR_INVALID_PARAM;
@@ -60,7 +53,7 @@ WERROR NetJoinDomain_l(struct libnetapi_ctx *mem_ctx,
 		uint32_t flags = DS_DIRECTORY_SERVICE_REQUIRED |
 				 DS_WRITABLE_REQUIRED |
 				 DS_RETURN_DNS_NAME;
-		status = dsgetdcname(mem_ctx, priv->msg_ctx, r->in.domain,
+		status = dsgetdcname(mem_ctx, NULL, r->in.domain,
 				     NULL, NULL, flags, &info);
 		if (!NT_STATUS_IS_OK(status)) {
 			libnetapi_set_error_string(mem_ctx,
@@ -112,8 +105,6 @@ WERROR NetJoinDomain_r(struct libnetapi_ctx *ctx,
 	NTSTATUS status;
 	WERROR werr;
 	unsigned int old_timeout = 0;
-	struct dcerpc_binding_handle *b;
-	DATA_BLOB session_key;
 
 	werr = libnetapi_open_pipe(ctx, r->in.server,
 				   &ndr_table_wkssvc.syntax_id,
@@ -122,25 +113,16 @@ WERROR NetJoinDomain_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	b = pipe_cli->binding_handle;
-
 	if (r->in.password) {
-
-		status = cli_get_session_key(talloc_tos(), pipe_cli, &session_key);
-		if (!NT_STATUS_IS_OK(status)) {
-			werr = ntstatus_to_werror(status);
-			goto done;
-		}
-
 		encode_wkssvc_join_password_buffer(ctx,
 						   r->in.password,
-						   &session_key,
+						   &pipe_cli->auth->user_session_key,
 						   &encrypted_password);
 	}
 
 	old_timeout = rpccli_set_timeout(pipe_cli, 600000);
 
-	status = dcerpc_wkssvc_NetrJoinDomain2(b, talloc_tos(),
+	status = rpccli_wkssvc_NetrJoinDomain2(pipe_cli, talloc_tos(),
 					       r->in.server,
 					       r->in.domain,
 					       r->in.account_ou,
@@ -170,10 +152,6 @@ WERROR NetUnjoinDomain_l(struct libnetapi_ctx *mem_ctx,
 	struct dom_sid domain_sid;
 	const char *domain = NULL;
 	WERROR werr;
-	struct libnetapi_private_ctx *priv;
-
-	priv = talloc_get_type_abort(mem_ctx->private_data,
-		struct libnetapi_private_ctx);
 
 	if (!secrets_fetch_domain_sid(lp_workgroup(), &domain_sid)) {
 		return WERR_SETUP_NOT_JOINED;
@@ -198,7 +176,7 @@ WERROR NetUnjoinDomain_l(struct libnetapi_ctx *mem_ctx,
 		uint32_t flags = DS_DIRECTORY_SERVICE_REQUIRED |
 				 DS_WRITABLE_REQUIRED |
 				 DS_RETURN_DNS_NAME;
-		status = dsgetdcname(mem_ctx, priv->msg_ctx, domain,
+		status = dsgetdcname(mem_ctx, NULL, domain,
 				     NULL, NULL, flags, &info);
 		if (!NT_STATUS_IS_OK(status)) {
 			libnetapi_set_error_string(mem_ctx,
@@ -253,8 +231,6 @@ WERROR NetUnjoinDomain_r(struct libnetapi_ctx *ctx,
 	NTSTATUS status;
 	WERROR werr;
 	unsigned int old_timeout = 0;
-	struct dcerpc_binding_handle *b;
-	DATA_BLOB session_key;
 
 	werr = libnetapi_open_pipe(ctx, r->in.server_name,
 				   &ndr_table_wkssvc.syntax_id,
@@ -263,25 +239,16 @@ WERROR NetUnjoinDomain_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	b = pipe_cli->binding_handle;
-
 	if (r->in.password) {
-
-		status = cli_get_session_key(talloc_tos(), pipe_cli, &session_key);
-		if (!NT_STATUS_IS_OK(status)) {
-			werr = ntstatus_to_werror(status);
-			goto done;
-		}
-
 		encode_wkssvc_join_password_buffer(ctx,
 						   r->in.password,
-						   &session_key,
+						   &pipe_cli->auth->user_session_key,
 						   &encrypted_password);
 	}
 
 	old_timeout = rpccli_set_timeout(pipe_cli, 60000);
 
-	status = dcerpc_wkssvc_NetrUnjoinDomain2(b, talloc_tos(),
+	status = rpccli_wkssvc_NetrUnjoinDomain2(pipe_cli, talloc_tos(),
 						 r->in.server_name,
 						 r->in.account,
 						 encrypted_password,
@@ -310,7 +277,6 @@ WERROR NetGetJoinInformation_r(struct libnetapi_ctx *ctx,
 	NTSTATUS status;
 	WERROR werr;
 	const char *buffer = NULL;
-	struct dcerpc_binding_handle *b;
 
 	werr = libnetapi_open_pipe(ctx, r->in.server_name,
 				   &ndr_table_wkssvc.syntax_id,
@@ -319,19 +285,13 @@ WERROR NetGetJoinInformation_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	b = pipe_cli->binding_handle;
-
-	status = dcerpc_wkssvc_NetrGetJoinInformation(b, talloc_tos(),
+	status = rpccli_wkssvc_NetrGetJoinInformation(pipe_cli, talloc_tos(),
 						      r->in.server_name,
 						      &buffer,
 						      (enum wkssvc_NetJoinStatus *)r->out.name_type,
 						      &werr);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-
-	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
 
@@ -378,7 +338,7 @@ WERROR NetGetJoinInformation_l(struct libnetapi_ctx *ctx,
 WERROR NetGetJoinableOUs_l(struct libnetapi_ctx *ctx,
 			   struct NetGetJoinableOUs *r)
 {
-#ifdef HAVE_ADS
+#ifdef WITH_ADS
 	NTSTATUS status;
 	ADS_STATUS ads_status;
 	ADS_STRUCT *ads = NULL;
@@ -386,12 +346,8 @@ WERROR NetGetJoinableOUs_l(struct libnetapi_ctx *ctx,
 	const char *dc = NULL;
 	uint32_t flags = DS_DIRECTORY_SERVICE_REQUIRED |
 			 DS_RETURN_DNS_NAME;
-	struct libnetapi_private_ctx *priv;
 
-	priv = talloc_get_type_abort(ctx->private_data,
-		struct libnetapi_private_ctx);
-
-	status = dsgetdcname(ctx, priv->msg_ctx, r->in.domain,
+	status = dsgetdcname(ctx, NULL, r->in.domain,
 			     NULL, NULL, flags, &info);
 	if (!NT_STATUS_IS_OK(status)) {
 		libnetapi_set_error_string(ctx, "%s",
@@ -451,8 +407,6 @@ WERROR NetGetJoinableOUs_r(struct libnetapi_ctx *ctx,
 	struct wkssvc_PasswordBuffer *encrypted_password = NULL;
 	NTSTATUS status;
 	WERROR werr;
-	struct dcerpc_binding_handle *b;
-	DATA_BLOB session_key;
 
 	werr = libnetapi_open_pipe(ctx, r->in.server_name,
 				   &ndr_table_wkssvc.syntax_id,
@@ -461,23 +415,14 @@ WERROR NetGetJoinableOUs_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	b = pipe_cli->binding_handle;
-
 	if (r->in.password) {
-
-		status = cli_get_session_key(talloc_tos(), pipe_cli, &session_key);
-		if (!NT_STATUS_IS_OK(status)) {
-			werr = ntstatus_to_werror(status);
-			goto done;
-		}
-
 		encode_wkssvc_join_password_buffer(ctx,
 						   r->in.password,
-						   &session_key,
+						   &pipe_cli->auth->user_session_key,
 						   &encrypted_password);
 	}
 
-	status = dcerpc_wkssvc_NetrGetJoinableOus2(b, talloc_tos(),
+	status = rpccli_wkssvc_NetrGetJoinableOus2(pipe_cli, talloc_tos(),
 						   r->in.server_name,
 						   r->in.domain,
 						   r->in.account,
@@ -504,8 +449,6 @@ WERROR NetRenameMachineInDomain_r(struct libnetapi_ctx *ctx,
 	struct wkssvc_PasswordBuffer *encrypted_password = NULL;
 	NTSTATUS status;
 	WERROR werr;
-	struct dcerpc_binding_handle *b;
-	DATA_BLOB session_key;
 
 	werr = libnetapi_open_pipe(ctx, r->in.server_name,
 				   &ndr_table_wkssvc.syntax_id,
@@ -514,23 +457,14 @@ WERROR NetRenameMachineInDomain_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	b = pipe_cli->binding_handle;
-
 	if (r->in.password) {
-
-		status = cli_get_session_key(talloc_tos(), pipe_cli, &session_key);
-		if (!NT_STATUS_IS_OK(status)) {
-			werr = ntstatus_to_werror(status);
-			goto done;
-		}
-
 		encode_wkssvc_join_password_buffer(ctx,
 						   r->in.password,
-						   &session_key,
+						   &pipe_cli->auth->user_session_key,
 						   &encrypted_password);
 	}
 
-	status = dcerpc_wkssvc_NetrRenameMachineInDomain2(b, talloc_tos(),
+	status = rpccli_wkssvc_NetrRenameMachineInDomain2(pipe_cli, talloc_tos(),
 							  r->in.server_name,
 							  r->in.new_machine_name,
 							  r->in.account,

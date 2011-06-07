@@ -123,11 +123,9 @@ static NTSTATUS nbench_connect(struct ntvfs_module_context *ntvfs,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	logname = talloc_asprintf(req, "/tmp/nbenchlog%d.%u", ntvfs->depth,
-				  getpid());
-	NT_STATUS_HAVE_NO_MEMORY(logname);
+	asprintf(&logname, "/tmp/nbenchlog%d.%u", ntvfs->depth, getpid());
 	nprivates->log_fd = open(logname, O_WRONLY|O_CREAT|O_APPEND, 0644);
-	talloc_free(logname);
+	free(logname);
 
 	if (nprivates->log_fd == -1) {
 		DEBUG(0,("Failed to open nbench log\n"));

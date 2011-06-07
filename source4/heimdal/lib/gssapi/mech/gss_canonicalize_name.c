@@ -27,6 +27,7 @@
  */
 
 #include "mech_locl.h"
+RCSID("$Id$");
 
 /**
  *  gss_canonicalize_name takes a Internal Name (IN) and converts in into a
@@ -52,7 +53,7 @@
  *  @ingroup gssapi
  */
 
-GSSAPI_LIB_FUNCTION OM_uint32 GSSAPI_LIB_CALL
+OM_uint32 GSSAPI_LIB_FUNCTION
 gss_canonicalize_name(OM_uint32 *minor_status,
     const gss_name_t input_name,
     const gss_OID mech_type,
@@ -99,11 +100,11 @@ gss_canonicalize_name(OM_uint32 *minor_status,
 		return (GSS_S_FAILURE);
 	}
 
-	HEIM_SLIST_INIT(&name->gn_mn);
+	SLIST_INIT(&name->gn_mn);
 	mn->gmn_mech = m;
 	mn->gmn_mech_oid = &m->gm_mech_oid;
 	mn->gmn_name = new_canonical_name;
-	HEIM_SLIST_INSERT_HEAD(&name->gn_mn, mn, gmn_link);
+	SLIST_INSERT_HEAD(&name->gn_mn, mn, gmn_link);
 
 	*output_name = (gss_name_t) name;
 

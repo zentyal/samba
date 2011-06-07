@@ -535,7 +535,6 @@ store_func(hx509_context context, void *ctx, hx509_cert c)
 	}
 	ret = _hx509_private_key_export(context,
 					_hx509_cert_private_key(c),
-					HX509_KEY_FORMAT_DER,
 					&pki.privateKey);
 	if (ret) {
 	    free_PKCS8PrivateKeyInfo(&pki);
@@ -572,7 +571,7 @@ p12_store(hx509_context context,
     memset(&as, 0, sizeof(as));
     memset(&pfx, 0, sizeof(pfx));
 
-    ret = hx509_certs_iter_f(context, p12->certs, store_func, &as);
+    ret = hx509_certs_iter(context, p12->certs, store_func, &as);
     if (ret)
 	goto out;
 

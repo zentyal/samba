@@ -18,7 +18,6 @@
 */
 
 #include "includes.h"
-#include "../librpc/gen_ndr/lsa.h"
 
 static const struct audit_category_tab {
 	uint32 category;

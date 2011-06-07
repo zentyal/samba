@@ -22,30 +22,17 @@
 
 #include "includes.h"
 #include "utils/net.h"
-#include "rpc_client/cli_pipe.h"
 #include "../libcli/auth/libcli_auth.h"
-#include "../librpc/gen_ndr/ndr_samr_c.h"
-#include "rpc_client/cli_samr.h"
-#include "rpc_client/init_samr.h"
-#include "../librpc/gen_ndr/ndr_lsa_c.h"
-#include "rpc_client/cli_lsarpc.h"
-#include "../librpc/gen_ndr/ndr_netlogon_c.h"
-#include "../librpc/gen_ndr/ndr_srvsvc_c.h"
-#include "../librpc/gen_ndr/ndr_spoolss.h"
-#include "../librpc/gen_ndr/ndr_initshutdown_c.h"
-#include "../librpc/gen_ndr/ndr_winreg_c.h"
-#include "secrets.h"
-#include "lib/netapi/netapi.h"
-#include "lib/netapi/netapi_net.h"
-#include "rpc_client/init_lsa.h"
-#include "../libcli/security/security.h"
-#include "libsmb/libsmb.h"
-#include "libsmb/clirap.h"
-#include "nsswitch/libwbclient/wbclient.h"
-#include "passdb.h"
+#include "../librpc/gen_ndr/cli_samr.h"
+#include "../librpc/gen_ndr/cli_lsa.h"
+#include "../librpc/gen_ndr/cli_netlogon.h"
+#include "../librpc/gen_ndr/cli_srvsvc.h"
+#include "../librpc/gen_ndr/cli_spoolss.h"
+#include "../librpc/gen_ndr/cli_initshutdown.h"
+#include "../librpc/gen_ndr/cli_winreg.h"
 
 static int net_mode_share;
-static NTSTATUS sync_files(struct copy_clistate *cp_clistate, const char *mask);
+static bool sync_files(struct copy_clistate *cp_clistate, const char *mask);
 
 /**
  * @file net_rpc.c
@@ -72,45 +59,35 @@ static NTSTATUS sync_files(struct copy_clistate *cp_clistate, const char *mask);
  **/
 
 NTSTATUS net_get_remote_domain_sid(struct cli_state *cli, TALLOC_CTX *mem_ctx,
-				   struct dom_sid **domain_sid,
+				   DOM_SID **domain_sid,
 				   const char **domain_name)
 {
 	struct rpc_pipe_client *lsa_pipe = NULL;
 	struct policy_handle pol;
-	NTSTATUS status, result;
+	NTSTATUS result = NT_STATUS_OK;
 	union lsa_PolicyInformation *info = NULL;
-	struct dcerpc_binding_handle *b;
 
-	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc.syntax_id,
+	result = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc.syntax_id,
 					  &lsa_pipe);
-	if (!NT_STATUS_IS_OK(status)) {
+	if (!NT_STATUS_IS_OK(result)) {
 		d_fprintf(stderr, _("Could not initialise lsa pipe\n"));
-		return status;
+		return result;
 	}
 
-	b = lsa_pipe->binding_handle;
-
-	status = rpccli_lsa_open_policy(lsa_pipe, mem_ctx, false,
+	result = rpccli_lsa_open_policy(lsa_pipe, mem_ctx, false,
 				     SEC_FLAG_MAXIMUM_ALLOWED,
 				     &pol);
-	if (!NT_STATUS_IS_OK(status)) {
+	if (!NT_STATUS_IS_OK(result)) {
 		d_fprintf(stderr, "open_policy %s: %s\n",
 			  _("failed"),
-			  nt_errstr(status));
-		return status;
+			  nt_errstr(result));
+		return result;
 	}
 
-	status = dcerpc_lsa_QueryInfoPolicy(b, mem_ctx,
+	result = rpccli_lsa_QueryInfoPolicy(lsa_pipe, mem_ctx,
 					    &pol,
 					    LSA_POLICY_INFO_ACCOUNT_DOMAIN,
-					    &info,
-					    &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		d_fprintf(stderr, "lsaquery %s: %s\n",
-			  _("failed"),
-			  nt_errstr(status));
-		return status;
-	}
+					    &info);
 	if (!NT_STATUS_IS_OK(result)) {
 		d_fprintf(stderr, "lsaquery %s: %s\n",
 			  _("failed"),
@@ -121,7 +98,7 @@ NTSTATUS net_get_remote_domain_sid(struct cli_state *cli, TALLOC_CTX *mem_ctx,
 	*domain_name = info->account_domain.name.string;
 	*domain_sid = info->account_domain.sid;
 
-	dcerpc_lsa_Close(b, mem_ctx, &pol, &result);
+	rpccli_lsa_Close(lsa_pipe, mem_ctx, &pol);
 	TALLOC_FREE(lsa_pipe);
 
 	return NT_STATUS_OK;
@@ -151,7 +128,7 @@ int run_rpc_command(struct net_context *c,
 	struct rpc_pipe_client *pipe_hnd = NULL;
 	TALLOC_CTX *mem_ctx;
 	NTSTATUS nt_status;
-	struct dom_sid *domain_sid;
+	DOM_SID *domain_sid;
 	const char *domain_name;
 	int ret = -1;
 
@@ -264,7 +241,7 @@ fail:
  **/
 
 static NTSTATUS rpc_changetrustpw_internals(struct net_context *c,
-					const struct dom_sid *domain_sid,
+					const DOM_SID *domain_sid,
 					const char *domain_name,
 					struct cli_state *cli,
 					struct rpc_pipe_client *pipe_hnd,
@@ -332,7 +309,7 @@ int net_rpc_changetrustpw(struct net_context *c, int argc, const char **argv)
  **/
 
 static NTSTATUS rpc_oldjoin_internals(struct net_context *c,
-					const struct dom_sid *domain_sid,
+					const DOM_SID *domain_sid,
 					const char *domain_name,
 					struct cli_state *cli,
 					struct rpc_pipe_client *pipe_hnd,
@@ -511,7 +488,7 @@ int net_rpc_join(struct net_context *c, int argc, const char **argv)
  **/
 
 NTSTATUS rpc_info_internals(struct net_context *c,
-			const struct dom_sid *domain_sid,
+			const DOM_SID *domain_sid,
 			const char *domain_name,
 			struct cli_state *cli,
 			struct rpc_pipe_client *pipe_hnd,
@@ -520,60 +497,39 @@ NTSTATUS rpc_info_internals(struct net_context *c,
 			const char **argv)
 {
 	struct policy_handle connect_pol, domain_pol;
-	NTSTATUS status, result;
+	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 	union samr_DomainInfo *info = NULL;
 	fstring sid_str;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
 	sid_to_fstring(sid_str, domain_sid);
 
 	/* Get sam policy handle */
-	status = dcerpc_samr_Connect2(b, mem_ctx,
+	result = rpccli_samr_Connect2(pipe_hnd, mem_ctx,
 				      pipe_hnd->desthost,
 				      MAXIMUM_ALLOWED_ACCESS,
-				      &connect_pol,
-				      &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		d_fprintf(stderr, _("Could not connect to SAM: %s\n"),
-			  nt_errstr(status));
-		goto done;
-	}
-
+				      &connect_pol);
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		d_fprintf(stderr, _("Could not connect to SAM: %s\n"),
 			  nt_errstr(result));
 		goto done;
 	}
 
 	/* Get domain policy handle */
-	status = dcerpc_samr_OpenDomain(b, mem_ctx,
+	result = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
 					&connect_pol,
 					MAXIMUM_ALLOWED_ACCESS,
 					CONST_DISCARD(struct dom_sid2 *, domain_sid),
-					&domain_pol,
-					&result);
-	if (!NT_STATUS_IS_OK(status)) {
-		d_fprintf(stderr, _("Could not open domain: %s\n"),
-			  nt_errstr(status));
-		goto done;
-	}
+					&domain_pol);
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		d_fprintf(stderr, _("Could not open domain: %s\n"),
 			  nt_errstr(result));
 		goto done;
 	}
 
-	status = dcerpc_samr_QueryDomainInfo(b, mem_ctx,
+	result = rpccli_samr_QueryDomainInfo(pipe_hnd, mem_ctx,
 					     &domain_pol,
 					     2,
-					     &info,
-					     &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
-	status = result;
+					     &info);
 	if (NT_STATUS_IS_OK(result)) {
 		d_printf(_("Domain Name: %s\n"),
 			 info->general.domain_name.string);
@@ -586,7 +542,7 @@ NTSTATUS rpc_info_internals(struct net_context *c,
 	}
 
  done:
-	return status;
+	return result;
 }
 
 /**
@@ -629,7 +585,7 @@ int net_rpc_info(struct net_context *c, int argc, const char **argv)
  **/
 
 static NTSTATUS rpc_getsid_internals(struct net_context *c,
-			const struct dom_sid *domain_sid,
+			const DOM_SID *domain_sid,
 			const char *domain_name,
 			struct cli_state *cli,
 			struct rpc_pipe_client *pipe_hnd,
@@ -771,57 +727,6 @@ static int rpc_user_rename(struct net_context *c, int argc, const char **argv)
 		d_printf(_("Renamed user from %s to %s\n"), argv[0], argv[1]);
 	}
 
-	return status;
-}
-
-/**
- * Set a user's primary group
- *
- * @param argc  Standard main() style argc.
- * @param argv  Standard main() style argv. Initial components are already
- *              stripped.
- *
- * @return A shell status integer (0 for success).
- **/
-
-static int rpc_user_setprimarygroup(struct net_context *c, int argc,
-				    const char **argv)
-{
-	NET_API_STATUS status;
-	uint8_t *buffer;
-	struct GROUP_INFO_2 *g2;
-	struct USER_INFO_1051 u1051;
-	uint32_t parm_err = 0;
-
-	if (argc != 2 || c->display_usage) {
-		rpc_user_usage(c, argc, argv);
-		return 0;
-	}
-
-	status = NetGroupGetInfo(c->opt_host, argv[1], 2, &buffer);
-	if (status) {
-		d_fprintf(stderr, _("Failed to find group name %s -- %s\n"),
-			  argv[1],
-			  libnetapi_get_error_string(c->netapi_ctx, status));
-		return status;
-	}
-	g2 = (struct GROUP_INFO_2 *)buffer;
-
-	u1051.usri1051_primary_group_id = g2->grpi2_group_id;
-
-	NetApiBufferFree(buffer);
-
-	status = NetUserSetInfo(c->opt_host, argv[0], 1051,
-				(uint8_t *)&u1051, &parm_err);
-	if (status) {
-		d_fprintf(stderr,
-			  _("Failed to set user's primary group %s to %s - "
-			    "%s\n"), argv[0], argv[1],
-			  libnetapi_get_error_string(c->netapi_ctx, status));
-	} else {
-		d_printf(_("Set primary group of user %s to %s\n"), argv[0],
-			 argv[1]);
-	}
 	return status;
 }
 
@@ -988,7 +893,7 @@ static int rpc_user_list(struct net_context *c, int argc, const char **argv)
 	do {
 		uint32_t max_entries, max_size;
 
-		dcerpc_get_query_dispinfo_params(
+		get_query_dispinfo_params(
 			loop_count, &max_entries, &max_size);
 
 		status = NetQueryDisplayInformation(c->opt_host,
@@ -1050,7 +955,7 @@ int net_rpc_user(struct net_context *c, int argc, const char **argv)
 			NET_TRANSPORT_RPC,
 			N_("List domain groups of user"),
 			N_("net rpc user info\n"
-			   "    List domain groups of user")
+			   "    Lis domain groups of user")
 		},
 		{
 			"delete",
@@ -1076,18 +981,10 @@ int net_rpc_user(struct net_context *c, int argc, const char **argv)
 			N_("net rpc user rename\n"
 			   "    Rename specified user")
 		},
-		{
-			"setprimarygroup",
-			rpc_user_setprimarygroup,
-			NET_TRANSPORT_RPC,
-			"Set a user's primary group",
-			"net rpc user setprimarygroup\n"
-			"    Set a user's primary group"
-		},
 		{NULL, NULL, 0, NULL, NULL}
 	};
 
-	status = libnetapi_net_init(&c->netapi_ctx);
+	status = libnetapi_init(&c->netapi_ctx);
 	if (status != 0) {
 		return -1;
 	}
@@ -1146,11 +1043,10 @@ static NTSTATUS rpc_sh_handle_user(struct net_context *c,
 					   int argc, const char **argv))
 {
 	struct policy_handle connect_pol, domain_pol, user_pol;
-	NTSTATUS status, result;
-	struct dom_sid sid;
+	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
+	DOM_SID sid;
 	uint32 rid;
 	enum lsa_SidType type;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
 	if (argc == 0) {
 		d_fprintf(stderr, "%s %s <username>\n", _("Usage:"),
@@ -1162,81 +1058,66 @@ static NTSTATUS rpc_sh_handle_user(struct net_context *c,
 	ZERO_STRUCT(domain_pol);
 	ZERO_STRUCT(user_pol);
 
-	status = net_rpc_lookup_name(c, mem_ctx, rpc_pipe_np_smb_conn(pipe_hnd),
+	result = net_rpc_lookup_name(c, mem_ctx, rpc_pipe_np_smb_conn(pipe_hnd),
 				     argv[0], NULL, NULL, &sid, &type);
-	if (!NT_STATUS_IS_OK(status)) {
+	if (!NT_STATUS_IS_OK(result)) {
 		d_fprintf(stderr, _("Could not lookup %s: %s\n"), argv[0],
-			  nt_errstr(status));
+			  nt_errstr(result));
 		goto done;
 	}
 
 	if (type != SID_NAME_USER) {
 		d_fprintf(stderr, _("%s is a %s, not a user\n"), argv[0],
 			  sid_type_lookup(type));
-		status = NT_STATUS_NO_SUCH_USER;
+		result = NT_STATUS_NO_SUCH_USER;
 		goto done;
 	}
 
 	if (!sid_peek_check_rid(ctx->domain_sid, &sid, &rid)) {
 		d_fprintf(stderr, _("%s is not in our domain\n"), argv[0]);
-		status = NT_STATUS_NO_SUCH_USER;
+		result = NT_STATUS_NO_SUCH_USER;
 		goto done;
 	}
 
-	status = dcerpc_samr_Connect2(b, mem_ctx,
+	result = rpccli_samr_Connect2(pipe_hnd, mem_ctx,
 				      pipe_hnd->desthost,
 				      MAXIMUM_ALLOWED_ACCESS,
-				      &connect_pol,
-				      &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
+				      &connect_pol);
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		goto done;
 	}
 
-	status = dcerpc_samr_OpenDomain(b, mem_ctx,
+	result = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
 					&connect_pol,
 					MAXIMUM_ALLOWED_ACCESS,
 					ctx->domain_sid,
-					&domain_pol,
-					&result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
+					&domain_pol);
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		goto done;
 	}
 
-	status = dcerpc_samr_OpenUser(b, mem_ctx,
+	result = rpccli_samr_OpenUser(pipe_hnd, mem_ctx,
 				      &domain_pol,
 				      MAXIMUM_ALLOWED_ACCESS,
 				      rid,
-				      &user_pol,
-				      &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
+				      &user_pol);
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		goto done;
 	}
 
-	status = fn(c, mem_ctx, ctx, pipe_hnd, &user_pol, argc-1, argv+1);
+	result = fn(c, mem_ctx, ctx, pipe_hnd, &user_pol, argc-1, argv+1);
 
  done:
 	if (is_valid_policy_hnd(&user_pol)) {
-		dcerpc_samr_Close(b, mem_ctx, &user_pol, &result);
+		rpccli_samr_Close(pipe_hnd, mem_ctx, &user_pol);
 	}
 	if (is_valid_policy_hnd(&domain_pol)) {
-		dcerpc_samr_Close(b, mem_ctx, &domain_pol, &result);
+		rpccli_samr_Close(pipe_hnd, mem_ctx, &domain_pol);
 	}
 	if (is_valid_policy_hnd(&connect_pol)) {
-		dcerpc_samr_Close(b, mem_ctx, &connect_pol, &result);
+		rpccli_samr_Close(pipe_hnd, mem_ctx, &connect_pol);
 	}
-	return status;
+	return result;
 }
 
 static NTSTATUS rpc_sh_user_show_internals(struct net_context *c,
@@ -1246,9 +1127,8 @@ static NTSTATUS rpc_sh_user_show_internals(struct net_context *c,
 					   struct policy_handle *user_hnd,
 					   int argc, const char **argv)
 {
-	NTSTATUS status, result;
+	NTSTATUS result;
 	union samr_UserInfo *info = NULL;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
 	if (argc != 0) {
 		d_fprintf(stderr, "%s %s show <username>\n", _("Usage:"),
@@ -1256,14 +1136,10 @@ static NTSTATUS rpc_sh_user_show_internals(struct net_context *c,
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	status = dcerpc_samr_QueryUserInfo(b, mem_ctx,
+	result = rpccli_samr_QueryUserInfo(pipe_hnd, mem_ctx,
 					   user_hnd,
 					   21,
-					   &info,
-					   &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
+					   &info);
 	if (!NT_STATUS_IS_OK(result)) {
 		return result;
 	}
@@ -1303,11 +1179,10 @@ static NTSTATUS rpc_sh_user_str_edit_internals(struct net_context *c,
 					       struct policy_handle *user_hnd,
 					       int argc, const char **argv)
 {
-	NTSTATUS status, result;
+	NTSTATUS result;
 	const char *username;
 	const char *oldval = "";
 	union samr_UserInfo *info = NULL;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
 	if (argc > 1) {
 		d_fprintf(stderr, "%s %s <username> [new value|NULL]\n",
@@ -1315,14 +1190,10 @@ static NTSTATUS rpc_sh_user_str_edit_internals(struct net_context *c,
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	status = dcerpc_samr_QueryUserInfo(b, mem_ctx,
+	result = rpccli_samr_QueryUserInfo(pipe_hnd, mem_ctx,
 					   user_hnd,
 					   21,
-					   &info,
-					   &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
+					   &info);
 	if (!NT_STATUS_IS_OK(result)) {
 		return result;
 	}
@@ -1354,23 +1225,17 @@ static NTSTATUS rpc_sh_user_str_edit_internals(struct net_context *c,
 	SETSTR("profilepath", profile_path, PROFILE_PATH);
 	SETSTR("description", description, DESCRIPTION);
 
-	status = dcerpc_samr_SetUserInfo(b, mem_ctx,
+	result = rpccli_samr_SetUserInfo(pipe_hnd, mem_ctx,
 					 user_hnd,
 					 21,
-					 info,
-					 &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	status = result;
+					 info);
 
 	d_printf(_("Set %s's %s from [%s] to [%s]\n"), username,
 		 ctx->thiscmd, oldval, argv[0]);
 
  done:
 
-	return status;
+	return result;
 }
 
 #define HANDLEFLG(name, rec) \
@@ -1399,13 +1264,12 @@ static NTSTATUS rpc_sh_user_flag_edit_internals(struct net_context *c,
 						struct policy_handle *user_hnd,
 						int argc, const char **argv)
 {
-	NTSTATUS status, result;
+	NTSTATUS result;
 	const char *username;
 	const char *oldval = "unknown";
 	uint32 oldflags, newflags;
 	bool newval;
 	union samr_UserInfo *info = NULL;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
 	if ((argc > 1) ||
 	    ((argc == 1) && !strequal(argv[0], "yes") &&
@@ -1419,14 +1283,10 @@ static NTSTATUS rpc_sh_user_flag_edit_internals(struct net_context *c,
 
 	newval = strequal(argv[0], "yes");
 
-	status = dcerpc_samr_QueryUserInfo(b, mem_ctx,
+	result = rpccli_samr_QueryUserInfo(pipe_hnd, mem_ctx,
 					   user_hnd,
 					   21,
-					   &info,
-					   &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
+					   &info);
 	if (!NT_STATUS_IS_OK(result)) {
 		return result;
 	}
@@ -1451,15 +1311,11 @@ static NTSTATUS rpc_sh_user_flag_edit_internals(struct net_context *c,
 	info->info21.acct_flags = newflags;
 	info->info21.fields_present = SAMR_FIELD_ACCT_FLAGS;
 
-	status = dcerpc_samr_SetUserInfo(b, mem_ctx,
+	result = rpccli_samr_SetUserInfo(pipe_hnd, mem_ctx,
 					 user_hnd,
 					 21,
-					 info,
-					 &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
-	status = result;
+					 info);
+
 	if (NT_STATUS_IS_OK(result)) {
 		d_printf(_("Set %s's %s flag from [%s] to [%s]\n"), username,
 			 ctx->thiscmd, oldval, argv[0]);
@@ -1467,7 +1323,7 @@ static NTSTATUS rpc_sh_user_flag_edit_internals(struct net_context *c,
 
  done:
 
-	return status;
+	return result;
 }
 
 static NTSTATUS rpc_sh_user_flag_edit(struct net_context *c,
@@ -1577,7 +1433,7 @@ static int rpc_group_usage(struct net_context *c, int argc, const char **argv)
  **/
 
 static NTSTATUS rpc_group_delete_internals(struct net_context *c,
-					const struct dom_sid *domain_sid,
+					const DOM_SID *domain_sid,
 					const char *domain_name,
 					struct cli_state *cli,
 					struct rpc_pipe_client *pipe_hnd,
@@ -1587,13 +1443,12 @@ static NTSTATUS rpc_group_delete_internals(struct net_context *c,
 {
 	struct policy_handle connect_pol, domain_pol, group_pol, user_pol;
 	bool group_is_primary = false;
-	NTSTATUS status, result;
+	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 	uint32_t group_rid;
-	struct samr_RidAttrArray *rids = NULL;
+	struct samr_RidTypeArray *rids = NULL;
 	/* char **names; */
 	int i;
 	/* struct samr_RidWithAttribute *user_gids; */
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
 	struct samr_Ids group_rids, name_types;
 	struct lsa_String lsa_acct_name;
@@ -1604,98 +1459,64 @@ static NTSTATUS rpc_group_delete_internals(struct net_context *c,
 		return NT_STATUS_OK; /* ok? */
 	}
 
-	status = dcerpc_samr_Connect2(b, mem_ctx,
+	result = rpccli_samr_Connect2(pipe_hnd, mem_ctx,
 				      pipe_hnd->desthost,
 				      MAXIMUM_ALLOWED_ACCESS,
-				      &connect_pol,
-				      &result);
-        if (!NT_STATUS_IS_OK(status)) {
-		d_fprintf(stderr, _("Request samr_Connect2 failed\n"));
-		goto done;
-        }
+				      &connect_pol);
 
         if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		d_fprintf(stderr, _("Request samr_Connect2 failed\n"));
-		goto done;
+        	goto done;
         }
 
-	status = dcerpc_samr_OpenDomain(b, mem_ctx,
+        result = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
 					&connect_pol,
 					MAXIMUM_ALLOWED_ACCESS,
 					CONST_DISCARD(struct dom_sid2 *, domain_sid),
-					&domain_pol,
-					&result);
-        if (!NT_STATUS_IS_OK(status)) {
-		d_fprintf(stderr, _("Request open_domain failed\n"));
-		goto done;
-        }
+					&domain_pol);
 
         if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		d_fprintf(stderr, _("Request open_domain failed\n"));
-		goto done;
+        	goto done;
         }
 
 	init_lsa_String(&lsa_acct_name, argv[0]);
 
-	status = dcerpc_samr_LookupNames(b, mem_ctx,
+	result = rpccli_samr_LookupNames(pipe_hnd, mem_ctx,
 					 &domain_pol,
 					 1,
 					 &lsa_acct_name,
 					 &group_rids,
-					 &name_types,
-					 &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		d_fprintf(stderr, _("Lookup of '%s' failed\n"),argv[0]);
-		goto done;
-	}
-
+					 &name_types);
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		d_fprintf(stderr, _("Lookup of '%s' failed\n"),argv[0]);
-		goto done;
+   		goto done;
 	}
 
 	switch (name_types.ids[0])
 	{
 	case SID_NAME_DOM_GRP:
-		status = dcerpc_samr_OpenGroup(b, mem_ctx,
+		result = rpccli_samr_OpenGroup(pipe_hnd, mem_ctx,
 					       &domain_pol,
 					       MAXIMUM_ALLOWED_ACCESS,
 					       group_rids.ids[0],
-					       &group_pol,
-					       &result);
-		if (!NT_STATUS_IS_OK(status)) {
-			d_fprintf(stderr, _("Request open_group failed"));
-			goto done;
-		}
-
+					       &group_pol);
 		if (!NT_STATUS_IS_OK(result)) {
-			status = result;
 			d_fprintf(stderr, _("Request open_group failed"));
-			goto done;
+   			goto done;
 		}
 
 		group_rid = group_rids.ids[0];
 
-		status = dcerpc_samr_QueryGroupMember(b, mem_ctx,
+		result = rpccli_samr_QueryGroupMember(pipe_hnd, mem_ctx,
 						      &group_pol,
-						      &rids,
-						      &result);
-		if (!NT_STATUS_IS_OK(status)) {
-			d_fprintf(stderr,
-				  _("Unable to query group members of %s"),
-				  argv[0]);
-			goto done;
-		}
+						      &rids);
 
 		if (!NT_STATUS_IS_OK(result)) {
-			status = result;
 			d_fprintf(stderr,
 				  _("Unable to query group members of %s"),
 				  argv[0]);
-			goto done;
+   			goto done;
 		}
 
 		if (c->opt_verbose) {
@@ -1707,48 +1528,31 @@ static NTSTATUS rpc_group_delete_internals(struct net_context *c,
 		/* Check if group is anyone's primary group */
                 for (i = 0; i < rids->count; i++)
 		{
-	                status = dcerpc_samr_OpenUser(b, mem_ctx,
+	                result = rpccli_samr_OpenUser(pipe_hnd, mem_ctx,
 						      &domain_pol,
 						      MAXIMUM_ALLOWED_ACCESS,
 						      rids->rids[i],
-						      &user_pol,
-						      &result);
-			if (!NT_STATUS_IS_OK(status)) {
+						      &user_pol);
+
+	        	if (!NT_STATUS_IS_OK(result)) {
 				d_fprintf(stderr,
 					_("Unable to open group member %d\n"),
 					rids->rids[i]);
-				goto done;
-			}
+	           		goto done;
+	        	}
 
-			if (!NT_STATUS_IS_OK(result)) {
-				status = result;
-				d_fprintf(stderr,
-					_("Unable to open group member %d\n"),
-					rids->rids[i]);
-				goto done;
-			}
-
-			status = dcerpc_samr_QueryUserInfo(b, mem_ctx,
+			result = rpccli_samr_QueryUserInfo(pipe_hnd, mem_ctx,
 							   &user_pol,
 							   21,
-							   &info,
-							   &result);
-			if (!NT_STATUS_IS_OK(status)) {
-				d_fprintf(stderr,
-					_("Unable to lookup userinfo for group "
-					  "member %d\n"),
-					rids->rids[i]);
-				goto done;
-			}
+							   &info);
 
-			if (!NT_STATUS_IS_OK(result)) {
-				status = result;
+	        	if (!NT_STATUS_IS_OK(result)) {
 				d_fprintf(stderr,
 					_("Unable to lookup userinfo for group "
 					  "member %d\n"),
 					rids->rids[i]);
-				goto done;
-			}
+	           		goto done;
+	        	}
 
 			if (info->info21.primary_gid == group_rid) {
 				if (c->opt_verbose) {
@@ -1759,14 +1563,14 @@ static NTSTATUS rpc_group_delete_internals(struct net_context *c,
 				group_is_primary = true;
                         }
 
-			dcerpc_samr_Close(b, mem_ctx, &user_pol, &result);
+			rpccli_samr_Close(pipe_hnd, mem_ctx, &user_pol);
 		}
 
 		if (group_is_primary) {
 			d_fprintf(stderr, _("Unable to delete group because "
 				 "some of it's members have it as primary "
 				 "group\n"));
-			status = NT_STATUS_MEMBERS_PRIMARY_GROUP;
+			result = NT_STATUS_MEMBERS_PRIMARY_GROUP;
 			goto done;
 		}
 
@@ -1776,14 +1580,10 @@ static NTSTATUS rpc_group_delete_internals(struct net_context *c,
 			if (c->opt_verbose)
 				d_printf(_("Remove group member %d..."),
 					rids->rids[i]);
-			status = dcerpc_samr_DeleteGroupMember(b, mem_ctx,
+			result = rpccli_samr_DeleteGroupMember(pipe_hnd, mem_ctx,
 							       &group_pol,
-							       rids->rids[i],
-							       &result);
-			if (!NT_STATUS_IS_OK(status)) {
-				goto done;
-			}
-			status = result;
+							       rids->rids[i]);
+
 			if (NT_STATUS_IS_OK(result)) {
 				if (c->opt_verbose)
 					d_printf(_("ok\n"));
@@ -1794,63 +1594,45 @@ static NTSTATUS rpc_group_delete_internals(struct net_context *c,
 			}
 		}
 
-		status = dcerpc_samr_DeleteDomainGroup(b, mem_ctx,
-						       &group_pol,
-						       &result);
-		if (!NT_STATUS_IS_OK(status)) {
-			break;
-		}
-
-		status = result;
+		result = rpccli_samr_DeleteDomainGroup(pipe_hnd, mem_ctx,
+						       &group_pol);
 
 		break;
 	/* removing a local group is easier... */
 	case SID_NAME_ALIAS:
-		status = dcerpc_samr_OpenAlias(b, mem_ctx,
+		result = rpccli_samr_OpenAlias(pipe_hnd, mem_ctx,
 					       &domain_pol,
 					       MAXIMUM_ALLOWED_ACCESS,
 					       group_rids.ids[0],
-					       &group_pol,
-					       &result);
-		if (!NT_STATUS_IS_OK(status)) {
-			d_fprintf(stderr, _("Request open_alias failed\n"));
-			goto done;
-		}
+					       &group_pol);
+
 		if (!NT_STATUS_IS_OK(result)) {
-			status = result;
 			d_fprintf(stderr, _("Request open_alias failed\n"));
-			goto done;
+   			goto done;
 		}
 
-		status = dcerpc_samr_DeleteDomAlias(b, mem_ctx,
-						    &group_pol,
-						    &result);
-		if (!NT_STATUS_IS_OK(status)) {
-			break;
-		}
-
-		status = result;
-
+		result = rpccli_samr_DeleteDomAlias(pipe_hnd, mem_ctx,
+						    &group_pol);
 		break;
 	default:
 		d_fprintf(stderr, _("%s is of type %s. This command is only "
 				    "for deleting local or global groups\n"),
 			argv[0],sid_type_lookup(name_types.ids[0]));
-		status = NT_STATUS_UNSUCCESSFUL;
+		result = NT_STATUS_UNSUCCESSFUL;
 		goto done;
 	}
 
-	if (NT_STATUS_IS_OK(status)) {
+	if (NT_STATUS_IS_OK(result)) {
 		if (c->opt_verbose)
 			d_printf(_("Deleted %s '%s'\n"),
 				 sid_type_lookup(name_types.ids[0]), argv[0]);
 	} else {
 		d_fprintf(stderr, _("Deleting of %s failed: %s\n"), argv[0],
-			get_friendly_nt_error_msg(status));
+			get_friendly_nt_error_msg(result));
 	}
 
  done:
-	return status;
+	return result;
 
 }
 
@@ -1937,77 +1719,73 @@ static int rpc_group_add(struct net_context *c, int argc, const char **argv)
 static NTSTATUS get_sid_from_name(struct cli_state *cli,
 				TALLOC_CTX *mem_ctx,
 				const char *name,
-				struct dom_sid *sid,
+				DOM_SID *sid,
 				enum lsa_SidType *type)
 {
-	struct dom_sid *sids = NULL;
+	DOM_SID *sids = NULL;
 	enum lsa_SidType *types = NULL;
 	struct rpc_pipe_client *pipe_hnd = NULL;
 	struct policy_handle lsa_pol;
-	NTSTATUS status, result;
-	struct dcerpc_binding_handle *b;
+	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 
-	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc.syntax_id,
+	result = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc.syntax_id,
 					  &pipe_hnd);
-	if (!NT_STATUS_IS_OK(status)) {
+	if (!NT_STATUS_IS_OK(result)) {
 		goto done;
 	}
 
-	b = pipe_hnd->binding_handle;
-
-	status = rpccli_lsa_open_policy(pipe_hnd, mem_ctx, false,
+	result = rpccli_lsa_open_policy(pipe_hnd, mem_ctx, false,
 				     SEC_FLAG_MAXIMUM_ALLOWED, &lsa_pol);
 
-	if (!NT_STATUS_IS_OK(status)) {
+	if (!NT_STATUS_IS_OK(result)) {
 		goto done;
 	}
 
-	status = rpccli_lsa_lookup_names(pipe_hnd, mem_ctx, &lsa_pol, 1,
+	result = rpccli_lsa_lookup_names(pipe_hnd, mem_ctx, &lsa_pol, 1,
 				      &name, NULL, 1, &sids, &types);
 
-	if (NT_STATUS_IS_OK(status)) {
+	if (NT_STATUS_IS_OK(result)) {
 		sid_copy(sid, &sids[0]);
 		*type = types[0];
 	}
 
-	dcerpc_lsa_Close(b, mem_ctx, &lsa_pol, &result);
+	rpccli_lsa_Close(pipe_hnd, mem_ctx, &lsa_pol);
 
  done:
 	if (pipe_hnd) {
 		TALLOC_FREE(pipe_hnd);
 	}
 
-	if (!NT_STATUS_IS_OK(status) && (StrnCaseCmp(name, "S-", 2) == 0)) {
+	if (!NT_STATUS_IS_OK(result) && (StrnCaseCmp(name, "S-", 2) == 0)) {
 
 		/* Try as S-1-5-whatever */
 
-		struct dom_sid tmp_sid;
+		DOM_SID tmp_sid;
 
 		if (string_to_sid(&tmp_sid, name)) {
 			sid_copy(sid, &tmp_sid);
 			*type = SID_NAME_UNKNOWN;
-			status = NT_STATUS_OK;
+			result = NT_STATUS_OK;
 		}
 	}
 
-	return status;
+	return result;
 }
 
 static NTSTATUS rpc_add_groupmem(struct rpc_pipe_client *pipe_hnd,
 				TALLOC_CTX *mem_ctx,
-				const struct dom_sid *group_sid,
+				const DOM_SID *group_sid,
 				const char *member)
 {
 	struct policy_handle connect_pol, domain_pol;
-	NTSTATUS status, result;
+	NTSTATUS result;
 	uint32 group_rid;
 	struct policy_handle group_pol;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
 	struct samr_Ids rids, rid_types;
 	struct lsa_String lsa_acct_name;
 
-	struct dom_sid sid;
+	DOM_SID sid;
 
 	sid_copy(&sid, group_sid);
 
@@ -2016,100 +1794,73 @@ static NTSTATUS rpc_add_groupmem(struct rpc_pipe_client *pipe_hnd,
 	}
 
 	/* Get sam policy handle */
-	status = dcerpc_samr_Connect2(b, mem_ctx,
+	result = rpccli_samr_Connect2(pipe_hnd, mem_ctx,
 				      pipe_hnd->desthost,
 				      MAXIMUM_ALLOWED_ACCESS,
-				      &connect_pol,
-				      &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
+				      &connect_pol);
 	if (!NT_STATUS_IS_OK(result)) {
 		return result;
 	}
 
 	/* Get domain policy handle */
-	status = dcerpc_samr_OpenDomain(b, mem_ctx,
+	result = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
 					&connect_pol,
 					MAXIMUM_ALLOWED_ACCESS,
 					&sid,
-					&domain_pol,
-					&result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
+					&domain_pol);
 	if (!NT_STATUS_IS_OK(result)) {
 		return result;
 	}
 
 	init_lsa_String(&lsa_acct_name, member);
 
-	status = dcerpc_samr_LookupNames(b, mem_ctx,
+	result = rpccli_samr_LookupNames(pipe_hnd, mem_ctx,
 					 &domain_pol,
 					 1,
 					 &lsa_acct_name,
 					 &rids,
-					 &rid_types,
-					 &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		d_fprintf(stderr, _("Could not lookup up group member %s\n"),
-			  member);
-		goto done;
-	}
+					 &rid_types);
 
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		d_fprintf(stderr, _("Could not lookup up group member %s\n"),
 			  member);
 		goto done;
 	}
 
-	status = dcerpc_samr_OpenGroup(b, mem_ctx,
+	result = rpccli_samr_OpenGroup(pipe_hnd, mem_ctx,
 				       &domain_pol,
 				       MAXIMUM_ALLOWED_ACCESS,
 				       group_rid,
-				       &group_pol,
-				       &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
+				       &group_pol);
 
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		goto done;
 	}
 
-	status = dcerpc_samr_AddGroupMember(b, mem_ctx,
+	result = rpccli_samr_AddGroupMember(pipe_hnd, mem_ctx,
 					    &group_pol,
 					    rids.ids[0],
-					    0x0005, /* unknown flags */
-					    &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
-
-	status = result;
+					    0x0005); /* unknown flags */
 
  done:
-	dcerpc_samr_Close(b, mem_ctx, &connect_pol, &result);
-	return status;
+	rpccli_samr_Close(pipe_hnd, mem_ctx, &connect_pol);
+	return result;
 }
 
 static NTSTATUS rpc_add_aliasmem(struct rpc_pipe_client *pipe_hnd,
 				TALLOC_CTX *mem_ctx,
-				const struct dom_sid *alias_sid,
+				const DOM_SID *alias_sid,
 				const char *member)
 {
 	struct policy_handle connect_pol, domain_pol;
-	NTSTATUS status, result;
+	NTSTATUS result;
 	uint32 alias_rid;
 	struct policy_handle alias_pol;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
-	struct dom_sid member_sid;
+	DOM_SID member_sid;
 	enum lsa_SidType member_type;
 
-	struct dom_sid sid;
+	DOM_SID sid;
 
 	sid_copy(&sid, alias_sid);
 
@@ -2127,64 +1878,49 @@ static NTSTATUS rpc_add_aliasmem(struct rpc_pipe_client *pipe_hnd,
 	}
 
 	/* Get sam policy handle */
-	status = dcerpc_samr_Connect2(b, mem_ctx,
+	result = rpccli_samr_Connect2(pipe_hnd, mem_ctx,
 				      pipe_hnd->desthost,
 				      MAXIMUM_ALLOWED_ACCESS,
-				      &connect_pol,
-				      &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
+				      &connect_pol);
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		goto done;
 	}
 
 	/* Get domain policy handle */
-	status = dcerpc_samr_OpenDomain(b, mem_ctx,
+	result = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
 					&connect_pol,
 					MAXIMUM_ALLOWED_ACCESS,
 					&sid,
-					&domain_pol,
-					&result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
+					&domain_pol);
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		goto done;
 	}
 
-	status = dcerpc_samr_OpenAlias(b, mem_ctx,
+	result = rpccli_samr_OpenAlias(pipe_hnd, mem_ctx,
 				       &domain_pol,
 				       MAXIMUM_ALLOWED_ACCESS,
 				       alias_rid,
-				       &alias_pol,
-				       &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
+				       &alias_pol);
+
 	if (!NT_STATUS_IS_OK(result)) {
 		return result;
 	}
 
-	status = dcerpc_samr_AddAliasMember(b, mem_ctx,
+	result = rpccli_samr_AddAliasMember(pipe_hnd, mem_ctx,
 					    &alias_pol,
-					    &member_sid,
-					    &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+					    &member_sid);
+
+	if (!NT_STATUS_IS_OK(result)) {
+		return result;
 	}
 
-	status = result;
-
  done:
-	dcerpc_samr_Close(b, mem_ctx, &connect_pol, &result);
-	return status;
+	rpccli_samr_Close(pipe_hnd, mem_ctx, &connect_pol);
+	return result;
 }
 
 static NTSTATUS rpc_group_addmem_internals(struct net_context *c,
-					const struct dom_sid *domain_sid,
+					const DOM_SID *domain_sid,
 					const char *domain_name,
 					struct cli_state *cli,
 					struct rpc_pipe_client *pipe_hnd,
@@ -2192,7 +1928,7 @@ static NTSTATUS rpc_group_addmem_internals(struct net_context *c,
 					int argc,
 					const char **argv)
 {
-	struct dom_sid group_sid;
+	DOM_SID group_sid;
 	enum lsa_SidType group_type;
 
 	if (argc != 2 || c->display_usage) {
@@ -2250,19 +1986,18 @@ static int rpc_group_addmem(struct net_context *c, int argc, const char **argv)
 static NTSTATUS rpc_del_groupmem(struct net_context *c,
 				struct rpc_pipe_client *pipe_hnd,
 				TALLOC_CTX *mem_ctx,
-				const struct dom_sid *group_sid,
+				const DOM_SID *group_sid,
 				const char *member)
 {
 	struct policy_handle connect_pol, domain_pol;
-	NTSTATUS status, result;
+	NTSTATUS result;
 	uint32 group_rid;
 	struct policy_handle group_pol;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
 	struct samr_Ids rids, rid_types;
 	struct lsa_String lsa_acct_name;
 
-	struct dom_sid sid;
+	DOM_SID sid;
 
 	sid_copy(&sid, group_sid);
 
@@ -2270,98 +2005,68 @@ static NTSTATUS rpc_del_groupmem(struct net_context *c,
 		return NT_STATUS_UNSUCCESSFUL;
 
 	/* Get sam policy handle */
-	status = dcerpc_samr_Connect2(b, mem_ctx,
+	result = rpccli_samr_Connect2(pipe_hnd, mem_ctx,
 				      pipe_hnd->desthost,
 				      MAXIMUM_ALLOWED_ACCESS,
-				      &connect_pol,
-				      &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
+				      &connect_pol);
+	if (!NT_STATUS_IS_OK(result))
 		return result;
-	}
-
 
 	/* Get domain policy handle */
-	status = dcerpc_samr_OpenDomain(b, mem_ctx,
+	result = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
 					&connect_pol,
 					MAXIMUM_ALLOWED_ACCESS,
 					&sid,
-					&domain_pol,
-					&result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
+					&domain_pol);
+	if (!NT_STATUS_IS_OK(result))
 		return result;
-	}
 
 	init_lsa_String(&lsa_acct_name, member);
 
-	status = dcerpc_samr_LookupNames(b, mem_ctx,
+	result = rpccli_samr_LookupNames(pipe_hnd, mem_ctx,
 					 &domain_pol,
 					 1,
 					 &lsa_acct_name,
 					 &rids,
-					 &rid_types,
-					 &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		d_fprintf(stderr, _("Could not lookup up group member %s\n"),
-			  member);
-		goto done;
-	}
-
+					 &rid_types);
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		d_fprintf(stderr, _("Could not lookup up group member %s\n"),
 			  member);
 		goto done;
 	}
 
-	status = dcerpc_samr_OpenGroup(b, mem_ctx,
+	result = rpccli_samr_OpenGroup(pipe_hnd, mem_ctx,
 				       &domain_pol,
 				       MAXIMUM_ALLOWED_ACCESS,
 				       group_rid,
-				       &group_pol,
-				       &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
-		goto done;
-	}
+				       &group_pol);
 
-	status = dcerpc_samr_DeleteGroupMember(b, mem_ctx,
+	if (!NT_STATUS_IS_OK(result))
+		goto done;
+
+	result = rpccli_samr_DeleteGroupMember(pipe_hnd, mem_ctx,
 					       &group_pol,
-					       rids.ids[0],
-					       &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
+					       rids.ids[0]);
 
-	status = result;
  done:
-	dcerpc_samr_Close(b, mem_ctx, &connect_pol, &result);
-	return status;
+	rpccli_samr_Close(pipe_hnd, mem_ctx, &connect_pol);
+	return result;
 }
 
 static NTSTATUS rpc_del_aliasmem(struct rpc_pipe_client *pipe_hnd,
 				TALLOC_CTX *mem_ctx,
-				const struct dom_sid *alias_sid,
+				const DOM_SID *alias_sid,
 				const char *member)
 {
 	struct policy_handle connect_pol, domain_pol;
-	NTSTATUS status, result;
+	NTSTATUS result;
 	uint32 alias_rid;
 	struct policy_handle alias_pol;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
-	struct dom_sid member_sid;
+	DOM_SID member_sid;
 	enum lsa_SidType member_type;
 
-	struct dom_sid sid;
+	DOM_SID sid;
 
 	sid_copy(&sid, alias_sid);
 
@@ -2378,66 +2083,47 @@ static NTSTATUS rpc_del_aliasmem(struct rpc_pipe_client *pipe_hnd,
 	}
 
 	/* Get sam policy handle */
-	status = dcerpc_samr_Connect2(b, mem_ctx,
+	result = rpccli_samr_Connect2(pipe_hnd, mem_ctx,
 				      pipe_hnd->desthost,
 				      MAXIMUM_ALLOWED_ACCESS,
-				      &connect_pol,
-				      &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
+				      &connect_pol);
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		goto done;
 	}
 
 	/* Get domain policy handle */
-	status = dcerpc_samr_OpenDomain(b, mem_ctx,
+	result = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
 					&connect_pol,
 					MAXIMUM_ALLOWED_ACCESS,
 					&sid,
-					&domain_pol,
-					&result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
+					&domain_pol);
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		goto done;
 	}
 
-	status = dcerpc_samr_OpenAlias(b, mem_ctx,
+	result = rpccli_samr_OpenAlias(pipe_hnd, mem_ctx,
 				       &domain_pol,
 				       MAXIMUM_ALLOWED_ACCESS,
 				       alias_rid,
-				       &alias_pol,
-				       &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
+				       &alias_pol);
 
-	if (!NT_STATUS_IS_OK(result)) {
+	if (!NT_STATUS_IS_OK(result))
 		return result;
-	}
 
-	status = dcerpc_samr_DeleteAliasMember(b, mem_ctx,
+	result = rpccli_samr_DeleteAliasMember(pipe_hnd, mem_ctx,
 					       &alias_pol,
-					       &member_sid,
-					       &result);
+					       &member_sid);
 
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	status = result;
+	if (!NT_STATUS_IS_OK(result))
+		return result;
 
  done:
-	dcerpc_samr_Close(b, mem_ctx, &connect_pol, &result);
-	return status;
+	rpccli_samr_Close(pipe_hnd, mem_ctx, &connect_pol);
+	return result;
 }
 
 static NTSTATUS rpc_group_delmem_internals(struct net_context *c,
-					const struct dom_sid *domain_sid,
+					const DOM_SID *domain_sid,
 					const char *domain_name,
 					struct cli_state *cli,
 					struct rpc_pipe_client *pipe_hnd,
@@ -2445,7 +2131,7 @@ static NTSTATUS rpc_group_delmem_internals(struct net_context *c,
 					int argc,
 					const char **argv)
 {
-	struct dom_sid group_sid;
+	DOM_SID group_sid;
 	enum lsa_SidType group_type;
 
 	if (argc != 2 || c->display_usage) {
@@ -2517,7 +2203,7 @@ static int rpc_group_delmem(struct net_context *c, int argc, const char **argv)
  **/
 
 static NTSTATUS rpc_group_list_internals(struct net_context *c,
-					const struct dom_sid *domain_sid,
+					const DOM_SID *domain_sid,
 					const char *domain_name,
 					struct cli_state *cli,
 					struct rpc_pipe_client *pipe_hnd,
@@ -2526,13 +2212,12 @@ static NTSTATUS rpc_group_list_internals(struct net_context *c,
 					const char **argv)
 {
 	struct policy_handle connect_pol, domain_pol;
-	NTSTATUS status, result;
+	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 	uint32 start_idx=0, max_entries=250, num_entries, i, loop_count = 0;
 	struct samr_SamArray *groups = NULL;
 	bool global = false;
 	bool local = false;
 	bool builtin = false;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
 	if (c->display_usage) {
 		d_printf("%s\n%s",
@@ -2567,32 +2252,22 @@ static NTSTATUS rpc_group_list_internals(struct net_context *c,
 
 	/* Get sam policy handle */
 
-	status = dcerpc_samr_Connect2(b, mem_ctx,
+	result = rpccli_samr_Connect2(pipe_hnd, mem_ctx,
 				      pipe_hnd->desthost,
 				      MAXIMUM_ALLOWED_ACCESS,
-				      &connect_pol,
-				      &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
+				      &connect_pol);
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		goto done;
 	}
 
 	/* Get domain policy handle */
 
-	status = dcerpc_samr_OpenDomain(b, mem_ctx,
+	result = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
 					&connect_pol,
 					MAXIMUM_ALLOWED_ACCESS,
 					CONST_DISCARD(struct dom_sid2 *, domain_sid),
-					&domain_pol,
-					&result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
+					&domain_pol);
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		goto done;
 	}
 
@@ -2606,10 +2281,10 @@ static NTSTATUS rpc_group_list_internals(struct net_context *c,
 
 		if (!global) break;
 
-		dcerpc_get_query_dispinfo_params(
+		get_query_dispinfo_params(
 			loop_count, &max_entries, &max_size);
 
-		status = dcerpc_samr_QueryDisplayInfo(b, mem_ctx,
+		result = rpccli_samr_QueryDisplayInfo(pipe_hnd, mem_ctx,
 						      &domain_pol,
 						      3,
 						      start_idx,
@@ -2617,11 +2292,7 @@ static NTSTATUS rpc_group_list_internals(struct net_context *c,
 						      max_size,
 						      &total_size,
 						      &returned_size,
-						      &info,
-						      &result);
-		if (!NT_STATUS_IS_OK(status)) {
-			goto done;
-		}
+						      &info);
 		num_entries = info.info3.count;
 		start_idx += info.info3.count;
 
@@ -2649,16 +2320,12 @@ static NTSTATUS rpc_group_list_internals(struct net_context *c,
 	do {
 		if (!local) break;
 
-		status = dcerpc_samr_EnumDomainAliases(b, mem_ctx,
+		result = rpccli_samr_EnumDomainAliases(pipe_hnd, mem_ctx,
 						       &domain_pol,
 						       &start_idx,
 						       &groups,
 						       0xffff,
-						       &num_entries,
-						       &result);
-		if (!NT_STATUS_IS_OK(status)) {
-			goto done;
-		}
+						       &num_entries);
 		if (!NT_STATUS_IS_OK(result) &&
 		    !NT_STATUS_EQUAL(result, STATUS_MORE_ENTRIES))
 			break;
@@ -2671,28 +2338,19 @@ static NTSTATUS rpc_group_list_internals(struct net_context *c,
 
 				struct policy_handle alias_pol;
 				union samr_AliasInfo *info = NULL;
-				NTSTATUS _result;
 
-				status = dcerpc_samr_OpenAlias(b, mem_ctx,
-							       &domain_pol,
-							       0x8,
-							       groups->entries[i].idx,
-							       &alias_pol,
-							       &_result);
-				if (NT_STATUS_IS_OK(status) && NT_STATUS_IS_OK(_result)) {
-					status = dcerpc_samr_QueryAliasInfo(b, mem_ctx,
-									    &alias_pol,
-									    3,
-									    &info,
-									    &_result);
-					if (NT_STATUS_IS_OK(status) && NT_STATUS_IS_OK(_result)) {
-						status = dcerpc_samr_Close(b, mem_ctx,
-									   &alias_pol,
-									   &_result);
-						if (NT_STATUS_IS_OK(status) && NT_STATUS_IS_OK(_result)) {
-							description = info->description.string;
-						}
-					}
+				if ((NT_STATUS_IS_OK(rpccli_samr_OpenAlias(pipe_hnd, mem_ctx,
+									   &domain_pol,
+									   0x8,
+									   groups->entries[i].idx,
+									   &alias_pol))) &&
+				    (NT_STATUS_IS_OK(rpccli_samr_QueryAliasInfo(pipe_hnd, mem_ctx,
+										&alias_pol,
+										3,
+										&info))) &&
+				    (NT_STATUS_IS_OK(rpccli_samr_Close(pipe_hnd, mem_ctx,
+								    &alias_pol)))) {
+					description = info->description.string;
 				}
 			}
 
@@ -2705,43 +2363,31 @@ static NTSTATUS rpc_group_list_internals(struct net_context *c,
 			}
 		}
 	} while (NT_STATUS_EQUAL(result, STATUS_MORE_ENTRIES));
-	dcerpc_samr_Close(b, mem_ctx, &domain_pol, &result);
+	rpccli_samr_Close(pipe_hnd, mem_ctx, &domain_pol);
 	/* Get builtin policy handle */
 
-	status = dcerpc_samr_OpenDomain(b, mem_ctx,
+	result = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
 					&connect_pol,
 					MAXIMUM_ALLOWED_ACCESS,
 					CONST_DISCARD(struct dom_sid2 *, &global_sid_Builtin),
-					&domain_pol,
-					&result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
+					&domain_pol);
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		goto done;
 	}
-
 	/* query builtin aliases */
 	start_idx = 0;
 	do {
 		if (!builtin) break;
 
-		status = dcerpc_samr_EnumDomainAliases(b, mem_ctx,
+		result = rpccli_samr_EnumDomainAliases(pipe_hnd, mem_ctx,
 						       &domain_pol,
 						       &start_idx,
 						       &groups,
 						       max_entries,
-						       &num_entries,
-						       &result);
-		if (!NT_STATUS_IS_OK(status)) {
-			break;
-		}
+						       &num_entries);
 		if (!NT_STATUS_IS_OK(result) &&
-		    !NT_STATUS_EQUAL(result, STATUS_MORE_ENTRIES)) {
-			status = result;
+		    !NT_STATUS_EQUAL(result, STATUS_MORE_ENTRIES))
 			break;
-		}
 
 		for (i = 0; i < num_entries; i++) {
 
@@ -2751,28 +2397,19 @@ static NTSTATUS rpc_group_list_internals(struct net_context *c,
 
 				struct policy_handle alias_pol;
 				union samr_AliasInfo *info = NULL;
-				NTSTATUS _result;
 
-				status = dcerpc_samr_OpenAlias(b, mem_ctx,
-							       &domain_pol,
-							       0x8,
-							       groups->entries[i].idx,
-							       &alias_pol,
-							       &_result);
-				if (NT_STATUS_IS_OK(status) && NT_STATUS_IS_OK(_result)) {
-					status = dcerpc_samr_QueryAliasInfo(b, mem_ctx,
-									    &alias_pol,
-									    3,
-									    &info,
-									    &_result);
-					if (NT_STATUS_IS_OK(status) && NT_STATUS_IS_OK(_result)) {
-						status = dcerpc_samr_Close(b, mem_ctx,
-									   &alias_pol,
-									   &_result);
-						if (NT_STATUS_IS_OK(status) && NT_STATUS_IS_OK(_result)) {
-							description = info->description.string;
-						}
-					}
+				if ((NT_STATUS_IS_OK(rpccli_samr_OpenAlias(pipe_hnd, mem_ctx,
+									   &domain_pol,
+									   0x8,
+									   groups->entries[i].idx,
+									   &alias_pol))) &&
+				    (NT_STATUS_IS_OK(rpccli_samr_QueryAliasInfo(pipe_hnd, mem_ctx,
+										&alias_pol,
+										3,
+										&info))) &&
+				    (NT_STATUS_IS_OK(rpccli_samr_Close(pipe_hnd, mem_ctx,
+								    &alias_pol)))) {
+					description = info->description.string;
 				}
 			}
 
@@ -2786,10 +2423,8 @@ static NTSTATUS rpc_group_list_internals(struct net_context *c,
 		}
 	} while (NT_STATUS_EQUAL(result, STATUS_MORE_ENTRIES));
 
-	status = result;
-
  done:
-	return status;
+	return result;
 }
 
 static int rpc_group_list(struct net_context *c, int argc, const char **argv)
@@ -2803,45 +2438,36 @@ static NTSTATUS rpc_list_group_members(struct net_context *c,
 					struct rpc_pipe_client *pipe_hnd,
 					TALLOC_CTX *mem_ctx,
 					const char *domain_name,
-					const struct dom_sid *domain_sid,
+					const DOM_SID *domain_sid,
 					struct policy_handle *domain_pol,
 					uint32 rid)
 {
-	NTSTATUS result, status;
+	NTSTATUS result;
 	struct policy_handle group_pol;
 	uint32 num_members, *group_rids;
 	int i;
-	struct samr_RidAttrArray *rids = NULL;
+	struct samr_RidTypeArray *rids = NULL;
 	struct lsa_Strings names;
 	struct samr_Ids types;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
 	fstring sid_str;
 	sid_to_fstring(sid_str, domain_sid);
 
-	status = dcerpc_samr_OpenGroup(b, mem_ctx,
+	result = rpccli_samr_OpenGroup(pipe_hnd, mem_ctx,
 				       domain_pol,
 				       MAXIMUM_ALLOWED_ACCESS,
 				       rid,
-				       &group_pol,
-				       &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		return result;
-	}
+				       &group_pol);
 
-	status = dcerpc_samr_QueryGroupMember(b, mem_ctx,
-					      &group_pol,
-					      &rids,
-					      &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
+	if (!NT_STATUS_IS_OK(result))
 		return result;
-	}
+
+	result = rpccli_samr_QueryGroupMember(pipe_hnd, mem_ctx,
+					      &group_pol,
+					      &rids);
+
+	if (!NT_STATUS_IS_OK(result))
+		return result;
 
 	num_members = rids->count;
 	group_rids = rids->rids;
@@ -2852,19 +2478,15 @@ static NTSTATUS rpc_list_group_members(struct net_context *c,
 		if (num_members < this_time)
 			this_time = num_members;
 
-		status = dcerpc_samr_LookupRids(b, mem_ctx,
+		result = rpccli_samr_LookupRids(pipe_hnd, mem_ctx,
 						domain_pol,
 						this_time,
 						group_rids,
 						&names,
-						&types,
-						&result);
-		if (!NT_STATUS_IS_OK(status)) {
-			return status;
-		}
-		if (!NT_STATUS_IS_OK(result)) {
+						&types);
+
+		if (!NT_STATUS_IS_OK(result))
 			return result;
-		}
 
 		/* We only have users as members, but make the output
 		   the same as the output of alias members */
@@ -2895,39 +2517,30 @@ static NTSTATUS rpc_list_alias_members(struct net_context *c,
 					struct policy_handle *domain_pol,
 					uint32 rid)
 {
-	NTSTATUS result, status;
+	NTSTATUS result;
 	struct rpc_pipe_client *lsa_pipe;
 	struct policy_handle alias_pol, lsa_pol;
 	uint32 num_members;
-	struct dom_sid *alias_sids;
+	DOM_SID *alias_sids;
 	char **domains;
 	char **names;
 	enum lsa_SidType *types;
 	int i;
 	struct lsa_SidArray sid_array;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
-	status = dcerpc_samr_OpenAlias(b, mem_ctx,
+	result = rpccli_samr_OpenAlias(pipe_hnd, mem_ctx,
 				       domain_pol,
 				       MAXIMUM_ALLOWED_ACCESS,
 				       rid,
-				       &alias_pol,
-				       &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		return result;
-	}
+				       &alias_pol);
 
-	status = dcerpc_samr_GetMembersInAlias(b, mem_ctx,
+	if (!NT_STATUS_IS_OK(result))
+		return result;
+
+	result = rpccli_samr_GetMembersInAlias(pipe_hnd, mem_ctx,
 					       &alias_pol,
-					       &sid_array,
-					       &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		d_fprintf(stderr, _("Couldn't list alias members\n"));
-		return status;
-	}
+					       &sid_array);
+
 	if (!NT_STATUS_IS_OK(result)) {
 		d_fprintf(stderr, _("Couldn't list alias members\n"));
 		return result;
@@ -2957,7 +2570,7 @@ static NTSTATUS rpc_list_alias_members(struct net_context *c,
 		return result;
 	}
 
-	alias_sids = TALLOC_ZERO_ARRAY(mem_ctx, struct dom_sid, num_members);
+	alias_sids = TALLOC_ZERO_ARRAY(mem_ctx, DOM_SID, num_members);
 	if (!alias_sids) {
 		d_fprintf(stderr, _("Out of memory\n"));
 		TALLOC_FREE(lsa_pipe);
@@ -3000,7 +2613,7 @@ static NTSTATUS rpc_list_alias_members(struct net_context *c,
 }
 
 static NTSTATUS rpc_group_members_internals(struct net_context *c,
-					const struct dom_sid *domain_sid,
+					const DOM_SID *domain_sid,
 					const char *domain_name,
 					struct cli_state *cli,
 					struct rpc_pipe_client *pipe_hnd,
@@ -3008,89 +2621,70 @@ static NTSTATUS rpc_group_members_internals(struct net_context *c,
 					int argc,
 					const char **argv)
 {
-	NTSTATUS result, status;
+	NTSTATUS result;
 	struct policy_handle connect_pol, domain_pol;
 	struct samr_Ids rids, rid_types;
 	struct lsa_String lsa_acct_name;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
 	/* Get sam policy handle */
 
-	status = dcerpc_samr_Connect2(b, mem_ctx,
+	result = rpccli_samr_Connect2(pipe_hnd, mem_ctx,
 				      pipe_hnd->desthost,
 				      MAXIMUM_ALLOWED_ACCESS,
-				      &connect_pol,
-				      &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
+				      &connect_pol);
+
+	if (!NT_STATUS_IS_OK(result))
 		return result;
-	}
 
 	/* Get domain policy handle */
 
-	status = dcerpc_samr_OpenDomain(b, mem_ctx,
+	result = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
 					&connect_pol,
 					MAXIMUM_ALLOWED_ACCESS,
 					CONST_DISCARD(struct dom_sid2 *, domain_sid),
-					&domain_pol,
-					&result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
+					&domain_pol);
+
+	if (!NT_STATUS_IS_OK(result))
 		return result;
-	}
 
 	init_lsa_String(&lsa_acct_name, argv[0]); /* sure? */
 
-	status = dcerpc_samr_LookupNames(b, mem_ctx,
+	result = rpccli_samr_LookupNames(pipe_hnd, mem_ctx,
 					 &domain_pol,
 					 1,
 					 &lsa_acct_name,
 					 &rids,
-					 &rid_types,
-					 &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
+					 &rid_types);
 
 	if (!NT_STATUS_IS_OK(result)) {
 
 		/* Ok, did not find it in the global sam, try with builtin */
 
-		struct dom_sid sid_Builtin;
+		DOM_SID sid_Builtin;
 
-		dcerpc_samr_Close(b, mem_ctx, &domain_pol, &result);
+		rpccli_samr_Close(pipe_hnd, mem_ctx, &domain_pol);
 
 		sid_copy(&sid_Builtin, &global_sid_Builtin);
 
-		status = dcerpc_samr_OpenDomain(b, mem_ctx,
+		result = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
 						&connect_pol,
 						MAXIMUM_ALLOWED_ACCESS,
 						&sid_Builtin,
-						&domain_pol,
-						&result);
-		if (!NT_STATUS_IS_OK(status)) {
-			return status;
-		}
+						&domain_pol);
+
 		if (!NT_STATUS_IS_OK(result)) {
 			d_fprintf(stderr, _("Couldn't find group %s\n"),
 				  argv[0]);
 			return result;
 		}
 
-		status = dcerpc_samr_LookupNames(b, mem_ctx,
+		result = rpccli_samr_LookupNames(pipe_hnd, mem_ctx,
 						 &domain_pol,
 						 1,
 						 &lsa_acct_name,
 						 &rids,
-						 &rid_types,
-						 &result);
-		if (!NT_STATUS_IS_OK(status)) {
-			return status;
-		}
+						 &rid_types);
+
 		if (!NT_STATUS_IS_OK(result)) {
 			d_fprintf(stderr, _("Couldn't find group %s\n"),
 				  argv[0]);
@@ -3239,7 +2833,7 @@ int net_rpc_group(struct net_context *c, int argc, const char **argv)
 		{NULL, NULL, 0, NULL, NULL}
 	};
 
-	status = libnetapi_net_init(&c->netapi_ctx);
+	status = libnetapi_init(&c->netapi_ctx);
 	if (status != 0) {
 		return -1;
 	}
@@ -3380,7 +2974,6 @@ static WERROR get_share_info(struct net_context *c,
 	WERROR result;
 	NTSTATUS status;
 	union srvsvc_NetShareInfo info;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
 	/* no specific share requested, enumerate all */
 	if (argc == 0) {
@@ -3391,33 +2984,25 @@ static WERROR get_share_info(struct net_context *c,
 
 		info_ctr->level = level;
 
-		status = dcerpc_srvsvc_NetShareEnumAll(b, mem_ctx,
+		status = rpccli_srvsvc_NetShareEnumAll(pipe_hnd, mem_ctx,
 						       pipe_hnd->desthost,
 						       info_ctr,
 						       preferred_len,
 						       &total_entries,
 						       &resume_handle,
 						       &result);
-		if (!NT_STATUS_IS_OK(status)) {
-			return ntstatus_to_werror(status);
-		}
 		return result;
 	}
 
 	/* request just one share */
-	status = dcerpc_srvsvc_NetShareGetInfo(b, mem_ctx,
+	status = rpccli_srvsvc_NetShareGetInfo(pipe_hnd, mem_ctx,
 					       pipe_hnd->desthost,
 					       argv[0],
 					       level,
 					       &info,
 					       &result);
 
-	if (!NT_STATUS_IS_OK(status)) {
-		result = ntstatus_to_werror(status);
-		goto done;
-	}
-
-	if (!W_ERROR_IS_OK(result)) {
+	if (!NT_STATUS_IS_OK(status) || !W_ERROR_IS_OK(result)) {
 		goto done;
 	}
 
@@ -3438,8 +3023,6 @@ static WERROR get_share_info(struct net_context *c,
 		ctr1->array = info.info1;
 
 		info_ctr->ctr.ctr1 = ctr1;
-
-		break;
 	}
 	case 2:
 	{
@@ -3452,8 +3035,6 @@ static WERROR get_share_info(struct net_context *c,
 		ctr2->array = info.info2;
 
 		info_ctr->ctr.ctr2 = ctr2;
-
-		break;
 	}
 	case 502:
 	{
@@ -3466,8 +3047,6 @@ static WERROR get_share_info(struct net_context *c,
 		ctr502->array = info.info502;
 
 		info_ctr->ctr.ctr502 = ctr502;
-
-		break;
 	}
 	} /* switch */
 done:
@@ -3525,19 +3104,13 @@ static int rpc_share_list(struct net_context *c, int argc, const char **argv)
 
 static bool check_share_availability(struct cli_state *cli, const char *netname)
 {
-	NTSTATUS status;
-
-	status = cli_tcon_andx(cli, netname, "A:", "", 0);
-	if (!NT_STATUS_IS_OK(status)) {
+	if (!NT_STATUS_IS_OK(cli_tcon_andx(cli, netname, "A:", "", 0))) {
 		d_printf(_("skipping   [%s]: not a file share.\n"), netname);
 		return false;
 	}
 
-	status = cli_tdis(cli);
-	if (!NT_STATUS_IS_OK(status)) {
-		d_printf(_("cli_tdis returned %s\n"), nt_errstr(status));
+	if (!cli_tdis(cli))
 		return false;
-	}
 
 	return true;
 }
@@ -3583,7 +3156,7 @@ static bool check_share_sanity(struct net_context *c, struct cli_state *cli,
  **/
 
 static NTSTATUS rpc_share_migrate_shares_internals(struct net_context *c,
-						const struct dom_sid *domain_sid,
+						const DOM_SID *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -3599,7 +3172,6 @@ static NTSTATUS rpc_share_migrate_shares_internals(struct net_context *c,
 	struct cli_state *cli_dst = NULL;
 	uint32 level = 502; /* includes secdesc */
 	uint32_t parm_error = 0;
-	struct dcerpc_binding_handle *b;
 
 	result = get_share_info(c, pipe_hnd, mem_ctx, level, argc, argv,
 				&ctr_src);
@@ -3612,7 +3184,6 @@ static NTSTATUS rpc_share_migrate_shares_internals(struct net_context *c,
         if (!NT_STATUS_IS_OK(nt_status))
                 return nt_status;
 
-	b = srvsvc_pipe->binding_handle;
 
 	for (i = 0; i < ctr_src.ctr.ctr502->count; i++) {
 
@@ -3634,27 +3205,21 @@ static NTSTATUS rpc_share_migrate_shares_internals(struct net_context *c,
 
 		info.info502 = &info502;
 
-		nt_status = dcerpc_srvsvc_NetShareAdd(b, mem_ctx,
+		nt_status = rpccli_srvsvc_NetShareAdd(srvsvc_pipe, mem_ctx,
 						      srvsvc_pipe->desthost,
 						      502,
 						      &info,
 						      &parm_error,
 						      &result);
-		if (!NT_STATUS_IS_OK(nt_status)) {
-			printf(_("cannot add share: %s\n"),
-				nt_errstr(nt_status));
-			goto done;
-		}
+
                 if (W_ERROR_V(result) == W_ERROR_V(WERR_FILE_EXISTS)) {
 			printf(_("           [%s] does already exist\n"),
 				info502.name);
 			continue;
 		}
 
-		if (!W_ERROR_IS_OK(result)) {
-			nt_status = werror_to_ntstatus(result);
-			printf(_("cannot add share: %s\n"),
-				win_errstr(result));
+		if (!NT_STATUS_IS_OK(nt_status) || !W_ERROR_IS_OK(result)) {
+			printf(_("cannot add share: %s\n"), win_errstr(result));
 			goto done;
 		}
 
@@ -3710,7 +3275,7 @@ static int rpc_share_migrate_shares(struct net_context *c, int argc,
  * @param state	arg-pointer
  *
  **/
-static NTSTATUS copy_fn(const char *mnt, struct file_info *f,
+static void copy_fn(const char *mnt, file_info *f,
 		    const char *mask, void *state)
 {
 	static NTSTATUS nt_status;
@@ -3726,12 +3291,12 @@ static NTSTATUS copy_fn(const char *mnt, struct file_info *f,
 	c = local_state->c;
 
 	if (strequal(f->name, ".") || strequal(f->name, ".."))
-		return NT_STATUS_OK;
+		return;
 
 	DEBUG(3,("got mask: %s, name: %s\n", mask, f->name));
 
 	/* DIRECTORY */
-	if (f->mode & FILE_ATTRIBUTE_DIRECTORY) {
+	if (f->mode & aDIR) {
 
 		DEBUG(3,("got dir: %s\n", f->name));
 
@@ -3754,14 +3319,12 @@ static NTSTATUS copy_fn(const char *mnt, struct file_info *f,
 			break;
 		default:
 			d_fprintf(stderr, _("Unsupported mode %d\n"), net_mode_share);
-			return NT_STATUS_INTERNAL_ERROR;
+			return;
 		}
 
-		if (!NT_STATUS_IS_OK(nt_status)) {
+		if (!NT_STATUS_IS_OK(nt_status))
 			printf(_("could not handle dir %s: %s\n"),
 				dir, nt_errstr(nt_status));
-			return nt_status;
-		}
 
 		/* search below that directory */
 		fstrcpy(new_mask, dir);
@@ -3769,13 +3332,11 @@ static NTSTATUS copy_fn(const char *mnt, struct file_info *f,
 
 		old_dir = local_state->cwd;
 		local_state->cwd = dir;
-		nt_status = sync_files(local_state, new_mask);
-		if (!NT_STATUS_IS_OK(nt_status)) {
+		if (!sync_files(local_state, new_mask))
 			printf(_("could not handle files\n"));
-		}
 		local_state->cwd = old_dir;
 
-		return nt_status;
+		return;
 	}
 
 
@@ -3801,13 +3362,13 @@ static NTSTATUS copy_fn(const char *mnt, struct file_info *f,
 	default:
 		d_fprintf(stderr, _("Unsupported file mode %d\n"),
 			  net_mode_share);
-		return NT_STATUS_INTERNAL_ERROR;
+		return;
 	}
 
 	if (!NT_STATUS_IS_OK(nt_status))
 		printf(_("could not handle file %s: %s\n"),
 			filename, nt_errstr(nt_status));
-	return nt_status;
+
 }
 
 /**
@@ -3819,11 +3380,10 @@ static NTSTATUS copy_fn(const char *mnt, struct file_info *f,
  *
  * @return 		Boolean result
  **/
-static NTSTATUS sync_files(struct copy_clistate *cp_clistate, const char *mask)
+static bool sync_files(struct copy_clistate *cp_clistate, const char *mask)
 {
 	struct cli_state *targetcli;
 	char *targetpath = NULL;
-	NTSTATUS status;
 
 	DEBUG(3,("calling cli_list with mask: %s\n", mask));
 
@@ -3832,17 +3392,16 @@ static NTSTATUS sync_files(struct copy_clistate *cp_clistate, const char *mask)
 		d_fprintf(stderr, _("cli_resolve_path %s failed with error: "
 				    "%s\n"),
 			mask, cli_errstr(cp_clistate->cli_share_src));
-		return cli_nt_error(cp_clistate->cli_share_src);
+		return false;
 	}
 
-	status = cli_list(targetcli, targetpath, cp_clistate->attribute,
-			  copy_fn, cp_clistate);
-	if (!NT_STATUS_IS_OK(status)) {
+	if (cli_list(targetcli, targetpath, cp_clistate->attribute, copy_fn, cp_clistate) == -1) {
 		d_fprintf(stderr, _("listing %s failed with error: %s\n"),
-			  mask, nt_errstr(status));
+			mask, cli_errstr(targetcli));
+		return false;
 	}
 
-	return status;
+	return true;
 }
 
 
@@ -3902,7 +3461,7 @@ bool copy_top_level_perms(struct net_context *c,
  **/
 
 static NTSTATUS rpc_share_migrate_files_internals(struct net_context *c,
-						const struct dom_sid *domain_sid,
+						const DOM_SID *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -3969,7 +3528,7 @@ static NTSTATUS rpc_share_migrate_files_internals(struct net_context *c,
 		cp_clistate.cli_share_src = NULL;
 		cp_clistate.cli_share_dst = NULL;
 		cp_clistate.cwd = NULL;
-		cp_clistate.attribute = FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_DIRECTORY;
+		cp_clistate.attribute = aSYSTEM | aHIDDEN | aDIR;
 		cp_clistate.c = c;
 
 	        /* open share source */
@@ -3999,10 +3558,10 @@ static NTSTATUS rpc_share_migrate_files_internals(struct net_context *c,
 			goto done;
 		}
 
-		nt_status = sync_files(&cp_clistate, mask);
-		if (!NT_STATUS_IS_OK(nt_status)) {
+		if (!sync_files(&cp_clistate, mask)) {
 			d_fprintf(stderr, _("could not handle files for share: "
 					    "%s\n"), info502.name);
+			nt_status = NT_STATUS_UNSUCCESSFUL;
 			goto done;
 		}
 	}
@@ -4060,7 +3619,7 @@ static int rpc_share_migrate_files(struct net_context *c, int argc, const char *
  **/
 
 static NTSTATUS rpc_share_migrate_security_internals(struct net_context *c,
-						const struct dom_sid *domain_sid,
+						const DOM_SID *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -4077,7 +3636,6 @@ static NTSTATUS rpc_share_migrate_security_internals(struct net_context *c,
 	struct cli_state *cli_dst = NULL;
 	uint32 level = 502; /* includes secdesc */
 	uint32_t parm_error = 0;
-	struct dcerpc_binding_handle *b;
 
 	result = get_share_info(c, pipe_hnd, mem_ctx, level, argc, argv,
 				&ctr_src);
@@ -4091,7 +3649,6 @@ static NTSTATUS rpc_share_migrate_security_internals(struct net_context *c,
         if (!NT_STATUS_IS_OK(nt_status))
                 return nt_status;
 
-	b = srvsvc_pipe->binding_handle;
 
 	for (i = 0; i < ctr_src.ctr.ctr502->count; i++) {
 
@@ -4115,20 +3672,14 @@ static NTSTATUS rpc_share_migrate_security_internals(struct net_context *c,
 		info.info502 = &info502;
 
 		/* finally modify the share on the dst server */
-		nt_status = dcerpc_srvsvc_NetShareSetInfo(b, mem_ctx,
+		nt_status = rpccli_srvsvc_NetShareSetInfo(srvsvc_pipe, mem_ctx,
 							  srvsvc_pipe->desthost,
 							  info502.name,
 							  level,
 							  &info,
 							  &parm_error,
 							  &result);
-		if (!NT_STATUS_IS_OK(nt_status)) {
-			printf(_("cannot set share-acl: %s\n"),
-			       nt_errstr(nt_status));
-			goto done;
-		}
-		if (!W_ERROR_IS_OK(result)) {
-			nt_status = werror_to_ntstatus(result);
+		if (!NT_STATUS_IS_OK(nt_status) || !W_ERROR_IS_OK(result)) {
 			printf(_("cannot set share-acl: %s\n"),
 			       win_errstr(result));
 			goto done;
@@ -4278,9 +3829,9 @@ static int rpc_share_migrate(struct net_context *c, int argc, const char **argv)
 }
 
 struct full_alias {
-	struct dom_sid sid;
+	DOM_SID sid;
 	uint32 num_members;
-	struct dom_sid *members;
+	DOM_SID *members;
 };
 
 static int num_server_aliases;
@@ -4306,111 +3857,83 @@ static void push_alias(TALLOC_CTX *mem_ctx, struct full_alias *alias)
 static NTSTATUS rpc_fetch_domain_aliases(struct rpc_pipe_client *pipe_hnd,
 					TALLOC_CTX *mem_ctx,
 					struct policy_handle *connect_pol,
-					const struct dom_sid *domain_sid)
+					const DOM_SID *domain_sid)
 {
 	uint32 start_idx, max_entries, num_entries, i;
 	struct samr_SamArray *groups = NULL;
-	NTSTATUS result, status;
+	NTSTATUS result;
 	struct policy_handle domain_pol;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
 	/* Get domain policy handle */
 
-	status = dcerpc_samr_OpenDomain(b, mem_ctx,
+	result = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
 					connect_pol,
 					MAXIMUM_ALLOWED_ACCESS,
 					CONST_DISCARD(struct dom_sid2 *, domain_sid),
-					&domain_pol,
-					&result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
+					&domain_pol);
+	if (!NT_STATUS_IS_OK(result))
 		return result;
-	}
 
 	start_idx = 0;
 	max_entries = 250;
 
 	do {
-		status = dcerpc_samr_EnumDomainAliases(b, mem_ctx,
+		result = rpccli_samr_EnumDomainAliases(pipe_hnd, mem_ctx,
 						       &domain_pol,
 						       &start_idx,
 						       &groups,
 						       max_entries,
-						       &num_entries,
-						       &result);
-		if (!NT_STATUS_IS_OK(status)) {
-			goto done;
-		}
+						       &num_entries);
 		for (i = 0; i < num_entries; i++) {
 
 			struct policy_handle alias_pol;
 			struct full_alias alias;
 			struct lsa_SidArray sid_array;
 			int j;
-			NTSTATUS _result;
 
-			status = dcerpc_samr_OpenAlias(b, mem_ctx,
+			result = rpccli_samr_OpenAlias(pipe_hnd, mem_ctx,
 						       &domain_pol,
 						       MAXIMUM_ALLOWED_ACCESS,
 						       groups->entries[i].idx,
-						       &alias_pol,
-						       &_result);
-			if (!NT_STATUS_IS_OK(status)) {
+						       &alias_pol);
+			if (!NT_STATUS_IS_OK(result))
 				goto done;
-			}
-			if (!NT_STATUS_IS_OK(_result)) {
-				status = _result;
-				goto done;
-			}
 
-			status = dcerpc_samr_GetMembersInAlias(b, mem_ctx,
+			result = rpccli_samr_GetMembersInAlias(pipe_hnd, mem_ctx,
 							       &alias_pol,
-							       &sid_array,
-							       &_result);
-			if (!NT_STATUS_IS_OK(status)) {
+							       &sid_array);
+			if (!NT_STATUS_IS_OK(result))
 				goto done;
-			}
-			if (!NT_STATUS_IS_OK(_result)) {
-				status = _result;
-				goto done;
-			}
 
 			alias.num_members = sid_array.num_sids;
 
-			status = dcerpc_samr_Close(b, mem_ctx, &alias_pol, &_result);
-			if (!NT_STATUS_IS_OK(status)) {
+			result = rpccli_samr_Close(pipe_hnd, mem_ctx, &alias_pol);
+			if (!NT_STATUS_IS_OK(result))
 				goto done;
-			}
-			if (!NT_STATUS_IS_OK(_result)) {
-				status = _result;
-				goto done;
-			}
 
 			alias.members = NULL;
 
 			if (alias.num_members > 0) {
-				alias.members = SMB_MALLOC_ARRAY(struct dom_sid, alias.num_members);
+				alias.members = SMB_MALLOC_ARRAY(DOM_SID, alias.num_members);
 
 				for (j = 0; j < alias.num_members; j++)
 					sid_copy(&alias.members[j],
 						 sid_array.sids[j].sid);
 			}
 
-			sid_compose(&alias.sid, domain_sid,
-				    groups->entries[i].idx);
+			sid_copy(&alias.sid, domain_sid);
+			sid_append_rid(&alias.sid, groups->entries[i].idx);
 
 			push_alias(mem_ctx, &alias);
 		}
 	} while (NT_STATUS_EQUAL(result, STATUS_MORE_ENTRIES));
 
-	status = NT_STATUS_OK;
+	result = NT_STATUS_OK;
 
  done:
-	dcerpc_samr_Close(b, mem_ctx, &domain_pol, &result);
+	rpccli_samr_Close(pipe_hnd, mem_ctx, &domain_pol);
 
-	return status;
+	return result;
 }
 
 /*
@@ -4418,7 +3941,7 @@ static NTSTATUS rpc_fetch_domain_aliases(struct rpc_pipe_client *pipe_hnd,
  */
 
 static NTSTATUS rpc_aliaslist_dump(struct net_context *c,
-				const struct dom_sid *domain_sid,
+				const DOM_SID *domain_sid,
 				const char *domain_name,
 				struct cli_state *cli,
 				struct rpc_pipe_client *pipe_hnd,
@@ -4429,7 +3952,6 @@ static NTSTATUS rpc_aliaslist_dump(struct net_context *c,
 	int i;
 	NTSTATUS result;
 	struct policy_handle lsa_pol;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
 	result = rpccli_lsa_open_policy(pipe_hnd, mem_ctx, true,
 				     SEC_FLAG_MAXIMUM_ALLOWED,
@@ -4474,7 +3996,7 @@ static NTSTATUS rpc_aliaslist_dump(struct net_context *c,
 		DEBUG(1, ("\n"));
 	}
 
-	dcerpc_lsa_Close(b, mem_ctx, &lsa_pol, &result);
+	rpccli_lsa_Close(pipe_hnd, mem_ctx, &lsa_pol);
 
 	return NT_STATUS_OK;
 }
@@ -4485,7 +4007,7 @@ static NTSTATUS rpc_aliaslist_dump(struct net_context *c,
  */
 
 static NTSTATUS rpc_aliaslist_internals(struct net_context *c,
-					const struct dom_sid *domain_sid,
+					const DOM_SID *domain_sid,
 					const char *domain_name,
 					struct cli_state *cli,
 					struct rpc_pipe_client *pipe_hnd,
@@ -4493,76 +4015,70 @@ static NTSTATUS rpc_aliaslist_internals(struct net_context *c,
 					int argc,
 					const char **argv)
 {
-	NTSTATUS result, status;
+	NTSTATUS result;
 	struct policy_handle connect_pol;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
-	status = dcerpc_samr_Connect2(b, mem_ctx,
+	result = rpccli_samr_Connect2(pipe_hnd, mem_ctx,
 				      pipe_hnd->desthost,
 				      MAXIMUM_ALLOWED_ACCESS,
-				      &connect_pol,
-				      &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
-		goto done;
-	}
+				      &connect_pol);
 
-	status = rpc_fetch_domain_aliases(pipe_hnd, mem_ctx, &connect_pol,
+	if (!NT_STATUS_IS_OK(result))
+		goto done;
+
+	result = rpc_fetch_domain_aliases(pipe_hnd, mem_ctx, &connect_pol,
 					  &global_sid_Builtin);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
 
-	status = rpc_fetch_domain_aliases(pipe_hnd, mem_ctx, &connect_pol,
+	if (!NT_STATUS_IS_OK(result))
+		goto done;
+
+	result = rpc_fetch_domain_aliases(pipe_hnd, mem_ctx, &connect_pol,
 					  domain_sid);
 
-	dcerpc_samr_Close(b, mem_ctx, &connect_pol, &result);
+	rpccli_samr_Close(pipe_hnd, mem_ctx, &connect_pol);
  done:
-	return status;
+	return result;
 }
 
-static void init_user_token(struct security_token *token, struct dom_sid *user_sid)
+static void init_user_token(NT_USER_TOKEN *token, DOM_SID *user_sid)
 {
 	token->num_sids = 4;
 
-	if (!(token->sids = SMB_MALLOC_ARRAY(struct dom_sid, 4))) {
+	if (!(token->user_sids = SMB_MALLOC_ARRAY(DOM_SID, 4))) {
 		d_fprintf(stderr, "malloc %s\n",_("failed"));
 		token->num_sids = 0;
 		return;
 	}
 
-	token->sids[0] = *user_sid;
-	sid_copy(&token->sids[1], &global_sid_World);
-	sid_copy(&token->sids[2], &global_sid_Network);
-	sid_copy(&token->sids[3], &global_sid_Authenticated_Users);
+	token->user_sids[0] = *user_sid;
+	sid_copy(&token->user_sids[1], &global_sid_World);
+	sid_copy(&token->user_sids[2], &global_sid_Network);
+	sid_copy(&token->user_sids[3], &global_sid_Authenticated_Users);
 }
 
-static void free_user_token(struct security_token *token)
+static void free_user_token(NT_USER_TOKEN *token)
 {
-	SAFE_FREE(token->sids);
+	SAFE_FREE(token->user_sids);
 }
 
-static void add_sid_to_token(struct security_token *token, struct dom_sid *sid)
+static void add_sid_to_token(NT_USER_TOKEN *token, DOM_SID *sid)
 {
-	if (security_token_has_sid(token, sid))
+	if (is_sid_in_token(token, sid))
 		return;
 
-	token->sids = SMB_REALLOC_ARRAY(token->sids, struct dom_sid, token->num_sids+1);
-	if (!token->sids) {
+	token->user_sids = SMB_REALLOC_ARRAY(token->user_sids, DOM_SID, token->num_sids+1);
+	if (!token->user_sids) {
 		return;
 	}
 
-	sid_copy(&token->sids[token->num_sids], sid);
+	sid_copy(&token->user_sids[token->num_sids], sid);
 
 	token->num_sids += 1;
 }
 
 struct user_token {
 	fstring name;
-	struct security_token token;
+	NT_USER_TOKEN token;
 };
 
 static void dump_user_token(struct user_token *token)
@@ -4572,23 +4088,23 @@ static void dump_user_token(struct user_token *token)
 	d_printf("%s\n", token->name);
 
 	for (i=0; i<token->token.num_sids; i++) {
-		d_printf(" %s\n", sid_string_tos(&token->token.sids[i]));
+		d_printf(" %s\n", sid_string_tos(&token->token.user_sids[i]));
 	}
 }
 
-static bool is_alias_member(struct dom_sid *sid, struct full_alias *alias)
+static bool is_alias_member(DOM_SID *sid, struct full_alias *alias)
 {
 	int i;
 
 	for (i=0; i<alias->num_members; i++) {
-		if (dom_sid_compare(sid, &alias->members[i]) == 0)
+		if (sid_compare(sid, &alias->members[i]) == 0)
 			return true;
 	}
 
 	return false;
 }
 
-static void collect_sid_memberships(struct security_token *token, struct dom_sid sid)
+static void collect_sid_memberships(NT_USER_TOKEN *token, DOM_SID sid)
 {
 	int i;
 
@@ -4605,24 +4121,24 @@ static void collect_sid_memberships(struct security_token *token, struct dom_sid
  * add them to the token.
  */
 
-static void collect_alias_memberships(struct security_token *token)
+static void collect_alias_memberships(NT_USER_TOKEN *token)
 {
 	int num_global_sids = token->num_sids;
 	int i;
 
 	for (i=0; i<num_global_sids; i++) {
-		collect_sid_memberships(token, token->sids[i]);
+		collect_sid_memberships(token, token->user_sids[i]);
 	}
 }
 
-static bool get_user_sids(const char *domain, const char *user, struct security_token *token)
+static bool get_user_sids(const char *domain, const char *user, NT_USER_TOKEN *token)
 {
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 	enum wbcSidType type;
 	fstring full_name;
 	struct wbcDomainSid wsid;
-	char sid_str[WBC_SID_STRING_BUFLEN];
-	struct dom_sid user_sid;
+	char *sid_str = NULL;
+	DOM_SID user_sid;
 	uint32_t num_groups;
 	gid_t *groups = NULL;
 	uint32_t i;
@@ -4640,9 +4156,13 @@ static bool get_user_sids(const char *domain, const char *user, struct security_
 		return false;
 	}
 
-	wbcSidToStringBuf(&wsid, sid_str, sizeof(sid_str));
+	wbc_status = wbcSidToString(&wsid, &sid_str);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
 
-	if (type != WBC_SID_NAME_USER) {
+	if (type != SID_NAME_USER) {
+		wbcFreeMemory(sid_str);
 		DEBUG(1, ("%s is not a user\n", full_name));
 		return false;
 	}
@@ -4651,6 +4171,9 @@ static bool get_user_sids(const char *domain, const char *user, struct security_
 		DEBUG(1,("Could not convert sid %s from string\n", sid_str));
 		return false;
 	}
+
+	wbcFreeMemory(sid_str);
+	sid_str = NULL;
 
 	init_user_token(token, &user_sid);
 
@@ -4665,7 +4188,7 @@ static bool get_user_sids(const char *domain, const char *user, struct security_
 
 	for (i = 0; i < num_groups; i++) {
 		gid_t gid = groups[i];
-		struct dom_sid sid;
+		DOM_SID sid;
 
 		wbc_status = wbcGidToSid(gid, &wsid);
 		if (!WBC_ERROR_IS_OK(wbc_status)) {
@@ -4675,11 +4198,18 @@ static bool get_user_sids(const char *domain, const char *user, struct security_
 			return false;
 		}
 
-		wbcSidToStringBuf(&wsid, sid_str, sizeof(sid_str));
+		wbc_status = wbcSidToString(&wsid, &sid_str);
+		if (!WBC_ERROR_IS_OK(wbc_status)) {
+			wbcFreeMemory(groups);
+			return false;
+		}
 
 		DEBUG(3, (" %s\n", sid_str));
 
 		string_to_sid(&sid, sid_str);
+		wbcFreeMemory(sid_str);
+		sid_str = NULL;
+
 		add_sid_to_token(token, &sid);
 	}
 	wbcFreeMemory(groups);
@@ -4746,6 +4276,7 @@ static bool get_user_tokens(struct net_context *c, int *num_tokens,
 		}
 
 		get_user_sids(domain, user, &(result[i].token));
+		i+=1;
 	}
 	TALLOC_FREE(frame);
 	wbcFreeMemory(users);
@@ -4776,7 +4307,7 @@ static bool get_user_tokens_from_file(FILE *f,
 		if (line[0] == ' ') {
 			/* We have a SID */
 
-			struct dom_sid sid;
+			DOM_SID sid;
 			if(!string_to_sid(&sid, &line[1])) {
 				DEBUG(1,("get_user_tokens_from_file: Could "
 					"not convert sid %s \n",&line[1]));
@@ -4805,7 +4336,7 @@ static bool get_user_tokens_from_file(FILE *f,
 
 		fstrcpy(token->name, line);
 		token->token.num_sids = 0;
-		token->token.sids = NULL;
+		token->token.user_sids = NULL;
 		continue;
 	}
 	
@@ -4824,17 +4355,16 @@ static void show_userlist(struct rpc_pipe_client *pipe_hnd,
 			struct user_token *tokens)
 {
 	uint16_t fnum;
-	struct security_descriptor *share_sd = NULL;
-	struct security_descriptor *root_sd = NULL;
+	SEC_DESC *share_sd = NULL;
+	SEC_DESC *root_sd = NULL;
 	struct cli_state *cli = rpc_pipe_np_smb_conn(pipe_hnd);
 	int i;
 	union srvsvc_NetShareInfo info;
 	WERROR result;
 	NTSTATUS status;
 	uint16 cnum;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
-	status = dcerpc_srvsvc_NetShareGetInfo(b, mem_ctx,
+	status = rpccli_srvsvc_NetShareGetInfo(pipe_hnd, mem_ctx,
 					       pipe_hnd->desthost,
 					       netname,
 					       502,
@@ -4941,7 +4471,7 @@ static void collect_share(const char *name, uint32 m,
  **/
 
 static NTSTATUS rpc_share_allowedusers_internals(struct net_context *c,
-						const struct dom_sid *domain_sid,
+						const DOM_SID *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -5137,7 +4667,7 @@ int net_rpc_share(struct net_context *c, int argc, const char **argv)
 		{NULL, NULL, 0, NULL, NULL}
 	};
 
-	status = libnetapi_net_init(&c->netapi_ctx);
+	status = libnetapi_init(&c->netapi_ctx);
 	if (status != 0) {
 		return -1;
 	}
@@ -5230,24 +4760,19 @@ static NTSTATUS rpc_sh_share_info(struct net_context *c,
 	union srvsvc_NetShareInfo info;
 	WERROR result;
 	NTSTATUS status;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
 	if (argc != 1) {
 		d_fprintf(stderr, "%s %s <share>\n", _("Usage:"), ctx->whoami);
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	status = dcerpc_srvsvc_NetShareGetInfo(b, mem_ctx,
+	status = rpccli_srvsvc_NetShareGetInfo(pipe_hnd, mem_ctx,
 					       pipe_hnd->desthost,
 					       argv[0],
 					       2,
 					       &info,
 					       &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		result = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!W_ERROR_IS_OK(result)) {
+	if (!NT_STATUS_IS_OK(status) || !W_ERROR_IS_OK(result)) {
 		goto done;
 	}
 
@@ -5418,7 +4943,7 @@ int net_rpc_file(struct net_context *c, int argc, const char **argv)
 		{NULL, NULL, 0, NULL, NULL}
 	};
 
-	status = libnetapi_net_init(&c->netapi_ctx);
+	status = libnetapi_init(&c->netapi_ctx);
 	if (status != 0) {
 		return -1;
 	}
@@ -5461,7 +4986,7 @@ int net_rpc_file(struct net_context *c, int argc, const char **argv)
  **/
 
 static NTSTATUS rpc_shutdown_abort_internals(struct net_context *c,
-					const struct dom_sid *domain_sid,
+					const DOM_SID *domain_sid,
 					const char *domain_name,
 					struct cli_state *cli,
 					struct rpc_pipe_client *pipe_hnd,
@@ -5469,21 +4994,17 @@ static NTSTATUS rpc_shutdown_abort_internals(struct net_context *c,
 					int argc,
 					const char **argv)
 {
-	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
-	WERROR result;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
+	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 
-	status = dcerpc_initshutdown_Abort(b, mem_ctx, NULL, &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-	if (W_ERROR_IS_OK(result)) {
+	result = rpccli_initshutdown_Abort(pipe_hnd, mem_ctx, NULL, NULL);
+
+	if (NT_STATUS_IS_OK(result)) {
 		d_printf(_("\nShutdown successfully aborted\n"));
 		DEBUG(5,("cmd_shutdown_abort: query succeeded\n"));
 	} else
 		DEBUG(5,("cmd_shutdown_abort: query failed\n"));
 
-	return werror_to_ntstatus(result);
+	return result;
 }
 
 /**
@@ -5504,7 +5025,7 @@ static NTSTATUS rpc_shutdown_abort_internals(struct net_context *c,
  **/
 
 static NTSTATUS rpc_reg_shutdown_abort_internals(struct net_context *c,
-						const struct dom_sid *domain_sid,
+						const DOM_SID *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -5513,22 +5034,16 @@ static NTSTATUS rpc_reg_shutdown_abort_internals(struct net_context *c,
 						const char **argv)
 {
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
-	WERROR werr;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
-	result = dcerpc_winreg_AbortSystemShutdown(b, mem_ctx, NULL, &werr);
+	result = rpccli_winreg_AbortSystemShutdown(pipe_hnd, mem_ctx, NULL, NULL);
 
-	if (!NT_STATUS_IS_OK(result)) {
-		DEBUG(5,("cmd_reg_abort_shutdown: query failed\n"));
-		return result;
-	}
-	if (W_ERROR_IS_OK(werr)) {
+	if (NT_STATUS_IS_OK(result)) {
 		d_printf(_("\nShutdown successfully aborted\n"));
 		DEBUG(5,("cmd_reg_abort_shutdown: query succeeded\n"));
 	} else
 		DEBUG(5,("cmd_reg_abort_shutdown: query failed\n"));
 
-	return werror_to_ntstatus(werr);
+	return result;
 }
 
 /**
@@ -5586,7 +5101,7 @@ static int rpc_shutdown_abort(struct net_context *c, int argc,
  **/
 
 NTSTATUS rpc_init_shutdown_internals(struct net_context *c,
-				     const struct dom_sid *domain_sid,
+				     const DOM_SID *domain_sid,
 				     const char *domain_name,
 				     struct cli_state *cli,
 				     struct rpc_pipe_client *pipe_hnd,
@@ -5594,12 +5109,10 @@ NTSTATUS rpc_init_shutdown_internals(struct net_context *c,
 				     int argc,
 				     const char **argv)
 {
-	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
-	WERROR result;
+	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
         const char *msg = N_("This machine will be shutdown shortly");
 	uint32 timeout = 20;
 	struct lsa_StringLarge msg_string;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
 	if (c->opt_comment) {
 		msg = c->opt_comment;
@@ -5611,19 +5124,17 @@ NTSTATUS rpc_init_shutdown_internals(struct net_context *c,
 	msg_string.string = msg;
 
 	/* create an entry */
-	status = dcerpc_initshutdown_Init(b, mem_ctx, NULL,
+	result = rpccli_initshutdown_Init(pipe_hnd, mem_ctx, NULL,
 			&msg_string, timeout, c->opt_force, c->opt_reboot,
-			&result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-	if (W_ERROR_IS_OK(result)) {
+			NULL);
+
+	if (NT_STATUS_IS_OK(result)) {
 		d_printf(_("\nShutdown of remote machine succeeded\n"));
 		DEBUG(5,("Shutdown of remote machine succeeded\n"));
 	} else {
 		DEBUG(1,("Shutdown of remote machine failed!\n"));
 	}
-	return werror_to_ntstatus(result);
+	return result;
 }
 
 /**
@@ -5644,7 +5155,7 @@ NTSTATUS rpc_init_shutdown_internals(struct net_context *c,
  **/
 
 NTSTATUS rpc_reg_shutdown_internals(struct net_context *c,
-				    const struct dom_sid *domain_sid,
+				    const DOM_SID *domain_sid,
 				    const char *domain_name,
 				    struct cli_state *cli,
 				    struct rpc_pipe_client *pipe_hnd,
@@ -5657,7 +5168,6 @@ NTSTATUS rpc_reg_shutdown_internals(struct net_context *c,
 	struct lsa_StringLarge msg_string;
 	NTSTATUS result;
 	WERROR werr;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
 	if (c->opt_comment) {
 		msg = c->opt_comment;
@@ -5669,15 +5179,11 @@ NTSTATUS rpc_reg_shutdown_internals(struct net_context *c,
 	}
 
 	/* create an entry */
-	result = dcerpc_winreg_InitiateSystemShutdown(b, mem_ctx, NULL,
+	result = rpccli_winreg_InitiateSystemShutdown(pipe_hnd, mem_ctx, NULL,
 			&msg_string, timeout, c->opt_force, c->opt_reboot,
 			&werr);
-	if (!NT_STATUS_IS_OK(result)) {
-		d_fprintf(stderr, "\nShutdown of remote machine failed\n");
-		return result;
-	}
 
-	if (W_ERROR_IS_OK(werr)) {
+	if (NT_STATUS_IS_OK(result)) {
 		d_printf(_("\nShutdown of remote machine succeeded\n"));
 	} else {
 		d_fprintf(stderr, "\nShutdown of remote machine failed\n");
@@ -5687,7 +5193,7 @@ NTSTATUS rpc_reg_shutdown_internals(struct net_context *c,
 			d_fprintf(stderr, "\nresult was: %s\n", win_errstr(werr));
 	}
 
-	return werror_to_ntstatus(werr);
+	return result;
 }
 
 /**
@@ -5746,7 +5252,7 @@ static int rpc_shutdown(struct net_context *c, int argc, const char **argv)
  */
 
 static NTSTATUS rpc_trustdom_add_internals(struct net_context *c,
-						const struct dom_sid *domain_sid,
+						const DOM_SID *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -5755,7 +5261,7 @@ static NTSTATUS rpc_trustdom_add_internals(struct net_context *c,
 						const char **argv)
 {
 	struct policy_handle connect_pol, domain_pol, user_pol;
-	NTSTATUS status, result;
+	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 	char *acct_name;
 	struct lsa_String lsa_acct_name;
 	uint32 acb_info;
@@ -5764,7 +5270,6 @@ static NTSTATUS rpc_trustdom_add_internals(struct net_context *c,
 	uint32_t access_granted = 0;
 	union samr_UserInfo info;
 	unsigned int orig_timeout;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
 	if (argc != 2) {
 		d_printf("%s\n%s",
@@ -5787,31 +5292,21 @@ static NTSTATUS rpc_trustdom_add_internals(struct net_context *c,
 	init_lsa_String(&lsa_acct_name, acct_name);
 
 	/* Get samr policy handle */
-	status = dcerpc_samr_Connect2(b, mem_ctx,
+	result = rpccli_samr_Connect2(pipe_hnd, mem_ctx,
 				      pipe_hnd->desthost,
 				      MAXIMUM_ALLOWED_ACCESS,
-				      &connect_pol,
-				      &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
+				      &connect_pol);
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		goto done;
 	}
 
 	/* Get domain policy handle */
-	status = dcerpc_samr_OpenDomain(b, mem_ctx,
+	result = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
 					&connect_pol,
 					MAXIMUM_ALLOWED_ACCESS,
 					CONST_DISCARD(struct dom_sid2 *, domain_sid),
-					&domain_pol,
-					&result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
+					&domain_pol);
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		goto done;
 	}
 
@@ -5828,23 +5323,19 @@ static NTSTATUS rpc_trustdom_add_internals(struct net_context *c,
 		     SAMR_USER_ACCESS_GET_ATTRIBUTES |
 		     SAMR_USER_ACCESS_SET_ATTRIBUTES;
 
-	status = dcerpc_samr_CreateUser2(b, mem_ctx,
+	result = rpccli_samr_CreateUser2(pipe_hnd, mem_ctx,
 					 &domain_pol,
 					 &lsa_acct_name,
 					 acb_info,
 					 acct_flags,
 					 &user_pol,
 					 &access_granted,
-					 &user_rid,
-					 &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
+					 &user_rid);
+
 	/* And restore our original timeout. */
 	rpccli_set_timeout(pipe_hnd, orig_timeout);
 
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		d_printf(_("net rpc trustdom add: create user %s failed %s\n"),
 			acct_name, nt_errstr(result));
 		goto done;
@@ -5864,17 +5355,12 @@ static NTSTATUS rpc_trustdom_add_internals(struct net_context *c,
 		info.info23.info.acct_flags = ACB_DOMTRUST;
 		info.info23.password = crypt_pwd;
 
-		status = dcerpc_samr_SetUserInfo2(b, mem_ctx,
+		result = rpccli_samr_SetUserInfo2(pipe_hnd, mem_ctx,
 						  &user_pol,
 						  23,
-						  &info,
-						  &result);
-		if (!NT_STATUS_IS_OK(status)) {
-			goto done;
-		}
+						  &info);
 
 		if (!NT_STATUS_IS_OK(result)) {
-			status = result;
 			DEBUG(0,("Could not set trust account password: %s\n",
 				 nt_errstr(result)));
 			goto done;
@@ -5883,7 +5369,7 @@ static NTSTATUS rpc_trustdom_add_internals(struct net_context *c,
 
  done:
 	SAFE_FREE(acct_name);
-	return status;
+	return result;
 }
 
 /**
@@ -5927,7 +5413,7 @@ static int rpc_trustdom_add(struct net_context *c, int argc, const char **argv)
  */
 
 static NTSTATUS rpc_trustdom_del_internals(struct net_context *c,
-					const struct dom_sid *domain_sid,
+					const DOM_SID *domain_sid,
 					const char *domain_name,
 					struct cli_state *cli,
 					struct rpc_pipe_client *pipe_hnd,
@@ -5936,12 +5422,11 @@ static NTSTATUS rpc_trustdom_del_internals(struct net_context *c,
 					const char **argv)
 {
 	struct policy_handle connect_pol, domain_pol, user_pol;
-	NTSTATUS status, result;
+	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 	char *acct_name;
-	struct dom_sid trust_acct_sid;
+	DOM_SID trust_acct_sid;
 	struct samr_Ids user_rids, name_types;
 	struct lsa_String lsa_acct_name;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
 	if (argc != 1) {
 		d_printf("%s\n%s",
@@ -5961,72 +5446,47 @@ static NTSTATUS rpc_trustdom_del_internals(struct net_context *c,
 	strupper_m(acct_name);
 
 	/* Get samr policy handle */
-	status = dcerpc_samr_Connect2(b, mem_ctx,
+	result = rpccli_samr_Connect2(pipe_hnd, mem_ctx,
 				      pipe_hnd->desthost,
 				      MAXIMUM_ALLOWED_ACCESS,
-				      &connect_pol,
-				      &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
+				      &connect_pol);
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		goto done;
 	}
 
 	/* Get domain policy handle */
-	status = dcerpc_samr_OpenDomain(b, mem_ctx,
+	result = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
 					&connect_pol,
 					MAXIMUM_ALLOWED_ACCESS,
 					CONST_DISCARD(struct dom_sid2 *, domain_sid),
-					&domain_pol,
-					&result);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
+					&domain_pol);
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		goto done;
 	}
 
 	init_lsa_String(&lsa_acct_name, acct_name);
 
-	status = dcerpc_samr_LookupNames(b, mem_ctx,
+	result = rpccli_samr_LookupNames(pipe_hnd, mem_ctx,
 					 &domain_pol,
 					 1,
 					 &lsa_acct_name,
 					 &user_rids,
-					 &name_types,
-					 &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		d_printf(_("net rpc trustdom del: LookupNames on user %s "
-			   "failed %s\n"),
-			acct_name, nt_errstr(status));
-		goto done;
-	}
+					 &name_types);
+
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		d_printf(_("net rpc trustdom del: LookupNames on user %s "
 			   "failed %s\n"),
 			acct_name, nt_errstr(result) );
 		goto done;
 	}
 
-	status = dcerpc_samr_OpenUser(b, mem_ctx,
+	result = rpccli_samr_OpenUser(pipe_hnd, mem_ctx,
 				      &domain_pol,
 				      MAXIMUM_ALLOWED_ACCESS,
 				      user_rids.ids[0],
-				      &user_pol,
-				      &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		d_printf(_("net rpc trustdom del: OpenUser on user %s failed "
-			   "%s\n"),
-			acct_name, nt_errstr(status) );
-		goto done;
-	}
+				      &user_pol);
 
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		d_printf(_("net rpc trustdom del: OpenUser on user %s failed "
 			   "%s\n"),
 			acct_name, nt_errstr(result) );
@@ -6034,45 +5494,29 @@ static NTSTATUS rpc_trustdom_del_internals(struct net_context *c,
 	}
 
 	/* append the rid to the domain sid */
-	if (!sid_compose(&trust_acct_sid, domain_sid, user_rids.ids[0])) {
+	sid_copy(&trust_acct_sid, domain_sid);
+	if (!sid_append_rid(&trust_acct_sid, user_rids.ids[0])) {
 		goto done;
 	}
 
 	/* remove the sid */
 
-	status = dcerpc_samr_RemoveMemberFromForeignDomain(b, mem_ctx,
+	result = rpccli_samr_RemoveMemberFromForeignDomain(pipe_hnd, mem_ctx,
 							   &user_pol,
-							   &trust_acct_sid,
-							   &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		d_printf(_("net rpc trustdom del: RemoveMemberFromForeignDomain"
-			   " on user %s failed %s\n"),
-			acct_name, nt_errstr(status));
-		goto done;
-	}
+							   &trust_acct_sid);
 	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		d_printf(_("net rpc trustdom del: RemoveMemberFromForeignDomain"
 			   " on user %s failed %s\n"),
 			acct_name, nt_errstr(result) );
 		goto done;
 	}
 
-
 	/* Delete user */
 
-	status = dcerpc_samr_DeleteUser(b, mem_ctx,
-					&user_pol,
-					&result);
-	if (!NT_STATUS_IS_OK(status)) {
-		d_printf(_("net rpc trustdom del: DeleteUser on user %s failed "
-			   "%s\n"),
-			acct_name, nt_errstr(status));
-		goto done;
-	}
+	result = rpccli_samr_DeleteUser(pipe_hnd, mem_ctx,
+					&user_pol);
 
 	if (!NT_STATUS_IS_OK(result)) {
-		result = status;
 		d_printf(_("net rpc trustdom del: DeleteUser on user %s failed "
 			   "%s\n"),
 			acct_name, nt_errstr(result) );
@@ -6086,7 +5530,7 @@ static NTSTATUS rpc_trustdom_del_internals(struct net_context *c,
 	}
 
  done:
-	return status;
+	return result;
 }
 
 /**
@@ -6120,8 +5564,6 @@ static NTSTATUS rpc_trustdom_get_pdc(struct net_context *c,
 	const char *buffer = NULL;
 	struct rpc_pipe_client *netr;
 	NTSTATUS status;
-	WERROR result;
-	struct dcerpc_binding_handle *b;
 
 	/* Use NetServerEnum2 */
 
@@ -6141,27 +5583,21 @@ static NTSTATUS rpc_trustdom_get_pdc(struct net_context *c,
 		return status;
 	}
 
-	b = netr->binding_handle;
-
-	status = dcerpc_netr_GetDcName(b, mem_ctx,
+	status = rpccli_netr_GetDcName(netr, mem_ctx,
 				       cli->desthost,
 				       domain_name,
 				       &buffer,
-				       &result);
+				       NULL);
 	TALLOC_FREE(netr);
 
-	if (NT_STATUS_IS_OK(status) && W_ERROR_IS_OK(result)) {
+	if (NT_STATUS_IS_OK(status)) {
 		return status;
 	}
 
 	DEBUG(1,("netr_GetDcName error: Couldn't find primary domain controller\
 		 for domain %s\n", domain_name));
 
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	return werror_to_ntstatus(result);
+	return status;
 }
 
 /**
@@ -6183,14 +5619,13 @@ static int rpc_trustdom_establish(struct net_context *c, int argc,
 	struct rpc_pipe_client *pipe_hnd = NULL;
 	struct policy_handle connect_hnd;
 	TALLOC_CTX *mem_ctx;
-	NTSTATUS nt_status, result;
-	struct dom_sid *domain_sid;
+	NTSTATUS nt_status;
+	DOM_SID *domain_sid;
 
 	char* domain_name;
 	char* acct_name;
 	fstring pdc_name;
 	union lsa_PolicyInformation *info = NULL;
-	struct dcerpc_binding_handle *b;
 
 	/*
 	 * Connect to \\server\ipc$ as 'our domain' account with password
@@ -6284,8 +5719,6 @@ static int rpc_trustdom_establish(struct net_context *c, int argc,
 		return -1;
 	}
 
-	b = pipe_hnd->binding_handle;
-
 	nt_status = rpccli_lsa_open_policy2(pipe_hnd, mem_ctx, true, KEY_QUERY_VALUE,
 	                                 &connect_hnd);
 	if (NT_STATUS_IS_ERR(nt_status)) {
@@ -6298,21 +5731,13 @@ static int rpc_trustdom_establish(struct net_context *c, int argc,
 
 	/* Querying info level 5 */
 
-	nt_status = dcerpc_lsa_QueryInfoPolicy(b, mem_ctx,
+	nt_status = rpccli_lsa_QueryInfoPolicy(pipe_hnd, mem_ctx,
 					       &connect_hnd,
 					       LSA_POLICY_INFO_ACCOUNT_DOMAIN,
-					       &info,
-					       &result);
+					       &info);
 	if (NT_STATUS_IS_ERR(nt_status)) {
 		DEBUG(0, ("LSA Query Info failed. Returned error was %s\n",
 			nt_errstr(nt_status)));
-		cli_shutdown(cli);
-		talloc_destroy(mem_ctx);
-		return -1;
-	}
-	if (NT_STATUS_IS_ERR(result)) {
-		DEBUG(0, ("LSA Query Info failed. Returned error was %s\n",
-			nt_errstr(result)));
 		cli_shutdown(cli);
 		talloc_destroy(mem_ctx);
 		return -1;
@@ -6338,7 +5763,7 @@ static int rpc_trustdom_establish(struct net_context *c, int argc,
 	 * Close the pipes and clean up
 	 */
 
-	nt_status = dcerpc_lsa_Close(b, mem_ctx, &connect_hnd, &result);
+	nt_status = rpccli_lsa_Close(pipe_hnd, mem_ctx, &connect_hnd);
 	if (NT_STATUS_IS_ERR(nt_status)) {
 		DEBUG(0, ("Couldn't close LSA pipe. Error was %s\n",
 			nt_errstr(nt_status)));
@@ -6398,7 +5823,7 @@ done:
 }
 
 static NTSTATUS rpc_query_domain_sid(struct net_context *c,
-					const struct dom_sid *domain_sid,
+					const DOM_SID *domain_sid,
 					const char *domain_name,
 					struct cli_state *cli,
 					struct rpc_pipe_client *pipe_hnd,
@@ -6414,7 +5839,7 @@ static NTSTATUS rpc_query_domain_sid(struct net_context *c,
 	return NT_STATUS_OK;
 }
 
-static void print_trusted_domain(struct dom_sid *dom_sid, const char *trusted_dom_name)
+static void print_trusted_domain(DOM_SID *dom_sid, const char *trusted_dom_name)
 {
 	fstring ascii_sid;
 
@@ -6427,32 +5852,24 @@ static void print_trusted_domain(struct dom_sid *dom_sid, const char *trusted_do
 static NTSTATUS vampire_trusted_domain(struct rpc_pipe_client *pipe_hnd,
 				      TALLOC_CTX *mem_ctx,
 				      struct policy_handle *pol,
-				      struct dom_sid dom_sid,
+				      DOM_SID dom_sid,
 				      const char *trusted_dom_name)
 {
-	NTSTATUS nt_status, result;
+	NTSTATUS nt_status;
 	union lsa_TrustedDomainInfo *info = NULL;
 	char *cleartextpwd = NULL;
 	uint8_t session_key[16];
 	DATA_BLOB session_key_blob;
 	DATA_BLOB data = data_blob_null;
-	struct dcerpc_binding_handle *b = pipe_hnd->binding_handle;
 
-	nt_status = dcerpc_lsa_QueryTrustedDomainInfoBySid(b, mem_ctx,
+	nt_status = rpccli_lsa_QueryTrustedDomainInfoBySid(pipe_hnd, mem_ctx,
 							   pol,
 							   &dom_sid,
 							   LSA_TRUSTED_DOMAIN_INFO_PASSWORD,
-							   &info,
-							   &result);
+							   &info);
 	if (NT_STATUS_IS_ERR(nt_status)) {
 		DEBUG(0,("Could not query trusted domain info. Error was %s\n",
 		nt_errstr(nt_status)));
-		goto done;
-	}
-	if (NT_STATUS_IS_ERR(result)) {
-		nt_status = result;
-		DEBUG(0,("Could not query trusted domain info. Error was %s\n",
-		nt_errstr(result)));
 		goto done;
 	}
 
@@ -6499,9 +5916,9 @@ static int rpc_trustdom_vampire(struct net_context *c, int argc,
 	TALLOC_CTX* mem_ctx;
 	struct cli_state *cli = NULL;
 	struct rpc_pipe_client *pipe_hnd = NULL;
-	NTSTATUS nt_status, result;
+	NTSTATUS nt_status;
 	const char *domain_name = NULL;
-	struct dom_sid *queried_dom_sid;
+	DOM_SID *queried_dom_sid;
 	struct policy_handle connect_hnd;
 	union lsa_PolicyInformation *info = NULL;
 
@@ -6510,7 +5927,6 @@ static int rpc_trustdom_vampire(struct net_context *c, int argc,
 	int i;
 	struct lsa_DomainList dom_list;
 	fstring pdc_name;
-	struct dcerpc_binding_handle *b;
 
 	if (c->display_usage) {
 		d_printf(  "%s\n"
@@ -6560,8 +5976,6 @@ static int rpc_trustdom_vampire(struct net_context *c, int argc,
 		return -1;
 	};
 
-	b = pipe_hnd->binding_handle;
-
 	nt_status = rpccli_lsa_open_policy2(pipe_hnd, mem_ctx, false, KEY_QUERY_VALUE,
 					&connect_hnd);
 	if (NT_STATUS_IS_ERR(nt_status)) {
@@ -6573,22 +5987,14 @@ static int rpc_trustdom_vampire(struct net_context *c, int argc,
 	};
 
 	/* query info level 5 to obtain sid of a domain being queried */
-	nt_status = dcerpc_lsa_QueryInfoPolicy(b, mem_ctx,
+	nt_status = rpccli_lsa_QueryInfoPolicy(pipe_hnd, mem_ctx,
 					       &connect_hnd,
 					       LSA_POLICY_INFO_ACCOUNT_DOMAIN,
-					       &info,
-					       &result);
+					       &info);
 
 	if (NT_STATUS_IS_ERR(nt_status)) {
 		DEBUG(0, ("LSA Query Info failed. Returned error was %s\n",
 			nt_errstr(nt_status)));
-		cli_shutdown(cli);
-		talloc_destroy(mem_ctx);
-		return -1;
-	}
-	if (NT_STATUS_IS_ERR(result)) {
-		DEBUG(0, ("LSA Query Info failed. Returned error was %s\n",
-			nt_errstr(result)));
 		cli_shutdown(cli);
 		talloc_destroy(mem_ctx);
 		return -1;
@@ -6604,12 +6010,11 @@ static int rpc_trustdom_vampire(struct net_context *c, int argc,
 	d_printf(_("Vampire trusted domains:\n\n"));
 
 	do {
-		nt_status = dcerpc_lsa_EnumTrustDom(b, mem_ctx,
+		nt_status = rpccli_lsa_EnumTrustDom(pipe_hnd, mem_ctx,
 						    &connect_hnd,
 						    &enum_ctx,
 						    &dom_list,
-						    (uint32_t)-1,
-						    &result);
+						    (uint32_t)-1);
 		if (NT_STATUS_IS_ERR(nt_status)) {
 			DEBUG(0, ("Couldn't enumerate trusted domains. Error was %s\n",
 				nt_errstr(nt_status)));
@@ -6617,15 +6022,6 @@ static int rpc_trustdom_vampire(struct net_context *c, int argc,
 			talloc_destroy(mem_ctx);
 			return -1;
 		};
-		if (NT_STATUS_IS_ERR(result)) {
-			nt_status = result;
-			DEBUG(0, ("Couldn't enumerate trusted domains. Error was %s\n",
-				nt_errstr(result)));
-			cli_shutdown(cli);
-			talloc_destroy(mem_ctx);
-			return -1;
-		};
-
 
 		for (i = 0; i < dom_list.count; i++) {
 
@@ -6651,7 +6047,7 @@ static int rpc_trustdom_vampire(struct net_context *c, int argc,
 	} while (NT_STATUS_EQUAL(nt_status, STATUS_MORE_ENTRIES));
 
 	/* close this connection before doing next one */
-	nt_status = dcerpc_lsa_Close(b, mem_ctx, &connect_hnd, &result);
+	nt_status = rpccli_lsa_Close(pipe_hnd, mem_ctx, &connect_hnd);
 	if (NT_STATUS_IS_ERR(nt_status)) {
 		DEBUG(0, ("Couldn't properly close lsa policy handle. Error was %s\n",
 			nt_errstr(nt_status)));
@@ -6673,13 +6069,12 @@ static int rpc_trustdom_list(struct net_context *c, int argc, const char **argv)
 	TALLOC_CTX* mem_ctx;
 	struct cli_state *cli = NULL, *remote_cli = NULL;
 	struct rpc_pipe_client *pipe_hnd = NULL;
-	NTSTATUS nt_status, result;
+	NTSTATUS nt_status;
 	const char *domain_name = NULL;
-	struct dom_sid *queried_dom_sid;
+	DOM_SID *queried_dom_sid;
 	int ascii_dom_name_len;
 	struct policy_handle connect_hnd;
 	union lsa_PolicyInformation *info = NULL;
-	struct dcerpc_binding_handle *b = NULL;
 
 	/* trusted domains listing variables */
 	unsigned int num_domains, enum_ctx = 0;
@@ -6740,8 +6135,6 @@ static int rpc_trustdom_list(struct net_context *c, int argc, const char **argv)
 		return -1;
 	};
 
-	b = pipe_hnd->binding_handle;
-
 	nt_status = rpccli_lsa_open_policy2(pipe_hnd, mem_ctx, false, KEY_QUERY_VALUE,
 					&connect_hnd);
 	if (NT_STATUS_IS_ERR(nt_status)) {
@@ -6753,22 +6146,14 @@ static int rpc_trustdom_list(struct net_context *c, int argc, const char **argv)
 	};
 	
 	/* query info level 5 to obtain sid of a domain being queried */
-	nt_status = dcerpc_lsa_QueryInfoPolicy(b, mem_ctx,
+	nt_status = rpccli_lsa_QueryInfoPolicy(pipe_hnd, mem_ctx,
 					       &connect_hnd,
 					       LSA_POLICY_INFO_ACCOUNT_DOMAIN,
-					       &info,
-					       &result);
+					       &info);
 
 	if (NT_STATUS_IS_ERR(nt_status)) {
 		DEBUG(0, ("LSA Query Info failed. Returned error was %s\n",
 			nt_errstr(nt_status)));
-		cli_shutdown(cli);
-		talloc_destroy(mem_ctx);
-		return -1;
-	}
-	if (NT_STATUS_IS_ERR(result)) {
-		DEBUG(0, ("LSA Query Info failed. Returned error was %s\n",
-			nt_errstr(result)));
 		cli_shutdown(cli);
 		talloc_destroy(mem_ctx);
 		return -1;
@@ -6786,12 +6171,11 @@ static int rpc_trustdom_list(struct net_context *c, int argc, const char **argv)
 	found_domain = false;
 
 	do {
-		nt_status = dcerpc_lsa_EnumTrustDom(b, mem_ctx,
+		nt_status = rpccli_lsa_EnumTrustDom(pipe_hnd, mem_ctx,
 						    &connect_hnd,
 						    &enum_ctx,
 						    &dom_list,
-						    (uint32_t)-1,
-						    &result);
+						    (uint32_t)-1);
 		if (NT_STATUS_IS_ERR(nt_status)) {
 			DEBUG(0, ("Couldn't enumerate trusted domains. Error was %s\n",
 				nt_errstr(nt_status)));
@@ -6799,14 +6183,6 @@ static int rpc_trustdom_list(struct net_context *c, int argc, const char **argv)
 			talloc_destroy(mem_ctx);
 			return -1;
 		};
-		if (NT_STATUS_IS_ERR(result)) {
-			DEBUG(0, ("Couldn't enumerate trusted domains. Error was %s\n",
-				nt_errstr(result)));
-			cli_shutdown(cli);
-			talloc_destroy(mem_ctx);
-			return -1;
-		};
-
 
 		for (i = 0; i < dom_list.count; i++) {
 			print_trusted_domain(dom_list.domains[i].sid,
@@ -6826,7 +6202,7 @@ static int rpc_trustdom_list(struct net_context *c, int argc, const char **argv)
 	}
 
 	/* close this connection before doing next one */
-	nt_status = dcerpc_lsa_Close(b, mem_ctx, &connect_hnd, &result);
+	nt_status = rpccli_lsa_Close(pipe_hnd, mem_ctx, &connect_hnd);
 	if (NT_STATUS_IS_ERR(nt_status)) {
 		DEBUG(0, ("Couldn't properly close lsa policy handle. Error was %s\n",
 			nt_errstr(nt_status)));
@@ -6855,25 +6231,14 @@ static int rpc_trustdom_list(struct net_context *c, int argc, const char **argv)
 		return -1;
 	};
 
-	b = pipe_hnd->binding_handle;
-
 	/* SamrConnect2 */
-	nt_status = dcerpc_samr_Connect2(b, mem_ctx,
+	nt_status = rpccli_samr_Connect2(pipe_hnd, mem_ctx,
 					 pipe_hnd->desthost,
 					 SAMR_ACCESS_LOOKUP_DOMAIN,
-					 &connect_hnd,
-					 &result);
+					 &connect_hnd);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0, ("Couldn't open SAMR policy handle. Error was %s\n",
 			nt_errstr(nt_status)));
-		cli_shutdown(cli);
-		talloc_destroy(mem_ctx);
-		return -1;
-	};
-	if (!NT_STATUS_IS_OK(result)) {
-		nt_status = result;
-		DEBUG(0, ("Couldn't open SAMR policy handle. Error was %s\n",
-			nt_errstr(result)));
 		cli_shutdown(cli);
 		talloc_destroy(mem_ctx);
 		return -1;
@@ -6881,23 +6246,14 @@ static int rpc_trustdom_list(struct net_context *c, int argc, const char **argv)
 
 	/* SamrOpenDomain - we have to open domain policy handle in order to be
 	   able to enumerate accounts*/
-	nt_status = dcerpc_samr_OpenDomain(b, mem_ctx,
+	nt_status = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
 					   &connect_hnd,
 					   SAMR_DOMAIN_ACCESS_ENUM_ACCOUNTS,
 					   queried_dom_sid,
-					   &domain_hnd,
-					   &result);
+					   &domain_hnd);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0, ("Couldn't open domain object. Error was %s\n",
 			nt_errstr(nt_status)));
-		cli_shutdown(cli);
-		talloc_destroy(mem_ctx);
-		return -1;
-	};
-	if (!NT_STATUS_IS_OK(result)) {
-		nt_status = result;
-		DEBUG(0, ("Couldn't open domain object. Error was %s\n",
-			nt_errstr(result)));
 		cli_shutdown(cli);
 		talloc_destroy(mem_ctx);
 		return -1;
@@ -6912,25 +6268,16 @@ static int rpc_trustdom_list(struct net_context *c, int argc, const char **argv)
 	enum_ctx = 0;	/* reset enumeration context from last enumeration */
 	do {
 
-		nt_status = dcerpc_samr_EnumDomainUsers(b, mem_ctx,
+		nt_status = rpccli_samr_EnumDomainUsers(pipe_hnd, mem_ctx,
 							&domain_hnd,
 							&enum_ctx,
 							ACB_DOMTRUST,
 							&trusts,
 							0xffff,
-							&num_domains,
-							&result);
+							&num_domains);
 		if (NT_STATUS_IS_ERR(nt_status)) {
 			DEBUG(0, ("Couldn't enumerate accounts. Error was: %s\n",
 				nt_errstr(nt_status)));
-			cli_shutdown(cli);
-			talloc_destroy(mem_ctx);
-			return -1;
-		};
-		if (NT_STATUS_IS_ERR(result)) {
-			nt_status = result;
-			DEBUG(0, ("Couldn't enumerate accounts. Error was: %s\n",
-				nt_errstr(result)));
 			cli_shutdown(cli);
 			talloc_destroy(mem_ctx);
 			return -1;
@@ -6983,19 +6330,19 @@ static int rpc_trustdom_list(struct net_context *c, int argc, const char **argv)
 			}
 		}
 
-	} while (NT_STATUS_EQUAL(result, STATUS_MORE_ENTRIES));
+	} while (NT_STATUS_EQUAL(nt_status, STATUS_MORE_ENTRIES));
 
 	if (!found_domain) {
 		d_printf("none\n");
 	}
 
 	/* close opened samr and domain policy handles */
-	nt_status = dcerpc_samr_Close(b, mem_ctx, &domain_hnd, &result);
+	nt_status = rpccli_samr_Close(pipe_hnd, mem_ctx, &domain_hnd);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0, ("Couldn't properly close domain policy handle for domain %s\n", domain_name));
 	};
 
-	nt_status = dcerpc_samr_Close(b, mem_ctx, &connect_hnd, &result);
+	nt_status = rpccli_samr_Close(pipe_hnd, mem_ctx, &connect_hnd);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0, ("Couldn't properly close samr policy handle for domain %s\n", domain_name));
 	};
@@ -7173,7 +6520,10 @@ static int rpc_vampire(struct net_context *c, int argc, const char **argv)
 			return 0;
 		}
 
-		return rpc_vampire_passdb(c, argc, argv);
+		return run_rpc_command(c, NULL, &ndr_table_netlogon.syntax_id,
+				       NET_FLAGS_ANONYMOUS,
+				       rpc_vampire_internals,
+				       argc, argv);
 	}
 
 	return net_run_function(c, argc, argv, "net rpc vampire", func);
@@ -7998,18 +7348,10 @@ int net_rpc(struct net_context *c, int argc, const char **argv)
 			N_("net rpc shell\n"
 			   "    Open interactive shell on remote server")
 		},
-		{
-			"trust",
-			net_rpc_trust,
-			NET_TRANSPORT_RPC,
-			N_("Manage trusts"),
-			N_("net rpc trust\n"
-			   "    Manage trusts")
-		},
 		{NULL, NULL, 0, NULL, NULL}
 	};
 
-	status = libnetapi_net_init(&c->netapi_ctx);
+	status = libnetapi_init(&c->netapi_ctx);
 	if (status != 0) {
 		return -1;
 	}

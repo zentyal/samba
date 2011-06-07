@@ -2,7 +2,6 @@
  *  Unix SMB/CIFS implementation.
  *  Virtual Windows Registry Layer
  *  Copyright (C) Gerald Carter                     2002-2005
- *  Copyright (C) Michael Adam                      2007-2010
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,32 +20,9 @@
 /* Implementation of registry frontend view functions. */
 
 #include "includes.h"
-#include "registry.h"
-#include "reg_objects.h"
-#include "util_tdb.h"
-#include "dbwrap.h"
-#include "../libcli/registry/util_reg.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
-
-/* low level structure to contain registry values */
-
-struct regval_blob {
-	fstring		valuename;
-	uint32_t	type;
-	/* this should be encapsulated in an RPC_DATA_BLOB */
-	uint32_t	size;	/* in bytes */
-	uint8_t		*data_p;
-};
-
-/* container for registry values */
-
-struct regval_ctr {
-	uint32_t num_values;
-	struct regval_blob **values;
-	int seqnum;
-};
 
 struct regsubkey_ctr {
 	uint32_t        num_subkeys;
@@ -132,13 +108,13 @@ int regsubkey_ctr_get_seqnum(struct regsubkey_ctr *ctr)
 
 static WERROR regsubkey_ctr_hash_keyname(struct regsubkey_ctr *ctr,
 					 const char *keyname,
-					 uint32_t idx)
+					 uint32 idx)
 {
 	WERROR werr;
 
 	werr = ntstatus_to_werror(dbwrap_store_bystring_upper(ctr->subkeys_hash,
 						keyname,
-						make_tdb_data((uint8_t *)&idx,
+						make_tdb_data((uint8 *)&idx,
 							      sizeof(idx)),
 						TDB_REPLACE));
 	if (!W_ERROR_IS_OK(werr)) {
@@ -166,7 +142,7 @@ static WERROR regsubkey_ctr_unhash_keyname(struct regsubkey_ctr *ctr,
 
 static WERROR regsubkey_ctr_index_for_keyname(struct regsubkey_ctr *ctr,
 					      const char *keyname,
-					      uint32_t *idx)
+					      uint32 *idx)
 {
 	TDB_DATA data;
 
@@ -185,7 +161,7 @@ static WERROR regsubkey_ctr_index_for_keyname(struct regsubkey_ctr *ctr,
 	}
 
 	if (idx != NULL) {
-		*idx = *(uint32_t *)data.dptr;
+		*idx = *(uint32 *)data.dptr;
 	}
 
 	talloc_free(data.dptr);
@@ -241,7 +217,7 @@ WERROR regsubkey_ctr_addkey( struct regsubkey_ctr *ctr, const char *keyname )
 WERROR regsubkey_ctr_delkey( struct regsubkey_ctr *ctr, const char *keyname )
 {
 	WERROR werr;
-	uint32_t idx, j;
+	uint32 idx, j;
 
 	if (keyname == NULL) {
 		return WERR_INVALID_PARAM;
@@ -316,23 +292,6 @@ char* regsubkey_ctr_specific_key( struct regsubkey_ctr *ctr, uint32_t key_index 
  * Utility functions for struct regval_ctr
  */
 
-/**
- * allocate a regval_ctr structure.
- */
-WERROR regval_ctr_init(TALLOC_CTX *mem_ctx, struct regval_ctr **ctr)
-{
-	if (ctr == NULL) {
-		return WERR_INVALID_PARAM;
-	}
-
-	*ctr = talloc_zero(mem_ctx, struct regval_ctr);
-	if (*ctr == NULL) {
-		return WERR_NOMEM;
-	}
-
-	return WERR_OK;
-}
-
 /***********************************************************************
  How many keys does the container hold ?
  **********************************************************************/
@@ -368,7 +327,7 @@ struct regval_blob* dup_registry_value(struct regval_blob *val)
 
 	if ( val->data_p && val->size )
 	{
-		if ( !(copy->data_p = (uint8_t *)memdup( val->data_p,
+		if ( !(copy->data_p = (uint8 *)memdup( val->data_p,
 						       val->size )) ) {
 			DEBUG(0,("dup_registry_value: memdup() failed for [%d] "
 				 "bytes!\n", val->size));
@@ -399,7 +358,7 @@ void free_registry_value(struct regval_blob *val)
 /**********************************************************************
  *********************************************************************/
 
-uint8_t* regval_data_p(struct regval_blob *val)
+uint8* regval_data_p(struct regval_blob *val)
 {
 	return val->data_p;
 }
@@ -407,7 +366,7 @@ uint8_t* regval_data_p(struct regval_blob *val)
 /**********************************************************************
  *********************************************************************/
 
-uint32_t regval_size(struct regval_blob *val)
+uint32 regval_size(struct regval_blob *val)
 {
 	return val->size;
 }
@@ -423,7 +382,7 @@ char* regval_name(struct regval_blob *val)
 /**********************************************************************
  *********************************************************************/
 
-uint32_t regval_type(struct regval_blob *val)
+uint32 regval_type(struct regval_blob *val)
 {
 	return val->type;
 }
@@ -434,7 +393,7 @@ uint32_t regval_type(struct regval_blob *val)
  **********************************************************************/
 
 struct regval_blob *regval_ctr_specific_value(struct regval_ctr *ctr,
-					      uint32_t idx)
+					      uint32 idx)
 {
 	if ( !(idx < ctr->num_values) )
 		return NULL;
@@ -463,8 +422,8 @@ bool regval_ctr_key_exists(struct regval_ctr *ctr, const char *value)
  **********************************************************************/
 
 struct regval_blob *regval_compose(TALLOC_CTX *ctx, const char *name,
-				   uint32_t type,
-				   const uint8_t *data_p, size_t size)
+				   uint16 type,
+				   const char *data_p, size_t size)
 {
 	struct regval_blob *regval = TALLOC_P(ctx, struct regval_blob);
 
@@ -475,7 +434,7 @@ struct regval_blob *regval_compose(TALLOC_CTX *ctx, const char *name,
 	fstrcpy(regval->valuename, name);
 	regval->type = type;
 	if (size) {
-		regval->data_p = (uint8_t *)TALLOC_MEMDUP(regval, data_p, size);
+		regval->data_p = (uint8 *)TALLOC_MEMDUP(regval, data_p, size);
 		if (!regval->data_p) {
 			TALLOC_FREE(regval);
 			return NULL;
@@ -492,8 +451,8 @@ struct regval_blob *regval_compose(TALLOC_CTX *ctx, const char *name,
  Add a new registry value to the array
  **********************************************************************/
 
-int regval_ctr_addvalue(struct regval_ctr *ctr, const char *name, uint32_t type,
-                        const uint8_t *data_p, size_t size)
+int regval_ctr_addvalue(struct regval_ctr *ctr, const char *name, uint16 type,
+                        const char *data_p, size_t size)
 {
 	if ( !name )
 		return ctr->num_values;
@@ -543,7 +502,7 @@ int regval_ctr_addvalue_sz(struct regval_ctr *ctr, const char *name, const char 
 	}
 
 	return regval_ctr_addvalue(ctr, name, REG_SZ,
-				   (const uint8_t *)blob.data,
+				   (const char *)blob.data,
 				   blob.length);
 }
 
@@ -560,7 +519,7 @@ int regval_ctr_addvalue_multi_sz(struct regval_ctr *ctr, const char *name, const
 	}
 
 	return regval_ctr_addvalue(ctr, name, REG_MULTI_SZ,
-				   (const uint8_t *)blob.data,
+				   (const char *)blob.data,
 				   blob.length);
 }
 
@@ -572,7 +531,7 @@ int regval_ctr_copyvalue(struct regval_ctr *ctr, struct regval_blob *val)
 {
 	if ( val ) {
 		regval_ctr_addvalue(ctr, val->valuename, val->type,
-				    (uint8_t *)val->data_p, val->size);
+				    (char *)val->data_p, val->size);
 	}
 
 	return ctr->num_values;
@@ -626,33 +585,13 @@ struct regval_blob* regval_ctr_getvalue(struct regval_ctr *ctr,
 	return NULL;
 }
 
-int regval_ctr_get_seqnum(struct regval_ctr *ctr)
-{
-	if (ctr == NULL) {
-		return -1;
-	}
-
-	return ctr->seqnum;
-}
-
-WERROR regval_ctr_set_seqnum(struct regval_ctr *ctr, int seqnum)
-{
-	if (ctr == NULL) {
-		return WERR_INVALID_PARAM;
-	}
-
-	ctr->seqnum = seqnum;
-
-	return WERR_OK;
-}
-
 /***********************************************************************
- return the data_p as a uint32_t
+ return the data_p as a uint32
  **********************************************************************/
 
-uint32_t regval_dword(struct regval_blob *val)
+uint32 regval_dword(struct regval_blob *val)
 {
-	uint32_t data;
+	uint32 data;
 
 	data = IVAL( regval_data_p(val), 0 );
 

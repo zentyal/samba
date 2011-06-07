@@ -21,14 +21,15 @@
 
 #include "includes.h"
 #include <talloc.h>
+#include "libcli/ldap/ldap.h"
 #include "lib/messaging/irpc.h"
 #include "smbd/service_task.h"
 #include "smbd/service.h"
 #include "cldap_server/cldap_server.h"
 #include "system/network.h"
 #include "lib/socket/netif.h"
-#include <ldb.h>
-#include <ldb_errors.h>
+#include "lib/ldb/include/ldb.h"
+#include "lib/ldb/include/ldb_errors.h"
 #include "dsdb/samdb/samdb.h"
 #include "ldb_wrap.h"
 #include "auth/auth.h"
@@ -111,12 +112,12 @@ static NTSTATUS cldapd_add_socket(struct cldapd_server *cldapd, struct loadparm_
 	ret = tsocket_address_inet_from_strings(cldapd,
 						"ip",
 						address,
-						lpcfg_cldap_port(lp_ctx),
+						lp_cldap_port(lp_ctx),
 						&socket_address);
 	if (ret != 0) {
 		status = map_nt_error_from_unix(errno);
 		DEBUG(0,("invalid address %s:%d - %s:%s\n",
-			 address, lpcfg_cldap_port(lp_ctx),
+			 address, lp_cldap_port(lp_ctx),
 			 gai_strerror(ret), nt_errstr(status)));
 		return status;
 	}
@@ -147,15 +148,16 @@ static NTSTATUS cldapd_add_socket(struct cldapd_server *cldapd, struct loadparm_
 static NTSTATUS cldapd_startup_interfaces(struct cldapd_server *cldapd, struct loadparm_context *lp_ctx,
 					  struct interface *ifaces)
 {
-	int i, num_interfaces;
+	int num_interfaces;
 	TALLOC_CTX *tmp_ctx = talloc_new(cldapd);
 	NTSTATUS status;
+	int i;
 
 	num_interfaces = iface_count(ifaces);
 
 	/* if we are allowing incoming packets from any address, then
 	   we need to bind to the wildcard address */
-	if (!lpcfg_bind_interfaces_only(lp_ctx)) {
+	if (!lp_bind_interfaces_only(lp_ctx)) {
 		status = cldapd_add_socket(cldapd, lp_ctx, "0.0.0.0");
 		NT_STATUS_NOT_OK_RETURN(status);
 	}
@@ -182,14 +184,14 @@ static void cldapd_task_init(struct task_server *task)
 	NTSTATUS status;
 	struct interface *ifaces;
 	
-	load_interfaces(task, lpcfg_interfaces(task->lp_ctx), &ifaces);
+	load_interfaces(task, lp_interfaces(task->lp_ctx), &ifaces);
 
 	if (iface_count(ifaces) == 0) {
 		task_server_terminate(task, "cldapd: no network interfaces configured", false);
 		return;
 	}
 
-	switch (lpcfg_server_role(task->lp_ctx)) {
+	switch (lp_server_role(task->lp_ctx)) {
 	case ROLE_STANDALONE:
 		task_server_terminate(task, "cldap_server: no CLDAP server required in standalone configuration", 
 				      false);
@@ -212,7 +214,7 @@ static void cldapd_task_init(struct task_server *task)
 	}
 
 	cldapd->task = task;
-	cldapd->samctx = samdb_connect(cldapd, task->event_ctx, task->lp_ctx, system_session(task->lp_ctx), 0);
+	cldapd->samctx = samdb_connect(cldapd, task->event_ctx, task->lp_ctx, system_session(cldapd, task->lp_ctx));
 	if (cldapd->samctx == NULL) {
 		task_server_terminate(task, "cldapd failed to open samdb", true);
 		return;

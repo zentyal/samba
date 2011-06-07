@@ -20,7 +20,6 @@
 */
 
 #include "includes.h"
-#include "../libcli/security/security.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_ALL	/* there's no proper class yet */
@@ -96,7 +95,7 @@ static char* trustdom_cache_key(const char* name)
  *         false if store attempt failed
  **/
  
-bool trustdom_cache_store(char* name, char* alt_name, const struct dom_sid *sid,
+bool trustdom_cache_store(char* name, char* alt_name, const DOM_SID *sid,
                           time_t timeout)
 {
 	char *key, *alt_key;
@@ -142,7 +141,7 @@ bool trustdom_cache_store(char* name, char* alt_name, const struct dom_sid *sid,
  *         false if has expired/doesn't exist
  **/
 
-bool trustdom_cache_fetch(const char* name, struct dom_sid* sid)
+bool trustdom_cache_fetch(const char* name, DOM_SID* sid)
 {
 	char *key = NULL, *value = NULL;
 	time_t timeout;
@@ -165,7 +164,7 @@ bool trustdom_cache_fetch(const char* name, struct dom_sid* sid)
 		DEBUG(5, ("trusted domain %s found (%s)\n", name, value));
 	}
 
-	/* convert sid string representation into struct dom_sid structure */
+	/* convert sid string representation into DOM_SID structure */
 	if(! string_to_sid(sid, value)) {
 		sid = NULL;
 		SAFE_FREE(value);
@@ -253,7 +252,7 @@ void trustdom_cache_flush(void)
 void update_trustdom_cache( void )
 {
 	char **domain_names;
-	struct dom_sid *dom_sids;
+	DOM_SID *dom_sids;
 	uint32 num_domains;
 	uint32 last_check;
 	int time_diff;

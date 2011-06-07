@@ -20,10 +20,6 @@
 */
 
 #include "includes.h"
-#include "system/passwd.h"
-#include "system/filesys.h"
-#include "printing.h"
-#include "util_tdb.h"
 
 #ifdef malloc
 #undef malloc

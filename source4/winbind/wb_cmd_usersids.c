@@ -34,20 +34,20 @@ struct cmd_usersids_state {
 	struct composite_context *ctx;
 	struct wbsrv_service *service;
 	struct dom_sid *user_sid;
-	uint32_t num_domgroups;
+	int num_domgroups;
 	struct dom_sid **domgroups;
 
 	struct lsa_SidArray lsa_sids;
 	struct samr_Ids rids;
 	struct samr_GetAliasMembership r;
 
-	uint32_t num_sids;
+	int num_sids;
 	struct dom_sid **sids;
 };
 
 static void usersids_recv_domgroups(struct composite_context *ctx);
 static void usersids_recv_domain(struct composite_context *ctx);
-static void usersids_recv_aliases(struct tevent_req *subreq);
+static void usersids_recv_aliases(struct rpc_request *req);
 
 struct composite_context *wb_cmd_usersids_send(TALLOC_CTX *mem_ctx,
 					       struct wbsrv_service *service,
@@ -102,9 +102,9 @@ static void usersids_recv_domain(struct composite_context *ctx)
         struct cmd_usersids_state *state =
                 talloc_get_type(ctx->async.private_data,
                                 struct cmd_usersids_state);
-	struct tevent_req *subreq;
+	struct rpc_request *req;
 	struct wbsrv_domain *domain;
-	uint32_t i;
+	int i;
 
 	state->ctx->status = wb_sid2domain_recv(ctx, &domain);
 	if (!composite_is_ok(state->ctx)) return;
@@ -126,23 +126,19 @@ static void usersids_recv_domain(struct composite_context *ctx)
 	state->r.in.sids = &state->lsa_sids;
 	state->r.out.rids = &state->rids;
 
-	subreq = dcerpc_samr_GetAliasMembership_r_send(state,
-						       state->ctx->event_ctx,
-						       domain->libnet_ctx->samr.pipe->binding_handle,
-						       &state->r);
-	if (composite_nomem(subreq, state->ctx)) return;
-	tevent_req_set_callback(subreq, usersids_recv_aliases, state);
+	req = dcerpc_samr_GetAliasMembership_send(domain->libnet_ctx->samr.pipe, state,
+						  &state->r);
+	composite_continue_rpc(state->ctx, req, usersids_recv_aliases, state);
 }
 
-static void usersids_recv_aliases(struct tevent_req *subreq)
+static void usersids_recv_aliases(struct rpc_request *req)
 {
 	struct cmd_usersids_state *state =
-		tevent_req_callback_data(subreq,
-		struct cmd_usersids_state);
-	uint32_t i;
+		talloc_get_type(req->async.private_data,
+				struct cmd_usersids_state);
+	int i;
 
-	state->ctx->status = dcerpc_samr_GetAliasMembership_r_recv(subreq, state);
-	TALLOC_FREE(subreq);
+	state->ctx->status = dcerpc_ndr_request_recv(req);
 	if (!composite_is_ok(state->ctx)) return;
 	state->ctx->status = state->r.out.result;
 	if (!composite_is_ok(state->ctx)) return;
@@ -172,7 +168,7 @@ static void usersids_recv_aliases(struct tevent_req *subreq)
 
 NTSTATUS wb_cmd_usersids_recv(struct composite_context *ctx,
 			      TALLOC_CTX *mem_ctx,
-			      uint32_t *num_sids, struct dom_sid ***sids)
+			      int *num_sids, struct dom_sid ***sids)
 {
 	NTSTATUS status = composite_wait(ctx);
 	if (NT_STATUS_IS_OK(status)) {
@@ -188,7 +184,7 @@ NTSTATUS wb_cmd_usersids_recv(struct composite_context *ctx,
 
 NTSTATUS wb_cmd_usersids(TALLOC_CTX *mem_ctx, struct wbsrv_service *service,
 			 const struct dom_sid *sid,
-			 uint32_t *num_sids, struct dom_sid ***sids)
+			 int *num_sids, struct dom_sid ***sids)
 {
 	struct composite_context *c =
 		wb_cmd_usersids_send(mem_ctx, service, sid);

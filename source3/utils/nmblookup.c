@@ -20,8 +20,8 @@
 */
 
 #include "includes.h"
-#include "popt_common.h"
-#include "libsmb/nmblib.h"
+
+extern bool AllowDebugChange;
 
 static bool give_flags = false;
 static bool use_bcast = true;
@@ -107,41 +107,40 @@ static char *query_flags(int flags)
  Do a node status query.
 ****************************************************************************/
 
-static void do_node_status(const char *name,
+static void do_node_status(int fd,
+		const char *name,
 		int type,
 		struct sockaddr_storage *pss)
 {
 	struct nmb_name nname;
 	int count, i, j;
-	struct node_status *addrs;
+	NODE_STATUS_STRUCT *status;
 	struct node_status_extra extra;
 	fstring cleanname;
 	char addr[INET6_ADDRSTRLEN];
-	NTSTATUS status;
 
 	print_sockaddr(addr, sizeof(addr), pss);
 	d_printf("Looking up status of %s\n",addr);
 	make_nmb_name(&nname, name, type);
-	status = node_status_query(talloc_tos(), &nname, pss,
-				   &addrs, &count, &extra);
-	if (NT_STATUS_IS_OK(status)) {
+	status = node_status_query(fd, &nname, pss, &count, &extra);
+	if (status) {
 		for (i=0;i<count;i++) {
-			pull_ascii_fstring(cleanname, addrs[i].name);
+			pull_ascii_fstring(cleanname, status[i].name);
 			for (j=0;cleanname[j];j++) {
 				if (!isprint((int)cleanname[j])) {
 					cleanname[j] = '.';
 				}
 			}
 			d_printf("\t%-15s <%02x> - %s\n",
-			       cleanname,addrs[i].type,
-			       node_status_flags(addrs[i].flags));
+			       cleanname,status[i].type,
+			       node_status_flags(status[i].flags));
 		}
 		d_printf("\n\tMAC Address = %02X-%02X-%02X-%02X-%02X-%02X\n",
 				extra.mac_addr[0], extra.mac_addr[1],
 				extra.mac_addr[2], extra.mac_addr[3],
 				extra.mac_addr[4], extra.mac_addr[5]);
 		d_printf("\n");
-		TALLOC_FREE(addrs);
+		SAFE_FREE(status);
 	} else {
 		d_printf("No reply from %s\n\n",addr);
 	}
@@ -154,19 +153,16 @@ static void do_node_status(const char *name,
 
 static bool query_one(const char *lookup, unsigned int lookup_type)
 {
-	int j, count;
-	uint8_t flags;
+	int j, count, flags = 0;
 	struct sockaddr_storage *ip_list=NULL;
-	NTSTATUS status = NT_STATUS_NOT_FOUND;
 
 	if (got_bcast) {
 		char addr[INET6_ADDRSTRLEN];
 		print_sockaddr(addr, sizeof(addr), &bcast_addr);
 		d_printf("querying %s on %s\n", lookup, addr);
-		status = name_query(lookup,lookup_type,use_bcast,
-				    use_bcast?true:recursion_desired,
-				    &bcast_addr, talloc_tos(),
-				    &ip_list, &count, &flags);
+		ip_list = name_query(ServerFD,lookup,lookup_type,use_bcast,
+				     use_bcast?true:recursion_desired,
+				     &bcast_addr, &count, &flags, NULL);
 	} else {
 		const struct in_addr *bcast;
 		for (j=iface_count() - 1;
@@ -183,15 +179,14 @@ static bool query_one(const char *lookup, unsigned int lookup_type)
 			print_sockaddr(addr, sizeof(addr), &bcast_ss);
 			d_printf("querying %s on %s\n",
 			       lookup, addr);
-			status = name_query(lookup,lookup_type,
-					    use_bcast,
-					    use_bcast?True:recursion_desired,
-					    &bcast_ss, talloc_tos(),
-					    &ip_list, &count, &flags);
+			ip_list = name_query(ServerFD,lookup,lookup_type,
+					     use_bcast,
+					     use_bcast?True:recursion_desired,
+					     &bcast_ss,&count, &flags, NULL);
 		}
 	}
 
-	if (!NT_STATUS_IS_OK(status)) {
+	if (!ip_list) {
 		return false;
 	}
 
@@ -219,13 +214,14 @@ static bool query_one(const char *lookup, unsigned int lookup_type)
 		   was valid - ie. name_query returned true.
 		 */
 		if (find_status) {
-			do_node_status(lookup, lookup_type, &ip_list[j]);
+			do_node_status(ServerFD, lookup,
+					lookup_type, &ip_list[j]);
 		}
 	}
 
-	TALLOC_FREE(ip_list);
+	free(ip_list);
 
-	return NT_STATUS_IS_OK(status);
+	return (ip_list != NULL);
 }
 
 
@@ -262,7 +258,7 @@ int main(int argc,char *argv[])
 
 	load_case_tables();
 
-	setup_logging(argv[0], DEBUG_STDOUT);
+	setup_logging(argv[0],True);
 
 	pc = poptGetContext("nmblookup", argc, (const char **)argv,
 			long_options, POPT_CONTEXT_KEEP_FIRST);
@@ -339,7 +335,7 @@ int main(int argc,char *argv[])
 			ip = interpret_addr2(lookup);
 			in_addr_to_sockaddr_storage(&ss, ip);
 			fstrcpy(lookup,"*");
-			do_node_status(lookup, lookup_type, &ss);
+			do_node_status(ServerFD, lookup, lookup_type, &ss);
 			continue;
 		}
 

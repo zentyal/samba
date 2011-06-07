@@ -52,11 +52,8 @@
 #include <asn1-common.h>
 #include <asn1_err.h>
 #include <der.h>
-#include <der-private.h>
-#include "asn1-template.h"
 
 time_t _der_timegm (struct tm *);
-struct tm * _der_gmtime(time_t t, struct tm *);
 size_t _heim_len_unsigned (unsigned);
 size_t _heim_len_int (int);
 

@@ -263,9 +263,6 @@ int _tsocket_address_bsd_from_sockaddr(TALLOC_CTX *mem_ctx,
 	memcpy(&bsda->u.ss, sa, sa_socklen);
 
 	bsda->sa_socklen = sa_socklen;
-#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
-	bsda->u.sa.sa_len = bsda->sa_socklen;
-#endif
 
 	*_addr = addr;
 	return 0;
@@ -294,47 +291,7 @@ ssize_t tsocket_address_bsd_sockaddr(const struct tsocket_address *addr,
 	}
 
 	memcpy(sa, &bsda->u.ss, sa_socklen);
-#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
-	sa->sa_len = sa_socklen;
-#endif
 	return sa_socklen;
-}
-
-bool tsocket_address_is_inet(const struct tsocket_address *addr, const char *fam)
-{
-	struct tsocket_address_bsd *bsda = talloc_get_type(addr->private_data,
-					   struct tsocket_address_bsd);
-
-	if (!bsda) {
-		return false;
-	}
-
-	switch (bsda->u.sa.sa_family) {
-	case AF_INET:
-		if (strcasecmp(fam, "ip") == 0) {
-			return true;
-		}
-
-		if (strcasecmp(fam, "ipv4") == 0) {
-			return true;
-		}
-
-		return false;
-#ifdef HAVE_IPV6
-	case AF_INET6:
-		if (strcasecmp(fam, "ip") == 0) {
-			return true;
-		}
-
-		if (strcasecmp(fam, "ipv6") == 0) {
-			return true;
-		}
-
-		return false;
-#endif
-	}
-
-	return false;
 }
 
 int _tsocket_address_inet_from_strings(TALLOC_CTX *mem_ctx,
@@ -507,23 +464,6 @@ int tsocket_address_inet_set_port(struct tsocket_address *addr,
 	}
 
 	return 0;
-}
-
-bool tsocket_address_is_unix(const struct tsocket_address *addr)
-{
-	struct tsocket_address_bsd *bsda = talloc_get_type(addr->private_data,
-					   struct tsocket_address_bsd);
-
-	if (!bsda) {
-		return false;
-	}
-
-	switch (bsda->u.sa.sa_family) {
-	case AF_UNIX:
-		return true;
-	}
-
-	return false;
 }
 
 int _tsocket_address_unix_from_path(TALLOC_CTX *mem_ctx,
@@ -906,9 +846,6 @@ static void tdgram_bsd_recvfrom_handler(void *private_data)
 
 	ZERO_STRUCTP(bsda);
 	bsda->sa_socklen = sizeof(bsda->u.ss);
-#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
-	bsda->u.sa.sa_len = bsda->sa_socklen;
-#endif
 
 	ret = recvfrom(bsds->fd, state->buf, state->len, 0,
 		       &bsda->u.sa, &bsda->sa_socklen);
@@ -1116,7 +1053,6 @@ static struct tevent_req *tdgram_bsd_disconnect_send(TALLOC_CTX *mem_ctx,
 		goto post;
 	}
 
-	TALLOC_FREE(bsds->fde);
 	ret = close(bsds->fd);
 	bsds->fd = -1;
 	err = tsocket_bsd_error_from_errno(ret, errno, &dummy);
@@ -1247,12 +1183,12 @@ static int tdgram_bsd_dgram_socket(const struct tsocket_address *local,
 
 	fd = socket(sa_fam, SOCK_DGRAM, 0);
 	if (fd < 0) {
-		return -1;
+		return fd;
 	}
 
 	fd = tsocket_bsd_common_prepare_fd(fd, true);
 	if (fd < 0) {
-		return -1;
+		return fd;
 	}
 
 	dgram = tdgram_context_create(mem_ctx,
@@ -1280,7 +1216,7 @@ static int tdgram_bsd_dgram_socket(const struct tsocket_address *local,
 			int saved_errno = errno;
 			talloc_free(dgram);
 			errno = saved_errno;
-			return -1;
+			return ret;
 		}
 	}
 #endif
@@ -1294,7 +1230,7 @@ static int tdgram_bsd_dgram_socket(const struct tsocket_address *local,
 			int saved_errno = errno;
 			talloc_free(dgram);
 			errno = saved_errno;
-			return -1;
+			return ret;
 		}
 	}
 
@@ -1307,7 +1243,7 @@ static int tdgram_bsd_dgram_socket(const struct tsocket_address *local,
 			int saved_errno = errno;
 			talloc_free(dgram);
 			errno = saved_errno;
-			return -1;
+			return ret;
 		}
 	}
 
@@ -1317,7 +1253,7 @@ static int tdgram_bsd_dgram_socket(const struct tsocket_address *local,
 			int saved_errno = errno;
 			talloc_free(dgram);
 			errno = saved_errno;
-			return -1;
+			return ret;
 		}
 	}
 
@@ -1333,7 +1269,7 @@ static int tdgram_bsd_dgram_socket(const struct tsocket_address *local,
 			int saved_errno = errno;
 			talloc_free(dgram);
 			errno = saved_errno;
-			return -1;
+			return ret;
 		}
 	}
 
@@ -1673,7 +1609,7 @@ static void tstream_bsd_readv_handler(void *private_data)
 			uint8_t *base;
 			base = (uint8_t *)state->vector[0].iov_base;
 			base += ret;
-			state->vector[0].iov_base = (void *)base;
+			state->vector[0].iov_base = base;
 			state->vector[0].iov_len -= ret;
 			break;
 		}
@@ -1833,7 +1769,7 @@ static void tstream_bsd_writev_handler(void *private_data)
 			uint8_t *base;
 			base = (uint8_t *)state->vector[0].iov_base;
 			base += ret;
-			state->vector[0].iov_base = (void *)base;
+			state->vector[0].iov_base = base;
 			state->vector[0].iov_len -= ret;
 			break;
 		}
@@ -1904,7 +1840,6 @@ static struct tevent_req *tstream_bsd_disconnect_send(TALLOC_CTX *mem_ctx,
 		goto post;
 	}
 
-	TALLOC_FREE(bsds->fde);
 	ret = close(bsds->fd);
 	bsds->fd = -1;
 	err = tsocket_bsd_error_from_errno(ret, errno, &dummy);
@@ -1982,7 +1917,6 @@ struct tstream_bsd_connect_state {
 	int fd;
 	struct tevent_fd *fde;
 	struct tstream_conext *stream;
-	struct tsocket_address *local;
 };
 
 static int tstream_bsd_connect_destructor(struct tstream_bsd_connect_state *state)
@@ -2001,7 +1935,7 @@ static void tstream_bsd_connect_fde_handler(struct tevent_context *ev,
 					    uint16_t flags,
 					    void *private_data);
 
-static struct tevent_req *tstream_bsd_connect_send(TALLOC_CTX *mem_ctx,
+static struct tevent_req * tstream_bsd_connect_send(TALLOC_CTX *mem_ctx,
 					struct tevent_context *ev,
 					int sys_errno,
 					const struct tsocket_address *local,
@@ -2012,7 +1946,6 @@ static struct tevent_req *tstream_bsd_connect_send(TALLOC_CTX *mem_ctx,
 	struct tsocket_address_bsd *lbsda =
 		talloc_get_type_abort(local->private_data,
 		struct tsocket_address_bsd);
-	struct tsocket_address_bsd *lrbsda = NULL;
 	struct tsocket_address_bsd *rbsda =
 		talloc_get_type_abort(remote->private_data,
 		struct tsocket_address_bsd);
@@ -2092,23 +2025,6 @@ static struct tevent_req *tstream_bsd_connect_send(TALLOC_CTX *mem_ctx,
 		}
 	}
 
-	if (is_inet) {
-		state->local = tsocket_address_create(state,
-						      &tsocket_address_bsd_ops,
-						      &lrbsda,
-						      struct tsocket_address_bsd,
-						      __location__ "bsd_connect");
-		if (tevent_req_nomem(state->local, req)) {
-			goto post;
-		}
-
-		ZERO_STRUCTP(lrbsda);
-		lrbsda->sa_socklen = sizeof(lrbsda->u.ss);
-#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
-		lrbsda->u.sa.sa_len = lrbsda->sa_socklen;
-#endif
-	}
-
 	state->fd = socket(sa_fam, SOCK_STREAM, 0);
 	if (state->fd == -1) {
 		tevent_req_error(req, errno);
@@ -2168,17 +2084,6 @@ static struct tevent_req *tstream_bsd_connect_send(TALLOC_CTX *mem_ctx,
 		goto post;
 	}
 
-	if (!state->local) {
-		tevent_req_done(req);
-		goto post;
-	}
-
-	ret = getsockname(state->fd, &lrbsda->u.sa, &lrbsda->sa_socklen);
-	if (ret == -1) {
-		tevent_req_error(req, errno);
-		goto post;
-	}
-
 	tevent_req_done(req);
 	goto post;
 
@@ -2208,7 +2113,6 @@ static void tstream_bsd_connect_fde_handler(struct tevent_context *ev,
 				 struct tevent_req);
 	struct tstream_bsd_connect_state *state = tevent_req_data(req,
 					struct tstream_bsd_connect_state);
-	struct tsocket_address_bsd *lrbsda = NULL;
 	int ret;
 	int error=0;
 	socklen_t len = sizeof(error);
@@ -2231,20 +2135,6 @@ static void tstream_bsd_connect_fde_handler(struct tevent_context *ev,
 		return;
 	}
 
-	if (!state->local) {
-		tevent_req_done(req);
-		return;
-	}
-
-	lrbsda = talloc_get_type_abort(state->local->private_data,
-				       struct tsocket_address_bsd);
-
-	ret = getsockname(state->fd, &lrbsda->u.sa, &lrbsda->sa_socklen);
-	if (ret == -1) {
-		tevent_req_error(req, errno);
-		return;
-	}
-
 	tevent_req_done(req);
 }
 
@@ -2252,7 +2142,6 @@ static int tstream_bsd_connect_recv(struct tevent_req *req,
 				    int *perrno,
 				    TALLOC_CTX *mem_ctx,
 				    struct tstream_context **stream,
-				    struct tsocket_address **local,
 				    const char *location)
 {
 	struct tstream_bsd_connect_state *state = tevent_req_data(req,
@@ -2271,10 +2160,6 @@ static int tstream_bsd_connect_recv(struct tevent_req *req,
 		}
 		TALLOC_FREE(state->fde);
 		state->fd = -1;
-
-		if (local) {
-			*local = talloc_move(mem_ctx, &state->local);
-		}
 	}
 
 done:
@@ -2314,12 +2199,9 @@ int _tstream_inet_tcp_connect_recv(struct tevent_req *req,
 				   int *perrno,
 				   TALLOC_CTX *mem_ctx,
 				   struct tstream_context **stream,
-				   struct tsocket_address **local,
 				   const char *location)
 {
-	return tstream_bsd_connect_recv(req, perrno,
-					mem_ctx, stream, local,
-					location);
+	return tstream_bsd_connect_recv(req, perrno, mem_ctx, stream, location);
 }
 
 struct tevent_req * tstream_unix_connect_send(TALLOC_CTX *mem_ctx,
@@ -2352,9 +2234,7 @@ int _tstream_unix_connect_recv(struct tevent_req *req,
 				      struct tstream_context **stream,
 				      const char *location)
 {
-	return tstream_bsd_connect_recv(req, perrno,
-					mem_ctx, stream, NULL,
-					location);
+	return tstream_bsd_connect_recv(req, perrno, mem_ctx, stream, location);
 }
 
 int _tstream_unix_socketpair(TALLOC_CTX *mem_ctx1,

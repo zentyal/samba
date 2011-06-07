@@ -60,6 +60,7 @@ struct smb_composite_fetchfile {
 		struct smbcli_options options;
 		struct smbcli_session_options session_options;
 		struct resolve_context *resolve_ctx;
+		struct smb_iconv_convenience *iconv_convenience;
 		struct gensec_settings *gensec_settings;
 	} in;
 	struct {
@@ -103,6 +104,7 @@ struct smb_composite_connect {
 		const char *workgroup;
 		struct smbcli_options options;
 		struct smbcli_session_options session_options;
+		struct smb_iconv_convenience *iconv_convenience;
 		struct gensec_settings *gensec_settings;
 	} in;
 	struct {
@@ -143,6 +145,7 @@ struct smb_composite_fsinfo {
 		struct cli_credentials *credentials;
 		const char *workgroup;
 		enum smb_fsinfo_level level;
+		struct smb_iconv_convenience *iconv_convenience;
 		struct gensec_settings *gensec_settings;
 	} in;
 	
@@ -178,7 +181,7 @@ struct smb_composite_connectmulti {
 		int num_dests;
 		const char **hostnames;
 		const char **addresses;
-		int *ports; 	/* Either NULL for lpcfg_smb_ports() per
+		int *ports; 	/* Either NULL for lp_smb_ports() per
 				 * destination or a list of explicit ports */
 	} in;
 	struct {

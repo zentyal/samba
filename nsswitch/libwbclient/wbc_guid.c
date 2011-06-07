@@ -29,24 +29,28 @@
 wbcErr wbcGuidToString(const struct wbcGuid *guid,
 		       char **guid_string)
 {
-	char *result;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 
-	result = (char *)wbcAllocateMemory(37, 1, NULL);
-	if (result == NULL) {
-		return WBC_ERR_NO_MEMORY;
+	if (!guid) {
+		wbc_status = WBC_ERR_INVALID_PARAM;
+		BAIL_ON_WBC_ERROR(wbc_status);
 	}
-	snprintf(result, 37,
-		 "%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
-		 guid->time_low, guid->time_mid,
-		 guid->time_hi_and_version,
-		 guid->clock_seq[0],
-		 guid->clock_seq[1],
-		 guid->node[0], guid->node[1],
-		 guid->node[2], guid->node[3],
-		 guid->node[4], guid->node[5]);
-	*guid_string = result;
 
-	return WBC_ERR_SUCCESS;
+	*guid_string = talloc_asprintf(NULL,
+				       "%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+				       guid->time_low, guid->time_mid,
+				       guid->time_hi_and_version,
+				       guid->clock_seq[0],
+				       guid->clock_seq[1],
+				       guid->node[0], guid->node[1],
+				       guid->node[2], guid->node[3],
+				       guid->node[4], guid->node[5]);
+	BAIL_ON_PTR_ERROR((*guid_string), wbc_status);
+
+	wbc_status = WBC_ERR_SUCCESS;
+
+done:
+	return wbc_status;
 }
 
 /* @brief Convert a character string to a binary GUID */

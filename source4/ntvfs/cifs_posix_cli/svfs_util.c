@@ -66,7 +66,7 @@ struct cifspsx_dir *cifspsx_list_unix(TALLOC_CTX *mem_ctx, struct ntvfs_request 
 	struct cifspsx_dir *dir;
 	DIR *odir;
 	struct dirent *dent;
-	unsigned int allocated = 0;
+	uint_t allocated = 0;
 	char *low_mask;
 
 	dir = talloc(mem_ctx, struct cifspsx_dir);
@@ -93,7 +93,7 @@ struct cifspsx_dir *cifspsx_list_unix(TALLOC_CTX *mem_ctx, struct ntvfs_request 
 	if (!odir) { return NULL; }
 
 	while ((dent = readdir(odir))) {
-		unsigned int i = dir->count;
+		uint_t i = dir->count;
 		char *full_name;
 		char *low_name;
 

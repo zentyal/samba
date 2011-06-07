@@ -25,7 +25,6 @@
 */
 
 #include "includes.h"
-#include "nmbd/nmbd.h"
 
 /****************************************************************************
 Send a name release response.
@@ -374,8 +373,6 @@ subnet %s - name not found.\n", nmb_namestr(&nmb->question.question_name),
 
 		/* Remove duplicate names. */
 		if (names_added > 1) {
-			/* TODO: should use a real type and
-			   TYPESAFE_QSORT() */
 			qsort( buf0, names_added, 18, QSORT_CAST status_compare );
 		}
 

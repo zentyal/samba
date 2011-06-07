@@ -5,11 +5,9 @@
 
 #include "librpc/gen_ndr/ndr_wkssvc.h"
 #include "librpc/gen_ndr/ndr_security.h"
-#include "librpc/gen_ndr/ndr_misc.h"
 _PUBLIC_ void ndr_print_libnet_JoinCtx(struct ndr_print *ndr, const char *name, int flags, const struct libnet_JoinCtx *r)
 {
 	ndr_print_struct(ndr, name, "libnet_JoinCtx");
-	if (r == NULL) { ndr_print_null(ndr); return; }
 	ndr->depth++;
 	if (flags & NDR_SET_VALUES) {
 		ndr->flags |= LIBNDR_PRINT_SET_VALUES;
@@ -25,7 +23,13 @@ _PUBLIC_ void ndr_print_libnet_JoinCtx(struct ndr_print *ndr, const char *name, 
 		ndr->depth--;
 		ndr_print_string(ndr, "account_ou", r->in.account_ou);
 		ndr_print_string(ndr, "admin_account", r->in.admin_account);
+#ifdef DEBUG_PASSWORD
+		ndr_print_string(ndr, "admin_password", r->in.admin_password);
 		ndr_print_string(ndr, "machine_password", r->in.machine_password);
+#else
+		ndr_print_ptr(ndr, "admin_password", r->in.admin_password);
+		ndr_print_ptr(ndr, "machine_password", r->in.machine_password);
+#endif
 		ndr_print_wkssvc_joinflags(ndr, "join_flags", r->in.join_flags);
 		ndr_print_string(ndr, "os_version", r->in.os_version);
 		ndr_print_string(ndr, "os_name", r->in.os_name);
@@ -34,9 +38,7 @@ _PUBLIC_ void ndr_print_libnet_JoinCtx(struct ndr_print *ndr, const char *name, 
 		ndr_print_uint8(ndr, "modify_config", r->in.modify_config);
 		ndr_print_ptr(ndr, "ads", r->in.ads);
 		ndr->depth++;
-		if (r->in.ads) {
-			ndr_print_ads_struct(ndr, "ads", r->in.ads);
-		}
+		ndr_print_ads_struct(ndr, "ads", r->in.ads);
 		ndr->depth--;
 		ndr_print_uint8(ndr, "debug", r->in.debug);
 		ndr_print_uint8(ndr, "use_kerberos", r->in.use_kerberos);
@@ -67,7 +69,6 @@ _PUBLIC_ void ndr_print_libnet_JoinCtx(struct ndr_print *ndr, const char *name, 
 _PUBLIC_ void ndr_print_libnet_UnjoinCtx(struct ndr_print *ndr, const char *name, int flags, const struct libnet_UnjoinCtx *r)
 {
 	ndr_print_struct(ndr, name, "libnet_UnjoinCtx");
-	if (r == NULL) { ndr_print_null(ndr); return; }
 	ndr->depth++;
 	if (flags & NDR_SET_VALUES) {
 		ndr->flags |= LIBNDR_PRINT_SET_VALUES;
@@ -80,7 +81,13 @@ _PUBLIC_ void ndr_print_libnet_UnjoinCtx(struct ndr_print *ndr, const char *name
 		ndr_print_string(ndr, "domain_name", r->in.domain_name);
 		ndr_print_string(ndr, "account_ou", r->in.account_ou);
 		ndr_print_string(ndr, "admin_account", r->in.admin_account);
+#ifdef DEBUG_PASSWORD
+		ndr_print_string(ndr, "admin_password", r->in.admin_password);
 		ndr_print_string(ndr, "machine_password", r->in.machine_password);
+#else
+		ndr_print_ptr(ndr, "admin_password", r->in.admin_password);
+		ndr_print_ptr(ndr, "machine_password", r->in.machine_password);
+#endif
 		ndr_print_wkssvc_joinflags(ndr, "unjoin_flags", r->in.unjoin_flags);
 		ndr_print_uint8(ndr, "delete_machine_account", r->in.delete_machine_account);
 		ndr_print_uint8(ndr, "modify_config", r->in.modify_config);
@@ -90,9 +97,7 @@ _PUBLIC_ void ndr_print_libnet_UnjoinCtx(struct ndr_print *ndr, const char *name
 		ndr->depth--;
 		ndr_print_ptr(ndr, "ads", r->in.ads);
 		ndr->depth++;
-		if (r->in.ads) {
-			ndr_print_ads_struct(ndr, "ads", r->in.ads);
-		}
+		ndr_print_ads_struct(ndr, "ads", r->in.ads);
 		ndr->depth--;
 		ndr_print_uint8(ndr, "debug", r->in.debug);
 		ndr_print_uint8(ndr, "use_kerberos", r->in.use_kerberos);

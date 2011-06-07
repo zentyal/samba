@@ -20,18 +20,14 @@
 
 #include "includes.h"
 #include "rpcclient.h"
-#include "../librpc/gen_ndr/ndr_lsa_c.h"
-#include "rpc_client/cli_lsarpc.h"
-#include "../librpc/gen_ndr/ndr_samr.h"
-#include "../librpc/gen_ndr/winreg.h"
+#include "../librpc/gen_ndr/cli_lsa.h"
 
 static NTSTATUS cmd_testme(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx,
 			   int argc, const char **argv)
 {
 	struct rpc_pipe_client *lsa_pipe = NULL, *samr_pipe = NULL;
-	NTSTATUS status = NT_STATUS_UNSUCCESSFUL, result;
+	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
 	struct policy_handle pol;
-	struct dcerpc_binding_handle *b;
 
 	d_printf("testme\n");
 
@@ -49,22 +45,16 @@ static NTSTATUS cmd_testme(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx,
 		goto done;
 	}
 
-	b = lsa_pipe->binding_handle;
-
 	status = rpccli_lsa_open_policy(lsa_pipe, mem_ctx, False,
 					KEY_QUERY_VALUE, &pol);
 
 	if (!NT_STATUS_IS_OK(status))
 		goto done;
 
-	status = dcerpc_lsa_Close(b, mem_ctx, &pol, &result);
+	status = rpccli_lsa_Close(lsa_pipe, mem_ctx, &pol);
 
 	if (!NT_STATUS_IS_OK(status))
 		goto done;
-	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
-		goto done;
-	}
 
  done:
 	TALLOC_FREE(lsa_pipe);

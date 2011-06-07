@@ -43,7 +43,7 @@
  */
 
 
-GSSAPI_LIB_FUNCTION OM_uint32 GSSAPI_LIB_CALL
+OM_uint32 GSSAPI_LIB_FUNCTION
 gss_wrap_iov(OM_uint32 * minor_status,
 	     gss_ctx_id_t  context_handle,
 	     int conf_req_flag,
@@ -81,7 +81,7 @@ gss_wrap_iov(OM_uint32 * minor_status,
  * @ingroup gssapi
  */
 
-GSSAPI_LIB_FUNCTION OM_uint32 GSSAPI_LIB_CALL
+OM_uint32 GSSAPI_LIB_FUNCTION
 gss_unwrap_iov(OM_uint32 *minor_status,
 	       gss_ctx_id_t context_handle,
 	       int *conf_state,
@@ -124,7 +124,7 @@ gss_unwrap_iov(OM_uint32 *minor_status,
  * @ingroup gssapi
  */
 
-GSSAPI_LIB_FUNCTION OM_uint32 GSSAPI_LIB_CALL
+OM_uint32 GSSAPI_LIB_FUNCTION
 gss_wrap_iov_length(OM_uint32 * minor_status,
 		    gss_ctx_id_t context_handle,
 		    int conf_req_flag,
@@ -157,12 +157,12 @@ gss_wrap_iov_length(OM_uint32 * minor_status,
 
 /**
  * Free all buffer allocated by gss_wrap_iov() or gss_unwrap_iov() by
- * looking at the GSS_IOV_BUFFER_FLAG_ALLOCATED flag.
+ * looking at the GSS_IOV_BUFFER_TYPE_FLAG_ALLOCATED flag.
  *
  * @ingroup gssapi
  */
 
-GSSAPI_LIB_FUNCTION OM_uint32 GSSAPI_LIB_CALL
+OM_uint32 GSSAPI_LIB_FUNCTION
 gss_release_iov_buffer(OM_uint32 *minor_status,
 		       gss_iov_buffer_desc *iov,
 		       int iov_count)
@@ -176,10 +176,10 @@ gss_release_iov_buffer(OM_uint32 *minor_status,
 	return GSS_S_CALL_INACCESSIBLE_READ;
 
     for (i = 0; i < iov_count; i++) {
-	if ((iov[i].type & GSS_IOV_BUFFER_FLAG_ALLOCATED) == 0)
+	if ((iov[i].type & GSS_IOV_BUFFER_TYPE_FLAG_ALLOCATED) == 0)
 	    continue;
 	gss_release_buffer(&junk, &iov[i].buffer);
-	iov[i].type &= ~GSS_IOV_BUFFER_FLAG_ALLOCATED;
+	iov[i].type &= ~GSS_IOV_BUFFER_TYPE_FLAG_ALLOCATED;
     }
     return GSS_S_COMPLETE;
 }
@@ -194,13 +194,15 @@ gss_release_iov_buffer(OM_uint32 *minor_status,
  * @ingroup gssapi
  */
 
-gss_OID_desc GSSAPI_LIB_FUNCTION __gss_c_attr_stream_sizes_oid_desc =
+static gss_OID_desc gss_c_attr_stream_sizes_desc =
     {10, rk_UNCONST("\x2a\x86\x48\x86\xf7\x12\x01\x02\x01\x03")};
 
-GSSAPI_LIB_FUNCTION OM_uint32 GSSAPI_LIB_CALL
+gss_OID GSSAPI_LIB_VARIABLE GSS_C_ATTR_STREAM_SIZES =
+    &gss_c_attr_stream_sizes_desc;
+
+OM_uint32 GSSAPI_LIB_FUNCTION
 gss_context_query_attributes(OM_uint32 *minor_status,
-			     const gss_ctx_id_t context_handle,
-			     const gss_OID attribute,
+			     gss_OID attribute,
 			     void *data,
 			     size_t len)
 {

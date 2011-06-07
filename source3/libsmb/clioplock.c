@@ -18,9 +18,6 @@
 */
 
 #include "includes.h"
-#include "../lib/util/tevent_ntstatus.h"
-#include "async_smb.h"
-#include "libsmb/libsmb.h"
 
 /****************************************************************************
 send an ack for an oplock break request
@@ -40,7 +37,7 @@ struct tevent_req *cli_oplock_ack_send(TALLOC_CTX *mem_ctx,
 	struct tevent_req *req, *subreq;
 	struct cli_oplock_ack_state *state;
 
-	req = tevent_req_create(mem_ctx, &state, struct cli_oplock_ack_state);
+	req = tevent_req_create(mem_ctx, &state, struct cli_oplock_ack_state);;
 	if (req == NULL) {
 		return NULL;
 	}
@@ -69,7 +66,7 @@ static void cli_oplock_ack_done(struct tevent_req *subreq)
 		subreq, struct tevent_req);
 	NTSTATUS status;
 
-	status = cli_smb_recv(subreq, NULL, NULL, 0, NULL, NULL, NULL, NULL);
+	status = cli_smb_recv(subreq, 0, NULL, NULL, NULL, NULL);
 	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
 		tevent_req_nterror(req, status);

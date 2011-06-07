@@ -21,18 +21,23 @@
    License along with this library; if not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "replace.h"
-#include "system/filesys.h"
-#include "system/time.h"
+#include "ldb_includes.h"
 #include "ldb.h"
-#include "ldb_module.h"
 #include "tools/cmdline.h"
+
+#if (_SAMBA_BUILD_ >= 4)
+#include "includes.h"
+#include "lib/cmdline/popt_common.h"
+#include "lib/ldb-samba/ldif_handlers.h"
+#include "auth/gensec/gensec.h"
+#include "auth/auth.h"
+#include "ldb_wrap.h"
+#include "param/param.h"
+#endif
 
 static struct ldb_cmdline options; /* needs to be static for older compilers */
 
-enum ldb_cmdline_options { CMDLINE_RELAX=1 };
-
-static struct poptOption builtin_popt_options[] = {
+static struct poptOption popt_options[] = {
 	POPT_AUTOHELP
 	{ "url",       'H', POPT_ARG_STRING, &options.url, 0, "database URL", "URL" },
 	{ "basedn",    'b', POPT_ARG_STRING, &options.basedn, 0, "base DN", "DN" },
@@ -48,46 +53,26 @@ static struct poptOption builtin_popt_options[] = {
 	{ "all", 'a',    POPT_ARG_NONE, &options.all_records, 0, "(|(objectClass=*)(distinguishedName=*))", NULL },
 	{ "nosync", 0,   POPT_ARG_NONE, &options.nosync, 0, "non-synchronous transactions", NULL },
 	{ "sorted", 'S', POPT_ARG_NONE, &options.sorted, 0, "sort attributes", NULL },
+	{ "input", 'I', POPT_ARG_STRING, &options.input, 0, "Input File", "Input" },
+	{ "output", 'O', POPT_ARG_STRING, &options.output, 0, "Output File", "Output" },
 	{ NULL,    'o', POPT_ARG_STRING, NULL, 'o', "ldb_connect option", "OPTION" },
 	{ "controls", 0, POPT_ARG_STRING, NULL, 'c', "controls", NULL },
 	{ "show-binary", 0, POPT_ARG_NONE, &options.show_binary, 0, "display binary LDIF", NULL },
-	{ "paged", 0, POPT_ARG_NONE, NULL, 'P', "use a paged search", NULL },
-	{ "show-deleted", 0, POPT_ARG_NONE, NULL, 'D', "show deleted objects", NULL },
-	{ "show-recycled", 0, POPT_ARG_NONE, NULL, 'R', "show recycled objects", NULL },
-	{ "show-deactivated-link", 0, POPT_ARG_NONE, NULL, 'd', "show deactivated links", NULL },
-	{ "reveal", 0, POPT_ARG_NONE, NULL, 'r', "reveal ldb internals", NULL },
-	{ "relax", 0, POPT_ARG_NONE, NULL, CMDLINE_RELAX, "pass relax control", NULL },
-	{ "cross-ncs", 0, POPT_ARG_NONE, NULL, 'N', "search across NC boundaries", NULL },
-	{ "extended-dn", 0, POPT_ARG_NONE, NULL, 'E', "show extended DNs", NULL },
+#if (_SAMBA_BUILD_ >= 4)
+	POPT_COMMON_SAMBA
+	POPT_COMMON_CREDENTIALS
+	POPT_COMMON_CONNECTION
+	POPT_COMMON_VERSION
+#endif
 	{ NULL }
 };
 
-void ldb_cmdline_help(struct ldb_context *ldb, const char *cmdname, FILE *f)
+void ldb_cmdline_help(const char *cmdname, FILE *f)
 {
 	poptContext pc;
-	struct poptOption **popt_options = ldb_module_popt_options(ldb);
-	pc = poptGetContext(cmdname, 0, NULL, *popt_options,
+	pc = poptGetContext(cmdname, 0, NULL, popt_options, 
 			    POPT_CONTEXT_KEEP_FIRST);
 	poptPrintHelp(pc, f, 0);
-}
-
-/*
-  add a control to the options structure
- */
-static bool add_control(TALLOC_CTX *mem_ctx, const char *control)
-{
-	unsigned int i;
-
-	/* count how many controls we already have */
-	for (i=0; options.controls && options.controls[i]; i++) ;
-
-	options.controls = talloc_realloc(mem_ctx, options.controls, const char *, i + 2);
-	if (options.controls == NULL) {
-		return false;
-	}
-	options.controls[i] = control;
-	options.controls[i+1] = NULL;
-	return true;
 }
 
 /**
@@ -95,18 +80,24 @@ static bool add_control(TALLOC_CTX *mem_ctx, const char *control)
 */
 struct ldb_cmdline *ldb_cmdline_process(struct ldb_context *ldb, 
 					int argc, const char **argv,
-					void (*usage)(struct ldb_context *))
+					void (*usage)(void))
 {
 	struct ldb_cmdline *ret=NULL;
 	poptContext pc;
+#if (_SAMBA_BUILD_ >= 4)
+	int r;
+#endif
 	int num_options = 0;
 	int opt;
 	int flags = 0;
-	int rc;
-	struct poptOption **popt_options;
 
-	/* make the ldb utilities line buffered */
-	setlinebuf(stdout);
+#if (_SAMBA_BUILD_ >= 4)
+	r = ldb_register_samba_handlers(ldb);
+	if (r != 0) {
+		goto failed;
+	}
+
+#endif
 
 	ret = talloc_zero(ldb, struct ldb_cmdline);
 	if (ret == NULL) {
@@ -130,16 +121,7 @@ struct ldb_cmdline *ldb_cmdline_process(struct ldb_context *ldb,
 
 	options.scope = LDB_SCOPE_DEFAULT;
 
-	popt_options = ldb_module_popt_options(ldb);
-	(*popt_options) = builtin_popt_options;
-
-	rc = ldb_modules_hook(ldb, LDB_MODULE_HOOK_CMDLINE_OPTIONS);
-	if (rc != LDB_SUCCESS) {
-		fprintf(stderr, "ldb: failed to run command line hooks : %s\n", ldb_strerror(rc));
-		goto failed;
-	}
-
-	pc = poptGetContext(argv[0], argc, argv, *popt_options,
+	pc = poptGetContext(argv[0], argc, argv, popt_options, 
 			    POPT_CONTEXT_KEEP_FIRST);
 
 	while((opt = poptGetNextOpt(pc)) != -1) {
@@ -177,79 +159,36 @@ struct ldb_cmdline *ldb_cmdline_process(struct ldb_context *ldb,
 
 		case 'c': {
 			const char *cs = poptGetOptArg(pc);
-			const char *p;
+			const char *p, *q;
+			int cc;
 
-			for (p = cs; p != NULL; ) {
-				const char *t, *c;
+			for (p = cs, cc = 1; (q = strchr(p, ',')); cc++, p = q + 1) ;
+
+			options.controls = talloc_array(ret, char *, cc + 1);
+			if (options.controls == NULL) {
+				fprintf(stderr, "Out of memory!\n");
+				goto failed;
+			}
+			for (p = cs, cc = 0; p != NULL; cc++) {
+				const char *t;
 
 				t = strchr(p, ',');
 				if (t == NULL) {
-					c = talloc_strdup(options.controls, p);
+					options.controls[cc] = talloc_strdup(options.controls, p);
 					p = NULL;
 				} else {
-					c = talloc_strndup(options.controls, p, t-p);
+					options.controls[cc] = talloc_strndup(options.controls, p, t-p);
 			        	p = t + 1;
 				}
-				if (c == NULL || !add_control(ret, c)) {
-					fprintf(stderr, __location__ ": out of memory\n");
-					goto failed;
-				}
 			}
+			options.controls[cc] = NULL;
 
 			break;	  
 		}
-		case 'P':
-			if (!add_control(ret, "paged_results:1:1024")) {
-				fprintf(stderr, __location__ ": out of memory\n");
-				goto failed;
-			}
-			break;
-		case 'D':
-			if (!add_control(ret, "show_deleted:1")) {
-				fprintf(stderr, __location__ ": out of memory\n");
-				goto failed;
-			}
-			break;
-		case 'R':
-			if (!add_control(ret, "show_recycled:0")) {
-				fprintf(stderr, __location__ ": out of memory\n");
-				goto failed;
-			}
-			break;
-		case 'd':
-			if (!add_control(ret, "show_deactivated_link:0")) {
-				fprintf(stderr, __location__ ": out of memory\n");
-				goto failed;
-			}
-			break;
-		case 'r':
-			if (!add_control(ret, "reveal_internals:0")) {
-				fprintf(stderr, __location__ ": out of memory\n");
-				goto failed;
-			}
-			break;
-		case CMDLINE_RELAX:
-			if (!add_control(ret, "relax:0")) {
-				fprintf(stderr, __location__ ": out of memory\n");
-				goto failed;
-			}
-			break;
-		case 'N':
-			if (!add_control(ret, "search_options:1:2")) {
-				fprintf(stderr, __location__ ": out of memory\n");
-				goto failed;
-			}
-			break;
-		case 'E':
-			if (!add_control(ret, "extended_dn:1:1")) {
-				fprintf(stderr, __location__ ": out of memory\n");
-				goto failed;
-			}
-			break;
 		default:
 			fprintf(stderr, "Invalid option %s: %s\n", 
 				poptBadOption(pc, 0), poptStrerror(opt));
-			if (usage) usage(ldb);
+			if (usage) usage();
 			goto failed;
 		}
 	}
@@ -266,7 +205,7 @@ struct ldb_cmdline *ldb_cmdline_process(struct ldb_context *ldb,
 	/* all utils need some option */
 	if (ret->url == NULL) {
 		fprintf(stderr, "You must supply a url with -H or with $LDB_URL\n");
-		if (usage) usage(ldb);
+		if (usage) usage();
 		goto failed;
 	}
 
@@ -286,14 +225,27 @@ struct ldb_cmdline *ldb_cmdline_process(struct ldb_context *ldb,
 		flags |= LDB_FLG_ENABLE_TRACING;
 	}
 
-	if (options.modules_path != NULL) {
-		ldb_set_modules_dir(ldb, options.modules_path);
+#if (_SAMBA_BUILD_ >= 4)
+	/* Must be after we have processed command line options */
+	gensec_init(cmdline_lp_ctx); 
+	
+	if (ldb_set_opaque(ldb, "sessionInfo", system_session(ldb, cmdline_lp_ctx))) {
+		goto failed;
+	}
+	if (ldb_set_opaque(ldb, "credentials", cmdline_credentials)) {
+		goto failed;
+	}
+	if (ldb_set_opaque(ldb, "loadparm", cmdline_lp_ctx)) {
+		goto failed;
 	}
 
-	rc = ldb_modules_hook(ldb, LDB_MODULE_HOOK_CMDLINE_PRECONNECT);
-	if (rc != LDB_SUCCESS) {
-		fprintf(stderr, "ldb: failed to run preconnect hooks : %s\n", ldb_strerror(rc));
-		goto failed;
+	ldb_set_utf8_fns(ldb, NULL, wrap_casefold);
+#endif
+
+	if (options.modules_path != NULL) {
+		ldb_set_modules_dir(ldb, options.modules_path);
+	} else if (getenv("LDB_MODULES_PATH") != NULL) {
+		ldb_set_modules_dir(ldb, getenv("LDB_MODULES_PATH"));
 	}
 
 	/* now connect to the ldb */
@@ -303,17 +255,11 @@ struct ldb_cmdline *ldb_cmdline_process(struct ldb_context *ldb,
 		goto failed;
 	}
 
-	rc = ldb_modules_hook(ldb, LDB_MODULE_HOOK_CMDLINE_POSTCONNECT);
-	if (rc != LDB_SUCCESS) {
-		fprintf(stderr, "ldb: failed to run post connect hooks : %s\n", ldb_strerror(rc));
-		goto failed;
-	}
-
 	return ret;
 
 failed:
 	talloc_free(ret);
-	exit(LDB_ERR_OPERATIONS_ERROR);
+	exit(1);
 	return NULL;
 }
 
@@ -327,8 +273,8 @@ failed:
  */
 int handle_controls_reply(struct ldb_control **reply, struct ldb_control **request)
 {
-	unsigned int i, j;
-	int ret = 0;
+	int i, j;
+       	int ret = 0;
 
 	if (reply == NULL || request == NULL) return -1;
 	

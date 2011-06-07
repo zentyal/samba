@@ -17,8 +17,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "replace.h"
-#include "../lib/util/util.h"
+#include "includes.h"
 #include "../lib/crypto/crypto.h"
 
 struct torture_context;
@@ -26,7 +25,7 @@ struct torture_context;
 /*
  This uses the test values from rfc1320
 */
-bool torture_local_crypto_md4(struct torture_context *torture)
+bool torture_local_crypto_md4(struct torture_context *torture) 
 {
 	bool ret = true;
 	uint32_t i;

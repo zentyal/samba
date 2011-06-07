@@ -19,7 +19,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "../libcli/netlogon/netlogon.h"
+#include "../libcli/netlogon.h"
 
 /*
   a datagram name request
@@ -40,6 +40,7 @@ struct nbt_dgram_request {
 struct nbt_dgram_socket {
 	struct socket_context *sock;
 	struct tevent_context *event_ctx;
+	struct smb_iconv_convenience *iconv_convenience;
 
 	/* the fd event */
 	struct tevent_fd *fde;
@@ -92,7 +93,8 @@ NTSTATUS dgram_set_incoming_handler(struct nbt_dgram_socket *dgmsock,
 						    struct socket_address *),
 				    void *private_data);
 struct nbt_dgram_socket *nbt_dgram_socket_init(TALLOC_CTX *mem_ctx, 
-					       struct tevent_context *event_ctx);
+					       struct tevent_context *event_ctx,
+					       struct smb_iconv_convenience *);
 
 const char *dgram_mailslot_name(struct nbt_dgram_packet *packet);
 struct dgram_mailslot_handler *dgram_mailslot_find(struct nbt_dgram_socket *dgmsock,

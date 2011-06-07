@@ -20,6 +20,8 @@
 */
 
 #include "includes.h"
+#include "torture/torture.h"
+#include "libcli/raw/libcliraw.h"
 #include "libcli/libcli.h"
 #include "torture/util.h"
 #include "param/param.h"
@@ -54,7 +56,7 @@ static NTSTATUS unicode_open(struct torture_context *tctx,
 	}
 	SSVAL(ucs_name, i*2, 0);
 
-	if (!convert_string_talloc_convenience(ucs_name, lpcfg_iconv_convenience(tctx->lp_ctx), CH_UTF16, CH_UNIX, ucs_name, (1+u_name_len)*2, (void **)&fname, &i, false)) {
+	if (!convert_string_talloc_convenience(ucs_name, lp_iconv_convenience(tctx->lp_ctx), CH_UTF16, CH_UNIX, ucs_name, (1+u_name_len)*2, (void **)&fname, &i, false)) {
 		torture_comment(tctx, "Failed to convert UCS2 Name into unix - convert_string_talloc() failure\n");
 		talloc_free(ucs_name);
 		return NT_STATUS_NO_MEMORY;
@@ -68,7 +70,7 @@ static NTSTATUS unicode_open(struct torture_context *tctx,
 
 	io.generic.level = RAW_OPEN_NTCREATEX;
 	io.ntcreatex.in.flags = NTCREATEX_FLAGS_EXTENDED;
-	io.ntcreatex.in.root_fid.fnum = 0;
+	io.ntcreatex.in.root_fid = 0;
 	io.ntcreatex.in.access_mask = SEC_RIGHTS_FILE_ALL;
 	io.ntcreatex.in.alloc_size = 0;
 	io.ntcreatex.in.file_attr = FILE_ATTRIBUTE_NORMAL;
@@ -197,7 +199,7 @@ static bool test_widea(struct torture_context *tctx,
 
 struct torture_suite *torture_charset(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "charset");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "CHARSET");
 
 	torture_suite_add_1smb_test(suite, "Testing composite character (a umlaut)", test_composed); 
 	torture_suite_add_1smb_test(suite, "Testing naked diacritical (umlaut)", test_diacritical);

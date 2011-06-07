@@ -11,8 +11,6 @@
 */
 
 #include "includes.h"
-#include "memcache.h"
-#include "interfaces.h"
 
 #define NAME_INDEX 0
 #define ADDR_INDEX 1
@@ -68,9 +66,7 @@ static bool masked_match(const char *tok, const char *slash, const char *s)
 		}
         }
 
-	return same_net((struct sockaddr *)(void *)&ss_host,
-			(struct sockaddr *)(void *)&ss_tok,
-			(struct sockaddr *)(void *)&ss_mask);
+	return same_net((struct sockaddr *)&ss_host, (struct sockaddr *)&ss_tok, (struct sockaddr *)&ss_mask);
 }
 
 /* string_match - match string s against token tok */
@@ -182,30 +178,27 @@ static bool string_match(const char *tok,const char *s)
 bool client_match(const char *tok, const void *item)
 {
 	const char **client = (const char **)item;
-	const char *tok_addr = tok;
-	const char *cli_addr = client[ADDR_INDEX];
-
-	/*
-	 * tok and client[ADDR_INDEX] can be an IPv4 mapped to IPv6,
-	 * we try and match the IPv4 part of address only.
-	 * Bug #5311 and #7383.
-	 */
-
-	if (strnequal(tok_addr, "::ffff:",7)) {
-		tok_addr += 7;
-	}
-
-	if (strnequal(cli_addr,"::ffff:",7)) {
-		cli_addr += 7;
-	}
 
 	/*
 	 * Try to match the address first. If that fails, try to match the host
 	 * name if available.
 	 */
 
-	if (string_match(tok_addr, cli_addr)) {
+	if (string_match(tok, client[ADDR_INDEX])) {
 		return true;
+	}
+
+	if (strnequal(client[ADDR_INDEX],"::ffff:",7) &&
+			!strnequal(tok, "::ffff:",7)) {
+		/* client[ADDR_INDEX] is an IPv4 mapped to IPv6, but
+ 		 * the list item is not. Try and match the IPv4 part of
+ 		 * address only. This will happen a lot on IPv6 enabled
+ 		 * systems with IPv4 allow/deny lists in smb.conf.
+ 		 * Bug #5311. JRA.
+ 		 */
+		if (string_match(tok, (client[ADDR_INDEX])+7)) {
+			return true;
+		}
 	}
 
 	if (client[NAME_INDEX][0] != 0) {
@@ -333,11 +326,90 @@ bool allow_access(const char **deny_list,
 
 	ret = allow_access_internal(deny_list, allow_list, nc_cname, nc_caddr);
 
-	DEBUG(ret ? 3 : 0,
-	      ("%s connection from %s (%s)\n",
-	       ret ? "Allowed" : "Denied", nc_cname, nc_caddr));
-
 	SAFE_FREE(nc_cname);
 	SAFE_FREE(nc_caddr);
 	return ret;
+}
+
+/* return true if the char* contains ip addrs only.  Used to avoid
+name lookup calls */
+
+static bool only_ipaddrs_in_list(const char **list)
+{
+	bool only_ip = true;
+
+	if (!list) {
+		return true;
+	}
+
+	for (; *list ; list++) {
+		/* factor out the special strings */
+		if (strequal(*list, "ALL") || strequal(*list, "FAIL") ||
+		    strequal(*list, "EXCEPT")) {
+			continue;
+		}
+
+		if (!is_ipaddress(*list)) {
+			/*
+			 * If we failed, make sure that it was not because
+			 * the token was a network/netmask pair. Only
+			 * network/netmask pairs have a '/' in them.
+			 */
+			if ((strchr_m(*list, '/')) == NULL) {
+				only_ip = false;
+				DEBUG(3,("only_ipaddrs_in_list: list has "
+					"non-ip address (%s)\n",
+					*list));
+				break;
+			}
+		}
+	}
+
+	return only_ip;
+}
+
+/* return true if access should be allowed to a service for a socket */
+bool check_access(int sock, const char **allow_list, const char **deny_list)
+{
+	bool ret = false;
+	bool only_ip = false;
+
+	if ((!deny_list || *deny_list==0) && (!allow_list || *allow_list==0))
+		ret = true;
+
+	if (!ret) {
+		char addr[INET6_ADDRSTRLEN];
+
+		/* Bypass name resolution calls if the lists
+		 * only contain IP addrs */
+		if (only_ipaddrs_in_list(allow_list) &&
+				only_ipaddrs_in_list(deny_list)) {
+			only_ip = true;
+			DEBUG (3, ("check_access: no hostnames "
+				"in host allow/deny list.\n"));
+			ret = allow_access(deny_list,
+					allow_list,
+					"",
+					get_peer_addr(sock,addr,sizeof(addr)));
+		} else {
+			DEBUG (3, ("check_access: hostnames in "
+				"host allow/deny list.\n"));
+			ret = allow_access(deny_list,
+					allow_list,
+					get_peer_name(sock,true),
+					get_peer_addr(sock,addr,sizeof(addr)));
+		}
+
+		if (ret) {
+			DEBUG(2,("Allowed connection from %s (%s)\n",
+				 only_ip ? "" : get_peer_name(sock,true),
+				 get_peer_addr(sock,addr,sizeof(addr))));
+		} else {
+			DEBUG(0,("Denied connection from %s (%s)\n",
+				 only_ip ? "" : get_peer_name(sock,true),
+				 get_peer_addr(sock,addr,sizeof(addr))));
+		}
+	}
+
+	return(ret);
 }

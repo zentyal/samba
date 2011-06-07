@@ -35,17 +35,17 @@
 #include <getarg.h>
 #include <err.h>
 
-KRB5_LIB_FUNCTION void KRB5_LIB_CALL
+void KRB5_LIB_FUNCTION
 krb5_std_usage(int code, struct getargs *args, int num_args)
 {
     arg_printusage(args, num_args, NULL, "");
     exit(code);
 }
 
-KRB5_LIB_FUNCTION int KRB5_LIB_CALL
+int KRB5_LIB_FUNCTION
 krb5_program_setup(krb5_context *context, int argc, char **argv,
 		   struct getargs *args, int num_args,
-		   void (KRB5_LIB_CALL *usage)(int, struct getargs*, int))
+		   void (*usage)(int, struct getargs*, int))
 {
     krb5_error_code ret;
     int optidx = 0;

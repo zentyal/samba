@@ -20,17 +20,8 @@
 */
 
 #include "includes.h"
-#include "system/passwd.h"
+#include "system/filesys.h"
 #include "../lib/util/unix_privs.h"
-
-#if defined(UID_WRAPPER)
-#if !defined(UID_WRAPPER_REPLACE) && !defined(UID_WRAPPER_NOT_REPLACE)
-#define UID_WRAPPER_REPLACE
-#include "../uid_wrapper/uid_wrapper.h"
-#endif
-#else
-#define uwrap_enabled() 0
-#endif
 
 /**
  * @file
@@ -84,10 +75,4 @@ void *root_privileges(void)
 	}
 	talloc_set_destructor(s, privileges_destructor);
 	return s;
-}
-
-uid_t root_privileges_original_uid(void *s)
-{
-	struct saved_state *saved = talloc_get_type_abort(s, struct saved_state);
-	return saved->uid;
 }

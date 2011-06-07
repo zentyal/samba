@@ -21,9 +21,18 @@
 
 #include "includes.h"
 
+#ifndef MAXUNI
+#define MAXUNI 1024
+#endif
+
 /* these 3 tables define the unicode case handling.  They are loaded
    at startup either via mmap() or read() from the lib directory */
+static smb_ucs2_t *upcase_table;
+static smb_ucs2_t *lowcase_table;
 static uint8 *valid_table;
+static bool upcase_table_use_unmap;
+static bool lowcase_table_use_unmap;
+static bool valid_table_use_unmap;
 static bool initialized;
 
 /**
@@ -31,11 +40,127 @@ static bool initialized;
  **/
 void gfree_case_tables(void)
 {
+	if ( upcase_table ) {
+		if ( upcase_table_use_unmap )
+			unmap_file(upcase_table, 0x20000);
+		else
+			SAFE_FREE(upcase_table);
+	}
+
+	if ( lowcase_table ) {
+		if ( lowcase_table_use_unmap )
+			unmap_file(lowcase_table, 0x20000);
+		else
+			SAFE_FREE(lowcase_table);
+	}
+
 	if ( valid_table ) {
-		unmap_file(valid_table, 0x10000);
-		valid_table = NULL;
+		if ( valid_table_use_unmap )
+			unmap_file(valid_table, 0x10000);
+		else
+			SAFE_FREE(valid_table);
 	}
 	initialized = false;
+}
+
+/**
+ * Load or generate the case handling tables.
+ *
+ * The case tables are defined in UCS2 and don't depend on any
+ * configured parameters, so they never need to be reloaded.
+ **/
+
+void load_case_tables(void)
+{
+	char *old_locale = NULL, *saved_locale = NULL;
+	int i;
+	TALLOC_CTX *frame = NULL;
+
+	if (initialized) {
+		return;
+	}
+	initialized = true;
+
+	frame = talloc_stackframe();
+
+	upcase_table = (smb_ucs2_t *)map_file(data_path("upcase.dat"),
+					      0x20000);
+	upcase_table_use_unmap = ( upcase_table != NULL );
+
+	lowcase_table = (smb_ucs2_t *)map_file(data_path("lowcase.dat"),
+					       0x20000);
+	lowcase_table_use_unmap = ( lowcase_table != NULL );
+
+#ifdef HAVE_SETLOCALE
+	/* Get the name of the current locale.  */
+	old_locale = setlocale(LC_ALL, NULL);
+
+	if (old_locale) {
+		/* Save it as it is in static storage. */
+		saved_locale = SMB_STRDUP(old_locale);
+	}
+
+	/* We set back the locale to C to get ASCII-compatible toupper/lower functions. */
+	setlocale(LC_ALL, "C");
+#endif
+
+	/* we would like Samba to limp along even if these tables are
+	   not available */
+	if (!upcase_table) {
+		DEBUG(1,("creating lame upcase table\n"));
+		upcase_table = (smb_ucs2_t *)SMB_MALLOC(0x20000);
+		for (i=0;i<0x10000;i++) {
+			smb_ucs2_t v;
+			SSVAL(&v, 0, i);
+			upcase_table[v] = i;
+		}
+		for (i=0;i<256;i++) {
+			smb_ucs2_t v;
+			SSVAL(&v, 0, UCS2_CHAR(i));
+			upcase_table[v] = UCS2_CHAR(islower(i)?toupper(i):i);
+		}
+	}
+
+	if (!lowcase_table) {
+		DEBUG(1,("creating lame lowcase table\n"));
+		lowcase_table = (smb_ucs2_t *)SMB_MALLOC(0x20000);
+		for (i=0;i<0x10000;i++) {
+			smb_ucs2_t v;
+			SSVAL(&v, 0, i);
+			lowcase_table[v] = i;
+		}
+		for (i=0;i<256;i++) {
+			smb_ucs2_t v;
+			SSVAL(&v, 0, UCS2_CHAR(i));
+			lowcase_table[v] = UCS2_CHAR(isupper(i)?tolower(i):i);
+		}
+	}
+
+#ifdef HAVE_SETLOCALE
+	/* Restore the old locale. */
+	if (saved_locale) {
+		setlocale (LC_ALL, saved_locale);
+		SAFE_FREE(saved_locale);
+	}
+#endif
+	TALLOC_FREE(frame);
+}
+
+static int check_dos_char_slowly(smb_ucs2_t c)
+{
+	char buf[10];
+	smb_ucs2_t c2 = 0;
+	int len1, len2;
+
+	len1 = convert_string(CH_UTF16LE, CH_DOS, &c, 2, buf, sizeof(buf),False);
+	if (len1 == 0) {
+		return 0;
+	}
+	len2 = convert_string(CH_DOS, CH_UTF16LE, buf, len1, &c2, 2,False);
+	if (len2 != 2) {
+		return 0;
+	}
+	return (c == c2);
 }
 
 /**
@@ -47,16 +172,48 @@ void gfree_case_tables(void)
  * from a file, because we can't unmap files.
  **/
 
-static void init_valid_table(void)
+void init_valid_table(void)
 {
-	if (valid_table) {
+	static int mapped_file;
+	int i;
+	const char *allowed = ".!#$%&'()_-@^`~";
+	uint8 *valid_file;
+
+	if (mapped_file) {
+		/* Can't unmap files, so stick with what we have */
 		return;
 	}
 
-	valid_table = (uint8 *)map_file(data_path("valid.dat"), 0x10000);
-	if (!valid_table) {
-		smb_panic("Could not load valid.dat file required for mangle method=hash");
+	valid_file = (uint8 *)map_file(data_path("valid.dat"), 0x10000);
+	if (valid_file) {
+		valid_table = valid_file;
+		mapped_file = 1;
+		valid_table_use_unmap = True;
 		return;
+	}
+
+	/* Otherwise, we're using a dynamically created valid_table.
+	 * It might need to be regenerated if the code page changed.
+	 * We know that we're not using a mapped file, so we can
+	 * free() the old one. */
+	SAFE_FREE(valid_table);
+
+	/* use free rather than unmap */
+	valid_table_use_unmap = False;
+
+	DEBUG(2,("creating default valid table\n"));
+	valid_table = (uint8 *)SMB_MALLOC(0x10000);
+	SMB_ASSERT(valid_table != NULL);
+	for (i=0;i<128;i++) {
+		valid_table[i] = isalnum(i) || strchr(allowed,i);
+	}
+
+	lazy_initialize_conv();
+
+	for (;i<0x10000;i++) {
+		smb_ucs2_t c;
+		SSVAL(&c, 0, i);
+		valid_table[i] = check_dos_char_slowly(c);
 	}
 }
 
@@ -78,6 +235,26 @@ size_t dos_PutUniCode(char *dst,const char *src, size_t len, bool null_terminate
 	return push_ucs2(NULL, dst, src, len, flags);
 }
 
+
+/*******************************************************************
+ Skip past a unicode string, but not more than len. Always move
+ past a terminating zero if found.
+********************************************************************/
+
+char *skip_unibuf(char *src, size_t len)
+{
+	char *srcend = src + len;
+
+	while (src < srcend && SVAL(src,0)) {
+		src += 2;
+	}
+
+	if(!SVAL(src,0)) {
+		src += 2;
+	}
+
+	return src;
+}
 
 /* Converts a string from internal samba format to unicode
  */
@@ -101,12 +278,47 @@ int rpcstr_push_talloc(TALLOC_CTX *ctx, smb_ucs2_t **dest, const char *src)
 }
 
 /*******************************************************************
+ Convert a wchar to upper case.
+********************************************************************/
+
+smb_ucs2_t toupper_w(smb_ucs2_t val)
+{
+	return upcase_table[SVAL(&val,0)];
+}
+
+/*******************************************************************
+ Convert a wchar to lower case.
+********************************************************************/
+
+smb_ucs2_t tolower_w( smb_ucs2_t val )
+{
+	return lowcase_table[SVAL(&val,0)];
+}
+
+/*******************************************************************
+ Determine if a character is lowercase.
+********************************************************************/
+
+bool islower_w(smb_ucs2_t c)
+{
+	return upcase_table[SVAL(&c,0)] != c;
+}
+
+/*******************************************************************
+ Determine if a character is uppercase.
+********************************************************************/
+
+bool isupper_w(smb_ucs2_t c)
+{
+	return lowcase_table[SVAL(&c,0)] != c;
+}
+
+/*******************************************************************
  Determine if a character is valid in a 8.3 name.
 ********************************************************************/
 
 bool isvalid83_w(smb_ucs2_t c)
 {
-	init_valid_table();
 	return valid_table[SVAL(&c,0)] != 0;
 }
 
@@ -244,8 +456,6 @@ smb_ucs2_t *strstr_w(const smb_ucs2_t *s, const smb_ucs2_t *ins)
 /*******************************************************************
  Convert a string to lower case.
  return True if any char is converted
-
- This is unsafe for any string involving a UTF16 character
 ********************************************************************/
 
 bool strlower_w(smb_ucs2_t *s)
@@ -254,7 +464,7 @@ bool strlower_w(smb_ucs2_t *s)
 	bool ret = False;
 
 	while (*(COPY_UCS2_CHAR(&cp,s))) {
-		smb_ucs2_t v = tolower_m(cp);
+		smb_ucs2_t v = tolower_w(cp);
 		if (v != cp) {
 			COPY_UCS2_CHAR(s,&v);
 			ret = True;
@@ -267,8 +477,6 @@ bool strlower_w(smb_ucs2_t *s)
 /*******************************************************************
  Convert a string to upper case.
  return True if any char is converted
-
- This is unsafe for any string involving a UTF16 character
 ********************************************************************/
 
 bool strupper_w(smb_ucs2_t *s)
@@ -276,7 +484,7 @@ bool strupper_w(smb_ucs2_t *s)
 	smb_ucs2_t cp;
 	bool ret = False;
 	while (*(COPY_UCS2_CHAR(&cp,s))) {
-		smb_ucs2_t v = toupper_m(cp);
+		smb_ucs2_t v = toupper_w(cp);
 		if (v != cp) {
 			COPY_UCS2_CHAR(s,&v);
 			ret = True;
@@ -334,11 +542,11 @@ int strcasecmp_w(const smb_ucs2_t *a, const smb_ucs2_t *b)
 {
 	smb_ucs2_t cpa, cpb;
 
-	while ((*COPY_UCS2_CHAR(&cpb,b)) && toupper_m(*(COPY_UCS2_CHAR(&cpa,a))) == toupper_m(cpb)) {
+	while ((*COPY_UCS2_CHAR(&cpb,b)) && toupper_w(*(COPY_UCS2_CHAR(&cpa,a))) == toupper_w(cpb)) {
 		a++;
 		b++;
 	}
-	return (tolower_m(*(COPY_UCS2_CHAR(&cpa,a))) - tolower_m(*(COPY_UCS2_CHAR(&cpb,b))));
+	return (tolower_w(*(COPY_UCS2_CHAR(&cpa,a))) - tolower_w(*(COPY_UCS2_CHAR(&cpb,b))));
 }
 
 /*******************************************************************
@@ -350,12 +558,12 @@ int strncasecmp_w(const smb_ucs2_t *a, const smb_ucs2_t *b, size_t len)
 	smb_ucs2_t cpa, cpb;
 	size_t n = 0;
 
-	while ((n < len) && *COPY_UCS2_CHAR(&cpb,b) && (toupper_m(*(COPY_UCS2_CHAR(&cpa,a))) == toupper_m(cpb))) {
+	while ((n < len) && *COPY_UCS2_CHAR(&cpb,b) && (toupper_w(*(COPY_UCS2_CHAR(&cpa,a))) == toupper_w(cpb))) {
 		a++;
 		b++;
 		n++;
 	}
-	return (len - n)?(tolower_m(*(COPY_UCS2_CHAR(&cpa,a))) - tolower_m(*(COPY_UCS2_CHAR(&cpb,b)))):0;
+	return (len - n)?(tolower_w(*(COPY_UCS2_CHAR(&cpa,a))) - tolower_w(*(COPY_UCS2_CHAR(&cpb,b)))):0;
 }
 
 /*******************************************************************
@@ -613,7 +821,7 @@ smb_ucs2_t *strstr_wa(const smb_ucs2_t *s, const char *ins)
 
 int toupper_ascii(int c)
 {
-	smb_ucs2_t uc = toupper_m(UCS2_CHAR(c));
+	smb_ucs2_t uc = toupper_w(UCS2_CHAR(c));
 	return UCS2_TO_CHAR(uc);
 }
 
@@ -623,7 +831,7 @@ int toupper_ascii(int c)
 
 int tolower_ascii(int c)
 {
-	smb_ucs2_t uc = tolower_m(UCS2_CHAR(c));
+	smb_ucs2_t uc = tolower_w(UCS2_CHAR(c));
 	return UCS2_TO_CHAR(uc);
 }
 
@@ -633,7 +841,7 @@ int tolower_ascii(int c)
 
 int isupper_ascii(int c)
 {
-	return isupper_m(UCS2_CHAR(c));
+	return isupper_w(UCS2_CHAR(c));
 }
 
 /*************************************************************
@@ -642,5 +850,5 @@ int isupper_ascii(int c)
 
 int islower_ascii(int c)
 {
-	return islower_m(UCS2_CHAR(c));
+	return islower_w(UCS2_CHAR(c));
 }

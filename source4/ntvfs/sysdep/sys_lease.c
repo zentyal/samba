@@ -107,11 +107,15 @@ _PUBLIC_ NTSTATUS sys_lease_register(const struct sys_lease_ops *backend)
 	return NT_STATUS_OK;
 }
 
+#ifndef STATIC_sys_lease_MODULES 
+#define STATIC_sys_lease_MODULES NULL
+#endif
+
 _PUBLIC_ NTSTATUS sys_lease_init(void)
 {
 	static bool initialized = false;
-#define _MODULE_PROTO(init) extern NTSTATUS init(void);
-	STATIC_sys_lease_MODULES_PROTO;
+	extern NTSTATUS sys_lease_linux_init(void);
+
 	init_module_fn static_init[] = { STATIC_sys_lease_MODULES };
 
 	if (initialized) return NT_STATUS_OK;

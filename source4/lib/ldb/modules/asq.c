@@ -32,9 +32,6 @@
  *  Author: Simo Sorce
  */
 
-#include "replace.h"
-#include "system/filesys.h"
-#include "system/time.h"
 #include "ldb_module.h"
 
 struct asq_context {
@@ -58,8 +55,8 @@ struct asq_context {
 	struct ldb_reply *base_res;
 
 	struct ldb_request **reqs;
-	unsigned int num_reqs;
-	unsigned int cur_req;
+	int num_reqs;
+	int cur_req;
 
 	struct ldb_control **controls;
 };
@@ -88,7 +85,7 @@ static int asq_search_continue(struct asq_context *ac);
 static int asq_search_terminate(struct asq_context *ac)
 {
 	struct ldb_asq_control *asq;
-	unsigned int i;
+	int i;
 
 	if (ac->controls) {
 		for (i = 0; ac->controls[i]; i++) /* count em */ ;
@@ -240,7 +237,7 @@ static int asq_build_first_request(struct asq_context *ac, struct ldb_request **
 					ac, asq_base_callback,
 					ac->req);
 	if (ret != LDB_SUCCESS) {
-		return ret;
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
 	return LDB_SUCCESS;
@@ -253,8 +250,7 @@ static int asq_build_multiple_requests(struct asq_context *ac, bool *terminated)
 	struct ldb_control *control;
 	struct ldb_dn *dn;
 	struct ldb_message_element *el;
-	unsigned int i;
-	int ret;
+	int ret, i;
 
 	if (ac->base_res == NULL) {
 		return LDB_ERR_NO_SUCH_OBJECT;
@@ -296,12 +292,12 @@ static int asq_build_multiple_requests(struct asq_context *ac, bool *terminated)
 						ac, asq_reqs_callback,
 						ac->req);
 		if (ret != LDB_SUCCESS) {
-			return ret;
+			return LDB_ERR_OPERATIONS_ERROR;
 		}
 
 		/* remove the ASQ control itself */
 		control = ldb_request_get_control(ac->req, LDB_CONTROL_ASQ_OID);
-		if (!ldb_save_controls(control, ac->reqs[i], &saved_controls)) {
+		if (!save_controls(control, ac->reqs[i], &saved_controls)) {
 			return LDB_ERR_OPERATIONS_ERROR;
 		}
 	}
@@ -403,14 +399,8 @@ static int asq_init(struct ldb_module *module)
 	return ldb_next_init(module);
 }
 
-static const struct ldb_module_ops ldb_asq_module_ops = {
+const struct ldb_module_ops ldb_asq_module_ops = {
 	.name		   = "asq",
 	.search		   = asq_search,
 	.init_context	   = asq_init
 };
-
-int ldb_asq_init(const char *version)
-{
-	LDB_MODULE_CHECK_VERSION(version);
-	return ldb_register_module(&ldb_asq_module_ops);
-}

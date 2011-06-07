@@ -46,7 +46,7 @@ struct hx509_request_data {
  */
 
 int
-hx509_request_init(hx509_context context, hx509_request *req)
+_hx509_request_init(hx509_context context, hx509_request *req)
 {
     *req = calloc(1, sizeof(**req));
     if (*req == NULL)
@@ -56,7 +56,7 @@ hx509_request_init(hx509_context context, hx509_request *req)
 }
 
 void
-hx509_request_free(hx509_request *req)
+_hx509_request_free(hx509_request *req)
 {
     if ((*req)->name)
 	hx509_name_free(&(*req)->name);
@@ -69,7 +69,7 @@ hx509_request_free(hx509_request *req)
 }
 
 int
-hx509_request_set_name(hx509_context context,
+_hx509_request_set_name(hx509_context context,
 			hx509_request req,
 			hx509_name name)
 {
@@ -84,7 +84,7 @@ hx509_request_set_name(hx509_context context,
 }
 
 int
-hx509_request_get_name(hx509_context context,
+_hx509_request_get_name(hx509_context context,
 			hx509_request req,
 			hx509_name *name)
 {
@@ -96,7 +96,7 @@ hx509_request_get_name(hx509_context context,
 }
 
 int
-hx509_request_set_SubjectPublicKeyInfo(hx509_context context,
+_hx509_request_set_SubjectPublicKeyInfo(hx509_context context,
 					hx509_request req,
 					const SubjectPublicKeyInfo *key)
 {
@@ -105,7 +105,7 @@ hx509_request_set_SubjectPublicKeyInfo(hx509_context context,
 }
 
 int
-hx509_request_get_SubjectPublicKeyInfo(hx509_context context,
+_hx509_request_get_SubjectPublicKeyInfo(hx509_context context,
 					hx509_request req,
 					SubjectPublicKeyInfo *key)
 {
@@ -143,8 +143,7 @@ _hx509_request_add_dns_name(hx509_context context,
 
     memset(&name, 0, sizeof(name));
     name.element = choice_GeneralName_dNSName;
-    name.u.dNSName.data = rk_UNCONST(hostname);
-    name.u.dNSName.length = strlen(hostname);
+    name.u.dNSName = rk_UNCONST(hostname);
 
     return add_GeneralNames(&req->san, &name);
 }
@@ -158,8 +157,7 @@ _hx509_request_add_email(hx509_context context,
 
     memset(&name, 0, sizeof(name));
     name.element = choice_GeneralName_rfc822Name;
-    name.u.dNSName.data = rk_UNCONST(email);
-    name.u.dNSName.length = strlen(email);
+    name.u.dNSName = rk_UNCONST(email);
 
     return add_GeneralNames(&req->san, &name);
 }
@@ -271,7 +269,7 @@ _hx509_request_parse(hx509_context context,
 	return ret;
     }
 
-    ret = hx509_request_init(context, req);
+    ret = _hx509_request_init(context, req);
     if (ret) {
 	free_CertificationRequest(&r);
 	return ret;
@@ -279,25 +277,25 @@ _hx509_request_parse(hx509_context context,
 
     rinfo = &r.certificationRequestInfo;
 
-    ret = hx509_request_set_SubjectPublicKeyInfo(context, *req,
+    ret = _hx509_request_set_SubjectPublicKeyInfo(context, *req,
 						  &rinfo->subjectPKInfo);
     if (ret) {
 	free_CertificationRequest(&r);
-	hx509_request_free(req);
+	_hx509_request_free(req);
 	return ret;
     }
 
     ret = _hx509_name_from_Name(&rinfo->subject, &subject);
     if (ret) {
 	free_CertificationRequest(&r);
-	hx509_request_free(req);
+	_hx509_request_free(req);
 	return ret;
     }
-    ret = hx509_request_set_name(context, *req, subject);
+    ret = _hx509_request_set_name(context, *req, subject);
     hx509_name_free(&subject);
     free_CertificationRequest(&r);
     if (ret) {
-	hx509_request_free(req);
+	_hx509_request_free(req);
 	return ret;
     }
 

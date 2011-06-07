@@ -91,7 +91,7 @@ doit (int af,
  *
  */
 
-ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
+int ROKEN_LIB_FUNCTION
 getnameinfo(const struct sockaddr *sa, socklen_t salen,
 	    char *host, size_t hostlen,
 	    char *serv, size_t servlen,

@@ -86,7 +86,8 @@ static void winbindd_lookupname_done(struct tevent_req *subreq)
 
 	status = wb_lookupname_recv(subreq, &state->sid, &state->type);
 	TALLOC_FREE(subreq);
-	if (tevent_req_nterror(req, status)) {
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
 		return;
 	}
 	tevent_req_done(req);

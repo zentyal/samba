@@ -296,8 +296,8 @@ static int convert_un_in(const struct sockaddr_un *un, struct sockaddr *in, sock
 	switch(type) {
 	case SOCKET_TYPE_CHAR_TCP:
 	case SOCKET_TYPE_CHAR_UDP: {
-		struct sockaddr_in *in2 = (struct sockaddr_in *)(void *)in;
-
+		struct sockaddr_in *in2 = (struct sockaddr_in *)in;
+		
 		if ((*len) < sizeof(*in2)) {
 		    errno = EINVAL;
 		    return -1;
@@ -314,8 +314,8 @@ static int convert_un_in(const struct sockaddr_un *un, struct sockaddr *in, sock
 #ifdef HAVE_IPV6
 	case SOCKET_TYPE_CHAR_TCP_V6:
 	case SOCKET_TYPE_CHAR_UDP_V6: {
-		struct sockaddr_in6 *in2 = (struct sockaddr_in6 *)(void *)in;
-
+		struct sockaddr_in6 *in2 = (struct sockaddr_in6 *)in;
+		
 		if ((*len) < sizeof(*in2)) {
 			errno = EINVAL;
 			return -1;
@@ -352,7 +352,7 @@ static int convert_in_un_remote(struct socket_info *si, const struct sockaddr *i
 	switch (inaddr->sa_family) {
 	case AF_INET: {
 		const struct sockaddr_in *in = 
-		    (const struct sockaddr_in *)(const void *)inaddr;
+		    (const struct sockaddr_in *)inaddr;
 		unsigned int addr = ntohl(in->sin_addr.s_addr);
 		char u_type = '\0';
 		char b_type = '\0';
@@ -395,8 +395,8 @@ static int convert_in_un_remote(struct socket_info *si, const struct sockaddr *i
 #ifdef HAVE_IPV6
 	case AF_INET6: {
 		const struct sockaddr_in6 *in = 
-		    (const struct sockaddr_in6 *)(const void *)inaddr;
-		struct in6_addr cmp1, cmp2;
+		    (const struct sockaddr_in6 *)inaddr;
+		struct in6_addr cmp;
 
 		switch (si->type) {
 		case SOCK_STREAM:
@@ -411,10 +411,9 @@ static int convert_in_un_remote(struct socket_info *si, const struct sockaddr *i
 
 		prt = ntohs(in->sin6_port);
 
-		cmp1 = *swrap_ipv6();
-		cmp2 = in->sin6_addr;
-		cmp2.s6_addr[15] = 0;
-		if (IN6_ARE_ADDR_EQUAL(&cmp1, &cmp2)) {
+		cmp = in->sin6_addr;
+		cmp.s6_addr[15] = 0;
+		if (IN6_ARE_ADDR_EQUAL(swrap_ipv6(), &cmp)) {
 			iface = in->sin6_addr.s6_addr[15];
 		} else {
 			errno = ENETUNREACH;
@@ -461,7 +460,7 @@ static int convert_in_un_alloc(struct socket_info *si, const struct sockaddr *in
 	switch (si->family) {
 	case AF_INET: {
 		const struct sockaddr_in *in = 
-		    (const struct sockaddr_in *)(const void *)inaddr;
+		    (const struct sockaddr_in *)inaddr;
 		unsigned int addr = ntohl(in->sin_addr.s_addr);
 		char u_type = '\0';
 		char d_type = '\0';
@@ -512,8 +511,8 @@ static int convert_in_un_alloc(struct socket_info *si, const struct sockaddr *in
 #ifdef HAVE_IPV6
 	case AF_INET6: {
 		const struct sockaddr_in6 *in = 
-		    (const struct sockaddr_in6 *)(const void *)inaddr;
-		struct in6_addr cmp1, cmp2;
+		    (const struct sockaddr_in6 *)inaddr;
+		struct in6_addr cmp;
 
 		switch (si->type) {
 		case SOCK_STREAM:
@@ -528,12 +527,11 @@ static int convert_in_un_alloc(struct socket_info *si, const struct sockaddr *in
 
 		prt = ntohs(in->sin6_port);
 
-		cmp1 = *swrap_ipv6();
-		cmp2 = in->sin6_addr;
-		cmp2.s6_addr[15] = 0;
+		cmp = in->sin6_addr;
+		cmp.s6_addr[15] = 0;
 		if (IN6_IS_ADDR_UNSPECIFIED(&in->sin6_addr)) {
 			iface = socket_wrapper_default_iface();
-		} else if (IN6_ARE_ADDR_EQUAL(&cmp1, &cmp2)) {
+		} else if (IN6_ARE_ADDR_EQUAL(swrap_ipv6(), &cmp)) {
 			iface = in->sin6_addr.s6_addr[15];
 		} else {
 			errno = EADDRNOTAVAIL;
@@ -586,14 +584,10 @@ static struct socket_info *find_socket_info(int fd)
 static int sockaddr_convert_to_un(struct socket_info *si, const struct sockaddr *in_addr, socklen_t in_len, 
 				  struct sockaddr_un *out_addr, int alloc_sock, int *bcast)
 {
-	struct sockaddr *out = (struct sockaddr *)(void *)out_addr;
 	if (!out_addr)
 		return 0;
 
-	out->sa_family = AF_UNIX;
-#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
-	out->sa_len = sizeof(*out_addr);
-#endif
+	out_addr->sun_family = AF_UNIX;
 
 	switch (in_addr->sa_family) {
 	case AF_INET:
@@ -616,7 +610,7 @@ static int sockaddr_convert_to_un(struct socket_info *si, const struct sockaddr 
 	default:
 		break;
 	}
-
+	
 	errno = EAFNOSUPPORT;
 	return -1;
 }
@@ -628,8 +622,6 @@ static int sockaddr_convert_from_un(const struct socket_info *si,
 				    struct sockaddr *out_addr,
 				    socklen_t *out_addrlen)
 {
-	int ret;
-
 	if (out_addr == NULL || out_addrlen == NULL) 
 		return 0;
 
@@ -651,11 +643,7 @@ static int sockaddr_convert_from_un(const struct socket_info *si,
 			errno = ESOCKTNOSUPPORT;
 			return -1;
 		}
-		ret = convert_un_in(in_addr, out_addr, out_addrlen);
-#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
-		out_addr->sa_len = *out_addrlen;
-#endif
-		return ret;
+		return convert_un_in(in_addr, out_addr, out_addrlen);
 	default:
 		break;
 	}
@@ -971,7 +959,7 @@ static uint8_t *swrap_packet_init(struct timeval *tval,
 		ip->v6.ver_prio		= 0x60; /* version 4 and 5 * 32 bit words */
 		ip->v6.flow_label_high	= 0x00;
 		ip->v6.flow_label_low	= 0x0000;
-		ip->v6.payload_length	= htons(wire_len - icmp_truncate_len); /* TODO */
+		ip->v6.payload_length	= htons(wire_len - icmp_truncate_len);//TODO
 		ip->v6.next_header	= protocol;
 		memcpy(ip->v6.src_addr, src_in6->sin6_addr.s6_addr, 16);
 		memcpy(ip->v6.dest_addr, dest_in6->sin6_addr.s6_addr, 16);
@@ -1021,7 +1009,7 @@ static uint8_t *swrap_packet_init(struct timeval *tval,
 			ip->v6.ver_prio		= 0x60; /* version 4 and 5 * 32 bit words */
 			ip->v6.flow_label_high	= 0x00;
 			ip->v6.flow_label_low	= 0x0000;
-			ip->v6.payload_length	= htons(wire_len - icmp_truncate_len); /* TODO */
+			ip->v6.payload_length	= htons(wire_len - icmp_truncate_len);//TODO
 			ip->v6.next_header	= protocol;
 			memcpy(ip->v6.src_addr, dest_in6->sin6_addr.s6_addr, 16);
 			memcpy(ip->v6.dest_addr, src_in6->sin6_addr.s6_addr, 16);
@@ -1506,7 +1494,7 @@ _PUBLIC_ int swrap_accept(int s, struct sockaddr *addr, socklen_t *addrlen)
 	memset(&un_addr, 0, sizeof(un_addr));
 	memset(&un_my_addr, 0, sizeof(un_my_addr));
 
-	ret = real_accept(s, (struct sockaddr *)(void *)&un_addr, &un_addrlen);
+	ret = real_accept(s, (struct sockaddr *)&un_addr, &un_addrlen);
 	if (ret == -1) {
 		free(my_addr);
 		return ret;
@@ -1538,15 +1526,13 @@ _PUBLIC_ int swrap_accept(int s, struct sockaddr *addr, socklen_t *addrlen)
 	child_si->peername = sockaddr_dup(my_addr, len);
 
 	if (addr != NULL && addrlen != NULL) {
-		size_t copy_len = MIN(*addrlen, len);
-		if (copy_len > 0) {
-			memcpy(addr, my_addr, copy_len);
-		}
-		*addrlen = len;
+	    *addrlen = len;
+	    if (*addrlen >= len)
+		memcpy(addr, my_addr, len);
+	    *addrlen = 0;
 	}
 
-	ret = real_getsockname(fd, (struct sockaddr *)(void *)&un_my_addr,
-			       &un_my_addrlen);
+	ret = real_getsockname(fd, (struct sockaddr *)&un_my_addr, &un_my_addrlen);
 	if (ret == -1) {
 		free(child_si);
 		close(fd);
@@ -1673,9 +1659,8 @@ static int swrap_auto_bind(struct socket_info *si, int family)
 			 "%s/"SOCKET_FORMAT, socket_wrapper_dir(),
 			 type, socket_wrapper_default_iface(), port);
 		if (stat(un_addr.sun_path, &st) == 0) continue;
-
-		ret = real_bind(si->fd, (struct sockaddr *)(void *)&un_addr,
-				sizeof(un_addr));
+		
+		ret = real_bind(si->fd, (struct sockaddr *)&un_addr, sizeof(un_addr));
 		if (ret == -1) return ret;
 
 		si->tmp_path = strdup(un_addr.sun_path);
@@ -1700,7 +1685,6 @@ _PUBLIC_ int swrap_connect(int s, const struct sockaddr *serv_addr, socklen_t ad
 	int ret;
 	struct sockaddr_un un_addr;
 	struct socket_info *si = find_socket_info(s);
-	int bcast = 0;
 
 	if (!si) {
 		return real_connect(s, serv_addr, addrlen);
@@ -1716,14 +1700,8 @@ _PUBLIC_ int swrap_connect(int s, const struct sockaddr *serv_addr, socklen_t ad
 		return -1;
 	}
 
-	ret = sockaddr_convert_to_un(si, serv_addr,
-				     addrlen, &un_addr, 0, &bcast);
+	ret = sockaddr_convert_to_un(si, (const struct sockaddr *)serv_addr, addrlen, &un_addr, 0, NULL);
 	if (ret == -1) return -1;
-
-	if (bcast) {
-		errno = ENETUNREACH;
-		return -1;
-	}
 
 	if (si->type == SOCK_DGRAM) {
 		si->defer_connect = 1;
@@ -1731,7 +1709,7 @@ _PUBLIC_ int swrap_connect(int s, const struct sockaddr *serv_addr, socklen_t ad
 	} else {
 		swrap_dump_packet(si, serv_addr, SWRAP_CONNECT_SEND, NULL, 0);
 
-		ret = real_connect(s, (struct sockaddr *)(void *)&un_addr,
+		ret = real_connect(s, (struct sockaddr *)&un_addr,
 				   sizeof(struct sockaddr_un));
 	}
 
@@ -1767,12 +1745,12 @@ _PUBLIC_ int swrap_bind(int s, const struct sockaddr *myaddr, socklen_t addrlen)
 	si->myname_len = addrlen;
 	si->myname = sockaddr_dup(myaddr, addrlen);
 
-	ret = sockaddr_convert_to_un(si, myaddr, addrlen, &un_addr, 1, &si->bcast);
+	ret = sockaddr_convert_to_un(si, (const struct sockaddr *)myaddr, addrlen, &un_addr, 1, &si->bcast);
 	if (ret == -1) return -1;
 
 	unlink(un_addr.sun_path);
 
-	ret = real_bind(s, (struct sockaddr *)(void *)&un_addr,
+	ret = real_bind(s, (struct sockaddr *)&un_addr,
 			sizeof(struct sockaddr_un));
 
 	if (ret == 0) {
@@ -1871,6 +1849,147 @@ _PUBLIC_ int swrap_setsockopt(int s, int  level,  int  optname,  const  void  *o
 	}
 }
 
+_PUBLIC_ ssize_t swrap_recvfrom(int s, void *buf, size_t len, int flags, struct sockaddr *from, socklen_t *fromlen)
+{
+	struct sockaddr_un un_addr;
+	socklen_t un_addrlen = sizeof(un_addr);
+	int ret;
+	struct socket_info *si = find_socket_info(s);
+	struct sockaddr_storage ss;
+	socklen_t ss_len = sizeof(ss);
+
+	if (!si) {
+		return real_recvfrom(s, buf, len, flags, from, fromlen);
+	}
+
+	if (!from) {
+		from = (struct sockaddr *)&ss;
+		fromlen = &ss_len;
+	}
+
+	if (si->type == SOCK_STREAM) {
+		/* cut down to 1500 byte packets for stream sockets,
+		 * which makes it easier to format PCAP capture files
+		 * (as the caller will simply continue from here) */
+		len = MIN(len, 1500);
+	}
+
+	/* irix 6.4 forgets to null terminate the sun_path string :-( */
+	memset(&un_addr, 0, sizeof(un_addr));
+	ret = real_recvfrom(s, buf, len, flags, (struct sockaddr *)&un_addr, &un_addrlen);
+	if (ret == -1) 
+		return ret;
+
+	if (sockaddr_convert_from_un(si, &un_addr, un_addrlen,
+				     si->family, from, fromlen) == -1) {
+		return -1;
+	}
+
+	swrap_dump_packet(si, from, SWRAP_RECVFROM, buf, ret);
+
+	return ret;
+}
+
+
+_PUBLIC_ ssize_t swrap_sendto(int s, const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen)
+{
+	struct sockaddr_un un_addr;
+	int ret;
+	struct socket_info *si = find_socket_info(s);
+	int bcast = 0;
+
+	if (!si) {
+		return real_sendto(s, buf, len, flags, to, tolen);
+	}
+
+	if (si->connected) {
+		if (to) {
+			errno = EISCONN;
+			return -1;
+		}
+
+		to = si->peername;
+		tolen = si->peername_len;
+	}
+
+	switch (si->type) {
+	case SOCK_STREAM:
+		/* cut down to 1500 byte packets for stream sockets,
+		 * which makes it easier to format PCAP capture files
+		 * (as the caller will simply continue from here) */
+		len = MIN(len, 1500);
+	
+		ret = real_send(s, buf, len, flags);
+		break;
+	case SOCK_DGRAM:
+		if (si->bound == 0) {
+			ret = swrap_auto_bind(si, si->family);
+			if (ret == -1) return -1;
+		}
+		
+		ret = sockaddr_convert_to_un(si, to, tolen, &un_addr, 0, &bcast);
+		if (ret == -1) return -1;
+		
+		if (bcast) {
+			struct stat st;
+			unsigned int iface;
+			unsigned int prt = ntohs(((const struct sockaddr_in *)to)->sin_port);
+			char type;
+			
+			type = SOCKET_TYPE_CHAR_UDP;
+			
+			for(iface=0; iface <= MAX_WRAPPED_INTERFACES; iface++) {
+				snprintf(un_addr.sun_path, sizeof(un_addr.sun_path), "%s/"SOCKET_FORMAT, 
+					 socket_wrapper_dir(), type, iface, prt);
+				if (stat(un_addr.sun_path, &st) != 0) continue;
+				
+				/* ignore the any errors in broadcast sends */
+				real_sendto(s, buf, len, flags, (struct sockaddr *)&un_addr, sizeof(un_addr));
+			}
+			
+			swrap_dump_packet(si, to, SWRAP_SENDTO, buf, len);
+			
+			return len;
+		}
+
+		if (si->defer_connect) {
+			ret = real_connect(s, (struct sockaddr *)&un_addr,
+					   sizeof(un_addr));
+
+			/* to give better errors */
+			if (ret == -1 && errno == ENOENT) {
+				errno = EHOSTUNREACH;
+			}
+
+			if (ret == -1) {
+				return ret;
+			}
+			si->defer_connect = 0;
+		}
+
+		ret = real_sendto(s, buf, len, flags, (struct sockaddr *)&un_addr, sizeof(un_addr));
+		break;
+	default:
+		ret = -1;
+		errno = EHOSTUNREACH;
+		break;
+	}
+		
+	/* to give better errors */
+	if (ret == -1 && errno == ENOENT) {
+		errno = EHOSTUNREACH;
+	}
+
+	if (ret == -1) {
+		swrap_dump_packet(si, to, SWRAP_SENDTO, buf, len);
+		swrap_dump_packet(si, to, SWRAP_SENDTO_UNREACH, buf, len);
+	} else {
+		swrap_dump_packet(si, to, SWRAP_SENDTO, buf, ret);
+	}
+
+	return ret;
+}
+
 _PUBLIC_ int swrap_ioctl(int s, int r, void *p)
 {
 	int ret;
@@ -1893,305 +2012,6 @@ _PUBLIC_ int swrap_ioctl(int s, int r, void *p)
 		}
 		break;
 	}
-
-	return ret;
-}
-
-static ssize_t swrap_sendmsg_before(struct socket_info *si,
-				    struct msghdr *msg,
-				    struct iovec *tmp_iov,
-				    struct sockaddr_un *tmp_un,
-				    const struct sockaddr_un **to_un,
-				    const struct sockaddr **to,
-				    int *bcast)
-{
-	size_t i, len = 0;
-	ssize_t ret;
-
-	if (to_un) {
-		*to_un = NULL;
-	}
-	if (to) {
-		*to = NULL;
-	}
-	if (bcast) {
-		*bcast = 0;
-	}
-
-	switch (si->type) {
-	case SOCK_STREAM:
-		if (!si->connected) {
-			errno = ENOTCONN;
-			return -1;
-		}
-
-		if (msg->msg_iovlen == 0) {
-			break;
-		}
-
-		/*
-		 * cut down to 1500 byte packets for stream sockets,
-		 * which makes it easier to format PCAP capture files
-		 * (as the caller will simply continue from here)
-		 */
-
-		for (i=0; i < msg->msg_iovlen; i++) {
-			size_t nlen;
-			nlen = len + msg->msg_iov[i].iov_len;
-			if (nlen > 1500) {
-				break;
-			}
-		}
-		msg->msg_iovlen = i;
-		if (msg->msg_iovlen == 0) {
-			*tmp_iov = msg->msg_iov[0];
-			tmp_iov->iov_len = MIN(tmp_iov->iov_len, 1500);
-			msg->msg_iov = tmp_iov;
-			msg->msg_iovlen = 1;
-		}
-		break;
-
-	case SOCK_DGRAM:
-		if (si->connected) {
-			if (msg->msg_name) {
-				errno = EISCONN;
-				return -1;
-			}
-		} else {
-			const struct sockaddr *msg_name;
-			msg_name = (const struct sockaddr *)msg->msg_name;
-
-			if (msg_name == NULL) {
-				errno = ENOTCONN;
-				return -1;
-			}
-
-
-			ret = sockaddr_convert_to_un(si, msg_name, msg->msg_namelen,
-						     tmp_un, 0, bcast);
-			if (ret == -1) return -1;
-
-			if (to_un) {
-				*to_un = tmp_un;
-			}
-			if (to) {
-				*to = msg_name;
-			}
-			msg->msg_name = tmp_un;
-			msg->msg_namelen = sizeof(*tmp_un);
-		}
-
-		if (si->bound == 0) {
-			ret = swrap_auto_bind(si, si->family);
-			if (ret == -1) return -1;
-		}
-
-		if (!si->defer_connect) {
-			break;
-		}
-
-		ret = sockaddr_convert_to_un(si, si->peername, si->peername_len,
-					     tmp_un, 0, NULL);
-		if (ret == -1) return -1;
-
-		ret = real_connect(si->fd, (struct sockaddr *)(void *)tmp_un,
-				   sizeof(*tmp_un));
-
-		/* to give better errors */
-		if (ret == -1 && errno == ENOENT) {
-			errno = EHOSTUNREACH;
-		}
-
-		if (ret == -1) {
-			return ret;
-		}
-
-		si->defer_connect = 0;
-		break;
-	default:
-		errno = EHOSTUNREACH;
-		return -1;
-	}
-
-	return 0;
-}
-
-static void swrap_sendmsg_after(struct socket_info *si,
-				struct msghdr *msg,
-				const struct sockaddr *to,
-				ssize_t ret)
-{
-	int saved_errno = errno;
-	size_t i, len = 0;
-	uint8_t *buf;
-	off_t ofs = 0;
-	size_t avail = 0;
-	size_t remain;
-
-	/* to give better errors */
-	if (ret == -1 && saved_errno == ENOENT) {
-		saved_errno = EHOSTUNREACH;
-	}
-
-	for (i=0; i < msg->msg_iovlen; i++) {
-		avail += msg->msg_iov[i].iov_len;
-	}
-
-	if (ret == -1) {
-		remain = MIN(80, avail);
-	} else {
-		remain = ret;
-	}
-
-	/* we capture it as one single packet */
-	buf = (uint8_t *)malloc(remain);
-	if (!buf) {
-		/* we just not capture the packet */
-		errno = saved_errno;
-		return;
-	}
-
-	for (i=0; i < msg->msg_iovlen; i++) {
-		size_t this_time = MIN(remain, msg->msg_iov[i].iov_len);
-		memcpy(buf + ofs,
-		       msg->msg_iov[i].iov_base,
-		       this_time);
-		ofs += this_time;
-		remain -= this_time;
-	}
-	len = ofs;
-
-	switch (si->type) {
-	case SOCK_STREAM:
-		if (ret == -1) {
-			swrap_dump_packet(si, NULL, SWRAP_SEND, buf, len);
-			swrap_dump_packet(si, NULL, SWRAP_SEND_RST, NULL, 0);
-		} else {
-			swrap_dump_packet(si, NULL, SWRAP_SEND, buf, len);
-		}
-		break;
-
-	case SOCK_DGRAM:
-		if (si->connected) {
-			to = si->peername;
-		}
-		if (ret == -1) {
-			swrap_dump_packet(si, to, SWRAP_SENDTO, buf, len);
-			swrap_dump_packet(si, to, SWRAP_SENDTO_UNREACH, buf, len);
-		} else {
-			swrap_dump_packet(si, to, SWRAP_SENDTO, buf, len);
-		}
-		break;
-	}
-
-	free(buf);
-	errno = saved_errno;
-}
-
-_PUBLIC_ ssize_t swrap_recvfrom(int s, void *buf, size_t len, int flags, struct sockaddr *from, socklen_t *fromlen)
-{
-	struct sockaddr_un un_addr;
-	socklen_t un_addrlen = sizeof(un_addr);
-	int ret;
-	struct socket_info *si = find_socket_info(s);
-	struct sockaddr_storage ss;
-	socklen_t ss_len = sizeof(ss);
-
-	if (!si) {
-		return real_recvfrom(s, buf, len, flags, from, fromlen);
-	}
-
-	if (!from) {
-		from = (struct sockaddr *)(void *)&ss;
-		fromlen = &ss_len;
-	}
-
-	if (si->type == SOCK_STREAM) {
-		/* cut down to 1500 byte packets for stream sockets,
-		 * which makes it easier to format PCAP capture files
-		 * (as the caller will simply continue from here) */
-		len = MIN(len, 1500);
-	}
-
-	/* irix 6.4 forgets to null terminate the sun_path string :-( */
-	memset(&un_addr, 0, sizeof(un_addr));
-	ret = real_recvfrom(s, buf, len, flags,
-			    (struct sockaddr *)(void *)&un_addr, &un_addrlen);
-	if (ret == -1) 
-		return ret;
-
-	if (sockaddr_convert_from_un(si, &un_addr, un_addrlen,
-				     si->family, from, fromlen) == -1) {
-		return -1;
-	}
-
-	swrap_dump_packet(si, from, SWRAP_RECVFROM, buf, ret);
-
-	return ret;
-}
-
-
-_PUBLIC_ ssize_t swrap_sendto(int s, const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen)
-{
-	struct msghdr msg;
-	struct iovec tmp;
-	struct sockaddr_un un_addr;
-	const struct sockaddr_un *to_un = NULL;
-	ssize_t ret;
-	struct socket_info *si = find_socket_info(s);
-	int bcast = 0;
-
-	if (!si) {
-		return real_sendto(s, buf, len, flags, to, tolen);
-	}
-
-	tmp.iov_base = discard_const_p(char, buf);
-	tmp.iov_len = len;
-
-	ZERO_STRUCT(msg);
-	msg.msg_name = discard_const_p(struct sockaddr, to); /* optional address */
-	msg.msg_namelen = tolen;       /* size of address */
-	msg.msg_iov = &tmp;            /* scatter/gather array */
-	msg.msg_iovlen = 1;            /* # elements in msg_iov */
-#if 0 /* not available on solaris */
-	msg.msg_control = NULL;        /* ancillary data, see below */
-	msg.msg_controllen = 0;        /* ancillary data buffer len */
-	msg.msg_flags = 0;             /* flags on received message */
-#endif
-
-	ret = swrap_sendmsg_before(si, &msg, &tmp, &un_addr, &to_un, &to, &bcast);
-	if (ret == -1) return -1;
-
-	buf = msg.msg_iov[0].iov_base;
-	len = msg.msg_iov[0].iov_len;
-
-	if (bcast) {
-		struct stat st;
-		unsigned int iface;
-		unsigned int prt = ntohs(((const struct sockaddr_in *)to)->sin_port);
-		char type;
-
-		type = SOCKET_TYPE_CHAR_UDP;
-
-		for(iface=0; iface <= MAX_WRAPPED_INTERFACES; iface++) {
-			snprintf(un_addr.sun_path, sizeof(un_addr.sun_path), "%s/"SOCKET_FORMAT,
-				 socket_wrapper_dir(), type, iface, prt);
-			if (stat(un_addr.sun_path, &st) != 0) continue;
-
-			/* ignore the any errors in broadcast sends */
-			real_sendto(s, buf, len, flags,
-				    (struct sockaddr *)(void *)&un_addr,
-				    sizeof(un_addr));
-		}
-
-		swrap_dump_packet(si, to, SWRAP_SENDTO, buf, len);
-
-		return len;
-	}
-
-	ret = real_sendto(s, buf, len, flags, msg.msg_name, msg.msg_namelen);
-
-	swrap_sendmsg_after(si, &msg, to, ret);
 
 	return ret;
 }
@@ -2255,132 +2075,125 @@ _PUBLIC_ ssize_t swrap_read(int s, void *buf, size_t len)
 
 _PUBLIC_ ssize_t swrap_send(int s, const void *buf, size_t len, int flags)
 {
-	struct msghdr msg;
-	struct iovec tmp;
-	struct sockaddr_un un_addr;
-	ssize_t ret;
+	int ret;
 	struct socket_info *si = find_socket_info(s);
 
 	if (!si) {
 		return real_send(s, buf, len, flags);
 	}
 
-	tmp.iov_base = discard_const_p(char, buf);
-	tmp.iov_len = len;
+	if (si->type == SOCK_STREAM) {
+		/* cut down to 1500 byte packets for stream sockets,
+		 * which makes it easier to format PCAP capture files
+		 * (as the caller will simply continue from here) */
+		len = MIN(len, 1500);
+	}
 
-	ZERO_STRUCT(msg);
-	msg.msg_name = NULL;           /* optional address */
-	msg.msg_namelen = 0;           /* size of address */
-	msg.msg_iov = &tmp;            /* scatter/gather array */
-	msg.msg_iovlen = 1;            /* # elements in msg_iov */
-#if 0 /* not available on solaris */
-	msg.msg_control = NULL;        /* ancillary data, see below */
-	msg.msg_controllen = 0;        /* ancillary data buffer len */
-	msg.msg_flags = 0;             /* flags on received message */
-#endif
+	if (si->defer_connect) {
+		struct sockaddr_un un_addr;
+		int bcast = 0;
 
-	ret = swrap_sendmsg_before(si, &msg, &tmp, &un_addr, NULL, NULL, NULL);
-	if (ret == -1) return -1;
+		if (si->bound == 0) {
+			ret = swrap_auto_bind(si, si->family);
+			if (ret == -1) return -1;
+		}
 
-	buf = msg.msg_iov[0].iov_base;
-	len = msg.msg_iov[0].iov_len;
+		ret = sockaddr_convert_to_un(si, si->peername, si->peername_len,
+					     &un_addr, 0, &bcast);
+		if (ret == -1) return -1;
+
+		ret = real_connect(s, (struct sockaddr *)&un_addr,
+				   sizeof(un_addr));
+
+		/* to give better errors */
+		if (ret == -1 && errno == ENOENT) {
+			errno = EHOSTUNREACH;
+		}
+
+		if (ret == -1) {
+			return ret;
+		}
+		si->defer_connect = 0;
+	}
 
 	ret = real_send(s, buf, len, flags);
 
-	swrap_sendmsg_after(si, &msg, NULL, ret);
+	if (ret == -1) {
+		swrap_dump_packet(si, NULL, SWRAP_SEND, buf, len);
+		swrap_dump_packet(si, NULL, SWRAP_SEND_RST, NULL, 0);
+	} else {
+		swrap_dump_packet(si, NULL, SWRAP_SEND, buf, ret);
+	}
 
 	return ret;
 }
 
-_PUBLIC_ ssize_t swrap_sendmsg(int s, const struct msghdr *omsg, int flags)
+_PUBLIC_ ssize_t swrap_sendmsg(int s, const struct msghdr *msg, int flags)
 {
-	struct msghdr msg;
-	struct iovec tmp;
-	struct sockaddr_un un_addr;
-	const struct sockaddr_un *to_un = NULL;
-	const struct sockaddr *to = NULL;
-	ssize_t ret;
+	int ret;
+	uint8_t *buf;
+	off_t ofs = 0;
+	size_t i;
+	size_t remain;
+	
 	struct socket_info *si = find_socket_info(s);
-	int bcast = 0;
 
 	if (!si) {
-		return real_sendmsg(s, omsg, flags);
+		return real_sendmsg(s, msg, flags);
 	}
 
-	tmp.iov_base = NULL;
-	tmp.iov_len = 0;
+	if (si->defer_connect) {
+		struct sockaddr_un un_addr;
+		int bcast = 0;
 
-	msg = *omsg;
-#if 0
-	msg.msg_name = omsg->msg_name;             /* optional address */
-	msg.msg_namelen = omsg->msg_namelen;       /* size of address */
-	msg.msg_iov = omsg->msg_iov;               /* scatter/gather array */
-	msg.msg_iovlen = omsg->msg_iovlen;         /* # elements in msg_iov */
-	/* the following is not available on solaris */
-	msg.msg_control = omsg->msg_control;       /* ancillary data, see below */
-	msg.msg_controllen = omsg->msg_controllen; /* ancillary data buffer len */
-	msg.msg_flags = omsg->msg_flags;           /* flags on received message */
-#endif
-
-	ret = swrap_sendmsg_before(si, &msg, &tmp, &un_addr, &to_un, &to, &bcast);
-	if (ret == -1) return -1;
-
-	if (bcast) {
-		struct stat st;
-		unsigned int iface;
-		unsigned int prt = ntohs(((const struct sockaddr_in *)to)->sin_port);
-		char type;
-		size_t i, len = 0;
-		uint8_t *buf;
-		off_t ofs = 0;
-		size_t avail = 0;
-		size_t remain;
-
-		for (i=0; i < msg.msg_iovlen; i++) {
-			avail += msg.msg_iov[i].iov_len;
+		if (si->bound == 0) {
+			ret = swrap_auto_bind(si, si->family);
+			if (ret == -1) return -1;
 		}
 
-		len = avail;
-		remain = avail;
+		ret = sockaddr_convert_to_un(si, si->peername, si->peername_len,
+					     &un_addr, 0, &bcast);
+		if (ret == -1) return -1;
 
-		/* we capture it as one single packet */
-		buf = (uint8_t *)malloc(remain);
-		if (!buf) {
-			return -1;
+		ret = real_connect(s, (struct sockaddr *)&un_addr,
+				   sizeof(un_addr));
+
+		/* to give better errors */
+		if (ret == -1 && errno == ENOENT) {
+			errno = EHOSTUNREACH;
 		}
 
-		for (i=0; i < msg.msg_iovlen; i++) {
-			size_t this_time = MIN(remain, msg.msg_iov[i].iov_len);
-			memcpy(buf + ofs,
-			       msg.msg_iov[i].iov_base,
-			       this_time);
-			ofs += this_time;
-			remain -= this_time;
+		if (ret == -1) {
+			return ret;
 		}
-
-		type = SOCKET_TYPE_CHAR_UDP;
-
-		for(iface=0; iface <= MAX_WRAPPED_INTERFACES; iface++) {
-			snprintf(un_addr.sun_path, sizeof(un_addr.sun_path), "%s/"SOCKET_FORMAT,
-				 socket_wrapper_dir(), type, iface, prt);
-			if (stat(un_addr.sun_path, &st) != 0) continue;
-
-			msg.msg_name = &un_addr;           /* optional address */
-			msg.msg_namelen = sizeof(un_addr); /* size of address */
-
-			/* ignore the any errors in broadcast sends */
-			real_sendmsg(s, &msg, flags);
-		}
-
-		swrap_dump_packet(si, to, SWRAP_SENDTO, buf, len);
-		free(buf);
-
-		return len;
+		si->defer_connect = 0;
 	}
 
-	ret = real_sendmsg(s, &msg, flags);
-
-	swrap_sendmsg_after(si, &msg, to, ret);
+	ret = real_sendmsg(s, msg, flags);
+	remain = ret;
+		
+	/* we capture it as one single packet */
+	buf = (uint8_t *)malloc(ret);
+	if (!buf) {
+		/* we just not capture the packet */
+		errno = 0;
+		return ret;
+	}
+	
+	for (i=0; i < msg->msg_iovlen; i++) {
+		size_t this_time = MIN(remain, msg->msg_iov[i].iov_len);
+		memcpy(buf + ofs,
+		       msg->msg_iov[i].iov_base,
+		       this_time);
+		ofs += this_time;
+		remain -= this_time;
+	}
+	
+	swrap_dump_packet(si, NULL, SWRAP_SEND, buf, ret);
+	free(buf);
+	if (ret == -1) {
+		swrap_dump_packet(si, NULL, SWRAP_SEND_RST, NULL, 0);
+	}
 
 	return ret;
 }
@@ -2395,17 +2208,12 @@ int swrap_readv(int s, const struct iovec *vector, size_t count)
 		return real_readv(s, vector, count);
 	}
 
-	if (!si->connected) {
-		errno = ENOTCONN;
-		return -1;
-	}
-
 	if (si->type == SOCK_STREAM && count > 0) {
 		/* cut down to 1500 byte packets for stream sockets,
 		 * which makes it easier to format PCAP capture files
 		 * (as the caller will simply continue from here) */
 		size_t i, len = 0;
-
+		
 		for (i=0; i < count; i++) {
 			size_t nlen;
 			nlen = len + vector[i].iov_len;
@@ -2459,36 +2267,65 @@ int swrap_readv(int s, const struct iovec *vector, size_t count)
 
 int swrap_writev(int s, const struct iovec *vector, size_t count)
 {
-	struct msghdr msg;
-	struct iovec tmp;
-	struct sockaddr_un un_addr;
-	ssize_t ret;
+	int ret;
 	struct socket_info *si = find_socket_info(s);
+	struct iovec v;
 
 	if (!si) {
 		return real_writev(s, vector, count);
 	}
 
-	tmp.iov_base = NULL;
-	tmp.iov_len = 0;
+	if (si->type == SOCK_STREAM && count > 0) {
+		/* cut down to 1500 byte packets for stream sockets,
+		 * which makes it easier to format PCAP capture files
+		 * (as the caller will simply continue from here) */
+		size_t i, len = 0;
 
-	ZERO_STRUCT(msg);
-	msg.msg_name = NULL;           /* optional address */
-	msg.msg_namelen = 0;           /* size of address */
-	msg.msg_iov = discard_const_p(struct iovec, vector); /* scatter/gather array */
-	msg.msg_iovlen = count;        /* # elements in msg_iov */
-#if 0 /* not available on solaris */
-	msg.msg_control = NULL;        /* ancillary data, see below */
-	msg.msg_controllen = 0;        /* ancillary data buffer len */
-	msg.msg_flags = 0;             /* flags on received message */
-#endif
+		for (i=0; i < count; i++) {
+			size_t nlen;
+			nlen = len + vector[i].iov_len;
+			if (nlen > 1500) {
+				break;
+			}
+		}
+		count = i;
+		if (count == 0) {
+			v = vector[0];
+			v.iov_len = MIN(v.iov_len, 1500);
+			vector = &v;
+			count = 1;
+		}
+	}
 
-	ret = swrap_sendmsg_before(si, &msg, &tmp, &un_addr, NULL, NULL, NULL);
-	if (ret == -1) return -1;
+	ret = real_writev(s, vector, count);
+	if (ret == -1) {
+		swrap_dump_packet(si, NULL, SWRAP_SEND_RST, NULL, 0);
+	} else {
+		uint8_t *buf;
+		off_t ofs = 0;
+		size_t i;
+		size_t remain = ret;
 
-	ret = real_writev(s, msg.msg_iov, msg.msg_iovlen);
+		/* we capture it as one single packet */
+		buf = (uint8_t *)malloc(ret);
+		if (!buf) {
+			/* we just not capture the packet */
+			errno = 0;
+			return ret;
+		}
 
-	swrap_sendmsg_after(si, &msg, NULL, ret);
+		for (i=0; i < count; i++) {
+			size_t this_time = MIN(remain, vector[i].iov_len);
+			memcpy(buf + ofs,
+			       vector[i].iov_base,
+			       this_time);
+			ofs += this_time;
+			remain -= this_time;
+		}
+
+		swrap_dump_packet(si, NULL, SWRAP_SEND, buf, ret);
+		free(buf);
+	}
 
 	return ret;
 }

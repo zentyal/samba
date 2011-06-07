@@ -18,11 +18,6 @@
 */
 
 #include "includes.h"
-#include "system/filesys.h"
-#include "torture/proto.h"
-#include "../libcli/security/security.h"
-#include "libsmb/libsmb.h"
-#include "libsmb/clirap.h"
 
 bool torture_utable(int dummy)
 {
@@ -43,7 +38,7 @@ bool torture_utable(int dummy)
 	memset(valid, 0, sizeof(valid));
 
 	cli_mkdir(cli, "\\utable");
-	cli_unlink(cli, "\\utable\\*", FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN);
+	cli_unlink(cli, "\\utable\\*", aSYSTEM | aHIDDEN);
 
 	for (c=1; c < 0x10000; c++) {
 		char *p;
@@ -73,7 +68,7 @@ bool torture_utable(int dummy)
 		}
 
 		cli_close(cli, fnum);
-		cli_unlink(cli, fname, FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN);
+		cli_unlink(cli, fname, aSYSTEM | aHIDDEN);
 
 		if (c % 100 == 0) {
 			printf("%d (%d/%d)\r", c, chars_allowed, alt_allowed);
@@ -136,7 +131,7 @@ bool torture_casetable(int dummy)
 
 	memset(equiv, 0, sizeof(equiv));
 
-	cli_unlink(cli, "\\utable\\*", FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN);
+	cli_unlink(cli, "\\utable\\*", aSYSTEM | aHIDDEN);
 	cli_rmdir(cli, "\\utable");
 	if (!NT_STATUS_IS_OK(cli_mkdir(cli, "\\utable"))) {
 		printf("Failed to create utable directory!\n");
@@ -162,11 +157,8 @@ bool torture_casetable(int dummy)
 
 		size = 0;
 
-		if (!NT_STATUS_IS_OK(cli_qfileinfo_basic(
-					     cli, fnum, NULL, &size,
-					     NULL, NULL, NULL, NULL, NULL))) {
-			continue;
-		}
+		if (!cli_qfileinfo(cli, fnum, NULL, &size, 
+				   NULL, NULL, NULL, NULL, NULL)) continue;
 
 		if (size > 0) {
 			/* found a character equivalence! */
@@ -190,12 +182,11 @@ bool torture_casetable(int dummy)
 			fflush(stdout);
 		}
 
-		cli_writeall(cli, fnum, 0, (uint8_t *)&c, size, sizeof(c),
-			     NULL);
+		cli_write(cli, fnum, 0, (char *)&c, size, sizeof(c));
 		cli_close(cli, fnum);
 	}
 
-	cli_unlink(cli, "\\utable\\*", FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN);
+	cli_unlink(cli, "\\utable\\*", aSYSTEM | aHIDDEN);
 	cli_rmdir(cli, "\\utable");
 
 	return True;

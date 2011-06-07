@@ -33,7 +33,7 @@ static WERROR preg_read_utf16(int fd, char *c)
 {
 	uint16_t v;
 
-	if (read(fd, &v, sizeof(uint16_t)) < sizeof(uint16_t)) {
+	if (read(fd, &v, 2) < 2) {
 		return WERR_GENERAL_FAILURE;
 	}
 	push_codepoint(c, v);
@@ -41,12 +41,13 @@ static WERROR preg_read_utf16(int fd, char *c)
 }
 static WERROR preg_write_utf16(int fd, const char *string)
 {
-	uint16_t v;
-	size_t i, size;
+	codepoint_t v;
+	uint16_t i;
+	size_t size;
 
 	for (i = 0; i < strlen(string); i+=size) {
 		v = next_codepoint(&string[i], &size);
-		if (write(fd, &v, sizeof(uint16_t)) < sizeof(uint16_t)) {
+		if (write(fd, &v, 2) < 2) {
 			return WERR_GENERAL_FAILURE;
 		}
 	}
@@ -87,26 +88,15 @@ static WERROR reg_preg_diff_del_key(void *_data, const char *key_name)
 	struct preg_data *data = (struct preg_data *)_data;
 	char *parent_name;
 	DATA_BLOB blob;
-	WERROR werr;
 
-	parent_name = talloc_strndup(data->ctx, key_name,
-				     strrchr(key_name, '\\')-key_name);
-	W_ERROR_HAVE_NO_MEMORY(parent_name);
-	blob.data = (uint8_t*)talloc_strndup(data->ctx,
-					     key_name+(strrchr(key_name, '\\')-key_name)+1,
-					     strlen(key_name)-(strrchr(key_name, '\\')-key_name));
-	W_ERROR_HAVE_NO_MEMORY(blob.data);
+	parent_name = talloc_strndup(data->ctx, key_name, strrchr(key_name, '\\')-key_name);
+	blob.data = (uint8_t *)talloc_strndup(data->ctx, key_name+(strrchr(key_name, '\\')-key_name)+1,
+			strlen(key_name)-(strrchr(key_name, '\\')-key_name));
 	blob.length = strlen((char *)blob.data)+1;
 	
 
 	/* FIXME: These values should be accumulated to be written at done(). */
-	werr = reg_preg_diff_set_value(data, parent_name, "**DeleteKeys",
-				       REG_SZ, blob);
-
-	talloc_free(parent_name);
-	talloc_free(blob.data);
-
-	return werr;
+	return reg_preg_diff_set_value(data, parent_name, "**DeleteKeys", REG_SZ, blob);
 }
 
 static WERROR reg_preg_diff_del_value(void *_data, const char *key_name,
@@ -115,40 +105,25 @@ static WERROR reg_preg_diff_del_value(void *_data, const char *key_name,
 	struct preg_data *data = (struct preg_data *)_data;
 	char *val;
 	DATA_BLOB blob;
-	WERROR werr;
 
 	val = talloc_asprintf(data->ctx, "**Del.%s", value_name);
-	W_ERROR_HAVE_NO_MEMORY(val);
+
 	blob.data = (uint8_t *)talloc(data->ctx, uint32_t);
-	W_ERROR_HAVE_NO_MEMORY(blob.data);
-	SIVAL(blob.data, 0, 0);
-	blob.length = sizeof(uint32_t);
-
-	werr = reg_preg_diff_set_value(data, key_name, val, REG_DWORD, blob);
-
-	talloc_free(val);
-	talloc_free(blob.data);
-
-	return werr;
+	*(uint32_t *)blob.data = 0;
+	blob.length = 4;
+	return reg_preg_diff_set_value(data, key_name, val, REG_DWORD, blob);
 }
 
 static WERROR reg_preg_diff_del_all_values(void *_data, const char *key_name)
 {
 	struct preg_data *data = (struct preg_data *)_data;
 	DATA_BLOB blob;
-	WERROR werr;
 
 	blob.data = (uint8_t *)talloc(data->ctx, uint32_t);
-	W_ERROR_HAVE_NO_MEMORY(blob.data);
-	SIVAL(blob.data, 0, 0);
-	blob.length = sizeof(uint32_t);
+	*(uint32_t *)blob.data = 0;	
+	blob.length = 4;
 
-	werr = reg_preg_diff_set_value(data, key_name, "**DelVals.", REG_DWORD,
-				       blob);
-
-	talloc_free(blob.data);
-
-	return werr;
+	return reg_preg_diff_set_value(data, key_name, "**DelVals.", REG_DWORD, blob);
 }
 
 static WERROR reg_preg_diff_done(void *_data)
@@ -164,6 +139,7 @@ static WERROR reg_preg_diff_done(void *_data)
  * Save registry diff
  */
 _PUBLIC_ WERROR reg_preg_diff_save(TALLOC_CTX *ctx, const char *filename,
+				   struct smb_iconv_convenience *ic,
 				   struct reg_diff_callbacks **callbacks,
 				   void **callback_data)
 {
@@ -188,8 +164,8 @@ _PUBLIC_ WERROR reg_preg_diff_save(TALLOC_CTX *ctx, const char *filename,
 	}
 
 	strncpy(preg_header.hdr, "PReg", 4);
-	SIVAL(&preg_header.version, 0, 1);
-	write(data->fd, (uint8_t *)&preg_header, sizeof(preg_header));
+	SIVAL(&preg_header, 4, 1);
+	write(data->fd, (uint8_t *)&preg_header,8);
 
 	data->ctx = ctx;
 
@@ -208,6 +184,7 @@ _PUBLIC_ WERROR reg_preg_diff_save(TALLOC_CTX *ctx, const char *filename,
  * Load diff file
  */
 _PUBLIC_ WERROR reg_preg_diff_load(int fd,
+				   struct smb_iconv_convenience *iconv_convenience, 
 				   const struct reg_diff_callbacks *callbacks,
 				   void *callback_data)
 {
@@ -228,7 +205,7 @@ _PUBLIC_ WERROR reg_preg_diff_load(int fd,
 	buf_ptr = buf;
 
 	/* Read first 8 bytes (the header) */
-	if (read(fd, &preg_header, sizeof(preg_header)) != sizeof(preg_header)) {
+	if (read(fd, &preg_header, 8) != 8) {
 		DEBUG(0, ("Could not read PReg file: %s\n",
 				strerror(errno)));
 		ret = WERR_GENERAL_FAILURE;
@@ -277,7 +254,7 @@ _PUBLIC_ WERROR reg_preg_diff_load(int fd,
 		value_name = talloc_strdup(mem_ctx, buf);
 
 		/* Get the type */
-		if (read(fd, &value_type, sizeof(uint32_t)) < sizeof(uint32_t)) {
+		if (read(fd, &value_type, 4) < 4) {
 			DEBUG(0, ("Error while reading PReg\n"));
 			ret = WERR_GENERAL_FAILURE;
 			goto cleanup;
@@ -292,15 +269,12 @@ _PUBLIC_ WERROR reg_preg_diff_load(int fd,
 			ret = WERR_GENERAL_FAILURE;
 			goto cleanup;
 		}
-
 		/* Get data length */
-		if (read(fd, &length, sizeof(uint32_t)) < sizeof(uint32_t)) {
+		if (read(fd, &length, 4) < 4) {
 			DEBUG(0, ("Error while reading PReg\n"));
 			ret = WERR_GENERAL_FAILURE;
 			goto cleanup;
 		}
-		length = IVAL(&length, 0);
-
 		/* Read past delimiter */
 		buf_ptr = buf;
 		if (!(W_ERROR_IS_OK(preg_read_utf16(fd, buf_ptr)) &&
@@ -309,7 +283,6 @@ _PUBLIC_ WERROR reg_preg_diff_load(int fd,
 			ret = WERR_GENERAL_FAILURE;
 			goto cleanup;
 		}
-
 		/* Get the data */
 		buf_ptr = buf;
 		if (length < buf_size &&

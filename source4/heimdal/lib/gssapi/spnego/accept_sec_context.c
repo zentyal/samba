@@ -33,6 +33,8 @@
 
 #include "spnego_locl.h"
 
+RCSID("$Id$");
+
 static OM_uint32
 send_reject (OM_uint32 *minor_status,
 	     gss_buffer_t output_token)
@@ -372,11 +374,7 @@ select_mech(OM_uint32 *minor_status, MechType *mechType, int verify_p,
 		*minor_status = errno;
 		return GSS_S_FAILURE;
 	    }
-	    i = asprintf(&str, "host@%s", hostname);
-	    if (i < 0 || str == NULL) {
-		*minor_status = ENOMEM;
-		return GSS_S_FAILURE;
-	    }
+	    asprintf(&str, "host@%s", hostname);
 	    host = str;
 	}
 
@@ -472,7 +470,7 @@ acceptor_complete(OM_uint32 * minor_status,
 }
 
 
-static OM_uint32 GSSAPI_CALLCONV
+static OM_uint32
 acceptor_start
 	   (OM_uint32 * minor_status,
 	    gss_ctx_id_t * context_handle,
@@ -498,6 +496,7 @@ acceptor_start
     gss_buffer_desc mech_buf;
     gss_OID preferred_mech_type = GSS_C_NO_OID;
     gssspnego_ctx ctx;
+    gssspnego_cred acceptor_cred = (gssspnego_cred)acceptor_cred_handle;
     int get_mic = 0;
     int first_ok = 0;
 
@@ -565,18 +564,25 @@ acceptor_start
 		      &preferred_mech_type);
 
     if (ret == 0 && ni->mechToken != NULL) {
+	gss_cred_id_t mech_delegated_cred = GSS_C_NO_CREDENTIAL;
+	gss_cred_id_t mech_cred;
 	gss_buffer_desc ibuf;
 
 	ibuf.length = ni->mechToken->length;
 	ibuf.value = ni->mechToken->data;
 	mech_input_token = &ibuf;
 
+	if (acceptor_cred != NULL)
+	    mech_cred = acceptor_cred->negotiated_cred_id;
+	else
+	    mech_cred = GSS_C_NO_CREDENTIAL;
+	
 	if (ctx->mech_src_name != GSS_C_NO_NAME)
 	    gss_release_name(&junk, &ctx->mech_src_name);
 	
 	ret = gss_accept_sec_context(minor_status,
 				     &ctx->negotiated_ctx_id,
-				     acceptor_cred_handle,
+				     mech_cred,
 				     mech_input_token,
 				     input_chan_bindings,
 				     &ctx->mech_src_name,
@@ -584,10 +590,18 @@ acceptor_start
 				     &mech_output_token,
 				     &ctx->mech_flags,
 				     &ctx->mech_time_rec,
-				     delegated_cred_handle);
+				     &mech_delegated_cred);
+
+	if (mech_delegated_cred && delegated_cred_handle) {
+	    _gss_spnego_alloc_cred(&junk,
+				   mech_delegated_cred,
+				   delegated_cred_handle);
+	} else if (mech_delegated_cred != GSS_C_NO_CREDENTIAL)
+	    gss_release_cred(&junk, &mech_delegated_cred);
 
 	if (ret == GSS_S_COMPLETE || ret == GSS_S_CONTINUE_NEEDED) {
 	    ctx->preferred_mech_type = preferred_mech_type;
+	    ctx->negotiated_mech_type = preferred_mech_type;
 	    if (ret == GSS_S_COMPLETE)
 		ctx->open = 1;
 
@@ -632,6 +646,7 @@ acceptor_start
 	}
 
 	ctx->preferred_mech_type = preferred_mech_type;
+	ctx->negotiated_mech_type = preferred_mech_type;
     }
 
     /*
@@ -689,7 +704,7 @@ out:
 }
 
 
-static OM_uint32 GSSAPI_CALLCONV
+static OM_uint32
 acceptor_continue
 	   (OM_uint32 * minor_status,
 	    gss_ctx_id_t * context_handle,
@@ -704,7 +719,7 @@ acceptor_continue
 	    gss_cred_id_t *delegated_cred_handle
 	   )
 {
-    OM_uint32 ret, ret2, minor;
+    OM_uint32 ret, ret2, minor, junk;
     NegotiationToken nt;
     size_t nt_len;
     NegTokenResp *na;
@@ -713,6 +728,7 @@ acceptor_continue
     gss_buffer_t mech_output_token = GSS_C_NO_BUFFER;
     gss_buffer_desc mech_buf;
     gssspnego_ctx ctx;
+    gssspnego_cred acceptor_cred = (gssspnego_cred)acceptor_cred_handle;
 
     mech_buf.value = NULL;
 
@@ -758,13 +774,20 @@ acceptor_continue
 	}
 
 	if (mech_input_token != GSS_C_NO_BUFFER) {
+	    gss_cred_id_t mech_cred;
+	    gss_cred_id_t mech_delegated_cred = GSS_C_NO_CREDENTIAL;
+
+	    if (acceptor_cred != NULL)
+		mech_cred = acceptor_cred->negotiated_cred_id;
+	    else
+		mech_cred = GSS_C_NO_CREDENTIAL;
 
 	    if (ctx->mech_src_name != GSS_C_NO_NAME)
 		gss_release_name(&minor, &ctx->mech_src_name);
 
 	    ret = gss_accept_sec_context(&minor,
 					 &ctx->negotiated_ctx_id,
-					 acceptor_cred_handle,
+					 mech_cred,
 					 mech_input_token,
 					 input_chan_bindings,
 					 &ctx->mech_src_name,
@@ -772,7 +795,14 @@ acceptor_continue
 					 &obuf,
 					 &ctx->mech_flags,
 					 &ctx->mech_time_rec,
-					 delegated_cred_handle);
+					 &mech_delegated_cred);
+
+	    if (mech_delegated_cred && delegated_cred_handle) {
+		_gss_spnego_alloc_cred(&junk,
+				       mech_delegated_cred,
+				       delegated_cred_handle);
+	    } else if (mech_delegated_cred != GSS_C_NO_CREDENTIAL)
+		gss_release_cred(&junk, &mech_delegated_cred);
 
 	    if (ret == GSS_S_COMPLETE || ret == GSS_S_CONTINUE_NEEDED) {
 		mech_output_token = &obuf;
@@ -876,7 +906,7 @@ acceptor_continue
     return ret;
 }
 
-OM_uint32 GSSAPI_CALLCONV
+OM_uint32
 _gss_spnego_accept_sec_context
 	   (OM_uint32 * minor_status,
 	    gss_ctx_id_t * context_handle,

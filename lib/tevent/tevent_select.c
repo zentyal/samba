@@ -121,8 +121,7 @@ static struct tevent_fd *select_event_add_fd(struct tevent_context *ev, TALLOC_C
 				   handler_name, location);
 	if (!fde) return NULL;
 
-	if ((select_ev->maxfd != EVENT_INVALID_MAXFD)
-	    && (fde->fd > select_ev->maxfd)) {
+	if (fde->fd > select_ev->maxfd) {
 		select_ev->maxfd = fde->fd;
 	}
 	talloc_set_destructor(fde, select_event_fd_destructor);
@@ -252,7 +251,7 @@ static const struct tevent_ops select_event_ops = {
 	.loop_wait		= tevent_common_loop_wait,
 };
 
-_PRIVATE_ bool tevent_select_init(void)
+bool tevent_select_init(void)
 {
 	return tevent_register_backend("select", &select_event_ops);
 }

@@ -33,7 +33,7 @@
 
 #include "krb5_locl.h"
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 _krb5_s4u2self_to_checksumdata(krb5_context context,
 			       const PA_S4U2Self *self,
 			       krb5_data *data)
@@ -81,11 +81,4 @@ _krb5_s4u2self_to_checksumdata(krb5_context context,
 out:
     krb5_clear_error_message(context);
     return ret;
-}
-
-krb5_error_code
-krb5_enomem(krb5_context context)
-{
-    krb5_set_error_message(context, ENOMEM, N_("malloc: out of memory", ""));
-    return ENOMEM;
 }

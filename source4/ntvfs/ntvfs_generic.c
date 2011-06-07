@@ -148,7 +148,7 @@ static NTSTATUS ntvfs_map_open_finish(struct ntvfs_module_context *ntvfs,
 	time_t write_time = 0;
 	uint32_t set_size = 0;
 	union smb_setfileinfo *sf;
-	unsigned int state;
+	uint_t state;
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
@@ -284,7 +284,6 @@ static NTSTATUS map_openx_open(uint16_t flags, uint16_t open_mode,
 			       union smb_open *io2)
 {
 	io2->generic.in.create_options = NTCREATEX_OPTIONS_NON_DIRECTORY_FILE;
-	io2->generic.in.private_flags = 0;
 
 	if (flags & OPENX_FLAGS_REQUEST_OPLOCK) {
 		io2->generic.in.flags |= NTCREATEX_FLAGS_REQUEST_OPLOCK;
@@ -328,7 +327,7 @@ static NTSTATUS map_openx_open(uint16_t flags, uint16_t open_mode,
 		break;
 	case OPENX_MODE_DENY_DOS:
 		/* DENY_DOS is quite strange - it depends on the filename! */
-		io2->generic.in.private_flags |=
+		io2->generic.in.create_options |= 
 			NTCREATEX_OPTIONS_PRIVATE_DENY_DOS;
 		if (is_exe_filename(fname)) {
 			io2->generic.in.share_access = 
@@ -343,7 +342,7 @@ static NTSTATUS map_openx_open(uint16_t flags, uint16_t open_mode,
 		}
 		break;
 	case OPENX_MODE_DENY_FCB:
-		io2->generic.in.private_flags |= NTCREATEX_OPTIONS_PRIVATE_DENY_FCB;
+		io2->generic.in.create_options |= NTCREATEX_OPTIONS_PRIVATE_DENY_FCB;
 		io2->generic.in.share_access = NTCREATEX_SHARE_ACCESS_NONE;
 		break;
 	default:
@@ -516,7 +515,7 @@ NTSTATUS ntvfs_map_open(struct ntvfs_module_context *ntvfs,
 			io2->generic.in.flags = 0;
 			break;
 		}
-		io2->generic.in.root_fid.fnum	= 0;
+		io2->generic.in.root_fid	= 0;
 		io2->generic.in.access_mask	= io->smb2.in.desired_access;
 		io2->generic.in.alloc_size	= io->smb2.in.alloc_size;
 		io2->generic.in.file_attr	= io->smb2.in.file_attributes;
@@ -529,7 +528,6 @@ NTSTATUS ntvfs_map_open(struct ntvfs_module_context *ntvfs,
 		io2->generic.in.sec_desc	= io->smb2.in.sec_desc;
 		io2->generic.in.ea_list		= &io->smb2.in.eas;
 		io2->generic.in.query_maximal_access = io->smb2.in.query_maximal_access; 
-		io2->generic.in.private_flags	= 0;
 
 		/* we don't support timewarp yet */
 		if (io->smb2.in.timewarp != 0) {
@@ -581,7 +579,7 @@ static NTSTATUS ntvfs_map_fsinfo_finish(struct ntvfs_module_context *ntvfs,
 
 	case RAW_QFS_DSKATTR: {
 		/* map from generic to DSKATTR */
-		unsigned int bpunit = 64;
+		uint_t bpunit = 64;
 
 		/* we need to scale the sizes to fit */
 		for (bpunit=64; bpunit<0x10000; bpunit *= 2) {
@@ -1108,9 +1106,6 @@ NTSTATUS ntvfs_map_lock(struct ntvfs_module_context *ntvfs,
 		/* only the first lock gives the UNLOCK bit - see
 		   MS-SMB2 3.3.5.14 */
 		if (lck->smb2.in.locks[0].flags & SMB2_LOCK_FLAG_UNLOCK) {
-			if (lck->smb2.in.locks[0].flags & SMB2_LOCK_FLAG_FAIL_IMMEDIATELY) {
-				return NT_STATUS_INVALID_PARAMETER;
-			}
 			lck2->generic.in.ulock_cnt = lck->smb2.in.lock_count;
 			isunlock = true;
 		} else {
@@ -1118,15 +1113,6 @@ NTSTATUS ntvfs_map_lock(struct ntvfs_module_context *ntvfs,
 			isunlock = false;
 		}
 		for (i=0;i<lck->smb2.in.lock_count;i++) {
-			if (!isunlock &&
-			    lck->smb2.in.locks[i].flags == SMB2_LOCK_FLAG_NONE) {
-				return NT_STATUS_INVALID_PARAMETER;
-			}
-
-			if (lck->smb2.in.locks[i].flags & ~SMB2_LOCK_FLAG_ALL_MASK) {
-				return NT_STATUS_INVALID_PARAMETER;
-			}
-
 			if (isunlock && 
 			    (lck->smb2.in.locks[i].flags & 
 			     (SMB2_LOCK_FLAG_SHARED|SMB2_LOCK_FLAG_EXCLUSIVE))) {
@@ -1189,7 +1175,7 @@ static NTSTATUS ntvfs_map_write_finish(struct ntvfs_module_context *ntvfs,
 {
 	union smb_lock *lck;
 	union smb_close *cl;
-	unsigned int state;
+	uint_t state;
 
 	if (NT_STATUS_IS_ERR(status)) {
 		return status;
@@ -1383,7 +1369,7 @@ NTSTATUS ntvfs_map_read(struct ntvfs_module_context *ntvfs,
 	union smb_read *rd2;
 	union smb_lock *lck;
 	NTSTATUS status;
-	unsigned int state;
+	uint_t state;
 
 	rd2 = talloc(req, union smb_read);
 	if (rd2 == NULL) {

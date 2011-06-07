@@ -478,7 +478,7 @@ static void callback_do_hostname_change(GtkWidget *widget,
 
 			p = strchr(newname, '.');
 			if (p) {
-				*p = '\0';
+				*p = NULL;
 			}
 
 			if (!state->account || !state->password) {

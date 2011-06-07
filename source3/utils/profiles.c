@@ -1,34 +1,30 @@
-/*
-   Samba Unix/Linux SMB client utility profiles.c
-
-   Copyright (C) Richard Sharpe, <rsharpe@richardsharpe.com>   2002
-   Copyright (C) Jelmer Vernooij (conversion to popt)          2003
-   Copyright (C) Gerald (Jerry) Carter                         2005
+/* 
+   Samba Unix/Linux SMB client utility profiles.c 
+   
+   Copyright (C) Richard Sharpe, <rsharpe@richardsharpe.com>   2002 
+   Copyright (C) Jelmer Vernooij (conversion to popt)          2003 
+   Copyright (C) Gerald (Jerry) Carter                         2005 
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  
 */
-
+                                  
 #include "includes.h"
-#include "system/filesys.h"
-#include "popt_common.h"
-#include "registry/reg_objects.h"
-#include "registry/regfio.h"
-#include "../libcli/security/security.h"
+#include "regfio.h"
 
 /* GLOBAL VARIABLES */
 
-struct dom_sid old_sid, new_sid;
+DOM_SID old_sid, new_sid;
 int change = 0, new_val = 0;
 int opt_verbose = False;
 
@@ -59,38 +55,38 @@ static void verbose_output(const char *format, ...)
 /********************************************************************
 ********************************************************************/
 
-static bool swap_sid_in_acl( struct security_descriptor *sd, struct dom_sid *s1, struct dom_sid *s2 )
+static bool swap_sid_in_acl( SEC_DESC *sd, DOM_SID *s1, DOM_SID *s2 )
 {
-	struct security_acl *theacl;
+	SEC_ACL *theacl;
 	int i;
 	bool update = False;
 
 	verbose_output("  Owner SID: %s\n", sid_string_tos(sd->owner_sid));
-	if ( dom_sid_equal( sd->owner_sid, s1 ) ) {
+	if ( sid_equal( sd->owner_sid, s1 ) ) {
 		sid_copy( sd->owner_sid, s2 );
 		update = True;
-		verbose_output("  New Owner SID: %s\n",
+		verbose_output("  New Owner SID: %s\n", 
 			sid_string_tos(sd->owner_sid));
 
 	}
 
 	verbose_output("  Group SID: %s\n", sid_string_tos(sd->group_sid));
-	if ( dom_sid_equal( sd->group_sid, s1 ) ) {
+	if ( sid_equal( sd->group_sid, s1 ) ) {
 		sid_copy( sd->group_sid, s2 );
 		update = True;
-		verbose_output("  New Group SID: %s\n",
+		verbose_output("  New Group SID: %s\n", 
 			sid_string_tos(sd->group_sid));
 	}
 
 	theacl = sd->dacl;
 	verbose_output("  DACL: %d entries:\n", theacl->num_aces);
 	for ( i=0; i<theacl->num_aces; i++ ) {
-		verbose_output("    Trustee SID: %s\n",
+		verbose_output("    Trustee SID: %s\n", 
 			sid_string_tos(&theacl->aces[i].trustee));
-		if ( dom_sid_equal( &theacl->aces[i].trustee, s1 ) ) {
+		if ( sid_equal( &theacl->aces[i].trustee, s1 ) ) {
 			sid_copy( &theacl->aces[i].trustee, s2 );
 			update = True;
-			verbose_output("    New Trustee SID: %s\n",
+			verbose_output("    New Trustee SID: %s\n", 
 				sid_string_tos(&theacl->aces[i].trustee));
 		}
 	}
@@ -99,12 +95,12 @@ static bool swap_sid_in_acl( struct security_descriptor *sd, struct dom_sid *s1,
 	theacl = sd->sacl;
 	verbose_output("  SACL: %d entries: \n", theacl->num_aces);
 	for ( i=0; i<theacl->num_aces; i++ ) {
-		verbose_output("    Trustee SID: %s\n",
+		verbose_output("    Trustee SID: %s\n", 
 			sid_string_tos(&theacl->aces[i].trustee));
-		if ( dom_sid_equal( &theacl->aces[i].trustee, s1 ) ) {
+		if ( sid_equal( &theacl->aces[i].trustee, s1 ) ) {
 			sid_copy( &theacl->aces[i].trustee, s2 );
 			update = True;
-			verbose_output("    New Trustee SID: %s\n",
+			verbose_output("    New Trustee SID: %s\n", 
 				sid_string_tos(&theacl->aces[i].trustee));
 		}
 	}
@@ -120,7 +116,7 @@ static bool copy_registry_tree( REGF_FILE *infile, REGF_NK_REC *nk,
                                 const char *parentpath  )
 {
 	REGF_NK_REC *key, *subkey;
-	struct security_descriptor *new_sd;
+	SEC_DESC *new_sd;
 	struct regval_ctr *values;
 	struct regsubkey_ctr *subkeys;
 	int i;
@@ -143,8 +139,7 @@ static bool copy_registry_tree( REGF_FILE *infile, REGF_NK_REC *nk,
 		return False;
 	}
 
-	werr = regval_ctr_init(subkeys, &values);
-	if (!W_ERROR_IS_OK(werr)) {
+	if ( !(values = TALLOC_ZERO_P( subkeys, struct regval_ctr )) ) {
 		TALLOC_FREE( subkeys );
 		DEBUG(0,("copy_registry_tree: talloc() failure!\n"));
 		return False;
@@ -154,7 +149,7 @@ static bool copy_registry_tree( REGF_FILE *infile, REGF_NK_REC *nk,
 
 	for ( i=0; i<nk->num_values; i++ ) {
 		regval_ctr_addvalue( values, nk->values[i].valuename, nk->values[i].type,
-			nk->values[i].data, (nk->values[i].data_size & ~VK_DATA_IN_OFFSET) );
+			(const char *)nk->values[i].data, (nk->values[i].data_size & ~VK_DATA_IN_OFFSET) );
 	}
 
 	/* copy subkeys into the struct regsubkey_ctr */
@@ -216,7 +211,9 @@ int main( int argc, char *argv[] )
 
 	/* setup logging options */
 
-	setup_logging( "profiles", DEBUG_STDERR);
+	setup_logging( "profiles", True );
+	dbf = x_stderr;
+	x_setbuf( x_stderr, NULL );
 
 	pc = poptGetContext("profiles", argc, (const char **)argv, long_options,
 		POPT_CONTEXT_KEEP_FIRST);

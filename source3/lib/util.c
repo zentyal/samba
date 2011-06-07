@@ -11,23 +11,17 @@
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
-#include "system/passwd.h"
-#include "system/filesys.h"
-#include "util_tdb.h"
-#include "ctdbd_conn.h"
-#include "../lib/util/util_pw.h"
-#include "messages.h"
 
 extern char *global_clobber_region_function;
 extern unsigned int global_clobber_region_line;
@@ -79,9 +73,49 @@ static enum remote_arch_types ra_type = RA_UNKNOWN;
  Definitions for all names.
 ***********************************************************************/
 
+static char *smb_myname;
+static char *smb_myworkgroup;
 static char *smb_scope;
 static int smb_num_netbios_names;
 static char **smb_my_netbios_names;
+
+/***********************************************************************
+ Allocate and set myname. Ensure upper case.
+***********************************************************************/
+
+bool set_global_myname(const char *myname)
+{
+	SAFE_FREE(smb_myname);
+	smb_myname = SMB_STRDUP(myname);
+	if (!smb_myname)
+		return False;
+	strupper_m(smb_myname);
+	return True;
+}
+
+const char *global_myname(void)
+{
+	return smb_myname;
+}
+
+/***********************************************************************
+ Allocate and set myworkgroup. Ensure upper case.
+***********************************************************************/
+
+bool set_global_myworkgroup(const char *myworkgroup)
+{
+	SAFE_FREE(smb_myworkgroup);
+	smb_myworkgroup = SMB_STRDUP(myworkgroup);
+	if (!smb_myworkgroup)
+		return False;
+	strupper_m(smb_myworkgroup);
+	return True;
+}
+
+const char *lp_workgroup(void)
+{
+	return smb_myworkgroup;
+}
 
 /***********************************************************************
  Allocate and set scope. Ensure upper case.
@@ -150,7 +184,8 @@ static bool set_my_netbios_names(const char *name, int i)
 
 void gfree_names(void)
 {
-	gfree_netbios_names();
+	SAFE_FREE( smb_myname );
+	SAFE_FREE( smb_myworkgroup );
 	SAFE_FREE( smb_scope );
 	free_netbios_names_array();
 	free_local_machine_name();
@@ -226,13 +261,13 @@ bool init_names(void)
 
 	if (global_myname() == NULL || *global_myname() == '\0') {
 		if (!set_global_myname(myhostname())) {
-			DEBUG( 0, ( "init_names: malloc fail.\n" ) );
+			DEBUG( 0, ( "init_structs: malloc fail.\n" ) );
 			return False;
 		}
 	}
 
 	if (!set_netbios_aliases(lp_netbios_aliases())) {
-		DEBUG( 0, ( "init_names: malloc fail.\n" ) );
+		DEBUG( 0, ( "init_structs: malloc fail.\n" ) );
 		return False;
 	}
 
@@ -245,6 +280,257 @@ bool init_names(void)
 	}
 
 	return( True );
+}
+
+/**************************************************************************n
+  Code to cope with username/password auth options from the commandline.
+  Used mainly in client tools.
+****************************************************************************/
+
+struct user_auth_info *user_auth_info_init(TALLOC_CTX *mem_ctx)
+{
+	struct user_auth_info *result;
+
+	result = TALLOC_ZERO_P(mem_ctx, struct user_auth_info);
+	if (result == NULL) {
+		return NULL;
+	}
+
+	result->signing_state = Undefined;
+	return result;
+}
+
+const char *get_cmdline_auth_info_username(const struct user_auth_info *auth_info)
+{
+	if (!auth_info->username) {
+		return "";
+	}
+	return auth_info->username;
+}
+
+void set_cmdline_auth_info_username(struct user_auth_info *auth_info,
+				    const char *username)
+{
+	TALLOC_FREE(auth_info->username);
+	auth_info->username = talloc_strdup(auth_info, username);
+	if (!auth_info->username) {
+		exit(ENOMEM);
+	}
+}
+
+const char *get_cmdline_auth_info_domain(const struct user_auth_info *auth_info)
+{
+	if (!auth_info->domain) {
+		return "";
+	}
+	return auth_info->domain;
+}
+
+void set_cmdline_auth_info_domain(struct user_auth_info *auth_info,
+				  const char *domain)
+{
+	TALLOC_FREE(auth_info->domain);
+	auth_info->domain = talloc_strdup(auth_info, domain);
+	if (!auth_info->domain) {
+		exit(ENOMEM);
+	}
+}
+
+const char *get_cmdline_auth_info_password(const struct user_auth_info *auth_info)
+{
+	if (!auth_info->password) {
+		return "";
+	}
+	return auth_info->password;
+}
+
+void set_cmdline_auth_info_password(struct user_auth_info *auth_info,
+				    const char *password)
+{
+	TALLOC_FREE(auth_info->password);
+	if (password == NULL) {
+		password = "";
+	}
+	auth_info->password = talloc_strdup(auth_info, password);
+	if (!auth_info->password) {
+		exit(ENOMEM);
+	}
+	auth_info->got_pass = true;
+}
+
+bool set_cmdline_auth_info_signing_state(struct user_auth_info *auth_info,
+					 const char *arg)
+{
+	auth_info->signing_state = -1;
+	if (strequal(arg, "off") || strequal(arg, "no") ||
+			strequal(arg, "false")) {
+		auth_info->signing_state = false;
+	} else if (strequal(arg, "on") || strequal(arg, "yes") ||
+			strequal(arg, "true") || strequal(arg, "auto")) {
+		auth_info->signing_state = true;
+	} else if (strequal(arg, "force") || strequal(arg, "required") ||
+			strequal(arg, "forced")) {
+		auth_info->signing_state = Required;
+	} else {
+		return false;
+	}
+	return true;
+}
+
+int get_cmdline_auth_info_signing_state(const struct user_auth_info *auth_info)
+{
+	return auth_info->signing_state;
+}
+
+void set_cmdline_auth_info_use_ccache(struct user_auth_info *auth_info, bool b)
+{
+        auth_info->use_ccache = b;
+}
+
+bool get_cmdline_auth_info_use_ccache(const struct user_auth_info *auth_info)
+{
+	return auth_info->use_ccache;
+}
+
+void set_cmdline_auth_info_use_kerberos(struct user_auth_info *auth_info,
+					bool b)
+{
+        auth_info->use_kerberos = b;
+}
+
+bool get_cmdline_auth_info_use_kerberos(const struct user_auth_info *auth_info)
+{
+	return auth_info->use_kerberos;
+}
+
+void set_cmdline_auth_info_fallback_after_kerberos(struct user_auth_info *auth_info,
+					bool b)
+{
+	auth_info->fallback_after_kerberos = b;
+}
+
+bool get_cmdline_auth_info_fallback_after_kerberos(const struct user_auth_info *auth_info)
+{
+	return auth_info->fallback_after_kerberos;
+}
+
+/* This should only be used by lib/popt_common.c JRA */
+void set_cmdline_auth_info_use_krb5_ticket(struct user_auth_info *auth_info)
+{
+	auth_info->use_kerberos = true;
+	auth_info->got_pass = true;
+}
+
+/* This should only be used by lib/popt_common.c JRA */
+void set_cmdline_auth_info_smb_encrypt(struct user_auth_info *auth_info)
+{
+	auth_info->smb_encrypt = true;
+}
+
+void set_cmdline_auth_info_use_machine_account(struct user_auth_info *auth_info)
+{
+	auth_info->use_machine_account = true;
+}
+
+bool get_cmdline_auth_info_got_pass(const struct user_auth_info *auth_info)
+{
+	return auth_info->got_pass;
+}
+
+bool get_cmdline_auth_info_smb_encrypt(const struct user_auth_info *auth_info)
+{
+	return auth_info->smb_encrypt;
+}
+
+bool get_cmdline_auth_info_use_machine_account(const struct user_auth_info *auth_info)
+{
+	return auth_info->use_machine_account;
+}
+
+struct user_auth_info *get_cmdline_auth_info_copy(TALLOC_CTX *mem_ctx,
+						  const struct user_auth_info *src)
+{
+	struct user_auth_info *result;
+
+	result = user_auth_info_init(mem_ctx);
+	if (result == NULL) {
+		return NULL;
+	}
+
+	*result = *src;
+
+	result->username = talloc_strdup(
+		result, get_cmdline_auth_info_username(src));
+	result->password = talloc_strdup(
+		result, get_cmdline_auth_info_password(src));
+	if ((result->username == NULL) || (result->password == NULL)) {
+		TALLOC_FREE(result);
+		return NULL;
+	}
+
+	return result;
+}
+
+bool set_cmdline_auth_info_machine_account_creds(struct user_auth_info *auth_info)
+{
+	char *pass = NULL;
+	char *account = NULL;
+
+	if (!get_cmdline_auth_info_use_machine_account(auth_info)) {
+		return false;
+	}
+
+	if (!secrets_init()) {
+		d_printf("ERROR: Unable to open secrets database\n");
+		return false;
+	}
+
+	if (asprintf(&account, "%s$@%s", global_myname(), lp_realm()) < 0) {
+		return false;
+	}
+
+	pass = secrets_fetch_machine_password(lp_workgroup(), NULL, NULL);
+	if (!pass) {
+		d_printf("ERROR: Unable to fetch machine password for "
+			"%s in domain %s\n",
+			account, lp_workgroup());
+		SAFE_FREE(account);
+		return false;
+	}
+
+	set_cmdline_auth_info_username(auth_info, account);
+	set_cmdline_auth_info_password(auth_info, pass);
+
+	SAFE_FREE(account);
+	SAFE_FREE(pass);
+
+	return true;
+}
+
+/****************************************************************************
+ Ensure we have a password if one not given.
+****************************************************************************/
+
+void set_cmdline_auth_info_getpass(struct user_auth_info *auth_info)
+{
+	char *label = NULL;
+	char *pass;
+	TALLOC_CTX *frame;
+
+	if (get_cmdline_auth_info_got_pass(auth_info) ||
+			get_cmdline_auth_info_use_kerberos(auth_info)) {
+		/* Already got one... */
+		return;
+	}
+
+	frame = talloc_stackframe();
+	label = talloc_asprintf(frame, "Enter %s's password: ",
+			get_cmdline_auth_info_username(auth_info));
+	pass = getpass(label);
+	if (pass) {
+		set_cmdline_auth_info_password(auth_info, pass);
+	}
+	TALLOC_FREE(frame);
 }
 
 /*******************************************************************
@@ -309,12 +595,12 @@ char *attrib_string(uint16 mode)
 
 	attrstr[0] = 0;
 
-	if (mode & FILE_ATTRIBUTE_VOLUME) fstrcat(attrstr,"V");
-	if (mode & FILE_ATTRIBUTE_DIRECTORY) fstrcat(attrstr,"D");
-	if (mode & FILE_ATTRIBUTE_ARCHIVE) fstrcat(attrstr,"A");
-	if (mode & FILE_ATTRIBUTE_HIDDEN) fstrcat(attrstr,"H");
-	if (mode & FILE_ATTRIBUTE_SYSTEM) fstrcat(attrstr,"S");
-	if (mode & FILE_ATTRIBUTE_READONLY) fstrcat(attrstr,"R");
+	if (mode & aVOLID) fstrcat(attrstr,"V");
+	if (mode & aDIR) fstrcat(attrstr,"D");
+	if (mode & aARCH) fstrcat(attrstr,"A");
+	if (mode & aHIDDEN) fstrcat(attrstr,"H");
+	if (mode & aSYSTEM) fstrcat(attrstr,"S");
+	if (mode & aRONLY) fstrcat(attrstr,"R");	  
 
 	return talloc_strdup(talloc_tos(), attrstr);
 }
@@ -330,7 +616,7 @@ void show_msg(char *buf)
 
 	if (!DEBUGLVL(5))
 		return;
-
+	
 	DEBUG(5,("size=%d\nsmb_com=0x%x\nsmb_rcls=%d\nsmb_reh=%d\nsmb_err=%d\nsmb_flg=%d\nsmb_flg2=%d\n",
 			smb_len(buf),
 			(int)CVAL(buf,smb_com),
@@ -349,7 +635,7 @@ void show_msg(char *buf)
 	for (i=0;i<(int)CVAL(buf,smb_wct);i++)
 		DEBUGADD(5,("smb_vwv[%2d]=%5d (0x%X)\n",i,
 			SVAL(buf,smb_vwv+2*i),SVAL(buf,smb_vwv+2*i)));
-
+	
 	bcc = (int)SVAL(buf,smb_vwv+2*(CVAL(buf,smb_wct)));
 
 	DEBUGADD(5,("smb_bcc=%d\n",bcc));
@@ -576,11 +862,59 @@ ssize_t write_data_at_offset(int fd, const char *buffer, size_t N, SMB_OFF_T pos
 #endif
 }
 
+/*******************************************************************
+ Sleep for a specified number of milliseconds.
+********************************************************************/
+
+void smb_msleep(unsigned int t)
+{
+#if defined(HAVE_NANOSLEEP)
+	struct timespec tval;
+	int ret;
+
+	tval.tv_sec = t/1000;
+	tval.tv_nsec = 1000000*(t%1000);
+
+	do {
+		errno = 0;
+		ret = nanosleep(&tval, &tval);
+	} while (ret < 0 && errno == EINTR && (tval.tv_sec > 0 || tval.tv_nsec > 0));
+#else
+	unsigned int tdiff=0;
+	struct timeval tval,t1,t2;  
+	fd_set fds;
+
+	GetTimeOfDay(&t1);
+	t2 = t1;
+  
+	while (tdiff < t) {
+		tval.tv_sec = (t-tdiff)/1000;
+		tval.tv_usec = 1000*((t-tdiff)%1000);
+
+		/* Never wait for more than 1 sec. */
+		if (tval.tv_sec > 1) {
+			tval.tv_sec = 1; 
+			tval.tv_usec = 0;
+		}
+
+		FD_ZERO(&fds);
+		errno = 0;
+		sys_select_intr(0,&fds,NULL,NULL,&tval);
+
+		GetTimeOfDay(&t2);
+		if (t2.tv_sec < t1.tv_sec) {
+			/* Someone adjusted time... */
+			t1 = t2;
+		}
+
+		tdiff = TvalDiff(&t1,&t2);
+	}
+#endif
+}
 
 NTSTATUS reinit_after_fork(struct messaging_context *msg_ctx,
-			   struct event_context *ev_ctx,
-			   struct server_id id,
-			   bool parent_longlived)
+		       struct event_context *ev_ctx,
+		       bool parent_longlived)
 {
 	NTSTATUS status = NT_STATUS_OK;
 
@@ -597,8 +931,8 @@ NTSTATUS reinit_after_fork(struct messaging_context *msg_ctx,
 		goto done;
 	}
 
-	if (ev_ctx && tevent_re_initialise(ev_ctx) != 0) {
-		smb_panic(__location__ ": Failed to re-initialise event context");
+	if (ev_ctx) {
+		event_context_reinit(ev_ctx);
 	}
 
 	if (msg_ctx) {
@@ -606,7 +940,7 @@ NTSTATUS reinit_after_fork(struct messaging_context *msg_ctx,
 		 * For clustering, we need to re-init our ctdbd connection after the
 		 * fork
 		 */
-		status = messaging_reinit(msg_ctx, id);
+		status = messaging_reinit(msg_ctx);
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(0,("messaging_reinit() failed: %s\n",
 				 nt_errstr(status)));
@@ -614,6 +948,24 @@ NTSTATUS reinit_after_fork(struct messaging_context *msg_ctx,
 	}
  done:
 	return status;
+}
+
+/****************************************************************************
+ Put up a yes/no prompt.
+****************************************************************************/
+
+bool yesno(const char *p)
+{
+	char ans[20];
+	printf("%s",p);
+
+	if (!fgets(ans,sizeof(ans)-1,stdin))
+		return(False);
+
+	if (*ans == 'y' || *ans == 'Y')
+		return(True);
+
+	return(False);
 }
 
 #if defined(PARANOID_MALLOC_CHECKER)
@@ -855,9 +1207,9 @@ int interpret_protocol(const char *str,int def)
 		return(PROTOCOL_COREPLUS);
 	if (strequal(str,"CORE+"))
 		return(PROTOCOL_COREPLUS);
-
+  
 	DEBUG(0,("Unrecognised protocol level %s\n",str));
-
+  
 	return(def);
 }
 
@@ -960,9 +1312,6 @@ char *automount_lookup(TALLOC_CTX *ctx, const char *user_name)
 	if ((nis_error = yp_match(nis_domain, nis_map, user_name,
 					strlen(user_name), &nis_result,
 					&nis_result_len)) == 0) {
-		if (nis_result_len > 0 && nis_result[nis_result_len] == '\n') {
-			nis_result[nis_result_len] = '\0';
-		}
 		value = talloc_strdup(ctx, nis_result);
 		if (!value) {
 			return NULL;
@@ -1000,8 +1349,8 @@ bool process_exists(const struct server_id pid)
 	}
 
 #ifdef CLUSTER_SUPPORT
-	return ctdbd_process_exists(messaging_ctdbd_connection(),
-				    pid.vnn, pid.pid);
+	return ctdbd_process_exists(messaging_ctdbd_connection(), pid.vnn,
+				    pid.pid);
 #else
 	return False;
 #endif
@@ -1058,7 +1407,7 @@ uid_t nametouid(const char *name)
 	char *p;
 	uid_t u;
 
-	pass = Get_Pwnam_alloc(talloc_tos(), name);
+	pass = Get_Pwnam_alloc(talloc_autofree_context(), name);
 	if (pass) {
 		u = pass->pw_uid;
 		TALLOC_FREE(pass);
@@ -1218,7 +1567,7 @@ libunwind_failed:
 
 	DEBUG(0, ("BACKTRACE: %lu stack frames:\n", 
 		  (unsigned long)backtrace_size));
-
+	
 	if (backtrace_strings) {
 		int i;
 
@@ -1282,7 +1631,7 @@ const char *readdirname(SMB_STRUCT_DIR *p)
 
 	if (!p)
 		return(NULL);
-
+  
 	ptr = (SMB_STRUCT_DIRENT *)sys_readdir(p);
 	if (!ptr)
 		return(NULL);
@@ -1356,7 +1705,7 @@ bool is_in_path(const char *name, name_compare_entry *namelist, bool case_sensit
  remove a potentially expensive call to mask_match
  if possible.
 ********************************************************************/
-
+ 
 void set_namearray(name_compare_entry **ppname_array, const char *namelist)
 {
 	char *name_end;
@@ -1432,7 +1781,7 @@ void set_namearray(name_compare_entry **ppname_array, const char *namelist)
 		nameptr = name_end + 1;
 		i++;
 	}
-
+  
 	(*ppname_array)[i].name = NULL;
 
 	return;
@@ -1492,7 +1841,7 @@ bool fcntl_getlock(int fd, SMB_OFF_T *poffset, SMB_OFF_T *pcount, int *ptype, pi
 	*poffset = lock.l_start;
 	*pcount = lock.l_len;
 	*ppid = lock.l_pid;
-
+	
 	DEBUG(3,("fcntl_getlock: fd %d is returned info %d pid %u\n",
 			fd, (int)lock.l_type, (unsigned int)lock.l_pid));
 	return True;
@@ -1610,9 +1959,6 @@ void set_remote_arch(enum remote_arch_types type)
 	case RA_CIFSFS:
 		remote_arch_str = "CIFSFS";
 		break;
-	case RA_OSX:
-		remote_arch_str = "OSX";
-		break;
 	default:
 		ra_type = RA_UNKNOWN;
 		remote_arch_str = "UNKNOWN";
@@ -1651,8 +1997,17 @@ const char *tab_depth(int level, int depth)
 
 int str_checksum(const char *s)
 {
-	TDB_DATA key = string_tdb_data(s);
-	return tdb_jenkins_hash(&key);
+	int res = 0;
+	int c;
+	int i=0;
+
+	while(*s) {
+		c = *s;
+		res ^= (c << (i % 15)) ^ (c >> (15-(i%15)));
+		s++;
+		i++;
+	}
+	return(res);
 }
 
 /*****************************************************************
@@ -1796,7 +2151,9 @@ char *myhostname(void)
 {
 	static char *ret;
 	if (ret == NULL) {
-		ret = get_myname(NULL);
+		/* This is cached forever so
+		 * use talloc_autofree_context() ctx. */
+		ret = get_myname(talloc_autofree_context());
 	}
 	return ret;
 }
@@ -1943,7 +2300,7 @@ bool parent_dirname(TALLOC_CTX *mem_ctx, const char *dir, char **parent,
 {
 	char *p;
 	ptrdiff_t len;
-
+ 
 	p = strrchr_m(dir, '/'); /* Find final '/', if any */
 
 	if (p == NULL) {
@@ -2019,11 +2376,11 @@ bool ms_has_wild_w(const smb_ucs2_t *s)
 
 bool mask_match(const char *string, const char *pattern, bool is_case_sensitive)
 {
-	if (ISDOTDOT(string))
+	if (strcmp(string,"..") == 0)
 		string = ".";
-	if (ISDOT(pattern))
+	if (strcmp(pattern,".") == 0)
 		return False;
-
+	
 	return ms_fnmatch(pattern, string, Protocol <= PROTOCOL_LANMAN2, is_case_sensitive) == 0;
 }
 
@@ -2035,11 +2392,11 @@ bool mask_match(const char *string, const char *pattern, bool is_case_sensitive)
 
 bool mask_match_search(const char *string, const char *pattern, bool is_case_sensitive)
 {
-	if (ISDOTDOT(string))
+	if (strcmp(string,"..") == 0)
 		string = ".";
-	if (ISDOT(pattern))
+	if (strcmp(pattern,".") == 0)
 		return False;
-
+	
 	return ms_fnmatch(pattern, string, True, is_case_sensitive) == 0;
 }
 
@@ -2308,19 +2665,13 @@ uint32 get_my_vnn(void)
 	return my_vnn;
 }
 
-static uint64_t my_unique_id = 0;
-
-void set_my_unique_id(uint64_t unique_id)
-{
-	my_unique_id = unique_id;
-}
-
 struct server_id pid_to_procid(pid_t pid)
 {
 	struct server_id result;
 	result.pid = pid;
-	result.unique_id = my_unique_id;
+#ifdef CLUSTER_SUPPORT
 	result.vnn = my_vnn;
+#endif
 	return result;
 }
 
@@ -2329,12 +2680,19 @@ struct server_id procid_self(void)
 	return pid_to_procid(sys_getpid());
 }
 
+struct server_id server_id_self(void)
+{
+	return procid_self();
+}
+
 bool procid_equal(const struct server_id *p1, const struct server_id *p2)
 {
 	if (p1->pid != p2->pid)
 		return False;
+#ifdef CLUSTER_SUPPORT
 	if (p1->vnn != p2->vnn)
 		return False;
+#endif
 	return True;
 }
 
@@ -2348,8 +2706,10 @@ bool procid_is_me(const struct server_id *pid)
 {
 	if (pid->pid != sys_getpid())
 		return False;
+#ifdef CLUSTER_SUPPORT
 	if (pid->vnn != my_vnn)
 		return False;
+#endif
 	return True;
 }
 
@@ -2357,6 +2717,7 @@ struct server_id interpret_pid(const char *pid_string)
 {
 	struct server_id result;
 	int pid;
+#ifdef CLUSTER_SUPPORT
 	unsigned int vnn;
 	if (sscanf(pid_string, "%u:%d", &vnn, &pid) == 2) {
 		result.vnn = vnn;
@@ -2370,17 +2731,24 @@ struct server_id interpret_pid(const char *pid_string)
 		result.vnn = NONCLUSTER_VNN;
 		result.pid = -1;
 	}
+#else
+	if (sscanf(pid_string, "%d", &pid) != 1) {
+		result.pid = -1;
+	} else {
+		result.pid = pid;
+	}
+#endif
 	/* Assigning to result.pid may have overflowed
 	   Map negative pid to -1: i.e. error */
 	if (result.pid < 0) {
 		result.pid = -1;
 	}
-	result.unique_id = 0;
 	return result;
 }
 
 char *procid_str(TALLOC_CTX *mem_ctx, const struct server_id *pid)
 {
+#ifdef CLUSTER_SUPPORT
 	if (pid->vnn == NONCLUSTER_VNN) {
 		return talloc_asprintf(mem_ctx,
 				"%d",
@@ -2392,6 +2760,11 @@ char *procid_str(TALLOC_CTX *mem_ctx, const struct server_id *pid)
 					(unsigned)pid->vnn,
 					(int)pid->pid);
 	}
+#else
+	return talloc_asprintf(mem_ctx,
+			"%d",
+			(int)pid->pid);
+#endif
 }
 
 char *procid_str_static(const struct server_id *pid)
@@ -2406,7 +2779,28 @@ bool procid_valid(const struct server_id *pid)
 
 bool procid_is_local(const struct server_id *pid)
 {
+#ifdef CLUSTER_SUPPORT
 	return pid->vnn == my_vnn;
+#else
+	return True;
+#endif
+}
+
+int this_is_smp(void)
+{
+#if defined(HAVE_SYSCONF)
+
+#if defined(SYSCONF_SC_NPROC_ONLN)
+        return (sysconf(_SC_NPROC_ONLN) > 1) ? 1 : 0;
+#elif defined(SYSCONF_SC_NPROCESSORS_ONLN)
+        return (sysconf(_SC_NPROCESSORS_ONLN) > 1) ? 1 : 0;
+#else
+	return 0;
+#endif
+
+#else
+	return 0;
+#endif
 }
 
 /****************************************************************
@@ -2640,6 +3034,23 @@ void *talloc_zeronull(const void *context, size_t size, const char *name)
 }
 #endif
 
+bool is_valid_policy_hnd(const struct policy_handle *hnd)
+{
+	struct policy_handle tmp;
+	ZERO_STRUCT(tmp);
+	return (memcmp(&tmp, hnd, sizeof(tmp)) != 0);
+}
+
+bool policy_hnd_equal(const struct policy_handle *hnd1,
+		      const struct policy_handle *hnd2)
+{
+	if (!hnd1 || !hnd2) {
+		return false;
+	}
+
+	return (memcmp(hnd1, hnd2, sizeof(*hnd1)) == 0);
+}
+
 /****************************************************************
  strip off leading '\\' from a hostname
 ****************************************************************/
@@ -2669,56 +3080,4 @@ bool tevent_req_poll_ntstatus(struct tevent_req *req,
 		*status = map_nt_error_from_unix(errno);
 	}
 	return ret;
-}
-
-bool any_nt_status_not_ok(NTSTATUS err1, NTSTATUS err2, NTSTATUS *result)
-{
-	if (!NT_STATUS_IS_OK(err1)) {
-		*result = err1;
-		return true;
-	}
-	if (!NT_STATUS_IS_OK(err2)) {
-		*result = err2;
-		return true;
-	}
-	return false;
-}
-
-int timeval_to_msec(struct timeval t)
-{
-	return t.tv_sec * 1000 + (t.tv_usec+999) / 1000;
-}
-
-/*******************************************************************
- Check a given DOS pathname is valid for a share.
-********************************************************************/
-
-char *valid_share_pathname(TALLOC_CTX *ctx, const char *dos_pathname)
-{
-	char *ptr = NULL;
-
-	if (!dos_pathname) {
-		return NULL;
-	}
-
-	ptr = talloc_strdup(ctx, dos_pathname);
-	if (!ptr) {
-		return NULL;
-	}
-	/* Convert any '\' paths to '/' */
-	unix_format(ptr);
-	ptr = unix_clean_name(ctx, ptr);
-	if (!ptr) {
-		return NULL;
-	}
-
-	/* NT is braindead - it wants a C: prefix to a pathname ! So strip it. */
-	if (strlen(ptr) > 2 && ptr[1] == ':' && ptr[0] != '/')
-		ptr += 2;
-
-	/* Only absolute paths allowed. */
-	if (*ptr != '/')
-		return NULL;
-
-	return ptr;
 }

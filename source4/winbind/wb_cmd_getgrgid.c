@@ -22,7 +22,13 @@
 #include "includes.h"
 #include "libcli/composite/composite.h"
 #include "winbind/wb_server.h"
+#include "winbind/wb_async_helpers.h"
+#include "winbind/wb_helper.h"
 #include "smbd/service_task.h"
+#include "libnet/libnet_proto.h"
+#include "param/param.h"
+#include "libcli/security/proto.h"
+#include "auth/credentials/credentials.h"
 
 struct cmd_getgrgid_state {
 	struct composite_context *ctx;
@@ -130,7 +136,7 @@ static void cmd_getgrgid_recv_group_info(struct composite_context *ctx)
 
 	DEBUG(5, ("cmd_getgrgid_recv_group_info called\n"));
 
-	gr = talloc_zero(state, struct winbindd_gr);
+	gr = talloc(state, struct winbindd_gr);
 	if (composite_nomem(gr, state->ctx)) return;
 
 	group_info = talloc(state, struct libnet_GroupInfo);

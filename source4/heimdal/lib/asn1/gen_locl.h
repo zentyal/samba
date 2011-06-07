@@ -52,7 +52,6 @@
 #include "symbol.h"
 #include "asn1-common.h"
 #include "der.h"
-#include "der-private.h"
 
 void generate_type (const Symbol *);
 void generate_constant (const Symbol *);
@@ -75,10 +74,7 @@ void init_generate (const char *, const char *);
 const char *get_filename (void);
 void close_generate(void);
 void add_import(const char *);
-void add_export(const char *);
-int is_export(const char *);
 int yyparse(void);
-int is_primitive_type(int);
 
 int preserve_type(const char *);
 int seq_type(const char *);
@@ -86,14 +82,9 @@ int seq_type(const char *);
 void generate_header_of_codefile(const char *);
 void close_codefile(void);
 
-int is_template_compat (const Symbol *);
-void generate_template(const Symbol *);
-void gen_template_import(const Symbol *);
 
-
-extern FILE *privheaderfile, *headerfile, *codefile, *logfile, *templatefile;
+extern FILE *headerfile, *codefile, *logfile;
 extern int support_ber;
-extern int template_flag;
 extern int rfc1510_bitstring;
 extern int one_code_file;
 

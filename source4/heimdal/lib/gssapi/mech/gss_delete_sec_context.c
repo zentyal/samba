@@ -27,8 +27,9 @@
  */
 
 #include "mech_locl.h"
+RCSID("$Id$");
 
-GSSAPI_LIB_FUNCTION OM_uint32 GSSAPI_LIB_CALL
+OM_uint32 GSSAPI_LIB_FUNCTION
 gss_delete_sec_context(OM_uint32 *minor_status,
     gss_ctx_id_t *context_handle,
     gss_buffer_t output_token)

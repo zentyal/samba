@@ -20,11 +20,11 @@
 #include "includes.h"
 #include "libnet/libnet.h"
 #include "libcli/cldap/cldap.h"
-#include <ldb.h>
-#include <ldb_errors.h>
+#include "lib/ldb/include/ldb.h"
+#include "lib/ldb/include/ldb_errors.h"
+#include "librpc/rpc/dcerpc.h"
 #include "libcli/resolve/resolve.h"
 #include "param/param.h"
-#include "lib/tsocket/tsocket.h"
 
 /**
  * 1. Setup a CLDAP socket.
@@ -41,8 +41,6 @@ NTSTATUS libnet_FindSite(TALLOC_CTX *ctx, struct libnet_context *lctx, struct li
 
 	struct cldap_socket *cldap = NULL;
 	struct cldap_netlogon search;
-	int ret;
-	struct tsocket_address *dest_address;
 
 	tmp_ctx = talloc_named(ctx, 0, "libnet_FindSite temp context");
 	if (!tmp_ctx) {
@@ -52,30 +50,20 @@ NTSTATUS libnet_FindSite(TALLOC_CTX *ctx, struct libnet_context *lctx, struct li
 
 	/* Resolve the site name. */
 	ZERO_STRUCT(search);
-	search.in.dest_address = NULL;
-	search.in.dest_port = 0;
+	search.in.dest_address = r->in.dest_address;
+	search.in.dest_port = r->in.cldap_port;
 	search.in.acct_control = -1;
 	search.in.version = NETLOGON_NT_VERSION_5 | NETLOGON_NT_VERSION_5EX;
 	search.in.map_response = true;
 
-	ret = tsocket_address_inet_from_strings(tmp_ctx, "ip",
-						r->in.dest_address,
-						r->in.cldap_port,
-						&dest_address);
-	if (ret != 0) {
-		r->out.error_string = NULL;
-		status = map_nt_error_from_unix(errno);
-		return status;
-	}
-
 	/* we want to use non async calls, so we're not passing an event context */
-	status = cldap_socket_init(tmp_ctx, NULL, NULL, dest_address, &cldap);
+	status = cldap_socket_init(tmp_ctx, NULL, NULL, NULL, &cldap);//TODO
 	if (!NT_STATUS_IS_OK(status)) {
 		talloc_free(tmp_ctx);
 		r->out.error_string = NULL;
 		return status;
 	}
-	status = cldap_netlogon(cldap, tmp_ctx, &search);
+	status = cldap_netlogon(cldap, lp_iconv_convenience(lctx->lp_ctx), tmp_ctx, &search);
 	if (!NT_STATUS_IS_OK(status)
 	    || !search.out.netlogon.data.nt5_ex.client_site) {
 		/*
@@ -168,7 +156,7 @@ NTSTATUS libnet_JoinSite(struct libnet_context *ctx,
 	}
 
 	make_nbt_name_client(&name, libnet_r->out.samr_binding->host);
-	status = resolve_name(lpcfg_resolve_context(ctx->lp_ctx), &name, r, &dest_addr, ctx->event_ctx);
+	status = resolve_name(lp_resolve_context(ctx->lp_ctx), &name, r, &dest_addr, ctx->event_ctx);
 	if (!NT_STATUS_IS_OK(status)) {
 		libnet_r->out.error_string = NULL;
 		talloc_free(tmp_ctx);
@@ -179,7 +167,7 @@ NTSTATUS libnet_JoinSite(struct libnet_context *ctx,
 	r->in.dest_address = dest_addr;
 	r->in.netbios_name = libnet_r->in.netbios_name;
 	r->in.domain_dn_str = libnet_r->out.domain_dn_str;
-	r->in.cldap_port = lpcfg_cldap_port(ctx->lp_ctx);
+	r->in.cldap_port = lp_cldap_port(ctx->lp_ctx);
 
 	status = libnet_FindSite(tmp_ctx, ctx, r);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -203,19 +191,19 @@ NTSTATUS libnet_JoinSite(struct libnet_context *ctx,
 	}
 
 	rtn = ldb_msg_add_string(msg, "objectClass", "server");
-	if (rtn != LDB_SUCCESS) {
+	if (rtn != 0) {
 		libnet_r->out.error_string = NULL;
 		talloc_free(tmp_ctx);
 		return NT_STATUS_NO_MEMORY;
 	}
 	rtn = ldb_msg_add_string(msg, "systemFlags", "50000000");
-	if (rtn != LDB_SUCCESS) {
+	if (rtn != 0) {
 		libnet_r->out.error_string = NULL;
 		talloc_free(tmp_ctx);
 		return NT_STATUS_NO_MEMORY;
 	}
 	rtn = ldb_msg_add_string(msg, "serverReference", libnet_r->out.account_dn_str);
-	if (rtn != LDB_SUCCESS) {
+	if (rtn != 0) {
 		libnet_r->out.error_string = NULL;
 		talloc_free(tmp_ctx);
 		return NT_STATUS_NO_MEMORY;
@@ -234,7 +222,7 @@ NTSTATUS libnet_JoinSite(struct libnet_context *ctx,
 
 	rtn = ldb_add(remote_ldb, msg);
 	if (rtn == LDB_ERR_ENTRY_ALREADY_EXISTS) {
-		unsigned int i;
+		int i;
 
 		/* make a 'modify' msg, and only for serverReference */
 		msg = ldb_msg_new(tmp_ctx);
@@ -246,7 +234,7 @@ NTSTATUS libnet_JoinSite(struct libnet_context *ctx,
 		msg->dn = server_dn;
 
 		rtn = ldb_msg_add_string(msg, "serverReference",libnet_r->out.account_dn_str);
-		if (rtn != LDB_SUCCESS) {
+		if (rtn != 0) {
 			libnet_r->out.error_string = NULL;
 			talloc_free(tmp_ctx);
 			return NT_STATUS_NO_MEMORY;
@@ -259,7 +247,7 @@ NTSTATUS libnet_JoinSite(struct libnet_context *ctx,
 		}
 
 		rtn = ldb_modify(remote_ldb, msg);
-		if (rtn != LDB_SUCCESS) {
+		if (rtn != 0) {
 			libnet_r->out.error_string
 				= talloc_asprintf(libnet_r,
 						  "Failed to modify server entry %s: %s: %d",
@@ -268,7 +256,7 @@ NTSTATUS libnet_JoinSite(struct libnet_context *ctx,
 			talloc_free(tmp_ctx);
 			return NT_STATUS_INTERNAL_DB_CORRUPTION;
 		}
-	} else if (rtn != LDB_SUCCESS) {
+	} else if (rtn != 0) {
 		libnet_r->out.error_string
 			= talloc_asprintf(libnet_r,
 				"Failed to add server entry %s: %s: %d",

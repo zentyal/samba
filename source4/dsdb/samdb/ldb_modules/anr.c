@@ -32,7 +32,6 @@
 #include "includes.h"
 #include "ldb_module.h"
 #include "dsdb/samdb/samdb.h"
-#include "dsdb/samdb/ldb_modules/util.h"
 
 /**
  * Make a and 'and' or 'or' tree from the two supplied elements 
@@ -68,10 +67,8 @@ static struct ldb_parse_tree *make_parse_list(struct ldb_module *module,
  * Make an equality or prefix match tree, from the attribute, operation and matching value supplied
  */
 static struct ldb_parse_tree *make_match_tree(struct ldb_module *module,
-					      TALLOC_CTX *mem_ctx,
-					      enum ldb_parse_op op,
-					      const char *attr,
-					      struct ldb_val *match)
+				       TALLOC_CTX *mem_ctx, enum ldb_parse_op op, 
+				       const char *attr, const DATA_BLOB *match)
 {
 	struct ldb_context *ldb;
 	struct ldb_parse_tree *match_tree;
@@ -126,7 +123,7 @@ struct anr_context {
  */
 static int anr_replace_value(struct anr_context *ac,
 			     TALLOC_CTX *mem_ctx,
-			     struct ldb_val *match,
+			     const struct ldb_val *match,
 			     struct ldb_parse_tree **ntree)
 {
 	struct ldb_parse_tree *tree = NULL;
@@ -140,7 +137,7 @@ static int anr_replace_value(struct anr_context *ac,
 
 	ldb = ldb_module_get_ctx(module);
 
-	schema = dsdb_get_schema(ldb, ac);
+	schema = dsdb_get_schema(ldb);
 	if (!schema) {
 		ldb_asprintf_errstring(ldb, "no schema with which to construct anr filter");
 		return LDB_ERR_OPERATIONS_ERROR;
@@ -149,11 +146,12 @@ static int anr_replace_value(struct anr_context *ac,
 	ac->found_anr = true;
 
 	if (match->length > 1 && match->data[0] == '=') {
-		struct ldb_val *match2 = talloc(mem_ctx, struct ldb_val);
-		if (match2 == NULL){
-			return ldb_oom(ldb);
-		}
+		DATA_BLOB *match2 = talloc(mem_ctx, DATA_BLOB);
 		*match2 = data_blob_const(match->data+1, match->length - 1);
+		if (match2 == NULL){
+			ldb_oom(ldb);
+			return LDB_ERR_OPERATIONS_ERROR;
+		}
 		match = match2;
 		op = LDB_OP_EQUALITY;
 	} else {
@@ -167,7 +165,8 @@ static int anr_replace_value(struct anr_context *ac,
 			/* Inject an 'or' with the current tree */
 			tree = make_parse_list(module, mem_ctx,  LDB_OP_OR, tree, match_tree);
 			if (tree == NULL) {
-				return ldb_oom(ldb);
+				ldb_oom(ldb);
+				return LDB_ERR_OPERATIONS_ERROR;
 			}
 		} else {
 			tree = match_tree;
@@ -182,10 +181,11 @@ static int anr_replace_value(struct anr_context *ac,
 
 	if (p) {
 		struct ldb_parse_tree *first_split_filter, *second_split_filter, *split_filters, *match_tree_1, *match_tree_2;
-		struct ldb_val *first_match = talloc(tree, struct ldb_val);
-		struct ldb_val *second_match = talloc(tree, struct ldb_val);
+		DATA_BLOB *first_match = talloc(tree, DATA_BLOB);
+		DATA_BLOB *second_match = talloc(tree, DATA_BLOB);
 		if (!first_match || !second_match) {
-			return ldb_oom(ldb);
+			ldb_oom(ldb);
+			return LDB_ERR_OPERATIONS_ERROR;
 		}
 		*first_match = data_blob_const(match->data, p-match->data);
 		*second_match = data_blob_const(p+1, match->length - (p-match->data) - 1);
@@ -197,7 +197,8 @@ static int anr_replace_value(struct anr_context *ac,
 
 		first_split_filter = make_parse_list(module, ac,  LDB_OP_AND, match_tree_1, match_tree_2);
 		if (first_split_filter == NULL){
-			return ldb_oom(ldb);
+			ldb_oom(ldb);
+			return LDB_ERR_OPERATIONS_ERROR;
 		}
 		
 		match_tree_1 = make_match_tree(module, mem_ctx, op, "sn", first_match);
@@ -205,13 +206,15 @@ static int anr_replace_value(struct anr_context *ac,
 
 		second_split_filter = make_parse_list(module, ac,  LDB_OP_AND, match_tree_1, match_tree_2);
 		if (second_split_filter == NULL){
-			return ldb_oom(ldb);
+			ldb_oom(ldb);
+			return LDB_ERR_OPERATIONS_ERROR;
 		}
 
 		split_filters = make_parse_list(module, mem_ctx,  LDB_OP_OR, 
 						first_split_filter, second_split_filter);
 		if (split_filters == NULL) {
-			return ldb_oom(ldb);
+			ldb_oom(ldb);
+			return LDB_ERR_OPERATIONS_ERROR;
 		}
 
 		if (tree) {
@@ -234,7 +237,7 @@ static int anr_replace_subtrees(struct anr_context *ac,
 				struct ldb_parse_tree **ntree)
 {
 	int ret;
-	unsigned int i;
+	int i;
 
 	switch (tree->operation) {
 	case LDB_OP_AND:
@@ -326,7 +329,8 @@ static int anr_search(struct ldb_module *module, struct ldb_request *req)
 
 	ac = talloc(req, struct anr_context);
 	if (!ac) {
-		return ldb_oom(ldb);
+		ldb_oom(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
 	ac->module = module;
@@ -339,7 +343,7 @@ static int anr_search(struct ldb_module *module, struct ldb_request *req)
 
 	ret = anr_replace_subtrees(ac, req->op.search.tree, "anr", &anr_tree);
 	if (ret != LDB_SUCCESS) {
-		return ldb_operr(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
 	if (!ac->found_anr) {
@@ -356,22 +360,15 @@ static int anr_search(struct ldb_module *module, struct ldb_request *req)
 					req->controls,
 					ac, anr_search_callback,
 					req);
-	LDB_REQ_SET_LOCATION(down_req);
 	if (ret != LDB_SUCCESS) {
-		return ldb_operr(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 	talloc_steal(down_req, anr_tree);
 
 	return ldb_next_request(module, down_req);
 }
 
-static const struct ldb_module_ops ldb_anr_module_ops = {
+_PUBLIC_ const struct ldb_module_ops ldb_anr_module_ops = {
 	.name		   = "anr",
 	.search = anr_search
 };
-
-int ldb_anr_module_init(const char *version)
-{
-	LDB_MODULE_CHECK_VERSION(version);
-	return ldb_register_module(&ldb_anr_module_ops);
-}

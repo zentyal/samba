@@ -29,7 +29,6 @@
 #include "librpc/rpc/dcerpc.h"
 #include "librpc/rpc/dcerpc_proto.h"
 #include "libcli/resolve/resolve.h"
-#include "librpc/rpc/rpc_common.h"
 
 /* transport private information used by general socket pipe transports */
 struct sock_private {
@@ -47,7 +46,7 @@ struct sock_private {
 /*
   mark the socket dead
 */
-static void sock_dead(struct dcecli_connection *p, NTSTATUS status)
+static void sock_dead(struct dcerpc_connection *p, NTSTATUS status)
 {
 	struct sock_private *sock = (struct sock_private *)p->transport.private_data;
 
@@ -88,8 +87,8 @@ static void sock_dead(struct dcecli_connection *p, NTSTATUS status)
 */
 static void sock_error_handler(void *private_data, NTSTATUS status)
 {
-	struct dcecli_connection *p = talloc_get_type(private_data,
-						      struct dcecli_connection);
+	struct dcerpc_connection *p = talloc_get_type(private_data,
+						      struct dcerpc_connection);
 	sock_dead(p, status);
 }
 
@@ -113,8 +112,8 @@ static NTSTATUS sock_complete_packet(void *private_data, DATA_BLOB blob, size_t 
 */
 static NTSTATUS sock_process_recv(void *private_data, DATA_BLOB blob)
 {
-	struct dcecli_connection *p = talloc_get_type(private_data,
-						      struct dcecli_connection);
+	struct dcerpc_connection *p = talloc_get_type(private_data,
+						      struct dcerpc_connection);
 	struct sock_private *sock = (struct sock_private *)p->transport.private_data;
 	sock->pending_reads--;
 	if (sock->pending_reads == 0) {
@@ -130,8 +129,8 @@ static NTSTATUS sock_process_recv(void *private_data, DATA_BLOB blob)
 static void sock_io_handler(struct tevent_context *ev, struct tevent_fd *fde, 
 			    uint16_t flags, void *private_data)
 {
-	struct dcecli_connection *p = talloc_get_type(private_data,
-						      struct dcecli_connection);
+	struct dcerpc_connection *p = talloc_get_type(private_data,
+						      struct dcerpc_connection);
 	struct sock_private *sock = (struct sock_private *)p->transport.private_data;
 
 	if (flags & EVENT_FD_WRITE) {
@@ -151,7 +150,7 @@ static void sock_io_handler(struct tevent_context *ev, struct tevent_fd *fde,
 /* 
    initiate a read request - not needed for dcerpc sockets
 */
-static NTSTATUS sock_send_read(struct dcecli_connection *p)
+static NTSTATUS sock_send_read(struct dcerpc_connection *p)
 {
 	struct sock_private *sock = (struct sock_private *)p->transport.private_data;
 	sock->pending_reads++;
@@ -164,7 +163,7 @@ static NTSTATUS sock_send_read(struct dcecli_connection *p)
 /* 
    send an initial pdu in a multi-pdu sequence
 */
-static NTSTATUS sock_send_request(struct dcecli_connection *p, DATA_BLOB *data, 
+static NTSTATUS sock_send_request(struct dcerpc_connection *p, DATA_BLOB *data, 
 				  bool trigger_read)
 {
 	struct sock_private *sock = (struct sock_private *)p->transport.private_data;
@@ -195,7 +194,7 @@ static NTSTATUS sock_send_request(struct dcecli_connection *p, DATA_BLOB *data,
 /* 
    shutdown sock pipe connection
 */
-static NTSTATUS sock_shutdown_pipe(struct dcecli_connection *p, NTSTATUS status)
+static NTSTATUS sock_shutdown_pipe(struct dcerpc_connection *p, NTSTATUS status)
 {
 	struct sock_private *sock = (struct sock_private *)p->transport.private_data;
 
@@ -209,7 +208,7 @@ static NTSTATUS sock_shutdown_pipe(struct dcecli_connection *p, NTSTATUS status)
 /*
   return sock server name
 */
-static const char *sock_peer_name(struct dcecli_connection *p)
+static const char *sock_peer_name(struct dcerpc_connection *p)
 {
 	struct sock_private *sock = talloc_get_type(p->transport.private_data, struct sock_private);
 	return sock->server_name;
@@ -218,7 +217,7 @@ static const char *sock_peer_name(struct dcecli_connection *p)
 /*
   return remote name we make the actual connection (good for kerberos) 
 */
-static const char *sock_target_hostname(struct dcecli_connection *p)
+static const char *sock_target_hostname(struct dcerpc_connection *p)
 {
 	struct sock_private *sock = talloc_get_type(p->transport.private_data, struct sock_private);
 	return sock->server_name;
@@ -226,10 +225,9 @@ static const char *sock_target_hostname(struct dcecli_connection *p)
 
 
 struct pipe_open_socket_state {
-	struct dcecli_connection *conn;
+	struct dcerpc_connection *conn;
 	struct socket_context *socket_ctx;
 	struct sock_private *sock;
-	struct socket_address *localaddr;
 	struct socket_address *server;
 	const char *target_hostname;
 	enum dcerpc_transport_t transport;
@@ -238,7 +236,7 @@ struct pipe_open_socket_state {
 
 static void continue_socket_connect(struct composite_context *ctx)
 {
-	struct dcecli_connection *conn;
+	struct dcerpc_connection *conn;
 	struct sock_private *sock;
 	struct composite_context *c = talloc_get_type(ctx->async.private_data,
 						      struct composite_context);
@@ -306,8 +304,7 @@ static void continue_socket_connect(struct composite_context *ctx)
 
 
 static struct composite_context *dcerpc_pipe_open_socket_send(TALLOC_CTX *mem_ctx,
-						       struct dcecli_connection *cn,
-						       struct socket_address *localaddr,
+						       struct dcerpc_connection *cn,
 						       struct socket_address *server,
 						       const char *target_hostname,
 						       const char *full_path,
@@ -326,10 +323,6 @@ static struct composite_context *dcerpc_pipe_open_socket_send(TALLOC_CTX *mem_ct
 
 	s->conn      = cn;
 	s->transport = transport;
-	if (localaddr) {
-		s->localaddr = talloc_reference(c, localaddr);
-		if (composite_nomem(s->localaddr, c)) return c;
-	}
 	s->server    = talloc_reference(c, server);
 	if (composite_nomem(s->server, c)) return c;
 	s->target_hostname = talloc_reference(s, target_hostname);
@@ -344,7 +337,7 @@ static struct composite_context *dcerpc_pipe_open_socket_send(TALLOC_CTX *mem_ct
 
 	s->sock->path = talloc_reference(s->sock, full_path);
 
-	conn_req = socket_connect_send(s->socket_ctx, s->localaddr, s->server, 0,
+	conn_req = socket_connect_send(s->socket_ctx, NULL, s->server, 0, 
 				       c->event_ctx);
 	composite_continue(c, conn_req, continue_socket_connect, c);
 	return c;
@@ -364,10 +357,9 @@ struct pipe_tcp_state {
 	const char *target_hostname;
 	const char *address;
 	uint32_t port;
-	struct socket_address *localaddr;
 	struct socket_address *srvaddr;
 	struct resolve_context *resolve_ctx;
-	struct dcecli_connection *conn;
+	struct dcerpc_connection *conn;
 };
 
 
@@ -393,7 +385,7 @@ static void continue_ip_resolve_name(struct composite_context *ctx)
 	if (composite_nomem(s->srvaddr, c)) return;
 
 	/* resolve_nbt_name gives only ipv4 ... - send socket open request */
-	sock_ipv4_req = dcerpc_pipe_open_socket_send(c, s->conn, s->localaddr,
+	sock_ipv4_req = dcerpc_pipe_open_socket_send(c, s->conn,
 						     s->srvaddr, s->target_hostname,
 						     NULL,
 						     NCACN_IP_TCP);
@@ -427,7 +419,7 @@ static void continue_ipv6_open_socket(struct composite_context *ctx)
 	if (composite_nomem(s->srvaddr, c)) return;
 
 	/* try IPv4 if IPv6 fails */
-	sock_ipv4_req = dcerpc_pipe_open_socket_send(c, s->conn, s->localaddr,
+	sock_ipv4_req = dcerpc_pipe_open_socket_send(c, s->conn, 
 						     s->srvaddr, s->target_hostname, 
 						     NCACN_IP_TCP);
 	composite_continue(c, sock_ipv4_req, continue_ipv4_open_socket, c);
@@ -460,12 +452,12 @@ static void continue_ipv4_open_socket(struct composite_context *ctx)
 	composite_done(c);
 }
 
+
 /*
   Send rpc pipe open request to given host:port using
   tcp/ip transport
 */
-struct composite_context* dcerpc_pipe_open_tcp_send(struct dcecli_connection *conn,
-						    const char *localaddr,
+struct composite_context* dcerpc_pipe_open_tcp_send(struct dcerpc_connection *conn,
 						    const char *server,
 						    const char *target_hostname,
 						    uint32_t port,
@@ -494,12 +486,6 @@ struct composite_context* dcerpc_pipe_open_tcp_send(struct dcecli_connection *co
 	s->port            = port;
 	s->conn            = conn;
 	s->resolve_ctx     = resolve_ctx;
-	if (localaddr) {
-		s->localaddr = socket_address_from_strings(s, "ip", localaddr, 0);
-		/* if there is no localaddr, we pass NULL for
-		   s->localaddr, which is handled by the socket libraries as
-		   meaning no local binding address specified */
-	}
 
 	make_nbt_name_server(&name, server);
 	resolve_req = resolve_name_send(resolve_ctx, s, &name, c->event_ctx);
@@ -523,7 +509,7 @@ NTSTATUS dcerpc_pipe_open_tcp_recv(struct composite_context *c)
 struct pipe_unix_state {
 	const char *path;
 	struct socket_address *srvaddr;
-	struct dcecli_connection *conn;
+	struct dcerpc_connection *conn;
 };
 
 
@@ -549,7 +535,7 @@ static void continue_unix_open_socket(struct composite_context *ctx)
 /*
   Send pipe open request on unix socket
 */
-struct composite_context *dcerpc_pipe_open_unix_stream_send(struct dcecli_connection *conn,
+struct composite_context *dcerpc_pipe_open_unix_stream_send(struct dcerpc_connection *conn,
 							    const char *path)
 {
 	struct composite_context *c;
@@ -574,7 +560,7 @@ struct composite_context *dcerpc_pipe_open_unix_stream_send(struct dcecli_connec
 	if (composite_nomem(s->srvaddr, c)) return c;
 
 	/* send socket open request */
-	sock_unix_req = dcerpc_pipe_open_socket_send(c, s->conn, NULL,
+	sock_unix_req = dcerpc_pipe_open_socket_send(c, s->conn, 
 						     s->srvaddr, NULL,
 						     s->path,
 						     NCALRPC);
@@ -613,7 +599,7 @@ static void continue_np_open_socket(struct composite_context *ctx)
 /*
   Send pipe open request on ncalrpc
 */
-struct composite_context* dcerpc_pipe_open_pipe_send(struct dcecli_connection *conn,
+struct composite_context* dcerpc_pipe_open_pipe_send(struct dcerpc_connection *conn,
 						     const char *ncalrpc_dir,
 						     const char *identifier)
 {
@@ -645,7 +631,7 @@ struct composite_context* dcerpc_pipe_open_pipe_send(struct dcecli_connection *c
 	if (composite_nomem(s->srvaddr, c)) return c;
 
 	/* send socket open request */
-	sock_np_req = dcerpc_pipe_open_socket_send(c, s->conn, NULL, s->srvaddr, NULL, s->path, NCALRPC);
+	sock_np_req = dcerpc_pipe_open_socket_send(c, s->conn, s->srvaddr, NULL, s->path, NCALRPC);
 	composite_continue(c, sock_np_req, continue_np_open_socket, c);
 	return c;
 }
@@ -666,19 +652,19 @@ NTSTATUS dcerpc_pipe_open_pipe_recv(struct composite_context *c)
 /*
   Open a rpc pipe on a named pipe - sync version
 */
-NTSTATUS dcerpc_pipe_open_pipe(struct dcecli_connection *conn, const char *ncalrpc_dir, const char *identifier)
+NTSTATUS dcerpc_pipe_open_pipe(struct dcerpc_connection *conn, const char *ncalrpc_dir, const char *identifier)
 {
 	struct composite_context *c = dcerpc_pipe_open_pipe_send(conn, ncalrpc_dir, identifier);
 	return dcerpc_pipe_open_pipe_recv(c);
 }
 
-const char *dcerpc_unix_socket_path(struct dcecli_connection *p)
+const char *dcerpc_unix_socket_path(struct dcerpc_connection *p)
 {
 	struct sock_private *sock = (struct sock_private *)p->transport.private_data;
 	return sock->path;
 }
 
-struct socket_address *dcerpc_socket_peer_addr(struct dcecli_connection *p, TALLOC_CTX *mem_ctx)
+struct socket_address *dcerpc_socket_peer_addr(struct dcerpc_connection *p, TALLOC_CTX *mem_ctx)
 {
 	struct sock_private *sock = (struct sock_private *)p->transport.private_data;
 	return socket_get_peer_addr(sock->sock, mem_ctx);

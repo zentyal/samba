@@ -34,13 +34,6 @@ enum torture_result {
 	TORTURE_SKIP=3
 };
 
-enum torture_progress_whence {
-	TORTURE_PROGRESS_SET,
-	TORTURE_PROGRESS_CUR,
-	TORTURE_PROGRESS_POP,
-	TORTURE_PROGRESS_PUSH,
-};
-
 /* 
  * These callbacks should be implemented by any backend that wishes 
  * to listen to reports from the torture tests.
@@ -59,8 +52,6 @@ struct torture_ui_ops
 						struct torture_test *);
 	void (*test_result) (struct torture_context *, 
 						 enum torture_result, const char *reason);
-	void (*progress) (struct torture_context *, int offset, enum torture_progress_whence whence);
-	void (*report_time) (struct torture_context *);
 };
 
 void torture_ui_test_start(struct torture_context *context,
@@ -70,8 +61,6 @@ void torture_ui_test_start(struct torture_context *context,
 void torture_ui_test_result(struct torture_context *context,
 								enum torture_result result,
 								const char *comment);
-
-void torture_ui_report_time(struct torture_context *context);
 
 /*
  * Holds information about a specific run of the testsuite. 
@@ -87,6 +76,7 @@ struct torture_context
 {
 	struct torture_results *results;
 
+	char *active_testname;
 	struct torture_test *active_test;
 	struct torture_tcase *active_tcase;
 
@@ -95,7 +85,7 @@ struct torture_context
 
 	/** Directory used for temporary test data */
 	const char *outputdir;
-
+	
 	/** Event context */
 	struct tevent_context *ev;
 
@@ -220,27 +210,14 @@ bool torture_suite_add_suite(struct torture_suite *suite,
 bool torture_run_suite(struct torture_context *context,
 					   struct torture_suite *suite);
 
-/* Run the specified testsuite recursively, but only the specified 
- * tests */
-bool torture_run_suite_restricted(struct torture_context *context, 
-		       struct torture_suite *suite, const char **restricted);
-
 /* Run the specified testcase */
 bool torture_run_tcase(struct torture_context *context,
 					   struct torture_tcase *tcase);
-
-bool torture_run_tcase_restricted(struct torture_context *context, 
-		       struct torture_tcase *tcase, const char **restricted);
 
 /* Run the specified test */
 bool torture_run_test(struct torture_context *context,
 					  struct torture_tcase *tcase,
 					  struct torture_test *test);
-
-bool torture_run_test_restricted(struct torture_context *context,
-					  struct torture_tcase *tcase,
-					  struct torture_test *test,
-					  const char **restricted);
 
 void torture_comment(struct torture_context *test, const char *comment, ...) PRINTF_ATTRIBUTE(2,3);
 void torture_warning(struct torture_context *test, const char *comment, ...) PRINTF_ATTRIBUTE(2,3);
@@ -251,13 +228,6 @@ void torture_result(struct torture_context *test,
 	if (!(expr)) { \
 		torture_result(torture_ctx, TORTURE_FAIL, __location__": Expression `%s' failed: %s", __STRING(expr), cmt); \
 		return false; \
-	}
-
-#define torture_assert_goto(torture_ctx,expr,ret,label,cmt) \
-	if (!(expr)) { \
-		torture_result(torture_ctx, TORTURE_FAIL, __location__": Expression `%s' failed: %s", __STRING(expr), cmt); \
-		ret = false; \
-		goto label; \
 	}
 
 #define torture_assert_werr_equal(torture_ctx, got, expected, cmt) \
@@ -307,16 +277,6 @@ void torture_result(struct torture_context *test,
 		torture_result(torture_ctx, TORTURE_FAIL, \
 					   __location__": "#got" was %s, expected %s: %s", \
 					   __got, __expected, cmt); \
-		return false; \
-	} \
-	} while(0)
-
-#define torture_assert_strn_equal(torture_ctx,got,expected,len,cmt)\
-	do { const char *__got = (got), *__expected = (expected); \
-	if (strncmp(__got, __expected, len) != 0) { \
-		torture_result(torture_ctx, TORTURE_FAIL, \
-					   __location__": "#got" %s of len %d did not match "#expected" %s: %s", \
-					   __got, (int)len, __expected, cmt); \
 		return false; \
 	} \
 	} while(0)
@@ -397,8 +357,8 @@ void torture_result(struct torture_context *test,
 	do { int __got = (got), __expected = (expected); \
 	if (__got != __expected) { \
 		torture_result(torture_ctx, TORTURE_FAIL, \
-			__location__": "#got" was %d (0x%X), expected %d (0x%X): %s", \
-			__got, __got, __expected, __expected, cmt); \
+			__location__": "#got" was %d, expected %d: %s", \
+			__got, __expected, cmt); \
 		return false; \
 	} \
 	} while(0)
@@ -407,8 +367,8 @@ void torture_result(struct torture_context *test,
 	do { int __got = (got), __expected = (expected); \
 	if (__got != __expected) { \
 		torture_result(torture_ctx, TORTURE_FAIL, \
-			__location__": "#got" was %d (0x%X), expected %d (0x%X): %s", \
-			__got, __got, __expected, __expected, cmt); \
+			__location__": "#got" was %d, expected %d: %s", \
+			__got, __expected, cmt); \
 		ret = false; \
 		goto label; \
 	} \
@@ -418,24 +378,9 @@ void torture_result(struct torture_context *test,
 	do { uint64_t __got = (got), __expected = (expected); \
 	if (__got != __expected) { \
 		torture_result(torture_ctx, TORTURE_FAIL, \
-			__location__": "#got" was %llu (0x%llX), expected %llu (0x%llX): %s", \
-			(unsigned long long)__got, (unsigned long long)__got, \
-			(unsigned long long)__expected, (unsigned long long)__expected, \
-			cmt); \
+			__location__": "#got" was %llu, expected %llu: %s", \
+			(unsigned long long)__got, (unsigned long long)__expected, cmt); \
 		return false; \
-	} \
-	} while(0)
-
-#define torture_assert_u64_equal_goto(torture_ctx,got,expected,ret,label,cmt)\
-	do { uint64_t __got = (got), __expected = (expected); \
-	if (__got != __expected) { \
-		torture_result(torture_ctx, TORTURE_FAIL, \
-			__location__": "#got" was %llu (0x%llX), expected %llu (0x%llX): %s", \
-			(unsigned long long)__got, (unsigned long long)__got, \
-			(unsigned long long)__expected, (unsigned long long)__expected, \
-			cmt); \
-		ret = false; \
-		goto label; \
 	} \
 	} while(0)
 
@@ -450,13 +395,7 @@ void torture_result(struct torture_context *test,
 	} \
 	} while(0)
 
-#define torture_assert_nttime_equal(torture_ctx,got,expected,cmt) \
-	do { NTTIME __got = got, __expected = expected; \
-	if (!nt_time_equal(&__got, &__expected)) { \
-		torture_result(torture_ctx, TORTURE_FAIL, __location__": "#got" was %s, expected %s: %s", nt_time_string(tctx, __got), nt_time_string(tctx, __expected), cmt); \
-		return false; \
-	}\
-	} while(0)
+
 
 #define torture_skip(torture_ctx,cmt) do {\
 		torture_result(torture_ctx, TORTURE_SKIP, __location__": %s", cmt);\
@@ -510,14 +449,9 @@ bool torture_setting_bool(struct torture_context *test,
 struct torture_suite *torture_find_suite(struct torture_suite *parent, 
 										 const char *name);
 
-unsigned long torture_setting_ulong(struct torture_context *test,
-				    const char *name,
-				    unsigned long default_value);
-
 NTSTATUS torture_temp_dir(struct torture_context *tctx, 
 				   const char *prefix, 
 				   char **tempdir);
-NTSTATUS torture_deltree_outputdir(struct torture_context *tctx);
 
 struct torture_test *torture_tcase_add_simple_test(struct torture_tcase *tcase,
 		const char *name,
@@ -527,7 +461,6 @@ struct torture_test *torture_tcase_add_simple_test(struct torture_tcase *tcase,
 bool torture_suite_init_tcase(struct torture_suite *suite, 
 			      struct torture_tcase *tcase, 
 			      const char *name);
-int torture_suite_children_count(const struct torture_suite *suite);
 
 struct torture_context *torture_context_init(struct tevent_context *event_ctx, struct torture_results *results);
 

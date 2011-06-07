@@ -32,7 +32,7 @@ AC_DEFUN(SMB_MODULE,
 		string_shared_modules="$string_shared_modules $1"
 	elif test x"$DEST" = xSTATIC; then
 		[init_static_modules_]translit([$4], [A-Z], [a-z])="$[init_static_modules_]translit([$4], [A-Z], [a-z])  $1_init();"
-		[decl_static_modules_]translit([$4], [A-Z], [a-z])="$[decl_static_modules_]translit([$4], [A-Z], [a-z]) extern NTSTATUS $1_init(void);"
+ 		[decl_static_modules_]translit([$4], [A-Z], [a-z])="$[decl_static_modules_]translit([$4], [A-Z], [a-z]) extern NTSTATUS $1_init(void);"
 		string_static_modules="$string_static_modules $1"
 		$4_STATIC="$$4_STATIC $2"
 		AC_SUBST($4_STATIC)
@@ -54,7 +54,7 @@ AC_DEFUN(SMB_SUBSYSTEM,
 ])
 
 
-dnl SMB_LIBRARY(name, soversion, fullversion, default, reason)
+dnl SMB_LIBRARY(name, version, default, reason)
 dnl
 dnl configure build and use of an (internal) shared library
 dnl
@@ -74,7 +74,6 @@ LIBUC[_TARGET]=
 [UNINSTALL_]LIBUC=
 
 m4_if([$2], [], [LIBUC[_SOVER]=0], [LIBUC[_SOVER]=$2])
-m4_if([$3], [], [LIBUC[_FULLVER]=$LIBUC[_SOVER]], [LIBUC[_FULLVER]=$3])
 
 AC_SUBST(LIBUC[_SHARED_TARGET])
 AC_SUBST(LIBUC[_STATIC_TARGET])
@@ -85,16 +84,15 @@ AC_SUBST(LIBUC[_TARGET])
 AC_SUBST([INSTALL_]LIBUC)
 AC_SUBST([UNINSTALL_]LIBUC)
 AC_SUBST(LIBUC[_SOVER])
-AC_SUBST(LIBUC[_FULLVER])
 
 AC_MSG_CHECKING([whether to build the LIBNAME shared library])
-m4_if([$4], [no], [
+m4_if([$3], [no], [
 dnl set the default to not build the shared lib
 AC_ARG_WITH(LIBNAME,
 AS_HELP_STRING([--with-]LIBNAME,
-	m4_if([$5], [],
+	m4_if([$4], [],
 		[Build the LIBNAME shared library (default=no)],
-		[Build the LIBNAME shared library (default=no ($5))])),
+		[Build the LIBNAME shared library (default=no ($4))])),
 [
 case "$withval" in
 	yes)
@@ -791,6 +789,37 @@ AC_DEFUN([SMB_CHECK_DMAPI],
 	# DMAPI detection success actions end
     fi
 
+])
+
+dnl SMB_CHECK_CLOCK_ID(clockid)
+dnl Test whether the specified clock_gettime clock ID is available. If it
+dnl is, we define HAVE_clockid
+AC_DEFUN([SMB_CHECK_CLOCK_ID],
+[
+    AC_MSG_CHECKING(for $1)
+    AC_TRY_LINK([
+#if TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# if HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+    ],
+    [
+clockid_t clk = $1;
+    ],
+    [
+	AC_MSG_RESULT(yes)
+	AC_DEFINE(HAVE_$1, 1,
+	    [Whether the clock_gettime clock ID $1 is available])
+    ],
+    [
+	AC_MSG_RESULT(no)
+    ])
 ])
 
 dnl SMB_IF_RTSIGNAL_BUG([actions if true],

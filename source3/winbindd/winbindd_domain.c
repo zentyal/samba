@@ -39,6 +39,10 @@ static const struct winbindd_child_dispatch_table domain_dispatch_table[] = {
 		.struct_cmd	= WINBINDD_INIT_CONNECTION,
 		.struct_fn	= winbindd_dual_init_connection,
 	},{
+		.name		= "SHOW_SEQUENCE",
+		.struct_cmd	= WINBINDD_SHOW_SEQUENCE,
+		.struct_fn	= winbindd_dual_show_sequence,
+	},{
 		.name		= "PAM_AUTH",
 		.struct_cmd	= WINBINDD_PAM_AUTH,
 		.struct_fn	= winbindd_dual_pam_auth,
@@ -59,6 +63,14 @@ static const struct winbindd_child_dispatch_table domain_dispatch_table[] = {
 		.struct_cmd	= WINBINDD_PAM_CHAUTHTOK,
 		.struct_fn	= winbindd_dual_pam_chauthtok,
 	},{
+		.name		= "CCACHE_NTLM_AUTH",
+		.struct_cmd	= WINBINDD_CCACHE_NTLMAUTH,
+		.struct_fn	= winbindd_dual_ccache_ntlm_auth,
+	},{
+		.name		= "CCACHE_SAVE",
+		.struct_cmd	= WINBINDD_CCACHE_SAVE,
+		.struct_fn	= winbindd_dual_ccache_save,
+	},{
 		.name		= "NDRCMD",
 		.struct_cmd	= WINBINDD_DUAL_NDRCMD,
 		.struct_fn	= winbindd_dual_ndrcmd,
@@ -67,14 +79,9 @@ static const struct winbindd_child_dispatch_table domain_dispatch_table[] = {
 	}
 };
 
-void setup_domain_child(struct winbindd_domain *domain)
+void setup_domain_child(struct winbindd_domain *domain,
+			struct winbindd_child *child)
 {
-	int i;
-
-        for (i=0; i<lp_winbind_max_domain_connections(); i++) {
-                setup_child(domain, &domain->children[i],
-			    domain_dispatch_table,
-                            "log.wb", domain->name);
-		domain->children[i].domain = domain;
-	}
+	setup_child(domain, child, domain_dispatch_table,
+		    "log.wb", domain->name);
 }

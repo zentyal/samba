@@ -91,12 +91,13 @@ static bool test_afdgets(struct torture_context *tctx)
 
 struct torture_suite *torture_local_util_file(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "file");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "FILE");
 
 	torture_suite_add_simple_test(suite, "file_load_save", 
 				      test_file_load_save);
 
-	torture_suite_add_simple_test(suite, "afdgets", test_afdgets);
+	torture_suite_add_simple_test(suite, "afdgets", 
+				      test_afdgets);
 
 	return suite;
 }

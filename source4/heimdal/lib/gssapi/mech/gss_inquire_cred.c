@@ -27,6 +27,7 @@
  */
 
 #include "mech_locl.h"
+RCSID("$Id$");
 
 #define AUSAGE 1
 #define IUSAGE 2
@@ -42,7 +43,7 @@ updateusage(gss_cred_usage_t usage, int *usagemask)
 	*usagemask |= IUSAGE;
 }
 
-GSSAPI_LIB_FUNCTION OM_uint32 GSSAPI_LIB_CALL
+OM_uint32 GSSAPI_LIB_FUNCTION
 gss_inquire_cred(OM_uint32 *minor_status,
     const gss_cred_id_t cred_handle,
     gss_name_t *name_ret,
@@ -78,7 +79,7 @@ gss_inquire_cred(OM_uint32 *minor_status,
 			*minor_status = ENOMEM;
 			return (GSS_S_FAILURE);
 		}
-		HEIM_SLIST_INIT(&name->gn_mn);
+		SLIST_INIT(&name->gn_mn);
 	} else {
 		name = NULL;
 	}
@@ -96,7 +97,7 @@ gss_inquire_cred(OM_uint32 *minor_status,
 	if (cred) {
 		struct _gss_mechanism_cred *mc;
 
-		HEIM_SLIST_FOREACH(mc, &cred->gc_mc, gmc_link) {
+		SLIST_FOREACH(mc, &cred->gc_mc, gmc_link) {
 			gss_name_t mc_name;
 			OM_uint32 mc_lifetime;
 
@@ -116,7 +117,7 @@ gss_inquire_cred(OM_uint32 *minor_status,
 				mn->gmn_mech = mc->gmc_mech;
 				mn->gmn_mech_oid = mc->gmc_mech_oid;
 				mn->gmn_name = mc_name;
-				HEIM_SLIST_INSERT_HEAD(&name->gn_mn, mn, gmn_link);
+				SLIST_INSERT_HEAD(&name->gn_mn, mn, gmn_link);
 			} else {
 				mc->gmc_mech->gm_release_name(minor_status,
 				    &mc_name);
@@ -131,7 +132,7 @@ gss_inquire_cred(OM_uint32 *minor_status,
 			found++;
 		}
 	} else {
-		HEIM_SLIST_FOREACH(m, &_gss_mechs, gm_link) {
+		SLIST_FOREACH(m, &_gss_mechs, gm_link) {
 			gss_name_t mc_name;
 			OM_uint32 mc_lifetime;
 
@@ -153,7 +154,7 @@ gss_inquire_cred(OM_uint32 *minor_status,
 				mn->gmn_mech = &m->gm_mech;
 				mn->gmn_mech_oid = &m->gm_mech_oid;
 				mn->gmn_name = mc_name;
-				HEIM_SLIST_INSERT_HEAD(&name->gn_mn, mn, gmn_link);
+				SLIST_INSERT_HEAD(&name->gn_mn, mn, gmn_link);
 			} else if (mc_name) {
 				m->gm_mech.gm_release_name(minor_status,
 				    &mc_name);

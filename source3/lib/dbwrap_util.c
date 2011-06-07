@@ -20,8 +20,6 @@
 */
 
 #include "includes.h"
-#include "dbwrap.h"
-#include "util_tdb.h"
 
 int32_t dbwrap_fetch_int32(struct db_context *db, const char *keystr)
 {
@@ -119,7 +117,7 @@ static NTSTATUS dbwrap_change_uint32_atomic_action(struct db_context *db,
 						   void *private_data)
 {
 	struct db_record *rec;
-	uint32_t val = (uint32_t)-1;
+	uint32 val = -1;
 	uint32_t v_store;
 	NTSTATUS ret;
 	struct dbwrap_change_uint32_atomic_context *state;
@@ -416,44 +414,6 @@ NTSTATUS dbwrap_trans_do(struct db_context *db,
 	DEBUG(2, ("transaction_commit failed\n"));
 	return NT_STATUS_INTERNAL_DB_CORRUPTION;
 }
-
-struct dbwrap_trans_traverse_action_ctx {
-	int (*f)(struct db_record* rec, void* private_data);
-	void* private_data;
-};
-
-
-static NTSTATUS dbwrap_trans_traverse_action(struct db_context* db, void* private_data)
-{
-	struct dbwrap_trans_traverse_action_ctx* ctx =
-		(struct dbwrap_trans_traverse_action_ctx*)private_data;
-
-	int ret = db->traverse(db, ctx->f, ctx->private_data);
-
-	return (ret == -1) ? NT_STATUS_INTERNAL_DB_CORRUPTION : NT_STATUS_OK;
-}
-
-NTSTATUS dbwrap_trans_traverse(struct db_context *db,
-			       int (*f)(struct db_record*, void*),
-			       void *private_data)
-{
-	struct dbwrap_trans_traverse_action_ctx ctx = {
-		.f = f,
-		.private_data = private_data,
-	};
-	return dbwrap_trans_do(db, dbwrap_trans_traverse_action, &ctx);
-}
-
-NTSTATUS dbwrap_traverse(struct db_context *db,
-			 int (*f)(struct db_record*, void*),
-			 void *private_data)
-{
-	int ret = db->traverse(db, f, private_data);
-	return (ret == -1) ? NT_STATUS_INTERNAL_DB_CORRUPTION : NT_STATUS_OK;
-}
-
-
-
 
 NTSTATUS dbwrap_delete_bystring_upper(struct db_context *db, const char *key)
 {

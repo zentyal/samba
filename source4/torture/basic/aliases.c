@@ -21,6 +21,7 @@
 #include "../lib/util/dlinklist.h"
 #include "libcli/raw/libcliraw.h"
 #include "libcli/raw/raw_proto.h"
+#include "torture/torture.h"
 #include "libcli/libcli.h"
 #include "torture/util.h"
 
@@ -383,7 +384,7 @@ static bool setpathinfo_aliases(struct torture_context *tctx,
 /* look for aliased info levels in trans2 calls */
 struct torture_suite *torture_trans2_aliases(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "aliases");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "ALIASES");
 
 	torture_suite_add_1smb_test(suite, "QFILEINFO aliases", qfsinfo_aliases);
 	torture_suite_add_1smb_test(suite, "QFSINFO aliases", qfileinfo_aliases);

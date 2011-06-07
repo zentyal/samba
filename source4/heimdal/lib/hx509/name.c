@@ -33,7 +33,6 @@
 
 #include "hx_locl.h"
 #include <wind.h>
-#include "char_map.h"
 
 /**
  * @page page_name PKIX/X.509 Names
@@ -44,7 +43,7 @@
  * (RDN). Each RDN consists of an unordered list of typed strings. The
  * types are defined by OID and have long and short description. For
  * example id-at-commonName (2.5.4.3) have the long name CommonName
- * and short name CN. The string itself can be of several encoding,
+ * and short name CN. The string itself can be of serveral encoding,
  * UTF8, UTF16, Teltex string, etc. The type limit what encoding
  * should be used.
  *
@@ -80,11 +79,11 @@ static const struct {
 };
 
 static char *
-quote_string(const char *f, size_t len, int flags, size_t *rlen)
+quote_string(const char *f, size_t len, size_t *rlen)
 {
     size_t i, j, tolen;
-    const unsigned char *from = (const unsigned char *)f;
-    unsigned char *to;
+    const char *from = f;
+    char *to;
 
     tolen = len * 3 + 1;
     to = malloc(tolen);
@@ -92,29 +91,26 @@ quote_string(const char *f, size_t len, int flags, size_t *rlen)
 	return NULL;
 
     for (i = 0, j = 0; i < len; i++) {
-	unsigned char map = char_map[from[i]] & flags;
-	if (i == 0 && (map & Q_RFC2253_QUOTE_FIRST)) {
+	if (from[i] == ' ' && i + 1 < len)
+	    to[j++] = from[i];
+	else if (from[i] == ',' || from[i] == '=' || from[i] == '+' ||
+		 from[i] == '<' || from[i] == '>' || from[i] == '#' ||
+		 from[i] == ';' || from[i] == ' ')
+	{
 	    to[j++] = '\\';
 	    to[j++] = from[i];
-	} else if ((i + 1) == len && (map & Q_RFC2253_QUOTE_LAST)) {
-
-	    to[j++] = '\\';
+	} else if (((unsigned char)from[i]) >= 32 && ((unsigned char)from[i]) <= 127) {
 	    to[j++] = from[i];
-	} else if (map & Q_RFC2253_QUOTE) {
-	    to[j++] = '\\';
-	    to[j++] = from[i];
-	} else if (map & Q_RFC2253_HEX) {
-	    int l = snprintf((char *)&to[j], tolen - j - 1,
+	} else {
+	    int l = snprintf(&to[j], tolen - j - 1,
 			     "#%02x", (unsigned char)from[i]);
 	    j += l;
-	} else {
-	    to[j++] = from[i];
 	}
     }
     to[j] = '\0';
     assert(j < tolen);
     *rlen = j;
-    return (char *)to;
+    return to;
 }
 
 
@@ -125,7 +121,7 @@ append_string(char **str, size_t *total_len, const char *ss,
     char *s, *qs;
 
     if (quote)
-	qs = quote_string(ss, len, Q_RFC2253, &len);
+	qs = quote_string(ss, len, &len);
     else
 	qs = rk_UNCONST(ss);
 
@@ -207,7 +203,7 @@ _hx509_Name_to_string(const Name *n, char **str)
 	return ENOMEM;
 
     for (i = n->u.rdnSequence.len - 1 ; i >= 0 ; i--) {
-	size_t len;
+	int len;
 
 	for (j = 0; j < n->u.rdnSequence.val[i].len; j++) {
 	    DirectoryString *ds = &n->u.rdnSequence.val[i].val[j].value;
@@ -218,16 +214,13 @@ _hx509_Name_to_string(const Name *n, char **str)
 
 	    switch(ds->element) {
 	    case choice_DirectoryString_ia5String:
-		ss = ds->u.ia5String.data;
-		len = ds->u.ia5String.length;
+		ss = ds->u.ia5String;
 		break;
 	    case choice_DirectoryString_printableString:
-		ss = ds->u.printableString.data;
-		len = ds->u.printableString.length;
+		ss = ds->u.printableString;
 		break;
 	    case choice_DirectoryString_utf8String:
 		ss = ds->u.utf8String;
-		len = strlen(ss);
 		break;
 	    case choice_DirectoryString_bmpString: {
 	        const uint16_t *bmp = ds->u.bmpString.data;
@@ -247,12 +240,14 @@ _hx509_Name_to_string(const Name *n, char **str)
 		    return ret;
 		}
 		ss[k] = '\0';
-		len = k;
 		break;
 	    }
 	    case choice_DirectoryString_teletexString:
-		ss = ds->u.teletexString;
-		len = strlen(ss);
+		ss = malloc(ds->u.teletexString.length + 1);
+		if (ss == NULL)
+		    _hx509_abort("allocation failure"); /* XXX */
+		memcpy(ss, ds->u.teletexString.data, ds->u.teletexString.length);
+		ss[ds->u.teletexString.length] = '\0';
 		break;
 	    case choice_DirectoryString_universalString: {
 	        const uint32_t *uni = ds->u.universalString.data;
@@ -272,7 +267,6 @@ _hx509_Name_to_string(const Name *n, char **str)
 		    return ret;
 		}
 		ss[k] = '\0';
-		len = k;
 		break;
 	    }
 	    default:
@@ -282,9 +276,11 @@ _hx509_Name_to_string(const Name *n, char **str)
 	    append_string(str, &total_len, oidname, strlen(oidname), 0);
 	    free(oidname);
 	    append_string(str, &total_len, "=", 1, 0);
+	    len = strlen(ss);
 	    append_string(str, &total_len, ss, len, 1);
-	    if (ds->element == choice_DirectoryString_bmpString ||
-		ds->element == choice_DirectoryString_universalString)
+	    if (ds->element == choice_DirectoryString_universalString ||
+		ds->element == choice_DirectoryString_bmpString ||
+		ds->element == choice_DirectoryString_teletexString)
 	    {
 		free(ss);
 	    }
@@ -328,7 +324,7 @@ _hx509_Name_to_string(const Name *n, char **str)
 static int
 dsstringprep(const DirectoryString *ds, uint32_t **rname, size_t *rlen)
 {
-    wind_profile_flags flags;
+    wind_profile_flags flags = 0;
     size_t i, len;
     int ret;
     uint32_t *name;
@@ -338,28 +334,22 @@ dsstringprep(const DirectoryString *ds, uint32_t **rname, size_t *rlen)
 
     switch(ds->element) {
     case choice_DirectoryString_ia5String:
-	flags = WIND_PROFILE_LDAP;
-	COPYVOIDARRAY(ds, ia5String, len, name);
+	COPYCHARARRAY(ds, ia5String, len, name);
 	break;
     case choice_DirectoryString_printableString:
-	flags = WIND_PROFILE_LDAP;
-	flags |= WIND_PROFILE_LDAP_CASE_EXACT_ATTRIBUTE;
-	COPYVOIDARRAY(ds, printableString, len, name);
+	flags = WIND_PROFILE_LDAP_CASE_EXACT_ATTRIBUTE;
+	COPYCHARARRAY(ds, printableString, len, name);
 	break;
     case choice_DirectoryString_teletexString:
-	flags = WIND_PROFILE_LDAP_CASE;
-	COPYCHARARRAY(ds, teletexString, len, name);
+	COPYVOIDARRAY(ds, teletexString, len, name);
 	break;
     case choice_DirectoryString_bmpString:
-	flags = WIND_PROFILE_LDAP;
 	COPYVALARRAY(ds, bmpString, len, name);
 	break;
     case choice_DirectoryString_universalString:
-	flags = WIND_PROFILE_LDAP;
 	COPYVALARRAY(ds, universalString, len, name);
 	break;
     case choice_DirectoryString_utf8String:
-	flags = WIND_PROFILE_LDAP;
 	ret = wind_utf8ucs4_length(ds->u.utf8String, &len);
 	if (ret)
 	    return ret;
@@ -382,7 +372,8 @@ dsstringprep(const DirectoryString *ds, uint32_t **rname, size_t *rlen)
 	*rlen = *rlen * 2;
 	*rname = malloc(*rlen * sizeof((*rname)[0]));
 
-	ret = wind_stringprep(name, len, *rname, rlen, flags);
+	ret = wind_stringprep(name, len, *rname, rlen,
+			      WIND_PROFILE_LDAP|flags);
 	if (ret == WIND_ERR_OVERRUN) {
 	    free(*rname);
 	    *rname = NULL;
@@ -408,7 +399,7 @@ _hx509_name_ds_cmp(const DirectoryString *ds1,
 		   int *diff)
 {
     uint32_t *ds1lp, *ds2lp;
-    size_t ds1len, ds2len, i;
+    size_t ds1len, ds2len;
     int ret;
 
     ret = dsstringprep(ds1, &ds1lp, &ds1len);
@@ -422,13 +413,9 @@ _hx509_name_ds_cmp(const DirectoryString *ds1,
 
     if (ds1len != ds2len)
 	*diff = ds1len - ds2len;
-    else {
-	for (i = 0; i < ds1len; i++) {
-	    *diff = ds1lp[i] - ds2lp[i];
-	    if (*diff)
-		break;
-	}
-    }
+    else
+	*diff = memcmp(ds1lp, ds2lp, ds1len * sizeof(ds1lp[0]));
+
     free(ds1lp);
     free(ds2lp);
 
@@ -939,23 +926,21 @@ hx509_general_name_unparse(GeneralName *name, char **str)
 
     switch (name->element) {
     case choice_GeneralName_otherName: {
-	char *oid;
-	hx509_oid_sprint(&name->u.otherName.type_id, &oid);
-	if (oid == NULL)
+	char *str;
+	hx509_oid_sprint(&name->u.otherName.type_id, &str);
+	if (str == NULL)
 	    return ENOMEM;
-	strpool = rk_strpoolprintf(strpool, "otherName: %s", oid);
-	free(oid);
+	strpool = rk_strpoolprintf(strpool, "otherName: %s", str);
+	free(str);
 	break;
     }
     case choice_GeneralName_rfc822Name:
-	strpool = rk_strpoolprintf(strpool, "rfc822Name: %.*s\n",
-				   (int)name->u.rfc822Name.length,
-				   (char *)name->u.rfc822Name.data);
+	strpool = rk_strpoolprintf(strpool, "rfc822Name: %s\n",
+				   name->u.rfc822Name);
 	break;
     case choice_GeneralName_dNSName:
-	strpool = rk_strpoolprintf(strpool, "dNSName: %.*s\n",
-				   (int)name->u.dNSName.length,
-				   (char *)name->u.dNSName.data);
+	strpool = rk_strpoolprintf(strpool, "dNSName: %s\n",
+				   name->u.dNSName);
 	break;
     case choice_GeneralName_directoryName: {
 	Name dir;
@@ -972,9 +957,8 @@ hx509_general_name_unparse(GeneralName *name, char **str)
 	break;
     }
     case choice_GeneralName_uniformResourceIdentifier:
-	strpool = rk_strpoolprintf(strpool, "URI: %.*s",
-				   (int)name->u.uniformResourceIdentifier.length,
-				   (char *)name->u.uniformResourceIdentifier.data);
+	strpool = rk_strpoolprintf(strpool, "URI: %s",
+				   name->u.uniformResourceIdentifier);
 	break;
     case choice_GeneralName_iPAddress: {
 	unsigned char *a = name->u.iPAddress.data;
@@ -1002,12 +986,12 @@ hx509_general_name_unparse(GeneralName *name, char **str)
 	break;
     }
     case choice_GeneralName_registeredID: {
-	char *oid;
-	hx509_oid_sprint(&name->u.registeredID, &oid);
-	if (oid == NULL)
+	char *str;
+	hx509_oid_sprint(&name->u.registeredID, &str);
+	if (str == NULL)
 	    return ENOMEM;
-	strpool = rk_strpoolprintf(strpool, "registeredID: %s", oid);
-	free(oid);
+	strpool = rk_strpoolprintf(strpool, "registeredID: %s", str);
+	free(str);
 	break;
     }
     default:

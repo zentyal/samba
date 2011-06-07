@@ -3,36 +3,29 @@
    FS info functions
    Copyright (C) Stefan (metze) Metzmacher	2003
    Copyright (C) Jeremy Allison 2007
-
+   
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
-#include "libsmb/libsmb.h"
 #include "../libcli/auth/spnego.h"
-#include "../libcli/auth/ntlmssp.h"
-#include "../lib/util/tevent_ntstatus.h"
-#include "async_smb.h"
-#include "smb_crypt.h"
-#include "trans2.h"
 
 /****************************************************************************
  Get UNIX extensions version info.
 ****************************************************************************/
 
 struct cli_unix_extensions_version_state {
-	struct cli_state *cli;
 	uint16_t setup[1];
 	uint8_t param[2];
 	uint16_t major, minor;
@@ -53,7 +46,6 @@ struct tevent_req *cli_unix_extensions_version_send(TALLOC_CTX *mem_ctx,
 	if (req == NULL) {
 		return NULL;
 	}
-	state->cli = cli;
 	SSVAL(state->setup, 0, TRANSACT2_QFSINFO);
 	SSVAL(state->param, 0, SMB_QUERY_CIFS_UNIX_INFO);
 
@@ -79,11 +71,15 @@ static void cli_unix_extensions_version_done(struct tevent_req *subreq)
 	uint32_t num_data;
 	NTSTATUS status;
 
-	status = cli_trans_recv(subreq, state, NULL, NULL, 0, NULL,
-				NULL, 0, NULL, &data, 12, &num_data);
+	status = cli_trans_recv(subreq, state, NULL, NULL, NULL, NULL,
+				&data, &num_data);
 	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
 		tevent_req_nterror(req, status);
+		return;
+	}
+	if (num_data < 12) {
+		tevent_req_nterror(req, NT_STATUS_INVALID_NETWORK_RESPONSE);
 		return;
 	}
 
@@ -111,7 +107,6 @@ NTSTATUS cli_unix_extensions_version_recv(struct tevent_req *req,
 	*pminor = state->minor;
 	*pcaplow = state->caplow;
 	*pcaphigh = state->caphigh;
-	state->cli->server_posix_capabilities = *pcaplow;
 	return NT_STATUS_OK;
 }
 
@@ -151,6 +146,9 @@ NTSTATUS cli_unix_extensions_version(struct cli_state *cli, uint16 *pmajor,
 
 	status = cli_unix_extensions_version_recv(req, pmajor, pminor, pcaplow,
 						  pcaphigh);
+	if (NT_STATUS_IS_OK(status)) {
+		cli->posix_capabilities = *pcaplow;
+	}
  fail:
 	TALLOC_FREE(frame);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -163,235 +161,208 @@ NTSTATUS cli_unix_extensions_version(struct cli_state *cli, uint16 *pmajor,
  Set UNIX extensions capabilities.
 ****************************************************************************/
 
-struct cli_set_unix_extensions_capabilities_state {
-	struct cli_state *cli;
-	uint16_t setup[1];
-	uint8_t param[4];
-	uint8_t data[12];
-};
-
-static void cli_set_unix_extensions_capabilities_done(
-	struct tevent_req *subreq);
-
-struct tevent_req *cli_set_unix_extensions_capabilities_send(
-	TALLOC_CTX *mem_ctx, struct tevent_context *ev, struct cli_state *cli,
-	uint16_t major, uint16_t minor, uint32_t caplow, uint32_t caphigh)
+bool cli_set_unix_extensions_capabilities(struct cli_state *cli, uint16 major, uint16 minor,
+                                        uint32 caplow, uint32 caphigh)
 {
-	struct tevent_req *req, *subreq;
-	struct cli_set_unix_extensions_capabilities_state *state;
+	bool ret = False;
+	uint16 setup;
+	char param[4];
+	char data[12];
+	char *rparam=NULL, *rdata=NULL;
+	unsigned int rparam_count=0, rdata_count=0;
 
-	req = tevent_req_create(
-		mem_ctx, &state,
-		struct cli_set_unix_extensions_capabilities_state);
-	if (req == NULL) {
-		return NULL;
+	setup = TRANSACT2_SETFSINFO;
+
+	SSVAL(param,0,0);
+	SSVAL(param,2,SMB_SET_CIFS_UNIX_INFO);
+
+	SSVAL(data,0,major);
+	SSVAL(data,2,minor);
+	SIVAL(data,4,caplow);
+	SIVAL(data,8,caphigh);
+
+	if (!cli_send_trans(cli, SMBtrans2,
+		    NULL,
+		    0, 0,
+		    &setup, 1, 0,
+		    param, 4, 0,
+		    data, 12, 560)) {
+		goto cleanup;
 	}
 
-	state->cli = cli;
-	SSVAL(state->setup+0, 0, TRANSACT2_SETFSINFO);
-
-	SSVAL(state->param, 0, 0);
-	SSVAL(state->param, 2, SMB_SET_CIFS_UNIX_INFO);
-
-	SSVAL(state->data, 0, major);
-	SSVAL(state->data, 2, minor);
-	SIVAL(state->data, 4, caplow);
-	SIVAL(state->data, 8, caphigh);
-
-	subreq = cli_trans_send(state, ev, cli, SMBtrans2,
-				NULL, 0, 0, 0,
-				state->setup, 1, 0,
-				state->param, 4, 0,
-				state->data, 12, 560);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
+	if (!cli_receive_trans(cli, SMBtrans2,
+                              &rparam, &rparam_count,
+                              &rdata, &rdata_count)) {
+		goto cleanup;
 	}
-	tevent_req_set_callback(
-		subreq, cli_set_unix_extensions_capabilities_done, req);
-	return req;
+
+	if (cli_is_error(cli)) {
+		ret = False;
+		goto cleanup;
+	} else {
+		ret = True;
+	}
+
+cleanup:
+	SAFE_FREE(rparam);
+	SAFE_FREE(rdata);
+
+	return ret;
 }
 
-static void cli_set_unix_extensions_capabilities_done(
-	struct tevent_req *subreq)
+bool cli_get_fs_attr_info(struct cli_state *cli, uint32 *fs_attr)
 {
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct cli_set_unix_extensions_capabilities_state *state = tevent_req_data(
-		req, struct cli_set_unix_extensions_capabilities_state);
+	bool ret = False;
+	uint16 setup;
+	char param[2];
+	char *rparam=NULL, *rdata=NULL;
+	unsigned int rparam_count=0, rdata_count=0;
 
-	NTSTATUS status = cli_trans_recv(subreq, NULL, NULL, NULL, 0, NULL,
-					 NULL, 0, NULL, NULL, 0, NULL);
-	if (NT_STATUS_IS_OK(status)) {
-		state->cli->requested_posix_capabilities = IVAL(state->data, 4);
+	if (!cli||!fs_attr)
+		smb_panic("cli_get_fs_attr_info() called with NULL Pionter!");
+
+	setup = TRANSACT2_QFSINFO;
+
+	SSVAL(param,0,SMB_QUERY_FS_ATTRIBUTE_INFO);
+
+	if (!cli_send_trans(cli, SMBtrans2,
+		    NULL,
+		    0, 0,
+		    &setup, 1, 0,
+		    param, 2, 0,
+		    NULL, 0, 560)) {
+		goto cleanup;
 	}
-	tevent_req_simple_finish_ntstatus(subreq, status);
+
+	if (!cli_receive_trans(cli, SMBtrans2,
+                              &rparam, &rparam_count,
+                              &rdata, &rdata_count)) {
+		goto cleanup;
+	}
+
+	if (cli_is_error(cli)) {
+		ret = False;
+		goto cleanup;
+	} else {
+		ret = True;
+	}
+
+	if (rdata_count < 12) {
+		goto cleanup;
+	}
+
+	*fs_attr = IVAL(rdata,0);
+
+	/* todo: but not yet needed
+	 *       return the other stuff
+	 */
+
+cleanup:
+	SAFE_FREE(rparam);
+	SAFE_FREE(rdata);
+
+	return ret;
 }
 
-NTSTATUS cli_set_unix_extensions_capabilities_recv(struct tevent_req *req)
+bool cli_get_fs_volume_info_old(struct cli_state *cli, fstring volume_name, uint32 *pserial_number)
 {
-	return tevent_req_simple_recv_ntstatus(req);
+	bool ret = False;
+	uint16 setup;
+	char param[2];
+	char *rparam=NULL, *rdata=NULL;
+	unsigned int rparam_count=0, rdata_count=0;
+	unsigned char nlen;
+
+	setup = TRANSACT2_QFSINFO;
+
+	SSVAL(param,0,SMB_INFO_VOLUME);
+
+	if (!cli_send_trans(cli, SMBtrans2,
+		    NULL,
+		    0, 0,
+		    &setup, 1, 0,
+		    param, 2, 0,
+		    NULL, 0, 560)) {
+		goto cleanup;
+	}
+
+	if (!cli_receive_trans(cli, SMBtrans2,
+                              &rparam, &rparam_count,
+                              &rdata, &rdata_count)) {
+		goto cleanup;
+	}
+
+	if (cli_is_error(cli)) {
+		ret = False;
+		goto cleanup;
+	} else {
+		ret = True;
+	}
+
+	if (rdata_count < 5) {
+		goto cleanup;
+	}
+
+	if (pserial_number) {
+		*pserial_number = IVAL(rdata,0);
+	}
+	nlen = CVAL(rdata,l2_vol_cch);
+	clistr_pull(cli->inbuf, volume_name, rdata + l2_vol_szVolLabel,
+		    sizeof(fstring), nlen, STR_NOALIGN);
+
+	/* todo: but not yet needed
+	 *       return the other stuff
+	 */
+
+cleanup:
+	SAFE_FREE(rparam);
+	SAFE_FREE(rdata);
+
+	return ret;
 }
 
-NTSTATUS cli_set_unix_extensions_capabilities(struct cli_state *cli,
-					      uint16 major, uint16 minor,
-					      uint32 caplow, uint32 caphigh)
+bool cli_get_fs_volume_info(struct cli_state *cli, fstring volume_name, uint32 *pserial_number, time_t *pdate)
 {
-	struct tevent_context *ev;
-	struct tevent_req *req;
-	NTSTATUS status = NT_STATUS_NO_MEMORY;
-
-	if (cli_has_async_calls(cli)) {
-		return NT_STATUS_INVALID_PARAMETER;
-	}
-	ev = tevent_context_init(talloc_tos());
-	if (ev == NULL) {
-		goto fail;
-	}
-	req = cli_set_unix_extensions_capabilities_send(
-		ev, ev, cli, major, minor, caplow, caphigh);
-	if (req == NULL) {
-		goto fail;
-	}
-	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
-		goto fail;
-	}
-	status = cli_set_unix_extensions_capabilities_recv(req);
-fail:
-	TALLOC_FREE(ev);
-	if (!NT_STATUS_IS_OK(status)) {
-		cli_set_error(cli, status);
-	}
-	return status;
-}
-
-struct cli_get_fs_attr_info_state {
-	uint16_t setup[1];
-	uint8_t param[2];
-	uint32_t fs_attr;
-};
-
-static void cli_get_fs_attr_info_done(struct tevent_req *subreq);
-
-struct tevent_req *cli_get_fs_attr_info_send(TALLOC_CTX *mem_ctx,
-					     struct tevent_context *ev,
-					     struct cli_state *cli)
-{
-	struct tevent_req *subreq, *req;
-	struct cli_get_fs_attr_info_state *state;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct cli_get_fs_attr_info_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	SSVAL(state->setup+0, 0, TRANSACT2_QFSINFO);
-	SSVAL(state->param+0, 0, SMB_QUERY_FS_ATTRIBUTE_INFO);
-
-	subreq = cli_trans_send(state, ev, cli, SMBtrans2,
-				NULL, 0, 0, 0,
-				state->setup, 1, 0,
-				state->param, 2, 0,
-				NULL, 0, 560);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, cli_get_fs_attr_info_done, req);
-	return req;
-}
-
-static void cli_get_fs_attr_info_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct cli_get_fs_attr_info_state *state = tevent_req_data(
-		req, struct cli_get_fs_attr_info_state);
-	uint8_t *data;
-	uint32_t num_data;
-	NTSTATUS status;
-
-	status = cli_trans_recv(subreq, talloc_tos(), NULL, NULL, 0, NULL,
-				NULL, 0, NULL, &data, 12, &num_data);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-	state->fs_attr = IVAL(data, 0);
-	TALLOC_FREE(data);
-	tevent_req_done(req);
-}
-
-NTSTATUS cli_get_fs_attr_info_recv(struct tevent_req *req, uint32_t *fs_attr)
-{
-	struct cli_get_fs_attr_info_state *state = tevent_req_data(
-		req, struct cli_get_fs_attr_info_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		return status;
-	}
-	*fs_attr = state->fs_attr;
-	return NT_STATUS_OK;
-}
-
-NTSTATUS cli_get_fs_attr_info(struct cli_state *cli, uint32_t *fs_attr)
-{
-	struct tevent_context *ev;
-	struct tevent_req *req;
-	NTSTATUS status = NT_STATUS_NO_MEMORY;
-
-	if (cli_has_async_calls(cli)) {
-		return NT_STATUS_INVALID_PARAMETER;
-	}
-	ev = tevent_context_init(talloc_tos());
-	if (ev == NULL) {
-		goto fail;
-	}
-	req = cli_get_fs_attr_info_send(ev, ev, cli);
-	if (req == NULL) {
-		goto fail;
-	}
-	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
-		goto fail;
-	}
-	status = cli_get_fs_attr_info_recv(req, fs_attr);
-fail:
-	TALLOC_FREE(ev);
-	if (!NT_STATUS_IS_OK(status)) {
-		cli_set_error(cli, status);
-	}
-	return status;
-}
-
-NTSTATUS cli_get_fs_volume_info(struct cli_state *cli, fstring volume_name,
-				uint32 *pserial_number, time_t *pdate)
-{
-	NTSTATUS status;
-	uint16 setup[1];
-	uint8_t param[2];
-	uint8_t *rdata;
-	uint32_t rdata_count;
+	bool ret = False;
+	uint16 setup;
+	char param[2];
+	char *rparam=NULL, *rdata=NULL;
+	unsigned int rparam_count=0, rdata_count=0;
 	unsigned int nlen;
 
-	SSVAL(setup, 0, TRANSACT2_QFSINFO);
+	setup = TRANSACT2_QFSINFO;
+
 	SSVAL(param,0,SMB_QUERY_FS_VOLUME_INFO);
 
-	status = cli_trans(talloc_tos(), cli, SMBtrans2,
-			   NULL, 0, 0, 0,
-			   setup, 1, 0,
-			   param, 2, 0,
-			   NULL, 0, 560,
-			   NULL,
-			   NULL, 0, NULL,
-			   NULL, 0, NULL,
-			   &rdata, 10, &rdata_count);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+	if (!cli_send_trans(cli, SMBtrans2,
+		    NULL,
+		    0, 0,
+		    &setup, 1, 0,
+		    param, 2, 0,
+		    NULL, 0, 560)) {
+		goto cleanup;
+	}
+
+	if (!cli_receive_trans(cli, SMBtrans2,
+                              &rparam, &rparam_count,
+                              &rdata, &rdata_count)) {
+		goto cleanup;
+	}
+
+	if (cli_is_error(cli)) {
+		ret = False;
+		goto cleanup;
+	} else {
+		ret = True;
+	}
+
+	if (rdata_count < 19) {
+		goto cleanup;
 	}
 
 	if (pdate) {
 		struct timespec ts;
-		ts = interpret_long_date((char *)rdata);
+		ts = interpret_long_date(rdata);
 		*pdate = ts.tv_sec;
 	}
 	if (pserial_number) {
@@ -405,37 +376,54 @@ NTSTATUS cli_get_fs_volume_info(struct cli_state *cli, fstring volume_name,
 	 *       return the other stuff
 	 */
 
-	TALLOC_FREE(rdata);
-	return NT_STATUS_OK;
+cleanup:
+	SAFE_FREE(rparam);
+	SAFE_FREE(rdata);
+
+	return ret;
 }
 
-NTSTATUS cli_get_fs_full_size_info(struct cli_state *cli,
-				   uint64_t *total_allocation_units,
-				   uint64_t *caller_allocation_units,
-				   uint64_t *actual_allocation_units,
-				   uint64_t *sectors_per_allocation_unit,
-				   uint64_t *bytes_per_sector)
+bool cli_get_fs_full_size_info(struct cli_state *cli,
+                               uint64_t *total_allocation_units,
+                               uint64_t *caller_allocation_units,
+                               uint64_t *actual_allocation_units,
+                               uint64_t *sectors_per_allocation_unit,
+                               uint64_t *bytes_per_sector)
 {
-	uint16 setup[1];
-	uint8_t param[2];
-	uint8_t *rdata = NULL;
-	uint32_t rdata_count;
-	NTSTATUS status;
+	bool ret = False;
+	uint16 setup;
+	char param[2];
+	char *rparam=NULL, *rdata=NULL;
+	unsigned int rparam_count=0, rdata_count=0;
 
-	SSVAL(setup, 0, TRANSACT2_QFSINFO);
-	SSVAL(param, 0, SMB_FS_FULL_SIZE_INFORMATION);
+	setup = TRANSACT2_QFSINFO;
 
-	status = cli_trans(talloc_tos(), cli, SMBtrans2,
-			   NULL, 0, 0, 0,
-			   setup, 1, 0, /* setup */
-			   param, 2, 0,	 /* param */
-			   NULL, 0, 560, /* data */
-			   NULL,
-			   NULL, 0, NULL, /* rsetup */
-			   NULL, 0, NULL, /* rparam */
-			   &rdata, 32, &rdata_count);  /* rdata */
-	if (!NT_STATUS_IS_OK(status)) {
-		goto fail;
+	SSVAL(param,0,SMB_FS_FULL_SIZE_INFORMATION);
+
+	if (!cli_send_trans(cli, SMBtrans2,
+		    NULL,
+		    0, 0,
+		    &setup, 1, 0,
+		    param, 2, 0,
+		    NULL, 0, 560)) {
+		goto cleanup;
+	}
+
+	if (!cli_receive_trans(cli, SMBtrans2,
+                              &rparam, &rparam_count,
+                              &rdata, &rdata_count)) {
+		goto cleanup;
+	}
+
+	if (cli_is_error(cli)) {
+		ret = False;
+		goto cleanup;
+	} else {
+		ret = True;
+	}
+
+	if (rdata_count != 32) {
+		goto cleanup;
 	}
 
 	if (total_allocation_units) {
@@ -454,39 +442,57 @@ NTSTATUS cli_get_fs_full_size_info(struct cli_state *cli,
 		*bytes_per_sector = IVAL(rdata,28);
 	}
 
-fail:
-	TALLOC_FREE(rdata);
-	return status;
+cleanup:
+	SAFE_FREE(rparam);
+	SAFE_FREE(rdata);
+
+	return ret;
 }
 
-NTSTATUS cli_get_posix_fs_info(struct cli_state *cli,
-			       uint32 *optimal_transfer_size,
-			       uint32 *block_size,
-			       uint64_t *total_blocks,
-			       uint64_t *blocks_available,
-			       uint64_t *user_blocks_available,
-			       uint64_t *total_file_nodes,
-			       uint64_t *free_file_nodes,
-			       uint64_t *fs_identifier)
+bool cli_get_posix_fs_info(struct cli_state *cli,
+                           uint32 *optimal_transfer_size,
+                           uint32 *block_size,
+                           uint64_t *total_blocks,
+                           uint64_t *blocks_available,
+                           uint64_t *user_blocks_available,
+                           uint64_t *total_file_nodes,
+                           uint64_t *free_file_nodes,
+                           uint64_t *fs_identifier)
 {
-	uint16 setup[1];
-	uint8_t param[2];
-	uint8_t *rdata = NULL;
-	NTSTATUS status;
+	bool ret = False;
+	uint16 setup;
+	char param[2];
+	char *rparam=NULL, *rdata=NULL;
+	unsigned int rparam_count=0, rdata_count=0;
 
-	SSVAL(setup, 0, TRANSACT2_QFSINFO);
+	setup = TRANSACT2_QFSINFO;
+
 	SSVAL(param,0,SMB_QUERY_POSIX_FS_INFO);
 
-	status = cli_trans(talloc_tos(), cli, SMBtrans2, NULL, 0, 0, 0,
-			   setup, 1, 0,
-			   param, 2, 0,
-			   NULL, 0, 560,
-			   NULL,
-			   NULL, 0, NULL, /* rsetup */
-			   NULL, 0, NULL, /* rparam */
-			   &rdata, 56, NULL);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+	if (!cli_send_trans(cli, SMBtrans2,
+		    NULL,
+		    0, 0,
+		    &setup, 1, 0,
+		    param, 2, 0,
+		    NULL, 0, 560)) {
+		goto cleanup;
+	}
+
+	if (!cli_receive_trans(cli, SMBtrans2,
+                              &rparam, &rparam_count,
+                              &rdata, &rdata_count)) {
+		goto cleanup;
+	}
+
+	if (cli_is_error(cli)) {
+		ret = False;
+		goto cleanup;
+	} else {
+		ret = True;
+	}
+
+	if (rdata_count != 56) {
+		goto cleanup;
 	}
 
 	if (optimal_transfer_size) {
@@ -513,7 +519,12 @@ NTSTATUS cli_get_posix_fs_info(struct cli_state *cli,
 	if (fs_identifier) {
 		*fs_identifier = BIG_UINT(rdata,48);
 	}
-	return NT_STATUS_OK;
+
+cleanup:
+	SAFE_FREE(rparam);
+	SAFE_FREE(rdata);
+
+	return ret;
 }
 
 
@@ -523,35 +534,48 @@ NTSTATUS cli_get_posix_fs_info(struct cli_state *cli,
 
 static NTSTATUS enc_blob_send_receive(struct cli_state *cli, DATA_BLOB *in, DATA_BLOB *out, DATA_BLOB *param_out)
 {
-	uint16_t setup[1];
-	uint8_t param[4];
-	uint8_t *rparam=NULL, *rdata=NULL;
-	uint32_t num_rparam, num_rdata;
-	NTSTATUS status;
+	uint16 setup;
+	char param[4];
+	char *rparam=NULL, *rdata=NULL;
+	unsigned int rparam_count=0, rdata_count=0;
+	NTSTATUS status = NT_STATUS_OK;
 
-	SSVAL(setup+0, 0, TRANSACT2_SETFSINFO);
+	setup = TRANSACT2_SETFSINFO;
+
 	SSVAL(param,0,0);
 	SSVAL(param,2,SMB_REQUEST_TRANSPORT_ENCRYPTION);
 
-	status = cli_trans(talloc_tos(), cli, SMBtrans2, NULL, 0, 0, 0,
-			   setup, 1, 0,
-			   param, 4, 2,
-			   (uint8_t *)in->data, in->length, CLI_BUFFER_SIZE,
-			   NULL,	  /* recv_flags */
-			   NULL, 0, NULL, /* rsetup */
-			   &rparam, 0, &num_rparam,
-			   &rdata, 0, &num_rdata);
-
-	if (!NT_STATUS_IS_OK(status) &&
-	    !NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
-		return status;
+	if (!cli_send_trans(cli, SMBtrans2,
+				NULL,
+				0, 0,
+				&setup, 1, 0,
+				param, 4, 0,
+				(char *)in->data, in->length, CLI_BUFFER_SIZE)) {
+		status = cli_nt_error(cli);
+		goto out;
 	}
 
-	*out = data_blob(rdata, num_rdata);
-	*param_out = data_blob(rparam, num_rparam);
+	if (!cli_receive_trans(cli, SMBtrans2,
+				&rparam, &rparam_count,
+				&rdata, &rdata_count)) {
+		status = cli_nt_error(cli);
+		goto out;
+	}
 
-	TALLOC_FREE(rparam);
-	TALLOC_FREE(rdata);
+	if (cli_is_error(cli)) {
+		status = cli_nt_error(cli);
+		if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
+			goto out;
+		}
+	}
+
+	*out = data_blob(rdata, rdata_count);
+	*param_out = data_blob(rparam, rparam_count);
+
+  out:
+
+	SAFE_FREE(rparam);
+	SAFE_FREE(rdata);
 	return status;
 }
 
@@ -600,11 +624,7 @@ NTSTATUS cli_raw_ntlm_smb_encryption_start(struct cli_state *cli,
 	if (!es) {
 		return NT_STATUS_NO_MEMORY;
 	}
-	status = ntlmssp_client_start(NULL,
-				      global_myname(),
-				      lp_workgroup(),
-				      lp_client_ntlmv2_auth(),
-				      &es->s.ntlmssp_state);
+	status = ntlmssp_client_start(&es->s.ntlmssp_state);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto fail;
 	}
@@ -672,8 +692,7 @@ NTSTATUS cli_raw_ntlm_smb_encryption_start(struct cli_state *cli,
  Get client gss blob to send to a server.
 ******************************************************************************/
 
-static NTSTATUS make_cli_gss_blob(TALLOC_CTX *ctx,
-				struct smb_trans_enc_state *es,
+static NTSTATUS make_cli_gss_blob(struct smb_trans_enc_state *es,
 				const char *service,
 				const char *host,
 				NTSTATUS status_in,
@@ -720,7 +739,7 @@ static NTSTATUS make_cli_gss_blob(TALLOC_CTX *ctx,
 		p_tok_in = GSS_C_NO_BUFFER;
 	} else {
 		/* Remove the SPNEGO wrapper */
-		if (!spnego_parse_auth_response(ctx, spnego_blob_in, status_in, OID_KERBEROS5, &blob_in)) {
+		if (!spnego_parse_auth_response(spnego_blob_in, status_in, OID_KERBEROS5, &blob_in)) {
 			status = NT_STATUS_UNSUCCESSFUL;
 			goto fail;
 		}
@@ -755,10 +774,10 @@ static NTSTATUS make_cli_gss_blob(TALLOC_CTX *ctx,
 		status = NT_STATUS_ACCESS_DENIED;
 	}
 
-	blob_out = data_blob_talloc(ctx, tok_out.value, tok_out.length);
+	blob_out = data_blob(tok_out.value, tok_out.length);
 
 	/* Wrap in an SPNEGO wrapper */
-	*p_blob_out = spnego_gen_negTokenInit(ctx, krb_mechs, &blob_out, NULL);
+	*p_blob_out = gen_negTokenTarg(krb_mechs, blob_out);
 
   fail:
 
@@ -794,10 +813,10 @@ NTSTATUS cli_gss_smb_encryption_start(struct cli_state *cli)
 	strlower_m(fqdn);
 
 	servicename = "cifs";
-	status = make_cli_gss_blob(talloc_tos(), es, servicename, fqdn, NT_STATUS_OK, blob_recv, &blob_send);
+	status = make_cli_gss_blob(es, servicename, fqdn, NT_STATUS_OK, blob_recv, &blob_send);
 	if (!NT_STATUS_EQUAL(status,NT_STATUS_MORE_PROCESSING_REQUIRED)) {
 		servicename = "host";
-		status = make_cli_gss_blob(talloc_tos(), es, servicename, fqdn, NT_STATUS_OK, blob_recv, &blob_send);
+		status = make_cli_gss_blob(es, servicename, fqdn, NT_STATUS_OK, blob_recv, &blob_send);
 		if (!NT_STATUS_EQUAL(status,NT_STATUS_MORE_PROCESSING_REQUIRED)) {
 			goto fail;
 		}
@@ -810,7 +829,7 @@ NTSTATUS cli_gss_smb_encryption_start(struct cli_state *cli)
 			es->enc_ctx_num = SVAL(param_out.data, 0);
 		}
 		data_blob_free(&blob_send);
-		status = make_cli_gss_blob(talloc_tos(), es, servicename, fqdn, status, blob_recv, &blob_send);
+		status = make_cli_gss_blob(es, servicename, fqdn, status, blob_recv, &blob_send);
 	} while (NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED));
 	data_blob_free(&blob_recv);
 

@@ -2,12 +2,12 @@
 .\"     Title: net
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 06/07/2011
+.\"      Date: 03/06/2011
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.6
+.\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "NET" "8" "06/07/2011" "Samba 3\&.6" "System Administration tools"
+.TH "NET" "8" "03/06/2011" "Samba 3\&.5" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -467,7 +467,6 @@ type \- Type of the group; either \'domain\', \'local\', or \'builtin\'
 .IP \(bu 2.3
 .\}
 comment \- Freeform text description of the group
-.RE
 .sp
 .RE
 .SS "GROUPMAP ADD"
@@ -550,139 +549,6 @@ Abandon relationship to trusted domain
 .SS "RPC TRUSTDOM LIST"
 .PP
 List all interdomain trust relationships\&.
-.SS "RPC TRUSTDOM LIST"
-.PP
-List all interdomain trust relationships\&.
-.SS "RPC TRUST"
-.SS "RPC TRUST CREATE"
-.PP
-Create a trust trust object by calling lsaCreateTrustedDomainEx2\&. The can be done on a single server or on two servers at once with the possibility to use a random trust password\&.
-.PP
-\fBOptions:\fR
-.PP
-otherserver
-.RS 4
-Domain controller of the second domain
-.RE
-.PP
-otheruser
-.RS 4
-Admin user in the second domain
-.RE
-.PP
-otherdomainsid
-.RS 4
-SID of the second domain
-.RE
-.PP
-other_netbios_domain
-.RS 4
-NetBIOS (short) name of the second domain
-.RE
-.PP
-otherdomain
-.RS 4
-DNS (full) name of the second domain
-.RE
-.PP
-trustpw
-.RS 4
-Trust password
-.RE
-.PP
-\fBExamples:\fR
-.PP
-Create a trust object on srv1\&.dom1\&.dom for the domain dom2
-.RS 4
-.sp
-.if n \{\
-.RS 4
-.\}
-.nf
-net rpc trust create \e
-    otherdomainsid=S\-x\-x\-xx\-xxxxxxxxxx\-xxxxxxxxxx\-xxxxxxxxx \e
-    other_netbios_domain=dom2 \e
-    otherdomain=dom2\&.dom \e
-    trustpw=12345678 \e
-    \-S srv1\&.dom1\&.dom
-.fi
-.if n \{\
-.RE
-.\}
-.RE
-.PP
-Create a trust relationship between dom1 and dom2
-.RS 4
-.sp
-.if n \{\
-.RS 4
-.\}
-.nf
-net rpc trust create \e
-    otherserver=srv2\&.dom2\&.test \e
-    otheruser=dom2adm \e
-    \-S srv1\&.dom1\&.dom
-.fi
-.if n \{\
-.RE
-.\}
-.RE
-.SS "RPC TRUST DELETE"
-.PP
-Delete a trust trust object by calling lsaDeleteTrustedDomain\&. The can be done on a single server or on two servers at once\&.
-.PP
-\fBOptions:\fR
-.PP
-otherserver
-.RS 4
-Domain controller of the second domain
-.RE
-.PP
-otheruser
-.RS 4
-Admin user in the second domain
-.RE
-.PP
-otherdomainsid
-.RS 4
-SID of the second domain
-.RE
-.PP
-\fBExamples:\fR
-.PP
-Delete a trust object on srv1\&.dom1\&.dom for the domain dom2
-.RS 4
-.sp
-.if n \{\
-.RS 4
-.\}
-.nf
-net rpc trust delete \e
-    otherdomainsid=S\-x\-x\-xx\-xxxxxxxxxx\-xxxxxxxxxx\-xxxxxxxxx \e
-    \-S srv1\&.dom1\&.dom
-.fi
-.if n \{\
-.RE
-.\}
-.RE
-.PP
-Delete a trust relationship between dom1 and dom2
-.RS 4
-.sp
-.if n \{\
-.RS 4
-.\}
-.nf
-net rpc trust delete \e
-    otherserver=srv2\&.dom2\&.test \e
-    otheruser=dom2adm \e
-    \-S srv1\&.dom1\&.dom
-.fi
-.if n \{\
-.RE
-.\}
-.RE
-.SS ""
 .SS "RPC RIGHTS"
 .PP
 This subcommand is used to view and manage Samba\'s rights assignments (also referred to as privileges)\&. There are three options currently available:
@@ -859,78 +725,9 @@ Dumps the mappings contained in the local tdb file specified\&. This command is 
 .SS "IDMAP RESTORE [input file]"
 .PP
 Restore the mappings from the specified file or stdin\&.
-.SS "IDMAP SECRET <DOMAIN> <secret>"
+.SS "IDMAP SECRET <DOMAIN>|ALLOC <secret>"
 .PP
 Store a secret for the specified domain, used primarily for domains that use idmap_ldap as a backend\&. In this case the secret is used as the password for the user DN used to bind to the ldap server\&.
-.SS "IDMAP DELETE [\-f] [\-\-db=<DB>] <ID>"
-.PP
-Delete a mapping sid <\-> gid or sid <\-> uid from the IDMAP database\&. The mapping is given by <ID> which may either be a sid: S\-x\-\&.\&.\&., a gid: "GID number" or a uid: "UID number"\&. Use \-f to delete an invalid partial mapping <ID> \-> xx
-.PP
-Use "smbcontrol all idmap \&.\&.\&." to notify running smbd instances\&. See the
-\fBsmbcontrol\fR(1)
-manpage for details\&.
-.SS "IDMAP CHECK [\-v] [\-r] [\-a] [\-T] [\-f] [\-l] [\-\-db=<DB>]"
-.PP
-Check and repair the IDMAP database\&. If no option is given a read only check of the database is done\&. Among others an interactive or automatic repair mode may be chosen with one of the following options:
-.PP
-\-r|\-\-repair
-.RS 4
-Interactive repair mode, ask a lot of questions\&.
-.RE
-.PP
-\-a|\-\-auto
-.RS 4
-Noninteractive repair mode, use default answers\&.
-.RE
-.PP
-\-v|\-\-verbose
-.RS 4
-Produce more output\&.
-.RE
-.PP
-\-f|\-\-force
-.RS 4
-Try to apply changes, even if they do not apply cleanly\&.
-.RE
-.PP
-\-T|\-\-test
-.RS 4
-Dry run, show what changes would be made but don\'t touch anything\&.
-.RE
-.PP
-\-l|\-\-lock
-.RS 4
-Lock the database while doing the check\&.
-.RE
-.PP
-\-\-db <DB>
-.RS 4
-Check the specified database\&.
-.RE
-.PP
-.RS 4
-.RE
-It reports about the finding of the following errors:
-.PP
-Missing reverse mapping:
-.RS 4
-A record with mapping A\->B where there is no B\->A\&. Default action in repair mode is to "fix" this by adding the reverse mapping\&.
-.RE
-.PP
-Invalid mapping:
-.RS 4
-A record with mapping A\->B where B\->C\&. Default action is to "delete" this record\&.
-.RE
-.PP
-Missing or invalid HWM:
-.RS 4
-A high water mark is not at least equal to the largest ID in the database\&. Default action is to "fix" this by setting it to the largest ID found +1\&.
-.RE
-.PP
-Invalid record:
-.RS 4
-Something we failed to parse\&. Default action is to "edit" it in interactive and "delete" it in automatic mode\&.
-.RE
 .SS "USERSHARE"
 .PP
 Starting with version 3\&.0\&.23, a Samba server now supports the ability for non\-root users to add user defined shares to be exported using the "net usershare" commands\&.
@@ -1092,141 +889,6 @@ Set the list of includes for the provided section (global or share) to the given
 .SS "CONF DELINCLUDES section"
 .PP
 Delete the list of includes from the provided section (global or share)\&.
-.SS "REGISTRY"
-.PP
-Manipulate Samba\'s registry\&.
-.PP
-The registry commands are:
-.RS 4
-net registry enumerate   \- Enumerate registry keys and values\&.
-.RE
-.RS 4
-net registry createkey   \- Create a new registry key\&.
-.RE
-.RS 4
-net registry deletekey   \- Delete a registry key\&.
-.RE
-.RS 4
-net registry getvalue    \- Print a registry value\&.
-.RE
-.RS 4
-net registry getvalueraw \- Print a registry value (raw format)\&.
-.RE
-.RS 4
-net registry setvalue    \- Set a new registry value\&.
-.RE
-.RS 4
-net registry increment   \- Increment a DWORD registry value under a lock\&.
-.RE
-.RS 4
-net registry deletevalue \- Delete a registry value\&.
-.RE
-.RS 4
-net registry getsd       \- Get security descriptor\&.
-.RE
-.RS 4
-net registry getsd_sdd1  \- Get security descriptor in sddl format\&.
-.RE
-.RS 4
-net registry setsd_sdd1  \- Set security descriptor from sddl format
-string\&.
-.RE
-.RS 4
-net registry import      \- Import a registration entries (\&.reg) file\&.
-.RE
-.RS 4
-net registry export      \- Export a registration entries (\&.reg) file\&.
-.RE
-.RS 4
-net registry convert     \- Convert a registration entries (\&.reg) file\&.
-.RE
-.SS "REGISTRY ENUMERATE key "
-.PP
-Enumerate subkeys and values of
-\fIkey\fR
-.SS "REGISTRY CREATEKEY key "
-.PP
-Create a new
-\fIkey\fR
-if not yet existing\&.
-.SS "REGISTRY DELETEKEY key "
-.PP
-Delete the given
-\fIkey\fR
-and all of its subkeys and values from the registry\&.
-.SS "REGISTRY GETVALUE key name"
-.PP
-Output type and actual value of the value
-\fIname\fR
-of the given
-\fIkey\fR\&.
-.SS "REGISTRY GETVALUERAW key name"
-.PP
-Output the actual value of the value
-\fIname\fR
-of the given
-\fIkey\fR\&.
-.SS "REGISTRY SETVALUE key name type value ..."
-.PP
-Set the value
-\fIname\fR
-of an existing
-\fIkey\fR\&.
-\fItype\fR
-may be one of
-\fIsz\fR,
-\fImulti_sz\fR
-or
-\fIdword\fR\&. In case of
-\fImulti_sz\fR
-\fIvalue\fR
-may be given multiple times\&.
-.SS "REGISTRY INCREMENT key name [inc]"
-.PP
-Increment the DWORD value
-\fIname\fR
-of
-\fIkey\fR
-by
-\fIinc\fR
-while holding a g_lock\&.
-\fIinc\fR
-defaults to 1\&.
-.SS "REGISTRY DELETEVALUE key name"
-.PP
-Delete the value
-\fIname\fR
-of the given
-\fIkey\fR\&.
-.SS "REGISTRY GETSD key"
-.PP
-Get the security descriptor of the given
-\fIkey\fR\&.
-.SS "REGISTRY GETSD_SDDL key"
-.PP
-Get the security descriptor of the given
-\fIkey\fR
-as a Security Descriptor Definition Language (SDDL) string\&.
-.SS "REGISTRY SETSD_SDDL keysd"
-.PP
-Set the security descriptor of the given
-\fIkey\fR
-from a Security Descriptor Definition Language (SDDL) string
-\fIsd\fR\&.
-.SS "REGISTRY IMPORT file[opt]"
-.PP
-Import a registration entries (\&.reg)
-\fIfile\fR\&.
-.SS "REGISTRY EXPORT keyfile[opt]"
-.PP
-Export a
-\fIkey\fR
-to a registration entries (\&.reg)
-\fIfile\fR\&.
-.SS "REGISTRY CONVERT in out [[inopt] outopt]"
-.PP
-Convert a registration entries (\&.reg) file
-\fIin\fR\&.
 .SS "EVENTLOG"
 .PP
 Starting with version 3\&.4\&.0 net can read, dump, import and export native win32 eventlog files (usually *\&.evt)\&. evt files are used by the native Windows eventviewer tools\&.
@@ -1361,7 +1023,6 @@ defines the password for the domain account defined with
 .\}
 \fIREBOOT\fR
 is an optional parameter that can be set to reboot the remote machine after successful join to the domain\&.
-.RE
 .sp
 .RE
 .PP
@@ -1409,7 +1070,6 @@ defines the password for the domain account defined with
 .\}
 \fIREBOOT\fR
 is an optional parameter that can be set to reboot the remote machine after successful unjoin from the domain\&.
-.RE
 .sp
 .RE
 .PP
@@ -1469,7 +1129,6 @@ defines the password for the domain account defined with
 .\}
 \fIREBOOT\fR
 is an optional parameter that can be set to reboot the remote machine after successful rename in the domain\&.
-.RE
 .sp
 .RE
 .PP
@@ -1520,7 +1179,6 @@ defines the timeout\&.
 .\}
 \fICOMMAND\fR
 defines the shell command to execute\&.
-.RE
 .SS "G_LOCK LOCKS"
 .PP
 Print a list of all currently existing locknames\&.

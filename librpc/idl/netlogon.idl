@@ -4,7 +4,7 @@
   who contributed!
 */
 
-import "misc.idl", "lsa.idl", "samr.idl", "security.idl";
+import "misc.idl", "lsa.idl", "samr.idl", "security.idl", "nbt.idl";
 
 #include "idl_types.h"
 
@@ -16,7 +16,6 @@ cpp_quote("#define netr_SamDatabaseID8Bit netr_SamDatabaseID")
   version(1.0),
   endpoint("ncacn_np:[\\pipe\\netlogon]","ncacn_ip_tcp:","ncalrpc:"),
   helper("../librpc/ndr/ndr_netlogon.h"),
-  ms_union,
   pointer_default(unique)
 ]
 
@@ -180,7 +179,6 @@ interface netlogon
 		[case(NetlogonInteractiveTransitiveInformation)] netr_PasswordInfo *password;
 		[case(NetlogonNetworkTransitiveInformation)]     netr_NetworkInfo  *network;
 		[case(NetlogonServiceTransitiveInformation)]     netr_PasswordInfo *password;
-		[default];
 	} netr_LogonLevel;
 
 	typedef [public,flag(NDR_PAHEX)] struct {
@@ -253,7 +251,7 @@ interface netlogon
 		netr_SamBaseInfo base;
 		uint32 sidcount;
 		[size_is(sidcount)] netr_SidAttr *sids;
-		lsa_String dns_domainname;
+		lsa_String forest;
 		lsa_String principle;
 		uint32 unknown4[20];
 	} netr_SamInfo6;
@@ -293,7 +291,6 @@ interface netlogon
 		[case(4)] netr_PacInfo  *pac;
 		[case(NetlogonValidationGenericInfo2)] netr_GenericInfo2  *generic;
 		[case(NetlogonValidationSamInfo4)] netr_SamInfo6 *sam6;
-		[default];
 	} netr_Validation;
 
 	typedef [public, flag(NDR_PAHEX)] struct {
@@ -305,7 +302,7 @@ interface netlogon
 		time_t timestamp;
 	} netr_Authenticator;
 
-	[public] NTSTATUS netr_LogonSamLogon(
+	NTSTATUS netr_LogonSamLogon(
 		[in,unique] [string,charset(UTF16)] uint16 *server_name,
 		[in,unique] [string,charset(UTF16)] uint16 *computer_name,
 		[in,unique] netr_Authenticator *credential,
@@ -605,6 +602,10 @@ interface netlogon
 	} netr_DELTA_TRUSTED_DOMAIN;
 
 	typedef struct {
+		uint16 unknown;
+	} netr_DELTA_DELETE_TRUST;
+
+	typedef struct {
 		uint32 privilege_entries;
 		uint32 privilege_control;
 		[size_is(privilege_entries)] uint32 *privilege_attrib;
@@ -622,6 +623,14 @@ interface netlogon
 		uint32 unknown7;
 		uint32 unknown8;
 	} netr_DELTA_ACCOUNT;
+
+	typedef struct {
+		uint16 unknown;
+	} netr_DELTA_DELETE_ACCOUNT;
+
+	typedef struct {
+		uint16 unknown;
+	} netr_DELTA_DELETE_SECRET;
 
 	typedef struct {
 		uint32 len;
@@ -685,16 +694,15 @@ interface netlogon
 		[case(NETR_DELTA_RENAME_ALIAS)]    netr_DELTA_RENAME          *rename_alias;
 		[case(NETR_DELTA_ALIAS_MEMBER)]    netr_DELTA_ALIAS_MEMBER    *alias_member;
 		[case(NETR_DELTA_POLICY)]          netr_DELTA_POLICY          *policy;
-		[case(NETR_DELTA_TRUSTED_DOMAIN)]  netr_DELTA_TRUSTED_DOMAIN  *trusted_domain;
-		[case(NETR_DELTA_DELETE_TRUST)]    ; /* sid only */
+		[case(NETR_DELTA_TRUSTED_DOMAIN)]  netr_DELTA_TRUSTED_DOMAIN   *trusted_domain;
+		[case(NETR_DELTA_DELETE_TRUST)]    netr_DELTA_DELETE_TRUST     delete_trust;
 		[case(NETR_DELTA_ACCOUNT)]         netr_DELTA_ACCOUNT         *account;
-		[case(NETR_DELTA_DELETE_ACCOUNT)]  ; /* sid only */
+		[case(NETR_DELTA_DELETE_ACCOUNT)]  netr_DELTA_DELETE_ACCOUNT   delete_account;
 		[case(NETR_DELTA_SECRET)]          netr_DELTA_SECRET          *secret;
-		[case(NETR_DELTA_DELETE_SECRET)]   ; /* name only */
+		[case(NETR_DELTA_DELETE_SECRET)]   netr_DELTA_DELETE_SECRET    delete_secret;
 		[case(NETR_DELTA_DELETE_GROUP2)]   netr_DELTA_DELETE_USER     *delete_group;
 		[case(NETR_DELTA_DELETE_USER2)]    netr_DELTA_DELETE_USER     *delete_user;
 		[case(NETR_DELTA_MODIFY_COUNT)]    udlong                     *modified_count;
-		[default];
 	} netr_DELTA_UNION;
 
 	typedef [switch_type(netr_DeltaEnum)] union {
@@ -720,7 +728,6 @@ interface netlogon
 		[case(NETR_DELTA_DELETE_GROUP2)]   uint32 rid;
 		[case(NETR_DELTA_DELETE_USER2)]    uint32 rid;
 		[case(NETR_DELTA_MODIFY_COUNT)]    ;
-		[default];
 	} netr_DELTA_ID_UNION;
 
 	typedef struct {
@@ -1042,15 +1049,8 @@ interface netlogon
 		[in]     [string,charset(UTF16)] uint16 *computername,
 		[in]     netr_Authenticator *credential,
 		[in,out,ref] netr_Authenticator *return_authenticator,
-		/*
-		 * we cannot use subcontext_size() here, as
-		 * change_log_entry_size is encoded after the subcontext
-		 */
-		[in]     [subcontext(4)/*,subcontext_size(change_log_entry_size)*/]
-			netr_ChangeLogEntry change_log_entry,
-		[in]     [value(ndr_size_netr_ChangeLogEntry(&change_log_entry,
-				ndr->flags))]
-			uint32 change_log_entry_size,
+		[in]     [subcontext(4),subcontext_size(change_log_entry_size)] netr_ChangeLogEntry change_log_entry,
+		[in]     [value(ndr_size_netr_ChangeLogEntry(&change_log_entry, ndr->iconv_convenience, ndr->flags))] uint32 change_log_entry_size,
 		[out,ref]    netr_DELTA_ENUM_ARRAY **delta_enum_array
 		);
 
@@ -1073,7 +1073,7 @@ interface netlogon
 		[size_is(length)] uint8 *data;
 	} netr_Blob;
 
-	NTSTATUS netr_NetrEnumerateTrustedDomains(
+	WERROR netr_NetrEnumerateTrustedDomains(
 		[in,unique] [string,charset(UTF16)] uint16 *server_name,
 		[out,ref] netr_Blob *trusted_domains_blob
 		);
@@ -1098,9 +1098,6 @@ interface netlogon
 					 DS_ONLY_LDAP_NEEDED |
 					 DS_IS_FLAT_NAME |
 					 DS_IS_DNS_NAME |
-					 DS_TRY_NEXTCLOSEST_SITE |
-					 DS_DIRECTORY_SERVICE_6_REQUIRED |
-					 DS_WEB_SERVICE_REQUIRED |
 					 DS_RETURN_FLAT_NAME |
 					 DS_RETURN_DNS_NAME);
 
@@ -1133,21 +1130,21 @@ interface netlogon
 	} netr_DsRGetDCNameInfo_AddressType;
 
 	typedef [bitmap32bit] bitmap {
-		DS_SERVER_PDC			 = 0x00000001,
-		DS_SERVER_GC			 = 0x00000004,
-		DS_SERVER_LDAP			 = 0x00000008,
-		DS_SERVER_DS			 = 0x00000010,
-		DS_SERVER_KDC			 = 0x00000020,
-		DS_SERVER_TIMESERV		 = 0x00000040,
-		DS_SERVER_CLOSEST		 = 0x00000080,
-		DS_SERVER_WRITABLE		 = 0x00000100,
-		DS_SERVER_GOOD_TIMESERV		 = 0x00000200,
-		DS_SERVER_NDNC			 = 0x00000400,
-		DS_SERVER_SELECT_SECRET_DOMAIN_6 = 0x00000800,
-		DS_SERVER_FULL_SECRET_DOMAIN_6	 = 0x00001000,
+		DS_SERVER_PDC			 = NBT_SERVER_PDC,
+		DS_SERVER_GC			 = NBT_SERVER_GC,
+		DS_SERVER_LDAP			 = NBT_SERVER_LDAP,
+		DS_SERVER_DS			 = NBT_SERVER_DS,
+		DS_SERVER_KDC			 = NBT_SERVER_KDC,
+		DS_SERVER_TIMESERV		 = NBT_SERVER_TIMESERV,
+		DS_SERVER_CLOSEST		 = NBT_SERVER_CLOSEST,
+		DS_SERVER_WRITABLE		 = NBT_SERVER_WRITABLE,
+		DS_SERVER_GOOD_TIMESERV		 = NBT_SERVER_GOOD_TIMESERV,
+		DS_SERVER_NDNC			 = NBT_SERVER_NDNC,
+		DS_SERVER_SELECT_SECRET_DOMAIN_6 = NBT_SERVER_SELECT_SECRET_DOMAIN_6,
+		DS_SERVER_FULL_SECRET_DOMAIN_6	 = NBT_SERVER_FULL_SECRET_DOMAIN_6,
 		DS_DNS_CONTROLLER		 = 0x20000000,
 		DS_DNS_DOMAIN			 = 0x40000000,
-		DS_DNS_FOREST_ROOT		 = 0x80000000
+		DS_DNS_FOREST			 = 0x80000000
 	} netr_DsR_DcFlags;
 
 	typedef [public] struct {
@@ -1623,9 +1620,9 @@ interface netlogon
 
 	/****************/
 	/* Function 0x2c */
-	NTSTATUS netr_GetForestTrustInformation(
+	WERROR netr_GetForestTrustInformation(
 		[in,unique] [string,charset(UTF16)] uint16 *server_name,
-		[in,ref] [string,charset(UTF16)] uint16 *computer_name,
+		[in,ref] [string,charset(UTF16)] uint16 *trusted_domain_name,
 		[in,ref] netr_Authenticator *credential,
 		[out,ref] netr_Authenticator *return_authenticator,
 		[in] uint32 flags,
@@ -1669,60 +1666,5 @@ interface netlogon
 		[out,ref] samr_Password *new_owf_password,
 		[out,ref] samr_Password *old_owf_password,
 		[out,ref] netr_TrustInfo **trust_info
-		);
-
-	/****************/
-	/* Function 0x2f */
-
-	NTSTATUS netr_Unused47(void);
-
-
-	/****************/
-	/* Function 0x30 */
-
-	typedef enum {
-		NlDnsLdapAtSite       = 22,
-		NlDnsGcAtSite         = 25,
-		NlDnsDsaCname         = 28,
-		NlDnsKdcAtSite        = 30,
-		NlDnsDcAtSite         = 32,
-		NlDnsRfc1510KdcAtSite = 34,
-		NlDnsGenericGcAtSite  = 36
-	} netr_DnsType;
-
-	typedef enum {
-		NlDnsInfoTypeNone    = 0,
-		NlDnsDomainName      = 1,
-		NlDnsDomainNameAlias = 2,
-		NlDnsForestName      = 3,
-		NlDnsForestNameAlias = 4,
-		NlDnsNdncDomainName  = 5,
-		NlDnsRecordName      = 6
-	} netr_DnsDomainInfoType;
-
-	typedef struct {
-		netr_DnsType type;
-		[string,charset(UTF16)] uint16 *dns_domain_info;
-		netr_DnsDomainInfoType dns_domain_info_type;
-		uint32 priority;
-		uint32 weight;
-		uint32 port;
-		boolean32 dns_register;
-		uint32 status;
-	} NL_DNS_NAME_INFO;
-
-	typedef [public] struct {
-		uint32 count;
-		[size_is(count)] NL_DNS_NAME_INFO *names;
-	} NL_DNS_NAME_INFO_ARRAY;
-
-	NTSTATUS netr_DsrUpdateReadOnlyServerDnsRecords(
-		[in,unique] [string,charset(UTF16)] uint16 *server_name,
-		[in,ref] [string,charset(UTF16)] uint16 *computer_name,
-		[in, ref] netr_Authenticator *credential,
-		[out,ref]   netr_Authenticator *return_authenticator,
-		[in,unique] [string,charset(UTF16)] uint16 *site_name,
-		[in] uint32 dns_ttl,
-		[in,out,ref] NL_DNS_NAME_INFO_ARRAY *dns_names
 		);
 }

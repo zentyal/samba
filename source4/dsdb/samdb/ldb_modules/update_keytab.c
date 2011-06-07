@@ -33,12 +33,9 @@
 #include "auth/credentials/credentials.h"
 #include "auth/credentials/credentials_krb5.h"
 #include "system/kerberos.h"
-#include "auth/kerberos/kerberos.h"
-#include "util.h"
 
 struct dn_list {
-	struct ldb_message *msg;
-	bool do_delete;
+	struct cli_credentials *creds;
 	struct dn_list *prev, *next;
 };
 
@@ -79,28 +76,27 @@ static struct update_kt_ctx *update_kt_ctx_init(struct ldb_module *module,
  * Just hope we are lucky and nothing breaks (using the tdb backend masks a lot
  * of async issues). -SSS
  */
-static int add_modified(struct ldb_module *module, struct ldb_dn *dn, bool do_delete,
-			struct ldb_request *parent)
-{
+static int add_modified(struct ldb_module *module, struct ldb_dn *dn, bool do_delete) {
 	struct ldb_context *ldb = ldb_module_get_ctx(module);
 	struct update_kt_private *data = talloc_get_type(ldb_module_get_private(module), struct update_kt_private);
 	struct dn_list *item;
 	char *filter;
 	struct ldb_result *res;
+	const char *attrs[] = { NULL };
 	int ret;
+	NTSTATUS status;
 
 	filter = talloc_asprintf(data, "(&(dn=%s)(&(objectClass=kerberosSecret)(privateKeytab=*)))",
 				 ldb_dn_get_linearized(dn));
 	if (!filter) {
-		return ldb_oom(ldb);
+		ldb_oom(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
-	ret = dsdb_module_search(module, data, &res,
-				 dn, LDB_SCOPE_BASE, NULL,
-				 DSDB_FLAG_NEXT_MODULE, parent,
-				 "%s", filter);
-	talloc_free(filter);
+	ret = ldb_search(ldb, data, &res,
+			 dn, LDB_SCOPE_BASE, attrs, "%s", filter);
 	if (ret != LDB_SUCCESS) {
+		talloc_free(filter);
 		return ret;
 	}
 
@@ -110,19 +106,36 @@ static int add_modified(struct ldb_module *module, struct ldb_dn *dn, bool do_de
 		talloc_free(filter);
 		return LDB_SUCCESS;
 	}
+	talloc_free(res);
 
 	item = talloc(data->changed_dns? (void *)data->changed_dns: (void *)data, struct dn_list);
 	if (!item) {
-		talloc_free(res);
 		talloc_free(filter);
-		return ldb_oom(ldb);
+		ldb_oom(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
-	item->msg = talloc_steal(item, res->msgs[0]);
-	item->do_delete = do_delete;
-	talloc_free(res);
+	item->creds = cli_credentials_init(item);
+	if (!item->creds) {
+		DEBUG(1, ("cli_credentials_init failed!"));
+		talloc_free(filter);
+		ldb_oom(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
 
-	DLIST_ADD_END(data->changed_dns, item, struct dn_list *);
+	cli_credentials_set_conf(item->creds, ldb_get_opaque(ldb, "loadparm"));
+	status = cli_credentials_set_secrets(item->creds, ldb_get_event_context(ldb), ldb_get_opaque(ldb, "loadparm"), ldb, NULL, filter);
+	talloc_free(filter);
+	if (NT_STATUS_IS_OK(status)) {
+		if (do_delete) {
+			/* Ensure we don't helpfully keep an old keytab entry */
+			cli_credentials_set_kvno(item->creds, cli_credentials_get_kvno(item->creds)+2);	
+			/* Wipe passwords */
+			cli_credentials_set_nt_hash(item->creds, NULL, 
+						    CRED_SPECIFIED);
+		}
+		DLIST_ADD_END(data->changed_dns, item, struct dn_list *);
+	}
 	return LDB_SUCCESS;
 }
 
@@ -181,7 +194,6 @@ static int ukt_del_op(struct update_kt_ctx *ac)
 				ac->req->controls,
 				ac, update_kt_op_callback,
 				ac->req);
-	LDB_REQ_SET_LOCATION(down_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -219,7 +231,7 @@ static int ukt_search_modified_callback(struct ldb_request *req,
 
 		if (ac->found) {
 			/* do the dirty sync job here :/ */
-			ret = add_modified(ac->module, ac->dn, ac->do_delete, ac->req);
+			ret = add_modified(ac->module, ac->dn, ac->do_delete);
 		}
 
 		if (ac->do_delete) {
@@ -242,7 +254,7 @@ static int ukt_search_modified_callback(struct ldb_request *req,
 static int ukt_search_modified(struct update_kt_ctx *ac)
 {
 	struct ldb_context *ldb;
-	static const char * const no_attrs[] = { NULL };
+	static const char * const attrs[] = { "distinguishedName", NULL };
 	struct ldb_request *search_req;
 	int ret;
 
@@ -251,11 +263,10 @@ static int ukt_search_modified(struct update_kt_ctx *ac)
 	ret = ldb_build_search_req(&search_req, ldb, ac,
 				   ac->dn, LDB_SCOPE_BASE,
 				   "(&(objectClass=kerberosSecret)"
-				     "(privateKeytab=*))", no_attrs,
+				     "(privateKeytab=*))", attrs,
 				   NULL,
 				   ac, ukt_search_modified_callback,
 				   ac->req);
-	LDB_REQ_SET_LOCATION(search_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -275,7 +286,7 @@ static int update_kt_add(struct ldb_module *module, struct ldb_request *req)
 
 	ac = update_kt_ctx_init(module, req);
 	if (ac == NULL) {
-		return ldb_operr(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
 	ac->dn = req->op.add.message->dn;
@@ -285,7 +296,6 @@ static int update_kt_add(struct ldb_module *module, struct ldb_request *req)
 				req->controls,
 				ac, update_kt_op_callback,
 				req);
-	LDB_REQ_SET_LOCATION(down_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -305,7 +315,7 @@ static int update_kt_modify(struct ldb_module *module, struct ldb_request *req)
 
 	ac = update_kt_ctx_init(module, req);
 	if (ac == NULL) {
-		return ldb_operr(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
 	ac->dn = req->op.mod.message->dn;
@@ -315,7 +325,6 @@ static int update_kt_modify(struct ldb_module *module, struct ldb_request *req)
 				req->controls,
 				ac, update_kt_op_callback,
 				req);
-	LDB_REQ_SET_LOCATION(down_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -330,7 +339,7 @@ static int update_kt_delete(struct ldb_module *module, struct ldb_request *req)
 
 	ac = update_kt_ctx_init(module, req);
 	if (ac == NULL) {
-		return ldb_operr(ldb_module_get_ctx(module));
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
 	ac->dn = req->op.del.dn;
@@ -351,7 +360,7 @@ static int update_kt_rename(struct ldb_module *module, struct ldb_request *req)
 
 	ac = update_kt_ctx_init(module, req);
 	if (ac == NULL) {
-		return ldb_operr(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
 	ac->dn = req->op.rename.newdn;
@@ -362,7 +371,6 @@ static int update_kt_rename(struct ldb_module *module, struct ldb_request *req)
 				req->controls,
 				ac, update_kt_op_callback,
 				req);
-	LDB_REQ_SET_LOCATION(down_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -373,31 +381,19 @@ static int update_kt_rename(struct ldb_module *module, struct ldb_request *req)
 /* prepare for a commit */
 static int update_kt_prepare_commit(struct ldb_module *module)
 {
-	struct ldb_context *ldb = ldb_module_get_ctx(module);
+	struct ldb_context *ldb;
 	struct update_kt_private *data = talloc_get_type(ldb_module_get_private(module), struct update_kt_private);
 	struct dn_list *p;
-	struct smb_krb5_context *smb_krb5_context;
-	int krb5_ret = smb_krb5_init_context(data, ldb_get_event_context(ldb), ldb_get_opaque(ldb, "loadparm"),
-					     &smb_krb5_context);
-	if (krb5_ret != 0) {
-		talloc_free(data->changed_dns);
-		data->changed_dns = NULL;
-		ldb_asprintf_errstring(ldb, "Failed to setup krb5_context: %s", error_message(krb5_ret));
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
 
 	ldb = ldb_module_get_ctx(module);
 
 	for (p=data->changed_dns; p; p = p->next) {
-		const char *error_string;
-		krb5_ret = smb_krb5_update_keytab(data, smb_krb5_context, ldb, p->msg, p->do_delete, &error_string);
-		if (krb5_ret != 0) {
+		int kret;
+		kret = cli_credentials_update_keytab(p->creds, ldb_get_event_context(ldb), ldb_get_opaque(ldb, "loadparm"));
+		if (kret != 0) {
 			talloc_free(data->changed_dns);
 			data->changed_dns = NULL;
-			ldb_asprintf_errstring(ldb, "Failed to update keytab from entry %s in %s: %s",
-					       ldb_dn_get_linearized(p->msg->dn),
-					       (const char *)ldb_get_opaque(ldb, "ldb_url"),
-					       error_string);
+			ldb_asprintf_errstring(ldb, "Failed to update keytab: %s", error_message(kret));
 			return LDB_ERR_OPERATIONS_ERROR;
 		}
 	}
@@ -428,7 +424,8 @@ static int update_kt_init(struct ldb_module *module)
 
 	data = talloc(module, struct update_kt_private);
 	if (data == NULL) {
-		return ldb_oom(ldb);
+		ldb_oom(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
 	data->changed_dns = NULL;
@@ -438,7 +435,7 @@ static int update_kt_init(struct ldb_module *module)
 	return ldb_next_init(module);
 }
 
-static const struct ldb_module_ops ldb_update_keytab_module_ops = {
+_PUBLIC_ const struct ldb_module_ops ldb_update_keytab_module_ops = {
 	.name		   = "update_keytab",
 	.init_context	   = update_kt_init,
 	.add               = update_kt_add,
@@ -448,9 +445,3 @@ static const struct ldb_module_ops ldb_update_keytab_module_ops = {
 	.prepare_commit    = update_kt_prepare_commit,
 	.del_transaction   = update_kt_del_trans,
 };
-
-int ldb_update_keytab_module_init(const char *version)
-{
-	LDB_MODULE_CHECK_VERSION(version);
-	return ldb_register_module(&ldb_update_keytab_module_ops);
-}

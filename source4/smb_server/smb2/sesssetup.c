@@ -19,7 +19,6 @@
 */
 
 #include "includes.h"
-#include <tevent.h>
 #include "auth/gensec/gensec.h"
 #include "auth/auth.h"
 #include "libcli/smb2/smb2.h"
@@ -27,7 +26,6 @@
 #include "smb_server/smb_server.h"
 #include "smb_server/smb2/smb2_server.h"
 #include "smbd/service_stream.h"
-#include "lib/stream/packet.h"
 
 static void smb2srv_sesssetup_send(struct smb2srv_request *req, union smb_sesssetup *io)
 {
@@ -59,9 +57,9 @@ struct smb2srv_sesssetup_callback_ctx {
 	struct smbsrv_session *smb_sess;
 };
 
-static void smb2srv_sesssetup_callback(struct tevent_req *subreq)
+static void smb2srv_sesssetup_callback(struct gensec_update_request *greq, void *private_data)
 {
-	struct smb2srv_sesssetup_callback_ctx *ctx = tevent_req_callback_data(subreq,
+	struct smb2srv_sesssetup_callback_ctx *ctx = talloc_get_type(private_data,
 						     struct smb2srv_sesssetup_callback_ctx);
 	struct smb2srv_request *req = ctx->req;
 	union smb_sesssetup *io = ctx->io;
@@ -69,10 +67,7 @@ static void smb2srv_sesssetup_callback(struct tevent_req *subreq)
 	struct auth_session_info *session_info = NULL;
 	NTSTATUS status;
 
-	packet_recv_enable(req->smb_conn->packet);
-
-	status = gensec_update_recv(subreq, req, &io->smb2.out.secblob);
-	TALLOC_FREE(subreq);
+	status = gensec_update_recv(greq, req, &io->smb2.out.secblob);
 	if (NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
 		goto done;
 	} else if (!NT_STATUS_IS_OK(status)) {
@@ -99,7 +94,7 @@ static void smb2srv_sesssetup_callback(struct tevent_req *subreq)
 done:
 	io->smb2.out.uid = smb_sess->vuid;
 failed:
-	req->status = nt_status_squash(status);
+	req->status = auth_nt_status_squash(status);
 	smb2srv_sesssetup_send(req, io);
 	if (!NT_STATUS_IS_OK(status) && !
 	    NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
@@ -113,7 +108,6 @@ static void smb2srv_sesssetup_backend(struct smb2srv_request *req, union smb_ses
 	struct smb2srv_sesssetup_callback_ctx *callback_ctx;
 	struct smbsrv_session *smb_sess = NULL;
 	uint64_t vuid;
-	struct tevent_req *subreq;
 
 	io->smb2.out.session_flags = 0;
 	io->smb2.out.uid	= 0;
@@ -180,12 +174,8 @@ static void smb2srv_sesssetup_backend(struct smb2srv_request *req, union smb_ses
 	callback_ctx->io	= io;
 	callback_ctx->smb_sess	= smb_sess;
 
-	subreq = gensec_update_send(callback_ctx,
-				    req->smb_conn->connection->event.ctx,
-				    smb_sess->gensec_ctx,
-				    io->smb2.in.secblob);
-	if (!subreq) goto nomem;
-	tevent_req_set_callback(subreq, smb2srv_sesssetup_callback, callback_ctx);
+	gensec_update_send(smb_sess->gensec_ctx, io->smb2.in.secblob,
+			   smb2srv_sesssetup_callback, callback_ctx);
 
 	/* note that we ignore SMB2_NEGOTIATE_SIGNING_ENABLED from the client.
 	   This is deliberate as windows does not set it even when it does 
@@ -202,18 +192,12 @@ static void smb2srv_sesssetup_backend(struct smb2srv_request *req, union smb_ses
 		goto failed;
 	}
 
-	/* disable receipt of more packets on this socket until we've
-	   finished with the session setup. This avoids a problem with
-	   crashes if we get EOF on the socket while processing a session
-	   setup */
-	packet_recv_disable(req->smb_conn->packet);
-
 	return;
 nomem:
 	status = NT_STATUS_NO_MEMORY;
 failed:
 	talloc_free(smb_sess);
-	req->status = nt_status_squash(status);
+	req->status = auth_nt_status_squash(status);
 	smb2srv_sesssetup_send(req, io);
 }
 

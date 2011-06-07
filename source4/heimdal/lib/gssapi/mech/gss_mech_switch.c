@@ -28,6 +28,7 @@
 
 #include "mech_locl.h"
 #include <heim_threads.h>
+RCSID("$Id$");
 
 #ifndef _PATH_GSS_MECH
 #define _PATH_GSS_MECH	"/etc/gss/mech"
@@ -176,9 +177,9 @@ add_builtin(gssapi_mech_interface mech)
     if (mech == NULL)
 	return 0;
 
-    m = calloc(1, sizeof(*m));
+    m = malloc(sizeof(*m));
     if (m == NULL)
-	return ENOMEM;
+	return 1;
     m->gm_so = NULL;
     m->gm_mech = *mech;
     m->gm_mech_oid = mech->gm_mech_oid; /* XXX */
@@ -187,14 +188,14 @@ add_builtin(gssapi_mech_interface mech)
 
     /* pick up the oid sets of names */
 
-    if (m->gm_mech.gm_inquire_names_for_mech)
+    if (m->gm_mech.gm_inquire_names_for_mech) {
 	(*m->gm_mech.gm_inquire_names_for_mech)(&minor_status,
 	    &m->gm_mech.gm_mech_oid, &m->gm_name_types);
-
-    if (m->gm_name_types == NULL)
+    } else {
 	gss_create_empty_oid_set(&minor_status, &m->gm_name_types);
+    }
 
-    HEIM_SLIST_INSERT_HEAD(&_gss_mechs, m, gm_link);
+    SLIST_INSERT_HEAD(&_gss_mechs, m, gm_link);
     return 0;
 }
 
@@ -211,13 +212,11 @@ _gss_load_mech(void)
 	char		*name, *oid, *lib, *kobj;
 	struct _gss_mech_switch *m;
 	void		*so;
-	gss_OID_desc	mech_oid;
-	int		found;
 
 
 	HEIMDAL_MUTEX_lock(&_gss_mech_mutex);
 
-	if (HEIM_SLIST_FIRST(&_gss_mechs)) {
+	if (SLIST_FIRST(&_gss_mechs)) {
 		HEIMDAL_MUTEX_unlock(&_gss_mech_mutex);
 		return;
 	}
@@ -242,8 +241,6 @@ _gss_load_mech(void)
 	rk_cloexec_file(fp);
 
 	while (fgets(buf, sizeof(buf), fp)) {
-		_gss_mo_init *mi;
-
 		if (*buf == '#')
 			continue;
 		p = buf;
@@ -257,46 +254,24 @@ _gss_load_mech(void)
 		if (!name || !oid || !lib || !kobj)
 			continue;
 
-		if (_gss_string_to_oid(oid, &mech_oid))
-			continue;
-
-		/*
-		 * Check for duplicates, already loaded mechs.
-		 */
-		found = 0;
-		HEIM_SLIST_FOREACH(m, &_gss_mechs, gm_link) {
-			if (gss_oid_equal(&m->gm_mech.gm_mech_oid, &mech_oid)) {
-				found = 1;
-				free(mech_oid.elements);
-				break;
-			}
-		}
-		if (found)
-			continue;
-
 #ifndef RTLD_LOCAL
 #define RTLD_LOCAL 0
 #endif
 
-#ifndef RTLD_GROUP
-#define RTLD_GROUP 0
-#endif
-
-		so = dlopen(lib, RTLD_LAZY | RTLD_LOCAL | RTLD_GROUP);
+		so = dlopen(lib, RTLD_LAZY | RTLD_LOCAL);
 		if (!so) {
 /*			fprintf(stderr, "dlopen: %s\n", dlerror()); */
-			free(mech_oid.elements);
 			continue;
 		}
 
 		m = malloc(sizeof(*m));
-		if (!m) {
-			free(mech_oid.elements);
+		if (!m)
 			break;
-		}
 		m->gm_so = so;
-		m->gm_mech.gm_mech_oid = mech_oid;
-		m->gm_mech.gm_flags = 0;
+		if (_gss_string_to_oid(oid, &m->gm_mech.gm_mech_oid)) {
+			free(m);
+			continue;
+		}
 		
 		major_status = gss_add_oid_set_member(&minor_status,
 		    &m->gm_mech.gm_mech_oid, &_gss_mech_oids);
@@ -343,24 +318,8 @@ _gss_load_mech(void)
 		OPTSYM(wrap_iov);
 		OPTSYM(unwrap_iov);
 		OPTSYM(wrap_iov_length);
-		OPTSYM(display_name_ext);
-		OPTSYM(inquire_name);
-		OPTSYM(get_name_attribute);
-		OPTSYM(set_name_attribute);
-		OPTSYM(delete_name_attribute);
-		OPTSYM(export_name_composite);
 
-		mi = dlsym(so, "gss_mo_init");
-		if (mi != NULL) {
-			major_status = mi(&minor_status,
-					  &mech_oid,
-					  &m->gm_mech.gm_mo,
-					  &m->gm_mech.gm_mo_num);
-			if (GSS_ERROR(major_status))
-				goto bad;
-		}
-
-		HEIM_SLIST_INSERT_HEAD(&_gss_mechs, m, gm_link);
+		SLIST_INSERT_HEAD(&_gss_mechs, m, gm_link);
 		continue;
 
 	bad:
@@ -375,12 +334,12 @@ _gss_load_mech(void)
 }
 
 gssapi_mech_interface
-__gss_get_mechanism(gss_const_OID mech)
+__gss_get_mechanism(gss_OID mech)
 {
         struct _gss_mech_switch	*m;
 
 	_gss_load_mech();
-	HEIM_SLIST_FOREACH(m, &_gss_mechs, gm_link) {
+	SLIST_FOREACH(m, &_gss_mechs, gm_link) {
 		if (gss_oid_equal(&m->gm_mech.gm_mech_oid, mech))
 			return &m->gm_mech;
 	}

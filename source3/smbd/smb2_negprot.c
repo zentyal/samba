@@ -19,7 +19,6 @@
 */
 
 #include "includes.h"
-#include "smbd/smbd.h"
 #include "smbd/globals.h"
 #include "../libcli/smb/smb_common.h"
 
@@ -55,7 +54,7 @@ void reply_smb2002(struct smb_request *req, uint16_t choice)
 
 	req->outbuf = NULL;
 
-	smbd_smb2_first_negprot(req->sconn, smb2_inbuf, len);
+	smbd_smb2_first_negprot(smbd_server_conn, smb2_inbuf, len);
 	return;
 }
 
@@ -78,7 +77,7 @@ NTSTATUS smbd_smb2_request_process_negprot(struct smbd_smb2_request *req)
 	uint16_t dialect = 0;
 	uint32_t capabilities;
 
-/* TODO: drop the connection with INVALID_PARAMETER */
+/* TODO: drop the connection with INVALI_PARAMETER */
 
 	if (req->in.vector[i+1].iov_len != (expected_body_size & 0xFFFFFFFE)) {
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
@@ -120,10 +119,11 @@ NTSTATUS smbd_smb2_request_process_negprot(struct smbd_smb2_request *req)
 	}
 
 	/* negprot_spnego() returns a the server guid in the first 16 bytes */
-	negprot_spnego_blob = negprot_spnego(req, req->sconn);
+	negprot_spnego_blob = negprot_spnego();
 	if (negprot_spnego_blob.data == NULL) {
 		return smbd_smb2_request_error(req, NT_STATUS_NO_MEMORY);
 	}
+	talloc_steal(req, negprot_spnego_blob.data);
 
 	if (negprot_spnego_blob.length < 16) {
 		return smbd_smb2_request_error(req, NT_STATUS_INTERNAL_ERROR);
@@ -164,9 +164,9 @@ NTSTATUS smbd_smb2_request_process_negprot(struct smbd_smb2_request *req)
 	       negprot_spnego_blob.data, 16);	/* server guid */
 	SIVAL(outbody.data, 0x18,
 	      capabilities);			/* capabilities */
-	SIVAL(outbody.data, 0x1C, lp_smb2_max_trans());	/* max transact size */
-	SIVAL(outbody.data, 0x20, lp_smb2_max_read());	/* max read size */
-	SIVAL(outbody.data, 0x24, lp_smb2_max_write());	/* max write size */
+	SIVAL(outbody.data, 0x1C, 0x00010000);	/* max transact size */
+	SIVAL(outbody.data, 0x20, 0x00010000);	/* max read size */
+	SIVAL(outbody.data, 0x24, 0x00010000);	/* max write size */
 	SBVAL(outbody.data, 0x28, 0);		/* system time */
 	SBVAL(outbody.data, 0x30, 0);		/* server start time */
 	SSVAL(outbody.data, 0x38,
@@ -176,8 +176,6 @@ NTSTATUS smbd_smb2_request_process_negprot(struct smbd_smb2_request *req)
 	SIVAL(outbody.data, 0x3C, 0);		/* reserved */
 
 	outdyn = security_buffer;
-
-	req->sconn->using_smb2 = true;
 
 	return smbd_smb2_request_done(req, outbody, &outdyn);
 }

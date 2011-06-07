@@ -24,9 +24,6 @@
  */
 
 #include "includes.h"
-#include "registry.h"
-#include "reg_dispatcher.h"
-#include "../libcli/security/security.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
@@ -37,12 +34,12 @@ static const struct generic_mapping reg_generic_map =
 /********************************************************************
 ********************************************************************/
 
-static WERROR construct_registry_sd(TALLOC_CTX *ctx, struct security_descriptor **psd)
+static WERROR construct_registry_sd(TALLOC_CTX *ctx, SEC_DESC **psd)
 {
-	struct security_ace ace[3];
+	SEC_ACE ace[3];
 	size_t i = 0;
-	struct security_descriptor *sd;
-	struct security_acl *theacl;
+	SEC_DESC *sd;
+	SEC_ACL *theacl;
 	size_t sd_size;
 
 	/* basic access for Everyone */
@@ -67,7 +64,7 @@ static WERROR construct_registry_sd(TALLOC_CTX *ctx, struct security_descriptor 
 		return WERR_NOMEM;
 	}
 
-	sd = make_sec_desc(ctx, SD_REVISION, SEC_DESC_SELF_RELATIVE,
+	sd = make_sec_desc(ctx, SEC_DESC_REVISION, SEC_DESC_SELF_RELATIVE,
 			   &global_sid_Builtin_Administrators,
 			   &global_sid_System, NULL, theacl,
 			   &sd_size);
@@ -162,17 +159,11 @@ int fetch_reg_values(struct registry_key_handle *key, struct regval_ctr *val)
 
 bool regkey_access_check(struct registry_key_handle *key, uint32 requested,
 			 uint32 *granted,
-			 const struct security_token *token )
+			 const struct nt_user_token *token )
 {
-	struct security_descriptor *sec_desc;
+	SEC_DESC *sec_desc;
 	NTSTATUS status;
 	WERROR err;
-
-	/* root free-pass, like we have on all other pipes like samr, lsa, etc. */
-	if (geteuid() == sec_initial_uid()) {
-		*granted = REG_KEY_ALL;
-		return true;
-	}
 
 	/* use the default security check if the backend has not defined its
 	 * own */

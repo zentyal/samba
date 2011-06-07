@@ -5,6 +5,7 @@
 
    Copyright (C) Gerald (Jerry) Carter 2007
 
+
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
    License as published by the Free Software Foundation; either
@@ -23,13 +24,13 @@
 
 #include "replace.h"
 #include "libwbclient.h"
-#include "../winbind_client.h"
 
 /* Convert a Windows SID to a Unix uid, allocating an uid if needed */
 wbcErr wbcSidToUid(const struct wbcDomainSid *sid, uid_t *puid)
 {
 	struct winbindd_request request;
 	struct winbindd_response response;
+	char *sid_string = NULL;
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 
 	if (!sid || !puid) {
@@ -42,7 +43,11 @@ wbcErr wbcSidToUid(const struct wbcDomainSid *sid, uid_t *puid)
 	ZERO_STRUCT(request);
 	ZERO_STRUCT(response);
 
-	wbcSidToStringBuf(sid, request.data.sid, sizeof(request.data.sid));
+	wbc_status = wbcSidToString(sid, &sid_string);
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+	strncpy(request.data.sid, sid_string, sizeof(request.data.sid)-1);
+	wbcFreeMemory(sid_string);
 
 	/* Make request */
 
@@ -120,6 +125,7 @@ wbcErr wbcSidToGid(const struct wbcDomainSid *sid, gid_t *pgid)
 	struct winbindd_request request;
 	struct winbindd_response response;
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	char *sid_string = NULL;
 
 	if (!sid || !pgid) {
 		wbc_status = WBC_ERR_INVALID_PARAM;
@@ -131,7 +137,11 @@ wbcErr wbcSidToGid(const struct wbcDomainSid *sid, gid_t *pgid)
 	ZERO_STRUCT(request);
 	ZERO_STRUCT(response);
 
-        wbcSidToStringBuf(sid, request.data.sid, sizeof(request.data.sid));
+	wbc_status = wbcSidToString(sid, &sid_string);
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+	strncpy(request.data.sid, sid_string, sizeof(request.data.sid)-1);
+	wbcFreeMemory(sid_string);
 
 	/* Make request */
 
@@ -148,7 +158,6 @@ wbcErr wbcSidToGid(const struct wbcDomainSid *sid, gid_t *pgid)
 	return wbc_status;
 }
 
-
 /* Convert a Windows SID to a Unix gid if there already is a mapping */
 
 wbcErr wbcQuerySidToGid(const struct wbcDomainSid *sid,
@@ -156,7 +165,6 @@ wbcErr wbcQuerySidToGid(const struct wbcDomainSid *sid,
 {
 	return WBC_ERR_NOT_IMPLEMENTED;
 }
-
 
 /* Convert a Unix gid to a Windows SID, allocating a SID if needed */
 wbcErr wbcGidToSid(gid_t gid, struct wbcDomainSid *sid)
@@ -262,130 +270,200 @@ wbcErr wbcAllocateGid(gid_t *pgid)
 #define _ID_TYPE_UID 1
 #define _ID_TYPE_GID 2
 
-/* Set an user id mapping - not implemented any more */
+/* Set an user id mapping */
 wbcErr wbcSetUidMapping(uid_t uid, const struct wbcDomainSid *sid)
-{
-	return WBC_ERR_NOT_IMPLEMENTED;
-}
-
-/* Set a group id mapping - not implemented any more */
-wbcErr wbcSetGidMapping(gid_t gid, const struct wbcDomainSid *sid)
-{
-	return WBC_ERR_NOT_IMPLEMENTED;
-}
-
-/* Remove a user id mapping - not implemented any more */
-wbcErr wbcRemoveUidMapping(uid_t uid, const struct wbcDomainSid *sid)
-{
-	return WBC_ERR_NOT_IMPLEMENTED;
-}
-
-/* Remove a group id mapping - not implemented any more */
-wbcErr wbcRemoveGidMapping(gid_t gid, const struct wbcDomainSid *sid)
-{
-	return WBC_ERR_NOT_IMPLEMENTED;
-}
-
-/* Set the highwater mark for allocated uids - not implemented any more */
-wbcErr wbcSetUidHwm(uid_t uid_hwm)
-{
-	return WBC_ERR_NOT_IMPLEMENTED;
-}
-
-/* Set the highwater mark for allocated gids - not implemented any more */
-wbcErr wbcSetGidHwm(gid_t gid_hwm)
-{
-	return WBC_ERR_NOT_IMPLEMENTED;
-}
-
-/* Convert a list of SIDs */
-wbcErr wbcSidsToUnixIds(const struct wbcDomainSid *sids, uint32_t num_sids,
-			struct wbcUnixId *ids)
 {
 	struct winbindd_request request;
 	struct winbindd_response response;
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
-	int buflen, extra_len;
-	uint32_t i;
-	char *sidlist, *p, *extra_data;
+	char *sid_string = NULL;
 
-	buflen = num_sids * (WBC_SID_STRING_BUFLEN + 1) + 1;
-
-	sidlist = (char *)malloc(buflen);
-	if (sidlist == NULL) {
-		return WBC_ERR_NO_MEMORY;
+	if (!sid) {
+		return WBC_ERR_INVALID_PARAM;
 	}
 
-	p = sidlist;
-
-	for (i=0; i<num_sids; i++) {
-		int remaining;
-		int len;
-
-		remaining = buflen - (p - sidlist);
-
-		len = wbcSidToStringBuf(&sids[i], p, remaining);
-		if (len > remaining) {
-			free(sidlist);
-			return WBC_ERR_UNKNOWN_FAILURE;
-		}
-
-		p += len;
-		*p++ = '\n';
-	}
-	*p++ = '\0';
+	/* Initialise request */
 
 	ZERO_STRUCT(request);
 	ZERO_STRUCT(response);
 
-	request.extra_data.data = sidlist;
-	request.extra_len = p - sidlist;
+	/* Make request */
 
-	wbc_status = wbcRequestResponse(WINBINDD_SIDS_TO_XIDS,
-					&request, &response);
-	free(sidlist);
-	if (!WBC_ERROR_IS_OK(wbc_status)) {
-		return wbc_status;
+	request.data.dual_idmapset.id = uid;
+	request.data.dual_idmapset.type = _ID_TYPE_UID;
+
+	wbc_status = wbcSidToString(sid, &sid_string);
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+	strncpy(request.data.dual_idmapset.sid, sid_string,
+		sizeof(request.data.dual_idmapset.sid)-1);
+	wbcFreeMemory(sid_string);
+
+	wbc_status = wbcRequestResponsePriv(WINBINDD_SET_MAPPING,
+					    &request, &response);
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+ done:
+	return wbc_status;
+}
+
+/* Set a group id mapping */
+wbcErr wbcSetGidMapping(gid_t gid, const struct wbcDomainSid *sid)
+{
+	struct winbindd_request request;
+	struct winbindd_response response;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	char *sid_string = NULL;
+
+	if (!sid) {
+		return WBC_ERR_INVALID_PARAM;
 	}
 
-	extra_len = response.length - sizeof(struct winbindd_response);
-	extra_data = (char *)response.extra_data.data;
+	/* Initialise request */
 
-	if ((extra_len <= 0) || (extra_data[extra_len-1] != '\0')) {
-		goto wbc_err_invalid;
+	ZERO_STRUCT(request);
+	ZERO_STRUCT(response);
+
+	/* Make request */
+
+	request.data.dual_idmapset.id = gid;
+	request.data.dual_idmapset.type = _ID_TYPE_GID;
+
+	wbc_status = wbcSidToString(sid, &sid_string);
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+	strncpy(request.data.dual_idmapset.sid, sid_string,
+		sizeof(request.data.dual_idmapset.sid)-1);
+	wbcFreeMemory(sid_string);
+
+	wbc_status = wbcRequestResponsePriv(WINBINDD_SET_MAPPING,
+					    &request, &response);
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+ done:
+	return wbc_status;
+}
+
+/* Remove a user id mapping */
+wbcErr wbcRemoveUidMapping(uid_t uid, const struct wbcDomainSid *sid)
+{
+	struct winbindd_request request;
+	struct winbindd_response response;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	char *sid_string = NULL;
+
+	if (!sid) {
+		return WBC_ERR_INVALID_PARAM;
 	}
 
-	p = extra_data;
+	/* Initialise request */
 
-	for (i=0; i<num_sids; i++) {
-		struct wbcUnixId *id = &ids[i];
-		char *q;
+	ZERO_STRUCT(request);
+	ZERO_STRUCT(response);
 
-		switch (p[0]) {
-		case 'U':
-			id->type = WBC_ID_TYPE_UID;
-			id->id.uid = strtoul(p+1, &q, 10);
-			break;
-		case 'G':
-			id->type = WBC_ID_TYPE_GID;
-			id->id.gid = strtoul(p+1, &q, 10);
-			break;
-		default:
-			id->type = WBC_ID_TYPE_NOT_SPECIFIED;
-			q = p;
-			break;
-		};
-		if (q[0] != '\n') {
-			goto wbc_err_invalid;
-		}
-		p = q+1;
+	/* Make request */
+
+	request.data.dual_idmapset.id = uid;
+	request.data.dual_idmapset.type = _ID_TYPE_UID;
+
+	wbc_status = wbcSidToString(sid, &sid_string);
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+	strncpy(request.data.dual_idmapset.sid, sid_string,
+		sizeof(request.data.dual_idmapset.sid)-1);
+	wbcFreeMemory(sid_string);
+
+	wbc_status = wbcRequestResponsePriv(WINBINDD_REMOVE_MAPPING,
+					    &request, &response);
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+ done:
+	return wbc_status;
+}
+
+/* Remove a group id mapping */
+wbcErr wbcRemoveGidMapping(gid_t gid, const struct wbcDomainSid *sid)
+{
+	struct winbindd_request request;
+	struct winbindd_response response;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	char *sid_string = NULL;
+
+	if (!sid) {
+		return WBC_ERR_INVALID_PARAM;
 	}
-	wbc_status = WBC_ERR_SUCCESS;
-	goto done;
 
-wbc_err_invalid:
-	wbc_status = WBC_ERR_INVALID_RESPONSE;
-done:
-	winbindd_free_response(&response);
+	/* Initialise request */
+
+	ZERO_STRUCT(request);
+	ZERO_STRUCT(response);
+
+	/* Make request */
+
+	request.data.dual_idmapset.id = gid;
+	request.data.dual_idmapset.type = _ID_TYPE_GID;
+
+	wbc_status = wbcSidToString(sid, &sid_string);
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+	strncpy(request.data.dual_idmapset.sid, sid_string,
+		sizeof(request.data.dual_idmapset.sid)-1);
+	wbcFreeMemory(sid_string);
+
+	wbc_status = wbcRequestResponsePriv(WINBINDD_REMOVE_MAPPING,
+					    &request, &response);
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+ done:
+	return wbc_status;
+}
+
+/* Set the highwater mark for allocated uids. */
+wbcErr wbcSetUidHwm(uid_t uid_hwm)
+{
+	struct winbindd_request request;
+	struct winbindd_response response;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+
+	/* Initialise request */
+
+	ZERO_STRUCT(request);
+	ZERO_STRUCT(response);
+
+	/* Make request */
+
+	request.data.dual_idmapset.id = uid_hwm;
+	request.data.dual_idmapset.type = _ID_TYPE_UID;
+
+	wbc_status = wbcRequestResponsePriv(WINBINDD_SET_HWM,
+					    &request, &response);
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+ done:
+	return wbc_status;
+}
+
+/* Set the highwater mark for allocated gids. */
+wbcErr wbcSetGidHwm(gid_t gid_hwm)
+{
+	struct winbindd_request request;
+	struct winbindd_response response;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+
+	/* Initialise request */
+
+	ZERO_STRUCT(request);
+	ZERO_STRUCT(response);
+
+	/* Make request */
+
+	request.data.dual_idmapset.id = gid_hwm;
+	request.data.dual_idmapset.type = _ID_TYPE_GID;
+
+	wbc_status = wbcRequestResponsePriv(WINBINDD_SET_HWM,
+					    &request, &response);
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+ done:
 	return wbc_status;
 }

@@ -4,6 +4,5 @@
 dn: ${SCHEMADN}
 objectClass: top
 objectClass: dMD
-msDS-NcType: 0
+cn: Schema
 nTSecurityDescriptor:: ${DESCRIPTOR}
-instanceType: 13

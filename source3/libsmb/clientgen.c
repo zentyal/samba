@@ -19,10 +19,6 @@
 */
 
 #include "includes.h"
-#include "libsmb/libsmb.h"
-#include "../lib/util/tevent_ntstatus.h"
-#include "smb_signing.h"
-#include "async_smb.h"
 
 /*******************************************************************
  Setup the word count and byte count for a client smb message.
@@ -250,18 +246,9 @@ bool cli_receive_smb(struct cli_state *cli)
 
 	/* If the server is not responding, note that now */
 	if (len < 0) {
-		/*
-		 * only log if the connection should still be open and not when
-		 * the connection was closed due to a dropped ip message
-		 */
-		if (cli->fd != -1) {
-			char addr[INET6_ADDRSTRLEN];
-			print_sockaddr(addr, sizeof(addr), &cli->dest_ss);
-			DEBUG(0, ("Receiving SMB: Server %s stopped responding\n",
-				addr));
-			close(cli->fd);
-			cli->fd = -1;
-		}
+                DEBUG(0, ("Receiving SMB: Server stopped responding\n"));
+		close(cli->fd);
+		cli->fd = -1;
 		return false;
 	}
 
@@ -296,6 +283,37 @@ bool cli_receive_smb(struct cli_state *cli)
 		return false;
 	};
 	return true;
+}
+
+/****************************************************************************
+ Read the data portion of a readX smb.
+ The timeout is in milliseconds
+****************************************************************************/
+
+ssize_t cli_receive_smb_data(struct cli_state *cli, char *buffer, size_t len)
+{
+	NTSTATUS status;
+
+	set_smb_read_error(&cli->smb_rw_error, SMB_READ_OK);
+
+	status = read_fd_with_timeout(
+		cli->fd, buffer, len, len, cli->timeout, NULL);
+	if (NT_STATUS_IS_OK(status)) {
+		return len;
+	}
+
+	if (NT_STATUS_EQUAL(status, NT_STATUS_END_OF_FILE)) {
+		set_smb_read_error(&cli->smb_rw_error, SMB_READ_EOF);
+		return -1;
+	}
+
+	if (NT_STATUS_EQUAL(status, NT_STATUS_IO_TIMEOUT)) {
+		set_smb_read_error(&cli->smb_rw_error, SMB_READ_TIMEOUT);
+		return -1;
+	}
+
+	set_smb_read_error(&cli->smb_rw_error, SMB_READ_ERROR);
+	return -1;
 }
 
 static ssize_t write_socket(int fd, const char *buf, size_t len)
@@ -372,6 +390,51 @@ bool cli_send_smb(struct cli_state *cli)
 
 	if (enc_on) {
 		cli_free_enc_buffer(cli, buf_out);
+	}
+
+	/* Increment the mid so we can tell between responses. */
+	cli->mid++;
+	if (!cli->mid)
+		cli->mid++;
+	return true;
+}
+
+/****************************************************************************
+ Send a "direct" writeX smb to a fd.
+****************************************************************************/
+
+bool cli_send_smb_direct_writeX(struct cli_state *cli,
+				const char *p,
+				size_t extradata)
+{
+	/* First length to send is the offset to the data. */
+	size_t len = SVAL(cli->outbuf,smb_vwv11) + 4;
+	size_t nwritten=0;
+	struct iovec iov[2];
+
+	/* fd == -1 causes segfaults -- Tom (tom@ninja.nl) */
+	if (cli->fd == -1) {
+		return false;
+	}
+
+	if (client_is_signing_on(cli)) {
+		DEBUG(0,("cli_send_smb_large: cannot send signed packet.\n"));
+		return false;
+	}
+
+	iov[0].iov_base = (void *)cli->outbuf;
+	iov[0].iov_len = len;
+	iov[1].iov_base = CONST_DISCARD(void *, p);
+	iov[1].iov_len = extradata;
+
+	nwritten = write_data_iov(cli->fd, iov, 2);
+	if (nwritten < (len + extradata)) {
+		close(cli->fd);
+		cli->fd = -1;
+		cli->smb_rw_error = SMB_WRITE_ERROR;
+		DEBUG(0,("Error writing %d bytes to client. (%s)\n",
+			 (int)(len+extradata), strerror(errno)));
+		return false;
 	}
 
 	/* Increment the mid so we can tell between responses. */
@@ -575,8 +638,8 @@ struct cli_state *cli_initialise_ex(int signing_state)
 
 #if defined(DEVELOPER)
 	/* just because we over-allocate, doesn't mean it's right to use it */
-	clobber_region(__FUNCTION__, __LINE__, cli->outbuf+cli->bufsize, SAFETY_MARGIN);
-	clobber_region(__FUNCTION__, __LINE__, cli->inbuf+cli->bufsize, SAFETY_MARGIN);
+	clobber_region(FUNCTION_MACRO, __LINE__, cli->outbuf+cli->bufsize, SAFETY_MARGIN);
+	clobber_region(FUNCTION_MACRO, __LINE__, cli->inbuf+cli->bufsize, SAFETY_MARGIN);
 #endif
 
 	/* initialise signing */
@@ -630,8 +693,33 @@ void cli_nt_pipes_close(struct cli_state *cli)
  Shutdown a client structure.
 ****************************************************************************/
 
-static void _cli_shutdown(struct cli_state *cli)
+void cli_shutdown(struct cli_state *cli)
 {
+	if (cli == NULL) {
+		return;
+	}
+
+	if (cli->prev == NULL) {
+		/*
+		 * Possible head of a DFS list,
+		 * shutdown all subsidiary DFS
+		 * connections.
+		 */
+		struct cli_state *p, *next;
+
+		for (p = cli->next; p; p = next) {
+			next = p->next;
+			cli_shutdown(p);
+		}
+	} else {
+		/*
+		 * We're a subsidiary connection.
+		 * Just remove ourselves from the
+		 * DFS list.
+		 */
+		DLIST_REMOVE(cli->prev, cli);
+	}
+
 	cli_nt_pipes_close(cli);
 
 	/*
@@ -671,32 +759,6 @@ static void _cli_shutdown(struct cli_state *cli)
 	TALLOC_FREE(cli);
 }
 
-void cli_shutdown(struct cli_state *cli)
-{
-	struct cli_state *cli_head;
-	if (cli == NULL) {
-		return;
-	}
-	DLIST_HEAD(cli, cli_head);
-	if (cli_head == cli) {
-		/*
-		 * head of a DFS list, shutdown all subsidiary DFS
-		 * connections.
-		 */
-		struct cli_state *p, *next;
-
-		for (p = cli_head->next; p; p = next) {
-			next = p->next;
-			DLIST_REMOVE(cli_head, p);
-			_cli_shutdown(p);
-		}
-	} else {
-		DLIST_REMOVE(cli_head, cli);
-	}
-
-	_cli_shutdown(cli);
-}
-
 /****************************************************************************
  Set socket options on a open connection.
 ****************************************************************************/
@@ -726,6 +788,25 @@ bool cli_set_case_sensitive(struct cli_state *cli, bool case_sensitive)
 	bool ret = cli->case_sensitive;
 	cli->case_sensitive = case_sensitive;
 	return ret;
+}
+
+/****************************************************************************
+Send a keepalive packet to the server
+****************************************************************************/
+
+bool cli_send_keepalive(struct cli_state *cli)
+{
+        if (cli->fd == -1) {
+                DEBUG(3, ("cli_send_keepalive: fd == -1\n"));
+                return false;
+        }
+        if (!send_keepalive(cli->fd)) {
+                close(cli->fd);
+                cli->fd = -1;
+                DEBUG(0,("Error sending keepalive packet to client.\n"));
+                return false;
+        }
+        return true;
 }
 
 struct cli_echo_state {
@@ -772,10 +853,8 @@ static void cli_echo_done(struct tevent_req *subreq)
 	NTSTATUS status;
 	uint32_t num_bytes;
 	uint8_t *bytes;
-	uint8_t *inbuf;
 
-	status = cli_smb_recv(subreq, state, &inbuf, 0, NULL, NULL,
-			      &num_bytes, &bytes);
+	status = cli_smb_recv(subreq, 0, NULL, NULL, &num_bytes, &bytes);
 	if (!NT_STATUS_IS_OK(status)) {
 		tevent_req_nterror(req, status);
 		return;
@@ -883,41 +962,4 @@ bool is_andx_req(uint8_t cmd)
 	}
 
 	return false;
-}
-
-NTSTATUS cli_smb(TALLOC_CTX *mem_ctx, struct cli_state *cli,
-		 uint8_t smb_command, uint8_t additional_flags,
-		 uint8_t wct, uint16_t *vwv,
-		 uint32_t num_bytes, const uint8_t *bytes,
-		 struct tevent_req **result_parent,
-		 uint8_t min_wct, uint8_t *pwct, uint16_t **pvwv,
-		 uint32_t *pnum_bytes, uint8_t **pbytes)
-{
-        struct tevent_context *ev;
-        struct tevent_req *req = NULL;
-        NTSTATUS status = NT_STATUS_NO_MEMORY;
-
-        if (cli_has_async_calls(cli)) {
-                return NT_STATUS_INVALID_PARAMETER;
-        }
-        ev = tevent_context_init(mem_ctx);
-        if (ev == NULL) {
-                goto fail;
-        }
-        req = cli_smb_send(mem_ctx, ev, cli, smb_command, additional_flags,
-			   wct, vwv, num_bytes, bytes);
-        if (req == NULL) {
-                goto fail;
-        }
-        if (!tevent_req_poll_ntstatus(req, ev, &status)) {
-                goto fail;
-        }
-        status = cli_smb_recv(req, NULL, NULL, min_wct, pwct, pvwv,
-			      pnum_bytes, pbytes);
-fail:
-        TALLOC_FREE(ev);
-	if (NT_STATUS_IS_OK(status) && (result_parent != NULL)) {
-		*result_parent = req;
-	}
-        return status;
 }

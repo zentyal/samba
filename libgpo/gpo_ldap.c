@@ -18,13 +18,11 @@
  */
 
 #include "includes.h"
-#include "libgpo/gpo.h"
-#include "auth.h"
 #if _SAMBA_BUILD_ == 4
+#include "libgpo/gpo.h"
 #include "libgpo/gpo_s4.h"
 #include "source4/libgpo/ads_convenience.h"
 #endif
-#include "../libcli/security/security.h"
 
 /****************************************************************
  parse the raw extension string into a GP_EXT structure
@@ -487,7 +485,7 @@ ADS_STATUS ads_get_gpo(ADS_STRUCT *ads,
 		"ntSecurityDescriptor",
 		"versionNumber",
 		NULL};
-	uint32_t sd_flags = SECINFO_DACL;
+	uint32_t sd_flags = DACL_SECURITY_INFORMATION;
 
 	ZERO_STRUCTP(gpo);
 
@@ -554,7 +552,7 @@ static ADS_STATUS add_gplink_to_gpo_list(ADS_STRUCT *ads,
 					 struct GP_LINK *gp_link,
 					 enum GPO_LINK_TYPE link_type,
 					 bool only_add_forced_gpos,
-					 const struct security_token *token)
+					 const NT_USER_TOKEN *token)
 {
 	ADS_STATUS status;
 	int i;
@@ -621,16 +619,16 @@ static ADS_STATUS add_gplink_to_gpo_list(ADS_STRUCT *ads,
 ADS_STATUS ads_get_sid_token(ADS_STRUCT *ads,
 			     TALLOC_CTX *mem_ctx,
 			     const char *dn,
-			     struct security_token **token)
+			     NT_USER_TOKEN **token)
 {
 	ADS_STATUS status;
-	struct dom_sid object_sid;
-	struct dom_sid primary_group_sid;
-	struct dom_sid *ad_token_sids;
+	DOM_SID object_sid;
+	DOM_SID primary_group_sid;
+	DOM_SID *ad_token_sids;
 	size_t num_ad_token_sids = 0;
-	struct dom_sid *token_sids;
-	uint32_t num_token_sids = 0;
-	struct security_token *new_token = NULL;
+	DOM_SID *token_sids;
+	size_t num_token_sids = 0;
+	NT_USER_TOKEN *new_token = NULL;
 	int i;
 
 	status = ads_get_tokensids(ads, mem_ctx, dn,
@@ -640,7 +638,7 @@ ADS_STATUS ads_get_sid_token(ADS_STRUCT *ads,
 		return status;
 	}
 
-	token_sids = TALLOC_ARRAY(mem_ctx, struct dom_sid, 1);
+	token_sids = TALLOC_ARRAY(mem_ctx, DOM_SID, 1);
 	ADS_ERROR_HAVE_NO_MEMORY(token_sids);
 
 	status = ADS_ERROR_NT(add_sid_to_array_unique(mem_ctx,
@@ -672,7 +670,7 @@ ADS_STATUS ads_get_sid_token(ADS_STRUCT *ads,
 
 	*token = new_token;
 
-	security_token_debug(DBGC_CLASS, 5, *token);
+	debug_nt_user_token(DBGC_CLASS, 5, *token);
 
 	return ADS_ERROR_LDAP(LDAP_SUCCESS);
 }
@@ -712,7 +710,7 @@ ADS_STATUS ads_get_gpo_list(ADS_STRUCT *ads,
 			    TALLOC_CTX *mem_ctx,
 			    const char *dn,
 			    uint32_t flags,
-			    const struct security_token *token,
+			    const NT_USER_TOKEN *token,
 			    struct GROUP_POLICY_OBJECT **gpo_list)
 {
 	/* (L)ocal (S)ite (D)omain (O)rganizational(U)nit */
@@ -726,10 +724,6 @@ ADS_STATUS ads_get_gpo_list(ADS_STRUCT *ads,
 
 	if (!dn) {
 		return ADS_ERROR_NT(NT_STATUS_INVALID_PARAMETER);
-	}
-
-	if (!ads_set_sasl_wrap_flags(ads, ADS_AUTH_SASL_SIGN)) {
-		return ADS_ERROR(LDAP_INVALID_CREDENTIALS);
 	}
 
 	DEBUG(10,("ads_get_gpo_list: getting GPO list for [%s]\n", dn));

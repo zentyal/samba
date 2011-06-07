@@ -46,7 +46,8 @@ int tsocket_simple_int_recv(struct tevent_req *req, int *perrno)
 		*perrno = (int)error;
 		return -1;
 	default:
-		break;
+		*perrno = EIO;
+		return -1;
 	}
 
 	*perrno = EIO;

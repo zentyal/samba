@@ -38,13 +38,8 @@ NTSTATUS samba_server_gensec_start(TALLOC_CTX *mem_ctx,
 	NTSTATUS nt_status;
 	struct gensec_security *gensec_ctx;
 	struct auth_context *auth_context;
-
-	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
-	if (!tmp_ctx) {
-		return NT_STATUS_NO_MEMORY;
-	}
 	
-	nt_status = auth_context_create(tmp_ctx,
+	nt_status = auth_context_create(mem_ctx, 
 					event_ctx, 
 					msg_ctx, 
 					lp_ctx,
@@ -52,17 +47,16 @@ NTSTATUS samba_server_gensec_start(TALLOC_CTX *mem_ctx,
 	
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(1, ("Failed to start auth server code: %s\n", nt_errstr(nt_status)));
-		talloc_free(tmp_ctx);
 		return nt_status;
 	}
 
-	nt_status = gensec_server_start(tmp_ctx,
+	nt_status = gensec_server_start(mem_ctx, 
 					event_ctx,
-					lpcfg_gensec_settings(mem_ctx, lp_ctx),
+					lp_gensec_settings(mem_ctx, lp_ctx),
 					auth_context,
 					&gensec_ctx);
 	if (!NT_STATUS_IS_OK(nt_status)) {
-		talloc_free(tmp_ctx);
+		talloc_free(auth_context);
 		DEBUG(1, ("Failed to start GENSEC server code: %s\n", nt_errstr(nt_status)));
 		return nt_status;
 	}
@@ -72,7 +66,6 @@ NTSTATUS samba_server_gensec_start(TALLOC_CTX *mem_ctx,
 	if (target_service) {
 		gensec_set_target_service(gensec_ctx, target_service);
 	}
-	*gensec_context = talloc_steal(mem_ctx, gensec_ctx);
-	talloc_free(tmp_ctx);
+	*gensec_context = gensec_ctx;
 	return nt_status;
 }

@@ -169,14 +169,13 @@ function:
 ;
 
 typedef:
-	property_list 'typedef' type pointers identifier array_len ';'
+	property_list 'typedef' type identifier array_len ';'
 	{{
 		"TYPE" => "TYPEDEF",
 		"PROPERTIES" => $_[1],
-		"NAME" => $_[5],
+		"NAME" => $_[4],
 		"DATA" => $_[3],
-		"POINTERS" => $_[4],
-		"ARRAY_LEN" => $_[6],
+		"ARRAY_LEN" => $_[5],
 		"FILE" => $_[0]->YYData->{FILE},
 		"LINE" => $_[0]->YYData->{LINE},
         }}
@@ -387,31 +386,7 @@ pipe:
 	{{
 		"TYPE" => "PIPE",
 		"PROPERTIES" => $_[1],
-		"NAME" => undef,
-		"DATA" => {
-			"TYPE" => "STRUCT",
-			"PROPERTIES" => $_[1],
-			"NAME" => undef,
-			"ELEMENTS" => [{
-				"NAME" => "count",
-				"PROPERTIES" => $_[1],
-				"POINTERS" => 0,
-				"ARRAY_LEN" => [],
-				"TYPE" => "uint3264",
-				"FILE" => $_[0]->YYData->{FILE},
-				"LINE" => $_[0]->YYData->{LINE},
-			},{
-				"NAME" => "array",
-				"PROPERTIES" => $_[1],
-				"POINTERS" => 0,
-				"ARRAY_LEN" => [ "count" ],
-				"TYPE" => $_[3],
-				"FILE" => $_[0]->YYData->{FILE},
-				"LINE" => $_[0]->YYData->{LINE},
-			}],
-			"FILE" => $_[0]->YYData->{FILE},
-			"LINE" => $_[0]->YYData->{LINE},
-		},
+		"DATA" => $_[3],
 		"FILE" => $_[0]->YYData->{FILE},
 		"LINE" => $_[0]->YYData->{LINE},
 	}}
@@ -677,17 +652,11 @@ sub parse_file($$)
 	my $saved_delim = $/;
 	undef $/;
 	my $cpp = $ENV{CPP};
-	my $options = "";
 	if (! defined $cpp) {
-		if (defined $ENV{CC}) {
-			$cpp = "$ENV{CC}";
-			$options = "-E";
-		} else {
-			$cpp = "cpp";
-		}
+		$cpp = "cpp";
 	}
 	my $includes = join('',map { " -I$_" } @$incdirs);
-	my $data = `$cpp $options -D__PIDL__$includes -xc "$filename"`;
+	my $data = `$cpp -D__PIDL__$includes -xc $filename`;
 	$/ = $saved_delim;
 
 	return parse_string($data, $filename);

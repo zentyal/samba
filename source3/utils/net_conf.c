@@ -28,11 +28,7 @@
  */
 
 #include "includes.h"
-#include "system/filesys.h"
 #include "utils/net.h"
-#include "lib/smbconf/smbconf.h"
-#include "lib/smbconf/smbconf_init.h"
-#include "lib/smbconf/smbconf_reg.h"
 
 /**********************************************************************
  *
@@ -174,12 +170,12 @@ static int net_conf_delincludes_usage(struct net_context *c, int argc,
 /**
  * This functions process a service previously loaded with libsmbconf.
  */
-static sbcErr import_process_service(struct net_context *c,
+static WERROR import_process_service(struct net_context *c,
 				     struct smbconf_ctx *conf_ctx,
 				     struct smbconf_service *service)
 {
 	uint32_t idx;
-	sbcErr err = SBC_ERR_OK;
+	WERROR werr = WERR_OK;
 	uint32_t num_includes = 0;
 	char **includes = NULL;
 	TALLOC_CTX *mem_ctx = talloc_stackframe();
@@ -200,13 +196,13 @@ static sbcErr import_process_service(struct net_context *c,
 	}
 
 	if (smbconf_share_exists(conf_ctx, service->name)) {
-		err = smbconf_delete_share(conf_ctx, service->name);
-		if (!SBC_ERROR_IS_OK(err)) {
+		werr = smbconf_delete_share(conf_ctx, service->name);
+		if (!W_ERROR_IS_OK(werr)) {
 			goto done;
 		}
 	}
-	err = smbconf_create_share(conf_ctx, service->name);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_create_share(conf_ctx, service->name);
+	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
 
@@ -217,41 +213,37 @@ static sbcErr import_process_service(struct net_context *c,
 							char *,
 							num_includes+1);
 			if (includes == NULL) {
-				err = SBC_ERR_NOMEM;
+				werr = WERR_NOMEM;
 				goto done;
 			}
 			includes[num_includes] = talloc_strdup(includes,
 						service->param_values[idx]);
 			if (includes[num_includes] == NULL) {
-				err = SBC_ERR_NOMEM;
+				werr = WERR_NOMEM;
 				goto done;
 			}
 			num_includes++;
 		} else {
-			err = smbconf_set_parameter(conf_ctx,
+			werr = smbconf_set_parameter(conf_ctx,
 						     service->name,
 						     service->param_names[idx],
 						     service->param_values[idx]);
-			if (!SBC_ERROR_IS_OK(err)) {
+			if (!W_ERROR_IS_OK(werr)) {
 				d_fprintf(stderr,
 					  _("Error in section [%s], parameter \"%s\": %s\n"),
 					  service->name, service->param_names[idx],
-					  sbcErrorString(err));
+					  win_errstr(werr));
 				goto done;
 			}
 		}
 	}
 
-	err = smbconf_set_includes(conf_ctx, service->name, num_includes,
-				   (const char **)includes);
-	if (!SBC_ERROR_IS_OK(err)) {
-		goto done;
-	}
+	werr = smbconf_set_includes(conf_ctx, service->name, num_includes,
+				    (const char **)includes);
 
-	err = SBC_ERR_OK;
 done:
 	TALLOC_FREE(mem_ctx);
-	return err;
+	return werr;
 }
 
 
@@ -264,7 +256,7 @@ done:
 static int net_conf_list(struct net_context *c, struct smbconf_ctx *conf_ctx,
 			 int argc, const char **argv)
 {
-	sbcErr err;
+	WERROR werr = WERR_OK;
 	int ret = -1;
 	TALLOC_CTX *mem_ctx;
 	uint32_t num_shares;
@@ -278,10 +270,10 @@ static int net_conf_list(struct net_context *c, struct smbconf_ctx *conf_ctx,
 		goto done;
 	}
 
-	err = smbconf_get_config(conf_ctx, mem_ctx, &num_shares, &shares);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_get_config(conf_ctx, mem_ctx, &num_shares, &shares);
+	if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, _("Error getting config: %s\n"),
-			  sbcErrorString(err));
+			  win_errstr(werr));
 		goto done;
 	}
 
@@ -319,7 +311,7 @@ static int net_conf_import(struct net_context *c, struct smbconf_ctx *conf_ctx,
 	char *conf_source = NULL;
 	TALLOC_CTX *mem_ctx;
 	struct smbconf_ctx *txt_ctx;
-	sbcErr err;
+	WERROR werr;
 
 	if (c->display_usage)
 		return net_conf_import_usage(c, argc, argv);
@@ -351,10 +343,10 @@ static int net_conf_import(struct net_context *c, struct smbconf_ctx *conf_ctx,
 		goto done;
 	}
 
-	err = smbconf_init(mem_ctx, &txt_ctx, conf_source);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_init(mem_ctx, &txt_ctx, conf_source);
+	if (!W_ERROR_IS_OK(werr)) {
 		d_printf(_("error loading file '%s': %s\n"), filename,
-			 sbcErrorString(err));
+			 win_errstr(werr));
 		goto done;
 	}
 
@@ -366,59 +358,60 @@ static int net_conf_import(struct net_context *c, struct smbconf_ctx *conf_ctx,
 	if (servicename != NULL) {
 		struct smbconf_service *service = NULL;
 
-		err = smbconf_get_share(txt_ctx, mem_ctx,
-					servicename,
-					&service);
-		if (!SBC_ERROR_IS_OK(err)) {
+		werr = smbconf_get_share(txt_ctx, mem_ctx,
+					 servicename,
+					 &service);
+		if (!W_ERROR_IS_OK(werr)) {
 			goto cancel;
 		}
 
-		err = smbconf_transaction_start(conf_ctx);
-		if (!SBC_ERROR_IS_OK(err)) {
+		werr = smbconf_transaction_start(conf_ctx);
+		if (!W_ERROR_IS_OK(werr)) {
 			d_printf(_("error starting transaction: %s\n"),
-				 sbcErrorString(err));
+				 win_errstr(werr));
 			goto done;
 		}
 
-		err = import_process_service(c, conf_ctx, service);
-		if (!SBC_ERROR_IS_OK(err)) {
+		werr = import_process_service(c, conf_ctx, service);
+		if (!W_ERROR_IS_OK(werr)) {
 			goto cancel;
 		}
 	} else {
 		struct smbconf_service **services = NULL;
 		uint32_t num_shares, sidx;
 
-		err = smbconf_get_config(txt_ctx, mem_ctx,
+		werr = smbconf_get_config(txt_ctx, mem_ctx,
 					  &num_shares,
 					  &services);
-		if (!SBC_ERROR_IS_OK(err)) {
+		if (!W_ERROR_IS_OK(werr)) {
 			goto cancel;
 		}
 		if (!c->opt_testmode) {
-			if (!SBC_ERROR_IS_OK(smbconf_drop(conf_ctx))) {
+			werr = smbconf_drop(conf_ctx);
+			if (!W_ERROR_IS_OK(werr)) {
 				goto cancel;
 			}
 		}
 
 		/*
 		 * Wrap the importing of shares into a transaction,
-		 * but only 100 at a time, in order to save memory.
+		 * but only 100 at a time, in order to serve memory.
 		 * The allocated memory accumulates across the actions
 		 * within the transaction, and for me, some 1500
 		 * imported shares, the MAX_TALLOC_SIZE of 256 MB
 		 * was exceeded.
 		 */
-		err = smbconf_transaction_start(conf_ctx);
-		if (!SBC_ERROR_IS_OK(err)) {
+		werr = smbconf_transaction_start(conf_ctx);
+		if (!W_ERROR_IS_OK(werr)) {
 			d_printf(_("error starting transaction: %s\n"),
-				 sbcErrorString(err));
+				 win_errstr(werr));
 			goto done;
 		}
 
 		for (sidx = 0; sidx < num_shares; sidx++) {
-			err = import_process_service(c, conf_ctx,
-						     services[sidx]);
-			if (!SBC_ERROR_IS_OK(err)) {
+			werr = import_process_service(c, conf_ctx,
+						      services[sidx]);
+			if (!W_ERROR_IS_OK(werr)) {
 				goto cancel;
 			}
 
@@ -426,26 +419,26 @@ static int net_conf_import(struct net_context *c, struct smbconf_ctx *conf_ctx,
 				continue;
 			}
 
-			err = smbconf_transaction_commit(conf_ctx);
-			if (!SBC_ERROR_IS_OK(err)) {
+			werr = smbconf_transaction_commit(conf_ctx);
+			if (!W_ERROR_IS_OK(werr)) {
 				d_printf(_("error committing transaction: "
 					   "%s\n"),
-					 sbcErrorString(err));
+					 win_errstr(werr));
 				goto done;
 			}
-			err = smbconf_transaction_start(conf_ctx);
-			if (!SBC_ERROR_IS_OK(err)) {
+			werr = smbconf_transaction_start(conf_ctx);
+			if (!W_ERROR_IS_OK(werr)) {
 				d_printf(_("error starting transaction: %s\n"),
-					 sbcErrorString(err));
+					 win_errstr(werr));
 				goto done;
 			}
 		}
 	}
 
-	err = smbconf_transaction_commit(conf_ctx);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_transaction_commit(conf_ctx);
+	if (!W_ERROR_IS_OK(werr)) {
 		d_printf(_("error committing transaction: %s\n"),
-			 sbcErrorString(err));
+			 win_errstr(werr));
 	} else {
 		ret = 0;
 	}
@@ -453,10 +446,10 @@ static int net_conf_import(struct net_context *c, struct smbconf_ctx *conf_ctx,
 	goto done;
 
 cancel:
-	err = smbconf_transaction_cancel(conf_ctx);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_transaction_cancel(conf_ctx);
+	if (!W_ERROR_IS_OK(werr)) {
 		d_printf(_("error cancelling transaction: %s\n"),
-			 sbcErrorString(err));
+			 win_errstr(werr));
 	}
 
 done:
@@ -468,7 +461,7 @@ static int net_conf_listshares(struct net_context *c,
 			       struct smbconf_ctx *conf_ctx, int argc,
 			       const char **argv)
 {
-	sbcErr err;
+	WERROR werr = WERR_OK;
 	int ret = -1;
 	uint32_t count, num_shares = 0;
 	char **share_names = NULL;
@@ -481,9 +474,9 @@ static int net_conf_listshares(struct net_context *c,
 		goto done;
 	}
 
-	err = smbconf_get_share_names(conf_ctx, mem_ctx, &num_shares,
-				      &share_names);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_get_share_names(conf_ctx, mem_ctx, &num_shares,
+				       &share_names);
+	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
 
@@ -503,17 +496,17 @@ static int net_conf_drop(struct net_context *c, struct smbconf_ctx *conf_ctx,
 			 int argc, const char **argv)
 {
 	int ret = -1;
-	sbcErr err;
+	WERROR werr;
 
 	if (argc != 0 || c->display_usage) {
 		net_conf_drop_usage(c, argc, argv);
 		goto done;
 	}
 
-	err = smbconf_drop(conf_ctx);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_drop(conf_ctx);
+	if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, _("Error deleting configuration: %s\n"),
-			  sbcErrorString(err));
+			  win_errstr(werr));
 		goto done;
 	}
 
@@ -528,7 +521,7 @@ static int net_conf_showshare(struct net_context *c,
 			      const char **argv)
 {
 	int ret = -1;
-	sbcErr err;
+	WERROR werr = WERR_OK;
 	const char *sharename = NULL;
 	TALLOC_CTX *mem_ctx;
 	uint32_t count;
@@ -547,10 +540,10 @@ static int net_conf_showshare(struct net_context *c,
 		goto done;
 	}
 
-	err = smbconf_get_share(conf_ctx, mem_ctx, sharename, &service);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_get_share(conf_ctx, mem_ctx, sharename, &service);
+	if (!W_ERROR_IS_OK(werr)) {
 		d_printf(_("error getting share parameters: %s\n"),
-			 sbcErrorString(err));
+			 win_errstr(werr));
 		goto done;
 	}
 
@@ -579,7 +572,7 @@ static int net_conf_addshare(struct net_context *c,
 			     const char **argv)
 {
 	int ret = -1;
-	sbcErr err;
+	WERROR werr = WERR_OK;
 	char *sharename = NULL;
 	const char *path = NULL;
 	const char *comment = NULL;
@@ -705,10 +698,10 @@ static int net_conf_addshare(struct net_context *c,
 	 * start a transaction
 	 */
 
-	err = smbconf_transaction_start(conf_ctx);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_transaction_start(conf_ctx);
+	if (!W_ERROR_IS_OK(werr)) {
 		d_printf("error starting transaction: %s\n",
-			 sbcErrorString(err));
+			 win_errstr(werr));
 		goto done;
 	}
 
@@ -716,10 +709,10 @@ static int net_conf_addshare(struct net_context *c,
 	 * create the share
 	 */
 
-	err = smbconf_create_share(conf_ctx, sharename);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_create_share(conf_ctx, sharename);
+	if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, _("Error creating share %s: %s\n"),
-			  sharename, sbcErrorString(err));
+			  sharename, win_errstr(werr));
 		goto cancel;
 	}
 
@@ -727,35 +720,35 @@ static int net_conf_addshare(struct net_context *c,
 	 * fill the share with parameters
 	 */
 
-	err = smbconf_set_parameter(conf_ctx, sharename, "path", path);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_set_parameter(conf_ctx, sharename, "path", path);
+	if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, _("Error setting parameter %s: %s\n"),
-			  "path", sbcErrorString(err));
+			  "path", win_errstr(werr));
 		goto cancel;
 	}
 
 	if (comment != NULL) {
-		err = smbconf_set_parameter(conf_ctx, sharename, "comment",
-					    comment);
-		if (!SBC_ERROR_IS_OK(err)) {
+		werr = smbconf_set_parameter(conf_ctx, sharename, "comment",
+					     comment);
+		if (!W_ERROR_IS_OK(werr)) {
 			d_fprintf(stderr, _("Error setting parameter %s: %s\n"),
-				  "comment", sbcErrorString(err));
+				  "comment", win_errstr(werr));
 			goto cancel;
 		}
 	}
 
-	err = smbconf_set_parameter(conf_ctx, sharename, "guest ok", guest_ok);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_set_parameter(conf_ctx, sharename, "guest ok", guest_ok);
+	if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, _("Error setting parameter %s: %s\n"),
-			  "'guest ok'", sbcErrorString(err));
+			  "'guest ok'", win_errstr(werr));
 		goto cancel;
 	}
 
-	err = smbconf_set_parameter(conf_ctx, sharename, "writeable",
-				    writeable);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_set_parameter(conf_ctx, sharename, "writeable",
+				     writeable);
+	if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, _("Error setting parameter %s: %s\n"),
-			  "writeable", sbcErrorString(err));
+			  "writeable", win_errstr(werr));
 		goto cancel;
 	}
 
@@ -763,10 +756,10 @@ static int net_conf_addshare(struct net_context *c,
 	 * commit the whole thing
 	 */
 
-	err = smbconf_transaction_commit(conf_ctx);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_transaction_commit(conf_ctx);
+	if (!W_ERROR_IS_OK(werr)) {
 		d_printf("error committing transaction: %s\n",
-			 sbcErrorString(err));
+			 win_errstr(werr));
 	} else {
 		ret = 0;
 	}
@@ -774,10 +767,10 @@ static int net_conf_addshare(struct net_context *c,
 	goto done;
 
 cancel:
-	err = smbconf_transaction_cancel(conf_ctx);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_transaction_cancel(conf_ctx);
+	if (!W_ERROR_IS_OK(werr)) {
 		d_printf("error cancelling transaction: %s\n",
-			 sbcErrorString(err));
+			 win_errstr(werr));
 	}
 
 done:
@@ -791,7 +784,7 @@ static int net_conf_delshare(struct net_context *c,
 {
 	int ret = -1;
 	const char *sharename = NULL;
-	sbcErr err;
+	WERROR werr = WERR_OK;
 	TALLOC_CTX *mem_ctx = talloc_stackframe();
 
 	if (argc != 1 || c->display_usage) {
@@ -804,10 +797,10 @@ static int net_conf_delshare(struct net_context *c,
 		goto done;
 	}
 
-	err = smbconf_delete_share(conf_ctx, sharename);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_delete_share(conf_ctx, sharename);
+	if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, _("Error deleting share %s: %s\n"),
-			  sharename, sbcErrorString(err));
+			  sharename, win_errstr(werr));
 		goto done;
 	}
 
@@ -821,7 +814,7 @@ static int net_conf_setparm(struct net_context *c, struct smbconf_ctx *conf_ctx,
 			    int argc, const char **argv)
 {
 	int ret = -1;
-	sbcErr err;
+	WERROR werr = WERR_OK;
 	char *service = NULL;
 	char *param = NULL;
 	const char *value_str = NULL;
@@ -849,33 +842,34 @@ static int net_conf_setparm(struct net_context *c, struct smbconf_ctx *conf_ctx,
 	}
 	value_str = argv[2];
 
-	err = smbconf_transaction_start(conf_ctx);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_transaction_start(conf_ctx);
+	if (!W_ERROR_IS_OK(werr)) {
 		d_printf(_("error starting transaction: %s\n"),
-			 sbcErrorString(err));
+			 win_errstr(werr));
 		goto done;
 	}
 
 	if (!smbconf_share_exists(conf_ctx, service)) {
-		err = smbconf_create_share(conf_ctx, service);
-		if (!SBC_ERROR_IS_OK(err)) {
+		werr = smbconf_create_share(conf_ctx, service);
+		if (!W_ERROR_IS_OK(werr)) {
 			d_fprintf(stderr, _("Error creating share '%s': %s\n"),
-				  service, sbcErrorString(err));
+				  service, win_errstr(werr));
 			goto cancel;
 		}
 	}
 
-	err = smbconf_set_parameter(conf_ctx, service, param, value_str);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_set_parameter(conf_ctx, service, param, value_str);
+
+	if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, _("Error setting value '%s': %s\n"),
-			  param, sbcErrorString(err));
+			  param, win_errstr(werr));
 		goto cancel;
 	}
 
-	err = smbconf_transaction_commit(conf_ctx);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_transaction_commit(conf_ctx);
+	if (!W_ERROR_IS_OK(werr)) {
 		d_printf(_("error committing transaction: %s\n"),
-			 sbcErrorString(err));
+			 win_errstr(werr));
 	} else {
 		ret = 0;
 	}
@@ -883,10 +877,10 @@ static int net_conf_setparm(struct net_context *c, struct smbconf_ctx *conf_ctx,
 	goto done;
 
 cancel:
-	err = smbconf_transaction_cancel(conf_ctx);
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_transaction_cancel(conf_ctx);
+	if (!W_ERROR_IS_OK(werr)) {
 		d_printf(_("error cancelling transaction: %s\n"),
-			 sbcErrorString(err));
+			 win_errstr(werr));
 	}
 
 done:
@@ -898,7 +892,7 @@ static int net_conf_getparm(struct net_context *c, struct smbconf_ctx *conf_ctx,
 			    int argc, const char **argv)
 {
 	int ret = -1;
-	sbcErr err;
+	WERROR werr = WERR_OK;
 	char *service = NULL;
 	char *param = NULL;
 	char *valstr = NULL;
@@ -927,20 +921,21 @@ static int net_conf_getparm(struct net_context *c, struct smbconf_ctx *conf_ctx,
 		goto done;
 	}
 
-	err = smbconf_get_parameter(conf_ctx, mem_ctx, service, param, &valstr);
-	if (SBC_ERROR_EQUAL(err, SBC_ERR_NO_SUCH_SERVICE)) {
+	werr = smbconf_get_parameter(conf_ctx, mem_ctx, service, param, &valstr);
+
+	if (W_ERROR_EQUAL(werr, WERR_NO_SUCH_SERVICE)) {
 		d_fprintf(stderr,
 			  _("Error: given service '%s' does not exist.\n"),
 			  service);
 		goto done;
-	} else if (SBC_ERROR_EQUAL(err, SBC_ERR_INVALID_PARAM)) {
+	} else if (W_ERROR_EQUAL(werr, WERR_INVALID_PARAM)) {
 		d_fprintf(stderr,
 			  _("Error: given parameter '%s' is not set.\n"),
 			  param);
 		goto done;
-	} else if (!SBC_ERROR_IS_OK(err)) {
+	} else if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, _("Error getting value '%s': %s.\n"),
-			  param, sbcErrorString(err));
+			  param, win_errstr(werr));
 		goto done;
 	}
 
@@ -956,7 +951,7 @@ static int net_conf_delparm(struct net_context *c, struct smbconf_ctx *conf_ctx,
 			    int argc, const char **argv)
 {
 	int ret = -1;
-	sbcErr err;
+	WERROR werr = WERR_OK;
 	char *service = NULL;
 	char *param = NULL;
 	TALLOC_CTX *mem_ctx = talloc_stackframe();
@@ -982,20 +977,21 @@ static int net_conf_delparm(struct net_context *c, struct smbconf_ctx *conf_ctx,
 		goto done;
 	}
 
-	err = smbconf_delete_parameter(conf_ctx, service, param);
-	if (SBC_ERROR_EQUAL(err, SBC_ERR_NO_SUCH_SERVICE)) {
+	werr = smbconf_delete_parameter(conf_ctx, service, param);
+
+	if (W_ERROR_EQUAL(werr, WERR_NO_SUCH_SERVICE)) {
 		d_fprintf(stderr,
 			  _("Error: given service '%s' does not exist.\n"),
 			  service);
 		goto done;
-	} else if (SBC_ERROR_EQUAL(err, SBC_ERR_INVALID_PARAM)) {
+	} else if (W_ERROR_EQUAL(werr, WERR_INVALID_PARAM)) {
 		d_fprintf(stderr,
 			  _("Error: given parameter '%s' is not set.\n"),
 			  param);
 		goto done;
-	} else if (!SBC_ERROR_IS_OK(err)) {
+	} else if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, _("Error deleting value '%s': %s.\n"),
-			  param, sbcErrorString(err));
+			  param, win_errstr(werr));
 		goto done;
 	}
 
@@ -1010,7 +1006,7 @@ static int net_conf_getincludes(struct net_context *c,
 				struct smbconf_ctx *conf_ctx,
 				int argc, const char **argv)
 {
-	sbcErr err;
+	WERROR werr;
 	uint32_t num_includes;
 	uint32_t count;
 	char *service;
@@ -1029,10 +1025,10 @@ static int net_conf_getincludes(struct net_context *c,
 		goto done;
 	}
 
-	err = smbconf_get_includes(conf_ctx, mem_ctx, service,
+	werr = smbconf_get_includes(conf_ctx, mem_ctx, service,
 				    &num_includes, &includes);
-	if (!SBC_ERROR_IS_OK(err)) {
-		d_printf(_("error getting includes: %s\n"), sbcErrorString(err));
+	if (!W_ERROR_IS_OK(werr)) {
+		d_printf(_("error getting includes: %s\n"), win_errstr(werr));
 		goto done;
 	}
 
@@ -1051,7 +1047,7 @@ static int net_conf_setincludes(struct net_context *c,
 				struct smbconf_ctx *conf_ctx,
 				int argc, const char **argv)
 {
-	sbcErr err;
+	WERROR werr;
 	char *service;
 	uint32_t num_includes;
 	const char **includes;
@@ -1076,9 +1072,9 @@ static int net_conf_setincludes(struct net_context *c,
 		includes = argv + 1;
 	}
 
-	err = smbconf_set_includes(conf_ctx, service, num_includes, includes);
-	if (!SBC_ERROR_IS_OK(err)) {
-		d_printf(_("error setting includes: %s\n"), sbcErrorString(err));
+	werr = smbconf_set_includes(conf_ctx, service, num_includes, includes);
+	if (!W_ERROR_IS_OK(werr)) {
+		d_printf(_("error setting includes: %s\n"), win_errstr(werr));
 		goto done;
 	}
 
@@ -1093,7 +1089,7 @@ static int net_conf_delincludes(struct net_context *c,
 				struct smbconf_ctx *conf_ctx,
 				int argc, const char **argv)
 {
-	sbcErr err;
+	WERROR werr;
 	char *service;
 	int ret = -1;
 	TALLOC_CTX *mem_ctx = talloc_stackframe();
@@ -1109,9 +1105,9 @@ static int net_conf_delincludes(struct net_context *c,
 		goto done;
 	}
 
-	err = smbconf_delete_includes(conf_ctx, service);
-	if (!SBC_ERROR_IS_OK(err)) {
-		d_printf(_("error deleting includes: %s\n"), sbcErrorString(err));
+	werr = smbconf_delete_includes(conf_ctx, service);
+	if (!W_ERROR_IS_OK(werr)) {
+		d_printf(_("error deleting includes: %s\n"), win_errstr(werr));
 		goto done;
 	}
 
@@ -1140,13 +1136,14 @@ static int net_conf_wrap_function(struct net_context *c,
 					    int, const char **),
 				  int argc, const char **argv)
 {
-	sbcErr err;
+	WERROR werr;
 	TALLOC_CTX *mem_ctx = talloc_stackframe();
 	struct smbconf_ctx *conf_ctx;
 	int ret = -1;
 
-	err = smbconf_init(mem_ctx, &conf_ctx, "registry:");
-	if (!SBC_ERROR_IS_OK(err)) {
+	werr = smbconf_init(mem_ctx, &conf_ctx, "registry:");
+
+	if (!W_ERROR_IS_OK(werr)) {
 		return -1;
 	}
 

@@ -117,23 +117,24 @@ main (int argc, char **argv)
     krb5_error_code ret;
     krb5_context context;
     krb5_principal principal;
+    int optind = 0;
     krb5_get_init_creds_opt *opt;
     krb5_ccache id = NULL;
     int exit_value;
-    int optidx = 0;
 
-    setprogname(argv[0]);
+    optind = krb5_program_setup(&context, argc, argv,
+				args, sizeof(args) / sizeof(args[0]), usage);
 
-    if(getarg(args, sizeof(args) / sizeof(args[0]), argc, argv, &optidx))
-	usage(1, args, sizeof(args) / sizeof(args[0]));
     if (help_flag)
-	usage(0, args, sizeof(args) / sizeof(args[0]));
-    if (version_flag) {
-	print_version(NULL);
-	return 0;
+	usage (0, args, sizeof(args) / sizeof(args[0]));
+
+    if(version_flag){
+	print_version (NULL);
+	exit(0);
     }
-    argc -= optidx;
-    argv += optidx;
+
+    argc -= optind;
+    argv += optind;
 
     ret = krb5_init_context (&context);
     if (ret)

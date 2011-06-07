@@ -89,7 +89,7 @@ sub Boilerplate_Iface($)
 	my $if_version = $interface->{PROPERTIES}->{version};
 
 	pidl "
-static NTSTATUS $name\__op_bind(struct dcesrv_call_state *dce_call, const struct dcesrv_interface *iface, uint32_t if_version)
+static NTSTATUS $name\__op_bind(struct dcesrv_call_state *dce_call, const struct dcesrv_interface *iface)
 {
 #ifdef DCESRV_INTERFACE_$uname\_BIND
 	return DCESRV_INTERFACE_$uname\_BIND(dce_call,iface);

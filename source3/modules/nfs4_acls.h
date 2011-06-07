@@ -76,10 +76,9 @@ typedef struct _SMB_ACE4PROP_T {
 #define SMB_ACE4_SUCCESSFUL_ACCESS_ACE_FLAG   0x00000010
 #define SMB_ACE4_FAILED_ACCESS_ACE_FLAG       0x00000020
 #define SMB_ACE4_IDENTIFIER_GROUP             0x00000040
-#define SMB_ACE4_INHERITED_ACE                0x00000080
 #define SMB_ACE4_ALL_FLAGS	( SMB_ACE4_FILE_INHERIT_ACE | SMB_ACE4_DIRECTORY_INHERIT_ACE \
 | SMB_ACE4_NO_PROPAGATE_INHERIT_ACE | SMB_ACE4_INHERIT_ONLY_ACE | SMB_ACE4_SUCCESSFUL_ACCESS_ACE_FLAG \
-| SMB_ACE4_FAILED_ACCESS_ACE_FLAG | SMB_ACE4_IDENTIFIER_GROUP | SMB_ACE4_INHERITED_ACE)
+| SMB_ACE4_FAILED_ACCESS_ACE_FLAG | SMB_ACE4_IDENTIFIER_GROUP )
 
 	uint32	aceMask;	/* Access rights */
 /*The bitmask constants used for the access mask field are as follows: */
@@ -132,12 +131,12 @@ uint32 smb_get_naces(SMB4ACL_T *theacl);
 
 NTSTATUS smb_fget_nt_acl_nfs4(files_struct *fsp,
 	uint32 security_info,
-	struct security_descriptor **ppdesc, SMB4ACL_T *theacl);
+	SEC_DESC **ppdesc, SMB4ACL_T *theacl);
 
 NTSTATUS smb_get_nt_acl_nfs4(connection_struct *conn,
 	const char *name,
 	uint32 security_info,
-	struct security_descriptor **ppdesc, SMB4ACL_T *theacl);
+	SEC_DESC **ppdesc, SMB4ACL_T *theacl);
 
 /* Callback function needed to set the native acl
  * when applicable */
@@ -145,7 +144,7 @@ typedef bool (*set_nfs4acl_native_fn_t)(files_struct *, SMB4ACL_T *);
 
 NTSTATUS smb_set_nt_acl_nfs4(files_struct *fsp,
 	uint32 security_info_sent,
-	const struct security_descriptor *psd,
+	const SEC_DESC *psd,
 	set_nfs4acl_native_fn_t set_nfs4_native);
 
 #endif /* __NFS4_ACLS_H__ */

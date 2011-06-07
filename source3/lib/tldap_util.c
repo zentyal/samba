@@ -18,19 +18,14 @@
 */
 
 #include "includes.h"
-#include "tldap.h"
-#include "tldap_util.h"
-#include "../libcli/security/security.h"
-#include "../lib/util/asn1.h"
-#include "../librpc/ndr/libndr.h"
 
 bool tldap_entry_values(struct tldap_message *msg, const char *attribute,
-			DATA_BLOB **values, int *num_values)
+			int *num_values, DATA_BLOB **values)
 {
 	struct tldap_attribute *attributes;
 	int i, num_attributes;
 
-	if (!tldap_entry_attributes(msg, &attributes, &num_attributes)) {
+	if (!tldap_entry_attributes(msg, &num_attributes, &attributes)) {
 		return false;
 	}
 
@@ -56,7 +51,7 @@ bool tldap_get_single_valueblob(struct tldap_message *msg,
 	if (attribute == NULL) {
 		return NULL;
 	}
-	if (!tldap_entry_values(msg, attribute, &values, &num_values)) {
+	if (!tldap_entry_values(msg, attribute, &num_values, &values)) {
 		return NULL;
 	}
 	if (num_values != 1) {
@@ -108,7 +103,7 @@ bool tldap_pull_guid(struct tldap_message *msg, const char *attribute,
 }
 
 static bool tldap_add_blob_vals(TALLOC_CTX *mem_ctx, struct tldap_mod *mod,
-				DATA_BLOB *newvals, int num_newvals)
+				int num_newvals, DATA_BLOB *newvals)
 {
 	int num_values = talloc_array_length(mod->values);
 	int i;
@@ -133,10 +128,9 @@ static bool tldap_add_blob_vals(TALLOC_CTX *mem_ctx, struct tldap_mod *mod,
 	return true;
 }
 
-bool tldap_add_mod_blobs(TALLOC_CTX *mem_ctx,
-			 struct tldap_mod **pmods, int *pnum_mods,
+bool tldap_add_mod_blobs(TALLOC_CTX *mem_ctx, struct tldap_mod **pmods,
 			 int mod_op, const char *attrib,
-			 DATA_BLOB *newvals, int num_newvals)
+			 int num_newvals, DATA_BLOB *newvals)
 {
 	struct tldap_mod new_mod;
 	struct tldap_mod *mods = *pmods;
@@ -150,7 +144,7 @@ bool tldap_add_mod_blobs(TALLOC_CTX *mem_ctx,
 		return false;
 	}
 
-	num_mods = *pnum_mods;
+	num_mods = talloc_array_length(mods);
 
 	for (i=0; i<num_mods; i++) {
 		if ((mods[i].mod_op == mod_op)
@@ -172,11 +166,11 @@ bool tldap_add_mod_blobs(TALLOC_CTX *mem_ctx,
 	}
 
 	if ((num_newvals != 0)
-	    && !tldap_add_blob_vals(mods, mod, newvals, num_newvals)) {
+	    && !tldap_add_blob_vals(mods, mod, num_newvals, newvals)) {
 		return false;
 	}
 
-	if ((i == num_mods) && (talloc_array_length(mods) < num_mods + 1)) {
+	if (i == num_mods) {
 		mods = talloc_realloc(talloc_tos(), mods, struct tldap_mod,
 				      num_mods+1);
 		if (mods == NULL) {
@@ -186,12 +180,10 @@ bool tldap_add_mod_blobs(TALLOC_CTX *mem_ctx,
 	}
 
 	*pmods = mods;
-	*pnum_mods += 1;
 	return true;
 }
 
-bool tldap_add_mod_str(TALLOC_CTX *mem_ctx,
-		       struct tldap_mod **pmods, int *pnum_mods,
+bool tldap_add_mod_str(TALLOC_CTX *mem_ctx, struct tldap_mod **pmods,
 		       int mod_op, const char *attrib, const char *str)
 {
 	DATA_BLOB utf8;
@@ -203,15 +195,14 @@ bool tldap_add_mod_str(TALLOC_CTX *mem_ctx,
 		return false;
 	}
 
-	ret = tldap_add_mod_blobs(mem_ctx, pmods, pnum_mods, mod_op, attrib,
-				  &utf8, 1);
+	ret = tldap_add_mod_blobs(mem_ctx, pmods, mod_op, attrib, 1, &utf8);
 	TALLOC_FREE(utf8.data);
 	return ret;
 }
 
 static bool tldap_make_mod_blob_int(struct tldap_message *existing,
 				    TALLOC_CTX *mem_ctx,
-				    struct tldap_mod **pmods, int *pnum_mods,
+				    int *pnum_mods, struct tldap_mod **pmods,
 				    const char *attrib, DATA_BLOB newval,
 				    int (*comparison)(const DATA_BLOB *d1,
 						      const DATA_BLOB *d2))
@@ -221,7 +212,7 @@ static bool tldap_make_mod_blob_int(struct tldap_message *existing,
 	DATA_BLOB oldval = data_blob_null;
 
 	if ((existing != NULL)
-	    && tldap_entry_values(existing, attrib, &values, &num_values)) {
+	    && tldap_entry_values(existing, attrib, &num_values, &values)) {
 
 		if (num_values > 1) {
 			/* can't change multivalue attributes atm */
@@ -237,7 +228,7 @@ static bool tldap_make_mod_blob_int(struct tldap_message *existing,
 		/* Believe it or not, but LDAP will deny a delete and
 		   an add at the same time if the values are the
 		   same... */
-		DEBUG(10,("tldap_make_mod_blob_int: attribute |%s| not "
+		DEBUG(10,("smbldap_make_mod_blob: attribute |%s| not "
 			  "changed.\n", attrib));
 		return true;
 	}
@@ -251,11 +242,10 @@ static bool tldap_make_mod_blob_int(struct tldap_message *existing,
 		 * Novell NDS. In NDS you have to first remove attribute and
 		 * then you could add new value */
 
-		DEBUG(10, ("tldap_make_mod_blob_int: deleting attribute |%s|\n",
+		DEBUG(10, ("smbldap_make_mod_blob: deleting attribute |%s|\n",
 			   attrib));
-		if (!tldap_add_mod_blobs(mem_ctx, pmods, pnum_mods,
-					 TLDAP_MOD_DELETE,
-					 attrib, &oldval, 1)) {
+		if (!tldap_add_mod_blobs(mem_ctx, pmods, TLDAP_MOD_DELETE,
+					 attrib, 1, &oldval)) {
 			return false;
 		}
 	}
@@ -265,22 +255,22 @@ static bool tldap_make_mod_blob_int(struct tldap_message *existing,
 	   the old value, should it exist. */
 
 	if (newval.data != NULL) {
-		DEBUG(10, ("tldap_make_mod_blob_int: adding attribute |%s| value len "
+		DEBUG(10, ("smbldap_make_mod: adding attribute |%s| value len "
 			   "%d\n", attrib, (int)newval.length));
-	        if (!tldap_add_mod_blobs(mem_ctx, pmods, pnum_mods,
-					 TLDAP_MOD_ADD,
-					 attrib, &newval, 1)) {
+	        if (!tldap_add_mod_blobs(mem_ctx, pmods, TLDAP_MOD_ADD,
+					 attrib, 1, &newval)) {
 			return false;
 		}
 	}
+	*pnum_mods = talloc_array_length(*pmods);
 	return true;
 }
 
 bool tldap_make_mod_blob(struct tldap_message *existing, TALLOC_CTX *mem_ctx,
-			 struct tldap_mod **pmods, int *pnum_mods,
+			 int *pnum_mods, struct tldap_mod **pmods,
 			 const char *attrib, DATA_BLOB newval)
 {
-	return tldap_make_mod_blob_int(existing, mem_ctx, pmods, pnum_mods,
+	return tldap_make_mod_blob_int(existing, mem_ctx, pnum_mods, pmods,
 				       attrib, newval, data_blob_cmp);
 }
 
@@ -308,7 +298,7 @@ static int compare_utf8_blobs(const DATA_BLOB *d1, const DATA_BLOB *d2)
 }
 
 bool tldap_make_mod_fmt(struct tldap_message *existing, TALLOC_CTX *mem_ctx,
-			struct tldap_mod **pmods, int *pnum_mods,
+			int *pnum_mods, struct tldap_mod **pmods,
 			const char *attrib, const char *fmt, ...)
 {
 	va_list ap;
@@ -328,7 +318,7 @@ bool tldap_make_mod_fmt(struct tldap_message *existing, TALLOC_CTX *mem_ctx,
 	if (blob.length != 0) {
 		blob.data = CONST_DISCARD(uint8_t *, newval);
 	}
-	ret = tldap_make_mod_blob_int(existing, mem_ctx, pmods, pnum_mods,
+	ret = tldap_make_mod_blob_int(existing, mem_ctx, pnum_mods, pmods,
 				      attrib, blob, compare_utf8_blobs);
 	TALLOC_FREE(newval);
 	return ret;
@@ -339,9 +329,7 @@ const char *tldap_errstr(TALLOC_CTX *mem_ctx, struct tldap_context *ld, int rc)
 	const char *ld_error = NULL;
 	char *res;
 
-	if (ld != NULL) {
-		ld_error = tldap_msg_diagnosticmessage(tldap_ctx_lastmsg(ld));
-	}
+	ld_error = tldap_msg_diagnosticmessage(tldap_ctx_lastmsg(ld));
 	res = talloc_asprintf(mem_ctx, "LDAP error %d (%s), %s", rc,
 			      tldap_err2string(rc),
 			      ld_error ? ld_error : "unknown");
@@ -551,7 +539,7 @@ bool tldap_entry_has_attrvalue(struct tldap_message *msg,
 	int i, num_values;
 	DATA_BLOB *values;
 
-	if (!tldap_entry_values(msg, attribute, &values, &num_values)) {
+	if (!tldap_entry_values(msg, attribute, &num_values, &values)) {
 		return false;
 	}
 	for (i=0; i<num_values; i++) {

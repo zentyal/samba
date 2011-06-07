@@ -22,8 +22,6 @@
 #ifndef __SAMSYNC_SAMSYNC_H__ 
 #define __SAMSYNC_SAMSYNC_H__ 
 
-struct netlogon_creds_CredentialState;
-
 /**
  * Fix up the delta, dealing with encryption issues so that the final
  * callback need only do the printing or application logic

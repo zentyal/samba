@@ -25,10 +25,7 @@
    */
 
 #include "includes.h"
-#include "smbd/smbd.h"
 #include "smbd/globals.h"
-#include "smbprofile.h"
-#include "rpc_server/srv_pipe_hnd.h"
 
 #define NERR_notsupported 50
 
@@ -96,7 +93,7 @@ void send_trans_reply(connection_struct *conn,
 
 	int ldata  = rdata  ? rdata_len : 0;
 	int lparam = rparam ? rparam_len : 0;
-	struct smbd_server_connection *sconn = req->sconn;
+	struct smbd_server_connection *sconn = smbd_server_conn;
 	int max_send = sconn->smb1.sessions.max_send;
 
 	if (buffer_too_large)
@@ -138,7 +135,7 @@ void send_trans_reply(connection_struct *conn,
 	}
 
 	show_msg((char *)req->outbuf);
-	if (!srv_send_smb(sconn, (char *)req->outbuf,
+	if (!srv_send_smb(smbd_server_fd(), (char *)req->outbuf,
 			  true, req->seqnum+1,
 			  IS_CONN_ENCRYPTED(conn), &req->pcd)) {
 		exit_server_cleanly("send_trans_reply: srv_send_smb failed.");
@@ -198,7 +195,7 @@ void send_trans_reply(connection_struct *conn,
 		}
 
 		show_msg((char *)req->outbuf);
-		if (!srv_send_smb(sconn, (char *)req->outbuf,
+		if (!srv_send_smb(smbd_server_fd(), (char *)req->outbuf,
 				  true, req->seqnum+1,
 				  IS_CONN_ENCRYPTED(conn), &req->pcd))
 			exit_server_cleanly("send_trans_reply: srv_send_smb "
@@ -230,20 +227,9 @@ static void api_dcerpc_cmd(connection_struct *conn, struct smb_request *req,
 {
 	struct tevent_req *subreq;
 	struct dcerpc_cmd_state *state;
-	bool busy;
 
 	if (!fsp_is_np(fsp)) {
 		api_no_reply(conn, req);
-		return;
-	}
-
-	/*
-	 * Trans requests are only allowed
-	 * if no other Trans or Read is active
-	 */
-	busy = np_read_in_progress(fsp->fake_file_handle);
-	if (busy) {
-		reply_nterror(req, NT_STATUS_PIPE_BUSY);
 		return;
 	}
 
@@ -316,12 +302,11 @@ static void api_dcerpc_cmd_write_done(struct tevent_req *subreq)
 
  send:
 	if (!srv_send_smb(
-		    req->sconn, (char *)req->outbuf,
+		    smbd_server_fd(), (char *)req->outbuf,
 		    true, req->seqnum+1,
 		    IS_CONN_ENCRYPTED(req->conn) || req->encrypted,
 		    &req->pcd)) {
-		exit_server_cleanly("api_dcerpc_cmd_write_done: "
-				    "srv_send_smb failed.");
+		exit_server_cleanly("construct_reply: srv_send_smb failed.");
 	}
 	TALLOC_FREE(req);
 }
@@ -344,12 +329,12 @@ static void api_dcerpc_cmd_read_done(struct tevent_req *subreq)
 			   nt_errstr(status)));
 		reply_nterror(req, status);
 
-		if (!srv_send_smb(req->sconn, (char *)req->outbuf,
+		if (!srv_send_smb(smbd_server_fd(), (char *)req->outbuf,
 				  true, req->seqnum+1,
 				  IS_CONN_ENCRYPTED(req->conn)
 				  ||req->encrypted, &req->pcd)) {
-			exit_server_cleanly("api_dcerpc_cmd_read_done: "
-					    "srv_send_smb failed.");
+			exit_server_cleanly("construct_reply: srv_send_smb "
+					    "failed.");
 		}
 		TALLOC_FREE(req);
 		return;

@@ -22,7 +22,6 @@
 #include "includes.h"
 #include "system/network.h"
 #include "lib/socket/netif.h"
-#include "../lib/util/util_net.h"
 #include "../lib/util/dlinklist.h"
 
 /** used for network interfaces */
@@ -94,7 +93,7 @@ static void add_interface(TALLOC_CTX *mem_ctx, struct in_addr ip, struct in_addr
 
 	DLIST_ADD_END(*interfaces, iface, struct interface *);
 
-	DEBUG(3,("added interface ip=%s nmask=%s\n", iface->ip_s, iface->nmask_s));
+	DEBUG(2,("added interface ip=%s nmask=%s\n", iface->ip_s, iface->nmask_s));
 }
 
 

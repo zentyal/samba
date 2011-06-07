@@ -24,8 +24,10 @@
 
 #include "includes.h"
 #include "smbldap.h"
-#include "secrets.h"
-#include "../libcli/security/security.h"
+
+#ifndef LDAP_OPT_SUCCESS
+#define LDAP_OPT_SUCCESS 0
+#endif
 
 /* Try not to hit the up or down server forever */
 
@@ -505,7 +507,7 @@ ATTRIB_MAP_ENTRY sidmap_attr_list[] = {
  manage memory used by the array, by each struct, and values
  ***********************************************************************/
 
-static void smbldap_set_mod_internal(LDAPMod *** modlist, int modop, const char *attribute, const char *value, const DATA_BLOB *blob)
+ void smbldap_set_mod (LDAPMod *** modlist, int modop, const char *attribute, const char *value)
 {
 	LDAPMod **mods;
 	int i;
@@ -556,27 +558,7 @@ static void smbldap_set_mod_internal(LDAPMod *** modlist, int modop, const char 
 		mods[i + 1] = NULL;
 	}
 
-	if (blob && (modop & LDAP_MOD_BVALUES)) {
-		j = 0;
-		if (mods[i]->mod_bvalues != NULL) {
-			for (; mods[i]->mod_bvalues[j] != NULL; j++);
-		}
-		mods[i]->mod_bvalues = SMB_REALLOC_ARRAY(mods[i]->mod_bvalues, struct berval *, j + 2);
-
-		if (mods[i]->mod_bvalues == NULL) {
-			smb_panic("smbldap_set_mod: out of memory!");
-			/* notreached. */
-		}
-
-		mods[i]->mod_bvalues[j] = SMB_MALLOC_P(struct berval);
-		SMB_ASSERT(mods[i]->mod_bvalues[j] != NULL);
-
-		mods[i]->mod_bvalues[j]->bv_val = (char *)memdup(blob->data, blob->length);
-		SMB_ASSERT(mods[i]->mod_bvalues[j]->bv_val != NULL);
-		mods[i]->mod_bvalues[j]->bv_len = blob->length;
-
-		mods[i]->mod_bvalues[j + 1] = NULL;
-	} else if (value != NULL) {
+	if (value != NULL) {
 		char *utf8_value = NULL;
 		size_t converted_size;
 
@@ -605,30 +587,17 @@ static void smbldap_set_mod_internal(LDAPMod *** modlist, int modop, const char 
 	*modlist = mods;
 }
 
- void smbldap_set_mod (LDAPMod *** modlist, int modop, const char *attribute, const char *value)
-{
-	smbldap_set_mod_internal(modlist, modop, attribute, value, NULL);
-}
-
- void smbldap_set_mod_blob(LDAPMod *** modlist, int modop, const char *attribute, const DATA_BLOB *value)
-{
-	smbldap_set_mod_internal(modlist, modop | LDAP_MOD_BVALUES, attribute, NULL, value);
-}
-
 /**********************************************************************
   Set attribute to newval in LDAP, regardless of what value the
   attribute had in LDAP before.
 *********************************************************************/
 
-static void smbldap_make_mod_internal(LDAP *ldap_struct, LDAPMessage *existing,
-				      LDAPMod ***mods,
-				      const char *attribute, int op,
-				      const char *newval,
-				      const DATA_BLOB *newblob)
+ void smbldap_make_mod(LDAP *ldap_struct, LDAPMessage *existing,
+		      LDAPMod ***mods,
+		      const char *attribute, const char *newval)
 {
 	char oldval[2048]; /* current largest allowed value is mungeddial */
 	bool existed;
-	DATA_BLOB oldblob = data_blob_null;
 
 	if (attribute == NULL) {
 		/* This can actually happen for ldapsam_compat where we for
@@ -637,33 +606,24 @@ static void smbldap_make_mod_internal(LDAP *ldap_struct, LDAPMessage *existing,
 	}
 
 	if (existing != NULL) {
-		if (op & LDAP_MOD_BVALUES) {
-			existed = smbldap_talloc_single_blob(talloc_tos(), ldap_struct, existing, attribute, &oldblob);
-		} else {
-			existed = smbldap_get_single_attribute(ldap_struct, existing, attribute, oldval, sizeof(oldval));
-		}
+		existed = smbldap_get_single_attribute(ldap_struct, existing, attribute, oldval, sizeof(oldval));
 	} else {
 		existed = False;
 		*oldval = '\0';
 	}
 
+	/* all of our string attributes are case insensitive */
+
+	if (existed && newval && (StrCaseCmp(oldval, newval) == 0)) {
+
+		/* Believe it or not, but LDAP will deny a delete and
+		   an add at the same time if the values are the
+		   same... */
+		DEBUG(10,("smbldap_make_mod: attribute |%s| not changed.\n", attribute));
+		return;
+	}
+
 	if (existed) {
-		bool equal = false;
-		if (op & LDAP_MOD_BVALUES) {
-			equal = (newblob && (data_blob_cmp(&oldblob, newblob) == 0));
-		} else {
-			/* all of our string attributes are case insensitive */
-			equal = (newval && (StrCaseCmp(oldval, newval) == 0));
-		}
-
-		if (equal) {
-			/* Believe it or not, but LDAP will deny a delete and
-			   an add at the same time if the values are the
-			   same... */
-			DEBUG(10,("smbldap_make_mod: attribute |%s| not changed.\n", attribute));
-			return;
-		}
-
 		/* There has been no value before, so don't delete it.
 		 * Here's a possible race: We might end up with
 		 * duplicate attributes */
@@ -675,46 +635,18 @@ static void smbldap_make_mod_internal(LDAP *ldap_struct, LDAPMessage *existing,
 		 * in Novell NDS. In NDS you have to first remove attribute and then
 		 * you could add new value */
 
-		if (op & LDAP_MOD_BVALUES) {
-			DEBUG(10,("smbldap_make_mod: deleting attribute |%s| blob\n", attribute));
-			smbldap_set_mod_blob(mods, LDAP_MOD_DELETE, attribute, &oldblob);
-		} else {
-			DEBUG(10,("smbldap_make_mod: deleting attribute |%s| values |%s|\n", attribute, oldval));
-			smbldap_set_mod(mods, LDAP_MOD_DELETE, attribute, oldval);
-		}
+		DEBUG(10,("smbldap_make_mod: deleting attribute |%s| values |%s|\n", attribute, oldval));
+		smbldap_set_mod(mods, LDAP_MOD_DELETE, attribute, oldval);
 	}
 
 	/* Regardless of the real operation (add or modify)
 	   we add the new value here. We rely on deleting
 	   the old value, should it exist. */
 
-	if (op & LDAP_MOD_BVALUES) {
-		if (newblob && newblob->length) {
-			DEBUG(10,("smbldap_make_mod: adding attribute |%s| blob\n", attribute));
-			smbldap_set_mod_blob(mods, LDAP_MOD_ADD, attribute, newblob);
-		}
-	} else {
-		if ((newval != NULL) && (strlen(newval) > 0)) {
-			DEBUG(10,("smbldap_make_mod: adding attribute |%s| value |%s|\n", attribute, newval));
-			smbldap_set_mod(mods, LDAP_MOD_ADD, attribute, newval);
-		}
+	if ((newval != NULL) && (strlen(newval) > 0)) {
+		DEBUG(10,("smbldap_make_mod: adding attribute |%s| value |%s|\n", attribute, newval));
+		smbldap_set_mod(mods, LDAP_MOD_ADD, attribute, newval);
 	}
-}
-
- void smbldap_make_mod(LDAP *ldap_struct, LDAPMessage *existing,
-		      LDAPMod ***mods,
-		      const char *attribute, const char *newval)
-{
-	smbldap_make_mod_internal(ldap_struct, existing, mods, attribute,
-				  0, newval, NULL);
-}
-
- void smbldap_make_mod_blob(LDAP *ldap_struct, LDAPMessage *existing,
-			    LDAPMod ***mods,
-			    const char *attribute, const DATA_BLOB *newblob)
-{
-	smbldap_make_mod_internal(ldap_struct, existing, mods, attribute,
-				  LDAP_MOD_BVALUES, NULL, newblob);
 }
 
 /**********************************************************************
@@ -812,7 +744,7 @@ int smb_ldap_start_tls(LDAP *ldap_struct, int version)
  setup a connection to the LDAP server based on a uri
 *******************************************************************/
 
-static int smb_ldap_setup_conn(LDAP **ldap_struct, const char *uri)
+int smb_ldap_setup_conn(LDAP **ldap_struct, const char *uri)
 {
 	int rc;
 
@@ -916,7 +848,7 @@ static int smb_ldap_setup_conn(LDAP **ldap_struct, const char *uri)
  version 
  *******************************************************************/
 
-static int smb_ldap_upgrade_conn(LDAP *ldap_struct, int *new_version)
+int smb_ldap_upgrade_conn(LDAP *ldap_struct, int *new_version) 
 {
 	int version;
 	int rc;
@@ -1029,7 +961,6 @@ static int rebindproc_with_state  (LDAP * ld, char **whop, char **credp,
 				   int *methodp, int freeit, void *arg)
 {
 	struct smbldap_state *ldap_state = arg;
-	struct timespec ts;
 
 	/** @TODO Should we be doing something to check what servers we rebind to?
 	    Could we get a referral to a machine that we don't want to give our
@@ -1062,8 +993,7 @@ static int rebindproc_with_state  (LDAP * ld, char **whop, char **credp,
 		*methodp = LDAP_AUTH_SIMPLE;
 	}
 
-	clock_gettime_mono(&ts);
-	ldap_state->last_rebind = convert_timespec_to_timeval(ts);
+	GetTimeOfDay(&ldap_state->last_rebind);
 
 	return 0;
 }
@@ -1083,7 +1013,6 @@ static int rebindproc_connect_with_state (LDAP *ldap_struct,
 	struct smbldap_state *ldap_state =
 		(struct smbldap_state *)arg;
 	int rc;
-	struct timespec ts;
 	int version;
 
 	DEBUG(5,("rebindproc_connect_with_state: Rebinding to %s as \"%s\"\n", 
@@ -1116,8 +1045,7 @@ static int rebindproc_connect_with_state (LDAP *ldap_struct,
 			DEBUG(10,("rebindproc_connect_with_state: "
 				"setting last_rebind timestamp "
 				"(req: 0x%02x)\n", (unsigned int)request));
-			clock_gettime_mono(&ts);
-			ldap_state->last_rebind = convert_timespec_to_timeval(ts);
+			GetTimeOfDay(&ldap_state->last_rebind);
 			break;
 		default:
 			ZERO_STRUCT(ldap_state->last_rebind);
@@ -1243,7 +1171,7 @@ static int smbldap_connect_system(struct smbldap_state *ldap_state, LDAP * ldap_
 
 static void smbldap_idle_fn(struct event_context *event_ctx,
 			    struct timed_event *te,
-			    struct timeval now_abs,
+			    struct timeval now,
 			    void *private_data);
 
 /**********************************************************************
@@ -1255,7 +1183,7 @@ static int smbldap_open(struct smbldap_state *ldap_state)
 	bool reopen = False;
 	SMB_ASSERT(ldap_state);
 
-	if ((ldap_state->ldap_struct != NULL) && ((ldap_state->last_ping + SMBLDAP_DONT_PING_TIME) < time_mono(NULL))) {
+	if ((ldap_state->ldap_struct != NULL) && ((ldap_state->last_ping + SMBLDAP_DONT_PING_TIME) < time(NULL))) {
 
 #ifdef HAVE_UNIXSOCKET
 		struct sockaddr_un addr;
@@ -1279,7 +1207,7 @@ static int smbldap_open(struct smbldap_state *ldap_state)
 		    	ldap_state->ldap_struct = NULL;
 		    	ldap_state->last_ping = (time_t)0;
 		} else {
-			ldap_state->last_ping = time_mono(NULL);
+			ldap_state->last_ping = time(NULL);
 		} 
     	}
 
@@ -1299,7 +1227,7 @@ static int smbldap_open(struct smbldap_state *ldap_state)
 	}
 
 
-	ldap_state->last_ping = time_mono(NULL);
+	ldap_state->last_ping = time(NULL);
 	ldap_state->pid = sys_getpid();
 
 	TALLOC_FREE(ldap_state->idle_event);
@@ -1349,7 +1277,7 @@ static void gotalarm_sig(int dummy)
 static int another_ldap_try(struct smbldap_state *ldap_state, int *rc,
 			    int *attempts, time_t endtime)
 {
-	time_t now = time_mono(NULL);
+	time_t now = time(NULL);
 	int open_rc = LDAP_SERVER_DOWN;
 
 	if (*rc != LDAP_SERVER_DOWN)
@@ -1422,7 +1350,7 @@ static int smbldap_search_ext(struct smbldap_state *ldap_state,
 	int 		rc = LDAP_SERVER_DOWN;
 	int 		attempts = 0;
 	char           *utf8_filter;
-	time_t		endtime = time_mono(NULL)+lp_ldap_timeout();
+	time_t		endtime = time(NULL)+lp_ldap_timeout();
 	struct		timeval timeout;
 	size_t		converted_size;
 
@@ -1433,12 +1361,11 @@ static int smbldap_search_ext(struct smbldap_state *ldap_state,
 
 	if (ldap_state->last_rebind.tv_sec > 0) {
 		struct timeval	tval;
-		struct timespec ts;
 		int64_t	tdiff = 0;
 		int		sleep_time = 0;
 
-		clock_gettime_mono(&ts);
-		tval = convert_timespec_to_timeval(ts);
+		ZERO_STRUCT(tval);
+		GetTimeOfDay(&tval);
 
 		tdiff = usec_time_diff(&tval, &ldap_state->last_rebind);
 		tdiff /= 1000; /* Convert to milliseconds. */
@@ -1472,7 +1399,7 @@ static int smbldap_search_ext(struct smbldap_state *ldap_state,
 	 * just a bit more kind to the server. VL. */
 
 	got_alarm = 0;
-	CatchSignal(SIGALRM, gotalarm_sig);
+	CatchSignal(SIGALRM, SIGNAL_CAST gotalarm_sig);
 	alarm(lp_ldap_timeout());
 	/* End setup timeout. */
 
@@ -1507,7 +1434,7 @@ static int smbldap_search_ext(struct smbldap_state *ldap_state,
 	TALLOC_FREE(utf8_filter);
 
 	/* Teardown timeout. */
-	CatchSignal(SIGALRM, SIG_IGN);
+	CatchSignal(SIGALRM, SIGNAL_CAST SIG_IGN);
 	alarm(0);
 
 	if (got_alarm != 0)
@@ -1621,7 +1548,7 @@ int smbldap_modify(struct smbldap_state *ldap_state, const char *dn, LDAPMod *at
 	int 		rc = LDAP_SERVER_DOWN;
 	int 		attempts = 0;
 	char           *utf8_dn;
-	time_t		endtime = time_mono(NULL)+lp_ldap_timeout();
+	time_t		endtime = time(NULL)+lp_ldap_timeout();
 	size_t		converted_size;
 
 	SMB_ASSERT(ldap_state);
@@ -1665,7 +1592,7 @@ int smbldap_add(struct smbldap_state *ldap_state, const char *dn, LDAPMod *attrs
 	int 		rc = LDAP_SERVER_DOWN;
 	int 		attempts = 0;
 	char           *utf8_dn;
-	time_t		endtime = time_mono(NULL)+lp_ldap_timeout();
+	time_t		endtime = time(NULL)+lp_ldap_timeout();
 	size_t		converted_size;
 
 	SMB_ASSERT(ldap_state);
@@ -1709,7 +1636,7 @@ int smbldap_delete(struct smbldap_state *ldap_state, const char *dn)
 	int 		rc = LDAP_SERVER_DOWN;
 	int 		attempts = 0;
 	char           *utf8_dn;
-	time_t		endtime = time_mono(NULL)+lp_ldap_timeout();
+	time_t		endtime = time(NULL)+lp_ldap_timeout();
 	size_t		converted_size;
 
 	SMB_ASSERT(ldap_state);
@@ -1755,7 +1682,7 @@ int smbldap_extended_operation(struct smbldap_state *ldap_state,
 {
 	int 		rc = LDAP_SERVER_DOWN;
 	int 		attempts = 0;
-	time_t		endtime = time_mono(NULL)+lp_ldap_timeout();
+	time_t		endtime = time(NULL)+lp_ldap_timeout();
 
 	if (!ldap_state)
 		return (-1);
@@ -1802,7 +1729,7 @@ int smbldap_search_suffix (struct smbldap_state *ldap_state,
 
 static void smbldap_idle_fn(struct event_context *event_ctx,
 			    struct timed_event *te,
-			    struct timeval now_abs,
+			    struct timeval now,
 			    void *private_data)
 {
 	struct smbldap_state *state = (struct smbldap_state *)private_data;
@@ -1814,13 +1741,12 @@ static void smbldap_idle_fn(struct event_context *event_ctx,
 		return;
 	}
 
-	if ((state->last_use+SMBLDAP_IDLE_TIME) > time_mono(NULL)) {
+	if ((state->last_use+SMBLDAP_IDLE_TIME) > now.tv_sec) {
 		DEBUG(10,("ldap connection not idle...\n"));
 
-		/* this needs to be made monotonic clock aware inside tevent: */
 		state->idle_event = event_add_timed(
 			event_ctx, NULL,
-			timeval_add(&now_abs, SMBLDAP_IDLE_TIME, 0),
+			timeval_add(&now, SMBLDAP_IDLE_TIME, 0),
 			smbldap_idle_fn,
 			private_data);
 		return;

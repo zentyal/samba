@@ -22,9 +22,6 @@
 
 
 #include "includes.h"
-#include "system/filesys.h"
-#include "system/syslog.h"
-#include "smbd/smbd.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_VFS
@@ -270,7 +267,7 @@ static struct vfs_fn_pointers vfs_audit_fns = {
 	.opendir = audit_opendir,
 	.mkdir = audit_mkdir,
 	.rmdir = audit_rmdir,
-	.open_fn = audit_open,
+	.open = audit_open,
 	.close_fn = audit_close,
 	.rename = audit_rename,
 	.unlink = audit_unlink,

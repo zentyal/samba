@@ -34,8 +34,9 @@
 /* $Id$ */
 
 #include "mech_locl.h"
+RCSID("$Id$");
 
-GSSAPI_LIB_FUNCTION OM_uint32 GSSAPI_LIB_CALL
+OM_uint32 GSSAPI_LIB_FUNCTION
 gss_pseudo_random(OM_uint32 *minor_status,
 		  gss_ctx_id_t context,
 		  int prf_key,

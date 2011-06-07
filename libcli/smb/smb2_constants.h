@@ -28,7 +28,7 @@
 #define SMB2_HDR_EPOCH		0x06
 #define SMB2_HDR_STATUS		0x08
 #define SMB2_HDR_OPCODE		0x0c
-#define SMB2_HDR_CREDIT		0x0e
+#define SMB2_HDR_CREDIT 	0x0e
 #define SMB2_HDR_FLAGS		0x10
 #define SMB2_HDR_NEXT_COMMAND	0x14
 #define SMB2_HDR_MESSAGE_ID     0x18
@@ -37,9 +37,6 @@
 #define SMB2_HDR_SESSION_ID	0x28
 #define SMB2_HDR_SIGNATURE	0x30 /* 16 bytes */
 #define SMB2_HDR_BODY		0x40
-
-/* offsets into header elements for an async SMB2 request */
-#define SMB2_HDR_ASYNC_ID	0x20
 
 /* header flags */
 #define SMB2_HDR_FLAG_REDIRECT  0x01
@@ -84,18 +81,12 @@
 /* SMB2 capabilities - only 1 so far. I'm sure more will be added */
 #define SMB2_CAP_DFS                     0x00000001
 #define SMB2_CAP_LEASING                 0x00000002 /* only in dialect 0x210 */
-#define SMB2_CAP_LARGE_MTU		 0x00000004 /* only in dialect 0x210 */
 /* so we can spot new caps as added */
 #define SMB2_CAP_ALL                     SMB2_CAP_DFS
 
 /* SMB2 session flags */
 #define SMB2_SESSION_FLAG_IS_GUEST       0x0001
 #define SMB2_SESSION_FLAG_IS_NULL        0x0002
-
-/* SMB2 sharetype flags */
-#define SMB2_SHARE_TYPE_DISK		0x1
-#define SMB2_SHARE_TYPE_PIPE		0x2
-#define SMB2_SHARE_TYPE_PRINT		0x3
 
 /* SMB2 share flags */
 #define SMB2_SHAREFLAG_MANUAL_CACHING                    0x0000
@@ -109,9 +100,6 @@
 #define SMB2_SHAREFLAG_ALLOW_NAMESPACE_CACHING           0x0400
 #define SMB2_SHAREFLAG_ACCESS_BASED_DIRECTORY_ENUM       0x0800
 #define SMB2_SHAREFLAG_ALL                               0x0F33
-
-/* SMB2 share capafilities */
-#define SMB2_SHARE_CAP_DFS		0x8
 
 /* SMB2 create security flags */
 #define SMB2_SECURITY_DYNAMIC_TRACKING                   0x01
@@ -183,7 +171,5 @@
 #define SMB2_GETINFO_FS                 0x02
 #define SMB2_GETINFO_SECURITY           0x03
 #define SMB2_GETINFO_QUOTA              0x04
-
-#define SMB2_CLOSE_FLAGS_FULL_INFORMATION (0x01)
 
 #endif

@@ -20,11 +20,6 @@
 */
 
 #include "includes.h"
-#include "libsmb/libsmb.h"
-#include "libsmb/clirap.h"
-#include "msdfs.h"
-#include "trans2.h"
-#include "libsmb/nmblib.h"
 
 /********************************************************************
  Important point.
@@ -132,9 +127,11 @@ static struct cli_state *do_connect(TALLOC_CTX *ctx,
 	zero_sockaddr(&ss);
 
 	/* have to open a new connection */
-	c = cli_initialise_ex(get_cmdline_auth_info_signing_state(auth_info));
-	if (c == NULL) {
+	if (!(c=cli_initialise_ex(get_cmdline_auth_info_signing_state(auth_info)))) {
 		d_printf("Connection to %s failed\n", server_n);
+		if (c) {
+			cli_shutdown(c);
+		}
 		return NULL;
 	}
 	if (port) {
@@ -323,7 +320,7 @@ static struct cli_state *cli_cm_connect(TALLOC_CTX *ctx,
 		DLIST_ADD_END(referring_cli, cli, struct cli_state *);
 	}
 
-	if (referring_cli && referring_cli->requested_posix_capabilities) {
+	if (referring_cli && referring_cli->posix_capabilities) {
 		uint16 major, minor;
 		uint32 caplow, caphigh;
 		NTSTATUS status;
@@ -354,7 +351,7 @@ static struct cli_state *cli_cm_find(struct cli_state *cli,
 	}
 
 	/* Search to the start of the list. */
-	for (p = cli; p; p = DLIST_PREV(p)) {
+	for (p = cli; p; p = p->prev) {
 		if (strequal(server, p->desthost) &&
 				strequal(share,p->share)) {
 			return p;
@@ -455,7 +452,7 @@ void cli_cm_set_credentials(struct user_auth_info *auth_info)
  split a dfs path into the server, share name, and extrapath components
 **********************************************************************/
 
-static bool split_dfs_path(TALLOC_CTX *ctx,
+static void split_dfs_path(TALLOC_CTX *ctx,
 				const char *nodepath,
 				char **pp_server,
 				char **pp_share,
@@ -470,16 +467,16 @@ static bool split_dfs_path(TALLOC_CTX *ctx,
 
 	path = talloc_strdup(ctx, nodepath);
 	if (!path) {
-		goto fail;
+		return;
 	}
 
 	if ( path[0] != '\\' ) {
-		goto fail;
+		return;
 	}
 
 	p = strchr_m( path + 1, '\\' );
 	if ( !p ) {
-		goto fail;
+		return;
 	}
 
 	*p = '\0';
@@ -494,28 +491,9 @@ static bool split_dfs_path(TALLOC_CTX *ctx,
 	} else {
 		*pp_extrapath = talloc_strdup(ctx, "");
 	}
-	if (*pp_extrapath == NULL) {
-		goto fail;
-	}
 
 	*pp_share = talloc_strdup(ctx, p);
-	if (*pp_share == NULL) {
-		goto fail;
-	}
-
 	*pp_server = talloc_strdup(ctx, &path[1]);
-	if (*pp_server == NULL) {
-		goto fail;
-	}
-
-	TALLOC_FREE(path);
-	return true;
-
-fail:
-	TALLOC_FREE(*pp_share);
-	TALLOC_FREE(*pp_extrapath);
-	TALLOC_FREE(path);
-	return false;
 }
 
 /****************************************************************************
@@ -586,7 +564,7 @@ static char *cli_dfs_make_full_path(TALLOC_CTX *ctx,
 		dir++;
 	}
 
-	if (cli->requested_posix_capabilities & CIFS_UNIX_POSIX_PATHNAMES_CAP) {
+	if (cli->posix_capabilities & CIFS_UNIX_POSIX_PATHNAMES_CAP) {
 		path_sep = '/';
 	}
 	return talloc_asprintf(ctx, "%c%s%c%s%c%s",
@@ -602,20 +580,19 @@ static char *cli_dfs_make_full_path(TALLOC_CTX *ctx,
  check for dfs referral
 ********************************************************************/
 
-static bool cli_dfs_check_error(struct cli_state *cli, NTSTATUS expected,
-				NTSTATUS status)
+static bool cli_dfs_check_error( struct cli_state *cli, NTSTATUS status )
 {
+	uint32 flgs2 = SVAL(cli->inbuf,smb_flg2);
+
 	/* only deal with DS when we negotiated NT_STATUS codes and UNICODE */
 
-	if (!(cli->capabilities & CAP_UNICODE)) {
+	if (!((flgs2&FLAGS2_32_BIT_ERROR_CODES) &&
+				(flgs2&FLAGS2_UNICODE_STRINGS)))
 		return false;
-	}
-	if (!(cli->capabilities & CAP_STATUS32)) {
-		return false;
-	}
-	if (NT_STATUS_EQUAL(status, expected)) {
+
+	if (NT_STATUS_EQUAL(status, NT_STATUS(IVAL(cli->inbuf,smb_rcls))))
 		return true;
-	}
+
 	return false;
 }
 
@@ -623,18 +600,18 @@ static bool cli_dfs_check_error(struct cli_state *cli, NTSTATUS expected,
  Get the dfs referral link.
 ********************************************************************/
 
-NTSTATUS cli_dfs_get_referral(TALLOC_CTX *ctx,
+bool cli_dfs_get_referral(TALLOC_CTX *ctx,
 			struct cli_state *cli,
 			const char *path,
-			struct client_dfs_referral **refs,
+			CLIENT_DFS_REFERRAL**refs,
 			size_t *num_refs,
 			size_t *consumed)
 {
 	unsigned int data_len = 0;
 	unsigned int param_len = 0;
-	uint16 setup[1];
-	uint8_t *param = NULL;
-	uint8_t *rdata = NULL;
+	uint16 setup = TRANSACT2_GET_DFS_REFERRAL;
+	char *param = NULL;
+	char *rparam=NULL, *rdata=NULL;
 	char *p;
 	char *endp;
 	size_t pathlen = 2*(strlen(path)+1);
@@ -642,43 +619,44 @@ NTSTATUS cli_dfs_get_referral(TALLOC_CTX *ctx,
 	char *consumed_path = NULL;
 	uint16_t consumed_ucs;
 	uint16 num_referrals;
-	struct client_dfs_referral *referrals = NULL;
-	NTSTATUS status;
+	CLIENT_DFS_REFERRAL *referrals = NULL;
+	bool ret = false;
 
 	*num_refs = 0;
 	*refs = NULL;
 
-	SSVAL(setup, 0, TRANSACT2_GET_DFS_REFERRAL);
-
-	param = SMB_MALLOC_ARRAY(uint8_t, 2+pathlen+2);
+	param = SMB_MALLOC_ARRAY(char, 2+pathlen+2);
 	if (!param) {
-		status = NT_STATUS_NO_MEMORY;
 		goto out;
 	}
 	SSVAL(param, 0, 0x03);	/* max referral level */
-	p = (char *)(&param[2]);
+	p = &param[2];
 
 	path_ucs = (smb_ucs2_t *)p;
 	p += clistr_push(cli, p, path, pathlen, STR_TERMINATE);
 	param_len = PTR_DIFF(p, param);
 
-	status = cli_trans(talloc_tos(), cli, SMBtrans2,
-			   NULL, 0xffff, 0, 0,
-			   setup, 1, 0,
-			   param, param_len, 2,
-			   NULL, 0, cli->max_xmit,
-			   NULL,
-			   NULL, 0, NULL, /* rsetup */
-			   NULL, 0, NULL,
-			   &rdata, 4, &data_len);
-	if (!NT_STATUS_IS_OK(status)) {
+	if (!cli_send_trans(cli, SMBtrans2,
+			NULL,                        /* name */
+			-1, 0,                          /* fid, flags */
+			&setup, 1, 0,                   /* setup, length, max */
+			param, param_len, 2,            /* param, length, max */
+			NULL, 0, cli->max_xmit /* data, length, max */
+			)) {
 		goto out;
 	}
+
+	if (!cli_receive_trans(cli, SMBtrans2,
+		&rparam, &param_len,
+		&rdata, &data_len)) {
+		goto out;
+	}
+
 	if (data_len < 4) {
 		goto out;
 	}
 
-	endp = (char *)rdata + data_len;
+	endp = rdata + data_len;
 
 	consumed_ucs  = SVAL(rdata, 0);
 	num_referrals = SVAL(rdata, 2);
@@ -710,15 +688,15 @@ NTSTATUS cli_dfs_get_referral(TALLOC_CTX *ctx,
 		int i;
 		uint16 node_offset;
 
-		referrals = talloc_array(ctx, struct client_dfs_referral,
-					 num_referrals);
+		referrals = TALLOC_ARRAY(ctx, CLIENT_DFS_REFERRAL,
+				num_referrals);
 
 		if (!referrals) {
 			goto out;
 		}
 		/* start at the referrals array */
 
-		p = (char *)rdata+8;
+		p = rdata+8;
 		for (i=0; i<num_referrals && p < endp; i++) {
 			if (p + 18 > endp) {
 				goto out;
@@ -739,7 +717,6 @@ NTSTATUS cli_dfs_get_referral(TALLOC_CTX *ctx,
 				goto out;
 			}
 			clistr_pull_talloc(ctx, cli->inbuf,
-					   SVAL(cli->inbuf, smb_flg2),
 					   &referrals[i].dfspath,
 					   p+node_offset, -1,
 					   STR_TERMINATE|STR_UNICODE);
@@ -754,6 +731,8 @@ NTSTATUS cli_dfs_get_referral(TALLOC_CTX *ctx,
 		}
 	}
 
+	ret = true;
+
 	*num_refs = num_referrals;
 	*refs = referrals;
 
@@ -761,8 +740,9 @@ NTSTATUS cli_dfs_get_referral(TALLOC_CTX *ctx,
 
 	TALLOC_FREE(consumed_path);
 	SAFE_FREE(param);
-	TALLOC_FREE(rdata);
-	return status;
+	SAFE_FREE(rdata);
+	SAFE_FREE(rparam);
+	return ret;
 }
 
 /********************************************************************
@@ -776,7 +756,7 @@ bool cli_resolve_path(TALLOC_CTX *ctx,
 			struct cli_state **targetcli,
 			char **pp_targetpath)
 {
-	struct client_dfs_referral *refs = NULL;
+	CLIENT_DFS_REFERRAL *refs = NULL;
 	size_t num_refs = 0;
 	size_t consumed = 0;
 	struct cli_state *cli_ipc = NULL;
@@ -792,7 +772,6 @@ bool cli_resolve_path(TALLOC_CTX *ctx,
 	char *ppath = NULL;
 	SMB_STRUCT_STAT sbuf;
 	uint32 attributes;
-	NTSTATUS status;
 
 	if ( !rootcli || !path || !targetcli ) {
 		return false;
@@ -823,8 +802,7 @@ bool cli_resolve_path(TALLOC_CTX *ctx,
 		return false;
 	}
 
-	status = cli_qpathinfo_basic( rootcli, dfs_path, &sbuf, &attributes);
-	if (NT_STATUS_IS_OK(status)) {
+	if (cli_qpathinfo_basic( rootcli, dfs_path, &sbuf, &attributes)) {
 		/* This is an ordinary path, just return it. */
 		*targetcli = rootcli;
 		*pp_targetpath = talloc_strdup(ctx, path);
@@ -836,8 +814,7 @@ bool cli_resolve_path(TALLOC_CTX *ctx,
 
 	/* Special case where client asked for a path that does not exist */
 
-	if (cli_dfs_check_error(rootcli, NT_STATUS_OBJECT_NAME_NOT_FOUND,
-				status)) {
+	if (cli_dfs_check_error(rootcli, NT_STATUS_OBJECT_NAME_NOT_FOUND)) {
 		*targetcli = rootcli;
 		*pp_targetpath = talloc_strdup(ctx, path);
 		if (!*pp_targetpath) {
@@ -848,8 +825,7 @@ bool cli_resolve_path(TALLOC_CTX *ctx,
 
 	/* We got an error, check for DFS referral. */
 
-	if (!cli_dfs_check_error(rootcli, NT_STATUS_PATH_NOT_COVERED,
-				 status)) {
+	if (!cli_dfs_check_error(rootcli, NT_STATUS_PATH_NOT_COVERED)) {
 		return false;
 	}
 
@@ -868,9 +844,8 @@ bool cli_resolve_path(TALLOC_CTX *ctx,
 		return false;
 	}
 
-	status = cli_dfs_get_referral(ctx, cli_ipc, dfs_path, &refs,
-				      &num_refs, &consumed);
-	if (!NT_STATUS_IS_OK(status) || !num_refs) {
+	if (!cli_dfs_get_referral(ctx, cli_ipc, dfs_path, &refs,
+			&num_refs, &consumed) || !num_refs) {
 		return false;
 	}
 
@@ -879,8 +854,9 @@ bool cli_resolve_path(TALLOC_CTX *ctx,
 	if (!refs[0].dfspath) {
 		return false;
 	}
-	if (!split_dfs_path(ctx, refs[0].dfspath, &server, &share,
-			    &extrapath)) {
+	split_dfs_path(ctx, refs[0].dfspath, &server, &share, &extrapath );
+
+	if (!server || !share) {
 		return false;
 	}
 
@@ -920,19 +896,10 @@ bool cli_resolve_path(TALLOC_CTX *ctx,
 	}
 
 	if (extrapath && strlen(extrapath) > 0) {
-		/* EMC Celerra NAS version 5.6.50 (at least) doesn't appear to */
-		/* put the trailing \ on the path, so to be save we put one in if needed */
-		if (extrapath[strlen(extrapath)-1] != '\\' && **pp_targetpath != '\\') {
-			*pp_targetpath = talloc_asprintf(ctx,
-						  "%s\\%s",
-						  extrapath,
-						  *pp_targetpath);
-		} else {
-			*pp_targetpath = talloc_asprintf(ctx,
-						  "%s%s",
-						  extrapath,
-						  *pp_targetpath);
-		}
+		*pp_targetpath = talloc_asprintf(ctx,
+						"%s%s",
+						extrapath,
+						*pp_targetpath);
 		if (!*pp_targetpath) {
 			return false;
 		}
@@ -1020,14 +987,13 @@ bool cli_check_msdfs_proxy(TALLOC_CTX *ctx,
 				const char *password,
 				const char *domain)
 {
-	struct client_dfs_referral *refs = NULL;
+	CLIENT_DFS_REFERRAL *refs = NULL;
 	size_t num_refs = 0;
 	size_t consumed = 0;
 	char *fullpath = NULL;
 	bool res;
 	uint16 cnum;
 	char *newextrapath = NULL;
-	NTSTATUS status;
 
 	if (!cli || !sharename) {
 		return false;
@@ -1055,7 +1021,7 @@ bool cli_check_msdfs_proxy(TALLOC_CTX *ctx,
 	}
 
 	if (force_encrypt) {
-		status = cli_cm_force_encryption(cli,
+		NTSTATUS status = cli_cm_force_encryption(cli,
 					username,
 					password,
 					lp_workgroup(),
@@ -1065,12 +1031,9 @@ bool cli_check_msdfs_proxy(TALLOC_CTX *ctx,
 		}
 	}
 
-	status = cli_dfs_get_referral(ctx, cli, fullpath, &refs,
-				      &num_refs, &consumed);
-	res = NT_STATUS_IS_OK(status);
+	res = cli_dfs_get_referral(ctx, cli, fullpath, &refs, &num_refs, &consumed);
 
-	status = cli_tdis(cli);
-	if (!NT_STATUS_IS_OK(status)) {
+	if (!cli_tdis(cli)) {
 		return false;
 	}
 
@@ -1084,8 +1047,10 @@ bool cli_check_msdfs_proxy(TALLOC_CTX *ctx,
 		return false;
 	}
 
-	if (!split_dfs_path(ctx, refs[0].dfspath, pp_newserver,
-			    pp_newshare, &newextrapath)) {
+	split_dfs_path(ctx, refs[0].dfspath, pp_newserver,
+			pp_newshare, &newextrapath );
+
+	if ((*pp_newserver == NULL) || (*pp_newshare == NULL)) {
 		return false;
 	}
 

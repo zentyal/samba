@@ -51,6 +51,7 @@ AC_SUBST(LIBREPLACEOBJ)
 
 LIBREPLACEOBJ="${LIBREPLACEOBJ} $libreplacedir/snprintf.o"
 
+AC_TYPE_SIGNAL
 AC_TYPE_UID_T
 AC_TYPE_MODE_T
 AC_TYPE_OFF_T
@@ -89,8 +90,6 @@ AC_INCLUDES_DEFAULT
 #endif]
 )
 
-AC_CHECK_HEADERS(linux/types.h)
-
 AC_CACHE_CHECK([for working mmap],libreplace_cv_HAVE_MMAP,[
 AC_TRY_RUN([#include "$libreplacedir/test/shared_mmap.c"],
            libreplace_cv_HAVE_MMAP=yes,libreplace_cv_HAVE_MMAP=no,libreplace_cv_HAVE_MMAP=cross)])
@@ -106,25 +105,11 @@ AC_CHECK_HEADERS(sys/mount.h mntent.h)
 AC_CHECK_HEADERS(stropts.h)
 AC_CHECK_HEADERS(unix.h)
 
-AC_CHECK_FUNCS(seteuid setresuid setegid setresgid chroot bzero strerror strerror_r)
+AC_CHECK_FUNCS(seteuid setresuid setegid setresgid chroot bzero strerror)
 AC_CHECK_FUNCS(vsyslog setlinebuf mktime ftruncate chsize rename)
 AC_CHECK_FUNCS(waitpid wait4 strlcpy strlcat initgroups memmove strdup)
-AC_CHECK_FUNCS(pread pwrite strndup strcasestr strtok_r mkdtemp dup2 dprintf vdprintf)
+AC_CHECK_FUNCS(pread pwrite strndup strcasestr strtok_r mkdtemp dup2)
 AC_CHECK_FUNCS(isatty chown lchown link readlink symlink realpath)
-AC_CHECK_FUNCS(fdatasync,,[
-	# if we didn't find it, look in librt (Solaris hides it there...)
-	AC_CHECK_LIB(rt, fdatasync,
-		[libreplace_cv_HAVE_FDATASYNC_IN_LIBRT=yes
-		AC_DEFINE(HAVE_FDATASYNC, 1, Define to 1 if there is support for fdatasync)])
-])
-AC_HAVE_DECL(fdatasync, [#include <unistd.h>])
-AC_CHECK_FUNCS(clock_gettime,libreplace_cv_have_clock_gettime=yes,[
-	AC_CHECK_LIB(rt, clock_gettime,
-		[libreplace_cv_HAVE_CLOCK_GETTIME_IN_LIBRT=yes
-		libreplace_cv_have_clock_gettime=yes
-		AC_DEFINE(HAVE_CLOCK_GETTIME, 1, Define to 1 if there is support for clock_gettime)])
-])
-AC_CHECK_FUNCS(get_current_dir_name)
 AC_HAVE_DECL(setresuid, [#include <unistd.h>])
 AC_HAVE_DECL(setresgid, [#include <unistd.h>])
 AC_HAVE_DECL(errno, [#include <errno.h>])
@@ -243,8 +228,6 @@ AC_HAVE_DECL(environ, [#include <unistd.h>])
 AC_CHECK_FUNCS(strnlen)
 AC_CHECK_FUNCS(strtoull __strtoull strtouq strtoll __strtoll strtoq)
 
-AC_CHECK_FUNCS(memmem)
-
 # this test disabled as we don't actually need __VA_ARGS__ yet
 AC_TRY_CPP([
 #define eprintf(...) fprintf(stderr, __VA_ARGS__)
@@ -297,35 +280,6 @@ m4_include(timegm.m4)
 m4_include(repdir.m4)
 m4_include(crypt.m4)
 
-if test x$libreplace_cv_have_clock_gettime = xyes ; then
-	SMB_CHECK_CLOCK_ID(CLOCK_MONOTONIC)
-	SMB_CHECK_CLOCK_ID(CLOCK_PROCESS_CPUTIME_ID)
-	SMB_CHECK_CLOCK_ID(CLOCK_REALTIME)
-fi
-
-AC_CACHE_CHECK([for struct timespec type],libreplace_cv_struct_timespec, [
-    AC_TRY_COMPILE([
-#include <sys/types.h>
-#if STDC_HEADERS
-#include <stdlib.h>
-#include <stddef.h>
-#endif
-#if TIME_WITH_SYS_TIME
-# include <sys/time.h>
-# include <time.h>
-#else
-# if HAVE_SYS_TIME_H
-#  include <sys/time.h>
-# else
-#  include <time.h>
-# endif
-#endif
-],[struct timespec ts;],
-	libreplace_cv_struct_timespec=yes,libreplace_cv_struct_timespec=no)])
-if test x"$libreplace_cv_struct_timespec" = x"yes"; then
-   AC_DEFINE(HAVE_STRUCT_TIMESPEC,1,[Whether we have struct timespec])
-fi
-
 AC_CHECK_FUNCS([printf memset memcpy],,[AC_MSG_ERROR([Required function not found])])
 
 echo "LIBREPLACE_BROKEN_CHECKS: END"
@@ -354,35 +308,4 @@ m4_include(libreplace_ld.m4)
 m4_include(libreplace_network.m4)
 m4_include(libreplace_macros.m4)
 
-
-dnl SMB_CHECK_CLOCK_ID(clockid)
-dnl Test whether the specified clock_gettime clock ID is available. If it
-dnl is, we define HAVE_clockid
-AC_DEFUN([SMB_CHECK_CLOCK_ID],
-[
-    AC_MSG_CHECKING(for $1)
-    AC_TRY_LINK([
-#if TIME_WITH_SYS_TIME
-# include <sys/time.h>
-# include <time.h>
-#else
-# if HAVE_SYS_TIME_H
-#  include <sys/time.h>
-# else
-#  include <time.h>
-# endif
-#endif
-    ],
-    [
-clockid_t clk = $1;
-    ],
-    [
-	AC_MSG_RESULT(yes)
-	AC_DEFINE(HAVE_$1, 1,
-	    [Whether the clock_gettime clock ID $1 is available])
-    ],
-    [
-	AC_MSG_RESULT(no)
-    ])
-])
 m4_ifndef([AC_USE_SYSTEM_EXTENSIONS],[m4_include(autoconf-2.60.m4)])

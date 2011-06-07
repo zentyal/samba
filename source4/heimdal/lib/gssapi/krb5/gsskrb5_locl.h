@@ -55,7 +55,6 @@ struct gss_msg_order;
 
 typedef struct gsskrb5_ctx {
   struct krb5_auth_context_data *auth_context;
-  struct krb5_auth_context_data *deleg_auth_context;
   krb5_principal source, target;
 #define IS_DCE_STYLE(ctx) (((ctx)->flags & GSS_C_DCE_STYLE) != 0)
   OM_uint32 flags;
@@ -111,6 +110,11 @@ typedef struct Principal *gsskrb5_name;
 
 extern krb5_keytab _gsskrb5_keytab;
 extern HEIMDAL_MUTEX gssapi_keytab_mutex;
+
+struct gssapi_thr_context {
+    HEIMDAL_MUTEX mutex;
+    char *error_string;
+};
 
 /*
  * Prototypes

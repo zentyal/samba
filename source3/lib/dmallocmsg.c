@@ -17,7 +17,6 @@
 */
 
 #include "includes.h"
-#include "messages.h"
 
 /**
  * @file dmallocmsg.c

@@ -307,12 +307,12 @@ typedef unsigned short int sa_family_t;
 #define sockaddr_storage sockaddr_in6
 #define ss_family sin6_family
 #define HAVE_SS_FAMILY 1
-#else /*HAVE_STRUCT_SOCKADDR_IN6*/
+#else
 #define sockaddr_storage sockaddr_in
 #define ss_family sin_family
 #define HAVE_SS_FAMILY 1
-#endif /*HAVE_STRUCT_SOCKADDR_IN6*/
-#endif /*HAVE_STRUCT_SOCKADDR_STORAGE*/
+#endif
+#endif
 
 #ifndef HAVE_SS_FAMILY
 #ifdef HAVE___SS_FAMILY
@@ -331,6 +331,8 @@ typedef unsigned short int sa_family_t;
      * which might return 512 or bigger
      */
 #   define IOV_MAX 512
+#  else
+#   error IOV_MAX and UIO_MAXIOV undefined
 #  endif
 # endif
 #endif

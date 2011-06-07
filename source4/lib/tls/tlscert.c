@@ -138,24 +138,15 @@ void tls_cert_generate(TALLOC_CTX *mem_ctx,
 
 	bufsize = sizeof(buf);
 	TLSCHECK(gnutls_x509_crt_export(crt, GNUTLS_X509_FMT_PEM, buf, &bufsize));
-	if (!file_save(certfile, buf, bufsize)) {
-		DEBUG(0,("Unable to save certificate in %s parent dir exists ?\n", certfile));
-		goto failed;
-	}
+	file_save(certfile, buf, bufsize);
 
 	bufsize = sizeof(buf);
 	TLSCHECK(gnutls_x509_crt_export(cacrt, GNUTLS_X509_FMT_PEM, buf, &bufsize));
-	if (!file_save(cafile, buf, bufsize)) {
-		DEBUG(0,("Unable to save ca cert in %s parent dir exists ?\n", cafile));
-		goto failed;
-	}
+	file_save(cafile, buf, bufsize);
 
 	bufsize = sizeof(buf);
 	TLSCHECK(gnutls_x509_privkey_export(key, GNUTLS_X509_FMT_PEM, buf, &bufsize));
-	if (!file_save(keyfile, buf, bufsize)) {
-		DEBUG(0,("Unable to save privatekey in %s parent dir exists ?\n", keyfile));
-		goto failed;
-	}
+	file_save(keyfile, buf, bufsize);
 
 	gnutls_x509_privkey_deinit(key);
 	gnutls_x509_privkey_deinit(cakey);

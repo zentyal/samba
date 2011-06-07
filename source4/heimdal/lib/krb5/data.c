@@ -41,7 +41,7 @@
  * @ingroup krb5
  */
 
-KRB5_LIB_FUNCTION void KRB5_LIB_CALL
+void KRB5_LIB_FUNCTION
 krb5_data_zero(krb5_data *p)
 {
     p->length = 0;
@@ -59,7 +59,7 @@ krb5_data_zero(krb5_data *p)
  * @ingroup krb5
  */
 
-KRB5_LIB_FUNCTION void KRB5_LIB_CALL
+void KRB5_LIB_FUNCTION
 krb5_data_free(krb5_data *p)
 {
     if(p->data != NULL)
@@ -76,7 +76,7 @@ krb5_data_free(krb5_data *p)
  * @ingroup krb5
  */
 
-KRB5_LIB_FUNCTION void KRB5_LIB_CALL
+void KRB5_LIB_FUNCTION
 krb5_free_data(krb5_context context,
 	       krb5_data *p)
 {
@@ -87,7 +87,7 @@ krb5_free_data(krb5_context context,
 /**
  * Allocate data of and krb5_data.
  *
- * @param p krb5_data to allocate.
+ * @param p krb5_data to free.
  * @param len size to allocate.
  *
  * @return Returns 0 to indicate success. Otherwise an kerberos et
@@ -96,7 +96,7 @@ krb5_free_data(krb5_context context,
  * @ingroup krb5
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_data_alloc(krb5_data *p, int len)
 {
     p->data = malloc(len);
@@ -118,7 +118,7 @@ krb5_data_alloc(krb5_data *p, int len)
  * @ingroup krb5
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_data_realloc(krb5_data *p, int len)
 {
     void *tmp;
@@ -143,7 +143,7 @@ krb5_data_realloc(krb5_data *p, int len)
  * @ingroup krb5
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_data_copy(krb5_data *p, const void *data, size_t len)
 {
     if (len) {
@@ -169,7 +169,7 @@ krb5_data_copy(krb5_data *p, const void *data, size_t len)
  * @ingroup krb5
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_copy_data(krb5_context context,
 	       const krb5_data *indata,
 	       krb5_data **outdata)
@@ -200,29 +200,10 @@ krb5_copy_data(krb5_context context,
  * @ingroup krb5
  */
 
-KRB5_LIB_FUNCTION int KRB5_LIB_CALL
+int KRB5_LIB_FUNCTION
 krb5_data_cmp(const krb5_data *data1, const krb5_data *data2)
 {
     if (data1->length != data2->length)
 	return data1->length - data2->length;
     return memcmp(data1->data, data2->data, data1->length);
-}
-
-/**
- * Compare to data not exposing timing information from the checksum data
- *
- * @param data1 krb5_data to compare
- * @param data2 krb5_data to compare
- *
- * @return returns zero for same data, otherwise non zero.
- *
- * @ingroup krb5
- */
-
-KRB5_LIB_FUNCTION int KRB5_LIB_CALL
-krb5_data_ct_cmp(const krb5_data *data1, const krb5_data *data2)
-{
-    if (data1->length != data2->length)
-	return data1->length - data2->length;
-    return ct_memcmp(data1->data, data2->data, data1->length);
 }

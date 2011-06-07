@@ -17,47 +17,54 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <Python.h>
 #include "includes.h"
 #include "scripting/python/modules.h"
-#include "dynconfig/dynconfig.h"
+#include <Python.h>
 
-static bool PySys_PathPrepend(PyObject *list, const char *path)
+extern void init_ldb(void);
+extern void init_security(void);
+extern void init_registry(void);
+extern void init_param(void);
+extern void init_misc(void);
+extern void init_ldb(void);
+extern void init_auth(void);
+extern void init_credentials(void);
+extern void init_tdb(void);
+extern void init_dcerpc(void);
+extern void init_events(void);
+extern void inituuid(void);
+extern void init_net(void);
+extern void initecho(void);
+extern void initdfs(void);
+extern void initdrsuapi(void);
+extern void initwinreg(void);
+extern void initepmapper(void);
+extern void initinitshutdown(void);
+extern void initmgmt(void);
+extern void initnet(void);
+extern void initatsvc(void);
+extern void initsamr(void);
+extern void initlsa(void);
+extern void initsvcctl(void);
+extern void initwkssvc(void);
+extern void initunixinfo(void);
+extern void init_libcli_nbt(void);
+extern void init_libcli_smb(void);
+
+static struct _inittab py_modules[] = { STATIC_LIBPYTHON_MODULES };
+
+void py_load_samba_modules(void)
 {
-	PyObject *py_path = PyString_FromString(path);
-	if (py_path == NULL)
-		return false;
-
-	return (PyList_Insert(list, 0, py_path) == 0);
+	int i;
+	for (i = 0; i < ARRAY_SIZE(py_modules); i++) {
+		PyImport_ExtendInittab(&py_modules[i]);
+	}
 }
 
-bool py_update_path(void)
+void py_update_path(const char *bindir)
 {
-	PyObject *mod_sys, *py_path;
-
-	mod_sys = PyImport_ImportModule("sys");
-	if (mod_sys == NULL) {
-		return false;
-	}
-
-	py_path = PyObject_GetAttrString(mod_sys, "path");
-	if (py_path == NULL) {
-		return false;
-	}	
-
-	if (!PyList_Check(py_path)) {
-		return false;
-	}
-
-	if (!PySys_PathPrepend(py_path, dyn_PYTHONDIR)) {
-		return false;
-	}
-
-	if (strcmp(dyn_PYTHONARCHDIR, dyn_PYTHONDIR) != 0) {
-		if (!PySys_PathPrepend(py_path, dyn_PYTHONARCHDIR)) {
-			return false;
-		}
-	}
-
-	return true;
+	char *newpath;
+	asprintf(&newpath, "%s/python:%s/../scripting/python:%s", bindir, bindir, Py_GetPath());
+	PySys_SetPath(newpath);
+	free(newpath);
 }

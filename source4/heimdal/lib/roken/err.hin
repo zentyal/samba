@@ -48,42 +48,40 @@
 
 #ifndef ROKEN_LIB_FUNCTION
 #ifdef _WIN32
-#define ROKEN_LIB_FUNCTION
-#define ROKEN_LIB_CALL     __cdecl
+#define ROKEN_LIB_FUNCTION _stdcall
 #else
 #define ROKEN_LIB_FUNCTION
-#define ROKEN_LIB_CALL
 #endif
 #endif
 
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 verr(int eval, const char *fmt, va_list ap)
      __attribute__ ((noreturn, format (printf, 2, 0)));
 
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 err(int eval, const char *fmt, ...)
      __attribute__ ((noreturn, format (printf, 2, 3)));
 
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 verrx(int eval, const char *fmt, va_list ap)
      __attribute__ ((noreturn, format (printf, 2, 0)));
 
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 errx(int eval, const char *fmt, ...)
      __attribute__ ((noreturn, format (printf, 2, 3)));
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 vwarn(const char *fmt, va_list ap)
      __attribute__ ((format (printf, 1, 0)));
 
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 warn(const char *fmt, ...)
      __attribute__ ((format (printf, 1, 2)));
 
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 vwarnx(const char *fmt, va_list ap)
      __attribute__ ((format (printf, 1, 0)));
 
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 warnx(const char *fmt, ...)
      __attribute__ ((format (printf, 1, 2)));
 

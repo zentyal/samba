@@ -18,9 +18,6 @@
  *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "../librpc/gen_ndr/drsuapi.h"
-#include "../librpc/gen_ndr/drsblobs.h"
-
 struct dssync_context;
 
 struct dssync_ops {
@@ -30,11 +27,6 @@ struct dssync_ops {
 				    TALLOC_CTX *mem_ctx,
 				    struct drsuapi_DsReplicaObjectListItemEx *objects,
 				    struct drsuapi_DsReplicaOIDMapping_Ctr *mappings);
-	NTSTATUS (*process_links)(struct dssync_context *ctx,
-				  TALLOC_CTX *mem_ctx,
-				  uint32_t count,
-				  struct drsuapi_DsReplicaLinkedAttribute *links,
-				  struct drsuapi_DsReplicaOIDMapping_Ctr *mappings);
 	NTSTATUS (*finish)(struct dssync_context *ctx, TALLOC_CTX *mem_ctx,
 			   struct replUpToDateVectorBlob *new_utdv);
 };
@@ -63,11 +55,3 @@ struct dssync_context {
 };
 
 extern const struct dssync_ops libnet_dssync_keytab_ops;
-extern const struct dssync_ops libnet_dssync_passdb_ops;
-
-/* The following definitions come from libnet/libnet_dssync.c  */
-
-NTSTATUS libnet_dssync_init_context(TALLOC_CTX *mem_ctx,
-				    struct dssync_context **ctx_p);
-NTSTATUS libnet_dssync(TALLOC_CTX *mem_ctx,
-		       struct dssync_context *ctx);

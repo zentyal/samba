@@ -20,7 +20,6 @@
  */
 
 #include "includes.h"
-#include "smbd/smbd.h"
 #include "onefs.h"
 #include "onefs_config.h"
 
@@ -39,7 +38,7 @@ const struct enum_list enum_onefs_acl_wire_format[] = {
  * Turn SID into UID/GID and setup a struct ifs_identity
  */
 static bool
-onefs_sid_to_identity(const struct dom_sid *sid, struct ifs_identity *id,
+onefs_sid_to_identity(const DOM_SID *sid, struct ifs_identity *id,
     bool is_group)
 {
 	enum ifs_identity_type type = IFS_ID_TYPE_LAST+1;
@@ -81,7 +80,7 @@ onefs_sid_to_identity(const struct dom_sid *sid, struct ifs_identity *id,
  * Turn struct ifs_identity into SID
  */
 static bool
-onefs_identity_to_sid(struct ifs_identity *id, struct dom_sid *sid)
+onefs_identity_to_sid(struct ifs_identity *id, DOM_SID *sid)
 {
 	if (!id || !sid)
 		return false;
@@ -117,10 +116,10 @@ onefs_identity_to_sid(struct ifs_identity *id, struct dom_sid *sid)
 }
 
 static bool
-onefs_og_to_identity(struct dom_sid *sid, struct ifs_identity * ident,
+onefs_og_to_identity(DOM_SID *sid, struct ifs_identity * ident,
     bool is_group, int snum)
 {
-	const struct dom_sid *b_admin_sid = &global_sid_Builtin_Administrators;
+	const DOM_SID *b_admin_sid = &global_sid_Builtin_Administrators;
 
 	if (!onefs_sid_to_identity(sid, ident, is_group)) {
 		if (!lp_parm_bool(snum, PARM_ONEFS_TYPE,
@@ -141,10 +140,10 @@ onefs_og_to_identity(struct dom_sid *sid, struct ifs_identity * ident,
 }
 
 static bool
-sid_in_ignore_list(struct dom_sid * sid, int snum)
+sid_in_ignore_list(DOM_SID * sid, int snum)
 {
 	const char ** sid_list = NULL;
-	struct dom_sid match;
+	DOM_SID match;
 
 	sid_list = lp_parm_string_list(snum, PARM_ONEFS_TYPE,
 	    PARM_UNMAPPABLE_SIDS_IGNORE_LIST,
@@ -168,7 +167,7 @@ sid_in_ignore_list(struct dom_sid * sid, int snum)
  * Convert a trustee to a struct identity
  */
 static bool
-onefs_samba_ace_to_ace(struct security_ace * samba_ace, struct ifs_ace * ace,
+onefs_samba_ace_to_ace(SEC_ACE * samba_ace, struct ifs_ace * ace,
     bool *mapped, int snum)
 {
 	struct ifs_identity ident = {.type=IFS_ID_TYPE_LAST, .id.uid=0};
@@ -233,15 +232,15 @@ onefs_samba_ace_to_ace(struct security_ace * samba_ace, struct ifs_ace * ace,
 }
 
 /**
- * Convert a struct security_acl to a struct ifs_security_acl
+ * Convert a SEC_ACL to a struct ifs_security_acl
  */
 static bool
-onefs_samba_acl_to_acl(struct security_acl *samba_acl, struct ifs_security_acl **acl,
+onefs_samba_acl_to_acl(SEC_ACL *samba_acl, struct ifs_security_acl **acl,
     bool * ignore_aces, int snum)
 {
 	int num_aces = 0;
 	struct ifs_ace *aces = NULL;
-	struct security_ace *samba_aces;
+	SEC_ACE *samba_aces;
 	bool mapped;
 	int i, j;
 
@@ -288,13 +287,13 @@ err_free:
 }
 
 /**
- * Convert a struct ifs_security_acl to a struct security_acl
+ * Convert a struct ifs_security_acl to a SEC_ACL
  */
 static bool
-onefs_acl_to_samba_acl(struct ifs_security_acl *acl, struct security_acl **samba_acl)
+onefs_acl_to_samba_acl(struct ifs_security_acl *acl, SEC_ACL **samba_acl)
 {
-	struct security_ace *samba_aces = NULL;
-	struct security_acl *tmp_samba_acl = NULL;
+	SEC_ACE *samba_aces = NULL;
+	SEC_ACL *tmp_samba_acl = NULL;
 	int i, num_aces = 0;
 
 	if (!samba_acl)
@@ -314,17 +313,17 @@ onefs_acl_to_samba_acl(struct ifs_security_acl *acl, struct security_acl **samba
 
 	/* Allocate the ace list. */
 	if (num_aces > 0) {
-		if ((samba_aces = SMB_MALLOC_ARRAY(struct security_ace, num_aces)) == NULL)
+		if ((samba_aces = SMB_MALLOC_ARRAY(SEC_ACE, num_aces)) == NULL)
 		{
 			DEBUG(0, ("Unable to malloc space for %d aces.\n",
 			    num_aces));
 			return false;
 		}
-		memset(samba_aces, '\0', (num_aces) * sizeof(struct security_ace));
+		memset(samba_aces, '\0', (num_aces) * sizeof(SEC_ACE));
 	}
 
 	for (i = 0; i < num_aces; i++) {
-		struct dom_sid sid;
+		DOM_SID sid;
 
 		if (!onefs_identity_to_sid(&acl->aces[i].trustee, &sid))
 			goto err_free;
@@ -554,7 +553,7 @@ static bool add_sfs_aces(files_struct *fsp, struct ifs_security_descriptor *sd)
 
 		/* Use existing samba logic to derive the mode bits. */
 		file_mode = unix_mode(fsp->conn, 0, fsp->fsp_name, NULL);
-		dir_mode = unix_mode(fsp->conn, FILE_ATTRIBUTE_DIRECTORY, fsp->fsp_name, NULL);
+		dir_mode = unix_mode(fsp->conn, aDIR, fsp->fsp_name, NULL);
 
 		/* Initialize ACEs. */
 		new_aces[0] = onefs_init_ace(fsp->conn, file_mode, false, USR);
@@ -605,16 +604,16 @@ static bool add_sfs_aces(files_struct *fsp, struct ifs_security_descriptor *sd)
  */
 NTSTATUS
 onefs_fget_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
-		  uint32 security_info, struct security_descriptor **ppdesc)
+		  uint32 security_info, SEC_DESC **ppdesc)
 {
 	int error;
 	uint32_t sd_size = 0;
 	size_t size = 0;
 	struct ifs_security_descriptor *sd = NULL;
-	struct dom_sid owner_sid, group_sid;
-	struct dom_sid *ownerp, *groupp;
-	struct security_acl *dacl, *sacl;
-	struct security_descriptor *pdesc;
+	DOM_SID owner_sid, group_sid;
+	DOM_SID *ownerp, *groupp;
+	SEC_ACL *dacl, *sacl;
+	SEC_DESC *pdesc;
 	bool alloced = false;
 	bool new_aces_alloced = false;
 	bool fopened = false;
@@ -630,7 +629,7 @@ onefs_fget_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 	if (lp_parm_bool(SNUM(fsp->conn), PARM_ONEFS_TYPE,
 		PARM_IGNORE_SACLS, PARM_IGNORE_SACLS_DEFAULT)) {
 		DEBUG(5, ("Ignoring SACL on %s.\n", fsp_str_dbg(fsp)));
-		security_info &= ~SECINFO_SACL;
+		security_info &= ~SACL_SECURITY_INFORMATION;
 	}
 
 	if (fsp->fh->fd == -1) {
@@ -706,7 +705,7 @@ onefs_fget_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 	sacl = NULL;
 
 	/* Copy owner into ppdesc */
-	if (security_info & SECINFO_OWNER) {
+	if (security_info & OWNER_SECURITY_INFORMATION) {
 		if (!onefs_identity_to_sid(sd->owner, &owner_sid)) {
 			status = NT_STATUS_INVALID_PARAMETER;
 			goto out;
@@ -716,7 +715,7 @@ onefs_fget_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 	}
 
 	/* Copy group into ppdesc */
-	if (security_info & SECINFO_GROUP) {
+	if (security_info & GROUP_SECURITY_INFORMATION) {
 		if (!onefs_identity_to_sid(sd->group, &group_sid)) {
 			status = NT_STATUS_INVALID_PARAMETER;
 			goto out;
@@ -726,7 +725,7 @@ onefs_fget_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 	}
 
 	/* Copy DACL into ppdesc */
-	if (security_info & SECINFO_DACL) {
+	if (security_info & DACL_SECURITY_INFORMATION) {
 		if (!onefs_acl_to_samba_acl(sd->dacl, &dacl)) {
 			status = NT_STATUS_INVALID_PARAMETER;
 			goto out;
@@ -734,7 +733,7 @@ onefs_fget_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 	}
 
 	/* Copy SACL into ppdesc */
-	if (security_info & SECINFO_SACL) {
+	if (security_info & SACL_SECURITY_INFORMATION) {
 		if (!onefs_acl_to_samba_acl(sd->sacl, &sacl)) {
 			status = NT_STATUS_INVALID_PARAMETER;
 			goto out;
@@ -791,7 +790,7 @@ out:
  */
 NTSTATUS
 onefs_get_nt_acl(vfs_handle_struct *handle, const char* name,
-		 uint32 security_info, struct security_descriptor **ppdesc)
+		 uint32 security_info, SEC_DESC **ppdesc)
 {
 	files_struct finfo;
 	struct fd_handle fh;
@@ -818,14 +817,13 @@ onefs_get_nt_acl(vfs_handle_struct *handle, const char* name,
 
 /**
  * Isilon-specific function for setting up an ifs_security_descriptor, given a
- * samba struct security_descriptor
+ * samba SEC_DESC.
  *
  * @param[out] sd ifs_security_descriptor to fill in
  *
  * @return NTSTATUS_OK if successful
  */
-NTSTATUS onefs_samba_sd_to_sd(uint32_t security_info_sent,
-			      const struct security_descriptor *psd,
+NTSTATUS onefs_samba_sd_to_sd(uint32_t security_info_sent, const SEC_DESC *psd,
 			      struct ifs_security_descriptor *sd, int snum,
 			      uint32_t *security_info_effective)
 {
@@ -841,7 +839,7 @@ NTSTATUS onefs_samba_sd_to_sd(uint32_t security_info_sent,
 	*security_info_effective = security_info_sent;
 
 	/* Setup owner */
-	if (security_info_sent & SECINFO_OWNER) {
+	if (security_info_sent & OWNER_SECURITY_INFORMATION) {
 		if (!onefs_og_to_identity(psd->owner_sid, &owner, false, snum))
 			return NT_STATUS_ACCESS_DENIED;
 
@@ -851,7 +849,7 @@ NTSTATUS onefs_samba_sd_to_sd(uint32_t security_info_sent,
 	}
 
 	/* Setup group */
-	if (security_info_sent & SECINFO_GROUP) {
+	if (security_info_sent & GROUP_SECURITY_INFORMATION) {
 		if (!onefs_og_to_identity(psd->group_sid, &group, true, snum))
 			return NT_STATUS_ACCESS_DENIED;
 
@@ -861,22 +859,22 @@ NTSTATUS onefs_samba_sd_to_sd(uint32_t security_info_sent,
 	}
 
 	/* Setup DACL */
-	if ((security_info_sent & SECINFO_DACL) && (psd->dacl)) {
+	if ((security_info_sent & DACL_SECURITY_INFORMATION) && (psd->dacl)) {
 		if (!onefs_samba_acl_to_acl(psd->dacl, &daclp, &ignore_aces,
 			snum))
 			return NT_STATUS_ACCESS_DENIED;
 
 		if (ignore_aces == true)
-			*security_info_effective &= ~SECINFO_DACL;
+			*security_info_effective &= ~DACL_SECURITY_INFORMATION;
 	}
 
 	/* Setup SACL */
-	if (security_info_sent & SECINFO_SACL) {
+	if (security_info_sent & SACL_SECURITY_INFORMATION) {
 
 		if (lp_parm_bool(snum, PARM_ONEFS_TYPE,
 			    PARM_IGNORE_SACLS, PARM_IGNORE_SACLS_DEFAULT)) {
 			DEBUG(5, ("Ignoring SACL.\n"));
-			*security_info_effective &= ~SECINFO_SACL;
+			*security_info_effective &= ~SACL_SECURITY_INFORMATION;
 		} else {
 			if (psd->sacl) {
 				if (!onefs_samba_acl_to_acl(psd->sacl,
@@ -885,7 +883,7 @@ NTSTATUS onefs_samba_sd_to_sd(uint32_t security_info_sent,
 
 				if (ignore_aces == true) {
 					*security_info_effective &=
-					    ~SECINFO_SACL;
+					    ~SACL_SECURITY_INFORMATION;
 				}
 			}
 		}
@@ -911,7 +909,7 @@ NTSTATUS onefs_samba_sd_to_sd(uint32_t security_info_sent,
  */
 NTSTATUS
 onefs_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
-		  uint32_t sec_info_sent, const struct security_descriptor *psd)
+		  uint32_t sec_info_sent, const SEC_DESC *psd)
 {
 	struct ifs_security_descriptor sd = {};
 	int fd = -1;

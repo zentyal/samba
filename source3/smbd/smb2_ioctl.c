@@ -19,12 +19,8 @@
 */
 
 #include "includes.h"
-#include "smbd/smbd.h"
 #include "smbd/globals.h"
 #include "../libcli/smb/smb_common.h"
-#include "../lib/util/tevent_ntstatus.h"
-#include "rpc_server/srv_pipe_hnd.h"
-#include "include/ntioctl.h"
 
 static struct tevent_req *smbd_smb2_ioctl_send(TALLOC_CTX *mem_ctx,
 					       struct tevent_context *ev,
@@ -92,7 +88,7 @@ NTSTATUS smbd_smb2_request_process_ioctl(struct smbd_smb2_request *req)
 	} else if (in_file_id_persistent == UINT64_MAX &&
 		   in_file_id_volatile == UINT64_MAX) {
 		/* without a handle */
-	} else if (in_file_id_persistent != in_file_id_volatile) {
+	} else if (in_file_id_persistent != 0) {
 		return smbd_smb2_request_error(req, NT_STATUS_FILE_CLOSED);
 	}
 
@@ -131,12 +127,6 @@ static void smbd_smb2_request_ioctl_done(struct tevent_req *subreq)
 	NTSTATUS error; /* transport error */
 
 	status = smbd_smb2_ioctl_recv(subreq, req, &out_output_buffer);
-
-	DEBUG(10,("smbd_smb2_request_ioctl_done: smbd_smb2_ioctl_recv returned "
-		"%u status %s\n",
-		(unsigned int)out_output_buffer.length,
-		nt_errstr(status) ));
-
 	TALLOC_FREE(subreq);
 	if (NT_STATUS_EQUAL(status, STATUS_BUFFER_OVERFLOW)) {
 		/* also ok */
@@ -363,9 +353,6 @@ static struct tevent_req *smbd_smb2_ioctl_send(TALLOC_CTX *mem_ctx,
 			return tevent_req_post(req, ev);
 		}
 
-		DEBUG(10,("smbd_smb2_ioctl_send: np_write_send of size %u\n",
-			(unsigned int)in_input.length ));
-
 		subreq = np_write_send(state, ev,
 				       fsp->fake_file_handle,
 				       in_input.data,
@@ -377,126 +364,6 @@ static struct tevent_req *smbd_smb2_ioctl_send(TALLOC_CTX *mem_ctx,
 					smbd_smb2_ioctl_pipe_write_done,
 					req);
 		return req;
-
-	case 0x00144064:	/* FSCTL_SRV_ENUMERATE_SNAPSHOTS */
-	{
-		/*
-		 * This is called to retrieve the number of Shadow Copies (a.k.a. snapshots)
-		 * and return their volume names.  If max_data_count is 16, then it is just
-		 * asking for the number of volumes and length of the combined names.
-		 *
-		 * pdata is the data allocated by our caller, but that uses
-		 * total_data_count (which is 0 in our case) rather than max_data_count.
-		 * Allocate the correct amount and return the pointer to let
-		 * it be deallocated when we return.
-		 */
-		struct shadow_copy_data *shadow_data = NULL;
-		bool labels = False;
-		uint32_t labels_data_count = 0;
-		uint32_t data_count;
-		uint32_t i;
-		char *pdata;
-		NTSTATUS status;
-
-		if (in_max_output < 16) {
-			DEBUG(0,("FSCTL_GET_SHADOW_COPY_DATA: "
-				 "in_max_output(%u) < 16 is invalid!\n",
-				 in_max_output));
-			tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
-			return tevent_req_post(req, ev);
-		}
-
-		if (in_max_output > 16) {
-			labels = True;
-		}
-
-		shadow_data = TALLOC_ZERO_P(talloc_tos(),
-					    struct shadow_copy_data);
-		if (tevent_req_nomem(shadow_data, req)) {
-			DEBUG(0,("TALLOC_ZERO() failed!\n"));
-			return tevent_req_post(req, ev);
-		}
-
-		/*
-		 * Call the VFS routine to actually do the work.
-		 */
-		if (SMB_VFS_GET_SHADOW_COPY_DATA(fsp, shadow_data, labels)
-		    != 0) {
-			if (errno == ENOSYS) {
-				DEBUG(5, ("FSCTL_GET_SHADOW_COPY_DATA: "
-					  "connectpath %s, not supported.\n",
-					  smbreq->conn->connectpath));
-				status = NT_STATUS_NOT_SUPPORTED;
-			} else {
-				DEBUG(0,("FSCTL_GET_SHADOW_COPY_DATA: "
-					 "connectpath %s, failed.\n",
-					 smbreq->conn->connectpath));
-				status = map_nt_error_from_unix(errno);
-			}
-			TALLOC_FREE(shadow_data);
-			tevent_req_nterror(req, status);
-			return tevent_req_post(req, ev);
-		}
-
-		labels_data_count =
-			(shadow_data->num_volumes*2*sizeof(SHADOW_COPY_LABEL))
-			+ 2;
-
-		if (labels) {
-			data_count = 12+labels_data_count+4;
-		} else {
-			data_count = 16;
-		}
-
-		if (labels && (in_max_output < data_count)) {
-			DEBUG(0, ("FSCTL_GET_SHADOW_COPY_DATA: "
-				  "in_max_output(%u) too small (%u) bytes "
-				  "needed!\n", in_max_output, data_count));
-			TALLOC_FREE(shadow_data);
-			tevent_req_nterror(req, NT_STATUS_BUFFER_TOO_SMALL);
-			return tevent_req_post(req, ev);
-		}
-
-		state->out_output = data_blob_talloc(state, NULL, data_count);
-		if (tevent_req_nomem(state->out_output.data, req)) {
-			return tevent_req_post(req, ev);
-		}
-
-		pdata = (char *)state->out_output.data;
-
-		/* num_volumes 4 bytes */
-		SIVAL(pdata, 0, shadow_data->num_volumes);
-
-		if (labels) {
-			/* num_labels 4 bytes */
-			SIVAL(pdata, 4, shadow_data->num_volumes);
-		}
-
-		/* needed_data_count 4 bytes */
-		SIVAL(pdata, 8, labels_data_count+4);
-
-		pdata += 12;
-
-		DEBUG(10,("FSCTL_GET_SHADOW_COPY_DATA: %u volumes for "
-			  "path[%s].\n",
-			  shadow_data->num_volumes, fsp_str_dbg(fsp)));
-		if (labels && shadow_data->labels) {
-			for (i=0; i<shadow_data->num_volumes; i++) {
-				srvstr_push(pdata, smbreq->flags2,
-					    pdata, shadow_data->labels[i],
-					    2*sizeof(SHADOW_COPY_LABEL),
-					    STR_UNICODE|STR_TERMINATE);
-				pdata += 2*sizeof(SHADOW_COPY_LABEL);
-				DEBUGADD(10, ("Label[%u]: '%s'\n", i,
-					      shadow_data->labels[i]));
-			}
-		}
-
-		TALLOC_FREE(shadow_data);
-
-		tevent_req_done(req);
-		return tevent_req_post(req, ev);
-        }
 
 	default:
 		if (IS_IPC(smbreq->conn)) {
@@ -521,10 +388,6 @@ static void smbd_smb2_ioctl_pipe_write_done(struct tevent_req *subreq)
 	ssize_t nwritten = -1;
 
 	status = np_write_recv(subreq, &nwritten);
-
-	DEBUG(10,("smbd_smb2_ioctl_pipe_write_done: received %ld\n",
-		(long int)nwritten ));
-
 	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
 		tevent_req_nterror(req, status);
@@ -542,11 +405,6 @@ static void smbd_smb2_ioctl_pipe_write_done(struct tevent_req *subreq)
 		return;
 	}
 
-	DEBUG(10,("smbd_smb2_ioctl_pipe_write_done: issuing np_read_send "
-		"of size %u\n",
-		(unsigned int)state->out_output.length ));
-
-	TALLOC_FREE(subreq);
 	subreq = np_read_send(state->smbreq->conn,
 			      state->smb2req->sconn->smb2.event_ctx,
 			      state->fsp->fake_file_handle,
@@ -565,17 +423,10 @@ static void smbd_smb2_ioctl_pipe_read_done(struct tevent_req *subreq)
 	struct smbd_smb2_ioctl_state *state = tevent_req_data(req,
 					      struct smbd_smb2_ioctl_state);
 	NTSTATUS status;
-	ssize_t nread = -1;
-	bool is_data_outstanding = false;
+	ssize_t nread;
+	bool is_data_outstanding;
 
 	status = np_read_recv(subreq, &nread, &is_data_outstanding);
-
-	DEBUG(10,("smbd_smb2_ioctl_pipe_read_done: np_read_recv nread = %d "
-		 "is_data_outstanding = %d, status = %s\n",
-		(int)nread,
-		(int)is_data_outstanding,
-		nt_errstr(status) ));
-
 	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
 		tevent_req_nterror(req, status);
@@ -591,7 +442,7 @@ static NTSTATUS smbd_smb2_ioctl_recv(struct tevent_req *req,
 				     TALLOC_CTX *mem_ctx,
 				     DATA_BLOB *out_output)
 {
-	NTSTATUS status = NT_STATUS_OK;
+	NTSTATUS status;
 	struct smbd_smb2_ioctl_state *state = tevent_req_data(req,
 					      struct smbd_smb2_ioctl_state);
 

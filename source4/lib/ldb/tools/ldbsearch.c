@@ -31,17 +31,15 @@
  *  Author: Andrew Tridgell
  */
 
-#include "replace.h"
-#include "system/filesys.h"
-#include "system/time.h"
+#include "ldb_includes.h"
 #include "ldb.h"
 #include "tools/cmdline.h"
 
-static void usage(struct ldb_context *ldb)
+static void usage(void)
 {
 	printf("Usage: ldbsearch <options> <expression> <attrs...>\n");
-	ldb_cmdline_help(ldb, "ldbsearch", stdout);
-	exit(LDB_ERR_OPERATIONS_ERROR);
+	ldb_cmdline_help("ldbsearch", stdout);
+	exit(1);
 }
 
 static int do_compare_msg(struct ldb_message **el1,
@@ -56,15 +54,15 @@ struct search_context {
 	struct ldb_control **req_ctrls;
 
 	int sort;
-	unsigned int num_stored;
+	int num_stored;
 	struct ldb_message **store;
-	unsigned int refs_stored;
+	int refs_stored;
 	char **refs_store;
 
-	unsigned int entries;
-	unsigned int refs;
+	int entries;
+	int refs;
 
-	unsigned int pending;
+	int pending;
 	int status;
 };
 
@@ -133,7 +131,7 @@ static int display_referral(char *referral, struct search_context *sctx)
 static int search_callback(struct ldb_request *req, struct ldb_reply *ares)
 {
 	struct search_context *sctx;
-	int ret = LDB_SUCCESS;
+	int ret;
 
 	sctx = talloc_get_type(req->context, struct search_context);
 
@@ -174,7 +172,7 @@ static int search_callback(struct ldb_request *req, struct ldb_reply *ares)
 	}
 
 	talloc_free(ares);
-	if (ret != LDB_SUCCESS) {
+	if (ret) {
 		return ldb_request_done(req, LDB_ERR_OPERATIONS_ERROR);
 	}
 
@@ -193,16 +191,21 @@ static int do_search(struct ldb_context *ldb,
 
 	req = NULL;
 	
-	sctx = talloc_zero(ldb, struct search_context);
-	if (!sctx) return LDB_ERR_OPERATIONS_ERROR;
+	sctx = talloc(ldb, struct search_context);
+	if (!sctx) return -1;
 
 	sctx->ldb = ldb;
 	sctx->sort = options->sorted;
+	sctx->num_stored = 0;
+	sctx->refs_stored = 0;
+	sctx->store = NULL;
 	sctx->req_ctrls = ldb_parse_control_strings(ldb, sctx, (const char **)options->controls);
 	if (options->controls != NULL &&  sctx->req_ctrls== NULL) {
 		printf("parsing controls failed: %s\n", ldb_errstring(ldb));
-		return LDB_ERR_OPERATIONS_ERROR;
+		return -1;
 	}
+	sctx->entries = 0;
+	sctx->refs = 0;
 
 	if (basedn == NULL) {
 		basedn = ldb_get_default_basedn(ldb);
@@ -221,7 +224,7 @@ again:
 	if (ret != LDB_SUCCESS) {
 		talloc_free(sctx);
 		printf("allocating request failed: %s\n", ldb_errstring(ldb));
-		return ret;
+		return -1;
 	}
 
 	sctx->pending = 0;
@@ -229,23 +232,24 @@ again:
 	ret = ldb_request(ldb, req);
 	if (ret != LDB_SUCCESS) {
 		printf("search failed - %s\n", ldb_errstring(ldb));
-		return ret;
+		return -1;
 	}
 
 	ret = ldb_wait(req->handle, LDB_WAIT_ALL);
-	if (ret != LDB_SUCCESS) {
+       	if (ret != LDB_SUCCESS) {
 		printf("search error - %s\n", ldb_errstring(ldb));
-		return ret;
+		return -1;
 	}
 
 	if (sctx->pending)
 		goto again;
 
 	if (sctx->sort && (sctx->num_stored != 0 || sctx->refs != 0)) {
-		unsigned int i;
+		int i;
 
 		if (sctx->num_stored) {
-			LDB_TYPESAFE_QSORT(sctx->store, sctx->num_stored, ldb, do_compare_msg);
+			ldb_qsort(sctx->store, sctx->num_stored, sizeof(struct ldb_message *),
+				  ldb, (ldb_qsort_cmp_fn_t)do_compare_msg);
 		}
 		for (i = 0; i < sctx->num_stored; i++) {
 			display_message(sctx->store[i], sctx);
@@ -256,13 +260,13 @@ again:
 		}
 	}
 
-	printf("# returned %u records\n# %u entries\n# %u referrals\n",
+	printf("# returned %d records\n# %d entries\n# %d referrals\n",
 		sctx->entries + sctx->refs, sctx->entries, sctx->refs);
 
 	talloc_free(sctx);
 	talloc_free(req);
 
-	return LDB_SUCCESS;
+	return 0;
 }
 
 int main(int argc, const char **argv)
@@ -273,11 +277,10 @@ int main(int argc, const char **argv)
 	struct ldb_cmdline *options;
 	int ret = -1;
 	const char *expression = "(|(objectClass=*)(distinguishedName=*))";
-	TALLOC_CTX *mem_ctx = talloc_new(NULL);
 
-	ldb = ldb_init(mem_ctx, NULL);
+	ldb = ldb_init(NULL, NULL);
 	if (ldb == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return -1;
 	}
 
 	options = ldb_cmdline_process(ldb, argc, argv, usage);
@@ -297,21 +300,23 @@ int main(int argc, const char **argv)
 
 	if (options->basedn != NULL) {
 		basedn = ldb_dn_new(ldb, ldb, options->basedn);
-		if (basedn == NULL) {
-			return LDB_ERR_OPERATIONS_ERROR;
+		if ( ! ldb_dn_validate(basedn)) {
+			fprintf(stderr, "Invalid Base DN format\n");
+			exit(1);
 		}
 	}
 
 	if (options->interactive) {
 		char line[1024];
 		while (fgets(line, sizeof(line), stdin)) {
-			ret = do_search(ldb, basedn, options, line, attrs);
+			if (do_search(ldb, basedn, options, line, attrs) == -1) {
+				ret = -1;
+			}
 		}
 	} else {
 		ret = do_search(ldb, basedn, options, expression, attrs);
 	}
 
-	talloc_free(mem_ctx);
-
+	talloc_free(ldb);
 	return ret;
 }

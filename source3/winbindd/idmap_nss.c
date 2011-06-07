@@ -1,30 +1,26 @@
 /* 
    Unix SMB/CIFS implementation.
 
-   idmap NSS backend
+   idmap PASSDB backend
 
    Copyright (C) Simo Sorce 2006
-
+   
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
-#include "system/passwd.h"
 #include "winbindd.h"
-#include "nsswitch/winbind_client.h"
-#include "idmap.h"
-#include "lib/winbind_util.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_IDMAP
@@ -33,7 +29,8 @@
  Initialise idmap database. 
 *****************************/
 
-static NTSTATUS idmap_nss_int_init(struct idmap_domain *dom)
+static NTSTATUS idmap_nss_int_init(struct idmap_domain *dom,
+				   const char *params)
 {	
 	return NT_STATUS_OK;
 }
@@ -44,11 +41,18 @@ static NTSTATUS idmap_nss_int_init(struct idmap_domain *dom)
 
 static NTSTATUS idmap_nss_unixids_to_sids(struct idmap_domain *dom, struct id_map **ids)
 {
+	TALLOC_CTX *ctx;
 	int i;
 
 	/* initialize the status to avoid suprise */
 	for (i = 0; ids[i]; i++) {
 		ids[i]->status = ID_UNKNOWN;
+	}
+	
+	ctx = talloc_new(dom);
+	if ( ! ctx) {
+		DEBUG(0, ("Out of memory!\n"));
+		return NT_STATUS_NO_MEMORY;
 	}
 
 	for (i = 0; ids[i]; i++) {
@@ -57,7 +61,7 @@ static NTSTATUS idmap_nss_unixids_to_sids(struct idmap_domain *dom, struct id_ma
 		const char *name;
 		enum lsa_SidType type;
 		bool ret;
-
+		
 		switch (ids[i]->xid.type) {
 		case ID_TYPE_UID:
 			pw = getpwuid((uid_t)ids[i]->xid.id);
@@ -116,6 +120,9 @@ static NTSTATUS idmap_nss_unixids_to_sids(struct idmap_domain *dom, struct id_ma
 			break;
 		}
 	}
+
+
+	talloc_free(ctx);
 	return NT_STATUS_OK;
 }
 
@@ -125,24 +132,31 @@ static NTSTATUS idmap_nss_unixids_to_sids(struct idmap_domain *dom, struct id_ma
 
 static NTSTATUS idmap_nss_sids_to_unixids(struct idmap_domain *dom, struct id_map **ids)
 {
+	TALLOC_CTX *ctx;
 	int i;
 
 	/* initialize the status to avoid suprise */
 	for (i = 0; ids[i]; i++) {
 		ids[i]->status = ID_UNKNOWN;
 	}
+	
+	ctx = talloc_new(dom);
+	if ( ! ctx) {
+		DEBUG(0, ("Out of memory!\n"));
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	for (i = 0; ids[i]; i++) {
 		struct group *gr;
 		enum lsa_SidType type;
-		char *name = NULL;
+		const char *dom_name = NULL;
+		const char *name = NULL;
 		bool ret;
 
 		/* by default calls to winbindd are disabled
 		   the following call will not recurse so this is safe */
 		(void)winbind_on();
-		ret = winbind_lookup_sid(talloc_tos(), ids[i]->sid, NULL,
-					 (const char **)&name, &type);
+		ret = winbind_lookup_sid(ctx, ids[i]->sid, &dom_name, &name, &type);
 		(void)winbind_off();
 
 		if (!ret) {
@@ -184,8 +198,9 @@ static NTSTATUS idmap_nss_sids_to_unixids(struct idmap_domain *dom, struct id_ma
 			ids[i]->status = ID_UNKNOWN;
 			break;
 		}
-		TALLOC_FREE(name);
 	}
+
+	talloc_free(ctx);
 	return NT_STATUS_OK;
 }
 
@@ -193,11 +208,17 @@ static NTSTATUS idmap_nss_sids_to_unixids(struct idmap_domain *dom, struct id_ma
  Close the idmap tdb instance
 **********************************/
 
+static NTSTATUS idmap_nss_close(struct idmap_domain *dom)
+{
+	return NT_STATUS_OK;
+}
+
 static struct idmap_methods nss_methods = {
 
 	.init = idmap_nss_int_init,
 	.unixids_to_sids = idmap_nss_unixids_to_sids,
 	.sids_to_unixids = idmap_nss_sids_to_unixids,
+	.close_fn = idmap_nss_close
 };
 
 NTSTATUS idmap_nss_init(void)

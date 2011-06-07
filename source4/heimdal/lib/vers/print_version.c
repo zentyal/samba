@@ -34,8 +34,6 @@
 
 #include <config.h>
 
-#define VERSION_HIDDEN static
-
 #include "roken.h"
 
 #include "version.h"
@@ -51,6 +49,6 @@ print_version(const char *progname)
     if(*package_list == '\0')
 	package_list = "no version information";
     fprintf(stderr, "%s (%s)\n", progname, package_list);
-    fprintf(stderr, "Copyright 1995-2010 Kungliga Tekniska Högskolan\n");
+    fprintf(stderr, "Copyright 1995-2008 Kungliga Tekniska Högskolan\n");
     fprintf(stderr, "Send bug-reports to %s\n", PACKAGE_BUGREPORT);
 }

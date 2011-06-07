@@ -4,7 +4,6 @@
    Copyright (C) Simo Sorce  2005
    Copyright (C) Stefan Metzmacher <metze@samba.org> 2007
    Copyright (C) Andrew Bartlett <abartlet@samba.org> 2009
-   Copyright (C) Matthias Dieter Wallnöfer 2010
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,115 +24,62 @@
  *
  *  Component: ldb deleted objects control module
  *
- *  Description: this module hides deleted and recylced objects, and returns
- *  them if the right control is there
+ *  Description: this module hides deleted objects, and returns them if the right control is there
  *
  *  Author: Stefan Metzmacher
  */
 
 #include "includes.h"
-#include <ldb_module.h>
+#include "ldb/include/ldb_module.h"
 #include "dsdb/samdb/samdb.h"
-#include "dsdb/samdb/ldb_modules/util.h"
+
 
 static int show_deleted_search(struct ldb_module *module, struct ldb_request *req)
 {
 	struct ldb_context *ldb;
-	struct ldb_control *show_del, *show_rec;
+	struct ldb_control *control;
+	struct ldb_control **saved_controls;
 	struct ldb_request *down_req;
+	struct ldb_parse_tree *nodeleted_tree;
 	struct ldb_parse_tree *new_tree = req->op.search.tree;
 	int ret;
 
 	ldb = ldb_module_get_ctx(module);
 
 	/* check if there's a show deleted control */
-	show_del = ldb_request_get_control(req, LDB_CONTROL_SHOW_DELETED_OID);
-	/* check if there's a show recycled control */
-	show_rec = ldb_request_get_control(req, LDB_CONTROL_SHOW_RECYCLED_OID);
+	control = ldb_request_get_control(req, LDB_CONTROL_SHOW_DELETED_OID);
 
-	if ((show_del == NULL) && (show_rec == NULL)) {
-		/* Here we have to suppress all deleted objects:
-		 * MS-ADTS 3.1.1.3.4.1
-		 *
-		 * Filter: (&(!(isDeleted=TRUE))(...))
-		 */
-		/* FIXME: we could use a constant tree here once we are sure
-		 * that no ldb modules modify trees in-site */
-		new_tree = talloc(req, struct ldb_parse_tree);
-		if (!new_tree) {
-			return ldb_oom(ldb);
+	if (! control) {
+		nodeleted_tree = talloc_get_type(ldb_module_get_private(module), 
+						 struct ldb_parse_tree);
+		if (nodeleted_tree) {
+			new_tree = talloc(req, struct ldb_parse_tree);
+			if (!new_tree) {
+				ldb_oom(ldb);
+				return LDB_ERR_OPERATIONS_ERROR;
+			}
+			*new_tree = *nodeleted_tree;
+			/* Replace dummy part of 'and' with the old, tree,
+			   without a parse step */
+			new_tree->u.list.elements[0] = req->op.search.tree;
 		}
-		new_tree->operation = LDB_OP_AND;
-		new_tree->u.list.num_elements = 2;
-		new_tree->u.list.elements = talloc_array(new_tree, struct ldb_parse_tree *, 2);
-		if (!new_tree->u.list.elements) {
-			return ldb_oom(ldb);
-		}
-
-		new_tree->u.list.elements[0] = talloc(new_tree->u.list.elements, struct ldb_parse_tree);
-		new_tree->u.list.elements[0]->operation = LDB_OP_NOT;
-		new_tree->u.list.elements[0]->u.isnot.child =
-			talloc(new_tree->u.list.elements, struct ldb_parse_tree);
-		if (!new_tree->u.list.elements[0]->u.isnot.child) {
-			return ldb_oom(ldb);
-		}
-		new_tree->u.list.elements[0]->u.isnot.child->operation = LDB_OP_EQUALITY;
-		new_tree->u.list.elements[0]->u.isnot.child->u.equality.attr = "isDeleted";
-		new_tree->u.list.elements[0]->u.isnot.child->u.equality.value = data_blob_string_const("TRUE");
-
-		new_tree->u.list.elements[1] = req->op.search.tree;
-	} else if ((show_del != NULL) && (show_rec == NULL)) {
-		/* Here we need to suppress all recycled objects:
-		 * MS-ADTS 3.1.1.3.4.1
-		 *
-		 * Filter: (&(!(isRecycled=TRUE))(...))
-		 */
-		/* FIXME: we could use a constant tree here once we are sure
-		 * that no ldb modules modify trees in-site */
-		new_tree = talloc(req, struct ldb_parse_tree);
-		if (!new_tree) {
-			return ldb_oom(ldb);
-		}
-		new_tree->operation = LDB_OP_AND;
-		new_tree->u.list.num_elements = 2;
-		new_tree->u.list.elements = talloc_array(new_tree, struct ldb_parse_tree *, 2);
-		if (!new_tree->u.list.elements) {
-			return ldb_oom(ldb);
-		}
-
-		new_tree->u.list.elements[0] = talloc(new_tree->u.list.elements, struct ldb_parse_tree);
-		new_tree->u.list.elements[0]->operation = LDB_OP_NOT;
-		new_tree->u.list.elements[0]->u.isnot.child =
-			talloc(new_tree->u.list.elements, struct ldb_parse_tree);
-		if (!new_tree->u.list.elements[0]->u.isnot.child) {
-			return ldb_oom(ldb);
-		}
-		new_tree->u.list.elements[0]->u.isnot.child->operation = LDB_OP_EQUALITY;
-		new_tree->u.list.elements[0]->u.isnot.child->u.equality.attr = "isRecycled";
-		new_tree->u.list.elements[0]->u.isnot.child->u.equality.value = data_blob_string_const("TRUE");
-
-		new_tree->u.list.elements[1] = req->op.search.tree;
 	}
-
+	
 	ret = ldb_build_search_req_ex(&down_req, ldb, req,
 				      req->op.search.base,
 				      req->op.search.scope,
 				      new_tree,
 				      req->op.search.attrs,
 				      req->controls,
-				      req, dsdb_next_callback,
+				      req->context, req->callback,
 				      req);
-	LDB_REQ_SET_LOCATION(down_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
 
-	/* mark the controls as done */
-	if (show_del != NULL) {
-		show_del->critical = 0;
-	}
-	if (show_rec != NULL) {
-		show_rec->critical = 0;
+	/* if a control is there remove if from the modified request */
+	if (control && !save_controls(control, down_req, &saved_controls)) {
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
 	/* perform the search */
@@ -143,35 +89,32 @@ static int show_deleted_search(struct ldb_module *module, struct ldb_request *re
 static int show_deleted_init(struct ldb_module *module)
 {
 	struct ldb_context *ldb;
+	struct ldb_parse_tree *nodeleted_tree;
 	int ret;
 
 	ldb = ldb_module_get_ctx(module);
+
+	nodeleted_tree = ldb_parse_tree(module, "(&(replace=me)(!(isDeleted=TRUE)))");
+	if (!nodeleted_tree) {
+		ldb_debug(ldb, LDB_DEBUG_ERROR,
+			"show_deleted: Unable to parse isDeleted master expression!\n");
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+
+	ldb_module_set_private(module, nodeleted_tree);
 
 	ret = ldb_mod_register_control(module, LDB_CONTROL_SHOW_DELETED_OID);
 	if (ret != LDB_SUCCESS) {
 		ldb_debug(ldb, LDB_DEBUG_ERROR,
 			"show_deleted: Unable to register control with rootdse!\n");
-		return ldb_operr(ldb);
-	}
-
-	ret = ldb_mod_register_control(module, LDB_CONTROL_SHOW_RECYCLED_OID);
-	if (ret != LDB_SUCCESS) {
-		ldb_debug(ldb, LDB_DEBUG_ERROR,
-			"show_deleted: Unable to register control with rootdse!\n");
-		return ldb_operr(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
 	return ldb_next_init(module);
 }
 
-static const struct ldb_module_ops ldb_show_deleted_module_ops = {
+_PUBLIC_ const struct ldb_module_ops ldb_show_deleted_module_ops = {
 	.name		   = "show_deleted",
 	.search            = show_deleted_search,
 	.init_context	   = show_deleted_init
 };
-
-int ldb_show_deleted_module_init(const char *version)
-{
-	LDB_MODULE_CHECK_VERSION(version);
-	return ldb_register_module(&ldb_show_deleted_module_ops);
-}

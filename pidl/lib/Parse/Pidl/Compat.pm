@@ -19,7 +19,6 @@ my %supported_properties = (
 	"uuid"			=> ["INTERFACE"],
 	"endpoint"		=> ["INTERFACE"],
 	"pointer_default"	=> ["INTERFACE"],
-	"no_srv_register"	=> ["INTERFACE"],
 
 	# dcom
 	"object"		=> ["INTERFACE"],
@@ -45,7 +44,6 @@ my %supported_properties = (
 	"nopush"		=> ["FUNCTION", "TYPEDEF"],
 	"nopull"		=> ["FUNCTION", "TYPEDEF"],
 	"noprint"		=> ["FUNCTION", "TYPEDEF"],
-        "nopython"              => ["FUNCTION", "TYPEDEF"],
 
 	# union
 	"switch_is"		=> ["ELEMENT"],
@@ -125,10 +123,6 @@ sub CheckElement($)
 
 	if (has_property($e, "relative")) {
 		warning($e, "relative() pointer property not supported");
-	}
-
-	if (has_property($e, "relative_short")) {
-		warning($e, "relative_short() pointer property not supported");
 	}
 
 	if (has_property($e, "flag")) {

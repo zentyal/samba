@@ -20,9 +20,7 @@
 */
 
 #include "includes.h"
-#include "system/filesys.h"
 #include "printing.h"
-#include "util_tdb.h"
 
 static struct tdb_print_db *print_db_head;
 
@@ -100,7 +98,7 @@ struct tdb_print_db *get_print_db_byname(const char *printername)
 		return NULL;
 	}
 
-	if (geteuid() != sec_initial_uid()) {
+	if (geteuid() != 0) {
 		become_root();
 		done_become_root = True;
 	}
@@ -160,7 +158,7 @@ void close_all_print_db(void)
  messages. data needs freeing on exit.
 ****************************************************************************/
 
-struct TDB_DATA get_printer_notify_pid_list(struct tdb_context *tdb, const char *printer_name, bool cleanlist)
+TDB_DATA get_printer_notify_pid_list(TDB_CONTEXT *tdb, const char *printer_name, bool cleanlist)
 {
 	TDB_DATA data;
 	size_t i;

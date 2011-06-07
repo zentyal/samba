@@ -67,6 +67,7 @@ static int dns_ex_destructor(struct dns_ex_state *state)
 	int status;
 
 	kill(state->child, SIGTERM);
+	close(state->child_fd);
 	if (waitpid(state->child, &status, WNOHANG) == 0) {
 		kill(state->child, SIGKILL);
 		waitpid(state->child, &status, 0);
@@ -91,15 +92,6 @@ static void run_child_dns_lookup(struct dns_ex_state *state, int fd)
 	bool first;
 	uint32_t i;
 	bool do_srv = (state->flags & RESOLVE_NAME_FLAG_DNS_SRV);
-
-	if (strchr(state->name.name, '.') && state->name.name[strlen(state->name.name)-1] != '.') {
-		/* we are asking for a fully qualified name, but the
-		   name doesn't end in a '.'. We need to prevent the
-		   DNS library trying the search domains configured in
-		   resolv.conf */
-		state->name.name = talloc_strdup_append(discard_const_p(char, state->name.name),
-							".");
-	}
 
 	/* this is the blocking call we are going to lots of trouble
 	   to avoid in the parent */
@@ -176,7 +168,7 @@ static void run_child_dns_lookup(struct dns_ex_state *state, int fd)
 
 		if (do_srv) {
 			/* we are only interested in SRV records */
-			if (rr->type != rk_ns_t_srv) {
+			if (rr->type != rk_ns_c_in) {
 				continue;
 			}
 
@@ -216,7 +208,7 @@ static void run_child_dns_lookup(struct dns_ex_state *state, int fd)
 				continue;
 			}
 
-			/* we are only interested in A records */
+			/* we are only interested in SRV records */
 			if (rr->type != rk_ns_t_a) {
 				continue;
 			}
@@ -377,6 +369,7 @@ static void pipe_handler(struct tevent_context *ev, struct tevent_fd *fde,
 	} else {
 		ret = -1;
 	}
+	close(state->child_fd);
 	if (waitpid(state->child, &status, WNOHANG) == 0) {
 		kill(state->child, SIGKILL);
 		waitpid(state->child, &status, 0);
@@ -505,7 +498,6 @@ struct composite_context *resolve_name_dns_ex_send(TALLOC_CTX *mem_ctx,
 		close(fd[1]);
 		return c;
 	}
-	tevent_fd_set_auto_close(state->fde);
 
 	state->child = fork();
 	if (state->child == (pid_t)-1) {

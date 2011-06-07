@@ -66,13 +66,11 @@ setup_int(const char *proxy_host, short proxy_port,
     memset(&dns_addr, 0, sizeof(dns_addr));
     if(dns_req)
 	free(dns_req);
-    dns_req = NULL;
     if(proxy_host) {
 	if(make_address(proxy_host, &dns_addr.sin_addr) != 0)
 	    return -1;
 	dns_addr.sin_port = htons(proxy_port);
-	if (asprintf(&dns_req, "http://%s:%d%s", dns_host, dns_port, dns_path) < 0)
-	    return -1;
+	asprintf(&dns_req, "http://%s:%d%s", dns_host, dns_port, dns_path);
     } else {
 	if(make_address(dns_host, &dns_addr.sin_addr) != 0)
 	    return -1;
@@ -106,7 +104,7 @@ split_spec(const char *spec, char **host, int *port, char **path, int def_port)
 }
 
 
-ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
+int ROKEN_LIB_FUNCTION
 roken_gethostby_setup(const char *proxy_spec, const char *dns_spec)
 {
     char *proxy_host = NULL;
@@ -137,7 +135,7 @@ roken_gethostby(const char *hostname)
 {
     int s;
     struct sockaddr_in addr;
-    char *request = NULL;
+    char *request;
     char buf[1024];
     int offset = 0;
     int n;
@@ -146,8 +144,7 @@ roken_gethostby(const char *hostname)
     if(dns_addr.sin_family == 0)
 	return NULL; /* no configured host */
     addr = dns_addr;
-    if (asprintf(&request, "GET %s?%s HTTP/1.0\r\n\r\n", dns_req, hostname) < 0)
-	return NULL;
+    asprintf(&request, "GET %s?%s HTTP/1.0\r\n\r\n", dns_req, hostname);
     if(request == NULL)
 	return NULL;
     s  = socket(AF_INET, SOCK_STREAM, 0);
@@ -210,7 +207,7 @@ roken_gethostby(const char *hostname)
     }
 }
 
-ROKEN_LIB_FUNCTION struct hostent* ROKEN_LIB_CALL
+struct hostent*
 roken_gethostbyname(const char *hostname)
 {
     struct hostent *he;
@@ -220,7 +217,7 @@ roken_gethostbyname(const char *hostname)
     return roken_gethostby(hostname);
 }
 
-ROKEN_LIB_FUNCTION struct hostent* ROKEN_LIB_CALL
+struct hostent* ROKEN_LIB_FUNCTION
 roken_gethostbyaddr(const void *addr, size_t len, int type)
 {
     struct in_addr a;

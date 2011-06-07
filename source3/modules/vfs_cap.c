@@ -23,7 +23,6 @@
 
 
 #include "includes.h"
-#include "smbd/smbd.h"
 
 /* cap functions */
 static char *capencode(TALLOC_CTX *ctx, const char *from);
@@ -385,7 +384,7 @@ static int cap_mknod(vfs_handle_struct *handle, const char *path, mode_t mode, S
 	return SMB_VFS_NEXT_MKNOD(handle, cappath, mode, dev);
 }
 
-static char *cap_realpath(vfs_handle_struct *handle, const char *path)
+static char *cap_realpath(vfs_handle_struct *handle, const char *path, char *resolved_path)
 {
         /* monyo need capencode'ed and capdecode'ed? */
 	char *cappath = capencode(talloc_tos(), path);
@@ -394,7 +393,7 @@ static char *cap_realpath(vfs_handle_struct *handle, const char *path)
 		errno = ENOMEM;
 		return NULL;
 	}
-	return SMB_VFS_NEXT_REALPATH(handle, cappath);
+	return SMB_VFS_NEXT_REALPATH(handle, path, resolved_path);
 }
 
 static int cap_chmod_acl(vfs_handle_struct *handle, const char *path, mode_t mode)
@@ -576,7 +575,7 @@ static struct vfs_fn_pointers vfs_cap_fns = {
 	.readdir = cap_readdir,
 	.mkdir = cap_mkdir,
 	.rmdir = cap_rmdir,
-	.open_fn = cap_open,
+	.open = cap_open,
 	.rename = cap_rename,
 	.stat = cap_stat,
 	.lstat = cap_lstat,

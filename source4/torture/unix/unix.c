@@ -24,15 +24,15 @@
 NTSTATUS torture_unix_init(void)
 {
         struct torture_suite *suite =
-                torture_suite_create(talloc_autofree_context(), "unix");
+                torture_suite_create(talloc_autofree_context(), "UNIX");
 
         suite->description =
                 talloc_strdup(suite, "CIFS UNIX extensions tests");
 
 	torture_suite_add_simple_test(suite,
-                        "whoami", torture_unix_whoami);
+                        "WHOAMI", torture_unix_whoami);
 	torture_suite_add_simple_test(suite,
-			"info2", unix_torture_unix_info2);
+			"INFO2", unix_torture_unix_info2);
 
         return (torture_register_suite(suite)) ? NT_STATUS_OK
                                         : NT_STATUS_UNSUCCESSFUL;

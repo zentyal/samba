@@ -19,9 +19,7 @@
 
 #include "includes.h"
 #include "winbindd.h"
-#include "librpc/gen_ndr/ndr_wbint_c.h"
-#include "idmap_cache.h"
-#include "../libcli/security/security.h"
+#include "librpc/gen_ndr/cli_wbint.h"
 
 struct wb_sid2gid_state {
 	struct tevent_context *ev;
@@ -94,7 +92,8 @@ static void wb_sid2gid_lookup_done(struct tevent_req *subreq)
 
 	status = wb_lookupsid_recv(subreq, talloc_tos(), &type, &domname,
 				   &name);
-	if (tevent_req_nterror(req, status)) {
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
 		return;
 	}
 
@@ -125,7 +124,7 @@ static void wb_sid2gid_lookup_done(struct tevent_req *subreq)
 
 	child = idmap_child();
 
-	subreq = dcerpc_wbint_Sid2Gid_send(state, state->ev, child->binding_handle,
+	subreq = rpccli_wbint_Sid2Gid_send(state, state->ev, child->rpccli,
 					   state->dom_name, &state->sid,
 					   &state->gid64);
 	if (tevent_req_nomem(subreq, req)) {
@@ -142,10 +141,14 @@ static void wb_sid2gid_done(struct tevent_req *subreq)
 		req, struct wb_sid2gid_state);
 	NTSTATUS status, result;
 
-	status = dcerpc_wbint_Sid2Gid_recv(subreq, state, &result);
+	status = rpccli_wbint_Sid2Gid_recv(subreq, state, &result);
 	TALLOC_FREE(subreq);
-	if (any_nt_status_not_ok(status, result, &status)) {
+	if (!NT_STATUS_IS_OK(status)) {
 		tevent_req_nterror(req, status);
+		return;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		tevent_req_nterror(req, result);
 		return;
 	}
 

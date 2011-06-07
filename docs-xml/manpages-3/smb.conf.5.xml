@@ -6,7 +6,7 @@
 	<manvolnum>5</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">File Formats and Conventions</refmiscinfo>
-	<refmiscinfo class="version">3.6</refmiscinfo>
+	<refmiscinfo class="version">3.5</refmiscinfo>
 </refmeta>
 
 
@@ -488,7 +488,7 @@ chmod 1770 /usr/local/samba/lib/usershares
 		    The architecture of the remote
 		    machine.  It currently recognizes Samba (<constant>Samba</constant>), 
 		    the Linux CIFS file system (<constant>CIFSFS</constant>), OS/2, (<constant>OS2</constant>),
-		    Mac OS X (<constant>OSX</constant>), Windows for Workgroups (<constant>WfWg</constant>), Windows 9x/ME 
+		    Windows for Workgroups (<constant>WfWg</constant>), Windows 9x/ME 
 		    (<constant>Win95</constant>), Windows NT (<constant>WinNT</constant>),
 		    Windows 2000 (<constant>Win2K</constant>),
 		    Windows XP (<constant>WinXP</constant>),
@@ -503,16 +503,12 @@ chmod 1770 /usr/local/samba/lib/usershares
 		<varlistentry>
 		<term>%I</term>
 		<listitem><para>the IP address of the client machine.</para>
-		<para>Before 3.6.0 it could contain IPv4 mapped IPv6 addresses,
-			now it only contains IPv4 or IPv6 addresses.</para>
 		</listitem>
 		</varlistentry>
 
 		<varlistentry>
 		<term>%i</term>
 		<listitem><para>the local IP address to which a client connected.</para>
-		<para>Before 3.6.0 it could contain IPv4 mapped IPv6 addresses,
-			now it only contains IPv4 or IPv6 addresses.</para>
 		</listitem>
 		</varlistentry>
 
@@ -632,11 +628,11 @@ chmod 1770 /usr/local/samba/lib/usershares
 		<term>default case = upper/lower</term>
 		<listitem><para>
 		controls what the default case is for new filenames (ie. files that don't currently exist in the filesystem).
-		Default <emphasis>lower</emphasis>.  IMPORTANT NOTE: As part of the optimizations for directories containing
-		large numbers of files, the following special case applies. If the options
-		<smbconfoption 	name="case sensitive">yes</smbconfoption>, <smbconfoption name="preserve case">No</smbconfoption>, and
-		<smbconfoption name="short preserve case">No</smbconfoption> are set, then the case of <emphasis>all</emphasis>
-		incoming client filenames, not just new filenames, will be modified. See additional notes below.
+		Default <emphasis>lower</emphasis>.  IMPORTANT NOTE: This option will be used to modify the case of
+		<emphasis>all</emphasis> incoming client filenames, not just new filenames if the options <smbconfoption
+		name="case sensitive">yes</smbconfoption>, <smbconfoption name="preserve case">No</smbconfoption>,
+		<smbconfoption name="short preserve case">No</smbconfoption> are set.  This change is needed as part of the
+		optimisations for directories containing large numbers of files.
 		</para></listitem>
 		</varlistentry> 
 	

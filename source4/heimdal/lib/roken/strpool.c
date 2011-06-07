@@ -46,7 +46,7 @@ struct rk_strpool {
  *
  */
 
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 rk_strpoolfree(struct rk_strpool *p)
 {
     if (p->str) {
@@ -60,7 +60,7 @@ rk_strpoolfree(struct rk_strpool *p)
  *
  */
 
-ROKEN_LIB_FUNCTION struct rk_strpool * ROKEN_LIB_CALL
+struct rk_strpool * ROKEN_LIB_FUNCTION
 rk_strpoolprintf(struct rk_strpool *p, const char *fmt, ...)
 {
     va_list ap;
@@ -97,7 +97,7 @@ rk_strpoolprintf(struct rk_strpool *p, const char *fmt, ...)
  *
  */
 
-ROKEN_LIB_FUNCTION char * ROKEN_LIB_CALL
+char * ROKEN_LIB_FUNCTION
 rk_strpoolcollect(struct rk_strpool *p)
 {
     char *str;

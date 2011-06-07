@@ -20,13 +20,156 @@
 */
 
 #include "includes.h"
-#include "system/filesys.h"
-#include "memcache.h"
-#include "../lib/async_req/async_sock.h"
-#include "../lib/util/select.h"
-#include "interfaces.h"
-#include "../lib/util/tevent_unix.h"
-#include "../lib/util/tevent_ntstatus.h"
+
+/****************************************************************************
+ Get a port number in host byte order from a sockaddr_storage.
+****************************************************************************/
+
+uint16_t get_sockaddr_port(const struct sockaddr_storage *pss)
+{
+	uint16_t port = 0;
+
+	if (pss->ss_family != AF_INET) {
+#if defined(HAVE_IPV6)
+		/* IPv6 */
+		const struct sockaddr_in6 *sa6 =
+			(const struct sockaddr_in6 *)pss;
+		port = ntohs(sa6->sin6_port);
+#endif
+	} else {
+		const struct sockaddr_in *sa =
+			(const struct sockaddr_in *)pss;
+		port = ntohs(sa->sin_port);
+	}
+	return port;
+}
+
+/****************************************************************************
+ Print out an IPv4 or IPv6 address from a struct sockaddr_storage.
+****************************************************************************/
+
+static char *print_sockaddr_len(char *dest,
+			size_t destlen,
+			const struct sockaddr *psa,
+			socklen_t psalen)
+{
+	if (destlen > 0) {
+		dest[0] = '\0';
+	}
+	(void)sys_getnameinfo(psa,
+			psalen,
+			dest, destlen,
+			NULL, 0,
+			NI_NUMERICHOST);
+	return dest;
+}
+
+/****************************************************************************
+ Print out an IPv4 or IPv6 address from a struct sockaddr_storage.
+****************************************************************************/
+
+char *print_sockaddr(char *dest,
+			size_t destlen,
+			const struct sockaddr_storage *psa)
+{
+	return print_sockaddr_len(dest, destlen, (struct sockaddr *)psa,
+			sizeof(struct sockaddr_storage));
+}
+
+/****************************************************************************
+ Print out a canonical IPv4 or IPv6 address from a struct sockaddr_storage.
+****************************************************************************/
+
+char *print_canonical_sockaddr(TALLOC_CTX *ctx,
+			const struct sockaddr_storage *pss)
+{
+	char addr[INET6_ADDRSTRLEN];
+	char *dest = NULL;
+	int ret;
+
+	/* Linux getnameinfo() man pages says port is unitialized if
+	   service name is NULL. */
+
+	ret = sys_getnameinfo((const struct sockaddr *)pss,
+			sizeof(struct sockaddr_storage),
+			addr, sizeof(addr),
+			NULL, 0,
+			NI_NUMERICHOST);
+	if (ret != 0) {
+		return NULL;
+	}
+
+	if (pss->ss_family != AF_INET) {
+#if defined(HAVE_IPV6)
+		dest = talloc_asprintf(ctx, "[%s]", addr);
+#else
+		return NULL;
+#endif
+	} else {
+		dest = talloc_asprintf(ctx, "%s", addr);
+	}
+	
+	return dest;
+}
+
+/****************************************************************************
+ Return the string of an IP address (IPv4 or IPv6).
+****************************************************************************/
+
+static const char *get_socket_addr(int fd, char *addr_buf, size_t addr_len)
+{
+	struct sockaddr_storage sa;
+	socklen_t length = sizeof(sa);
+
+	/* Ok, returning a hard coded IPv4 address
+ 	 * is bogus, but it's just as bogus as a
+ 	 * zero IPv6 address. No good choice here.
+ 	 */
+
+	strlcpy(addr_buf, "0.0.0.0", addr_len);
+
+	if (fd == -1) {
+		return addr_buf;
+	}
+
+	if (getsockname(fd, (struct sockaddr *)&sa, &length) < 0) {
+		DEBUG(0,("getsockname failed. Error was %s\n",
+			strerror(errno) ));
+		return addr_buf;
+	}
+
+	return print_sockaddr_len(addr_buf, addr_len, (struct sockaddr *)&sa, length);
+}
+
+/****************************************************************************
+ Return the port number we've bound to on a socket.
+****************************************************************************/
+
+int get_socket_port(int fd)
+{
+	struct sockaddr_storage sa;
+	socklen_t length = sizeof(sa);
+
+	if (fd == -1) {
+		return -1;
+	}
+
+	if (getsockname(fd, (struct sockaddr *)&sa, &length) < 0) {
+		DEBUG(0,("getpeername failed. Error was %s\n",
+			strerror(errno) ));
+		return -1;
+	}
+
+#if defined(HAVE_IPV6)
+	if (sa.ss_family == AF_INET6) {
+		return ntohs(((struct sockaddr_in6 *)&sa)->sin6_port);
+	}
+#endif
+	if (sa.ss_family == AF_INET) {
+		return ntohs(((struct sockaddr_in *)&sa)->sin_port);
+	}
+	return -1;
+}
 
 const char *client_name(int fd)
 {
@@ -36,6 +179,11 @@ const char *client_name(int fd)
 const char *client_addr(int fd, char *addr, size_t addrlen)
 {
 	return get_peer_addr(fd,addr,addrlen);
+}
+
+const char *client_socket_addr(int fd, char *addr, size_t addr_len)
+{
+	return get_socket_addr(fd, addr, addr_len);
 }
 
 #if 0
@@ -136,12 +284,6 @@ static const smb_socket_option socket_options[] = {
 #endif
 #ifdef TCP_QUICKACK
   {"TCP_QUICKACK", IPPROTO_TCP, TCP_QUICKACK, 0, OPT_BOOL},
-#endif
-#ifdef TCP_KEEPALIVE_THRESHOLD
-  {"TCP_KEEPALIVE_THRESHOLD", IPPROTO_TCP, TCP_KEEPALIVE_THRESHOLD, 0, OPT_INT},
-#endif
-#ifdef TCP_KEEPALIVE_ABORT_THRESHOLD
-  {"TCP_KEEPALIVE_ABORT_THRESHOLD", IPPROTO_TCP, TCP_KEEPALIVE_ABORT_THRESHOLD, 0, OPT_INT},
 #endif
   {NULL,0,0,0,0}};
 
@@ -294,9 +436,13 @@ NTSTATUS read_fd_with_timeout(int fd, char *buf,
 				  unsigned int time_out,
 				  size_t *size_ret)
 {
-	int pollrtn;
+	fd_set fds;
+	int selrtn;
 	ssize_t readret;
 	size_t nread = 0;
+	struct timeval timeout;
+	char addr[INET6_ADDRSTRLEN];
+	int save_errno;
 
 	/* just checking .... */
 	if (maxcnt <= 0)
@@ -318,7 +464,20 @@ NTSTATUS read_fd_with_timeout(int fd, char *buf,
 			}
 
 			if (readret == -1) {
-				return map_nt_error_from_unix(errno);
+				save_errno = errno;
+				if (fd == get_client_fd()) {
+					/* Try and give an error message
+					 * saying what client failed. */
+					DEBUG(0,("read_fd_with_timeout: "
+						"client %s read error = %s.\n",
+						get_peer_addr(fd,addr,sizeof(addr)),
+						strerror(save_errno) ));
+				} else {
+					DEBUG(0,("read_fd_with_timeout: "
+						"read error = %s.\n",
+						strerror(save_errno) ));
+				}
+				return map_nt_error_from_unix(save_errno);
 			}
 			nread += readret;
 		}
@@ -331,20 +490,42 @@ NTSTATUS read_fd_with_timeout(int fd, char *buf,
 	   system performance will suffer severely as
 	   select always returns true on disk files */
 
-	for (nread=0; nread < mincnt; ) {
-		int revents;
+	/* Set initial timeout */
+	timeout.tv_sec = (time_t)(time_out / 1000);
+	timeout.tv_usec = (long)(1000 * (time_out % 1000));
 
-		pollrtn = poll_intr_one_fd(fd, POLLIN|POLLHUP, time_out,
-					   &revents);
+	for (nread=0; nread < mincnt; ) {
+		if (fd < 0 || fd >= FD_SETSIZE) {
+			errno = EBADF;
+			return map_nt_error_from_unix(EBADF);
+		}
+
+		FD_ZERO(&fds);
+		FD_SET(fd,&fds);
+
+		selrtn = sys_select_intr(fd+1,&fds,NULL,NULL,&timeout);
 
 		/* Check if error */
-		if (pollrtn == -1) {
-			return map_nt_error_from_unix(errno);
+		if (selrtn == -1) {
+			save_errno = errno;
+			/* something is wrong. Maybe the socket is dead? */
+			if (fd == get_client_fd()) {
+				/* Try and give an error message saying
+				 * what client failed. */
+				DEBUG(0,("read_fd_with_timeout: timeout "
+				"read for client %s. select error = %s.\n",
+				get_peer_addr(fd,addr,sizeof(addr)),
+				strerror(save_errno) ));
+			} else {
+				DEBUG(0,("read_fd_with_timeout: timeout "
+				"read. select error = %s.\n",
+				strerror(save_errno) ));
+			}
+			return map_nt_error_from_unix(save_errno);
 		}
 
 		/* Did we timeout ? */
-		if ((pollrtn == 0) ||
-		    ((revents & (POLLIN|POLLHUP|POLLERR)) == 0)) {
+		if (selrtn == 0) {
 			DEBUG(10,("read_fd_with_timeout: timeout read. "
 				"select timed out.\n"));
 			return NT_STATUS_IO_TIMEOUT;
@@ -360,6 +541,20 @@ NTSTATUS read_fd_with_timeout(int fd, char *buf,
 		}
 
 		if (readret == -1) {
+			save_errno = errno;
+			/* the descriptor is probably dead */
+			if (fd == get_client_fd()) {
+				/* Try and give an error message
+				 * saying what client failed. */
+				DEBUG(0,("read_fd_with_timeout: timeout "
+					"read to client %s. read error = %s.\n",
+					get_peer_addr(fd,addr,sizeof(addr)),
+					strerror(save_errno) ));
+			} else {
+				DEBUG(0,("read_fd_with_timeout: timeout "
+					"read. read error = %s.\n",
+					strerror(save_errno) ));
+			}
 			return map_nt_error_from_unix(errno);
 		}
 
@@ -464,11 +659,31 @@ ssize_t write_data_iov(int fd, const struct iovec *orig_iov, int iovcnt)
 
 ssize_t write_data(int fd, const char *buffer, size_t N)
 {
+	ssize_t ret;
 	struct iovec iov;
 
 	iov.iov_base = CONST_DISCARD(void *, buffer);
 	iov.iov_len = N;
-	return write_data_iov(fd, &iov, 1);
+
+	ret = write_data_iov(fd, &iov, 1);
+	if (ret >= 0) {
+		return ret;
+	}
+
+	if (fd == get_client_fd()) {
+		char addr[INET6_ADDRSTRLEN];
+		/*
+		 * Try and give an error message saying what client failed.
+		 */
+		DEBUG(0, ("write_data: write failure in writing to client %s. "
+			  "Error %s\n", get_peer_addr(fd,addr,sizeof(addr)),
+			  strerror(errno)));
+	} else {
+		DEBUG(0,("write_data: write failure. Error = %s\n",
+			 strerror(errno) ));
+	}
+
+	return -1;
 }
 
 /****************************************************************************
@@ -519,6 +734,36 @@ NTSTATUS read_smb_length_return_keepalive(int fd, char *inbuf,
 }
 
 /****************************************************************************
+ Read 4 bytes of a smb packet and return the smb length of the packet.
+ Store the result in the buffer. This version of the function will
+ never return a session keepalive (length of zero).
+ Timeout is in milliseconds.
+****************************************************************************/
+
+NTSTATUS read_smb_length(int fd, char *inbuf, unsigned int timeout,
+			 size_t *len)
+{
+	uint8_t msgtype = SMBkeepalive;
+
+	while (msgtype == SMBkeepalive) {
+		NTSTATUS status;
+
+		status = read_smb_length_return_keepalive(fd, inbuf, timeout,
+							  len);
+		if (!NT_STATUS_IS_OK(status)) {
+			return status;
+		}
+
+		msgtype = CVAL(inbuf, 0);
+	}
+
+	DEBUG(10,("read_smb_length: got smb length of %lu\n",
+		  (unsigned long)len));
+
+	return NT_STATUS_OK;
+}
+
+/****************************************************************************
  Read an smb from a fd.
  The timeout is in milliseconds.
  This function will return on receipt of a session keepalive packet.
@@ -536,8 +781,7 @@ NTSTATUS receive_smb_raw(int fd, char *buffer, size_t buflen, unsigned int timeo
 	status = read_smb_length_return_keepalive(fd,buffer,timeout,&len);
 
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("read_fd_with_timeout failed, read "
-			  "error = %s.\n", nt_errstr(status)));
+		DEBUG(10, ("receive_smb_raw: %s!\n", nt_errstr(status)));
 		return status;
 	}
 
@@ -556,8 +800,6 @@ NTSTATUS receive_smb_raw(int fd, char *buffer, size_t buflen, unsigned int timeo
 			fd, buffer+4, len, len, timeout, &len);
 
 		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(0, ("read_fd_with_timeout failed, read error = "
-				  "%s.\n", nt_errstr(status)));
 			return status;
 		}
 
@@ -632,32 +874,6 @@ int open_socket_in(int type,
 		}
 #endif /* SO_REUSEPORT */
 	}
-
-#ifdef HAVE_IPV6
-	/*
-	 * As IPV6_V6ONLY is the default on some systems,
-	 * we better try to be consistent and always use it.
-	 *
-	 * This also avoids using IPv4 via AF_INET6 sockets
-	 * and makes sure %I never resolves to a '::ffff:192.168.0.1'
-	 * string.
-	 */
-	if (sock.ss_family == AF_INET6) {
-		int val = 1;
-		int ret;
-
-		ret = setsockopt(res, IPPROTO_IPV6, IPV6_V6ONLY,
-				 (const void *)&val, sizeof(val));
-		if (ret == -1) {
-			if(DEBUGLVL(0)) {
-				dbgtext("open_socket_in(): IPV6_ONLY failed: ");
-				dbgtext("%s\n", strerror(errno));
-			}
-			close(res);
-			return -1;
-		}
-	}
-#endif
 
 	/* now we've got a socket - we need to bind it */
 	if (bind(res, (struct sockaddr *)&sock, slen) == -1 ) {
@@ -855,16 +1071,6 @@ NTSTATUS open_socket_out_recv(struct tevent_req *req, int *pfd)
 	return NT_STATUS_OK;
 }
 
-/**
-* @brief open a socket
-*
-* @param pss a struct sockaddr_storage defining the address to connect to
-* @param port to connect to
-* @param timeout in MILLISECONDS
-* @param pfd file descriptor returned
-*
-* @return NTSTATUS code
-*/
 NTSTATUS open_socket_out(const struct sockaddr_storage *pss, uint16_t port,
 			 int timeout, int *pfd)
 {
@@ -990,6 +1196,175 @@ NTSTATUS open_socket_out_defer_recv(struct tevent_req *req, int *pfd)
 	return NT_STATUS_OK;
 }
 
+/*******************************************************************
+ Create an outgoing TCP socket to the first addr that connects.
+
+ This is for simultaneous connection attempts to port 445 and 139 of a host
+ or for simultatneous connection attempts to multiple DCs at once.  We return
+ a socket fd of the first successful connection.
+
+ @param[in] addrs list of Internet addresses and ports to connect to
+ @param[in] num_addrs number of address/port pairs in the addrs list
+ @param[in] timeout time after which we stop waiting for a socket connection
+            to succeed, given in milliseconds
+ @param[out] fd_index the entry in addrs which we successfully connected to
+ @param[out] fd fd of the open and connected socket
+ @return true on a successful connection, false if all connection attempts
+         failed or we timed out
+*******************************************************************/
+
+bool open_any_socket_out(struct sockaddr_storage *addrs, int num_addrs,
+			 int timeout, int *fd_index, int *fd)
+{
+	int i, resulting_index, res;
+	int *sockets;
+	bool good_connect;
+
+	fd_set r_fds, wr_fds;
+	struct timeval tv;
+	int maxfd;
+
+	int connect_loop = 10000; /* 10 milliseconds */
+
+	timeout *= 1000; 	/* convert to microseconds */
+
+	sockets = SMB_MALLOC_ARRAY(int, num_addrs);
+
+	if (sockets == NULL)
+		return false;
+
+	resulting_index = -1;
+
+	for (i=0; i<num_addrs; i++)
+		sockets[i] = -1;
+
+	for (i=0; i<num_addrs; i++) {
+		sockets[i] = socket(addrs[i].ss_family, SOCK_STREAM, 0);
+		if (sockets[i] < 0 || sockets[i] >= FD_SETSIZE)
+			goto done;
+		set_blocking(sockets[i], false);
+	}
+
+ connect_again:
+	good_connect = false;
+
+	for (i=0; i<num_addrs; i++) {
+		const struct sockaddr * a = 
+		    (const struct sockaddr *)&(addrs[i]);
+
+		if (sockets[i] == -1)
+			continue;
+
+		if (sys_connect(sockets[i], a) == 0) {
+			/* Rather unlikely as we are non-blocking, but it
+			 * might actually happen. */
+			resulting_index = i;
+			goto done;
+		}
+
+		if (errno == EINPROGRESS || errno == EALREADY ||
+#ifdef EISCONN
+			errno == EISCONN ||
+#endif
+		    errno == EAGAIN || errno == EINTR) {
+			/* These are the error messages that something is
+			   progressing. */
+			good_connect = true;
+		} else if (errno != 0) {
+			/* There was a direct error */
+			close(sockets[i]);
+			sockets[i] = -1;
+		}
+	}
+
+	if (!good_connect) {
+		/* All of the connect's resulted in real error conditions */
+		goto done;
+	}
+
+	/* Lets see if any of the connect attempts succeeded */
+
+	maxfd = 0;
+	FD_ZERO(&wr_fds);
+	FD_ZERO(&r_fds);
+
+	for (i=0; i<num_addrs; i++) {
+		if (sockets[i] < 0 || sockets[i] >= FD_SETSIZE) {
+			/* This cannot happen - ignore if so. */
+			continue;
+		}
+		FD_SET(sockets[i], &wr_fds);
+		FD_SET(sockets[i], &r_fds);
+		if (sockets[i]>maxfd)
+			maxfd = sockets[i];
+	}
+
+	tv.tv_sec = 0;
+	tv.tv_usec = connect_loop;
+
+	res = sys_select_intr(maxfd+1, &r_fds, &wr_fds, NULL, &tv);
+
+	if (res < 0)
+		goto done;
+
+	if (res == 0)
+		goto next_round;
+
+	for (i=0; i<num_addrs; i++) {
+
+		if (sockets[i] < 0 || sockets[i] >= FD_SETSIZE) {
+			/* This cannot happen - ignore if so. */
+			continue;
+		}
+
+		/* Stevens, Network Programming says that if there's a
+		 * successful connect, the socket is only writable. Upon an
+		 * error, it's both readable and writable. */
+
+		if (FD_ISSET(sockets[i], &r_fds) &&
+		    FD_ISSET(sockets[i], &wr_fds)) {
+			/* readable and writable, so it's an error */
+			close(sockets[i]);
+			sockets[i] = -1;
+			continue;
+		}
+
+		if (!FD_ISSET(sockets[i], &r_fds) &&
+		    FD_ISSET(sockets[i], &wr_fds)) {
+			/* Only writable, so it's connected */
+			resulting_index = i;
+			goto done;
+		}
+	}
+
+ next_round:
+
+	timeout -= connect_loop;
+	if (timeout <= 0)
+		goto done;
+	connect_loop *= 1.5;
+	if (connect_loop > timeout)
+		connect_loop = timeout;
+	goto connect_again;
+
+ done:
+	for (i=0; i<num_addrs; i++) {
+		if (i == resulting_index)
+			continue;
+		if (sockets[i] >= 0)
+			close(sockets[i]);
+	}
+
+	if (resulting_index >= 0) {
+		*fd_index = resulting_index;
+		*fd = sockets[*fd_index];
+		set_blocking(*fd, true);
+	}
+
+	free(sockets);
+
+	return (resulting_index >= 0);
+}
 /****************************************************************************
  Open a connected UDP socket to host on port
 **************************************************************************/
@@ -1062,9 +1437,8 @@ static const char *get_peer_addr_internal(int fd,
 	}
 
 	if (getpeername(fd, (struct sockaddr *)pss, plength) < 0) {
-		int level = (errno == ENOTCONN) ? 2 : 0;
-		DEBUG(level, ("getpeername failed. Error was %s\n",
-			       strerror(errno)));
+		DEBUG(0,("getpeername failed. Error was %s\n",
+					strerror(errno) ));
 		return addr_buf;
 	}
 
@@ -1465,46 +1839,13 @@ const char *get_mydnsfullname(void)
 }
 
 /************************************************************
- Is this my ip address ?
-************************************************************/
-
-static bool is_my_ipaddr(const char *ipaddr_str)
-{
-	struct sockaddr_storage ss;
-	struct iface_struct *nics;
-	int i, n;
-
-	if (!interpret_string_addr(&ss, ipaddr_str, AI_NUMERICHOST)) {
-		return false;
-	}
-
-	if (ismyaddr((struct sockaddr *)&ss)) {
-		return true;
-	}
-
-	if (is_zero_addr(&ss) ||
-		is_loopback_addr((struct sockaddr *)&ss)) {
-		return false;
-	}
-
-	n = get_interfaces(talloc_tos(), &nics);
-	for (i=0; i<n; i++) {
-		if (sockaddr_equal((struct sockaddr *)&nics[i].ip, (struct sockaddr *)&ss)) {
-			TALLOC_FREE(nics);
-			return true;
-		}
-	}
-	TALLOC_FREE(nics);
-	return false;
-}
-
-/************************************************************
  Is this my name ?
 ************************************************************/
 
 bool is_myname_or_ipaddr(const char *s)
 {
 	TALLOC_CTX *ctx = talloc_tos();
+	char addr[INET6_ADDRSTRLEN];
 	char *name = NULL;
 	const char *dnsname;
 	char *servername = NULL;
@@ -1552,38 +1893,45 @@ bool is_myname_or_ipaddr(const char *s)
 		return true;
 	}
 
-	/* Maybe its an IP address? */
-	if (is_ipaddress(servername)) {
-		return is_my_ipaddr(servername);
-	}
-
-	/* Handle possible CNAME records - convert to an IP addr. list. */
-	{
-		/* Use DNS to resolve the name, check all addresses. */
-		struct addrinfo *p = NULL;
-		struct addrinfo *res = NULL;
-
-		if (!interpret_string_addr_internal(&res,
-				servername,
-				AI_ADDRCONFIG)) {
-			return false;
-		}
-
-		for (p = res; p; p = p->ai_next) {
-			char addr[INET6_ADDRSTRLEN];
-			struct sockaddr_storage ss;
-
-			ZERO_STRUCT(ss);
-			memcpy(&ss, p->ai_addr, p->ai_addrlen);
+	/* Handle possible CNAME records - convert to an IP addr. */
+	if (!is_ipaddress(servername)) {
+		/* Use DNS to resolve the name, but only the first address */
+		struct sockaddr_storage ss;
+		if (interpret_string_addr(&ss, servername, 0)) {
 			print_sockaddr(addr,
 					sizeof(addr),
 					&ss);
-			if (is_my_ipaddr(addr)) {
-				freeaddrinfo(res);
+			servername = addr;
+		}
+	}
+
+	/* Maybe its an IP address? */
+	if (is_ipaddress(servername)) {
+		struct sockaddr_storage ss;
+		struct iface_struct *nics;
+		int i, n;
+
+		if (!interpret_string_addr(&ss, servername, AI_NUMERICHOST)) {
+			return false;
+		}
+
+		if (ismyaddr((struct sockaddr *)&ss)) {
+			return true;
+		}
+
+		if (is_zero_addr((struct sockaddr *)&ss) || 
+			is_loopback_addr((struct sockaddr *)&ss)) {
+			return false;
+		}
+
+		n = get_interfaces(talloc_tos(), &nics);
+		for (i=0; i<n; i++) {
+			if (sockaddr_equal((struct sockaddr *)&nics[i].ip, (struct sockaddr *)&ss)) {
+				TALLOC_FREE(nics);
 				return true;
 			}
 		}
-		freeaddrinfo(res);
+		TALLOC_FREE(nics);
 	}
 
 	/* No match */
@@ -1670,48 +2018,4 @@ int getaddrinfo_recv(struct tevent_req *req, struct addrinfo **res)
 		*res = state->res;
 	}
 	return state->ret;
-}
-
-int poll_one_fd(int fd, int events, int timeout, int *revents)
-{
-	struct pollfd *fds;
-	int ret;
-	int saved_errno;
-
-	fds = TALLOC_ZERO_ARRAY(talloc_tos(), struct pollfd, 2);
-	if (fds == NULL) {
-		errno = ENOMEM;
-		return -1;
-	}
-	fds[0].fd = fd;
-	fds[0].events = events;
-
-	ret = sys_poll(fds, 1, timeout);
-
-	/*
-	 * Assign whatever poll did, even in the ret<=0 case.
-	 */
-	*revents = fds[0].revents;
-	saved_errno = errno;
-	TALLOC_FREE(fds);
-	errno = saved_errno;
-
-	return ret;
-}
-
-int poll_intr_one_fd(int fd, int events, int timeout, int *revents)
-{
-	struct pollfd pfd;
-	int ret;
-
-	pfd.fd = fd;
-	pfd.events = events;
-
-	ret = sys_poll_intr(&pfd, 1, timeout);
-	if (ret <= 0) {
-		*revents = 0;
-		return ret;
-	}
-	*revents = pfd.revents;
-	return 1;
 }

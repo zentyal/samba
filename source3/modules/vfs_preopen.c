@@ -19,8 +19,6 @@
  */
 
 #include "includes.h"
-#include "system/filesys.h"
-#include "smbd/smbd.h"
 
 struct preopen_state;
 
@@ -443,7 +441,7 @@ static int preopen_open(vfs_handle_struct *handle,
 }
 
 static struct vfs_fn_pointers vfs_preopen_fns = {
-	.open_fn = preopen_open
+	.open = preopen_open
 };
 
 NTSTATUS vfs_preopen_init(void);

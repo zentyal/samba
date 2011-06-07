@@ -19,11 +19,6 @@
 */
 
 #include "includes.h"
-#include "system/time.h"
-#include "system/filesys.h"
-#include "smbd/smbd.h"
-#include "ntioctl.h"
-#include "smbprofile.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_VFS
@@ -84,10 +79,7 @@ static int vfswrap_set_quota(struct vfs_handle_struct *handle,  enum SMB_QUOTA_T
 #endif
 }
 
-static int vfswrap_get_shadow_copy_data(struct vfs_handle_struct *handle,
-					struct files_struct *fsp,
-					struct shadow_copy_data *shadow_copy_data,
-					bool labels)
+static int vfswrap_get_shadow_copy_data(struct vfs_handle_struct *handle, struct files_struct *fsp, SHADOW_COPY_DATA *shadow_copy_data, bool labels)
 {
 	errno = ENOSYS;
 	return -1;  /* Not implemented. */
@@ -174,20 +166,6 @@ static SMB_STRUCT_DIR *vfswrap_opendir(vfs_handle_struct *handle,  const char *f
 	END_PROFILE(syscall_opendir);
 	return result;
 }
-
-static SMB_STRUCT_DIR *vfswrap_fdopendir(vfs_handle_struct *handle,
-			files_struct *fsp,
-			const char *mask,
-			uint32 attr)
-{
-	SMB_STRUCT_DIR *result;
-
-	START_PROFILE(syscall_fdopendir);
-	result = sys_fdopendir(fsp->fh->fd);
-	END_PROFILE(syscall_fdopendir);
-	return result;
-}
-
 
 static SMB_STRUCT_DIRENT *vfswrap_readdir(vfs_handle_struct *handle,
 				          SMB_STRUCT_DIR *dirp,
@@ -320,7 +298,6 @@ static NTSTATUS vfswrap_create_file(vfs_handle_struct *handle,
 				    uint32_t file_attributes,
 				    uint32_t oplock_request,
 				    uint64_t allocation_size,
-				    uint32_t private_flags,
 				    struct security_descriptor *sd,
 				    struct ea_list *ea_list,
 				    files_struct **result,
@@ -330,8 +307,7 @@ static NTSTATUS vfswrap_create_file(vfs_handle_struct *handle,
 				   access_mask, share_access,
 				   create_disposition, create_options,
 				   file_attributes, oplock_request,
-				   allocation_size, private_flags,
-				   sd, ea_list, result,
+				   allocation_size, sd, ea_list, result,
 				   pinfo);
 }
 
@@ -499,6 +475,117 @@ static ssize_t vfswrap_recvfile(vfs_handle_struct *handle,
 	return result;
 }
 
+/*********************************************************
+ For rename across filesystems Patch from Warren Birnbaum
+ <warrenb@hpcvscdp.cv.hp.com>
+**********************************************************/
+
+static int copy_reg(const char *source, const char *dest)
+{
+	SMB_STRUCT_STAT source_stats;
+	int saved_errno;
+	int ifd = -1;
+	int ofd = -1;
+
+	if (sys_lstat(source, &source_stats, false) == -1)
+		return -1;
+
+	if (!S_ISREG (source_stats.st_ex_mode))
+		return -1;
+
+	if((ifd = sys_open (source, O_RDONLY, 0)) < 0)
+		return -1;
+
+	if (unlink (dest) && errno != ENOENT)
+		return -1;
+
+#ifdef O_NOFOLLOW
+	if((ofd = sys_open (dest, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0600)) < 0 )
+#else
+	if((ofd = sys_open (dest, O_WRONLY | O_CREAT | O_TRUNC , 0600)) < 0 )
+#endif
+		goto err;
+
+	if (transfer_file(ifd, ofd, (size_t)-1) == -1)
+		goto err;
+
+	/*
+	 * Try to preserve ownership.  For non-root it might fail, but that's ok.
+	 * But root probably wants to know, e.g. if NFS disallows it.
+	 */
+
+#ifdef HAVE_FCHOWN
+	if ((fchown(ofd, source_stats.st_ex_uid, source_stats.st_ex_gid) == -1) && (errno != EPERM))
+#else
+	if ((chown(dest, source_stats.st_ex_uid, source_stats.st_ex_gid) == -1) && (errno != EPERM))
+#endif
+		goto err;
+
+	/*
+	 * fchown turns off set[ug]id bits for non-root,
+	 * so do the chmod last.
+	 */
+
+#if defined(HAVE_FCHMOD)
+	if (fchmod (ofd, source_stats.st_ex_mode & 07777))
+#else
+	if (chmod (dest, source_stats.st_ex_mode & 07777))
+#endif
+		goto err;
+
+	if (close (ifd) == -1)
+		goto err;
+
+	if (close (ofd) == -1)
+		return -1;
+
+	/* Try to copy the old file's modtime and access time.  */
+#if defined(HAVE_UTIMENSAT)
+	{
+		struct timespec ts[2];
+
+		ts[0] = source_stats.st_ex_atime;
+		ts[1] = source_stats.st_ex_mtime;
+		utimensat(AT_FDCWD, dest, ts, AT_SYMLINK_NOFOLLOW);
+	}
+#elif defined(HAVE_UTIMES)
+	{
+		struct timeval tv[2];
+
+		tv[0] = convert_timespec_to_timeval(source_stats.st_ex_atime);
+		tv[1] = convert_timespec_to_timeval(source_stats.st_ex_mtime);
+#ifdef HAVE_LUTIMES
+		lutimes(dest, tv);
+#else
+		utimes(dest, tv);
+#endif
+	}
+#elif defined(HAVE_UTIME)
+	{
+		struct utimbuf tv;
+
+		tv.actime = convert_timespec_to_time_t(source_stats.st_ex_atime);
+		tv.modtime = convert_timespec_to_time_t(source_stats.st_ex_mtime);
+		utime(dest, &tv);
+	}
+#endif
+
+	if (unlink (source) == -1)
+		return -1;
+
+	return 0;
+
+  err:
+
+	saved_errno = errno;
+	if (ifd != -1)
+		close(ifd);
+	if (ofd != -1)
+		close(ofd);
+	errno = saved_errno;
+	return -1;
+}
+
 static int vfswrap_rename(vfs_handle_struct *handle,
 			  const struct smb_filename *smb_fname_src,
 			  const struct smb_filename *smb_fname_dst)
@@ -513,6 +600,11 @@ static int vfswrap_rename(vfs_handle_struct *handle,
 	}
 
 	result = rename(smb_fname_src->base_name, smb_fname_dst->base_name);
+	if ((result == -1) && (errno == EXDEV)) {
+		/* Rename across filesystems needed. */
+		result = copy_reg(smb_fname_src->base_name,
+				  smb_fname_dst->base_name);
+	}
 
  out:
 	END_PROFILE(syscall_rename);
@@ -776,27 +868,25 @@ static int vfswrap_ntimes(vfs_handle_struct *handle,
 		goto out;
 	}
 
-	if (ft != NULL) {
-		if (null_timespec(ft->atime)) {
-			ft->atime= smb_fname->st.st_ex_atime;
-		}
+	if (null_timespec(ft->atime)) {
+		ft->atime= smb_fname->st.st_ex_atime;
+	}
 
-		if (null_timespec(ft->mtime)) {
-			ft->mtime = smb_fname->st.st_ex_mtime;
-		}
+	if (null_timespec(ft->mtime)) {
+		ft->mtime = smb_fname->st.st_ex_mtime;
+	}
 
-		if (!null_timespec(ft->create_time)) {
-			set_create_timespec_ea(handle->conn,
-					       smb_fname,
-					       ft->create_time);
-		}
+	if (!null_timespec(ft->create_time)) {
+		set_create_timespec_ea(handle->conn,
+				smb_fname,
+				ft->create_time);
+	}
 
-		if ((timespec_compare(&ft->atime,
-				      &smb_fname->st.st_ex_atime) == 0) &&
-		    (timespec_compare(&ft->mtime,
-				      &smb_fname->st.st_ex_mtime) == 0)) {
-			return 0;
-		}
+	if ((timespec_compare(&ft->atime,
+				&smb_fname->st.st_ex_atime) == 0) &&
+			(timespec_compare(&ft->mtime,
+				&smb_fname->st.st_ex_mtime) == 0)) {
+		return 0;
 	}
 
 #if defined(HAVE_UTIMENSAT)
@@ -853,40 +943,40 @@ static int vfswrap_ntimes(vfs_handle_struct *handle,
 
 static int strict_allocate_ftruncate(vfs_handle_struct *handle, files_struct *fsp, SMB_OFF_T len)
 {
+	SMB_STRUCT_STAT st;
+	SMB_OFF_T currpos = SMB_VFS_LSEEK(fsp, 0, SEEK_CUR);
+	unsigned char zero_space[4096];
 	SMB_OFF_T space_to_write;
 	uint64_t space_avail;
 	uint64_t bsize,dfree,dsize;
 	int ret;
-	NTSTATUS status;
-	SMB_STRUCT_STAT *pst;
 
-	status = vfs_stat_fsp(fsp);
-	if (!NT_STATUS_IS_OK(status)) {
+	if (currpos == -1)
 		return -1;
-	}
-	pst = &fsp->fsp_name->st;
+
+	if (SMB_VFS_FSTAT(fsp, &st) == -1)
+		return -1;
 
 #ifdef S_ISFIFO
-	if (S_ISFIFO(pst->st_ex_mode))
+	if (S_ISFIFO(st.st_ex_mode))
 		return 0;
 #endif
 
-	if (pst->st_ex_size == len)
+	if (st.st_ex_size == len)
 		return 0;
 
 	/* Shrink - just ftruncate. */
-	if (pst->st_ex_size > len)
+	if (st.st_ex_size > len)
 		return sys_ftruncate(fsp->fh->fd, len);
 
-	space_to_write = len - pst->st_ex_size;
+	space_to_write = len - st.st_ex_size;
 
-	/* for allocation try fallocate first. This can fail on some
+	/* for allocation try posix_fallocate first. This can fail on some
 	   platforms e.g. when the filesystem doesn't support it and no
 	   emulation is being done by the libc (like on AIX with JFS1). In that
-	   case we do our own emulation. fallocate implementations can
+	   case we do our own emulation. posix_fallocate implementations can
 	   return ENOTSUP or EINVAL in cases like that. */
-	ret = SMB_VFS_FALLOCATE(fsp, VFS_FALLOCATE_EXTEND_SIZE,
-				pst->st_ex_size, space_to_write);
+	ret = sys_posix_fallocate(fsp->fh->fd, st.st_ex_size, space_to_write);
 	if (ret == ENOSPC) {
 		errno = ENOSPC;
 		return -1;
@@ -894,7 +984,7 @@ static int strict_allocate_ftruncate(vfs_handle_struct *handle, files_struct *fs
 	if (ret == 0) {
 		return 0;
 	}
-	DEBUG(10,("strict_allocate_ftruncate: SMB_VFS_FALLOCATE failed with "
+	DEBUG(10,("strict_allocate_ftruncate: sys_posix_fallocate failed with "
 		"error %d. Falling back to slow manual allocation\n", ret));
 
 	/* available disk space is enough or not? */
@@ -909,11 +999,24 @@ static int strict_allocate_ftruncate(vfs_handle_struct *handle, files_struct *fs
 	}
 
 	/* Write out the real space on disk. */
-	ret = vfs_slow_fallocate(fsp, pst->st_ex_size, space_to_write);
-	if (ret != 0) {
-		errno = ret;
-		ret = -1;
+	if (SMB_VFS_LSEEK(fsp, st.st_ex_size, SEEK_SET) != st.st_ex_size)
+		return -1;
+
+	memset(zero_space, '\0', sizeof(zero_space));
+	while ( space_to_write > 0) {
+		SMB_OFF_T retlen;
+		SMB_OFF_T current_len_to_write = MIN(sizeof(zero_space),space_to_write);
+
+		retlen = SMB_VFS_WRITE(fsp,(char *)zero_space,current_len_to_write);
+		if (retlen <= 0)
+			return -1;
+
+		space_to_write -= retlen;
 	}
+
+	/* Seek to where we were */
+	if (SMB_VFS_LSEEK(fsp, currpos, SEEK_SET) != currpos)
+		return -1;
 
 	return 0;
 }
@@ -921,13 +1024,13 @@ static int strict_allocate_ftruncate(vfs_handle_struct *handle, files_struct *fs
 static int vfswrap_ftruncate(vfs_handle_struct *handle, files_struct *fsp, SMB_OFF_T len)
 {
 	int result = -1;
-	SMB_STRUCT_STAT *pst;
-	NTSTATUS status;
+	SMB_STRUCT_STAT st;
 	char c = 0;
+	SMB_OFF_T currpos;
 
 	START_PROFILE(syscall_ftruncate);
 
-	if (lp_strict_allocate(SNUM(fsp->conn)) && !fsp->is_sparse) {
+	if (lp_strict_allocate(SNUM(fsp->conn))) {
 		result = strict_allocate_ftruncate(handle, fsp, len);
 		END_PROFILE(syscall_ftruncate);
 		return result;
@@ -946,64 +1049,50 @@ static int vfswrap_ftruncate(vfs_handle_struct *handle, files_struct *fsp, SMB_O
 	/* According to W. R. Stevens advanced UNIX prog. Pure 4.3 BSD cannot
 	   extend a file with ftruncate. Provide alternate implementation
 	   for this */
+	currpos = SMB_VFS_LSEEK(fsp, 0, SEEK_CUR);
+	if (currpos == -1) {
+		goto done;
+	}
 
 	/* Do an fstat to see if the file is longer than the requested
 	   size in which case the ftruncate above should have
 	   succeeded or shorter, in which case seek to len - 1 and
 	   write 1 byte of zero */
-	status = vfs_stat_fsp(fsp);
-	if (!NT_STATUS_IS_OK(status)) {
+	if (SMB_VFS_FSTAT(fsp, &st) == -1) {
 		goto done;
 	}
-	pst = &fsp->fsp_name->st;
 
 #ifdef S_ISFIFO
-	if (S_ISFIFO(pst->st_ex_mode)) {
+	if (S_ISFIFO(st.st_ex_mode)) {
 		result = 0;
 		goto done;
 	}
 #endif
 
-	if (pst->st_ex_size == len) {
+	if (st.st_ex_size == len) {
 		result = 0;
 		goto done;
 	}
 
-	if (pst->st_ex_size > len) {
+	if (st.st_ex_size > len) {
 		/* the sys_ftruncate should have worked */
 		goto done;
 	}
 
-	if (SMB_VFS_PWRITE(fsp, &c, 1, len-1)!=1) {
+	if (SMB_VFS_LSEEK(fsp, len-1, SEEK_SET) != len -1)
 		goto done;
-	}
 
+	if (SMB_VFS_WRITE(fsp, &c, 1)!=1)
+		goto done;
+
+	/* Seek to where we were */
+	if (SMB_VFS_LSEEK(fsp, currpos, SEEK_SET) != currpos)
+		goto done;
 	result = 0;
 
   done:
 
 	END_PROFILE(syscall_ftruncate);
-	return result;
-}
-
-static int vfswrap_fallocate(vfs_handle_struct *handle,
-			files_struct *fsp,
-			enum vfs_fallocate_mode mode,
-			SMB_OFF_T offset,
-			SMB_OFF_T len)
-{
-	int result;
-
-	START_PROFILE(syscall_fallocate);
-	if (mode == VFS_FALLOCATE_EXTEND_SIZE) {
-		result = sys_posix_fallocate(fsp->fh->fd, offset, len);
-	} else if (mode == VFS_FALLOCATE_KEEP_SIZE) {
-		result = sys_fallocate(fsp->fh->fd, mode, offset, len);
-	} else {
-		errno = EINVAL;
-		result = -1;
-	}
-	END_PROFILE(syscall_fallocate);
 	return result;
 }
 
@@ -1097,25 +1186,12 @@ static int vfswrap_mknod(vfs_handle_struct *handle,  const char *pathname, mode_
 	return result;
 }
 
-static char *vfswrap_realpath(vfs_handle_struct *handle,  const char *path)
+static char *vfswrap_realpath(vfs_handle_struct *handle,  const char *path, char *resolved_path)
 {
 	char *result;
 
 	START_PROFILE(syscall_realpath);
-#ifdef REALPATH_TAKES_NULL
-	result = realpath(path, NULL);
-#else
-	result = SMB_MALLOC_ARRAY(char, PATH_MAX+1);
-	if (result) {
-		char *resolved_path = realpath(path, result);
-		if (!resolved_path) {
-			SAFE_FREE(result);
-		} else {
-			/* SMB_ASSERT(result == resolved_path) ? */
-			result = resolved_path;
-		}
-	}
-#endif
+	result = realpath(path, resolved_path);
 	END_PROFILE(syscall_realpath);
 	return result;
 }
@@ -1317,8 +1393,7 @@ static void vfswrap_strict_unlock(struct vfs_handle_struct *handle,
 
 static NTSTATUS vfswrap_fget_nt_acl(vfs_handle_struct *handle,
 				    files_struct *fsp,
-				    uint32 security_info,
-				    struct security_descriptor **ppdesc)
+				    uint32 security_info, SEC_DESC **ppdesc)
 {
 	NTSTATUS result;
 
@@ -1330,8 +1405,7 @@ static NTSTATUS vfswrap_fget_nt_acl(vfs_handle_struct *handle,
 
 static NTSTATUS vfswrap_get_nt_acl(vfs_handle_struct *handle,
 				   const char *name,
-				   uint32 security_info,
-				   struct security_descriptor **ppdesc)
+				   uint32 security_info, SEC_DESC **ppdesc)
 {
 	NTSTATUS result;
 
@@ -1341,7 +1415,7 @@ static NTSTATUS vfswrap_get_nt_acl(vfs_handle_struct *handle,
 	return result;
 }
 
-static NTSTATUS vfswrap_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp, uint32 security_info_sent, const struct security_descriptor *psd)
+static NTSTATUS vfswrap_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp, uint32 security_info_sent, const SEC_DESC *psd)
 {
 	NTSTATUS result;
 
@@ -1515,12 +1589,12 @@ static ssize_t vfswrap_listxattr(struct vfs_handle_struct *handle, const char *p
 	return sys_listxattr(path, list, size);
 }
 
-static ssize_t vfswrap_llistxattr(struct vfs_handle_struct *handle, const char *path, char *list, size_t size)
+ssize_t vfswrap_llistxattr(struct vfs_handle_struct *handle, const char *path, char *list, size_t size)
 {
 	return sys_llistxattr(path, list, size);
 }
 
-static ssize_t vfswrap_flistxattr(struct vfs_handle_struct *handle, struct files_struct *fsp, char *list, size_t size)
+ssize_t vfswrap_flistxattr(struct vfs_handle_struct *handle, struct files_struct *fsp, char *list, size_t size)
 {
 	return sys_flistxattr(fsp->fh->fd, list, size);
 }
@@ -1615,14 +1689,9 @@ static bool vfswrap_aio_force(struct vfs_handle_struct *handle, struct files_str
 	return false;
 }
 
-static bool vfswrap_is_offline(struct vfs_handle_struct *handle,
-			       const struct smb_filename *fname,
-			       SMB_STRUCT_STAT *sbuf)
+static bool vfswrap_is_offline(struct vfs_handle_struct *handle, const char *path, SMB_STRUCT_STAT *sbuf)
 {
-	NTSTATUS status;
-	char *path;
-
-        if (ISDOT(fname->base_name) || ISDOTDOT(fname->base_name)) {
+	if (ISDOT(path) || ISDOTDOT(path)) {
 		return false;
 	}
 
@@ -1633,17 +1702,10 @@ static bool vfswrap_is_offline(struct vfs_handle_struct *handle,
 		return false;
 	}
 
-        status = get_full_smb_filename(talloc_tos(), fname, &path);
-        if (!NT_STATUS_IS_OK(status)) {
-                errno = map_errno_from_nt_status(status);
-                return false;
-        }
-
 	return (dmapi_file_flags(path) & FILE_ATTRIBUTE_OFFLINE) != 0;
 }
 
-static int vfswrap_set_offline(struct vfs_handle_struct *handle,
-			       const struct smb_filename *fname)
+static int vfswrap_set_offline(struct vfs_handle_struct *handle, const char *path)
 {
 	/* We don't know how to set offline bit by default, needs to be overriden in the vfs modules */
 #if defined(ENOTSUP)
@@ -1667,7 +1729,6 @@ static struct vfs_fn_pointers vfs_default_fns = {
 	/* Directory operations */
 
 	.opendir = vfswrap_opendir,
-	.fdopendir = vfswrap_fdopendir,
 	.readdir = vfswrap_readdir,
 	.seekdir = vfswrap_seekdir,
 	.telldir = vfswrap_telldir,
@@ -1679,7 +1740,7 @@ static struct vfs_fn_pointers vfs_default_fns = {
 
 	/* File operations */
 
-	.open_fn = vfswrap_open,
+	.open = vfswrap_open,
 	.create_file = vfswrap_create_file,
 	.close_fn = vfswrap_close,
 	.vfs_read = vfswrap_read,
@@ -1705,7 +1766,6 @@ static struct vfs_fn_pointers vfs_default_fns = {
 	.getwd = vfswrap_getwd,
 	.ntimes = vfswrap_ntimes,
 	.ftruncate = vfswrap_ftruncate,
-	.fallocate = vfswrap_fallocate,
 	.lock = vfswrap_lock,
 	.kernel_flock = vfswrap_kernel_flock,
 	.linux_setlease = vfswrap_linux_setlease,

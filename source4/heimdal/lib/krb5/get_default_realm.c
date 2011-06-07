@@ -38,7 +38,7 @@
  * Free this memory with krb5_free_host_realm.
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_get_default_realms (krb5_context context,
 			 krb5_realm **realms)
 {
@@ -57,7 +57,7 @@ krb5_get_default_realms (krb5_context context,
  * Return the first default realm.  For compatibility.
  */
 
-KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_error_code KRB5_LIB_FUNCTION
 krb5_get_default_realm(krb5_context context,
 		       krb5_realm *realm)
 {

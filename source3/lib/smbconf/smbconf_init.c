@@ -21,7 +21,6 @@
 #include "lib/smbconf/smbconf_private.h"
 #include "lib/smbconf/smbconf_txt.h"
 #include "lib/smbconf/smbconf_reg.h"
-#include "lib/smbconf/smbconf_init.h"
 
 /**
  * smbconf initialization dispatcher
@@ -34,28 +33,28 @@
  * -  "registry" or "reg"
  * -  "txt" or "file"
  */
-sbcErr smbconf_init(TALLOC_CTX *mem_ctx, struct smbconf_ctx **conf_ctx,
+WERROR smbconf_init(TALLOC_CTX *mem_ctx, struct smbconf_ctx **conf_ctx,
 		    const char *source)
 {
-	sbcErr err;
+	WERROR werr;
 	char *backend = NULL;
 	char *path = NULL;
 	char *sep;
 	TALLOC_CTX *tmp_ctx = talloc_stackframe();
 
 	if (conf_ctx == NULL) {
-		err = SBC_ERR_INVALID_PARAM;
+		werr = WERR_INVALID_PARAM;
 		goto done;
 	}
 
 	if ((source == NULL) || (*source == '\0')) {
-		err = SBC_ERR_INVALID_PARAM;
+		werr = WERR_INVALID_PARAM;
 		goto done;
 	}
 
 	backend = talloc_strdup(tmp_ctx, source);
 	if (backend == NULL) {
-		err = SBC_ERR_NOMEM;
+		werr = WERR_NOMEM;
 		goto done;
 	}
 
@@ -69,16 +68,16 @@ sbcErr smbconf_init(TALLOC_CTX *mem_ctx, struct smbconf_ctx **conf_ctx,
 	}
 
 	if (strequal(backend, "registry") || strequal(backend, "reg")) {
-		err = smbconf_init_reg(mem_ctx, conf_ctx, path);
+		werr = smbconf_init_reg(mem_ctx, conf_ctx, path);
 	} else if (strequal(backend, "file") || strequal(backend, "txt")) {
-		err = smbconf_init_txt(mem_ctx, conf_ctx, path);
+		werr = smbconf_init_txt(mem_ctx, conf_ctx, path);
 	} else if (sep == NULL) {
 		/*
 		 * If no separator was given in the source, and the string is
 		 * not a known backend, assume file backend and use the source
 		 * string as a path argument.
 		 */
-		err = smbconf_init_txt(mem_ctx, conf_ctx, backend);
+		werr = smbconf_init_txt(mem_ctx, conf_ctx, backend);
 	} else {
 		/*
 		 * Separator was specified but this is not a known backend.
@@ -87,10 +86,10 @@ sbcErr smbconf_init(TALLOC_CTX *mem_ctx, struct smbconf_ctx **conf_ctx,
 		 * This may occur with an include directive like this:
 		 * 'include = /path/to/file.%T'
 		 */
-		err = smbconf_init_txt(mem_ctx, conf_ctx, source);
+		werr = smbconf_init_txt(mem_ctx, conf_ctx, source);
 	}
 
 done:
 	talloc_free(tmp_ctx);
-	return err;
+	return werr;
 }

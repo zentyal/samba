@@ -114,7 +114,7 @@ if test x"$libreplace_cv_HAVE_UNIXSOCKET" = x"yes"; then
 	AC_DEFINE(HAVE_UNIXSOCKET,1,[If we need to build with unixscoket support])
 fi
 
-dnl The following test is roughly taken from the cvs sources.
+dnl The following test is roughl taken from the cvs sources.
 dnl
 dnl If we can't find connect, try looking in -lsocket, -lnsl, and -linet.
 dnl The Irix 5 libc.so has connect and gethostbyname, but Irix 5 also has
@@ -226,44 +226,6 @@ ret = getnameinfo(&sa, sizeof(sa),
 
 ],
 libreplace_cv_HAVE_GETADDRINFO=yes,libreplace_cv_HAVE_GETADDRINFO=no)])
-
-if test x"$libreplace_cv_HAVE_GETADDRINFO" = x"yes"; then
-	# getaddrinfo is broken on some AIX systems
-	# see bug 5910, use our replacements if we detect
-	# a broken system.
-	AC_TRY_RUN([
-		#include <stddef.h>
-		#include <sys/types.h>
-		#include <sys/socket.h>
-		#include <netdb.h>
-		int main(int argc, const char *argv[])
-		{
-			struct addrinfo hints = {0,};
-			struct addrinfo *ppres;
-			const char hostname1[] = "0.0.0.0";
-			const char hostname2[] = "127.0.0.1";
-			const char hostname3[] = "::";
-			hints.ai_socktype = SOCK_STREAM;
-			hints.ai_family = AF_UNSPEC;
-			hints.ai_flags =
-				AI_NUMERICHOST|AI_PASSIVE|AI_ADDRCONFIG;
-			/* Test for broken flag combination on AIX. */
-			if (getaddrinfo(hostname1, NULL, &hints, &ppres) == EAI_BADFLAGS) {
-				/* This fails on an IPv6-only box, but not with
-				   the EAI_BADFLAGS error. */
-				return 1;
-			}
-			if (getaddrinfo(hostname2, NULL, &hints, &ppres) == 0) {
-				/* IPv4 lookup works - good enough. */
-				return 0;
-			}
-			/* Uh-oh, no IPv4. Are we IPv6-only ? */
-			return getaddrinfo(hostname3, NULL, &hints, &ppres) != 0 ? 1 : 0;
-		}],
-		libreplace_cv_HAVE_GETADDRINFO=yes,
-		libreplace_cv_HAVE_GETADDRINFO=no)
-fi
-
 if test x"$libreplace_cv_HAVE_GETADDRINFO" = x"yes"; then
 	AC_DEFINE(HAVE_GETADDRINFO,1,[Whether the system has getaddrinfo])
 	AC_DEFINE(HAVE_GETNAMEINFO,1,[Whether the system has getnameinfo])

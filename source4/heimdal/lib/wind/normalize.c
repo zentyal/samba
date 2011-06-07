@@ -39,11 +39,10 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <stdio.h>
-
-#include "roken.h"
 
 #include "normalize_table.h"
+
+RCSID("$Id$");
 
 static int
 translation_cmp(const void *key, const void *data)
@@ -164,38 +163,19 @@ compat_decomp(const uint32_t *in, size_t in_len,
     return 0;
 }
 
-static void
-swap_char(uint32_t * a, uint32_t * b)
+static int
+cc_cmp(const void *a, const void *b)
 {
-    uint32_t t;
-    t = *a;
-    *a = *b;
-    *b = t;
-}
+    const uint32_t *ua = (const uint32_t *)a;
+    const uint32_t *ub = (const uint32_t *)b;
 
-/* Unicode 5.2.0 D109 Canonical Ordering for a sequence of code points
- * that all have Canonical_Combining_Class > 0 */
-static void
-canonical_reorder_sequence(uint32_t * a, size_t len)
-{
-    size_t i, j;
-
-    if (len <= 1)
-	return;
-
-    for (i = 1; i < len; i++) {
-	for (j = i;
-	     j > 0 &&
-		 _wind_combining_class(a[j]) < _wind_combining_class(a[j-1]);
-	     j--)
-	    swap_char(&a[j], &a[j-1]);
-    }
+    return _wind_combining_class(*ua) - _wind_combining_class(*ub);
 }
 
 static void
 canonical_reorder(uint32_t *tmp, size_t tmp_len)
 {
-    size_t i;
+    unsigned i;
 
     for (i = 0; i < tmp_len; ++i) {
 	int cc = _wind_combining_class(tmp[i]);
@@ -205,7 +185,8 @@ canonical_reorder(uint32_t *tmp, size_t tmp_len)
 		 j < tmp_len && _wind_combining_class(tmp[j]);
 		 ++j)
 		;
-	    canonical_reorder_sequence(&tmp[i], j - i);
+	    qsort(&tmp[i], j - i, sizeof(unsigned),
+		  cc_cmp);
 	    i = j;
 	}
     }
@@ -300,11 +281,6 @@ _wind_stringprep_normalize(const uint32_t *in, size_t in_len,
     size_t tmp_len;
     uint32_t *tmp;
     int ret;
-
-    if (in_len == 0) {
-	*out_len = 0;
-	return 0;
-    }
 
     tmp_len = in_len * 4;
     if (tmp_len < MAX_LENGTH_CANON)

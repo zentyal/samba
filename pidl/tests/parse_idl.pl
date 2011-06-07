@@ -158,7 +158,6 @@ is_deeply($x, [ {
 	'DATA' => [ {
 		'TYPE' => 'TYPEDEF',
 		'NAME' => 'y',
-		'POINTERS' => 0,
 		'DATA' => {
 			'TYPE' => 'STRUCT',
 			'NAME' => 'x',
@@ -181,7 +180,6 @@ is_deeply($x, [ {
 	'DATA' => [ {
 		'TYPE' => 'TYPEDEF',
 		'NAME' => 'y',
-		'POINTERS' => 0,
 		'DATA' => {
 			'TYPE' => 'STRUCT',
 			'ELEMENTS' => [],
@@ -204,7 +202,6 @@ is_deeply($x, [ {
 	'DATA' => [ {
 		'TYPE' => 'TYPEDEF',
 		'NAME' => 'y',
-		'POINTERS' => 0,
 		'DATA' => {
 			'TYPE' => 'BITMAP',
 			'NAME' => 'x',
@@ -228,7 +225,6 @@ is_deeply($x, [ {
 	'DATA' => [ {
 		'TYPE' => 'TYPEDEF',
 		'NAME' => 'y',
-		'POINTERS' => 0,
 		'DATA' => {
 			'TYPE' => 'UNION',
 			'NAME' => 'x',

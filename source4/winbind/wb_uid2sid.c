@@ -23,6 +23,9 @@
 #include "libcli/composite/composite.h"
 #include "winbind/wb_server.h"
 #include "smbd/service_task.h"
+#include "winbind/wb_helper.h"
+#include "libcli/security/proto.h"
+#include "winbind/idmap.h"
 
 struct uid2sid_state {
 	struct composite_context *ctx;
@@ -37,7 +40,8 @@ struct composite_context *wb_uid2sid_send(TALLOC_CTX *mem_ctx,
 {
 	struct composite_context *result, *ctx;
 	struct uid2sid_state *state;
-	struct id_map *ids;
+	struct unixid *unixid;
+	struct id_mapping *ids;
 
 	DEBUG(5, ("wb_uid2sid_send called\n"));
 
@@ -51,11 +55,15 @@ struct composite_context *wb_uid2sid_send(TALLOC_CTX *mem_ctx,
 	result->private_data = state;
 	state->service = service;
 
-	ids = talloc(result, struct id_map);
+	unixid = talloc(result, struct unixid);
+	if (composite_nomem(unixid, result)) return result;
+	unixid->id = uid;
+	unixid->type = ID_TYPE_UID;
+
+	ids = talloc(result, struct id_mapping);
 	if (composite_nomem(ids, result)) return result;
+	ids->unixid = unixid;
 	ids->sid = NULL;
-	ids->xid.id = uid;
-	ids->xid.type = ID_TYPE_UID;
 
 	ctx = wb_xids2sids_send(result, service, 1, ids);
 	if (composite_nomem(ctx, result)) return result;
@@ -68,13 +76,13 @@ static void uid2sid_recv_sid(struct composite_context *ctx)
 {
 	struct uid2sid_state *state = talloc_get_type(ctx->async.private_data,
 						      struct uid2sid_state);
-	struct id_map *ids = NULL;
+	struct id_mapping *ids = NULL;
 
 	state->ctx->status = wb_xids2sids_recv(ctx, &ids);
 	if (!composite_is_ok(state->ctx)) return;
 
-	if (ids->status != ID_MAPPED) {
-		composite_error(state->ctx, NT_STATUS_UNSUCCESSFUL);
+	if (!NT_STATUS_IS_OK(ids->status)) {
+		composite_error(state->ctx, ids->status);
 		return;
 	}
 

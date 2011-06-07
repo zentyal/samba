@@ -35,7 +35,7 @@
 
 #include "roken.h"
 
-ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
+int ROKEN_LIB_FUNCTION
 issuid(void)
 {
 #if defined(HAVE_ISSETUGID)

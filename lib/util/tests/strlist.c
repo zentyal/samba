@@ -26,11 +26,11 @@
 
 struct test_list_element {
 	const char *list_as_string;
-	const char *separators;
+	const char *seperators;
 	const char *list[5];
 };
 
-const struct test_list_element test_lists_strings[] = {
+struct test_list_element test_lists_strings[] = {
 	{
 		.list_as_string = "",
 		.list = { NULL }
@@ -46,7 +46,7 @@ const struct test_list_element test_lists_strings[] = {
 	{
 		.list_as_string = "foo bar",
 		.list = { "foo bar", NULL },
-		.separators = ";"
+		.seperators = ";"
 	},
 	{
 		.list_as_string = "\"foo bar\"",
@@ -59,11 +59,11 @@ const struct test_list_element test_lists_strings[] = {
 	{
 		.list_as_string = "\"foo bar\",comma;semicolon",
 		.list = { "\"foo bar\",comma", "semicolon", NULL },
-		.separators = ";"
+		.seperators = ";"
 	}
 };
 
-const struct test_list_element test_lists_shell_strings[] = {
+struct test_list_element test_lists_shell_strings[] = {
 	{
 		.list_as_string = "",
 		.list = { NULL }
@@ -79,7 +79,7 @@ const struct test_list_element test_lists_shell_strings[] = {
 	{
 		.list_as_string = "foo bar",
 		.list = { "foo bar", NULL },
-		.separators = ";"
+		.seperators = ";"
 	},
 	{
 		.list_as_string = "\"foo bar\"",
@@ -99,19 +99,19 @@ const struct test_list_element test_lists_shell_strings[] = {
 	}
 };
 
-static bool test_lists_shell(struct torture_context *tctx, const void *data)
+static bool test_lists_shell(struct torture_context *tctx,
+			     const void *data)
 {
 	const struct test_list_element *element = data;
-
-	char **ret1, **ret2, *tmp;
+	const char **ret1, **ret2, *tmp;
 	bool match = true;
 	TALLOC_CTX *mem_ctx = tctx;
 
-	ret1 = str_list_make_shell(mem_ctx, element->list_as_string, element->separators);
+	ret1 = str_list_make_shell(mem_ctx, element->list_as_string, element->seperators);
 	
 	torture_assert(tctx, ret1, "str_list_make_shell() must not return NULL");
-	tmp = str_list_join_shell(mem_ctx, (const char **) ret1, element->separators ? *element->separators : ' ');
-	ret2 = str_list_make_shell(mem_ctx, tmp, element->separators);
+	tmp = str_list_join_shell(mem_ctx, ret1, element->seperators ? *element->seperators : ' ');
+	ret2 = str_list_make_shell(mem_ctx, tmp, element->seperators);
 
 	if ((ret1 == NULL || ret2 == NULL) && ret2 != ret1) {
 		match = false;
@@ -130,8 +130,7 @@ static bool test_lists_shell(struct torture_context *tctx, const void *data)
 
 	torture_assert(tctx, match, talloc_asprintf(tctx, 
 		"str_list_{make,join}_shell: Error double parsing, first run:\n%s\nSecond run: \n%s", element->list_as_string, tmp));
-	torture_assert(tctx, str_list_equal((const char * const *) ret1,
-					    element->list),
+	torture_assert(tctx, str_list_equal(ret1, element->list), 
 		       talloc_asprintf(tctx, 
 				       "str_list_make_shell(%s) failed to create correct list", 
 				       element->list_as_string));
@@ -142,12 +141,10 @@ static bool test_lists_shell(struct torture_context *tctx, const void *data)
 static bool test_list_make(struct torture_context *tctx, const void *data)
 {
 	const struct test_list_element *element = data;
-
 	char **result;
-	result = str_list_make(tctx, element->list_as_string, element->separators);
+	result = str_list_make(tctx, element->list_as_string, element->seperators);
 	torture_assert(tctx, result, "str_list_make() must not return NULL");
-	torture_assert(tctx, str_list_equal((const char * const *) result,
-					    element->list),
+	torture_assert(tctx, str_list_equal((const char **)result, element->list), 
 		       talloc_asprintf(tctx, 
 				       "str_list_make(%s) failed to create correct list", 
 				       element->list_as_string));
@@ -253,7 +250,7 @@ static bool test_list_length(struct torture_context *tctx)
 
 static bool test_list_add(struct torture_context *tctx)
 {
-	const char **result, **result2;
+	char **result, **result2;
 	const char *list[] = {
 		"element_0", 
 		"element_1",
@@ -261,9 +258,9 @@ static bool test_list_add(struct torture_context *tctx)
 		"element_3",
 		NULL
 	};
-	result = (const char **) str_list_make(tctx, "element_0, element_1, element_2", NULL);
+	result = str_list_make(tctx, "element_0, element_1, element_2", NULL);
 	torture_assert(tctx, result, "str_list_make() must not return NULL");
-	result2 = str_list_add((const char **) result, "element_3");
+	result2 = str_list_add(result, "element_3");
 	torture_assert(tctx, result2, "str_list_add() must not return NULL");
 	torture_assert(tctx, str_list_equal(result2, list), 
 		       "str_list_add() failed");
@@ -273,7 +270,7 @@ static bool test_list_add(struct torture_context *tctx)
 
 static bool test_list_add_const(struct torture_context *tctx)
 {
-	const char **result, **result2;
+	char **result, **result2;
 	const char *list[] = {
 		"element_0", 
 		"element_1",
@@ -281,7 +278,7 @@ static bool test_list_add_const(struct torture_context *tctx)
 		"element_3",
 		NULL
 	};
-	result = (const char **) str_list_make(tctx, "element_0, element_1, element_2", NULL);
+	result = str_list_make(tctx, "element_0, element_1, element_2", NULL);
 	torture_assert(tctx, result, "str_list_make() must not return NULL");
 	result2 = str_list_add_const(result, "element_3");
 	torture_assert(tctx, result2, "str_list_add_const() must not return NULL");
@@ -293,14 +290,14 @@ static bool test_list_add_const(struct torture_context *tctx)
 
 static bool test_list_remove(struct torture_context *tctx)
 {
-	const char **result;
+	char **result;
 	const char *list[] = {
 		"element_0", 
 		"element_1",
 		"element_3",
 		NULL
 	};
-	result = (const char **) str_list_make(tctx, "element_0, element_1, element_2, element_3", NULL);
+	result = str_list_make(tctx, "element_0, element_1, element_2, element_3", NULL);
 	torture_assert(tctx, result, "str_list_make() must not return NULL");
 	str_list_remove(result, "element_2");
 	torture_assert(tctx, str_list_equal(result, list), 
@@ -339,7 +336,7 @@ static bool test_list_check_ci(struct torture_context *tctx)
 
 static bool test_list_unique(struct torture_context *tctx)
 {
-	const char **result;
+	char **result;
 	const char *list[] = {
 		"element_0", 
 		"element_1",
@@ -357,7 +354,7 @@ static bool test_list_unique(struct torture_context *tctx)
 		"element_2",
 		NULL
 	};
-	result = (const char **) str_list_copy(tctx, list_dup);
+	result = str_list_copy(tctx, list_dup);
 	/* We must copy the list, as str_list_unique does a talloc_realloc() on it's parameter */
 	result = str_list_unique(result);
 	torture_assert(tctx, result, "str_list_unique() must not return NULL");
@@ -376,8 +373,8 @@ static bool test_list_unique_2(struct torture_context *tctx)
 	const char **list = (const char **)str_list_make_empty(tctx);
 	const char **list_dup = (const char **)str_list_make_empty(tctx);
 
-	count = lpcfg_parm_int(tctx->lp_ctx, NULL, "list_unique", "count", 9);
-	num_dups = lpcfg_parm_int(tctx->lp_ctx, NULL, "list_unique", "dups", 7);
+	count = lp_parm_int(tctx->lp_ctx, NULL, "list_unique", "count", 9);
+	num_dups = lp_parm_int(tctx->lp_ctx, NULL, "list_unique", "dups", 7);
 	torture_comment(tctx, "test_list_unique_2() with %d elements and %d dups\n", count, num_dups);
 
 	for (i = 0; i < count; i++) {
@@ -401,7 +398,7 @@ static bool test_list_unique_2(struct torture_context *tctx)
 
 static bool test_list_append(struct torture_context *tctx)
 {
-	const char **result;
+	char **result;
 	const char *list[] = {
 		"element_0", 
 		"element_1",
@@ -423,7 +420,7 @@ static bool test_list_append(struct torture_context *tctx)
 		"element_5",
 		NULL
 	};
-	result = (const char **) str_list_copy(tctx, list);
+	result = str_list_copy(tctx, list);
 	torture_assert(tctx, result, "str_list_copy() must not return NULL");
 	result = str_list_append(result, list2);
 	torture_assert(tctx, result, "str_list_append() must not return NULL");
@@ -435,7 +432,7 @@ static bool test_list_append(struct torture_context *tctx)
 
 static bool test_list_append_const(struct torture_context *tctx)
 {
-	const char **result;
+	char **result;
 	const char *list[] = {
 		"element_0", 
 		"element_1",
@@ -457,7 +454,7 @@ static bool test_list_append_const(struct torture_context *tctx)
 		"element_5",
 		NULL
 	};
-	result = (const char **) str_list_copy(tctx, list);
+	result = str_list_copy(tctx, list);
 	torture_assert(tctx, result, "str_list_copy() must not return NULL");
 	result = str_list_append_const(result, list2);
 	torture_assert(tctx, result, "str_list_append_const() must not return NULL");
@@ -469,23 +466,17 @@ static bool test_list_append_const(struct torture_context *tctx)
 
 struct torture_suite *torture_local_util_strlist(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "strlist");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "STRLIST");
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(test_lists_shell_strings); i++) {
-		char *name;
-		name = talloc_asprintf(suite, "lists_shell(%s)",
-							   test_lists_shell_strings[i].list_as_string);
-		torture_suite_add_simple_tcase_const(suite, name,
-			test_lists_shell,  &test_lists_shell_strings[i]);
+		torture_suite_add_simple_tcase_const(suite, "lists_shell",
+				test_lists_shell, &test_lists_shell_strings[i]);
 	}
 
 	for (i = 0; i < ARRAY_SIZE(test_lists_strings); i++) {
-		char *name;
-		name = talloc_asprintf(suite, "list_make(%s)",
-							   test_lists_strings[i].list_as_string);
-		torture_suite_add_simple_tcase_const(suite, name,
-			test_list_make, &test_lists_strings[i]);
+		torture_suite_add_simple_tcase_const(suite, "lists",
+						     test_list_make, &test_lists_strings[i]);
 	}
 
 	torture_suite_add_simple_test(suite, "list_copy", test_list_copy);

@@ -19,8 +19,6 @@
  */
 
 #include "includes.h"
-#include "registry.h"
-#include "lib/privileges.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
@@ -59,9 +57,9 @@ static bool smbconf_store_values(const char *key, struct regval_ctr *val)
 
 static bool smbconf_reg_access_check(const char *keyname, uint32 requested,
 				     uint32 *granted,
-				     const struct security_token *token)
+				     const struct nt_user_token *token)
 {
-	if (!security_token_has_privilege(token, SEC_PRIV_DISK_OPERATOR)) {
+	if (!(user_has_privileges(token, &se_disk_operators))) {
 		return False;
 	}
 

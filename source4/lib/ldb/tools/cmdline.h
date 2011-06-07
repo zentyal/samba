@@ -41,16 +41,17 @@ struct ldb_cmdline {
 	int num_records;
 	int num_searches;
 	const char *sasl_mechanism;
-	const char **controls;
+	const char *input;
+	const char *output;
+	char **controls;
 	int show_binary;
 	int tracing;
 };
 
-struct ldb_cmdline *ldb_cmdline_process(struct ldb_context *ldb, int argc,
-					const char **argv,
-					void (*usage)(struct ldb_context *));
+struct ldb_cmdline *ldb_cmdline_process(struct ldb_context *ldb, int argc, const char **argv,
+					void (*usage)(void));
 
 
 int handle_controls_reply(struct ldb_control **reply, struct ldb_control **request);
-void ldb_cmdline_help(struct ldb_context *ldb, const char *cmdname, FILE *f);
+void ldb_cmdline_help(const char *cmdname, FILE *f);
 

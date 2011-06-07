@@ -33,6 +33,8 @@
 
 #include "spnego_locl.h"
 
+RCSID("$Id$");
+
 /*
  * Is target_name an sane target for `mech´.
  */
@@ -177,7 +179,7 @@ spnego_reply_internal(OM_uint32 *minor_status,
 static OM_uint32
 spnego_initial
            (OM_uint32 * minor_status,
-	    gss_cred_id_t cred,
+	    gssspnego_cred cred,
             gss_ctx_id_t * context_handle,
             const gss_name_t target_name,
             const gss_OID mech_type,
@@ -252,7 +254,8 @@ spnego_initial
 
     /* generate optimistic token */
     sub = gss_init_sec_context(&minor,
-			       cred,
+			       (cred != NULL) ? cred->negotiated_cred_id :
+			          GSS_C_NO_CREDENTIAL,
 			       &ctx->negotiated_ctx_id,
 			       ctx->target_name,
 			       ctx->preferred_mech_type,
@@ -374,7 +377,7 @@ spnego_initial
 static OM_uint32
 spnego_reply
            (OM_uint32 * minor_status,
-	    const gss_cred_id_t cred,
+	    const gssspnego_cred cred,
             gss_ctx_id_t * context_handle,
             const gss_name_t target_name,
             const gss_OID mech_type,
@@ -495,7 +498,8 @@ spnego_reply
 	/* Fall through as if the negotiated mechanism
 	   was requested explicitly */
 	ret = gss_init_sec_context(&minor,
-				   cred,
+				   (cred != NULL) ? cred->negotiated_cred_id :
+				       GSS_C_NO_CREDENTIAL,
 				   &ctx->negotiated_ctx_id,
 				   ctx->target_name,
 				   &mech,
@@ -609,8 +613,7 @@ spnego_reply
     return ret;
 }
 
-OM_uint32 GSSAPI_CALLCONV
-_gss_spnego_init_sec_context
+OM_uint32 _gss_spnego_init_sec_context
            (OM_uint32 * minor_status,
             const gss_cred_id_t initiator_cred_handle,
             gss_ctx_id_t * context_handle,
@@ -626,9 +629,11 @@ _gss_spnego_init_sec_context
             OM_uint32 * time_rec
            )
 {
+    gssspnego_cred cred = (gssspnego_cred)initiator_cred_handle;
+
     if (*context_handle == GSS_C_NO_CONTEXT)
 	return spnego_initial (minor_status,
-			       initiator_cred_handle,
+			       cred,
 			       context_handle,
 			       target_name,
 			       mech_type,
@@ -642,7 +647,7 @@ _gss_spnego_init_sec_context
 			       time_rec);
     else
 	return spnego_reply (minor_status,
-			     initiator_cred_handle,
+			     cred,
 			     context_handle,
 			     target_name,
 			     mech_type,

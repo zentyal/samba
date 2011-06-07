@@ -4,7 +4,6 @@
    Winbind client API
 
    Copyright (C) Gerald (Jerry) Carter 2007
-   Copyright (C) Volker Lendecke 2010
 
 
    This library is free software; you can redistribute it and/or
@@ -25,67 +24,47 @@
 
 #include "replace.h"
 #include "libwbclient.h"
-#include "../winbind_client.h"
 
-/* Convert a sid to a string into a buffer. Return the string
- * length. If buflen is too small, return the string length that would
- * result if it was long enough. */
-int wbcSidToStringBuf(const struct wbcDomainSid *sid, char *buf, int buflen)
+
+/* Convert a binary SID to a character string */
+wbcErr wbcSidToString(const struct wbcDomainSid *sid,
+		      char **sid_string)
 {
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 	uint32_t id_auth;
-	int i, ofs;
+	int i;
+	char *tmp = NULL;
 
 	if (!sid) {
-		strlcpy(buf, "(NULL SID)", buflen);
-		return 10;	/* strlen("(NULL SID)") */
+		wbc_status = WBC_ERR_INVALID_SID;
+		BAIL_ON_WBC_ERROR(wbc_status);
 	}
-
-	/*
-	 * BIG NOTE: this function only does SIDS where the identauth is not
-	 * >= ^32 in a range of 2^48.
-	 */
 
 	id_auth = sid->id_auth[5] +
 		(sid->id_auth[4] << 8) +
 		(sid->id_auth[3] << 16) +
 		(sid->id_auth[2] << 24);
 
-	ofs = snprintf(buf, buflen, "S-%u-%lu",
-		       (unsigned int)sid->sid_rev_num, (unsigned long)id_auth);
+	tmp = talloc_asprintf(NULL, "S-%d-%d", sid->sid_rev_num, id_auth);
+	BAIL_ON_PTR_ERROR(tmp, wbc_status);
 
-	for (i = 0; i < sid->num_auths; i++) {
-		ofs += snprintf(buf + ofs, MAX(buflen - ofs, 0), "-%lu",
-				(unsigned long)sid->sub_auths[i]);
-	}
-	return ofs;
-}
+	for (i=0; i<sid->num_auths; i++) {
+		char *tmp2;
+		tmp2 = talloc_asprintf_append(tmp, "-%u", sid->sub_auths[i]);
+		BAIL_ON_PTR_ERROR(tmp2, wbc_status);
 
-/* Convert a binary SID to a character string */
-wbcErr wbcSidToString(const struct wbcDomainSid *sid,
-		      char **sid_string)
-{
-	char buf[WBC_SID_STRING_BUFLEN];
-	char *result;
-	int len;
-
-	if (!sid) {
-		return WBC_ERR_INVALID_SID;
+		tmp = tmp2;
 	}
 
-	len = wbcSidToStringBuf(sid, buf, sizeof(buf));
+	*sid_string = tmp;
+	tmp = NULL;
 
-	if (len+1 > sizeof(buf)) {
-		return WBC_ERR_INVALID_SID;
-	}
+	wbc_status = WBC_ERR_SUCCESS;
 
-	result = (char *)wbcAllocateMemory(len+1, 1, NULL);
-	if (result == NULL) {
-		return WBC_ERR_NO_MEMORY;
-	}
-	memcpy(result, buf, len+1);
+done:
+	talloc_free(tmp);
 
-	*sid_string = result;
-	return WBC_ERR_SUCCESS;
+	return wbc_status;
 }
 
 /* Convert a character string to a binary SID */
@@ -152,9 +131,8 @@ wbcErr wbcStringToSid(const char *str,
 		}
 		sid->sub_auths[sid->num_auths++] = x;
 
-		if (*q != '-') {
+		if ((*q!='-') || (*q=='\0'))
 			break;
-		}
 		p = q + 1;
 	}
 
@@ -171,7 +149,6 @@ done:
 	return wbc_status;
 
 }
-
 
 /* Convert a domain and name to SID */
 wbcErr wbcLookupName(const char *domain,
@@ -216,7 +193,6 @@ wbcErr wbcLookupName(const char *domain,
 	return wbc_status;
 }
 
-
 /* Convert a SID to a domain and name */
 wbcErr wbcLookupSid(const struct wbcDomainSid *sid,
 		    char **pdomain,
@@ -226,10 +202,14 @@ wbcErr wbcLookupSid(const struct wbcDomainSid *sid,
 	struct winbindd_request request;
 	struct winbindd_response response;
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
-	char *domain, *name;
+	char *sid_string = NULL;
+	char *domain = NULL;
+	char *name = NULL;
+	enum wbcSidType name_type = WBC_SID_NAME_USE_NONE;
 
 	if (!sid) {
-		return WBC_ERR_INVALID_PARAM;
+		wbc_status = WBC_ERR_INVALID_PARAM;
+		BAIL_ON_WBC_ERROR(wbc_status);
 	}
 
 	/* Initialize request */
@@ -237,228 +217,67 @@ wbcErr wbcLookupSid(const struct wbcDomainSid *sid,
 	ZERO_STRUCT(request);
 	ZERO_STRUCT(response);
 
-	wbcSidToStringBuf(sid, request.data.sid, sizeof(request.data.sid));
+	/* dst is already null terminated from the memset above */
+
+	wbc_status = wbcSidToString(sid, &sid_string);
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+	strncpy(request.data.sid, sid_string, sizeof(request.data.sid)-1);
+	wbcFreeMemory(sid_string);
 
 	/* Make request */
 
-	wbc_status = wbcRequestResponse(WINBINDD_LOOKUPSID, &request,
-					&response);
-	if (!WBC_ERROR_IS_OK(wbc_status)) {
-		return wbc_status;
-	}
+	wbc_status = wbcRequestResponse(WINBINDD_LOOKUPSID,
+					   &request,
+					   &response);
+	BAIL_ON_WBC_ERROR(wbc_status);
 
 	/* Copy out result */
 
-	wbc_status = WBC_ERR_NO_MEMORY;
-	domain = NULL;
-	name = NULL;
+	domain = talloc_strdup(NULL, response.data.name.dom_name);
+	BAIL_ON_PTR_ERROR(domain, wbc_status);
 
-	domain = wbcStrDup(response.data.name.dom_name);
-	if (domain == NULL) {
-		goto done;
-	}
-	name = wbcStrDup(response.data.name.name);
-	if (name == NULL) {
-		goto done;
-	}
-	if (pdomain != NULL) {
-		*pdomain = domain;
-		domain = NULL;
-	}
-	if (pname != NULL) {
-		*pname = name;
-		name = NULL;
-	}
-	if (pname_type != NULL) {
-		*pname_type = (enum wbcSidType)response.data.name.type;
-	}
+	name = talloc_strdup(NULL, response.data.name.name);
+	BAIL_ON_PTR_ERROR(name, wbc_status);
+
+	name_type = (enum wbcSidType)response.data.name.type;
+
 	wbc_status = WBC_ERR_SUCCESS;
-done:
-	wbcFreeMemory(name);
-	wbcFreeMemory(domain);
-	return wbc_status;
-}
 
-static void wbcDomainInfosDestructor(void *ptr)
-{
-	struct wbcDomainInfo *i = (struct wbcDomainInfo *)ptr;
-
-	while (i->short_name != NULL) {
-		wbcFreeMemory(i->short_name);
-		wbcFreeMemory(i->dns_name);
-		i += 1;
-	}
-}
-
-static void wbcTranslatedNamesDestructor(void *ptr)
-{
-	struct wbcTranslatedName *n = (struct wbcTranslatedName *)ptr;
-
-	while (n->name != NULL) {
-		free(n->name);
-		n += 1;
-	}
-}
-
-wbcErr wbcLookupSids(const struct wbcDomainSid *sids, int num_sids,
-		     struct wbcDomainInfo **pdomains, int *pnum_domains,
-		     struct wbcTranslatedName **pnames)
-{
-	struct winbindd_request request;
-	struct winbindd_response response;
-	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
-	int buflen, i, extra_len, num_domains, num_names;
-	char *sidlist, *p, *q, *extra_data;
-	struct wbcDomainInfo *domains = NULL;
-	struct wbcTranslatedName *names = NULL;
-
-	buflen = num_sids * (WBC_SID_STRING_BUFLEN + 1) + 1;
-
-	sidlist = (char *)malloc(buflen);
-	if (sidlist == NULL) {
-		return WBC_ERR_NO_MEMORY;
-	}
-
-	p = sidlist;
-
-	for (i=0; i<num_sids; i++) {
-		int remaining;
-		int len;
-
-		remaining = buflen - (p - sidlist);
-
-		len = wbcSidToStringBuf(&sids[i], p, remaining);
-		if (len > remaining) {
-			free(sidlist);
-			return WBC_ERR_UNKNOWN_FAILURE;
+ done:
+	if (WBC_ERROR_IS_OK(wbc_status)) {
+		if (pdomain != NULL) {
+			*pdomain = domain;
+		} else {
+			TALLOC_FREE(domain);
 		}
-
-		p += len;
-		*p++ = '\n';
-	}
-	*p++ = '\0';
-
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
-
-	request.extra_data.data = sidlist;
-	request.extra_len = p - sidlist;
-
-	wbc_status = wbcRequestResponse(WINBINDD_LOOKUPSIDS,
-					&request, &response);
-	free(sidlist);
-	if (!WBC_ERROR_IS_OK(wbc_status)) {
-		return wbc_status;
-	}
-
-	extra_len = response.length - sizeof(struct winbindd_response);
-	extra_data = (char *)response.extra_data.data;
-
-	if ((extra_len <= 0) || (extra_data[extra_len-1] != '\0')) {
-		goto wbc_err_invalid;
-	}
-
-	p = extra_data;
-
-	num_domains = strtoul(p, &q, 10);
-	if (*q != '\n') {
-		goto wbc_err_invalid;
-	}
-	p = q+1;
-
-	domains = (struct wbcDomainInfo *)wbcAllocateMemory(
-		num_domains+1, sizeof(struct wbcDomainInfo),
-		wbcDomainInfosDestructor);
-	if (domains == NULL) {
-		wbc_status = WBC_ERR_NO_MEMORY;
-		goto fail;
-	}
-
-	for (i=0; i<num_domains; i++) {
-
-		q = strchr(p, ' ');
-		if (q == NULL) {
-			goto wbc_err_invalid;
+		if (pname != NULL) {
+			*pname = name;
+		} else {
+			TALLOC_FREE(name);
 		}
-		*q = '\0';
-		wbc_status = wbcStringToSid(p, &domains[i].sid);
-		if (!WBC_ERROR_IS_OK(wbc_status)) {
-			goto fail;
+		if (pname_type != NULL) {
+			*pname_type = name_type;
 		}
-		p = q+1;
-
-		q = strchr(p, '\n');
-		if (q == NULL) {
-			goto wbc_err_invalid;
+	}
+	else {
+#if 0
+		/*
+		 * Found by Coverity: In this particular routine we can't end
+		 * up here with a non-NULL name. Further up there are just two
+		 * exit paths that lead here, neither of which leave an
+		 * allocated name. If you add more paths up there, re-activate
+		 * this.
+		 */
+		if (name != NULL) {
+			talloc_free(name);
 		}
-		*q = '\0';
-		domains[i].short_name = wbcStrDup(p);
-		if (domains[i].short_name == NULL) {
-			wbc_status = WBC_ERR_NO_MEMORY;
-			goto fail;
+#endif
+		if (domain != NULL) {
+			talloc_free(domain);
 		}
-		p = q+1;
 	}
 
-	num_names = strtoul(p, &q, 10);
-	if (*q != '\n') {
-		goto wbc_err_invalid;
-	}
-	p = q+1;
-
-	if (num_names != num_sids) {
-		goto wbc_err_invalid;
-	}
-
-	names = (struct wbcTranslatedName *)wbcAllocateMemory(
-		num_names+1, sizeof(struct wbcTranslatedName),
-		wbcTranslatedNamesDestructor);
-	if (names == NULL) {
-		wbc_status = WBC_ERR_NO_MEMORY;
-		goto fail;
-	}
-
-	for (i=0; i<num_names; i++) {
-
-		names[i].domain_index = strtoul(p, &q, 10);
-		if (*q != ' ') {
-			goto wbc_err_invalid;
-		}
-		p = q+1;
-
-		names[i].type = strtoul(p, &q, 10);
-		if (*q != ' ') {
-			goto wbc_err_invalid;
-		}
-		p = q+1;
-
-		q = strchr(p, '\n');
-		if (q == NULL) {
-			goto wbc_err_invalid;
-		}
-		*q = '\0';
-		names[i].name = wbcStrDup(p);
-		if (names[i].name == NULL) {
-			wbc_status = WBC_ERR_NO_MEMORY;
-			goto fail;
-		}
-		p = q+1;
-	}
-	if (*p != '\0') {
-		goto wbc_err_invalid;
-	}
-
-	*pdomains = domains;
-	*pnames = names;
-	winbindd_free_response(&response);
-	return WBC_ERR_SUCCESS;
-
-wbc_err_invalid:
-	wbc_status = WBC_ERR_INVALID_RESPONSE;
-fail:
-	winbindd_free_response(&response);
-	wbcFreeMemory(domains);
-	wbcFreeMemory(names);
 	return wbc_status;
 }
 
@@ -476,6 +295,7 @@ wbcErr wbcLookupRids(struct wbcDomainSid *dom_sid,
 	char *p;
 	struct winbindd_request request;
 	struct winbindd_response response;
+	char *sid_string = NULL;
 	char *domain_name = NULL;
 	const char **names = NULL;
 	enum wbcSidType *types = NULL;
@@ -491,7 +311,11 @@ wbcErr wbcLookupRids(struct wbcDomainSid *dom_sid,
 		BAIL_ON_WBC_ERROR(wbc_status);
 	}
 
-	wbcSidToStringBuf(dom_sid, request.data.sid, sizeof(request.data.sid));
+	wbc_status = wbcSidToString(dom_sid, &sid_string);
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+	strncpy(request.data.sid, sid_string, sizeof(request.data.sid)-1);
+	wbcFreeMemory(sid_string);
 
 	/* Even if all the Rids were of maximum 32bit values,
 	   we would only have 11 bytes per rid in the final array
@@ -500,34 +324,36 @@ wbcErr wbcLookupRids(struct wbcDomainSid *dom_sid,
 
 	ridbuf_size = (sizeof(char)*11) * num_rids + 1;
 
-	ridlist = (char *)malloc(ridbuf_size);
+	ridlist = talloc_zero_array(NULL, char, ridbuf_size);
 	BAIL_ON_PTR_ERROR(ridlist, wbc_status);
 
 	len = 0;
-	for (i=0; i<num_rids; i++) {
-		len += snprintf(ridlist + len, ridbuf_size - len, "%u\n",
-				rids[i]);
+	for (i=0; i<num_rids && (len-1)>0; i++) {
+		char ridstr[12];
+
+		len = strlen(ridlist);
+		p = ridlist + len;
+
+		snprintf( ridstr, sizeof(ridstr)-1, "%u\n", rids[i]);
+		strncat(p, ridstr, ridbuf_size-len-1);
 	}
-	ridlist[len] = '\0';
-	len += 1;
 
 	request.extra_data.data = ridlist;
-	request.extra_len = len;
+	request.extra_len = strlen(ridlist)+1;
 
 	wbc_status = wbcRequestResponse(WINBINDD_LOOKUPRIDS,
 					&request,
 					&response);
-	free(ridlist);
+	talloc_free(ridlist);
 	BAIL_ON_WBC_ERROR(wbc_status);
 
-	domain_name = wbcStrDup(response.data.domain_name);
+	domain_name = talloc_strdup(NULL, response.data.domain_name);
 	BAIL_ON_PTR_ERROR(domain_name, wbc_status);
 
-	names = wbcAllocateStringArray(num_rids);
+	names = talloc_array(NULL, const char*, num_rids);
 	BAIL_ON_PTR_ERROR(names, wbc_status);
 
-	types = (enum wbcSidType *)wbcAllocateMemory(
-		num_rids, sizeof(enum wbcSidType), NULL);
+	types = talloc_array(NULL, enum wbcSidType, num_rids);
 	BAIL_ON_PTR_ERROR(types, wbc_status);
 
 	p = (char *)response.extra_data.data;
@@ -537,26 +363,26 @@ wbcErr wbcLookupRids(struct wbcDomainSid *dom_sid,
 
 		if (*p == '\0') {
 			wbc_status = WBC_ERR_INVALID_RESPONSE;
-			goto done;
+			BAIL_ON_WBC_ERROR(wbc_status);
 		}
 
 		types[i] = (enum wbcSidType)strtoul(p, &q, 10);
 
 		if (*q != ' ') {
 			wbc_status = WBC_ERR_INVALID_RESPONSE;
-			goto done;
+			BAIL_ON_WBC_ERROR(wbc_status);
 		}
 
 		p = q+1;
 
 		if ((q = strchr(p, '\n')) == NULL) {
 			wbc_status = WBC_ERR_INVALID_RESPONSE;
-			goto done;
+			BAIL_ON_WBC_ERROR(wbc_status);
 		}
 
 		*q = '\0';
 
-		names[i] = strdup(p);
+		names[i] = talloc_strdup(names, p);
 		BAIL_ON_PTR_ERROR(names[i], wbc_status);
 
 		p = q+1;
@@ -564,13 +390,15 @@ wbcErr wbcLookupRids(struct wbcDomainSid *dom_sid,
 
 	if (*p != '\0') {
 		wbc_status = WBC_ERR_INVALID_RESPONSE;
-		goto done;
+		BAIL_ON_WBC_ERROR(wbc_status);
 	}
 
 	wbc_status = WBC_ERR_SUCCESS;
 
  done:
-	winbindd_free_response(&response);
+	if (response.extra_data.data) {
+		free(response.extra_data.data);
+	}
 
 	if (WBC_ERROR_IS_OK(wbc_status)) {
 		*pp_domain_name = domain_name;
@@ -578,9 +406,12 @@ wbcErr wbcLookupRids(struct wbcDomainSid *dom_sid,
 		*ptypes = types;
 	}
 	else {
-		wbcFreeMemory(domain_name);
-		wbcFreeMemory(names);
-		wbcFreeMemory(types);
+		if (domain_name)
+			talloc_free(domain_name);
+		if (names)
+			talloc_free(names);
+		if (types)
+			talloc_free(types);
 	}
 
 	return wbc_status;
@@ -596,6 +427,7 @@ wbcErr wbcLookupUserSids(const struct wbcDomainSid *user_sid,
 	const char *s;
 	struct winbindd_request request;
 	struct winbindd_response response;
+	char *sid_string = NULL;
 	struct wbcDomainSid *sids = NULL;
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 	int cmd;
@@ -610,7 +442,11 @@ wbcErr wbcLookupUserSids(const struct wbcDomainSid *user_sid,
 		BAIL_ON_WBC_ERROR(wbc_status);
 	}
 
-	wbcSidToStringBuf(user_sid, request.data.sid, sizeof(request.data.sid));
+	wbc_status = wbcSidToString(user_sid, &sid_string);
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+	strncpy(request.data.sid, sid_string, sizeof(request.data.sid)-1);
+	wbcFreeMemory(sid_string);
 
 	if (domain_groups_only) {
 		cmd = WINBINDD_GETUSERDOMGROUPS;
@@ -629,9 +465,8 @@ wbcErr wbcLookupUserSids(const struct wbcDomainSid *user_sid,
 		BAIL_ON_WBC_ERROR(wbc_status);
 	}
 
-	sids = (struct wbcDomainSid *)wbcAllocateMemory(
-		response.data.num_entries, sizeof(struct wbcDomainSid),
-		NULL);
+	sids = talloc_array(NULL, struct wbcDomainSid,
+			    response.data.num_entries);
 	BAIL_ON_PTR_ERROR(sids, wbc_status);
 
 	s = (const char *)response.extra_data.data;
@@ -651,9 +486,11 @@ wbcErr wbcLookupUserSids(const struct wbcDomainSid *user_sid,
 	wbc_status = WBC_ERR_SUCCESS;
 
  done:
-	winbindd_free_response(&response);
+	if (response.extra_data.data) {
+		free(response.extra_data.data);
+	}
 	if (sids) {
-		wbcFreeMemory(sids);
+		talloc_free(sids);
 	}
 
 	return wbc_status;
@@ -681,6 +518,8 @@ wbcErr wbcGetSidAliases(const struct wbcDomainSid *dom_sid,
 	const char *s;
 	struct winbindd_request request;
 	struct winbindd_response response;
+	char *sid_string = NULL;
+	ssize_t sid_len;
 	ssize_t extra_data_len = 0;
 	char * extra_data = NULL;
 	ssize_t buflen = 0;
@@ -695,43 +534,52 @@ wbcErr wbcGetSidAliases(const struct wbcDomainSid *dom_sid,
 
 	if (!dom_sid) {
 		wbc_status = WBC_ERR_INVALID_PARAM;
-		goto done;
+		BAIL_ON_WBC_ERROR(wbc_status);
 	}
 
-	wbcSidToStringBuf(dom_sid, request.data.sid, sizeof(request.data.sid));
+	wbc_status = wbcSidToString(dom_sid, &sid_string);
+	BAIL_ON_WBC_ERROR(wbc_status);
 
-	/* Lets assume each sid is around 57 characters
-	 * S-1-5-21-AAAAAAAAAAA-BBBBBBBBBBB-CCCCCCCCCCC-DDDDDDDDDDD\n */
-	buflen = 57 * num_sids;
-	extra_data = (char *)malloc(buflen);
+	strncpy(request.data.sid, sid_string, sizeof(request.data.sid)-1);
+	wbcFreeMemory(sid_string);
+	sid_string = NULL;
+
+	/* Lets assume each sid is around 54 characters
+	 * S-1-5-AAAAAAAAAAA-BBBBBBBBBBB-CCCCCCCCCCC-DDDDDDDDDDD\n */
+	buflen = 54 * num_sids;
+	extra_data = talloc_array(NULL, char, buflen);
 	if (!extra_data) {
 		wbc_status = WBC_ERR_NO_MEMORY;
-		goto done;
+		BAIL_ON_WBC_ERROR(wbc_status);
 	}
 
 	/* Build the sid list */
 	for (i=0; i<num_sids; i++) {
-		char sid_str[WBC_SID_STRING_BUFLEN];
-		size_t sid_len;
+		if (sid_string) {
+			wbcFreeMemory(sid_string);
+			sid_string = NULL;
+		}
+		wbc_status = wbcSidToString(&sids[i], &sid_string);
+		BAIL_ON_WBC_ERROR(wbc_status);
 
-		sid_len = wbcSidToStringBuf(&sids[i], sid_str, sizeof(sid_str));
+		sid_len = strlen(sid_string);
 
 		if (buflen < extra_data_len + sid_len + 2) {
 			buflen *= 2;
-			extra_data = (char *)realloc(extra_data, buflen);
+			extra_data = talloc_realloc(NULL, extra_data,
+			    char, buflen);
 			if (!extra_data) {
 				wbc_status = WBC_ERR_NO_MEMORY;
 				BAIL_ON_WBC_ERROR(wbc_status);
 			}
 		}
 
-		strncpy(&extra_data[extra_data_len], sid_str,
+		strncpy(&extra_data[extra_data_len], sid_string,
 			buflen - extra_data_len);
 		extra_data_len += sid_len;
 		extra_data[extra_data_len++] = '\n';
 		extra_data[extra_data_len] = '\0';
 	}
-	extra_data_len += 1;
 
 	request.extra_data.data = extra_data;
 	request.extra_len = extra_data_len;
@@ -744,11 +592,11 @@ wbcErr wbcGetSidAliases(const struct wbcDomainSid *dom_sid,
 	if (response.data.num_entries &&
 	    !response.extra_data.data) {
 		wbc_status = WBC_ERR_INVALID_RESPONSE;
-		goto done;
+		BAIL_ON_WBC_ERROR(wbc_status);
 	}
 
-	rids = (uint32_t *)wbcAllocateMemory(response.data.num_entries,
-					     sizeof(uint32_t), NULL);
+	rids = talloc_array(NULL, uint32_t,
+			    response.data.num_entries);
 	BAIL_ON_PTR_ERROR(sids, wbc_status);
 
 	s = (const char *)response.extra_data.data;
@@ -770,9 +618,19 @@ wbcErr wbcGetSidAliases(const struct wbcDomainSid *dom_sid,
 	wbc_status = WBC_ERR_SUCCESS;
 
  done:
-	free(extra_data);
-	winbindd_free_response(&response);
-	wbcFreeMemory(rids);
+	if (sid_string) {
+		wbcFreeMemory(sid_string);
+	}
+	if (extra_data) {
+		talloc_free(extra_data);
+	}
+	if (response.extra_data.data) {
+		free(response.extra_data.data);
+	}
+	if (rids) {
+		talloc_free(rids);
+	}
+
 	return wbc_status;
 }
 
@@ -804,26 +662,13 @@ wbcErr wbcListUsers(const char *domain_name,
 					&response);
 	BAIL_ON_WBC_ERROR(wbc_status);
 
-	users = wbcAllocateStringArray(response.data.num_entries);
-	if (users == NULL) {
-		return WBC_ERR_NO_MEMORY;
-	}
-
 	/* Look through extra data */
 
 	next = (const char *)response.extra_data.data;
 	while (next) {
-		const char *current;
-		char *k;
-
-		if (num_users >= response.data.num_entries) {
-			wbc_status = WBC_ERR_INVALID_RESPONSE;
-			goto done;
-		}
-
-		current = next;
-		k = strchr(next, ',');
-
+		const char **tmp;
+		const char *current = next;
+		char *k = strchr(next, ',');
 		if (k) {
 			k[0] = '\0';
 			next = k+1;
@@ -831,23 +676,30 @@ wbcErr wbcListUsers(const char *domain_name,
 			next = NULL;
 		}
 
-		users[num_users] = strdup(current);
+		tmp = talloc_realloc(NULL, users,
+				     const char *,
+				     num_users+1);
+		BAIL_ON_PTR_ERROR(tmp, wbc_status);
+		users = tmp;
+
+		users[num_users] = talloc_strdup(users, current);
 		BAIL_ON_PTR_ERROR(users[num_users], wbc_status);
-		num_users += 1;
-	}
-	if (num_users != response.data.num_entries) {
-		wbc_status = WBC_ERR_INVALID_RESPONSE;
-		goto done;
+
+		num_users++;
 	}
 
-	*_num_users = response.data.num_entries;
+	*_num_users = num_users;
 	*_users = users;
 	users = NULL;
 	wbc_status = WBC_ERR_SUCCESS;
 
  done:
-	winbindd_free_response(&response);
-	wbcFreeMemory(users);
+	if (response.extra_data.data) {
+		free(response.extra_data.data);
+	}
+	if (users) {
+		talloc_free(users);
+	}
 	return wbc_status;
 }
 
@@ -878,26 +730,13 @@ wbcErr wbcListGroups(const char *domain_name,
 					&response);
 	BAIL_ON_WBC_ERROR(wbc_status);
 
-	groups = wbcAllocateStringArray(response.data.num_entries);
-	if (groups == NULL) {
-		return WBC_ERR_NO_MEMORY;
-	}
-
 	/* Look through extra data */
 
 	next = (const char *)response.extra_data.data;
 	while (next) {
-		const char *current;
-		char *k;
-
-		if (num_groups >= response.data.num_entries) {
-			wbc_status = WBC_ERR_INVALID_RESPONSE;
-			goto done;
-		}
-
-		current = next;
-		k = strchr(next, ',');
-
+		const char **tmp;
+		const char *current = next;
+		char *k = strchr(next, ',');
 		if (k) {
 			k[0] = '\0';
 			next = k+1;
@@ -905,23 +744,30 @@ wbcErr wbcListGroups(const char *domain_name,
 			next = NULL;
 		}
 
-		groups[num_groups] = strdup(current);
+		tmp = talloc_realloc(NULL, groups,
+				     const char *,
+				     num_groups+1);
+		BAIL_ON_PTR_ERROR(tmp, wbc_status);
+		groups = tmp;
+
+		groups[num_groups] = talloc_strdup(groups, current);
 		BAIL_ON_PTR_ERROR(groups[num_groups], wbc_status);
-		num_groups += 1;
-	}
-	if (num_groups != response.data.num_entries) {
-		wbc_status = WBC_ERR_INVALID_RESPONSE;
-		goto done;
+
+		num_groups++;
 	}
 
-	*_num_groups = response.data.num_entries;
+	*_num_groups = num_groups;
 	*_groups = groups;
 	groups = NULL;
 	wbc_status = WBC_ERR_SUCCESS;
 
  done:
-	winbindd_free_response(&response);
-	wbcFreeMemory(groups);
+	if (response.extra_data.data) {
+		free(response.extra_data.data);
+	}
+	if (groups) {
+		talloc_free(groups);
+	}
 	return wbc_status;
 }
 
@@ -950,8 +796,7 @@ wbcErr wbcGetDisplayName(const struct wbcDomainSid *sid,
 
 		wbcFreeMemory(name);
 
-		name = wbcStrDup(pwd->pw_gecos);
-		wbcFreeMemory(pwd);
+		name = talloc_strdup(NULL, pwd->pw_gecos);
 		BAIL_ON_PTR_ERROR(name, wbc_status);
 	}
 

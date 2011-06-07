@@ -31,9 +31,6 @@
  *  Author: Simo Sorce
  */
 
-#include "replace.h"
-#include "system/filesys.h"
-#include "system/time.h"
 #include "ldb_module.h"
 
 struct opaque {
@@ -47,15 +44,15 @@ struct opaque {
 struct sort_context {
 	struct ldb_module *module;
 
-	const char *attributeName;
-	const char *orderingRule;
+	char *attributeName;
+	char *orderingRule;
 	int reverse;
 
 	struct ldb_request *req;
 	struct ldb_message **msgs;
 	char **referrals;
-	unsigned int num_msgs;
-	unsigned int num_refs;
+	int num_msgs;
+	int num_refs;
 
 	const struct ldb_schema_attribute *a;
 	int sort_result;
@@ -65,7 +62,7 @@ static int build_response(void *mem_ctx, struct ldb_control ***ctrls, int result
 {
 	struct ldb_control **controls;
 	struct ldb_sort_resp_control *resp;
-	unsigned int i;
+	int i;
 
 	if (*ctrls) {
 		controls = *ctrls;
@@ -140,15 +137,16 @@ static int server_sort_results(struct sort_context *ac)
 {
 	struct ldb_context *ldb;
 	struct ldb_reply *ares;
-	unsigned int i;
-	int ret;
+	int i, ret;
 
 	ldb = ldb_module_get_ctx(ac->module);
 
 	ac->a = ldb_schema_attribute_by_name(ldb, ac->attributeName);
 	ac->sort_result = 0;
 
-	LDB_TYPESAFE_QSORT(ac->msgs, ac->num_msgs, ac, sort_compare);
+	ldb_qsort(ac->msgs, ac->num_msgs,
+		  sizeof(struct ldb_message *),
+		  ac, (ldb_qsort_cmp_fn_t)sort_compare);
 
 	if (ac->sort_result != LDB_SUCCESS) {
 		return ac->sort_result;
@@ -317,13 +315,13 @@ static int server_sort_search(struct ldb_module *module, struct ldb_request *req
 					server_sort_search_callback,
 					req);
 	if (ret != LDB_SUCCESS) {
-		return ret;
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
 	/* save it locally and remove it from the list */
 	/* we do not need to replace them later as we
 	 * are keeping the original req intact */
-	if (!ldb_save_controls(control, down_req, &saved_controls)) {
+	if (!save_controls(control, down_req, &saved_controls)) {
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
@@ -347,14 +345,8 @@ static int server_sort_init(struct ldb_module *module)
 	return ldb_next_init(module);
 }
 
-static const struct ldb_module_ops ldb_server_sort_module_ops = {
+const struct ldb_module_ops ldb_server_sort_module_ops = {
 	.name		   = "server_sort",
 	.search            = server_sort_search,
 	.init_context	   = server_sort_init
 };
-
-int ldb_server_sort_init(const char *version)
-{
-	LDB_MODULE_CHECK_VERSION(version);
-	return ldb_register_module(&ldb_server_sort_module_ops);
-}

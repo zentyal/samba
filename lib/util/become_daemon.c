@@ -66,7 +66,7 @@ _PUBLIC_ void close_low_fds(bool stderr_too)
  Become a daemon, discarding the controlling terminal.
 ****************************************************************************/
 
-_PUBLIC_ void become_daemon(bool do_fork, bool no_process_group, bool log_stdout)
+_PUBLIC_ void become_daemon(bool do_fork, bool no_process_group)
 {
 	if (do_fork) {
 		if (sys_fork()) {
@@ -87,9 +87,7 @@ _PUBLIC_ void become_daemon(bool do_fork, bool no_process_group, bool log_stdout
 	}
 #endif /* HAVE_SETSID */
 
-	if (!log_stdout) {
-		/* Close fd's 0,1,2. Needed if started by rsh */
-		close_low_fds(false);  /* Don't close stderr, let the debug system
-					  attach it to the logfile */
-	}
+	/* Close fd's 0,1,2. Needed if started by rsh */
+	close_low_fds(false);  /* Don't close stderr, let the debug system
+				  attach it to the logfile */
 }

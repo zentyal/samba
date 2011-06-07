@@ -42,7 +42,7 @@
  * Like malloc but never fails.
  */
 
-ROKEN_LIB_FUNCTION void * ROKEN_LIB_CALL
+void * ROKEN_LIB_FUNCTION
 emalloc (size_t sz)
 {
     void *tmp = malloc (sz);

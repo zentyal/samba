@@ -18,16 +18,9 @@
  */
 
 #include "includes.h"
-#include "../libgpo/gpo.h"
 #include "../libgpo/gpext/gpext.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "lib/util/dlinklist.h"
-#include "../libcli/registry/util_reg.h"
-#if _SAMBA_BUILD_ == 3
-#include "libgpo/gpo_proto.h"
-#include "registry.h"
-#include "registry/reg_api.h"
-#endif
 
 static struct gp_extension *extensions = NULL;
 
@@ -283,16 +276,13 @@ static NTSTATUS gp_ext_info_add_reg(TALLOC_CTX *mem_ctx,
 	switch (type) {
 		case REG_SZ:
 		case REG_EXPAND_SZ:
-			if (!push_reg_sz(mem_ctx, &data->data, data_s)) {
-				return NT_STATUS_NO_MEMORY;
-			}
+			data->v.sz.str = talloc_strdup(mem_ctx, data_s);
+			NT_STATUS_HAVE_NO_MEMORY(data->v.sz.str);
+			data->v.sz.len = strlen(data_s);
 			break;
-		case REG_DWORD: {
-			uint32_t v = atoi(data_s);
-			data->data = data_blob_talloc(mem_ctx, NULL, 4);
-			SIVAL(data->data.data, 0, v);
+		case REG_DWORD:
+			data->v.dword = atoi(data_s);
 			break;
-		}
 		default:
 			return NT_STATUS_NOT_SUPPORTED;
 	}
@@ -596,7 +586,7 @@ NTSTATUS init_gp_extensions(TALLOC_CTX *mem_ctx)
 			}
 
 			if (!reg_ctx) {
-				struct security_token *token;
+				NT_USER_TOKEN *token;
 
 				token = registry_create_system_token(mem_ctx);
 				NT_STATUS_HAVE_NO_MEMORY(token);
@@ -680,7 +670,7 @@ void debug_gpext_header(int lvl,
 NTSTATUS process_gpo_list_with_extension(ADS_STRUCT *ads,
 			   TALLOC_CTX *mem_ctx,
 			   uint32_t flags,
-			   const struct security_token *token,
+			   const NT_USER_TOKEN *token,
 			   struct GROUP_POLICY_OBJECT *gpo_list,
 			   const char *extension_guid,
 			   const char *snapin_guid)
@@ -694,7 +684,7 @@ NTSTATUS process_gpo_list_with_extension(ADS_STRUCT *ads,
 NTSTATUS gpext_process_extension(ADS_STRUCT *ads,
 				 TALLOC_CTX *mem_ctx,
 				 uint32_t flags,
-				 const struct security_token *token,
+				 const NT_USER_TOKEN *token,
 				 struct registry_key *root_key,
 				 struct GROUP_POLICY_OBJECT *gpo,
 				 const char *extension_guid,

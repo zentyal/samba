@@ -34,6 +34,8 @@
 #include "gen_locl.h"
 #include "lex.h"
 
+RCSID("$Id$");
+
 static Hashtab *htab;
 
 static int
@@ -66,7 +68,7 @@ output_name(char *s)
     char *p;
 
     for (p = s; *p; ++p)
-	if (*p == '-' || *p == '.')
+	if (*p == '-')
 	    *p = '_';
 }
 
@@ -93,7 +95,7 @@ checkfunc(void *ptr, void *arg)
 {
     Symbol *s = ptr;
     if (s->stype == SUndefined) {
-	lex_error_message("%s is still undefined\n", s->name);
+	error_message("%s is still undefined\n", s->name);
 	*(int *) arg = 1;
     }
     return 0;

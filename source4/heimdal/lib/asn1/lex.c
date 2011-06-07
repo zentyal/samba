@@ -1,6 +1,6 @@
 #include "config.h"
 
-#line 3 "lex.c"
+#line 3 "heimdal/lib/asn1/lex.c"
 
 #define  YY_INT_ALIGNED short int
 
@@ -9,7 +9,7 @@
 #define FLEX_SCANNER
 #define YY_FLEX_MAJOR_VERSION 2
 #define YY_FLEX_MINOR_VERSION 5
-#define YY_FLEX_SUBMINOR_VERSION 35
+#define YY_FLEX_SUBMINOR_VERSION 34
 #if YY_FLEX_SUBMINOR_VERSION > 0
 #define FLEX_BETA
 #endif
@@ -54,6 +54,7 @@ typedef int flex_int32_t;
 typedef unsigned char flex_uint8_t; 
 typedef unsigned short int flex_uint16_t;
 typedef unsigned int flex_uint32_t;
+#endif /* ! C99 */
 
 /* Limits of integral types. */
 #ifndef INT8_MIN
@@ -83,8 +84,6 @@ typedef unsigned int flex_uint32_t;
 #ifndef UINT32_MAX
 #define UINT32_MAX             (4294967295U)
 #endif
-
-#endif /* ! C99 */
 
 #endif /* ! FLEXINT_H */
 
@@ -142,15 +141,7 @@ typedef unsigned int flex_uint32_t;
 
 /* Size of default input buffer. */
 #ifndef YY_BUF_SIZE
-#ifdef __ia64__
-/* On IA-64, the buffer size is 16k, not 8k.
- * Moreover, YY_BUF_SIZE is 2*YY_READ_BUF_SIZE in the general case.
- * Ditto for the __ia64__ case accordingly.
- */
-#define YY_BUF_SIZE 32768
-#else
 #define YY_BUF_SIZE 16384
-#endif /* __ia64__ */
 #endif
 
 /* The state buf must be large enough to hold one state per character in the main buffer.
@@ -187,6 +178,13 @@ extern FILE *yyin, *yyout;
 	while ( 0 )
 
 #define unput(c) yyunput( c, (yytext_ptr)  )
+
+/* The following is because we cannot portably get our hands on size_t
+ * (without autoconf's help, which isn't available because we want
+ * flex-generated scanners to compile on their own).
+ * Given that the standard has decreed that size_t exists since 1989,
+ * I guess we can afford to depend on it. Manoj.
+ */
 
 #ifndef YY_TYPEDEF_YY_SIZE_T
 #define YY_TYPEDEF_YY_SIZE_T
@@ -857,7 +855,7 @@ static unsigned lineno = 1;
 static void unterminated(const char *, unsigned);
 
 /* This is for broken old lexes (solaris 10 and hpux) */
-#line 860 "lex.c"
+#line 858 "heimdal/lib/asn1/lex.c"
 
 #define INITIAL 0
 
@@ -874,35 +872,6 @@ static void unterminated(const char *, unsigned);
 #endif
 
 static int yy_init_globals (void );
-
-/* Accessor methods to globals.
-   These are made visible to non-reentrant scanners for convenience. */
-
-int yylex_destroy (void );
-
-int yyget_debug (void );
-
-void yyset_debug (int debug_flag  );
-
-YY_EXTRA_TYPE yyget_extra (void );
-
-void yyset_extra (YY_EXTRA_TYPE user_defined  );
-
-FILE *yyget_in (void );
-
-void yyset_in  (FILE * in_str  );
-
-FILE *yyget_out (void );
-
-void yyset_out  (FILE * out_str  );
-
-int yyget_leng (void );
-
-char *yyget_text (void );
-
-int yyget_lineno (void );
-
-void yyset_lineno (int line_number  );
 
 /* Macros after this point can all be overridden by user definitions in
  * section 1.
@@ -938,12 +907,7 @@ static int input (void );
 
 /* Amount of stuff to slurp up with each read. */
 #ifndef YY_READ_BUF_SIZE
-#ifdef __ia64__
-/* On IA-64, the buffer size is 16k, not 8k */
-#define YY_READ_BUF_SIZE 16384
-#else
 #define YY_READ_BUF_SIZE 8192
-#endif /* __ia64__ */
 #endif
 
 /* Copy whatever the last rule matched to the standard output. */
@@ -951,7 +915,7 @@ static int input (void );
 /* This used to be an fputs(), but since the string might contain NUL's,
  * we now use fwrite().
  */
-#define ECHO do { if (fwrite( yytext, yyleng, 1, yyout )) {} } while (0)
+#define ECHO fwrite( yytext, yyleng, 1, yyout )
 #endif
 
 /* Gets input and stuffs it into "buf".  number of characters read, or YY_NULL,
@@ -962,7 +926,7 @@ static int input (void );
 	if ( YY_CURRENT_BUFFER_LVALUE->yy_is_interactive ) \
 		{ \
 		int c = '*'; \
-		size_t n; \
+		int n; \
 		for ( n = 0; n < max_size && \
 			     (c = getc( yyin )) != EOF && c != '\n'; ++n ) \
 			buf[n] = (char) c; \
@@ -1046,7 +1010,7 @@ YY_DECL
     
 #line 68 "lex.l"
 
-#line 1049 "lex.c"
+#line 1013 "heimdal/lib/asn1/lex.c"
 
 	if ( !(yy_init) )
 		{
@@ -1671,7 +1635,7 @@ YY_RULE_SETUP
 			  yylval.constant = strtol((const char *)yytext,
 						   &e, 0);
 			  if(e == y)
-			    lex_error_message("malformed constant (%s)", yytext);
+			    error_message("malformed constant (%s)", yytext);
 			  else
 			    return NUMBER;
 			}
@@ -1708,14 +1672,14 @@ YY_RULE_SETUP
 case 94:
 YY_RULE_SETUP
 #line 273 "lex.l"
-{ lex_error_message("Ignoring char(%c)\n", *yytext); }
+{ error_message("Ignoring char(%c)\n", *yytext); }
 	YY_BREAK
 case 95:
 YY_RULE_SETUP
 #line 274 "lex.l"
 ECHO;
 	YY_BREAK
-#line 1718 "lex.c"
+#line 1682 "heimdal/lib/asn1/lex.c"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -2473,8 +2437,8 @@ YY_BUFFER_STATE yy_scan_string (yyconst char * yystr )
 
 /** Setup the input buffer state to scan the given bytes. The next call to yylex() will
  * scan from a @e copy of @a bytes.
- * @param yybytes the byte buffer to scan
- * @param _yybytes_len the number of bytes in the buffer pointed to by @a bytes.
+ * @param bytes the byte buffer to scan
+ * @param len the number of bytes in the buffer pointed to by @a bytes.
  * 
  * @return the newly allocated buffer state object.
  */
@@ -2726,7 +2690,7 @@ yywrap ()
 #endif
 
 void
-lex_error_message (const char *format, ...)
+error_message (const char *format, ...)
 {
     va_list args;
 
@@ -2740,6 +2704,6 @@ lex_error_message (const char *format, ...)
 static void
 unterminated(const char *type, unsigned start_lineno)
 {
-    lex_error_message("unterminated %s, possibly started on line %d\n", type, start_lineno);
+    error_message("unterminated %s, possibly started on line %d\n", type, start_lineno);
 }
 

@@ -29,5 +29,3 @@ $VALGRIND ldbadd$EXEEXT $LDBDIR/tests/init.ldif || exit 1
 . $LDBDIR/tests/test-extended.sh
 
 . $LDBDIR/tests/test-tdb-features.sh
-
-. $LDBDIR/tests/test-controls.sh

@@ -3,26 +3,22 @@
    Username handling
    Copyright (C) Andrew Tridgell 1992-1998
    Copyright (C) Jeremy Allison 1997-2001.
-   Copyright (C) Andrew Bartlett 2002
-
+   
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
-#include "system/passwd.h"
-#include "memcache.h"
-#include "../lib/util/util_pw.h"
 
 /* internal functions */
 static struct passwd *uname_string_combinations(char *s, TALLOC_CTX *mem_ctx,
@@ -31,41 +27,6 @@ static struct passwd *uname_string_combinations(char *s, TALLOC_CTX *mem_ctx,
 static struct passwd *uname_string_combinations2(char *s, TALLOC_CTX *mem_ctx, int offset,
 						 struct passwd * (*fn) (TALLOC_CTX *mem_ctx, const char *),
 						 int N);
-
-static struct passwd *getpwnam_alloc_cached(TALLOC_CTX *mem_ctx, const char *name)
-{
-	struct passwd *pw, *for_cache;
-
-	pw = (struct passwd *)memcache_lookup_talloc(
-		NULL, GETPWNAM_CACHE, data_blob_string_const_null(name));
-	if (pw != NULL) {
-		return tcopy_passwd(mem_ctx, pw);
-	}
-
-	pw = sys_getpwnam(name);
-	if (pw == NULL) {
-		return NULL;
-	}
-
-	for_cache = tcopy_passwd(talloc_tos(), pw);
-	if (for_cache == NULL) {
-		return NULL;
-	}
-
-	memcache_add_talloc(NULL, GETPWNAM_CACHE,
-			data_blob_string_const_null(name), &for_cache);
-
-	return tcopy_passwd(mem_ctx, pw);
-}
-
-/****************************************************************************
- Flush all cached passwd structs.
-****************************************************************************/
-
-void flush_pwnam_cache(void)
-{
-        memcache_flush(NULL, GETPWNAM_CACHE);
-}
 
 /****************************************************************************
  Get a users home directory.
@@ -114,7 +75,7 @@ static struct passwd *Get_Pwnam_internals(TALLOC_CTX *mem_ctx,
 	   common case on UNIX systems */
 	strlower_m(user2);
 	DEBUG(5,("Trying _Get_Pwnam(), username as lowercase is %s\n",user2));
-	ret = getpwnam_alloc_cached(mem_ctx, user2);
+	ret = getpwnam_alloc(mem_ctx, user2);
 	if(ret)
 		goto done;
 
@@ -122,7 +83,7 @@ static struct passwd *Get_Pwnam_internals(TALLOC_CTX *mem_ctx,
 	if(strcmp(user, user2) != 0) {
 		DEBUG(5,("Trying _Get_Pwnam(), username as given is %s\n",
 			 user));
-		ret = getpwnam_alloc_cached(mem_ctx, user);
+		ret = getpwnam_alloc(mem_ctx, user);
 		if(ret)
 			goto done;
 	}
@@ -132,7 +93,7 @@ static struct passwd *Get_Pwnam_internals(TALLOC_CTX *mem_ctx,
 	if(strcmp(user, user2) != 0) {
 		DEBUG(5,("Trying _Get_Pwnam(), username as uppercase is %s\n",
 			 user2));
-		ret = getpwnam_alloc_cached(mem_ctx, user2);
+		ret = getpwnam_alloc(mem_ctx, user2);
 		if(ret)
 			goto done;
 	}
@@ -141,7 +102,7 @@ static struct passwd *Get_Pwnam_internals(TALLOC_CTX *mem_ctx,
 	strlower_m(user2);
 	DEBUG(5,("Checking combinations of %d uppercase letters in %s\n",
 		 lp_usernamelevel(), user2));
-	ret = uname_string_combinations(user2, mem_ctx, getpwnam_alloc_cached,
+	ret = uname_string_combinations(user2, mem_ctx, getpwnam_alloc,
 					lp_usernamelevel());
 
 done:
@@ -160,6 +121,7 @@ done:
 struct passwd *Get_Pwnam_alloc(TALLOC_CTX *mem_ctx, const char *user)
 {
 	fstring user2;
+	struct passwd *ret;
 
 	if ( *user == '\0' ) {
 		DEBUG(10,("Get_Pwnam: empty username!\n"));
@@ -170,7 +132,9 @@ struct passwd *Get_Pwnam_alloc(TALLOC_CTX *mem_ctx, const char *user)
 
 	DEBUG(5,("Finding user %s\n", user));
 
-	return Get_Pwnam_internals(mem_ctx, user, user2);
+	ret = Get_Pwnam_internals(mem_ctx, user, user2);
+	
+	return ret;  
 }
 
 /* The functions below have been taken from password.c and slightly modified */

@@ -7,17 +7,17 @@
    Copyright (C) Tom Jansen (Ninja ISD) 2002 
    Copyright (C) Derrell Lipman 2003-2008
    Copyright (C) Jeremy Allison 2007, 2008
-
+   
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -90,10 +90,8 @@ smbc_getDebug(SMBCCTX *c)
 void
 smbc_setDebug(SMBCCTX *c, int debug)
 {
-	char buf[32];
-	snprintf(buf, sizeof(buf), "%d", debug);
         c->debug = debug;
-	lp_set_cmdline("log level", buf); 
+        DEBUGLEVEL = debug;
 }
 
 /**
@@ -120,31 +118,14 @@ smbc_setTimeout(SMBCCTX *c, int timeout)
 smbc_bool
 smbc_getOptionDebugToStderr(SMBCCTX *c)
 {
-	/* Because this is a global concept, it is better to check
-	 * what is really set, rather than what we wanted set
-	 * (particularly as you cannot go back to stdout). */
-        return debug_get_output_is_stderr();
+        return c->internal->debug_stderr;
 }
 
-/** Set whether to log to standard error instead of standard output.
- * This option is 'sticky' - once set to true, it cannot be set to
- * false again, as it is global to the process, as once we have been
- * told that it is not safe to safe to write to stdout, we shouldn't
- * go back as we don't know it was this context that set it that way.
- */
+/** Set whether to log to standard error instead of standard output */
 void
 smbc_setOptionDebugToStderr(SMBCCTX *c, smbc_bool b)
 {
-	if (b) {
-		/*
-		 * We do not have a unique per-thread debug state? For
-		 * now, we'll just leave it up to the user. If any one
-		 * context spefies debug to stderr then all will be (and
-		 * will stay that way, as it is unsafe to flip back if
-		 * stdout is in use for other things)
-		 */
-		setup_logging("libsmbclient", DEBUG_STDERR);
-	}
+        c->internal->debug_stderr = b;
 }
 
 /**

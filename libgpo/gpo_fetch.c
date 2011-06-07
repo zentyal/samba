@@ -25,16 +25,13 @@
 #if _SAMBA_BUILD_ == 4
 #include "param/param.h"
 #include "libcli/resolve/resolve.h"
-#include <tevent.h>
+#include "../lib/tevent/tevent.h"
 #include "libcli/libcli.h"
 #include "libcli/raw/libcliraw.h"
 #include "libcli/libcli_proto.h"
 #include "libgpo/ads_convenience.h"
 #include "libgpo/gpo_s4.h"
 #include "lib/util/util.h"
-#else
-#include "libgpo/gpo_proto.h"
-#include "libsmb/libsmb.h"
 #endif
 
 /****************************************************************
@@ -151,7 +148,7 @@ static NTSTATUS gpo_connect_server(ADS_STRUCT *ads, struct loadparm_context *lp_
 			ads->auth.password,
 			CLI_FULL_CONNECTION_USE_KERBEROS |
 			CLI_FULL_CONNECTION_FALLBACK_AFTER_KERBEROS,
-			Undefined);
+			Undefined, NULL);
 	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(10,("check_refresh_gpo: "
 				"failed to connect: %s\n",

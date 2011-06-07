@@ -34,7 +34,6 @@
  * events back to the proper SMB requests */
 
 #include "includes.h"
-#include "smbd/smbd.h"
 #include "onefs.h"
 
 #include <ifs/ifs_types.h>

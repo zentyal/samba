@@ -51,7 +51,7 @@ _PUBLIC_ void call_backtrace(void)
 #define BACKTRACE_STACK_SIZE 64
 #endif
 	void *backtrace_stack[BACKTRACE_STACK_SIZE];
-	int backtrace_size;
+	size_t backtrace_size;
 	char **backtrace_strings;
 
 	/* get the backtrace (stack frames) */
@@ -125,7 +125,7 @@ _PUBLIC_ _NORETURN_ void smb_panic(const char *why)
 		char pidstr[20];
 		char cmdstring[200];
 		safe_strcpy(cmdstring, panic_action, sizeof(cmdstring));
-		snprintf(pidstr, sizeof(pidstr), "%d", (int) getpid());
+		snprintf(pidstr, sizeof(pidstr), "%u", getpid());
 		all_string_sub(cmdstring, "%PID%", pidstr, sizeof(cmdstring));
 		if (progname) {
 			all_string_sub(cmdstring, "%PROG%", progname, sizeof(cmdstring));
@@ -145,7 +145,7 @@ _PUBLIC_ _NORETURN_ void smb_panic(const char *why)
 	call_backtrace();
 
 #ifdef SIGABRT
-	CatchSignal(SIGABRT, SIG_DFL);
+	CatchSignal(SIGABRT,SIGNAL_CAST SIG_DFL);
 #endif
 	abort();
 }
@@ -187,32 +187,22 @@ setup our fault handlers
 **/
 _PUBLIC_ void fault_setup(const char *pname)
 {
-	if (progname != NULL) {
-		return;
+	if (progname == NULL) {
+		progname = pname;
 	}
-	progname = pname;
 #ifdef SIGSEGV
-	CatchSignal(SIGSEGV, sig_fault);
+	CatchSignal(SIGSEGV,SIGNAL_CAST sig_fault);
 #endif
 #ifdef SIGBUS
-	CatchSignal(SIGBUS, sig_fault);
+	CatchSignal(SIGBUS,SIGNAL_CAST sig_fault);
 #endif
 #ifdef SIGABRT
-	CatchSignal(SIGABRT, sig_fault);
+	CatchSignal(SIGABRT,SIGNAL_CAST sig_fault);
 #endif
 #ifdef SIGFPE
-	CatchSignal(SIGFPE, sig_fault);
+	CatchSignal(SIGFPE,SIGNAL_CAST sig_fault);
 #endif
 }
-
-/**
-   disable setting up fault handlers
-**/
-_PUBLIC_ void fault_setup_disable(void)
-{
-	progname = "fault disabled";
-}
-
 
 /**
   register a fault handler. 

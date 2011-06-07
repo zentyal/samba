@@ -19,8 +19,6 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "system/network.h"
-
 struct wreplsrv_service;
 struct wreplsrv_in_connection;
 struct wreplsrv_out_connection;
@@ -37,10 +35,6 @@ struct wreplsrv_in_call {
 	struct wrepl_packet req_packet;
 	struct wrepl_packet rep_packet;
 	bool terminate_after_send;
-
-	DATA_BLOB in;
-	DATA_BLOB out;
-	struct iovec out_iov[1];
 };
 
 /*
@@ -49,8 +43,7 @@ struct wreplsrv_in_call {
 struct wreplsrv_in_connection {
 	struct wreplsrv_in_connection *prev,*next;
 	struct stream_connection *conn;
-	struct tstream_context *tstream;
-	struct tevent_queue *send_queue;
+	struct packet_context *packet;
 
 	/* our global service context */
 	struct wreplsrv_service *service;

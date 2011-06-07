@@ -39,7 +39,6 @@
  */
 
 #include "includes.h"
-#include "smbd/smbd.h"
 
 #ifndef USE_DMAPI
 #error "This module requires DMAPI support!"
@@ -147,9 +146,8 @@ static int tsmsm_connect(struct vfs_handle_struct *handle,
 }
 
 static bool tsmsm_is_offline(struct vfs_handle_struct *handle, 
-			     const struct smb_filename *fname,
-			     SMB_STRUCT_STAT *stbuf)
-{
+			    const char *path,
+			    SMB_STRUCT_STAT *stbuf) {
 	struct tsmsm_struct *tsmd = (struct tsmsm_struct *) handle->data;
 	const dm_sessid_t *dmsession_id;
 	void *dmhandle = NULL;
@@ -160,23 +158,15 @@ static bool tsmsm_is_offline(struct vfs_handle_struct *handle,
 	bool offline;
 	char *buf = NULL;
 	size_t buflen;
-	NTSTATUS status;
-	char *path;
-
-        status = get_full_smb_filename(talloc_tos(), fname, &path);
-        if (!NT_STATUS_IS_OK(status)) {
-                errno = map_errno_from_nt_status(status);
-                return false;
-        }
 
         /* if the file has more than FILE_IS_ONLINE_RATIO of blocks available,
 	   then assume it is not offline (it may not be 100%, as it could be sparse) */
-	if (512 * stbuf->st_ex_blocks >=
+	if (512 * (off_t)stbuf->st_ex_blocks >=
 	    stbuf->st_ex_size * tsmd->online_ratio) {
-		DEBUG(10,("%s not offline: st_blocks=%llu st_size=%llu "
+		DEBUG(10,("%s not offline: st_blocks=%ld st_size=%ld "
 			  "online_ratio=%.2f\n", path,
-			  (unsigned long long)stbuf->st_ex_blocks,
-			  (unsigned long long)stbuf->st_ex_size, tsmd->online_ratio));
+			  (long)stbuf->st_ex_blocks,
+			  (long)stbuf->st_ex_size, tsmd->online_ratio));
 		return false;
 	}
 
@@ -273,10 +263,10 @@ static bool tsmsm_aio_force(struct vfs_handle_struct *handle, struct files_struc
 	   if the file might be offline
 	*/
 	if(SMB_VFS_FSTAT(fsp, &sbuf) == 0) {
-		DEBUG(10,("tsmsm_aio_force st_blocks=%llu st_size=%llu "
-			  "online_ratio=%.2f\n", (unsigned long long)sbuf.st_ex_blocks,
-			  (unsigned long long)sbuf.st_ex_size, tsmd->online_ratio));
-		return !(512 * sbuf.st_ex_blocks >=
+		DEBUG(10,("tsmsm_aio_force st_blocks=%ld st_size=%ld "
+			  "online_ratio=%.2f\n", (long)sbuf.st_ex_blocks,
+			  (long)sbuf.st_ex_size, tsmd->online_ratio));
+		return !(512 * (off_t)sbuf.st_ex_blocks >=
 			 sbuf.st_ex_size * tsmd->online_ratio);
 	}
 	return false;
@@ -350,25 +340,16 @@ static ssize_t tsmsm_pwrite(struct vfs_handle_struct *handle, struct files_struc
 }
 
 static int tsmsm_set_offline(struct vfs_handle_struct *handle, 
-                             const struct smb_filename *fname)
-{
+			     const char *path) {
 	struct tsmsm_struct *tsmd = (struct tsmsm_struct *) handle->data;
 	int result = 0;
 	char *command;
-	NTSTATUS status;
-	char *path;
 
 	if (tsmd->hsmscript == NULL) {
 		/* no script enabled */
 		DEBUG(1, ("tsmsm_set_offline: No 'tsmsm:hsm script' configured\n"));
 		return 0;
 	}
-
-        status = get_full_smb_filename(talloc_tos(), fname, &path);
-        if (!NT_STATUS_IS_OK(status)) {
-                errno = map_errno_from_nt_status(status);
-                return false;
-        }
 
 	/* Now, call the script */
 	command = talloc_asprintf(tsmd, "%s offline \"%s\"", tsmd->hsmscript, path);

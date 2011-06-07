@@ -117,17 +117,22 @@ static bool test_create_subkey(struct torture_context *tctx, void *_data)
 static bool test_create_nested_subkey(struct torture_context *tctx, void *_data)
 {
 	struct registry_context *rctx = (struct registry_context *)_data;
-	struct registry_key *root, *newkey;
+	struct registry_key *root, *newkey1, *newkey2;
 	WERROR error;
 
 	error = reg_get_predefined_key(rctx, HKEY_CLASSES_ROOT, &root);
 	torture_assert_werr_ok(tctx, error,
 			       "getting predefined key failed");
 
-	error = reg_key_add_name(rctx, root, "Hamburg\\Hamburg", NULL, NULL,
-				 &newkey);
+	error = reg_key_add_name(rctx, root, "Hamburg", NULL, NULL,
+				 &newkey1);
 	torture_assert_werr_ok(tctx, error, "Creating key return code");
-	torture_assert(tctx, newkey != NULL, "Creating new key");
+	torture_assert(tctx, newkey1 != NULL, "Creating new key");
+
+	error = reg_key_add_name(rctx, root, "Hamburg\\Hamburg", NULL, NULL,
+				 &newkey2);
+	torture_assert_werr_ok(tctx, error, "Creating key return code");
+	torture_assert(tctx, newkey2 != NULL, "Creating new key");
 
 	return true;
 }
@@ -195,10 +200,10 @@ static bool test_del_key(struct torture_context *tctx, void *_data)
 	torture_assert_werr_ok(tctx, error, "Creating key return code");
 	torture_assert(tctx, newkey != NULL, "Creating new key");
 
-	error = reg_key_del(tctx, root, "Polen");
+	error = reg_key_del(root, "Polen");
 	torture_assert_werr_ok(tctx, error, "Delete key");
 
-	error = reg_key_del(tctx, root, "Polen");
+	error = reg_key_del(root, "Polen");
 	torture_assert_werr_equal(tctx, error, WERR_BADFILE,
 				  "Delete missing key");
 
@@ -459,7 +464,7 @@ static bool test_del_value(struct torture_context *tctx, void *_data)
 			    data_blob_talloc(tctx, value, sizeof(value)));
 	torture_assert_werr_ok (tctx, error, "setting value");
 
-	error = reg_del_value(tctx, subkey, __FUNCTION__);
+	error = reg_del_value(subkey, __FUNCTION__);
 	torture_assert_werr_ok (tctx, error, "unsetting value");
 
 	error = reg_key_get_value_by_name(tctx, subkey, __FUNCTION__,
@@ -579,7 +584,7 @@ static void tcase_add_tests(struct torture_tcase *tcase)
 struct torture_suite *torture_registry_registry(TALLOC_CTX *mem_ctx)
 {
 	struct torture_tcase *tcase;
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "registry");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "REGISTRY");
 
 	tcase = torture_suite_add_tcase(suite, "local");
 	torture_tcase_set_fixture(tcase, setup_local_registry, NULL);

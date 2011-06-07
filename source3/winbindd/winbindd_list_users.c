@@ -19,7 +19,7 @@
 
 #include "includes.h"
 #include "winbindd.h"
-#include "librpc/gen_ndr/ndr_wbint_c.h"
+#include "librpc/gen_ndr/cli_wbint.h"
 
 struct winbindd_list_users_domstate {
 	struct tevent_req *subreq;
@@ -90,8 +90,8 @@ struct tevent_req *winbindd_list_users_send(TALLOC_CTX *mem_ctx,
 	for (i=0; i<state->num_domains; i++) {
 		struct winbindd_list_users_domstate *d = &state->domains[i];
 
-		d->subreq = dcerpc_wbint_QueryUserList_send(
-			state->domains, ev, dom_child_handle(d->domain),
+		d->subreq = rpccli_wbint_QueryUserList_send(
+			state->domains, ev, d->domain->child.rpccli,
 			&d->users);
 		if (tevent_req_nomem(d->subreq, req)) {
 			TALLOC_FREE(state->domains);
@@ -113,7 +113,7 @@ static void winbindd_list_users_done(struct tevent_req *subreq)
 	NTSTATUS status, result;
 	int i;
 
-	status = dcerpc_wbint_QueryUserList_recv(subreq, state->domains,
+	status = rpccli_wbint_QueryUserList_recv(subreq, state->domains,
 						 &result);
 
 	for (i=0; i<state->num_domains; i++) {
@@ -161,7 +161,6 @@ NTSTATUS winbindd_list_users_recv(struct tevent_req *req,
 	}
 
 	len = 0;
-	response->data.num_entries = 0;
 	for (i=0; i<state->num_domains; i++) {
 		struct winbindd_list_users_domstate *d = &state->domains[i];
 
@@ -172,7 +171,6 @@ NTSTATUS winbindd_list_users_recv(struct tevent_req *req,
 					     True);
 			len += strlen(name)+1;
 		}
-		response->data.num_entries += d->users.num_userinfos;
 	}
 
 	result = talloc_array(response, char, len+1);

@@ -33,6 +33,8 @@
 
 #include "kdc_locl.h"
 
+RCSID("$Id$");
+
 #define MAX_TIME ((time_t)((1U << 31) - 1))
 
 void
@@ -58,13 +60,13 @@ realloc_method_data(METHOD_DATA *md)
 }
 
 static void
-set_salt_padata(METHOD_DATA *md, Salt *salt)
+set_salt_padata (METHOD_DATA *md, Salt *salt)
 {
     if (salt) {
-       realloc_method_data(md);
-       md->val[md->len - 1].padata_type = salt->type;
-       der_copy_octet_string(&salt->salt,
-                             &md->val[md->len - 1].padata_value);
+	realloc_method_data(md);
+	md->val[md->len - 1].padata_type = salt->type;
+	der_copy_octet_string(&salt->salt,
+			      &md->val[md->len - 1].padata_value);
     }
 }
 
@@ -125,7 +127,7 @@ is_default_salt_p(const krb5_salt *default_salt, const Key *key)
 krb5_error_code
 _kdc_find_etype(krb5_context context, const hdb_entry_ex *princ,
 		krb5_enctype *etypes, unsigned len,
-		Key **ret_key)
+		Key **ret_key, krb5_enctype *ret_etype)
 {
     int i;
     krb5_error_code ret = KRB5KDC_ERR_ETYPE_NOSUPP;
@@ -146,6 +148,7 @@ _kdc_find_etype(krb5_context context, const hdb_entry_ex *princ,
 		continue;
 	    }
 	    *ret_key   = key;
+	    *ret_etype = etypes[i];
 	    ret = 0;
 	    if (is_default_salt_p(&def_salt, key)) {
 		krb5_free_salt (context, def_salt);
@@ -258,7 +261,6 @@ _kdc_encode_reply(krb5_context context,
 		  krb5_enctype etype,
 		  int skvno, const EncryptionKey *skey,
 		  int ckvno, const EncryptionKey *reply_key,
-		  int rk_is_subkey,
 		  const char **e_text,
 		  krb5_data *reply)
 {
@@ -270,9 +272,8 @@ _kdc_encode_reply(krb5_context context,
 
     ASN1_MALLOC_ENCODE(EncTicketPart, buf, buf_size, et, &len, ret);
     if(ret) {
-	const char *msg = krb5_get_error_message(context, ret);
-	kdc_log(context, config, 0, "Failed to encode ticket: %s", msg);
-	krb5_free_error_message(context, msg);
+	kdc_log(context, config, 0, "Failed to encode ticket: %s",
+		krb5_get_err_text(context, ret));
 	return ret;
     }
     if(buf_size != len) {
@@ -284,11 +285,9 @@ _kdc_encode_reply(krb5_context context,
 
     ret = krb5_crypto_init(context, skey, etype, &crypto);
     if (ret) {
-        const char *msg;
 	free(buf);
-	msg = krb5_get_error_message(context, ret);
-	kdc_log(context, config, 0, "krb5_crypto_init failed: %s", msg);
-	krb5_free_error_message(context, msg);
+	kdc_log(context, config, 0, "krb5_crypto_init failed: %s",
+		krb5_get_err_text(context, ret));
 	return ret;
     }
 
@@ -302,9 +301,8 @@ _kdc_encode_reply(krb5_context context,
     free(buf);
     krb5_crypto_destroy(context, crypto);
     if(ret) {
-	const char *msg = krb5_get_error_message(context, ret);
-	kdc_log(context, config, 0, "Failed to encrypt data: %s", msg);
-	krb5_free_error_message(context, msg);
+	kdc_log(context, config, 0, "Failed to encrypt data: %s",
+		krb5_get_err_text(context, ret));
 	return ret;
     }
 
@@ -313,9 +311,8 @@ _kdc_encode_reply(krb5_context context,
     else
 	ASN1_MALLOC_ENCODE(EncTGSRepPart, buf, buf_size, ek, &len, ret);
     if(ret) {
-	const char *msg = krb5_get_error_message(context, ret);
-	kdc_log(context, config, 0, "Failed to encode KDC-REP: %s", msg);
-	krb5_free_error_message(context, msg);
+	kdc_log(context, config, 0, "Failed to encode KDC-REP: %s",
+		krb5_get_err_text(context, ret));
 	return ret;
     }
     if(buf_size != len) {
@@ -326,10 +323,9 @@ _kdc_encode_reply(krb5_context context,
     }
     ret = krb5_crypto_init(context, reply_key, 0, &crypto);
     if (ret) {
-	const char *msg = krb5_get_error_message(context, ret);
 	free(buf);
-	kdc_log(context, config, 0, "krb5_crypto_init failed: %s", msg);
-	krb5_free_error_message(context, msg);
+	kdc_log(context, config, 0, "krb5_crypto_init failed: %s",
+		krb5_get_err_text(context, ret));
 	return ret;
     }
     if(rep->msg_type == krb_as_rep) {
@@ -345,7 +341,7 @@ _kdc_encode_reply(krb5_context context,
     } else {
 	krb5_encrypt_EncryptedData(context,
 				   crypto,
-				   rk_is_subkey ? KRB5_KU_TGS_REP_ENC_PART_SUB_KEY : KRB5_KU_TGS_REP_ENC_PART_SESSION,
+				   KRB5_KU_TGS_REP_ENC_PART_SESSION,
 				   buf,
 				   len,
 				   ckvno,
@@ -355,9 +351,8 @@ _kdc_encode_reply(krb5_context context,
     }
     krb5_crypto_destroy(context, crypto);
     if(ret) {
-	const char *msg = krb5_get_error_message(context, ret);
-	kdc_log(context, config, 0, "Failed to encode KDC-REP: %s", msg);
-	krb5_free_error_message(context, msg);
+	kdc_log(context, config, 0, "Failed to encode KDC-REP: %s",
+		krb5_get_err_text(context, ret));
 	return ret;
     }
     if(buf_size != len) {
@@ -900,7 +895,7 @@ _kdc_as_rep(krb5_context context,
     KDCOptions f = b->kdc_options;
     hdb_entry_ex *client = NULL, *server = NULL;
     HDB *clientdb;
-    krb5_enctype setype, sessionetype;
+    krb5_enctype cetype, setype, sessionetype;
     krb5_data e_data;
     EncTicketPart et;
     EncKDCRepPart ek;
@@ -910,19 +905,14 @@ _kdc_as_rep(krb5_context context,
     const char *e_text = NULL;
     krb5_crypto crypto;
     Key *ckey, *skey;
-    EncryptionKey *reply_key = NULL, session_key;
+    EncryptionKey *reply_key;
     int flags = 0;
 #ifdef PKINIT
     pk_client_params *pkp = NULL;
 #endif
 
     memset(&rep, 0, sizeof(rep));
-    memset(&session_key, 0, sizeof(session_key));
     krb5_data_zero(&e_data);
-
-    ALLOC(rep.padata);
-    rep.padata->len = 0;
-    rep.padata->val = NULL;
 
     if (f.canonicalize)
 	flags |= HDB_F_CANON;
@@ -988,28 +978,20 @@ _kdc_as_rep(krb5_context context,
      */
 
     ret = _kdc_db_fetch(context, config, client_princ,
-			HDB_F_GET_CLIENT | flags, NULL,
-			&clientdb, &client);
-    if(ret == HDB_ERR_NOT_FOUND_HERE) {
-	kdc_log(context, config, 5, "client %s does not have secrets at this KDC, need to proxy", client_name);
-	goto out;
-    } else if(ret){
-	const char *msg = krb5_get_error_message(context, ret);
-	kdc_log(context, config, 0, "UNKNOWN -- %s: %s", client_name, msg);
-	krb5_free_error_message(context, msg);
+			HDB_F_GET_CLIENT | flags, &clientdb, &client);
+    if(ret){
+	kdc_log(context, config, 0, "UNKNOWN -- %s: %s", client_name,
+		krb5_get_err_text(context, ret));
 	ret = KRB5KDC_ERR_C_PRINCIPAL_UNKNOWN;
 	goto out;
     }
+
     ret = _kdc_db_fetch(context, config, server_princ,
-			HDB_F_GET_SERVER|HDB_F_GET_KRBTGT | flags,
-			NULL, NULL, &server);
-    if(ret == HDB_ERR_NOT_FOUND_HERE) {
-	kdc_log(context, config, 5, "target %s does not have secrets at this KDC, need to proxy", server_name);
-	goto out;
-    } else if(ret){
-	const char *msg = krb5_get_error_message(context, ret);
-	kdc_log(context, config, 0, "UNKNOWN -- %s: %s", server_name, msg);
-	krb5_free_error_message(context, msg);
+			HDB_F_GET_SERVER|HDB_F_GET_KRBTGT,
+			NULL, &server);
+    if(ret){
+	kdc_log(context, config, 0, "UNKNOWN -- %s: %s", server_name,
+		krb5_get_err_text(context, ret));
 	ret = KRB5KDC_ERR_S_PRINCIPAL_UNKNOWN;
 	goto out;
     }
@@ -1018,58 +1000,18 @@ _kdc_as_rep(krb5_context context,
     memset(&ek, 0, sizeof(ek));
 
     /*
-     * Select a session enctype from the list of the crypto systems
-     * supported enctype, is supported by the client and is one of the
-     * enctype of the enctype of the krbtgt.
-     *
-     * The later is used as a hint what enctype all KDC are supporting
-     * to make sure a newer version of KDC wont generate a session
-     * enctype that and older version of a KDC in the same realm can't
-     * decrypt.
-     *
-     * But if the KDC admin is paranoid and doesn't want to have "no
-     * the best" enctypes on the krbtgt, lets save the best pick from
-     * the client list and hope that that will work for any other
-     * KDCs.
+     * Find the client key for reply encryption and pa-type salt, Pick
+     * the client key upfront before the other keys because that is
+     * going to affect what enctypes we are going to use in
+     * ETYPE-INFO{,2}.
      */
-    {
-	const krb5_enctype *p;
-	krb5_enctype clientbest = ETYPE_NULL;
-	int i, j;
 
-	p = krb5_kerberos_enctypes(context);
-
-	sessionetype = ETYPE_NULL;
-
-	for (i = 0; p[i] != ETYPE_NULL && sessionetype == ETYPE_NULL; i++) {
-	    if (krb5_enctype_valid(context, p[i]) != 0)
-		continue;
-
-	    for (j = 0; j < b->etype.len && sessionetype == ETYPE_NULL; j++) {
-		Key *dummy;
-		/* check with client */
-		if (p[i] != b->etype.val[j])
-		    continue;
-		/* save best of union of { client, crypto system } */
-		if (clientbest == ETYPE_NULL)
-		    clientbest = p[i];
-		/* check with krbtgt */
-		ret = hdb_enctype2key(context, &server->entry, p[i], &dummy);
-		if (ret)
-		    continue;
-		sessionetype = p[i];
-	    }
-	}
-	/* if krbtgt had no shared keys with client, pick clients best */
-	if (clientbest != ETYPE_NULL && sessionetype == ETYPE_NULL) {
-	    sessionetype = clientbest;
-	} else if (sessionetype == ETYPE_NULL) {
-	    kdc_log(context, config, 0,
-		    "Client (%s) from %s has no common enctypes with KDC"
-		    "to use for the session key",
-		    client_name, from);
-	    goto out;
-	}
+    ret = _kdc_find_etype(context, client, b->etype.val, b->etype.len,
+			  &ckey, &cetype);
+    if (ret) {
+	kdc_log(context, config, 0,
+		"Client (%s) has no support for etypes", client_name);
+	goto out;
     }
 
     /*
@@ -1193,9 +1135,8 @@ _kdc_as_rep(krb5_context context,
 	try_next_key:
 	    ret = krb5_crypto_init(context, &pa_key->key, 0, &crypto);
 	    if (ret) {
-		const char *msg = krb5_get_error_message(context, ret);
-		kdc_log(context, config, 0, "krb5_crypto_init failed: %s", msg);
-		krb5_free_error_message(context, msg);
+		kdc_log(context, config, 0, "krb5_crypto_init failed: %s",
+			krb5_get_err_text(context, ret));
 		free_EncryptedData(&enc_data);
 		continue;
 	    }
@@ -1213,8 +1154,6 @@ _kdc_as_rep(krb5_context context,
 	     */
 	    if(ret){
 		krb5_error_code ret2;
-		const char *msg = krb5_get_error_message(context, ret);
-
 		ret2 = krb5_enctype_to_string(context,
 					      pa_key->key.keytype, &str);
 		if (ret2)
@@ -1222,8 +1161,9 @@ _kdc_as_rep(krb5_context context,
 		kdc_log(context, config, 5,
 			"Failed to decrypt PA-DATA -- %s "
 			"(enctype %s) error %s",
-			client_name, str ? str : "unknown enctype", msg);
-		krb5_free_error_message(context, msg);
+			client_name,
+			str ? str : "unknown enctype",
+			krb5_get_err_text(context, ret));
 		free(str);
 
 		if(hdb_next_enctype2key(context, &client->entry,
@@ -1279,11 +1219,7 @@ _kdc_as_rep(krb5_context context,
 	    }
 	    et.flags.pre_authent = 1;
 
-	    set_salt_padata(rep.padata, pa_key->salt);
-
-	    reply_key = &pa_key->key;
-
-	    ret = krb5_enctype_to_string(context, pa_key->key.keytype, &str);
+	    ret = krb5_enctype_to_string(context,pa_key->key.keytype, &str);
 	    if (ret)
 		str = NULL;
 
@@ -1353,9 +1289,7 @@ _kdc_as_rep(krb5_context context,
 	/*
 	 * If there is a client key, send ETYPE_INFO{,2}
 	 */
-	ret = _kdc_find_etype(context, client, b->etype.val, b->etype.len,
-			      &ckey);
-	if (ret == 0) {
+	if (ckey) {
 
 	    /*
 	     * RFC4120 requires:
@@ -1426,10 +1360,66 @@ _kdc_as_rep(krb5_context context,
     if(ret)
 	goto out;
 
+    /*
+     * Select a session enctype from the list of the crypto systems
+     * supported enctype, is supported by the client and is one of the
+     * enctype of the enctype of the krbtgt.
+     *
+     * The later is used as a hint what enctype all KDC are supporting
+     * to make sure a newer version of KDC wont generate a session
+     * enctype that and older version of a KDC in the same realm can't
+     * decrypt.
+     *
+     * But if the KDC admin is paranoid and doesn't want to have "no
+     * the best" enctypes on the krbtgt, lets save the best pick from
+     * the client list and hope that that will work for any other
+     * KDCs.
+     */
+    {
+	const krb5_enctype *p;
+	krb5_enctype clientbest = ETYPE_NULL;
+	int i, j;
+
+	p = krb5_kerberos_enctypes(context);
+
+	sessionetype = ETYPE_NULL;
+
+	for (i = 0; p[i] != ETYPE_NULL && sessionetype == ETYPE_NULL; i++) {
+	    if (krb5_enctype_valid(context, p[i]) != 0)
+		continue;
+
+	    for (j = 0; j < b->etype.len && sessionetype == ETYPE_NULL; j++) {
+		Key *dummy;
+		/* check with client */
+		if (p[i] != b->etype.val[j])
+		    continue;
+		/* save best of union of { client, crypto system } */
+		if (clientbest == ETYPE_NULL)
+		    clientbest = p[i];
+		/* check with krbtgt */
+		ret = hdb_enctype2key(context, &server->entry, p[i], &dummy);
+		if (ret)
+		    continue;
+		sessionetype = p[i];
+	    }
+	}
+	/* if krbtgt had no shared keys with client, pick clients best */
+	if (clientbest != ETYPE_NULL && sessionetype == ETYPE_NULL) {
+	    sessionetype = clientbest;
+	} else if (sessionetype == ETYPE_NULL) {
+	    kdc_log(context, config, 0,
+		    "Client (%s) from %s has no common enctypes with KDC"
+		    "to use for the session key",
+		    client_name, from);
+	    goto out;
+	}
+    }
+
+    log_as_req(context, config, cetype, setype, b);
+
     if(f.renew || f.validate || f.proxy || f.forwarded || f.enc_tkt_in_skey
        || (f.request_anonymous && !config->allow_anonymous)) {
 	ret = KRB5KDC_ERR_BADOPTION;
-	e_text = "Bad KDC options";
 	kdc_log(context, config, 0, "Bad KDC options -- %s", client_name);
 	goto out;
     }
@@ -1459,7 +1449,6 @@ _kdc_as_rep(krb5_context context,
     if(client->entry.flags.forwardable && server->entry.flags.forwardable)
 	et.flags.forwardable = f.forwardable;
     else if (f.forwardable) {
-	e_text = "Ticket may not be forwardable";
 	ret = KRB5KDC_ERR_POLICY;
 	kdc_log(context, config, 0,
 		"Ticket may not be forwardable -- %s", client_name);
@@ -1468,7 +1457,6 @@ _kdc_as_rep(krb5_context context,
     if(client->entry.flags.proxiable && server->entry.flags.proxiable)
 	et.flags.proxiable = f.proxiable;
     else if (f.proxiable) {
-	e_text = "Ticket may not be proxiable";
 	ret = KRB5KDC_ERR_POLICY;
 	kdc_log(context, config, 0,
 		"Ticket may not be proxiable -- %s", client_name);
@@ -1477,7 +1465,6 @@ _kdc_as_rep(krb5_context context,
     if(client->entry.flags.postdate && server->entry.flags.postdate)
 	et.flags.may_postdate = f.allow_postdate;
     else if (f.allow_postdate){
-	e_text = "Ticket may not be postdate";
 	ret = KRB5KDC_ERR_POLICY;
 	kdc_log(context, config, 0,
 		"Ticket may not be postdatable -- %s", client_name);
@@ -1486,7 +1473,6 @@ _kdc_as_rep(krb5_context context,
 
     /* check for valid set of addresses */
     if(!_kdc_check_addresses(context, config, b->addresses, from_addr)) {
-	e_text = "Bad address list in requested";
 	ret = KRB5KRB_AP_ERR_BADADDR;
 	kdc_log(context, config, 0,
 		"Bad address list requested -- %s", client_name);
@@ -1625,6 +1611,10 @@ _kdc_as_rep(krb5_context context,
 	copy_HostAddresses(et.caddr, ek.caddr);
     }
 
+    ALLOC(rep.padata);
+    rep.padata->len = 0;
+    rep.padata->val = NULL;
+
 #if PKINIT
     if (pkp) {
         e_text = "Failed to build PK-INIT reply";
@@ -1639,16 +1629,14 @@ _kdc_as_rep(krb5_context context,
 					   &et);
 	if (ret)
 	    goto out;
-
     } else
 #endif
-    {
+    if (ckey) {
+	reply_key = &ckey->key;
 	ret = krb5_generate_random_keyblock(context, sessionetype, &et.key);
 	if (ret)
 	    goto out;
-    }
-
-    if (reply_key == NULL) {
+    } else {
 	e_text = "Client have no reply key";
 	ret = KRB5KDC_ERR_CLIENT_NOTYET;
 	goto out;
@@ -1657,6 +1645,9 @@ _kdc_as_rep(krb5_context context,
     ret = copy_EncryptionKey(&et.key, &ek.key);
     if (ret)
 	goto out;
+
+    if (ckey)
+	set_salt_padata (rep.padata, ckey->salt);
 
     /* Add signing of alias referral */
     if (f.canonicalize) {
@@ -1756,19 +1747,16 @@ _kdc_as_rep(krb5_context context,
 				  config,
 				  server,
 				  setype,
-				  client->entry.principal,
 				  NULL,
 				  NULL,
 				  &et);
     if (ret)
 	goto out;
 
-    log_as_req(context, config, reply_key->keytype, setype, b);
-
     ret = _kdc_encode_reply(context, config,
 			    &rep, &et, &ek, setype, server->entry.kvno,
 			    &skey->key, client->entry.kvno,
-			    reply_key, 0, &e_text, reply);
+			    reply_key, &e_text, reply);
     free_EncTicketPart(&et);
     free_EncKDCRepPart(&ek);
     if (ret)
@@ -1783,7 +1771,7 @@ _kdc_as_rep(krb5_context context,
 
 out:
     free_AS_REP(&rep);
-    if(ret != 0 && ret != HDB_ERR_NOT_FOUND_HERE){
+    if(ret){
 	krb5_mk_error(context,
 		      ret,
 		      e_text,

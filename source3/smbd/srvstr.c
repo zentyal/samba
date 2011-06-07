@@ -19,7 +19,6 @@
 */
 
 #include "includes.h"
-#include "smbd/smbd.h"
 #include "smbd/globals.h"
 
 /* Make sure we can't write a string past the end of the buffer */

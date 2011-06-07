@@ -19,10 +19,7 @@
 */
 
 #include "includes.h"
-#include "system/passwd.h"
-#include "system/filesys.h"
 #include "utils/net.h"
-#include "../libcli/security/security.h"
 
 struct {
 	const char *us_errstr;
@@ -40,8 +37,6 @@ struct {
 	{N_("Path not allowed"), USERSHARE_PATH_NOT_ALLOWED},
 	{N_("Path is not a directory"), USERSHARE_PATH_NOT_DIRECTORY},
 	{N_("System error"), USERSHARE_POSIX_ERR},
-	{N_("Malformed sharename definition"), USERSHARE_MALFORMED_SHARENAME_DEF},
-	{N_("Bad sharename (doesn't match filename)"), USERSHARE_BAD_SHARENAME},
 	{NULL,(enum usershare_err)-1}
 };
 
@@ -333,11 +328,10 @@ static int info_fn(struct file_list *fl, void *priv)
 	struct net_context *c = pi->c;
 	int fd = -1;
 	int numlines = 0;
-	struct security_descriptor *psd = NULL;
+	SEC_DESC *psd = NULL;
 	char *basepath;
 	char *sharepath = NULL;
 	char *comment = NULL;
-	char *cp_sharename = NULL;
 	char *acl_str;
 	int num_aces;
 	char sep_str[2];
@@ -398,7 +392,6 @@ static int info_fn(struct file_list *fl, void *priv)
 	us_err = parse_usershare_file(ctx, &sbuf, fl->pathname, -1, lines, numlines,
 				&sharepath,
 				&comment,
-				&cp_sharename,
 				&psd,
 				&guest_ok);
 
@@ -480,13 +473,13 @@ static int info_fn(struct file_list *fl, void *priv)
 
 	/* NOTE: This is smb.conf-like output. Do not translate. */
 	if (pi->op == US_INFO_OP) {
-		d_printf("[%s]\n", cp_sharename );
+		d_printf("[%s]\n", fl->pathname );
 		d_printf("path=%s\n", sharepath );
 		d_printf("comment=%s\n", comment);
 		d_printf("%s\n", acl_str);
 		d_printf("guest_ok=%c\n\n", guest_ok ? 'y' : 'n');
 	} else if (pi->op == US_LIST_OP) {
-		d_printf("%s\n", cp_sharename);
+		d_printf("%s\n", fl->pathname);
 	}
 
 	return 0;
@@ -624,7 +617,6 @@ static int net_usershare_add(struct net_context *c, int argc, const char **argv)
 	SMB_STRUCT_STAT sbuf;
 	SMB_STRUCT_STAT lsbuf;
 	char *sharename;
-	const char *cp_sharename;
 	char *full_path;
 	char *full_path_tmp;
 	const char *us_path;
@@ -653,25 +645,21 @@ static int net_usershare_add(struct net_context *c, int argc, const char **argv)
 		default:
 			return net_usershare_add_usage(c, argc, argv);
 		case 2:
-			cp_sharename = argv[0];
 			sharename = strlower_talloc(ctx, argv[0]);
 			us_path = argv[1];
 			break;
 		case 3:
-			cp_sharename = argv[0];
 			sharename = strlower_talloc(ctx, argv[0]);
 			us_path = argv[1];
 			us_comment = argv[2];
 			break;
 		case 4:
-			cp_sharename = argv[0];
 			sharename = strlower_talloc(ctx, argv[0]);
 			us_path = argv[1];
 			us_comment = argv[2];
 			arg_acl = argv[3];
 			break;
 		case 5:
-			cp_sharename = argv[0];
 			sharename = strlower_talloc(ctx, argv[0]);
 			us_path = argv[1];
 			us_comment = argv[2];
@@ -809,7 +797,7 @@ static int net_usershare_add(struct net_context *c, int argc, const char **argv)
 	num_aces += count_chars(pacl,',');
 
 	for (i = 0; i < num_aces; i++) {
-		struct dom_sid sid;
+		DOM_SID sid;
 		const char *pcolon = strchr_m(pacl, ':');
 		const char *name;
 
@@ -909,7 +897,6 @@ static int net_usershare_add(struct net_context *c, int argc, const char **argv)
 			  _("net usershare add: cannot lstat tmp file %s\n"),
 			  full_path_tmp );
 		TALLOC_FREE(ctx);
-		close(tmpfd);
 		return -1;
 	}
 
@@ -919,7 +906,6 @@ static int net_usershare_add(struct net_context *c, int argc, const char **argv)
 			  _("net usershare add: cannot fstat tmp file %s\n"),
 			  full_path_tmp );
 		TALLOC_FREE(ctx);
-		close(tmpfd);
 		return -1;
 	}
 
@@ -929,7 +915,6 @@ static int net_usershare_add(struct net_context *c, int argc, const char **argv)
 			    "file ?\n"),
 			  full_path_tmp );
 		TALLOC_FREE(ctx);
-		close(tmpfd);
 		return -1;
 	}
 
@@ -939,20 +924,13 @@ static int net_usershare_add(struct net_context *c, int argc, const char **argv)
 			    "to 0644n"),
 			  full_path_tmp );
 		TALLOC_FREE(ctx);
-		close(tmpfd);
 		return -1;
 	}
 
 	/* Create the in-memory image of the file. */
 	file_img = talloc_strdup(ctx, "#VERSION 2\npath=");
-	file_img = talloc_asprintf_append(file_img,
-			"%s\ncomment=%s\nusershare_acl=%s\n"
-			"guest_ok=%c\nsharename=%s\n",
-			us_path,
-			us_comment,
-			us_acl,
-			guest_ok ? 'y' : 'n',
-			cp_sharename);
+	file_img = talloc_asprintf_append(file_img, "%s\ncomment=%s\nusershare_acl=%s\nguest_ok=%c\n",
+			us_path, us_comment, us_acl, guest_ok ? 'y' : 'n');
 
 	to_write = strlen(file_img);
 
@@ -963,7 +941,6 @@ static int net_usershare_add(struct net_context *c, int argc, const char **argv)
 			(unsigned int)to_write, full_path_tmp, strerror(errno));
 		unlink(full_path_tmp);
 		TALLOC_FREE(ctx);
-		close(tmpfd);
 		return -1;
 	}
 

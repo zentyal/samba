@@ -68,7 +68,8 @@ static void winbindd_getgrgid_gid2sid_done(struct tevent_req *subreq)
 
 	status = wb_gid2sid_recv(subreq, &state->sid);
 	TALLOC_FREE(subreq);
-	if (tevent_req_nterror(req, status)) {
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
 		return;
 	}
 
@@ -91,7 +92,8 @@ static void winbindd_getgrgid_done(struct tevent_req *subreq)
 	status = wb_getgrsid_recv(subreq, state, &state->domname, &state->name,
 				  &state->gid, &state->members);
 	TALLOC_FREE(subreq);
-	if (tevent_req_nterror(req, status)) {
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
 		return;
 	}
 	tevent_req_done(req);

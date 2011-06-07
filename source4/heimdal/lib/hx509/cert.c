@@ -283,7 +283,6 @@ hx509_cert_init_data(hx509_context context,
 	return ret;
     }
     if (size != len) {
-	free_Certificate(&t);
 	hx509_set_error_string(context, 0, HX509_EXTRA_DATA_AFTER_STRUCTURE,
 			       "Extra data after certificate");
 	return HX509_EXTRA_DATA_AFTER_STRUCTURE;
@@ -310,7 +309,7 @@ int
 _hx509_cert_assign_key(hx509_cert cert, hx509_private_key private_key)
 {
     if (cert->private_key)
-	hx509_private_key_free(&cert->private_key);
+	_hx509_private_key_free(&cert->private_key);
     cert->private_key = _hx509_private_key_ref(private_key);
     return 0;
 }
@@ -341,7 +340,7 @@ hx509_cert_free(hx509_cert cert)
 	(cert->release)(cert, cert->ctx);
 
     if (cert->private_key)
-	hx509_private_key_free(&cert->private_key);
+	_hx509_private_key_free(&cert->private_key);
 
     free_Certificate(cert->data);
     free(cert->data);
@@ -446,7 +445,7 @@ hx509_verify_attach_anchors(hx509_verify_ctx ctx, hx509_certs set)
 {
     if (ctx->trust_anchors)
 	hx509_certs_free(&ctx->trust_anchors);
-    ctx->trust_anchors = hx509_certs_ref(set);
+    ctx->trust_anchors = _hx509_certs_ref(set);
 }
 
 /**
@@ -1023,12 +1022,9 @@ certificate_is_self_signed(hx509_context context,
     ret = _hx509_name_cmp(&cert->tbsCertificate.subject,
 			  &cert->tbsCertificate.issuer, &diff);
     *self_signed = (diff == 0);
-    if (ret) {
+    if (ret)
 	hx509_set_error_string(context, 0, ret,
 			       "Failed to check if self signed");
-    } else
-	ret = _hx509_self_signed_valid(context, &cert->signatureAlgorithm);
-
     return ret;
 }
 
@@ -1510,65 +1506,6 @@ hx509_cert_get_SPKI_AlgorithmIdentifier(hx509_context context,
     return ret;
 }
 
-static int
-get_x_unique_id(hx509_context context, const char *name, 
-		const heim_bit_string *cert, heim_bit_string *subject)
-{
-    int ret;
-
-    if (cert == NULL) {
-	ret = HX509_EXTENSION_NOT_FOUND;
-	hx509_set_error_string(context, 0, ret, "%s unique id doesn't exists", name);
-	return ret;
-    }
-    ret = der_copy_bit_string(cert, subject);
-    if (ret) {
-	hx509_set_error_string(context, 0, ret, "malloc out of memory", name);
-	return ret;
-    }
-    return 0;
-}
-
-/**
- * Get a copy of the Issuer Unique ID
- *
- * @param context a hx509_context
- * @param p a hx509 certificate
- * @param issuer the issuer id returned, free with der_free_bit_string()
- *
- * @return An hx509 error code, see hx509_get_error_string(). The
- * error code HX509_EXTENSION_NOT_FOUND is returned if the certificate
- * doesn't have a issuerUniqueID
- *
- * @ingroup hx509_cert
- */
-
-int
-hx509_cert_get_issuer_unique_id(hx509_context context, hx509_cert p, heim_bit_string *issuer)
-{
-    return get_x_unique_id(context, "issuer", p->data->tbsCertificate.issuerUniqueID, issuer);
-}
-
-/**
- * Get a copy of the Subect Unique ID
- *
- * @param context a hx509_context
- * @param p a hx509 certificate
- * @param subject the subject id returned, free with der_free_bit_string()
- *
- * @return An hx509 error code, see hx509_get_error_string(). The
- * error code HX509_EXTENSION_NOT_FOUND is returned if the certificate
- * doesn't have a subjectUniqueID
- *
- * @ingroup hx509_cert
- */
-
-int
-hx509_cert_get_subject_unique_id(hx509_context context, hx509_cert p, heim_bit_string *subject)
-{
-    return get_x_unique_id(context, "subject", p->data->tbsCertificate.subjectUniqueID, subject);
-}
-
 
 hx509_private_key
 _hx509_cert_private_key(hx509_cert p)
@@ -1607,7 +1544,7 @@ _hx509_cert_private_decrypt(hx509_context context,
 	return HX509_PRIVATE_KEY_MISSING;
     }
 
-    return hx509_private_key_private_decrypt(context,
+    return _hx509_private_key_private_decrypt(context,
 					      ciphertext,
 					      encryption_oid,
 					      p->private_key,
@@ -1615,7 +1552,7 @@ _hx509_cert_private_decrypt(hx509_context context,
 }
 
 int
-hx509_cert_public_encrypt(hx509_context context,
+_hx509_cert_public_encrypt(hx509_context context,
 			   const heim_octet_string *cleartext,
 			   const hx509_cert p,
 			   heim_oid *encryption_oid,
@@ -1755,20 +1692,19 @@ match_general_name(const GeneralName *c, const GeneralName *n, int *match)
     case choice_GeneralName_rfc822Name: {
 	const char *s;
 	size_t len1, len2;
-	s = memchr(c->u.rfc822Name.data, '@', c->u.rfc822Name.length);
+	s = strchr(c->u.rfc822Name, '@');
 	if (s) {
-	    if (der_printable_string_cmp(&c->u.rfc822Name, &n->u.rfc822Name) != 0)
+	    if (strcasecmp(c->u.rfc822Name, n->u.rfc822Name) != 0)
 		return HX509_NAME_CONSTRAINT_ERROR;
 	} else {
-	    s = memchr(n->u.rfc822Name.data, '@', n->u.rfc822Name.length);
+	    s = strchr(n->u.rfc822Name, '@');
 	    if (s == NULL)
 		return HX509_NAME_CONSTRAINT_ERROR;
-	    len1 = c->u.rfc822Name.length;
-	    len2 = n->u.rfc822Name.length -
-		(s - ((char *)n->u.rfc822Name.data));
+	    len1 = strlen(c->u.rfc822Name);
+	    len2 = strlen(s + 1);
 	    if (len1 > len2)
 		return HX509_NAME_CONSTRAINT_ERROR;
-	    if (memcmp(s + 1 + len2 - len1, c->u.rfc822Name.data, len1) != 0)
+	    if (strcasecmp(s + 1 + len2 - len1, c->u.rfc822Name) != 0)
 		return HX509_NAME_CONSTRAINT_ERROR;
 	    if (len1 < len2 && s[len2 - len1 + 1] != '.')
 		return HX509_NAME_CONSTRAINT_ERROR;
@@ -1778,16 +1714,14 @@ match_general_name(const GeneralName *c, const GeneralName *n, int *match)
     }
     case choice_GeneralName_dNSName: {
 	size_t lenc, lenn;
-	char *ptr;
 
-	lenc = c->u.dNSName.length;
-	lenn = n->u.dNSName.length;
+	lenc = strlen(c->u.dNSName);
+	lenn = strlen(n->u.dNSName);
 	if (lenc > lenn)
 	    return HX509_NAME_CONSTRAINT_ERROR;
-	ptr = n->u.dNSName.data;
-	if (memcmp(&ptr[lenn - lenc], c->u.dNSName.data, lenc) != 0)
+	if (strcasecmp(&n->u.dNSName[lenn - lenc], c->u.dNSName) != 0)
 	    return HX509_NAME_CONSTRAINT_ERROR;
-	if (lenn != lenc && ptr[lenn - lenc - 1] != '.')
+	if (lenc != lenn && n->u.dNSName[lenn - lenc - 1] != '.')
 	    return HX509_NAME_CONSTRAINT_ERROR;
 	*match = 1;
 	return 0;
@@ -1992,9 +1926,9 @@ hx509_verify_path(hx509_context context,
      *
      */
     if (ctx->trust_anchors)
-	anchors = hx509_certs_ref(ctx->trust_anchors);
+	anchors = _hx509_certs_ref(ctx->trust_anchors);
     else if (context->default_trust_anchors && ALLOW_DEF_TA(ctx))
-	anchors = hx509_certs_ref(context->default_trust_anchors);
+	anchors = _hx509_certs_ref(context->default_trust_anchors);
     else {
 	ret = hx509_certs_init(context, "MEMORY:no-TA", 0, NULL, &anchors);
 	if (ret)
@@ -2309,8 +2243,7 @@ hx509_verify_path(hx509_context context,
      */
 
     for (i = path.len - 1; i >= 0; i--) {
-	hx509_cert signer;
-	Certificate *c;
+	Certificate *signer, *c;
 
 	c = _hx509_get_cert(path.val[i]);
 
@@ -2318,9 +2251,9 @@ hx509_verify_path(hx509_context context,
 	if (i + 1 == path.len) {
 	    int selfsigned;
 
-	    signer = path.val[i];
+	    signer = path.val[i]->data;
 
-	    ret = certificate_is_self_signed(context, signer->data, &selfsigned);
+	    ret = certificate_is_self_signed(context, signer, &selfsigned);
 	    if (ret)
 		goto out;
 
@@ -2329,7 +2262,7 @@ hx509_verify_path(hx509_context context,
 		continue;
 	} else {
 	    /* take next certificate in chain */
-	    signer = path.val[i + 1];
+	    signer = path.val[i + 1]->data;
 	}
 
 	/* verify signatureValue */
@@ -2393,30 +2326,8 @@ hx509_verify_signature(hx509_context context,
 		       const heim_octet_string *data,
 		       const heim_octet_string *sig)
 {
-    return _hx509_verify_signature(context, signer, alg, data, sig);
+    return _hx509_verify_signature(context, signer->data, alg, data, sig);
 }
-
-int
-_hx509_verify_signature_bitstring(hx509_context context,
-				  const hx509_cert signer,
-				  const AlgorithmIdentifier *alg,
-				  const heim_octet_string *data,
-				  const heim_bit_string *sig)
-{
-    heim_octet_string os;
-
-    if (sig->length & 7) {
-	hx509_set_error_string(context, 0, HX509_CRYPTO_SIG_INVALID_FORMAT,
-			       "signature not multiple of 8 bits");
-	return HX509_CRYPTO_SIG_INVALID_FORMAT;
-    }
-
-    os.data = sig->data;
-    os.length = sig->length / 8;
-
-    return _hx509_verify_signature(context, signer, alg, data, &os);
-}
-
 
 
 /**
@@ -2467,17 +2378,12 @@ hx509_verify_hostname(hx509_context context,
 
 	for (j = 0; j < san.len; j++) {
 	    switch (san.val[j].element) {
-	    case choice_GeneralName_dNSName: {
-		heim_printable_string hn;
-		hn.data = rk_UNCONST(hostname);
-		hn.length = strlen(hostname);
-		
-		if (der_printable_string_cmp(&san.val[j].u.dNSName, &hn) == 0) {
+	    case choice_GeneralName_dNSName:
+		if (strcasecmp(san.val[j].u.dNSName, hostname) == 0) {
 		    free_GeneralNames(&san);
 		    return 0;
 		}
 		break;
-	    }
 	    default:
 		break;
 	    }
@@ -2495,24 +2401,14 @@ hx509_verify_hostname(hx509_context context,
 	    if (der_heim_oid_cmp(&n->type, &asn1_oid_id_at_commonName) == 0) {
 		DirectoryString *ds = &n->value;
 		switch (ds->element) {
-		case choice_DirectoryString_printableString: {
-		    heim_printable_string hn;
-		    hn.data = rk_UNCONST(hostname);
-		    hn.length = strlen(hostname);
-
-		    if (der_printable_string_cmp(&ds->u.printableString, &hn) == 0)
+		case choice_DirectoryString_printableString:
+		    if (strcasecmp(ds->u.printableString, hostname) == 0)
 			return 0;
 		    break;
-		}
-		case choice_DirectoryString_ia5String: {
-		    heim_ia5_string hn;
-		    hn.data = rk_UNCONST(hostname);
-		    hn.length = strlen(hostname);
-
-		    if (der_ia5_string_cmp(&ds->u.ia5String, &hn) == 0)
-			return 0;
+		case choice_DirectoryString_ia5String:
+		    if (strcasecmp(ds->u.ia5String, hostname) == 0)
+		    return 0;
 		    break;
-		}
 		case choice_DirectoryString_utf8String:
 		    if (strcasecmp(ds->u.utf8String, hostname) == 0)
 			return 0;
@@ -3331,7 +3227,7 @@ _hx509_cert_get_eku(hx509_context context,
  * @param context A hx509 context.
  * @param c the certificate to encode.
  * @param os the encode certificate, set to NULL, 0 on case of
- * error. Free the os->data with hx509_xfree().
+ * error. Free the returned structure with hx509_xfree().
  *
  * @return An hx509 error code, see hx509_get_error_string().
  *
@@ -3487,6 +3383,7 @@ _hx509_cert_to_env(hx509_context context, hx509_cert cert, hx509_env *env)
 	Certificate *c = _hx509_get_cert(cert);
         heim_octet_string os, sig;
 	hx509_env envhash = NULL;
+	char *buf;
 
 	os.data = c->tbsCertificate.subjectPublicKeyInfo.subjectPublicKey.data;
 	os.length =
@@ -3531,67 +3428,4 @@ _hx509_cert_to_env(hx509_context context, hx509_cert cert, hx509_env *env)
 out:
     hx509_env_free(&envcert);
     return ret;
-}
-
-/**
- * Print a simple representation of a certificate
- *
- * @param context A hx509 context, can be NULL
- * @param cert certificate to print
- * @param out the stdio output stream, if NULL, stdout is used
- *
- * @return An hx509 error code
- *
- * @ingroup hx509_cert
- */
-
-int
-hx509_print_cert(hx509_context context, hx509_cert cert, FILE *out)
-{
-    hx509_name name;
-    char *str;
-    int ret;
-
-    if (out == NULL)
-	out = stderr;
-
-    ret = hx509_cert_get_issuer(cert, &name);
-    if (ret)
-	return ret;
-    hx509_name_to_string(name, &str);
-    hx509_name_free(&name);
-    fprintf(out, "    issuer:  \"%s\"\n", str);
-    free(str);
-
-    ret = hx509_cert_get_subject(cert, &name);
-    if (ret)
-	return ret;
-    hx509_name_to_string(name, &str);
-    hx509_name_free(&name);
-    fprintf(out, "    subject: \"%s\"\n", str);
-    free(str);
-
-    {
-	heim_integer serialNumber;
-
-	ret = hx509_cert_get_serialnumber(cert, &serialNumber);
-	if (ret)
-	    return ret;
-	ret = der_print_hex_heim_integer(&serialNumber, &str);
-	if (ret)
-	    return ret;
-	der_free_heim_integer(&serialNumber);
-	fprintf(out, "    serial: %s\n", str);
-	free(str);
-    }
-
-    printf("    keyusage: ");
-    ret = hx509_cert_keyusage_print(context, cert, &str);
-    if (ret == 0) {
-	fprintf(out, "%s\n", str);
-	free(str);
-    } else
-	fprintf(out, "no");
-
-    return 0;
 }

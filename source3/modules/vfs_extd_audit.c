@@ -23,9 +23,6 @@
 
 
 #include "includes.h"
-#include "system/filesys.h"
-#include "system/syslog.h"
-#include "smbd/smbd.h"
 
 static int vfs_extd_audit_debug_level = DBGC_VFS;
 
@@ -347,7 +344,7 @@ static struct vfs_fn_pointers vfs_extd_audit_fns = {
 	.opendir = audit_opendir,
 	.mkdir = audit_mkdir,
 	.rmdir = audit_rmdir,
-	.open_fn = audit_open,
+	.open = audit_open,
 	.close_fn = audit_close,
 	.rename = audit_rename,
 	.unlink = audit_unlink,

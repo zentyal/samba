@@ -77,7 +77,8 @@ static bool test_timestring(struct torture_context *tctx)
 	time_t utc_offset = mktime(&local) - mktime(&gmt);
 
 	result = timestring(tctx, 42 - (utc_offset < 0 ? utc_offset : 0));
-	torture_assert(tctx, !strncmp(start, result, strlen(start)), result);
+	torture_assert(tctx, !strncmp(start, result, strlen(start)),
+				   result);
 	return true;
 }
 
@@ -100,7 +101,7 @@ static bool test_get_time_zone(struct torture_context *tctx)
 
 struct torture_suite *torture_local_util_time(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "time");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "TIME");
 
 	torture_suite_add_simple_test(suite, "null_time", test_null_time);
 	torture_suite_add_simple_test(suite, "get_time_zone", test_get_time_zone);

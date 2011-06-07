@@ -5,40 +5,24 @@
 
    Copyright (C) Andrew Tridgell 2001
    Copyright (C) Guenther Deschner 2006,2007
-
+   
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
-#include "ads.h"
 
 #ifdef HAVE_LDAP
-
-static ADS_STATUS ads_ranged_search_internal(ADS_STRUCT *ads,
-					     TALLOC_CTX *mem_ctx,
-					     int scope,
-					     const char *base,
-					     const char *filter,
-					     const char **attrs,
-					     void *args,
-					     const char *range_attr,
-					     char ***strings,
-					     size_t *num_strings,
-					     uint32 *first_usn,
-					     int *num_retries,
-					     bool *more_values);
-
 /*
   a wrapper around ldap_search_s that retries depending on the error code
   this is supposed to catch dropped connections and auto-reconnect
@@ -55,7 +39,7 @@ static ADS_STATUS ads_do_search_retry_internal(ADS_STRUCT *ads, const char *bind
 	*res = NULL;
 
 	if (!ads->ldap.ld &&
-	    time_mono(NULL) - ads->ldap.last_attempt < ADS_RECONNECT_TIME) {
+	    time(NULL) - ads->ldap.last_attempt < ADS_RECONNECT_TIME) {
 		return ADS_ERROR(LDAP_SERVER_DOWN);
 	}
 
@@ -87,13 +71,13 @@ static ADS_STATUS ads_do_search_retry_internal(ADS_STRUCT *ads, const char *bind
 		if (*res) 
 			ads_msgfree(ads, *res);
 		*res = NULL;
-
+		
 		DEBUG(3,("Reopening ads connection to realm '%s' after error %s\n", 
 			 ads->config.realm, ads_errstr(status)));
-
+			 
 		ads_disconnect(ads);
 		status = ads_connect(ads);
-
+		
 		if (!ADS_ERR_OK(status)) {
 			DEBUG(1,("ads_search_retry: failed to reconnect (%s)\n",
 				 ads_errstr(status)));
@@ -136,10 +120,10 @@ static ADS_STATUS ads_do_search_retry_internal(ADS_STRUCT *ads, const char *bind
 	return ads_do_search_retry_internal(ads, bind_path, scope, expr, attrs, NULL, res);
 }
 
-static ADS_STATUS ads_do_search_retry_args(ADS_STRUCT *ads, const char *bind_path,
-					   int scope, const char *expr,
-					   const char **attrs, void *args,
-					   LDAPMessage **res)
+ ADS_STATUS ads_do_search_retry_args(ADS_STRUCT *ads, const char *bind_path,
+				     int scope, const char *expr,
+				     const char **attrs, void *args,
+				     LDAPMessage **res)
 {
 	return ads_do_search_retry_internal(ads, bind_path, scope, expr, attrs, args, res);
 }
@@ -158,6 +142,21 @@ static ADS_STATUS ads_do_search_retry_args(ADS_STRUCT *ads, const char *bind_pat
 {
 	return ads_do_search_retry(ads, dn, LDAP_SCOPE_BASE,
 				   "(objectclass=*)", attrs, res);
+}
+
+ ADS_STATUS ads_search_retry_extended_dn(ADS_STRUCT *ads, LDAPMessage **res, 
+					 const char *dn, 
+					 const char **attrs,
+					 enum ads_extended_dn_flags flags)
+{
+	ads_control args;
+
+	args.control = ADS_EXTENDED_DN_OID;
+	args.val = flags;
+	args.critical = True;
+
+	return ads_do_search_retry_args(ads, dn, LDAP_SCOPE_BASE,
+					"(objectclass=*)", attrs, &args, res);
 }
 
  ADS_STATUS ads_search_retry_dn_sd_flags(ADS_STRUCT *ads, LDAPMessage **res, 
@@ -200,12 +199,12 @@ static ADS_STATUS ads_do_search_retry_args(ADS_STRUCT *ads, const char *bind_pat
 }
 
  ADS_STATUS ads_search_retry_sid(ADS_STRUCT *ads, LDAPMessage **res, 
-				 const struct dom_sid *sid,
+				 const DOM_SID *sid,
 				 const char **attrs)
 {
 	char *dn, *sid_string;
 	ADS_STATUS status;
-
+	
 	sid_string = sid_binstring_hex(sid);
 	if (sid_string == NULL) {
 		return ADS_ERROR(LDAP_NO_MEMORY);
@@ -278,7 +277,7 @@ ADS_STATUS ads_ranged_search(ADS_STRUCT *ads,
 	return status;
 }
 
-static ADS_STATUS ads_ranged_search_internal(ADS_STRUCT *ads,
+ADS_STATUS ads_ranged_search_internal(ADS_STRUCT *ads, 
 				      TALLOC_CTX *mem_ctx,
 				      int scope,
 				      const char *base,
@@ -308,7 +307,7 @@ static ADS_STATUS ads_ranged_search_internal(ADS_STRUCT *ads,
 			 ads_errstr(status)));
 		return status;
 	}
-
+	
 	if (!res) {
 		return ADS_ERROR(LDAP_NO_MEMORY);
 	}

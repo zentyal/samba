@@ -17,8 +17,8 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <Python.h>
 #include "includes.h"
+#include <Python.h>
 #include "librpc/ndr/libndr.h"
 
 static PyObject *uuid_random(PyObject *self, PyObject *args)

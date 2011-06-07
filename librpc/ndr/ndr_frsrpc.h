@@ -29,6 +29,7 @@ enum ndr_err_code ndr_pull_frsrpc_CommPktChunkCtr(struct ndr_pull *ndr,
 					int ndr_flags,
 					struct frsrpc_CommPktChunkCtr *r);
 size_t ndr_size_frsrpc_CommPktChunkCtr(const struct frsrpc_CommPktChunkCtr *r,
+				       struct smb_iconv_convenience *ic,
 				       int flags);
 
 #endif /* _LIBRPC_NDR_NDR_FRSRPC_H */

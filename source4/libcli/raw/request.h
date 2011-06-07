@@ -58,7 +58,7 @@ struct smb_request_buffer {
 	/* the command words and command word count. vwv points
 	   into the raw buffer */
 	uint8_t *vwv;
-	unsigned int wct;
+	uint_t wct;
 	
 	/* the data buffer and size. data points into the raw buffer */
 	uint8_t *data;

@@ -91,7 +91,7 @@ mandoc_template(struct getargs *args,
 		const char *extra_string,
 		char *(i18n)(const char *))
 {
-    size_t i;
+    int i;
     char timestr[64], cmd[64];
     char buf[128];
     const char *p;
@@ -207,7 +207,7 @@ builtin_i18n(const char *str)
     return rk_UNCONST(str);
 }
 
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 arg_printusage (struct getargs *args,
 		size_t num_args,
 		const char *progname,
@@ -217,15 +217,16 @@ arg_printusage (struct getargs *args,
 			progname, extra_string, builtin_i18n);
 }
 
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 arg_printusage_i18n (struct getargs *args,
 		     size_t num_args,
 		     const char *usage,
 		     const char *progname,
 		     const char *extra_string,
-		     char *(*i18n)(const char *))
+		     char *(i18n)(const char *))
 {
-    size_t i, max_len = 0;
+    int i;
+    size_t max_len = 0;
     char buf[128];
     int col = 0, columns;
     struct winsize ws;
@@ -435,7 +436,11 @@ arg_match_long(struct getargs *args, size_t num_args,
 	    *flag = !negate;
 	    return 0;
 	} else if (*goptarg && strcmp(goptarg + 1, "maybe") == 0) {
-	    *flag = rk_random() & 1;
+#ifdef HAVE_RANDOM
+	    *flag = random() & 1;
+#else
+	    *flag = rand() & 1;
+#endif
 	} else {
 	    *flag = negate;
 	    return 0;
@@ -469,8 +474,10 @@ arg_match_long(struct getargs *args, size_t num_args,
 
     default:
 	abort ();
-	UNREACHABLE(return 0);
     }
+
+    /* not reached */
+    return ARG_ERR_NO_MATCH;
 }
 
 static int
@@ -543,14 +550,20 @@ arg_match_short (struct getargs *args, size_t num_args,
     return 0;
 }
 
-ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
+int ROKEN_LIB_FUNCTION
 getarg(struct getargs *args, size_t num_args,
        int argc, char **argv, int *goptind)
 {
     int i;
     int ret = 0;
 
-    rk_random_init();
+#if defined(HAVE_SRANDOMDEV)
+    srandomdev();
+#elif defined(HAVE_RANDOM)
+    srandom(time(NULL));
+#else
+    srand (time(NULL));
+#endif
     (*goptind)++;
     for(i = *goptind; i < argc; i++) {
 	if(argv[i][0] != '-')
@@ -573,7 +586,7 @@ getarg(struct getargs *args, size_t num_args,
     return ret;
 }
 
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void ROKEN_LIB_FUNCTION
 free_getarg_strings (getarg_strings *s)
 {
     free (s->strings);

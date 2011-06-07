@@ -27,17 +27,14 @@
 #include "auth/gensec/gensec.h"
 #include "auth/gensec/gensec_proto.h"
 #include "../libcli/auth/schannel.h"
+#include "auth/gensec/schannel_state.h"
 #include "librpc/rpc/dcerpc.h"
 #include "param/param.h"
+#include "auth/session_proto.h"
 
 static size_t schannel_sig_size(struct gensec_security *gensec_security, size_t data_size)
 {
-	struct schannel_state *state = (struct schannel_state *)gensec_security->private_data;
-	uint32_t sig_size;
-
-	sig_size = netsec_outgoing_sig_size(state);
-
-	return sig_size;
+	return 32;
 }
 
 static NTSTATUS schannel_session_key(struct gensec_security *gensec_security,
@@ -55,8 +52,10 @@ static NTSTATUS schannel_update(struct gensec_security *gensec_security, TALLOC_
 	struct NL_AUTH_MESSAGE bind_schannel;
 	struct NL_AUTH_MESSAGE bind_schannel_ack;
 	struct netlogon_creds_CredentialState *creds;
+	struct ldb_context *schannel_ldb;
 	const char *workstation;
 	const char *domain;
+	uint32_t required_flags;
 
 	*out = data_blob(NULL, 0);
 
@@ -91,7 +90,8 @@ static NTSTATUS schannel_update(struct gensec_security *gensec_security, TALLOC_
 		bind_schannel.oem_netbios_computer.a = cli_credentials_get_workstation(gensec_security->credentials);
 #endif
 
-		ndr_err = ndr_push_struct_blob(out, out_mem_ctx, &bind_schannel,
+		ndr_err = ndr_push_struct_blob(out, out_mem_ctx,
+					       gensec_security->settings->iconv_convenience, &bind_schannel,
 					       (ndr_push_flags_fn_t)ndr_push_NL_AUTH_MESSAGE);
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			status = ndr_map_error2ntstatus(ndr_err);
@@ -105,13 +105,18 @@ static NTSTATUS schannel_update(struct gensec_security *gensec_security, TALLOC_
 		return NT_STATUS_MORE_PROCESSING_REQUIRED;
 	case GENSEC_SERVER:
 
+		required_flags = NL_FLAG_OEM_NETBIOS_COMPUTER_NAME |
+				 NL_FLAG_OEM_NETBIOS_DOMAIN_NAME;
+
 		if (state->state != SCHANNEL_STATE_START) {
 			/* no third leg on this protocol */
 			return NT_STATUS_INVALID_PARAMETER;
 		}
 
 		/* parse the schannel startup blob */
-		ndr_err = ndr_pull_struct_blob(&in, out_mem_ctx, &bind_schannel,
+		ndr_err = ndr_pull_struct_blob(&in, out_mem_ctx,
+			gensec_security->settings->iconv_convenience,
+			&bind_schannel,
 			(ndr_pull_flags_fn_t)ndr_pull_NL_AUTH_MESSAGE);
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			status = ndr_map_error2ntstatus(ndr_err);
@@ -120,37 +125,29 @@ static NTSTATUS schannel_update(struct gensec_security *gensec_security, TALLOC_
 			return status;
 		}
 
-		if (bind_schannel.Flags & NL_FLAG_OEM_NETBIOS_DOMAIN_NAME) {
-			domain = bind_schannel.oem_netbios_domain.a;
-			if (strcasecmp_m(domain, lpcfg_workgroup(gensec_security->settings->lp_ctx)) != 0) {
-				DEBUG(3, ("Request for schannel to incorrect domain: %s != our domain %s\n",
-					  domain, lpcfg_workgroup(gensec_security->settings->lp_ctx)));
-				return NT_STATUS_LOGON_FAILURE;
-			}
-		} else if (bind_schannel.Flags & NL_FLAG_UTF8_DNS_DOMAIN_NAME) {
-			domain = bind_schannel.utf8_dns_domain.u;
-			if (strcasecmp_m(domain, lpcfg_dnsdomain(gensec_security->settings->lp_ctx)) != 0) {
-				DEBUG(3, ("Request for schannel to incorrect domain: %s != our domain %s\n",
-					  domain, lpcfg_dnsdomain(gensec_security->settings->lp_ctx)));
-				return NT_STATUS_LOGON_FAILURE;
-			}
-		} else {
-			DEBUG(3, ("Request for schannel to without domain\n"));
+		if (!(required_flags == (bind_schannel.Flags & required_flags))) {
+			return NT_STATUS_INVALID_PARAMETER;
+		}
+
+		workstation = bind_schannel.oem_netbios_computer.a;
+		domain = bind_schannel.oem_netbios_domain.a;
+
+		if (strcasecmp_m(domain, lp_workgroup(gensec_security->settings->lp_ctx)) != 0) {
+			DEBUG(3, ("Request for schannel to incorrect domain: %s != our domain %s\n",
+				  domain, lp_workgroup(gensec_security->settings->lp_ctx)));
+
 			return NT_STATUS_LOGON_FAILURE;
 		}
 
-		if (bind_schannel.Flags & NL_FLAG_OEM_NETBIOS_COMPUTER_NAME) {
-			workstation = bind_schannel.oem_netbios_computer.a;
-		} else if (bind_schannel.Flags & NL_FLAG_UTF8_NETBIOS_COMPUTER_NAME) {
-			workstation = bind_schannel.utf8_netbios_computer.u;
-		} else {
-			DEBUG(3, ("Request for schannel to without netbios workstation\n"));
-			return NT_STATUS_LOGON_FAILURE;
+		schannel_ldb = schannel_db_connect(out_mem_ctx, gensec_security->event_ctx,
+						   gensec_security->settings->lp_ctx);
+		if (!schannel_ldb) {
+			return NT_STATUS_ACCESS_DENIED;
 		}
-
-		status = schannel_get_creds_state(out_mem_ctx,
-						  lpcfg_private_dir(gensec_security->settings->lp_ctx),
-						  workstation, &creds);
+		/* pull the session key for this client */
+		status = schannel_fetch_session_key_ldb(schannel_ldb,
+							out_mem_ctx, workstation, &creds);
+		talloc_free(schannel_ldb);
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(3, ("Could not find session key for attempted schannel connection from %s: %s\n",
 				  workstation, nt_errstr(status)));
@@ -160,7 +157,7 @@ static NTSTATUS schannel_update(struct gensec_security *gensec_security, TALLOC_
 			return status;
 		}
 
-		state->creds = talloc_steal(state, creds);
+		state->creds = talloc_reference(state, creds);
 
 		bind_schannel_ack.MessageType = NL_NEGOTIATE_RESPONSE;
 		bind_schannel_ack.Flags = 0;
@@ -169,7 +166,8 @@ static NTSTATUS schannel_update(struct gensec_security *gensec_security, TALLOC_
 							    * any meaning here
 							    * - gd */
 
-		ndr_err = ndr_push_struct_blob(out, out_mem_ctx, &bind_schannel_ack,
+		ndr_err = ndr_push_struct_blob(out, out_mem_ctx,
+					       gensec_security->settings->iconv_convenience, &bind_schannel_ack,
 					       (ndr_push_flags_fn_t)ndr_push_NL_AUTH_MESSAGE);
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			status = ndr_map_error2ntstatus(ndr_err);
@@ -216,7 +214,7 @@ static NTSTATUS schannel_session_info(struct gensec_security *gensec_security,
 					 struct auth_session_info **_session_info)
 {
 	struct schannel_state *state = talloc_get_type(gensec_security->private_data, struct schannel_state);
-	return auth_anonymous_session_info(state, gensec_security->settings->lp_ctx, _session_info);
+	return auth_anonymous_session_info(state, gensec_security->event_ctx, gensec_security->settings->lp_ctx, _session_info);
 }
 
 static NTSTATUS schannel_start(struct gensec_security *gensec_security)

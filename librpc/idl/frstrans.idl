@@ -277,17 +277,9 @@ interface frstrans
 
 	/*****************/
 	/* Function 0x0f */
-	typedef pipe uint8 frstrans_BytePipe;
-
-	WERROR frstrans_RawGetFileDataAsync(
-		[in,ref] policy_handle *server_context,
-		[out,ref] frstrans_BytePipe *byte_pipe
-		);
+	[todo] void FRSTRANS_RAW_GET_FILE_DATA_ASYNC();
 
 	/*****************/
 	/* Function 0x10 */
-	WERROR frstrans_RdcGetFileDataAsync(
-		[in,ref] policy_handle *server_context,
-		[out,ref] frstrans_BytePipe *byte_pipe
-		);
+	[todo] void FRSTRANS_RDC_GET_FILE_DATA_ASYNC();
 }

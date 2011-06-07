@@ -24,18 +24,11 @@
 */
 
 #include "includes.h"
-#include "popt_common.h"
 #include "utils/ntlm_auth.h"
 #include "../libcli/auth/libcli_auth.h"
 #include "../libcli/auth/spnego.h"
-#include "../libcli/auth/ntlmssp.h"
 #include "smb_krb5.h"
 #include <iniparser.h>
-#include "../lib/crypto/arcfour.h"
-#include "libads/kerberos_proto.h"
-#include "nsswitch/winbind_client.h"
-#include "librpc/gen_ndr/krb5pac.h"
-#include "../lib/util/asn1.h"
 
 #ifndef PAM_WINBIND_CONFIG_FILE
 #define PAM_WINBIND_CONFIG_FILE "/etc/security/pam_winbind.conf"
@@ -231,7 +224,7 @@ DATA_BLOB get_challenge(void)
 	static DATA_BLOB chal;
 	if (opt_challenge.length)
 		return opt_challenge;
-
+	
 	chal = data_blob(NULL, 8);
 
 	generate_random_buffer(chal.data, chal.length);
@@ -250,7 +243,7 @@ static bool parse_ntlm_auth_domain_user(const char *domuser, fstring domain,
 	if (!p) {
 		return False;
 	}
-
+        
 	fstrcpy(user, p+1);
 	fstrcpy(domain, domuser);
 	domain[PTR_DIFF(p, domuser)] = 0;
@@ -308,23 +301,23 @@ int get_pam_winbind_config()
 {
 	int ctrl = 0;
 	dictionary *d = NULL;
-
+	
 	if (!opt_pam_winbind_conf || !*opt_pam_winbind_conf) {
 		opt_pam_winbind_conf = PAM_WINBIND_CONFIG_FILE;
 	}
 
 	d = iniparser_load(CONST_DISCARD(char *, opt_pam_winbind_conf));
-
+	
 	if (!d) {
 		return 0;
 	}
-
+	
 	if (iniparser_getboolean(d, CONST_DISCARD(char *, "global:krb5_auth"), false)) {
 		ctrl |= WINBIND_KRB5_AUTH;
 	}
 
 	iniparser_freedict(d);
-
+	
 	return ctrl;
 }
 
@@ -446,7 +439,7 @@ NTSTATUS contact_winbind_auth_crap(const char *username,
 		}
                 request.data.auth_crap.nt_resp_len = nt_response->length;
 	}
-
+	
 	result = winbindd_request_response(WINBINDD_PAM_AUTH_CRAP, &request, &response);
 	SAFE_FREE(request.extra_data.data);
 
@@ -459,7 +452,7 @@ NTSTATUS contact_winbind_auth_crap(const char *username,
 		winbindd_free_response(&response);
 		return nt_status;
 	}
-
+	
 	nt_status = (NT_STATUS(response.data.auth.nt_status));
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		if (error_string) 
@@ -541,7 +534,7 @@ static NTSTATUS contact_winbind_change_pswd_auth_crap(const char *username,
 		memcpy(request.data.chng_pswd_auth_crap.old_lm_hash_enc, old_lm_hash_enc.data, sizeof(request.data.chng_pswd_auth_crap.old_lm_hash_enc));
 		request.data.chng_pswd_auth_crap.old_lm_hash_enc_len = old_lm_hash_enc.length;
 	}
-
+	
 	result = winbindd_request_response(WINBINDD_PAM_CHNG_PSWD_AUTH_CRAP, &request, &response);
 
 	/* Display response */
@@ -554,7 +547,7 @@ static NTSTATUS contact_winbind_change_pswd_auth_crap(const char *username,
 		winbindd_free_response(&response);
 		return nt_status;
 	}
-
+	
 	nt_status = (NT_STATUS(response.data.auth.nt_status));
 	if (!NT_STATUS_IS_OK(nt_status))
 	{
@@ -565,12 +558,11 @@ static NTSTATUS contact_winbind_change_pswd_auth_crap(const char *username,
 	}
 
 	winbindd_free_response(&response);
-
+	
     return nt_status;
 }
 
-static NTSTATUS winbind_pw_check(struct ntlmssp_state *ntlmssp_state, TALLOC_CTX *mem_ctx,
-				 DATA_BLOB *user_session_key, DATA_BLOB *lm_session_key)
+static NTSTATUS winbind_pw_check(struct ntlmssp_state *ntlmssp_state, DATA_BLOB *user_session_key, DATA_BLOB *lm_session_key) 
 {
 	static const char zeros[16] = { 0, };
 	NTSTATUS nt_status;
@@ -580,7 +572,7 @@ static NTSTATUS winbind_pw_check(struct ntlmssp_state *ntlmssp_state, TALLOC_CTX
 	char *unix_name = NULL;
 
 	nt_status = contact_winbind_auth_crap(ntlmssp_state->user, ntlmssp_state->domain,
-					      ntlmssp_state->client.netbios_name,
+					      ntlmssp_state->workstation,
 					      &ntlmssp_state->chal,
 					      &ntlmssp_state->lm_resp,
 					      &ntlmssp_state->nt_resp, 
@@ -590,23 +582,23 @@ static NTSTATUS winbind_pw_check(struct ntlmssp_state *ntlmssp_state, TALLOC_CTX
 
 	if (NT_STATUS_IS_OK(nt_status)) {
 		if (memcmp(lm_key, zeros, 8) != 0) {
-			*lm_session_key = data_blob_talloc(mem_ctx, NULL, 16);
+			*lm_session_key = data_blob_talloc(ntlmssp_state, NULL, 16);
 			memcpy(lm_session_key->data, lm_key, 8);
 			memset(lm_session_key->data+8, '\0', 8);
 		}
-
+		
 		if (memcmp(user_sess_key, zeros, 16) != 0) {
-			*user_session_key = data_blob_talloc(mem_ctx, user_sess_key, 16);
+			*user_session_key = data_blob_talloc(ntlmssp_state, user_sess_key, 16);
 		}
-		ntlmssp_state->callback_private = talloc_strdup(ntlmssp_state,
-								unix_name);
+		ntlmssp_state->auth_context = talloc_strdup(ntlmssp_state,
+							    unix_name);
 	} else {
 		DEBUG(NT_STATUS_EQUAL(nt_status, NT_STATUS_ACCESS_DENIED) ? 0 : 3, 
 		      ("Login for user [%s]\\[%s]@[%s] failed due to [%s]\n", 
 		       ntlmssp_state->domain, ntlmssp_state->user, 
-		       ntlmssp_state->client.netbios_name,
+		       ntlmssp_state->workstation, 
 		       error_string ? error_string : "unknown error (NULL)"));
-		ntlmssp_state->callback_private = NULL;
+		ntlmssp_state->auth_context = NULL;
 	}
 
 	SAFE_FREE(error_string);
@@ -614,15 +606,14 @@ static NTSTATUS winbind_pw_check(struct ntlmssp_state *ntlmssp_state, TALLOC_CTX
 	return nt_status;
 }
 
-static NTSTATUS local_pw_check(struct ntlmssp_state *ntlmssp_state, TALLOC_CTX *mem_ctx,
-			       DATA_BLOB *user_session_key, DATA_BLOB *lm_session_key)
+static NTSTATUS local_pw_check(struct ntlmssp_state *ntlmssp_state, DATA_BLOB *user_session_key, DATA_BLOB *lm_session_key) 
 {
 	NTSTATUS nt_status;
 	struct samr_Password lm_pw, nt_pw;
 
 	nt_lm_owf_gen (opt_password, nt_pw.hash, lm_pw.hash);
-
-	nt_status = ntlm_password_check(mem_ctx,
+	
+	nt_status = ntlm_password_check(ntlmssp_state,
 					true, true, 0,
 					&ntlmssp_state->chal,
 					&ntlmssp_state->lm_resp,
@@ -631,23 +622,22 @@ static NTSTATUS local_pw_check(struct ntlmssp_state *ntlmssp_state, TALLOC_CTX *
 					ntlmssp_state->user, 
 					ntlmssp_state->domain,
 					&lm_pw, &nt_pw, user_session_key, lm_session_key);
-
+	
 	if (NT_STATUS_IS_OK(nt_status)) {
-		ntlmssp_state->callback_private = talloc_asprintf(ntlmssp_state,
+		ntlmssp_state->auth_context = talloc_asprintf(ntlmssp_state,
 							      "%s%c%s", ntlmssp_state->domain, 
 							      *lp_winbind_separator(), 
 							      ntlmssp_state->user);
 	} else {
 		DEBUG(3, ("Login for user [%s]\\[%s]@[%s] failed due to [%s]\n", 
-			  ntlmssp_state->domain, ntlmssp_state->user,
-			  ntlmssp_state->client.netbios_name,
+			  ntlmssp_state->domain, ntlmssp_state->user, ntlmssp_state->workstation, 
 			  nt_errstr(nt_status)));
-		ntlmssp_state->callback_private = NULL;
+		ntlmssp_state->auth_context = NULL;
 	}
 	return nt_status;
 }
 
-static NTSTATUS ntlm_auth_start_ntlmssp_client(struct ntlmssp_state **client_ntlmssp_state)
+static NTSTATUS ntlm_auth_start_ntlmssp_client(NTLMSSP_STATE **client_ntlmssp_state) 
 {
 	NTSTATUS status;
 	if ( (opt_username == NULL) || (opt_domain == NULL) ) {
@@ -656,16 +646,12 @@ static NTSTATUS ntlm_auth_start_ntlmssp_client(struct ntlmssp_state **client_ntl
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	status = ntlmssp_client_start(NULL,
-				      global_myname(),
-				      lp_workgroup(),
-				      lp_client_ntlmv2_auth(),
-				      client_ntlmssp_state);
+	status = ntlmssp_client_start(client_ntlmssp_state);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(1, ("Could not start NTLMSSP client: %s\n",
 			  nt_errstr(status)));
-		TALLOC_FREE(*client_ntlmssp_state);
+		ntlmssp_end(client_ntlmssp_state);
 		return status;
 	}
 
@@ -674,7 +660,7 @@ static NTSTATUS ntlm_auth_start_ntlmssp_client(struct ntlmssp_state **client_ntl
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(1, ("Could not set username: %s\n",
 			  nt_errstr(status)));
-		TALLOC_FREE(*client_ntlmssp_state);
+		ntlmssp_end(client_ntlmssp_state);
 		return status;
 	}
 
@@ -683,17 +669,17 @@ static NTSTATUS ntlm_auth_start_ntlmssp_client(struct ntlmssp_state **client_ntl
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(1, ("Could not set domain: %s\n",
 			  nt_errstr(status)));
-		TALLOC_FREE(*client_ntlmssp_state);
+		ntlmssp_end(client_ntlmssp_state);
 		return status;
 	}
 
 	if (opt_password) {
 		status = ntlmssp_set_password(*client_ntlmssp_state, opt_password);
-
+	
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(1, ("Could not set password: %s\n",
 				  nt_errstr(status)));
-			TALLOC_FREE(*client_ntlmssp_state);
+			ntlmssp_end(client_ntlmssp_state);
 			return status;
 		}
 	}
@@ -701,36 +687,10 @@ static NTSTATUS ntlm_auth_start_ntlmssp_client(struct ntlmssp_state **client_ntl
 	return NT_STATUS_OK;
 }
 
-static NTSTATUS ntlm_auth_start_ntlmssp_server(struct ntlmssp_state **ntlmssp_state)
+static NTSTATUS ntlm_auth_start_ntlmssp_server(NTLMSSP_STATE **ntlmssp_state) 
 {
-	NTSTATUS status;
-	const char *netbios_name;
-	const char *netbios_domain;
-	const char *dns_name;
-	char *dns_domain;
-	bool is_standalone = false;
-
-	if (opt_password) {
-		netbios_name = global_myname();
-		netbios_domain = lp_workgroup();
-	} else {
-		netbios_name = get_winbind_netbios_name();
-		netbios_domain = get_winbind_domain();
-	}
-	/* This should be a 'netbios domain -> DNS domain' mapping */
-	dns_domain = get_mydnsdomname(talloc_tos());
-	if (dns_domain) {
-		strlower_m(dns_domain);
-	}
-	dns_name = get_mydnsfullname();
-
-	status = ntlmssp_server_start(NULL,
-				      is_standalone,
-				      netbios_name,
-				      netbios_domain,
-				      dns_name,
-				      dns_domain,
-				      ntlmssp_state);
+	NTSTATUS status = ntlmssp_server_start(ntlmssp_state);
+	
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(1, ("Could not start NTLMSSP server: %s\n",
 			  nt_errstr(status)));
@@ -740,8 +700,12 @@ static NTSTATUS ntlm_auth_start_ntlmssp_server(struct ntlmssp_state **ntlmssp_st
 	/* Have we been given a local password, or should we ask winbind? */
 	if (opt_password) {
 		(*ntlmssp_state)->check_password = local_pw_check;
+		(*ntlmssp_state)->get_domain = lp_workgroup;
+		(*ntlmssp_state)->get_global_myname = global_myname;
 	} else {
 		(*ntlmssp_state)->check_password = winbind_pw_check;
+		(*ntlmssp_state)->get_domain = get_winbind_domain;
+		(*ntlmssp_state)->get_global_myname = get_winbind_netbios_name;
 	}
 	return NT_STATUS_OK;
 }
@@ -768,11 +732,11 @@ static NTSTATUS do_ccache_ntlm_auth(DATA_BLOB initial_msg, DATA_BLOB challenge_m
 	 * child of the trusted domain. If we ask the primary domain for
 	 * ntlm_ccache_auth, it will fail. So, we have to ask the trusted
 	 * domain's child for ccache_ntlm_auth. that is to say, we have to 
-	 * set WBFLAG_PAM_CONTACT_TRUSTDOM in request.flags.
+	 * set WBFALG_PAM_CONTACT_TRUSTDOM in request.flags.
 	 */
 	ctrl = get_pam_winbind_config();
 
-	if (ctrl & WINBIND_KRB5_AUTH) {
+	if (ctrl | WINBIND_KRB5_AUTH) {
 		wb_request.flags |= WBFLAG_PAM_CONTACT_TRUSTDOM;
 	}
 
@@ -864,7 +828,8 @@ static void manage_squid_ntlmssp_request_int(struct ntlm_auth_state *state,
 	}
 
 	if (strncmp(buf, "YR", 2) == 0) {
-		TALLOC_FREE(state->ntlmssp_state);
+		if (state->ntlmssp_state)
+			ntlmssp_end(&state->ntlmssp_state);
 		state->svr_state = SERVER_INITIAL;
 	} else if (strncmp(buf, "KK", 2) == 0) {
 		/* No special preprocessing required */
@@ -930,7 +895,7 @@ static void manage_squid_ntlmssp_request_int(struct ntlm_auth_state *state,
 					 nt_errstr(nt_status));
 		DEBUG(0, ("NTLMSSP BH: %s\n", nt_errstr(nt_status)));
 
-		TALLOC_FREE(state->ntlmssp_state);
+		ntlmssp_end(&state->ntlmssp_state);
 	} else if (!NT_STATUS_IS_OK(nt_status)) {
 		*response = talloc_asprintf(mem_ctx, "NA %s",
 					 nt_errstr(nt_status));
@@ -938,7 +903,7 @@ static void manage_squid_ntlmssp_request_int(struct ntlm_auth_state *state,
 	} else {
 		*response = talloc_asprintf(
 			mem_ctx, "AF %s",
-			(char *)state->ntlmssp_state->callback_private);
+			(char *)state->ntlmssp_state->auth_context);
 		DEBUG(10, ("NTLMSSP OK!\n"));
 
 		if(state->have_session_key)
@@ -1041,7 +1006,8 @@ static void manage_client_ntlmssp_request(struct ntlm_auth_state *state,
 	}
 
 	if (strncmp(buf, "YR", 2) == 0) {
-		TALLOC_FREE(state->ntlmssp_state);
+		if (state->ntlmssp_state)
+			ntlmssp_end(&state->ntlmssp_state);
 		state->cli_state = CLIENT_INITIAL;
 	} else if (strncmp(buf, "TT", 2) == 0) {
 		/* No special preprocessing required */
@@ -1132,12 +1098,14 @@ static void manage_client_ntlmssp_request(struct ntlm_auth_state *state,
 
 		DEBUG(10, ("NTLMSSP OK!\n"));
 		state->cli_state = CLIENT_FINISHED;
-		TALLOC_FREE(state->ntlmssp_state);
+		if (state->ntlmssp_state)
+			ntlmssp_end(&state->ntlmssp_state);
 	} else {
 		x_fprintf(x_stdout, "BH %s\n", nt_errstr(nt_status));
 		DEBUG(0, ("NTLMSSP BH: %s\n", nt_errstr(nt_status)));
 		state->cli_state = CLIENT_ERROR;
-		TALLOC_FREE(state->ntlmssp_state);
+		if (state->ntlmssp_state)
+			ntlmssp_end(&state->ntlmssp_state);
 	}
 
 	data_blob_free(&request);
@@ -1148,7 +1116,7 @@ static void manage_squid_basic_request(struct ntlm_auth_state *state,
 {
 	char *user, *pass;	
 	user=buf;
-
+	
 	pass=(char *)memchr(buf,' ',length);
 	if (!pass) {
 		DEBUG(2, ("Password not found. Denying access\n"));
@@ -1157,12 +1125,12 @@ static void manage_squid_basic_request(struct ntlm_auth_state *state,
 	}
 	*pass='\0';
 	pass++;
-
+	
 	if (state->helper_mode == SQUID_2_5_BASIC) {
 		rfc1738_unescape(user);
 		rfc1738_unescape(pass);
 	}
-
+	
 	if (check_plaintext_auth(user, pass, False)) {
 		x_fprintf(x_stdout, "OK\n");
 	} else {
@@ -1228,7 +1196,7 @@ static void offer_gss_spnego_mechs(void) {
 	return;
 }
 
-bool spnego_parse_krb5_wrap(TALLOC_CTX *ctx, DATA_BLOB blob, DATA_BLOB *ticket, uint8 tok_id[2])
+static bool _spnego_parse_krb5_wrap(TALLOC_CTX *ctx, DATA_BLOB blob, DATA_BLOB *ticket, uint8 tok_id[2])
 {
 	bool ret;
 	ASN1_DATA *data;
@@ -1293,7 +1261,8 @@ static void manage_gss_spnego_request(struct ntlm_auth_state *state,
 	}
 
 	if (strncmp(buf, "YR", 2) == 0) {
-		TALLOC_FREE(state->ntlmssp_state);
+		if (state->ntlmssp_state)
+			ntlmssp_end(&state->ntlmssp_state);
 		TALLOC_FREE(state->spnego_mech);
 		TALLOC_FREE(state->spnego_mech_oid);
 	} else if (strncmp(buf, "KK", 2) == 0) {
@@ -1426,7 +1395,7 @@ static void manage_gss_spnego_request(struct ntlm_auth_state *state,
 				x_fprintf(x_stdout, "BH Client wants a new "
 						    "NTLMSSP challenge, but "
 						    "already got one\n");
-				TALLOC_FREE(state->ntlmssp_state);
+				ntlmssp_end(&state->ntlmssp_state);
 				return;
 			}
 
@@ -1503,19 +1472,19 @@ static void manage_gss_spnego_request(struct ntlm_auth_state *state,
 			domain = talloc_strdup(ctx, state->ntlmssp_state->domain);
 		}
 		if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
-			TALLOC_FREE(state->ntlmssp_state);
+			ntlmssp_end(&state->ntlmssp_state);
 		}
 #ifdef HAVE_KRB5
 	} else if (strcmp(state->spnego_mech, "krb5") == 0) {
 		char *principal;
 		DATA_BLOB ap_rep;
 		DATA_BLOB session_key;
-		struct PAC_LOGON_INFO *logon_info = NULL;
+		struct PAC_DATA *pac_data = NULL;
 		DATA_BLOB ticket;
 		uint8_t tok_id[2];
 
-		if (!spnego_parse_krb5_wrap(ctx, raw_in_token,
-					    &ticket, tok_id)) {
+		if (!_spnego_parse_krb5_wrap(ctx, raw_in_token,
+					     &ticket, tok_id)) {
 			DEBUG(1, ("spnego_parse_krb5_wrap failed\n"));
 			x_fprintf(x_stdout, "BH spnego_parse_krb5_wrap failed\n");
 			return;
@@ -1523,7 +1492,7 @@ static void manage_gss_spnego_request(struct ntlm_auth_state *state,
 
 		status = ads_verify_ticket(ctx, lp_realm(), 0,
 					   &ticket,
-					   &principal, &logon_info, &ap_rep,
+					   &principal, &pac_data, &ap_rep,
 					   &session_key, True);
 
 		/* Now in "principal" we have the name we are authenticated as. */
@@ -1545,9 +1514,15 @@ static void manage_gss_spnego_request(struct ntlm_auth_state *state,
 			domain = talloc_strdup(ctx, domain);
 			user = talloc_strdup(ctx, principal);
 
-			if (logon_info) {
-				netsamlogon_cache_store(
-					user, &logon_info->info3);
+			if (pac_data) {
+				struct PAC_LOGON_INFO *logon_info;
+				logon_info = get_logon_info_from_pac(
+					pac_data);
+				if (logon_info) {
+					netsamlogon_cache_store(
+						user,
+						&logon_info->info3);
+				}
 			}
 
 			data_blob_free(&ap_rep);
@@ -1611,7 +1586,7 @@ static void manage_gss_spnego_request(struct ntlm_auth_state *state,
 	return;
 }
 
-static struct ntlmssp_state *client_ntlmssp_state = NULL;
+static NTLMSSP_STATE *client_ntlmssp_state = NULL;
 
 static bool manage_client_ntlmssp_init(struct spnego_data spnego)
 {
@@ -1662,7 +1637,7 @@ static bool manage_client_ntlmssp_init(struct spnego_data spnego)
 			NT_STATUS_IS_OK(status)) ) {
 		DEBUG(1, ("Expected OK or MORE_PROCESSING_REQUIRED, got: %s\n",
 			  nt_errstr(status)));
-		TALLOC_FREE(client_ntlmssp_state);
+		ntlmssp_end(&client_ntlmssp_state);
 		return False;
 	}
 
@@ -1695,20 +1670,20 @@ static void manage_client_ntlmssp_targ(struct spnego_data spnego)
 
 	if (spnego.negTokenTarg.negResult == SPNEGO_REJECT) {
 		x_fprintf(x_stdout, "NA\n");
-		TALLOC_FREE(client_ntlmssp_state);
+		ntlmssp_end(&client_ntlmssp_state);
 		return;
 	}
 
 	if (spnego.negTokenTarg.negResult == SPNEGO_ACCEPT_COMPLETED) {
 		x_fprintf(x_stdout, "AF\n");
-		TALLOC_FREE(client_ntlmssp_state);
+		ntlmssp_end(&client_ntlmssp_state);
 		return;
 	}
 
 	status = ntlmssp_update(client_ntlmssp_state,
 				       spnego.negTokenTarg.responseToken,
 				       &request);
-
+		
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
 		DEBUG(1, ("Expected MORE_PROCESSING_REQUIRED from "
 			  "ntlmssp_client_update, got: %s\n",
@@ -1716,7 +1691,7 @@ static void manage_client_ntlmssp_targ(struct spnego_data spnego)
 		x_fprintf(x_stdout, "BH Expected MORE_PROCESSING_REQUIRED from "
 				    "ntlmssp_client_update\n");
 		data_blob_free(&request);
-		TALLOC_FREE(client_ntlmssp_state);
+		ntlmssp_end(&client_ntlmssp_state);
 		return;
 	}
 
@@ -1725,7 +1700,7 @@ static void manage_client_ntlmssp_targ(struct spnego_data spnego)
 	spnego.negTokenTarg.supportedMech = (char *)OID_NTLMSSP;
 	spnego.negTokenTarg.responseToken = request;
 	spnego.negTokenTarg.mechListMIC = null_blob;
-
+	
 	spnego_write_data(ctx, &to_server, &spnego);
 	data_blob_free(&request);
 
@@ -1769,9 +1744,8 @@ static bool manage_client_krb5_init(struct spnego_data spnego)
 	       spnego.negTokenInit.mechListMIC.length);
 	principal[spnego.negTokenInit.mechListMIC.length] = '\0';
 
-	retval = cli_krb5_get_ticket(ctx, principal, 0,
-					  &tkt, &session_key_krb5,
-					  0, NULL, NULL, NULL);
+	retval = cli_krb5_get_ticket(principal, 0, &tkt, &session_key_krb5, 0, NULL, NULL, NULL);
+
 	if (retval) {
 		char *user = NULL;
 
@@ -1794,9 +1768,8 @@ static bool manage_client_krb5_init(struct spnego_data spnego)
 			return False;
 		}
 
-		retval = cli_krb5_get_ticket(ctx, principal, 0,
-						  &tkt, &session_key_krb5,
-						  0, NULL, NULL, NULL);
+		retval = cli_krb5_get_ticket(principal, 0, &tkt, &session_key_krb5, 0, NULL, NULL, NULL);
+
 		if (retval) {
 			DEBUG(10, ("Kinit suceeded, but getting a ticket failed: %s\n", error_message(retval)));
 			return False;
@@ -1881,7 +1854,7 @@ static void manage_gss_spnego_client_request(struct ntlm_auth_state *state,
 		/* We asked for a password and obviously got it :-) */
 
 		opt_password = SMB_STRNDUP((const char *)request.data, request.length);
-
+		
 		if (opt_password == NULL) {
 			DEBUG(1, ("Out of memory\n"));
 			x_fprintf(x_stdout, "BH Out of memory\n");
@@ -1967,7 +1940,7 @@ static void manage_gss_spnego_client_request(struct ntlm_auth_state *state,
 						    "negResult\n");
 			}
 
-			TALLOC_FREE(client_ntlmssp_state);
+			ntlmssp_end(&client_ntlmssp_state);
 			goto out;
 		}
 
@@ -2009,7 +1982,7 @@ static void manage_ntlm_server_1_request(struct ntlm_auth_state *state,
 	static char *plaintext_password;
 	static bool ntlm_server_1_user_session_key;
 	static bool ntlm_server_1_lm_session_key;
-
+	
 	if (strequal(buf, ".")) {
 		if (!full_username && !username) {	
 			x_fprintf(x_stdout, "Error: No username supplied!\n");
@@ -2039,7 +2012,7 @@ static void manage_ntlm_server_1_request(struct ntlm_auth_state *state,
 			if (full_username && !username) {
 				fstring fstr_user;
 				fstring fstr_domain;
-
+				
 				if (!parse_ntlm_auth_domain_user(full_username, fstr_user, fstr_domain)) {
 					/* username might be 'tainted', don't print into our new-line deleimianted stream */
 					x_fprintf(x_stdout, "Error: Could not parse into domain and username\n");
@@ -2056,7 +2029,7 @@ static void manage_ntlm_server_1_request(struct ntlm_auth_state *state,
 
 			if (ntlm_server_1_lm_session_key) 
 				flags |= WBFLAG_PAM_LMKEY;
-
+			
 			if (ntlm_server_1_user_session_key) 
 				flags |= WBFLAG_PAM_USER_SESSION_KEY;
 
@@ -2125,13 +2098,13 @@ static void manage_ntlm_server_1_request(struct ntlm_auth_state *state,
 	parameter = strstr_m(request, ":: ");
 	if (!parameter) {
 		parameter = strstr_m(request, ": ");
-
+		
 		if (!parameter) {
 			DEBUG(0, ("Parameter not found!\n"));
 			x_fprintf(x_stdout, "Error: Parameter not found!\n.\n");
 			return;
 		}
-
+		
 		parameter[0] ='\0';
 		parameter++;
 		parameter[0] ='\0';
@@ -2212,7 +2185,7 @@ static void manage_ntlm_change_password_1_request(struct ntlm_auth_state *state,
 
 			new_nt_pswd = data_blob(NULL, 516);
 			old_nt_hash_enc = data_blob(NULL, 16);
-
+			
 			/* Calculate the MD4 hash (NT compatible) of the
 			 * password */
 			E_md4hash(oldpswd, old_nt_hash);
@@ -2220,7 +2193,7 @@ static void manage_ntlm_change_password_1_request(struct ntlm_auth_state *state,
 
 			/* E_deshash returns false for 'long'
 			   passwords (> 14 DOS chars).  
-
+			   
 			   Therefore, don't send a buffer
 			   encrypted with the truncated hash
 			   (it could allow an even easier
@@ -2249,12 +2222,12 @@ static void manage_ntlm_change_password_1_request(struct ntlm_auth_state *state,
 
 			encode_pw_buffer(new_nt_pswd.data, newpswd,
 					 STR_UNICODE);
-
+	
 			arcfour_crypt(new_nt_pswd.data, old_nt_hash, 516);
 			E_old_pw_hash(new_nt_hash, old_nt_hash,
 				      old_nt_hash_enc.data);
 		}
-
+		
 		if (!full_username && !username) {	
 			x_fprintf(x_stdout, "Error: No username supplied!\n");
 		} else if ((!new_nt_pswd.data || !old_nt_hash_enc.data) &&
@@ -2263,11 +2236,11 @@ static void manage_ntlm_change_password_1_request(struct ntlm_auth_state *state,
 				  "blobs supplied!\n");
 		} else {
 			char *error_string = NULL;
-
+			
 			if (full_username && !username)	{
 				fstring fstr_user;
 				fstring fstr_domain;
-
+				
 				if (!parse_ntlm_auth_domain_user(full_username,
 								 fstr_user,
 								 fstr_domain)) {
@@ -2285,7 +2258,7 @@ static void manage_ntlm_change_password_1_request(struct ntlm_auth_state *state,
 					username = smb_xstrdup(fstr_user);
 					domain = smb_xstrdup(fstr_domain);
 				}
-
+				
 			}
 
 			if(!NT_STATUS_IS_OK(contact_winbind_change_pswd_auth_crap(
@@ -2325,13 +2298,13 @@ static void manage_ntlm_change_password_1_request(struct ntlm_auth_state *state,
 	parameter = strstr_m(request, ":: ");
 	if (!parameter) {
 		parameter = strstr_m(request, ": ");
-
+		
 		if (!parameter)	{
 			DEBUG(0, ("Parameter not found!\n"));
 			x_fprintf(x_stdout, "Error: Parameter not found!\n.\n");
 			return;
 		}
-
+		
 		parameter[0] ='\0';
 		parameter++;
 		parameter[0] ='\0';
@@ -2607,9 +2580,7 @@ enum {
 		{ "request-lm-key", 0, POPT_ARG_NONE, &request_lm_key, OPT_LM_KEY, "Retrieve LM session key"},
 		{ "request-nt-key", 0, POPT_ARG_NONE, &request_user_session_key, OPT_USER_SESSION_KEY, "Retrieve User (NT) session key"},
 		{ "use-cached-creds", 0, POPT_ARG_NONE, &use_cached_creds, OPT_USE_CACHED_CREDS, "Use cached credentials if no password is given"},
-		{ "diagnostics", 0, POPT_ARG_NONE, &diagnostics,
-		  OPT_DIAGNOSTICS,
-		  "Perform diagnostics on the authentication chain"},
+		{ "diagnostics", 0, POPT_ARG_NONE, &diagnostics, OPT_DIAGNOSTICS, "Perform diagnostics on the authentictaion chain"},
 		{ "require-membership-of", 0, POPT_ARG_STRING, &require_membership_of, OPT_REQUIRE_MEMBERSHIP, "Require that a user be a member of this group (either name or SID) for authentication to succeed" },
 		{ "pam-winbind-conf", 0, POPT_ARG_STRING, &opt_pam_winbind_conf, OPT_PAM_WINBIND_CONF, "Require that request must set WBFLAG_PAM_CONTACT_TRUSTDOM when krb5 auth is required" },
 		POPT_COMMON_CONFIGFILE
@@ -2620,7 +2591,7 @@ enum {
 	/* Samba client initialisation */
 	load_case_tables();
 
-	setup_logging("ntlm_auth", DEBUG_STDERR);
+	dbf = x_stderr;
 
 	/* Parse options */
 

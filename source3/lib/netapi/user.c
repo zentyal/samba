@@ -23,13 +23,7 @@
 #include "lib/netapi/netapi.h"
 #include "lib/netapi/netapi_private.h"
 #include "lib/netapi/libnetapi.h"
-#include "../librpc/gen_ndr/ndr_samr_c.h"
-#include "rpc_client/init_samr.h"
-#include "../libds/common/flags.h"
-#include "rpc_client/init_lsa.h"
-#include "../libcli/security/security.h"
-#include "../libds/common/flag_mapping.h"
-#include "rpc_client/cli_pipe.h"
+#include "../librpc/gen_ndr/cli_samr.h"
 
 /****************************************************************
 ****************************************************************/
@@ -114,7 +108,7 @@ static void convert_USER_INFO_X_to_samr_user_info21(struct USER_INFO_X *infoX,
 	info21->parameters		= zero_parameters;
 	info21->lm_owf_password		= zero_parameters;
 	info21->nt_owf_password		= zero_parameters;
-	info21->private_data.string	= NULL;
+	info21->unknown3.string		= NULL;
 	info21->buf_count		= 0;
 	info21->buffer			= NULL;
 	info21->rid			= infoX->usriX_user_id;
@@ -129,7 +123,7 @@ static void convert_USER_INFO_X_to_samr_user_info21(struct USER_INFO_X *infoX,
 	info21->lm_password_set		= 0;
 	info21->nt_password_set		= 0;
 	info21->password_expired	= infoX->usriX_password_expired;
-	info21->private_data_sensitive	= 0;
+	info21->unknown4		= 0;
 }
 
 /****************************************************************
@@ -298,8 +292,7 @@ static NTSTATUS set_user_info_USER_INFO_X(TALLOC_CTX *ctx,
 {
 	union samr_UserInfo user_info;
 	struct samr_UserInfo21 info21;
-	NTSTATUS status, result;
-	struct dcerpc_binding_handle *b = pipe_cli->binding_handle;
+	NTSTATUS status;
 
 	if (!uX) {
 		return NT_STATUS_INVALID_PARAMETER;
@@ -317,12 +310,12 @@ static NTSTATUS set_user_info_USER_INFO_X(TALLOC_CTX *ctx,
 					  session_key,
 					  &user_info.info25.password);
 
-		status = dcerpc_samr_SetUserInfo2(b, talloc_tos(),
+		status = rpccli_samr_SetUserInfo2(pipe_cli, talloc_tos(),
 						  user_handle,
 						  25,
-						  &user_info,
-						  &result);
-		if (NT_STATUS_EQUAL(status, NT_STATUS_RPC_ENUM_VALUE_OUT_OF_RANGE)) {
+						  &user_info);
+
+		if (NT_STATUS_EQUAL(status, NT_STATUS(DCERPC_FAULT_INVALID_TAG))) {
 
 			user_info.info23.info = info21;
 
@@ -330,34 +323,22 @@ static NTSTATUS set_user_info_USER_INFO_X(TALLOC_CTX *ctx,
 						session_key,
 						&user_info.info23.password);
 
-			status = dcerpc_samr_SetUserInfo2(b, talloc_tos(),
+			status = rpccli_samr_SetUserInfo2(pipe_cli, talloc_tos(),
 							  user_handle,
 							  23,
-							  &user_info,
-							  &result);
-			if (!NT_STATUS_IS_OK(status)) {
-				return status;
-			}
-		}
-
-		if (!NT_STATUS_IS_OK(status)) {
-			return status;
+							  &user_info);
 		}
 	} else {
 
 		user_info.info21 = info21;
 
-		status = dcerpc_samr_SetUserInfo(b, talloc_tos(),
+		status = rpccli_samr_SetUserInfo(pipe_cli, talloc_tos(),
 						 user_handle,
 						 21,
-						 &user_info,
-						 &result);
-		if (!NT_STATUS_IS_OK(status)) {
-			return status;
-		}
+						 &user_info);
 	}
 
-	return result;
+	return status;
 }
 
 /****************************************************************
@@ -367,7 +348,7 @@ WERROR NetUserAdd_r(struct libnetapi_ctx *ctx,
 		    struct NetUserAdd *r)
 {
 	struct rpc_pipe_client *pipe_cli = NULL;
-	NTSTATUS status, result;
+	NTSTATUS status;
 	WERROR werr;
 	struct policy_handle connect_handle, domain_handle, user_handle;
 	struct lsa_String lsa_account_name;
@@ -377,8 +358,6 @@ WERROR NetUserAdd_r(struct libnetapi_ctx *ctx,
 	uint32_t access_granted = 0;
 	uint32_t rid = 0;
 	struct USER_INFO_X uX;
-	struct dcerpc_binding_handle *b = NULL;
-	DATA_BLOB session_key;
 
 	ZERO_STRUCT(connect_handle);
 	ZERO_STRUCT(domain_handle);
@@ -406,8 +385,6 @@ WERROR NetUserAdd_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	b = pipe_cli->binding_handle;
-
 	status = construct_USER_INFO_X(r->in.level, r->in.buffer, &uX);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
@@ -429,7 +406,7 @@ WERROR NetUserAdd_r(struct libnetapi_ctx *ctx,
 
 	init_lsa_String(&lsa_account_name, uX.usriX_name);
 
-	status = dcerpc_samr_CreateUser2(b, talloc_tos(),
+	status = rpccli_samr_CreateUser2(pipe_cli, talloc_tos(),
 					 &domain_handle,
 					 &lsa_account_name,
 					 ACB_NORMAL,
@@ -440,28 +417,18 @@ WERROR NetUserAdd_r(struct libnetapi_ctx *ctx,
 					 SAMR_USER_ACCESS_GET_ATTRIBUTES,
 					 &user_handle,
 					 &access_granted,
-					 &rid,
-					 &result);
+					 &rid);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
-	status = dcerpc_samr_QueryUserInfo(b, talloc_tos(),
+	status = rpccli_samr_QueryUserInfo(pipe_cli, talloc_tos(),
 					   &user_handle,
 					   16,
-					   &user_info,
-					   &result);
+					   &user_info);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -470,20 +437,9 @@ WERROR NetUserAdd_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	status = dcerpc_samr_GetUserPwInfo(b, talloc_tos(),
+	status = rpccli_samr_GetUserPwInfo(pipe_cli, talloc_tos(),
 					   &user_handle,
-					   &pw_info,
-					   &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
-		goto done;
-	}
-
-	status = cli_get_session_key(talloc_tos(), pipe_cli, &session_key);
+					   &pw_info);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
 		goto done;
@@ -492,7 +448,7 @@ WERROR NetUserAdd_r(struct libnetapi_ctx *ctx,
 	uX.usriX_flags |= ACB_NORMAL;
 
 	status = set_user_info_USER_INFO_X(ctx, pipe_cli,
-					   &session_key,
+					   &pipe_cli->auth->user_session_key,
 					   &user_handle,
 					   &uX);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -504,13 +460,12 @@ WERROR NetUserAdd_r(struct libnetapi_ctx *ctx,
 	goto done;
 
  failed:
-	dcerpc_samr_DeleteUser(b, talloc_tos(),
-			       &user_handle,
-			       &result);
+	rpccli_samr_DeleteUser(pipe_cli, talloc_tos(),
+			       &user_handle);
 
  done:
-	if (is_valid_policy_hnd(&user_handle) && b) {
-		dcerpc_samr_Close(b, talloc_tos(), &user_handle, &result);
+	if (is_valid_policy_hnd(&user_handle) && pipe_cli) {
+		rpccli_samr_Close(pipe_cli, talloc_tos(), &user_handle);
 	}
 
 	if (ctx->disable_policy_handle_cache) {
@@ -537,14 +492,13 @@ WERROR NetUserDel_r(struct libnetapi_ctx *ctx,
 		    struct NetUserDel *r)
 {
 	struct rpc_pipe_client *pipe_cli = NULL;
-	NTSTATUS status, result;
+	NTSTATUS status;
 	WERROR werr;
 	struct policy_handle connect_handle, builtin_handle, domain_handle, user_handle;
 	struct lsa_String lsa_account_name;
 	struct samr_Ids user_rids, name_types;
 	struct dom_sid2 *domain_sid = NULL;
 	struct dom_sid2 user_sid;
-	struct dcerpc_binding_handle *b = NULL;
 
 	ZERO_STRUCT(connect_handle);
 	ZERO_STRUCT(builtin_handle);
@@ -559,8 +513,6 @@ WERROR NetUserDel_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	b = pipe_cli->binding_handle;
-
 	werr = libnetapi_samr_open_domain(ctx, pipe_cli,
 					  SAMR_ACCESS_ENUM_DOMAINS |
 					  SAMR_ACCESS_LOOKUP_DOMAIN,
@@ -572,78 +524,53 @@ WERROR NetUserDel_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	status = dcerpc_samr_OpenDomain(b, talloc_tos(),
+	status = rpccli_samr_OpenDomain(pipe_cli, talloc_tos(),
 					&connect_handle,
 					SAMR_DOMAIN_ACCESS_OPEN_ACCOUNT,
-					CONST_DISCARD(struct dom_sid *, &global_sid_Builtin),
-					&builtin_handle,
-					&result);
+					CONST_DISCARD(DOM_SID *, &global_sid_Builtin),
+					&builtin_handle);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
 	init_lsa_String(&lsa_account_name, r->in.user_name);
 
-	status = dcerpc_samr_LookupNames(b, talloc_tos(),
+	status = rpccli_samr_LookupNames(pipe_cli, talloc_tos(),
 					 &domain_handle,
 					 1,
 					 &lsa_account_name,
 					 &user_rids,
-					 &name_types,
-					 &result);
+					 &name_types);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
-	status = dcerpc_samr_OpenUser(b, talloc_tos(),
+	status = rpccli_samr_OpenUser(pipe_cli, talloc_tos(),
 				      &domain_handle,
 				      SEC_STD_DELETE,
 				      user_rids.ids[0],
-				      &user_handle,
-				      &result);
+				      &user_handle);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
 	sid_compose(&user_sid, domain_sid, user_rids.ids[0]);
 
-	status = dcerpc_samr_RemoveMemberFromForeignDomain(b, talloc_tos(),
+	status = rpccli_samr_RemoveMemberFromForeignDomain(pipe_cli, talloc_tos(),
 							   &builtin_handle,
-							   &user_sid,
-							   &result);
+							   &user_sid);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
-	status = dcerpc_samr_DeleteUser(b, talloc_tos(),
-					&user_handle,
-					&result);
+	status = rpccli_samr_DeleteUser(pipe_cli, talloc_tos(),
+					&user_handle);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -651,7 +578,7 @@ WERROR NetUserDel_r(struct libnetapi_ctx *ctx,
 
  done:
 	if (is_valid_policy_hnd(&user_handle)) {
-		dcerpc_samr_Close(b, talloc_tos(), &user_handle, &result);
+		rpccli_samr_Close(pipe_cli, talloc_tos(), &user_handle);
 	}
 
 	if (ctx->disable_policy_handle_cache) {
@@ -687,7 +614,7 @@ static NTSTATUS libnetapi_samr_lookup_user(TALLOC_CTX *mem_ctx,
 					   struct sec_desc_buf **sec_desc,
 					   uint32_t *auth_flag_p)
 {
-	NTSTATUS status, result;
+	NTSTATUS status;
 
 	struct policy_handle user_handle;
 	union samr_UserInfo *user_info = NULL;
@@ -695,7 +622,6 @@ static NTSTATUS libnetapi_samr_lookup_user(TALLOC_CTX *mem_ctx,
 	uint32_t access_mask = SEC_STD_READ_CONTROL |
 			       SAMR_USER_ACCESS_GET_ATTRIBUTES |
 			       SAMR_USER_ACCESS_GET_NAME_ETC;
-	struct dcerpc_binding_handle *b = pipe_cli->binding_handle;
 
 	ZERO_STRUCT(user_handle);
 
@@ -726,43 +652,28 @@ static NTSTATUS libnetapi_samr_lookup_user(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_OK;
 	}
 
-	status = dcerpc_samr_OpenUser(b, mem_ctx,
+	status = rpccli_samr_OpenUser(pipe_cli, mem_ctx,
 				      domain_handle,
 				      access_mask,
 				      rid,
-				      &user_handle,
-				      &result);
+				      &user_handle);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
-	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
-		goto done;
-	}
 
-	status = dcerpc_samr_QueryUserInfo(b, mem_ctx,
+	status = rpccli_samr_QueryUserInfo(pipe_cli, mem_ctx,
 					   &user_handle,
 					   21,
-					   &user_info,
-					   &result);
+					   &user_info);
 	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		goto done;
 	}
 
-	status = dcerpc_samr_QuerySecurity(b, mem_ctx,
+	status = rpccli_samr_QuerySecurity(pipe_cli, mem_ctx,
 					   &user_handle,
 					   SECINFO_DACL,
-					   sec_desc,
-					   &result);
+					   sec_desc);
 	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		status = result;
 		goto done;
 	}
 
@@ -774,15 +685,10 @@ static NTSTATUS libnetapi_samr_lookup_user(TALLOC_CTX *mem_ctx,
 		uint32_t auth_flag = 0;
 		struct dom_sid sid;
 
-		status = dcerpc_samr_GetGroupsForUser(b, mem_ctx,
+		status = rpccli_samr_GetGroupsForUser(pipe_cli, mem_ctx,
 						      &user_handle,
-						      &rid_array,
-						      &result);
+						      &rid_array);
 		if (!NT_STATUS_IS_OK(status)) {
-			goto done;
-		}
-		if (!NT_STATUS_IS_OK(result)) {
-			status = result;
 			goto done;
 		}
 
@@ -793,24 +699,19 @@ static NTSTATUS libnetapi_samr_lookup_user(TALLOC_CTX *mem_ctx,
 
 		for (i=0; i<rid_array->count; i++) {
 			sid_compose(&sid, domain_sid, rid_array->rids[i].rid);
-			sid_array.sids[i].sid = dom_sid_dup(mem_ctx, &sid);
+			sid_array.sids[i].sid = sid_dup_talloc(mem_ctx, &sid);
 			NT_STATUS_HAVE_NO_MEMORY(sid_array.sids[i].sid);
 		}
 
 		sid_compose(&sid, domain_sid, rid);
-		sid_array.sids[i].sid = dom_sid_dup(mem_ctx, &sid);
+		sid_array.sids[i].sid = sid_dup_talloc(mem_ctx, &sid);
 		NT_STATUS_HAVE_NO_MEMORY(sid_array.sids[i].sid);
 
-		status = dcerpc_samr_GetAliasMembership(b, mem_ctx,
+		status = rpccli_samr_GetAliasMembership(pipe_cli, mem_ctx,
 							builtin_handle,
 							&sid_array,
-							&alias_rids,
-							&result);
+							&alias_rids);
 		if (!NT_STATUS_IS_OK(status)) {
-			goto done;
-		}
-		if (!NT_STATUS_IS_OK(result)) {
-			status = result;
 			goto done;
 		}
 
@@ -839,7 +740,7 @@ static NTSTATUS libnetapi_samr_lookup_user(TALLOC_CTX *mem_ctx,
 
  done:
 	if (is_valid_policy_hnd(&user_handle)) {
-		dcerpc_samr_Close(b, mem_ctx, &user_handle, &result);
+		rpccli_samr_Close(pipe_cli, mem_ctx, &user_handle);
 	}
 
 	return status;
@@ -1016,7 +917,7 @@ static NTSTATUS info21_to_USER_INFO_4(TALLOC_CTX *mem_ctx,
 	if (!sid_compose(&sid, domain_sid, i21->rid)) {
 		return NT_STATUS_NO_MEMORY;
 	}
-	i->usri4_user_sid	= (struct domsid *)dom_sid_dup(mem_ctx, &sid);
+	i->usri4_user_sid	= (struct domsid *)sid_dup_talloc(mem_ctx, &sid);
 	i->usri4_primary_group_id = i21->primary_gid;
 	i->usri4_profile	= talloc_strdup(mem_ctx, i21->profile_path.string);
 	i->usri4_home_dir_drive	= talloc_strdup(mem_ctx, i21->home_drive.string);
@@ -1117,7 +1018,7 @@ static NTSTATUS info21_to_USER_INFO_23(TALLOC_CTX *mem_ctx,
 	if (!sid_compose(&sid, domain_sid, i21->rid)) {
 		return NT_STATUS_NO_MEMORY;
 	}
-	i->usri23_user_sid	= (struct domsid *)dom_sid_dup(mem_ctx, &sid);
+	i->usri23_user_sid	= (struct domsid *)sid_dup_talloc(mem_ctx, &sid);
 
 	return NT_STATUS_OK;
 }
@@ -1283,9 +1184,7 @@ WERROR NetUserEnum_r(struct libnetapi_ctx *ctx,
 	uint32_t entries_read = 0;
 
 	NTSTATUS status = NT_STATUS_OK;
-	NTSTATUS result = NT_STATUS_OK;
 	WERROR werr;
-	struct dcerpc_binding_handle *b = NULL;
 
 	ZERO_STRUCT(connect_handle);
 	ZERO_STRUCT(domain_handle);
@@ -1319,8 +1218,6 @@ WERROR NetUserEnum_r(struct libnetapi_ctx *ctx,
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
-
-	b = pipe_cli->binding_handle;
 
 	werr = libnetapi_samr_open_builtin_domain(ctx, pipe_cli,
 						  SAMR_ACCESS_ENUM_DOMAINS |
@@ -1366,21 +1263,16 @@ WERROR NetUserEnum_r(struct libnetapi_ctx *ctx,
 			break;
 	}
 
-	status = dcerpc_samr_EnumDomainUsers(b,
+	status = rpccli_samr_EnumDomainUsers(pipe_cli,
 					     ctx,
 					     &domain_handle,
 					     r->in.resume_handle,
 					     filter,
 					     &sam,
 					     r->in.prefmaxlen,
-					     &entries_read,
-					     &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	werr = ntstatus_to_werror(result);
-	if (NT_STATUS_IS_ERR(result)) {
+					     &entries_read);
+	werr = ntstatus_to_werror(status);
+	if (NT_STATUS_IS_ERR(status)) {
 		goto done;
 	}
 
@@ -1403,8 +1295,8 @@ WERROR NetUserEnum_r(struct libnetapi_ctx *ctx,
 
  done:
 	/* if last query */
-	if (NT_STATUS_IS_OK(result) ||
-	    NT_STATUS_IS_ERR(result)) {
+	if (NT_STATUS_IS_OK(status) ||
+	    NT_STATUS_IS_ERR(status)) {
 
 		if (ctx->disable_policy_handle_cache) {
 			libnetapi_samr_close_domain_handle(ctx, &domain_handle);
@@ -1597,13 +1489,11 @@ WERROR NetQueryDisplayInformation_r(struct libnetapi_ctx *ctx,
 	struct dom_sid2 *domain_sid = NULL;
 	struct policy_handle domain_handle;
 	union samr_DispInfo info;
-	struct dcerpc_binding_handle *b = NULL;
 
 	uint32_t total_size = 0;
 	uint32_t returned_size = 0;
 
 	NTSTATUS status = NT_STATUS_OK;
-	NTSTATUS result = NT_STATUS_OK;
 	WERROR werr;
 	WERROR werr_tmp;
 
@@ -1628,8 +1518,6 @@ WERROR NetQueryDisplayInformation_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	b = pipe_cli->binding_handle;
-
 	werr = libnetapi_samr_open_domain(ctx, pipe_cli,
 					  SAMR_ACCESS_ENUM_DOMAINS |
 					  SAMR_ACCESS_LOOKUP_DOMAIN,
@@ -1643,7 +1531,7 @@ WERROR NetQueryDisplayInformation_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	status = dcerpc_samr_QueryDisplayInfo2(b,
+	status = rpccli_samr_QueryDisplayInfo2(pipe_cli,
 					       ctx,
 					       &domain_handle,
 					       r->in.level,
@@ -1652,14 +1540,9 @@ WERROR NetQueryDisplayInformation_r(struct libnetapi_ctx *ctx,
 					       r->in.prefmaxlen,
 					       &total_size,
 					       &returned_size,
-					       &info,
-					       &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	werr = ntstatus_to_werror(result);
-	if (NT_STATUS_IS_ERR(result)) {
+					       &info);
+	werr = ntstatus_to_werror(status);
+	if (NT_STATUS_IS_ERR(status)) {
 		goto done;
 	}
 
@@ -1672,8 +1555,8 @@ WERROR NetQueryDisplayInformation_r(struct libnetapi_ctx *ctx,
 	}
  done:
 	/* if last query */
-	if (NT_STATUS_IS_OK(result) ||
-	    NT_STATUS_IS_ERR(result)) {
+	if (NT_STATUS_IS_OK(status) ||
+	    NT_STATUS_IS_ERR(status)) {
 
 		if (ctx->disable_policy_handle_cache) {
 			libnetapi_samr_close_domain_handle(ctx, &domain_handle);
@@ -1720,7 +1603,7 @@ WERROR NetUserGetInfo_r(struct libnetapi_ctx *ctx,
 			struct NetUserGetInfo *r)
 {
 	struct rpc_pipe_client *pipe_cli = NULL;
-	NTSTATUS status, result;
+	NTSTATUS status;
 	WERROR werr;
 
 	struct policy_handle connect_handle, domain_handle, builtin_handle, user_handle;
@@ -1728,7 +1611,6 @@ WERROR NetUserGetInfo_r(struct libnetapi_ctx *ctx,
 	struct dom_sid2 *domain_sid = NULL;
 	struct samr_Ids user_rids, name_types;
 	uint32_t num_entries = 0;
-	struct dcerpc_binding_handle *b = NULL;
 
 	ZERO_STRUCT(connect_handle);
 	ZERO_STRUCT(domain_handle);
@@ -1762,8 +1644,6 @@ WERROR NetUserGetInfo_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	b = pipe_cli->binding_handle;
-
 	werr = libnetapi_samr_open_domain(ctx, pipe_cli,
 					  SAMR_ACCESS_ENUM_DOMAINS |
 					  SAMR_ACCESS_LOOKUP_DOMAIN,
@@ -1788,19 +1668,14 @@ WERROR NetUserGetInfo_r(struct libnetapi_ctx *ctx,
 
 	init_lsa_String(&lsa_account_name, r->in.user_name);
 
-	status = dcerpc_samr_LookupNames(b, talloc_tos(),
+	status = rpccli_samr_LookupNames(pipe_cli, talloc_tos(),
 					 &domain_handle,
 					 1,
 					 &lsa_account_name,
 					 &user_rids,
-					 &name_types,
-					 &result);
+					 &name_types);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -1819,8 +1694,8 @@ WERROR NetUserGetInfo_r(struct libnetapi_ctx *ctx,
 	}
 
  done:
-	if (is_valid_policy_hnd(&user_handle) && b) {
-		dcerpc_samr_Close(b, talloc_tos(), &user_handle, &result);
+	if (is_valid_policy_hnd(&user_handle) && pipe_cli) {
+		rpccli_samr_Close(pipe_cli, talloc_tos(), &user_handle);
 	}
 
 	if (ctx->disable_policy_handle_cache) {
@@ -1847,7 +1722,7 @@ WERROR NetUserSetInfo_r(struct libnetapi_ctx *ctx,
 			struct NetUserSetInfo *r)
 {
 	struct rpc_pipe_client *pipe_cli = NULL;
-	NTSTATUS status, result;
+	NTSTATUS status;
 	WERROR werr;
 
 	struct policy_handle connect_handle, domain_handle, builtin_handle, user_handle;
@@ -1857,8 +1732,6 @@ WERROR NetUserSetInfo_r(struct libnetapi_ctx *ctx,
 	uint32_t user_mask = 0;
 
 	struct USER_INFO_X uX;
-	struct dcerpc_binding_handle *b = NULL;
-	DATA_BLOB session_key;
 
 	ZERO_STRUCT(connect_handle);
 	ZERO_STRUCT(domain_handle);
@@ -1893,8 +1766,8 @@ WERROR NetUserSetInfo_r(struct libnetapi_ctx *ctx,
 				    SAMR_USER_ACCESS_GET_GROUPS;
 			break;
 		case 3:
-			user_mask = SEC_STD_READ_CONTROL |
-				    SEC_STD_WRITE_DAC |
+			user_mask = STD_RIGHT_READ_CONTROL_ACCESS |
+				    STD_RIGHT_WRITE_DAC_ACCESS |
 				    SAMR_USER_ACCESS_GET_GROUPS |
 				    SAMR_USER_ACCESS_SET_PASSWORD |
 				    SAMR_USER_ACCESS_SET_ATTRIBUTES |
@@ -1925,8 +1798,6 @@ WERROR NetUserSetInfo_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	b = pipe_cli->binding_handle;
-
 	werr = libnetapi_samr_open_domain(ctx, pipe_cli,
 					  SAMR_ACCESS_ENUM_DOMAINS |
 					  SAMR_ACCESS_LOOKUP_DOMAIN,
@@ -1952,34 +1823,24 @@ WERROR NetUserSetInfo_r(struct libnetapi_ctx *ctx,
 
 	init_lsa_String(&lsa_account_name, r->in.user_name);
 
-	status = dcerpc_samr_LookupNames(b, talloc_tos(),
+	status = rpccli_samr_LookupNames(pipe_cli, talloc_tos(),
 					 &domain_handle,
 					 1,
 					 &lsa_account_name,
 					 &user_rids,
-					 &name_types,
-					 &result);
+					 &name_types);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
-	status = dcerpc_samr_OpenUser(b, talloc_tos(),
+	status = rpccli_samr_OpenUser(pipe_cli, talloc_tos(),
 				      &domain_handle,
 				      user_mask,
 				      user_rids.ids[0],
-				      &user_handle,
-				      &result);
+				      &user_handle);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -1989,14 +1850,8 @@ WERROR NetUserSetInfo_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	status = cli_get_session_key(talloc_tos(), pipe_cli, &session_key);
-	if (!NT_STATUS_IS_OK(status)) {
-		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-
 	status = set_user_info_USER_INFO_X(ctx, pipe_cli,
-					   &session_key,
+					   &pipe_cli->auth->user_session_key,
 					   &user_handle,
 					   &uX);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -2007,8 +1862,8 @@ WERROR NetUserSetInfo_r(struct libnetapi_ctx *ctx,
 	werr = WERR_OK;
 
  done:
-	if (is_valid_policy_hnd(&user_handle) && b) {
-		dcerpc_samr_Close(b, talloc_tos(), &user_handle, &result);
+	if (is_valid_policy_hnd(&user_handle) && pipe_cli) {
+		rpccli_samr_Close(pipe_cli, talloc_tos(), &user_handle);
 	}
 
 	if (ctx->disable_policy_handle_cache) {
@@ -2042,78 +1897,65 @@ static NTSTATUS query_USER_MODALS_INFO_rpc(TALLOC_CTX *mem_ctx,
 					   struct samr_DomInfo7 *info7,
 					   struct samr_DomInfo12 *info12)
 {
-	NTSTATUS status, result;
+	NTSTATUS status;
 	union samr_DomainInfo *dom_info = NULL;
-	struct dcerpc_binding_handle *b = pipe_cli->binding_handle;
 
 	if (info1) {
-		status = dcerpc_samr_QueryDomainInfo(b, mem_ctx,
+		status = rpccli_samr_QueryDomainInfo(pipe_cli, mem_ctx,
 						     domain_handle,
 						     1,
-						     &dom_info,
-						     &result);
+						     &dom_info);
 		NT_STATUS_NOT_OK_RETURN(status);
-		NT_STATUS_NOT_OK_RETURN(result);
 
 		*info1 = dom_info->info1;
 	}
 
 	if (info3) {
-		status = dcerpc_samr_QueryDomainInfo(b, mem_ctx,
+		status = rpccli_samr_QueryDomainInfo(pipe_cli, mem_ctx,
 						     domain_handle,
 						     3,
-						     &dom_info,
-						     &result);
+						     &dom_info);
 		NT_STATUS_NOT_OK_RETURN(status);
-		NT_STATUS_NOT_OK_RETURN(result);
 
 		*info3 = dom_info->info3;
 	}
 
 	if (info5) {
-		status = dcerpc_samr_QueryDomainInfo(b, mem_ctx,
+		status = rpccli_samr_QueryDomainInfo(pipe_cli, mem_ctx,
 						     domain_handle,
 						     5,
-						     &dom_info,
-						     &result);
+						     &dom_info);
 		NT_STATUS_NOT_OK_RETURN(status);
-		NT_STATUS_NOT_OK_RETURN(result);
 
 		*info5 = dom_info->info5;
 	}
 
 	if (info6) {
-		status = dcerpc_samr_QueryDomainInfo(b, mem_ctx,
+		status = rpccli_samr_QueryDomainInfo(pipe_cli, mem_ctx,
 						     domain_handle,
 						     6,
-						     &dom_info,
-						     &result);
+						     &dom_info);
 		NT_STATUS_NOT_OK_RETURN(status);
-		NT_STATUS_NOT_OK_RETURN(result);
 
 		*info6 = dom_info->info6;
 	}
 
 	if (info7) {
-		status = dcerpc_samr_QueryDomainInfo(b, mem_ctx,
+		status = rpccli_samr_QueryDomainInfo(pipe_cli, mem_ctx,
 						     domain_handle,
 						     7,
-						     &dom_info,
-						     &result);
+						     &dom_info);
 		NT_STATUS_NOT_OK_RETURN(status);
-		NT_STATUS_NOT_OK_RETURN(result);
 
 		*info7 = dom_info->info7;
 	}
 
 	if (info12) {
-		status = dcerpc_samr_QueryDomainInfo2(b, mem_ctx,
+		status = rpccli_samr_QueryDomainInfo2(pipe_cli, mem_ctx,
 						      domain_handle,
 						      12,
-						      &dom_info,
-						      &result);
+						      &dom_info);
 		NT_STATUS_NOT_OK_RETURN(status);
-		NT_STATUS_NOT_OK_RETURN(result);
 
 		*info12 = dom_info->info12;
 	}
@@ -2218,7 +2060,7 @@ static NTSTATUS query_USER_MODALS_INFO_2(TALLOC_CTX *mem_ctx,
 	info2->usrmod2_domain_name =
 		talloc_strdup(mem_ctx, dom_info5.domain_name.string);
 	info2->usrmod2_domain_id =
-		(struct domsid *)dom_sid_dup(mem_ctx, domain_sid);
+		(struct domsid *)sid_dup_talloc(mem_ctx, domain_sid);
 
 	NT_STATUS_HAVE_NO_MEMORY(info2->usrmod2_domain_name);
 	NT_STATUS_HAVE_NO_MEMORY(info2->usrmod2_domain_id);
@@ -2431,9 +2273,8 @@ static NTSTATUS set_USER_MODALS_INFO_rpc(TALLOC_CTX *mem_ctx,
 					 struct samr_DomInfo3 *info3,
 					 struct samr_DomInfo12 *info12)
 {
-	NTSTATUS status, result;
+	NTSTATUS status;
 	union samr_DomainInfo dom_info;
-	struct dcerpc_binding_handle *b = pipe_cli->binding_handle;
 
 	if (info1) {
 
@@ -2441,13 +2282,11 @@ static NTSTATUS set_USER_MODALS_INFO_rpc(TALLOC_CTX *mem_ctx,
 
 		dom_info.info1 = *info1;
 
-		status = dcerpc_samr_SetDomainInfo(b, mem_ctx,
+		status = rpccli_samr_SetDomainInfo(pipe_cli, mem_ctx,
 						   domain_handle,
 						   1,
-						   &dom_info,
-						   &result);
+						   &dom_info);
 		NT_STATUS_NOT_OK_RETURN(status);
-		NT_STATUS_NOT_OK_RETURN(result);
 	}
 
 	if (info3) {
@@ -2456,14 +2295,12 @@ static NTSTATUS set_USER_MODALS_INFO_rpc(TALLOC_CTX *mem_ctx,
 
 		dom_info.info3 = *info3;
 
-		status = dcerpc_samr_SetDomainInfo(b, mem_ctx,
+		status = rpccli_samr_SetDomainInfo(pipe_cli, mem_ctx,
 						   domain_handle,
 						   3,
-						   &dom_info,
-						   &result);
+						   &dom_info);
 
 		NT_STATUS_NOT_OK_RETURN(status);
-		NT_STATUS_NOT_OK_RETURN(result);
 	}
 
 	if (info12) {
@@ -2472,14 +2309,12 @@ static NTSTATUS set_USER_MODALS_INFO_rpc(TALLOC_CTX *mem_ctx,
 
 		dom_info.info12 = *info12;
 
-		status = dcerpc_samr_SetDomainInfo(b, mem_ctx,
+		status = rpccli_samr_SetDomainInfo(pipe_cli, mem_ctx,
 						   domain_handle,
 						   12,
-						   &dom_info,
-						   &result);
+						   &dom_info);
 
 		NT_STATUS_NOT_OK_RETURN(status);
-		NT_STATUS_NOT_OK_RETURN(result);
 	}
 
 	return NT_STATUS_OK;
@@ -2966,9 +2801,7 @@ WERROR NetUserGetGroups_r(struct libnetapi_ctx *ctx,
 	uint32_t entries_read = 0;
 
 	NTSTATUS status = NT_STATUS_OK;
-	NTSTATUS result = NT_STATUS_OK;
 	WERROR werr;
-	struct dcerpc_binding_handle *b = NULL;
 
 	ZERO_STRUCT(connect_handle);
 	ZERO_STRUCT(domain_handle);
@@ -2996,8 +2829,6 @@ WERROR NetUserGetGroups_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	b = pipe_cli->binding_handle;
-
 	werr = libnetapi_samr_open_domain(ctx, pipe_cli,
 					  SAMR_ACCESS_ENUM_DOMAINS |
 					  SAMR_ACCESS_LOOKUP_DOMAIN,
@@ -3011,47 +2842,32 @@ WERROR NetUserGetGroups_r(struct libnetapi_ctx *ctx,
 
 	init_lsa_String(&lsa_account_name, r->in.user_name);
 
-	status = dcerpc_samr_LookupNames(b, talloc_tos(),
+	status = rpccli_samr_LookupNames(pipe_cli, talloc_tos(),
 					 &domain_handle,
 					 1,
 					 &lsa_account_name,
 					 &user_rids,
-					 &name_types,
-					 &result);
+					 &name_types);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
 		goto done;
 	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
-		goto done;
-	}
 
-	status = dcerpc_samr_OpenUser(b, talloc_tos(),
+	status = rpccli_samr_OpenUser(pipe_cli, talloc_tos(),
 				      &domain_handle,
 				      SAMR_USER_ACCESS_GET_GROUPS,
 				      user_rids.ids[0],
-				      &user_handle,
-				      &result);
+				      &user_handle);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
-	status = dcerpc_samr_GetGroupsForUser(b, talloc_tos(),
+	status = rpccli_samr_GetGroupsForUser(pipe_cli, talloc_tos(),
 					      &user_handle,
-					      &rid_array,
-					      &result);
+					      &rid_array);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -3065,20 +2881,15 @@ WERROR NetUserGetGroups_r(struct libnetapi_ctx *ctx,
 		rids[i] = rid_array->rids[i].rid;
 	}
 
-	status = dcerpc_samr_LookupRids(b, talloc_tos(),
+	status = rpccli_samr_LookupRids(pipe_cli, talloc_tos(),
 					&domain_handle,
 					rid_array->count,
 					rids,
 					&names,
-					&types,
-					&result);
-	if (!NT_STATUS_IS_OK(status)) {
+					&types);
+	if (!NT_STATUS_IS_OK(status) &&
+	    !NT_STATUS_EQUAL(status, STATUS_SOME_UNMAPPED)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result) &&
-	    !NT_STATUS_EQUAL(result, STATUS_SOME_UNMAPPED)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -3145,9 +2956,7 @@ WERROR NetUserSetGroups_r(struct libnetapi_ctx *ctx,
 	int i, k;
 
 	NTSTATUS status = NT_STATUS_OK;
-	NTSTATUS result = NT_STATUS_OK;
 	WERROR werr;
-	struct dcerpc_binding_handle *b = NULL;
 
 	ZERO_STRUCT(connect_handle);
 	ZERO_STRUCT(domain_handle);
@@ -3171,8 +2980,6 @@ WERROR NetUserSetGroups_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	b = pipe_cli->binding_handle;
-
 	werr = libnetapi_samr_open_domain(ctx, pipe_cli,
 					  SAMR_ACCESS_ENUM_DOMAINS |
 					  SAMR_ACCESS_LOOKUP_DOMAIN,
@@ -3186,34 +2993,24 @@ WERROR NetUserSetGroups_r(struct libnetapi_ctx *ctx,
 
 	init_lsa_String(&lsa_account_name, r->in.user_name);
 
-	status = dcerpc_samr_LookupNames(b, talloc_tos(),
+	status = rpccli_samr_LookupNames(pipe_cli, talloc_tos(),
 					 &domain_handle,
 					 1,
 					 &lsa_account_name,
 					 &user_rids,
-					 &name_types,
-					 &result);
+					 &name_types);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
-	status = dcerpc_samr_OpenUser(b, talloc_tos(),
+	status = rpccli_samr_OpenUser(pipe_cli, talloc_tos(),
 				      &domain_handle,
 				      SAMR_USER_ACCESS_GET_GROUPS,
 				      user_rids.ids[0],
-				      &user_handle,
-				      &result);
+				      &user_handle);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -3246,35 +3043,25 @@ WERROR NetUserSetGroups_r(struct libnetapi_ctx *ctx,
 		}
 	}
 
-	status = dcerpc_samr_LookupNames(b, talloc_tos(),
+	status = rpccli_samr_LookupNames(pipe_cli, talloc_tos(),
 					 &domain_handle,
 					 r->in.num_entries,
 					 lsa_names,
 					 &group_rids,
-					 &name_types,
-					 &result);
+					 &name_types);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
 	member_rids = group_rids.ids;
 	num_member_rids = group_rids.count;
 
-	status = dcerpc_samr_GetGroupsForUser(b, talloc_tos(),
+	status = rpccli_samr_GetGroupsForUser(pipe_cli, talloc_tos(),
 					      &user_handle,
-					      &rid_array,
-					      &result);
+					      &rid_array);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -3321,73 +3108,53 @@ WERROR NetUserSetGroups_r(struct libnetapi_ctx *ctx,
 	/* add list */
 
 	for (i=0; i < num_add_rids; i++) {
-		status = dcerpc_samr_OpenGroup(b, talloc_tos(),
+		status = rpccli_samr_OpenGroup(pipe_cli, talloc_tos(),
 					       &domain_handle,
 					       SAMR_GROUP_ACCESS_ADD_MEMBER,
 					       add_rids[i],
-					       &group_handle,
-					       &result);
+					       &group_handle);
 		if (!NT_STATUS_IS_OK(status)) {
 			werr = ntstatus_to_werror(status);
-			goto done;
-		}
-		if (!NT_STATUS_IS_OK(result)) {
-			werr = ntstatus_to_werror(result);
 			goto done;
 		}
 
-		status = dcerpc_samr_AddGroupMember(b, talloc_tos(),
+		status = rpccli_samr_AddGroupMember(pipe_cli, talloc_tos(),
 						    &group_handle,
 						    user_rids.ids[0],
-						    7 /* ? */,
-						    &result);
+						    7 /* ? */);
 		if (!NT_STATUS_IS_OK(status)) {
 			werr = ntstatus_to_werror(status);
-			goto done;
-		}
-		if (!NT_STATUS_IS_OK(result)) {
-			werr = ntstatus_to_werror(result);
 			goto done;
 		}
 
 		if (is_valid_policy_hnd(&group_handle)) {
-			dcerpc_samr_Close(b, talloc_tos(), &group_handle, &result);
+			rpccli_samr_Close(pipe_cli, talloc_tos(), &group_handle);
 		}
 	}
 
 	/* del list */
 
 	for (i=0; i < num_del_rids; i++) {
-		status = dcerpc_samr_OpenGroup(b, talloc_tos(),
+		status = rpccli_samr_OpenGroup(pipe_cli, talloc_tos(),
 					       &domain_handle,
 					       SAMR_GROUP_ACCESS_REMOVE_MEMBER,
 					       del_rids[i],
-					       &group_handle,
-					       &result);
+					       &group_handle);
 		if (!NT_STATUS_IS_OK(status)) {
 			werr = ntstatus_to_werror(status);
-			goto done;
-		}
-		if (!NT_STATUS_IS_OK(result)) {
-			werr = ntstatus_to_werror(result);
 			goto done;
 		}
 
-		status = dcerpc_samr_DeleteGroupMember(b, talloc_tos(),
+		status = rpccli_samr_DeleteGroupMember(pipe_cli, talloc_tos(),
 						       &group_handle,
-						       user_rids.ids[0],
-						       &result);
+						       user_rids.ids[0]);
 		if (!NT_STATUS_IS_OK(status)) {
 			werr = ntstatus_to_werror(status);
-			goto done;
-		}
-		if (!NT_STATUS_IS_OK(result)) {
-			werr = ntstatus_to_werror(result);
 			goto done;
 		}
 
 		if (is_valid_policy_hnd(&group_handle)) {
-			dcerpc_samr_Close(b, talloc_tos(), &group_handle, &result);
+			rpccli_samr_Close(pipe_cli, talloc_tos(), &group_handle);
 		}
 	}
 
@@ -3395,7 +3162,7 @@ WERROR NetUserSetGroups_r(struct libnetapi_ctx *ctx,
 
  done:
 	if (is_valid_policy_hnd(&group_handle)) {
-		dcerpc_samr_Close(b, talloc_tos(), &group_handle, &result);
+		rpccli_samr_Close(pipe_cli, talloc_tos(), &group_handle);
 	}
 
 	if (ctx->disable_policy_handle_cache) {
@@ -3467,9 +3234,7 @@ WERROR NetUserGetLocalGroups_r(struct libnetapi_ctx *ctx,
 	uint32_t entries_read = 0;
 
 	NTSTATUS status = NT_STATUS_OK;
-	NTSTATUS result = NT_STATUS_OK;
 	WERROR werr;
-	struct dcerpc_binding_handle *b = NULL;
 
 	ZERO_STRUCT(connect_handle);
 	ZERO_STRUCT(domain_handle);
@@ -3497,8 +3262,6 @@ WERROR NetUserGetLocalGroups_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	b = pipe_cli->binding_handle;
-
 	werr = libnetapi_samr_open_domain(ctx, pipe_cli,
 					  SAMR_ACCESS_ENUM_DOMAINS |
 					  SAMR_ACCESS_LOOKUP_DOMAIN,
@@ -3524,47 +3287,32 @@ WERROR NetUserGetLocalGroups_r(struct libnetapi_ctx *ctx,
 
 	init_lsa_String(&lsa_account_name, r->in.user_name);
 
-	status = dcerpc_samr_LookupNames(b, talloc_tos(),
+	status = rpccli_samr_LookupNames(pipe_cli, talloc_tos(),
 					 &domain_handle,
 					 1,
 					 &lsa_account_name,
 					 &user_rids,
-					 &name_types,
-					 &result);
+					 &name_types);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
 		goto done;
 	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
-		goto done;
-	}
 
-	status = dcerpc_samr_OpenUser(b, talloc_tos(),
+	status = rpccli_samr_OpenUser(pipe_cli, talloc_tos(),
 				      &domain_handle,
 				      SAMR_USER_ACCESS_GET_GROUPS,
 				      user_rids.ids[0],
-				      &user_handle,
-				      &result);
+				      &user_handle);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
-	status = dcerpc_samr_GetGroupsForUser(b, talloc_tos(),
+	status = rpccli_samr_GetGroupsForUser(pipe_cli, talloc_tos(),
 					      &user_handle,
-					      &rid_array,
-					      &result);
+					      &rid_array);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -3580,7 +3328,7 @@ WERROR NetUserGetLocalGroups_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	sid_array.sids[0].sid = dom_sid_dup(ctx, &user_sid);
+	sid_array.sids[0].sid = sid_dup_talloc(ctx, &user_sid);
 	if (!sid_array.sids[0].sid) {
 		werr = WERR_NOMEM;
 		goto done;
@@ -3594,24 +3342,19 @@ WERROR NetUserGetLocalGroups_r(struct libnetapi_ctx *ctx,
 			goto done;
 		}
 
-		sid_array.sids[i+1].sid = dom_sid_dup(ctx, &sid);
+		sid_array.sids[i+1].sid = sid_dup_talloc(ctx, &sid);
 		if (!sid_array.sids[i+1].sid) {
 			werr = WERR_NOMEM;
 			goto done;
 		}
 	}
 
-	status = dcerpc_samr_GetAliasMembership(b, talloc_tos(),
+	status = rpccli_samr_GetAliasMembership(pipe_cli, talloc_tos(),
 						&domain_handle,
 						&sid_array,
-						&domain_rids,
-						&result);
+						&domain_rids);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -3623,17 +3366,12 @@ WERROR NetUserGetLocalGroups_r(struct libnetapi_ctx *ctx,
 		}
 	}
 
-	status = dcerpc_samr_GetAliasMembership(b, talloc_tos(),
+	status = rpccli_samr_GetAliasMembership(pipe_cli, talloc_tos(),
 						&builtin_handle,
 						&sid_array,
-						&builtin_rids,
-						&result);
+						&builtin_rids);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -3645,19 +3383,14 @@ WERROR NetUserGetLocalGroups_r(struct libnetapi_ctx *ctx,
 		}
 	}
 
-	status = dcerpc_samr_LookupRids(b, talloc_tos(),
+	status = rpccli_samr_LookupRids(pipe_cli, talloc_tos(),
 					&builtin_handle,
 					num_rids,
 					rids,
 					&names,
-					&types,
-					&result);
+					&types);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
-		goto done;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 

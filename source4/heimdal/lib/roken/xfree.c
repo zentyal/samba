@@ -33,6 +33,8 @@
 
 #include <config.h>
 
+#include <unistd.h>
+
 #include "roken.h"
 
 void ROKEN_LIB_FUNCTION

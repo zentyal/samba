@@ -26,7 +26,7 @@
 
 #include "includes.h"
 #include "system/filesys.h"
-#include <tdb.h>
+#include "../tdb/include/tdb.h"
 #include "messaging/messaging.h"
 #include "lib/messaging/irpc.h"
 #include "libcli/libcli.h"
@@ -124,14 +124,4 @@ NTSTATUS brl_close(struct brl_context *brl,
 		   struct brl_handle *brlh)
 {
 	return ops->brl_close(brl, brlh);
-}
-
-/*
- Get a number of locks associated with a open file.
-*/
-NTSTATUS brl_count(struct brl_context *brl,
-		   struct brl_handle *brlh,
-		   int *count)
-{
-	return ops->brl_count(brl, brlh, count);
 }

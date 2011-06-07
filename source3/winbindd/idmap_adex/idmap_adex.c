@@ -19,11 +19,7 @@
  */
 
 #include "includes.h"
-#include "ads.h"
-#include "idmap.h"
 #include "idmap_adex.h"
-#include "nss_info.h"
-#include "secrets.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_IDMAP
@@ -42,12 +38,13 @@ NTSTATUS init_module(void);
  it will be dropped from the idmap backend list.
  *******************************************************************/
 
-static NTSTATUS _idmap_adex_init(struct idmap_domain *dom)
+static NTSTATUS _idmap_adex_init(struct idmap_domain *dom,
+				     const char *params)
 {
 	ADS_STRUCT *ads = NULL;
 	ADS_STATUS status;
 	static NTSTATUS init_status = NT_STATUS_DOMAIN_CONTROLLER_NOT_FOUND;
-	struct dom_sid domain_sid;
+	DOM_SID domain_sid;
 	fstring dcname;
 	struct sockaddr_storage ip;
 	struct likewise_cell *lwcell;
@@ -167,7 +164,7 @@ static NTSTATUS _idmap_adex_get_sid_from_id(struct
 		ids[i]->status = ID_UNKNOWN;
 	}
 	
-	nt_status = _idmap_adex_init(dom);
+	nt_status = _idmap_adex_init(dom, NULL);
 	if (!NT_STATUS_IS_OK(nt_status))
 		return nt_status;
 
@@ -220,7 +217,7 @@ static NTSTATUS _idmap_adex_get_id_from_sid(struct
 		ids[i]->status = ID_UNKNOWN;
 	}
 	
-	nt_status = _idmap_adex_init(dom);
+	nt_status = _idmap_adex_init(dom, NULL);
 	if (!NT_STATUS_IS_OK(nt_status))
 		return nt_status;
 
@@ -253,6 +250,52 @@ static NTSTATUS _idmap_adex_get_id_from_sid(struct
 	return NT_STATUS_OK;
 }
 
+/**********************************************************************
+ *********************************************************************/
+
+static NTSTATUS _idmap_adex_set_mapping(struct
+					    idmap_domain
+					    *dom, const struct
+					    id_map *map)
+{
+	DEBUG(0, ("_idmap_adex_set_mapping: not implemented\n"));
+	return NT_STATUS_NOT_IMPLEMENTED;
+}
+
+/**********************************************************************
+ *********************************************************************/
+
+static NTSTATUS _idmap_adex_remove_mapping(struct
+					       idmap_domain
+					       *dom, const
+					       struct
+					       id_map
+					       *map)
+{
+	DEBUG(0, ("_idmap_adex_remove_mapping: not implemented\n"));
+	return NT_STATUS_NOT_IMPLEMENTED;
+}
+
+/**********************************************************************
+ *********************************************************************/
+
+static NTSTATUS _idmap_adex_dump(struct idmap_domain
+				     *dom, struct id_map **maps, int *num_map)
+{
+	return NT_STATUS_NOT_IMPLEMENTED;
+}
+
+/**********************************************************************
+ *********************************************************************/
+
+static NTSTATUS _idmap_adex_close(struct idmap_domain
+				      *dom)
+{
+	/* FIXME!  need to do cleanup here */
+
+	return NT_STATUS_OK;
+}
+
 /*
  * IdMap NSS plugin
  */
@@ -263,7 +306,7 @@ static NTSTATUS _idmap_adex_get_id_from_sid(struct
 static NTSTATUS _nss_adex_init(struct nss_domain_entry
 				  *e)
 {
-	return _idmap_adex_init(NULL);
+	return _idmap_adex_init(NULL, NULL);
 }
 
 /**********************************************************************
@@ -271,8 +314,10 @@ static NTSTATUS _nss_adex_init(struct nss_domain_entry
 
 static NTSTATUS _nss_adex_get_info(struct
 				      nss_domain_entry *e,
-				      const struct dom_sid * sid,
+				      const DOM_SID * sid,
 				      TALLOC_CTX * ctx,
+				      ADS_STRUCT * ads,
+				      LDAPMessage * msg,
 				      const char **homedir,
 				      const char **shell,
 				      const char **gecos, gid_t * p_gid)
@@ -280,7 +325,7 @@ static NTSTATUS _nss_adex_get_info(struct
 	NTSTATUS nt_status;
         struct likewise_cell *cell;
 
-	nt_status = _idmap_adex_init(NULL);
+	nt_status = _idmap_adex_init(NULL, NULL);
 	if (!NT_STATUS_IS_OK(nt_status))
 		return nt_status;
 
@@ -302,7 +347,7 @@ static NTSTATUS _nss_adex_map_to_alias(TALLOC_CTX * mem_ctx,
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
         struct likewise_cell *cell = NULL;
 
-	nt_status = _idmap_adex_init(NULL);
+	nt_status = _idmap_adex_init(NULL, NULL);
 	BAIL_ON_NTSTATUS_ERROR(nt_status);
 
 	if ((cell = cell_list_head()) == NULL) {
@@ -333,7 +378,7 @@ static NTSTATUS _nss_adex_map_from_alias(TALLOC_CTX * mem_ctx,
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
         struct likewise_cell *cell = NULL;
 
-	nt_status = _idmap_adex_init(NULL);
+	nt_status = _idmap_adex_init(NULL, NULL);
 	BAIL_ON_NTSTATUS_ERROR(nt_status);
 
 	if ((cell = cell_list_head()) == NULL) {
@@ -371,6 +416,10 @@ static struct idmap_methods adex_idmap_methods = {
 	.init             = _idmap_adex_init,
 	.unixids_to_sids  = _idmap_adex_get_sid_from_id,
 	.sids_to_unixids  = _idmap_adex_get_id_from_sid,
+	.set_mapping      = _idmap_adex_set_mapping,
+	.remove_mapping   = _idmap_adex_remove_mapping,
+	.dump_data        = _idmap_adex_dump,
+	.close_fn         = _idmap_adex_close
 };
 static struct nss_info_methods adex_nss_methods = {
 	.init           = _nss_adex_init,
@@ -414,4 +463,9 @@ NTSTATUS idmap_adex_init(void)
 	}
 
 	return NT_STATUS_OK;
+}
+
+static NTSTATUS nss_info_adex_init(void)
+{
+	return idmap_adex_init();
 }

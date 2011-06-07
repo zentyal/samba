@@ -64,17 +64,4 @@
 #include "utils.h"
 
 #define _mg_buffer_zero(buffer) \
-	do {					\
-		if (buffer) {			\
-			(buffer)->value = NULL;	\
-			(buffer)->length = 0;	\
-		 }				\
-	} while(0)
-
-#define _mg_oid_set_zero(oid_set) \
-	do {						\
-		if (oid_set) {				\
-			(oid_set)->elements = NULL;	\
-			(oid_set)->count = 0;		\
-		 }					\
-	} while(0)
+	do { (buffer)->value = NULL; (buffer)->length = 0; } while(0)

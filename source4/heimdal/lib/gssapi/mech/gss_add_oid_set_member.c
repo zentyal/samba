@@ -32,26 +32,9 @@
  */
 
 #include "mech_locl.h"
+RCSID("$Id$");
 
-/**
- * Add a oid to the oid set, function does not make a copy of the oid,
- * so the pointer to member_oid needs to be stable for the whole time
- * oid_set is used.
- *
- * If there is a duplicate member of the oid, the new member is not
- * added to to the set.
- *
- * @param minor_status minor status code.
- * @param member_oid member to add to the oid set
- * @param oid_set oid set to add the member too
- *
- * @returns a gss_error code, see gss_display_status() about printing
- *          the error code.
- *	  
- * @ingroup gssapi
- */
-
-GSSAPI_LIB_FUNCTION OM_uint32 GSSAPI_LIB_CALL
+OM_uint32 GSSAPI_LIB_FUNCTION
 gss_add_oid_set_member (OM_uint32 * minor_status,
 			const gss_OID member_oid,
 			gss_OID_set * oid_set)

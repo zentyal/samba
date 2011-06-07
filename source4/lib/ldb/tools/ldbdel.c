@@ -31,105 +31,80 @@
  *  Author: Andrew Tridgell
  */
 
-#include "replace.h"
 #include "ldb.h"
 #include "tools/cmdline.h"
-#include "ldbutil.h"
 
-static int dn_cmp(struct ldb_message **msg1, struct ldb_message **msg2)
+static int ldb_delete_recursive(struct ldb_context *ldb, struct ldb_dn *dn)
 {
-	return ldb_dn_compare((*msg1)->dn, (*msg2)->dn);
-}
-
-static int ldb_delete_recursive(struct ldb_context *ldb, struct ldb_dn *dn,struct ldb_control **req_ctrls)
-{
-	int ret;
-	unsigned int i, total=0;
+	int ret, i, total=0;
 	const char *attrs[] = { NULL };
 	struct ldb_result *res;
 	
 	ret = ldb_search(ldb, ldb, &res, dn, LDB_SCOPE_SUBTREE, attrs, "distinguishedName=*");
-	if (ret != LDB_SUCCESS) return ret;
-
-	/* sort the DNs, deepest first */
-	TYPESAFE_QSORT(res->msgs, res->count, dn_cmp);
+	if (ret != LDB_SUCCESS) return -1;
 
 	for (i = 0; i < res->count; i++) {
-		if (ldb_delete_ctrl(ldb, res->msgs[i]->dn,req_ctrls) == LDB_SUCCESS) {
+		if (ldb_delete(ldb, res->msgs[i]->dn) == 0) {
 			total++;
-		} else {
-			printf("Failed to delete '%s' - %s\n",
-			       ldb_dn_get_linearized(res->msgs[i]->dn),
-			       ldb_errstring(ldb));
 		}
 	}
 
 	talloc_free(res);
 
 	if (total == 0) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return -1;
 	}
-	printf("Deleted %u records\n", total);
-	return LDB_SUCCESS;
+	printf("Deleted %d records\n", total);
+	return 0;
 }
 
-static void usage(struct ldb_context *ldb)
+static void usage(void)
 {
 	printf("Usage: ldbdel <options> <DN...>\n");
 	printf("Deletes records from a ldb\n\n");
-	ldb_cmdline_help(ldb, "ldbdel", stdout);
-	exit(LDB_ERR_OPERATIONS_ERROR);
+	ldb_cmdline_help("ldbdel", stdout);
+	exit(1);
 }
 
 int main(int argc, const char **argv)
 {
-	struct ldb_control **req_ctrls;
-	struct ldb_cmdline *options;
 	struct ldb_context *ldb;
 	int ret = 0, i;
-	TALLOC_CTX *mem_ctx = talloc_new(NULL);
+	struct ldb_cmdline *options;
 
-	ldb = ldb_init(mem_ctx, NULL);
-	if (ldb == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
+	ldb = ldb_init(NULL, NULL);
 
 	options = ldb_cmdline_process(ldb, argc, argv, usage);
 
 	if (options->argc < 1) {
-		usage(ldb);
-	}
-
-	req_ctrls = ldb_parse_control_strings(ldb, ldb, (const char **)options->controls);
-	if (options->controls != NULL &&  req_ctrls== NULL) {
-		printf("parsing controls failed: %s\n", ldb_errstring(ldb));
-		return LDB_ERR_OPERATIONS_ERROR;
+		usage();
+		exit(1);
 	}
 
 	for (i=0;i<options->argc;i++) {
 		struct ldb_dn *dn;
 
 		dn = ldb_dn_new(ldb, ldb, options->argv[i]);
-		if (dn == NULL) {
-			return LDB_ERR_OPERATIONS_ERROR;
+		if ( ! ldb_dn_validate(dn)) {
+			printf("Invalid DN format\n");
+			exit(1);
 		}
 		if (options->recursive) {
-			ret = ldb_delete_recursive(ldb, dn,req_ctrls);
+			ret = ldb_delete_recursive(ldb, dn);
 		} else {
-			ret = ldb_delete_ctrl(ldb, dn,req_ctrls);
-			if (ret == LDB_SUCCESS) {
+			ret = ldb_delete(ldb, dn);
+			if (ret == 0) {
 				printf("Deleted 1 record\n");
 			}
 		}
-		if (ret != LDB_SUCCESS) {
-			printf("delete of '%s' failed - (%s) %s\n",
-			       ldb_dn_get_linearized(dn),
-			       ldb_strerror(ret),
-			       ldb_errstring(ldb));
+		if (ret != 0) {
+			printf("delete of '%s' failed - %s\n",
+				ldb_dn_get_linearized(dn),
+				ldb_errstring(ldb));
 		}
 	}
 
-	talloc_free(mem_ctx);
+	talloc_free(ldb);
 
 	return ret;
 }

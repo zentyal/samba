@@ -79,7 +79,8 @@ static NTSTATUS smblsa_connect(struct smbcli_state *cli)
 	}
 	lsa->ipc_tree->tid = tcon.tconx.out.tid;
 
-	lsa->pipe = dcerpc_pipe_init(lsa, cli->transport->socket->event.ctx);
+	lsa->pipe = dcerpc_pipe_init(lsa, cli->transport->socket->event.ctx,
+								 cli->transport->iconv_convenience);
 	if (lsa->pipe == NULL) {
 		talloc_free(lsa);
 		return NT_STATUS_NO_MEMORY;
@@ -118,15 +119,10 @@ static NTSTATUS smblsa_connect(struct smbcli_state *cli)
 	r.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	r.out.handle = &lsa->handle;
 
-	status = dcerpc_lsa_OpenPolicy_r(lsa->pipe->binding_handle, lsa, &r);
+	status = dcerpc_lsa_OpenPolicy(lsa->pipe, lsa, &r);
 	if (!NT_STATUS_IS_OK(status)) {
 		talloc_free(lsa);
 		return status;
-	}
-
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		talloc_free(lsa);
-		return r.out.result;
 	}
 
 	cli->lsa = lsa;
@@ -154,12 +150,7 @@ NTSTATUS smblsa_sid_privileges(struct smbcli_state *cli, struct dom_sid *sid,
 	r.in.sid = sid;
 	r.out.rights = rights;
 
-	status = dcerpc_lsa_EnumAccountRights_r(cli->lsa->pipe->binding_handle, mem_ctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	return r.out.result;
+	return dcerpc_lsa_EnumAccountRights(cli->lsa->pipe, mem_ctx, &r);
 }
 
 
@@ -243,14 +234,10 @@ NTSTATUS smblsa_lookup_sid(struct smbcli_state *cli,
 	r.out.names = &names;
 	r.out.domains = &domains;
 
-	status = dcerpc_lsa_LookupSids_r(cli->lsa->pipe->binding_handle, mem_ctx2, &r);
+	status = dcerpc_lsa_LookupSids(cli->lsa->pipe, mem_ctx2, &r);
 	if (!NT_STATUS_IS_OK(status)) {
 		talloc_free(mem_ctx2);
 		return status;
-	}
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		talloc_free(mem_ctx2);
-		return r.out.result;
 	}
 	if (names.count != 1) {
 		talloc_free(mem_ctx2);
@@ -304,14 +291,10 @@ NTSTATUS smblsa_lookup_name(struct smbcli_state *cli,
 	r.out.sids = &sids;
 	r.out.domains = &domains;
 
-	status = dcerpc_lsa_LookupNames_r(cli->lsa->pipe->binding_handle, mem_ctx2, &r);
+	status = dcerpc_lsa_LookupNames(cli->lsa->pipe, mem_ctx2, &r);
 	if (!NT_STATUS_IS_OK(status)) {
 		talloc_free(mem_ctx2);
 		return status;
-	}
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		talloc_free(mem_ctx2);
-		return r.out.result;
 	}
 	if (sids.count != 1) {
 		talloc_free(mem_ctx2);
@@ -349,12 +332,7 @@ NTSTATUS smblsa_sid_add_privileges(struct smbcli_state *cli, struct dom_sid *sid
 	r.in.sid = sid;
 	r.in.rights = rights;
 
-	status = dcerpc_lsa_AddAccountRights_r(cli->lsa->pipe->binding_handle, mem_ctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	return r.out.result;
+	return dcerpc_lsa_AddAccountRights(cli->lsa->pipe, mem_ctx, &r);
 }
 
 /*
@@ -377,10 +355,5 @@ NTSTATUS smblsa_sid_del_privileges(struct smbcli_state *cli, struct dom_sid *sid
 	r.in.remove_all = 0;
 	r.in.rights = rights;
 
-	status = dcerpc_lsa_RemoveAccountRights_r(cli->lsa->pipe->binding_handle, mem_ctx, &r);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	return r.out.result;
+	return dcerpc_lsa_RemoveAccountRights(cli->lsa->pipe, mem_ctx, &r);
 }

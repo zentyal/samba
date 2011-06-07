@@ -38,24 +38,22 @@
 
 #ifndef ROKEN_LIB_FUNCTION
 #ifdef _WIN32
-#define ROKEN_LIB_FUNCTION
-#define ROKEN_LIB_CALL     __cdecl
+#define ROKEN_LIB_FUNCTION _stdcall
 #else
 #define ROKEN_LIB_FUNCTION
-#define ROKEN_LIB_CALL
 #endif
 #endif
 
-ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
+int
 parse_time (const char *s, const char *def_unit);
 
-ROKEN_LIB_FUNCTION size_t ROKEN_LIB_CALL
+size_t
 unparse_time (int t, char *s, size_t len);
 
-ROKEN_LIB_FUNCTION size_t ROKEN_LIB_CALL
+size_t
 unparse_time_approx (int t, char *s, size_t len);
 
-ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+void
 print_time_table (FILE *f);
 
 #endif /* __PARSE_TIME_H__ */

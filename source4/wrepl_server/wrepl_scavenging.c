@@ -23,12 +23,12 @@
 #include "librpc/gen_ndr/ndr_winsrepl.h"
 #include "wrepl_server/wrepl_server.h"
 #include "nbt_server/wins/winsdb.h"
-#include <ldb.h>
-#include <ldb_errors.h>
+#include "ldb/include/ldb.h"
+#include "ldb/include/ldb_errors.h"
 #include "system/time.h"
 #include "smbd/service_task.h"
 #include "lib/messaging/irpc.h"
-#include "librpc/gen_ndr/ndr_irpc_c.h"
+#include "librpc/gen_ndr/ndr_irpc.h"
 #include "librpc/gen_ndr/ndr_nbt.h"
 #include "param/param.h"
 
@@ -52,7 +52,7 @@ static NTSTATUS wreplsrv_scavenging_owned_records(struct wreplsrv_service *servi
 	struct ldb_result *res = NULL;
 	const char *owner_filter;
 	const char *filter;
-	unsigned int i;
+	uint32_t i;
 	int ret;
 	time_t now = time(NULL);
 	const char *now_timestr;
@@ -65,7 +65,7 @@ static NTSTATUS wreplsrv_scavenging_owned_records(struct wreplsrv_service *servi
 	bool delete_tombstones;
 	struct timeval tombstone_extra_time;
 	const char *local_owner = service->wins_db->local_owner;
-	bool propagate = lpcfg_parm_bool(service->task->lp_ctx, NULL, "wreplsrv", "propagate name releases", false);
+	bool propagate = lp_parm_bool(service->task->lp_ctx, NULL, "wreplsrv", "propagate name releases", false);
 
 	now_timestr = ldb_timestring(tmp_mem, now);
 	NT_STATUS_HAVE_NO_MEMORY(now_timestr);
@@ -206,7 +206,7 @@ static NTSTATUS wreplsrv_scavenging_replica_non_active_records(struct wreplsrv_s
 	struct ldb_result *res = NULL;
 	const char *owner_filter;
 	const char *filter;
-	unsigned int i;
+	uint32_t i;
 	int ret;
 	time_t now = time(NULL);
 	const char *now_timestr;
@@ -312,11 +312,10 @@ struct verify_state {
 	struct nbtd_proxy_wins_challenge r;
 };
 
-static void verify_handler(struct tevent_req *subreq)
+static void verify_handler(struct irpc_request *ireq)
 {
-	struct verify_state *s =
-		tevent_req_callback_data(subreq,
-		struct verify_state);
+	struct verify_state *s = talloc_get_type(ireq->async.private_data,
+				 struct verify_state);
 	struct winsdb_record *rec = s->rec;
 	const char *action;
 	const char *old_state = "active";
@@ -337,8 +336,7 @@ static void verify_handler(struct tevent_req *subreq)
 	 *   - if they match do nothing
 	 * - if an error happens do nothing
 	 */
-	status = dcerpc_nbtd_proxy_wins_challenge_r_recv(subreq, s);
-	TALLOC_FREE(subreq);
+	status = irpc_call_recv(ireq);
 	if (NT_STATUS_EQUAL(NT_STATUS_OBJECT_NAME_NOT_FOUND, status)) {
 		delete_record = true;
 		new_state = "deleted";
@@ -423,13 +421,18 @@ static NTSTATUS wreplsrv_scavenging_replica_active_records(struct wreplsrv_servi
 	struct ldb_result *res = NULL;
 	const char *owner_filter;
 	const char *filter;
-	unsigned int i;
+	uint32_t i;
 	int ret;
 	time_t now = time(NULL);
 	const char *now_timestr;
-	struct tevent_req *subreq;
+	struct irpc_request *ireq;
 	struct verify_state *s;
-	struct dcerpc_binding_handle *irpc_handle;
+	struct server_id *nbt_servers;
+
+	nbt_servers = irpc_servers_byname(service->task->msg_ctx, tmp_mem, "nbt_server");
+	if ((nbt_servers == NULL) || (nbt_servers[0].id == 0)) {
+		return NT_STATUS_INTERNAL_ERROR;
+	}
 
 	now_timestr = ldb_timestring(tmp_mem, now);
 	NT_STATUS_HAVE_NO_MEMORY(now_timestr);
@@ -486,21 +489,13 @@ static NTSTATUS wreplsrv_scavenging_replica_active_records(struct wreplsrv_servi
 		/* TODO: fix pidl to handle inline ipv4address arrays */
 		s->r.in.addrs[0].addr	= rec->wins_owner;
 
-		irpc_handle = irpc_binding_handle_by_name(s,
-							  service->task->msg_ctx,
-							  "nbt_server",
-							  &ndr_table_irpc);
-		if (irpc_handle == NULL) {
-			return NT_STATUS_INTERNAL_ERROR;
-		}
+		ireq = IRPC_CALL_SEND(s->msg_ctx, nbt_servers[0],
+				      irpc, NBTD_PROXY_WINS_CHALLENGE,
+				      &s->r, s);
+		NT_STATUS_HAVE_NO_MEMORY(ireq);
 
-		subreq = dcerpc_nbtd_proxy_wins_challenge_r_send(s,
-								 service->task->event_ctx,
-								 irpc_handle,
-								 &s->r);
-		NT_STATUS_HAVE_NO_MEMORY(subreq);
-
-		tevent_req_set_callback(subreq, verify_handler, s);
+		ireq->async.fn		= verify_handler;
+		ireq->async.private_data= s;
 
 		talloc_steal(service, s);
 	}

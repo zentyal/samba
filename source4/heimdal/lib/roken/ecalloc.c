@@ -42,7 +42,7 @@
  * Like calloc but never fails.
  */
 
-ROKEN_LIB_FUNCTION void * ROKEN_LIB_CALL
+void * ROKEN_LIB_FUNCTION
 ecalloc (size_t number, size_t size)
 {
     void *tmp = calloc (number, size);

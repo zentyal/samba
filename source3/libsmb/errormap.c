@@ -20,14 +20,7 @@
  */
 
 #include "includes.h"
-
-#if HAVE_GSSAPI_GSSAPI_H
-#include <gssapi/gssapi.h>
-#elif HAVE_GSSAPI_GSSAPI_GENERIC_H
-#include <gssapi/gssapi_generic.h>
-#elif HAVE_GSSAPI_H
-#include <gssapi.h>
-#endif
+#include "nsswitch/libwbclient/wbclient.h"
 
 /* This map was extracted by the ERRMAPEXTRACT smbtorture command. 
    The setup was a Samba HEAD (2002-01-03) PDC and an Win2k member 
@@ -189,7 +182,6 @@ static const struct {
 	 during the session setup }
 */
 	{ERRSRV,	ERRbadpw,	NT_STATUS_WRONG_PASSWORD},
-	{ERRSRV,	ERRbaduid,	NT_STATUS_USER_SESSION_DELETED},
 	{ERRHRD,	ERRgeneral,	NT_STATUS_ILL_FORMED_PASSWORD},
 	{ERRHRD,	ERRgeneral,	NT_STATUS_PASSWORD_RESTRICTION},
 	{ERRDOS,	ERRnoaccess,	NT_STATUS_LOGON_FAILURE},
@@ -744,7 +736,6 @@ static const struct {
 	{ERRDOS,	1021,	NT_STATUS_CHILD_MUST_BE_VOLATILE},
 	{ERRDOS,	1022,	NT_STATUS(0x0000010c)},
 	{ERRSRV,	ERRbadpw,	NT_STATUS_WRONG_PASSWORD},
-	{ERRSRV,	ERRbaduid,	NT_STATUS_USER_SESSION_DELETED},
 	{ERRSRV,	ERRbadtype,	NT_STATUS_BAD_DEVICE_TYPE},
 	{ERRSRV,	ERRaccess,	NT_STATUS_NETWORK_ACCESS_DENIED},
 	{ERRSRV,	ERRinvnid,	NT_STATUS_NETWORK_NAME_DELETED},
@@ -1434,7 +1425,7 @@ convert a dos eclas/ecode to a NT status32 code
 NTSTATUS dos_to_ntstatus(uint8 eclass, uint32 ecode)
 {
 	int i;
-	if (eclass == 0) return NT_STATUS_OK;
+	if (eclass == 0 && ecode == 0) return NT_STATUS_OK;
 	for (i=0; NT_STATUS_V(dos_to_ntstatus_map[i].ntstatus); i++) {
 		if (eclass == dos_to_ntstatus_map[i].dos_class &&
 		    ecode == dos_to_ntstatus_map[i].dos_code) {
@@ -1511,6 +1502,45 @@ WERROR ntstatus_to_werror(NTSTATUS error)
 
 	/* a lame guess */
 	return W_ERROR(NT_STATUS_V(error) & 0xffff);
+}
+
+/*******************************************************************************
+ Map between wbcErr and NT status.
+*******************************************************************************/
+
+static const struct {
+	wbcErr wbc_err;
+	NTSTATUS nt_status;
+} wbcErr_ntstatus_map[] = {
+	{ WBC_ERR_SUCCESS,		 NT_STATUS_OK },
+	{ WBC_ERR_NOT_IMPLEMENTED,	 NT_STATUS_NOT_IMPLEMENTED },
+	{ WBC_ERR_UNKNOWN_FAILURE,	 NT_STATUS_UNSUCCESSFUL },
+	{ WBC_ERR_NO_MEMORY,		 NT_STATUS_NO_MEMORY },
+	{ WBC_ERR_INVALID_SID,		 NT_STATUS_INVALID_SID },
+	{ WBC_ERR_INVALID_PARAM,	 NT_STATUS_INVALID_PARAMETER },
+	{ WBC_ERR_WINBIND_NOT_AVAILABLE, NT_STATUS_SERVER_DISABLED },
+	{ WBC_ERR_DOMAIN_NOT_FOUND,	 NT_STATUS_NO_SUCH_DOMAIN },
+	{ WBC_ERR_INVALID_RESPONSE,	 NT_STATUS_INVALID_NETWORK_RESPONSE },
+	{ WBC_ERR_NSS_ERROR,		 NT_STATUS_INTERNAL_ERROR },
+	{ WBC_ERR_AUTH_ERROR,		 NT_STATUS_LOGON_FAILURE },
+	{ WBC_ERR_UNKNOWN_USER,		 NT_STATUS_NO_SUCH_USER },
+	{ WBC_ERR_UNKNOWN_GROUP,	 NT_STATUS_NO_SUCH_GROUP },
+	{ WBC_ERR_PWD_CHANGE_FAILED,	 NT_STATUS_PASSWORD_RESTRICTION }
+};
+
+NTSTATUS map_nt_error_from_wbcErr(wbcErr wbc_err)
+{
+	int i;
+
+	/* Look through list */
+	for (i=0;i<ARRAY_SIZE(wbcErr_ntstatus_map);i++) {
+		if (wbcErr_ntstatus_map[i].wbc_err == wbc_err) {
+			return wbcErr_ntstatus_map[i].nt_status;
+		}
+	}
+
+	/* Default return */
+	return NT_STATUS_UNSUCCESSFUL;
 }
 
 

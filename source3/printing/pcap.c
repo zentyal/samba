@@ -26,6 +26,30 @@
 */
 
 /*
+ *  This module contains code to parse and cache printcap data, possibly
+ *  in concert with the CUPS/SYSV/AIX-specific code found elsewhere.
+ *
+ *  The way this module looks at the printcap file is very simplistic.
+ *  Only the local printcap file is inspected (no searching of NIS
+ *  databases etc).
+ *
+ *  There are assumed to be one or more printer names per record, held
+ *  as a set of sub-fields separated by vertical bar symbols ('|') in the
+ *  first field of the record. The field separator is assumed to be a colon
+ *  ':' and the record separator a newline.
+ * 
+ *  Lines ending with a backspace '\' are assumed to flag that the following
+ *  line is a continuation line so that a set of lines can be read as one
+ *  printcap entry.
+ *
+ *  A line stating with a hash '#' is assumed to be a comment and is ignored
+ *  Comments are discarded before the record is strung together from the
+ *  set of continuation lines.
+ *
+ *  Opening a pipe for "lpc status" and reading that would probably 
+ *  be pretty effective. Code to do this already exists in the freely
+ *  distributable PCNFS server code.
+ *
  *  Modified to call SVID/XPG4 support if printcap name is set to "lpstat"
  *  in smb.conf under Solaris.
  *
@@ -37,17 +61,18 @@
  */
 
 #include "includes.h"
-#include "printing/pcap.h"
-#include "printer_list.h"
+
 
 struct pcap_cache {
 	char *name;
 	char *comment;
-	char *location;
 	struct pcap_cache *next;
 };
 
-bool pcap_cache_add_specific(struct pcap_cache **ppcache, const char *name, const char *comment, const char *location)
+/* The systemwide printcap cache. */
+static struct pcap_cache *pcap_cache = NULL;
+
+bool pcap_cache_add_specific(struct pcap_cache **ppcache, const char *name, const char *comment)
 {
 	struct pcap_cache *p;
 
@@ -56,11 +81,9 @@ bool pcap_cache_add_specific(struct pcap_cache **ppcache, const char *name, cons
 
 	p->name = SMB_STRDUP(name);
 	p->comment = (comment && *comment) ? SMB_STRDUP(comment) : NULL;
-	p->location = (location && *location) ? SMB_STRDUP(location) : NULL;
 
-	DEBUG(11,("pcap_cache_add_specific: Adding name %s info %s, location: %s\n",
-		p->name, p->comment ? p->comment : "",
-		p->location ? p->location : ""));
+	DEBUG(11,("pcap_cache_add_specific: Adding name %s info %s\n",
+		p->name, p->comment ? p->comment : ""));
 
 	p->next = *ppcache;
 	*ppcache = p;
@@ -77,63 +100,38 @@ void pcap_cache_destroy_specific(struct pcap_cache **pp_cache)
 
 		SAFE_FREE(p->name);
 		SAFE_FREE(p->comment);
-		SAFE_FREE(p->location);
 		SAFE_FREE(p);
 	}
 	*pp_cache = NULL;
 }
 
-bool pcap_cache_add(const char *name, const char *comment, const char *location)
+bool pcap_cache_add(const char *name, const char *comment)
 {
-	NTSTATUS status;
-	time_t t = time_mono(NULL);
-
-	status = printer_list_set_printer(talloc_tos(), name, comment, location, t);
-	return NT_STATUS_IS_OK(status);
+	return pcap_cache_add_specific(&pcap_cache, name, comment);
 }
 
 bool pcap_cache_loaded(void)
 {
-	NTSTATUS status;
-	time_t last;
-
-	status = printer_list_get_last_refresh(&last);
-	return NT_STATUS_IS_OK(status);
+	return (pcap_cache != NULL);
 }
 
-bool pcap_cache_replace(const struct pcap_cache *pcache)
+void pcap_cache_replace(const struct pcap_cache *pcache)
 {
 	const struct pcap_cache *p;
-	NTSTATUS status;
 
-	status = printer_list_mark_reload();
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("Failed to mark printer list for reload!\n"));
-		return false;
-	}
-
+	pcap_cache_destroy_specific(&pcap_cache);
 	for (p = pcache; p; p = p->next) {
-		pcap_cache_add(p->name, p->comment, p->location);
+		pcap_cache_add(p->name, p->comment);
 	}
-
-	status = printer_list_clean_old();
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("Failed to cleanup printer list!\n"));
-		return false;
-	}
-
-	return true;
 }
 
-void pcap_cache_reload(struct tevent_context *ev,
-		       struct messaging_context *msg_ctx,
-		       void (*post_cache_fill_fn)(struct tevent_context *,
-						  struct messaging_context *))
+void pcap_cache_reload(void)
 {
 	const char *pcap_name = lp_printcapname();
 	bool pcap_reloaded = False;
-	NTSTATUS status;
-	bool post_cache_fill_fn_handled = false;
+	struct pcap_cache *tmp_cache = NULL;
+	XFILE *pcap_file;
+	char *pcap_line;
 
 	DEBUG(3, ("reloading printcap cache\n"));
 
@@ -143,21 +141,12 @@ void pcap_cache_reload(struct tevent_context *ev,
 		return;
 	}
 
-	status = printer_list_mark_reload();
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("Failed to mark printer list for reload!\n"));
-		return;
-	}
+	tmp_cache = pcap_cache;
+	pcap_cache = NULL;
 
 #ifdef HAVE_CUPS
 	if (strequal(pcap_name, "cups")) {
-		pcap_reloaded = cups_cache_reload(ev, msg_ctx,
-						  post_cache_fill_fn);
-		/*
-		 * cups_cache_reload() is async and calls post_cache_fill_fn()
-		 * on successful completion
-		 */
-		post_cache_fill_fn_handled = true;
+		pcap_reloaded = cups_cache_reload();
 		goto done;
 	}
 #endif
@@ -183,22 +172,81 @@ void pcap_cache_reload(struct tevent_context *ev,
 	}
 #endif
 
-	pcap_reloaded = std_pcap_cache_reload(pcap_name);
+	/* handle standard printcap - moved from pcap_printer_fn() */
+
+	if ((pcap_file = x_fopen(pcap_name, O_RDONLY, 0)) == NULL) {
+		DEBUG(0, ("Unable to open printcap file %s for read!\n", pcap_name));
+		goto done;
+	}
+
+	for (; (pcap_line = fgets_slash(NULL, 1024, pcap_file)) != NULL; free(pcap_line)) {
+		char name[MAXPRINTERLEN+1];
+		char comment[62];
+		char *p, *q;
+
+		if (*pcap_line == '#' || *pcap_line == 0)
+			continue;
+
+		/* now we have a real printer line - cut at the first : */      
+		if ((p = strchr_m(pcap_line, ':')) != NULL)
+			*p = 0;
+      
+		/*
+		 * now find the most likely printer name and comment 
+		 * this is pure guesswork, but it's better than nothing
+		 */
+		for (*name = *comment = 0, p = pcap_line; p != NULL; p = q) {
+			bool has_punctuation;
+
+			if ((q = strchr_m(p, '|')) != NULL)
+				*q++ = 0;
+
+			has_punctuation = (strchr_m(p, ' ') ||
+			                   strchr_m(p, '\t') ||
+			                   strchr_m(p, '(') ||
+			                   strchr_m(p, ')'));
+
+			if (strlen(p) > strlen(comment) && has_punctuation) {
+				strlcpy(comment, p, sizeof(comment));
+				continue;
+			}
+
+			if (strlen(p) <= MAXPRINTERLEN &&
+			    strlen(p) > strlen(name) && !has_punctuation) {
+				if (!*comment) {
+					strlcpy(comment, name, sizeof(comment));
+				}
+				strlcpy(name, p, sizeof(name));
+				continue;
+			}
+
+			if (!strchr_m(comment, ' ') &&
+			    strlen(p) > strlen(comment)) {
+				strlcpy(comment, p, sizeof(comment));
+				continue;
+			}
+		}
+
+		comment[60] = 0;
+		name[MAXPRINTERLEN] = 0;
+
+		if (*name && !pcap_cache_add(name, comment)) {
+			x_fclose(pcap_file);
+			goto done;
+		}
+	}
+
+	x_fclose(pcap_file);
+	pcap_reloaded = True;
 
 done:
 	DEBUG(3, ("reload status: %s\n", (pcap_reloaded) ? "ok" : "error"));
 
-	if ((pcap_reloaded) && (post_cache_fill_fn_handled == false)) {
-		/* cleanup old entries only if the operation was successful,
-		 * otherwise keep around the old entries until we can
-		 * successfuly reaload */
-		status = printer_list_clean_old();
-		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(0, ("Failed to cleanup printer list!\n"));
-		}
-		if (post_cache_fill_fn != NULL) {
-			post_cache_fill_fn(ev, msg_ctx);
-		}
+	if (pcap_reloaded)
+		pcap_cache_destroy_specific(&tmp_cache);
+	else {
+		pcap_cache_destroy_specific(&pcap_cache);
+		pcap_cache = tmp_cache;
 	}
 
 	return;
@@ -207,10 +255,13 @@ done:
 
 bool pcap_printername_ok(const char *printername)
 {
-	NTSTATUS status;
+	struct pcap_cache *p;
 
-	status = printer_list_get_printer(talloc_tos(), printername, NULL, NULL, 0);
-	return NT_STATUS_IS_OK(status);
+	for (p = pcap_cache; p != NULL; p = p->next)
+		if (strequal(p->name, printername))
+			return True;
+
+	return False;
 }
 
 /***************************************************************************
@@ -218,24 +269,18 @@ run a function on each printer name in the printcap file.
 ***************************************************************************/
 
 void pcap_printer_fn_specific(const struct pcap_cache *pc,
-			void (*fn)(const char *, const char *, const char *, void *),
+			void (*fn)(const char *, const char *, void *),
 			void *pdata)
 {
 	const struct pcap_cache *p;
 
 	for (p = pc; p != NULL; p = p->next)
-		fn(p->name, p->comment, p->location, pdata);
+		fn(p->name, p->comment, pdata);
 
 	return;
 }
 
-void pcap_printer_fn(void (*fn)(const char *, const char *, const char *, void *), void *pdata)
+void pcap_printer_fn(void (*fn)(const char *, const char *, void *), void *pdata)
 {
-	NTSTATUS status;
-
-	status = printer_list_run_fn(fn, pdata);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(3, ("Failed to run fn for all printers!\n"));
-	}
-	return;
+	pcap_printer_fn_specific(pcap_cache, fn, pdata);
 }

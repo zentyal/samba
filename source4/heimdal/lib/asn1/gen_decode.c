@@ -56,6 +56,32 @@ decode_primitive (const char *typename, const char *name, const char *forwstr)
 #endif
 }
 
+static int
+is_primitive_type(int type)
+{
+    switch(type) {
+    case TInteger:
+    case TBoolean:
+    case TOctetString:
+    case TBitString:
+    case TEnumerated:
+    case TGeneralizedTime:
+    case TGeneralString:
+    case TOID:
+    case TUTCTime:
+    case TUTF8String:
+    case TPrintableString:
+    case TIA5String:
+    case TBMPString:
+    case TUniversalString:
+    case TVisibleString:
+    case TNull:
+	return 1;
+    default:
+	return 0;
+    }
+}
+
 static void
 find_tag (const Type *t,
 	  Der_class *cl, Der_type *ty, unsigned *tag)
@@ -82,11 +108,6 @@ find_tag (const Type *t,
 	*cl  = ASN1_C_UNIV;
 	*ty  = PRIM;
 	*tag = UT_GeneralString;
-	break;
-    case TTeletexString:
-	*cl  = ASN1_C_UNIV;
-	*ty  = PRIM;
-	*tag = UT_TeletexString;
 	break;
     case TGeneralizedTime:
 	*cl  = ASN1_C_UNIV;
@@ -143,10 +164,10 @@ find_tag (const Type *t,
     case TType:
 	if ((t->symbol->stype == Stype && t->symbol->type == NULL)
 	    || t->symbol->stype == SUndefined) {
-	    lex_error_message("%s is imported or still undefined, "
-			      " can't generate tag checking data in CHOICE "
-			      "without this information",
-			      t->symbol->name);
+	    error_message("%s is imported or still undefined, "
+			  " can't generate tag checking data in CHOICE "
+			  "without this information",
+			  t->symbol->name);
 	    exit(1);
 	}
 	find_tag(t->symbol->type, cl, ty, tag);
@@ -320,13 +341,14 @@ decode_type (const char *name, const Type *t, int optional,
 	    break;
 
 	ASN1_TAILQ_FOREACH(m, t->members, members) {
-	    char *s = NULL;
+	    char *s;
 
 	    if (m->ellipsis)
 		continue;
 
-	    if (asprintf (&s, "%s(%s)->%s", m->optional ? "" : "&",
-			  name, m->gen_name) < 0 || s == NULL)
+	    asprintf (&s, "%s(%s)->%s", m->optional ? "" : "&",
+		      name, m->gen_name);
+	    if (s == NULL)
 		errx(1, "malloc");
 	    decode_type (s, m->type, m->optional, forwstr, m->gen_name, NULL);
 	    free (s);
@@ -362,7 +384,8 @@ decode_type (const char *name, const Type *t, int optional,
 		    is_primitive_type(m->type->subtype->type) ? "PRIM" : "CONS",
 		    valuename(m->type->tag.tagclass, m->type->tag.tagvalue));
 
-	    if (asprintf (&s, "%s(%s)->%s", m->optional ? "" : "&", name, m->gen_name) < 0 || s == NULL)
+	    asprintf (&s, "%s(%s)->%s", m->optional ? "" : "&", name, m->gen_name);
+	    if (s == NULL)
 		errx(1, "malloc");
 	    if(m->optional)
 		fprintf(codefile,
@@ -386,7 +409,8 @@ decode_type (const char *name, const Type *t, int optional,
 	ASN1_TAILQ_FOREACH(m, t->members, members) {
 	    char *s;
 
-	    if (asprintf (&s, "%s->%s", name, m->gen_name) < 0 || s == NULL)
+	    asprintf (&s, "%s->%s", name, m->gen_name);
+	    if (s == NULL)
 		errx(1, "malloc");
 	    fprintf(codefile, "if((members & (1 << %d)) == 0)\n", memno);
 	    if(m->optional)
@@ -403,8 +427,8 @@ decode_type (const char *name, const Type *t, int optional,
     }
     case TSetOf:
     case TSequenceOf: {
-	char *n = NULL;
-	char *sname = NULL;
+	char *n;
+	char *sname;
 
 	fprintf (codefile,
 		 "{\n"
@@ -438,9 +462,11 @@ decode_type (const char *name, const Type *t, int optional,
 		 tmpstr, forwstr,
 		 name, tmpstr);
 
-	if (asprintf (&n, "&(%s)->val[(%s)->len]", name, name) < 0 || n == NULL)
+	asprintf (&n, "&(%s)->val[(%s)->len]", name, name);
+	if (n == NULL)
 	    errx(1, "malloc");
-	if (asprintf (&sname, "%s_s_of", tmpstr) < 0 || sname == NULL)
+	asprintf (&sname, "%s_s_of", tmpstr);
+	if (sname == NULL)
 	    errx(1, "malloc");
 	decode_type (n, t->subtype, 0, forwstr, sname, NULL);
 	fprintf (codefile,
@@ -463,15 +489,11 @@ decode_type (const char *name, const Type *t, int optional,
     case TGeneralString:
 	decode_primitive ("general_string", name, forwstr);
 	break;
-    case TTeletexString:
-	decode_primitive ("general_string", name, forwstr);
-	break;
     case TTag:{
-    	char *tname = NULL, *typestring = NULL;
+    	char *tname, *typestring;
 	char *ide = NULL;
 
-	if (asprintf(&typestring, "%s_type", tmpstr) < 0 || typestring == NULL)
-	    errx(1, "malloc");
+	asprintf(&typestring, "%s_type", tmpstr);
 
 	fprintf(codefile,
 		"{\n"
@@ -524,7 +546,8 @@ decode_type (const char *name, const Type *t, int optional,
 	    fprintf(codefile,
 		    "if (%s_datalen > len) { e = ASN1_OVERRUN; %s; }\n"
 		    "len = %s_datalen;\n", tmpstr, forwstr, tmpstr);
-	if (asprintf (&tname, "%s_Tag", tmpstr) < 0 || tname == NULL)
+	asprintf (&tname, "%s_Tag", tmpstr);
+	if (tname == NULL)
 	    errx(1, "malloc");
 	decode_type (name, t->subtype, 0, forwstr, tname, ide);
 	if(support_ber)
@@ -563,7 +586,7 @@ decode_type (const char *name, const Type *t, int optional,
 
 	ASN1_TAILQ_FOREACH(m, t->members, members) {
 	    const Type *tt = m->type;
-	    char *s = NULL;
+	    char *s;
 	    Der_class cl;
 	    Der_type  ty;
 	    unsigned  tag;
@@ -581,8 +604,9 @@ decode_type (const char *name, const Type *t, int optional,
 		    classname(cl),
 		    ty ? "CONS" : "PRIM",
 		    valuename(cl, tag));
-	    if (asprintf (&s, "%s(%s)->u.%s", m->optional ? "" : "&",
-			  name, m->gen_name) < 0 || s == NULL)
+	    asprintf (&s, "%s(%s)->u.%s", m->optional ? "" : "&",
+		      name, m->gen_name);
+	    if (s == NULL)
 		errx(1, "malloc");
 	    decode_type (s, m->type, m->optional, forwstr, m->gen_name, NULL);
 	    fprintf(codefile,
@@ -661,7 +685,12 @@ generate_type_decode (const Symbol *s)
 {
     int preserve = preserve_type(s->name) ? TRUE : FALSE;
 
-    fprintf (codefile, "int ASN1CALL\n"
+    fprintf (headerfile,
+	     "int    "
+	     "decode_%s(const unsigned char *, size_t, %s *, size_t *);\n",
+	     s->gen_name, s->gen_name);
+
+    fprintf (codefile, "int\n"
 	     "decode_%s(const unsigned char *p,"
 	     " size_t len, %s *data, size_t *size)\n"
 	     "{\n",
@@ -674,7 +703,6 @@ generate_type_decode (const Symbol *s)
     case TOID:
     case TGeneralizedTime:
     case TGeneralString:
-    case TTeletexString:
     case TUTF8String:
     case TPrintableString:
     case TIA5String:

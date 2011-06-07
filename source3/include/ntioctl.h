@@ -38,7 +38,6 @@
 #define FSCTL_UNLOCK_VOLUME          0x0009001C
 #define FSCTL_GET_COMPRESSION        0x0009003C
 #define FSCTL_SET_COMPRESSION        0x0009C040
-#define FSCTL_IS_VOLUME_DIRTY	     0x00090078
 #define FSCTL_REQUEST_FILTER_OPLOCK  0x0009008C
 #define FSCTL_FIND_FILES_BY_SID	     0x0009008F
 #define FSCTL_FILESYS_GET_STATISTICS 0x00090090
@@ -77,12 +76,13 @@
 /* For FSCTL_GET_SHADOW_COPY_DATA ...*/
 typedef char SHADOW_COPY_LABEL[25];
 
-struct shadow_copy_data {
+typedef struct shadow_copy_data {
+	TALLOC_CTX *mem_ctx;
 	/* Total number of shadow volumes currently mounted */
 	uint32 num_volumes;
 	/* Concatenated list of labels */
 	SHADOW_COPY_LABEL *labels;
-};
+} SHADOW_COPY_DATA;
 
 
 #endif /* _NTIOCTL_H */

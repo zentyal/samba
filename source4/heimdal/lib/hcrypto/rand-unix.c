@@ -42,12 +42,15 @@
 
 #include "randi.h"
 
+static int random_fd = -1;
+static HEIMDAL_MUTEX random_mutex = HEIMDAL_MUTEX_INITIALIZER;
+
 /*
  * Unix /dev/random
  */
 
-int
-_hc_unix_device_fd(int flags, const char **fn)
+static int
+get_device_fd(int flags)
 {
     static const char *rnd_devices[] = {
 	"/dev/urandom",
@@ -61,8 +64,6 @@ _hc_unix_device_fd(int flags, const char **fn)
     for(p = rnd_devices; *p; p++) {
 	int fd = open(*p, flags | O_NDELAY);
 	if(fd >= 0) {
-	    if (fn)
-		*fn = *p;
 	    rk_cloexec(fd);
 	    return fd;
 	}
@@ -78,7 +79,7 @@ unix_seed(const void *indata, int size)
     if (size <= 0)
 	return;
 
-    fd = _hc_unix_device_fd(O_WRONLY, NULL);
+    fd = get_device_fd(O_WRONLY);
     if (fd < 0)
 	return;
 
@@ -92,29 +93,42 @@ static int
 unix_bytes(unsigned char *outdata, int size)
 {
     ssize_t count;
-    int fd;
+    int once = 0;
 
-    if (size < 0)
+    if (size <= 0)
 	return 0;
-    else if (size == 0)
-	return 1;
 
-    fd = _hc_unix_device_fd(O_RDONLY, NULL);
-    if (fd < 0)
-	return 0;
+    HEIMDAL_MUTEX_lock(&random_mutex);
+    if (random_fd == -1) {
+    retry:
+	random_fd = get_device_fd(O_RDONLY);
+	if (random_fd < 0) {
+	    HEIMDAL_MUTEX_unlock(&random_mutex);
+	    return 0;
+	}
+    }
 
     while (size > 0) {
-	count = read(fd, outdata, size);
-	if (count < 0 && errno == EINTR)
-	    continue;
-	else if (count <= 0) {
-	    close(fd);
+	HEIMDAL_MUTEX_unlock(&random_mutex);
+	count = read (random_fd, outdata, size);
+	HEIMDAL_MUTEX_lock(&random_mutex);
+	if (random_fd < 0) {
+	    if (errno == EINTR)
+		continue;
+	    else if (errno == EBADF && once++ == 0) {
+		close(random_fd);
+		random_fd = -1;
+		goto retry;
+	    }
+	    return 0;
+	} else if (count <= 0) {
+	    HEIMDAL_MUTEX_unlock(&random_mutex);
 	    return 0;
 	}
 	outdata += count;
 	size -= count;
     }
-    close(fd);
+    HEIMDAL_MUTEX_unlock(&random_mutex);
 
     return 1;
 }
@@ -141,7 +155,7 @@ unix_status(void)
 {
     int fd;
 
-    fd = _hc_unix_device_fd(O_RDONLY, NULL);
+    fd = get_device_fd(O_RDONLY);
     if (fd < 0)
 	return 0;
     close(fd);

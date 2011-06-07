@@ -71,12 +71,10 @@ _PUBLIC_ NTSTATUS smb_raw_changenotify_recv(struct smbcli_request *req,
 
 	parms->nttrans.out.changes = NULL;
 	parms->nttrans.out.num_changes = 0;
-
+	
 	/* count them */
 	for (ofs=0; nt.out.params.length - ofs > 12; ) {
 		uint32_t next = IVAL(nt.out.params.data, ofs);
-		if (next % 4 != 0)
-			return NT_STATUS_INVALID_NETWORK_RESPONSE;
 		parms->nttrans.out.num_changes++;
 		if (next == 0 ||
 		    ofs + next >= nt.out.params.length) break;
@@ -157,8 +155,10 @@ NTSTATUS smb_raw_ntcancel(struct smbcli_request *oldreq)
 	 * smbcli_request_send() free's oneway requests
 	 * but we want to keep it under oldreq->ntcancel
 	 */
-	req->do_not_free = true;
-	talloc_steal(oldreq, req);
+	if (!talloc_reference(oldreq, req)) {
+		talloc_free(req);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	smbcli_request_send(req);
 

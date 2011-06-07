@@ -97,7 +97,8 @@ static void winbindd_getpwent_done(struct tevent_req *subreq)
 		tevent_req_done(req);
 		return;
 	}
-	if (tevent_req_nterror(req, status)) {
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
 		return;
 	}
 	state->num_users += 1;

@@ -21,14 +21,13 @@
 #include "libnet/libnet.h"
 #include "libcli/composite/composite.h"
 #include "libcli/cldap/cldap.h"
-#include <ldb.h>
-#include <ldb_errors.h>
-#include "ldb_wrap.h"
+#include "lib/ldb/include/ldb.h"
+#include "lib/ldb/include/ldb_errors.h"
+#include "lib/ldb_wrap.h"
 #include "dsdb/samdb/samdb.h"
 #include "../libds/common/flags.h"
 #include "librpc/gen_ndr/ndr_drsuapi_c.h"
 #include "param/param.h"
-#include "lib/tsocket/tsocket.h"
 
 /*****************************************************************************
  * Windows 2003 (w2k3) does the following steps when changing the server role
@@ -204,7 +203,6 @@ struct libnet_UnbecomeDC_state {
 	struct {
 		struct dcerpc_binding *binding;
 		struct dcerpc_pipe *pipe;
-		struct dcerpc_binding_handle *drsuapi_handle;
 		struct drsuapi_DsBind bind_r;
 		struct GUID bind_guid;
 		struct drsuapi_DsBindInfoCtr bind_info_ctr;
@@ -258,11 +256,9 @@ static void unbecomeDC_send_cldap(struct libnet_UnbecomeDC_state *s)
 {
 	struct composite_context *c = s->creq;
 	struct tevent_req *req;
-	struct tsocket_address *dest_address;
-	int ret;
 
-	s->cldap.io.in.dest_address	= NULL;
-	s->cldap.io.in.dest_port	= 0;
+	s->cldap.io.in.dest_address	= s->source_dsa.address;
+	s->cldap.io.in.dest_port	= lp_cldap_port(s->libnet->lp_ctx);
 	s->cldap.io.in.realm		= s->domain.dns_name;
 	s->cldap.io.in.host		= s->dest_dsa.netbios_name;
 	s->cldap.io.in.user		= NULL;
@@ -272,17 +268,8 @@ static void unbecomeDC_send_cldap(struct libnet_UnbecomeDC_state *s)
 	s->cldap.io.in.version		= NETLOGON_NT_VERSION_5 | NETLOGON_NT_VERSION_5EX;
 	s->cldap.io.in.map_response	= true;
 
-	ret = tsocket_address_inet_from_strings(s, "ip",
-						s->source_dsa.address,
-						lpcfg_cldap_port(s->libnet->lp_ctx),
-						&dest_address);
-	if (ret != 0) {
-		c->status = map_nt_error_from_unix(errno);
-		if (!composite_is_ok(c)) return;
-	}
-
 	c->status = cldap_socket_init(s, s->libnet->event_ctx,
-				      NULL, dest_address, &s->cldap.sock);
+				      NULL, NULL, &s->cldap.sock);//TODO
 	if (!composite_is_ok(c)) return;
 
 	req = cldap_netlogon_send(s, s->cldap.sock, &s->cldap.io);
@@ -298,14 +285,16 @@ static void unbecomeDC_recv_cldap(struct tevent_req *req)
 					    struct libnet_UnbecomeDC_state);
 	struct composite_context *c = s->creq;
 
-	c->status = cldap_netlogon_recv(req, s, &s->cldap.io);
+	c->status = cldap_netlogon_recv(req,
+					lp_iconv_convenience(s->libnet->lp_ctx),
+					s, &s->cldap.io);
 	talloc_free(req);
 	if (!composite_is_ok(c)) return;
 
 	s->cldap.netlogon = s->cldap.io.out.netlogon.data.nt5_ex;
 
 	s->domain.dns_name		= s->cldap.netlogon.dns_domain;
-	s->domain.netbios_name		= s->cldap.netlogon.domain_name;
+	s->domain.netbios_name		= s->cldap.netlogon.domain;
 	s->domain.guid			= s->cldap.netlogon.domain_uuid;
 
 	s->source_dsa.dns_name		= s->cldap.netlogon.pdc_dns_name;
@@ -327,7 +316,7 @@ static NTSTATUS unbecomeDC_ldap_connect(struct libnet_UnbecomeDC_state *s)
 	s->ldap.ldb = ldb_wrap_connect(s, s->libnet->event_ctx, s->libnet->lp_ctx, url,
 				       NULL,
 				       s->libnet->cred,
-				       0);
+				       0, NULL);
 	talloc_free(url);
 	if (s->ldap.ldb == NULL) {
 		return NT_STATUS_UNEXPECTED_NETWORK_ERROR;
@@ -403,11 +392,11 @@ static NTSTATUS unbecomeDC_ldap_computer_object(struct libnet_UnbecomeDC_state *
 		return NT_STATUS_INVALID_NETWORK_RESPONSE;
 	}
 
-	s->dest_dsa.computer_dn_str	= ldb_msg_find_attr_as_string(r->msgs[0], "distinguishedName", NULL);
+	s->dest_dsa.computer_dn_str	= samdb_result_string(r->msgs[0], "distinguishedName", NULL);
 	if (!s->dest_dsa.computer_dn_str) return NT_STATUS_INVALID_NETWORK_RESPONSE;
 	talloc_steal(s, s->dest_dsa.computer_dn_str);
 
-	s->dest_dsa.user_account_control = ldb_msg_find_attr_as_uint(r->msgs[0], "userAccountControl", 0);
+	s->dest_dsa.user_account_control = samdb_result_uint(r->msgs[0], "userAccountControl", 0);
 
 	talloc_free(r);
 	return NT_STATUS_OK;
@@ -418,7 +407,7 @@ static NTSTATUS unbecomeDC_ldap_modify_computer(struct libnet_UnbecomeDC_state *
 	int ret;
 	struct ldb_message *msg;
 	uint32_t user_account_control = UF_WORKSTATION_TRUST_ACCOUNT;
-	unsigned int i;
+	uint32_t i;
 
 	/* as the value is already as we want it to be, we're done */
 	if (s->dest_dsa.user_account_control == user_account_control) {
@@ -431,9 +420,8 @@ static NTSTATUS unbecomeDC_ldap_modify_computer(struct libnet_UnbecomeDC_state *
 	msg->dn = ldb_dn_new(msg, s->ldap.ldb, s->dest_dsa.computer_dn_str);
 	NT_STATUS_HAVE_NO_MEMORY(msg->dn);
 
-	ret = samdb_msg_add_uint(s->ldap.ldb, msg, msg, "userAccountControl",
-				 user_account_control);
-	if (ret != LDB_SUCCESS) {
+	ret = ldb_msg_add_fmt(msg, "userAccountControl", "%u", user_account_control);
+	if (ret != 0) {
 		talloc_free(msg);
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -567,18 +555,16 @@ static void unbecomeDC_drsuapi_connect_recv(struct composite_context *req)
 	c->status = dcerpc_pipe_connect_b_recv(req, s, &s->drsuapi.pipe);
 	if (!composite_is_ok(c)) return;
 
-	s->drsuapi.drsuapi_handle = s->drsuapi.pipe->binding_handle;
-
 	unbecomeDC_drsuapi_bind_send(s);
 }
 
-static void unbecomeDC_drsuapi_bind_recv(struct tevent_req *subreq);
+static void unbecomeDC_drsuapi_bind_recv(struct rpc_request *req);
 
 static void unbecomeDC_drsuapi_bind_send(struct libnet_UnbecomeDC_state *s)
 {
 	struct composite_context *c = s->creq;
+	struct rpc_request *req;
 	struct drsuapi_DsBindInfo28 *bind_info28;
-	struct tevent_req *subreq;
 
 	GUID_from_string(DRSUAPI_DS_BIND_GUID, &s->drsuapi.bind_guid);
 
@@ -595,23 +581,19 @@ static void unbecomeDC_drsuapi_bind_send(struct libnet_UnbecomeDC_state *s)
 	s->drsuapi.bind_r.in.bind_info = &s->drsuapi.bind_info_ctr;
 	s->drsuapi.bind_r.out.bind_handle = &s->drsuapi.bind_handle;
 
-	subreq = dcerpc_drsuapi_DsBind_r_send(s, c->event_ctx,
-					      s->drsuapi.drsuapi_handle,
-					      &s->drsuapi.bind_r);
-	if (composite_nomem(subreq, c)) return;
-	tevent_req_set_callback(subreq, unbecomeDC_drsuapi_bind_recv, s);
+	req = dcerpc_drsuapi_DsBind_send(s->drsuapi.pipe, s, &s->drsuapi.bind_r);
+	composite_continue_rpc(c, req, unbecomeDC_drsuapi_bind_recv, s);
 }
 
 static void unbecomeDC_drsuapi_remove_ds_server_send(struct libnet_UnbecomeDC_state *s);
 
-static void unbecomeDC_drsuapi_bind_recv(struct tevent_req *subreq)
+static void unbecomeDC_drsuapi_bind_recv(struct rpc_request *req)
 {
-	struct libnet_UnbecomeDC_state *s = tevent_req_callback_data(subreq,
+	struct libnet_UnbecomeDC_state *s = talloc_get_type(req->async.private_data,
 					    struct libnet_UnbecomeDC_state);
 	struct composite_context *c = s->creq;
 
-	c->status = dcerpc_drsuapi_DsBind_r_recv(subreq, s);
-	TALLOC_FREE(subreq);
+	c->status = dcerpc_ndr_request_recv(req);
 	if (!composite_is_ok(c)) return;
 
 	if (!W_ERROR_IS_OK(s->drsuapi.bind_r.out.result)) {
@@ -649,13 +631,13 @@ static void unbecomeDC_drsuapi_bind_recv(struct tevent_req *subreq)
 	unbecomeDC_drsuapi_remove_ds_server_send(s);
 }
 
-static void unbecomeDC_drsuapi_remove_ds_server_recv(struct tevent_req *subreq);
+static void unbecomeDC_drsuapi_remove_ds_server_recv(struct rpc_request *req);
 
 static void unbecomeDC_drsuapi_remove_ds_server_send(struct libnet_UnbecomeDC_state *s)
 {
 	struct composite_context *c = s->creq;
+	struct rpc_request *req;
 	struct drsuapi_DsRemoveDSServer *r = &s->drsuapi.rm_ds_srv_r;
-	struct tevent_req *subreq;
 
 	r->in.bind_handle	= &s->drsuapi.bind_handle;
 	r->in.level		= 1;
@@ -664,25 +646,21 @@ static void unbecomeDC_drsuapi_remove_ds_server_send(struct libnet_UnbecomeDC_st
 	r->in.req->req1.domain_dn = s->domain.dn_str;
 	r->in.req->req1.commit	= true;
 
-	r->out.level_out	= talloc(s, uint32_t);
+	r->out.level_out	= talloc(s, int32_t);
 	r->out.res		= talloc(s, union drsuapi_DsRemoveDSServerResult);
 
-	subreq = dcerpc_drsuapi_DsRemoveDSServer_r_send(s, c->event_ctx,
-							s->drsuapi.drsuapi_handle,
-							r);
-	if (composite_nomem(subreq, c)) return;
-	tevent_req_set_callback(subreq, unbecomeDC_drsuapi_remove_ds_server_recv, s);
+	req = dcerpc_drsuapi_DsRemoveDSServer_send(s->drsuapi.pipe, s, r);
+	composite_continue_rpc(c, req, unbecomeDC_drsuapi_remove_ds_server_recv, s);
 }
 
-static void unbecomeDC_drsuapi_remove_ds_server_recv(struct tevent_req *subreq)
+static void unbecomeDC_drsuapi_remove_ds_server_recv(struct rpc_request *req)
 {
-	struct libnet_UnbecomeDC_state *s = tevent_req_callback_data(subreq,
+	struct libnet_UnbecomeDC_state *s = talloc_get_type(req->async.private_data,
 					    struct libnet_UnbecomeDC_state);
 	struct composite_context *c = s->creq;
 	struct drsuapi_DsRemoveDSServer *r = &s->drsuapi.rm_ds_srv_r;
 
-	c->status = dcerpc_drsuapi_DsRemoveDSServer_r_recv(subreq, s);
-	TALLOC_FREE(subreq);
+	c->status = dcerpc_ndr_request_recv(req);
 	if (!composite_is_ok(c)) return;
 
 	if (!W_ERROR_IS_OK(r->out.result)) {

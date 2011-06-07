@@ -20,29 +20,9 @@
 #include "../replace/replace.h"
 #include "tevent_ntstatus.h"
 
-#define TEVENT_NTERROR_MAGIC (0x917b5acd)
-
-bool _tevent_req_nterror(struct tevent_req *req,
-			 NTSTATUS status,
-			 const char *location)
+bool tevent_req_nterror(struct tevent_req *req,	NTSTATUS status)
 {
-	uint64_t err;
-
-	if (NT_STATUS_IS_OK(status)) {
-		return false;
-	}
-
-	/*
-	 * I've put this variable here, because I'm not 100% certain
-	 * how to correctly assign a 64-bit constant and left-shift it
-	 * by 32 bits in a single expression. If anyone knows, feel
-	 * free :-)
-	 */
-	err = TEVENT_NTERROR_MAGIC;
-	err <<= 32;
-	err |= NT_STATUS_V(status);
-
-	return _tevent_req_error(req, err, location);
+	return tevent_req_error(req, NT_STATUS_V(status));
 }
 
 bool tevent_req_is_nterror(struct tevent_req *req, NTSTATUS *status)
@@ -61,10 +41,7 @@ bool tevent_req_is_nterror(struct tevent_req *req, NTSTATUS *status)
 		*status = NT_STATUS_NO_MEMORY;
 		break;
 	case TEVENT_REQ_USER_ERROR:
-		if ((err >> 32) != TEVENT_NTERROR_MAGIC) {
-			abort();
-		}
-		*status = NT_STATUS(err & 0xffffffff);
+		*status = NT_STATUS(err);
 		break;
 	default:
 		*status = NT_STATUS_INTERNAL_ERROR;
@@ -81,19 +58,4 @@ NTSTATUS tevent_req_simple_recv_ntstatus(struct tevent_req *req)
 		return status;
 	}
 	return NT_STATUS_OK;
-}
-
-void tevent_req_simple_finish_ntstatus(struct tevent_req *subreq,
-				       NTSTATUS subreq_status)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-
-	TALLOC_FREE(subreq);
-
-	if (!NT_STATUS_IS_OK(subreq_status)) {
-		tevent_req_nterror(req, subreq_status);
-		return;
-	}
-	tevent_req_done(req);
 }

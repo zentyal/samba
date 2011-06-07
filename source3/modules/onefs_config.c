@@ -20,7 +20,6 @@
  */
 
 #include "includes.h"
-#include "smbd/smbd.h"
 #include "onefs_config.h"
 
 #include <ifs/ifs_syscalls.h>

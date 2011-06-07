@@ -156,7 +156,7 @@ static inline void textdomain_init(void);
 static inline void textdomain_init(void)
 {
 	if (!initialized) {
-		bindtextdomain(MODULE_NAME, LOCALEDIR);
+		bindtextdomain(MODULE_NAME, dyn_LOCALEDIR);
 		initialized = 1;
 	}
 	return;
@@ -1077,11 +1077,12 @@ static bool winbind_name_to_sid_string(struct pwb_context *ctx,
 				       char *sid_list_buffer,
 				       int sid_list_buffer_size)
 {
-	char sid_string[WBC_SID_STRING_BUFLEN];
+	const char* sid_string = NULL;
+	char *sid_str = NULL;
 
 	/* lookup name? */
 	if (IS_SID_STRING(name)) {
-		strlcpy(sid_string, name, sizeof(sid_string));
+		sid_string = name;
 	} else {
 		wbcErr wbc_status;
 		struct wbcDomainSid sid;
@@ -1097,13 +1098,21 @@ static bool winbind_name_to_sid_string(struct pwb_context *ctx,
 			return false;
 		}
 
-		wbcSidToStringBuf(&sid, sid_string, sizeof(sid_string));
+		wbc_status = wbcSidToString(&sid, &sid_str);
+		if (!WBC_ERROR_IS_OK(wbc_status)) {
+			return false;
+		}
+
+		sid_string = sid_str;
 	}
 
 	if (!safe_append_string(sid_list_buffer, sid_string,
 				sid_list_buffer_size)) {
+		wbcFreeMemory(sid_str);
 		return false;
 	}
+
+	wbcFreeMemory(sid_str);
 	return true;
 }
 
@@ -1135,7 +1144,7 @@ static bool winbind_name_list_to_sid_string_list(struct pwb_context *ctx,
 	}
 
 	search_location = name_list;
-	while ((comma = strchr(search_location, ',')) != NULL) {
+	while ((comma = strstr(search_location, ",")) != NULL) {
 		current_name = strndup(search_location,
 				       comma - search_location);
 		if (NULL == current_name) {
@@ -1190,8 +1199,10 @@ static bool winbind_name_list_to_sid_string_list(struct pwb_context *ctx,
 		 * It is malformated parameter here, overwrite the last ','.
 		 */
 		len = strlen(sid_list_buffer);
-		if ((len != 0) && (sid_list_buffer[len - 1] == ',')) {
-			sid_list_buffer[len - 1] = '\0';
+		if (len) {
+			if (sid_list_buffer[len - 1] == ',') {
+				sid_list_buffer[len - 1] = '\0';
+			}
 		}
 	}
 
@@ -1423,12 +1434,12 @@ static void _pam_warn_krb5_failure(struct pwb_context *ctx,
 static bool _pam_check_remark_auth_err(struct pwb_context *ctx,
 				       const struct wbcAuthErrorInfo *e,
 				       const char *nt_status_string,
-				       int *pam_err)
+				       int *pam_error)
 {
 	const char *ntstatus = NULL;
 	const char *error_string = NULL;
 
-	if (!e || !pam_err) {
+	if (!e || !pam_error) {
 		return false;
 	}
 
@@ -1442,18 +1453,18 @@ static bool _pam_check_remark_auth_err(struct pwb_context *ctx,
 		error_string = _get_ntstatus_error_string(nt_status_string);
 		if (error_string) {
 			_make_remark(ctx, PAM_ERROR_MSG, error_string);
-			*pam_err = e->pam_error;
+			*pam_error = e->pam_error;
 			return true;
 		}
 
 		if (e->display_string) {
-			_make_remark(ctx, PAM_ERROR_MSG, _(e->display_string));
-			*pam_err = e->pam_error;
+			_make_remark(ctx, PAM_ERROR_MSG, e->display_string);
+			*pam_error = e->pam_error;
 			return true;
 		}
 
 		_make_remark(ctx, PAM_ERROR_MSG, nt_status_string);
-		*pam_err = e->pam_error;
+		*pam_error = e->pam_error;
 
 		return true;
 	}
@@ -1890,7 +1901,9 @@ static int winbind_auth_request(struct pwb_context *ctx,
 	}
 
  done:
-	wbcFreeMemory(logon.blobs);
+	if (logon.blobs) {
+		wbcFreeMemory(logon.blobs);
+	}
 	if (info && info->blobs && !p_info) {
 		wbcFreeMemory(info->blobs);
 	}
@@ -1987,22 +2000,22 @@ static int winbind_chauthtok_request(struct pwb_context *ctx,
 		switch (reject_reason) {
 			case -1:
 				break;
-			case WBC_PWD_CHANGE_NO_ERROR:
+			case WBC_PWD_CHANGE_REJECT_OTHER:
 				if ((min_pwd_age > 0) &&
 				    (pwd_last_set + min_pwd_age > time(NULL))) {
 					PAM_WB_REMARK_DIRECT(ctx,
 					     "NT_STATUS_PWD_TOO_RECENT");
 				}
 				break;
-			case WBC_PWD_CHANGE_PASSWORD_TOO_SHORT:
+			case WBC_PWD_CHANGE_REJECT_TOO_SHORT:
 				PAM_WB_REMARK_DIRECT(ctx,
 					"NT_STATUS_PWD_TOO_SHORT");
 				break;
-			case WBC_PWD_CHANGE_PWD_IN_HISTORY:
+			case WBC_PWD_CHANGE_REJECT_IN_HISTORY:
 				PAM_WB_REMARK_DIRECT(ctx,
 					"NT_STATUS_PWD_HISTORY_CONFLICT");
 				break;
-			case WBC_PWD_CHANGE_NOT_COMPLEX:
+			case WBC_PWD_CHANGE_REJECT_COMPLEXITY:
 				_make_remark(ctx, PAM_ERROR_MSG,
 					     _("Password does not meet "
 					       "complexity requirements"));
@@ -2411,7 +2424,7 @@ static char* winbind_upn_to_username(struct pwb_context *ctx,
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 	struct wbcDomainSid sid;
 	enum wbcSidType type;
-	char *domain = NULL;
+	char *domain;
 	char *name;
 	char *p;
 

@@ -30,7 +30,7 @@ struct cmd_userdomgroups_state {
 	struct composite_context *ctx;
 	struct dom_sid *dom_sid;
 	uint32_t user_rid;
-	uint32_t num_rids;
+	int num_rids;
 	uint32_t *rids;
 };
 
@@ -104,12 +104,12 @@ static void userdomgroups_recv_rids(struct composite_context *ctx)
 
 NTSTATUS wb_cmd_userdomgroups_recv(struct composite_context *c,
 				   TALLOC_CTX *mem_ctx,
-				   uint32_t *num_sids, struct dom_sid ***sids)
+				   int *num_sids, struct dom_sid ***sids)
 {
 	struct cmd_userdomgroups_state *state =
 		talloc_get_type(c->private_data,
 				struct cmd_userdomgroups_state);
-	uint32_t i;
+	int i;
 	NTSTATUS status;
 
 	status = composite_wait(c);
@@ -139,7 +139,7 @@ done:
 NTSTATUS wb_cmd_userdomgroups(TALLOC_CTX *mem_ctx,
 			      struct wbsrv_service *service,
 			      const struct dom_sid *sid,
-			      uint32_t *num_sids, struct dom_sid ***sids)
+			      int *num_sids, struct dom_sid ***sids)
 {
 	struct composite_context *c =
 		wb_cmd_userdomgroups_send(mem_ctx, service, sid);

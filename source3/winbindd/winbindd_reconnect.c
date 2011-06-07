@@ -93,7 +93,7 @@ static NTSTATUS query_user_list(struct winbindd_domain *domain,
 static NTSTATUS enum_dom_groups(struct winbindd_domain *domain,
 				TALLOC_CTX *mem_ctx,
 				uint32 *num_entries, 
-				struct wb_acct_info **info)
+				struct acct_info **info)
 {
 	NTSTATUS result;
 
@@ -111,7 +111,7 @@ static NTSTATUS enum_dom_groups(struct winbindd_domain *domain,
 static NTSTATUS enum_local_groups(struct winbindd_domain *domain,
 				  TALLOC_CTX *mem_ctx,
 				  uint32 *num_entries, 
-				  struct wb_acct_info **info)
+				  struct acct_info **info)
 {
 	NTSTATUS result;
 
@@ -131,7 +131,7 @@ static NTSTATUS name_to_sid(struct winbindd_domain *domain,
 			    const char *domain_name,
 			    const char *name,
 			    uint32_t flags,
-			    struct dom_sid *sid,
+			    DOM_SID *sid,
 			    enum lsa_SidType *type)
 {
 	NTSTATUS result;
@@ -152,7 +152,7 @@ static NTSTATUS name_to_sid(struct winbindd_domain *domain,
 */
 static NTSTATUS sid_to_name(struct winbindd_domain *domain,
 			    TALLOC_CTX *mem_ctx,
-			    const struct dom_sid *sid,
+			    const DOM_SID *sid,
 			    char **domain_name,
 			    char **name,
 			    enum lsa_SidType *type)
@@ -171,7 +171,7 @@ static NTSTATUS sid_to_name(struct winbindd_domain *domain,
 
 static NTSTATUS rids_to_names(struct winbindd_domain *domain,
 			      TALLOC_CTX *mem_ctx,
-			      const struct dom_sid *sid,
+			      const DOM_SID *sid,
 			      uint32 *rids,
 			      size_t num_rids,
 			      char **domain_name,
@@ -196,7 +196,7 @@ static NTSTATUS rids_to_names(struct winbindd_domain *domain,
 /* Lookup user information from a rid or username. */
 static NTSTATUS query_user(struct winbindd_domain *domain, 
 			   TALLOC_CTX *mem_ctx, 
-			   const struct dom_sid *user_sid,
+			   const DOM_SID *user_sid,
 			   struct wbint_userinfo *user_info)
 {
 	NTSTATUS result;
@@ -214,8 +214,8 @@ static NTSTATUS query_user(struct winbindd_domain *domain,
 /* Lookup groups a user is a member of.  I wish Unix had a call like this! */
 static NTSTATUS lookup_usergroups(struct winbindd_domain *domain,
 				  TALLOC_CTX *mem_ctx,
-				  const struct dom_sid *user_sid,
-				  uint32 *num_groups, struct dom_sid **user_gids)
+				  const DOM_SID *user_sid,
+				  uint32 *num_groups, DOM_SID **user_gids)
 {
 	NTSTATUS result;
 
@@ -233,7 +233,7 @@ static NTSTATUS lookup_usergroups(struct winbindd_domain *domain,
 
 static NTSTATUS lookup_useraliases(struct winbindd_domain *domain,
 				   TALLOC_CTX *mem_ctx,
-				   uint32 num_sids, const struct dom_sid *sids,
+				   uint32 num_sids, const DOM_SID *sids,
 				   uint32 *num_aliases, uint32 **alias_rids)
 {
 	NTSTATUS result;
@@ -255,10 +255,10 @@ static NTSTATUS lookup_useraliases(struct winbindd_domain *domain,
 /* Lookup group membership given a rid.   */
 static NTSTATUS lookup_groupmem(struct winbindd_domain *domain,
 				TALLOC_CTX *mem_ctx,
-				const struct dom_sid *group_sid,
+				const DOM_SID *group_sid,
 				enum lsa_SidType type,
 				uint32 *num_names,
-				struct dom_sid **sid_mem, char ***names,
+				DOM_SID **sid_mem, char ***names, 
 				uint32 **name_types)
 {
 	NTSTATUS result;

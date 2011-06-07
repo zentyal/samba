@@ -18,6 +18,7 @@ The following options don't exist in Samba4 yet
 or are not converted by the upgrade script
 or will be removed:
 
+- update encrypted
 - public
 - guest ok
 - client schannel

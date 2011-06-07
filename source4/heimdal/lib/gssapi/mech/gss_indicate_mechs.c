@@ -27,8 +27,9 @@
  */
 
 #include "mech_locl.h"
+RCSID("$Id$");
 
-GSSAPI_LIB_FUNCTION OM_uint32 GSSAPI_LIB_CALL
+OM_uint32 GSSAPI_LIB_FUNCTION
 gss_indicate_mechs(OM_uint32 *minor_status,
     gss_OID_set *mech_set)
 {
@@ -43,7 +44,7 @@ gss_indicate_mechs(OM_uint32 *minor_status,
 	if (major_status)
 		return (major_status);
 	
-	HEIM_SLIST_FOREACH(m, &_gss_mechs, gm_link) {
+	SLIST_FOREACH(m, &_gss_mechs, gm_link) {
 		if (m->gm_mech.gm_indicate_mechs) {
 			major_status = m->gm_mech.gm_indicate_mechs(
 			    minor_status, &set);

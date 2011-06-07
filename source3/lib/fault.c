@@ -19,7 +19,6 @@
 */
 
 #include "includes.h"
-#include "system/filesys.h"
 
 #ifdef HAVE_SYS_SYSCTL_H
 #include <sys/sysctl.h>
@@ -55,13 +54,13 @@ static void fault_report(int sig)
 	if (cont_fn) {
 		cont_fn(NULL);
 #ifdef SIGSEGV
-		CatchSignal(SIGSEGV, SIG_DFL);
+		CatchSignal(SIGSEGV,SIGNAL_CAST SIG_DFL);
 #endif
 #ifdef SIGBUS
-		CatchSignal(SIGBUS, SIG_DFL);
+		CatchSignal(SIGBUS,SIGNAL_CAST SIG_DFL);
 #endif
 #ifdef SIGABRT
-		CatchSignal(SIGABRT, SIG_DFL);
+		CatchSignal(SIGABRT,SIGNAL_CAST SIG_DFL);
 #endif
 		return; /* this should cause a core dump */
 	}
@@ -84,13 +83,13 @@ void fault_setup(void (*fn)(void *))
 	cont_fn = fn;
 
 #ifdef SIGSEGV
-	CatchSignal(SIGSEGV, sig_fault);
+	CatchSignal(SIGSEGV,SIGNAL_CAST sig_fault);
 #endif
 #ifdef SIGBUS
-	CatchSignal(SIGBUS, sig_fault);
+	CatchSignal(SIGBUS,SIGNAL_CAST sig_fault);
 #endif
 #ifdef SIGABRT
-	CatchSignal(SIGABRT, sig_fault);
+	CatchSignal(SIGABRT,SIGNAL_CAST sig_fault);
 #endif
 }
 
@@ -193,52 +192,6 @@ static char *get_freebsd_corepath(void)
 }
 #endif
 
-#if defined(HAVE_SYS_KERNEL_PROC_CORE_PATTERN)
-
-/**
- * Get the Linux corepath.
- *
- * On Linux the contents of /proc/sys/kernel/core_pattern indicates the
- * location of the core path.
- */
-static char *get_linux_corepath(void)
-{
-	char *end;
-	int fd;
-	char *result;
-
-	fd = open("/proc/sys/kernel/core_pattern", O_RDONLY, 0);
-	if (fd == -1) {
-		return NULL;
-	}
-
-	result = afdgets(fd, NULL, 0);
-	close(fd);
-
-	if (result == NULL) {
-		return NULL;
-	}
-
-	if (result[0] != '/') {
-		/*
-		 * No absolute path, use the default (cwd)
-		 */
-		TALLOC_FREE(result);
-		return NULL;
-	}
-	/* Strip off the common filename expansion */
-
-	end = strrchr_m(result, '/');
-
-	if ((end != result) /* this would be the only / */
-	    && (end != NULL)) {
-		*end = '\0';
-	}
-	return result;
-}
-#endif
-
-
 /**
  * Try getting system-specific corepath if one exists.
  *
@@ -247,18 +200,11 @@ static char *get_linux_corepath(void)
 static char *get_corepath(const char *logbase, const char *progname)
 {
 #if (defined(FREEBSD) && defined(HAVE_SYSCTLBYNAME))
+
+	/* @todo: Add support for the linux corepath. */
+
 	char *tmp_corepath = NULL;
 	tmp_corepath = get_freebsd_corepath();
-
-	/* If this has been set correctly, we're done. */
-	if (tmp_corepath) {
-		return tmp_corepath;
-	}
-#endif
-
-#if defined(HAVE_SYS_KERNEL_PROC_CORE_PATTERN)
-	char *tmp_corepath = NULL;
-	tmp_corepath = get_linux_corepath();
 
 	/* If this has been set correctly, we're done. */
 	if (tmp_corepath) {
@@ -320,6 +266,14 @@ void dump_core_setup(const char *progname)
 #endif
 #endif
 
+#if defined(HAVE_PRCTL) && defined(PR_SET_DUMPABLE)
+	/* On Linux we lose the ability to dump core when we change our user
+	 * ID. We know how to dump core safely, so let's make sure we have our
+	 * dumpable flag set.
+	 */
+	prctl(PR_SET_DUMPABLE, 1);
+#endif
+
 	/* FIXME: if we have a core-plus-pid facility, configurably set
 	 * this up here.
 	 */
@@ -350,7 +304,7 @@ void dump_core_setup(const char *progname)
 	/* If we're running as non root we might not be able to dump the core
 	 * file to the corepath.  There must not be an unbecome_root() before
 	 * we call abort(). */
-	if (geteuid() != sec_initial_uid()) {
+	if (geteuid() != 0) {
 		become_root();
 	}
 
@@ -375,17 +329,9 @@ void dump_core_setup(const char *progname)
 	umask(~(0700));
 	dbgflush();
 
-#if defined(HAVE_PRCTL) && defined(PR_SET_DUMPABLE)
-	/* On Linux we lose the ability to dump core when we change our user
-	 * ID. We know how to dump core safely, so let's make sure we have our
-	 * dumpable flag set.
-	 */
-	prctl(PR_SET_DUMPABLE, 1);
-#endif
-
 	/* Ensure we don't have a signal handler for abort. */
 #ifdef SIGABRT
-	CatchSignal(SIGABRT, SIG_DFL);
+	CatchSignal(SIGABRT,SIGNAL_CAST SIG_DFL);
 #endif
 
 	abort();

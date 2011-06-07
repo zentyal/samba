@@ -19,119 +19,72 @@
 
 #include "includes.h"
 #include "lib/torture/torture.h"
-#include <subunit/child.h>
 
-static void torture_subunit_suite_start(struct torture_context *ctx,
+static void subunit_suite_start(struct torture_context *ctx,
 				struct torture_suite *suite)
 {
 }
 
-static char *torture_subunit_test_name(struct torture_context *ctx,
+static void subunit_print_testname(struct torture_context *ctx, 
 				   struct torture_tcase *tcase,
 				   struct torture_test *test)
 {
 	if (!strcmp(tcase->name, test->name)) {
-		return talloc_strdup(ctx, test->name);
+		printf("%s", test->name);
 	} else {
-		return talloc_asprintf(ctx, "%s.%s", tcase->name, test->name);
+		printf("%s.%s", tcase->name, test->name);
 	}
 }
 
-static void torture_subunit_report_time(struct torture_context *tctx)
-{
-	struct timespec tp;
-	struct tm *tmp;
-	char timestr[200];
-	if (clock_gettime(CLOCK_REALTIME, &tp) != 0) {
-		perror("clock_gettime");
-		return;
-	}
-
-	tmp = localtime(&tp.tv_sec);
-	if (!tmp) {
-		perror("localtime");
-		return;
-	}
-
-	if (strftime(timestr, sizeof(timestr), "%Y-%m-%d %H:%M:%S", tmp) <= 0) {
-		perror("strftime");
-		return;
-	}
-
-	printf("time: %s.%06ld\n", timestr, tp.tv_nsec / 1000);
-}
-
-static void torture_subunit_test_start(struct torture_context *context, 
+static void subunit_test_start(struct torture_context *ctx, 
 			       struct torture_tcase *tcase,
 			       struct torture_test *test)
 {
-	char *fullname = torture_subunit_test_name(context, context->active_tcase, context->active_test);
-	subunit_test_start(fullname);
-	torture_subunit_report_time(context);
-	talloc_free(fullname);
+	printf("test: ");
+	subunit_print_testname(ctx, tcase, test);	
+	printf("\n");
 }
 
-static void torture_subunit_test_result(struct torture_context *context, 
+static void subunit_test_result(struct torture_context *context, 
 				enum torture_result res, const char *reason)
 {
-	char *fullname = torture_subunit_test_name(context, context->active_tcase, context->active_test);
-	torture_subunit_report_time(context);
 	switch (res) {
 	case TORTURE_OK:
-		subunit_test_pass(fullname);
+		printf("success: ");
 		break;
 	case TORTURE_FAIL:
-		subunit_test_fail(fullname, reason);
+		printf("failure: ");
 		break;
 	case TORTURE_ERROR:
-		subunit_test_error(fullname, reason);
+		printf("error: ");
 		break;
 	case TORTURE_SKIP:
-		subunit_test_skip(fullname, reason);
+		printf("skip: ");
 		break;
 	}
-	talloc_free(fullname);
+	subunit_print_testname(context, context->active_tcase, context->active_test);	
+
+	if (reason)
+		printf(" [\n%s\n]", reason);
+	printf("\n");
 }
 
-static void torture_subunit_comment(struct torture_context *test,
+static void subunit_comment(struct torture_context *test,
 			    const char *comment)
 {
 	fprintf(stderr, "%s", comment);
 }
 
-static void torture_subunit_warning(struct torture_context *test,
+static void subunit_warning(struct torture_context *test,
 			    const char *comment)
 {
 	fprintf(stderr, "WARNING!: %s\n", comment);
 }
 
-static void torture_subunit_progress(struct torture_context *tctx, int offset, enum torture_progress_whence whence)
-{
-	switch (whence) {
-	case TORTURE_PROGRESS_SET:
-		printf("progress: %d\n", offset);
-		break;
-	case TORTURE_PROGRESS_CUR:
-		printf("progress: %+-d\n", offset);
-		break;
-	case TORTURE_PROGRESS_POP:
-		printf("progress: pop\n");
-		break;
-	case TORTURE_PROGRESS_PUSH:
-		printf("progress: push\n");
-		break;
-	default:
-		fprintf(stderr, "Invalid call to progress()\n");
-		break;
-	}
-}
-
 const struct torture_ui_ops torture_subunit_ui_ops = {
-	.comment = torture_subunit_comment,
-	.warning = torture_subunit_warning,
-	.test_start = torture_subunit_test_start,
-	.test_result = torture_subunit_test_result,
-	.suite_start = torture_subunit_suite_start,
-	.progress = torture_subunit_progress,
-	.report_time = torture_subunit_report_time,
+	.comment = subunit_comment,
+	.warning = subunit_warning,
+	.test_start = subunit_test_start,
+	.test_result = subunit_test_result,
+	.suite_start = subunit_suite_start
 };

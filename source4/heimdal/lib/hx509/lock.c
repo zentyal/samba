@@ -214,12 +214,10 @@ hx509_lock_prompt(hx509_lock lock, hx509_prompt *prompt)
 void
 hx509_lock_free(hx509_lock lock)
 {
-    if (lock) {
-	hx509_certs_free(&lock->certs);
-	hx509_lock_reset_passwords(lock);
-	memset(lock, 0, sizeof(*lock));
-	free(lock);
-    }
+    hx509_certs_free(&lock->certs);
+    hx509_lock_reset_passwords(lock);
+    memset(lock, 0, sizeof(*lock));
+    free(lock);
 }
 
 int

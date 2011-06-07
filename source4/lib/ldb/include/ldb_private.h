@@ -37,9 +37,7 @@
 #ifndef _LDB_PRIVATE_H_
 #define _LDB_PRIVATE_H_ 1
 
-#include "replace.h"
-#include "system/filesys.h"
-#include "system/time.h"
+#include "ldb_includes.h"
 #include "ldb.h"
 #include "ldb_module.h"
 
@@ -50,8 +48,6 @@ struct ldb_module_ops;
 struct ldb_backend_ops;
 
 #define LDB_HANDLE_FLAG_DONE_CALLED 1
-/* call is from an untrusted source - eg. over ldap:// */
-#define LDB_HANDLE_FLAG_UNTRUSTED   2
 
 struct ldb_handle {
 	int status;
@@ -59,10 +55,6 @@ struct ldb_handle {
 	struct ldb_context *ldb;
 	unsigned flags;
 	unsigned nesting;
-
-	/* used for debugging */
-	struct ldb_request *parent;
-	const char *location;
 };
 
 /* basic module structure */
@@ -120,16 +112,20 @@ struct ldb_context {
 
 	unsigned int create_perms;
 
+	char *modules_dir;
+
 	struct tevent_context *ev_ctx;
 
 	bool prepare_commit_done;
 
 	char *partial_debug;
-
-	struct poptOption *popt_options;
 };
 
 /* The following definitions come from lib/ldb/common/ldb.c  */
+
+int ldb_connect_backend(struct ldb_context *ldb, const char *url, const char *options[],
+			struct ldb_module **backend_module);
+
 
 extern const struct ldb_module_ops ldb_objectclass_module_ops;
 extern const struct ldb_module_ops ldb_paged_results_module_ops;
@@ -161,7 +157,7 @@ void ldb_subclass_remove(struct ldb_context *ldb, const char *classname);
 int ldb_subclass_add(struct ldb_context *ldb, const char *classname, const char *subclass);
 
 /* The following definitions come from lib/ldb/common/ldb_utf8.c */
-char *ldb_casefold_default(void *context, TALLOC_CTX *mem_ctx, const char *s, size_t n);
+char *ldb_casefold_default(void *context, void *mem_ctx, const char *s, size_t n);
 
 void ldb_dump_results(struct ldb_context *ldb, struct ldb_result *result, FILE *f);
 
@@ -169,14 +165,10 @@ void ldb_dump_results(struct ldb_context *ldb, struct ldb_result *result, FILE *
 /* The following definitions come from lib/ldb/common/ldb_modules.c  */
 
 const char **ldb_modules_list_from_string(struct ldb_context *ldb, TALLOC_CTX *mem_ctx, const char *string);
+int ldb_load_modules_list(struct ldb_context *ldb, const char **module_list, struct ldb_module *backend, struct ldb_module **out);
 int ldb_load_modules(struct ldb_context *ldb, const char *options[]);
+int ldb_init_module_chain(struct ldb_context *ldb, struct ldb_module *module);
 
-struct ldb_val ldb_binary_decode(TALLOC_CTX *mem_ctx, const char *str);
-
-
-/* The following definitions come from lib/ldb/common/ldb_options.c  */
-
-const char *ldb_options_find(struct ldb_context *ldb, const char *options[],
-			     const char *option_name);
+struct ldb_val ldb_binary_decode(void *mem_ctx, const char *str);
 
 #endif

@@ -20,8 +20,9 @@
 */
 
 #include "includes.h"
+#include "torture/torture.h"
 #include "librpc/gen_ndr/ndr_initshutdown_c.h"
-#include "torture/rpc/torture_rpc.h"
+#include "torture/rpc/rpc.h"
 
 static void init_lsa_StringLarge(struct lsa_StringLarge *name, const char *s)
 {
@@ -35,11 +36,10 @@ static bool test_Abort(struct torture_context *tctx,
 	struct initshutdown_Abort r;
 	NTSTATUS status;
 	uint16_t server = 0x0;
-	struct dcerpc_binding_handle *b = p->binding_handle;
 
 	r.in.server = &server;
 	
-	status = dcerpc_initshutdown_Abort_r(b, tctx, &r);
+	status = dcerpc_initshutdown_Abort(p, tctx, &r);
 
 	torture_assert_ntstatus_ok(tctx, status, 
 							   "initshutdown_Abort failed");
@@ -55,7 +55,6 @@ static bool test_Init(struct torture_context *tctx,
 	struct initshutdown_Init r;
 	NTSTATUS status;
 	uint16_t hostname = 0x0;
-	struct dcerpc_binding_handle *b = p->binding_handle;
 
 	r.in.hostname = &hostname;
 	r.in.message = talloc(tctx, struct lsa_StringLarge);
@@ -64,7 +63,7 @@ static bool test_Init(struct torture_context *tctx,
 	r.in.timeout = 30;
 	r.in.do_reboot = 1;
 
-	status = dcerpc_initshutdown_Init_r(b, tctx, &r);
+	status = dcerpc_initshutdown_Init(p, tctx, &r);
 
 	torture_assert_ntstatus_ok(tctx, status, "initshutdown_Init failed");
 	torture_assert_werr_ok(tctx, r.out.result, "initshutdown_Init failed");
@@ -78,7 +77,6 @@ static bool test_InitEx(struct torture_context *tctx,
 	struct initshutdown_InitEx r;
 	NTSTATUS status;
 	uint16_t hostname = 0x0;
-	struct dcerpc_binding_handle *b = p->binding_handle;
 
 	r.in.hostname = &hostname;
 	r.in.message = talloc(tctx, struct lsa_StringLarge);
@@ -88,7 +86,7 @@ static bool test_InitEx(struct torture_context *tctx,
 	r.in.do_reboot = 1;
 	r.in.reason = 0;
 
-	status = dcerpc_initshutdown_InitEx_r(b, tctx, &r);
+	status = dcerpc_initshutdown_InitEx(p, tctx, &r);
 
 	torture_assert_ntstatus_ok(tctx, status, "initshutdown_InitEx failed");
 
@@ -100,7 +98,7 @@ static bool test_InitEx(struct torture_context *tctx,
 
 struct torture_suite *torture_rpc_initshutdown(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "initshutdown");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "INITSHUTDOWN");
 	struct torture_rpc_tcase *tcase;
 	struct torture_test *test;
 

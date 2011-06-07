@@ -19,7 +19,6 @@
 */
 
 #include "includes.h"
-#include "interfaces.h"
 
 static struct iface_struct *probed_ifaces;
 static int total_probed;

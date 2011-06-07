@@ -23,6 +23,7 @@
 */
 
 #include "includes.h"
+#include "nmbd/nmbd.h"
 
 extern int global_nmb_port;
 
@@ -251,7 +252,7 @@ bool create_subnets(void)
 		 * cause us to exit.
 		 */
 
-		saved_handler = CatchSignal( SIGTERM, SIGNAL_CAST SIG_DFL );
+		saved_handler = CatchSignal(SIGTERM, SIG_DFL);
 
 		sleep(5);
 		load_interfaces();
@@ -260,7 +261,7 @@ bool create_subnets(void)
 		 * We got an interface, restore our normal term handler.
 		 */
 
-		CatchSignal( SIGTERM, SIGNAL_CAST saved_handler );
+		CatchSignal(SIGTERM, saved_handler);
 	}
 
 	/*
@@ -312,12 +313,12 @@ bool create_subnets(void)
 				"given interfaces. Is your interface line in "
 				"smb.conf correct ?\n"));
 
-		saved_handler = CatchSignal( SIGTERM, SIGNAL_CAST SIG_DFL );
+		saved_handler = CatchSignal(SIGTERM, SIG_DFL);
 
 		sleep(5);
 		load_interfaces();
 
-		CatchSignal( SIGTERM, SIGNAL_CAST saved_handler );
+		CatchSignal(SIGTERM, saved_handler);
 		goto try_interfaces_again;
 	}
 

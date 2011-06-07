@@ -32,6 +32,7 @@
 
 
 #include "includes.h"
+#include "printing/pcap.h"
 
 #if defined(SYSV) || defined(HPUX)
 bool sysv_cache_reload(void)
@@ -110,7 +111,7 @@ bool sysv_cache_reload(void)
 			*tmp = '\0';
 		
 		/* add it to the cache */
-		if (!pcap_cache_add(name, NULL)) {
+		if (!pcap_cache_add(name, NULL, NULL)) {
 			TALLOC_FREE(lines);
 			return False;
 		}

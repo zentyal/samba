@@ -19,7 +19,8 @@
 
 #include "includes.h"
 #include "winbindd.h"
-#include "librpc/gen_ndr/cli_wbint.h"
+#include "librpc/gen_ndr/ndr_wbint_c.h"
+#include "passdb/machine_sid.h"
 
 struct wb_next_grent_state {
 	struct tevent_context *ev;
@@ -69,8 +70,8 @@ struct tevent_req *wb_next_grent_send(TALLOC_CTX *mem_ctx,
 			tevent_req_nterror(req, NT_STATUS_NO_MORE_ENTRIES);
 			return tevent_req_post(req, ev);
 		}
-		subreq = rpccli_wbint_QueryGroupList_send(
-			state, state->ev, state->gstate->domain->child.rpccli,
+		subreq = dcerpc_wbint_QueryGroupList_send(
+			state, state->ev, dom_child_handle(state->gstate->domain),
 			&state->next_groups);
 		if (tevent_req_nomem(subreq, req)) {
 			return tevent_req_post(req, ev);
@@ -98,9 +99,16 @@ static void wb_next_grent_fetch_done(struct tevent_req *subreq)
 		req, struct wb_next_grent_state);
 	NTSTATUS status, result;
 
-	status = rpccli_wbint_QueryGroupList_recv(subreq, state, &result);
+	status = dcerpc_wbint_QueryGroupList_recv(subreq, state, &result);
 	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status) || !NT_STATUS_IS_OK(result)) {
+	if (tevent_req_nterror(req, status)) {
+		/* Ignore errors here, just log it */
+		DEBUG(10, ("query_user_list for domain %s returned %s\n",
+			   state->gstate->domain->name,
+			   nt_errstr(status)));
+		return;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
 		/* Ignore errors here, just log it */
 		DEBUG(10, ("query_user_list for domain %s returned %s/%s\n",
 			   state->gstate->domain->name,
@@ -125,8 +133,8 @@ static void wb_next_grent_fetch_done(struct tevent_req *subreq)
 			tevent_req_nterror(req, NT_STATUS_NO_MORE_ENTRIES);
 			return;
 		}
-		subreq = rpccli_wbint_QueryGroupList_send(
-			state, state->ev, state->gstate->domain->child.rpccli,
+		subreq = dcerpc_wbint_QueryGroupList_send(
+			state, state->ev, dom_child_handle(state->gstate->domain),
 			&state->next_groups);
 		if (tevent_req_nomem(subreq, req)) {
 			return;
@@ -160,8 +168,7 @@ static void wb_next_grent_getgrsid_done(struct tevent_req *subreq)
 	status = wb_getgrsid_recv(subreq, talloc_tos(), &domname, &name,
 				  &state->gr->gr_gid, &state->members);
 	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
+	if (tevent_req_nterror(req, status)) {
 		return;
 	}
 	if (!fill_grent(talloc_tos(), state->gr, domname, name,

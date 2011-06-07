@@ -15,7 +15,7 @@ shift 4
 
 failed=0
 samba4bindir="$BUILDDIR/bin"
-wbinfo="$samba4bindir/wbinfo$EXEEXT"
+wbinfo="$VALGRIND $samba4bindir/wbinfo$EXEEXT"
 
 . `dirname $0`/../../testprogs/blackbox/subunit.sh
 
@@ -163,6 +163,7 @@ if test x$own_domain = x$DOMAIN; then
 else
 	echo "Own domain reported as $own_domain instead of $DOMAIN"
 	echo "failure: wbinfo --own-domain against $TARGET check output"
+	failed=`expr $failed + 1`
 fi
 
 # this does not work
@@ -173,12 +174,21 @@ testit "wbinfo -D against $TARGET" $wbinfo -D $DOMAIN || failed=`expr $failed + 
 
 testit "wbinfo -i against $TARGET" $wbinfo -i "$DOMAIN/$USERNAME" || failed=`expr $failed + 1`
 
-testit "wbinfo --uid-info against $TARGET" $wbinfo --uid-info $admin_uid
+testit "wbinfo --uid-info against $TARGET" $wbinfo --uid-info $admin_uid || failed=`expr $failed + 1`
 
-# this does not work
-knownfail "wbinfo --group-info against $TARGET" $wbinfo --group-info "S-1-22-2-0"
-knownfail "wbinfo --gid-info against $TARGET" $wbinfo --gid-info 30001
-knownfail "wbinfo -r against $TARGET" $wbinfo -r "$DOMAIN/$USERNAME"
+echo "test: wbinfo --group-info against $TARGET"
+rawgid=`$wbinfo --group-info "Domain admins" | sed 's/.*:\([0-9][0-9]*\):/\1/'`
+if test x$? = x0; then
+	echo "success: wbinfo --group-info against $TARGET"
+else
+	echo "failure: wbinfo --group-info against $TARGET"
+	failed=`expr $failed + 1`
+fi
+
+gid=`echo $rawgid | sed 's/.*:\([0-9][0-9]*\):/\1/'`
+testit "wbinfo --gid-info against $TARGET" $wbinfo --gid-info $gid || failed=`expr $failed + 1`
+
+testit "wbinfo -r against $TARGET" $wbinfo -r "$DOMAIN/$USERNAME" || failed=`expr $failed + 1`
 
 testit "wbinfo --user-domgroups against $TARGET" $wbinfo --user-domgroups $admin_sid || failed=`expr $failed + 1`
 

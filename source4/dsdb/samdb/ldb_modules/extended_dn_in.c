@@ -30,9 +30,14 @@
  */
 
 #include "includes.h"
-#include "ldb/include/ldb.h"
-#include "ldb/include/ldb_errors.h"
-#include "ldb/include/ldb_module.h"
+#include <ldb.h>
+#include <ldb_errors.h>
+#include <ldb_module.h>
+
+/*
+  TODO: if relax is not set then we need to reject the fancy RMD_* and
+  DELETED extended DN codes
+ */
 
 /* search */
 struct extended_search_context {
@@ -80,7 +85,7 @@ static int extended_base_callback(struct ldb_request *req, struct ldb_reply *are
 	struct ldb_request *down_req;
 	struct ldb_message_element *el;
 	int ret;
-	size_t i;
+	unsigned int i;
 	size_t wkn_len = 0;
 	char *valstr = NULL;
 	const char *found = NULL;
@@ -151,7 +156,7 @@ static int extended_base_callback(struct ldb_request *req, struct ldb_reply *are
 
 		if (!ac->basedn) {
 			const char *str = talloc_asprintf(req, "Base-DN '%s' not found",
-							  ldb_dn_get_linearized(ac->req->op.search.base));
+							  ldb_dn_get_extended_linearized(req, ac->req->op.search.base, 1));
 			ldb_set_errstring(ldb_module_get_ctx(ac->module), str);
 			return ldb_module_done(ac->req, NULL, NULL,
 					       LDB_ERR_NO_SUCH_OBJECT);
@@ -168,6 +173,7 @@ static int extended_base_callback(struct ldb_request *req, struct ldb_reply *are
 						      ac->req->controls,
 						      ac, extended_final_callback, 
 						      ac->req);
+			LDB_REQ_SET_LOCATION(down_req);
 			break;
 		case LDB_ADD:
 		{
@@ -186,6 +192,7 @@ static int extended_base_callback(struct ldb_request *req, struct ldb_reply *are
 						ac->req->controls,
 						ac, extended_final_callback, 
 						ac->req);
+			LDB_REQ_SET_LOCATION(down_req);
 			break;
 		}
 		case LDB_MODIFY:
@@ -205,6 +212,7 @@ static int extended_base_callback(struct ldb_request *req, struct ldb_reply *are
 						ac->req->controls,
 						ac, extended_final_callback, 
 						ac->req);
+			LDB_REQ_SET_LOCATION(down_req);
 			break;
 		}
 		case LDB_DELETE:
@@ -214,6 +222,7 @@ static int extended_base_callback(struct ldb_request *req, struct ldb_reply *are
 						ac->req->controls,
 						ac, extended_final_callback, 
 						ac->req);
+			LDB_REQ_SET_LOCATION(down_req);
 			break;
 		case LDB_RENAME:
 			ret = ldb_build_rename_req(&down_req,
@@ -223,6 +232,7 @@ static int extended_base_callback(struct ldb_request *req, struct ldb_reply *are
 						   ac->req->controls,
 						   ac, extended_final_callback, 
 						   ac->req);
+			LDB_REQ_SET_LOCATION(down_req);
 			break;
 		default:
 			return ldb_module_done(ac->req, NULL, NULL, LDB_ERR_OPERATIONS_ERROR);
@@ -263,6 +273,31 @@ static int extended_dn_in_fix(struct ldb_module *module, struct ldb_request *req
 	} else {
 		/* It looks like we need to map the DN */
 		const struct ldb_val *sid_val, *guid_val, *wkguid_val;
+		int num_components = ldb_dn_get_comp_num(dn);
+		int num_ex_components = ldb_dn_get_extended_comp_num(dn);
+
+		/*
+		  windows ldap searchs don't allow a baseDN with more
+		  than one extended component, or an extended
+		  component and a string DN
+
+		  We only enforce this over ldap, not for internal
+		  use, as there are just too many places where we
+		  internally want to use a DN that has come from a
+		  search with extended DN enabled, or comes from a DRS
+		  naming context.
+
+		  Enforcing this would also make debugging samba much
+		  harder, as we'd need to use ldb_dn_minimise() in a
+		  lot of places, and that would lose the DN string
+		  which is so useful for working out what a request is
+		  for
+		 */
+		if ((num_components != 0 || num_ex_components != 1) &&
+		    ldb_req_is_untrusted(req)) {
+			return ldb_error(ldb_module_get_ctx(module),
+					 LDB_ERR_INVALID_DN_SYNTAX, "invalid number of DN components");
+		}
 
 		sid_val = ldb_dn_get_extended_component(dn, "SID");
 		guid_val = ldb_dn_get_extended_component(dn, "GUID");
@@ -274,8 +309,7 @@ static int extended_dn_in_fix(struct ldb_module *module, struct ldb_request *req
 			base_dn_filter = talloc_asprintf(req, "(objectSid=%s)", 
 							 ldb_binary_encode(req, *sid_val));
 			if (!base_dn_filter) {
-				ldb_oom(ldb_module_get_ctx(module));
-				return LDB_ERR_OPERATIONS_ERROR;
+				return ldb_oom(ldb_module_get_ctx(module));
 			}
 			base_dn_scope = LDB_SCOPE_SUBTREE;
 			base_dn_attrs = no_attr;
@@ -287,8 +321,7 @@ static int extended_dn_in_fix(struct ldb_module *module, struct ldb_request *req
 			base_dn_filter = talloc_asprintf(req, "(objectGUID=%s)", 
 							 ldb_binary_encode(req, *guid_val));
 			if (!base_dn_filter) {
-				ldb_oom(ldb_module_get_ctx(module));
-				return LDB_ERR_OPERATIONS_ERROR;
+				return ldb_oom(ldb_module_get_ctx(module));
 			}
 			base_dn_scope = LDB_SCOPE_SUBTREE;
 			base_dn_attrs = no_attr;
@@ -303,7 +336,8 @@ static int extended_dn_in_fix(struct ldb_module *module, struct ldb_request *req
 
 			p = strchr(wkguid_dup, ',');
 			if (!p) {
-				return LDB_ERR_INVALID_DN_SYNTAX;
+				return ldb_error(ldb_module_get_ctx(module), LDB_ERR_INVALID_DN_SYNTAX,
+						 "Invalid WKGUID format");
 			}
 
 			p[0] = '\0';
@@ -311,8 +345,7 @@ static int extended_dn_in_fix(struct ldb_module *module, struct ldb_request *req
 
 			wellknown_object = talloc_asprintf(req, "B:32:%s:", wkguid_dup);
 			if (!wellknown_object) {
-				ldb_oom(ldb_module_get_ctx(module));
-				return LDB_ERR_OPERATIONS_ERROR;
+				return ldb_oom(ldb_module_get_ctx(module));
 			}
 
 			tail_str = p;
@@ -320,24 +353,22 @@ static int extended_dn_in_fix(struct ldb_module *module, struct ldb_request *req
 			base_dn = ldb_dn_new(req, ldb_module_get_ctx(module), tail_str);
 			talloc_free(wkguid_dup);
 			if (!base_dn) {
-				ldb_oom(ldb_module_get_ctx(module));
-				return LDB_ERR_OPERATIONS_ERROR;
+				return ldb_oom(ldb_module_get_ctx(module));
 			}
 			base_dn_filter = talloc_strdup(req, "(objectClass=*)");
 			if (!base_dn_filter) {
-				ldb_oom(ldb_module_get_ctx(module));
-				return LDB_ERR_OPERATIONS_ERROR;
+				return ldb_oom(ldb_module_get_ctx(module));
 			}
 			base_dn_scope = LDB_SCOPE_BASE;
 			base_dn_attrs = wkattr;
 		} else {
-			return LDB_ERR_INVALID_DN_SYNTAX;
+			return ldb_error(ldb_module_get_ctx(module), LDB_ERR_INVALID_DN_SYNTAX,
+					 "Invalid extended DN component");
 		}
 
 		ac = talloc_zero(req, struct extended_search_context);
 		if (ac == NULL) {
-			ldb_oom(ldb_module_get_ctx(module));
-			return LDB_ERR_OPERATIONS_ERROR;
+			return ldb_oom(ldb_module_get_ctx(module));
 		}
 		
 		ac->module = module;
@@ -354,18 +385,19 @@ static int extended_dn_in_fix(struct ldb_module *module, struct ldb_request *req
 					   base_dn_scope,
 					   base_dn_filter,
 					   base_dn_attrs,
-					   NULL,
+					   req->controls,
 					   ac, extended_base_callback,
 					   req);
+		LDB_REQ_SET_LOCATION(down_req);
 		if (ret != LDB_SUCCESS) {
-			return LDB_ERR_OPERATIONS_ERROR;
+			return ldb_operr(ldb_module_get_ctx(module));
 		}
 
 		if (all_partitions) {
 			struct ldb_search_options_control *control;
 			control = talloc(down_req, struct ldb_search_options_control);
 			control->search_options = 2;
-			ret = ldb_request_add_control(down_req,
+			ret = ldb_request_replace_control(down_req,
 						      LDB_CONTROL_SEARCH_OPTIONS_OID,
 						      true, control);
 			if (ret != LDB_SUCCESS) {
@@ -399,10 +431,16 @@ static int extended_dn_in_rename(struct ldb_module *module, struct ldb_request *
 	return extended_dn_in_fix(module, req, req->op.rename.olddn);
 }
 
-_PUBLIC_ const struct ldb_module_ops ldb_extended_dn_in_module_ops = {
+static const struct ldb_module_ops ldb_extended_dn_in_module_ops = {
 	.name		   = "extended_dn_in",
 	.search            = extended_dn_in_search,
 	.modify            = extended_dn_in_modify,
 	.del               = extended_dn_in_del,
 	.rename            = extended_dn_in_rename,
 };
+
+int ldb_extended_dn_in_module_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_extended_dn_in_module_ops);
+}

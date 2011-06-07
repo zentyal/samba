@@ -43,6 +43,26 @@
 #include "ldb_private.h"
 #include "system/locale.h"
 
+static int ldb_parse_hex2char(const char *x)
+{
+	if (isxdigit(x[0]) && isxdigit(x[1])) {
+		const char h1 = x[0], h2 = x[1];
+		int c = 0;
+
+		if (h1 >= 'a') c = h1 - (int)'a' + 10;
+		else if (h1 >= 'A') c = h1 - (int)'A' + 10;
+		else if (h1 >= '0') c = h1 - (int)'0';
+		c = c << 4;
+		if (h2 >= 'a') c += h2 - (int)'a' + 10;
+		else if (h2 >= 'A') c += h2 - (int)'A' + 10;
+		else if (h2 >= '0') c += h2 - (int)'0';
+
+		return c;
+	}
+
+	return -1;
+}
+
 /*
 a filter is defined by:
                <filter> ::= '(' <filtercomp> ')'
@@ -59,11 +79,11 @@ a filter is defined by:
    decode a RFC2254 binary string representation of a buffer.
    Used in LDAP filters.
 */
-struct ldb_val ldb_binary_decode(void *mem_ctx, const char *str)
+struct ldb_val ldb_binary_decode(TALLOC_CTX *mem_ctx, const char *str)
 {
-	int i, j;
+	size_t i, j;
 	struct ldb_val ret;
-	int slen = str?strlen(str):0;
+	size_t slen = str?strlen(str):0;
 
 	ret.data = (uint8_t *)talloc_size(mem_ctx, slen+1);
 	ret.length = 0;
@@ -71,8 +91,10 @@ struct ldb_val ldb_binary_decode(void *mem_ctx, const char *str)
 
 	for (i=j=0;i<slen;i++) {
 		if (str[i] == '\\') {
-			unsigned c;
-			if (sscanf(&str[i+1], "%02X", &c) != 1) {
+			int c;
+
+			c = ldb_parse_hex2char(&str[i+1]);
+			if (c == -1) {
 				talloc_free(ret.data);
 				memset(&ret, 0, sizeof(ret));
 				return ret;
@@ -94,11 +116,11 @@ struct ldb_val ldb_binary_decode(void *mem_ctx, const char *str)
    encode a blob as a RFC2254 binary string, escaping any
    non-printable or '\' characters
 */
-char *ldb_binary_encode(void *mem_ctx, struct ldb_val val)
+char *ldb_binary_encode(TALLOC_CTX *mem_ctx, struct ldb_val val)
 {
-	int i;
+	size_t i;
 	char *ret;
-	int len = val.length;
+	size_t len = val.length;
 	unsigned char *buf = val.data;
 
 	for (i=0;i<val.length;i++) {
@@ -129,9 +151,12 @@ char *ldb_binary_encode(void *mem_ctx, struct ldb_val val)
    non-printable or '\' characters.  This routine is suitable for use
    in escaping user data in ldap filters.
 */
-char *ldb_binary_encode_string(void *mem_ctx, const char *string)
+char *ldb_binary_encode_string(TALLOC_CTX *mem_ctx, const char *string)
 {
 	struct ldb_val val;
+	if (string == NULL) {
+		return NULL;
+	}
 	val.data = discard_const_p(uint8_t, string);
 	val.length = strlen(string);
 	return ldb_binary_encode(mem_ctx, val);
@@ -159,10 +184,10 @@ static char *ldb_parse_find_wildcard(char *value)
 /* return a NULL terminated list of binary strings representing the value
    chunks separated by wildcards that makes the value portion of the filter
 */
-static struct ldb_val **ldb_wildcard_decode(void *mem_ctx, const char *string)
+static struct ldb_val **ldb_wildcard_decode(TALLOC_CTX *mem_ctx, const char *string)
 {
 	struct ldb_val **ret = NULL;
-	int val = 0;
+	unsigned int val = 0;
 	char *wc, *str;
 
 	wc = talloc_strdup(mem_ctx, string);
@@ -199,7 +224,7 @@ static struct ldb_val **ldb_wildcard_decode(void *mem_ctx, const char *string)
 	return ret;
 }
 
-static struct ldb_parse_tree *ldb_parse_filter(void *mem_ctx, const char **s);
+static struct ldb_parse_tree *ldb_parse_filter(TALLOC_CTX *mem_ctx, const char **s);
 
 
 /*
@@ -253,7 +278,7 @@ failed:
 	return NULL;
 }
 
-static enum ldb_parse_op ldb_parse_filtertype(void *mem_ctx, char **type, char **value, const char **s)
+static enum ldb_parse_op ldb_parse_filtertype(TALLOC_CTX *mem_ctx, char **type, char **value, const char **s)
 {
 	enum ldb_parse_op filter = 0;
 	char *name, *val, *k;
@@ -351,7 +376,7 @@ static enum ldb_parse_op ldb_parse_filtertype(void *mem_ctx, char **type, char *
 /*
   <simple> ::= <attributetype> <filtertype> <attributevalue>
 */
-static struct ldb_parse_tree *ldb_parse_simple(void *mem_ctx, const char **s)
+static struct ldb_parse_tree *ldb_parse_simple(TALLOC_CTX *mem_ctx, const char **s)
 {
 	char *attr, *value;
 	struct ldb_parse_tree *ret;
@@ -466,7 +491,7 @@ static struct ldb_parse_tree *ldb_parse_simple(void *mem_ctx, const char **s)
   <or> ::= '|' <filterlist>
   <filterlist> ::= <filter> | <filter> <filterlist>
 */
-static struct ldb_parse_tree *ldb_parse_filterlist(void *mem_ctx, const char **s)
+static struct ldb_parse_tree *ldb_parse_filterlist(TALLOC_CTX *mem_ctx, const char **s)
 {
 	struct ldb_parse_tree *ret, *next;
 	enum ldb_parse_op op;
@@ -534,7 +559,7 @@ static struct ldb_parse_tree *ldb_parse_filterlist(void *mem_ctx, const char **s
 /*
   <not> ::= '!' <filter>
 */
-static struct ldb_parse_tree *ldb_parse_not(void *mem_ctx, const char **s)
+static struct ldb_parse_tree *ldb_parse_not(TALLOC_CTX *mem_ctx, const char **s)
 {
 	struct ldb_parse_tree *ret;
 	const char *p = *s;
@@ -566,7 +591,7 @@ static struct ldb_parse_tree *ldb_parse_not(void *mem_ctx, const char **s)
   parse a filtercomp
   <filtercomp> ::= <and> | <or> | <not> | <simple>
 */
-static struct ldb_parse_tree *ldb_parse_filtercomp(void *mem_ctx, const char **s)
+static struct ldb_parse_tree *ldb_parse_filtercomp(TALLOC_CTX *mem_ctx, const char **s)
 {
 	struct ldb_parse_tree *ret;
 	const char *p = *s;
@@ -603,7 +628,7 @@ static struct ldb_parse_tree *ldb_parse_filtercomp(void *mem_ctx, const char **s
 /*
   <filter> ::= '(' <filtercomp> ')'
 */
-static struct ldb_parse_tree *ldb_parse_filter(void *mem_ctx, const char **s)
+static struct ldb_parse_tree *ldb_parse_filter(TALLOC_CTX *mem_ctx, const char **s)
 {
 	struct ldb_parse_tree *ret;
 	const char *p = *s;
@@ -635,7 +660,7 @@ static struct ldb_parse_tree *ldb_parse_filter(void *mem_ctx, const char **s)
 
   expression ::= <simple> | <filter>
 */
-struct ldb_parse_tree *ldb_parse_tree(void *mem_ctx, const char *s)
+struct ldb_parse_tree *ldb_parse_tree(TALLOC_CTX *mem_ctx, const char *s)
 {
 	if (s == NULL || *s == 0) {
 		s = "(|(objectClass=*)(distinguishedName=*))";
@@ -654,10 +679,10 @@ struct ldb_parse_tree *ldb_parse_tree(void *mem_ctx, const char *s)
 /*
   construct a ldap parse filter given a parse tree
 */
-char *ldb_filter_from_tree(void *mem_ctx, struct ldb_parse_tree *tree)
+char *ldb_filter_from_tree(TALLOC_CTX *mem_ctx, const struct ldb_parse_tree *tree)
 {
 	char *s, *s2, *ret;
-	int i;
+	unsigned int i;
 
 	if (tree == NULL) {
 		return NULL;
@@ -773,14 +798,14 @@ char *ldb_filter_from_tree(void *mem_ctx, struct ldb_parse_tree *tree)
 
 
 /*
-  replace any occurances of an attribute name in the parse tree with a
+  replace any occurrences of an attribute name in the parse tree with a
   new name
 */
 void ldb_parse_tree_attr_replace(struct ldb_parse_tree *tree, 
 				 const char *attr, 
 				 const char *replace)
 {
-	int i;
+	unsigned int i;
 	switch (tree->operation) {
 	case LDB_OP_AND:
 	case LDB_OP_OR:
@@ -826,7 +851,7 @@ void ldb_parse_tree_attr_replace(struct ldb_parse_tree *tree,
 struct ldb_parse_tree *ldb_parse_tree_copy_shallow(TALLOC_CTX *mem_ctx,
 						   const struct ldb_parse_tree *ot)
 {
-	int i;
+	unsigned int i;
 	struct ldb_parse_tree *nt;
 
 	nt = talloc(mem_ctx, struct ldb_parse_tree);

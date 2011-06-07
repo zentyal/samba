@@ -4,17 +4,17 @@
    Version 3.0.0
    Copyright (C) Andrew Tridgell 1997-2002
    Copyright (C) John H Terpstra 2002
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -28,7 +28,13 @@
  **/
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "popt_common.h"
 #include "web/swat_proto.h"
+#include "printing/pcap.h"
+#include "printing/load.h"
+#include "passdb.h"
+#include "intl/lang_tdb.h"
 
 static int demo_mode = False;
 static int passwd_only = False;
@@ -417,9 +423,9 @@ static void show_parameters(int snum, int allparameters, unsigned int parm_filte
 		}
 
 		if ((parm_filter & FLAG_WIZARD) && !(parm->flags & FLAG_WIZARD)) continue;
-		
+
 		if ((parm_filter & FLAG_ADVANCED) && !(parm->flags & FLAG_ADVANCED)) continue;
-		
+
 		if (heading && heading != last_heading) {
 			printf("<tr><td></td></tr><tr><td><b><u>%s</u></b></td></tr>\n", _(heading));
 			last_heading = heading;
@@ -446,7 +452,7 @@ static void write_config(FILE *f, bool show_defaults)
 	fprintf(f, "# Samba config file created using SWAT\n");
 	fprintf(f, "# from %s (%s)\n", cgi_remote_host(), cgi_remote_addr());
 	fprintf(f, "# Date: %s\n\n", current_timestring(ctx, False));
-	
+
 	lp_dump(f, show_defaults, iNumNonAutoPrintServices);
 
 	TALLOC_FREE(ctx);
@@ -490,7 +496,10 @@ static int save_reload(int snum)
                 return 0;
         }
 	iNumNonAutoPrintServices = lp_numservices();
-	load_printers();
+	if (pcap_cache_loaded()) {
+		load_printers(server_event_context(),
+			      server_messaging_context());
+	}
 
 	return 1;
 }
@@ -556,7 +565,7 @@ static void image_link(const char *name, const char *hlink, const char *src)
 static void show_main_buttons(void)
 {
 	char *p;
-	
+
 	if ((p = cgi_user_name()) && strcmp(p, "root")) {
 		printf(_("Logged in as <b>%s</b>"), p);
 		printf("<p>\n");
@@ -656,7 +665,7 @@ static void wizard_params_page(void)
 
 	printf("<input type=reset name=\"Reset Values\" value=\"Reset\">\n");
 	printf("<p>\n");
-	
+
 	printf("<table>\n");
 	show_parameters(GLOBAL_SECTION_SNUM, 1, parm_filter, 0);
 	printf("</table>\n");
@@ -703,7 +712,7 @@ static void wizard_page(void)
 
 		/* Plain text passwords are too badly broken - use encrypted passwords only */
 		lp_do_parameter( GLOBAL_SECTION_SNUM, "encrypt passwords", "Yes");
-		
+
 		switch ( SerType ){
 			case 0:
 				/* Stand-alone Server */
@@ -774,7 +783,7 @@ static void wizard_page(void)
 		winstype = 3;
 
 	role = lp_server_role();
-	
+
 	/* Here we go ... */
 	printf("<H2>%s</H2>\n", _("Samba Configuration Wizard"));
 	printf("<form method=post action=wizard>\n");
@@ -813,7 +822,7 @@ static void wizard_page(void)
 		const char **wins_servers = lp_wins_server_list();
 		for(i = 0; wins_servers[i]; i++) printf("%s ", wins_servers[i]);
 	}
-	
+
 	printf("\"></td></tr>\n");
 	if (winstype == 3) {
 		printf("<tr><td></td><td colspan=3><font color=\"#ff0000\">%s</font></td></tr>\n", _("Error: WINS Server Mode and WINS Support both set in smb.conf"));
@@ -823,14 +832,14 @@ static void wizard_page(void)
 	printf("<td><input type=radio name=\"HomeExpo\" value=\"1\" %s> Yes</td>", (have_home == -1) ? "" : "checked ");
 	printf("<td><input type=radio name=\"HomeExpo\" value=\"0\" %s> No</td>", (have_home == -1 ) ? "checked" : "");
 	printf("<td></td></tr>\n");
-	
+
 	/* Enable this when we are ready ....
 	 * printf("<tr><td><b>%s:&nbsp;</b></td>\n", _("Is Print Server"));
 	 * printf("<td><input type=radio name=\"PtrSvr\" value=\"1\" %s> Yes</td>");
 	 * printf("<td><input type=radio name=\"PtrSvr\" value=\"0\" %s> No</td>");
 	 * printf("<td></td></tr>\n");
 	 */
-	
+
 	printf("</table></center>");
 	printf("<hr>");
 
@@ -1014,7 +1023,7 @@ static bool change_password(const char *remote_machine, const char *user_name,
 		printf("%s\n<p>", _("password change in demo mode rejected"));
 		return False;
 	}
-	
+
 	if (remote_machine != NULL) {
 		ret = remote_password_change(remote_machine, user_name,
 					     old_passwd, new_passwd, &err_str);
@@ -1028,7 +1037,7 @@ static bool change_password(const char *remote_machine, const char *user_name,
 		printf("%s\n<p>", _("Can't setup password database vectors."));
 		return False;
 	}
-	
+
 	ret = local_password_change(user_name, local_flags, new_passwd,
 					&err_str, &msg_str);
 
@@ -1111,7 +1120,6 @@ static void chg_passwd(void)
 	local_flags |= (cgi_variable(DELETE_USER_FLAG) ? LOCAL_DELETE_USER : 0);
 	local_flags |= (cgi_variable(ENABLE_USER_FLAG) ? LOCAL_ENABLE_USER : 0);
 	local_flags |= (cgi_variable(DISABLE_USER_FLAG) ? LOCAL_DISABLE_USER : 0);
-	
 
 	rslt = change_password(host,
 			       cgi_variable_nonull(SWAT_USER),
@@ -1128,7 +1136,7 @@ static void chg_passwd(void)
 			printf("\n");
 		}
 	}
-	
+
 	return;
 }
 
@@ -1413,13 +1421,15 @@ const char *lang_msg_rotate(TALLOC_CTX *ctx, const char *msgid)
 	/* we don't want any SIGPIPE messages */
 	BlockSignals(True,SIGPIPE);
 
-	dbf = x_fopen("/dev/null", O_WRONLY, 0);
-	if (!dbf) dbf = x_stderr;
+	debug_set_logfile("/dev/null");
 
 	/* we don't want stderr screwing us up */
 	close(2);
 	open("/dev/null", O_WRONLY);
+	setup_logging("swat", DEBUG_FILE);
 
+	load_case_tables();
+	
 	pc = poptGetContext("swat", argc, (const char **) argv, long_options, 0);
 
 	/* Parse command line options */
@@ -1428,13 +1438,15 @@ const char *lang_msg_rotate(TALLOC_CTX *ctx, const char *msgid)
 
 	poptFreeContext(pc);
 
-	load_case_tables();
-
-	setup_logging(argv[0],False);
+	/* This should set a more apporiate log file */
 	load_config(True);
+	reopen_logs();
 	load_interfaces();
 	iNumNonAutoPrintServices = lp_numservices();
-	load_printers();
+	if (pcap_cache_loaded()) {
+		load_printers(server_event_context(),
+			      server_messaging_context());
+	}
 
 	cgi_setup(get_dyn_SWATDIR(), !demo_mode);
 

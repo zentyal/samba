@@ -19,11 +19,11 @@
 
 #include "includes.h"
 
+#include "../librpc/gen_ndr/ndr_netlogon_c.h"
 #include "librpc/gen_ndr/libnetapi.h"
 #include "lib/netapi/netapi.h"
 #include "lib/netapi/netapi_private.h"
 #include "lib/netapi/libnetapi.h"
-#include "../librpc/gen_ndr/cli_netlogon.h"
 
 static WERROR construct_data(enum netr_LogonControlCode function_code,
 			     const uint8_t *data_in,
@@ -42,6 +42,9 @@ static WERROR construct_data(enum netr_LogonControlCode function_code,
 		break;
 	case NETLOGON_CONTROL_SET_DBFLAG:
 		data_out->debug_level = atoi((const char *)data_in);
+		break;
+	case NETLOGON_CONTROL_FORCE_DNS_REG:
+		ZERO_STRUCTP(data_out);
 		break;
 	default:
 		return WERR_INVALID_PARAM;
@@ -126,17 +129,17 @@ WERROR I_NetLogonControl_r(struct libnetapi_ctx *ctx,
 {
 	WERROR werr;
 	NTSTATUS status;
-	struct rpc_pipe_client *pipe_cli = NULL;
 	union netr_CONTROL_QUERY_INFORMATION query;
+	struct dcerpc_binding_handle *b;
 
-	werr = libnetapi_open_pipe(ctx, r->in.server_name,
-				   &ndr_table_netlogon.syntax_id,
-				   &pipe_cli);
+	werr = libnetapi_get_binding_handle(ctx, r->in.server_name,
+					    &ndr_table_netlogon.syntax_id,
+					    &b);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
 
-	status = rpccli_netr_LogonControl(pipe_cli, talloc_tos(),
+	status = dcerpc_netr_LogonControl(b, talloc_tos(),
 					  r->in.server_name,
 					  r->in.function_code,
 					  r->in.query_level,
@@ -144,6 +147,9 @@ WERROR I_NetLogonControl_r(struct libnetapi_ctx *ctx,
 					  &werr);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
 
@@ -174,18 +180,18 @@ WERROR I_NetLogonControl2_r(struct libnetapi_ctx *ctx,
 {
 	WERROR werr;
 	NTSTATUS status;
-	struct rpc_pipe_client *pipe_cli = NULL;
 	union netr_CONTROL_DATA_INFORMATION data;
 	union netr_CONTROL_QUERY_INFORMATION query;
+	struct dcerpc_binding_handle *b;
 
 	werr = construct_data(r->in.function_code, r->in.data, &data);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
 
-	werr = libnetapi_open_pipe(ctx, r->in.server_name,
-				   &ndr_table_netlogon.syntax_id,
-				   &pipe_cli);
+	werr = libnetapi_get_binding_handle(ctx, r->in.server_name,
+					    &ndr_table_netlogon.syntax_id,
+					    &b);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
@@ -193,7 +199,8 @@ WERROR I_NetLogonControl2_r(struct libnetapi_ctx *ctx,
 	switch (r->in.function_code) {
 	case NETLOGON_CONTROL_TC_VERIFY:
 	case NETLOGON_CONTROL_SET_DBFLAG:
-		status = rpccli_netr_LogonControl2Ex(pipe_cli, talloc_tos(),
+	case NETLOGON_CONTROL_FORCE_DNS_REG:
+		status = dcerpc_netr_LogonControl2Ex(b, talloc_tos(),
 						     r->in.server_name,
 						     r->in.function_code,
 						     r->in.query_level,
@@ -202,7 +209,7 @@ WERROR I_NetLogonControl2_r(struct libnetapi_ctx *ctx,
 						     &werr);
 		break;
 	default:
-		status = rpccli_netr_LogonControl2(pipe_cli, talloc_tos(),
+		status = dcerpc_netr_LogonControl2(b, talloc_tos(),
 						   r->in.server_name,
 						   r->in.function_code,
 						   r->in.query_level,
@@ -212,12 +219,12 @@ WERROR I_NetLogonControl2_r(struct libnetapi_ctx *ctx,
 		break;
 	}
 
-	if (!W_ERROR_IS_OK(werr)) {
+	if (!NT_STATUS_IS_OK(status)) {
+		werr = ntstatus_to_werror(status);
 		goto done;
 	}
 
-	if (!NT_STATUS_IS_OK(status)) {
-		werr = ntstatus_to_werror(status);
+	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
 

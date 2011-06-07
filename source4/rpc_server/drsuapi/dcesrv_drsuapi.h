@@ -31,6 +31,7 @@ enum drsuapi_handle {
 */
 struct drsuapi_bind_state {
 	struct ldb_context *sam_ctx;
+	struct ldb_context *sam_ctx_system;
 	struct GUID remote_bind_guid;
 	struct drsuapi_DsBindInfo28 remote_info28;
 	struct drsuapi_DsBindInfo28 local_info28;
@@ -39,12 +40,16 @@ struct drsuapi_bind_state {
 
 
 /* prototypes of internal functions */
+WERROR drsuapi_UpdateRefs(struct drsuapi_bind_state *b_state, TALLOC_CTX *mem_ctx,
+			  struct drsuapi_DsReplicaUpdateRefsRequest1 *req);
 WERROR dcesrv_drsuapi_DsReplicaUpdateRefs(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 					  struct drsuapi_DsReplicaUpdateRefs *r);
 WERROR dcesrv_drsuapi_DsGetNCChanges(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 				     struct drsuapi_DsGetNCChanges *r);
 WERROR dcesrv_drsuapi_DsAddEntry(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 				 struct drsuapi_DsAddEntry *r);
+WERROR dcesrv_drsuapi_DsWriteAccountSpn(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+					struct drsuapi_DsWriteAccountSpn *r);
 
 char *drs_ObjectIdentifier_to_string(TALLOC_CTX *mem_ctx,
 				     struct drsuapi_DsReplicaObjectIdentifier *nc);
@@ -55,11 +60,23 @@ int drsuapi_search_with_extended_dn(struct ldb_context *ldb,
 				    struct ldb_dn *basedn,
 				    enum ldb_scope scope,
 				    const char * const *attrs,
-				    const char *sort_attrib,
 				    const char *filter);
 
 WERROR drs_security_level_check(struct dcesrv_call_state *dce_call,
-				const char* call);
+				const char* call, enum security_user_level minimum_level,
+				const struct dom_sid *domain_sid);
 
 void drsuapi_process_secret_attribute(struct drsuapi_DsReplicaAttribute *attr,
 				      struct drsuapi_DsReplicaMetaData *meta_data);
+
+WERROR drs_security_access_check(struct ldb_context *sam_ctx,
+				 TALLOC_CTX *mem_ctx,
+				 struct security_token *token,
+				 struct drsuapi_DsReplicaObjectIdentifier *nc,
+				 const char *ext_right);
+
+WERROR drs_security_access_check_nc_root(struct ldb_context *sam_ctx,
+					 TALLOC_CTX *mem_ctx,
+					 struct security_token *token,
+					 struct drsuapi_DsReplicaObjectIdentifier *nc,
+					 const char *ext_right);

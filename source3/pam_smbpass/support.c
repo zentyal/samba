@@ -19,6 +19,7 @@
 #include "general.h"
 
 #include "support.h"
+#include "secrets.h"
 
 #include "../libcli/auth/libcli_auth.h"
 #if defined(HAVE_SECURITY_PAM_EXT_H)
@@ -92,21 +93,19 @@ void _log_err( pam_handle_t *pamh, int err, const char *format, ... )
 void _log_err( pam_handle_t *pamh, int err, const char *format, ... )
 {
 	va_list args;
-	const char tag[] = "(pam_smbpass) ";
 	char *mod_format;
 
-	mod_format = SMB_MALLOC_ARRAY(char, sizeof(tag) + strlen(format));
-	/* try really, really hard to log something, since this may have
-	   been a message about a malloc() failure... */
-	if (mod_format == NULL) {
+	if (asprintf(&mod_format, "(pam_smbpass) %s", format) == -1) {
+		/*
+		 * try really, really hard to log something, since
+		 * this may have been a message about a malloc()
+		 * failure...
+		 */
 		va_start(args, format);
 		vsyslog(err | LOG_AUTH, format, args);
 		va_end(args);
 		return;
 	}
-
-	strncpy(mod_format, tag, strlen(tag)+1);
-	strlcat(mod_format, format, strlen(format)+1);
 
 	va_start(args, format);
 	vsyslog(err | LOG_AUTH, mod_format, args);
@@ -380,13 +379,10 @@ int _smb_verify_password( pam_handle_t * pamh, struct samu *sampass,
         }
     }
 
-    data_name = SMB_MALLOC_ARRAY(char, sizeof(FAIL_PREFIX) + strlen( name ));
-    if (data_name == NULL) {
+    if (asprintf(&data_name, "-SMB-FAIL- %s", name) == -1) {
         _log_err(pamh, LOG_CRIT, "no memory for data-name" );
         return PAM_AUTH_ERR;
     }
-    strncpy( data_name, FAIL_PREFIX, sizeof(FAIL_PREFIX) );
-    strncpy( data_name + sizeof(FAIL_PREFIX) - 1, name, strlen( name ) + 1 );
 
     /*
      * The password we were given wasn't an encrypted password, or it

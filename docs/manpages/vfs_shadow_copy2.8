@@ -2,12 +2,12 @@
 .\"     Title: vfs_shadow_copy2
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 03/06/2011
+.\"      Date: 06/07/2011
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.5
+.\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "VFS_SHADOW_COPY2" "8" "03/06/2011" "Samba 3\&.5" "System Administration tools"
+.TH "VFS_SHADOW_COPY2" "8" "06/07/2011" "Samba 3\&.6" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -140,6 +140,7 @@ is the 2 digit minute
 .\}
 ss
 is the 2 digit second\&.
+.RE
 .sp
 .RE
 .PP
@@ -171,6 +172,21 @@ shadow:basedir = BASEDIR
 Path to the base directory that snapshots are from\&.
 .RE
 .PP
+shadow:sort = asc/desc, or not specified for unsorted (default)
+.RS 4
+By this parameter one can specify that the shadow copy directories should be sorted before they are sent to the client\&. This can be beneficial as unix filesystems are usually not listed alphabetically sorted\&. If enabled, you typically want to specify descending order\&.
+.RE
+.PP
+shadow:localtime = yes/no
+.RS 4
+This is an optional parameter that indicates whether the snapshot names are in UTC/GMT or in local time\&. By default UTC is expected\&.
+.RE
+.PP
+shadow:format = format specification for snapshot names
+.RS 4
+This is an optional parameter that specifies the format specification for the naming of snapshots\&. The format must be compatible with the conversion specifications recognized by str[fp]time\&. The default value is "@GMT\-%Y\&.%m\&.%d\-%H\&.%M\&.%S"\&.
+.RE
+.PP
 shadow:fixinodes = yes/no
 .RS 4
 If you enable
@@ -189,6 +205,7 @@ Add shadow copy support to user home directories:
 	\m[blue]\fBvfs objects = shadow_copy2\fR\m[]
 	\m[blue]\fBshadow:snapdir = /data/snaphots\fR\m[]
 	\m[blue]\fBshadow:basedir = /data/home\fR\m[]
+	\m[blue]\fBshadow:sort = desc\fR\m[]
 .fi
 .if n \{\
 .RE

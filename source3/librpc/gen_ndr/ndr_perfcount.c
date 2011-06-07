@@ -44,6 +44,7 @@ static enum ndr_err_code ndr_pull_SYSTEMTIME(struct ndr_pull *ndr, int ndr_flags
 _PUBLIC_ void ndr_print_SYSTEMTIME(struct ndr_print *ndr, const char *name, const struct SYSTEMTIME *r)
 {
 	ndr_print_struct(ndr, name, "SYSTEMTIME");
+	if (r == NULL) { ndr_print_null(ndr); return; }
 	ndr->depth++;
 	ndr_print_uint16(ndr, "year", r->year);
 	ndr_print_uint16(ndr, "month", r->month);
@@ -101,6 +102,7 @@ _PUBLIC_ enum ndr_err_code ndr_pull_PERF_COUNTER_DEFINITION(struct ndr_pull *ndr
 _PUBLIC_ void ndr_print_PERF_COUNTER_DEFINITION(struct ndr_print *ndr, const char *name, const struct PERF_COUNTER_DEFINITION *r)
 {
 	ndr_print_struct(ndr, name, "PERF_COUNTER_DEFINITION");
+	if (r == NULL) { ndr_print_null(ndr); return; }
 	ndr->depth++;
 	ndr_print_uint32(ndr, "ByteLength", r->ByteLength);
 	ndr_print_uint32(ndr, "CounterNameTitleIndex", r->CounterNameTitleIndex);
@@ -145,6 +147,7 @@ _PUBLIC_ enum ndr_err_code ndr_pull_PERF_COUNTER_BLOCK(struct ndr_pull *ndr, int
 _PUBLIC_ void ndr_print_PERF_COUNTER_BLOCK(struct ndr_print *ndr, const char *name, const struct PERF_COUNTER_BLOCK *r)
 {
 	ndr_print_struct(ndr, name, "PERF_COUNTER_BLOCK");
+	if (r == NULL) { ndr_print_null(ndr); return; }
 	ndr->depth++;
 	ndr_print_uint32(ndr, "ByteLength", r->ByteLength);
 	ndr_print_array_uint8(ndr, "data", r->data, r->ByteLength);
@@ -208,6 +211,7 @@ _PUBLIC_ enum ndr_err_code ndr_pull_PERF_INSTANCE_DEFINITION(struct ndr_pull *nd
 _PUBLIC_ void ndr_print_PERF_INSTANCE_DEFINITION(struct ndr_print *ndr, const char *name, const struct PERF_INSTANCE_DEFINITION *r)
 {
 	ndr_print_struct(ndr, name, "PERF_INSTANCE_DEFINITION");
+	if (r == NULL) { ndr_print_null(ndr); return; }
 	ndr->depth++;
 	ndr_print_uint32(ndr, "ByteLength", r->ByteLength);
 	ndr_print_uint32(ndr, "ParentObjectTitleIndex", r->ParentObjectTitleIndex);
@@ -317,6 +321,7 @@ _PUBLIC_ void ndr_print_PERF_OBJECT_TYPE(struct ndr_print *ndr, const char *name
 	uint32_t cntr_counters_0;
 	uint32_t cntr_instances_0;
 	ndr_print_struct(ndr, name, "PERF_OBJECT_TYPE");
+	if (r == NULL) { ndr_print_null(ndr); return; }
 	ndr->depth++;
 	ndr_print_uint32(ndr, "TotalByteLength", r->TotalByteLength);
 	ndr_print_uint32(ndr, "DefinitionLength", r->DefinitionLength);
@@ -335,21 +340,13 @@ _PUBLIC_ void ndr_print_PERF_OBJECT_TYPE(struct ndr_print *ndr, const char *name
 	ndr->print(ndr, "%s: ARRAY(%d)", "counters", (int)r->NumCounters);
 	ndr->depth++;
 	for (cntr_counters_0=0;cntr_counters_0<r->NumCounters;cntr_counters_0++) {
-		char *idx_0=NULL;
-		if (asprintf(&idx_0, "[%d]", cntr_counters_0) != -1) {
-			ndr_print_PERF_COUNTER_DEFINITION(ndr, "counters", &r->counters[cntr_counters_0]);
-			free(idx_0);
-		}
+		ndr_print_PERF_COUNTER_DEFINITION(ndr, "counters", &r->counters[cntr_counters_0]);
 	}
 	ndr->depth--;
 	ndr->print(ndr, "%s: ARRAY(%d)", "instances", (int)r->NumInstances);
 	ndr->depth++;
 	for (cntr_instances_0=0;cntr_instances_0<r->NumInstances;cntr_instances_0++) {
-		char *idx_0=NULL;
-		if (asprintf(&idx_0, "[%d]", cntr_instances_0) != -1) {
-			ndr_print_PERF_INSTANCE_DEFINITION(ndr, "instances", &r->instances[cntr_instances_0]);
-			free(idx_0);
-		}
+		ndr_print_PERF_INSTANCE_DEFINITION(ndr, "instances", &r->instances[cntr_instances_0]);
 	}
 	ndr->depth--;
 	ndr_print_PERF_COUNTER_BLOCK(ndr, "counter_data", &r->counter_data);
@@ -459,15 +456,12 @@ _PUBLIC_ void ndr_print_PERF_DATA_BLOCK(struct ndr_print *ndr, const char *name,
 	uint32_t cntr_Signature_0;
 	uint32_t cntr_objects_0;
 	ndr_print_struct(ndr, name, "PERF_DATA_BLOCK");
+	if (r == NULL) { ndr_print_null(ndr); return; }
 	ndr->depth++;
 	ndr->print(ndr, "%s: ARRAY(%d)", "Signature", (int)4);
 	ndr->depth++;
 	for (cntr_Signature_0=0;cntr_Signature_0<4;cntr_Signature_0++) {
-		char *idx_0=NULL;
-		if (asprintf(&idx_0, "[%d]", cntr_Signature_0) != -1) {
-			ndr_print_uint16(ndr, "Signature", r->Signature[cntr_Signature_0]);
-			free(idx_0);
-		}
+		ndr_print_uint16(ndr, "Signature", r->Signature[cntr_Signature_0]);
 	}
 	ndr->depth--;
 	ndr_print_uint32(ndr, "LittleEndian", r->LittleEndian);
@@ -493,11 +487,7 @@ _PUBLIC_ void ndr_print_PERF_DATA_BLOCK(struct ndr_print *ndr, const char *name,
 	ndr->print(ndr, "%s: ARRAY(%d)", "objects", (int)r->NumObjectTypes);
 	ndr->depth++;
 	for (cntr_objects_0=0;cntr_objects_0<r->NumObjectTypes;cntr_objects_0++) {
-		char *idx_0=NULL;
-		if (asprintf(&idx_0, "[%d]", cntr_objects_0) != -1) {
-			ndr_print_PERF_OBJECT_TYPE(ndr, "objects", &r->objects[cntr_objects_0]);
-			free(idx_0);
-		}
+		ndr_print_PERF_OBJECT_TYPE(ndr, "objects", &r->objects[cntr_objects_0]);
 	}
 	ndr->depth--;
 	ndr->depth--;

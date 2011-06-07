@@ -27,7 +27,6 @@
 #include "smbd/service_task.h"
 #include "auth/credentials/credentials.h"
 #include "libcli/auth/libcli_auth.h"
-#include "librpc/gen_ndr/ndr_netlogon.h"
 #include "librpc/gen_ndr/ndr_netlogon_c.h"
 #include "librpc/gen_ndr/winbind.h"
 
@@ -44,7 +43,7 @@ struct wb_sam_logon_state {
 };
 
 static void wb_sam_logon_recv_domain(struct composite_context *ctx);
-static void wb_sam_logon_recv_samlogon(struct rpc_request *req);
+static void wb_sam_logon_recv_samlogon(struct tevent_req *subreq);
 
 /*
     Find the connection to the DC (or find an existing connection)
@@ -79,8 +78,8 @@ static void wb_sam_logon_recv_domain(struct composite_context *creq)
 {
 	struct wb_sam_logon_state *s = talloc_get_type(creq->async.private_data,
 				       struct wb_sam_logon_state);
-	struct rpc_request *req;
 	struct wbsrv_domain *domain;
+	struct tevent_req *subreq;
 
 	s->ctx->status = wb_sid2domain_recv(creq, &domain);
 	if (!composite_is_ok(s->ctx)) return;
@@ -114,8 +113,12 @@ static void wb_sam_logon_recv_domain(struct composite_context *creq)
 	s->r_mem_ctx = talloc_new(s);
 	if (composite_nomem(s->r_mem_ctx, s->ctx)) return;
 
-	req = dcerpc_netr_LogonSamLogon_send(domain->netlogon_pipe, s->r_mem_ctx, &s->r);
-	composite_continue_rpc(s->ctx, req, wb_sam_logon_recv_samlogon, s);
+	subreq = dcerpc_netr_LogonSamLogon_r_send(s,
+						  s->ctx->event_ctx,
+						  domain->netlogon_pipe->binding_handle,
+						  &s->r);
+	if (composite_nomem(subreq, s->ctx)) return;
+	tevent_req_set_callback(subreq, wb_sam_logon_recv_samlogon, s);
 }
 
 /* 
@@ -123,12 +126,13 @@ static void wb_sam_logon_recv_domain(struct composite_context *creq)
    
    Check the SamLogon reply and decrypt the session keys
 */
-static void wb_sam_logon_recv_samlogon(struct rpc_request *req)
+static void wb_sam_logon_recv_samlogon(struct tevent_req *subreq)
 {
-	struct wb_sam_logon_state *s = talloc_get_type(req->async.private_data,
+	struct wb_sam_logon_state *s = tevent_req_callback_data(subreq,
 				       struct wb_sam_logon_state);
 
-	s->ctx->status = dcerpc_ndr_request_recv(req);
+	s->ctx->status = dcerpc_netr_LogonSamLogon_r_recv(subreq, s->r_mem_ctx);
+	TALLOC_FREE(subreq);
 	if (!composite_is_ok(s->ctx)) return;
 
 	s->ctx->status = s->r.out.result;

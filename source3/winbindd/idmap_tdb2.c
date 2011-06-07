@@ -14,91 +14,96 @@
    Copyright (C) Jim McDonough <jmcd@us.ibm.com> 2003
    Copyright (C) Jeremy Allison 2006
    Copyright (C) Simo Sorce 2003-2006
-   
+   Copyright (C) Michael Adam 2009-2010
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
+#include "system/filesys.h"
 #include "winbindd.h"
+#include "idmap.h"
+#include "idmap_rw.h"
+#include "dbwrap.h"
+#include "../libcli/security/dom_sid.h"
+#include "util_tdb.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_IDMAP
+
+struct idmap_tdb2_context {
+	struct db_context *db;
+	const char *script; /* script to provide idmaps */
+	struct idmap_rw_ops *rw_ops;
+};
 
 /* High water mark keys */
 #define HWM_GROUP  "GROUP HWM"
 #define HWM_USER   "USER HWM"
 
-static struct idmap_tdb2_state {
-	/* User and group id pool */
-	uid_t low_uid, high_uid;               /* Range of uids to allocate */
-	gid_t low_gid, high_gid;               /* Range of gids to allocate */
-	const char *idmap_script;
-} idmap_tdb2_state;
 
-
-
-/* handle to the permanent tdb */
-static struct db_context *idmap_tdb2;
-
-static NTSTATUS idmap_tdb2_alloc_load(void);
-
-static NTSTATUS idmap_tdb2_load_ranges(void)
+/*
+ * check and initialize high/low water marks in the db
+ */
+static NTSTATUS idmap_tdb2_init_hwm(struct idmap_domain *dom)
 {
-	uid_t low_uid = 0;
-	uid_t high_uid = 0;
-	gid_t low_gid = 0;
-	gid_t high_gid = 0;
+	NTSTATUS status;
+	uint32 low_id;
+	struct idmap_tdb2_context *ctx;
 
-	if (!lp_idmap_uid(&low_uid, &high_uid)) {
-		DEBUG(1, ("idmap uid missing\n"));
-		return NT_STATUS_UNSUCCESSFUL;
+	ctx = talloc_get_type(dom->private_data, struct idmap_tdb2_context);
+
+	/* Create high water marks for group and user id */
+
+	low_id = dbwrap_fetch_int32(ctx->db, HWM_USER);
+	if ((low_id == -1) || (low_id < dom->low_id)) {
+		status = dbwrap_trans_store_int32(ctx->db, HWM_USER,
+						  dom->low_id);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(0, ("Unable to initialise user hwm in idmap "
+				  "database: %s\n", nt_errstr(status)));
+			return NT_STATUS_INTERNAL_DB_ERROR;
+		}
 	}
 
-	if (!lp_idmap_gid(&low_gid, &high_gid)) {
-		DEBUG(1, ("idmap gid missing\n"));
-		return NT_STATUS_UNSUCCESSFUL;
-	}
-
-	idmap_tdb2_state.low_uid = low_uid;
-	idmap_tdb2_state.high_uid = high_uid;
-	idmap_tdb2_state.low_gid = low_gid;
-	idmap_tdb2_state.high_gid = high_gid;
-
-	if (idmap_tdb2_state.high_uid <= idmap_tdb2_state.low_uid) {
-		DEBUG(1, ("idmap uid range missing or invalid\n"));
-		DEBUGADD(1, ("idmap will be unable to map foreign SIDs\n"));
-		return NT_STATUS_UNSUCCESSFUL;
-	}
-
-	if (idmap_tdb2_state.high_gid <= idmap_tdb2_state.low_gid) {
-		DEBUG(1, ("idmap gid range missing or invalid\n"));
-		DEBUGADD(1, ("idmap will be unable to map foreign SIDs\n"));
-		return NT_STATUS_UNSUCCESSFUL;
+	low_id = dbwrap_fetch_int32(ctx->db, HWM_GROUP);
+	if ((low_id == -1) || (low_id < dom->low_id)) {
+		status = dbwrap_trans_store_int32(ctx->db, HWM_GROUP,
+						  dom->low_id);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(0, ("Unable to initialise group hwm in idmap "
+				  "database: %s\n", nt_errstr(status)));
+			return NT_STATUS_INTERNAL_DB_ERROR;
+		}
 	}
 
 	return NT_STATUS_OK;
 }
 
+
 /*
   open the permanent tdb
  */
-static NTSTATUS idmap_tdb2_open_db(void)
+static NTSTATUS idmap_tdb2_open_db(struct idmap_domain *dom)
 {
 	char *db_path;
-	
-	if (idmap_tdb2) {
+	struct idmap_tdb2_context *ctx;
+
+	ctx = talloc_get_type(dom->private_data, struct idmap_tdb2_context);
+
+	if (ctx->db) {
 		/* its already open */
 		return NT_STATUS_OK;
 	}
@@ -112,81 +117,16 @@ static NTSTATUS idmap_tdb2_open_db(void)
 	NT_STATUS_HAVE_NO_MEMORY(db_path);
 
 	/* Open idmap repository */
-	idmap_tdb2 = db_open(NULL, db_path, 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0644);
+	ctx->db = db_open(ctx, db_path, 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0644);
 	TALLOC_FREE(db_path);
 
-	if (idmap_tdb2 == NULL) {
+	if (ctx->db == NULL) {
 		DEBUG(0, ("Unable to open idmap_tdb2 database '%s'\n",
 			  db_path));
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
-	/* load the ranges and high/low water marks */
-	return idmap_tdb2_alloc_load();
-}
-
-
-/*
-  load the idmap allocation ranges and high/low water marks
-*/
-static NTSTATUS idmap_tdb2_alloc_load(void)
-{
-	NTSTATUS status;
-	uint32 low_id;
-
-	/* see if a idmap script is configured */
-	idmap_tdb2_state.idmap_script = lp_parm_const_string(-1, "idmap",
-							     "script", NULL);
-
-	if (idmap_tdb2_state.idmap_script) {
-		DEBUG(1, ("using idmap script '%s'\n",
-			  idmap_tdb2_state.idmap_script));
-	}
-
-	/* load ranges */
-
-	status = idmap_tdb2_load_ranges();
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	/* Create high water marks for group and user id */
-
-	low_id = dbwrap_fetch_int32(idmap_tdb2, HWM_USER);
-	if ((low_id == -1) || (low_id < idmap_tdb2_state.low_uid)) {
-		if (!NT_STATUS_IS_OK(dbwrap_trans_store_int32(
-					     idmap_tdb2, HWM_USER,
-					     idmap_tdb2_state.low_uid))) {
-			DEBUG(0, ("Unable to initialise user hwm in idmap "
-				  "database\n"));
-			return NT_STATUS_INTERNAL_DB_ERROR;
-		}
-	}
-
-	low_id = dbwrap_fetch_int32(idmap_tdb2, HWM_GROUP);
-	if ((low_id == -1) || (low_id < idmap_tdb2_state.low_gid)) {
-		if (!NT_STATUS_IS_OK(dbwrap_trans_store_int32(
-					     idmap_tdb2, HWM_GROUP,
-					     idmap_tdb2_state.low_gid))) {
-			DEBUG(0, ("Unable to initialise group hwm in idmap "
-				  "database\n"));
-			return NT_STATUS_INTERNAL_DB_ERROR;
-		}
-	}
-
-	return NT_STATUS_OK;
-}
-
-
-/*
-  Initialise idmap alloc database. 
-*/
-static NTSTATUS idmap_tdb2_alloc_init(const char *params)
-{
-	/* nothing to do - we want to avoid opening the permanent
-	   database if possible. Instead we load the params when we
-	   first need it. */
-	return NT_STATUS_OK;
+	return idmap_tdb2_init_hwm(dom);
 }
 
 
@@ -247,7 +187,8 @@ done:
 	return ret;
 }
 
-static NTSTATUS idmap_tdb2_allocate_id(struct unixid *xid)
+static NTSTATUS idmap_tdb2_allocate_id(struct idmap_domain *dom,
+				       struct unixid *xid)
 {
 	const char *hwmkey;
 	const char *hwmtype;
@@ -255,9 +196,12 @@ static NTSTATUS idmap_tdb2_allocate_id(struct unixid *xid)
 	uint32_t hwm = 0;
 	NTSTATUS status;
 	struct idmap_tdb2_allocate_id_context state;
+	struct idmap_tdb2_context *ctx;
 
-	status = idmap_tdb2_open_db();
+	status = idmap_tdb2_open_db(dom);
 	NT_STATUS_NOT_OK_RETURN(status);
+
+	ctx = talloc_get_type(dom->private_data, struct idmap_tdb2_context);
 
 	/* Get current high water mark */
 	switch (xid->type) {
@@ -265,13 +209,11 @@ static NTSTATUS idmap_tdb2_allocate_id(struct unixid *xid)
 	case ID_TYPE_UID:
 		hwmkey = HWM_USER;
 		hwmtype = "UID";
-		high_hwm = idmap_tdb2_state.high_uid;
 		break;
 
 	case ID_TYPE_GID:
 		hwmkey = HWM_GROUP;
 		hwmtype = "GID";
-		high_hwm = idmap_tdb2_state.high_gid;
 		break;
 
 	default:
@@ -279,17 +221,19 @@ static NTSTATUS idmap_tdb2_allocate_id(struct unixid *xid)
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
+	high_hwm = dom->high_id;
+
 	state.hwm = hwm;
 	state.high_hwm = high_hwm;
 	state.hwmtype = hwmtype;
 	state.hwmkey = hwmkey;
 
-	status = dbwrap_trans_do(idmap_tdb2, idmap_tdb2_allocate_id_action,
+	status = dbwrap_trans_do(ctx->db, idmap_tdb2_allocate_id_action,
 				 &state);
 
 	if (NT_STATUS_IS_OK(status)) {
 		xid->id = state.hwm;
-		DEBUG(10,("New %s = %d\n", hwmtype, hwm));
+		DEBUG(10,("New %s = %d\n", hwmtype, state.hwm));
 	} else {
 		DEBUG(1, ("Error allocating a new %s\n", hwmtype));
 	}
@@ -297,133 +241,59 @@ static NTSTATUS idmap_tdb2_allocate_id(struct unixid *xid)
 	return status;
 }
 
-/*
-  Get current highest id. 
-*/
-static NTSTATUS idmap_tdb2_get_hwm(struct unixid *xid)
+/**
+ * Allocate a new unix-ID.
+ * For now this is for the default idmap domain only.
+ * Should be extended later on.
+ */
+static NTSTATUS idmap_tdb2_get_new_id(struct idmap_domain *dom,
+				      struct unixid *id)
 {
-	const char *hwmkey;
-	const char *hwmtype;
-	uint32_t hwm;
-	uint32_t high_hwm;
-	NTSTATUS status;
+	NTSTATUS ret;
 
-	status = idmap_tdb2_open_db();
-	NT_STATUS_NOT_OK_RETURN(status);
-
-	/* Get current high water mark */
-	switch (xid->type) {
-
-	case ID_TYPE_UID:
-		hwmkey = HWM_USER;
-		hwmtype = "UID";
-		high_hwm = idmap_tdb2_state.high_uid;
-		break;
-
-	case ID_TYPE_GID:
-		hwmkey = HWM_GROUP;
-		hwmtype = "GID";
-		high_hwm = idmap_tdb2_state.high_gid;
-		break;
-
-	default:
-		return NT_STATUS_INVALID_PARAMETER;
+	if (!strequal(dom->name, "*")) {
+		DEBUG(3, ("idmap_tdb2_get_new_id: "
+			  "Refusing creation of mapping for domain'%s'. "
+			  "Currently only supported for the default "
+			  "domain \"*\".\n",
+			   dom->name));
+		return NT_STATUS_NOT_IMPLEMENTED;
 	}
 
-	if ((hwm = dbwrap_fetch_int32(idmap_tdb2, hwmkey)) == -1) {
-		return NT_STATUS_INTERNAL_DB_ERROR;
-	}
+	ret = idmap_tdb2_allocate_id(dom, id);
 
-	xid->id = hwm;
-
-	/* Warn if it is out of range */
-	if (hwm >= high_hwm) {
-		DEBUG(0, ("Warning: %s range full!! (max: %lu)\n", 
-			  hwmtype, (unsigned long)high_hwm));
-	}
-
-	return NT_STATUS_OK;
-}
-
-/*
-  Set high id. 
-*/
-static NTSTATUS idmap_tdb2_set_hwm(struct unixid *xid)
-{
-	/* not supported, or we would invalidate the cache tdb on
-	   other nodes */
-	DEBUG(0,("idmap_tdb2_set_hwm not supported\n"));
-	return NT_STATUS_NOT_SUPPORTED;
-}
-
-/*
-  Close the alloc tdb 
-*/
-static NTSTATUS idmap_tdb2_alloc_close(void)
-{
-	/* don't actually close it */
-	return NT_STATUS_OK;
+	return ret;
 }
 
 /*
   IDMAP MAPPING TDB BACKEND
 */
-struct idmap_tdb2_context {
-	uint32_t filter_low_id;
-	uint32_t filter_high_id;
-};
+
+static NTSTATUS idmap_tdb2_set_mapping(struct idmap_domain *dom,
+				       const struct id_map *map);
 
 /*
   Initialise idmap database. 
 */
-static NTSTATUS idmap_tdb2_db_init(struct idmap_domain *dom,
-				   const char *params)
+static NTSTATUS idmap_tdb2_db_init(struct idmap_domain *dom)
 {
 	NTSTATUS ret;
 	struct idmap_tdb2_context *ctx;
-	NTSTATUS status;
 
-	status = idmap_tdb2_open_db();
-	NT_STATUS_NOT_OK_RETURN(status);
-
-	ctx = talloc(dom, struct idmap_tdb2_context);
+	ctx = talloc_zero(dom, struct idmap_tdb2_context);
 	if ( ! ctx) {
 		DEBUG(0, ("Out of memory!\n"));
 		return NT_STATUS_NO_MEMORY;
 	}
 
 	if (strequal(dom->name, "*")) {
-		uid_t low_uid = 0;
-		uid_t high_uid = 0;
-		gid_t low_gid = 0;
-		gid_t high_gid = 0;
-
-		ctx->filter_low_id = 0;
-		ctx->filter_high_id = 0;
-
-		if (lp_idmap_uid(&low_uid, &high_uid)) {
-			ctx->filter_low_id = low_uid;
-			ctx->filter_high_id = high_uid;
-		} else {
-			DEBUG(3, ("Warning: 'idmap uid' not set!\n"));
-		}
-
-		if (lp_idmap_gid(&low_gid, &high_gid)) {
-			if ((low_gid != low_uid) || (high_gid != high_uid)) {
-				DEBUG(1, ("Warning: 'idmap uid' and 'idmap gid'"
-				      " ranges do not agree -- building "
-				      "intersection\n"));
-				ctx->filter_low_id = MAX(ctx->filter_low_id,
-							 low_gid);
-				ctx->filter_high_id = MIN(ctx->filter_high_id,
-							  high_gid);
-			}
-		} else {
-			DEBUG(3, ("Warning: 'idmap gid' not set!\n"));
+		ctx->script = lp_parm_const_string(-1, "idmap", "script", NULL);
+		if (ctx->script) {
+			DEBUG(1, ("using idmap script '%s'\n", ctx->script));
 		}
 	} else {
 		char *config_option = NULL;
-		const char *range;
+
 		config_option = talloc_asprintf(ctx, "idmap config %s", dom->name);
 		if ( ! config_option) {
 			DEBUG(0, ("Out of memory!\n"));
@@ -431,23 +301,30 @@ static NTSTATUS idmap_tdb2_db_init(struct idmap_domain *dom,
 			goto failed;
 		}
 
-		range = lp_parm_const_string(-1, config_option, "range", NULL);
-		if (( ! range) ||
-		    (sscanf(range, "%u - %u", &ctx->filter_low_id, &ctx->filter_high_id) != 2))
-		{
-			ctx->filter_low_id = 0;
-			ctx->filter_high_id = 0;
+		ctx->script = lp_parm_const_string(-1, config_option, "script", NULL);
+		if (ctx->script) {
+			DEBUG(1, ("using idmap script '%s'\n", ctx->script));
 		}
 
 		talloc_free(config_option);
 	}
 
-	if (ctx->filter_low_id > ctx->filter_high_id) {
-		ctx->filter_low_id = 0;
-		ctx->filter_high_id = 0;
+	ctx->rw_ops = talloc_zero(ctx, struct idmap_rw_ops);
+	if (ctx->rw_ops == NULL) {
+		DEBUG(0, ("Out of memory!\n"));
+		ret = NT_STATUS_NO_MEMORY;
+		goto failed;
 	}
 
+	ctx->rw_ops->get_new_id = idmap_tdb2_get_new_id;
+	ctx->rw_ops->set_mapping = idmap_tdb2_set_mapping;
+
 	dom->private_data = ctx;
+
+	ret = idmap_tdb2_open_db(dom);
+	if (!NT_STATUS_IS_OK(ret)) {
+		goto failed;
+	}
 
 	return NT_STATUS_OK;
 
@@ -455,6 +332,11 @@ failed:
 	talloc_free(ctx);
 	return ret;
 }
+
+
+/**
+ * store a mapping in the database.
+ */
 
 struct idmap_tdb2_set_mapping_context {
 	const char *ksidstr;
@@ -505,6 +387,83 @@ done:
 	return ret;
 }
 
+static NTSTATUS idmap_tdb2_set_mapping(struct idmap_domain *dom, const struct id_map *map)
+{
+	struct idmap_tdb2_context *ctx;
+	NTSTATUS ret;
+	char *ksidstr, *kidstr;
+	struct idmap_tdb2_set_mapping_context state;
+
+	if (!map || !map->sid) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	ksidstr = kidstr = NULL;
+
+	/* TODO: should we filter a set_mapping using low/high filters ? */
+
+	ctx = talloc_get_type(dom->private_data, struct idmap_tdb2_context);
+
+	switch (map->xid.type) {
+
+	case ID_TYPE_UID:
+		kidstr = talloc_asprintf(ctx, "UID %lu", (unsigned long)map->xid.id);
+		break;
+
+	case ID_TYPE_GID:
+		kidstr = talloc_asprintf(ctx, "GID %lu", (unsigned long)map->xid.id);
+		break;
+
+	default:
+		DEBUG(2, ("INVALID unix ID type: 0x02%x\n", map->xid.type));
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	if (kidstr == NULL) {
+		DEBUG(0, ("ERROR: Out of memory!\n"));
+		ret = NT_STATUS_NO_MEMORY;
+		goto done;
+	}
+
+	ksidstr = sid_string_talloc(ctx, map->sid);
+	if (ksidstr == NULL) {
+		DEBUG(0, ("Out of memory!\n"));
+		ret = NT_STATUS_NO_MEMORY;
+		goto done;
+	}
+
+	state.ksidstr = ksidstr;
+	state.kidstr = kidstr;
+
+	ret = dbwrap_trans_do(ctx->db, idmap_tdb2_set_mapping_action,
+			      &state);
+
+done:
+	talloc_free(ksidstr);
+	talloc_free(kidstr);
+	return ret;
+}
+
+/**
+ * Create a new mapping for an unmapped SID, also allocating a new ID.
+ * This should be run inside a transaction.
+ *
+ * TODO:
+*  Properly integrate this with multi domain idmap config:
+ * Currently, the allocator is default-config only.
+ */
+static NTSTATUS idmap_tdb2_new_mapping(struct idmap_domain *dom, struct id_map *map)
+{
+	NTSTATUS ret;
+	struct idmap_tdb2_context *ctx;
+
+	ctx = talloc_get_type(dom->private_data, struct idmap_tdb2_context);
+
+	ret = idmap_rw_new_mapping(dom, ctx->rw_ops, map);
+
+	return ret;
+}
+
 
 /*
   run a script to perform a mapping
@@ -530,7 +489,7 @@ static NTSTATUS idmap_tdb2_script(struct idmap_tdb2_context *ctx, struct id_map 
 	char line[64];
 	unsigned long v;
 
-	cmd = talloc_asprintf(ctx, "%s ", idmap_tdb2_state.idmap_script);
+	cmd = talloc_asprintf(ctx, "%s ", ctx->script);
 	NT_STATUS_HAVE_NO_MEMORY(cmd);	
 
 	va_start(ap, fmt);
@@ -561,12 +520,12 @@ static NTSTATUS idmap_tdb2_script(struct idmap_tdb2_context *ctx, struct id_map 
 	} else if (strncmp(line, "SID:S-", 6) == 0) {
 		if (!string_to_sid(map->sid, &line[4])) {
 			DEBUG(0,("Bad SID in '%s' from idmap script %s\n",
-				 line, idmap_tdb2_state.idmap_script));
+				 line, ctx->script));
 			return NT_STATUS_NONE_MAPPED;			
 		}
 	} else {
 		DEBUG(0,("Bad reply '%s' from idmap script %s\n",
-			 line, idmap_tdb2_state.idmap_script));
+			 line, ctx->script));
 		return NT_STATUS_NONE_MAPPED;
 	}
 
@@ -578,25 +537,28 @@ static NTSTATUS idmap_tdb2_script(struct idmap_tdb2_context *ctx, struct id_map 
 /*
   Single id to sid lookup function. 
 */
-static NTSTATUS idmap_tdb2_id_to_sid(struct idmap_tdb2_context *ctx, struct id_map *map)
+static NTSTATUS idmap_tdb2_id_to_sid(struct idmap_domain *dom, struct id_map *map)
 {
 	NTSTATUS ret;
 	TDB_DATA data;
 	char *keystr;
 	NTSTATUS status;
+	struct idmap_tdb2_context *ctx;
 
-	status = idmap_tdb2_open_db();
-	NT_STATUS_NOT_OK_RETURN(status);
 
-	if (!ctx || !map) {
+	if (!dom || !map) {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
+	status = idmap_tdb2_open_db(dom);
+	NT_STATUS_NOT_OK_RETURN(status);
+
+	ctx = talloc_get_type(dom->private_data, struct idmap_tdb2_context);
+
 	/* apply filters before checking */
-	if ((ctx->filter_low_id && (map->xid.id < ctx->filter_low_id)) ||
-	    (ctx->filter_high_id && (map->xid.id > ctx->filter_high_id))) {
+	if (!idmap_unix_id_is_in_range(map->xid.id, dom)) {
 		DEBUG(5, ("Requested id (%u) out of range (%u - %u). Filtered!\n",
-				map->xid.id, ctx->filter_low_id, ctx->filter_high_id));
+				map->xid.id, dom->low_id, dom->high_id));
 		return NT_STATUS_NONE_MAPPED;
 	}
 
@@ -605,7 +567,7 @@ static NTSTATUS idmap_tdb2_id_to_sid(struct idmap_tdb2_context *ctx, struct id_m
 	case ID_TYPE_UID:
 		keystr = talloc_asprintf(ctx, "UID %lu", (unsigned long)map->xid.id);
 		break;
-		
+
 	case ID_TYPE_GID:
 		keystr = talloc_asprintf(ctx, "GID %lu", (unsigned long)map->xid.id);
 		break;
@@ -627,14 +589,14 @@ static NTSTATUS idmap_tdb2_id_to_sid(struct idmap_tdb2_context *ctx, struct id_m
 	DEBUG(10,("Fetching record %s\n", keystr));
 
 	/* Check if the mapping exists */
-	data = dbwrap_fetch_bystring(idmap_tdb2, keystr, keystr);
+	data = dbwrap_fetch_bystring(ctx->db, keystr, keystr);
 
 	if (!data.dptr) {
 		char *sidstr;
 		struct idmap_tdb2_set_mapping_context store_state;
 
 		DEBUG(10,("Record %s not found\n", keystr));
-		if (idmap_tdb2_state.idmap_script == NULL) {
+		if (ctx->script == NULL) {
 			ret = NT_STATUS_NONE_MAPPED;
 			goto done;
 		}
@@ -655,11 +617,11 @@ static NTSTATUS idmap_tdb2_id_to_sid(struct idmap_tdb2_context *ctx, struct id_m
 		store_state.ksidstr = sidstr;
 		store_state.kidstr = keystr;
 
-		ret = dbwrap_trans_do(idmap_tdb2, idmap_tdb2_set_mapping_action,
+		ret = dbwrap_trans_do(ctx->db, idmap_tdb2_set_mapping_action,
 				      &store_state);
 		goto done;
 	}
-		
+
 	if (!string_to_sid(map->sid, (const char *)data.dptr)) {
 		DEBUG(10,("INVALID SID (%s) in record %s\n",
 			(const char *)data.dptr, keystr));
@@ -679,16 +641,19 @@ done:
 /*
  Single sid to id lookup function. 
 */
-static NTSTATUS idmap_tdb2_sid_to_id(struct idmap_tdb2_context *ctx, struct id_map *map)
+static NTSTATUS idmap_tdb2_sid_to_id(struct idmap_domain *dom, struct id_map *map)
 {
 	NTSTATUS ret;
 	TDB_DATA data;
 	char *keystr;
 	unsigned long rec_id = 0;
+	struct idmap_tdb2_context *ctx;
 	TALLOC_CTX *tmp_ctx = talloc_stackframe();
 
-	ret = idmap_tdb2_open_db();
+	ret = idmap_tdb2_open_db(dom);
 	NT_STATUS_NOT_OK_RETURN(ret);
+
+	ctx = talloc_get_type(dom->private_data, struct idmap_tdb2_context);
 
 	keystr = sid_string_talloc(tmp_ctx, map->sid);
 	if (keystr == NULL) {
@@ -700,21 +665,30 @@ static NTSTATUS idmap_tdb2_sid_to_id(struct idmap_tdb2_context *ctx, struct id_m
 	DEBUG(10,("Fetching record %s\n", keystr));
 
 	/* Check if sid is present in database */
-	data = dbwrap_fetch_bystring(idmap_tdb2, tmp_ctx, keystr);
+	data = dbwrap_fetch_bystring(ctx->db, tmp_ctx, keystr);
 	if (!data.dptr) {
 		char *idstr;
 		struct idmap_tdb2_set_mapping_context store_state;
 
 		DEBUG(10,(__location__ " Record %s not found\n", keystr));
 
-		if (idmap_tdb2_state.idmap_script == NULL) {
+		if (ctx->script == NULL) {
 			ret = NT_STATUS_NONE_MAPPED;
 			goto done;
 		}
-			
+
 		ret = idmap_tdb2_script(ctx, map, "SIDTOID %s", keystr);
 		/* store it on shared storage */
 		if (!NT_STATUS_IS_OK(ret)) {
+			goto done;
+		}
+
+		/* apply filters before returning result */
+		if (!idmap_unix_id_is_in_range(map->xid.id, dom)) {
+			DEBUG(5, ("Script returned id (%u) out of range "
+				  "(%u - %u). Filtered!\n",
+				  map->xid.id, dom->low_id, dom->high_id));
+			ret = NT_STATUS_NONE_MAPPED;
 			goto done;
 		}
 
@@ -729,7 +703,7 @@ static NTSTATUS idmap_tdb2_sid_to_id(struct idmap_tdb2_context *ctx, struct id_m
 		store_state.ksidstr = keystr;
 		store_state.kidstr = idstr;
 
-		ret = dbwrap_trans_do(idmap_tdb2, idmap_tdb2_set_mapping_action,
+		ret = dbwrap_trans_do(ctx->db, idmap_tdb2_set_mapping_action,
 				      &store_state);
 		goto done;
 	}
@@ -750,13 +724,13 @@ static NTSTATUS idmap_tdb2_sid_to_id(struct idmap_tdb2_context *ctx, struct id_m
 	} else { /* Unknown record type ! */
 		DEBUG(2, ("Found INVALID record %s -> %s\n", keystr, (const char *)data.dptr));
 		ret = NT_STATUS_INTERNAL_DB_ERROR;
+		goto done;
 	}
-	
+
 	/* apply filters before returning result */
-	if ((ctx->filter_low_id && (map->xid.id < ctx->filter_low_id)) ||
-	    (ctx->filter_high_id && (map->xid.id > ctx->filter_high_id))) {
+	if (!idmap_unix_id_is_in_range(map->xid.id, dom)) {
 		DEBUG(5, ("Requested id (%u) out of range (%u - %u). Filtered!\n",
-				map->xid.id, ctx->filter_low_id, ctx->filter_high_id));
+				map->xid.id, dom->low_id, dom->high_id));
 		ret = NT_STATUS_NONE_MAPPED;
 	}
 
@@ -770,7 +744,6 @@ done:
 */
 static NTSTATUS idmap_tdb2_unixids_to_sids(struct idmap_domain *dom, struct id_map **ids)
 {
-	struct idmap_tdb2_context *ctx;
 	NTSTATUS ret;
 	int i;
 
@@ -778,11 +751,9 @@ static NTSTATUS idmap_tdb2_unixids_to_sids(struct idmap_domain *dom, struct id_m
 	for (i = 0; ids[i]; i++) {
 		ids[i]->status = ID_UNKNOWN;
 	}
-	
-	ctx = talloc_get_type(dom->private_data, struct idmap_tdb2_context);
 
 	for (i = 0; ids[i]; i++) {
-		ret = idmap_tdb2_id_to_sid(ctx, ids[i]);
+		ret = idmap_tdb2_id_to_sid(dom, ids[i]);
 		if ( ! NT_STATUS_IS_OK(ret)) {
 
 			/* if it is just a failed mapping continue */
@@ -792,7 +763,7 @@ static NTSTATUS idmap_tdb2_unixids_to_sids(struct idmap_domain *dom, struct id_m
 				ids[i]->status = ID_UNMAPPED;
 				continue;
 			}
-			
+
 			/* some fatal error occurred, return immediately */
 			goto done;
 		}
@@ -810,164 +781,107 @@ done:
 /*
   lookup a set of sids. 
 */
+
+struct idmap_tdb2_sids_to_unixids_context {
+	struct idmap_domain *dom;
+	struct id_map **ids;
+	bool allocate_unmapped;
+};
+
+static NTSTATUS idmap_tdb2_sids_to_unixids_action(struct db_context *db,
+						  void *private_data)
+{
+	struct idmap_tdb2_sids_to_unixids_context *state;
+	int i;
+	NTSTATUS ret = NT_STATUS_OK;
+
+	state = (struct idmap_tdb2_sids_to_unixids_context *)private_data;
+
+	DEBUG(10, ("idmap_tdb2_sids_to_unixids_action: "
+		   " domain: [%s], allocate: %s\n",
+		   state->dom->name,
+		   state->allocate_unmapped ? "yes" : "no"));
+
+	for (i = 0; state->ids[i]; i++) {
+		if ((state->ids[i]->status == ID_UNKNOWN) ||
+		    /* retry if we could not map in previous run: */
+		    (state->ids[i]->status == ID_UNMAPPED))
+		{
+			NTSTATUS ret2;
+
+			ret2 = idmap_tdb2_sid_to_id(state->dom, state->ids[i]);
+			if (!NT_STATUS_IS_OK(ret2)) {
+
+				/* if it is just a failed mapping, continue */
+				if (NT_STATUS_EQUAL(ret2, NT_STATUS_NONE_MAPPED)) {
+
+					/* make sure it is marked as unmapped */
+					state->ids[i]->status = ID_UNMAPPED;
+					ret = STATUS_SOME_UNMAPPED;
+				} else {
+					/* some fatal error occurred, return immediately */
+					ret = ret2;
+					goto done;
+				}
+			} else {
+				/* all ok, id is mapped */
+				state->ids[i]->status = ID_MAPPED;
+			}
+		}
+
+		if ((state->ids[i]->status == ID_UNMAPPED) &&
+		    state->allocate_unmapped)
+		{
+			ret = idmap_tdb2_new_mapping(state->dom, state->ids[i]);
+			if (!NT_STATUS_IS_OK(ret)) {
+				goto done;
+			}
+		}
+	}
+
+done:
+	return ret;
+}
+
 static NTSTATUS idmap_tdb2_sids_to_unixids(struct idmap_domain *dom, struct id_map **ids)
 {
-	struct idmap_tdb2_context *ctx;
 	NTSTATUS ret;
 	int i;
+	struct idmap_tdb2_sids_to_unixids_context state;
+	struct idmap_tdb2_context *ctx;
+
+	ctx = talloc_get_type(dom->private_data, struct idmap_tdb2_context);
 
 	/* initialize the status to avoid suprise */
 	for (i = 0; ids[i]; i++) {
 		ids[i]->status = ID_UNKNOWN;
 	}
-	
-	ctx = talloc_get_type(dom->private_data, struct idmap_tdb2_context);
 
-	for (i = 0; ids[i]; i++) {
-		ret = idmap_tdb2_sid_to_id(ctx, ids[i]);
-		if ( ! NT_STATUS_IS_OK(ret)) {
+	state.dom = dom;
+	state.ids = ids;
+	state.allocate_unmapped = false;
 
-			/* if it is just a failed mapping continue */
-			if (NT_STATUS_EQUAL(ret, NT_STATUS_NONE_MAPPED)) {
+	ret = idmap_tdb2_sids_to_unixids_action(ctx->db, &state);
 
-				/* make sure it is marked as unmapped */
-				ids[i]->status = ID_UNMAPPED;
-				continue;
-			}
-			
-			/* some fatal error occurred, return immediately */
-			goto done;
-		}
-
-		/* all ok, id is mapped */
-		ids[i]->status = ID_MAPPED;
+	if (NT_STATUS_EQUAL(ret, STATUS_SOME_UNMAPPED) && !dom->read_only) {
+		state.allocate_unmapped = true;
+		ret = dbwrap_trans_do(ctx->db,
+				      idmap_tdb2_sids_to_unixids_action,
+				      &state);
 	}
 
-	ret = NT_STATUS_OK;
-
-done:
 	return ret;
 }
 
-
-/*
-  set a mapping. 
-*/
-
-static NTSTATUS idmap_tdb2_set_mapping(struct idmap_domain *dom, const struct id_map *map)
-{
-	struct idmap_tdb2_context *ctx;
-	NTSTATUS ret;
-	char *ksidstr, *kidstr;
-	struct idmap_tdb2_set_mapping_context state;
-
-	if (!map || !map->sid) {
-		return NT_STATUS_INVALID_PARAMETER;
-	}
-
-	ksidstr = kidstr = NULL;
-
-	/* TODO: should we filter a set_mapping using low/high filters ? */
-	
-	ctx = talloc_get_type(dom->private_data, struct idmap_tdb2_context);
-
-	switch (map->xid.type) {
-
-	case ID_TYPE_UID:
-		kidstr = talloc_asprintf(ctx, "UID %lu", (unsigned long)map->xid.id);
-		break;
-		
-	case ID_TYPE_GID:
-		kidstr = talloc_asprintf(ctx, "GID %lu", (unsigned long)map->xid.id);
-		break;
-
-	default:
-		DEBUG(2, ("INVALID unix ID type: 0x02%x\n", map->xid.type));
-		return NT_STATUS_INVALID_PARAMETER;
-	}
-
-	if (kidstr == NULL) {
-		DEBUG(0, ("ERROR: Out of memory!\n"));
-		ret = NT_STATUS_NO_MEMORY;
-		goto done;
-	}
-
-	if (!(ksidstr = sid_string_talloc(ctx, map->sid))) {
-		DEBUG(0, ("Out of memory!\n"));
-		ret = NT_STATUS_NO_MEMORY;
-		goto done;
-	}
-
-	state.ksidstr = ksidstr;
-	state.kidstr = kidstr;
-
-	ret = dbwrap_trans_do(idmap_tdb2, idmap_tdb2_set_mapping_action,
-			      &state);
-
-done:
-	talloc_free(ksidstr);
-	talloc_free(kidstr);
-	return ret;
-}
-
-/*
-  remove a mapping. 
-*/
-static NTSTATUS idmap_tdb2_remove_mapping(struct idmap_domain *dom, const struct id_map *map)
-{
-	/* not supported as it would invalidate the cache tdb on other
-	   nodes */
-	DEBUG(0,("idmap_tdb2_remove_mapping not supported\n"));
-	return NT_STATUS_NOT_SUPPORTED;
-}
-
-/*
-  Close the idmap tdb instance
-*/
-static NTSTATUS idmap_tdb2_close(struct idmap_domain *dom)
-{
-	/* don't do anything */
-	return NT_STATUS_OK;
-}
-
-
-/*
-  Dump all mappings out
-*/
-static NTSTATUS idmap_tdb2_dump_data(struct idmap_domain *dom, struct id_map **maps, int *num_maps)
-{
-	DEBUG(0,("idmap_tdb2_dump_data not supported\n"));
-	return NT_STATUS_NOT_SUPPORTED;
-}
 
 static struct idmap_methods db_methods = {
 	.init            = idmap_tdb2_db_init,
 	.unixids_to_sids = idmap_tdb2_unixids_to_sids,
 	.sids_to_unixids = idmap_tdb2_sids_to_unixids,
-	.set_mapping     = idmap_tdb2_set_mapping,
-	.remove_mapping  = idmap_tdb2_remove_mapping,
-	.dump_data       = idmap_tdb2_dump_data,
-	.close_fn        = idmap_tdb2_close
-};
-
-static struct idmap_alloc_methods db_alloc_methods = {
-	.init        = idmap_tdb2_alloc_init,
-	.allocate_id = idmap_tdb2_allocate_id,
-	.get_id_hwm  = idmap_tdb2_get_hwm,
-	.set_id_hwm  = idmap_tdb2_set_hwm,
-	.close_fn    = idmap_tdb2_alloc_close
+	.allocate_id     = idmap_tdb2_get_new_id
 };
 
 NTSTATUS idmap_tdb2_init(void)
 {
-	NTSTATUS ret;
-
-	/* register both backends */
-	ret = smb_register_idmap_alloc(SMB_IDMAP_INTERFACE_VERSION, "tdb2", &db_alloc_methods);
-	if (! NT_STATUS_IS_OK(ret)) {
-		DEBUG(0, ("Unable to register idmap alloc tdb2 module: %s\n", get_friendly_nt_error_msg(ret)));
-		return ret;
-	}
-
 	return smb_register_idmap(SMB_IDMAP_INTERFACE_VERSION, "tdb2", &db_methods);
 }

@@ -7,7 +7,7 @@
 	<manvolnum>8</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">System Administration tools</refmiscinfo>
-	<refmiscinfo class="version">3.5</refmiscinfo>
+	<refmiscinfo class="version">3.6</refmiscinfo>
 </refmeta>
 
 
@@ -52,9 +52,8 @@
 
 	<programlisting>
 	[global]
-	idmap backend = hash
-	idmap uid = 1000-4000000000
-	idmap gid = 1000-4000000000
+	idmap config * : backend = hash
+	idmap config * : range = 1000-4000000000
 
 	winbind nss info = hash
 	winbind normalize names = yes

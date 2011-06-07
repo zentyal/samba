@@ -6,23 +6,26 @@
    Copyright (C) Tim Potter 2001
    Copyright (C) Andrew Bartlett 2002
    Copyright (C) Gerald Carter 2003
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
 #include "includes.h"
+#include "libads/sitename_cache.h"
+#include "ads.h"
+#include "../librpc/gen_ndr/nbt.h"
 
 /**********************************************************************
  Is this our primary domain ?
@@ -45,7 +48,7 @@ static bool is_our_primary_domain(const char *domain)
 /**************************************************************************
  Find the name and IP address for a server in the realm/domain
  *************************************************************************/
- 
+
 static bool ads_dc_name(const char *domain,
 			const char *realm,
 			struct sockaddr_storage *dc_ss,
@@ -98,7 +101,7 @@ static bool ads_dc_name(const char *domain,
 			continue;
 		}
 
-#ifdef HAVE_KRB5
+#ifdef HAVE_ADS
 		if (is_our_primary_domain(domain) && (ads->config.flags & NBT_SERVER_KDC)) {
 			if (ads_closest_dc(ads)) {
 				/* We're going to use this KDC for this realm/domain.
@@ -173,7 +176,7 @@ static bool rpc_dc_name(const char *domain,
 	/* Remove the entry we've already failed with (should be the PDC). */
 
 	for (i = 0; i < count; i++) {
-		if (is_zero_addr((struct sockaddr *)&ip_list[i].ss))
+		if (is_zero_addr(&ip_list[i].ss))
 			continue;
 
 		if (name_status_find(domain, 0x1c, 0x20, &ip_list[i].ss, srv_name)) {

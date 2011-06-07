@@ -32,6 +32,8 @@ cpp_quote("#define dom_sid0 dom_sid")
 interface security
 {
 
+	typedef bitmap lsa_SystemAccessModeFlags lsa_SystemAccessModeFlags;
+
 	typedef [public,gensize,noprint,nosize,nopull,nopush] struct {
 		uint8  sid_rev_num;             /**< SID revision number */
 		[range(0,15)] int8  num_auths;  /**< Number of sub-authorities */
@@ -262,55 +264,190 @@ interface security
 	const string SID_BUILTIN_PREW2K            = "S-1-5-32-554";
 	const string SID_BUILTIN_REMOTE_DESKTOP_USERS   = "S-1-5-32-555";
 	const string SID_BUILTIN_NETWORK_CONF_OPERATORS = "S-1-5-32-556";
+	const string SID_BUILTIN_INCOMING_FOREST_TRUST  = "S-1-5-32-557";
+	const string SID_BUILTIN_PERFMON_USERS		= "S-1-5-32-558";
+	const string SID_BUILTIN_PERFLOG_USERS		= "S-1-5-32-559";
+	const string SID_BUILTIN_AUTH_ACCESS 		= "S-1-5-32-560";
+	const string SID_BUILTIN_TS_LICENSE_SERVERS	= "S-1-5-32-561";
+
+	/* SECURITY_NT_SERVICE */
+	const string NAME_NT_SERVICE            = "NT SERVICE";
+
+	const string SID_NT_NT_SERVICE          = "S-1-5-80";
+	const string SID_NT_TRUSTED_INSTALLER =
+		"S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464";
 
 	/* well-known domain RIDs */
-	const int DOMAIN_RID_LOGON                 = 9;
-	const int DOMAIN_RID_ADMINISTRATOR         = 500;
-	const int DOMAIN_RID_GUEST                 = 501;
-	const int DOMAIN_RID_KRBTGT                = 502;
-	const int DOMAIN_RID_ADMINS                = 512;
-	const int DOMAIN_RID_USERS                 = 513;
-	const int DOMAIN_RID_GUESTS                = 514;
-	const int DOMAIN_RID_DOMAIN_MEMBERS        = 515;
-	const int DOMAIN_RID_DCS                   = 516;
-	const int DOMAIN_RID_CERT_ADMINS           = 517;
-	const int DOMAIN_RID_SCHEMA_ADMINS         = 518;
-	const int DOMAIN_RID_ENTERPRISE_ADMINS     = 519;
-	const int DOMAIN_RID_POLICY_ADMINS         = 520;
+	const int DOMAIN_RID_LOGON                   = 9;
+	const int DOMAIN_RID_ENTERPRISE_READONLY_DCS = 498;
+	const int DOMAIN_RID_ADMINISTRATOR           = 500;
+	const int DOMAIN_RID_GUEST                   = 501;
+	const int DOMAIN_RID_KRBTGT                  = 502;
+	const int DOMAIN_RID_ADMINS                  = 512;
+	const int DOMAIN_RID_USERS                   = 513;
+	const int DOMAIN_RID_GUESTS                  = 514;
+	const int DOMAIN_RID_DOMAIN_MEMBERS          = 515;
+	const int DOMAIN_RID_DCS                     = 516;
+	const int DOMAIN_RID_CERT_ADMINS             = 517;
+	const int DOMAIN_RID_SCHEMA_ADMINS           = 518;
+	const int DOMAIN_RID_ENTERPRISE_ADMINS       = 519;
+	const int DOMAIN_RID_POLICY_ADMINS           = 520;
+	const int DOMAIN_RID_READONLY_DCS            = 521;
+	const int DOMAIN_RID_RAS_SERVERS             = 553;
+	const int DOMAIN_RID_RODC_ALLOW              = 571;
+	const int DOMAIN_RID_RODC_DENY               = 572;
 
+	/* well-known builtin RIDs */
+	const int BUILTIN_RID_ADMINISTRATORS		= 544;
+	const int BUILTIN_RID_USERS			= 545;
+	const int BUILTIN_RID_GUESTS			= 546;
+	const int BUILTIN_RID_POWER_USERS		= 547;
+	const int BUILTIN_RID_ACCOUNT_OPERATORS		= 548;
+	const int BUILTIN_RID_SERVER_OPERATORS		= 549;
+	const int BUILTIN_RID_PRINT_OPERATORS		= 550;
+	const int BUILTIN_RID_BACKUP_OPERATORS		= 551;
+	const int BUILTIN_RID_REPLICATOR		= 552;
+	const int BUILTIN_RID_RAS_SERVERS		= 553;
+	const int BUILTIN_RID_PRE_2K_ACCESS		= 554;
+	const int BUILTIN_RID_REMOTE_DESKTOP_USERS	= 555;
+	const int BUILTIN_RID_NETWORK_CONF_OPERATORS	= 556;
+	const int BUILTIN_RID_INCOMING_FOREST_TRUST	= 557;
+	const int BUILTIN_RID_PERFMON_USERS		= 558;
+	const int BUILTIN_RID_PERFLOG_USERS		= 559;
+	const int BUILTIN_RID_AUTH_ACCESS		= 560;
+	const int BUILTIN_RID_TS_LICENSE_SERVERS	= 561;
 
-	/*
-	  privilege IDs. Please keep the IDs below 64. If we get more
-	  than 64 then we need to change security_token
-	*/
+/********************************************************************
+ This is a list of privileges reported by a WIndows 2008 R2 DC
+ just for reference purposes (and I know the LUID is not guaranteed
+ across reboots):
+
+0x00000002          SeCreateTokenPrivilege "Create a token object"
+0x00000003   SeAssignPrimaryTokenPrivilege "Replace a process level token"
+0x00000004           SeLockMemoryPrivilege "Lock pages in memory"
+0x00000005        SeIncreaseQuotaPrivilege "Adjust memory quotas for a process"
+0x00000006       SeMachineAccountPrivilege "Add workstations to domain"
+0x00000007                  SeTcbPrivilege "Act as part of the operating system"
+0x00000008             SeSecurityPrivilege "Manage auditing and security log"
+0x00000009        SeTakeOwnershipPrivilege "Take ownership of files or other objects"
+0x0000000a           SeLoadDriverPrivilege "Load and unload device drivers"
+0x0000000b        SeSystemProfilePrivilege "Profile system performance"
+0x0000000c           SeSystemtimePrivilege "Change the system time"
+0x0000000d SeProfileSingleProcessPrivilege "Profile single process"
+0x0000000e SeIncreaseBasePriorityPrivilege "Increase scheduling priority"
+0x0000000f       SeCreatePagefilePrivilege "Create a pagefile"
+0x00000010      SeCreatePermanentPrivilege "Create permanent shared objects"
+0x00000011               SeBackupPrivilege "Back up files and directories"
+0x00000012              SeRestorePrivilege "Restore files and directories"
+0x00000013             SeShutdownPrivilege "Shut down the system"
+0x00000014                SeDebugPrivilege "Debug programs"
+0x00000015                SeAuditPrivilege "Generate security audits"
+0x00000016    SeSystemEnvironmentPrivilege "Modify firmware environment values"
+0x00000017         SeChangeNotifyPrivilege "Bypass traverse checking"
+0x00000018       SeRemoteShutdownPrivilege "Force shutdown from a remote system"
+0x00000019               SeUndockPrivilege "Remove computer from docking station"
+0x0000001a            SeSyncAgentPrivilege "Synchronize directory service data"
+0x0000001b     SeEnableDelegationPrivilege "Enable computer and user accounts to be trusted for delegation"
+0x0000001c         SeManageVolumePrivilege "Perform volume maintenance tasks"
+0x0000001d          SeImpersonatePrivilege "Impersonate a client after authentication"
+0x0000001e         SeCreateGlobalPrivilege "Create global objects"
+0x0000001f SeTrustedCredManAccessPrivilege "Access Credential Manager as a trusted caller"
+0x00000020              SeRelabelPrivilege "Modify an object label"
+0x00000021   SeIncreaseWorkingSetPrivilege "Increase a process working set"
+0x00000022             SeTimeZonePrivilege "Change the time zone"
+0x00000023   SeCreateSymbolicLinkPrivilege "Create symbolic links"
+
+ ********************************************************************/
+
+	/* LUID values for privileges known about by Samba (bottom 32 bits of enum, top bits are 0) */
+
+	/* we have to define the LUID here due to a horrible check by printmig.exe
+	   that requires the SeBackupPrivilege match what is in Windows.  So match
+	   those that we implement and start Samba privileges at 0x1001 */
+
 	typedef enum {
-		SEC_PRIV_SECURITY                  = 1,
-		SEC_PRIV_BACKUP                    = 2,
-		SEC_PRIV_RESTORE                   = 3,
-		SEC_PRIV_SYSTEMTIME                = 4,
-		SEC_PRIV_SHUTDOWN                  = 5,
-		SEC_PRIV_REMOTE_SHUTDOWN           = 6,
-		SEC_PRIV_TAKE_OWNERSHIP            = 7,
-		SEC_PRIV_DEBUG                     = 8,
-		SEC_PRIV_SYSTEM_ENVIRONMENT        = 9,
-		SEC_PRIV_SYSTEM_PROFILE            = 10,
-		SEC_PRIV_PROFILE_SINGLE_PROCESS    = 11,
-		SEC_PRIV_INCREASE_BASE_PRIORITY    = 12,
-		SEC_PRIV_LOAD_DRIVER               = 13,
-		SEC_PRIV_CREATE_PAGEFILE           = 14,
-		SEC_PRIV_INCREASE_QUOTA            = 15,
-		SEC_PRIV_CHANGE_NOTIFY             = 16,
-		SEC_PRIV_UNDOCK                    = 17,
-		SEC_PRIV_MANAGE_VOLUME             = 18,
-		SEC_PRIV_IMPERSONATE               = 19,
-		SEC_PRIV_CREATE_GLOBAL             = 20,
-		SEC_PRIV_ENABLE_DELEGATION         = 21,
-		SEC_PRIV_INTERACTIVE_LOGON         = 22,
-		SEC_PRIV_NETWORK_LOGON             = 23,
-		SEC_PRIV_REMOTE_INTERACTIVE_LOGON  = 24,
-		SEC_PRIV_MACHINE_ACCOUNT           = 25
+		SEC_PRIV_INVALID                   = 0x0,
+		SEC_PRIV_INCREASE_QUOTA            = 0x5,
+		SEC_PRIV_MACHINE_ACCOUNT           = 0x6,
+		SEC_PRIV_SECURITY                  = 0x8,
+		SEC_PRIV_TAKE_OWNERSHIP            = 0x09,
+		SEC_PRIV_LOAD_DRIVER               = 0x0a,
+		SEC_PRIV_SYSTEM_PROFILE            = 0x0b,
+		SEC_PRIV_SYSTEMTIME                = 0x0c,
+		SEC_PRIV_PROFILE_SINGLE_PROCESS    = 0x0d,
+		SEC_PRIV_INCREASE_BASE_PRIORITY    = 0x0e,
+		SEC_PRIV_CREATE_PAGEFILE           = 0x0f,
+		SEC_PRIV_BACKUP                    = 0x11,
+		SEC_PRIV_RESTORE                   = 0x12,
+		SEC_PRIV_SHUTDOWN                  = 0x13,
+		SEC_PRIV_DEBUG                     = 0x14,
+		SEC_PRIV_SYSTEM_ENVIRONMENT        = 0x16,
+		SEC_PRIV_CHANGE_NOTIFY             = 0x17,
+		SEC_PRIV_REMOTE_SHUTDOWN           = 0x18,
+		SEC_PRIV_UNDOCK                    = 0x19,
+		SEC_PRIV_ENABLE_DELEGATION         = 0x1b,
+		SEC_PRIV_MANAGE_VOLUME             = 0x1c,
+		SEC_PRIV_IMPERSONATE               = 0x1d,
+		SEC_PRIV_CREATE_GLOBAL             = 0x1e,
+		/* Samba-specific privs */
+		SEC_PRIV_PRINT_OPERATOR            = 0x1001,
+		SEC_PRIV_ADD_USERS                 = 0x1002,
+		SEC_PRIV_DISK_OPERATOR             = 0x1003
 	} sec_privilege;
 
+
+	/* Bitmap of privilege values for internal use only.  We need
+	 * our own bitmap here as privilages.tdb records these values
+	 * as a bitmap (privilages.ldb uses the string forms).
+	 */
+	typedef [bitmap64bit] bitmap {
+		SEC_PRIV_MACHINE_ACCOUNT_BIT		= 0x00000010,
+
+		/* Samba-specific privs */
+		SEC_PRIV_PRINT_OPERATOR_BIT		= 0x00000020,
+		SEC_PRIV_ADD_USERS_BIT			= 0x00000040,
+		SEC_PRIV_DISK_OPERATOR_BIT		= 0x00000080,
+
+		SEC_PRIV_REMOTE_SHUTDOWN_BIT		= 0x00000100,
+		SEC_PRIV_BACKUP_BIT			= 0x00000200,
+		SEC_PRIV_RESTORE_BIT			= 0x00000400,
+		SEC_PRIV_TAKE_OWNERSHIP_BIT		= 0x00000800,
+		/* End of privilages implemented before merge to common code */
+
+		SEC_PRIV_INCREASE_QUOTA_BIT               = 0x00001000,
+		SEC_PRIV_SECURITY_BIT                     = 0x00002000,
+		SEC_PRIV_LOAD_DRIVER_BIT                  = 0x00004000,
+		SEC_PRIV_SYSTEM_PROFILE_BIT               = 0x00008000,
+		SEC_PRIV_SYSTEMTIME_BIT                   = 0x00010000,
+		SEC_PRIV_PROFILE_SINGLE_PROCESS_BIT       = 0x00020000,
+		SEC_PRIV_INCREASE_BASE_PRIORITY_BIT       = 0x00040000,
+		SEC_PRIV_CREATE_PAGEFILE_BIT              = 0x00080000,
+		SEC_PRIV_SHUTDOWN_BIT                     = 0x00100000,
+		SEC_PRIV_DEBUG_BIT                        = 0x00200000,
+		SEC_PRIV_SYSTEM_ENVIRONMENT_BIT           = 0x00400000,
+		SEC_PRIV_CHANGE_NOTIFY_BIT                = 0x00800000,
+		SEC_PRIV_UNDOCK_BIT                       = 0x01000000,
+		SEC_PRIV_ENABLE_DELEGATION_BIT            = 0x02000000,
+		SEC_PRIV_MANAGE_VOLUME_BIT                = 0x04000000,
+		SEC_PRIV_IMPERSONATE_BIT                  = 0x08000000,
+		SEC_PRIV_CREATE_GLOBAL_BIT                = 0x10000000
+	} se_privilege;
+
+	typedef [bitmap32bit] bitmap {
+		LSA_POLICY_MODE_INTERACTIVE             = 0x00000001,
+		LSA_POLICY_MODE_NETWORK                 = 0x00000002,
+		LSA_POLICY_MODE_BATCH                   = 0x00000004,
+		LSA_POLICY_MODE_SERVICE                 = 0x00000010,
+		LSA_POLICY_MODE_PROXY			= 0x00000020,
+		LSA_POLICY_MODE_DENY_INTERACTIVE        = 0x00000040,
+		LSA_POLICY_MODE_DENY_NETWORK            = 0x00000080,
+		LSA_POLICY_MODE_DENY_BATCH              = 0x00000100,
+		LSA_POLICY_MODE_DENY_SERVICE            = 0x00000200,
+		LSA_POLICY_MODE_REMOTE_INTERACTIVE      = 0x00000400,
+		LSA_POLICY_MODE_DENY_REMOTE_INTERACTIVE = 0x00000800,
+		LSA_POLICY_MODE_ALL			= 0x00000FF7,
+		LSA_POLICY_MODE_ALL_NT4			= 0x00000037
+	} lsa_SystemAccessModeFlags;
 
 	typedef [public,bitmap8bit] bitmap {
 		SEC_ACE_FLAG_OBJECT_INHERIT		= 0x01,
@@ -371,7 +508,7 @@ interface security
 	typedef [public,nopull,gensize,nosize] struct {
 		security_ace_type type;  /* SEC_ACE_TYPE_* */
 		security_ace_flags flags; /* SEC_ACE_FLAG_* */
-		[value(ndr_size_security_ace(r,ndr->iconv_convenience,ndr->flags))] uint16 size;
+		[value(ndr_size_security_ace(r,ndr->flags))] uint16 size;
 		uint32 access_mask;
 		[switch_is(type)] security_ace_object_ctr object;
 		dom_sid trustee;
@@ -386,7 +523,7 @@ interface security
 
 	typedef [public,gensize,nosize] struct {
 		security_acl_revision revision;
-		[value(ndr_size_security_acl(r,ndr->iconv_convenience,ndr->flags))] uint16 size;
+		[value(ndr_size_security_acl(r,ndr->flags))] uint16 size;
 		[range(0,1000)] uint32 num_aces;
 		security_ace aces[num_aces];
 	} security_acl;
@@ -428,18 +565,25 @@ interface security
 	} security_descriptor;
 
 	typedef [public] struct {
-		[range(0,0x40000),value(ndr_size_security_descriptor(sd,ndr->iconv_convenience,ndr->flags))] uint32 sd_size;
+		[range(0,0x40000),value(ndr_size_security_descriptor(sd,ndr->flags))] uint32 sd_size;
 		[subcontext(4)] security_descriptor *sd;
 	} sec_desc_buf;
 
+	/* This is not yet sent over the network, but is simply defined in IDL */
 	typedef [public] struct {
-		dom_sid *user_sid;
-		dom_sid *group_sid;
 		uint32 num_sids;
-		[size_is(num_sids)] dom_sid *sids[*];
-		udlong privilege_mask;
-		security_acl *default_dacl;
+		[size_is(num_sids)] dom_sid sids[*];
+		se_privilege privilege_mask;
+		lsa_SystemAccessModeFlags rights_mask;
 	} security_token;
+
+	/* This is not yet sent over the network, but is simply defined in IDL */
+	typedef [public] struct {
+		uid_t uid;
+		uid_t gid;
+		uint32 ngroups;
+		[size_is(ngroups)] gid_t groups[*];
+	} security_unix_token;
 
 	/* bits that determine which parts of a security descriptor
 	   are being queried/set */
@@ -469,4 +613,48 @@ interface security
 		SEC_OWNER_FROM_PARENT                = 0x00000008,
 		SEC_GROUP_FROM_PARENT                = 0x00000010
 	} security_autoinherit;
+
+	/***************************************************************/
+	/* Extended right guids */
+
+	const string GUID_DRS_ALLOCATE_RIDS           = "1abd7cf8-0a99-11d1-adbb-00c04fd8d5cd";
+	const string GUID_DRS_CHANGE_DOMAIN_MASTER    = "014bf69c-7b3b-11d1-85f6-08002be74fab";
+	const string GUID_DRS_CHANGE_INFR_MASTER      = "cc17b1fb-33d9-11d2-97d4-00c04fd8d5cd";
+	const string GUID_DRS_CHANGE_PDC              = "bae50096-4752-11d1-9052-00c04fc2d4cf";
+	const string GUID_DRS_CHANGE_RID_MASTER       = "d58d5f36-0a98-11d1-adbb-00c04fd8d5cd";
+	const string GUID_DRS_CHANGE_SCHEMA_MASTER    = "e12b56b6-0a95-11d1-adbb-00c04fd8d5cd";
+	const string GUID_DRS_GET_CHANGES             = "1131f6aa-9c07-11d1-f79f-00c04fc2dcd2";
+	const string GUID_DRS_GET_ALL_CHANGES         = "1131f6ad-9c07-11d1-f79f-00c04fc2dcd2";
+	const string GUID_DRS_GET_FILTERED_ATTRIBUTES = "89e95b76-444d-4c62-991a-0facbeda640c";
+	const string GUID_DRS_MANAGE_TOPOLOGY         = "1131f6ac-9c07-11d1-f79f-00c04fc2dcd2";
+	const string GUID_DRS_MONITOR_TOPOLOGY        = "f98340fb-7c5b-4cdb-a00b-2ebdfa115a96";
+	const string GUID_DRS_REPL_SYNCRONIZE         = "1131f6ab-9c07-11d1-f79f-00c04fc2dcd2";
+	const string GUID_DRS_RO_REPL_SECRET_SYNC     = "1131f6ae-9c07-11d1-f79f-00c04fc2dcd2";
+	const string GUID_DRS_USER_CHANGE_PASSWORD    = "ab721a53-1e2f-11d0-9819-00aa0040529b";
+	const string GUID_DRS_FORCE_CHANGE_PASSWORD   = "00299570-246d-11d0-a768-00aa006e0529";
+
+	/***************************************************************/
+	/* validated writes guids */
+	const string GUID_DRS_VALIDATE_SPN            = "f3a64788-5306-11d1-a9c5-0000f80367c1";
+	const string GUID_DRS_SELF_MEMBERSHIP         = "bf9679c0-0de6-11d0-a285-00aa003049e2";
+	const string GUID_DRS_DNS_HOST_NAME           = "72e39547-7b18-11d1-adef-00c04fd8d5cd";
+	const string GUID_DRS_ADD_DNS_HOST_NAME       = "80863791-dbe9-4eb8-837e-7f0ab55d9ac7";
+	const string GUID_DRS_BEHAVIOR_VERSION        = "d31a8757-2447-4545-8081-3bb610cacbf2";
+
+	/* A type to describe the mapping of generic access rights to object
+	   specific access rights. */
+
+	typedef struct {
+		uint32 generic_read;
+		uint32 generic_write;
+		uint32 generic_execute;
+		uint32 generic_all;
+	} generic_mapping;
+
+	typedef	struct {
+		uint32 std_read;
+		uint32 std_write;
+		uint32 std_execute;
+		uint32 std_all;
+	} standard_mapping;
 }

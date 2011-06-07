@@ -78,7 +78,13 @@ struct kccsrv_service {
 		/* here we have a reference to the timed event the schedules the periodic stuff */
 		struct tevent_timer *te;
 	} periodic;
+
+	time_t last_deleted_check;
+
+	bool am_rodc;
 };
+
+struct kcc_connection_list;
 
 #include "dsdb/kcc/kcc_service_proto.h"
 

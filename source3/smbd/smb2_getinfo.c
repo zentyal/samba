@@ -3,6 +3,7 @@
    Core SMB2 server
 
    Copyright (C) Stefan Metzmacher 2009
+   Copyright (C) Jeremy Allison 2010
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,8 +20,11 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
 #include "../libcli/smb/smb_common.h"
+#include "trans2.h"
+#include "../lib/util/tevent_ntstatus.h"
 
 static struct tevent_req *smbd_smb2_getinfo_send(TALLOC_CTX *mem_ctx,
 						 struct tevent_context *ev,
@@ -34,7 +38,8 @@ static struct tevent_req *smbd_smb2_getinfo_send(TALLOC_CTX *mem_ctx,
 						 uint64_t in_file_id_volatile);
 static NTSTATUS smbd_smb2_getinfo_recv(struct tevent_req *req,
 				       TALLOC_CTX *mem_ctx,
-				       DATA_BLOB *out_output_buffer);
+				       DATA_BLOB *out_output_buffer,
+				       NTSTATUS *p_call_status);
 
 static void smbd_smb2_request_getinfo_done(struct tevent_req *subreq);
 NTSTATUS smbd_smb2_request_process_getinfo(struct smbd_smb2_request *req)
@@ -95,7 +100,7 @@ NTSTATUS smbd_smb2_request_process_getinfo(struct smbd_smb2_request *req)
 
 	if (req->compat_chain_fsp) {
 		/* skip check */
-	} else if (in_file_id_persistent != 0) {
+	} else if (in_file_id_persistent != in_file_id_volatile) {
 		return smbd_smb2_request_error(req, NT_STATUS_FILE_CLOSED);
 	}
 
@@ -128,14 +133,30 @@ static void smbd_smb2_request_getinfo_done(struct tevent_req *subreq)
 	uint16_t out_output_buffer_offset;
 	DATA_BLOB out_output_buffer = data_blob_null;
 	NTSTATUS status;
+	NTSTATUS call_status = NT_STATUS_OK;
 	NTSTATUS error; /* transport error */
 
 	status = smbd_smb2_getinfo_recv(subreq,
 					req,
-					&out_output_buffer);
+					&out_output_buffer,
+					&call_status);
 	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
 		error = smbd_smb2_request_error(req, status);
+		if (!NT_STATUS_IS_OK(error)) {
+			smbd_server_connection_terminate(req->sconn,
+							 nt_errstr(error));
+			return;
+		}
+		return;
+	}
+
+	if (!NT_STATUS_IS_OK(call_status)) {
+		/* Return a specific error with data. */
+		error = smbd_smb2_request_error_ex(req,
+						call_status,
+						&out_output_buffer,
+						__location__);
 		if (!NT_STATUS_IS_OK(error)) {
 			smbd_server_connection_terminate(req->sconn,
 							 nt_errstr(error));
@@ -181,6 +202,36 @@ struct smbd_smb2_getinfo_state {
 	DATA_BLOB out_output_buffer;
 };
 
+static void smb2_ipc_getinfo(struct tevent_req *req,
+				struct smbd_smb2_getinfo_state *state,
+				struct tevent_context *ev,
+				uint8_t in_info_type,
+				uint8_t in_file_info_class)
+{
+	/* We want to reply to SMB2_GETINFO_FILE
+	   with a class of SMB2_FILE_STANDARD_INFO as
+	   otherwise a Win7 client issues this request
+	   twice (2xroundtrips) if we return NOT_SUPPORTED.
+	   NB. We do the same for SMB1 in call_trans2qpipeinfo() */
+
+	if (in_info_type == 0x01 && /* SMB2_GETINFO_FILE */
+			in_file_info_class == 0x05) { /* SMB2_FILE_STANDARD_INFO */
+		state->out_output_buffer = data_blob_talloc(state,
+						NULL, 24);
+		if (tevent_req_nomem(state->out_output_buffer.data, req)) {
+			return;
+		}
+
+		memset(state->out_output_buffer.data,0,24);
+		SOFF_T(state->out_output_buffer.data,0,4096LL);
+		SIVAL(state->out_output_buffer.data,16,1);
+		SIVAL(state->out_output_buffer.data,20,1);
+		tevent_req_done(req);
+	} else {
+		tevent_req_nterror(req, NT_STATUS_NOT_SUPPORTED);
+	}
+}
+
 static struct tevent_req *smbd_smb2_getinfo_send(TALLOC_CTX *mem_ctx,
 						 struct tevent_context *ev,
 						 struct smbd_smb2_request *smb2req,
@@ -197,6 +248,7 @@ static struct tevent_req *smbd_smb2_getinfo_send(TALLOC_CTX *mem_ctx,
 	struct smb_request *smbreq;
 	connection_struct *conn = smb2req->tcon->compat_conn;
 	files_struct *fsp;
+	NTSTATUS status;
 
 	req = tevent_req_create(mem_ctx, &state,
 				struct smbd_smb2_getinfo_state);
@@ -204,7 +256,7 @@ static struct tevent_req *smbd_smb2_getinfo_send(TALLOC_CTX *mem_ctx,
 		return NULL;
 	}
 	state->smb2req = smb2req;
-	state->status = NT_STATUS_INTERNAL_ERROR;
+	state->status = NT_STATUS_OK;
 	state->out_output_buffer = data_blob_null;
 
 	DEBUG(10,("smbd_smb2_getinfo_send: file_id[0x%016llX]\n",
@@ -230,7 +282,8 @@ static struct tevent_req *smbd_smb2_getinfo_send(TALLOC_CTX *mem_ctx,
 	}
 
 	if (IS_IPC(conn)) {
-		tevent_req_nterror(req, NT_STATUS_NOT_SUPPORTED);
+		smb2_ipc_getinfo(req, state, ev,
+			in_info_type, in_file_info_class);
 		return tevent_req_post(req, ev);
 	}
 
@@ -246,8 +299,6 @@ static struct tevent_req *smbd_smb2_getinfo_send(TALLOC_CTX *mem_ctx,
 		struct ea_list *ea_list = NULL;
 		int lock_data_count = 0;
 		char *lock_data = NULL;
-		bool ms_dfs_link = false;
-		NTSTATUS status;
 
 		ZERO_STRUCT(write_time_ts);
 
@@ -273,7 +324,7 @@ static struct tevent_req *smbd_smb2_getinfo_send(TALLOC_CTX *mem_ctx,
 
 			/* We know this name is ok, it's already passed the checks. */
 
-		} else if (fsp && (fsp->is_directory || fsp->fh->fd == -1)) {
+		} else if (fsp && fsp->fh->fd == -1) {
 			/*
 			 * This is actually a QFILEINFO on a directory
 			 * handle (returned from an NT SMB). NT5.0 seems
@@ -303,7 +354,8 @@ static struct tevent_req *smbd_smb2_getinfo_send(TALLOC_CTX *mem_ctx,
 
 			fileid = vfs_file_id_from_sbuf(conn,
 						       &fsp->fsp_name->st);
-			get_file_infos(fileid, &delete_pending, &write_time_ts);
+			get_file_infos(fileid, fsp->name_hash,
+				&delete_pending, &write_time_ts);
 		} else {
 			/*
 			 * Original code - this is an open file.
@@ -319,7 +371,8 @@ static struct tevent_req *smbd_smb2_getinfo_send(TALLOC_CTX *mem_ctx,
 			}
 			fileid = vfs_file_id_from_sbuf(conn,
 						       &fsp->fsp_name->st);
-			get_file_infos(fileid, &delete_pending, &write_time_ts);
+			get_file_infos(fileid, fsp->name_hash,
+				&delete_pending, &write_time_ts);
 		}
 
 		status = smbd_do_qfilepathinfo(conn, state,
@@ -328,7 +381,6 @@ static struct tevent_req *smbd_smb2_getinfo_send(TALLOC_CTX *mem_ctx,
 					       fsp->fsp_name,
 					       delete_pending,
 					       write_time_ts,
-					       ms_dfs_link,
 					       ea_list,
 					       lock_data_count,
 					       lock_data,
@@ -362,7 +414,6 @@ static struct tevent_req *smbd_smb2_getinfo_send(TALLOC_CTX *mem_ctx,
 		uint16_t file_info_level;
 		char *data = NULL;
 		int data_size = 0;
-		NTSTATUS status;
 
 		/* the levels directly map to the passthru levels */
 		file_info_level = in_file_info_class + 1000;
@@ -394,7 +445,59 @@ static struct tevent_req *smbd_smb2_getinfo_send(TALLOC_CTX *mem_ctx,
 		break;
 	}
 
+	case 0x03:/* SMB2_GETINFO_SEC */
+	{
+		uint8_t *p_marshalled_sd = NULL;
+		size_t sd_size = 0;
+
+		status = smbd_do_query_security_desc(conn,
+				state,
+				fsp,
+				/* Security info wanted. */
+				in_additional_information,
+				in_output_buffer_length,
+				&p_marshalled_sd,
+				&sd_size);
+
+		if (NT_STATUS_EQUAL(status, NT_STATUS_BUFFER_TOO_SMALL)) {
+			/* Return needed size. */
+			state->out_output_buffer = data_blob_talloc(state,
+								    NULL,
+								    4);
+			if (tevent_req_nomem(state->out_output_buffer.data, req)) {
+				return tevent_req_post(req, ev);
+			}
+			SIVAL(state->out_output_buffer.data,0,(uint32_t)sd_size);
+			state->status = NT_STATUS_BUFFER_TOO_SMALL;
+			break;
+		}
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(10,("smbd_smb2_getinfo_send: "
+				 "smbd_do_query_security_desc of %s failed "
+				 "(%s)\n", fsp_str_dbg(fsp),
+				 nt_errstr(status)));
+			tevent_req_nterror(req, status);
+			return tevent_req_post(req, ev);
+		}
+
+		if (sd_size > 0) {
+			state->out_output_buffer = data_blob_talloc(state,
+								    p_marshalled_sd,
+								    sd_size);
+			if (tevent_req_nomem(state->out_output_buffer.data, req)) {
+				return tevent_req_post(req, ev);
+			}
+		}
+		break;
+	}
+
 	default:
+		DEBUG(10,("smbd_smb2_getinfo_send: "
+			"unknown in_info_type of %u "
+			" for file %s\n",
+			(unsigned int)in_info_type,
+			fsp_str_dbg(fsp) ));
+
 		tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
 		return tevent_req_post(req, ev);
 	}
@@ -405,7 +508,8 @@ static struct tevent_req *smbd_smb2_getinfo_send(TALLOC_CTX *mem_ctx,
 
 static NTSTATUS smbd_smb2_getinfo_recv(struct tevent_req *req,
 				       TALLOC_CTX *mem_ctx,
-				       DATA_BLOB *out_output_buffer)
+				       DATA_BLOB *out_output_buffer,
+				       NTSTATUS *pstatus)
 {
 	NTSTATUS status;
 	struct smbd_smb2_getinfo_state *state = tevent_req_data(req,
@@ -418,6 +522,7 @@ static NTSTATUS smbd_smb2_getinfo_recv(struct tevent_req *req,
 
 	*out_output_buffer = state->out_output_buffer;
 	talloc_steal(mem_ctx, out_output_buffer->data);
+	*pstatus = state->status;
 
 	tevent_req_received(req);
 	return NT_STATUS_OK;

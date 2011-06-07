@@ -22,7 +22,6 @@
 
 #include "includes.h"
 #include "winbindd.h"
-#include "../librpc/gen_ndr/cli_netlogon.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
@@ -130,6 +129,8 @@ void winbindd_list_trusted_domains(struct winbindd_cli_state *state)
 			is_online ? "Online" : "Offline" );
 	}
 
+	state->response->data.num_entries = num_domains;
+
 	extra_data_len = strlen(extra_data);
 	if (extra_data_len > 0) {
 
@@ -203,25 +204,6 @@ enum winbindd_result winbindd_dual_list_trusted_domains(struct winbindd_domain *
 		state->response->extra_data.data = extra_data;
 		state->response->length += extra_data_len+1;
 	}
-
-	return WINBINDD_OK;
-}
-
-/* This is the child-only version of --sequence. It only allows for a single
- * domain (ie "our" one) to be displayed. */
-
-enum winbindd_result winbindd_dual_show_sequence(struct winbindd_domain *domain,
-						 struct winbindd_cli_state *state)
-{
-	DEBUG(3, ("[%5lu]: show sequence\n", (unsigned long)state->pid));
-
-	/* Ensure null termination */
-	state->request->domain_name[sizeof(state->request->domain_name)-1]='\0';
-
-	domain->methods->sequence_number(domain, &domain->sequence_number);
-
-	state->response->data.sequence_number =
-		domain->sequence_number;
 
 	return WINBINDD_OK;
 }
@@ -330,6 +312,56 @@ static void domain_info_done(struct tevent_req *req)
 		state->domain->primary;
 
 	request_ok(state->cli);
+}
+
+void winbindd_dc_info(struct winbindd_cli_state *cli)
+{
+	struct winbindd_domain *domain;
+	char *dc_name, *dc_ip;
+
+	cli->request->domain_name[sizeof(cli->request->domain_name)-1] = '\0';
+
+	DEBUG(3, ("[%5lu]: domain_info [%s]\n", (unsigned long)cli->pid,
+		  cli->request->domain_name));
+
+	if (cli->request->domain_name[0] != '\0') {
+		domain = find_domain_from_name_noinit(
+			cli->request->domain_name);
+		DEBUG(10, ("Could not find domain %s\n",
+			   cli->request->domain_name));
+		if (domain == NULL) {
+			request_error(cli);
+			return;
+		}
+	} else {
+		domain = find_our_domain();
+	}
+
+	if (!fetch_current_dc_from_gencache(
+		    talloc_tos(), domain->name, &dc_name, &dc_ip)) {
+		DEBUG(10, ("fetch_current_dc_from_gencache(%s) failed\n",
+			   domain->name));
+		request_error(cli);
+		return;
+	}
+
+	cli->response->data.num_entries = 1;
+	cli->response->extra_data.data = talloc_asprintf(
+		cli->mem_ctx, "%s\n%s\n", dc_name, dc_ip);
+
+	TALLOC_FREE(dc_name);
+	TALLOC_FREE(dc_ip);
+
+	if (cli->response->extra_data.data == NULL) {
+		request_error(cli);
+		return;
+	}
+
+	/* must add one to length to copy the 0 for string termination */
+	cli->response->length +=
+		strlen((char *)cli->response->extra_data.data) + 1;
+
+	request_ok(cli);
 }
 
 /* List various tidbits of information */

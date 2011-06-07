@@ -27,10 +27,11 @@
 #include "auth/credentials/credentials.h"
 #include "auth/credentials/credentials_proto.h"
 #include "auth/credentials/credentials_krb5.h"
+#include "auth/kerberos/kerberos_credentials.h"
+#include "auth/kerberos/kerberos_util.h"
 #include "param/param.h"
 
 _PUBLIC_ int cli_credentials_get_krb5_context(struct cli_credentials *cred, 
-					      struct tevent_context *event_ctx,
 				     struct loadparm_context *lp_ctx,
 				     struct smb_krb5_context **smb_krb5_context) 
 {
@@ -40,7 +41,8 @@ _PUBLIC_ int cli_credentials_get_krb5_context(struct cli_credentials *cred,
 		return 0;
 	}
 
-	ret = smb_krb5_init_context(cred, event_ctx, lp_ctx, &cred->smb_krb5_context);
+	ret = smb_krb5_init_context(cred, NULL, lp_ctx,
+				    &cred->smb_krb5_context);
 	if (ret) {
 		cred->smb_krb5_context = NULL;
 		return ret;
@@ -49,13 +51,18 @@ _PUBLIC_ int cli_credentials_get_krb5_context(struct cli_credentials *cred,
 	return 0;
 }
 
-/* This needs to be called directly after the cli_credentials_init(),
- * otherwise we might have problems with the krb5 context already
- * being here.
+/* For most predictable behaviour, this needs to be called directly after the cli_credentials_init(),
+ * otherwise we may still have references to the old smb_krb5_context in a credential cache etc
  */
 _PUBLIC_ NTSTATUS cli_credentials_set_krb5_context(struct cli_credentials *cred, 
 					  struct smb_krb5_context *smb_krb5_context)
 {
+	if (smb_krb5_context == NULL) {
+		talloc_unlink(cred, cred->smb_krb5_context);
+		cred->smb_krb5_context = NULL;
+		return NT_STATUS_OK;
+	}
+
 	if (!talloc_reference(cred, smb_krb5_context)) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -64,8 +71,9 @@ _PUBLIC_ NTSTATUS cli_credentials_set_krb5_context(struct cli_credentials *cred,
 }
 
 static int cli_credentials_set_from_ccache(struct cli_credentials *cred, 
-				    struct ccache_container *ccache,
-				    enum credentials_obtained obtained)
+					   struct ccache_container *ccache,
+					   enum credentials_obtained obtained,
+					   const char **error_string)
 {
 	
 	krb5_principal princ;
@@ -80,20 +88,17 @@ static int cli_credentials_set_from_ccache(struct cli_credentials *cred,
 				    ccache->ccache, &princ);
 
 	if (ret) {
-		char *err_mess = smb_get_krb5_error_message(ccache->smb_krb5_context->krb5_context, 
-							    ret, cred);
-		DEBUG(1,("failed to get principal from ccache: %s\n", 
-			 err_mess));
-		talloc_free(err_mess);
+		(*error_string) = talloc_asprintf(cred, "failed to get principal from ccache: %s\n",
+						  smb_get_krb5_error_message(ccache->smb_krb5_context->krb5_context,
+									     ret, cred));
 		return ret;
 	}
 	
 	ret = krb5_unparse_name(ccache->smb_krb5_context->krb5_context, princ, &name);
 	if (ret) {
-		char *err_mess = smb_get_krb5_error_message(ccache->smb_krb5_context->krb5_context, ret, cred);
-		DEBUG(1,("failed to unparse principal from ccache: %s\n", 
-			 err_mess));
-		talloc_free(err_mess);
+		(*error_string) = talloc_asprintf(cred, "failed to unparse principal from ccache: %s\n",
+						  smb_get_krb5_error_message(ccache->smb_krb5_context->krb5_context,
+									     ret, cred));
 		return ret;
 	}
 
@@ -125,10 +130,10 @@ static int free_dccache(struct ccache_container *ccc) {
 }
 
 _PUBLIC_ int cli_credentials_set_ccache(struct cli_credentials *cred, 
-					struct tevent_context *event_ctx,
-			       struct loadparm_context *lp_ctx,
-			       const char *name, 
-			       enum credentials_obtained obtained)
+					struct loadparm_context *lp_ctx,
+					const char *name,
+					enum credentials_obtained obtained,
+					const char **error_string)
 {
 	krb5_error_code ret;
 	krb5_principal princ;
@@ -139,34 +144,39 @@ _PUBLIC_ int cli_credentials_set_ccache(struct cli_credentials *cred,
 
 	ccc = talloc(cred, struct ccache_container);
 	if (!ccc) {
+		(*error_string) = error_message(ENOMEM);
 		return ENOMEM;
 	}
 
-	ret = cli_credentials_get_krb5_context(cred, event_ctx, lp_ctx, 
+	ret = cli_credentials_get_krb5_context(cred, lp_ctx,
 					       &ccc->smb_krb5_context);
 	if (ret) {
+		(*error_string) = error_message(ret);
 		talloc_free(ccc);
 		return ret;
 	}
 	if (!talloc_reference(ccc, ccc->smb_krb5_context)) {
 		talloc_free(ccc);
+		(*error_string) = error_message(ENOMEM);
 		return ENOMEM;
 	}
 
 	if (name) {
 		ret = krb5_cc_resolve(ccc->smb_krb5_context->krb5_context, name, &ccc->ccache);
 		if (ret) {
-			DEBUG(1,("failed to read krb5 ccache: %s: %s\n", 
-				 name, 
-				 smb_get_krb5_error_message(ccc->smb_krb5_context->krb5_context, ret, ccc)));
+			(*error_string) = talloc_asprintf(cred, "failed to read krb5 ccache: %s: %s\n",
+							  name,
+							  smb_get_krb5_error_message(ccc->smb_krb5_context->krb5_context,
+										     ret, ccc));
 			talloc_free(ccc);
 			return ret;
 		}
 	} else {
 		ret = krb5_cc_default(ccc->smb_krb5_context->krb5_context, &ccc->ccache);
 		if (ret) {
-			DEBUG(3,("failed to read default krb5 ccache: %s\n", 
-				 smb_get_krb5_error_message(ccc->smb_krb5_context->krb5_context, ret, ccc)));
+			(*error_string) = talloc_asprintf(cred, "failed to read default krb5 ccache: %s\n",
+							  smb_get_krb5_error_message(ccc->smb_krb5_context->krb5_context,
+										     ret, ccc));
 			talloc_free(ccc);
 			return ret;
 		}
@@ -176,87 +186,101 @@ _PUBLIC_ int cli_credentials_set_ccache(struct cli_credentials *cred,
 
 	ret = krb5_cc_get_principal(ccc->smb_krb5_context->krb5_context, ccc->ccache, &princ);
 
-	if (ret) {
-		DEBUG(3,("failed to get principal from default ccache: %s\n", 
-			 smb_get_krb5_error_message(ccc->smb_krb5_context->krb5_context, ret, ccc)));
-		talloc_free(ccc);		
-		return ret;
+	if (ret == 0) {
+		krb5_free_principal(ccc->smb_krb5_context->krb5_context, princ);
+		ret = cli_credentials_set_from_ccache(cred, ccc, obtained, error_string);
+
+		if (ret) {
+			(*error_string) = error_message(ret);
+			return ret;
+		}
+
+		cred->ccache = ccc;
+		cred->ccache_obtained = obtained;
+		talloc_steal(cred, ccc);
+
+		cli_credentials_invalidate_client_gss_creds(cred, cred->ccache_obtained);
+		return 0;
 	}
-
-	krb5_free_principal(ccc->smb_krb5_context->krb5_context, princ);
-
-	ret = cli_credentials_set_from_ccache(cred, ccc, obtained);
-
-	if (ret) {
-		return ret;
-	}
-
-	cred->ccache = ccc;
-	cred->ccache_obtained = obtained;
-	talloc_steal(cred, ccc);
-
-	cli_credentials_invalidate_client_gss_creds(cred, cred->ccache_obtained);
 	return 0;
 }
 
 
 static int cli_credentials_new_ccache(struct cli_credentials *cred, 
-				      struct tevent_context *event_ctx,
 				      struct loadparm_context *lp_ctx,
-				      struct ccache_container **_ccc)
+				      char *ccache_name,
+				      struct ccache_container **_ccc,
+				      const char **error_string)
 {
+	bool must_free_cc_name = false;
 	krb5_error_code ret;
 	struct ccache_container *ccc = talloc(cred, struct ccache_container);
-	char *ccache_name;
 	if (!ccc) {
 		return ENOMEM;
 	}
 
-	ccache_name = talloc_asprintf(ccc, "MEMORY:%p", 
-				      ccc);
-
-	if (!ccache_name) {
-		talloc_free(ccc);
-		return ENOMEM;
-	}
-
-	ret = cli_credentials_get_krb5_context(cred, event_ctx, lp_ctx, 
+	ret = cli_credentials_get_krb5_context(cred, lp_ctx,
 					       &ccc->smb_krb5_context);
 	if (ret) {
 		talloc_free(ccc);
+		(*error_string) = talloc_asprintf(cred, "Failed to get krb5_context: %s",
+						  error_message(ret));
 		return ret;
 	}
 	if (!talloc_reference(ccc, ccc->smb_krb5_context)) {
 		talloc_free(ccc);
+		(*error_string) = strerror(ENOMEM);
 		return ENOMEM;
+	}
+
+	if (!ccache_name) {
+		must_free_cc_name = true;
+		ccache_name = talloc_asprintf(ccc, "MEMORY:%p", 
+					      ccc);
+		
+		if (!ccache_name) {
+			talloc_free(ccc);
+			(*error_string) = strerror(ENOMEM);
+			return ENOMEM;
+		}
 	}
 
 	ret = krb5_cc_resolve(ccc->smb_krb5_context->krb5_context, ccache_name, 
 			      &ccc->ccache);
 	if (ret) {
-		DEBUG(1,("failed to generate a new krb5 ccache (%s): %s\n", 
-			 ccache_name,
-			 smb_get_krb5_error_message(ccc->smb_krb5_context->krb5_context, ret, ccc)));
+		(*error_string) = talloc_asprintf(cred, "failed to resolve a krb5 ccache (%s): %s\n",
+						  ccache_name,
+						  smb_get_krb5_error_message(ccc->smb_krb5_context->krb5_context,
+									     ret, ccc));
 		talloc_free(ccache_name);
 		talloc_free(ccc);
 		return ret;
 	}
 
-	talloc_set_destructor(ccc, free_mccache);
+	if (strncasecmp(ccache_name, "MEMORY:", 7) == 0) {
+		talloc_set_destructor(ccc, free_mccache);
+	} else {
+		talloc_set_destructor(ccc, free_dccache);
+	}
 
-	talloc_free(ccache_name);
+	if (must_free_cc_name) {
+		talloc_free(ccache_name);
+	}
 
 	*_ccc = ccc;
 
-	return ret;
+	return 0;
 }
 
-_PUBLIC_ int cli_credentials_get_ccache(struct cli_credentials *cred, 
-					struct tevent_context *event_ctx,
-			       struct loadparm_context *lp_ctx,
-			       struct ccache_container **ccc)
+_PUBLIC_ int cli_credentials_get_named_ccache(struct cli_credentials *cred, 
+					      struct tevent_context *event_ctx,
+					      struct loadparm_context *lp_ctx,
+					      char *ccache_name,
+					      struct ccache_container **ccc,
+					      const char **error_string)
 {
 	krb5_error_code ret;
+	enum credentials_obtained obtained;
 	
 	if (cred->machine_account_pending) {
 		cli_credentials_set_machine_account(cred, lp_ctx);
@@ -268,23 +292,22 @@ _PUBLIC_ int cli_credentials_get_ccache(struct cli_credentials *cred,
 		return 0;
 	}
 	if (cli_credentials_is_anonymous(cred)) {
+		(*error_string) = "Cannot get anonymous kerberos credentials";
 		return EINVAL;
 	}
 
-	ret = cli_credentials_new_ccache(cred, event_ctx, lp_ctx, ccc);
+	ret = cli_credentials_new_ccache(cred, lp_ctx, ccache_name, ccc, error_string);
 	if (ret) {
 		return ret;
 	}
 
-	ret = kinit_to_ccache(cred, cred, (*ccc)->smb_krb5_context, (*ccc)->ccache);
+	ret = kinit_to_ccache(cred, cred, (*ccc)->smb_krb5_context, event_ctx, (*ccc)->ccache, &obtained, error_string);
 	if (ret) {
 		return ret;
 	}
 
 	ret = cli_credentials_set_from_ccache(cred, *ccc, 
-					      (MAX(MAX(cred->principal_obtained, 
-						       cred->username_obtained), 
-						   cred->password_obtained)));
+					      obtained, error_string);
 	
 	cred->ccache = *ccc;
 	cred->ccache_obtained = cred->principal_obtained;
@@ -292,7 +315,26 @@ _PUBLIC_ int cli_credentials_get_ccache(struct cli_credentials *cred,
 		return ret;
 	}
 	cli_credentials_invalidate_client_gss_creds(cred, cred->ccache_obtained);
-	return ret;
+	return 0;
+}
+
+_PUBLIC_ int cli_credentials_get_ccache(struct cli_credentials *cred, 
+					struct tevent_context *event_ctx,
+					struct loadparm_context *lp_ctx,
+					struct ccache_container **ccc,
+					const char **error_string)
+{
+	return cli_credentials_get_named_ccache(cred, event_ctx, lp_ctx, NULL, ccc, error_string);
+}
+
+/* We have good reason to think the ccache in these credentials is invalid - blow it away */
+static void cli_credentials_unconditionally_invalidate_client_gss_creds(struct cli_credentials *cred)
+{
+	if (cred->client_gss_creds_obtained > CRED_UNINITIALISED) {
+		talloc_unlink(cred, cred->client_gss_creds);
+		cred->client_gss_creds = NULL;
+	}
+	cred->client_gss_creds_obtained = CRED_UNINITIALISED;
 }
 
 void cli_credentials_invalidate_client_gss_creds(struct cli_credentials *cred, 
@@ -314,6 +356,18 @@ void cli_credentials_invalidate_client_gss_creds(struct cli_credentials *cred,
 	if (obtained > cred->client_gss_creds_threshold) {
 		cred->client_gss_creds_threshold = obtained;
 	}
+}
+
+/* We have good reason to think this CCACHE is invalid.  Blow it away */
+static void cli_credentials_unconditionally_invalidate_ccache(struct cli_credentials *cred)
+{
+	if (cred->ccache_obtained > CRED_UNINITIALISED) {
+		talloc_unlink(cred, cred->ccache);
+		cred->ccache = NULL;
+	}
+	cred->ccache_obtained = CRED_UNINITIALISED;
+
+	cli_credentials_unconditionally_invalidate_client_gss_creds(cred);
 }
 
 _PUBLIC_ void cli_credentials_invalidate_ccache(struct cli_credentials *cred, 
@@ -348,9 +402,10 @@ static int free_gssapi_creds(struct gssapi_creds_container *gcc)
 }
 
 _PUBLIC_ int cli_credentials_get_client_gss_creds(struct cli_credentials *cred, 
-					 struct tevent_context *event_ctx,
-					 struct loadparm_context *lp_ctx,
-					 struct gssapi_creds_container **_gcc) 
+						  struct tevent_context *event_ctx,
+						  struct loadparm_context *lp_ctx,
+						  struct gssapi_creds_container **_gcc,
+						  const char **error_string)
 {
 	int ret = 0;
 	OM_uint32 maj_stat, min_stat;
@@ -365,8 +420,8 @@ _PUBLIC_ int cli_credentials_get_client_gss_creds(struct cli_credentials *cred,
 		return 0;
 	}
 
-	ret = cli_credentials_get_ccache(cred, event_ctx, lp_ctx, 
-					 &ccache);
+	ret = cli_credentials_get_ccache(cred, event_ctx, lp_ctx,
+					 &ccache, error_string);
 	if (ret) {
 		DEBUG(1, ("Failed to get CCACHE for GSSAPI client: %s\n", error_message(ret)));
 		return ret;
@@ -374,11 +429,29 @@ _PUBLIC_ int cli_credentials_get_client_gss_creds(struct cli_credentials *cred,
 
 	gcc = talloc(cred, struct gssapi_creds_container);
 	if (!gcc) {
+		(*error_string) = error_message(ENOMEM);
 		return ENOMEM;
 	}
 
 	maj_stat = gss_krb5_import_cred(&min_stat, ccache->ccache, NULL, NULL, 
 					&gcc->creds);
+	if ((maj_stat == GSS_S_FAILURE) && (min_stat == (OM_uint32)KRB5_CC_END || min_stat == (OM_uint32) KRB5_CC_NOTFOUND)) {
+		/* This CCACHE is no good.  Ensure we don't use it again */
+		cli_credentials_unconditionally_invalidate_ccache(cred);
+
+		/* Now try again to get a ccache */
+		ret = cli_credentials_get_ccache(cred, event_ctx, lp_ctx,
+						 &ccache, error_string);
+		if (ret) {
+			DEBUG(1, ("Failed to re-get CCACHE for GSSAPI client: %s\n", error_message(ret)));
+			return ret;
+		}
+
+		maj_stat = gss_krb5_import_cred(&min_stat, ccache->ccache, NULL, NULL,
+						&gcc->creds);
+
+	}
+
 	if (maj_stat) {
 		talloc_free(gcc);
 		if (min_stat) {
@@ -386,6 +459,7 @@ _PUBLIC_ int cli_credentials_get_client_gss_creds(struct cli_credentials *cred,
 		} else {
 			ret = EINVAL;
 		}
+		(*error_string) = talloc_asprintf(cred, "gss_krb5_import_cred failed: %s", error_message(ret));
 		return ret;
 	}
 
@@ -408,7 +482,8 @@ _PUBLIC_ int cli_credentials_get_client_gss_creds(struct cli_credentials *cred,
 		for (num_ktypes = 0; etypes[num_ktypes]; num_ktypes++);
 
 		maj_stat = gss_krb5_set_allowable_enctypes(&min_stat, gcc->creds,
-							   num_ktypes, etypes);
+							   num_ktypes,
+							   (int32_t *) etypes);
 		krb5_xfree (etypes);
 		if (maj_stat) {
 			talloc_free(gcc);
@@ -417,6 +492,7 @@ _PUBLIC_ int cli_credentials_get_client_gss_creds(struct cli_credentials *cred,
 			} else {
 				ret = EINVAL;
 			}
+			(*error_string) = talloc_asprintf(cred, "gss_krb5_set_allowable_enctypes failed: %s", error_message(ret));
 			return ret;
 		}
 	}
@@ -432,6 +508,7 @@ _PUBLIC_ int cli_credentials_get_client_gss_creds(struct cli_credentials *cred,
 		} else {
 			ret = EINVAL;
 		}
+		(*error_string) = talloc_asprintf(cred, "gss_set_cred_option failed: %s", error_message(ret));
 		return ret;
 	}
 
@@ -454,10 +531,10 @@ _PUBLIC_ int cli_credentials_get_client_gss_creds(struct cli_credentials *cred,
 */
 
  int cli_credentials_set_client_gss_creds(struct cli_credentials *cred, 
-					  struct tevent_context *event_ctx,
 					  struct loadparm_context *lp_ctx,
 					  gss_cred_id_t gssapi_cred,
-					  enum credentials_obtained obtained) 
+					  enum credentials_obtained obtained,
+					  const char **error_string)
 {
 	int ret;
 	OM_uint32 maj_stat, min_stat;
@@ -469,10 +546,11 @@ _PUBLIC_ int cli_credentials_get_client_gss_creds(struct cli_credentials *cred,
 
 	gcc = talloc(cred, struct gssapi_creds_container);
 	if (!gcc) {
+		(*error_string) = error_message(ENOMEM);
 		return ENOMEM;
 	}
 
-	ret = cli_credentials_new_ccache(cred, event_ctx, lp_ctx, &ccc);
+	ret = cli_credentials_new_ccache(cred, lp_ctx, NULL, &ccc, error_string);
 	if (ret != 0) {
 		return ret;
 	}
@@ -485,10 +563,13 @@ _PUBLIC_ int cli_credentials_get_client_gss_creds(struct cli_credentials *cred,
 		} else {
 			ret = EINVAL;
 		}
+		if (ret) {
+			(*error_string) = error_message(ENOMEM);
+		}
 	}
 
 	if (ret == 0) {
-		ret = cli_credentials_set_from_ccache(cred, ccc, obtained);
+		ret = cli_credentials_set_from_ccache(cred, ccc, obtained, error_string);
 	}
 	cred->ccache = ccc;
 	cred->ccache_obtained = obtained;
@@ -509,14 +590,12 @@ _PUBLIC_ int cli_credentials_get_client_gss_creds(struct cli_credentials *cred,
  * it will be generated from the password.
  */
 _PUBLIC_ int cli_credentials_get_keytab(struct cli_credentials *cred, 
-					struct tevent_context *event_ctx,
-			       struct loadparm_context *lp_ctx,
-			       struct keytab_container **_ktc)
+					struct loadparm_context *lp_ctx,
+					struct keytab_container **_ktc)
 {
 	krb5_error_code ret;
 	struct keytab_container *ktc;
 	struct smb_krb5_context *smb_krb5_context;
-	const char **enctype_strings;
 	TALLOC_CTX *mem_ctx;
 
 	if (cred->keytab_obtained >= (MAX(cred->principal_obtained, 
@@ -529,7 +608,7 @@ _PUBLIC_ int cli_credentials_get_keytab(struct cli_credentials *cred,
 		return EINVAL;
 	}
 
-	ret = cli_credentials_get_krb5_context(cred, event_ctx, lp_ctx, 
+	ret = cli_credentials_get_krb5_context(cred, lp_ctx,
 					       &smb_krb5_context);
 	if (ret) {
 		return ret;
@@ -540,11 +619,8 @@ _PUBLIC_ int cli_credentials_get_keytab(struct cli_credentials *cred,
 		return ENOMEM;
 	}
 
-	enctype_strings = cli_credentials_get_enctype_strings(cred);
-	
 	ret = smb_krb5_create_memory_keytab(mem_ctx, cred, 
-					    smb_krb5_context, 
-					    enctype_strings, &ktc);
+					    smb_krb5_context, &ktc);
 	if (ret) {
 		talloc_free(mem_ctx);
 		return ret;
@@ -564,10 +640,9 @@ _PUBLIC_ int cli_credentials_get_keytab(struct cli_credentials *cred,
  * FILE:/etc/krb5.keytab), open it and attach it */
 
 _PUBLIC_ int cli_credentials_set_keytab_name(struct cli_credentials *cred, 
-					     struct tevent_context *event_ctx,
-				    struct loadparm_context *lp_ctx,
-				    const char *keytab_name, 
-				    enum credentials_obtained obtained) 
+					     struct loadparm_context *lp_ctx,
+					     const char *keytab_name,
+					     enum credentials_obtained obtained)
 {
 	krb5_error_code ret;
 	struct keytab_container *ktc;
@@ -578,7 +653,7 @@ _PUBLIC_ int cli_credentials_set_keytab_name(struct cli_credentials *cred,
 		return 0;
 	}
 
-	ret = cli_credentials_get_krb5_context(cred, event_ctx, lp_ctx, &smb_krb5_context);
+	ret = cli_credentials_get_krb5_context(cred, lp_ctx, &smb_krb5_context);
 	if (ret) {
 		return ret;
 	}
@@ -603,47 +678,11 @@ _PUBLIC_ int cli_credentials_set_keytab_name(struct cli_credentials *cred,
 	return ret;
 }
 
-_PUBLIC_ int cli_credentials_update_keytab(struct cli_credentials *cred, 
-					   struct tevent_context *event_ctx,
-				  struct loadparm_context *lp_ctx) 
-{
-	krb5_error_code ret;
-	struct keytab_container *ktc;
-	struct smb_krb5_context *smb_krb5_context;
-	const char **enctype_strings;
-	TALLOC_CTX *mem_ctx;
-	
-	mem_ctx = talloc_new(cred);
-	if (!mem_ctx) {
-		return ENOMEM;
-	}
-
-	ret = cli_credentials_get_krb5_context(cred, event_ctx, lp_ctx, &smb_krb5_context);
-	if (ret) {
-		talloc_free(mem_ctx);
-		return ret;
-	}
-
-	enctype_strings = cli_credentials_get_enctype_strings(cred);
-	
-	ret = cli_credentials_get_keytab(cred, event_ctx, lp_ctx, &ktc);
-	if (ret != 0) {
-		talloc_free(mem_ctx);
-		return ret;
-	}
-
-	ret = smb_krb5_update_keytab(mem_ctx, cred, smb_krb5_context, enctype_strings, ktc);
-
-	talloc_free(mem_ctx);
-	return ret;
-}
-
 /* Get server gss credentials (in gsskrb5, this means the keytab) */
 
 _PUBLIC_ int cli_credentials_get_server_gss_creds(struct cli_credentials *cred, 
-						  struct tevent_context *event_ctx,
-					 struct loadparm_context *lp_ctx,
-					 struct gssapi_creds_container **_gcc) 
+						  struct loadparm_context *lp_ctx,
+						  struct gssapi_creds_container **_gcc)
 {
 	int ret = 0;
 	OM_uint32 maj_stat, min_stat;
@@ -652,36 +691,36 @@ _PUBLIC_ int cli_credentials_get_server_gss_creds(struct cli_credentials *cred,
 	struct smb_krb5_context *smb_krb5_context;
 	TALLOC_CTX *mem_ctx;
 	krb5_principal princ;
-
-	if (cred->server_gss_creds_obtained >= (MAX(cred->keytab_obtained, 
-						    MAX(cred->principal_obtained, 
-							cred->username_obtained)))) {
-		*_gcc = cred->server_gss_creds;
-		return 0;
-	}
-
-	ret = cli_credentials_get_krb5_context(cred, event_ctx, lp_ctx, &smb_krb5_context);
-	if (ret) {
-		return ret;
-	}
-
-	ret = cli_credentials_get_keytab(cred, event_ctx, lp_ctx, &ktc);
-	if (ret) {
-		DEBUG(1, ("Failed to get keytab for GSSAPI server: %s\n", error_message(ret)));
-		return ret;
-	}
+	const char *error_string;
+	enum credentials_obtained obtained;
 
 	mem_ctx = talloc_new(cred);
 	if (!mem_ctx) {
 		return ENOMEM;
 	}
 
-	ret = principal_from_credentials(mem_ctx, cred, smb_krb5_context, &princ);
+	ret = cli_credentials_get_krb5_context(cred, lp_ctx, &smb_krb5_context);
 	if (ret) {
-		DEBUG(1,("cli_credentials_get_server_gss_creds: makeing krb5 principal failed (%s)\n",
-			 smb_get_krb5_error_message(smb_krb5_context->krb5_context, 
-						    ret, mem_ctx)));
+		return ret;
+	}
+
+	ret = principal_from_credentials(mem_ctx, cred, smb_krb5_context, &princ, &obtained, &error_string);
+	if (ret) {
+		DEBUG(1,("cli_credentials_get_server_gss_creds: making krb5 principal failed (%s)\n",
+			 error_string));
 		talloc_free(mem_ctx);
+		return ret;
+	}
+
+	if (cred->server_gss_creds_obtained >= (MAX(cred->keytab_obtained, obtained))) {
+		talloc_free(mem_ctx);
+		*_gcc = cred->server_gss_creds;
+		return 0;
+	}
+
+	ret = cli_credentials_get_keytab(cred, lp_ctx, &ktc);
+	if (ret) {
+		DEBUG(1, ("Failed to get keytab for GSSAPI server: %s\n", error_message(ret)));
 		return ret;
 	}
 
@@ -731,21 +770,6 @@ _PUBLIC_ int cli_credentials_get_kvno(struct cli_credentials *cred)
 }
 
 
-const char **cli_credentials_get_enctype_strings(struct cli_credentials *cred) 
-{
-	/* If this is ever made user-configurable, we need to add code
-	 * to remove/hide the other entries from the generated
-	 * keytab */
-	static const char *default_enctypes[] = {
-		"des-cbc-md5",
-		"aes256-cts-hmac-sha1-96",
-		"des3-cbc-sha1",
-		"arcfour-hmac-md5",
-		NULL
-	};
-	return default_enctypes;
-}
-
 const char *cli_credentials_get_salt_principal(struct cli_credentials *cred) 
 {
 	return cred->salt_principal;
@@ -753,7 +777,46 @@ const char *cli_credentials_get_salt_principal(struct cli_credentials *cred)
 
 _PUBLIC_ void cli_credentials_set_salt_principal(struct cli_credentials *cred, const char *principal) 
 {
+	talloc_free(cred->salt_principal);
 	cred->salt_principal = talloc_strdup(cred, principal);
 }
 
+/* The 'impersonate_principal' is used to allow on Kerberos principal
+ * (and it's associated keytab etc) to impersonate another.  The
+ * ability to do this is controlled by the KDC, but it is generally
+ * permitted to impersonate anyone to yourself.  This allows any
+ * member of the domain to get the groups of a user.  This is also
+ * known as S4U2Self */
+
+const char *cli_credentials_get_impersonate_principal(struct cli_credentials *cred)
+{
+	return cred->impersonate_principal;
+}
+
+_PUBLIC_ void cli_credentials_set_impersonate_principal(struct cli_credentials *cred, const char *principal)
+{
+	talloc_free(cred->impersonate_principal);
+	cred->impersonate_principal = talloc_strdup(cred, principal);
+}
+
+/* when impersonating for S4U2Self we need to set the target principal
+ * to ourself, as otherwise we would need additional rights.
+ * Similarly, we may only be authorized to do general impersonation to
+ * some particular services.
+ *
+ * Likewise, password changes typically require a ticket to kpasswd/realm directly, not via a TGT
+ *
+ * NULL means that tickets will be obtained for the krbtgt service.
+*/
+
+const char *cli_credentials_get_target_service(struct cli_credentials *cred)
+{
+	return cred->target_service;
+}
+
+_PUBLIC_ void cli_credentials_set_target_service(struct cli_credentials *cred, const char *target_service)
+{
+	talloc_free(cred->target_service);
+	cred->target_service = talloc_strdup(cred, target_service);
+}
 

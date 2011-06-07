@@ -53,9 +53,9 @@ void ldb_set_utf8_fns(struct ldb_context *ldb,
   a simple case folding function
   NOTE: does not handle UTF8
 */
-char *ldb_casefold_default(void *context, void *mem_ctx, const char *s, size_t n)
+char *ldb_casefold_default(void *context, TALLOC_CTX *mem_ctx, const char *s, size_t n)
 {
-	int i;
+	size_t i;
 	char *ret = talloc_strndup(mem_ctx, s, n);
 	if (!s) {
 		errno = ENOMEM;
@@ -72,7 +72,7 @@ void ldb_set_utf8_default(struct ldb_context *ldb)
 	ldb_set_utf8_fns(ldb, NULL, ldb_casefold_default);
 }
 
-char *ldb_casefold(struct ldb_context *ldb, void *mem_ctx, const char *s, size_t n)
+char *ldb_casefold(struct ldb_context *ldb, TALLOC_CTX *mem_ctx, const char *s, size_t n)
 {
 	return ldb->utf8_fns.casefold(ldb->utf8_fns.context, mem_ctx, s, n);
 }
@@ -84,7 +84,7 @@ char *ldb_casefold(struct ldb_context *ldb, void *mem_ctx, const char *s, size_t
 
 int ldb_valid_attr_name(const char *s)
 {
-	int i;
+	size_t i;
 
 	if (!s || !s[0])
 		return 0;
@@ -109,9 +109,9 @@ int ldb_valid_attr_name(const char *s)
 	return 1;
 }
 
-char *ldb_attr_casefold(void *mem_ctx, const char *s)
+char *ldb_attr_casefold(TALLOC_CTX *mem_ctx, const char *s)
 {
-	int i;
+	size_t i;
 	char *ret = talloc_strdup(mem_ctx, s);
 	if (!ret) {
 		errno = ENOMEM;

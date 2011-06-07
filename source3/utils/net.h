@@ -22,10 +22,11 @@
  * include
  */
 
-#include "lib/netapi/netapi.h"
-#include "libnet/libnet.h"
-#include "localedir.h"
+struct cli_state;
 
+#include "../librpc/gen_ndr/lsa.h"
+
+#include "intl.h"
 #ifdef HAVE_LIBINTL_H
 #include <libintl.h>
 #endif
@@ -75,11 +76,16 @@ struct net_context {
 	int opt_ccache;
 	int opt_single_obj_repl;
 	int opt_clean_old_entries;
+	const char *opt_db;
+	int opt_lock;
+	int opt_auto;
+	int opt_repair;
 
 	int opt_have_ip;
 	struct sockaddr_storage opt_dest_ip;
 	bool smb_encrypt;
 	struct libnetapi_ctx *netapi_ctx;
+	struct messaging_context *msg_ctx;
 
 	bool display_usage;
 	void *private_data;
@@ -109,7 +115,7 @@ struct functable {
 };
 
 typedef NTSTATUS (*rpc_command_fn)(struct net_context *c,
-				const DOM_SID *,
+				const struct dom_sid *,
 				const char *,
 				struct cli_state *cli,
 				struct rpc_pipe_client *,
@@ -129,7 +135,7 @@ typedef struct copy_clistate {
 struct rpc_sh_ctx {
 	struct cli_state *cli;
 
-	DOM_SID *domain_sid;
+	struct dom_sid *domain_sid;
 	const char *domain_name;
 
 	const char *whoami;

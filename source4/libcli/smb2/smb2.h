@@ -103,7 +103,7 @@ struct smb2_transport {
 	struct {
 		void (*func)(struct smb2_transport *, void *);
 		void *private_data;
-		uint_t period;
+		unsigned int period;
 	} idle;
 
 	struct {
@@ -145,6 +145,7 @@ struct smb2_session {
 	struct smb2_transport *transport;
 	struct gensec_security *gensec;
 	uint64_t uid;
+	uint32_t pid;
 	DATA_BLOB session_key;
 	bool signing_active;
 };
@@ -166,7 +167,7 @@ struct smb2_request {
 
 	/* each request is in one of 3 possible states */
 	enum smb2_request_state state;
-	
+
 	struct smb2_transport *transport;
 	struct smb2_session   *session;
 	struct smb2_tree      *tree;
@@ -176,13 +177,13 @@ struct smb2_request {
 	struct {
 		bool do_cancel;
 		bool can_cancel;
-		uint32_t pending_id;
+		uint64_t async_id;
 	} cancel;
 
 	/* the NT status for this request. Set by packet receive code
 	   or code detecting error. */
 	NTSTATUS status;
-	
+
 	struct smb2_request_buffer in;
 	struct smb2_request_buffer out;
 

@@ -3,6 +3,7 @@
 #include "includes.h"
 #include "librpc/gen_ndr/ndr_messaging.h"
 
+#include "librpc/gen_ndr/ndr_server_id.h"
 _PUBLIC_ enum ndr_err_code ndr_push_messaging_type(struct ndr_push *ndr, int ndr_flags, enum messaging_type r)
 {
 	NDR_CHECK(ndr_push_enum_uint32(ndr, NDR_SCALARS, r));
@@ -35,6 +36,9 @@ _PUBLIC_ void ndr_print_messaging_type(struct ndr_print *ndr, const char *name, 
 		case MSG_REQ_DMALLOC_MARK: val = "MSG_REQ_DMALLOC_MARK"; break;
 		case MSG_REQ_DMALLOC_LOG_CHANGED: val = "MSG_REQ_DMALLOC_LOG_CHANGED"; break;
 		case MSG_SHUTDOWN: val = "MSG_SHUTDOWN"; break;
+		case MSG_IDMAP_FLUSH: val = "MSG_IDMAP_FLUSH"; break;
+		case MSG_IDMAP_DELETE: val = "MSG_IDMAP_DELETE"; break;
+		case MSG_IDMAP_KILL: val = "MSG_IDMAP_KILL"; break;
 		case MSG_FORCE_ELECTION: val = "MSG_FORCE_ELECTION"; break;
 		case MSG_WINS_NEW_ENTRY: val = "MSG_WINS_NEW_ENTRY"; break;
 		case MSG_SEND_PACKET: val = "MSG_SEND_PACKET"; break;
@@ -44,6 +48,7 @@ _PUBLIC_ void ndr_print_messaging_type(struct ndr_print *ndr, const char *name, 
 		case MSG_PRINTERDATA_INIT_RESET: val = "MSG_PRINTERDATA_INIT_RESET"; break;
 		case MSG_PRINTER_UPDATE: val = "MSG_PRINTER_UPDATE"; break;
 		case MSG_PRINTER_MOD: val = "MSG_PRINTER_MOD"; break;
+		case MSG_PRINTER_PCAP: val = "MSG_PRINTER_PCAP"; break;
 		case MSG_SMB_CONF_UPDATED: val = "MSG_SMB_CONF_UPDATED"; break;
 		case MSG_SMB_FORCE_TDIS: val = "MSG_SMB_FORCE_TDIS"; break;
 		case MSG_SMB_SAM_SYNC: val = "MSG_SMB_SAM_SYNC"; break;
@@ -72,6 +77,7 @@ _PUBLIC_ void ndr_print_messaging_type(struct ndr_print *ndr, const char *name, 
 		case MSG_WINBIND_FAILED_TO_GO_ONLINE: val = "MSG_WINBIND_FAILED_TO_GO_ONLINE"; break;
 		case MSG_WINBIND_VALIDATE_CACHE: val = "MSG_WINBIND_VALIDATE_CACHE"; break;
 		case MSG_WINBIND_DUMP_DOMAIN_LIST: val = "MSG_WINBIND_DUMP_DOMAIN_LIST"; break;
+		case MSG_WINBIND_IP_DROPPED: val = "MSG_WINBIND_IP_DROPPED"; break;
 		case MSG_DUMP_EVENT_LIST: val = "MSG_DUMP_EVENT_LIST"; break;
 		case MSG_DBWRAP_TDB2_CHANGES: val = "MSG_DBWRAP_TDB2_CHANGES"; break;
 		case MSG_DBWRAP_G_LOCK_RETRY: val = "MSG_DBWRAP_G_LOCK_RETRY"; break;
@@ -91,8 +97,6 @@ _PUBLIC_ enum ndr_err_code ndr_push_messaging_rec(struct ndr_push *ndr, int ndr_
 		NDR_CHECK(ndr_push_trailer_align(ndr, 4));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
-		NDR_CHECK(ndr_push_server_id(ndr, NDR_BUFFERS, &r->dest));
-		NDR_CHECK(ndr_push_server_id(ndr, NDR_BUFFERS, &r->src));
 	}
 	return NDR_ERR_SUCCESS;
 }
@@ -109,8 +113,6 @@ _PUBLIC_ enum ndr_err_code ndr_pull_messaging_rec(struct ndr_pull *ndr, int ndr_
 		NDR_CHECK(ndr_pull_trailer_align(ndr, 4));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
-		NDR_CHECK(ndr_pull_server_id(ndr, NDR_BUFFERS, &r->dest));
-		NDR_CHECK(ndr_pull_server_id(ndr, NDR_BUFFERS, &r->src));
 	}
 	return NDR_ERR_SUCCESS;
 }
@@ -118,6 +120,7 @@ _PUBLIC_ enum ndr_err_code ndr_pull_messaging_rec(struct ndr_pull *ndr, int ndr_
 _PUBLIC_ void ndr_print_messaging_rec(struct ndr_print *ndr, const char *name, const struct messaging_rec *r)
 {
 	ndr_print_struct(ndr, name, "messaging_rec");
+	if (r == NULL) { ndr_print_null(ndr); return; }
 	ndr->depth++;
 	ndr_print_uint32(ndr, "msg_version", r->msg_version);
 	ndr_print_messaging_type(ndr, "msg_type", r->msg_type);
@@ -139,9 +142,6 @@ _PUBLIC_ enum ndr_err_code ndr_push_messaging_array(struct ndr_push *ndr, int nd
 		NDR_CHECK(ndr_push_trailer_align(ndr, 4));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
-		for (cntr_messages_0 = 0; cntr_messages_0 < r->num_messages; cntr_messages_0++) {
-			NDR_CHECK(ndr_push_messaging_rec(ndr, NDR_BUFFERS, &r->messages[cntr_messages_0]));
-		}
 	}
 	return NDR_ERR_SUCCESS;
 }
@@ -163,12 +163,6 @@ _PUBLIC_ enum ndr_err_code ndr_pull_messaging_array(struct ndr_pull *ndr, int nd
 		NDR_CHECK(ndr_pull_trailer_align(ndr, 4));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
-		_mem_save_messages_0 = NDR_PULL_GET_MEM_CTX(ndr);
-		NDR_PULL_SET_MEM_CTX(ndr, r->messages, 0);
-		for (cntr_messages_0 = 0; cntr_messages_0 < r->num_messages; cntr_messages_0++) {
-			NDR_CHECK(ndr_pull_messaging_rec(ndr, NDR_BUFFERS, &r->messages[cntr_messages_0]));
-		}
-		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_messages_0, 0);
 	}
 	return NDR_ERR_SUCCESS;
 }
@@ -177,16 +171,13 @@ _PUBLIC_ void ndr_print_messaging_array(struct ndr_print *ndr, const char *name,
 {
 	uint32_t cntr_messages_0;
 	ndr_print_struct(ndr, name, "messaging_array");
+	if (r == NULL) { ndr_print_null(ndr); return; }
 	ndr->depth++;
 	ndr_print_uint32(ndr, "num_messages", r->num_messages);
 	ndr->print(ndr, "%s: ARRAY(%d)", "messages", (int)r->num_messages);
 	ndr->depth++;
 	for (cntr_messages_0=0;cntr_messages_0<r->num_messages;cntr_messages_0++) {
-		char *idx_0=NULL;
-		if (asprintf(&idx_0, "[%d]", cntr_messages_0) != -1) {
-			ndr_print_messaging_rec(ndr, "messages", &r->messages[cntr_messages_0]);
-			free(idx_0);
-		}
+		ndr_print_messaging_rec(ndr, "messages", &r->messages[cntr_messages_0]);
 	}
 	ndr->depth--;
 	ndr->depth--;
@@ -254,6 +245,7 @@ _PUBLIC_ void ndr_print_dbwrap_tdb2_changes(struct ndr_print *ndr, const char *n
 {
 	uint32_t cntr_keys_0;
 	ndr_print_struct(ndr, name, "dbwrap_tdb2_changes");
+	if (r == NULL) { ndr_print_null(ndr); return; }
 	ndr->depth++;
 	ndr_print_string(ndr, "magic_string", (ndr->flags & LIBNDR_PRINT_SET_VALUES)?"TDB2":r->magic_string);
 	ndr_print_uint32(ndr, "magic_version", (ndr->flags & LIBNDR_PRINT_SET_VALUES)?1:r->magic_version);
@@ -265,11 +257,7 @@ _PUBLIC_ void ndr_print_dbwrap_tdb2_changes(struct ndr_print *ndr, const char *n
 	ndr->print(ndr, "%s: ARRAY(%d)", "keys", (int)r->num_keys);
 	ndr->depth++;
 	for (cntr_keys_0=0;cntr_keys_0<r->num_keys;cntr_keys_0++) {
-		char *idx_0=NULL;
-		if (asprintf(&idx_0, "[%d]", cntr_keys_0) != -1) {
-			ndr_print_DATA_BLOB(ndr, "keys", r->keys[cntr_keys_0]);
-			free(idx_0);
-		}
+		ndr_print_DATA_BLOB(ndr, "keys", r->keys[cntr_keys_0]);
 	}
 	ndr->depth--;
 	ndr->depth--;

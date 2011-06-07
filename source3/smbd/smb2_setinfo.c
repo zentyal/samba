@@ -3,6 +3,7 @@
    Core SMB2 server
 
    Copyright (C) Stefan Metzmacher 2009
+   Copyright (C) Jeremy Allison 2010
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,8 +20,11 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
 #include "../libcli/smb/smb_common.h"
+#include "trans2.h"
+#include "../lib/util/tevent_ntstatus.h"
 
 static struct tevent_req *smbd_smb2_setinfo_send(TALLOC_CTX *mem_ctx,
 						 struct tevent_context *ev,
@@ -87,7 +91,7 @@ NTSTATUS smbd_smb2_request_process_setinfo(struct smbd_smb2_request *req)
 
 	if (req->compat_chain_fsp) {
 		/* skip check */
-	} else if (in_file_id_persistent != 0) {
+	} else if (in_file_id_persistent != in_file_id_volatile) {
 		return smbd_smb2_request_error(req, NT_STATUS_FILE_CLOSED);
 	}
 
@@ -161,11 +165,12 @@ static struct tevent_req *smbd_smb2_setinfo_send(TALLOC_CTX *mem_ctx,
 						 uint32_t in_additional_information,
 						 uint64_t in_file_id_volatile)
 {
-	struct tevent_req *req;
-	struct smbd_smb2_setinfo_state *state;
-	struct smb_request *smbreq;
+	struct tevent_req *req = NULL;
+	struct smbd_smb2_setinfo_state *state = NULL;
+	struct smb_request *smbreq = NULL;
 	connection_struct *conn = smb2req->tcon->compat_conn;
-	files_struct *fsp;
+	files_struct *fsp = NULL;
+	NTSTATUS status;
 
 	req = tevent_req_create(mem_ctx, &state,
 				struct smbd_smb2_setinfo_state);
@@ -208,15 +213,21 @@ static struct tevent_req *smbd_smb2_setinfo_send(TALLOC_CTX *mem_ctx,
 		char *data;
 		int data_size;
 		int ret_size = 0;
-		NTSTATUS status;
 
 
 		file_info_level = in_file_info_class + 1000;
 		if (file_info_level == SMB_FILE_RENAME_INFORMATION) {
-			file_info_level = 0xFF00 + in_file_info_class;
+			/* SMB2_FILE_RENAME_INFORMATION_INTERNAL == 0xFF00 + in_file_info_class */
+			file_info_level = SMB2_FILE_RENAME_INFORMATION_INTERNAL;
+			if (fsp->oplock_type != FAKE_LEVEL_II_OPLOCK &&
+			    fsp->oplock_type != NO_OPLOCK) {
+				/* No break, but error. */
+				tevent_req_nterror(req, NT_STATUS_SHARING_VIOLATION);
+				return tevent_req_post(req, ev);
+			}
 		}
 
-		if (fsp->is_directory || fsp->fh->fd == -1) {
+		if (fsp->fh->fd == -1) {
 			/*
 			 * This is actually a SETFILEINFO on a directory
 			 * handle (returned from an NT SMB). NT5.0 seems
@@ -251,7 +262,7 @@ static struct tevent_req *smbd_smb2_setinfo_send(TALLOC_CTX *mem_ctx,
 			if ((file_info_level == SMB_SET_FILE_DISPOSITION_INFO)
 			    && in_input_buffer.length >= 1
 			    && CVAL(in_input_buffer.data,0)) {
-				fsp->fh->private_options |= FILE_DELETE_ON_CLOSE;
+				fsp->fh->private_options |= NTCREATEX_OPTIONS_PRIVATE_DELETE_ON_CLOSE;
 
 				DEBUG(3,("smbd_smb2_setinfo_send: "
 					 "Cancelling print job (%s)\n",
@@ -284,7 +295,7 @@ static struct tevent_req *smbd_smb2_setinfo_send(TALLOC_CTX *mem_ctx,
 		if (data_size > 0) {
 			data = (char *)SMB_MALLOC_ARRAY(char, data_size);
 			if (tevent_req_nomem(data, req)) {
-
+				return tevent_req_post(req, ev);
 			}
 			memcpy(data, in_input_buffer.data, data_size);
 		}
@@ -301,6 +312,24 @@ static struct tevent_req *smbd_smb2_setinfo_send(TALLOC_CTX *mem_ctx,
 			if (NT_STATUS_EQUAL(status, NT_STATUS_INVALID_LEVEL)) {
 				status = NT_STATUS_INVALID_INFO_CLASS;
 			}
+			tevent_req_nterror(req, status);
+			return tevent_req_post(req, ev);
+		}
+		break;
+	}
+
+	case 0x03:/* SMB2_SETINFO_SECURITY */
+	{
+		if (!CAN_WRITE(conn)) {
+			tevent_req_nterror(req, NT_STATUS_ACCESS_DENIED);
+			return tevent_req_post(req, ev);
+		}
+
+		status = set_sd(fsp,
+				in_input_buffer.data,
+				in_input_buffer.length,
+				in_additional_information);
+		if (!NT_STATUS_IS_OK(status)) {
 			tevent_req_nterror(req, status);
 			return tevent_req_post(req, ev);
 		}

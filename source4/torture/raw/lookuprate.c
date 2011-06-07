@@ -20,11 +20,8 @@
 #include "includes.h"
 #include "system/filesys.h"
 #include "torture/smbtorture.h"
-#include "torture/basic/proto.h"
 #include "libcli/libcli.h"
 #include "torture/util.h"
-#include "lib/cmdline/popt_common.h"
-#include "auth/credentials/credentials.h"
 
 #define BASEDIR "\\lookuprate"
 #define MISSINGNAME BASEDIR "\\foo"
@@ -96,7 +93,7 @@ static NTSTATUS fill_directory(struct smbcli_tree *tree,
 				    path, current);
 
 		fnum = smbcli_open(tree, fname, O_RDONLY|O_CREAT,
-				OPENX_MODE_DENY_NONE);
+				DENY_NONE);
 		if (fnum < 0) {
 			talloc_free(fname);
 			return smbcli_nt_error(tree);
@@ -247,7 +244,7 @@ bool torture_bench_lookup(struct torture_context *torture)
 	remove_working_directory(cli->tree, BASEDIR);
 
 	for (i = 0; i < ARRAY_SIZE(records); ++i) {
-		printf("testing lookup rate with %u directory entries\n",
+		printf("Testing lookup rate with %u directory entries\n",
 				records[i].dirent_count);
 
 		status = fill_directory(cli->tree, BASEDIR,

@@ -19,7 +19,14 @@
 
 
 #include "includes.h"
+#include "system/passwd.h"
 #include "utils/net.h"
+#include "../librpc/gen_ndr/samr.h"
+#include "smbldap.h"
+#include "../libcli/security/security.h"
+#include "lib/winbind_util.h"
+#include "passdb.h"
+#include "lib/privileges.h"
 
 /*
  * Set a user's data
@@ -31,7 +38,7 @@ static int net_sam_userset(struct net_context *c, int argc, const char **argv,
 				      enum pdb_value_state))
 {
 	struct samu *sam_acct = NULL;
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 	const char *dom, *name;
 	NTSTATUS status;
@@ -134,7 +141,7 @@ static int net_sam_set_userflag(struct net_context *c, int argc,
 				uint16 flag)
 {
 	struct samu *sam_acct = NULL;
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 	const char *dom, *name;
 	NTSTATUS status;
@@ -227,7 +234,7 @@ static int net_sam_set_pwdmustchangenow(struct net_context *c, int argc,
 					const char **argv)
 {
 	struct samu *sam_acct = NULL;
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 	const char *dom, *name;
 	NTSTATUS status;
@@ -293,7 +300,7 @@ static int net_sam_set_comment(struct net_context *c, int argc,
 			       const char **argv)
 {
 	GROUP_MAP map;
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 	const char *dom, *name;
 	NTSTATUS status;
@@ -630,12 +637,10 @@ static int net_sam_policy(struct net_context *c, int argc, const char **argv)
         return net_run_function(c, argc, argv, "net sam policy", func);
 }
 
-extern PRIVS privs[];
-
 static int net_sam_rights_list(struct net_context *c, int argc,
 			       const char **argv)
 {
-	SE_PRIV mask;
+	enum sec_privilege privilege;
 
 	if (argc > 1 || c->display_usage) {
 		d_fprintf(stderr, "%s\n%s",
@@ -646,20 +651,22 @@ static int net_sam_rights_list(struct net_context *c, int argc,
 
 	if (argc == 0) {
 		int i;
-		int num = count_all_privileges();
+		int num = num_privileges_in_short_list();
 
 		for (i=0; i<num; i++) {
-			d_printf("%s\n", privs[i].name);
+			d_printf("%s\n", sec_privilege_name_from_index(i));
 		}
 		return 0;
 	}
 
-	if (se_priv_from_name(argv[0], &mask)) {
-		DOM_SID *sids;
+	privilege = sec_privilege_id(argv[0]);
+
+	if (privilege != SEC_PRIV_INVALID) {
+		struct dom_sid *sids;
 		int i, num_sids;
 		NTSTATUS status;
 
-		status = privilege_enum_sids(&mask, talloc_tos(),
+		status = privilege_enum_sids(privilege, talloc_tos(),
 					     &sids, &num_sids);
 		if (!NT_STATUS_IS_OK(status)) {
 			d_fprintf(stderr, _("Could not list rights: %s\n"),
@@ -688,10 +695,9 @@ static int net_sam_rights_list(struct net_context *c, int argc,
 static int net_sam_rights_grant(struct net_context *c, int argc,
 				const char **argv)
 {
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 	const char *dom, *name;
-	SE_PRIV mask;
 	int i;
 
 	if (argc < 2 || c->display_usage) {
@@ -708,12 +714,13 @@ static int net_sam_rights_grant(struct net_context *c, int argc,
 	}
 
 	for (i=1; i < argc; i++) {
-		if (!se_priv_from_name(argv[i], &mask)) {
+		enum sec_privilege privilege = sec_privilege_id(argv[i]);
+		if (privilege == SEC_PRIV_INVALID) {
 			d_fprintf(stderr, _("%s unknown\n"), argv[i]);
 			return -1;
 		}
 
-		if (!grant_privilege(&sid, &mask)) {
+		if (!grant_privilege_by_name(&sid, argv[i])) {
 			d_fprintf(stderr, _("Could not grant privilege\n"));
 			return -1;
 		}
@@ -727,10 +734,9 @@ static int net_sam_rights_grant(struct net_context *c, int argc,
 static int net_sam_rights_revoke(struct net_context *c, int argc,
 				const char **argv)
 {
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 	const char *dom, *name;
-	SE_PRIV mask;
 	int i;
 
 	if (argc < 2 || c->display_usage) {
@@ -747,13 +753,13 @@ static int net_sam_rights_revoke(struct net_context *c, int argc,
 	}
 
 	for (i=1; i < argc; i++) {
-
-		if (!se_priv_from_name(argv[i], &mask)) {
+		enum sec_privilege privilege = sec_privilege_id(argv[i]);
+		if (privilege == SEC_PRIV_INVALID) {
 			d_fprintf(stderr, _("%s unknown\n"), argv[i]);
 			return -1;
 		}
 
-		if (!revoke_privilege(&sid, &mask)) {
+		if (!revoke_privilege_by_name(&sid, argv[i])) {
 			d_fprintf(stderr, _("Could not revoke privilege\n"));
 			return -1;
 		}
@@ -894,10 +900,9 @@ static int net_sam_mapunixgroup(struct net_context *c, int argc, const char **ar
 
 static NTSTATUS unmap_unix_group(const struct group *grp, GROUP_MAP *pmap)
 {
-        NTSTATUS status;
         GROUP_MAP map;
         const char *grpname;
-        DOM_SID dom_sid;
+        struct dom_sid dom_sid;
 
         map.gid = grp->gr_gid;
         grpname = grp->gr_name;
@@ -914,9 +919,7 @@ static NTSTATUS unmap_unix_group(const struct group *grp, GROUP_MAP *pmap)
                 return NT_STATUS_UNSUCCESSFUL;
         }
 
-        status = pdb_delete_group_mapping_entry(dom_sid);
-
-        return status;
+        return pdb_delete_group_mapping_entry(dom_sid);
 }
 
 static int net_sam_unmapunixgroup(struct net_context *c, int argc, const char **argv)
@@ -989,7 +992,7 @@ static int net_sam_createdomaingroup(struct net_context *c, int argc,
 static int net_sam_deletedomaingroup(struct net_context *c, int argc,
 				     const char **argv)
 {
-	DOM_SID sid;
+	struct dom_sid sid;
 	uint32_t rid;
         enum lsa_SidType type;
         const char *dom, *name;
@@ -1070,7 +1073,7 @@ static int net_sam_createlocalgroup(struct net_context *c, int argc, const char 
 
 static int net_sam_deletelocalgroup(struct net_context *c, int argc, const char **argv)
 {
-	DOM_SID sid;
+	struct dom_sid sid;
         enum lsa_SidType type;
         const char *dom, *name;
 	NTSTATUS status;
@@ -1117,7 +1120,7 @@ static int net_sam_createbuiltingroup(struct net_context *c, int argc, const cha
 	uint32 rid;
 	enum lsa_SidType type;
 	fstring groupname;
-	DOM_SID sid;
+	struct dom_sid sid;
 
 	if (argc != 1 || c->display_usage) {
 		d_fprintf(stderr, "%s\n%s",
@@ -1169,7 +1172,7 @@ static int net_sam_createbuiltingroup(struct net_context *c, int argc, const cha
 static int net_sam_addmem(struct net_context *c, int argc, const char **argv)
 {
 	const char *groupdomain, *groupname, *memberdomain, *membername;
-	DOM_SID group, member;
+	struct dom_sid group, member;
 	enum lsa_SidType grouptype, membertype;
 	NTSTATUS status;
 
@@ -1258,7 +1261,7 @@ static int net_sam_delmem(struct net_context *c, int argc, const char **argv)
 	const char *groupdomain, *groupname;
 	const char *memberdomain = NULL;
 	const char *membername = NULL;
-	DOM_SID group, member;
+	struct dom_sid group, member;
 	enum lsa_SidType grouptype;
 	NTSTATUS status;
 
@@ -1330,8 +1333,8 @@ static int net_sam_delmem(struct net_context *c, int argc, const char **argv)
 static int net_sam_listmem(struct net_context *c, int argc, const char **argv)
 {
 	const char *groupdomain, *groupname;
-	DOM_SID group;
-	DOM_SID *members = NULL;
+	struct dom_sid group;
+	struct dom_sid *members = NULL;
 	size_t i, num_members = 0;
 	enum lsa_SidType grouptype;
 	NTSTATUS status;
@@ -1542,7 +1545,7 @@ static int net_sam_list(struct net_context *c, int argc, const char **argv)
 
 static int net_sam_show(struct net_context *c, int argc, const char **argv)
 {
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 	const char *dom, *name;
 
@@ -1580,11 +1583,12 @@ static int net_sam_provision(struct net_context *c, int argc, const char **argv)
 	char *p;
 	struct smbldap_state *ls;
 	GROUP_MAP gmap;
-	DOM_SID gsid;
+	struct dom_sid gsid;
 	gid_t domusers_gid = -1;
 	gid_t domadmins_gid = -1;
 	struct samu *samuser;
 	struct passwd *pwd;
+	bool is_ipa = false;
 
 	if (c->display_usage) {
 		d_printf(  "%s\n"
@@ -1615,7 +1619,11 @@ static int net_sam_provision(struct net_context *c, int argc, const char **argv)
 
 	trim_char(ldap_bk, ' ', ' ');
 
-	if (strcmp(ldap_bk, "ldapsam") != 0) {
+	if (strcmp(ldap_bk, "IPA_ldapsam") == 0 ) {
+		is_ipa = true;
+	}
+
+	if (strcmp(ldap_bk, "ldapsam") != 0 && !is_ipa ) {
 		d_fprintf(stderr,
 			  _("Provisioning works only with ldapsam backend\n"));
 		goto failed;
@@ -1629,7 +1637,7 @@ static int net_sam_provision(struct net_context *c, int argc, const char **argv)
 		goto failed;
 	}
 
-	if (!winbind_ping()) {
+	if (!is_ipa && !winbind_ping()) {
 		d_fprintf(stderr, _("winbind seems not to run. Provisioning "
 			    "LDAP only works when winbind runs.\n"));
 		goto failed;
@@ -1642,7 +1650,7 @@ static int net_sam_provision(struct net_context *c, int argc, const char **argv)
 
 	d_printf(_("Checking for Domain Users group.\n"));
 
-	sid_compose(&gsid, get_global_sam_sid(), DOMAIN_GROUP_RID_USERS);
+	sid_compose(&gsid, get_global_sam_sid(), DOMAIN_RID_USERS);
 
 	if (!pdb_getgrsid(&gmap, gsid)) {
 		LDAPMod **mods = NULL;
@@ -1656,10 +1664,14 @@ static int net_sam_provision(struct net_context *c, int argc, const char **argv)
 		d_printf(_("Adding the Domain Users group.\n"));
 
 		/* lets allocate a new groupid for this group */
-		if (!winbind_allocate_gid(&domusers_gid)) {
-			d_fprintf(stderr, _("Unable to allocate a new gid to "
-					    "create Domain Users group!\n"));
-			goto domu_done;
+		if (is_ipa) {
+			domusers_gid = 999;
+		} else {
+			if (!winbind_allocate_gid(&domusers_gid)) {
+				d_fprintf(stderr, _("Unable to allocate a new gid to "
+						    "create Domain Users group!\n"));
+				goto domu_done;
+			}
 		}
 
 		uname = talloc_strdup(tc, "domusers");
@@ -1675,6 +1687,11 @@ static int net_sam_provision(struct net_context *c, int argc, const char **argv)
 
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_POSIXGROUP);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_GROUPMAP);
+		if (is_ipa) {
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "groupofnames");
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "nestedgroup");
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "ipausergroup");
+		}
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "cn", uname);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "displayName", wname);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "gidNumber", gidstr);
@@ -1690,6 +1707,16 @@ static int net_sam_provision(struct net_context *c, int argc, const char **argv)
 			d_fprintf(stderr, _("Failed to add Domain Users group "
 					    "to ldap directory\n"));
 		}
+
+		if (is_ipa) {
+			if (!pdb_getgrsid(&gmap, gsid)) {
+				d_fprintf(stderr, _("Failed to read just "
+						    "created domain group.\n"));
+				goto failed;
+			} else {
+				domusers_gid = gmap.gid;
+			}
+		}
 	} else {
 		domusers_gid = gmap.gid;
 		d_printf(_("found!\n"));
@@ -1699,7 +1726,7 @@ domu_done:
 
 	d_printf(_("Checking for Domain Admins group.\n"));
 
-	sid_compose(&gsid, get_global_sam_sid(), DOMAIN_GROUP_RID_ADMINS);
+	sid_compose(&gsid, get_global_sam_sid(), DOMAIN_RID_ADMINS);
 
 	if (!pdb_getgrsid(&gmap, gsid)) {
 		LDAPMod **mods = NULL;
@@ -1713,10 +1740,14 @@ domu_done:
 		d_printf(_("Adding the Domain Admins group.\n"));
 
 		/* lets allocate a new groupid for this group */
-		if (!winbind_allocate_gid(&domadmins_gid)) {
-			d_fprintf(stderr, _("Unable to allocate a new gid to "
-					    "create Domain Admins group!\n"));
-			goto doma_done;
+		if (is_ipa) {
+			domadmins_gid = 999;
+		} else {
+			if (!winbind_allocate_gid(&domadmins_gid)) {
+				d_fprintf(stderr, _("Unable to allocate a new gid to "
+						    "create Domain Admins group!\n"));
+				goto doma_done;
+			}
 		}
 
 		uname = talloc_strdup(tc, "domadmins");
@@ -1732,6 +1763,11 @@ domu_done:
 
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_POSIXGROUP);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_GROUPMAP);
+		if (is_ipa) {
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "groupofnames");
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "nestedgroup");
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "ipausergroup");
+		}
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "cn", uname);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "displayName", wname);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "gidNumber", gidstr);
@@ -1746,6 +1782,16 @@ domu_done:
 		if (rc != LDAP_SUCCESS) {
 			d_fprintf(stderr, _("Failed to add Domain Admins group "
 					    "to ldap directory\n"));
+		}
+
+		if (is_ipa) {
+			if (!pdb_getgrsid(&gmap, gsid)) {
+				d_fprintf(stderr, _("Failed to read just "
+						    "created domain group.\n"));
+				goto failed;
+			} else {
+				domadmins_gid = gmap.gid;
+			}
 		}
 	} else {
 		domadmins_gid = gmap.gid;
@@ -1764,13 +1810,14 @@ doma_done:
 
 	if (!pdb_getsampwnam(samuser, "Administrator")) {
 		LDAPMod **mods = NULL;
-		DOM_SID sid;
+		struct dom_sid sid;
 		char *dn;
 		char *name;
 		char *uidstr;
 		char *gidstr;
 		char *shell;
 		char *dir;
+		char *princ;
 		uid_t uid;
 		int rc;
 
@@ -1782,12 +1829,18 @@ doma_done:
 				    "Admins group not available!\n"));
 			goto done;
 		}
-		if (!winbind_allocate_uid(&uid)) {
-			d_fprintf(stderr,
-				  _("Unable to allocate a new uid to create "
-				    "the Administrator user!\n"));
-			goto done;
+
+		if (is_ipa) {
+			uid = 999;
+		} else {
+			if (!winbind_allocate_uid(&uid)) {
+				d_fprintf(stderr,
+					  _("Unable to allocate a new uid to create "
+					    "the Administrator user!\n"));
+				goto done;
+			}
 		}
+
 		name = talloc_strdup(tc, "Administrator");
 		dn = talloc_asprintf(tc, "uid=Administrator,%s", lp_ldap_user_suffix());
 		uidstr = talloc_asprintf(tc, "%u", (unsigned int)uid);
@@ -1806,11 +1859,33 @@ doma_done:
 			goto failed;
 		}
 
-		sid_compose(&sid, get_global_sam_sid(), DOMAIN_USER_RID_ADMIN);
+		sid_compose(&sid, get_global_sam_sid(), DOMAIN_RID_ADMINISTRATOR);
+
+		if (!winbind_allocate_uid(&uid)) {
+			d_fprintf(stderr,
+				  _("Unable to allocate a new uid to create "
+				    "the Administrator user!\n"));
+			goto done;
+		}
 
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_ACCOUNT);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_POSIXACCOUNT);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_SAMBASAMACCOUNT);
+		if (is_ipa) {
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "person");
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "organizationalperson");
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "inetorgperson");
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "inetuser");
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "krbprincipalaux");
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "krbticketpolicyaux");
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "sn", name);
+			princ = talloc_asprintf(tc, "%s@%s", name, lp_realm());
+			if (!princ) {
+				d_fprintf(stderr, _("Out of Memory!\n"));
+				goto failed;
+			}
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "krbPrincipalName", princ);
+		}
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "uid", name);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "cn", name);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "displayName", name);
@@ -1832,6 +1907,14 @@ doma_done:
 			d_fprintf(stderr, _("Failed to add Administrator user "
 					    "to ldap directory\n"));
 		}
+
+		if (is_ipa) {
+			if (!pdb_getsampwnam(samuser, "Administrator")) {
+				d_fprintf(stderr, _("Failed to read just "
+						    "created user.\n"));
+				goto failed;
+			}
+		}
 	} else {
 		d_printf(_("found!\n"));
 	}
@@ -1846,13 +1929,15 @@ doma_done:
 
 	if (!pdb_getsampwnam(samuser, lp_guestaccount())) {
 		LDAPMod **mods = NULL;
-		DOM_SID sid;
+		struct dom_sid sid;
 		char *dn;
 		char *uidstr;
 		char *gidstr;
 		int rc;
 
 		d_printf(_("Adding the Guest user.\n"));
+
+		sid_compose(&sid, get_global_sam_sid(), DOMAIN_RID_GUEST);
 
 		pwd = Get_Pwnam_alloc(tc, lp_guestaccount());
 
@@ -1868,11 +1953,16 @@ doma_done:
 				goto done;
 			}
 			pwd->pw_name = talloc_strdup(pwd, lp_guestaccount());
-			if (!winbind_allocate_uid(&(pwd->pw_uid))) {
-				d_fprintf(stderr,
-					  _("Unable to allocate a new uid to "
-					    "create the Guest user!\n"));
-				goto done;
+
+			if (is_ipa) {
+				pwd->pw_uid = 999;
+			} else {
+				if (!winbind_allocate_uid(&(pwd->pw_uid))) {
+					d_fprintf(stderr,
+						  _("Unable to allocate a new uid to "
+						    "create the Guest user!\n"));
+					goto done;
+				}
 			}
 			pwd->pw_gid = domusers_gid;
 			pwd->pw_dir = talloc_strdup(tc, "/");
@@ -1882,8 +1972,6 @@ doma_done:
 				goto failed;
 			}
 		}
-
-		sid_compose(&sid, get_global_sam_sid(), DOMAIN_USER_RID_GUEST);
 
 		dn = talloc_asprintf(tc, "uid=%s,%s", pwd->pw_name, lp_ldap_user_suffix ());
 		uidstr = talloc_asprintf(tc, "%u", (unsigned int)pwd->pw_uid);
@@ -1896,6 +1984,15 @@ doma_done:
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_ACCOUNT);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_POSIXACCOUNT);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_SAMBASAMACCOUNT);
+		if (is_ipa) {
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "person");
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "organizationalperson");
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "inetorgperson");
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "inetuser");
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "krbprincipalaux");
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "krbticketpolicyaux");
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "sn", pwd->pw_name);
+		}
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "uid", pwd->pw_name);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "cn", pwd->pw_name);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "displayName", pwd->pw_name);
@@ -1921,13 +2018,21 @@ doma_done:
 			d_fprintf(stderr, _("Failed to add Guest user to "
 					    "ldap directory\n"));
 		}
+
+		if (is_ipa) {
+			if (!pdb_getsampwnam(samuser, lp_guestaccount())) {
+				d_fprintf(stderr, _("Failed to read just "
+						    "created user.\n"));
+				goto failed;
+			}
+		}
 	} else {
 		d_printf(_("found!\n"));
 	}
 
 	d_printf(_("Checking Guest's group.\n"));
 
-	pwd = Get_Pwnam_alloc(talloc_autofree_context(), lp_guestaccount());
+	pwd = Get_Pwnam_alloc(tc, lp_guestaccount());
 	if (!pwd) {
 		d_fprintf(stderr,
 			  _("Failed to find just created Guest account!\n"
@@ -1962,10 +2067,15 @@ doma_done:
 			goto failed;
 		}
 
-		sid_compose(&gsid, get_global_sam_sid(), DOMAIN_GROUP_RID_GUESTS);
+		sid_compose(&gsid, get_global_sam_sid(), DOMAIN_RID_GUESTS);
 
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_POSIXGROUP);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_GROUPMAP);
+		if (is_ipa) {
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "groupofnames");
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "nestedgroup");
+			smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", "ipausergroup");
+		}
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "cn", uname);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "displayName", wname);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "gidNumber", gidstr);

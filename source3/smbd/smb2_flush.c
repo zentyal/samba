@@ -19,8 +19,10 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
 #include "../libcli/smb/smb_common.h"
+#include "../lib/util/tevent_ntstatus.h"
 
 static struct tevent_req *smbd_smb2_flush_send(TALLOC_CTX *mem_ctx,
 					       struct tevent_context *ev,
@@ -57,7 +59,7 @@ NTSTATUS smbd_smb2_request_process_flush(struct smbd_smb2_request *req)
 
 	if (req->compat_chain_fsp) {
 		/* skip check */
-	} else if (in_file_id_persistent != 0) {
+	} else if (in_file_id_persistent != in_file_id_volatile) {
 		return smbd_smb2_request_error(req, NT_STATUS_FILE_CLOSED);
 	}
 

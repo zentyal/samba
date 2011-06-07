@@ -1,39 +1,36 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
    Test suite for libnet calls.
 
    Copyright (C) Rafal Szczesniak 2005
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
 #include "lib/cmdline/popt_common.h"
-#include "auth/credentials/credentials.h"
 #include "libnet/libnet.h"
 #include "libcli/security/security.h"
-#include "librpc/ndr/libndr.h"
 #include "librpc/gen_ndr/ndr_lsa.h"
 #include "librpc/gen_ndr/ndr_samr.h"
 #include "librpc/gen_ndr/ndr_srvsvc.h"
-#include "librpc/rpc/dcerpc.h"
-#include "torture/rpc/rpc.h"
-#include "torture/torture.h"
+#include "torture/rpc/torture_rpc.h"
 #include "param/param.h"
 
 
-static bool test_connect_service(struct libnet_context *ctx,
+static bool test_connect_service(struct torture_context *tctx,
+				 struct libnet_context *ctx,
 				 const struct ndr_interface_table *iface,
 				 const char *binding_string,
 				 const char *hostname,
@@ -59,7 +56,7 @@ static bool test_connect_service(struct libnet_context *ctx,
 	status = libnet_RpcConnect(ctx, ctx, &connect_r);
 
 	if (!NT_STATUS_EQUAL(status, expected_status)) {
-		d_printf("Connecting to rpc service %s on %s.\n\tFAILED. Expected: %s."
+		torture_comment(tctx, "Connecting to rpc service %s on %s.\n\tFAILED. Expected: %s."
 		       "Received: %s\n",
 		       connect_r.in.dcerpc_iface->name, connect_r.in.binding, nt_errstr(expected_status),
 		       nt_errstr(status));
@@ -67,18 +64,18 @@ static bool test_connect_service(struct libnet_context *ctx,
 		return false;
 	}
 
-	d_printf("PASSED. Expected: %s, received: %s\n", nt_errstr(expected_status),
+	torture_comment(tctx, "PASSED. Expected: %s, received: %s\n", nt_errstr(expected_status),
 	       nt_errstr(status));
 
 	if (connect_r.level == LIBNET_RPC_CONNECT_DC_INFO && NT_STATUS_IS_OK(status)) {
-		d_printf("Domain Controller Info:\n");
-		d_printf("\tDomain Name:\t %s\n", connect_r.out.domain_name);
-		d_printf("\tDomain SID:\t %s\n", dom_sid_string(ctx, connect_r.out.domain_sid));
-		d_printf("\tRealm:\t\t %s\n", connect_r.out.realm);
-		d_printf("\tGUID:\t\t %s\n", GUID_string(ctx, connect_r.out.guid));
+		torture_comment(tctx, "Domain Controller Info:\n");
+		torture_comment(tctx, "\tDomain Name:\t %s\n", connect_r.out.domain_name);
+		torture_comment(tctx, "\tDomain SID:\t %s\n", dom_sid_string(ctx, connect_r.out.domain_sid));
+		torture_comment(tctx, "\tRealm:\t\t %s\n", connect_r.out.realm);
+		torture_comment(tctx, "\tGUID:\t\t %s\n", GUID_string(ctx, connect_r.out.guid));
 
 	} else if (!NT_STATUS_IS_OK(status)) {
-		d_printf("Error string: %s\n", connect_r.out.error_string);
+		torture_comment(tctx, "Error string: %s\n", connect_r.out.error_string);
 	}
 
 	return true;
@@ -93,39 +90,40 @@ static bool torture_rpc_connect(struct torture_context *torture,
 
 	ctx = libnet_context_init(torture->ev, torture->lp_ctx);
 	ctx->cred = cmdline_credentials;
-	
-	d_printf("Testing connection to LSA interface\n");
-	if (!test_connect_service(ctx, &ndr_table_lsarpc, bindstr,
+
+	torture_comment(torture, "Testing connection to LSA interface\n");
+
+	if (!test_connect_service(torture, ctx, &ndr_table_lsarpc, bindstr,
 				  hostname, level, false, NT_STATUS_OK)) {
-		d_printf("failed to connect LSA interface\n");
+		torture_comment(torture, "failed to connect LSA interface\n");
 		return false;
 	}
 
-	d_printf("Testing connection to SAMR interface\n");
-	if (!test_connect_service(ctx, &ndr_table_samr, bindstr,
+	torture_comment(torture, "Testing connection to SAMR interface\n");
+	if (!test_connect_service(torture, ctx, &ndr_table_samr, bindstr,
 				  hostname, level, false, NT_STATUS_OK)) {
-		d_printf("failed to connect SAMR interface\n");
+		torture_comment(torture, "failed to connect SAMR interface\n");
 		return false;
 	}
 
-	d_printf("Testing connection to SRVSVC interface\n");
-	if (!test_connect_service(ctx, &ndr_table_srvsvc, bindstr,
+	torture_comment(torture, "Testing connection to SRVSVC interface\n");
+	if (!test_connect_service(torture, ctx, &ndr_table_srvsvc, bindstr,
 				  hostname, level, false, NT_STATUS_OK)) {
-		d_printf("failed to connect SRVSVC interface\n");
+		torture_comment(torture, "failed to connect SRVSVC interface\n");
 		return false;
 	}
 
-	d_printf("Testing connection to LSA interface with wrong credentials\n");
-	if (!test_connect_service(ctx, &ndr_table_lsarpc, bindstr,
+	torture_comment(torture, "Testing connection to LSA interface with wrong credentials\n");
+	if (!test_connect_service(torture, ctx, &ndr_table_lsarpc, bindstr,
 				  hostname, level, true, NT_STATUS_LOGON_FAILURE)) {
-		d_printf("failed to test wrong credentials on LSA interface\n");
+		torture_comment(torture, "failed to test wrong credentials on LSA interface\n");
 		return false;
 	}
 
-	d_printf("Testing connection to SAMR interface with wrong credentials\n");
-	if (!test_connect_service(ctx, &ndr_table_samr, bindstr,
+	torture_comment(torture, "Testing connection to SAMR interface with wrong credentials\n");
+	if (!test_connect_service(torture, ctx, &ndr_table_samr, bindstr,
 				  hostname, level, true, NT_STATUS_LOGON_FAILURE)) {
-		d_printf("failed to test wrong credentials on SAMR interface\n");
+		torture_comment(torture, "failed to test wrong credentials on SAMR interface\n");
 		return false;
 	}
 
@@ -156,7 +154,7 @@ bool torture_rpc_connect_pdc(struct torture_context *torture)
 	NTSTATUS status;
 	struct dcerpc_binding *binding;
 	const char *domain_name;
-	
+
 	status = torture_rpc_binding(torture, &binding);
 	if (!NT_STATUS_IS_OK(status)) {
 		return false;
@@ -165,7 +163,7 @@ bool torture_rpc_connect_pdc(struct torture_context *torture)
 	/* we're accessing domain controller so the domain name should be
 	   passed (it's going to be resolved to dc name and address) instead
 	   of specific server name. */
-	domain_name = lp_workgroup(torture->lp_ctx);
+	domain_name = lpcfg_workgroup(torture->lp_ctx);
 	return torture_rpc_connect(torture, level, NULL, domain_name);
 }
 
@@ -176,7 +174,7 @@ bool torture_rpc_connect_dc(struct torture_context *torture)
 	NTSTATUS status;
 	struct dcerpc_binding *binding;
 	const char *domain_name;
-	
+
 	status = torture_rpc_binding(torture, &binding);
 	if (!NT_STATUS_IS_OK(status)) {
 		return false;
@@ -185,7 +183,7 @@ bool torture_rpc_connect_dc(struct torture_context *torture)
 	/* we're accessing domain controller so the domain name should be
 	   passed (it's going to be resolved to dc name and address) instead
 	   of specific server name. */
-	domain_name = lp_workgroup(torture->lp_ctx);
+	domain_name = lpcfg_workgroup(torture->lp_ctx);
 	return torture_rpc_connect(torture, level, NULL, domain_name);
 }
 
@@ -196,7 +194,7 @@ bool torture_rpc_connect_dc_info(struct torture_context *torture)
 	NTSTATUS status;
 	struct dcerpc_binding *binding;
 	const char *domain_name;
-	
+
 	status = torture_rpc_binding(torture, &binding);
 	if (!NT_STATUS_IS_OK(status)) {
 		return false;
@@ -205,7 +203,7 @@ bool torture_rpc_connect_dc_info(struct torture_context *torture)
 	/* we're accessing domain controller so the domain name should be
 	   passed (it's going to be resolved to dc name and address) instead
 	   of specific server name. */
-	domain_name = lp_workgroup(torture->lp_ctx);
+	domain_name = lpcfg_workgroup(torture->lp_ctx);
 	return torture_rpc_connect(torture, level, NULL, domain_name);
 }
 
@@ -216,7 +214,7 @@ bool torture_rpc_connect_binding(struct torture_context *torture)
 	NTSTATUS status;
 	struct dcerpc_binding *binding;
 	const char *bindstr;
-	
+
 	status = torture_rpc_binding(torture, &binding);
 	if (!NT_STATUS_IS_OK(status)) {
 		return false;

@@ -5,30 +5,34 @@
 
    Implementation of the WSGI interface described in PEP0333 
    (http://www.python.org/dev/peps/pep-0333)
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <Python.h>
 #include "includes.h"
 #include "web_server/web_server.h"
 #include "../lib/util/dlinklist.h"
-#include "../lib/util/data_blob.h"
 #include "lib/tls/tls.h"
-#include <Python.h>
+#include "lib/tsocket/tsocket.h"
+#include "scripting/python/modules.h"
 
-#ifndef Py_RETURN_NONE
-#define Py_RETURN_NONE return Py_INCREF(Py_None), Py_None
+/* There's no Py_ssize_t in 2.4, apparently */
+#if PY_MAJOR_VERSION == 2 && PY_MINOR_VERSION < 5
+typedef int Py_ssize_t;
+typedef inquiry lenfunc;
+typedef intargfunc ssizeargfunc;
 #endif
 
 typedef struct {
@@ -40,7 +44,7 @@ static PyObject *start_response(PyObject *self, PyObject *args, PyObject *kwargs
 {
 	PyObject *response_header, *exc_info = NULL;
 	char *status;
-	int i;
+	Py_ssize_t i;
 	const char *kwnames[] = {
 		"status", "response_header", "exc_info", NULL
 	};
@@ -108,7 +112,7 @@ PyTypeObject web_request_Type = {
 	.tp_name = "wsgi.Request",
 	.tp_methods = web_request_methods,
 	.tp_basicsize = sizeof(web_request_Object),
-	.tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+	.tp_flags = Py_TPFLAGS_DEFAULT,
 };
 
 typedef struct {
@@ -165,7 +169,7 @@ PyTypeObject error_Stream_Type = {
 	.tp_name = "wsgi.ErrorStream",
 	.tp_basicsize = sizeof(error_Stream_Object),
 	.tp_methods = error_Stream_methods,
-	.tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+	.tp_flags = Py_TPFLAGS_DEFAULT,
 };
 
 typedef struct {
@@ -192,7 +196,7 @@ static PyObject *py_input_read(PyObject *_self, PyObject *args, PyObject *kwargs
 
 	ret = PyString_FromStringAndSize((char *)self->web->input.partial.data+self->offset, size);
 	self->offset += size;
-	
+
 	return ret;
 }
 
@@ -239,7 +243,7 @@ PyTypeObject input_Stream_Type = {
 	.tp_name = "wsgi.InputStream",
 	.tp_basicsize = sizeof(input_Stream_Object),
 	.tp_methods = input_Stream_methods,
-	.tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+	.tp_flags = Py_TPFLAGS_DEFAULT,
 };
 
 static PyObject *Py_InputHttpStream(struct websrv_context *web)
@@ -303,7 +307,12 @@ static PyObject *create_environ(bool tls, int content_length, struct http_header
 		if (!strcasecmp(hdr->name, "Content-Type")) {
 			PyDict_SetItemString(env, "CONTENT_TYPE", PyString_FromString(hdr->value));
 		} else { 
-			asprintf(&name, "HTTP_%s", hdr->name);
+			if (asprintf(&name, "HTTP_%s", hdr->name) < 0) {
+				Py_DECREF(env);
+				Py_DECREF(inputstream);
+				PyErr_NoMemory();
+				return NULL;
+			}
 			PyDict_SetItemString(env, name, PyString_FromString(hdr->value));
 			free(name);
 		}
@@ -324,18 +333,23 @@ static void wsgi_process_http_input(struct web_server_data *wdata,
 {
 	PyObject *py_environ, *result, *item, *iter;
 	PyObject *request_handler = (PyObject *)wdata->private_data;
-	struct socket_address *socket_address;
-
+	struct tsocket_address *my_address = web->conn->local_address;
+	const char *addr = "0.0.0.0";
+	uint16_t port = 0;
 	web_request_Object *py_web = PyObject_New(web_request_Object, &web_request_Type);
 	py_web->web = web;
 
-	socket_address = socket_get_my_addr(web->conn->socket, web);
+	if (tsocket_address_is_inet(my_address, "ip")) {
+		addr = tsocket_address_inet_addr_string(my_address, wdata);
+		port = tsocket_address_inet_port(my_address);
+	}
+
 	py_environ = create_environ(tls_enabled(web->conn->socket),
 				    web->input.content_length, 
 				    web->input.headers, 
 				    web->input.post_request?"POST":"GET",
-				    socket_address->addr,
-				    socket_address->port, 
+				    addr,
+				    port,
 				    Py_InputHttpStream(web),
 				    web->input.url
 				    );
@@ -367,9 +381,12 @@ static void wsgi_process_http_input(struct web_server_data *wdata,
 
 bool wsgi_initialize(struct web_server_data *wdata)
 {
-	PyObject *py_swat;
+	PyObject *py_web_server;
 
 	Py_Initialize();
+
+	py_update_path(); /* Ensure that we have the Samba paths at
+			   * the start of the sys.path() */
 
 	if (PyType_Ready(&web_request_Type) < 0)
 		return false;
@@ -381,11 +398,11 @@ bool wsgi_initialize(struct web_server_data *wdata)
 		return false;
 
 	wdata->http_process_input = wsgi_process_http_input;
-	py_swat = PyImport_Import(PyString_FromString("swat"));
-	if (py_swat == NULL) {
-		DEBUG(0, ("Unable to find SWAT\n"));
+	py_web_server = PyImport_ImportModule("samba.web_server");
+	if (py_web_server == NULL) {
+		DEBUG(0, ("Unable to find web server\n"));
 		return false;
 	}
-	wdata->private_data = py_swat;
+	wdata->private_data = py_web_server;
 	return true;
 }

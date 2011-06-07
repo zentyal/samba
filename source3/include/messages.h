@@ -66,13 +66,7 @@
 
 #define MSG_SRVID_SAMBA 0x0000000100000000LL
 
-
-struct server_id {
-	pid_t pid;
-#ifdef CLUSTER_SUPPORT
-	uint32 vnn;
-#endif
-};
+#include "librpc/gen_ndr/server_id.h"
 
 #ifdef CLUSTER_SUPPORT
 #define MSG_BROADCAST_PID_STR	"0:0"
@@ -110,6 +104,8 @@ NTSTATUS messaging_tdb_init(struct messaging_context *msg_ctx,
 			    TALLOC_CTX *mem_ctx,
 			    struct messaging_backend **presult);
 
+bool messaging_tdb_parent_init(TALLOC_CTX *mem_ctx);
+
 NTSTATUS messaging_ctdbd_init(struct messaging_context *msg_ctx,
 			      TALLOC_CTX *mem_ctx,
 			      struct messaging_backend **presult);
@@ -124,10 +120,13 @@ struct messaging_context *messaging_init(TALLOC_CTX *mem_ctx,
 					 struct server_id server_id, 
 					 struct event_context *ev);
 
+struct server_id messaging_server_id(const struct messaging_context *msg_ctx);
+
 /*
  * re-init after a fork
  */
-NTSTATUS messaging_reinit(struct messaging_context *msg_ctx);
+NTSTATUS messaging_reinit(struct messaging_context *msg_ctx,
+			  struct server_id id);
 
 NTSTATUS messaging_register(struct messaging_context *msg_ctx,
 			    void *private_data,
@@ -147,5 +146,7 @@ NTSTATUS messaging_send_buf(struct messaging_context *msg_ctx,
 			    const uint8 *buf, size_t len);
 void messaging_dispatch_rec(struct messaging_context *msg_ctx,
 			    struct messaging_rec *rec);
+
+#include "librpc/gen_ndr/ndr_messaging.h"
 
 #endif

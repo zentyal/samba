@@ -73,18 +73,14 @@
  *   store the keytab in a AFS keyfile (usually /usr/afs/etc/KeyFile ),
  *   the type's name is AFSKEYFILE. The residual part is a filename.
  *
- * - krb4
- *   the keytab is a Kerberos 4 srvtab that is on-the-fly converted to
- *   a keytab. The type's name is krb4 The residual part is a
- *   filename.
- *
  * - memory
  *   The keytab is stored in a memory segment. This allows sensitive
  *   and/or temporary data not to be stored on disk. The type's name
  *   is MEMORY. Each MEMORY keytab is referenced counted by and
  *   opened by the residual name, so two handles can point to the
- *   same memory area.  When the last user closes the entry, it
- *   disappears.
+ *   same memory area.  When the last user closes using krb5_kt_close()
+ *   the keytab, the keys in they keytab is memset() to zero and freed
+ *   and can no longer be looked up by name.
  *
  *
  * @subsection krb5_keytab_example Keytab example
@@ -113,7 +109,7 @@ main (int argc, char **argv)
     if (ret)
 	krb5_err(context, 1, ret, "krb5_kt_start_seq_get");
     while((ret = krb5_kt_next_entry(context, keytab, &entry, &cursor)) == 0){
-	krb5_unparse_name_short(context, entry.principal, &principal);
+	krb5_unparse_name(context, entry.principal, &principal);
 	printf("principal: %s\n", principal);
 	free(principal);
 	krb5_kt_free_entry(context, &entry);
@@ -143,7 +139,7 @@ main (int argc, char **argv)
  * @ingroup krb5_keytab
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kt_register(krb5_context context,
 		 const krb5_kt_ops *ops)
 {
@@ -169,6 +165,36 @@ krb5_kt_register(krb5_context context,
     return 0;
 }
 
+static const char *
+keytab_name(const char * name, const char ** ptype, size_t * ptype_len)
+{
+    const char * residual;
+
+    residual = strchr(name, ':');
+
+    if (residual == NULL
+
+#ifdef _WIN32
+
+        /* Avoid treating <drive>:<path> as a keytab type
+         * specification */
+
+        || name + 1 == residual
+#endif
+        ) {
+
+        *ptype = "FILE";
+        *ptype_len = strlen(*ptype);
+        residual = name;
+    } else {
+        *ptype = name;
+        *ptype_len = residual - name;
+        residual++;
+    }
+
+    return residual;
+}
+
 /**
  * Resolve the keytab name (of the form `type:residual') in `name'
  * into a keytab in `id'.
@@ -183,7 +209,7 @@ krb5_kt_register(krb5_context context,
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kt_resolve(krb5_context context,
 		const char *name,
 		krb5_keytab *id)
@@ -194,16 +220,7 @@ krb5_kt_resolve(krb5_context context,
     size_t type_len;
     krb5_error_code ret;
 
-    residual = strchr(name, ':');
-    if(residual == NULL) {
-	type = "FILE";
-	type_len = strlen(type);
-	residual = name;
-    } else {
-	type = name;
-	type_len = residual - name;
-	residual++;
-    }
+    residual = keytab_name(name, &type, &type_len);
 
     for(i = 0; i < context->num_kt_types; i++) {
 	if(strncasecmp(type, context->kt_types[i].prefix, type_len) == 0)
@@ -244,7 +261,7 @@ krb5_kt_resolve(krb5_context context,
  * @ingroup krb5_keytab
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kt_default_name(krb5_context context, char *name, size_t namesize)
 {
     if (strlcpy (name, context->default_keytab, namesize) >= namesize) {
@@ -266,7 +283,7 @@ krb5_kt_default_name(krb5_context context, char *name, size_t namesize)
  * @ingroup krb5_keytab
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kt_default_modify_name(krb5_context context, char *name, size_t namesize)
 {
     const char *kt = NULL;
@@ -303,7 +320,7 @@ krb5_kt_default_modify_name(krb5_context context, char *name, size_t namesize)
  * @ingroup krb5_keytab
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kt_default(krb5_context context, krb5_keytab *id)
 {
     return krb5_kt_resolve (context, context->default_keytab, id);
@@ -325,7 +342,7 @@ krb5_kt_default(krb5_context context, krb5_keytab *id)
  * @ingroup krb5_keytab
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kt_read_service_key(krb5_context context,
 			 krb5_pointer keyprocarg,
 			 krb5_principal principal,
@@ -368,7 +385,7 @@ krb5_kt_read_service_key(krb5_context context,
  * @ingroup krb5_keytab
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kt_get_type(krb5_context context,
 		 krb5_keytab keytab,
 		 char *prefix,
@@ -391,7 +408,7 @@ krb5_kt_get_type(krb5_context context,
  * @ingroup krb5_keytab
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kt_get_name(krb5_context context,
 		 krb5_keytab keytab,
 		 char *name,
@@ -414,7 +431,7 @@ krb5_kt_get_name(krb5_context context,
  * @ingroup krb5_keytab
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kt_get_full_name(krb5_context context,
 		      krb5_keytab keytab,
 		      char **str)
@@ -454,7 +471,7 @@ krb5_kt_get_full_name(krb5_context context,
  * @ingroup krb5_keytab
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kt_close(krb5_context context,
 	      krb5_keytab id)
 {
@@ -478,7 +495,7 @@ krb5_kt_close(krb5_context context,
  * @ingroup krb5_keytab
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kt_destroy(krb5_context context,
 		krb5_keytab id)
 {
@@ -523,7 +540,7 @@ compare_aliseses(krb5_context context,
  * @ingroup krb5_keytab
  */
 
-krb5_boolean KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_boolean KRB5_LIB_CALL
 krb5_kt_compare(krb5_context context,
 		krb5_keytab_entry *entry,
 		krb5_const_principal principal,
@@ -590,7 +607,7 @@ _krb5_kt_principal_not_found(krb5_context context,
  * @ingroup krb5_keytab
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kt_get_entry(krb5_context context,
 		  krb5_keytab id,
 		  krb5_const_principal principal,
@@ -651,7 +668,7 @@ krb5_kt_get_entry(krb5_context context,
  * @ingroup krb5_keytab
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kt_copy_entry_contents(krb5_context context,
 			    const krb5_keytab_entry *in,
 			    krb5_keytab_entry *out)
@@ -687,7 +704,7 @@ fail:
  * @ingroup krb5_keytab
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kt_free_entry(krb5_context context,
 		   krb5_keytab_entry *entry)
 {
@@ -709,7 +726,7 @@ krb5_kt_free_entry(krb5_context context,
  * @ingroup krb5_keytab
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kt_start_seq_get(krb5_context context,
 		      krb5_keytab id,
 		      krb5_kt_cursor *cursor)
@@ -738,7 +755,7 @@ krb5_kt_start_seq_get(krb5_context context,
  * @ingroup krb5_keytab
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kt_next_entry(krb5_context context,
 		   krb5_keytab id,
 		   krb5_keytab_entry *entry,
@@ -766,7 +783,7 @@ krb5_kt_next_entry(krb5_context context,
  * @ingroup krb5_keytab
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kt_end_seq_get(krb5_context context,
 		    krb5_keytab id,
 		    krb5_kt_cursor *cursor)
@@ -792,7 +809,7 @@ krb5_kt_end_seq_get(krb5_context context,
  * @ingroup krb5_keytab
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kt_add_entry(krb5_context context,
 		  krb5_keytab id,
 		  krb5_keytab_entry *entry)
@@ -820,7 +837,7 @@ krb5_kt_add_entry(krb5_context context,
  * @ingroup krb5_keytab
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_kt_remove_entry(krb5_context context,
 		     krb5_keytab id,
 		     krb5_keytab_entry *entry)

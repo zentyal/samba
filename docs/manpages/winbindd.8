@@ -2,12 +2,12 @@
 .\"     Title: winbindd
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 03/06/2011
+.\"      Date: 06/07/2011
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.5
+.\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "WINBINDD" "8" "03/06/2011" "Samba 3\&.5" "System Administration tools"
+.TH "WINBINDD" "8" "06/07/2011" "Samba 3\&.6" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -39,11 +39,9 @@ smbd,
 ntlm_auth
 and the
 pam_winbind\&.so
-PAM module, by managing connections to domain controllers\&. In this configuraiton the
-\m[blue]\fBidmap uid\fR\m[]
-and
-\m[blue]\fBidmap gid\fR\m[]
-parameters are not required\&. (This is known as `netlogon proxy only mode\'\&.)
+PAM module, by managing connections to domain controllers\&. In this configuration the
+\m[blue]\fBidmap config * : range\fR\m[]
+parameter is not required\&. (This is known as `netlogon proxy only mode\'\&.)
 .PP
 The Name Service Switch allows user and system information to be obtained from different databases services such as NIS or DNS\&. The exact behaviour can be configured through the
 /etc/nsswitch\&.conf
@@ -265,7 +263,7 @@ file\&. All parameters should be specified in the [global] section of smb\&.conf
 .IP \(bu 2.3
 .\}
 
-\m[blue]\fBidmap uid\fR\m[]
+\m[blue]\fBidmap config * : range\fR\m[]
 .RE
 .sp
 .RS 4
@@ -277,19 +275,7 @@ file\&. All parameters should be specified in the [global] section of smb\&.conf
 .IP \(bu 2.3
 .\}
 
-\m[blue]\fBidmap gid\fR\m[]
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-
-\m[blue]\fBidmap backend\fR\m[]
+\m[blue]\fBidmap config * : backend\fR\m[]
 .RE
 .sp
 .RS 4
@@ -375,6 +361,7 @@ file\&. All parameters should be specified in the [global] section of smb\&.conf
 
 \m[blue]\fBwinbind: rpc only\fR\m[]
 Setting this parameter forces winbindd to use RPC instead of LDAP to retrieve information from Domain Controllers\&.
+.RE
 .SH "EXAMPLE SETUP"
 .PP
 To setup winbindd for user and group lookups plus authentication from a domain controller use something like the following setup\&. This was tested on an early Red Hat Linux box\&.
@@ -477,8 +464,7 @@ containing directives like the following:
         winbind cache time = 10
         template shell = /bin/bash
         template homedir = /home/%D/%U
-        idmap uid = 10000\-20000
-        idmap gid = 10000\-20000
+        idmap config * : range = 10000\-20000
         workgroup = DOMAIN
         security = domain
         password server = *
@@ -506,7 +492,7 @@ PAM is really easy to misconfigure\&. Make sure you know what you are doing when
 .PP
 If more than one UNIX machine is running
 winbindd, then in general the user and groups ids allocated by winbindd will not be the same\&. The user and group ids will only be valid for the local machine, unless a shared
-\m[blue]\fBidmap backend\fR\m[]
+\m[blue]\fBidmap config * : backend\fR\m[]
 is configured\&.
 .PP
 If the the Windows NT SID to UNIX user and group id mapping file is damaged or destroyed then the mappings will be lost\&.

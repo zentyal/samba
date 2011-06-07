@@ -2,12 +2,12 @@
 .\"     Title: smbcontrol
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 03/06/2011
+.\"      Date: 06/07/2011
 .\"    Manual: User Commands
-.\"    Source: Samba 3.5
+.\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "SMBCONTROL" "1" "03/06/2011" "Samba 3\&.5" "User Commands"
+.TH "SMBCONTROL" "1" "06/07/2011" "Samba 3\&.6" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -234,6 +234,31 @@ Force daemon to reload smb\&.conf configuration file\&. Can be sent to
 \fBsmbd\fR,
 \fBnmbd\fR, or
 \fBwinbindd\fR\&.
+.RE
+.PP
+idmap
+.RS 4
+Notify about changes of id mapping\&. Can be sent to
+\fBsmbd\fR
+or (not implemented yet)
+\fBwinbindd\fR\&.
+.PP
+flush [uid|gid]
+.RS 4
+Flush caches for sid <\-> gid and/or sid <\-> uid mapping\&.
+.RE
+.PP
+delete <ID>
+.RS 4
+Remove a mapping from cache\&. The mapping is given by <ID> which may either be a sid: S\-x\-\&.\&.\&., a gid: "GID number" or a uid: "UID number"\&.
+.RE
+.PP
+kill <ID>
+.RS 4
+Remove a mapping from cache\&. Terminate
+\fBsmbd\fR
+if the id is currently in use\&.
+.RE
 .RE
 .SH "VERSION"
 .PP

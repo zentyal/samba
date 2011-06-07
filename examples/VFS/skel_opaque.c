@@ -87,6 +87,11 @@ static SMB_STRUCT_DIR *skel_opendir(vfs_handle_struct *handle,  const char *fnam
 	return NULL;
 }
 
+static SMB_STRUCT_DIR *skel_fdopendir(vfs_handle_struct *handle, files_struct *fsp, const char *mask, uint32 attr)
+{
+	return NULL;
+}
+
 static SMB_STRUCT_DIRENT *skel_readdir(vfs_handle_struct *handle,
 				       SMB_STRUCT_DIR *dirp,
 				       SMB_STRUCT_STAT *sbuf)
@@ -150,6 +155,7 @@ static NTSTATUS skel_create_file(struct vfs_handle_struct *handle,
                                 uint32_t file_attributes,
                                 uint32_t oplock_request,
                                 uint64_t allocation_size,
+				uint32_t private_flags,
                                 struct security_descriptor *sd,
                                 struct ea_list *ea_list,
                                 files_struct **result,
@@ -307,6 +313,14 @@ static int skel_ftruncate(vfs_handle_struct *handle, files_struct *fsp, SMB_OFF_
 	return -1;
 }
 
+static int skel_fallocate(vfs_handle_struct *handle, files_struct *fsp,
+			enum vfs_fallocate_mode mode,
+			SMB_OFF_T offset, SMB_OFF_T len)
+{
+	errno = ENOSYS;
+	return -1;
+}
+
 static bool skel_lock(vfs_handle_struct *handle, files_struct *fsp, int op, SMB_OFF_T offset, SMB_OFF_T count, int type)
 {
 	errno = ENOSYS;
@@ -355,7 +369,7 @@ static int skel_mknod(vfs_handle_struct *handle,  const char *path, mode_t mode,
 	return -1;
 }
 
-static char *skel_realpath(vfs_handle_struct *handle,  const char *path, char *resolved_path)
+static char *skel_realpath(vfs_handle_struct *handle,  const char *path)
 {
 	errno = ENOSYS;
 	return NULL;
@@ -463,19 +477,19 @@ static NTSTATUS skel_translate_name(struct vfs_handle_struct *handle,
 }
 
 static NTSTATUS skel_fget_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
-	uint32 security_info, SEC_DESC **ppdesc)
+	uint32 security_info, struct security_descriptor **ppdesc)
 {
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
 static NTSTATUS skel_get_nt_acl(vfs_handle_struct *handle,
-	const char *name, uint32 security_info, SEC_DESC **ppdesc)
+	const char *name, uint32 security_info, struct security_descriptor **ppdesc)
 {
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
 static NTSTATUS skel_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
-	uint32 security_info_sent, const SEC_DESC *psd)
+	uint32 security_info_sent, const struct security_descriptor *psd)
 {
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
@@ -746,13 +760,13 @@ static bool skel_aio_force(struct vfs_handle_struct *handle, struct files_struct
 	return false;
 }
 
-static bool skel_is_offline(struct vfs_handle_struct *handle, const char *path, SMB_STRUCT_STAT *sbuf)
+static bool skel_is_offline(struct vfs_handle_struct *handle, const struct smb_filename *fname, SMB_STRUCT_STAT *sbuf)
 {
 	errno = ENOSYS;
 	return false;
 }
 
-static int skel_set_offline(struct vfs_handle_struct *handle, const char *path)
+static int skel_set_offline(struct vfs_handle_struct *handle, const struct smb_filename *fname)
 {
 	errno = ENOSYS;
 	return -1;
@@ -775,6 +789,7 @@ struct vfs_fn_pointers skel_transparent_fns = {
 	/* Directory operations */
 
 	.opendir = skel_opendir,
+	.fdopendir = skel_fdopendir,
 	.readdir = skel_readdir,
 	.seekdir = skel_seekdir,
 	.telldir = skel_telldir,
@@ -786,7 +801,7 @@ struct vfs_fn_pointers skel_transparent_fns = {
 
 	/* File operations */
 
-	.open = skel_open,
+	.open_fn = skel_open,
 	.create_file = skel_create_file,
 	.close_fn = skel_close_fn,
 	.vfs_read = skel_vfs_read,
@@ -812,6 +827,7 @@ struct vfs_fn_pointers skel_transparent_fns = {
 	.getwd = skel_getwd,
 	.ntimes = skel_ntimes,
 	.ftruncate = skel_ftruncate,
+	.fallocate = skel_fallocate,
 	.lock = skel_lock,
 	.kernel_flock = skel_kernel_flock,
 	.linux_setlease = skel_linux_setlease,

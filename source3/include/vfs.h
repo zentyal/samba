@@ -125,15 +125,16 @@
  * 			   return to fs_capabilities call. JRA. */
 /* Leave at 27 - not yet released. Add translate_name VFS call to convert
 		 UNIX names to Windows supported names -- asrinivasan. */
-#define SMB_VFS_INTERFACE_VERSION 27
-
-
-/* to bug old modules which are trying to compile with the old functions */
-#define vfs_init __ERROR_please_port_this_module_to_SMB_VFS_INTERFACE_VERSION_8_donot_use_vfs_init_anymore(void) { __ERROR_please_port_this_module_to_SMB_VFS_INTERFACE_VERSION_8_donot_use_vfs_init_anymore };
-#define lp_parm_string __ERROR_please_port_lp_parm_string_to_lp_parm_const_string_or_lp_parm_talloc_string { \
-  __ERROR_please_port_lp_parm_string_to_lp_parm_const_string_or_lp_parm_talloc_string };
-#define lp_vfs_options __ERROR_please_donot_use_lp_vfs_options_anymore_use_lp_parm_xxxx_functions_instead { \
-  __ERROR_please_donot_use_lp_vfs_options_anymore_use_lp_parm_xxxx_functions_instead };
+/* Changed to version 28 - Add private_flags uint32_t to CREATE call. */
+/* Leave at 28 - not yet released. Change realpath to assume NULL and return a
+		 malloc'ed path. JRA. */
+/* Leave at 28 - not yet released. Move posix_fallocate into the VFS
+		where it belongs. JRA. */
+/* Leave at 28 - not yet released. Rename posix_fallocate to fallocate
+		to split out the two possible uses. JRA. */
+/* Leave at 28 - not yet released. Add fdopendir. JRA. */
+/* Leave at 28 - not yet released. Rename open function to open_fn. - gd */
+#define SMB_VFS_INTERFACE_VERSION 28
 
 /*
     All intercepted VFS operations must be declared as static functions inside module source
@@ -163,12 +164,18 @@ enum vfs_translate_direction {
 	vfs_translate_to_windows
 };
 
+enum vfs_fallocate_mode {
+	VFS_FALLOCATE_EXTEND_SIZE = 0,
+	VFS_FALLOCATE_KEEP_SIZE = 1
+};
+
 /*
     Available VFS operations. These values must be in sync with vfs_ops struct
     (struct vfs_fn_pointers and struct vfs_handle_pointers inside of struct vfs_ops).
     In particular, if new operations are added to vfs_ops, appropriate constants
     should be added to vfs_op_type so that order of them kept same as in vfs_ops.
 */
+struct shadow_copy_data;
 
 struct vfs_fn_pointers {
 	/* Disk operations */
@@ -179,13 +186,14 @@ struct vfs_fn_pointers {
 			      uint64_t *dfree, uint64_t *dsize);
 	int (*get_quota)(struct vfs_handle_struct *handle, enum SMB_QUOTA_TYPE qtype, unid_t id, SMB_DISK_QUOTA *qt);
 	int (*set_quota)(struct vfs_handle_struct *handle, enum SMB_QUOTA_TYPE qtype, unid_t id, SMB_DISK_QUOTA *qt);
-	int (*get_shadow_copy_data)(struct vfs_handle_struct *handle, struct files_struct *fsp, SHADOW_COPY_DATA *shadow_copy_data, bool labels);
+	int (*get_shadow_copy_data)(struct vfs_handle_struct *handle, struct files_struct *fsp, struct shadow_copy_data *shadow_copy_data, bool labels);
 	int (*statvfs)(struct vfs_handle_struct *handle, const char *path, struct vfs_statvfs_struct *statbuf);
 	uint32_t (*fs_capabilities)(struct vfs_handle_struct *handle, enum timestamp_set_resolution *p_ts_res);
 
 	/* Directory operations */
 
 	SMB_STRUCT_DIR *(*opendir)(struct vfs_handle_struct *handle, const char *fname, const char *mask, uint32 attributes);
+	SMB_STRUCT_DIR *(*fdopendir)(struct vfs_handle_struct *handle, files_struct *fsp, const char *mask, uint32 attributes);
 	SMB_STRUCT_DIRENT *(*readdir)(struct vfs_handle_struct *handle,
 				      SMB_STRUCT_DIR *dirp,
 				      SMB_STRUCT_STAT *sbuf);
@@ -199,9 +207,9 @@ struct vfs_fn_pointers {
 
 	/* File operations */
 
-	int (*open)(struct vfs_handle_struct *handle,
-		    struct smb_filename *smb_fname, files_struct *fsp,
-		    int flags, mode_t mode);
+	int (*open_fn)(struct vfs_handle_struct *handle,
+		       struct smb_filename *smb_fname, files_struct *fsp,
+		       int flags, mode_t mode);
 	NTSTATUS (*create_file)(struct vfs_handle_struct *handle,
 				struct smb_request *req,
 				uint16_t root_dir_fid,
@@ -213,6 +221,7 @@ struct vfs_fn_pointers {
 				uint32_t file_attributes,
 				uint32_t oplock_request,
 				uint64_t allocation_size,
+				uint32_t private_flags,
 				struct security_descriptor *sd,
 				struct ea_list *ea_list,
 				files_struct **result,
@@ -246,6 +255,11 @@ struct vfs_fn_pointers {
 		      const struct smb_filename *smb_fname,
 		      struct smb_file_time *ft);
 	int (*ftruncate)(struct vfs_handle_struct *handle, struct files_struct *fsp, SMB_OFF_T offset);
+	int (*fallocate)(struct vfs_handle_struct *handle,
+				struct files_struct *fsp,
+				enum vfs_fallocate_mode mode,
+				SMB_OFF_T offset,
+				SMB_OFF_T len);
 	bool (*lock)(struct vfs_handle_struct *handle, struct files_struct *fsp, int op, SMB_OFF_T offset, SMB_OFF_T count, int type);
 	int (*kernel_flock)(struct vfs_handle_struct *handle, struct files_struct *fsp,
 			    uint32 share_mode, uint32_t access_mask);
@@ -255,7 +269,7 @@ struct vfs_fn_pointers {
 	int (*vfs_readlink)(struct vfs_handle_struct *handle, const char *path, char *buf, size_t bufsiz);
 	int (*link)(struct vfs_handle_struct *handle, const char *oldpath, const char *newpath);
 	int (*mknod)(struct vfs_handle_struct *handle, const char *path, mode_t mode, SMB_DEV_T dev);
-	char *(*realpath)(struct vfs_handle_struct *handle, const char *path, char *resolved_path);
+	char *(*realpath)(struct vfs_handle_struct *handle, const char *path);
 	NTSTATUS (*notify_watch)(struct vfs_handle_struct *handle,
 				 struct sys_notify_context *ctx,
 				 struct notify_entry *e,
@@ -381,8 +395,11 @@ struct vfs_fn_pointers {
 	bool (*aio_force)(struct vfs_handle_struct *handle, struct files_struct *fsp);
 
 	/* offline operations */
-	bool (*is_offline)(struct vfs_handle_struct *handle, const char *path, SMB_STRUCT_STAT *sbuf);
-	int (*set_offline)(struct vfs_handle_struct *handle, const char *path);
+	bool (*is_offline)(struct vfs_handle_struct *handle,
+			   const struct smb_filename *fname,
+			   SMB_STRUCT_STAT *sbuf);
+	int (*set_offline)(struct vfs_handle_struct *handle,
+			   const struct smb_filename *fname);
 };
 
 /*
@@ -451,14 +468,14 @@ typedef struct vfs_statvfs_struct {
 
 #define SMB_VFS_HANDLE_GET_DATA(handle, datap, type, ret) { \
 	if (!(handle)||((datap=(type *)(handle)->data)==NULL)) { \
-		DEBUG(0,("%s() failed to get vfs_handle->data!\n",FUNCTION_MACRO)); \
+		DEBUG(0,("%s() failed to get vfs_handle->data!\n",__FUNCTION__)); \
 		ret; \
 	} \
 }
 
 #define SMB_VFS_HANDLE_SET_DATA(handle, datap, free_fn, type, ret) { \
 	if (!(handle)) { \
-		DEBUG(0,("%s() failed to set handle->data!\n",FUNCTION_MACRO)); \
+		DEBUG(0,("%s() failed to set handle->data!\n",__FUNCTION__)); \
 		ret; \
 	} else { \
 		if ((handle)->free_data) { \
@@ -499,7 +516,7 @@ int smb_vfs_call_set_quota(struct vfs_handle_struct *handle,
 			   SMB_DISK_QUOTA *qt);
 int smb_vfs_call_get_shadow_copy_data(struct vfs_handle_struct *handle,
 				      struct files_struct *fsp,
-				      SHADOW_COPY_DATA *shadow_copy_data,
+				      struct shadow_copy_data *shadow_copy_data,
 				      bool labels);
 int smb_vfs_call_statvfs(struct vfs_handle_struct *handle, const char *path,
 			 struct vfs_statvfs_struct *statbuf);
@@ -508,6 +525,10 @@ uint32_t smb_vfs_call_fs_capabilities(struct vfs_handle_struct *handle,
 SMB_STRUCT_DIR *smb_vfs_call_opendir(struct vfs_handle_struct *handle,
 				     const char *fname, const char *mask,
 				     uint32 attributes);
+SMB_STRUCT_DIR *smb_vfs_call_fdopendir(struct vfs_handle_struct *handle,
+					struct files_struct *fsp,
+					const char *mask,
+					uint32 attributes);
 SMB_STRUCT_DIRENT *smb_vfs_call_readdir(struct vfs_handle_struct *handle,
 					SMB_STRUCT_DIR *dirp,
 					SMB_STRUCT_STAT *sbuf);
@@ -538,6 +559,7 @@ NTSTATUS smb_vfs_call_create_file(struct vfs_handle_struct *handle,
 				  uint32_t file_attributes,
 				  uint32_t oplock_request,
 				  uint64_t allocation_size,
+				  uint32_t private_flags,
 				  struct security_descriptor *sd,
 				  struct ea_list *ea_list,
 				  files_struct **result,
@@ -597,6 +619,11 @@ int smb_vfs_call_ntimes(struct vfs_handle_struct *handle,
 			struct smb_file_time *ft);
 int smb_vfs_call_ftruncate(struct vfs_handle_struct *handle,
 			   struct files_struct *fsp, SMB_OFF_T offset);
+int smb_vfs_call_fallocate(struct vfs_handle_struct *handle,
+			struct files_struct *fsp,
+			enum vfs_fallocate_mode mode,
+			SMB_OFF_T offset,
+			SMB_OFF_T len);
 bool smb_vfs_call_lock(struct vfs_handle_struct *handle,
 		       struct files_struct *fsp, int op, SMB_OFF_T offset,
 		       SMB_OFF_T count, int type);
@@ -616,8 +643,7 @@ int smb_vfs_call_link(struct vfs_handle_struct *handle, const char *oldpath,
 		      const char *newpath);
 int smb_vfs_call_mknod(struct vfs_handle_struct *handle, const char *path,
 		       mode_t mode, SMB_DEV_T dev);
-char *smb_vfs_call_realpath(struct vfs_handle_struct *handle,
-			    const char *path, char *resolved_path);
+char *smb_vfs_call_realpath(struct vfs_handle_struct *handle, const char *path);
 NTSTATUS smb_vfs_call_notify_watch(struct vfs_handle_struct *handle,
 				   struct sys_notify_context *ctx,
 				   struct notify_entry *e,
@@ -786,8 +812,9 @@ int smb_vfs_call_aio_suspend(struct vfs_handle_struct *handle,
 bool smb_vfs_call_aio_force(struct vfs_handle_struct *handle,
 			    struct files_struct *fsp);
 bool smb_vfs_call_is_offline(struct vfs_handle_struct *handle,
-			     const char *path, SMB_STRUCT_STAT *sbuf);
+			     const struct smb_filename *fname,
+			     SMB_STRUCT_STAT *sbuf);
 int smb_vfs_call_set_offline(struct vfs_handle_struct *handle,
-			     const char *path);
+			     const struct smb_filename *fname);
 
 #endif /* _VFS_H */

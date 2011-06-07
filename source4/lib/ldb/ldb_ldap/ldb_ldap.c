@@ -33,13 +33,16 @@
  *
  *  Modifications:
  *
- *  - description: make the module use asyncronous calls
+ *  - description: make the module use asynchronous calls
  *    date: Feb 2006
  *    author: Simo Sorce
  */
 
-#include "ldb_includes.h"
+#include "replace.h"
+#include "system/filesys.h"
+#include "system/time.h"
 #include "ldb_module.h"
+#include "ldb_private.h"
 
 #define LDAP_DEPRECATED 1
 #include <ldap.h>
@@ -117,7 +120,7 @@ static LDAPMod **lldb_msg_to_mods(void *mem_ctx, const struct ldb_message *msg, 
 			if (!mods[num_mods]->mod_vals.modv_bvals[j]) {
 				goto failed;
 			}
-			mods[num_mods]->mod_vals.modv_bvals[j]->bv_val = el->values[j].data;
+			mods[num_mods]->mod_vals.modv_bvals[j]->bv_val = (char *)el->values[j].data;
 			mods[num_mods]->mod_vals.modv_bvals[j]->bv_len = el->values[j].length;
 		}
 		mods[num_mods]->mod_vals.modv_bvals[j] = NULL;
@@ -253,14 +256,14 @@ static int lldb_search(struct lldb_context *lldb_ac)
 	tv.tv_usec = 0;
 
 	ret = ldap_search_ext(lldb->ldap, search_base, ldap_scope, 
-			    expression, 
-			    discard_const_p(char *, req->op.search.attrs), 
-			    0,
-			    NULL,
-			    NULL,
-			    &tv,
-			    LDAP_NO_LIMIT,
-			    &lldb_ac->msgid);
+			      expression, 
+			      discard_const_p(char *, req->op.search.attrs),
+			      0,
+			      NULL,
+			      NULL,
+			      &tv,
+			      LDAP_NO_LIMIT,
+			      &lldb_ac->msgid);
 
 	if (ret != LDAP_SUCCESS) {
 		ldb_set_errstring(ldb, ldap_err2string(ret));
@@ -282,7 +285,7 @@ static int lldb_add(struct lldb_context *lldb_ac)
 	char *dn;
 	int ret;
 
-	ldb_module_get_ctx(module);
+	ldb = ldb_module_get_ctx(module);
 
 	ldb_request_set_state(req, LDB_ASYNC_PENDING);
 
@@ -321,7 +324,7 @@ static int lldb_modify(struct lldb_context *lldb_ac)
 	char *dn;
 	int ret;
 
-	ldb_module_get_ctx(module);
+	ldb = ldb_module_get_ctx(module);
 
 	ldb_request_set_state(req, LDB_ASYNC_PENDING);
 
@@ -359,7 +362,7 @@ static int lldb_delete(struct lldb_context *lldb_ac)
 	char *dnstr;
 	int ret;
 
-	ldb_module_get_ctx(module);
+	ldb = ldb_module_get_ctx(module);
 
 	ldb_request_set_state(req, LDB_ASYNC_PENDING);
 
@@ -386,12 +389,14 @@ static int lldb_rename(struct lldb_context *lldb_ac)
 	struct lldb_private *lldb = lldb_ac->lldb;
 	struct ldb_module *module = lldb_ac->module;
 	struct ldb_request *req = lldb_ac->req;
+	const char *rdn_name;
+	const struct ldb_val *rdn_val;
 	char *old_dn;
-       	char *newrdn;
+	char *newrdn;
 	char *parentdn;
 	int ret;
 
-	ldb_module_get_ctx(module);
+	ldb = ldb_module_get_ctx(module);
 
 	ldb_request_set_state(req, LDB_ASYNC_PENDING);
 
@@ -400,9 +405,15 @@ static int lldb_rename(struct lldb_context *lldb_ac)
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
-	newrdn = talloc_asprintf(lldb_ac, "%s=%s",
-				 ldb_dn_get_rdn_name(req->op.rename.newdn),
-				 ldb_dn_escape_value(lldb, *(ldb_dn_get_rdn_val(req->op.rename.newdn))));
+	rdn_name = ldb_dn_get_rdn_name(req->op.rename.newdn);
+	rdn_val = ldb_dn_get_rdn_val(req->op.rename.newdn);
+
+	if ((rdn_name != NULL) && (rdn_val != NULL)) {
+		newrdn = talloc_asprintf(lldb_ac, "%s=%s", rdn_name,
+					 rdn_val->length > 0 ? ldb_dn_escape_value(lldb, *rdn_val) : "");
+	} else {
+		newrdn = talloc_strdup(lldb_ac, "");
+	}
 	if (!newrdn) {
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
@@ -444,7 +455,7 @@ static int lldb_del_trans(struct ldb_module *module)
 	return LDB_SUCCESS;
 }
 
-void lldb_request_done(struct lldb_context *ac,
+static void lldb_request_done(struct lldb_context *ac,
 			struct ldb_control **ctrls, int error)
 {
 	struct ldb_request *req;
@@ -483,8 +494,8 @@ static bool lldb_parse_result(struct lldb_context *ac, LDAPMessage *result)
 	bool callback_failed;
 	bool request_done;
 	bool lret;
+	unsigned int i;
 	int ret;
-	int i;
 
 	ldb = ldb_module_get_ctx(ac->module);
 
@@ -502,20 +513,24 @@ static bool lldb_parse_result(struct lldb_context *ac, LDAPMessage *result)
 
 			ldbmsg = ldb_msg_new(ac);
 			if (!ldbmsg) {
+				ldb_oom(ldb);
 				ret = LDB_ERR_OPERATIONS_ERROR;
 				break;
 			}
 
 			dn = ldap_get_dn(lldb->ldap, msg);
 			if (!dn) {
+				ldb_oom(ldb);
 				talloc_free(ldbmsg);
 				ret = LDB_ERR_OPERATIONS_ERROR;
 				break;
 			}
 			ldbmsg->dn = ldb_dn_new(ldbmsg, ldb, dn);
 			if ( ! ldb_dn_validate(ldbmsg->dn)) {
+				ldb_asprintf_errstring(ldb, "Invalid DN '%s' in reply", dn);
 				talloc_free(ldbmsg);
 				ret = LDB_ERR_OPERATIONS_ERROR;
+				ldap_memfree(dn);
 				break;
 			}
 			ldap_memfree(dn);
@@ -539,7 +554,8 @@ static bool lldb_parse_result(struct lldb_context *ac, LDAPMessage *result)
 
 			ret = ldb_module_send_entry(ac->req, ldbmsg, NULL /* controls not yet supported */);
 			if (ret != LDB_SUCCESS) {
-
+				ldb_asprintf_errstring(ldb, "entry send failed: %s",
+						       ldb_errstring(ldb));
 				callback_failed = true;
 			}
 		} else {
@@ -549,15 +565,16 @@ static bool lldb_parse_result(struct lldb_context *ac, LDAPMessage *result)
 
 	case LDAP_RES_SEARCH_REFERENCE:
 
-		if (ldap_parse_result(lldb->ldap, result, &ret,
-					&matcheddnp, &errmsgp,
-					&referralsp, &serverctrlsp, 0) != LDAP_SUCCESS) {
+		ret = ldap_parse_reference(lldb->ldap, result,
+					   &referralsp, &serverctrlsp, 0);
+		if (ret != LDAP_SUCCESS) {
+			ldb_asprintf_errstring(ldb, "ldap reference parse error: %s : %s",
+					       ldap_err2string(ret), errmsgp);
 			ret = LDB_ERR_OPERATIONS_ERROR;
-		}
-		if (ret != LDB_SUCCESS) {
 			break;
 		}
 		if (referralsp == NULL) {
+			ldb_asprintf_errstring(ldb, "empty ldap referrals list");
 			ret = LDB_ERR_PROTOCOL_ERROR;
 			break;
 		}
@@ -567,6 +584,8 @@ static bool lldb_parse_result(struct lldb_context *ac, LDAPMessage *result)
 
 			ret = ldb_module_send_referral(ac->req, referral);
 			if (ret != LDB_SUCCESS) {
+				ldb_asprintf_errstring(ldb, "referral send failed: %s",
+						       ldb_errstring(ldb));
 				callback_failed = true;
 				break;
 			}
@@ -585,6 +604,8 @@ static bool lldb_parse_result(struct lldb_context *ac, LDAPMessage *result)
 			ret = LDB_ERR_OPERATIONS_ERROR;
 		}
 		if (ret != LDB_SUCCESS) {
+			ldb_asprintf_errstring(ldb, "ldap parse error for type %d: %s : %s",
+					       type, ldap_err2string(ret), errmsgp);
 			break;
 		}
 
@@ -597,6 +618,7 @@ static bool lldb_parse_result(struct lldb_context *ac, LDAPMessage *result)
 		break;
 
 	default:
+		ldb_asprintf_errstring(ldb, "unknown ldap return type: %d", type);
 		ret = LDB_ERR_PROTOCOL_ERROR;
 		break;
 	}
@@ -798,7 +820,7 @@ static int lldb_handle_request(struct ldb_module *module, struct ldb_request *re
 		break;
 	default:
 		/* no other op supported */
-		ret = LDB_ERR_OPERATIONS_ERROR;
+		ret = LDB_ERR_PROTOCOL_ERROR;
 		break;
 	}
 
@@ -845,6 +867,48 @@ static int lldb_destructor(struct lldb_private *lldb)
 	return 0;
 }
 
+
+/*
+  optionally perform a bind
+ */
+static int lldb_bind(struct ldb_module *module,
+		     const char *options[])
+{
+	const char *bind_mechanism;
+	struct lldb_private *lldb;
+	struct ldb_context *ldb = ldb_module_get_ctx(module);
+	int ret;
+
+	bind_mechanism = ldb_options_find(ldb, options, "bindMech");
+	if (bind_mechanism == NULL) {
+		/* no bind wanted */
+		return LDB_SUCCESS;
+	}
+
+	lldb = talloc_get_type(ldb_module_get_private(module), struct lldb_private);
+
+	if (strcmp(bind_mechanism, "simple") == 0) {
+		const char *bind_id, *bind_secret;
+
+		bind_id = ldb_options_find(ldb, options, "bindID");
+		bind_secret = ldb_options_find(ldb, options, "bindSecret");
+		if (bind_id == NULL || bind_secret == NULL) {
+			ldb_asprintf_errstring(ldb, "simple bind requires bindID and bindSecret");
+			return LDB_ERR_OPERATIONS_ERROR;
+		}
+
+		ret = ldap_simple_bind_s(lldb->ldap, bind_id, bind_secret);
+		if (ret != LDAP_SUCCESS) {
+			ldb_asprintf_errstring(ldb, "bind failed: %s", ldap_err2string(ret));
+			return ret;
+		}
+		return LDB_SUCCESS;
+	}
+
+	ldb_asprintf_errstring(ldb, "bind failed: unknown mechanism %s", bind_mechanism);
+	return LDB_ERR_INAPPROPRIATE_AUTHENTICATION;
+}
+
 /*
   connect to the database
 */
@@ -860,7 +924,7 @@ static int lldb_connect(struct ldb_context *ldb,
 	int ret;
 
 	module = ldb_module_new(ldb, ldb, "ldb_ldap backend", &lldb_ops);
-	if (!module) return -1;
+	if (!module) return LDB_ERR_OPERATIONS_ERROR;
 
 	lldb = talloc_zero(module, struct lldb_private);
 	if (!lldb) {
@@ -886,24 +950,33 @@ static int lldb_connect(struct ldb_context *ldb,
 	}
 
 	*_module = module;
-	return 0;
+
+	ret = lldb_bind(module, options);
+	if (ret != LDB_SUCCESS) {
+		goto failed;
+	}
+
+
+	return LDB_SUCCESS;
 
 failed:
 	talloc_free(module);
-	return -1;
+	return LDB_ERR_OPERATIONS_ERROR;
 }
 
-const struct ldb_backend_ops ldb_ldap_backend_ops = {
-	.name = "ldap",
-	.connect_fn = lldb_connect
-};
-
-const struct ldb_backend_ops ldb_ldapi_backend_ops = {
-	.name = "ldapi",
-	.connect_fn = lldb_connect
-};
-
-const struct ldb_backend_ops ldb_ldaps_backend_ops = {
-	.name = "ldaps",
-	.connect_fn = lldb_connect
-};
+/*
+  initialise the module
+ */
+int ldb_ldap_init(const char *version)
+{
+	int ret, i;
+	const char *names[] = { "ldap", "ldaps", "ldapi", NULL };
+	LDB_MODULE_CHECK_VERSION(version);
+	for (i=0; names[i]; i++) {
+		ret = ldb_register_backend(names[i], lldb_connect, false);
+		if (ret != LDB_SUCCESS) {
+			return ret;
+		}
+	}
+	return LDB_SUCCESS;
+}

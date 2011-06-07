@@ -18,12 +18,14 @@
  */
 #define TALLOC_DEPRECATED 1
 #include "includes.h"
-#include "librpc/gen_ndr/ndr_misc.h"
-#if _SAMBA_BUILD_ == 4
 #include "system/filesys.h"
-#include "auth/auth.h"
+#include "librpc/gen_ndr/ndr_misc.h"
+#include "../librpc/gen_ndr/ndr_security.h"
 #include "../libgpo/gpo.h"
-#include "../lib/talloc/talloc.h"
+#include "../libcli/security/security.h"
+#if _SAMBA_BUILD_ == 4
+#include "auth/auth.h"
+#include <talloc.h>
 #include "source4/libgpo/ads_convenience.h"
 #endif
 #undef strdup
@@ -321,10 +323,11 @@ void dump_gpo(ADS_STRUCT *ads,
 		}
 		dump_gp_ext(gp_ext, lvl);
 	}
+	if (gpo->security_descriptor) {
+		DEBUGADD(lvl,("security descriptor:\n"));
 
-	DEBUGADD(lvl,("security descriptor:\n"));
-
-	NDR_PRINT_DEBUG(security_descriptor, gpo->security_descriptor);
+		NDR_PRINT_DEBUG(security_descriptor, gpo->security_descriptor);
+	}
 }
 
 /****************************************************************
@@ -446,7 +449,7 @@ static bool gpo_get_gp_ext_from_gpo(TALLOC_CTX *mem_ctx,
 
 ADS_STATUS gpo_process_a_gpo(ADS_STRUCT *ads,
 			     TALLOC_CTX *mem_ctx,
-			     const NT_USER_TOKEN *token,
+			     const struct security_token *token,
 			     struct registry_key *root_key,
 			     struct GROUP_POLICY_OBJECT *gpo,
 			     const char *extension_guid_filter,
@@ -503,7 +506,7 @@ ADS_STATUS gpo_process_a_gpo(ADS_STRUCT *ads,
 
 static ADS_STATUS gpo_process_gpo_list_by_ext(ADS_STRUCT *ads,
 					      TALLOC_CTX *mem_ctx,
-					      const NT_USER_TOKEN *token,
+					      const struct security_token *token,
 					      struct registry_key *root_key,
 					      struct GROUP_POLICY_OBJECT *gpo_list,
 					      const char *extensions_guid,
@@ -541,7 +544,7 @@ static ADS_STATUS gpo_process_gpo_list_by_ext(ADS_STRUCT *ads,
 
 ADS_STATUS gpo_process_gpo_list(ADS_STRUCT *ads,
 				TALLOC_CTX *mem_ctx,
-				const NT_USER_TOKEN *token,
+				const struct security_token *token,
 				struct GROUP_POLICY_OBJECT *gpo_list,
 				const char *extensions_guid_filter,
 				uint32_t flags)
@@ -838,9 +841,9 @@ ADS_STATUS gp_get_machine_token(ADS_STRUCT *ads,
 				TALLOC_CTX *mem_ctx,
 				struct loadparm_context *lp_ctx,
 				const char *dn,
-				NT_USER_TOKEN **token)
+				struct security_token **token)
 {
-	NT_USER_TOKEN *ad_token = NULL;
+	struct security_token *ad_token = NULL;
 	ADS_STATUS status;
 #if _SAMBA_BUILD_ == 4
 	struct auth_session_info *info;

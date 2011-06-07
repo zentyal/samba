@@ -92,6 +92,8 @@
 #include <krb5-types.h>
 #include <assert.h>
 
+#include <roken.h>
+
 #include "des.h"
 #include "ui.h"
 
@@ -180,13 +182,13 @@ static DES_cblock weak_keys[] = {
 int
 DES_is_weak_key(DES_cblock *key)
 {
+    int weak = 0;
     int i;
 
-    for (i = 0; i < sizeof(weak_keys)/sizeof(weak_keys[0]); i++) {
-	if (memcmp(weak_keys[i], key, DES_CBLOCK_LEN) == 0)
-	    return 1;
-    }
-    return 0;
+    for (i = 0; i < sizeof(weak_keys)/sizeof(weak_keys[0]); i++)
+	weak ^= (ct_memcmp(weak_keys[i], key, DES_CBLOCK_LEN) == 0);
+
+    return !!weak;
 }
 
 /**

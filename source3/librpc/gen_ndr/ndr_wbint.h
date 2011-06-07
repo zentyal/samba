@@ -15,51 +15,51 @@ extern const struct ndr_interface_table ndr_table_wbint;
 
 #define NDR_WBINT_LOOKUPSID (0x01)
 
-#define NDR_WBINT_LOOKUPNAME (0x02)
+#define NDR_WBINT_LOOKUPSIDS (0x02)
 
-#define NDR_WBINT_SID2UID (0x03)
+#define NDR_WBINT_LOOKUPNAME (0x03)
 
-#define NDR_WBINT_SID2GID (0x04)
+#define NDR_WBINT_SID2UID (0x04)
 
-#define NDR_WBINT_UID2SID (0x05)
+#define NDR_WBINT_SID2GID (0x05)
 
-#define NDR_WBINT_GID2SID (0x06)
+#define NDR_WBINT_SIDS2UNIXIDS (0x06)
 
-#define NDR_WBINT_ALLOCATEUID (0x07)
+#define NDR_WBINT_UID2SID (0x07)
 
-#define NDR_WBINT_ALLOCATEGID (0x08)
+#define NDR_WBINT_GID2SID (0x08)
 
-#define NDR_WBINT_QUERYUSER (0x09)
+#define NDR_WBINT_ALLOCATEUID (0x09)
 
-#define NDR_WBINT_LOOKUPUSERALIASES (0x0a)
+#define NDR_WBINT_ALLOCATEGID (0x0a)
 
-#define NDR_WBINT_LOOKUPUSERGROUPS (0x0b)
+#define NDR_WBINT_QUERYUSER (0x0b)
 
-#define NDR_WBINT_QUERYSEQUENCENUMBER (0x0c)
+#define NDR_WBINT_LOOKUPUSERALIASES (0x0c)
 
-#define NDR_WBINT_LOOKUPGROUPMEMBERS (0x0d)
+#define NDR_WBINT_LOOKUPUSERGROUPS (0x0d)
 
-#define NDR_WBINT_QUERYUSERLIST (0x0e)
+#define NDR_WBINT_QUERYSEQUENCENUMBER (0x0e)
 
-#define NDR_WBINT_QUERYGROUPLIST (0x0f)
+#define NDR_WBINT_LOOKUPGROUPMEMBERS (0x0f)
 
-#define NDR_WBINT_DSGETDCNAME (0x10)
+#define NDR_WBINT_QUERYUSERLIST (0x10)
 
-#define NDR_WBINT_LOOKUPRIDS (0x11)
+#define NDR_WBINT_QUERYGROUPLIST (0x11)
 
-#define NDR_WBINT_CHECKMACHINEACCOUNT (0x12)
+#define NDR_WBINT_DSGETDCNAME (0x12)
 
-#define NDR_WBINT_CHANGEMACHINEACCOUNT (0x13)
+#define NDR_WBINT_LOOKUPRIDS (0x13)
 
-#define NDR_WBINT_PINGDC (0x14)
+#define NDR_WBINT_CHECKMACHINEACCOUNT (0x14)
 
-#define NDR_WBINT_SETMAPPING (0x15)
+#define NDR_WBINT_CHANGEMACHINEACCOUNT (0x15)
 
-#define NDR_WBINT_REMOVEMAPPING (0x16)
+#define NDR_WBINT_PINGDC (0x16)
 
-#define NDR_WBINT_SETHWM (0x17)
-
-#define NDR_WBINT_CALL_COUNT (24)
+#define NDR_WBINT_CALL_COUNT (23)
+void ndr_print_wbint_TransID(struct ndr_print *ndr, const char *name, const struct wbint_TransID *r);
+void ndr_print_wbint_TransIDArray(struct ndr_print *ndr, const char *name, const struct wbint_TransIDArray *r);
 enum ndr_err_code ndr_push_wbint_userinfo(struct ndr_push *ndr, int ndr_flags, const struct wbint_userinfo *r);
 enum ndr_err_code ndr_pull_wbint_userinfo(struct ndr_pull *ndr, int ndr_flags, struct wbint_userinfo *r);
 void ndr_print_wbint_userinfo(struct ndr_print *ndr, const char *name, const struct wbint_userinfo *r);
@@ -78,14 +78,13 @@ void ndr_print_wbint_Principals(struct ndr_print *ndr, const char *name, const s
 enum ndr_err_code ndr_push_wbint_userinfos(struct ndr_push *ndr, int ndr_flags, const struct wbint_userinfos *r);
 enum ndr_err_code ndr_pull_wbint_userinfos(struct ndr_pull *ndr, int ndr_flags, struct wbint_userinfos *r);
 void ndr_print_wbint_userinfos(struct ndr_print *ndr, const char *name, const struct wbint_userinfos *r);
-enum ndr_err_code ndr_push_wbint_IdType(struct ndr_push *ndr, int ndr_flags, enum wbint_IdType r);
-enum ndr_err_code ndr_pull_wbint_IdType(struct ndr_pull *ndr, int ndr_flags, enum wbint_IdType *r);
-void ndr_print_wbint_IdType(struct ndr_print *ndr, const char *name, enum wbint_IdType r);
 void ndr_print_wbint_Ping(struct ndr_print *ndr, const char *name, int flags, const struct wbint_Ping *r);
 void ndr_print_wbint_LookupSid(struct ndr_print *ndr, const char *name, int flags, const struct wbint_LookupSid *r);
+void ndr_print_wbint_LookupSids(struct ndr_print *ndr, const char *name, int flags, const struct wbint_LookupSids *r);
 void ndr_print_wbint_LookupName(struct ndr_print *ndr, const char *name, int flags, const struct wbint_LookupName *r);
 void ndr_print_wbint_Sid2Uid(struct ndr_print *ndr, const char *name, int flags, const struct wbint_Sid2Uid *r);
 void ndr_print_wbint_Sid2Gid(struct ndr_print *ndr, const char *name, int flags, const struct wbint_Sid2Gid *r);
+void ndr_print_wbint_Sids2UnixIDs(struct ndr_print *ndr, const char *name, int flags, const struct wbint_Sids2UnixIDs *r);
 void ndr_print_wbint_Uid2Sid(struct ndr_print *ndr, const char *name, int flags, const struct wbint_Uid2Sid *r);
 void ndr_print_wbint_Gid2Sid(struct ndr_print *ndr, const char *name, int flags, const struct wbint_Gid2Sid *r);
 void ndr_print_wbint_AllocateUid(struct ndr_print *ndr, const char *name, int flags, const struct wbint_AllocateUid *r);
@@ -102,7 +101,4 @@ void ndr_print_wbint_LookupRids(struct ndr_print *ndr, const char *name, int fla
 void ndr_print_wbint_CheckMachineAccount(struct ndr_print *ndr, const char *name, int flags, const struct wbint_CheckMachineAccount *r);
 void ndr_print_wbint_ChangeMachineAccount(struct ndr_print *ndr, const char *name, int flags, const struct wbint_ChangeMachineAccount *r);
 void ndr_print_wbint_PingDc(struct ndr_print *ndr, const char *name, int flags, const struct wbint_PingDc *r);
-void ndr_print_wbint_SetMapping(struct ndr_print *ndr, const char *name, int flags, const struct wbint_SetMapping *r);
-void ndr_print_wbint_RemoveMapping(struct ndr_print *ndr, const char *name, int flags, const struct wbint_RemoveMapping *r);
-void ndr_print_wbint_SetHWM(struct ndr_print *ndr, const char *name, int flags, const struct wbint_SetHWM *r);
 #endif /* _HEADER_NDR_wbint */

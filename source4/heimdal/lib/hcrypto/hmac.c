@@ -52,12 +52,12 @@ HMAC_CTX_cleanup(HMAC_CTX *ctx)
 	ctx->buf = NULL;
     }
     if (ctx->opad) {
-	memset(ctx->ipad, 0, ctx->key_length);
+	memset(ctx->opad, 0, EVP_MD_block_size(ctx->md));
 	free(ctx->opad);
 	ctx->opad = NULL;
     }
     if (ctx->ipad) {
-	memset(ctx->ipad, 0, ctx->key_length);
+	memset(ctx->ipad, 0, EVP_MD_block_size(ctx->md));
 	free(ctx->ipad);
 	ctx->ipad = NULL;
     }
@@ -121,7 +121,8 @@ HMAC_Init_ex(HMAC_CTX *ctx,
     for (i = 0, p = ctx->opad; i < keylen; i++)
 	p[i] ^= ((const unsigned char *)key)[i];
 
-    ctx->ctx = EVP_MD_CTX_create();
+    if (ctx->ctx == NULL)
+	ctx->ctx = EVP_MD_CTX_create();
 
     EVP_DigestInit_ex(ctx->ctx, ctx->md, ctx->engine);
     EVP_DigestUpdate(ctx->ctx, ctx->ipad, EVP_MD_block_size(ctx->md));

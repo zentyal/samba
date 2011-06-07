@@ -19,6 +19,7 @@
 
 #include "includes.h"
 #include "winbindd.h"
+#include "../libcli/security/security.h"
 
 struct winbindd_getpwsid_state {
 	struct dom_sid sid;
@@ -69,8 +70,7 @@ static void winbindd_getpwsid_done(struct tevent_req *subreq)
 
 	status = wb_getpwsid_recv(subreq);
 	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
+	if (tevent_req_nterror(req, status)) {
 		return;
 	}
 	tevent_req_done(req);

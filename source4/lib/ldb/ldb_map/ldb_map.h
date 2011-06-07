@@ -59,11 +59,11 @@ struct ldb_map_attribute {
 	const char *local_name; /* local name */
 
 	enum ldb_map_attr_type { 
-		MAP_IGNORE, /* Ignore this local attribute. Doesn't exist remotely.  */
-		MAP_KEEP,   /* Keep as is. Same name locally and remotely. */
-		MAP_RENAME, /* Simply rename the attribute. Name changes, data is the same */
-		MAP_CONVERT, /* Rename + convert data */
-		MAP_GENERATE /* Use generate function for generating new name/data. 
+		LDB_MAP_IGNORE, /* Ignore this local attribute. Doesn't exist remotely.  */
+		LDB_MAP_KEEP,   /* Keep as is. Same name locally and remotely. */
+		LDB_MAP_RENAME, /* Simply rename the attribute. Name changes, data is the same */
+		LDB_MAP_CONVERT, /* Rename + convert data */
+		LDB_MAP_GENERATE /* Use generate function for generating new name/data.
 						Used for generating attributes based on 
 						multiple remote attributes. */
 	} type;
@@ -157,17 +157,17 @@ int ldb_map_init(struct ldb_module *module, const struct ldb_map_attribute *attr
 		 const char *add_objectclass,
 		 const char *name);
 
-int map_add(struct ldb_module *module, struct ldb_request *req);
-int map_search(struct ldb_module *module, struct ldb_request *req);
-int map_rename(struct ldb_module *module, struct ldb_request *req);
-int map_delete(struct ldb_module *module, struct ldb_request *req);
-int map_modify(struct ldb_module *module, struct ldb_request *req);
+int ldb_map_add(struct ldb_module *module, struct ldb_request *req);
+int ldb_map_search(struct ldb_module *module, struct ldb_request *req);
+int ldb_map_rename(struct ldb_module *module, struct ldb_request *req);
+int ldb_map_delete(struct ldb_module *module, struct ldb_request *req);
+int ldb_map_modify(struct ldb_module *module, struct ldb_request *req);
 
 #define LDB_MAP_OPS \
-	.add		= map_add, \
-	.modify		= map_modify, \
-	.del		= map_delete, \
-	.rename		= map_rename, \
-	.search		= map_search,
+	.add		= ldb_map_add, \
+	.modify		= ldb_map_modify, \
+	.del		= ldb_map_delete, \
+	.rename		= ldb_map_rename, \
+	.search		= ldb_map_search,
 
 #endif /* __LDB_MAP_H__ */

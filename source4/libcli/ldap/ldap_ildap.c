@@ -21,7 +21,7 @@
 */
 
 #include "includes.h"
-#include "libcli/ldap/ldap.h"
+#include "libcli/ldap/libcli_ldap.h"
 #include "libcli/ldap/ldap_client.h"
 
 
@@ -73,7 +73,7 @@ _PUBLIC_ NTSTATUS ildap_search_bytree(struct ldap_connection *conn, const char *
 	msg->controls = control_req;
 
 	req = ldap_request_send(conn, msg);
-	talloc_steal(msg, req);
+	talloc_reparent(conn, msg, req);
 	
 	for (i=n=0;true;i++) {
 		struct ldap_message *res;

@@ -32,7 +32,9 @@
  *  Author: Simo Sorce
  */
 
-#include "ldb_includes.h"
+#include "replace.h"
+#include "system/filesys.h"
+#include "system/time.h"
 #include "ldb_module.h"
 
 struct message_store {
@@ -65,8 +67,7 @@ struct results_store {
 };
 
 struct private_data {
-
-	int next_free_id;
+	unsigned int next_free_id;
 	struct results_store *store;
 	
 };
@@ -95,7 +96,7 @@ static int store_destructor(struct results_store *del)
 static struct results_store *new_store(struct private_data *priv)
 {
 	struct results_store *newr;
-	int new_id = priv->next_free_id++;
+	unsigned int new_id = priv->next_free_id++;
 
 	/* TODO: we should have a limit on the number of
 	 * outstanding paged searches
@@ -140,7 +141,8 @@ static int paged_results(struct paged_context *ac)
 {
 	struct ldb_paged_control *paged;
 	struct message_store *msg;
-	int i, num_ctrls, ret;
+	unsigned int i, num_ctrls;
+	int ret;
 
 	if (ac->store == NULL) {
 		return LDB_ERR_OPERATIONS_ERROR;
@@ -326,6 +328,11 @@ static int paged_search(struct ldb_module *module, struct ldb_request *req)
 	ac->module = module;
 	ac->req = req;
 	ac->size = paged_ctrl->size;
+	if (ac->size < 0) {
+		/* apparently some clients send more than 2^31. This
+		   violates the ldap standard, but we need to cope */
+		ac->size = 0x7FFFFFFF;
+	}
 
 	/* check if it is a continuation search the store */
 	if (paged_ctrl->cookie_len == 0) {
@@ -347,11 +354,14 @@ static int paged_search(struct ldb_module *module, struct ldb_request *req)
 						ac,
 						paged_search_callback,
 						req);
+		if (ret != LDB_SUCCESS) {
+			return ret;
+		}
 
 		/* save it locally and remove it from the list */
 		/* we do not need to replace them later as we
 		 * are keeping the original req intact */
-		if (!save_controls(control, search_req, &saved_controls)) {
+		if (!ldb_save_controls(control, search_req, &saved_controls)) {
 			return LDB_ERR_OPERATIONS_ERROR;
 		}
 
@@ -415,8 +425,14 @@ static int paged_request_init(struct ldb_module *module)
 	return ldb_next_init(module);
 }
 
-const struct ldb_module_ops ldb_paged_results_module_ops = {
+static const struct ldb_module_ops ldb_paged_results_module_ops = {
 	.name           = "paged_results",
 	.search         = paged_search,
 	.init_context 	= paged_request_init
 };
+
+int ldb_paged_results_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_paged_results_module_ops);
+}

@@ -18,6 +18,11 @@
 */
 
 #include "includes.h"
+#include "libsmb/libsmb.h"
+#include "../librpc/gen_ndr/ndr_security.h"
+#include "fake_file.h"
+#include "../libcli/security/security.h"
+#include "trans2.h"
 
 NTSTATUS cli_get_quota_handle(struct cli_state *cli, uint16_t *quota_fnum)
 {
@@ -40,7 +45,10 @@ void free_ntquota_list(SMB_NTQUOTA_LIST **qt_list)
 	return;	
 }
 
-static bool parse_user_quota_record(const char *rdata, unsigned int rdata_count, unsigned int *offset, SMB_NTQUOTA_STRUCT *pqt)
+static bool parse_user_quota_record(const uint8_t *rdata,
+				    unsigned int rdata_count,
+				    unsigned int *offset,
+				    SMB_NTQUOTA_STRUCT *pqt)
 {
 	int sid_len;
 	SMB_NTQUOTA_STRUCT qt;
@@ -73,45 +81,15 @@ static bool parse_user_quota_record(const char *rdata, unsigned int rdata_count,
 	 */
 
 	/* the used space 8 bytes (uint64_t)*/
-	qt.usedspace = (uint64_t)IVAL(rdata,16);
-#ifdef LARGE_SMB_OFF_T
-	qt.usedspace |= (((uint64_t)IVAL(rdata,20)) << 32);
-#else /* LARGE_SMB_OFF_T */
-	if ((IVAL(rdata,20) != 0)&&
-		((qt.usedspace != 0xFFFFFFFF)||
-		 (IVAL(rdata,20)!=0xFFFFFFFF))) {
-		/* more than 32 bits? */
-		return False;
-	}
-#endif /* LARGE_SMB_OFF_T */
+	qt.usedspace = BVAL(rdata,16);
 
 	/* the soft quotas 8 bytes (uint64_t)*/
-	qt.softlim = (uint64_t)IVAL(rdata,24);
-#ifdef LARGE_SMB_OFF_T
-	qt.softlim |= (((uint64_t)IVAL(rdata,28)) << 32);
-#else /* LARGE_SMB_OFF_T */
-	if ((IVAL(rdata,28) != 0)&&
-		((qt.softlim != 0xFFFFFFFF)||
-		 (IVAL(rdata,28)!=0xFFFFFFFF))) {
-		/* more than 32 bits? */
-		return False;
-	}
-#endif /* LARGE_SMB_OFF_T */
+	qt.softlim = BVAL(rdata,24);
 
 	/* the hard quotas 8 bytes (uint64_t)*/
-	qt.hardlim = (uint64_t)IVAL(rdata,32);
-#ifdef LARGE_SMB_OFF_T
-	qt.hardlim |= (((uint64_t)IVAL(rdata,36)) << 32);
-#else /* LARGE_SMB_OFF_T */
-	if ((IVAL(rdata,36) != 0)&&
-		((qt.hardlim != 0xFFFFFFFF)||
-		 (IVAL(rdata,36)!=0xFFFFFFFF))) {
-		/* more than 32 bits? */
-		return False;
-	}
-#endif /* LARGE_SMB_OFF_T */
+	qt.hardlim = BVAL(rdata,32);
 
-	if (!sid_parse(rdata+40,sid_len,&qt.sid)) {
+	if (!sid_parse((char *)rdata+40,sid_len,&qt.sid)) {
 		return false;
 	}
 
@@ -122,23 +100,24 @@ static bool parse_user_quota_record(const char *rdata, unsigned int rdata_count,
 	return True;
 }
 
-bool cli_get_user_quota(struct cli_state *cli, int quota_fnum, SMB_NTQUOTA_STRUCT *pqt)
+NTSTATUS cli_get_user_quota(struct cli_state *cli, int quota_fnum,
+			    SMB_NTQUOTA_STRUCT *pqt)
 {
-	bool ret = False;
-	uint16 setup;
-	char params[16];
+	uint16_t setup[1];
+	uint8_t params[16];
 	unsigned int data_len;
-	char data[SID_MAX_SIZE+8];
-	char *rparam=NULL, *rdata=NULL;
-	unsigned int rparam_count=0, rdata_count=0;
+	uint8_t data[SID_MAX_SIZE+8];
+	uint8_t *rparam, *rdata;
+	uint32_t rparam_count, rdata_count;
 	unsigned int sid_len;
 	unsigned int offset;
+	NTSTATUS status;
 
 	if (!cli||!pqt) {
 		smb_panic("cli_get_user_quota() called with NULL Pointer!");
 	}
 
-	setup = NT_TRANSACT_GET_USER_QUOTA;
+	SSVAL(setup + 0, 0, NT_TRANSACT_GET_USER_QUOTA);
 
 	SSVAL(params, 0,quota_fnum);
 	SSVAL(params, 2,TRANSACT_GET_USER_QUOTA_FOR_SID);
@@ -146,128 +125,105 @@ bool cli_get_user_quota(struct cli_state *cli, int quota_fnum, SMB_NTQUOTA_STRUC
 	SIVAL(params, 8,0x00000000);
 	SIVAL(params,12,0x00000024);
 
-	sid_len = ndr_size_dom_sid(&pqt->sid, NULL, 0);
+	sid_len = ndr_size_dom_sid(&pqt->sid, 0);
 	data_len = sid_len+8;
 	SIVAL(data, 0, 0x00000000);
 	SIVAL(data, 4, sid_len);
-	sid_linearize(data+8, sid_len, &pqt->sid);
+	sid_linearize((char *)data+8, sid_len, &pqt->sid);
 
-	if (!cli_send_nt_trans(cli, 
-			       NT_TRANSACT_GET_USER_QUOTA, 
-			       0, 
-			       &setup, 1, 0,
-			       params, 16, 4,
-			       data, data_len, 112)) {
-		DEBUG(1,("Failed to send NT_TRANSACT_GET_USER_QUOTA\n"));
-		goto cleanup;
+	status = cli_trans(talloc_tos(), cli, SMBnttrans,
+			   NULL, -1, /* name, fid */
+			   NT_TRANSACT_GET_USER_QUOTA, 0,
+			   setup, 1, 0, /* setup */
+			   params, 16, 4, /* params */
+			   data, data_len, 112, /* data */
+			   NULL,		/* recv_flags2 */
+			   NULL, 0, NULL,	/* rsetup */
+			   &rparam, 4, &rparam_count,
+			   &rdata, 8, &rdata_count);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("NT_TRANSACT_GET_USER_QUOTA failed: %s\n",
+			  nt_errstr(status)));
+		return status;
 	}
 
-
-	if (!cli_receive_nt_trans(cli,
-				  &rparam, &rparam_count,
-				  &rdata, &rdata_count)) {
-		DEBUG(1,("Failed to recv NT_TRANSACT_GET_USER_QUOTA\n"));
-		goto cleanup;
-	}
-
-	if (cli_is_error(cli)) {
-		ret = False;
-		goto cleanup;
-	} else {
-		ret = True;
-	}
-
-	if ((rparam&&rdata)&&(rparam_count>=4&&rdata_count>=8)) {
-		ret = parse_user_quota_record(rdata, rdata_count, &offset, pqt);
-	} else {
+	if (!parse_user_quota_record(rdata, rdata_count, &offset, pqt)) {
+		status = NT_STATUS_INVALID_NETWORK_RESPONSE;
 		DEBUG(0,("Got INVALID NT_TRANSACT_GET_USER_QUOTA reply.\n"));
-		ret = False; 
 	}
 
- cleanup:
-	SAFE_FREE(rparam);
-	SAFE_FREE(rdata); 
-	return ret;
+	TALLOC_FREE(rparam);
+	TALLOC_FREE(rdata);
+	return status;
 }
 
-bool cli_set_user_quota(struct cli_state *cli, int quota_fnum, SMB_NTQUOTA_STRUCT *pqt)
+NTSTATUS cli_set_user_quota(struct cli_state *cli, int quota_fnum,
+			    SMB_NTQUOTA_STRUCT *pqt)
 {
-	bool ret = False;
-	uint16 setup;
-	char params[2];
-	char data[112];
-	char *rparam=NULL, *rdata=NULL;
-	unsigned int rparam_count=0, rdata_count=0;
+	uint16_t setup[1];
+	uint8_t params[2];
+	uint8_t data[112];
 	unsigned int sid_len;	
+	NTSTATUS status;
+
 	memset(data,'\0',112);
 
 	if (!cli||!pqt) {
 		smb_panic("cli_set_user_quota() called with NULL Pointer!");
 	}
 
-	setup = NT_TRANSACT_SET_USER_QUOTA;
+	SSVAL(setup + 0, 0, NT_TRANSACT_SET_USER_QUOTA);
 
 	SSVAL(params,0,quota_fnum);
 
-	sid_len = ndr_size_dom_sid(&pqt->sid, NULL, 0);
+	sid_len = ndr_size_dom_sid(&pqt->sid, 0);
 	SIVAL(data,0,0);
 	SIVAL(data,4,sid_len);
 	SBIG_UINT(data, 8,(uint64_t)0);
 	SBIG_UINT(data,16,pqt->usedspace);
 	SBIG_UINT(data,24,pqt->softlim);
 	SBIG_UINT(data,32,pqt->hardlim);
-	sid_linearize(data+40, sid_len, &pqt->sid);
+	sid_linearize((char *)data+40, sid_len, &pqt->sid);
 
-	if (!cli_send_nt_trans(cli, 
-			       NT_TRANSACT_SET_USER_QUOTA, 
-			       0, 
-			       &setup, 1, 0,
-			       params, 2, 0,
-			       data, 112, 0)) {
-		DEBUG(1,("Failed to send NT_TRANSACT_SET_USER_QUOTA\n"));
-		goto cleanup;
+	status = cli_trans(talloc_tos(), cli, SMBnttrans,
+			   NULL, -1, /* name, fid */
+			   NT_TRANSACT_SET_USER_QUOTA, 0,
+			   setup, 1, 0, /* setup */
+			   params, 2, 0, /* params */
+			   data, 112, 0, /* data */
+			   NULL,		/* recv_flags2 */
+			   NULL, 0, NULL,	/* rsetup */
+			   NULL, 0, NULL,	/* rparams */
+			   NULL, 0, NULL);	/* rdata */
+
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("NT_TRANSACT_SET_USER_QUOTA failed: %s\n",
+			  nt_errstr(status)));
 	}
 
-
-	if (!cli_receive_nt_trans(cli, 
-				  &rparam, &rparam_count,
-				  &rdata, &rdata_count)) {
-		DEBUG(1,("NT_TRANSACT_SET_USER_QUOTA failed\n"));
-		goto cleanup;
-	}
-
-	if (cli_is_error(cli)) {
-		ret = False;
-		goto cleanup;
-	} else {
-		ret = True;
-	}
-
-  cleanup:
-  	SAFE_FREE(rparam);
-	SAFE_FREE(rdata);
-	return ret;
+	return status;
 }
 
-bool cli_list_user_quota(struct cli_state *cli, int quota_fnum, SMB_NTQUOTA_LIST **pqt_list)
+NTSTATUS cli_list_user_quota(struct cli_state *cli, int quota_fnum,
+			     SMB_NTQUOTA_LIST **pqt_list)
 {
-	bool ret = False;
-	uint16 setup;
-	char params[16];
-	char *rparam=NULL, *rdata=NULL;
-	unsigned int rparam_count=0, rdata_count=0;
+	uint16_t setup[1];
+	uint8_t params[16];
+	uint8_t *rparam=NULL, *rdata=NULL;
+	uint32_t rparam_count=0, rdata_count=0;
 	unsigned int offset;
-	const char *curdata = NULL;
+	const uint8_t *curdata = NULL;
 	unsigned int curdata_count = 0;
 	TALLOC_CTX *mem_ctx = NULL;
 	SMB_NTQUOTA_STRUCT qt;
 	SMB_NTQUOTA_LIST *tmp_list_ent;
+	NTSTATUS status;
 
 	if (!cli||!pqt_list) {
 		smb_panic("cli_list_user_quota() called with NULL Pointer!");
 	}
 
-	setup = NT_TRANSACT_GET_USER_QUOTA;
+	SSVAL(setup + 0, 0, NT_TRANSACT_GET_USER_QUOTA);
 
 	SSVAL(params, 0,quota_fnum);
 	SSVAL(params, 2,TRANSACT_GET_USER_QUOTA_LIST_START);
@@ -275,39 +231,31 @@ bool cli_list_user_quota(struct cli_state *cli, int quota_fnum, SMB_NTQUOTA_LIST
 	SIVAL(params, 8,0x00000000);
 	SIVAL(params,12,0x00000000);
 
-	if (!cli_send_nt_trans(cli, 
-			       NT_TRANSACT_GET_USER_QUOTA, 
-			       0, 
-			       &setup, 1, 0,
-			       params, 16, 4,
-			       NULL, 0, 2048)) {
-		DEBUG(1,("Failed to send NT_TRANSACT_GET_USER_QUOTA\n"));
-		goto cleanup;
-	}
+	status = cli_trans(talloc_tos(), cli, SMBnttrans,
+			   NULL, -1, /* name, fid */
+			   NT_TRANSACT_GET_USER_QUOTA, 0,
+			   setup, 1, 0, /* setup */
+			   params, 16, 4, /* params */
+			   NULL, 0, 2048, /* data */
+			   NULL,		/* recv_flags2 */
+			   NULL, 0, NULL,	/* rsetup */
+			   &rparam, 0, &rparam_count,
+			   &rdata, 0, &rdata_count);
 
-
-	if (!cli_receive_nt_trans(cli,
-				  &rparam, &rparam_count,
-				  &rdata, &rdata_count)) {
-		DEBUG(1,("Failed to recv NT_TRANSACT_GET_USER_QUOTA\n"));
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("NT_TRANSACT_GET_USER_QUOTA failed: %s\n",
+			  nt_errstr(status)));
 		goto cleanup;
-	}
-
-	if (cli_is_error(cli)) {
-		ret = False;
-		goto cleanup;
-	} else {
-		ret = True;
 	}
 
 	if (rdata_count == 0) {
 		*pqt_list = NULL;
-		return True;
+		return NT_STATUS_OK;
 	}
 
 	if ((mem_ctx=talloc_init("SMB_USER_QUOTA_LIST"))==NULL) {
 		DEBUG(0,("talloc_init() failed\n"));
-		return (-1);
+		return NT_STATUS_NO_MEMORY;
 	}
 
 	offset = 1;
@@ -315,7 +263,8 @@ bool cli_list_user_quota(struct cli_state *cli, int quota_fnum, SMB_NTQUOTA_LIST
 		((curdata)&&(curdata_count>=8)&&(offset>0));
 		curdata +=offset,curdata_count -= offset) {
 		ZERO_STRUCT(qt);
-		if (!parse_user_quota_record(curdata, curdata_count, &offset, &qt)) {
+		if (!parse_user_quota_record((uint8_t *)curdata, curdata_count,
+					     &offset, &qt)) {
 			DEBUG(1,("Failed to parse the quota record\n"));
 			goto cleanup;
 		}
@@ -323,13 +272,13 @@ bool cli_list_user_quota(struct cli_state *cli, int quota_fnum, SMB_NTQUOTA_LIST
 		if ((tmp_list_ent=TALLOC_ZERO_P(mem_ctx,SMB_NTQUOTA_LIST))==NULL) {
 			DEBUG(0,("TALLOC_ZERO() failed\n"));
 			talloc_destroy(mem_ctx);
-			return (-1);
+			return NT_STATUS_NO_MEMORY;
 		}
 
 		if ((tmp_list_ent->quotas=TALLOC_ZERO_P(mem_ctx,SMB_NTQUOTA_STRUCT))==NULL) {
 			DEBUG(0,("TALLOC_ZERO() failed\n"));
 			talloc_destroy(mem_ctx);
-			return (-1);
+			return NT_STATUS_NO_MEMORY;
 		}
 
 		memcpy(tmp_list_ent->quotas,&qt,sizeof(qt));
@@ -340,34 +289,29 @@ bool cli_list_user_quota(struct cli_state *cli, int quota_fnum, SMB_NTQUOTA_LIST
 
 	SSVAL(params, 2,TRANSACT_GET_USER_QUOTA_LIST_CONTINUE);	
 	while(1) {
-		if (!cli_send_nt_trans(cli, 
-				       NT_TRANSACT_GET_USER_QUOTA, 
-				       0, 
-				       &setup, 1, 0,
-				       params, 16, 4,
-				       NULL, 0, 2048)) {
-			DEBUG(1,("Failed to send NT_TRANSACT_GET_USER_QUOTA\n"));
-			goto cleanup;
-		}
 
-		SAFE_FREE(rparam);
-		SAFE_FREE(rdata);
-		if (!cli_receive_nt_trans(cli,
-					  &rparam, &rparam_count,
-					  &rdata, &rdata_count)) {
-			DEBUG(1,("Failed to recv NT_TRANSACT_GET_USER_QUOTA\n"));
-			goto cleanup;
-		}
+		TALLOC_FREE(rparam);
+		TALLOC_FREE(rdata);
 
-		if (cli_is_error(cli)) {
-			ret = False;
+		status = cli_trans(talloc_tos(), cli, SMBnttrans,
+				   NULL, -1, /* name, fid */
+				   NT_TRANSACT_GET_USER_QUOTA, 0,
+				   setup, 1, 0, /* setup */
+				   params, 16, 4, /* params */
+				   NULL, 0, 2048, /* data */
+				   NULL,		/* recv_flags2 */
+				   NULL, 0, NULL,	/* rsetup */
+				   &rparam, 0, &rparam_count,
+				   &rdata, 0, &rdata_count);
+
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(1, ("NT_TRANSACT_GET_USER_QUOTA failed: %s\n",
+				  nt_errstr(status)));
 			goto cleanup;
-		} else {
-			ret = True;
 		}
 
 		if (rdata_count == 0) {
-			break;	
+			break;
 		}
 
 		offset = 1;
@@ -375,7 +319,9 @@ bool cli_list_user_quota(struct cli_state *cli, int quota_fnum, SMB_NTQUOTA_LIST
 			((curdata)&&(curdata_count>=8)&&(offset>0));
 			curdata +=offset,curdata_count -= offset) {
 			ZERO_STRUCT(qt);
-			if (!parse_user_quota_record(curdata, curdata_count, &offset, &qt)) {
+			if (!parse_user_quota_record((uint8_t *)curdata,
+						     curdata_count, &offset,
+						     &qt)) {
 				DEBUG(1,("Failed to parse the quota record\n"));
 				goto cleanup;
 			}
@@ -399,86 +345,57 @@ bool cli_list_user_quota(struct cli_state *cli, int quota_fnum, SMB_NTQUOTA_LIST
 		}
 	}
 
-
-	ret = True;
  cleanup:
-	SAFE_FREE(rparam);
-	SAFE_FREE(rdata);
+	TALLOC_FREE(rparam);
+	TALLOC_FREE(rdata);
 
-	return ret;
+	return status;
 }
 
-bool cli_get_fs_quota_info(struct cli_state *cli, int quota_fnum, SMB_NTQUOTA_STRUCT *pqt)
+NTSTATUS cli_get_fs_quota_info(struct cli_state *cli, int quota_fnum,
+			       SMB_NTQUOTA_STRUCT *pqt)
 {
-	bool ret = False;
-	uint16 setup;
-	char param[2];
-	char *rparam=NULL, *rdata=NULL;
-	unsigned int rparam_count=0, rdata_count=0;
+	uint16_t setup[1];
+	uint8_t param[2];
+	uint8_t *rdata=NULL;
+	uint32_t rdata_count=0;
 	SMB_NTQUOTA_STRUCT qt;
+	NTSTATUS status;
+
 	ZERO_STRUCT(qt);
 
 	if (!cli||!pqt) {
 		smb_panic("cli_get_fs_quota_info() called with NULL Pointer!");
 	}
 
-	setup = TRANSACT2_QFSINFO;
+	SSVAL(setup + 0, 0, TRANSACT2_QFSINFO);
 
 	SSVAL(param,0,SMB_FS_QUOTA_INFORMATION);
 
-	if (!cli_send_trans(cli, SMBtrans2, 
-		    NULL, 
-		    0, 0,
-		    &setup, 1, 0,
-		    param, 2, 0,
-		    NULL, 0, 560)) {
-		goto cleanup;
-	}
+	status = cli_trans(talloc_tos(), cli, SMBtrans2,
+			   NULL, -1, /* name, fid */
+			   0, 0,     /* function, flags */
+			   setup, 1, 0, /* setup */
+			   param, 2, 0, /* param */
+			   NULL, 0, 560, /* data */
+			   NULL,	 /* recv_flags2 */
+			   NULL, 0, NULL, /* rsetup */
+			   NULL, 0, NULL, /* rparam */
+			   &rdata, 48, &rdata_count);
 
-	if (!cli_receive_trans(cli, SMBtrans2,
-                              &rparam, &rparam_count,
-                              &rdata, &rdata_count)) {
-		goto cleanup;
-	}
-
-	if (cli_is_error(cli)) {
-		ret = False;
-		goto cleanup;
-	} else {
-		ret = True;
-	}
-
-	if (rdata_count < 48) {
-		goto cleanup;
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("SMB_FS_QUOTA_INFORMATION failed: %s\n",
+			  nt_errstr(status)));
+		return status;
 	}
 
 	/* unknown_1 24 NULL bytes in pdata*/
 
 	/* the soft quotas 8 bytes (uint64_t)*/
-	qt.softlim = (uint64_t)IVAL(rdata,24);
-#ifdef LARGE_SMB_OFF_T
-	qt.softlim |= (((uint64_t)IVAL(rdata,28)) << 32);
-#else /* LARGE_SMB_OFF_T */
-	if ((IVAL(rdata,28) != 0)&&
-		((qt.softlim != 0xFFFFFFFF)||
-		 (IVAL(rdata,28)!=0xFFFFFFFF))) {
-		/* more than 32 bits? */
-		goto cleanup;
-	}
-#endif /* LARGE_SMB_OFF_T */
+	qt.softlim = BVAL(rdata,24);
 
 	/* the hard quotas 8 bytes (uint64_t)*/
-	qt.hardlim = (uint64_t)IVAL(rdata,32);
-#ifdef LARGE_SMB_OFF_T
-	qt.hardlim |= (((uint64_t)IVAL(rdata,36)) << 32);
-#else /* LARGE_SMB_OFF_T */
-	if ((IVAL(rdata,36) != 0)&&
-		((qt.hardlim != 0xFFFFFFFF)||
-		 (IVAL(rdata,36)!=0xFFFFFFFF))) {
-		/* more than 32 bits? */
-		goto cleanup;
-	}
-#endif /* LARGE_SMB_OFF_T */
+	qt.hardlim = BVAL(rdata,32);
 
 	/* quota_flags 2 bytes **/
 	qt.qflags = SVAL(rdata,40);
@@ -487,23 +404,18 @@ bool cli_get_fs_quota_info(struct cli_state *cli, int quota_fnum, SMB_NTQUOTA_ST
 
 	*pqt = qt;
 
-	ret = True;
-cleanup:
-	SAFE_FREE(rparam);
-	SAFE_FREE(rdata);
-
-	return ret;	
+	TALLOC_FREE(rdata);
+	return status;
 }
 
-bool cli_set_fs_quota_info(struct cli_state *cli, int quota_fnum, SMB_NTQUOTA_STRUCT *pqt)
+NTSTATUS cli_set_fs_quota_info(struct cli_state *cli, int quota_fnum,
+			       SMB_NTQUOTA_STRUCT *pqt)
 {
-	bool ret = False;
-	uint16 setup;
-	char param[4];
-	char data[48];
-	char *rparam=NULL, *rdata=NULL;
-	unsigned int rparam_count=0, rdata_count=0;
+	uint16_t setup[1];
+	uint8_t param[4];
+	uint8_t data[48];
 	SMB_NTQUOTA_STRUCT qt;
+	NTSTATUS status;
 	ZERO_STRUCT(qt);
 	memset(data,'\0',48);
 
@@ -511,7 +423,7 @@ bool cli_set_fs_quota_info(struct cli_state *cli, int quota_fnum, SMB_NTQUOTA_ST
 		smb_panic("cli_set_fs_quota_info() called with NULL Pointer!");
 	}
 
-	setup = TRANSACT2_SETFSINFO;
+	SSVAL(setup + 0, 0,TRANSACT2_SETFSINFO);
 
 	SSVAL(param,0,quota_fnum);
 	SSVAL(param,2,SMB_FS_QUOTA_INFORMATION);
@@ -529,106 +441,21 @@ bool cli_set_fs_quota_info(struct cli_state *cli, int quota_fnum, SMB_NTQUOTA_ST
 
 	/* Unknown3 6 NULL bytes */
 
-	if (!cli_send_trans(cli, SMBtrans2, 
-		    NULL, 
-		    0, 0,
-		    &setup, 1, 0,
-		    param, 4, 0,
-		    data, 48, 0)) {
-		goto cleanup;
+	status = cli_trans(talloc_tos(), cli, SMBtrans2,
+			   NULL, -1, /* name, fid */
+			   0, 0,     /* function, flags */
+			   setup, 1, 0, /* setup */
+			   param, 8, 0, /* param */
+			   data, 48, 0, /* data */
+			   NULL,	 /* recv_flags2 */
+			   NULL, 0, NULL, /* rsetup */
+			   NULL, 0, NULL, /* rparam */
+			   NULL, 0, NULL); /* rdata */
+
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("SMB_FS_QUOTA_INFORMATION failed: %s\n",
+			  nt_errstr(status)));
 	}
 
-	if (!cli_receive_trans(cli, SMBtrans2,
-                              &rparam, &rparam_count,
-                              &rdata, &rdata_count)) {
-		goto cleanup;
-	}
-
-	if (cli_is_error(cli)) {
-		ret = False;
-		goto cleanup;
-	} else {
-		ret = True;
-	}
-
-cleanup:
-	SAFE_FREE(rparam);
-	SAFE_FREE(rdata);
-
-	return ret;	
-}
-
-static const char *quota_str_static(uint64_t val, bool special, bool _numeric)
-{
-	const char *result;
-
-	if (!_numeric&&special&&(val == SMB_NTQUOTAS_NO_LIMIT)) {
-		return "NO LIMIT";
-	}
-	result = talloc_asprintf(talloc_tos(), "%"PRIu64, val);
-	SMB_ASSERT(result != NULL);
-	return result;
-}
-
-void dump_ntquota(SMB_NTQUOTA_STRUCT *qt, bool _verbose, bool _numeric, void (*_sidtostring)(fstring str, DOM_SID *sid, bool _numeric))
-{
-	TALLOC_CTX *frame = talloc_stackframe();
-
-	if (!qt) {
-		smb_panic("dump_ntquota() called with NULL pointer");
-	}
-
-	switch (qt->qtype) {
-		case SMB_USER_FS_QUOTA_TYPE:
-			{
-				d_printf("File System QUOTAS:\n");
-				d_printf("Limits:\n");
-				d_printf(" Default Soft Limit: %15s\n",quota_str_static(qt->softlim,True,_numeric));
-				d_printf(" Default Hard Limit: %15s\n",quota_str_static(qt->hardlim,True,_numeric));
-				d_printf("Quota Flags:\n");
-				d_printf(" Quotas Enabled: %s\n",
-					((qt->qflags&QUOTAS_ENABLED)||(qt->qflags&QUOTAS_DENY_DISK))?"On":"Off");
-				d_printf(" Deny Disk:      %s\n",(qt->qflags&QUOTAS_DENY_DISK)?"On":"Off");
-				d_printf(" Log Soft Limit: %s\n",(qt->qflags&QUOTAS_LOG_THRESHOLD)?"On":"Off");
-				d_printf(" Log Hard Limit: %s\n",(qt->qflags&QUOTAS_LOG_LIMIT)?"On":"Off");
-			}
-			break;
-		case SMB_USER_QUOTA_TYPE:
-			{
-				fstring username_str = {0};
-
-				if (_sidtostring) {
-					_sidtostring(username_str,&qt->sid,_numeric);
-				} else {
-					sid_to_fstring(username_str, &qt->sid);
-				}
-
-				if (_verbose) {	
-					d_printf("Quotas for User: %s\n",username_str);
-					d_printf("Used Space: %15s\n",quota_str_static(qt->usedspace,False,_numeric));
-					d_printf("Soft Limit: %15s\n",quota_str_static(qt->softlim,True,_numeric));
-					d_printf("Hard Limit: %15s\n",quota_str_static(qt->hardlim,True,_numeric));
-				} else {
-					d_printf("%-30s: ",username_str);
-					d_printf("%15s/",quota_str_static(qt->usedspace,False,_numeric));
-					d_printf("%15s/",quota_str_static(qt->softlim,True,_numeric));
-					d_printf("%15s\n",quota_str_static(qt->hardlim,True,_numeric));
-				}
-			}
-			break;
-		default:
-			d_printf("dump_ntquota() invalid qtype(%d)\n",qt->qtype);
-	}
-	TALLOC_FREE(frame);
-	return;
-}
-
-void dump_ntquota_list(SMB_NTQUOTA_LIST **qtl, bool _verbose, bool _numeric, void (*_sidtostring)(fstring str, DOM_SID *sid, bool _numeric))
-{
-	SMB_NTQUOTA_LIST *cur;
-
-	for (cur = *qtl;cur;cur = cur->next) {
-		if (cur->quotas)
-			dump_ntquota(cur->quotas,_verbose,_numeric,_sidtostring);
-	}	
+	return status;
 }

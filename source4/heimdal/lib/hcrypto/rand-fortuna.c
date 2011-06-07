@@ -34,7 +34,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <rand.h>
+#include <heim_threads.h>
 
+#ifdef KRB5
+#include <krb5-types.h>
+#endif
 #include <roken.h>
 
 #include "randi.h"
@@ -439,9 +443,19 @@ static int	have_entropy;
 static unsigned	resend_bytes;
 
 /*
+ * This mutex protects all of the above static elements from concurrent
+ * access by multiple threads
+ */
+static HEIMDAL_MUTEX fortuna_mutex = HEIMDAL_MUTEX_INITIALIZER;
+
+/*
  * Try our best to do an inital seed
  */
 #define INIT_BYTES	128
+
+/*
+ * fortuna_mutex must be held across calls to this function
+ */
 
 static int
 fortuna_reseed(void)
@@ -451,6 +465,7 @@ fortuna_reseed(void)
     if (!init_done)
 	abort();
 
+#ifndef NO_RAND_UNIX_METHOD
     {
 	unsigned char buf[INIT_BYTES];
 	if ((*hc_rand_unix_method.bytes)(buf, sizeof(buf)) == 1) {
@@ -459,6 +474,7 @@ fortuna_reseed(void)
 	    memset(buf, 0, sizeof(buf));
 	}
     }
+#endif
 #ifdef HAVE_ARC4RANDOM
     {
 	uint32_t buf[INIT_BYTES / sizeof(uint32_t)];
@@ -470,6 +486,7 @@ fortuna_reseed(void)
 	entropy_p = 1;
     }
 #endif
+#ifndef NO_RAND_EGD_METHOD
     /*
      * Only to get egd entropy if /dev/random or arc4rand failed since
      * it can be horribly slow to generate new bits.
@@ -482,6 +499,7 @@ fortuna_reseed(void)
 	    memset(buf, 0, sizeof(buf));
 	}
     }
+#endif
     /*
      * Fall back to gattering data from timer and secret files, this
      * is really the last resort.
@@ -521,13 +539,18 @@ fortuna_reseed(void)
 	gettimeofday(&tv, NULL);
 	add_entropy(&main_state, (void *)&tv, sizeof(tv));
     }
+#ifdef HAVE_GETUID
     {
 	uid_t u = getuid();
 	add_entropy(&main_state, (void *)&u, sizeof(u));
     }
+#endif
     return entropy_p;
 }
 
+/*
+ * fortuna_mutex must be held by callers of this function
+ */
 static int
 fortuna_init(void)
 {
@@ -546,32 +569,50 @@ fortuna_init(void)
 static void
 fortuna_seed(const void *indata, int size)
 {
+    HEIMDAL_MUTEX_lock(&fortuna_mutex);
+
     fortuna_init();
     add_entropy(&main_state, indata, size);
     if (size >= INIT_BYTES)
 	have_entropy = 1;
+
+    HEIMDAL_MUTEX_unlock(&fortuna_mutex);
 }
 
 static int
 fortuna_bytes(unsigned char *outdata, int size)
 {
+    int ret = 0;
+
+    HEIMDAL_MUTEX_lock(&fortuna_mutex);
+
     if (!fortuna_init())
-	return 0;
+	goto out;
+
     resend_bytes += size;
     if (resend_bytes > FORTUNA_RESEED_BYTE || resend_bytes < size) {
 	resend_bytes = 0;
 	fortuna_reseed();
     }
     extract_data(&main_state, size, outdata);
-    return 1;
+    ret = 1;
+
+out:
+    HEIMDAL_MUTEX_unlock(&fortuna_mutex);
+
+    return ret;
 }
 
 static void
 fortuna_cleanup(void)
 {
+    HEIMDAL_MUTEX_lock(&fortuna_mutex);
+
     init_done = 0;
     have_entropy = 0;
     memset(&main_state, 0, sizeof(main_state));
+
+    HEIMDAL_MUTEX_unlock(&fortuna_mutex);
 }
 
 static void
@@ -589,7 +630,13 @@ fortuna_pseudorand(unsigned char *outdata, int size)
 static int
 fortuna_status(void)
 {
-    return fortuna_init() ? 1 : 0;
+    int result;
+
+    HEIMDAL_MUTEX_lock(&fortuna_mutex);
+    result = fortuna_init();
+    HEIMDAL_MUTEX_unlock(&fortuna_mutex);
+
+    return result ? 1 : 0;
 }
 
 const RAND_METHOD hc_rand_fortuna_method = {

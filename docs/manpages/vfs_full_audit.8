@@ -2,12 +2,12 @@
 .\"     Title: vfs_full_audit
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 03/06/2011
+.\"      Date: 06/07/2011
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.5
+.\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "VFS_FULL_AUDIT" "8" "03/06/2011" "Samba 3\&.5" "System Administration tools"
+.TH "VFS_FULL_AUDIT" "8" "06/07/2011" "Samba 3\&.6" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -385,6 +385,7 @@ RESULT
 .\}
 FILE
 \- the name of the file or directory the operation was performed on
+.RE
 .sp
 .RE
 .PP
@@ -399,12 +400,12 @@ Prepend audit messages with STRING\&. STRING is processed for standard substitut
 .PP
 vfs_full_audit:success = LIST
 .RS 4
-LIST is a list of VFS operations that should be recorded if they succeed\&. Operations are specified using the names listed above\&.
+LIST is a list of VFS operations that should be recorded if they succeed\&. Operations are specified using the names listed above\&. Operations can be unset by prefixing the names with "!"\&.
 .RE
 .PP
 vfs_full_audit:failure = LIST
 .RS 4
-LIST is a list of VFS operations that should be recorded if they failed\&. Operations are specified using the names listed above\&.
+LIST is a list of VFS operations that should be recorded if they failed\&. Operations are specified using the names listed above\&. Operations can be unset by prefixing the names with "!"\&.
 .RE
 .PP
 full_audit:facility = FACILITY
@@ -422,7 +423,7 @@ priority\&.
 .RE
 .SH "EXAMPLES"
 .PP
-Log file and directory open operations on the [records] share using the LOCAL7 facility and ALERT priority, including the username and IP address:
+Log file and directory open operations on the [records] share using the LOCAL7 facility and ALERT priority, including the username and IP address\&. Logging excludes the open VFS function on failures:
 .sp
 .if n \{\
 .RS 4
@@ -433,7 +434,7 @@ Log file and directory open operations on the [records] share using the LOCAL7 f
 	\m[blue]\fBvfs objects = full_audit\fR\m[]
 	\m[blue]\fBfull_audit:prefix = %u|%I\fR\m[]
 	\m[blue]\fBfull_audit:success = open opendir\fR\m[]
-	\m[blue]\fBfull_audit:failure = all\fR\m[]
+	\m[blue]\fBfull_audit:failure = all !open\fR\m[]
 	\m[blue]\fBfull_audit:facility = LOCAL7\fR\m[]
 	\m[blue]\fBfull_audit:priority = ALERT\fR\m[]
 .fi

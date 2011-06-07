@@ -23,6 +23,11 @@
  */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "passdb.h"
+#include "dbwrap.h"
+#include "../libcli/security/security.h"
+#include "util_tdb.h"
 
 #if 0 /* when made a module use this */
 
@@ -617,7 +622,7 @@ static NTSTATUS tdbsam_getsampwrid (struct pdb_methods *my_methods,
 }
 
 static NTSTATUS tdbsam_getsampwsid(struct pdb_methods *my_methods,
-				   struct samu * user, const DOM_SID *sid)
+				   struct samu * user, const struct dom_sid *sid)
 {
 	uint32 rid;
 

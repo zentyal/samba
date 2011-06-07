@@ -19,12 +19,11 @@
 
 #include "includes.h"
 
+#include "../librpc/gen_ndr/ndr_netlogon_c.h"
 #include "librpc/gen_ndr/libnetapi.h"
 #include "lib/netapi/netapi.h"
 #include "lib/netapi/netapi_private.h"
 #include "lib/netapi/libnetapi.h"
-#include "libnet/libnet.h"
-#include "../librpc/gen_ndr/cli_netlogon.h"
 
 /********************************************************************
 ********************************************************************/
@@ -41,18 +40,18 @@ WERROR NetGetDCName_l(struct libnetapi_ctx *ctx,
 WERROR NetGetDCName_r(struct libnetapi_ctx *ctx,
 		      struct NetGetDCName *r)
 {
-	struct rpc_pipe_client *pipe_cli = NULL;
 	NTSTATUS status;
 	WERROR werr;
+	struct dcerpc_binding_handle *b;
 
-	werr = libnetapi_open_pipe(ctx, r->in.server_name,
-				   &ndr_table_netlogon.syntax_id,
-				   &pipe_cli);
+	werr = libnetapi_get_binding_handle(ctx, r->in.server_name,
+					    &ndr_table_netlogon.syntax_id,
+					    &b);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
 
-	status = rpccli_netr_GetDcName(pipe_cli, talloc_tos(),
+	status = dcerpc_netr_GetDcName(b, talloc_tos(),
 				       r->in.server_name,
 				       r->in.domain_name,
 				       (const char **)r->out.buffer,
@@ -81,23 +80,24 @@ WERROR NetGetAnyDCName_l(struct libnetapi_ctx *ctx,
 WERROR NetGetAnyDCName_r(struct libnetapi_ctx *ctx,
 			 struct NetGetAnyDCName *r)
 {
-	struct rpc_pipe_client *pipe_cli = NULL;
 	NTSTATUS status;
 	WERROR werr;
+	struct dcerpc_binding_handle *b;
 
-	werr = libnetapi_open_pipe(ctx, r->in.server_name,
-				   &ndr_table_netlogon.syntax_id,
-				   &pipe_cli);
+	werr = libnetapi_get_binding_handle(ctx, r->in.server_name,
+					    &ndr_table_netlogon.syntax_id,
+					    &b);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
 
-	status = rpccli_netr_GetAnyDCName(pipe_cli, talloc_tos(),
+	status = dcerpc_netr_GetAnyDCName(b, talloc_tos(),
 					  r->in.server_name,
 					  r->in.domain_name,
 					  (const char **)r->out.buffer,
 					  &werr);
 	if (!NT_STATUS_IS_OK(status)) {
+		werr = ntstatus_to_werror(status);
 		goto done;
 	}
  done:
@@ -113,9 +113,13 @@ WERROR DsGetDcName_l(struct libnetapi_ctx *ctx,
 		     struct DsGetDcName *r)
 {
 	NTSTATUS status;
+	struct libnetapi_private_ctx *priv;
+
+	priv = talloc_get_type_abort(ctx->private_data,
+		struct libnetapi_private_ctx);
 
 	status = dsgetdcname(ctx,
-			     NULL,
+			     priv->msg_ctx,
 			     r->in.domain_name,
 			     r->in.domain_guid,
 			     r->in.site_name,
@@ -138,16 +142,29 @@ WERROR DsGetDcName_r(struct libnetapi_ctx *ctx,
 {
 	WERROR werr;
 	NTSTATUS status = NT_STATUS_DOMAIN_CONTROLLER_NOT_FOUND;
-	struct rpc_pipe_client *pipe_cli = NULL;
+	struct dcerpc_binding_handle *b;
 
-	werr = libnetapi_open_pipe(ctx, r->in.server_name,
-				   &ndr_table_netlogon.syntax_id,
-				   &pipe_cli);
+	werr = libnetapi_get_binding_handle(ctx, r->in.server_name,
+					    &ndr_table_netlogon.syntax_id,
+					    &b);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
 
-	status = rpccli_netr_DsRGetDCName(pipe_cli,
+	status = dcerpc_netr_DsRGetDCNameEx(b,
+					    ctx,
+					    r->in.server_name,
+					    r->in.domain_name,
+					    r->in.domain_guid,
+					    r->in.site_name,
+					    r->in.flags,
+					    (struct netr_DsRGetDCNameInfo **)r->out.dc_info,
+					    &werr);
+	if (NT_STATUS_IS_OK(status) && W_ERROR_IS_OK(werr)) {
+		goto done;
+	}
+
+	status = dcerpc_netr_DsRGetDCName(b,
 					  ctx,
 					  r->in.server_name,
 					  r->in.domain_name,

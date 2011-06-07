@@ -30,34 +30,32 @@
  */
 
 #include "includes.h"
-#include "libcli/ldap/ldap.h"
 #include "ldb_module.h"
 #include "dsdb/samdb/samdb.h"
 #include "librpc/ndr/libndr.h"
 #include "dsdb/samdb/ldb_modules/password_modules.h"
+#include "dsdb/samdb/ldb_modules/util.h"
+#include "dsdb/common/util.h"
 
 #define PASSWORD_GUID_ATTR "masterGUID"
 
-/* This module maintains a local password database, seperate from the main LDAP server.
+/* This module maintains a local password database, separate from the main LDAP
+   server.
 
-   This allows the password database to be syncronised in a multi-master
+   This allows the password database to be synchronised in a multi-master
    fashion, seperate to the more difficult concerns of the main
-   database.  (With passwords, the last writer always wins)
+   database. (With passwords, the last writer always wins)
 
-   Each incoming add/modify is split into a remote, and a local request, done in that order.
+   Each incoming add/modify is split into a remote, and a local request, done
+   in that order.
 
    We maintain a list of attributes that are kept locally - perhaps
    this should use the @KLUDGE_ACL list of passwordAttribute
  */
 
 static const char * const password_attrs[] = {
-	"supplementalCredentials",
-	"unicodePwd",
-	"dBCSPwd",
-	"lmPwdHistory", 
-	"ntPwdHistory", 
-	"msDS-KeyVersionNumber",
-	"pwdLastSet"
+	"pwdLastSet",
+	DSDB_SECRET_ATTRIBUTES
 };
 
 /* And we merge them back into search requests when asked to do so */
@@ -151,7 +149,7 @@ static int local_password_add(struct ldb_module *module, struct ldb_request *req
 	struct lpdb_context *ac;
 	struct GUID objectGUID;
 	int ret;
-	int i;
+	unsigned int i;
 
 	ldb = ldb_module_get_ctx(module);
 	ldb_debug(ldb, LDB_DEBUG_TRACE, "local_password_add\n");
@@ -177,23 +175,15 @@ static int local_password_add(struct ldb_module *module, struct ldb_request *req
 		return ldb_next_request(module, req);
 	}
 
-	/* TODO: remove this when userPassword will be in schema */
-	if (!ldb_msg_check_string_attribute(req->op.add.message, "objectClass", "person")) {
-		ldb_asprintf_errstring(ldb,
-					"Cannot relocate a password on entry: %s, does not have objectClass 'person'",
-					ldb_dn_get_linearized(req->op.add.message->dn));
-		return LDB_ERR_OBJECT_CLASS_VIOLATION;
-	}
-
 	/* From here, we assume we have password attributes to split off */
 	ac = lpdb_init_context(module, req);
 	if (!ac) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb);
 	}
 
 	remote_message = ldb_msg_copy_shallow(remote_req, req->op.add.message);
 	if (remote_message == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb);
 	}
 
 	/* Remove any password attributes from the remote message */
@@ -206,7 +196,7 @@ static int local_password_add(struct ldb_module *module, struct ldb_request *req
 
 	ac->local_message = ldb_msg_copy_shallow(ac, req->op.add.message);
 	if (ac->local_message == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb);
 	}
 
 	/* Remove anything seen in the remote message from the local
@@ -233,7 +223,7 @@ static int local_password_add(struct ldb_module *module, struct ldb_request *req
 				     PASSWORD_GUID_ATTR "=%s",
 				     GUID_string(ac->local_message,
 							&objectGUID)))) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb);
 	}
 
 	ret = ldb_build_add_req(&remote_req, ldb, ac,
@@ -241,6 +231,7 @@ static int local_password_add(struct ldb_module *module, struct ldb_request *req
 				req->controls,
 				ac, lpdb_add_callback,
 				req);
+	LDB_REQ_SET_LOCATION(remote_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -284,6 +275,7 @@ static int lpdb_add_callback(struct ldb_request *req,
 				NULL,
 				ac, lpdb_local_callback,
 				ac->req);
+	LDB_REQ_SET_LOCATION(local_req);
 	if (ret != LDB_SUCCESS) {
 		return ldb_module_done(ac->req, NULL, NULL, ret);
 	}
@@ -299,7 +291,7 @@ static int lpdb_add_callback(struct ldb_request *req,
  * MODIFY
  ****************************************************************************/
 
-static int lpdb_modify_callabck(struct ldb_request *req,
+static int lpdb_modify_callback(struct ldb_request *req,
 				struct ldb_reply *ares);
 static int lpdb_mod_search_callback(struct ldb_request *req,
 				    struct ldb_reply *ares);
@@ -311,7 +303,7 @@ static int local_password_modify(struct ldb_module *module, struct ldb_request *
 	struct ldb_message *remote_message;
 	struct ldb_request *remote_req;
 	int ret;
-	int i;
+	unsigned int i;
 
 	ldb = ldb_module_get_ctx(module);
 	ldb_debug(ldb, LDB_DEBUG_TRACE, "local_password_modify\n");
@@ -340,12 +332,12 @@ static int local_password_modify(struct ldb_module *module, struct ldb_request *
 	/* From here, we assume we have password attributes to split off */
 	ac = lpdb_init_context(module, req);
 	if (!ac) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb);
 	}
 
 	remote_message = ldb_msg_copy_shallow(ac, ac->req->op.mod.message);
 	if (remote_message == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb);
 	}
 
 	/* Remove any password attributes from the remote message */
@@ -355,7 +347,7 @@ static int local_password_modify(struct ldb_module *module, struct ldb_request *
 
 	ac->local_message = ldb_msg_copy_shallow(ac, ac->req->op.mod.message);
 	if (ac->local_message == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb);
 	}
 
 	/* Remove anything seen in the remote message from the local
@@ -367,8 +359,9 @@ static int local_password_modify(struct ldb_module *module, struct ldb_request *
 	ret = ldb_build_mod_req(&remote_req, ldb, ac,
 				remote_message,
 				req->controls,
-				ac, lpdb_modify_callabck,
+				ac, lpdb_modify_callback,
 				req);
+	LDB_REQ_SET_LOCATION(remote_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -378,7 +371,7 @@ static int local_password_modify(struct ldb_module *module, struct ldb_request *
 
 /* On a modify, we don't have the objectGUID handy, so we need to
  * search our DN for it */
-static int lpdb_modify_callabck(struct ldb_request *req,
+static int lpdb_modify_callback(struct ldb_request *req,
 				struct ldb_reply *ares)
 {
 	struct ldb_context *ldb;
@@ -415,6 +408,7 @@ static int lpdb_modify_callabck(struct ldb_request *req,
 				   NULL,
 				   ac, lpdb_mod_search_callback,
 				   ac->req);
+	LDB_REQ_SET_LOCATION(search_req);
 	if (ret != LDB_SUCCESS) {
 		return ldb_module_done(ac->req, NULL, NULL,
 					LDB_ERR_OPERATIONS_ERROR);
@@ -523,6 +517,7 @@ static int lpdb_mod_search_callback(struct ldb_request *req,
 					NULL,
 					ac, lpdb_local_callback,
 					ac->req);
+		LDB_REQ_SET_LOCATION(local_req);
 		if (ret != LDB_SUCCESS) {
 			return ldb_module_done(ac->req, NULL, NULL, ret);
 		}
@@ -541,7 +536,7 @@ static int lpdb_mod_search_callback(struct ldb_request *req,
  * DELETE
  ****************************************************************************/
 
-static int lpdb_delete_callabck(struct ldb_request *req,
+static int lpdb_delete_callback(struct ldb_request *req,
 				struct ldb_reply *ares);
 static int lpdb_del_search_callback(struct ldb_request *req,
 				    struct ldb_reply *ares);
@@ -572,14 +567,15 @@ static int local_password_delete(struct ldb_module *module,
 	/* From here, we assume we have password attributes to split off */
 	ac = lpdb_init_context(module, req);
 	if (!ac) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb);
 	}
 
 	ret = ldb_build_del_req(&remote_req, ldb, ac,
 				req->op.del.dn,
 				req->controls,
-				ac, lpdb_delete_callabck,
+				ac, lpdb_delete_callback,
 				req);
+	LDB_REQ_SET_LOCATION(remote_req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -589,7 +585,7 @@ static int local_password_delete(struct ldb_module *module,
 
 /* On a modify, we don't have the objectGUID handy, so we need to
  * search our DN for it */
-static int lpdb_delete_callabck(struct ldb_request *req,
+static int lpdb_delete_callback(struct ldb_request *req,
 				struct ldb_reply *ares)
 {
 	struct ldb_context *ldb;
@@ -626,6 +622,7 @@ static int lpdb_delete_callabck(struct ldb_request *req,
 				   NULL,
 				   ac, lpdb_del_search_callback,
 				   ac->req);
+	LDB_REQ_SET_LOCATION(search_req);
 	if (ret != LDB_SUCCESS) {
 		return ldb_module_done(ac->req, NULL, NULL,
 					LDB_ERR_OPERATIONS_ERROR);
@@ -633,8 +630,7 @@ static int lpdb_delete_callabck(struct ldb_request *req,
 
 	ret = ldb_next_request(ac->module, search_req);
 	if (ret != LDB_SUCCESS) {
-		return ldb_module_done(ac->req, NULL, NULL,
-					LDB_ERR_OPERATIONS_ERROR);
+		return ldb_module_done(ac->req, NULL, NULL, ret);
 	}
 	return LDB_SUCCESS;
 }
@@ -732,6 +728,7 @@ static int lpdb_del_search_callback(struct ldb_request *req,
 					NULL,
 					ac, lpdb_local_callback,
 					ac->req);
+		LDB_REQ_SET_LOCATION(local_req);
 		if (ret != LDB_SUCCESS) {
 			return ldb_module_done(ac->req, NULL, NULL, ret);
 		}
@@ -770,8 +767,9 @@ static int lpdb_local_search(struct lpdb_context *ac)
 				   NULL,
 				   ac, lpdb_local_search_callback,
 				   ac->req);
+	LDB_REQ_SET_LOCATION(local_req);
 	if (ret != LDB_SUCCESS) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb);
 	}
 
 	return ldb_next_request(ac->module, local_req);
@@ -785,7 +783,7 @@ static int lpdb_local_search_callback(struct ldb_request *req,
 	struct ldb_reply *merge;
 	struct lpdb_reply *lr;
 	int ret;
-	int i;
+	unsigned int i;
 
 	ac = talloc_get_type(req->context, struct lpdb_context);
 	ldb = ldb_module_get_ctx(ac->module);
@@ -1014,7 +1012,7 @@ static int local_password_search(struct ldb_module *module, struct ldb_request *
 	struct ldb_context *ldb;
 	struct ldb_request *remote_req;
 	struct lpdb_context *ac;
-	int i;
+	unsigned int i;
 	int ret;
 	const char * const *search_attrs = NULL;
 
@@ -1048,7 +1046,7 @@ static int local_password_search(struct ldb_module *module, struct ldb_request *
 
 	ac = lpdb_init_context(module, req);
 	if (!ac) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ldb_operr(ldb);
 	}
 
 	/* Remote search is for all attributes: if the remote LDAP server has these attributes, then it overrides the local database */
@@ -1057,7 +1055,7 @@ static int local_password_search(struct ldb_module *module, struct ldb_request *
 			search_attrs = ldb_attr_list_copy_add(ac, req->op.search.attrs, "objectGUID");
 			ac->added_objectGUID = true;
 			if (!search_attrs) {
-				return LDB_ERR_OPERATIONS_ERROR;
+				return ldb_operr(ldb);
 			}
 		} else {
 			search_attrs = req->op.search.attrs;
@@ -1066,7 +1064,7 @@ static int local_password_search(struct ldb_module *module, struct ldb_request *
 			search_attrs = ldb_attr_list_copy_add(ac, search_attrs, "objectClass");
 			ac->added_objectClass = true;
 			if (!search_attrs) {
-				return LDB_ERR_OPERATIONS_ERROR;
+				return ldb_operr(ldb);
 			}
 		}
 	} else {
@@ -1081,18 +1079,25 @@ static int local_password_search(struct ldb_module *module, struct ldb_request *
 					req->controls,
 					ac, lpdb_remote_search_callback,
 					req);
+	LDB_REQ_SET_LOCATION(remote_req);
 	if (ret != LDB_SUCCESS) {
-		return LDB_ERR_OPERATIONS_ERROR;
+		return ret;
 	}
 
 	/* perform the search */
 	return ldb_next_request(module, remote_req);
 }
 
-_PUBLIC_ const struct ldb_module_ops ldb_local_password_module_ops = {
+static const struct ldb_module_ops ldb_local_password_module_ops = {
 	.name          = "local_password",
 	.add           = local_password_add,
 	.modify        = local_password_modify,
 	.del           = local_password_delete,
 	.search        = local_password_search
 };
+
+int ldb_local_password_module_init(const char *version)
+{
+	LDB_MODULE_CHECK_VERSION(version);
+	return ldb_register_module(&ldb_local_password_module_ops);
+}

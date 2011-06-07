@@ -25,13 +25,16 @@
  */
 
 #include "includes.h"
+#include "registry.h"
+#include "reg_util_internal.h"
+#include "reg_objects.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
 
 extern struct registry_ops regdb_ops;
 
-#define KEY_CURRENT_VERSION_NORM "HKLM/SOFTWARE/MICROSOFT/WINDOWS NT/CURRENTVERSION"
+#define KEY_CURRENT_VERSION_NORM "HKLM\\SOFTWARE\\MICROSOFT\\WINDOWS NT\\CURRENTVERSION"
 
 static int current_version_fetch_values(const char *key, struct regval_ctr *values)
 {

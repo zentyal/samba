@@ -64,7 +64,7 @@ _PUBLIC_ char *safe_strcpy(char *dest,const char *src, size_t maxlength)
 
 	if (len > maxlength) {
 		DEBUG(0,("ERROR: string overflow by %u (%u - %u) in safe_strcpy [%.50s]\n",
-			 (uint_t)(len-maxlength), (unsigned)len, (unsigned)maxlength, src));
+			 (unsigned int)(len-maxlength), (unsigned)len, (unsigned)maxlength, src));
 		len = maxlength;
 	}
       
@@ -111,17 +111,6 @@ _PUBLIC_ char *safe_strcat(char *dest, const char *src, size_t maxlength)
 	dest[dest_len + src_len] = 0;
 	return dest;
 }
-
-#ifdef VALGRIND
-size_t valgrind_strlen(const char *s)
-{
-	size_t count;
-	for(count = 0; *s++; count++)
-		;
-	return count;
-}
-#endif
-
 
 /**
   format a string into length-prefixed dotted domain format, as used in NBT

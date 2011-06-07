@@ -3,6 +3,8 @@
  * (Royal Institute of Technology, Stockholm, Sweden).
  * All rights reserved.
  *
+ * Portions Copyright (c) 2009 Apple Inc. All rights reserved.
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -59,6 +61,10 @@ struct string_list {
     char *string;
     struct string_list *next;
 };
+
+/* Declarations for Bison */
+#define YYMALLOC malloc
+#define YYFREE   free
 
 %}
 
@@ -239,18 +245,18 @@ ModuleDefinition: IDENTIFIER objid_opt kw_DEFINITIONS TagDefault ExtensionDefaul
 
 TagDefault	: kw_EXPLICIT kw_TAGS
 		| kw_IMPLICIT kw_TAGS
-		      { error_message("implicit tagging is not supported"); }
+		      { lex_error_message("implicit tagging is not supported"); }
 		| kw_AUTOMATIC kw_TAGS
-		      { error_message("automatic tagging is not supported"); }
+		      { lex_error_message("automatic tagging is not supported"); }
 		| /* empty */
 		;
 
 ExtensionDefault: kw_EXTENSIBILITY kw_IMPLIED
-		      { error_message("no extensibility options supported"); }
+		      { lex_error_message("no extensibility options supported"); }
 		| /* empty */
 		;
 
-ModuleBody	: /* Exports */ Imports AssignmentList
+ModuleBody	: Exports Imports AssignmentList
 		| /* empty */
 		;
 
@@ -272,9 +278,20 @@ SymbolsFromModule: referencenames kw_FROM IDENTIFIER objid_opt
 		    for(sl = $1; sl != NULL; sl = sl->next) {
 			Symbol *s = addsym(sl->string);
 			s->stype = Stype;
+			gen_template_import(s);
 		    }
 		    add_import($3);
 		}
+		;
+
+Exports		: kw_EXPORTS referencenames ';'
+		{
+		    struct string_list *sl;
+		    for(sl = $2; sl != NULL; sl = sl->next)
+			add_export(sl->string);
+		}
+		| kw_EXPORTS kw_ALL
+		| /* empty */
 		;
 
 AssignmentList	: Assignment
@@ -340,9 +357,9 @@ BooleanType	: kw_BOOLEAN
 range		: '(' Value RANGE Value ')'
 		{
 		    if($2->type != integervalue)
-			error_message("Non-integer used in first part of range");
+			lex_error_message("Non-integer used in first part of range");
 		    if($2->type != integervalue)
-			error_message("Non-integer in second part of range");
+			lex_error_message("Non-integer in second part of range");
 		    $$ = ecalloc(1, sizeof(*$$));
 		    $$->min = $2->u.integervalue;
 		    $$->max = $4->u.integervalue;
@@ -350,7 +367,7 @@ range		: '(' Value RANGE Value ')'
 		| '(' Value RANGE kw_MAX ')'
 		{	
 		    if($2->type != integervalue)
-			error_message("Non-integer in first part of range");
+			lex_error_message("Non-integer in first part of range");
 		    $$ = ecalloc(1, sizeof(*$$));
 		    $$->min = $2->u.integervalue;
 		    $$->max = $2->u.integervalue - 1;
@@ -358,7 +375,7 @@ range		: '(' Value RANGE Value ')'
 		| '(' kw_MIN RANGE Value ')'
 		{	
 		    if($4->type != integervalue)
-			error_message("Non-integer in second part of range");
+			lex_error_message("Non-integer in second part of range");
 		    $$ = ecalloc(1, sizeof(*$$));
 		    $$->min = $4->u.integervalue + 2;
 		    $$->max = $4->u.integervalue;
@@ -366,7 +383,7 @@ range		: '(' Value RANGE Value ')'
 		| '(' Value ')'
 		{
 		    if($2->type != integervalue)
-			error_message("Non-integer used in limit");
+			lex_error_message("Non-integer used in limit");
 		    $$ = ecalloc(1, sizeof(*$$));
 		    $$->min = $2->u.integervalue;
 		    $$->max = $2->u.integervalue;
@@ -537,7 +554,7 @@ DefinedType	: IDENTIFIER
 		  Symbol *s = addsym($1);
 		  $$ = new_type(TType);
 		  if(s->stype != Stype && s->stype != SUndefined)
-		    error_message ("%s is not a type\n", $1);
+		    lex_error_message ("%s is not a type\n", $1);
 		  else
 		    $$->symbol = s;
 		}
@@ -593,7 +610,7 @@ ContentsConstraint: kw_CONTAINING Type
 		| kw_ENCODED kw_BY Value
 		{
 		    if ($3->type != objectidentifiervalue)
-			error_message("Non-OID used in ENCODED BY constraint");
+			lex_error_message("Non-OID used in ENCODED BY constraint");
 		    $$ = new_constraint_spec(CT_CONTENTS);
 		    $$->u.content.type = NULL;
 		    $$->u.content.encoding = $3;
@@ -601,7 +618,7 @@ ContentsConstraint: kw_CONTAINING Type
 		| kw_CONTAINING Type kw_ENCODED kw_BY Value
 		{
 		    if ($5->type != objectidentifiervalue)
-			error_message("Non-OID used in ENCODED BY constraint");
+			lex_error_message("Non-OID used in ENCODED BY constraint");
 		    $$ = new_constraint_spec(CT_CONTENTS);
 		    $$->u.content.type = $2;
 		    $$->u.content.encoding = $5;
@@ -686,6 +703,11 @@ RestrictedCharactedStringType: kw_GeneralString
 		{
 			$$ = new_tag(ASN1_C_UNIV, UT_GeneralString,
 				     TE_EXPLICIT, new_type(TGeneralString));
+		}
+		| kw_TeletexString
+		{
+			$$ = new_tag(ASN1_C_UNIV, UT_TeletexString,
+				     TE_EXPLICIT, new_type(TTeletexString));
 		}
 		| kw_UTF8String
 		{
@@ -833,7 +855,7 @@ objid_element	: IDENTIFIER '(' NUMBER ')'
 		    Symbol *s = addsym($1);
 		    if(s->stype != SValue ||
 		       s->value->type != objectidentifiervalue) {
-			error_message("%s is not an object identifier\n",
+			lex_error_message("%s is not an object identifier\n",
 				      s->name);
 			exit(1);
 		    }
@@ -866,7 +888,7 @@ Valuereference	: IDENTIFIER
 		{
 			Symbol *s = addsym($1);
 			if(s->stype != SValue)
-				error_message ("%s is not a value\n",
+				lex_error_message ("%s is not a value\n",
 						s->name);
 			else
 				$$ = s->value;
@@ -924,7 +946,7 @@ ObjectIdentifierValue: objid
 void
 yyerror (const char *s)
 {
-     error_message ("%s\n", s);
+     lex_error_message ("%s\n", s);
 }
 
 static Type *
@@ -989,7 +1011,8 @@ static void fix_labels1(struct memhead *members, const char *prefix)
     if(members == NULL)
 	return;
     ASN1_TAILQ_FOREACH(m, members, members) {
-	asprintf(&m->label, "%s_%s", prefix, m->gen_name);
+	if (asprintf(&m->label, "%s_%s", prefix, m->gen_name) < 0)
+	    errx(1, "malloc");
 	if (m->label == NULL)
 	    errx(1, "malloc");
 	if(m->type != NULL)
@@ -1006,9 +1029,8 @@ static void fix_labels2(Type *t, const char *prefix)
 static void
 fix_labels(Symbol *s)
 {
-    char *p;
-    asprintf(&p, "choice_%s", s->gen_name);
-    if (p == NULL)
+    char *p = NULL;
+    if (asprintf(&p, "choice_%s", s->gen_name) < 0 || p == NULL)
 	errx(1, "malloc");
     fix_labels2(s->type, p);
     free(p);

@@ -23,7 +23,6 @@
 #include "libcli/composite/composite.h"
 #include "winbind/wb_server.h"
 #include "smbd/service_task.h"
-#include "winbind/wb_async_helpers.h"
 #include "libcli/security/security.h"
 #include "../lib/util/dlinklist.h"
 #include "param/param.h"
@@ -63,7 +62,7 @@ struct composite_context *wb_sid2domain_send(TALLOC_CTX *mem_ctx,
 {
 	struct composite_context *result, *ctx;
 	struct sid2domain_state *state;
-
+	DEBUG(5, ("wb_sid2domain_send called\n"));
 	result = composite_create(mem_ctx, service->task->event_ctx);
 	if (result == NULL) goto failed;
 
@@ -85,7 +84,9 @@ struct composite_context *wb_sid2domain_send(TALLOC_CTX *mem_ctx,
 
 	if (dom_sid_equal(service->primary_sid, sid) ||
 	    dom_sid_in_domain(service->primary_sid, sid)) {
-		ctx = wb_get_dom_info_send(state, service, lp_workgroup(service->task->lp_ctx),
+		ctx = wb_get_dom_info_send(state, service,
+					   lpcfg_workgroup(service->task->lp_ctx),
+					   lpcfg_realm(service->task->lp_ctx),
 					   service->primary_sid);
 		if (ctx == NULL) goto failed;
 		ctx->async.fn = sid2domain_recv_dom_info;

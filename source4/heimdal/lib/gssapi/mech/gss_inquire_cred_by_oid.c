@@ -31,9 +31,8 @@
  */
 
 #include "mech_locl.h"
-RCSID("$Id$");
 
-OM_uint32 GSSAPI_LIB_FUNCTION
+GSSAPI_LIB_FUNCTION OM_uint32 GSSAPI_LIB_CALL
 gss_inquire_cred_by_oid (OM_uint32 *minor_status,
 			 const gss_cred_id_t cred_handle,
 			 const gss_OID desired_object,
@@ -51,7 +50,7 @@ gss_inquire_cred_by_oid (OM_uint32 *minor_status,
 	if (cred == NULL)
 		return GSS_S_NO_CRED;
 
-	SLIST_FOREACH(mc, &cred->gc_mc, gmc_link) {
+	HEIM_SLIST_FOREACH(mc, &cred->gc_mc, gmc_link) {
 		gss_buffer_set_t rset = GSS_C_NO_BUFFER_SET;
 		int i;
 

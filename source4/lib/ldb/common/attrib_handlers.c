@@ -2,6 +2,7 @@
    ldb database library
 
    Copyright (C) Andrew Tridgell  2005
+   Copyright (C) Andrew Bartlett <abartlet@samba.org> 2006-2009
 
      ** NOTE! The following LGPL license applies to the ldb
      ** library. This does NOT imply that all of Samba is released
@@ -54,7 +55,7 @@ int ldb_handler_fold(struct ldb_context *ldb, void *mem_ctx,
 			    const struct ldb_val *in, struct ldb_val *out)
 {
 	char *s, *t;
-	int l;
+	size_t l;
 
 	if (!in || !out || !(in->data)) {
 		return -1;
@@ -99,6 +100,27 @@ int ldb_handler_fold(struct ldb_context *ldb, void *mem_ctx,
 	return 0;
 }
 
+/* length limited conversion of a ldb_val to a int32_t */
+static int val_to_int64(const struct ldb_val *in, int64_t *v)
+{
+	char *end;
+	char buf[64];
+
+	/* make sure we don't read past the end of the data */
+	if (in->length > sizeof(buf)-1) {
+		return LDB_ERR_INVALID_ATTRIBUTE_SYNTAX;
+	}
+	strncpy(buf, (char *)in->data, in->length);
+	buf[in->length] = 0;
+
+	/* We've to use "strtoll" here to have the intended overflows.
+	 * Otherwise we may get "LONG_MAX" and the conversion is wrong. */
+	*v = (int64_t) strtoll(buf, &end, 0);
+	if (*end != 0) {
+		return LDB_ERR_INVALID_ATTRIBUTE_SYNTAX;
+	}
+	return LDB_SUCCESS;
+}
 
 
 /*
@@ -108,14 +130,17 @@ int ldb_handler_fold(struct ldb_context *ldb, void *mem_ctx,
 static int ldb_canonicalise_Integer(struct ldb_context *ldb, void *mem_ctx,
 				    const struct ldb_val *in, struct ldb_val *out)
 {
-	char *end;
-	long long i = strtoll((char *)in->data, &end, 0);
-	if (*end != 0) {
-		return -1;
+	int64_t i;
+	int ret;
+
+	ret = val_to_int64(in, &i);
+	if (ret != LDB_SUCCESS) {
+		return ret;
 	}
-	out->data = (uint8_t *)talloc_asprintf(mem_ctx, "%lld", i);
+	out->data = (uint8_t *) talloc_asprintf(mem_ctx, "%lld", (long long)i);
 	if (out->data == NULL) {
-		return -1;
+		ldb_oom(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 	out->length = strlen((char *)out->data);
 	return 0;
@@ -127,7 +152,11 @@ static int ldb_canonicalise_Integer(struct ldb_context *ldb, void *mem_ctx,
 static int ldb_comparison_Integer(struct ldb_context *ldb, void *mem_ctx,
 				  const struct ldb_val *v1, const struct ldb_val *v2)
 {
-	return strtoll((char *)v1->data, NULL, 0) - strtoll((char *)v2->data, NULL, 0);
+	int64_t i1=0, i2=0;
+	val_to_int64(v1, &i1);
+	val_to_int64(v2, &i2);
+	if (i1 == i2) return 0;
+	return i1 > i2? 1 : -1;
 }
 
 /*
@@ -240,7 +269,8 @@ utf8str:
 		 * options but to do a binary compare */
 		talloc_free(b1);
 		talloc_free(b2);
-		if (memcmp(s1, s2, MIN(n1, n2)) == 0) {
+		ret = memcmp(s1, s2, MIN(n1, n2));
+		if (ret == 0) {
 			if (n1 == n2) return 0;
 			if (n1 > n2) {
 				return (int)toupper(s1[n2]);
@@ -248,6 +278,7 @@ utf8str:
 				return -(int)toupper(s2[n1]);
 			}
 		}
+		return ret;
 	}
 
 	u1 = b1;
@@ -337,10 +368,11 @@ static int ldb_comparison_dn(struct ldb_context *ldb, void *mem_ctx,
 static int ldb_comparison_utctime(struct ldb_context *ldb, void *mem_ctx,
 				  const struct ldb_val *v1, const struct ldb_val *v2)
 {
-	time_t t1, t2;
-	t1 = ldb_string_to_time((char *)v1->data);
-	t2 = ldb_string_to_time((char *)v2->data);
-	return (int)t2 - (int)t1;
+	time_t t1=0, t2=0;
+	ldb_val_to_time(v1, &t1);
+	ldb_val_to_time(v2, &t2);
+	if (t1 == t2) return 0;
+	return t1 > t2? 1 : -1;
 }
 
 /*
@@ -349,10 +381,16 @@ static int ldb_comparison_utctime(struct ldb_context *ldb, void *mem_ctx,
 static int ldb_canonicalise_utctime(struct ldb_context *ldb, void *mem_ctx,
 				    const struct ldb_val *in, struct ldb_val *out)
 {
-	time_t t = ldb_string_to_time((char *)in->data);
+	time_t t;
+	int ret;
+	ret = ldb_val_to_time(in, &t);
+	if (ret != LDB_SUCCESS) {
+		return ret;
+	}
 	out->data = (uint8_t *)ldb_timestring(mem_ctx, t);
 	if (out->data == NULL) {
-		return -1;
+		ldb_oom(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
 	}
 	out->length = strlen((char *)out->data);
 	return 0;
@@ -420,7 +458,7 @@ static const struct ldb_schema_syntax ldb_standard_syntaxes[] = {
 const struct ldb_schema_syntax *ldb_standard_syntax_by_name(struct ldb_context *ldb,
 							    const char *syntax)
 {
-	int i;
+	unsigned int i;
 	unsigned num_handlers = sizeof(ldb_standard_syntaxes)/sizeof(ldb_standard_syntaxes[0]);
 	/* TODO: should be replaced with a binary search */
 	for (i=0;i<num_handlers;i++) {
@@ -429,4 +467,30 @@ const struct ldb_schema_syntax *ldb_standard_syntax_by_name(struct ldb_context *
 		}
 	}
 	return NULL;
+}
+
+int ldb_any_comparison(struct ldb_context *ldb, void *mem_ctx, 
+		       ldb_attr_handler_t canonicalise_fn, 
+		       const struct ldb_val *v1,
+		       const struct ldb_val *v2)
+{
+	int ret, ret1, ret2;
+	struct ldb_val v1_canon, v2_canon;
+	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
+
+	/* I could try and bail if tmp_ctx was NULL, but what return
+	 * value would I use?
+	 *
+	 * It seems easier to continue on the NULL context 
+	 */
+	ret1 = canonicalise_fn(ldb, tmp_ctx, v1, &v1_canon);
+	ret2 = canonicalise_fn(ldb, tmp_ctx, v2, &v2_canon);
+
+	if (ret1 == LDB_SUCCESS && ret2 == LDB_SUCCESS) {
+		ret = ldb_comparison_binary(ldb, mem_ctx, &v1_canon, &v2_canon);
+	} else {
+		ret = ldb_comparison_binary(ldb, mem_ctx, v1, v2);
+	}
+	talloc_free(tmp_ctx);
+	return ret;
 }

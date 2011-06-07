@@ -19,7 +19,7 @@
 
 #include "includes.h"
 #include "winbindd.h"
-#include "librpc/gen_ndr/cli_wbint.h"
+#include "librpc/gen_ndr/ndr_wbint_c.h"
 
 struct winbindd_getdcname_state {
 	struct netr_DsRGetDCNameInfo *dcinfo;
@@ -65,8 +65,7 @@ static void winbindd_getdcname_done(struct tevent_req *subreq)
 
 	status = wb_dsgetdcname_recv(subreq, state, &state->dcinfo);
 	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
+	if (tevent_req_nterror(req, status)) {
 		return;
 	}
 	tevent_req_done(req);

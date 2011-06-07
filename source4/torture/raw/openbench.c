@@ -130,16 +130,16 @@ static void reopen_connection(struct tevent_context *ev, struct tevent_timer *te
 
 	io->in.dest_host    = state->dest_host;
 	io->in.dest_ports   = state->dest_ports;
-	io->in.socket_options = lp_socket_options(state->tctx->lp_ctx);
+	io->in.socket_options = lpcfg_socket_options(state->tctx->lp_ctx);
 	io->in.called_name  = state->called_name;
 	io->in.service      = share;
 	io->in.service_type = state->service_type;
 	io->in.credentials  = cmdline_credentials;
 	io->in.fallback_to_anonymous = false;
-	io->in.workgroup    = lp_workgroup(state->tctx->lp_ctx);
-	io->in.gensec_settings = lp_gensec_settings(state->mem_ctx, state->tctx->lp_ctx);
-	lp_smbcli_options(state->tctx->lp_ctx, &io->in.options);
-	lp_smbcli_session_options(state->tctx->lp_ctx, &io->in.session_options);
+	io->in.workgroup    = lpcfg_workgroup(state->tctx->lp_ctx);
+	io->in.gensec_settings = lpcfg_gensec_settings(state->mem_ctx, state->tctx->lp_ctx);
+	lpcfg_smbcli_options(state->tctx->lp_ctx, &io->in.options);
+	lpcfg_smbcli_session_options(state->tctx->lp_ctx, &io->in.session_options);
 
 	/* kill off the remnants of the old connection */
 	talloc_free(state->tree);
@@ -148,7 +148,7 @@ static void reopen_connection(struct tevent_context *ev, struct tevent_timer *te
 	state->close_fnum = -1;
 
 	ctx = smb_composite_connect_send(io, state->mem_ctx, 
-					 lp_resolve_context(state->tctx->lp_ctx), 
+					 lpcfg_resolve_context(state->tctx->lp_ctx),
 					 state->ev);
 	if (ctx == NULL) {
 		DEBUG(0,("Failed to setup async reconnect\n"));
@@ -173,7 +173,7 @@ static void next_open(struct benchopen_state *state)
 	DEBUG(2,("[%d] opening %u\n", state->client_num, state->pending_file_num));
 	state->open_parms.ntcreatex.level = RAW_OPEN_NTCREATEX;
 	state->open_parms.ntcreatex.in.flags = 0;
-	state->open_parms.ntcreatex.in.root_fid = 0;
+	state->open_parms.ntcreatex.in.root_fid.fnum = 0;
 	state->open_parms.ntcreatex.in.access_mask = SEC_RIGHTS_FILE_ALL;
 	state->open_parms.ntcreatex.in.file_attr = FILE_ATTRIBUTE_NORMAL;
 	state->open_parms.ntcreatex.in.alloc_size = 0;
@@ -222,7 +222,8 @@ static void open_completed(struct smbcli_request *req)
 	state->req_open = NULL;
 
 	if (NT_STATUS_EQUAL(status, NT_STATUS_END_OF_FILE) ||
-	    NT_STATUS_EQUAL(status, NT_STATUS_LOCAL_DISCONNECT)) {
+	    NT_STATUS_EQUAL(status, NT_STATUS_LOCAL_DISCONNECT) ||
+	    NT_STATUS_EQUAL(status, NT_STATUS_CONNECTION_RESET)) {
 		talloc_free(state->tree);
 		talloc_free(state->cli);
 		state->tree = NULL;
@@ -281,7 +282,8 @@ static void close_completed(struct smbcli_request *req)
 	state->req_close = NULL;
 
 	if (NT_STATUS_EQUAL(status, NT_STATUS_END_OF_FILE) ||
-	    NT_STATUS_EQUAL(status, NT_STATUS_LOCAL_DISCONNECT)) {
+	    NT_STATUS_EQUAL(status, NT_STATUS_LOCAL_DISCONNECT) ||
+	    NT_STATUS_EQUAL(status, NT_STATUS_CONNECTION_RESET)) {
 		talloc_free(state->tree);
 		talloc_free(state->cli);
 		state->tree = NULL;
@@ -315,7 +317,8 @@ static void echo_completion(struct smbcli_request *req)
 	struct benchopen_state *state = (struct benchopen_state *)req->async.private_data;
 	NTSTATUS status = smbcli_request_simple_recv(req);
 	if (NT_STATUS_EQUAL(status, NT_STATUS_END_OF_FILE) ||
-	    NT_STATUS_EQUAL(status, NT_STATUS_LOCAL_DISCONNECT)) {
+	    NT_STATUS_EQUAL(status, NT_STATUS_LOCAL_DISCONNECT) ||
+	    NT_STATUS_EQUAL(status, NT_STATUS_CONNECTION_RESET)) {
 		talloc_free(state->tree);
 		state->tree = NULL;
 		num_connected--;	

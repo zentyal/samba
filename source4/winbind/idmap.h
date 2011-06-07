@@ -19,10 +19,10 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _IDMAP_H_
-#define _IDMAP_H_
+#ifndef _WINBIND_IDMAP_H_
+#define _WINBIND_IDMAP_H_
 
-#include "librpc/gen_ndr/winbind.h"
+#include "librpc/gen_ndr/idmap.h"
 
 struct idmap_context {
 	struct loadparm_context *lp_ctx;

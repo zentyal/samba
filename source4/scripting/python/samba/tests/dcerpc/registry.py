@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 # Unix SMB/CIFS implementation.
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2008
@@ -17,6 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+"""Tests for samba.dcerpc.registry."""
+
 from samba.dcerpc import winreg
 from samba.tests import RpcInterfaceTestCase
 
@@ -24,6 +26,7 @@ from samba.tests import RpcInterfaceTestCase
 class WinregTests(RpcInterfaceTestCase):
 
     def setUp(self):
+        super(WinregTests, self).setUp()
         self.conn = winreg.winreg("ncalrpc:", self.get_loadparm(), 
                                   self.get_credentials())
 

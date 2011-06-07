@@ -49,26 +49,26 @@ static NTSTATUS dcesrv_unixinfo_SidToUid(struct dcesrv_call_state *dce_call,
 	struct wbc_context *wbc_ctx = talloc_get_type_abort(
 						dce_call->context->private_data,
 						struct wbc_context);
-	struct id_mapping *ids;
+	struct id_map *ids;
 	struct composite_context *ctx;
 
 	DEBUG(5, ("dcesrv_unixinfo_SidToUid called\n"));
 
-	ids = talloc(mem_ctx, struct  id_mapping);
+	ids = talloc(mem_ctx, struct id_map);
 	NT_STATUS_HAVE_NO_MEMORY(ids);
 
 	ids->sid = &r->in.sid;
-	ids->status = NT_STATUS_NONE_MAPPED;
-	ids->unixid = NULL;
+	ids->status = ID_UNKNOWN;
+	ZERO_STRUCT(ids->xid);
 	ctx = wbc_sids_to_xids_send(wbc_ctx, ids, 1, ids);
 	NT_STATUS_HAVE_NO_MEMORY(ctx);
 
 	status = wbc_sids_to_xids_recv(ctx, &ids);
 	NT_STATUS_NOT_OK_RETURN(status);
 
-	if (ids->unixid->type == ID_TYPE_BOTH ||
-	    ids->unixid->type == ID_TYPE_UID) {
-		*r->out.uid = ids->unixid->id;
+	if (ids->xid.type == ID_TYPE_BOTH ||
+	    ids->xid.type == ID_TYPE_UID) {
+		*r->out.uid = ids->xid.id;
 		return NT_STATUS_OK;
 	} else {
 		return NT_STATUS_INVALID_SID;
@@ -82,7 +82,7 @@ static NTSTATUS dcesrv_unixinfo_UidToSid(struct dcesrv_call_state *dce_call,
 	struct wbc_context *wbc_ctx = talloc_get_type_abort(
 						dce_call->context->private_data,
 						struct wbc_context);
-	struct id_mapping *ids;
+	struct id_map *ids;
 	struct composite_context *ctx;
 	uint32_t uid;
 	NTSTATUS status;
@@ -95,16 +95,14 @@ static NTSTATUS dcesrv_unixinfo_UidToSid(struct dcesrv_call_state *dce_call,
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	ids = talloc(mem_ctx, struct id_mapping);
+	ids = talloc(mem_ctx, struct id_map);
 	NT_STATUS_HAVE_NO_MEMORY(ids);
 
 	ids->sid = NULL;
-	ids->status = NT_STATUS_NONE_MAPPED;
-	ids->unixid = talloc(ids, struct unixid);
-	NT_STATUS_HAVE_NO_MEMORY(ids->unixid);
+	ids->status = ID_UNKNOWN;
 
-	ids->unixid->id = uid;
-	ids->unixid->type = ID_TYPE_UID;
+	ids->xid.id = uid;
+	ids->xid.type = ID_TYPE_UID;
 
 	ctx = wbc_xids_to_sids_send(wbc_ctx, ids, 1, ids);
 	NT_STATUS_HAVE_NO_MEMORY(ctx);
@@ -124,26 +122,26 @@ static NTSTATUS dcesrv_unixinfo_SidToGid(struct dcesrv_call_state *dce_call,
 	struct wbc_context *wbc_ctx = talloc_get_type_abort(
 						dce_call->context->private_data,
 						struct wbc_context);
-	struct id_mapping *ids;
+	struct id_map *ids;
 	struct composite_context *ctx;
 
 	DEBUG(5, ("dcesrv_unixinfo_SidToGid called\n"));
 
-	ids = talloc(mem_ctx, struct  id_mapping);
+	ids = talloc(mem_ctx, struct id_map);
 	NT_STATUS_HAVE_NO_MEMORY(ids);
 
 	ids->sid = &r->in.sid;
-	ids->status = NT_STATUS_NONE_MAPPED;
-	ids->unixid = NULL;
+	ids->status = ID_UNKNOWN;
+	ZERO_STRUCT(ids->xid);
 	ctx = wbc_sids_to_xids_send(wbc_ctx, ids, 1, ids);
 	NT_STATUS_HAVE_NO_MEMORY(ctx);
 
 	status = wbc_sids_to_xids_recv(ctx, &ids);
 	NT_STATUS_NOT_OK_RETURN(status);
 
-	if (ids->unixid->type == ID_TYPE_BOTH ||
-	    ids->unixid->type == ID_TYPE_GID) {
-		*r->out.gid = ids->unixid->id;
+	if (ids->xid.type == ID_TYPE_BOTH ||
+	    ids->xid.type == ID_TYPE_GID) {
+		*r->out.gid = ids->xid.id;
 		return NT_STATUS_OK;
 	} else {
 		return NT_STATUS_INVALID_SID;
@@ -157,7 +155,7 @@ static NTSTATUS dcesrv_unixinfo_GidToSid(struct dcesrv_call_state *dce_call,
 	struct wbc_context *wbc_ctx = talloc_get_type_abort(
 						dce_call->context->private_data,
 						struct wbc_context);
-	struct id_mapping *ids;
+	struct id_map *ids;
 	struct composite_context *ctx;
 	uint32_t gid;
 	NTSTATUS status;
@@ -170,16 +168,14 @@ static NTSTATUS dcesrv_unixinfo_GidToSid(struct dcesrv_call_state *dce_call,
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	ids = talloc(mem_ctx, struct id_mapping);
+	ids = talloc(mem_ctx, struct id_map);
 	NT_STATUS_HAVE_NO_MEMORY(ids);
 
 	ids->sid = NULL;
-	ids->status = NT_STATUS_NONE_MAPPED;
-	ids->unixid = talloc(ids, struct unixid);
-	NT_STATUS_HAVE_NO_MEMORY(ids->unixid);
+	ids->status = ID_UNKNOWN;
 
-	ids->unixid->id = gid;
-	ids->unixid->type = ID_TYPE_GID;
+	ids->xid.id = gid;
+	ids->xid.type = ID_TYPE_GID;
 
 	ctx = wbc_xids_to_sids_send(wbc_ctx, ids, 1, ids);
 	NT_STATUS_HAVE_NO_MEMORY(ctx);
@@ -195,7 +191,7 @@ static NTSTATUS dcesrv_unixinfo_GetPWUid(struct dcesrv_call_state *dce_call,
 				  TALLOC_CTX *mem_ctx,
 				  struct unixinfo_GetPWUid *r)
 {
-	int i;
+	unsigned int i;
 
 	*r->out.count = 0;
 

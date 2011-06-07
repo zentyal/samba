@@ -20,6 +20,8 @@
 */
 
 #include "includes.h"
+#include "libsmb/libsmb.h"
+#include "smb_signing.h"
 
 bool cli_simple_set_signing(struct cli_state *cli,
 			    const DATA_BLOB user_session_key,

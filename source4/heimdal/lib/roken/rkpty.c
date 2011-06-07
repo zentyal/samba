@@ -41,7 +41,9 @@
 #endif
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
 #ifdef HAVE_PTY_H
 #include <pty.h>
 #endif
@@ -93,6 +95,10 @@ caught_signal(int signo)
 static void
 open_pty(void)
 {
+#ifdef _AIX
+    printf("implement open_pty\n");
+    exit(77);
+#endif
 #if defined(HAVE_OPENPTY) || defined(__linux) || defined(__osf__) /* XXX */
     if(openpty(&master, &slave, line, 0, 0) == 0)
 	return;
@@ -120,7 +126,7 @@ open_pty(void)
 		strlcpy(line, ptsname(master), sizeof(line));
 		slave = open(line, O_RDWR);
 		if (slave < 0)
-		    errx(1, "failed to open slave when using %s", q);
+		    errx(1, "failed to open slave when using %s", *q);
 		ioctl(slave, I_PUSH, "ptem");
 		ioctl(slave, I_PUSH, "ldterm");
 

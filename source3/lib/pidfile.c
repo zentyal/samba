@@ -20,6 +20,7 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
 
 #ifndef O_NONBLOCK
 #define O_NONBLOCK
@@ -145,6 +146,9 @@ void pidfile_create(const char *program_name)
 	}
 	/* Leave pid file open & locked for the duration... */
 	SAFE_FREE(name);
+
+	/* set the close on exec so that we don't leak the fd */
+	fcntl(fd, F_SETFD, FD_CLOEXEC);
 }
 
 void pidfile_unlink(void)

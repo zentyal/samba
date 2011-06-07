@@ -19,7 +19,11 @@
  */
 
 #include "includes.h"
+#include "ads.h"
+#include "idmap.h"
 #include "idmap_adex.h"
+#include "libads/cldap.h"
+#include "../libcli/ldap/ldap_ndr.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_IDMAP
@@ -545,7 +549,7 @@ done:
 
  NTSTATUS gc_name_to_sid(const char *domain,
 			 const char *name,
-			 DOM_SID *sid,
+			 struct dom_sid *sid,
 			 enum lsa_SidType *sid_type)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
@@ -703,7 +707,7 @@ done:
 /*********************************************************************
  ********************************************************************/
 
- NTSTATUS gc_sid_to_name(const DOM_SID *sid,
+ NTSTATUS gc_sid_to_name(const struct dom_sid *sid,
 			 char **name,
 			 enum lsa_SidType *sid_type)
 {
@@ -716,7 +720,7 @@ done:
 
 	*name = NULL;
 
-	sid_string = sid_binstring(frame, sid);
+	sid_string = ldap_encode_ndr_dom_sid(frame, sid);
 	BAIL_ON_PTR_ERROR(sid_string, nt_status);
 
 	filter = talloc_asprintf(frame, "(objectSid=%s)", sid_string);

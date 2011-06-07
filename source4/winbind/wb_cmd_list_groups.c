@@ -22,10 +22,7 @@
 #include "includes.h"
 #include "libcli/composite/composite.h"
 #include "winbind/wb_server.h"
-#include "winbind/wb_async_helpers.h"
-#include "winbind/wb_helper.h"
 #include "smbd/service_task.h"
-#include "libnet/libnet_proto.h"
 
 struct cmd_list_groups_state {
 	struct composite_context *ctx;
@@ -35,6 +32,7 @@ struct cmd_list_groups_state {
 	char *domain_name;
 	uint32_t resume_index;
 	char *result;
+	uint32_t num_groups;
 };
 
 static void cmd_list_groups_recv_domain(struct composite_context *ctx);
@@ -58,6 +56,7 @@ struct composite_context *wb_cmd_list_groups_send(TALLOC_CTX *mem_ctx,
 	result->private_data = state;
 	state->service = service;
 	state->resume_index = 0;
+	state->num_groups = 0;
 	state->result = talloc_strdup(state, "");
 	if (composite_nomem(state->result, state->ctx)) return result;
 
@@ -92,13 +91,14 @@ static void cmd_list_groups_recv_domain(struct composite_context *ctx)
 	state->ctx->status = wb_sid2domain_recv(ctx, &domain);
 	if (!composite_is_ok(state->ctx)) return;
 
+	/* we use this entry also for context purposes (libnet_GroupList) */
 	state->domain = domain;
 
 	/* If this is non-null, we've looked up the domain given in the winbind
-	 * request, otherwise we'll just use the default name.*/
+	 * request, otherwise we'll just use the default name .*/
 	if (state->domain_name == NULL) {
 		state->domain_name = talloc_strdup(state,
-				domain->libnet_ctx->samr.name);
+						   state->domain->libnet_ctx->samr.name);
 		if (composite_nomem(state->domain_name, state->ctx)) return;
 	}
 
@@ -113,10 +113,11 @@ static void cmd_list_groups_recv_domain(struct composite_context *ctx)
 	group_list->in.page_size = 128;
 	group_list->in.resume_index = state->resume_index;
 
-	ctx = libnet_GroupList_send(domain->libnet_ctx, state, group_list,NULL);
+	ctx = libnet_GroupList_send(state->domain->libnet_ctx, state,
+				    group_list, NULL);
 
 	composite_continue(state->ctx, ctx, cmd_list_groups_recv_group_list,
-			state);
+			   state);
 }
 
 static void cmd_list_groups_recv_group_list(struct composite_context *ctx)
@@ -136,7 +137,8 @@ static void cmd_list_groups_recv_group_list(struct composite_context *ctx)
 
 	/* If NTSTATUS is neither OK nor MORE_ENTRIES, something broke */
 	if (!NT_STATUS_IS_OK(status) &&
-	     !NT_STATUS_EQUAL(status, STATUS_MORE_ENTRIES)) {
+	    !NT_STATUS_EQUAL(status, STATUS_MORE_ENTRIES) &&
+	    !NT_STATUS_EQUAL(status, NT_STATUS_NO_MORE_ENTRIES)) {
 		composite_error(state->ctx, status);
 		return;
 	}
@@ -145,16 +147,19 @@ static void cmd_list_groups_recv_group_list(struct composite_context *ctx)
 		DEBUG(5, ("Appending group '%s'\n",
 			  group_list->out.groups[i].groupname));
 		state->result = talloc_asprintf_append_buffer(state->result,
-					"%s,",
-					group_list->out.groups[i].groupname);
+							      "%s,",
+							      group_list->out.groups[i].groupname);
+		state->num_groups++;
 	}
 
 	/* If the status is OK, we're finished, there's no more groups.
 	 * So we'll trim off the trailing ',' and are done.*/
 	if (NT_STATUS_IS_OK(status)) {
-		int str_len = strlen(state->result);
+		size_t str_len = strlen(state->result);
 		DEBUG(5, ("list_GroupList_recv returned NT_STATUS_OK\n"));
-		state->result[str_len - 1] = '\0';
+		if (str_len > 0) {
+			state->result[str_len - 1] = '\0';
+		}
 		composite_done(state->ctx);
 		return;
 	}
@@ -171,15 +176,15 @@ static void cmd_list_groups_recv_group_list(struct composite_context *ctx)
 	group_list->in.resume_index = group_list->out.resume_index;
 
 	ctx = libnet_GroupList_send(state->domain->libnet_ctx, state,group_list,
-			NULL);
+				    NULL);
 
 	composite_continue(state->ctx, ctx, cmd_list_groups_recv_group_list,
-			state);
+			   state);
 }
 
 NTSTATUS wb_cmd_list_groups_recv(struct composite_context *ctx,
 		TALLOC_CTX *mem_ctx, uint32_t *extra_data_len,
-		char **extra_data)
+		char **extra_data, uint32_t *num_groups)
 {
 	NTSTATUS status = composite_wait(ctx);
 
@@ -191,6 +196,7 @@ NTSTATUS wb_cmd_list_groups_recv(struct composite_context *ctx,
 
 		*extra_data_len = strlen(state->result);
 		*extra_data = talloc_steal(mem_ctx, state->result);
+		*num_groups = state->num_groups;
 	}
 
 	talloc_free(ctx);

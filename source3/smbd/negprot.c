@@ -3,44 +3,47 @@
    negprot reply code
    Copyright (C) Andrew Tridgell 1992-1998
    Copyright (C) Volker Lendecke 2007
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
 #include "../libcli/auth/spnego.h"
+#include "serverid.h"
+#include "auth.h"
+#include "messages.h"
+#include "smbprofile.h"
 
 extern fstring remote_proto;
 
-static void get_challenge(uint8 buff[8])
+static void get_challenge(struct smbd_server_connection *sconn, uint8 buff[8])
 {
 	NTSTATUS nt_status;
-	struct smbd_server_connection *sconn = smbd_server_conn;
 
 	/* We might be called more than once, multiple negprots are
 	 * permitted */
 	if (sconn->smb1.negprot.auth_context) {
 		DEBUG(3, ("get challenge: is this a secondary negprot? "
 			  "sconn->negprot.auth_context is non-NULL!\n"));
-			sconn->smb1.negprot.auth_context->free(
-				&sconn->smb1.negprot.auth_context);
+			TALLOC_FREE(sconn->smb1.negprot.auth_context);
 	}
 
 	DEBUG(10, ("get challenge: creating negprot_global_auth_context\n"));
 	nt_status = make_auth_context_subsystem(
-		&sconn->smb1.negprot.auth_context);
+		sconn, &sconn->smb1.negprot.auth_context);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0, ("make_auth_context_subsystem returned %s",
 			  nt_errstr(nt_status)));
@@ -92,7 +95,7 @@ static void reply_lanman1(struct smb_request *req, uint16 choice)
 	int raw = (lp_readraw()?1:0) | (lp_writeraw()?2:0);
 	int secword=0;
 	time_t t = time(NULL);
-	struct smbd_server_connection *sconn = smbd_server_conn;
+	struct smbd_server_connection *sconn = req->sconn;
 
 	sconn->smb1.negprot.encrypted_passwords = lp_encrypted_passwords();
 
@@ -109,7 +112,7 @@ static void reply_lanman1(struct smb_request *req, uint16 choice)
 	SSVAL(req->outbuf,smb_vwv1,secword);
 	/* Create a token value and add it to the outgoing packet. */
 	if (sconn->smb1.negprot.encrypted_passwords) {
-		get_challenge((uint8 *)smb_buf(req->outbuf));
+		get_challenge(sconn, (uint8 *)smb_buf(req->outbuf));
 		SSVAL(req->outbuf,smb_vwv11, 8);
 	}
 
@@ -139,10 +142,10 @@ static void reply_lanman2(struct smb_request *req, uint16 choice)
 	int raw = (lp_readraw()?1:0) | (lp_writeraw()?2:0);
 	int secword=0;
 	time_t t = time(NULL);
-	struct smbd_server_connection *sconn = smbd_server_conn;
+	struct smbd_server_connection *sconn = req->sconn;
 
 	sconn->smb1.negprot.encrypted_passwords = lp_encrypted_passwords();
-  
+
 	if (lp_security()>=SEC_USER) {
 		secword |= NEGOTIATE_SECURITY_USER_LEVEL;
 	}
@@ -158,7 +161,7 @@ static void reply_lanman2(struct smb_request *req, uint16 choice)
 
 	/* Create a token value and add it to the outgoing packet. */
 	if (sconn->smb1.negprot.encrypted_passwords) {
-		get_challenge((uint8 *)smb_buf(req->outbuf));
+		get_challenge(sconn, (uint8 *)smb_buf(req->outbuf));
 		SSVAL(req->outbuf,smb_vwv11, 8);
 	}
 
@@ -178,39 +181,22 @@ static void reply_lanman2(struct smb_request *req, uint16 choice)
  Generate the spnego negprot reply blob. Return the number of bytes used.
 ****************************************************************************/
 
-DATA_BLOB negprot_spnego(void)
+DATA_BLOB negprot_spnego(TALLOC_CTX *ctx, struct smbd_server_connection *sconn)
 {
-	DATA_BLOB blob;
+	DATA_BLOB blob = data_blob_null;
+	DATA_BLOB blob_out = data_blob_null;
 	nstring dos_name;
 	fstring unix_name;
 #ifdef DEVELOPER
 	size_t slen;
 #endif
-	char guid[17];
 	const char *OIDs_krb5[] = {OID_KERBEROS5,
 				   OID_KERBEROS5_OLD,
 				   OID_NTLMSSP,
 				   NULL};
-	const char *OIDs_plain[] = {OID_NTLMSSP, NULL};
-	struct smbd_server_connection *sconn = smbd_server_conn;
+	const char *OIDs_ntlm[] = {OID_NTLMSSP, NULL};
 
 	sconn->smb1.negprot.spnego = true;
-
-	memset(guid, '\0', sizeof(guid));
-
-	safe_strcpy(unix_name, global_myname(), sizeof(unix_name)-1);
-	strlower_m(unix_name);
-	push_ascii_nstring(dos_name, unix_name);
-	safe_strcpy(guid, dos_name, sizeof(guid)-1);
-
-#ifdef DEVELOPER
-	/* Fix valgrind 'uninitialized bytes' issue. */
-	slen = strlen(dos_name);
-	if (slen < sizeof(guid)) {
-		memset(guid+slen, '\0', sizeof(guid) - slen);
-	}
-#endif
-
 	/* strangely enough, NT does not sent the single OID NTLMSSP when
 	   not a ADS member, it sends no OIDs at all
 
@@ -230,8 +216,11 @@ DATA_BLOB negprot_spnego(void)
 		blob = data_blob(guid, 16);
 #else
 		/* Code for standalone WXP client */
-		blob = spnego_gen_negTokenInit(guid, OIDs_plain, "NONE");
+		blob = spnego_gen_negTokenInit(ctx, OIDs_ntlm, NULL, "NONE");
 #endif
+	} else if (!lp_send_spnego_principal()) {
+		/* By default, Windows 2008 and later sends not_defined_in_RFC4178@please_ignore */
+		blob = spnego_gen_negTokenInit(ctx, OIDs_krb5, NULL, ADS_IGNORE_PRINCIPAL);
 	} else {
 		fstring myname;
 		char *host_princ_s = NULL;
@@ -241,11 +230,40 @@ DATA_BLOB negprot_spnego(void)
 		    == -1) {
 			return data_blob_null;
 		}
-		blob = spnego_gen_negTokenInit(guid, OIDs_krb5, host_princ_s);
+		blob = spnego_gen_negTokenInit(ctx, OIDs_krb5, NULL, host_princ_s);
 		SAFE_FREE(host_princ_s);
 	}
 
-	return blob;
+	if (blob.length == 0 || blob.data == NULL) {
+		return data_blob_null;
+	}
+
+	blob_out = data_blob_talloc(ctx, NULL, 16 + blob.length);
+	if (blob_out.data == NULL) {
+		data_blob_free(&blob);
+		return data_blob_null;
+	}
+
+	memset(blob_out.data, '\0', 16);
+
+	safe_strcpy(unix_name, global_myname(), sizeof(unix_name)-1);
+	strlower_m(unix_name);
+	push_ascii_nstring(dos_name, unix_name);
+	strlcpy((char *)blob_out.data, dos_name, 17);
+
+#ifdef DEVELOPER
+	/* Fix valgrind 'uninitialized bytes' issue. */
+	slen = strlen(dos_name);
+	if (slen < 16) {
+		memset(blob_out.data+slen, '\0', 16 - slen);
+	}
+#endif
+
+	memcpy(&blob_out.data[16], blob.data, blob.length);
+
+	data_blob_free(&blob);
+
+	return blob_out;
 }
 
 /****************************************************************************
@@ -259,11 +277,10 @@ static void reply_nt1(struct smb_request *req, uint16 choice)
 		CAP_LEVEL_II_OPLOCKS;
 
 	int secword=0;
-	char *p, *q;
 	bool negotiate_spnego = False;
-	time_t t = time(NULL);
+	struct timespec ts;
 	ssize_t ret;
-	struct smbd_server_connection *sconn = smbd_server_conn;
+	struct smbd_server_connection *sconn = req->sconn;
 
 	sconn->smb1.negprot.encrypted_passwords = lp_encrypted_passwords();
 
@@ -283,7 +300,7 @@ static void reply_nt1(struct smb_request *req, uint16 choice)
 
 	/* do spnego in user level security if the client
 	   supports it and we can do encrypted passwords */
-	
+
 	if (sconn->smb1.negprot.encrypted_passwords &&
 	    (lp_security() != SEC_SHARE) &&
 	    lp_use_spnego() &&
@@ -296,28 +313,28 @@ static void reply_nt1(struct smb_request *req, uint16 choice)
 		SSVAL(req->outbuf, smb_flg2,
 		      req->flags2 | FLAGS2_EXTENDED_SECURITY);
 	}
-	
+
 	capabilities |= CAP_NT_SMBS|CAP_RPC_REMOTE_APIS|CAP_UNICODE;
 
 	if (lp_unix_extensions()) {
 		capabilities |= CAP_UNIX;
 	}
-	
+
 	if (lp_large_readwrite() && (SMB_OFF_T_BITS == 64))
 		capabilities |= CAP_LARGE_READX|CAP_LARGE_WRITEX|CAP_W2K_SMBS;
-	
+
 	if (SMB_OFF_T_BITS == 64)
 		capabilities |= CAP_LARGE_FILES;
 
 	if (lp_readraw() && lp_writeraw())
 		capabilities |= CAP_RAW_MODE;
-	
+
 	if (lp_nt_status_support())
 		capabilities |= CAP_STATUS32;
-	
+
 	if (lp_host_msdfs())
 		capabilities |= CAP_DFS;
-	
+
 	if (lp_security() >= SEC_USER) {
 		secword |= NEGOTIATE_SECURITY_USER_LEVEL;
 	}
@@ -332,7 +349,7 @@ static void reply_nt1(struct smb_request *req, uint16 choice)
 			capabilities &= ~CAP_RAW_MODE;
 			if (lp_server_signing() == Required)
 				secword |=NEGOTIATE_SECURITY_SIGNATURES_REQUIRED;
-			srv_set_signing_negotiated(smbd_server_conn);
+			srv_set_signing_negotiated(sconn);
 		} else {
 			DEBUG(0,("reply_nt1: smb signing is incompatible with share level security !\n"));
 			if (lp_server_signing() == Required) {
@@ -343,9 +360,9 @@ static void reply_nt1(struct smb_request *req, uint16 choice)
 
 	SSVAL(req->outbuf,smb_vwv0,choice);
 	SCVAL(req->outbuf,smb_vwv1,secword);
-	
+
 	set_Protocol(PROTOCOL_NT1);
-	
+
 	SSVAL(req->outbuf,smb_vwv1+1,lp_maxmux()); /* maxmpx */
 	SSVAL(req->outbuf,smb_vwv2+1,1); /* num vcs */
 	SIVAL(req->outbuf,smb_vwv3+1,
@@ -353,17 +370,17 @@ static void reply_nt1(struct smb_request *req, uint16 choice)
 	SIVAL(req->outbuf,smb_vwv5+1,0x10000); /* raw size. full 64k */
 	SIVAL(req->outbuf,smb_vwv7+1,sys_getpid()); /* session key */
 	SIVAL(req->outbuf,smb_vwv9+1,capabilities); /* capabilities */
-	put_long_date((char *)req->outbuf+smb_vwv11+1,t);
-	SSVALS(req->outbuf,smb_vwv15+1,set_server_zone_offset(t)/60);
-	
-	p = q = smb_buf(req->outbuf);
+	clock_gettime(CLOCK_REALTIME,&ts);
+	put_long_date_timespec(TIMESTAMP_SET_NT_OR_BETTER,(char *)req->outbuf+smb_vwv11+1,ts);
+	SSVALS(req->outbuf,smb_vwv15+1,set_server_zone_offset(ts.tv_sec)/60);
+
 	if (!negotiate_spnego) {
 		/* Create a token value and add it to the outgoing packet. */
 		if (sconn->smb1.negprot.encrypted_passwords) {
 			uint8 chal[8];
 			/* note that we do not send a challenge at all if
 			   we are using plaintext */
-			get_challenge(chal);
+			get_challenge(sconn, chal);
 			ret = message_push_blob(
 				&req->outbuf, data_blob_const(chal, sizeof(chal)));
 			if (ret == -1) {
@@ -372,19 +389,18 @@ static void reply_nt1(struct smb_request *req, uint16 choice)
 				return;
 			}
 			SCVAL(req->outbuf, smb_vwv16+1, ret);
-			p += ret;
 		}
 		ret = message_push_string(&req->outbuf, lp_workgroup(),
 					  STR_UNICODE|STR_TERMINATE
 					  |STR_NOALIGN);
 		if (ret == -1) {
-			DEBUG(0, ("Could not push challenge\n"));
+			DEBUG(0, ("Could not push workgroup string\n"));
 			reply_nterror(req, NT_STATUS_NO_MEMORY);
 			return;
 		}
 		DEBUG(3,("not using SPNEGO\n"));
 	} else {
-		DATA_BLOB spnego_blob = negprot_spnego();
+		DATA_BLOB spnego_blob = negprot_spnego(req, req->sconn);
 
 		if (spnego_blob.data == NULL) {
 			reply_nterror(req, NT_STATUS_NO_MEMORY);
@@ -397,15 +413,11 @@ static void reply_nt1(struct smb_request *req, uint16 choice)
 			reply_nterror(req, NT_STATUS_NO_MEMORY);
 			return;
 		}
-		p += ret;
 		data_blob_free(&spnego_blob);
 
 		SCVAL(req->outbuf,smb_vwv16+1, 0);
 		DEBUG(3,("using SPNEGO\n"));
 	}
-	
-	SSVAL(req->outbuf,smb_vwv17, p - q); /* length of challenge+domain
-					      * strings */
 
 	return;
 }
@@ -479,7 +491,7 @@ protocol [LANMAN2.1]
   *  tim@fsg.com 09/29/95
   *  Win2K added by matty 17/7/99
   */
-  
+
 #define ARCH_WFWG     0x3      /* This is a fudge because WfWg is like Win95 */
 #define ARCH_WIN95    0x2
 #define ARCH_WINNT    0x4
@@ -488,9 +500,9 @@ protocol [LANMAN2.1]
 #define ARCH_SAMBA    0x20
 #define ARCH_CIFSFS   0x40
 #define ARCH_VISTA    0x8C     /* Vista is like XP/2K */
- 
+
 #define ARCH_ALL      0x7F
- 
+
 /* List of supported protocols, most desired first */
 static const struct {
 	const char *proto_name;
@@ -528,7 +540,7 @@ void reply_negprot(struct smb_request *req)
 	char **cliprotos;
 	int i;
 	size_t converted_size;
-	struct smbd_server_connection *sconn = smbd_server_conn;
+	struct smbd_server_connection *sconn = req->sconn;
 
 	START_PROFILE(SMBnegprot);
 
@@ -659,17 +671,18 @@ void reply_negprot(struct smb_request *req)
 			set_remote_arch(RA_UNKNOWN);
 		break;
 	}
- 
+
 	/* possibly reload - change of architecture */
-	reload_services(True);      
-	
+	reload_services(sconn->msg_ctx, sconn->sock, True);
+
 	/* moved from the netbios session setup code since we don't have that 
 	   when the client connects to port 445.  Of course there is a small
 	   window where we are listening to messages   -- jerry */
 
-	claim_connection(
-		NULL,"",FLAG_MSG_GENERAL|FLAG_MSG_SMBD|FLAG_MSG_PRINT_GENERAL);
-    
+	serverid_register(sconn_server_id(sconn),
+			  FLAG_MSG_GENERAL|FLAG_MSG_SMBD
+			  |FLAG_MSG_PRINT_GENERAL);
+
 	/* Check for protocols, most desirable first */
 	for (protocol = 0; supported_protocols[protocol].proto_name; protocol++) {
 		i = 0;
@@ -683,10 +696,10 @@ void reply_negprot(struct smb_request *req)
 		if(choice != -1)
 			break;
 	}
-  
+
 	if(choice != -1) {
 		fstrcpy(remote_proto,supported_protocols[protocol].short_name);
-		reload_services(True);          
+		reload_services(sconn->msg_ctx, sconn->sock, True);
 		supported_protocols[protocol].proto_reply_fn(req, choice);
 		DEBUG(3,("Selected protocol %s\n",supported_protocols[protocol].proto_name));
 	} else {
@@ -694,7 +707,7 @@ void reply_negprot(struct smb_request *req)
 		reply_outbuf(req, 1, 0);
 		SSVAL(req->outbuf, smb_vwv0, choice);
 	}
-  
+
 	DEBUG( 5, ( "negprot index=%d\n", choice ) );
 
 	if ((lp_server_signing() == Required) && (get_Protocol() < PROTOCOL_NT1)) {

@@ -2,6 +2,7 @@
    Unix SMB/CIFS implementation.
    Samba utility functions
    Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2008
+   Copyright (C) Wilco Baan Hofman <wilco@baanhofman.nl> 2010
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,23 +18,18 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "includes.h"
-#include <tevent.h>
 #include <Python.h>
+#include "includes.h"
 #include "libcli/util/pyerrors.h"
 #include "lib/registry/registry.h"
-#include "scripting/python/modules.h" /* for py_iconv_convenience() */
-#include <pytalloc.h>
+#include "lib/talloc/pytalloc.h"
+#include "lib/events/events.h"
 #include "auth/credentials/pycredentials.h"
 #include "param/pyparam.h"
 
-#ifndef Py_RETURN_NONE
-#define Py_RETURN_NONE return Py_INCREF(Py_None), Py_None
-#endif
-
-PyAPI_DATA(PyTypeObject) PyRegistryKey;
-PyAPI_DATA(PyTypeObject) PyRegistry;
-PyAPI_DATA(PyTypeObject) PyHiveKey;
+extern PyTypeObject PyRegistryKey;
+extern PyTypeObject PyRegistry;
+extern PyTypeObject PyHiveKey;
 
 /*#define PyRegistryKey_AsRegistryKey(obj) py_talloc_get_type(obj, struct registry_key)*/
 #define PyRegistry_AsRegistryContext(obj) ((struct registry_context *)py_talloc_get_ptr(obj))
@@ -95,7 +91,7 @@ static PyObject *py_diff_apply(PyObject *self, PyObject *args)
 	if (!PyArg_ParseTuple(args, "s", &filename))
 		return NULL;
 
-	result = reg_diff_apply(ctx, py_iconv_convenience(NULL), filename);
+	result = reg_diff_apply(ctx, filename);
 	PyErr_WERROR_IS_ERR_RAISE(result);
 
 	Py_RETURN_NONE; 
@@ -163,7 +159,6 @@ PyTypeObject PyRegistry = {
 	.tp_methods = registry_methods,
 	.tp_new = registry_new,
 	.tp_basicsize = sizeof(py_talloc_Object),
-	.tp_dealloc = py_talloc_dealloc,
 	.tp_flags = Py_TPFLAGS_DEFAULT,
 };
 
@@ -176,7 +171,7 @@ static PyObject *py_hive_key_del(PyObject *self, PyObject *args)
 	if (!PyArg_ParseTuple(args, "s", &name))
 		return NULL;
 
-	result = hive_key_del(key, name);
+	result = hive_key_del(NULL, key, name);
 
 	PyErr_WERROR_IS_ERR_RAISE(result);
 
@@ -203,7 +198,7 @@ static PyObject *py_hive_key_del_value(PyObject *self, PyObject *args)
 	if (!PyArg_ParseTuple(args, "s", &name))
 		return NULL;
 
-	result = hive_key_del_value(key, name);
+	result = hive_key_del_value(NULL, key, name);
 
 	PyErr_WERROR_IS_ERR_RAISE(result);
 
@@ -224,7 +219,7 @@ static PyObject *py_hive_key_set_value(PyObject *self, PyObject *args)
 	if (value.data != NULL)
 		result = hive_key_set_value(key, name, type, value);
 	else
-		result = hive_key_del_value(key, name);
+		result = hive_key_del_value(NULL, key, name);
 
 	PyErr_WERROR_IS_ERR_RAISE(result);
 
@@ -243,25 +238,70 @@ static PyMethodDef hive_key_methods[] = {
 	{ NULL }
 };
 
-static PyObject *hive_open(PyTypeObject *type, PyObject *args, PyObject *kwargs)
-{
-	/* reg_open_hive */
+static PyObject *hive_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
 	Py_RETURN_NONE;
+}
+
+static PyObject *py_open_hive(PyTypeObject *type, PyObject *args, PyObject *kwargs)
+{
+	const char *kwnames[] = { "location", "lp_ctx", "session_info", "credentials", NULL };
+	WERROR result;
+	struct loadparm_context *lp_ctx;
+	PyObject *py_lp_ctx, *py_session_info, *py_credentials;
+	struct auth_session_info *session_info;
+	struct cli_credentials *credentials;
+	char *location;
+	struct hive_key *hive_key;
+	TALLOC_CTX *mem_ctx;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|OOO",
+					 discard_const_p(char *, kwnames),
+	                                 &location,
+					 &py_lp_ctx, &py_session_info,
+					 &py_credentials))
+		return NULL;
+
+	mem_ctx = talloc_new(NULL);
+	if (mem_ctx == NULL) {
+		PyErr_NoMemory();
+		return NULL;
+	}
+
+	lp_ctx = lpcfg_from_py_object(mem_ctx, py_lp_ctx);
+	if (lp_ctx == NULL) {
+		PyErr_SetString(PyExc_TypeError, "Expected loadparm context");
+		talloc_free(mem_ctx);
+		return NULL;
+	}
+
+	credentials = cli_credentials_from_py_object(py_credentials);
+	if (credentials == NULL) {
+		PyErr_SetString(PyExc_TypeError, "Expected credentials");
+		talloc_free(mem_ctx);
+		return NULL;
+	}
+	session_info = NULL;
+
+	result = reg_open_hive(NULL, location, session_info, credentials,
+	                       tevent_context_init(NULL),
+	                       lp_ctx, &hive_key);
+	talloc_free(mem_ctx);
+	PyErr_WERROR_IS_ERR_RAISE(result);
+
+	return py_talloc_steal(&PyHiveKey, hive_key);
 }
 
 PyTypeObject PyHiveKey = {
 	.tp_name = "HiveKey",
 	.tp_methods = hive_key_methods,
-	.tp_new = hive_open,
+	.tp_new = hive_new,
 	.tp_basicsize = sizeof(py_talloc_Object),
-	.tp_dealloc = py_talloc_dealloc,
 	.tp_flags = Py_TPFLAGS_DEFAULT,
 };
 
 PyTypeObject PyRegistryKey = {
 	.tp_name = "RegistryKey",
 	.tp_basicsize = sizeof(py_talloc_Object),
-	.tp_dealloc = py_talloc_dealloc,
 	.tp_flags = Py_TPFLAGS_DEFAULT,
 };
 
@@ -270,23 +310,35 @@ static PyObject *py_open_samba(PyObject *self, PyObject *args, PyObject *kwargs)
 	const char *kwnames[] = { "lp_ctx", "session_info", NULL };
 	struct registry_context *reg_ctx;
 	WERROR result;
-    struct loadparm_context *lp_ctx;
+	struct loadparm_context *lp_ctx;
 	PyObject *py_lp_ctx, *py_session_info, *py_credentials;
 	struct auth_session_info *session_info;
-    struct cli_credentials *credentials;
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOO", discard_const_p(char *, kwnames),
-					 &py_lp_ctx, &py_session_info, &py_credentials))
+	struct cli_credentials *credentials;
+	TALLOC_CTX *mem_ctx;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOO",
+					 discard_const_p(char *, kwnames),
+					 &py_lp_ctx, &py_session_info,
+					 &py_credentials))
 		return NULL;
 
-    lp_ctx = lp_from_py_object(py_lp_ctx);
-    if (lp_ctx == NULL) {
-		PyErr_SetString(PyExc_TypeError, "Expected loadparm context");
+	mem_ctx = talloc_new(NULL);
+	if (mem_ctx == NULL) {
+		PyErr_NoMemory();
 		return NULL;
-    }
+	}
+
+	lp_ctx = lpcfg_from_py_object(mem_ctx, py_lp_ctx);
+	if (lp_ctx == NULL) {
+		PyErr_SetString(PyExc_TypeError, "Expected loadparm context");
+		talloc_free(mem_ctx);
+		return NULL;
+	}
 
 	credentials = cli_credentials_from_py_object(py_credentials);
 	if (credentials == NULL) {
 		PyErr_SetString(PyExc_TypeError, "Expected credentials");
+		talloc_free(mem_ctx);
 		return NULL;
 	}
 
@@ -294,11 +346,12 @@ static PyObject *py_open_samba(PyObject *self, PyObject *args, PyObject *kwargs)
 
 	result = reg_open_samba(NULL, &reg_ctx, NULL, 
 				lp_ctx, session_info, credentials);
+	talloc_free(mem_ctx);
 	if (!W_ERROR_IS_OK(result)) {
 		PyErr_SetWERROR(result);
 		return NULL;
 	}
-	
+
 	return py_talloc_steal(&PyRegistry, reg_ctx);
 }
 
@@ -338,34 +391,43 @@ static PyObject *py_open_ldb_file(PyObject *self, PyObject *args, PyObject *kwar
 	PyObject *py_session_info = Py_None, *py_credentials = Py_None, *py_lp_ctx = Py_None;
 	WERROR result;
 	char *location;
-    struct loadparm_context *lp_ctx;
-    struct cli_credentials *credentials;
+	struct loadparm_context *lp_ctx;
+	struct cli_credentials *credentials;
 	struct hive_key *key;
 	struct auth_session_info *session_info;
+	TALLOC_CTX *mem_ctx;
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|OOO", 
-									 discard_const_p(char *, kwnames), 
-									 &location, 
-									 &py_session_info, &py_credentials,
-									 &py_lp_ctx))
+					 discard_const_p(char *, kwnames),
+					 &location, &py_session_info,
+					 &py_credentials, &py_lp_ctx))
 		return NULL;
 
-    lp_ctx = lp_from_py_object(py_lp_ctx);
-    if (lp_ctx == NULL) {
-		PyErr_SetString(PyExc_TypeError, "Expected loadparm context");
+	mem_ctx = talloc_new(NULL);
+	if (mem_ctx == NULL) {
+		PyErr_NoMemory();
 		return NULL;
-    }
+	}
+
+	lp_ctx = lpcfg_from_py_object(mem_ctx, py_lp_ctx);
+	if (lp_ctx == NULL) {
+		PyErr_SetString(PyExc_TypeError, "Expected loadparm context");
+		talloc_free(mem_ctx);
+		return NULL;
+	}
 
 	credentials = cli_credentials_from_py_object(py_credentials);
 	if (credentials == NULL) {
 		PyErr_SetString(PyExc_TypeError, "Expected credentials");
+		talloc_free(mem_ctx);
 		return NULL;
 	}
 
 	session_info = NULL; /* FIXME */
 
 	result = reg_open_ldb_file(NULL, location, session_info, credentials,
-							   tevent_context_init(NULL), lp_ctx, &key);
+				   s4_event_context_init(NULL), lp_ctx, &key);
+	talloc_free(mem_ctx);
 	PyErr_WERROR_IS_ERR_RAISE(result);
 
 	return py_talloc_steal(&PyHiveKey, key);
@@ -400,6 +462,7 @@ static PyMethodDef py_registry_methods[] = {
 	{ "open_directory", py_open_directory, METH_VARARGS, "open_dir(location) -> key" },
 	{ "create_directory", py_create_directory, METH_VARARGS, "create_dir(location) -> key" },
 	{ "open_ldb", (PyCFunction)py_open_ldb_file, METH_VARARGS|METH_KEYWORDS, "open_ldb(location, session_info=None, credentials=None, loadparm_context=None) -> key" },
+	{ "open_hive", (PyCFunction)py_open_hive, METH_VARARGS|METH_KEYWORDS, "open_hive(location, session_info=None, credentials=None, loadparm_context=None) -> key" },
 	{ "str_regtype", py_str_regtype, METH_VARARGS, "str_regtype(int) -> str" },
 	{ "get_predef_name", py_get_predef_name, METH_VARARGS, "get_predef_name(hkey) -> str" },
 	{ NULL }
@@ -408,6 +471,14 @@ static PyMethodDef py_registry_methods[] = {
 void initregistry(void)
 {
 	PyObject *m;
+	PyTypeObject *talloc_type = PyTalloc_GetObjectType();
+
+	if (talloc_type == NULL)
+		return;
+
+	PyHiveKey.tp_base = talloc_type;
+	PyRegistry.tp_base = talloc_type;
+	PyRegistryKey.tp_base = talloc_type;
 
 	if (PyType_Ready(&PyHiveKey) < 0)
 		return;

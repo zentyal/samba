@@ -26,7 +26,7 @@
 #include "../libcli/samsync/samsync.h"
 #include "auth/gensec/gensec.h"
 #include "auth/credentials/credentials.h"
-#include "auth/gensec/schannel_proto.h"
+#include "libcli/auth/schannel.h"
 #include "librpc/gen_ndr/ndr_netlogon.h"
 #include "librpc/gen_ndr/ndr_netlogon_c.h"
 #include "param/param.h"
@@ -45,7 +45,7 @@ NTSTATUS libnet_SamSync_netlogon(struct libnet_context *ctx, TALLOC_CTX *mem_ctx
 	struct libnet_RpcConnect *c;
 	struct libnet_SamSync_state *state;
 	const enum netr_SamDatabaseID database_ids[] = {SAM_DATABASE_DOMAIN, SAM_DATABASE_BUILTIN, SAM_DATABASE_PRIVS}; 
-	int i;
+	unsigned int i;
 
 	samsync_ctx = talloc_named(mem_ctx, 0, "SamSync top context");
 
@@ -209,13 +209,16 @@ NTSTATUS libnet_SamSync_netlogon(struct libnet_context *ctx, TALLOC_CTX *mem_ctx
 		dbsync.out.sync_context = &sync_context;
 		
 		do {
-			int d;
+			uint32_t d;
 			loop_ctx = talloc_named(samsync_ctx, 0, "DatabaseSync loop context");
 			netlogon_creds_client_authenticator(creds, &credential);
 
 			dbsync.in.credential = &credential;
 			
-			dbsync_nt_status = dcerpc_netr_DatabaseSync(p, loop_ctx, &dbsync);
+			dbsync_nt_status = dcerpc_netr_DatabaseSync_r(p->binding_handle, loop_ctx, &dbsync);
+			if (NT_STATUS_IS_OK(dbsync_nt_status) && !NT_STATUS_IS_OK(dbsync.out.result)) {
+				dbsync_nt_status = dbsync.out.result;
+			}
 			if (!NT_STATUS_IS_OK(dbsync_nt_status) &&
 			    !NT_STATUS_EQUAL(dbsync_nt_status, STATUS_MORE_ENTRIES)) {
 				r->out.error_string = talloc_asprintf(mem_ctx, "DatabaseSync failed - %s", nt_errstr(nt_status));

@@ -4,15 +4,15 @@
  */
 
 #include "includes.h"
+#include "ntdomain.h"
 #include "librpc/gen_ndr/srv_wbint.h"
 
-static bool api_wbint_Ping(pipes_struct *p)
+static bool api_wbint_Ping(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
 	struct wbint_Ping *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_PING];
@@ -22,18 +22,16 @@ static bool api_wbint_Ping(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -41,7 +39,7 @@ static bool api_wbint_Ping(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_Ping, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_Ping, NDR_IN, r);
 	}
 
 	ZERO_STRUCT(r->out);
@@ -60,14 +58,20 @@ static bool api_wbint_Ping(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_Ping, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_Ping, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -75,24 +79,20 @@ static bool api_wbint_Ping(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_LookupSid(pipes_struct *p)
+static bool api_wbint_LookupSid(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
 	struct wbint_LookupSid *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_LOOKUPSID];
@@ -102,18 +102,16 @@ static bool api_wbint_LookupSid(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -121,7 +119,7 @@ static bool api_wbint_LookupSid(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_LookupSid, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_LookupSid, NDR_IN, r);
 	}
 
 	ZERO_STRUCT(r->out);
@@ -152,14 +150,20 @@ static bool api_wbint_LookupSid(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_LookupSid, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_LookupSid, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -167,24 +171,106 @@ static bool api_wbint_LookupSid(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_LookupName(pipes_struct *p)
+static bool api_wbint_LookupSids(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
+	struct wbint_LookupSids *r;
+
+	call = &ndr_table_wbint.calls[NDR_WBINT_LOOKUPSIDS];
+
+	r = talloc(talloc_tos(), struct wbint_LookupSids);
+	if (r == NULL) {
+		return false;
+	}
+
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
+	if (pull == NULL) {
+		talloc_free(r);
+		return false;
+	}
+
+	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
+	ndr_err = call->ndr_pull(pull, NDR_IN, r);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		talloc_free(r);
+		return false;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_FUNCTION_DEBUG(wbint_LookupSids, NDR_IN, r);
+	}
+
+	ZERO_STRUCT(r->out);
+	r->out.domains = talloc_zero(r, struct lsa_RefDomainList);
+	if (r->out.domains == NULL) {
+		talloc_free(r);
+		return false;
+	}
+
+	r->out.names = talloc_zero(r, struct lsa_TransNameArray);
+	if (r->out.names == NULL) {
+		talloc_free(r);
+		return false;
+	}
+
+	r->out.result = _wbint_LookupSids(p, r);
+
+	if (p->rng_fault_state) {
+		talloc_free(r);
+		/* Return true here, srv_pipe_hnd.c will take care */
+		return true;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_FUNCTION_DEBUG(wbint_LookupSids, NDR_OUT | NDR_SET_VALUES, r);
+	}
+
+	push = ndr_push_init_ctx(r);
+	if (push == NULL) {
+		talloc_free(r);
+		return false;
+	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
+
+	ndr_err = call->ndr_push(push, NDR_OUT, r);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		talloc_free(r);
+		return false;
+	}
+
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
+
+	talloc_free(r);
+
+	return true;
+}
+
+static bool api_wbint_LookupName(struct pipes_struct *p)
+{
+	const struct ndr_interface_call *call;
+	struct ndr_pull *pull;
+	struct ndr_push *push;
+	enum ndr_err_code ndr_err;
 	struct wbint_LookupName *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_LOOKUPNAME];
@@ -194,18 +280,16 @@ static bool api_wbint_LookupName(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -213,7 +297,7 @@ static bool api_wbint_LookupName(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_LookupName, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_LookupName, NDR_IN, r);
 	}
 
 	ZERO_STRUCT(r->out);
@@ -238,14 +322,20 @@ static bool api_wbint_LookupName(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_LookupName, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_LookupName, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -253,24 +343,20 @@ static bool api_wbint_LookupName(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_Sid2Uid(pipes_struct *p)
+static bool api_wbint_Sid2Uid(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
 	struct wbint_Sid2Uid *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_SID2UID];
@@ -280,18 +366,16 @@ static bool api_wbint_Sid2Uid(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -299,7 +383,7 @@ static bool api_wbint_Sid2Uid(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_Sid2Uid, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_Sid2Uid, NDR_IN, r);
 	}
 
 	ZERO_STRUCT(r->out);
@@ -318,14 +402,20 @@ static bool api_wbint_Sid2Uid(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_Sid2Uid, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_Sid2Uid, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -333,24 +423,20 @@ static bool api_wbint_Sid2Uid(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_Sid2Gid(pipes_struct *p)
+static bool api_wbint_Sid2Gid(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
 	struct wbint_Sid2Gid *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_SID2GID];
@@ -360,18 +446,16 @@ static bool api_wbint_Sid2Gid(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -379,7 +463,7 @@ static bool api_wbint_Sid2Gid(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_Sid2Gid, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_Sid2Gid, NDR_IN, r);
 	}
 
 	ZERO_STRUCT(r->out);
@@ -398,14 +482,20 @@ static bool api_wbint_Sid2Gid(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_Sid2Gid, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_Sid2Gid, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -413,24 +503,95 @@ static bool api_wbint_Sid2Gid(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_Uid2Sid(pipes_struct *p)
+static bool api_wbint_Sids2UnixIDs(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
+	struct wbint_Sids2UnixIDs *r;
+
+	call = &ndr_table_wbint.calls[NDR_WBINT_SIDS2UNIXIDS];
+
+	r = talloc(talloc_tos(), struct wbint_Sids2UnixIDs);
+	if (r == NULL) {
+		return false;
+	}
+
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
+	if (pull == NULL) {
+		talloc_free(r);
+		return false;
+	}
+
+	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
+	ndr_err = call->ndr_pull(pull, NDR_IN, r);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		talloc_free(r);
+		return false;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_FUNCTION_DEBUG(wbint_Sids2UnixIDs, NDR_IN, r);
+	}
+
+	ZERO_STRUCT(r->out);
+	r->out.ids = r->in.ids;
+	r->out.result = _wbint_Sids2UnixIDs(p, r);
+
+	if (p->rng_fault_state) {
+		talloc_free(r);
+		/* Return true here, srv_pipe_hnd.c will take care */
+		return true;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_FUNCTION_DEBUG(wbint_Sids2UnixIDs, NDR_OUT | NDR_SET_VALUES, r);
+	}
+
+	push = ndr_push_init_ctx(r);
+	if (push == NULL) {
+		talloc_free(r);
+		return false;
+	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
+
+	ndr_err = call->ndr_push(push, NDR_OUT, r);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		talloc_free(r);
+		return false;
+	}
+
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
+
+	talloc_free(r);
+
+	return true;
+}
+
+static bool api_wbint_Uid2Sid(struct pipes_struct *p)
+{
+	const struct ndr_interface_call *call;
+	struct ndr_pull *pull;
+	struct ndr_push *push;
+	enum ndr_err_code ndr_err;
 	struct wbint_Uid2Sid *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_UID2SID];
@@ -440,18 +601,16 @@ static bool api_wbint_Uid2Sid(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -459,7 +618,7 @@ static bool api_wbint_Uid2Sid(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_Uid2Sid, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_Uid2Sid, NDR_IN, r);
 	}
 
 	ZERO_STRUCT(r->out);
@@ -478,14 +637,20 @@ static bool api_wbint_Uid2Sid(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_Uid2Sid, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_Uid2Sid, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -493,24 +658,20 @@ static bool api_wbint_Uid2Sid(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_Gid2Sid(pipes_struct *p)
+static bool api_wbint_Gid2Sid(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
 	struct wbint_Gid2Sid *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_GID2SID];
@@ -520,18 +681,16 @@ static bool api_wbint_Gid2Sid(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -539,7 +698,7 @@ static bool api_wbint_Gid2Sid(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_Gid2Sid, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_Gid2Sid, NDR_IN, r);
 	}
 
 	ZERO_STRUCT(r->out);
@@ -558,14 +717,20 @@ static bool api_wbint_Gid2Sid(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_Gid2Sid, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_Gid2Sid, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -573,24 +738,20 @@ static bool api_wbint_Gid2Sid(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_AllocateUid(pipes_struct *p)
+static bool api_wbint_AllocateUid(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
 	struct wbint_AllocateUid *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_ALLOCATEUID];
@@ -600,18 +761,16 @@ static bool api_wbint_AllocateUid(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -619,7 +778,7 @@ static bool api_wbint_AllocateUid(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_AllocateUid, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_AllocateUid, NDR_IN, r);
 	}
 
 	ZERO_STRUCT(r->out);
@@ -638,14 +797,20 @@ static bool api_wbint_AllocateUid(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_AllocateUid, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_AllocateUid, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -653,24 +818,20 @@ static bool api_wbint_AllocateUid(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_AllocateGid(pipes_struct *p)
+static bool api_wbint_AllocateGid(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
 	struct wbint_AllocateGid *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_ALLOCATEGID];
@@ -680,18 +841,16 @@ static bool api_wbint_AllocateGid(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -699,7 +858,7 @@ static bool api_wbint_AllocateGid(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_AllocateGid, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_AllocateGid, NDR_IN, r);
 	}
 
 	ZERO_STRUCT(r->out);
@@ -718,14 +877,20 @@ static bool api_wbint_AllocateGid(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_AllocateGid, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_AllocateGid, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -733,24 +898,20 @@ static bool api_wbint_AllocateGid(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_QueryUser(pipes_struct *p)
+static bool api_wbint_QueryUser(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
 	struct wbint_QueryUser *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_QUERYUSER];
@@ -760,18 +921,16 @@ static bool api_wbint_QueryUser(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -779,7 +938,7 @@ static bool api_wbint_QueryUser(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_QueryUser, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_QueryUser, NDR_IN, r);
 	}
 
 	ZERO_STRUCT(r->out);
@@ -798,14 +957,20 @@ static bool api_wbint_QueryUser(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_QueryUser, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_QueryUser, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -813,24 +978,20 @@ static bool api_wbint_QueryUser(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_LookupUserAliases(pipes_struct *p)
+static bool api_wbint_LookupUserAliases(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
 	struct wbint_LookupUserAliases *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_LOOKUPUSERALIASES];
@@ -840,18 +1001,16 @@ static bool api_wbint_LookupUserAliases(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -859,7 +1018,7 @@ static bool api_wbint_LookupUserAliases(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_LookupUserAliases, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_LookupUserAliases, NDR_IN, r);
 	}
 
 	ZERO_STRUCT(r->out);
@@ -878,14 +1037,20 @@ static bool api_wbint_LookupUserAliases(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_LookupUserAliases, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_LookupUserAliases, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -893,24 +1058,20 @@ static bool api_wbint_LookupUserAliases(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_LookupUserGroups(pipes_struct *p)
+static bool api_wbint_LookupUserGroups(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
 	struct wbint_LookupUserGroups *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_LOOKUPUSERGROUPS];
@@ -920,18 +1081,16 @@ static bool api_wbint_LookupUserGroups(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -939,7 +1098,7 @@ static bool api_wbint_LookupUserGroups(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_LookupUserGroups, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_LookupUserGroups, NDR_IN, r);
 	}
 
 	ZERO_STRUCT(r->out);
@@ -958,14 +1117,20 @@ static bool api_wbint_LookupUserGroups(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_LookupUserGroups, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_LookupUserGroups, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -973,24 +1138,20 @@ static bool api_wbint_LookupUserGroups(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_QuerySequenceNumber(pipes_struct *p)
+static bool api_wbint_QuerySequenceNumber(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
 	struct wbint_QuerySequenceNumber *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_QUERYSEQUENCENUMBER];
@@ -1000,18 +1161,16 @@ static bool api_wbint_QuerySequenceNumber(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -1019,7 +1178,7 @@ static bool api_wbint_QuerySequenceNumber(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_QuerySequenceNumber, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_QuerySequenceNumber, NDR_IN, r);
 	}
 
 	ZERO_STRUCT(r->out);
@@ -1038,14 +1197,20 @@ static bool api_wbint_QuerySequenceNumber(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_QuerySequenceNumber, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_QuerySequenceNumber, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -1053,24 +1218,20 @@ static bool api_wbint_QuerySequenceNumber(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_LookupGroupMembers(pipes_struct *p)
+static bool api_wbint_LookupGroupMembers(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
 	struct wbint_LookupGroupMembers *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_LOOKUPGROUPMEMBERS];
@@ -1080,18 +1241,16 @@ static bool api_wbint_LookupGroupMembers(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -1099,7 +1258,7 @@ static bool api_wbint_LookupGroupMembers(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_LookupGroupMembers, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_LookupGroupMembers, NDR_IN, r);
 	}
 
 	ZERO_STRUCT(r->out);
@@ -1118,14 +1277,20 @@ static bool api_wbint_LookupGroupMembers(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_LookupGroupMembers, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_LookupGroupMembers, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -1133,24 +1298,20 @@ static bool api_wbint_LookupGroupMembers(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_QueryUserList(pipes_struct *p)
+static bool api_wbint_QueryUserList(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
 	struct wbint_QueryUserList *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_QUERYUSERLIST];
@@ -1160,18 +1321,16 @@ static bool api_wbint_QueryUserList(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -1179,7 +1338,7 @@ static bool api_wbint_QueryUserList(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_QueryUserList, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_QueryUserList, NDR_IN, r);
 	}
 
 	ZERO_STRUCT(r->out);
@@ -1198,14 +1357,20 @@ static bool api_wbint_QueryUserList(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_QueryUserList, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_QueryUserList, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -1213,24 +1378,20 @@ static bool api_wbint_QueryUserList(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_QueryGroupList(pipes_struct *p)
+static bool api_wbint_QueryGroupList(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
 	struct wbint_QueryGroupList *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_QUERYGROUPLIST];
@@ -1240,18 +1401,16 @@ static bool api_wbint_QueryGroupList(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -1259,7 +1418,7 @@ static bool api_wbint_QueryGroupList(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_QueryGroupList, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_QueryGroupList, NDR_IN, r);
 	}
 
 	ZERO_STRUCT(r->out);
@@ -1278,14 +1437,20 @@ static bool api_wbint_QueryGroupList(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_QueryGroupList, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_QueryGroupList, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -1293,24 +1458,20 @@ static bool api_wbint_QueryGroupList(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_DsGetDcName(pipes_struct *p)
+static bool api_wbint_DsGetDcName(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
 	struct wbint_DsGetDcName *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_DSGETDCNAME];
@@ -1320,18 +1481,16 @@ static bool api_wbint_DsGetDcName(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -1339,7 +1498,7 @@ static bool api_wbint_DsGetDcName(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_DsGetDcName, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_DsGetDcName, NDR_IN, r);
 	}
 
 	ZERO_STRUCT(r->out);
@@ -1358,14 +1517,20 @@ static bool api_wbint_DsGetDcName(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_DsGetDcName, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_DsGetDcName, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -1373,24 +1538,20 @@ static bool api_wbint_DsGetDcName(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_LookupRids(pipes_struct *p)
+static bool api_wbint_LookupRids(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
 	struct wbint_LookupRids *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_LOOKUPRIDS];
@@ -1400,18 +1561,16 @@ static bool api_wbint_LookupRids(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -1419,7 +1578,7 @@ static bool api_wbint_LookupRids(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_LookupRids, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_LookupRids, NDR_IN, r);
 	}
 
 	ZERO_STRUCT(r->out);
@@ -1444,14 +1603,20 @@ static bool api_wbint_LookupRids(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_LookupRids, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_LookupRids, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -1459,24 +1624,20 @@ static bool api_wbint_LookupRids(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_CheckMachineAccount(pipes_struct *p)
+static bool api_wbint_CheckMachineAccount(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
 	struct wbint_CheckMachineAccount *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_CHECKMACHINEACCOUNT];
@@ -1486,18 +1647,16 @@ static bool api_wbint_CheckMachineAccount(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -1505,7 +1664,7 @@ static bool api_wbint_CheckMachineAccount(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_CheckMachineAccount, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_CheckMachineAccount, NDR_IN, r);
 	}
 
 	r->out.result = _wbint_CheckMachineAccount(p, r);
@@ -1517,14 +1676,20 @@ static bool api_wbint_CheckMachineAccount(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_CheckMachineAccount, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_CheckMachineAccount, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -1532,24 +1697,20 @@ static bool api_wbint_CheckMachineAccount(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_ChangeMachineAccount(pipes_struct *p)
+static bool api_wbint_ChangeMachineAccount(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
 	struct wbint_ChangeMachineAccount *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_CHANGEMACHINEACCOUNT];
@@ -1559,18 +1720,16 @@ static bool api_wbint_ChangeMachineAccount(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -1578,7 +1737,7 @@ static bool api_wbint_ChangeMachineAccount(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_ChangeMachineAccount, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_ChangeMachineAccount, NDR_IN, r);
 	}
 
 	r->out.result = _wbint_ChangeMachineAccount(p, r);
@@ -1590,14 +1749,20 @@ static bool api_wbint_ChangeMachineAccount(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_ChangeMachineAccount, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_ChangeMachineAccount, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -1605,24 +1770,20 @@ static bool api_wbint_ChangeMachineAccount(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
 	return true;
 }
 
-static bool api_wbint_PingDc(pipes_struct *p)
+static bool api_wbint_PingDc(struct pipes_struct *p)
 {
 	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	struct ndr_push *push;
 	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
 	struct wbint_PingDc *r;
 
 	call = &ndr_table_wbint.calls[NDR_WBINT_PINGDC];
@@ -1632,18 +1793,16 @@ static bool api_wbint_PingDc(pipes_struct *p)
 		return false;
 	}
 
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
+	pull = ndr_pull_init_blob(&p->in_data.data, r);
 	if (pull == NULL) {
 		talloc_free(r);
 		return false;
 	}
 
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
+	if (p->endian) {
+		pull->flags |= LIBNDR_FLAG_BIGENDIAN;
+	}
 	ndr_err = call->ndr_pull(pull, NDR_IN, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(r);
@@ -1651,7 +1810,7 @@ static bool api_wbint_PingDc(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_PingDc, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_PingDc, NDR_IN, r);
 	}
 
 	r->out.result = _wbint_PingDc(p, r);
@@ -1663,14 +1822,20 @@ static bool api_wbint_PingDc(pipes_struct *p)
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_PingDc, r);
+		NDR_PRINT_FUNCTION_DEBUG(wbint_PingDc, NDR_OUT | NDR_SET_VALUES, r);
 	}
 
-	push = ndr_push_init_ctx(r, NULL);
+	push = ndr_push_init_ctx(r);
 	if (push == NULL) {
 		talloc_free(r);
 		return false;
 	}
+
+	/*
+	 * carry over the pointer count to the reply in case we are
+	 * using full pointer. See NDR specification for full pointers
+	 */
+	push->ptr_count = pull->ptr_count;
 
 	ndr_err = call->ndr_push(push, NDR_OUT, r);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
@@ -1678,230 +1843,8 @@ static bool api_wbint_PingDc(pipes_struct *p)
 		return false;
 	}
 
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
-
-	talloc_free(r);
-
-	return true;
-}
-
-static bool api_wbint_SetMapping(pipes_struct *p)
-{
-	const struct ndr_interface_call *call;
-	struct ndr_pull *pull;
-	struct ndr_push *push;
-	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
-	struct wbint_SetMapping *r;
-
-	call = &ndr_table_wbint.calls[NDR_WBINT_SETMAPPING];
-
-	r = talloc(talloc_tos(), struct wbint_SetMapping);
-	if (r == NULL) {
-		return false;
-	}
-
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
-	if (pull == NULL) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
-	ndr_err = call->ndr_pull(pull, NDR_IN, r);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		talloc_free(r);
-		return false;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_SetMapping, r);
-	}
-
-	r->out.result = _wbint_SetMapping(p, r);
-
-	if (p->rng_fault_state) {
-		talloc_free(r);
-		/* Return true here, srv_pipe_hnd.c will take care */
-		return true;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_SetMapping, r);
-	}
-
-	push = ndr_push_init_ctx(r, NULL);
-	if (push == NULL) {
-		talloc_free(r);
-		return false;
-	}
-
-	ndr_err = call->ndr_push(push, NDR_OUT, r);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		talloc_free(r);
-		return false;
-	}
-
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
-
-	talloc_free(r);
-
-	return true;
-}
-
-static bool api_wbint_RemoveMapping(pipes_struct *p)
-{
-	const struct ndr_interface_call *call;
-	struct ndr_pull *pull;
-	struct ndr_push *push;
-	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
-	struct wbint_RemoveMapping *r;
-
-	call = &ndr_table_wbint.calls[NDR_WBINT_REMOVEMAPPING];
-
-	r = talloc(talloc_tos(), struct wbint_RemoveMapping);
-	if (r == NULL) {
-		return false;
-	}
-
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
-	if (pull == NULL) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
-	ndr_err = call->ndr_pull(pull, NDR_IN, r);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		talloc_free(r);
-		return false;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_RemoveMapping, r);
-	}
-
-	r->out.result = _wbint_RemoveMapping(p, r);
-
-	if (p->rng_fault_state) {
-		talloc_free(r);
-		/* Return true here, srv_pipe_hnd.c will take care */
-		return true;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_RemoveMapping, r);
-	}
-
-	push = ndr_push_init_ctx(r, NULL);
-	if (push == NULL) {
-		talloc_free(r);
-		return false;
-	}
-
-	ndr_err = call->ndr_push(push, NDR_OUT, r);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		talloc_free(r);
-		return false;
-	}
-
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
-
-	talloc_free(r);
-
-	return true;
-}
-
-static bool api_wbint_SetHWM(pipes_struct *p)
-{
-	const struct ndr_interface_call *call;
-	struct ndr_pull *pull;
-	struct ndr_push *push;
-	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
-	struct wbint_SetHWM *r;
-
-	call = &ndr_table_wbint.calls[NDR_WBINT_SETHWM];
-
-	r = talloc(talloc_tos(), struct wbint_SetHWM);
-	if (r == NULL) {
-		return false;
-	}
-
-	if (!prs_data_blob(&p->in_data.data, &blob, r)) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull = ndr_pull_init_blob(&blob, r, NULL);
-	if (pull == NULL) {
-		talloc_free(r);
-		return false;
-	}
-
-	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
-	ndr_err = call->ndr_pull(pull, NDR_IN, r);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		talloc_free(r);
-		return false;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(wbint_SetHWM, r);
-	}
-
-	r->out.result = _wbint_SetHWM(p, r);
-
-	if (p->rng_fault_state) {
-		talloc_free(r);
-		/* Return true here, srv_pipe_hnd.c will take care */
-		return true;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(wbint_SetHWM, r);
-	}
-
-	push = ndr_push_init_ctx(r, NULL);
-	if (push == NULL) {
-		talloc_free(r);
-		return false;
-	}
-
-	ndr_err = call->ndr_push(push, NDR_OUT, r);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		talloc_free(r);
-		return false;
-	}
-
-	blob = ndr_push_blob(push);
-	if (!prs_copy_data_in(&p->out_data.rdata, (const char *)blob.data, (uint32_t)blob.length)) {
-		talloc_free(r);
-		return false;
-	}
+	p->out_data.rdata = ndr_push_blob(push);
+	talloc_steal(p->mem_ctx, p->out_data.rdata.data);
 
 	talloc_free(r);
 
@@ -1914,9 +1857,11 @@ static struct api_struct api_wbint_cmds[] =
 {
 	{"WBINT_PING", NDR_WBINT_PING, api_wbint_Ping},
 	{"WBINT_LOOKUPSID", NDR_WBINT_LOOKUPSID, api_wbint_LookupSid},
+	{"WBINT_LOOKUPSIDS", NDR_WBINT_LOOKUPSIDS, api_wbint_LookupSids},
 	{"WBINT_LOOKUPNAME", NDR_WBINT_LOOKUPNAME, api_wbint_LookupName},
 	{"WBINT_SID2UID", NDR_WBINT_SID2UID, api_wbint_Sid2Uid},
 	{"WBINT_SID2GID", NDR_WBINT_SID2GID, api_wbint_Sid2Gid},
+	{"WBINT_SIDS2UNIXIDS", NDR_WBINT_SIDS2UNIXIDS, api_wbint_Sids2UnixIDs},
 	{"WBINT_UID2SID", NDR_WBINT_UID2SID, api_wbint_Uid2Sid},
 	{"WBINT_GID2SID", NDR_WBINT_GID2SID, api_wbint_Gid2Sid},
 	{"WBINT_ALLOCATEUID", NDR_WBINT_ALLOCATEUID, api_wbint_AllocateUid},
@@ -1933,9 +1878,6 @@ static struct api_struct api_wbint_cmds[] =
 	{"WBINT_CHECKMACHINEACCOUNT", NDR_WBINT_CHECKMACHINEACCOUNT, api_wbint_CheckMachineAccount},
 	{"WBINT_CHANGEMACHINEACCOUNT", NDR_WBINT_CHANGEMACHINEACCOUNT, api_wbint_ChangeMachineAccount},
 	{"WBINT_PINGDC", NDR_WBINT_PINGDC, api_wbint_PingDc},
-	{"WBINT_SETMAPPING", NDR_WBINT_SETMAPPING, api_wbint_SetMapping},
-	{"WBINT_REMOVEMAPPING", NDR_WBINT_REMOVEMAPPING, api_wbint_RemoveMapping},
-	{"WBINT_SETHWM", NDR_WBINT_SETHWM, api_wbint_SetHWM},
 };
 
 void wbint_get_pipe_fns(struct api_struct **fns, int *n_fns)
@@ -1944,292 +1886,3 @@ void wbint_get_pipe_fns(struct api_struct **fns, int *n_fns)
 	*n_fns = sizeof(api_wbint_cmds) / sizeof(struct api_struct);
 }
 
-NTSTATUS rpc_wbint_dispatch(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx, const struct ndr_interface_table *table, uint32_t opnum, void *_r)
-{
-	if (cli->pipes_struct == NULL) {
-		return NT_STATUS_INVALID_PARAMETER;
-	}
-
-	switch (opnum)
-	{
-		case NDR_WBINT_PING: {
-			struct wbint_Ping *r = (struct wbint_Ping *)_r;
-			ZERO_STRUCT(r->out);
-			r->out.out_data = talloc_zero(mem_ctx, uint32_t);
-			if (r->out.out_data == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			_wbint_Ping(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_LOOKUPSID: {
-			struct wbint_LookupSid *r = (struct wbint_LookupSid *)_r;
-			ZERO_STRUCT(r->out);
-			r->out.type = talloc_zero(mem_ctx, enum lsa_SidType);
-			if (r->out.type == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.domain = talloc_zero(mem_ctx, const char *);
-			if (r->out.domain == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.name = talloc_zero(mem_ctx, const char *);
-			if (r->out.name == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.result = _wbint_LookupSid(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_LOOKUPNAME: {
-			struct wbint_LookupName *r = (struct wbint_LookupName *)_r;
-			ZERO_STRUCT(r->out);
-			r->out.type = talloc_zero(mem_ctx, enum lsa_SidType);
-			if (r->out.type == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.sid = talloc_zero(mem_ctx, struct dom_sid);
-			if (r->out.sid == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.result = _wbint_LookupName(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_SID2UID: {
-			struct wbint_Sid2Uid *r = (struct wbint_Sid2Uid *)_r;
-			ZERO_STRUCT(r->out);
-			r->out.uid = talloc_zero(mem_ctx, uint64_t);
-			if (r->out.uid == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.result = _wbint_Sid2Uid(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_SID2GID: {
-			struct wbint_Sid2Gid *r = (struct wbint_Sid2Gid *)_r;
-			ZERO_STRUCT(r->out);
-			r->out.gid = talloc_zero(mem_ctx, uint64_t);
-			if (r->out.gid == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.result = _wbint_Sid2Gid(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_UID2SID: {
-			struct wbint_Uid2Sid *r = (struct wbint_Uid2Sid *)_r;
-			ZERO_STRUCT(r->out);
-			r->out.sid = talloc_zero(mem_ctx, struct dom_sid);
-			if (r->out.sid == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.result = _wbint_Uid2Sid(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_GID2SID: {
-			struct wbint_Gid2Sid *r = (struct wbint_Gid2Sid *)_r;
-			ZERO_STRUCT(r->out);
-			r->out.sid = talloc_zero(mem_ctx, struct dom_sid);
-			if (r->out.sid == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.result = _wbint_Gid2Sid(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_ALLOCATEUID: {
-			struct wbint_AllocateUid *r = (struct wbint_AllocateUid *)_r;
-			ZERO_STRUCT(r->out);
-			r->out.uid = talloc_zero(mem_ctx, uint64_t);
-			if (r->out.uid == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.result = _wbint_AllocateUid(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_ALLOCATEGID: {
-			struct wbint_AllocateGid *r = (struct wbint_AllocateGid *)_r;
-			ZERO_STRUCT(r->out);
-			r->out.gid = talloc_zero(mem_ctx, uint64_t);
-			if (r->out.gid == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.result = _wbint_AllocateGid(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_QUERYUSER: {
-			struct wbint_QueryUser *r = (struct wbint_QueryUser *)_r;
-			ZERO_STRUCT(r->out);
-			r->out.info = talloc_zero(mem_ctx, struct wbint_userinfo);
-			if (r->out.info == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.result = _wbint_QueryUser(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_LOOKUPUSERALIASES: {
-			struct wbint_LookupUserAliases *r = (struct wbint_LookupUserAliases *)_r;
-			ZERO_STRUCT(r->out);
-			r->out.rids = talloc_zero(mem_ctx, struct wbint_RidArray);
-			if (r->out.rids == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.result = _wbint_LookupUserAliases(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_LOOKUPUSERGROUPS: {
-			struct wbint_LookupUserGroups *r = (struct wbint_LookupUserGroups *)_r;
-			ZERO_STRUCT(r->out);
-			r->out.sids = talloc_zero(mem_ctx, struct wbint_SidArray);
-			if (r->out.sids == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.result = _wbint_LookupUserGroups(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_QUERYSEQUENCENUMBER: {
-			struct wbint_QuerySequenceNumber *r = (struct wbint_QuerySequenceNumber *)_r;
-			ZERO_STRUCT(r->out);
-			r->out.sequence = talloc_zero(mem_ctx, uint32_t);
-			if (r->out.sequence == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.result = _wbint_QuerySequenceNumber(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_LOOKUPGROUPMEMBERS: {
-			struct wbint_LookupGroupMembers *r = (struct wbint_LookupGroupMembers *)_r;
-			ZERO_STRUCT(r->out);
-			r->out.members = talloc_zero(mem_ctx, struct wbint_Principals);
-			if (r->out.members == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.result = _wbint_LookupGroupMembers(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_QUERYUSERLIST: {
-			struct wbint_QueryUserList *r = (struct wbint_QueryUserList *)_r;
-			ZERO_STRUCT(r->out);
-			r->out.users = talloc_zero(mem_ctx, struct wbint_userinfos);
-			if (r->out.users == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.result = _wbint_QueryUserList(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_QUERYGROUPLIST: {
-			struct wbint_QueryGroupList *r = (struct wbint_QueryGroupList *)_r;
-			ZERO_STRUCT(r->out);
-			r->out.groups = talloc_zero(mem_ctx, struct wbint_Principals);
-			if (r->out.groups == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.result = _wbint_QueryGroupList(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_DSGETDCNAME: {
-			struct wbint_DsGetDcName *r = (struct wbint_DsGetDcName *)_r;
-			ZERO_STRUCT(r->out);
-			r->out.dc_info = talloc_zero(mem_ctx, struct netr_DsRGetDCNameInfo *);
-			if (r->out.dc_info == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.result = _wbint_DsGetDcName(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_LOOKUPRIDS: {
-			struct wbint_LookupRids *r = (struct wbint_LookupRids *)_r;
-			ZERO_STRUCT(r->out);
-			r->out.domain_name = talloc_zero(mem_ctx, const char *);
-			if (r->out.domain_name == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.names = talloc_zero(mem_ctx, struct wbint_Principals);
-			if (r->out.names == NULL) {
-			return NT_STATUS_NO_MEMORY;
-			}
-
-			r->out.result = _wbint_LookupRids(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_CHECKMACHINEACCOUNT: {
-			struct wbint_CheckMachineAccount *r = (struct wbint_CheckMachineAccount *)_r;
-			r->out.result = _wbint_CheckMachineAccount(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_CHANGEMACHINEACCOUNT: {
-			struct wbint_ChangeMachineAccount *r = (struct wbint_ChangeMachineAccount *)_r;
-			r->out.result = _wbint_ChangeMachineAccount(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_PINGDC: {
-			struct wbint_PingDc *r = (struct wbint_PingDc *)_r;
-			r->out.result = _wbint_PingDc(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_SETMAPPING: {
-			struct wbint_SetMapping *r = (struct wbint_SetMapping *)_r;
-			r->out.result = _wbint_SetMapping(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_REMOVEMAPPING: {
-			struct wbint_RemoveMapping *r = (struct wbint_RemoveMapping *)_r;
-			r->out.result = _wbint_RemoveMapping(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		case NDR_WBINT_SETHWM: {
-			struct wbint_SetHWM *r = (struct wbint_SetHWM *)_r;
-			r->out.result = _wbint_SetHWM(cli->pipes_struct, r);
-			return NT_STATUS_OK;
-		}
-
-		default:
-			return NT_STATUS_NOT_IMPLEMENTED;
-	}
-}
-
-NTSTATUS rpc_wbint_init(void)
-{
-	return rpc_srv_register(SMB_RPC_INTERFACE_VERSION, "wbint", "wbint", &ndr_table_wbint, api_wbint_cmds, sizeof(api_wbint_cmds) / sizeof(struct api_struct));
-}

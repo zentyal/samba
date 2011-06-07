@@ -19,6 +19,7 @@
 
 #include "includes.h"
 #include "winbindd.h"
+#include "passdb/lookup_sid.h" /* only for LOOKUP_NAME_NO_NSS flag */
 
 struct winbindd_getpwnam_state {
 	struct tevent_context *ev;
@@ -99,8 +100,7 @@ static void winbindd_getpwnam_lookupname_done(struct tevent_req *subreq)
 
 	status = wb_lookupname_recv(subreq, &state->sid, &state->type);
 	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
+	if (tevent_req_nterror(req, status)) {
 		return;
 	}
 
@@ -119,8 +119,7 @@ static void winbindd_getpwnam_done(struct tevent_req *subreq)
 
 	status = wb_getpwsid_recv(subreq);
 	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
+	if (tevent_req_nterror(req, status)) {
 		return;
 	}
 	tevent_req_done(req);

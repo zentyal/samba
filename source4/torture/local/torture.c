@@ -20,9 +20,7 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "system/wait.h"
-#include "lib/events/events.h"
 #include "libcli/raw/libcliraw.h"
 #include "torture/util.h"
 #include "param/provision.h"
@@ -76,8 +74,7 @@ static bool test_provision(struct torture_context *tctx)
 
 struct torture_suite *torture_local_torture(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, 
-													   "TORTURE");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "torture");
 
 	torture_suite_add_simple_test(suite, "tempdir", test_tempdir);
 	torture_suite_add_simple_test(suite, "provision", test_provision);

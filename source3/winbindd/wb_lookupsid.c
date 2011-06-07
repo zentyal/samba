@@ -19,7 +19,8 @@
 
 #include "includes.h"
 #include "winbindd.h"
-#include "librpc/gen_ndr/cli_wbint.h"
+#include "librpc/gen_ndr/ndr_wbint_c.h"
+#include "../libcli/security/security.h"
 
 struct wb_lookupsid_state {
 	struct tevent_context *ev;
@@ -54,8 +55,8 @@ struct tevent_req *wb_lookupsid_send(TALLOC_CTX *mem_ctx,
 		return tevent_req_post(req, ev);
 	}
 
-	subreq = rpccli_wbint_LookupSid_send(
-		state, ev, state->lookup_domain->child.rpccli,
+	subreq = dcerpc_wbint_LookupSid_send(
+		state, ev, dom_child_handle(state->lookup_domain),
 		&state->sid, &state->type, &state->domname, &state->name);
 	if (tevent_req_nomem(subreq, req)) {
 		return tevent_req_post(req, ev);
@@ -73,10 +74,9 @@ static void wb_lookupsid_done(struct tevent_req *subreq)
 	struct winbindd_domain *forest_root;
 	NTSTATUS status, result;
 
-	status = rpccli_wbint_LookupSid_recv(subreq, state, &result);
+	status = dcerpc_wbint_LookupSid_recv(subreq, state, &result);
 	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
+	if (tevent_req_nterror(req, status)) {
 		return;
 	}
 	if (NT_STATUS_IS_OK(result)) {
@@ -94,8 +94,8 @@ static void wb_lookupsid_done(struct tevent_req *subreq)
 	}
 	state->lookup_domain = forest_root;
 
-	subreq = rpccli_wbint_LookupSid_send(
-		state, state->ev, state->lookup_domain->child.rpccli,
+	subreq = dcerpc_wbint_LookupSid_send(
+		state, state->ev, dom_child_handle(state->lookup_domain),
 		&state->sid, &state->type, &state->domname, &state->name);
 	if (tevent_req_nomem(subreq, req)) {
 		return;

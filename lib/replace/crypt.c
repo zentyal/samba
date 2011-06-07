@@ -46,11 +46,11 @@
 
 
 #ifndef long32
-#define long32 int32
+#define long32 int32_t
 #endif
 
 #ifndef long64
-#define long64 int64
+#define long64 int64_t
 #endif
 
 #ifndef ufc_long
@@ -665,7 +665,7 @@ char *ufc_crypt(const char *key,const char *salt)
      * Setup key schedule
      */
     clearmem(ktab, sizeof ktab);
-    StrnCpy(ktab, key, 8);
+    strncpy(ktab, key, 8);
     ufc_mk_keytab(ktab);
 
     /*

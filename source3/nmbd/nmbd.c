@@ -4,23 +4,27 @@
    Copyright (C) Andrew Tridgell 1994-1998
    Copyright (C) Jeremy Allison 1997-2002
    Copyright (C) Jelmer Vernooij 2002,2003 (Conversion to popt)
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-   
 */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "popt_common.h"
+#include "nmbd/nmbd.h"
+#include "serverid.h"
+#include "messages.h"
 
 int ClientNMB       = -1;
 int ClientDGRAM     = -1;
@@ -40,26 +44,17 @@ time_t StartupTime = 0;
 
 struct event_context *nmbd_event_context(void)
 {
-	static struct event_context *ctx;
-
-	if (!ctx && !(ctx = event_context_init(NULL))) {
-		smb_panic("Could not init nmbd event context");
-	}
-	return ctx;
+	return server_event_context();
 }
 
 struct messaging_context *nmbd_messaging_context(void)
 {
-	static struct messaging_context *ctx;
-
-	if (ctx == NULL) {
-		ctx = messaging_init(NULL, server_id_self(),
-				     nmbd_event_context());
+	struct messaging_context *msg_ctx = server_messaging_context();
+	if (likely(msg_ctx != NULL)) {
+		return msg_ctx;
 	}
-	if (ctx == NULL) {
-		DEBUG(0, ("Could not init nmbd messaging context.\n"));
-	}
-	return ctx;
+	smb_panic("Could not init nmbd's messaging context.\n");
+	return NULL;
 }
 
 /**************************************************************************** **
@@ -83,6 +78,7 @@ static void terminate(void)
 	kill_async_dns_child();
 
 	gencache_stabilize();
+	serverid_deregister(procid_self());
 
 	pidfile_unlink();
 
@@ -253,8 +249,9 @@ static void reload_interfaces(time_t t)
 			continue;
 		}
 
-		ip = ((struct sockaddr_in *)&iface->ip)->sin_addr;
-		nmask = ((struct sockaddr_in *)&iface->netmask)->sin_addr;
+		ip = ((struct sockaddr_in *)(void *)&iface->ip)->sin_addr;
+		nmask = ((struct sockaddr_in *)(void *)
+			 &iface->netmask)->sin_addr;
 
 		/*
 		 * We don't want to add a loopback interface, in case
@@ -262,7 +259,7 @@ static void reload_interfaces(time_t t)
 		 * ignore it here. JRA.
 		 */
 
-		if (is_loopback_addr((struct sockaddr *)&iface->ip)) {
+		if (is_loopback_addr((struct sockaddr *)(void *)&iface->ip)) {
 			DEBUG(2,("reload_interfaces: Ignoring loopback "
 				"interface %s\n",
 				print_sockaddr(str, sizeof(str), &iface->ip) ));
@@ -301,8 +298,10 @@ static void reload_interfaces(time_t t)
 					"ignoring non IPv4 interface.\n"));
 				continue;
 			}
-			ip = ((struct sockaddr_in *)&iface->ip)->sin_addr;
-			nmask = ((struct sockaddr_in *)&iface->netmask)->sin_addr;
+			ip = ((struct sockaddr_in *)(void *)
+			      &iface->ip)->sin_addr;
+			nmask = ((struct sockaddr_in *)(void *)
+				 &iface->netmask)->sin_addr;
 			if (ip_equal_v4(ip, subrec->myip) &&
 			    ip_equal_v4(nmask, subrec->mask_ip)) {
 				break;
@@ -337,7 +336,7 @@ static void reload_interfaces(time_t t)
 		 * Whilst we're waiting for an interface, allow SIGTERM to
 		 * cause us to exit.
 		 */
-		saved_handler = CatchSignal( SIGTERM, SIGNAL_CAST SIG_DFL );
+		saved_handler = CatchSignal(SIGTERM, SIG_DFL);
 
 		/* We only count IPv4, non-loopback interfaces here. */
 		while (iface_count_v4_nl() == 0) {
@@ -345,7 +344,7 @@ static void reload_interfaces(time_t t)
 			load_interfaces();
 		}
 
-		CatchSignal( SIGTERM, SIGNAL_CAST saved_handler );
+		CatchSignal(SIGTERM, saved_handler);
 
 		/*
 		 * We got an interface, go back to blocking term.
@@ -432,7 +431,7 @@ static void msg_nmbd_send_packet(struct messaging_context *msg,
 	}
 
 	in_addr_to_sockaddr_storage(&ss, p->ip);
-	pss = iface_ip((struct sockaddr *)&ss);
+	pss = iface_ip((struct sockaddr *)(void *)&ss);
 
 	if (pss == NULL) {
 		DEBUG(2, ("Could not find ip for packet from %u\n",
@@ -658,12 +657,6 @@ static void process(void)
 		if (lp_enhanced_browsing())
 			sync_all_dmbs(t);
 
-		/*
-		 * clear the unexpected packet queue 
-		 */
-
-		clear_unexpected(t);
-
 		/* check for new network interfaces */
 
 		reload_interfaces(t);
@@ -773,7 +766,14 @@ static bool open_sockets(bool isdaemon, int port)
 	POPT_COMMON_SAMBA
 	{ NULL }
 	};
-	TALLOC_CTX *frame = talloc_stackframe(); /* Setup tos. */
+	TALLOC_CTX *frame;
+	NTSTATUS status;
+
+	/*
+	 * Do this before any other talloc operation
+	 */
+	talloc_enable_null_tracking();
+	frame = talloc_stackframe();
 
 	load_case_tables();
 
@@ -849,8 +849,11 @@ static bool open_sockets(bool isdaemon, int port)
 		DEBUG(0,("ERROR: Can't log to stdout (-S) unless daemon is in foreground (-F) or interactive (-i)\n"));
 		exit(1);
 	}
-
-	setup_logging( argv[0], log_stdout );
+	if (log_stdout) {
+		setup_logging( argv[0], DEBUG_STDOUT);
+	} else {
+		setup_logging( argv[0], DEBUG_FILE);
+	}
 
 	reopen_logs();
 
@@ -888,7 +891,7 @@ static bool open_sockets(bool isdaemon, int port)
   
 	if (is_daemon && !opt_interactive) {
 		DEBUG( 2, ( "Becoming a daemon.\n" ) );
-		become_daemon(Fork, no_process_group);
+		become_daemon(Fork, no_process_group, log_stdout);
 	}
 
 #if HAVE_SETPGID
@@ -918,8 +921,11 @@ static bool open_sockets(bool isdaemon, int port)
 
 	pidfile_create("nmbd");
 
-	if (!NT_STATUS_IS_OK(reinit_after_fork(nmbd_messaging_context(),
-					       nmbd_event_context(), false))) {
+	status = reinit_after_fork(nmbd_messaging_context(),
+				   nmbd_event_context(),
+				   procid_self(), false);
+
+	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("reinit_after_fork() failed\n"));
 		exit(1);
 	}
@@ -930,7 +936,12 @@ static bool open_sockets(bool isdaemon, int port)
 		exit(1);
 
 	/* get broadcast messages */
-	claim_connection(NULL,"",FLAG_MSG_GENERAL|FLAG_MSG_DBWRAP);
+
+	if (!serverid_register(procid_self(),
+			       FLAG_MSG_GENERAL|FLAG_MSG_DBWRAP)) {
+		DEBUG(1, ("Could not register myself in serverid.tdb\n"));
+		exit(1);
+	}
 
 	messaging_register(nmbd_messaging_context(), NULL,
 			   MSG_FORCE_ELECTION, nmbd_message_election);
@@ -999,11 +1010,14 @@ static bool open_sockets(bool isdaemon, int port)
 		exit(1);
 	}
 
+	if (!nmbd_init_packet_server()) {
+		kill_async_dns_child();
+                exit(1);
+        }
+
 	TALLOC_FREE(frame);
 	process();
 
-	if (dbf)
-		x_fclose(dbf);
 	kill_async_dns_child();
 	return(0);
 }

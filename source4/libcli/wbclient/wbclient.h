@@ -20,12 +20,11 @@
 */
 #include "lib/messaging/irpc.h"
 #include "libcli/composite/composite.h"
-#include "librpc/gen_ndr/ndr_winbind.h"
+#include "librpc/gen_ndr/ndr_winbind_c.h"
 
 struct wbc_context {
-	struct messaging_context *msg_ctx;
 	struct tevent_context *event_ctx;
-	struct server_id *ids;
+	struct dcerpc_binding_handle *irpc_handle;
 };
 
 struct wbc_context *wbc_init(TALLOC_CTX *mem_ctx,
@@ -35,16 +34,16 @@ struct wbc_context *wbc_init(TALLOC_CTX *mem_ctx,
 struct composite_context *wbc_sids_to_xids_send(struct wbc_context *wbc_ctx,
 						TALLOC_CTX *mem_ctx,
 						uint32_t count,
-						struct id_mapping *ids);
+						struct id_map *ids);
 
 NTSTATUS wbc_sids_to_xids_recv(struct composite_context *ctx,
-			       struct id_mapping **ids);
+			       struct id_map **ids);
 
 struct composite_context *wbc_xids_to_sids_send(struct wbc_context *wbc_ctx,
 						TALLOC_CTX *mem_ctx,
 						uint32_t count,
-						struct id_mapping *ids);
+						struct id_map *ids);
 
 NTSTATUS wbc_xids_to_sids_recv(struct composite_context *ctx,
-			       struct id_mapping **ids);
+			       struct id_map **ids);
 

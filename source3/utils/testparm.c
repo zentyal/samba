@@ -32,8 +32,8 @@
  */
 
 #include "includes.h"
-
-extern bool AllowDebugChange;
+#include "system/filesys.h"
+#include "popt_common.h"
 
 /*******************************************************************
  Check if a directory exists.
@@ -74,6 +74,12 @@ static int do_global_checks(void)
 	if (lp_wins_support() && lp_wins_server_list()) {
 		fprintf(stderr, "ERROR: both 'wins support = true' and 'wins server = <server list>' \
 cannot be set in the smb.conf file. nmbd will abort with this setting.\n");
+		ret = 1;
+	}
+
+	if (strequal(lp_workgroup(), global_myname())) {
+		fprintf(stderr, "WARNING: 'workgroup' and 'netbios name' " \
+			"must differ.\n");
 		ret = 1;
 	}
 
@@ -122,18 +128,33 @@ cannot be set in the smb.conf file. nmbd will abort with this setting.\n");
 	 * Password server sanity checks.
 	 */
 
-	if((lp_security() == SEC_SERVER || lp_security() >= SEC_DOMAIN) && !lp_passwordserver()) {
+	if((lp_security() == SEC_SERVER || lp_security() >= SEC_DOMAIN) && !*lp_passwordserver()) {
 		const char *sec_setting;
 		if(lp_security() == SEC_SERVER)
 			sec_setting = "server";
 		else if(lp_security() == SEC_DOMAIN)
 			sec_setting = "domain";
+		else if(lp_security() == SEC_ADS)
+			sec_setting = "ads";
 		else
 			sec_setting = "";
 
-		fprintf(stderr, "ERROR: The setting 'security=%s' requires the 'password server' parameter be set \
-to a valid password server.\n", sec_setting );
+		fprintf(stderr, "ERROR: The setting 'security=%s' requires the 'password server' parameter be set\n"
+			"to the default value * or a valid password server.\n", sec_setting );
 		ret = 1;
+	}
+
+	if((lp_security() >= SEC_DOMAIN) && (strcmp(lp_passwordserver(), "*") != 0)) {
+		const char *sec_setting;
+		if(lp_security() == SEC_DOMAIN)
+			sec_setting = "domain";
+		else if(lp_security() == SEC_ADS)
+			sec_setting = "ads";
+		else
+			sec_setting = "";
+
+		fprintf(stderr, "WARNING: The setting 'security=%s' should NOT be combined with the 'password server' parameter.\n"
+			"(by default Samba will discover the correct DC to contact automatically).\n", sec_setting );
 	}
 
 	/*
@@ -319,7 +340,6 @@ rameter is ignored when using CUPS libraries.\n",
 	poptContext pc;
 	static char *parameter_name = NULL;
 	static const char *section_name = NULL;
-	static char *new_local_machine = NULL;
 	const char *cname;
 	const char *caddr;
 	static int show_defaults;
@@ -329,13 +349,13 @@ rameter is ignored when using CUPS libraries.\n",
 		POPT_AUTOHELP
 		{"suppress-prompt", 's', POPT_ARG_VAL, &silent_mode, 1, "Suppress prompt for enter"},
 		{"verbose", 'v', POPT_ARG_NONE, &show_defaults, 1, "Show default options too"},
-		{"server", 'L',POPT_ARG_STRING, &new_local_machine, 0, "Set %%L macro to servername\n"},
 		{"skip-logic-checks", 'l', POPT_ARG_NONE, &skip_logic_checks, 1, "Skip the global checks"},
 		{"show-all-parameters", '\0', POPT_ARG_VAL, &show_all_parameters, True, "Show the parameters, type, possible values" },
 		{"parameter-name", '\0', POPT_ARG_STRING, &parameter_name, 0, "Limit testparm to a named parameter" },
 		{"section-name", '\0', POPT_ARG_STRING, &section_name, 0, "Limit testparm to a named section" },
 		POPT_COMMON_VERSION
 		POPT_COMMON_DEBUGLEVEL
+		POPT_COMMON_OPTION
 		POPT_TABLEEND
 	};
 
@@ -347,7 +367,7 @@ rameter is ignored when using CUPS libraries.\n",
 	 * Allow it to be overridden by the command line,
 	 * not by smb.conf.
 	 */
-	DEBUGLEVEL_CLASS[DBGC_ALL] = 2;
+	lp_set_cmdline("log level", "2");
 
 	pc = poptGetContext(NULL, argc, argv, long_options, 
 			    POPT_CONTEXT_KEEP_FIRST);
@@ -360,7 +380,7 @@ rameter is ignored when using CUPS libraries.\n",
 		exit(0);
 	}
 
-	setup_logging(poptGetArg(pc), True);
+	setup_logging(poptGetArg(pc), DEBUG_STDERR);
 
 	if (poptPeekArg(pc)) 
 		config_file = poptGetArg(pc);
@@ -375,14 +395,6 @@ rameter is ignored when using CUPS libraries.\n",
 		ret = 1;
 		goto done;
 	}
-
-	if (new_local_machine) {
-		set_local_machine_name(new_local_machine, True);
-	}
-
-	dbf = x_stderr;
-	/* Don't let the debuglevel be changed by smb.conf. */
-	AllowDebugChange = False;
 
 	fprintf(stderr,"Load smb config files from %s\n",config_file);
 

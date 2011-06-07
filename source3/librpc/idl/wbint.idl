@@ -1,12 +1,13 @@
 #include "idl_types.h"
-import "lsa.idl", "netlogon.idl";
+import "lsa.idl", "netlogon.idl", "misc.idl", "security.idl", "idmap.idl";
 
 [
     uuid("bf09192c-ed60-4928-9dff-d0d7bcb03ed8"),
     endpoint("ncalrpc:"),
     pointer_default(unique),
     version(1.0),
-    helpstring("winbind parent-child protocol")
+    helpstring("winbind parent-child protocol"),
+    no_srv_register
 ]
 interface wbint
 {
@@ -20,6 +21,12 @@ interface wbint
 	[out] lsa_SidType *type,
 	[out,string,charset(UTF8)] char **domain,
 	[out,string,charset(UTF8)] char **name
+	);
+
+    NTSTATUS wbint_LookupSids(
+	[in] lsa_SidArray *sids,
+	[out,ref] lsa_RefDomainList *domains,
+	[out,ref] lsa_TransNameArray *names
 	);
 
     NTSTATUS wbint_LookupName(
@@ -40,6 +47,23 @@ interface wbint
 	[in,unique,string,charset(UTF8)] char *dom_name,
 	[in] dom_sid *sid,
 	[out] hyper *gid
+	);
+
+    typedef struct {
+	id_type type;
+	uint32 domain_index;
+	uint32 rid;
+	hyper unix_id;
+    } wbint_TransID;
+
+    typedef struct {
+	uint32 num_ids;
+	[size_is(num_ids)] wbint_TransID ids[];
+    } wbint_TransIDArray;
+
+    NTSTATUS wbint_Sids2UnixIDs(
+	[in] lsa_RefDomainList *domains,
+	[in,out] wbint_TransIDArray *ids
 	);
 
     NTSTATUS wbint_Uid2Sid(
@@ -152,28 +176,5 @@ interface wbint
 	);
 
     NTSTATUS wbint_PingDc(
-	);
-
-    typedef [public] enum {
-	WBINT_ID_TYPE_NOT_SPECIFIED,
-	WBINT_ID_TYPE_UID,
-	WBINT_ID_TYPE_GID
-    } wbint_IdType;
-
-    NTSTATUS wbint_SetMapping(
-	[in] dom_sid *sid,
-	[in] wbint_IdType type,
-	[in] hyper id
-	);
-
-    NTSTATUS wbint_RemoveMapping(
-	[in] dom_sid *sid,
-	[in] wbint_IdType type,
-	[in] hyper id
-	);
-
-    NTSTATUS wbint_SetHWM(
-	[in] wbint_IdType type,
-	[in] hyper id
 	);
 }

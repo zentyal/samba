@@ -20,9 +20,8 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "librpc/gen_ndr/ndr_srvsvc_c.h"
-#include "torture/rpc/rpc.h"
+#include "torture/rpc/torture_rpc.h"
 
 /**************************/
 /* srvsvc_NetShare        */
@@ -42,6 +41,7 @@ static bool test_NetShareEnumAll(struct dcerpc_pipe *p, TALLOC_CTX *mem_ctx)
 	int i;
 	bool ret = true;
 	uint32_t resume_handle;
+	struct dcerpc_binding_handle *b = p->binding_handle;
 
 	ZERO_STRUCT(info_ctr);
 
@@ -80,7 +80,7 @@ static bool test_NetShareEnumAll(struct dcerpc_pipe *p, TALLOC_CTX *mem_ctx)
 			break;
 		}
 
-		status = dcerpc_srvsvc_NetShareEnumAll(p, mem_ctx, &r);
+		status = dcerpc_srvsvc_NetShareEnumAll_r(b, mem_ctx, &r);
 		if (!NT_STATUS_IS_OK(status)) {
 			printf("NetShareEnumAll level %u failed - %s\n", info_ctr.level, nt_errstr(status));
 			ret = false;

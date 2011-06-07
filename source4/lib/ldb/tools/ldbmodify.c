@@ -33,44 +33,56 @@
 
 #include "ldb.h"
 #include "tools/cmdline.h"
+#include "ldbutil.h"
 
-static int failures;
+static unsigned int failures;
+static struct ldb_cmdline *options;
 
-static void usage(void)
+static void usage(struct ldb_context *ldb)
 {
 	printf("Usage: ldbmodify <options> <ldif...>\n");
 	printf("Modifies a ldb based upon ldif change records\n\n");
-	ldb_cmdline_help("ldbmodify", stdout);
-	exit(1);
+	ldb_cmdline_help(ldb, "ldbmodify", stdout);
+	exit(LDB_ERR_OPERATIONS_ERROR);
 }
 
 /*
   process modifies for one file
 */
-static int process_file(struct ldb_context *ldb, FILE *f, int *count)
+static int process_file(struct ldb_context *ldb, FILE *f, unsigned int *count)
 {
 	struct ldb_ldif *ldif;
 	int ret = LDB_SUCCESS;
-	
+	struct ldb_control **req_ctrls = ldb_parse_control_strings(ldb, ldb, (const char **)options->controls);
+
+	if (options->controls != NULL &&  req_ctrls== NULL) {
+		printf("parsing controls failed: %s\n", ldb_errstring(ldb));
+		exit(LDB_ERR_OPERATIONS_ERROR);
+	}
+
 	while ((ldif = ldb_ldif_read_file(ldb, f))) {
 		switch (ldif->changetype) {
 		case LDB_CHANGETYPE_NONE:
 		case LDB_CHANGETYPE_ADD:
-			ret = ldb_add(ldb, ldif->msg);
+			ret = ldb_add_ctrl(ldb, ldif->msg,req_ctrls);
 			break;
 		case LDB_CHANGETYPE_DELETE:
-			ret = ldb_delete(ldb, ldif->msg->dn);
+			ret = ldb_delete_ctrl(ldb, ldif->msg->dn,req_ctrls);
 			break;
 		case LDB_CHANGETYPE_MODIFY:
-			ret = ldb_modify(ldb, ldif->msg);
+			ret = ldb_modify_ctrl(ldb, ldif->msg,req_ctrls);
 			break;
 		}
 		if (ret != LDB_SUCCESS) {
-			fprintf(stderr, "ERR: \"%s\" on DN %s\n", 
+			fprintf(stderr, "ERR: (%s) \"%s\" on DN %s\n",
+				ldb_strerror(ret),
 				ldb_errstring(ldb), ldb_dn_get_linearized(ldif->msg->dn));
 			failures++;
 		} else {
 			(*count)++;
+			if (options->verbose) {
+				printf("Modified %s\n", ldb_dn_get_linearized(ldif->msg->dn));
+			}
 		}
 		ldb_ldif_read_free(ldb, ldif);
 	}
@@ -81,11 +93,14 @@ static int process_file(struct ldb_context *ldb, FILE *f, int *count)
 int main(int argc, const char **argv)
 {
 	struct ldb_context *ldb;
-	int count=0;
-	int i, ret=LDB_SUCCESS;
-	struct ldb_cmdline *options;
+	unsigned int i, count = 0;
+	int ret = LDB_SUCCESS;
+	TALLOC_CTX *mem_ctx = talloc_new(NULL);
 
-	ldb = ldb_init(NULL, NULL);
+	ldb = ldb_init(mem_ctx, NULL);
+	if (ldb == NULL) {
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
 
 	options = ldb_cmdline_process(ldb, argc, argv, usage);
 
@@ -98,16 +113,16 @@ int main(int argc, const char **argv)
 			f = fopen(fname, "r");
 			if (!f) {
 				perror(fname);
-				exit(1);
+				return LDB_ERR_OPERATIONS_ERROR;
 			}
 			ret = process_file(ldb, f, &count);
 			fclose(f);
 		}
 	}
 
-	talloc_free(ldb);
+	talloc_free(mem_ctx);
 
-	printf("Modified %d records with %d failures\n", count, failures);
+	printf("Modified %u records with %u failures\n", count, failures);
 
 	return ret;
 }

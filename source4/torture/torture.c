@@ -20,8 +20,6 @@
 
 #include "includes.h"
 #include "system/time.h"
-#include "torture/torture.h"
-#include "../lib/util/dlinklist.h"
 #include "param/param.h"
 #include "lib/cmdline/popt_common.h"
 #include "torture/smbtorture.h"
@@ -52,22 +50,17 @@ NTSTATUS torture_libnetapi_init(void)
 }
 #endif
 
+#ifndef ENABLE_LIBSMBCLIENT
+NTSTATUS torture_libsmbclient_init(void)
+{
+	return NT_STATUS_OK;
+}
+#endif
+
 _PUBLIC_ int torture_init(void)
 {
-	extern NTSTATUS torture_base_init(void);
-	extern NTSTATUS torture_ldap_init(void);
-	extern NTSTATUS torture_local_init(void);
-	extern NTSTATUS torture_nbt_init(void);
-	extern NTSTATUS torture_nbench_init(void);
-	extern NTSTATUS torture_rap_init(void);
- 	extern NTSTATUS torture_rpc_init(void);
- 	extern NTSTATUS torture_ntp_init(void);
-	extern NTSTATUS torture_smb2_init(void);
-	extern NTSTATUS torture_net_init(void);
-	extern NTSTATUS torture_libnetapi_init(void);
-	extern NTSTATUS torture_raw_init(void);
-	extern NTSTATUS torture_unix_init(void);
-	extern NTSTATUS torture_winbind_init(void);
+#define _MODULE_PROTO(init) extern NTSTATUS init(void);
+	STATIC_smbtorture_MODULES_PROTO;
 	init_module_fn static_init[] = { STATIC_smbtorture_MODULES };
 	init_module_fn *shared_init = load_samba_modules(NULL, cmdline_lp_ctx, "smbtorture");
 

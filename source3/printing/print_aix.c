@@ -25,6 +25,8 @@
  */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "printing/pcap.h"
 
 #ifdef AIX
 bool aix_cache_reload(void)
@@ -84,7 +86,7 @@ bool aix_cache_reload(void)
 				/* name is found without stanza device  */
 				/* probably a good printer ???		*/
 				iEtat = 0;
-				if (!pcap_cache_add(name, NULL)) {
+				if (!pcap_cache_add(name, NULL, NULL)) {
 					SAFE_FREE(line);
 					x_fclose(pfile);
 					TALLOC_FREE(ctx);
@@ -99,7 +101,7 @@ bool aix_cache_reload(void)
 			} else if (strstr_m(line, "device")) {
 				/* it's a good virtual printer */
 				iEtat = 0;
-				if (!pcap_cache_add(name, NULL)) {
+				if (!pcap_cache_add(name, NULL, NULL)) {
 					SAFE_FREE(line);
 					x_fclose(pfile);
 					TALLOC_FREE(ctx);

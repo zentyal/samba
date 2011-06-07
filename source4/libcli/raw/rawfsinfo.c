@@ -159,7 +159,6 @@ NTSTATUS smb_raw_fsinfo_passthru_parse(DATA_BLOB blob, TALLOC_CTX *mem_ctx,
 				       union smb_fsinfo *fsinfo)
 {
 	NTSTATUS status = NT_STATUS_OK;
-	enum ndr_err_code ndr_err;
 	int i;
 
 	/* parse the results */
@@ -215,17 +214,16 @@ NTSTATUS smb_raw_fsinfo_passthru_parse(DATA_BLOB blob, TALLOC_CTX *mem_ctx,
 		fsinfo->full_size_information.out.bytes_per_sector =         IVAL(blob.data, 28);
 		break;		
 
-	case RAW_QFS_OBJECTID_INFORMATION:
+	case RAW_QFS_OBJECTID_INFORMATION: {
+		DATA_BLOB b2 = data_blob_const(blob.data, MIN(16, blob.length));
 		QFS_CHECK_SIZE(64);
-		ndr_err = ndr_pull_struct_blob(&blob, mem_ctx, NULL, &fsinfo->objectid_information.out.guid,
-					       (ndr_pull_flags_fn_t)ndr_pull_GUID);
-		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-			status = ndr_map_error2ntstatus(ndr_err);
-		}
+		status = GUID_from_ndr_blob(&b2, &fsinfo->objectid_information.out.guid);
+		NT_STATUS_NOT_OK_RETURN(status);
 		for (i=0;i<6;i++) {
 			fsinfo->objectid_information.out.unknown[i] = BVAL(blob.data, 16 + i*8);
 		}
 		break;
+	}
 		
 	default:
 		status = NT_STATUS_INVALID_INFO_CLASS;

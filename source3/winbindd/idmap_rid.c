@@ -20,14 +20,13 @@
 
 #include "includes.h"
 #include "winbindd.h"
+#include "idmap.h"
+#include "../libcli/security/dom_sid.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_IDMAP
 
 struct idmap_rid_context {
-	const char *domain_name;
-	uint32_t low_id;
-	uint32_t high_id;
 	uint32_t base_rid;
 };
 
@@ -36,19 +35,14 @@ struct idmap_rid_context {
   we support multiple domains in the new idmap
  *****************************************************************************/
 
-static NTSTATUS idmap_rid_initialize(struct idmap_domain *dom,
-				     const char *params)
+static NTSTATUS idmap_rid_initialize(struct idmap_domain *dom)
 {
 	NTSTATUS ret;
 	struct idmap_rid_context *ctx;
 	char *config_option = NULL;
-	const char *range;
-	uid_t low_uid = 0;
-	uid_t high_uid = 0;
-	gid_t low_gid = 0;
-	gid_t high_gid = 0;
 
-	if ( (ctx = TALLOC_ZERO_P(dom, struct idmap_rid_context)) == NULL ) {
+	ctx = TALLOC_ZERO_P(dom, struct idmap_rid_context);
+	if (ctx == NULL) {
 		DEBUG(0, ("Out of memory!\n"));
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -60,41 +54,8 @@ static NTSTATUS idmap_rid_initialize(struct idmap_domain *dom,
 		goto failed;
 	}
 
-	range = lp_parm_const_string(-1, config_option, "range", NULL);
-	if ( !range ||
-	    (sscanf(range, "%u - %u", &ctx->low_id, &ctx->high_id) != 2) ||
-	    (ctx->low_id > ctx->high_id)) 
-	{
-		ctx->low_id = 0;
-		ctx->high_id = 0;
-	}
-
-	/* lets see if the range is defined by the old idmap uid/idmap gid */
-	if (!ctx->low_id && !ctx->high_id) {
-		if (lp_idmap_uid(&low_uid, &high_uid)) {
-			ctx->low_id = low_uid;
-			ctx->high_id = high_uid;
-		}
-
-		if (lp_idmap_gid(&low_gid, &high_gid)) {
-			if ((ctx->low_id != low_gid) ||
-			    (ctx->high_id != high_uid)) {
-				DEBUG(1, ("ERROR: idmap uid range must match idmap gid range\n"));
-				ret = NT_STATUS_UNSUCCESSFUL;
-				goto failed;
-			}
-		}
-	}
-
-	if (!ctx->low_id || !ctx->high_id) {
-		DEBUG(1, ("ERROR: Invalid configuration, ID range missing or invalid\n"));
-		ret = NT_STATUS_UNSUCCESSFUL;
-		goto failed;
-	}
-
 	ctx->base_rid = lp_parm_int(-1, config_option, "base_rid", 0);
-	ctx->domain_name = talloc_strdup( ctx, dom->name );
-	
+
 	dom->private_data = ctx;
 
 	talloc_free(config_option);
@@ -105,22 +66,26 @@ failed:
 	return ret;
 }
 
-static NTSTATUS idmap_rid_id_to_sid(TALLOC_CTX *memctx, struct idmap_rid_context *ctx, struct id_map *map)
+static NTSTATUS idmap_rid_id_to_sid(struct idmap_domain *dom, struct id_map *map)
 {
-	struct winbindd_domain *domain;	
+	struct winbindd_domain *domain;
+	struct idmap_rid_context *ctx;
+
+	ctx = talloc_get_type(dom->private_data, struct idmap_rid_context);
 
 	/* apply filters before checking */
-	if ((map->xid.id < ctx->low_id) || (map->xid.id > ctx->high_id)) {
+	if (!idmap_unix_id_is_in_range(map->xid.id, dom)) {
 		DEBUG(5, ("Requested id (%u) out of range (%u - %u). Filtered!\n",
-				map->xid.id, ctx->low_id, ctx->high_id));
+				map->xid.id, dom->low_id, dom->high_id));
 		return NT_STATUS_NONE_MAPPED;
 	}
 
-	if ( (domain = find_domain_from_name_noinit(ctx->domain_name)) == NULL ) {
+	domain = find_domain_from_name_noinit(dom->name);
+	if (domain == NULL ) {
 		return NT_STATUS_NO_SUCH_DOMAIN;
 	}
-	
-	sid_compose(map->sid, &domain->sid, map->xid.id - ctx->low_id + ctx->base_rid);
+
+	sid_compose(map->sid, &domain->sid, map->xid.id - dom->low_id + ctx->base_rid);
 
 	/* We **really** should have some way of validating 
 	   the SID exists and is the correct type here.  But 
@@ -135,25 +100,24 @@ static NTSTATUS idmap_rid_id_to_sid(TALLOC_CTX *memctx, struct idmap_rid_context
  Single sid to id lookup function. 
 **********************************/
 
-static NTSTATUS idmap_rid_sid_to_id(TALLOC_CTX *memctx, struct idmap_rid_context *ctx, struct id_map *map)
+static NTSTATUS idmap_rid_sid_to_id(struct idmap_domain *dom, struct id_map *map)
 {
 	uint32_t rid;
+	struct idmap_rid_context *ctx;
+
+	ctx = talloc_get_type(dom->private_data, struct idmap_rid_context);
 
 	sid_peek_rid(map->sid, &rid);
-	map->xid.id = rid - ctx->base_rid + ctx->low_id;
+	map->xid.id = rid - ctx->base_rid + dom->low_id;
 
 	/* apply filters before returning result */
 
-	if ((map->xid.id < ctx->low_id) || (map->xid.id > ctx->high_id)) {
+	if (!idmap_unix_id_is_in_range(map->xid.id, dom)) {
 		DEBUG(5, ("Requested id (%u) out of range (%u - %u). Filtered!\n",
-				map->xid.id, ctx->low_id, ctx->high_id));
+				map->xid.id, dom->low_id, dom->high_id));
 		map->status = ID_UNMAPPED;
 		return NT_STATUS_NONE_MAPPED;
 	}
-
-	/* We **really** should have some way of validating 
-	   the SID exists and is the correct type here.  But 
-	   that is a deficiency in the idmap_rid design. */
 
 	map->status = ID_MAPPED;
 
@@ -166,8 +130,6 @@ static NTSTATUS idmap_rid_sid_to_id(TALLOC_CTX *memctx, struct idmap_rid_context
 
 static NTSTATUS idmap_rid_unixids_to_sids(struct idmap_domain *dom, struct id_map **ids)
 {
-	struct idmap_rid_context *ridctx;
-	TALLOC_CTX *ctx;
 	NTSTATUS ret;
 	int i;
 
@@ -175,18 +137,10 @@ static NTSTATUS idmap_rid_unixids_to_sids(struct idmap_domain *dom, struct id_ma
 	for (i = 0; ids[i]; i++) {
 		ids[i]->status = ID_UNKNOWN;
 	}
-	
-	ridctx = talloc_get_type(dom->private_data, struct idmap_rid_context);
-
-	ctx = talloc_new(dom);
-	if ( ! ctx) {
-		DEBUG(0, ("Out of memory!\n"));
-		return NT_STATUS_NO_MEMORY;
-	}
 
 	for (i = 0; ids[i]; i++) {
 
-		ret = idmap_rid_id_to_sid(ctx, ridctx, ids[i]);
+		ret = idmap_rid_id_to_sid(dom, ids[i]);
 
 		if (( ! NT_STATUS_IS_OK(ret)) &&
 		    ( ! NT_STATUS_EQUAL(ret, NT_STATUS_NONE_MAPPED))) {
@@ -195,7 +149,6 @@ static NTSTATUS idmap_rid_unixids_to_sids(struct idmap_domain *dom, struct id_ma
 		}
 	}
 
-	talloc_free(ctx);
 	return NT_STATUS_OK;
 }
 
@@ -205,8 +158,6 @@ static NTSTATUS idmap_rid_unixids_to_sids(struct idmap_domain *dom, struct id_ma
 
 static NTSTATUS idmap_rid_sids_to_unixids(struct idmap_domain *dom, struct id_map **ids)
 {
-	struct idmap_rid_context *ridctx;
-	TALLOC_CTX *ctx;
 	NTSTATUS ret;
 	int i;
 
@@ -214,18 +165,10 @@ static NTSTATUS idmap_rid_sids_to_unixids(struct idmap_domain *dom, struct id_ma
 	for (i = 0; ids[i]; i++) {
 		ids[i]->status = ID_UNKNOWN;
 	}
-	
-	ridctx = talloc_get_type(dom->private_data, struct idmap_rid_context);
-
-	ctx = talloc_new(dom);
-	if ( ! ctx) {
-		DEBUG(0, ("Out of memory!\n"));
-		return NT_STATUS_NO_MEMORY;
-	}
 
 	for (i = 0; ids[i]; i++) {
 
-		ret = idmap_rid_sid_to_id(ctx, ridctx, ids[i]);
+		ret = idmap_rid_sid_to_id(dom, ids[i]);
 
 		if (( ! NT_STATUS_IS_OK(ret)) &&
 		    ( ! NT_STATUS_EQUAL(ret, NT_STATUS_NONE_MAPPED))) {
@@ -235,15 +178,6 @@ static NTSTATUS idmap_rid_sids_to_unixids(struct idmap_domain *dom, struct id_ma
 		}
 	}
 
-	talloc_free(ctx);
-	return NT_STATUS_OK;
-}
-
-static NTSTATUS idmap_rid_close(struct idmap_domain *dom)
-{
-	if (dom->private_data) {
-		TALLOC_FREE(dom->private_data);
-	}
 	return NT_STATUS_OK;
 }
 
@@ -251,7 +185,6 @@ static struct idmap_methods rid_methods = {
 	.init = idmap_rid_initialize,
 	.unixids_to_sids = idmap_rid_unixids_to_sids,
 	.sids_to_unixids = idmap_rid_sids_to_unixids,
-	.close_fn = idmap_rid_close
 };
 
 NTSTATUS idmap_rid_init(void)

@@ -59,8 +59,8 @@ static bool test_get(struct torture_context *tctx)
 	torture_assert_str_equal(tctx, e->key, "bar", "key");
 	torture_assert_str_equal(tctx, e->value, "mystring", "value");
 
-	e = parmlist_get(pctx, "nonexistant");
-	torture_assert(tctx, e == NULL, "nonexistant");
+	e = parmlist_get(pctx, "non-existent");
+	torture_assert(tctx, e == NULL, "non-existent");
 	return true;
 }
 
@@ -87,14 +87,14 @@ static bool test_get_string_list(struct torture_context *tctx)
 	torture_assert_int_equal(tctx, str_list_length(ret), 2, "length");
 	torture_assert_str_equal(tctx, "true", ret[0], "ret[0]");
 	torture_assert_str_equal(tctx, "false", ret[1], "ret[1]");
-	torture_assert(tctx, NULL == parmlist_get_string_list(pctx, "nonexistant", NULL), "nonexistant");
+	torture_assert(tctx, NULL == parmlist_get_string_list(pctx, "non-existent", NULL), "non-existent");
 
 	return true;
 }
 
 struct torture_suite *torture_local_util_parmlist(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "PARMLIST");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "parmlist");
 
 	torture_suite_add_simple_test(suite, "get_int", test_get_int);
 	torture_suite_add_simple_test(suite, "get_string", test_get_string);

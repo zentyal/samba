@@ -6,11 +6,11 @@
    Copyright (C) Andrew Tridgell              1999-2005
    Copyright (C) Paul `Rusty' Russell		   2000
    Copyright (C) Jeremy Allison			   2000-2003
-   
+
      ** NOTE! The following LGPL license applies to the tdb
      ** library. This does NOT imply that all of Samba is released
      ** under the LGPL
-   
+
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
    License as published by the Free Software Foundation; either
@@ -299,7 +299,7 @@ static int tdb_expand_file(struct tdb_context *tdb, tdb_off_t size, tdb_off_t ad
 int tdb_expand(struct tdb_context *tdb, tdb_off_t size)
 {
 	struct tdb_record rec;
-	tdb_off_t offset, new_size;	
+	tdb_off_t offset, new_size, top_size, map_size;
 
 	if (tdb_lock(tdb, -1, F_WRLCK) == -1) {
 		TDB_LOG((tdb, TDB_DEBUG_ERROR, "lock failed in tdb_expand\n"));
@@ -309,10 +309,25 @@ int tdb_expand(struct tdb_context *tdb, tdb_off_t size)
 	/* must know about any previous expansions by another process */
 	tdb->methods->tdb_oob(tdb, tdb->map_size + 1, 1);
 
-	/* always make room for at least 100 more records, and at
-           least 25% more space. Round the database up to a multiple
-           of the page size */
-	new_size = MAX(tdb->map_size + size*100, tdb->map_size * 1.25);
+	/* limit size in order to avoid using up huge amounts of memory for
+	 * in memory tdbs if an oddball huge record creeps in */
+	if (size > 100 * 1024) {
+		top_size = tdb->map_size + size * 2;
+	} else {
+		top_size = tdb->map_size + size * 100;
+	}
+
+	/* always make room for at least top_size more records, and at
+	   least 25% more space. if the DB is smaller than 100MiB,
+	   otherwise grow it by 10% only. */
+	if (tdb->map_size > 100 * 1024 * 1024) {
+		map_size = tdb->map_size * 1.10;
+	} else {
+		map_size = tdb->map_size * 1.25;
+	}
+
+	/* Round the database up to a multiple of the page size */
+	new_size = MAX(top_size, map_size);
 	size = TDB_ALIGN(new_size, tdb->page_size) - tdb->map_size;
 
 	if (!(tdb->flags & TDB_INTERNAL))
@@ -461,7 +476,6 @@ static const struct tdb_methods io_methods = {
 	tdb_next_hash_chain,
 	tdb_oob,
 	tdb_expand_file,
-	tdb_brlock
 };
 
 /*

@@ -22,7 +22,8 @@
 
 #include "includes.h"
 #include "librpc/gen_ndr/ndr_security.h"
-#include "libcli/security/dom_sid.h"
+#include "libcli/security/security.h"
+#include "lib/util/tsort.h"
 
 #define  SEC_ACE_HEADER_SIZE (2 * sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint32_t))
 
@@ -43,7 +44,7 @@ bool sec_ace_object(uint8_t type)
 /**
  * copy a struct security_ace structure.
  */
-void sec_ace_copy(struct security_ace *ace_dest, struct security_ace *ace_src)
+void sec_ace_copy(struct security_ace *ace_dest, const struct security_ace *ace_src)
 {
 	ace_dest->type  = ace_src->type;
 	ace_dest->flags = ace_src->flags;
@@ -62,7 +63,7 @@ void init_sec_ace(struct security_ace *t, const struct dom_sid *sid, enum securi
 {
 	t->type = type;
 	t->flags = flag;
-	t->size = ndr_size_dom_sid(sid, NULL, 0) + 8;
+	t->size = ndr_size_dom_sid(sid, 0) + 8;
 	t->access_mask = mask;
 
 	t->trustee = *sid;
@@ -72,7 +73,7 @@ void init_sec_ace(struct security_ace *t, const struct dom_sid *sid, enum securi
  adds new SID with its permissions to ACE list
 ********************************************************************/
 
-NTSTATUS sec_ace_add_sid(TALLOC_CTX *ctx, struct security_ace **pp_new, struct security_ace *old, unsigned *num, struct dom_sid *sid, uint32_t mask)
+NTSTATUS sec_ace_add_sid(TALLOC_CTX *ctx, struct security_ace **pp_new, struct security_ace *old, unsigned *num, const struct dom_sid *sid, uint32_t mask)
 {
 	unsigned int i = 0;
 	
@@ -88,7 +89,7 @@ NTSTATUS sec_ace_add_sid(TALLOC_CTX *ctx, struct security_ace **pp_new, struct s
 
 	(*pp_new)[i].type  = SEC_ACE_TYPE_ACCESS_ALLOWED;
 	(*pp_new)[i].flags = 0;
-	(*pp_new)[i].size  = SEC_ACE_HEADER_SIZE + ndr_size_dom_sid(sid, NULL, 0);
+	(*pp_new)[i].size  = SEC_ACE_HEADER_SIZE + ndr_size_dom_sid(sid, 0);
 	(*pp_new)[i].access_mask = mask;
 	(*pp_new)[i].trustee = *sid;
 	return NT_STATUS_OK;
@@ -98,7 +99,7 @@ NTSTATUS sec_ace_add_sid(TALLOC_CTX *ctx, struct security_ace **pp_new, struct s
   modify SID's permissions at ACL 
 ********************************************************************/
 
-NTSTATUS sec_ace_mod_sid(struct security_ace *ace, size_t num, struct dom_sid *sid, uint32_t mask)
+NTSTATUS sec_ace_mod_sid(struct security_ace *ace, size_t num, const struct dom_sid *sid, uint32_t mask)
 {
 	unsigned int i = 0;
 
@@ -117,7 +118,7 @@ NTSTATUS sec_ace_mod_sid(struct security_ace *ace, size_t num, struct dom_sid *s
  delete SID from ACL
 ********************************************************************/
 
-NTSTATUS sec_ace_del_sid(TALLOC_CTX *ctx, struct security_ace **pp_new, struct security_ace *old, uint32_t *num, struct dom_sid *sid)
+NTSTATUS sec_ace_del_sid(TALLOC_CTX *ctx, struct security_ace **pp_new, struct security_ace *old, uint32_t *num, const struct dom_sid *sid)
 {
 	unsigned int i     = 0;
 	unsigned int n_del = 0;
@@ -149,7 +150,7 @@ NTSTATUS sec_ace_del_sid(TALLOC_CTX *ctx, struct security_ace **pp_new, struct s
  Compares two struct security_ace structures
 ********************************************************************/
 
-bool sec_ace_equal(struct security_ace *s1, struct security_ace *s2)
+bool sec_ace_equal(const struct security_ace *s1, const struct security_ace *s2)
 {
 	/* Trivial case */
 
@@ -177,7 +178,7 @@ bool sec_ace_equal(struct security_ace *s1, struct security_ace *s2)
 	return true;
 }
 
-int nt_ace_inherit_comp( struct security_ace *a1, struct security_ace *a2)
+int nt_ace_inherit_comp(const struct security_ace *a1, const struct security_ace *a2)
 {
 	int a1_inh = a1->flags & SEC_ACE_FLAG_INHERITED_ACE;
 	int a2_inh = a2->flags & SEC_ACE_FLAG_INHERITED_ACE;
@@ -194,7 +195,7 @@ int nt_ace_inherit_comp( struct security_ace *a1, struct security_ace *a2)
   Comparison function to apply the order explained below in a group.
 *******************************************************************/
 
-int nt_ace_canon_comp( struct security_ace *a1, struct security_ace *a2)
+int nt_ace_canon_comp( const struct security_ace *a1,  const struct security_ace *a2)
 {
 	if ((a1->type == SEC_ACE_TYPE_ACCESS_DENIED) &&
 				(a2->type != SEC_ACE_TYPE_ACCESS_DENIED))
@@ -257,7 +258,7 @@ void dacl_sort_into_canonical_order(struct security_ace *srclist, unsigned int n
 		return;
 
 	/* Sort so that non-inherited ACE's come first. */
-	qsort( srclist, num_aces, sizeof(srclist[0]), QSORT_CAST nt_ace_inherit_comp);
+	TYPESAFE_QSORT(srclist, num_aces, nt_ace_inherit_comp);
 
 	/* Find the boundary between non-inherited ACEs. */
 	for (i = 0; i < num_aces; i++ ) {
@@ -270,12 +271,10 @@ void dacl_sort_into_canonical_order(struct security_ace *srclist, unsigned int n
 	/* i now points at entry number of the first inherited ACE. */
 
 	/* Sort the non-inherited ACEs. */
-	if (i)
-		qsort( srclist, i, sizeof(srclist[0]), QSORT_CAST nt_ace_canon_comp);
+	TYPESAFE_QSORT(srclist, i, nt_ace_canon_comp);
 
 	/* Now sort the inherited ACEs. */
-	if (num_aces - i)
-		qsort( &srclist[i], num_aces - i, sizeof(srclist[0]), QSORT_CAST nt_ace_canon_comp);
+	TYPESAFE_QSORT(&srclist[i], num_aces - i, nt_ace_canon_comp);
 }
 
 

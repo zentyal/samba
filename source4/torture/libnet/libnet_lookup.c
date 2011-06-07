@@ -1,19 +1,19 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
    Test suite for libnet calls.
 
    Copyright (C) Rafal Szczesniak 2005
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -21,11 +21,8 @@
 #include "includes.h"
 #include "lib/cmdline/popt_common.h"
 #include "libnet/libnet.h"
-#include "librpc/gen_ndr/nbt.h"
-#include "librpc/rpc/dcerpc.h"
 #include "libcli/libcli.h"
-#include "torture/rpc/rpc.h"
-#include "torture/torture.h"
+#include "torture/rpc/torture_rpc.h"
 #include "param/param.h"
 
 
@@ -58,14 +55,14 @@ bool torture_lookup(struct torture_context *torture)
 	status = libnet_Lookup(ctx, mem_ctx, &lookup);
 
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("Couldn't lookup name %s: %s\n", lookup.in.hostname, nt_errstr(status));
+		torture_comment(torture, "Couldn't lookup name %s: %s\n", lookup.in.hostname, nt_errstr(status));
 		ret = false;
 		goto done;
 	}
 
 	ret = true;
 
-	printf("Name [%s] found at address: %s.\n", lookup.in.hostname, *lookup.out.address);
+	torture_comment(torture, "Name [%s] found at address: %s.\n", lookup.in.hostname, *lookup.out.address);
 
 done:
 	talloc_free(mem_ctx);
@@ -101,14 +98,14 @@ bool torture_lookup_host(struct torture_context *torture)
 	status = libnet_LookupHost(ctx, mem_ctx, &lookup);
 
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("Couldn't lookup host %s: %s\n", lookup.in.hostname, nt_errstr(status));
+		torture_comment(torture, "Couldn't lookup host %s: %s\n", lookup.in.hostname, nt_errstr(status));
 		ret = false;
 		goto done;
 	}
 
 	ret = true;
 
-	printf("Host [%s] found at address: %s.\n", lookup.in.hostname, *lookup.out.address);
+	torture_comment(torture, "Host [%s] found at address: %s.\n", lookup.in.hostname, *lookup.out.address);
 
 done:
 	talloc_free(mem_ctx);
@@ -138,13 +135,13 @@ bool torture_lookup_pdc(struct torture_context *torture)
 		goto done;
 	}
 
-	lookup->in.domain_name = lp_workgroup(torture->lp_ctx);
+	lookup->in.domain_name = lpcfg_workgroup(torture->lp_ctx);
 	lookup->in.name_type   = NBT_NAME_PDC;
 
 	status = libnet_LookupDCs(ctx, mem_ctx, lookup);
 
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("Couldn't lookup pdc %s: %s\n", lookup->in.domain_name,
+		torture_comment(torture, "Couldn't lookup pdc %s: %s\n", lookup->in.domain_name,
 		       nt_errstr(status));
 		ret = false;
 		goto done;
@@ -152,9 +149,9 @@ bool torture_lookup_pdc(struct torture_context *torture)
 
 	ret = true;
 
-	printf("DCs of domain [%s] found.\n", lookup->in.domain_name);
+	torture_comment(torture, "DCs of domain [%s] found.\n", lookup->in.domain_name);
 	for (i = 0; i < lookup->out.num_dcs; i++) {
-		printf("\tDC[%d]: name=%s, address=%s\n", i, lookup->out.dcs[i].name,
+		torture_comment(torture, "\tDC[%d]: name=%s, address=%s\n", i, lookup->out.dcs[i].name,
 		       lookup->out.dcs[i].address);
 	}
 
@@ -178,7 +175,7 @@ bool torture_lookup_sam_name(struct torture_context *torture)
 	if (mem_ctx == NULL) return false;
 
 	r.in.name = "Administrator";
-	r.in.domain_name = lp_workgroup(torture->lp_ctx);
+	r.in.domain_name = lpcfg_workgroup(torture->lp_ctx);
 
 	status = libnet_LookupName(ctx, mem_ctx, &r);
 

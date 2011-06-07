@@ -1,6 +1,6 @@
 /*
    Unix SMB/CIFS implementation.
-   global locks based on ctdb
+   global locks based on dbwrap and messaging
    Copyright (C) 2009 by Volker Lendecke
 
    This program is free software; you can redistribute it and/or modify
@@ -44,7 +44,7 @@ NTSTATUS g_lock_get(struct g_lock_ctx *ctx, const char *name,
 		struct server_id *pid);
 
 NTSTATUS g_lock_do(const char *name, enum g_lock_type lock_type,
-		   struct timeval timeout,
+		   struct timeval timeout, struct server_id self,
 		   void (*fn)(void *private_data), void *private_data);
 
 int g_lock_locks(struct g_lock_ctx *ctx,

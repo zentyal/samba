@@ -41,9 +41,13 @@
 /*****************************************************/
 
 #include "includes.h"
+#include "popt_common.h"
 #include "utils/net.h"
-
-extern bool AllowDebugChange;
+#include "secrets.h"
+#include "lib/netapi/netapi.h"
+#include "../libcli/security/security.h"
+#include "passdb.h"
+#include "messages.h"
 
 #ifdef WITH_FAKE_KASERVER
 #include "utils/net_afs.h"
@@ -231,7 +235,7 @@ static int net_getauthuser(struct net_context *c, int argc, const char **argv)
  */
 static int net_getlocalsid(struct net_context *c, int argc, const char **argv)
 {
-        DOM_SID sid;
+        struct dom_sid sid;
 	const char *name;
 	fstring sid_str;
 
@@ -271,7 +275,7 @@ static int net_getlocalsid(struct net_context *c, int argc, const char **argv)
 
 static int net_setlocalsid(struct net_context *c, int argc, const char **argv)
 {
-	DOM_SID sid;
+	struct dom_sid sid;
 
 	if ( (argc != 1)
 	     || (strncmp(argv[0], "S-1-5-21-", strlen("S-1-5-21-")) != 0)
@@ -292,7 +296,7 @@ static int net_setlocalsid(struct net_context *c, int argc, const char **argv)
 
 static int net_setdomainsid(struct net_context *c, int argc, const char **argv)
 {
-	DOM_SID sid;
+	struct dom_sid sid;
 
 	if ( (argc != 1)
 	     || (strncmp(argv[0], "S-1-5-21-", strlen("S-1-5-21-")) != 0)
@@ -313,7 +317,7 @@ static int net_setdomainsid(struct net_context *c, int argc, const char **argv)
 
 static int net_getdomainsid(struct net_context *c, int argc, const char **argv)
 {
-	DOM_SID domain_sid;
+	struct dom_sid domain_sid;
 	fstring sid_str;
 
 	if (argc > 0) {
@@ -667,7 +671,7 @@ static struct functable net_func[] = {
 	{	"maxrid",
 		net_maxrid,
 		NET_TRANSPORT_LOCAL,
-		N_("Display the maximul RID currently used"),
+		N_("Display the maximum RID currently used"),
 		N_("  net maxrid")
 	},
 	{	"idmap",
@@ -718,6 +722,21 @@ static struct functable net_func[] = {
 		N_("Process Win32 *.evt eventlog files"),
 		N_("  Use 'net help eventlog' to get more information about "
 		   "'net eventlog' commands.")
+	},
+	{	"printing",
+		net_printing,
+		NET_TRANSPORT_LOCAL,
+		N_("Process tdb printer files"),
+		N_("  Use 'net help printing' to get more information about "
+		   "'net printing' commands.")
+	},
+
+	{	"serverid",
+		net_serverid,
+		NET_TRANSPORT_LOCAL,
+		N_("Manage the serverid tdb"),
+		N_("  Use 'net help serverid' to get more information about "
+		   "'net serverid' commands.")
 	},
 
 #ifdef WITH_FAKE_KASERVER
@@ -796,26 +815,31 @@ static struct functable net_func[] = {
 		{"force-full-repl", 0, POPT_ARG_NONE, &c->opt_force_full_repl},
 		{"single-obj-repl", 0, POPT_ARG_NONE, &c->opt_single_obj_repl},
 		{"clean-old-entries", 0, POPT_ARG_NONE, &c->opt_clean_old_entries},
-
+		/* Options for 'net idmap'*/
+		{"db", 0, POPT_ARG_STRING, &c->opt_db},
+		{"lock", 0, POPT_ARG_NONE,   &c->opt_lock},
+		{"auto", 'a', POPT_ARG_NONE,   &c->opt_auto},
+		{"repair", 0, POPT_ARG_NONE,   &c->opt_repair},
 		POPT_COMMON_SAMBA
 		{ 0, 0, 0, 0}
 	};
 
 	zero_sockaddr(&c->opt_dest_ip);
 
+	setup_logging(argv[0], DEBUG_STDERR);
+
 	load_case_tables();
 
 	setlocale(LC_ALL, "");
 #if defined(HAVE_BINDTEXTDOMAIN)
-	bindtextdomain(MODULE_NAME, dyn_LOCALEDIR);
+	bindtextdomain(MODULE_NAME, get_dyn_LOCALEDIR());
 #endif
 #if defined(HAVE_TEXTDOMAIN)
 	textdomain(MODULE_NAME);
 #endif
 
 	/* set default debug level to 0 regardless of what smb.conf sets */
-	DEBUGLEVEL_CLASS[DBGC_ALL] = 0;
-	dbf = x_stderr;
+	lp_set_cmdline("log level", "0");
 	c->private_data = net_func;
 
 	pc = poptGetContext(NULL, argc, (const char **) argv, long_options,
@@ -854,11 +878,6 @@ static struct functable net_func[] = {
 		}
 	}
 
-	/*
-	 * Don't load debug level from smb.conf. It should be
-	 * set by cmdline arg or remain default (0)
-	 */
-	AllowDebugChange = false;
 	lp_load(get_dyn_CONFIGFILE(), true, false, false, true);
 
  	argv_new = (const char **)poptGetArgs(pc);
@@ -897,7 +916,7 @@ static struct functable net_func[] = {
 	load_interfaces();
 
 	/* this makes sure that when we do things like call scripts,
-	   that it won't assert becouse we are not root */
+	   that it won't assert because we are not root */
 	sec_init();
 
 	if (c->opt_machine_pass) {
@@ -910,6 +929,12 @@ static struct functable net_func[] = {
 	if (!c->opt_password) {
 		c->opt_password = getenv("PASSWD");
 	}
+
+	/* Failing to init the msg_ctx isn't a fatal error. Only
+	   root-level things (joining/leaving domains etc.) will be denied. */
+
+	c->msg_ctx = messaging_init(c, procid_self(),
+				    event_context_init(c));
 
 	rc = net_run_function(c, argc_new-1, argv_new+1, "net", net_func);
 

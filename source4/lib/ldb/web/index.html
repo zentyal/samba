@@ -50,31 +50,19 @@ would be preferred.
 
 <h2>Discussion and bug reports</h2>
 
-ldb does not currently have its own mailing list or bug tracking
-system. For now, please use the <a
-href="https://lists.samba.org/mailman/listinfo/samba-technical">samba-technical</a>
-mailing list or the <a href="https://lists.samba.org/mailman/listinfo/ldb">ldb</a>
-mailing list, and the <a href="http://bugzilla.samba.org/">Samba bugzilla</a> bug tracking system.
+ldb does not have its own mailing list or bug tracking system. Please
+use
+the <a href="https://lists.samba.org/mailman/listinfo/samba-technical">samba-technical</a>
+mailing list, and the <a href="http://bugzilla.samba.org/">Samba
+bugzilla</a> bug tracking system.
 
 <h2>Download</h2>
 
-You can download the latest release either via rsync or thtough git.<br>
-<br>
-To fetch via git see the following guide:<br>
+You can download the latest release here:<br>
+ <a href="http://samba.org/ftp/pub/ldb">http://samba.org/ftp/pub/ldb</a>
+
+Alternatively, you can fetch via git. See the following guide:<br>
 <a href="http://wiki.samba.org/index.php/Using_Git_for_Samba_Development">Using Git for Samba Development</a><br>
-Once you have cloned the tree switch to the v4-0-test branch and cd into the source/lib/ldb directory.<br>
-<br>
-To fetch via rsync use these commands:
-
-<pre>
-  rsync -Pavz samba.org::ftp/unpacked/ldb .
-  rsync -Pavz samba.org::ftp/unpacked/tdb .
-  rsync -Pavz samba.org::ftp/unpacked/talloc .
-  rsync -Pavz samba.org::ftp/unpacked/libreplace .
-</pre>
-
-and build in ldb. It will find the other libraries in the directory
-above automatically.
 
 <hr>
 <tiny>

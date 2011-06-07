@@ -3,6 +3,8 @@
  * (Royal Institute of Technology, Stockholm, Sweden).
  * All rights reserved.
  *
+ * Portions Copyright (c) 2009 Apple Inc. All rights reserved.
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -81,7 +83,7 @@ main (int argc, char **argv)
     while((ret = krb5_cc_next_cred(context, id, &cursor, &creds)) == 0){
         char *principal;
 
-	krb5_unparse_name_short(context, creds.server, &principal);
+	krb5_unparse_name(context, creds.server, &principal);
 	printf("principal: %s\\n", principal);
 	free(principal);
 	krb5_free_cred_contents (context, &creds);
@@ -112,15 +114,15 @@ main (int argc, char **argv)
  * @ingroup krb5_ccache
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_register(krb5_context context,
 		 const krb5_cc_ops *ops,
 		 krb5_boolean override)
 {
     int i;
 
-    for(i = 0; i < context->num_cc_ops && context->cc_ops[i].prefix; i++) {
-	if(strcmp(context->cc_ops[i].prefix, ops->prefix) == 0) {
+    for(i = 0; i < context->num_cc_ops && context->cc_ops[i]->prefix; i++) {
+	if(strcmp(context->cc_ops[i]->prefix, ops->prefix) == 0) {
 	    if(!override) {
 		krb5_set_error_message(context,
 				       KRB5_CC_TYPE_EXISTS,
@@ -132,20 +134,19 @@ krb5_cc_register(krb5_context context,
 	}
     }
     if(i == context->num_cc_ops) {
-	krb5_cc_ops *o = realloc(context->cc_ops,
-				 (context->num_cc_ops + 1) *
-				 sizeof(*context->cc_ops));
+	const krb5_cc_ops **o = realloc(rk_UNCONST(context->cc_ops),
+					(context->num_cc_ops + 1) *
+					sizeof(context->cc_ops[0]));
 	if(o == NULL) {
 	    krb5_set_error_message(context, KRB5_CC_NOMEM,
 				   N_("malloc: out of memory", ""));
 	    return KRB5_CC_NOMEM;
 	}
-	context->num_cc_ops++;
 	context->cc_ops = o;
-	memset(context->cc_ops + i, 0,
-	       (context->num_cc_ops - i) * sizeof(*context->cc_ops));
+	context->cc_ops[context->num_cc_ops] = NULL;
+	context->num_cc_ops++;
     }
-    memcpy(&context->cc_ops[i], ops, sizeof(context->cc_ops[i]));
+    context->cc_ops[i] = ops;
     return 0;
 }
 
@@ -185,14 +186,56 @@ allocate_ccache (krb5_context context,
 		 krb5_ccache *id)
 {
     krb5_error_code ret;
+#ifdef KRB5_USE_PATH_TOKENS
+    char * exp_residual = NULL;
 
-    ret = _krb5_cc_allocate(context, ops, id);
+    ret = _krb5_expand_path_tokens(context, residual, &exp_residual);
     if (ret)
 	return ret;
+
+    residual = exp_residual;
+#endif
+
+    ret = _krb5_cc_allocate(context, ops, id);
+    if (ret) {
+#ifdef KRB5_USE_PATH_TOKENS
+	if (exp_residual)
+	    free(exp_residual);
+#endif
+	return ret;
+    }
+
     ret = (*id)->ops->resolve(context, id, residual);
-    if(ret)
+    if(ret) {
 	free(*id);
+        *id = NULL;
+    }
+
+#ifdef KRB5_USE_PATH_TOKENS
+    if (exp_residual)
+	free(exp_residual);
+#endif
+
     return ret;
+}
+
+static int
+is_possible_path_name(const char * name)
+{
+    const char * colon;
+
+    if ((colon = strchr(name, ':')) == NULL)
+        return TRUE;
+
+#ifdef _WIN32
+    /* <drive letter>:\path\to\cache ? */
+
+    if (colon == name + 1 &&
+        strchr(colon + 1, ':') == NULL)
+        return TRUE;
+#endif
+
+    return FALSE;
 }
 
 /**
@@ -210,7 +253,7 @@ allocate_ccache (krb5_context context,
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_resolve(krb5_context context,
 		const char *name,
 		krb5_ccache *id)
@@ -219,17 +262,17 @@ krb5_cc_resolve(krb5_context context,
 
     *id = NULL;
 
-    for(i = 0; i < context->num_cc_ops && context->cc_ops[i].prefix; i++) {
-	size_t prefix_len = strlen(context->cc_ops[i].prefix);
+    for(i = 0; i < context->num_cc_ops && context->cc_ops[i]->prefix; i++) {
+	size_t prefix_len = strlen(context->cc_ops[i]->prefix);
 
-	if(strncmp(context->cc_ops[i].prefix, name, prefix_len) == 0
+	if(strncmp(context->cc_ops[i]->prefix, name, prefix_len) == 0
 	   && name[prefix_len] == ':') {
-	    return allocate_ccache (context, &context->cc_ops[i],
+	    return allocate_ccache (context, context->cc_ops[i],
 				    name + prefix_len + 1,
 				    id);
 	}
     }
-    if (strchr (name, ':') == NULL)
+    if (is_possible_path_name(name))
 	return allocate_ccache (context, &krb5_fcc_ops, name, id);
     else {
 	krb5_set_error_message(context, KRB5_CC_UNKNOWN_TYPE,
@@ -250,7 +293,7 @@ krb5_cc_resolve(krb5_context context,
  * @ingroup krb5_ccache
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_new_unique(krb5_context context, const char *type,
 		   const char *hint, krb5_ccache *id)
 {
@@ -282,7 +325,7 @@ krb5_cc_new_unique(krb5_context context, const char *type,
  */
 
 
-const char* KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION const char* KRB5_LIB_CALL
 krb5_cc_get_name(krb5_context context,
 		 krb5_ccache id)
 {
@@ -296,7 +339,7 @@ krb5_cc_get_name(krb5_context context,
  */
 
 
-const char* KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION const char* KRB5_LIB_CALL
 krb5_cc_get_type(krb5_context context,
 		 krb5_ccache id)
 {
@@ -304,15 +347,19 @@ krb5_cc_get_type(krb5_context context,
 }
 
 /**
- * Return the complete resolvable name the ccache `id' in `str´.
- * `str` should be freed with free(3).
- * Returns 0 or an error (and then *str is set to NULL).
+ * Return the complete resolvable name the cache
+
+ * @param context a Keberos context
+ * @param id return pointer to a found credential cache
+ * @param str the returned name of a credential cache, free with krb5_xfree()
+ *
+ * @return Returns 0 or an error (and then *str is set to NULL).
  *
  * @ingroup krb5_ccache
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_get_full_name(krb5_context context,
 		      krb5_ccache id,
 		      char **str)
@@ -350,7 +397,7 @@ krb5_cc_get_full_name(krb5_context context,
  */
 
 
-const krb5_cc_ops *
+KRB5_LIB_FUNCTION const krb5_cc_ops * KRB5_LIB_CALL
 krb5_cc_get_ops(krb5_context context, krb5_ccache id)
 {
     return id->ops;
@@ -363,72 +410,7 @@ krb5_cc_get_ops(krb5_context context, krb5_ccache id)
 krb5_error_code
 _krb5_expand_default_cc_name(krb5_context context, const char *str, char **res)
 {
-    size_t tlen, len = 0;
-    char *tmp, *tmp2, *append;
-
-    *res = NULL;
-
-    while (str && *str) {
-	tmp = strstr(str, "%{");
-	if (tmp && tmp != str) {
-	    append = malloc((tmp - str) + 1);
-	    if (append) {
-		memcpy(append, str, tmp - str);
-		append[tmp - str] = '\0';
-	    }
-	    str = tmp;
-	} else if (tmp) {
-	    tmp2 = strchr(tmp, '}');
-	    if (tmp2 == NULL) {
-		free(*res);
-		*res = NULL;
-		krb5_set_error_message(context, KRB5_CONFIG_BADFORMAT,
-				       "variable missing }");
-		return KRB5_CONFIG_BADFORMAT;
-	    }
-	    if (strncasecmp(tmp, "%{uid}", 6) == 0)
-		asprintf(&append, "%u", (unsigned)getuid());
-	    else if (strncasecmp(tmp, "%{null}", 7) == 0)
-		append = strdup("");
-	    else {
-		free(*res);
-		*res = NULL;
-		krb5_set_error_message(context,
-				       KRB5_CONFIG_BADFORMAT,
-				       "expand default cache unknown "
-				       "variable \"%.*s\"",
-				       (int)(tmp2 - tmp) - 2, tmp + 2);
-		return KRB5_CONFIG_BADFORMAT;
-	    }
-	    str = tmp2 + 1;
-	} else {
-	    append = strdup(str);
-	    str = NULL;
-	}
-	if (append == NULL) {
-	    free(*res);
-	    *res = NULL;
-	    krb5_set_error_message(context, ENOMEM,
-				   N_("malloc: out of memory", ""));
-	    return ENOMEM;
-	}
-	
-	tlen = strlen(append);
-	tmp = realloc(*res, len + tlen + 1);
-	if (tmp == NULL) {
-	    free(append);
-	    free(*res);
-	    *res = NULL;
-	    krb5_set_error_message(context, ENOMEM,
-				   N_("malloc: out of memory", ""));
-	    return ENOMEM;
-	}
-	*res = tmp;
-	memcpy(*res + len, append, tlen + 1);
-	len = len + tlen;
-	free(append);
-    }
-    return 0;
+    return _krb5_expand_path_tokens(context, str, res);
 }
 
 /*
@@ -444,6 +426,12 @@ environment_changed(krb5_context context)
     /* if the cc name was set, don't change it */
     if (context->default_cc_name_set)
 	return 0;
+
+    /* XXX performance: always ask KCM/API if default name has changed */
+    if (context->default_cc_name &&
+	(strncmp(context->default_cc_name, "KCM:", 4) == 0 ||
+	 strncmp(context->default_cc_name, "API:", 4) == 0))
+	return 1;
 
     if(issuid())
 	return 0;
@@ -473,7 +461,7 @@ environment_changed(krb5_context context)
  * @ingroup krb5_ccache
  */
 
-krb5_error_code
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_switch(krb5_context context, krb5_ccache id)
 {
 
@@ -484,16 +472,33 @@ krb5_cc_switch(krb5_context context, krb5_ccache id)
 }
 
 /**
+ * Return true if the default credential cache support switch
+ *
+ * @ingroup krb5_ccache
+ */
+
+KRB5_LIB_FUNCTION krb5_boolean KRB5_LIB_CALL
+krb5_cc_support_switch(krb5_context context, const char *type)
+{
+    const krb5_cc_ops *ops;
+
+    ops = krb5_cc_get_prefix_ops(context, type);
+    if (ops && ops->set_default)
+	return 1;
+    return FALSE;
+}
+
+/**
  * Set the default cc name for `context' to `name'.
  *
  * @ingroup krb5_ccache
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_set_default_name(krb5_context context, const char *name)
 {
     krb5_error_code ret = 0;
-    char *p;
+    char *p = NULL, *exp_p = NULL;
 
     if (name == NULL) {
 	const char *e = NULL;
@@ -507,6 +512,12 @@ krb5_cc_set_default_name(krb5_context context, const char *name)
 		context->default_cc_name_env = strdup(e);
 	    }
 	}
+
+#ifdef _WIN32
+        if (e == NULL) {
+            e = p = _krb5_get_default_cc_name_from_registry();
+        }
+#endif
 	if (e == NULL) {
 	    e = krb5_config_get_string(context, NULL, "libdefaults",
 				       "default_cc_name", NULL);
@@ -545,12 +556,17 @@ krb5_cc_set_default_name(krb5_context context, const char *name)
 	return ENOMEM;
     }
 
+    ret = _krb5_expand_path_tokens(context, p, &exp_p);
+    free(p);
+    if (ret)
+	return ret;
+
     if (context->default_cc_name)
 	free(context->default_cc_name);
 
-    context->default_cc_name = p;
+    context->default_cc_name = exp_p;
 
-    return ret;
+    return 0;
 }
 
 /**
@@ -563,7 +579,7 @@ krb5_cc_set_default_name(krb5_context context, const char *name)
  */
 
 
-const char* KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION const char* KRB5_LIB_CALL
 krb5_cc_default_name(krb5_context context)
 {
     if (context->default_cc_name == NULL || environment_changed(context))
@@ -581,7 +597,7 @@ krb5_cc_default_name(krb5_context context)
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_default(krb5_context context,
 		krb5_ccache *id)
 {
@@ -603,7 +619,7 @@ krb5_cc_default(krb5_context context,
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_initialize(krb5_context context,
 		   krb5_ccache id,
 		   krb5_principal primary_principal)
@@ -621,7 +637,7 @@ krb5_cc_initialize(krb5_context context,
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_destroy(krb5_context context,
 		krb5_ccache id)
 {
@@ -641,7 +657,7 @@ krb5_cc_destroy(krb5_context context,
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_close(krb5_context context,
 	      krb5_ccache id)
 {
@@ -660,7 +676,7 @@ krb5_cc_close(krb5_context context,
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_store_cred(krb5_context context,
 		   krb5_ccache id,
 		   krb5_creds *creds)
@@ -673,13 +689,20 @@ krb5_cc_store_cred(krb5_context context,
  * from `id' in `creds'. 'creds' must be free by the caller using
  * krb5_free_cred_contents.
  *
+ * @param context A Kerberos 5 context
+ * @param id a Kerberos 5 credential cache
+ * @param whichfields what fields to use for matching credentials, same
+ *        flags as whichfields in krb5_compare_creds()
+ * @param mcreds template credential to use for comparing
+ * @param creds returned credential, free with krb5_free_cred_contents()
+ *
  * @return Return an error code or 0, see krb5_get_error_message().
  *
  * @ingroup krb5_ccache
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_retrieve_cred(krb5_context context,
 		      krb5_ccache id,
 		      krb5_flags whichfields,
@@ -717,7 +740,7 @@ krb5_cc_retrieve_cred(krb5_context context,
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_get_principal(krb5_context context,
 		      krb5_ccache id,
 		      krb5_principal *principal)
@@ -735,7 +758,7 @@ krb5_cc_get_principal(krb5_context context,
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_start_seq_get (krb5_context context,
 		       const krb5_ccache id,
 		       krb5_cc_cursor *cursor)
@@ -753,7 +776,7 @@ krb5_cc_start_seq_get (krb5_context context,
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_next_cred (krb5_context context,
 		   const krb5_ccache id,
 		   krb5_cc_cursor *cursor,
@@ -769,7 +792,7 @@ krb5_cc_next_cred (krb5_context context,
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_end_seq_get (krb5_context context,
 		     const krb5_ccache id,
 		     krb5_cc_cursor *cursor)
@@ -784,7 +807,7 @@ krb5_cc_end_seq_get (krb5_context context,
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_remove_cred(krb5_context context,
 		    krb5_ccache id,
 		    krb5_flags which,
@@ -807,7 +830,7 @@ krb5_cc_remove_cred(krb5_context context,
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_set_flags(krb5_context context,
 		  krb5_ccache id,
 		  krb5_flags flags)
@@ -821,7 +844,7 @@ krb5_cc_set_flags(krb5_context context,
  * @ingroup krb5_ccache
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_get_flags(krb5_context context,
 		  krb5_ccache id,
 		  krb5_flags *flags)
@@ -846,7 +869,7 @@ krb5_cc_get_flags(krb5_context context,
  * @ingroup krb5_ccache
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_copy_match_f(krb5_context context,
 		     const krb5_ccache from,
 		     krb5_ccache to,
@@ -899,7 +922,7 @@ krb5_cc_copy_match_f(krb5_context context,
  * @ingroup @krb5_ccache
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_copy_cache(krb5_context context,
 		   const krb5_ccache from,
 		   krb5_ccache to)
@@ -914,7 +937,7 @@ krb5_cc_copy_cache(krb5_context context,
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_get_version(krb5_context context,
 		    const krb5_ccache id)
 {
@@ -931,7 +954,7 @@ krb5_cc_get_version(krb5_context context,
  */
 
 
-void KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION void KRB5_LIB_CALL
 krb5_cc_clear_mcred(krb5_creds *mcred)
 {
     memset(mcred, 0, sizeof(*mcred));
@@ -950,7 +973,7 @@ krb5_cc_clear_mcred(krb5_creds *mcred)
  */
 
 
-const krb5_cc_ops *
+KRB5_LIB_FUNCTION const krb5_cc_ops * KRB5_LIB_CALL
 krb5_cc_get_prefix_ops(krb5_context context, const char *prefix)
 {
     char *p, *p1;
@@ -970,10 +993,10 @@ krb5_cc_get_prefix_ops(krb5_context context, const char *prefix)
     if (p1)
 	*p1 = '\0';
 
-    for(i = 0; i < context->num_cc_ops && context->cc_ops[i].prefix; i++) {
-	if(strcmp(context->cc_ops[i].prefix, p) == 0) {
+    for(i = 0; i < context->num_cc_ops && context->cc_ops[i]->prefix; i++) {
+	if(strcmp(context->cc_ops[i]->prefix, p) == 0) {
 	    free(p);
-	    return &context->cc_ops[i];
+	    return context->cc_ops[i];
 	}
     }
     free(p);
@@ -999,7 +1022,7 @@ struct krb5_cc_cache_cursor_data {
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_cache_get_first (krb5_context context,
 			 const char *type,
 			 krb5_cc_cache_cursor *cursor)
@@ -1046,6 +1069,10 @@ krb5_cc_cache_get_first (krb5_context context,
  * Retrieve the next cache pointed to by (`cursor') in `id'
  * and advance `cursor'.
  *
+ * @param context A Kerberos 5 context
+ * @param cursor the iterator cursor, returned by krb5_cc_cache_get_first()
+ * @param id next ccache
+ *
  * @return Return 0 or an error code. Returns KRB5_CC_END when the end
  *         of caches is reached, see krb5_get_error_message().
  *
@@ -1053,7 +1080,7 @@ krb5_cc_cache_get_first (krb5_context context,
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_cache_next (krb5_context context,
 		   krb5_cc_cache_cursor cursor,
 		   krb5_ccache *id)
@@ -1070,7 +1097,7 @@ krb5_cc_cache_next (krb5_context context,
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_cache_end_seq_get (krb5_context context,
 			   krb5_cc_cache_cursor cursor)
 {
@@ -1096,7 +1123,7 @@ krb5_cc_cache_end_seq_get (krb5_context context,
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_cache_match (krb5_context context,
 		     krb5_principal client,
 		     krb5_ccache *id)
@@ -1162,7 +1189,7 @@ krb5_cc_cache_match (krb5_context context,
  * @ingroup krb5_ccache
  */
 
-krb5_error_code
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_move(krb5_context context, krb5_ccache from, krb5_ccache to)
 {
     krb5_error_code ret;
@@ -1230,7 +1257,7 @@ build_conf_principals(krb5_context context, krb5_ccache id,
  * @ingroup krb5_ccache
  */
 
-krb5_boolean KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_boolean KRB5_LIB_CALL
 krb5_is_config_principal(krb5_context context,
 			 krb5_const_principal principal)
 {
@@ -1258,7 +1285,7 @@ krb5_is_config_principal(krb5_context context,
  * @ingroup krb5_ccache
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_set_config(krb5_context context, krb5_ccache id,
 		   krb5_const_principal principal,
 		   const char *name, krb5_data *data)
@@ -1306,7 +1333,7 @@ out:
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_get_config(krb5_context context, krb5_ccache id,
 		   krb5_const_principal principal,
 		   const char *name, krb5_data *data)
@@ -1337,7 +1364,7 @@ out:
  *
  */
 
-struct krb5_cccol_cursor {
+struct krb5_cccol_cursor_data {
     int idx;
     krb5_cc_cache_cursor cursor;
 };
@@ -1354,7 +1381,7 @@ struct krb5_cccol_cursor {
  * @ingroup krb5_ccache
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cccol_cursor_new(krb5_context context, krb5_cccol_cursor *cursor)
 {
     *cursor = calloc(1, sizeof(**cursor));
@@ -1386,7 +1413,7 @@ krb5_cccol_cursor_new(krb5_context context, krb5_cccol_cursor *cursor)
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cccol_cursor_next(krb5_context context, krb5_cccol_cursor cursor,
 		       krb5_ccache *cache)
 {
@@ -1398,7 +1425,7 @@ krb5_cccol_cursor_next(krb5_context context, krb5_cccol_cursor cursor,
 
 	if (cursor->cursor == NULL) {
 	    ret = krb5_cc_cache_get_first (context, 
-					   context->cc_ops[cursor->idx].prefix,
+					   context->cc_ops[cursor->idx]->prefix,
 					   &cursor->cursor);
 	    if (ret) {
 		cursor->idx++;
@@ -1413,7 +1440,7 @@ krb5_cccol_cursor_next(krb5_context context, krb5_cccol_cursor cursor,
 	cursor->cursor = NULL;
 	if (ret != KRB5_CC_END)
 	    break;
-	
+
 	cursor->idx++;
     }
     if (cursor->idx >= context->num_cc_ops) {
@@ -1437,7 +1464,7 @@ krb5_cccol_cursor_next(krb5_context context, krb5_cccol_cursor cursor,
  * @ingroup krb5_ccache
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cccol_cursor_free(krb5_context context, krb5_cccol_cursor *cursor)
 {
     krb5_cccol_cursor c = *cursor;
@@ -1464,7 +1491,7 @@ krb5_cccol_cursor_free(krb5_context context, krb5_cccol_cursor *cursor)
  */
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_last_change_time(krb5_context context,
 			 krb5_ccache id, 
 			 krb5_timestamp *mtime)
@@ -1487,7 +1514,7 @@ krb5_cc_last_change_time(krb5_context context,
  * @ingroup krb5_ccache
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cccol_last_change_time(krb5_context context,
 			    const char *type,
 			    krb5_timestamp *mtime)
@@ -1528,7 +1555,7 @@ krb5_cccol_last_change_time(krb5_context context,
  * @ingroup krb5_ccache
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_get_friendly_name(krb5_context context,
 			  krb5_ccache id,
 			  char **name)
@@ -1565,7 +1592,7 @@ krb5_cc_get_friendly_name(krb5_context context,
  * @ingroup krb5_ccache
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_set_friendly_name(krb5_context context,
 			  krb5_ccache id,
 			  const char *name)
@@ -1593,7 +1620,7 @@ krb5_cc_set_friendly_name(krb5_context context,
  * @ingroup krb5_ccache
  */
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_cc_get_lifetime(krb5_context context, krb5_ccache id, time_t *t)
 {
     krb5_cc_cursor cursor;
@@ -1613,13 +1640,88 @@ krb5_cc_get_lifetime(krb5_context context, krb5_ccache id, time_t *t)
 	    if (now < cred.times.endtime)
 		*t = cred.times.endtime - now;
 	    krb5_free_cred_contents(context, &cred);
-	    goto out;
+	    break;
 	}
 	krb5_free_cred_contents(context, &cred);
     }
     
- out:
     krb5_cc_end_seq_get(context, id, &cursor);
 
     return ret;
 }
+
+/**
+ * Set the time offset betwen the client and the KDC
+ *
+ * If the backend doesn't support KDC offset, use the context global setting.
+ *
+ * @param context A Kerberos 5 context.
+ * @param id a credential cache
+ * @param offset the offset in seconds
+ *
+ * @return Return an error code or 0, see krb5_get_error_message().
+ *
+ * @ingroup krb5_ccache
+ */
+
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_cc_set_kdc_offset(krb5_context context, krb5_ccache id, krb5_deltat offset)
+{
+    if (id->ops->set_kdc_offset == NULL) {
+	context->kdc_sec_offset = offset;
+	context->kdc_usec_offset = 0;
+	return 0;
+    }
+    return (*id->ops->set_kdc_offset)(context, id, offset);
+}
+
+/**
+ * Get the time offset betwen the client and the KDC
+ *
+ * If the backend doesn't support KDC offset, use the context global setting.
+ *
+ * @param context A Kerberos 5 context.
+ * @param id a credential cache
+ * @param offset the offset in seconds
+ *
+ * @return Return an error code or 0, see krb5_get_error_message().
+ *
+ * @ingroup krb5_ccache
+ */
+
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
+krb5_cc_get_kdc_offset(krb5_context context, krb5_ccache id, krb5_deltat *offset)
+{
+    if (id->ops->get_kdc_offset == NULL) {
+	*offset = context->kdc_sec_offset;
+	return 0;
+    }
+    return (*id->ops->get_kdc_offset)(context, id, offset);
+}
+
+
+#ifdef _WIN32
+
+char *
+_krb5_get_default_cc_name_from_registry()
+{
+    HKEY hk_k5 = 0;
+    LONG code;
+    char * ccname = NULL;
+
+    code = RegOpenKeyEx(HKEY_CURRENT_USER,
+                        "Software\\MIT\\Kerberos5",
+                        0, KEY_READ, &hk_k5);
+
+    if (code != ERROR_SUCCESS)
+        return NULL;
+
+    ccname = _krb5_parse_reg_value_as_string(NULL, hk_k5, "ccname",
+                                             REG_NONE, 0);
+
+    RegCloseKey(hk_k5);
+
+    return ccname;
+}
+
+#endif

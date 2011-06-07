@@ -34,6 +34,7 @@
 
 #include "replace.h"
 #include "lzxpress.h"
+#include "../lib/util/byteorder.h"
 
 
 #define __BUF_POS_CONST(buf,ofs)(((const uint8_t *)buf)+(ofs))
@@ -80,6 +81,7 @@ ssize_t lzxpress_compress(const uint8_t *uncompressed,
 
 	uncompressed_pos = 0;
 	indic = 0;
+	*(uint32_t *)compressed = 0;
 	compressed_pos = sizeof(uint32_t);
 	indic_pos = &compressed[0];
 
@@ -129,11 +131,11 @@ ssize_t lzxpress_compress(const uint8_t *uncompressed,
 			if (best_len < 10) {
 				/* Classical meta-data */
 				metadata = (uint16_t)(((best_offset - 1) << 3) | (best_len - 3));
-				dest[metadata_size / sizeof(uint16_t)] = metadata;
+				SSVAL(dest, metadata_size / sizeof(uint16_t), metadata);
 				metadata_size += sizeof(uint16_t);
 			} else {
 				metadata = (uint16_t)(((best_offset - 1) << 3) | 7);
-				dest[metadata_size / sizeof(uint16_t)] = metadata;
+				SSVAL(dest, metadata_size / sizeof(uint16_t), metadata);
 				metadata_size = sizeof(uint16_t);
 
 				if (best_len < (15 + 7 + 3)) {
@@ -155,7 +157,7 @@ ssize_t lzxpress_compress(const uint8_t *uncompressed,
 						compressed[nibble_index] |= (15 * 16);
 					}
 
-					/* Additionnal best_len */
+					/* Additional best_len */
 					compressed[compressed_pos + metadata_size] = (best_len - (3 + 7 + 15)) & 0xFF;
 					metadata_size += sizeof(uint8_t);
 				} else {
@@ -167,7 +169,7 @@ ssize_t lzxpress_compress(const uint8_t *uncompressed,
 						compressed[nibble_index] |= 15 << 4;
 					}
 
-					/* Additionnal best_len */
+					/* Additional best_len */
 					compressed[compressed_pos + metadata_size] = 255;
 
 					metadata_size += sizeof(uint8_t);
@@ -198,7 +200,7 @@ ssize_t lzxpress_compress(const uint8_t *uncompressed,
 		indic_bit++;
 
 		if ((indic_bit - 1) % 32 > (indic_bit % 32)) {
-			*(uint32_t *)indic_pos = indic;
+			SIVAL(indic_pos, 0, indic);
 			indic = 0;
 			indic_pos = &compressed[compressed_pos];
 			compressed_pos += sizeof(uint32_t);
@@ -212,7 +214,7 @@ ssize_t lzxpress_compress(const uint8_t *uncompressed,
 		uncompressed_pos++;
 		compressed_pos++;
                 if (((indic_bit - 1) % 32) > (indic_bit % 32)){
-			*(uint32_t *)indic_pos = indic;
+			SIVAL(indic_pos, 0, indic);
 			indic = 0;
 			indic_pos = &compressed[compressed_pos];
 			compressed_pos += sizeof(uint32_t);
@@ -223,7 +225,8 @@ ssize_t lzxpress_compress(const uint8_t *uncompressed,
 		for (; (indic_bit % 32) != 0; indic_bit++)
 			indic |= 0 << (32 - ((indic_bit % 32) + 1));
 
-		*(uint32_t *)indic_pos = indic;
+		*(uint32_t *)&compressed[compressed_pos] = 0;
+		SIVAL(indic_pos, 0, indic);
 		compressed_pos += sizeof(uint32_t);
 	}
 

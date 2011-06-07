@@ -22,6 +22,8 @@
 */
 
 #include "includes.h"
+#include "../librpc/gen_ndr/notify.h"
+#include "smbd/smbd.h"
 
 #ifdef HAVE_INOTIFY
 
@@ -246,8 +248,9 @@ static void inotify_handler(struct event_context *ev, struct fd_event *fde,
 		return;
 	}
 
-	e0 = e = (struct inotify_event *)TALLOC_SIZE(in, bufsize);
+	e0 = e = (struct inotify_event *)TALLOC_SIZE(in, bufsize + 1);
 	if (e == NULL) return;
+	((uint8_t *)e)[bufsize] = '\0';
 
 	status = read_data(in->fd, (char *)e0, bufsize);
 	if (!NT_STATUS_IS_OK(status)) {

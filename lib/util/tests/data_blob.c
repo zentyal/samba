@@ -78,13 +78,14 @@ static bool test_cmp(struct torture_context *tctx)
 static bool test_hex_string(struct torture_context *tctx)
 {
 	DATA_BLOB a = data_blob_string_const("\xC\xA\xF\xE");
-	torture_assert_str_equal(tctx, data_blob_hex_string(tctx, &a), "0C0A0F0E", "hex string");
+	torture_assert_str_equal(tctx, data_blob_hex_string_lower(tctx, &a), "0c0a0f0e", "hex string");
+	torture_assert_str_equal(tctx, data_blob_hex_string_upper(tctx, &a), "0C0A0F0E", "hex string");
 	return true;
 }
 
 struct torture_suite *torture_local_util_data_blob(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "DATABLOB");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "datablob");
 
 	torture_suite_add_simple_test(suite, "string", test_string);
 	torture_suite_add_simple_test(suite, "string_null", test_string_null);

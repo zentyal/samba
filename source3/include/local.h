@@ -10,15 +10,6 @@
 #define WORKGROUP "WORKGROUP"
 #endif
 
-/* the maximum debug level to compile into the code. This assumes a good 
-   optimising compiler that can remove unused code 
-   for embedded or low-memory systems set this to a value like 2 to get
-   only important messages. This gives *much* smaller binaries
-*/
-#ifndef MAX_DEBUG_LEVEL
-#define MAX_DEBUG_LEVEL 1000
-#endif
-
 /* This defines the section name in the configuration file that will contain */
 /* global parameters - that is, parameters relating to the whole server, not */
 /* just services. This name is then reserved, and may not be used as a       */
@@ -50,11 +41,6 @@
 
 /* maximum number of file caches per smbd */
 #define MAX_WRITE_CACHES 10
-
-/* define what facility to use for syslog */
-#ifndef SYSLOG_FACILITY
-#define SYSLOG_FACILITY LOG_DAEMON
-#endif
 
 /*
  * Fudgefactor required for open tdb's, etc.
@@ -148,6 +134,7 @@
 #define LPQ_LOCK_TIMEOUT (5)
 #define NMBD_INTERFACES_RELOAD (120)
 #define NMBD_UNEXPECTED_TIMEOUT (15)
+#define SMBD_HOUSEKEEPING_INTERVAL SMBD_SELECT_TIMEOUT
 
 /* the following are in milliseconds */
 #define LOCK_RETRY_TIMEOUT (100)
@@ -239,9 +226,6 @@
 /* Number in seconds for winbindd to wait for the mutex. Make this 2 * smbd wait time. */
 #define WINBIND_SERVER_MUTEX_WAIT_TIME (( ((NUM_CLI_AUTH_CONNECT_RETRIES) * ((CLI_AUTH_TIMEOUT)/1000)) + 5)*2)
 
-/* Max number of simultaneous winbindd socket connections. */
-#define WINBINDD_MAX_SIMULTANEOUS_CLIENTS 200
-
 /* Buffer size to use when printing backtraces */
 #define BACKTRACE_STACK_SIZE 64
 
@@ -273,5 +257,14 @@
 
 /* Maximum size of RPC data we will accept for one call. */
 #define MAX_RPC_DATA_SIZE (15*1024*1024)
+
+#define CLIENT_NDR_PADDING_SIZE 8
+#define SERVER_NDR_PADDING_SIZE 8
+
+#define DEFAULT_SMB2_MAX_READ (1024*1024)
+#define DEFAULT_SMB2_MAX_WRITE (1024*1024)
+#define DEFAULT_SMB2_MAX_TRANSACT (1024*1024)
+#define DEFAULT_SMB2_MAX_CREDITS 128
+#define DEFAULT_SMB2_MAX_CREDIT_BITMAP_FACTOR 2
 
 #endif

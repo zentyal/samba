@@ -60,19 +60,18 @@ static void dd_handle_signal(int sig)
 /* Argument handling.							     */
 /* ------------------------------------------------------------------------- */
 
+static const struct {
+	enum argtype arg_type;
+	const char * arg_name;
+} names [] = {
+	{ ARG_NUMERIC, "COUNT" },
+	{ ARG_SIZE, "SIZE" },
+	{ ARG_PATHNAME, "FILE" },
+	{ ARG_BOOL, "BOOLEAN" },
+};
+
 static const char * argtype_str(enum argtype arg_type)
 {
-	static const struct {
-		enum argtype arg_type;
-		const char * arg_name;
-	} names [] = 
-	{
-		{ ARG_NUMERIC, "COUNT" },
-		{ ARG_SIZE, "SIZE" },
-		{ ARG_PATHNAME, "FILE" },
-		{ ARG_BOOL, "BOOLEAN" },
-	};
-
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(names); ++i) {
@@ -360,7 +359,6 @@ static struct dd_iohandle * open_file(struct resolve_context *resolve_ctx,
 				      struct smbcli_options *smb_options,
 				      const char *socket_options,
 				      struct smbcli_session_options *smb_session_options,
-				      struct smb_iconv_convenience *iconv_convenience,
 				      struct gensec_settings *gensec_settings)
 {
 	int			options = 0;
@@ -385,7 +383,6 @@ static struct dd_iohandle * open_file(struct resolve_context *resolve_ctx,
 				      check_arg_numeric("ibs"), options,
 				      socket_options,
 				      smb_options, smb_session_options,
-				      iconv_convenience,
 				      gensec_settings);
 	} else if (strcmp(which, "of") == 0) {
 		options |= DD_WRITE;
@@ -394,7 +391,6 @@ static struct dd_iohandle * open_file(struct resolve_context *resolve_ctx,
 				      check_arg_numeric("obs"), options,
 				      socket_options,
 				      smb_options, smb_session_options,
-				      iconv_convenience,
 				      gensec_settings);
 	} else {
 		SMB_ASSERT(0);
@@ -428,8 +424,8 @@ static int copy_files(struct tevent_context *ev, struct loadparm_context *lp_ctx
 	obs = check_arg_numeric("obs");
 	count = check_arg_numeric("count");
 
-	lp_smbcli_options(lp_ctx, &options);
-	lp_smbcli_session_options(lp_ctx, &session_options);
+	lpcfg_smbcli_options(lp_ctx, &options);
+	lpcfg_smbcli_session_options(lp_ctx, &session_options);
 
 	/* Allocate IO buffer. We need more than the max IO size because we
 	 * could accumulate a remainder if ibs and obs don't match.
@@ -447,20 +443,19 @@ static int copy_files(struct tevent_context *ev, struct loadparm_context *lp_ctx
 	DEBUG(4, ("IO buffer size is %llu, max xmit is %d\n",
 			(unsigned long long)iomax, options.max_xmit));
 
-	if (!(ifile = open_file(lp_resolve_context(lp_ctx), ev, "if",
-				lp_smb_ports(lp_ctx), &options,
-				lp_socket_options(lp_ctx),
-				&session_options, lp_iconv_convenience(lp_ctx),
-				lp_gensec_settings(lp_ctx, lp_ctx)))) {
+	if (!(ifile = open_file(lpcfg_resolve_context(lp_ctx), ev, "if",
+				lpcfg_smb_ports(lp_ctx), &options,
+				lpcfg_socket_options(lp_ctx),
+				&session_options, 
+				lpcfg_gensec_settings(lp_ctx, lp_ctx)))) {
 		return(FILESYS_EXIT_CODE);
 	}
 
-	if (!(ofile = open_file(lp_resolve_context(lp_ctx), ev, "of",
-				lp_smb_ports(lp_ctx), &options,
-				lp_socket_options(lp_ctx),
+	if (!(ofile = open_file(lpcfg_resolve_context(lp_ctx), ev, "of",
+				lpcfg_smb_ports(lp_ctx), &options,
+				lpcfg_socket_options(lp_ctx),
 				&session_options,
-				lp_iconv_convenience(lp_ctx),
-				lp_gensec_settings(lp_ctx, lp_ctx)))) {
+				lpcfg_gensec_settings(lp_ctx, lp_ctx)))) {
 		return(FILESYS_EXIT_CODE);
 	}
 

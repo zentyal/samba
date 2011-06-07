@@ -20,22 +20,24 @@
 
 #include "includes.h"
 #include "winbindd/winbindd.h"
+#include "idmap.h"
 #include "idmap_hash.h"
+#include "ads.h"
+#include "nss_info.h"
+#include "../libcli/security/dom_sid.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_IDMAP
 
 struct sid_hash_table {
-	DOM_SID *sid;
+	struct dom_sid *sid;
 };
-
-struct sid_hash_table *hashed_domains = NULL;
 
 /*********************************************************************
  Hash a domain SID (S-1-5-12-aaa-bbb-ccc) to a 12bit number
  ********************************************************************/
 
-static uint32_t hash_domain_sid(const DOM_SID *sid)
+static uint32_t hash_domain_sid(const struct dom_sid *sid)
 {
 	uint32_t hash;
 
@@ -102,18 +104,18 @@ static void separate_hashes(uint32_t id,
 /*********************************************************************
  ********************************************************************/
 
-static NTSTATUS be_init(struct idmap_domain *dom,
-			const char *params)
+static NTSTATUS be_init(struct idmap_domain *dom)
 {
+	struct sid_hash_table *hashed_domains;
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
 	struct winbindd_tdc_domain *dom_list = NULL;
 	size_t num_domains = 0;
 	int i;
 
-	/* If the domain SID hash talbe has been initialized, assume
+	/* If the domain SID hash table has been initialized, assume
 	   that we completed this function previously */
 
-	if ( hashed_domains ) {
+	if (dom->private_data != NULL) {
 		nt_status = NT_STATUS_OK;
 		goto done;
 	}
@@ -125,7 +127,7 @@ static NTSTATUS be_init(struct idmap_domain *dom,
 
 	/* Create the hash table of domain SIDs */
 
-	hashed_domains = TALLOC_ZERO_ARRAY(NULL, struct sid_hash_table, 4096);
+	hashed_domains = TALLOC_ZERO_ARRAY(dom, struct sid_hash_table, 4096);
 	BAIL_ON_PTR_NT_ERROR(hashed_domains, nt_status);
 
 	/* create the hash table of domain SIDs */
@@ -143,9 +145,11 @@ static NTSTATUS be_init(struct idmap_domain *dom,
 			 sid_string_dbg(&dom_list[i].sid),
 			 hash));
 
-		hashed_domains[hash].sid = talloc(hashed_domains, DOM_SID);
+		hashed_domains[hash].sid = talloc(hashed_domains, struct dom_sid);
 		sid_copy(hashed_domains[hash].sid, &dom_list[i].sid);
 	}
+
+	dom->private_data = hashed_domains;
 
 done:
 	return nt_status;
@@ -157,6 +161,8 @@ done:
 static NTSTATUS unixids_to_sids(struct idmap_domain *dom,
 				struct id_map **ids)
 {
+	struct sid_hash_table *hashed_domains = talloc_get_type_abort(
+		dom->private_data, struct sid_hash_table);
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
 	int i;
 
@@ -164,8 +170,8 @@ static NTSTATUS unixids_to_sids(struct idmap_domain *dom,
 	for (i = 0; ids[i]; i++) {
 		ids[i]->status = ID_UNKNOWN;
 	}
-	
-	nt_status = be_init(dom, NULL);
+
+	nt_status = be_init(dom);
 	BAIL_ON_NTSTATUS_ERROR(nt_status);
 
 	if (!ids) {
@@ -193,8 +199,7 @@ static NTSTATUS unixids_to_sids(struct idmap_domain *dom,
 		if (!hashed_domains[h_domain].sid)
 			continue;
 
-		sid_copy(ids[i]->sid, hashed_domains[h_domain].sid);
-		sid_append_rid(ids[i]->sid, h_rid);
+		sid_compose(ids[i]->sid, hashed_domains[h_domain].sid, h_rid);
 		ids[i]->status = ID_MAPPED;
 	}
 
@@ -215,8 +220,8 @@ static NTSTATUS sids_to_unixids(struct idmap_domain *dom,
 	for (i = 0; ids[i]; i++) {
 		ids[i]->status = ID_UNKNOWN;
 	}
-	
-	nt_status = be_init(dom, NULL);
+
+	nt_status = be_init(dom);
 	BAIL_ON_NTSTATUS_ERROR(nt_status);
 
 	if (!ids) {
@@ -225,7 +230,7 @@ static NTSTATUS sids_to_unixids(struct idmap_domain *dom,
 	}
 
 	for (i=0; ids[i]; i++) {
-		DOM_SID sid;
+		struct dom_sid sid;
 		uint32_t rid;
 		uint32_t h_domain, h_rid;
 
@@ -252,30 +257,17 @@ done:
 /*********************************************************************
  ********************************************************************/
 
-static NTSTATUS be_close(struct idmap_domain *dom)
-{
-	if (hashed_domains)
-		talloc_free(hashed_domains);
-
-	return NT_STATUS_OK;
-}
-
-/*********************************************************************
- ********************************************************************/
-
 static NTSTATUS nss_hash_init(struct nss_domain_entry *e )
 {
-	return be_init(NULL, NULL);
+	return be_init(NULL);
 }
 
 /**********************************************************************
  *********************************************************************/
 
 static NTSTATUS nss_hash_get_info(struct nss_domain_entry *e,
-				    const DOM_SID *sid,
+				    const struct dom_sid *sid,
 				    TALLOC_CTX *ctx,
-				    ADS_STRUCT *ads,
-				    LDAPMessage *msg,
 				    const char **homedir,
 				    const char **shell,
 				    const char **gecos,
@@ -358,7 +350,6 @@ static struct idmap_methods hash_idmap_methods = {
 	.init            = be_init,
 	.unixids_to_sids = unixids_to_sids,
 	.sids_to_unixids = sids_to_unixids,
-	.close_fn        = be_close
 };
 
 static struct nss_info_methods hash_nss_methods = {

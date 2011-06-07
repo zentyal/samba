@@ -25,6 +25,8 @@
  */
 
 #include "includes.h"
+#include "registry.h"
+#include "reg_objects.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY

@@ -1,24 +1,28 @@
 /* 
    some simple CGI helper routines
    Copyright (C) Andrew Tridgell 1997-1998
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
 #include "includes.h"
+#include "system/passwd.h"
+#include "system/filesys.h"
 #include "web/swat_proto.h"
+#include "intl/lang_tdb.h"
+#include "auth.h"
 
 #define MAX_VARIABLES 10000
 
@@ -53,7 +57,7 @@ static char *grab_line(FILE *f, int *cl)
 
 	while ((*cl)) {
 		int c;
-	
+
 		if (i == len) {
 			char *ret2;
 			if (len == 0) len = 1024;
@@ -62,7 +66,7 @@ static char *grab_line(FILE *f, int *cl)
 			if (!ret2) return ret;
 			ret = ret2;
 		}
-	
+
 		c = fgetc(f);
 		(*cl)--;
 
@@ -70,7 +74,7 @@ static char *grab_line(FILE *f, int *cl)
 			(*cl) = 0;
 			break;
 		}
-		
+
 		if (c == '\r') continue;
 
 		if (strchr_m("\n&", c)) break;
@@ -78,7 +82,7 @@ static char *grab_line(FILE *f, int *cl)
 		ret[i++] = c;
 
 	}
-	
+
 	if (ret) {
 		ret[i] = 0;
 	}
@@ -132,14 +136,14 @@ void cgi_load_variables(void)
 		while (len && (line=grab_line(f, &len))) {
 			p = strchr_m(line,'=');
 			if (!p) continue;
-			
+
 			*p = 0;
-			
+
 			variables[num_variables].name = SMB_STRDUP(line);
 			variables[num_variables].value = SMB_STRDUP(p+1);
 
 			SAFE_FREE(line);
-			
+
 			if (!variables[num_variables].name || 
 			    !variables[num_variables].value)
 				continue;
@@ -154,7 +158,7 @@ void cgi_load_variables(void)
 			       variables[num_variables].name,
 			       variables[num_variables].value);
 #endif
-			
+
 			num_variables++;
 			if (num_variables == MAX_VARIABLES) break;
 		}
@@ -169,9 +173,9 @@ void cgi_load_variables(void)
 		     tok=strtok_r(NULL, "&;", &saveptr)) {
 			p = strchr_m(tok,'=');
 			if (!p) continue;
-			
+
 			*p = 0;
-			
+
 			variables[num_variables].name = SMB_STRDUP(tok);
 			variables[num_variables].value = SMB_STRDUP(p+1);
 
@@ -314,7 +318,7 @@ static void cgi_web_auth(void)
 		exit(0);
 	}
 
-	pwd = Get_Pwnam_alloc(talloc_autofree_context(), user);
+	pwd = Get_Pwnam_alloc(talloc_tos(), user);
 	if (!pwd) {
 		printf("%sCannot find user %s<br>%s\n", head, user, tail);
 		exit(0);
@@ -339,6 +343,8 @@ static bool cgi_handle_authorization(char *line)
 	char *p;
 	fstring user, user_pass;
 	struct passwd *pass = NULL;
+	const char *rhost;
+	char addr[INET6_ADDRSTRLEN];
 
 	if (!strnequal(line,"Basic ", 6)) {
 		goto err;
@@ -366,33 +372,35 @@ static bool cgi_handle_authorization(char *line)
 	/*
 	 * Try and get the user from the UNIX password file.
 	 */
-	
-	pass = Get_Pwnam_alloc(talloc_autofree_context(), user);
-	
+
+	pass = Get_Pwnam_alloc(talloc_tos(), user);
+
+	rhost = client_name(1);
+	if (strequal(rhost,"UNKNOWN"))
+		rhost = client_addr(1, addr, sizeof(addr));
+
 	/*
 	 * Validate the password they have given.
 	 */
-	
-	if NT_STATUS_IS_OK(pass_check(pass, user, user_pass, 
-		      strlen(user_pass), NULL, False)) {
-		
+
+	if NT_STATUS_IS_OK(pass_check(pass, user, rhost, user_pass, false)) {
 		if (pass) {
 			/*
 			 * Password was ok.
 			 */
-			
+
 			if ( initgroups(pass->pw_name, pass->pw_gid) != 0 )
 				goto err;
 
 			become_user_permanently(pass->pw_uid, pass->pw_gid);
-			
+
 			/* Save the users name */
 			C_user = SMB_STRDUP(user);
 			TALLOC_FREE(pass);
 			return True;
 		}
 	}
-	
+
 err:
 	cgi_setup_error("401 Bad Authorization", 
 			"WWW-Authenticate: Basic realm=\"SWAT\"\r\n",
@@ -508,6 +516,87 @@ static void cgi_download(char *file)
 
 
 
+/* return true if the char* contains ip addrs only.  Used to avoid
+name lookup calls */
+
+static bool only_ipaddrs_in_list(const char **list)
+{
+	bool only_ip = true;
+
+	if (!list) {
+		return true;
+	}
+
+	for (; *list ; list++) {
+		/* factor out the special strings */
+		if (strequal(*list, "ALL") || strequal(*list, "FAIL") ||
+		    strequal(*list, "EXCEPT")) {
+			continue;
+		}
+
+		if (!is_ipaddress(*list)) {
+			/*
+			 * If we failed, make sure that it was not because
+			 * the token was a network/netmask pair. Only
+			 * network/netmask pairs have a '/' in them.
+			 */
+			if ((strchr_m(*list, '/')) == NULL) {
+				only_ip = false;
+				DEBUG(3,("only_ipaddrs_in_list: list has "
+					"non-ip address (%s)\n",
+					*list));
+				break;
+			}
+		}
+	}
+
+	return only_ip;
+}
+
+/* return true if access should be allowed to a service for a socket */
+static bool check_access(int sock, const char **allow_list,
+			 const char **deny_list)
+{
+	bool ret = false;
+	bool only_ip = false;
+	char addr[INET6_ADDRSTRLEN];
+
+	if ((!deny_list || *deny_list==0) && (!allow_list || *allow_list==0)) {
+		return true;
+	}
+
+	/* Bypass name resolution calls if the lists
+	 * only contain IP addrs */
+	if (only_ipaddrs_in_list(allow_list) &&
+	    only_ipaddrs_in_list(deny_list)) {
+		only_ip = true;
+		DEBUG (3, ("check_access: no hostnames "
+			   "in host allow/deny list.\n"));
+		ret = allow_access(deny_list,
+				   allow_list,
+				   "",
+				   get_peer_addr(sock,addr,sizeof(addr)));
+	} else {
+		DEBUG (3, ("check_access: hostnames in "
+			   "host allow/deny list.\n"));
+		ret = allow_access(deny_list,
+				   allow_list,
+				   get_peer_name(sock,true),
+				   get_peer_addr(sock,addr,sizeof(addr)));
+	}
+
+	if (ret) {
+		DEBUG(2,("Allowed connection from %s (%s)\n",
+			 only_ip ? "" : get_peer_name(sock,true),
+			 get_peer_addr(sock,addr,sizeof(addr))));
+	} else {
+		DEBUG(0,("Denied connection from %s (%s)\n",
+			 only_ip ? "" : get_peer_name(sock,true),
+			 get_peer_addr(sock,addr,sizeof(addr))));
+	}
+
+	return(ret);
+}
 
 /**
  * @brief Setup the CGI framework.

@@ -21,9 +21,9 @@
 #include "libcli/resolve/resolve.h"
 #include "param/param.h"
 
-struct resolve_context *lp_resolve_context(struct loadparm_context *lp_ctx)
+struct resolve_context *lpcfg_resolve_context(struct loadparm_context *lp_ctx)
 {
-	const char **methods = lp_name_resolve_order(lp_ctx);
+	const char **methods = lpcfg_name_resolve_order(lp_ctx);
 	int i;
 	struct resolve_context *ret = resolve_context_init(lp_ctx);
 
@@ -35,6 +35,8 @@ struct resolve_context *lp_resolve_context(struct loadparm_context *lp_ctx)
 			resolve_context_add_wins_method_lp(ret, lp_ctx);
 		} else if (!strcmp(methods[i], "bcast")) {
 			resolve_context_add_bcast_method_lp(ret, lp_ctx);
+		} else if (!strcmp(methods[i], "file")) {
+			resolve_context_add_file_method_lp(ret, lp_ctx);
 		} else if (!strcmp(methods[i], "host")) {
 			resolve_context_add_host_method(ret);
 		} else {

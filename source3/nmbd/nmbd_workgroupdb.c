@@ -21,6 +21,8 @@
 */
 
 #include "includes.h"
+#include "../librpc/gen_ndr/svcctl.h"
+#include "nmbd/nmbd.h"
 
 extern uint16 samba_nb_type;
 
@@ -139,14 +141,7 @@ static struct work_record *remove_workgroup_from_subnet(struct subnet_record *su
 	remove_all_servers(work);
   
 	if (!work->serverlist) {
-		if (work->prev)
-			work->prev->next = work->next;
-		if (work->next)
-			work->next->prev = work->prev;
-  
-		if (subrec->workgrouplist == work)
-			subrec->workgrouplist = work->next; 
-  
+		DLIST_REMOVE(subrec->workgrouplist, work);
 		ZERO_STRUCTP(work);
 		SAFE_FREE(work);
 	}

@@ -33,6 +33,14 @@ const DATA_BLOB data_blob_null = { NULL, 0 };
 **/
 _PUBLIC_ DATA_BLOB data_blob_named(const void *p, size_t length, const char *name)
 {
+	return data_blob_talloc_named(NULL, p, length, name);
+}
+
+/**
+ construct a data blob, using supplied TALLOC_CTX
+**/
+_PUBLIC_ DATA_BLOB data_blob_talloc_named(TALLOC_CTX *mem_ctx, const void *p, size_t length, const char *name)
+{
 	DATA_BLOB ret;
 
 	if (p == NULL && length == 0) {
@@ -41,9 +49,9 @@ _PUBLIC_ DATA_BLOB data_blob_named(const void *p, size_t length, const char *nam
 	}
 
 	if (p) {
-		ret.data = (uint8_t *)talloc_memdup(NULL, p, length);
+		ret.data = (uint8_t *)talloc_memdup(mem_ctx, p, length);
 	} else {
-		ret.data = talloc_array(NULL, uint8_t, length);
+		ret.data = talloc_array(mem_ctx, uint8_t, length);
 	}
 	if (ret.data == NULL) {
 		ret.length = 0;
@@ -51,36 +59,6 @@ _PUBLIC_ DATA_BLOB data_blob_named(const void *p, size_t length, const char *nam
 	}
 	talloc_set_name_const(ret.data, name);
 	ret.length = length;
-	return ret;
-}
-
-/**
- construct a data blob, using supplied TALLOC_CTX
-**/
-_PUBLIC_ DATA_BLOB data_blob_talloc_named(TALLOC_CTX *mem_ctx, const void *p, size_t length, const char *name)
-{
-	DATA_BLOB ret = data_blob_named(p, length, name);
-
-	if (ret.data) {
-		talloc_steal(mem_ctx, ret.data);
-	}
-	return ret;
-}
-
-
-/**
- reference a data blob, to the supplied TALLOC_CTX.  
- Returns a NULL DATA_BLOB on failure
-**/
-_PUBLIC_ DATA_BLOB data_blob_talloc_reference(TALLOC_CTX *mem_ctx, DATA_BLOB *blob)
-{
-	DATA_BLOB ret = *blob;
-
-	ret.data = talloc_reference(mem_ctx, blob->data);
-
-	if (!ret.data) {
-		return data_blob(NULL, 0);
-	}
 	return ret;
 }
 
@@ -153,7 +131,7 @@ _PUBLIC_ int data_blob_cmp(const DATA_BLOB *d1, const DATA_BLOB *d2)
 /**
 print the data_blob as hex string
 **/
-_PUBLIC_ char *data_blob_hex_string(TALLOC_CTX *mem_ctx, const DATA_BLOB *blob)
+_PUBLIC_ char *data_blob_hex_string_lower(TALLOC_CTX *mem_ctx, const DATA_BLOB *blob)
 {
 	int i;
 	char *hex_string;
@@ -168,6 +146,23 @@ _PUBLIC_ char *data_blob_hex_string(TALLOC_CTX *mem_ctx, const DATA_BLOB *blob)
 	   only accepts lowercase hexadecimal numbers */
 	for (i = 0; i < blob->length; i++)
 		slprintf(&hex_string[i*2], 3, "%02x", blob->data[i]);
+
+	hex_string[(blob->length*2)] = '\0';
+	return hex_string;
+}
+
+_PUBLIC_ char *data_blob_hex_string_upper(TALLOC_CTX *mem_ctx, const DATA_BLOB *blob)
+{
+	int i;
+	char *hex_string;
+
+	hex_string = talloc_array(mem_ctx, char, (blob->length*2)+1);
+	if (!hex_string) {
+		return NULL;
+	}
+
+	for (i = 0; i < blob->length; i++)
+		slprintf(&hex_string[i*2], 3, "%02X", blob->data[i]);
 
 	hex_string[(blob->length*2)] = '\0';
 	return hex_string;

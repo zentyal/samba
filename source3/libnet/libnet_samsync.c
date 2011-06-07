@@ -22,11 +22,14 @@
 
 
 #include "includes.h"
-#include "libnet/libnet.h"
-#include "../lib/crypto/crypto.h"
+#include "libnet/libnet_samsync.h"
 #include "../libcli/samsync/samsync.h"
 #include "../libcli/auth/libcli_auth.h"
-#include "../librpc/gen_ndr/cli_netlogon.h"
+#include "rpc_client/rpc_client.h"
+#include "../librpc/gen_ndr/ndr_netlogon.h"
+#include "../librpc/gen_ndr/ndr_netlogon_c.h"
+#include "../libcli/security/security.h"
+#include "messages.h"
 
 /**
  * Fix up the delta, dealing with encryption issues so that the final
@@ -71,12 +74,16 @@ NTSTATUS libnet_samsync_init_context(TALLOC_CTX *mem_ctx,
 	NT_STATUS_HAVE_NO_MEMORY(ctx);
 
 	if (domain_sid) {
-		ctx->domain_sid = sid_dup_talloc(mem_ctx, domain_sid);
+		ctx->domain_sid = dom_sid_dup(mem_ctx, domain_sid);
 		NT_STATUS_HAVE_NO_MEMORY(ctx->domain_sid);
 
 		ctx->domain_sid_str = sid_string_talloc(mem_ctx, ctx->domain_sid);
 		NT_STATUS_HAVE_NO_MEMORY(ctx->domain_sid_str);
 	}
+
+	ctx->msg_ctx = messaging_init(ctx, procid_self(),
+				      event_context_init(ctx));
+	NT_STATUS_HAVE_NO_MEMORY(ctx->msg_ctx);
 
 	*ctx_p = ctx;
 
@@ -193,7 +200,7 @@ static NTSTATUS libnet_samsync_delta(TALLOC_CTX *mem_ctx,
 				     struct samsync_context *ctx,
 				     struct netr_ChangeLogEntry *e)
 {
-	NTSTATUS result;
+	NTSTATUS result, status;
 	NTSTATUS callback_status;
 	const char *logon_server = ctx->cli->desthost;
 	const char *computername = global_myname();
@@ -201,6 +208,7 @@ static NTSTATUS libnet_samsync_delta(TALLOC_CTX *mem_ctx,
 	struct netr_Authenticator return_authenticator;
 	uint16_t restart_state = 0;
 	uint32_t sync_context = 0;
+	struct dcerpc_binding_handle *b = ctx->cli->binding_handle;
 
 	ZERO_STRUCT(return_authenticator);
 
@@ -211,17 +219,18 @@ static NTSTATUS libnet_samsync_delta(TALLOC_CTX *mem_ctx,
 
 		if (ctx->single_object_replication &&
 		    !ctx->force_full_replication) {
-			result = rpccli_netr_DatabaseRedo(ctx->cli, mem_ctx,
+			status = dcerpc_netr_DatabaseRedo(b, mem_ctx,
 							  logon_server,
 							  computername,
 							  &credential,
 							  &return_authenticator,
 							  *e,
 							  0,
-							  &delta_enum_array);
+							  &delta_enum_array,
+							  &result);
 		} else if (!ctx->force_full_replication &&
 		           sequence_num && (*sequence_num > 0)) {
-			result = rpccli_netr_DatabaseDeltas(ctx->cli, mem_ctx,
+			status = dcerpc_netr_DatabaseDeltas(b, mem_ctx,
 							    logon_server,
 							    computername,
 							    &credential,
@@ -229,9 +238,10 @@ static NTSTATUS libnet_samsync_delta(TALLOC_CTX *mem_ctx,
 							    database_id,
 							    sequence_num,
 							    &delta_enum_array,
-							    0xffff);
+							    0xffff,
+							    &result);
 		} else {
-			result = rpccli_netr_DatabaseSync2(ctx->cli, mem_ctx,
+			status = dcerpc_netr_DatabaseSync2(b, mem_ctx,
 							   logon_server,
 							   computername,
 							   &credential,
@@ -240,11 +250,12 @@ static NTSTATUS libnet_samsync_delta(TALLOC_CTX *mem_ctx,
 							   restart_state,
 							   &sync_context,
 							   &delta_enum_array,
-							   0xffff);
+							   0xffff,
+							   &result);
 		}
 
-		if (NT_STATUS_EQUAL(result, NT_STATUS_NOT_SUPPORTED)) {
-			return result;
+		if (!NT_STATUS_IS_OK(status)) {
+			return status;
 		}
 
 		/* Check returned credentials. */
@@ -252,6 +263,10 @@ static NTSTATUS libnet_samsync_delta(TALLOC_CTX *mem_ctx,
 						 &return_authenticator.cred)) {
 			DEBUG(0,("credentials chain check failed\n"));
 			return NT_STATUS_ACCESS_DENIED;
+		}
+
+		if (NT_STATUS_EQUAL(result, NT_STATUS_NOT_SUPPORTED)) {
+			return result;
 		}
 
 		if (NT_STATUS_IS_ERR(result)) {
@@ -396,7 +411,7 @@ NTSTATUS pull_netr_AcctLockStr(TALLOC_CTX *mem_ctx,
 
 	blob = data_blob_const(r->array, r->length);
 
-	ndr_err = ndr_pull_struct_blob(&blob, mem_ctx, NULL, str,
+	ndr_err = ndr_pull_struct_blob(&blob, mem_ctx, str,
 		       (ndr_pull_flags_fn_t)ndr_pull_netr_AcctLockStr);
 
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {

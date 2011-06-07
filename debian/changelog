@@ -1,3 +1,9 @@
+samba (2:3.6.0~rc2-1) UNRELEASED; urgency=low
+
+  * New upstream version
+
+ -- Christian Perrier <bubulle@debian.org>  Tue, 07 Jun 2011 23:08:35 +0200
+
 samba (2:3.6.0~rc1-2) experimental; urgency=low
 
   * Use --with-nmbdsocketdir=/var/run/samba to have nmbd socket file

@@ -837,7 +837,7 @@ static int shadow_copy2_label_cmp_desc(const void *x, const void *y)
   sort the shadow copy data in ascending or descending order
  */
 static void shadow_copy2_sort_data(vfs_handle_struct *handle,
-				   SHADOW_COPY_DATA *shadow_copy2_data)
+				   struct shadow_copy_data *shadow_copy2_data)
 {
 	int (*cmpfunc)(const void *, const void *);
 	const char *sort;
@@ -869,7 +869,7 @@ static void shadow_copy2_sort_data(vfs_handle_struct *handle,
 
 static int shadow_copy2_get_shadow_copy2_data(vfs_handle_struct *handle, 
 					      files_struct *fsp, 
-					      SHADOW_COPY_DATA *shadow_copy2_data, 
+					      struct shadow_copy_data *shadow_copy2_data,
 					      bool labels)
 {
 	SMB_STRUCT_DIR *p;
@@ -918,7 +918,7 @@ static int shadow_copy2_get_shadow_copy2_data(vfs_handle_struct *handle,
 			continue;
 		}
 
-		tlabels = talloc_realloc(shadow_copy2_data->mem_ctx,
+		tlabels = talloc_realloc(shadow_copy2_data,
 					 shadow_copy2_data->labels,
 					 SHADOW_COPY_LABEL, shadow_copy2_data->num_volumes+1);
 		if (tlabels == NULL) {

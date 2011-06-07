@@ -2,12 +2,12 @@
 .\"     Title: smb_traffic_analyzer
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 05/17/2011
+.\"      Date: 06/07/2011
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "SMB_TRAFFIC_ANALYZER" "8" "05/17/2011" "Samba 3\&.6" "System Administration tools"
+.TH "SMB_TRAFFIC_ANALYZER" "8" "06/07/2011" "Samba 3\&.6" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -31,7 +31,7 @@ suite\&.
 .PP
 The
 vfs_smb_traffic_analyzer
-VFS module logs client file operations on a Samba server and sends this data over a socket to a helper program (in the following the "Receiver"), which feeds a SQL database\&. More information on the helper programs can be obtained from the homepage of the project at: http://holger123\&.wordpress\&.com/smb\-traffic\-analyzer/ Since the VFS module depends on a receiver that is doing something with the data, it is evolving in it\'s development\&. Therefore, the module works with different protocol versions, and the receiver has to be able to decode the protocol that is used\&. The protocol version 1 was introduced to Samba at September 25, 2008\&. It was a very simple protocol, supporting only a small list of VFS operations, and had several drawbacks\&. The protocol version 2 is a try to solve the problems version 1 had while at the same time adding new features\&.
+VFS module logs client file operations on a Samba server and sends this data over a socket to a helper program (in the following the "Receiver"), which feeds a SQL database\&. More information on the helper programs can be obtained from the homepage of the project at: http://holger123\&.wordpress\&.com/smb\-traffic\-analyzer/ Since the VFS module depends on a receiver that is doing something with the data, it is evolving in it\'s development\&. Therefore, the module works with different protocol versions, and the receiver has to be able to decode the protocol that is used\&. The protocol version 1 was introduced to Samba at September 25, 2008\&. It was a very simple protocol, supporting only a small list of VFS operations, and had several drawbacks\&. The protocol version 2 is a try to solve the problems version 1 had while at the same time adding new features\&. With the release of Samba 3\&.6\&.0, the module will run protocol version 2 by default\&.
 .SH "PROTOCOL VERSION 1 DOCUMENTATION"
 .PP
 vfs_smb_traffic_analyzer
@@ -149,6 +149,18 @@ TIMESTAMP
 \- a timestamp, formatted as "yyyy\-mm\-dd hh\-mm\-ss\&.ms" indicating when the VFS operation occured
 .RE
 .sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+IP
+\- The IP Address (v4 or v6) of the client machine that initiated the VFS operation\&.
+.RE
+.sp
 .RE
 .PP
 This module is stackable\&.
@@ -230,7 +242,7 @@ The data from the module may be send encrypted, with a key stored in secrets\&.t
 .sp -1
 .IP \(bu 2.3
 .\}
-The module now can identify itself against the receiver with a sub\-release number, where the receiver may run with a different sub\-release number than the module\&. However, as long as both run on the V2\&.x protocol, the receiver will not crash, even if the module uses features only implemented in the newer subrelease\&. Ultimativly, if the module uses a new feature from a newer subrelease, and the receiver runs an older protocol, it is just ignoring the functionality\&. Of course it is best to have both the receiver and the module running the same subrelease of the protocol\&.
+The module now can identify itself against the receiver with a sub\-release number, where the receiver may run with a different sub\-release number than the module\&. However, as long as both run on the V2\&.x protocol, the receiver will not crash, even if the module uses features only implemented in the newer subrelease\&. If the module uses a new feature from a newer subrelease, and the receiver runs an older protocol, it is just ignoring the functionality\&. Of course it is best to have both the receiver and the module running the same subrelease of the protocol\&.
 .RE
 .sp
 .RS 4
@@ -287,7 +299,7 @@ If STRING matches to \'yes\', the module will replace any user name with the str
 .PP
 smb_traffic_analyzer:protocol_version = STRING
 .RS 4
-If STRING matches to V1 or is not given at all, the module will use version 1 of the protocol\&. If STRING matches to "V2" the module will use version 2 of the protocol\&.
+If STRING matches to V1, the module will use version 1 of the protocol\&. If STRING is not given, the module will use version 2 of the protocol, which is the default\&.
 .RE
 .SH "EXAMPLES"
 .PP
@@ -300,7 +312,6 @@ Running protocol V2 on share "example_share", using an internet socket\&.
 	\fI[example_share]\fR
 	\m[blue]\fBpath = /data/example\fR\m[]
 	\m[blue]\fBvfs_objects = smb_traffic_analyzer\fR\m[]
-	\m[blue]\fBsmb_traffic_analyzer:protocol_version = V2\fR\m[]
 	\m[blue]\fBsmb_traffic_analyzer:host = examplehost\fR\m[]
 	\m[blue]\fBsmb_traffic_analyzer:port = 3491\fR\m[]
 	

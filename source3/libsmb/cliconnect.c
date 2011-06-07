@@ -259,8 +259,10 @@ static void cli_session_setup_lanman2_done(struct tevent_req *subreq)
 	uint8_t *p;
 	NTSTATUS status;
 	ssize_t ret;
+	uint8_t wct;
+	uint16_t *vwv;
 
-	status = cli_smb_recv(subreq, state, &in, 0, NULL, NULL,
+	status = cli_smb_recv(subreq, state, &in, 3, &wct, &vwv,
 			      &num_bytes, &bytes);
 	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -272,6 +274,7 @@ static void cli_session_setup_lanman2_done(struct tevent_req *subreq)
 	p = bytes;
 
 	cli->vuid = SVAL(inbuf, smb_uid);
+	cli->is_guestlogin = ((SVAL(vwv+2, 0) & 1) != 0);
 
 	status = smb_bytes_talloc_string(cli,
 					inbuf,
@@ -487,8 +490,10 @@ static void cli_session_setup_guest_done(struct tevent_req *subreq)
 	uint8_t *p;
 	NTSTATUS status;
 	ssize_t ret;
+	uint8_t wct;
+	uint16_t *vwv;
 
-	status = cli_smb_recv(subreq, state, &in, 0, NULL, NULL,
+	status = cli_smb_recv(subreq, state, &in, 3, &wct, &vwv,
 			      &num_bytes, &bytes);
 	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -500,6 +505,7 @@ static void cli_session_setup_guest_done(struct tevent_req *subreq)
 	p = bytes;
 
 	cli->vuid = SVAL(inbuf, smb_uid);
+	cli->is_guestlogin = ((SVAL(vwv+2, 0) & 1) != 0);
 
 	status = smb_bytes_talloc_string(cli,
 					inbuf,
@@ -695,8 +701,10 @@ static void cli_session_setup_plain_done(struct tevent_req *subreq)
 	uint8_t *p;
 	NTSTATUS status;
 	ssize_t ret;
+	uint8_t wct;
+	uint16_t *vwv;
 
-	status = cli_smb_recv(subreq, state, &in, 0, NULL, NULL,
+	status = cli_smb_recv(subreq, state, &in, 3, &wct, &vwv,
 			      &num_bytes, &bytes);
 	TALLOC_FREE(subreq);
 	if (tevent_req_nterror(req, status)) {
@@ -707,6 +715,7 @@ static void cli_session_setup_plain_done(struct tevent_req *subreq)
 	p = bytes;
 
 	cli->vuid = SVAL(inbuf, smb_uid);
+	cli->is_guestlogin = ((SVAL(vwv+2, 0) & 1) != 0);
 
 	status = smb_bytes_talloc_string(cli,
 					inbuf,
@@ -1051,8 +1060,10 @@ static void cli_session_setup_nt1_done(struct tevent_req *subreq)
 	uint8_t *p;
 	NTSTATUS status;
 	ssize_t ret;
+	uint8_t wct;
+	uint16_t *vwv;
 
-	status = cli_smb_recv(subreq, state, &in, 0, NULL, NULL,
+	status = cli_smb_recv(subreq, state, &in, 3, &wct, &vwv,
 			      &num_bytes, &bytes);
 	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -1064,6 +1075,7 @@ static void cli_session_setup_nt1_done(struct tevent_req *subreq)
 	p = bytes;
 
 	cli->vuid = SVAL(inbuf, smb_uid);
+	cli->is_guestlogin = ((SVAL(vwv+2, 0) & 1) != 0);
 
 	status = smb_bytes_talloc_string(cli,
 					inbuf,
@@ -1291,7 +1303,7 @@ static void cli_sesssetup_blob_done(struct tevent_req *subreq)
 	uint8_t *inbuf;
 	ssize_t ret;
 
-	status = cli_smb_recv(subreq, state, &inbuf, 1, &wct, &vwv,
+	status = cli_smb_recv(subreq, state, &inbuf, 4, &wct, &vwv,
 			      &num_bytes, &bytes);
 	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)
@@ -1305,6 +1317,7 @@ static void cli_sesssetup_blob_done(struct tevent_req *subreq)
 
 	state->inbuf = (char *)inbuf;
 	cli->vuid = SVAL(state->inbuf, smb_uid);
+	cli->is_guestlogin = ((SVAL(vwv+2, 0) & 1) != 0);
 
 	blob_length = SVAL(vwv+3, 0);
 	if (blob_length > num_bytes) {
@@ -1887,6 +1900,9 @@ ADS_STATUS cli_session_setup_spnego(struct cli_state *cli, const char *user,
 			host = strchr_m(cli->desthost, '.');
 			if (dest_realm) {
 				realm = SMB_STRDUP(dest_realm);
+				if (!realm) {
+					return ADS_ERROR_NT(NT_STATUS_NO_MEMORY);
+				}
 				strupper_m(realm);
 			} else {
 				if (host) {
@@ -1898,19 +1914,33 @@ ADS_STATUS cli_session_setup_spnego(struct cli_state *cli, const char *user,
 				}
 			}
 
-			if (realm && *realm) {
-				principal = talloc_asprintf(talloc_tos(),
-							    "cifs/%s@%s",
-							    cli->desthost,
-							    realm);
-				if (!principal) {
-					SAFE_FREE(realm);
+			if (realm == NULL || *realm == '\0') {
+				realm = SMB_STRDUP(lp_realm());
+				if (!realm) {
 					return ADS_ERROR_NT(NT_STATUS_NO_MEMORY);
 				}
-				DEBUG(3,("cli_session_setup_spnego: guessed "
-					"server principal=%s\n",
-					principal ? principal : "<null>"));
+				strupper_m(realm);
+				DEBUG(3,("cli_session_setup_spnego: cannot "
+					"get realm from dest_realm %s, "
+					"desthost %s. Using default "
+					"smb.conf realm %s\n",
+					dest_realm ? dest_realm : "<null>",
+					cli->desthost,
+					realm));
 			}
+
+			principal = talloc_asprintf(talloc_tos(),
+						    "cifs/%s@%s",
+						    cli->desthost,
+						    realm);
+			if (!principal) {
+				SAFE_FREE(realm);
+				return ADS_ERROR_NT(NT_STATUS_NO_MEMORY);
+			}
+			DEBUG(3,("cli_session_setup_spnego: guessed "
+				"server principal=%s\n",
+				principal ? principal : "<null>"));
+
 			SAFE_FREE(realm);
 		}
 
@@ -2655,11 +2685,14 @@ static void cli_negprot_done(struct tevent_req *subreq)
 		}
 		/* work out if they sent us a workgroup */
 		if (!(cli->capabilities & CAP_EXTENDED_SECURITY) &&
-		    smb_buflen(cli->inbuf) > 8) {
-			clistr_pull(cli->inbuf, cli->server_domain,
-				    bytes+8, sizeof(cli->server_domain),
-				    num_bytes-8,
-				    STR_UNICODE|STR_NOALIGN);
+		    smb_buflen(inbuf) > 8) {
+			ssize_t ret;
+			status = smb_bytes_talloc_string(
+				cli, (char *)inbuf, &cli->server_domain,
+				bytes + 8, num_bytes - 8, &ret);
+			if (tevent_req_nterror(req, status)) {
+				return;
+			}
 		}
 
 		/*

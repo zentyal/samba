@@ -417,6 +417,17 @@ static void smb_traffic_analyzer_send_data(vfs_handle_struct *handle,
 	 */
 	char state_flags[9] = "000000\0";
 
+	/**
+	 * The first byte of the state flag string represents
+	 * the modules protocol subversion number, defined
+	 * in smb_traffic_analyzer.h. smbtatools/smbtad are designed
+	 * to handle not yet implemented protocol enhancements
+	 * by ignoring them. By recognizing the SMBTA_SUBRELEASE
+	 * smbtatools can tell the user to update the client
+	 * software.
+	 */
+	state_flags[0] = SMBTA_SUBRELEASE;
+
 	SMB_VFS_HANDLE_GET_DATA(handle, rf_sock, struct refcounted_sock, return);
 
 	if (rf_sock == NULL || rf_sock->sock == -1) {
@@ -452,7 +463,7 @@ static void smb_traffic_analyzer_send_data(vfs_handle_struct *handle,
 					"protocol_version", NULL );
 
 
-	if ( protocol_version == NULL || strcmp( protocol_version,"V1") == 0) {
+	if (protocol_version != NULL && strcmp(protocol_version,"V1") == 0) {
 
 		struct rw_data *s_data = (struct rw_data *) data;
 
@@ -489,7 +500,10 @@ static void smb_traffic_analyzer_send_data(vfs_handle_struct *handle,
 		return;
 		}
 
-	} else if ( strcmp( protocol_version, "V2") == 0) {
+	} else {
+		/**
+		 * Protocol 2 is used by default.
+		 */
 
 		switch( vfs_operation ) {
 		case vfs_id_open: ;
@@ -557,10 +571,6 @@ static void smb_traffic_analyzer_send_data(vfs_handle_struct *handle,
 			return;
 		}
 
-	} else {
-		DEBUG(1, ("smb_traffic_analyzer_send_data_socket: "
-			"error, unknown protocol given!\n"));
-		return;
 	}
 
 	if (!str) {

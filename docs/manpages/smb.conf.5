@@ -2,12 +2,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 05/17/2011
+.\"      Date: 06/07/2011
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "05/17/2011" "Samba 3\&.6" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "06/07/2011" "Samba 3\&.6" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -1405,6 +1405,16 @@ Default:
 .sp
 Example:
 \fI\fIannounce version\fR\fR\fI = \fR\fI2\&.0\fR\fI \fR
+.RE
+
+async smb echo handler (G)
+.\" async smb echo handler
+.PP
+.RS 4
+This parameter specifies whether Samba should fork the async smb echo handler\&. It can be beneficial if your file system can block syscalls for a very long time\&. In some circumstances, it prolongs the timeout that Windows uses to determine whether a connection is dead\&.
+.sp
+Default:
+\fI\fIasync smb echo handler\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 auth methods (G)
@@ -3035,7 +3045,7 @@ enable privileges (G)
 .\" enable privileges
 .PP
 .RS 4
-This parameter controls whether or not smbd will honor privileges assigned to specific SIDs via either
+This deprecated parameter controls whether or not smbd will honor privileges assigned to specific SIDs via either
 net rpc rights
 or one of the Windows user and group manager tools\&. This parameter is enabled by default\&. It can be disabled to prevent members of the Domain Admins group from being able to assign privileges to users or groups which can then result in certain smbd operations running as root that would normally run under the context of the connected user\&.
 .sp
@@ -3935,43 +3945,14 @@ Example:
 \fI\fIhosts deny\fR\fR\fI = \fR\fI150\&.203\&.4\&. badhost\&.mynet\&.edu\&.au\fR\fI \fR
 .RE
 
-idmap alloc config (G)
-.\" idmap alloc config
-.PP
-.RS 4
-The idmap alloc config prefix provides a means of managing settings for the backend defined by the
-\m[blue]\fBidmap alloc backend\fR\m[]
-parameter\&. Refer to the man page for each idmap plugin regarding specific configuration details\&.
-.sp
-\fINo default\fR
-.RE
-
 idmap backend (G)
 .\" idmap backend
 .PP
 .RS 4
 The idmap backend provides a plugin interface for Winbind to use varying backends to store SID/uid/gid mapping tables\&.
 .sp
-This option specifies the default backend that is used when no special configuration set by
-\m[blue]\fBidmap config\fR\m[]
-matches the specific request\&.
-.sp
-This default backend also specifies the place where winbind\-generated idmap entries will be stored\&. So it is highly recommended that you specify a writable backend like
-\fBidmap_tdb\fR(8)
-or
-\fBidmap_ldap\fR(8)
-as the idmap backend\&. The
-\fBidmap_rid\fR(8)
-and
-\fBidmap_ad\fR(8)
-backends are not writable and thus will generate unexpected results if set as idmap backend\&.
-.sp
-To use the rid and ad backends, please specify them via the
-\m[blue]\fBidmap config\fR\m[]
-parameter, possibly also for the domain your machine is member of, specified by
-\m[blue]\fBworkgroup\fR\m[]\&.
-.sp
-Examples of SID/uid/gid backends include tdb (\fBidmap_tdb\fR(8)), ldap (\fBidmap_ldap\fR(8)), rid (\fBidmap_rid\fR(8)), and ad (\fBidmap_ad\fR(8))\&.
+This option specifies the default backend that is used when no special configuration set, but it is now deprecated in favour of the new spelling
+\m[blue]\fBidmap config * : backend\fR\m[]\&.
 .sp
 Default:
 \fI\fIidmap backend\fR\fR\fI = \fR\fItdb\fR\fI \fR
@@ -3991,26 +3972,38 @@ idmap config (G)
 .\" idmap config
 .PP
 .RS 4
-The idmap config prefix provides a means of managing each trusted domain separately\&. The idmap config prefix should be followed by the name of the domain, a colon, and a setting specific to the chosen backend\&. There are three options available for all domains:
+ID mapping in Samba is the mapping between Windows SIDs and Unix user and group IDs\&. This is performed by Winbindd with a configurable plugin interface\&. Samba\'s ID mapping is configured by options starting with the
+\m[blue]\fBidmap config\fR\m[]
+prefix\&. An idmap option consists of the
+\m[blue]\fBidmap config\fR\m[]
+prefix, followed by a domain name or the asterisk character (*), a colon, and the name of an idmap setting for the chosen domain\&.
+.sp
+The idmap configuration is hence divided into groups, one group for each domain to be configured, and one group with the the asterisk instead of a proper domain name, which speifies the default configuration that is used to catch all domains that do not have an explicit idmap configuration of their own\&.
+.sp
+There are three general options available:
 .PP
 backend = backend_name
 .RS 4
-Specifies the name of the idmap plugin to use as the SID/uid/gid backend for this domain\&.
+This specifies the name of the idmap plugin to use as the SID/uid/gid backend for this domain\&. The standard backends are tdb (\fBidmap_tdb\fR(8)), tdb2 (\fBidmap_tdb2\fR(8)), ldap (\fBidmap_ldap\fR(8)), , rid (\fBidmap_rid\fR(8)), , hash (\fBidmap_hash\fR(8)), , autorid (\fBidmap_autorid\fR(8)), , ad (\fBidmap_ad\fR(8)), , adex (\fBidmap_adex\fR(8)), , and nss\&. (\fBidmap_nss\fR(8)), The corresponding manual pages contain the details, but here is a summary\&.
+.sp
+The first three of these create mappings of their own using internal unixid counters and store the mappings in a database\&. These are suitable for use in the default idmap configuration\&. The rid and hash backends use a pure algorithmic calculation to determine the unixid for a SID\&. The autorid module is a mixture of the tdb and rid backend\&. It creates ranges for each domain encountered and then uses the rid algorithm for each of these automatically configured domains individually\&. The ad and adex backends both use unix IDs stored in Active Directory via the standard schema extensions\&. The nss backend reverses the standard winbindd setup and gets the unixids via names from nsswitch which can be useful in an ldap setup\&.
 .RE
 .PP
 range = low \- high
 .RS 4
-Defines the available matching uid and gid range for which the backend is authoritative\&. Note that the range commonly matches the allocation range due to the fact that the same backend will store and retrieve SID/uid/gid mapping entries\&.
+Defines the available matching uid and gid range for which the backend is authoritative\&. For allocating backends, this also defines the start and the end of the range for allocating new unid IDs\&.
 .sp
-winbind uses this parameter to find the backend that is authoritative for a unix ID to SID mapping, so it must be set for each individually configured domain, and it must be disjoint from the ranges set via
-\m[blue]\fBidmap uid\fR\m[]
-and
-\m[blue]\fBidmap gid\fR\m[]\&.
+winbind uses this parameter to find the backend that is authoritative for a unix ID to SID mapping, so it must be set for each individually configured domain and for the default configuration\&. The configured ranges must be mutually disjoint\&.
+.RE
+.PP
+read only = yes|no
+.RS 4
+This option can be used to turn the writing backends tdb, tdb2, and ldap into read only mode\&. This can be useful e\&.g\&. in cases where a pre\-filled database exists that should not be extended automatically\&.
 .RE
 .sp
 The following example illustrates how to configure the
 \fBidmap_ad\fR(8)
-for the CORP domain and the
+backend for the CORP domain and the
 \fBidmap_tdb\fR(8)
 backend for all other domains\&. This configuration assumes that the admin of CORP assigns unix ids below 1000000 via the SFU extensions, and winbind is supposed to use the next million entries for its own mappings from trusted domains and for local groups for example\&.
 .sp
@@ -4018,9 +4011,8 @@ backend for all other domains\&. This configuration assumes that the admin of CO
 .RS 4
 .\}
 .nf
-	idmap backend = tdb
-	idmap uid = 1000000\-1999999
-	idmap gid = 1000000\-1999999
+	idmap config * : backend = tdb
+	idmap config * : range = 1000000\-1999999
 
 	idmap config CORP : backend  = ad
 	idmap config CORP : range = 1000\-999999
@@ -4045,12 +4037,12 @@ idmap gid (G)
 .\" idmap gid
 .PP
 .RS 4
-The idmap gid parameter specifies the range of group ids that are allocated for the purpose of mapping UNX groups to NT group SIDs\&. This range of group ids should have no existing local or NIS groups within it as strange conflicts can occur otherwise\&.
+The idmap gid parameter specifies the range of group ids for the default idmap configuration\&. It is now deprecated in favour of
+\m[blue]\fBidmap config * : range\fR\m[]\&.
 .sp
-See also the
-\m[blue]\fBidmap backend\fR\m[], and
+See the
 \m[blue]\fBidmap config\fR\m[]
-options\&.
+option\&.
 .sp
 Default:
 \fI\fIidmap gid\fR\fR\fI = \fR\fI\fR\fI \fR
@@ -4081,13 +4073,12 @@ idmap uid (G)
 .\" idmap uid
 .PP
 .RS 4
-The idmap uid parameter specifies the range of user ids that are allocated for use in mapping UNIX users to NT user SIDs\&. This range of ids should have no existing local or NIS users within it as strange conflicts can occur otherwise\&.
+The idmap uid parameter specifies the range of user ids for the default idmap configuration\&. It is now deprecated in favour of
+\m[blue]\fBidmap config * : range\fR\m[]\&.
 .sp
-See also the
-\m[blue]\fBidmap backend\fR\m[]
-and
+See the
 \m[blue]\fBidmap config\fR\m[]
-options\&.
+option\&.
 .sp
 Default:
 \fI\fIidmap uid\fR\fR\fI = \fR\fI\fR\fI \fR
@@ -6770,6 +6761,22 @@ Example:
 \fI\fIname resolve order\fR\fR\fI = \fR\fIlmhosts bcast host\fR\fI \fR
 .RE
 
+ncalrpc dir (G)
+.\" ncalrpc dir
+.PP
+.RS 4
+This directory will hold a series of named pipes to allow RPC over inter\-process communication\&.
+.sp
+\&.
+	This will allow Samba and other unix processes to interact over DCE/RPC without using TCP/IP\&. Additionally a sub\-directory \'np\' has restricted permissions, and allows a trusted communication channel between Samba processes
+.sp
+Default:
+\fI\fIncalrpc dir\fR\fR\fI = \fR\fI${prefix}/var/ncalrpc\fR\fI \fR
+.sp
+Example:
+\fI\fIncalrpc dir\fR\fR\fI = \fR\fI/var/run/samba/ncalrpc\fR\fI \fR
+.RE
+
 netbios aliases (G)
 .\" netbios aliases
 .PP
@@ -7320,7 +7327,7 @@ password level (G)
 .RS 4
 Some client/server combinations have difficulty with mixed\-case passwords\&. One offending client is Windows for Workgroups, which for some reason forces passwords to upper case when using the LANMAN1 protocol, but leaves them alone when using COREPLUS! Another problem child is the Windows 95/98 family of operating systems\&. These clients upper case clear text passwords even when NT LM 0\&.12 selected by the protocol negotiation request/response\&.
 .sp
-This parameter defines the maximum number of characters that may be upper case in passwords\&.
+This deprecated parameter defines the maximum number of characters that may be upper case in passwords\&.
 .sp
 For example, say the password given was "FRED"\&. If
 \fI password level\fR
@@ -7358,61 +7365,31 @@ By specifying the name of another SMB server or Active Directory domain controll
 security = [ads|domain|server]
 it is possible to get Samba to do all its username/password validation using a specific remote server\&.
 .sp
-This option sets the name or IP address of the password server to use\&. New syntax has been added to support defining the port to use when connecting to the server the case of an ADS realm\&. To define a port other than the default LDAP port of 389, add the port number using a colon after the name or IP address (e\&.g\&. 192\&.168\&.1\&.100:389)\&. If you do not specify a port, Samba will use the standard LDAP port of tcp/389\&. Note that port numbers have no effect on password servers for Windows NT 4\&.0 domains or netbios connections\&.
-.sp
-If parameter is a name, it is looked up using the parameter
-\m[blue]\fBname resolve order\fR\m[]
-and so may resolved by any method and order described in that parameter\&.
-.sp
-The password server must be a machine capable of using the "LM1\&.2X002" or the "NT LM 0\&.12" protocol, and it must be in user level security mode\&.
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-Using a password server means your UNIX box (running Samba) is only as secure as your password server\&.
-\fIDO NOT CHOOSE A PASSWORD SERVER THAT YOU DON\'T COMPLETELY TRUST\fR\&.
-.sp .5v
-.RE
-Never point a Samba server at itself for password serving\&. This will cause a loop and could lock up your Samba server!
-.sp
-The name of the password server takes the standard substitutions, but probably the only useful one is
-\fI%m \fR, which means the Samba server will use the incoming client as the password server\&. If you use this then you better trust your clients, and you had better restrict them with hosts allow!
-.sp
 If the
 \fIsecurity\fR
 parameter is set to
 \fBdomain\fR
 or
-\fBads\fR, then the list of machines in this option must be a list of Primary or Backup Domain controllers for the Domain or the character \'*\', as the Samba server is effectively in that domain, and will use cryptographically authenticated RPC calls to authenticate the user logging on\&. The advantage of using
-security = domain
-is that if you list several hosts in the
+\fBads\fR, then this option
+\fIshould not\fR
+be used, as the default \'*\' indicates to Samba to determine the best DC to contact dynamically, just as all other hosts in an AD domain do\&. This allows the domain to be maintained without modification to the smb\&.conf file\&. The cryptograpic protection on the authenticated RPC calls used to verify passwords ensures that this default is safe\&.
+.sp
+\fIIt is strongly recommended that you use the default of \'*\'\fR, however if in your particular environment you have reason to specify a particular DC list, then the list of machines in this option must be a list of names or IP addresses of Domain controllers for the Domain\&. If you use the default of \'*\', or list several hosts in the
 \fIpassword server\fR
 option then
 smbd
 will try each in turn till it finds one that responds\&. This is useful in case your primary server goes down\&.
 .sp
-If the
-\fIpassword server\fR
-option is set to the character \'*\', then Samba will attempt to auto\-locate the Primary or Backup Domain controllers to authenticate against by doing a query for the name
-\fBWORKGROUP<1C>\fR
-and then contacting each server returned in the list of IP addresses from the name resolution source\&.
-.sp
 If the list of servers contains both names/IP\'s and the \'*\' character, the list is treated as a list of preferred domain controllers, but an auto lookup of all remaining DC\'s will be added to the list as well\&. Samba will not attempt to optimize this list by locating the closest DC\&.
+.sp
+If parameter is a name, it is looked up using the parameter
+\m[blue]\fBname resolve order\fR\m[]
+and so may resolved by any method and order described in that parameter\&.
 .sp
 If the
 \fIsecurity\fR
 parameter is set to
-\fBserver\fR, then there are different restrictions that
-security = domain
-doesn\'t suffer from:
+\fBserver\fR, these additional restrictions apply:
 .sp
 .RS 4
 .ie n \{\
@@ -7440,9 +7417,66 @@ mode and cannot be fixed in Samba\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-If you are using a Windows NT server as your password server then you will have to ensure that your users are able to login from the Samba server, as when in
+You will have to ensure that your users are able to login from the Samba server, as when in
 security = server
-mode the network logon will appear to come from there rather than from the users workstation\&.
+mode the network logon will appear to come from the Samba server rather than from the users workstation\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+The client must not select NTLMv2 authentication\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+The password server must be a machine capable of using the "LM1\&.2X002" or the "NT LM 0\&.12" protocol, and it must be in user level security mode\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Using a password server means your UNIX box (running Samba) is only as secure as (a host masqurading as) your password server\&.
+\fIDO NOT CHOOSE A PASSWORD SERVER THAT YOU DON\'T COMPLETELY TRUST\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Never point a Samba server at itself for password serving\&. This will cause a loop and could lock up your Samba server!
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+The name of the password server takes the standard substitutions, but probably the only useful one is
+\fI%m \fR, which means the Samba server will use the incoming client as the password server\&. If you use this then you better trust your clients, and you had better restrict them with hosts allow!
 .RE
 .sp
 .RE
@@ -8454,27 +8488,22 @@ The default is
 security = user, as this is the most common setting needed when talking to Windows 98 and Windows NT\&.
 .sp
 The alternatives are
-security = share,
-security = server
+security = ads
 or
-security = domain\&.
+security = domain, which support joining Samba to a Windows domain, along with
+security = share
+and
+security = server, both of which are deprecated\&.
 .sp
 In versions of Samba prior to 2\&.0\&.0, the default was
 security = share
 mainly because that was the only option at one stage\&.
 .sp
-There is a bug in WfWg that has relevance to this setting\&. When in user or server level security a WfWg client will totally ignore the username and password you type in the "connect drive" dialog box\&. This makes it very difficult (if not impossible) to connect to a Samba service as anyone except the user that you are logged into WfWg as\&.
-.sp
-If your PCs use usernames that are the same as their usernames on the UNIX machine then you will want to use
-security = user\&. If you mostly use usernames that don\'t exist on the UNIX box then use
-security = share\&.
-.sp
-You should also use
-security = share
-if you want to mainly setup shares without a password (guest shares)\&. This is commonly used for a shared printer server\&. It is more difficult to setup guest shares with
-security = user, see the
+You should use
+security = user
+and
 \m[blue]\fBmap to guest\fR\m[]
-parameter for details\&.
+if you want to mainly setup shares without a password (guest shares)\&. This is commonly used for a shared printer server\&.
 .sp
 It is possible to use
 smbd
@@ -8485,8 +8514,80 @@ where it is offers both user and share level security under different
 .sp
 The different settings will now be explained\&.
 .sp
-\fISECURITY = SHARE\fR
+\fISECURITY = USER\fR
 .sp
+This is the default security setting in Samba\&. With user\-level security a client must first "log\-on" with a valid username and password (which can be mapped using the
+\m[blue]\fBusername map\fR\m[]
+parameter)\&. Encrypted passwords (see the
+\m[blue]\fBencrypted passwords\fR\m[]
+parameter) can also be used in this security mode\&. Parameters such as
+\m[blue]\fBuser\fR\m[]
+and
+\m[blue]\fBguest only\fR\m[]
+if set are then applied and may change the UNIX user to use on this connection, but only after the user has been successfully authenticated\&.
+.sp
+\fINote\fR
+that the name of the resource being requested is
+\fInot\fR
+sent to the server until after the server has successfully authenticated the client\&. This is why guest shares don\'t work in user level security without allowing the server to automatically map unknown users into the
+\m[blue]\fBguest account\fR\m[]\&. See the
+\m[blue]\fBmap to guest\fR\m[]
+parameter for details on doing this\&.
+.sp
+See also the section
+NOTE ABOUT USERNAME/PASSWORD VALIDATION\&.
+.sp
+\fISECURITY = DOMAIN\fR
+.sp
+This mode will only work correctly if
+\fBnet\fR(8)
+has been used to add this machine into a Windows NT Domain\&. It expects the
+\m[blue]\fBencrypted passwords\fR\m[]
+parameter to be set to
+\fByes\fR\&. In this mode Samba will try to validate the username/password by passing it to a Windows NT Primary or Backup Domain Controller, in exactly the same way that a Windows NT Server would do\&.
+.sp
+\fINote\fR
+that a valid UNIX user must still exist as well as the account on the Domain Controller to allow Samba to have a valid UNIX account to map file access to\&.
+.sp
+\fINote\fR
+that from the client\'s point of view
+security = domain
+is the same as
+security = user\&. It only affects how the server deals with the authentication, it does not in any way affect what the client sees\&.
+.sp
+\fINote\fR
+that the name of the resource being requested is
+\fInot\fR
+sent to the server until after the server has successfully authenticated the client\&. This is why guest shares don\'t work in user level security without allowing the server to automatically map unknown users into the
+\m[blue]\fBguest account\fR\m[]\&. See the
+\m[blue]\fBmap to guest\fR\m[]
+parameter for details on doing this\&.
+.sp
+See also the section
+NOTE ABOUT USERNAME/PASSWORD VALIDATION\&.
+.sp
+See also the
+\m[blue]\fBpassword server\fR\m[]
+parameter and the
+\m[blue]\fBencrypted passwords\fR\m[]
+parameter\&.
+.sp
+\fISECURITY = SHARE\fR
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBNote\fR
+.ps -1
+.br
+This option is deprecated as it is incompatible with SMB2
+.sp .5v
+.RE
 When clients connect to a share level security server, they need not log onto the server with a valid username and password before attempting to connect to a shared resource (although modern clients such as Windows 95/98 and Windows NT will send a logon request with a username but no password when talking to a
 security = share
 server)\&. Instead, the clients send authentication information (passwords) on a per\-share basis, at the time they attempt to connect to that share\&.
@@ -8596,67 +8697,9 @@ confusing in share\-level security as to which UNIX username will eventually be 
 See also the section
 NOTE ABOUT USERNAME/PASSWORD VALIDATION\&.
 .sp
-\fISECURITY = USER\fR
-.sp
-This is the default security setting in Samba 3\&.0\&. With user\-level security a client must first "log\-on" with a valid username and password (which can be mapped using the
-\m[blue]\fBusername map\fR\m[]
-parameter)\&. Encrypted passwords (see the
-\m[blue]\fBencrypted passwords\fR\m[]
-parameter) can also be used in this security mode\&. Parameters such as
-\m[blue]\fBuser\fR\m[]
-and
-\m[blue]\fBguest only\fR\m[]
-if set are then applied and may change the UNIX user to use on this connection, but only after the user has been successfully authenticated\&.
-.sp
-\fINote\fR
-that the name of the resource being requested is
-\fInot\fR
-sent to the server until after the server has successfully authenticated the client\&. This is why guest shares don\'t work in user level security without allowing the server to automatically map unknown users into the
-\m[blue]\fBguest account\fR\m[]\&. See the
-\m[blue]\fBmap to guest\fR\m[]
-parameter for details on doing this\&.
-.sp
-See also the section
-NOTE ABOUT USERNAME/PASSWORD VALIDATION\&.
-.sp
-\fISECURITY = DOMAIN\fR
-.sp
-This mode will only work correctly if
-\fBnet\fR(8)
-has been used to add this machine into a Windows NT Domain\&. It expects the
-\m[blue]\fBencrypted passwords\fR\m[]
-parameter to be set to
-\fByes\fR\&. In this mode Samba will try to validate the username/password by passing it to a Windows NT Primary or Backup Domain Controller, in exactly the same way that a Windows NT Server would do\&.
-.sp
-\fINote\fR
-that a valid UNIX user must still exist as well as the account on the Domain Controller to allow Samba to have a valid UNIX account to map file access to\&.
-.sp
-\fINote\fR
-that from the client\'s point of view
-security = domain
-is the same as
-security = user\&. It only affects how the server deals with the authentication, it does not in any way affect what the client sees\&.
-.sp
-\fINote\fR
-that the name of the resource being requested is
-\fInot\fR
-sent to the server until after the server has successfully authenticated the client\&. This is why guest shares don\'t work in user level security without allowing the server to automatically map unknown users into the
-\m[blue]\fBguest account\fR\m[]\&. See the
-\m[blue]\fBmap to guest\fR\m[]
-parameter for details on doing this\&.
-.sp
-See also the section
-NOTE ABOUT USERNAME/PASSWORD VALIDATION\&.
-.sp
-See also the
-\m[blue]\fBpassword server\fR\m[]
-parameter and the
-\m[blue]\fBencrypted passwords\fR\m[]
-parameter\&.
-.sp
 \fISECURITY = SERVER\fR
 .sp
-In this mode Samba will try to validate the username/password by passing it to another SMB server, such as an NT box\&. If this fails it will revert to
+In this depicted mode Samba will try to validate the username/password by passing it to another SMB server, such as an NT box\&. If this fails it will revert to
 security = user\&. It expects the
 \m[blue]\fBencrypted passwords\fR\m[]
 parameter to be set to
@@ -8675,7 +8718,23 @@ file to check users against\&. See the chapter about the User Database in the Sa
 \fBNote\fR
 .ps -1
 .br
-This mode of operation has significant pitfalls since it is more vulnerable to man\-in\-the\-middle attacks and server impersonation\&. In particular, this mode of operation can cause significant resource consuption on the PDC, as it must maintain an active connection for the duration of the user\'s session\&. Furthermore, if this connection is lost, there is no way to reestablish it, and futher authentications to the Samba server may fail (from a single client, till it disconnects)\&.
+This mode of operation has significant pitfalls since it is more vulnerable to man\-in\-the\-middle attacks and server impersonation\&. In particular, this mode of operation can cause significant resource consumption on the PDC, as it must maintain an active connection for the duration of the user\'s session\&. Furthermore, if this connection is lost, there is no way to reestablish it, and further authentications to the Samba server may fail (from a single client, till it disconnects)\&.
+.sp .5v
+.RE
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBNote\fR
+.ps -1
+.br
+If the client selects NTLMv2 authentication, then this mode of operation
+\fIwill fail\fR
 .sp .5v
 .RE
 .if n \{\
@@ -8694,6 +8753,21 @@ From the client\'s point of view,
 security = server
 is the same as
 security = user\&. It only affects how the server deals with the authentication, it does not in any way affect what the client sees\&.
+.sp .5v
+.RE
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBNote\fR
+.ps -1
+.br
+This option is deprecated, and may be removed in future
 .sp .5v
 .RE
 \fINote\fR
@@ -9965,7 +10039,7 @@ username (S)
 .RS 4
 Multiple users may be specified in a comma\-delimited list, in which case the supplied password will be tested against each username in turn (left to right)\&.
 .sp
-The
+The deprecated
 \fIusername\fR
 line is needed only when the PC is unable to supply its own username\&. This is the case for the COREPLUS protocol or where your users have different WfWg usernames to UNIX usernames\&. In both these cases you may also be better using the \e\eserver\eshare%user syntax instead\&.
 .sp
@@ -10122,7 +10196,7 @@ use spnego (G)
 .\" use spnego
 .PP
 .RS 4
-This variable controls controls whether samba will try to use Simple and Protected NEGOciation (as specified by rfc2478) with WindowsXP and Windows2000 clients to agree upon an authentication mechanism\&.
+This deprecated variable controls controls whether samba will try to use Simple and Protected NEGOciation (as specified by rfc2478) with WindowsXP and Windows2000 clients to agree upon an authentication mechanism\&.
 .sp
 Unless further issues are discovered with our SPNEGO implementation, there is no reason this should ever be disabled\&.
 .sp

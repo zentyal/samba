@@ -74,7 +74,7 @@ Index: b/source3/winbindd/idmap_tdb2.c
  		/* fall back to the private directory, which, despite
  		   its name, is usually on shared storage */
 -		db_path = talloc_asprintf(NULL, "%s/idmap2.tdb", lp_private_dir());
-+		db_path = talloc_asprintf(NULL, "%s/idmap2.tdb", dyn_get_STATEDIR());
++		db_path = talloc_asprintf(NULL, "%s/idmap2.tdb", get_dyn_STATEDIR());
  	}
  	NT_STATUS_HAVE_NO_MEMORY(db_path);
  

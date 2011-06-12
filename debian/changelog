@@ -5,6 +5,8 @@ samba (2:3.5.8~dfsg-6) UNRELEASED; urgency=low
   * Add examples/LDAP in examples for the samba package. With this,
     samba.schema will be provided in some way in the package.
     Closes: #190162
+  * patches/bug_221618_precise-64bit-prototype.patch: precise
+    64bits prototype in libsmbclient-dev. Closes: #221618
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 12 Jun 2011 22:01:19 +0200
 

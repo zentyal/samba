@@ -14,3 +14,4 @@ autoconf.patch
 bug_574468_upstream_7265.patch
 bug_610678_fix-ftbfs-hurd.patch
 bug_601406_fix-perl-path-in-example.patch
+bug_221618_precise-64bit-prototype.patch

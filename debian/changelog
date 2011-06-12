@@ -2,6 +2,9 @@ samba (2:3.5.8~dfsg-6) UNRELEASED; urgency=low
 
   * Add "--quiet" to start-stop-daemon call in reload target in init
     script. Closes: #572483
+  * Add examples/LDAP in examples for the samba package. With this,
+    samba.schema will be provided in some way in the package.
+    Closes: #190162
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 12 Jun 2011 22:01:19 +0200
 

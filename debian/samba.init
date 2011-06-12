@@ -92,7 +92,7 @@ case "$1" in
 	reload)
 		log_daemon_msg "Reloading /etc/samba/smb.conf" "smbd only"
 
-		start-stop-daemon --stop --signal HUP --pidfile $SMBDPID
+		start-stop-daemon --stop --quiet --signal HUP --pidfile $SMBDPID
 
 		log_end_msg 0
 		;;

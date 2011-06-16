@@ -2,12 +2,12 @@
 .\"     Title: wbinfo
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 03/06/2011
+.\"      Date: 06/14/2011
 .\"    Manual: User Commands
 .\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "WBINFO" "1" "03/06/2011" "Samba 3\&.5" "User Commands"
+.TH "WBINFO" "1" "06/14/2011" "Samba 3\&.5" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,7 +22,7 @@
 wbinfo \- Query information from winbind daemon
 .SH "SYNOPSIS"
 .HP \w'\ 'u
-wbinfo [\-a\ user%password] [\-\-all\-domains] [\-\-allocate\-gid] [\-\-allocate\-uid] [\-c] [\-D\ domain] [\-\-domain\ domain] [\-g] [\-\-getdcname\ domain] [\-\-get\-auth\-user] [\-G\ gid] [\-h] [\-i\ user] [\-I\ ip] [\-K\ user%password] [\-m] [\-n\ name] [\-N\ netbios\-name] [\-\-own\-domain] [\-p] [\-r\ user] [\-\-remove\-uid\-mapping\ uid,sid] [\-\-remove\-gid\-mapping\ gid,sid] [\-s\ sid] [\-\-separator] [\-\-sequence] [\-\-set\-auth\-user\ user%password] [\-\-set\-uid\-mapping\ uid,sid] [\-\-set\-gid\-mapping\ gid,sid] [\-S\ sid] [\-t] [\-u] [\-\-uid\-info\ uid] [\-\-user\-domgroups\ sid] [\-\-user\-sids\ sid] [\-U\ uid] [\-V] [\-Y\ sid] [\-\-verbose]
+wbinfo [\-a\ user%password] [\-\-all\-domains] [\-\-allocate\-gid] [\-\-allocate\-uid] [\-c] [\-\-ccache\-save] [\-\-change\-user\-password] [\-D\ domain] [\-\-domain\ domain] [\-\-dsgetdcname\ domain] [\-g] [\-\-getdcname\ domain] [\-\-get\-auth\-user] [\-G\ gid] [\-\-gid\-info] [\-\-group\-info] [\-\-help|\-?] [\-i\ user] [\-I\ ip] [\-K\ user%password] [\-\-lanman] [\-m] [\-n\ name] [\-N\ netbios\-name] [\-\-ntlmv2] [\-\-online\-status] [\-\-own\-domain] [\-p] [\-P|\-\-ping\-dc] [\-r\ user] [\-R|\-\-lookup\-rids] [\-\-remove\-uid\-mapping\ uid,sid] [\-\-remove\-gid\-mapping\ gid,sid] [\-s\ sid] [\-\-separator] [\-\-sequence] [\-\-set\-auth\-user\ user%password] [\-\-set\-uid\-mapping\ uid,sid] [\-\-set\-gid\-mapping\ gid,sid] [\-S\ sid] [\-\-sid\-aliases] [\-\-sid\-to\-fullname] [\-t] [\-u] [\-\-uid\-info\ uid] [\-\-usage] [\-\-user\-domgroups\ sid] [\-\-user\-sids\ sid] [\-U\ uid] [\-V] [\-\-verbose] [\-Y\ sid]
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
@@ -86,6 +86,16 @@ Change the trust account password\&. May be used in conjunction with
 in order to change interdomain trust account passwords\&.
 .RE
 .PP
+\-\-ccache\-save \fIusername%password\fR
+.RS 4
+Store user and password for ccache\&.
+.RE
+.PP
+\-\-change\-user\-password \fIusername\fR
+.RS 4
+Change the password of a user\&. The old and new password will be prompted\&.
+.RE
+.PP
 \-\-domain \fIname\fR
 .RS 4
 This parameter sets the domain on which any specified operations will performed\&. If special domain name \'\&.\' is used to represent the current domain to which
@@ -100,6 +110,21 @@ options honor this parameter\&.
 \-D|\-\-domain\-info \fIdomain\fR
 .RS 4
 Show most of the info we have about the specified domain\&.
+.RE
+.PP
+\-\-dsgetdcname \fIdomain\fR
+.RS 4
+Find a DC for a domain\&.
+.RE
+.PP
+\-\-gid\-info \fIgid\fR
+.RS 4
+Get group info from gid\&.
+.RE
+.PP
+\-\-group\-info \fIuser\fR
+.RS 4
+Get group info for user\&.
 .RE
 .PP
 \-g|\-\-domain\-groups
@@ -128,6 +153,11 @@ Get the DC name for the specified domain\&.
 Try to convert a UNIX group id to a Windows NT SID\&. If the gid specified does not refer to one within the idmap gid range then the operation will fail\&.
 .RE
 .PP
+\-?
+.RS 4
+Print brief help overview\&.
+.RE
+.PP
 \-i|\-\-user\-info \fIuser\fR
 .RS 4
 Get user info\&.
@@ -147,6 +177,11 @@ parameter\&.
 \-K|\-\-krb5auth \fIusername%password\fR
 .RS 4
 Attempt to authenticate a user via Kerberos\&.
+.RE
+.PP
+\-\-lanman
+.RS 4
+Use lanman cryptography for user authentication\&.
 .RE
 .PP
 \-m|\-\-trusted\-domains
@@ -179,6 +214,16 @@ to query the WINS server for the IP address associated with the NetBIOS name spe
 parameter\&.
 .RE
 .PP
+\-\-ntlmv2
+.RS 4
+Use NTLMv2 cryptography for user authentication\&.
+.RE
+.PP
+\-\-online\-status \fIdomain\fR
+.RS 4
+Show whether domains are marked as online or offline\&. An optional domain argument limits the output to the online status of a given domain\&.
+.RE
+.PP
 \-\-own\-domain
 .RS 4
 List own domain\&.
@@ -194,6 +239,11 @@ is still alive\&. Prints out either \'succeeded\' or \'failed\'\&.
 \-r|\-\-user\-groups \fIusername\fR
 .RS 4
 Try to obtain the list of UNIX group ids to which the user belongs\&. This only works for users defined on a Domain Controller\&.
+.RE
+.PP
+\-R|\-\-lookup\-rids \fIrid1, rid2, rid3\&.\&.\&.\fR
+.RS 4
+Converts RIDs to names\&. Uses a comma separated list of rids\&.
 .RE
 .PP
 \-s|\-\-sid\-to\-name \fIsid\fR
@@ -229,6 +279,16 @@ Convert a SID to a UNIX user id\&. If the SID does not correspond to a UNIX user
 then the operation will fail\&.
 .RE
 .PP
+\-\-sid\-aliases \fIsid\fR
+.RS 4
+Get SID aliases for a given SID\&.
+.RE
+.PP
+\-\-sid\-to\-fullname \fIsid\fR
+.RS 4
+Converts a SID to a full username (DOMAIN\eusername)\&.
+.RE
+.PP
 \-t|\-\-check\-secret
 .RS 4
 Verify that the workstation trust account created when the Samba server is added to the Windows NT domain is working\&. May be used in conjunction with
@@ -248,6 +308,11 @@ daemon is operating in\&. Users in all trusted domains will also be listed\&. No
 \-\-uid\-info \fIuid\fR
 .RS 4
 Get user info for the user connected to user id UID\&.
+.RE
+.PP
+\-\-usage
+.RS 4
+Print brief help overview\&.
 .RE
 .PP
 \-\-user\-domgroups \fIsid\fR

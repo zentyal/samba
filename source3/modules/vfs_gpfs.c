@@ -30,18 +30,29 @@
 #include "nfs4_acls.h"
 #include "vfs_gpfs.h"
 
+struct gpfs_config_data {
+	bool sharemodes;
+	bool leases;
+};
+
+
 static int vfs_gpfs_kernel_flock(vfs_handle_struct *handle, files_struct *fsp, 
 				 uint32 share_mode, uint32 access_mask)
 {
+
+	struct gpfs_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return -1);
 
 	START_PROFILE(syscall_kernel_flock);
 
 	kernel_flock(fsp->fh->fd, share_mode, access_mask);
 
-	if (!set_gpfs_sharemode(fsp, access_mask, fsp->share_access)) {
-
+	if (config->sharemodes
+		&& !set_gpfs_sharemode(fsp, access_mask, fsp->share_access)) {
 		return -1;
-
 	}
 
 	END_PROFILE(syscall_kernel_flock);
@@ -51,7 +62,14 @@ static int vfs_gpfs_kernel_flock(vfs_handle_struct *handle, files_struct *fsp,
 
 static int vfs_gpfs_close(vfs_handle_struct *handle, files_struct *fsp)
 {
-	if ((fsp->fh != NULL) && (fsp->fh->fd != -1)) {
+
+	struct gpfs_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return -1);
+
+	if (config->sharemodes && (fsp->fh != NULL) && (fsp->fh->fd != -1)) {
 		set_gpfs_sharemode(fsp, 0, 0);
 	}
 
@@ -61,16 +79,23 @@ static int vfs_gpfs_close(vfs_handle_struct *handle, files_struct *fsp)
 static int vfs_gpfs_setlease(vfs_handle_struct *handle, files_struct *fsp, 
 			     int leasetype)
 {
-	int ret;
+	struct gpfs_config_data *config;
+	int ret=0;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return -1);
 
 	START_PROFILE(syscall_linux_setlease);
 
-	if ( linux_set_lease_sighandler(fsp->fh->fd) == -1)
+	if (linux_set_lease_sighandler(fsp->fh->fd) == -1)
 		return -1;
 
-	ret = set_gpfs_lease(fsp->fh->fd,leasetype);
+	if (config->leases) {
+		ret = set_gpfs_lease(fsp->fh->fd,leasetype);
+	}
 
-	if ( ret < 0 ) {
+	if (ret < 0) {
 		/* This must have come from GPFS not being available */
 		/* or some other error, hence call the default */
 		ret = linux_setlease(fsp->fh->fd, leasetype);
@@ -958,6 +983,7 @@ static ssize_t gpfs_get_xattr(struct vfs_handle_struct *handle,  const char *pat
         unsigned int dosmode = 0;
         struct gpfs_winattr attrs;
         int ret = 0;
+	ssize_t result;
 
         DEBUG(10, ("gpfs_get_xattr: %s \n",path));
 
@@ -994,9 +1020,11 @@ static ssize_t gpfs_get_xattr(struct vfs_handle_struct *handle,  const char *pat
                 dosmode |= FILE_ATTRIBUTE_READONLY;
         }
 
-        snprintf(attrstr, size, "0x%x", dosmode & SAMBA_ATTRIBUTES_MASK);
+        result = snprintf(attrstr, size, "0x%x",
+			  dosmode & SAMBA_ATTRIBUTES_MASK) + 1;
+
         DEBUG(10, ("gpfs_get_xattr: returning %s\n",attrstr));
-        return size;
+        return result;
 }
 
 static int vfs_gpfs_stat(struct vfs_handle_struct *handle,
@@ -1113,7 +1141,51 @@ static int vfs_gpfs_ntimes(struct vfs_handle_struct *handle,
 
 }
 
+int vfs_gpfs_connect(struct vfs_handle_struct *handle, const char *service,
+			const char *user)
+{
+	struct gpfs_config_data *config;
+	int ret = SMB_VFS_NEXT_CONNECT(handle, service, user);
+
+	if (ret < 0) {
+		return ret;
+	}
+
+	config = talloc_zero(handle->conn, struct gpfs_config_data);
+	if (!config) {
+		SMB_VFS_NEXT_DISCONNECT(handle);
+		DEBUG(0, ("talloc_zero() failed\n")); return -1;
+	}
+
+	config->sharemodes = lp_parm_bool(SNUM(handle->conn), "gpfs",
+					"sharemodes", true);
+
+	config->leases = lp_parm_bool(SNUM(handle->conn), "gpfs",
+					"leases", true);
+
+	SMB_VFS_HANDLE_SET_DATA(handle, config,
+				NULL, struct gpfs_config_data,
+				return -1);
+
+	return 0;
+}
+
+
+static int vfs_gpfs_ftruncate(struct vfs_handle_struct *handle,
+                              struct files_struct *fsp,
+                              SMB_OFF_T len)
+{
+       int result;
+
+       result = smbd_gpfs_ftrunctate(fsp->fh->fd, len);
+       if ((result == -1) && (errno == ENOSYS)) {
+               return SMB_VFS_NEXT_FTRUNCATE(handle, fsp, len);
+       }
+       return result;
+}
+
 static struct vfs_fn_pointers vfs_gpfs_fns = {
+	.connect_fn = vfs_gpfs_connect,
 	.kernel_flock = vfs_gpfs_kernel_flock,
         .linux_setlease = vfs_gpfs_setlease,
         .get_real_filename = vfs_gpfs_get_real_filename,
@@ -1134,6 +1206,7 @@ static struct vfs_fn_pointers vfs_gpfs_fns = {
         .fstat = vfs_gpfs_fstat,
         .lstat = vfs_gpfs_lstat,
 	.ntimes = vfs_gpfs_ntimes,
+	.ftruncate = vfs_gpfs_ftruncate,
 };
 
 NTSTATUS vfs_gpfs_init(void);

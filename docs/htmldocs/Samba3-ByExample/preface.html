@@ -1,4 +1,4 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Preface</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="Samba-3 by Example"><link rel="up" href="index.html" title="Samba-3 by Example"><link rel="prev" href="pr03.html" title="Foreword"><link rel="next" href="ExNetworks.html" title="Part I. Example Network Configurations"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Preface</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="pr03.html">Prev</a> </td><th width="60%" align="center"> </th><td width="20%" align="right"> <a accesskey="n" href="ExNetworks.html">Next</a></td></tr></table><hr></div><div class="preface" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="preface"></a>Preface</h2></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="preface.html#id2501251">Why Is This Book Necessary?</a></span></dt><dd><dl><dt><span class="sect2"><a href="preface.html#id2498970">Samba 3.0.20 Update Edition</a></span></dt></dl></dd><dt><span class="sect1"><a href="preface.html#id2498857">Prerequisites</a></span></dt><dt><span class="sect1"><a href="preface.html#id2498889">Approach</a></span></dt><dt><span class="sect1"><a href="preface.html#id2498954">Summary of Topics</a></span></dt><dt><span class="sect1"><a href="preface.html#id2550647">Conventions Used</a></span></dt></dl></div><p>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Preface</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.75.2"><link rel="home" href="index.html" title="Samba-3 by Example"><link rel="up" href="index.html" title="Samba-3 by Example"><link rel="prev" href="pr03.html" title="Foreword"><link rel="next" href="ExNetworks.html" title="Part I. Example Network Configurations"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Preface</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="pr03.html">Prev</a> </td><th width="60%" align="center"> </th><td width="20%" align="right"> <a accesskey="n" href="ExNetworks.html">Next</a></td></tr></table><hr></div><div class="preface" title="Preface"><div class="titlepage"><div><div><h2 class="title"><a name="preface"></a>Preface</h2></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="preface.html#id280788">Why Is This Book Necessary?</a></span></dt><dd><dl><dt><span class="sect2"><a href="preface.html#id280825">Samba 3.0.20 Update Edition</a></span></dt></dl></dd><dt><span class="sect1"><a href="preface.html#id280643">Prerequisites</a></span></dt><dt><span class="sect1"><a href="preface.html#id322292">Approach</a></span></dt><dt><span class="sect1"><a href="preface.html#id322341">Summary of Topics</a></span></dt><dt><span class="sect1"><a href="preface.html#id322920">Conventions Used</a></span></dt></dl></div><p>
 	Network administrators live busy lives. We face distractions and pressures
 	that drive us to seek proven, working case scenarios that can be easily
 	implemented. Often this approach lands us in trouble. There is a 
@@ -33,11 +33,11 @@
 	detailed information regarding secure operation and configuration of peripheral
 	services and applications such as OpenLDAP, DNS and DHCP, the need for which
 	can be met from other resources that are dedicated to the subject.
-	</p><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2501251"></a>Why Is This Book Necessary?</h2></div></div></div><p>
+	</p><div class="sect1" title="Why Is This Book Necessary?"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id280788"></a>Why Is This Book Necessary?</h2></div></div></div><p>
 	This book is the result of observations and feedback. The feedback from
 	the Samba-HOWTO-Collection has been positive and complimentary. There
 	have been requests for far more worked examples, a
-	&#8220;<span class="quote">Samba Cookbook,</span>&#8221; and for training materials to
+	<span class="quote">&#8220;<span class="quote">Samba Cookbook,</span>&#8221;</span> and for training materials to
 	help kick-start the process of mastering Samba.
 	</p><p>
 	The Samba mailing lists users have asked for sample configuration files
@@ -53,7 +53,7 @@
 	All example case configuration files, scripts, and other tools are provided
 	on the CD-ROM. This book is descriptive, provides detailed diagrams, and
 	makes deployment of Samba-3 a breeze.
-	</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2498970"></a>Samba 3.0.20 Update Edition</h3></div></div></div><p>
+	</p><div class="sect2" title="Samba 3.0.20 Update Edition"><div class="titlepage"><div><div><h3 class="title"><a name="id280825"></a>Samba 3.0.20 Update Edition</h3></div></div></div><p>
 	The Samba 3.0.x series has been remarkably popular. At the time this book first
 	went to print samba-3.0.2 was being released. There have been significant modifications
 	and enhancements between samba-3.0.2 and samba-3.0.14 (the current release) that
@@ -111,8 +111,8 @@
 					</td><td align="justify">
 						<p>
 						Symbolically linked files and directories on the UNIX host to absolute paths will
-						now be followed. This can be turned off using &#8220;<span class="quote">wide links = No</span>&#8221; in
-						the share stanza in the <code class="filename">smb.conf</code> file. Turning off &#8220;<span class="quote">wide links</span>&#8221;
+						now be followed. This can be turned off using <span class="quote">&#8220;<span class="quote">wide links = No</span>&#8221;</span> in
+						the share stanza in the <code class="filename">smb.conf</code> file. Turning off <span class="quote">&#8220;<span class="quote">wide links</span>&#8221;</span>
 						support will degrade server performance because each path must be checked.
 						</p>
 					</td></tr><tr><td align="left">
@@ -122,11 +122,11 @@
 					</td><td align="justify">
 						<p>
 						Versions of Samba prior to samba-3.0.11 required the use of the UNIX <code class="constant">root</code>
-						account from network Windows clients. The new &#8220;<span class="quote">enable privileges = Yes</span>&#8221; capability
+						account from network Windows clients. The new <span class="quote">&#8220;<span class="quote">enable privileges = Yes</span>&#8221;</span> capability
 						means that functions such as adding machines to the domain, managing printers, etc. can now
 						be delegated to normal user accounts or to groups of users.
 						</p>
-					</td></tr></tbody></table></div></div><br class="table-break"></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2498857"></a>Prerequisites</h2></div></div></div><p>
+					</td></tr></tbody></table></div></div><br class="table-break"></div></div><div class="sect1" title="Prerequisites"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id280643"></a>Prerequisites</h2></div></div></div><p>
 	This book is not a tutorial on UNIX or Linux administration. UNIX and Linux
 	training is best obtained from books dedicated to the subject. This book
 	assumes that you have at least the basic skill necessary to use these operating
@@ -139,7 +139,7 @@
 	find yourself at times intimidated by assumptions made. In this situation, you
 	may need to refer to administrative guides or manuals for your operating system
 	platform to find what is the best method to achieve what the text of this book describes.
-	</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2498889"></a>Approach</h2></div></div></div><p>
+	</p></div><div class="sect1" title="Approach"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id322292"></a>Approach</h2></div></div></div><p>
 	The first chapter deals with some rather thorny network analysis issues. Do not be
 	put off by this. The information you glean, even without a detailed understanding
 	of network protocol analysis, can help you understand how Windows networking functions.
@@ -167,7 +167,7 @@
 	</p><p>
 	Each chapter has a set of questions and answers to help you to
 	to understand and digest key attributes of the solutions presented.
-	</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2498954"></a>Summary of Topics</h2></div></div></div><p>
+	</p></div><div class="sect1" title="Summary of Topics"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id322341"></a>Summary of Topics</h2></div></div></div><p>
 	The contents of this second edition of <span class="emphasis"><em>Samba-3 by Example</em></span>
 	have been rearranged based on feedback from purchasers of the first edition.
 	</p><p>
@@ -187,12 +187,12 @@
 		so let's see how far we can get. If successful, Abmas grows quickly and
 		soon needs to replace all servers and workstations.
 		</p><p><span class="emphasis"><em>TechInfo</em></span>  This chapter demands:
-			</p><div class="itemizedlist"><ul type="disc"><li><p>Case 1: The simplest <code class="filename">smb.conf</code> file that may
+			</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>Case 1: The simplest <code class="filename">smb.conf</code> file that may
 					reasonably be used. Works with Samba-2.x also. This
 					configuration uses Share Mode security. Encrypted
 					passwords are not used, so there is no 
 					<code class="filename">smbpasswd</code> file.
-					</p></li><li><p>Case 2: Another simple <code class="filename">smb.conf</code> file that adds
+					</p></li><li class="listitem"><p>Case 2: Another simple <code class="filename">smb.conf</code> file that adds
 					WINS support and printing support. This case deals with
 					a special requirement that demonstrates how to deal with
 					purpose-built software that has a particular requirement
@@ -200,7 +200,7 @@
 					configuration uses Share Mode security and also works with
 					Samba-2.x. Encrypted passwords are not used, so there is no
 					<code class="filename">smbpasswd</code> file.
-					</p></li><li><p>Case 3: This <code class="filename">smb.conf</code> configuration uses User Mode
+					</p></li><li class="listitem"><p>Case 3: This <code class="filename">smb.conf</code> configuration uses User Mode
 					security. The file share configuration demonstrates
 					the ability to provide master access to an administrator
 					while restricting all staff to their own work areas.
@@ -338,7 +338,7 @@
 		network. Avoid name resolution problems, identify potential causes of network collisions,
 		avoid Samba configuration options that will weigh the server down. MS distributed file
 		services to make your network fly and much more. This chapter contains a good deal of 
-		&#8220;<span class="quote">Did I tell you about this...?</span>&#8221; type of hints to help keep your name on the top
+		<span class="quote">&#8220;<span class="quote">Did I tell you about this...?</span>&#8221;</span> type of hints to help keep your name on the top
 		performers list.
 		</p></dd><dt><span class="term">Chapter 14  Samba Support.</span></dt><dd><p>
 		This chapter has been added specifically to help those who are seeking professional
@@ -364,23 +364,23 @@
 		have seen some of the information a Windows client sends to
 		a file and print server to create a connection over which file and print
 		operations may take place.
-		</p></dd></dl></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2550647"></a>Conventions Used</h2></div></div></div><p>
+		</p></dd></dl></div></div><div class="sect1" title="Conventions Used"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id322920"></a>Conventions Used</h2></div></div></div><p>
     The following notation conventions are used throughout this book:
-    </p><div class="itemizedlist"><ul type="disc"><li><p>
-	TOSHARG2 is used as an abbreviation for the book, &#8220;<span class="quote">The Official Samba-3
-	HOWTO and Reference Guide, Second Edition</span>&#8221; Editors: John H. Terpstra and Jelmer R. Vernooij,
+    </p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>
+	TOSHARG2 is used as an abbreviation for the book, <span class="quote">&#8220;<span class="quote">The Official Samba-3
+	HOWTO and Reference Guide, Second Edition</span>&#8221;</span> Editors: John H. Terpstra and Jelmer R. Vernooij,
 	Publisher: Prentice Hall, ISBN: 0131882228.
-	</p></li><li><p>
-	S3bE2 is used as an abbreviation for the book, &#8220;<span class="quote">Samba-3 by Example, Second Edition</span>&#8221; 
+	</p></li><li class="listitem"><p>
+	S3bE2 is used as an abbreviation for the book, <span class="quote">&#8220;<span class="quote">Samba-3 by Example, Second Edition</span>&#8221;</span> 
 	Editors: John H. Terpstra, Publisher: Prentice Hall, ISBN: 013188221X.
-	</p></li><li><p>
+	</p></li><li class="listitem"><p>
 	Directories and filenames appear in mono-font. For example,
         <code class="filename">/etc/pam.conf</code>.
-        </p></li><li><p>
+        </p></li><li class="listitem"><p>
 	Executable names are bolded. For example, <code class="literal">smbd</code>.
-	</p></li><li><p>
+	</p></li><li class="listitem"><p>
 	Menu items and buttons appear in bold. For example, click <span class="guibutton">Next</span>.
-        </p></li><li><p>
+        </p></li><li class="listitem"><p>
 	Selecting a menu item is indicated as:
 	<span class="guimenu">Start</span> &#8594; <span class="guimenuitem">Control Panel</span> &#8594; <span class="guimenuitem">Administrative Tools</span> &#8594; <span class="guimenuitem">Active Directory Users and Computers</span>
        </p></li></ul></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="pr03.html">Prev</a> </td><td width="20%" align="center"> </td><td width="40%" align="right"> <a accesskey="n" href="ExNetworks.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Foreword </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Part I. Example Network Configurations</td></tr></table></div></body></html>

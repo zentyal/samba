@@ -24,10 +24,9 @@
 #include "gpfs_gpl.h"
 #include "vfs_gpfs.h"
 
-static bool gpfs_share_modes;
-static bool gpfs_leases;
 static bool gpfs_getrealfilename;
 static bool gpfs_winattr;
+static bool gpfs_do_ftruncate;
 
 static int (*gpfs_set_share_fn)(int fd, unsigned int allow, unsigned int deny);
 static int (*gpfs_set_lease_fn)(int fd, unsigned int leaseType);
@@ -38,7 +37,7 @@ static int (*gpfs_get_realfilename_path_fn)(char *pathname, char *filenamep,
 static int (*gpfs_set_winattrs_path_fn)(char *pathname, int flags, struct gpfs_winattr *attrs);
 static int (*gpfs_get_winattrs_path_fn)(char *pathname, struct gpfs_winattr *attrs);
 static int (*gpfs_get_winattrs_fn)(int fd, struct gpfs_winattr *attrs);
-
+static int (*gpfs_ftruncate_fn)(int fd, gpfs_off64_t length);
 
 bool set_gpfs_sharemode(files_struct *fsp, uint32 access_mask,
 			uint32 share_access)
@@ -46,10 +45,6 @@ bool set_gpfs_sharemode(files_struct *fsp, uint32 access_mask,
 	unsigned int allow = GPFS_SHARE_NONE;
 	unsigned int deny = GPFS_DENY_NONE;
 	int result;
-
-	if (!gpfs_share_modes) {
-		return True;
-	}
 
 	if (gpfs_set_share_fn == NULL) {
 		return False;
@@ -96,10 +91,6 @@ int set_gpfs_lease(int fd, int leasetype)
 {
 	int gpfs_type = GPFS_LEASE_NONE;
 
-	if (!gpfs_leases) {
-		return True;
-	}
-
 	if (gpfs_set_lease_fn == NULL) {
 		errno = EINVAL;
 		return -1;
@@ -139,6 +130,16 @@ int smbd_gpfs_putacl(char *pathname, int flags, void *acl)
 	}
 
 	return gpfs_putacl_fn(pathname, flags, acl);
+}
+
+int smbd_gpfs_ftrunctate(int fd, gpfs_off64_t length)
+{
+       if (!gpfs_do_ftruncate || (gpfs_ftruncate_fn == NULL)) {
+               errno = ENOSYS;
+               return -1;
+       }
+
+       return gpfs_ftruncate_fn(fd, length);
 }
 
 int smbd_gpfs_get_realfilename_path(char *pathname, char *filenamep,
@@ -247,13 +248,13 @@ void init_gpfs(void)
 	init_gpfs_function(&gpfs_get_winattrs_path_fn,"gpfs_get_winattrs_path");
         init_gpfs_function(&gpfs_set_winattrs_path_fn,"gpfs_set_winattrs_path");
         init_gpfs_function(&gpfs_get_winattrs_fn,"gpfs_get_winattrs");
+	init_gpfs_function(&gpfs_ftruncate_fn,"gpfs_ftruncate");
 
-
-	gpfs_share_modes = lp_parm_bool(-1, "gpfs", "sharemodes", True);
-	gpfs_leases      = lp_parm_bool(-1, "gpfs", "leases", True);
 	gpfs_getrealfilename = lp_parm_bool(-1, "gpfs", "getrealfilename",
 					    True);
 	gpfs_winattr = lp_parm_bool(-1, "gpfs", "winattr", False);
+
+	gpfs_do_ftruncate = lp_parm_bool(-1, "gpfs", "ftruncate", True);
 
 	return;
 }

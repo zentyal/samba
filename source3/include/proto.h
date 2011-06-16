@@ -1179,6 +1179,7 @@ void set_remote_arch(enum remote_arch_types type);
 enum remote_arch_types get_remote_arch(void);
 const char *tab_depth(int level, int depth);
 int str_checksum(const char *s);
+unsigned int jenkins_hash(TDB_DATA *key);
 void zero_free(void *p, size_t size);
 int set_maxfiles(int requested_max);
 int smb_mkstemp(char *name_template);
@@ -4079,6 +4080,7 @@ bool lp_use_mmap(void);
 bool lp_unix_extensions(void);
 bool lp_use_spnego(void);
 bool lp_client_use_spnego(void);
+bool lp_client_use_spnego_principal(void);
 bool lp_hostname_lookups(void);
 bool lp_change_notify(const struct share_params *p );
 bool lp_kernel_change_notify(const struct share_params *p );
@@ -4897,7 +4899,7 @@ void pcap_cache_destroy_specific(struct pcap_cache **ppcache);
 bool pcap_cache_add(const char *name, const char *comment);
 bool pcap_cache_loaded(void);
 void pcap_cache_replace(const struct pcap_cache *cache);
-void pcap_cache_reload(void);
+void pcap_cache_reload(void (*post_cache_fill_fn)(void));
 bool pcap_printername_ok(const char *printername);
 void pcap_printer_fn_specific(const struct pcap_cache *, void (*fn)(const char *, const char *, void *), void *);
 void pcap_printer_fn(void (*fn)(const char *, const char *, void *), void *);
@@ -4908,7 +4910,7 @@ bool aix_cache_reload(void);
 
 /* The following definitions come from printing/print_cups.c  */
 
-bool cups_cache_reload(void);
+bool cups_cache_reload(void (*post_cache_fill_fn)(void));
 bool cups_pull_comment_location(NT_PRINTER_INFO_LEVEL_2 *printer);
 
 /* The following definitions come from printing/print_generic.c  */
@@ -6751,6 +6753,7 @@ uint32_t map_canon_ace_perms(int snum,
                                 mode_t perms,
                                 bool directory_ace);
 NTSTATUS unpack_nt_owners(int snum, uid_t *puser, gid_t *pgrp, uint32 security_info_sent, const SEC_DESC *psd);
+bool current_user_in_group(gid_t gid);
 SMB_ACL_T free_empty_sys_acl(connection_struct *conn, SMB_ACL_T the_acl);
 NTSTATUS posix_fget_nt_acl(struct files_struct *fsp, uint32_t security_info,
 			   SEC_DESC **ppdesc);

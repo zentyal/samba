@@ -573,14 +573,24 @@ bool convert_string_talloc(TALLOC_CTX *ctx, charset_t from, charset_t to,
 		errno = EINVAL;
 		return false;
 	}
+
 	if (srclen == 0) {
-		ob = talloc_strdup(ctx, "");
+		/* We really should treat this as an error, but
+		   there are too many callers that need this to
+		   return a NULL terminated string in the correct
+		   character set. */
+		if (to == CH_UTF16LE|| to == CH_UTF16BE || to == CH_UTF16MUNGED) {
+			destlen = 2;
+		} else {
+			destlen = 1;
+		}
+		ob = talloc_zero_array(ctx, char, destlen);
 		if (ob == NULL) {
 			errno = ENOMEM;
 			return false;
 		}
+		*converted_size = destlen;
 		*dest = ob;
-		*converted_size = 0;
 		return true;
 	}
 
@@ -676,6 +686,16 @@ bool convert_string_talloc(TALLOC_CTX *ctx, charset_t from, charset_t to,
 	/* Must ucs2 null terminate in the extra space we allocated. */
 	ob[destlen] = '\0';
 	ob[destlen+1] = '\0';
+
+	/* Ensure we can never return a *converted_size of zero. */
+	if (destlen == 0) {
+		/* This can happen from a bad iconv "use_as_is:" call. */
+		if (to == CH_UTF16LE|| to == CH_UTF16BE || to == CH_UTF16MUNGED) {
+			destlen = 2;
+		} else {
+			destlen = 1;
+		}
+	}
 
 	*converted_size = destlen;
 	return true;
@@ -1342,6 +1362,7 @@ bool push_utf8_talloc(TALLOC_CTX *ctx, char **dest, const char *src,
 size_t pull_ucs2(const void *base_ptr, char *dest, const void *src, size_t dest_len, size_t src_len, int flags)
 {
 	size_t ret;
+	size_t ucs2_align_len = 0;
 
 	if (dest_len == (size_t)-1) {
 		/* No longer allow dest_len of -1. */
@@ -1359,6 +1380,7 @@ size_t pull_ucs2(const void *base_ptr, char *dest, const void *src, size_t dest_
 		src = (const void *)((const char *)src + 1);
 		if (src_len != (size_t)-1)
 			src_len--;
+		ucs2_align_len = 1;
 	}
 
 	if (flags & STR_TERMINATE) {
@@ -1394,7 +1416,7 @@ size_t pull_ucs2(const void *base_ptr, char *dest, const void *src, size_t dest_
 		dest[0] = 0;
 	}
 
-	return src_len;
+	return src_len + ucs2_align_len;
 }
 
 /**
@@ -1420,6 +1442,7 @@ size_t pull_ucs2_base_talloc(TALLOC_CTX *ctx,
 {
 	char *dest;
 	size_t dest_len;
+	size_t ucs2_align_len = 0;
 
 	*ppdest = NULL;
 
@@ -1438,6 +1461,7 @@ size_t pull_ucs2_base_talloc(TALLOC_CTX *ctx,
 		src = (const void *)((const char *)src + 1);
 		if (src_len != (size_t)-1)
 			src_len--;
+		ucs2_align_len = 1;
 	}
 
 	if (flags & STR_TERMINATE) {
@@ -1503,7 +1527,7 @@ size_t pull_ucs2_base_talloc(TALLOC_CTX *ctx,
 	}
 
 	*ppdest = dest;
-	return src_len;
+	return src_len + ucs2_align_len;
 }
 
 size_t pull_ucs2_fstring(char *dest, const void *src)

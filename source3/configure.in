@@ -215,7 +215,7 @@ dnl Certain versions of GNU ld the default is not to have the
 dnl --allow-shlib-undefined flag defined.  This causes a stackload of
 dnl warnings when building modules.
 if test "$ac_cv_prog_gnu_ld" = "yes"; then
-	ac_cv_gnu_ld_version=`$CC -Wl,-v /dev/null 2>/dev/null | head -1`
+	ac_cv_gnu_ld_version=`$CC -Wl,-v /dev/null 2>&1 < /dev/null | grep "GNU ld"`
 	AC_MSG_CHECKING(GNU ld release date)
 	changequote(,)dnl
 	ac_cv_gnu_ld_date=`echo $ac_cv_gnu_ld_version | sed -n 's,^.*\([2-9][0-9][0-9][0-9]\)[-]*\([01][0-9]\)[-]*\([0-3][0-9]\).*$,\1\2\3,p'`
@@ -1023,6 +1023,7 @@ AC_CHECK_FUNCS(getrlimit fsync fdatasync setpgid)
 AC_CHECK_FUNCS(setsid glob strpbrk crypt16 getauthuid)
 AC_CHECK_FUNCS(sigprocmask sigblock sigaction sigset innetgr setnetgrent getnetgrent endnetgrent)
 AC_CHECK_FUNCS(initgroups select poll rdchk getgrnam getgrent pathconf)
+AC_CHECK_FUNCS(getgrset)
 AC_CHECK_FUNCS(setpriv setgidx setuidx setgroups sysconf stat64 fstat64)
 AC_CHECK_FUNCS(lstat64 fopen64 atexit grantpt lseek64 ftruncate64 posix_fallocate posix_fallocate64)
 AC_CHECK_FUNCS(fseek64 fseeko64 ftell64 ftello64 setluid getpwanam)
@@ -2688,7 +2689,28 @@ AC_SUBST(SMB_FAM_LIBS)
 #################################################
 # Check for DMAPI interfaces in libdm/libjfsdm/libxsdm
 
-SMB_CHECK_DMAPI([], AC_MSG_NOTICE(DMAPI support not present) )
+
+with_dmapi_support=auto
+AC_MSG_CHECKING(whether to use DMAPI support)
+AC_ARG_WITH(dmapi,
+[AS_HELP_STRING([--with-dmapi], [Include DMAPI/XDSM support (default=auto)])],
+[ case "$withval" in
+  yes|no)
+    with_dmapi_support=$withval
+    ;;
+  esac ]
+)
+AC_MSG_RESULT([$with_dmapi_support])
+
+if test x"$with_dmapi_support" != xno ; then
+	SMB_CHECK_DMAPI([], [
+		AC_MSG_NOTICE(DMAPI support not present)
+		if test x"$with_dmapi_support" = xyes ; then
+			AC_MSG_ERROR(no DMAPI support found but requested!)
+		fi
+		]
+	)
+fi
 
 # Add TSM SM VFS module only if there are both GPFS and DMAPI support
 # Theoretically it should work with AIX JFS2 too but this needs testing

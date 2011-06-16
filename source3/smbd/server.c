@@ -541,6 +541,14 @@ static bool smbd_open_one_socket(struct smbd_parent_context *parent,
 	return true;
 }
 
+static bool parent_housekeeping_fn(const struct timeval *now, void *private_data)
+{
+	DEBUG(5, ("houskeeping\n"));
+	/* check if we need to reload services */
+	check_reload(time(NULL));
+	return true;
+}
+
 /****************************************************************************
  Open the socket communication.
 ****************************************************************************/
@@ -598,6 +606,13 @@ static bool open_sockets_smbd(struct smbd_parent_context *parent,
 				unsigned port = atoi(tok);
 				if (port == 0 || port > 0xffff) {
 					continue;
+				}
+
+				/* Keep the first port for mDNS service
+				 * registration.
+				 */
+				if (dns_port == 0) {
+					dns_port = port;
 				}
 
 				if (!smbd_open_one_socket(parent, ifss, port)) {
@@ -668,6 +683,14 @@ static bool open_sockets_smbd(struct smbd_parent_context *parent,
 	claim_connection(NULL,"",
 			 FLAG_MSG_GENERAL|FLAG_MSG_SMBD|FLAG_MSG_DBWRAP);
 
+	if (!(event_add_idle(smbd_event_context(), NULL,
+			     timeval_set(SMBD_HOUSEKEEPING_INTERVAL, 0),
+			     "parent_housekeeping", parent_housekeeping_fn,
+			     parent))) {
+		DEBUG(0, ("Could not add housekeeping event\n"));
+		exit(1);
+	}
+
         /* Listen to messages */
 
 	messaging_register(smbd_messaging_context(), NULL,
@@ -734,9 +757,9 @@ static void smbd_parent_loop(struct smbd_parent_context *parent)
 /* NOTREACHED	return True; */
 }
 
-/****************************************************************************
- Reload printers
-**************************************************************************/
+/***************************************************************************
+ purge stale printers and reload from pre-populated pcap cache
+***************************************************************************/
 void reload_printers(void)
 {
 	int snum;
@@ -744,9 +767,7 @@ void reload_printers(void)
 	int pnum = lp_servicenumber(PRINTERS_NAME);
 	const char *pname;
 
-	pcap_cache_reload();
-
-	/* remove stale printers */
+	DEBUG(10, ("reloading printer services from pcap cache\n"));
 	for (snum = 0; snum < n_services; snum++) {
 		/* avoid removing PRINTERS_NAME or non-autoloaded printers */
 		if (snum == pnum || !(lp_snum_ok(snum) && lp_print_ok(snum) &&
@@ -793,7 +814,7 @@ bool reload_services(bool test)
 
 	ret = lp_load(get_dyn_CONFIGFILE(), False, False, True, True);
 
-	reload_printers();
+	pcap_cache_reload(&reload_printers);
 
 	/* perhaps the config filename is now set */
 	if (!test)

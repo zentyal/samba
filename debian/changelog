@@ -8,8 +8,10 @@ samba (2:3.5.9~dfsg-1) UNRELEASED; urgency=low
     This very partially addresses #190162
   * patches/bug_221618_precise-64bit-prototype.patch: precise
     64bits prototype in libsmbclient-dev. Closes: #221618
+  * patches/no-unnecessary-cups.patch: dropped after upstream
+    changes to printing code
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 12 Jun 2011 22:01:19 +0200
+-- Christian Perrier <bubulle@debian.org>  Sun, 12 Jun 2011 22:01:19 +0200
 
 samba (2:3.5.8~dfsg-5) unstable; urgency=low
 

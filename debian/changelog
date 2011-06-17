@@ -1,5 +1,6 @@
-samba (2:3.5.8~dfsg-6) UNRELEASED; urgency=low
+samba (2:3.5.9~dfsg-1) UNRELEASED; urgency=low
 
+  * New upstream release
   * Add "--quiet" to start-stop-daemon call in reload target in init
     script. Closes: #572483
   * Add examples/LDAP in examples for the samba package. With this,

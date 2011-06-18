@@ -1,4 +1,4 @@
-samba (2:3.5.9~dfsg-1) UNRELEASED; urgency=low
+samba (2:3.5.9~dfsg-1) unstable; urgency=low
 
   * New upstream release
   * Add "--quiet" to start-stop-daemon call in reload target in init
@@ -13,7 +13,7 @@ samba (2:3.5.9~dfsg-1) UNRELEASED; urgency=low
   * Update Standards to 3.9.2 (checked, no change)
   * Add build-arch and build-indep targets in debian/rules
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 12 Jun 2011 22:01:19 +0200
+ -- Christian Perrier <bubulle@debian.org>  Sat, 18 Jun 2011 07:08:00 +0200
 
 samba (2:3.5.8~dfsg-5) unstable; urgency=low
 

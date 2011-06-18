@@ -10,6 +10,7 @@ samba (2:3.5.9~dfsg-1) UNRELEASED; urgency=low
     64bits prototype in libsmbclient-dev. Closes: #221618
   * patches/no-unnecessary-cups.patch: dropped after upstream
     changes to printing code
+  * Update Standards to 3.9.2 (checked, no change)
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 12 Jun 2011 22:01:19 +0200
 

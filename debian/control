@@ -14,7 +14,7 @@ Build-Depends: debhelper (>= 6.0.7~), libpam0g-dev, libreadline-dev,
 	libctdb-dev [linux-any] | ctdb (>= 1.0.103) [linux-any], libctdb-dev [linux-any] | ctdb (<< 1.10) [linux-any],
 	pkg-config
 Build-Conflicts: libfam-dev
-Standards-Version: 3.9.1
+Standards-Version: 3.9.2
 Homepage: http://www.samba.org
 Vcs-Browser: http://svn.debian.org/wsvn/pkg-samba/trunk/samba/
 Vcs-Svn: svn://svn.debian.org/svn/pkg-samba/trunk/samba

@@ -11,6 +11,7 @@ samba (2:3.5.9~dfsg-1) UNRELEASED; urgency=low
   * patches/no-unnecessary-cups.patch: dropped after upstream
     changes to printing code
   * Update Standards to 3.9.2 (checked, no change)
+  * Add build-arch and build-indep targets in debian/rules
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 12 Jun 2011 22:01:19 +0200
 

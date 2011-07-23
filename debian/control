@@ -8,12 +8,13 @@ Build-Depends: debhelper (>= 6.0.7~), libpam0g-dev, libreadline-dev,
 	libacl1-dev [linux-any],
 	libkrb5-dev, libldap2-dev, po-debconf, libpopt-dev, uuid-dev,
 	libtalloc-dev (>= 2.0.1-1~bpo50+1),
+	libtdb-dev (>= 1.2.1~),
 	libcap-dev [linux-any],
 	libkeyutils-dev [linux-any],
-	ctdb (>= 1.0.103) [linux-any],
+	libctdb-dev [linux-any] | ctdb (>= 1.0.103) [linux-any], libctdb-dev [linux-any] | ctdb (<< 1.10) [linux-any],
 	pkg-config
 Build-Conflicts: libfam-dev
-Standards-Version: 3.9.0
+Standards-Version: 3.9.2
 Homepage: http://www.samba.org
 Vcs-Browser: http://svn.debian.org/wsvn/pkg-samba/trunk/samba/
 Vcs-Svn: svn://svn.debian.org/svn/pkg-samba/trunk/samba
@@ -21,7 +22,7 @@ Vcs-Svn: svn://svn.debian.org/svn/pkg-samba/trunk/samba
 Package: samba
 Architecture: any
 Depends: samba-common (= ${source:Version}), libwbclient0 (= ${binary:Version}),${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 1.0.1-11), libpam-modules, lsb-base (>= 3.2-13), procps, update-inetd, adduser
-Recommends: logrotate
+Recommends: logrotate, tdb-tools
 Suggests: openbsd-inetd | inet-superserver, smbldap-tools, ldb-tools, ctdb
 Replaces: samba-common (<= 2.0.5a-2)
 Conflicts: samba4 (<< 4.0.0~alpha6-2)
@@ -164,7 +165,7 @@ Package: libsmbclient-dev
 Section: libdevel
 Priority: extra
 Architecture: any
-Depends: libsmbclient (= ${binary:Version}), ${misc:Depends}, samba-common (>= 2:3.4.0~pre1-2)
+Depends: libsmbclient (= ${binary:Version}), ${misc:Depends}
 Description: development files for libsmbclient
  This package provides the development files (static library and headers)
  required for building applications against libsmbclient, a library that
@@ -226,3 +227,18 @@ Description: Samba winbind client library
  .
  This package provides a library for client applications that interact
  via the winbind pipe protocol with a Samba winbind server.
+
+Package: libwbclient-dev
+Section: libdevel
+Priority: optional
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libwbclient0 (= ${binary:Version})
+Description: Samba winbind client library - development files
+ Samba is an implementation of the SMB/CIFS protocol for Unix systems,
+ providing support for cross-platform file and printer sharing with
+ Microsoft Windows, OS X, and other Unix systems.
+ .
+ This package provides the development files (static library and headers)
+ required for building applications against libwbclient, a library for client
+ applications that interact via the winbind pipe protocol with a Samba
+ winbind server.

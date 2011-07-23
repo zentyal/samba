@@ -60,7 +60,9 @@ conf_args = \
 		--with-codepagedir=/usr/share/samba \
 		--enable-external-libtalloc \
 		--without-libtalloc \
-		--disable-avahi
+		--disable-avahi \
+		--without-libtdb \
+		--enable-external-libtdb
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \
@@ -90,7 +92,9 @@ configure:
 
 	touch configure-stamp
 
-build: configure build-stamp
+build: configure build-arch build-indep
+build-arch: build-stamp
+build-indep: build-stamp
 build-stamp:
 	dh_testdir
 
@@ -161,7 +165,6 @@ install: build
 	install -m 0755 source3/bin/vfstest $(DESTDIR)/usr/bin/vfstest
 	install -m 0755 source3/bin/pdbtest $(DESTDIR)/usr/bin/pdbtest
 	install -m 0755 source3/bin/replacetort $(DESTDIR)/usr/bin/replacetort
-	install -m 0755 source3/bin/tdbtorture $(DESTDIR)/usr/bin/tdbtorture
 	install -m 0755 source3/bin/smbconftort $(DESTDIR)/usr/bin/smbconftort
 	mkdir -p $(DESTDIR)/usr/share/pam-configs
 	install -m 0644 debian/libpam-smbpass.pam-config $(DESTDIR)/usr/share/pam-configs/smbpasswd-migrate

@@ -6,8 +6,8 @@
 # Required-Stop:     $network $local_fs $remote_fs
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Should-Start:      slapd
-# Should-Stop:       slapd
+# Should-Start:      slapd cups
+# Should-Stop:       slapd cups
 # Short-Description: start Samba daemons (nmbd and smbd)
 ### END INIT INFO
 
@@ -36,7 +36,10 @@ case "$1" in
 		# Make sure we have our PIDDIR, even if it's on a tmpfs
 		install -o root -g root -m 755 -d $PIDDIR
 
-		NMBD_DISABLED=`testparm -s --parameter-name='disable netbios' 2>/dev/null`
+		if [ -n `which testparm` ]
+		then
+			NMBD_DISABLED=`testparm -s --parameter-name='disable netbios' 2>/dev/null`
+		fi
 		if [ "$NMBD_DISABLED" != 'Yes' ]; then
 			log_progress_msg "nmbd"
 			if ! start-stop-daemon --start --quiet --oknodo --exec /usr/sbin/nmbd -- -D
@@ -89,7 +92,7 @@ case "$1" in
 	reload)
 		log_daemon_msg "Reloading /etc/samba/smb.conf" "smbd only"
 
-		start-stop-daemon --stop --signal HUP --pidfile $SMBDPID
+		start-stop-daemon --stop --quiet --signal HUP --pidfile $SMBDPID
 
 		log_end_msg 0
 		;;

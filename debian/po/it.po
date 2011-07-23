@@ -1,14 +1,13 @@
 # Italian (it) translation of debconf templates for samba
-# Copyright (C) 2004 Software in the Public Interest
 # This file is distributed under the same license as the samba package.
-# Luca Monducci <luca.mo@tiscali.it>, 2004-2009.
+# Luca Monducci <luca.mo@tiscali.it>, 2004-2011.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: samba 3.3.4 italian debconf templates\n"
+"Project-Id-Version: samba 3.5.8 italian debconf templates\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2009-01-02 12:18-0800\n"
-"PO-Revision-Date: 2009-05-18 21:47+0200\n"
+"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"PO-Revision-Date: 2011-05-22 14:07+0200\n"
 "Last-Translator: Luca Monducci <luca.mo@tiscali.it>\n"
 "Language-Team: Italian <debian-l10n-italian@lists.debian.org>\n"
 "Language: it\n"
@@ -16,15 +15,21 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#. Type: boolean
+#. Type: title
 #. Description
 #: ../samba-common.templates:1001
+msgid "Samba server and utilities"
+msgstr "Server e utilità Samba"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
 msgid "Modify smb.conf to use WINS settings from DHCP?"
 msgstr "Modificare smb.conf per usare le impostazioni WINS da DHCP?"
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:1001
+#: ../samba-common.templates:2001
 msgid ""
 "If your computer gets IP address information from a DHCP server on the "
 "network, the DHCP server may also provide information about WINS servers "
@@ -32,15 +37,15 @@ msgid ""
 "to your smb.conf file so that DHCP-provided WINS settings will automatically "
 "be read from /etc/samba/dhcp.conf."
 msgstr ""
-"Se il computer prende le informazioni sull'indirizzo IP da un server DHCP "
-"allora il server DHCP può fornire anche informazioni sui server WINS (i name "
-"server per NetBIOS) presenti nella rete. Ciò richiede una modifica al file "
-"smb.conf in modo che le impostazioni WINS, fornite da DHCP, siano lette "
-"automaticamente da /etc/samba/dhcp.conf."
+"Se il computer acquisisce l'indirizzo IP da un server DHCP, tale server DHCP "
+"potrebbe fornire anche le informazioni sui server WINS (i name server per "
+"NetBIOS) presenti nella rete. È necessario modificare il file smb.conf per "
+"far leggere automaticamente da /etc/samba/dhcp.conf le impostazioni WINS "
+"fornite da DHCP."
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:1001
+#: ../samba-common.templates:2001
 msgid ""
 "The dhcp3-client package must be installed to take advantage of this feature."
 msgstr ""
@@ -49,13 +54,13 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:2001
+#: ../samba-common.templates:3001
 msgid "Configure smb.conf automatically?"
 msgstr "Configurare automaticamente smb.conf?"
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:2001
+#: ../samba-common.templates:3001
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -68,12 +73,12 @@ msgstr ""
 "smb.conf, il file usato per configurare i programmi di Samba (nmbd e smbd). "
 "L'attuale file smb.conf contiene una riga «include» o un'opzione che si "
 "estende su più righe; ciò potrebbe confondere il processo di configurazione "
-"automatica e richiede una modifica manuale a smb.conf per renderlo "
+"automatica e richiere una modifica manuale del file smb.conf per renderlo "
 "nuovamente funzionante."
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:2001
+#: ../samba-common.templates:3001
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
@@ -85,13 +90,13 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:3001
+#: ../samba-common.templates:4001
 msgid "Workgroup/Domain Name:"
 msgstr "Nome del Workgroup/Dominio:"
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:3001
+#: ../samba-common.templates:4001
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
@@ -105,13 +110,13 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:4001
+#: ../samba-common.templates:5001
 msgid "Use password encryption?"
 msgstr "Usare password cifrate?"
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:4001
+#: ../samba-common.templates:5001
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
@@ -123,7 +128,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:4001
+#: ../samba-common.templates:5001
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
@@ -136,15 +141,21 @@ msgstr ""
 "le password di tutti gli utenti siano state inserite usando il comando "
 "smbpasswd."
 
-#. Type: boolean
+#. Type: title
 #. Description
 #: ../samba.templates:1001
+msgid "Samba server"
+msgstr "Server Samba"
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:2001
 msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 msgstr "Creare il database delle password di samba /var/lib/samba/passdb.tdb?"
 
 #. Type: boolean
 #. Description
-#: ../samba.templates:1001
+#: ../samba.templates:2001
 msgid ""
 "To be compatible with the defaults in most versions of Windows, Samba must "
 "be configured to use encrypted passwords.  This requires user passwords to "
@@ -161,7 +172,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba.templates:1001
+#: ../samba.templates:2001
 msgid ""
 "If you do not create it, you will have to reconfigure Samba (and probably "
 "your client machines) to use plaintext passwords."
@@ -171,7 +182,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba.templates:1001
+#: ../samba.templates:2001
 msgid ""
 "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
 "from the samba-doc package for more details."
@@ -181,25 +192,25 @@ msgstr ""
 
 #. Type: select
 #. Choices
-#: ../samba.templates:2001
+#: ../samba.templates:3001
 msgid "daemons"
 msgstr "demoni"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:2001
+#: ../samba.templates:3001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:2002
+#: ../samba.templates:3002
 msgid "How do you want to run Samba?"
 msgstr "Come avviare Samba?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:2002
+#: ../samba.templates:3002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."

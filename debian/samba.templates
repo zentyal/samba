@@ -1,3 +1,7 @@
+Template: samba-common/title
+Type: title
+_Description: Samba server
+
 Template: samba/generate_smbpasswd
 Type: boolean
 Default: false

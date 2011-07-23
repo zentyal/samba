@@ -1,3 +1,88 @@
+samba (2:3.5.9~dfsg-1) unstable; urgency=low
+
+  * New upstream release
+  * Add "--quiet" to start-stop-daemon call in reload target in init
+    script. Closes: #572483
+  * Add examples/LDAP in examples for the samba package. With this,
+    samba.schema will be provided in some way in the package.
+    This very partially addresses #190162
+  * patches/bug_221618_precise-64bit-prototype.patch: precise
+    64bits prototype in libsmbclient-dev. Closes: #221618
+  * patches/no-unnecessary-cups.patch: dropped after upstream
+    changes to printing code
+  * Update Standards to 3.9.2 (checked, no change)
+  * Add build-arch and build-indep targets in debian/rules
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 18 Jun 2011 07:08:00 +0200
+
+samba (2:3.5.8~dfsg-5) unstable; urgency=low
+
+  * Fix "tdb2.so undefined symbol: dyn_get_STATEDIR" by fixing a typo
+    in fhs-filespath.patch. Closes: #629183, LP: #789097
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 04 Jun 2011 13:48:32 +0200
+
+samba (2:3.5.8~dfsg-4) unstable; urgency=low
+
+  [ Debconf translations ]
+  * Spanish (Omar Campagne).  Closes: #627813
+  * Swedish (Martin Bagge / brother).  Closes: #627849
+  * Brazilian Portuguese (Adriano Rafael Gomes).  Closes: #627866
+
+  [ Christian Perrier ]
+  * bug_601406_fix-perl-path-in-example.patch:  fix path to perl
+    binary in example file. Closes: #601406
+
+ -- Christian Perrier <bubulle@debian.org>  Fri, 27 May 2011 12:23:05 +0200
+
+samba (2:3.5.8~dfsg-3) unstable; urgency=low
+
+  [ Debconf translations ]
+  * Italian (Luca Monducci).  Closes: #626674
+  * Dutch (Vincent Zweije).  Closes: #627519
+  * Czech (Miroslav Kure).  Closes: #627442
+
+ -- Christian Perrier <bubulle@debian.org>  Tue, 24 May 2011 22:40:04 +0200
+
+samba (2:3.5.8~dfsg-2) unstable; urgency=low
+
+  [ Jelmer Vernooij ]
+  * Add libwbclient-dev package.
+  * Build against external libtdb.
+  * Bump standards version to 3.9.1 (no changes).
+
+  [ Mathieu Parent ]
+  * Builddep on libctdb-dev or ctdb < 1.10 
+
+  [ Christian Perrier ]
+  * Use db_settitle in debconf questions and make these
+    titles translatable. Closes: #560318
+  * Test the presence of testparm before trying to use it in init script
+    Closes: #606320
+  * Add cups to Should-{Start,Stop} in LSB headers of
+    samba init script to guarantee that CUPS is started
+    before samba. Closes: #619132
+  * Drop libsmbclient-dev useless dependency on samba-common
+    Closes: #597987
+
+  [ Debconf translations ]
+  * French (Christian Perrier)
+  * Japanese (Kenshi Muto).  Closes: #626474
+  * Galician (Miguel Anxo Bouzada).  Closes: #626477
+  * Thai (Theppitak Karoonboonyanan).  Closes: #626487
+  * Russian (Yuri Kozlov).  Closes: #626523
+  * Danish (Joe Hansen).  Closes: #626531
+  * Esperanto (Felipe Castro).  Closes: #626558
+  * Hebrew (Eran Cohen).  Closes: #626638
+  * Bokmål, (Bjørn Steensrud).
+  * Italian (Luca Monducci).  Closes: #626674
+  * Finnish (Tapio Lehtonen).  Closes: #626890
+  * Portuguese (Miguel Figueiredo).  Closes: #627224
+  * German (Holger Wansing).  Closes: #627354
+  * Czech (Miroslav Kure).  Closes: #627442
+
+ -- Christian Perrier <bubulle@sesostris.kheops.frmug.org>  Sun, 22 May 2011 21:15:21 +0200
+
 samba (2:3.5.8~dfsg-1~bpo60+1) squeeze-backports; urgency=low
 
   * Squeeze backport

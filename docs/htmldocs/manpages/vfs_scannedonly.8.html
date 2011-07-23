@@ -1,5 +1,5 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>vfs_scannedonly</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="vfs_scannedonly.8"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>vfs_scannedonly &#8212; Ensures that only files that have been scanned for viruses are
-	visible and accessible to the end user.</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">vfs objects = scannedonly</code></p></div></div><div class="refsect1" lang="en"><a name="id2522904"></a><h2>DESCRIPTION</h2><p>This VFS module is part of the
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>vfs_scannedonly</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.75.2"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" title="vfs_scannedonly"><a name="vfs_scannedonly.8"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>vfs_scannedonly &#8212; Ensures that only files that have been scanned for viruses are
+	visible and accessible to the end user.</p></div><div class="refsynopsisdiv" title="Synopsis"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">vfs objects = scannedonly</code></p></div></div><div class="refsect1" title="DESCRIPTION"><a name="id266342"></a><h2>DESCRIPTION</h2><p>This VFS module is part of the
 	<a class="citerefentry" href="samba.8.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(8)</span></a> suite.</p><p>The <code class="literal">vfs_scannedonly</code> VFS module ensures that
 	only files that have been scanned for viruses are visible and accessible
 	to the end user. If non-scanned files are found an anti-virus scanning
@@ -25,10 +25,10 @@
 	and the file is renamed to have prefix <code class="filename">.virus:</code>.
 	Files with the <code class="filename">.virus:</code> prefix are never shown to
 	the user and all access is denied.
-	</p><p>This module is stackable.</p></div><div class="refsect1" lang="en"><a name="id2483361"></a><h2>CONFIGURATION</h2><p><code class="literal">vfs_scannedonly</code> relies on a anti-virus scanning
+	</p><p>This module is stackable.</p></div><div class="refsect1" title="CONFIGURATION"><a name="id266872"></a><h2>CONFIGURATION</h2><p><code class="literal">vfs_scannedonly</code> relies on a anti-virus scanning
 	daemon that listens on the scannedonly socket (unix domain socket or UDP
 	socket).
-	</p></div><div class="refsect1" lang="en"><a name="id2483378"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">scannedonly:domain_socket = True </span></dt><dd><p>Whether to use a unix domain socket or not (false reverts
+	</p></div><div class="refsect1" title="OPTIONS"><a name="id266888"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">scannedonly:domain_socket = True </span></dt><dd><p>Whether to use a unix domain socket or not (false reverts
 		to use udp)
 		</p></dd><dt><span class="term">scannedonly:socketname = /var/lib/scannedonly/scan</span></dt><dd><p>The location of the unix domain socket to connect to</p></dd><dt><span class="term">scannedonly:portnum = 2020</span></dt><dd><p>The udp port number to connect to
 		</p></dd><dt><span class="term">scannedonly:scanhost = localhost</span></dt><dd><p>
@@ -76,14 +76,14 @@
 		however, and special files such as <code class="filename">.scanned:</code>
 		files. <code class="filename">.virus:</code> files and
 		<code class="filename">.failed:</code> files are not listed.
-		</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2483751"></a><h2>EXAMPLES</h2><p>Enable anti-virus scanning:</p><pre class="programlisting">
+		</p></dd></dl></div></div><div class="refsect1" title="EXAMPLES"><a name="id265909"></a><h2>EXAMPLES</h2><p>Enable anti-virus scanning:</p><pre class="programlisting">
         <em class="parameter"><code>[homes]</code></em>
 	<a class="link" href="smb.conf.5.html#VFSOBJECTS" target="_top">vfs objects = scannedonly</a>
 	<a class="link" href="smb.conf.5.html#SCANNEDONLY:HIDE_NONSCANNED_FILES" target="_top">scannedonly:hide_nonscanned_files = False</a>
-</pre></div><div class="refsect1" lang="en"><a name="id2483793"></a><h2>CAVEATS</h2><p>This is not true on-access scanning. However, it is very fast
+</pre></div><div class="refsect1" title="CAVEATS"><a name="id265952"></a><h2>CAVEATS</h2><p>This is not true on-access scanning. However, it is very fast
 	for files that have been scanned already.
-	</p></div><div class="refsect1" lang="en"><a name="id2481570"></a><h2>VERSION</h2><p>This man page is correct for version 3.5.0 of the Samba suite.
-	</p></div><div class="refsect1" lang="en"><a name="id2481581"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities
+	</p></div><div class="refsect1" title="VERSION"><a name="id265962"></a><h2>VERSION</h2><p>This man page is correct for version 3.5.0 of the Samba suite.
+	</p></div><div class="refsect1" title="AUTHOR"><a name="id265972"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities
 	were created by Andrew Tridgell. Scannedonly was
 	developed for Samba by Olivier Sessink. Samba is now developed
 	by the Samba Team as an Open Source project similar

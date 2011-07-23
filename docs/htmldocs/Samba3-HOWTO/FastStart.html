@@ -1,4 +1,4 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 2. Fast Start: Cure for Impatience</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.5.x HOWTO and Reference Guide"><link rel="up" href="introduction.html" title="Part I. General Installation"><link rel="prev" href="install.html" title="Chapter 1. How to Install and Test SAMBA"><link rel="next" href="type.html" title="Part II. Server Configuration Basics"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 2. Fast Start: Cure for Impatience</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="install.html">Prev</a> </td><th width="60%" align="center">Part I. General Installation</th><td width="20%" align="right"> <a accesskey="n" href="type.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="FastStart"></a>Chapter 2. Fast Start: Cure for Impatience</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="FastStart.html#id2554110">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="FastStart.html#id2554133">Description of Example Sites</a></span></dt><dt><span class="sect1"><a href="FastStart.html#id2554203">Worked Examples</a></span></dt><dd><dl><dt><span class="sect2"><a href="FastStart.html#id2554221">Standalone Server</a></span></dt><dt><span class="sect2"><a href="FastStart.html#id2555963">Domain Member Server</a></span></dt><dt><span class="sect2"><a href="FastStart.html#id2556806">Domain Controller</a></span></dt></dl></dd></dl></div><p>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 2. Fast Start: Cure for Impatience</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.75.2"><link rel="home" href="index.html" title="The Official Samba 3.5.x HOWTO and Reference Guide"><link rel="up" href="introduction.html" title="Part I. General Installation"><link rel="prev" href="install.html" title="Chapter 1. How to Install and Test SAMBA"><link rel="next" href="type.html" title="Part II. Server Configuration Basics"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 2. Fast Start: Cure for Impatience</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="install.html">Prev</a> </td><th width="60%" align="center">Part I. General Installation</th><td width="20%" align="right"> <a accesskey="n" href="type.html">Next</a></td></tr></table><hr></div><div class="chapter" title="Chapter 2. Fast Start: Cure for Impatience"><div class="titlepage"><div><div><h2 class="title"><a name="FastStart"></a>Chapter 2. Fast Start: Cure for Impatience</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="FastStart.html#id326280">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="FastStart.html#id326298">Description of Example Sites</a></span></dt><dt><span class="sect1"><a href="FastStart.html#id326355">Worked Examples</a></span></dt><dd><dl><dt><span class="sect2"><a href="FastStart.html#id326370">Standalone Server</a></span></dt><dt><span class="sect2"><a href="FastStart.html#id328002">Domain Member Server</a></span></dt><dt><span class="sect2"><a href="FastStart.html#id328803">Domain Controller</a></span></dt></dl></dd></dl></div><p>
 When we first asked for suggestions for inclusion in the Samba HOWTO documentation,
 someone wrote asking for example configurations  and lots of them. That is remarkably
 difficult to do without losing a lot of value that can be derived from presenting
@@ -7,22 +7,22 @@ It does so with extensive descriptions of the configuration possibilities within
 context of the chapter that covers it. We hope that this chapter is the medicine 
 that has been requested.
 </p><p>
-The information in this chapter is very sparse compared with the book &#8220;<span class="quote">Samba-3 by Example</span>&#8221;
-that was written after the original version of this book was nearly complete. &#8220;<span class="quote">Samba-3 by Example</span>&#8221;
+The information in this chapter is very sparse compared with the book <span class="quote">&#8220;<span class="quote">Samba-3 by Example</span>&#8221;</span>
+that was written after the original version of this book was nearly complete. <span class="quote">&#8220;<span class="quote">Samba-3 by Example</span>&#8221;</span>
 was the result of feedback from reviewers during the final copy editing of the first edition. It
 was interesting to see that reader feedback mirrored that given by the original reviewers.
 In any case, a month and a half was spent in doing basic research to better understand what
-new as well as experienced network administrators would best benefit from. The book &#8220;<span class="quote">Samba-3 by Example</span>&#8221;
+new as well as experienced network administrators would best benefit from. The book <span class="quote">&#8220;<span class="quote">Samba-3 by Example</span>&#8221;</span>
 is the result of that research. What is presented in the few pages of this book is covered
-far more comprehensively in the second edition of &#8220;<span class="quote">Samba-3 by Example</span>&#8221;. The second edition
+far more comprehensively in the second edition of <span class="quote">&#8220;<span class="quote">Samba-3 by Example</span>&#8221;</span>. The second edition
 of both books will be released at the same time.
 </p><p>
-So in summary, the book &#8220;<span class="quote">The Official Samba-3 HOWTO &amp; Reference Guide</span>&#8221; is intended
-as the equivalent of an auto mechanic's repair guide. The book &#8220;<span class="quote">Samba-3 by Example</span>&#8221; is the
+So in summary, the book <span class="quote">&#8220;<span class="quote">The Official Samba-3 HOWTO &amp; Reference Guide</span>&#8221;</span> is intended
+as the equivalent of an auto mechanic's repair guide. The book <span class="quote">&#8220;<span class="quote">Samba-3 by Example</span>&#8221;</span> is the
 equivalent of the driver's guide that explains how to drive the car. If you want complete network
 configuration examples, go to <a class="ulink" href="http://www.samba.org/samba/docs/Samba3-ByExample.pdf" target="_top">Samba-3 by
 Example</a>.
-</p><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2554110"></a>Features and Benefits</h2></div></div></div><p>
+</p><div class="sect1" title="Features and Benefits"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id326280"></a>Features and Benefits</h2></div></div></div><p>
 Samba needs very little configuration to create a basic working system.
 In this chapter we progress from the simple to the complex, for each providing
 all steps and configuration file changes needed to make each work. Please note
@@ -32,7 +32,7 @@ features. These additional features are covered in the remainder of this documen
 The examples used here have been obtained from a number of people who made
 requests for example configurations. All identities have been obscured to protect
 the guilty, and any resemblance to unreal nonexistent sites is deliberate.
-</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2554133"></a>Description of Example Sites</h2></div></div></div><p>
+</p></div><div class="sect1" title="Description of Example Sites"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id326298"></a>Description of Example Sites</h2></div></div></div><p>
 In the first set of configuration examples we consider the case of exceptionally simple system requirements.
 There is a real temptation to make something that should require little effort much too complex.
 </p><p>
@@ -53,54 +53,54 @@ network-attached storage (NAS) device and a print server.
 The later example consider more complex systems that will either integrate into existing MS Windows networks
 or replace them entirely. These cover domain member servers as well as Samba domain control (PDC/BDC) and
 finally describes in detail a large distributed network with branch offices in remote locations.
-</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2554203"></a>Worked Examples</h2></div></div></div><p>
+</p></div><div class="sect1" title="Worked Examples"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id326355"></a>Worked Examples</h2></div></div></div><p>
 The configuration examples are designed to cover everything necessary to get Samba 
 running. They do not cover basic operating system platform configuration, which is
 clearly beyond the scope of this text.
 </p><p>
 It is also assumed that Samba has been correctly installed, either by way of installation
 of the packages that are provided by the operating system vendor or through other means.
-</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2554221"></a>Standalone Server</h3></div></div></div><p>
-	<a class="indexterm" name="id2554229"></a>
+</p><div class="sect2" title="Standalone Server"><div class="titlepage"><div><div><h3 class="title"><a name="id326370"></a>Standalone Server</h3></div></div></div><p>
+	<a class="indexterm" name="id326377"></a>
 	A standalone server implies no more than the fact that it is not a domain controller
 	and it does not participate in domain control. It can be a simple, workgroup-like
 	server, or it can be a complex server that is a member of a domain security context.
 	</p><p>
 	As the examples are developed, every attempt is made to progress the system toward greater capability, just as
 	one might expect would happen in a real business office as that office grows in size and its needs change.
-	</p><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="anon-ro"></a>Anonymous Read-Only Document Server</h4></div></div></div><p>
-		<a class="indexterm" name="id2554260"></a>
+	</p><div class="sect3" title="Anonymous Read-Only Document Server"><div class="titlepage"><div><div><h4 class="title"><a name="anon-ro"></a>Anonymous Read-Only Document Server</h4></div></div></div><p>
+		<a class="indexterm" name="id326404"></a>
 		The purpose of this type of server is to make available to any user
 		any documents or files that are placed on the shared resource. The
 		shared resource could be a CD-ROM drive, a CD-ROM image, or a file
 		storage area.
-		</p><div class="itemizedlist"><ul type="disc"><li><p>
+		</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>
 			The file system share point will be <code class="filename">/export</code>.
-			</p></li><li><p>
+			</p></li><li class="listitem"><p>
 			All files will be owned by a user called Jack Baumbach.
 			Jack's login name will be <span class="emphasis"><em>jackb</em></span>. His password will be
 			<span class="emphasis"><em>m0r3pa1n</em></span>  of course, that's just the example we are
 			using; do not use this in a production environment because
 			all readers of this document will know it.
-			</p></li></ul></div><div class="procedure"><a name="id2554304"></a><p class="title"><b>Procedure 2.1. Installation Procedure: Read-Only Server</b></p><div class="example"><a name="anon-example"></a><p class="title"><b>Example 2.1. Anonymous Read-Only Server Configuration</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2554430"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id2554440"></a><em class="parameter"><code>netbios name = HOBBIT</code></em></td></tr><tr><td><a class="indexterm" name="id2554451"></a><em class="parameter"><code>security = share</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[data]</code></em></td></tr><tr><td><a class="indexterm" name="id2554469"></a><em class="parameter"><code>comment = Data</code></em></td></tr><tr><td><a class="indexterm" name="id2554480"></a><em class="parameter"><code>path = /export</code></em></td></tr><tr><td><a class="indexterm" name="id2554490"></a><em class="parameter"><code>read only = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2554501"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr></table></div></div><br class="example-break"><ol type="1"><li><p>
+			</p></li></ul></div><div class="procedure" title="Procedure 2.1. Installation Procedure: Read-Only Server"><a name="id326444"></a><p class="title"><b>Procedure 2.1. Installation Procedure: Read-Only Server</b></p><div class="example"><a name="anon-example"></a><p class="title"><b>Example 2.1. Anonymous Read-Only Server Configuration</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id326563"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id326573"></a><em class="parameter"><code>netbios name = HOBBIT</code></em></td></tr><tr><td><a class="indexterm" name="id326584"></a><em class="parameter"><code>security = share</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[data]</code></em></td></tr><tr><td><a class="indexterm" name="id326602"></a><em class="parameter"><code>comment = Data</code></em></td></tr><tr><td><a class="indexterm" name="id326613"></a><em class="parameter"><code>path = /export</code></em></td></tr><tr><td><a class="indexterm" name="id326623"></a><em class="parameter"><code>read only = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id326634"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr></table></div></div><br class="example-break"><ol class="procedure" type="1"><li class="step" title="Step 1"><p>
 			Add user to system (with creation of the user's home directory):
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code>useradd -c "Jack Baumbach" -m -g users -p m0r3pa1n jackb</code></strong>
 </pre><p>
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 2"><p>
 			Create directory, and set permissions and ownership:
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code>mkdir /export</code></strong>
 <code class="prompt">root# </code><strong class="userinput"><code>chmod u+rwx,g+rx,o+rx /export</code></strong>
 <code class="prompt">root# </code><strong class="userinput"><code>chown jackb.users /export</code></strong>
 </pre><p>
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 3"><p>
 			Copy the files that should be shared to the <code class="filename">/export</code>
 			directory.
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 4"><p>
 			Install the Samba configuration file (<code class="filename">/etc/samba/smb.conf</code>)
 			as shown in <a class="link" href="FastStart.html#anon-example" title="Example 2.1. Anonymous Read-Only Server Configuration">Anonymous Read-Only Server Configuration</a>.
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 5"><p>
 			Test the configuration file by executing the following command:
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code>testparm</code></strong>
@@ -136,11 +136,11 @@ Press enter to see a dump of your service definitions
 	read only = Yes
 	guest only = Yes
 </pre><p>
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 6"><p>
 			Start Samba using the method applicable to your operating system platform. The method that
 			should be used is platform dependent. Refer to <a class="link" href="compiling.html#startingSamba" title="Starting the smbd nmbd and winbindd">Starting Samba</a>
 			for further information regarding the starting of Samba.
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 7"><p>
 			Configure your MS Windows client for workgroup <span class="emphasis"><em>MIDEARTH</em></span>,
 			set the machine name to ROBBINS, reboot, wait a few (2 - 5) minutes,
 			then open Windows Explorer and visit the Network Neighborhood.
@@ -151,8 +151,8 @@ Press enter to see a dump of your service definitions
 			</p></li></ol></div><p>
 		The information above (following # Global parameters) provides the complete
 		contents of the <code class="filename">/etc/samba/smb.conf</code> file.
-		</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2554637"></a>Anonymous Read-Write Document Server</h4></div></div></div><p>
-		<a class="indexterm" name="id2554645"></a>
+		</p></div><div class="sect3" title="Anonymous Read-Write Document Server"><div class="titlepage"><div><div><h4 class="title"><a name="id326756"></a>Anonymous Read-Write Document Server</h4></div></div></div><p>
+		<a class="indexterm" name="id326764"></a>
 		We should view this configuration as a progression from the previous example.
 		The difference is that shared access is now forced to the user identity of jackb
 		and to the primary group jackb belongs to. One other refinement we can make is to
@@ -169,12 +169,12 @@ Added user jackb.
 		instead of to <span class="emphasis"><em>User Unknown</em></span>.
 		</p><p>
 		The complete, modified <code class="filename">smb.conf</code> file is as shown in <a class="link" href="FastStart.html#anon-rw" title="Example 2.2. Modified Anonymous Read-Write smb.conf">&#8220;Modified Anonymous Read-Write smb.conf&#8221;</a>.
-		</p><div class="example"><a name="anon-rw"></a><p class="title"><b>Example 2.2. Modified Anonymous Read-Write smb.conf</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2554745"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id2554755"></a><em class="parameter"><code>netbios name = HOBBIT</code></em></td></tr><tr><td><a class="indexterm" name="id2554765"></a><em class="parameter"><code>security = SHARE</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[data]</code></em></td></tr><tr><td><a class="indexterm" name="id2554784"></a><em class="parameter"><code>comment = Data</code></em></td></tr><tr><td><a class="indexterm" name="id2554795"></a><em class="parameter"><code>path = /export</code></em></td></tr><tr><td><a class="indexterm" name="id2554805"></a><em class="parameter"><code>force user = jackb</code></em></td></tr><tr><td><a class="indexterm" name="id2554815"></a><em class="parameter"><code>force group = users</code></em></td></tr><tr><td><a class="indexterm" name="id2554826"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2554836"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr></table></div></div><br class="example-break"></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2554849"></a>Anonymous Print Server</h4></div></div></div><p>
-		<a class="indexterm" name="id2554856"></a>
+		</p><div class="example"><a name="anon-rw"></a><p class="title"><b>Example 2.2. Modified Anonymous Read-Write smb.conf</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id326858"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id326869"></a><em class="parameter"><code>netbios name = HOBBIT</code></em></td></tr><tr><td><a class="indexterm" name="id326879"></a><em class="parameter"><code>security = SHARE</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[data]</code></em></td></tr><tr><td><a class="indexterm" name="id326898"></a><em class="parameter"><code>comment = Data</code></em></td></tr><tr><td><a class="indexterm" name="id326908"></a><em class="parameter"><code>path = /export</code></em></td></tr><tr><td><a class="indexterm" name="id326919"></a><em class="parameter"><code>force user = jackb</code></em></td></tr><tr><td><a class="indexterm" name="id326929"></a><em class="parameter"><code>force group = users</code></em></td></tr><tr><td><a class="indexterm" name="id326939"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id326950"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr></table></div></div><br class="example-break"></div><div class="sect3" title="Anonymous Print Server"><div class="titlepage"><div><div><h4 class="title"><a name="id326962"></a>Anonymous Print Server</h4></div></div></div><p>
+		<a class="indexterm" name="id326970"></a>
 		An anonymous print server serves two purposes:
-		</p><div class="itemizedlist"><ul type="disc"><li><p>
+		</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>
 			It allows printing to all printers from a single location.
-			</p></li><li><p>
+			</p></li><li class="listitem"><p>
 			It reduces network traffic congestion due to many users trying
 			to access a limited number of printers.
 			</p></li></ul></div><p>
@@ -187,7 +187,7 @@ Added user jackb.
 		In this configuration, it is undesirable to present the Add Printer Wizard, and we do
 		not want to have automatic driver download, so we disable it in the following
 		configuration. <a class="link" href="FastStart.html#anon-print" title="Example 2.3. Anonymous Print Server smb.conf">&#8220;Anonymous Print Server smb.conf&#8221;</a> is the resulting <code class="filename">smb.conf</code> file.
-		</p><div class="example"><a name="anon-print"></a><p class="title"><b>Example 2.3. Anonymous Print Server smb.conf</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2554933"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id2554943"></a><em class="parameter"><code>netbios name = LUTHIEN</code></em></td></tr><tr><td><a class="indexterm" name="id2554954"></a><em class="parameter"><code>security = share</code></em></td></tr><tr><td><a class="indexterm" name="id2554964"></a><em class="parameter"><code>printcap name = cups</code></em></td></tr><tr><td><a class="indexterm" name="id2554974"></a><em class="parameter"><code>disable spoolss = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2554985"></a><em class="parameter"><code>show add printer wizard = No</code></em></td></tr><tr><td><a class="indexterm" name="id2554996"></a><em class="parameter"><code>printing = cups</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id2555015"></a><em class="parameter"><code>comment = All Printers</code></em></td></tr><tr><td><a class="indexterm" name="id2555025"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id2555036"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2555046"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2555056"></a><em class="parameter"><code>use client driver = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2555067"></a><em class="parameter"><code>browseable = No</code></em></td></tr></table></div></div><br class="example-break"><p>
+		</p><div class="example"><a name="anon-print"></a><p class="title"><b>Example 2.3. Anonymous Print Server smb.conf</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id327038"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id327048"></a><em class="parameter"><code>netbios name = LUTHIEN</code></em></td></tr><tr><td><a class="indexterm" name="id327059"></a><em class="parameter"><code>security = share</code></em></td></tr><tr><td><a class="indexterm" name="id327069"></a><em class="parameter"><code>printcap name = cups</code></em></td></tr><tr><td><a class="indexterm" name="id327080"></a><em class="parameter"><code>disable spoolss = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id327090"></a><em class="parameter"><code>show add printer wizard = No</code></em></td></tr><tr><td><a class="indexterm" name="id327100"></a><em class="parameter"><code>printing = cups</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id327119"></a><em class="parameter"><code>comment = All Printers</code></em></td></tr><tr><td><a class="indexterm" name="id327130"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id327140"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id327150"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id327161"></a><em class="parameter"><code>use client driver = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id327171"></a><em class="parameter"><code>browseable = No</code></em></td></tr></table></div></div><br class="example-break"><p>
 		The above configuration is not ideal. It uses no smart features, and it deliberately
 		presents a less than elegant solution. But it is basic, and it does print. Samba makes
 		use of the direct printing application program interface that is provided by CUPS.
@@ -199,19 +199,19 @@ Added user jackb.
 		the parameter <em class="parameter"><code>printcap name</code></em> must be set to something other than
 		CUPS. In such case, it could be set to the name of any file that contains a list
 		of printers that should be made available to Windows clients.
-		</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
+		</p><div class="note" title="Note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
 		Windows users will need to install a local printer and then change the print
 		to device after installation of the drivers. The print to device can then be set to
 		the network printer on this machine.
 		</p></div><p>
 		Make sure that the directory <code class="filename">/var/spool/samba</code> is capable of being used
 		as intended. The following steps must be taken to achieve this:
-		</p><div class="itemizedlist"><ul type="disc"><li><p>
+		</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>
 			The directory must be owned by the superuser (root) user and group:
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code>chown root.root /var/spool/samba</code></strong>
 </pre><p>
-			</p></li><li><p>
+			</p></li><li class="listitem"><p>
 			Directory permissions should be set for public read-write with the
 			sticky bit set as shown:
 </p><pre class="screen">
@@ -219,15 +219,15 @@ Added user jackb.
 </pre><p>
 		The purpose of setting the sticky bit is to prevent who does not own the temporary print file
 		from being able to take control of it with the potential for devious misuse.
-			</p></li></ul></div><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
-		<a class="indexterm" name="id2555177"></a>
-		<a class="indexterm" name="id2555185"></a>
+			</p></li></ul></div><div class="note" title="Note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
+		<a class="indexterm" name="id327267"></a>
+		<a class="indexterm" name="id327275"></a>
 		On CUPS-enabled systems there is a facility to pass raw data directly to the printer without
 		intermediate processing via CUPS print filters. Where use of this mode of operation is desired,
 		it is necessary to configure a raw printing device. It is also necessary to enable the raw mime
 		handler in the <code class="filename">/etc/mime.conv</code> and <code class="filename">/etc/mime.types</code>
-		files. Refer to <a class="link" href="CUPS-printing.html#cups-raw" title="Explicitly Enable raw Printing for application/octet-stream">&#8220;Explicitly Enable raw Printing for application/octet-stream&#8221;</a>.
-		</p></div></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2555213"></a>Secure Read-Write File and Print Server</h4></div></div></div><p>
+		files. Refer to <a class="link" href="CUPS-printing.html#cups-raw" title="Explicitly Enable &#8220;raw&#8221; Printing for application/octet-stream">&#8220;Explicitly Enable raw Printing for application/octet-stream&#8221;</a>.
+		</p></div></div><div class="sect3" title="Secure Read-Write File and Print Server"><div class="titlepage"><div><div><h4 class="title"><a name="id327301"></a>Secure Read-Write File and Print Server</h4></div></div></div><p>
 		We progress now from simple systems to a server that is slightly more complex.
 		</p><p>
 		Our new server will require a public data storage area in which only authenticated
@@ -250,17 +250,17 @@ Added user jackb.
 		it is not necessary to enter it into the configuration file. Note that the guest backend is
 		added to the list of active passdb backends no matter whether it specified directly in Samba configuration
 		file or not.
-		</p><div class="procedure"><a name="id2555283"></a><p class="title"><b>Procedure 2.2. Installing the Secure Office Server</b></p><div class="example"><a name="OfficeServer"></a><p class="title"><b>Example 2.4. Secure Office Server smb.conf</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2555378"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id2555389"></a><em class="parameter"><code>netbios name = OLORIN</code></em></td></tr><tr><td><a class="indexterm" name="id2555399"></a><em class="parameter"><code>printcap name = cups</code></em></td></tr><tr><td><a class="indexterm" name="id2555410"></a><em class="parameter"><code>disable spoolss = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2555420"></a><em class="parameter"><code>show add printer wizard = No</code></em></td></tr><tr><td><a class="indexterm" name="id2555431"></a><em class="parameter"><code>printing = cups</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id2555450"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id2555460"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id2555471"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2555481"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[public]</code></em></td></tr><tr><td><a class="indexterm" name="id2555500"></a><em class="parameter"><code>comment = Data</code></em></td></tr><tr><td><a class="indexterm" name="id2555510"></a><em class="parameter"><code>path = /export</code></em></td></tr><tr><td><a class="indexterm" name="id2555521"></a><em class="parameter"><code>force user = maryo</code></em></td></tr><tr><td><a class="indexterm" name="id2555531"></a><em class="parameter"><code>force group = users</code></em></td></tr><tr><td><a class="indexterm" name="id2555542"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id2555560"></a><em class="parameter"><code>comment = All Printers</code></em></td></tr><tr><td><a class="indexterm" name="id2555571"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id2555581"></a><em class="parameter"><code>printer admin = root, maryo</code></em></td></tr><tr><td><a class="indexterm" name="id2555592"></a><em class="parameter"><code>create mask = 0600</code></em></td></tr><tr><td><a class="indexterm" name="id2555602"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2555612"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2555623"></a><em class="parameter"><code>use client driver = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2555633"></a><em class="parameter"><code>browseable = No</code></em></td></tr></table></div></div><br class="example-break"><ol type="1"><li><p>
-		<a class="indexterm" name="id2555294"></a>
+		</p><div class="procedure" title="Procedure 2.2. Installing the Secure Office Server"><a name="id327357"></a><p class="title"><b>Procedure 2.2. Installing the Secure Office Server</b></p><div class="example"><a name="OfficeServer"></a><p class="title"><b>Example 2.4. Secure Office Server smb.conf</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id327448"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id327459"></a><em class="parameter"><code>netbios name = OLORIN</code></em></td></tr><tr><td><a class="indexterm" name="id327469"></a><em class="parameter"><code>printcap name = cups</code></em></td></tr><tr><td><a class="indexterm" name="id327479"></a><em class="parameter"><code>disable spoolss = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id327490"></a><em class="parameter"><code>show add printer wizard = No</code></em></td></tr><tr><td><a class="indexterm" name="id327500"></a><em class="parameter"><code>printing = cups</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id327519"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id327529"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id327540"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id327550"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[public]</code></em></td></tr><tr><td><a class="indexterm" name="id327569"></a><em class="parameter"><code>comment = Data</code></em></td></tr><tr><td><a class="indexterm" name="id327579"></a><em class="parameter"><code>path = /export</code></em></td></tr><tr><td><a class="indexterm" name="id327590"></a><em class="parameter"><code>force user = maryo</code></em></td></tr><tr><td><a class="indexterm" name="id327600"></a><em class="parameter"><code>force group = users</code></em></td></tr><tr><td><a class="indexterm" name="id327611"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id327629"></a><em class="parameter"><code>comment = All Printers</code></em></td></tr><tr><td><a class="indexterm" name="id327640"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id327650"></a><em class="parameter"><code>printer admin = root, maryo</code></em></td></tr><tr><td><a class="indexterm" name="id327661"></a><em class="parameter"><code>create mask = 0600</code></em></td></tr><tr><td><a class="indexterm" name="id327671"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id327681"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id327692"></a><em class="parameter"><code>use client driver = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id327702"></a><em class="parameter"><code>browseable = No</code></em></td></tr></table></div></div><br class="example-break"><ol class="procedure" type="1"><li class="step" title="Step 1"><p>
+		<a class="indexterm" name="id327367"></a>
 			Add all users to the operating system:
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code>useradd -c "Jack Baumbach" -m -g users -p m0r3pa1n jackb</code></strong>
 <code class="prompt">root# </code><strong class="userinput"><code>useradd -c "Mary Orville" -m -g users -p secret maryo</code></strong>
 <code class="prompt">root# </code><strong class="userinput"><code>useradd -c "Amed Sehkah" -m -g users -p secret ameds</code></strong>
 </pre><p>
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 2"><p>
 			Configure the Samba <code class="filename">smb.conf</code> file as shown in <a class="link" href="FastStart.html#OfficeServer" title="Example 2.4. Secure Office Server smb.conf">&#8220;Secure Office Server smb.conf&#8221;</a>.
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 3"><p>
 			Initialize the Microsoft Windows password database with the new users:
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code>smbpasswd -a root</code></strong>
@@ -283,31 +283,31 @@ New SMB password: <strong class="userinput"><code>mysecret</code></strong>
 Reenter smb password: <strong class="userinput"><code>mysecret</code></strong>
 Added user ameds.
 </pre><p>
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 4"><p>
 			Install printer using the CUPS Web interface. Make certain that all
 			printers that will be shared with Microsoft Windows clients are installed
 			as raw printing devices.
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 5"><p>
 			Start Samba using the operating system administrative interface.
 			Alternately, this can be done manually by executing:
-			<a class="indexterm" name="id2555753"></a>
-			<a class="indexterm" name="id2555760"></a>
-			<a class="indexterm" name="id2555766"></a>
-			<a class="indexterm" name="id2555774"></a>
+			<a class="indexterm" name="id327818"></a>
+			<a class="indexterm" name="id327825"></a>
+			<a class="indexterm" name="id327831"></a>
+			<a class="indexterm" name="id327839"></a>
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code> nmbd; smbd;</code></strong>
 </pre><p>
 			Both applications automatically execute as daemons. Those who are paranoid about
 			maintaining control can add the <code class="constant">-D</code> flag to coerce them to start
 			up in daemon mode.
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 6"><p>
 			Configure the <code class="filename">/export</code> directory:
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code>mkdir /export</code></strong>
 <code class="prompt">root# </code><strong class="userinput"><code>chown maryo.users /export</code></strong>
 <code class="prompt">root# </code><strong class="userinput"><code>chmod u=rwx,g=rwx,o-rwx /export</code></strong>
 </pre><p>
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 7"><p>
 			Check that Samba is running correctly:
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code>smbclient -L localhost -U%</code></strong>
@@ -334,7 +334,7 @@ MIDEARTH             OLORIN
 Error connecting to 192.168.1.40 (Connection refused)
 Connection to olorin failed
 </pre><p>
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 8"><p>
 			Connect to OLORIN as maryo:
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code>smbclient //olorin/maryo -Umaryo%secret</code></strong>
@@ -358,8 +358,8 @@ smb: \&gt; <strong class="userinput"><code>q</code></strong>
 			By now you should be getting the hang of configuration basics. Clearly, it is time to
 			explore slightly more complex examples. For the remainder of this chapter we abbreviate
 			instructions, since there are previous examples.
-			</p></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2555963"></a>Domain Member Server</h3></div></div></div><p>
-	<a class="indexterm" name="id2555970"></a>
+			</p></div></div><div class="sect2" title="Domain Member Server"><div class="titlepage"><div><div><h3 class="title"><a name="id328002"></a>Domain Member Server</h3></div></div></div><p>
+	<a class="indexterm" name="id328010"></a>
 	In this instance we consider the simplest server configuration we can get away with
 	to make an accounting department happy. Let's be warned, the users are accountants and they
 	do have some nasty demands. There is a budget for only one server for this department.
@@ -390,40 +390,40 @@ smb: \&gt; <strong class="userinput"><code>q</code></strong>
 	file area for each member of her team that is private to that person, but she wants full
 	access to all areas. Users must have a private home share for personal work-related files
 	and for materials not related to departmental operations.
-	</p><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2556037"></a>Example Configuration</h4></div></div></div><p>
+	</p><div class="sect3" title="Example Configuration"><div class="titlepage"><div><div><h4 class="title"><a name="id328056"></a>Example Configuration</h4></div></div></div><p>
 		The server <span class="emphasis"><em>valinor</em></span> will be a member server of the company domain.
 		Accounting will have only a local server. User accounts will be on the domain controllers,
 		as will desktop profiles and all network policy files.
-		</p><div class="procedure"><div class="example"><a name="fast-member-server"></a><p class="title"><b>Example 2.5. Member Server smb.conf (Globals)</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2556110"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id2556121"></a><em class="parameter"><code>netbios name = VALINOR</code></em></td></tr><tr><td><a class="indexterm" name="id2556131"></a><em class="parameter"><code>security = DOMAIN</code></em></td></tr><tr><td><a class="indexterm" name="id2556142"></a><em class="parameter"><code>printcap name = cups</code></em></td></tr><tr><td><a class="indexterm" name="id2556152"></a><em class="parameter"><code>disable spoolss = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2556162"></a><em class="parameter"><code>show add printer wizard = No</code></em></td></tr><tr><td><a class="indexterm" name="id2556174"></a><em class="parameter"><code>idmap uid = 15000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2556184"></a><em class="parameter"><code>idmap gid = 15000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2556194"></a><em class="parameter"><code>winbind use default domain = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2556205"></a><em class="parameter"><code>printing = cups</code></em></td></tr></table></div></div><br class="example-break"><div class="example"><a name="fast-memberserver-shares"></a><p class="title"><b>Example 2.6. Member Server smb.conf (Shares and Services)</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id2556239"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id2556249"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id2556260"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2556270"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[spytfull]</code></em></td></tr><tr><td><a class="indexterm" name="id2556289"></a><em class="parameter"><code>comment = Accounting Application Only</code></em></td></tr><tr><td><a class="indexterm" name="id2556300"></a><em class="parameter"><code>path = /export/spytfull</code></em></td></tr><tr><td><a class="indexterm" name="id2556310"></a><em class="parameter"><code>valid users = @Accounts</code></em></td></tr><tr><td><a class="indexterm" name="id2556321"></a><em class="parameter"><code>admin users = maryo</code></em></td></tr><tr><td><a class="indexterm" name="id2556331"></a><em class="parameter"><code>read only = Yes</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[public]</code></em></td></tr><tr><td><a class="indexterm" name="id2556350"></a><em class="parameter"><code>comment = Data</code></em></td></tr><tr><td><a class="indexterm" name="id2556360"></a><em class="parameter"><code>path = /export/public</code></em></td></tr><tr><td><a class="indexterm" name="id2556371"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id2556390"></a><em class="parameter"><code>comment = All Printers</code></em></td></tr><tr><td><a class="indexterm" name="id2556400"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id2556410"></a><em class="parameter"><code>printer admin = root, maryo</code></em></td></tr><tr><td><a class="indexterm" name="id2556421"></a><em class="parameter"><code>create mask = 0600</code></em></td></tr><tr><td><a class="indexterm" name="id2556431"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2556442"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2556452"></a><em class="parameter"><code>use client driver = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2556462"></a><em class="parameter"><code>browseable = No</code></em></td></tr></table></div></div><br class="example-break"><ol type="1"><li><p>
+		</p><div class="procedure"><div class="example"><a name="fast-member-server"></a><p class="title"><b>Example 2.5. Member Server smb.conf (Globals)</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id328125"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id328136"></a><em class="parameter"><code>netbios name = VALINOR</code></em></td></tr><tr><td><a class="indexterm" name="id328146"></a><em class="parameter"><code>security = DOMAIN</code></em></td></tr><tr><td><a class="indexterm" name="id328156"></a><em class="parameter"><code>printcap name = cups</code></em></td></tr><tr><td><a class="indexterm" name="id328167"></a><em class="parameter"><code>disable spoolss = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id328177"></a><em class="parameter"><code>show add printer wizard = No</code></em></td></tr><tr><td><a class="indexterm" name="id328188"></a><em class="parameter"><code>idmap uid = 15000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id328198"></a><em class="parameter"><code>idmap gid = 15000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id328208"></a><em class="parameter"><code>winbind use default domain = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id328219"></a><em class="parameter"><code>printing = cups</code></em></td></tr></table></div></div><br class="example-break"><div class="example"><a name="fast-memberserver-shares"></a><p class="title"><b>Example 2.6. Member Server smb.conf (Shares and Services)</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id328251"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id328262"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id328272"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id328282"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[spytfull]</code></em></td></tr><tr><td><a class="indexterm" name="id328301"></a><em class="parameter"><code>comment = Accounting Application Only</code></em></td></tr><tr><td><a class="indexterm" name="id328312"></a><em class="parameter"><code>path = /export/spytfull</code></em></td></tr><tr><td><a class="indexterm" name="id328322"></a><em class="parameter"><code>valid users = @Accounts</code></em></td></tr><tr><td><a class="indexterm" name="id328332"></a><em class="parameter"><code>admin users = maryo</code></em></td></tr><tr><td><a class="indexterm" name="id328343"></a><em class="parameter"><code>read only = Yes</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[public]</code></em></td></tr><tr><td><a class="indexterm" name="id328362"></a><em class="parameter"><code>comment = Data</code></em></td></tr><tr><td><a class="indexterm" name="id328372"></a><em class="parameter"><code>path = /export/public</code></em></td></tr><tr><td><a class="indexterm" name="id328382"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id328401"></a><em class="parameter"><code>comment = All Printers</code></em></td></tr><tr><td><a class="indexterm" name="id328412"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id328422"></a><em class="parameter"><code>printer admin = root, maryo</code></em></td></tr><tr><td><a class="indexterm" name="id328432"></a><em class="parameter"><code>create mask = 0600</code></em></td></tr><tr><td><a class="indexterm" name="id328443"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id328453"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id328464"></a><em class="parameter"><code>use client driver = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id328474"></a><em class="parameter"><code>browseable = No</code></em></td></tr></table></div></div><br class="example-break"><ol class="procedure" type="1"><li class="step" title="Step 1"><p>
 			Do not add users to the UNIX/Linux server; all of this will run off the
 			central domain.
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 2"><p>
 			Configure <code class="filename">smb.conf</code> according to <a class="link" href="FastStart.html#fast-member-server" title="Example 2.5. Member Server smb.conf (Globals)">Member server smb.conf
 			(globals)</a> and <a class="link" href="FastStart.html#fast-memberserver-shares" title="Example 2.6. Member Server smb.conf (Shares and Services)">Member server smb.conf (shares
 			and services)</a>.
-			</p></li><li><p>
-			<a class="indexterm" name="id2556479"></a>
+			</p></li><li class="step" title="Step 3"><p>
+			<a class="indexterm" name="id328491"></a>
 			Join the domain. Note: Do not start Samba until this step has been completed!
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code>net rpc join -Uroot%'bigsecret'</code></strong>
 Joined domain MIDEARTH.
 </pre><p>
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 4"><p>
 			Make absolutely certain that you disable (shut down) the <code class="literal">nscd</code>
 			daemon on any system on which <code class="literal">winbind</code> is configured to run.
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 5"><p>
 			Start Samba following the normal method for your operating system platform.
 			If you wish to do this manually, execute as root:
-			<a class="indexterm" name="id2556531"></a>
-			<a class="indexterm" name="id2556538"></a>
-			<a class="indexterm" name="id2556544"></a>
-			<a class="indexterm" name="id2556550"></a>
-			<a class="indexterm" name="id2556558"></a>
-			<a class="indexterm" name="id2556567"></a>
+			<a class="indexterm" name="id328539"></a>
+			<a class="indexterm" name="id328546"></a>
+			<a class="indexterm" name="id328552"></a>
+			<a class="indexterm" name="id328558"></a>
+			<a class="indexterm" name="id328566"></a>
+			<a class="indexterm" name="id328575"></a>
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code>nmbd; smbd; winbindd;</code></strong>
 </pre><p>
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 6"><p>
 			Configure the name service switch (NSS) control file on your system to resolve user and group names
 			via winbind. Edit the following lines in <code class="filename">/etc/nsswitch.conf</code>:
 </p><pre class="programlisting">
@@ -431,12 +431,12 @@ passwd: files winbind
 group:  files winbind
 hosts:  files dns winbind
 </pre><p>
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 7"><p>
 			Set the password for <code class="literal">wbinfo</code> to use:
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code>wbinfo --set-auth-user=root%'bigsecret'</code></strong>
 </pre><p>
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 8"><p>
 			Validate that domain user and group credentials can be correctly resolved by executing:
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code>wbinfo -u</code></strong>
@@ -453,14 +453,14 @@ MIDEARTH\Domain Guests
 ...
 MIDEARTH\Accounts
 </pre><p>
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 9"><p>
 			Check that <code class="literal">winbind</code> is working. The following demonstrates correct
 			username resolution via the <code class="literal">getent</code> system utility:
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code>getent passwd maryo</code></strong>
 maryo:x:15000:15003:Mary Orville:/home/MIDEARTH/maryo:/bin/false
 </pre><p>
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 10"><p>
 			A final test that we have this under control might be reassuring:
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code>touch /export/a_file</code></strong>
@@ -472,7 +472,7 @@ maryo:x:15000:15003:Mary Orville:/home/MIDEARTH/maryo:/bin/false
 
 <code class="prompt">root# </code><strong class="userinput"><code>rm /export/a_file</code></strong>
 </pre><p>
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 11"><p>
 			Configuration is now mostly complete, so this is an opportune time
 			to configure the directory structure for this site:
 </p><pre class="screen">
@@ -480,8 +480,8 @@ maryo:x:15000:15003:Mary Orville:/home/MIDEARTH/maryo:/bin/false
 <code class="prompt">root# </code><strong class="userinput"><code>chmod ug=rwxS,o=x /export/{spytfull,public}</code></strong>
 <code class="prompt">root# </code><strong class="userinput"><code>chown maryo.Accounts /export/{spytfull,public}</code></strong>
 </pre><p>
-			</p></li></ol></div></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2556806"></a>Domain Controller</h3></div></div></div><p>
-	<a class="indexterm" name="id2556813"></a>
+			</p></li></ol></div></div></div><div class="sect2" title="Domain Controller"><div class="titlepage"><div><div><h3 class="title"><a name="id328803"></a>Domain Controller</h3></div></div></div><p>
+	<a class="indexterm" name="id328810"></a>
 	For the remainder of this chapter the focus is on the configuration of domain control.
 	The examples that follow are for two implementation strategies. Remember, our objective is
 	to create a simple but working solution. The remainder of this book should help to highlight
@@ -498,9 +498,9 @@ maryo:x:15000:15003:Mary Orville:/home/MIDEARTH/maryo:/bin/false
 	a Microsoft Windows network environment; domain controllers provide essential
 	authentication services. The following are symptoms of an under-resourced domain control
 	environment:
-	</p><div class="itemizedlist"><ul type="disc"><li><p>
+	</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>
 		 Domain logons intermittently fail.
-		</p></li><li><p>
+		</p></li><li class="listitem"><p>
 		File access on a domain member server intermittently fails, giving a permission denied
 		error message.
 		</p></li></ul></div><p>
@@ -513,20 +513,20 @@ maryo:x:15000:15003:Mary Orville:/home/MIDEARTH/maryo:/bin/false
 	The tdbsam authentication backend provides no facility to replicate
 	the contents of the database, except by external means (i.e., there is no self-contained protocol
 	in Samba-3 for Security Account Manager database [SAM] replication).
-	</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
+	</p><div class="note" title="Note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
 	If you need more than one domain controller, do not use a tdbsam authentication backend.
-	</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2556885"></a>Example: Engineering Office</h4></div></div></div><p>
+	</p></div><div class="sect3" title="Example: Engineering Office"><div class="titlepage"><div><div><h4 class="title"><a name="id328866"></a>Example: Engineering Office</h4></div></div></div><p>
 		The engineering office network server we present here is designed to demonstrate use
 		of the new tdbsam password backend. The tdbsam
 		facility is new to Samba-3. It is designed to provide many user and machine account controls
 		that are possible with Microsoft Windows NT4. It is safe to use this in smaller networks.
-		</p><div class="procedure"><div class="example"><a name="fast-engoffice-global"></a><p class="title"><b>Example 2.7. Engineering Office smb.conf (globals)</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2556955"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id2556965"></a><em class="parameter"><code>netbios name = FRODO</code></em></td></tr><tr><td><a class="indexterm" name="id2556976"></a><em class="parameter"><code>passdb backend = tdbsam</code></em></td></tr><tr><td><a class="indexterm" name="id2556986"></a><em class="parameter"><code>printcap name = cups</code></em></td></tr><tr><td><a class="indexterm" name="id2556996"></a><em class="parameter"><code>add user script = /usr/sbin/useradd -m %u</code></em></td></tr><tr><td><a class="indexterm" name="id2557008"></a><em class="parameter"><code>delete user script = /usr/sbin/userdel -r %u</code></em></td></tr><tr><td><a class="indexterm" name="id2557019"></a><em class="parameter"><code>add group script = /usr/sbin/groupadd %g</code></em></td></tr><tr><td><a class="indexterm" name="id2557030"></a><em class="parameter"><code>delete group script = /usr/sbin/groupdel %g</code></em></td></tr><tr><td><a class="indexterm" name="id2557041"></a><em class="parameter"><code>add user to group script = /usr/sbin/groupmod -A %u %g</code></em></td></tr><tr><td><a class="indexterm" name="id2557053"></a><em class="parameter"><code>delete user from group script = /usr/sbin/groupmod -R %u %g</code></em></td></tr><tr><td><a class="indexterm" name="id2557065"></a><em class="parameter"><code>add machine script = /usr/sbin/useradd -s /bin/false -d /var/lib/nobody %u</code></em></td></tr><tr><td># Note: The following specifies the default logon script.</td></tr><tr><td># Per user logon scripts can be specified in the user account using pdbedit </td></tr><tr><td><a class="indexterm" name="id2557086"></a><em class="parameter"><code>logon script = scripts\logon.bat</code></em></td></tr><tr><td># This sets the default profile path. Set per user paths with pdbedit</td></tr><tr><td><a class="indexterm" name="id2557101"></a><em class="parameter"><code>logon path = \\%L\Profiles\%U</code></em></td></tr><tr><td><a class="indexterm" name="id2557112"></a><em class="parameter"><code>logon drive = H:</code></em></td></tr><tr><td><a class="indexterm" name="id2557123"></a><em class="parameter"><code>logon home = \\%L\%U</code></em></td></tr><tr><td><a class="indexterm" name="id2557133"></a><em class="parameter"><code>domain logons = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2557144"></a><em class="parameter"><code>os level = 35</code></em></td></tr><tr><td><a class="indexterm" name="id2557154"></a><em class="parameter"><code>preferred master = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2557164"></a><em class="parameter"><code>domain master = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2557175"></a><em class="parameter"><code>idmap uid = 15000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2557185"></a><em class="parameter"><code>idmap gid = 15000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2557196"></a><em class="parameter"><code>printing = cups</code></em></td></tr></table></div></div><br class="example-break"><div class="example"><a name="fast-engoffice-shares"></a><p class="title"><b>Example 2.8. Engineering Office smb.conf (shares and services)</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id2557229"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id2557239"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id2557250"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2557260"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td># Printing auto-share (makes printers available thru CUPS)</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id2557283"></a><em class="parameter"><code>comment = All Printers</code></em></td></tr><tr><td><a class="indexterm" name="id2557294"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id2557304"></a><em class="parameter"><code>printer admin = root, maryo</code></em></td></tr><tr><td><a class="indexterm" name="id2557314"></a><em class="parameter"><code>create mask = 0600</code></em></td></tr><tr><td><a class="indexterm" name="id2557325"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2557335"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2557346"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[print$]</code></em></td></tr><tr><td><a class="indexterm" name="id2557364"></a><em class="parameter"><code>comment = Printer Drivers Share</code></em></td></tr><tr><td><a class="indexterm" name="id2557375"></a><em class="parameter"><code>path = /var/lib/samba/drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2557386"></a><em class="parameter"><code>write list = maryo, root</code></em></td></tr><tr><td><a class="indexterm" name="id2557397"></a><em class="parameter"><code>printer admin = maryo, root</code></em></td></tr><tr><td># Needed to support domain logons</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[netlogon]</code></em></td></tr><tr><td><a class="indexterm" name="id2557420"></a><em class="parameter"><code>comment = Network Logon Service</code></em></td></tr><tr><td><a class="indexterm" name="id2557431"></a><em class="parameter"><code>path = /var/lib/samba/netlogon</code></em></td></tr><tr><td><a class="indexterm" name="id2557442"></a><em class="parameter"><code>admin users = root, maryo</code></em></td></tr><tr><td><a class="indexterm" name="id2557452"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2557462"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td># For profiles to work, create a user directory under the path</td></tr><tr><td>#  shown. i.e., mkdir -p /var/lib/samba/profiles/maryo</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[Profiles]</code></em></td></tr><tr><td><a class="indexterm" name="id2557490"></a><em class="parameter"><code>comment = Roaming Profile Share</code></em></td></tr><tr><td><a class="indexterm" name="id2557501"></a><em class="parameter"><code>path = /var/lib/samba/profiles</code></em></td></tr><tr><td><a class="indexterm" name="id2557512"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2557522"></a><em class="parameter"><code>profile acls = Yes</code></em></td></tr><tr><td># Other resource (share/printer) definitions would follow below.</td></tr></table></div></div><br class="example-break"><ol type="1"><li><p>
+		</p><div class="procedure"><div class="example"><a name="fast-engoffice-global"></a><p class="title"><b>Example 2.7. Engineering Office smb.conf (globals)</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id328927"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id328937"></a><em class="parameter"><code>netbios name = FRODO</code></em></td></tr><tr><td><a class="indexterm" name="id328947"></a><em class="parameter"><code>passdb backend = tdbsam</code></em></td></tr><tr><td><a class="indexterm" name="id328958"></a><em class="parameter"><code>printcap name = cups</code></em></td></tr><tr><td><a class="indexterm" name="id328968"></a><em class="parameter"><code>add user script = /usr/sbin/useradd -m %u</code></em></td></tr><tr><td><a class="indexterm" name="id328979"></a><em class="parameter"><code>delete user script = /usr/sbin/userdel -r %u</code></em></td></tr><tr><td><a class="indexterm" name="id328989"></a><em class="parameter"><code>add group script = /usr/sbin/groupadd %g</code></em></td></tr><tr><td><a class="indexterm" name="id328999"></a><em class="parameter"><code>delete group script = /usr/sbin/groupdel %g</code></em></td></tr><tr><td><a class="indexterm" name="id329010"></a><em class="parameter"><code>add user to group script = /usr/sbin/groupmod -A %u %g</code></em></td></tr><tr><td><a class="indexterm" name="id329020"></a><em class="parameter"><code>delete user from group script = /usr/sbin/groupmod -R %u %g</code></em></td></tr><tr><td><a class="indexterm" name="id329031"></a><em class="parameter"><code>add machine script = /usr/sbin/useradd -s /bin/false -d /var/lib/nobody %u</code></em></td></tr><tr><td># Note: The following specifies the default logon script.</td></tr><tr><td># Per user logon scripts can be specified in the user account using pdbedit </td></tr><tr><td><a class="indexterm" name="id329050"></a><em class="parameter"><code>logon script = scripts\logon.bat</code></em></td></tr><tr><td># This sets the default profile path. Set per user paths with pdbedit</td></tr><tr><td><a class="indexterm" name="id329065"></a><em class="parameter"><code>logon path = \\%L\Profiles\%U</code></em></td></tr><tr><td><a class="indexterm" name="id329075"></a><em class="parameter"><code>logon drive = H:</code></em></td></tr><tr><td><a class="indexterm" name="id329085"></a><em class="parameter"><code>logon home = \\%L\%U</code></em></td></tr><tr><td><a class="indexterm" name="id329096"></a><em class="parameter"><code>domain logons = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id329106"></a><em class="parameter"><code>os level = 35</code></em></td></tr><tr><td><a class="indexterm" name="id329117"></a><em class="parameter"><code>preferred master = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id329127"></a><em class="parameter"><code>domain master = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id329137"></a><em class="parameter"><code>idmap uid = 15000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id329148"></a><em class="parameter"><code>idmap gid = 15000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id329158"></a><em class="parameter"><code>printing = cups</code></em></td></tr></table></div></div><br class="example-break"><div class="example"><a name="fast-engoffice-shares"></a><p class="title"><b>Example 2.8. Engineering Office smb.conf (shares and services)</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id329191"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id329201"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id329211"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id329222"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td># Printing auto-share (makes printers available thru CUPS)</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id329244"></a><em class="parameter"><code>comment = All Printers</code></em></td></tr><tr><td><a class="indexterm" name="id329255"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id329265"></a><em class="parameter"><code>printer admin = root, maryo</code></em></td></tr><tr><td><a class="indexterm" name="id329276"></a><em class="parameter"><code>create mask = 0600</code></em></td></tr><tr><td><a class="indexterm" name="id329286"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id329296"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id329307"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[print$]</code></em></td></tr><tr><td><a class="indexterm" name="id329326"></a><em class="parameter"><code>comment = Printer Drivers Share</code></em></td></tr><tr><td><a class="indexterm" name="id329336"></a><em class="parameter"><code>path = /var/lib/samba/drivers</code></em></td></tr><tr><td><a class="indexterm" name="id329346"></a><em class="parameter"><code>write list = maryo, root</code></em></td></tr><tr><td><a class="indexterm" name="id329357"></a><em class="parameter"><code>printer admin = maryo, root</code></em></td></tr><tr><td># Needed to support domain logons</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[netlogon]</code></em></td></tr><tr><td><a class="indexterm" name="id329379"></a><em class="parameter"><code>comment = Network Logon Service</code></em></td></tr><tr><td><a class="indexterm" name="id329389"></a><em class="parameter"><code>path = /var/lib/samba/netlogon</code></em></td></tr><tr><td><a class="indexterm" name="id329400"></a><em class="parameter"><code>admin users = root, maryo</code></em></td></tr><tr><td><a class="indexterm" name="id329410"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id329420"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td># For profiles to work, create a user directory under the path</td></tr><tr><td>#  shown. i.e., mkdir -p /var/lib/samba/profiles/maryo</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[Profiles]</code></em></td></tr><tr><td><a class="indexterm" name="id329446"></a><em class="parameter"><code>comment = Roaming Profile Share</code></em></td></tr><tr><td><a class="indexterm" name="id329457"></a><em class="parameter"><code>path = /var/lib/samba/profiles</code></em></td></tr><tr><td><a class="indexterm" name="id329467"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id329478"></a><em class="parameter"><code>profile acls = Yes</code></em></td></tr><tr><td># Other resource (share/printer) definitions would follow below.</td></tr></table></div></div><br class="example-break"><ol class="procedure" type="1"><li class="step" title="Step 1"><p>
 			A working PDC configuration using the tdbsam
 			password backend can be found in <a class="link" href="FastStart.html#fast-engoffice-global" title="Example 2.7. Engineering Office smb.conf (globals)">Engineering Office smb.conf
 			(globals)</a> together with <a class="link" href="FastStart.html#fast-engoffice-shares" title="Example 2.8. Engineering Office smb.conf (shares and services)">Engineering Office smb.conf
 			(shares and services)</a>:
-			<a class="indexterm" name="id2556926"></a>
-			</p></li><li><p>
+			<a class="indexterm" name="id328898"></a>
+			</p></li><li class="step" title="Step 2"><p>
 			Create UNIX group accounts as needed using a suitable operating system tool:
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code>groupadd ntadmins</code></strong>
@@ -534,15 +534,15 @@ maryo:x:15000:15003:Mary Orville:/home/MIDEARTH/maryo:/bin/false
 <code class="prompt">root# </code><strong class="userinput"><code>groupadd engineers</code></strong>
 <code class="prompt">root# </code><strong class="userinput"><code>groupadd qateam</code></strong>
 </pre><p>
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 3"><p>
 			Create user accounts on the system using the appropriate tool
 			provided with the operating system. Make sure all user home directories
 			are created also. Add users to groups as required for access control
 			on files, directories, printers, and as required for use in the Samba
 			environment.
-			</p></li><li><p>
-			<a class="indexterm" name="id2557605"></a>
-			<a class="indexterm" name="id2557614"></a>
+			</p></li><li class="step" title="Step 4"><p>
+			<a class="indexterm" name="id329557"></a>
+			<a class="indexterm" name="id329565"></a>
 			Assign each of the UNIX groups to NT groups by executing this shell script
 			(You could name the script <code class="filename">initGroups.sh</code>):
 </p><pre class="screen">
@@ -559,7 +559,7 @@ net groupmap add ntgroup="Designers" unixgroup=designers type=d
 net groupmap add ntgroup="Engineers" unixgroup=engineers type=d
 net groupmap add ntgroup="QA Team"   unixgroup=qateam    type=d
 </pre><p>
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 5"><p>
 			Create the <code class="filename">scripts</code> directory for use in the 
 			<em class="parameter"><code>[NETLOGON]</code></em> share:
 </p><pre class="screen">
@@ -570,13 +570,13 @@ net groupmap add ntgroup="QA Team"   unixgroup=qateam    type=d
 			</p></li></ol></div><p>
 		The above configuration provides a functional PDC
 		system to which must be added file shares and printers as required.
-		</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2557685"></a>A Big Organization</h4></div></div></div><p>
+		</p></div><div class="sect3" title="A Big Organization"><div class="titlepage"><div><div><h4 class="title"><a name="id329627"></a>A Big Organization</h4></div></div></div><p>
 		In this section we finally get to review in brief a Samba-3 configuration that
 		uses a Lightweight Directory Access (LDAP)-based authentication backend. The
 		main reasons for this choice are to provide the ability to host primary
 		and Backup Domain Control (BDC), as well as to enable a higher degree of
 		scalability to meet the needs of a very distributed environment.
-		</p><div class="sect4" lang="en"><div class="titlepage"><div><div><h5 class="title"><a name="id2557700"></a>The Primary Domain Controller</h5></div></div></div><p>
+		</p><div class="sect4" title="The Primary Domain Controller"><div class="titlepage"><div><div><h5 class="title"><a name="id329639"></a>The Primary Domain Controller</h5></div></div></div><p>
 			This is an example of a minimal configuration to run a Samba-3 PDC
 			using an LDAP authentication backend. It is assumed that the operating system
 			has been correctly configured.
@@ -587,13 +587,13 @@ net groupmap add ntgroup="QA Team"   unixgroup=qateam    type=d
 			distributions tend to install the Idealx scripts in the 
 			<code class="filename">/usr/share/doc/packages/sambaXXXXXX/examples/LDAP/smbldap-tools</code> directory.
 			Idealx scripts version <code class="constant">smbldap-tools-0.9.1</code> are known to work well.
-			</p><div class="procedure"><div class="example"><a name="fast-ldap"></a><p class="title"><b>Example 2.9. LDAP backend smb.conf for PDC</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2557926"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id2557937"></a><em class="parameter"><code>netbios name = FRODO</code></em></td></tr><tr><td><a class="indexterm" name="id2557947"></a><em class="parameter"><code>passdb backend = ldapsam:ldap://localhost</code></em></td></tr><tr><td><a class="indexterm" name="id2557958"></a><em class="parameter"><code>username map = /etc/samba/smbusers</code></em></td></tr><tr><td><a class="indexterm" name="id2557969"></a><em class="parameter"><code>printcap name = cups</code></em></td></tr><tr><td><a class="indexterm" name="id2557980"></a><em class="parameter"><code>add user script = /usr/local/sbin/smbldap-useradd -m '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2557991"></a><em class="parameter"><code>delete user script = /usr/local/sbin/smbldap-userdel %u</code></em></td></tr><tr><td><a class="indexterm" name="id2558003"></a><em class="parameter"><code>add group script = /usr/local/sbin/smbldap-groupadd -p '%g'</code></em></td></tr><tr><td><a class="indexterm" name="id2558014"></a><em class="parameter"><code>delete group script = /usr/local/sbin/smbldap-groupdel '%g'</code></em></td></tr><tr><td><a class="indexterm" name="id2558026"></a><em class="parameter"><code>add user to group script = /usr/local/sbin/smbldap-groupmod -m '%u' '%g'</code></em></td></tr><tr><td><a class="indexterm" name="id2558037"></a><em class="parameter"><code>delete user from group script = /usr/local/sbin/smbldap-groupmod -x '%u' '%g'</code></em></td></tr><tr><td><a class="indexterm" name="id2558050"></a><em class="parameter"><code>set primary group script = /usr/local/sbin/smbldap-usermod -g '%g' '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2558062"></a><em class="parameter"><code>add machine script = /usr/local/sbin/smbldap-useradd -w '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2558073"></a><em class="parameter"><code>logon script = scripts\logon.bat</code></em></td></tr><tr><td><a class="indexterm" name="id2558084"></a><em class="parameter"><code>logon path = \\%L\Profiles\%U</code></em></td></tr><tr><td><a class="indexterm" name="id2558095"></a><em class="parameter"><code>logon drive = H:</code></em></td></tr><tr><td><a class="indexterm" name="id2558106"></a><em class="parameter"><code>logon home = \\%L\%U</code></em></td></tr><tr><td><a class="indexterm" name="id2558116"></a><em class="parameter"><code>domain logons = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2558126"></a><em class="parameter"><code>os level = 35</code></em></td></tr><tr><td><a class="indexterm" name="id2558137"></a><em class="parameter"><code>preferred master = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2558147"></a><em class="parameter"><code>domain master = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2558158"></a><em class="parameter"><code>ldap suffix = dc=quenya,dc=org</code></em></td></tr><tr><td><a class="indexterm" name="id2558169"></a><em class="parameter"><code>ldap machine suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2558180"></a><em class="parameter"><code>ldap user suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2558191"></a><em class="parameter"><code>ldap group suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2558202"></a><em class="parameter"><code>ldap idmap suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2558213"></a><em class="parameter"><code>ldap admin dn = cn=Manager,dc=quenya,dc=org</code></em></td></tr><tr><td><a class="indexterm" name="id2558224"></a><em class="parameter"><code>ldap ssl = no</code></em></td></tr><tr><td><a class="indexterm" name="id2558235"></a><em class="parameter"><code>ldap passwd sync = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2558245"></a><em class="parameter"><code>idmap uid = 15000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2558255"></a><em class="parameter"><code>idmap gid = 15000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2558266"></a><em class="parameter"><code>printing = cups</code></em></td></tr></table></div></div><br class="example-break"><ol type="1"><li><p>
+			</p><div class="procedure"><div class="example"><a name="fast-ldap"></a><p class="title"><b>Example 2.9. LDAP backend smb.conf for PDC</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id329835"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id329845"></a><em class="parameter"><code>netbios name = FRODO</code></em></td></tr><tr><td><a class="indexterm" name="id329856"></a><em class="parameter"><code>passdb backend = ldapsam:ldap://localhost</code></em></td></tr><tr><td><a class="indexterm" name="id329866"></a><em class="parameter"><code>username map = /etc/samba/smbusers</code></em></td></tr><tr><td><a class="indexterm" name="id329877"></a><em class="parameter"><code>printcap name = cups</code></em></td></tr><tr><td><a class="indexterm" name="id329887"></a><em class="parameter"><code>add user script = /usr/local/sbin/smbldap-useradd -m '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id329898"></a><em class="parameter"><code>delete user script = /usr/local/sbin/smbldap-userdel %u</code></em></td></tr><tr><td><a class="indexterm" name="id329908"></a><em class="parameter"><code>add group script = /usr/local/sbin/smbldap-groupadd -p '%g'</code></em></td></tr><tr><td><a class="indexterm" name="id329920"></a><em class="parameter"><code>delete group script = /usr/local/sbin/smbldap-groupdel '%g'</code></em></td></tr><tr><td><a class="indexterm" name="id329931"></a><em class="parameter"><code>add user to group script = /usr/local/sbin/smbldap-groupmod -m '%u' '%g'</code></em></td></tr><tr><td><a class="indexterm" name="id329942"></a><em class="parameter"><code>delete user from group script = /usr/local/sbin/smbldap-groupmod -x '%u' '%g'</code></em></td></tr><tr><td><a class="indexterm" name="id329953"></a><em class="parameter"><code>set primary group script = /usr/local/sbin/smbldap-usermod -g '%g' '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id329964"></a><em class="parameter"><code>add machine script = /usr/local/sbin/smbldap-useradd -w '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id329975"></a><em class="parameter"><code>logon script = scripts\logon.bat</code></em></td></tr><tr><td><a class="indexterm" name="id329986"></a><em class="parameter"><code>logon path = \\%L\Profiles\%U</code></em></td></tr><tr><td><a class="indexterm" name="id329996"></a><em class="parameter"><code>logon drive = H:</code></em></td></tr><tr><td><a class="indexterm" name="id330006"></a><em class="parameter"><code>logon home = \\%L\%U</code></em></td></tr><tr><td><a class="indexterm" name="id330017"></a><em class="parameter"><code>domain logons = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id330027"></a><em class="parameter"><code>os level = 35</code></em></td></tr><tr><td><a class="indexterm" name="id330038"></a><em class="parameter"><code>preferred master = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id330048"></a><em class="parameter"><code>domain master = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id330058"></a><em class="parameter"><code>ldap suffix = dc=quenya,dc=org</code></em></td></tr><tr><td><a class="indexterm" name="id330069"></a><em class="parameter"><code>ldap machine suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id330079"></a><em class="parameter"><code>ldap user suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id330090"></a><em class="parameter"><code>ldap group suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id330100"></a><em class="parameter"><code>ldap idmap suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id330110"></a><em class="parameter"><code>ldap admin dn = cn=Manager,dc=quenya,dc=org</code></em></td></tr><tr><td><a class="indexterm" name="id330121"></a><em class="parameter"><code>ldap ssl = no</code></em></td></tr><tr><td><a class="indexterm" name="id330131"></a><em class="parameter"><code>ldap passwd sync = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id330142"></a><em class="parameter"><code>idmap uid = 15000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id330152"></a><em class="parameter"><code>idmap gid = 15000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id330162"></a><em class="parameter"><code>printing = cups</code></em></td></tr></table></div></div><br class="example-break"><ol class="procedure" type="1"><li class="step" title="Step 1"><p>
 				Obtain from the Samba sources <code class="filename">~/examples/LDAP/samba.schema</code>
 				and copy it to the <code class="filename">/etc/openldap/schema/</code> directory.
-				</p></li><li><p>
+				</p></li><li class="step" title="Step 2"><p>
 				Set up the LDAP server. This example is suitable for OpenLDAP 2.1.x.
 				The <code class="filename">/etc/openldap/slapd.conf</code> file.
-				<a class="indexterm" name="id2557768"></a>
+				<a class="indexterm" name="id329699"></a>
 <span style="color: red">&lt;title&gt;Example slapd.conf File&lt;/title&gt;</span>
 </p><pre class="screen">
 # Note commented out lines have been removed
@@ -627,9 +627,9 @@ index   sambaPrimaryGroupSID  eq
 index   sambaDomainName       eq
 index   default               sub
 </pre><p>
-				</p></li><li><p>
+				</p></li><li class="step" title="Step 3"><p>
 				Create the following file <code class="filename">initdb.ldif</code>:
-				<a class="indexterm" name="id2557813"></a>
+				<a class="indexterm" name="id329734"></a>
 </p><pre class="programlisting">
 # Organization for SambaXP Demo
 dn: dc=quenya,dc=org
@@ -660,39 +660,39 @@ objectclass: simpleSecurityObject
 userPassword: {SSHA}0jBHgQ1vp4EDX2rEMMfIudvRMJoGwjVb
 # The password for above is 'mordonL8'
 </pre><p>
-				</p></li><li><p>
+				</p></li><li class="step" title="Step 4"><p>
 				Load the initial data above into the LDAP database:
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code>slapadd -v -l initdb.ldif</code></strong>
 </pre><p>
-				</p></li><li><p>
+				</p></li><li class="step" title="Step 5"><p>
 				Start the LDAP server using the appropriate tool or method for
 				the operating system platform on which it is installed.
-				</p></li><li><p>
+				</p></li><li class="step" title="Step 6"><p>
 				Install the Idealx script files in the <code class="filename">/usr/local/sbin</code> directory,
 				then configure the smbldap_conf.pm file to match your system configuration.
-				</p></li><li><p>
+				</p></li><li class="step" title="Step 7"><p>
 				The <code class="filename">smb.conf</code> file that drives this backend can be found in example <a class="link" href="FastStart.html#fast-ldap" title="Example 2.9. LDAP backend smb.conf for PDC">LDAP backend smb.conf for PDC</a>. Add additional stanzas
 				as required.
-				</p></li><li><p>
+				</p></li><li class="step" title="Step 8"><p>
 				Add the LDAP password to the <code class="filename">secrets.tdb</code> file so Samba can update
 				the LDAP database:
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code>smbpasswd -w mordonL8</code></strong>
 </pre><p>
-				</p></li><li><p>
+				</p></li><li class="step" title="Step 9"><p>
 				Add users and groups as required. Users and groups added using Samba tools
 				will automatically be added to both the LDAP backend and the operating
 				system as required.
-				</p></li></ol></div></div><div class="sect4" lang="en"><div class="titlepage"><div><div><h5 class="title"><a name="id2558316"></a>Backup Domain Controller</h5></div></div></div><p>
+				</p></li></ol></div></div><div class="sect4" title="Backup Domain Controller"><div class="titlepage"><div><div><h5 class="title"><a name="id330210"></a>Backup Domain Controller</h5></div></div></div><p>
 			<a class="link" href="FastStart.html#fast-bdc" title="Example 2.10. Remote LDAP BDC smb.conf">&#8220;Remote LDAP BDC smb.conf&#8221;</a> shows the example configuration for the BDC. Note that
 			the <code class="filename">smb.conf</code> file does not specify the smbldap-tools scripts  they are
 			not needed on a BDC. Add additional stanzas for shares and printers as required.
-			</p><div class="procedure"><div class="example"><a name="fast-bdc"></a><p class="title"><b>Example 2.10. Remote LDAP BDC smb.conf</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2558388"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id2558398"></a><em class="parameter"><code>netbios name = GANDALF</code></em></td></tr><tr><td><a class="indexterm" name="id2558409"></a><em class="parameter"><code>passdb backend = ldapsam:ldap://frodo.quenya.org</code></em></td></tr><tr><td><a class="indexterm" name="id2558420"></a><em class="parameter"><code>username map = /etc/samba/smbusers</code></em></td></tr><tr><td><a class="indexterm" name="id2558430"></a><em class="parameter"><code>printcap name = cups</code></em></td></tr><tr><td><a class="indexterm" name="id2558441"></a><em class="parameter"><code>logon script = scripts\logon.bat</code></em></td></tr><tr><td><a class="indexterm" name="id2558452"></a><em class="parameter"><code>logon path = \\%L\Profiles\%U</code></em></td></tr><tr><td><a class="indexterm" name="id2558463"></a><em class="parameter"><code>logon drive = H:</code></em></td></tr><tr><td><a class="indexterm" name="id2558473"></a><em class="parameter"><code>logon home = \\%L\%U</code></em></td></tr><tr><td><a class="indexterm" name="id2558484"></a><em class="parameter"><code>domain logons = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2558494"></a><em class="parameter"><code>os level = 33</code></em></td></tr><tr><td><a class="indexterm" name="id2558505"></a><em class="parameter"><code>preferred master = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2558515"></a><em class="parameter"><code>domain master = No</code></em></td></tr><tr><td><a class="indexterm" name="id2558525"></a><em class="parameter"><code>ldap suffix = dc=quenya,dc=org</code></em></td></tr><tr><td><a class="indexterm" name="id2558536"></a><em class="parameter"><code>ldap machine suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2558548"></a><em class="parameter"><code>ldap user suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2558559"></a><em class="parameter"><code>ldap group suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2558570"></a><em class="parameter"><code>ldap idmap suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2558581"></a><em class="parameter"><code>ldap admin dn = cn=Manager,dc=quenya,dc=org</code></em></td></tr><tr><td><a class="indexterm" name="id2558592"></a><em class="parameter"><code>ldap ssl = no</code></em></td></tr><tr><td><a class="indexterm" name="id2558602"></a><em class="parameter"><code>ldap passwd sync = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2558613"></a><em class="parameter"><code>idmap uid = 15000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2558623"></a><em class="parameter"><code>idmap gid = 15000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2558634"></a><em class="parameter"><code>printing = cups</code></em></td></tr></table></div></div><br class="example-break"><ol type="1"><li><p>
+			</p><div class="procedure"><div class="example"><a name="fast-bdc"></a><p class="title"><b>Example 2.10. Remote LDAP BDC smb.conf</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id330276"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id330286"></a><em class="parameter"><code>netbios name = GANDALF</code></em></td></tr><tr><td><a class="indexterm" name="id330296"></a><em class="parameter"><code>passdb backend = ldapsam:ldap://frodo.quenya.org</code></em></td></tr><tr><td><a class="indexterm" name="id330307"></a><em class="parameter"><code>username map = /etc/samba/smbusers</code></em></td></tr><tr><td><a class="indexterm" name="id330317"></a><em class="parameter"><code>printcap name = cups</code></em></td></tr><tr><td><a class="indexterm" name="id330328"></a><em class="parameter"><code>logon script = scripts\logon.bat</code></em></td></tr><tr><td><a class="indexterm" name="id330338"></a><em class="parameter"><code>logon path = \\%L\Profiles\%U</code></em></td></tr><tr><td><a class="indexterm" name="id330348"></a><em class="parameter"><code>logon drive = H:</code></em></td></tr><tr><td><a class="indexterm" name="id330359"></a><em class="parameter"><code>logon home = \\%L\%U</code></em></td></tr><tr><td><a class="indexterm" name="id330369"></a><em class="parameter"><code>domain logons = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id330380"></a><em class="parameter"><code>os level = 33</code></em></td></tr><tr><td><a class="indexterm" name="id330390"></a><em class="parameter"><code>preferred master = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id330400"></a><em class="parameter"><code>domain master = No</code></em></td></tr><tr><td><a class="indexterm" name="id330411"></a><em class="parameter"><code>ldap suffix = dc=quenya,dc=org</code></em></td></tr><tr><td><a class="indexterm" name="id330421"></a><em class="parameter"><code>ldap machine suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id330432"></a><em class="parameter"><code>ldap user suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id330442"></a><em class="parameter"><code>ldap group suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id330452"></a><em class="parameter"><code>ldap idmap suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id330463"></a><em class="parameter"><code>ldap admin dn = cn=Manager,dc=quenya,dc=org</code></em></td></tr><tr><td><a class="indexterm" name="id330473"></a><em class="parameter"><code>ldap ssl = no</code></em></td></tr><tr><td><a class="indexterm" name="id330484"></a><em class="parameter"><code>ldap passwd sync = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id330494"></a><em class="parameter"><code>idmap uid = 15000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id330504"></a><em class="parameter"><code>idmap gid = 15000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id330515"></a><em class="parameter"><code>printing = cups</code></em></td></tr></table></div></div><br class="example-break"><ol class="procedure" type="1"><li class="step" title="Step 1"><p>
 				Decide if the BDC should have its own LDAP server or not. If the BDC is to be
 				the LDAP server, change the following <code class="filename">smb.conf</code> as indicated. The default
 				configuration in <a class="link" href="FastStart.html#fast-bdc" title="Example 2.10. Remote LDAP BDC smb.conf">Remote LDAP BDC smb.conf</a>
 				uses a central LDAP server.
-				</p></li><li><p>
+				</p></li><li class="step" title="Step 2"><p>
 				Configure the NETLOGON and PROFILES directory as for the PDC in <a class="link" href="FastStart.html#fast-bdc" title="Example 2.10. Remote LDAP BDC smb.conf">&#8220;Remote LDAP BDC smb.conf&#8221;</a>.
 				</p></li></ol></div></div></div></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="install.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="introduction.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="type.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 1. How to Install and Test SAMBA </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Part II. Server Configuration Basics</td></tr></table></div></body></html>

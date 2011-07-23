@@ -1,3 +1,9 @@
+samba (2:3.5.8~dfsg-1~bpo60+1) squeeze-backports; urgency=low
+
+  * Squeeze backport
+
+ -- Christian Perrier <bubulle@debian.org>  Fri, 11 Mar 2011 05:31:52 +0100
+
 samba (2:3.5.8~dfsg-1) unstable; urgency=low
 
   * New upstream release. This fixes the following bugs:

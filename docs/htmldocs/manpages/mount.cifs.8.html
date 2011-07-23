@@ -1,4 +1,4 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>mount.cifs</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="mount.cifs.8"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>mount.cifs &#8212; mount using the Common Internet File System (CIFS)</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">mount.cifs</code> {service} {mount-point} [-o options]</p></div></div><div class="refsect1" lang="en"><a name="id2522927"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p>mount.cifs mounts a Linux CIFS filesystem. It
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>mount.cifs</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.75.2"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" title="mount.cifs"><a name="mount.cifs.8"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>mount.cifs &#8212; mount using the Common Internet File System (CIFS)</p></div><div class="refsynopsisdiv" title="Synopsis"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">mount.cifs</code> {service} {mount-point} [-o options]</p></div></div><div class="refsect1" title="DESCRIPTION"><a name="id266365"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p>mount.cifs mounts a Linux CIFS filesystem. It
 is usually invoked indirectly by
 the <a class="citerefentry" href="mount.8.html"><span class="citerefentry"><span class="refentrytitle">mount</span>(8)</span></a> command when using the 
 "-t cifs" option. This command only works in Linux, and the kernel must
@@ -25,12 +25,12 @@ kernel log.
 	</p><p>
 
 		<span class="emphasis"><em>modinfo cifs</em></span> command displays the version of cifs module.
-	</p></div><div class="refsect1" lang="en"><a name="id2483383"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">user=<em class="replaceable"><code>arg</code></em></span></dt><dd><p>specifies the username to connect as. If
+	</p></div><div class="refsect1" title="OPTIONS"><a name="id266893"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">user=<em class="replaceable"><code>arg</code></em></span></dt><dd><p>specifies the username to connect as. If
 				this is not given, then the environment variable <span class="emphasis"><em>USER</em></span> is used. This option can also take the
 form "user%password" or "workgroup/user" or
 "workgroup/user%password" to allow the password and workgroup
 to be specified as part of the username.
-		</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
+		</p><div class="note" title="Note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
 	The cifs vfs accepts the parameter <em class="parameter"><code>user=</code></em>, or for users familiar with smbfs it accepts the longer form of the parameter <em class="parameter"><code>username=</code></em>.  Similarly the longer smbfs style parameter names may be accepted as synonyms for the shorter cifs parameters <em class="parameter"><code>pass=</code></em>,<em class="parameter"><code>dom=</code></em> and <em class="parameter"><code>cred=</code></em>.
 	</p></div></dd><dt><span class="term">password=<em class="replaceable"><code>arg</code></em></span></dt><dd><p>specifies the CIFS password. If this
 option is not given then the environment variable
@@ -153,9 +153,9 @@ permissions in memory that can't be stored on the server. This information can d
 		module.  POSIX ACL support can be disabled on a per mount basis by specifying
 		"noacl" on mount.</p></dd><dt><span class="term">nocase</span></dt><dd><p>Request case insensitive path name matching (case
                 sensitive is the default if the server suports it).
-		</p></dd><dt><span class="term">sec=</span></dt><dd><p>Security mode.  Allowed values are:</p><div class="itemizedlist"><ul type="disc"><li><p>none    attempt to connection as a null user (no name) </p></li><li><p>krb5    Use Kerberos version 5 authentication</p></li><li><p>krb5i   Use Kerberos authentication and packet signing</p></li><li><p>ntlm    Use NTLM password hashing (default)</p></li><li><p>ntlmi   Use NTLM password hashing with signing (if
+		</p></dd><dt><span class="term">sec=</span></dt><dd><p>Security mode.  Allowed values are:</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>none    attempt to connection as a null user (no name) </p></li><li class="listitem"><p>krb5    Use Kerberos version 5 authentication</p></li><li class="listitem"><p>krb5i   Use Kerberos authentication and packet signing</p></li><li class="listitem"><p>ntlm    Use NTLM password hashing (default)</p></li><li class="listitem"><p>ntlmi   Use NTLM password hashing with signing (if
                                 /proc/fs/cifs/PacketSigningEnabled on or if
-                                server requires signing also can be the default)</p></li><li><p>ntlmv2  Use NTLMv2 password hashing</p></li><li><p>ntlmv2i Use NTLMv2 password hashing with packet signing</p></li></ul></div><p>[NB This [sec parameter] is under development and expected to be available in cifs kernel module 1.40 and later]
+                                server requires signing also can be the default)</p></li><li class="listitem"><p>ntlmv2  Use NTLMv2 password hashing</p></li><li class="listitem"><p>ntlmv2i Use NTLMv2 password hashing with packet signing</p></li></ul></div><p>[NB This [sec parameter] is under development and expected to be available in cifs kernel module 1.40 and later]
                 </p></dd><dt><span class="term">nobrl</span></dt><dd><p>Do not send byte range lock requests to the server.
                 This is necessary for certain applications that break
                 with cifs style mandatory byte range locks (and most
@@ -219,11 +219,11 @@ permissions in memory that can't be stored on the server. This information can d
 
 		</p></dd><dt><span class="term">wsize=<em class="replaceable"><code>arg</code></em></span></dt><dd><p>default network write size (default 57344)
                 maximum wsize currently allowed by CIFS is 57344 (fourteen
-                4096 byte pages)</p></dd><dt><span class="term">--verbose</span></dt><dd><p>Print additional debugging information for the mount. Note that this parameter must be specified before the -o. For example:</p><p>mount -t cifs //server/share /mnt --verbose -o user=username</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2532669"></a><h2>SERVICE FORMATTING AND DELIMITERS</h2><p>
+                4096 byte pages)</p></dd><dt><span class="term">--verbose</span></dt><dd><p>Print additional debugging information for the mount. Note that this parameter must be specified before the -o. For example:</p><p>mount -t cifs //server/share /mnt --verbose -o user=username</p></dd></dl></div></div><div class="refsect1" title="SERVICE FORMATTING AND DELIMITERS"><a name="id307577"></a><h2>SERVICE FORMATTING AND DELIMITERS</h2><p>
 		It's generally preferred to use forward slashes (/) as a delimiter in service names. They are considered to be the "universal delimiter" since they are generally not allowed to be embedded within path components on Windows machines and the client can convert them to blackslashes (\) unconditionally. Conversely, backslash characters are allowed by POSIX to be part of a path component, and can't be automatically converted in the same way.
 	</p><p>
 		mount.cifs will attempt to convert backslashes to forward slashes where it's able to do so, but it cannot do so in any path component following the sharename.
-	</p></div><div class="refsect1" lang="en"><a name="id2532692"></a><h2>INODE NUMBERS</h2><p>
+	</p></div><div class="refsect1" title="INODE NUMBERS"><a name="id307595"></a><h2>INODE NUMBERS</h2><p>
 		When Unix Extensions are enabled, we use the actual inode
 	number provided by the server in response to the POSIX calls as an
 	inode number.
@@ -243,7 +243,7 @@ permissions in memory that can't be stored on the server. This information can d
 	problem. You can also use "noserverino" mount option to generate inode
 	numbers smaller than 2 power 32 on the client. But you may not be able
 	to detect hardlinks properly.
-	</p></div><div class="refsect1" lang="en"><a name="id2532725"></a><h2>FILE AND DIRECTORY OWNERSHIP AND PERMISSIONS</h2><p> The core CIFS protocol does not provide unix ownership
+	</p></div><div class="refsect1" title="FILE AND DIRECTORY OWNERSHIP AND PERMISSIONS"><a name="id307620"></a><h2>FILE AND DIRECTORY OWNERSHIP AND PERMISSIONS</h2><p> The core CIFS protocol does not provide unix ownership
 information or mode for files and directories. Because of this, files
 and directories will generally appear to be owned by whatever values the
 uid= or gid= options are set, and will have permissions set to the
@@ -268,7 +268,7 @@ the inode cache). In general, this mount option is discouraged.
 	</p><p>It's also possible to override permission checking on the client
 altogether via the noperm option. Server-side permission checks cannot be
 overriden. The permission checks done by the server will always correspond to
-the credentials used to mount the share, and not necessarily to the user who is accessing the share.</p></div><div class="refsect1" lang="en"><a name="id2532781"></a><h2>ENVIRONMENT VARIABLES</h2><p>
+the credentials used to mount the share, and not necessarily to the user who is accessing the share.</p></div><div class="refsect1" title="ENVIRONMENT VARIABLES"><a name="id307658"></a><h2>ENVIRONMENT VARIABLES</h2><p>
 		The variable <span class="emphasis"><em>USER</em></span> may contain the username of the
 person to be used to authenticate to the server.
 The variable can be used to set both username and
@@ -280,12 +280,12 @@ person using the client.
 		The variable <span class="emphasis"><em>PASSWD_FILE</em></span> may contain the pathname
 of a file to read the password from. A single line of input is
 read and used as the password.
-	</p></div><div class="refsect1" lang="en"><a name="id2532813"></a><h2>NOTES</h2><p>This command may be used only by root, unless installed setuid, in which case the noeexec and nosuid mount flags are enabled. When installed as a setuid program, the program follows the conventions set forth by the mount program for user mounts.</p><p>
+	</p></div><div class="refsect1" title="NOTES"><a name="id307687"></a><h2>NOTES</h2><p>This command may be used only by root, unless installed setuid, in which case the noeexec and nosuid mount flags are enabled. When installed as a setuid program, the program follows the conventions set forth by the mount program for user mounts.</p><p>
 	Some samba client tools like smbclient(8) honour client-side
 	configuration parameters present in smb.conf. Unlike those
 	client tools, <span class="emphasis"><em>mount.cifs</em></span> ignores smb.conf
 	completely.
-	</p></div><div class="refsect1" lang="en"><a name="id2532836"></a><h2>CONFIGURATION</h2><p>
+	</p></div><div class="refsect1" title="CONFIGURATION"><a name="id307706"></a><h2>CONFIGURATION</h2><p>
 The primary mechanism for making configuration changes and for reading 
 debug information for the cifs vfs is via the Linux /proc filesystem.
 In the directory <code class="filename">/proc/fs/cifs</code> are various 
@@ -296,7 +296,7 @@ loaded.  These can be seen by running the modinfo utility against the file
 cifs.ko which will list the options that may be passed to cifs during module
 installation (device driver load).
 For more information see the kernel file <code class="filename">fs/cifs/README</code>.
-</p></div><div class="refsect1" lang="en"><a name="id2532866"></a><h2>BUGS</h2><p>Mounting using the CIFS URL specification is currently not supported.
+</p></div><div class="refsect1" title="BUGS"><a name="id307732"></a><h2>BUGS</h2><p>Mounting using the CIFS URL specification is currently not supported.
 	</p><p>The credentials file does not handle usernames or passwords with
 		leading space.</p><p>
 Note that the typical response to a bug report is a suggestion
@@ -304,11 +304,11 @@ to try the latest version first. So please try doing that first,
 and always include which versions you use of relevant software
 when reporting bugs (minimum: mount.cifs (try mount.cifs -V), kernel (see /proc/version) and
 server type you are trying to contact.
-</p></div><div class="refsect1" lang="en"><a name="id2532891"></a><h2>VERSION</h2><p>This man page is correct for version 1.52 of 
-	the cifs vfs filesystem (roughly Linux kernel 2.6.24).</p></div><div class="refsect1" lang="en"><a name="id2532902"></a><h2>SEE ALSO</h2><p>
+</p></div><div class="refsect1" title="VERSION"><a name="id307751"></a><h2>VERSION</h2><p>This man page is correct for version 1.52 of 
+	the cifs vfs filesystem (roughly Linux kernel 2.6.24).</p></div><div class="refsect1" title="SEE ALSO"><a name="id307761"></a><h2>SEE ALSO</h2><p>
 	Documentation/filesystems/cifs.txt and fs/cifs/README in the linux kernel
 	source tree may contain additional options and information.
-</p><p><a class="citerefentry" href="umount.cifs.8.html"><span class="citerefentry"><span class="refentrytitle">umount.cifs</span>(8)</span></a></p></div><div class="refsect1" lang="en"><a name="id2532923"></a><h2>AUTHOR</h2><p>Steve French</p><p>The syntax and manpage were loosely based on that of smbmount. It 
+</p><p><a class="citerefentry" href="umount.cifs.8.html"><span class="citerefentry"><span class="refentrytitle">umount.cifs</span>(8)</span></a></p></div><div class="refsect1" title="AUTHOR"><a name="id307781"></a><h2>AUTHOR</h2><p>Steve French</p><p>The syntax and manpage were loosely based on that of smbmount. It 
 		was converted to Docbook/XML by Jelmer Vernooij.</p><p>The maintainer of the Linux cifs vfs and the userspace
 		tool <span class="emphasis"><em>mount.cifs</em></span> is <a class="ulink" href="mailto:sfrench@samba.org" target="_top">Steve French</a>.
 		The <a class="ulink" href="mailto:linux-cifs-client@lists.samba.org" target="_top">Linux CIFS Mailing list</a> 

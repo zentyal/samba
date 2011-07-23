@@ -1312,6 +1312,9 @@ char *automount_lookup(TALLOC_CTX *ctx, const char *user_name)
 	if ((nis_error = yp_match(nis_domain, nis_map, user_name,
 					strlen(user_name), &nis_result,
 					&nis_result_len)) == 0) {
+		if (nis_result_len > 0 && nis_result[nis_result_len] == '\n') {
+			nis_result[nis_result_len] = '\0';
+		}
 		value = talloc_strdup(ctx, nis_result);
 		if (!value) {
 			return NULL;
@@ -1997,17 +2000,8 @@ const char *tab_depth(int level, int depth)
 
 int str_checksum(const char *s)
 {
-	int res = 0;
-	int c;
-	int i=0;
-
-	while(*s) {
-		c = *s;
-		res ^= (c << (i % 15)) ^ (c >> (15-(i%15)));
-		s++;
-		i++;
-	}
-	return(res);
+	TDB_DATA key = string_tdb_data(s);
+	return jenkins_hash(&key);
 }
 
 /*****************************************************************

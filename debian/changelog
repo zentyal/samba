@@ -1,3 +1,9 @@
+samba (2:3.5.9~dfsg-1~bpo60+1) UNRELEASED; urgency=low
+
+  * Backport to squeeze
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 24 Jul 2011 12:15:07 +0200
+
 samba (2:3.5.9~dfsg-1) unstable; urgency=low
 
   * New upstream release

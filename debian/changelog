@@ -2,6 +2,7 @@ samba (2:3.5.6~dfsg-3squeeze5) stable-security-UNRELEASED; urgency=high
 
   * Security update, fixing the following issues:
     - CVE-2011-2694: possible XSS attack in SWAT
+    - CVE-2011-2522: Cross-Site Request Forgery vulnerability in SWAT
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 27 Jul 2011 08:25:27 +0200
 

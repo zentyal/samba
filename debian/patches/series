@@ -27,3 +27,4 @@ bug_611177-617429_upstream_7567_0010-librpc-ndr-handle-NOALIGN-flag-for-relative
 bug_613624_upstream_7777_0001-First-part-of-fix-for-bug-7777-When-requesting-looku.patch
 bug_613624_upstream_7777_0002-Second-part-of-fix-for-bug-7777-When-requesting-look.patch
 upstream_7880_0001-s3-rpcclient-Fix-bug-7880-cmd_spoolss_deletedriver-r.patch
+security-CVE-2011-2694.patch

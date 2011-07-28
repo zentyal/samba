@@ -1,4 +1,4 @@
-samba (2:3.5.9~dfsg-2) UNRELEASED; urgency=low
+samba (2:3.5.10~dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release
   * Security update, fixing the following issues:

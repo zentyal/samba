@@ -1,3 +1,12 @@
+samba (2:3.5.9~dfsg-2) UNRELEASED; urgency=low
+
+  * New upstream release
+  * Security update, fixing the following issues:
+    - CVE-2011-2694: possible XSS attack in SWAT
+    - CVE-2011-2522: Cross-Site Request Forgery vulnerability in SWAT
+
+ -- Christian Perrier <bubulle@debian.org>  Thu, 28 Jul 2011 08:01:50 +0200
+
 samba (2:3.5.9~dfsg-1) unstable; urgency=low
 
   * New upstream release

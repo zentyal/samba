@@ -239,6 +239,14 @@ void cli_smb_req_unset_pending(struct tevent_req *req)
 	int num_pending = talloc_array_length(cli->pending);
 	int i;
 
+	if (state->mid != 0) {
+		/*
+		 * This is a [nt]trans[2] request which waits
+		 * for more than one reply.
+		 */
+		return;
+	}
+
 	if (num_pending == 1) {
 		/*
 		 * The pending read_smb tevent_req is a child of
@@ -281,6 +289,13 @@ void cli_smb_req_unset_pending(struct tevent_req *req)
 
 static int cli_smb_req_destructor(struct tevent_req *req)
 {
+	struct cli_smb_state *state = tevent_req_data(
+		req, struct cli_smb_state);
+	/*
+	 * Make sure we really remove it from
+	 * the pending array on destruction.
+	 */
+	state->mid = 0;
 	cli_smb_req_unset_pending(req);
 	return 0;
 }
@@ -341,6 +356,20 @@ void cli_smb_req_set_mid(struct tevent_req *req, uint16_t mid)
 	struct cli_smb_state *state = tevent_req_data(
 		req, struct cli_smb_state);
 	state->mid = mid;
+}
+
+uint32_t cli_smb_req_seqnum(struct tevent_req *req)
+{
+	struct cli_smb_state *state = tevent_req_data(
+		req, struct cli_smb_state);
+	return state->seqnum;
+}
+
+void cli_smb_req_set_seqnum(struct tevent_req *req, uint32_t seqnum)
+{
+	struct cli_smb_state *state = tevent_req_data(
+		req, struct cli_smb_state);
+	state->seqnum = seqnum;
 }
 
 static size_t iov_len(const struct iovec *iov, int count)
@@ -716,7 +745,7 @@ static void cli_smb_received(struct tevent_req *subreq)
 	if (state->chained_requests == NULL) {
 		state->inbuf = talloc_move(state, &inbuf);
 		talloc_set_destructor(req, NULL);
-		cli_smb_req_destructor(req);
+		cli_smb_req_unset_pending(req);
 		state->chain_num = 0;
 		state->chain_length = 1;
 		tevent_req_done(req);
@@ -760,7 +789,7 @@ static void cli_smb_received(struct tevent_req *subreq)
 	while (talloc_array_length(cli->pending) > 0) {
 		req = cli->pending[0];
 		talloc_set_destructor(req, NULL);
-		cli_smb_req_destructor(req);
+		cli_smb_req_unset_pending(req);
 		tevent_req_nterror(req, status);
 	}
 }
@@ -783,6 +812,24 @@ NTSTATUS cli_smb_recv(struct tevent_req *req,
 	}
 
 	if (state->inbuf == NULL) {
+		if (min_wct != 0) {
+			return NT_STATUS_INVALID_NETWORK_RESPONSE;
+		}
+		if (pinbuf) {
+			*pinbuf = NULL;
+		}
+		if (pwct) {
+			*pwct = 0;
+		}
+		if (pvwv) {
+			*pvwv = NULL;
+		}
+		if (pnum_bytes) {
+			*pnum_bytes = 0;
+		}
+		if (pbytes) {
+			*pbytes = NULL;
+		}
 		/* This was a request without a reply */
 		return NT_STATUS_OK;
 	}

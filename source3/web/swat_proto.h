@@ -31,6 +31,7 @@ const char *cgi_variable(const char *name);
 const char *cgi_variable_nonull(const char *name);
 bool am_root(void);
 char *cgi_user_name(void);
+char *cgi_user_pass(void);
 void cgi_setup(const char *rootdir, int auth_required);
 const char *cgi_baseurl(void);
 const char *cgi_pathinfo(void);
@@ -66,5 +67,10 @@ void status_page(void);
 /* The following definitions come from web/swat.c  */
 
 const char *lang_msg_rotate(TALLOC_CTX *ctx, const char *msgid);
+void get_xsrf_token(const char *username, const char *pass,
+		    const char *formname, time_t xsrf_time, char token_str[33]);
+void print_xsrf_token(const char *username, const char *pass,
+		      const char *formname);
+bool verify_xsrf_token(const char *formname);
 
 #endif /*  _SWAT_PROTO_H_  */

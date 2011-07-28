@@ -398,6 +398,11 @@ static struct tevent_req *smbd_smb2_ioctl_send(TALLOC_CTX *mem_ctx,
 		char *pdata;
 		NTSTATUS status;
 
+		if (fsp == NULL) {
+			tevent_req_nterror(req, NT_STATUS_FILE_CLOSED);
+			return tevent_req_post(req, ev);
+		}
+
 		if (in_max_output < 16) {
 			DEBUG(0,("FSCTL_GET_SHADOW_COPY_DATA: "
 				 "in_max_output(%u) < 16 is invalid!\n",
@@ -583,6 +588,11 @@ static void smbd_smb2_ioctl_pipe_read_done(struct tevent_req *subreq)
 	}
 
 	state->out_output.length = nread;
+
+	if (is_data_outstanding) {
+		tevent_req_nterror(req, STATUS_BUFFER_OVERFLOW);
+		return;
+	}
 
 	tevent_req_done(req);
 }

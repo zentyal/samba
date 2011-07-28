@@ -50,9 +50,6 @@ LIBCLI_SAMR_SRC = 'rpc_client/cli_samr.c'
 
 LIBRPCCLI_NETLOGON_SRC = 'rpc_client/cli_netlogon.c rpc_client/util_netlogon.c'
 
-LIBCLI_WINREG_SRC = '''rpc_client/cli_winreg.c
-                       rpc_client/cli_winreg_int.c'''
-
 # this includes only the low level parse code, not stuff
 # that requires knowledge of security contexts
 REG_PARSE_PRS_SRC = '''registry/reg_parse_prs.c'''
@@ -404,7 +401,7 @@ PRINTBASE_SRC = '''printing/notify.c printing/printing_db.c'''
 PRINTBACKEND_SRC = '''printing/printing.c
                       printing/nt_printing.c
                       printing/nt_printing_tdb.c
-                      printing/nt_printing_migrate.c
+                      printing/nt_printing_migrate_internal.c
                       printing/nt_printing_ads.c'''
 
 SMBD_SRC = '''${SMBD_SRC_BASE} ${SMBD_SRC_MAIN}'''
@@ -639,13 +636,6 @@ t = bld.SAMBA_GENERATOR('build_env.h',
 # todo: work out what is really wanted here
 t.env.SRCDIR = bld.path.abspath()
 t.env.BUILDDIR = bld.path.abspath()
-
-if not bld.env.toplevel_build:
-    bld.SAMBA_GENERATOR('smbtorture4',
-			source='',
-			target='',
-			rule='cd ../; make -f Makefile-smbtorture4 bin/smbtorture4',
-			always=True)
 
 bld.SETUP_BUILD_GROUPS()
 
@@ -889,8 +879,14 @@ bld.SAMBA3_SUBSYSTEM('PRINTBASE',
 
 bld.SAMBA3_SUBSYSTEM('PRINTBACKEND',
                     source=PRINTBACKEND_SRC,
-                    deps='PRINTBASE NDR_NTPRINTING LIBADS_PRINTER',
+                    deps='PRINTBASE LIBADS_PRINTER tdb printing_migrate',
                     vars=locals())
+
+bld.SAMBA3_LIBRARY('printing_migrate',
+                    source='printing/nt_printing_migrate.c rpc_client/cli_winreg_spoolss.c printing/nt_printing_os2.c',
+                    deps='NDR_NTPRINTING LIBCLI_SPOOLSS RPC_NDR_WINREG LIBCLI_WINREG param',
+                    vars=locals(),
+                    private_library=True)
 
 bld.SAMBA3_SUBSYSTEM('PRINTING',
                     source=PRINTING_SRC,
@@ -997,13 +993,18 @@ bld.SAMBA3_SUBSYSTEM('LIBRPCCLI_NETLOGON',
                     source=LIBRPCCLI_NETLOGON_SRC,
                     deps='RPC_NDR_NETLOGON')
 
-bld.SAMBA3_SUBSYSTEM('LIBCLI_SPOOLSS',
-                    source=LIBCLI_SPOOLSS_SRC,
-                    deps='RPC_NDR_SPOOLSS')
+bld.SAMBA3_LIBRARY('LIBCLI_SPOOLSS',
+                   source=LIBCLI_SPOOLSS_SRC,
+                   deps='RPC_NDR_SPOOLSS param SECRETS3',
+                   private_library=True)
 
 bld.SAMBA3_SUBSYSTEM('LIBCLI_WINREG',
-                    source=LIBCLI_WINREG_SRC,
+                    source='rpc_client/cli_winreg.c',
                     deps='RPC_NDR_WINREG')
+
+bld.SAMBA3_SUBSYSTEM('LIBCLI_WINREG_INTERNAL',
+                    source='rpc_client/cli_winreg_int.c',
+                    deps='LIBCLI_WINREG RPC_NCACN_NP')
 
 bld.SAMBA3_SUBSYSTEM('RPC_CLIENT_SCHANNEL',
 	source=RPC_CLIENT_SCHANNEL_SRC,
@@ -1092,6 +1093,7 @@ bld.SAMBA3_BINARY('net',
                  LIBCLI_SAMR LIBCLI_LSA3 LIBRPCCLI_NETLOGON LIBCLI_SPOOLSS
                  RPC_NDR_SRVSVC RPC_NDR_WKSSVC RPC_NDR_SVCCTL RPC_NDR_DSSETUP
                  RPC_NDR_INITSHUTDOWN RPC_NDR_DRSUAPI INIT_NETLOGON INIT_SAMR
+                 printing_migrate
 		 ''',
                  vars=locals())
 

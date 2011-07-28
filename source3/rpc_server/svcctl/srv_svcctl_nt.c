@@ -668,16 +668,17 @@ WERROR _svcctl_QueryServiceStatusEx(struct pipes_struct *p,
 /********************************************************************
 ********************************************************************/
 
-static WERROR fill_svc_config(TALLOC_CTX *ctx,
+static WERROR fill_svc_config(TALLOC_CTX *mem_ctx,
 			      struct messaging_context *msg_ctx,
 			      struct auth_serversupplied_info *session_info,
 			      const char *name,
 			      struct QUERY_SERVICE_CONFIG *config)
 {
-	TALLOC_CTX *mem_ctx = talloc_stackframe();
 	const char *result = NULL;
 
 	/* now fill in the individual values */
+
+	ZERO_STRUCTP(config);
 
 	config->displayname = svcctl_lookup_dispname(mem_ctx,
 						     msg_ctx,
@@ -719,9 +720,6 @@ static WERROR fill_svc_config(TALLOC_CTX *ctx,
 		config->start_type = SVCCTL_DISABLED;
 	else
 		config->start_type = SVCCTL_DEMAND_START;
-
-
-	talloc_free(mem_ctx);
 
 	return WERR_OK;
 }
@@ -777,7 +775,8 @@ WERROR _svcctl_QueryServiceConfig2W(struct pipes_struct *p,
 				    struct svcctl_QueryServiceConfig2W *r)
 {
 	SERVICE_INFO *info = find_service_info_by_hnd( p, r->in.handle );
-	uint32 buffer_size;
+	uint32_t buffer_size;
+	DATA_BLOB blob = data_blob_null;
 
 	/* perform access checks */
 
@@ -797,7 +796,6 @@ WERROR _svcctl_QueryServiceConfig2W(struct pipes_struct *p,
 			struct SERVICE_DESCRIPTION desc_buf;
 			const char *description;
 			enum ndr_err_code ndr_err;
-			DATA_BLOB blob;
 
 			description = svcctl_lookup_description(p->mem_ctx,
 								p->msg_ctx,
@@ -812,9 +810,6 @@ WERROR _svcctl_QueryServiceConfig2W(struct pipes_struct *p,
 				return WERR_INVALID_PARAM;
 			}
 
-			buffer_size = ndr_size_SERVICE_DESCRIPTION(&desc_buf, 0);
-			r->out.buffer = blob.data;
-
 			break;
 		}
 		break;
@@ -822,7 +817,6 @@ WERROR _svcctl_QueryServiceConfig2W(struct pipes_struct *p,
 		{
 			struct SERVICE_FAILURE_ACTIONS actions;
 			enum ndr_err_code ndr_err;
-			DATA_BLOB blob;
 
 			/* nothing to say...just service the request */
 
@@ -834,9 +828,6 @@ WERROR _svcctl_QueryServiceConfig2W(struct pipes_struct *p,
 				return WERR_INVALID_PARAM;
 			}
 
-			buffer_size = ndr_size_SERVICE_FAILURE_ACTIONS(&actions, 0);
-			r->out.buffer = blob.data;
-
 			break;
 		}
 		break;
@@ -845,11 +836,14 @@ WERROR _svcctl_QueryServiceConfig2W(struct pipes_struct *p,
 		return WERR_UNKNOWN_LEVEL;
 	}
 
+	buffer_size = blob.length;
 	buffer_size += buffer_size % 4;
 	*r->out.needed = (buffer_size > r->in.offered) ? buffer_size : r->in.offered;
 
         if (buffer_size > r->in.offered)
                 return WERR_INSUFFICIENT_BUFFER;
+
+	memcpy(r->out.buffer, blob.data, blob.length);
 
 	return WERR_OK;
 }
@@ -942,7 +936,7 @@ WERROR _svcctl_QueryServiceObjectSecurity(struct pipes_struct *p,
 	}
 
 	*r->out.needed = len;
-	r->out.buffer = buffer;
+	memcpy(r->out.buffer, buffer, len);
 
 	return WERR_OK;
 }

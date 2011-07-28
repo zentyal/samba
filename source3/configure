@@ -1676,7 +1676,7 @@ Optional Packages:
                           ($ac_default_prefix/var/ncalrpc)
   --with-nmbdsocketdir=DIR
                           Where to put the nmbd socket directory
-                          (${lockdir}/.nmbd)
+                          ($ac_default_prefix/var/nmbd)
   --with-swatdir=DIR      Where to put SWAT files ($ac_default_prefix/swat)
   --with-configdir=DIR    Where to put configuration files ($libdir)
   --with-logfilebase=DIR  Where to put log files ($VARDIR)
@@ -3100,7 +3100,7 @@ rootsbindir="\${SBINDIR}"
 lockdir="\${VARDIR}/locks"
 piddir="\${VARDIR}/locks"
 ncalrpcdir="\${VARDIR}/ncalrpc"
-nmbdsocketdir="${lockdir}/.nmbd"
+nmbdsocketdir="\${VARDIR}/nmbd"
 test "${mandir}" || mandir="\${prefix}/man"
 logfilebase="\${VARDIR}"
 privatedir="\${prefix}/private"

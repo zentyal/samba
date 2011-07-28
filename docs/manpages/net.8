@@ -2,12 +2,12 @@
 .\"     Title: net
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 06/07/2011
+.\"      Date: 07/26/2011
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "NET" "8" "06/07/2011" "Samba 3\&.6" "System Administration tools"
+.TH "NET" "8" "07/26/2011" "Samba 3\&.6" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -1101,10 +1101,16 @@ The registry commands are:
 net registry enumerate   \- Enumerate registry keys and values\&.
 .RE
 .RS 4
+net registry enumerate_recursive \- Enumerate registry key and its subkeys\&.
+.RE
+.RS 4
 net registry createkey   \- Create a new registry key\&.
 .RE
 .RS 4
 net registry deletekey   \- Delete a registry key\&.
+.RE
+.RS 4
+net registry deletekey_recursive \- Delete a registry key with subkeys\&.
 .RE
 .RS 4
 net registry getvalue    \- Print a registry value\&.
@@ -1143,13 +1149,23 @@ net registry convert     \- Convert a registration entries (\&.reg) file\&.
 .SS "REGISTRY ENUMERATE key "
 .PP
 Enumerate subkeys and values of
+\fIkey\fR\&.
+.SS "REGISTRY ENUMERATE_RECURSIVE key "
+.PP
+Enumerate values of
 \fIkey\fR
+and its subkeys\&.
 .SS "REGISTRY CREATEKEY key "
 .PP
 Create a new
 \fIkey\fR
 if not yet existing\&.
 .SS "REGISTRY DELETEKEY key "
+.PP
+Delete the given
+\fIkey\fR
+and its values from the registry, if it has no subkeys\&.
+.SS "REGISTRY DELETEKEY_RECURSIVE key "
 .PP
 Delete the given
 \fIkey\fR

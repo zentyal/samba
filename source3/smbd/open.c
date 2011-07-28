@@ -76,6 +76,24 @@ NTSTATUS smbd_check_open_rights(struct connection_struct *conn,
 	/* Check if we have rights to open. */
 	NTSTATUS status;
 	struct security_descriptor *sd = NULL;
+	uint32_t rejected_share_access;
+
+	rejected_share_access = access_mask & ~(conn->share_access);
+
+	if (rejected_share_access) {
+		*access_granted = rejected_share_access;
+		return NT_STATUS_ACCESS_DENIED;
+	}
+
+	if ((access_mask & DELETE_ACCESS) && !lp_acl_check_permissions(SNUM(conn))) {
+		*access_granted = access_mask;
+
+		DEBUG(10,("smbd_check_open_rights: not checking ACL "
+			"on DELETE_ACCESS on file %s. Granting 0x%x\n",
+			smb_fname_str_dbg(smb_fname),
+			(unsigned int)*access_granted ));
+		return NT_STATUS_OK;
+	}
 
 	status = SMB_VFS_GET_NT_ACL(conn, smb_fname->base_name,
 			(SECINFO_OWNER |
@@ -237,11 +255,13 @@ void change_file_owner_to_parent(connection_struct *conn,
 			 "was %s\n", fsp_str_dbg(fsp),
 			 (unsigned int)smb_fname_parent->st.st_ex_uid,
 			 strerror(errno) ));
-	}
-
-	DEBUG(10,("change_file_owner_to_parent: changed new file %s to "
+	} else {
+		DEBUG(10,("change_file_owner_to_parent: changed new file %s to "
 		  "parent directory uid %u.\n", fsp_str_dbg(fsp),
 		  (unsigned int)smb_fname_parent->st.st_ex_uid));
+		/* Ensure the uid entry is updated. */
+		fsp->fsp_name->st.st_ex_uid = smb_fname_parent->st.st_ex_uid;
+	}
 
 	TALLOC_FREE(smb_fname_parent);
 }
@@ -316,10 +336,9 @@ NTSTATUS change_dir_owner_to_parent(connection_struct *conn,
 
 	/* Ensure we're pointing at the same place. */
 	if (smb_fname_cwd->st.st_ex_dev != psbuf->st_ex_dev ||
-	    smb_fname_cwd->st.st_ex_ino != psbuf->st_ex_ino ||
-	    smb_fname_cwd->st.st_ex_mode != psbuf->st_ex_mode ) {
+	    smb_fname_cwd->st.st_ex_ino != psbuf->st_ex_ino) {
 		DEBUG(0,("change_dir_owner_to_parent: "
-			 "device/inode/mode on directory %s changed. "
+			 "device/inode on directory %s changed. "
 			 "Refusing to chown !\n", fname ));
 		status = NT_STATUS_ACCESS_DENIED;
 		goto chdir;
@@ -379,6 +398,7 @@ static NTSTATUS open_file(files_struct *fsp,
 	int accmode = (flags & O_ACCMODE);
 	int local_flags = flags;
 	bool file_existed = VALID_STAT(fsp->fsp_name->st);
+	bool file_created = false;
 
 	fsp->fh->fd = -1;
 	errno = EPERM;
@@ -478,23 +498,7 @@ static NTSTATUS open_file(files_struct *fsp,
 		}
 
 		if ((local_flags & O_CREAT) && !file_existed) {
-
-			/* Inherit the ACL if required */
-			if (lp_inherit_perms(SNUM(conn))) {
-				inherit_access_posix_acl(conn, parent_dir,
-							 smb_fname->base_name,
-							 unx_mode);
-			}
-
-			/* Change the owner if required. */
-			if (lp_inherit_owner(SNUM(conn))) {
-				change_file_owner_to_parent(conn, parent_dir,
-							    fsp);
-			}
-
-			notify_fname(conn, NOTIFY_ACTION_ADDED,
-				     FILE_NOTIFY_CHANGE_FILE_NAME,
-				     smb_fname->base_name);
+			file_created = true;
 		}
 
 	} else {
@@ -603,6 +607,47 @@ static NTSTATUS open_file(files_struct *fsp,
 			status = map_nt_error_from_unix(errno);
 			fd_close(fsp);
 			return status;
+		}
+
+		if (file_created) {
+			bool need_re_stat = false;
+			/* Do all inheritance work after we've
+			   done a successful stat call and filled
+			   in the stat struct in fsp->fsp_name. */
+
+			/* Inherit the ACL if required */
+			if (lp_inherit_perms(SNUM(conn))) {
+				inherit_access_posix_acl(conn, parent_dir,
+							 smb_fname->base_name,
+							 unx_mode);
+				need_re_stat = true;
+			}
+
+			/* Change the owner if required. */
+			if (lp_inherit_owner(SNUM(conn))) {
+				change_file_owner_to_parent(conn, parent_dir,
+							    fsp);
+				need_re_stat = true;
+			}
+
+			if (need_re_stat) {
+				if (fsp->fh->fd == -1) {
+					ret = SMB_VFS_STAT(conn, smb_fname);
+				} else {
+					ret = SMB_VFS_FSTAT(fsp, &smb_fname->st);
+					/* If we have an fd, this stat should succeed. */
+					if (ret == -1) {
+						DEBUG(0,("Error doing fstat on open file %s "
+							 "(%s)\n",
+							 smb_fname_str_dbg(smb_fname),
+							 strerror(errno) ));
+					}
+				}
+			}
+
+			notify_fname(conn, NOTIFY_ACTION_ADDED,
+				     FILE_NOTIFY_CHANGE_FILE_NAME,
+				     smb_fname->base_name);
 		}
 	}
 
@@ -1477,13 +1522,15 @@ static void schedule_defer_open(struct share_mode_lock *lck,
  Work out what access_mask to use from what the client sent us.
 ****************************************************************************/
 
-static NTSTATUS calculate_access_mask(connection_struct *conn,
-					const struct smb_filename *smb_fname,
-					bool file_existed,
-					uint32_t access_mask,
-					uint32_t *access_mask_out)
+NTSTATUS smbd_calculate_access_mask(connection_struct *conn,
+				    const struct smb_filename *smb_fname,
+				    bool file_existed,
+				    uint32_t access_mask,
+				    uint32_t *access_mask_out)
 {
 	NTSTATUS status;
+	uint32_t orig_access_mask = access_mask;
+	uint32_t rejected_share_access;
 
 	/*
 	 * Convert GENERIC bits to specific bits.
@@ -1504,8 +1551,8 @@ static NTSTATUS calculate_access_mask(connection_struct *conn,
 					SECINFO_DACL),&sd);
 
 			if (!NT_STATUS_IS_OK(status)) {
-				DEBUG(10, ("calculate_access_mask: Could not get acl "
-					"on file %s: %s\n",
+				DEBUG(10,("smbd_calculate_access_mask: "
+					"Could not get acl on file %s: %s\n",
 					smb_fname_str_dbg(smb_fname),
 					nt_errstr(status)));
 				return NT_STATUS_ACCESS_DENIED;
@@ -1520,8 +1567,9 @@ static NTSTATUS calculate_access_mask(connection_struct *conn,
 			TALLOC_FREE(sd);
 
 			if (!NT_STATUS_IS_OK(status)) {
-				DEBUG(10, ("calculate_access_mask: Access denied on "
-					"file %s: when calculating maximum access\n",
+				DEBUG(10, ("smbd_calculate_access_mask: "
+					"Access denied on file %s: "
+					"when calculating maximum access\n",
 					smb_fname_str_dbg(smb_fname)));
 				return NT_STATUS_ACCESS_DENIED;
 			}
@@ -1530,6 +1578,21 @@ static NTSTATUS calculate_access_mask(connection_struct *conn,
 		} else {
 			access_mask = FILE_GENERIC_ALL;
 		}
+
+		access_mask &= conn->share_access;
+	}
+
+	rejected_share_access = access_mask & ~(conn->share_access);
+
+	if (rejected_share_access) {
+		DEBUG(10, ("smbd_calculate_access_mask: Access denied on "
+			"file %s: rejected by share access mask[0x%08X] "
+			"orig[0x%08X] mapped[0x%08X] reject[0x%08X]\n",
+			smb_fname_str_dbg(smb_fname),
+			conn->share_access,
+			orig_access_mask, access_mask,
+			rejected_share_access));
+		return NT_STATUS_ACCESS_DENIED;
 	}
 
 	*access_mask_out = access_mask;
@@ -1853,11 +1916,11 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 		}
 	}
 
-	status = calculate_access_mask(conn, smb_fname, file_existed,
+	status = smbd_calculate_access_mask(conn, smb_fname, file_existed,
 					access_mask,
 					&access_mask); 
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(10, ("open_file_ntcreate: calculate_access_mask "
+		DEBUG(10, ("open_file_ntcreate: smbd_calculate_access_mask "
 			"on file %s returned %s\n",
 			smb_fname_str_dbg(smb_fname), nt_errstr(status)));
 		return status;
@@ -2543,6 +2606,7 @@ static NTSTATUS mkdir_internal(connection_struct *conn,
 	char *parent_dir;
 	NTSTATUS status;
 	bool posix_open = false;
+	bool need_re_stat = false;
 
 	if(!CAN_WRITE(conn)) {
 		DEBUG(5,("mkdir_internal: failing create on read-only share "
@@ -2597,6 +2661,7 @@ static NTSTATUS mkdir_internal(connection_struct *conn,
 	if (lp_inherit_perms(SNUM(conn))) {
 		inherit_access_posix_acl(conn, parent_dir,
 					 smb_dname->base_name, mode);
+		need_re_stat = true;
 	}
 
 	if (!posix_open) {
@@ -2611,6 +2676,7 @@ static NTSTATUS mkdir_internal(connection_struct *conn,
 			SMB_VFS_CHMOD(conn, smb_dname->base_name,
 				      (smb_dname->st.st_ex_mode |
 					  (mode & ~smb_dname->st.st_ex_mode)));
+			need_re_stat = true;
 		}
 	}
 
@@ -2619,6 +2685,15 @@ static NTSTATUS mkdir_internal(connection_struct *conn,
 		change_dir_owner_to_parent(conn, parent_dir,
 					   smb_dname->base_name,
 					   &smb_dname->st);
+		need_re_stat = true;
+	}
+
+	if (need_re_stat) {
+		if (SMB_VFS_LSTAT(conn, smb_dname) == -1) {
+			DEBUG(2, ("Could not stat directory '%s' just created: %s\n",
+			  smb_fname_str_dbg(smb_dname), strerror(errno)));
+			return map_nt_error_from_unix(errno);
+		}
 	}
 
 	notify_fname(conn, NOTIFY_ACTION_ADDED, FILE_NOTIFY_CHANGE_DIR_NAME,
@@ -2688,10 +2763,10 @@ static NTSTATUS open_directory(connection_struct *conn,
 		return NT_STATUS_NOT_A_DIRECTORY;
 	}
 
-	status = calculate_access_mask(conn, smb_dname, dir_existed,
-				       access_mask, &access_mask);
+	status = smbd_calculate_access_mask(conn, smb_dname, dir_existed,
+					    access_mask, &access_mask);
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(10, ("open_directory: calculate_access_mask "
+		DEBUG(10, ("open_directory: smbd_calculate_access_mask "
 			"on file %s returned %s\n",
 			smb_fname_str_dbg(smb_dname),
 			nt_errstr(status)));
@@ -3241,8 +3316,7 @@ static NTSTATUS create_file_unixpath(connection_struct *conn,
 
 	/* Setting FILE_SHARE_DELETE is the hint. */
 
-	if (lp_acl_check_permissions(SNUM(conn))
-	    && (create_disposition != FILE_CREATE)
+	if ((create_disposition != FILE_CREATE)
 	    && (access_mask & DELETE_ACCESS)
 	    && (!(can_delete_file_in_directory(conn, smb_fname) ||
 		 can_access_file_acl(conn, smb_fname, DELETE_ACCESS)))) {

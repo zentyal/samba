@@ -4235,6 +4235,7 @@ static void dcerpc_wbint_LookupRids_done(struct tevent_req *subreq);
 struct tevent_req *dcerpc_wbint_LookupRids_send(TALLOC_CTX *mem_ctx,
 						struct tevent_context *ev,
 						struct dcerpc_binding_handle *h,
+						struct dom_sid *_domain_sid /* [in] [ref] */,
 						struct wbint_RidArray *_rids /* [in] [ref] */,
 						const char **_domain_name /* [out] [ref,charset(UTF8)] */,
 						struct wbint_Principals *_names /* [out] [ref] */)
@@ -4251,6 +4252,7 @@ struct tevent_req *dcerpc_wbint_LookupRids_send(TALLOC_CTX *mem_ctx,
 	state->out_mem_ctx = NULL;
 
 	/* In parameters */
+	state->orig.in.domain_sid = _domain_sid;
 	state->orig.in.rids = _rids;
 
 	/* Out parameters */
@@ -4337,6 +4339,7 @@ NTSTATUS dcerpc_wbint_LookupRids_recv(struct tevent_req *req,
 
 NTSTATUS dcerpc_wbint_LookupRids(struct dcerpc_binding_handle *h,
 				 TALLOC_CTX *mem_ctx,
+				 struct dom_sid *_domain_sid /* [in] [ref] */,
 				 struct wbint_RidArray *_rids /* [in] [ref] */,
 				 const char **_domain_name /* [out] [ref,charset(UTF8)] */,
 				 struct wbint_Principals *_names /* [out] [ref] */,
@@ -4346,6 +4349,7 @@ NTSTATUS dcerpc_wbint_LookupRids(struct dcerpc_binding_handle *h,
 	NTSTATUS status;
 
 	/* In parameters */
+	r.in.domain_sid = _domain_sid;
 	r.in.rids = _rids;
 
 	status = dcerpc_wbint_LookupRids_r(h, mem_ctx, &r);

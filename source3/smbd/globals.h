@@ -224,6 +224,11 @@ bool smbd_dirptr_lanman2_entry(TALLOC_CTX *ctx,
 			       int *_last_entry_off,
 			       struct ea_list *name_list);
 
+NTSTATUS smbd_calculate_access_mask(connection_struct *conn,
+				    const struct smb_filename *smb_fname,
+				    bool file_existed,
+				    uint32_t access_mask,
+				    uint32_t *access_mask_out);
 NTSTATUS smbd_check_open_rights(struct connection_struct *conn,
 				const struct smb_filename *smb_fname,
 				uint32_t access_mask,
@@ -483,6 +488,8 @@ struct smbd_server_connection {
 		int dirhandles_open;
 	} searches;
 
+	uint64_t num_requests;
+
 	struct {
 		struct fd_event *fde;
 
@@ -510,7 +517,6 @@ struct smbd_server_connection {
 			int ref_count;
 		} echo_handler;
 
-		uint64_t num_requests;
 		struct {
 			bool encrypted_passwords;
 			bool spnego;

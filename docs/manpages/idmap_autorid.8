@@ -2,12 +2,12 @@
 .\"     Title: idmap_autorid
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 06/07/2011
+.\"      Date: 07/26/2011
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "IDMAP_AUTORID" "8" "06/07/2011" "Samba 3\&.6" "System Administration tools"
+.TH "IDMAP_AUTORID" "8" "07/26/2011" "Samba 3\&.6" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -100,7 +100,7 @@ This example shows how to configure idmap_autorid as default for all domains wit
 
 	idmap config * : backend = autorid
 	idmap config * : range = 1000000\-19999999
-	autorid:rangesize = 1000000
+	idmap config * : rangesize = 1000000
 
 	idmap config TRUSTED : backend  = ad
 	idmap config TRUSTED : range    = 50000 \- 99999

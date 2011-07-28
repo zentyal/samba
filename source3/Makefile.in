@@ -346,7 +346,9 @@ LIBNDR_XATTR_OBJ = librpc/gen_ndr/ndr_xattr.o \
 
 LIBCLI_SPOOLSS_OBJ = librpc/gen_ndr/ndr_spoolss_c.o \
 		     rpc_client/cli_spoolss.o \
-		     rpc_client/init_spoolss.o
+		     rpc_client/init_spoolss.o \
+		     rpc_client/cli_winreg_spoolss.o \
+		     printing/nt_printing_os2.o
 
 LIBCLI_EVENTLOG_OBJ = librpc/gen_ndr/ndr_eventlog_c.o
 
@@ -948,6 +950,7 @@ PRINTBACKEND_OBJ = printing/printing.o \
 		   printing/nt_printing.o \
 		   printing/nt_printing_tdb.o \
 		   printing/nt_printing_migrate.o \
+		   printing/nt_printing_migrate_internal.o \
 		   printing/nt_printing_ads.o \
 		   librpc/gen_ndr/ndr_ntprinting.o \
 		    ../librpc/ndr/ndr_ntprinting.o \
@@ -1185,7 +1188,7 @@ NET_OBJ1 = utils/net.o utils/net_ads.o utils/net_help.o \
 	   rpc_client/init_samr.o \
 	   registry/reg_parse.o registry/reg_format.o \
 	   registry/reg_parse_internal.o registry/reg_import.o \
-	   lib/cbuf.o lib/srprs.o
+	   lib/cbuf.o lib/srprs.o printing/nt_printing_migrate.o
 
 # these are not processed by make proto
 NET_OBJ2 = utils/net_registry_util.o utils/net_help_common.o
@@ -1612,7 +1615,8 @@ idl_full::
 
 
 everything:: all libtalloc libsmbclient libnetapi debug2html smbfilter talloctort replacetort smbconftort modules torture \
-	$(EVERYTHING_PROGS)
+	$(EVERYTHING_PROGS) \
+	vfs_examples
 
 .SUFFIXES:
 .SUFFIXES: .c .o .lo
@@ -3542,3 +3546,14 @@ bin/smbtorture4: $(BINARY_PREREQS)
 
 bin/ndrdump4: $(BINARY_PREREQS)
 	$(MAKE) -f Makefile-smbtorture4 bin/ndrdump4
+
+.PHONY: vfs_examples
+
+vfs_examples:
+	( \
+	cd ../examples/VFS && \
+	./autogen.sh && \
+	./configure && \
+	make clean && \
+	make \
+	)

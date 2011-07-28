@@ -329,8 +329,10 @@ struct security_descriptor *get_share_security( TALLOC_CTX *ctx, const char *ser
 			      size_t *psize);
 bool set_share_security(const char *share_name, struct security_descriptor *psd);
 bool delete_share_security(const char *servicename);
-bool share_access_check(const struct security_token *token, const char *sharename,
-			uint32 desired_access);
+bool share_access_check(const struct security_token *token,
+			const char *sharename,
+			uint32 desired_access,
+			uint32_t *pgranted);
 bool parse_usershare_acl(TALLOC_CTX *ctx, const char *acl_str, struct security_descriptor **ppsd);
 
 /* The following definitions come from lib/smbrun.c  */
@@ -1049,10 +1051,10 @@ int strcmp_wa(const smb_ucs2_t *a, const char *b);
 int strncmp_wa(const smb_ucs2_t *a, const char *b, size_t len);
 smb_ucs2_t *strpbrk_wa(const smb_ucs2_t *s, const char *p);
 smb_ucs2_t *strstr_wa(const smb_ucs2_t *s, const char *ins);
-int toupper_ascii(int c);
-int tolower_ascii(int c);
-int isupper_ascii(int c);
-int islower_ascii(int c);
+smb_ucs2_t toupper_w(smb_ucs2_t v);
+bool isupper_w(smb_ucs2_t v);
+smb_ucs2_t tolower_w(smb_ucs2_t v);
+bool islower_w(smb_ucs2_t v);
 
 /* The following definitions come from lib/version.c  */
 

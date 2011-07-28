@@ -29,6 +29,7 @@
 #include "../libcli/registry/util_reg.h"
 #include "auth.h"
 #include "../librpc/ndr/libndr.h"
+#include "rpc_client/cli_winreg_spoolss.h"
 
 #ifdef HAVE_ADS
 /*****************************************************************
@@ -73,7 +74,7 @@ static void store_printer_guid(struct messaging_context *msg_ctx,
 		goto done;
 	}
 
-	result = winreg_set_printer_dataex(tmp_ctx, session_info, msg_ctx,
+	result = winreg_set_printer_dataex_internal(tmp_ctx, session_info, msg_ctx,
 					   printer,
 					   SPOOL_DSSPOOLER_KEY, "objectGUID",
 					   REG_SZ, blob.data, blob.length);
@@ -274,7 +275,7 @@ WERROR nt_printer_publish(TALLOC_CTX *mem_ctx,
 
 	sinfo2->attributes = pinfo2->attributes;
 
-	win_rc = winreg_update_printer(mem_ctx, session_info, msg_ctx,
+	win_rc = winreg_update_printer_internal(mem_ctx, session_info, msg_ctx,
 					pinfo2->sharename, info2_mask,
 					sinfo2, NULL, NULL);
 	if (!W_ERROR_IS_OK(win_rc)) {
@@ -364,7 +365,7 @@ WERROR check_published_printers(struct messaging_context *msg_ctx)
 			continue;
 		}
 
-		result = winreg_get_printer(tmp_ctx, session_info, msg_ctx,
+		result = winreg_get_printer_internal(tmp_ctx, session_info, msg_ctx,
 					    lp_servicename(snum),
 					    &pinfo2);
 		if (!W_ERROR_IS_OK(result)) {
@@ -398,8 +399,17 @@ bool is_printer_published(TALLOC_CTX *mem_ctx,
 	uint32_t data_size;
 	WERROR result;
 	NTSTATUS status;
+	struct dcerpc_binding_handle *b;
 
-	result = winreg_get_printer(mem_ctx, session_info, msg_ctx,
+	result = winreg_printer_binding_handle(mem_ctx,
+					       session_info,
+					       msg_ctx,
+					       &b);
+	if (!W_ERROR_IS_OK(result)) {
+		return false;
+	}
+
+	result = winreg_get_printer(mem_ctx, b,
 				    printer, &pinfo2);
 	if (!W_ERROR_IS_OK(result)) {
 		return false;
@@ -416,7 +426,7 @@ bool is_printer_published(TALLOC_CTX *mem_ctx,
 
 	/* fetching printer guids really ought to be a separate function. */
 
-	result = winreg_get_printer_dataex(mem_ctx, session_info, msg_ctx,
+	result = winreg_get_printer_dataex(mem_ctx, b,
 					   printer,
 					   SPOOL_DSSPOOLER_KEY, "objectGUID",
 					   &type, &data, &data_size);

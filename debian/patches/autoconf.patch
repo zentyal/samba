@@ -29,7 +29,7 @@ Index: experimental/source3/configure
 ===================================================================
 --- experimental.orig/source3/configure
 +++ experimental/source3/configure
-@@ -3077,6 +3077,27 @@
+@@ -3087,6 +3087,27 @@
  
  
  
@@ -57,7 +57,7 @@ Index: experimental/source3/configure
  echo "LIBREPLACE_LOCATION_CHECKS: END"
  
  
-@@ -5705,7 +5726,6 @@
+@@ -5715,7 +5736,6 @@
  
  
  
@@ -65,7 +65,7 @@ Index: experimental/source3/configure
   cat >>confdefs.h <<\EOF
  #ifndef _XOPEN_SOURCE_EXTENDED
  #define _XOPEN_SOURCE_EXTENDED 1
-@@ -5950,7 +5970,6 @@
+@@ -5960,7 +5980,6 @@
  		# this brings in socklen_t
  
  
@@ -73,7 +73,7 @@ Index: experimental/source3/configure
   cat >>confdefs.h <<\EOF
  #ifndef _XOPEN_SOURCE
  #define _XOPEN_SOURCE 600
-@@ -5959,7 +5978,6 @@
+@@ -5969,7 +5988,6 @@
  
  
  

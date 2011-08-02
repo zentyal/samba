@@ -1,0 +1,28 @@
+Index: experimental/source3/Makefile.in
+===================================================================
+--- experimental.orig/source3/Makefile.in
++++ experimental/source3/Makefile.in
+@@ -1615,8 +1615,7 @@
+ 
+ 
+ everything:: all libtalloc libsmbclient libnetapi debug2html smbfilter talloctort replacetort smbconftort modules torture \
+-	$(EVERYTHING_PROGS) \
+-	vfs_examples
++	$(EVERYTHING_PROGS)
+ 
+ .SUFFIXES:
+ .SUFFIXES: .c .o .lo
+@@ -3547,13 +3546,3 @@
+ bin/ndrdump4: $(BINARY_PREREQS)
+ 	$(MAKE) -f Makefile-smbtorture4 bin/ndrdump4
+ 
+-.PHONY: vfs_examples
+-
+-vfs_examples:
+-	( \
+-	cd ../examples/VFS && \
+-	./autogen.sh && \
+-	./configure && \
+-	make clean && \
+-	make \
+-	)

@@ -9621,7 +9621,7 @@ fi
 
 done
 
-for ac_header in sys/acl.h acl/libacl.h
+for ac_header in sys/acl.h acl/libacl.h sys/file.h
 do :
   as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
 ac_fn_c_check_header_mongrel "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
@@ -16329,6 +16329,34 @@ $as_echo "$samba_cv_stat_dos_flags" >&6; }
 if test x"$samba_cv_stat_dos_flags" = x"yes" ; then
 
 $as_echo "#define HAVE_STAT_DOS_FLAGS 1" >>confdefs.h
+
+fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether we can compile with __attribute__((destructor))" >&5
+$as_echo_n "checking whether we can compile with __attribute__((destructor))... " >&6; }
+if test "${samba_cv_function_attribute_destructor+set}" = set; then :
+  $as_echo_n "(cached) " >&6
+else
+
+	         cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+				__attribute__((destructor))
+				static void cleanup(void) { }
+
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  samba_cv_function_attribute_destructor=yes
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $samba_cv_function_attribute_destructor" >&5
+$as_echo "$samba_cv_function_attribute_destructor" >&6; }
+
+if test x"$samba_cv_function_attribute_destructor" = xyes ; then
+
+$as_echo "#define HAVE_FUNCTION_ATTRIBUTE_DESTRUCTOR 1" >>confdefs.h
 
 fi
 

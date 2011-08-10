@@ -2229,88 +2229,78 @@ _PUBLIC_ void ndr_print_nbt_netlogon_query_for_pdc(struct ndr_print *ndr, const 
 
 _PUBLIC_ enum ndr_err_code ndr_push_nbt_netlogon_response_from_pdc(struct ndr_push *ndr, int ndr_flags, const struct nbt_netlogon_response_from_pdc *r)
 {
-	{
-		uint32_t _flags_save_STRUCT = ndr->flags;
-		ndr_set_flags(&ndr->flags, LIBNDR_FLAG_NOALIGN);
-		if (ndr_flags & NDR_SCALARS) {
-			NDR_CHECK(ndr_push_align(ndr, 4));
-			NDR_CHECK(ndr_push_netlogon_command(ndr, NDR_SCALARS, r->command));
-			{
-				uint32_t _flags_save_string = ndr->flags;
-				ndr_set_flags(&ndr->flags, LIBNDR_FLAG_STR_ASCII|LIBNDR_FLAG_STR_NULLTERM);
-				NDR_CHECK(ndr_push_string(ndr, NDR_SCALARS, r->pdc_name));
-				ndr->flags = _flags_save_string;
-			}
-			{
-				uint32_t _flags_save_DATA_BLOB = ndr->flags;
-				ndr_set_flags(&ndr->flags, LIBNDR_FLAG_ALIGN2);
-				NDR_CHECK(ndr_push_DATA_BLOB(ndr, NDR_SCALARS, r->_pad));
-				ndr->flags = _flags_save_DATA_BLOB;
-			}
-			{
-				uint32_t _flags_save_string = ndr->flags;
-				ndr_set_flags(&ndr->flags, LIBNDR_FLAG_STR_NULLTERM|LIBNDR_FLAG_ALIGN2);
-				NDR_CHECK(ndr_push_string(ndr, NDR_SCALARS, r->unicode_pdc_name));
-				ndr->flags = _flags_save_string;
-			}
-			{
-				uint32_t _flags_save_string = ndr->flags;
-				ndr_set_flags(&ndr->flags, LIBNDR_FLAG_STR_NULLTERM|LIBNDR_FLAG_ALIGN2);
-				NDR_CHECK(ndr_push_string(ndr, NDR_SCALARS, r->domain_name));
-				ndr->flags = _flags_save_string;
-			}
-			NDR_CHECK(ndr_push_netlogon_nt_version_flags(ndr, NDR_SCALARS, r->nt_version));
-			NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, r->lmnt_token));
-			NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, r->lm20_token));
-			NDR_CHECK(ndr_push_trailer_align(ndr, 4));
+	if (ndr_flags & NDR_SCALARS) {
+		NDR_CHECK(ndr_push_align(ndr, 4));
+		NDR_CHECK(ndr_push_netlogon_command(ndr, NDR_SCALARS, r->command));
+		{
+			uint32_t _flags_save_string = ndr->flags;
+			ndr_set_flags(&ndr->flags, LIBNDR_FLAG_STR_ASCII|LIBNDR_FLAG_STR_NULLTERM);
+			NDR_CHECK(ndr_push_string(ndr, NDR_SCALARS, r->pdc_name));
+			ndr->flags = _flags_save_string;
 		}
-		if (ndr_flags & NDR_BUFFERS) {
+		{
+			uint32_t _flags_save_DATA_BLOB = ndr->flags;
+			ndr_set_flags(&ndr->flags, LIBNDR_FLAG_ALIGN2);
+			NDR_CHECK(ndr_push_DATA_BLOB(ndr, NDR_SCALARS, r->_pad));
+			ndr->flags = _flags_save_DATA_BLOB;
 		}
-		ndr->flags = _flags_save_STRUCT;
+		{
+			uint32_t _flags_save_string = ndr->flags;
+			ndr_set_flags(&ndr->flags, LIBNDR_FLAG_STR_NULLTERM|LIBNDR_FLAG_ALIGN2);
+			NDR_CHECK(ndr_push_string(ndr, NDR_SCALARS, r->unicode_pdc_name));
+			ndr->flags = _flags_save_string;
+		}
+		{
+			uint32_t _flags_save_string = ndr->flags;
+			ndr_set_flags(&ndr->flags, LIBNDR_FLAG_STR_NULLTERM|LIBNDR_FLAG_ALIGN2);
+			NDR_CHECK(ndr_push_string(ndr, NDR_SCALARS, r->domain_name));
+			ndr->flags = _flags_save_string;
+		}
+		NDR_CHECK(ndr_push_netlogon_nt_version_flags(ndr, NDR_SCALARS, r->nt_version));
+		NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, r->lmnt_token));
+		NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, r->lm20_token));
+		NDR_CHECK(ndr_push_trailer_align(ndr, 4));
+	}
+	if (ndr_flags & NDR_BUFFERS) {
 	}
 	return NDR_ERR_SUCCESS;
 }
 
 _PUBLIC_ enum ndr_err_code ndr_pull_nbt_netlogon_response_from_pdc(struct ndr_pull *ndr, int ndr_flags, struct nbt_netlogon_response_from_pdc *r)
 {
-	{
-		uint32_t _flags_save_STRUCT = ndr->flags;
-		ndr_set_flags(&ndr->flags, LIBNDR_FLAG_NOALIGN);
-		if (ndr_flags & NDR_SCALARS) {
-			NDR_CHECK(ndr_pull_align(ndr, 4));
-			NDR_CHECK(ndr_pull_netlogon_command(ndr, NDR_SCALARS, &r->command));
-			{
-				uint32_t _flags_save_string = ndr->flags;
-				ndr_set_flags(&ndr->flags, LIBNDR_FLAG_STR_ASCII|LIBNDR_FLAG_STR_NULLTERM);
-				NDR_CHECK(ndr_pull_string(ndr, NDR_SCALARS, &r->pdc_name));
-				ndr->flags = _flags_save_string;
-			}
-			{
-				uint32_t _flags_save_DATA_BLOB = ndr->flags;
-				ndr_set_flags(&ndr->flags, LIBNDR_FLAG_ALIGN2);
-				NDR_CHECK(ndr_pull_DATA_BLOB(ndr, NDR_SCALARS, &r->_pad));
-				ndr->flags = _flags_save_DATA_BLOB;
-			}
-			{
-				uint32_t _flags_save_string = ndr->flags;
-				ndr_set_flags(&ndr->flags, LIBNDR_FLAG_STR_NULLTERM|LIBNDR_FLAG_ALIGN2);
-				NDR_CHECK(ndr_pull_string(ndr, NDR_SCALARS, &r->unicode_pdc_name));
-				ndr->flags = _flags_save_string;
-			}
-			{
-				uint32_t _flags_save_string = ndr->flags;
-				ndr_set_flags(&ndr->flags, LIBNDR_FLAG_STR_NULLTERM|LIBNDR_FLAG_ALIGN2);
-				NDR_CHECK(ndr_pull_string(ndr, NDR_SCALARS, &r->domain_name));
-				ndr->flags = _flags_save_string;
-			}
-			NDR_CHECK(ndr_pull_netlogon_nt_version_flags(ndr, NDR_SCALARS, &r->nt_version));
-			NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &r->lmnt_token));
-			NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &r->lm20_token));
-			NDR_CHECK(ndr_pull_trailer_align(ndr, 4));
+	if (ndr_flags & NDR_SCALARS) {
+		NDR_CHECK(ndr_pull_align(ndr, 4));
+		NDR_CHECK(ndr_pull_netlogon_command(ndr, NDR_SCALARS, &r->command));
+		{
+			uint32_t _flags_save_string = ndr->flags;
+			ndr_set_flags(&ndr->flags, LIBNDR_FLAG_STR_ASCII|LIBNDR_FLAG_STR_NULLTERM);
+			NDR_CHECK(ndr_pull_string(ndr, NDR_SCALARS, &r->pdc_name));
+			ndr->flags = _flags_save_string;
 		}
-		if (ndr_flags & NDR_BUFFERS) {
+		{
+			uint32_t _flags_save_DATA_BLOB = ndr->flags;
+			ndr_set_flags(&ndr->flags, LIBNDR_FLAG_ALIGN2);
+			NDR_CHECK(ndr_pull_DATA_BLOB(ndr, NDR_SCALARS, &r->_pad));
+			ndr->flags = _flags_save_DATA_BLOB;
 		}
-		ndr->flags = _flags_save_STRUCT;
+		{
+			uint32_t _flags_save_string = ndr->flags;
+			ndr_set_flags(&ndr->flags, LIBNDR_FLAG_STR_NULLTERM|LIBNDR_FLAG_ALIGN2);
+			NDR_CHECK(ndr_pull_string(ndr, NDR_SCALARS, &r->unicode_pdc_name));
+			ndr->flags = _flags_save_string;
+		}
+		{
+			uint32_t _flags_save_string = ndr->flags;
+			ndr_set_flags(&ndr->flags, LIBNDR_FLAG_STR_NULLTERM|LIBNDR_FLAG_ALIGN2);
+			NDR_CHECK(ndr_pull_string(ndr, NDR_SCALARS, &r->domain_name));
+			ndr->flags = _flags_save_string;
+		}
+		NDR_CHECK(ndr_pull_netlogon_nt_version_flags(ndr, NDR_SCALARS, &r->nt_version));
+		NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &r->lmnt_token));
+		NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &r->lm20_token));
+		NDR_CHECK(ndr_pull_trailer_align(ndr, 4));
+	}
+	if (ndr_flags & NDR_BUFFERS) {
 	}
 	return NDR_ERR_SUCCESS;
 }
@@ -2319,21 +2309,16 @@ _PUBLIC_ void ndr_print_nbt_netlogon_response_from_pdc(struct ndr_print *ndr, co
 {
 	ndr_print_struct(ndr, name, "nbt_netlogon_response_from_pdc");
 	if (r == NULL) { ndr_print_null(ndr); return; }
-	{
-		uint32_t _flags_save_STRUCT = ndr->flags;
-		ndr_set_flags(&ndr->flags, LIBNDR_FLAG_NOALIGN);
-		ndr->depth++;
-		ndr_print_netlogon_command(ndr, "command", r->command);
-		ndr_print_string(ndr, "pdc_name", r->pdc_name);
-		ndr_print_DATA_BLOB(ndr, "_pad", r->_pad);
-		ndr_print_string(ndr, "unicode_pdc_name", r->unicode_pdc_name);
-		ndr_print_string(ndr, "domain_name", r->domain_name);
-		ndr_print_netlogon_nt_version_flags(ndr, "nt_version", r->nt_version);
-		ndr_print_uint16(ndr, "lmnt_token", r->lmnt_token);
-		ndr_print_uint16(ndr, "lm20_token", r->lm20_token);
-		ndr->depth--;
-		ndr->flags = _flags_save_STRUCT;
-	}
+	ndr->depth++;
+	ndr_print_netlogon_command(ndr, "command", r->command);
+	ndr_print_string(ndr, "pdc_name", r->pdc_name);
+	ndr_print_DATA_BLOB(ndr, "_pad", r->_pad);
+	ndr_print_string(ndr, "unicode_pdc_name", r->unicode_pdc_name);
+	ndr_print_string(ndr, "domain_name", r->domain_name);
+	ndr_print_netlogon_nt_version_flags(ndr, "nt_version", r->nt_version);
+	ndr_print_uint16(ndr, "lmnt_token", r->lmnt_token);
+	ndr_print_uint16(ndr, "lm20_token", r->lm20_token);
+	ndr->depth--;
 }
 
 _PUBLIC_ enum ndr_err_code ndr_push_nbt_netlogon_response2(struct ndr_push *ndr, int ndr_flags, const struct nbt_netlogon_response2 *r)

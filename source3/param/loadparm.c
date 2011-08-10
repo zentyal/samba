@@ -7351,6 +7351,35 @@ done:
 	return ret;
 }
 
+/**
+ * reload those shares from registry that are already
+ * activated in the services array.
+ */
+static bool reload_registry_shares(void)
+{
+	int i;
+	bool ret = true;
+
+	for (i = 0; i < iNumServices; i++) {
+		if (!VALID(i)) {
+			continue;
+		}
+
+		if (ServicePtrs[i]->usershare == USERSHARE_VALID) {
+			continue;
+		}
+
+		ret = process_registry_service(ServicePtrs[i]->szService);
+		if (!ret) {
+			goto done;
+		}
+	}
+
+done:
+	return ret;
+}
+
+
 #define MAX_INCLUDE_DEPTH 100
 
 static uint8_t include_depth;
@@ -9599,8 +9628,12 @@ static bool lp_load_ex(const char *pszFname,
 		bRetval = false;
 	}
 
-	if (bRetval && lp_registry_shares() && allow_registry_shares) {
-		bRetval = process_registry_shares();
+	if (bRetval && lp_registry_shares()) {
+		if (allow_registry_shares) {
+			bRetval = process_registry_shares();
+		} else {
+			bRetval = reload_registry_shares();
+		}
 	}
 
 	lp_add_auto_services(lp_auto_services());

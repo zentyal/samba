@@ -108,12 +108,7 @@ static NTSTATUS idmap_tdb2_open_db(struct idmap_domain *dom)
 		return NT_STATUS_OK;
 	}
 
-	db_path = lp_parm_talloc_string(-1, "tdb", "idmap2.tdb", NULL);
-	if (db_path == NULL) {
-		/* fall back to the private directory, which, despite
-		   its name, is usually on shared storage */
-		db_path = talloc_asprintf(NULL, "%s/idmap2.tdb", lp_private_dir());
-	}
+	db_path = talloc_asprintf(NULL, "%s/idmap2.tdb", lp_private_dir());
 	NT_STATUS_HAVE_NO_MEMORY(db_path);
 
 	/* Open idmap repository */
@@ -279,6 +274,8 @@ static NTSTATUS idmap_tdb2_db_init(struct idmap_domain *dom)
 {
 	NTSTATUS ret;
 	struct idmap_tdb2_context *ctx;
+	char *config_option = NULL;
+	const char * idmap_script = NULL;
 
 	ctx = talloc_zero(dom, struct idmap_tdb2_context);
 	if ( ! ctx) {
@@ -286,27 +283,28 @@ static NTSTATUS idmap_tdb2_db_init(struct idmap_domain *dom)
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	if (strequal(dom->name, "*")) {
-		ctx->script = lp_parm_const_string(-1, "idmap", "script", NULL);
-		if (ctx->script) {
-			DEBUG(1, ("using idmap script '%s'\n", ctx->script));
-		}
-	} else {
-		char *config_option = NULL;
+	config_option = talloc_asprintf(ctx, "idmap config %s", dom->name);
+	if (config_option == NULL) {
+		DEBUG(0, ("Out of memory!\n"));
+		ret = NT_STATUS_NO_MEMORY;
+		goto failed;
+	}
+	ctx->script = lp_parm_const_string(-1, config_option, "script", "NULL");
+	talloc_free(config_option);
 
-		config_option = talloc_asprintf(ctx, "idmap config %s", dom->name);
-		if ( ! config_option) {
-			DEBUG(0, ("Out of memory!\n"));
-			ret = NT_STATUS_NO_MEMORY;
-			goto failed;
-		}
+	idmap_script = lp_parm_const_string(-1, "idmap", "script", NULL);
+	if (idmap_script != NULL) {
+		DEBUG(0, ("Warning: 'idmap:script' is deprecated. "
+			  " Please use 'idmap config * : script' instead!\n"));
+	}
 
-		ctx->script = lp_parm_const_string(-1, config_option, "script", NULL);
-		if (ctx->script) {
-			DEBUG(1, ("using idmap script '%s'\n", ctx->script));
-		}
+	if (strequal(dom->name, "*") && ctx->script == NULL) {
+		/* fall back to idmap:script for backwards compatibility */
+		ctx->script = idmap_script;
+	}
 
-		talloc_free(config_option);
+	if (ctx->script) {
+		DEBUG(1, ("using idmap script '%s'\n", ctx->script));
 	}
 
 	ctx->rw_ops = talloc_zero(ctx, struct idmap_rw_ops);
@@ -577,9 +575,6 @@ static NTSTATUS idmap_tdb2_id_to_sid(struct idmap_domain *dom, struct id_map *ma
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	/* final SAFE_FREE safe */
-	data.dptr = NULL;
-
 	if (keystr == NULL) {
 		DEBUG(0, ("Out of memory!\n"));
 		ret = NT_STATUS_NO_MEMORY;
@@ -602,8 +597,6 @@ static NTSTATUS idmap_tdb2_id_to_sid(struct idmap_domain *dom, struct id_map *ma
 		}
 
 		ret = idmap_tdb2_script(ctx, map, "IDTOSID %s", keystr);
-
-		/* store it on shared storage */
 		if (!NT_STATUS_IS_OK(ret)) {
 			goto done;
 		}
@@ -678,7 +671,6 @@ static NTSTATUS idmap_tdb2_sid_to_id(struct idmap_domain *dom, struct id_map *ma
 		}
 
 		ret = idmap_tdb2_script(ctx, map, "SIDTOID %s", keystr);
-		/* store it on shared storage */
 		if (!NT_STATUS_IS_OK(ret)) {
 			goto done;
 		}

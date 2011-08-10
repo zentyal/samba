@@ -554,7 +554,7 @@ struct nbt_netlogon_response_from_pdc {
 	uint32_t nt_version;
 	uint16_t lmnt_token;
 	uint16_t lm20_token;
-}/* [public,flag(LIBNDR_FLAG_NOALIGN)] */;
+}/* [public] */;
 
 struct nbt_netlogon_response2 {
 	enum netlogon_command command;

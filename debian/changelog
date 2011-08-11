@@ -1,8 +1,23 @@
-samba (2:3.5.9~dfsg-1~bpo60+1) UNRELEASED; urgency=low
+samba (2:3.5.10~dfsg-1~bpo60+1) squeeze-backports; urgency=low
 
   * Backport to squeeze
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 24 Jul 2011 12:15:07 +0200
+ -- Christian Perrier <bubulle@debian.org>  Thu, 11 Aug 2011 09:01:28 +0200
+
+samba (2:3.5.10~dfsg-1) unstable; urgency=low
+
+  * New upstream release
+  * Security update, fixing the following issues:
+    - CVE-2011-2694: possible XSS attack in SWAT
+    - CVE-2011-2522: Cross-Site Request Forgery vulnerability in SWAT
+
+ -- Christian Perrier <bubulle@debian.org>  Thu, 28 Jul 2011 12:19:01 +0200
+
+samba (2:3.5.9~dfsg-1~bpo60+1) squeeze-backports; urgency=low
+
+  * Backport to squeeze
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 24 Jul 2011 12:19:45 +0200
 
 samba (2:3.5.9~dfsg-1) unstable; urgency=low
 

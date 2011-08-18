@@ -707,6 +707,9 @@
 /* Truncate extend */
 #undef HAVE_FTRUNCATE_EXTEND
 
+/* whether we can compile with __attribute__((destructor)) */
+#undef HAVE_FUNCTION_ATTRIBUTE_DESTRUCTOR
+
 /* Whether there is a __FUNCTION__ macro */
 #undef HAVE_FUNCTION_MACRO
 

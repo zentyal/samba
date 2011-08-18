@@ -1093,8 +1093,9 @@ static int rebindproc_connect (LDAP * ld, LDAP_CONST char *url, int request,
 /*******************************************************************
  connect to the ldap server under system privilege.
 ******************************************************************/
-static int smbldap_connect_system(struct smbldap_state *ldap_state, LDAP * ldap_struct)
+static int smbldap_connect_system(struct smbldap_state *ldap_state)
 {
+	LDAP *ldap_struct = ldap_state->ldap_struct;
 	int rc;
 	int version;
 
@@ -1105,7 +1106,8 @@ static int smbldap_connect_system(struct smbldap_state *ldap_state, LDAP * ldap_
 		/* get the default dn and password only if they are not set already */
 		if (!fetch_ldap_pw(&bind_dn, &bind_secret)) {
 			DEBUG(0, ("ldap_connect_system: Failed to retrieve password from secrets.tdb\n"));
-			return LDAP_INVALID_CREDENTIALS;
+			rc = LDAP_INVALID_CREDENTIALS;
+			goto done;
 		}
 		smbldap_set_creds(ldap_state, false, bind_dn, bind_secret);
 		SAFE_FREE(bind_dn);
@@ -1151,7 +1153,7 @@ static int smbldap_connect_system(struct smbldap_state *ldap_state, LDAP * ldap_
 			       ld_error ? ld_error : "(unknown)"));
 		SAFE_FREE(ld_error);
 		ldap_state->num_failures++;
-		return rc;
+		goto done;
 	}
 
 	ldap_state->num_failures = 0;
@@ -1166,6 +1168,11 @@ static int smbldap_connect_system(struct smbldap_state *ldap_state, LDAP * ldap_
 	DEBUG(3, ("ldap_connect_system: successful connection to the LDAP server\n"));
 	DEBUGADD(10, ("ldap_connect_system: LDAP server %s support paged results\n", 
 		ldap_state->paged_results ? "does" : "does not"));
+done:
+	if (rc != 0) {
+		ldap_unbind(ldap_struct);
+		ldap_state->ldap_struct = NULL;
+	}
 	return rc;
 }
 
@@ -1220,9 +1227,7 @@ static int smbldap_open(struct smbldap_state *ldap_state)
 		return rc;
 	}
 
-	if ((rc = smbldap_connect_system(ldap_state, ldap_state->ldap_struct))) {
-		ldap_unbind(ldap_state->ldap_struct);
-		ldap_state->ldap_struct = NULL;
+	if ((rc = smbldap_connect_system(ldap_state))) {
 		return rc;
 	}
 
@@ -1234,7 +1239,7 @@ static int smbldap_open(struct smbldap_state *ldap_state)
 
 	if (ldap_state->event_context != NULL) {
 		ldap_state->idle_event = event_add_timed(
-			ldap_state->event_context, NULL,
+			ldap_state->event_context, ldap_state,
 			timeval_current_ofs(SMBLDAP_IDLE_TIME, 0),
 			smbldap_idle_fn, ldap_state);
 	}
@@ -1258,6 +1263,8 @@ static NTSTATUS smbldap_close(struct smbldap_state *ldap_state)
 	}
 
 	smbldap_delete_state(ldap_state);
+
+	TALLOC_FREE(ldap_state->idle_event);
 
 	DEBUG(5,("The connection to the LDAP server was closed\n"));
 	/* maybe free the results here --metze */
@@ -1745,7 +1752,7 @@ static void smbldap_idle_fn(struct event_context *event_ctx,
 		DEBUG(10,("ldap connection not idle...\n"));
 
 		state->idle_event = event_add_timed(
-			event_ctx, NULL,
+			event_ctx, state,
 			timeval_add(&now, SMBLDAP_IDLE_TIME, 0),
 			smbldap_idle_fn,
 			private_data);
@@ -1771,11 +1778,15 @@ void smbldap_free_struct(struct smbldap_state **ldap_state)
 	SAFE_FREE((*ldap_state)->bind_dn);
 	SAFE_FREE((*ldap_state)->bind_secret);
 
-	TALLOC_FREE((*ldap_state)->idle_event);
-
-	*ldap_state = NULL;
+	TALLOC_FREE(*ldap_state);
 
 	/* No need to free any further, as it is talloc()ed */
+}
+
+static int smbldap_state_destructor(struct smbldap_state *state)
+{
+	smbldap_free_struct(&state);
+	return 0;
 }
 
 
@@ -1801,6 +1812,7 @@ NTSTATUS smbldap_init(TALLOC_CTX *mem_ctx, struct event_context *event_ctx,
 
 	(*smbldap_state)->event_context = event_ctx;
 
+	talloc_set_destructor(*smbldap_state, smbldap_state_destructor);
 	return NT_STATUS_OK;
 }
 

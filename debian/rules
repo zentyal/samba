@@ -126,7 +126,7 @@ install: build
 	dh_clean -k
 	dh_installdirs
 
-	mkdir -p $(DESTDIR)/usr/lib/cups/backend $(DESTDIR)/usr/share/samba \
+	mkdir -p $(DESTDIR)/usr/share/samba \
 	         $(DESTDIR)/etc/pam.d $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d
 
 	$(MAKE) -C source3 install DESTDIR=$(DESTDIR)
@@ -168,11 +168,6 @@ install: build
 	mkdir -p $(DESTDIR)/usr/share/pam-configs
 	install -m 0644 debian/libpam-smbpass.pam-config $(DESTDIR)/usr/share/pam-configs/smbpasswd-migrate
 	install -m 0644 debian/winbind.pam-config $(DESTDIR)/usr/share/pam-configs/winbind
-
-	# For CUPS to support printing to samba printers, it's necessary
-	#	to make the following symlink (according to
-	#	Erich Schubert <debian@vitavonni.de> in #109509):
-	ln -s ../../../bin/smbspool $(DESTDIR)/usr/lib/cups/backend/smb
 
 	cp debian/smb.conf* $(DESTDIR)/usr/share/samba/
 	install -m755 debian/panic-action $(DESTDIR)/usr/share/samba/panic-action

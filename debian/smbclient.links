@@ -1,0 +1,4 @@
+# For CUPS to support printing to samba printers, it's necessary to make the
+# following symlink (according to Erich Schubert <debian@vitavonni.de>
+# in #109509)
+usr/bin/smbspool usr/lib/cups/backend/smb

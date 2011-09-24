@@ -59,6 +59,7 @@ conf_args = \
 		--with-codepagedir=/usr/share/samba \
 		--enable-external-libtalloc \
 		--without-libtalloc \
+		--without-cifsmount \
 		--disable-avahi \
 		--without-libtdb \
 		--enable-external-libtdb
@@ -68,10 +69,9 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 		--with-ctdb --with-cluster-support=yes \
 		--with-acl-support \
 		--with-quotas \
-		--without-cifsmount \
 		--without-cifsupcall          
 	  else
-  conf_args +=	--without-quotas --without-cifsmount
+  conf_args +=	--without-quotas
 endif
 
 ifeq ($(DEB_BUILD_GNU_TYPE), $(DEB_HOST_GNU_TYPE))

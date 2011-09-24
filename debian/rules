@@ -126,8 +126,7 @@ install: build
 	dh_clean -k
 	dh_installdirs
 
-	mkdir -p $(DESTDIR)/usr/share/samba \
-	         $(DESTDIR)/etc/pam.d $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d
+	mkdir -p $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d
 
 	$(MAKE) -C source3 install DESTDIR=$(DESTDIR)
 

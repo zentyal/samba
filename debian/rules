@@ -177,7 +177,7 @@ install: build
 	mkdir -p $(DESTDIR)/etc/network/if-up.d
 	install -o root -g root debian/samba.if-up $(DESTDIR)/etc/network/if-up.d/samba
 
-	dh_movefiles
+	dh_install
 	dh_installpam --name=samba
 
 # Build architecture-independent files here.
@@ -191,7 +191,7 @@ binary-indep: build install
 	# Ignore COPYING. Otherwise, an extra copy of the GPL licence 
 	# in smbldap-tools example is included in samba-doc
 	dh_installexamples -Xsmbldap-tools-* -XCOPYING
-	dh_installchangelogs
+	dh_installchangelogs -Xhistory
 	dh_link
 	dh_compress
 	dh_fixperms
@@ -216,8 +216,8 @@ binary-arch: build install
 	DH_OPTIONS= dh_installinit -pwinbind
 	dh_installcron 
 	dh_lintian
-	dh_installchangelogs -Nlibpam-smbpass
-	DH_OPTIONS= dh_installchangelogs -plibpam-smbpass source3/pam_smbpass/CHANGELOG
+	dh_installchangelogs -Nlibpam-smbpass -Xhistory
+	DH_OPTIONS= dh_installchangelogs -plibpam-smbpass source3/pam_smbpass/CHANGELOG -Xhistory
 	DH_OPTIONS= dh_strip -psamba -psmbclient -pwinbind -psamba-common-bin --dbg-package=samba-dbg
 	DH_OPTIONS= dh_strip -Nsamba -Nsmbclient -Nwinbind -Nsamba-common-bin
 	dh_link

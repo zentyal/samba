@@ -7,6 +7,8 @@ samba (2:3.5.11~dfsg-2) UNRELEASED; urgency=low
     level 7, in preparation for moving to dh(1).
   * Where possible, use dh_installman and dh_install's support for target
     directories instead of moving files around in debian/rules.
+  * We don't need to mess with perms on usr/include/libsmbclient.h anymore
+    in debian/rules, the upstream install target gets it right
 
  -- Steve Langasek <vorlon@debian.org>  Sat, 24 Sep 2011 13:36:50 -0700
 

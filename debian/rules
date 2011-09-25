@@ -203,10 +203,6 @@ binary-arch: build install
 	dh_compress
 	dh_fixperms
 
-	# Upstream makefile installs this using "install" without -m, so
-	# it becomes executable
-	chmod a-x debian/libsmbclient-dev/usr/include/libsmbclient.h
-
 	# Set some reasonable default perms for the samba logdir.
 	chmod 0750 debian/samba-common/var/log/samba/
 	chown root:adm debian/samba-common/var/log/samba/

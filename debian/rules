@@ -126,8 +126,6 @@ install: build
 	dh_clean -k
 	dh_installdirs
 
-	mkdir -p $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d
-
 	$(MAKE) -C source3 install DESTDIR=$(DESTDIR)
 
 	# Rename to *.samba3 for alternatives
@@ -150,6 +148,7 @@ install: build
 
 	# Install samba-common's conffiles - they'll get moved later to their
 	# correct place by dh_install
+	mkdir -p $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d
 	install -m755 debian/samba-common.dhcp $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d/samba
 	mkdir -p $(DESTDIR)/etc/network/if-up.d
 	install -o root -g root debian/samba.if-up $(DESTDIR)/etc/network/if-up.d/samba

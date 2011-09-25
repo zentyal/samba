@@ -5,6 +5,8 @@ samba (2:3.5.11~dfsg-2) UNRELEASED; urgency=low
     debian/rules.
   * Switch from dh_movefiles to dh_install and adjust for debhelper compat
     level 7, in preparation for moving to dh(1).
+  * Where possible, use dh_installman and dh_install's support for target
+    directories instead of moving files around in debian/rules.
 
  -- Steve Langasek <vorlon@debian.org>  Sat, 24 Sep 2011 13:36:50 -0700
 

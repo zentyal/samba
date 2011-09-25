@@ -13,6 +13,5 @@ usr/share/man/man1/smbstatus.samba3.1
 usr/share/man/man8/nmbd.8
 usr/share/man/man8/pdbedit.8
 usr/share/man/man8/smbd.8
-usr/share/man/man8/mksmbpasswd.8
 usr/share/man/man8/eventlogadm.8
 etc/network/if-up.d/samba

@@ -1,2 +1,2 @@
-usr/lib/libsmbclient.so.0
+usr/lib/samba/libsmbclient.so.0 usr/lib
 usr/share/man/man7/libsmbclient.7

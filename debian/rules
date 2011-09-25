@@ -140,39 +140,16 @@ install: build
 	mv $(DESTDIR)/usr/bin/testparm $(DESTDIR)/usr/bin/testparm.samba3
 	mv $(DESTDIR)/usr/share/man/man1/testparm.1 $(DESTDIR)/usr/share/man/man1/testparm.samba3.1
 
-	# Starting with Samba 3.0.6 libsmbclient.so is installed in
-	# /usr/lib/samba. We don't want it there since it is not in the
-	# default library path. Here we move it to /usr/lib/.
-	mv $(DESTDIR)/usr/lib/samba/libsmbclient* $(DESTDIR)/usr/lib/
-
-	# same problem with libwbclient.
-	mv $(DESTDIR)/usr/lib/samba/libwbclient* $(DESTDIR)/usr/lib/
-
 	# Install other stuff not installed by "make install"
 	install -m 0755 debian/mksmbpasswd.awk $(DESTDIR)/usr/sbin/mksmbpasswd
-	install -m 0644 debian/mksmbpasswd.8 $(DESTDIR)/usr/share/man/man8/mksmbpasswd.8
 	install -m 0644 nsswitch/libnss_winbind.so $(DESTDIR)/lib/libnss_winbind.so.2
 	install -m 0644 nsswitch/libnss_wins.so $(DESTDIR)/lib/libnss_wins.so.2
-	# Install torture stuff
-	install -m 0755 source3/bin/smbtorture $(DESTDIR)/usr/bin/smbtorture
-	install -m 0755 source3/bin/msgtest $(DESTDIR)/usr/bin/msgtest
-	install -m 0755 source3/bin/masktest $(DESTDIR)/usr/bin/masktest
-	install -m 0755 source3/bin/locktest $(DESTDIR)/usr/bin/locktest
-	install -m 0755 source3/bin/locktest2 $(DESTDIR)/usr/bin/locktest2
-	install -m 0755 source3/bin/nsstest $(DESTDIR)/usr/bin/nsstest
-	install -m 0755 source3/bin/vfstest $(DESTDIR)/usr/bin/vfstest
-	install -m 0755 source3/bin/pdbtest $(DESTDIR)/usr/bin/pdbtest
-	install -m 0755 source3/bin/replacetort $(DESTDIR)/usr/bin/replacetort
-	install -m 0755 source3/bin/smbconftort $(DESTDIR)/usr/bin/smbconftort
 	mkdir -p $(DESTDIR)/usr/share/pam-configs
 	install -m 0644 debian/libpam-smbpass.pam-config $(DESTDIR)/usr/share/pam-configs/smbpasswd-migrate
 	install -m 0644 debian/winbind.pam-config $(DESTDIR)/usr/share/pam-configs/winbind
 
-	cp debian/smb.conf* $(DESTDIR)/usr/share/samba/
-	install -m755 debian/panic-action $(DESTDIR)/usr/share/samba/panic-action
 	# Install samba-common's conffiles - they'll get moved later to their
-	# correct place by dh_movefiles.
-	cp debian/gdbcommands $(DESTDIR)/etc/samba/
+	# correct place by dh_install
 	install -m755 debian/samba-common.dhcp $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d/samba
 	mkdir -p $(DESTDIR)/etc/network/if-up.d
 	install -o root -g root debian/samba.if-up $(DESTDIR)/etc/network/if-up.d/samba
@@ -187,6 +164,7 @@ binary-indep: build install
 	dh_testdir
 	dh_testroot
 	dh_installdebconf
+	dh_installman
 	dh_installdocs -A debian/README.build
 	# Ignore COPYING. Otherwise, an extra copy of the GPL licence 
 	# in smbldap-tools example is included in samba-doc
@@ -208,6 +186,7 @@ binary-arch: build install
 	dh_testdir
 	dh_testroot
 	dh_installdebconf
+	dh_installman
 	dh_installdocs -A debian/README.build
 	dh_installexamples
 	dh_installlogrotate

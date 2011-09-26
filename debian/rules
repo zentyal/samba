@@ -125,9 +125,6 @@ override_dh_strip:
 	dh_strip -psamba -psmbclient -pwinbind -psamba-common-bin --dbg-package=samba-dbg
 	dh_strip -Nsamba -Nsmbclient -Nwinbind -Nsamba-common-bin
 
-override_dh_compress:
-	dh_compress -X.c
-
 override_dh_fixperms:
 	dh_fixperms
 ifneq (,$(filter samba-common, $(shell dh_listpackages)))

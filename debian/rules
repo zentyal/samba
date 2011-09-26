@@ -9,7 +9,7 @@ DEB_CFLAGS_MAINT_APPEND  := -Wall
 export DEB_CFLAGS_MAINT_APPEND
 
 # Ignore these files which would otherwise be pulled into our examples
-export DH_ALWAYS_EXCLUDE := COPYING:Makefile.internal
+export DH_ALWAYS_EXCLUDE := COPYING:Makefile.internal:history
 
 DESTDIR=`pwd`/debian/tmp
 
@@ -108,9 +108,9 @@ override_dh_installpam:
 	dh_installpam --name=samba
 
 override_dh_installchangelogs:
-	dh_installchangelogs -Nlibpam-smbpass -Xhistory
+	dh_installchangelogs -Nlibpam-smbpass
 ifneq (,$(filter libpam-smbpass, $(shell dh_listpackages)))
-	dh_installchangelogs -plibpam-smbpass source3/pam_smbpass/CHANGELOG -Xhistory
+	dh_installchangelogs -plibpam-smbpass source3/pam_smbpass/CHANGELOG
 endif
 
 override_dh_installinit:

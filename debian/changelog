@@ -11,6 +11,7 @@ samba (2:3.5.11~dfsg-2) UNRELEASED; urgency=low
     in debian/rules, the upstream install target gets it right
   * Use debian/clean instead of removing left-behind files by hand in the
     clean target
+  * Convert debian/rules to dh(1).
 
  -- Steve Langasek <vorlon@debian.org>  Sat, 24 Sep 2011 13:36:50 -0700
 

@@ -9,6 +9,8 @@ samba (2:3.5.11~dfsg-2) UNRELEASED; urgency=low
     directories instead of moving files around in debian/rules.
   * We don't need to mess with perms on usr/include/libsmbclient.h anymore
     in debian/rules, the upstream install target gets it right
+  * Use debian/clean instead of removing left-behind files by hand in the
+    clean target
 
  -- Steve Langasek <vorlon@debian.org>  Sat, 24 Sep 2011 13:36:50 -0700
 

@@ -5,13 +5,8 @@
 DEB_HOST_ARCH_OS	:= $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
 DEB_HOST_MULTIARCH	?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
-CFLAGS = -g -Wall
-
-ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
-  CFLAGS += -O0
-else
-  CFLAGS += -O2
-endif
+DEB_CFLAGS_MAINT_APPEND  := -Wall
+export DEB_CFLAGS_MAINT_APPEND
 
 DESTDIR=`pwd`/debian/tmp
 
@@ -70,7 +65,7 @@ override_dh_auto_configure:
 	if [ -f debian/config.cache ]; then \
 		cp -f debian/config.cache source3/config.cache; \
 	fi
-	CFLAGS="$(CFLAGS)" dh_auto_configure -Dsource3 -- $(conf_args)
+	dh_auto_configure -Dsource3 -- $(conf_args)
 
 override_dh_auto_build:
 	dh_auto_build -Dsource3 -- everything nsswitch

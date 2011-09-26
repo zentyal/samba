@@ -21,6 +21,9 @@ samba (2:3.5.11~dfsg-2) UNRELEASED; urgency=low
     libsmbclient-dev Multi-Arch: same.
   * Exclude .c files from dh_compress, so our .c examples can build out of
     the box in the packages.
+  * Bump build-depends on debhelper to 8.9.4, so we ensure we have
+    dpkg-buildflags by default and get full build hardening enabled out of
+    the box - critical for a server like samba.
 
  -- Steve Langasek <vorlon@debian.org>  Sat, 24 Sep 2011 13:36:50 -0700
 

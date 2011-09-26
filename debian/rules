@@ -146,4 +146,3 @@ endif
 override_dh_makeshlibs:
 	dh_makeshlibs -plibsmbclient -V'libsmbclient (>= 2:3.2.0)'
 	dh_makeshlibs -plibwbclient0 -V'libwbclient0 (>= 2:3.5.0~pre2)'
-	dh_makeshlibs -pwinbind

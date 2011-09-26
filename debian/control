@@ -168,6 +168,7 @@ Package: libsmbclient-dev
 Section: libdevel
 Priority: extra
 Architecture: any
+Multi-Arch: same
 Depends: libsmbclient (= ${binary:Version}), ${misc:Depends}
 Description: development files for libsmbclient
  This package provides the development files (static library and headers)

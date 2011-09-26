@@ -14,6 +14,8 @@ samba (2:3.5.11~dfsg-2) UNRELEASED; urgency=low
   * Convert debian/rules to dh(1).
   * Don't run debconf-updatepo on clean; not worth the divergence in
     debian/rules anymore :)
+  * Don't install debian/README.build in the package; this is really only
+    relevant in the source.
 
  -- Steve Langasek <vorlon@debian.org>  Sat, 24 Sep 2011 13:36:50 -0700
 

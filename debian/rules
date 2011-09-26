@@ -109,9 +109,6 @@ override_dh_auto_install:
 override_dh_installpam:
 	dh_installpam --name=samba
 
-override_dh_installdocs:
-	dh_installdocs -A debian/README.build
-
 override_dh_installexamples:
 	# Ignore COPYING. Otherwise, an extra copy of the GPL licence 
 	# in smbldap-tools example is included in samba-doc

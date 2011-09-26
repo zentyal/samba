@@ -112,7 +112,7 @@ override_dh_installpam:
 override_dh_installexamples:
 	# Ignore COPYING. Otherwise, an extra copy of the GPL licence 
 	# in smbldap-tools example is included in samba-doc
-	dh_installexamples -Xsmbldap-tools-* -XCOPYING
+	dh_installexamples -Xsmbldap-tools-* -XCOPYING -XMakefile.internal
 
 override_dh_installchangelogs:
 	dh_installchangelogs -Nlibpam-smbpass -Xhistory

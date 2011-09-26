@@ -17,6 +17,8 @@ samba (2:3.5.11~dfsg-2) UNRELEASED; urgency=low
   * Don't install debian/README.build in the package; this is really only
     relevant in the source.
   * Bump to debhelper compat level 9 and build libraries for multiarch.
+  * Drop Makefile.internal from libsmbclient-dev examples so that we can mark
+    libsmbclient-dev Multi-Arch: same.
 
  -- Steve Langasek <vorlon@debian.org>  Sat, 24 Sep 2011 13:36:50 -0700
 

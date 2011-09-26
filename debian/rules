@@ -5,8 +5,7 @@
 DEB_HOST_ARCH_OS	:= $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
 DEB_HOST_MULTIARCH	?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
-DEB_CFLAGS_MAINT_APPEND  := -Wall
-export DEB_CFLAGS_MAINT_APPEND
+export DEB_CFLAGS_MAINT_APPEND  := -Wall
 
 # Ignore these files which would otherwise be pulled into our examples
 export DH_ALWAYS_EXCLUDE := COPYING:Makefile.internal:history

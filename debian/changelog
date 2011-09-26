@@ -12,6 +12,8 @@ samba (2:3.5.11~dfsg-2) UNRELEASED; urgency=low
   * Use debian/clean instead of removing left-behind files by hand in the
     clean target
   * Convert debian/rules to dh(1).
+  * Don't run debconf-updatepo on clean; not worth the divergence in
+    debian/rules anymore :)
 
  -- Steve Langasek <vorlon@debian.org>  Sat, 24 Sep 2011 13:36:50 -0700
 

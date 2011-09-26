@@ -3,6 +3,7 @@
 # Set the host and build architectures for use with config.cache loading,
 # cross-building, etc.
 DEB_HOST_ARCH_OS	:= $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
+DEB_HOST_MULTIARCH	?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
 CFLAGS = -g -Wall
 
@@ -22,11 +23,10 @@ conf_args = \
 		--with-fhs \
 		--enable-shared \
 		--enable-static \
-		--libdir=/usr/lib/samba \
 		--with-privatedir=/etc/samba \
 		--with-piddir=/var/run/samba \
 		--with-rootsbindir=/sbin \
-		--with-pammodulesdir=/lib/security \
+		--with-pammodulesdir=/lib/$(DEB_HOST_MULTIARCH)/security \
 		--with-pam \
 		--with-syslog \
 		--with-utmp \
@@ -93,8 +93,8 @@ override_dh_auto_install:
 
 	# Install other stuff not installed by "make install"
 	install -m 0755 debian/mksmbpasswd.awk $(DESTDIR)/usr/sbin/mksmbpasswd
-	install -m 0644 nsswitch/libnss_winbind.so $(DESTDIR)/lib/libnss_winbind.so.2
-	install -m 0644 nsswitch/libnss_wins.so $(DESTDIR)/lib/libnss_wins.so.2
+	install -m 0644 nsswitch/libnss_winbind.so $(DESTDIR)/lib/$(DEB_HOST_MULTIARCH)/libnss_winbind.so.2
+	install -m 0644 nsswitch/libnss_wins.so $(DESTDIR)/lib/$(DEB_HOST_MULTIARCH)/libnss_wins.so.2
 	mkdir -p $(DESTDIR)/usr/share/pam-configs
 	install -m 0644 debian/libpam-smbpass.pam-config $(DESTDIR)/usr/share/pam-configs/smbpasswd-migrate
 	install -m 0644 debian/winbind.pam-config $(DESTDIR)/usr/share/pam-configs/winbind
@@ -146,3 +146,4 @@ endif
 override_dh_makeshlibs:
 	dh_makeshlibs -plibsmbclient -V'libsmbclient (>= 2:3.2.0)'
 	dh_makeshlibs -plibwbclient0 -V'libwbclient0 (>= 2:3.5.0~pre2)'
+	dh_makeshlibs -pwinbind

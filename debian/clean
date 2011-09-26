@@ -4,4 +4,3 @@ source3/exports/libsmbsharemodes.syms
 source3/lib/netapi/tests/Makefile
 source3/lib/netapi/examples/Makefile
 examples/libsmbclient/Makefile.internal
-

@@ -16,6 +16,7 @@ samba (2:3.5.11~dfsg-2) UNRELEASED; urgency=low
     debian/rules anymore :)
   * Don't install debian/README.build in the package; this is really only
     relevant in the source.
+  * Bump to debhelper compat level 9 and build libraries for multiarch.
 
  -- Steve Langasek <vorlon@debian.org>  Sat, 24 Sep 2011 13:36:50 -0700
 

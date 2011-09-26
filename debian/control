@@ -239,6 +239,7 @@ Package: libwbclient-dev
 Section: libdevel
 Priority: optional
 Architecture: any
+Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}, libwbclient0 (= ${binary:Version})
 Description: Samba winbind client library - development files
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,

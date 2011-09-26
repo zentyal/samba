@@ -19,6 +19,8 @@ samba (2:3.5.11~dfsg-2) UNRELEASED; urgency=low
   * Bump to debhelper compat level 9 and build libraries for multiarch.
   * Drop Makefile.internal from libsmbclient-dev examples so that we can mark
     libsmbclient-dev Multi-Arch: same.
+  * Exclude .c files from dh_compress, so our .c examples can build out of
+    the box in the packages.
 
  -- Steve Langasek <vorlon@debian.org>  Sat, 24 Sep 2011 13:36:50 -0700
 

@@ -24,6 +24,8 @@ samba (2:3.5.11~dfsg-2) UNRELEASED; urgency=low
   * Bump build-depends on debhelper to 8.9.4, so we ensure we have
     dpkg-buildflags by default and get full build hardening enabled out of
     the box - critical for a server like samba.
+  * Use DH_ALWAYS_EXCLUDE instead of passing override options to
+    dh_installexamples.
 
  -- Steve Langasek <vorlon@debian.org>  Sat, 24 Sep 2011 13:36:50 -0700
 

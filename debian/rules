@@ -8,6 +8,9 @@ DEB_HOST_MULTIARCH	?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 DEB_CFLAGS_MAINT_APPEND  := -Wall
 export DEB_CFLAGS_MAINT_APPEND
 
+# Ignore these files which would otherwise be pulled into our examples
+export DH_ALWAYS_EXCLUDE := COPYING:Makefile.internal
+
 DESTDIR=`pwd`/debian/tmp
 
 %:
@@ -103,11 +106,6 @@ override_dh_auto_install:
 
 override_dh_installpam:
 	dh_installpam --name=samba
-
-override_dh_installexamples:
-	# Ignore COPYING. Otherwise, an extra copy of the GPL licence 
-	# in smbldap-tools example is included in samba-doc
-	dh_installexamples -Xsmbldap-tools-* -XCOPYING -XMakefile.internal
 
 override_dh_installchangelogs:
 	dh_installchangelogs -Nlibpam-smbpass -Xhistory

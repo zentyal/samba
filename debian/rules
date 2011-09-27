@@ -13,7 +13,7 @@ export DH_ALWAYS_EXCLUDE := COPYING:Makefile.internal:history
 DESTDIR=`pwd`/debian/tmp
 
 %:
-	dh $@
+	dh $@ --sourcedirectory=source3
 
 conf_args = \
 		--cache-file=./config.cache \
@@ -67,16 +67,16 @@ override_dh_auto_configure:
 	if [ -f debian/config.cache ]; then \
 		cp -f debian/config.cache source3/config.cache; \
 	fi
-	dh_auto_configure -Dsource3 -- $(conf_args)
+	dh_auto_configure -- $(conf_args)
 
 override_dh_auto_build:
-	dh_auto_build -Dsource3 -- everything nsswitch
+	dh_auto_build -- everything nsswitch
 
-override_dh_auto_clean:
-	dh_auto_clean -Dsource3
+# our test suite requires including a wrapper lib we don't want to ship.
+override_dh_auto_test:
 
 override_dh_auto_install:
-	dh_auto_install -Dsource3
+	dh_auto_install
 
 	# Rename to *.samba3 for alternatives
 	mv $(DESTDIR)/usr/bin/smbstatus $(DESTDIR)/usr/bin/smbstatus.samba3

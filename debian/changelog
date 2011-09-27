@@ -24,6 +24,11 @@ samba (2:3.5.11~dfsg-2) UNRELEASED; urgency=low
     the box - critical for a server like samba.
   * Use DH_ALWAYS_EXCLUDE instead of passing override options to
     dh_installexamples.
+  * Pass --sourcedirectory=source3 to dh instead of having to pass it to each
+    dh_auto_* command.
+  * Ironically, this means that we have to manually disable dh_auto_test,
+    which now finds the makefile targets but doesn't work unless we build an
+    extra wrapper library into our binaries that we don't want.
 
  -- Steve Langasek <vorlon@debian.org>  Sat, 24 Sep 2011 13:36:50 -0700
 

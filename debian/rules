@@ -18,7 +18,6 @@ DESTDIR=`pwd`/debian/tmp
 conf_args = \
 		--cache-file=./config.cache \
 		--with-fhs \
-		--enable-shared \
 		--enable-static \
 		--with-privatedir=/etc/samba \
 		--with-piddir=/var/run/samba \
@@ -29,7 +28,6 @@ conf_args = \
 		--with-utmp \
 		--with-readline \
 		--with-pam_smbpass \
-		--with-libsmbclient \
 		--with-winbind \
 		--with-shared-modules=idmap_rid,idmap_ad,idmap_adex,idmap_hash,idmap_ldap,idmap_tdb2 \
 		--with-automount \
@@ -39,7 +37,6 @@ conf_args = \
 		--without-libtdb \
 		--without-libnetapi \
 		--with-modulesdir=/usr/lib/samba \
-		--datarootdir=/usr/share \
 		--datadir=/usr/share/samba \
 		--with-swatdir=/usr/share/samba/swat \
 		--with-lockdir=/var/run/samba \

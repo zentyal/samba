@@ -127,6 +127,7 @@ override_dh_strip:
 override_dh_fixperms:
 	dh_fixperms
 ifneq (,$(filter samba-common, $(shell dh_listpackages)))
+	chmod a+x debian/samba-common/usr/share/samba/panic-action
 	# Set some reasonable default perms for the samba logdir.
 	chmod 0750 debian/samba-common/var/log/samba/
 	chown root:adm debian/samba-common/var/log/samba/

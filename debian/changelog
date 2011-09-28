@@ -31,6 +31,9 @@ samba (2:3.5.11~dfsg-2) UNRELEASED; urgency=low
     extra wrapper library into our binaries that we don't want.
   * Drop a few configure options from debian/rules that shadow the built-in
     defaults.
+  * debian/libsmbclient.lintian-overrides: yes, we know the package name
+    doesn't match the soname - and it never should until there's an ABI
+    change.
 
  -- Steve Langasek <vorlon@debian.org>  Sat, 24 Sep 2011 13:36:50 -0700
 

@@ -1,4 +1,4 @@
-samba (2:3.5.11~dfsg-2) UNRELEASED; urgency=low
+samba (2:3.5.11~dfsg-2) unstable; urgency=low
 
   * Don't export DEB_HOST_ARCH_OS in debian/rules, this is only used locally.
   * Use dh_links instead of manually creating directories and symlinks from
@@ -35,7 +35,7 @@ samba (2:3.5.11~dfsg-2) UNRELEASED; urgency=low
     doesn't match the soname - and it never should until there's an ABI
     change.
 
- -- Steve Langasek <vorlon@debian.org>  Sat, 24 Sep 2011 13:36:50 -0700
+ -- Steve Langasek <vorlon@debian.org>  Fri, 07 Oct 2011 21:36:43 -0700
 
 samba (2:3.5.11~dfsg-1) unstable; urgency=low
 

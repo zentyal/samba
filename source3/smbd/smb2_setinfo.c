@@ -39,11 +39,9 @@ static NTSTATUS smbd_smb2_setinfo_recv(struct tevent_req *req);
 static void smbd_smb2_request_setinfo_done(struct tevent_req *subreq);
 NTSTATUS smbd_smb2_request_process_setinfo(struct smbd_smb2_request *req)
 {
-	const uint8_t *inhdr;
+	NTSTATUS status;
 	const uint8_t *inbody;
 	int i = req->current_idx;
-	size_t expected_body_size = 0x21;
-	size_t body_size;
 	uint8_t in_info_type;
 	uint8_t in_file_info_class;
 	uint16_t in_input_buffer_offset;
@@ -54,17 +52,11 @@ NTSTATUS smbd_smb2_request_process_setinfo(struct smbd_smb2_request *req)
 	uint64_t in_file_id_volatile;
 	struct tevent_req *subreq;
 
-	inhdr = (const uint8_t *)req->in.vector[i+0].iov_base;
-	if (req->in.vector[i+1].iov_len != (expected_body_size & 0xFFFFFFFE)) {
-		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
+	status = smbd_smb2_request_verify_sizes(req, 0x21);
+	if (!NT_STATUS_IS_OK(status)) {
+		return smbd_smb2_request_error(req, status);
 	}
-
 	inbody = (const uint8_t *)req->in.vector[i+1].iov_base;
-
-	body_size = SVAL(inbody, 0x00);
-	if (body_size != expected_body_size) {
-		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
-	}
 
 	in_info_type			= CVAL(inbody, 0x02);
 	in_file_info_class		= CVAL(inbody, 0x03);
@@ -78,7 +70,7 @@ NTSTATUS smbd_smb2_request_process_setinfo(struct smbd_smb2_request *req)
 	if (in_input_buffer_offset == 0 && in_input_buffer_length == 0) {
 		/* This is ok */
 	} else if (in_input_buffer_offset !=
-		   (SMB2_HDR_BODY + (body_size & 0xFFFFFFFE))) {
+		   (SMB2_HDR_BODY + req->in.vector[i+1].iov_len)) {
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
 	}
 
@@ -88,6 +80,10 @@ NTSTATUS smbd_smb2_request_process_setinfo(struct smbd_smb2_request *req)
 
 	in_input_buffer.data = (uint8_t *)req->in.vector[i+2].iov_base;
 	in_input_buffer.length = in_input_buffer_length;
+
+	if (in_input_buffer.length > req->sconn->smb2.max_trans) {
+		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
+	}
 
 	if (req->compat_chain_fsp) {
 		/* skip check */
@@ -219,12 +215,6 @@ static struct tevent_req *smbd_smb2_setinfo_send(TALLOC_CTX *mem_ctx,
 		if (file_info_level == SMB_FILE_RENAME_INFORMATION) {
 			/* SMB2_FILE_RENAME_INFORMATION_INTERNAL == 0xFF00 + in_file_info_class */
 			file_info_level = SMB2_FILE_RENAME_INFORMATION_INTERNAL;
-			if (fsp->oplock_type != FAKE_LEVEL_II_OPLOCK &&
-			    fsp->oplock_type != NO_OPLOCK) {
-				/* No break, but error. */
-				tevent_req_nterror(req, NT_STATUS_SHARING_VIOLATION);
-				return tevent_req_post(req, ev);
-			}
 		}
 
 		if (fsp->fh->fd == -1) {

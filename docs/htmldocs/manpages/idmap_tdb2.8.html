@@ -5,30 +5,27 @@
 	</p><p>
 	In contrast to read only backends like idmap_rid, it is an allocating
 	backend: This means that it needs to allocate new user and group IDs in
-	order to create new mappings. The allocator can be provided by the
-	idmap_tdb2 backend itself or by any other allocating backend like
-	idmap_tdb or idmap_ldap. This is configured with the
-	parameter <em class="parameter"><code>idmap alloc backend</code></em>.
-	</p><p>
-	Note that in order for this (or any other allocating) backend to
-	function at all, the default backend needs to be writeable.
-	The ranges used for uid and gid allocation are the default ranges
-	configured by "idmap uid" and "idmap gid".
-	</p><p>
-	Furthermore, since there is only one global allocating backend
-	responsible for all domains using writeable idmap backends,
-	any explicitly configured domain with idmap backend tdb2
-	should have the same range as the default range, since it needs
-	to use the global uid / gid allocator. See the example below.
-	</p></div><div class="refsect1" title="IDMAP OPTIONS"><a name="id266362"></a><h2>IDMAP OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">range = low - high</span></dt><dd><p>
+	order to create new mappings.
+	</p></div><div class="refsect1" title="IDMAP OPTIONS"><a name="id266343"></a><h2>IDMAP OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">range = low - high</span></dt><dd><p>
 			Defines the available matching uid and gid range for which the
 			backend is authoritative.
-			If the parameter is absent, Winbind fails over to use
-			the "idmap uid" and "idmap gid" options
-			from smb.conf.
-		</p></dd></dl></div></div><div class="refsect1" title="IDMAP SCRIPT"><a name="id266839"></a><h2>IDMAP SCRIPT</h2><p>
-	The tdb2 idmap backend supports a script for performing id mappings
-	through the smb.conf option <em class="parameter"><code>idmap : script</code></em>.
+		</p></dd><dt><span class="term">script</span></dt><dd><p>
+			This option can be used to configure an external program
+			for performing id mappings instead of using the tdb
+			counter. The mappings are then stored int tdb2 idmap
+			database. For details see the section on IDMAP SCRIPT below.
+		</p></dd></dl></div></div><div class="refsect1" title="IDMAP SCRIPT"><a name="id266833"></a><h2>IDMAP SCRIPT</h2><p>
+	The tdb2 idmap backend supports an external program for performing id mappings
+	through the smb.conf option <em class="parameter"><code>idmap config * : script</code></em> or
+	its deprecated legacy form <em class="parameter"><code>idmap : script</code></em>.
+	</p><p>
+	The mappings obtained by the script are then stored in the idmap tdb2
+	database instead of mappings created by the incrementing id counters.
+	It is therefore important that the script covers the complete range of
+	SIDs that can be passed in for SID to Unix ID mapping, since otherwise
+	SIDs unmapped by the script might get mapped to IDs that had
+	previously been mapped by the script.
+	</p><p>
 	The script should accept the following command line options.
 	</p><pre class="programlisting">
 	SIDTOID S-1-xxxx
@@ -42,21 +39,21 @@
 	GID:yyyy
 	SID:yyyy
 	ERR:yyyy
-	</pre><p>
-	Note that the script should cover the complete range of SIDs
-	that can be passed in for SID to Unix ID mapping, since otherwise
-	SIDs unmapped by the script might get mapped to IDs that had
-	previously been mapped by the script.
-	</p></div><div class="refsect1" title="EXAMPLES"><a name="id266875"></a><h2>EXAMPLES</h2><p>
+	</pre></div><div class="refsect1" title="EXAMPLES"><a name="id266880"></a><h2>EXAMPLES</h2><p>
 	This example shows how tdb2 is used as a the default idmap backend.
-	It configures the idmap range through the global options for all
-	domains encountered. This same range is used for uid/gid allocation.
 	</p><pre class="programlisting">
 	[global]
-	idmap backend = tdb2
-	idmap uid = 1000000-2000000
-	idmap gid = 1000000-2000000
-	</pre></div><div class="refsect1" title="AUTHOR"><a name="id266893"></a><h2>AUTHOR</h2><p>
+	idmap config * : backend = tdb2
+	idmap config * : range = 1000000-2000000
+	</pre><p>
+	This example shows how tdb2 is used as a the default idmap backend
+	using an external program via the script parameter:
+	</p><pre class="programlisting">
+	[global]
+	idmap config * : backend = tdb2
+	idmap config * : range = 1000000-2000000
+	idmap config * : script = /usr/local/samba/bin/idmap_script.sh
+	</pre></div><div class="refsect1" title="AUTHOR"><a name="id265703"></a><h2>AUTHOR</h2><p>
 	The original Samba software and related utilities
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar

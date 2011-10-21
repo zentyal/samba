@@ -39,7 +39,7 @@ preserved across the upgrade.
 <a class="indexterm" name="id438601"></a>
 <a class="indexterm" name="id438608"></a>
 <a class="indexterm" name="id438615"></a>
-<a class="indexterm" name="id438622"></a>
+<a class="indexterm" name="id438621"></a>
 If the Samba-2.2.x system is using an LDAP backend, and there is no time to update the LDAP
 database, then make sure that <a class="link" href="smb.conf.5.html#PASSDBBACKEND" target="_top">passdb backend = ldapsam_compat</a>
 is specified in the <code class="filename">smb.conf</code> file. For the rest, behavior should remain more or less the same.
@@ -67,7 +67,7 @@ The major new features are:
 <a class="indexterm" name="id438752"></a>
 	Support for IPv6 in the server, and client tools and libraries.
 	</p></li><li class="listitem"><p>
-<a class="indexterm" name="id438764"></a>
+<a class="indexterm" name="id438763"></a>
 	Support for storing alternate data streams in xattrs.
 	</p></li><li class="listitem"><p>
 <a class="indexterm" name="id438775"></a>
@@ -77,11 +77,11 @@ The major new features are:
 	Support for Vista clients authenticating via Kerberos.
 	</p></li><li class="listitem"><p>
 <a class="indexterm" name="id438799"></a>
-<a class="indexterm" name="id438806"></a>
+<a class="indexterm" name="id438805"></a>
 	Full support for Windows 2003 cross-forest, transitive trusts
 	and one-way domain trusts.
 	</p></li><li class="listitem"><p>
-<a class="indexterm" name="id438818"></a>
+<a class="indexterm" name="id438817"></a>
 	Support for userPrincipalName logons via pam_winbind and NSS lookups.
 	</p></li><li class="listitem"><p>
 <a class="indexterm" name="id438829"></a>
@@ -89,12 +89,12 @@ The major new features are:
 <a class="indexterm" name="id438843"></a>
 	Support for Active Directory LDAP Signing policy.
 	</p></li><li class="listitem"><p>
-<a class="indexterm" name="id438855"></a>
+<a class="indexterm" name="id438854"></a>
 <a class="indexterm" name="id438861"></a>
 	New LGPL Winbind client library (libwbclient.so).
 	</p></li><li class="listitem"><p>
 <a class="indexterm" name="id438873"></a>
-<a class="indexterm" name="id438880"></a>
+<a class="indexterm" name="id438879"></a>
 	Support for establishing interdomain trust relationships with Windows 2008.
 	</p></li><li class="listitem"><p>
 <a class="indexterm" name="id438891"></a>
@@ -151,7 +151,7 @@ The major new features are:
 	New default dual-daemon winbindd support for better performance.
 	</p></li><li class="listitem"><p>
 <a class="indexterm" name="id439091"></a>
-<a class="indexterm" name="id439098"></a>
+<a class="indexterm" name="id439097"></a>
 <a class="indexterm" name="id439104"></a>
 	Support for migrating from a Windows NT 4.0 domain to a Samba
 	domain and maintaining user, group, and domain SIDs.
@@ -163,7 +163,7 @@ The major new features are:
 	</p></li><li class="listitem"><p>
 <a class="indexterm" name="id439135"></a>
 <a class="indexterm" name="id439142"></a>
-<a class="indexterm" name="id439149"></a>
+<a class="indexterm" name="id439148"></a>
 	Initial support for a distributed Winbind architecture using
 	an LDAP directory for storing SID to UID/GID mappings.
 	</p></li><li class="listitem"><p>
@@ -186,7 +186,7 @@ Whenever a Samba update or upgrade is performed it is highly recommended to read
 <span class="emphasis"><em>WHATSNEW.txt</em></span> that is part of the Samba distribution tarball. This file may also
 be obtain on-line from the Samba <a class="ulink" href="http://www.samba.org/samba/" target="_top">web site</a>, in
 the right column, under Current Stable Release, by clicking on <span class="emphasis"><em>Release Notes</em></span>.
-</p></div><div class="sect3" title="Removed Parameters"><div class="titlepage"><div><div><h4 class="title"><a name="id439226"></a>Removed Parameters</h4></div></div></div><a class="indexterm" name="id439232"></a><p>
+</p></div><div class="sect3" title="Removed Parameters"><div class="titlepage"><div><div><h4 class="title"><a name="id439226"></a>Removed Parameters</h4></div></div></div><a class="indexterm" name="id439231"></a><p>
 In alphabetical order, these are the parameters eliminated from Samba-2.2.x through 3.0.25.
 </p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>admin log</p></li><li class="listitem"><p>alternate permissions</p></li><li class="listitem"><p>character set</p></li><li class="listitem"><p>client codepage</p></li><li class="listitem"><p>code page directory</p></li><li class="listitem"><p>coding system</p></li><li class="listitem"><p>domain admin group</p></li><li class="listitem"><p>domain guest group</p></li><li class="listitem"><p>enable rid algorithm</p></li><li class="listitem"><p>enable svcctl</p></li><li class="listitem"><p>force unknown acl user</p></li><li class="listitem"><p>hosts equiv</p></li><li class="listitem"><p>ldap filter</p></li><li class="listitem"><p>min password length</p></li><li class="listitem"><p>nt smb support</p></li><li class="listitem"><p>post script</p></li><li class="listitem"><p>printer admin</p></li><li class="listitem"><p>printer driver</p></li><li class="listitem"><p>printer driver file</p></li><li class="listitem"><p>printer driver location</p></li><li class="listitem"><p>read size</p></li><li class="listitem"><p>source environment</p></li><li class="listitem"><p>status </p></li><li class="listitem"><p>strip dot </p></li><li class="listitem"><p>total print jobs</p></li><li class="listitem"><p>unicode</p></li><li class="listitem"><p>use rhosts</p></li><li class="listitem"><p>valid chars</p></li><li class="listitem"><p>vfs options</p></li><li class="listitem"><p>winbind enable local accounts</p></li><li class="listitem"><p>winbind max idle children</p></li><li class="listitem"><p>wins partners</p></li></ul></div></div><div class="sect3" title="New Parameters"><div class="titlepage"><div><div><h4 class="title"><a name="id439392"></a>New Parameters</h4></div></div></div><p>The following new parameters have been released up to and including Samba 3.0.25 (grouped by function:)</p><p>Remote Management</p><a class="indexterm" name="id439405"></a><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>abort shutdown script</p></li><li class="listitem"><p>shutdown script</p></li></ul></div><p>User and Group Account Management</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>add group script</p></li><li class="listitem"><p>add machine script</p></li><li class="listitem"><p>add user to group script</p></li><li class="listitem"><p>algorithmic rid base</p></li><li class="listitem"><p>delete group script</p></li><li class="listitem"><p>delete user from group script</p></li><li class="listitem"><p>passdb backend</p></li><li class="listitem"><p>rename user script</p></li><li class="listitem"><p>set primary group script</p></li><li class="listitem"><p>username map script</p></li></ul></div><p>Authentication</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>auth methods</p></li><li class="listitem"><p>ldap password sync</p></li><li class="listitem"><p>passdb expand explicit</p></li><li class="listitem"><p>realm</p></li></ul></div><p>Protocol Options</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>add port command</p></li><li class="listitem"><p>afs token lifetime</p></li><li class="listitem"><p>client lanman auth</p></li><li class="listitem"><p>client NTLMv2 auth</p></li><li class="listitem"><p>client schannel</p></li><li class="listitem"><p>client signing</p></li><li class="listitem"><p>client use spnego</p></li><li class="listitem"><p>defer sharing violations</p></li><li class="listitem"><p>disable netbios</p></li><li class="listitem"><p>dmapi support</p></li><li class="listitem"><p>enable privileges</p></li><li class="listitem"><p>use kerberos keytab</p></li><li class="listitem"><p>log nt token command</p></li><li class="listitem"><p>ntlm auth</p></li><li class="listitem"><p>paranoid server security </p></li><li class="listitem"><p>sendfile</p></li><li class="listitem"><p>server schannel</p></li><li class="listitem"><p>server signing</p></li><li class="listitem"><p>smb ports</p></li><li class="listitem"><p>svcctl list</p></li><li class="listitem"><p>use spnego</p></li></ul></div><p>File Service</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>allocation roundup size</p></li><li class="listitem"><p>acl check permissions</p></li><li class="listitem"><p>acl group control</p></li><li class="listitem"><p>acl map full control</p></li><li class="listitem"><p>aio read size</p></li><li class="listitem"><p>aio write size</p></li><li class="listitem"><p>dfree cache time</p></li><li class="listitem"><p>dfree command</p></li><li class="listitem"><p>ea support</p></li><li class="listitem"><p>enable asu support</p></li><li class="listitem"><p>fam change notify</p></li><li class="listitem"><p>force unknown acl user</p></li><li class="listitem"><p>get quota command</p></li><li class="listitem"><p>hide special files</p></li><li class="listitem"><p>hide unwriteable files</p></li><li class="listitem"><p>inherit owner</p></li><li class="listitem"><p>hostname lookups</p></li><li class="listitem"><p>kernel change notify</p></li><li class="listitem"><p>mangle prefix</p></li><li class="listitem"><p>map acl inherit</p></li><li class="listitem"><p>map read only</p></li><li class="listitem"><p>max stat cache size</p></li><li class="listitem"><p>msdfs proxy</p></li><li class="listitem"><p>open files database hash size</p></li><li class="listitem"><p>set quota command</p></li><li class="listitem"><p>store dos attributes</p></li><li class="listitem"><p>use sendfile</p></li><li class="listitem"><p>usershare allow guests</p></li><li class="listitem"><p>usershare max shares</p></li><li class="listitem"><p>usershare owner only</p></li><li class="listitem"><p>usershare path</p></li><li class="listitem"><p>usershare prefix allow list</p></li><li class="listitem"><p>usershare prefix deny list</p></li><li class="listitem"><p>usershare template share</p></li><li class="listitem"><p>vfs objects</p></li></ul></div><p>Printing</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>cups options</p></li><li class="listitem"><p>cups server</p></li><li class="listitem"><p>force printername</p></li><li class="listitem"><p>iprint server</p></li><li class="listitem"><p>max reported print jobs</p></li><li class="listitem"><p>printcap cache time</p></li></ul></div><p>Unicode and Character Sets</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>display charset</p></li><li class="listitem"><p>dos charset</p></li><li class="listitem"><p>UNIX charset</p></li></ul></div><p>SID to UID/GID Mappings</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>idmap backend</p></li><li class="listitem"><p>idmap gid</p></li><li class="listitem"><p>idmap uid</p></li><li class="listitem"><p>username map script</p></li><li class="listitem"><p>winbind nss info</p></li><li class="listitem"><p>winbind offline logon</p></li><li class="listitem"><p>winbind refresh tickets</p></li><li class="listitem"><p>winbind trusted domains only</p></li><li class="listitem"><p>template primary group</p></li></ul></div><p>LDAP</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>ldap delete dn</p></li><li class="listitem"><p>ldap group suffix</p></li><li class="listitem"><p>ldap idmap suffix</p></li><li class="listitem"><p>ldap machine suffix</p></li><li class="listitem"><p>ldap passwd sync</p></li><li class="listitem"><p>ldap replication sleep</p></li><li class="listitem"><p>ldap timeout</p></li><li class="listitem"><p>ldap user suffix</p></li></ul></div><p>General Configuration</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>eventlog list</p></li><li class="listitem"><p>preload modules</p></li><li class="listitem"><p>reset on zero vc</p></li><li class="listitem"><p>privatedir</p></li></ul></div></div><div class="sect3" title="Modified Parameters (Changes in Behavior)"><div class="titlepage"><div><div><h4 class="title"><a name="id439940"></a>Modified Parameters (Changes in Behavior)</h4></div></div></div><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>acl group control (new default is No, deprecated parameter)</p></li><li class="listitem"><p>change notify timeout (scope changed)</p></li><li class="listitem"><p>dos filemode (disabled by default)</p></li><li class="listitem"><p>dos filetimes (enabled by default)</p></li><li class="listitem"><p>enable asu support (disabled by default)</p></li><li class="listitem"><p>enable privileges (enabled by default)</p></li><li class="listitem"><p>encrypt passwords (enabled by default) </p></li><li class="listitem"><p>host msdfs (enabled by default)</p></li><li class="listitem"><p>mangling method (set to hash2 by default) </p></li><li class="listitem"><p>map to guest</p></li><li class="listitem"><p>only user (deprecated)</p></li><li class="listitem"><p>passwd chat</p></li><li class="listitem"><p>passwd program</p></li><li class="listitem"><p>password server</p></li><li class="listitem"><p>restrict anonymous (integer value)</p></li><li class="listitem"><p>security (new ads value)</p></li><li class="listitem"><p>strict locking (auto by default)</p></li><li class="listitem"><p>winbind cache time (increased to 5 minutes)</p></li><li class="listitem"><p>winbind enum groups (disabled by default)</p></li><li class="listitem"><p>winbind enum users (disabled by default)</p></li><li class="listitem"><p>winbind nested groups (enabled by default)</p></li><li class="listitem"><p>winbind uid (deprecated in favor of idmap uid)</p></li><li class="listitem"><p>winbind gid (deprecated in favor of idmap gid)</p></li><li class="listitem"><p>winbindd nss info</p></li><li class="listitem"><p>write cache (deprecated)</p></li></ul></div></div></div><div class="sect2" title="New Functionality"><div class="titlepage"><div><div><h3 class="title"><a name="id440069"></a>New Functionality</h3></div></div></div><p>
 <a class="indexterm" name="id440076"></a>
@@ -194,7 +194,7 @@ In alphabetical order, these are the parameters eliminated from Samba-2.2.x thro
 	Please refer to the <code class="filename">WHATSNEW.txt</code> file that ships with every release of
 	Samba to obtain detailed information regarding the changes that have been made during the
 	life of the current Samba release.
-	</p><div class="sect3" title="TDB Data Files"><div class="titlepage"><div><div><h4 class="title"><a name="id440093"></a>TDB Data Files</h4></div></div></div><a class="indexterm" name="id440098"></a><p>
+	</p><div class="sect3" title="TDB Data Files"><div class="titlepage"><div><div><h4 class="title"><a name="id440092"></a>TDB Data Files</h4></div></div></div><a class="indexterm" name="id440098"></a><p>
 	Refer to <a class="link" href="install.html" title="Chapter 1. How to Install and Test SAMBA">Installation, Chapter 1</a>, <a class="link" href="install.html#tdbdocs" title="TDB Database File Information">Chapter 1</a>
 	for information pertaining to the Samba-3 data files, their location and the information that must be
 	preserved across server migrations, updates and upgrades.
@@ -212,14 +212,14 @@ In alphabetical order, these are the parameters eliminated from Samba-2.2.x thro
 	Samba-3 that may affect certain installations of Samba.
 	</p><div class="orderedlist"><ol class="orderedlist" type="1"><li class="listitem"><p>
 <a class="indexterm" name="id440450"></a>
-<a class="indexterm" name="id440457"></a>
+<a class="indexterm" name="id440456"></a>
 <a class="indexterm" name="id440463"></a>
 		When operating as a member of a Windows domain, Samba-2.2 would map any users authenticated by the remote DC
 		to the <span class="quote">&#8220;<span class="quote">guest account</span>&#8221;</span> if a UID could not be obtained via the getpwnam() call. Samba-3 rejects
 		the connection with the error message <span class="quote">&#8220;<span class="quote">NT_STATUS_LOGON_FAILURE.</span>&#8221;</span> There is no current workaround
 		to re-establish the Samba-2.2 behavior.
 		</p></li><li class="listitem"><p>
-<a class="indexterm" name="id440485"></a>
+<a class="indexterm" name="id440484"></a>
 <a class="indexterm" name="id440491"></a>
 		When adding machines to a Samba-2.2 controlled domain, the
 		<span class="quote">&#8220;<span class="quote">add user script</span>&#8221;</span> was used to create the UNIX identity of the
@@ -331,24 +331,24 @@ In alphabetical order, these are the parameters eliminated from Samba-2.2.x thro
 			<span class="quote">&#8220;<span class="quote">idmap GID</span>&#8221;</span>.
 			</p></li><li class="listitem"><p>
 <a class="indexterm" name="id441049"></a>
-<a class="indexterm" name="id441055"></a>
+<a class="indexterm" name="id441054"></a>
 			<code class="literal">sambaIdmapEntry</code>  object storing a mapping between a
 			SID and a UNIX UID/GID. These objects are created by the
 			idmap_ldap module as needed.
 			</p></li></ul></div></div><div class="sect4" title="New Suffix for Searching"><div class="titlepage"><div><div><h5 class="title"><a name="id441075"></a>New Suffix for Searching</h5></div></div></div><p>
 <a class="indexterm" name="id441083"></a>
-<a class="indexterm" name="id441089"></a>
+<a class="indexterm" name="id441088"></a>
 <a class="indexterm" name="id441095"></a>
 <a class="indexterm" name="id441102"></a>
 <a class="indexterm" name="id441109"></a>
 <a class="indexterm" name="id441116"></a>
-<a class="indexterm" name="id441123"></a>
+<a class="indexterm" name="id441122"></a>
 		The following new <code class="filename">smb.conf</code> parameters have been added to aid in directing
 		certain LDAP queries when <em class="parameter"><code>passdb backend = ldapsam://...</code></em> has been
 		specified.
 		</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>ldap suffix          used to search for user and computer accounts.</p></li><li class="listitem"><p>ldap user suffix     used to store user accounts.</p></li><li class="listitem"><p>ldap machine suffix  used to store machine trust accounts.</p></li><li class="listitem"><p>ldap group suffix    location of posixGroup/sambaGroupMapping entries.</p></li><li class="listitem"><p>ldap idmap suffix    location of sambaIdmapEntry objects.</p></li></ul></div><p>
 <a class="indexterm" name="id441187"></a>
-<a class="indexterm" name="id441193"></a>
+<a class="indexterm" name="id441192"></a>
 		If an <em class="parameter"><code>ldap suffix</code></em> is defined, it will be appended to all of the
 		remaining subsuffix parameters. In this case, the order of the suffix
 		listings in <code class="filename">smb.conf</code> is important. Always place the <em class="parameter"><code>ldap suffix</code></em> first

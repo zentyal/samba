@@ -2099,6 +2099,7 @@ void initsecurity(void)
 	PyModule_AddObject(m, "SID_BUILTIN_USERS", PyString_FromString("S-1-5-32-545"));
 	PyModule_AddObject(m, "LSA_POLICY_MODE_ALL", PyInt_FromLong(LSA_POLICY_MODE_ALL));
 	PyModule_AddObject(m, "SEC_REG_ENUM_SUBKEYS", PyInt_FromLong(0x00000008));
+	PyModule_AddObject(m, "SECINFO_LABEL", PyInt_FromLong(SECINFO_LABEL));
 	PyModule_AddObject(m, "SEC_ACE_TYPE_ACCESS_DENIED_OBJECT", PyInt_FromLong(SEC_ACE_TYPE_ACCESS_DENIED_OBJECT));
 	PyModule_AddObject(m, "GUID_DRS_MONITOR_TOPOLOGY", PyString_FromString("f98340fb-7c5b-4cdb-a00b-2ebdfa115a96"));
 	PyModule_AddObject(m, "SEC_PRIV_IMPERSONATE", PyInt_FromLong(SEC_PRIV_IMPERSONATE));

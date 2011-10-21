@@ -1409,29 +1409,32 @@ static bool ensure_canon_entry_valid(connection_struct *conn, canon_ace **pp_ace
 		pace->unix_ug.uid = pst->st_ex_uid;
 		pace->trustee = *pfile_owner_sid;
 		pace->attr = ALLOW_ACE;
+		/* Start with existing permissions, principle of least
+		   surprises for the user. */
+		pace->perms = pst->st_ex_mode;
 
 		if (setting_acl) {
 			/* See if the owning user is in any of the other groups in
-			   the ACE. If so, OR in the permissions from that group. */
+			   the ACE, or if there's a matching user entry.
+			   If so, OR in the permissions from that entry. */
 
-			bool group_matched = False;
 			canon_ace *pace_iter;
 
 			for (pace_iter = *pp_ace; pace_iter; pace_iter = pace_iter->next) {
-				if (pace_iter->type == SMB_ACL_GROUP_OBJ || pace_iter->type == SMB_ACL_GROUP) {
+				if (pace_iter->type == SMB_ACL_USER &&
+						pace_iter->unix_ug.uid == pace->unix_ug.uid) {
+					pace->perms |= pace_iter->perms;
+				} else if (pace_iter->type == SMB_ACL_GROUP_OBJ || pace_iter->type == SMB_ACL_GROUP) {
 					if (uid_entry_in_group(conn, pace, pace_iter)) {
 						pace->perms |= pace_iter->perms;
-						group_matched = True;
 					}
 				}
 			}
 
-			/* If we only got an "everyone" perm, just use that. */
-			if (!group_matched) {
+			if (pace->perms == 0) {
+				/* If we only got an "everyone" perm, just use that. */
 				if (got_other)
 					pace->perms = pace_other->perms;
-				else
-					pace->perms = 0;
 			}
 
 			apply_default_perms(params, is_directory, pace, S_IRUSR);
@@ -1496,6 +1499,7 @@ static bool ensure_canon_entry_valid(connection_struct *conn, canon_ace **pp_ace
  Check if a POSIX ACL has the required SMB_ACL_USER_OBJ and SMB_ACL_GROUP_OBJ entries.
  If it does not have them, check if there are any entries where the trustee is the
  file owner or the owning group, and map these to SMB_ACL_USER_OBJ and SMB_ACL_GROUP_OBJ.
+ Note we must not do this to default directory ACLs.
 ****************************************************************************/
 
 static void check_owning_objs(canon_ace *ace, struct dom_sid *pfile_owner_sid, struct dom_sid *pfile_grp_sid)
@@ -1535,50 +1539,6 @@ static void check_owning_objs(canon_ace *ace, struct dom_sid *pfile_owner_sid, s
 		DEBUG(10,("check_owning_objs: ACL is missing an owner entry.\n"));
 	if (!got_group_obj)
 		DEBUG(10,("check_owning_objs: ACL is missing an owning group entry.\n"));
-}
-
-/****************************************************************************
- If an ACE entry is SMB_ACL_USER_OBJ and not CREATOR_OWNER, map to SMB_ACL_USER.
- If an ACE entry is SMB_ACL_GROUP_OBJ and not CREATOR_GROUP, map to SMB_ACL_GROUP
-****************************************************************************/
-
-static bool dup_owning_ace(canon_ace *dir_ace, canon_ace *ace)
-{
-	/* dir ace must be followings.
-	   SMB_ACL_USER_OBJ : trustee(CREATOR_OWNER) -> Posix ACL d:u::perm
-	   SMB_ACL_USER     : not trustee    -> Posix ACL u:user:perm
-	   SMB_ACL_USER_OBJ : trustee -> convert to SMB_ACL_USER : trustee
-	   Posix ACL u:trustee:perm
-
-	   SMB_ACL_GROUP_OBJ: trustee(CREATOR_GROUP) -> Posix ACL d:g::perm
-	   SMB_ACL_GROUP    : not trustee   -> Posix ACL g:group:perm
-	   SMB_ACL_GROUP_OBJ: trustee -> convert to SMB_ACL_GROUP : trustee
-	   Posix ACL g:trustee:perm
-	*/
-
-	if (ace->type == SMB_ACL_USER_OBJ &&
-			!(dom_sid_equal(&ace->trustee, &global_sid_Creator_Owner))) {
-		canon_ace *dup_ace = dup_canon_ace(ace);
-
-		if (dup_ace == NULL) {
-			return false;
-		}
-		dup_ace->type = SMB_ACL_USER;
-		DLIST_ADD_END(dir_ace, dup_ace, canon_ace *);
-	}
-
-	if (ace->type == SMB_ACL_GROUP_OBJ &&
-			!(dom_sid_equal(&ace->trustee, &global_sid_Creator_Group))) {
-		canon_ace *dup_ace = dup_canon_ace(ace);
-
-		if (dup_ace == NULL) {
-			return false;
-		}
-		dup_ace->type = SMB_ACL_GROUP;
-		DLIST_ADD_END(dir_ace, dup_ace, canon_ace *);
-	}
-
-	return true;
 }
 
 /****************************************************************************
@@ -1804,6 +1764,7 @@ static bool create_canon_ace_lists(files_struct *fsp,
 			if ((psa->flags & (SEC_ACE_FLAG_OBJECT_INHERIT|SEC_ACE_FLAG_CONTAINER_INHERIT)) ==
 				(SEC_ACE_FLAG_OBJECT_INHERIT|SEC_ACE_FLAG_CONTAINER_INHERIT)) {
 
+				canon_ace *current_dir_ace = current_ace;
 				DLIST_ADD_END(dir_ace, current_ace, canon_ace *);
 
 				/*
@@ -1829,34 +1790,6 @@ static bool create_canon_ace_lists(files_struct *fsp,
 				if( DEBUGLVL( 10 )) {
 					dbgtext("create_canon_ace_lists: adding dir ACL:\n");
 					print_canon_ace( current_ace, 0);
-				}
-
-				/*
-				 * We have a lossy mapping: directory ACE entries
-				 * CREATOR_OWNER ------\
-				 *     (map to)         +---> SMB_ACL_USER_OBJ
-				 * owning sid    ------/
-				 *
-				 * CREATOR_GROUP ------\
-				 *     (map to)         +---> SMB_ACL_GROUP_OBJ
-				 * primary group sid --/
-				 *
-				 * on set. And on read of a directory ACL
-				 *
-				 * SMB_ACL_USER_OBJ ----> CREATOR_OWNER
-				 * SMB_ACL_GROUP_OBJ ---> CREATOR_GROUP.
-				 *
-				 * Deal with this on set by duplicating
-				 * owning sid and primary group sid ACE
-				 * entries into the directory ACL.
-				 * Fix from Tsukasa Hamano <hamano@osstech.co.jp>.
-				 */
-
-				if (!dup_owning_ace(dir_ace, current_ace)) {
-					DEBUG(0,("create_canon_ace_lists: malloc fail !\n"));
-					free_canon_ace_list(file_ace);
-					free_canon_ace_list(dir_ace);
-					return false;
 				}
 
 				/*
@@ -1892,6 +1825,43 @@ static bool create_canon_ace_lists(files_struct *fsp,
 					 * pointer is now owned by the dir_ace list.
 					 */
 					current_ace = NULL;
+				}
+
+				/*
+				 * current_ace is now either owned by file_ace
+				 * or is NULL. We can safely operate on current_dir_ace
+				 * to treat mapping for default acl entries differently
+				 * than access acl entries.
+				 */
+
+				if (current_dir_ace->owner_type == UID_ACE) {
+					/*
+					 * We already decided above this is a uid,
+					 * for default acls ace's only CREATOR_OWNER
+					 * maps to ACL_USER_OBJ. All other uid
+					 * ace's are ACL_USER.
+					 */
+					if (dom_sid_equal(&current_dir_ace->trustee,
+							&global_sid_Creator_Owner)) {
+						current_dir_ace->type = SMB_ACL_USER_OBJ;
+					} else {
+						current_dir_ace->type = SMB_ACL_USER;
+					}
+				}
+
+				if (current_dir_ace->owner_type == GID_ACE) {
+					/*
+					 * We already decided above this is a gid,
+					 * for default acls ace's only CREATOR_GROUP
+					 * maps to ACL_GROUP_OBJ. All other uid
+					 * ace's are ACL_GROUP.
+					 */
+					if (dom_sid_equal(&current_dir_ace->trustee,
+							&global_sid_Creator_Group)) {
+						current_dir_ace->type = SMB_ACL_GROUP_OBJ;
+					} else {
+						current_dir_ace->type = SMB_ACL_GROUP;
+					}
 				}
 			}
 		}
@@ -1954,16 +1924,14 @@ static bool create_canon_ace_lists(files_struct *fsp,
 		dir_ace = NULL;
 	} else {
 		/*
-		 * Check if we have SMB_ACL_USER_OBJ and SMB_ACL_GROUP_OBJ entries in each
-		 * ACL. If we don't have them, check if any SMB_ACL_USER/SMB_ACL_GROUP
-		 * entries can be converted to *_OBJ. Usually we will already have these
-		 * entries in the Default ACL, and the Access ACL will not have them.
+		 * Check if we have SMB_ACL_USER_OBJ and SMB_ACL_GROUP_OBJ entries in
+		 * the file ACL. If we don't have them, check if any SMB_ACL_USER/SMB_ACL_GROUP
+		 * entries can be converted to *_OBJ. Don't do this for the default
+		 * ACL, we will create them separately for this if needed inside
+		 * ensure_canon_entry_valid().
 		 */
 		if (file_ace) {
 			check_owning_objs(file_ace, pfile_owner_sid, pfile_grp_sid);
-		}
-		if (dir_ace) {
-			check_owning_objs(dir_ace, pfile_owner_sid, pfile_grp_sid);
 		}
 	}
 
@@ -2286,44 +2254,6 @@ static void process_deny_list(connection_struct *conn, canon_ace **pp_ace_list )
 }
 
 /****************************************************************************
- Create a default mode that will be used if a security descriptor entry has
- no user/group/world entries.
-****************************************************************************/
-
-static mode_t create_default_mode(files_struct *fsp, bool interitable_mode)
-{
-	int snum = SNUM(fsp->conn);
-	mode_t and_bits = (mode_t)0;
-	mode_t or_bits = (mode_t)0;
-	mode_t mode;
-
-	if (interitable_mode) {
-		mode = unix_mode(fsp->conn, FILE_ATTRIBUTE_ARCHIVE,
-				 fsp->fsp_name, NULL);
-	} else {
-		mode = S_IRUSR;
-	}
-
-	if (fsp->is_directory)
-		mode |= (S_IWUSR|S_IXUSR);
-
-	/*
-	 * Now AND with the create mode/directory mode bits then OR with the
-	 * force create mode/force directory mode bits.
-	 */
-
-	if (fsp->is_directory) {
-		and_bits = lp_dir_security_mask(snum);
-		or_bits = lp_force_dir_security_mode(snum);
-	} else {
-		and_bits = lp_security_mask(snum);
-		or_bits = lp_force_security_mode(snum);
-	}
-
-	return ((mode & and_bits)|or_bits);
-}
-
-/****************************************************************************
  Unpack a struct security_descriptor into two canonical ace lists. We don't depend on this
  succeeding.
 ****************************************************************************/
@@ -2337,7 +2267,6 @@ static bool unpack_canon_ace(files_struct *fsp,
 				uint32 security_info_sent,
 				const struct security_descriptor *psd)
 {
-	SMB_STRUCT_STAT st;
 	canon_ace *file_ace = NULL;
 	canon_ace *dir_ace = NULL;
 
@@ -2401,17 +2330,8 @@ static bool unpack_canon_ace(files_struct *fsp,
 
 	print_canon_ace_list( "file ace - before valid", file_ace);
 
-	st = *pst;
-
-	/*
-	 * A default 3 element mode entry for a file should be r-- --- ---.
-	 * A default 3 element mode entry for a directory should be rwx --- ---.
-	 */
-
-	st.st_ex_mode = create_default_mode(fsp, False);
-
 	if (!ensure_canon_entry_valid(fsp->conn, &file_ace, fsp->conn->params,
-			fsp->is_directory, pfile_owner_sid, pfile_grp_sid, &st, True)) {
+			fsp->is_directory, pfile_owner_sid, pfile_grp_sid, pst, True)) {
 		free_canon_ace_list(file_ace);
 		free_canon_ace_list(dir_ace);
 		return False;
@@ -2419,16 +2339,8 @@ static bool unpack_canon_ace(files_struct *fsp,
 
 	print_canon_ace_list( "dir ace - before valid", dir_ace);
 
-	/*
-	 * A default inheritable 3 element mode entry for a directory should be the
-	 * mode Samba will use to create a file within. Ensure user rwx bits are set if
-	 * it's a directory.
-	 */
-
-	st.st_ex_mode = create_default_mode(fsp, True);
-
 	if (dir_ace && !ensure_canon_entry_valid(fsp->conn, &dir_ace, fsp->conn->params,
-			fsp->is_directory, pfile_owner_sid, pfile_grp_sid, &st, True)) {
+			fsp->is_directory, pfile_owner_sid, pfile_grp_sid, pst, True)) {
 		free_canon_ace_list(file_ace);
 		free_canon_ace_list(dir_ace);
 		return False;

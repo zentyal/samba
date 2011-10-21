@@ -586,7 +586,6 @@ NTSTATUS change_dir_owner_to_parent(connection_struct *conn,
 				    const char *inherit_from_dir,
 				    const char *fname,
 				    SMB_STRUCT_STAT *psbuf);
-bool is_executable(const char *fname);
 bool is_stat_open(uint32 access_mask);
 bool request_timed_out(struct timeval request_time,
 		       struct timeval timeout);
@@ -606,13 +605,6 @@ NTSTATUS fcb_or_dos_open(struct smb_request *req,
 			 uint32 access_mask,
 			 uint32 share_access,
 			 uint32 create_options);
-bool map_open_params_to_ntcreate(const struct smb_filename *smb_fname,
-				 int deny_mode, int open_func,
-				 uint32 *paccess_mask,
-				 uint32 *pshare_mode,
-				 uint32 *pcreate_disposition,
-				 uint32 *pcreate_options,
-				 uint32_t *pprivate_flags);
 void remove_deferred_open_entry(struct file_id id, uint64_t mid,
 				struct server_id pid);
 NTSTATUS open_file_fchmod(connection_struct *conn,
@@ -801,6 +793,7 @@ size_t req_wct_ofs(struct smb_request *req);
 void chain_reply(struct smb_request *req);
 bool req_is_in_chain(struct smb_request *req);
 void smbd_process(struct smbd_server_connection *sconn);
+bool fork_echo_handler(struct smbd_server_connection *sconn);
 
 /* The following definitions come from smbd/quotas.c  */
 

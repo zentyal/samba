@@ -12,7 +12,7 @@
 	to configure it separately for each domain for which one wants
 	to use it, using disjoint ranges. One usually needs to configure
 	a writeable default idmap range, using for example the
-	<em class="parameter"><code>tdb</code></em> or <em class="parameter"><code>ldap</code></em>)
+	<em class="parameter"><code>tdb</code></em> or <em class="parameter"><code>ldap</code></em>
 	backend, in order to be able to map the BUILTIN sids and
 	possibly other trusted domains. The writeable default config
 	is also needed in order to be able to create group mappings.
@@ -41,13 +41,12 @@
 	id allocation that may be used in internal backends like BUILTIN.
 	</p><pre class="programlisting">
 	[global]
-	idmap backend = tdb
-	idmap uid = 1000000-1999999
-	idmap gid = 1000000-1999999
+	idmap config * : backend = tdb
+	idmap config * : range = 1000000-1999999
 
 	idmap config CORP : backend  = ad
 	idmap config CORP : range = 1000-999999
-	</pre></div><div class="refsect1" title="AUTHOR"><a name="id266886"></a><h2>AUTHOR</h2><p>
+	</pre></div><div class="refsect1" title="AUTHOR"><a name="id266885"></a><h2>AUTHOR</h2><p>
 	The original Samba software and related utilities
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar

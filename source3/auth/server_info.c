@@ -279,8 +279,8 @@ static NTSTATUS group_sids_to_info3(struct netr_SamInfo3 *info3,
 			if (info3->base.primary_gid == rid) continue;
 
 			/* store domain group rid */
-			groups->rids[i].rid = rid;
-			groups->rids[i].attributes = attributes;
+			groups->rids[groups->count].rid = rid;
+			groups->rids[groups->count].attributes = attributes;
 			groups->count++;
 			continue;
 		}
@@ -438,6 +438,13 @@ NTSTATUS samu_to_SamInfo3(TALLOC_CTX *mem_ctx,
 	info3->base.logon_count	= pdb_get_logon_count(samu);
 	info3->base.bad_password_count = pdb_get_bad_password_count(samu);
 
+	info3->base.domain.string = talloc_strdup(info3,
+						  pdb_get_domain(samu));
+	RET_NOMEM(info3->base.domain.string);
+
+	info3->base.domain_sid = dom_sid_dup(info3, &domain_sid);
+	RET_NOMEM(info3->base.domain_sid);
+
 	status = pdb_enum_group_memberships(mem_ctx, samu,
 					    &group_sids, &gids,
 					    &num_group_sids);
@@ -467,13 +474,6 @@ NTSTATUS samu_to_SamInfo3(TALLOC_CTX *mem_ctx,
 		info3->base.logon_server.string = talloc_strdup(info3, login_server);
 		RET_NOMEM(info3->base.logon_server.string);
 	}
-
-	info3->base.domain.string = talloc_strdup(info3,
-						  pdb_get_domain(samu));
-	RET_NOMEM(info3->base.domain.string);
-
-	info3->base.domain_sid = dom_sid_dup(info3, &domain_sid);
-	RET_NOMEM(info3->base.domain_sid);
 
 	info3->base.acct_flags = pdb_get_acct_ctrl(samu);
 

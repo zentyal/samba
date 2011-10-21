@@ -39,11 +39,10 @@ static NTSTATUS smbd_smb2_write_recv(struct tevent_req *req,
 static void smbd_smb2_request_write_done(struct tevent_req *subreq);
 NTSTATUS smbd_smb2_request_process_write(struct smbd_smb2_request *req)
 {
+	NTSTATUS status;
 	const uint8_t *inhdr;
 	const uint8_t *inbody;
 	int i = req->current_idx;
-	size_t expected_body_size = 0x31;
-	size_t body_size;
 	uint32_t in_smbpid;
 	uint16_t in_data_offset;
 	uint32_t in_data_length;
@@ -54,17 +53,12 @@ NTSTATUS smbd_smb2_request_process_write(struct smbd_smb2_request *req)
 	uint32_t in_flags;
 	struct tevent_req *subreq;
 
+	status = smbd_smb2_request_verify_sizes(req, 0x31);
+	if (!NT_STATUS_IS_OK(status)) {
+		return smbd_smb2_request_error(req, status);
+	}
 	inhdr = (const uint8_t *)req->in.vector[i+0].iov_base;
-	if (req->in.vector[i+1].iov_len != (expected_body_size & 0xFFFFFFFE)) {
-		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
-	}
-
 	inbody = (const uint8_t *)req->in.vector[i+1].iov_base;
-
-	body_size = SVAL(inbody, 0x00);
-	if (body_size != expected_body_size) {
-		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
-	}
 
 	in_smbpid = IVAL(inhdr, SMB2_HDR_PID);
 
@@ -75,7 +69,7 @@ NTSTATUS smbd_smb2_request_process_write(struct smbd_smb2_request *req)
 	in_file_id_volatile	= BVAL(inbody, 0x18);
 	in_flags		= IVAL(inbody, 0x2C);
 
-	if (in_data_offset != (SMB2_HDR_BODY + (body_size & 0xFFFFFFFE))) {
+	if (in_data_offset != (SMB2_HDR_BODY + req->in.vector[i+1].iov_len)) {
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
 	}
 
@@ -84,14 +78,11 @@ NTSTATUS smbd_smb2_request_process_write(struct smbd_smb2_request *req)
 	}
 
 	/* check the max write size */
-	if (in_data_length > lp_smb2_max_write()) {
-		/* This is a warning. */
+	if (in_data_length > req->sconn->smb2.max_write) {
 		DEBUG(2,("smbd_smb2_request_process_write : "
 			"client ignored max write :%s: 0x%08X: 0x%08X\n",
-			__location__, in_data_length, lp_smb2_max_write()));
-#if 0
+			__location__, in_data_length, req->sconn->smb2.max_write));
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
-#endif
 	}
 
 	in_data_buffer.data = (uint8_t *)req->in.vector[i+2].iov_base;

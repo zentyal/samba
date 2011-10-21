@@ -697,23 +697,6 @@ static NTSTATUS open_file(files_struct *fsp,
 	return NT_STATUS_OK;
 }
 
-/*******************************************************************
- Return True if the filename is one of the special executable types.
-********************************************************************/
-
-bool is_executable(const char *fname)
-{
-	if ((fname = strrchr_m(fname,'.'))) {
-		if (strequal(fname,".com") ||
-		    strequal(fname,".dll") ||
-		    strequal(fname,".exe") ||
-		    strequal(fname,".sym")) {
-			return True;
-		}
-	}
-	return False;
-}
-
 /****************************************************************************
  Check if we can open a file with a share mode.
  Returns True if conflict, False if not.
@@ -1334,153 +1317,6 @@ NTSTATUS fcb_or_dos_open(struct smb_request *req,
 			    create_options, fsp_to_dup_into);
 }
 
-/****************************************************************************
- Open a file with a share mode - old openX method - map into NTCreate.
-****************************************************************************/
-
-bool map_open_params_to_ntcreate(const struct smb_filename *smb_fname,
-				 int deny_mode, int open_func,
-				 uint32 *paccess_mask,
-				 uint32 *pshare_mode,
-				 uint32 *pcreate_disposition,
-				 uint32 *pcreate_options,
-				 uint32_t *pprivate_flags)
-{
-	uint32 access_mask;
-	uint32 share_mode;
-	uint32 create_disposition;
-	uint32 create_options = FILE_NON_DIRECTORY_FILE;
-	uint32_t private_flags = 0;
-
-	DEBUG(10,("map_open_params_to_ntcreate: fname = %s, deny_mode = 0x%x, "
-		  "open_func = 0x%x\n",
-		  smb_fname_str_dbg(smb_fname), (unsigned int)deny_mode,
-		  (unsigned int)open_func ));
-
-	/* Create the NT compatible access_mask. */
-	switch (GET_OPENX_MODE(deny_mode)) {
-		case DOS_OPEN_EXEC: /* Implies read-only - used to be FILE_READ_DATA */
-		case DOS_OPEN_RDONLY:
-			access_mask = FILE_GENERIC_READ;
-			break;
-		case DOS_OPEN_WRONLY:
-			access_mask = FILE_GENERIC_WRITE;
-			break;
-		case DOS_OPEN_RDWR:
-		case DOS_OPEN_FCB:
-			access_mask = FILE_GENERIC_READ|FILE_GENERIC_WRITE;
-			break;
-		default:
-			DEBUG(10,("map_open_params_to_ntcreate: bad open mode = 0x%x\n",
-				  (unsigned int)GET_OPENX_MODE(deny_mode)));
-			return False;
-	}
-
-	/* Create the NT compatible create_disposition. */
-	switch (open_func) {
-		case OPENX_FILE_EXISTS_FAIL|OPENX_FILE_CREATE_IF_NOT_EXIST:
-			create_disposition = FILE_CREATE;
-			break;
-
-		case OPENX_FILE_EXISTS_OPEN:
-			create_disposition = FILE_OPEN;
-			break;
-
-		case OPENX_FILE_EXISTS_OPEN|OPENX_FILE_CREATE_IF_NOT_EXIST:
-			create_disposition = FILE_OPEN_IF;
-			break;
-
-		case OPENX_FILE_EXISTS_TRUNCATE:
-			create_disposition = FILE_OVERWRITE;
-			break;
-
-		case OPENX_FILE_EXISTS_TRUNCATE|OPENX_FILE_CREATE_IF_NOT_EXIST:
-			create_disposition = FILE_OVERWRITE_IF;
-			break;
-
-		default:
-			/* From samba4 - to be confirmed. */
-			if (GET_OPENX_MODE(deny_mode) == DOS_OPEN_EXEC) {
-				create_disposition = FILE_CREATE;
-				break;
-			}
-			DEBUG(10,("map_open_params_to_ntcreate: bad "
-				  "open_func 0x%x\n", (unsigned int)open_func));
-			return False;
-	}
-
-	/* Create the NT compatible share modes. */
-	switch (GET_DENY_MODE(deny_mode)) {
-		case DENY_ALL:
-			share_mode = FILE_SHARE_NONE;
-			break;
-
-		case DENY_WRITE:
-			share_mode = FILE_SHARE_READ;
-			break;
-
-		case DENY_READ:
-			share_mode = FILE_SHARE_WRITE;
-			break;
-
-		case DENY_NONE:
-			share_mode = FILE_SHARE_READ|FILE_SHARE_WRITE;
-			break;
-
-		case DENY_DOS:
-			private_flags |= NTCREATEX_OPTIONS_PRIVATE_DENY_DOS;
-	                if (is_executable(smb_fname->base_name)) {
-				share_mode = FILE_SHARE_READ|FILE_SHARE_WRITE;
-			} else {
-				if (GET_OPENX_MODE(deny_mode) == DOS_OPEN_RDONLY) {
-					share_mode = FILE_SHARE_READ;
-				} else {
-					share_mode = FILE_SHARE_NONE;
-				}
-			}
-			break;
-
-		case DENY_FCB:
-			private_flags |= NTCREATEX_OPTIONS_PRIVATE_DENY_FCB;
-			share_mode = FILE_SHARE_NONE;
-			break;
-
-		default:
-			DEBUG(10,("map_open_params_to_ntcreate: bad deny_mode 0x%x\n",
-				(unsigned int)GET_DENY_MODE(deny_mode) ));
-			return False;
-	}
-
-	DEBUG(10,("map_open_params_to_ntcreate: file %s, access_mask = 0x%x, "
-		  "share_mode = 0x%x, create_disposition = 0x%x, "
-		  "create_options = 0x%x private_flags = 0x%x\n",
-		  smb_fname_str_dbg(smb_fname),
-		  (unsigned int)access_mask,
-		  (unsigned int)share_mode,
-		  (unsigned int)create_disposition,
-		  (unsigned int)create_options,
-		  (unsigned int)private_flags));
-
-	if (paccess_mask) {
-		*paccess_mask = access_mask;
-	}
-	if (pshare_mode) {
-		*pshare_mode = share_mode;
-	}
-	if (pcreate_disposition) {
-		*pcreate_disposition = create_disposition;
-	}
-	if (pcreate_options) {
-		*pcreate_options = create_options;
-	}
-	if (pprivate_flags) {
-		*pprivate_flags = private_flags;
-	}
-
-	return True;
-
-}
-
 static void schedule_defer_open(struct share_mode_lock *lck,
 				struct timeval request_time,
 				struct smb_request *req)
@@ -1704,12 +1540,6 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 
 	ZERO_STRUCT(id);
 
-	/* Windows allows a new file to be created and
-	   silently removes a FILE_ATTRIBUTE_DIRECTORY
-	   sent by the client. Do the same. */
-
-	new_dos_attributes &= ~FILE_ATTRIBUTE_DIRECTORY;
-
 	if (conn->printer) {
 		/*
 		 * Printers are handled completely differently.
@@ -1743,6 +1573,12 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 		unx_mode = (mode_t)(new_dos_attributes & ~FILE_FLAG_POSIX_SEMANTICS);
 		new_dos_attributes = 0;
 	} else {
+		/* Windows allows a new file to be created and
+		   silently removes a FILE_ATTRIBUTE_DIRECTORY
+		   sent by the client. Do the same. */
+
+		new_dos_attributes &= ~FILE_ATTRIBUTE_DIRECTORY;
+
 		/* We add FILE_ATTRIBUTE_ARCHIVE to this as this mode is only used if the file is
 		 * created new. */
 		unx_mode = unix_mode(conn, new_dos_attributes | FILE_ATTRIBUTE_ARCHIVE,

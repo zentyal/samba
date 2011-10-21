@@ -1,13 +1,13 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 37. SWAT: The Samba Web Administration Tool</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.75.2"><link rel="home" href="index.html" title="The Official Samba 3.5.x HOWTO and Reference Guide"><link rel="up" href="migration.html" title="Part IV. Migration and Updating"><link rel="prev" href="NT4Migration.html" title="Chapter 36. Migration from NT4 PDC to Samba-3 PDC"><link rel="next" href="troubleshooting.html" title="Part V. Troubleshooting"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 37. SWAT: The Samba Web Administration Tool</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="NT4Migration.html">Prev</a> </td><th width="60%" align="center">Part IV. Migration and Updating</th><td width="20%" align="right"> <a accesskey="n" href="troubleshooting.html">Next</a></td></tr></table><hr></div><div class="chapter" title="Chapter 37. SWAT: The Samba Web Administration Tool"><div class="titlepage"><div><div><h2 class="title"><a name="SWAT"></a>Chapter 37. SWAT: The Samba Web Administration Tool</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><p class="pubdate">April 21, 2003</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="SWAT.html#id443274">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="SWAT.html#id443386">Guidelines and Technical Tips</a></span></dt><dd><dl><dt><span class="sect2"><a href="SWAT.html#id443404">Validate SWAT Installation</a></span></dt><dt><span class="sect2"><a href="SWAT.html#xinetd">Enabling SWAT for Use</a></span></dt><dt><span class="sect2"><a href="SWAT.html#id443982">Securing SWAT through SSL</a></span></dt><dt><span class="sect2"><a href="SWAT.html#id444127">Enabling SWAT Internationalization Support</a></span></dt></dl></dd><dt><span class="sect1"><a href="SWAT.html#id444313">Overview and Quick Tour</a></span></dt><dd><dl><dt><span class="sect2"><a href="SWAT.html#id444324">The SWAT Home Page</a></span></dt><dt><span class="sect2"><a href="SWAT.html#id444377">Global Settings</a></span></dt><dt><span class="sect2"><a href="SWAT.html#id444473">Share Settings</a></span></dt><dt><span class="sect2"><a href="SWAT.html#id444525">Printers Settings</a></span></dt><dt><span class="sect2"><a href="SWAT.html#id444577">The SWAT Wizard</a></span></dt><dt><span class="sect2"><a href="SWAT.html#id444634">The Status Page</a></span></dt><dt><span class="sect2"><a href="SWAT.html#id444672">The View Page</a></span></dt><dt><span class="sect2"><a href="SWAT.html#id444690">The Password Change Page</a></span></dt></dl></dd></dl></div><p>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 37. SWAT: The Samba Web Administration Tool</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.75.2"><link rel="home" href="index.html" title="The Official Samba 3.5.x HOWTO and Reference Guide"><link rel="up" href="migration.html" title="Part IV. Migration and Updating"><link rel="prev" href="NT4Migration.html" title="Chapter 36. Migration from NT4 PDC to Samba-3 PDC"><link rel="next" href="troubleshooting.html" title="Part V. Troubleshooting"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 37. SWAT: The Samba Web Administration Tool</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="NT4Migration.html">Prev</a> </td><th width="60%" align="center">Part IV. Migration and Updating</th><td width="20%" align="right"> <a accesskey="n" href="troubleshooting.html">Next</a></td></tr></table><hr></div><div class="chapter" title="Chapter 37. SWAT: The Samba Web Administration Tool"><div class="titlepage"><div><div><h2 class="title"><a name="SWAT"></a>Chapter 37. SWAT: The Samba Web Administration Tool</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><p class="pubdate">April 21, 2003</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="SWAT.html#id443273">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="SWAT.html#id443386">Guidelines and Technical Tips</a></span></dt><dd><dl><dt><span class="sect2"><a href="SWAT.html#id443404">Validate SWAT Installation</a></span></dt><dt><span class="sect2"><a href="SWAT.html#xinetd">Enabling SWAT for Use</a></span></dt><dt><span class="sect2"><a href="SWAT.html#id443982">Securing SWAT through SSL</a></span></dt><dt><span class="sect2"><a href="SWAT.html#id444127">Enabling SWAT Internationalization Support</a></span></dt></dl></dd><dt><span class="sect1"><a href="SWAT.html#id444313">Overview and Quick Tour</a></span></dt><dd><dl><dt><span class="sect2"><a href="SWAT.html#id444324">The SWAT Home Page</a></span></dt><dt><span class="sect2"><a href="SWAT.html#id444377">Global Settings</a></span></dt><dt><span class="sect2"><a href="SWAT.html#id444473">Share Settings</a></span></dt><dt><span class="sect2"><a href="SWAT.html#id444525">Printers Settings</a></span></dt><dt><span class="sect2"><a href="SWAT.html#id444577">The SWAT Wizard</a></span></dt><dt><span class="sect2"><a href="SWAT.html#id444633">The Status Page</a></span></dt><dt><span class="sect2"><a href="SWAT.html#id444672">The View Page</a></span></dt><dt><span class="sect2"><a href="SWAT.html#id444690">The Password Change Page</a></span></dt></dl></dd></dl></div><p>
 <a class="indexterm" name="id443242"></a>
 <a class="indexterm" name="id443249"></a>
-<a class="indexterm" name="id443256"></a>
+<a class="indexterm" name="id443255"></a>
 There are many and varied opinions regarding the usefulness of SWAT.  No matter how hard one tries to produce
 the perfect configuration tool, it remains an object of personal taste. SWAT is a tool that allows Web-based
 configuration of Samba. It has a wizard that may help to get Samba configured quickly, it has
 context-sensitive help on each <code class="filename">smb.conf</code> parameter, it provides for monitoring of current state of connection
 information, and it allows networkwide MS Windows network password management.
-</p><div class="sect1" title="Features and Benefits"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id443274"></a>Features and Benefits</h2></div></div></div><p>
+</p><div class="sect1" title="Features and Benefits"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id443273"></a>Features and Benefits</h2></div></div></div><p>
 <a class="indexterm" name="id443281"></a>
 SWAT is a facility that is part of the Samba suite. The main executable is called
 <code class="literal">swat</code> and is invoked by the internetworking super daemon.
@@ -19,7 +19,7 @@ version of Samba. Unlike tools and utilities that are external to Samba, SWAT is
 up to date as known Samba parameters change. SWAT provides context-sensitive help for each
 configuration parameter, directly from <code class="literal">man</code> page entries.
 </p><p>
-<a class="indexterm" name="id443326"></a>
+<a class="indexterm" name="id443325"></a>
 <a class="indexterm" name="id443332"></a>
 <a class="indexterm" name="id443339"></a>
 Some network administrators believe that it is a good idea to write systems
@@ -39,14 +39,14 @@ and only nondefault settings will be written to the file.
 This section aims to unlock the dark secrets behind how SWAT may be made to work,
 how it can be made more secure, and how to solve internationalization support problems.
 </p><div class="sect2" title="Validate SWAT Installation"><div class="titlepage"><div><div><h3 class="title"><a name="id443404"></a>Validate SWAT Installation</h3></div></div></div><p>
-<a class="indexterm" name="id443412"></a>
+<a class="indexterm" name="id443411"></a>
 The very first step that should be taken before attempting to configure a host
 system for SWAT operation is to check that it is installed. This may seem a trivial
 point to some, but several Linux distributions do not install SWAT by default,
 even though they do ship an installable binary support package containing SWAT
 on the distribution media.
 </p><p>
-<a class="indexterm" name="id443425"></a>
+<a class="indexterm" name="id443424"></a>
 When you have confirmed that SWAT is installed, it is necessary to validate
 that the installation includes the binary <code class="literal">swat</code> file as well
 as all the supporting text and Web files. A number of operating system distributions
@@ -91,7 +91,7 @@ Common samba options:
   -l, --log-basename=LOGFILEBASE       Basename for log/debug files
   -V, --version                        Print version
 </pre><p>
-</p></div><div class="sect3" title="Locating the SWAT Support Files"><div class="titlepage"><div><div><h4 class="title"><a name="id443612"></a>Locating the SWAT Support Files</h4></div></div></div><p>
+</p></div><div class="sect3" title="Locating the SWAT Support Files"><div class="titlepage"><div><div><h4 class="title"><a name="id443611"></a>Locating the SWAT Support Files</h4></div></div></div><p>
 Now that you have found that <code class="literal">swat</code> is in the search path, it is easy
 to identify where the file is located. Here is another simple way this may be done:
 </p><pre class="screen">
@@ -227,7 +227,7 @@ full change and commit ability. The buttons that will be exposed include
 <span class="guibutton">WIZARD</span>, <span class="guibutton">STATUS</span>, <span class="guibutton">VIEW</span>, and <span class="guibutton">PASSWORD</span>.
 </p></div><div class="sect2" title="Securing SWAT through SSL"><div class="titlepage"><div><div><h3 class="title"><a name="id443982"></a>Securing SWAT through SSL</h3></div></div></div><p>
 <a class="indexterm" name="id443990"></a>
-<a class="indexterm" name="id443997"></a>
+<a class="indexterm" name="id443996"></a>
 Many people have asked about how to set up SWAT with SSL to allow for secure remote
 administration of Samba. Here is a method that works, courtesy of Markus Krieger.
 </p><p>
@@ -270,7 +270,7 @@ To enable this feature:
 <a class="indexterm" name="id444168"></a>
 <a class="indexterm" name="id444175"></a>
 <a class="indexterm" name="id444182"></a>
-<a class="indexterm" name="id444189"></a>
+<a class="indexterm" name="id444188"></a>
 The name of the <code class="literal">msg</code> file is the same as the language ID sent by the browser. For
 example, <span class="emphasis"><em>en</em></span> means English, <span class="emphasis"><em>ja</em></span> means Japanese, <span class="emphasis"><em>fr</em></span> means French.
 </p><p>
@@ -370,7 +370,7 @@ Finally, there are a limited set of options that determine what type of server S
 will be configured for, whether it will be a WINS server, participate as a WINS client, or
 operate with no WINS support. By clicking one button, you can elect to expose (or not) user
 home directories.
-</p></div><div class="sect2" title="The Status Page"><div class="titlepage"><div><div><h3 class="title"><a name="id444634"></a>The Status Page</h3></div></div></div><p>
+</p></div><div class="sect2" title="The Status Page"><div class="titlepage"><div><div><h3 class="title"><a name="id444633"></a>The Status Page</h3></div></div></div><p>
 The status page serves a limited purpose. First, it allows control of the Samba daemons.
 The key daemons that create the Samba server environment are <span class="application">smbd</span>, <span class="application">nmbd</span>, and <span class="application">winbindd</span>.
 </p><p>

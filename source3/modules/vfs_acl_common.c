@@ -252,7 +252,7 @@ static NTSTATUS get_nt_acl_internal(vfs_handle_struct *handle,
 			        uint32_t security_info,
 				struct security_descriptor **ppdesc)
 {
-	DATA_BLOB blob;
+	DATA_BLOB blob = data_blob_null;
 	NTSTATUS status;
 	uint16_t hash_type = XATTR_SD_HASH_TYPE_NONE;
 	uint8_t hash[XATTR_SD_HASH_SIZE];
@@ -830,6 +830,13 @@ static int acl_common_remove_object(vfs_handle_struct *handle,
 	const char *final_component = NULL;
 	struct smb_filename local_fname;
 	int saved_errno = 0;
+	char *saved_dir = NULL;
+
+	saved_dir = vfs_GetWd(talloc_tos(),conn);
+	if (!saved_dir) {
+		saved_errno = errno;
+		goto out;
+	}
 
 	if (!parent_dirname(talloc_tos(), path,
 			&parent_dir, &final_component)) {
@@ -842,7 +849,7 @@ static int acl_common_remove_object(vfs_handle_struct *handle,
 		parent_dir, final_component ));
 
  	/* cd into the parent dir to pin it. */
-	ret = SMB_VFS_CHDIR(conn, parent_dir);
+	ret = vfs_ChDir(conn, parent_dir);
 	if (ret == -1) {
 		saved_errno = errno;
 		goto out;
@@ -861,7 +868,7 @@ static int acl_common_remove_object(vfs_handle_struct *handle,
 	/* Ensure we have this file open with DELETE access. */
 	id = vfs_file_id_from_sbuf(conn, &local_fname.st);
 	for (fsp = file_find_di_first(conn->sconn, id); fsp;
-	     file_find_di_next(fsp)) {
+		     fsp = file_find_di_next(fsp)) {
 		if (fsp->access_mask & DELETE_ACCESS &&
 				fsp->delete_on_close) {
 			/* We did open this for delete,
@@ -896,7 +903,9 @@ static int acl_common_remove_object(vfs_handle_struct *handle,
 
 	TALLOC_FREE(parent_dir);
 
-	vfs_ChDir(conn, conn->connectpath);
+	if (saved_dir) {
+		vfs_ChDir(conn, saved_dir);
+	}
 	if (saved_errno) {
 		errno = saved_errno;
 	}

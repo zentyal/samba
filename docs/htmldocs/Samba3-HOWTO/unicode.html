@@ -229,7 +229,7 @@ Setting up Japanese charsets is quite difficult. This is mainly because:
 			In addition, although it is not directly concerned with Samba, since
 			there is a delicate difference between the iconv() function, which is
 			generally used on UNIX, and the functions used on other platforms,
-			such as Windows and Java, so far is concerens the conversion between
+			such as Windows and Java, so far is concerns the conversion between
 			Shift_JIS and Unicode UTF-8 must be done with care and recognition
 			of the limitations involved in the process.
 			</p><p>
@@ -239,7 +239,7 @@ Setting up Japanese charsets is quite difficult. This is mainly because:
 			UTF-8 locale is not available for Mac OS X.
 			</p></dd><dt><span class="term">Shift_JIS series + vfs_cap (CAP encoding)</span></dt><dd><p>
 <a class="indexterm" name="id433361"></a>
-<a class="indexterm" name="id433368"></a>
+<a class="indexterm" name="id433367"></a>
 <a class="indexterm" name="id433374"></a>
 			CAP encoding means a specification used in CAP and NetAtalk, file
 			server software for Macintosh. In the case of CAP encoding, for
@@ -269,11 +269,11 @@ Setting up Japanese charsets is quite difficult. This is mainly because:
 			</p><p>
 			To use CAP encoding on Samba-3, you should use the unix charset parameter and VFS 
 			as in <a class="link" href="unicode.html#vfscap-intl" title="Example 30.1. VFS CAP">the VFS CAP smb.conf file</a>.
-			</p><div class="example"><a name="vfscap-intl"></a><p class="title"><b>Example 30.1. VFS CAP</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td># the locale name "CP932" may be different</td></tr><tr><td><a class="indexterm" name="id433461"></a><em class="parameter"><code>dos charset = CP932</code></em></td></tr><tr><td><a class="indexterm" name="id433472"></a><em class="parameter"><code>unix charset = CP932</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[cap-share]</code></em></td></tr><tr><td><a class="indexterm" name="id433492"></a><em class="parameter"><code>vfs option = cap</code></em></td></tr></table></div></div><br class="example-break"><p>
+			</p><div class="example"><a name="vfscap-intl"></a><p class="title"><b>Example 30.1. VFS CAP</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td># the locale name "CP932" may be different</td></tr><tr><td><a class="indexterm" name="id433460"></a><em class="parameter"><code>dos charset = CP932</code></em></td></tr><tr><td><a class="indexterm" name="id433472"></a><em class="parameter"><code>unix charset = CP932</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[cap-share]</code></em></td></tr><tr><td><a class="indexterm" name="id433492"></a><em class="parameter"><code>vfs option = cap</code></em></td></tr></table></div></div><br class="example-break"><p>
 <a class="indexterm" name="id433507"></a>
 <a class="indexterm" name="id433514"></a>
 <a class="indexterm" name="id433521"></a>
-<a class="indexterm" name="id433528"></a>
+<a class="indexterm" name="id433527"></a>
 			You should set CP932 if using GNU libiconv for unix charset. With this setting,
 			filenames in the <span class="quote">&#8220;<span class="quote">cap-share</span>&#8221;</span> share are written with CAP encoding.
 			</p></dd></dl></div></div><div class="sect2" title="Individual Implementations"><div class="titlepage"><div><div><h3 class="title"><a name="id433545"></a>Individual Implementations</h3></div></div></div><p>
@@ -299,7 +299,7 @@ display charset = CP932
 			to glibc-2.2.5/2.3.1/2.3.2 or should use the patch-merged versions, glibc-2.3.3 or later.
 			</p><p>
 			Using the above glibc, these setting are available:
-			</p><table border="0" summary="Simple list" class="simplelist"><tr><td><a class="indexterm" name="id433614"></a><em class="parameter"><code>dos charset = CP932</code></em></td></tr><tr><td><a class="indexterm" name="id433625"></a><em class="parameter"><code>unix charset = CP932 / eucJP-ms / UTF-8</code></em></td></tr><tr><td><a class="indexterm" name="id433637"></a><em class="parameter"><code>display charset = CP932</code></em></td></tr></table><p>
+			</p><table border="0" summary="Simple list" class="simplelist"><tr><td><a class="indexterm" name="id433613"></a><em class="parameter"><code>dos charset = CP932</code></em></td></tr><tr><td><a class="indexterm" name="id433625"></a><em class="parameter"><code>unix charset = CP932 / eucJP-ms / UTF-8</code></em></td></tr><tr><td><a class="indexterm" name="id433636"></a><em class="parameter"><code>display charset = CP932</code></em></td></tr></table><p>
 			</p><p>
 			Other Japanese locales (for example, Shift_JIS and EUC-JP) should not
 			be used because of the lack of the compatibility with Windows.

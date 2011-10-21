@@ -2,12 +2,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 08/08/2011
+.\"      Date: 10/18/2011
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "08/08/2011" "Samba 3\&.6" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "10/18/2011" "Samba 3\&.6" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -1359,6 +1359,32 @@ Default:
 .sp
 Example:
 \fI\fIallocation roundup size\fR\fR\fI = \fR\fI0 # (to disable roundups)\fR\fI \fR
+.RE
+
+allow insecure wide links (G)
+.\" allow insecure wide links
+.PP
+.RS 4
+In normal operation the option
+\m[blue]\fBwide links\fR\m[]
+which allows the server to follow symlinks outside of a share path is automatically disabled when
+\m[blue]\fBunix extensions\fR\m[]
+are enabled on a Samba server\&. This is done for security purposes to prevent UNIX clients creating symlinks to areas of the server file system that the administrator does not wish to export\&.
+.sp
+Setting
+\m[blue]\fBallow insecure wide links\fR\m[]
+to true disables the link between these two parameters, removing this protection and allowing a site to configure the server to follow symlinks (by setting
+\m[blue]\fBwide links\fR\m[]
+to "true") even when
+\m[blue]\fBunix extensions\fR\m[]
+is turned on\&.
+.sp
+If is not recommended to enable this option unless you fully understand the implications of allowing the server to follow symbolic links created by UNIX clients\&. For most normal Samba configurations this would be considered a security hole and setting this parameter is not recommended\&.
+.sp
+This option was added at the request of sites who had deliberately set Samba up in this way and needed to continue supporting this functionality without having to patch the Samba code\&.
+.sp
+Default:
+\fI\fIallow insecure wide links\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 allow trusted domains (G)
@@ -9266,7 +9292,7 @@ parameter for SMB1\&. You should never need to set this parameter\&.
 The default is 8192 credits, which is the same as a Windows 2008R2 SMB2 server\&.
 .sp
 Default:
-\fI\fIsmb2 max credits\fR\fR\fI = \fR\fI128\fR\fI \fR
+\fI\fIsmb2 max credits\fR\fR\fI = \fR\fI8192\fR\fI \fR
 .RE
 
 smb2 max read (G)
@@ -9277,10 +9303,10 @@ This option specifies the protocol value that
 \fBsmbd\fR(8)
 will return to a client, informing the client of the largest size that may be returned by a single SMB2 read call\&.
 .sp
-The default is 1048576 bytes (1MB), which is the same as a Windows7 SMB2 server\&.
+The maximum is 65536 bytes (64KB), which is the same as a Windows Vista SMB2 server\&.
 .sp
 Default:
-\fI\fIsmb2 max read\fR\fR\fI = \fR\fI1048576\fR\fI \fR
+\fI\fIsmb2 max read\fR\fR\fI = \fR\fI65536\fR\fI \fR
 .RE
 
 smb2 max trans (G)
@@ -9291,10 +9317,10 @@ This option specifies the protocol value that
 \fBsmbd\fR(8)
 will return to a client, informing the client of the largest size of buffer that may be used in querying file meta\-data via QUERY_INFO and related SMB2 calls\&.
 .sp
-The default is 1048576 bytes (1MB), which is the same as a Windows7 SMB2 server\&.
+The maximum is 65536 bytes (64KB), which is the same as a Windows Vista SMB2 server\&.
 .sp
 Default:
-\fI\fIsmb2 max trans\fR\fR\fI = \fR\fI1048576\fR\fI \fR
+\fI\fIsmb2 max trans\fR\fR\fI = \fR\fI65536\fR\fI \fR
 .RE
 
 smb2 max write (G)
@@ -9305,10 +9331,10 @@ This option specifies the protocol value that
 \fBsmbd\fR(8)
 will return to a client, informing the client of the largest size that may be sent to the server by a single SMB2 write call\&.
 .sp
-The default is 1048576 bytes (1MB), which is the same as a Windows7 SMB2 server\&.
+The maximum is 65536 bytes (64KB), which is the same as a Windows Vista SMB2 server\&.
 .sp
 Default:
-\fI\fIsmb2 max write\fR\fR\fI = \fR\fI1048576\fR\fI \fR
+\fI\fIsmb2 max write\fR\fR\fI = \fR\fI65536\fR\fI \fR
 .RE
 
 smb encrypt (S)
@@ -9803,6 +9829,10 @@ This boolean parameter controls whether Samba implements the CIFS UNIX extension
 Note if this parameter is turned on, the
 \m[blue]\fBwide links\fR\m[]
 parameter will automatically be disabled\&.
+.sp
+See the parameter
+\m[blue]\fBallow insecure wide links\fR\m[]
+if you wish to change this coupling between the two parameters\&.
 .sp
 Default:
 \fI\fIunix extensions\fR\fR\fI = \fR\fIyes\fR\fI \fR
@@ -10398,6 +10428,10 @@ This parameter controls whether or not links in the UNIX file system may be foll
 Note: Turning this parameter on when UNIX extensions are enabled will allow UNIX clients to create symbolic links on the share that can point to files or directories outside restricted path exported by the share definition\&. This can cause access to areas outside of the share\&. Due to this problem, this parameter will be automatically disabled (with a message in the log file) if the
 \m[blue]\fBunix extensions\fR\m[]
 option is on\&.
+.sp
+See the parameter
+\m[blue]\fBallow insecure wide links\fR\m[]
+if you wish to change this coupling between the two parameters\&.
 .sp
 Default:
 \fI\fIwide links\fR\fR\fI = \fR\fIno\fR\fI \fR

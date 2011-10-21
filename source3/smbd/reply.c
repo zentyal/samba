@@ -1766,7 +1766,7 @@ void reply_open(struct smb_request *req)
 		goto out;
 	}
 
-	if (!map_open_params_to_ntcreate(smb_fname, deny_mode,
+	if (!map_open_params_to_ntcreate(smb_fname->base_name, deny_mode,
 					 OPENX_FILE_EXISTS_OPEN, &access_mask,
 					 &share_mode, &create_disposition,
 					 &create_options, &private_flags)) {
@@ -1941,7 +1941,8 @@ void reply_open_and_X(struct smb_request *req)
 		goto out;
 	}
 
-	if (!map_open_params_to_ntcreate(smb_fname, deny_mode, smb_ofun,
+	if (!map_open_params_to_ntcreate(smb_fname->base_name, deny_mode,
+					 smb_ofun,
 					 &access_mask, &share_mode,
 					 &create_disposition,
 					 &create_options,
@@ -5935,6 +5936,47 @@ static void notify_rename(connection_struct *conn, bool is_dir,
 }
 
 /****************************************************************************
+ Returns an error if the parent directory for a filename is open in an
+ incompatible way.
+****************************************************************************/
+
+static NTSTATUS parent_dirname_compatible_open(connection_struct *conn,
+					const struct smb_filename *smb_fname_dst_in)
+{
+	char *parent_dir = NULL;
+	struct smb_filename smb_fname_parent;
+	struct file_id id;
+	files_struct *fsp = NULL;
+	int ret;
+
+	if (!parent_dirname(talloc_tos(), smb_fname_dst_in->base_name,
+			&parent_dir, NULL)) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	ZERO_STRUCT(smb_fname_parent);
+	smb_fname_parent.base_name = parent_dir;
+
+	ret = SMB_VFS_LSTAT(conn, &smb_fname_parent);
+	if (ret == -1) {
+		return map_nt_error_from_unix(errno);
+	}
+
+	/*
+	 * We're only checking on this smbd here, mostly good
+	 * enough.. and will pass tests.
+	 */
+
+	id = vfs_file_id_from_sbuf(conn, &smb_fname_parent.st);
+	for (fsp = file_find_di_first(conn->sconn, id); fsp;
+			fsp = file_find_di_next(fsp)) {
+		if (fsp->access_mask & DELETE_ACCESS) {
+			return NT_STATUS_SHARING_VIOLATION;
+                }
+        }
+	return NT_STATUS_OK;
+}
+
+/****************************************************************************
  Rename an open file - given an fsp.
 ****************************************************************************/
 
@@ -5951,6 +5993,11 @@ NTSTATUS rename_internals_fsp(connection_struct *conn,
 	bool dst_exists, old_is_stream, new_is_stream;
 
 	status = check_name(conn, smb_fname_dst_in->base_name);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	status = parent_dirname_compatible_open(conn, smb_fname_dst_in);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -6732,7 +6779,8 @@ NTSTATUS copy_file(TALLOC_CTX *ctx,
 	if (!target_is_directory && count) {
 		new_create_disposition = FILE_OPEN;
 	} else {
-		if (!map_open_params_to_ntcreate(smb_fname_dst_tmp, 0, ofun,
+		if (!map_open_params_to_ntcreate(smb_fname_dst_tmp->base_name,
+						 0, ofun,
 						 NULL, NULL,
 						 &new_create_disposition,
 						 NULL,

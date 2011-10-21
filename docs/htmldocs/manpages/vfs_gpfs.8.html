@@ -86,13 +86,20 @@
 		</p><p>Following is the behaviour of Samba for different values :</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p><code class="literal">dontcare (default)</code> - copy the ACEs as they come</p></li><li class="listitem"><p><code class="literal">reject</code> - stop operation and exit with error on ACL set op</p></li><li class="listitem"><p><code class="literal">ignore</code> - don't include the second matching ACE</p></li><li class="listitem"><p><code class="literal">merge</code> - bitwise OR the 2 ace.flag fields and 2 ace.mask fields of the 2 duplicate ACEs into 1 ACE</p></li></ul></div></dd><dt><span class="term">nfs4:chown = [yes|no]</span></dt><dd><p>This parameter allows enabling or disabling the chown supported
 		by the underlying filesystem. This parameter should be enabled with
 		care as it might leave your system insecure.</p><p>Some filesystems allow chown as a) giving b) stealing. It is the latter
-		that is considered a risk.</p><p>Following is the behaviour of Samba for different values : </p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p><code class="literal">yes</code> - Enable chown if as supported by the under filesystem</p></li><li class="listitem"><p><code class="literal">no (default)</code> - Disable chown</p></li></ul></div></dd></dl></div></div><div class="refsect1" title="EXAMPLES"><a name="id307172"></a><h2>EXAMPLES</h2><p>A GPFS mount can be exported via Samba as follows :</p><pre class="programlisting">
+		that is considered a risk.</p><p>Following is the behaviour of Samba for different values : </p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p><code class="literal">yes</code> - Enable chown if as supported by the under filesystem</p></li><li class="listitem"><p><code class="literal">no (default)</code> - Disable chown</p></li></ul></div></dd><dt><span class="term">gpfs:syncio = [yes|no]</span></dt><dd><p>This parameter makes Samba open all files with O_SYNC.
+		  This triggers optimizations in GPFS for workloads that
+		  heavily share files.</p><p>Following is the behaviour of Samba for different
+		  values:
+		</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p><code class="literal">yes</code>Open files with O_SYNC
+		</p></li><li class="listitem"><p><code class="literal">no (default)</code>Open files as
+		    normal Samba would do
+		</p></li></ul></div></dd></dl></div></div><div class="refsect1" title="EXAMPLES"><a name="id307209"></a><h2>EXAMPLES</h2><p>A GPFS mount can be exported via Samba as follows :</p><pre class="programlisting">
         <em class="parameter"><code>[samba_gpfs_share]</code></em>
 	<a class="link" href="smb.conf.5.html#VFSOBJECTS" target="_top">vfs objects = gpfs</a>
 	<a class="link" href="smb.conf.5.html#PATH" target="_top">path = /test/gpfs_mount</a>
 	<a class="link" href="smb.conf.5.html#NFS4:MODE" target="_top">nfs4: mode = special</a>
 	<a class="link" href="smb.conf.5.html#NFS4:ACEDUP" target="_top">nfs4: acedup = merge</a>
-</pre></div><div class="refsect1" title="CAVEATS"><a name="id307325"></a><h2>CAVEATS</h2><p>
+</pre></div><div class="refsect1" title="CAVEATS"><a name="id307362"></a><h2>CAVEATS</h2><p>
 	Depending on the version of gpfs, the <code class="literal">libgpfs_gpl</code>
 	library or the <code class="literal">libgpfs</code> library is needed at
 	runtime by the <code class="literal">gpfs</code> VFS module:
@@ -105,8 +112,8 @@
 	At build time, only the header file <code class="literal">gpfs_gpl.h</code>
 	is required , which is a symlink to <code class="literal">gpfs.h</code> in
 	gpfs versions newer than 3.2.1 PTF8.
-	</p></div><div class="refsect1" title="VERSION"><a name="id307379"></a><h2>VERSION</h2><p>This man page is correct for version 3.0.25 of the Samba suite.
-	</p></div><div class="refsect1" title="AUTHOR"><a name="id307389"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities
+	</p></div><div class="refsect1" title="VERSION"><a name="id307417"></a><h2>VERSION</h2><p>This man page is correct for version 3.0.25 of the Samba suite.
+	</p></div><div class="refsect1" title="AUTHOR"><a name="id307426"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar
 	to the way the Linux kernel is developed.</p><p>The GPFS VFS module was created with contributions from

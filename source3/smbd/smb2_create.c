@@ -100,8 +100,6 @@ NTSTATUS smbd_smb2_request_process_create(struct smbd_smb2_request *smb2req)
 {
 	const uint8_t *inbody;
 	int i = smb2req->current_idx;
-	size_t expected_body_size = 0x39;
-	size_t body_size;
 	uint8_t in_oplock_level;
 	uint32_t in_impersonation_level;
 	uint32_t in_desired_access;
@@ -127,16 +125,11 @@ NTSTATUS smbd_smb2_request_process_create(struct smbd_smb2_request *smb2req)
 	bool ok;
 	struct tevent_req *tsubreq;
 
-	if (smb2req->in.vector[i+1].iov_len != (expected_body_size & 0xFFFFFFFE)) {
-		return smbd_smb2_request_error(smb2req, NT_STATUS_INVALID_PARAMETER);
+	status = smbd_smb2_request_verify_sizes(smb2req, 0x39);
+	if (!NT_STATUS_IS_OK(status)) {
+		return smbd_smb2_request_error(smb2req, status);
 	}
-
 	inbody = (const uint8_t *)smb2req->in.vector[i+1].iov_base;
-
-	body_size = SVAL(inbody, 0x00);
-	if (body_size != expected_body_size) {
-		return smbd_smb2_request_error(smb2req, NT_STATUS_INVALID_PARAMETER);
-	}
 
 	in_oplock_level		= CVAL(inbody, 0x03);
 	in_impersonation_level	= IVAL(inbody, 0x04);
@@ -158,7 +151,7 @@ NTSTATUS smbd_smb2_request_process_create(struct smbd_smb2_request *smb2req)
 	 *       overlap
 	 */
 
-	dyn_offset = SMB2_HDR_BODY + (body_size & 0xFFFFFFFE);
+	dyn_offset = SMB2_HDR_BODY + smb2req->in.vector[i+1].iov_len;
 
 	if (in_name_offset == 0 && in_name_length == 0) {
 		/* This is ok */
@@ -217,6 +210,14 @@ NTSTATUS smbd_smb2_request_process_create(struct smbd_smb2_request *smb2req)
 				   &in_name_string_size, false);
 	if (!ok) {
 		return smbd_smb2_request_error(smb2req, NT_STATUS_ILLEGAL_CHARACTER);
+	}
+
+	if (in_name_buffer.length == 0) {
+		in_name_string_size = 0;
+	}
+
+	if (strlen(in_name_string) != in_name_string_size) {
+		return smbd_smb2_request_error(smb2req, NT_STATUS_OBJECT_NAME_INVALID);
 	}
 
 	ZERO_STRUCT(in_context_blobs);
@@ -537,7 +538,7 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 
 		if (exta) {
 			if (dhnc) {
-				tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+				tevent_req_nterror(req,NT_STATUS_OBJECT_NAME_NOT_FOUND);
 				return tevent_req_post(req, ev);
 			}
 
@@ -552,7 +553,7 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 
 		if (mxac) {
 			if (dhnc) {
-				tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+				tevent_req_nterror(req, NT_STATUS_OBJECT_NAME_NOT_FOUND);
 				return tevent_req_post(req, ev);
 			}
 
@@ -570,7 +571,7 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 			enum ndr_err_code ndr_err;
 
 			if (dhnc) {
-				tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+				tevent_req_nterror(req, NT_STATUS_OBJECT_NAME_NOT_FOUND);
 				return tevent_req_post(req, ev);
 			}
 
@@ -592,7 +593,7 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 
 		if (dhnq) {
 			if (dhnc) {
-				tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+				tevent_req_nterror(req, NT_STATUS_OBJECT_NAME_NOT_FOUND);
 				return tevent_req_post(req, ev);
 			}
 
@@ -618,7 +619,7 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 
 		if (alsi) {
 			if (dhnc) {
-				tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+				tevent_req_nterror(req, NT_STATUS_OBJECT_NAME_NOT_FOUND);
 				return tevent_req_post(req, ev);
 			}
 
@@ -635,7 +636,7 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 			struct tm *tm;
 
 			if (dhnc) {
-				tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+				tevent_req_nterror(req, NT_STATUS_OBJECT_NAME_NOT_FOUND);
 				return tevent_req_post(req, ev);
 			}
 
@@ -820,8 +821,8 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 			get_change_timespec(smb1req->conn, result,
 					result->fsp_name));
 	state->out_allocation_size =
-			result->fsp_name->st.st_ex_blksize *
-			result->fsp_name->st.st_ex_blocks;
+			SMB_VFS_GET_ALLOC_SIZE(smb1req->conn, result,
+					       &(result->fsp_name->st));
 	state->out_end_of_file = result->fsp_name->st.st_ex_size;
 	if (state->out_file_attributes == 0) {
 		state->out_file_attributes = FILE_ATTRIBUTE_NORMAL;

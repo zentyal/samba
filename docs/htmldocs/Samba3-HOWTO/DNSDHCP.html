@@ -17,9 +17,9 @@ Microsoft Windows networking protocols allow workstations to arbitrarily registe
 themselves on a network. Windows 2000 Active Directory registers entries in the DNS namespace
 that are equally perplexing to UNIX administrators. Welcome to the new world!
 </p><p>
-<a class="indexterm" name="id454220"></a>
-<a class="indexterm" name="id454229"></a>
-<a class="indexterm" name="id454238"></a>
+<a class="indexterm" name="id454219"></a>
+<a class="indexterm" name="id454228"></a>
+<a class="indexterm" name="id454237"></a>
 The purpose of this chapter is to demonstrate the configuration of the Internet
 Software Consortium (ISC) DNS and DHCP servers to provide dynamic services that are
 compatible with their equivalents in the Microsoft Windows 2000 Server products.
@@ -28,7 +28,7 @@ This chapter provides no more than a working example of configuration files for 
 examples used match configuration examples used elsewhere in this document.
 </p><p>
 <a class="indexterm" name="id454257"></a>
-<a class="indexterm" name="id454264"></a>
+<a class="indexterm" name="id454263"></a>
 <a class="indexterm" name="id454270"></a>
 This chapter explicitly does not provide a tutorial, nor does it pretend to be a reference guide on DNS and
 DHCP, as this is well beyond the scope and intent of this document as a whole. Anyone who wants more detailed
@@ -37,10 +37,10 @@ in the O'Reilly publications on DNS, see the <a class="ulink" href="http://www.o
 The books are:
 </p><div class="orderedlist"><ol class="orderedlist" type="1"><li class="listitem"><p>DNS and BIND, By Cricket Liu, Paul Albitz, ISBN: 1-56592-010-4</p></li><li class="listitem"><p>DNS &amp; Bind Cookbook, By Cricket Liu, ISBN: 0-596-00410-9</p></li><li class="listitem"><p>The DHCP Handbook (2nd Edition), By: Ralph Droms, Ted Lemon, ISBN 0-672-32327-3</p></li></ol></div></div><div class="sect1" title="Example Configuration"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id454326"></a>Example Configuration</h2></div></div></div><p>
 <a class="indexterm" name="id454334"></a>
-<a class="indexterm" name="id454341"></a>
+<a class="indexterm" name="id454340"></a>
 The DNS is to the Internet what water is to life. Nearly all information resources (host names) are resolved
 to their Internet protocol (IP) addresses through DNS.  Windows networking tried hard to avoid the
-complexities of DNS, but alas, DNS won.  <a class="indexterm" name="id454350"></a> The alternative to
+complexities of DNS, but alas, DNS won.  <a class="indexterm" name="id454349"></a> The alternative to
 DNS, the Windows Internet Name Service (WINS)  an artifact of NetBIOS networking over the TCP/IP
 protocols  has demonstrated scalability problems as well as a flat, nonhierarchical namespace that
 became unmanageable as the size and complexity of information technology networks grew.
@@ -72,7 +72,7 @@ a simple DHCP server that matches the DNS configuration.
 	space for network 192.168.1.0/24. The private class network address space
 	is set forth in RFC1918.
 	</p><p>
-	<a class="indexterm" name="id454424"></a>
+	<a class="indexterm" name="id454423"></a>
 	It is assumed that this network will be situated behind a secure firewall.
 	The files that follow work with ISC BIND version 9. BIND is the Berkeley
 	Internet Name Daemon.

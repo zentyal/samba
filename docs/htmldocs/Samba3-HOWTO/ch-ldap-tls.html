@@ -6,7 +6,7 @@
 	transmissions are still in plain text. This is where <em class="firstterm">Transport Layer Security (TLS)</em>
 	comes in.
 	</p><p>
-<a class="indexterm" name="id452899"></a>
+<a class="indexterm" name="id452898"></a>
 	<span class="trademark">OpenLDAP</span>&#8482; clients and servers are capable of using the Transport Layer Security (TLS)
 	framework to provide integrity and confidentiality protections in accordance with <a class="ulink" href="http://rfc.net/rfc2830.html" target="_top">RFC 2830</a>; <span class="emphasis"><em>Lightweight Directory Access Protocol (v3):
 	Extension for Transport Layer Security.</em></span>
@@ -17,7 +17,7 @@
 	</p><div class="tip" title="Tip" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Tip</h3><p>
 <a class="indexterm" name="id452938"></a>
 <a class="indexterm" name="id452945"></a>
-<a class="indexterm" name="id452952"></a>
+<a class="indexterm" name="id452951"></a>
 	The DN of a server certificate must use the CN attribute to name the server, and the CN must carry the
 	server's fully qualified domain name (FQDN). Additional alias names and wildcards may be present in the
 	<code class="option">subjectAltName</code> certificate extension. More details on server certificate names are in <a class="ulink" href="http://rfc.net/rfc2830.html" target="_top">RFC2830</a>.
@@ -220,7 +220,7 @@ Starting slapd:                                            [  OK  ]
 </code>
 </pre><p>
 	Then, using <code class="literal">ldapsearch</code>, test an anonymous search with the
-	<code class="option">-ZZ</code><sup>[<a name="id453554" href="#ftn.id453554" class="footnote">12</a>]</sup> option:
+	<code class="option">-ZZ</code><sup>[<a name="id453553" href="#ftn.id453553" class="footnote">12</a>]</sup> option:
 </p><pre class="screen" width="90">
 <code class="computeroutput">
 <code class="prompt">root# </code> ldapsearch -x -b "dc=ldap,dc=abmas,dc=biz" \
@@ -284,4 +284,4 @@ For anything else, it's best to read through your ldap logfile or join the <span
 	site.</p></div><div class="footnote"><p><sup>[<a name="ftn.id453149" href="#id453149" class="para">11</a>] </sup>Your <code class="filename">CA.pl</code> or <code class="filename">CA.sh</code> might not be
 	in the same location as mine is, you can find it by using the <code class="literal">locate</code> command, i.e.,
 	<code class="literal">locate CA.pl</code>.  If the command complains about the database being too old, run
-	<code class="literal">updatedb</code> as <span class="emphasis"><em>root</em></span> to update it.</p></div><div class="footnote"><p><sup>[<a name="ftn.id453554" href="#id453554" class="para">12</a>] </sup>See <code class="literal">man ldapsearch</code></p></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="speed.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="Appendix.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ch47.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 45. Samba Performance Tuning </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Chapter 47. Samba Support</td></tr></table></div></body></html>
+	<code class="literal">updatedb</code> as <span class="emphasis"><em>root</em></span> to update it.</p></div><div class="footnote"><p><sup>[<a name="ftn.id453553" href="#id453553" class="para">12</a>] </sup>See <code class="literal">man ldapsearch</code></p></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="speed.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="Appendix.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ch47.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 45. Samba Performance Tuning </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Chapter 47. Samba Support</td></tr></table></div></body></html>

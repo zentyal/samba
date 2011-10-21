@@ -48,7 +48,7 @@ To set the debug level, use the <a class="link" href="smb.conf.5.html#LOGLEVEL" 
 <code class="filename">smb.conf</code>. You may also find it useful to set the log 
 level higher for just one machine and keep separate logs for each machine. 
 To do this, add the following lines to your main <code class="filename">smb.conf</code> file:
-</p><table border="0" summary="Simple list" class="simplelist"><tr><td><a class="indexterm" name="id448053"></a><em class="parameter"><code>log level = 10</code></em></td></tr><tr><td><a class="indexterm" name="id448064"></a><em class="parameter"><code>log file = /usr/local/samba/lib/log.%m</code></em></td></tr><tr><td><a class="indexterm" name="id448076"></a><em class="parameter"><code>include = /usr/local/samba/lib/smb.conf.%m</code></em></td></tr></table><p>
+</p><table border="0" summary="Simple list" class="simplelist"><tr><td><a class="indexterm" name="id448052"></a><em class="parameter"><code>log level = 10</code></em></td></tr><tr><td><a class="indexterm" name="id448064"></a><em class="parameter"><code>log file = /usr/local/samba/lib/log.%m</code></em></td></tr><tr><td><a class="indexterm" name="id448076"></a><em class="parameter"><code>include = /usr/local/samba/lib/smb.conf.%m</code></em></td></tr></table><p>
 and create a file <code class="filename">/usr/local/samba/lib/smb.conf.<em class="replaceable"><code>machine</code></em></code> where
 <em class="replaceable"><code>machine</code></em> is the name of the client you wish to debug. In that file put any
 <code class="filename">smb.conf</code> commands you want; for example, <a class="link" href="smb.conf.5.html#LOGLEVEL" target="_top">log level</a> may be useful. This also allows
@@ -64,13 +64,13 @@ prepared for a large volume of log data.
 </p><div class="sect2" title="Debugging-Specific Operations"><div class="titlepage"><div><div><h3 class="title"><a name="id448181"></a>Debugging-Specific Operations</h3></div></div></div><p>
 <a class="indexterm" name="id448189"></a>
 <a class="indexterm" name="id448196"></a>
-<a class="indexterm" name="id448203"></a>
+<a class="indexterm" name="id448202"></a>
 <a class="indexterm" name="id448209"></a>
 	Samba-3.x permits debugging (logging) of specific functional components without unnecessarily
 	cluttering the log files with detailed logs for all operations. An example configuration to 
 	achieve this is shown in:
 	</p><p>
-</p><table border="0" summary="Simple list" class="simplelist"><tr><td><a class="indexterm" name="id448227"></a><em class="parameter"><code>log level = 0 tdb:3 passdb:5 auth:4 vfs:2</code></em></td></tr><tr><td><a class="indexterm" name="id448239"></a><em class="parameter"><code>max log size = 0</code></em></td></tr><tr><td><a class="indexterm" name="id448250"></a><em class="parameter"><code>log file = /var/log/samba/%U.%m.log</code></em></td></tr></table><p>
+</p><table border="0" summary="Simple list" class="simplelist"><tr><td><a class="indexterm" name="id448227"></a><em class="parameter"><code>log level = 0 tdb:3 passdb:5 auth:4 vfs:2</code></em></td></tr><tr><td><a class="indexterm" name="id448238"></a><em class="parameter"><code>max log size = 0</code></em></td></tr><tr><td><a class="indexterm" name="id448250"></a><em class="parameter"><code>log file = /var/log/samba/%U.%m.log</code></em></td></tr></table><p>
 </p><p>
 	This will cause the level of detail to be expanded to the debug class (log level) passed to
 	each functional area per the value shown above. The first value passed to the <em class="parameter"><code>log level</code></em>
@@ -97,7 +97,7 @@ subdirectory of the directory where you keep your Samba log
 files. This file is the most useful tool for tracking down the bug. To
 use it, you do this:
 <a class="indexterm" name="id448419"></a>
-<a class="indexterm" name="id448426"></a>
+<a class="indexterm" name="id448425"></a>
 </p><pre class="screen">
 <code class="prompt">$ </code><strong class="userinput"><code>gdb smbd core</code></strong>
 </pre><p>
@@ -119,7 +119,7 @@ useful.
 </p></div><div class="sect1" title="Attaching to a Running Process"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id448498"></a>Attaching to a Running Process</h2></div></div></div><p>
 <a class="indexterm" name="id448506"></a>
 <a class="indexterm" name="id448513"></a>
-<a class="indexterm" name="id448520"></a>
+<a class="indexterm" name="id448519"></a>
 Unfortunately, some UNIXes (in particular some recent Linux kernels)
 refuse to dump a core file if the task has changed UID (which smbd
 does often). To debug with this sort of system, you could try to attach
@@ -149,7 +149,7 @@ of the spinning process and type:
 then <span class="quote">&#8220;<span class="quote">attach `pid'</span>&#8221;</span> (of the spinning process), then type <span class="quote">&#8220;<span class="quote">bt</span>&#8221;</span> to
 get a backtrace to see where the smbd is in the call path.
 </p></div><div class="sect1" title="Patches"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id448614"></a>Patches</h2></div></div></div><p>
-<a class="indexterm" name="id448622"></a>
+<a class="indexterm" name="id448621"></a>
 <a class="indexterm" name="id448628"></a>
 The best sort of bug report is one that includes a fix! If you send us
 patches, please use <strong class="userinput"><code>diff -u</code></strong> format if your version of 

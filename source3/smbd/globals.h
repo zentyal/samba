@@ -278,6 +278,9 @@ NTSTATUS smbd_smb2_request_check_tcon(struct smbd_smb2_request *req);
 struct smb_request *smbd_smb2_fake_smb_request(struct smbd_smb2_request *req);
 void remove_smb2_chained_fsp(files_struct *fsp);
 
+NTSTATUS smbd_smb2_request_verify_sizes(struct smbd_smb2_request *req,
+					size_t expected_body_size);
+
 NTSTATUS smbd_smb2_request_process_negprot(struct smbd_smb2_request *req);
 NTSTATUS smbd_smb2_request_process_sesssetup(struct smbd_smb2_request *req);
 NTSTATUS smbd_smb2_request_process_logoff(struct smbd_smb2_request *req);
@@ -358,6 +361,7 @@ struct smbd_smb2_request {
 	bool do_signing;
 	bool async;
 	bool cancelled;
+	bool compound_related;
 
 	/* fake smb1 request. */
 	struct smb_request *smb1req;
@@ -600,7 +604,11 @@ struct smbd_server_connection {
 		uint64_t seqnum_low;
 		uint32_t credits_granted;
 		uint32_t max_credits;
+		uint32_t max_trans;
+		uint32_t max_read;
+		uint32_t max_write;
 		struct bitmap *credits_bitmap;
+		bool compound_related_in_progress;
 	} smb2;
 };
 

@@ -63,9 +63,10 @@ NTSTATUS smb2_create_blob_parse(TALLOC_CTX *mem_ctx, const DATA_BLOB buffer,
 		    name_offset > remaining ||
 		    name_length != 4 || /* windows enforces this */
 		    name_offset + name_length > remaining ||
-		    data_offset < name_offset + name_length ||
-		    data_offset > remaining ||
-		    data_offset + (uint64_t)data_length > remaining) {
+		    (data_offset && (data_offset < name_offset + name_length)) ||
+		    (data_offset && (data_offset > remaining)) ||
+		    (data_offset && data_length &&
+				(data_offset + (uint64_t)data_length > remaining))) {
 			return NT_STATUS_INVALID_PARAMETER;
 		}
 

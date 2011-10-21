@@ -1,3 +1,10 @@
+samba (2:3.5.11~dfsg-4) UNRELEASED; urgency=low
+
+  * Lintian override for libpam-winbind; it's not a shared library so doesn't
+    really need the pre-depends on multiarch-support.
+
+ -- Steve Langasek <vorlon@debian.org>  Fri, 21 Oct 2011 15:03:45 -0700
+
 samba (2:3.5.11~dfsg-3) unstable; urgency=low
 
   * Split winbind into separate packages, winbind and libpam-winbind,

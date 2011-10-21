@@ -1,3 +1,12 @@
+samba (2:3.5.11~dfsg-3) UNRELEASED; urgency=low
+
+  * Split winbind into separate packages, winbind and libpam-winbind,
+    with the latter marked Multi-Arch: same and the former marked
+    Multi-Arch: foreign, so that we can install multiple copies of the
+    pam module and nss modules on the same system.
+
+ -- Steve Langasek <vorlon@debian.org>  Thu, 20 Oct 2011 23:16:26 -0700
+
 samba (2:3.5.11~dfsg-2) unstable; urgency=low
 
   * Don't export DEB_HOST_ARCH_OS in debian/rules, this is only used locally.

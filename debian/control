@@ -180,8 +180,9 @@ Package: winbind
 Section: net
 Priority: optional
 Architecture: any
-Pre-Depends: multiarch-support
-Depends: ${shlibs:Depends}, ${misc:Depends}, libwbclient0 (= ${binary:Version}), samba-common (= ${source:Version}), lsb-base (>= 3.0-6), adduser, libpam-runtime (>= 1.0.1-6), libpam0g (>= 1.1.3-2~)
+Multi-Arch: foreign
+Depends: ${shlibs:Depends}, ${misc:Depends}, libwbclient0 (= ${binary:Version}), samba-common (= ${source:Version}), lsb-base (>= 3.0-6), adduser
+Recommends: libpam-winbind
 Replaces: samba (<= 2.2.3-2)
 Description: Samba nameservice integration server
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
@@ -195,6 +196,27 @@ Description: Samba nameservice integration server
  domain on a Linux system.  User/group lookups are configured via
  /etc/nsswitch.conf, and authentication is integrated using the winbind
  module for PAM.
+
+Package: libpam-winbind
+Section: net
+Priority: optional
+Architecture: any
+Multi-Arch: same
+Pre-Depends: ${misc:Pre-Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, winbind (= ${binary:Version}), libwbclient0 (= ${binary:Version}), samba-common (= ${source:Version}), libpam-runtime (>= 1.0.1-6), libpam0g (>= 1.1.3-2~)
+Breaks: winbind (<= 2:3.5.11~dfsg-3)
+Replaces: samba (<= 2.2.3-2), winbind (<= 2:3.5.11~dfsg-3)
+Description: Samba nameservice and authentication integration plugins
+ Samba is an implementation of the SMB/CIFS protocol for Unix systems,
+ providing support for cross-platform file and printer sharing with
+ Microsoft Windows, OS X, and other Unix systems.  Samba can also function
+ as an NT4-style domain controller, and can integrate with both NT4 domains
+ and Active Directory realms as a member server.
+ .
+ This package provides pam_winbind and nss_winbind, plugins that integrate
+ with a local winbindd server to provide Windows domain authentication and
+ user/group name lookups to the system; and nss_wins, which provides
+ hostname lookups via the WINS and NBNS protocols.
 
 Package: samba-dbg
 Section: debug

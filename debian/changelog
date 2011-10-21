@@ -1,10 +1,10 @@
-samba (2:3.5.11~dfsg-4) UNRELEASED; urgency=low
+samba (2:3.5.11~dfsg-4) unstable; urgency=low
 
   * Lintian override for libpam-winbind; it's not a shared library so doesn't
     really need the pre-depends on multiarch-support.
   * export DEB_BUILD_MAINT_OPTIONS := hardening=+bindnow, taken from Ubuntu.
 
- -- Steve Langasek <vorlon@debian.org>  Fri, 21 Oct 2011 15:03:45 -0700
+ -- Steve Langasek <vorlon@debian.org>  Fri, 21 Oct 2011 16:01:29 -0700
 
 samba (2:3.5.11~dfsg-3) unstable; urgency=low
 

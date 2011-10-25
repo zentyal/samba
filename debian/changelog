@@ -1,3 +1,10 @@
+samba (2:3.5.11~dfsg-5) UNRELEASED; urgency=low
+
+  * debian/patches/initialize_password_db-null-deref: Avoid null
+    dereference in initialize_password_db().  Closes LP: #829221.
+
+ -- Steve Langasek <vorlon@debian.org>  Tue, 25 Oct 2011 12:48:34 -0700
+
 samba (2:3.5.11~dfsg-4) unstable; urgency=low
 
   * Lintian override for libpam-winbind; it's not a shared library so doesn't

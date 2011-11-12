@@ -25,20 +25,14 @@
 #define event_context_init(mem_ctx) s3_tevent_context_init(mem_ctx)
 
 /* The following definitions come from lib/events.c  */
-
-void event_fd_set_writeable(struct fd_event *fde);
-void event_fd_set_not_writeable(struct fd_event *fde);
-void event_fd_set_readable(struct fd_event *fde);
-void event_fd_set_not_readable(struct fd_event *fde);
-bool event_add_to_select_args(struct event_context *event_ctx,
-			      const struct timeval *now,
-			      fd_set *read_fds, fd_set *write_fds,
-			      struct timeval *timeout, int *maxfd);
-bool run_events(struct event_context *event_ctx,
-		int selrtn, fd_set *read_fds, fd_set *write_fds);
+struct pollfd;
 struct timeval *get_timed_events_timeout(struct event_context *event_ctx,
 					 struct timeval *to_ret);
-void event_context_reinit(struct event_context *ev);
 void dump_event_list(struct event_context *event_ctx);
 struct tevent_context *s3_tevent_context_init(TALLOC_CTX *mem_ctx);
 
+bool event_add_to_poll_args(struct tevent_context *ev, TALLOC_CTX *mem_ctx,
+			    struct pollfd **pfds, int *num_pfds,
+			    int *ptimeout);
+bool run_events_poll(struct tevent_context *ev, int pollrtn,
+		     struct pollfd *pfds, int num_pfds);

@@ -23,7 +23,7 @@
 #include "includes.h"
 
 bool tldap_entry_values(struct tldap_message *msg, const char *attribute,
-			int *num_values, DATA_BLOB **values);
+			DATA_BLOB **values, int *num_values);
 bool tldap_get_single_valueblob(struct tldap_message *msg,
 				const char *attribute, DATA_BLOB *blob);
 char *tldap_talloc_single_attribute(struct tldap_message *msg,
@@ -33,16 +33,18 @@ bool tldap_pull_binsid(struct tldap_message *msg, const char *attribute,
 		       struct dom_sid *sid);
 bool tldap_pull_guid(struct tldap_message *msg, const char *attribute,
 		     struct GUID *guid);
-bool tldap_add_mod_blobs(TALLOC_CTX *mem_ctx, struct tldap_mod **pmods,
+bool tldap_add_mod_blobs(TALLOC_CTX *mem_ctx,
+			 struct tldap_mod **pmods, int *pnum_mods,
 			 int mod_op, const char *attrib,
-			 int num_values, DATA_BLOB *values);
-bool tldap_add_mod_str(TALLOC_CTX *mem_ctx, struct tldap_mod **pmods,
+			 DATA_BLOB *newvals, int num_newvals);
+bool tldap_add_mod_str(TALLOC_CTX *mem_ctx,
+		       struct tldap_mod **pmods, int *pnum_mods,
 		       int mod_op, const char *attrib, const char *str);
 bool tldap_make_mod_blob(struct tldap_message *existing, TALLOC_CTX *mem_ctx,
-			 int *pnum_mods, struct tldap_mod **pmods,
+			 struct tldap_mod **pmods, int *pnum_mods,
 			 const char *attrib, DATA_BLOB newval);
 bool tldap_make_mod_fmt(struct tldap_message *existing, TALLOC_CTX *mem_ctx,
-			int *pnum_mods, struct tldap_mod **pmods,
+			struct tldap_mod **pmods, int *pnum_mods,
 			const char *attrib, const char *fmt, ...);
 
 const char *tldap_errstr(TALLOC_CTX *mem_ctx, struct tldap_context *ld,

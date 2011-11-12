@@ -19,10 +19,9 @@
 */
 
 #include "includes.h"
-#include "librpc/gen_ndr/security.h"
-#include "libcli/security/secace.h"
-#include "libcli/security/dom_sid.h"
+#include "libcli/security/security.h"
 #include "librpc/ndr/libndr.h"
+#include "libcli/security/display_sec.h"
 
 /****************************************************************************
 convert a security permissions into a string
@@ -159,15 +158,20 @@ void display_sec_ace_flags(uint8_t flags)
  ****************************************************************************/
 static void disp_sec_ace_object(struct security_ace_object *object)
 {
+	char *str;
 	if (object->flags & SEC_ACE_OBJECT_TYPE_PRESENT) {
+		str = GUID_string(NULL, &object->type.type);
+		if (str == NULL) return;
 		printf("Object type: SEC_ACE_OBJECT_TYPE_PRESENT\n");
-		printf("Object GUID: %s\n", GUID_string(talloc_tos(),
-			&object->type.type));
+		printf("Object GUID: %s\n", str);
+		talloc_free(str);
 	}
 	if (object->flags & SEC_ACE_INHERITED_OBJECT_TYPE_PRESENT) {
+		str = GUID_string(NULL, &object->inherited_type.inherited_type);
+		if (str == NULL) return;
 		printf("Object type: SEC_ACE_INHERITED_OBJECT_TYPE_PRESENT\n");
-		printf("Object GUID: %s\n", GUID_string(talloc_tos(), 
-			&object->inherited_type.inherited_type));
+		printf("Object GUID: %s\n", str);
+		talloc_free(str);
 	}
 }
 
@@ -230,9 +234,9 @@ void display_sec_ace(struct security_ace *ace)
  ****************************************************************************/
 void display_sec_acl(struct security_acl *sec_acl)
 {
-	int i;
+	uint32_t i;
 
-	printf("\tACL\tNum ACEs:\t%d\trevision:\t%x\n",
+	printf("\tACL\tNum ACEs:\t%u\trevision:\t%x\n",
 			 sec_acl->num_aces, sec_acl->revision); 
 	printf("\t---\n");
 

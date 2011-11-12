@@ -19,6 +19,8 @@
 
 #define DBGC_CLASS DBGC_LOCKING
 #include "includes.h"
+#include "system/filesys.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
 
 #if HAVE_KERNEL_OPLOCKS_IRIX
@@ -182,7 +184,7 @@ static files_struct *irix_oplock_receive_message(struct kernel_oplocks *_ctx)
 
 	fileid = file_id_create_dev((SMB_DEV_T)os.os_dev,
 				    (SMB_INO_T)os.os_ino);
-	if ((fsp = file_find_di_first(fileid)) == NULL) {
+	if ((fsp = file_find_di_first(smbd_server_conn, fileid)) == NULL) {
 		DEBUG(0,("irix_oplock_receive_message: unable to find open "
 			 "file with dev = %x, inode = %.0f\n",
 			 (unsigned int)os.os_dev, (double)os.os_ino ));
@@ -283,7 +285,7 @@ static void irix_oplocks_read_fde_handler(struct event_context *ev,
 	files_struct *fsp;
 
 	fsp = irix_oplock_receive_message(ctx->ctx);
-	break_kernel_oplock(smbd_messaging_context(), fsp);
+	break_kernel_oplock(fsp->conn->sconn->msg_ctx, fsp);
 }
 
 /****************************************************************************

@@ -1,3 +1,25 @@
+/*
+   Unix SMB/CIFS implementation.
+   simple kerberos5 routines for active directory
+   Copyright (C) Andrew Tridgell 2001
+   Copyright (C) Luke Howard 2002-2003
+   Copyright (C) Andrew Bartlett <abartlet@samba.org> 2005
+   Copyright (C) Guenther Deschner 2005-2009
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #ifndef _HEADER_smb_krb5_h
 #define _HEADER_smb_krb5_h
 
@@ -14,6 +36,18 @@
 #include <krb5.h>
 #endif
 
+#if HAVE_GSSAPI_GSSAPI_H
+#include <gssapi/gssapi.h>
+#elif HAVE_GSSAPI_GSSAPI_GENERIC_H
+#include <gssapi/gssapi_generic.h>
+#elif HAVE_GSSAPI_H
+#include <gssapi.h>
+#endif
+
+#if HAVE_COM_ERR_H
+#include <com_err.h>
+#endif
+
 #ifndef KRB5_ADDR_NETBIOS
 #define KRB5_ADDR_NETBIOS 0x14
 #endif
@@ -23,7 +57,7 @@
 #endif
 
 /* Heimdal uses a slightly different name */
-#if defined(HAVE_ENCTYPE_ARCFOUR_HMAC_MD5)
+#if defined(HAVE_ENCTYPE_ARCFOUR_HMAC_MD5) && !defined(HAVE_ENCTYPE_ARCFOUR_HMAC)
 #define ENCTYPE_ARCFOUR_HMAC ENCTYPE_ARCFOUR_HMAC_MD5
 #endif
 

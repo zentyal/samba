@@ -127,6 +127,7 @@ struct socket_context {
 };
 
 struct resolve_context;
+struct tsocket_address;
 
 /* prototypes */
 NTSTATUS socket_create_with_ops(TALLOC_CTX *mem_ctx, const struct socket_ops *ops,
@@ -158,6 +159,12 @@ NTSTATUS socket_set_option(struct socket_context *sock, const char *option, cons
 char *socket_get_peer_name(struct socket_context *sock, TALLOC_CTX *mem_ctx);
 struct socket_address *socket_get_peer_addr(struct socket_context *sock, TALLOC_CTX *mem_ctx);
 struct socket_address *socket_get_my_addr(struct socket_context *sock, TALLOC_CTX *mem_ctx);
+struct tsocket_address *socket_address_to_tsocket_address(TALLOC_CTX *mem_ctx,
+							  const struct socket_address *a);
+struct socket_address *tsocket_address_to_socket_address(TALLOC_CTX *mem_ctx,
+							 const struct tsocket_address *a);
+struct tsocket_address *socket_get_remote_addr(struct socket_context *sock, TALLOC_CTX *mem_ctx);
+struct tsocket_address *socket_get_local_addr(struct socket_context *sock, TALLOC_CTX *mem_ctx);
 int socket_get_fd(struct socket_context *sock);
 NTSTATUS socket_dup(struct socket_context *sock);
 struct socket_address *socket_address_from_strings(TALLOC_CTX *mem_ctx,
@@ -167,6 +174,8 @@ struct socket_address *socket_address_from_strings(TALLOC_CTX *mem_ctx,
 struct socket_address *socket_address_from_sockaddr(TALLOC_CTX *mem_ctx, 
 						    struct sockaddr *sockaddr, 
 						    size_t addrlen);
+_PUBLIC_ void socket_address_set_port(struct socket_address *a,
+				      uint16_t port);
 struct socket_address *socket_address_copy(TALLOC_CTX *mem_ctx,
 					   const struct socket_address *oaddr);
 const struct socket_ops *socket_getops_byname(const char *name, enum socket_type type);
@@ -206,7 +215,7 @@ NTSTATUS socket_connect_multi(TALLOC_CTX *mem_ctx, const char *server_address,
 			      struct socket_context **result,
 			      uint16_t *port);
 void set_socket_options(int fd, const char *options);
-void socket_set_flags(struct socket_context *socket, unsigned flags);
+void socket_set_flags(struct socket_context *sock, unsigned flags);
 
 void socket_tevent_fd_close_fn(struct tevent_context *ev,
 			       struct tevent_fd *fde,

@@ -20,8 +20,9 @@
 */
 
 #include "includes.h"
-
-extern bool AllowDebugChange;
+#include "system/filesys.h"
+#include "dbwrap.h"
+#include "messages.h"
 
 typedef enum { OP_FETCH, OP_STORE, OP_DELETE, OP_ERASE, OP_LISTKEYS } dbwrap_op;
 
@@ -213,9 +214,8 @@ int main(int argc, const char **argv)
 	int ret = 1;
 
 	load_case_tables();
-	DEBUGLEVEL_CLASS[DBGC_ALL] = 0;
-	dbf = x_stderr;
-	AllowDebugChange = false;
+	lp_set_cmdline("log level", "0");
+	setup_logging(argv[0], DEBUG_STDERR);
 	lp_load(get_dyn_CONFIGFILE(), true, false, false, true);
 
 	if ((argc < 3) || (argc > 6)) {
@@ -298,7 +298,7 @@ int main(int argc, const char **argv)
 		goto done;
 	}
 
-	msg_ctx = messaging_init(mem_ctx, server_id_self(), evt_ctx);
+	msg_ctx = messaging_init(mem_ctx, procid_self(), evt_ctx);
 	if (msg_ctx == NULL) {
 		d_fprintf(stderr, "ERROR: could not init messaging context\n");
 		goto done;

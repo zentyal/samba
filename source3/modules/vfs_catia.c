@@ -27,6 +27,7 @@
 
 
 #include "includes.h"
+#include "smbd/smbd.h"
 
 #define GLOBAL_SNUM     0xFFFFFFF
 #define MAP_SIZE        0xFF
@@ -235,7 +236,7 @@ static NTSTATUS catia_string_replace_allocate(connection_struct *conn,
 	}
 
 	if ((push_ucs2_talloc(ctx, &tmpbuf, name_in,
-			      &converted_size)) == -1) {
+			      &converted_size)) == false) {
 		return map_nt_error_from_unix(errno);
 	}
 	ptr = tmpbuf;
@@ -252,7 +253,7 @@ static NTSTATUS catia_string_replace_allocate(connection_struct *conn,
 	}
 
 	if ((pull_ucs2_talloc(ctx, mapped_name, tmpbuf,
-			      &converted_size)) == -1) {
+			      &converted_size)) == false) {
 		TALLOC_FREE(tmpbuf);
 		return map_nt_error_from_unix(errno);
 	}
@@ -634,8 +635,7 @@ static int catia_ntimes(vfs_handle_struct *handle,
 }
 
 static char *
-catia_realpath(vfs_handle_struct *handle, const char *path,
-	       char *resolved_path)
+catia_realpath(vfs_handle_struct *handle, const char *path)
 {
 	char *mapped_name = NULL;
 	NTSTATUS status;
@@ -648,7 +648,7 @@ catia_realpath(vfs_handle_struct *handle, const char *path,
 		return NULL;
 	}
 
-	ret = SMB_VFS_NEXT_REALPATH(handle, mapped_name, resolved_path);
+	ret = SMB_VFS_NEXT_REALPATH(handle, mapped_name);
 	TALLOC_FREE(mapped_name);
 
 	return ret;
@@ -990,7 +990,7 @@ static struct vfs_fn_pointers vfs_catia_fns = {
         .mkdir = catia_mkdir,
         .rmdir = catia_rmdir,
         .opendir = catia_opendir,
-        .open = catia_open,
+        .open_fn = catia_open,
         .rename = catia_rename,
         .stat = catia_stat,
         .lstat = catia_lstat,

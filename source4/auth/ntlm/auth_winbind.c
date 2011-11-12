@@ -25,44 +25,23 @@
 #include "auth/auth.h"
 #include "auth/ntlm/auth_proto.h"
 #include "auth/auth_sam_reply.h"
-#include "nsswitch/winbind_client.h"
-#include "librpc/gen_ndr/ndr_netlogon.h"
-#include "librpc/gen_ndr/ndr_winbind.h"
+#include "librpc/gen_ndr/ndr_winbind_c.h"
 #include "lib/messaging/irpc.h"
 #include "param/param.h"
 #include "nsswitch/libwbclient/wbclient.h"
-#include "libcli/security/dom_sid.h"
-
-static NTSTATUS get_info3_from_ndr(TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience, struct winbindd_response *response, struct netr_SamInfo3 *info3)
-{
-	size_t len = response->length - sizeof(struct winbindd_response);
-	if (len > 4) {
-		enum ndr_err_code ndr_err;
-		DATA_BLOB blob;
-		blob.length = len - 4;
-		blob.data = (uint8_t *)(((char *)response->extra_data.data) + 4);
-
-		ndr_err = ndr_pull_struct_blob(&blob, mem_ctx, 
-			       iconv_convenience, info3,
-			      (ndr_pull_flags_fn_t)ndr_pull_netr_SamInfo3);
-		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-			return ndr_map_error2ntstatus(ndr_err);
-		}
-
-		return NT_STATUS_OK;
-	} else {
-		DEBUG(2, ("get_info3_from_ndr: No info3 struct found!\n"));
-		return NT_STATUS_UNSUCCESSFUL;
-	}
-}
+#include "libcli/security/security.h"
 
 static NTSTATUS get_info3_from_wbcAuthUserInfo(TALLOC_CTX *mem_ctx,
-					       struct smb_iconv_convenience *ic,
 					       struct wbcAuthUserInfo *info,
 					       struct netr_SamInfo3 *info3)
 {
 	int i, j;
 	struct samr_RidWithAttribute *rids = NULL;
+	struct dom_sid *user_sid;
+	struct dom_sid *group_sid;
+
+	user_sid = (struct dom_sid *)(void *)&info->sids[0].sid;
+	group_sid = (struct dom_sid *)(void *)&info->sids[1].sid;
 
 	info3->base.last_logon = info->logon_time;
 	info3->base.last_logoff = info->logoff_time;
@@ -102,10 +81,10 @@ static NTSTATUS get_info3_from_wbcAuthUserInfo(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	dom_sid_split_rid(mem_ctx, (struct dom_sid2 *) &info->sids[0].sid,
+	dom_sid_split_rid(mem_ctx, user_sid,
 			  &info3->base.domain_sid,
 			  &info3->base.rid);
-	dom_sid_split_rid(mem_ctx, (struct dom_sid2 *) &info->sids[1].sid, NULL,
+	dom_sid_split_rid(mem_ctx, group_sid, NULL,
 			  &info3->base.primary_gid);
 
 	/* We already handled the first two, now take care of the rest */
@@ -116,9 +95,11 @@ static NTSTATUS get_info3_from_wbcAuthUserInfo(TALLOC_CTX *mem_ctx,
 	NT_STATUS_HAVE_NO_MEMORY(rids);
 
 	for (i = 2, j = 0; i < info->num_sids; ++i, ++j) {
+		struct dom_sid *tmp_sid;
+		tmp_sid = (struct dom_sid *)(void *)&info->sids[1].sid;
+
 		rids[j].attributes = info->sids[i].attributes;
-		dom_sid_split_rid(mem_ctx,
-				  (struct dom_sid2 *) &info->sids[i].sid,
+		dom_sid_split_rid(mem_ctx, tmp_sid,
 				  NULL, &rids[j].rid);
 	}
 	info3->base.groups.rids = rids;
@@ -139,89 +120,6 @@ static NTSTATUS winbind_want_check(struct auth_method_context *ctx,
 	return NT_STATUS_OK;
 }
 
-/*
- Authenticate a user with a challenge/response
- using the samba3 winbind protocol
-*/
-static NTSTATUS winbind_check_password_samba3(struct auth_method_context *ctx,
-					      TALLOC_CTX *mem_ctx,
-					      const struct auth_usersupplied_info *user_info, 
-					      struct auth_serversupplied_info **server_info)
-{
-	struct winbindd_request request;
-	struct winbindd_response response;
-        NSS_STATUS result;
-	NTSTATUS nt_status;
-	struct netr_SamInfo3 info3;		
-
-	/* Send off request */
-	const struct auth_usersupplied_info *user_info_temp;	
-	nt_status = encrypt_user_info(mem_ctx, ctx->auth_ctx, 
-				      AUTH_PASSWORD_RESPONSE, 
-				      user_info, &user_info_temp);
-	if (!NT_STATUS_IS_OK(nt_status)) {
-		return nt_status;
-	}
-	user_info = user_info_temp;
-
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
-	request.flags = WBFLAG_PAM_INFO3_NDR;
-
-	request.data.auth_crap.logon_parameters = user_info->logon_parameters;
-
-	safe_strcpy(request.data.auth_crap.user,
-		       user_info->client.account_name, sizeof(fstring));
-	safe_strcpy(request.data.auth_crap.domain,
-		       user_info->client.domain_name, sizeof(fstring));
-	safe_strcpy(request.data.auth_crap.workstation,
-		       user_info->workstation_name, sizeof(fstring));
-
-	memcpy(request.data.auth_crap.chal, ctx->auth_ctx->challenge.data.data, sizeof(request.data.auth_crap.chal));
-
-	request.data.auth_crap.lm_resp_len = MIN(user_info->password.response.lanman.length,
-						 sizeof(request.data.auth_crap.lm_resp));
-	request.data.auth_crap.nt_resp_len = MIN(user_info->password.response.nt.length, 
-						 sizeof(request.data.auth_crap.nt_resp));
-
-	memcpy(request.data.auth_crap.lm_resp, user_info->password.response.lanman.data,
-	       request.data.auth_crap.lm_resp_len);
-	memcpy(request.data.auth_crap.nt_resp, user_info->password.response.nt.data,
-	       request.data.auth_crap.nt_resp_len);
-
-	result = winbindd_request_response(WINBINDD_PAM_AUTH_CRAP, &request, &response);
-
-	nt_status = NT_STATUS(response.data.auth.nt_status);
-	NT_STATUS_NOT_OK_RETURN(nt_status);
-
-	if (result == NSS_STATUS_SUCCESS && response.extra_data.data) {
-		union netr_Validation validation;
-
-		nt_status = get_info3_from_ndr(mem_ctx, lp_iconv_convenience(ctx->auth_ctx->lp_ctx), &response, &info3);
-		SAFE_FREE(response.extra_data.data);
-		NT_STATUS_NOT_OK_RETURN(nt_status); 
-
-		validation.sam3 = &info3;
-		nt_status = make_server_info_netlogon_validation(mem_ctx, 
-								 user_info->client.account_name, 
-								 3, &validation,
-								 server_info);
-		return nt_status;
-	} else if (result == NSS_STATUS_SUCCESS && !response.extra_data.data) {
-		DEBUG(0, ("Winbindd authenticated the user [%s]\\[%s], "
-			  "but did not include the required info3 reply!\n", 
-			  user_info->client.domain_name, user_info->client.account_name));
-		return NT_STATUS_INSUFFICIENT_LOGON_INFO;
-	} else if (NT_STATUS_IS_OK(nt_status)) {
-		DEBUG(1, ("Winbindd authentication for [%s]\\[%s] failed, "
-			  "but no error code is available!\n", 
-			  user_info->client.domain_name, user_info->client.account_name));
-		return NT_STATUS_NO_LOGON_SERVERS;
-	}
-
-        return nt_status;
-}
-
 struct winbind_check_password_state {
 	struct winbind_SamLogon req;
 };
@@ -233,19 +131,26 @@ struct winbind_check_password_state {
 static NTSTATUS winbind_check_password(struct auth_method_context *ctx,
 				       TALLOC_CTX *mem_ctx,
 				       const struct auth_usersupplied_info *user_info, 
-				       struct auth_serversupplied_info **server_info)
+				       struct auth_user_info_dc **user_info_dc)
 {
 	NTSTATUS status;
-	struct server_id *winbind_servers;
+	struct dcerpc_binding_handle *irpc_handle;
 	struct winbind_check_password_state *s;
 	const struct auth_usersupplied_info *user_info_new;
 	struct netr_IdentityInfo *identity_info;
 
+	if (!ctx->auth_ctx->msg_ctx) {
+		DEBUG(0,("winbind_check_password: auth_context_create was called with out messaging context\n"));
+		return NT_STATUS_INTERNAL_ERROR;
+	}
+
 	s = talloc(mem_ctx, struct winbind_check_password_state);
 	NT_STATUS_HAVE_NO_MEMORY(s);
 
-	winbind_servers = irpc_servers_byname(ctx->auth_ctx->msg_ctx, s, "winbind_server");
-	if ((winbind_servers == NULL) || (winbind_servers[0].id == 0)) {
+	irpc_handle = irpc_binding_handle_by_name(s, ctx->auth_ctx->msg_ctx,
+						  "winbind_server",
+						  &ndr_table_winbind);
+	if (irpc_handle == NULL) {
 		DEBUG(0, ("Winbind authentication for [%s]\\[%s] failed, " 
 			  "no winbind_server running!\n",
 			  user_info->client.domain_name, user_info->client.account_name));
@@ -271,7 +176,7 @@ static NTSTATUS winbind_check_password(struct auth_method_context *ctx,
 		s->req.in.logon.password= password_info;
 	} else {
 		struct netr_NetworkInfo *network_info;
-		const uint8_t *challenge;
+		uint8_t chal[8];
 
 		status = encrypt_user_info(s, ctx->auth_ctx, AUTH_PASSWORD_RESPONSE,
 					   user_info, &user_info_new);
@@ -281,10 +186,10 @@ static NTSTATUS winbind_check_password(struct auth_method_context *ctx,
 		network_info = talloc(s, struct netr_NetworkInfo);
 		NT_STATUS_HAVE_NO_MEMORY(network_info);
 
-		status = auth_get_challenge(ctx->auth_ctx, &challenge);
+		status = auth_get_challenge(ctx->auth_ctx, chal);
 		NT_STATUS_NOT_OK_RETURN(status);
 
-		memcpy(network_info->challenge, challenge, sizeof(network_info->challenge));
+		memcpy(network_info->challenge, chal, sizeof(network_info->challenge));
 
 		network_info->nt.length = user_info->password.response.nt.length;
 		network_info->nt.data	= user_info->password.response.nt.data;
@@ -306,16 +211,14 @@ static NTSTATUS winbind_check_password(struct auth_method_context *ctx,
 
 	s->req.in.validation_level	= 3;
 
-	status = IRPC_CALL(ctx->auth_ctx->msg_ctx, winbind_servers[0],
-			   winbind, WINBIND_SAMLOGON,
-			   &s->req, s);
+	status = dcerpc_winbind_SamLogon_r(irpc_handle, s, &s->req);
 	NT_STATUS_NOT_OK_RETURN(status);
 
-	status = make_server_info_netlogon_validation(mem_ctx,
+	status = make_user_info_dc_netlogon_validation(mem_ctx,
 						      user_info->client.account_name,
 						      s->req.in.validation_level,
 						      &s->req.out.validation,
-						      server_info);
+						      user_info_dc);
 	NT_STATUS_NOT_OK_RETURN(status);
 
 	return NT_STATUS_OK;
@@ -328,7 +231,7 @@ static NTSTATUS winbind_check_password(struct auth_method_context *ctx,
 static NTSTATUS winbind_check_password_wbclient(struct auth_method_context *ctx,
 						TALLOC_CTX *mem_ctx,
 						const struct auth_usersupplied_info *user_info,
-						struct auth_serversupplied_info **server_info)
+						struct auth_user_info_dc **user_info_dc)
 {
 	struct wbcAuthUserParams params;
 	struct wbcAuthUserInfo *info = NULL;
@@ -381,34 +284,29 @@ static NTSTATUS winbind_check_password_wbclient(struct auth_method_context *ctx,
 		user_info->password.response.nt.data;
 
 	wbc_status = wbcAuthenticateUserEx(&params, &info, &err);
-	if (!WBC_ERROR_IS_OK(wbc_status)) {
+	if (wbc_status == WBC_ERR_AUTH_ERROR) {
 		DEBUG(1, ("error was %s (0x%08x)\nerror message was '%s'\n",
 		      err->nt_string, err->nt_status, err->display_string));
 
 		nt_status = NT_STATUS(err->nt_status);
 		wbcFreeMemory(err);
 		NT_STATUS_NOT_OK_RETURN(nt_status);
+	} else if (!WBC_ERROR_IS_OK(wbc_status)) {
+		DEBUG(1, ("wbcAuthenticateUserEx: failed with %u - %s\n",
+			wbc_status, wbcErrorString(wbc_status)));
+		return NT_STATUS_LOGON_FAILURE;
 	}
-	nt_status = get_info3_from_wbcAuthUserInfo(mem_ctx,
-				lp_iconv_convenience(ctx->auth_ctx->lp_ctx),
-				info, &info3);
+	nt_status = get_info3_from_wbcAuthUserInfo(mem_ctx, info, &info3);
 	wbcFreeMemory(info);
 	NT_STATUS_NOT_OK_RETURN(nt_status);
 
 	validation.sam3 = &info3;
-	nt_status = make_server_info_netlogon_validation(mem_ctx,
+	nt_status = make_user_info_dc_netlogon_validation(mem_ctx,
 					user_info->client.account_name,
-					3, &validation, server_info);
+					3, &validation, user_info_dc);
 	return nt_status;
 
 }
-
-static const struct auth_operations winbind_samba3_ops = {
-	.name		= "winbind_samba3",
-	.get_challenge	= auth_get_challenge_not_implemented,
-	.want_check	= winbind_want_check,
-	.check_password	= winbind_check_password_samba3
-};
 
 static const struct auth_operations winbind_ops = {
 	.name		= "winbind",
@@ -427,12 +325,6 @@ static const struct auth_operations winbind_wbclient_ops = {
 _PUBLIC_ NTSTATUS auth_winbind_init(void)
 {
 	NTSTATUS ret;
-
-	ret = auth_register(&winbind_samba3_ops);
-	if (!NT_STATUS_IS_OK(ret)) {
-		DEBUG(0,("Failed to register 'winbind_samba3' auth backend!\n"));
-		return ret;
-	}
 
 	ret = auth_register(&winbind_ops);
 	if (!NT_STATUS_IS_OK(ret)) {

@@ -1,7 +1,10 @@
 /* 
    Unix SMB/CIFS implementation.
    DATA BLOB
-   
+
+   Copyright (C) Andrew Tridgell 2001
+   Copyright (C) Andrew Bartlett 2001
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
@@ -61,12 +64,6 @@ _PUBLIC_ DATA_BLOB data_blob_named(const void *p, size_t length, const char *nam
 _PUBLIC_ DATA_BLOB data_blob_talloc_named(TALLOC_CTX *mem_ctx, const void *p, size_t length, const char *name);
 
 /**
- reference a data blob, to the supplied TALLOC_CTX.  
- Returns a NULL DATA_BLOB on failure
-**/
-_PUBLIC_ DATA_BLOB data_blob_talloc_reference(TALLOC_CTX *mem_ctx, DATA_BLOB *blob);
-
-/**
  construct a zero data blob, using supplied TALLOC_CTX. 
  use this sparingly as it initialises data - better to initialise
  yourself if you want specific data in the blob
@@ -96,7 +93,12 @@ _PUBLIC_ int data_blob_cmp(const DATA_BLOB *d1, const DATA_BLOB *d2);
 /**
 print the data_blob as hex string
 **/
-_PUBLIC_ char *data_blob_hex_string(TALLOC_CTX *mem_ctx, const DATA_BLOB *blob);
+_PUBLIC_ char *data_blob_hex_string_upper(TALLOC_CTX *mem_ctx, const DATA_BLOB *blob);
+
+/**
+print the data_blob as hex string
+**/
+_PUBLIC_ char *data_blob_hex_string_lower(TALLOC_CTX *mem_ctx, const DATA_BLOB *blob);
 
 /**
   useful for constructing data blobs in test suites, while

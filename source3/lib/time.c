@@ -36,53 +36,6 @@
 #define TIME_FIXUP_CONSTANT_INT 11644473600LL
 #endif
 
-/*******************************************************************
-  create a 16 bit dos packed date
-********************************************************************/
-static uint16_t make_dos_date1(struct tm *t)
-{
-	uint16_t ret=0;
-	ret = (((unsigned int)(t->tm_mon+1)) >> 3) | ((t->tm_year-80) << 1);
-	ret = ((ret&0xFF)<<8) | (t->tm_mday | (((t->tm_mon+1) & 0x7) << 5));
-	return ret;
-}
-
-/*******************************************************************
-  create a 16 bit dos packed time
-********************************************************************/
-static uint16_t make_dos_time1(struct tm *t)
-{
-	uint16_t ret=0;
-	ret = ((((unsigned int)t->tm_min >> 3)&0x7) | (((unsigned int)t->tm_hour) << 3));
-	ret = ((ret&0xFF)<<8) | ((t->tm_sec/2) | ((t->tm_min & 0x7) << 5));
-	return ret;
-}
-
-/*******************************************************************
-  create a 32 bit dos packed date/time from some parameters
-  This takes a GMT time and returns a packed localtime structure
-********************************************************************/
-static uint32_t make_dos_date(time_t unixdate, int zone_offset)
-{
-	struct tm *t;
-	uint32_t ret=0;
-
-	if (unixdate == 0) {
-		return 0;
-	}
-
-	unixdate -= zone_offset;
-
-	t = gmtime(&unixdate);
-	if (!t) {
-		return 0xFFFFFFFF;
-	}
-
-	ret = make_dos_date1(t);
-	ret = ((ret&0xFFFF)<<16) | make_dos_time1(t);
-
-	return ret;
-}
 
 /**
   parse a nttime as a large integer in a string and return a NTTIME
@@ -97,7 +50,7 @@ NTTIME nttime_from_string(const char *s)
  preserve the "special" values.
 **************************************************************/
 
-uint32_t convert_time_t_to_uint32(time_t t)
+uint32_t convert_time_t_to_uint32_t(time_t t)
 {
 #if (defined(SIZEOF_TIME_T) && (SIZEOF_TIME_T == 8))
 	/* time_t is 64-bit. */
@@ -110,7 +63,7 @@ uint32_t convert_time_t_to_uint32(time_t t)
 	return (uint32_t)t;
 }
 
-time_t convert_uint32_to_time_t(uint32_t u)
+time_t convert_uint32_t_to_time_t(uint32_t u)
 {
 #if (defined(SIZEOF_TIME_T) && (SIZEOF_TIME_T == 8))
 	/* time_t is 64-bit. */
@@ -176,122 +129,23 @@ int set_server_zone_offset(time_t t)
 	return server_zone_offset;
 }
 
-/****************************************************************************
- Return the date and time as a string
-****************************************************************************/
-
-char *timeval_string(TALLOC_CTX *ctx, const struct timeval *tp, bool hires)
-{
-	fstring TimeBuf;
-	time_t t;
-	struct tm *tm;
-
-	t = (time_t)tp->tv_sec;
-	tm = localtime(&t);
-	if (!tm) {
-		if (hires) {
-			slprintf(TimeBuf,
-				 sizeof(TimeBuf)-1,
-				 "%ld.%06ld seconds since the Epoch",
-				 (long)tp->tv_sec,
-				 (long)tp->tv_usec);
-		} else {
-			slprintf(TimeBuf,
-				 sizeof(TimeBuf)-1,
-				 "%ld seconds since the Epoch",
-				 (long)t);
-		}
-	} else {
-#ifdef HAVE_STRFTIME
-		if (hires) {
-			strftime(TimeBuf,sizeof(TimeBuf)-1,"%Y/%m/%d %H:%M:%S",tm);
-			slprintf(TimeBuf+strlen(TimeBuf),
-				 sizeof(TimeBuf)-1 - strlen(TimeBuf), 
-				 ".%06ld", 
-				 (long)tp->tv_usec);
-		} else {
-			strftime(TimeBuf,sizeof(TimeBuf)-1,"%Y/%m/%d %H:%M:%S",tm);
-		}
-#else
-		if (hires) {
-			const char *asct = asctime(tm);
-			slprintf(TimeBuf, 
-				 sizeof(TimeBuf)-1, 
-				 "%s.%06ld", 
-				 asct ? asct : "unknown", 
-				 (long)tp->tv_usec);
-		} else {
-			const char *asct = asctime(tm);
-			fstrcpy(TimeBuf, asct ? asct : "unknown");
-		}
-#endif
-	}
-	return talloc_strdup(ctx, TimeBuf);
-}
-
-char *current_timestring(TALLOC_CTX *ctx, bool hires)
-{
-	struct timeval tv;
-
-	GetTimeOfDay(&tv);
-	return timeval_string(ctx, &tv, hires);
-}
-
-/*******************************************************************
- Put a dos date into a buffer (time/date format).
- This takes GMT time and puts local time in the buffer.
-********************************************************************/
-
-static void put_dos_date(char *buf,int offset,time_t unixdate, int zone_offset)
-{
-	uint32_t x = make_dos_date(unixdate, zone_offset);
-	SIVAL(buf,offset,x);
-}
-
-/*******************************************************************
- Put a dos date into a buffer (date/time format).
- This takes GMT time and puts local time in the buffer.
-********************************************************************/
-
-static void put_dos_date2(char *buf,int offset,time_t unixdate, int zone_offset)
-{
-	uint32_t x = make_dos_date(unixdate, zone_offset);
-	x = ((x&0xFFFF)<<16) | ((x&0xFFFF0000)>>16);
-	SIVAL(buf,offset,x);
-}
-
-/*******************************************************************
- Put a dos 32 bit "unix like" date into a buffer. This routine takes
- GMT and converts it to LOCAL time before putting it (most SMBs assume
- localtime for this sort of date)
-********************************************************************/
-
-static void put_dos_date3(char *buf,int offset,time_t unixdate, int zone_offset)
-{
-	if (!null_mtime(unixdate)) {
-		unixdate -= zone_offset;
-	}
-	SIVAL(buf,offset,unixdate);
-}
-
-
 /***************************************************************************
  Server versions of the above functions.
 ***************************************************************************/
 
 void srv_put_dos_date(char *buf,int offset,time_t unixdate)
 {
-	put_dos_date(buf, offset, unixdate, server_zone_offset);
+	push_dos_date((uint8_t *)buf, offset, unixdate, server_zone_offset);
 }
 
 void srv_put_dos_date2(char *buf,int offset, time_t unixdate)
 {
-	put_dos_date2(buf, offset, unixdate, server_zone_offset);
+	push_dos_date2((uint8_t *)buf, offset, unixdate, server_zone_offset);
 }
 
 void srv_put_dos_date3(char *buf,int offset,time_t unixdate)
 {
-	put_dos_date3(buf, offset, unixdate, server_zone_offset);
+	push_dos_date3((uint8_t *)buf, offset, unixdate, server_zone_offset);
 }
 
 void round_timespec(enum timestamp_set_resolution res, struct timespec *ts)
@@ -342,7 +196,7 @@ void dos_filetime_timespec(struct timespec *tsp)
  localtime).
 ********************************************************************/
 
-static time_t make_unix_date(const void *date_ptr, int zone_offset)
+time_t make_unix_date(const void *date_ptr, int zone_offset)
 {
 	uint32_t dos_date=0;
 	struct tm t;
@@ -388,7 +242,7 @@ time_t make_unix_date2(const void *date_ptr, int zone_offset)
 time_t make_unix_date3(const void *date_ptr, int zone_offset)
 {
 	time_t t = (time_t)IVAL(date_ptr,0);
-	if (!null_mtime(t)) {
+	if (!null_time(t)) {
 		t += zone_offset;
 	}
 	return(t);
@@ -439,11 +293,8 @@ struct timeval convert_timespec_to_timeval(const struct timespec ts)
 
 struct timespec timespec_current(void)
 {
-	struct timeval tv;
 	struct timespec ts;
-	GetTimeOfDay(&tv);
-	ts.tv_sec = tv.tv_sec;
-	ts.tv_nsec = tv.tv_usec * 1000;
+	clock_gettime(CLOCK_REALTIME, &ts);
 	return ts;
 }
 
@@ -495,6 +346,10 @@ void round_timespec_to_usec(struct timespec *ts)
 {
 	struct timeval tv = convert_timespec_to_timeval(*ts);
 	*ts = convert_timeval_to_timespec(tv);
+	while (ts->tv_nsec > 1000000000) {
+		ts->tv_sec += 1;
+		ts->tv_nsec -= 1000000000;
+	}
 }
 
 /****************************************************************************
@@ -514,49 +369,6 @@ struct timespec interpret_long_date(const char *p)
 		return ret;
 	}
 	return nt_time_to_unix_timespec(&nt);
-}
-
-/***************************************************************************
- Client versions of the above functions.
-***************************************************************************/
-
-void cli_put_dos_date(struct cli_state *cli, char *buf, int offset, time_t unixdate)
-{
-	put_dos_date(buf, offset, unixdate, cli->serverzone);
-}
-
-void cli_put_dos_date2(struct cli_state *cli, char *buf, int offset, time_t unixdate)
-{
-	put_dos_date2(buf, offset, unixdate, cli->serverzone);
-}
-
-void cli_put_dos_date3(struct cli_state *cli, char *buf, int offset, time_t unixdate)
-{
-	put_dos_date3(buf, offset, unixdate, cli->serverzone);
-}
-
-time_t cli_make_unix_date(struct cli_state *cli, const void *date_ptr)
-{
-	return make_unix_date(date_ptr, cli->serverzone);
-}
-
-time_t cli_make_unix_date2(struct cli_state *cli, const void *date_ptr)
-{
-	return make_unix_date2(date_ptr, cli->serverzone);
-}
-
-time_t cli_make_unix_date3(struct cli_state *cli, const void *date_ptr)
-{
-	return make_unix_date3(date_ptr, cli->serverzone);
-}
-
-/****************************************************************************
- Check if two NTTIMEs are the same.
-****************************************************************************/
-
-bool nt_time_equals(const NTTIME *nt1, const NTTIME *nt2)
-{
-	return (*nt1 == *nt2);
 }
 
 /*******************************************************************
@@ -596,6 +408,19 @@ void get_process_uptime(struct timeval *ret_time)
 		ret_time->tv_usec = time_now_hires.tv_usec - start_time_hires.tv_usec;
 	}
 }
+
+/**
+ * @brief Get the startup time of the server.
+ *
+ * @param[out] ret_time A pointer to a timveal structure to set the startup
+ *                      time.
+ */
+void get_startup_time(struct timeval *ret_time)
+{
+	ret_time->tv_sec = start_time_hires.tv_sec;
+	ret_time->tv_usec = start_time_hires.tv_usec;
+}
+
 
 /****************************************************************************
  Convert a NTTIME structure to a time_t.
@@ -737,17 +562,6 @@ void unix_to_nt_time_abs(NTTIME *nt, time_t t)
 	*nt=~*nt;
 }
 
-
-/****************************************************************************
- Check if it's a null mtime.
-****************************************************************************/
-
-bool null_mtime(time_t mtime)
-{
-	if (mtime == 0 || mtime == (time_t)0xFFFFFFFF || mtime == (time_t)-1)
-		return true;
-	return false;
-}
 
 /****************************************************************************
  Utility function that always returns a const string even if localtime

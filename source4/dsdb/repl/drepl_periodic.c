@@ -24,9 +24,8 @@
 #include "dsdb/samdb/samdb.h"
 #include "auth/auth.h"
 #include "smbd/service.h"
-#include "lib/messaging/irpc.h"
 #include "dsdb/repl/drepl_service.h"
-#include "lib/ldb/include/ldb_errors.h"
+#include <ldb_errors.h>
 #include "../lib/util/dlinklist.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "librpc/gen_ndr/ndr_drsuapi.h"
@@ -81,7 +80,7 @@ WERROR dreplsrv_periodic_schedule(struct dreplsrv_service *service, uint32_t nex
 	W_ERROR_HAVE_NO_MEMORY(new_te);
 
 	tmp_mem = talloc_new(service);
-	DEBUG(2,("dreplsrv_periodic_schedule(%u) %sscheduled for: %s\n",
+	DEBUG(4,("dreplsrv_periodic_schedule(%u) %sscheduled for: %s\n",
 		next_interval,
 		(service->periodic.te?"re":""),
 		nt_time_string(tmp_mem, timeval_to_nttime(&next_time))));
@@ -97,18 +96,40 @@ static void dreplsrv_periodic_run(struct dreplsrv_service *service)
 {
 	TALLOC_CTX *mem_ctx;
 
-	DEBUG(2,("dreplsrv_periodic_run(): schedule pull replication\n"));
+	DEBUG(4,("dreplsrv_periodic_run(): schedule pull replication\n"));
+
+	/*
+	 * KCC or some administrative tool
+	 * might have changed Topology graph
+	 * i.e. repsFrom/repsTo
+	 */
+	dreplsrv_refresh_partitions(service);
 
 	mem_ctx = talloc_new(service);
 	dreplsrv_schedule_pull_replication(service, mem_ctx);
 	talloc_free(mem_ctx);
 
-	DEBUG(2,("dreplsrv_periodic_run(): run pending_ops memory=%u\n", 
+	DEBUG(4,("dreplsrv_periodic_run(): run pending_ops memory=%u\n", 
 		 (unsigned)talloc_total_blocks(service)));
 
-	/* the KCC might have changed repsFrom */
-	dreplsrv_refresh_partitions(service);
+	dreplsrv_ridalloc_check_rid_pool(service);
 
 	dreplsrv_run_pending_ops(service);
-	dreplsrv_notify_run_ops(service);
+}
+
+/*
+  run the next pending op, either a notify or a pull
+ */
+void dreplsrv_run_pending_ops(struct dreplsrv_service *s)
+{
+	if (!s->ops.notifies && !s->ops.pending) {
+		return;
+	}
+	if (!s->ops.notifies ||
+	    (s->ops.pending &&
+	     s->ops.notifies->schedule_time > s->ops.pending->schedule_time)) {
+		dreplsrv_run_pull_ops(s);
+	} else {
+		dreplsrv_notify_run_ops(s);
+	}
 }

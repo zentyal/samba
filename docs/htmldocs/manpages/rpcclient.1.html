@@ -1,12 +1,12 @@
 <html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>rpcclient</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.75.2"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" title="rpcclient"><a name="rpcclient.1"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>rpcclient &#8212; tool for executing client side 
-	MS-RPC functions</p></div><div class="refsynopsisdiv" title="Synopsis"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">rpcclient</code> [-A authfile] [-c &lt;command string&gt;] [-d debuglevel] [-h] [-l logdir] [-N] [-s &lt;smb config file&gt;] [-U username[%password]] [-W workgroup] [-I destinationIP] {server}</p></div></div><div class="refsect1" title="DESCRIPTION"><a name="id266881"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p><code class="literal">rpcclient</code> is a utility initially developed
+	MS-RPC functions</p></div><div class="refsynopsisdiv" title="Synopsis"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">rpcclient</code> [-A authfile] [-c &lt;command string&gt;] [-d debuglevel] [-h] [-l logdir] [-N] [-s &lt;smb config file&gt;] [-U username[%password]] [-W workgroup] [-I destinationIP] {server}</p></div></div><div class="refsect1" title="DESCRIPTION"><a name="id266879"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p><code class="literal">rpcclient</code> is a utility initially developed
 	to test MS-RPC functionality in Samba itself.  It has undergone 
 	several stages of development and stability.  Many system administrators
 	have now written scripts around it to manage Windows NT clients from 
-	their UNIX workstation. </p></div><div class="refsect1" title="OPTIONS"><a name="id265705"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">server</span></dt><dd><p>NetBIOS name of Server to which to connect. 
+	their UNIX workstation. </p></div><div class="refsect1" title="OPTIONS"><a name="id265704"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">server</span></dt><dd><p>NetBIOS name of Server to which to connect. 
 		The server can be  any SMB/CIFS server.  The name is 
-		resolved using the <a class="link" href="smb.conf.5.html#NAMERESOLVEORDER" target="_top">name resolve order</a> line from <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a>.</p></dd><dt><span class="term">-c|--command='command string'</span></dt><dd><p>execute semicolon separated commands (listed 
-		below)) </p></dd><dt><span class="term">-I|--dest-ip IP-address</span></dt><dd><p><em class="replaceable"><code>IP address</code></em> is the address of the server to connect to. 
+		resolved using the <a class="link" href="smb.conf.5.html#NAMERESOLVEORDER" target="_top">name resolve order</a> line from <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a>.</p></dd><dt><span class="term">-c|--command=&lt;command string&gt;</span></dt><dd><p>Execute semicolon separated commands (listed
+		below) </p></dd><dt><span class="term">-I|--dest-ip IP-address</span></dt><dd><p><em class="replaceable"><code>IP address</code></em> is the address of the server to connect to. 
 		It should be specified in standard "a.b.c.d" notation. </p><p>Normally the client would attempt to locate a named 
 		SMB/CIFS server by looking it up via the NetBIOS name resolution 
 		mechanism described above in the <em class="parameter"><code>name resolve order</code></em> 
@@ -130,7 +130,7 @@ Comma Separated list of Files
  		will be automatically shared.  Be aware that the printer driver 
 		must already be installed on the server (see <code class="literal">adddriver</code>) 
 		and the <em class="parameter"><code>port</code></em>must be a valid port name (see
-		<code class="literal">enumports</code>.</p></dd><dt><span class="term">deldriver</span></dt><dd><p>Delete the 
+		<code class="literal">enumports</code>.</p></dd><dt><span class="term">deldriver &lt;driver&gt;</span></dt><dd><p>Delete the
 		specified printer driver for all architectures.  This
 		does not delete the actual driver files from the server,
 		only the entry from the server's list of drivers.

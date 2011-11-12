@@ -19,6 +19,7 @@
 
 #include "includes.h"
 #include "winbindd.h"
+#include "../libcli/security/security.h"
 
 struct winbindd_getsidaliases_state {
 	struct dom_sid sid;
@@ -36,7 +37,7 @@ struct tevent_req *winbindd_getsidaliases_send(TALLOC_CTX *mem_ctx,
 	struct tevent_req *req, *subreq;
 	struct winbindd_getsidaliases_state *state;
 	struct winbindd_domain *domain;
-	size_t num_sids;
+	uint32_t num_sids;
 	struct dom_sid *sids;
 
 	req = tevent_req_create(mem_ctx, &state,
@@ -68,13 +69,28 @@ struct tevent_req *winbindd_getsidaliases_send(TALLOC_CTX *mem_ctx,
 	num_sids = 0;
 	sids = NULL;
 
-	if ((request->extra_data.data != NULL)
-	    && !parse_sidlist(state, request->extra_data.data,
-			      &sids, &num_sids)) {
-		DEBUG(1, ("Could not parse SID list: %s\n",
-			  request->extra_data.data));
-		tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
-		return tevent_req_post(req, ev);
+	if (request->extra_data.data != NULL) {
+		if (request->extra_data.data[request->extra_len-1] != '\0') {
+			DEBUG(1, ("Got non-NULL terminated sidlist\n"));
+			tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+			return tevent_req_post(req, ev);
+		}
+		if (!parse_sidlist(state, request->extra_data.data,
+				   &sids, &num_sids)) {
+			DEBUG(1, ("Could not parse SID list: %s\n",
+				  request->extra_data.data));
+			tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+			return tevent_req_post(req, ev);
+		}
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		size_t i;
+		for (i=0; i<num_sids; i++) {
+			fstring sidstr;
+			sid_to_fstring(sidstr, &sids[i]);
+			DEBUGADD(10, ("%s\n", sidstr));
+		}
 	}
 
 	subreq = wb_lookupuseraliases_send(state, ev, domain, num_sids, sids);
@@ -96,8 +112,7 @@ static void winbindd_getsidaliases_done(struct tevent_req *subreq)
 	status = wb_lookupuseraliases_recv(subreq, state, &state->num_aliases,
 					   &state->aliases);
 	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
+	if (tevent_req_nterror(req, status)) {
 		return;
 	}
 	tevent_req_done(req);

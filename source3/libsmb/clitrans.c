@@ -18,679 +18,9 @@
 */
 
 #include "includes.h"
-
-
-/****************************************************************************
- Send a SMB trans or trans2 request.
-****************************************************************************/
-
-bool cli_send_trans(struct cli_state *cli, int trans,
-		    const char *pipe_name,
-		    int fid, int flags,
-		    uint16 *setup, unsigned int lsetup, unsigned int msetup,
-		    const char *param, unsigned int lparam, unsigned int mparam,
-		    const char *data, unsigned int ldata, unsigned int mdata)
-{
-	unsigned int i;
-	unsigned int this_ldata,this_lparam;
-	unsigned int tot_data=0,tot_param=0;
-	char *outdata,*outparam;
-	char *p;
-	int pipe_name_len=0;
-	uint16 mid;
-
-	this_lparam = MIN(lparam,cli->max_xmit - (500+lsetup*2)); /* hack */
-	this_ldata = MIN(ldata,cli->max_xmit - (500+lsetup*2+this_lparam));
-
-	memset(cli->outbuf,'\0',smb_size);
-	cli_set_message(cli->outbuf,14+lsetup,0,True);
-	SCVAL(cli->outbuf,smb_com,trans);
-	SSVAL(cli->outbuf,smb_tid, cli->cnum);
-	cli_setup_packet(cli);
-
-	/*
-	 * Save the mid we're using. We need this for finding
-	 * signing replies.
-	 */
-
-	mid = cli->mid;
-
-	if (pipe_name) {
-		pipe_name_len = clistr_push(cli, smb_buf(cli->outbuf), pipe_name, -1, STR_TERMINATE);
-	}
-
-	outparam = smb_buf(cli->outbuf)+(trans==SMBtrans ? pipe_name_len : 3);
-	outdata = outparam+this_lparam;
-
-	/* primary request */
-	SSVAL(cli->outbuf,smb_tpscnt,lparam);	/* tpscnt */
-	SSVAL(cli->outbuf,smb_tdscnt,ldata);	/* tdscnt */
-	SSVAL(cli->outbuf,smb_mprcnt,mparam);	/* mprcnt */
-	SSVAL(cli->outbuf,smb_mdrcnt,mdata);	/* mdrcnt */
-	SCVAL(cli->outbuf,smb_msrcnt,msetup);	/* msrcnt */
-	SSVAL(cli->outbuf,smb_flags,flags);	/* flags */
-	SIVAL(cli->outbuf,smb_timeout,0);		/* timeout */
-	SSVAL(cli->outbuf,smb_pscnt,this_lparam);	/* pscnt */
-	SSVAL(cli->outbuf,smb_psoff,smb_offset(outparam,cli->outbuf)); /* psoff */
-	SSVAL(cli->outbuf,smb_dscnt,this_ldata);	/* dscnt */
-	SSVAL(cli->outbuf,smb_dsoff,smb_offset(outdata,cli->outbuf)); /* dsoff */
-	SCVAL(cli->outbuf,smb_suwcnt,lsetup);	/* suwcnt */
-	for (i=0;i<lsetup;i++)		/* setup[] */
-		SSVAL(cli->outbuf,smb_setup+i*2,setup[i]);
-	p = smb_buf(cli->outbuf);
-	if (trans != SMBtrans) {
-		*p++ = 0;  /* put in a null smb_name */
-		*p++ = 'D'; *p++ = ' ';	/* observed in OS/2 */
-	}
-	if (this_lparam)			/* param[] */
-		memcpy(outparam,param,this_lparam);
-	if (this_ldata)			/* data[] */
-		memcpy(outdata,data,this_ldata);
-	cli_setup_bcc(cli, outdata+this_ldata);
-
-	show_msg(cli->outbuf);
-
-	if (!cli_send_smb(cli)) {
-		return False;
-	}
-
-	cli_state_seqnum_persistent(cli, mid);
-
-	if (this_ldata < ldata || this_lparam < lparam) {
-		/* receive interim response */
-		if (!cli_receive_smb(cli) || cli_is_error(cli)) {
-			cli_state_seqnum_remove(cli, mid);
-			return(False);
-		}
-
-		tot_data = this_ldata;
-		tot_param = this_lparam;
-
-		while (tot_data < ldata || tot_param < lparam)  {
-			this_lparam = MIN(lparam-tot_param,cli->max_xmit - 500); /* hack */
-			this_ldata = MIN(ldata-tot_data,cli->max_xmit - (500+this_lparam));
-
-			cli_set_message(cli->outbuf,trans==SMBtrans?8:9,0,True);
-			SCVAL(cli->outbuf,smb_com,(trans==SMBtrans ? SMBtranss : SMBtranss2));
-
-			outparam = smb_buf(cli->outbuf);
-			outdata = outparam+this_lparam;
-
-			/* secondary request */
-			SSVAL(cli->outbuf,smb_tpscnt,lparam);	/* tpscnt */
-			SSVAL(cli->outbuf,smb_tdscnt,ldata);	/* tdscnt */
-			SSVAL(cli->outbuf,smb_spscnt,this_lparam);	/* pscnt */
-			SSVAL(cli->outbuf,smb_spsoff,smb_offset(outparam,cli->outbuf)); /* psoff */
-			SSVAL(cli->outbuf,smb_spsdisp,tot_param);	/* psdisp */
-			SSVAL(cli->outbuf,smb_sdscnt,this_ldata);	/* dscnt */
-			SSVAL(cli->outbuf,smb_sdsoff,smb_offset(outdata,cli->outbuf)); /* dsoff */
-			SSVAL(cli->outbuf,smb_sdsdisp,tot_data);	/* dsdisp */
-			if (trans==SMBtrans2)
-				SSVALS(cli->outbuf,smb_sfid,fid);		/* fid */
-			if (this_lparam)			/* param[] */
-				memcpy(outparam,param+tot_param,this_lparam);
-			if (this_ldata)			/* data[] */
-				memcpy(outdata,data+tot_data,this_ldata);
-			cli_setup_bcc(cli, outdata+this_ldata);
-
-			show_msg(cli->outbuf);
-
-			cli->mid = mid;
-			if (!cli_send_smb(cli)) {
-				cli_state_seqnum_remove(cli, mid);
-				return False;
-			}
-
-			tot_data += this_ldata;
-			tot_param += this_lparam;
-		}
-	}
-
-	return(True);
-}
-
-/****************************************************************************
- Receive a SMB trans or trans2 response allocating the necessary memory.
-****************************************************************************/
-
-bool cli_receive_trans(struct cli_state *cli,int trans,
-                              char **param, unsigned int *param_len,
-                              char **data, unsigned int *data_len)
-{
-	unsigned int total_data=0;
-	unsigned int total_param=0;
-	unsigned int this_data,this_param;
-	NTSTATUS status;
-	bool ret = False;
-	uint16_t mid;
-
-	*data_len = *param_len = 0;
-
-	mid = SVAL(cli->outbuf,smb_mid);
-
-	if (!cli_receive_smb(cli)) {
-		cli_state_seqnum_remove(cli, mid);
-		return False;
-	}
-
-	show_msg(cli->inbuf);
-
-	/* sanity check */
-	if (CVAL(cli->inbuf,smb_com) != trans) {
-		DEBUG(0,("Expected %s response, got command 0x%02x\n",
-			 trans==SMBtrans?"SMBtrans":"SMBtrans2",
-			 CVAL(cli->inbuf,smb_com)));
-		cli_state_seqnum_remove(cli, mid);
-		return False;
-	}
-
-	/*
-	 * An NT RPC pipe call can return ERRDOS, ERRmoredata
-	 * to a trans call. This is not an error and should not
-	 * be treated as such. Note that STATUS_NO_MORE_FILES is
-	 * returned when a trans2 findfirst/next finishes.
-	 * When setting up an encrypted transport we can also
-	 * see NT_STATUS_MORE_PROCESSING_REQUIRED here.
-         *
-         * Vista returns NT_STATUS_INACCESSIBLE_SYSTEM_SHORTCUT if the folder
-         * "<share>/Users/All Users" is enumerated.  This is a special pseudo
-         * folder, and the response does not have parameters (nor a parameter
-         * length).
-	 */
-	status = cli_nt_error(cli);
-
-	if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
-		if (NT_STATUS_IS_ERR(status) ||
-                    NT_STATUS_EQUAL(status,STATUS_NO_MORE_FILES) ||
-                    NT_STATUS_EQUAL(status,NT_STATUS_INACCESSIBLE_SYSTEM_SHORTCUT)) {
-			goto out;
-		}
-	}
-
-	/* parse out the lengths */
-	total_data = SVAL(cli->inbuf,smb_tdrcnt);
-	total_param = SVAL(cli->inbuf,smb_tprcnt);
-
-	/* allocate it */
-	if (total_data!=0) {
-		/* We know adding 2 is safe as total_data is an
-		 * SVAL <= 0xFFFF. */
-		*data = (char *)SMB_REALLOC(*data,total_data+2);
-		if (!(*data)) {
-			DEBUG(0,("cli_receive_trans: failed to enlarge data buffer\n"));
-			goto out;
-		}
-	}
-
-	if (total_param!=0) {
-		/* We know adding 2 is safe as total_param is an
-		 * SVAL <= 0xFFFF. */
-		*param = (char *)SMB_REALLOC(*param,total_param+2);
-		if (!(*param)) {
-			DEBUG(0,("cli_receive_trans: failed to enlarge param buffer\n"));
-			goto out;
-		}
-	}
-
-	for (;;)  {
-		this_data = SVAL(cli->inbuf,smb_drcnt);
-		this_param = SVAL(cli->inbuf,smb_prcnt);
-
-		if (this_data + *data_len > total_data ||
-		    this_param + *param_len > total_param) {
-			DEBUG(1,("Data overflow in cli_receive_trans\n"));
-			goto out;
-		}
-
-		if (this_data + *data_len < this_data ||
-				this_data + *data_len < *data_len ||
-				this_param + *param_len < this_param ||
-				this_param + *param_len < *param_len) {
-			DEBUG(1,("Data overflow in cli_receive_trans\n"));
-			goto out;
-		}
-
-		if (this_data) {
-			unsigned int data_offset_out = SVAL(cli->inbuf,smb_drdisp);
-			unsigned int data_offset_in = SVAL(cli->inbuf,smb_droff);
-
-			if (data_offset_out > total_data ||
-					data_offset_out + this_data > total_data ||
-					data_offset_out + this_data < data_offset_out ||
-					data_offset_out + this_data < this_data) {
-				DEBUG(1,("Data overflow in cli_receive_trans\n"));
-				goto out;
-			}
-			if (data_offset_in > cli->bufsize ||
-					data_offset_in + this_data >  cli->bufsize ||
-					data_offset_in + this_data < data_offset_in ||
-					data_offset_in + this_data < this_data) {
-				DEBUG(1,("Data overflow in cli_receive_trans\n"));
-				goto out;
-			}
-
-			memcpy(*data + data_offset_out, smb_base(cli->inbuf) + data_offset_in, this_data);
-		}
-		if (this_param) {
-			unsigned int param_offset_out = SVAL(cli->inbuf,smb_prdisp);
-			unsigned int param_offset_in = SVAL(cli->inbuf,smb_proff);
-
-			if (param_offset_out > total_param ||
-					param_offset_out + this_param > total_param ||
-					param_offset_out + this_param < param_offset_out ||
-					param_offset_out + this_param < this_param) {
-				DEBUG(1,("Param overflow in cli_receive_trans\n"));
-				goto out;
-			}
-			if (param_offset_in > cli->bufsize ||
-					param_offset_in + this_param >  cli->bufsize ||
-					param_offset_in + this_param < param_offset_in ||
-					param_offset_in + this_param < this_param) {
-				DEBUG(1,("Param overflow in cli_receive_trans\n"));
-				goto out;
-			}
-
-			memcpy(*param + param_offset_out, smb_base(cli->inbuf) + param_offset_in, this_param);
-		}
-		*data_len += this_data;
-		*param_len += this_param;
-
-		if (total_data <= *data_len && total_param <= *param_len) {
-			ret = True;
-			break;
-		}
-
-		if (!cli_receive_smb(cli)) {
-			goto out;
-		}
-
-		show_msg(cli->inbuf);
-
-		/* sanity check */
-		if (CVAL(cli->inbuf,smb_com) != trans) {
-			DEBUG(0,("Expected %s response, got command 0x%02x\n",
-				 trans==SMBtrans?"SMBtrans":"SMBtrans2", 
-				 CVAL(cli->inbuf,smb_com)));
-			goto out;
-		}
-		if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
-			if (NT_STATUS_IS_ERR(cli_nt_error(cli))) {
-				goto out;
-			}
-		}
-
-		/* parse out the total lengths again - they can shrink! */
-		if (SVAL(cli->inbuf,smb_tdrcnt) < total_data)
-			total_data = SVAL(cli->inbuf,smb_tdrcnt);
-		if (SVAL(cli->inbuf,smb_tprcnt) < total_param)
-			total_param = SVAL(cli->inbuf,smb_tprcnt);
-
-		if (total_data <= *data_len && total_param <= *param_len) {
-			ret = True;
-			break;
-		}
-	}
-
-  out:
-
-	cli_state_seqnum_remove(cli, mid);
-
-	if (ret) {
-		/* Ensure the last 2 bytes of param and data are 2 null
-		 * bytes. These are malloc'ed, but not included in any
-		 * length counts. This allows cli_XX string reading functions
-		 * to safely null terminate. */
-		if (total_data) {
-			SSVAL(*data,total_data,0);
-		}
-		if (total_param) {
-			SSVAL(*param,total_param,0);
-		}
-	}
-
-	return ret;
-}
-
-/****************************************************************************
- Send a SMB nttrans request.
-****************************************************************************/
-
-bool cli_send_nt_trans(struct cli_state *cli,
-		       int function,
-		       int flags,
-		       uint16 *setup, unsigned int lsetup, unsigned int msetup,
-		       char *param, unsigned int lparam, unsigned int mparam,
-		       char *data, unsigned int ldata, unsigned int mdata)
-{
-	unsigned int i;
-	unsigned int this_ldata,this_lparam;
-	unsigned int tot_data=0,tot_param=0;
-	uint16 mid;
-	char *outdata,*outparam;
-
-	this_lparam = MIN(lparam,cli->max_xmit - (500+lsetup*2)); /* hack */
-	this_ldata = MIN(ldata,cli->max_xmit - (500+lsetup*2+this_lparam));
-
-	memset(cli->outbuf,'\0',smb_size);
-	cli_set_message(cli->outbuf,19+lsetup,0,True);
-	SCVAL(cli->outbuf,smb_com,SMBnttrans);
-	SSVAL(cli->outbuf,smb_tid, cli->cnum);
-	cli_setup_packet(cli);
-
-	/*
-	 * Save the mid we're using. We need this for finding
-	 * signing replies.
-	 */
-
-	mid = cli->mid;
-
-	outparam = smb_buf(cli->outbuf)+3;
-	outdata = outparam+this_lparam;
-
-	/* primary request */
-	SCVAL(cli->outbuf,smb_nt_MaxSetupCount,msetup);
-	SCVAL(cli->outbuf,smb_nt_Flags,flags);
-	SIVAL(cli->outbuf,smb_nt_TotalParameterCount, lparam);
-	SIVAL(cli->outbuf,smb_nt_TotalDataCount, ldata);
-	SIVAL(cli->outbuf,smb_nt_MaxParameterCount, mparam);
-	SIVAL(cli->outbuf,smb_nt_MaxDataCount, mdata);
-	SIVAL(cli->outbuf,smb_nt_ParameterCount, this_lparam);
-	SIVAL(cli->outbuf,smb_nt_ParameterOffset, smb_offset(outparam,cli->outbuf));
-	SIVAL(cli->outbuf,smb_nt_DataCount, this_ldata);
-	SIVAL(cli->outbuf,smb_nt_DataOffset, smb_offset(outdata,cli->outbuf));
-	SIVAL(cli->outbuf,smb_nt_SetupCount, lsetup);
-	SIVAL(cli->outbuf,smb_nt_Function, function);
-	for (i=0;i<lsetup;i++)		/* setup[] */
-		SSVAL(cli->outbuf,smb_nt_SetupStart+i*2,setup[i]);
-
-	if (this_lparam)			/* param[] */
-		memcpy(outparam,param,this_lparam);
-	if (this_ldata)			/* data[] */
-		memcpy(outdata,data,this_ldata);
-
-	cli_setup_bcc(cli, outdata+this_ldata);
-
-	show_msg(cli->outbuf);
-	if (!cli_send_smb(cli)) {
-		return False;
-	}
-
-	cli_state_seqnum_persistent(cli, mid);
-
-	if (this_ldata < ldata || this_lparam < lparam) {
-		/* receive interim response */
-		if (!cli_receive_smb(cli) || cli_is_error(cli)) {
-			cli_state_seqnum_remove(cli, mid);
-			return(False);
-		}
-
-		tot_data = this_ldata;
-		tot_param = this_lparam;
-
-		while (tot_data < ldata || tot_param < lparam)  {
-			this_lparam = MIN(lparam-tot_param,cli->max_xmit - 500); /* hack */
-			this_ldata = MIN(ldata-tot_data,cli->max_xmit - (500+this_lparam));
-
-			cli_set_message(cli->outbuf,18,0,True);
-			SCVAL(cli->outbuf,smb_com,SMBnttranss);
-
-			/* XXX - these should probably be aligned */
-			outparam = smb_buf(cli->outbuf);
-			outdata = outparam+this_lparam;
-
-			/* secondary request */
-			SIVAL(cli->outbuf,smb_nts_TotalParameterCount,lparam);
-			SIVAL(cli->outbuf,smb_nts_TotalDataCount,ldata);
-			SIVAL(cli->outbuf,smb_nts_ParameterCount,this_lparam);
-			SIVAL(cli->outbuf,smb_nts_ParameterOffset,smb_offset(outparam,cli->outbuf));
-			SIVAL(cli->outbuf,smb_nts_ParameterDisplacement,tot_param);
-			SIVAL(cli->outbuf,smb_nts_DataCount,this_ldata);
-			SIVAL(cli->outbuf,smb_nts_DataOffset,smb_offset(outdata,cli->outbuf));
-			SIVAL(cli->outbuf,smb_nts_DataDisplacement,tot_data);
-			if (this_lparam)			/* param[] */
-				memcpy(outparam,param+tot_param,this_lparam);
-			if (this_ldata)			/* data[] */
-				memcpy(outdata,data+tot_data,this_ldata);
-			cli_setup_bcc(cli, outdata+this_ldata);
-
-			show_msg(cli->outbuf);
-
-			cli->mid = mid;
-			if (!cli_send_smb(cli)) {
-				cli_state_seqnum_remove(cli, mid);
-				return False;
-			}
-
-			tot_data += this_ldata;
-			tot_param += this_lparam;
-		}
-	}
-
-	return(True);
-}
-
-/****************************************************************************
- Receive a SMB nttrans response allocating the necessary memory.
-****************************************************************************/
-
-bool cli_receive_nt_trans(struct cli_state *cli,
-			  char **param, unsigned int *param_len,
-			  char **data, unsigned int *data_len)
-{
-	unsigned int total_data=0;
-	unsigned int total_param=0;
-	unsigned int this_data,this_param;
-	uint8 eclass;
-	uint32 ecode;
-	bool ret = False;
-	uint16_t mid;
-
-	*data_len = *param_len = 0;
-
-	mid = SVAL(cli->outbuf,smb_mid);
-
-	if (!cli_receive_smb(cli)) {
-		cli_state_seqnum_remove(cli, mid);
-		return False;
-	}
-
-	show_msg(cli->inbuf);
-
-	/* sanity check */
-	if (CVAL(cli->inbuf,smb_com) != SMBnttrans) {
-		DEBUG(0,("Expected SMBnttrans response, got command 0x%02x\n",
-			 CVAL(cli->inbuf,smb_com)));
-		cli_state_seqnum_remove(cli, mid);
-		return(False);
-	}
-
-	/*
-	 * An NT RPC pipe call can return ERRDOS, ERRmoredata
-	 * to a trans call. This is not an error and should not
-	 * be treated as such.
-	 */
-	if (cli_is_dos_error(cli)) {
-                cli_dos_error(cli, &eclass, &ecode);
-		if (!(eclass == ERRDOS && ecode == ERRmoredata)) {
-			goto out;
-		}
-	}
-
-	/*
-	 * Likewise for NT_STATUS_BUFFER_TOO_SMALL
-	 */
-	if (cli_is_nt_error(cli)) {
-		if (!NT_STATUS_EQUAL(cli_nt_error(cli),
-				     NT_STATUS_BUFFER_TOO_SMALL)) {
-			goto out;
-		}
-	}
-
-	/* parse out the lengths */
-	total_data = IVAL(cli->inbuf,smb_ntr_TotalDataCount);
-	total_param = IVAL(cli->inbuf,smb_ntr_TotalParameterCount);
-	/* Only allow 16 megs. */
-	if (total_param > 16*1024*1024) {
-		DEBUG(0,("cli_receive_nt_trans: param buffer too large %d\n",
-					total_param));
-		goto out;
-	}
-	if (total_data > 16*1024*1024) {
-		DEBUG(0,("cli_receive_nt_trans: data buffer too large %d\n",
-					total_data));
-		goto out;
-	}
-
-	/* allocate it */
-	if (total_data) {
-		/* We know adding 2 is safe as total_data is less
-		 * than 16mb (above). */
-		*data = (char *)SMB_REALLOC(*data,total_data+2);
-		if (!(*data)) {
-			DEBUG(0,("cli_receive_nt_trans: failed to enlarge data buffer to %d\n",total_data));
-			goto out;
-		}
-	}
-
-	if (total_param) {
-		/* We know adding 2 is safe as total_param is less
-		 * than 16mb (above). */
-		*param = (char *)SMB_REALLOC(*param,total_param+2);
-		if (!(*param)) {
-			DEBUG(0,("cli_receive_nt_trans: failed to enlarge param buffer to %d\n", total_param));
-			goto out;
-		}
-	}
-
-	while (1)  {
-		this_data = SVAL(cli->inbuf,smb_ntr_DataCount);
-		this_param = SVAL(cli->inbuf,smb_ntr_ParameterCount);
-
-		if (this_data + *data_len > total_data ||
-		    this_param + *param_len > total_param) {
-			DEBUG(1,("Data overflow in cli_receive_nt_trans\n"));
-			goto out;
-		}
-
-		if (this_data + *data_len < this_data ||
-				this_data + *data_len < *data_len ||
-				this_param + *param_len < this_param ||
-				this_param + *param_len < *param_len) {
-			DEBUG(1,("Data overflow in cli_receive_nt_trans\n"));
-			goto out;
-		}
-
-		if (this_data) {
-			unsigned int data_offset_out = SVAL(cli->inbuf,smb_ntr_DataDisplacement);
-			unsigned int data_offset_in = SVAL(cli->inbuf,smb_ntr_DataOffset);
-
-			if (data_offset_out > total_data ||
-					data_offset_out + this_data > total_data ||
-					data_offset_out + this_data < data_offset_out ||
-					data_offset_out + this_data < this_data) {
-				DEBUG(1,("Data overflow in cli_receive_nt_trans\n"));
-				goto out;
-			}
-			if (data_offset_in > cli->bufsize ||
-					data_offset_in + this_data >  cli->bufsize ||
-					data_offset_in + this_data < data_offset_in ||
-					data_offset_in + this_data < this_data) {
-				DEBUG(1,("Data overflow in cli_receive_nt_trans\n"));
-				goto out;
-			}
-
-			memcpy(*data + data_offset_out, smb_base(cli->inbuf) + data_offset_in, this_data);
-		}
-
-		if (this_param) {
-			unsigned int param_offset_out = SVAL(cli->inbuf,smb_ntr_ParameterDisplacement);
-			unsigned int param_offset_in = SVAL(cli->inbuf,smb_ntr_ParameterOffset);
-
-			if (param_offset_out > total_param ||
-					param_offset_out + this_param > total_param ||
-					param_offset_out + this_param < param_offset_out ||
-					param_offset_out + this_param < this_param) {
-				DEBUG(1,("Param overflow in cli_receive_nt_trans\n"));
-				goto out;
-			}
-			if (param_offset_in > cli->bufsize ||
-					param_offset_in + this_param >  cli->bufsize ||
-					param_offset_in + this_param < param_offset_in ||
-					param_offset_in + this_param < this_param) {
-				DEBUG(1,("Param overflow in cli_receive_nt_trans\n"));
-				goto out;
-			}
-
-			memcpy(*param + param_offset_out, smb_base(cli->inbuf) + param_offset_in, this_param);
-		}
-
-		*data_len += this_data;
-		*param_len += this_param;
-
-		if (total_data <= *data_len && total_param <= *param_len) {
-			ret = True;
-			break;
-		}
-
-		if (!cli_receive_smb(cli)) {
-			goto out;
-		}
-
-		show_msg(cli->inbuf);
-
-		/* sanity check */
-		if (CVAL(cli->inbuf,smb_com) != SMBnttrans) {
-			DEBUG(0,("Expected SMBnttrans response, got command 0x%02x\n",
-				 CVAL(cli->inbuf,smb_com)));
-			goto out;
-		}
-		if (cli_is_dos_error(cli)) {
-                        cli_dos_error(cli, &eclass, &ecode);
-			if(!(eclass == ERRDOS && ecode == ERRmoredata)) {
-				goto out;
-			}
-		}
-		/*
-		 * Likewise for NT_STATUS_BUFFER_TOO_SMALL
-		 */
-		if (cli_is_nt_error(cli)) {
-			if (!NT_STATUS_EQUAL(cli_nt_error(cli),
-					     NT_STATUS_BUFFER_TOO_SMALL)) {
-				goto out;
-			}
-		}
-
-		/* parse out the total lengths again - they can shrink! */
-		if (IVAL(cli->inbuf,smb_ntr_TotalDataCount) < total_data)
-			total_data = IVAL(cli->inbuf,smb_ntr_TotalDataCount);
-		if (IVAL(cli->inbuf,smb_ntr_TotalParameterCount) < total_param)
-			total_param = IVAL(cli->inbuf,smb_ntr_TotalParameterCount);
-
-		if (total_data <= *data_len && total_param <= *param_len) {
-			ret = True;
-			break;
-		}
-	}
-
-  out:
-
-	cli_state_seqnum_remove(cli, mid);
-
-	if (ret) {
-		/* Ensure the last 2 bytes of param and data are 2 null
-		 * bytes. These are malloc'ed, but not included in any
-		 * length counts. This allows cli_XX string reading functions
-		 * to safely null terminate. */
-		if (total_data) {
-			SSVAL(*data,total_data,0);
-		}
-		if (total_param) {
-			SSVAL(*param,total_param,0);
-		}
-	}
-
-	return ret;
-}
+#include "libsmb/libsmb.h"
+#include "../lib/util/tevent_ntstatus.h"
+#include "async_smb.h"
 
 struct trans_recvblob {
 	uint8_t *data;
@@ -702,7 +32,6 @@ struct cli_trans_state {
 	struct event_context *ev;
 	uint8_t cmd;
 	uint16_t mid;
-	uint32_t seqnum;
 	const char *pipe_name;
 	uint8_t *pipe_name_conv;
 	size_t pipe_name_conv_len;
@@ -720,13 +49,30 @@ struct cli_trans_state {
 	uint16_t *rsetup;
 	struct trans_recvblob rparam;
 	struct trans_recvblob rdata;
+	uint16_t recv_flags2;
 
-	TALLOC_CTX *secondary_request_ctx;
-
-	struct iovec iov[4];
+	struct iovec iov[6];
 	uint8_t pad[4];
+	uint8_t zero_pad[4];
 	uint16_t vwv[32];
+
+	struct tevent_req *primary_subreq;
 };
+
+static void cli_trans_cleanup_primary(struct cli_trans_state *state)
+{
+	if (state->primary_subreq) {
+		cli_smb_req_set_mid(state->primary_subreq, 0);
+		cli_smb_req_unset_pending(state->primary_subreq);
+		TALLOC_FREE(state->primary_subreq);
+	}
+}
+
+static int cli_trans_state_destructor(struct cli_trans_state *state)
+{
+	cli_trans_cleanup_primary(state);
+	return 0;
+}
 
 static NTSTATUS cli_pull_trans(uint8_t *inbuf,
 			       uint8_t wct, uint16_t *vwv,
@@ -842,9 +188,12 @@ static void cli_trans_format(struct cli_trans_state *state, uint8_t *pwct,
 	struct iovec *iov = state->iov;
 	uint8_t *pad = state->pad;
 	uint16_t *vwv = state->vwv;
-	uint16_t param_offset;
-	uint16_t this_param = 0;
-	uint16_t this_data = 0;
+	uint32_t param_offset;
+	uint32_t this_param = 0;
+	uint32_t param_pad;
+	uint32_t data_offset;
+	uint32_t this_data = 0;
+	uint32_t data_pad;
 	uint32_t useable_space;
 	uint8_t cmd;
 
@@ -892,7 +241,18 @@ static void cli_trans_format(struct cli_trans_state *state, uint8_t *pwct,
 		break;
 	}
 
-	useable_space = state->cli->max_xmit - smb_size - sizeof(uint16_t)*wct;
+	param_offset += wct * sizeof(uint16_t);
+	useable_space = state->cli->max_xmit - param_offset;
+
+	param_pad = param_offset % 4;
+	if (param_pad > 0) {
+		param_pad = MIN(param_pad, useable_space);
+		iov[0].iov_base = (void *)state->zero_pad;
+		iov[0].iov_len = param_pad;
+		iov += 1;
+		param_offset += param_pad;
+	}
+	useable_space = state->cli->max_xmit - param_offset;
 
 	if (state->param_sent < state->num_param) {
 		this_param = MIN(state->num_param - state->param_sent,
@@ -902,27 +262,41 @@ static void cli_trans_format(struct cli_trans_state *state, uint8_t *pwct,
 		iov += 1;
 	}
 
+	data_offset = param_offset + this_param;
+	useable_space = state->cli->max_xmit - data_offset;
+
+	data_pad = data_offset % 4;
+	if (data_pad > 0) {
+		data_pad = MIN(data_pad, useable_space);
+		iov[0].iov_base = (void *)state->zero_pad;
+		iov[0].iov_len = data_pad;
+		iov += 1;
+		data_offset += data_pad;
+	}
+	useable_space = state->cli->max_xmit - data_offset;
+
 	if (state->data_sent < state->num_data) {
 		this_data = MIN(state->num_data - state->data_sent,
-				useable_space - this_param);
+				useable_space);
 		iov[0].iov_base = (void *)(state->data + state->data_sent);
 		iov[0].iov_len = this_data;
 		iov += 1;
 	}
 
-	param_offset += wct * sizeof(uint16_t);
-
 	DEBUG(10, ("num_setup=%u, max_setup=%u, "
 		   "param_total=%u, this_param=%u, max_param=%u, "
 		   "data_total=%u, this_data=%u, max_data=%u, "
-		   "param_offset=%u, param_disp=%u, data_disp=%u\n",
+		   "param_offset=%u, param_pad=%u, param_disp=%u, "
+		   "data_offset=%u, data_pad=%u, data_disp=%u\n",
 		   (unsigned)state->num_setup, (unsigned)state->max_setup,
 		   (unsigned)state->num_param, (unsigned)this_param,
 		   (unsigned)state->rparam.max,
 		   (unsigned)state->num_data, (unsigned)this_data,
 		   (unsigned)state->rdata.max,
-		   (unsigned)param_offset,
-		   (unsigned)state->param_sent, (unsigned)state->data_sent));
+		   (unsigned)param_offset, (unsigned)param_pad,
+		   (unsigned)state->param_sent,
+		   (unsigned)data_offset, (unsigned)data_pad,
+		   (unsigned)state->data_sent));
 
 	switch (cmd) {
 	case SMBtrans:
@@ -939,7 +313,7 @@ static void cli_trans_format(struct cli_trans_state *state, uint8_t *pwct,
 		SSVAL(vwv + 9, 0, this_param);
 		SSVAL(vwv +10, 0, param_offset);
 		SSVAL(vwv +11, 0, this_data);
-		SSVAL(vwv +12, 0, param_offset + this_param);
+		SSVAL(vwv +12, 0, data_offset);
 		SCVAL(vwv +13, 0, state->num_setup);
 		SCVAL(vwv +13, 1, 0);	/* reserved */
 		memcpy(vwv + 14, state->setup,
@@ -953,40 +327,40 @@ static void cli_trans_format(struct cli_trans_state *state, uint8_t *pwct,
 		SSVAL(vwv + 3, 0, param_offset);
 		SSVAL(vwv + 4, 0, state->param_sent);
 		SSVAL(vwv + 5, 0, this_data);
-		SSVAL(vwv + 6, 0, param_offset + this_param);
+		SSVAL(vwv + 6, 0, data_offset);
 		SSVAL(vwv + 7, 0, state->data_sent);
 		if (cmd == SMBtranss2) {
 			SSVAL(vwv + 8, 0, state->fid);
 		}
 		break;
 	case SMBnttrans:
-		SCVAL(vwv,  0, state->max_setup);
-		SSVAL(vwv,  1, 0); /* reserved */
-		SIVAL(vwv,  3, state->num_param);
-		SIVAL(vwv,  7, state->num_data);
-		SIVAL(vwv, 11, state->rparam.max);
-		SIVAL(vwv, 15, state->rdata.max);
-		SIVAL(vwv, 19, this_param);
-		SIVAL(vwv, 23, param_offset);
-		SIVAL(vwv, 27, this_data);
-		SIVAL(vwv, 31, param_offset + this_param);
-		SCVAL(vwv, 35, state->num_setup);
-		SSVAL(vwv, 36, state->function);
+		SCVAL(vwv + 0, 0, state->max_setup);
+		SSVAL(vwv + 0, 1, 0); /* reserved */
+		SIVAL(vwv + 1, 1, state->num_param);
+		SIVAL(vwv + 3, 1, state->num_data);
+		SIVAL(vwv + 5, 1, state->rparam.max);
+		SIVAL(vwv + 7, 1, state->rdata.max);
+		SIVAL(vwv + 9, 1, this_param);
+		SIVAL(vwv +11, 1, param_offset);
+		SIVAL(vwv +13, 1, this_data);
+		SIVAL(vwv +15, 1, data_offset);
+		SCVAL(vwv +17, 1, state->num_setup);
+		SSVAL(vwv +18, 0, state->function);
 		memcpy(vwv + 19, state->setup,
 		       sizeof(uint16_t) * state->num_setup);
 		break;
 	case SMBnttranss:
-		SSVAL(vwv,  0, 0); /* reserved */
-		SCVAL(vwv,  2, 0); /* reserved */
-		SIVAL(vwv,  3, state->num_param);
-		SIVAL(vwv,  7, state->num_data);
-		SIVAL(vwv, 11, this_param);
-		SIVAL(vwv, 15, param_offset);
-		SIVAL(vwv, 19, state->param_sent);
-		SIVAL(vwv, 23, this_data);
-		SIVAL(vwv, 27, param_offset + this_param);
-		SIVAL(vwv, 31, state->data_sent);
-		SCVAL(vwv, 35, 0); /* reserved */
+		SSVAL(vwv + 0, 0, 0); /* reserved */
+		SCVAL(vwv + 1, 0, 0); /* reserved */
+		SIVAL(vwv + 1, 1, state->num_param);
+		SIVAL(vwv + 3, 1, state->num_data);
+		SIVAL(vwv + 5, 1, this_param);
+		SIVAL(vwv + 7, 1, param_offset);
+		SIVAL(vwv + 9, 1, state->param_sent);
+		SIVAL(vwv +11, 1, this_data);
+		SIVAL(vwv +13, 1, data_offset);
+		SIVAL(vwv +15, 1, state->data_sent);
+		SCVAL(vwv +17, 1, 0); /* reserved */
 		break;
 	}
 
@@ -1083,16 +457,29 @@ struct tevent_req *cli_trans_send(
 	if (tevent_req_nomem(subreq, req)) {
 		return tevent_req_post(req, ev);
 	}
-	state->mid = cli_smb_req_mid(subreq);
 	status = cli_smb_req_send(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
 		tevent_req_nterror(req, status);
 		return tevent_req_post(req, state->ev);
 	}
-	cli_state_seqnum_persistent(cli, state->mid);
 	tevent_req_set_callback(subreq, cli_trans_done, req);
+
+	/*
+	 * Now get the MID of the primary request
+	 * and mark it as persistent. This means
+	 * we will able to send and receive multiple
+	 * SMB pdus using this MID in both directions
+	 * (including correct SMB signing).
+	 */
+	state->mid = cli_smb_req_mid(subreq);
+	cli_smb_req_set_mid(subreq, state->mid);
+	state->primary_subreq = subreq;
+	talloc_set_destructor(state, cli_trans_state_destructor);
+
 	return req;
 }
+
+static void cli_trans_done2(struct tevent_req *subreq);
 
 static void cli_trans_done(struct tevent_req *subreq)
 {
@@ -1106,6 +493,7 @@ static void cli_trans_done(struct tevent_req *subreq)
 	uint16_t *vwv;
 	uint32_t num_bytes;
 	uint8_t *bytes;
+	uint8_t *inbuf;
 	uint8_t num_setup	= 0;
 	uint16_t *setup		= NULL;
 	uint32_t total_param	= 0;
@@ -1117,7 +505,12 @@ static void cli_trans_done(struct tevent_req *subreq)
 	uint8_t *param		= NULL;
 	uint8_t *data		= NULL;
 
-	status = cli_smb_recv(subreq, 0, &wct, &vwv, &num_bytes, &bytes);
+	status = cli_smb_recv(subreq, state, &inbuf, 0, &wct, &vwv,
+			      &num_bytes, &bytes);
+	/*
+	 * Do not TALLOC_FREE(subreq) here, we might receive more than
+	 * one response for the same mid.
+	 */
 
 	/*
 	 * We can receive something like STATUS_MORE_ENTRIES, so don't use
@@ -1132,7 +525,7 @@ static void cli_trans_done(struct tevent_req *subreq)
 		    && (state->data_sent == state->num_data));
 
 	status = cli_pull_trans(
-		cli_smb_inbuf(subreq), wct, vwv, num_bytes, bytes,
+		inbuf, wct, vwv, num_bytes, bytes,
 		state->cmd, !sent_all, &num_setup, &setup,
 		&total_param, &num_param, &param_disp, &param,
 		&total_data, &num_data, &data_disp, &data);
@@ -1143,25 +536,25 @@ static void cli_trans_done(struct tevent_req *subreq)
 
 	if (!sent_all) {
 		int iov_count;
-
-		TALLOC_FREE(subreq);
+		struct tevent_req *subreq2;
 
 		cli_trans_format(state, &wct, &iov_count);
 
-		subreq = cli_smb_req_create(state, state->ev, state->cli,
-					    state->cmd + 1, 0, wct, state->vwv,
-					    iov_count, state->iov);
-		if (tevent_req_nomem(subreq, req)) {
+		subreq2 = cli_smb_req_create(state, state->ev, state->cli,
+					     state->cmd + 1, 0, wct, state->vwv,
+					     iov_count, state->iov);
+		if (tevent_req_nomem(subreq2, req)) {
 			return;
 		}
-		cli_smb_req_set_mid(subreq, state->mid);
+		cli_smb_req_set_mid(subreq2, state->mid);
 
-		status = cli_smb_req_send(subreq);
+		status = cli_smb_req_send(subreq2);
 
 		if (!NT_STATUS_IS_OK(status)) {
 			goto fail;
 		}
-		tevent_req_set_callback(subreq, cli_trans_done, req);
+		tevent_req_set_callback(subreq2, cli_trans_done2, req);
+
 		return;
 	}
 
@@ -1185,35 +578,111 @@ static void cli_trans_done(struct tevent_req *subreq)
 
 	if ((state->rparam.total == state->rparam.received)
 	    && (state->rdata.total == state->rdata.received)) {
-		TALLOC_FREE(subreq);
-		cli_state_seqnum_remove(state->cli, state->mid);
+		state->recv_flags2 = SVAL(inbuf, smb_flg2);
+		cli_trans_cleanup_primary(state);
 		tevent_req_done(req);
 		return;
 	}
 
-	if (!cli_smb_req_set_pending(subreq)) {
-		status = NT_STATUS_NO_MEMORY;
-		goto fail;
-	}
+	TALLOC_FREE(inbuf);
+
 	return;
 
  fail:
-	cli_state_seqnum_remove(state->cli, state->mid);
-	TALLOC_FREE(subreq);
+	cli_trans_cleanup_primary(state);
+	tevent_req_nterror(req, status);
+}
+
+static void cli_trans_done2(struct tevent_req *subreq2)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq2, struct tevent_req);
+	struct cli_trans_state *state = tevent_req_data(
+		req, struct cli_trans_state);
+	NTSTATUS status;
+	bool sent_all;
+	uint8_t wct;
+	uint32_t seqnum;
+
+	/*
+	 * First backup the seqnum of the secondary request
+	 * and attach it to the primary request.
+	 */
+	seqnum = cli_smb_req_seqnum(subreq2);
+	cli_smb_req_set_seqnum(state->primary_subreq, seqnum);
+
+	status = cli_smb_recv(subreq2, state, NULL, 0, &wct, NULL,
+			      NULL, NULL);
+	TALLOC_FREE(subreq2);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		goto fail;
+	}
+
+	if (wct != 0) {
+		status = NT_STATUS_INVALID_NETWORK_RESPONSE;
+		goto fail;
+	}
+
+	sent_all = ((state->param_sent == state->num_param)
+		    && (state->data_sent == state->num_data));
+
+	if (!sent_all) {
+		int iov_count;
+
+		cli_trans_format(state, &wct, &iov_count);
+
+		subreq2 = cli_smb_req_create(state, state->ev, state->cli,
+					     state->cmd + 1, 0, wct, state->vwv,
+					     iov_count, state->iov);
+		if (tevent_req_nomem(subreq2, req)) {
+			return;
+		}
+		cli_smb_req_set_mid(subreq2, state->mid);
+
+		status = cli_smb_req_send(subreq2);
+
+		if (!NT_STATUS_IS_OK(status)) {
+			goto fail;
+		}
+		tevent_req_set_callback(subreq2, cli_trans_done2, req);
+		return;
+	}
+
+	return;
+
+ fail:
+	cli_trans_cleanup_primary(state);
 	tevent_req_nterror(req, status);
 }
 
 NTSTATUS cli_trans_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx,
-			uint16_t **setup, uint8_t *num_setup,
-			uint8_t **param, uint32_t *num_param,
-			uint8_t **data, uint32_t *num_data)
+			uint16_t *recv_flags2,
+			uint16_t **setup, uint8_t min_setup,
+			uint8_t *num_setup,
+			uint8_t **param, uint32_t min_param,
+			uint32_t *num_param,
+			uint8_t **data, uint32_t min_data,
+			uint32_t *num_data)
 {
 	struct cli_trans_state *state = tevent_req_data(
 		req, struct cli_trans_state);
 	NTSTATUS status;
 
+	cli_trans_cleanup_primary(state);
+
 	if (tevent_req_is_nterror(req, &status)) {
 		return status;
+	}
+
+	if ((state->num_rsetup < min_setup)
+	    || (state->rparam.total < min_param)
+	    || (state->rdata.total < min_data)) {
+		return NT_STATUS_INVALID_NETWORK_RESPONSE;
+	}
+
+	if (recv_flags2 != NULL) {
+		*recv_flags2 = state->recv_flags2;
 	}
 
 	if (setup != NULL) {
@@ -1247,9 +716,10 @@ NTSTATUS cli_trans(TALLOC_CTX *mem_ctx, struct cli_state *cli,
 		   uint16_t *setup, uint8_t num_setup, uint8_t max_setup,
 		   uint8_t *param, uint32_t num_param, uint32_t max_param,
 		   uint8_t *data, uint32_t num_data, uint32_t max_data,
-		   uint16_t **rsetup, uint8_t *num_rsetup,
-		   uint8_t **rparam, uint32_t *num_rparam,
-		   uint8_t **rdata, uint32_t *num_rdata)
+		   uint16_t *recv_flags2,
+		   uint16_t **rsetup, uint8_t min_rsetup, uint8_t *num_rsetup,
+		   uint8_t **rparam, uint32_t min_rparam, uint32_t *num_rparam,
+		   uint8_t **rdata, uint32_t min_rdata, uint32_t *num_rdata)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
 	struct event_context *ev;
@@ -1285,12 +755,11 @@ NTSTATUS cli_trans(TALLOC_CTX *mem_ctx, struct cli_state *cli,
 		goto fail;
 	}
 
-	status = cli_trans_recv(req, mem_ctx, rsetup, num_rsetup,
-				rparam, num_rparam, rdata, num_rdata);
+	status = cli_trans_recv(req, mem_ctx, recv_flags2,
+				rsetup, min_rsetup, num_rsetup,
+				rparam, min_rparam, num_rparam,
+				rdata, min_rdata, num_rdata);
  fail:
 	TALLOC_FREE(frame);
-	if (!NT_STATUS_IS_OK(status)) {
-		cli_set_error(cli, status);
-	}
 	return status;
 }

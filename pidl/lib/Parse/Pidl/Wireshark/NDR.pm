@@ -1,5 +1,5 @@
 ##################################################
-# Samba4 NDR parser generator for IDL structures
+# Wireshark NDR parser generator for IDL structures
 # Copyright tridge@samba.org 2000-2003
 # Copyright tpot@samba.org 2001,2005
 # Copyright jelmer@samba.org 2004-2007
@@ -545,6 +545,9 @@ sub Struct($$$$)
 	$self->indent;
 	$self->pidl_code("proto_item *item = NULL;");
 	$self->pidl_code("proto_tree *tree = NULL;");
+	if ($e->{ALIGN} > 1) {
+		$self->pidl_code("dcerpc_info *di = pinfo->private_data;");
+	}
 	$self->pidl_code("int old_offset;");
 	$self->pidl_code("");
 
@@ -565,6 +568,15 @@ sub Struct($$$$)
 	$self->pidl_code("\n$res");
 
 	$self->pidl_code("proto_item_set_len(item, offset-old_offset);\n");
+	if ($e->{ALIGN} > 1) {
+		$self->pidl_code("");
+		$self->pidl_code("if (di->call_data->flags & DCERPC_IS_NDR64) {");
+		$self->indent;
+		$self->pidl_code("ALIGN_TO_$e->{ALIGN}_BYTES;");
+		$self->deindent;
+		$self->pidl_code("}");
+	}
+	$self->pidl_code("");
 	$self->pidl_code("return offset;");
 	$self->deindent;
 	$self->pidl_code("}\n");
@@ -634,6 +646,8 @@ sub Union($$$$)
 
 	$self->pidl_code("switch(level) {$res\t}");
 	$self->pidl_code("proto_item_set_len(item, offset-old_offset);\n");
+	$self->pidl_code("");
+
 	$self->pidl_code("return offset;");
 	$self->deindent;
 	$self->pidl_code("}");
@@ -872,10 +886,10 @@ sub Initialize($$)
 	$self->register_type("dlong", "offset = dissect_ndr_duint32(tvb, offset, pinfo, tree, drep, \@HF\@, NULL);","FT_INT64", "BASE_DEC", 0, "NULL", 8);
 	$self->register_type("GUID", "offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, drep, \@HF\@, NULL);","FT_GUID", "BASE_NONE", 0, "NULL", 4);
 	$self->register_type("policy_handle", "offset = PIDL_dissect_policy_hnd(tvb, offset, pinfo, tree, drep, \@HF\@, \@PARAM\@);","FT_BYTES", "BASE_NONE", 0, "NULL", 4);
-	$self->register_type("NTTIME", "offset = dissect_ndr_nt_NTTIME(tvb, offset, pinfo, tree, drep, \@HF\@);","FT_ABSOLUTE_TIME", "BASE_NONE", 0, "NULL", 4);
-	$self->register_type("NTTIME_hyper", "offset = dissect_ndr_nt_NTTIME(tvb, offset, pinfo, tree, drep, \@HF\@);","FT_ABSOLUTE_TIME", "BASE_NONE", 0, "NULL", 4);
-	$self->register_type("time_t", "offset = dissect_ndr_time_t(tvb, offset, pinfo,tree, drep, \@HF\@, NULL);","FT_ABSOLUTE_TIME", "BASE_NONE", 0, "NULL", 4);
-	$self->register_type("NTTIME_1sec", "offset = dissect_ndr_nt_NTTIME(tvb, offset, pinfo, tree, drep, \@HF\@);", "FT_ABSOLUTE_TIME", "BASE_NONE", 0, "NULL", 4);
+	$self->register_type("NTTIME", "offset = dissect_ndr_nt_NTTIME(tvb, offset, pinfo, tree, drep, \@HF\@);","FT_ABSOLUTE_TIME", "ABSOLUTE_TIME_LOCAL", 0, "NULL", 4);
+	$self->register_type("NTTIME_hyper", "offset = dissect_ndr_nt_NTTIME(tvb, offset, pinfo, tree, drep, \@HF\@);","FT_ABSOLUTE_TIME", "ABSOLUTE_TIME_LOCAL", 0, "NULL", 4);
+	$self->register_type("time_t", "offset = dissect_ndr_time_t(tvb, offset, pinfo,tree, drep, \@HF\@, NULL);","FT_ABSOLUTE_TIME", "ABSOLUTE_TIME_LOCAL", 0, "NULL", 4);
+	$self->register_type("NTTIME_1sec", "offset = dissect_ndr_nt_NTTIME(tvb, offset, pinfo, tree, drep, \@HF\@);", "FT_ABSOLUTE_TIME", "ABSOLUTE_TIME_LOCAL", 0, "NULL", 4);
 	$self->register_type("SID", "
 		dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
 
@@ -895,7 +909,7 @@ sub Initialize($$)
 sub Parse($$$$$)
 {
 	my($self,$ndr,$idl_file,$h_filename,$cnf_file) = @_;
-	
+
 	$self->Initialize($cnf_file);
 
 	return (undef, undef) if defined($self->{conformance}->{noemit_dissector});

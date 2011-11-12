@@ -9,9 +9,8 @@
 	own domain while using allocation to create new mappings for trusted domains
 	</p><pre class="programlisting">
 	[global]
-	idmap backend = tdb
-	idmap uid = 1000000-1999999
-	idmap gid = 1000000-1999999
+	idmap config * : backend = tdb
+	idmap config * : range = 1000000-1999999
 
 	idmap config SAMBA : backend  = nss
 	idmap config SAMBA : range = 1000-999999

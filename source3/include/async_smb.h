@@ -20,7 +20,7 @@
 #ifndef __ASYNC_SMB_H__
 #define __ASYNC_SMB_H__
 
-#include "includes.h"
+struct cli_state;
 
 /*
  * Fetch an error out of a NBT packet
@@ -51,14 +51,17 @@ void cli_smb_req_unset_pending(struct tevent_req *req);
 bool cli_smb_req_set_pending(struct tevent_req *req);
 uint16_t cli_smb_req_mid(struct tevent_req *req);
 void cli_smb_req_set_mid(struct tevent_req *req, uint16_t mid);
+uint32_t cli_smb_req_seqnum(struct tevent_req *req);
+void cli_smb_req_set_seqnum(struct tevent_req *req, uint32_t seqnum);
 struct tevent_req *cli_smb_send(TALLOC_CTX *mem_ctx, struct event_context *ev,
 				struct cli_state *cli,
 				uint8_t smb_command, uint8_t additional_flags,
 				uint8_t wct, uint16_t *vwv,
 				uint32_t num_bytes,
 				const uint8_t *bytes);
-NTSTATUS cli_smb_recv(struct tevent_req *req, uint8_t min_wct,
-		      uint8_t *pwct, uint16_t **pvwv,
+NTSTATUS cli_smb_recv(struct tevent_req *req,
+		      TALLOC_CTX *mem_ctx, uint8_t **pinbuf,
+		      uint8_t min_wct, uint8_t *pwct, uint16_t **pvwv,
 		      uint32_t *pnum_bytes, uint8_t **pbytes);
 
 struct tevent_req *cli_smb_oplock_break_waiter_send(TALLOC_CTX *mem_ctx,

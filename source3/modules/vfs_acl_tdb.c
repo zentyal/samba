@@ -18,12 +18,15 @@
  * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
-/* NOTE: This is an experimental module, not yet finished. JRA. */
-
 #include "includes.h"
+#include "smbd/smbd.h"
+#include "system/filesys.h"
 #include "librpc/gen_ndr/xattr.h"
 #include "librpc/gen_ndr/ndr_xattr.h"
 #include "../lib/crypto/crypto.h"
+#include "dbwrap.h"
+#include "auth.h"
+#include "util_tdb.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_VFS
@@ -398,7 +401,7 @@ static struct vfs_fn_pointers vfs_acl_tdb_fns = {
 	.opendir = opendir_acl_common,
 	.mkdir = mkdir_acl_common,
 	.rmdir = rmdir_acl_tdb,
-	.open = open_acl_common,
+	.open_fn = open_acl_common,
 	.create_file = create_file_acl_common,
 	.unlink = unlink_acl_tdb,
 	.chmod = chmod_acl_module_common,

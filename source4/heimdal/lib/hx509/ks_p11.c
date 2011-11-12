@@ -613,7 +613,7 @@ collect_private_key(hx509_context context,
     localKeyId.data = query[0].pValue;
     localKeyId.length = query[0].ulValueLen;
 
-    ret = _hx509_private_key_init(&key, NULL, NULL);
+    ret = hx509_private_key_init(&key, NULL, NULL);
     if (ret)
 	return ret;
 
@@ -648,7 +648,7 @@ collect_private_key(hx509_context context,
     if (ret != 1)
 	_hx509_abort("RSA_set_app_data");
 
-    _hx509_private_key_assign_rsa(key, rsa);
+    hx509_private_key_assign_rsa(key, rsa);
 
     ret = _hx509_collector_private_key_add(context,
 					   collector,
@@ -658,7 +658,7 @@ collect_private_key(hx509_context context,
 					   &localKeyId);
 
     if (ret) {
-	_hx509_private_key_free(&key);
+	hx509_private_key_free(&key);
 	return ret;
     }
     return 0;
@@ -835,7 +835,7 @@ p11_init(hx509_context context,
 	goto out;
     }
 
-    getFuncs = dlsym(p->dl_handle, "C_GetFunctionList");
+    getFuncs = (CK_C_GetFunctionList) dlsym(p->dl_handle, "C_GetFunctionList");
     if (getFuncs == NULL) {
 	ret = HX509_PKCS11_LOAD;
 	hx509_set_error_string(context, 0, ret,
@@ -1139,7 +1139,6 @@ p11_printinfo(hx509_context context,
 		MECHNAME(CKM_SHA256, "sha256");
 		MECHNAME(CKM_SHA_1, "sha1");
 		MECHNAME(CKM_MD5, "md5");
-		MECHNAME(CKM_MD2, "md2");
 		MECHNAME(CKM_RIPEMD160, "ripemd-160");
 		MECHNAME(CKM_DES_ECB, "des-ecb");
 		MECHNAME(CKM_DES_CBC, "des-cbc");

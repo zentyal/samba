@@ -20,7 +20,7 @@
 
 #include "includes.h"
 #include "libcli/raw/interfaces.h"
-#include "libcli/rap/rap.h"
+#include "../librpc/gen_ndr/rap.h"
 #include "events/events.h"
 #include "ntvfs/ipc/proto.h"
 #include "librpc/ndr/libndr.h"
@@ -124,10 +124,10 @@ static struct rap_call *new_rap_srv_call(TALLOC_CTX *mem_ctx,
 
 	call->mem_ctx = mem_ctx;
 
-	call->ndr_pull_param = ndr_pull_init_blob(&trans->in.params, mem_ctx, lp_iconv_convenience(lp_ctx));
+	call->ndr_pull_param = ndr_pull_init_blob(&trans->in.params, mem_ctx);
 	call->ndr_pull_param->flags = RAPNDR_FLAGS;
 
-	call->ndr_pull_data = ndr_pull_init_blob(&trans->in.data, mem_ctx, lp_iconv_convenience(lp_ctx));
+	call->ndr_pull_data = ndr_pull_init_blob(&trans->in.data, mem_ctx);
 	call->ndr_pull_data->flags = RAPNDR_FLAGS;
 
 	call->heap = talloc(mem_ctx, struct rap_string_heap);
@@ -291,17 +291,17 @@ static NTSTATUS _rap_netshareenum(struct rap_call *call)
 		switch(r.in.level) {
 		case 0:
 			NDR_GOTO(ndr_push_bytes(call->ndr_push_data,
-					      (const uint8_t *)r.out.info[i].info0.name,
-					      sizeof(r.out.info[i].info0.name)));
+					      (const uint8_t *)r.out.info[i].info0.share_name,
+					      sizeof(r.out.info[i].info0.share_name)));
 			break;
 		case 1:
 			NDR_GOTO(ndr_push_bytes(call->ndr_push_data,
-					      (const uint8_t *)r.out.info[i].info1.name,
-					      sizeof(r.out.info[i].info1.name)));
+					      (const uint8_t *)r.out.info[i].info1.share_name,
+					      sizeof(r.out.info[i].info1.share_name)));
 			NDR_GOTO(ndr_push_uint8(call->ndr_push_data,
-					      NDR_SCALARS, r.out.info[i].info1.pad));
+					      NDR_SCALARS, r.out.info[i].info1.reserved1));
 			NDR_GOTO(ndr_push_uint16(call->ndr_push_data,
-					       NDR_SCALARS, r.out.info[i].info1.type));
+					       NDR_SCALARS, r.out.info[i].info1.share_type));
 
 			RAP_GOTO(rap_push_string(call->ndr_push_data,
 					       call->heap,
@@ -454,8 +454,8 @@ NTSTATUS ipc_rap_call(TALLOC_CTX *mem_ctx, struct tevent_context *event_ctx, str
 	NDR_RETURN(ndr_pull_string(call->ndr_pull_param, NDR_SCALARS,
 				  &call->datadesc));
 
-	call->ndr_push_param = ndr_push_init_ctx(call, lp_iconv_convenience(lp_ctx));
-	call->ndr_push_data = ndr_push_init_ctx(call, lp_iconv_convenience(lp_ctx));
+	call->ndr_push_param = ndr_push_init_ctx(call);
+	call->ndr_push_data = ndr_push_init_ctx(call);
 
 	if ((call->ndr_push_param == NULL) || (call->ndr_push_data == NULL))
 		return NT_STATUS_NO_MEMORY;
@@ -480,8 +480,8 @@ NTSTATUS ipc_rap_call(TALLOC_CTX *mem_ctx, struct tevent_context *event_ctx, str
 	result_param = ndr_push_blob(call->ndr_push_param);
 	result_data = ndr_push_blob(call->ndr_push_data);
 
-	final_param = ndr_push_init_ctx(call, lp_iconv_convenience(lp_ctx));
-	final_data = ndr_push_init_ctx(call, lp_iconv_convenience(lp_ctx));
+	final_param = ndr_push_init_ctx(call);
+	final_data = ndr_push_init_ctx(call);
 
 	if ((final_param == NULL) || (final_data == NULL))
 		return NT_STATUS_NO_MEMORY;

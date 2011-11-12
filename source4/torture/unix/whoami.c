@@ -19,10 +19,8 @@
 
 #include "includes.h"
 #include "libcli/libcli.h"
-#include "libcli/raw/interfaces.h"
 #include "libcli/raw/raw_proto.h"
 #include "torture/torture.h"
-#include "torture/basic/proto.h"
 #include "lib/cmdline/popt_common.h"
 #include "auth/credentials/credentials.h"
 #include "param/param.h"
@@ -51,7 +49,7 @@ enum smb_whoami_flags {
        4 bytes -               pad / reserved (must be zero)
 
        8 bytes unsigned[] -    list of GIDs (may be empty)
-       DOM_SID[] -             list of SIDs (may be empty)
+       struct dom_sid[] -             list of SIDs (may be empty)
 */
 
 struct smb_whoami
@@ -79,16 +77,15 @@ static struct smbcli_state *connect_to_server(struct torture_context *tctx,
 	struct smbcli_options options;
 	struct smbcli_session_options session_options;
 
-	lp_smbcli_options(tctx->lp_ctx, &options);
-	lp_smbcli_session_options(tctx->lp_ctx, &session_options);
+	lpcfg_smbcli_options(tctx->lp_ctx, &options);
+	lpcfg_smbcli_session_options(tctx->lp_ctx, &session_options);
 
 	status = smbcli_full_connection(tctx, &cli, host, 
-					lp_smb_ports(tctx->lp_ctx),
-					share, NULL, lp_socket_options(tctx->lp_ctx),
-					creds, lp_resolve_context(tctx->lp_ctx),
+					lpcfg_smb_ports(tctx->lp_ctx),
+					share, NULL, lpcfg_socket_options(tctx->lp_ctx),
+					creds, lpcfg_resolve_context(tctx->lp_ctx),
 					tctx->ev, &options, &session_options,
-					lp_iconv_convenience(tctx->lp_ctx),
-					lp_gensec_settings(tctx, tctx->lp_ctx));
+					lpcfg_gensec_settings(tctx, tctx->lp_ctx));
 
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("failed to connect to //%s/%s: %s\n",

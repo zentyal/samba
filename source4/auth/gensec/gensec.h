@@ -26,6 +26,8 @@
 #include "../lib/util/data_blob.h"
 #include "libcli/util/ntstatus.h"
 
+#define GENSEC_SASL_NAME_NTLMSSP "NTLM"
+
 #define GENSEC_OID_NTLMSSP "1.3.6.1.4.1.311.2.2.10"
 #define GENSEC_OID_SPNEGO "1.3.6.1.5.5.2"
 #define GENSEC_OID_KERBEROS5 "1.2.840.113554.1.2.2"
@@ -69,22 +71,10 @@ struct auth_session_info;
 struct cli_credentials;
 struct gensec_settings;
 struct tevent_context;
-
-struct gensec_update_request {
-	struct gensec_security *gensec_security;
-	void *private_data;
-	DATA_BLOB in;
-	DATA_BLOB out;
-	NTSTATUS status;
-	struct {
-		void (*fn)(struct gensec_update_request *req, void *private_data);
-		void *private_data;
-	} callback;
-};
+struct tevent_req;
 
 struct gensec_settings {
 	struct loadparm_context *lp_ctx;
-	struct smb_iconv_convenience *iconv_convenience;
 	const char *target_hostname;
 };
 
@@ -169,7 +159,7 @@ struct gensec_security {
 	bool subcontext;
 	uint32_t want_features;
 	struct tevent_context *event_ctx;
-	struct socket_address *my_addr, *peer_addr;
+	struct tsocket_address *local_addr, *remote_addr;
 	struct gensec_settings *settings;
 	
 	/* When we are a server, this may be filled in to provide an
@@ -190,6 +180,7 @@ struct gensec_critical_sizes {
 struct gensec_security;
 struct socket_context;
 struct auth_context;
+struct auth_user_info_dc;
 
 NTSTATUS gensec_socket_init(struct gensec_security *gensec_security,
 			    TALLOC_CTX *mem_ctx, 
@@ -231,10 +222,11 @@ NTSTATUS gensec_start_mech_by_sasl_list(struct gensec_security *gensec_security,
 						 const char **sasl_names);
 NTSTATUS gensec_update(struct gensec_security *gensec_security, TALLOC_CTX *out_mem_ctx, 
 		       const DATA_BLOB in, DATA_BLOB *out);
-void gensec_update_send(struct gensec_security *gensec_security, const DATA_BLOB in,
-				 void (*callback)(struct gensec_update_request *req, void *private_data),
-				 void *private_data);
-NTSTATUS gensec_update_recv(struct gensec_update_request *req, TALLOC_CTX *out_mem_ctx, DATA_BLOB *out);
+struct tevent_req *gensec_update_send(TALLOC_CTX *mem_ctx,
+				      struct tevent_context *ev,
+				      struct gensec_security *gensec_security,
+				      const DATA_BLOB in);
+NTSTATUS gensec_update_recv(struct tevent_req *req, TALLOC_CTX *out_mem_ctx, DATA_BLOB *out);
 void gensec_want_feature(struct gensec_security *gensec_security,
 			 uint32_t feature);
 bool gensec_have_feature(struct gensec_security *gensec_security,
@@ -250,7 +242,6 @@ NTSTATUS gensec_start_mech_by_oid(struct gensec_security *gensec_security,
 				  const char *mech_oid);
 const char *gensec_get_name_by_oid(struct gensec_security *gensec_security, const char *oid_string);
 struct cli_credentials *gensec_get_credentials(struct gensec_security *gensec_security);
-struct socket_address *gensec_get_peer_addr(struct gensec_security *gensec_security);
 NTSTATUS gensec_init(struct loadparm_context *lp_ctx);
 NTSTATUS gensec_unseal_packet(struct gensec_security *gensec_security, 
 			      TALLOC_CTX *mem_ctx, 
@@ -283,13 +274,19 @@ NTSTATUS gensec_server_start(TALLOC_CTX *mem_ctx,
 			     struct gensec_security **gensec_security);
 NTSTATUS gensec_session_info(struct gensec_security *gensec_security, 
 			     struct auth_session_info **session_info);
-NTSTATUS auth_nt_status_squash(NTSTATUS nt_status);
+NTSTATUS nt_status_squash(NTSTATUS nt_status);
 struct netlogon_creds_CredentialState;
 NTSTATUS dcerpc_schannel_creds(struct gensec_security *gensec_security,
 			       TALLOC_CTX *mem_ctx,
 			       struct netlogon_creds_CredentialState **creds);
-NTSTATUS gensec_set_peer_addr(struct gensec_security *gensec_security, struct socket_address *peer_addr);
-NTSTATUS gensec_set_my_addr(struct gensec_security *gensec_security, struct socket_address *my_addr);
+
+
+NTSTATUS gensec_set_local_address(struct gensec_security *gensec_security,
+		const struct tsocket_address *local);
+NTSTATUS gensec_set_remote_address(struct gensec_security *gensec_security,
+		const struct tsocket_address *remote);
+const struct tsocket_address *gensec_get_local_address(struct gensec_security *gensec_security);
+const struct tsocket_address *gensec_get_remote_address(struct gensec_security *gensec_security);
 
 NTSTATUS gensec_start_mech_by_name(struct gensec_security *gensec_security, 
 					const char *name);
@@ -314,5 +311,7 @@ NTSTATUS gensec_start_mech_by_sasl_name(struct gensec_security *gensec_security,
 
 int gensec_setting_int(struct gensec_settings *settings, const char *mechanism, const char *name, int default_value);
 bool gensec_setting_bool(struct gensec_settings *settings, const char *mechanism, const char *name, bool default_value);
+
+NTSTATUS gensec_set_target_principal(struct gensec_security *gensec_security, const char *principal);
 
 #endif /* __GENSEC_H__ */

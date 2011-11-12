@@ -7,7 +7,7 @@
 	<manvolnum>8</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">System Administration tools</refmiscinfo>
-	<refmiscinfo class="version">3.5</refmiscinfo>
+	<refmiscinfo class="version">3.6</refmiscinfo>
 </refmeta>
 
 
@@ -42,10 +42,6 @@
 	To show the current value, the name of the EA must be specified
 	(e.g. <command>getfattr -n security.NTACL <filename>filename</filename>
 	</command>).
-	</para>
-
-	<para>Please note that this module is
-	<emphasis>experimental</emphasis>!
 	</para>
 
 	<para>This module is stackable.</para>

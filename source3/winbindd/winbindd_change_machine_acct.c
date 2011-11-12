@@ -20,7 +20,7 @@
 
 #include "includes.h"
 #include "winbindd.h"
-#include "librpc/gen_ndr/cli_wbint.h"
+#include "librpc/gen_ndr/ndr_wbint_c.h"
 
 struct winbindd_change_machine_acct_state {
 	uint8_t dummy;
@@ -57,8 +57,8 @@ struct tevent_req *winbindd_change_machine_acct_send(TALLOC_CTX *mem_ctx,
 		return tevent_req_post(req, ev);
 	}
 
-	subreq = rpccli_wbint_ChangeMachineAccount_send(state, ev,
-							domain->child.rpccli);
+	subreq = dcerpc_wbint_ChangeMachineAccount_send(state, ev,
+							dom_child_handle(domain));
 	if (tevent_req_nomem(subreq, req)) {
 		return tevent_req_post(req, ev);
 	}
@@ -74,13 +74,9 @@ static void winbindd_change_machine_acct_done(struct tevent_req *subreq)
 		req, struct winbindd_change_machine_acct_state);
 	NTSTATUS status, result;
 
-	status = rpccli_wbint_ChangeMachineAccount_recv(subreq, state, &result);
-	if (!NT_STATUS_IS_OK(status)) {
+	status = dcerpc_wbint_ChangeMachineAccount_recv(subreq, state, &result);
+	if (any_nt_status_not_ok(status, result, &status)) {
 		tevent_req_nterror(req, status);
-		return;
-	}
-	if (!NT_STATUS_IS_OK(result)) {
-		tevent_req_nterror(req, result);
 		return;
 	}
 	tevent_req_done(req);

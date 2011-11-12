@@ -18,10 +18,11 @@
 */
 
 #include "includes.h"
+#include "messages.h"
+#include "util_tdb.h"
 
 #ifdef CLUSTER_SUPPORT
 
-#include "librpc/gen_ndr/messaging.h"
 #include "ctdb.h"
 #include "ctdb_private.h"
 #include "ctdbd_conn.h"
@@ -80,7 +81,7 @@ static NTSTATUS messaging_ctdb_send(struct messaging_context *msg_ctx,
 	msg.msg_version	= MESSAGE_VERSION;
 	msg.msg_type	= msg_type;
 	msg.dest	= pid;
-	msg.src		= procid_self();
+	msg.src		= msg_ctx->id;
 	msg.buf		= *data;
 
 	return ctdbd_messaging_send(ctx->conn, pid.vnn, pid.pid, &msg);

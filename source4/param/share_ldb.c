@@ -20,8 +20,8 @@
 */
 
 #include "includes.h"
-#include "ldb/include/ldb.h"
-#include "ldb/include/ldb_errors.h"
+#include <ldb.h>
+#include <ldb_errors.h>
 #include "auth/auth.h"
 #include "ldb_wrap.h"
 #include "param/share.h"
@@ -40,10 +40,10 @@ static NTSTATUS sldb_init(TALLOC_CTX *mem_ctx, const struct share_ops *ops,
 		return NT_STATUS_NO_MEMORY;
 	}
 	
-	sdb = ldb_wrap_connect(*ctx, ev_ctx, lp_ctx, 
+	sdb = ldb_wrap_connect(*ctx, ev_ctx, lp_ctx,
 			       private_path(*ctx, lp_ctx, "share.ldb"),
-			       system_session(*ctx, lp_ctx),
-			       NULL, 0, NULL);
+			       system_session(lp_ctx),
+			       NULL, 0);
 
 	if (!sdb) {
 		talloc_free(*ctx);

@@ -28,7 +28,7 @@
 #include "lib/events/events.h"
 #include "lib/messaging/irpc.h"
 #include "dsdb/kcc/kcc_service.h"
-#include "lib/ldb/include/ldb_errors.h"
+#include <ldb_errors.h>
 #include "../lib/util/dlinklist.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "librpc/gen_ndr/ndr_drsuapi.h"
@@ -40,12 +40,9 @@
  */
 static WERROR kccsrv_init_creds(struct kccsrv_service *service)
 {
-	NTSTATUS status;
-
-	status = auth_system_session_info(service, service->task->lp_ctx, 
-					  &service->system_session_info);
-	if (!NT_STATUS_IS_OK(status)) {
-		return ntstatus_to_werror(status);
+	service->system_session_info = system_session(service->task->lp_ctx);
+	if (!service->system_session_info) {
+		return WERR_NOMEM;
 	}
 
 	return WERR_OK;
@@ -58,7 +55,7 @@ static WERROR kccsrv_connect_samdb(struct kccsrv_service *service, struct loadpa
 {
 	const struct GUID *ntds_guid;
 
-	service->samdb = samdb_connect(service, service->task->event_ctx, lp_ctx, service->system_session_info);
+	service->samdb = samdb_connect(service, service->task->event_ctx, lp_ctx, service->system_session_info, 0);
 	if (!service->samdb) {
 		return WERR_DS_UNAVAILABLE;
 	}
@@ -69,6 +66,11 @@ static WERROR kccsrv_connect_samdb(struct kccsrv_service *service, struct loadpa
 	}
 
 	service->ntds_guid = *ntds_guid;
+
+	if (samdb_rodc(service->samdb, &service->am_rodc) != LDB_SUCCESS) {
+		DEBUG(0,(__location__ ": Failed to determine RODC status\n"));
+		return WERR_DS_UNAVAILABLE;
+	}
 
 	return WERR_OK;
 }
@@ -83,7 +85,7 @@ static WERROR kccsrv_load_partitions(struct kccsrv_service *s)
 	struct ldb_result *r;
 	struct ldb_message_element *el;
 	static const char *attrs[] = { "namingContexts", "configurationNamingContext", NULL };
-	uint32_t i;
+	unsigned int i;
 	int ret;
 
 	basedn = ldb_dn_new(s, s->samdb, NULL);
@@ -104,7 +106,7 @@ static WERROR kccsrv_load_partitions(struct kccsrv_service *s)
 		return WERR_FOOBAR;
 	}
 
-	for (i=0; el && i < el->num_values; i++) {
+	for (i=0; i < el->num_values; i++) {
 		const char *v = (const char *)el->values[i].data;
 		struct ldb_dn *pdn;
 		struct kccsrv_partition *p;
@@ -139,6 +141,29 @@ static WERROR kccsrv_load_partitions(struct kccsrv_service *s)
 	return WERR_OK;
 }
 
+static NTSTATUS kccsrv_execute_kcc(struct irpc_message *msg, struct drsuapi_DsExecuteKCC *r)
+{
+	TALLOC_CTX *mem_ctx;
+	NTSTATUS status;
+	struct kccsrv_service *service = talloc_get_type(msg->private_data, struct kccsrv_service);
+
+	mem_ctx = talloc_new(service);
+	status = kccsrv_simple_update(service, mem_ctx);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0,("kccsrv_simple_update failed - %s\n", nt_errstr(status)));
+		talloc_free(mem_ctx);
+		return status;
+	}
+
+	talloc_free(mem_ctx);
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS kccsrv_replica_get_info(struct irpc_message *msg, struct drsuapi_DsReplicaGetInfo *r)
+{
+	return kccdrs_replica_get_info(msg, r);
+}
 
 /*
   startup the kcc service task
@@ -149,7 +174,7 @@ static void kccsrv_task_init(struct task_server *task)
 	struct kccsrv_service *service;
 	uint32_t periodic_startup_interval;
 
-	switch (lp_server_role(task->lp_ctx)) {
+	switch (lpcfg_server_role(task->lp_ctx)) {
 	case ROLE_STANDALONE:
 		task_server_terminate(task, "kccsrv: no KCC required in standalone configuration", false);
 		return;
@@ -197,9 +222,9 @@ static void kccsrv_task_init(struct task_server *task)
 		return;
 	}
 
-	periodic_startup_interval	= lp_parm_int(task->lp_ctx, NULL, "kccsrv", 
+	periodic_startup_interval	= lpcfg_parm_int(task->lp_ctx, NULL, "kccsrv",
 						      "periodic_startup_interval", 15); /* in seconds */
-	service->periodic.interval	= lp_parm_int(task->lp_ctx, NULL, "kccsrv", 
+	service->periodic.interval	= lpcfg_parm_int(task->lp_ctx, NULL, "kccsrv",
 						      "periodic_interval", 300); /* in seconds */
 
 	status = kccsrv_periodic_schedule(service, periodic_startup_interval);
@@ -211,6 +236,9 @@ static void kccsrv_task_init(struct task_server *task)
 	}
 
 	irpc_add_name(task->msg_ctx, "kccsrv");
+
+	IRPC_REGISTER(task->msg_ctx, drsuapi, DRSUAPI_DSEXECUTEKCC, kccsrv_execute_kcc, service);
+	IRPC_REGISTER(task->msg_ctx, drsuapi, DRSUAPI_DSREPLICAGETINFO, kccsrv_replica_get_info, service);
 }
 
 /*

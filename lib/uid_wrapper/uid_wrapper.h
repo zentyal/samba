@@ -17,6 +17,17 @@
 
 #ifndef __UID_WRAPPER_H__
 #define __UID_WRAPPER_H__
+#ifndef uwrap_enabled
+
+int uwrap_enabled(void);
+int uwrap_seteuid(uid_t euid);
+uid_t uwrap_geteuid(void);
+int uwrap_setegid(gid_t egid);
+uid_t uwrap_getegid(void);
+int uwrap_setgroups(size_t size, const gid_t *list);
+int uwrap_getgroups(int size, gid_t *list);
+uid_t uwrap_getuid(void);
+gid_t uwrap_getgid(void);
 
 #ifdef seteuid
 #undef seteuid
@@ -58,6 +69,5 @@
 #endif
 #define getgid	uwrap_getgid
 
-int uwrap_enabled(void);
-
+#endif
 #endif /* __UID_WRAPPER_H__ */

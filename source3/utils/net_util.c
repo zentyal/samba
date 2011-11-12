@@ -21,44 +21,52 @@
 
 #include "includes.h"
 #include "utils/net.h"
-#include "../librpc/gen_ndr/cli_lsa.h"
-#include "../librpc/gen_ndr/cli_dssetup.h"
+#include "rpc_client/cli_pipe.h"
+#include "../librpc/gen_ndr/ndr_lsa_c.h"
+#include "rpc_client/cli_lsarpc.h"
+#include "../librpc/gen_ndr/ndr_dssetup_c.h"
+#include "secrets.h"
+#include "../libcli/security/security.h"
+#include "libsmb/libsmb.h"
 
 NTSTATUS net_rpc_lookup_name(struct net_context *c,
 			     TALLOC_CTX *mem_ctx, struct cli_state *cli,
 			     const char *name, const char **ret_domain,
-			     const char **ret_name, DOM_SID *ret_sid,
+			     const char **ret_name, struct dom_sid *ret_sid,
 			     enum lsa_SidType *ret_type)
 {
 	struct rpc_pipe_client *lsa_pipe = NULL;
 	struct policy_handle pol;
-	NTSTATUS result = NT_STATUS_OK;
+	NTSTATUS status, result;
 	const char **dom_names;
-	DOM_SID *sids;
+	struct dom_sid *sids;
 	enum lsa_SidType *types;
+	struct dcerpc_binding_handle *b;
 
 	ZERO_STRUCT(pol);
 
-	result = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc.syntax_id,
+	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc.syntax_id,
 					  &lsa_pipe);
-	if (!NT_STATUS_IS_OK(result)) {
+	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr, _("Could not initialise lsa pipe\n"));
-		return result;
+		return status;
 	}
 
-	result = rpccli_lsa_open_policy(lsa_pipe, mem_ctx, false,
+	b = lsa_pipe->binding_handle;
+
+	status = rpccli_lsa_open_policy(lsa_pipe, mem_ctx, false,
 					SEC_FLAG_MAXIMUM_ALLOWED,
 					&pol);
-	if (!NT_STATUS_IS_OK(result)) {
+	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr, "open_policy %s: %s\n", _("failed"),
-			  nt_errstr(result));
-		return result;
+			  nt_errstr(status));
+		return status;
 	}
 
-	result = rpccli_lsa_lookup_names(lsa_pipe, mem_ctx, &pol, 1,
+	status = rpccli_lsa_lookup_names(lsa_pipe, mem_ctx, &pol, 1,
 					 &name, &dom_names, 1, &sids, &types);
 
-	if (!NT_STATUS_IS_OK(result)) {
+	if (!NT_STATUS_IS_OK(status)) {
 		/* This can happen easily, don't log an error */
 		goto done;
 	}
@@ -78,11 +86,11 @@ NTSTATUS net_rpc_lookup_name(struct net_context *c,
 
  done:
 	if (is_valid_policy_hnd(&pol)) {
-		rpccli_lsa_Close(lsa_pipe, mem_ctx, &pol);
+		dcerpc_lsa_Close(b, mem_ctx, &pol, &result);
 	}
 	TALLOC_FREE(lsa_pipe);
 
-	return result;
+	return status;
 }
 
 /****************************************************************************
@@ -117,7 +125,7 @@ NTSTATUS connect_to_service(struct net_context *c,
 					server_ss, c->opt_port,
 					service_name, service_type,
 					c->opt_user_name, c->opt_workgroup,
-					c->opt_password, flags, Undefined, NULL);
+					c->opt_password, flags, Undefined);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		d_fprintf(stderr, _("Could not connect to server %s\n"),
 			  server_name);
@@ -201,7 +209,7 @@ NTSTATUS connect_to_ipc_anonymous(struct net_context *c,
 					server_name, server_ss, c->opt_port,
 					"IPC$", "IPC",
 					"", "",
-					"", 0, Undefined, NULL);
+					"", 0, Undefined);
 
 	if (NT_STATUS_IS_OK(nt_status)) {
 		return nt_status;
@@ -261,7 +269,7 @@ NTSTATUS connect_to_ipc_krb5(struct net_context *c,
 					user_and_realm, c->opt_workgroup,
 					c->opt_password,
 					CLI_FULL_CONNECTION_USE_KERBEROS,
-					Undefined, NULL);
+					Undefined);
 
 	SAFE_FREE(user_and_realm);
 
@@ -415,7 +423,7 @@ bool net_find_server(struct net_context *c,
 			return false;
 		}
 
-		if (is_zero_addr((struct sockaddr *)&pdc_ss)) {
+		if (is_zero_addr(&pdc_ss)) {
 			return false;
 		}
 
@@ -472,7 +480,7 @@ bool net_find_pdc(struct sockaddr_storage *server_ss,
 	if (!get_pdc_ip(domain_name, server_ss)) {
 		return false;
 	}
-	if (is_zero_addr((struct sockaddr *)server_ss)) {
+	if (is_zero_addr(server_ss)) {
 		return false;
 	}
 
@@ -618,29 +626,101 @@ const char *net_share_type_str(int num_type)
 	}
 }
 
+static NTSTATUS net_scan_dc_noad(struct net_context *c,
+				 struct cli_state *cli,
+				 struct net_dc_info *dc_info)
+{
+	TALLOC_CTX *mem_ctx = talloc_tos();
+	struct rpc_pipe_client *pipe_hnd = NULL;
+	struct dcerpc_binding_handle *b;
+	NTSTATUS status, result;
+	struct policy_handle pol;
+	union lsa_PolicyInformation *info;
+
+	ZERO_STRUCTP(dc_info);
+	ZERO_STRUCT(pol);
+
+	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc.syntax_id,
+					  &pipe_hnd);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	b = pipe_hnd->binding_handle;
+
+	status = dcerpc_lsa_open_policy(b, mem_ctx,
+					false,
+					SEC_FLAG_MAXIMUM_ALLOWED,
+					&pol,
+					&result);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		status = result;
+		goto done;
+	}
+
+	status = dcerpc_lsa_QueryInfoPolicy(b, mem_ctx,
+					    &pol,
+					    LSA_POLICY_INFO_ACCOUNT_DOMAIN,
+					    &info,
+					    &result);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		status = result;
+		goto done;
+	}
+
+	dc_info->netbios_domain_name = talloc_strdup(mem_ctx, info->account_domain.name.string);
+	if (dc_info->netbios_domain_name == NULL) {
+		status = NT_STATUS_NO_MEMORY;
+		goto done;
+	}
+
+ done:
+	if (is_valid_policy_hnd(&pol)) {
+		dcerpc_lsa_Close(b, mem_ctx, &pol, &result);
+	}
+
+	TALLOC_FREE(pipe_hnd);
+
+	return status;
+}
+
 NTSTATUS net_scan_dc(struct net_context *c,
 		     struct cli_state *cli,
 		     struct net_dc_info *dc_info)
 {
 	TALLOC_CTX *mem_ctx = talloc_tos();
 	struct rpc_pipe_client *dssetup_pipe = NULL;
+	struct dcerpc_binding_handle *dssetup_handle = NULL;
 	union dssetup_DsRoleInfo info;
 	NTSTATUS status;
+	WERROR werr;
 
 	ZERO_STRUCTP(dc_info);
 
 	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_dssetup.syntax_id,
 					  &dssetup_pipe);
         if (!NT_STATUS_IS_OK(status)) {
-		return status;
+		DEBUG(10,("net_scan_dc: failed to open dssetup pipe with %s, "
+			"retrying with lsa pipe\n", nt_errstr(status)));
+		return net_scan_dc_noad(c, cli, dc_info);
 	}
+	dssetup_handle = dssetup_pipe->binding_handle;
 
-	status = rpccli_dssetup_DsRoleGetPrimaryDomainInformation(dssetup_pipe, mem_ctx,
+	status = dcerpc_dssetup_DsRoleGetPrimaryDomainInformation(dssetup_handle, mem_ctx,
 								  DS_ROLE_BASIC_INFORMATION,
 								  &info,
-								  NULL);
+								  &werr);
 	TALLOC_FREE(dssetup_pipe);
 
+	if (NT_STATUS_IS_OK(status)) {
+		status = werror_to_ntstatus(werr);
+	}
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}

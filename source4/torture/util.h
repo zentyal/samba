@@ -26,6 +26,16 @@ struct smbcli_state;
 struct smbcli_tree;
 
 /**
+ * Useful target macros for handling server bugs in torture tests.
+ */
+#define TARGET_IS_WINXP(_tctx) (torture_setting_bool(_tctx, "winxp", false))
+#define TARGET_IS_W2K3(_tctx) (torture_setting_bool(_tctx, "w2k3", false))
+#define TARGET_IS_W2K8(_tctx) (torture_setting_bool(_tctx, "w2k8", false))
+#define TARGET_IS_WIN7(_tctx) (torture_setting_bool(_tctx, "win7", false))
+#define TARGET_IS_SAMBA3(_tctx) (torture_setting_bool(_tctx, "samba3", false))
+#define TARGET_IS_SAMBA4(_tctx) (torture_setting_bool(_tctx, "samba4", false))
+
+/**
   setup a directory ready for a test
 */
 _PUBLIC_ bool torture_setup_dir(struct smbcli_state *cli, const char *dname);
@@ -92,6 +102,10 @@ NTSTATUS torture_second_tcon(TALLOC_CTX *mem_ctx,
 			     const char *sharename,
 			     struct smbcli_tree **res);
 
+
+NTSTATUS torture_check_privilege(struct smbcli_state *cli, 
+				 const char *sid_str,
+				 const char *privilege);
 
 
 #endif /* _TORTURE_UTIL_H_ */

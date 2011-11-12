@@ -18,6 +18,7 @@
  */
 
 #include "includes.h"
+#include "services/services.h"
 
 /* Implementation for internal wins service */
 

@@ -7,7 +7,7 @@
 	<manvolnum>8</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">System Administration tools</refmiscinfo>
-	<refmiscinfo class="version">3.5</refmiscinfo>
+	<refmiscinfo class="version">3.6</refmiscinfo>
 </refmeta>
 
 
@@ -38,10 +38,6 @@
 	<para>
 	The ACL settings are stored in
 	<filename>$LOCKDIR/file_ntacls.tdb</filename>.
-	</para>
-
-	<para>Please note that this module is
-	<emphasis>experimental</emphasis>!
 	</para>
 
 	<para>This module is stackable.</para>

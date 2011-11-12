@@ -19,6 +19,8 @@
 
 #define DBGC_CLASS DBGC_LOCKING
 #include "includes.h"
+#include "system/filesys.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
 
 #if HAVE_KERNEL_OPLOCKS_LINUX
@@ -97,12 +99,12 @@ static void linux_oplock_signal_handler(struct tevent_context *ev_ctx,
 	int fd = info->si_fd;
 	files_struct *fsp;
 
-	fsp = file_find_fd(fd);
+	fsp = file_find_fd(smbd_server_conn, fd);
 	if (fsp == NULL) {
 		DEBUG(0,("linux_oplock_signal_handler: failed to find fsp for file fd=%d (file was closed ?)\n", fd ));
 		return;
 	}
-	break_kernel_oplock(smbd_messaging_context(), fsp);
+	break_kernel_oplock(fsp->conn->sconn->msg_ctx, fsp);
 }
 
 /****************************************************************************

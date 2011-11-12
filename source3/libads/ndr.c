@@ -20,8 +20,11 @@
 */
 
 #include "includes.h"
+#include "ads.h"
+#include "../librpc/gen_ndr/ndr_netlogon.h"
+#include "librpc/ndr/util.h"
 
-void ndr_print_ads_auth_flags(struct ndr_print *ndr, const char *name, uint32_t r)
+static void ndr_print_ads_auth_flags(struct ndr_print *ndr, const char *name, uint32_t r)
 {
 	ndr_print_uint32(ndr, name, r);
 	ndr->depth++;
@@ -38,8 +41,6 @@ void ndr_print_ads_auth_flags(struct ndr_print *ndr, const char *name, uint32_t 
 
 void ndr_print_ads_struct(struct ndr_print *ndr, const char *name, const struct ads_struct *r)
 {
-	if (!r) { return; }
-
 	ndr_print_struct(ndr, name, "ads_struct");
 	ndr->depth++;
 	ndr_print_bool(ndr, "is_mine", r->is_mine);

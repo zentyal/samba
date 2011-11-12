@@ -40,8 +40,9 @@
 
 /* symbol renaming */
 #define RSA_null_method hc_RSA_null_method
-#define RSA_imath_method hc_RSA_imath_method
+#define RSA_ltm_method hc_RSA_ltm_method
 #define RSA_gmp_method hc_RSA_gmp_method
+#define RSA_tfm_method hc_RSA_tfm_method
 #define RSA_new hc_RSA_new
 #define RSA_new_method hc_RSA_new_method
 #define RSA_free hc_RSA_free
@@ -64,6 +65,7 @@
 #define d2i_RSAPrivateKey hc_d2i_RSAPrivateKey
 #define i2d_RSAPrivateKey hc_i2d_RSAPrivateKey
 #define i2d_RSAPublicKey hc_i2d_RSAPublicKey
+#define d2i_RSAPublicKey hc_d2i_RSAPublicKey
 
 /*
  *
@@ -133,8 +135,9 @@ struct RSA {
  */
 
 const RSA_METHOD *RSA_null_method(void);
-const RSA_METHOD *RSA_imath_method(void);
 const RSA_METHOD *RSA_gmp_method(void);
+const RSA_METHOD *RSA_tfm_method(void);
+const RSA_METHOD *RSA_ltm_method(void);
 
 /*
  *
@@ -152,7 +155,7 @@ const RSA_METHOD * RSA_get_method(const RSA *);
 int RSA_set_method(RSA *, const RSA_METHOD *);
 
 int	RSA_set_app_data(RSA *, void *arg);
-void *	RSA_get_app_data(RSA *);
+void *	RSA_get_app_data(const RSA *);
 
 int	RSA_check_key(const RSA *);
 int	RSA_size(const RSA *);
@@ -173,5 +176,6 @@ RSA *	d2i_RSAPrivateKey(RSA *, const unsigned char **, size_t);
 int	i2d_RSAPrivateKey(RSA *, unsigned char **);
 
 int	i2d_RSAPublicKey(RSA *, unsigned char **);
+RSA *	d2i_RSAPublicKey(RSA *, const unsigned char **, size_t);
 
 #endif /* _HEIM_RSA_H */

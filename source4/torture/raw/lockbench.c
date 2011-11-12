@@ -20,7 +20,6 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "libcli/raw/libcliraw.h"
 #include "libcli/raw/raw_proto.h"
 #include "system/time.h"
@@ -188,24 +187,23 @@ static void reopen_connection(struct tevent_context *ev, struct tevent_timer *te
 
 	io->in.dest_host    = state->dest_host;
 	io->in.dest_ports   = state->dest_ports;
-	io->in.gensec_settings = lp_gensec_settings(state->mem_ctx, state->tctx->lp_ctx);
-	io->in.socket_options = lp_socket_options(state->tctx->lp_ctx);
+	io->in.gensec_settings = lpcfg_gensec_settings(state->mem_ctx, state->tctx->lp_ctx);
+	io->in.socket_options = lpcfg_socket_options(state->tctx->lp_ctx);
 	io->in.called_name  = state->called_name;
 	io->in.service      = share;
 	io->in.service_type = state->service_type;
 	io->in.credentials  = cmdline_credentials;
 	io->in.fallback_to_anonymous = false;
-	io->in.workgroup    = lp_workgroup(state->tctx->lp_ctx);
-	io->in.iconv_convenience = lp_iconv_convenience(state->tctx->lp_ctx);
-	lp_smbcli_options(state->tctx->lp_ctx, &io->in.options);
-	lp_smbcli_session_options(state->tctx->lp_ctx, &io->in.session_options);
+	io->in.workgroup    = lpcfg_workgroup(state->tctx->lp_ctx);
+	lpcfg_smbcli_options(state->tctx->lp_ctx, &io->in.options);
+	lpcfg_smbcli_session_options(state->tctx->lp_ctx, &io->in.session_options);
 
 	/* kill off the remnants of the old connection */
 	talloc_free(state->tree);
 	state->tree = NULL;
 
 	ctx = smb_composite_connect_send(io, state->mem_ctx, 
-					 lp_resolve_context(state->tctx->lp_ctx),
+					 lpcfg_resolve_context(state->tctx->lp_ctx),
 					 state->ev);
 	if (ctx == NULL) {
 		DEBUG(0,("Failed to setup async reconnect\n"));
@@ -227,7 +225,8 @@ static void lock_completion(struct smbcli_request *req)
 	state->req = NULL;
 	if (!NT_STATUS_IS_OK(status)) {
 		if (NT_STATUS_EQUAL(status, NT_STATUS_END_OF_FILE) ||
-		    NT_STATUS_EQUAL(status, NT_STATUS_LOCAL_DISCONNECT)) {
+		    NT_STATUS_EQUAL(status, NT_STATUS_LOCAL_DISCONNECT) ||
+		    NT_STATUS_EQUAL(status, NT_STATUS_CONNECTION_RESET)) {
 			talloc_free(state->tree);
 			state->tree = NULL;
 			num_connected--;	
@@ -265,7 +264,8 @@ static void echo_completion(struct smbcli_request *req)
 	struct benchlock_state *state = (struct benchlock_state *)req->async.private_data;
 	NTSTATUS status = smbcli_request_simple_recv(req);
 	if (NT_STATUS_EQUAL(status, NT_STATUS_END_OF_FILE) ||
-	    NT_STATUS_EQUAL(status, NT_STATUS_LOCAL_DISCONNECT)) {
+	    NT_STATUS_EQUAL(status, NT_STATUS_LOCAL_DISCONNECT) ||
+	    NT_STATUS_EQUAL(status, NT_STATUS_CONNECTION_RESET)) {
 		talloc_free(state->tree);
 		state->tree = NULL;
 		num_connected--;	

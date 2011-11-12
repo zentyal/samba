@@ -23,7 +23,6 @@
 
 struct registry_context;
 struct loadparm_context;
-struct smb_iconv_convenience;
 
 #include <talloc.h>
 #include "libcli/util/werror.h"
@@ -70,14 +69,15 @@ struct hive_operations {
 	 * Add a new key.
 	 */
 	WERROR (*add_key) (TALLOC_CTX *ctx,
-			   const struct hive_key *parent_key, const char *name,
+			   const struct hive_key *parent_key, const char *path,
 			   const char *classname,
 			   struct security_descriptor *desc,
 			   struct hive_key **key);
 	/**
 	 * Remove an existing key.
 	 */
-	WERROR (*del_key) (const struct hive_key *key, const char *name);
+	WERROR (*del_key) (TALLOC_CTX *mem_ctx,
+			   const struct hive_key *key, const char *name);
 
 	/**
 	 * Force write of a key to disk.
@@ -88,7 +88,7 @@ struct hive_operations {
 	 * Retrieve a registry value with a specific index.
 	 */
 	WERROR (*enum_value) (TALLOC_CTX *mem_ctx,
-			      struct hive_key *key, int idx,
+			      struct hive_key *key, uint32_t idx,
 			      const char **name, uint32_t *type,
 			      DATA_BLOB *data);
 
@@ -108,7 +108,8 @@ struct hive_operations {
 	/**
 	 * Remove a value.
 	 */
-	WERROR (*delete_value) (struct hive_key *key, const char *name);
+	WERROR (*delete_value) (TALLOC_CTX *mem_ctx,
+				struct hive_key *key, const char *name);
 
 	/* Security Descriptors */
 
@@ -166,7 +167,8 @@ WERROR hive_key_add_name(TALLOC_CTX *ctx, const struct hive_key *parent_key,
 			 const char *name, const char *classname,
 			 struct security_descriptor *desc,
 			 struct hive_key **key);
-WERROR hive_key_del(const struct hive_key *key, const char *name);
+WERROR hive_key_del(TALLOC_CTX *mem_ctx,
+		    const struct hive_key *key, const char *name);
 WERROR hive_get_key_by_name(TALLOC_CTX *mem_ctx,
 			    const struct hive_key *key, const char *name,
 			    struct hive_key **subkey);
@@ -193,7 +195,8 @@ WERROR hive_get_sec_desc(TALLOC_CTX *mem_ctx,
 WERROR hive_set_sec_desc(struct hive_key *key, 
 			 const struct security_descriptor *security);
 
-WERROR hive_key_del_value(struct hive_key *key, const char *name);
+WERROR hive_key_del_value(TALLOC_CTX *mem_ctx,
+			  struct hive_key *key, const char *name);
 
 WERROR hive_key_flush(struct hive_key *key);
 
@@ -202,8 +205,7 @@ WERROR hive_key_flush(struct hive_key *key);
 WERROR reg_open_directory(TALLOC_CTX *parent_ctx,
 			  const char *location, struct hive_key **key);
 WERROR reg_open_regf_file(TALLOC_CTX *parent_ctx,
-			  const char *location, struct smb_iconv_convenience *iconv_convenience,
-			  struct hive_key **key);
+			  const char *location, struct hive_key **key);
 WERROR reg_open_ldb_file(TALLOC_CTX *parent_ctx, const char *location,
 			 struct auth_session_info *session_info,
 			 struct cli_credentials *credentials,
@@ -215,7 +217,6 @@ WERROR reg_open_ldb_file(TALLOC_CTX *parent_ctx, const char *location,
 WERROR reg_create_directory(TALLOC_CTX *parent_ctx,
 			    const char *location, struct hive_key **key);
 WERROR reg_create_regf_file(TALLOC_CTX *parent_ctx,
-			    struct smb_iconv_convenience *iconv_convenience,
 			    const char *location,
 			    int major_version,
 			    struct hive_key **key);
@@ -304,9 +305,11 @@ struct registry_operations {
 			      struct security_descriptor *security,
 			      struct registry_key **key);
 
-	WERROR (*delete_key) (struct registry_key *key, const char *name);
+	WERROR (*delete_key) (TALLOC_CTX *mem_ctx,
+			      struct registry_key *key, const char *name);
 
-	WERROR (*delete_value) (struct registry_key *key, const char *name);
+	WERROR (*delete_value) (TALLOC_CTX *mem_ctx,
+				struct registry_key *key, const char *name);
 
 	WERROR (*enum_key) (TALLOC_CTX *mem_ctx,
 			    const struct registry_key *key, uint32_t idx,
@@ -411,7 +414,7 @@ WERROR reg_key_get_info(TALLOC_CTX *mem_ctx,
 			uint32_t *max_valbufsize);
 WERROR reg_key_get_subkey_by_index(TALLOC_CTX *mem_ctx,
 				   const struct registry_key *key,
-				   int idx,
+				   uint32_t idx,
 				   const char **name,
 				   const char **classname,
 				   NTTIME *last_mod_time);
@@ -424,7 +427,8 @@ WERROR reg_key_get_value_by_name(TALLOC_CTX *mem_ctx,
 				 const char *name,
 				 uint32_t *type,
 				 DATA_BLOB *data);
-WERROR reg_key_del(struct registry_key *parent, const char *name);
+WERROR reg_key_del(TALLOC_CTX *mem_ctx,
+		   struct registry_key *parent, const char *name);
 WERROR reg_key_add_name(TALLOC_CTX *mem_ctx,
 			struct registry_key *parent, const char *name,
 			const char *classname,
@@ -434,7 +438,8 @@ WERROR reg_val_set(struct registry_key *key, const char *value,
 		   uint32_t type, DATA_BLOB data);
 WERROR reg_get_sec_desc(TALLOC_CTX *ctx, const struct registry_key *key,
 			struct security_descriptor **secdesc);
-WERROR reg_del_value(struct registry_key *key, const char *valname);
+WERROR reg_del_value(TALLOC_CTX *mem_ctx,
+		     struct registry_key *key, const char *valname);
 WERROR reg_key_flush(struct registry_key *key);
 WERROR reg_create_key(TALLOC_CTX *mem_ctx,
 		      struct registry_key *parent,
@@ -445,10 +450,15 @@ WERROR reg_create_key(TALLOC_CTX *mem_ctx,
 
 /* Utility functions */
 const char *str_regtype(int type);
-char *reg_val_data_string(TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience, uint32_t type, const DATA_BLOB data);
-char *reg_val_description(TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience, const char *name,
+bool push_reg_sz(TALLOC_CTX *mem_ctx, DATA_BLOB *blob, const char *s);
+bool push_reg_multi_sz(TALLOC_CTX *mem_ctx, DATA_BLOB *blob, const char **a);
+bool pull_reg_sz(TALLOC_CTX *mem_ctx, const DATA_BLOB *blob, const char **s);
+bool pull_reg_multi_sz(TALLOC_CTX *mem_ctx, const DATA_BLOB *blob, const char ***a);
+int regtype_by_string(const char *str);
+char *reg_val_data_string(TALLOC_CTX *mem_ctx, uint32_t type, const DATA_BLOB data);
+char *reg_val_description(TALLOC_CTX *mem_ctx, const char *name,
 			  uint32_t type, const DATA_BLOB data);
-bool reg_string_to_val(TALLOC_CTX *mem_ctx, struct smb_iconv_convenience *iconv_convenience, const char *type_str,
+bool reg_string_to_val(TALLOC_CTX *mem_ctx, const char *type_str,
 		       const char *data_str, uint32_t *type, DATA_BLOB *data);
 WERROR reg_open_key_abs(TALLOC_CTX *mem_ctx, struct registry_context *handle,
 			const char *name, struct registry_key **result);
@@ -485,18 +495,16 @@ struct reg_diff_callbacks {
 };
 
 WERROR reg_diff_apply(struct registry_context *ctx, 
-					  struct smb_iconv_convenience *ic, const char *filename);
+					  const char *filename);
 
 WERROR reg_generate_diff(struct registry_context *ctx1,
 			 struct registry_context *ctx2,
 			 const struct reg_diff_callbacks *callbacks,
 			 void *callback_data);
 WERROR reg_dotreg_diff_save(TALLOC_CTX *ctx, const char *filename,
-			    struct smb_iconv_convenience *iconv_convenience,
 			    struct reg_diff_callbacks **callbacks,
 			    void **callback_data);
 WERROR reg_preg_diff_save(TALLOC_CTX *ctx, const char *filename,
-			  struct smb_iconv_convenience *ic,
 			  struct reg_diff_callbacks **callbacks,
 			  void **callback_data);
 WERROR reg_generate_diff_key(struct registry_key *oldkey,
@@ -505,17 +513,14 @@ WERROR reg_generate_diff_key(struct registry_key *oldkey,
 			     const struct reg_diff_callbacks *callbacks,
 			     void *callback_data);
 WERROR reg_diff_load(const char *filename,
-	             struct smb_iconv_convenience *iconv_convenience,
 		     const struct reg_diff_callbacks *callbacks,
 		     void *callback_data);
 
 WERROR reg_dotreg_diff_load(int fd,
-				     struct smb_iconv_convenience *iconv_convenience,
 				     const struct reg_diff_callbacks *callbacks,
 				     void *callback_data);
 
 WERROR reg_preg_diff_load(int fd,
-		   struct smb_iconv_convenience *iconv_convenience, 
 				   const struct reg_diff_callbacks *callbacks,
 				   void *callback_data);
 

@@ -19,6 +19,7 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
 #include "../libcli/smb/smb_common.h"
 
@@ -54,12 +55,13 @@ void reply_smb2002(struct smb_request *req, uint16_t choice)
 
 	req->outbuf = NULL;
 
-	smbd_smb2_first_negprot(smbd_server_conn, smb2_inbuf, len);
+	smbd_smb2_first_negprot(req->sconn, smb2_inbuf, len);
 	return;
 }
 
 NTSTATUS smbd_smb2_request_process_negprot(struct smbd_smb2_request *req)
 {
+	NTSTATUS status;
 	const uint8_t *inbody;
 	const uint8_t *indyn = NULL;
 	int i = req->current_idx;
@@ -68,27 +70,22 @@ NTSTATUS smbd_smb2_request_process_negprot(struct smbd_smb2_request *req)
 	DATA_BLOB negprot_spnego_blob;
 	uint16_t security_offset;
 	DATA_BLOB security_buffer;
-	size_t expected_body_size = 0x24;
-	size_t body_size;
 	size_t expected_dyn_size = 0;
 	size_t c;
 	uint16_t security_mode;
 	uint16_t dialect_count;
 	uint16_t dialect = 0;
 	uint32_t capabilities;
+	uint32_t max_limit;
+	uint32_t max_trans = lp_smb2_max_trans();
+	uint32_t max_read = lp_smb2_max_read();
+	uint32_t max_write = lp_smb2_max_write();
 
-/* TODO: drop the connection with INVALI_PARAMETER */
-
-	if (req->in.vector[i+1].iov_len != (expected_body_size & 0xFFFFFFFE)) {
-		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
+	status = smbd_smb2_request_verify_sizes(req, 0x24);
+	if (!NT_STATUS_IS_OK(status)) {
+		return smbd_smb2_request_error(req, status);
 	}
-
 	inbody = (const uint8_t *)req->in.vector[i+1].iov_base;
-
-	body_size = SVAL(inbody, 0x00);
-	if (body_size != expected_body_size) {
-		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
-	}
 
 	dialect_count = SVAL(inbody, 0x02);
 	if (dialect_count == 0) {
@@ -119,11 +116,10 @@ NTSTATUS smbd_smb2_request_process_negprot(struct smbd_smb2_request *req)
 	}
 
 	/* negprot_spnego() returns a the server guid in the first 16 bytes */
-	negprot_spnego_blob = negprot_spnego();
+	negprot_spnego_blob = negprot_spnego(req, req->sconn);
 	if (negprot_spnego_blob.data == NULL) {
 		return smbd_smb2_request_error(req, NT_STATUS_NO_MEMORY);
 	}
-	talloc_steal(req, negprot_spnego_blob.data);
 
 	if (negprot_spnego_blob.length < 16) {
 		return smbd_smb2_request_error(req, NT_STATUS_INTERNAL_ERROR);
@@ -138,6 +134,16 @@ NTSTATUS smbd_smb2_request_process_negprot(struct smbd_smb2_request *req)
 	if (lp_host_msdfs()) {
 		capabilities |= SMB2_CAP_DFS;
 	}
+
+	/*
+	 * Unless we implement SMB2_CAP_LARGE_MTU,
+	 * 0x10000 (65536) is the maximum allowed message size
+	 */
+	max_limit = 0x10000;
+
+	max_trans = MIN(max_limit, max_trans);
+	max_read  = MIN(max_limit, max_read);
+	max_write = MIN(max_limit, max_write);
 
 	security_offset = SMB2_HDR_BODY + 0x40;
 
@@ -164,9 +170,9 @@ NTSTATUS smbd_smb2_request_process_negprot(struct smbd_smb2_request *req)
 	       negprot_spnego_blob.data, 16);	/* server guid */
 	SIVAL(outbody.data, 0x18,
 	      capabilities);			/* capabilities */
-	SIVAL(outbody.data, 0x1C, 0x00010000);	/* max transact size */
-	SIVAL(outbody.data, 0x20, 0x00010000);	/* max read size */
-	SIVAL(outbody.data, 0x24, 0x00010000);	/* max write size */
+	SIVAL(outbody.data, 0x1C, max_trans);	/* max transact size */
+	SIVAL(outbody.data, 0x20, max_trans);	/* max read size */
+	SIVAL(outbody.data, 0x24, max_trans);	/* max write size */
 	SBVAL(outbody.data, 0x28, 0);		/* system time */
 	SBVAL(outbody.data, 0x30, 0);		/* server start time */
 	SSVAL(outbody.data, 0x38,
@@ -176,6 +182,11 @@ NTSTATUS smbd_smb2_request_process_negprot(struct smbd_smb2_request *req)
 	SIVAL(outbody.data, 0x3C, 0);		/* reserved */
 
 	outdyn = security_buffer;
+
+	req->sconn->using_smb2 = true;
+	req->sconn->smb2.max_trans = max_trans;
+	req->sconn->smb2.max_read  = max_read;
+	req->sconn->smb2.max_write = max_write;
 
 	return smbd_smb2_request_done(req, outbody, &outdyn);
 }

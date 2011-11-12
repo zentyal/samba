@@ -23,6 +23,9 @@
 
 
 #include "includes.h"
+#include "popt_common.h"
+#include "../libcli/security/security.h"
+#include "passdb/machine_sid.h"
 
 static TALLOC_CTX *ctx;
 
@@ -64,7 +67,7 @@ static const struct perm_value standard_values[] = {
  print an ACE on a FILE
 ********************************************************************/
 
-static void print_ace(FILE *f, SEC_ACE *ace)
+static void print_ace(FILE *f, struct security_ace *ace)
 {
 	const struct perm_value *v;
 	int do_print = 0;
@@ -124,7 +127,7 @@ static void print_ace(FILE *f, SEC_ACE *ace)
  print an ascii version of a security descriptor on a FILE handle
 ********************************************************************/
 
-static void sec_desc_print(FILE *f, SEC_DESC *sd)
+static void sec_desc_print(FILE *f, struct security_descriptor *sd)
 {
 	uint32 i;
 
@@ -138,7 +141,7 @@ static void sec_desc_print(FILE *f, SEC_DESC *sd)
 
 	/* Print aces */
 	for (i = 0; sd->dacl && i < sd->dacl->num_aces; i++) {
-		SEC_ACE *ace = &sd->dacl->aces[i];
+		struct security_ace *ace = &sd->dacl->aces[i];
 		fprintf(f, "ACL:");
 		print_ace(f, ace);
 		fprintf(f, "\n");
@@ -149,7 +152,7 @@ static void sec_desc_print(FILE *f, SEC_DESC *sd)
  parse an ACE in the same format as print_ace()
 ********************************************************************/
 
-static bool parse_ace(SEC_ACE *ace, const char *orig_str)
+static bool parse_ace(struct security_ace *ace, const char *orig_str)
 {
 	char *p;
 	const char *cp;
@@ -157,7 +160,7 @@ static bool parse_ace(SEC_ACE *ace, const char *orig_str)
 	unsigned int atype = 0;
 	unsigned int aflags = 0;
 	unsigned int amask = 0;
-	DOM_SID sid;
+	struct dom_sid sid;
 	uint32_t mask;
 	const struct perm_value *v;
 	char *str = SMB_STRDUP(orig_str);
@@ -294,11 +297,11 @@ static bool parse_ace(SEC_ACE *ace, const char *orig_str)
 /********************************************************************
 ********************************************************************/
 
-static SEC_DESC* parse_acl_string(TALLOC_CTX *mem_ctx, const char *szACL, size_t *sd_size )
+static struct security_descriptor* parse_acl_string(TALLOC_CTX *mem_ctx, const char *szACL, size_t *sd_size )
 {
-	SEC_DESC *sd = NULL;
-	SEC_ACE *ace;
-	SEC_ACL *theacl;
+	struct security_descriptor *sd = NULL;
+	struct security_ace *ace;
+	struct security_acl *theacl;
 	int num_ace;
 	const char *pacl;
 	int i;
@@ -309,7 +312,7 @@ static SEC_DESC* parse_acl_string(TALLOC_CTX *mem_ctx, const char *szACL, size_t
 	pacl = szACL;
 	num_ace = count_chars( pacl, ',' ) + 1;
 
-	if ( !(ace = TALLOC_ZERO_ARRAY( mem_ctx, SEC_ACE, num_ace )) )
+	if ( !(ace = TALLOC_ZERO_ARRAY( mem_ctx, struct security_ace, num_ace )) )
 		return NULL;
 
 	for ( i=0; i<num_ace; i++ ) {
@@ -329,26 +332,27 @@ static SEC_DESC* parse_acl_string(TALLOC_CTX *mem_ctx, const char *szACL, size_t
 	if ( !(theacl = make_sec_acl( mem_ctx, NT4_ACL_REVISION, num_ace, ace )) )
 		return NULL;
 
-	sd = make_sec_desc( mem_ctx, SEC_DESC_REVISION, SEC_DESC_SELF_RELATIVE,
+	sd = make_sec_desc( mem_ctx, SD_REVISION, SEC_DESC_SELF_RELATIVE,
 		NULL, NULL, NULL, theacl, sd_size);
 
 	return sd;
 }
 
-/* add an ACE to a list of ACEs in a SEC_ACL */
-static bool add_ace(TALLOC_CTX *mem_ctx, SEC_ACL **the_acl, SEC_ACE *ace)
+/* add an ACE to a list of ACEs in a struct security_acl */
+static bool add_ace(TALLOC_CTX *mem_ctx, struct security_acl **the_acl, struct security_ace *ace)
 {
-	SEC_ACL *new_ace;
-	SEC_ACE *aces;
+	struct security_acl *new_ace;
+	struct security_ace *aces;
 	if (! *the_acl) {
 		return (((*the_acl) = make_sec_acl(mem_ctx, 3, 1, ace)) != NULL);
 	}
 
-	if (!(aces = SMB_CALLOC_ARRAY(SEC_ACE, 1+(*the_acl)->num_aces))) {
+	if (!(aces = SMB_CALLOC_ARRAY(struct security_ace, 1+(*the_acl)->num_aces))) {
 		return False;
 	}
-	memcpy(aces, (*the_acl)->aces, (*the_acl)->num_aces * sizeof(SEC_ACE));
-	memcpy(aces+(*the_acl)->num_aces, ace, sizeof(SEC_ACE));
+	memcpy(aces, (*the_acl)->aces, (*the_acl)->num_aces * sizeof(struct
+	security_ace));
+	memcpy(aces+(*the_acl)->num_aces, ace, sizeof(struct security_ace));
 	new_ace = make_sec_acl(mem_ctx,(*the_acl)->revision,1+(*the_acl)->num_aces, aces);
 	SAFE_FREE(aces);
 	(*the_acl) = new_ace;
@@ -360,7 +364,7 @@ static bool add_ace(TALLOC_CTX *mem_ctx, SEC_ACL **the_acl, SEC_ACE *ace)
    computer running Windows NT 5.0" if denied ACEs do not appear before
    allowed ACEs. */
 
-static int ace_compare(SEC_ACE *ace1, SEC_ACE *ace2)
+static int ace_compare(struct security_ace *ace1, struct security_ace *ace2)
 {
 	if (sec_ace_equal(ace1, ace2))
 		return 0;
@@ -368,8 +372,8 @@ static int ace_compare(SEC_ACE *ace1, SEC_ACE *ace2)
 	if (ace1->type != ace2->type)
 		return ace2->type - ace1->type;
 
-	if (sid_compare(&ace1->trustee, &ace2->trustee))
-		return sid_compare(&ace1->trustee, &ace2->trustee);
+	if (dom_sid_compare(&ace1->trustee, &ace2->trustee))
+		return dom_sid_compare(&ace1->trustee, &ace2->trustee);
 
 	if (ace1->flags != ace2->flags)
 		return ace1->flags - ace2->flags;
@@ -380,15 +384,15 @@ static int ace_compare(SEC_ACE *ace1, SEC_ACE *ace2)
 	if (ace1->size != ace2->size)
 		return ace1->size - ace2->size;
 
-	return memcmp(ace1, ace2, sizeof(SEC_ACE));
+	return memcmp(ace1, ace2, sizeof(struct security_ace));
 }
 
-static void sort_acl(SEC_ACL *the_acl)
+static void sort_acl(struct security_acl *the_acl)
 {
 	uint32 i;
 	if (!the_acl) return;
 
-	qsort(the_acl->aces, the_acl->num_aces, sizeof(the_acl->aces[0]), QSORT_CAST ace_compare);
+	TYPESAFE_QSORT(the_acl->aces, the_acl->num_aces, ace_compare);
 
 	for (i=1;i<the_acl->num_aces;) {
 		if (sec_ace_equal(&the_acl->aces[i-1], &the_acl->aces[i])) {
@@ -406,8 +410,8 @@ static void sort_acl(SEC_ACL *the_acl)
 
 static int change_share_sec(TALLOC_CTX *mem_ctx, const char *sharename, char *the_acl, enum acl_mode mode)
 {
-	SEC_DESC *sd = NULL;
-	SEC_DESC *old = NULL;
+	struct security_descriptor *sd = NULL;
+	struct security_descriptor *old = NULL;
 	size_t sd_size = 0;
 	uint32 i, j;
 
@@ -457,7 +461,7 @@ static int change_share_sec(TALLOC_CTX *mem_ctx, const char *sharename, char *th
 		bool found = False;
 
 		for (j=0;old->dacl && j<old->dacl->num_aces;j++) {
-		    if (sid_equal(&sd->dacl->aces[i].trustee,
+		    if (dom_sid_equal(&sd->dacl->aces[i].trustee,
 			&old->dacl->aces[j].trustee)) {
 			old->dacl->aces[j] = sd->dacl->aces[i];
 			found = True;
@@ -540,10 +544,11 @@ int main(int argc, const char *argv[])
 	}
 
 	/* set default debug level to 1 regardless of what smb.conf sets */
-	setup_logging( "sharesec", True );
-	DEBUGLEVEL_CLASS[DBGC_ALL] = 1;
-	dbf = x_stderr;
-	x_setbuf( x_stderr, NULL );
+	setup_logging( "sharesec", DEBUG_STDERR);
+
+	load_case_tables();
+
+	lp_set_cmdline("log level", "1");
 
 	pc = poptGetContext("sharesec", argc, argv, long_options, 0);
 
@@ -591,14 +596,13 @@ int main(int argc, const char *argv[])
 
 	setlinebuf(stdout);
 
-	load_case_tables();
-
-	lp_load( get_dyn_CONFIGFILE(), False, False, False, True );
+	lp_load_with_registry_shares( get_dyn_CONFIGFILE(), False, False, False,
+				      True );
 
 	/* check for initializing secrets.tdb first */
 
 	if ( initialize_sid ) {
-		DOM_SID *sid = get_global_sam_sid();
+		struct dom_sid *sid = get_global_sam_sid();
 
 		if ( !sid ) {
 			fprintf( stderr, "Failed to retrieve Machine SID!\n");

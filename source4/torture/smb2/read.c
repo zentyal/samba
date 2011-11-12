@@ -26,7 +26,6 @@
 #include "torture/torture.h"
 #include "torture/smb2/proto.h"
 
-#include "librpc/gen_ndr/ndr_security.h"
 
 #define CHECK_STATUS(status, correct) do { \
 	if (!NT_STATUS_EQUAL(status, correct)) { \
@@ -52,7 +51,7 @@ static bool test_read_eof(struct torture_context *torture, struct smb2_tree *tre
 	bool ret = true;
 	NTSTATUS status;
 	struct smb2_handle h;
-	uint8_t buf[70000];
+	uint8_t buf[64*1024];
 	struct smb2_read rd;
 	TALLOC_CTX *tmp_ctx = talloc_new(tree);
 
@@ -135,7 +134,7 @@ static bool test_read_position(struct torture_context *torture, struct smb2_tree
 	bool ret = true;
 	NTSTATUS status;
 	struct smb2_handle h;
-	uint8_t buf[70000];
+	uint8_t buf[64*1024];
 	struct smb2_read rd;
 	TALLOC_CTX *tmp_ctx = talloc_new(tree);
 	union smb_fileinfo info;
@@ -232,11 +231,11 @@ done:
 */
 struct torture_suite *torture_smb2_read_init(void)
 {
-	struct torture_suite *suite = torture_suite_create(talloc_autofree_context(), "READ");
+	struct torture_suite *suite = torture_suite_create(talloc_autofree_context(), "read");
 
-	torture_suite_add_1smb2_test(suite, "EOF", test_read_eof);
-	torture_suite_add_1smb2_test(suite, "POSITION", test_read_position);
-	torture_suite_add_1smb2_test(suite, "DIR", test_read_dir);
+	torture_suite_add_1smb2_test(suite, "eof", test_read_eof);
+	torture_suite_add_1smb2_test(suite, "position", test_read_position);
+	torture_suite_add_1smb2_test(suite, "dir", test_read_dir);
 
 	suite->description = talloc_strdup(suite, "SMB2-READ tests");
 

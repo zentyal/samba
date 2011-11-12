@@ -22,7 +22,10 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
 #include "librpc/gen_ndr/ndr_krb5pac.h"
+#include "../libcli/security/security.h"
+#include "util_tdb.h"
 
 #define NETSAMLOGON_TDB	"netsamlogon_cache.tdb"
 
@@ -45,7 +48,7 @@ bool netsamlogon_cache_init(void)
 
 	path = cache_path(NETSAMLOGON_TDB);
 again:
-	tdb = tdb_open_log(path, 0, TDB_DEFAULT,
+	tdb = tdb_open_log(path, 0, TDB_DEFAULT|TDB_INCOMPATIBLE_HASH,
 			   O_RDWR | O_CREAT, 0600);
 	if (tdb == NULL) {
 		DEBUG(0,("tdb_open_log('%s') - failed\n", path));
@@ -69,7 +72,7 @@ clear:
 	first_try = false;
 
 	DEBUG(0,("retry after CLEAR_IF_FIRST for '%s'\n", path));
-	tdb = tdb_open_log(path, 0, TDB_CLEAR_IF_FIRST,
+	tdb = tdb_open_log(path, 0, TDB_CLEAR_IF_FIRST|TDB_INCOMPATIBLE_HASH,
 			   O_RDWR | O_CREAT, 0600);
 	if (tdb) {
 		tdb_close(tdb);
@@ -98,14 +101,9 @@ bool netsamlogon_cache_shutdown(void)
  Clear cache getpwnam and getgroups entries from the winbindd cache
 ***********************************************************************/
 
-void netsamlogon_clear_cached_user(struct netr_SamInfo3 *info3)
+void netsamlogon_clear_cached_user(const struct dom_sid *user_sid)
 {
-	DOM_SID	user_sid;
-	fstring keystr, tmp;
-
-	if (!info3) {
-		return;
-	}
+	fstring keystr;
 
 	if (!netsamlogon_cache_init()) {
 		DEBUG(0,("netsamlogon_clear_cached_user: cannot open "
@@ -113,11 +111,9 @@ void netsamlogon_clear_cached_user(struct netr_SamInfo3 *info3)
 			NETSAMLOGON_TDB));
 		return;
 	}
-	sid_copy(&user_sid, info3->base.domain_sid);
-	sid_append_rid(&user_sid, info3->base.rid);
 
 	/* Prepare key as DOMAIN-SID/USER-RID string */
-	slprintf(keystr, sizeof(keystr), "%s", sid_to_fstring(tmp, &user_sid));
+	sid_to_fstring(keystr, user_sid);
 
 	DEBUG(10,("netsamlogon_clear_cached_user: SID [%s]\n", keystr));
 
@@ -132,9 +128,9 @@ void netsamlogon_clear_cached_user(struct netr_SamInfo3 *info3)
 bool netsamlogon_cache_store(const char *username, struct netr_SamInfo3 *info3)
 {
 	TDB_DATA data;
-	fstring keystr, tmp;
+	fstring keystr;
 	bool result = false;
-	DOM_SID	user_sid;
+	struct dom_sid	user_sid;
 	time_t t = time(NULL);
 	TALLOC_CTX *mem_ctx;
 	DATA_BLOB blob;
@@ -151,11 +147,10 @@ bool netsamlogon_cache_store(const char *username, struct netr_SamInfo3 *info3)
 		return false;
 	}
 
-	sid_copy(&user_sid, info3->base.domain_sid);
-	sid_append_rid(&user_sid, info3->base.rid);
+	sid_compose(&user_sid, info3->base.domain_sid, info3->base.rid);
 
 	/* Prepare key as DOMAIN-SID/USER-RID string */
-	slprintf(keystr, sizeof(keystr), "%s", sid_to_fstring(tmp, &user_sid));
+	sid_to_fstring(keystr, &user_sid);
 
 	DEBUG(10,("netsamlogon_cache_store: SID [%s]\n", keystr));
 
@@ -180,7 +175,7 @@ bool netsamlogon_cache_store(const char *username, struct netr_SamInfo3 *info3)
 		NDR_PRINT_DEBUG(netsamlogoncache_entry, &r);
 	}
 
-	ndr_err = ndr_push_struct_blob(&blob, mem_ctx, NULL, &r,
+	ndr_err = ndr_push_struct_blob(&blob, mem_ctx, &r,
 				       (ndr_push_flags_fn_t)ndr_push_netsamlogoncache_entry);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		DEBUG(0,("netsamlogon_cache_store: failed to push entry to cache\n"));
@@ -205,7 +200,7 @@ bool netsamlogon_cache_store(const char *username, struct netr_SamInfo3 *info3)
  free the user_info struct (malloc()'d memory)
 ***********************************************************************/
 
-struct netr_SamInfo3 *netsamlogon_cache_get(TALLOC_CTX *mem_ctx, const DOM_SID *user_sid)
+struct netr_SamInfo3 *netsamlogon_cache_get(TALLOC_CTX *mem_ctx, const struct dom_sid *user_sid)
 {
 	struct netr_SamInfo3 *info3 = NULL;
 	TDB_DATA data;
@@ -236,7 +231,7 @@ struct netr_SamInfo3 *netsamlogon_cache_get(TALLOC_CTX *mem_ctx, const DOM_SID *
 
 	blob = data_blob_const(data.dptr, data.dsize);
 
-	ndr_err = ndr_pull_struct_blob(&blob, mem_ctx, NULL, &r,
+	ndr_err = ndr_pull_struct_blob(&blob, mem_ctx, &r,
 				      (ndr_pull_flags_fn_t)ndr_pull_netsamlogoncache_entry);
 
 	if (DEBUGLEVEL >= 10) {
@@ -278,7 +273,7 @@ struct netr_SamInfo3 *netsamlogon_cache_get(TALLOC_CTX *mem_ctx, const DOM_SID *
 #endif
 }
 
-bool netsamlogon_cache_have(const DOM_SID *user_sid)
+bool netsamlogon_cache_have(const struct dom_sid *user_sid)
 {
 	TALLOC_CTX *mem_ctx = talloc_init("netsamlogon_cache_have");
 	struct netr_SamInfo3 *info3 = NULL;

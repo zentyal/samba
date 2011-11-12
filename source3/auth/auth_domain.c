@@ -3,23 +3,30 @@
    Authenticate against a remote domain
    Copyright (C) Andrew Tridgell 1992-1998
    Copyright (C) Andrew Bartlett 2001
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
+#include "auth.h"
 #include "../libcli/auth/libcli_auth.h"
+#include "../librpc/gen_ndr/ndr_netlogon.h"
+#include "rpc_client/cli_pipe.h"
+#include "rpc_client/cli_netlogon.h"
+#include "secrets.h"
+#include "passdb.h"
+#include "libsmb/libsmb.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
@@ -110,8 +117,7 @@ static NTSTATUS connect_to_domain_password_server(struct cli_state **cli,
 						const char *domain,
 						const char *dc_name,
 						struct sockaddr_storage *dc_ss, 
-						struct rpc_pipe_client **pipe_ret,
-						bool *retry)
+						struct rpc_pipe_client **pipe_ret)
 {
         NTSTATUS result;
 	struct rpc_pipe_client *netlogon_pipe = NULL;
@@ -138,11 +144,10 @@ static NTSTATUS connect_to_domain_password_server(struct cli_state **cli,
 	if (mutex == NULL) {
 		return NT_STATUS_NO_LOGON_SERVERS;
 	}
-	
+
 	/* Attempt connection */
-	*retry = True;
 	result = cli_full_connection(cli, global_myname(), dc_name, dc_ss, 0, 
-		"IPC$", "IPC", "", "", "", 0, Undefined, retry);
+		"IPC$", "IPC", "", "", "", 0, Undefined);
 
 	if (!NT_STATUS_IS_OK(result)) {
 		/* map to something more useful */
@@ -251,10 +256,10 @@ machine %s. Error was : %s.\n", dc_name, cli_errstr(*cli)));
 ************************************************************************/
 
 static NTSTATUS domain_client_validate(TALLOC_CTX *mem_ctx,
-					const auth_usersupplied_info *user_info, 
+					const struct auth_usersupplied_info *user_info,
 					const char *domain,
 					uchar chal[8],
-					auth_serversupplied_info **server_info, 
+					struct auth_serversupplied_info **server_info,
 					const char *dc_name,
 					struct sockaddr_storage *dc_ss)
 
@@ -264,7 +269,6 @@ static NTSTATUS domain_client_validate(TALLOC_CTX *mem_ctx,
 	struct rpc_pipe_client *netlogon_pipe = NULL;
 	NTSTATUS nt_status = NT_STATUS_NO_LOGON_SERVERS;
 	int i;
-	bool retry = True;
 
 	/*
 	 * At this point, smb_apasswd points to the lanman response to
@@ -275,14 +279,13 @@ static NTSTATUS domain_client_validate(TALLOC_CTX *mem_ctx,
 	 */
 
 	/* rety loop for robustness */
-	
-	for (i = 0; !NT_STATUS_IS_OK(nt_status) && retry && (i < 3); i++) {
+
+	for (i = 0; !NT_STATUS_IS_OK(nt_status) && (i < 3); i++) {
 		nt_status = connect_to_domain_password_server(&cli,
 							domain,
 							dc_name,
 							dc_ss,
-							&netlogon_pipe,
-							&retry);
+							&netlogon_pipe);
 	}
 
 	if ( !NT_STATUS_IS_OK(nt_status) ) {
@@ -304,27 +307,27 @@ static NTSTATUS domain_client_validate(TALLOC_CTX *mem_ctx,
 
 	nt_status = rpccli_netlogon_sam_network_logon(netlogon_pipe,
 						      mem_ctx,
-						      user_info->logon_parameters,/* flags such as 'allow workstation logon' */ 
-						      dc_name,                    /* server name */
-						      user_info->smb_name,        /* user name logging on. */
-						      user_info->client_domain,   /* domain name */
-						      user_info->wksta_name,      /* workstation name */
-						      chal,                       /* 8 byte challenge. */
-						      3,                          /* validation level */
-						      user_info->lm_resp,         /* lanman 24 byte response */
-						      user_info->nt_resp,         /* nt 24 byte response */
-						      &info3);                    /* info3 out */
+						      user_info->logon_parameters,         /* flags such as 'allow workstation logon' */
+						      dc_name,                             /* server name */
+						      user_info->client.account_name,      /* user name logging on. */
+						      user_info->client.domain_name,       /* domain name */
+						      user_info->workstation_name,         /* workstation name */
+						      chal,                                /* 8 byte challenge. */
+						      3,				   /* validation level */
+						      user_info->password.response.lanman, /* lanman 24 byte response */
+						      user_info->password.response.nt,     /* nt 24 byte response */
+						      &info3);                             /* info3 out */
 
 	/* Let go as soon as possible so we avoid any potential deadlocks
 	   with winbind lookup up users or groups. */
-	   
+
 	TALLOC_FREE(mutex);
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0,("domain_client_validate: unable to validate password "
                          "for user %s in domain %s to Domain controller %s. "
-                         "Error was %s.\n", user_info->smb_name,
-                         user_info->client_domain, dc_name, 
+                         "Error was %s.\n", user_info->client.account_name,
+                         user_info->client.domain_name, dc_name,
                          nt_errstr(nt_status)));
 
 		/* map to something more useful */
@@ -333,29 +336,16 @@ static NTSTATUS domain_client_validate(TALLOC_CTX *mem_ctx,
 		}
 	} else {
 		nt_status = make_server_info_info3(mem_ctx,
-						user_info->smb_name,
-						domain,
-						server_info,
-						info3);
+						   user_info->client.account_name,
+						   domain,
+						   server_info,
+						   info3);
 
 		if (NT_STATUS_IS_OK(nt_status)) {
 			(*server_info)->nss_token |= user_info->was_mapped;
-
-			if ( ! (*server_info)->guest) {
-				/* if a real user check pam account restrictions */
-				/* only really perfomed if "obey pam restriction" is true */
-				nt_status = smb_pam_accountcheck((*server_info)->unix_name);
-				if (  !NT_STATUS_IS_OK(nt_status)) {
-					DEBUG(1, ("PAM account restriction prevents user login\n"));
-					cli_shutdown(cli);
-					TALLOC_FREE(info3);
-					return nt_status;
-				}
-			}
+			netsamlogon_cache_store(user_info->client.account_name, info3);
+			TALLOC_FREE(info3);
 		}
-
-		netsamlogon_cache_store(user_info->smb_name, info3);
-		TALLOC_FREE(info3);
 	}
 
 	/* Note - once the cli stream is shutdown the mem_ctx used
@@ -373,8 +363,8 @@ static NTSTATUS domain_client_validate(TALLOC_CTX *mem_ctx,
 static NTSTATUS check_ntdomain_security(const struct auth_context *auth_context,
 					void *my_private_data, 
 					TALLOC_CTX *mem_ctx,
-					const auth_usersupplied_info *user_info, 
-					auth_serversupplied_info **server_info)
+					const struct auth_usersupplied_info *user_info,
+					struct auth_serversupplied_info **server_info)
 {
 	NTSTATUS nt_status = NT_STATUS_LOGON_FAILURE;
 	const char *domain = lp_workgroup();
@@ -392,13 +382,15 @@ static NTSTATUS check_ntdomain_security(const struct auth_context *auth_context,
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
+	DEBUG(10, ("Check auth for: [%s]\n", user_info->mapped.account_name));
+
 	/* 
 	 * Check that the requested domain is not our own machine name.
 	 * If it is, we should never check the PDC here, we use our own local
 	 * password file.
 	 */
 
-	if(strequal(get_global_sam_name(), user_info->domain)) {
+	if(strequal(get_global_sam_name(), user_info->mapped.domain_name)) {
 		DEBUG(3,("check_ntdomain_security: Requested domain was for this machine.\n"));
 		return NT_STATUS_NOT_IMPLEMENTED;
 	}
@@ -407,10 +399,10 @@ static NTSTATUS check_ntdomain_security(const struct auth_context *auth_context,
 
 	if ( !get_dc_name(domain, NULL, dc_name, &dc_ss) ) {
 		DEBUG(5,("check_ntdomain_security: unable to locate a DC for domain %s\n",
-			user_info->domain));
+			user_info->mapped.domain_name));
 		return NT_STATUS_NO_LOGON_SERVERS;
 	}
-	
+
 	nt_status = domain_client_validate(mem_ctx,
 					user_info,
 					domain,
@@ -418,19 +410,23 @@ static NTSTATUS check_ntdomain_security(const struct auth_context *auth_context,
 					server_info,
 					dc_name,
 					&dc_ss);
-		
+
 	return nt_status;
 }
 
 /* module initialisation */
 static NTSTATUS auth_init_ntdomain(struct auth_context *auth_context, const char* param, auth_methods **auth_method) 
 {
-	if (!make_auth_methods(auth_context, auth_method)) {
+	struct auth_methods *result;
+
+	result = TALLOC_ZERO_P(auth_context, struct auth_methods);
+	if (result == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
+	result->name = "ntdomain";
+	result->auth = check_ntdomain_security;
 
-	(*auth_method)->name = "ntdomain";
-	(*auth_method)->auth = check_ntdomain_security;
+        *auth_method = result;
 	return NT_STATUS_OK;
 }
 
@@ -442,8 +438,8 @@ static NTSTATUS auth_init_ntdomain(struct auth_context *auth_context, const char
 static NTSTATUS check_trustdomain_security(const struct auth_context *auth_context,
 					   void *my_private_data, 
 					   TALLOC_CTX *mem_ctx,
-					   const auth_usersupplied_info *user_info, 
-					   auth_serversupplied_info **server_info)
+					   const struct auth_usersupplied_info *user_info,
+					   struct auth_serversupplied_info **server_info)
 {
 	NTSTATUS nt_status = NT_STATUS_LOGON_FAILURE;
 	unsigned char trust_md4_password[16];
@@ -456,13 +452,15 @@ static NTSTATUS check_trustdomain_security(const struct auth_context *auth_conte
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
+	DEBUG(10, ("Check auth for: [%s]\n", user_info->mapped.account_name));
+
 	/* 
 	 * Check that the requested domain is not our own machine name or domain name.
 	 */
 
-	if( strequal(get_global_sam_name(), user_info->domain)) {
+	if( strequal(get_global_sam_name(), user_info->mapped.domain_name)) {
 		DEBUG(3,("check_trustdomain_security: Requested domain [%s] was for this machine.\n",
-			user_info->domain));
+			user_info->mapped.domain_name));
 		return NT_STATUS_NOT_IMPLEMENTED;
 	}
 
@@ -470,8 +468,8 @@ static NTSTATUS check_trustdomain_security(const struct auth_context *auth_conte
 	   This return makes "map to guest = bad user" work again.
 	   The logic is that if we know nothing about the domain, that
 	   user is not known to us and does not exist */
-	
-	if ( !is_trusted_domain( user_info->domain ) )
+
+	if ( !is_trusted_domain( user_info->mapped.domain_name ) )
 		return NT_STATUS_NOT_IMPLEMENTED;
 
 	/*
@@ -479,16 +477,16 @@ static NTSTATUS check_trustdomain_security(const struct auth_context *auth_conte
 	 * No need to become_root() as secrets_init() is done at startup.
 	 */
 
-	if (!pdb_get_trusteddom_pw(user_info->domain, &trust_password,
+	if (!pdb_get_trusteddom_pw(user_info->mapped.domain_name, &trust_password,
 				   NULL, NULL)) {
 		DEBUG(0, ("check_trustdomain_security: could not fetch trust "
 			  "account password for domain %s\n",
-			  user_info->domain));
+			  user_info->mapped.domain_name));
 		return NT_STATUS_CANT_ACCESS_DOMAIN_INFO;
 	}
 
 #ifdef DEBUG_PASSWORD
-	DEBUG(100, ("Trust password for domain %s is %s\n", user_info->domain,
+	DEBUG(100, ("Trust password for domain %s is %s\n", user_info->mapped.domain_name,
 		    trust_password));
 #endif
 	E_md4hash(trust_password, trust_md4_password);
@@ -504,20 +502,20 @@ static NTSTATUS check_trustdomain_security(const struct auth_context *auth_conte
 
 	/* use get_dc_name() for consistency even through we know that it will be 
 	   a netbios name */
-	   
-	if ( !get_dc_name(user_info->domain, NULL, dc_name, &dc_ss) ) {
+
+	if ( !get_dc_name(user_info->mapped.domain_name, NULL, dc_name, &dc_ss) ) {
 		DEBUG(5,("check_trustdomain_security: unable to locate a DC for domain %s\n",
-			user_info->domain));
+			user_info->mapped.domain_name));
 		return NT_STATUS_NO_LOGON_SERVERS;
 	}
-	
+
 	nt_status = domain_client_validate(mem_ctx,
-					user_info,
-					user_info->domain,
-					(uchar *)auth_context->challenge.data,
-					server_info,
-					dc_name,
-					&dc_ss);
+					   user_info,
+					   user_info->mapped.domain_name,
+					   (uchar *)auth_context->challenge.data,
+					   server_info,
+					   dc_name,
+					   &dc_ss);
 
 	return nt_status;
 }
@@ -525,12 +523,16 @@ static NTSTATUS check_trustdomain_security(const struct auth_context *auth_conte
 /* module initialisation */
 static NTSTATUS auth_init_trustdomain(struct auth_context *auth_context, const char* param, auth_methods **auth_method) 
 {
-	if (!make_auth_methods(auth_context, auth_method)) {
+	struct auth_methods *result;
+
+	result = TALLOC_ZERO_P(auth_context, struct auth_methods);
+	if (result == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
+	result->name = "trustdomain";
+	result->auth = check_trustdomain_security;
 
-	(*auth_method)->name = "trustdomain";
-	(*auth_method)->auth = check_trustdomain_security;
+        *auth_method = result;
 	return NT_STATUS_OK;
 }
 

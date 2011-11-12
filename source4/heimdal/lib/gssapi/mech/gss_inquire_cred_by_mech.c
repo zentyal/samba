@@ -27,9 +27,8 @@
  */
 
 #include "mech_locl.h"
-RCSID("$Id$");
 
-OM_uint32 GSSAPI_LIB_FUNCTION
+GSSAPI_LIB_FUNCTION OM_uint32 GSSAPI_LIB_CALL
 gss_inquire_cred_by_mech(OM_uint32 *minor_status,
     const gss_cred_id_t cred_handle,
     const gss_OID mech_type,
@@ -61,7 +60,7 @@ gss_inquire_cred_by_mech(OM_uint32 *minor_status,
 
 	if (cred_handle != GSS_C_NO_CREDENTIAL) {
 		struct _gss_cred *cred = (struct _gss_cred *) cred_handle;
-		SLIST_FOREACH(mcp, &cred->gc_mc, gmc_link)
+		HEIM_SLIST_FOREACH(mcp, &cred->gc_mc, gmc_link)
 			if (mcp->gmc_mech == m)
 				break;
 		if (!mcp)

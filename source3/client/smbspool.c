@@ -23,6 +23,9 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "system/passwd.h"
+#include "libsmb/libsmb.h"
 
 /*
  * Starting with CUPS 1.3, Kerberos support is provided by cupsd including
@@ -240,7 +243,7 @@ main(int argc,			/* I - Number of command-line arguments */
          * Setup the SAMBA server state...
          */
 
-	setup_logging("smbspool", True);
+	setup_logging("smbspool", DEBUG_STDOUT);
 
 	lp_set_in_client(True);	/* Make sure that we tell lp_load we are */
 
@@ -401,7 +404,7 @@ smb_complete_connection(const char *myname,
 	/* Start the SMB connection */
 	*need_auth = false;
 	nt_status = cli_start_connection(&cli, myname, server, NULL, port,
-					 Undefined, flags, NULL);
+					 Undefined, flags);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		fprintf(stderr, "ERROR: Connection failed: %s\n", nt_errstr(nt_status));
 		return NULL;
@@ -558,6 +561,7 @@ smb_print(struct cli_state * cli,	/* I - SMB connection */
 	                tbytes;	/* Total bytes read */
 	char            buffer[8192],	/* Buffer for copy */
 	               *ptr;	/* Pointer into title */
+	NTSTATUS nt_status;
 
 
 	/*
@@ -574,10 +578,12 @@ smb_print(struct cli_state * cli,	/* I - SMB connection */
          * Open the printer device...
          */
 
-	if (!NT_STATUS_IS_OK(cli_open(cli, title, O_RDWR | O_CREAT | O_TRUNC, DENY_NONE, &fnum))) {
+	nt_status = cli_open(cli, title, O_RDWR | O_CREAT | O_TRUNC, DENY_NONE,
+			  &fnum);
+	if (!NT_STATUS_IS_OK(nt_status)) {
 		fprintf(stderr, "ERROR: %s opening remote spool %s\n",
-			cli_errstr(cli), title);
-		return (get_exit_code(cli, cli_nt_error(cli)));
+			nt_errstr(nt_status), title);
+		return get_exit_code(cli, nt_status);
 	}
 
 	/*
@@ -590,22 +596,28 @@ smb_print(struct cli_state * cli,	/* I - SMB connection */
 	tbytes = 0;
 
 	while ((nbytes = fread(buffer, 1, sizeof(buffer), fp)) > 0) {
-		if (cli_write(cli, fnum, 0, buffer, tbytes, nbytes) != nbytes) {
-			int status = get_exit_code(cli, cli_nt_error(cli));
+		NTSTATUS status;
 
-			fprintf(stderr, "ERROR: Error writing spool: %s\n", cli_errstr(cli));
-			fprintf(stderr, "DEBUG: Returning status %d...\n", status);
+		status = cli_writeall(cli, fnum, 0, (uint8_t *)buffer,
+				      tbytes, nbytes, NULL);
+		if (!NT_STATUS_IS_OK(status)) {
+			int ret = get_exit_code(cli, status);
+			fprintf(stderr, "ERROR: Error writing spool: %s\n",
+				nt_errstr(status));
+			fprintf(stderr, "DEBUG: Returning status %d...\n",
+				ret);
 			cli_close(cli, fnum);
 
-			return (status);
+			return (ret);
 		}
 		tbytes += nbytes;
 	}
 
-	if (!NT_STATUS_IS_OK(cli_close(cli, fnum))) {
+	nt_status = cli_close(cli, fnum);
+	if (!NT_STATUS_IS_OK(nt_status)) {
 		fprintf(stderr, "ERROR: %s closing remote spool %s\n",
-			cli_errstr(cli), title);
-		return (get_exit_code(cli, cli_nt_error(cli)));
+			nt_errstr(nt_status), title);
+		return get_exit_code(cli, nt_status);
 	} else {
 		return (0);
 	}

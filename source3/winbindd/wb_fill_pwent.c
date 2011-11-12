@@ -19,7 +19,7 @@
 
 #include "includes.h"
 #include "winbindd.h"
-#include "librpc/gen_ndr/cli_wbint.h"
+#include "librpc/gen_ndr/ndr_wbint_c.h"
 
 struct wb_fill_pwent_state {
 	struct tevent_context *ev;
@@ -72,8 +72,7 @@ static void wb_fill_pwent_sid2uid_done(struct tevent_req *subreq)
 
 	status = wb_sid2uid_recv(subreq, &state->pw->pw_uid);
 	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
+	if (tevent_req_nterror(req, status)) {
 		return;
 	}
 
@@ -98,8 +97,7 @@ static void wb_fill_pwent_sid2gid_done(struct tevent_req *subreq)
 
 	status = wb_sid2gid_recv(subreq, &state->pw->pw_gid);
 	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
+	if (tevent_req_nterror(req, status)) {
 		return;
 	}
 

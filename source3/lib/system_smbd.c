@@ -24,6 +24,8 @@
 */
 
 #include "includes.h"
+#include "system/passwd.h"
+#include "nsswitch/winbind_client.h"
 
 #ifndef HAVE_GETGROUPLIST
 
@@ -118,7 +120,7 @@ static int getgrouplist_internals(const char *user, gid_t gid, gid_t *groups,
 		return -1;
 	}
 
-	if (initgroups(user, gid) != 0) {
+	if (initgroups(user, gid) == -1) {
 		DEBUG(0, ("getgrouplist_internals: initgroups() failed!\n"));
 		SAFE_FREE(gids_saved);
 		return -1;
@@ -200,9 +202,9 @@ static int sys_getgrouplist(const char *user, gid_t gid, gid_t *groups, int *grp
 
 bool getgroups_unix_user(TALLOC_CTX *mem_ctx, const char *user,
 			 gid_t primary_gid,
-			 gid_t **ret_groups, size_t *p_ngroups)
+			 gid_t **ret_groups, uint32_t *p_ngroups)
 {
-	size_t ngrp;
+	uint32_t ngrp;
 	int max_grp;
 	gid_t *temp_groups;
 	gid_t *groups;

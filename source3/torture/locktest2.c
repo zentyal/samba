@@ -18,6 +18,9 @@
 */
 
 #include "includes.h"
+#include "libsmb/libsmb.h"
+#include "system/filesys.h"
+#include "locking/proto.h"
 
 static fstring password;
 static fstring username;
@@ -190,7 +193,7 @@ static struct cli_state *connect_one(char *share)
 
 	nt_status = cli_full_connection(&c, myname, server_n, NULL, 0, share, "?????", 
 					username, lp_workgroup(), password, 0,
-					Undefined, NULL);
+					Undefined);
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0, ("cli_full_connection failed with error %s\n", nt_errstr(nt_status)));
@@ -323,7 +326,7 @@ static void close_files(struct cli_state *cli[NSERVERS][NCONNECTIONS],
 		}
 	}
 	for (server=0;server<NSERVERS;server++) {
-		cli_unlink(cli[server][0], FILENAME, aSYSTEM | aHIDDEN);
+		cli_unlink(cli[server][0], FILENAME, FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN);
 	}
 }
 
@@ -491,12 +494,12 @@ static void usage(void)
 
 	setlinebuf(stdout);
 
-	dbf = x_stderr;
-
 	if (argc < 5 || argv[1][0] == '-') {
 		usage();
 		exit(1);
 	}
+
+	setup_logging(argv[0], DEBUG_STDOUT);
 
 	share1 = argv[1];
 	share2 = argv[2];
@@ -505,8 +508,6 @@ static void usage(void)
 
 	all_string_sub(share1,"/","\\",0);
 	all_string_sub(share2,"/","\\",0);
-
-	setup_logging(argv[0],True);
 
 	argc -= 4;
 	argv += 4;

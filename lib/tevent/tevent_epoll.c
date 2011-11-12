@@ -42,8 +42,7 @@ struct epoll_event_context {
 };
 
 /*
-  called when a epoll call fails, and we should fallback
-  to using select
+  called when a epoll call fails
 */
 static void epoll_panic(struct epoll_event_context *epoll_ev, const char *reason)
 {
@@ -437,7 +436,7 @@ static const struct tevent_ops epoll_event_ops = {
 	.loop_wait		= tevent_common_loop_wait,
 };
 
-bool tevent_epoll_init(void)
+_PRIVATE_ bool tevent_epoll_init(void)
 {
 	return tevent_register_backend("epoll", &epoll_event_ops);
 }

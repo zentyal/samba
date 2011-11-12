@@ -836,7 +836,7 @@ static NTSTATUS cifspsx_fsattr(struct ntvfs_module_context *ntvfs,
 	fs->generic.out.serial_number = 1;
 	fs->generic.out.fs_type = talloc_strdup(req, "NTFS");
 	fs->generic.out.volume_name = talloc_strdup(req, 
-						    lp_servicename(req->tcon->service));
+						    lpcfg_servicename(req->tcon->service));
 
 	return NT_STATUS_OK;
 }
@@ -864,7 +864,7 @@ static NTSTATUS cifspsx_search_first(struct ntvfs_module_context *ntvfs,
 	struct cifspsx_private *p = ntvfs->private_data;
 	struct search_state *search;
 	union smb_search_data file;
-	uint_t max_count;
+	unsigned int max_count;
 
 	if (io->generic.level != RAW_SEARCH_TRANS2) {
 		return NT_STATUS_NOT_SUPPORTED;
@@ -938,7 +938,7 @@ static NTSTATUS cifspsx_search_next(struct ntvfs_module_context *ntvfs,
 	struct cifspsx_private *p = ntvfs->private_data;
 	struct search_state *search;
 	union smb_search_data file;
-	uint_t max_count;
+	unsigned int max_count;
 
 	if (io->generic.level != RAW_SEARCH_TRANS2) {
 		return NT_STATUS_NOT_SUPPORTED;

@@ -47,7 +47,7 @@ NTSTATUS smbcli_parse_stream_info(DATA_BLOB blob, TALLOC_CTX *mem_ctx,
 	io->streams = NULL;
 
 	while (blob.length - ofs >= 24) {
-		uint_t n = io->num_streams;
+		unsigned int n = io->num_streams;
 		uint32_t nlen, len;
 		bool ret;
 		void *vstr;
@@ -253,9 +253,9 @@ NTSTATUS smb_raw_fileinfo_passthru_parse(const DATA_BLOB *blob, TALLOC_CTX *mem_
 		parms->query_secdesc.out.sd = talloc(mem_ctx, struct security_descriptor);
 		NT_STATUS_HAVE_NO_MEMORY(parms->query_secdesc.out.sd);
 
-		ndr_err = ndr_pull_struct_blob(blob, mem_ctx, NULL, 
-					       parms->query_secdesc.out.sd,
-					       (ndr_pull_flags_fn_t)ndr_pull_security_descriptor);
+		ndr_err = ndr_pull_struct_blob(blob, mem_ctx,
+			parms->query_secdesc.out.sd,
+			(ndr_pull_flags_fn_t)ndr_pull_security_descriptor);
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			return ndr_map_error2ntstatus(ndr_err);
 		}

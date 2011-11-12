@@ -9,13 +9,13 @@
 	improved on some systems by flushing file data early and at
 	regular intervals.</p><p>This module is stackable.</p></div><div class="refsect1" title="OPTIONS"><a name="id266838"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">commit:dthresh = BYTES</span></dt><dd><p>Synchronize file data each time the specified
 		number of bytes has been written.
-		</p><p>The following suffixes may be applied to BYTES:</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p><code class="literal">K</code> - BYTES is a number of kilobytes</p></li><li class="listitem"><p><code class="literal">M</code> - BYTES is a number of megabytes</p></li><li class="listitem"><p><code class="literal">G</code> - BYTES is a number of gigabytes</p></li></ul></div></dd></dl></div></div><div class="refsect1" title="EXAMPLES"><a name="id266895"></a><h2>EXAMPLES</h2><p>Synchronize the file data on the [precious] share after
+		</p><p>The following suffixes may be applied to BYTES:</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p><code class="literal">K</code> - BYTES is a number of kilobytes</p></li><li class="listitem"><p><code class="literal">M</code> - BYTES is a number of megabytes</p></li><li class="listitem"><p><code class="literal">G</code> - BYTES is a number of gigabytes</p></li></ul></div></dd></dl></div></div><div class="refsect1" title="EXAMPLES"><a name="id266896"></a><h2>EXAMPLES</h2><p>Synchronize the file data on the [precious] share after
 	every 512 kilobytes (524288 bytes) of data is written:</p><pre class="programlisting">
         <em class="parameter"><code>[precious]</code></em>
 	<a class="link" href="smb.conf.5.html#PATH" target="_top">path = /data/precious</a>
 	<a class="link" href="smb.conf.5.html#VFSOBJECTS" target="_top">vfs objects = commit</a>
 	<a class="link" href="smb.conf.5.html#COMMIT:DTHRESH" target="_top">commit:dthresh = 512K</a>
-</pre></div><div class="refsect1" title="CAVEATS"><a name="id265849"></a><h2>CAVEATS</h2><p>On some systems, the data synchronization performed by
+</pre></div><div class="refsect1" title="CAVEATS"><a name="id265848"></a><h2>CAVEATS</h2><p>On some systems, the data synchronization performed by
 	<code class="literal">commit</code> may reduce performance.
 	</p></div><div class="refsect1" title="VERSION"><a name="id265864"></a><h2>VERSION</h2><p>This man page is correct for version 3.0.25 of the Samba suite.
 	</p></div><div class="refsect1" title="AUTHOR"><a name="id265874"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities

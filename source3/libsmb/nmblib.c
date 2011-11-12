@@ -20,6 +20,7 @@
 */
 
 #include "includes.h"
+#include "libsmb/nmblib.h"
 
 static const struct opcode_names {
 	const char *nmb_opcode_name;
@@ -725,6 +726,22 @@ void free_packet(struct packet_struct *packet)
 	SAFE_FREE(packet);
 }
 
+int packet_trn_id(struct packet_struct *p)
+{
+	int result;
+	switch (p->packet_type) {
+	case NMB_PACKET:
+		result = p->packet.nmb.header.name_trn_id;
+		break;
+	case DGRAM_PACKET:
+		result = p->packet.dgram.header.dgm_id;
+		break;
+	default:
+		result = -1;
+	}
+	return result;
+}
+
 /*******************************************************************
  Parse a packet buffer into a packet structure.
 ******************************************************************/
@@ -1084,87 +1101,10 @@ bool send_packet(struct packet_struct *p)
 }
 
 /****************************************************************************
- Receive a packet with timeout on a open UDP filedescriptor.
- The timeout is in milliseconds
-***************************************************************************/
-
-struct packet_struct *receive_packet(int fd,enum packet_type type,int t)
-{
-	fd_set fds;
-	struct timeval timeout;
-	int ret;
-
-	if (fd < 0 || fd >= FD_SETSIZE) {
-		errno = EBADF;
-		return NULL;
-	}
-
-	FD_ZERO(&fds);
-	FD_SET(fd,&fds);
-	timeout.tv_sec = t/1000;
-	timeout.tv_usec = 1000*(t%1000);
-
-	if ((ret = sys_select_intr(fd+1,&fds,NULL,NULL,&timeout)) == -1) {
-		/* errno should be EBADF or EINVAL. */
-		DEBUG(0,("select returned -1, errno = %s (%d)\n",
-					strerror(errno), errno));
-		return NULL;
-	}
-
-	if (ret == 0) /* timeout */
-		return NULL;
-
-	if (FD_ISSET(fd,&fds))
-		return(read_packet(fd,type));
-
-	return(NULL);
-}
-
-/****************************************************************************
- Receive a UDP/137 packet either via UDP or from the unexpected packet
- queue. The packet must be a reply packet and have the specified trn_id.
- The timeout is in milliseconds.
-***************************************************************************/
-
-struct packet_struct *receive_nmb_packet(int fd, int t, int trn_id)
-{
-	struct packet_struct *p;
-
-	p = receive_packet(fd, NMB_PACKET, t);
-
-	if (p && p->packet.nmb.header.response &&
-			p->packet.nmb.header.name_trn_id == trn_id) {
-		return p;
-	}
-	if (p)
-		free_packet(p);
-
-	/* try the unexpected packet queue */
-	return receive_unexpected(NMB_PACKET, trn_id, NULL);
-}
-
-/****************************************************************************
  Receive a UDP/138 packet either via UDP or from the unexpected packet
  queue. The packet must be a reply packet and have the specified mailslot name
  The timeout is in milliseconds.
 ***************************************************************************/
-
-struct packet_struct *receive_dgram_packet(int fd, int t,
-		const char *mailslot_name)
-{
-	struct packet_struct *p;
-
-	p = receive_packet(fd, DGRAM_PACKET, t);
-
-	if (p && match_mailslot_name(p, mailslot_name)) {
-		return p;
-	}
-	if (p)
-		free_packet(p);
-
-	/* try the unexpected packet queue */
-	return receive_unexpected(DGRAM_PACKET, 0, mailslot_name);
-}
 
 /****************************************************************************
  See if a datagram has the right mailslot name.
@@ -1237,6 +1177,10 @@ void sort_query_replies(char *data, int n, struct in_addr ip)
 
 	putip(sort_ip, (char *)&ip);
 
+	/* TODO:
+	   this can't use TYPESAFE_QSORT() as the types are wrong.
+	   It should be fixed to use a real type instead of char*
+	*/
 	qsort(data, n, 6, QSORT_CAST name_query_comp);
 }
 

@@ -23,7 +23,8 @@
 #include "lib/netapi/netapi.h"
 #include "lib/netapi/netapi_private.h"
 #include "lib/netapi/libnetapi.h"
-#include "../librpc/gen_ndr/cli_initshutdown.h"
+#include "../librpc/gen_ndr/ndr_initshutdown_c.h"
+#include "rpc_client/init_lsa.h"
 
 /****************************************************************
 ****************************************************************/
@@ -33,19 +34,19 @@ WERROR NetShutdownInit_r(struct libnetapi_ctx *ctx,
 {
 	WERROR werr;
 	NTSTATUS status;
-	struct rpc_pipe_client *pipe_cli = NULL;
 	struct lsa_StringLarge message;
+	struct dcerpc_binding_handle *b;
 
-	werr = libnetapi_open_pipe(ctx, r->in.server_name,
-				   &ndr_table_initshutdown.syntax_id,
-				   &pipe_cli);
+	werr = libnetapi_get_binding_handle(ctx, r->in.server_name,
+					    &ndr_table_initshutdown.syntax_id,
+					    &b);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
 
 	init_lsa_StringLarge(&message, r->in.message);
 
-	status = rpccli_initshutdown_Init(pipe_cli, talloc_tos(),
+	status = dcerpc_initshutdown_Init(b, talloc_tos(),
 					  NULL,
 					  &message,
 					  r->in.timeout,
@@ -78,16 +79,16 @@ WERROR NetShutdownAbort_r(struct libnetapi_ctx *ctx,
 {
 	WERROR werr;
 	NTSTATUS status;
-	struct rpc_pipe_client *pipe_cli = NULL;
+	struct dcerpc_binding_handle *b;
 
-	werr = libnetapi_open_pipe(ctx, r->in.server_name,
-				   &ndr_table_initshutdown.syntax_id,
-				   &pipe_cli);
+	werr = libnetapi_get_binding_handle(ctx, r->in.server_name,
+					    &ndr_table_initshutdown.syntax_id,
+					    &b);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
 
-	status = rpccli_initshutdown_Abort(pipe_cli, talloc_tos(),
+	status = dcerpc_initshutdown_Abort(b, talloc_tos(),
 					   NULL,
 					   &werr);
 	if (!NT_STATUS_IS_OK(status)) {

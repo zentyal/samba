@@ -21,6 +21,9 @@ interface misc
 
 	typedef [public] struct {
 		GUID uuid;
+		/* The major version is encoded in the 16 least significant bits, 
+		   the minor in the 16 most significant bits.  
+		   http://www.opengroup.org/onlinepubs/9629399/chap12.htm */
 		uint32 if_version;
 	} ndr_syntax_id;
 
@@ -34,10 +37,13 @@ interface misc
 
 	typedef [public] enum {
 		SEC_CHAN_NULL        = 0,
+		SEC_CHAN_LOCAL       = 1,
 		SEC_CHAN_WKSTA       = 2,
 		SEC_CHAN_DNS_DOMAIN  = 3,
 		SEC_CHAN_DOMAIN      = 4,
-		SEC_CHAN_BDC         = 6
+		SEC_CHAN_LANMAN      = 5,
+		SEC_CHAN_BDC         = 6,
+		SEC_CHAN_RODC        = 7
 	} netr_SchannelType;
 
 	typedef [public] struct {

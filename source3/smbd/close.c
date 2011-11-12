@@ -20,8 +20,14 @@
 */
 
 #include "includes.h"
-
-extern struct current_user current_user;
+#include "system/filesys.h"
+#include "printing.h"
+#include "smbd/smbd.h"
+#include "smbd/globals.h"
+#include "fake_file.h"
+#include "transfer_file.h"
+#include "auth.h"
+#include "messages.h"
 
 /****************************************************************************
  Run a file if it is a magic script.
@@ -153,7 +159,8 @@ static NTSTATUS close_filestruct(files_struct *fsp)
  If any deferred opens are waiting on this close, notify them.
 ****************************************************************************/
 
-static void notify_deferred_opens(struct share_mode_lock *lck)
+static void notify_deferred_opens(struct messaging_context *msg_ctx,
+				  struct share_mode_lock *lck)
 {
  	int i;
 
@@ -175,14 +182,13 @@ static void notify_deferred_opens(struct share_mode_lock *lck)
  			 * the head of the queue and changing the wait time to
  			 * zero.
  			 */
- 			schedule_deferred_open_smb_message(e->op_mid);
+ 			schedule_deferred_open_message_smb(e->op_mid);
  		} else {
 			char msg[MSG_SMB_SHARE_MODE_ENTRY_SIZE];
 
 			share_mode_entry_to_message(msg, e);
 
- 			messaging_send_buf(smbd_messaging_context(),
-					   e->pid, MSG_SMB_OPEN_RETRY,
+			messaging_send_buf(msg_ctx, e->pid, MSG_SMB_OPEN_RETRY,
 					   (uint8 *)msg,
 					   MSG_SMB_SHARE_MODE_ENTRY_SIZE);
  		}
@@ -273,6 +279,7 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 	NTSTATUS status = NT_STATUS_OK;
 	NTSTATUS tmp_status;
 	struct file_id id;
+	const struct security_unix_token *del_token = NULL;
 
 	/* Ensure any pending write time updates are done. */
 	if (fsp->update_write_time_event) {
@@ -326,32 +333,35 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 			  fsp_str_dbg(fsp)));
 	}
 
-	if (fsp->initial_delete_on_close && (lck->delete_token == NULL)) {
+	if (fsp->initial_delete_on_close &&
+			!is_delete_on_close_set(lck, fsp->name_hash)) {
 		bool became_user = False;
 
 		/* Initial delete on close was set and no one else
 		 * wrote a real delete on close. */
 
-		if (current_user.vuid != fsp->vuid) {
+		if (get_current_vuid(conn) != fsp->vuid) {
 			become_user(conn, fsp->vuid);
 			became_user = True;
 		}
 		fsp->delete_on_close = true;
-		set_delete_on_close_lck(lck, True, &current_user.ut);
+		set_delete_on_close_lck(fsp, lck, True, get_current_utok(conn));
 		if (became_user) {
 			unbecome_user();
 		}
 	}
 
-	delete_file = lck->delete_on_close;
+	delete_file = is_delete_on_close_set(lck, fsp->name_hash);
 
 	if (delete_file) {
 		int i;
-		/* See if others still have the file open. If this is the
-		 * case, then don't delete. If all opens are POSIX delete now. */
+		/* See if others still have the file open via this pathname.
+		   If this is the case, then don't delete. If all opens are
+		   POSIX delete now. */
 		for (i=0; i<lck->num_share_modes; i++) {
 			struct share_mode_entry *e = &lck->share_modes[i];
-			if (is_valid_share_mode_entry(e)) {
+			if (is_valid_share_mode_entry(e) &&
+					e->name_hash == fsp->name_hash) {
 				if (fsp->posix_open && (e->flags & SHARE_MODE_FLAG_POSIX_OPEN)) {
 					continue;
 				}
@@ -362,7 +372,7 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 	}
 
 	/* Notify any deferred opens waiting on this close. */
-	notify_deferred_opens(lck);
+	notify_deferred_opens(conn->sconn->msg_ctx, lck);
 	reply_to_oplock_break_requests(fsp);
 
 	/*
@@ -370,9 +380,8 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 	 * reference to a file.
 	 */
 
-	if (!(close_type == NORMAL_CLOSE || close_type == SHUTDOWN_CLOSE)
-	    || !delete_file
-	    || (lck->delete_token == NULL)) {
+	if (!(close_type == NORMAL_CLOSE || close_type == SHUTDOWN_CLOSE) ||
+			!delete_file) {
 		TALLOC_FREE(lck);
 		return NT_STATUS_OK;
 	}
@@ -389,23 +398,26 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 	 */
 	fsp->update_write_time_on_close = false;
 
-	if (!unix_token_equal(lck->delete_token, &current_user.ut)) {
+	del_token = get_delete_on_close_token(lck, fsp->name_hash);
+	SMB_ASSERT(del_token != NULL);
+
+	if (!unix_token_equal(del_token, get_current_utok(conn))) {
 		/* Become the user who requested the delete. */
 
 		DEBUG(5,("close_remove_share_mode: file %s. "
 			"Change user to uid %u\n",
 			fsp_str_dbg(fsp),
-			(unsigned int)lck->delete_token->uid));
+			(unsigned int)del_token->uid));
 
 		if (!push_sec_ctx()) {
 			smb_panic("close_remove_share_mode: file %s. failed to push "
 				  "sec_ctx.\n");
 		}
 
-		set_sec_ctx(lck->delete_token->uid,
-			    lck->delete_token->gid,
-			    lck->delete_token->ngroups,
-			    lck->delete_token->groups,
+		set_sec_ctx(del_token->uid,
+			    del_token->gid,
+			    del_token->ngroups,
+			    del_token->groups,
 			    NULL);
 
 		changed_user = true;
@@ -471,10 +483,6 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 		status = map_nt_error_from_unix(errno);
 	}
 
-	notify_fname(conn, NOTIFY_ACTION_REMOVED,
-		     FILE_NOTIFY_CHANGE_FILE_NAME,
-		     fsp->fsp_name->base_name);
-
 	/* As we now have POSIX opens which can unlink
  	 * with other open files we may have taken
  	 * this code path with more than one share mode
@@ -483,7 +491,7 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
  	 */
 
 	fsp->delete_on_close = false;
-	set_delete_on_close_lck(lck, False, NULL);
+	set_delete_on_close_lck(fsp, lck, false, NULL);
 
  done:
 
@@ -493,6 +501,24 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 	}
 
 	TALLOC_FREE(lck);
+
+	if (delete_file) {
+		/*
+		 * Do the notification after we released the share
+		 * mode lock. Inside notify_fname we take out another
+		 * tdb lock. With ctdb also accessing our databases,
+		 * this can lead to deadlocks. Putting this notify
+		 * after the TALLOC_FREE(lck) above we avoid locking
+		 * two records simultaneously. Notifies are async and
+		 * informational only, so calling the notify_fname
+		 * without holding the share mode lock should not do
+		 * any harm.
+		 */
+		notify_fname(conn, NOTIFY_ACTION_REMOVED,
+			     FILE_NOTIFY_CHANGE_FILE_NAME,
+			     fsp->fsp_name->base_name);
+	}
+
 	return status;
 }
 
@@ -550,8 +576,16 @@ static NTSTATUS update_write_time_on_close(struct files_struct *fsp)
 	}
 
 	ft.mtime = fsp->close_write_time;
-	status = smb_set_file_time(fsp->conn, fsp, fsp->fsp_name, &ft, false);
+	/* We must use NULL for the fsp handle here, as smb_set_file_time()
+	   checks the fsp access_mask, which may not include FILE_WRITE_ATTRIBUTES.
+	   As this is a close based update, we are not directly changing the
+	   file attributes from a client call, but indirectly from a write. */
+	status = smb_set_file_time(fsp->conn, NULL, fsp->fsp_name, &ft, false);
 	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(10,("update_write_time_on_close: smb_set_file_time "
+			"on file %s returned %s\n",
+			fsp_str_dbg(fsp),
+			nt_errstr(status)));
 		return status;
 	}
 
@@ -581,9 +615,11 @@ static NTSTATUS close_normal_file(struct smb_request *req, files_struct *fsp,
 	NTSTATUS tmp;
 	connection_struct *conn = fsp->conn;
 
-	if (fsp->aio_write_behind) {
+	if (close_type == ERROR_CLOSE) {
+		cancel_aio_by_fsp(fsp);
+	} else {
 		/*
-	 	 * If we're finishing write behind on a close we can get a write
+	 	 * If we're finishing async io on a close we can get a write
 		 * error here, we must remember this.
 		 */
 		int ret = wait_for_aio_completion(fsp);
@@ -591,10 +627,8 @@ static NTSTATUS close_normal_file(struct smb_request *req, files_struct *fsp,
 			status = ntstatus_keeperror(
 				status, map_nt_error_from_unix(ret));
 		}
-	} else {
-		cancel_aio_by_fsp(fsp);
 	}
- 
+
 	/*
 	 * If we're flushing on a close we can get a write
 	 * error here, we must remember this.
@@ -604,7 +638,8 @@ static NTSTATUS close_normal_file(struct smb_request *req, files_struct *fsp,
 	status = ntstatus_keeperror(status, tmp);
 
 	if (fsp->print_file) {
-		print_fsp_end(fsp, close_type);
+		/* FIXME: return spool errors */
+		print_spool_end(fsp, close_type);
 		file_free(req, fsp);
 		return NT_STATUS_OK;
 	}
@@ -624,7 +659,7 @@ static NTSTATUS close_normal_file(struct smb_request *req, files_struct *fsp,
 		status = ntstatus_keeperror(status, tmp);
 	}
 
-	locking_close_file(smbd_messaging_context(), fsp);
+	locking_close_file(conn->sconn->msg_ctx, fsp, close_type);
 
 	tmp = fd_close(fsp);
 	status = ntstatus_keeperror(status, tmp);
@@ -651,7 +686,7 @@ static NTSTATUS close_normal_file(struct smb_request *req, files_struct *fsp,
 	status = ntstatus_keeperror(status, tmp);
 
 	DEBUG(2,("%s closed file %s (numopen=%d) %s\n",
-		conn->server_info->unix_name, fsp_str_dbg(fsp),
+		conn->session_info->unix_name, fsp_str_dbg(fsp),
 		conn->num_files_open - 1,
 		nt_errstr(status) ));
 
@@ -927,6 +962,7 @@ static NTSTATUS close_directory(struct smb_request *req, files_struct *fsp,
 	bool delete_dir = False;
 	NTSTATUS status = NT_STATUS_OK;
 	NTSTATUS status1 = NT_STATUS_OK;
+	const struct security_unix_token *del_token = NULL;
 
 	/*
 	 * NT can set delete_on_close of the last open
@@ -955,19 +991,22 @@ static NTSTATUS close_directory(struct smb_request *req, files_struct *fsp,
 		 * directories we don't care if anyone else
 		 * wrote a real delete on close. */
 
-		if (current_user.vuid != fsp->vuid) {
+		if (get_current_vuid(fsp->conn) != fsp->vuid) {
 			become_user(fsp->conn, fsp->vuid);
 			became_user = True;
 		}
-		send_stat_cache_delete_message(fsp->fsp_name->base_name);
-		set_delete_on_close_lck(lck, True, &current_user.ut);
+		send_stat_cache_delete_message(fsp->conn->sconn->msg_ctx,
+					       fsp->fsp_name->base_name);
+		set_delete_on_close_lck(fsp, lck, true,
+				get_current_utok(fsp->conn));
 		fsp->delete_on_close = true;
 		if (became_user) {
 			unbecome_user();
 		}
 	}
 
-	delete_dir = lck->delete_on_close;
+	del_token = get_delete_on_close_token(lck, fsp->name_hash);
+	delete_dir = (del_token != NULL);
 
 	if (delete_dir) {
 		int i;
@@ -975,7 +1014,8 @@ static NTSTATUS close_directory(struct smb_request *req, files_struct *fsp,
 		 * case, then don't delete. If all opens are POSIX delete now. */
 		for (i=0; i<lck->num_share_modes; i++) {
 			struct share_mode_entry *e = &lck->share_modes[i];
-			if (is_valid_share_mode_entry(e)) {
+			if (is_valid_share_mode_entry(e) &&
+					e->name_hash == fsp->name_hash) {
 				if (fsp->posix_open && (e->flags & SHARE_MODE_FLAG_POSIX_OPEN)) {
 					continue;
 				}
@@ -986,8 +1026,7 @@ static NTSTATUS close_directory(struct smb_request *req, files_struct *fsp,
 	}
 
 	if ((close_type == NORMAL_CLOSE || close_type == SHUTDOWN_CLOSE) &&
-				delete_dir &&
-				lck->delete_token) {
+				delete_dir) {
 	
 		/* Become the user who requested the delete. */
 
@@ -995,10 +1034,10 @@ static NTSTATUS close_directory(struct smb_request *req, files_struct *fsp,
 			smb_panic("close_directory: failed to push sec_ctx.\n");
 		}
 
-		set_sec_ctx(lck->delete_token->uid,
-				lck->delete_token->gid,
-				lck->delete_token->ngroups,
-				lck->delete_token->groups,
+		set_sec_ctx(del_token->uid,
+				del_token->gid,
+				del_token->ngroups,
+				del_token->groups,
 				NULL);
 
 		TALLOC_FREE(lck);
@@ -1032,10 +1071,6 @@ static NTSTATUS close_directory(struct smb_request *req, files_struct *fsp,
 		DEBUG(0, ("Could not close dir! fname=%s, fd=%d, err=%d=%s\n",
 			  fsp_str_dbg(fsp), fsp->fh->fd, errno,
 			  strerror(errno)));
-	}
-
-	if (fsp->dptr) {
-		dptr_CloseDir(fsp->dptr);
 	}
 
 	/*
@@ -1099,8 +1134,15 @@ void msg_close_file(struct messaging_context *msg_ctx,
 			struct server_id server_id,
 			DATA_BLOB *data)
 {
+	struct smbd_server_connection *sconn;
 	files_struct *fsp = NULL;
 	struct share_mode_entry e;
+
+	sconn = msg_ctx_to_sconn(msg_ctx);
+	if (sconn == NULL) {
+		DEBUG(1, ("could not find sconn\n"));
+		return;
+	}
 
 	message_to_share_mode_entry(&e, (char *)data->data);
 
@@ -1114,7 +1156,7 @@ void msg_close_file(struct messaging_context *msg_ctx,
 		TALLOC_FREE(sm_str);
 	}
 
-	fsp = file_find_dif(e.id, e.share_file_id);
+	fsp = file_find_dif(sconn, e.id, e.share_file_id);
 	if (!fsp) {
 		DEBUG(10,("msg_close_file: failed to find file.\n"));
 		return;

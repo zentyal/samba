@@ -1,18 +1,18 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>ntlm_auth</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.75.2"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" title="ntlm_auth"><a name="ntlm-auth.1"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>ntlm_auth &#8212; tool to allow external access to Winbind's NTLM authentication function</p></div><div class="refsynopsisdiv" title="Synopsis"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">ntlm_auth</code> [-d debuglevel] [-l logdir] [-s &lt;smb config file&gt;]</p></div></div><div class="refsect1" title="DESCRIPTION"><a name="id266364"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p><code class="literal">ntlm_auth</code> is a helper utility that authenticates 
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>ntlm_auth</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.75.2"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" title="ntlm_auth"><a name="ntlm-auth.1"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>ntlm_auth &#8212; tool to allow external access to Winbind's NTLM authentication function</p></div><div class="refsynopsisdiv" title="Synopsis"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">ntlm_auth</code> [-d debuglevel] [-l logdir] [-s &lt;smb config file&gt;]</p></div></div><div class="refsect1" title="DESCRIPTION"><a name="id266363"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p><code class="literal">ntlm_auth</code> is a helper utility that authenticates 
 	users using NT/LM authentication. It returns 0 if the users is authenticated
 	successfully and 1 if access was denied. ntlm_auth uses winbind to access 
 	the user and authentication data for a domain.  This utility 
 	is only intended to be used by other programs (currently
 	<a class="ulink" href="http://www.squid-cache.org/" target="_top">Squid</a>
 	and <a class="ulink" href="http://download.samba.org/ftp/unpacked/lorikeet/trunk/mod_ntlm_winbind/" target="_top">mod_ntlm_winbind</a>)
-	</p></div><div class="refsect1" title="OPERATIONAL REQUIREMENTS"><a name="id266860"></a><h2>OPERATIONAL REQUIREMENTS</h2><p>
+	</p></div><div class="refsect1" title="OPERATIONAL REQUIREMENTS"><a name="id266859"></a><h2>OPERATIONAL REQUIREMENTS</h2><p>
     The <a class="citerefentry" href="winbindd.8.html"><span class="citerefentry"><span class="refentrytitle">winbindd</span>(8)</span></a> daemon must be operational
     for many of these commands to function.</p><p>Some of these commands also require access to the directory 
     <code class="filename">winbindd_privileged</code> in
     <code class="filename">$LOCKDIR</code>.  This should be done either by running
     this command as root or providing group access
     to the <code class="filename">winbindd_privileged</code> directory.  For
-    security reasons, this directory should not be world-accessable. </p></div><div class="refsect1" title="OPTIONS"><a name="id265696"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">--helper-protocol=PROTO</span></dt><dd><p>
+    security reasons, this directory should not be world-accessable. </p></div><div class="refsect1" title="OPTIONS"><a name="id266899"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">--helper-protocol=PROTO</span></dt><dd><p>
 	Operate as a stdio-based helper.  Valid helper protocols are:
         </p><div class="variablelist"><dl><dt><span class="term">squid-2.4-basic</span></dt><dd><p>
                 Server-side helper for use with Squid 2.4's basic (plaintext)
@@ -59,13 +59,13 @@
                 period <code class="literal">.</code> indicates that one side has
                 finished supplying data to the other.  (Which in turn
                 could cause the helper to authenticate the
-                user). </p><p>Curently implemented parameters from the
+                user). </p><p>Currently implemented parameters from the
 		external program to the helper are:</p><div class="variablelist"><div class="warning" title="Warning" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Warning</h3>Implementors should take care to base64 encode
 		any data (such as usernames/passwords) that may contain malicous user data, such as
 		a newline.  They may also need to decode strings from
 		the helper, which likewise may have been base64 encoded.</div><dl><dt><span class="term">Username</span></dt><dd><p>The username, expected to be in
                 Samba's <a class="link" href="smb.conf.5.html#UNIXCHARSET" target="_top">unix charset</a>.
-                </p><div class="example"><a name="id265921"></a><p class="title"><b>Example 1. </b></p><div class="example-contents">Username: bob</div></div><p><br class="example-break"></p><div class="example"><a name="id265926"></a><p class="title"><b>Example 2. </b></p><div class="example-contents">Username:: Ym9i</div></div><p><br class="example-break"></p></dd><dt><span class="term">NT-Domain</span></dt><dd><p>The user's domain, expected to be in
+                </p><div class="example"><a name="id265920"></a><p class="title"><b>Example 1. </b></p><div class="example-contents">Username: bob</div></div><p><br class="example-break"></p><div class="example"><a name="id265925"></a><p class="title"><b>Example 2. </b></p><div class="example-contents">Username:: Ym9i</div></div><p><br class="example-break"></p></dd><dt><span class="term">NT-Domain</span></dt><dd><p>The user's domain, expected to be in
                 Samba's <a class="link" href="smb.conf.5.html#UNIXCHARSET" target="_top">unix charset</a>.
                 </p><div class="example"><a name="id265952"></a><p class="title"><b>Example 3. </b></p><div class="example-contents">NT-Domain: WORKGROUP</div></div><p><br class="example-break"></p><div class="example"><a name="id265957"></a><p class="title"><b>Example 4. </b></p><div class="example-contents">NT-Domain:: V09SS0dST1VQ</div></div><p><br class="example-break"></p></dd><dt><span class="term">Full-Username</span></dt><dd><p>The fully qualified username, expected to be in
                 Samba's <a class="link" href="smb.conf.5.html#UNIXCHARSET" target="_top">unix charset</a> and qualified with the

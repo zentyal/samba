@@ -27,7 +27,6 @@
  */
 
 #include "mech_locl.h"
-RCSID("$Id$");
 
 static OM_uint32
 _gss_import_export_name(OM_uint32 *minor_status,
@@ -139,7 +138,32 @@ _gss_import_export_name(OM_uint32 *minor_status,
 	return (GSS_S_COMPLETE);
 }
 
-OM_uint32 GSSAPI_LIB_FUNCTION
+/**
+ * Import a name internal or mechanism name
+ *
+ * Type of name and their format:
+ * - GSS_C_NO_OID
+ * - GSS_C_NT_USER_NAME
+ * - GSS_C_NT_HOSTBASED_SERVICE
+ * - GSS_C_NT_EXPORT_NAME
+ * - GSS_C_NT_ANONYMOUS
+ * - GSS_KRB5_NT_PRINCIPAL_NAME
+ *
+ * For more information about @ref internalVSmechname.
+ *
+ * @param minor_status minor status code
+ * @param input_name_buffer import name buffer
+ * @param input_name_type type of the import name buffer
+ * @param output_name the resulting type, release with
+ *        gss_release_name(), independent of input_name
+ *
+ * @returns a gss_error code, see gss_display_status() about printing
+ *        the error code.
+ *  
+ * @ingroup gssapi
+ */
+
+GSSAPI_LIB_FUNCTION OM_uint32 GSSAPI_LIB_CALL
 gss_import_name(OM_uint32 *minor_status,
     const gss_buffer_t input_name_buffer,
     const gss_OID input_name_type,
@@ -185,7 +209,7 @@ gss_import_name(OM_uint32 *minor_status,
 		return (GSS_S_FAILURE);
 	}
 
-	SLIST_INIT(&name->gn_mn);
+	HEIM_SLIST_INIT(&name->gn_mn);
 
 	major_status = _gss_copy_oid(minor_status,
 	    name_type, &name->gn_type);
@@ -204,7 +228,7 @@ gss_import_name(OM_uint32 *minor_status,
 	 * for those supported this nametype.
 	 */
 
-	SLIST_FOREACH(m, &_gss_mechs, gm_link) {
+	HEIM_SLIST_FOREACH(m, &_gss_mechs, gm_link) {
 		int present = 0;
 
 		major_status = gss_test_oid_set_member(minor_status, 
@@ -233,14 +257,14 @@ gss_import_name(OM_uint32 *minor_status,
 
 		mn->gmn_mech = &m->gm_mech;
 		mn->gmn_mech_oid = &m->gm_mech_oid;
-		SLIST_INSERT_HEAD(&name->gn_mn, mn, gmn_link);
+		HEIM_SLIST_INSERT_HEAD(&name->gn_mn, mn, gmn_link);
 	}
 
 	/*
 	 * If we can't find a mn for the name, bail out already here.
 	 */
 
-	mn = SLIST_FIRST(&name->gn_mn);
+	mn = HEIM_SLIST_FIRST(&name->gn_mn);
 	if (!mn) {
 		*minor_status = 0;
 		major_status = GSS_S_NAME_NOT_MN;

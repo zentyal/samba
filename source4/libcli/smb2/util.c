@@ -25,6 +25,7 @@
 #include "libcli/smb2/smb2.h"
 #include "libcli/smb2/smb2_calls.h"
 #include "libcli/smb_composite/smb_composite.h"
+#include "librpc/gen_ndr/ndr_security.h"
 
 /*
   simple close wrapper with SMB2
@@ -108,7 +109,7 @@ int smb2_deltree(struct smb2_tree *tree, const char *dname)
 {
 	NTSTATUS status;
 	uint32_t total_deleted = 0;
-	uint_t count, i;
+	unsigned int count, i;
 	union smb_search_data *list;
 	TALLOC_CTX *tmp_ctx = talloc_new(tree);
 	struct smb2_find f;
@@ -219,4 +220,13 @@ int smb2_deltree(struct smb2_tree *tree, const char *dname)
 	talloc_free(tmp_ctx);
 
 	return total_deleted;
+}
+
+/*
+  check if two SMB2 file handles are the same
+*/
+bool smb2_util_handle_equal(const struct smb2_handle h1,
+			    const struct smb2_handle h2)
+{
+	return (h1.data[0] == h2.data[0]) && (h1.data[1] == h2.data[1]);
 }

@@ -46,7 +46,8 @@ struct Kx509Request;
 #include <kdc-private.h>
 
 extern sig_atomic_t exit_flag;
-extern size_t max_request;
+extern size_t max_request_udp;
+extern size_t max_request_tcp;
 extern const char *request_log;
 extern const char *port_str;
 extern krb5_addresses explicit_addresses;
@@ -75,5 +76,9 @@ loop(krb5_context context, krb5_kdc_configuration *config);
 
 krb5_kdc_configuration *
 configure(krb5_context context, int argc, char **argv);
+
+#ifdef __APPLE__
+void bonjour_announce(krb5_context, krb5_kdc_configuration *);
+#endif
 
 #endif /* __KDC_LOCL_H__ */

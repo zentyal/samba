@@ -322,13 +322,16 @@ static NTSTATUS smb2srv_reply(struct smb2srv_request *req)
 	uid			= BVAL(req->in.hdr, SMB2_HDR_SESSION_ID);
 	flags			= IVAL(req->in.hdr, SMB2_HDR_FLAGS);
 
-	if (req->smb_conn->highest_smb2_seqnum != 0 &&
+	if (opcode != SMB2_OP_CANCEL &&
+	    req->smb_conn->highest_smb2_seqnum != 0 &&
 	    req->seqnum <= req->smb_conn->highest_smb2_seqnum) {
 		smbsrv_terminate_connection(req->smb_conn, "Invalid SMB2 sequence number");
 		return NT_STATUS_INVALID_PARAMETER;
 	}
-	req->smb_conn->highest_smb2_seqnum = req->seqnum;
-	
+	if (opcode != SMB2_OP_CANCEL) {
+		req->smb_conn->highest_smb2_seqnum = req->seqnum;
+	}
+
 	req->session	= smbsrv_session_find(req->smb_conn, uid, req->request_time);
 	req->tcon	= smbsrv_smb2_tcon_find(req->session, tid, req->request_time);
 
@@ -656,7 +659,7 @@ NTSTATUS smbsrv_init_smb2_connection(struct smbsrv_connection *smb_conn)
 
 	/* this is the size that w2k uses, and it appears to be important for
 	   good performance */
-	smb_conn->negotiate.max_recv = lp_max_xmit(smb_conn->lp_ctx);
+	smb_conn->negotiate.max_recv = lpcfg_max_xmit(smb_conn->lp_ctx);
 
 	smb_conn->negotiate.zone_offset = get_time_zone(time(NULL));
 

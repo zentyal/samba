@@ -7,7 +7,7 @@
 	<manvolnum>1</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">User Commands</refmiscinfo>
-	<refmiscinfo class="version">3.5</refmiscinfo>
+	<refmiscinfo class="version">3.6</refmiscinfo>
 </refmeta>
 
 
@@ -50,14 +50,9 @@
 		<arg choice="opt">-P|--ping-dc</arg>
 		<arg choice="opt">-r user</arg>
 		<arg choide="opt">-R|--lookup-rids</arg>
-		<arg choice="opt">--remove-uid-mapping uid,sid</arg>
-		<arg choice="opt">--remove-gid-mapping gid,sid</arg>
 		<arg choice="opt">-s sid</arg>
 		<arg choice="opt">--separator</arg>
-		<arg choice="opt">--sequence</arg>
 		<arg choice="opt">--set-auth-user user%password</arg>
-		<arg choice="opt">--set-uid-mapping uid,sid</arg>
-		<arg choice="opt">--set-gid-mapping gid,sid</arg>
 		<arg choice="opt">-S sid</arg>
 		<arg choide="opt">--sid-aliases</arg>
 		<arg choide="opt">--sid-to-fullname</arg>
@@ -151,7 +146,6 @@
 		operations will performed.  If special domain name '.' is used to represent
 		the current domain to which <citerefentry><refentrytitle>winbindd</refentrytitle>
 		<manvolnum>8</manvolnum></citerefentry> belongs.  Currently only the
-		<option>--sequence</option>,
 		<option>-u</option>, and <option>-g</option> options honor this parameter.
 		</para></listitem>
 		</varlistentry>
@@ -311,6 +305,15 @@
 		</varlistentry>
 
 		<varlistentry>
+		<term>-P|--ping-dc</term>
+		<listitem><para>Issue a no-effect command to our DC. This
+		    checks if our secure channel connection to our domain
+		    controller is still alive. It has much less impact than
+		    wbinfo -t.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
 		<term>-r|--user-groups <replaceable>username</replaceable></term>
 		<listitem><para>Try to obtain the list of UNIX group ids
 		to which the user belongs.  This only works for users
@@ -337,12 +340,6 @@
 		<varlistentry>
 		<term>--separator</term>
 		<listitem><para>Get the active winbind separator.
-		</para></listitem>
-
-		</varlistentry>
-		<varlistentry>
-		<term>--sequence</term>
-		<listitem><para>Show sequence numbers of all known domains.
 		</para></listitem>
 		</varlistentry>
 
@@ -426,7 +423,7 @@
 		<term>-U|--uid-to-sid <replaceable>uid</replaceable></term>
 		<listitem><para>Try to convert a UNIX user id to a Windows NT
 		SID.  If the uid specified does not refer to one within
-		the idmap uid range then the operation will fail. </para></listitem>
+		the idmap range then the operation will fail. </para></listitem>
 		</varlistentry>
 
 		<varlistentry>
@@ -442,30 +439,6 @@
 		does not correspond to a UNIX group mapped by <citerefentry>
 		<refentrytitle>winbindd</refentrytitle><manvolnum>8</manvolnum></citerefentry> then
 		the operation will fail. </para></listitem>
-		</varlistentry>
-
-		<varlistentry>
-		<term>--remove-uid-mapping uid,sid</term>
-		<listitem><para>Remove an existing uid to sid mapping
-		entry from the IDmap backend.</para></listitem>
-		</varlistentry>
-
-		<varlistentry>
-		<term>--remove-gid-mapping gid,sid</term>
-		<listitem><para>Remove an existing gid to sid
-		mapping entry from the IDmap backend.</para></listitem>
-		</varlistentry>
-
-		<varlistentry>
-		<term>--set-uid-mapping uid,sid</term>
-		<listitem><para>Create a new or modify an existing uid to sid
-		mapping in the IDmap backend.</para></listitem>
-		</varlistentry>
-
-		<varlistentry>
-		<term>--set-gid-mapping gid,sid</term>
-		<listitem><para>Create a new or modify an existing gid to sid
-		mapping in the IDmap backend.</para></listitem>
 		</varlistentry>
 
 		&stdarg.version;

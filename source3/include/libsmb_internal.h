@@ -29,6 +29,7 @@
 #define _LIBSMB_INTERNAL_H_
 
 #include "../include/libsmbclient.h"
+#include "libsmb/clirap.h"
 
 #define SMBC_MAX_NAME  1023
 #define SMBC_FILE_MODE (S_IFREG | 0444)
@@ -136,11 +137,6 @@ struct SMBC_internal_data {
          * open file/dir list
 	 */
 	SMBCFILE *                              files;
-
-        /*
-         * Log to standard error instead of the more typical standard output
-         */
-        bool                                    debug_stderr;
 
         /*
          * Support "Create Time" in get/set with the *xattr() functions, if

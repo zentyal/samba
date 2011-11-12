@@ -18,6 +18,11 @@
  */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "smbd/smbd.h"
+#include "../librpc/gen_ndr/ndr_netlogon.h"
+#include "smbd/globals.h"
+#include "auth.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_VFS
@@ -35,7 +40,8 @@
   This is to redirect a DFS client to a host close to it.
 ***********************************************************/
 
-static char *read_target_host(TALLOC_CTX *ctx, const char *mapfile)
+static char *read_target_host(TALLOC_CTX *ctx, const char *mapfile,
+			      const char *clientaddr)
 {
 	XFILE *f;
 	char buf[1024];
@@ -53,7 +59,6 @@ static char *read_target_host(TALLOC_CTX *ctx, const char *mapfile)
 	DEBUG(10, ("Scanning mapfile [%s]\n", mapfile));
 
 	while (x_fgets(buf, sizeof(buf), f) != NULL) {
-		char addr[INET6_ADDRSTRLEN];
 
 		if ((strlen(buf) > 0) && (buf[strlen(buf)-1] == '\n'))
 			buf[strlen(buf)-1] = '\0';
@@ -69,8 +74,7 @@ static char *read_target_host(TALLOC_CTX *ctx, const char *mapfile)
 
 		*space = '\0';
 
-		if (strncmp(client_addr(get_client_fd(),addr,sizeof(addr)),
-				buf, strlen(buf)) == 0) {
+		if (strncmp(clientaddr, buf, strlen(buf)) == 0) {
 			found = true;
 			break;
 		}
@@ -135,7 +139,9 @@ static char *expand_msdfs_target(TALLOC_CTX *ctx,
 
 	DEBUG(10, ("Expanding from table [%s]\n", mapfilename));
 
-	if ((targethost = read_target_host(ctx, mapfilename)) == NULL) {
+	targethost = read_target_host(
+		ctx, conn->sconn->client_id.addr, mapfilename);
+	if (targethost == NULL) {
 		DEBUG(1, ("Could not expand target host from file %s\n",
 			  mapfilename));
 		return NULL;
@@ -143,11 +149,11 @@ static char *expand_msdfs_target(TALLOC_CTX *ctx,
 
 	targethost = talloc_sub_advanced(ctx,
 				lp_servicename(SNUM(conn)),
-				conn->server_info->unix_name,
+				conn->session_info->unix_name,
 				conn->connectpath,
-				conn->server_info->utok.gid,
-				conn->server_info->sanitized_username,
-				pdb_get_domain(conn->server_info->sam_account),
+				conn->session_info->utok.gid,
+				conn->session_info->sanitized_username,
+				conn->session_info->info3->base.domain.string,
 				targethost);
 
 	DEBUG(10, ("Expanded targethost to %s\n", targethost));

@@ -532,6 +532,7 @@ out:
  * @param flags flags to control the behavior.
  *    - HX509_CMS_EV_NO_KU_CHECK - Dont check KU on certificate
  *    - HX509_CMS_EV_ALLOW_WEAK - Allow weak crytpo
+ *    - HX509_CMS_EV_ID_NAME - prefer issuer name and serial number
  * @param cert Certificate to encrypt the EnvelopedData encryption key
  * with.
  * @param data pointer the data to encrypt.
@@ -559,9 +560,9 @@ hx509_cms_envelope_1(hx509_context context,
     heim_octet_string ivec;
     heim_octet_string key;
     hx509_crypto crypto = NULL;
+    int ret, cmsidflag;
     EnvelopedData ed;
     size_t size;
-    int ret;
 
     memset(&ivec, 0, sizeof(ivec));
     memset(&key, 0, sizeof(key));
@@ -648,8 +649,15 @@ hx509_cms_envelope_1(hx509_context context,
 
     ri = &ed.recipientInfos.val[0];
 
-    ri->version = 0;
-    ret = fill_CMSIdentifier(cert, CMS_ID_SKI, &ri->rid);
+    if (flags & HX509_CMS_EV_ID_NAME) {
+	ri->version = 0;
+	cmsidflag = CMS_ID_NAME;
+    } else {
+	ri->version = 2;
+	cmsidflag = CMS_ID_SKI;
+    }
+	
+    ret = fill_CMSIdentifier(cert, cmsidflag, &ri->rid);
     if (ret) {
 	hx509_set_error_string(context, 0, ret,
 			       "Failed to set CMS identifier info "
@@ -657,7 +665,7 @@ hx509_cms_envelope_1(hx509_context context,
 	goto out;
     }
 
-    ret = _hx509_cert_public_encrypt(context,
+    ret = hx509_cert_public_encrypt(context,
 				     &key, cert,
 				     &ri->keyEncryptionAlgorithm.algorithm,
 				     &ri->encryptedKey);
@@ -1170,6 +1178,7 @@ struct sigctx {
     heim_octet_string content;
     hx509_peer_info peer;
     int cmsidflag;
+    int leafonly;
     hx509_certs certs;
     hx509_certs anchors;
     hx509_certs pool;
@@ -1360,7 +1369,7 @@ sig_process(hx509_context context, void *ctx, hx509_cert cert)
     if (sigctx->certs) {
 	unsigned int i;
 
-	if (sigctx->pool) {
+	if (sigctx->pool && sigctx->leafonly == 0) {
 	    _hx509_calculate_path(context,
 				  HX509_CALCULATE_PATH_NO_ANCHOR,
 				  time(NULL),
@@ -1415,6 +1424,12 @@ cert_process(hx509_context context, void *ctx, hx509_cert cert)
     return ret;
 }
 
+static int
+cmp_AlgorithmIdentifier(const AlgorithmIdentifier *p, const AlgorithmIdentifier *q)
+{
+    return der_heim_oid_cmp(&p->algorithm, &q->algorithm);
+}
+
 int
 hx509_cms_create_signed(hx509_context context,
 			int flags,
@@ -1427,7 +1442,7 @@ hx509_cms_create_signed(hx509_context context,
 			hx509_certs pool,
 			heim_octet_string *signed_data)
 {
-    unsigned int i;
+    unsigned int i, j;
     hx509_name name;
     int ret;
     size_t size;
@@ -1454,9 +1469,22 @@ hx509_cms_create_signed(hx509_context context,
     else
 	sigctx.cmsidflag = CMS_ID_SKI;
 
-    ret = hx509_certs_init(context, "MEMORY:certs", 0, NULL, &sigctx.certs);
-    if (ret)
-	return ret;
+    /**
+     * Use HX509_CMS_SIGNATURE_LEAF_ONLY to only request leaf
+     * certificates to be added to the SignedData.
+     */
+    sigctx.leafonly = (flags & HX509_CMS_SIGNATURE_LEAF_ONLY) ? 1 : 0;
+
+    /**
+     * Use HX509_CMS_NO_CERTS to make the SignedData contain no
+     * certificates, overrides HX509_CMS_SIGNATURE_LEAF_ONLY.
+     */
+
+    if ((flags & HX509_CMS_SIGNATURE_NO_CERTS) == 0) {
+	ret = hx509_certs_init(context, "MEMORY:certs", 0, NULL, &sigctx.certs);
+	if (ret)
+	    return ret;
+    }
 
     sigctx.anchors = anchors;
     sigctx.pool = pool;
@@ -1491,28 +1519,25 @@ hx509_cms_create_signed(hx509_context context,
      * signatures).
      */
     if ((flags & HX509_CMS_SIGNATURE_NO_SIGNER) == 0) {
-	ret = hx509_certs_iter(context, certs, sig_process, &sigctx);
+	ret = hx509_certs_iter_f(context, certs, sig_process, &sigctx);
 	if (ret)
 	    goto out;
     }
 
     if (sigctx.sd.signerInfos.len) {
-	ALLOC_SEQ(&sigctx.sd.digestAlgorithms, sigctx.sd.signerInfos.len);
-	if (sigctx.sd.digestAlgorithms.val == NULL) {
-	    ret = ENOMEM;
-	    hx509_clear_error_string(context);
-	    goto out;
-	}
-	
-	/* XXX remove dups */
 	for (i = 0; i < sigctx.sd.signerInfos.len; i++) {
 	    AlgorithmIdentifier *di =
 		&sigctx.sd.signerInfos.val[i].digestAlgorithm;
-	    ret = copy_AlgorithmIdentifier(di,
-					   &sigctx.sd.digestAlgorithms.val[i]);
-	    if (ret) {
-		hx509_clear_error_string(context);
-		goto out;
+
+	    for (j = 0; j < sigctx.sd.digestAlgorithms.len; j++)
+		if (cmp_AlgorithmIdentifier(di, &sigctx.sd.digestAlgorithms.val[j]) == 0)
+		    break;
+	    if (j < sigctx.sd.digestAlgorithms.len) {
+		ret = add_DigestAlgorithmIdentifiers(&sigctx.sd.digestAlgorithms, di);
+		if (ret) {
+		    hx509_clear_error_string(context);
+		    goto out;
+		}
 	    }
 	}
     }
@@ -1525,7 +1550,7 @@ hx509_cms_create_signed(hx509_context context,
 	    goto out;
 	}
 
-	ret = hx509_certs_iter(context, sigctx.certs, cert_process, &sigctx);
+	ret = hx509_certs_iter_f(context, sigctx.certs, cert_process, &sigctx);
 	if (ret)
 	    goto out;
     }

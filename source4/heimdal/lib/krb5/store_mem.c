@@ -110,7 +110,7 @@ mem_no_trunc(krb5_storage *sp, off_t offset)
 }
 
 /**
- * 
+ * Create a fixed size memory storage block
  *
  * @return A krb5_storage on success, or NULL on out of memory error.
  *
@@ -122,7 +122,7 @@ mem_no_trunc(krb5_storage *sp, off_t offset)
  * @sa krb5_storage_from_fd()
  */
 
-krb5_storage * KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_storage * KRB5_LIB_CALL
 krb5_storage_from_mem(void *buf, size_t len)
 {
     krb5_storage *sp = malloc(sizeof(krb5_storage));
@@ -149,7 +149,7 @@ krb5_storage_from_mem(void *buf, size_t len)
 }
 
 /**
- * 
+ * Create a fixed size memory storage block
  *
  * @return A krb5_storage on success, or NULL on out of memory error.
  *
@@ -161,14 +161,14 @@ krb5_storage_from_mem(void *buf, size_t len)
  * @sa krb5_storage_from_fd()
  */
 
-krb5_storage * KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_storage * KRB5_LIB_CALL
 krb5_storage_from_data(krb5_data *data)
 {
     return krb5_storage_from_mem(data->data, data->length);
 }
 
 /**
- * 
+ * Create a fixed size memory storage block that is read only
  *
  * @return A krb5_storage on success, or NULL on out of memory error.
  *
@@ -180,7 +180,7 @@ krb5_storage_from_data(krb5_data *data)
  * @sa krb5_storage_from_fd()
  */
 
-krb5_storage * KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_storage * KRB5_LIB_CALL
 krb5_storage_from_readonly_mem(const void *buf, size_t len)
 {
     krb5_storage *sp = malloc(sizeof(krb5_storage));

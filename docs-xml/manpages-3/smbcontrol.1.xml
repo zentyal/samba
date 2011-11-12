@@ -7,7 +7,7 @@
 	<manvolnum>1</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">User Commands</refmiscinfo>
-	<refmiscinfo class="version">3.5</refmiscinfo>
+	<refmiscinfo class="version">3.6</refmiscinfo>
 </refmeta>
 
 
@@ -270,6 +270,32 @@
 	<listitem><para>Force daemon to reload smb.conf configuration file. Can be sent
 	to <constant>smbd</constant>, <constant>nmbd</constant>, or <constant>winbindd</constant>.
 	</para></listitem>
+	</varlistentry>
+
+	<varlistentry>
+	<term>idmap</term>
+	<listitem><para>Notify about changes of id mapping. Can be sent
+	to <constant>smbd</constant> or (not implemented yet) <constant>winbindd</constant>.
+	</para></listitem>
+
+	<variablelist>
+	  <varlistentry>
+	    <term>flush [uid|gid]</term>
+	    <listitem><para>Flush caches for sid &lt;-&gt; gid and/or sid &lt;-&gt; uid mapping.
+	    </para></listitem>
+	  </varlistentry>
+	  <varlistentry>
+	    <term>delete &lt;ID&gt;</term>
+	    <listitem><para>Remove a mapping from cache. The mapping is given by &lt;ID&gt;
+	    which may either be a sid: S-x-..., a gid: "GID number" or a uid: "UID number".
+	    </para></listitem>
+	  </varlistentry>
+	  <varlistentry>
+	    <term>kill &lt;ID&gt;</term>
+	    <listitem><para>Remove a mapping from cache. Terminate <constant>smbd</constant> if
+	    the id is currently in use.</para></listitem>
+	  </varlistentry>
+	</variablelist>
 	</varlistentry>
 
 </variablelist>

@@ -7,6 +7,6 @@ Name: registry
 Description: Windows-style registry library
 Requires: talloc
 Requires.private: ldb
-Version: 0.0.1
-Libs: -L${libdir} -lregistry 
+Version: @PACKAGE_VERSION@
+Libs: @LIB_RPATH@ -L${libdir} -lregistry
 Cflags: -I${includedir}  -DHAVE_IMMEDIATE_STRUCTURES=1

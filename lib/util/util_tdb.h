@@ -1,6 +1,26 @@
+/*
+   Unix SMB/CIFS implementation.
+
+   tdb utility functions
+
+   Copyright (C) Andrew Tridgell 1992-2006
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #ifndef _____LIB_UTIL_UTIL_TDB_H__
 #define _____LIB_UTIL_UTIL_TDB_H__
-
 
 /***************************************************************
  Make a TDB_DATA and keep the const warning in one place
@@ -43,7 +63,7 @@ int32_t tdb_fetch_int32_byblob(struct tdb_context *tdb, TDB_DATA key);
 int32_t tdb_fetch_int32(struct tdb_context *tdb, const char *keystr);
 
 /****************************************************************************
- Store a int32_t value by an arbitary blob key, return 0 on success, -1 on failure.
+ Store a int32_t value by an arbitrary blob key, return 0 on success, -1 on failure.
  Input is int32_t in native byte order. Output in tdb is in little-endian.
 ****************************************************************************/
 int tdb_store_int32_byblob(struct tdb_context *tdb, TDB_DATA key, int32_t v);
@@ -67,7 +87,7 @@ bool tdb_fetch_uint32_byblob(struct tdb_context *tdb, TDB_DATA key, uint32_t *va
 bool tdb_fetch_uint32(struct tdb_context *tdb, const char *keystr, uint32_t *value);
 
 /****************************************************************************
- Store a uint32_t value by an arbitary blob key, return 0 on success, -1 on failure.
+ Store a uint32_t value by an arbitrary blob key, return 0 on success, -1 on failure.
  Input is uint32_t in native byte order. Output in tdb is in little-endian.
 ****************************************************************************/
 bool tdb_store_uint32_byblob(struct tdb_context *tdb, TDB_DATA key, uint32_t value);

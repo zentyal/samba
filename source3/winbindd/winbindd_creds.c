@@ -4,17 +4,17 @@
    Winbind daemon - cached credentials funcions
 
    Copyright (C) Guenther Deschner 2005
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -22,6 +22,7 @@
 #include "includes.h"
 #include "winbindd.h"
 #include "../libcli/auth/libcli_auth.h"
+#include "../libcli/security/security.h"
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
 
@@ -29,7 +30,7 @@
 
 NTSTATUS winbindd_get_creds(struct winbindd_domain *domain,
 			    TALLOC_CTX *mem_ctx,
-			    const DOM_SID *sid,
+			    const struct dom_sid *sid,
 			    struct netr_SamInfo3 **info3,
 			    const uint8 *cached_nt_pass[NT_HASH_LEN],
 			    const uint8 *cred_salt[NT_HASH_LEN])
@@ -54,27 +55,19 @@ NTSTATUS winbindd_get_creds(struct winbindd_domain *domain,
 
 
 NTSTATUS winbindd_store_creds(struct winbindd_domain *domain,
-			      TALLOC_CTX *mem_ctx, 
 			      const char *user, 
 			      const char *pass, 
-			      struct netr_SamInfo3 *info3,
-			      const DOM_SID *user_sid)
+			      struct netr_SamInfo3 *info3)
 {
 	NTSTATUS status;
 	uchar nt_pass[NT_HASH_LEN];
-	DOM_SID cred_sid;
+	struct dom_sid cred_sid;
 
 	if (info3 != NULL) {
 
-		DOM_SID sid;
-		sid_copy(&sid, info3->base.domain_sid);
-		sid_append_rid(&sid, info3->base.rid);
-		sid_copy(&cred_sid, &sid);
+		sid_compose(&cred_sid, info3->base.domain_sid,
+			    info3->base.rid);
 		info3->base.user_flags |= NETLOGON_CACHED_ACCOUNT;
-
-	} else if (user_sid != NULL) {
-
-		sid_copy(&cred_sid, user_sid);
 
 	} else if (user != NULL) {
 
@@ -82,8 +75,7 @@ NTSTATUS winbindd_store_creds(struct winbindd_domain *domain,
 
 		enum lsa_SidType type;
 
-		if (!lookup_cached_name(mem_ctx,
-	        	                domain->name,
+		if (!lookup_cached_name(domain->name,
 					user,
 					&cred_sid,
 					&type)) {
@@ -120,7 +112,7 @@ NTSTATUS winbindd_store_creds(struct winbindd_domain *domain,
 
 		dump_data_pw("nt_pass", nt_pass, NT_HASH_LEN);
 
-		status = wcache_save_creds(domain, mem_ctx, &cred_sid, nt_pass);
+		status = wcache_save_creds(domain, &cred_sid, nt_pass);
 		if (!NT_STATUS_IS_OK(status)) {
 			return status;
 		}
@@ -136,28 +128,18 @@ NTSTATUS winbindd_store_creds(struct winbindd_domain *domain,
 }
 
 NTSTATUS winbindd_update_creds_by_info3(struct winbindd_domain *domain,
-				        TALLOC_CTX *mem_ctx,
 				        const char *user,
 				        const char *pass,
 				        struct netr_SamInfo3 *info3)
 {
-	return winbindd_store_creds(domain, mem_ctx, user, pass, info3, NULL);
-}
-
-NTSTATUS winbindd_update_creds_by_sid(struct winbindd_domain *domain,
-				      TALLOC_CTX *mem_ctx,
-				      const DOM_SID *sid,
-				      const char *pass)
-{
-	return winbindd_store_creds(domain, mem_ctx, NULL, pass, NULL, sid);
+	return winbindd_store_creds(domain, user, pass, info3);
 }
 
 NTSTATUS winbindd_update_creds_by_name(struct winbindd_domain *domain,
-				       TALLOC_CTX *mem_ctx,
 				       const char *user,
 				       const char *pass)
 {
-	return winbindd_store_creds(domain, mem_ctx, user, pass, NULL, NULL);
+	return winbindd_store_creds(domain, user, pass, NULL);
 }
 
 

@@ -23,6 +23,8 @@
 */
 
 #include "includes.h"
+#include "../libcli/nbt/libnbt.h"
+#include "nmbd/nmbd.h"
 
 /****************************************************************************
 Load a lmhosts file.

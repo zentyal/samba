@@ -1,11 +1,11 @@
-samba (2:3.6.1-2) UNRELEASED; urgency=low
+samba (2:3.6.1-2) unstable; urgency=low
 
   * Merge changes from 3.5.11~dfsg-4 and unreleased -5 in unstable branch
   * debian/patches/initialize_password_db-null-deref: Avoid null
     dereference in initialize_password_db().  Closes LP: #829221.
   * Mark samba-common Multi-Arch: foreign.
 
- -- Christian Perrier <bubulle@debian.org>  Tue, 25 Oct 2011 04:52:36 +0200
+ -- Christian Perrier <bubulle@debian.org>  Sun, 27 Nov 2011 19:06:39 +0100
 
 samba (2:3.6.1-1) experimental; urgency=low
 

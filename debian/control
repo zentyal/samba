@@ -217,7 +217,7 @@ Description: Samba nameservice and authentication integration plugins
  This package provides pam_winbind and nss_winbind, plugins that integrate
  with a local winbindd server to provide Windows domain authentication and
  user/group name lookups to the system; and nss_wins, which provides
- hostname lookups via the WINS and NBNS protocols.
+ hostname lookups via both the NBNS and NetBIOS broadcast protocols.
 
 Package: samba-dbg
 Section: debug

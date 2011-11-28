@@ -1,3 +1,10 @@
+samba (2:3.6.1-3) UNRELEASED; urgency=low
+
+  * Fix the libpam-winbind description to more accurately identify the
+    protocols being used by nss_wins.  Closes: #650091.
+
+ -- Steve Langasek <vorlon@debian.org>  Sun, 27 Nov 2011 21:32:51 -0800
+
 samba (2:3.6.1-2) unstable; urgency=low
 
   * Merge changes from 3.5.11~dfsg-4 and unreleased -5 in unstable branch

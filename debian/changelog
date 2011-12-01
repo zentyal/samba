@@ -1,4 +1,4 @@
-samba (2:3.6.1-3) UNRELEASED; urgency=low
+samba (2:3.6.1-3) unstable; urgency=low
 
   [ Sam Hartman ]
   * Increase libkrb5-dev dependency to avoid depending on
@@ -8,7 +8,7 @@ samba (2:3.6.1-3) UNRELEASED; urgency=low
   * Fix the libpam-winbind description to more accurately identify the
     protocols being used by nss_wins.  Closes: #650091.
 
- -- Christian Perrier <bubulle@debian.org>  Thu, 01 Dec 2011 20:51:26 +0100
+ -- Christian Perrier <bubulle@debian.org>  Thu, 01 Dec 2011 21:56:52 +0100
 
 samba (2:3.6.1-2) unstable; urgency=low
 

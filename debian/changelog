@@ -1,4 +1,11 @@
-samba (2:3.5.6~dfsg-3squeeze5) stable-security-UNRELEASED; urgency=high
+samba (2:3.5.6~dfsg-3squeeze6) stable-proposed-updates; urgency=low
+
+  * Allow using unencrypted passwords with Windows clients that
+    got KB2536276 installed. Closes: #652048
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 08 Jan 2012 13:45:28 +0100
+
+samba (2:3.5.6~dfsg-3squeeze5) stable-security; urgency=high
 
   * Security update, fixing the following issues:
     - CVE-2011-2694: possible XSS attack in SWAT

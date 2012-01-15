@@ -1,0 +1,219 @@
+# Danish translation samba.
+# Copyright (C) 2011 samba & nedenstående oversættere.
+# This file is distributed under the same license as the samba package.
+# Claus Hindsgaul <claus.hindsgaul@gmail.com>, 2004, 2006, 2007.
+# Joe Hansen (joedalton2@yahoo.dk), 2010, 2011.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: samba\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"PO-Revision-Date: 2011-05-12 17:30+01:00\n"
+"Last-Translator: Joe Hansen <joedalton2@yahoo.dk>\n"
+"Language-Team: Danish <debian-l10n-danish@lists.debian.org> \n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Type: title
+#. Description
+#: ../samba-common.templates:1001
+msgid "Samba server and utilities"
+msgstr "Sambaserver og -redskaber"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid "Modify smb.conf to use WINS settings from DHCP?"
+msgstr "Ret smb.conf, så den benytter WINS-indstillinger fra DHCP?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"If your computer gets IP address information from a DHCP server on the "
+"network, the DHCP server may also provide information about WINS servers "
+"(\"NetBIOS name servers\") present on the network.  This requires a change "
+"to your smb.conf file so that DHCP-provided WINS settings will automatically "
+"be read from /etc/samba/dhcp.conf."
+msgstr ""
+"Hvis din computer får IP-adresseoplysninger fra en DHCP-server på netværket, "
+"kan DHCP-serveren også give oplysninger om WINS-servere (»NetBIOS "
+"navneservere«) på netværket. Dette kræver en ændring i din smb.conf-fil, så "
+"WINS-indstillingerne fra DHCP-serveren automatisk indlæses fra /etc/samba/"
+"dhcp.conf."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
+msgstr ""
+"Pakken dhcp3-client skal være installeret, for at kunne udnytte denne "
+"funktion."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:3001
+msgid "Configure smb.conf automatically?"
+msgstr "Sæt smb.conf op automatisk?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:3001
+msgid ""
+"The rest of the configuration of Samba deals with questions that affect "
+"parameters in /etc/samba/smb.conf, which is the file used to configure the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
+"\" line or an option that spans multiple lines, which could confuse the "
+"automated configuration process and require you to edit your smb.conf by "
+"hand to get it working again."
+msgstr ""
+"Resten af Samba-opsætningen drejer sig om spørgsmål, der vedrører "
+"indstillingerne i filen /etc/samba/smb.conf, som benyttes til at sætte Samba-"
+"programmerne (nmbd og smbd) op. Din nuværende smb.conf indeholder en "
+"'include'-linje eller en indstilling, der fylder flere linjer, hvilket kan "
+"forvirre den automatiske opsætning, og kræver at du redigerer din smb.conf "
+"selv for at få den til at fungere igen."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:3001
+msgid ""
+"If you do not choose this option, you will have to handle any configuration "
+"changes yourself, and will not be able to take advantage of periodic "
+"configuration enhancements."
+msgstr ""
+"Hvis du ikke vælger denne indstilling, må du selv håndtere ændringer i "
+"opsætningen, og vil ikke kunne drage nytte af de løbende forbedringer i "
+"opsætningen."
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:4001
+msgid "Workgroup/Domain Name:"
+msgstr "Arbejdsgruppe/domænenavn:"
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"Please specify the workgroup for this system.  This setting controls which "
+"workgroup the system will appear in when used as a server, the default "
+"workgroup to be used when browsing with various frontends, and the domain "
+"name used with the \"security=domain\" setting."
+msgstr ""
+"Angiv venligst arbejdsgruppen for dette system. Denne indstilling kontroller "
+"hvilken arbejdsgruppe systemet vil fremgå i, når den bruges som en server, "
+"standardarbejdsgruppen der bruges når der browses med forskellige "
+"grænseflader, og domænenavnet brugt med indstillingen »security=domain«."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:5001
+msgid "Use password encryption?"
+msgstr "Krypter adgangskoder?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:5001
+msgid ""
+"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
+"passwords. If you want to use clear text passwords you will need to change a "
+"parameter in your Windows registry."
+msgstr ""
+"Alle nyere Windowsklienter kommunikerer med SMB/CIFS-servere ved hjælp af "
+"krypterede adgangskoder. Hvis du vil bruge adgangkoder i klar tekst, er du "
+"nødt til at ændre en indstilling i Windows' registreringsdatabase."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:5001
+msgid ""
+"Enabling this option is highly recommended as support for plain text "
+"passwords is no longer maintained in Microsoft Windows products. If you do, "
+"make sure you have a valid /etc/samba/smbpasswd file and that you set "
+"passwords in there for each user using the smbpasswd command."
+msgstr ""
+"Aktivering af denne indstilling anbefales, da understøttelse af klar tekst "
+"ikke længere vedligeholdes i Microsoft Windows' produkter. Hvis du "
+"aktiverer, så sørg for at du har en gyldig /etc/samba/smbpasswd-fil, og at "
+"du her angiver adgangskoder for hver bruger med kommandoen smbpasswd."
+
+#. Type: title
+#. Description
+#: ../samba.templates:1001
+msgid "Samba server"
+msgstr "Sambaserver"
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:2001
+msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+msgstr "Opret samba-adgangskodedatabasen /var/lib/samba/passdb.tdb?"
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:2001
+msgid ""
+"To be compatible with the defaults in most versions of Windows, Samba must "
+"be configured to use encrypted passwords.  This requires user passwords to "
+"be stored in a file separate from /etc/passwd.  This file can be created "
+"automatically, but the passwords must be added manually by running smbpasswd "
+"and be kept up-to-date in the future."
+msgstr ""
+"For at være kompatibel med standardindstillingerne i de fleste udgaver af "
+"Windows, skal Samba sættes op til at benytte krypterede adgangskoder. Dette "
+"kræver, at brugernes adgangskoder gemmes i en anden fil end /etc/passwd. "
+"Denne fil kan oprettes automatisk, men adgangskoderne skal tilføjes manuelt "
+"ved at køre smbpasswd, og skal fremover holdes opdateret."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:2001
+msgid ""
+"If you do not create it, you will have to reconfigure Samba (and probably "
+"your client machines) to use plaintext passwords."
+msgstr ""
+"Hvis du ikke opretter den, er du nødt til at sætte samba (og sikkert også "
+"dine klientmaskiner) op til at benytte adgangskoder i klar tekst."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:2001
+msgid ""
+"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
+"from the samba-doc package for more details."
+msgstr ""
+"Se /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
+"i pakken samba-doc for flere detaljer."
+
+#. Type: select
+#. Choices
+#: ../samba.templates:3001
+msgid "daemons"
+msgstr "dæmoner"
+
+#. Type: select
+#. Choices
+#: ../samba.templates:3001
+msgid "inetd"
+msgstr "inetd"
+
+#. Type: select
+#. Description
+#: ../samba.templates:3002
+msgid "How do you want to run Samba?"
+msgstr "Hvordan skal Samba køres?"
+
+#. Type: select
+#. Description
+#: ../samba.templates:3002
+msgid ""
+"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
+"daemon is the recommended approach."
+msgstr ""
+"Samba-dæmonen smbd kan køre som en almindelig dæmon eller fra inetd. Det "
+"anbefales at køre den som dæmon."

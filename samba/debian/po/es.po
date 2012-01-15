@@ -1,0 +1,258 @@
+# samba translation to spanish
+# Copyright (C) 2011 Software in the Public Interest, SPI Inc.
+# This file is distributed under the same license as the samba package.
+#
+#  Changes:
+#  - Initial translation
+#        Steve Langasek <vorlon@debian.org>, 2003-2007
+#
+#  - Revision and update
+#        Javier Fernandez-Sanguino, 2006
+#
+#  - Translation of new templates
+#        Steve Langasek, 2007
+#  - Update
+# 	 Omar Campagne <ocampagne@gmail.com>, 2010, 2011
+#
+#   Traductores, si no conoce el formato PO, merece la pena leer la 
+#   documentación de gettext, especialmente las secciones dedicadas a este
+#   formato, por ejemplo ejecutando:
+#          info -n '(gettext)PO Files'
+#         info -n '(gettext)Header Entry'
+#
+# Equipo de traducción al español, por favor lean antes de traducir
+# los siguientes documentos:
+#  - El proyecto de traducción de Debian al español
+#    http://www.debian.org/intl/spanish/
+#    especialmente las notas y normas de traducción en
+#    http://www.debian.org/intl/spanish/notas
+#
+#  - La guía de traducción de po's de debconf:
+#    /usr/share/doc/po-debconf/README-trans
+#    o http://www.debian.org/intl/l10n/po-debconf/README-trans
+#
+#  Si tiene dudas o consultas sobre esta traducción consulte con el último
+#  traductor (campo Last-Translator) y ponga en copia a la lista de
+#  traducción de Debian al español (<debian-l10n-spanish@lists.debian.org>)
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Samba 2:3.5.8\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"PO-Revision-Date: 2011-05-12 22:37+0200\n"
+"Last-Translator: Omar Campagne <ocampagne@gmail.com>\n"
+"Language-Team: Debian Spanish <debian-l10n-spanish@lists.debian.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Virtaal 0.7.0-beta5\n"
+"X-Project-Style: default\n"
+
+#. Type: title
+#. Description
+#: ../samba-common.templates:1001
+msgid "Samba server and utilities"
+msgstr "Servidor Samba y herramientas"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid "Modify smb.conf to use WINS settings from DHCP?"
+msgstr ""
+"¿Desea modificar «smb.conf» para usar la configuración WINS que proviene de "
+"DHCP?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"If your computer gets IP address information from a DHCP server on the "
+"network, the DHCP server may also provide information about WINS servers "
+"(\"NetBIOS name servers\") present on the network.  This requires a change "
+"to your smb.conf file so that DHCP-provided WINS settings will automatically "
+"be read from /etc/samba/dhcp.conf."
+msgstr ""
+"Si su sistema recibe la dirección IP desde un servidor DHCP en la red, el "
+"servidor DHCP también puede proveerle información sobre los servidores de "
+"WINS que haya en la red. Esto requiere un cambio en el fichero «smb.conf» "
+"para que la configuración de WINS proveniente de DHCP se lea automáticamente "
+"de «/etc/samba/dhcp.conf»."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
+msgstr ""
+"Hay que instalar el paquete dhcp3-client para aprovechar esta funcionalidad."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:3001
+msgid "Configure smb.conf automatically?"
+msgstr "¿Desea configurar «smb.conf» automáticamente?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:3001
+msgid ""
+"The rest of the configuration of Samba deals with questions that affect "
+"parameters in /etc/samba/smb.conf, which is the file used to configure the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
+"\" line or an option that spans multiple lines, which could confuse the "
+"automated configuration process and require you to edit your smb.conf by "
+"hand to get it working again."
+msgstr ""
+"El resto de la configuración de Samba trata sobre cuestiones que afectan al "
+"contenido de «/etc/samba/smb.conf», el fichero utilizado para configurar los "
+"programas de Samba (nmbd y smbd). Su «smb.conf» actual contiene una línea "
+"«include» o una opción que atraviesa más de una línea, así que el proceso de "
+"configuración automática puede dejarlo con un «smb.conf» no válido, "
+"requiriendo que lo arregle a mano."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:3001
+msgid ""
+"If you do not choose this option, you will have to handle any configuration "
+"changes yourself, and will not be able to take advantage of periodic "
+"configuration enhancements."
+msgstr ""
+"Si no escoge esta opción, tendrá que gestionar a mano cualquier cambio en la "
+"configuración de Samba, y no disfrutará de las mejoras periódicas que se "
+"realicen a la configuración."
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:4001
+msgid "Workgroup/Domain Name:"
+msgstr "Nombre del dominio o del grupo de trabajo:"
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"Please specify the workgroup for this system.  This setting controls which "
+"workgroup the system will appear in when used as a server, the default "
+"workgroup to be used when browsing with various frontends, and the domain "
+"name used with the \"security=domain\" setting."
+msgstr ""
+"Indique el grupo de trabajo de este equipo. Este parámetro controla el grupo "
+"de trabajo en el que aparecerá el equipo si se usa como un servidor, el "
+"grupo de trabajo a usar cuando explore la red con los distintos interfaces, "
+"y el nombre de dominio usado con el parámetro «security=domain»."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:5001
+msgid "Use password encryption?"
+msgstr "¿Desea utilizar contraseñas cifradas?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:5001
+msgid ""
+"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
+"passwords. If you want to use clear text passwords you will need to change a "
+"parameter in your Windows registry."
+msgstr ""
+"Todos los clientes Windows recientes se comunican con los servidores SMB/"
+"CIFS utilizando contraseñas cifradas. Si quiere usar contraseñas en texto "
+"claro, tendrá que cambiar un parámetro en el registro de sus sistemas "
+"Windows."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:5001
+msgid ""
+"Enabling this option is highly recommended as support for plain text "
+"passwords is no longer maintained in Microsoft Windows products. If you do, "
+"make sure you have a valid /etc/samba/smbpasswd file and that you set "
+"passwords in there for each user using the smbpasswd command."
+msgstr ""
+"Se recomienda habilitar esta opción, ya que los productos de Microsoft yano "
+"son compatibles con las contraseñas en texto claro. Si la activa, asegúrese "
+"de que tiene un fichero «/etc/samba/smbpasswd» válido, donde defina las "
+"contraseñas para cada usuario usando la orden «smbpasswd»."
+
+#. Type: title
+#. Description
+#: ../samba.templates:1001
+msgid "Samba server"
+msgstr "Servidor Samba"
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:2001
+msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+msgstr ""
+"¿Desea crear la base de datos de contraseñas «/var/lib/samba/passdb.tdb»?"
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:2001
+msgid ""
+"To be compatible with the defaults in most versions of Windows, Samba must "
+"be configured to use encrypted passwords.  This requires user passwords to "
+"be stored in a file separate from /etc/passwd.  This file can be created "
+"automatically, but the passwords must be added manually by running smbpasswd "
+"and be kept up-to-date in the future."
+msgstr ""
+"Hay que configurar Samba para que use contraseñas cifradas para mantener la "
+"compatibilidad con el comportamiento por omisión de la mayoría de los "
+"sistemas Windows. Para hacer esto es necesario crear un fichero, distinto de "
+"«/etc/passwd», donde se guarden las contraseñas de los usuarios. El fichero "
+"se puede crear automáticamente, aunque es necesario añadir las contraseñas "
+"manualmente mediante el programa «smbpasswd» y mantenerlas al día."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:2001
+msgid ""
+"If you do not create it, you will have to reconfigure Samba (and probably "
+"your client machines) to use plaintext passwords."
+msgstr ""
+"Es imprescindible que configure Samba (y probablemente también los sistemas "
+"cliente) para que use contraseñas en texto claro si no crea este fichero."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:2001
+msgid ""
+"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
+"from the samba-doc package for more details."
+msgstr ""
+"Si desea más información consulte «/usr/share/doc/samba-doc/htmldocs/"
+"ENCRYPTION.html», disponible en el paquete samba-doc."
+
+#. Type: select
+#. Choices
+#: ../samba.templates:3001
+msgid "daemons"
+msgstr "demonios"
+
+#. Type: select
+#. Choices
+#: ../samba.templates:3001
+msgid "inetd"
+msgstr "inetd"
+
+#. Type: select
+#. Description
+#: ../samba.templates:3002
+msgid "How do you want to run Samba?"
+msgstr "¿Cómo quiere que se ejecute Samba?"
+
+#. Type: select
+#. Description
+#: ../samba.templates:3002
+msgid ""
+"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
+"daemon is the recommended approach."
+msgstr ""
+"El demonio de Samba «smbd» puede ejecutarse como un demonio normal "
+"independiente o iniciarse desde el demonio «inetd». Se recomienda que se "
+"ejecute como demonio independiente."

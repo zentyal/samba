@@ -1,0 +1,6 @@
+libpam-winbind: no-shlibs-control-file lib/*/libnss_winbind.so.2
+libpam-winbind: no-shlibs-control-file lib/*/libnss_wins.so.2
+libpam-winbind: postinst-must-call-ldconfig lib/*/libnss_wins.so.2
+libpam-winbind: postrm-should-call-ldconfig lib/*/libnss_wins.so.2
+libpam-winbind: package-name-doesnt-match-sonames libnss-winbind2 libnss-wins2
+libpam-winbind: missing-pre-dependency-on-multiarch-support

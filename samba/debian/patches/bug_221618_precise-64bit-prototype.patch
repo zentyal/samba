@@ -1,0 +1,15 @@
+Index: samba/source3/include/libsmbclient.h
+===================================================================
+--- samba.orig/source3/include/libsmbclient.h
++++ samba/source3/include/libsmbclient.h
+@@ -79,6 +79,10 @@
+ #include <fcntl.h>
+ #include <utime.h>
+ 
++  /* Debian bug #221618 */
++#define _LARGEFILE64_SOURCE
++#define _FILE_OFFSET_BITS 64
++
+ #define SMBC_BASE_FD        10000 /* smallest file descriptor returned */
+ 
+ #define SMBC_WORKGROUP      1

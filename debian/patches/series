@@ -10,6 +10,5 @@ usershare.patch
 smbtar-bashism.patch
 autoconf.patch
 dont-build-VFS-examples.patch
-bug_601406_fix-perl-path-in-example.patch
 bug_221618_precise-64bit-prototype.patch
 initialize_password_db-null-deref

@@ -1,3 +1,10 @@
+samba (2:3.6.2-1) UNRELEASED; urgency=low
+
+  * New upstream release
+  * Drop bug_601406_fix-perl-path-in-example.patch (applied upstream)
+
+ -- Christian Perrier <bubulle@debian.org>  Thu, 26 Jan 2012 22:48:29 +0100
+
 samba (2:3.6.1-3) unstable; urgency=low
 
   [ Sam Hartman ]

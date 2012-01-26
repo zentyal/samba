@@ -16176,7 +16176,7 @@ _ACEOF
 fi
 done
 
-for ac_func in fseek64 fseeko64 ftell64 ftello64 setluid getpwanam
+for ac_func in fseeko fseek64 fseeko64 ftell64 ftello64 setluid getpwanam
 do :
   as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
 ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
@@ -22975,10 +22975,12 @@ fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $samba_cv_HAVE_INOTIFY" >&5
 $as_echo "$samba_cv_HAVE_INOTIFY" >&6; }
 
-if test x"$ac_cv_func_inotify_init" = x"yes" -a x"$ac_cv_header_linux_inotify_h" = x"yes"; then
+if test x"$ac_cv_func_inotify_init" = x"yes"; then
+    if test  x"$ac_cv_header_sys_inotify_h" = x"yes" -o x"$ac_cv_header_linux_inotify_h" = x"yes"; then
 
 $as_echo "#define HAVE_INOTIFY 1" >>confdefs.h
 
+    fi
 fi
 
 #################################################

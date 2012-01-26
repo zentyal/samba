@@ -206,6 +206,9 @@ static struct smbd_smb2_request *smbd_smb2_request_allocate(TALLOC_CTX *mem_ctx)
 	req->mem_pool	= mem_pool;
 	req->parent	= parent;
 
+	req->last_session_id = UINT64_MAX;
+	req->last_tid = UINT32_MAX;
+
 	talloc_set_destructor(parent, smbd_smb2_request_parent_destructor);
 	talloc_set_destructor(req, smbd_smb2_request_destructor);
 
@@ -511,13 +514,24 @@ static void smb2_calculate_credits(const struct smbd_smb2_request *inreq,
 				struct smbd_smb2_request *outreq)
 {
 	int count, idx;
+	uint16_t total_credits = 0;
 
 	count = outreq->out.vector_count;
 
 	for (idx=1; idx < count; idx += 3) {
+		uint8_t *outhdr = (uint8_t *)outreq->out.vector[idx].iov_base;
 		smb2_set_operation_credit(outreq->sconn,
 			&inreq->in.vector[idx],
 			&outreq->out.vector[idx]);
+		/* To match Windows, count up what we
+		   just granted. */
+		total_credits += SVAL(outhdr, SMB2_HDR_CREDIT);
+		/* Set to zero in all but the last reply. */
+		if (idx + 3 < count) {
+			SSVAL(outhdr, SMB2_HDR_CREDIT, 0);
+		} else {
+			SSVAL(outhdr, SMB2_HDR_CREDIT, total_credits);
+		}
 	}
 }
 
@@ -574,7 +588,8 @@ static NTSTATUS smbd_smb2_request_setup_out(struct smbd_smb2_request *req)
 		/* setup the SMB2 header */
 		SIVAL(outhdr, SMB2_HDR_PROTOCOL_ID,	SMB2_MAGIC);
 		SSVAL(outhdr, SMB2_HDR_LENGTH,		SMB2_HDR_BODY);
-		SSVAL(outhdr, SMB2_HDR_EPOCH,		0);
+		SSVAL(outhdr, SMB2_HDR_CREDIT_CHARGE,
+		      SVAL(inhdr, SMB2_HDR_CREDIT_CHARGE));
 		SIVAL(outhdr, SMB2_HDR_STATUS,
 		      NT_STATUS_V(NT_STATUS_INTERNAL_ERROR));
 		SSVAL(outhdr, SMB2_HDR_OPCODE,
@@ -590,7 +605,8 @@ static NTSTATUS smbd_smb2_request_setup_out(struct smbd_smb2_request *req)
 		      IVAL(inhdr, SMB2_HDR_TID));
 		SBVAL(outhdr, SMB2_HDR_SESSION_ID,
 		      BVAL(inhdr, SMB2_HDR_SESSION_ID));
-		memset(outhdr + SMB2_HDR_SIGNATURE, 0, 16);
+		memcpy(outhdr + SMB2_HDR_SIGNATURE,
+		       inhdr + SMB2_HDR_SIGNATURE, 16);
 
 		/* setup error body header */
 		SSVAL(outbody, 0x00, 0x08 + 1);
@@ -947,7 +963,7 @@ NTSTATUS smbd_smb2_request_pending_queue(struct smbd_smb2_request *req,
 	SIVAL(hdr, SMB2_HDR_STATUS, NT_STATUS_V(STATUS_PENDING));
 	SSVAL(hdr, SMB2_HDR_OPCODE, SVAL(reqhdr, SMB2_HDR_OPCODE));
 
-	SIVAL(hdr, SMB2_HDR_FLAGS, flags | SMB2_HDR_FLAG_ASYNC);
+	SIVAL(hdr, SMB2_HDR_FLAGS, flags);
 	SIVAL(hdr, SMB2_HDR_NEXT_COMMAND, 0);
 	SBVAL(hdr, SMB2_HDR_MESSAGE_ID, message_id);
 	SBVAL(hdr, SMB2_HDR_PID, async_id);
@@ -969,6 +985,8 @@ NTSTATUS smbd_smb2_request_pending_queue(struct smbd_smb2_request *req,
 	smb2_set_operation_credit(req->sconn,
 			&req->in.vector[i],
 			&state->vector[1]);
+
+	SIVAL(hdr, SMB2_HDR_FLAGS, flags | SMB2_HDR_FLAG_ASYNC);
 
 	if (req->do_signing) {
 		status = smb2_signing_sign_pdu(req->session->session_key,
@@ -1732,11 +1750,9 @@ static NTSTATUS smbd_smb2_request_reply(struct smbd_smb2_request *req)
 
 	smb2_setup_nbt_length(req->out.vector, req->out.vector_count);
 
-	/* Set credit for this operation (zero credits if this
+	/* Set credit for these operations (zero credits if this
 	   is a final reply for an async operation). */
-	smb2_set_operation_credit(req->sconn,
-			&req->in.vector[i],
-			&req->out.vector[i]);
+	smb2_calculate_credits(req, req);
 
 	if (req->do_signing) {
 		NTSTATUS status;

@@ -808,7 +808,7 @@ enum samPwdChangeReason
 
 struct userPwdChangeFailureInformation {
 	enum samPwdChangeReason extendedFailureReason;
-	const char *filterModuleName;/* [unique,charset(UTF16)] */
+	struct lsa_String filterModuleName;
 };
 
 struct samr_ConnectInfo1 {

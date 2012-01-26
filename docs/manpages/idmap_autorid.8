@@ -2,12 +2,12 @@
 .\"     Title: idmap_autorid
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 10/18/2011
+.\"      Date: 01/22/2012
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "IDMAP_AUTORID" "8" "10/18/2011" "Samba 3\&.6" "System Administration tools"
+.TH "IDMAP_AUTORID" "8" "01/22/2012" "Samba 3\&.6" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -34,6 +34,8 @@ Due to the algorithm being used, it is the module that is most easy to use as it
 rangesize = numberofidsperdomain
 .RS 4
 Defines the available number of uids/gids per domain\&. The minimum needed value is 2000\&. SIDs with RIDs larger than this value cannot be mapped, are ignored and the corresponding map is discarded\&. Choose this value carefully, as this should not be changed after the first ranges for domains have been defined, otherwise mappings between domains will get intermixed leading to unpredictable results\&. Please note that RIDs in Windows Domains usually start with 500 for builtin users and 1000 for regular users\&. As the parameter cannot be changed later, please plan accordingly for your expected number of users in a domain with safety margins\&.
+.sp
+One range will be used for local users and groups\&. Thus the number of local users and groups that can be created is limited by this option as well\&. If you plan to create a large amount of local users or groups, you will need set this parameter accordingly\&.
 .sp
 The default value is 100000\&.
 .RE

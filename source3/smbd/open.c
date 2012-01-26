@@ -95,6 +95,16 @@ NTSTATUS smbd_check_open_rights(struct connection_struct *conn,
 		return NT_STATUS_OK;
 	}
 
+	if (access_mask == DELETE_ACCESS &&
+			VALID_STAT(smb_fname->st) &&
+			S_ISLNK(smb_fname->st.st_ex_mode)) {
+		/* We can always delete a symlink. */
+		DEBUG(10,("smbd_check_open_rights: not checking ACL "
+			"on DELETE_ACCESS on symlink %s.\n",
+			smb_fname_str_dbg(smb_fname) ));
+		return NT_STATUS_OK;
+	}
+
 	status = SMB_VFS_GET_NT_ACL(conn, smb_fname->base_name,
 			(SECINFO_OWNER |
 			SECINFO_GROUP |
@@ -1624,11 +1634,6 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 		}
 	}
 
-	status = check_name(conn, smb_fname->base_name);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
 	if (!posix_open) {
 		new_dos_attributes &= SAMBA_ATTRIBUTES_MASK;
 		if (file_existed) {
@@ -2735,10 +2740,6 @@ static NTSTATUS open_directory(connection_struct *conn,
 
 	fsp->share_access = share_access;
 	fsp->fh->private_options = 0;
-	/*
-	 * According to Samba4, SEC_FILE_READ_ATTRIBUTE is always granted,
-	 */
-	fsp->access_mask = access_mask | FILE_READ_ATTRIBUTES;
 	fsp->print_file = NULL;
 	fsp->modified = False;
 	fsp->oplock_type = NO_OPLOCK;
@@ -2753,6 +2754,8 @@ static NTSTATUS open_directory(connection_struct *conn,
 
 	mtimespec = smb_dname->st.st_ex_mtime;
 
+	/* Temporary access mask used to open the directory fd. */
+	fsp->access_mask = FILE_READ_DATA | FILE_READ_ATTRIBUTES;
 #ifdef O_DIRECTORY
 	status = fd_open(conn, fsp, O_RDONLY|O_DIRECTORY, 0);
 #else
@@ -2767,6 +2770,12 @@ static NTSTATUS open_directory(connection_struct *conn,
 		file_free(req, fsp);
 		return status;
 	}
+
+	/*
+	 * According to Samba4, SEC_FILE_READ_ATTRIBUTE is always granted,
+	 * Set the real access mask for later access (possibly delete).
+	 */
+	fsp->access_mask = access_mask | FILE_READ_ATTRIBUTES;
 
 	status = vfs_stat_fsp(fsp);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -2967,15 +2976,15 @@ void msg_file_was_renamed(struct messaging_context *msg,
 NTSTATUS open_streams_for_delete(connection_struct *conn,
 					const char *fname)
 {
-	struct stream_struct *stream_info;
-	files_struct **streams;
+	struct stream_struct *stream_info = NULL;
+	files_struct **streams = NULL;
 	int i;
-	unsigned int num_streams;
+	unsigned int num_streams = 0;
 	TALLOC_CTX *frame = talloc_stackframe();
 	NTSTATUS status;
 
-	status = SMB_VFS_STREAMINFO(conn, NULL, fname, talloc_tos(),
-				    &num_streams, &stream_info);
+	status = vfs_streaminfo(conn, NULL, fname, talloc_tos(),
+				&num_streams, &stream_info);
 
 	if (NT_STATUS_EQUAL(status, NT_STATUS_NOT_IMPLEMENTED)
 	    || NT_STATUS_EQUAL(status, NT_STATUS_OBJECT_NAME_NOT_FOUND)) {
@@ -2985,7 +2994,7 @@ NTSTATUS open_streams_for_delete(connection_struct *conn,
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(10, ("SMB_VFS_STREAMINFO failed: %s\n",
+		DEBUG(10, ("vfs_streaminfo failed: %s\n",
 			   nt_errstr(status)));
 		goto fail;
 	}
@@ -3647,13 +3656,6 @@ NTSTATUS create_file_default(connection_struct *conn,
 			status = NT_STATUS_OBJECT_NAME_NOT_FOUND;
 			goto fail;
 		}
-	}
-
-	/* All file access must go through check_name() */
-
-	status = check_name(conn, smb_fname->base_name);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto fail;
 	}
 
 	if (stream_name && is_ntfs_default_stream_smb_fname(smb_fname)) {

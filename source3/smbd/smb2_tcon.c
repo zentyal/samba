@@ -228,8 +228,9 @@ static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
 	tcon->session->sconn->num_tcons_open++;
 	talloc_set_destructor(tcon, smbd_smb2_tcon_destructor);
 
-	compat_conn = make_connection_snum(req->sconn,
-					snum, req->session->compat_vuser,
+	compat_conn = make_connection_smb2(req->sconn,
+					tcon,
+					req->session->compat_vuser,
 					data_blob_null, "???",
 					&status);
 	if (compat_conn == NULL) {
@@ -237,7 +238,6 @@ static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
 		return status;
 	}
 	tcon->compat_conn = talloc_move(tcon, &compat_conn);
-	tcon->compat_conn->cnum = tcon->tid;
 
 	if (IS_PRINT(tcon->compat_conn)) {
 		*out_share_type = SMB2_SHARE_TYPE_PRINT;
@@ -281,34 +281,21 @@ static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
 NTSTATUS smbd_smb2_request_check_tcon(struct smbd_smb2_request *req)
 {
 	const uint8_t *inhdr;
-	const uint8_t *outhdr;
 	int i = req->current_idx;
+	uint32_t in_flags;
 	uint32_t in_tid;
 	void *p;
 	struct smbd_smb2_tcon *tcon;
-	bool chained_fixup = false;
+
+	req->tcon = NULL;
 
 	inhdr = (const uint8_t *)req->in.vector[i+0].iov_base;
 
+	in_flags = IVAL(inhdr, SMB2_HDR_FLAGS);
 	in_tid = IVAL(inhdr, SMB2_HDR_TID);
 
-	if (in_tid == (0xFFFFFFFF)) {
-		if (req->async) {
-			/*
-			 * async request - fill in tid from
-			 * already setup out.vector[].iov_base.
-			 */
-			outhdr = (const uint8_t *)req->out.vector[i].iov_base;
-			in_tid = IVAL(outhdr, SMB2_HDR_TID);
-		} else if (i > 2) {
-			/*
-			 * Chained request - fill in tid from
-			 * the previous request out.vector[].iov_base.
-			 */
-			outhdr = (const uint8_t *)req->out.vector[i-3].iov_base;
-			in_tid = IVAL(outhdr, SMB2_HDR_TID);
-			chained_fixup = true;
-		}
+	if (in_flags & SMB2_HDR_FLAG_CHAINED) {
+		in_tid = req->last_tid;
 	}
 
 	/* lookup an existing session */
@@ -328,12 +315,7 @@ NTSTATUS smbd_smb2_request_check_tcon(struct smbd_smb2_request *req)
 	}
 
 	req->tcon = tcon;
-
-	if (chained_fixup) {
-		/* Fix up our own outhdr. */
-		outhdr = (const uint8_t *)req->out.vector[i].iov_base;
-		SIVAL(outhdr, SMB2_HDR_TID, in_tid);
-	}
+	req->last_tid = in_tid;
 
 	return NT_STATUS_OK;
 }

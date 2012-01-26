@@ -693,7 +693,7 @@ void reply_ntcreate_and_X(struct smb_request *req)
 	if (flags & EXTENDED_RESPONSE_REQUIRED) {
 		uint16_t file_status = (NO_EAS|NO_SUBSTREAMS|NO_REPARSETAG);
 		size_t num_names = 0;
-		unsigned int num_streams;
+		unsigned int num_streams = 0;
 		struct stream_struct *streams = NULL;
 
 		/* Do we have any EA's ? */
@@ -702,7 +702,7 @@ void reply_ntcreate_and_X(struct smb_request *req)
 		if (NT_STATUS_IS_OK(status) && num_names) {
 			file_status &= ~NO_EAS;
 		}
-		status = SMB_VFS_STREAMINFO(conn, NULL, smb_fname->base_name, ctx,
+		status = vfs_streaminfo(conn, NULL, smb_fname->base_name, ctx,
 			&num_streams, &streams);
 		/* There is always one stream, ::$DATA. */
 		if (NT_STATUS_IS_OK(status) && num_streams > 1) {
@@ -1274,7 +1274,7 @@ static void call_nt_transact_create(connection_struct *conn,
 	if (flags & EXTENDED_RESPONSE_REQUIRED) {
 		uint16_t file_status = (NO_EAS|NO_SUBSTREAMS|NO_REPARSETAG);
 		size_t num_names = 0;
-		unsigned int num_streams;
+		unsigned int num_streams = 0;
 		struct stream_struct *streams = NULL;
 
 		/* Do we have any EA's ? */
@@ -1283,7 +1283,7 @@ static void call_nt_transact_create(connection_struct *conn,
 		if (NT_STATUS_IS_OK(status) && num_names) {
 			file_status &= ~NO_EAS;
 		}
-		status = SMB_VFS_STREAMINFO(conn, NULL, smb_fname->base_name, ctx,
+		status = vfs_streaminfo(conn, NULL, smb_fname->base_name, ctx,
 			&num_streams, &streams);
 		/* There is always one stream, ::$DATA. */
 		if (NT_STATUS_IS_OK(status) && num_streams > 1) {
@@ -1901,9 +1901,11 @@ NTSTATUS smbd_do_query_security_desc(connection_struct *conn,
 		psd->group_sid = NULL;
 	}
 	if (!(security_info_wanted & SECINFO_DACL)) {
+		psd->type &= ~SEC_DESC_DACL_PRESENT;
 		psd->dacl = NULL;
 	}
 	if (!(security_info_wanted & SECINFO_SACL)) {
+		psd->type &= ~SEC_DESC_SACL_PRESENT;
 		psd->sacl = NULL;
 	}
 

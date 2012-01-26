@@ -19,7 +19,11 @@
  */
 
 #include "includes.h"
+#include "ads.h"
+#include "idmap.h"
 #include "idmap_adex.h"
+#include "secrets.h"
+#include "../libcli/security/dom_sid.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_IDMAP
@@ -176,7 +180,7 @@ static struct likewise_cell *_lw_cell_list = NULL;
 /**********************************************************************
  *********************************************************************/
 
- void cell_set_domain_sid(struct likewise_cell *c, DOM_SID *sid)
+ void cell_set_domain_sid(struct likewise_cell *c, struct dom_sid *sid)
 {
 	sid_copy(&c->domain_sid, sid);
 }

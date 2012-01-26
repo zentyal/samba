@@ -19,10 +19,25 @@
  */
 
 #include "includes.h"
-#include "libnet/libnet.h"
+#include "ads.h"
+#include "librpc/gen_ndr/ndr_libnet_join.h"
+#include "libnet/libnet_join.h"
 #include "libcli/auth/libcli_auth.h"
-#include "../librpc/gen_ndr/cli_samr.h"
-#include "../librpc/gen_ndr/cli_lsa.h"
+#include "../librpc/gen_ndr/ndr_samr_c.h"
+#include "rpc_client/init_samr.h"
+#include "../librpc/gen_ndr/ndr_lsa_c.h"
+#include "rpc_client/cli_lsarpc.h"
+#include "../librpc/gen_ndr/ndr_netlogon.h"
+#include "rpc_client/cli_netlogon.h"
+#include "lib/smbconf/smbconf.h"
+#include "lib/smbconf/smbconf_reg.h"
+#include "../libds/common/flags.h"
+#include "secrets.h"
+#include "rpc_client/init_lsa.h"
+#include "rpc_client/cli_pipe.h"
+#include "../libcli/security/security.h"
+#include "passdb.h"
+#include "libsmb/libsmb.h"
 
 /****************************************************************
 ****************************************************************/
@@ -89,7 +104,7 @@ static void libnet_unjoin_set_error_string(TALLOC_CTX *mem_ctx,
 	va_end(args);
 }
 
-#ifdef WITH_ADS
+#ifdef HAVE_ADS
 
 /****************************************************************
 ****************************************************************/
@@ -629,7 +644,7 @@ static ADS_STATUS libnet_join_post_processing_ads(TALLOC_CTX *mem_ctx,
 
 	return ADS_SUCCESS;
 }
-#endif /* WITH_ADS */
+#endif /* HAVE_ADS */
 
 /****************************************************************
  Store the machine password and domain SID
@@ -684,7 +699,7 @@ static NTSTATUS libnet_join_connect_dc_ipc(const char *dc,
 				   NULL,
 				   pass,
 				   flags,
-				   Undefined, NULL);
+				   Undefined);
 }
 
 /****************************************************************
@@ -697,8 +712,9 @@ static NTSTATUS libnet_join_lookup_dc_rpc(TALLOC_CTX *mem_ctx,
 {
 	struct rpc_pipe_client *pipe_hnd = NULL;
 	struct policy_handle lsa_pol;
-	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
+	NTSTATUS status, result;
 	union lsa_PolicyInformation *info = NULL;
+	struct dcerpc_binding_handle *b;
 
 	status = libnet_join_connect_dc_ipc(r->in.dc_name,
 					    r->in.admin_account,
@@ -717,40 +733,48 @@ static NTSTATUS libnet_join_lookup_dc_rpc(TALLOC_CTX *mem_ctx,
 		goto done;
 	}
 
+	b = pipe_hnd->binding_handle;
+
 	status = rpccli_lsa_open_policy(pipe_hnd, mem_ctx, true,
 					SEC_FLAG_MAXIMUM_ALLOWED, &lsa_pol);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
 
-	status = rpccli_lsa_QueryInfoPolicy2(pipe_hnd, mem_ctx,
+	status = dcerpc_lsa_QueryInfoPolicy2(b, mem_ctx,
 					     &lsa_pol,
 					     LSA_POLICY_INFO_DNS,
-					     &info);
-	if (NT_STATUS_IS_OK(status)) {
+					     &info,
+					     &result);
+	if (NT_STATUS_IS_OK(status) && NT_STATUS_IS_OK(result)) {
 		r->out.domain_is_ad = true;
 		r->out.netbios_domain_name = info->dns.name.string;
 		r->out.dns_domain_name = info->dns.dns_domain.string;
 		r->out.forest_name = info->dns.dns_forest.string;
-		r->out.domain_sid = sid_dup_talloc(mem_ctx, info->dns.sid);
+		r->out.domain_sid = dom_sid_dup(mem_ctx, info->dns.sid);
 		NT_STATUS_HAVE_NO_MEMORY(r->out.domain_sid);
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
-		status = rpccli_lsa_QueryInfoPolicy(pipe_hnd, mem_ctx,
+		status = dcerpc_lsa_QueryInfoPolicy(b, mem_ctx,
 						    &lsa_pol,
 						    LSA_POLICY_INFO_ACCOUNT_DOMAIN,
-						    &info);
+						    &info,
+						    &result);
 		if (!NT_STATUS_IS_OK(status)) {
+			goto done;
+		}
+		if (!NT_STATUS_IS_OK(result)) {
+			status = result;
 			goto done;
 		}
 
 		r->out.netbios_domain_name = info->account_domain.name.string;
-		r->out.domain_sid = sid_dup_talloc(mem_ctx, info->account_domain.sid);
+		r->out.domain_sid = dom_sid_dup(mem_ctx, info->account_domain.sid);
 		NT_STATUS_HAVE_NO_MEMORY(r->out.domain_sid);
 	}
 
-	rpccli_lsa_Close(pipe_hnd, mem_ctx, &lsa_pol);
+	dcerpc_lsa_Close(b, mem_ctx, &lsa_pol, &result);
 	TALLOC_FREE(pipe_hnd);
 
  done:
@@ -817,7 +841,7 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 {
 	struct rpc_pipe_client *pipe_hnd = NULL;
 	struct policy_handle sam_pol, domain_pol, user_pol;
-	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
+	NTSTATUS status = NT_STATUS_UNSUCCESSFUL, result;
 	char *acct_name;
 	struct lsa_String lsa_acct_name;
 	uint32_t user_rid;
@@ -825,6 +849,7 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 	struct samr_Ids user_rids;
 	struct samr_Ids name_types;
 	union samr_UserInfo user_info;
+	struct dcerpc_binding_handle *b = NULL;
 
 	struct samr_CryptPassword crypt_pwd;
 	struct samr_CryptPasswordEx crypt_pwd_ex;
@@ -859,23 +884,35 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 		goto done;
 	}
 
-	status = rpccli_samr_Connect2(pipe_hnd, mem_ctx,
+	b = pipe_hnd->binding_handle;
+
+	status = dcerpc_samr_Connect2(b, mem_ctx,
 				      pipe_hnd->desthost,
 				      SAMR_ACCESS_ENUM_DOMAINS
 				      | SAMR_ACCESS_LOOKUP_DOMAIN,
-				      &sam_pol);
+				      &sam_pol,
+				      &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		status = result;
+		goto done;
+	}
 
-	status = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
+	status = dcerpc_samr_OpenDomain(b, mem_ctx,
 					&sam_pol,
 					SAMR_DOMAIN_ACCESS_LOOKUP_INFO_1
 					| SAMR_DOMAIN_ACCESS_CREATE_USER
 					| SAMR_DOMAIN_ACCESS_OPEN_ACCOUNT,
 					r->out.domain_sid,
-					&domain_pol);
+					&domain_pol,
+					&result);
 	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		status = result;
 		goto done;
 	}
 
@@ -898,14 +935,20 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 		DEBUG(10,("Creating account with desired access mask: %d\n",
 			access_desired));
 
-		status = rpccli_samr_CreateUser2(pipe_hnd, mem_ctx,
+		status = dcerpc_samr_CreateUser2(b, mem_ctx,
 						 &domain_pol,
 						 &lsa_acct_name,
 						 acct_flags,
 						 access_desired,
 						 &user_pol,
 						 &access_granted,
-						 &user_rid);
+						 &user_rid,
+						 &result);
+		if (!NT_STATUS_IS_OK(status)) {
+			goto done;
+		}
+
+		status = result;
 		if (!NT_STATUS_IS_OK(status) &&
 		    !NT_STATUS_EQUAL(status, NT_STATUS_USER_EXISTS)) {
 
@@ -935,17 +978,22 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 		/* We *must* do this.... don't ask... */
 
 		if (NT_STATUS_IS_OK(status)) {
-			rpccli_samr_Close(pipe_hnd, mem_ctx, &user_pol);
+			dcerpc_samr_Close(b, mem_ctx, &user_pol, &result);
 		}
 	}
 
-	status = rpccli_samr_LookupNames(pipe_hnd, mem_ctx,
+	status = dcerpc_samr_LookupNames(b, mem_ctx,
 					 &domain_pol,
 					 1,
 					 &lsa_acct_name,
 					 &user_rids,
-					 &name_types);
+					 &name_types,
+					 &result);
 	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		status = result;
 		goto done;
 	}
 
@@ -960,38 +1008,50 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 
 	/* Open handle on user */
 
-	status = rpccli_samr_OpenUser(pipe_hnd, mem_ctx,
+	status = dcerpc_samr_OpenUser(b, mem_ctx,
 				      &domain_pol,
 				      SEC_FLAG_MAXIMUM_ALLOWED,
 				      user_rid,
-				      &user_pol);
+				      &user_pol,
+				      &result);
 	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		status = result;
 		goto done;
 	}
 
 	/* Fill in the additional account flags now */
 
 	acct_flags |= ACB_PWNOEXP;
-	if (r->out.domain_is_ad) {
-#if !defined(ENCTYPE_ARCFOUR_HMAC)
-		acct_flags |= ACB_USE_DES_KEY_ONLY;
-#endif
-		;;
-	}
 
 	/* Set account flags on machine account */
 	ZERO_STRUCT(user_info.info16);
 	user_info.info16.acct_flags = acct_flags;
 
-	status = rpccli_samr_SetUserInfo(pipe_hnd, mem_ctx,
+	status = dcerpc_samr_SetUserInfo(b, mem_ctx,
 					 &user_pol,
 					 16,
-					 &user_info);
-
+					 &user_info,
+					 &result);
 	if (!NT_STATUS_IS_OK(status)) {
+		dcerpc_samr_DeleteUser(b, mem_ctx,
+				       &user_pol,
+				       &result);
 
-		rpccli_samr_DeleteUser(pipe_hnd, mem_ctx,
-				       &user_pol);
+		libnet_join_set_error_string(mem_ctx, r,
+			"Failed to set account flags for machine account (%s)\n",
+			nt_errstr(status));
+		goto done;
+	}
+
+	if (!NT_STATUS_IS_OK(result)) {
+		status = result;
+
+		dcerpc_samr_DeleteUser(b, mem_ctx,
+				       &user_pol,
+				       &result);
 
 		libnet_join_set_error_string(mem_ctx, r,
 			"Failed to set account flags for machine account (%s)\n",
@@ -1008,12 +1068,13 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 	user_info.info26.password = crypt_pwd_ex;
 	user_info.info26.password_expired = PASS_DONT_CHANGE_AT_NEXT_LOGON;
 
-	status = rpccli_samr_SetUserInfo2(pipe_hnd, mem_ctx,
+	status = dcerpc_samr_SetUserInfo2(b, mem_ctx,
 					  &user_pol,
 					  26,
-					  &user_info);
+					  &user_info,
+					  &result);
 
-	if (NT_STATUS_EQUAL(status, NT_STATUS(DCERPC_FAULT_INVALID_TAG))) {
+	if (NT_STATUS_EQUAL(status, NT_STATUS_RPC_ENUM_VALUE_OUT_OF_RANGE)) {
 
 		/* retry with level 24 */
 
@@ -1024,16 +1085,30 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 		user_info.info24.password = crypt_pwd;
 		user_info.info24.password_expired = PASS_DONT_CHANGE_AT_NEXT_LOGON;
 
-		status = rpccli_samr_SetUserInfo2(pipe_hnd, mem_ctx,
+		status = dcerpc_samr_SetUserInfo2(b, mem_ctx,
 						  &user_pol,
 						  24,
-						  &user_info);
+						  &user_info,
+						  &result);
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
 
-		rpccli_samr_DeleteUser(pipe_hnd, mem_ctx,
-				       &user_pol);
+		dcerpc_samr_DeleteUser(b, mem_ctx,
+				       &user_pol,
+				       &result);
+
+		libnet_join_set_error_string(mem_ctx, r,
+			"Failed to set password for machine account (%s)\n",
+			nt_errstr(status));
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		status = result;
+
+		dcerpc_samr_DeleteUser(b, mem_ctx,
+				       &user_pol,
+				       &result);
 
 		libnet_join_set_error_string(mem_ctx, r,
 			"Failed to set password for machine account (%s)\n",
@@ -1049,13 +1124,13 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 	}
 
 	if (is_valid_policy_hnd(&sam_pol)) {
-		rpccli_samr_Close(pipe_hnd, mem_ctx, &sam_pol);
+		dcerpc_samr_Close(b, mem_ctx, &sam_pol, &result);
 	}
 	if (is_valid_policy_hnd(&domain_pol)) {
-		rpccli_samr_Close(pipe_hnd, mem_ctx, &domain_pol);
+		dcerpc_samr_Close(b, mem_ctx, &domain_pol, &result);
 	}
 	if (is_valid_policy_hnd(&user_pol)) {
-		rpccli_samr_Close(pipe_hnd, mem_ctx, &user_pol);
+		dcerpc_samr_Close(b, mem_ctx, &user_pol, &result);
 	}
 	TALLOC_FREE(pipe_hnd);
 
@@ -1104,7 +1179,7 @@ NTSTATUS libnet_join_ok(const char *netbios_domain_name,
 				     NULL,
 				     machine_password,
 				     0,
-				     Undefined, NULL);
+				     Undefined);
 	free(machine_account);
 	free(machine_password);
 
@@ -1117,7 +1192,7 @@ NTSTATUS libnet_join_ok(const char *netbios_domain_name,
 					     NULL,
 					     "",
 					     0,
-					     Undefined, NULL);
+					     Undefined);
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
@@ -1209,13 +1284,14 @@ static NTSTATUS libnet_join_unjoindomain_rpc(TALLOC_CTX *mem_ctx,
 	struct cli_state *cli = NULL;
 	struct rpc_pipe_client *pipe_hnd = NULL;
 	struct policy_handle sam_pol, domain_pol, user_pol;
-	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
+	NTSTATUS status = NT_STATUS_UNSUCCESSFUL, result;
 	char *acct_name;
 	uint32_t user_rid;
 	struct lsa_String lsa_acct_name;
 	struct samr_Ids user_rids;
 	struct samr_Ids name_types;
 	union samr_UserInfo *info = NULL;
+	struct dcerpc_binding_handle *b = NULL;
 
 	ZERO_STRUCT(sam_pol);
 	ZERO_STRUCT(domain_pol);
@@ -1240,20 +1316,32 @@ static NTSTATUS libnet_join_unjoindomain_rpc(TALLOC_CTX *mem_ctx,
 		goto done;
 	}
 
-	status = rpccli_samr_Connect2(pipe_hnd, mem_ctx,
+	b = pipe_hnd->binding_handle;
+
+	status = dcerpc_samr_Connect2(b, mem_ctx,
 				      pipe_hnd->desthost,
 				      SEC_FLAG_MAXIMUM_ALLOWED,
-				      &sam_pol);
+				      &sam_pol,
+				      &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		status = result;
+		goto done;
+	}
 
-	status = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
+	status = dcerpc_samr_OpenDomain(b, mem_ctx,
 					&sam_pol,
 					SEC_FLAG_MAXIMUM_ALLOWED,
 					r->in.domain_sid,
-					&domain_pol);
+					&domain_pol,
+					&result);
 	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		status = result;
 		goto done;
 	}
 
@@ -1264,14 +1352,19 @@ static NTSTATUS libnet_join_unjoindomain_rpc(TALLOC_CTX *mem_ctx,
 
 	init_lsa_String(&lsa_acct_name, acct_name);
 
-	status = rpccli_samr_LookupNames(pipe_hnd, mem_ctx,
+	status = dcerpc_samr_LookupNames(b, mem_ctx,
 					 &domain_pol,
 					 1,
 					 &lsa_acct_name,
 					 &user_rids,
-					 &name_types);
+					 &name_types,
+					 &result);
 
 	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		status = result;
 		goto done;
 	}
 
@@ -1286,23 +1379,34 @@ static NTSTATUS libnet_join_unjoindomain_rpc(TALLOC_CTX *mem_ctx,
 
 	/* Open handle on user */
 
-	status = rpccli_samr_OpenUser(pipe_hnd, mem_ctx,
+	status = dcerpc_samr_OpenUser(b, mem_ctx,
 				      &domain_pol,
 				      SEC_FLAG_MAXIMUM_ALLOWED,
 				      user_rid,
-				      &user_pol);
+				      &user_pol,
+				      &result);
 	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		status = result;
 		goto done;
 	}
 
 	/* Get user info */
 
-	status = rpccli_samr_QueryUserInfo(pipe_hnd, mem_ctx,
+	status = dcerpc_samr_QueryUserInfo(b, mem_ctx,
 					   &user_pol,
 					   16,
-					   &info);
+					   &info,
+					   &result);
 	if (!NT_STATUS_IS_OK(status)) {
-		rpccli_samr_Close(pipe_hnd, mem_ctx, &user_pol);
+		dcerpc_samr_Close(b, mem_ctx, &user_pol, &result);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		status = result;
+		dcerpc_samr_Close(b, mem_ctx, &user_pol, &result);
 		goto done;
 	}
 
@@ -1310,20 +1414,30 @@ static NTSTATUS libnet_join_unjoindomain_rpc(TALLOC_CTX *mem_ctx,
 
 	info->info16.acct_flags |= ACB_DISABLED;
 
-	status = rpccli_samr_SetUserInfo(pipe_hnd, mem_ctx,
+	status = dcerpc_samr_SetUserInfo(b, mem_ctx,
 					 &user_pol,
 					 16,
-					 info);
-
-	rpccli_samr_Close(pipe_hnd, mem_ctx, &user_pol);
+					 info,
+					 &result);
+	if (!NT_STATUS_IS_OK(status)) {
+		dcerpc_samr_Close(b, mem_ctx, &user_pol, &result);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		status = result;
+		dcerpc_samr_Close(b, mem_ctx, &user_pol, &result);
+		goto done;
+	}
+	status = result;
+	dcerpc_samr_Close(b, mem_ctx, &user_pol, &result);
 
 done:
-	if (pipe_hnd) {
+	if (pipe_hnd && b) {
 		if (is_valid_policy_hnd(&domain_pol)) {
-			rpccli_samr_Close(pipe_hnd, mem_ctx, &domain_pol);
+			dcerpc_samr_Close(b, mem_ctx, &domain_pol, &result);
 		}
 		if (is_valid_policy_hnd(&sam_pol)) {
-			rpccli_samr_Close(pipe_hnd, mem_ctx, &sam_pol);
+			dcerpc_samr_Close(b, mem_ctx, &sam_pol, &result);
 		}
 		TALLOC_FREE(pipe_hnd);
 	}
@@ -1340,40 +1454,61 @@ done:
 
 static WERROR do_join_modify_vals_config(struct libnet_JoinCtx *r)
 {
-	WERROR werr;
+	WERROR werr = WERR_OK;
+	sbcErr err;
 	struct smbconf_ctx *ctx;
 
-	werr = smbconf_init_reg(r, &ctx, NULL);
-	if (!W_ERROR_IS_OK(werr)) {
+	err = smbconf_init_reg(r, &ctx, NULL);
+	if (!SBC_ERROR_IS_OK(err)) {
+		werr = WERR_NO_SUCH_SERVICE;
 		goto done;
 	}
 
 	if (!(r->in.join_flags & WKSSVC_JOIN_FLAGS_JOIN_TYPE)) {
 
-		werr = smbconf_set_global_parameter(ctx, "security", "user");
-		W_ERROR_NOT_OK_GOTO_DONE(werr);
+		err = smbconf_set_global_parameter(ctx, "security", "user");
+		if (!SBC_ERROR_IS_OK(err)) {
+			werr = WERR_NO_SUCH_SERVICE;
+			goto done;
+		}
 
-		werr = smbconf_set_global_parameter(ctx, "workgroup",
-						    r->in.domain_name);
+		err = smbconf_set_global_parameter(ctx, "workgroup",
+						   r->in.domain_name);
+		if (!SBC_ERROR_IS_OK(err)) {
+			werr = WERR_NO_SUCH_SERVICE;
+			goto done;
+		}
 
 		smbconf_delete_global_parameter(ctx, "realm");
 		goto done;
 	}
 
-	werr = smbconf_set_global_parameter(ctx, "security", "domain");
-	W_ERROR_NOT_OK_GOTO_DONE(werr);
+	err = smbconf_set_global_parameter(ctx, "security", "domain");
+	if (!SBC_ERROR_IS_OK(err)) {
+		werr = WERR_NO_SUCH_SERVICE;
+		goto done;
+	}
 
-	werr = smbconf_set_global_parameter(ctx, "workgroup",
-					    r->out.netbios_domain_name);
-	W_ERROR_NOT_OK_GOTO_DONE(werr);
+	err = smbconf_set_global_parameter(ctx, "workgroup",
+					   r->out.netbios_domain_name);
+	if (!SBC_ERROR_IS_OK(err)) {
+		werr = WERR_NO_SUCH_SERVICE;
+		goto done;
+	}
 
 	if (r->out.domain_is_ad) {
-		werr = smbconf_set_global_parameter(ctx, "security", "ads");
-		W_ERROR_NOT_OK_GOTO_DONE(werr);
+		err = smbconf_set_global_parameter(ctx, "security", "ads");
+		if (!SBC_ERROR_IS_OK(err)) {
+			werr = WERR_NO_SUCH_SERVICE;
+			goto done;
+		}
 
-		werr = smbconf_set_global_parameter(ctx, "realm",
-						    r->out.dns_domain_name);
-		W_ERROR_NOT_OK_GOTO_DONE(werr);
+		err = smbconf_set_global_parameter(ctx, "realm",
+						   r->out.dns_domain_name);
+		if (!SBC_ERROR_IS_OK(err)) {
+			werr = WERR_NO_SUCH_SERVICE;
+			goto done;
+		}
 	}
 
  done:
@@ -1387,20 +1522,28 @@ static WERROR do_join_modify_vals_config(struct libnet_JoinCtx *r)
 static WERROR do_unjoin_modify_vals_config(struct libnet_UnjoinCtx *r)
 {
 	WERROR werr = WERR_OK;
+	sbcErr err;
 	struct smbconf_ctx *ctx;
 
-	werr = smbconf_init_reg(r, &ctx, NULL);
-	if (!W_ERROR_IS_OK(werr)) {
+	err = smbconf_init_reg(r, &ctx, NULL);
+	if (!SBC_ERROR_IS_OK(err)) {
+		werr = WERR_NO_SUCH_SERVICE;
 		goto done;
 	}
 
 	if (r->in.unjoin_flags & WKSSVC_JOIN_FLAGS_JOIN_TYPE) {
 
-		werr = smbconf_set_global_parameter(ctx, "security", "user");
-		W_ERROR_NOT_OK_GOTO_DONE(werr);
+		err = smbconf_set_global_parameter(ctx, "security", "user");
+		if (!SBC_ERROR_IS_OK(err)) {
+			werr = WERR_NO_SUCH_SERVICE;
+			goto done;
+		}
 
-		werr = smbconf_delete_global_parameter(ctx, "workgroup");
-		W_ERROR_NOT_OK_GOTO_DONE(werr);
+		err = smbconf_delete_global_parameter(ctx, "workgroup");
+		if (!SBC_ERROR_IS_OK(err)) {
+			werr = WERR_NO_SUCH_SERVICE;
+			goto done;
+		}
 
 		smbconf_delete_global_parameter(ctx, "realm");
 	}
@@ -1598,7 +1741,7 @@ static WERROR libnet_join_post_processing(TALLOC_CTX *mem_ctx,
 		saf_join_store(r->out.dns_domain_name, r->in.dc_name);
 	}
 
-#ifdef WITH_ADS
+#ifdef HAVE_ADS
 	if (r->out.domain_is_ad &&
 	    !(r->in.join_flags & WKSSVC_JOIN_FLAGS_JOIN_UNSECURE)) {
 		ADS_STATUS ads_status;
@@ -1608,7 +1751,7 @@ static WERROR libnet_join_post_processing(TALLOC_CTX *mem_ctx,
 			return WERR_GENERAL_FAILURE;
 		}
 	}
-#endif /* WITH_ADS */
+#endif /* HAVE_ADS */
 
 	libnet_join_add_dom_rids_to_builtins(r->out.domain_sid);
 
@@ -1620,15 +1763,8 @@ static WERROR libnet_join_post_processing(TALLOC_CTX *mem_ctx,
 
 static int libnet_destroy_JoinCtx(struct libnet_JoinCtx *r)
 {
-	const char *krb5_cc_env = NULL;
-
 	if (r->in.ads) {
 		ads_destroy(&r->in.ads);
-	}
-
-	krb5_cc_env = getenv(KRB5_ENV_CCNAME);
-	if (krb5_cc_env && StrCaseCmp(krb5_cc_env, "MEMORY:libnetjoin")) {
-		unsetenv(KRB5_ENV_CCNAME);
 	}
 
 	return 0;
@@ -1639,15 +1775,8 @@ static int libnet_destroy_JoinCtx(struct libnet_JoinCtx *r)
 
 static int libnet_destroy_UnjoinCtx(struct libnet_UnjoinCtx *r)
 {
-	const char *krb5_cc_env = NULL;
-
 	if (r->in.ads) {
 		ads_destroy(&r->in.ads);
-	}
-
-	krb5_cc_env = getenv(KRB5_ENV_CCNAME);
-	if (krb5_cc_env && StrCaseCmp(krb5_cc_env, "MEMORY:libnetjoin")) {
-		unsetenv(KRB5_ENV_CCNAME);
 	}
 
 	return 0;
@@ -1660,7 +1789,6 @@ WERROR libnet_init_JoinCtx(TALLOC_CTX *mem_ctx,
 			   struct libnet_JoinCtx **r)
 {
 	struct libnet_JoinCtx *ctx;
-	const char *krb5_cc_env = NULL;
 
 	ctx = talloc_zero(mem_ctx, struct libnet_JoinCtx);
 	if (!ctx) {
@@ -1671,13 +1799,6 @@ WERROR libnet_init_JoinCtx(TALLOC_CTX *mem_ctx,
 
 	ctx->in.machine_name = talloc_strdup(mem_ctx, global_myname());
 	W_ERROR_HAVE_NO_MEMORY(ctx->in.machine_name);
-
-	krb5_cc_env = getenv(KRB5_ENV_CCNAME);
-	if (!krb5_cc_env || (strlen(krb5_cc_env) == 0)) {
-		krb5_cc_env = talloc_strdup(mem_ctx, "MEMORY:libnetjoin");
-		W_ERROR_HAVE_NO_MEMORY(krb5_cc_env);
-		setenv(KRB5_ENV_CCNAME, krb5_cc_env, 1);
-	}
 
 	ctx->in.secure_channel_type = SEC_CHAN_WKSTA;
 
@@ -1693,7 +1814,6 @@ WERROR libnet_init_UnjoinCtx(TALLOC_CTX *mem_ctx,
 			     struct libnet_UnjoinCtx **r)
 {
 	struct libnet_UnjoinCtx *ctx;
-	const char *krb5_cc_env = NULL;
 
 	ctx = talloc_zero(mem_ctx, struct libnet_UnjoinCtx);
 	if (!ctx) {
@@ -1704,13 +1824,6 @@ WERROR libnet_init_UnjoinCtx(TALLOC_CTX *mem_ctx,
 
 	ctx->in.machine_name = talloc_strdup(mem_ctx, global_myname());
 	W_ERROR_HAVE_NO_MEMORY(ctx->in.machine_name);
-
-	krb5_cc_env = getenv(KRB5_ENV_CCNAME);
-	if (!krb5_cc_env || (strlen(krb5_cc_env) == 0)) {
-		krb5_cc_env = talloc_strdup(mem_ctx, "MEMORY:libnetjoin");
-		W_ERROR_HAVE_NO_MEMORY(krb5_cc_env);
-		setenv(KRB5_ENV_CCNAME, krb5_cc_env, 1);
-	}
 
 	*r = ctx;
 
@@ -1816,9 +1929,9 @@ static WERROR libnet_DomainJoin(TALLOC_CTX *mem_ctx,
 	NTSTATUS status;
 	WERROR werr;
 	struct cli_state *cli = NULL;
-#ifdef WITH_ADS
+#ifdef HAVE_ADS
 	ADS_STATUS ads_status;
-#endif /* WITH_ADS */
+#endif /* HAVE_ADS */
 
 	if (!r->in.dc_name) {
 		struct netr_DsRGetDCNameInfo *info;
@@ -1859,7 +1972,12 @@ static WERROR libnet_DomainJoin(TALLOC_CTX *mem_ctx,
 		goto done;
 	}
 
-#ifdef WITH_ADS
+#ifdef HAVE_ADS
+
+	create_local_private_krb5_conf_for_domain(
+		r->out.dns_domain_name, r->out.netbios_domain_name,
+		NULL, &cli->dest_ss, cli->desthost);
+
 	if (r->out.domain_is_ad && r->in.account_ou &&
 	    !(r->in.join_flags & WKSSVC_JOIN_FLAGS_JOIN_UNSECURE)) {
 
@@ -1879,7 +1997,7 @@ static WERROR libnet_DomainJoin(TALLOC_CTX *mem_ctx,
 
 		r->in.join_flags &= ~WKSSVC_JOIN_FLAGS_ACCOUNT_CREATE;
 	}
-#endif /* WITH_ADS */
+#endif /* HAVE_ADS */
 
 	if ((r->in.join_flags & WKSSVC_JOIN_FLAGS_JOIN_UNSECURE) &&
 	    (r->in.join_flags & WKSSVC_JOIN_FLAGS_MACHINE_PWD_PASSED)) {
@@ -1954,6 +2072,8 @@ WERROR libnet_Join(TALLOC_CTX *mem_ctx,
 		LIBNET_JOIN_IN_DUMP_CTX(mem_ctx, r);
 	}
 
+	ZERO_STRUCT(r->out);
+
 	werr = libnet_join_pre_processing(mem_ctx, r);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
@@ -2002,7 +2122,7 @@ static WERROR libnet_DomainUnjoin(TALLOC_CTX *mem_ctx,
 				"Unable to fetch domain sid: are we joined?");
 			return WERR_SETUP_NOT_JOINED;
 		}
-		r->in.domain_sid = sid_dup_talloc(mem_ctx, &sid);
+		r->in.domain_sid = dom_sid_dup(mem_ctx, &sid);
 		W_ERROR_HAVE_NO_MEMORY(r->in.domain_sid);
 	}
 
@@ -2037,11 +2157,11 @@ static WERROR libnet_DomainUnjoin(TALLOC_CTX *mem_ctx,
 		W_ERROR_HAVE_NO_MEMORY(r->in.dc_name);
 	}
 
-#ifdef WITH_ADS
+#ifdef HAVE_ADS
 	/* for net ads leave, try to delete the account.  If it works, 
 	   no sense in disabling.  If it fails, we can still try to 
 	   disable it. jmcd */
-	   
+
 	if (r->in.delete_machine_account) {
 		ADS_STATUS ads_status;
 		ads_status = libnet_unjoin_connect_ads(mem_ctx, r);
@@ -2064,7 +2184,7 @@ static WERROR libnet_DomainUnjoin(TALLOC_CTX *mem_ctx,
 			return WERR_OK;
 		}
 	}
-#endif /* WITH_ADS */
+#endif /* HAVE_ADS */
 
 	/* The WKSSVC_JOIN_FLAGS_ACCOUNT_DELETE flag really means 
 	   "disable".  */
@@ -2079,7 +2199,7 @@ static WERROR libnet_DomainUnjoin(TALLOC_CTX *mem_ctx,
 			}
 			return ntstatus_to_werror(status);
 		}
-		
+
 		r->out.disabled_machine_account = true;
 	}
 

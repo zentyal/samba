@@ -40,7 +40,7 @@
  * Set `sa' to the unitialized address of address family `af'
  */
 
-void ROKEN_LIB_FUNCTION
+ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
 socket_set_any (struct sockaddr *sa, int af)
 {
     switch (af) {
@@ -74,7 +74,7 @@ socket_set_any (struct sockaddr *sa, int af)
  * set `sa' to (`ptr', `port')
  */
 
-void ROKEN_LIB_FUNCTION
+ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
 socket_set_address_and_port (struct sockaddr *sa, const void *ptr, int port)
 {
     switch (sa->sa_family) {
@@ -108,7 +108,7 @@ socket_set_address_and_port (struct sockaddr *sa, const void *ptr, int port)
  * Return the size of an address of the type in `sa'
  */
 
-size_t ROKEN_LIB_FUNCTION
+ROKEN_LIB_FUNCTION size_t ROKEN_LIB_CALL
 socket_addr_size (const struct sockaddr *sa)
 {
     switch (sa->sa_family) {
@@ -119,8 +119,7 @@ socket_addr_size (const struct sockaddr *sa)
 	return sizeof(struct in6_addr);
 #endif
     default :
-	errx (1, "unknown address family %d", sa->sa_family);
-	break;
+	return 0;
     }
 }
 
@@ -128,7 +127,7 @@ socket_addr_size (const struct sockaddr *sa)
  * Return the size of a `struct sockaddr' in `sa'.
  */
 
-size_t ROKEN_LIB_FUNCTION
+ROKEN_LIB_FUNCTION size_t ROKEN_LIB_CALL
 socket_sockaddr_size (const struct sockaddr *sa)
 {
     switch (sa->sa_family) {
@@ -138,9 +137,8 @@ socket_sockaddr_size (const struct sockaddr *sa)
     case AF_INET6 :
 	return sizeof(struct sockaddr_in6);
 #endif
-    default :
-	errx (1, "unknown address family %d", sa->sa_family);
-	break;
+    default:
+	return 0;
     }
 }
 
@@ -148,7 +146,7 @@ socket_sockaddr_size (const struct sockaddr *sa)
  * Return the binary address of `sa'.
  */
 
-void * ROKEN_LIB_FUNCTION
+ROKEN_LIB_FUNCTION void * ROKEN_LIB_CALL
 socket_get_address (const struct sockaddr *sa)
 {
     switch (sa->sa_family) {
@@ -162,9 +160,8 @@ socket_get_address (const struct sockaddr *sa)
 	return rk_UNCONST(&sin6->sin6_addr);
     }
 #endif
-    default :
-	errx (1, "unknown address family %d", sa->sa_family);
-	break;
+    default:
+	return NULL;
     }
 }
 
@@ -172,7 +169,7 @@ socket_get_address (const struct sockaddr *sa)
  * Return the port number from `sa'.
  */
 
-int ROKEN_LIB_FUNCTION
+ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
 socket_get_port (const struct sockaddr *sa)
 {
     switch (sa->sa_family) {
@@ -187,8 +184,7 @@ socket_get_port (const struct sockaddr *sa)
     }
 #endif
     default :
-	errx (1, "unknown address family %d", sa->sa_family);
-	break;
+	return 0;
     }
 }
 
@@ -196,7 +192,7 @@ socket_get_port (const struct sockaddr *sa)
  * Set the port in `sa' to `port'.
  */
 
-void ROKEN_LIB_FUNCTION
+ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
 socket_set_port (struct sockaddr *sa, int port)
 {
     switch (sa->sa_family) {
@@ -221,24 +217,19 @@ socket_set_port (struct sockaddr *sa, int port)
 /*
  * Set the range of ports to use when binding with port = 0.
  */
-void ROKEN_LIB_FUNCTION
-socket_set_portrange (int sock, int restr, int af)
+ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+socket_set_portrange (rk_socket_t sock, int restr, int af)
 {
 #if defined(IP_PORTRANGE)
 	if (af == AF_INET) {
 		int on = restr ? IP_PORTRANGE_HIGH : IP_PORTRANGE_DEFAULT;
-		if (setsockopt (sock, IPPROTO_IP, IP_PORTRANGE, &on,
-		    sizeof(on)) < 0)
-			warn ("setsockopt IP_PORTRANGE (ignored)");
+		setsockopt (sock, IPPROTO_IP, IP_PORTRANGE, &on, sizeof(on));
 	}
 #endif
 #if defined(IPV6_PORTRANGE)
 	if (af == AF_INET6) {
-		int on = restr ? IPV6_PORTRANGE_HIGH :
-		    IPV6_PORTRANGE_DEFAULT;
-		if (setsockopt (sock, IPPROTO_IPV6, IPV6_PORTRANGE, &on,
-		    sizeof(on)) < 0)
-			warn ("setsockopt IPV6_PORTRANGE (ignored)");
+		int on = restr ? IPV6_PORTRANGE_HIGH : IPV6_PORTRANGE_DEFAULT;
+		setsockopt (sock, IPPROTO_IPV6, IPV6_PORTRANGE, &on, sizeof(on));
 	}
 #endif
 }
@@ -247,14 +238,12 @@ socket_set_portrange (int sock, int restr, int af)
  * Enable debug on `sock'.
  */
 
-void ROKEN_LIB_FUNCTION
-socket_set_debug (int sock)
+ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+socket_set_debug (rk_socket_t sock)
 {
 #if defined(SO_DEBUG) && defined(HAVE_SETSOCKOPT)
     int on = 1;
-
-    if (setsockopt (sock, SOL_SOCKET, SO_DEBUG, (void *) &on, sizeof (on)) < 0)
-	warn ("setsockopt SO_DEBUG (ignored)");
+    setsockopt (sock, SOL_SOCKET, SO_DEBUG, (void *) &on, sizeof (on));
 #endif
 }
 
@@ -262,13 +251,11 @@ socket_set_debug (int sock)
  * Set the type-of-service of `sock' to `tos'.
  */
 
-void ROKEN_LIB_FUNCTION
-socket_set_tos (int sock, int tos)
+ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+socket_set_tos (rk_socket_t sock, int tos)
 {
 #if defined(IP_TOS) && defined(HAVE_SETSOCKOPT)
-    if (setsockopt (sock, IPPROTO_IP, IP_TOS, (void *) &tos, sizeof (int)) < 0)
-	if (errno != EINVAL)
-	    warn ("setsockopt TOS (ignored)");
+    setsockopt (sock, IPPROTO_IP, IP_TOS, (void *) &tos, sizeof(int));
 #endif
 }
 
@@ -276,13 +263,11 @@ socket_set_tos (int sock, int tos)
  * set the reuse of addresses on `sock' to `val'.
  */
 
-void ROKEN_LIB_FUNCTION
-socket_set_reuseaddr (int sock, int val)
+ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+socket_set_reuseaddr (rk_socket_t sock, int val)
 {
 #if defined(SO_REUSEADDR) && defined(HAVE_SETSOCKOPT)
-    if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *)&val,
-		  sizeof(val)) < 0)
-	err (1, "setsockopt SO_REUSEADDR");
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *)&val, sizeof(val));
 #endif
 }
 
@@ -290,10 +275,62 @@ socket_set_reuseaddr (int sock, int val)
  * Set the that the `sock' should bind to only IPv6 addresses.
  */
 
-void ROKEN_LIB_FUNCTION
-socket_set_ipv6only (int sock, int val)
+ROKEN_LIB_FUNCTION void ROKEN_LIB_CALL
+socket_set_ipv6only (rk_socket_t sock, int val)
 {
 #if defined(IPV6_V6ONLY) && defined(HAVE_SETSOCKOPT)
     setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (void *)&val, sizeof(val));
 #endif
 }
+
+/**
+ * Create a file descriptor from a socket
+ *
+ * While the socket handle in \a sock can be used with WinSock
+ * functions after calling socket_to_fd(), it should not be closed
+ * with rk_closesocket().  The socket will be closed when the associated
+ * file descriptor is closed.
+ */
+ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
+socket_to_fd(rk_socket_t sock, int flags)
+{
+#ifndef _WIN32
+    return sock;
+#else
+    return _open_osfhandle((intptr_t) sock, flags);
+#endif
+}
+
+#ifdef HAVE_WINSOCK
+ROKEN_LIB_FUNCTION int ROKEN_LIB_CALL
+rk_SOCK_IOCTL(SOCKET s, long cmd, int * argp) {
+    u_long ul = (argp)? *argp : 0;
+    int rv;
+
+    rv = ioctlsocket(s, cmd, &ul);
+    if (argp)
+	*argp = (int) ul;
+    return rv;
+}
+#endif
+
+#ifndef HEIMDAL_SMALLER
+#undef socket
+
+int rk_socket(int, int, int);
+
+int
+rk_socket(int domain, int type, int protocol)
+{
+    int s;
+    s = socket (domain, type, protocol);
+#ifdef SOCK_CLOEXEC
+    if ((SOCK_CLOEXEC & type) && s < 0 && errno == EINVAL) {
+	type &= ~SOCK_CLOEXEC;
+	s = socket (domain, type, protocol);
+    }
+#endif
+    return s;
+}
+
+#endif /* HEIMDAL_SMALLER */

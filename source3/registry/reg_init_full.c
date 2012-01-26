@@ -21,6 +21,11 @@
 /* Initialize the registry with all available backends. */
 
 #include "includes.h"
+#include "registry.h"
+#include "reg_cachehook.h"
+#include "reg_backend_db.h"
+#include "reg_init_basic.h"
+#include "reg_init_full.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
@@ -40,11 +45,16 @@ extern struct registry_ops regdb_ops;		/* these are the default */
 /* array of registry_hook's which are read into a tree for easy access */
 /* #define REG_TDB_ONLY		1 */
 
+struct registry_hook {
+	const char	*keyname;	/* full path to name of key */
+	struct registry_ops	*ops;	/* registry function hooks */
+};
+
 struct registry_hook reg_hooks[] = {
 #ifndef REG_TDB_ONLY 
-  { KEY_PRINTING,    		&printing_ops },
-  { KEY_PRINTING_2K, 		&printing_ops },
-  { KEY_PRINTING_PORTS, 	&printing_ops },
+  { KEY_PRINTING "\\Printers",	&printing_ops },
+  { KEY_PRINTING_2K, 		&regdb_ops },
+  { KEY_PRINTING_PORTS, 	&regdb_ops },
   { KEY_SHARES,      		&shares_reg_ops },
   { KEY_SMBCONF,      		&smbconf_reg_ops },
   { KEY_NETLOGON_PARAMS,	&netlogon_params_reg_ops },
@@ -83,12 +93,6 @@ WERROR registry_init_full(void)
 
 	if ( DEBUGLEVEL >= 20 )
 		reghook_dump_cache(20);
-
-	/* add any keys for other services */
-
-	svcctl_init_keys();
-	eventlog_init_keys();
-	perfcount_init_keys();
 
 fail:
 	/* close and let each smbd open up as necessary */

@@ -21,6 +21,11 @@
 */
 
 #include "includes.h"
+#include "memcache.h"
+#include "smbd/smbd.h"
+#include "messages.h"
+#include "smbprofile.h"
+#include <tdb.h>
 
 /****************************************************************************
  Stat cache code used in unix_convert.
@@ -145,6 +150,7 @@ void stat_cache_add( const char *full_orig_name,
  * Look through the stat cache for an entry
  *
  * @param conn    A connection struct to do the stat() with.
+ * @param posix_paths Whether to lookup using stat() or lstat()
  * @param name    The path we are attempting to cache, modified by this routine
  *                to be correct as far as the cache can tell us. We assume that
  *		  it is a talloc'ed string from top of stack, we free it if
@@ -161,6 +167,7 @@ void stat_cache_add( const char *full_orig_name,
  */
 
 bool stat_cache_lookup(connection_struct *conn,
+			bool posix_paths,
 			char **pp_name,
 			char **pp_dirpath,
 			char **pp_start,
@@ -176,6 +183,7 @@ bool stat_cache_lookup(connection_struct *conn,
 	char *name;
 	TALLOC_CTX *ctx = talloc_tos();
 	struct smb_filename smb_fname;
+	int ret;
 
 	*pp_dirpath = NULL;
 	*pp_start = *pp_name;
@@ -278,7 +286,13 @@ bool stat_cache_lookup(connection_struct *conn,
 	ZERO_STRUCT(smb_fname);
 	smb_fname.base_name = translated_path;
 
-	if (SMB_VFS_STAT(conn, &smb_fname) != 0) {
+	if (posix_paths) {
+		ret = SMB_VFS_LSTAT(conn, &smb_fname);
+	} else {
+		ret = SMB_VFS_STAT(conn, &smb_fname);
+	}
+
+	if (ret != 0) {
 		/* Discard this entry - it doesn't exist in the filesystem. */
 		memcache_delete(smbd_memcache(), STAT_CACHE,
 				data_blob_const(chk_name, strlen(chk_name)));
@@ -335,10 +349,11 @@ bool stat_cache_lookup(connection_struct *conn,
  Tell all smbd's to delete an entry.
 **************************************************************************/
 
-void send_stat_cache_delete_message(const char *name)
+void send_stat_cache_delete_message(struct messaging_context *msg_ctx,
+				    const char *name)
 {
 #ifdef DEVELOPER
-	message_send_all(smbd_messaging_context(),
+	message_send_all(msg_ctx,
 			MSG_SMB_STAT_CACHE_DELETE,
 			name,
 			strlen(name)+1,
@@ -371,7 +386,7 @@ void stat_cache_delete(const char *name)
  JRA. Use a djb-algorithm hash for speed.
 ***************************************************************/
 
-unsigned int fast_string_hash(TDB_DATA *key)
+unsigned int fast_string_hash(struct TDB_DATA *key)
 {
         unsigned int n = 0;
         const char *p;

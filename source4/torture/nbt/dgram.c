@@ -21,12 +21,9 @@
 
 #include "includes.h"
 #include "libcli/dgram/libdgram.h"
-#include "librpc/gen_ndr/samr.h"
-#include "librpc/gen_ndr/ndr_nbt.h"
-#include "librpc/gen_ndr/ndr_netlogon.h"
 #include "lib/socket/socket.h"
 #include "lib/events/events.h"
-#include "torture/rpc/rpc.h"
+#include "torture/rpc/torture_rpc.h"
 #include "libcli/resolve/resolve.h"
 #include "system/network.h"
 #include "lib/socket/netif.h"
@@ -67,8 +64,7 @@ static void netlogon_handler(struct dgram_mailslot_handler *dgmslot,
 static bool nbt_test_netlogon(struct torture_context *tctx)
 {
 	struct dgram_mailslot_handler *dgmslot;
-	struct nbt_dgram_socket *dgmsock = nbt_dgram_socket_init(tctx, tctx->ev, 
-								 lp_iconv_convenience(tctx->lp_ctx));
+	struct nbt_dgram_socket *dgmsock = nbt_dgram_socket_init(tctx, tctx->ev);
 	struct socket_address *dest;
 	const char *myaddress;
 	struct nbt_netlogon_packet logon;
@@ -84,21 +80,21 @@ static bool nbt_test_netlogon(struct torture_context *tctx)
 
 	struct interface *ifaces;
 
-	name.name = lp_workgroup(tctx->lp_ctx);
+	name.name = lpcfg_workgroup(tctx->lp_ctx);
 	name.type = NBT_NAME_LOGON;
 	name.scope = NULL;
 
 	/* do an initial name resolution to find its IP */
 	torture_assert_ntstatus_ok(tctx, 
-				   resolve_name(lp_resolve_context(tctx->lp_ctx), &name, tctx, &address, tctx->ev),
+				   resolve_name(lpcfg_resolve_context(tctx->lp_ctx), &name, tctx, &address, tctx->ev),
 				   talloc_asprintf(tctx, "Failed to resolve %s", name.name));
 
-	load_interfaces(tctx, lp_interfaces(tctx->lp_ctx), &ifaces);
+	load_interfaces(tctx, lpcfg_interfaces(tctx->lp_ctx), &ifaces);
 	myaddress = talloc_strdup(dgmsock, iface_best_ip(ifaces, address));
 
 
 	socket_address = socket_address_from_strings(dgmsock, dgmsock->sock->backend_name,
-						     myaddress, lp_dgram_port(tctx->lp_ctx));
+						     myaddress, lpcfg_dgram_port(tctx->lp_ctx));
 	torture_assert(tctx, socket_address != NULL, "Error getting address");
 
 	/* try receiving replies on port 138 first, which will only
@@ -118,6 +114,7 @@ static bool nbt_test_netlogon(struct torture_context *tctx)
 	/* setup a temporary mailslot listener for replies */
 	dgmslot = dgram_mailslot_temp(dgmsock, NBT_MAILSLOT_GETDC,
 				      netlogon_handler, NULL);
+	torture_assert(tctx, dgmslot != NULL, "Error temporary mailslot for GetDC");
 
 	ZERO_STRUCT(logon);
 	logon.command = LOGON_PRIMARY_QUERY;
@@ -131,7 +128,7 @@ static bool nbt_test_netlogon(struct torture_context *tctx)
 	make_nbt_name_client(&myname, TEST_NAME);
 
 	dest = socket_address_from_strings(dgmsock, dgmsock->sock->backend_name, 
-					   address, lp_dgram_port(tctx->lp_ctx));
+					   address, lpcfg_dgram_port(tctx->lp_ctx));
 	torture_assert(tctx, dest != NULL, "Error getting address");
 
 	status = dgram_mailslot_netlogon_send(dgmsock, &name, dest,
@@ -158,8 +155,7 @@ static bool nbt_test_netlogon(struct torture_context *tctx)
 static bool nbt_test_netlogon2(struct torture_context *tctx)
 {
 	struct dgram_mailslot_handler *dgmslot;
-	struct nbt_dgram_socket *dgmsock = nbt_dgram_socket_init(tctx, tctx->ev,
-								 lp_iconv_convenience(tctx->lp_ctx));
+	struct nbt_dgram_socket *dgmsock = nbt_dgram_socket_init(tctx, tctx->ev);
 	struct socket_address *dest;
 	const char *myaddress;
 	struct nbt_netlogon_packet logon;
@@ -178,20 +174,20 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 	struct cli_credentials *machine_credentials;
 	const struct dom_sid *dom_sid;
 	
-	name.name = lp_workgroup(tctx->lp_ctx);
+	name.name = lpcfg_workgroup(tctx->lp_ctx);
 	name.type = NBT_NAME_LOGON;
 	name.scope = NULL;
 
 	/* do an initial name resolution to find its IP */
 	torture_assert_ntstatus_ok(tctx, 
-				   resolve_name(lp_resolve_context(tctx->lp_ctx), &name, tctx, &address, tctx->ev),
+				   resolve_name(lpcfg_resolve_context(tctx->lp_ctx), &name, tctx, &address, tctx->ev),
 				   talloc_asprintf(tctx, "Failed to resolve %s", name.name));
 
-	load_interfaces(tctx, lp_interfaces(tctx->lp_ctx), &ifaces);
+	load_interfaces(tctx, lpcfg_interfaces(tctx->lp_ctx), &ifaces);
 	myaddress = talloc_strdup(dgmsock, iface_best_ip(ifaces, address));
 
 	socket_address = socket_address_from_strings(dgmsock, dgmsock->sock->backend_name,
-						     myaddress, lp_dgram_port(tctx->lp_ctx));
+						     myaddress, lpcfg_dgram_port(tctx->lp_ctx));
 	torture_assert(tctx, socket_address != NULL, "Error getting address");
 
 	/* try receiving replies on port 138 first, which will only
@@ -211,7 +207,7 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 	/* setup a temporary mailslot listener for replies */
 	dgmslot = dgram_mailslot_temp(dgmsock, NBT_MAILSLOT_GETDC,
 				      netlogon_handler, NULL);
-	
+	torture_assert(tctx, dgmslot != NULL, "Error temporary mailslot for GetDC");
 
 	ZERO_STRUCT(logon);
 	logon.command = LOGON_SAM_LOGON_REQUEST;
@@ -226,7 +222,7 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 	make_nbt_name_client(&myname, TEST_NAME);
 
 	dest = socket_address_from_strings(dgmsock, dgmsock->sock->backend_name, 
-					   address, lp_dgram_port(tctx->lp_ctx));
+					   address, lpcfg_dgram_port(tctx->lp_ctx));
 
 	torture_assert(tctx, dest != NULL, "Error getting address");
 	status = dgram_mailslot_netlogon_send(dgmsock, &name, dest,
@@ -251,6 +247,7 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 	/* setup (another) temporary mailslot listener for replies */
 	dgmslot = dgram_mailslot_temp(dgmsock, NBT_MAILSLOT_GETDC,
 				      netlogon_handler, NULL);
+	torture_assert(tctx, dgmslot != NULL, "Error temporary mailslot for GetDC");
 	
 	ZERO_STRUCT(logon);
 	logon.command = LOGON_SAM_LOGON_REQUEST;
@@ -265,7 +262,7 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 	make_nbt_name_client(&myname, TEST_NAME);
 
 	dest = socket_address_from_strings(dgmsock, dgmsock->sock->backend_name, 
-					   address, lp_dgram_port(tctx->lp_ctx));
+					   address, lpcfg_dgram_port(tctx->lp_ctx));
 
 	torture_assert(tctx, dest != NULL, "Error getting address");
 	status = dgram_mailslot_netlogon_send(dgmsock, &name, dest,
@@ -293,13 +290,14 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 
 	torture_assert(tctx, join_ctx != NULL,
 		       talloc_asprintf(tctx, "Failed to join domain %s as %s\n",
-		       		       lp_workgroup(tctx->lp_ctx), TEST_NAME));
+				       lpcfg_workgroup(tctx->lp_ctx), TEST_NAME));
 
 	dom_sid = torture_join_sid(join_ctx);
 
 	/* setup (another) temporary mailslot listener for replies */
 	dgmslot = dgram_mailslot_temp(dgmsock, NBT_MAILSLOT_GETDC,
 				      netlogon_handler, NULL);
+	torture_assert(tctx, dgmslot != NULL, "Error temporary mailslot for GetDC");
 	
 	ZERO_STRUCT(logon);
 	logon.command = LOGON_SAM_LOGON_REQUEST;
@@ -315,7 +313,7 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 	make_nbt_name_client(&myname, TEST_NAME);
 
 	dest = socket_address_from_strings(dgmsock, dgmsock->sock->backend_name, 
-					   address, lp_dgram_port(tctx->lp_ctx));
+					   address, lpcfg_dgram_port(tctx->lp_ctx));
 
 	torture_assert(tctx, dest != NULL, "Error getting address");
 	status = dgram_mailslot_netlogon_send(dgmsock, &name, dest,
@@ -340,7 +338,6 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 	/* setup (another) temporary mailslot listener for replies */
 	dgmslot = dgram_mailslot_temp(dgmsock, NBT_MAILSLOT_GETDC,
 				      netlogon_handler, NULL);
-	
 	torture_assert(tctx, dgmslot != NULL, "Error getting a Mailslot for GetDC reply");
 
 	ZERO_STRUCT(logon);
@@ -358,7 +355,7 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 	make_nbt_name_client(&myname, TEST_NAME);
 
 	dest = socket_address_from_strings(dgmsock, dgmsock->sock->backend_name, 
-					   address, lp_dgram_port(tctx->lp_ctx));
+					   address, lpcfg_dgram_port(tctx->lp_ctx));
 
 	torture_assert(tctx, dest != NULL, "Error getting address");
 	status = dgram_mailslot_netlogon_send(dgmsock, &name, dest,
@@ -397,7 +394,7 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 	make_nbt_name_client(&myname, TEST_NAME);
 
 	dest = socket_address_from_strings(dgmsock, dgmsock->sock->backend_name, 
-					   address, lp_dgram_port(tctx->lp_ctx));
+					   address, lpcfg_dgram_port(tctx->lp_ctx));
 
 	torture_assert(tctx, dest != NULL, "Error getting address");
 	status = dgram_mailslot_netlogon_send(dgmsock, &name, dest,
@@ -428,8 +425,7 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 static bool nbt_test_ntlogon(struct torture_context *tctx)
 {
 	struct dgram_mailslot_handler *dgmslot;
-	struct nbt_dgram_socket *dgmsock = nbt_dgram_socket_init(tctx, tctx->ev,
-								 lp_iconv_convenience(tctx->lp_ctx));
+	struct nbt_dgram_socket *dgmsock = nbt_dgram_socket_init(tctx, tctx->ev);
 	struct socket_address *dest;
 	struct test_join *join_ctx;
 	const struct dom_sid *dom_sid;
@@ -448,20 +444,20 @@ static bool nbt_test_ntlogon(struct torture_context *tctx)
 
 	struct interface *ifaces;
 	
-	name.name = lp_workgroup(tctx->lp_ctx);
+	name.name = lpcfg_workgroup(tctx->lp_ctx);
 	name.type = NBT_NAME_LOGON;
 	name.scope = NULL;
 
 	/* do an initial name resolution to find its IP */
 	torture_assert_ntstatus_ok(tctx, 
-				   resolve_name(lp_resolve_context(tctx->lp_ctx), &name, tctx, &address, tctx->ev),
+				   resolve_name(lpcfg_resolve_context(tctx->lp_ctx), &name, tctx, &address, tctx->ev),
 				   talloc_asprintf(tctx, "Failed to resolve %s", name.name));
 
-	load_interfaces(tctx, lp_interfaces(tctx->lp_ctx), &ifaces);
+	load_interfaces(tctx, lpcfg_interfaces(tctx->lp_ctx), &ifaces);
 	myaddress = talloc_strdup(dgmsock, iface_best_ip(ifaces, address));
 
 	socket_address = socket_address_from_strings(dgmsock, dgmsock->sock->backend_name,
-						     myaddress, lp_dgram_port(tctx->lp_ctx));
+						     myaddress, lpcfg_dgram_port(tctx->lp_ctx));
 	torture_assert(tctx, socket_address != NULL, "Error getting address");
 
 	/* try receiving replies on port 138 first, which will only
@@ -484,12 +480,12 @@ static bool nbt_test_ntlogon(struct torture_context *tctx)
 
 	torture_assert(tctx, join_ctx != NULL,
 		       talloc_asprintf(tctx, "Failed to join domain %s as %s\n",
-		       		       lp_workgroup(tctx->lp_ctx), TEST_NAME));
+				       lpcfg_workgroup(tctx->lp_ctx), TEST_NAME));
 
 	/* setup a temporary mailslot listener for replies */
 	dgmslot = dgram_mailslot_temp(dgmsock, NBT_MAILSLOT_GETDC,
 				      netlogon_handler, NULL);
-	
+	torture_assert(tctx, dgmslot != NULL, "Error temporary mailslot for GetDC");
 
 	ZERO_STRUCT(logon);
 	logon.command = LOGON_SAM_LOGON_REQUEST;
@@ -507,7 +503,7 @@ static bool nbt_test_ntlogon(struct torture_context *tctx)
 	make_nbt_name_client(&myname, TEST_NAME);
 
 	dest = socket_address_from_strings(dgmsock, dgmsock->sock->backend_name, 
-					   address, lp_dgram_port(tctx->lp_ctx));
+					   address, lpcfg_dgram_port(tctx->lp_ctx));
 	torture_assert(tctx, dest != NULL, "Error getting address");
 	status = dgram_mailslot_netlogon_send(dgmsock, 
 					      &name, dest, 
@@ -534,7 +530,7 @@ static bool nbt_test_ntlogon(struct torture_context *tctx)
 	/* setup a temporary mailslot listener for replies */
 	dgmslot = dgram_mailslot_temp(dgmsock, NBT_MAILSLOT_GETDC,
 				      netlogon_handler, NULL);
-	
+	torture_assert(tctx, dgmslot != NULL, "Error temporary mailslot for GetDC");
 
 	ZERO_STRUCT(logon);
 	logon.command = LOGON_SAM_LOGON_REQUEST;
@@ -551,7 +547,7 @@ static bool nbt_test_ntlogon(struct torture_context *tctx)
 	make_nbt_name_client(&myname, TEST_NAME);
 
 	dest = socket_address_from_strings(dgmsock, dgmsock->sock->backend_name, 
-					   address, lp_dgram_port(tctx->lp_ctx));
+					   address, lpcfg_dgram_port(tctx->lp_ctx));
 	torture_assert(tctx, dest != NULL, "Error getting address");
 	status = dgram_mailslot_netlogon_send(dgmsock, 
 					      &name, dest, 
@@ -578,6 +574,7 @@ static bool nbt_test_ntlogon(struct torture_context *tctx)
 	/* setup (another) temporary mailslot listener for replies */
 	dgmslot = dgram_mailslot_temp(dgmsock, NBT_MAILSLOT_GETDC,
 				      netlogon_handler, NULL);
+	torture_assert(tctx, dgmslot != NULL, "Error temporary mailslot for GetDC");
 	
 	ZERO_STRUCT(logon);
 	logon.command = LOGON_PRIMARY_QUERY;
@@ -591,7 +588,7 @@ static bool nbt_test_ntlogon(struct torture_context *tctx)
 	make_nbt_name_client(&myname, TEST_NAME);
 
 	dest = socket_address_from_strings(dgmsock, dgmsock->sock->backend_name, 
-					   address, lp_dgram_port(tctx->lp_ctx));
+					   address, lpcfg_dgram_port(tctx->lp_ctx));
 	torture_assert(tctx, dest != NULL, "Error getting address");
 	status = dgram_mailslot_netlogon_send(dgmsock, 
 					      &name, dest, 
@@ -615,6 +612,7 @@ static bool nbt_test_ntlogon(struct torture_context *tctx)
 	/* setup (another) temporary mailslot listener for replies */
 	dgmslot = dgram_mailslot_temp(dgmsock, NBT_MAILSLOT_GETDC,
 				      netlogon_handler, NULL);
+	torture_assert(tctx, dgmslot != NULL, "Error temporary mailslot for GetDC");
 	
 	ZERO_STRUCT(logon);
 	logon.command = LOGON_PRIMARY_QUERY;
@@ -628,7 +626,7 @@ static bool nbt_test_ntlogon(struct torture_context *tctx)
 	make_nbt_name_client(&myname, TEST_NAME);
 
 	dest = socket_address_from_strings(dgmsock, dgmsock->sock->backend_name, 
-					   address, lp_dgram_port(tctx->lp_ctx));
+					   address, lpcfg_dgram_port(tctx->lp_ctx));
 	torture_assert(tctx, dest != NULL, "Error getting address");
 	status = dgram_mailslot_netlogon_send(dgmsock, 
 					      &name, dest, 
@@ -657,7 +655,7 @@ static bool nbt_test_ntlogon(struct torture_context *tctx)
 */
 struct torture_suite *torture_nbt_dgram(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "DGRAM");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "dgram");
 
 	torture_suite_add_simple_test(suite, "netlogon", nbt_test_netlogon);
 	torture_suite_add_simple_test(suite, "netlogon2", nbt_test_netlogon2);

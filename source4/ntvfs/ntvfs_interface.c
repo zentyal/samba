@@ -20,6 +20,7 @@
 
 #include "includes.h"
 #include "ntvfs/ntvfs.h"
+#include "lib/tsocket/tsocket.h"
 
 /* connect/disconnect */
 NTSTATUS ntvfs_connect(struct ntvfs_request *req, union smb_tcon *tcon)
@@ -666,6 +667,30 @@ NTSTATUS ntvfs_next_exit(struct ntvfs_module_context *ntvfs,
 	return ntvfs->next->ops->exit(ntvfs->next, req);
 }
 
+/* client connection callback */
+NTSTATUS ntvfs_set_addresses(struct ntvfs_context *ntvfs,
+			     const struct tsocket_address *local_address,
+			     const struct tsocket_address *remote_address)
+{
+	ntvfs->client.local_address = tsocket_address_copy(local_address, ntvfs);
+	NT_STATUS_HAVE_NO_MEMORY(ntvfs->client.local_address);
+
+	ntvfs->client.remote_address = tsocket_address_copy(remote_address, ntvfs);
+	NT_STATUS_HAVE_NO_MEMORY(ntvfs->client.remote_address);
+
+	return NT_STATUS_OK;
+}
+
+const struct tsocket_address *ntvfs_get_local_address(struct ntvfs_module_context *ntvfs)
+{
+	return ntvfs->ctx->client.local_address;
+}
+
+const struct tsocket_address *ntvfs_get_remote_address(struct ntvfs_module_context *ntvfs)
+{
+	return ntvfs->ctx->client.remote_address;
+}
+
 /* oplock helpers */
 NTSTATUS ntvfs_set_oplock_handler(struct ntvfs_context *ntvfs,
 					   NTSTATUS (*handler)(void *private_data, struct ntvfs_handle *handle, uint8_t level),
@@ -686,32 +711,3 @@ NTSTATUS ntvfs_send_oplock_break(struct ntvfs_module_context *ntvfs,
 	return ntvfs->ctx->oplock.handler(ntvfs->ctx->oplock.private_data, handle, level);
 }
 
-/* client connection callback */
-NTSTATUS ntvfs_set_addr_callbacks(struct ntvfs_context *ntvfs,
-					   struct socket_address *(*my_addr)(void *private_data, TALLOC_CTX *mem_ctx),
-					   struct socket_address *(*peer_addr)(void *private_data, TALLOC_CTX *mem_ctx),
-					   void *private_data)
-{
-	ntvfs->client.get_peer_addr	= my_addr;
-	ntvfs->client.get_my_addr	= peer_addr;
-	ntvfs->client.private_data	= private_data;
-	return NT_STATUS_OK;
-}
-
-struct socket_address *ntvfs_get_my_addr(struct ntvfs_module_context *ntvfs, TALLOC_CTX *mem_ctx)
-{
-	if (!ntvfs->ctx->client.get_my_addr) {
-		return NULL;
-	}
-
-	return ntvfs->ctx->client.get_my_addr(ntvfs->ctx->client.private_data, mem_ctx);
-}
-
-struct socket_address *ntvfs_get_peer_addr(struct ntvfs_module_context *ntvfs, TALLOC_CTX *mem_ctx)
-{
-	if (!ntvfs->ctx->client.get_peer_addr) {
-		return NULL;
-	}
-
-	return ntvfs->ctx->client.get_peer_addr(ntvfs->ctx->client.private_data, mem_ctx);
-}

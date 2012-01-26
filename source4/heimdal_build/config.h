@@ -8,10 +8,16 @@
 
 #include "include/config.h"
 #include "../replace/replace.h"
+#include "../lib/util/attr.h"
+#define HEIMDAL_NORETURN_ATTRIBUTE _NORETURN_
+#define HEIMDAL_PRINTF_ATTRIBUTE(x) FORMAT_ATTRIBUTE(x)
+#define VERSIONLIST {"Lorikeet-Heimdal, Modified for Samba4"}
 
-#if !defined(HAVE_DIRFD) && !defined(HAVE_DIRFD_DECL) && !defined(dirfd)
-#define dirfd(d) (-1)
-#endif
+#define VERSION "Samba"
+
+#define PACKAGE VERSION
+#define PACKAGE_BUGREPORT "https://bugzilla.samba.org/"
+#define PACKAGE_VERSION VERSION
 
 #define RCSID(msg) struct __rcsid { int __rcsdi; }
 #define KRB5
@@ -27,13 +33,17 @@
 
 #undef HAVE_KRB5_ENCRYPT_BLOCK
 
-#if defined(UID_WRAPPER)
-#if !defined(UID_WRAPPER_REPLACE) && !defined(UID_WRAPPER_NOT_REPLACE)
-#define UID_WRAPPER_REPLACE
-#include "../uid_wrapper/uid_wrapper.h"
+/* Because it can't be defined in roken.h */
+#ifndef USE_HCRYPTO_IMATH
+#define USE_HCRYPTO_IMATH
 #endif
-#else
-#define uwrap_enabled() 0
+
+/*Workaround for heimdal define vs samba define*/
+#ifdef HAVE_LIBINTL_H
+#define LIBINTL
 #endif
+
+/* heimdal now wants some atomic ops - ask for the non-atomic ones for Samba */
+#define HEIM_BASE_NON_ATOMIC 1
 
 #endif

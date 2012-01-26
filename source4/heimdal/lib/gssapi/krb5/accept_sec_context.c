@@ -55,10 +55,10 @@ _gsskrb5_register_acceptor_identity (const char *identity)
     if (identity == NULL) {
 	ret = krb5_kt_default(context, &_gsskrb5_keytab);
     } else {
-	char *p;
+	char *p = NULL;
 
-	asprintf(&p, "FILE:%s", identity);
-	if(p == NULL) {
+	ret = asprintf(&p, "FILE:%s", identity);
+	if(ret < 0 || p == NULL) {
 	    HEIMDAL_MUTEX_unlock(&gssapi_keytab_mutex);
 	    return GSS_S_FAILURE;
 	}
@@ -99,6 +99,7 @@ _gsskrb5i_is_cfx(krb5_context context, gsskrb5_ctx ctx, int acceptor)
     case ETYPE_DES_CBC_MD4:
     case ETYPE_DES_CBC_MD5:
     case ETYPE_DES3_CBC_MD5:
+    case ETYPE_OLD_DES3_CBC_SHA1:
     case ETYPE_DES3_CBC_SHA1:
     case ETYPE_ARCFOUR_HMAC_MD5:
     case ETYPE_ARCFOUR_HMAC_MD5_56:
@@ -207,9 +208,9 @@ gsskrb5_acceptor_ready(OM_uint32 * minor_status,
     int32_t seq_number;
     int is_cfx = 0;
 
-    krb5_auth_getremoteseqnumber (context,
-				  ctx->auth_context,
-				  &seq_number);
+    krb5_auth_con_getremoteseqnumber (context,
+				      ctx->auth_context,
+				      &seq_number);
 
     _gsskrb5i_is_cfx(context, ctx, 1);
     is_cfx = (ctx->more_flags & IS_CFX);
@@ -263,6 +264,10 @@ send_error_token(OM_uint32 *minor_status,
     krb5_principal ap_req_server = NULL;
     krb5_error_code ret;
     krb5_data outbuf;
+    /* this e_data value encodes KERB_AP_ERR_TYPE_SKEW_RECOVERY which
+       tells windows to try again with the corrected timestamp. See
+       [MS-KILE] 2.2.1 KERB-ERROR-DATA */
+    krb5_data e_data = { 7, rk_UNCONST("\x30\x05\xa1\x03\x02\x01\x02") };
 
     /* build server from request if the acceptor had not selected one */
     if (server == NULL) {
@@ -285,7 +290,7 @@ send_error_token(OM_uint32 *minor_status,
 	server = ap_req_server;
     }
 
-    ret = krb5_mk_error(context, kret, NULL, NULL, NULL,
+    ret = krb5_mk_error(context, kret, NULL, &e_data, NULL,
 			server, NULL, NULL, &outbuf);
     if (ap_req_server)
 	krb5_free_principal(context, ap_req_server);
@@ -462,6 +467,7 @@ gsskrb5_acceptor_start(OM_uint32 * minor_status,
     /*
      * We need to get the flags out of the 8003 checksum.
      */
+
     {
 	krb5_authenticator authenticator;
 
@@ -472,6 +478,12 @@ gsskrb5_acceptor_start(OM_uint32 * minor_status,
 	    ret = GSS_S_FAILURE;
 	    *minor_status = kret;
 	    return ret;
+	}
+
+	if (authenticator->cksum == NULL) {
+	    krb5_free_authenticator(context, &authenticator);
+	    *minor_status = 0;
+	    return GSS_S_BAD_BINDINGS;
 	}
 
         if (authenticator->cksum->cksumtype == CKSUMTYPE_GSSAPI) {
@@ -669,9 +681,9 @@ acceptor_wait_for_dcestyle(OM_uint32 * minor_status,
 	    return GSS_S_FAILURE;
 	}
 
-	kret = krb5_auth_getremoteseqnumber(context,
-					    ctx->auth_context,
-					    &r_seq_number);
+	kret = krb5_auth_con_getremoteseqnumber(context,
+						ctx->auth_context,
+						&r_seq_number);
 	if (kret) {
 	    *minor_status = kret;
 	    return GSS_S_FAILURE;
@@ -749,9 +761,9 @@ acceptor_wait_for_dcestyle(OM_uint32 * minor_status,
     {
 	int32_t tmp_r_seq_number, tmp_l_seq_number;
 
-	kret = krb5_auth_getremoteseqnumber(context,
-					    ctx->auth_context,
-					    &tmp_r_seq_number);
+	kret = krb5_auth_con_getremoteseqnumber(context,
+						ctx->auth_context,
+						&tmp_r_seq_number);
 	if (kret) {
 	    *minor_status = kret;
 	    return GSS_S_FAILURE;
@@ -793,7 +805,7 @@ acceptor_wait_for_dcestyle(OM_uint32 * minor_status,
 }
 
 
-OM_uint32
+OM_uint32 GSSAPI_CALLCONV
 _gsskrb5_accept_sec_context(OM_uint32 * minor_status,
 			    gss_ctx_id_t * context_handle,
 			    const gss_cred_id_t acceptor_cred_handle,

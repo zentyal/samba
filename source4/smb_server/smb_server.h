@@ -23,6 +23,7 @@
 #include "libcli/raw/interfaces.h"
 #include "lib/socket/socket.h"
 #include "../lib/util/dlinklist.h"
+#include "../librpc/gen_ndr/nbt.h"
 
 struct tevent_context;
 
@@ -394,10 +395,11 @@ struct smbsrv_connection {
 struct model_ops;
 struct loadparm_context;
 
-NTSTATUS smbsrv_add_socket(struct tevent_context *event_context,
+NTSTATUS smbsrv_add_socket(TALLOC_CTX *mem_ctx,
+			   struct tevent_context *event_context,
 			   struct loadparm_context *lp_ctx,
-			       const struct model_ops *model_ops,
-			       const char *address);
+			   const struct model_ops *model_ops,
+			   const char *address);
 
 struct loadparm_context;
 

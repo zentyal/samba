@@ -2,6 +2,7 @@
  *  Unix SMB/CIFS implementation.
  *  Virtual Windows Registry Layer
  *  Copyright (C) Gerald Carter                     2002.
+ *  Copyright (C) Michael Adam                      2008
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,11 +22,13 @@
 
 #include "includes.h"
 #include "adt_tree.h"
+#include "registry.h"
+#include "reg_cachehook.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
 
-static SORTED_TREE *cache_tree = NULL;
+static struct sorted_tree *cache_tree = NULL;
 extern struct registry_ops regdb_ops;		/* these are the default */
 
 static WERROR keyname_to_path(TALLOC_CTX *mem_ctx, const char *keyname,
@@ -40,12 +43,6 @@ static WERROR keyname_to_path(TALLOC_CTX *mem_ctx, const char *keyname,
 	tmp_path = talloc_asprintf(mem_ctx, "\\%s", keyname);
 	if (tmp_path == NULL) {
 		DEBUG(0, ("talloc_asprintf failed!\n"));
-		return WERR_NOMEM;
-	}
-
-	tmp_path = talloc_string_sub(mem_ctx, tmp_path, "\\", "/");
-	if (tmp_path == NULL) {
-		DEBUG(0, ("talloc_string_sub_failed!\n"));
 		return WERR_NOMEM;
 	}
 
@@ -64,7 +61,7 @@ WERROR reghook_cache_init(void)
 		return WERR_OK;
 	}
 
-	cache_tree = pathtree_init(&regdb_ops, NULL);
+	cache_tree = pathtree_init(&regdb_ops);
 	if (cache_tree == NULL) {
 		return WERR_NOMEM;
 	}
@@ -76,7 +73,7 @@ WERROR reghook_cache_init(void)
 
 /**********************************************************************
  Add a new registry hook to the cache.  Note that the keyname
- is not in the exact format that a SORTED_TREE expects.
+ is not in the exact format that a struct sorted_tree expects.
  *********************************************************************/
 
 WERROR reghook_cache_add(const char *keyname, struct registry_ops *ops)

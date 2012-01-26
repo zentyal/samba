@@ -19,7 +19,9 @@
  */
 
 #include "includes.h"
+#include "system/filesys.h"
 #include "winbindd/winbindd.h"
+#include "idmap.h"
 #include "idmap_hash.h"
 #include <stdio.h>
 

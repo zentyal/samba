@@ -38,6 +38,8 @@
  */
 
 #include "includes.h"
+#include "auth.h"
+#include "nsswitch/libwbclient/wbclient.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
@@ -47,8 +49,8 @@
 static NTSTATUS check_wbc_security(const struct auth_context *auth_context,
 				       void *my_private_data,
 				       TALLOC_CTX *mem_ctx,
-				       const auth_usersupplied_info *user_info,
-				       auth_serversupplied_info **server_info)
+				       const struct auth_usersupplied_info *user_info,
+				       struct auth_serversupplied_info **server_info)
 {
 	NTSTATUS nt_status;
 	wbcErr wbc_status;
@@ -59,36 +61,80 @@ static NTSTATUS check_wbc_security(const struct auth_context *auth_context,
 	if (!user_info || !auth_context || !server_info) {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
+
+	ZERO_STRUCT(params);
+
 	/* Send off request */
 
-	params.account_name	= user_info->smb_name;
-	params.domain_name	= user_info->domain;
-	params.workstation_name	= user_info->wksta_name;
+	DEBUG(10, ("Check auth for: [%s]", user_info->mapped.account_name));
+
+	params.account_name	= user_info->client.account_name;
+	params.domain_name	= user_info->mapped.domain_name;
+	params.workstation_name	= user_info->workstation_name;
 
 	params.flags		= 0;
 	params.parameter_control= user_info->logon_parameters;
 
 	/* Handle plaintext */
-	if (!user_info->encrypted) {
+	switch (user_info->password_state) {
+	case AUTH_PASSWORD_PLAIN:
+	{
 		DEBUG(3,("Checking plaintext password for %s.\n",
-			 user_info->internal_username));
+			 user_info->mapped.account_name));
 		params.level = WBC_AUTH_USER_LEVEL_PLAIN;
 
-		params.password.plaintext = (char *)user_info->plaintext_password.data;
-	} else {
+		params.password.plaintext = user_info->password.plaintext;
+		break;
+	}
+	case AUTH_PASSWORD_RESPONSE:
+	case AUTH_PASSWORD_HASH:
+	{
 		DEBUG(3,("Checking encrypted password for %s.\n",
-			 user_info->internal_username));
+			 user_info->mapped.account_name));
 		params.level = WBC_AUTH_USER_LEVEL_RESPONSE;
 
 		memcpy(params.password.response.challenge,
 		    auth_context->challenge.data,
 		    sizeof(params.password.response.challenge));
 
-		params.password.response.nt_length = user_info->nt_resp.length;
-		params.password.response.nt_data = user_info->nt_resp.data;
-		params.password.response.lm_length = user_info->lm_resp.length;
-		params.password.response.lm_data = user_info->lm_resp.data;
+		if (user_info->password.response.nt.length != 0) {
+			params.password.response.nt_length =
+				user_info->password.response.nt.length;
+			params.password.response.nt_data =
+				user_info->password.response.nt.data;
+		}
+		if (user_info->password.response.lanman.length != 0) {
+			params.password.response.lm_length =
+				user_info->password.response.lanman.length;
+			params.password.response.lm_data =
+				user_info->password.response.lanman.data;
+		}
+		break;
+	}
+	default:
+		DEBUG(0,("user_info constructed for user '%s' was invalid - password_state=%u invalid.\n",user_info->mapped.account_name, user_info->password_state));
+		return NT_STATUS_INTERNAL_ERROR;
+#if 0 /* If ever implemented in libwbclient */
+	case AUTH_PASSWORD_HASH:
+	{
+		DEBUG(3,("Checking logon (hash) password for %s.\n",
+			 user_info->mapped.account_name));
+		params.level = WBC_AUTH_USER_LEVEL_HASH;
 
+		if (user_info->password.hash.nt) {
+			memcpy(params.password.hash.nt_hash, user_info->password.hash.nt, sizeof(* user_info->password.hash.nt));
+		} else {
+			memset(params.password.hash.nt_hash, '\0', sizeof(params.password.hash.nt_hash));
+		}
+
+		if (user_info->password.hash.lanman) {
+			memcpy(params.password.hash.lm_hash, user_info->password.hash.lanman, sizeof(* user_info->password.hash.lanman));
+		} else {
+			memset(params.password.hash.lm_hash, '\0', sizeof(params.password.hash.lm_hash));
+		}
+
+	}
+#endif
 	}
 
 	/* we are contacting the privileged pipe */
@@ -118,8 +164,8 @@ static NTSTATUS check_wbc_security(const struct auth_context *auth_context,
 	DEBUG(10,("wbcAuthenticateUserEx succeeded\n"));
 
 	nt_status = make_server_info_wbcAuthUserInfo(mem_ctx,
-						     user_info->smb_name,
-						     user_info->domain,
+						     user_info->client.account_name,
+						     user_info->mapped.domain_name,
 						     info, server_info);
 	wbcFreeMemory(info);
 	if (!NT_STATUS_IS_OK(nt_status)) {
@@ -134,13 +180,16 @@ static NTSTATUS check_wbc_security(const struct auth_context *auth_context,
 /* module initialisation */
 static NTSTATUS auth_init_wbc(struct auth_context *auth_context, const char *param, auth_methods **auth_method)
 {
-	if (!make_auth_methods(auth_context, auth_method)) {
+	struct auth_methods *result;
+
+	result = TALLOC_ZERO_P(auth_context, struct auth_methods);
+	if (result == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
+	result->name = "wbc";
+	result->auth = check_wbc_security;
 
-	(*auth_method)->name = "wbc";
-	(*auth_method)->auth = check_wbc_security;
-
+	*auth_method = result;
 	return NT_STATUS_OK;
 }
 

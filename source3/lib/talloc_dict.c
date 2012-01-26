@@ -18,6 +18,9 @@
 */
 
 #include "includes.h"
+#include "dbwrap.h"
+#include "talloc_dict.h"
+#include "util_tdb.h"
 
 struct talloc_dict {
 	struct db_context *db;

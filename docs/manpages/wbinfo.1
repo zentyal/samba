@@ -2,12 +2,12 @@
 .\"     Title: wbinfo
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 08/02/2011
+.\"      Date: 01/22/2012
 .\"    Manual: User Commands
-.\"    Source: Samba 3.5
+.\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "WBINFO" "1" "08/02/2011" "Samba 3\&.5" "User Commands"
+.TH "WBINFO" "1" "01/22/2012" "Samba 3\&.6" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,7 +22,7 @@
 wbinfo \- Query information from winbind daemon
 .SH "SYNOPSIS"
 .HP \w'\ 'u
-wbinfo [\-a\ user%password] [\-\-all\-domains] [\-\-allocate\-gid] [\-\-allocate\-uid] [\-c] [\-\-ccache\-save] [\-\-change\-user\-password] [\-D\ domain] [\-\-domain\ domain] [\-\-dsgetdcname\ domain] [\-g] [\-\-getdcname\ domain] [\-\-get\-auth\-user] [\-G\ gid] [\-\-gid\-info] [\-\-group\-info] [\-\-help|\-?] [\-i\ user] [\-I\ ip] [\-K\ user%password] [\-\-lanman] [\-m] [\-n\ name] [\-N\ netbios\-name] [\-\-ntlmv2] [\-\-online\-status] [\-\-own\-domain] [\-p] [\-P|\-\-ping\-dc] [\-r\ user] [\-R|\-\-lookup\-rids] [\-\-remove\-uid\-mapping\ uid,sid] [\-\-remove\-gid\-mapping\ gid,sid] [\-s\ sid] [\-\-separator] [\-\-sequence] [\-\-set\-auth\-user\ user%password] [\-\-set\-uid\-mapping\ uid,sid] [\-\-set\-gid\-mapping\ gid,sid] [\-S\ sid] [\-\-sid\-aliases] [\-\-sid\-to\-fullname] [\-t] [\-u] [\-\-uid\-info\ uid] [\-\-usage] [\-\-user\-domgroups\ sid] [\-\-user\-sids\ sid] [\-U\ uid] [\-V] [\-\-verbose] [\-Y\ sid]
+wbinfo [\-a\ user%password] [\-\-all\-domains] [\-\-allocate\-gid] [\-\-allocate\-uid] [\-c] [\-\-ccache\-save] [\-\-change\-user\-password] [\-D\ domain] [\-\-domain\ domain] [\-\-dsgetdcname\ domain] [\-g] [\-\-getdcname\ domain] [\-\-get\-auth\-user] [\-G\ gid] [\-\-gid\-info] [\-\-group\-info] [\-\-help|\-?] [\-i\ user] [\-I\ ip] [\-K\ user%password] [\-\-lanman] [\-m] [\-n\ name] [\-N\ netbios\-name] [\-\-ntlmv2] [\-\-online\-status] [\-\-own\-domain] [\-p] [\-P|\-\-ping\-dc] [\-r\ user] [\-R|\-\-lookup\-rids] [\-s\ sid] [\-\-separator] [\-\-set\-auth\-user\ user%password] [\-S\ sid] [\-\-sid\-aliases] [\-\-sid\-to\-fullname] [\-t] [\-u] [\-\-uid\-info\ uid] [\-\-usage] [\-\-user\-domgroups\ sid] [\-\-user\-sids\ sid] [\-U\ uid] [\-V] [\-\-verbose] [\-Y\ sid]
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
@@ -101,7 +101,6 @@ Change the password of a user\&. The old and new password will be prompted\&.
 This parameter sets the domain on which any specified operations will performed\&. If special domain name \'\&.\' is used to represent the current domain to which
 \fBwinbindd\fR(8)
 belongs\&. Currently only the
-\fB\-\-sequence\fR,
 \fB\-u\fR, and
 \fB\-g\fR
 options honor this parameter\&.
@@ -236,6 +235,11 @@ Check whether
 is still alive\&. Prints out either \'succeeded\' or \'failed\'\&.
 .RE
 .PP
+\-P|\-\-ping\-dc
+.RS 4
+Issue a no\-effect command to our DC\&. This checks if our secure channel connection to our domain controller is still alive\&. It has much less impact than wbinfo \-t\&.
+.RE
+.PP
 \-r|\-\-user\-groups \fIusername\fR
 .RS 4
 Try to obtain the list of UNIX group ids to which the user belongs\&. This only works for users defined on a Domain Controller\&.
@@ -258,11 +262,6 @@ option above\&. SIDs must be specified as ASCII strings in the traditional Micro
 \-\-separator
 .RS 4
 Get the active winbind separator\&.
-.RE
-.PP
-\-\-sequence
-.RS 4
-Show sequence numbers of all known domains\&.
 .RE
 .PP
 \-\-set\-auth\-user \fIusername%password\fR
@@ -327,7 +326,7 @@ Get user group SIDs for user\&.
 .PP
 \-U|\-\-uid\-to\-sid \fIuid\fR
 .RS 4
-Try to convert a UNIX user id to a Windows NT SID\&. If the uid specified does not refer to one within the idmap uid range then the operation will fail\&.
+Try to convert a UNIX user id to a Windows NT SID\&. If the uid specified does not refer to one within the idmap range then the operation will fail\&.
 .RE
 .PP
 \-\-verbose
@@ -340,26 +339,6 @@ Print additional information about the query results\&.
 Convert a SID to a UNIX group id\&. If the SID does not correspond to a UNIX group mapped by
 \fBwinbindd\fR(8)
 then the operation will fail\&.
-.RE
-.PP
-\-\-remove\-uid\-mapping uid,sid
-.RS 4
-Remove an existing uid to sid mapping entry from the IDmap backend\&.
-.RE
-.PP
-\-\-remove\-gid\-mapping gid,sid
-.RS 4
-Remove an existing gid to sid mapping entry from the IDmap backend\&.
-.RE
-.PP
-\-\-set\-uid\-mapping uid,sid
-.RS 4
-Create a new or modify an existing uid to sid mapping in the IDmap backend\&.
-.RE
-.PP
-\-\-set\-gid\-mapping gid,sid
-.RS 4
-Create a new or modify an existing gid to sid mapping in the IDmap backend\&.
 .RE
 .PP
 \-V|\-\-version

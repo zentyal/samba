@@ -12,7 +12,7 @@
 	storage expansion, load balancing, and so on.
 	</p><p>
 <a class="indexterm" name="id388443"></a>
-<a class="indexterm" name="id388449"></a>
+<a class="indexterm" name="id388450"></a>
 <a class="indexterm" name="id388456"></a>
 	For information about DFS, refer to the <a class="ulink" href="http://www.microsoft.com/NTServer/nts/downloads/winfeatures/NTSDistrFile/AdminGuide.asp" target="_top">Microsoft
 	documentation</a>.  This document explains how to host a DFS tree on a UNIX machine (for DFS-aware clients
@@ -45,7 +45,7 @@
 <code class="prompt">root# </code><strong class="userinput"><code>ln -s msdfs:storageA\\shareA linka</code></strong>
 <code class="prompt">root# </code><strong class="userinput"><code>ln -s msdfs:serverB\\share,serverC\\share linkb</code></strong>
 </pre><p>
-</p><div class="example"><a name="dfscfg"></a><p class="title"><b>Example 20.1. smb.conf with DFS Configured</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id388676"></a><em class="parameter"><code>netbios name = GANDALF</code></em></td></tr><tr><td><a class="indexterm" name="id388688"></a><em class="parameter"><code>host msdfs   = yes</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[dfs]</code></em></td></tr><tr><td><a class="indexterm" name="id388708"></a><em class="parameter"><code>path = /export/dfsroot</code></em></td></tr><tr><td><a class="indexterm" name="id388719"></a><em class="parameter"><code>msdfs root = yes</code></em></td></tr></table></div></div><br class="example-break"><p>
+</p><div class="example"><a name="dfscfg"></a><p class="title"><b>Example 20.1. smb.conf with DFS Configured</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id388676"></a><em class="parameter"><code>netbios name = GANDALF</code></em></td></tr><tr><td><a class="indexterm" name="id388688"></a><em class="parameter"><code>host msdfs   = yes</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[dfs]</code></em></td></tr><tr><td><a class="indexterm" name="id388708"></a><em class="parameter"><code>path = /export/dfsroot</code></em></td></tr><tr><td><a class="indexterm" name="id388720"></a><em class="parameter"><code>msdfs root = yes</code></em></td></tr></table></div></div><br class="example-break"><p>
 <a class="indexterm" name="id388734"></a>
 <a class="indexterm" name="id388741"></a>
 <a class="indexterm" name="id388748"></a>
@@ -78,7 +78,7 @@
 		in lowercase as well.
 		</span>&#8221;</span></p><p>
 		<span class="quote">&#8220;<span class="quote">For example, I had a share defined as such:</span>&#8221;</span>
-		</p><table border="0" summary="Simple list" class="simplelist"><tr><td> </td></tr><tr><td><em class="parameter"><code>[pub]</code></em></td></tr><tr><td><a class="indexterm" name="id388849"></a><em class="parameter"><code>path = /export/home/Shares/public_share</code></em></td></tr><tr><td><a class="indexterm" name="id388860"></a><em class="parameter"><code>msdfs root = yes</code></em></td></tr></table><p>
+		</p><table border="0" summary="Simple list" class="simplelist"><tr><td> </td></tr><tr><td><em class="parameter"><code>[pub]</code></em></td></tr><tr><td><a class="indexterm" name="id388849"></a><em class="parameter"><code>path = /export/home/Shares/public_share</code></em></td></tr><tr><td><a class="indexterm" name="id388861"></a><em class="parameter"><code>msdfs root = yes</code></em></td></tr></table><p>
 		<span class="quote">&#8220;<span class="quote">and I could not make my Windows 9x/Me (with the dfs client installed) follow this symlink:</span>&#8221;</span>
 		</p><pre class="screen">
 		damage1 -&gt; msdfs:damage\test-share

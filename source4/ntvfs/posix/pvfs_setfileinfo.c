@@ -89,8 +89,10 @@ static NTSTATUS pvfs_setfileinfo_rename_stream(struct pvfs_state *pvfs,
 	NTSTATUS status;
 	struct odb_lock *lck = NULL;
 
+	/* strangely, this gives a sharing violation, not invalid
+	   parameter */
 	if (info->rename_information.in.new_name[0] != ':') {
-		return NT_STATUS_INVALID_PARAMETER;
+		return NT_STATUS_SHARING_VIOLATION;
 	}
 
 	status = pvfs_access_check_simple(pvfs, req, name, SEC_FILE_WRITE_ATTRIBUTE);
@@ -106,7 +108,8 @@ static NTSTATUS pvfs_setfileinfo_rename_stream(struct pvfs_state *pvfs,
 
 
 	status = pvfs_stream_rename(pvfs, name, fd, 
-				    info->rename_information.in.new_name+1);
+				    info->rename_information.in.new_name+1,
+				    info->rename_information.in.overwrite);
 	return status;
 }
 
@@ -168,7 +171,7 @@ static NTSTATUS pvfs_setfileinfo_rename(struct pvfs_state *pvfs,
 	}
 
 	/* resolve the new name */
-	status = pvfs_resolve_name(pvfs, name, new_name, 0, &name2);
+	status = pvfs_resolve_name(pvfs, req, new_name, 0, &name2);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -531,7 +534,7 @@ NTSTATUS pvfs_setfileinfo(struct ntvfs_module_context *ntvfs,
 		}
 		mode = pvfs_fileperms(pvfs, newstats.dos.attrib);
 		if (!(h->name->dos.attrib & FILE_ATTRIBUTE_DIRECTORY)) {
-			if (fchmod(h->fd, mode) == -1) {
+			if (pvfs_sys_fchmod(pvfs, h->fd, mode) == -1) {
 				return pvfs_map_errno(pvfs, errno);
 			}
 		}
@@ -856,7 +859,7 @@ NTSTATUS pvfs_setpathinfo(struct ntvfs_module_context *ntvfs,
 	newstats.dos.attrib |= (name->dos.attrib & FILE_ATTRIBUTE_DIRECTORY);
 	if (newstats.dos.attrib != name->dos.attrib) {
 		mode_t mode = pvfs_fileperms(pvfs, newstats.dos.attrib);
-		if (chmod(name->full_name, mode) == -1) {
+		if (pvfs_sys_chmod(pvfs, name->full_name, mode) == -1) {
 			return pvfs_map_errno(pvfs, errno);
 		}
 		change_mask |= FILE_NOTIFY_CHANGE_ATTRIBUTES;

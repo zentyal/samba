@@ -23,14 +23,17 @@
 #ifndef _CLIENT_PROTO_H_
 #define _CLIENT_PROTO_H_
 
+struct cli_state;
+struct file_info;
 
 /* The following definitions come from client/client.c  */
 
 const char *client_get_cur_dir(void);
 const char *client_set_cur_dir(const char *newdir);
-void do_list(const char *mask,
+NTSTATUS do_list(const char *mask,
 			uint16 attribute,
-			void (*fn)(file_info *, const char *dir),
+			NTSTATUS (*fn)(struct cli_state *cli_state, struct file_info *,
+				   const char *dir),
 			bool rec,
 			bool dirs);
 int cmd_iosize(void);

@@ -62,9 +62,8 @@ struct nss_domain_entry {
 struct nss_info_methods {
 	NTSTATUS (*init)( struct nss_domain_entry *e );
 	NTSTATUS (*get_nss_info)( struct nss_domain_entry *e, 
-				  const DOM_SID *sid, 
+				  const struct dom_sid *sid,
 				  TALLOC_CTX *ctx, 
-				  ADS_STRUCT *ads, LDAPMessage *msg,
 				  const char **homedir, const char **shell,
 				  const char **gecos, gid_t *p_gid);
 	NTSTATUS (*map_to_alias)(TALLOC_CTX *mem_ctx,
@@ -83,11 +82,8 @@ NTSTATUS smb_register_idmap_nss(int version,
 				const char *name, 
 				struct nss_info_methods *methods);
 
-NTSTATUS nss_init( const char **nss_list );
-
-NTSTATUS nss_get_info( const char *domain, const DOM_SID *user_sid,
+NTSTATUS nss_get_info( const char *domain, const struct dom_sid *user_sid,
 		       TALLOC_CTX *ctx,
-		       ADS_STRUCT *ads, LDAPMessage *msg,
 		       const char **homedir, const char **shell,
 		       const char **gecos, gid_t *p_gid);
 
@@ -98,6 +94,13 @@ NTSTATUS nss_map_from_alias( TALLOC_CTX *mem_ctx, const char *domain,
 			     const char *alias, char **name );
 
 NTSTATUS nss_close( const char *parameters );
+
+/* The following definitions come from winbindd/nss_info.c  */
+
+
+/* The following definitions come from winbindd/nss_info_template.c  */
+
+NTSTATUS nss_info_template_init( void );
 
 #endif /* _IDMAP_NSS_H_ */
 

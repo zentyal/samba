@@ -23,6 +23,7 @@
 #ifdef WITH_DNSSD_SUPPORT
 
 #include <dns_sd.h>
+#include "system/select.h"
 
 /* Holds service instances found during DNS browse */
 struct mdns_smbsrv_result
@@ -60,7 +61,6 @@ static void do_smb_resolve(struct mdns_smbsrv_result *browsesrv)
 	int mdnsfd;
 	int fdsetsz;
 	int ret;
-	fd_set *fdset = NULL;
 	struct timeval tv;
 	DNSServiceErrorType err;
 
@@ -77,29 +77,14 @@ static void do_smb_resolve(struct mdns_smbsrv_result *browsesrv)
 
 	mdnsfd = DNSServiceRefSockFD(mdns_conn_sdref);
 	for (;;)  {
-		if (fdset != NULL) {
-			TALLOC_FREE(fdset);
-		}
+		int revents;
 
-		if (mdnsfd < 0 || mdnsfd >= FD_SETSIZE) {
-			errno = EBADF;
-			break;
-		}
-
-		fdsetsz = howmany(mdnsfd + 1, NFDBITS) * sizeof(fd_mask);
-		fdset = TALLOC_ZERO(ctx, fdsetsz);
-		FD_SET(mdnsfd, fdset);
-
-		tv.tv_sec = 1;
-		tv.tv_usec = 0;
-
-		/* Wait until response received from mDNS daemon */
-		ret = sys_select(mdnsfd + 1, fdset, NULL, NULL, &tv);
+		ret = poll_one_fd(mdnsfd, POLLIN|POLLHUP, 1000, &revents);
 		if (ret <= 0 && errno != EINTR) {
 			break;
 		}
 
-		if (FD_ISSET(mdnsfd, fdset)) {
+		if (revents & (POLLIN|POLLHUP|POLLERR)) {
 			/* Invoke callback function */
 			DNSServiceProcessResult(mdns_conn_sdref);
 			break;
@@ -160,7 +145,6 @@ int do_smb_browse(void)
 	int mdnsfd;
 	int fdsetsz;
 	int ret;
-	fd_set *fdset = NULL;
 	struct mdns_browse_state bstate;
 	struct mdns_smbsrv_result *resptr;
 	struct timeval tv;
@@ -182,30 +166,14 @@ int do_smb_browse(void)
 
 	mdnsfd = DNSServiceRefSockFD(mdns_conn_sdref);
 	for (;;)  {
-		if (fdset != NULL) {
-			TALLOC_FREE(fdset);
-		}
+		int revents;
 
-		if (mdnsfd < 0 || mdnsfd >= FD_SETSIZE) {
-			errno = EBADF;
-			TALLOC_FREE(ctx);
-			return 1;
-		}
-
-		fdsetsz = howmany(mdnsfd + 1, NFDBITS) * sizeof(fd_mask);
-		fdset = TALLOC_ZERO(ctx, fdsetsz);
-		FD_SET(mdnsfd, fdset);
-
-		tv.tv_sec = 1;
-		tv.tv_usec = 0;
-
-		/* Wait until response received from mDNS daemon */
-		ret = sys_select(mdnsfd + 1, fdset, NULL, NULL, &tv);
+		ret = poll_one_fd(mdnsfd, POLLIN|POLLHUP, &revents, 1000);
 		if (ret <= 0 && errno != EINTR) {
 			break;
 		}
 
-		if (FD_ISSET(mdnsfd, fdset)) {
+		if (revents & (POLLIN|POLLHUP|POLLERR)) {
 			/* Invoke callback function */
 			if (DNSServiceProcessResult(mdns_conn_sdref)) {
 				break;

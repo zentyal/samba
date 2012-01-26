@@ -20,8 +20,7 @@
 */
 
 #include "includes.h"
-#include "libcli/security/security_descriptor.h"
-#include "libcli/security/dom_sid.h"
+#include "libcli/security/security.h"
 
 /*
   return a blank security descriptor (no owners, dacl or sacl)
@@ -55,6 +54,10 @@ struct security_acl *security_acl_dup(TALLOC_CTX *mem_ctx,
 {
 	struct security_acl *nacl;
 
+	if (oacl == NULL) {
+		return NULL;
+	}
+
 	nacl = talloc (mem_ctx, struct security_acl);
 	if (nacl == NULL) {
 		return NULL;
@@ -82,7 +85,7 @@ struct security_acl *security_acl_concatenate(TALLOC_CTX *mem_ctx,
                                               const struct security_acl *acl2)
 {
         struct security_acl *nacl;
-        int i;
+        uint32_t i;
 
         if (!acl1 && !acl2)
                 return NULL;
@@ -267,7 +270,7 @@ static NTSTATUS security_descriptor_acl_del(struct security_descriptor *sd,
 					    bool sacl_del,
 					    const struct dom_sid *trustee)
 {
-	int i;
+	uint32_t i;
 	bool found = false;
 	struct security_acl *acl = NULL;
 
@@ -361,7 +364,7 @@ bool security_ace_equal(const struct security_ace *ace1,
 bool security_acl_equal(const struct security_acl *acl1, 
 			const struct security_acl *acl2)
 {
-	int i;
+	uint32_t i;
 
 	if (acl1 == acl2) return true;
 	if (!acl1 || !acl2) return false;

@@ -20,18 +20,19 @@
 */
 
 #include "includes.h"
-#include "librpc/gen_ndr/ndr_netlogon.h"
 #include "system/time.h"
-#include "lib/ldb/include/ldb.h"
-#include "../lib/util/util_ldb.h"
+#include <ldb.h>
+#include "libcli/ldap/ldap_ndr.h"
+#include "libcli/security/security.h"
 #include "auth/auth.h"
 #include "../libcli/auth/ntlm_check.h"
 #include "auth/ntlm/auth_proto.h"
 #include "auth/auth_sam.h"
 #include "dsdb/samdb/samdb.h"
-#include "libcli/security/security.h"
-#include "libcli/ldap/ldap_ndr.h"
+#include "dsdb/common/util.h"
 #include "param/param.h"
+#include "librpc/gen_ndr/ndr_irpc_c.h"
+#include "lib/messaging/irpc.h"
 
 extern const char *user_attrs[];
 extern const char *domain_ref_attrs[];
@@ -48,10 +49,11 @@ static NTSTATUS authsam_search_account(TALLOC_CTX *mem_ctx, struct ldb_context *
 	int ret;
 
 	/* pull the user attributes */
-	ret = gendb_search_single_extended_dn(sam_ctx, mem_ctx, domain_dn, LDB_SCOPE_SUBTREE,
-					      ret_msg, user_attrs,
-					      "(&(sAMAccountName=%s)(objectclass=user))", 
-					      ldb_binary_encode_string(mem_ctx, account_name));
+	ret = dsdb_search_one(sam_ctx, mem_ctx, ret_msg, domain_dn, LDB_SCOPE_SUBTREE,
+			      user_attrs,
+			      DSDB_SEARCH_SHOW_EXTENDED_DN,
+			      "(&(sAMAccountName=%s)(objectclass=user))",
+			      ldb_binary_encode_string(mem_ctx, account_name));
 	if (ret == LDB_ERR_NO_SUCH_OBJECT) {
 		DEBUG(3,("sam_search_user: Couldn't find user [%s] in samdb, under %s\n", 
 			 account_name, ldb_dn_get_linearized(domain_dn)));
@@ -98,7 +100,7 @@ static NTSTATUS authsam_password_ok(struct auth_context *auth_context,
 		*lm_sess_key = data_blob(NULL, 0);
 		*user_sess_key = data_blob(NULL, 0);
 		status = hash_password_check(mem_ctx, 
-					     lp_lanman_auth(auth_context->lp_ctx),
+					     lpcfg_lanman_auth(auth_context->lp_ctx),
 					     user_info->password.hash.lanman,
 					     user_info->password.hash.nt,
 					     user_info->mapped.account_name,
@@ -108,8 +110,8 @@ static NTSTATUS authsam_password_ok(struct auth_context *auth_context,
 		
 	case AUTH_PASSWORD_RESPONSE:
 		status = ntlm_password_check(mem_ctx, 
-					     lp_lanman_auth(auth_context->lp_ctx),
-						 lp_ntlm_auth(auth_context->lp_ctx),
+					     lpcfg_lanman_auth(auth_context->lp_ctx),
+						 lpcfg_ntlm_auth(auth_context->lp_ctx),
 					     user_info->logon_parameters, 
 					     &auth_context->challenge.data, 
 					     &user_info->password.response.lanman, 
@@ -134,6 +136,37 @@ static NTSTATUS authsam_password_ok(struct auth_context *auth_context,
 }
 
 
+/*
+  send a message to the drepl server telling it to initiate a
+  REPL_SECRET getncchanges extended op to fetch the users secrets
+ */
+static void auth_sam_trigger_repl_secret(TALLOC_CTX *mem_ctx, struct auth_context *auth_context,
+					 struct ldb_dn *user_dn)
+{
+	struct dcerpc_binding_handle *irpc_handle;
+	struct drepl_trigger_repl_secret r;
+	struct tevent_req *req;
+
+	irpc_handle = irpc_binding_handle_by_name(mem_ctx, auth_context->msg_ctx,
+						  "dreplsrv",
+						  &ndr_table_irpc);
+	if (irpc_handle == NULL) {
+		DEBUG(1,(__location__ ": Unable to get binding handle for dreplsrv\n"));
+		return;
+	}
+
+	r.in.user_dn = ldb_dn_get_linearized(user_dn);
+
+	req = dcerpc_drepl_trigger_repl_secret_r_send(mem_ctx,
+						      auth_context->event_ctx,
+						      irpc_handle,
+						      &r);
+
+	/* we aren't interested in a reply */
+	talloc_free(req);
+	talloc_free(irpc_handle);
+}
+
 
 static NTSTATUS authsam_authenticate(struct auth_context *auth_context, 
 				     TALLOC_CTX *mem_ctx, struct ldb_context *sam_ctx, 
@@ -145,7 +178,7 @@ static NTSTATUS authsam_authenticate(struct auth_context *auth_context,
 	struct samr_Password *lm_pwd, *nt_pwd;
 	NTSTATUS nt_status;
 
-	uint16_t acct_flags = samdb_result_acct_flags(sam_ctx, mem_ctx, msg, domain_dn);
+	uint16_t acct_flags = samdb_result_acct_flags(auth_context->sam_ctx, mem_ctx, msg, domain_dn);
 	
 	/* Quit if the account was locked out. */
 	if (acct_flags & ACB_AUTOLOCK) {
@@ -164,12 +197,31 @@ static NTSTATUS authsam_authenticate(struct auth_context *auth_context,
 	nt_status = samdb_result_passwords(mem_ctx, auth_context->lp_ctx, msg, &lm_pwd, &nt_pwd);
 	NT_STATUS_NOT_OK_RETURN(nt_status);
 
+	if (lm_pwd == NULL && nt_pwd == NULL) {
+		bool am_rodc;
+		if (samdb_rodc(auth_context->sam_ctx, &am_rodc) == LDB_SUCCESS && am_rodc) {
+			/* we don't have passwords for this
+			 * account. We are an RODC, and this account
+			 * may be one for which we either are denied
+			 * REPL_SECRET replication or we haven't yet
+			 * done the replication. We return
+			 * NT_STATUS_NOT_IMPLEMENTED which tells the
+			 * auth code to try the next authentication
+			 * mechanism. We also send a message to our
+			 * drepl server to tell it to try and
+			 * replicate the secrets for this account.
+			 */
+			auth_sam_trigger_repl_secret(mem_ctx, auth_context, msg->dn);
+			return NT_STATUS_NOT_IMPLEMENTED;
+		}
+	}
+
 	nt_status = authsam_password_ok(auth_context, mem_ctx, 
 					acct_flags, lm_pwd, nt_pwd,
 					user_info, user_sess_key, lm_sess_key);
 	NT_STATUS_NOT_OK_RETURN(nt_status);
 
-	nt_status = authsam_account_ok(mem_ctx, sam_ctx, 
+	nt_status = authsam_account_ok(mem_ctx, auth_context->sam_ctx,
 				       user_info->logon_parameters,
 				       domain_dn,
 				       msg,
@@ -185,15 +237,19 @@ static NTSTATUS authsam_authenticate(struct auth_context *auth_context,
 static NTSTATUS authsam_check_password_internals(struct auth_method_context *ctx,
 						 TALLOC_CTX *mem_ctx,
 						 const struct auth_usersupplied_info *user_info, 
-						 struct auth_serversupplied_info **server_info)
+						 struct auth_user_info_dc **user_info_dc)
 {
 	NTSTATUS nt_status;
 	const char *account_name = user_info->mapped.account_name;
 	struct ldb_message *msg;
-	struct ldb_context *sam_ctx;
 	struct ldb_dn *domain_dn;
 	DATA_BLOB user_sess_key, lm_sess_key;
 	TALLOC_CTX *tmp_ctx;
+
+	if (ctx->auth_ctx->sam_ctx == NULL) {
+		DEBUG(0, ("No SAM available, cannot log in users\n"));
+		return NT_STATUS_INVALID_SYSTEM_SERVICE;
+	}
 
 	if (!account_name || !*account_name) {
 		/* 'not for me' */
@@ -205,43 +261,37 @@ static NTSTATUS authsam_check_password_internals(struct auth_method_context *ctx
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	sam_ctx = samdb_connect(tmp_ctx, ctx->auth_ctx->event_ctx, ctx->auth_ctx->lp_ctx, system_session(mem_ctx, ctx->auth_ctx->lp_ctx));
-	if (sam_ctx == NULL) {
-		talloc_free(tmp_ctx);
-		return NT_STATUS_INVALID_SYSTEM_SERVICE;
-	}
-
-	domain_dn = ldb_get_default_basedn(sam_ctx);
+	domain_dn = ldb_get_default_basedn(ctx->auth_ctx->sam_ctx);
 	if (domain_dn == NULL) {
 		talloc_free(tmp_ctx);
 		return NT_STATUS_NO_SUCH_DOMAIN;
 	}
 
-	nt_status = authsam_search_account(tmp_ctx, sam_ctx, account_name, domain_dn, &msg);
+	nt_status = authsam_search_account(tmp_ctx, ctx->auth_ctx->sam_ctx, account_name, domain_dn, &msg);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		talloc_free(tmp_ctx);
 		return nt_status;
 	}
 
-	nt_status = authsam_authenticate(ctx->auth_ctx, tmp_ctx, sam_ctx, domain_dn, msg, user_info,
+	nt_status = authsam_authenticate(ctx->auth_ctx, tmp_ctx, ctx->auth_ctx->sam_ctx, domain_dn, msg, user_info,
 					 &user_sess_key, &lm_sess_key);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		talloc_free(tmp_ctx);
 		return nt_status;
 	}
 
-	nt_status = authsam_make_server_info(tmp_ctx, sam_ctx, lp_netbios_name(ctx->auth_ctx->lp_ctx), 
- 					     lp_sam_name(ctx->auth_ctx->lp_ctx),
+	nt_status = authsam_make_user_info_dc(tmp_ctx, ctx->auth_ctx->sam_ctx, lpcfg_netbios_name(ctx->auth_ctx->lp_ctx),
+					     lpcfg_sam_name(ctx->auth_ctx->lp_ctx),
 					     domain_dn,
 					     msg,
 					     user_sess_key, lm_sess_key,
-					     server_info);
+					     user_info_dc);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		talloc_free(tmp_ctx);
 		return nt_status;
 	}
 
-	talloc_steal(mem_ctx, *server_info);
+	talloc_steal(mem_ctx, *user_info_dc);
 	talloc_free(tmp_ctx);
 
 	return NT_STATUS_OK;
@@ -271,13 +321,13 @@ static NTSTATUS authsam_want_check(struct auth_method_context *ctx,
 		return NT_STATUS_NOT_IMPLEMENTED;
 	}
 
-	is_local_name = lp_is_myname(ctx->auth_ctx->lp_ctx, 
+	is_local_name = lpcfg_is_myname(ctx->auth_ctx->lp_ctx,
 				  user_info->mapped.domain_name);
-	is_my_domain  = lp_is_mydomain(ctx->auth_ctx->lp_ctx, 
+	is_my_domain  = lpcfg_is_mydomain(ctx->auth_ctx->lp_ctx,
 				       user_info->mapped.domain_name); 
 
 	/* check whether or not we service this domain/workgroup name */
-	switch (lp_server_role(ctx->auth_ctx->lp_ctx)) {
+	switch (lpcfg_server_role(ctx->auth_ctx->lp_ctx)) {
 		case ROLE_STANDALONE:
 			return NT_STATUS_OK;
 
@@ -298,63 +348,27 @@ static NTSTATUS authsam_want_check(struct auth_method_context *ctx,
 			return NT_STATUS_OK;
 	}
 
-	DEBUG(6,("authsam_check_password: lp_server_role() has an undefined value\n"));
+	DEBUG(6,("authsam_check_password: lpcfg_server_role() has an undefined value\n"));
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
 				   
-/* Used in the gensec_gssapi and gensec_krb5 server-side code, where the PAC isn't available */
-NTSTATUS authsam_get_server_info_principal(TALLOC_CTX *mem_ctx, 
-					   struct auth_context *auth_context,
-					   const char *principal,
-					   struct auth_serversupplied_info **server_info)
+/* Wrapper for the auth subsystem pointer */
+static NTSTATUS authsam_get_user_info_dc_principal_wrapper(TALLOC_CTX *mem_ctx,
+							  struct auth_context *auth_context,
+							  const char *principal,
+							  struct ldb_dn *user_dn,
+							  struct auth_user_info_dc **user_info_dc)
 {
-	NTSTATUS nt_status;
-	DATA_BLOB user_sess_key = data_blob(NULL, 0);
-	DATA_BLOB lm_sess_key = data_blob(NULL, 0);
-
-	struct ldb_message *msg;
-	struct ldb_context *sam_ctx;
-	struct ldb_dn *domain_dn;
-	
-	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
-	if (!tmp_ctx) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	sam_ctx = samdb_connect(tmp_ctx, auth_context->event_ctx, auth_context->lp_ctx, 
-				system_session(tmp_ctx, auth_context->lp_ctx));
-	if (sam_ctx == NULL) {
-		talloc_free(tmp_ctx);
-		return NT_STATUS_INVALID_SYSTEM_SERVICE;
-	}
-
-	nt_status = sam_get_results_principal(sam_ctx, tmp_ctx, principal, 
-					      user_attrs, &domain_dn, &msg);
-	if (!NT_STATUS_IS_OK(nt_status)) {
-		return nt_status;
-	}
-
-	nt_status = authsam_make_server_info(tmp_ctx, sam_ctx, 
-					     lp_netbios_name(auth_context->lp_ctx),
- 					     lp_workgroup(auth_context->lp_ctx),
-					     domain_dn, 
-					     msg,
-					     user_sess_key, lm_sess_key,
-					     server_info);
-	if (NT_STATUS_IS_OK(nt_status)) {
-		talloc_steal(mem_ctx, *server_info);
-	}
-	talloc_free(tmp_ctx);
-	return nt_status;
+	return authsam_get_user_info_dc_principal(mem_ctx, auth_context->lp_ctx, auth_context->sam_ctx,
+						 principal, user_dn, user_info_dc);
 }
-
 static const struct auth_operations sam_ignoredomain_ops = {
 	.name		           = "sam_ignoredomain",
 	.get_challenge	           = auth_get_challenge_not_implemented,
 	.want_check	           = authsam_ignoredomain_want_check,
 	.check_password	           = authsam_check_password_internals,
-	.get_server_info_principal = authsam_get_server_info_principal
+	.get_user_info_dc_principal = authsam_get_user_info_dc_principal_wrapper
 };
 
 static const struct auth_operations sam_ops = {
@@ -362,7 +376,7 @@ static const struct auth_operations sam_ops = {
 	.get_challenge	           = auth_get_challenge_not_implemented,
 	.want_check	           = authsam_want_check,
 	.check_password	           = authsam_check_password_internals,
-	.get_server_info_principal = authsam_get_server_info_principal
+	.get_user_info_dc_principal = authsam_get_user_info_dc_principal_wrapper
 };
 
 _PUBLIC_ NTSTATUS auth_sam_init(void)

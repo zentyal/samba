@@ -16,18 +16,15 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "includes.h"
 #include <Python.h>
+#include "includes.h"
 #include "pycredentials.h"
 #include "param/param.h"
 #include "lib/cmdline/credentials.h"
 #include "librpc/gen_ndr/samr.h" /* for struct samr_Password */
 #include "libcli/util/pyerrors.h"
 #include "param/pyparam.h"
-
-#ifndef Py_RETURN_NONE
-#define Py_RETURN_NONE return Py_INCREF(Py_None), Py_None
-#endif
+#include <tevent.h>
 
 static PyObject *PyString_FromStringOrNULL(const char *str)
 {
@@ -196,18 +193,43 @@ static PyObject *py_creds_set_kerberos_state(py_talloc_Object *self, PyObject *a
 	Py_RETURN_NONE;
 }
 
+static PyObject *py_creds_set_krb_forwardable(py_talloc_Object *self, PyObject *args)
+{
+	int state;
+	if (!PyArg_ParseTuple(args, "i", &state))
+		return NULL;
+
+	cli_credentials_set_krb_forwardable(PyCredentials_AsCliCredentials(self), state);
+	Py_RETURN_NONE;
+}
+
 static PyObject *py_creds_guess(py_talloc_Object *self, PyObject *args)
 {
 	PyObject *py_lp_ctx = Py_None;
 	struct loadparm_context *lp_ctx;
+	TALLOC_CTX *mem_ctx;
+	struct cli_credentials *creds;
+
+	creds = PyCredentials_AsCliCredentials(self);
+
 	if (!PyArg_ParseTuple(args, "|O", &py_lp_ctx))
 		return NULL;
 
-	lp_ctx = lp_from_py_object(py_lp_ctx);
-	if (lp_ctx == NULL) 
+	mem_ctx = talloc_new(NULL);
+	if (mem_ctx == NULL) {
+		PyErr_NoMemory();
 		return NULL;
+	}
 
-	cli_credentials_guess(PyCredentials_AsCliCredentials(self), lp_ctx);
+	lp_ctx = lpcfg_from_py_object(mem_ctx, py_lp_ctx);
+	if (lp_ctx == NULL) {
+		talloc_free(mem_ctx);
+		return NULL;
+	}
+
+	cli_credentials_guess(creds, lp_ctx);
+
+	talloc_free(mem_ctx);
 
 	Py_RETURN_NONE;
 }
@@ -217,18 +239,119 @@ static PyObject *py_creds_set_machine_account(py_talloc_Object *self, PyObject *
 	PyObject *py_lp_ctx = Py_None;
 	struct loadparm_context *lp_ctx;
 	NTSTATUS status;
+	struct cli_credentials *creds;
+	TALLOC_CTX *mem_ctx;
+
+	creds = PyCredentials_AsCliCredentials(self);
+
 	if (!PyArg_ParseTuple(args, "|O", &py_lp_ctx))
 		return NULL;
 
-	lp_ctx = lp_from_py_object(py_lp_ctx);
-	if (lp_ctx == NULL) 
+	mem_ctx = talloc_new(NULL);
+	if (mem_ctx == NULL) {
+		PyErr_NoMemory();
 		return NULL;
+	}
 
-	status = cli_credentials_set_machine_account(PyCredentials_AsCliCredentials(self), lp_ctx);
+	lp_ctx = lpcfg_from_py_object(mem_ctx, py_lp_ctx);
+	if (lp_ctx == NULL) {
+		talloc_free(mem_ctx);
+		return NULL;
+	}
+
+	status = cli_credentials_set_machine_account(creds, lp_ctx);
+	talloc_free(mem_ctx);
+
 	PyErr_NTSTATUS_IS_ERR_RAISE(status);
 
 	Py_RETURN_NONE;
 }
+
+PyObject *PyCredentialCacheContainer_from_ccache_container(struct ccache_container *ccc)
+{
+	PyCredentialCacheContainerObject *py_ret;
+
+	if (ccc == NULL) {
+		Py_RETURN_NONE;
+	}
+
+	py_ret = (PyCredentialCacheContainerObject *)PyCredentialCacheContainer.tp_alloc(&PyCredentialCacheContainer, 0);
+	if (py_ret == NULL) {
+		PyErr_NoMemory();
+		return NULL;
+	}
+	py_ret->mem_ctx = talloc_new(NULL);
+	py_ret->ccc = talloc_reference(py_ret->mem_ctx, ccc);
+	return (PyObject *)py_ret;
+}
+
+
+static PyObject *py_creds_get_named_ccache(py_talloc_Object *self, PyObject *args)
+{
+	PyObject *py_lp_ctx = Py_None;
+	char *ccache_name;
+	struct loadparm_context *lp_ctx;
+	struct ccache_container *ccc;
+	struct tevent_context *event_ctx;
+	int ret;
+	const char *error_string;
+	struct cli_credentials *creds;
+	TALLOC_CTX *mem_ctx;
+
+	creds = PyCredentials_AsCliCredentials(self);
+
+	if (!PyArg_ParseTuple(args, "|Os", &py_lp_ctx, &ccache_name))
+		return NULL;
+
+	mem_ctx = talloc_new(NULL);
+	if (mem_ctx == NULL) {
+		PyErr_NoMemory();
+		return NULL;
+	}
+
+	lp_ctx = lpcfg_from_py_object(mem_ctx, py_lp_ctx);
+	if (lp_ctx == NULL) {
+		talloc_free(mem_ctx);
+		return NULL;
+	}
+
+	event_ctx = tevent_context_init(mem_ctx);
+
+	ret = cli_credentials_get_named_ccache(creds, event_ctx, lp_ctx,
+					       ccache_name, &ccc, &error_string);
+	talloc_unlink(mem_ctx, lp_ctx);
+	if (ret == 0) {
+		talloc_steal(ccc, event_ctx);
+		talloc_free(mem_ctx);
+		return PyCredentialCacheContainer_from_ccache_container(ccc);
+	}
+
+	PyErr_SetString(PyExc_RuntimeError, error_string?error_string:"NULL");
+
+	talloc_free(mem_ctx);
+	return NULL;
+}
+
+static PyObject *py_creds_set_gensec_features(py_talloc_Object *self, PyObject *args)
+{
+	unsigned int gensec_features;
+
+	if (!PyArg_ParseTuple(args, "I", &gensec_features))
+		return NULL;
+
+	cli_credentials_set_gensec_features(PyCredentials_AsCliCredentials(self), gensec_features);
+
+	Py_RETURN_NONE;
+}
+
+static PyObject *py_creds_get_gensec_features(py_talloc_Object *self, PyObject *args)
+{
+	unsigned int gensec_features;
+
+	gensec_features = cli_credentials_get_gensec_features(PyCredentials_AsCliCredentials(self));
+	return PyInt_FromLong(gensec_features);
+}
+
 
 static PyMethodDef py_creds_methods[] = {
 	{ "get_username", (PyCFunction)py_creds_get_username, METH_NOARGS,
@@ -284,25 +407,44 @@ static PyMethodDef py_creds_methods[] = {
 		NULL },
 	{ "set_kerberos_state", (PyCFunction)py_creds_set_kerberos_state, METH_VARARGS,
 		NULL },
+	{ "set_krb_forwardable", (PyCFunction)py_creds_set_krb_forwardable, METH_VARARGS,
+		NULL },
 	{ "guess", (PyCFunction)py_creds_guess, METH_VARARGS, NULL },
 	{ "set_machine_account", (PyCFunction)py_creds_set_machine_account, METH_VARARGS, NULL },
+	{ "get_named_ccache", (PyCFunction)py_creds_get_named_ccache, METH_VARARGS, NULL },
+	{ "set_gensec_features", (PyCFunction)py_creds_set_gensec_features, METH_VARARGS, NULL },
+	{ "get_gensec_features", (PyCFunction)py_creds_get_gensec_features, METH_NOARGS, NULL },
 	{ NULL }
 };
 
 PyTypeObject PyCredentials = {
 	.tp_name = "Credentials",
 	.tp_basicsize = sizeof(py_talloc_Object),
-	.tp_dealloc = py_talloc_dealloc,
 	.tp_new = py_creds_new,
 	.tp_flags = Py_TPFLAGS_DEFAULT,
 	.tp_methods = py_creds_methods,
 };
 
+
+PyTypeObject PyCredentialCacheContainer = {
+	.tp_name = "CredentialCacheContainer",
+	.tp_basicsize = sizeof(py_talloc_Object),
+	.tp_flags = Py_TPFLAGS_DEFAULT,
+};
+
 void initcredentials(void)
 {
 	PyObject *m;
+	PyTypeObject *talloc_type = PyTalloc_GetObjectType();
+	if (talloc_type == NULL)
+		return;
+
+	PyCredentials.tp_base = PyCredentialCacheContainer.tp_base = talloc_type;
 
 	if (PyType_Ready(&PyCredentials) < 0)
+		return;
+
+	if (PyType_Ready(&PyCredentialCacheContainer) < 0)
 		return;
 
 	m = Py_InitModule3("credentials", NULL, "Credentials management.");
@@ -313,6 +455,12 @@ void initcredentials(void)
 	PyModule_AddObject(m, "DONT_USE_KERBEROS", PyInt_FromLong(CRED_DONT_USE_KERBEROS));
 	PyModule_AddObject(m, "MUST_USE_KERBEROS", PyInt_FromLong(CRED_MUST_USE_KERBEROS));
 
+	PyModule_AddObject(m, "AUTO_KRB_FORWARDABLE",  PyInt_FromLong(CRED_AUTO_KRB_FORWARDABLE));
+	PyModule_AddObject(m, "NO_KRB_FORWARDABLE",    PyInt_FromLong(CRED_NO_KRB_FORWARDABLE));
+	PyModule_AddObject(m, "FORCE_KRB_FORWARDABLE", PyInt_FromLong(CRED_FORCE_KRB_FORWARDABLE));
+
 	Py_INCREF(&PyCredentials);
 	PyModule_AddObject(m, "Credentials", (PyObject *)&PyCredentials);
+	Py_INCREF(&PyCredentialCacheContainer);
+	PyModule_AddObject(m, "CredentialCacheContainer", (PyObject *)&PyCredentialCacheContainer);
 }

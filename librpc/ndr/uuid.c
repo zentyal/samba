@@ -25,6 +25,17 @@
 #include "librpc/ndr/libndr.h"
 #include "librpc/gen_ndr/ndr_misc.h"
 
+/**
+  build a NDR blob from a GUID
+*/
+_PUBLIC_ NTSTATUS GUID_to_ndr_blob(const struct GUID *guid, TALLOC_CTX *mem_ctx, DATA_BLOB *b)
+{
+	enum ndr_err_code ndr_err;
+	ndr_err = ndr_push_struct_blob(b, mem_ctx, guid,
+				       (ndr_push_flags_fn_t)ndr_push_GUID);
+	return ndr_map_error2ntstatus(ndr_err);
+}
+
 
 /**
   build a GUID from a NDR data blob
@@ -37,7 +48,7 @@ _PUBLIC_ NTSTATUS GUID_from_ndr_blob(const DATA_BLOB *b, struct GUID *guid)
 	mem_ctx = talloc_new(NULL);
 	NT_STATUS_HAVE_NO_MEMORY(mem_ctx);
 
-	ndr_err = ndr_pull_struct_blob_all(b, mem_ctx, NULL, guid,
+	ndr_err = ndr_pull_struct_blob_all(b, mem_ctx, guid,
 					   (ndr_pull_flags_fn_t)ndr_pull_GUID);
 	talloc_free(mem_ctx);
 	return ndr_map_error2ntstatus(ndr_err);
@@ -63,7 +74,9 @@ _PUBLIC_ NTSTATUS GUID_from_data_blob(const DATA_BLOB *s, struct GUID *guid)
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	if (s->length == 36) {
+	switch(s->length) {
+	case 36:
+	{
 		TALLOC_CTX *mem_ctx;
 		const char *string;
 
@@ -79,8 +92,10 @@ _PUBLIC_ NTSTATUS GUID_from_data_blob(const DATA_BLOB *s, struct GUID *guid)
 			status = NT_STATUS_OK;
 		}
 		talloc_free(mem_ctx);
-
-	} else if (s->length == 38) {
+		break;
+	}
+	case 38:
+	{
 		TALLOC_CTX *mem_ctx;
 		const char *string;
 
@@ -96,8 +111,10 @@ _PUBLIC_ NTSTATUS GUID_from_data_blob(const DATA_BLOB *s, struct GUID *guid)
 			status = NT_STATUS_OK;
 		}
 		talloc_free(mem_ctx);
-
-	} else if (s->length == 32) {
+		break;
+	}
+	case 32:
+	{
 		size_t rlen = strhex_to_str((char *)blob16.data, blob16.length,
 					    (const char *)s->data, s->length);
 		if (rlen != blob16.length) {
@@ -107,9 +124,11 @@ _PUBLIC_ NTSTATUS GUID_from_data_blob(const DATA_BLOB *s, struct GUID *guid)
 		s = &blob16;
 		return GUID_from_ndr_blob(s, guid);
 	}
-
-	if (s->length == 16) {
+	case 16:
 		return GUID_from_ndr_blob(s, guid);
+	default:
+		status = NT_STATUS_INVALID_PARAMETER;
+		break;
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
@@ -135,7 +154,6 @@ _PUBLIC_ NTSTATUS GUID_from_string(const char *s, struct GUID *guid)
 {
 	DATA_BLOB blob = data_blob_string_const(s);
 	return GUID_from_data_blob(&blob, guid);
-	return NT_STATUS_OK;
 }
 
 /**
@@ -232,23 +250,23 @@ _PUBLIC_ bool GUID_equal(const struct GUID *u1, const struct GUID *u2)
 _PUBLIC_ int GUID_compare(const struct GUID *u1, const struct GUID *u2)
 {
 	if (u1->time_low != u2->time_low) {
-		return u1->time_low - u2->time_low;
+		return u1->time_low > u2->time_low ? 1 : -1;
 	}
 
 	if (u1->time_mid != u2->time_mid) {
-		return u1->time_mid - u2->time_mid;
+		return u1->time_mid > u2->time_mid ? 1 : -1;
 	}
 
 	if (u1->time_hi_and_version != u2->time_hi_and_version) {
-		return u1->time_hi_and_version - u2->time_hi_and_version;
+		return u1->time_hi_and_version > u2->time_hi_and_version ? 1 : -1;
 	}
 
 	if (u1->clock_seq[0] != u2->clock_seq[0]) {
-		return u1->clock_seq[0] - u2->clock_seq[0];
+		return u1->clock_seq[0] > u2->clock_seq[0] ? 1 : -1;
 	}
 
 	if (u1->clock_seq[1] != u2->clock_seq[1]) {
-		return u1->clock_seq[1] - u2->clock_seq[1];
+		return u1->clock_seq[1] > u2->clock_seq[1] ? 1 : -1;
 	}
 
 	return memcmp(u1->node, u2->node, 6);
@@ -282,23 +300,20 @@ _PUBLIC_ char *GUID_hexstring(TALLOC_CTX *mem_ctx, const struct GUID *guid)
 {
 	char *ret;
 	DATA_BLOB guid_blob;
-	enum ndr_err_code ndr_err;
 	TALLOC_CTX *tmp_mem;
+	NTSTATUS status;
 
 	tmp_mem = talloc_new(mem_ctx);
 	if (!tmp_mem) {
 		return NULL;
 	}
-	ndr_err = ndr_push_struct_blob(&guid_blob, tmp_mem,
-				       NULL,
-				       guid,
-				       (ndr_push_flags_fn_t)ndr_push_GUID);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+	status = GUID_to_ndr_blob(guid, tmp_mem, &guid_blob);
+	if (!NT_STATUS_IS_OK(status)) {
 		talloc_free(tmp_mem);
 		return NULL;
 	}
 
-	ret = data_blob_hex_string(mem_ctx, &guid_blob);
+	ret = data_blob_hex_string_upper(mem_ctx, &guid_blob);
 	talloc_free(tmp_mem);
 	return ret;
 }
@@ -316,7 +331,22 @@ _PUBLIC_ char *NS_GUID_string(TALLOC_CTX *mem_ctx, const struct GUID *guid)
 			       guid->node[4], guid->node[5]);
 }
 
-_PUBLIC_ bool policy_handle_empty(struct policy_handle *h) 
+_PUBLIC_ bool policy_handle_empty(const struct policy_handle *h)
 {
 	return (h->handle_type == 0 && GUID_all_zero(&h->uuid));
+}
+
+_PUBLIC_ bool is_valid_policy_hnd(const struct policy_handle *hnd)
+{
+	return !policy_handle_empty(hnd);
+}
+
+_PUBLIC_ bool policy_handle_equal(const struct policy_handle *hnd1,
+				  const struct policy_handle *hnd2)
+{
+	if (!hnd1 || !hnd2) {
+		return false;
+	}
+
+	return (memcmp(hnd1, hnd2, sizeof(*hnd1)) == 0);
 }

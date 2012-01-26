@@ -29,6 +29,7 @@
 #endif
 #include "system/wait.h"
 #include "system/filesys.h"
+#include "system/time.h"
 #include "lib/events/events.h"
 #include "lib/util/dlinklist.h"
 #include "lib/util/mutex.h"
@@ -62,7 +63,7 @@ static void *thread_connection_fn(void *thread_parm)
   called when a listening socket becomes readable
 */
 static void thread_accept_connection(struct tevent_context *ev, 
-				     struct loadparm_context *lp_ctx, 
+				     struct loadparm_context *lp_ctx,
 				     struct socket_context *sock,
 				     void (*new_conn)(struct tevent_context *, 
 						      struct loadparm_context *,
@@ -132,7 +133,7 @@ static void *thread_task_fn(void *thread_parm)
 {
 	struct new_task_state *new_task = talloc_get_type(thread_parm, struct new_task_state);
 
-	new_task->new_task(new_task->ev, new_task->lp_ctx, pthread_self(), 
+	new_task->new_task(new_task->ev, new_task->lp_ctx, pthread_self(),
 			   new_task->private_data);
 
 	/* run this connection from here */
@@ -188,7 +189,7 @@ static void thread_new_task(struct tevent_context *ev,
 }
 
 /* called when a task goes down */
-static void thread_terminate(struct tevent_context *event_ctx, struct loadparm_context *lp_ctx, const char *reason) 
+static void thread_terminate(struct tevent_context *event_ctx, struct loadparm_context *lp_ctx, const char *reason)
 {
 	DEBUG(10,("thread_terminate: reason[%s]\n",reason));
 
@@ -233,17 +234,18 @@ static int thread_mutex_destroy(smb_mutex_t *mutex, const char *name)
 	return pthread_mutex_destroy((pthread_mutex_t *)mutex->mutex);
 }
 
-static void mutex_start_timer(struct timeval *tp1)
+static void mutex_start_timer(struct timespec *tp1)
 {
-	gettimeofday(tp1,NULL);
+	clock_gettime_mono(tp1);
 }
 
-static double mutex_end_timer(struct timeval tp1)
+static double mutex_end_timer(struct timespec tp1)
 {
-	struct timeval tp2;
-	gettimeofday(&tp2,NULL);
+	struct timespec tp2;
+
+	clock_gettime_mono(&tp2);
 	return((tp2.tv_sec - tp1.tv_sec) + 
-	       (tp2.tv_usec - tp1.tv_usec)*1.0e-6);
+	       (tp2.tv_nsec - tp1.tv_nsec)*1.0e-9);
 }
 
 /*
@@ -254,7 +256,7 @@ static int thread_mutex_lock(smb_mutex_t *mutexP, const char *name)
 	pthread_mutex_t *mutex = (pthread_mutex_t *)mutexP->mutex;
 	int rc;
 	double t;
-	struct timeval tp1;
+	struct timespec tp1;
 	/* Test below is ONLY for debugging */
 	if ((rc = pthread_mutex_trylock(mutex))) {
 		if (rc == EBUSY) {
@@ -316,7 +318,7 @@ static int thread_rwlock_lock_read(smb_rwlock_t *rwlockP, const char *name)
 	pthread_rwlock_t *rwlock = (pthread_rwlock_t *)rwlockP->rwlock;
 	int rc;
 	double t;
-	struct timeval tp1;
+	struct timespec tp1;
 	/* Test below is ONLY for debugging */
 	if ((rc = pthread_rwlock_tryrdlock(rwlock))) {
 		if (rc == EBUSY) {
@@ -345,7 +347,7 @@ static int thread_rwlock_lock_write(smb_rwlock_t *rwlockP, const char *name)
 	pthread_rwlock_t *rwlock = (pthread_rwlock_t *)rwlockP->rwlock;
 	int rc;
 	double t;
-	struct timeval tp1;
+	struct timespec tp1;
 	/* Test below is ONLY for debugging */
 	if ((rc = pthread_rwlock_trywrlock(rwlock))) {
 		if (rc == EBUSY) {
@@ -459,13 +461,13 @@ setup our recursive fault handlers
 static void thread_fault_setup(void)
 {
 #ifdef SIGSEGV
-	CatchSignal(SIGSEGV,SIGNAL_CAST thread_sig_fault);
+	CatchSignal(SIGSEGV, thread_sig_fault);
 #endif
 #ifdef SIGBUS
-	CatchSignal(SIGBUS,SIGNAL_CAST thread_sig_fault);
+	CatchSignal(SIGBUS, thread_sig_fault);
 #endif
 #ifdef SIGABRT
-	CatchSignal(SIGABRT,SIGNAL_CAST thread_sig_fault);
+	CatchSignal(SIGABRT, thread_sig_fault);
 #endif
 }
 
@@ -509,7 +511,7 @@ static void thread_fault_handler(int sig)
 /*
   called when the process model is selected
 */
-static void thread_model_init(struct tevent_context *event_context)
+static void thread_model_init(void)
 {
 	struct mutex_ops m_ops;
 	struct debug_ops d_ops;
@@ -518,7 +520,7 @@ static void thread_model_init(struct tevent_context *event_context)
 	ZERO_STRUCT(d_ops);
 
 	pthread_key_create(&title_key, NULL);
-	pthread_setspecific(title_key, talloc_strdup(event_context, ""));
+	pthread_setspecific(title_key, NULL);
 
 	/* register mutex/rwlock handlers */
 	m_ops.mutex_init = thread_mutex_init;

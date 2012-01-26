@@ -2,22 +2,26 @@
    Unix SMB/CIFS implementation.
    Packet handling
    Copyright (C) Volker Lendecke 2007
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
+#include "../lib/util/select.h"
+#include "system/filesys.h"
+#include "system/select.h"
+#include "packet.h"
 
 struct packet_context {
 	int fd;
@@ -101,30 +105,23 @@ NTSTATUS packet_fd_read(struct packet_context *ctx)
 	return NT_STATUS_OK;
 }
 
-NTSTATUS packet_fd_read_sync(struct packet_context *ctx,
-			     struct timeval *timeout)
+NTSTATUS packet_fd_read_sync(struct packet_context *ctx, int timeout)
 {
-	int res;
-	fd_set r_fds;
+	int res, revents;
 
-	if (ctx->fd < 0 || ctx->fd >= FD_SETSIZE) {
-		errno = EBADF;
-		return map_nt_error_from_unix(errno);
-	}
-
-	FD_ZERO(&r_fds);
-	FD_SET(ctx->fd, &r_fds);
-
-	res = sys_select(ctx->fd+1, &r_fds, NULL, NULL, timeout);
-
+	res = poll_one_fd(ctx->fd, POLLIN|POLLHUP, timeout, &revents);
 	if (res == 0) {
-		DEBUG(10, ("select timed out\n"));
+		DEBUG(10, ("poll timed out\n"));
 		return NT_STATUS_IO_TIMEOUT;
 	}
 
 	if (res == -1) {
-		DEBUG(10, ("select returned %s\n", strerror(errno)));
+		DEBUG(10, ("poll returned %s\n", strerror(errno)));
 		return map_nt_error_from_unix(errno);
+	}
+	if ((revents & (POLLIN|POLLHUP|POLLERR)) == 0) {
+		DEBUG(10, ("socket not readable\n"));
+		return NT_STATUS_IO_TIMEOUT;
 	}
 
 	return packet_fd_read(ctx);

@@ -19,6 +19,8 @@
 
 #include "includes.h"
 #include "utils/net.h"
+#include "secrets.h"
+#include "system/filesys.h"
 
 int net_afs_usage(struct net_context *c, int argc, const char **argv)
 {
@@ -35,7 +37,7 @@ int net_afs_key(struct net_context *c, int argc, const char **argv)
 	struct afs_keyfile keyfile;
 
 	if (argc != 2) {
-		d_printf(_("Usage:")," net afs key <keyfile> cell\n");
+		d_printf("%s net afs key <keyfile> cell\n", _("Usage:"));
 		return -1;
 	}
 
@@ -51,8 +53,10 @@ int net_afs_key(struct net_context *c, int argc, const char **argv)
 
 	if (read(fd, &keyfile, sizeof(keyfile)) != sizeof(keyfile)) {
 		d_fprintf(stderr, _("Could not read keyfile\n"));
+		close(fd);
 		return -1;
 	}
+	close(fd);
 
 	if (!secrets_store_afs_keyfile(argv[1], &keyfile)) {
 		d_fprintf(stderr, _("Could not write keyfile to secrets.tdb\n"));
@@ -68,7 +72,8 @@ int net_afs_impersonate(struct net_context *c, int argc,
 	char *token;
 
 	if (argc != 2) {
-		fprintf(stderr, _("Usage:")," net afs impersonate <user> <cell>\n");
+		d_fprintf(stderr, "%s net afs impersonate <user> <cell>\n",
+			  _("Usage:"));
 	        exit(1);
 	}
 

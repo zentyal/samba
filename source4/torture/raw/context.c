@@ -18,13 +18,10 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "libcli/raw/libcliraw.h"
 #include "libcli/raw/raw_proto.h"
-#include "libcli/composite/composite.h"
 #include "libcli/smb_composite/smb_composite.h"
 #include "lib/cmdline/popt_common.h"
-#include "lib/events/events.h"
 #include "libcli/libcli.h"
 #include "torture/util.h"
 #include "auth/credentials/credentials.h"
@@ -92,14 +89,14 @@ static bool test_session(struct smbcli_state *cli, struct torture_context *tctx)
 
 	printf("create a second security context on the same transport\n");
 
-	lp_smbcli_session_options(tctx->lp_ctx, &options);
-	gensec_settings = lp_gensec_settings(tctx, tctx->lp_ctx);
+	lpcfg_smbcli_session_options(tctx->lp_ctx, &options);
+	gensec_settings = lpcfg_gensec_settings(tctx, tctx->lp_ctx);
 
 	session = smbcli_session_init(cli->transport, tctx, false, options);
 
 	setup.in.sesskey = cli->transport->negotiate.sesskey;
 	setup.in.capabilities = cli->transport->negotiate.capabilities; /* ignored in secondary session setup, except by our libs, which care about the extended security bit */
-	setup.in.workgroup = lp_workgroup(tctx->lp_ctx);
+	setup.in.workgroup = lpcfg_workgroup(tctx->lp_ctx);
 
 	setup.in.credentials = cmdline_credentials;
 	setup.in.gensec_settings = gensec_settings;
@@ -115,7 +112,7 @@ static bool test_session(struct smbcli_state *cli, struct torture_context *tctx)
 	session2->vuid = session->vuid;
 	setup.in.sesskey = cli->transport->negotiate.sesskey;
 	setup.in.capabilities = cli->transport->negotiate.capabilities; /* ignored in secondary session setup, except by our libs, which care about the extended security bit */
-	setup.in.workgroup = lp_workgroup(tctx->lp_ctx);
+	setup.in.workgroup = lpcfg_workgroup(tctx->lp_ctx);
 
 	setup.in.credentials = cmdline_credentials;
 
@@ -142,7 +139,7 @@ static bool test_session(struct smbcli_state *cli, struct torture_context *tctx)
 		session3->vuid = session->vuid;
 		setup.in.sesskey = cli->transport->negotiate.sesskey;
 		setup.in.capabilities &= ~CAP_EXTENDED_SECURITY; /* force a non extended security login (should fail) */
-		setup.in.workgroup = lp_workgroup(tctx->lp_ctx);
+		setup.in.workgroup = lpcfg_workgroup(tctx->lp_ctx);
 	
 		setup.in.credentials = cmdline_credentials;
 
@@ -155,7 +152,7 @@ static bool test_session(struct smbcli_state *cli, struct torture_context *tctx)
 		session4->vuid = session->vuid;
 		setup.in.sesskey = cli->transport->negotiate.sesskey;
 		setup.in.capabilities &= ~CAP_EXTENDED_SECURITY; /* force a non extended security login (should fail) */
-		setup.in.workgroup = lp_workgroup(tctx->lp_ctx);
+		setup.in.workgroup = lpcfg_workgroup(tctx->lp_ctx);
 		
 		anon_creds = cli_credentials_init(tctx);
 		cli_credentials_set_conf(anon_creds, tctx->lp_ctx);
@@ -175,7 +172,7 @@ static bool test_session(struct smbcli_state *cli, struct torture_context *tctx)
 
 	printf("create a file using the new vuid\n");
 	io.generic.level = RAW_OPEN_NTCREATEX;
-	io.ntcreatex.in.root_fid = 0;
+	io.ntcreatex.in.root_fid.fnum = 0;
 	io.ntcreatex.in.flags = 0;
 	io.ntcreatex.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	io.ntcreatex.in.create_options = 0;
@@ -232,7 +229,7 @@ static bool test_session(struct smbcli_state *cli, struct torture_context *tctx)
 	for (i=0; i <ARRAY_SIZE(sessions); i++) {
 		setups[i].in.sesskey = cli->transport->negotiate.sesskey;
 		setups[i].in.capabilities = cli->transport->negotiate.capabilities; /* ignored in secondary session setup, except by our libs, which care about the extended security bit */
-		setups[i].in.workgroup = lp_workgroup(tctx->lp_ctx);
+		setups[i].in.workgroup = lpcfg_workgroup(tctx->lp_ctx);
 		
 		setups[i].in.credentials = cmdline_credentials;
 		setups[i].in.gensec_settings = gensec_settings;
@@ -311,7 +308,7 @@ static bool test_tree(struct smbcli_state *cli, struct torture_context *tctx)
 
 	printf("create a file using the new tid\n");
 	io.generic.level = RAW_OPEN_NTCREATEX;
-	io.ntcreatex.in.root_fid = 0;
+	io.ntcreatex.in.root_fid.fnum = 0;
 	io.ntcreatex.in.flags = 0;
 	io.ntcreatex.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	io.ntcreatex.in.create_options = 0;
@@ -397,15 +394,15 @@ static bool test_tree_ulogoff(struct smbcli_state *cli, struct torture_context *
 	share = torture_setting_string(tctx, "share", NULL);
 	host  = torture_setting_string(tctx, "host", NULL);
 
-	lp_smbcli_session_options(tctx->lp_ctx, &options);
+	lpcfg_smbcli_session_options(tctx->lp_ctx, &options);
 
 	printf("create the first new sessions\n");
 	session1 = smbcli_session_init(cli->transport, tctx, false, options);
 	setup.in.sesskey = cli->transport->negotiate.sesskey;
 	setup.in.capabilities = cli->transport->negotiate.capabilities;
-	setup.in.workgroup = lp_workgroup(tctx->lp_ctx);
+	setup.in.workgroup = lpcfg_workgroup(tctx->lp_ctx);
 	setup.in.credentials = cmdline_credentials;
-	setup.in.gensec_settings = lp_gensec_settings(tctx, tctx->lp_ctx);
+	setup.in.gensec_settings = lpcfg_gensec_settings(tctx, tctx->lp_ctx);
 	status = smb_composite_sesssetup(session1, &setup);
 	CHECK_STATUS(status, NT_STATUS_OK);
 	session1->vuid = setup.out.vuid;
@@ -425,7 +422,7 @@ static bool test_tree_ulogoff(struct smbcli_state *cli, struct torture_context *
 
 	printf("create a file using vuid1\n");
 	io.generic.level = RAW_OPEN_NTCREATEX;
-	io.ntcreatex.in.root_fid = 0;
+	io.ntcreatex.in.root_fid.fnum = 0;
 	io.ntcreatex.in.flags = 0;
 	io.ntcreatex.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	io.ntcreatex.in.create_options = 0;
@@ -460,9 +457,9 @@ static bool test_tree_ulogoff(struct smbcli_state *cli, struct torture_context *
 	session2 = smbcli_session_init(cli->transport, tctx, false, options);
 	setup.in.sesskey = cli->transport->negotiate.sesskey;
 	setup.in.capabilities = cli->transport->negotiate.capabilities;
-	setup.in.workgroup = lp_workgroup(tctx->lp_ctx);
+	setup.in.workgroup = lpcfg_workgroup(tctx->lp_ctx);
 	setup.in.credentials = cmdline_credentials;
-	setup.in.gensec_settings = lp_gensec_settings(tctx, tctx->lp_ctx);
+	setup.in.gensec_settings = lpcfg_gensec_settings(tctx, tctx->lp_ctx);
 	status = smb_composite_sesssetup(session2, &setup);
 	CHECK_STATUS(status, NT_STATUS_OK);
 	session2->vuid = setup.out.vuid;
@@ -473,7 +470,7 @@ static bool test_tree_ulogoff(struct smbcli_state *cli, struct torture_context *
 
 	printf("create a file using vuid2\n");
 	io.generic.level = RAW_OPEN_NTCREATEX;
-	io.ntcreatex.in.root_fid = 0;
+	io.ntcreatex.in.root_fid.fnum = 0;
 	io.ntcreatex.in.flags = 0;
 	io.ntcreatex.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	io.ntcreatex.in.create_options = 0;
@@ -551,7 +548,7 @@ static bool test_pid_exit_only_sees_open(struct smbcli_state *cli, TALLOC_CTX *m
 	printf("create a file using pid1\n");
 	cli->session->pid = pid1;
 	io.generic.level = RAW_OPEN_NTCREATEX;
-	io.ntcreatex.in.root_fid = 0;
+	io.ntcreatex.in.root_fid.fnum = 0;
 	io.ntcreatex.in.flags = 0;
 	io.ntcreatex.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	io.ntcreatex.in.create_options = 0;
@@ -654,16 +651,16 @@ static bool test_pid_2sess(struct smbcli_state *cli, struct torture_context *tct
 		return false;
 	}
 
-	lp_smbcli_session_options(tctx->lp_ctx, &options);
+	lpcfg_smbcli_session_options(tctx->lp_ctx, &options);
 
 	printf("create a second security context on the same transport\n");
 	session = smbcli_session_init(cli->transport, tctx, false, options);
 
 	setup.in.sesskey = cli->transport->negotiate.sesskey;
 	setup.in.capabilities = cli->transport->negotiate.capabilities; /* ignored in secondary session setup, except by our libs, which care about the extended security bit */
-	setup.in.workgroup = lp_workgroup(tctx->lp_ctx);
+	setup.in.workgroup = lpcfg_workgroup(tctx->lp_ctx);
 	setup.in.credentials = cmdline_credentials;
-	setup.in.gensec_settings = lp_gensec_settings(tctx, tctx->lp_ctx);
+	setup.in.gensec_settings = lpcfg_gensec_settings(tctx, tctx->lp_ctx);
 
 	status = smb_composite_sesssetup(session, &setup);
 	CHECK_STATUS(status, NT_STATUS_OK);	
@@ -677,7 +674,7 @@ static bool test_pid_2sess(struct smbcli_state *cli, struct torture_context *tct
 	printf("create a file using the vuid1\n");
 	cli->session->vuid = vuid1;
 	io.generic.level = RAW_OPEN_NTCREATEX;
-	io.ntcreatex.in.root_fid = 0;
+	io.ntcreatex.in.root_fid.fnum = 0;
 	io.ntcreatex.in.flags = 0;
 	io.ntcreatex.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	io.ntcreatex.in.create_options = 0;
@@ -785,7 +782,7 @@ static bool test_pid_2tcon(struct smbcli_state *cli, struct torture_context *tct
 	printf("create a file using the tid1\n");
 	cli->tree->tid = tid1;
 	io.generic.level = RAW_OPEN_NTCREATEX;
-	io.ntcreatex.in.root_fid = 0;
+	io.ntcreatex.in.root_fid.fnum = 0;
 	io.ntcreatex.in.flags = 0;
 	io.ntcreatex.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	io.ntcreatex.in.create_options = 0;
@@ -816,7 +813,7 @@ static bool test_pid_2tcon(struct smbcli_state *cli, struct torture_context *tct
 	printf("create a file using the tid2\n");
 	cli->tree->tid = tid2;
 	io.generic.level = RAW_OPEN_NTCREATEX;
-	io.ntcreatex.in.root_fid = 0;
+	io.ntcreatex.in.root_fid.fnum = 0;
 	io.ntcreatex.in.flags = 0;
 	io.ntcreatex.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	io.ntcreatex.in.create_options = 0;
@@ -906,9 +903,9 @@ bool torture_raw_context(struct torture_context *torture,
 			 struct smbcli_state *cli)
 {
 	bool ret = true;
-	if (lp_use_spnego(torture->lp_ctx)) {
+	if (lpcfg_use_spnego(torture->lp_ctx)) {
 		ret &= torture_raw_context_int(torture, cli);
-		lp_set_cmdline(torture->lp_ctx, "use spnego", "False");
+		lpcfg_set_cmdline(torture->lp_ctx, "use spnego", "False");
 	}
 
 	ret &= torture_raw_context_int(torture, cli);

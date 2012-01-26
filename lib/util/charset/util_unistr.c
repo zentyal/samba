@@ -21,15 +21,6 @@
 #include "includes.h"
 #include "system/locale.h"
 
-struct smb_iconv_convenience *global_iconv_convenience = NULL;
-
-static inline struct smb_iconv_convenience *get_iconv_convenience(void)
-{
-	if (global_iconv_convenience == NULL)
-		global_iconv_convenience = smb_iconv_convenience_init(talloc_autofree_context(), "ASCII", "UTF-8", true);
-	return global_iconv_convenience;
-}
-
 /**
  Case insensitive string compararison
 **/
@@ -67,52 +58,6 @@ _PUBLIC_ int strcasecmp_m(const char *s1, const char *s2)
 	}
 
 	return *s1 - *s2;
-}
-
-/**
- * Get the next token from a string, return False if none found.
- * Handles double-quotes.
- * 
- * Based on a routine by GJC@VILLAGE.COM. 
- * Extensively modified by Andrew.Tridgell@anu.edu.au
- **/
-_PUBLIC_ bool next_token(const char **ptr,char *buff, const char *sep, size_t bufsize)
-{
-	const char *s;
-	bool quoted;
-	size_t len=1;
-
-	if (!ptr)
-		return false;
-
-	s = *ptr;
-
-	/* default to simple separators */
-	if (!sep)
-		sep = " \t\n\r";
-
-	/* find the first non sep char */
-	while (*s && strchr_m(sep,*s))
-		s++;
-	
-	/* nothing left? */
-	if (!*s)
-		return false;
-	
-	/* copy over the token */
-	for (quoted = false; len < bufsize && *s && (quoted || !strchr_m(sep,*s)); s++) {
-		if (*s == '\"') {
-			quoted = !quoted;
-		} else {
-			len++;
-			*buff++ = *s;
-		}
-	}
-	
-	*ptr = (*s) ? s+1 : s;  
-	*buff = 0;
-	
-	return true;
 }
 
 /**
@@ -248,11 +193,12 @@ _PUBLIC_ char *alpha_strcpy(char *dest, const char *src, const char *other_safe_
 }
 
 /**
- Count the number of UCS2 characters in a string. Normally this will
- be the same as the number of bytes in a string for single byte strings,
- but will be different for multibyte.
-**/
-_PUBLIC_ size_t strlen_m(const char *s)
+ * Calculate the number of units (8 or 16-bit, depending on the
+ * destination charset), that would be needed to convert the input
+ * string which is expected to be in in src_charset encoding to the
+ * destination charset (which should be a unicode charset).
+ */
+_PUBLIC_ size_t strlen_m_ext(const char *s, charset_t src_charset, charset_t dst_charset)
 {
 	size_t count = 0;
 	struct smb_iconv_convenience *ic = get_iconv_convenience();
@@ -272,16 +218,66 @@ _PUBLIC_ size_t strlen_m(const char *s)
 
 	while (*s) {
 		size_t c_size;
-		codepoint_t c = next_codepoint_convenience(ic, s, &c_size);
-		if (c < 0x10000) {
-			count += 1;
-		} else {
-			count += 2;
-		}
+		codepoint_t c = next_codepoint_convenience_ext(ic, s, src_charset, &c_size);
 		s += c_size;
+
+		switch (dst_charset) {
+		case CH_UTF16LE:
+		case CH_UTF16BE:
+		case CH_UTF16MUNGED:
+			if (c < 0x10000) {
+				count += 1;
+			} else {
+				count += 2;
+			}
+			break;
+		case CH_UTF8:
+			/*
+			 * this only checks ranges, and does not
+			 * check for invalid codepoints
+			 */
+			if (c < 0x80) {
+				count += 1;
+			} else if (c < 0x800) {
+				count += 2;
+			} else if (c < 0x1000) {
+				count += 3;
+			} else {
+				count += 4;
+			}
+			break;
+		default:
+			/*
+			 * non-unicode encoding:
+			 * assume that each codepoint fits into
+			 * one unit in the destination encoding.
+			 */
+			count += 1;
+		}
 	}
 
 	return count;
+}
+
+_PUBLIC_ size_t strlen_m_ext_term(const char *s, const charset_t src_charset,
+				  const charset_t dst_charset)
+{
+	if (!s) {
+		return 0;
+	}
+	return strlen_m_ext(s, src_charset, dst_charset) + 1;
+}
+
+/**
+ * Calculate the number of 16-bit units that would be needed to convert
+ * the input string which is expected to be in CH_UNIX encoding to UTF16.
+ *
+ * This will be the same as the number of bytes in a string for single
+ * byte strings, but will be different for multibyte.
+ */
+_PUBLIC_ size_t strlen_m(const char *s)
+{
+	return strlen_m_ext(s, CH_UNIX, CH_UTF16LE);
 }
 
 /**
@@ -429,6 +425,10 @@ _PUBLIC_ char *strlower_talloc(TALLOC_CTX *ctx, const char *src)
 	size_t size=0;
 	char *dest;
 	struct smb_iconv_convenience *iconv_convenience = get_iconv_convenience();
+
+	if(src == NULL) {
+		return NULL;
+	}
 
 	/* this takes advantage of the fact that upper/lower can't
 	   change the length of a character by more than 1 byte */
@@ -987,13 +987,3 @@ _PUBLIC_ bool convert_string_talloc(TALLOC_CTX *ctx,
 											 allow_badcharcnv);
 }
 
-
-_PUBLIC_ codepoint_t next_codepoint(const char *str, size_t *size)
-{
-	return next_codepoint_convenience(get_iconv_convenience(), str, size);
-}
-
-_PUBLIC_ ssize_t push_codepoint(char *str, codepoint_t c)
-{
-	return push_codepoint_convenience(get_iconv_convenience(), str, c);
-}

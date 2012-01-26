@@ -18,6 +18,12 @@
 
 #include "includes.h"
 #include "utils/net.h"
+#include "libads/sitename_cache.h"
+#include "libads/dns.h"
+#include "../librpc/gen_ndr/ndr_netlogon.h"
+#include "smb_krb5.h"
+#include "../libcli/security/security.h"
+#include "passdb/lookup_sid.h"
 
 int net_lookup_usage(struct net_context *c, int argc, const char **argv)
 {
@@ -319,7 +325,7 @@ static int net_lookup_kdc(struct net_context *c, int argc, const char **argv)
 static int net_lookup_name(struct net_context *c, int argc, const char **argv)
 {
 	const char *dom, *name;
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 
 	if (argc != 1) {
@@ -343,7 +349,7 @@ static int net_lookup_name(struct net_context *c, int argc, const char **argv)
 static int net_lookup_sid(struct net_context *c, int argc, const char **argv)
 {
 	const char *dom, *name;
-	DOM_SID sid;
+	struct dom_sid sid;
 	enum lsa_SidType type;
 
 	if (argc != 1) {
@@ -405,7 +411,13 @@ static int net_lookup_dsgetdcname(struct net_context *c, int argc, const char **
 		site_name = argv[2];
 	}
 
-	status = dsgetdcname(mem_ctx, NULL, domain_name, NULL, site_name,
+        if (!c->msg_ctx) {
+		d_fprintf(stderr, _("Could not initialise message context. "
+			"Try running as root\n"));
+		return -1;
+        }
+
+	status = dsgetdcname(mem_ctx, c->msg_ctx, domain_name, NULL, site_name,
 			     flags, &info);
 	if (!NT_STATUS_IS_OK(status)) {
 		d_printf(_("failed with: %s\n"), nt_errstr(status));

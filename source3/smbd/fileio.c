@@ -20,7 +20,10 @@
 */
 
 #include "includes.h"
+#include "printing.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
+#include "smbprofile.h"
 
 static bool setup_write_cache(files_struct *, SMB_OFF_T);
 
@@ -127,7 +130,8 @@ static ssize_t real_write_file(struct smb_request *req,
                 ret = vfs_write_data(req, fsp, data, n);
         } else {
 		fsp->fh->pos = pos;
-		if (pos && lp_strict_allocate(SNUM(fsp->conn))) {
+		if (pos && lp_strict_allocate(SNUM(fsp->conn) &&
+				!fsp->is_sparse)) {
 			if (vfs_fill_sparse(fsp, pos) == -1) {
 				return -1;
 			}
@@ -291,16 +295,15 @@ ssize_t write_file(struct smb_request *req,
 	int write_path = -1;
 
 	if (fsp->print_file) {
-		uint32 jobid;
+		uint32_t t;
+		int ret;
 
-		if (!rap_to_pjobid(fsp->rap_print_jobid, NULL, &jobid)) {
-			DEBUG(3,("write_file: Unable to map RAP jobid %u to jobid.\n",
-						(unsigned int)fsp->rap_print_jobid ));
-			errno = EBADF;
+		ret = print_spool_write(fsp, data, n, pos, &t);
+		if (ret) {
+			errno = ret;
 			return -1;
 		}
-
-		return print_job_write(SNUM(fsp->conn), jobid, data, pos, n);
+		return t;
 	}
 
 	if (!fsp->can_write) {
@@ -319,7 +322,7 @@ ssize_t write_file(struct smb_request *req,
 				int dosmode = dos_mode(fsp->conn, fsp->fsp_name);
 				if (!IS_DOS_ARCHIVE(dosmode)) {
 					file_set_dosmode(fsp->conn, fsp->fsp_name,
-						 dosmode | aARCH, NULL, false);
+						 dosmode | FILE_ATTRIBUTE_ARCHIVE, NULL, false);
 				}
 			}
 
@@ -401,6 +404,37 @@ nonop=%u allocated=%u active=%u direct=%u perfect=%u readhits=%u\n",
 		 (unsigned int)wcp->data_size));
 
 	fsp->fh->pos = pos + n;
+
+	if ((n == 1) && (data[0] == '\0') && (pos > wcp->file_size)) {
+		int ret;
+
+		/*
+		 * This is a 1-byte write of a 0 beyond the EOF and
+		 * thus implicitly also beyond the current active
+		 * write cache, the typical file-extending (and
+		 * allocating, but we're using the write cache here)
+		 * write done by Windows. We just have to ftruncate
+		 * the file and rely on posix semantics to return
+		 * zeros for non-written file data that is within the
+		 * file length.
+		 *
+		 * We can not use wcp_file_size_change here because we
+		 * might have an existing write cache, and
+		 * wcp_file_size_change assumes a change to just the
+		 * end of the current write cache.
+		 */
+
+		wcp->file_size = pos + 1;
+		ret = SMB_VFS_FTRUNCATE(fsp, wcp->file_size);
+		if (ret == -1) {
+			DEBUG(0,("wcp_file_size_change (%s): ftruncate of size %.0f"
+				 "error %s\n", fsp_str_dbg(fsp),
+				 (double)wcp->file_size, strerror(errno)));
+			return -1;
+		}
+		return 1;
+	}
+
 
 	/*
 	 * If we have active cache and it isn't contiguous then we flush.
@@ -793,6 +827,26 @@ n = %u, wcp->offset=%.0f, wcp->data_size=%u\n",
 			DO_PROFILE_INC(writecache_init_writes);
 		}
 #endif
+
+		if ((wcp->data_size == 0)
+		    && (pos > wcp->file_size)
+		    && (pos + n <= wcp->file_size + wcp->alloc_size)) {
+			/*
+			 * This is a write completely beyond the
+			 * current EOF, but within reach of the write
+			 * cache. We expect fill-up writes pretty
+			 * soon, so it does not make sense to start
+			 * the write cache at the current
+			 * offset. These fill-up writes would trigger
+			 * separate pwrites or even unnecessary cache
+			 * flushes because they overlap if this is a
+			 * one-byte allocating write.
+			 */
+			wcp->offset = wcp->file_size;
+			wcp->data_size = pos - wcp->file_size;
+			memset(wcp->data, 0, wcp->data_size);
+		}
+
 		memcpy(wcp->data+wcp->data_size, data, n);
 		if (wcp->data_size == 0) {
 			wcp->offset = pos;

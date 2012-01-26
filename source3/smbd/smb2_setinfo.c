@@ -3,6 +3,7 @@
    Core SMB2 server
 
    Copyright (C) Stefan Metzmacher 2009
+   Copyright (C) Jeremy Allison 2010
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,8 +20,11 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "smbd/globals.h"
 #include "../libcli/smb/smb_common.h"
+#include "trans2.h"
+#include "../lib/util/tevent_ntstatus.h"
 
 static struct tevent_req *smbd_smb2_setinfo_send(TALLOC_CTX *mem_ctx,
 						 struct tevent_context *ev,
@@ -35,11 +39,9 @@ static NTSTATUS smbd_smb2_setinfo_recv(struct tevent_req *req);
 static void smbd_smb2_request_setinfo_done(struct tevent_req *subreq);
 NTSTATUS smbd_smb2_request_process_setinfo(struct smbd_smb2_request *req)
 {
-	const uint8_t *inhdr;
+	NTSTATUS status;
 	const uint8_t *inbody;
 	int i = req->current_idx;
-	size_t expected_body_size = 0x21;
-	size_t body_size;
 	uint8_t in_info_type;
 	uint8_t in_file_info_class;
 	uint16_t in_input_buffer_offset;
@@ -50,17 +52,11 @@ NTSTATUS smbd_smb2_request_process_setinfo(struct smbd_smb2_request *req)
 	uint64_t in_file_id_volatile;
 	struct tevent_req *subreq;
 
-	inhdr = (const uint8_t *)req->in.vector[i+0].iov_base;
-	if (req->in.vector[i+1].iov_len != (expected_body_size & 0xFFFFFFFE)) {
-		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
+	status = smbd_smb2_request_verify_sizes(req, 0x21);
+	if (!NT_STATUS_IS_OK(status)) {
+		return smbd_smb2_request_error(req, status);
 	}
-
 	inbody = (const uint8_t *)req->in.vector[i+1].iov_base;
-
-	body_size = SVAL(inbody, 0x00);
-	if (body_size != expected_body_size) {
-		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
-	}
 
 	in_info_type			= CVAL(inbody, 0x02);
 	in_file_info_class		= CVAL(inbody, 0x03);
@@ -74,7 +70,7 @@ NTSTATUS smbd_smb2_request_process_setinfo(struct smbd_smb2_request *req)
 	if (in_input_buffer_offset == 0 && in_input_buffer_length == 0) {
 		/* This is ok */
 	} else if (in_input_buffer_offset !=
-		   (SMB2_HDR_BODY + (body_size & 0xFFFFFFFE))) {
+		   (SMB2_HDR_BODY + req->in.vector[i+1].iov_len)) {
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
 	}
 
@@ -85,9 +81,13 @@ NTSTATUS smbd_smb2_request_process_setinfo(struct smbd_smb2_request *req)
 	in_input_buffer.data = (uint8_t *)req->in.vector[i+2].iov_base;
 	in_input_buffer.length = in_input_buffer_length;
 
+	if (in_input_buffer.length > req->sconn->smb2.max_trans) {
+		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
+	}
+
 	if (req->compat_chain_fsp) {
 		/* skip check */
-	} else if (in_file_id_persistent != 0) {
+	} else if (in_file_id_persistent != in_file_id_volatile) {
 		return smbd_smb2_request_error(req, NT_STATUS_FILE_CLOSED);
 	}
 
@@ -161,11 +161,12 @@ static struct tevent_req *smbd_smb2_setinfo_send(TALLOC_CTX *mem_ctx,
 						 uint32_t in_additional_information,
 						 uint64_t in_file_id_volatile)
 {
-	struct tevent_req *req;
-	struct smbd_smb2_setinfo_state *state;
-	struct smb_request *smbreq;
+	struct tevent_req *req = NULL;
+	struct smbd_smb2_setinfo_state *state = NULL;
+	struct smb_request *smbreq = NULL;
 	connection_struct *conn = smb2req->tcon->compat_conn;
-	files_struct *fsp;
+	files_struct *fsp = NULL;
+	NTSTATUS status;
 
 	req = tevent_req_create(mem_ctx, &state,
 				struct smbd_smb2_setinfo_state);
@@ -208,15 +209,15 @@ static struct tevent_req *smbd_smb2_setinfo_send(TALLOC_CTX *mem_ctx,
 		char *data;
 		int data_size;
 		int ret_size = 0;
-		NTSTATUS status;
 
 
 		file_info_level = in_file_info_class + 1000;
 		if (file_info_level == SMB_FILE_RENAME_INFORMATION) {
-			file_info_level = 0xFF00 + in_file_info_class;
+			/* SMB2_FILE_RENAME_INFORMATION_INTERNAL == 0xFF00 + in_file_info_class */
+			file_info_level = SMB2_FILE_RENAME_INFORMATION_INTERNAL;
 		}
 
-		if (fsp->is_directory || fsp->fh->fd == -1) {
+		if (fsp->fh->fd == -1) {
 			/*
 			 * This is actually a SETFILEINFO on a directory
 			 * handle (returned from an NT SMB). NT5.0 seems
@@ -251,7 +252,7 @@ static struct tevent_req *smbd_smb2_setinfo_send(TALLOC_CTX *mem_ctx,
 			if ((file_info_level == SMB_SET_FILE_DISPOSITION_INFO)
 			    && in_input_buffer.length >= 1
 			    && CVAL(in_input_buffer.data,0)) {
-				fsp->fh->private_options |= FILE_DELETE_ON_CLOSE;
+				fsp->fh->private_options |= NTCREATEX_OPTIONS_PRIVATE_DELETE_ON_CLOSE;
 
 				DEBUG(3,("smbd_smb2_setinfo_send: "
 					 "Cancelling print job (%s)\n",
@@ -284,7 +285,7 @@ static struct tevent_req *smbd_smb2_setinfo_send(TALLOC_CTX *mem_ctx,
 		if (data_size > 0) {
 			data = (char *)SMB_MALLOC_ARRAY(char, data_size);
 			if (tevent_req_nomem(data, req)) {
-
+				return tevent_req_post(req, ev);
 			}
 			memcpy(data, in_input_buffer.data, data_size);
 		}
@@ -301,6 +302,24 @@ static struct tevent_req *smbd_smb2_setinfo_send(TALLOC_CTX *mem_ctx,
 			if (NT_STATUS_EQUAL(status, NT_STATUS_INVALID_LEVEL)) {
 				status = NT_STATUS_INVALID_INFO_CLASS;
 			}
+			tevent_req_nterror(req, status);
+			return tevent_req_post(req, ev);
+		}
+		break;
+	}
+
+	case 0x03:/* SMB2_SETINFO_SECURITY */
+	{
+		if (!CAN_WRITE(conn)) {
+			tevent_req_nterror(req, NT_STATUS_ACCESS_DENIED);
+			return tevent_req_post(req, ev);
+		}
+
+		status = set_sd(fsp,
+				in_input_buffer.data,
+				in_input_buffer.length,
+				in_additional_information);
+		if (!NT_STATUS_IS_OK(status)) {
 			tevent_req_nterror(req, status);
 			return tevent_req_post(req, ev);
 		}

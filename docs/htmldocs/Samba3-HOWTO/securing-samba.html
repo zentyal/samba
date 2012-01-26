@@ -3,7 +3,7 @@
 <a class="indexterm" name="id385274"></a>
 <a class="indexterm" name="id385281"></a>
 <a class="indexterm" name="id385288"></a>
-<a class="indexterm" name="id385294"></a>
+<a class="indexterm" name="id385295"></a>
 <a class="indexterm" name="id385301"></a>
 <a class="indexterm" name="id385308"></a>
 The information contained in this chapter applies in general to all Samba installations. Security is
@@ -26,7 +26,7 @@ of knowledge with which we may unlock the secrets of the masters.
 <a class="indexterm" name="id385361"></a>
 <a class="indexterm" name="id385368"></a>
 <a class="indexterm" name="id385375"></a>
-<a class="indexterm" name="id385381"></a>
+<a class="indexterm" name="id385382"></a>
 There are three levels at which security principles must be observed in order to render a site
 at least moderately secure. They are the perimeter firewall, the configuration of the host
 server that is running Samba, and Samba itself.
@@ -66,15 +66,15 @@ before someone will find yet another vulnerability.
 	especially vulnerable.
 	</p><p>
 <a class="indexterm" name="id385535"></a>
-<a class="indexterm" name="id385541"></a>
+<a class="indexterm" name="id385542"></a>
 	One of the simplest fixes in this case is to use the <a class="link" href="smb.conf.5.html#HOSTSALLOW" target="_top">hosts allow</a> and
 	<a class="link" href="smb.conf.5.html#HOSTSDENY" target="_top">hosts deny</a> options in the Samba <code class="filename">smb.conf</code> configuration file to
 	allow access to your server only from a specific range of hosts. An example might be:
-	</p><table border="0" summary="Simple list" class="simplelist"><tr><td><a class="indexterm" name="id385585"></a><em class="parameter"><code>hosts allow = 127.0.0.1 192.168.2.0/24 192.168.3.0/24</code></em></td></tr><tr><td><a class="indexterm" name="id385597"></a><em class="parameter"><code>hosts deny = 0.0.0.0/0</code></em></td></tr></table><p>
+	</p><table border="0" summary="Simple list" class="simplelist"><tr><td><a class="indexterm" name="id385586"></a><em class="parameter"><code>hosts allow = 127.0.0.1 192.168.2.0/24 192.168.3.0/24</code></em></td></tr><tr><td><a class="indexterm" name="id385597"></a><em class="parameter"><code>hosts deny = 0.0.0.0/0</code></em></td></tr></table><p>
 	</p><p>
 <a class="indexterm" name="id385612"></a>
 <a class="indexterm" name="id385619"></a>
-<a class="indexterm" name="id385625"></a>
+<a class="indexterm" name="id385626"></a>
 	The above will allow SMB connections only from <code class="constant">localhost</code> (your own
 	computer) and from the two private networks 192.168.2 and 192.168.3. All other
 	connections will be refused as soon as the client sends its first packet. The refusal
@@ -89,7 +89,7 @@ before someone will find yet another vulnerability.
 	or to members of the system group <span class="emphasis"><em>smbusers</em></span>.
 	</p></div><div class="sect2" title="Using Interface Protection"><div class="titlepage"><div><div><h3 class="title"><a name="id385704"></a>Using Interface Protection</h3></div></div></div><p>
 <a class="indexterm" name="id385712"></a>
-<a class="indexterm" name="id385718"></a>
+<a class="indexterm" name="id385719"></a>
 <a class="indexterm" name="id385725"></a>
 	By default, Samba accepts connections on any network interface that
 	it finds on your system. That means if you have an ISDN line or a PPP
@@ -108,9 +108,9 @@ before someone will find yet another vulnerability.
 	<code class="constant">lo</code>. The name you will need to use depends on what OS you are using. In the above, I used
 	the common name for Ethernet adapters on Linux.
 	</p><p>
-<a class="indexterm" name="id385817"></a>
+<a class="indexterm" name="id385818"></a>
 <a class="indexterm" name="id385824"></a>
-<a class="indexterm" name="id385830"></a>
+<a class="indexterm" name="id385831"></a>
 <a class="indexterm" name="id385837"></a>
 	If you use the above and someone tries to make an SMB connection to your host over a PPP interface called
 	<code class="constant">ppp0</code>, then [s]he will get a TCP connection refused reply. In that case, no Samba code
@@ -119,7 +119,7 @@ before someone will find yet another vulnerability.
 	valid active services.
 	</p><p>
 <a class="indexterm" name="id385855"></a>
-<a class="indexterm" name="id385861"></a>
+<a class="indexterm" name="id385862"></a>
 <a class="indexterm" name="id385868"></a>
 <a class="indexterm" name="id385875"></a>
 <a class="indexterm" name="id385882"></a>
@@ -149,13 +149,13 @@ before someone will find yet another vulnerability.
 	was only added to the protocol in recent years.
 	</p><p>
 <a class="indexterm" name="id386006"></a>
-<a class="indexterm" name="id386012"></a>
+<a class="indexterm" name="id386013"></a>
 <a class="indexterm" name="id386019"></a>
 	When configuring a firewall, the high order ports (1024-65535) are often used for outgoing connections and
 	therefore should be permitted through the firewall. It is prudent to block incoming packets on the high order
 	ports except for established connections.
 	</p></div><div class="sect2" title="Using IPC$ Share-Based Denials"><div class="titlepage"><div><div><h3 class="title"><a name="id386031"></a>Using IPC$ Share-Based Denials </h3></div></div></div><p>
-<a class="indexterm" name="id386038"></a>
+<a class="indexterm" name="id386039"></a>
 <a class="indexterm" name="id386045"></a>
 <a class="indexterm" name="id386052"></a>
 	If the above methods are not suitable, then you could also place a more specific deny on the IPC$ share that
@@ -166,8 +166,8 @@ before someone will find yet another vulnerability.
 	</p><table border="0" summary="Simple list" class="simplelist"><tr><td> </td></tr><tr><td><em class="parameter"><code>[IPC$]</code></em></td></tr><tr><td><a class="indexterm" name="id386079"></a><em class="parameter"><code>hosts allow = 192.168.115.0/24 127.0.0.1</code></em></td></tr><tr><td><a class="indexterm" name="id386091"></a><em class="parameter"><code>hosts deny = 0.0.0.0/0</code></em></td></tr></table><p>
 	</p><p>
 <a class="indexterm" name="id386106"></a>
-<a class="indexterm" name="id386112"></a>
-<a class="indexterm" name="id386119"></a>
+<a class="indexterm" name="id386113"></a>
+<a class="indexterm" name="id386120"></a>
 	This instructs Samba that IPC$ connections are not allowed from anywhere except the two listed network
 	addresses (localhost and the 192.168.115 subnet). Connections to other shares are still allowed. Because the
 	IPC$ share is the only share that is always accessible anonymously, this provides some level of protection
@@ -175,7 +175,7 @@ before someone will find yet another vulnerability.
 	</p><p>
 <a class="indexterm" name="id386133"></a>
 <a class="indexterm" name="id386140"></a>
-<a class="indexterm" name="id386146"></a>
+<a class="indexterm" name="id386147"></a>
 	If you use this method, then clients will be given an <code class="literal">`access denied'</code> reply when they try
 	to access the IPC$ share. Those clients will not be able to browse shares and may also be unable to access
 	some other resources.  This is not recommended unless for some reason you cannot use one of the other methods
@@ -233,14 +233,14 @@ problem request are totally convinced that the problem is with Samba.
 	</p><p><span class="quote">&#8220;<span class="quote">
 	User xyzzy can map his home directory. Once mapped, user xyzzy can also map anyone else's home directory.
 	</span>&#8221;</span></p><p>
-<a class="indexterm" name="id386328"></a>
+<a class="indexterm" name="id386329"></a>
 <a class="indexterm" name="id386335"></a>
 	This is not a security flaw, it is by design. Samba allows users to have exactly the same access to the UNIX
 	file system as when they were logged on to the UNIX box, except that it only allows such views onto the file
 	system as are allowed by the defined shares.
 	</p><p>
 <a class="indexterm" name="id386348"></a>
-<a class="indexterm" name="id386354"></a>
+<a class="indexterm" name="id386355"></a>
 	If your UNIX home directories are set up so that one user can happily <code class="literal">cd</code>
 	into another user's directory and execute <code class="literal">ls</code>, the UNIX security solution is to change file
 	permissions on the user's home directories so that the <code class="literal">cd</code> and <code class="literal">ls</code> are denied.

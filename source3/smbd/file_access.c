@@ -19,6 +19,10 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "../libcli/security/security.h"
+#include "../librpc/gen_ndr/ndr_security.h"
+#include "smbd/smbd.h"
 
 #undef  DBGC_CLASS
 #define DBGC_CLASS DBGC_ACLS
@@ -35,15 +39,22 @@ bool can_access_file_acl(struct connection_struct *conn,
 	struct security_descriptor *secdesc = NULL;
 	bool ret;
 
-	if (conn->server_info->utok.uid == 0 || conn->admin_user) {
+	if (get_current_uid(conn) == (uid_t)0) {
 		/* I'm sorry sir, I didn't know you were root... */
 		return true;
 	}
 
+	if (access_mask == DELETE_ACCESS &&
+			VALID_STAT(smb_fname->st) &&
+			S_ISLNK(smb_fname->st.st_ex_mode)) {
+		/* We can always delete a symlink. */
+		return true;
+	}
+
 	status = SMB_VFS_GET_NT_ACL(conn, smb_fname->base_name,
-				    (OWNER_SECURITY_INFORMATION |
-				     GROUP_SECURITY_INFORMATION |
-				     DACL_SECURITY_INFORMATION),
+				    (SECINFO_OWNER |
+				     SECINFO_GROUP |
+				     SECINFO_DACL),
 				    &secdesc);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(5, ("Could not get acl: %s\n", nt_errstr(status)));
@@ -51,9 +62,20 @@ bool can_access_file_acl(struct connection_struct *conn,
 		goto out;
 	}
 
-	status = se_access_check(secdesc, conn->server_info->ptok,
+	status = se_access_check(secdesc, get_current_nttok(conn),
 				 access_mask, &access_granted);
 	ret = NT_STATUS_IS_OK(status);
+
+	if (DEBUGLEVEL >= 10) {
+		DEBUG(10,("can_access_file_acl for file %s "
+			"access_mask 0x%x, access_granted 0x%x "
+			"access %s\n",
+			smb_fname_str_dbg(smb_fname),
+			(unsigned int)access_mask,
+			(unsigned int)access_granted,
+			ret ? "ALLOWED" : "DENIED" ));
+		NDR_PRINT_DEBUG(security_descriptor, secdesc);
+	}
  out:
 	TALLOC_FREE(secdesc);
 	return ret;
@@ -105,7 +127,7 @@ bool can_delete_file_in_directory(connection_struct *conn,
 		ret = false;
 		goto out;
 	}
-	if (conn->server_info->utok.uid == 0 || conn->admin_user) {
+	if (get_current_uid(conn) == (uid_t)0) {
 		/* I'm sorry sir, I didn't know you were root... */
 		ret = true;
 		goto out;
@@ -115,18 +137,10 @@ bool can_delete_file_in_directory(connection_struct *conn,
 	/* sticky bit means delete only by owner of file or by root or
 	 * by owner of directory. */
 	if (smb_fname_parent->st.st_ex_mode & S_ISVTX) {
-		if(SMB_VFS_STAT(conn, smb_fname) != 0) {
-			if (errno == ENOENT) {
-				/* If the file doesn't already exist then
-				 * yes we'll be able to delete it. */
-				ret = true;
-				goto out;
-			}
-			DEBUG(10,("can_delete_file_in_directory: can't "
-				  "stat file %s (%s)",
-				  smb_fname_str_dbg(smb_fname),
-				  strerror(errno) ));
-			ret = false;
+		if (!VALID_STAT(smb_fname->st)) {
+			/* If the file doesn't already exist then
+			 * yes we'll be able to delete it. */
+			ret = true;
 			goto out;
 		}
 
@@ -138,9 +152,9 @@ bool can_delete_file_in_directory(connection_struct *conn,
 		 * or the owner of the directory as we have no possible
 		 * chance of deleting. Otherwise, go on and check the ACL.
 		 */
-		if ((conn->server_info->utok.uid !=
+		if ((get_current_uid(conn) !=
 			smb_fname_parent->st.st_ex_uid) &&
-		    (conn->server_info->utok.uid != smb_fname->st.st_ex_uid)) {
+		    (get_current_uid(conn) != smb_fname->st.st_ex_uid)) {
 			DEBUG(10,("can_delete_file_in_directory: not "
 				  "owner of file %s or directory %s",
 				  smb_fname_str_dbg(smb_fname),
@@ -189,7 +203,7 @@ bool can_access_file_data(connection_struct *conn,
 	DEBUG(10,("can_access_file_data: requesting 0x%x on file %s\n",
 		  (unsigned int)access_mask, smb_fname_str_dbg(smb_fname)));
 
-	if (conn->server_info->utok.uid == 0 || conn->admin_user) {
+	if (get_current_uid(conn) == (uid_t)0) {
 		/* I'm sorry sir, I didn't know you were root... */
 		return True;
 	}
@@ -197,7 +211,7 @@ bool can_access_file_data(connection_struct *conn,
 	SMB_ASSERT(VALID_STAT(smb_fname->st));
 
 	/* Check primary owner access. */
-	if (conn->server_info->utok.uid == smb_fname->st.st_ex_uid) {
+	if (get_current_uid(conn) == smb_fname->st.st_ex_uid) {
 		switch (access_mask) {
 			case FILE_READ_DATA:
 				return (smb_fname->st.st_ex_mode & S_IRUSR) ?
@@ -245,7 +259,7 @@ bool directory_has_default_acl(connection_struct *conn, const char *fname)
 	struct security_descriptor *secdesc = NULL;
 	unsigned int i;
 	NTSTATUS status = SMB_VFS_GET_NT_ACL(conn, fname,
-				DACL_SECURITY_INFORMATION, &secdesc);
+				SECINFO_DACL, &secdesc);
 
 	if (!NT_STATUS_IS_OK(status) || secdesc == NULL) {
 		return false;

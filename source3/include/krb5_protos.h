@@ -1,3 +1,31 @@
+/*
+   Unix SMB/CIFS implementation.
+   simple kerberos5 routines for active directory
+   Copyright (C) Andrew Tridgell 2001
+   Copyright (C) Luke Howard 2002-2003
+   Copyright (C) Andrew Bartlett <abartlet@samba.org> 2005
+   Copyright (C) Guenther Deschner 2005-2009
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+#ifndef _INCLUDE_KRB5_PROTOS_H_
+#define _INCLUDE_KRB5_PROTOS_H_
+
+struct PAC_DATA;
+struct PAC_SIGNATURE_DATA;
+
 /* work around broken krb5.h on sles9 */
 #ifdef SIZEOF_LONG
 #undef SIZEOF_LONG
@@ -36,6 +64,8 @@ void krb5_free_unparsed_name(krb5_context ctx, char *val);
 #define initialize_krb5_error_table()
 #endif
 
+/* The following definitions come from libsmb/clikrb5.c  */
+
 /* Samba wrapper function for krb5 functionality. */
 bool setup_kaddr( krb5_address *pkaddr, struct sockaddr_storage *paddr);
 int create_kerberos_key_from_string(krb5_context context, krb5_principal host_princ, krb5_data *password, krb5_keyblock *key, krb5_enctype enctype, bool no_salt);
@@ -46,7 +76,10 @@ krb5_error_code smb_krb5_locate_kdc(krb5_context ctx, const krb5_data *realm, st
 krb5_error_code krb5_locate_kdc(krb5_context ctx, const krb5_data *realm, struct sockaddr **addr_pp, int *naddrs, int get_masters);
 #endif
 krb5_error_code get_kerberos_allowed_etypes(krb5_context context, krb5_enctype **enctypes);
-bool get_krb5_smb_session_key(krb5_context context, krb5_auth_context auth_context, DATA_BLOB *session_key, bool remote);
+bool get_krb5_smb_session_key(TALLOC_CTX *mem_ctx,
+			      krb5_context context,
+			      krb5_auth_context auth_context,
+			      DATA_BLOB *session_key, bool remote);
 krb5_error_code smb_krb5_kt_free_entry(krb5_context context, krb5_keytab_entry *kt_entry);
 krb5_principal kerberos_fetch_salt_princ_for_host_princ(krb5_context context, krb5_principal host_princ, int enctype);
 void kerberos_set_creds_enctype(krb5_creds *pcreds, int enctype);
@@ -68,8 +101,6 @@ krb5_error_code smb_krb5_verify_checksum(krb5_context context,
 					 uint8 *data,
 					 size_t length);
 time_t get_authtime_from_tkt(krb5_ticket *tkt);
-void smb_krb5_free_ap_req(krb5_context context,
-			  krb5_ap_req *ap_req);
 krb5_error_code smb_krb5_get_keyinfo_from_ap_req(krb5_context context,
 						 const krb5_data *inbuf,
 						 krb5_kvno *kvno,
@@ -88,11 +119,6 @@ krb5_error_code smb_krb5_parse_name_norealm(krb5_context context,
 bool smb_krb5_principal_compare_any_realm(krb5_context context,
 					  krb5_const_principal princ1,
 					  krb5_const_principal princ2);
-int cli_krb5_get_ticket(const char *principal, time_t time_offset,
-			DATA_BLOB *ticket, DATA_BLOB *session_key_krb5,
-			uint32 extra_ap_opts, const char *ccname,
-			time_t *tgs_expire,
-			const char *impersonate_princ_s);
 krb5_error_code smb_krb5_renew_ticket(const char *ccache_string, const char *client_string, const char *service_string, time_t *expire_time);
 krb5_error_code kpasswd_err_to_krb5_err(krb5_error_code res_code);
 krb5_error_code smb_krb5_gen_netbios_krb5_address(smb_krb5_addresses **kerb_addr);
@@ -123,14 +149,6 @@ krb5_error_code smb_krb5_keytab_name(TALLOC_CTX *mem_ctx,
 				     krb5_context context,
 				     krb5_keytab keytab,
 				     const char **keytab_name);
-int smb_krb5_kt_add_entry_ext(krb5_context context,
-			      krb5_keytab keytab,
-			      krb5_kvno kvno,
-			      const char *princ_s,
-			      krb5_enctype *enctypes,
-			      krb5_data password,
-			      bool no_salt,
-			      bool keep_old_entries);
 krb5_error_code smb_krb5_get_credentials(krb5_context context,
 					 krb5_ccache ccache,
 					 krb5_principal me,
@@ -144,5 +162,20 @@ krb5_error_code smb_krb5_get_creds(const char *server_s,
 				   krb5_creds **creds_p);
 char *smb_krb5_principal_get_realm(krb5_context context,
 				   krb5_principal principal);
+
+
 #endif /* HAVE_KRB5 */
 
+int cli_krb5_get_ticket(TALLOC_CTX *mem_ctx,
+			const char *principal, time_t time_offset,
+			DATA_BLOB *ticket, DATA_BLOB *session_key_krb5,
+			uint32_t extra_ap_opts, const char *ccname,
+			time_t *tgs_expire,
+			const char *impersonate_princ_s);
+
+bool unwrap_edata_ntstatus(TALLOC_CTX *mem_ctx,
+			   DATA_BLOB *edata,
+			   DATA_BLOB *edata_out);
+bool unwrap_pac(TALLOC_CTX *mem_ctx, DATA_BLOB *auth_data, DATA_BLOB *unwrapped_pac_data);
+
+#endif /* _INCLUDE_KRB5_PROTOS_H_ */

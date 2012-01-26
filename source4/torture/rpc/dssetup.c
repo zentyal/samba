@@ -20,9 +20,8 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "librpc/gen_ndr/ndr_dssetup_c.h"
-#include "torture/rpc/rpc.h"
+#include "torture/rpc/torture_rpc.h"
 
 
 bool test_DsRoleGetPrimaryDomainInformation_ext(struct torture_context *tctx, 
@@ -32,12 +31,13 @@ bool test_DsRoleGetPrimaryDomainInformation_ext(struct torture_context *tctx,
 	struct dssetup_DsRoleGetPrimaryDomainInformation r;
 	NTSTATUS status;
 	int i;
+	struct dcerpc_binding_handle *b = p->binding_handle;
 
 	for (i=DS_ROLE_BASIC_INFORMATION; i <= DS_ROLE_OP_STATUS; i++) {
 		r.in.level = i;
 		torture_comment(tctx, "dcerpc_dssetup_DsRoleGetPrimaryDomainInformation level %d\n", i);
 
-		status = dcerpc_dssetup_DsRoleGetPrimaryDomainInformation(p, tctx, &r);
+		status = dcerpc_dssetup_DsRoleGetPrimaryDomainInformation_r(b, tctx, &r);
 		torture_assert_ntstatus_equal(tctx, ext_status, status, "DsRoleGetPrimaryDomainInformation failed");
 		if (NT_STATUS_IS_OK(ext_status)) {
 			torture_assert_werr_ok(tctx, r.out.result, "DsRoleGetPrimaryDomainInformation failed");
@@ -55,7 +55,7 @@ bool test_DsRoleGetPrimaryDomainInformation(struct torture_context *tctx,
 
 struct torture_suite *torture_rpc_dssetup(TALLOC_CTX *mem_ctx)
 {
-	struct torture_suite *suite = torture_suite_create(mem_ctx, "DSSETUP");
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "dssetup");
 	struct torture_rpc_tcase *tcase = torture_suite_add_rpc_iface_tcase(suite, "dssetup", &ndr_table_dssetup);
 
 	torture_rpc_tcase_add_test(tcase, "DsRoleGetPrimaryDomainInformation", test_DsRoleGetPrimaryDomainInformation);

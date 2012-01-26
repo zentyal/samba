@@ -19,7 +19,6 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "libcli/raw/ioctl.h"
 #include "libcli/raw/libcliraw.h"
 #include "libcli/raw/raw_proto.h"
@@ -95,6 +94,28 @@ static bool test_fsctl(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 	fnum = create_complex_file(cli, mem_ctx, fname);
 	if (fnum == -1) {
 		printf("Failed to create test.dat - %s\n", smbcli_errstr(cli->tree));
+		ret = false;
+		goto done;
+	}
+
+	printf("Trying FSCTL_FIND_FILES_BY_SID\n");
+	nt.ioctl.level = RAW_IOCTL_NTIOCTL;
+	nt.ntioctl.in.function = FSCTL_FIND_FILES_BY_SID;
+	nt.ntioctl.in.file.fnum = fnum;
+	nt.ntioctl.in.fsctl = true;
+	nt.ntioctl.in.filter = 0;
+	nt.ntioctl.in.max_data = 0;
+	nt.ntioctl.in.blob = data_blob(NULL, 1024);
+	/* definitely not a sid... */
+	generate_random_buffer(nt.ntioctl.in.blob.data,
+			       nt.ntioctl.in.blob.length);
+	nt.ntioctl.in.blob.data[1] = 15+1;
+	status = smb_raw_ioctl(cli->tree, mem_ctx, &nt);
+	if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_PARAMETER) &&
+	    !NT_STATUS_EQUAL(status, NT_STATUS_NOT_IMPLEMENTED) &&
+	    !NT_STATUS_EQUAL(status, NT_STATUS_NOT_SUPPORTED)) {
+		printf("Got unexpected error code: %s\n",
+			nt_errstr(status));
 		ret = false;
 		goto done;
 	}

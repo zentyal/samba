@@ -70,9 +70,11 @@ static NTSTATUS make_connection_scfg(struct smbsrv_request *req,
 		goto failed;
 	}
 
-	status = ntvfs_set_addr_callbacks(tcon->ntvfs, smbsrv_get_my_addr, smbsrv_get_peer_addr, req->smb_conn);
+	status = ntvfs_set_addresses(tcon->ntvfs,
+				     req->smb_conn->connection->local_address,
+				     req->smb_conn->connection->remote_address);
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0,("make_connection: NTVFS failed to set the addr callbacks!\n"));
+		DEBUG(0,("make_connection: NTVFS failed to set the addresses!\n"));
 		goto failed;
 	}
 
@@ -189,7 +191,7 @@ NTSTATUS smbsrv_tcon_backend(struct smbsrv_request *req, union smb_tcon *con)
 
 	con->tconx.out.tid = req->tcon->tid;
 	con->tconx.out.options = SMB_SUPPORT_SEARCH_BITS | (share_int_option(req->tcon->ntvfs->config, SHARE_CSC_POLICY, SHARE_CSC_POLICY_DEFAULT) << 2);
-	if (share_bool_option(req->tcon->ntvfs->config, SHARE_MSDFS_ROOT, SHARE_MSDFS_ROOT_DEFAULT) && lp_host_msdfs(req->smb_conn->lp_ctx)) {
+	if (share_bool_option(req->tcon->ntvfs->config, SHARE_MSDFS_ROOT, SHARE_MSDFS_ROOT_DEFAULT) && lpcfg_host_msdfs(req->smb_conn->lp_ctx)) {
 		con->tconx.out.options |= SMB_SHARE_IN_DFS;
 	}
 

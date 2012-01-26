@@ -21,6 +21,7 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 #include "getdate.h"
 
 /*
@@ -83,9 +84,8 @@ static int readonly_connect(vfs_handle_struct *handle,
       for (i=0; i< VUID_CACHE_SIZE; i++) {
         struct vuid_cache_entry *ent = ent = &conn->vuid_cache.array[i];
         ent->vuid = UID_FIELD_INVALID;
-        TALLOC_FREE(ent->server_info);
+        TALLOC_FREE(ent->session_info);
         ent->read_only = false;
-        ent->admin_user = false;
       }
       conn->vuid_cache.next_entry = 0;
     }

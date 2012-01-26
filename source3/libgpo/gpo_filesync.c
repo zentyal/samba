@@ -18,6 +18,10 @@
  */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "libsmb/libsmb.h"
+#include "../libgpo/gpo.h"
+#include "libgpo/gpo_proto.h"
 
 struct sync_context {
 	TALLOC_CTX *mem_ctx;
@@ -28,8 +32,8 @@ struct sync_context {
 	uint16_t attribute;
 };
 
-static void gpo_sync_func(const char *mnt,
-			  file_info *info,
+static NTSTATUS gpo_sync_func(const char *mnt,
+			  struct file_info *info,
 			  const char *mask,
 			  void *state);
 
@@ -96,7 +100,7 @@ NTSTATUS gpo_copy_file(TALLOC_CTX *mem_ctx,
 static NTSTATUS gpo_copy_dir(const char *unix_path)
 {
 	if ((mkdir(unix_path, 0644)) < 0 && errno != EEXIST) {
-		return NT_STATUS_ACCESS_DENIED;
+		return map_nt_error_from_unix(errno);
 	}
 
 	return NT_STATUS_OK;
@@ -106,29 +110,29 @@ static NTSTATUS gpo_copy_dir(const char *unix_path)
  sync files
 ****************************************************************/
 
-static bool gpo_sync_files(struct sync_context *ctx)
+static NTSTATUS gpo_sync_files(struct sync_context *ctx)
 {
+	NTSTATUS status;
+
 	DEBUG(3,("calling cli_list with mask: %s\n", ctx->mask));
 
-	if (cli_list(ctx->cli,
-		     ctx->mask,
-		     ctx->attribute,
-		     gpo_sync_func,
-		     ctx) == -1) {
-		DEBUG(1,("listing [%s] failed with error: %s\n",
-			ctx->mask, cli_errstr(ctx->cli)));
-		return false;
+	status = cli_list(ctx->cli, ctx->mask, ctx->attribute, gpo_sync_func,
+			  ctx);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("listing [%s] failed with error: %s\n",
+			  ctx->mask, nt_errstr(status)));
+		return status;
 	}
 
-	return true;
+	return status;
 }
 
 /****************************************************************
  syncronisation call back
 ****************************************************************/
 
-static void gpo_sync_func(const char *mnt,
-			  file_info *info,
+static NTSTATUS gpo_sync_func(const char *mnt,
+			  struct file_info *info,
 			  const char *mask,
 			  void *state)
 {
@@ -141,13 +145,13 @@ static void gpo_sync_func(const char *mnt,
 	ctx = (struct sync_context *)state;
 
 	if (strequal(info->name, ".") || strequal(info->name, "..")) {
-		return;
+		return NT_STATUS_OK;
 	}
 
 	DEBUG(5,("gpo_sync_func: got mask: [%s], name: [%s]\n",
 		mask, info->name));
 
-	if (info->mode & aDIR) {
+	if (info->mode & FILE_ATTRIBUTE_DIRECTORY) {
 
 		DEBUG(3,("got dir: [%s]\n", info->name));
 
@@ -163,6 +167,7 @@ static void gpo_sync_func(const char *mnt,
 		if (!NT_STATUS_IS_OK(result)) {
 			DEBUG(1,("failed to copy dir: %s\n",
 				nt_errstr(result)));
+			return result;
 		}
 
 		old_nt_dir = ctx->remote_path;
@@ -176,15 +181,17 @@ static void gpo_sync_func(const char *mnt,
 					nt_dir);
 		if (!ctx->local_path || !ctx->mask || !ctx->remote_path) {
 			DEBUG(0,("gpo_sync_func: ENOMEM\n"));
-			return;
+			return NT_STATUS_NO_MEMORY;
 		}
-		if (!gpo_sync_files(ctx)) {
+		result = gpo_sync_files(ctx);
+		if (!NT_STATUS_IS_OK(result)) {
 			DEBUG(0,("could not sync files\n"));
+			return result;
 		}
 
 		ctx->remote_path = old_nt_dir;
 		ctx->local_path = old_unix_dir;
-		return;
+		return NT_STATUS_OK;
 	}
 
 	DEBUG(3,("got file: [%s]\n", info->name));
@@ -203,6 +210,7 @@ static void gpo_sync_func(const char *mnt,
 		DEBUG(1,("failed to copy file: %s\n",
 			nt_errstr(result)));
 	}
+	return result;
 }
 
 
@@ -221,7 +229,7 @@ NTSTATUS gpo_sync_directories(TALLOC_CTX *mem_ctx,
 	ctx.cli 	= cli;
 	ctx.remote_path	= CONST_DISCARD(char *, nt_path);
 	ctx.local_path	= CONST_DISCARD(char *, local_path);
-	ctx.attribute 	= (aSYSTEM | aHIDDEN | aDIR);
+	ctx.attribute 	= (FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_DIRECTORY);
 
 	ctx.mask = talloc_asprintf(mem_ctx,
 				"%s\\*",
@@ -230,9 +238,5 @@ NTSTATUS gpo_sync_directories(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	if (!gpo_sync_files(&ctx)) {
-		return NT_STATUS_NO_SUCH_FILE;
-	}
-
-	return NT_STATUS_OK;
+	return gpo_sync_files(&ctx);
 }

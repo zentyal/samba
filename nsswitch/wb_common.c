@@ -22,6 +22,8 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "replace.h"
+#include "system/select.h"
 #include "winbind_client.h"
 
 /* Global variables.  These are effectively the client state information */
@@ -41,7 +43,8 @@ void winbindd_free_response(struct winbindd_response *response)
 
 /* Initialise a request structure */
 
-void winbindd_init_request(struct winbindd_request *request, int request_type)
+static void winbindd_init_request(struct winbindd_request *request,
+				  int request_type)
 {
 	request->length = sizeof(struct winbindd_request);
 
@@ -64,7 +67,7 @@ static void init_response(struct winbindd_response *response)
 #if HAVE_FUNCTION_ATTRIBUTE_DESTRUCTOR
 __attribute__((destructor))
 #endif
-void winbind_close_sock(void)
+static void winbind_close_sock(void)
 {
 	if (winbindd_fd != -1) {
 		close(winbindd_fd);
@@ -232,8 +235,7 @@ static int winbind_named_pipe_sock(const char *dir)
 
 	for (wait_time = 0; connect(fd, (struct sockaddr *)&sunaddr, sizeof(sunaddr)) == -1;
 			wait_time += slept) {
-		struct timeval tv;
-		fd_set w_fds;
+		struct pollfd pfd;
 		int ret;
 		int connect_errno = 0;
 		socklen_t errnosize;
@@ -243,16 +245,10 @@ static int winbind_named_pipe_sock(const char *dir)
 
 		switch (errno) {
 			case EINPROGRESS:
-				FD_ZERO(&w_fds);
-				if (fd < 0 || fd >= FD_SETSIZE) {
-					errno = EBADF;
-					goto error_out;
-				}
-				FD_SET(fd, &w_fds);
-				tv.tv_sec = CONNECT_TIMEOUT - wait_time;
-				tv.tv_usec = 0;
+				pfd.fd = fd;
+				pfd.events = POLLOUT;
 
-				ret = select(fd + 1, NULL, &w_fds, NULL, &tv);
+				ret = poll(&pfd, 1, (CONNECT_TIMEOUT - wait_time) * 1000);
 
 				if (ret > 0) {
 					errnosize = sizeof(connect_errno);
@@ -370,7 +366,8 @@ static int winbind_open_pipe_sock(int recursing, int need_priv)
 
 /* Write data to winbindd socket */
 
-int winbind_write_sock(void *buffer, int count, int recursing, int need_priv)
+static int winbind_write_sock(void *buffer, int count, int recursing,
+			      int need_priv)
 {
 	int result, nwritten;
 
@@ -388,53 +385,46 @@ int winbind_write_sock(void *buffer, int count, int recursing, int need_priv)
 	nwritten = 0;
 
 	while(nwritten < count) {
-		struct timeval tv;
-		fd_set r_fds;
+		struct pollfd pfd;
+		int ret;
 
 		/* Catch pipe close on other end by checking if a read()
-		   call would not block by calling select(). */
+		   call would not block by calling poll(). */
 
-		FD_ZERO(&r_fds);
-		if (winbindd_fd < 0 || winbindd_fd >= FD_SETSIZE) {
-			errno = EBADF;
-			winbind_close_sock();
-			return -1;
-		}
-		FD_SET(winbindd_fd, &r_fds);
-		ZERO_STRUCT(tv);
+		pfd.fd = winbindd_fd;
+		pfd.events = POLLIN|POLLHUP;
 
-		if (select(winbindd_fd + 1, &r_fds, NULL, NULL, &tv) == -1) {
+		ret = poll(&pfd, 1, 0);
+		if (ret == -1) {
 			winbind_close_sock();
-			return -1;                   /* Select error */
+			return -1;                   /* poll error */
 		}
 
 		/* Write should be OK if fd not available for reading */
 
-		if (!FD_ISSET(winbindd_fd, &r_fds)) {
-
-			/* Do the write */
-
-			result = write(winbindd_fd,
-				       (char *)buffer + nwritten,
-				       count - nwritten);
-
-			if ((result == -1) || (result == 0)) {
-
-				/* Write failed */
-
-				winbind_close_sock();
-				return -1;
-			}
-
-			nwritten += result;
-
-		} else {
+		if ((ret == 1) && (pfd.revents & (POLLIN|POLLHUP|POLLERR))) {
 
 			/* Pipe has closed on remote end */
 
 			winbind_close_sock();
 			goto restart;
 		}
+
+		/* Do the write */
+
+		result = write(winbindd_fd,
+			       (char *)buffer + nwritten,
+			       count - nwritten);
+
+		if ((result == -1) || (result == 0)) {
+
+			/* Write failed */
+
+			winbind_close_sock();
+			return -1;
+		}
+
+		nwritten += result;
 	}
 
 	return nwritten;
@@ -442,10 +432,10 @@ int winbind_write_sock(void *buffer, int count, int recursing, int need_priv)
 
 /* Read data from winbindd socket */
 
-int winbind_read_sock(void *buffer, int count)
+static int winbind_read_sock(void *buffer, int count)
 {
 	int nread = 0;
-	int total_time = 0, selret;
+	int total_time = 0;
 
 	if (winbindd_fd == -1) {
 		return -1;
@@ -453,29 +443,24 @@ int winbind_read_sock(void *buffer, int count)
 
 	/* Read data from socket */
 	while(nread < count) {
-		struct timeval tv;
-		fd_set r_fds;
+		struct pollfd pfd;
+		int ret;
 
 		/* Catch pipe close on other end by checking if a read()
-		   call would not block by calling select(). */
+		   call would not block by calling poll(). */
 
-		FD_ZERO(&r_fds);
-		if (winbindd_fd < 0 || winbindd_fd >= FD_SETSIZE) {
-			errno = EBADF;
-			winbind_close_sock();
-			return -1;
-		}
-		FD_SET(winbindd_fd, &r_fds);
-		ZERO_STRUCT(tv);
+		pfd.fd = winbindd_fd;
+		pfd.events = POLLIN|POLLHUP;
+
 		/* Wait for 5 seconds for a reply. May need to parameterise this... */
-		tv.tv_sec = 5;
 
-		if ((selret = select(winbindd_fd + 1, &r_fds, NULL, NULL, &tv)) == -1) {
+		ret = poll(&pfd, 1, 5000);
+		if (ret == -1) {
 			winbind_close_sock();
-			return -1;                   /* Select error */
+			return -1;                   /* poll error */
 		}
 
-		if (selret == 0) {
+		if (ret == 0) {
 			/* Not ready for read yet... */
 			if (total_time >= 30) {
 				/* Timeout */
@@ -486,7 +471,7 @@ int winbind_read_sock(void *buffer, int count)
 			continue;
 		}
 
-		if (FD_ISSET(winbindd_fd, &r_fds)) {
+		if ((ret == 1) && (pfd.revents & (POLLIN|POLLHUP|POLLERR))) {
 
 			/* Do the Read */
 
@@ -513,7 +498,7 @@ int winbind_read_sock(void *buffer, int count)
 
 /* Read reply */
 
-int winbindd_read_reply(struct winbindd_response *response)
+static int winbindd_read_reply(struct winbindd_response *response)
 {
 	int result1, result2 = 0;
 
@@ -526,6 +511,10 @@ int winbindd_read_reply(struct winbindd_response *response)
 	result1 = winbind_read_sock(response,
 				    sizeof(struct winbindd_response));
 	if (result1 == -1) {
+		return -1;
+	}
+
+	if (response->length < sizeof(struct winbindd_response)) {
 		return -1;
 	}
 
@@ -681,27 +670,4 @@ NSS_STATUS winbindd_priv_request_response(int req_type,
 	}
 
 	return status;
-}
-
-/*************************************************************************
- ************************************************************************/
-
-const char *nss_err_str(NSS_STATUS ret)
-{
-	switch (ret) {
-		case NSS_STATUS_TRYAGAIN:
-			return "NSS_STATUS_TRYAGAIN";
-		case NSS_STATUS_SUCCESS:
-			return "NSS_STATUS_SUCCESS";
-		case NSS_STATUS_NOTFOUND:
-			return "NSS_STATUS_NOTFOUND";
-		case NSS_STATUS_UNAVAIL:
-			return "NSS_STATUS_UNAVAIL";
-#ifdef NSS_STATUS_RETURN
-		case NSS_STATUS_RETURN:
-			return "NSS_STATUS_RETURN";
-#endif
-		default:
-			return "UNKNOWN RETURN CODE!!!!!!!";
-	}
 }

@@ -19,6 +19,8 @@
  */
 
 #include "includes.h"
+#include "ads.h"
+#include "idmap.h"
 #include "idmap_adex.h"
 
 #undef DBGC_CLASS
@@ -208,7 +210,7 @@ static struct dc_info *dc_find_domain(const char *dns_domain)
  NTSTATUS dc_search_domains(struct likewise_cell **cell,
 			    LDAPMessage **msg,
 			    const char *dn,
-			    const DOM_SID *sid)
+			    const struct dom_sid *sid)
 {
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
 	TALLOC_CTX *frame = talloc_stackframe();

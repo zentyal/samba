@@ -3,6 +3,8 @@
  * (Royal Institute of Technology, Stockholm, Sweden).
  * All rights reserved.
  *
+ * Portions Copyright (c) 2009 Apple Inc. All rights reserved.
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -35,10 +37,21 @@
 
 KRB5_LIB_VARIABLE const char *krb5_config_file =
 #ifdef __APPLE__
-"~/Library/Preferences/edu.mit.Kerberos:"
-"/Library/Preferences/edu.mit.Kerberos:"
+"~/Library/Preferences/com.apple.Kerberos.plist" PATH_SEP
+"/Library/Preferences/com.apple.Kerberos.plist" PATH_SEP
+"~/Library/Preferences/edu.mit.Kerberos" PATH_SEP
+"/Library/Preferences/edu.mit.Kerberos" PATH_SEP
+#endif	/* __APPLE__ */
+"~/.krb5/config" PATH_SEP
+SYSCONFDIR "/krb5.conf"
+#ifdef _WIN32
+PATH_SEP "%{COMMON_APPDATA}/Kerberos/krb5.conf"
+PATH_SEP "%{WINDOWS}/krb5.ini"
+#else
+PATH_SEP "/etc/krb5.conf"
 #endif
-SYSCONFDIR "/krb5.conf:/etc/krb5.conf";
+;
+
 KRB5_LIB_VARIABLE const char *krb5_defkeyname = KEYTAB_DEFAULT;
 
 KRB5_LIB_VARIABLE const char *krb5_cc_type_api = "API";

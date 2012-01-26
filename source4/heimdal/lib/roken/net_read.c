@@ -33,29 +33,23 @@
 
 #include <config.h>
 
-#include <sys/types.h>
-#include <unistd.h>
-#include <errno.h>
-
 #include "roken.h"
 
 /*
  * Like read but never return partial data.
  */
 
-ssize_t ROKEN_LIB_FUNCTION
-net_read (int fd, void *buf, size_t nbytes)
+#ifndef _WIN32
+
+ROKEN_LIB_FUNCTION ssize_t ROKEN_LIB_CALL
+net_read (rk_socket_t fd, void *buf, size_t nbytes)
 {
     char *cbuf = (char *)buf;
     ssize_t count;
     size_t rem = nbytes;
 
     while (rem > 0) {
-#ifdef WIN32
-	count = recv (fd, cbuf, rem, 0);
-#else
 	count = read (fd, cbuf, rem);
-#endif
 	if (count < 0) {
 	    if (errno == EINTR)
 		continue;
@@ -69,3 +63,56 @@ net_read (int fd, void *buf, size_t nbytes)
     }
     return nbytes;
 }
+
+#else
+
+ROKEN_LIB_FUNCTION ssize_t ROKEN_LIB_CALL
+net_read(rk_socket_t sock, void *buf, size_t nbytes)
+{
+    char *cbuf = (char *)buf;
+    ssize_t count;
+    size_t rem = nbytes;
+
+#ifdef SOCKET_IS_NOT_AN_FD
+    int use_read = 0;
+#endif
+
+    while (rem > 0) {
+#ifdef SOCKET_IS_NOT_AN_FD
+	if (use_read)
+	    count = _read (sock, cbuf, rem);
+	else
+	    count = recv (sock, cbuf, rem, 0);
+
+	if (use_read == 0 &&
+	    rk_IS_SOCKET_ERROR(count) &&
+            (rk_SOCK_ERRNO == WSANOTINITIALISED ||
+             rk_SOCK_ERRNO == WSAENOTSOCK)) {
+	    use_read = 1;
+
+	    count = _read (sock, cbuf, rem);
+	}
+#else
+	count = recv (sock, cbuf, rem, 0);
+#endif
+	if (count < 0) {
+
+	    /* With WinSock, the error EINTR (WSAEINTR), is used to
+	       indicate that a blocking call was cancelled using
+	       WSACancelBlockingCall(). */
+
+#ifndef HAVE_WINSOCK
+	    if (rk_SOCK_ERRNO == EINTR)
+		continue;
+#endif
+	    return count;
+	} else if (count == 0) {
+	    return count;
+	}
+	cbuf += count;
+	rem -= count;
+    }
+    return nbytes;
+}
+
+#endif

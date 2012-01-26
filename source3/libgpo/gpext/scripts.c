@@ -18,7 +18,12 @@
  */
 
 #include "includes.h"
-#include "libgpo/gpo_ini.h"
+#include "../libgpo/gpo_ini.h"
+#include "../libgpo/gpo.h"
+#include "libgpo/gpo_proto.h"
+#include "registry.h"
+#include "registry/reg_api.h"
+#include "../libcli/registry/util_reg.h"
 
 #define GP_EXT_NAME "scripts"
 
@@ -93,11 +98,13 @@ static NTSTATUS generate_gp_registry_entry(TALLOC_CTX *mem_ctx,
 	data->type = data_type;
 	switch (data->type) {
 		case REG_QWORD:
-			data->v.qword = *(uint64_t *)data_p;
+			data->data = data_blob_talloc(mem_ctx, NULL, 8);
+			SBVAL(data->data.data, 0, *(uint64_t *)data_p);
 			break;
 		case REG_SZ:
-			data->v.sz.str = talloc_strdup(mem_ctx, (char *)data_p);
-			data->v.sz.len = strlen(data->v.sz.str);
+			if (!push_reg_sz(mem_ctx, &data->data, (char *)data_p)) {
+				return NT_STATUS_NO_MEMORY;
+			}
 			break;
 		default:
 			return NT_STATUS_NOT_SUPPORTED;
@@ -255,7 +262,7 @@ static WERROR scripts_store_reg_gpovals(TALLOC_CTX *mem_ctx,
 ****************************************************************/
 
 static WERROR scripts_apply(TALLOC_CTX *mem_ctx,
-			    const struct nt_user_token *token,
+			    const struct security_token *token,
 			    struct registry_key *root_key,
 			    uint32_t flags,
 			    const char *section,
@@ -275,7 +282,7 @@ static WERROR scripts_apply(TALLOC_CTX *mem_ctx,
 
 #if 0
 	if (flags & GPO_INFO_FLAG_MACHINE) {
-		struct nt_user_token *tmp_token;
+		struct security_token *tmp_token;
 
 		tmp_token = registry_create_system_token(mem_ctx);
 		W_ERROR_HAVE_NO_MEMORY(tmp_token);
@@ -295,7 +302,7 @@ static WERROR scripts_apply(TALLOC_CTX *mem_ctx,
 				 section, count++);
 	W_ERROR_HAVE_NO_MEMORY(keystr);
 
-	reg_deletekey_recursive(mem_ctx, root_key, keystr);
+	reg_deletekey_recursive(root_key, keystr);
 
 	werr = gp_store_reg_subkey(mem_ctx, keystr,
 				   root_key, &root_key);
@@ -332,7 +339,7 @@ static NTSTATUS scripts_process_group_policy(ADS_STRUCT *ads,
 					     TALLOC_CTX *mem_ctx,
 					     uint32_t flags,
 					     struct registry_key *root_key,
-					     const struct nt_user_token *token,
+					     const struct security_token *token,
 					     struct GROUP_POLICY_OBJECT *gpo,
 					     const char *extension_guid,
 					     const char *snapin_guid)

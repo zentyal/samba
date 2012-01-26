@@ -39,8 +39,6 @@
 #include <string.h>
 #include <errno.h>
 
-RCSID("$Id$");
-
 /**
  * Process a input UCS4 string according a string-prep profile.
  *
@@ -60,10 +58,16 @@ wind_stringprep(const uint32_t *in, size_t in_len,
 		wind_profile_flags flags)
 {
     size_t tmp_len = in_len * 3;
-    uint32_t *tmp = malloc(tmp_len * sizeof(uint32_t));
+    uint32_t *tmp;
     int ret;
     size_t olen;
 
+    if (in_len == 0) {
+	*out_len = 0;
+	return 0;
+    }
+
+    tmp = malloc(tmp_len * sizeof(uint32_t));
     if (tmp == NULL)
 	return ENOMEM;
 

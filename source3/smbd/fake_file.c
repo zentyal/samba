@@ -18,6 +18,10 @@
 */
 
 #include "includes.h"
+#include "smbd/smbd.h"
+#include "smbd/globals.h"
+#include "fake_file.h"
+#include "auth.h"
 
 struct fake_file_type {
 	const char *name;
@@ -125,13 +129,25 @@ NTSTATUS open_fake_file(struct smb_request *req, connection_struct *conn,
 	files_struct *fsp = NULL;
 	NTSTATUS status;
 
+	status = smbd_calculate_access_mask(conn, smb_fname,
+					    false, /* fake files do not exist */
+					    access_mask, &access_mask);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(10, ("open_fake_file: smbd_calculate_access_mask "
+			"on service[%s] file[%s] returned %s\n",
+			lp_servicename(SNUM(conn)),
+			smb_fname_str_dbg(smb_fname),
+			nt_errstr(status)));
+		return status;
+	}
+
 	/* access check */
-	if (conn->server_info->utok.uid != 0 && !conn->admin_user) {
+	if (geteuid() != sec_initial_uid()) {
 		DEBUG(3, ("open_fake_file_shared: access_denied to "
 			  "service[%s] file[%s] user[%s]\n",
 			  lp_servicename(SNUM(conn)),
 			  smb_fname_str_dbg(smb_fname),
-			  conn->server_info->unix_name));
+			  conn->session_info->unix_name));
 		return NT_STATUS_ACCESS_DENIED;
 
 	}

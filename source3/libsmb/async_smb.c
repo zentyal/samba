@@ -18,6 +18,13 @@
 */
 
 #include "includes.h"
+#include "libsmb/libsmb.h"
+#include "../lib/async_req/async_sock.h"
+#include "../lib/util/tevent_ntstatus.h"
+#include "../lib/util/tevent_unix.h"
+#include "async_smb.h"
+#include "smb_crypt.h"
+#include "libsmb/nmblib.h"
 
 /*
  * Read an smb packet asynchronously, discard keepalives
@@ -120,13 +127,7 @@ NTSTATUS cli_pull_error(char *buf)
 		return NT_STATUS(IVAL(buf, smb_rcls));
 	}
 
-	/* if the client uses dos errors, but there is no error,
-	   we should return no error here, otherwise it looks
-	   like an unknown bad NT_STATUS. jmcd */
-	if (CVAL(buf, smb_rcls) == 0)
-		return NT_STATUS_OK;
-
-	return NT_STATUS_DOS(CVAL(buf, smb_rcls), SVAL(buf,smb_err));
+	return dos_to_ntstatus(CVAL(buf, smb_rcls), SVAL(buf,smb_err));
 }
 
 /**
@@ -201,6 +202,7 @@ struct cli_smb_state {
 	uint8_t *inbuf;
 	uint32_t seqnum;
 	int chain_num;
+	int chain_length;
 	struct tevent_req **chained_requests;
 };
 
@@ -236,6 +238,14 @@ void cli_smb_req_unset_pending(struct tevent_req *req)
 	struct cli_state *cli = state->cli;
 	int num_pending = talloc_array_length(cli->pending);
 	int i;
+
+	if (state->mid != 0) {
+		/*
+		 * This is a [nt]trans[2] request which waits
+		 * for more than one reply.
+		 */
+		return;
+	}
 
 	if (num_pending == 1) {
 		/*
@@ -279,6 +289,13 @@ void cli_smb_req_unset_pending(struct tevent_req *req)
 
 static int cli_smb_req_destructor(struct tevent_req *req)
 {
+	struct cli_smb_state *state = tevent_req_data(
+		req, struct cli_smb_state);
+	/*
+	 * Make sure we really remove it from
+	 * the pending array on destruction.
+	 */
+	state->mid = 0;
 	cli_smb_req_unset_pending(req);
 	return 0;
 }
@@ -339,6 +356,20 @@ void cli_smb_req_set_mid(struct tevent_req *req, uint16_t mid)
 	struct cli_smb_state *state = tevent_req_data(
 		req, struct cli_smb_state);
 	state->mid = mid;
+}
+
+uint32_t cli_smb_req_seqnum(struct tevent_req *req)
+{
+	struct cli_smb_state *state = tevent_req_data(
+		req, struct cli_smb_state);
+	return state->seqnum;
+}
+
+void cli_smb_req_set_seqnum(struct tevent_req *req, uint32_t seqnum)
+{
+	struct cli_smb_state *state = tevent_req_data(
+		req, struct cli_smb_state);
+	state->seqnum = seqnum;
 }
 
 static size_t iov_len(const struct iovec *iov, int count)
@@ -423,9 +454,12 @@ struct tevent_req *cli_smb_req_create(TALLOC_CTX *mem_ctx,
 	}
 	state->iov_count = iov_count + 3;
 
-	endtime = timeval_current_ofs(0, cli->timeout * 1000);
-	if (!tevent_req_set_endtime(result, ev, endtime)) {
-		tevent_req_nomem(NULL, result);
+	if (cli->timeout) {
+		endtime = timeval_current_ofs(cli->timeout / 1000,
+					      (cli->timeout % 1000) * 1000);
+		if (!tevent_req_set_endtime(result, ev, endtime)) {
+			tevent_req_nomem(NULL, result);
+		}
 	}
 	return result;
 }
@@ -609,7 +643,6 @@ static void cli_smb_received(struct tevent_req *subreq)
 		subreq, struct cli_state);
 	struct tevent_req *req;
 	struct cli_smb_state *state;
-	struct tevent_context *ev;
 	NTSTATUS status;
 	uint8_t *inbuf;
 	ssize_t received;
@@ -698,7 +731,6 @@ static void cli_smb_received(struct tevent_req *subreq)
 
 	req = cli->pending[i];
 	state = tevent_req_data(req, struct cli_smb_state);
-	ev = state->ev;
 
 	if (!oplock_break /* oplock breaks are not signed */
 	    && !cli_check_sign_mac(cli, (char *)inbuf, state->seqnum+1)) {
@@ -713,7 +745,9 @@ static void cli_smb_received(struct tevent_req *subreq)
 	if (state->chained_requests == NULL) {
 		state->inbuf = talloc_move(state, &inbuf);
 		talloc_set_destructor(req, NULL);
-		cli_smb_req_destructor(req);
+		cli_smb_req_unset_pending(req);
+		state->chain_num = 0;
+		state->chain_length = 1;
 		tevent_req_done(req);
 	} else {
 		struct tevent_req **chain = talloc_move(
@@ -725,6 +759,7 @@ static void cli_smb_received(struct tevent_req *subreq)
 						cli_smb_state);
 			state->inbuf = inbuf;
 			state->chain_num = i;
+			state->chain_length = num_chained;
 			tevent_req_done(chain[i]);
 		}
 		TALLOC_FREE(inbuf);
@@ -754,13 +789,14 @@ static void cli_smb_received(struct tevent_req *subreq)
 	while (talloc_array_length(cli->pending) > 0) {
 		req = cli->pending[0];
 		talloc_set_destructor(req, NULL);
-		cli_smb_req_destructor(req);
+		cli_smb_req_unset_pending(req);
 		tevent_req_nterror(req, status);
 	}
 }
 
-NTSTATUS cli_smb_recv(struct tevent_req *req, uint8_t min_wct,
-		      uint8_t *pwct, uint16_t **pvwv,
+NTSTATUS cli_smb_recv(struct tevent_req *req,
+		      TALLOC_CTX *mem_ctx, uint8_t **pinbuf,
+		      uint8_t min_wct, uint8_t *pwct, uint16_t **pvwv,
 		      uint32_t *pnum_bytes, uint8_t **pbytes)
 {
 	struct cli_smb_state *state = tevent_req_data(
@@ -776,6 +812,24 @@ NTSTATUS cli_smb_recv(struct tevent_req *req, uint8_t min_wct,
 	}
 
 	if (state->inbuf == NULL) {
+		if (min_wct != 0) {
+			return NT_STATUS_INVALID_NETWORK_RESPONSE;
+		}
+		if (pinbuf) {
+			*pinbuf = NULL;
+		}
+		if (pwct) {
+			*pwct = 0;
+		}
+		if (pvwv) {
+			*pvwv = NULL;
+		}
+		if (pnum_bytes) {
+			*pnum_bytes = 0;
+		}
+		if (pbytes) {
+			*pbytes = NULL;
+		}
 		/* This was a request without a reply */
 		return NT_STATUS_OK;
 	}
@@ -818,15 +872,31 @@ NTSTATUS cli_smb_recv(struct tevent_req *req, uint8_t min_wct,
 
 	status = cli_pull_error((char *)state->inbuf);
 
-	if (!have_andx_command((char *)state->inbuf, wct_ofs)
-	    && NT_STATUS_IS_ERR(status)) {
-		/*
-		 * The last command takes the error code. All further commands
-		 * down the requested chain will get a
-		 * NT_STATUS_REQUEST_ABORTED.
-		 */
-		return status;
+	cli_set_error(state->cli, status);
+
+	if (!have_andx_command((char *)state->inbuf, wct_ofs)) {
+
+		if ((cmd == SMBsesssetupX)
+		    && NT_STATUS_EQUAL(
+			    status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
+			/*
+			 * NT_STATUS_MORE_PROCESSING_REQUIRED is a
+			 * valid return code for session setup
+			 */
+			goto no_err;
+		}
+
+		if (NT_STATUS_IS_ERR(status)) {
+			/*
+			 * The last command takes the error code. All
+			 * further commands down the requested chain
+			 * will get a NT_STATUS_REQUEST_ABORTED.
+			 */
+			return status;
+		}
 	}
+
+no_err:
 
 	wct = CVAL(state->inbuf, wct_ofs);
 	bytes_offset = wct_ofs + 1 + wct * sizeof(uint16_t);
@@ -858,8 +928,15 @@ NTSTATUS cli_smb_recv(struct tevent_req *req, uint8_t min_wct,
 	if (pbytes != NULL) {
 		*pbytes = (uint8_t *)state->inbuf + bytes_offset + 2;
 	}
+	if ((mem_ctx != NULL) && (pinbuf != NULL)) {
+		if (state->chain_num == state->chain_length-1) {
+			*pinbuf = talloc_move(mem_ctx, &state->inbuf);
+		} else {
+			*pinbuf = state->inbuf;
+		}
+	}
 
-	return NT_STATUS_OK;
+	return status;
 }
 
 size_t cli_smb_wct_ofs(struct tevent_req **reqs, int num_reqs)
@@ -1043,11 +1120,13 @@ static void cli_smb_oplock_break_waiter_done(struct tevent_req *subreq)
 	uint16_t *vwv;
 	uint32_t num_bytes;
 	uint8_t *bytes;
+	uint8_t *inbuf;
 	NTSTATUS status;
 
-	status = cli_smb_recv(subreq, 8, &wct, &vwv, &num_bytes, &bytes);
+	status = cli_smb_recv(subreq, state, &inbuf, 8, &wct, &vwv,
+			      &num_bytes, &bytes);
+	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
-		TALLOC_FREE(subreq);
 		tevent_req_nterror(req, status);
 		return;
 	}

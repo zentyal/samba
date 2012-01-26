@@ -811,7 +811,7 @@ static void reply_read_and_X_send(struct ntvfs_request *ntvfs)
 	struct smbsrv_request *req;
 	union smb_read *io;
 
-	SMBSRV_CHECK_ASYNC_STATUS(io, union smb_read);
+	SMBSRV_CHECK_ASYNC_STATUS_ERR(io, union smb_read);
 
 	/* readx reply packets can be over-sized */
 	req->control_flags |= SMBSRV_REQ_CONTROL_LARGE;
@@ -833,6 +833,10 @@ static void reply_read_and_X_send(struct ntvfs_request *ntvfs)
 	SSVAL(req->out.vwv, VWV(6), PTR_DIFF(io->readx.out.data, req->out.hdr));
 	SSVAL(req->out.vwv, VWV(7), (io->readx.out.nread>>16));
 	SMBSRV_VWV_RESERVED(8, 4);
+
+	if (!NT_STATUS_IS_OK(req->ntvfs->async_states->status)) {
+		smbsrv_setup_error(req, req->ntvfs->async_states->status);
+	}
 
 	smbsrv_chain_reply(req);
 }
@@ -1380,7 +1384,7 @@ static void reply_printqueue_send(struct ntvfs_request *ntvfs)
 	struct smbsrv_request *req;
 	union smb_lpq *lpq;
 	int i, maxcount;
-	const uint_t el_size = 28;
+	const unsigned int el_size = 28;
 
 	SMBSRV_CHECK_ASYNC_STATUS(lpq,union smb_lpq);
 
@@ -1647,8 +1651,8 @@ static void reply_lockingX_send(struct ntvfs_request *ntvfs)
 void smbsrv_reply_lockingX(struct smbsrv_request *req)
 {
 	union smb_lock *lck;
-	uint_t total_locks, i;
-	uint_t lck_size;
+	unsigned int total_locks, i;
+	unsigned int lck_size;
 	uint8_t *p;
 
 	/* parse request */
@@ -2216,7 +2220,7 @@ void smbsrv_reply_ntcreate_and_X(struct smbsrv_request *req)
 	/* notice that the word parameters are not word aligned, so we don't use VWV() */
 	fname_len =                         SVAL(req->in.vwv, 5);
 	io->ntcreatex.in.flags =            IVAL(req->in.vwv, 7);
-	io->ntcreatex.in.root_fid =         IVAL(req->in.vwv, 11);
+	io->ntcreatex.in.root_fid.ntvfs =   smbsrv_pull_fnum(req, req->in.vwv, 11);
 	io->ntcreatex.in.access_mask =      IVAL(req->in.vwv, 15);
 	io->ntcreatex.in.alloc_size =       BVAL(req->in.vwv, 19);
 	io->ntcreatex.in.file_attr =        IVAL(req->in.vwv, 27);
@@ -2228,12 +2232,7 @@ void smbsrv_reply_ntcreate_and_X(struct smbsrv_request *req)
 	io->ntcreatex.in.ea_list          = NULL;
 	io->ntcreatex.in.sec_desc         = NULL;
 	io->ntcreatex.in.query_maximal_access = false;
-
-	/* we use a couple of bits of the create options internally */
-	if (io->ntcreatex.in.create_options & NTCREATEX_OPTIONS_PRIVATE_MASK) {
-		smbsrv_send_error(req, NT_STATUS_INVALID_PARAMETER);
-		return;
-	}
+	io->ntcreatex.in.private_flags    = 0;
 
 	/* we need a neater way to handle this alignment */
 	if ((req->flags2 & FLAGS2_UNICODE_STRINGS) && 

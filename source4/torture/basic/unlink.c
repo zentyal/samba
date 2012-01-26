@@ -20,9 +20,7 @@
 */
 
 #include "includes.h"
-#include "torture/torture.h"
 #include "system/filesys.h"
-#include "libcli/raw/libcliraw.h"
 #include "libcli/libcli.h"
 #include "torture/util.h"
 
@@ -62,10 +60,10 @@ bool torture_unlinktest(struct torture_context *tctx, struct smbcli_state *cli)
 	smbcli_close(cli->tree, fnum);
 	smbcli_unlink(cli->tree, fname);
 
-	torture_comment(tctx, "testing unlink after ntcreatex with DELETE access\n");
+	torture_comment(tctx, "Testing unlink after ntcreatex with DELETE access\n");
 
 	io.ntcreatex.level = RAW_OPEN_NTCREATEX;
-	io.ntcreatex.in.root_fid = 0;
+	io.ntcreatex.in.root_fid.fnum = 0;
 	io.ntcreatex.in.flags = NTCREATEX_FLAGS_EXTENDED;
 	io.ntcreatex.in.create_options = NTCREATEX_OPTIONS_NON_DIRECTORY_FILE;
 	io.ntcreatex.in.file_attr = 0;

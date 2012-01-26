@@ -28,6 +28,7 @@
 #include "auth/credentials/credentials.h"
 #include "auth/gensec/gensec.h"
 #include "auth/gensec/gensec_proto.h"
+#include "param/param.h"
 
 enum spnego_state_position {
 	SPNEGO_SERVER_START,
@@ -419,9 +420,9 @@ static NTSTATUS gensec_spnego_parse_negTokenInit(struct gensec_security *gensec_
 	}
 
 	if (spnego_state->state_position == SPNEGO_SERVER_START) {
-		for (i=0; all_sec && all_sec[i].op; i++) {
-			/* optomisitic token */
-			if (strcmp(all_sec[i].oid, mechType[0]) == 0) {
+		uint32_t j;
+		for (j=0; mechType && mechType[j]; j++) {
+			for (i=0; all_sec && all_sec[i].op; i++) {
 				nt_status = gensec_subcontext_start(spnego_state,
 								    gensec_security,
 								    &spnego_state->sub_sec_security);
@@ -436,7 +437,15 @@ static NTSTATUS gensec_spnego_parse_negTokenInit(struct gensec_security *gensec_
 					spnego_state->sub_sec_security = NULL;
 					break;
 				}
-				
+
+				if (j > 0) {
+					/* no optimistic token */
+					spnego_state->neg_oid = all_sec[i].oid;
+					*unwrapped_out = data_blob_null;
+					nt_status = NT_STATUS_MORE_PROCESSING_REQUIRED;
+					break;
+				}
+
 				nt_status = gensec_update(spnego_state->sub_sec_security,
 							  out_mem_ctx, 
 							  unwrapped_in,
@@ -455,10 +464,18 @@ static NTSTATUS gensec_spnego_parse_negTokenInit(struct gensec_security *gensec_
 				spnego_state->neg_oid = all_sec[i].oid;
 				break;
 			}
+			if (spnego_state->sub_sec_security) {
+				break;
+			}
+		}
+
+		if (!spnego_state->sub_sec_security) {
+			DEBUG(1, ("SPNEGO: Could not find a suitable mechtype in NEG_TOKEN_INIT\n"));
+			return NT_STATUS_INVALID_PARAMETER;
 		}
 	}
 	
-	/* Having tried any optomisitc token from the client (if we
+	/* Having tried any optimistic token from the client (if we
 	 * were the server), if we didn't get anywhere, walk our list
 	 * in our preference order */
 	
@@ -494,6 +511,8 @@ static NTSTATUS gensec_spnego_parse_negTokenInit(struct gensec_security *gensec_
 			 * of this mech */
 			if (spnego_state->state_position != SPNEGO_SERVER_START) {
 				if (NT_STATUS_EQUAL(nt_status, NT_STATUS_INVALID_PARAMETER) || 
+				    NT_STATUS_EQUAL(nt_status, NT_STATUS_NO_LOGON_SERVERS) ||
+				    NT_STATUS_EQUAL(nt_status, NT_STATUS_TIME_DIFFERENCE_AT_DC) ||
 				    NT_STATUS_EQUAL(nt_status, NT_STATUS_CANT_ACCESS_DOMAIN_INFO)) {
 					/* Pretend we never started it (lets the first run find some incompatible demand) */
 					
@@ -565,7 +584,6 @@ static NTSTATUS gensec_spnego_create_negTokenInit(struct gensec_security *gensec
 	const char **mechTypes = NULL;
 	DATA_BLOB unwrapped_out = data_blob(NULL, 0);
 	const struct gensec_security_ops_wrapper *all_sec;
-	const char *principal = NULL;
 
 	mechTypes = gensec_security_oids(gensec_security, 
 					 out_mem_ctx, GENSEC_OID_SPNEGO);
@@ -632,15 +650,8 @@ static NTSTATUS gensec_spnego_create_negTokenInit(struct gensec_security *gensec
 		spnego_out.negTokenInit.reqFlagsPadding = 0;
 		
 		if (spnego_state->state_position == SPNEGO_SERVER_START) {
-			/* server credentials */
-			struct cli_credentials *creds = gensec_get_credentials(gensec_security);
-			if (creds) {
-				principal = cli_credentials_get_principal(creds, out_mem_ctx);
-			}
-		}
-		if (principal) {
 			spnego_out.negTokenInit.mechListMIC
-				= data_blob_string_const(principal);
+				= data_blob_string_const(ADS_IGNORE_PRINCIPAL);
 		} else {
 			spnego_out.negTokenInit.mechListMIC = null_data_blob;
 		}
@@ -824,9 +835,12 @@ static NTSTATUS gensec_spnego_update(struct gensec_security *gensec_security, TA
 			return NT_STATUS_INVALID_PARAMETER;
 		}
 
-		if (spnego.negTokenInit.targetPrincipal) {
+		if (spnego.negTokenInit.targetPrincipal
+		    && strcmp(spnego.negTokenInit.targetPrincipal, ADS_IGNORE_PRINCIPAL) != 0) {
 			DEBUG(5, ("Server claims it's principal name is %s\n", spnego.negTokenInit.targetPrincipal));
-			gensec_set_target_principal(gensec_security, spnego.negTokenInit.targetPrincipal);
+			if (lpcfg_client_use_spnego_principal(gensec_security->settings->lp_ctx)) {
+				gensec_set_target_principal(gensec_security, spnego.negTokenInit.targetPrincipal);
+			}
 		}
 
 		nt_status = gensec_spnego_parse_negTokenInit(gensec_security,

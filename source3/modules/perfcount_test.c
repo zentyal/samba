@@ -19,6 +19,7 @@
  */
 
 #include "includes.h"
+#include "smbd/smbd.h"
 
 #define PARM_PC_TEST_TYPE		"pc_test"
 #define PARM_DUMPON_COUNT		"count"
@@ -176,13 +177,14 @@ static void perfcount_test_dump_counters(void)
 
 	DEBUG(0,("#####  Dumping Performance Counters #####\n"));
 
-	for (i=0; i < 256; i++) {
-	       for (head = g_list[i]; head != NULL; head = head->next) {
-		       perfcount_test_dump_counter(head, 0);
-		       head->prev = NULL;
-		       SAFE_FREE(head->prev);
-	       }
-	       SAFE_FREE(head);
+	for (i=0; i < MAX_OP; i++) {
+		struct perfcount_test_counter *next;
+		for (head = g_list[i]; head != NULL; head = next) {
+			next = head->next;
+			perfcount_test_dump_counter(head, 0);
+			SAFE_FREE(head);
+		}
+		g_list[i] = NULL;
 	}
 }
 

@@ -31,12 +31,9 @@
 #include "nsswitch/winbind_nss_config.h"
 #include "nsswitch/winbind_struct_protocol.h"
 
-#include <talloc.h>
-
 /* Public headers */
 
 #include "wbclient.h"
-#include "wbc_async.h"
 
 /* Private headers */
 

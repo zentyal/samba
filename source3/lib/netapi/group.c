@@ -23,7 +23,10 @@
 #include "lib/netapi/netapi.h"
 #include "lib/netapi/netapi_private.h"
 #include "lib/netapi/libnetapi.h"
-#include "../librpc/gen_ndr/cli_samr.h"
+#include "rpc_client/rpc_client.h"
+#include "../librpc/gen_ndr/ndr_samr_c.h"
+#include "rpc_client/init_lsa.h"
+#include "../libcli/security/security.h"
 
 /****************************************************************
 ****************************************************************/
@@ -32,12 +35,13 @@ WERROR NetGroupAdd_r(struct libnetapi_ctx *ctx,
 		     struct NetGroupAdd *r)
 {
 	struct rpc_pipe_client *pipe_cli = NULL;
-	NTSTATUS status;
+	NTSTATUS status, result;
 	WERROR werr;
 	struct policy_handle connect_handle, domain_handle, group_handle;
 	struct lsa_String lsa_group_name;
 	struct dom_sid2 *domain_sid = NULL;
 	uint32_t rid = 0;
+	struct dcerpc_binding_handle *b = NULL;
 
 	struct GROUP_INFO_0 *info0 = NULL;
 	struct GROUP_INFO_1 *info1 = NULL;
@@ -78,6 +82,8 @@ WERROR NetGroupAdd_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
+	b = pipe_cli->binding_handle;
+
 	werr = libnetapi_samr_open_domain(ctx, pipe_cli,
 					  SAMR_ACCESS_ENUM_DOMAINS |
 					  SAMR_ACCESS_LOOKUP_DOMAIN,
@@ -105,16 +111,21 @@ WERROR NetGroupAdd_r(struct libnetapi_ctx *ctx,
 			break;
 	}
 
-	status = rpccli_samr_CreateDomainGroup(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_CreateDomainGroup(b, talloc_tos(),
 					       &domain_handle,
 					       &lsa_group_name,
 					       SEC_STD_DELETE |
 					       SAMR_GROUP_ACCESS_SET_INFO,
 					       &group_handle,
-					       &rid);
+					       &rid,
+					       &result);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -124,10 +135,11 @@ WERROR NetGroupAdd_r(struct libnetapi_ctx *ctx,
 				init_lsa_String(&info.description,
 						info1->grpi1_comment);
 
-				status = rpccli_samr_SetGroupInfo(pipe_cli, talloc_tos(),
+				status = dcerpc_samr_SetGroupInfo(b, talloc_tos(),
 								  &group_handle,
 								  GROUPINFODESCRIPTION,
-								  &info);
+								  &info,
+								  &result);
 			}
 			break;
 		case 2:
@@ -135,22 +147,28 @@ WERROR NetGroupAdd_r(struct libnetapi_ctx *ctx,
 				init_lsa_String(&info.description,
 						info2->grpi2_comment);
 
-				status = rpccli_samr_SetGroupInfo(pipe_cli, talloc_tos(),
+				status = dcerpc_samr_SetGroupInfo(b, talloc_tos(),
 								  &group_handle,
 								  GROUPINFODESCRIPTION,
-								  &info);
+								  &info,
+								  &result);
 				if (!NT_STATUS_IS_OK(status)) {
 					werr = ntstatus_to_werror(status);
+					goto failed;
+				}
+				if (!NT_STATUS_IS_OK(result)) {
+					werr = ntstatus_to_werror(result);
 					goto failed;
 				}
 			}
 
 			if (info2->grpi2_attributes != 0) {
 				info.attributes.attributes = info2->grpi2_attributes;
-				status = rpccli_samr_SetGroupInfo(pipe_cli, talloc_tos(),
+				status = dcerpc_samr_SetGroupInfo(b, talloc_tos(),
 								  &group_handle,
 								  GROUPINFOATTRIBUTES,
-								  &info);
+								  &info,
+								  &result);
 
 			}
 			break;
@@ -159,22 +177,28 @@ WERROR NetGroupAdd_r(struct libnetapi_ctx *ctx,
 				init_lsa_String(&info.description,
 						info3->grpi3_comment);
 
-				status = rpccli_samr_SetGroupInfo(pipe_cli, talloc_tos(),
+				status = dcerpc_samr_SetGroupInfo(b, talloc_tos(),
 								  &group_handle,
 								  GROUPINFODESCRIPTION,
-								  &info);
+								  &info,
+								  &result);
 				if (!NT_STATUS_IS_OK(status)) {
 					werr = ntstatus_to_werror(status);
+					goto failed;
+				}
+				if (!NT_STATUS_IS_OK(result)) {
+					werr = ntstatus_to_werror(result);
 					goto failed;
 				}
 			}
 
 			if (info3->grpi3_attributes != 0) {
 				info.attributes.attributes = info3->grpi3_attributes;
-				status = rpccli_samr_SetGroupInfo(pipe_cli, talloc_tos(),
+				status = dcerpc_samr_SetGroupInfo(b, talloc_tos(),
 								  &group_handle,
 								  GROUPINFOATTRIBUTES,
-								  &info);
+								  &info,
+								  &result);
 			}
 			break;
 		default:
@@ -185,17 +209,21 @@ WERROR NetGroupAdd_r(struct libnetapi_ctx *ctx,
 		werr = ntstatus_to_werror(status);
 		goto failed;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
+		goto failed;
+	}
 
 	werr = WERR_OK;
 	goto done;
 
  failed:
-	rpccli_samr_DeleteDomainGroup(pipe_cli, talloc_tos(),
-				      &group_handle);
+	dcerpc_samr_DeleteDomainGroup(b, talloc_tos(),
+				      &group_handle, &result);
 
  done:
 	if (is_valid_policy_hnd(&group_handle)) {
-		rpccli_samr_Close(pipe_cli, talloc_tos(), &group_handle);
+		dcerpc_samr_Close(b, talloc_tos(), &group_handle, &result);
 	}
 
 	if (ctx->disable_policy_handle_cache) {
@@ -222,17 +250,18 @@ WERROR NetGroupDel_r(struct libnetapi_ctx *ctx,
 		     struct NetGroupDel *r)
 {
 	struct rpc_pipe_client *pipe_cli = NULL;
-	NTSTATUS status;
+	NTSTATUS status, result;
 	WERROR werr;
 	struct policy_handle connect_handle, domain_handle, group_handle;
 	struct lsa_String lsa_group_name;
 	struct dom_sid2 *domain_sid = NULL;
 	int i = 0;
+	struct dcerpc_binding_handle *b = NULL;
 
 	struct samr_Ids rids;
 	struct samr_Ids types;
 	union samr_GroupInfo *info = NULL;
-	struct samr_RidTypeArray *rid_array = NULL;
+	struct samr_RidAttrArray *rid_array = NULL;
 
 	ZERO_STRUCT(connect_handle);
 	ZERO_STRUCT(domain_handle);
@@ -249,6 +278,8 @@ WERROR NetGroupDel_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
+	b = pipe_cli->binding_handle;
+
 	werr = libnetapi_samr_open_domain(ctx, pipe_cli,
 					  SAMR_ACCESS_ENUM_DOMAINS |
 					  SAMR_ACCESS_LOOKUP_DOMAIN,
@@ -262,14 +293,19 @@ WERROR NetGroupDel_r(struct libnetapi_ctx *ctx,
 
 	init_lsa_String(&lsa_group_name, r->in.group_name);
 
-	status = rpccli_samr_LookupNames(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_LookupNames(b, talloc_tos(),
 					 &domain_handle,
 					 1,
 					 &lsa_group_name,
 					 &rids,
-					 &types);
+					 &types,
+					 &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -278,7 +314,7 @@ WERROR NetGroupDel_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	status = rpccli_samr_OpenGroup(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_OpenGroup(b, talloc_tos(),
 				       &domain_handle,
 				       SEC_STD_DELETE |
 				       SAMR_GROUP_ACCESS_GET_MEMBERS |
@@ -286,18 +322,28 @@ WERROR NetGroupDel_r(struct libnetapi_ctx *ctx,
 				       SAMR_GROUP_ACCESS_ADD_MEMBER |
 				       SAMR_GROUP_ACCESS_LOOKUP_INFO,
 				       rids.ids[0],
-				       &group_handle);
+				       &group_handle,
+				       &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
 		goto done;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
+		goto done;
+	}
 
-	status = rpccli_samr_QueryGroupInfo(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_QueryGroupInfo(b, talloc_tos(),
 					    &group_handle,
 					    GROUPINFOATTRIBUTES,
-					    &info);
+					    &info,
+					    &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -308,11 +354,16 @@ WERROR NetGroupDel_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 #endif
-	status = rpccli_samr_QueryGroupMember(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_QueryGroupMember(b, talloc_tos(),
 					      &group_handle,
-					      &rid_array);
+					      &rid_array,
+					      &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -320,33 +371,48 @@ WERROR NetGroupDel_r(struct libnetapi_ctx *ctx,
 	struct lsa_Strings names;
 	struct samr_Ids member_types;
 
-	status = rpccli_samr_LookupRids(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_LookupRids(b, talloc_tos(),
 					&domain_handle,
 					rid_array->count,
 					rid_array->rids,
 					&names,
-					&member_types);
+					&member_types,
+					&result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 	}
 
 	for (i=0; i < rid_array->count; i++) {
 
-		status = rpccli_samr_DeleteGroupMember(pipe_cli, talloc_tos(),
+		status = dcerpc_samr_DeleteGroupMember(b, talloc_tos(),
 						       &group_handle,
-						       rid_array->rids[i]);
+						       rid_array->rids[i],
+						       &result);
 		if (!NT_STATUS_IS_OK(status)) {
 			werr = ntstatus_to_werror(status);
 			goto done;
 		}
+		if (!NT_STATUS_IS_OK(result)) {
+			werr = ntstatus_to_werror(result);
+			goto done;
+		}
 	}
 
-	status = rpccli_samr_DeleteDomainGroup(pipe_cli, talloc_tos(),
-					       &group_handle);
+	status = dcerpc_samr_DeleteDomainGroup(b, talloc_tos(),
+					       &group_handle,
+					       &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -356,7 +422,7 @@ WERROR NetGroupDel_r(struct libnetapi_ctx *ctx,
 
  done:
 	if (is_valid_policy_hnd(&group_handle)) {
-		rpccli_samr_Close(pipe_cli, talloc_tos(), &group_handle);
+		dcerpc_samr_Close(b, talloc_tos(), &group_handle, &result);
 	}
 
 	if (ctx->disable_policy_handle_cache) {
@@ -383,11 +449,12 @@ WERROR NetGroupSetInfo_r(struct libnetapi_ctx *ctx,
 			 struct NetGroupSetInfo *r)
 {
 	struct rpc_pipe_client *pipe_cli = NULL;
-	NTSTATUS status;
+	NTSTATUS status, result;
 	WERROR werr;
 	struct policy_handle connect_handle, domain_handle, group_handle;
 	struct lsa_String lsa_group_name;
 	struct dom_sid2 *domain_sid = NULL;
+	struct dcerpc_binding_handle *b = NULL;
 
 	struct samr_Ids rids;
 	struct samr_Ids types;
@@ -414,6 +481,8 @@ WERROR NetGroupSetInfo_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
+	b = pipe_cli->binding_handle;
+
 	werr = libnetapi_samr_open_domain(ctx, pipe_cli,
 					  SAMR_ACCESS_ENUM_DOMAINS |
 					  SAMR_ACCESS_LOOKUP_DOMAIN,
@@ -427,14 +496,19 @@ WERROR NetGroupSetInfo_r(struct libnetapi_ctx *ctx,
 
 	init_lsa_String(&lsa_group_name, r->in.group_name);
 
-	status = rpccli_samr_LookupNames(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_LookupNames(b, talloc_tos(),
 					 &domain_handle,
 					 1,
 					 &lsa_group_name,
 					 &rids,
-					 &types);
+					 &types,
+					 &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -443,14 +517,19 @@ WERROR NetGroupSetInfo_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	status = rpccli_samr_OpenGroup(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_OpenGroup(b, talloc_tos(),
 				       &domain_handle,
 				       SAMR_GROUP_ACCESS_SET_INFO |
 				       SAMR_GROUP_ACCESS_LOOKUP_INFO,
 				       rids.ids[0],
-				       &group_handle);
+				       &group_handle,
+				       &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -458,68 +537,86 @@ WERROR NetGroupSetInfo_r(struct libnetapi_ctx *ctx,
 		case 0:
 			g0 = (struct GROUP_INFO_0 *)r->in.buffer;
 			init_lsa_String(&info.name, g0->grpi0_name);
-			status = rpccli_samr_SetGroupInfo(pipe_cli, talloc_tos(),
+			status = dcerpc_samr_SetGroupInfo(b, talloc_tos(),
 							  &group_handle,
 							  GROUPINFONAME,
-							  &info);
+							  &info,
+							  &result);
 			break;
 		case 1:
 			g1 = (struct GROUP_INFO_1 *)r->in.buffer;
 			init_lsa_String(&info.description, g1->grpi1_comment);
-			status = rpccli_samr_SetGroupInfo(pipe_cli, talloc_tos(),
+			status = dcerpc_samr_SetGroupInfo(b, talloc_tos(),
 							  &group_handle,
 							  GROUPINFODESCRIPTION,
-							  &info);
+							  &info,
+							  &result);
 			break;
 		case 2:
 			g2 = (struct GROUP_INFO_2 *)r->in.buffer;
 			init_lsa_String(&info.description, g2->grpi2_comment);
-			status = rpccli_samr_SetGroupInfo(pipe_cli, talloc_tos(),
+			status = dcerpc_samr_SetGroupInfo(b, talloc_tos(),
 							  &group_handle,
 							  GROUPINFODESCRIPTION,
-							  &info);
+							  &info,
+							  &result);
 			if (!NT_STATUS_IS_OK(status)) {
 				werr = ntstatus_to_werror(status);
 				goto done;
 			}
+			if (!NT_STATUS_IS_OK(result)) {
+				werr = ntstatus_to_werror(result);
+				goto done;
+			}
+
 			info.attributes.attributes = g2->grpi2_attributes;
-			status = rpccli_samr_SetGroupInfo(pipe_cli, talloc_tos(),
+			status = dcerpc_samr_SetGroupInfo(b, talloc_tos(),
 							  &group_handle,
 							  GROUPINFOATTRIBUTES,
-							  &info);
+							  &info,
+							  &result);
 			break;
 		case 3:
 			g3 = (struct GROUP_INFO_3 *)r->in.buffer;
 			init_lsa_String(&info.description, g3->grpi3_comment);
-			status = rpccli_samr_SetGroupInfo(pipe_cli, talloc_tos(),
+			status = dcerpc_samr_SetGroupInfo(b, talloc_tos(),
 							  &group_handle,
 							  GROUPINFODESCRIPTION,
-							  &info);
+							  &info,
+							  &result);
 			if (!NT_STATUS_IS_OK(status)) {
 				werr = ntstatus_to_werror(status);
 				goto done;
 			}
+			if (!NT_STATUS_IS_OK(result)) {
+				werr = ntstatus_to_werror(result);
+				goto done;
+			}
+
 			info.attributes.attributes = g3->grpi3_attributes;
-			status = rpccli_samr_SetGroupInfo(pipe_cli, talloc_tos(),
+			status = dcerpc_samr_SetGroupInfo(b, talloc_tos(),
 							  &group_handle,
 							  GROUPINFOATTRIBUTES,
-							  &info);
+							  &info,
+							  &result);
 			break;
 		case 1002:
 			g1002 = (struct GROUP_INFO_1002 *)r->in.buffer;
 			init_lsa_String(&info.description, g1002->grpi1002_comment);
-			status = rpccli_samr_SetGroupInfo(pipe_cli, talloc_tos(),
+			status = dcerpc_samr_SetGroupInfo(b, talloc_tos(),
 							  &group_handle,
 							  GROUPINFODESCRIPTION,
-							  &info);
+							  &info,
+							  &result);
 			break;
 		case 1005:
 			g1005 = (struct GROUP_INFO_1005 *)r->in.buffer;
 			info.attributes.attributes = g1005->grpi1005_attributes;
-			status = rpccli_samr_SetGroupInfo(pipe_cli, talloc_tos(),
+			status = dcerpc_samr_SetGroupInfo(b, talloc_tos(),
 							  &group_handle,
 							  GROUPINFOATTRIBUTES,
-							  &info);
+							  &info,
+							  &result);
 			break;
 		default:
 			status = NT_STATUS_INVALID_LEVEL;
@@ -530,12 +627,16 @@ WERROR NetGroupSetInfo_r(struct libnetapi_ctx *ctx,
 		werr = ntstatus_to_werror(status);
 		goto done;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
+		goto done;
+	}
 
 	werr = WERR_OK;
 
  done:
 	if (is_valid_policy_hnd(&group_handle)) {
-		rpccli_samr_Close(pipe_cli, talloc_tos(), &group_handle);
+		dcerpc_samr_Close(b, talloc_tos(), &group_handle, &result);
 	}
 
 	if (ctx->disable_policy_handle_cache) {
@@ -602,7 +703,7 @@ static WERROR map_group_info_to_buffer(TALLOC_CTX *mem_ctx,
 			info3.grpi3_name	= info->name.string;
 			info3.grpi3_comment	= info->description.string;
 			info3.grpi3_attributes	= info->attributes;
-			info3.grpi3_group_sid	= (struct domsid *)sid_dup_talloc(mem_ctx, &sid);
+			info3.grpi3_group_sid	= (struct domsid *)dom_sid_dup(mem_ctx, &sid);
 
 			*buffer = (uint8_t *)talloc_memdup(mem_ctx, &info3, sizeof(info3));
 
@@ -623,11 +724,12 @@ WERROR NetGroupGetInfo_r(struct libnetapi_ctx *ctx,
 			 struct NetGroupGetInfo *r)
 {
 	struct rpc_pipe_client *pipe_cli = NULL;
-	NTSTATUS status;
+	NTSTATUS status, result;
 	WERROR werr;
 	struct policy_handle connect_handle, domain_handle, group_handle;
 	struct lsa_String lsa_group_name;
 	struct dom_sid2 *domain_sid = NULL;
+	struct dcerpc_binding_handle *b = NULL;
 
 	struct samr_Ids rids;
 	struct samr_Ids types;
@@ -649,6 +751,8 @@ WERROR NetGroupGetInfo_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
+	b = pipe_cli->binding_handle;
+
 	werr = libnetapi_samr_open_domain(ctx, pipe_cli,
 					  SAMR_ACCESS_ENUM_DOMAINS |
 					  SAMR_ACCESS_LOOKUP_DOMAIN,
@@ -662,14 +766,19 @@ WERROR NetGroupGetInfo_r(struct libnetapi_ctx *ctx,
 
 	init_lsa_String(&lsa_group_name, r->in.group_name);
 
-	status = rpccli_samr_LookupNames(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_LookupNames(b, talloc_tos(),
 					 &domain_handle,
 					 1,
 					 &lsa_group_name,
 					 &rids,
-					 &types);
+					 &types,
+					 &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -678,30 +787,46 @@ WERROR NetGroupGetInfo_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	status = rpccli_samr_OpenGroup(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_OpenGroup(b, talloc_tos(),
 				       &domain_handle,
 				       SAMR_GROUP_ACCESS_LOOKUP_INFO,
 				       rids.ids[0],
-				       &group_handle);
+				       &group_handle,
+				       &result);
+	if (!NT_STATUS_IS_OK(status)) {
+		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
+		goto done;
+	}
+
+	status = dcerpc_samr_QueryGroupInfo(b, talloc_tos(),
+					    &group_handle,
+					    GROUPINFOALL2,
+					    &info,
+					    &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
 		goto done;
 	}
 
-	status = rpccli_samr_QueryGroupInfo(pipe_cli, talloc_tos(),
-					    &group_handle,
-					    GROUPINFOALL2,
-					    &info);
-	if (NT_STATUS_EQUAL(status, NT_STATUS_INVALID_INFO_CLASS)) {
-		status = rpccli_samr_QueryGroupInfo(pipe_cli, talloc_tos(),
+	if (NT_STATUS_EQUAL(result, NT_STATUS_INVALID_INFO_CLASS)) {
+		status = dcerpc_samr_QueryGroupInfo(b, talloc_tos(),
 						    &group_handle,
 						    GROUPINFOALL,
-						    &info);
+						    &info,
+						    &result);
 		group_info_all = true;
+		if (!NT_STATUS_IS_OK(status)) {
+			werr = ntstatus_to_werror(status);
+			goto done;
+		}
 	}
 
-	if (!NT_STATUS_IS_OK(status)) {
-		werr = ntstatus_to_werror(status);
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -714,7 +839,7 @@ WERROR NetGroupGetInfo_r(struct libnetapi_ctx *ctx,
 	}
  done:
 	if (is_valid_policy_hnd(&group_handle)) {
-		rpccli_samr_Close(pipe_cli, talloc_tos(), &group_handle);
+		dcerpc_samr_Close(b, talloc_tos(), &group_handle, &result);
 	}
 
 	if (ctx->disable_policy_handle_cache) {
@@ -741,11 +866,12 @@ WERROR NetGroupAddUser_r(struct libnetapi_ctx *ctx,
 			 struct NetGroupAddUser *r)
 {
 	struct rpc_pipe_client *pipe_cli = NULL;
-	NTSTATUS status;
+	NTSTATUS status, result;
 	WERROR werr;
 	struct policy_handle connect_handle, domain_handle, group_handle;
 	struct lsa_String lsa_group_name, lsa_user_name;
 	struct dom_sid2 *domain_sid = NULL;
+	struct dcerpc_binding_handle *b = NULL;
 
 	struct samr_Ids rids;
 	struct samr_Ids types;
@@ -765,6 +891,8 @@ WERROR NetGroupAddUser_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
+	b = pipe_cli->binding_handle;
+
 	werr = libnetapi_samr_open_domain(ctx, pipe_cli,
 					  SAMR_ACCESS_ENUM_DOMAINS |
 					  SAMR_ACCESS_LOOKUP_DOMAIN,
@@ -778,13 +906,18 @@ WERROR NetGroupAddUser_r(struct libnetapi_ctx *ctx,
 
 	init_lsa_String(&lsa_group_name, r->in.group_name);
 
-	status = rpccli_samr_LookupNames(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_LookupNames(b, talloc_tos(),
 					 &domain_handle,
 					 1,
 					 &lsa_group_name,
 					 &rids,
-					 &types);
+					 &types,
+					 &result);
 	if (!NT_STATUS_IS_OK(status)) {
+		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
 		werr = WERR_GROUPNOTFOUND;
 		goto done;
 	}
@@ -794,25 +927,35 @@ WERROR NetGroupAddUser_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	status = rpccli_samr_OpenGroup(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_OpenGroup(b, talloc_tos(),
 				       &domain_handle,
 				       SAMR_GROUP_ACCESS_ADD_MEMBER,
 				       rids.ids[0],
-				       &group_handle);
+				       &group_handle,
+				       &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
 	init_lsa_String(&lsa_user_name, r->in.user_name);
 
-	status = rpccli_samr_LookupNames(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_LookupNames(b, talloc_tos(),
 					 &domain_handle,
 					 1,
 					 &lsa_user_name,
 					 &rids,
-					 &types);
+					 &types,
+					 &result);
 	if (!NT_STATUS_IS_OK(status)) {
+		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
 		werr = WERR_USER_NOT_FOUND;
 		goto done;
 	}
@@ -822,12 +965,17 @@ WERROR NetGroupAddUser_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	status = rpccli_samr_AddGroupMember(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_AddGroupMember(b, talloc_tos(),
 					    &group_handle,
 					    rids.ids[0],
-					    7); /* why ? */
+					    7, /* why ? */
+					    &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -835,7 +983,7 @@ WERROR NetGroupAddUser_r(struct libnetapi_ctx *ctx,
 
  done:
 	if (is_valid_policy_hnd(&group_handle)) {
-		rpccli_samr_Close(pipe_cli, talloc_tos(), &group_handle);
+		dcerpc_samr_Close(b, talloc_tos(), &group_handle, &result);
 	}
 
 	if (ctx->disable_policy_handle_cache) {
@@ -862,11 +1010,12 @@ WERROR NetGroupDelUser_r(struct libnetapi_ctx *ctx,
 			 struct NetGroupDelUser *r)
 {
 	struct rpc_pipe_client *pipe_cli = NULL;
-	NTSTATUS status;
+	NTSTATUS status, result;
 	WERROR werr;
 	struct policy_handle connect_handle, domain_handle, group_handle;
 	struct lsa_String lsa_group_name, lsa_user_name;
 	struct dom_sid2 *domain_sid = NULL;
+	struct dcerpc_binding_handle *b = NULL;
 
 	struct samr_Ids rids;
 	struct samr_Ids types;
@@ -886,6 +1035,8 @@ WERROR NetGroupDelUser_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
+	b = pipe_cli->binding_handle;
+
 	werr = libnetapi_samr_open_domain(ctx, pipe_cli,
 					  SAMR_ACCESS_ENUM_DOMAINS |
 					  SAMR_ACCESS_LOOKUP_DOMAIN,
@@ -899,13 +1050,18 @@ WERROR NetGroupDelUser_r(struct libnetapi_ctx *ctx,
 
 	init_lsa_String(&lsa_group_name, r->in.group_name);
 
-	status = rpccli_samr_LookupNames(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_LookupNames(b, talloc_tos(),
 					 &domain_handle,
 					 1,
 					 &lsa_group_name,
 					 &rids,
-					 &types);
+					 &types,
+					 &result);
 	if (!NT_STATUS_IS_OK(status)) {
+		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
 		werr = WERR_GROUPNOTFOUND;
 		goto done;
 	}
@@ -915,25 +1071,36 @@ WERROR NetGroupDelUser_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	status = rpccli_samr_OpenGroup(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_OpenGroup(b, talloc_tos(),
 				       &domain_handle,
 				       SAMR_GROUP_ACCESS_REMOVE_MEMBER,
 				       rids.ids[0],
-				       &group_handle);
+				       &group_handle,
+				       &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
 	init_lsa_String(&lsa_user_name, r->in.user_name);
 
-	status = rpccli_samr_LookupNames(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_LookupNames(b, talloc_tos(),
 					 &domain_handle,
 					 1,
 					 &lsa_user_name,
 					 &rids,
-					 &types);
+					 &types,
+					 &result);
 	if (!NT_STATUS_IS_OK(status)) {
+		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+
+	if (!NT_STATUS_IS_OK(result)) {
 		werr = WERR_USER_NOT_FOUND;
 		goto done;
 	}
@@ -943,11 +1110,16 @@ WERROR NetGroupDelUser_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	status = rpccli_samr_DeleteGroupMember(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_DeleteGroupMember(b, talloc_tos(),
 					       &group_handle,
-					       rids.ids[0]);
+					       rids.ids[0],
+					       &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -955,7 +1127,7 @@ WERROR NetGroupDelUser_r(struct libnetapi_ctx *ctx,
 
  done:
 	if (is_valid_policy_hnd(&group_handle)) {
-		rpccli_samr_Close(pipe_cli, talloc_tos(), &group_handle);
+		dcerpc_samr_Close(b, talloc_tos(), &group_handle, &result);
 	}
 
 	if (ctx->disable_policy_handle_cache) {
@@ -1085,7 +1257,7 @@ static WERROR convert_samr_disp_groups_to_GROUP_INFO_3_buffer(TALLOC_CTX *mem_ct
 			groups->entries[i].account_name.string);
 		g3[i].grpi3_comment = talloc_strdup(mem_ctx,
 			groups->entries[i].description.string);
-		g3[i].grpi3_group_sid = (struct domsid *)sid_dup_talloc(mem_ctx, &sid);
+		g3[i].grpi3_group_sid = (struct domsid *)dom_sid_dup(mem_ctx, &sid);
 		g3[i].grpi3_attributes = groups->entries[i].acct_flags;
 		W_ERROR_HAVE_NO_MEMORY(g3[i].grpi3_name);
 	}
@@ -1137,10 +1309,12 @@ WERROR NetGroupEnum_r(struct libnetapi_ctx *ctx,
 	struct policy_handle domain_handle;
 	union samr_DispInfo info;
 	union samr_DomainInfo *domain_info = NULL;
+	struct dcerpc_binding_handle *b = NULL;
 
 	uint32_t total_size = 0;
 	uint32_t returned_size = 0;
 
+	NTSTATUS result = NT_STATUS_OK;
 	NTSTATUS status = NT_STATUS_OK;
 	WERROR werr, tmp_werr;
 
@@ -1164,6 +1338,8 @@ WERROR NetGroupEnum_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
+	b = pipe_cli->binding_handle;
+
 	werr = libnetapi_samr_open_domain(ctx, pipe_cli,
 					  SAMR_ACCESS_ENUM_DOMAINS |
 					  SAMR_ACCESS_LOOKUP_DOMAIN,
@@ -1177,12 +1353,17 @@ WERROR NetGroupEnum_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	status = rpccli_samr_QueryDomainInfo(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_QueryDomainInfo(b, talloc_tos(),
 					     &domain_handle,
 					     2,
-					     &domain_info);
+					     &domain_info,
+					     &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -1190,7 +1371,7 @@ WERROR NetGroupEnum_r(struct libnetapi_ctx *ctx,
 		*r->out.total_entries = domain_info->general.num_groups;
 	}
 
-	status = rpccli_samr_QueryDisplayInfo2(pipe_cli,
+	status = dcerpc_samr_QueryDisplayInfo2(b,
 					       ctx,
 					       &domain_handle,
 					       3,
@@ -1200,9 +1381,15 @@ WERROR NetGroupEnum_r(struct libnetapi_ctx *ctx,
 					       r->in.prefmaxlen,
 					       &total_size,
 					       &returned_size,
-					       &info);
-	werr = ntstatus_to_werror(status);
-	if (NT_STATUS_IS_ERR(status)) {
+					       &info,
+					       &result);
+	if (!NT_STATUS_IS_OK(status)) {
+		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+
+	werr = ntstatus_to_werror(result);
+	if (NT_STATUS_IS_ERR(result)) {
 		goto done;
 	}
 
@@ -1224,8 +1411,8 @@ WERROR NetGroupEnum_r(struct libnetapi_ctx *ctx,
 
  done:
 	/* if last query */
-	if (NT_STATUS_IS_OK(status) ||
-	    NT_STATUS_IS_ERR(status)) {
+	if (NT_STATUS_IS_OK(result) ||
+	    NT_STATUS_IS_ERR(result)) {
 
 		if (ctx->disable_policy_handle_cache) {
 			libnetapi_samr_close_domain_handle(ctx, &domain_handle);
@@ -1258,14 +1445,16 @@ WERROR NetGroupGetUsers_r(struct libnetapi_ctx *ctx,
 	struct lsa_String lsa_account_name;
 	struct dom_sid2 *domain_sid = NULL;
 	struct samr_Ids group_rids, name_types;
-	struct samr_RidTypeArray *rid_array = NULL;
+	struct samr_RidAttrArray *rid_array = NULL;
 	struct lsa_Strings names;
 	struct samr_Ids member_types;
+	struct dcerpc_binding_handle *b = NULL;
 
 	int i;
 	uint32_t entries_read = 0;
 
 	NTSTATUS status = NT_STATUS_OK;
+	NTSTATUS result = NT_STATUS_OK;
 	WERROR werr;
 
 	ZERO_STRUCT(connect_handle);
@@ -1295,6 +1484,8 @@ WERROR NetGroupGetUsers_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
+	b = pipe_cli->binding_handle;
+
 	werr = libnetapi_samr_open_domain(ctx, pipe_cli,
 					  SAMR_ACCESS_ENUM_DOMAINS |
 					  SAMR_ACCESS_LOOKUP_DOMAIN,
@@ -1308,43 +1499,63 @@ WERROR NetGroupGetUsers_r(struct libnetapi_ctx *ctx,
 
 	init_lsa_String(&lsa_account_name, r->in.group_name);
 
-	status = rpccli_samr_LookupNames(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_LookupNames(b, talloc_tos(),
 					 &domain_handle,
 					 1,
 					 &lsa_account_name,
 					 &group_rids,
-					 &name_types);
+					 &name_types,
+					 &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
 		goto done;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
+		goto done;
+	}
 
-	status = rpccli_samr_OpenGroup(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_OpenGroup(b, talloc_tos(),
 				       &domain_handle,
 				       SAMR_GROUP_ACCESS_GET_MEMBERS,
 				       group_rids.ids[0],
-				       &group_handle);
+				       &group_handle,
+				       &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
 		goto done;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
+		goto done;
+	}
 
-	status = rpccli_samr_QueryGroupMember(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_QueryGroupMember(b, talloc_tos(),
 					      &group_handle,
-					      &rid_array);
+					      &rid_array,
+					      &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
 		goto done;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
+		goto done;
+	}
 
-	status = rpccli_samr_LookupRids(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_LookupRids(b, talloc_tos(),
 					&domain_handle,
 					rid_array->count,
 					rid_array->rids,
 					&names,
-					&member_types);
+					&member_types,
+					&result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -1373,7 +1584,7 @@ WERROR NetGroupGetUsers_r(struct libnetapi_ctx *ctx,
 
  done:
 	if (is_valid_policy_hnd(&group_handle)) {
-		rpccli_samr_Close(pipe_cli, talloc_tos(), &group_handle);
+		dcerpc_samr_Close(b, talloc_tos(), &group_handle, &result);
 	}
 
 	if (ctx->disable_policy_handle_cache) {
@@ -1406,8 +1617,9 @@ WERROR NetGroupSetUsers_r(struct libnetapi_ctx *ctx,
 	union samr_GroupInfo *group_info = NULL;
 	struct samr_Ids user_rids, name_types;
 	struct samr_Ids group_rids, group_types;
-	struct samr_RidTypeArray *rid_array = NULL;
+	struct samr_RidAttrArray *rid_array = NULL;
 	struct lsa_String *lsa_names = NULL;
+	struct dcerpc_binding_handle *b = NULL;
 
 	uint32_t *add_rids = NULL;
 	uint32_t *del_rids = NULL;
@@ -1415,7 +1627,6 @@ WERROR NetGroupSetUsers_r(struct libnetapi_ctx *ctx,
 	size_t num_del_rids = 0;
 
 	uint32_t *member_rids = NULL;
-	size_t num_member_rids = 0;
 
 	struct GROUP_USERS_INFO_0 *i0 = NULL;
 	struct GROUP_USERS_INFO_1 *i1 = NULL;
@@ -1423,6 +1634,7 @@ WERROR NetGroupSetUsers_r(struct libnetapi_ctx *ctx,
 	int i, k;
 
 	NTSTATUS status = NT_STATUS_OK;
+	NTSTATUS result = NT_STATUS_OK;
 	WERROR werr;
 
 	ZERO_STRUCT(connect_handle);
@@ -1447,6 +1659,8 @@ WERROR NetGroupSetUsers_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
+	b = pipe_cli->binding_handle;
+
 	werr = libnetapi_samr_open_domain(ctx, pipe_cli,
 					  SAMR_ACCESS_ENUM_DOMAINS |
 					  SAMR_ACCESS_LOOKUP_DOMAIN,
@@ -1460,36 +1674,51 @@ WERROR NetGroupSetUsers_r(struct libnetapi_ctx *ctx,
 
 	init_lsa_String(&lsa_account_name, r->in.group_name);
 
-	status = rpccli_samr_LookupNames(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_LookupNames(b, talloc_tos(),
 					 &domain_handle,
 					 1,
 					 &lsa_account_name,
 					 &group_rids,
-					 &group_types);
+					 &group_types,
+					 &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
 		goto done;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
+		goto done;
+	}
 
-	status = rpccli_samr_OpenGroup(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_OpenGroup(b, talloc_tos(),
 				       &domain_handle,
 				       SAMR_GROUP_ACCESS_GET_MEMBERS |
 				       SAMR_GROUP_ACCESS_ADD_MEMBER |
 				       SAMR_GROUP_ACCESS_REMOVE_MEMBER |
 				       SAMR_GROUP_ACCESS_LOOKUP_INFO,
 				       group_rids.ids[0],
-				       &group_handle);
+				       &group_handle,
+				       &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
 		goto done;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
+		goto done;
+	}
 
-	status = rpccli_samr_QueryGroupInfo(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_QueryGroupInfo(b, talloc_tos(),
 					    &group_handle,
 					    GROUPINFOATTRIBUTES,
-					    &group_info);
+					    &group_info,
+					    &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -1522,25 +1751,34 @@ WERROR NetGroupSetUsers_r(struct libnetapi_ctx *ctx,
 		}
 	}
 
-	status = rpccli_samr_LookupNames(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_LookupNames(b, talloc_tos(),
 					 &domain_handle,
 					 r->in.num_entries,
 					 lsa_names,
 					 &user_rids,
-					 &name_types);
+					 &name_types,
+					 &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
 		goto done;
 	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
+		goto done;
+	}
 
 	member_rids = user_rids.ids;
-	num_member_rids = user_rids.count;
 
-	status = rpccli_samr_QueryGroupMember(pipe_cli, talloc_tos(),
+	status = dcerpc_samr_QueryGroupMember(b, talloc_tos(),
 					      &group_handle,
-					      &rid_array);
+					      &rid_array,
+					      &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!NT_STATUS_IS_OK(result)) {
+		werr = ntstatus_to_werror(result);
 		goto done;
 	}
 
@@ -1587,12 +1825,17 @@ WERROR NetGroupSetUsers_r(struct libnetapi_ctx *ctx,
 	/* add list */
 
 	for (i=0; i < num_add_rids; i++) {
-		status = rpccli_samr_AddGroupMember(pipe_cli, talloc_tos(),
+		status = dcerpc_samr_AddGroupMember(b, talloc_tos(),
 						    &group_handle,
 						    add_rids[i],
-						    7 /* ? */);
+						    7 /* ? */,
+						    &result);
 		if (!NT_STATUS_IS_OK(status)) {
 			werr = ntstatus_to_werror(status);
+			goto done;
+		}
+		if (!NT_STATUS_IS_OK(result)) {
+			werr = ntstatus_to_werror(result);
 			goto done;
 		}
 	}
@@ -1600,11 +1843,16 @@ WERROR NetGroupSetUsers_r(struct libnetapi_ctx *ctx,
 	/* del list */
 
 	for (i=0; i < num_del_rids; i++) {
-		status = rpccli_samr_DeleteGroupMember(pipe_cli, talloc_tos(),
+		status = dcerpc_samr_DeleteGroupMember(b, talloc_tos(),
 						       &group_handle,
-						       del_rids[i]);
+						       del_rids[i],
+						       &result);
 		if (!NT_STATUS_IS_OK(status)) {
 			werr = ntstatus_to_werror(status);
+			goto done;
+		}
+		if (!NT_STATUS_IS_OK(result)) {
+			werr = ntstatus_to_werror(result);
 			goto done;
 		}
 	}
@@ -1613,7 +1861,7 @@ WERROR NetGroupSetUsers_r(struct libnetapi_ctx *ctx,
 
  done:
 	if (is_valid_policy_hnd(&group_handle)) {
-		rpccli_samr_Close(pipe_cli, talloc_tos(), &group_handle);
+		dcerpc_samr_Close(b, talloc_tos(), &group_handle, &result);
 	}
 
 	if (ctx->disable_policy_handle_cache) {

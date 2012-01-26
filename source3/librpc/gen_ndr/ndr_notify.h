@@ -20,4 +20,9 @@ void ndr_print_notify_array(struct ndr_print *ndr, const char *name, const struc
 enum ndr_err_code ndr_push_notify_event(struct ndr_push *ndr, int ndr_flags, const struct notify_event *r);
 enum ndr_err_code ndr_pull_notify_event(struct ndr_pull *ndr, int ndr_flags, struct notify_event *r);
 void ndr_print_notify_event(struct ndr_print *ndr, const char *name, const struct notify_event *r);
+void ndr_print_FILE_NOTIFY_ACTION(struct ndr_print *ndr, const char *name, enum FILE_NOTIFY_ACTION r);
+enum ndr_err_code ndr_push_FILE_NOTIFY_INFORMATION(struct ndr_push *ndr, int ndr_flags, const struct FILE_NOTIFY_INFORMATION *r);
+enum ndr_err_code ndr_pull_FILE_NOTIFY_INFORMATION(struct ndr_pull *ndr, int ndr_flags, struct FILE_NOTIFY_INFORMATION *r);
+void ndr_print_FILE_NOTIFY_INFORMATION(struct ndr_print *ndr, const char *name, const struct FILE_NOTIFY_INFORMATION *r);
+size_t ndr_size_FILE_NOTIFY_INFORMATION(const struct FILE_NOTIFY_INFORMATION *r, int flags);
 #endif /* _HEADER_NDR_notify */

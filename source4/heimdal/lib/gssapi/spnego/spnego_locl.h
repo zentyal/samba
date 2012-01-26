@@ -44,6 +44,8 @@
 #include <sys/param.h>
 #endif
 
+#include <roken.h>
+
 #ifdef HAVE_PTHREAD_H
 #include <pthread.h>
 #endif
@@ -69,13 +71,7 @@
 #include "utils.h"
 #include <der.h>
 
-#include <roken.h>
-
 #define ALLOC(X, N) (X) = calloc((N), sizeof(*(X)))
-
-typedef struct {
-	gss_cred_id_t		negotiated_cred_id;
-} *gssspnego_cred;
 
 typedef struct {
 	MechTypeList		initiator_mech_types;

@@ -6,11 +6,11 @@
    Copyright (C) Andrew Tridgell              1999-2005
    Copyright (C) Paul `Rusty' Russell		   2000
    Copyright (C) Jeremy Allison			   2000-2003
-   
+
      ** NOTE! The following LGPL license applies to the tdb
      ** library. This does NOT imply that all of Samba is released
      ** under the LGPL
-   
+
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
    License as published by the Free Software Foundation; either
@@ -27,16 +27,16 @@
 
 #include "tdb_private.h"
 
-TDB_DATA tdb_null;
+_PUBLIC_ TDB_DATA tdb_null;
 
 /*
   non-blocking increment of the tdb sequence number if the tdb has been opened using
   the TDB_SEQNUM flag
 */
-void tdb_increment_seqnum_nonblock(struct tdb_context *tdb)
+_PUBLIC_ void tdb_increment_seqnum_nonblock(struct tdb_context *tdb)
 {
 	tdb_off_t seqnum=0;
-	
+
 	if (!(tdb->flags & TDB_SEQNUM)) {
 		return;
 	}
@@ -59,13 +59,14 @@ static void tdb_increment_seqnum(struct tdb_context *tdb)
 		return;
 	}
 
-	if (tdb_brlock(tdb, TDB_SEQNUM_OFS, F_WRLCK, F_SETLKW, 1, 1) != 0) {
+	if (tdb_nest_lock(tdb, TDB_SEQNUM_OFS, F_WRLCK,
+			  TDB_LOCK_WAIT|TDB_LOCK_PROBE) != 0) {
 		return;
 	}
 
 	tdb_increment_seqnum_nonblock(tdb);
 
-	tdb_brlock(tdb, TDB_SEQNUM_OFS, F_UNLCK, F_SETLKW, 1, 1);
+	tdb_nest_unlock(tdb, TDB_SEQNUM_OFS, F_WRLCK, false);
 }
 
 static int tdb_key_compare(TDB_DATA key, TDB_DATA data, void *private_data)
@@ -79,7 +80,7 @@ static tdb_off_t tdb_find(struct tdb_context *tdb, TDB_DATA key, uint32_t hash,
 			struct tdb_record *r)
 {
 	tdb_off_t rec_ptr;
-	
+
 	/* read in the hash top */
 	if (tdb_ofs_read(tdb, TDB_HASH_TOP(hash), &rec_ptr) == -1)
 		return 0;
@@ -153,7 +154,6 @@ static int tdb_update_hash(struct tdb_context *tdb, TDB_DATA key, uint32_t hash,
 			free(data.dptr);
 		}
 	}
-	 
 
 	/* must be long enough key, data and tailer */
 	if (rec.rec_len < key.dsize + dbuf.dsize + sizeof(tdb_off_t)) {
@@ -170,7 +170,7 @@ static int tdb_update_hash(struct tdb_context *tdb, TDB_DATA key, uint32_t hash,
 		rec.data_len = dbuf.dsize;
 		return tdb_rec_write(tdb, rec_ptr, &rec);
 	}
- 
+
 	return 0;
 }
 
@@ -199,7 +199,7 @@ static TDB_DATA _tdb_fetch(struct tdb_context *tdb, TDB_DATA key)
 	return ret;
 }
 
-TDB_DATA tdb_fetch(struct tdb_context *tdb, TDB_DATA key)
+_PUBLIC_ TDB_DATA tdb_fetch(struct tdb_context *tdb, TDB_DATA key)
 {
 	TDB_DATA ret = _tdb_fetch(tdb, key);
 
@@ -212,7 +212,7 @@ TDB_DATA tdb_fetch(struct tdb_context *tdb, TDB_DATA key)
  * function. The parsing function is executed under the chain read lock, so it
  * should be fast and should not block on other syscalls.
  *
- * DONT CALL OTHER TDB CALLS FROM THE PARSER, THIS MIGHT LEAD TO SEGFAULTS.
+ * DON'T CALL OTHER TDB CALLS FROM THE PARSER, THIS MIGHT LEAD TO SEGFAULTS.
  *
  * For mmapped tdb's that do not have a transaction open it points the parsing
  * function directly at the mmap area, it avoids the malloc/memcpy in this
@@ -221,9 +221,11 @@ TDB_DATA tdb_fetch(struct tdb_context *tdb, TDB_DATA key)
  *
  * This is interesting for all readers of potentially large data structures in
  * the tdb records, ldb indexes being one example.
+ *
+ * Return -1 if the record was not found.
  */
 
-int tdb_parse_record(struct tdb_context *tdb, TDB_DATA key,
+_PUBLIC_ int tdb_parse_record(struct tdb_context *tdb, TDB_DATA key,
 		     int (*parser)(TDB_DATA key, TDB_DATA data,
 				   void *private_data),
 		     void *private_data)
@@ -237,9 +239,10 @@ int tdb_parse_record(struct tdb_context *tdb, TDB_DATA key,
 	hash = tdb->hash_fn(&key);
 
 	if (!(rec_ptr = tdb_find_lock_hash(tdb,key,hash,F_RDLCK,&rec))) {
+		/* record not found */
 		tdb_trace_1rec_ret(tdb, "tdb_parse_record", key, -1);
 		tdb->ecode = TDB_ERR_NOEXIST;
-		return 0;
+		return -1;
 	}
 	tdb_trace_1rec_ret(tdb, "tdb_parse_record", key, 0);
 
@@ -260,14 +263,14 @@ int tdb_parse_record(struct tdb_context *tdb, TDB_DATA key,
 static int tdb_exists_hash(struct tdb_context *tdb, TDB_DATA key, uint32_t hash)
 {
 	struct tdb_record rec;
-	
+
 	if (tdb_find_lock_hash(tdb, key, hash, F_RDLCK, &rec) == 0)
 		return 0;
 	tdb_unlock(tdb, BUCKET(rec.full_hash), F_RDLCK);
 	return 1;
 }
 
-int tdb_exists(struct tdb_context *tdb, TDB_DATA key)
+_PUBLIC_ int tdb_exists(struct tdb_context *tdb, TDB_DATA key)
 {
 	uint32_t hash = tdb->hash_fn(&key);
 	int ret;
@@ -318,7 +321,7 @@ static int tdb_count_dead(struct tdb_context *tdb, uint32_t hash)
 	int res = 0;
 	tdb_off_t rec_ptr;
 	struct tdb_record rec;
-	
+
 	/* read in the hash top */
 	if (tdb_ofs_read(tdb, TDB_HASH_TOP(hash), &rec_ptr) == -1)
 		return 0;
@@ -347,7 +350,7 @@ static int tdb_purge_dead(struct tdb_context *tdb, uint32_t hash)
 	if (tdb_lock(tdb, -1, F_WRLCK) == -1) {
 		return -1;
 	}
-	
+
 	/* read in the hash top */
 	if (tdb_ofs_read(tdb, TDB_HASH_TOP(hash), &rec_ptr) == -1)
 		goto fail;
@@ -426,7 +429,7 @@ static int tdb_delete_hash(struct tdb_context *tdb, TDB_DATA key, uint32_t hash)
 	return ret;
 }
 
-int tdb_delete(struct tdb_context *tdb, TDB_DATA key)
+_PUBLIC_ int tdb_delete(struct tdb_context *tdb, TDB_DATA key)
 {
 	uint32_t hash = tdb->hash_fn(&key);
 	int ret;
@@ -443,7 +446,7 @@ static tdb_off_t tdb_find_dead(struct tdb_context *tdb, uint32_t hash,
 			       struct tdb_record *r, tdb_len_t length)
 {
 	tdb_off_t rec_ptr;
-	
+
 	/* read in the hash top */
 	if (tdb_ofs_read(tdb, TDB_HASH_TOP(hash), &rec_ptr) == -1)
 		return 0;
@@ -596,7 +599,7 @@ static int _tdb_store(struct tdb_context *tdb, TDB_DATA key,
 
    return 0 on success, -1 on failure
 */
-int tdb_store(struct tdb_context *tdb, TDB_DATA key, TDB_DATA dbuf, int flag)
+_PUBLIC_ int tdb_store(struct tdb_context *tdb, TDB_DATA key, TDB_DATA dbuf, int flag)
 {
 	uint32_t hash;
 	int ret;
@@ -619,7 +622,7 @@ int tdb_store(struct tdb_context *tdb, TDB_DATA key, TDB_DATA dbuf, int flag)
 }
 
 /* Append to an entry. Create if not exist. */
-int tdb_append(struct tdb_context *tdb, TDB_DATA key, TDB_DATA new_dbuf)
+_PUBLIC_ int tdb_append(struct tdb_context *tdb, TDB_DATA key, TDB_DATA new_dbuf)
 {
 	uint32_t hash;
 	TDB_DATA dbuf;
@@ -658,7 +661,7 @@ int tdb_append(struct tdb_context *tdb, TDB_DATA key, TDB_DATA new_dbuf)
 
 	ret = _tdb_store(tdb, key, dbuf, 0, hash);
 	tdb_trace_2rec_retrec(tdb, "tdb_append", key, new_dbuf, dbuf);
-	
+
 failed:
 	tdb_unlock(tdb, BUCKET(hash), F_WRLCK);
 	SAFE_FREE(dbuf.dptr);
@@ -670,7 +673,7 @@ failed:
   return the name of the current tdb file
   useful for external logging functions
 */
-const char *tdb_name(struct tdb_context *tdb)
+_PUBLIC_ const char *tdb_name(struct tdb_context *tdb)
 {
 	return tdb->name;
 }
@@ -680,7 +683,7 @@ const char *tdb_name(struct tdb_context *tdb)
   useful for external routines that want to check the device/inode
   of the fd
 */
-int tdb_fd(struct tdb_context *tdb)
+_PUBLIC_ int tdb_fd(struct tdb_context *tdb)
 {
 	return tdb->fd;
 }
@@ -689,7 +692,7 @@ int tdb_fd(struct tdb_context *tdb)
   return the current logging function
   useful for external tdb routines that wish to log tdb errors
 */
-tdb_log_func tdb_log_fn(struct tdb_context *tdb)
+_PUBLIC_ tdb_log_func tdb_log_fn(struct tdb_context *tdb)
 {
 	return tdb->log.log_fn;
 }
@@ -705,7 +708,7 @@ tdb_log_func tdb_log_fn(struct tdb_context *tdb)
   The aim of this sequence number is to allow for a very lightweight
   test of a possible tdb change.
 */
-int tdb_get_seqnum(struct tdb_context *tdb)
+_PUBLIC_ int tdb_get_seqnum(struct tdb_context *tdb)
 {
 	tdb_off_t seqnum=0;
 
@@ -713,22 +716,22 @@ int tdb_get_seqnum(struct tdb_context *tdb)
 	return seqnum;
 }
 
-int tdb_hash_size(struct tdb_context *tdb)
+_PUBLIC_ int tdb_hash_size(struct tdb_context *tdb)
 {
 	return tdb->header.hash_size;
 }
 
-size_t tdb_map_size(struct tdb_context *tdb)
+_PUBLIC_ size_t tdb_map_size(struct tdb_context *tdb)
 {
 	return tdb->map_size;
 }
 
-int tdb_get_flags(struct tdb_context *tdb)
+_PUBLIC_ int tdb_get_flags(struct tdb_context *tdb)
 {
 	return tdb->flags;
 }
 
-void tdb_add_flags(struct tdb_context *tdb, unsigned flags)
+_PUBLIC_ void tdb_add_flags(struct tdb_context *tdb, unsigned flags)
 {
 	if ((flags & TDB_ALLOW_NESTING) &&
 	    (flags & TDB_DISALLOW_NESTING)) {
@@ -748,7 +751,7 @@ void tdb_add_flags(struct tdb_context *tdb, unsigned flags)
 	tdb->flags |= flags;
 }
 
-void tdb_remove_flags(struct tdb_context *tdb, unsigned flags)
+_PUBLIC_ void tdb_remove_flags(struct tdb_context *tdb, unsigned flags)
 {
 	if ((flags & TDB_ALLOW_NESTING) &&
 	    (flags & TDB_DISALLOW_NESTING)) {
@@ -772,7 +775,7 @@ void tdb_remove_flags(struct tdb_context *tdb, unsigned flags)
 /*
   enable sequence number handling on an open tdb
 */
-void tdb_enable_seqnum(struct tdb_context *tdb)
+_PUBLIC_ void tdb_enable_seqnum(struct tdb_context *tdb)
 {
 	tdb->flags |= TDB_SEQNUM;
 }
@@ -804,12 +807,12 @@ static int tdb_free_region(struct tdb_context *tdb, tdb_off_t offset, ssize_t le
 
 /*
   wipe the entire database, deleting all records. This can be done
-  very fast by using a global lock. The entire data portion of the
+  very fast by using a allrecord lock. The entire data portion of the
   file becomes a single entry in the freelist.
 
   This code carefully steps around the recovery area, leaving it alone
  */
-int tdb_wipe_all(struct tdb_context *tdb)
+_PUBLIC_ int tdb_wipe_all(struct tdb_context *tdb)
 {
 	int i;
 	tdb_off_t offset = 0;
@@ -916,7 +919,7 @@ static int repack_traverse(struct tdb_context *tdb, TDB_DATA key, TDB_DATA data,
 /*
   repack a tdb
  */
-int tdb_repack(struct tdb_context *tdb)
+_PUBLIC_ int tdb_repack(struct tdb_context *tdb)
 {
 	struct tdb_context *tmp_db;
 	struct traverse_state state;
@@ -986,10 +989,24 @@ int tdb_repack(struct tdb_context *tdb)
 	return 0;
 }
 
+/* Even on files, we can get partial writes due to signals. */
+bool tdb_write_all(int fd, const void *buf, size_t count)
+{
+	while (count) {
+		ssize_t ret;
+		ret = write(fd, buf, count);
+		if (ret < 0)
+			return false;
+		buf = (const char *)buf + ret;
+		count -= ret;
+	}
+	return true;
+}
+
 #ifdef TDB_TRACE
 static void tdb_trace_write(struct tdb_context *tdb, const char *str)
 {
-	if (write(tdb->tracefd, str, strlen(str)) != strlen(str)) {
+	if (!tdb_write_alltdb->tracefd, str, strlen(str)) {
 		close(tdb->tracefd);
 		tdb->tracefd = -1;
 	}

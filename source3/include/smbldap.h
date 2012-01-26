@@ -23,6 +23,8 @@
 
 struct smbldap_state;
 
+#include "smb_ldap.h"
+
 #ifdef HAVE_LDAP
 
 /* specify schema versions between 2.2. and 3.0 */
@@ -41,6 +43,7 @@ struct smbldap_state;
 #define LDAP_OBJ_SID_ENTRY		"sambaSidEntry"
 #define LDAP_OBJ_TRUST_PASSWORD         "sambaTrustPassword"
 #define LDAP_OBJ_TRUSTDOM_PASSWORD      "sambaTrustedDomainPassword"
+#define LDAP_OBJ_TRUSTED_DOMAIN		"sambaTrustedDomain"
 
 #define LDAP_OBJ_ACCOUNT		"account"
 #define LDAP_OBJ_POSIXACCOUNT		"posixAccount"
@@ -135,9 +138,13 @@ NTSTATUS smbldap_init(TALLOC_CTX *mem_ctx,
 const char* get_attr_key2string( ATTRIB_MAP_ENTRY table[], int key );
 const char** get_attr_list( TALLOC_CTX *mem_ctx, ATTRIB_MAP_ENTRY table[] );
 void smbldap_set_mod (LDAPMod *** modlist, int modop, const char *attribute, const char *value);
+void smbldap_set_mod_blob(LDAPMod *** modlist, int modop, const char *attribute, const DATA_BLOB *newblob);
 void smbldap_make_mod(LDAP *ldap_struct, LDAPMessage *existing,
 		      LDAPMod ***mods,
 		      const char *attribute, const char *newval);
+void smbldap_make_mod_blob(LDAP *ldap_struct, LDAPMessage *existing,
+			   LDAPMod ***mods,
+			   const char *attribute, const DATA_BLOB *newblob);
 bool smbldap_get_single_attribute (LDAP * ldap_struct, LDAPMessage * entry,
 				   const char *attribute, char *value,
 				   int max_len);
@@ -153,7 +160,7 @@ int smbldap_modify(struct smbldap_state *ldap_state,
 struct smbldap_state {
 	LDAP *ldap_struct;
 	pid_t pid;
-	time_t last_ping;
+	time_t last_ping; /* monotonic */
 	/* retrive-once info */
 	const char *uri;
 
@@ -166,14 +173,16 @@ struct smbldap_state {
 
 	unsigned int num_failures;
 
-	time_t last_use;
+	time_t last_use; /* monotonic */
 	struct event_context *event_context;
 	struct timed_event *idle_event;
 
-	struct timeval last_rebind;
+	struct timeval last_rebind; /* monotonic */
 };
 
 /* struct used by both pdb_ldap.c and pdb_nds.c */
+
+struct ipasam_privates;
 
 struct ldapsam_privates {
 	struct smbldap_state *smbldap_state;
@@ -184,7 +193,7 @@ struct ldapsam_privates {
 	int index;
 
 	const char *domain_name;
-	DOM_SID domain_sid;
+	struct dom_sid domain_sid;
 
 	/* configuration items */
 	int schema_ver;
@@ -193,6 +202,10 @@ struct ldapsam_privates {
 
 	/* Is this NDS ldap? */
 	int is_nds_ldap;
+
+	/* Is this IPA ldap? */
+	int is_ipa_ldap;
+	struct ipasam_privates *ipasam_privates;
 
 	/* ldap server location parameter */
 	char *location;
@@ -204,6 +217,7 @@ struct ldapsam_privates {
 };
 
 /* Functions shared between pdb_ldap.c and pdb_nds.c. */
+struct pdb_methods;
 NTSTATUS pdb_init_ldapsam_compat( struct pdb_methods **pdb_method, const char *location);
 void private_data_free_fn(void **result);
 int ldapsam_search_suffix_by_name(struct ldapsam_privates *ldap_state,
@@ -231,19 +245,76 @@ void talloc_autofree_ldapmsg(TALLOC_CTX *mem_ctx, LDAPMessage *result);
 void talloc_autofree_ldapmod(TALLOC_CTX *mem_ctx, LDAPMod **mod);
 char *smbldap_talloc_dn(TALLOC_CTX *mem_ctx, LDAP *ld,
 			      LDAPMessage *entry);
+LDAP *priv2ld(struct ldapsam_privates *priv);
 
+/* The following definitions come from lib/smbldap.c  */
 
-#else
-#define LDAP void
-#define LDAPMod void
-#define LDAP_CONST const
-#define LDAPControl void
-struct berval;
-struct ldapsam_privates;
+int smb_ldap_start_tls(LDAP *ldap_struct, int version);
+int smb_ldap_setup_full_conn(LDAP **ldap_struct, const char *uri);
+int smbldap_search(struct smbldap_state *ldap_state,
+		   const char *base, int scope, const char *filter,
+		   const char *attrs[], int attrsonly,
+		   LDAPMessage **res);
+int smbldap_search_paged(struct smbldap_state *ldap_state,
+			 const char *base, int scope, const char *filter,
+			 const char **attrs, int attrsonly, int pagesize,
+			 LDAPMessage **res, void **cookie);
+int smbldap_modify(struct smbldap_state *ldap_state, const char *dn, LDAPMod *attrs[]);
+int smbldap_add(struct smbldap_state *ldap_state, const char *dn, LDAPMod *attrs[]);
+int smbldap_delete(struct smbldap_state *ldap_state, const char *dn);
+int smbldap_extended_operation(struct smbldap_state *ldap_state,
+			       LDAP_CONST char *reqoid, struct berval *reqdata,
+			       LDAPControl **serverctrls, LDAPControl **clientctrls,
+			       char **retoidp, struct berval **retdatap);
+int smbldap_search_suffix (struct smbldap_state *ldap_state,
+			   const char *filter, const char **search_attr,
+			   LDAPMessage ** result);
+void smbldap_free_struct(struct smbldap_state **ldap_state) ;
+NTSTATUS smbldap_init(TALLOC_CTX *mem_ctx, struct event_context *event_ctx,
+		      const char *location,
+		      struct smbldap_state **smbldap_state);
+bool smbldap_has_control(LDAP *ld, const char *control);
+bool smbldap_has_extension(LDAP *ld, const char *extension);
+bool smbldap_has_naming_context(LDAP *ld, const char *naming_context);
+bool smbldap_set_creds(struct smbldap_state *ldap_state, bool anon, const char *dn, const char *secret);
+
+/* The following definitions come from lib/smbldap_util.c  */
+
+NTSTATUS smbldap_search_domain_info(struct smbldap_state *ldap_state,
+                                    LDAPMessage ** result, const char *domain_name,
+                                    bool try_add);
+
 #endif 	/* HAVE_LDAP */
 
 #define LDAP_DEFAULT_TIMEOUT   15
 #define LDAP_CONNECTION_DEFAULT_TIMEOUT 2
 #define LDAP_PAGE_SIZE 1024
+
+#define ADS_PAGE_CTL_OID 	"1.2.840.113556.1.4.319"
+
+/*
+ * Work around versions of the LDAP client libs that don't have the OIDs
+ * defined, or have them defined under the old name.
+ * This functionality is really a factor of the server, not the client
+ *
+ */
+
+#if defined(LDAP_EXOP_X_MODIFY_PASSWD) && !defined(LDAP_EXOP_MODIFY_PASSWD)
+#define LDAP_EXOP_MODIFY_PASSWD LDAP_EXOP_X_MODIFY_PASSWD
+#elif !defined(LDAP_EXOP_MODIFY_PASSWD)
+#define LDAP_EXOP_MODIFY_PASSWD "1.3.6.1.4.1.4203.1.11.1"
+#endif
+
+#if defined(LDAP_EXOP_X_MODIFY_PASSWD_ID) && !defined(LDAP_EXOP_MODIFY_PASSWD_ID)
+#define LDAP_TAG_EXOP_MODIFY_PASSWD_ID LDAP_EXOP_X_MODIFY_PASSWD_ID
+#elif !defined(LDAP_EXOP_MODIFY_PASSWD_ID)
+#define LDAP_TAG_EXOP_MODIFY_PASSWD_ID        ((ber_tag_t) 0x80U)
+#endif
+
+#if defined(LDAP_EXOP_X_MODIFY_PASSWD_NEW) && !defined(LDAP_EXOP_MODIFY_PASSWD_NEW)
+#define LDAP_TAG_EXOP_MODIFY_PASSWD_NEW LDAP_EXOP_X_MODIFY_PASSWD_NEW
+#elif !defined(LDAP_EXOP_MODIFY_PASSWD_NEW)
+#define LDAP_TAG_EXOP_MODIFY_PASSWD_NEW       ((ber_tag_t) 0x82U)
+#endif
 
 #endif	/* _SMBLDAP_H */

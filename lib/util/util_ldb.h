@@ -1,3 +1,26 @@
+/*
+   Unix SMB/CIFS implementation.
+
+   common share info functions
+
+   Copyright (C) Andrew Tridgell 2004
+   Copyright (C) Tim Potter 2004
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+
 #ifndef __LIB_UTIL_UTIL_LDB_H__
 #define __LIB_UTIL_UTIL_LDB_H__
 
@@ -23,15 +46,5 @@ int gendb_search_dn(struct ldb_context *ldb,
 		 struct ldb_dn *dn,
 		 struct ldb_message ***res,
 		 const char * const *attrs);
-int gendb_add_ldif(struct ldb_context *ldb, const char *ldif_string);
-char *wrap_casefold(void *context, void *mem_ctx, const char *s, size_t n);
-
-int gendb_search_single_extended_dn(struct ldb_context *ldb,
-				    TALLOC_CTX *mem_ctx,
-				    struct ldb_dn *basedn,
-				    enum ldb_scope scope,
-				    struct ldb_message **msg,
-				    const char * const *attrs,
-				    const char *format, ...)  PRINTF_ATTRIBUTE(7,8);
 
 #endif /* __LIB_UTIL_UTIL_LDB_H__ */

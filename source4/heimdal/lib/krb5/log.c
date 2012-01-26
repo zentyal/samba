@@ -3,6 +3,8 @@
  * (Royal Institute of Technology, Stockholm, Sweden).
  * All rights reserved.
  *
+ * Portions Copyright (c) 2009 Apple Inc. All rights reserved.
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -113,7 +115,7 @@ find_value(const char *s, struct s2i *table)
     return table->val;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_initlog(krb5_context context,
 	     const char *program,
 	     krb5_log_facility **fac)
@@ -135,7 +137,7 @@ krb5_initlog(krb5_context context,
     return 0;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_addlog_func(krb5_context context,
 		 krb5_log_facility *fac,
 		 int min,
@@ -163,7 +165,7 @@ struct _heimdal_syslog_data{
     int priority;
 };
 
-static void
+static void KRB5_CALLCONV
 log_syslog(const char *timestr,
 	   const char *msg,
 	   void *data)
@@ -173,7 +175,7 @@ log_syslog(const char *timestr,
     syslog(s->priority, "%s", msg);
 }
 
-static void
+static void KRB5_CALLCONV
 close_syslog(void *data)
 {
     free(data);
@@ -213,7 +215,7 @@ struct file_data{
     int keep_open;
 };
 
-static void
+static void KRB5_CALLCONV
 log_file(const char *timestr,
 	 const char *msg,
 	 void *data)
@@ -239,7 +241,7 @@ log_file(const char *timestr,
     }
 }
 
-static void
+static void KRB5_CALLCONV
 close_file(void *data)
 {
     struct file_data *f = data;
@@ -268,7 +270,7 @@ open_file(krb5_context context, krb5_log_facility *fac, int min, int max,
 
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_addlog_dest(krb5_context context, krb5_log_facility *f, const char *orig)
 {
     krb5_error_code ret = 0;
@@ -359,7 +361,7 @@ krb5_addlog_dest(krb5_context context, krb5_log_facility *f, const char *orig)
 }
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_openlog(krb5_context context,
 	     const char *program,
 	     krb5_log_facility **fac)
@@ -383,7 +385,7 @@ krb5_openlog(krb5_context context,
     return ret;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_closelog(krb5_context context,
 	      krb5_log_facility *fac)
 {
@@ -402,7 +404,7 @@ krb5_closelog(krb5_context context,
 #undef __attribute__
 #define __attribute__(X)
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_vlog_msg(krb5_context context,
 	      krb5_log_facility *fac,
 	      char **reply,
@@ -426,8 +428,8 @@ krb5_vlog_msg(krb5_context context,
 		krb5_format_time(context, t, buf, sizeof(buf), TRUE);
 	    }
 	    if(actual == NULL) {
-		vasprintf(&msg, fmt, ap);
-		if(msg == NULL)
+		int ret = vasprintf(&msg, fmt, ap);
+		if(ret < 0 || msg == NULL)
 		    actual = fmt;
 		else
 		    actual = msg;
@@ -441,7 +443,7 @@ krb5_vlog_msg(krb5_context context,
     return 0;
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_vlog(krb5_context context,
 	  krb5_log_facility *fac,
 	  int level,
@@ -452,7 +454,7 @@ krb5_vlog(krb5_context context,
     return krb5_vlog_msg(context, fac, NULL, level, fmt, ap);
 }
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_log_msg(krb5_context context,
 	     krb5_log_facility *fac,
 	     int level,
@@ -471,7 +473,7 @@ krb5_log_msg(krb5_context context,
 }
 
 
-krb5_error_code KRB5_LIB_FUNCTION
+KRB5_LIB_FUNCTION krb5_error_code KRB5_LIB_CALL
 krb5_log(krb5_context context,
 	 krb5_log_facility *fac,
 	 int level,
@@ -488,3 +490,27 @@ krb5_log(krb5_context context,
     return ret;
 }
 
+void KRB5_LIB_FUNCTION
+_krb5_debug(krb5_context context,
+	    int level,
+	    const char *fmt,
+	    ...)
+    __attribute__((format (printf, 3, 4)))
+{
+    va_list ap;
+
+    if (context == NULL || context->debug_dest == NULL)
+	return;
+	
+    va_start(ap, fmt);
+    krb5_vlog(context, context->debug_dest, level, fmt, ap);
+    va_end(ap);
+}
+
+krb5_boolean KRB5_LIB_FUNCTION
+_krb5_have_debug(krb5_context context, int level)
+{
+    if (context == NULL || context->debug_dest == NULL)
+	return 0 ;
+    return 1;
+}

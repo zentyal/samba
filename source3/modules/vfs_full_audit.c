@@ -58,6 +58,12 @@
 
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "system/syslog.h"
+#include "smbd/smbd.h"
+#include "../librpc/gen_ndr/ndr_netlogon.h"
+#include "auth.h"
+#include "ntioctl.h"
 
 static int vfs_full_audit_debug_level = DBGC_VFS;
 
@@ -86,6 +92,7 @@ typedef enum _vfs_op_type {
 	/* Directory operations */
 
 	SMB_VFS_OP_OPENDIR,
+	SMB_VFS_OP_FDOPENDIR,
 	SMB_VFS_OP_READDIR,
 	SMB_VFS_OP_SEEKDIR,
 	SMB_VFS_OP_TELLDIR,
@@ -123,6 +130,7 @@ typedef enum _vfs_op_type {
 	SMB_VFS_OP_GETWD,
 	SMB_VFS_OP_NTIMES,
 	SMB_VFS_OP_FTRUNCATE,
+	SMB_VFS_OP_FALLOCATE,
 	SMB_VFS_OP_LOCK,
 	SMB_VFS_OP_KERNEL_FLOCK,
 	SMB_VFS_OP_LINUX_SETLEASE,
@@ -227,6 +235,7 @@ static struct {
 	{ SMB_VFS_OP_STATVFS,	"statvfs" },
 	{ SMB_VFS_OP_FS_CAPABILITIES,	"fs_capabilities" },
 	{ SMB_VFS_OP_OPENDIR,	"opendir" },
+	{ SMB_VFS_OP_FDOPENDIR,	"fdopendir" },
 	{ SMB_VFS_OP_READDIR,	"readdir" },
 	{ SMB_VFS_OP_SEEKDIR,   "seekdir" },
 	{ SMB_VFS_OP_TELLDIR,   "telldir" },
@@ -261,6 +270,7 @@ static struct {
 	{ SMB_VFS_OP_GETWD,	"getwd" },
 	{ SMB_VFS_OP_NTIMES,	"ntimes" },
 	{ SMB_VFS_OP_FTRUNCATE,	"ftruncate" },
+	{ SMB_VFS_OP_FALLOCATE,"fallocate" },
 	{ SMB_VFS_OP_LOCK,	"lock" },
 	{ SMB_VFS_OP_KERNEL_FLOCK,	"kernel_flock" },
 	{ SMB_VFS_OP_LINUX_SETLEASE, "linux_setlease" },
@@ -329,8 +339,8 @@ static struct {
 	{ SMB_VFS_OP_AIO_FSYNC,	"aio_fsync" },
 	{ SMB_VFS_OP_AIO_SUSPEND,"aio_suspend" },
 	{ SMB_VFS_OP_AIO_FORCE, "aio_force" },
-	{ SMB_VFS_OP_IS_OFFLINE, "aio_is_offline" },
-	{ SMB_VFS_OP_SET_OFFLINE, "aio_set_offline" },
+	{ SMB_VFS_OP_IS_OFFLINE, "is_offline" },
+	{ SMB_VFS_OP_SET_OFFLINE, "set_offline" },
 	{ SMB_VFS_OP_LAST, NULL }
 };
 
@@ -392,11 +402,11 @@ static char *audit_prefix(TALLOC_CTX *ctx, connection_struct *conn)
 	}
 	result = talloc_sub_advanced(ctx,
 			lp_servicename(SNUM(conn)),
-			conn->server_info->unix_name,
+			conn->session_info->unix_name,
 			conn->connectpath,
-			conn->server_info->utok.gid,
-			conn->server_info->sanitized_username,
-			pdb_get_domain(conn->server_info->sam_account),
+			conn->session_info->utok.gid,
+			conn->session_info->sanitized_username,
+			conn->session_info->info3->base.domain.string,
 			prefix);
 	TALLOC_FREE(prefix);
 	return result;
@@ -431,32 +441,41 @@ static bool log_failure(vfs_handle_struct *handle, vfs_op_type op)
 	return bitmap_query(pd->failure_ops, op);
 }
 
-static void init_bitmap(struct bitmap **bm, const char **ops)
+static struct bitmap *init_bitmap(TALLOC_CTX *mem_ctx, const char **ops)
 {
-	bool log_all = False;
+	struct bitmap *bm;
 
-	if (*bm != NULL)
-		return;
-
-	*bm = bitmap_allocate(SMB_VFS_OP_LAST);
-
-	if (*bm == NULL) {
-		DEBUG(0, ("Could not alloc bitmap -- "
-			  "defaulting to logging everything\n"));
-		return;
+	if (ops == NULL) {
+		return NULL;
 	}
 
-	while (*ops != NULL) {
+	bm = bitmap_talloc(mem_ctx, SMB_VFS_OP_LAST);
+	if (bm == NULL) {
+		DEBUG(0, ("Could not alloc bitmap -- "
+			  "defaulting to logging everything\n"));
+		return NULL;
+	}
+
+	for (; *ops != NULL; ops += 1) {
 		int i;
-		bool found = False;
+		bool neg = false;
+		const char *op;
 
 		if (strequal(*ops, "all")) {
-			log_all = True;
-			break;
+			for (i=0; i<SMB_VFS_OP_LAST; i++) {
+				bitmap_set(bm, i);
+			}
+			continue;
 		}
 
 		if (strequal(*ops, "none")) {
 			break;
+		}
+
+		op = ops[0];
+		if (op[0] == '!') {
+			neg = true;
+			op += 1;
 		}
 
 		for (i=0; i<SMB_VFS_OP_LAST; i++) {
@@ -464,26 +483,23 @@ static void init_bitmap(struct bitmap **bm, const char **ops)
 				smb_panic("vfs_full_audit.c: name table not "
 					  "in sync with vfs.h\n");
 			}
-
-			if (strequal(*ops, vfs_op_names[i].name)) {
-				bitmap_set(*bm, i);
-				found = True;
+			if (strequal(op, vfs_op_names[i].name)) {
+				if (neg) {
+					bitmap_clear(bm, i);
+				} else {
+					bitmap_set(bm, i);
+				}
+				break;
 			}
 		}
-		if (!found) {
+		if (i == SMB_VFS_OP_LAST) {
 			DEBUG(0, ("Could not find opname %s, logging all\n",
 				  *ops));
-			log_all = True;
-			break;
+			TALLOC_FREE(bm);
+			return NULL;
 		}
-		ops += 1;
 	}
-
-	if (log_all) {
-		/* The query functions default to True */
-		bitmap_free(*bm);
-		*bm = NULL;
-	}
+	return bm;
 }
 
 static const char *audit_opname(vfs_op_type op)
@@ -579,22 +595,6 @@ static const char *fsp_str_do_log(const struct files_struct *fsp)
 	return smb_fname_str_do_log(fsp->fsp_name);
 }
 
-/* Free function for the private data. */
-
-static void free_private_data(void **p_data)
-{
-	struct vfs_full_audit_private_data *pd = *(struct vfs_full_audit_private_data **)p_data;
-
-	if (pd->success_ops) {
-		bitmap_free(pd->success_ops);
-	}
-	if (pd->failure_ops) {
-		bitmap_free(pd->failure_ops);
-	}
-	SAFE_FREE(pd);
-	*p_data = NULL;
-}
-
 /* Implementation of vfs_ops.  Pass everything on to the default
    operation but log event first. */
 
@@ -603,34 +603,31 @@ static int smb_full_audit_connect(vfs_handle_struct *handle,
 {
 	int result;
 	struct vfs_full_audit_private_data *pd = NULL;
-	const char *none[] = { NULL };
-	const char *all [] = { "all" };
 
 	result = SMB_VFS_NEXT_CONNECT(handle, svc, user);
 	if (result < 0) {
 		return result;
 	}
 
-	pd = SMB_MALLOC_P(struct vfs_full_audit_private_data);
+	pd = TALLOC_ZERO_P(handle, struct vfs_full_audit_private_data);
 	if (!pd) {
 		SMB_VFS_NEXT_DISCONNECT(handle);
 		return -1;
 	}
-	ZERO_STRUCTP(pd);
 
 #ifndef WITH_SYSLOG
 	openlog("smbd_audit", 0, audit_syslog_facility(handle));
 #endif
 
-	init_bitmap(&pd->success_ops,
-		    lp_parm_string_list(SNUM(handle->conn), "full_audit", "success",
-					none));
-	init_bitmap(&pd->failure_ops,
-		    lp_parm_string_list(SNUM(handle->conn), "full_audit", "failure",
-					all));
+	pd->success_ops = init_bitmap(
+		pd, lp_parm_string_list(SNUM(handle->conn), "full_audit",
+					"success", NULL));
+	pd->failure_ops = init_bitmap(
+		pd, lp_parm_string_list(SNUM(handle->conn), "full_audit",
+					"failure", NULL));
 
 	/* Store the private data. */
-	SMB_VFS_HANDLE_SET_DATA(handle, pd, free_private_data,
+	SMB_VFS_HANDLE_SET_DATA(handle, pd, NULL,
 				struct vfs_full_audit_private_data, return -1);
 
 	do_log(SMB_VFS_OP_CONNECT, True, handle,
@@ -698,7 +695,8 @@ static int smb_full_audit_set_quota(struct vfs_handle_struct *handle,
 
 static int smb_full_audit_get_shadow_copy_data(struct vfs_handle_struct *handle,
 				struct files_struct *fsp,
-				SHADOW_COPY_DATA *shadow_copy_data, bool labels)
+				struct shadow_copy_data *shadow_copy_data,
+				bool labels)
 {
 	int result;
 
@@ -741,6 +739,19 @@ static SMB_STRUCT_DIR *smb_full_audit_opendir(vfs_handle_struct *handle,
 	result = SMB_VFS_NEXT_OPENDIR(handle, fname, mask, attr);
 
 	do_log(SMB_VFS_OP_OPENDIR, (result != NULL), handle, "%s", fname);
+
+	return result;
+}
+
+static SMB_STRUCT_DIR *smb_full_audit_fdopendir(vfs_handle_struct *handle,
+			  files_struct *fsp, const char *mask, uint32 attr)
+{
+	SMB_STRUCT_DIR *result;
+
+	result = SMB_VFS_NEXT_FDOPENDIR(handle, fsp, mask, attr);
+
+	do_log(SMB_VFS_OP_FDOPENDIR, (result != NULL), handle, "%s",
+			fsp_str_do_log(fsp));
 
 	return result;
 }
@@ -861,6 +872,7 @@ static NTSTATUS smb_full_audit_create_file(vfs_handle_struct *handle,
 				      uint32_t file_attributes,
 				      uint32_t oplock_request,
 				      uint64_t allocation_size,
+				      uint32_t private_flags,
 				      struct security_descriptor *sd,
 				      struct ea_list *ea_list,
 				      files_struct **result_fsp,
@@ -904,6 +916,7 @@ static NTSTATUS smb_full_audit_create_file(vfs_handle_struct *handle,
 		file_attributes,			/* file_attributes */
 		oplock_request,				/* oplock_request */
 		allocation_size,			/* allocation_size */
+		private_flags,
 		sd,					/* sd */
 		ea_list,				/* ea_list */
 		result_fsp,				/* result */
@@ -1098,7 +1111,8 @@ static uint64_t smb_full_audit_get_alloc_size(vfs_handle_struct *handle,
 
 	result = SMB_VFS_NEXT_GET_ALLOC_SIZE(handle, fsp, sbuf);
 
-	do_log(SMB_VFS_OP_GET_ALLOC_SIZE, (result >= 0), handle, "%d", result);
+	do_log(SMB_VFS_OP_GET_ALLOC_SIZE, (result != (uint64_t)-1), handle,
+			"%llu", result);
 
 	return result;
 }
@@ -1231,6 +1245,21 @@ static int smb_full_audit_ftruncate(vfs_handle_struct *handle, files_struct *fsp
 	return result;
 }
 
+static int smb_full_audit_fallocate(vfs_handle_struct *handle, files_struct *fsp,
+			   enum vfs_fallocate_mode mode,
+			   SMB_OFF_T offset,
+			   SMB_OFF_T len)
+{
+	int result;
+
+	result = SMB_VFS_NEXT_FALLOCATE(handle, fsp, mode, offset, len);
+
+	do_log(SMB_VFS_OP_FALLOCATE, (result >= 0), handle,
+	       "%s", fsp_str_do_log(fsp));
+
+	return result;
+}
+
 static bool smb_full_audit_lock(vfs_handle_struct *handle, files_struct *fsp,
 		       int op, SMB_OFF_T offset, SMB_OFF_T count, int type)
 {
@@ -1333,11 +1362,11 @@ static int smb_full_audit_mknod(vfs_handle_struct *handle,
 }
 
 static char *smb_full_audit_realpath(vfs_handle_struct *handle,
-			    const char *path, char *resolved_path)
+			    const char *path)
 {
 	char *result;
 
-	result = SMB_VFS_NEXT_REALPATH(handle, path, resolved_path);
+	result = SMB_VFS_NEXT_REALPATH(handle, path);
 
 	do_log(SMB_VFS_OP_REALPATH, (result != NULL), handle, "%s", path);
 
@@ -1535,7 +1564,7 @@ static NTSTATUS smb_full_audit_translate_name(struct vfs_handle_struct *handle,
 
 static NTSTATUS smb_full_audit_fget_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 				uint32 security_info,
-				SEC_DESC **ppdesc)
+				struct security_descriptor **ppdesc)
 {
 	NTSTATUS result;
 
@@ -1550,7 +1579,7 @@ static NTSTATUS smb_full_audit_fget_nt_acl(vfs_handle_struct *handle, files_stru
 static NTSTATUS smb_full_audit_get_nt_acl(vfs_handle_struct *handle,
 					  const char *name,
 					  uint32 security_info,
-					  SEC_DESC **ppdesc)
+					  struct security_descriptor **ppdesc)
 {
 	NTSTATUS result;
 
@@ -1564,7 +1593,7 @@ static NTSTATUS smb_full_audit_get_nt_acl(vfs_handle_struct *handle,
 
 static NTSTATUS smb_full_audit_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 			      uint32 security_info_sent,
-			      const SEC_DESC *psd)
+			      const struct security_descriptor *psd)
 {
 	NTSTATUS result;
 
@@ -2180,6 +2209,29 @@ static bool smb_full_audit_aio_force(struct vfs_handle_struct *handle,
 	return result;
 }
 
+static bool smb_full_audit_is_offline(struct vfs_handle_struct *handle,
+				      const struct smb_filename *fname,
+				      SMB_STRUCT_STAT *sbuf)
+{
+	bool result;
+
+	result = SMB_VFS_NEXT_IS_OFFLINE(handle, fname, sbuf);
+	do_log(SMB_VFS_OP_IS_OFFLINE, result, handle, "%s",
+	       smb_fname_str_do_log(fname));
+	return result;
+}
+
+static int smb_full_audit_set_offline(struct vfs_handle_struct *handle,
+				      const struct smb_filename *fname)
+{
+	int result;
+
+	result = SMB_VFS_NEXT_SET_OFFLINE(handle, fname);
+	do_log(SMB_VFS_OP_SET_OFFLINE, result >= 0, handle, "%s",
+	       smb_fname_str_do_log(fname));
+	return result;
+}
+
 static struct vfs_fn_pointers vfs_full_audit_fns = {
 
 	/* Disk operations */
@@ -2193,6 +2245,7 @@ static struct vfs_fn_pointers vfs_full_audit_fns = {
 	.statvfs = smb_full_audit_statvfs,
 	.fs_capabilities = smb_full_audit_fs_capabilities,
 	.opendir = smb_full_audit_opendir,
+	.fdopendir = smb_full_audit_fdopendir,
 	.readdir = smb_full_audit_readdir,
 	.seekdir = smb_full_audit_seekdir,
 	.telldir = smb_full_audit_telldir,
@@ -2201,7 +2254,7 @@ static struct vfs_fn_pointers vfs_full_audit_fns = {
 	.rmdir = smb_full_audit_rmdir,
 	.closedir = smb_full_audit_closedir,
 	.init_search_op = smb_full_audit_init_search_op,
-	.open = smb_full_audit_open,
+	.open_fn = smb_full_audit_open,
 	.create_file = smb_full_audit_create_file,
 	.close_fn = smb_full_audit_close,
 	.vfs_read = smb_full_audit_read,
@@ -2227,6 +2280,7 @@ static struct vfs_fn_pointers vfs_full_audit_fns = {
 	.getwd = smb_full_audit_getwd,
 	.ntimes = smb_full_audit_ntimes,
 	.ftruncate = smb_full_audit_ftruncate,
+	.fallocate = smb_full_audit_fallocate,
 	.lock = smb_full_audit_lock,
 	.kernel_flock = smb_full_audit_kernel_flock,
 	.linux_setlease = smb_full_audit_linux_setlease,
@@ -2295,6 +2349,8 @@ static struct vfs_fn_pointers vfs_full_audit_fns = {
 	.aio_fsync = smb_full_audit_aio_fsync,
 	.aio_suspend = smb_full_audit_aio_suspend,
 	.aio_force = smb_full_audit_aio_force,
+	.is_offline = smb_full_audit_is_offline,
+	.set_offline = smb_full_audit_set_offline,
 };
 
 NTSTATUS vfs_full_audit_init(void)

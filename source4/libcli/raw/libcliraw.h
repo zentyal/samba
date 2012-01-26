@@ -63,8 +63,9 @@ struct smbcli_negotiate {
 	
 	int server_zone;
 	time_t server_time;
-	uint_t readbraw_supported:1;
-	uint_t writebraw_supported:1;
+	unsigned int readbraw_supported:1;
+	unsigned int writebraw_supported:1;
+	unsigned int lockread_supported:1;
 
 	char *server_domain;
 };
@@ -92,11 +93,11 @@ struct smbcli_socket {
   client library
 */
 struct smbcli_options {
-	uint_t use_oplocks:1;
-	uint_t use_level2_oplocks:1;
-	uint_t use_spnego:1;
-	uint_t unicode:1;
-	uint_t ntstatus_support:1;
+	unsigned int use_oplocks:1;
+	unsigned int use_level2_oplocks:1;
+	unsigned int use_spnego:1;
+	unsigned int unicode:1;
+	unsigned int ntstatus_support:1;
 	int max_protocol;
 	uint32_t max_xmit;
 	uint16_t max_mux;
@@ -121,7 +122,7 @@ struct smbcli_transport {
 
 	/* is a readbraw pending? we need to handle that case
 	   specially on receiving packets */
-	uint_t readbraw_pending:1;
+	unsigned int readbraw_pending:1;
 	
 	/* an idle function - if this is defined then it will be
 	   called once every period microseconds while we are waiting
@@ -129,7 +130,7 @@ struct smbcli_transport {
 	struct {
 		void (*func)(struct smbcli_transport *, void *);
 		void *private_data;
-		uint_t period;
+		unsigned int period;
 	} idle;
 
 	/* the error fields from the last message */
@@ -142,7 +143,7 @@ struct smbcli_transport {
 			      SOCKET_READ_ERROR,
 			      SOCKET_WRITE_ERROR,
 			      SOCKET_READ_BAD_SIG} socket_error;
-			uint_t nbt_error;
+			unsigned int nbt_error;
 		} e;
 	} error;
 
@@ -163,9 +164,6 @@ struct smbcli_transport {
 
 	/* context of the stream -> packet parser */
 	struct packet_context *packet;
-
-	/* iconv convenience */
-	struct smb_iconv_convenience *iconv_convenience;
 };
 
 /* this is the context for the user */
@@ -192,9 +190,9 @@ struct smbcli_session {
 	struct gensec_security *gensec;
 
 	struct smbcli_session_options {
-		uint_t lanman_auth:1;
-		uint_t ntlmv2_auth:1;
-		uint_t plaintext_auth:1;
+		unsigned int lanman_auth:1;
+		unsigned int ntlmv2_auth:1;
+		unsigned int plaintext_auth:1;
 	} options;
 
 	const char *os;
@@ -255,18 +253,18 @@ struct smbcli_request {
 	NTSTATUS status;
 	
 	/* the sequence number of this packet - used for signing */
-	uint_t seq_num;
+	unsigned int seq_num;
 
 	/* list of ntcancel request for this requests */
 	struct smbcli_request *ntcancel;
 
 	/* set if this is a one-way request, meaning we are not
 	   expecting a reply from the server. */
-	uint_t one_way_request:1;
+	unsigned int one_way_request:1;
 
 	/* set this when the request should only increment the signing
 	   counter by one */
-	uint_t sign_single_increment:1;
+	unsigned int sign_single_increment:1;
 
 	/* the caller wants to do the signing check */
 	bool sign_caller_checks;

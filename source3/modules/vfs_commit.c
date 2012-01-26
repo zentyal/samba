@@ -17,6 +17,8 @@
  */
 
 #include "includes.h"
+#include "system/filesys.h"
+#include "smbd/smbd.h"
 
 /* Commit data module.
  *
@@ -88,6 +90,8 @@ static int commit_do(
 #elif HAVE_FSYNC
         result = fsync(fd);
 #else
+	DEBUG(0, ("%s: WARNING: no commit support on this platform\n",
+		MODULE));
 	result = 0
 #endif
         if (result == 0) {
@@ -231,7 +235,7 @@ static int commit_open(
 		c->eof = st.st_ex_size;
         }
 
-        return 0;
+        return fd;
 }
 
 static ssize_t commit_write(
@@ -301,7 +305,7 @@ static int commit_ftruncate(
 }
 
 static struct vfs_fn_pointers vfs_commit_fns = {
-        .open = commit_open,
+        .open_fn = commit_open,
         .close_fn = commit_close,
         .write = commit_write,
         .pwrite = commit_pwrite,

@@ -1,9 +1,16 @@
-samba (2:3.6.2-2) UNRELEASED; urgency=low
+samba (2:3.6.3-1) UNRELEASED; urgency=low
+
+  [ Christian Perrier ]
+  * New upstream release
+  * Fixes CVE-2012-0817:
+    The Samba File Serving daemon (smbd) in Samba versions
+    3.6.0 to 3.6.2 is affected by a memory leak that can
+    cause a server denial of service.
 
   [ Debconf translations ] 
   * Polish (Michał Kułach).  Closes: #657770
 
- -- Christian Perrier <bubulle@debian.org>  Sat, 28 Jan 2012 22:55:49 +0100
+ -- Christian Perrier <bubulle@debian.org>  Tue, 31 Jan 2012 20:34:07 +0100
 
 samba (2:3.6.2-1) unstable; urgency=low
 

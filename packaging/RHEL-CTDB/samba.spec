@@ -5,7 +5,7 @@ Summary: Samba SMB client and server
 Vendor: Samba Team
 Packager: Samba Team <samba@samba.org>
 Name:         samba
-Version:      3.6.2
+Version:      3.6.3
 Release:      1GITHASH
 Epoch:        0
 License: GNU GPL version 3

@@ -1,4 +1,4 @@
-samba (2:3.6.3-1) UNRELEASED; urgency=low
+samba (2:3.6.3-1) unstable; urgency=low
 
   [ Christian Perrier ]
   * New upstream release
@@ -10,7 +10,7 @@ samba (2:3.6.3-1) UNRELEASED; urgency=low
   [ Debconf translations ] 
   * Polish (Michał Kułach).  Closes: #657770
 
- -- Christian Perrier <bubulle@debian.org>  Tue, 31 Jan 2012 20:34:07 +0100
+ -- Christian Perrier <bubulle@debian.org>  Tue, 31 Jan 2012 22:09:39 +0100
 
 samba (2:3.6.2-1) unstable; urgency=low
 

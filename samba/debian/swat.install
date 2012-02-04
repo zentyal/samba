@@ -1,7 +1,0 @@
-usr/sbin/swat
-usr/share/samba/*.msg
-usr/share/samba/swat/help/welcome.html
-usr/share/samba/swat/images
-usr/share/samba/swat/include
-usr/share/samba/swat/lang
-usr/share/man/man8/swat.8

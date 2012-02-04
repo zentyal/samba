@@ -1,5 +1,0 @@
-source3/pkgconfig/*.pc
-source3/exports/libsmbclient.syms
-source3/exports/libsmbsharemodes.syms
-source3/lib/netapi/tests/Makefile
-source3/lib/netapi/examples/Makefile

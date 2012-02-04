@@ -1,3 +1,0 @@
-# changing a library package name needlessly is always worse than having a
-# name that doesn't match the soname.
-libsmbclient: package-name-doesnt-match-sonames libsmbclient0

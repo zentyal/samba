@@ -1,8 +1,0 @@
-etc/samba/
-debian/gdbcommands etc/samba
-etc/dhcp3/
-usr/share/samba/lowcase.dat
-debian/panic-action usr/share/samba
-debian/smb.conf* usr/share/samba
-usr/share/samba/upcase.dat
-usr/share/samba/valid.dat

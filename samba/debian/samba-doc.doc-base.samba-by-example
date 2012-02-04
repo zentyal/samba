@@ -1,9 +1,0 @@
-Document: samba-by-example
-Title: Samba-3 by Example
-Author: John H. Terpstra
-Abstract: Practical Exercises in Successful Samba Deployment
-Section: Network/File Transfer
-
-Format: HTML
-Index: /usr/share/doc/samba-doc/htmldocs/Samba3-ByExample/index.html
-Files: /usr/share/doc/samba-doc/htmldocs/Samba3-ByExample/*

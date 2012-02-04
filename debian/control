@@ -3,10 +3,10 @@ Section: net
 Priority: optional
 Maintainer: Debian Samba Maintainers <pkg-samba-maint@lists.alioth.debian.org>
 Uploaders: Steve Langasek <vorlon@debian.org>, Christian Perrier <bubulle@debian.org>, Noèl Köthe <noel@debian.org>, Jelmer Vernooij <jelmer@debian.org>
-Build-Depends: debhelper (>= 8.9.4~), libpam0g-dev, libreadline-dev,
+Build-Depends: debhelper (>= 8), libpam0g-dev, libreadline-dev,
 	libcups2-dev | libcupsys2-dev,
 	libacl1-dev [linux-any],
-	libkrb5-dev(>= 1.10+dfsg~), libldap2-dev , po-debconf, libpopt-dev, uuid-dev,
+	libkrb5-dev, libldap2-dev , po-debconf, libpopt-dev, uuid-dev,
 	libtalloc-dev (>= 2.0.1-1~bpo50+1),
 	libtdb-dev (>= 1.2.1~),
 	libcap-dev [linux-any],

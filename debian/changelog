@@ -1,3 +1,10 @@
+samba (2:3.6.3-2) UNRELEASED; urgency=low
+
+  * Set minimal version of tdb ot 1.2.6 in Build-Depends
+    (thanks, backprots!)
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 05 Feb 2012 18:53:23 +0100
+
 samba (2:3.6.3-1) unstable; urgency=low
 
   [ Christian Perrier ]

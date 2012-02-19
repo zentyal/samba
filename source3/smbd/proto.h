@@ -336,6 +336,7 @@ NTSTATUS unix_convert(TALLOC_CTX *ctx,
 		      const char *orig_path,
 		      struct smb_filename **smb_fname,
 		      uint32_t ucf_flags);
+NTSTATUS check_veto_path(connection_struct *conn, const char *name);
 NTSTATUS check_name(connection_struct *conn, const char *name);
 int get_real_filename(connection_struct *conn, const char *path,
 		      const char *name, TALLOC_CTX *mem_ctx,
@@ -980,8 +981,10 @@ bool set_current_service(connection_struct *conn, uint16 flags, bool do_chdir);
 void load_registry_shares(void);
 int add_home_service(const char *service, const char *username, const char *homedir);
 int find_service(TALLOC_CTX *ctx, const char *service, char **p_service_out);
-connection_struct *make_connection_snum(struct smbd_server_connection *sconn,
-					int snum, user_struct *vuser,
+struct smbd_smb2_tcon;
+connection_struct *make_connection_smb2(struct smbd_server_connection *sconn,
+					struct smbd_smb2_tcon *tcon,
+					user_struct *vuser,
 					DATA_BLOB password,
 					const char *pdev,
 					NTSTATUS *pstatus);
@@ -1037,6 +1040,7 @@ void stat_cache_add( const char *full_orig_name,
 		char *translated_path,
 		bool case_sensitive);
 bool stat_cache_lookup(connection_struct *conn,
+			bool posix_paths,
 			char **pp_name,
 			char **pp_dirpath,
 			char **pp_start,
@@ -1167,6 +1171,12 @@ int vfs_lstat_smb_fname(struct connection_struct *conn, const char *fname,
 			SMB_STRUCT_STAT *psbuf);
 NTSTATUS vfs_stat_fsp(files_struct *fsp);
 NTSTATUS vfs_chown_fsp(files_struct *fsp, uid_t uid, gid_t gid);
+NTSTATUS vfs_streaminfo(connection_struct *conn,
+			struct files_struct *fsp,
+			const char *fname,
+			TALLOC_CTX *mem_ctx,
+			unsigned int *num_streams,
+			struct stream_struct **streams);
 
 /* The following definitions come from smbd/avahi_register.c */
 

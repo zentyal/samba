@@ -1083,7 +1083,7 @@ AC_CHECK_FUNCS(getgrset)
 AC_CHECK_FUNCS(setpriv setgidx setuidx setgroups sysconf stat64 fstat64)
 AC_CHECK_FUNCS(lstat64 fopen64 atexit grantpt lseek64 ftruncate64 posix_fallocate posix_fallocate64)
 AC_CHECK_FUNCS(fallocate fallocate64)
-AC_CHECK_FUNCS(fseek64 fseeko64 ftell64 ftello64 setluid getpwanam)
+AC_CHECK_FUNCS(fseeko fseek64 fseeko64 ftell64 ftello64 setluid getpwanam)
 AC_CHECK_FUNCS(opendir64 readdir64 seekdir64 telldir64 rewinddir64 closedir64)
 AC_CHECK_FUNCS(fdopendir fdopendir64)
 AC_CHECK_FUNCS(getpwent_r)
@@ -2828,8 +2828,10 @@ samba_cv_HAVE_INOTIFY=yes,
 samba_cv_HAVE_INOTIFY=no,
 samba_cv_HAVE_INOTIFY=cross)
 
-if test x"$ac_cv_func_inotify_init" = x"yes" -a x"$ac_cv_header_linux_inotify_h" = x"yes"; then
-    AC_DEFINE(HAVE_INOTIFY,1,[Whether kernel has inotify support])
+if test x"$ac_cv_func_inotify_init" = x"yes"; then
+    if test  x"$ac_cv_header_sys_inotify_h" = x"yes" -o x"$ac_cv_header_linux_inotify_h" = x"yes"; then
+        AC_DEFINE(HAVE_INOTIFY,1,[Whether kernel or sys has inotify support])
+    fi
 fi
 
 #################################################

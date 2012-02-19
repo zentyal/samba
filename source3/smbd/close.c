@@ -201,14 +201,14 @@ static void notify_deferred_opens(struct messaging_context *msg_ctx,
 
 NTSTATUS delete_all_streams(connection_struct *conn, const char *fname)
 {
-	struct stream_struct *stream_info;
+	struct stream_struct *stream_info = NULL;
 	int i;
-	unsigned int num_streams;
+	unsigned int num_streams = 0;
 	TALLOC_CTX *frame = talloc_stackframe();
 	NTSTATUS status;
 
-	status = SMB_VFS_STREAMINFO(conn, NULL, fname, talloc_tos(),
-				    &num_streams, &stream_info);
+	status = vfs_streaminfo(conn, NULL, fname, talloc_tos(),
+				&num_streams, &stream_info);
 
 	if (NT_STATUS_EQUAL(status, NT_STATUS_NOT_IMPLEMENTED)) {
 		DEBUG(10, ("no streams around\n"));
@@ -217,7 +217,7 @@ NTSTATUS delete_all_streams(connection_struct *conn, const char *fname)
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(10, ("SMB_VFS_STREAMINFO failed: %s\n",
+		DEBUG(10, ("vfs_streaminfo failed: %s\n",
 			   nt_errstr(status)));
 		goto fail;
 	}

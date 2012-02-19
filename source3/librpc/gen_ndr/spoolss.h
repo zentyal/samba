@@ -1111,7 +1111,7 @@ enum spoolss_DeviceModeDitherType
 ;
 
 struct spoolss_DeviceMode {
-	const char *devicename;/* [charset(UTF16)] */
+	const char *devicename;/* [to_null,charset(UTF16)] */
 	enum spoolss_DeviceModeSpecVersion specversion;
 	uint16_t driverversion;
 	uint16_t size;
@@ -1130,7 +1130,7 @@ struct spoolss_DeviceMode {
 	uint16_t yresolution;
 	enum spoolss_DeviceModeTTOption ttoption;
 	enum spoolss_DeviceModeCollate collate;
-	const char *formname;/* [charset(UTF16)] */
+	const char *formname;/* [to_null,charset(UTF16)] */
 	uint16_t logpixels;
 	uint32_t bitsperpel;
 	uint32_t pelswidth;

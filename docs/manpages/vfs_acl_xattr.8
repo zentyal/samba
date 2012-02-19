@@ -2,12 +2,12 @@
 .\"     Title: vfs_acl_xattr
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 10/18/2011
+.\"      Date: 01/22/2012
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.6
 .\"  Language: English
 .\"
-.TH "VFS_ACL_XATTR" "8" "10/18/2011" "Samba 3\&.6" "System Administration tools"
+.TH "VFS_ACL_XATTR" "8" "01/22/2012" "Samba 3\&.6" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -44,8 +44,14 @@ getfattr \-n security\&.NTACL filename)\&.
 This module is stackable\&.
 .SH "OPTIONS"
 .PP
-There are no options for
-vfs_acl_xattr\&.
+acl_xattr:ignore system acls = [yes|no]
+.RS 4
+When set to
+\fIyes\fR, a best effort mapping from/to the POSIX ACL layer will
+\fInot\fR
+be done by this module\&. The default is
+\fIno\fR, which means that Samba keeps setting and evaluating both the system ACLs and the NT ACLs\&. This is better if you need your system ACLs be set for local or NFS file access, too\&. If you only access the data via Samba you might set this to yes to achieve better NT ACL compatibility\&.
+.RE
 .SH "AUTHOR"
 .PP
 The original Samba software and related utilities were created by Andrew Tridgell\&. Samba is now developed by the Samba Team as an Open Source project similar to the way the Linux kernel is developed\&.

@@ -260,6 +260,10 @@ static void dptr_close_internal(struct dptr_struct *dptr)
 		goto done;
 	}
 
+	if (sconn->using_smb2) {
+		goto done;
+	}
+
 	DLIST_REMOVE(sconn->searches.dirptrs, dptr);
 
 	/*
@@ -279,7 +283,7 @@ done:
 
 	/* Lanman 2 specific code */
 	SAFE_FREE(dptr->wcard);
-	string_set(&dptr->path,"");
+	SAFE_FREE(dptr->path);
 	SAFE_FREE(dptr);
 }
 
@@ -470,6 +474,35 @@ NTSTATUS dptr_create(connection_struct *conn, files_struct *fsp,
 
 	ZERO_STRUCTP(dptr);
 
+	dptr->path = SMB_STRDUP(path);
+	if (!dptr->path) {
+		SAFE_FREE(dptr);
+		TALLOC_FREE(dir_hnd);
+		return NT_STATUS_NO_MEMORY;
+	}
+	dptr->conn = conn;
+	dptr->dir_hnd = dir_hnd;
+	dptr->spid = spid;
+	dptr->expect_close = expect_close;
+	dptr->wcard = SMB_STRDUP(wcard);
+	if (!dptr->wcard) {
+		SAFE_FREE(dptr->path);
+		SAFE_FREE(dptr);
+		TALLOC_FREE(dir_hnd);
+		return NT_STATUS_NO_MEMORY;
+	}
+	if (lp_posix_pathnames() || (wcard[0] == '.' && wcard[1] == 0)) {
+		dptr->has_wild = True;
+	} else {
+		dptr->has_wild = wcard_has_wild;
+	}
+
+	dptr->attr = attr;
+
+	if (sconn->using_smb2) {
+		goto done;
+	}
+
 	if(old_handle) {
 
 		/*
@@ -493,6 +526,8 @@ NTSTATUS dptr_create(connection_struct *conn, files_struct *fsp,
 			dptr->dnum = bitmap_find(sconn->searches.dptr_bmap, 0);
 			if(dptr->dnum == -1 || dptr->dnum > 254) {
 				DEBUG(0,("dptr_create: returned %d: Error - all old dirptrs in use ?\n", dptr->dnum));
+				SAFE_FREE(dptr->path);
+				SAFE_FREE(dptr->wcard);
 				SAFE_FREE(dptr);
 				TALLOC_FREE(dir_hnd);
 				return NT_STATUS_TOO_MANY_OPENED_FILES;
@@ -523,6 +558,8 @@ NTSTATUS dptr_create(connection_struct *conn, files_struct *fsp,
 
 			if(dptr->dnum == -1 || dptr->dnum < 255) {
 				DEBUG(0,("dptr_create: returned %d: Error - all new dirptrs in use ?\n", dptr->dnum));
+				SAFE_FREE(dptr->path);
+				SAFE_FREE(dptr->wcard);
 				SAFE_FREE(dptr);
 				TALLOC_FREE(dir_hnd);
 				return NT_STATUS_TOO_MANY_OPENED_FILES;
@@ -534,28 +571,9 @@ NTSTATUS dptr_create(connection_struct *conn, files_struct *fsp,
 
 	dptr->dnum += 1; /* Always bias the dnum by one - no zero dnums allowed. */
 
-	string_set(&dptr->path,path);
-	dptr->conn = conn;
-	dptr->dir_hnd = dir_hnd;
-	dptr->spid = spid;
-	dptr->expect_close = expect_close;
-	dptr->wcard = SMB_STRDUP(wcard);
-	if (!dptr->wcard) {
-		bitmap_clear(sconn->searches.dptr_bmap, dptr->dnum - 1);
-		SAFE_FREE(dptr);
-		TALLOC_FREE(dir_hnd);
-		return NT_STATUS_NO_MEMORY;
-	}
-	if (lp_posix_pathnames() || (wcard[0] == '.' && wcard[1] == 0)) {
-		dptr->has_wild = True;
-	} else {
-		dptr->has_wild = wcard_has_wild;
-	}
-
-	dptr->attr = attr;
-
 	DLIST_ADD(sconn->searches.dirptrs, dptr);
 
+done:
 	DEBUG(3,("creating new dirptr %d for path %s, expect_close = %d\n",
 		dptr->dnum,path,expect_close));  
 
@@ -1327,7 +1345,7 @@ static int smb_Dir_destructor(struct smb_Dir *dirp)
 #endif
 		SMB_VFS_CLOSEDIR(dirp->conn,dirp->dir);
 	}
-	if (dirp->conn->sconn) {
+	if (dirp->conn->sconn && !dirp->conn->sconn->using_smb2) {
 		dirp->conn->sconn->searches.dirhandles_open--;
 	}
 	return 0;
@@ -1358,7 +1376,7 @@ struct smb_Dir *OpenDir(TALLOC_CTX *mem_ctx, connection_struct *conn,
 		goto fail;
 	}
 
-	if (sconn) {
+	if (sconn && !sconn->using_smb2) {
 		sconn->searches.dirhandles_open++;
 	}
 	talloc_set_destructor(dirp, smb_Dir_destructor);
@@ -1402,7 +1420,7 @@ static struct smb_Dir *OpenDir_fsp(TALLOC_CTX *mem_ctx, connection_struct *conn,
 		goto fail;
 	}
 
-	if (sconn) {
+	if (sconn && !sconn->using_smb2) {
 		sconn->searches.dirhandles_open++;
 	}
 	talloc_set_destructor(dirp, smb_Dir_destructor);

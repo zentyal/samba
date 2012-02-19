@@ -451,9 +451,10 @@ static NTSTATUS receive_smb_talloc(TALLOC_CTX *mem_ctx,
 	status = receive_smb_raw_talloc(mem_ctx, sconn, sock, buffer, timeout,
 					p_unread, &len);
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(1, ("read_smb_length_return_keepalive failed for "
-			  "client %s read error = %s.\n",
-			  sconn->client_id.addr, nt_errstr(status)));
+		DEBUG(NT_STATUS_EQUAL(status, NT_STATUS_END_OF_FILE)?5:1,
+		      ("receive_smb_raw_talloc failed for client %s "
+		       "read error = %s.\n",
+		       sconn->client_id.addr, nt_errstr(status)));
 		return status;
 	}
 
@@ -1441,8 +1442,8 @@ static connection_struct *switch_message(uint8 type, struct smb_request *req, in
 
 	/* Make sure this is an SMB packet. smb_size contains NetBIOS header
 	 * so subtract 4 from it. */
-	if (!valid_smb_header(req->inbuf)
-	    || (size < (smb_size - 4))) {
+	if ((size < (smb_size - 4)) ||
+	    !valid_smb_header(req->inbuf)) {
 		DEBUG(2,("Non-SMB packet of length %d. Terminating server\n",
 			 smb_len(req->inbuf)));
 		exit_server_cleanly("Non-SMB packet");

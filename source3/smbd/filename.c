@@ -383,7 +383,7 @@ NTSTATUS unix_convert(TALLOC_CTX *ctx,
 
 	if((!conn->case_sensitive || !(conn->fs_capabilities &
 				       FILE_CASE_SENSITIVE_SEARCH)) &&
-	    stat_cache_lookup(conn, &smb_fname->base_name, &dirpath, &start,
+	    stat_cache_lookup(conn, posix_pathnames, &smb_fname->base_name, &dirpath, &start,
 			      &smb_fname->st)) {
 		goto done;
 	}
@@ -977,6 +977,23 @@ NTSTATUS unix_convert(TALLOC_CTX *ctx,
 }
 
 /****************************************************************************
+ Ensure a path is not vetod.
+****************************************************************************/
+
+NTSTATUS check_veto_path(connection_struct *conn, const char *name)
+{
+	if (IS_VETO_PATH(conn, name))  {
+		/* Is it not dot or dot dot. */
+		if (!(ISDOT(name) || ISDOTDOT(name))) {
+			DEBUG(5,("check_veto_path: file path name %s vetoed\n",
+						name));
+			return map_nt_error_from_unix(ENOENT);
+		}
+	}
+	return NT_STATUS_OK;
+}
+
+/****************************************************************************
  Check a filename - possibly calling check_reduced_name.
  This is called by every routine before it allows an operation on a filename.
  It does any final confirmation necessary to ensure that the filename is
@@ -985,18 +1002,14 @@ NTSTATUS unix_convert(TALLOC_CTX *ctx,
 
 NTSTATUS check_name(connection_struct *conn, const char *name)
 {
-	if (IS_VETO_PATH(conn, name))  {
-		/* Is it not dot or dot dot. */
-		if (!((name[0] == '.') && (!name[1] ||
-					(name[1] == '.' && !name[2])))) {
-			DEBUG(5,("check_name: file path name %s vetoed\n",
-						name));
-			return map_nt_error_from_unix(ENOENT);
-		}
+	NTSTATUS status = check_veto_path(conn, name);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
 	}
 
 	if (!lp_widelinks(SNUM(conn)) || !lp_symlinks(SNUM(conn))) {
-		NTSTATUS status = check_reduced_name(conn,name);
+		status = check_reduced_name(conn,name);
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(5,("check_name: name %s failed with %s\n",name,
 						nt_errstr(status)));
@@ -1170,7 +1183,7 @@ static NTSTATUS build_stream_path(TALLOC_CTX *mem_ctx,
 				  struct smb_filename *smb_fname)
 {
 	NTSTATUS status;
-	unsigned int i, num_streams;
+	unsigned int i, num_streams = 0;
 	struct stream_struct *streams = NULL;
 
 	if (SMB_VFS_STAT(conn, smb_fname) == 0) {
@@ -1185,8 +1198,8 @@ static NTSTATUS build_stream_path(TALLOC_CTX *mem_ctx,
 	}
 
 	/* Fall back to a case-insensitive scan of all streams on the file. */
-	status = SMB_VFS_STREAMINFO(conn, NULL, smb_fname->base_name, mem_ctx,
-				    &num_streams, &streams);
+	status = vfs_streaminfo(conn, NULL, smb_fname->base_name, mem_ctx,
+				&num_streams, &streams);
 
 	if (NT_STATUS_EQUAL(status, NT_STATUS_OBJECT_NAME_NOT_FOUND)) {
 		SET_STAT_INVALID(smb_fname->st);
@@ -1312,6 +1325,12 @@ NTSTATUS filename_convert(TALLOC_CTX *ctx,
 			fname,
 			nt_errstr(status) ));
 		return status;
+	}
+
+	if ((ucf_flags & UCF_UNIX_NAME_LOOKUP) &&
+			VALID_STAT((*pp_smb_fname)->st) &&
+			S_ISLNK((*pp_smb_fname)->st.st_ex_mode)) {
+		return check_veto_path(conn, (*pp_smb_fname)->base_name);
 	}
 
 	status = check_name(conn, (*pp_smb_fname)->base_name);

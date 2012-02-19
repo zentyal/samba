@@ -633,6 +633,9 @@
 /* Define to 1 if you have the `fseek64' function. */
 #undef HAVE_FSEEK64
 
+/* Define to 1 if you have the `fseeko' function. */
+#undef HAVE_FSEEKO
+
 /* Define to 1 if you have the `fseeko64' function. */
 #undef HAVE_FSEEKO64
 
@@ -918,7 +921,7 @@
 /* Whether the 'ino64_t' type is available */
 #undef HAVE_INO64_T
 
-/* Whether kernel has inotify support */
+/* Whether kernel or sys has inotify support */
 #undef HAVE_INOTIFY
 
 /* Define to 1 if you have the `inotify_init' function. */

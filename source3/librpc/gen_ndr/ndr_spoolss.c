@@ -1411,7 +1411,7 @@ _PUBLIC_ enum ndr_err_code ndr_pull_spoolss_DeviceMode(struct ndr_pull *ndr, int
 {
 	if (ndr_flags & NDR_SCALARS) {
 		NDR_CHECK(ndr_pull_align(ndr, 4));
-		NDR_CHECK(ndr_pull_charset(ndr, NDR_SCALARS, &r->devicename, MAXDEVICENAME, sizeof(uint16_t), CH_UTF16));
+		NDR_CHECK(ndr_pull_charset_to_null(ndr, NDR_SCALARS, &r->devicename, MAXDEVICENAME, sizeof(uint16_t), CH_UTF16));
 		NDR_CHECK(ndr_pull_spoolss_DeviceModeSpecVersion(ndr, NDR_SCALARS, &r->specversion));
 		NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &r->driverversion));
 		NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &r->size));
@@ -1430,7 +1430,7 @@ _PUBLIC_ enum ndr_err_code ndr_pull_spoolss_DeviceMode(struct ndr_pull *ndr, int
 		NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &r->yresolution));
 		NDR_CHECK(ndr_pull_spoolss_DeviceModeTTOption(ndr, NDR_SCALARS, &r->ttoption));
 		NDR_CHECK(ndr_pull_spoolss_DeviceModeCollate(ndr, NDR_SCALARS, &r->collate));
-		NDR_CHECK(ndr_pull_charset(ndr, NDR_SCALARS, &r->formname, MAXDEVICENAME, sizeof(uint16_t), CH_UTF16));
+		NDR_CHECK(ndr_pull_charset_to_null(ndr, NDR_SCALARS, &r->formname, MAXDEVICENAME, sizeof(uint16_t), CH_UTF16));
 		NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &r->logpixels));
 		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->bitsperpel));
 		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->pelswidth));

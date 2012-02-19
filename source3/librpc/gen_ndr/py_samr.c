@@ -6727,36 +6727,19 @@ static PyObject *py_userPwdChangeFailureInformation_get_filterModuleName(PyObjec
 {
 	struct userPwdChangeFailureInformation *object = (struct userPwdChangeFailureInformation *)py_talloc_get_ptr(obj);
 	PyObject *py_filterModuleName;
-	if (object->filterModuleName == NULL) {
-		py_filterModuleName = Py_None;
-		Py_INCREF(py_filterModuleName);
-	} else {
-		if (object->filterModuleName == NULL) {
-			py_filterModuleName = Py_None;
-			Py_INCREF(py_filterModuleName);
-		} else {
-			py_filterModuleName = PyUnicode_Decode(object->filterModuleName, strlen(object->filterModuleName), "utf-8", "ignore");
-		}
-	}
+	py_filterModuleName = py_talloc_reference_ex(lsa_String_Type, py_talloc_get_mem_ctx(obj), &object->filterModuleName);
 	return py_filterModuleName;
 }
 
 static int py_userPwdChangeFailureInformation_set_filterModuleName(PyObject *py_obj, PyObject *value, void *closure)
 {
 	struct userPwdChangeFailureInformation *object = (struct userPwdChangeFailureInformation *)py_talloc_get_ptr(py_obj);
-	if (value == Py_None) {
-		object->filterModuleName = NULL;
-	} else {
-		object->filterModuleName = NULL;
-		if (PyUnicode_Check(value)) {
-			object->filterModuleName = PyString_AS_STRING(PyUnicode_AsEncodedString(value, "utf-8", "ignore"));
-		} else if (PyString_Check(value)) {
-			object->filterModuleName = PyString_AS_STRING(value);
-		} else {
-			PyErr_Format(PyExc_TypeError, "Expected string or unicode object, got %s", Py_TYPE(value)->tp_name);
-			return -1;
-		}
+	PY_CHECK_TYPE(lsa_String_Type, value, return -1;);
+	if (talloc_reference(py_talloc_get_mem_ctx(py_obj), py_talloc_get_mem_ctx(value)) == NULL) {
+		PyErr_NoMemory();
+		return -1;
 	}
+	object->filterModuleName = *(struct lsa_String *)py_talloc_get_ptr(value);
 	return 0;
 }
 

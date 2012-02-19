@@ -4630,11 +4630,6 @@ void reply_write_and_X(struct smb_request *req)
 	SSVAL(req->outbuf,smb_vwv2,nwritten);
 	SSVAL(req->outbuf,smb_vwv4,nwritten>>16);
 
-	if (nwritten < (ssize_t)numtowrite) {
-		SCVAL(req->outbuf,smb_rcls,ERRHRD);
-		SSVAL(req->outbuf,smb_err,ERRdiskfull);
-	}
-
 	DEBUG(3,("writeX fnum=%d num=%d wrote=%d\n",
 		fsp->fnum, (int)numtowrite, (int)nwritten));
 
@@ -6608,6 +6603,8 @@ void reply_mv(struct smb_request *req)
 	TALLOC_CTX *ctx = talloc_tos();
 	struct smb_filename *smb_fname_src = NULL;
 	struct smb_filename *smb_fname_dst = NULL;
+	uint32_t src_ucf_flags = lp_posix_pathnames() ? UCF_UNIX_NAME_LOOKUP : UCF_COND_ALLOW_WCARD_LCOMP;
+	uint32_t dst_ucf_flags = UCF_SAVE_LCOMP | (lp_posix_pathnames() ? 0 : UCF_COND_ALLOW_WCARD_LCOMP);
 	bool stream_rename = false;
 
 	START_PROFILE(SMBmv);
@@ -6650,7 +6647,7 @@ void reply_mv(struct smb_request *req)
 				  conn,
 				  req->flags2 & FLAGS2_DFS_PATHNAMES,
 				  name,
-				  UCF_COND_ALLOW_WCARD_LCOMP,
+				  src_ucf_flags,
 				  &src_has_wcard,
 				  &smb_fname_src);
 
@@ -6668,7 +6665,7 @@ void reply_mv(struct smb_request *req)
 				  conn,
 				  req->flags2 & FLAGS2_DFS_PATHNAMES,
 				  newname,
-				  UCF_COND_ALLOW_WCARD_LCOMP | UCF_SAVE_LCOMP,
+				  dst_ucf_flags,
 				  &dest_has_wcard,
 				  &smb_fname_dst);
 

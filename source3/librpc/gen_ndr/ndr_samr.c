@@ -4782,48 +4782,25 @@ static enum ndr_err_code ndr_push_userPwdChangeFailureInformation(struct ndr_pus
 	if (ndr_flags & NDR_SCALARS) {
 		NDR_CHECK(ndr_push_align(ndr, 5));
 		NDR_CHECK(ndr_push_samPwdChangeReason(ndr, NDR_SCALARS, r->extendedFailureReason));
-		NDR_CHECK(ndr_push_unique_ptr(ndr, r->filterModuleName));
+		NDR_CHECK(ndr_push_lsa_String(ndr, NDR_SCALARS, &r->filterModuleName));
 		NDR_CHECK(ndr_push_trailer_align(ndr, 5));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
-		if (r->filterModuleName) {
-			NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, ndr_charset_length(r->filterModuleName, CH_UTF16)));
-			NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, 0));
-			NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, ndr_charset_length(r->filterModuleName, CH_UTF16)));
-			NDR_CHECK(ndr_push_charset(ndr, NDR_SCALARS, r->filterModuleName, ndr_charset_length(r->filterModuleName, CH_UTF16), sizeof(uint16_t), CH_UTF16));
-		}
+		NDR_CHECK(ndr_push_lsa_String(ndr, NDR_BUFFERS, &r->filterModuleName));
 	}
 	return NDR_ERR_SUCCESS;
 }
 
 static enum ndr_err_code ndr_pull_userPwdChangeFailureInformation(struct ndr_pull *ndr, int ndr_flags, struct userPwdChangeFailureInformation *r)
 {
-	uint32_t _ptr_filterModuleName;
-	TALLOC_CTX *_mem_save_filterModuleName_0;
 	if (ndr_flags & NDR_SCALARS) {
 		NDR_CHECK(ndr_pull_align(ndr, 5));
 		NDR_CHECK(ndr_pull_samPwdChangeReason(ndr, NDR_SCALARS, &r->extendedFailureReason));
-		NDR_CHECK(ndr_pull_generic_ptr(ndr, &_ptr_filterModuleName));
-		if (_ptr_filterModuleName) {
-			NDR_PULL_ALLOC(ndr, r->filterModuleName);
-		} else {
-			r->filterModuleName = NULL;
-		}
+		NDR_CHECK(ndr_pull_lsa_String(ndr, NDR_SCALARS, &r->filterModuleName));
 		NDR_CHECK(ndr_pull_trailer_align(ndr, 5));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
-		if (r->filterModuleName) {
-			_mem_save_filterModuleName_0 = NDR_PULL_GET_MEM_CTX(ndr);
-			NDR_PULL_SET_MEM_CTX(ndr, r->filterModuleName, 0);
-			NDR_CHECK(ndr_pull_array_size(ndr, &r->filterModuleName));
-			NDR_CHECK(ndr_pull_array_length(ndr, &r->filterModuleName));
-			if (ndr_get_array_length(ndr, &r->filterModuleName) > ndr_get_array_size(ndr, &r->filterModuleName)) {
-				return ndr_pull_error(ndr, NDR_ERR_ARRAY_SIZE, "Bad array size %u should exceed array length %u", ndr_get_array_size(ndr, &r->filterModuleName), ndr_get_array_length(ndr, &r->filterModuleName));
-			}
-			NDR_CHECK(ndr_check_string_terminator(ndr, ndr_get_array_length(ndr, &r->filterModuleName), sizeof(uint16_t)));
-			NDR_CHECK(ndr_pull_charset(ndr, NDR_SCALARS, &r->filterModuleName, ndr_get_array_length(ndr, &r->filterModuleName), sizeof(uint16_t), CH_UTF16));
-			NDR_PULL_SET_MEM_CTX(ndr, _mem_save_filterModuleName_0, 0);
-		}
+		NDR_CHECK(ndr_pull_lsa_String(ndr, NDR_BUFFERS, &r->filterModuleName));
 	}
 	return NDR_ERR_SUCCESS;
 }
@@ -4834,12 +4811,7 @@ _PUBLIC_ void ndr_print_userPwdChangeFailureInformation(struct ndr_print *ndr, c
 	if (r == NULL) { ndr_print_null(ndr); return; }
 	ndr->depth++;
 	ndr_print_samPwdChangeReason(ndr, "extendedFailureReason", r->extendedFailureReason);
-	ndr_print_ptr(ndr, "filterModuleName", r->filterModuleName);
-	ndr->depth++;
-	if (r->filterModuleName) {
-		ndr_print_string(ndr, "filterModuleName", r->filterModuleName);
-	}
-	ndr->depth--;
+	ndr_print_lsa_String(ndr, "filterModuleName", &r->filterModuleName);
 	ndr->depth--;
 }
 

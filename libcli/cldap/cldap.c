@@ -273,12 +273,9 @@ static bool cldap_socket_recv_dgram(struct cldap_socket *c,
 
 	DLIST_REMOVE(c->searches.list, search);
 
-	if (!cldap_recvfrom_setup(c)) {
-		goto nomem;
-	}
+	cldap_recvfrom_setup(c);
 
 	tevent_req_done(search->req);
-	talloc_free(in);
 	return true;
 
 nomem:
@@ -286,6 +283,7 @@ nomem:
 error:
 	status = map_nt_error_from_unix(in->recv_errno);
 nterror:
+	TALLOC_FREE(in);
 	/* in connected mode the first pending search gets the error */
 	if (!c->connected) {
 		/* otherwise we just ignore the error */
@@ -294,9 +292,11 @@ nterror:
 	if (!c->searches.list) {
 		goto done;
 	}
+	cldap_recvfrom_setup(c);
 	tevent_req_nterror(c->searches.list->req, status);
+	return true;
 done:
-	talloc_free(in);
+	TALLOC_FREE(in);
 	return false;
 }
 
@@ -313,6 +313,27 @@ NTSTATUS cldap_socket_init(TALLOC_CTX *mem_ctx,
 	struct tsocket_address *any = NULL;
 	NTSTATUS status;
 	int ret;
+	const char *fam = NULL;
+
+	if (local_addr == NULL && remote_addr == NULL) {
+		return NT_STATUS_INVALID_PARAMETER_MIX;
+	}
+
+	if (remote_addr) {
+		bool is_ipv4;
+		bool is_ipv6;
+
+		is_ipv4 = tsocket_address_is_inet(remote_addr, "ipv4");
+		is_ipv6 = tsocket_address_is_inet(remote_addr, "ipv6");
+
+		if (is_ipv4) {
+			fam = "ipv4";
+		} else if (is_ipv6) {
+			fam = "ipv6";
+		} else {
+			return NT_STATUS_INVALID_ADDRESS;
+		}
+	}
 
 	c = talloc_zero(mem_ctx, struct cldap_socket);
 	if (!c) {
@@ -329,11 +350,14 @@ NTSTATUS cldap_socket_init(TALLOC_CTX *mem_ctx,
 	c->event.ctx = ev;
 
 	if (!local_addr) {
-		/* we use ipv4 here instead of ip, as otherwise we end
-		   up with a PF_INET6 socket, and sendto() for ipv4
-		   addresses will fail. That breaks cldap name
-		   resolution for winbind to IPv4 hosts. */
-		ret = tsocket_address_inet_from_strings(c, "ipv4",
+		/*
+		 * Here we know the address family of the remote address.
+		 */
+		if (fam == NULL) {
+			return NT_STATUS_INVALID_PARAMETER_MIX;
+		}
+
+		ret = tsocket_address_inet_from_strings(c, fam,
 							NULL, 0,
 							&any);
 		if (ret != 0) {

@@ -1120,6 +1120,7 @@ static NTSTATUS netr_set_machine_account_password(TALLOC_CTX *mem_ctx,
 		goto out;
 	}
 
+	become_root();
 	status = samr_find_machine_account(mem_ctx,
 					   h,
 					   account_name,
@@ -1127,6 +1128,7 @@ static NTSTATUS netr_set_machine_account_password(TALLOC_CTX *mem_ctx,
 					   NULL,
 					   NULL,
 					   &user_handle);
+	unbecome_root();
 	if (!NT_STATUS_IS_OK(status)) {
 		goto out;
 	}
@@ -1170,12 +1172,14 @@ static NTSTATUS netr_set_machine_account_password(TALLOC_CTX *mem_ctx,
 
 	info->info18 = info18;
 
+	become_root();
 	status = dcerpc_samr_SetUserInfo2(h,
 					  mem_ctx,
 					  &user_handle,
 					  UserInternal1Information,
 					  info,
 					  &result);
+	unbecome_root();
 	if (!NT_STATUS_IS_OK(status)) {
 		goto out;
 	}
@@ -1247,7 +1251,7 @@ NTSTATUS _netr_ServerPasswordSet2(struct pipes_struct *p,
 				  struct netr_ServerPasswordSet2 *r)
 {
 	NTSTATUS status;
-	struct netlogon_creds_CredentialState *creds;
+	struct netlogon_creds_CredentialState *creds = NULL;
 	DATA_BLOB plaintext;
 	struct samr_CryptPassword password_buf;
 	struct samr_Password nt_hash;
@@ -1261,9 +1265,14 @@ NTSTATUS _netr_ServerPasswordSet2(struct pipes_struct *p,
 	unbecome_root();
 
 	if (!NT_STATUS_IS_OK(status)) {
+		const char *computer_name = "<unknown>";
+
+		if (creds && creds->computer_name) {
+			computer_name = creds->computer_name;
+		}
 		DEBUG(2,("_netr_ServerPasswordSet2: netlogon_creds_server_step "
 			"failed. Rejecting auth request from client %s machine account %s\n",
-			r->in.computer_name, creds->computer_name));
+			r->in.computer_name, computer_name));
 		TALLOC_FREE(creds);
 		return status;
 	}
@@ -1273,6 +1282,7 @@ NTSTATUS _netr_ServerPasswordSet2(struct pipes_struct *p,
 	netlogon_creds_arcfour_crypt(creds, password_buf.data, 516);
 
 	if (!extract_pw_from_buffer(p->mem_ctx, password_buf.data, &plaintext)) {
+		TALLOC_FREE(creds);
 		return NT_STATUS_WRONG_PASSWORD;
 	}
 
@@ -1283,6 +1293,7 @@ NTSTATUS _netr_ServerPasswordSet2(struct pipes_struct *p,
 						   p->msg_ctx,
 						   creds->account_name,
 						   &nt_hash);
+	TALLOC_FREE(creds);
 	return status;
 }
 

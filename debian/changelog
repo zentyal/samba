@@ -6,6 +6,9 @@ samba (2:3.6.3-2) UNRELEASED; urgency=low
   [  Debconf translations ]
   * Indonesian (Arief S Fitrianto).  Closes: #660312
 
+  [ Christian Perrier ]
+  * slo slk sk Slovak (Ivan Masár).  Closes: #661125
+
  -- Christian Perrier <bubulle@debian.org>  Sun, 05 Feb 2012 18:53:23 +0100
 
 samba (2:3.6.3-1) unstable; urgency=low

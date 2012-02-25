@@ -9,6 +9,9 @@ samba (2:3.6.3-2) UNRELEASED; urgency=low
   [ Christian Perrier ]
   * slo slk sk Slovak (Ivan Masár).  Closes: #661125
 
+  [ Steve Langasek ]
+  * Use Debian copyright-format 1.0 in debian/copyright.
+
  -- Christian Perrier <bubulle@debian.org>  Sun, 05 Feb 2012 18:53:23 +0100
 
 samba (2:3.6.3-1) unstable; urgency=low

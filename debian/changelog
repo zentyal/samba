@@ -1,3 +1,9 @@
+samba (2:3.6.3-1~bpo60+2) squeeze-backports; urgency=low
+
+  * Fix libdir to /usr/lib so that the backport builds on amd64
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 29 Feb 2012 08:09:59 +0100
+
 samba (2:3.6.3-1~bpo60+1) squeeze-backports; urgency=low
 
   * Squeeze backport

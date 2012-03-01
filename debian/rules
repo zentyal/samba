@@ -45,6 +45,7 @@ conf_args = \
 		--with-cachedir=/var/cache/samba \
 		--with-codepagedir=/usr/share/samba \
 		--with-nmbdsocketdir=/var/run/samba \
+		--libdir=/usr/lib \
 		--enable-external-libtalloc \
 		--without-libtalloc \
 		--without-cifsmount \

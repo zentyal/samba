@@ -1,5 +1,7 @@
 samba (2:3.6.3-2) UNRELEASED; urgency=low
 
+  [ Christian Perrier ]
+  * Fix example samba.ldif syntax. Closes: #659963
   * Set minimal version of tdb ot 1.2.6 in Build-Depends
     (thanks, backports!)
 

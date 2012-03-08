@@ -1,4 +1,5 @@
 documentation.patch
+documentation2.patch
 fhs-filespaths.patch
 installswat.sh.patch
 pam-examples.patch

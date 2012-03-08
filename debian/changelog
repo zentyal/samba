@@ -5,6 +5,11 @@ samba (2:3.6.3-2) UNRELEASED; urgency=low
   * Set minimal version of tdb ot 1.2.6 in Build-Depends
     (thanks, backports!)
 
+  [ Maarten Bezemer ]
+  * Removed references to the testprns command from documentation
+  * Added notes that the smbsh command is not available in this package
+    Closes: #662243
+
   [ Debconf translations ]
   * Indonesian (Arief S Fitrianto).  Closes: #660312
   * Slovak (Ivan Masár).  Closes: #661125

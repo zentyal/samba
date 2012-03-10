@@ -6,6 +6,8 @@ samba (2:3.6.3-2) UNRELEASED; urgency=low
     (thanks, backports!)
   * Lower priority of debconf question to medium after some pondering.
     After all, we have a sane default. Closes: #662801
+  * Merge some Ubuntu patches:
+    - samba.config: Avoid scary pdbedit warnings on first import.
 
   [ Maarten Bezemer ]
   * Removed references to the testprns command from documentation

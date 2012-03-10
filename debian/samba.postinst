@@ -59,7 +59,7 @@ umask 066
 # some of the faking can cause us problems!
 if [ "${GENERATE_SMBPASSWD}" = "true" -a ! -e /var/lib/samba/passdb.tdb -a ! -e /etc/samba/smbpasswd ]; then
 	getent passwd | mksmbpasswd > /etc/samba/smbpasswd
-	pdbedit -i smbpasswd -e tdbsam
+	pdbedit -i smbpasswd -e tdbsam -d 0
 	rm /etc/samba/smbpasswd
 fi
 

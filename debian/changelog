@@ -8,6 +8,8 @@ samba (2:3.6.3-2) UNRELEASED; urgency=low
     After all, we have a sane default. Closes: #662801
   * Merge some Ubuntu patches:
     - samba.config: Avoid scary pdbedit warnings on first import.
+    - samba.postinst: Add more informative error message for the case
+      where smb.conf was manually deleted.
 
   [ Maarten Bezemer ]
   * Removed references to the testprns command from documentation

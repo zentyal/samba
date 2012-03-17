@@ -1,4 +1,4 @@
-samba (2:3.6.3-2) UNRELEASED; urgency=low
+samba (2:3.6.3-2) unstable; urgency=low
 
   [ Christian Perrier ]
   * Fix example samba.ldif syntax. Closes: #659963
@@ -23,7 +23,7 @@ samba (2:3.6.3-2) UNRELEASED; urgency=low
   [ Steve Langasek ]
   * Use Debian copyright-format 1.0 in debian/copyright.
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 05 Feb 2012 18:53:23 +0100
+ -- Christian Perrier <bubulle@debian.org>  Mon, 12 Mar 2012 20:49:24 +0100
 
 samba (2:3.6.3-1) unstable; urgency=low
 

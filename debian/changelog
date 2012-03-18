@@ -7,8 +7,8 @@ samba (2:3.6.3-2) unstable; urgency=low
   * Lower priority of debconf question to medium after some pondering.
     After all, we have a sane default. Closes: #662801
   * Merge some Ubuntu patches:
-    - samba.config: Avoid scary pdbedit warnings on first import.
-    - samba.postinst: Add more informative error message for the case
+    - samba.postinst: Avoid scary pdbedit warnings on first import.
+    - samba-common.postinst: Add more informative error message for the case
       where smb.conf was manually deleted.
 
   [ Maarten Bezemer ]

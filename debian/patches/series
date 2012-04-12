@@ -30,3 +30,4 @@ upstream_7880_0001-s3-rpcclient-Fix-bug-7880-cmd_spoolss_deletedriver-r.patch
 security-CVE-2011-2694.patch
 security-CVE-2011-2522.patch
 0001-s3-Fix-bug-8238-KB2536276-prevents-access-to-sha.patch
+security-CVE-2012-1182.patch

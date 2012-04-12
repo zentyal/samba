@@ -94,6 +94,7 @@ build: configure build-stamp
 build-stamp:
 	dh_testdir
 
+	$(MAKE) -C source3 samba3-idl
 	$(MAKE) -C source3 # headers
 	$(MAKE) -C source3 everything
 	$(MAKE) -C source3 nsswitch

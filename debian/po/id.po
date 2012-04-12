@@ -1,28 +1,38 @@
 # translation of samba_po-id.po to Bahasa Indonesia
-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the PACKAGE package.
+# Copyright (C) 2007 Software in the Public Interest, SPI Inc.
+# This file is distributed under the same license as the analog package.
+# proyek penerjemahan Bahasa Indonesia.
 #
+# Sebelum menerjemahkan silakan melihat-lihat ke:
+# - /usr/share/doc/po-debconf/README-trans atau
+#   http://www.debian.org/intl/l10n/po-debconf/README-trans
+# - http://www.debian.org/international/l10n/po-debconf/id
+# Silakan menghubungi tim penerjemah Debian Indonesia bila ada pertanyaan,
+# kritik, dan saran ke debian-l10n-indonesian@lists.debian.org.
+#
+# Translators:
 # Arief S Fitrianto <arief@gurame.fisika.ui.ac.id>, 2008.
 msgid ""
 msgstr ""
-"Project-Id-Version: samba_po-id\n"
+"Project-Id-Version: samba 2:3.6.3-1\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
 "POT-Creation-Date: 2011-05-12 10:46+0200\n"
-"PO-Revision-Date: 2008-03-08 18:24+0700\n"
-"Last-Translator: Arief S Fitrianto <arief@gurame.fisika.ui.ac.id>\n"
-"Language-Team: Bahasa Indonesia <debian-l10n-id@gurame.fisika.ui.ac.id>\n"
-"Language: \n"
+"PO-Revision-Date: 2012-02-18 10:57+0700\n"
+"Last-Translator: Mahyuddin Susanto <udienz@ubuntu.com>\n"
+"Language-Team: Debian Indonesia Translators <debian-l10n-indonesian@lists."
+"debian.org>\n"
+"Language: id\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: KBabel 1.11.4\n"
-"Plural-Forms: nplural=1, plural>1\n"
+"X-Poedit-Language: Indonesian\n"
+"X-Poedit-Country: INDONESIA\n"
 
 #. Type: title
 #. Description
 #: ../samba-common.templates:1001
 msgid "Samba server and utilities"
-msgstr ""
+msgstr "Server samba dan peralatan"
 
 #. Type: boolean
 #. Description
@@ -98,20 +108,16 @@ msgstr "Nama Domain/Workgrop:"
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"Mohon tentukan workgroup yang Anda ingin server ini dikenali oleh klien. "
-"Ingat bahwa parameter ini juga mengendalikan nama domain yang digunakan oleh "
-"setelan security=domain."
+"Mohon tentukan workgroup untuk sistem ini. Pengaturan kontrol workgroup apaa "
+"yang akan tampil jika digunakan sebagai server, workgrup bawaan akan "
+"digunakan ketika menjelajahi dengan berbagai frontends, dan nama doman "
+"digunakan dengan pengaturan \"security=domain\"."
 
 #. Type: boolean
 #. Description
@@ -122,43 +128,34 @@ msgstr "Gunakan enkripsi sandi?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
-#, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"Semua klien Windows terbaru berkomunikasi dengan server SMB menggunakan "
+"Semua klien Windows terbaru berkomunikasi dengan server SMB/CIFS menggunakan "
 "sandi terenkripsi. Jika Anda ingin menggunakan sandi teks, Anda harus "
 "mengubah parameter tersebut dalam register Windows."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
-#, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"Mengaktifkan pilihan ini sangat dianjurkan. Jika demikian, pastikan Anda "
-"memiliki berkas /etc/samba/smbpasswd tempat Anda menyimpan semua sandi "
-"pengguna menggunakan perintah smbpasswd."
+"Mengaktifkan pilihan ini sangat dianjurkan karena dukungan sandi teks sudah "
+"tidak didukung oleh produk Microsoft Windows. Jika demikian, pastikan Anda "
+"memiliki berkas valid /etc/samba/smbpasswd dan anda menentukan password "
+"disana untuk setiap pengguna menggunakan perintah smbpasswd."
 
 #. Type: title
 #. Description
 #: ../samba.templates:1001
 msgid "Samba server"
-msgstr ""
+msgstr "Server Samba"
 
 #. Type: boolean
 #. Description

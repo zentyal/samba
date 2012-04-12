@@ -1,4 +1,5 @@
 documentation.patch
+documentation2.patch
 fhs-filespaths.patch
 installswat.sh.patch
 pam-examples.patch
@@ -12,3 +13,4 @@ autoconf.patch
 dont-build-VFS-examples.patch
 bug_221618_precise-64bit-prototype.patch
 initialize_password_db-null-deref
+fix-samba.ldip-syntax.patch

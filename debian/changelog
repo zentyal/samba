@@ -7,6 +7,7 @@ samba (2:3.6.5-1) UNRELEASED; urgency=low
     months now)
   * Use "set -e" in winbind postrm instead of passing -e in the
     shebang line
+  * Update Standards to 3.9.3 (checked, no change)
 
  -- Christian Perrier <bubulle@debian.org>  Mon, 30 Apr 2012 22:28:57 +0200
 

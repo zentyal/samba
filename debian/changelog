@@ -5,7 +5,7 @@ samba (2:3.6.5-1) UNRELEASED; urgency=low
     server security.
   * Build-Depend on debhelper >= 9~ (which is in unstable for a few
     months now)
-  * Use "set -e" in winbind postrm instead of passing -e in the
+  * Use "set -e" in maintainer scripts instead of passing -e in the
     shebang line
   * Update Standards to 3.9.3 (checked, no change)
 

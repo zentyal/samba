@@ -1,7 +1,6 @@
-#!/bin/sh -e
-#
-#
+#!/bin/sh
 
+set -e
 case "$1" in
 	purge)
 		if [ -x /usr/sbin/update-inetd ]; then

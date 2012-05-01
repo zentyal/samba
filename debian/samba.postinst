@@ -1,9 +1,10 @@
-#!/bin/sh -e
+#!/bin/sh
 #
 # Post-installation script for the Samba package for Debian GNU/Linux
 #
 #
 
+set -e
 # Handle debconf
 . /usr/share/debconf/confmodule
 

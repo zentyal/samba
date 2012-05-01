@@ -1,5 +1,6 @@
-#!/bin/sh -e
+#!/bin/sh
 
+set -e
 if [ "$1" = purge ]; then
 	rm -rf /etc/samba/ /var/cache/samba/ /var/lib/samba/ /var/run/samba/
 	if [ -x "`which ucf 2>/dev/null`" ]; then

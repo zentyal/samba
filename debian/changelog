@@ -1,8 +1,28 @@
+samba (2:3.6.5-1~bpo60+1) squeeze-backports; urgency=high
+
+  * Backport to squeeze. Security fix for backports users
+  * Build-Depend on debhelper >= 8~ (squeeze compatibility)
+
+ -- Christian Perrier <bubulle@debian.org>  Fri, 13 Apr 2012 20:04:30 +0200
+
+samba (2:3.6.5-1) unstable; urgency=low
+
+  * New upstream release. Fixes CVE-2012-2111: Incorrect permission
+    checks when granting/removing privileges can compromise file
+    server security.
+  * Build-Depend on debhelper >= 9~ (which is in unstable for a few
+    months now)
+  * Use "set -e" in maintainer scripts instead of passing -e in the
+    shebang line
+  * Update Standards to 3.9.3 (checked, no change)
+
+ -- Christian Perrier <bubulle@debian.org>  Tue, 01 May 2012 08:07:39 +0200
+
 samba (2:3.6.4-1~bpo60+1) squeeze-backports; urgency=high
 
   * Backport to squeeze. Security fix for backports users
 
- -- Christian Perrier <bubulle@debian.org>  Fri, 13 Apr 2012 20:04:30 +0200
+ -- Christian Perrier <bubulle@debian.org> Fri, 13 Apr 2012 20:04:30 +0200
 
 samba (2:3.6.4-1) unstable; urgency=low
 

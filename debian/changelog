@@ -8,7 +8,7 @@ samba (2:3.6.5-2) UNRELEASED; urgency=low
   * Add some mention about some use for the user information in Kerberos
     environments in the smbspool manpage. Closes: #387266
   * Drop link to no longer provided "Using Samba" documentation in
-    HTML documentation sumamry file. Closes: #604768
+    HTML documentation summary file. Closes: #604768
   * Provide WHATSNEW.txt in samba-doc too as it is linked from the
     documentation summary file. Do not compress that file.
 

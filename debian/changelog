@@ -13,6 +13,16 @@ samba (2:3.6.5-2) UNRELEASED; urgency=low
     documentation summary file. Do not compress that file.
   * Fix link to WHATSNEW.txt in HTML documentation summary file. This
     is the second part of the fix for #604768
+  * Use lp_state_dir() instead of get_dyn_STATEDIR() in
+    fhs-filespaths.patch as the latter does indeed hardcode the
+    location for passdb.tdb and secrets.tdb to /var/lib/samba
+    (the compile-time option for state directory and NOT the configurable
+    value). This is left to "state directory" instead of "private dir"
+    at least as of now, because if doesn't change anything to the
+    current behaviour, but allows the files' location to be configurable
+    through "state directory" (and not "private dir").
+    Closes: #249873
+  
 
  -- Christian Perrier <bubulle@debian.org>  Mon, 07 May 2012 22:16:32 +0200
 

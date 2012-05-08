@@ -1,5 +1,7 @@
 samba (2:3.6.5-2) UNRELEASED; urgency=low
 
+  * The yearly "SambaXP bug cleaning party" release. 11 years
+    SambaXP, 20 years Samba and counting...
   * Make samba-common "Multi-Arch: foreign"
   * Adapt patch in upstream #7499 and stop nss_wins clobbering other
     daemon's logfiles. Closes: #598313

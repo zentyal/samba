@@ -11,6 +11,8 @@ samba (2:3.6.5-2) UNRELEASED; urgency=low
     HTML documentation summary file. Closes: #604768
   * Provide WHATSNEW.txt in samba-doc too as it is linked from the
     documentation summary file. Do not compress that file.
+  * Fix link to WHATSNEW.txt in HTML documentation summary file. This
+    is the second part of the fix for #604768
 
  -- Christian Perrier <bubulle@debian.org>  Mon, 07 May 2012 22:16:32 +0200
 

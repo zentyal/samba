@@ -17,3 +17,4 @@ fix-samba.ldip-syntax.patch
 bug_598313_upstream_7499-nss_wins-dont-clobber-daemons-logs.patch
 bug_387266_upstream_4104_mention-kerberos-in-smbspool-manpage.patch
 bug_604768_upstream_7826_drop-using-samba-link.patch
+bug_604768_upstream_7826_fix-WHATSNEW-link.patch

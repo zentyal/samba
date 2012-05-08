@@ -9,6 +9,8 @@ samba (2:3.6.5-2) UNRELEASED; urgency=low
     environments in the smbspool manpage. Closes: #387266
   * Drop link to no longer provided "Using Samba" documentation in
     HTML documentation sumamry file. Closes: #604768
+  * Provide WHATSNEW.txt in samba-doc too as it is linked from the
+    documentation summary file. Do not compress that file.
 
  -- Christian Perrier <bubulle@debian.org>  Mon, 07 May 2012 22:16:32 +0200
 

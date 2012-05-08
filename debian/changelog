@@ -1,6 +1,8 @@
 samba (2:3.6.5-2) UNRELEASED; urgency=low
 
   * Make samba-common "Multi-Arch: foreign"
+  * Adapt patch in upstream #7499 and stop nss_wins clobbering other
+    daemon's logfiles. Closes: #598313
 
  -- Christian Perrier <bubulle@debian.org>  Mon, 07 May 2012 22:16:32 +0200
 

@@ -14,3 +14,4 @@ dont-build-VFS-examples.patch
 bug_221618_precise-64bit-prototype.patch
 initialize_password_db-null-deref
 fix-samba.ldip-syntax.patch
+bug_598313_upstream_7499-nss_wins-dont-clobber-daemons-logs.patch

@@ -50,7 +50,8 @@ conf_args = \
 		--without-cifsmount \
 		--disable-avahi \
 		--without-libtdb \
-		--enable-external-libtdb
+		--enable-external-libtdb \
+		--disable-smbtorture4
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \

@@ -22,7 +22,8 @@ samba (2:3.6.5-2) UNRELEASED; urgency=low
     current behaviour, but allows the files' location to be configurable
     through "state directory" (and not "private dir").
     Closes: #249873
-  
+  * Disable useless smbtorture4 build. Thanks to Ivo De Decker for the patch.
+    Closes: #670561
 
  -- Christian Perrier <bubulle@debian.org>  Mon, 07 May 2012 22:16:32 +0200
 

@@ -32,6 +32,7 @@ samba (2:3.6.5-2) UNRELEASED; urgency=low
   * Build-Conflict with python-ldb and python-ldb-dev to avoid build
     failures when some versions of these packages are locally installed.
     Closes: #657314
+  * Rename fix-samba.ldip-syntax.patch to fix-samba.ldif-syntax.patch
 
  -- Christian Perrier <bubulle@debian.org>  Mon, 07 May 2012 22:16:32 +0200
 

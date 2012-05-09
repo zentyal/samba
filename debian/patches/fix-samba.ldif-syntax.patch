@@ -1,7 +1,6 @@
 Description: Fix example samba.ldif
 Author: Christian Perrier <bubulle@debian.org>
-Bug: https://bugzilla.samba.org/show_bug.cgi?id=8789
-Forwarded: yes
+Forwarded: https://bugzilla.samba.org/show_bug.cgi?id=8789
 Bug-Debian: http://bugs.debian.org/659963
 
 Index: samba/examples/LDAP/samba.ldif

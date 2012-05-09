@@ -24,6 +24,11 @@ samba (2:3.6.5-2) UNRELEASED; urgency=low
     Closes: #249873
   * Disable useless smbtorture4 build. Thanks to Ivo De Decker for the patch.
     Closes: #670561
+  * Add upstream commit that adds waf source to the buildtools/
+    directory. As upstream will, one day or another, merge this, I
+    prefer this over removing the waf binary and repack upstream
+    tarball.
+    Closes: #654499
 
  -- Christian Perrier <bubulle@debian.org>  Mon, 07 May 2012 22:16:32 +0200
 

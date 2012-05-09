@@ -29,6 +29,8 @@ samba (2:3.6.5-2) UNRELEASED; urgency=low
     prefer this over removing the waf binary and repack upstream
     tarball.
     Closes: #654499
+  * Move update-inetd calls from postrm scripts to prerm.
+    Closes: #644963
 
  -- Christian Perrier <bubulle@debian.org>  Mon, 07 May 2012 22:16:32 +0200
 

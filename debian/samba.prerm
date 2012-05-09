@@ -6,6 +6,16 @@ if [ "x$1" != xupgrade ]; then
 	update-alternatives --remove smbstatus /usr/bin/smbstatus.samba3
 fi
 
+if [ "$1" = purge ]; then
+	# Remove NetBIOS entries from /etc/inetd.conf
+	if [ -x /usr/sbin/update-inetd ]; then
+		update-inetd --remove netbios-ssn
+	fi
+else
+	# Not purging, do not remove NetBIOS entries from /etc/inetd.conf
+	update-inetd --disable netbios-ssn
+fi
+
 #DEBHELPER#
 
 exit 0

@@ -2,6 +2,7 @@ Description: nss_wins stop clobbering other daemon's log
 Author: Christian Perrier <bubulle@debian.org>,Buchan Milne 
 Bug-Debian: http://bugs.debian.org/598313
 Forwarded: yes
+Bug: https://bugzilla.samba.org/show_bug.cgi?id=7499
 
 Index: samba/lib/util/debug.c
 ===================================================================

@@ -1,7 +1,7 @@
 Description: Fix WHATSNEW.txt link in HTML documentation summary to fit Debian files organization
 Author: Christian Perrier <bubulle@debian.org>
 Bug-Debian: http://bugs.debian.org/604768
-Forwarded: Debian specific
+Forwarded: not-needed
 
 Index: samba/docs/htmldocs/index.html
 ===================================================================

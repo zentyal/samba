@@ -2,6 +2,7 @@ Description: Add mention about some user for user information in smbspool manpag
 Author: Christian Perrier <bubulle@debian.org>
 Bug-Debian: http://bugs.debian.org/387266
 Forwarded: yes
+Bug: https://bugzilla.samba.org/show_bug.cgi?id=4104
 
 Index: samba/docs-xml/manpages-3/smbspool.8.xml
 ===================================================================

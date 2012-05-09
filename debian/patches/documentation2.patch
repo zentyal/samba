@@ -1,6 +1,7 @@
 Description: Remove documentation parts that do not apply to Debian
 Author: Christian Perrier <bubulle@debian.org>
-Forwarded: https://bugzilla.samba.org/show_bug.cgi?id=8789
+Bug: https://bugzilla.samba.org/show_bug.cgi?id=8789
+Forwarded: yes
 
 Index: samba-debian/docs-xml/manpages-3/nmbd.8.xml
 ===================================================================

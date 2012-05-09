@@ -2,6 +2,7 @@ Description: Drop Using Samba link in HTML documentation summary
 Author: Christian Perrier <bubulle@debian.org>
 Bug-Debian: http://bugs.debian.org/604768
 Forwarded: yes
+Bug: https://bugzilla.samba.org/show_bug.cgi?id=7826
 
 Index: samba/docs/htmldocs/index.html
 ===================================================================

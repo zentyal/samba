@@ -1,8 +1,8 @@
-commit 4f4bce5301ffd8c12aed1b108affa1a75feefb67
+Description: Include waf as an extracted source directory, rather than as a one-in-a-file script.
 Author: Jelmer Vernooij <jelmer@samba.org>
-Date:   Wed Jan 4 00:31:27 2012 +0100
-
-    Include waf as an extracted source directory, rather than as a one-in-a-file script.
+Bug-Debian: http://bugs.debian.org/654499
+Forwarded: yes
+Bug: https://bugzilla.samba.org/show_bug.cgi?id=8923
 
 diff --git a/buildtools/README b/buildtools/README
 new file mode 100644

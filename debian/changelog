@@ -29,6 +29,9 @@ samba (2:3.6.5-2) UNRELEASED; urgency=low
     prefer this over removing the waf binary and repack upstream
     tarball.
     Closes: #654499
+  * Build-Conflict with python-ldb and python-ldb-dev to avoid build
+    failures when some versions of these packages are locally installed.
+    Closes: #657314
 
  -- Christian Perrier <bubulle@debian.org>  Mon, 07 May 2012 22:16:32 +0200
 

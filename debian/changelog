@@ -40,6 +40,9 @@ samba (2:3.6.5-2) UNRELEASED; urgency=low
     from squeeze).
   * Drop code that was moving files around in samba.postinst for
     pre-squeeze version of the package.
+  * Drop code that was modifying a deprecated "passdb backend" setting
+    in smb.conf for pre-squeeze versions of the package (in 
+    samba-common.config).
 
  -- Christian Perrier <bubulle@debian.org>  Mon, 07 May 2012 22:16:32 +0200
 

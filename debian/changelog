@@ -33,6 +33,11 @@ samba (2:3.6.5-2) UNRELEASED; urgency=low
     failures when some versions of these packages are locally installed.
     Closes: #657314
   * Rename fix-samba.ldip-syntax.patch to fix-samba.ldif-syntax.patch
+  * Split NSS modules into a new libnss-winbind binary package.
+    Closes: #646292
+  * Add a NEWS.Debian netry about the libnss-winbind split and, while at
+    it, add an entry for libpam-winbind too (as it will affect upgrades
+    from squeeze).
 
  -- Christian Perrier <bubulle@debian.org>  Mon, 07 May 2012 22:16:32 +0200
 

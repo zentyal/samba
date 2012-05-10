@@ -1,3 +1,26 @@
+samba (2:3.6.5-2) unstable; urgency=low
+
+  * NSS modules have been split out from libpam-winbind to
+    libnss-winbind.
+    
+    If Recommends: installs are disabled on your system you may need
+    to manually install the libnss-winbind package after upgrading
+    from former versions of winbind (for instance from squeeze) or
+    from former versions of libpam-winbind.
+
+ -- Christian Perrier <bubulle@debian.org>  Mon, 07 May 2012 22:16:32 +0200
+
+samba (2:3.5.11~dfsg-3) unstable; urgency=low
+
+  * PAM modules and NSS modules have been split out from the winbind
+    package into libpam-winbind.
+    
+    If Recommends: installs are disabled on your system you may need
+    to manually install the libpam-winbind package after upgrading
+    from former versions of winbind (for instance from squeeze)
+
+ -- Steve Langasek <vorlon@debian.org>  Fri, 21 Oct 2011 20:00:13 +0000
+
 samba (2:3.4.0-1) unstable; urgency=low
 
   * Default passdb backend changed in samba 3.4.0 and above

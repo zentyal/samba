@@ -47,6 +47,7 @@ samba (2:3.6.5-2) UNRELEASED; urgency=low
     that the samba init script is started before winbind if present.
     Closes: #638066
   * Provide a (basic) manpage to smbtorture(1). Closes: #528735
+  * Turkish debconf translation update (Atila KOÇ).  Closes: #672447
 
  -- Christian Perrier <bubulle@debian.org>  Mon, 07 May 2012 22:16:32 +0200
 

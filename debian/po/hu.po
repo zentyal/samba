@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2007-03-13 09:20+0100\n"
 "Last-Translator: SZERVÁC Attila <sas@321.hu>\n"
 "Language-Team: Hungarian <hu@li.org>\n"
@@ -100,10 +100,6 @@ msgstr "Munkacsoport/Tartomány neve:"
 #. Description
 #: ../samba-common.templates:4001
 #, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
@@ -124,10 +120,6 @@ msgstr "Használsz kódolt jelszavakat?"
 #. Description
 #: ../samba-common.templates:5001
 #, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
@@ -141,10 +133,6 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 #, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
@@ -161,75 +149,63 @@ msgstr ""
 msgid "Samba server"
 msgstr ""
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "Létrehozod a samba jelszóadatbázist (/var/lib/samba/passdb.tdb)?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"Az újabb Windows kliensekkel való kompatibilitás érdekében a Samba-t kódolt "
-"jelszavak használatára kell beállítani. Ez megköveteli a jelszavak /etc/"
-"passwd fájltól különálló tárolását. Ez a fájl automatikusan létrejön, de a "
-"jelszavakat kézzel kell felvenni az smbpasswd parancs futtatásával és a "
-"továbbiakban kezelni."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"Ha nem hozod létre, újra be kell állítani a Samba-t (és valószínűleg a "
-"klienseket is) a sima szöveges jelszavakhoz."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"Lásd a samba-doc csomag /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-"
-"Guide/pwencrypt.html odalát a részletekért."
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "démonok"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "Hogyan induljon a Samba?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "Az smbd Samba démon futhat normál démonként vagy az inetd-n keresztül. A "
 "démonként való futtatása a javasolt beállítás."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Létrehozod a samba jelszóadatbázist (/var/lib/samba/passdb.tdb)?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Az újabb Windows kliensekkel való kompatibilitás érdekében a Samba-t "
+#~ "kódolt jelszavak használatára kell beállítani. Ez megköveteli a "
+#~ "jelszavak /etc/passwd fájltól különálló tárolását. Ez a fájl "
+#~ "automatikusan létrejön, de a jelszavakat kézzel kell felvenni az "
+#~ "smbpasswd parancs futtatásával és a továbbiakban kezelni."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Ha nem hozod létre, újra be kell állítani a Samba-t (és valószínűleg a "
+#~ "klienseket is) a sima szöveges jelszavakhoz."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Lásd a samba-doc csomag /usr/share/doc/samba-doc/htmldocs/Samba3-"
+#~ "Developers-Guide/pwencrypt.html odalát a részletekért."
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr "A passdb hátterek láncolása nem támogatott"

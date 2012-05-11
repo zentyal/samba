@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba 2:3.5.8~dfsg-2\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2011-05-12 20:17+0400\n"
 "Last-Translator: Yuri Kozlov <yuray@komyakino.ru>\n"
 "Language-Team: Russian <debian-l10n-russian@lists.debian.org>\n"
@@ -151,70 +151,27 @@ msgstr ""
 msgid "Samba server"
 msgstr "Сервер Samba"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "Создать базу данных паролей Samba — /var/lib/samba/passdb.tdb?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"Для совместимости со стандартными значениями большинства версий Windows "
-"Samba необходимо настроить на использование шифрованных паролей. При этом "
-"пароли пользователей должны храниться в отдельном файле, а не в /etc/passwd. "
-"Этот файл будет создан автоматически, однако пароли нужно добавить вручную с "
-"помощью команды smbpasswd и не забывать поддерживать их в актуальном "
-"состоянии."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"Если этот файл не создан, тогда нужно перенастроить Samba (и, возможно, "
-"клиентские машины) на использование нешифрованных паролей."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"Более подробная информация доступна в файле /usr/share/doc/samba-doc/"
-"htmldocs/ENCRYPTION.html из пакета samba-doc."
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "как самостоятельный процесс"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "из inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "Как нужно запускать Samba?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
@@ -222,3 +179,34 @@ msgstr ""
 "Служба Samba smbd может постоянно работать как самостоятельный процесс или "
 "запускаться из inetd. Рекомендуется использовать запуск в виде "
 "самостоятельного процесса."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Создать базу данных паролей Samba — /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Для совместимости со стандартными значениями большинства версий Windows "
+#~ "Samba необходимо настроить на использование шифрованных паролей. При этом "
+#~ "пароли пользователей должны храниться в отдельном файле, а не в /etc/"
+#~ "passwd. Этот файл будет создан автоматически, однако пароли нужно "
+#~ "добавить вручную с помощью команды smbpasswd и не забывать поддерживать "
+#~ "их в актуальном состоянии."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Если этот файл не создан, тогда нужно перенастроить Samba (и, возможно, "
+#~ "клиентские машины) на использование нешифрованных паролей."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Более подробная информация доступна в файле /usr/share/doc/samba-doc/"
+#~ "htmldocs/ENCRYPTION.html из пакета samba-doc."

@@ -5,8 +5,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Samba fi\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2011-05-13 12:50+0300\n"
 "Last-Translator: Tapio Lehtonen <tale@debian.org>\n"
 "Language-Team: Finnish <debian-l10n-finnish@lists.debian.org>\n"
@@ -145,75 +145,63 @@ msgstr ""
 msgid "Samba server"
 msgstr "Samba-palvelin"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "Luodaanko samban salasanatietokanta, /var/lib/samba/passdb.tdb?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"Jotta Samba olisi yhteensopiva useimpien Windows-versioiden oletusten "
-"kanssa, on Samban käytettävä salattuja salasanoja. Tällöin on salasanat "
-"tallennettava muualle kuin tiedostoon /etc/passwd. Tallennustiedosto voidaan "
-"luoda automaattisesti, mutta salasanat on itse lisättävä komennolla "
-"smbpasswd ja ne on itse pidettävä ajan tasalla jatkossa."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"Jos tiedostoa ei luoda, on Samba asetettava käyttämään selväkielisiä "
-"salasanoja (kuten asiakaskoneetkin)."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"Katso lisätietoja paketin samba-doc tiedostosta /usr/share/doc/samba-doc/"
-"htmldocs/ENCRYPTION.html."
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "palvelinprosessit"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "Kuinka Samba käynnistetään?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "Samban palvelinprosessi smbd voi toimia tavallisena prosessina tai inetd voi "
 "käynnistää sen. Tavallisen prosessin käyttämistä suositellaan."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Luodaanko samban salasanatietokanta, /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Jotta Samba olisi yhteensopiva useimpien Windows-versioiden oletusten "
+#~ "kanssa, on Samban käytettävä salattuja salasanoja. Tällöin on salasanat "
+#~ "tallennettava muualle kuin tiedostoon /etc/passwd. Tallennustiedosto "
+#~ "voidaan luoda automaattisesti, mutta salasanat on itse lisättävä "
+#~ "komennolla smbpasswd ja ne on itse pidettävä ajan tasalla jatkossa."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Jos tiedostoa ei luoda, on Samba asetettava käyttämään selväkielisiä "
+#~ "salasanoja (kuten asiakaskoneetkin)."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Katso lisätietoja paketin samba-doc tiedostosta /usr/share/doc/samba-doc/"
+#~ "htmldocs/ENCRYPTION.html."
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr "passdb:n taustaosien ketjuttamista ei tueta"

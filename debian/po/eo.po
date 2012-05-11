@@ -5,8 +5,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2011-05-12 19:50-0300\n"
 "Last-Translator: Felipe Castro <fefcas@gmail.com>\n"
 "Language-Team: Esperanto <debian-l10n-esperanto@lists.debian.org>\n"
@@ -142,72 +142,60 @@ msgstr ""
 msgid "Samba server"
 msgstr "Servilo Samba"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "Ĉu krei pasvortan datumbazon de samba, /var/lib/samba/passdb.tdb?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"Por kongrui kun implicita regulo el plejmultaj eldonoj de Windows, Samba "
-"devas esti agordita por uzi ĉifritajn pasvortojn. Tio postulas ke uzant-"
-"pasvortoj estu konservitaj en dosiero aparta de /etc/passwd. Tiu ĉi dosiero "
-"povas esti aŭtomate kreata, sed oni devas mane aldoni la pasvortojn lanĉante "
-"smbpasswd kaj tenante ilin ĝisdataj estonte."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"Se vi ne kreos ĝin, vi devos reakomodi Samba (kaj verŝajne viajn klientajn "
-"maŝinojn) por uzi purtekstajn pasvortojn."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"Vidu /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-"html el la pako samba-doc por pliaj informoj."
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "demonoj"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "Kiel vi volas lanĉi Samba?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "La Samba-demono smbd povas esti lanĉita kiel normala demono aŭ per la "
 "programo inetd. Oni rekomendas lanĉi ĝin kiel demonon."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Ĉu krei pasvortan datumbazon de samba, /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Por kongrui kun implicita regulo el plejmultaj eldonoj de Windows, Samba "
+#~ "devas esti agordita por uzi ĉifritajn pasvortojn. Tio postulas ke uzant-"
+#~ "pasvortoj estu konservitaj en dosiero aparta de /etc/passwd. Tiu ĉi "
+#~ "dosiero povas esti aŭtomate kreata, sed oni devas mane aldoni la "
+#~ "pasvortojn lanĉante smbpasswd kaj tenante ilin ĝisdataj estonte."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Se vi ne kreos ĝin, vi devos reakomodi Samba (kaj verŝajne viajn "
+#~ "klientajn maŝinojn) por uzi purtekstajn pasvortojn."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Vidu /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html el la pako samba-doc por pliaj informoj."

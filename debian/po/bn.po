@@ -5,8 +5,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2009-04-16 12:12+0600\n"
 "Last-Translator: Md. Rezwan Shahid <rezwan@ankur.org.bd>\n"
 "Language-Team: Bengali <ankur-bd-l10n@googlegroups.com>\n"
@@ -146,72 +146,60 @@ msgstr ""
 msgid "Samba server"
 msgstr ""
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "সাম্বা পাসওয়ার্ড ডেটাবেজ তৈরি করা হবে, /var/lib/samba/passdb.tdb?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"উইন্ডোজের বেশিরভাগ সংস্করনের ডিফল্টের সাথে সামঞ্জস্যপূর্ণ হওয়ার জন্য সাম্বাকে অবশ্যই "
-"এনক্রিপ্ট করা পাসওয়ার্ড ব্যবহার করার জন্য কনফিগার করতে হবে। এর ফলে ব্যবহারকারীর "
-"পাসওয়ার্ড /etc/passwd থেকে পৃথক একটি ফাইলে সংরক্ষন করতে হবে। এই ফাইলটি "
-"স্বয়ংক্রিয়ভাবে তৈরি করা যায়, কিন্তু পাসওয়ার্ড যোগ করতে হবে ম্যানুয়ালী smbpasswd "
-"চালিয়ে এবং ভবিষ্যতে আপ-টু-ডেট রাখতে হবে।"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"আপনি যদি এটি তৈরি না করেন, তাহলে সরল টেক্সট পাসওয়ার্ড ব্যবহারের জন্য আপনাকে "
-"সাম্বা (এবং হয়তো আপনার ক্লায়েন্ট মেশিনগুলো) পুনরায় কনফিগার করতে হবে।"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"আরো তথ্যের জন্য সাম্বা-ডক প্যাকেজ থেকে /usr/share/doc/samba-doc/htmldocs/Samba3-"
-"Developers-Guide/pwencrypt.html দেখুন।"
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "ডিমন"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "আপনি সাম্বা কিভাবে চালাতে চান?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "সাম্বা ডিমন smbd একটি সাধারন ডিমন হিসেবে বা inetd থেকে চালানো যেতে পারে। ডিমন "
 "হিসেবে চালানো সুপারিশকৃত।"
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "সাম্বা পাসওয়ার্ড ডেটাবেজ তৈরি করা হবে, /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "উইন্ডোজের বেশিরভাগ সংস্করনের ডিফল্টের সাথে সামঞ্জস্যপূর্ণ হওয়ার জন্য সাম্বাকে "
+#~ "অবশ্যই এনক্রিপ্ট করা পাসওয়ার্ড ব্যবহার করার জন্য কনফিগার করতে হবে। এর ফলে "
+#~ "ব্যবহারকারীর পাসওয়ার্ড /etc/passwd থেকে পৃথক একটি ফাইলে সংরক্ষন করতে হবে। এই "
+#~ "ফাইলটি স্বয়ংক্রিয়ভাবে তৈরি করা যায়, কিন্তু পাসওয়ার্ড যোগ করতে হবে ম্যানুয়ালী "
+#~ "smbpasswd চালিয়ে এবং ভবিষ্যতে আপ-টু-ডেট রাখতে হবে।"
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "আপনি যদি এটি তৈরি না করেন, তাহলে সরল টেক্সট পাসওয়ার্ড ব্যবহারের জন্য আপনাকে "
+#~ "সাম্বা (এবং হয়তো আপনার ক্লায়েন্ট মেশিনগুলো) পুনরায় কনফিগার করতে হবে।"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "আরো তথ্যের জন্য সাম্বা-ডক প্যাকেজ থেকে /usr/share/doc/samba-doc/htmldocs/"
+#~ "Samba3-Developers-Guide/pwencrypt.html দেখুন।"

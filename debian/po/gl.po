@@ -18,8 +18,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_2:3.5.8~dfsg-2_gl\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2011-05-12 11:46+0100\n"
 "Last-Translator: Miguel Anxo Bouzada <mbouzada@gmail.com>\n"
 "Language-Team: Galician <proxecto@trasno.net>\n"
@@ -162,77 +162,65 @@ msgstr ""
 msgid "Samba server"
 msgstr "Servidor Samba"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr ""
-"Crear a base de datos de contrasinais de samba, /var/lib/samba/passdb.tdb?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"Para que sexa compatíbel coa configuración predeterminada da maioría das "
-"versións de Windows, Samba ten que se configurar para empregar contrasinais "
-"cifrados. Para facelo, hai que almacenar os contrasinais dos usuarios nun "
-"ficheiro separado de /etc/passwd. Este ficheiro pódese crear "
-"automaticamente, mais os contrasinais hai que engadilos á man empregando "
-"smbpasswd e hai que mantelo actualizado no futuro."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"Se non o crea ha ter que reconfigurar samba (e probabelmente tamén as "
-"máquinas cliente) para que empreguen contrasinais en texto simple."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"Consulte o ficheiro /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-"
-"Guide/pwencrypt.html do paquete samba-doc para obter máis detalles."
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "servizos"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "Como quere executar Samba?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "O servizo de Samba smbd pode funcionar coma un servizo normal ou desde "
 "inetd. Recoméndase executalo coma un servizo."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "Crear a base de datos de contrasinais de samba, /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Para que sexa compatíbel coa configuración predeterminada da maioría das "
+#~ "versións de Windows, Samba ten que se configurar para empregar "
+#~ "contrasinais cifrados. Para facelo, hai que almacenar os contrasinais dos "
+#~ "usuarios nun ficheiro separado de /etc/passwd. Este ficheiro pódese crear "
+#~ "automaticamente, mais os contrasinais hai que engadilos á man empregando "
+#~ "smbpasswd e hai que mantelo actualizado no futuro."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Se non o crea ha ter que reconfigurar samba (e probabelmente tamén as "
+#~ "máquinas cliente) para que empreguen contrasinais en texto simple."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Consulte o ficheiro /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-"
+#~ "Guide/pwencrypt.html do paquete samba-doc para obter máis detalles."
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr "Non está soportado o encadeamento de motores de passdb"

@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2011-05-12 18:19+0900\n"
 "Last-Translator: Kenshi Muto <kmuto@debian.org>\n"
 "Language-Team: Japanese <debian-japanese@lists.debian.org>\n"
@@ -153,72 +153,62 @@ msgstr ""
 msgid "Samba server"
 msgstr "Samba サーバ"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "Samba パスワードデータベース /var/lib/samba/passdb.tdb を作成しますか?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"Windows のほとんどのバージョンのデフォルトとの互換性のために、Samba を暗号化"
-"パスワードを使うように設定する必要があります。これはユーザのパスワードを /"
-"etc/passwd とは別のファイルに格納することを必要とします。このファイルは自動的"
-"に作成することができますが、パスワードは手動で (smbpasswd を使って) 追加しな"
-"ければならず、将来に渡って最新状態を保ち続けるよう整えておく必要があります。"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"このファイルを作成しない場合、プレインテキストパスワードを使うよう Samba (お"
-"よびおそらくあなたのクライアントマシン) の再設定が必要です。"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"詳細については、samba-doc パッケージにある /usr/share/doc/samba-doc/htmldocs/"
-"ENCRYPTION.html を参照してください。"
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "デーモン"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "どのように Samba を実行したいですか?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "Samba デーモン smbd は通常のデーモンとしての実行または inetd からの実行ができ"
 "ます。デーモンとして実行するのがお勧めの手段です。"
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "Samba パスワードデータベース /var/lib/samba/passdb.tdb を作成しますか?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Windows のほとんどのバージョンのデフォルトとの互換性のために、Samba を暗号"
+#~ "化パスワードを使うように設定する必要があります。これはユーザのパスワード"
+#~ "を /etc/passwd とは別のファイルに格納することを必要とします。このファイル"
+#~ "は自動的に作成することができますが、パスワードは手動で (smbpasswd を使っ"
+#~ "て) 追加しなければならず、将来に渡って最新状態を保ち続けるよう整えておく必"
+#~ "要があります。"
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "このファイルを作成しない場合、プレインテキストパスワードを使うよう Samba "
+#~ "(およびおそらくあなたのクライアントマシン) の再設定が必要です。"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "詳細については、samba-doc パッケージにある /usr/share/doc/samba-doc/"
+#~ "htmldocs/ENCRYPTION.html を参照してください。"

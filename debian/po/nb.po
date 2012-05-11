@@ -15,8 +15,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_debian_po_nb\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2011-05-12 18:00+0200\n"
 "Last-Translator: Bjørn Steensrud <bjornst@skogkatt.homelinux.org>\n"
 "Language-Team: Norwegian Bokmål <i18n-nb@lister.ping.uio.no>\n"
@@ -155,76 +155,64 @@ msgstr ""
 msgid "Samba server"
 msgstr "Ingen Samba-tjener er installert på dette systemet"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "Opprette samba passord-database, /var/lib/samba/passdb.tdb?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"Samba må settes opp til å bruke krypterte passord for å være kompatibel med "
-"de fleste Windows-versjoner. Dette krever at brukerpassord må lagres i en "
-"egen fil unna /etc/passwd. Denne fila kan opprettes automatisk, men "
-"passordene må legges inn manuelt med smbpasswd og holdes oppdatert i "
-"fremtiden."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"Hvis du ikke oppretter den, må du endre oppsettet på Samba (og trolig også "
-"klientmaskinene) til å bruke klartekst-passord."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"Mer detaljer finnes i fila /usr/share/doc/samba-doc/htmldocs/Samba3-"
-"Developers-Guide/pwencrypt.html fra pakka samba-doc."
-
 #  Using same translation as in debian.edu/Skolelinux. A bit controversial.
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "nisser"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "Hvordan vil du at Samba skal kjøres?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "Samba-prosessen smbd kan kjøres som en normal nisse eller fra inetd. Det "
 "anbefales å kjøre som en nisse."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Opprette samba passord-database, /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Samba må settes opp til å bruke krypterte passord for å være kompatibel "
+#~ "med de fleste Windows-versjoner. Dette krever at brukerpassord må lagres "
+#~ "i en egen fil unna /etc/passwd. Denne fila kan opprettes automatisk, men "
+#~ "passordene må legges inn manuelt med smbpasswd og holdes oppdatert i "
+#~ "fremtiden."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Hvis du ikke oppretter den, må du endre oppsettet på Samba (og trolig "
+#~ "også klientmaskinene) til å bruke klartekst-passord."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Mer detaljer finnes i fila /usr/share/doc/samba-doc/htmldocs/Samba3-"
+#~ "Developers-Guide/pwencrypt.html fra pakka samba-doc."
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr "Det er ikke støtte for å kjede sammen passdb-motorer"

@@ -16,8 +16,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: eu\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2007-04-07 23:18+0200\n"
 "Last-Translator: Piarres Beobide <pi@beobide.net>\n"
 "Language-Team: librezale <librezale@librezale.org>\n"
@@ -157,76 +157,65 @@ msgstr ""
 msgid "Samba server"
 msgstr ""
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "/var/lib/samba/passdb.tdb pasahitz datubase berria sortu?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"Windows sistema gehienen lehenetsiriko portaerarekin bateragarritasuna "
-"mantentzeko, Samba zifraturiko pasahitzak erabiltzeko konfiguratu behar da.  "
-"Honetako erabiltzaileen pasahitzak gordeko dituen /etc/passwd fitxategiaz "
-"bereiziriko beste fitxategi bat sortu behar da. Fitxategia automatikoki "
-"sortu daiteke baina pasahitzak eskuz gehitu behar dira 'smbpasswd' "
-"programaren bidez eta pasahitzak eguneraturik mantendu behar dira."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"Fitxategi hau ez sortuaz gero beharrezkoa da Samba (eta ziurrenik Windows "
-"bezeroak) zifratu gabeko pasahitzak erabiltzeko konfiguratzea."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"Samba-doc paketeko /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/"
-"pwencrypt.html begiratu argibide gehiagorako."
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "deabruak"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "Nola nahi duzu Samba abiaraztea?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "Samba smbd zerbitzua deabru arrunt edo inted bidez abiarazi daiteke. Deabru "
 "bezala abiaraztea gomendatzen da."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "/var/lib/samba/passdb.tdb pasahitz datubase berria sortu?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Windows sistema gehienen lehenetsiriko portaerarekin bateragarritasuna "
+#~ "mantentzeko, Samba zifraturiko pasahitzak erabiltzeko konfiguratu behar "
+#~ "da.  Honetako erabiltzaileen pasahitzak gordeko dituen /etc/passwd "
+#~ "fitxategiaz bereiziriko beste fitxategi bat sortu behar da. Fitxategia "
+#~ "automatikoki sortu daiteke baina pasahitzak eskuz gehitu behar dira "
+#~ "'smbpasswd' programaren bidez eta pasahitzak eguneraturik mantendu behar "
+#~ "dira."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Fitxategi hau ez sortuaz gero beharrezkoa da Samba (eta ziurrenik Windows "
+#~ "bezeroak) zifratu gabeko pasahitzak erabiltzeko konfiguratzea."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Samba-doc paketeko /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-"
+#~ "Guide/pwencrypt.html begiratu argibide gehiagorako."
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr "\"passbd\" motore kateatzea ez da onartzen"

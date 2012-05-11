@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2006-08-15 07:59-0500\n"
 "Last-Translator: Priti Patil <prithisd@gmail.com>\n"
 "Language-Team:  Marathi, janabhaaratii, C-DAC, Mumbai, India "
@@ -108,10 +108,6 @@ msgstr "कार्यगट/प्रक्षेत्राचे नाव:
 #. Description
 #: ../samba-common.templates:4001
 #, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
@@ -132,10 +128,6 @@ msgstr "कूटलिखित परवलीचा शब्द वापर
 #. Description
 #: ../samba-common.templates:5001
 #, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
@@ -149,10 +141,6 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 #, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
@@ -169,77 +157,65 @@ msgstr ""
 msgid "Samba server"
 msgstr ""
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr ""
-"var/lib/samba/passdb.tdb /व्हीएआर /एलआयबी/सांबा /एसएमबी पासडीबी.टीडीबी? या "
-"सांबा परवलीच्या शब्दाची डेटाबेस (माहिती) तयार करा."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"विंडोजच्या बहुतेक आवृत्तींमधील डिफॉल्टशी सहत्व ठेवण्यासाठी कूटलिखित परवलीचे शब्द वापरुन "
-"सांबा संरचित केला पाहिजे. यासाठी परवलीचे शब्द,ईटीसी/पासवर्ड पेक्षा अलग संचिकेत साठवून "
-"ठेवणे आवश्यक आहे. ही या संचिकेची रचना स्वयंचलित करता येते,परंतु यात परवलीचे शब्द,एसएमबी "
-"पासवर्ड चालवून स्वहस्ते टाकले पाहिजेत व भविष्यकाळात अद्ययावत ठेवले पाहिजे."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"तुम्ही ही रचना न केल्यास तुम्हाला सांबा(व कदाचित तुमच्या ग्राहकांचे संगणक),साध्या शब्दांचे "
-"परवलीचे शब्द वापरुन पुनःसंरचित करावे लागतील."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"अधिक माहितीसाठी सांबा-डीओसी पॅकेजमधील /usr/share/doc/samba-doc/htmldocs/"
-"ENCRYPTION.html (यूएसआर/शेअर/डीओसी/सांबा-डीओसी/एचटीएमएलडीओसीएस/एनक्रिप्शन."
-"एचटीएमएल) हे पॅकेज पहा."
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "डिमन्स"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "आयएनइटीडी"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "तुम्हाला सांबा कशा प्रकारे चालू करावयाचा आहे?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "सांबा डिमन एसएमबीडी हा प्रोग्राम सर्वसाधारण डिमन म्हणून किंवा आयएनइटीडी मधून चालविता "
 "येतो. डिमन म्हणून चालविणे अधिक श्रेयस्कर."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "var/lib/samba/passdb.tdb /व्हीएआर /एलआयबी/सांबा /एसएमबी पासडीबी.टीडीबी? या "
+#~ "सांबा परवलीच्या शब्दाची डेटाबेस (माहिती) तयार करा."
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "विंडोजच्या बहुतेक आवृत्तींमधील डिफॉल्टशी सहत्व ठेवण्यासाठी कूटलिखित परवलीचे शब्द वापरुन "
+#~ "सांबा संरचित केला पाहिजे. यासाठी परवलीचे शब्द,ईटीसी/पासवर्ड पेक्षा अलग संचिकेत साठवून "
+#~ "ठेवणे आवश्यक आहे. ही या संचिकेची रचना स्वयंचलित करता येते,परंतु यात परवलीचे शब्द,एसएमबी "
+#~ "पासवर्ड चालवून स्वहस्ते टाकले पाहिजेत व भविष्यकाळात अद्ययावत ठेवले पाहिजे."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "तुम्ही ही रचना न केल्यास तुम्हाला सांबा(व कदाचित तुमच्या ग्राहकांचे संगणक),साध्या शब्दांचे "
+#~ "परवलीचे शब्द वापरुन पुनःसंरचित करावे लागतील."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "अधिक माहितीसाठी सांबा-डीओसी पॅकेजमधील /usr/share/doc/samba-doc/htmldocs/"
+#~ "ENCRYPTION.html (यूएसआर/शेअर/डीओसी/सांबा-डीओसी/एचटीएमएलडीओसीएस/एनक्रिप्शन."
+#~ "एचटीएमएल) हे पॅकेज पहा."
 
 #~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
 #~ msgstr ""

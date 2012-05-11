@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_ku\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2010-10-30 01:33+0200\n"
 "Last-Translator: Erdal Ronahî <erdal dot ronahi at gmail dot com>\n"
 "Language-Team: Kurdish Team http://pckurd.net\n"
@@ -145,72 +145,60 @@ msgstr ""
 msgid "Samba server"
 msgstr ""
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "Danegeha şîfreyên samba, /var/lib/samba/passdb.tdb, were afirandin?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"Ji bo hevgirtîkirina srandard a di piraniya guhertoyên Windowsê de, divê "
-"Samba ji bo bikaranîna şîfreya kilîlkirî bê vesazkirin. Ji bo vê divê "
-"şîfreyên bikarhêneran di /etc/passwdê de hatibin tomarkirin. Dibe ku ev pel "
-"xweber bê afirandin, lê divê şîfre bi destan bi meşandina smbpasswd hatibin "
-"lêzêdekirin û di siberojê de rojane bê girtin."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"Eger tu vê neafirînî, divê Sambayê veasz bikî (û pêkan e ku makîneya navrûyê "
-"jî) ji bo şîfreya deqa sade."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"Ji bo agahiyên zêdetir ji pakêta samba-docê /usr/share/doc/samba-doc/"
-"htmldocs/Samba3-Developers-Guide/pwencrypt.htmlê bibîne."
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "daemon"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "Dixwazî Samba çawa bixebitînî?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "Daemona Sambayê dikare wekî daemon'eke ji rêzê an jî inetd'ê bixebite. "
 "Xebitandina wekî daemonekê tê pêşniyarkirin."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Danegeha şîfreyên samba, /var/lib/samba/passdb.tdb, were afirandin?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Ji bo hevgirtîkirina srandard a di piraniya guhertoyên Windowsê de, divê "
+#~ "Samba ji bo bikaranîna şîfreya kilîlkirî bê vesazkirin. Ji bo vê divê "
+#~ "şîfreyên bikarhêneran di /etc/passwdê de hatibin tomarkirin. Dibe ku ev "
+#~ "pel xweber bê afirandin, lê divê şîfre bi destan bi meşandina smbpasswd "
+#~ "hatibin lêzêdekirin û di siberojê de rojane bê girtin."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Eger tu vê neafirînî, divê Sambayê veasz bikî (û pêkan e ku makîneya "
+#~ "navrûyê jî) ji bo şîfreya deqa sade."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Ji bo agahiyên zêdetir ji pakêta samba-docê /usr/share/doc/samba-doc/"
+#~ "htmldocs/Samba3-Developers-Guide/pwencrypt.htmlê bibîne."

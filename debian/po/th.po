@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2011-05-12 18:06+0700\n"
 "Last-Translator:  Theppitak Karoonboonyanan <thep@linux.thai.net>\n"
 "Language-Team: Thai <thai-l10n@googlegroup.com>\n"
@@ -139,74 +139,62 @@ msgstr ""
 msgid "Samba server"
 msgstr "เซิร์ฟเวอร์ samba"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "จะสร้างฐานข้อมูลรหัสผ่าน samba /var/lib/samba/passdb.tdb หรือไม่?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"เพื่อให้ทำงานร่วมกับค่าปกติในวินโดวส์รุ่นส่วนใหญ่ได้ จึงต้องตั้งค่า Samba ให้ใช้รหัสผ่านแบบเข้ารหัสลับ "
-"ซึ่งจำเป็นต้องเก็บรหัสผ่านของผู้ใช้ไว้ในแฟ้มแยกต่างหากจาก /etc/passwd  "
-"แฟ้มดังกล่าวสามารถสร้างโดยอัตโนมัติได้ แต่รหัสผ่านจะต้องเพิ่มเองโดยใช้คำสั่ง smbpasswd "
-"และต้องปรับข้อมูลอยู่เสมอในอนาคต"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"หากจะไม่สร้างแฟ้มดังกล่าว คุณจะต้องตั้งค่า Samba (และอาจจะต้องตั้งค่าเครื่องลูกต่างๆ ด้วย) "
-"ให้ใช้รหัสผ่านแบบข้อความธรรมดา"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"ดูรายละเอียดเพิ่มเติมได้ที่ /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-"
-"Guide/pwencrypt.html จากแพกเกจ samba-doc "
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "ดีมอน"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "คุณต้องการเรียกใช้ Samba แบบไหน?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "ดีมอน smbd ของ Samba สามารถทำงานแบบดีมอนธรรมดา หรือเรียกจาก inetd ก็ได้ "
 "ทางที่ขอแนะนำคือเรียกแบบดีมอน"
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "จะสร้างฐานข้อมูลรหัสผ่าน samba /var/lib/samba/passdb.tdb หรือไม่?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "เพื่อให้ทำงานร่วมกับค่าปกติในวินโดวส์รุ่นส่วนใหญ่ได้ จึงต้องตั้งค่า Samba "
+#~ "ให้ใช้รหัสผ่านแบบเข้ารหัสลับ ซึ่งจำเป็นต้องเก็บรหัสผ่านของผู้ใช้ไว้ในแฟ้มแยกต่างหากจาก /etc/"
+#~ "passwd  แฟ้มดังกล่าวสามารถสร้างโดยอัตโนมัติได้ แต่รหัสผ่านจะต้องเพิ่มเองโดยใช้คำสั่ง "
+#~ "smbpasswd และต้องปรับข้อมูลอยู่เสมอในอนาคต"
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "หากจะไม่สร้างแฟ้มดังกล่าว คุณจะต้องตั้งค่า Samba (และอาจจะต้องตั้งค่าเครื่องลูกต่างๆ ด้วย) "
+#~ "ให้ใช้รหัสผ่านแบบข้อความธรรมดา"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "ดูรายละเอียดเพิ่มเติมได้ที่ /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-"
+#~ "Guide/pwencrypt.html จากแพกเกจ samba-doc "
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr "ไม่สนับสนุนการเชื่อมลูกโซ่แบ็กเอนด์ของ passdb"

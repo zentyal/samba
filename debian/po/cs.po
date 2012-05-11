@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2011-05-20 18:41+0200\n"
 "Last-Translator: Miroslav Kure <kurem@debian.cz>\n"
 "Language-Team: Czech <debian-l10n-czech@lists.debian.org>\n"
@@ -154,75 +154,63 @@ msgstr ""
 msgid "Samba server"
 msgstr "Samba server"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "Vytvořit databázi hesel /var/lib/samba/passdb.tdb?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"Aby byla Samba kompatibilní s výchozím nastavením většiny verzí Windows, "
-"musí být nastavena pro používání šifrovaných hesel. To vyžaduje, aby byla "
-"uživatelská hesla uložena v jiném souboru než /etc/passwd. Tento soubor může "
-"být vytvořen automaticky, ale hesla do něj musíte přidat ručně programem "
-"smbpasswd a také ho musíte udržovat aktualizovaný."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"Pokud soubor nevytvoříte, budete muset nastavit Sambu (a pravděpodobně také "
-"klienty), aby používali nešifrovaná hesla."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"Podrobnosti naleznete v souboru /usr/share/doc/samba-doc/htmldocs/ENCRYPTION."
-"html z balíku samba-doc."
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "démoni"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "Jak chcete spouštět Sambu?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "Server Samby smbd může běžet jako obyčejný daemon (doporučeno), nebo se může "
 "spouštět z inetd."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Vytvořit databázi hesel /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Aby byla Samba kompatibilní s výchozím nastavením většiny verzí Windows, "
+#~ "musí být nastavena pro používání šifrovaných hesel. To vyžaduje, aby byla "
+#~ "uživatelská hesla uložena v jiném souboru než /etc/passwd. Tento soubor "
+#~ "může být vytvořen automaticky, ale hesla do něj musíte přidat ručně "
+#~ "programem smbpasswd a také ho musíte udržovat aktualizovaný."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Pokud soubor nevytvoříte, budete muset nastavit Sambu (a pravděpodobně "
+#~ "také klienty), aby používali nešifrovaná hesla."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Podrobnosti naleznete v souboru /usr/share/doc/samba-doc/htmldocs/"
+#~ "ENCRYPTION.html z balíku samba-doc."
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr "Řetězení backendů passdb není podporováno"

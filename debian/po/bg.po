@@ -4,8 +4,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_3.0.23c-1_bg\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2010-10-25 10:44+0300\n"
 "Last-Translator: Damyan Ivanov <dmn@debian.org>\n"
 "Language-Team: Bulgarian <>\n"
@@ -142,68 +142,27 @@ msgstr ""
 msgid "Samba server"
 msgstr ""
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "Създаване на базата данни с пароли, /var/lib/samba/passdb.tdb?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"За съвместимост с повечето версии на Windows, Samba трябва да използва "
-"шифрирани пароли. Това изисква паролите да се съхраняват във файл, отделен "
-"от /etc/passwd. Този файл може да бъде създаден автоматично, но "
-"потребителите и паролите трябва да се добавят ръчно чрез командата smbpasswd."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"Ако не създадете този файл, трябва да настроите Samba (а вероятно и "
-"компютрите с Windows) да не използват шифрирани пароли."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"За повече информация вижте /usr/share/doc/samba-doc/htmldocs/Samba3-"
-"Developers-Guide/pwencrypt.html."
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "фонов процес"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "при нужда"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "Как да се стартира Samba?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
@@ -211,6 +170,36 @@ msgstr ""
 "Основният процес на Samba, smbd, може да бъде изпълняван при нужда или като "
 "фонов процес (със зареждането на операционната система). Препоръчителният "
 "начин за изпълнение е като фонов процес."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Създаване на базата данни с пароли, /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "За съвместимост с повечето версии на Windows, Samba трябва да използва "
+#~ "шифрирани пароли. Това изисква паролите да се съхраняват във файл, "
+#~ "отделен от /etc/passwd. Този файл може да бъде създаден автоматично, но "
+#~ "потребителите и паролите трябва да се добавят ръчно чрез командата "
+#~ "smbpasswd."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Ако не създадете този файл, трябва да настроите Samba (а вероятно и "
+#~ "компютрите с Windows) да не използват шифрирани пароли."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "За повече информация вижте /usr/share/doc/samba-doc/htmldocs/Samba3-"
+#~ "Developers-Guide/pwencrypt.html."
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr ""

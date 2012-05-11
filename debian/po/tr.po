@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2012-05-10 10:24+0200\n"
 "Last-Translator: Atila KOÇ <akoc@artielektronik.com.tr>\n"
 "Language-Team: Turkish <debian-l10n-turkish@lists.debian.org>\n"
@@ -151,77 +151,65 @@ msgstr ""
 msgid "Samba server"
 msgstr "Samba sunucusu"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "Samba parola veritabanı /var/lib/samba/passwd.tdb yaratılsın mı?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"Windows'un çoğu sürümünde yapılan öntanımlı ayarlar ile uyumlu olabilmesi "
-"için Samba'nın şifrelenmiş parolaları kullanacak şekilde yapılandırılması "
-"gerekir. Bu seçim kullanıcı parolalarının /etc/passwd dosyası dışında bir "
-"dosyada saklanmasını gerektirir. Bu dosya kendiliğinden yaratılabilir, fakat "
-"daha sonra parolaların smbpasswd komutu çalıştırılarak elle eklenmesi ve "
-"gelecekte de aynı şekilde güncel tutulması gerekecektir."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"Eğer bu dosyayı yaratmazsanız, daha sonra Samba'yı (ve büyük olasılıkla "
-"istemci makineleri de) düz metin parolalarını kullanacak şekilde yeniden "
-"yapılandırmanız gerekecektir."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"Daha ayrıntılı bilgi için samba-doc paketinden /usr/share/doc/samba-doc/"
-"htmldocs/ENCRYPTION.html dosyasına göz atınız."
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "artalan süreçleri"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "Samba'nın nasıl çalışmasını istersiniz?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "Samba artalan süreci smbd, normal bir artalan süreci olarak ya da inetd'den "
 "çalışabilir. Önerilen yaklaşım artalan süreci olarak çalıştırmaktır."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Samba parola veritabanı /var/lib/samba/passwd.tdb yaratılsın mı?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Windows'un çoğu sürümünde yapılan öntanımlı ayarlar ile uyumlu olabilmesi "
+#~ "için Samba'nın şifrelenmiş parolaları kullanacak şekilde yapılandırılması "
+#~ "gerekir. Bu seçim kullanıcı parolalarının /etc/passwd dosyası dışında bir "
+#~ "dosyada saklanmasını gerektirir. Bu dosya kendiliğinden yaratılabilir, "
+#~ "fakat daha sonra parolaların smbpasswd komutu çalıştırılarak elle "
+#~ "eklenmesi ve gelecekte de aynı şekilde güncel tutulması gerekecektir."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Eğer bu dosyayı yaratmazsanız, daha sonra Samba'yı (ve büyük olasılıkla "
+#~ "istemci makineleri de) düz metin parolalarını kullanacak şekilde yeniden "
+#~ "yapılandırmanız gerekecektir."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Daha ayrıntılı bilgi için samba-doc paketinden /usr/share/doc/samba-doc/"
+#~ "htmldocs/ENCRYPTION.html dosyasına göz atınız."
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr ""

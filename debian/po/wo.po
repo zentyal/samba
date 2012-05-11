@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: wo\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2007-04-30 18:13+0000\n"
 "Last-Translator: Mouhamadou Mamoune Mbacke <mouhamadoumamoune@gmail.com>\n"
 "Language-Team: Wolof\n"
@@ -106,10 +106,6 @@ msgstr "Grup bu liggéey/Turu domen:"
 #. Description
 #: ../samba-common.templates:4001
 #, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
@@ -130,10 +126,6 @@ msgstr "Ndax ñu kiripte baatujall yi?"
 #. Description
 #: ../samba-common.templates:5001
 #, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
@@ -147,10 +139,6 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 #, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
@@ -167,77 +155,66 @@ msgstr ""
 msgid "Samba server"
 msgstr ""
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr ""
-"Ndax ñu sos baasu done bu baatujall yu samba, /var/lib/samba/passdb.tdb?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"Ngir mana dëppóo ak defóo bu li ëppu ci wersioŋ yu Windows yi, samba deeskoo "
-"wara komfigure muy jëfandikoo baatijall yuñu kiripte. Loolu dafay laaj ñu "
-"deñc baatijall yi ci ab fiise bu bokkul ak /etc/passwd.  Fiise boobu "
-"manessna koo sos sosuk otomatik, waaye kon baatijall yi deesleen ciy wara "
-"dugël ak loxo, doxal smbpasswd, ta buko defee ñu leen di yeesal saa yuñu ko "
-"soxlawaatee."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"Boo ko sosul, kon fawwu nga komfigure Samba (amaana yit sa masin yu kiliyaŋ "
-"yi) def leen ñuy jëfandikoo baatijall yu text normaal (plain text)."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"Xoolal /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-"html bi nekk ci paket bu samba-doc, ngir am yaneen leeral."
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "daemon yi"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "Nan nga bëgga doxale samba?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "Daemon bu Samba smbd maneesna koo doxal ne ab deamon normaal, maneesna koo "
 "doxale yit ak inetd. Liñuy deŋkaane nak mooy doxalko muy ab daemon."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "Ndax ñu sos baasu done bu baatujall yu samba, /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Ngir mana dëppóo ak defóo bu li ëppu ci wersioŋ yu Windows yi, samba "
+#~ "deeskoo wara komfigure muy jëfandikoo baatijall yuñu kiripte. Loolu dafay "
+#~ "laaj ñu deñc baatijall yi ci ab fiise bu bokkul ak /etc/passwd.  Fiise "
+#~ "boobu manessna koo sos sosuk otomatik, waaye kon baatijall yi deesleen "
+#~ "ciy wara dugël ak loxo, doxal smbpasswd, ta buko defee ñu leen di yeesal "
+#~ "saa yuñu ko soxlawaatee."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Boo ko sosul, kon fawwu nga komfigure Samba (amaana yit sa masin yu "
+#~ "kiliyaŋ yi) def leen ñuy jëfandikoo baatijall yu text normaal (plain "
+#~ "text)."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Xoolal /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/"
+#~ "pwencrypt.html bi nekk ci paket bu samba-doc, ngir am yaneen leeral."
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr "Ceene passdb backends manula nekk"

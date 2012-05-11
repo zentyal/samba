@@ -46,23 +46,8 @@ sed -e "s/^[[:space:]]*RUN_MODE[[:space:]]*=.*/RUN_MODE=\"${RUN_MODE}\"/" \
 chmod a+r ${TMPFILE}
 mv -f ${TMPFILE} ${INITCONFFILE}
 
-# Generate a smbpasswd file?
-db_get samba/generate_smbpasswd || true
-GENERATE_SMBPASSWD="${RET}"
-
 # Done with debconf now.
 db_stop
-
-umask 066
-
-# FIXME: disable if ldapsam support is enabled?
-# FIXME: we don't want to pass these through the smbpasswd backend,
-# some of the faking can cause us problems!
-if [ "${GENERATE_SMBPASSWD}" = "true" -a ! -e /var/lib/samba/passdb.tdb -a ! -e /etc/samba/smbpasswd ]; then
-	getent passwd | mksmbpasswd > /etc/samba/smbpasswd
-	pdbedit -i smbpasswd -e tdbsam -d 0
-	rm /etc/samba/smbpasswd
-fi
 
 umask 022
 

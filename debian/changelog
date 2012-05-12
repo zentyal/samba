@@ -1,4 +1,4 @@
-samba (2:3.6.5-2) unstable; urgency=low
+samba (2:3.6.5-2) UNRELEASED; urgency=low
 
   * The yearly "SambaXP bug cleaning party" release. 11 years
     SambaXP, 20 years Samba and counting...
@@ -53,6 +53,12 @@ samba (2:3.6.5-2) unstable; urgency=low
     including those with external user backends. It also makes much
     less sense nowadays and the use of libpam-smbpass can easily
     fill most of the needs. Closes: #671926
+  * Merged from Ubuntu:
+    - Set 'usershare allow guests', so that usershare admins are 
+      allowed to create public shares in addition to authenticated
+      ones.
+    - add map to guest = Bad user, maps bad username to guest access.
+    This allows for anonymous user shares. Closes: #672497  
 
  -- Christian Perrier <bubulle@debian.org>  Fri, 11 May 2012 11:32:54 +0200
 

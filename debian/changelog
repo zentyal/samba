@@ -1,4 +1,4 @@
-samba (2:3.6.5-2) UNRELEASED; urgency=low
+samba (2:3.6.5-2) unstable; urgency=low
 
   * The yearly "SambaXP bug cleaning party" release. 11 years
     SambaXP, 20 years Samba and counting...
@@ -60,7 +60,7 @@ samba (2:3.6.5-2) UNRELEASED; urgency=low
     - add map to guest = Bad user, maps bad username to guest access.
     This allows for anonymous user shares. Closes: #672497  
 
- -- Christian Perrier <bubulle@debian.org>  Fri, 11 May 2012 11:32:54 +0200
+ -- Christian Perrier <bubulle@debian.org>  Sat, 12 May 2012 14:30:58 +0200
 
 samba (2:3.6.5-1) unstable; urgency=low
 

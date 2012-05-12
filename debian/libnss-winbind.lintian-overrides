@@ -1,0 +1,4 @@
+libnss-winbind: postinst-must-call-ldconfig lib/*/libnss_wins.so.2
+libnss-winbind: postrm-should-call-ldconfig lib/*/libnss_wins.so.2
+libnss-winbind: package-name-doesnt-match-sonames libnss-winbind2 libnss-wins2
+libnss-winbind: missing-pre-dependency-on-multiarch-support

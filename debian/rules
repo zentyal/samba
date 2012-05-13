@@ -70,7 +70,7 @@ override_dh_auto_configure:
 	dh_auto_configure -- $(conf_args)
 
 override_dh_auto_build:
-	dh_auto_build -- everything nsswitch
+	dh_auto_build --parallel -- everything nsswitch
 
 # our test suite requires including a wrapper lib we don't want to ship.
 override_dh_auto_test:

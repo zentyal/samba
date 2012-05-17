@@ -1,9 +1,15 @@
 samba (2:3.6.5-3) UNRELEASED; urgency=low
 
+  [ Luk Claes ]
   * Ship wbclient.pc so cifs-utils can be built again (Closes: #672733).
   * Activate parallel building. Might need DEB_BUILD_OPTIONS as usual.
 
- -- Luk Claes <luk@debian.org>  Sun, 13 May 2012 16:31:11 +0200
+  [ Christian Perrier ]
+  * Add Breaks and Replaces on libpam-winbind for newly created
+    libnss-winbind. Thanks to Clin Watson for pointing this and shame
+    on me for not properly checking the transition. Closes: #673122
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 13 May 2012 18:07:31 +0200
 
 samba (2:3.6.5-2) unstable; urgency=low
 

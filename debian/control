@@ -226,8 +226,8 @@ Architecture: any
 Multi-Arch: same
 Pre-Depends: ${misc:Pre-Depends}
 Depends: ${shlibs:Depends}, ${misc:Depends}, winbind (= ${binary:Version}), libwbclient0 (= ${binary:Version}), samba-common (= ${source:Version})
-Breaks: winbind (<< 2:3.5.11~dfsg-3)
-Replaces: samba (<= 2.2.3-2), winbind (<< 2:3.5.11~dfsg-3)
+Breaks: libpam-winbind (<< 2:3.6.5-2), winbind (<< 2:3.5.11~dfsg-3)
+Replaces: libpam-winbind (<< 2:3.6.5-2), samba (<= 2.2.3-2), winbind (<< 2:3.5.11~dfsg-3)
 Description: Samba nameservice integration plugins
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with

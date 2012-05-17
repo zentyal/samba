@@ -1,4 +1,4 @@
-samba (2:3.6.5-3) UNRELEASED; urgency=low
+samba (2:3.6.5-3) unstable; urgency=low
 
   [ Luk Claes ]
   * Ship wbclient.pc so cifs-utils can be built again (Closes: #672733).
@@ -9,7 +9,7 @@ samba (2:3.6.5-3) UNRELEASED; urgency=low
     libnss-winbind. Thanks to Clin Watson for pointing this and shame
     on me for not properly checking the transition. Closes: #673122
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 13 May 2012 18:07:31 +0200
+ -- Christian Perrier <bubulle@debian.org>  Thu, 17 May 2012 10:34:38 +0200
 
 samba (2:3.6.5-2) unstable; urgency=low
 

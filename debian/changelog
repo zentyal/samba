@@ -1,6 +1,11 @@
-samba (2:3.6.5-5) UNRELEASED; urgency=low
+samba (2:3.6.5-4) UNRELEASED; urgency=low
 
+  [ Christian Perrier ]
   * Make libpam-winbind depend on libnss-winbind.
+
+  [ Ivo De Decker ]
+  * Update symbols file for libsmbclient and libwbclient0
+  * Add lintian overrides for examples in samba-doc
 
  -- Christian Perrier <bubulle@debian.org>  Fri, 18 May 2012 08:45:13 +0200
 

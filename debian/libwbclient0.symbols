@@ -3,7 +3,7 @@ libwbclient.so.0 libwbclient0 #MINVER#
  wbcAllocateUid@Base 2:3.2.0
  wbcAuthenticateUser@Base 2:3.2.0
  wbcAuthenticateUserEx@Base 2:3.2.0
- wbcChangeTrustCredentials@Base 2:3.5.0~pre2                                                                                  
+ wbcChangeTrustCredentials@Base 2:3.5.0~pre2
  wbcCheckTrustCredentials@Base 2:3.2.0
  wbcDcInfo@Base 2:3.6.0~pre3
  wbcDomainInfo@Base 2:3.2.0
@@ -69,3 +69,21 @@ libwbclient.so.0 libwbclient0 #MINVER#
  wbcStringToGuid@Base 2:3.3.0
  wbcGetSidAliases@Base 2:3.4.0~pre2
  wbcGetpwsid@Base 2:3.4.0~pre2
+ dummy_snprintf@Base 2:3.6.5
+ rep_getpass@Base 2:3.6.5
+ rep_strerror_r@Base 2:3.6.5
+ rep_strlcat@Base 2:3.6.5
+ rep_strlcpy@Base 2:3.6.5
+ replace_dummy@Base 2:3.6.5
+ set_blocking@Base 2:3.6.5
+ wbcAllocateMemory@Base 2:3.6.5
+ wbcAllocateStringArray@Base 2:3.6.5
+ wbcRequestResponse@Base 2:3.6.5
+ wbcRequestResponsePriv@Base 2:3.6.5
+ wbcStrDup@Base 2:3.6.5
+ winbindd_fd@Base 2:3.6.5
+ winbindd_free_response@Base 2:3.6.5
+ winbindd_get_response@Base 2:3.6.5
+ winbindd_priv_request_response@Base 2:3.6.5
+ winbindd_request_response@Base 2:3.6.5
+ winbindd_send_request@Base 2:3.6.5

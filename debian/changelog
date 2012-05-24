@@ -7,6 +7,9 @@ samba (2:3.6.5-4) UNRELEASED; urgency=low
   * Update symbols file for libsmbclient and libwbclient0
   * Add lintian overrides for examples in samba-doc
 
+  [ Luk Claes ]
+  * Ship wbclient.pc file in multiarch safe directory (Closes: #674215).
+
  -- Christian Perrier <bubulle@debian.org>  Fri, 18 May 2012 08:45:13 +0200
 
 samba (2:3.6.5-3) unstable; urgency=low

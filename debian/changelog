@@ -20,7 +20,7 @@ samba (2:3.6.5-3) unstable; urgency=low
 
   [ Christian Perrier ]
   * Add Breaks and Replaces on libpam-winbind for newly created
-    libnss-winbind. Thanks to Clin Watson for pointing this and shame
+    libnss-winbind. Thanks to Colin Watson for pointing this and shame
     on me for not properly checking the transition. Closes: #673122
 
  -- Christian Perrier <bubulle@debian.org>  Thu, 17 May 2012 10:34:38 +0200

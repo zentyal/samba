@@ -6,6 +6,7 @@ samba (2:3.6.5-4) UNRELEASED; urgency=low
   [ Ivo De Decker ]
   * Update symbols file for libsmbclient and libwbclient0
   * Add lintian overrides for examples in samba-doc
+  * libpam-winbind: change Depends on libnss-winbind to Recommends
 
   [ Luk Claes ]
   * Ship wbclient.pc file in multiarch safe directory (Closes: #674215).

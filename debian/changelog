@@ -7,6 +7,8 @@ samba (2:3.6.5-4) UNRELEASED; urgency=low
   * Update symbols file for libsmbclient and libwbclient0
   * Add lintian overrides for examples in samba-doc
   * libpam-winbind: change Depends on libnss-winbind to Recommends
+  * Backport vfs_shadow_copy2 from master, to allow shadow copy to work
+    without wide links
 
   [ Luk Claes ]
   * Ship wbclient.pc file in multiarch safe directory (Closes: #674215).

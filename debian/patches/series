@@ -20,3 +20,4 @@ bug_604768_upstream_7826_drop-using-samba-link.patch
 bug_604768_upstream_7826_fix-WHATSNEW-link.patch
 waf-as-source.patch
 smbtorture-manpage.patch
+shadow_copy2_backport.patch

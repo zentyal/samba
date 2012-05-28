@@ -195,9 +195,12 @@ Description: Samba nameservice integration server
  .
  This package provides winbindd, a daemon which integrates authentication
  and directory service (user/group lookup) mechanisms from a Windows
- domain on a Linux system.  User/group lookups are configured via
- /etc/nsswitch.conf, and authentication is integrated using the winbind
- module for PAM.
+ domain on a Linux system.
+ .
+ Winbind based user/group lookups via /etc/nsswitch.conf can be enabled via
+ the libnss-winbind package. Winbind based Windows domain authentication can
+ be enabled via the libpam-winbind package.
+ 
 
 Package: libpam-winbind
 Section: net
@@ -216,9 +219,8 @@ Description: Windows domain authentication integration plugin
  as an NT4-style domain controller, and can integrate with both NT4 domains
  and Active Directory realms as a member server.
  .
- This package provides pam_winbind, a plugin that integrates
- with a local winbindd server to provide Windows domain authentication and
- user/group name lookups to the system.
+ This package provides pam_winbind, a plugin that integrates with a local
+ winbindd server to provide Windows domain authentication to the system.
 
 Package: libnss-winbind
 Section: net
@@ -229,6 +231,7 @@ Pre-Depends: ${misc:Pre-Depends}
 Depends: ${shlibs:Depends}, ${misc:Depends}, winbind (= ${binary:Version}), libwbclient0 (= ${binary:Version}), samba-common (= ${source:Version})
 Breaks: libpam-winbind (<< 2:3.6.5-2), winbind (<< 2:3.5.11~dfsg-3)
 Replaces: libpam-winbind (<< 2:3.6.5-2), samba (<= 2.2.3-2), winbind (<< 2:3.5.11~dfsg-3)
+Suggests: libpam-winbind
 Description: Samba nameservice integration plugins
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
@@ -237,9 +240,9 @@ Description: Samba nameservice integration plugins
  and Active Directory realms as a member server.
  .
  This package provides nss_winbind, a plugin that integrates
- with a local winbindd server to provide Windows domain authentication and
- user/group name lookups to the system; and nss_wins, which provides
- hostname lookups via both the NBNS and NetBIOS broadcast protocols.
+ with a local winbindd server to provide user/group name lookups to the
+ system; and nss_wins, which provides hostname lookups via both the NBNS and
+ NetBIOS broadcast protocols.
 
 Package: samba-dbg
 Section: debug

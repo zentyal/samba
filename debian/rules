@@ -51,7 +51,8 @@ conf_args = \
 		--without-cifsmount \
 		--disable-avahi \
 		--without-libtdb \
-		--enable-external-libtdb
+		--enable-external-libtdb \
+		--disable-smbtorture4
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \
@@ -70,7 +71,7 @@ override_dh_auto_configure:
 	dh_auto_configure -- $(conf_args)
 
 override_dh_auto_build:
-	dh_auto_build -- everything nsswitch
+	dh_auto_build --parallel -- everything nsswitch
 
 # our test suite requires including a wrapper lib we don't want to ship.
 override_dh_auto_test:
@@ -139,3 +140,6 @@ endif
 override_dh_makeshlibs:
 	dh_makeshlibs -plibsmbclient -V'libsmbclient (>= 2:3.2.0)'
 	dh_makeshlibs -plibwbclient0 -V'libwbclient0 (>= 2:3.5.0~pre2)'
+
+override_dh_compress:
+	dh_compress -XWHATSNEW.txt

@@ -71,14 +71,6 @@ configure_smb_conf() {
 		}' "$CONFIG"
 	fi
 
-	if [ -n "$2" ] && dpkg --compare-versions "$2" lt 3.0.23b-2 \
-	   && grep -qi "^[[:space:]]*passdb backend[[:space:]]*=.*guest" "$CONFIG"
-	then
-		sed -i -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
-			/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ \
-			        s/^\([[:space:]]*passdb backend[[:space:]]*=[^,]*\),\?[[:space:]]*guest[[:space:]]*$/\1/i" \
-			"$CONFIG"
-	fi
 }
 
 

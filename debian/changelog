@@ -1,10 +1,94 @@
-samba (2:3.6.5-1~bpo60+1) squeeze-backports; urgency=high
+samba (2:3.6.5-3~bpo60+1) squeeze-backports; urgency=low
 
-  * Backport to squeeze. Security fix for backports users
+  * Backport to squeeze.
   * Build-Depend on debhelper >= 8~ (squeeze compatibility)
 
- -- Christian Perrier <bubulle@debian.org>  Fri, 13 Apr 2012 20:04:30 +0200
+ -- Christian Perrier <bubulle@debian.org>  Tue, 29 May 2012 20:41:32 +0200
 
+samba (2:3.6.5-3) unstable; urgency=low
+
+  [ Luk Claes ]
+  * Ship wbclient.pc so cifs-utils can be built again (Closes: #672733).
+  * Activate parallel building. Might need DEB_BUILD_OPTIONS as usual.
+
+  [ Christian Perrier ]
+  * Add Breaks and Replaces on libpam-winbind for newly created
+    libnss-winbind. Thanks to Clin Watson for pointing this and shame
+    on me for not properly checking the transition. Closes: #673122
+
+ -- Christian Perrier <bubulle@debian.org>  Thu, 17 May 2012 10:34:38 +0200
+
+samba (2:3.6.5-2) unstable; urgency=low
+
+  * The yearly "SambaXP bug cleaning party" release. 11 years
+    SambaXP, 20 years Samba and counting...
+  * Make samba-common "Multi-Arch: foreign"
+  * Adapt patch in upstream #7499 and stop nss_wins clobbering other
+    daemon's logfiles. Closes: #598313
+  * Add some mention about some use for the user information in Kerberos
+    environments in the smbspool manpage. Closes: #387266
+  * Drop link to no longer provided "Using Samba" documentation in
+    HTML documentation summary file. Closes: #604768
+  * Provide WHATSNEW.txt in samba-doc too as it is linked from the
+    documentation summary file. Do not compress that file.
+  * Fix link to WHATSNEW.txt in HTML documentation summary file. This
+    is the second part of the fix for #604768
+  * Use lp_state_dir() instead of get_dyn_STATEDIR() in
+    fhs-filespaths.patch as the latter does indeed hardcode the
+    location for passdb.tdb and secrets.tdb to /var/lib/samba
+    (the compile-time option for state directory and NOT the configurable
+    value). This is left to "state directory" instead of "private dir"
+    at least as of now, because if doesn't change anything to the
+    current behaviour, but allows the files' location to be configurable
+    through "state directory" (and not "private dir").
+    Closes: #249873
+  * Disable useless smbtorture4 build. Thanks to Ivo De Decker for the patch.
+    Closes: #670561
+  * Add upstream commit that adds waf source to the buildtools/
+    directory. As upstream will, one day or another, merge this, I
+    prefer this over removing the waf binary and repack upstream
+    tarball.
+    Closes: #654499
+  * Build-Conflict with python-ldb and python-ldb-dev to avoid build
+    failures when some versions of these packages are locally installed.
+    Closes: #657314
+  * Rename fix-samba.ldip-syntax.patch to fix-samba.ldif-syntax.patch
+  * Split NSS modules into a new libnss-winbind binary package.
+    Closes: #646292
+  * Add a NEWS.Debian entry about the libnss-winbind split and, while at
+    it, add an entry for libpam-winbind too (as it will affect upgrades
+    from squeeze).
+  * Drop code that was moving files around in samba.postinst and
+    winbind.postinst for pre-squeeze versions of the package.
+  * Drop code that was modifying a deprecated "passdb backend" setting
+    in smb.conf for pre-squeeze versions of the package (in 
+    samba-common.config).
+  * Add Should-Start dependency to winbind init script to guarantee
+    that the samba init script is started before winbind if present.
+    Closes: #638066
+  * Provide a (basic) manpage to smbtorture(1). Closes: #528735
+  * Turkish debconf translation update (Atila KOÇ).  Closes: #672447
+  * Drop the code that generates an smbpasswd file from the system's
+    user list. This adds very long delays on systems with many users,
+    including those with external user backends. It also makes much
+    less sense nowadays and the use of libpam-smbpass can easily
+    fill most of the needs. Closes: #671926
+  * Merged from Ubuntu:
+    - Set 'usershare allow guests', so that usershare admins are 
+      allowed to create public shares in addition to authenticated
+      ones.
+    - add map to guest = Bad user, maps bad username to guest access.
+    This allows for anonymous user shares. Closes: #672497  
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 12 May 2012 14:30:58 +0200
+
+samba (2:3.6.5-1~bpo60+1) squeeze-backports; urgency=high
+ 
+  * Backport to squeeze. Security fix for backports users
+  * Build-Depend on debhelper >= 8~ (squeeze compatibility)
+ 
+ -- Christian Perrier <bubulle@debian.org>  Fri, 13 Apr 2012 20:04:30 +0200
+ 
 samba (2:3.6.5-1) unstable; urgency=low
 
   * New upstream release. Fixes CVE-2012-2111: Incorrect permission
@@ -22,7 +106,7 @@ samba (2:3.6.4-1~bpo60+1) squeeze-backports; urgency=high
 
   * Backport to squeeze. Security fix for backports users
 
- -- Christian Perrier <bubulle@debian.org> Fri, 13 Apr 2012 20:04:30 +0200
+ -- Christian Perrier <bubulle@debian.org>  Fri, 13 Apr 2012 20:04:30 +0200
 
 samba (2:3.6.4-1) unstable; urgency=low
 

@@ -1,7 +1,8 @@
 Description: Avoid using bashism in smbtar
 Author: Jelmer Vernooij <jelmer@samba.org>
 Bug-Debian: http://bugs.debian.org/486056
-Forwarded: no
+Forwarded: yes
+Bug: https://bugzilla.samba.org/show_bug.cgi?id=8924
 
 Index: experimental/source3/script/smbtar
 ===================================================================

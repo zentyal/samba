@@ -46,44 +46,12 @@ sed -e "s/^[[:space:]]*RUN_MODE[[:space:]]*=.*/RUN_MODE=\"${RUN_MODE}\"/" \
 chmod a+r ${TMPFILE}
 mv -f ${TMPFILE} ${INITCONFFILE}
 
-# Generate a smbpasswd file?
-db_get samba/generate_smbpasswd || true
-GENERATE_SMBPASSWD="${RET}"
-
 # Done with debconf now.
 db_stop
-
-umask 066
-
-# FIXME: disable if ldapsam support is enabled?
-# FIXME: we don't want to pass these through the smbpasswd backend,
-# some of the faking can cause us problems!
-if [ "${GENERATE_SMBPASSWD}" = "true" -a ! -e /var/lib/samba/passdb.tdb -a ! -e /etc/samba/smbpasswd ]; then
-	getent passwd | mksmbpasswd > /etc/samba/smbpasswd
-	pdbedit -i smbpasswd -e tdbsam -d 0
-	rm /etc/samba/smbpasswd
-fi
 
 umask 022
 
 # ------------------------- Debconf questions end ---------------------
-
-# move a tdb that should have been in /var/lib all along
-if dpkg --compare-versions "$2" lt-nl 3.0.25b-2 \
-   && dpkg --compare-versions "$2" ge 3.0.23-1 \
-   && [ -e /var/run/samba/share_info.tdb ] \
-   && ! [ -e /var/lib/samba/share_info.tdb ]
-then
-	mv /var/run/samba/share_info.tdb /var/lib/samba/share_info.tdb
-fi
-
-if dpkg --compare-versions "$2" lt-nl 2:3.5.4~dfsg-2 \
-   && dpkg --compare-versions "$2" ge 2:3.5.0~rc1~dfsg-1 \
-   && [ -e /etc/samba/schannel_store.tdb ] \
-   && ! [ -e /var/lib/samba/schannel_store.tdb ]
-then
-	mv /etc/samba/schannel_store.tdb /var/lib/samba/schannel_store.tdb
-fi
 
 # We want to add these entries to inetd.conf commented out. Otherwise
 #	UDP traffic could make inetd to start nmbd or smbd right during

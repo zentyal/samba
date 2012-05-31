@@ -7,8 +7,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2011-05-24 23:14-0300\n"
 "Last-Translator: Adriano Rafael Gomes <adrianorg@gmail.com>\n"
 "Language-Team: Brazilian Portuguese <debian-l10n-portuguese@lists.debian."
@@ -151,73 +151,63 @@ msgstr ""
 msgid "Samba server"
 msgstr "Servidor Samba"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "Gerar a base de dados para senhas do samba, /var/lib/samba/passdb.tdb?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"Para ser compatível com os padrões na maioria das versões do Windows, o "
-"Samba deve ser configurado para utilizar senhas criptografadas. Isto requer "
-"que as senhas dos usuários sejam armazenadas em um arquivo diferente do "
-"arquivo /etc/passwd. Esse arquivo pode ser criado automaticamente, mas as "
-"senhas devem ser definidas manualmente através da execução do utilitário "
-"smbpasswd e devem ser mantidas atualizadas no futuro."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"Caso você não o crie, você terá que reconfigurar o Samba (e provavelmente "
-"suas máquinas clientes) para utilização de senhas em texto puro."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"Veja /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-"html, fornecido pelo pacote samba-doc, para mais detalhes."
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "daemons"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "Como você deseja que o Samba seja executado?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "O daemon Samba smbd pode ser executado como daemon normal ou a partir do "
 "inetd. Executá-lo como daemon é o método recomendado."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "Gerar a base de dados para senhas do samba, /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Para ser compatível com os padrões na maioria das versões do Windows, o "
+#~ "Samba deve ser configurado para utilizar senhas criptografadas. Isto "
+#~ "requer que as senhas dos usuários sejam armazenadas em um arquivo "
+#~ "diferente do arquivo /etc/passwd. Esse arquivo pode ser criado "
+#~ "automaticamente, mas as senhas devem ser definidas manualmente através da "
+#~ "execução do utilitário smbpasswd e devem ser mantidas atualizadas no "
+#~ "futuro."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Caso você não o crie, você terá que reconfigurar o Samba (e provavelmente "
+#~ "suas máquinas clientes) para utilização de senhas em texto puro."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Veja /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html, fornecido pelo pacote samba-doc, para mais detalhes."

@@ -1,7 +1,7 @@
 Description: Fix path to perl binary in example file
 Author: Christian Perrier <bubulle@debian.org>
 Bug-Debian: http://bugs.debian.org/601406
-Forwarded: no
+Forwarded: not-needed
 
 Index: samba/examples/misc/wall.perl
 ===================================================================

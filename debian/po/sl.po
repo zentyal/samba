@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2007-03-13 08:06+0100\n"
 "Last-Translator: Matej Kovačič <matej.kovacic@owca.info>\n"
 "Language-Team: Sl <skrat@owca.info>\n"
@@ -110,10 +110,6 @@ msgstr "Ime delovne skupine/domene:"
 #. Description
 #: ../samba-common.templates:4001
 #, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
@@ -134,10 +130,6 @@ msgstr "Uporaba šifriranja gesel?"
 #. Description
 #: ../samba-common.templates:5001
 #, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
@@ -151,10 +143,6 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 #, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
@@ -171,76 +159,64 @@ msgstr ""
 msgid "Samba server"
 msgstr ""
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "Ali naj ustvarim bazo samba gesel, /var/lib/samba/passdb.tdb?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"Če želite doseči kompatibilnost z večino različic operacijskega sistema "
-"Windows, mora biti Samba nastavljena tako, da uporablja šifrirana gesla. "
-"Taka uporabniška gesla morajo biti shranjena v posebni datoteki in ne v /etc/"
-"passwd. Ta datoteko je mogoče ustvariti samodejno, gesla pa je treba "
-"dodajati ročno s pomočjo programa smbpasswd. Za ažurnost gesel morate tudi v "
-"prihodnje skrbeti ročno."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"Če je ne boste ustvarili, boste morali nastaviti Sambo (in verjetno tudi "
-"odjemalce) za uporabo nešifriranih gesel."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"Za podrobnejše informacije si oglejte /usr/share/doc/samba-doc/htmldocs/"
-"ENCRYPTION.html iz paketa samba-doc."
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "daemoni"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "Kako želite poganjati Sambo?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "Samba demon smbd lahko teče kot običajen demon ali iz inetd. Priporočljivo "
 "je poganjanje sambe kot demon."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Ali naj ustvarim bazo samba gesel, /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Če želite doseči kompatibilnost z večino različic operacijskega sistema "
+#~ "Windows, mora biti Samba nastavljena tako, da uporablja šifrirana gesla. "
+#~ "Taka uporabniška gesla morajo biti shranjena v posebni datoteki in ne v /"
+#~ "etc/passwd. Ta datoteko je mogoče ustvariti samodejno, gesla pa je treba "
+#~ "dodajati ročno s pomočjo programa smbpasswd. Za ažurnost gesel morate "
+#~ "tudi v prihodnje skrbeti ročno."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Če je ne boste ustvarili, boste morali nastaviti Sambo (in verjetno tudi "
+#~ "odjemalce) za uporabo nešifriranih gesel."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Za podrobnejše informacije si oglejte /usr/share/doc/samba-doc/htmldocs/"
+#~ "ENCRYPTION.html iz paketa samba-doc."
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr "Veriženje (chaining) passdb hrbtenic ni podprto."

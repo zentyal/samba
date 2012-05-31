@@ -16,8 +16,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2006-12-11 19:30+0530\n"
 "Last-Translator: Praveen A <pravi.a@gmail.com>\n"
 "Language-Team: Swathanthra Malayalam Computing <smc-discuss@googlegroups."
@@ -108,10 +108,6 @@ msgstr "വര്‍ക്ക്ഗ്രൂപ്പ്/ഡൊമൈന്‍ �
 #. Description
 #: ../samba-common.templates:4001
 #, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
@@ -132,10 +128,6 @@ msgstr "അടയാളവാക്ക് എന്‍ക്രിപ്ഷന�
 #. Description
 #: ../samba-common.templates:5001
 #, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
@@ -150,10 +142,6 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 #, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
@@ -171,75 +159,65 @@ msgstr ""
 msgid "Samba server"
 msgstr ""
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "സാംബ അടയാള വാക്കുകളുടെ ഡാറ്റാബേസായ /var/lib/samba/passdb.tdb സൃഷ്ടിയ്ക്കട്ടേ?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"കൂടുതല്‍ വിന്‍ഡോസ് ലക്കങ്ങളുടേയും ഡിഫാള്‍ട്ടുകളുമായി പൊരുത്തപ്പെടാന്‍ സാംബ എന്‍ക്രിപ്റ്റ് ചെയ്ത അടയാള "
-"വാക്കുകള്‍ ഉപയോഗിക്കാനായി ക്രമീകരിക്കേണ്ടതുണ്ട്. ഇതിന് ഉപയോക്തൃ അടയാള വാക്കുകള്‍  /etc/passwd "
-"ലില്‍ നിന്നും വ്യത്യസ്തമായ ഒരു ഫയലില്‍ സൂക്ഷിച്ചു വക്കേണ്ടതുണ്ട്. ഈ ഫയല്‍ സ്വയമേ സൃഷ്ടിക്കാവുന്നതാണ് "
-"പക്ഷേ അടയാള വാക്കുകള്‍ smbpasswd ഓടിച്ചുകൊണ്ട് മാന്വലായി കൂട്ടിച്ചേര്‍‌ക്കേണ്ടതും ഭാവിയില്‍ പുതുക്കി "
-"സൂക്ഷിക്കേണ്ടതുമാണ്."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"ഇത് നിങ്ങള്‍ സൃഷ്ടിച്ചില്ലെങ്കില്‍ നിങ്ങള്‍ക്ക് പ്ലെയിന്‍ ടെക്സ്റ്റ് അടയാള വാക്കുകള്‍ ഉപയോഗിക്കണമെങ്കില്‍ "
-"സാംബ (യും ഒരു പക്ഷേ നിങ്ങളുടെ ക്ലയന്റ് മഷീനുകളും) പുനഃക്രമീകരിക്കേണ്ടി വരും."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"കൂടുതല്‍ വിവരങ്ങള്‍ക്കായി samba-doc പാക്കേജിലെ /usr/share/doc/samba-doc/htmldocs/"
-"ENCRYPTION.html കാണുക."
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "ഡെമണുകള്‍"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "സാംബ എങ്ങനെ പ്രവര്‍ത്തിപ്പിക്കാനാണ് നിങ്ങളാഗ്രഹിക്കുന്നത്?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "സാംബ ഡെമണ്‍ smbd ഒരു സാധാരണ ഡെമണായോ അല്ലെങ്കില്‍ inetd യില്‍ നിന്നോ "
 "പ്രവര്‍ത്തിപ്പിക്കാവുന്നതാണ്. ഡെമണായി ഓടിക്കുന്നതാണ് ശുപാര്‍ശ ചെയ്തിട്ടുള്ള വഴി."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "സാംബ അടയാള വാക്കുകളുടെ ഡാറ്റാബേസായ /var/lib/samba/passdb.tdb സൃഷ്ടിയ്ക്കട്ടേ?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "കൂടുതല്‍ വിന്‍ഡോസ് ലക്കങ്ങളുടേയും ഡിഫാള്‍ട്ടുകളുമായി പൊരുത്തപ്പെടാന്‍ സാംബ എന്‍ക്രിപ്റ്റ് ചെയ്ത അടയാള "
+#~ "വാക്കുകള്‍ ഉപയോഗിക്കാനായി ക്രമീകരിക്കേണ്ടതുണ്ട്. ഇതിന് ഉപയോക്തൃ അടയാള വാക്കുകള്‍  /etc/"
+#~ "passwd ലില്‍ നിന്നും വ്യത്യസ്തമായ ഒരു ഫയലില്‍ സൂക്ഷിച്ചു വക്കേണ്ടതുണ്ട്. ഈ ഫയല്‍ സ്വയമേ "
+#~ "സൃഷ്ടിക്കാവുന്നതാണ് പക്ഷേ അടയാള വാക്കുകള്‍ smbpasswd ഓടിച്ചുകൊണ്ട് മാന്വലായി "
+#~ "കൂട്ടിച്ചേര്‍‌ക്കേണ്ടതും ഭാവിയില്‍ പുതുക്കി സൂക്ഷിക്കേണ്ടതുമാണ്."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "ഇത് നിങ്ങള്‍ സൃഷ്ടിച്ചില്ലെങ്കില്‍ നിങ്ങള്‍ക്ക് പ്ലെയിന്‍ ടെക്സ്റ്റ് അടയാള വാക്കുകള്‍ "
+#~ "ഉപയോഗിക്കണമെങ്കില്‍ സാംബ (യും ഒരു പക്ഷേ നിങ്ങളുടെ ക്ലയന്റ് മഷീനുകളും) പുനഃക്രമീകരിക്കേണ്ടി "
+#~ "വരും."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "കൂടുതല്‍ വിവരങ്ങള്‍ക്കായി samba-doc പാക്കേജിലെ /usr/share/doc/samba-doc/htmldocs/"
+#~ "ENCRYPTION.html കാണുക."
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr "passdb ബാക്കെന്‍ഡുകള്‍ ചെയിന്‍ ചെയ്യുന്നതിനെ പിന്‍തുണയ്ക്കുന്നില്ല"

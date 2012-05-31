@@ -15,8 +15,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba 2:3.6.3-1\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2012-02-18 10:57+0700\n"
 "Last-Translator: Mahyuddin Susanto <udienz@ubuntu.com>\n"
 "Language-Team: Debian Indonesia Translators <debian-l10n-indonesian@lists."
@@ -157,72 +157,61 @@ msgstr ""
 msgid "Samba server"
 msgstr "Server Samba"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "Buat basis data sandi samba dalam /var/lib/samba/passdb.tdb?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"Agar kompatibel dengan semua versi Windows, Samba harus dikonfigurasi untuk "
-"menggunakan sandi terenkripsi. Hal ini mengharuskan sandi pengguna disimpan "
-"dalam berkas selain /etc/passwd. Berkas ini dapat dibuat otomatis, tetapi "
-"kata sandi harus ditambahkan secara manual dengan menjalankan perintah "
-"smbpasswd dan diperbaharui setiap ada perubahan pengguna."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"Jika Anda tidak membuatnya, Anda harus mengonfigurasi ulang Samba (dan juga "
-"komputer klien) untuk menggunakan sandi teks-murni."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"Lihat /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-"html dalam paket samba-doc."
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "server"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "Bagaimana Anda ingin menjalankan Samba"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "Server samba (smbd) dapat berjalan sebagai server normal (daemon) atau dari "
 "inetd. Sangat dianjurkan menjalankannya sebagai server normal."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Buat basis data sandi samba dalam /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Agar kompatibel dengan semua versi Windows, Samba harus dikonfigurasi "
+#~ "untuk menggunakan sandi terenkripsi. Hal ini mengharuskan sandi pengguna "
+#~ "disimpan dalam berkas selain /etc/passwd. Berkas ini dapat dibuat "
+#~ "otomatis, tetapi kata sandi harus ditambahkan secara manual dengan "
+#~ "menjalankan perintah smbpasswd dan diperbaharui setiap ada perubahan "
+#~ "pengguna."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Jika Anda tidak membuatnya, Anda harus mengonfigurasi ulang Samba (dan "
+#~ "juga komputer klien) untuk menggunakan sandi teks-murni."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Lihat /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html dalam paket samba-doc."

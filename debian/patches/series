@@ -13,4 +13,10 @@ autoconf.patch
 dont-build-VFS-examples.patch
 bug_221618_precise-64bit-prototype.patch
 initialize_password_db-null-deref
-fix-samba.ldip-syntax.patch
+fix-samba.ldif-syntax.patch
+bug_598313_upstream_7499-nss_wins-dont-clobber-daemons-logs.patch
+bug_387266_upstream_4104_mention-kerberos-in-smbspool-manpage.patch
+bug_604768_upstream_7826_drop-using-samba-link.patch
+bug_604768_upstream_7826_fix-WHATSNEW-link.patch
+waf-as-source.patch
+smbtorture-manpage.patch

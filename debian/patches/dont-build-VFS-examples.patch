@@ -1,3 +1,7 @@
+Description: Do not build VFS examples
+Author: Christian Perrier <bubulle@debian.org>
+Forwarded: not-needed
+
 Index: experimental/source3/Makefile.in
 ===================================================================
 --- experimental.orig/source3/Makefile.in

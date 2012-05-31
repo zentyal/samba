@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2009-02-22 22:58+0800\n"
 "Last-Translator: Tetralet <tetralet@gmail.com>\n"
 "Language-Team: Debian-user in Chinese [Big5] <debian-chinese-big5@lists."
@@ -146,70 +146,58 @@ msgstr ""
 msgid "Samba server"
 msgstr ""
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "是否要建立 samba 密碼資料庫，/var/lib/samba/passdb.tdb？"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"為了要相容於大多數 Windows 各式版本的預設設定，Samba 必須被設定為使用加密密"
-"碼。這需要將使用者密碼保存在獨立於 /etc/passwd 的另一個檔案中。此檔案可被自動"
-"建立，但密碼必須藉由執行 smbpasswd 來手動加入，並得時時更新。"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"如果您不想建立這個檔案，您將必須重新設定 samba（可能還有您的用戶端機器）來使"
-"用明文密碼。"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"請參閱 samba-doc 套件的 /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-"
-"Guide/pwencrypt.html 以取得更多詳盡資訊。"
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "常駐程式"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "您想要如何執行 Samba？"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "Samba 常駐程式 smbd 可以作為普通的常駐程式，或者是由 inetd 啟動。建議是以常駐"
 "程式的方式執行。"
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "是否要建立 samba 密碼資料庫，/var/lib/samba/passdb.tdb？"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "為了要相容於大多數 Windows 各式版本的預設設定，Samba 必須被設定為使用加密"
+#~ "密碼。這需要將使用者密碼保存在獨立於 /etc/passwd 的另一個檔案中。此檔案可"
+#~ "被自動建立，但密碼必須藉由執行 smbpasswd 來手動加入，並得時時更新。"
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "如果您不想建立這個檔案，您將必須重新設定 samba（可能還有您的用戶端機器）來"
+#~ "使用明文密碼。"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "請參閱 samba-doc 套件的 /usr/share/doc/samba-doc/htmldocs/Samba3-"
+#~ "Developers-Guide/pwencrypt.html 以取得更多詳盡資訊。"

@@ -3,8 +3,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2011-05-12 10:46+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-11 19:55+0200\n"
 "PO-Revision-Date: 2007-03-14 09:28-0400\n"
 "Last-Translator: Sunjae Park <darehanl@gmail.com>\n"
 "Language-Team: Korean <debian-l10n-korean@lists.debian.org>\n"
@@ -93,10 +93,6 @@ msgstr "작업그룹/도메인 이름:"
 #. Description
 #: ../samba-common.templates:4001
 #, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
@@ -117,10 +113,6 @@ msgstr "비밀번호 암호화 기능을 사용할까요?"
 #. Description
 #: ../samba-common.templates:5001
 #, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
@@ -134,10 +126,6 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 #, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
@@ -154,75 +142,63 @@ msgstr ""
 msgid "Samba server"
 msgstr ""
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "samba의 비밀번호 데이터베이스 /var/lib/samba/passdb.tdb를 만들까요?"
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"To be compatible with the defaults in most versions of Windows, Samba must "
-"be configured to use encrypted passwords.  This requires user passwords to "
-"be stored in a file separate from /etc/passwd.  This file can be created "
-"automatically, but the passwords must be added manually by running smbpasswd "
-"and be kept up-to-date in the future."
-msgstr ""
-"대부분의 윈도우 버전들과의 호환성을 위해 Samba는 암호화된 비밀번호를 사용하도"
-"록 해야 합니다. 이를 위해서는 사용자들의 비밀번호를 /etc/passwd와 다른 곳에 "
-"저장해야 합니다. 이 파일은 자동으로 생성할 수는 있지만, 비밀번호들은 "
-"smbpasswd 명령을 통해 직접 입력하셔야 하며 꾸준히 최신 상태로 유지하셔야 합니"
-"다."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"If you do not create it, you will have to reconfigure Samba (and probably "
-"your client machines) to use plaintext passwords."
-msgstr ""
-"생성하지 않을 경우, Samba(와 대부분의 클라이언트 머신)을 다시 설정하여 플레인"
-"텍스트 비밀번호를 사용하도록 해야 합니다."
-
-#. Type: boolean
-#. Description
-#: ../samba.templates:2001
-msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
-"from the samba-doc package for more details."
-msgstr ""
-"자세한 사항은 samba-doc 꾸러미에서 제공하는 /usr/share/doc/samba-doc/"
-"htmldocs/ENCRYPTION.html를 참조하십시오."
-
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "daemons"
 msgstr "데몬"
 
 #. Type: select
 #. Choices
-#: ../samba.templates:3001
+#: ../samba.templates:2001
 msgid "inetd"
 msgstr "inetd"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid "How do you want to run Samba?"
 msgstr "Samba를 어떻게 실행하시겠습니까?"
 
 #. Type: select
 #. Description
-#: ../samba.templates:3002
+#: ../samba.templates:2002
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
 "Samba의 데몬인 smbd은 일반적인 데몬으로 실행할 수도 있고 inetd을 통해 실행할 "
 "수도 있습니다. 데몬으로 실행할 것을 권장합니다."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "samba의 비밀번호 데이터베이스 /var/lib/samba/passdb.tdb를 만들까요?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "대부분의 윈도우 버전들과의 호환성을 위해 Samba는 암호화된 비밀번호를 사용"
+#~ "하도록 해야 합니다. 이를 위해서는 사용자들의 비밀번호를 /etc/passwd와 다"
+#~ "른 곳에 저장해야 합니다. 이 파일은 자동으로 생성할 수는 있지만, 비밀번호들"
+#~ "은 smbpasswd 명령을 통해 직접 입력하셔야 하며 꾸준히 최신 상태로 유지하셔"
+#~ "야 합니다."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "생성하지 않을 경우, Samba(와 대부분의 클라이언트 머신)을 다시 설정하여 플"
+#~ "레인텍스트 비밀번호를 사용하도록 해야 합니다."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "자세한 사항은 samba-doc 꾸러미에서 제공하는 /usr/share/doc/samba-doc/"
+#~ "htmldocs/ENCRYPTION.html를 참조하십시오."
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr "연쇄 passdb 백엔드는 작업은 지원되지 않습니다"

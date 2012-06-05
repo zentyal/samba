@@ -6950,7 +6950,7 @@ libsmbclient.so.0 libsmbclient #MINVER#
  tevent_context_init@Base 2:3.6.5
  tevent_context_init_byname@Base 2:3.6.5
  tevent_debug@Base 2:3.6.5
- tevent_epoll_init@Base 2:3.6.5
+ (arch=linux-any)tevent_epoll_init@Base 2:3.6.5
  tevent_fd_get_flags@Base 2:3.6.5
  tevent_fd_set_auto_close@Base 2:3.6.5
  tevent_fd_set_close_fn@Base 2:3.6.5

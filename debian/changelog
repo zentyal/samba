@@ -1,9 +1,11 @@
-samba (2:3.6.5-6) unstable; urgency=low
+samba (2:3.6.5-6) unstable; urgency=high
 
   [ Ivo De Decker ]
+  * Update symbols file for linux-only symbols in libsmbclient. This should
+    fix the FTBFS on kfreebsd and hurd. Closes: #676170
   * Enable ctdb for non-linux archs. 
 
- -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 05 Jun 2012 21:32:04 +0200
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 05 Jun 2012 21:35:43 +0200
 
 samba (2:3.6.5-5) unstable; urgency=low
 

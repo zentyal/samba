@@ -1,4 +1,4 @@
-samba (2:3.6.5-6) unstable; urgency=high
+samba (2:3.6.5-6) UNRELEASED; urgency=high
 
   [ Ivo De Decker ]
   * Update symbols file for linux-only symbols in libsmbclient. This should

@@ -1,4 +1,4 @@
-samba (2:3.6.5-6) UNRELEASED; urgency=high
+samba (2:3.6.5-6) unstable; urgency=high
 
   [ Ivo De Decker ]
   * Update symbols file for linux-only symbols in libsmbclient. This should
@@ -6,7 +6,7 @@ samba (2:3.6.5-6) UNRELEASED; urgency=high
   * Enable ctdb for non-linux archs. 
   * Remove old if-up script during upgrade.
 
- -- Ivo De Decker <ivo.dedecker@ugent.be>  Wed, 06 Jun 2012 09:08:43 +0200
+ -- Christian Perrier <bubulle@debian.org>  Wed, 06 Jun 2012 19:10:02 +0200
 
 samba (2:3.6.5-5) unstable; urgency=low
 

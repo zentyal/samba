@@ -1,4 +1,4 @@
-samba (2:3.6.5-7) UNRELEASED; urgency=low
+samba (2:3.6.5-7) unstable; urgency=low
 
   * Allow installing smbclient package together with newer versions of
     samba4-clients, which no longer ship the smbclient and nmblookup

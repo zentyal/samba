@@ -1,3 +1,9 @@
+samba (2:3.6.5-8) UNRELEASED; urgency=low
+
+  * Only enable swat in inetd.conf on first install. Closes: #658245 
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 19 Jun 2012 23:11:23 +0200
+
 samba (2:3.6.5-7) unstable; urgency=low
 
   * Allow installing smbclient package together with newer versions of

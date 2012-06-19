@@ -1,3 +1,8 @@
+Description: 64 bit fix for libsmbclient
+Author: Christian Perrier <bubulle@debian.org>
+Bug-Debian: http://bugs.debian.org/221618
+Forwarded: http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=221618#27
+
 Index: samba/source3/include/libsmbclient.h
 ===================================================================
 --- samba.orig/source3/include/libsmbclient.h

@@ -57,6 +57,7 @@ Description: common files used by both the Samba server and client
 Package: samba-common
 Architecture: all
 Multi-Arch: foreign
+Pre-Depends: ${misc:Pre-Depends}
 Depends: ucf, ${misc:Depends}
 Replaces: samba (<< 3.0.20b-1), samba4-common (<< 4.0.0~alpha7-1)
 Conflicts: samba4-common (<< 4.0.0~alpha7-1)

@@ -98,11 +98,6 @@ override_dh_auto_install:
 	mkdir -p $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig
 	install -m 0644 source3/pkgconfig/wbclient.pc $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig
 
-	# Install samba-common's conffiles - they'll get moved later to their
-	# correct place by dh_install
-	mkdir -p $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d
-	install -m755 debian/samba-common.dhcp $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d/samba
-
 override_dh_installpam:
 	dh_installpam --name=samba
 

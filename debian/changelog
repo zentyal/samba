@@ -3,6 +3,7 @@ samba (2:3.6.5-8) UNRELEASED; urgency=low
   * Only enable swat in inetd.conf on first install. Closes: #658245 
   * Minor lintian fixes. 
   * Remove DHCP hook. Closes: #652942, #629406, #649100
+  * Don't reload smbd when running from inetd. Closes: #678741 
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 19 Jun 2012 23:11:23 +0200
 

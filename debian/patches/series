@@ -22,3 +22,4 @@ waf-as-source.patch
 smbtorture-manpage.patch
 libutil_drop_AI_ADDRCONFIG.patch
 shadow_copy2_backport.patch
+dont_start_when_guest_account_doesnt_exist.patch

@@ -4,6 +4,7 @@ samba (2:3.6.5-8) UNRELEASED; urgency=low
   * Minor lintian fixes. 
   * Remove DHCP hook. Closes: #652942, #629406, #649100
   * Don't reload smbd when running from inetd. Closes: #678741 
+  * Don't start smbd when guest account doesn't exist. Closes: #653382
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 19 Jun 2012 23:11:23 +0200
 
